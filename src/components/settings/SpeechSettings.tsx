@@ -9,6 +9,7 @@ import { isNativeApp } from '@/modules/infra/native'
 type Mode = 'AUTO' | 'FAST' | 'ACCURATE' | 'OFFLINE'
 interface SpeechSetting {
   recognitionMode: Mode
+  explainLang: 'ko' | 'ja' | 'en'
 }
 
 const MODES: { value: Mode; label: string; desc: string; appOnly?: boolean }[] = [
@@ -43,9 +44,10 @@ export default function SpeechSettings() {
 
   const choose = async (mode: Mode) => {
     const prev = s
-    setS({ recognitionMode: mode })
+    setS({ ...s, recognitionMode: mode })
     try {
-      setS(await apiPut<SpeechSetting>('/api/v1/settings/speech', { recognitionMode: mode }))
+      // PUT 은 전체 치환 — 설명 언어도 함께 보낸다.
+      setS(await apiPut<SpeechSetting>('/api/v1/settings/speech', { recognitionMode: mode, explainLang: s.explainLang }))
       toast.show('음성 인식 방식을 바꿨어요')
     } catch (e) {
       setS(prev)

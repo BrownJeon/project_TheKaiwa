@@ -14,6 +14,13 @@ export interface SelectableVoice {
   previewUrl: string | null
 }
 
+/** defaults JSON 은 알려진 5개 키만 골라 낸다 — 관리자 raw 편집이 엔진 식별자를 넣어도 사용자 응답으로 새지 않게(REV-006 Low). */
+function pickDefaults(raw: unknown): SelectableVoice['defaults'] {
+  const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const n = (k: string, f: number) => (typeof d[k] === 'number' ? (d[k] as number) : f)
+  return { style: typeof d.style === 'string' ? d.style : 'AUTO', styleWeight: n('styleWeight', 1), speed: n('speed', 1), pitch: n('pitch', 1), intonation: n('intonation', 1) }
+}
+
 export async function listSelectableVoices(): Promise<SelectableVoice[]> {
   const rows = await prisma.voiceProfile.findMany({
     where: { status: 'AVAILABLE', enabled: true },
@@ -25,10 +32,16 @@ export async function listSelectableVoices(): Promise<SelectableVoice[]> {
     name: r.displayName,
     description: r.description,
     available: true as const,
-    defaults: r.defaults as SelectableVoice['defaults'],
+    defaults: pickDefaults(r.defaults),
     styles: r.styles,
     previewUrl: null, // 기본 파라미터 미리듣기 캐시는 TTS 연결(task-003) 이후 채운다
   }))
+}
+
+/** 상태와 무관하게 표시 이름만(재배정 안내 `notice.from` 용). 없으면 null. */
+export async function describeVoice(voiceProfileId: string): Promise<{ id: string; name: string } | null> {
+  const v = await prisma.voiceProfile.findUnique({ where: { id: voiceProfileId }, select: { id: true, displayName: true } })
+  return v ? { id: v.id, name: v.displayName } : null
 }
 
 /** 설정 저장·미리듣기 검증(#14·#18): Voice 가 선택 가능하고, style 이 'AUTO' 또는 그 Voice 의 스타일인지. */

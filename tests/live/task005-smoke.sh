@@ -14,8 +14,10 @@ echo "7 speed 1.5(400)";       j -X PUT $B/api/v1/settings/voice -d '{"voiceProf
 echo "8 없는 목소리(400)";      j -X PUT $B/api/v1/settings/voice -d '{"voiceProfileId":"nope","style":"AUTO","speed":1,"pitch":1,"intonation":1,"speechProfile":"NATIVE"}'
 echo "9 preview(422 전 task-003)"; j -X POST $B/api/v1/voices/preview -d '{"voiceProfileId":"teacher_haruka","style":"AUTO","speed":1,"pitch":1,"intonation":1}'
 echo "10 speech web";          j $B/api/v1/settings/speech
-echo "11 OFFLINE web(400)";    j -X PUT $B/api/v1/settings/speech -d '{"recognitionMode":"OFFLINE"}'
-echo "12 OFFLINE app";         j -X PUT -H "X-Client-Platform: app" $B/api/v1/settings/speech -d '{"recognitionMode":"OFFLINE"}'
-echo "13 AUTO 복구";           j -X PUT $B/api/v1/settings/speech -d '{"recognitionMode":"AUTO"}'
+echo "11 OFFLINE web(400)";    j -X PUT $B/api/v1/settings/speech -d '{"recognitionMode":"OFFLINE","explainLang":"ko"}'
+echo "11b 필드 누락(400)";      j -X PUT $B/api/v1/settings/speech -d '{"recognitionMode":"AUTO"}'
+echo "12 OFFLINE app";         j -X PUT -H "X-Client-Platform: app" $B/api/v1/settings/speech -d '{"recognitionMode":"OFFLINE","explainLang":"ko"}'
+echo "13 AUTO 복구";           j -X PUT $B/api/v1/settings/speech -d '{"recognitionMode":"AUTO","explainLang":"ko"}'
 echo "14 check-in x2";         j -X POST $B/api/v1/attendance/check-in; j -X POST $B/api/v1/attendance/check-in
 echo "15 attendance";          j "$B/api/v1/attendance"; j "$B/api/v1/attendance?month=2026-13"
+echo "16 QA 토큰 + 프록시 헤더(401 이어야 함)"; curl -s -m 10 -H "$C" -H "X-Real-IP: 1.2.3.4" $B/api/v1/settings/profile; echo

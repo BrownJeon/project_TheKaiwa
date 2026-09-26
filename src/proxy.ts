@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Next 16 은 `middleware` 파일 규약을 `proxy` 로 바꿨다(빌드 경고). 동작은 동일 — 페이지 라우트의 세션 유무만 본다.
-import { SESSION_COOKIE_NAME, verifyJwt } from '@/modules/infra/jwt'
+import { SESSION_COOKIE_NAME, isQaTokenAllowed, verifyJwt } from '@/modules/infra/jwt'
 
 /**
  * 인증 없이 접근 가능한 경로. 이 목록에 없는 모든 경로는 기본적으로 보호 대상이다 —
@@ -43,7 +43,9 @@ export async function proxy(req: NextRequest) {
   const isPublic = PUBLIC_PATHS.has(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))
 
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
-  const payload = token ? await verifyJwt(token) : null
+  const verified = token ? await verifyJwt(token) : null
+  // QA 테스트 토큰은 localhost 직접 요청에서만 통과(운영 도메인에서 쿠키가 새어도 무효).
+  const payload = verified?.qa && !isQaTokenAllowed(req.headers) ? null : verified
 
   if (isPublic || payload) {
     return NextResponse.next()

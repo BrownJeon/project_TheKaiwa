@@ -20,6 +20,11 @@ const STATUS: Record<ApiErrorCode, number> = {
   INTERNAL: 500,
 }
 
+const UNAVAILABLE_ERRORS = new Set(['NoEngineAvailableError'])
+const TIMEOUT_ERRORS = new Set(['LlmTimeoutError', 'ClaudeCliTimeoutError'])
+const ENGINE_ERRORS = new Set(['LlmError', 'LlmHttpError', 'LlmContractError', 'ClaudeCliError', 'ClaudeCliExecError', 'ClaudeCliNotFoundError', 'JsonSchemaError', 'PersonaUnavailableError'])
+const VALIDATION_ERRORS = new Set(['ReviewTooLargeError'])
+
 export class ApiError extends Error {
   constructor(
     readonly code: ApiErrorCode,
@@ -44,9 +49,11 @@ export function toErrorResponse(e: unknown): NextResponse {
   if (e instanceof ApiError) return fail(e.code, e.userMessage, e.details)
   const name = (e as { name?: string })?.name ?? ''
   const userMessage = (e as { userMessage?: string })?.userMessage
-  if (name === 'NoEngineAvailableError') return fail('ENGINE_UNAVAILABLE', userMessage ?? 'AI 엔진을 지금 사용할 수 없습니다.')
-  if (name.includes('Timeout')) return fail('ENGINE_TIMEOUT', userMessage ?? '응답이 늦어 중단했습니다. 잠시 후 다시 시도해 주세요.')
-  if (name.startsWith('Llm') || name.startsWith('ClaudeCli') || name === 'JsonSchemaError') return fail('ENGINE_ERROR', userMessage ?? 'AI 처리에 실패했습니다.')
+  // **정확한 이름 목록**으로만 매핑한다 — 부분 일치는 무관한 버그를 '일시적 엔진 오류'로 숨긴다(REV-006 M3).
+  if (UNAVAILABLE_ERRORS.has(name)) return fail('ENGINE_UNAVAILABLE', userMessage ?? 'AI 엔진을 지금 사용할 수 없습니다.')
+  if (TIMEOUT_ERRORS.has(name)) return fail('ENGINE_TIMEOUT', userMessage ?? '응답이 늦어 중단했습니다. 잠시 후 다시 시도해 주세요.')
+  if (ENGINE_ERRORS.has(name)) return fail('ENGINE_ERROR', userMessage ?? 'AI 처리에 실패했습니다.')
+  if (VALIDATION_ERRORS.has(name)) return fail('VALIDATION', userMessage ?? '요청을 처리할 수 없습니다.')
   console.error('[api] 처리되지 않은 예외:', e instanceof Error ? `${e.name}: ${e.message}` : String(e))
   return fail('INTERNAL', '요청을 처리하지 못했습니다.')
 }
@@ -89,6 +96,8 @@ export async function readJsonObject(req: NextRequest, maxBytes = 64 * 1024): Pr
 const buckets = new Map<string, { resetAt: number; count: number }>()
 export function rateLimit(key: string, limit: number, windowMs = 60_000): void {
   const now = Date.now()
+  // 만료 버킷을 가끔 걷어 낸다(무한 누적 방지, REV-006 M5).
+  if (buckets.size > 500) for (const [k, v] of buckets) if (v.resetAt <= now) buckets.delete(k)
   const b = buckets.get(key)
   if (!b || b.resetAt <= now) {
     buckets.set(key, { resetAt: now + windowMs, count: 1 })

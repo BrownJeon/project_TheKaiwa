@@ -19,7 +19,9 @@ export function resolveRecognitionMode(mode: RecognitionMode, platform: 'web' | 
     case 'ACCURATE':
       return { realtime: 'GATEWAY', analysis: true, reviewThreshold: 0.9 }
     case 'OFFLINE':
-      return { realtime: 'ONDEVICE', analysis: false, reviewThreshold: 0.85 }
+      // 웹에는 온디바이스 엔진이 없다 — 앱에서 저장한 OFFLINE 을 웹에서 열면 gateway 로 해석한다(REV-006 M2).
+      // 플랫폼 헤더는 클라이언트가 붙이므로 위조될 수 있으나 영향은 자기 계정의 인식 경로뿐이다(수용, task-005 기록).
+      return { realtime: platform === 'app' ? 'ONDEVICE' : 'GATEWAY', analysis: false, reviewThreshold: 0.85 }
     case 'FAST':
       return { realtime: platform === 'app' ? 'ONDEVICE' : 'GATEWAY', analysis: false, reviewThreshold: 0.85 }
     case 'AUTO':

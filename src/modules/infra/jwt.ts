@@ -47,7 +47,23 @@ function parseExpiresToSeconds(value: string): number {
 
 export const SESSION_MAX_AGE_SECONDS = parseExpiresToSeconds(JWT_EXPIRES)
 
-export type TokenPayload = { userId: string; email: string }
+/**
+ * `qa: true` 는 QA 테스트 계정 전용 토큰(`tests/live/qa-session.ts`, 1시간). 이 토큰은 **nginx 를 거치지 않은 localhost 직접 요청**에서만
+ * 인정한다(`isQaTokenAllowed`) — 쿠키가 새어도 운영 도메인에서는 세션이 되지 않는다(reviewer REV-006 High).
+ */
+export type TokenPayload = { userId: string; email: string; qa?: true }
+
+/**
+ * QA 토큰 허용 조건: Host 가 127.0.0.1/localhost 이고 nginx 의 `X-Real-IP` 가 없다.
+ *  - nginx 의 kaiwa vhost 는 모든 location 에서 `Host $host`(= kaiwa 도메인)를 붙이고, 외부에서 Host 를 127.0.0.1 로 보내면
+ *    kaiwa vhost 가 아니라 기본 서버로 가서 3010 에 닿지 않는다 → 외부 요청은 Host 조건을 만족할 수 없다.
+ *  - `X-Forwarded-For` 는 보지 않는다 — Next.js 서버가 직접 요청에도 스스로 붙인다(2026-09-27 실측).
+ */
+export function isQaTokenAllowed(headers: Headers): boolean {
+  const host = headers.get('host') ?? ''
+  const local = /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)
+  return local && !headers.has('x-real-ip')
+}
 
 /** `secure`는 production에서만 true — 로컬 http 개발 서버에서 secure 쿠키가 저장되지 않는 문제 방지. */
 export function getSessionCookieOptions() {
@@ -79,7 +95,7 @@ export async function verifyJwt(token: string): Promise<TokenPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecretKey())
     if (typeof payload.userId !== 'string' || typeof payload.email !== 'string') return null
-    return { userId: payload.userId, email: payload.email }
+    return payload.qa === true ? { userId: payload.userId, email: payload.email, qa: true } : { userId: payload.userId, email: payload.email }
   } catch {
     return null
   }

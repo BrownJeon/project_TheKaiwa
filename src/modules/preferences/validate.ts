@@ -116,6 +116,8 @@ export function parseVoiceDraft(body: Record<string, unknown>, opts: { requireSp
 
 export function parseSpeechPatch(body: Record<string, unknown>, platform: 'web' | 'app'): { recognitionMode?: (typeof RECOGNITION_MODES)[number]; explainLang?: 'ko' | 'ja' | 'en' } {
   onlyKeys(body, SPEECH_KEYS)
+  // PUT 은 전체 치환이다(speech-platform/13 §3.6, REV-006 M6) — 두 필드 모두 필수.
+  for (const k of SPEECH_KEYS) if (!(k in body)) bad(k, 'required', `${k} 가 필요합니다.`)
   const out: { recognitionMode?: (typeof RECOGNITION_MODES)[number]; explainLang?: 'ko' | 'ja' | 'en' } = {}
   if ('recognitionMode' in body) {
     out.recognitionMode = oneOf(body.recognitionMode, 'recognitionMode', RECOGNITION_MODES)!

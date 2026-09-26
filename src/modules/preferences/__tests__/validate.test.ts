@@ -39,6 +39,8 @@ test('음성 draft: 범위(속도 0.6~1.2·높낮이·억양 0.8~1.2·styleWeigh
 })
 
 test('인식 모드: 웹에서 OFFLINE 은 400, 앱은 허용', () => {
-  assert.match(code(() => parseSpeechPatch({ recognitionMode: 'OFFLINE' }, 'web')), /^VALIDATION:offline_web/)
-  assert.deepEqual(parseSpeechPatch({ recognitionMode: 'OFFLINE' }, 'app'), { recognitionMode: 'OFFLINE' })
+  assert.match(code(() => parseSpeechPatch({ recognitionMode: 'OFFLINE', explainLang: 'ko' }, 'web')), /^VALIDATION:offline_web/)
+  assert.deepEqual(parseSpeechPatch({ recognitionMode: 'OFFLINE', explainLang: 'ko' }, 'app'), { recognitionMode: 'OFFLINE', explainLang: 'ko' })
+  assert.match(code(() => parseSpeechPatch({ recognitionMode: 'AUTO' }, 'app')), /^VALIDATION:required/, 'PUT 은 전체 치환')
+  assert.equal(parseProfilePatch({ goalTopics: null }).goalTopics, null)
 })

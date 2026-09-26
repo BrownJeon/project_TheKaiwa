@@ -4,7 +4,7 @@
  * Voice 가용성 검사는 speech 층이, 조합은 라우트가 한다.
  */
 import { prisma } from '@/modules/infra'
-import type { Environment } from '@prisma/client'
+import { Prisma, type Environment } from '@prisma/client'
 import type { ProfilePatch, VoiceDraft } from './validate'
 
 export * from './validate'
@@ -24,7 +24,9 @@ export async function getProfile(userId: string) {
 }
 
 export async function updateProfile(userId: string, patch: ProfilePatch) {
-  const data = { ...patch, goalTopics: patch.goalTopics === null ? undefined : patch.goalTopics }
+  // Json? 컬럼에 null 을 쓰려면 Prisma.DbNull 이어야 한다(undefined 는 '갱신 안 함' 이라 목표 주제를 지울 수 없었다 — REV-006 M1).
+  const { goalTopics, ...rest } = patch
+  const data = { ...rest, ...(goalTopics === undefined ? {} : { goalTopics: goalTopics === null ? Prisma.DbNull : goalTopics }) }
   const p = await prisma.profile.upsert({ where: { userId }, update: data, create: { userId, ...data }, select: PROFILE_SELECT })
   return serializeProfile(p)
 }
@@ -38,6 +40,11 @@ export async function getVoiceSetting(userId: string, defaultVoiceProfileId: str
     create: { userId, voiceProfileId: defaultVoiceProfileId },
     select: VOICE_SELECT,
   })
+}
+
+/** 저장된 목소리가 비활성·보관됐을 때 기본 목소리로 바꾸고 스타일을 AUTO 로 초기화(speech-platform/03 재배정 규칙). */
+export async function reassignVoice(userId: string, toVoiceProfileId: string) {
+  return prisma.userVoiceSetting.update({ where: { userId }, data: { voiceProfileId: toVoiceProfileId, style: 'AUTO' }, select: VOICE_SELECT })
 }
 
 export async function updateVoiceSetting(userId: string, draft: VoiceDraft) {

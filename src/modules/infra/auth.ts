@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers'
-import { SESSION_COOKIE_NAME, verifyJwt } from '@/modules/infra/jwt'
+import { cookies, headers } from 'next/headers'
+import { SESSION_COOKIE_NAME, verifyJwt, isQaTokenAllowed } from '@/modules/infra/jwt'
 import { prisma } from '@/modules/infra/db'
 
 /**
@@ -31,6 +31,8 @@ export async function auth(): Promise<AppSession> {
 
   const payload = await verifyJwt(token)
   if (!payload) return null
+  // QA 테스트 토큰은 localhost 직접 요청에서만 세션이 된다(jwt.ts isQaTokenAllowed).
+  if (payload.qa && !isQaTokenAllowed(await headers())) return null
 
   try {
     const user = await prisma.user.findUnique({
