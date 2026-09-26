@@ -1,0 +1,260 @@
+{
+ "engines": [
+  {
+   "id": "sherpa-onnx-reazon",
+   "displayName": "ReazonSpeech (sherpa-onnx)",
+   "type": "STT",
+   "roles": [
+    "REALTIME_STT"
+   ],
+   "connectionTypes": [
+    "ONDEVICE",
+    "HTTP"
+   ],
+   "capabilities": [
+    "TRANSCRIPTION",
+    "VAD",
+    "SEGMENT_PARTIAL",
+    "LANGUAGE_JA",
+    "ONDEVICE",
+    "STREAMING_WS"
+   ],
+   "schemaVersion": "1"
+  },
+  {
+   "id": "faster-whisper",
+   "displayName": "faster-whisper",
+   "type": "STT",
+   "roles": [
+    "ANALYSIS_STT"
+   ],
+   "connectionTypes": [
+    "HTTP",
+    "LOCAL"
+   ],
+   "capabilities": [
+    "TRANSCRIPTION",
+    "WORD_TIMESTAMP",
+    "LANGUAGE_JA",
+    "LANGUAGE_DETECT"
+   ],
+   "schemaVersion": "1"
+  },
+  {
+   "id": "style-bert-vits2",
+   "displayName": "Style-Bert-VITS2",
+   "type": "TTS",
+   "roles": [
+    "TTS"
+   ],
+   "connectionTypes": [
+    "HTTP"
+   ],
+   "capabilities": [
+    "MULTI_VOICE",
+    "STYLE",
+    "SPEED",
+    "PITCH",
+    "INTONATION",
+    "MODEL_REFRESH",
+    "VOICE_IMPORT",
+    "SUPPORTS_STYLE"
+   ],
+   "schemaVersion": "1"
+  },
+  {
+   "id": "claude-cli",
+   "displayName": "Claude CLI (구독)",
+   "type": "LLM",
+   "roles": [
+    "LLM"
+   ],
+   "connectionTypes": [
+    "CLI"
+   ],
+   "capabilities": [
+    "JSON_SCHEMA",
+    "STREAMING",
+    "PERSONA_AGENTS",
+    "MODEL_TIERS"
+   ],
+   "schemaVersion": "1"
+  },
+  {
+   "id": "home-m4-api",
+   "displayName": "home-m4-api (Ollama)",
+   "type": "LLM",
+   "roles": [
+    "LLM"
+   ],
+   "connectionTypes": [
+    "HTTP"
+   ],
+   "capabilities": [
+    "JSON_SCHEMA"
+   ],
+   "schemaVersion": "1"
+  }
+ ],
+ "connections": [
+  {
+   "key": "claude-cli-local",
+   "engineId": "claude-cli",
+   "name": "Claude CLI",
+   "role": "LLM",
+   "connectionType": "CLI",
+   "connection": {
+    "binPath": "$CLAUDE_CLI_PATH",
+    "timeoutMs": 120000
+   },
+   "runtime": {
+    "modelByTier": {
+     "fast": "haiku",
+     "balanced": "sonnet",
+     "deep": "opus"
+    },
+    "concurrency": 1,
+    "interactiveLane": true,
+    "permissionMode": "dontAsk",
+    "tools": "",
+    "agentsFile": ".claude/agents/tutor.md"
+   },
+   "credentialRef": null
+  },
+  {
+   "key": "home-m4-lan",
+   "engineId": "home-m4-api",
+   "name": "home-m4-api (보조)",
+   "role": "LLM",
+   "connectionType": "HTTP",
+   "connection": {
+    "baseUrl": "http://192.168.219.100:8000",
+    "timeoutMs": 180000,
+    "retry": 0
+   },
+   "runtime": {
+    "model": "qwen2.5:14b-instruct",
+    "systemFirst": true,
+    "allowedTasks": [
+     "wordEnrich",
+     "distractorGen",
+     "chatReviewFallback"
+    ]
+   },
+   "credentialRef": "env:HOME_M4_API_KEY"
+  },
+  {
+   "key": "reazon-ondevice",
+   "engineId": "sherpa-onnx-reazon",
+   "name": "온디바이스 ReazonSpeech",
+   "role": "REALTIME_STT",
+   "connectionType": "ONDEVICE",
+   "connection": {
+    "manifestUrl": "/models/reazonspeech-int8/manifest.json",
+    "modelBytes": 160000000
+   },
+   "runtime": {
+    "provider": "cpu",
+    "numThreads": 2,
+    "decodingMethod": "greedy_search",
+    "modelVersion": "zipformer-ja-reazonspeech-2024-08-01-int8",
+    "vad": {
+     "model": "silero",
+     "endpointSilenceMs": 500
+    },
+    "partial": true
+   },
+   "credentialRef": null
+  },
+  {
+   "key": "reazon-gateway",
+   "engineId": "sherpa-onnx-reazon",
+   "name": "ReazonSpeech gateway(폴백)",
+   "role": "REALTIME_STT",
+   "connectionType": "HTTP",
+   "connection": {
+    "baseUrl": "http://127.0.0.1:8100",
+    "wsPath": "/ws/speech",
+    "timeoutMs": 15000
+   },
+   "runtime": {
+    "provider": "cpu",
+    "numThreads": 4,
+    "decodingMethod": "greedy_search",
+    "modelVersion": "zipformer-ja-reazonspeech-2024-08-01-int8",
+    "vad": {
+     "model": "silero",
+     "endpointSilenceMs": 500
+    }
+   },
+   "credentialRef": null
+  },
+  {
+   "key": "whisper-voicevault",
+   "engineId": "faster-whisper",
+   "name": "whisper-service(VoiceVault 재사용)",
+   "role": "ANALYSIS_STT",
+   "connectionType": "HTTP",
+   "connection": {
+    "baseUrl": "http://127.0.0.1:8090",
+    "timeoutMs": 120000,
+    "retry": 1
+   },
+   "runtime": {
+    "model": "medium",
+    "computeType": "int8",
+    "device": "cpu",
+    "language": "ja"
+   },
+   "credentialRef": null
+  },
+  {
+   "key": "style-bert-m4",
+   "engineId": "style-bert-vits2",
+   "name": "Style-Bert-VITS2 (맥 M4)",
+   "role": "TTS",
+   "connectionType": "HTTP",
+   "connection": {
+    "baseUrl": "http://192.168.219.100:8200",
+    "timeoutMs": 20000,
+    "retry": 1
+   },
+   "runtime": {
+    "language": "JP",
+    "maxChars": 100,
+    "defaultModel": "jvnv-F1-jp",
+    "sdpRatio": 0.2,
+    "noise": 0.6
+   },
+   "credentialRef": null
+  }
+ ],
+ "fallbackPolicies": [
+  {
+   "role": "REALTIME_STT",
+   "primary": "reazon-ondevice",
+   "fallbacks": [
+    "reazon-gateway"
+   ]
+  },
+  {
+   "role": "ANALYSIS_STT",
+   "primary": "whisper-voicevault",
+   "fallbacks": []
+  },
+  {
+   "role": "TTS",
+   "primary": "style-bert-m4",
+   "fallbacks": []
+  },
+  {
+   "role": "LLM",
+   "primary": "claude-cli-local",
+   "fallbacks": []
+  }
+ ],
+ "environments": [
+  "LOCAL",
+  "PRODUCTION"
+ ]
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>TheMeal</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #f6f7f4; color: #5a6359;
+        font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+      main { height: 100%; display: grid; place-items: center; text-align: center; padding: 24px; }
+    </style>
+  </head>
+  <body>
+    <!--
+      **이 파일은 거의 보이지 않는다.** Capacitor 는 `webDir` 를 요구하지만, 이 앱은
+      `server.url` 로 운영 서버의 최신 웹을 직접 로드한다(설계안 §12) — 그래서 배포는
+      웹 배포 하나뿐이고 APK 를 다시 만들 필요가 없다.
+
+      이 화면이 실제로 보이는 때는 **서버에 닿지 못했을 때**뿐이다. 그때 빈 흰 화면을
+      두면 "앱이 죽었다"로 읽히므로, 무슨 일인지와 무엇을 하면 되는지를 적어 둔다.
+    -->
+    <main>
+      <div>
+        <div style="font-size: 40px">🍚</div>
+        <h1 style="font-size: 17px; margin: 12px 0 6px; color: #1e2420">TheMeal</h1>
+        <p style="margin: 0">서버에 연결하는 중입니다…</p>
+        <p style="margin: 8px 0 0; font-size: 12px; color: #8b948a">
+          이 화면이 계속 보이면 네트워크를 확인해 주세요.
+        </p>
+      </div>
+    </main>
+  </body>
+</html>

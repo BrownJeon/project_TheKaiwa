@@ -41,3 +41,12 @@ updated: 2026-09-26
 ## 배포 기록
 
 ## 최종 요약
+
+## 체크포인트 (사용량 한도 대비 — 재개 시 여기부터)
+- [x] 1. TheMeal 골격 복사·치환(설정 5종·infra auth/db/jwt/session/dates/native·api/auth 6·health·(auth) 페이지·public) — 2026-09-26 23:30
+- [x] 2. Role 4단계·메일 제거·착지 /study/today·health checks·package.json·eslint 층 경계·modules/*/index.ts
+- [x] 3. 앱 셸((app)/layout·TabBar 5탭·아바타→/settings·AttendancePing 자리·탭별 준비중 페이지·settings 페이지·root redirect)
+- [x] 4. prisma/seed.ts + seed-data 4종(OWNER SUPER_ADMIN·주제 5·N5 50·Engine 5·connection 6×2환경·Fallback·Voice 3·AppSetting·PromptTemplate 키)
+- [x] 5. 우분투 미러 npm install → prisma generate → typecheck/lint → next build → db seed
+- [x] 6. pm2 thekaiwa 기동(미러) → https://kaiwa.… health 200·로그인·5탭 확인(사용자 육안: 폰)
+- [ ] 7. reviewer·qa 순환 (진행 중 — 5·6 결과: typecheck 0·lint 0 error·build OK·seed 2회 멱등(주제5·조각60·엔진5·conn12·정책8·voice3·style6·setting12·prompt11)·pm2 thekaiwa online 127.0.0.1:3010·https health ok·Permissions-Policy microphone=(self)·보호 경로 307→/login·/api/auth/me 401·google 307. **폰 로그인·5탭은 사용자 육안**, OWNER 첫 로그인 후 db:seed 재실행 필요)(Permissions-Policy·3폭·IDOR) → 최종 요약·커밋

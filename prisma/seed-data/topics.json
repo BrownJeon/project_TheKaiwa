@@ -1,0 +1,427 @@
+[
+ {
+  "key": "self-intro",
+  "title": "자기소개",
+  "titleJa": "自己紹介",
+  "level": "N5",
+  "description": "처음 만난 사람에게 이름·하는 일·사는 곳·좋아하는 것을 말해요",
+  "tags": [
+   "daily",
+   "first-meeting"
+  ],
+  "chunks": [
+   {
+    "chunkType": "NAME",
+    "textJa": "名前",
+    "reading": "なまえ",
+    "meaningKo": "이름"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "学生",
+    "reading": "がくせい",
+    "meaningKo": "학생"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "会社員",
+    "reading": "かいしゃいん",
+    "meaningKo": "회사원"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "住んでいます",
+    "reading": "すんでいます",
+    "meaningKo": "살고 있어요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "勉強しています",
+    "reading": "べんきょうしています",
+    "meaningKo": "공부하고 있어요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "よろしくお願いします",
+    "reading": "よろしくおねがいします",
+    "meaningKo": "잘 부탁드립니다"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "うれしいです",
+    "reading": "うれしいです",
+    "meaningKo": "기뻐요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "好きです",
+    "reading": "すきです",
+    "meaningKo": "좋아해요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "楽しいです",
+    "reading": "たのしいです",
+    "meaningKo": "즐거워요"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "まだ",
+    "reading": "まだ",
+    "meaningKo": "아직"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "少し",
+    "reading": "すこし",
+    "meaningKo": "조금"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "とても",
+    "reading": "とても",
+    "meaningKo": "아주"
+   }
+  ]
+ },
+ {
+  "key": "cafe-order",
+  "title": "카페 주문",
+  "titleJa": "カフェで注文",
+  "level": "N5",
+  "description": "카페에서 음료와 디저트를 주문하고 크기·온도·포장 여부를 말해요",
+  "tags": [
+   "daily",
+   "shopping"
+  ],
+  "chunks": [
+   {
+    "chunkType": "NAME",
+    "textJa": "コーヒー",
+    "reading": "こーひー",
+    "meaningKo": "커피"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "紅茶",
+    "reading": "こうちゃ",
+    "meaningKo": "홍차"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "ケーキ",
+    "reading": "けーき",
+    "meaningKo": "케이크"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "ください",
+    "reading": "ください",
+    "meaningKo": "주세요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "飲みます",
+    "reading": "のみます",
+    "meaningKo": "마셔요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "持ち帰ります",
+    "reading": "もちかえります",
+    "meaningKo": "가져가요(포장)"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "おいしいです",
+    "reading": "おいしいです",
+    "meaningKo": "맛있어요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "甘いです",
+    "reading": "あまいです",
+    "meaningKo": "달아요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "温かいです",
+    "reading": "あたたかいです",
+    "meaningKo": "따뜻해요"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "一つ",
+    "reading": "ひとつ",
+    "meaningKo": "하나"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "小さい",
+    "reading": "ちいさい",
+    "meaningKo": "작은"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "冷たい",
+    "reading": "つめたい",
+    "meaningKo": "차가운"
+   }
+  ]
+ },
+ {
+  "key": "ask-directions",
+  "title": "길 묻기",
+  "titleJa": "道をたずねる",
+  "level": "N5",
+  "description": "역·은행 같은 장소를 묻고, 방향 안내를 알아듣고 다시 확인해요",
+  "tags": [
+   "daily",
+   "travel"
+  ],
+  "chunks": [
+   {
+    "chunkType": "NAME",
+    "textJa": "駅",
+    "reading": "えき",
+    "meaningKo": "역"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "銀行",
+    "reading": "ぎんこう",
+    "meaningKo": "은행"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "出口",
+    "reading": "でぐち",
+    "meaningKo": "출구"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "行きます",
+    "reading": "いきます",
+    "meaningKo": "가요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "曲がります",
+    "reading": "まがります",
+    "meaningKo": "돌아요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "教えてください",
+    "reading": "おしえてください",
+    "meaningKo": "알려 주세요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "近いです",
+    "reading": "ちかいです",
+    "meaningKo": "가까워요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "遠いです",
+    "reading": "とおいです",
+    "meaningKo": "멀어요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "大丈夫です",
+    "reading": "だいじょうぶです",
+    "meaningKo": "괜찮아요"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "まっすぐ",
+    "reading": "まっすぐ",
+    "meaningKo": "똑바로"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "右に",
+    "reading": "みぎに",
+    "meaningKo": "오른쪽으로"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "次の",
+    "reading": "つぎの",
+    "meaningKo": "다음"
+   }
+  ]
+ },
+ {
+  "key": "weekend-plan",
+  "title": "주말 계획",
+  "titleJa": "週末の予定",
+  "level": "N4",
+  "description": "주말에 무엇을 할지, 누구와 어디에 갈지 이야기해요",
+  "tags": [
+   "daily",
+   "plans"
+  ],
+  "chunks": [
+   {
+    "chunkType": "NAME",
+    "textJa": "週末",
+    "reading": "しゅうまつ",
+    "meaningKo": "주말"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "映画",
+    "reading": "えいが",
+    "meaningKo": "영화"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "友だち",
+    "reading": "ともだち",
+    "meaningKo": "친구"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "見に行きます",
+    "reading": "みにいきます",
+    "meaningKo": "보러 가요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "会う予定です",
+    "reading": "あうよていです",
+    "meaningKo": "만날 예정이에요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "家でゆっくりします",
+    "reading": "いえでゆっくりします",
+    "meaningKo": "집에서 푹 쉬어요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "楽しみです",
+    "reading": "たのしみです",
+    "meaningKo": "기대돼요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "疲れました",
+    "reading": "つかれました",
+    "meaningKo": "피곤했어요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "ひまです",
+    "reading": "ひまです",
+    "meaningKo": "한가해요"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "たぶん",
+    "reading": "たぶん",
+    "meaningKo": "아마"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "久しぶりに",
+    "reading": "ひさしぶりに",
+    "meaningKo": "오랜만에"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "一緒に",
+    "reading": "いっしょに",
+    "meaningKo": "같이"
+   }
+  ]
+ },
+ {
+  "key": "travel-story",
+  "title": "여행 이야기",
+  "titleJa": "旅行の話",
+  "level": "N4",
+  "description": "다녀온 여행에서 한 일과 느낌을 과거형으로 이야기해요",
+  "tags": [
+   "travel",
+   "past-tense"
+  ],
+  "chunks": [
+   {
+    "chunkType": "NAME",
+    "textJa": "旅行",
+    "reading": "りょこう",
+    "meaningKo": "여행"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "温泉",
+    "reading": "おんせん",
+    "meaningKo": "온천"
+   },
+   {
+    "chunkType": "NAME",
+    "textJa": "お土産",
+    "reading": "おみやげ",
+    "meaningKo": "기념품"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "行ってきました",
+    "reading": "いってきました",
+    "meaningKo": "다녀왔어요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "泊まりました",
+    "reading": "とまりました",
+    "meaningKo": "묵었어요"
+   },
+   {
+    "chunkType": "ACTION",
+    "textJa": "写真を撮りました",
+    "reading": "しゃしんをとりました",
+    "meaningKo": "사진을 찍었어요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "きれいでした",
+    "reading": "きれいでした",
+    "meaningKo": "예뻤어요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "最高でした",
+    "reading": "さいこうでした",
+    "meaningKo": "최고였어요"
+   },
+   {
+    "chunkType": "FEELING",
+    "textJa": "混んでいました",
+    "reading": "こんでいました",
+    "meaningKo": "붐볐어요"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "初めて",
+    "reading": "はじめて",
+    "meaningKo": "처음으로"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "ずっと",
+    "reading": "ずっと",
+    "meaningKo": "계속"
+   },
+   {
+    "chunkType": "MODIFIER",
+    "textJa": "思ったより",
+    "reading": "おもったより",
+    "meaningKo": "생각보다"
+   }
+  ]
+ }
+]

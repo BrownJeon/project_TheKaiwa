@@ -1,0 +1,54 @@
+# TheKaiwa 배포 매니페스트
+# 스키마: docs/dev-deploy-workflow.md §3 · 도입 절차: docs/deployer-integration-procedure.md
+#
+# ⚠️ 적용 전 선결 과제 2건 (2026-09-18 파일럿 점검)
+#   1. source.repo 의 Gitea 저장소가 아직 없다. 로컬 git 저장소는 있으나 remote 가 0개다.
+#      → 사용자가 Gitea 에 project_TheKaiwa 생성 후 remote 등록·push 해야 한다.
+#   2. build.command 가 `npm run build` 가 아니다. package.json 의 build 는
+#      scripts/sync-local.sh 를 호출해 ~/.node-local/thekaiwa 에서 빌드하는데,
+#      그러면 모든 릴리스가 단일 미러를 공유해 blue/green 이 무의미해진다.
+#      운영 경로(/home/brownjeon/apps)는 ext4 라 noexec 우회가 필요 없으므로
+#      릴리스 디렉토리에서 직접 빌드한다. (맥 개발에서는 npm run build 를 그대로 쓴다)
+
+name: thekaiwa
+
+target:
+  host: 125.177.194.26
+  # sshd 가 22 가 아니라 993 에서 돈다 (~/.ssh/config 의 home_ubuntu 별칭과 동일)
+  port: 993
+  user: brownjeon
+  base: /home/brownjeon/apps/thekaiwa
+
+source:
+  repo: http://192.168.219.154:3000/brownjeon/project_TheKaiwa.git
+  ref: main
+
+runtime:
+  manager: pm2
+  app: thekaiwa
+  port: 3010
+  ecosystem: ecosystem.config.js
+
+build:
+  install: npm ci --no-audit --no-fund
+  # @prisma/client 는 postinstall 이 없으므로 generate 를 명시한다
+  command: node node_modules/.bin/prisma generate && node node_modules/next/dist/bin/next build
+
+shared:
+  - .env
+  - logs
+
+health:
+  path: /api/health
+  timeout: 30
+
+# prisma migrations 디렉토리가 비어 있고(0건) package.json 의 db:migrate 는
+# `prisma migrate dev` 다 — 대화형이고 DB 를 리셋할 수 있는 **개발 전용** 명령이라
+# 운영 DB 를 공유하는 지금 구조에서 실행하면 위험하다.
+# 운영용은 `prisma migrate deploy` 이며, 마이그레이션 이력을 먼저 갖춰야 한다.
+# 그때까지 migrate 항목을 비워 둔다 → --with-migrate 를 주면 deploy.sh 가 거부한다.
+# migrate:
+#   command: node node_modules/.bin/prisma migrate deploy
+#   requires_approval: true
+
+keep_releases: 5

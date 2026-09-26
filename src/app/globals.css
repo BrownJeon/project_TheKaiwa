@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/**
+ * 디자인 토큰 — 승인된 데모(docs/demo/themeal-demo.html)의 값을 그대로 옮긴다.
+ *
+ * 값 캐리어(`--surface` 등)와 Tailwind 테마 변수(`--color-surface` 등)를 분리한 이유:
+ * `@theme`는 미디어쿼리 안에서 재정의할 수 없다. `@theme inline`이 유틸리티에
+ * `var(--surface)` 참조를 인라인하므로, 아래 `@media`의 `:root` 재정의만으로 모든
+ * 유틸리티가 다크 값을 따라온다(VoiceVault task-023에서 검증된 구조).
+ */
+:root {
+  color-scheme: light dark;
+
+  --ground: #f6f7f4;
+  --surface: #ffffff;
+  --surface2: #eef0ea;
+  --ink: #1e2420;
+  --ink2: #5a6359;
+  --ink3: #8b948a;
+  --line: #dde2d9;
+
+  --accent: #c8471f;
+  --accent-soft: #fbe9e3;
+  --on-accent: #ffffff;
+
+  --good: #3e6b3a;
+  --good-soft: #e4efe2;
+  --warn: #c98a12;
+  --warn-soft: #fbf0d6;
+  --bad: #b3261e;
+  --bad-soft: #f9e3e1;
+
+  /* 차트 3색 — dataviz 검증기로 확정한 팔레트(설계 task-001) */
+  --carb: #c97b1e;
+  --protein: #2f6fab;
+  --fat: #c2405a;
+  /**
+   * 탄단지 진행률 막대의 **트랙**(권장만큼 흐리게 깔고 실제만큼 진하게 채운다, task-017).
+   * `accent-soft`·`warn-soft` 와 같은 패턴 — 같은 색상의 밝기만 낮춘 값이다.
+   * 트랙은 배경이므로 그 위에 글자를 얹지 않는다(대비 요건은 막대 채움 쪽이 진다).
+   */
+  --carb-soft: #f3e4cc;
+  --protein-soft: #e2ecf5;
+  --fat-soft: #f5e1e6;
+
+  --radius: 14px;
+
+  /**
+   * 레시피 영상·썸네일이 놓이는 자리는 **어디서나 이 비율 하나**를 쓴다(인스타 세로 4:5).
+   * 목록 피드·타일·상세 히어로·홈 최근 레시피·추천 카드·공유 카드(1080×1350)가 제각기
+   * 다른 비율이면 같은 요리가 화면마다 다르게 잘려 같은 것인지 알아보기 어렵다(설계안 §7-1(2)).
+   * 바꿀 일이 생기면 여기 한 줄만 고친다 — 화면은 `aspect-[var(--media-ar)]` 로만 참조한다.
+   */
+  --media-ar: 4/5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #141816;
+    --surface: #1d2320;
+    --surface2: #262d29;
+    --ink: #ecefe9;
+    --ink2: #aeb6ac;
+    --ink3: #7e877d;
+    --line: #333b36;
+
+    --accent: #f06a45;
+    --accent-soft: #3a241e;
+    --on-accent: #1a0e0a;
+
+    --good: #7fb27a;
+    --good-soft: #223121;
+    --warn: #e0a93a;
+    --warn-soft: #3a2f14;
+    --bad: #f28b82;
+    --bad-soft: #3d1f1d;
+
+    --carb: #c98426;
+    --protein: #4a86c6;
+    --fat: #d2536e;
+    --carb-soft: #3a2e1c;
+    --protein-soft: #1f2c39;
+    --fat-soft: #3a1f26;
+  }
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-ink3: var(--ink3);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-carb: var(--carb);
+  --color-protein: var(--protein);
+  --color-fat: var(--fat);
+  --color-carb-soft: var(--carb-soft);
+  --color-protein-soft: var(--protein-soft);
+  --color-fat-soft: var(--fat-soft);
+}
+
+html,
+body {
+  /* 100vh 금지 — 주소창이 접힌 높이라 실기기에서 페이지가 이중 스크롤되고 하단 탭이
+     화면 밖으로 밀린다(데모 v1 실측, mobile-viewport-checklist). */
+  height: 100dvh;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * 상태바 인셋 **안전장치** (2026-09-13 실기기 APK).
+ *
+ * 앱 셸은 `padding-top: env(safe-area-inset-top)` 으로 상태바를 피한다. 그런데 그 값이
+ * **0 으로 오는 WebView 가 있다** — `viewport-fit=cover` 와 edge-to-edge 가 맞물려야
+ * 값이 나오는데, 기기·WebView 버전에 따라 어긋나면 화면이 다시 시계 위로 올라탄다.
+ *
+ * 그래서 **앱에서만**(`[data-native]`, `NativeFlag` 가 붙인다) 최소값을 보장한다.
+ * 24px 은 안드로이드 상태바의 표준 높이(24dp)다 — env() 가 제대로 오면 `max()` 가
+ * 그쪽을 고르므로 노치·펀치홀 기기에서도 손해가 없다.
+ *
+ * 브라우저에는 이 규칙이 걸리지 않는다(상태바가 없으니 빈 줄만 생긴다).
+ */
+[data-native] [data-app-shell] {
+  padding-top: max(env(safe-area-inset-top), 24px);
+}

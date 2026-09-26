@@ -1,0 +1,88 @@
+{
+ "models": [
+  {
+   "id": "jvnv-F1-jp",
+   "speakers": [
+    {
+     "id": 0,
+     "name": "jvnv-F1-jp"
+    }
+   ],
+   "styles": [
+    "Neutral",
+    "Happy"
+   ]
+  },
+  {
+   "id": "jvnv-F2-jp",
+   "speakers": [
+    {
+     "id": 0,
+     "name": "jvnv-F2-jp"
+    }
+   ],
+   "styles": [
+    "Neutral",
+    "Happy"
+   ]
+  },
+  {
+   "id": "jvnv-M1-jp",
+   "speakers": [
+    {
+     "id": 0,
+     "name": "jvnv-M1-jp"
+    }
+   ],
+   "styles": [
+    "Neutral",
+    "Happy"
+   ]
+  }
+ ],
+ "profiles": [
+  {
+   "id": "teacher_haruka",
+   "displayName": "Haruka",
+   "description": "밝고 친절한 목소리",
+   "voiceModelId": "jvnv-F1-jp",
+   "speaker": "jvnv-F1-jp",
+   "speakerId": 0
+  },
+  {
+   "id": "teacher_sakura",
+   "displayName": "Sakura",
+   "description": "차분하고 부드러운 목소리",
+   "voiceModelId": "jvnv-F2-jp",
+   "speaker": "jvnv-F2-jp",
+   "speakerId": 0
+  },
+  {
+   "id": "teacher_takumi",
+   "displayName": "Takumi",
+   "description": "낮고 안정적인 목소리",
+   "voiceModelId": "jvnv-M1-jp",
+   "speaker": "jvnv-M1-jp",
+   "speakerId": 0
+  }
+ ],
+ "defaults": {
+  "style": "Neutral",
+  "styleWeight": 1.0,
+  "speed": 1.0,
+  "pitch": 1.0,
+  "intonation": 1.0
+ },
+ "styles": [
+  {
+   "name": "Neutral",
+   "label": "차분",
+   "sortOrder": 0
+  },
+  {
+   "name": "Happy",
+   "label": "밝은",
+   "sortOrder": 1
+  }
+ ]
+}

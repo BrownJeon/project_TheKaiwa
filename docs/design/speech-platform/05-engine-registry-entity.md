@@ -37,11 +37,11 @@ interface EngineDescriptor {
 
 | id | type | roles | connectionTypes | capabilities | 어댑터 |
 |---|---|---|---|---|---|
-| `reazon-sherpa` | STT | REALTIME_STT | ONDEVICE, HTTP | TRANSCRIPTION, VAD, SEGMENT_PARTIAL, LANGUAGE_JA, ONDEVICE, STREAMING_WS | `adapters/stt/{reazonOnDevice,reazonGateway}` |
+| `sherpa-onnx-reazon` | STT | REALTIME_STT | ONDEVICE, HTTP | TRANSCRIPTION, VAD, SEGMENT_PARTIAL, LANGUAGE_JA, ONDEVICE, STREAMING_WS | `adapters/stt/{reazonOnDevice,reazonGateway}` |
 | `faster-whisper` | STT | ANALYSIS_STT | HTTP, LOCAL | TRANSCRIPTION, WORD_TIMESTAMP, LANGUAGE_JA, LANGUAGE_DETECT | `adapters/stt/whisperHttp`(LOCAL 은 Python worker 전용) |
-| `style-bert` | TTS | TTS | HTTP | MULTI_VOICE, STYLE, SPEED, PITCH, INTONATION, MODEL_REFRESH, VOICE_IMPORT | `adapters/tts/styleBertHttp` |
+| `style-bert-vits2` | TTS | TTS | HTTP | MULTI_VOICE, STYLE, SPEED, PITCH, INTONATION, MODEL_REFRESH, VOICE_IMPORT | `adapters/tts/styleBertHttp` |
 | `claude-cli` | LLM | LLM | CLI | JSON_SCHEMA, STREAMING, PERSONA_AGENTS, MODEL_TIERS | `adapters/llm/claudeCli` |
-| `home-m4` | LLM | LLM | HTTP | JSON_SCHEMA | `adapters/llm/homeM4` |
+| `home-m4-api` | LLM | LLM | HTTP | JSON_SCHEMA | `adapters/llm/homeM4` |
 
 확장 슬롯(디스크립터 파일만 추가하면 됨): `openai-stt`·`azure-stt`·`google-stt`(ANALYSIS_STT), `elevenlabs-tts`·`openai-tts`(TTS), `anthropic-api`·`openai-chat`(LLM). Phase 계획에는 없으며 seed 에도 넣지 않는다.
 

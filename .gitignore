@@ -32,3 +32,7 @@ plugins/**/node_modules/
 # misc
 .DS_Store
 *.log
+# Next.js 산출물(미러에서 생기지만 NFS 에 섞이지 않게)
+tsconfig.tsbuildinfo
+next-env.d.ts
+logs/

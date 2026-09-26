@@ -1,18 +1,52 @@
 {
   "name": "thekaiwa",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
-  "description": "TheKaiwa — DB 준비 단계 최소 패키지(Phase 0 스캐폴딩 전). Prisma 스키마 push 용도만.",
+  "description": "TheKaiwa — AI 일본어 회화 훈련 앱 (Next.js 16 + Prisma 6 + Capacitor 7). 실행은 항상 ~/.node-local/thekaiwa 미러에서(NFS noexec).",
   "scripts": {
+    "dev": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/next/dist/bin/next dev -p 3010",
+    "build": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/next/dist/bin/next build",
+    "start": "cd $HOME/.node-local/thekaiwa && node node_modules/next/dist/bin/next start -p 3010",
+    "test": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node --import tsx --test --test-concurrency=1 $(find src -name '*.test.ts' | sort)",
+    "lint": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/eslint/bin/eslint.js .",
+    "typecheck": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/typescript/bin/tsc --noEmit",
     "db:generate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma generate",
     "db:push": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma db push --skip-generate",
-    "db:validate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma validate"
+    "db:validate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma validate",
+    "db:seed": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma db seed"
   },
   "prisma": {
-    "schema": "prisma/schema.prisma"
+    "schema": "prisma/schema.prisma",
+    "seed": "node --import tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/browser": "^7.0.5",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6",
+    "@prisma/client": "^6.0.0",
+    "@workspace/auth-oauth": "file:/home/brownjeon/NFS/homes/brownjeon/project/shared/auth-oauth",
+    "ajv": "8.17.1",
+    "jose": "^6.2.3",
+    "jsonwebtoken": "^9.0.2",
+    "next": "16.3.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@prisma/client": "^6.0.0",
-    "prisma": "^6.0.0"
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/cli": "^7.6.9",
+    "@tailwindcss/postcss": "^4",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.2",
+    "prisma": "^6.0.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.22.4",
+    "typescript": "^5"
   }
 }

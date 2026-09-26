@@ -1,0 +1,452 @@
+[
+ {
+  "surface": "私",
+  "reading": "わたし",
+  "meaning": "나, 저",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "私は学生です。",
+  "exampleKo": "저는 학생입니다."
+ },
+ {
+  "surface": "学校",
+  "reading": "がっこう",
+  "meaning": "학교",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "学校に行きます。",
+  "exampleKo": "학교에 가요."
+ },
+ {
+  "surface": "先生",
+  "reading": "せんせい",
+  "meaning": "선생님",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "先生はやさしいです。",
+  "exampleKo": "선생님은 상냥해요."
+ },
+ {
+  "surface": "友だち",
+  "reading": "ともだち",
+  "meaning": "친구",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "友だちと話します。",
+  "exampleKo": "친구와 이야기해요."
+ },
+ {
+  "surface": "家",
+  "reading": "いえ",
+  "meaning": "집",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "家に帰ります。",
+  "exampleKo": "집에 돌아가요."
+ },
+ {
+  "surface": "水",
+  "reading": "みず",
+  "meaning": "물",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "水をください。",
+  "exampleKo": "물 주세요."
+ },
+ {
+  "surface": "ご飯",
+  "reading": "ごはん",
+  "meaning": "밥",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "ご飯を食べます。",
+  "exampleKo": "밥을 먹어요."
+ },
+ {
+  "surface": "駅",
+  "reading": "えき",
+  "meaning": "역",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "駅はどこですか。",
+  "exampleKo": "역은 어디예요?"
+ },
+ {
+  "surface": "電車",
+  "reading": "でんしゃ",
+  "meaning": "전철",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "電車で行きます。",
+  "exampleKo": "전철로 가요."
+ },
+ {
+  "surface": "時間",
+  "reading": "じかん",
+  "meaning": "시간",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "時間がありません。",
+  "exampleKo": "시간이 없어요."
+ },
+ {
+  "surface": "今日",
+  "reading": "きょう",
+  "meaning": "오늘",
+  "partOfSpeech": "NOUN",
+  "chunkType": "MODIFIER",
+  "example": "今日は暑いです。",
+  "exampleKo": "오늘은 더워요."
+ },
+ {
+  "surface": "明日",
+  "reading": "あした",
+  "meaning": "내일",
+  "partOfSpeech": "NOUN",
+  "chunkType": "MODIFIER",
+  "example": "明日また会いましょう。",
+  "exampleKo": "내일 또 만나요."
+ },
+ {
+  "surface": "昨日",
+  "reading": "きのう",
+  "meaning": "어제",
+  "partOfSpeech": "NOUN",
+  "chunkType": "MODIFIER",
+  "example": "昨日映画を見ました。",
+  "exampleKo": "어제 영화를 봤어요."
+ },
+ {
+  "surface": "天気",
+  "reading": "てんき",
+  "meaning": "날씨",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "今日はいい天気ですね。",
+  "exampleKo": "오늘은 날씨가 좋네요."
+ },
+ {
+  "surface": "本",
+  "reading": "ほん",
+  "meaning": "책",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "本を読みます。",
+  "exampleKo": "책을 읽어요."
+ },
+ {
+  "surface": "お金",
+  "reading": "おかね",
+  "meaning": "돈",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "お金がありません。",
+  "exampleKo": "돈이 없어요."
+ },
+ {
+  "surface": "名前",
+  "reading": "なまえ",
+  "meaning": "이름",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "お名前は何ですか。",
+  "exampleKo": "성함이 뭐예요?"
+ },
+ {
+  "surface": "仕事",
+  "reading": "しごと",
+  "meaning": "일, 직업",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "仕事は楽しいです。",
+  "exampleKo": "일은 즐거워요."
+ },
+ {
+  "surface": "日本語",
+  "reading": "にほんご",
+  "meaning": "일본어",
+  "partOfSpeech": "NOUN",
+  "chunkType": "NAME",
+  "example": "日本語を勉強しています。",
+  "exampleKo": "일본어를 공부하고 있어요."
+ },
+ {
+  "surface": "食べる",
+  "reading": "たべる",
+  "meaning": "먹다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "パンを食べます。",
+  "exampleKo": "빵을 먹어요."
+ },
+ {
+  "surface": "飲む",
+  "reading": "のむ",
+  "meaning": "마시다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "お茶を飲みます。",
+  "exampleKo": "차를 마셔요."
+ },
+ {
+  "surface": "行く",
+  "reading": "いく",
+  "meaning": "가다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "会社に行きます。",
+  "exampleKo": "회사에 가요."
+ },
+ {
+  "surface": "来る",
+  "reading": "くる",
+  "meaning": "오다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "友だちが来ます。",
+  "exampleKo": "친구가 와요."
+ },
+ {
+  "surface": "見る",
+  "reading": "みる",
+  "meaning": "보다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "テレビを見ます。",
+  "exampleKo": "텔레비전을 봐요."
+ },
+ {
+  "surface": "聞く",
+  "reading": "きく",
+  "meaning": "듣다, 묻다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "音楽を聞きます。",
+  "exampleKo": "음악을 들어요."
+ },
+ {
+  "surface": "話す",
+  "reading": "はなす",
+  "meaning": "이야기하다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "日本語で話します。",
+  "exampleKo": "일본어로 이야기해요."
+ },
+ {
+  "surface": "読む",
+  "reading": "よむ",
+  "meaning": "읽다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "新聞を読みます。",
+  "exampleKo": "신문을 읽어요."
+ },
+ {
+  "surface": "書く",
+  "reading": "かく",
+  "meaning": "쓰다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "手紙を書きます。",
+  "exampleKo": "편지를 써요."
+ },
+ {
+  "surface": "買う",
+  "reading": "かう",
+  "meaning": "사다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "パンを買います。",
+  "exampleKo": "빵을 사요."
+ },
+ {
+  "surface": "待つ",
+  "reading": "まつ",
+  "meaning": "기다리다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "ちょっと待ってください。",
+  "exampleKo": "잠깐 기다려 주세요."
+ },
+ {
+  "surface": "分かる",
+  "reading": "わかる",
+  "meaning": "알다, 이해하다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "よく分かりません。",
+  "exampleKo": "잘 모르겠어요."
+ },
+ {
+  "surface": "する",
+  "reading": "する",
+  "meaning": "하다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "宿題をします。",
+  "exampleKo": "숙제를 해요."
+ },
+ {
+  "surface": "起きる",
+  "reading": "おきる",
+  "meaning": "일어나다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "七時に起きます。",
+  "exampleKo": "7시에 일어나요."
+ },
+ {
+  "surface": "寝る",
+  "reading": "ねる",
+  "meaning": "자다",
+  "partOfSpeech": "VERB",
+  "chunkType": "ACTION",
+  "example": "十一時に寝ます。",
+  "exampleKo": "11시에 자요."
+ },
+ {
+  "surface": "大きい",
+  "reading": "おおきい",
+  "meaning": "크다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "MODIFIER",
+  "example": "大きい家ですね。",
+  "exampleKo": "큰 집이네요."
+ },
+ {
+  "surface": "小さい",
+  "reading": "ちいさい",
+  "meaning": "작다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "MODIFIER",
+  "example": "小さい犬がいます。",
+  "exampleKo": "작은 개가 있어요."
+ },
+ {
+  "surface": "高い",
+  "reading": "たかい",
+  "meaning": "비싸다, 높다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "FEELING",
+  "example": "このかばんは高いです。",
+  "exampleKo": "이 가방은 비싸요."
+ },
+ {
+  "surface": "安い",
+  "reading": "やすい",
+  "meaning": "싸다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "FEELING",
+  "example": "この店は安いです。",
+  "exampleKo": "이 가게는 싸요."
+ },
+ {
+  "surface": "おいしい",
+  "reading": "おいしい",
+  "meaning": "맛있다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "FEELING",
+  "example": "このケーキはおいしいです。",
+  "exampleKo": "이 케이크는 맛있어요."
+ },
+ {
+  "surface": "楽しい",
+  "reading": "たのしい",
+  "meaning": "즐겁다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "FEELING",
+  "example": "旅行は楽しかったです。",
+  "exampleKo": "여행은 즐거웠어요."
+ },
+ {
+  "surface": "忙しい",
+  "reading": "いそがしい",
+  "meaning": "바쁘다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "FEELING",
+  "example": "今週は忙しいです。",
+  "exampleKo": "이번 주는 바빠요."
+ },
+ {
+  "surface": "新しい",
+  "reading": "あたらしい",
+  "meaning": "새롭다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "MODIFIER",
+  "example": "新しい靴を買いました。",
+  "exampleKo": "새 신발을 샀어요."
+ },
+ {
+  "surface": "暑い",
+  "reading": "あつい",
+  "meaning": "덥다",
+  "partOfSpeech": "ADJ_I",
+  "chunkType": "FEELING",
+  "example": "夏は暑いです。",
+  "exampleKo": "여름은 더워요."
+ },
+ {
+  "surface": "好き",
+  "reading": "すき",
+  "meaning": "좋아함",
+  "partOfSpeech": "ADJ_NA",
+  "chunkType": "FEELING",
+  "example": "猫が好きです。",
+  "exampleKo": "고양이를 좋아해요."
+ },
+ {
+  "surface": "元気",
+  "reading": "げんき",
+  "meaning": "건강함, 활기참",
+  "partOfSpeech": "ADJ_NA",
+  "chunkType": "FEELING",
+  "example": "お元気ですか。",
+  "exampleKo": "잘 지내세요?"
+ },
+ {
+  "surface": "静か",
+  "reading": "しずか",
+  "meaning": "조용함",
+  "partOfSpeech": "ADJ_NA",
+  "chunkType": "FEELING",
+  "example": "この公園は静かです。",
+  "exampleKo": "이 공원은 조용해요."
+ },
+ {
+  "surface": "とても",
+  "reading": "とても",
+  "meaning": "아주",
+  "partOfSpeech": "ADVERB",
+  "chunkType": "MODIFIER",
+  "example": "とても寒いです。",
+  "exampleKo": "아주 추워요."
+ },
+ {
+  "surface": "少し",
+  "reading": "すこし",
+  "meaning": "조금",
+  "partOfSpeech": "ADVERB",
+  "chunkType": "MODIFIER",
+  "example": "少し待ってください。",
+  "exampleKo": "조금 기다려 주세요."
+ },
+ {
+  "surface": "ありがとう",
+  "reading": "ありがとう",
+  "meaning": "고마워요",
+  "partOfSpeech": "EXPRESSION",
+  "chunkType": null,
+  "example": "手伝ってくれてありがとう。",
+  "exampleKo": "도와줘서 고마워요."
+ },
+ {
+  "surface": "すみません",
+  "reading": "すみません",
+  "meaning": "죄송합니다, 저기요",
+  "partOfSpeech": "EXPRESSION",
+  "chunkType": null,
+  "example": "すみません、駅はどこですか。",
+  "exampleKo": "저기요, 역은 어디예요?"
+ }
+]
