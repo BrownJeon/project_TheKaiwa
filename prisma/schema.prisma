@@ -1,0 +1,1589 @@
+// TheKaiwa — Prisma 스키마 실물. 정본은 docs/design/domain-model.md §3 (수정은 정본 → 이 파일 순서, 2026-09-26 추출)
+// 제안 엔티티(§9: Scenario·LearningObservation·LearnerSkillState)는 사용자 결정 후 승격 시 추가한다.
+
+// TheKaiwa — DB 스키마 정본. 원본은 docs/design/domain-model.md §3 이며 실물 prisma/schema.prisma 는 이 블록을 그대로 옮긴다.
+// 규칙: (1) AI 제안은 PROPOSED 로만 존재, 채택 시 저장 (2) StatsSnapshot 은 생성·증가만, *Snap 컬럼으로 이력 보존
+//       (3) Correction.original 은 절대 UPDATE 금지 (4) 설정 엔티티는 environment 컬럼, 프로세스는 APP_ENV 행만 읽음
+//       (5) 시크릿은 credentialRef 만 (6) Profile 은 학습 설정만 (7) RequestTrace 에 원음·전체 대화 텍스트 없음
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════ Enums ═══════════════════════════════
+
+/// 권한 검사는 role 이 아니라 capability 매트릭스(role-permission.md)로 한다. 누적 구조(SUPER_ADMIN ⊇ DEVELOPER ⊇ ADMIN ⊇ USER).
+enum Role {
+  USER
+  ADMIN
+  DEVELOPER
+  SUPER_ADMIN
+}
+
+/// 설정 엔티티의 환경. 현 워크스페이스는 LOCAL(미러 dev)·PRODUCTION(pm2 blue/green)만 사용, 나머지는 슬롯.
+enum Environment {
+  LOCAL
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+enum JlptLevel {
+  N5
+  N4
+  N3
+  N2
+  N1
+}
+
+/// 조각: 이름·액션·느낌·꾸밈 (레퍼런스1)
+enum ChunkType {
+  NAME
+  ACTION
+  FEELING
+  MODIFIER
+}
+
+enum PartOfSpeech {
+  NOUN
+  VERB
+  ADJ_I
+  ADJ_NA
+  ADVERB
+  PARTICLE
+  EXPRESSION
+  OTHER
+}
+
+enum WordSource {
+  MANUAL
+  CORRECTION
+  LESSON
+  EVALUATION
+  TUTOR
+  SEED
+}
+
+/// AI 제안의 수명. PROPOSED 인 동안 다른 테이블에 행이 생기지 않는다.
+enum ProposalStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum ProposalKind {
+  ADD_WORD
+  ADD_STUDY_LOG
+  ADD_TOPIC
+  SET_LEVEL
+  SCHEDULE_REVIEW
+}
+
+enum ChatKind {
+  TALK
+  CHAT
+  ASK
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum MessageStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/// REALTIME_STT = 온디바이스/gateway ReazonSpeech · SERVER_STT = 업로드 클립 whisper 전사(폴백) · TEXT = 타이핑
+enum InputSource {
+  REALTIME_STT
+  SERVER_STT
+  TEXT
+}
+
+/// PRONUNCIATION 은 LearnerErrorStat(SpeechAnalysis 유래)에서만 쓰고 Correction 에는 쓰지 않는다(발음 미채점 원칙).
+enum ErrorType {
+  GRAMMAR
+  PARTICLE
+  CONJUGATION
+  VOCABULARY
+  POLITENESS
+  NATURALNESS
+  WORD_ORDER
+  PRONUNCIATION
+  OTHER
+}
+
+enum Severity {
+  MINOR
+  MAJOR
+}
+
+enum StudyType {
+  TALK
+  CHAT
+  WORDS
+  LESSON
+  REVIEW
+  EVALUATION
+  ASK
+}
+
+/// DIRECT = 사용자가 직접 수행(세트 완료·평가 제출·레슨 완료) 즉시 기록 · ACCEPTED = AI 제안(ADD_STUDY_LOG) 채택으로 생성
+enum LogOrigin {
+  DIRECT
+  ACCEPTED
+}
+
+enum LessonKind {
+  NEW
+  REVIEW
+}
+
+enum LessonStatus {
+  GENERATING
+  READY
+  IN_PROGRESS
+  DONE
+  FAILED
+}
+
+enum ReviewStatus {
+  DUE
+  DONE
+  SKIPPED
+  EXPIRED
+}
+
+/// 복습 판단 주체(R-1, 2026-09-26): TUTOR = A11 강사 판단 · FALLBACK = LLM 실패 시 코드 기본값(3일)
+enum DecidedBy {
+  TUTOR
+  FALLBACK
+}
+
+/// 반복 학습 단위 종류
+enum RepetitionItemType {
+  EXPRESSION
+  CHUNK
+  GRAMMAR
+  SCENARIO
+  WORD
+  LESSON
+}
+
+/// FOCUS = 많이 틀리거나 강사 피드백이 많은 항목(별도 기록, 간격 ≤3일)
+enum RepetitionPriority {
+  NORMAL
+  FOCUS
+}
+
+enum EvalKind {
+  WORDS
+  TALK
+}
+
+enum EvalStatus {
+  GENERATING
+  READY
+  IN_PROGRESS
+  GRADING
+  DONE
+  FAILED
+}
+
+enum EvalItemKind {
+  MEANING_CHOICE
+  READING_INPUT
+  USAGE_CHOICE
+  CHUNK_CLASSIFY
+  LISTEN_RESPOND
+  ASSEMBLE
+  SITUATION_RESPOND
+  CORRECTION_SPOT
+}
+
+enum VocabMode {
+  CHOICE
+  FLIP
+}
+
+enum VocabAnswer {
+  CORRECT
+  WRONG
+  SKIPPED
+}
+
+enum VocabSessionStatus {
+  IN_PROGRESS
+  DONE
+  ABANDONED
+}
+
+enum PlanStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  ARCHIVED
+}
+
+enum SnapshotKind {
+  DAILY
+  VOCAB_SESSION
+  EVALUATION
+  LESSON
+}
+
+/// AiJob(LLM 비동기 작업) 종류
+enum JobKind {
+  CHAT_REVIEW
+  LESSON_GEN
+  REVIEW_GEN
+  EVAL_GEN
+  EVAL_GRADE
+  PLAN_ANALYSIS
+  REVIEW_DECISION
+}
+
+/// AiJob·SpeechJob 공용
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum Strictness {
+  GENTLE
+  NORMAL
+  STRICT
+}
+
+enum Politeness {
+  POLITE
+  CASUAL
+}
+
+enum ExplainDepth {
+  BRIEF
+  NORMAL
+  DETAILED
+}
+
+/// 학습용 TTS 모드(음성 기획안 §11). LEARNING 은 speed 0.6/0.8/1.0 비교 듣기
+enum TtsMode {
+  NATIVE
+  LEARNING
+}
+
+/// 사용자 음성 인식 모드(추가 기획안 §26). Speech Mode Resolver 가 엔진 역할 조합으로 해석
+enum RecognitionMode {
+  AUTO
+  FAST
+  ACCURATE
+  OFFLINE
+}
+
+enum UtteranceStatus {
+  RECORDED
+  QUEUED
+  ANALYZED
+  FAILED
+}
+
+/// Utterance.finalText 의 출처. USER = requiresReview 카드에서 학습자가 고른 안(제안→채택)
+enum FinalSource {
+  REALTIME
+  ANALYSIS
+  USER
+}
+
+enum SpeechJobKind {
+  ANALYSIS_STT
+  PRONUNCIATION
+}
+
+/// VoiceProfile·VoiceModel 공용 수명주기(추가 기획안 §37). 선택 가능 = AVAILABLE && enabled
+enum VoiceStatus {
+  IMPORTING
+  VALIDATING
+  AVAILABLE
+  DISABLED
+  ERROR
+  DELETING
+  ARCHIVED
+}
+
+enum VoiceImportStatus {
+  UPLOADED
+  VALIDATING
+  IMPORTING
+  TESTING
+  REGISTERED
+  FAILED
+}
+
+enum EngineType {
+  STT
+  TTS
+  LLM
+}
+
+/// Router·FallbackPolicy 의 역할 키
+enum EngineRole {
+  REALTIME_STT
+  ANALYSIS_STT
+  TTS
+  LLM
+}
+
+enum ConnectionType {
+  LOCAL
+  HTTP
+  ONDEVICE
+  CLI
+}
+
+/// Router 는 UNAVAILABLE·MISCONFIGURED·DISABLED 를 선택하지 않는다(§60)
+enum EngineStatus {
+  UNKNOWN
+  HEALTHY
+  DEGRADED
+  UNAVAILABLE
+  MISCONFIGURED
+  DISABLED
+}
+
+enum HealthKind {
+  HEALTH
+  FUNCTIONAL
+}
+
+/// ConfigurationVersion·RuntimeOverride·AuditLog 의 대상 범위
+enum ConfigScope {
+  ENGINE_CONNECTION
+  FALLBACK_POLICY
+  PROMPT
+  APP_SETTING
+  VOICE_PROFILE
+  PRESET
+}
+
+enum ConfigVersionStatus {
+  ACTIVE
+  SUPERSEDED
+  ROLLED_BACK
+}
+
+/// 키별 편집 가능성(§87). ConfigurationSchema(코드)의 속성이며 DB 에서는 AppSetting.editability 컬럼과 Json 페이로드에서 쓴다.
+enum Editability {
+  READ_ONLY
+  RUNTIME_EDITABLE
+  RESTART_REQUIRED
+  REDEPLOY_REQUIRED
+  SECRET
+}
+
+/// Effective Configuration 의 값 출처(§83). 8층 우선순위(configuration-resolution.md). 컬럼이 아니라 Resolver 응답·ConfigurationVersion.diff 페이로드에서 쓴다.
+enum ConfigSource {
+  DEFAULT
+  SOURCE_CODE
+  APPLICATION_CONFIG
+  ENVIRONMENT
+  DATABASE
+  CONNECTION_PROFILE
+  USER_SETTING
+  RUNTIME_OVERRIDE
+}
+
+enum OverrideKind {
+  TEMPORARY
+  SESSION
+}
+
+enum TraceKind {
+  TURN
+  PREVIEW
+  PLAYGROUND
+  E2E
+  FUNCTIONAL_TEST
+}
+
+enum TraceStatus {
+  OK
+  ERROR
+  PARTIAL
+}
+
+/// SOURCE_CODE = 파일(v0, prompts:sync 로 등록) · CONSOLE = Console 편집
+enum PromptSource {
+  SOURCE_CODE
+  CONSOLE
+}
+
+enum PromptStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// ═══════════════════════════════ L6 infra ═══════════════════════════════
+
+/// OAuth 계정. OWNER_EMAIL 시드 계정은 SUPER_ADMIN. 권한은 role → capability 매트릭스로 환산(role-permission.md)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  provider  String
+  oauthId   String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+
+  profile          Profile?
+  voiceSetting     UserVoiceSetting?
+  speechSetting    UserSpeechSetting?
+  appAuthCodes     AppAuthCode[]
+  aiJobs           AiJob[]
+  chats            Chat[]
+  messages         ChatMessage[]
+  corrections      Correction[]
+  proposals        TutorProposal[]
+  promptVersions   PromptVersion[]
+  words            WordEntry[]
+  vocabSessions    VocabSession[]
+  topics           ConversationTopic[]
+  lessons          Lesson[]
+  reviewSchedules  ReviewSchedule[]
+  repetitionItems  RepetitionItem[]
+  studyLogs        StudyLog[]
+  attendances      Attendance[]
+  evaluations      Evaluation[]
+  studyPlans       StudyPlan[]
+  snapshots        StatsSnapshot[]
+  errorStats       LearnerErrorStat[]
+  utterances       Utterance[]
+  speechJobs       SpeechJob[]
+  voiceImportJobs  VoiceImportJob[]
+  traces           RequestTrace[]
+  configVersions   ConfigurationVersion[]
+  overrides        RuntimeOverride[]
+  presets          ConfigurationPreset[]
+  debugSessions    DebugSession[]
+  auditLogs        AuditLog[]
+
+  @@unique([provider, oauthId])
+}
+
+/// 앱(Capacitor) 딥링크 코드 교환용 1회용 코드(TheMeal §5-2 그대로). 60초 TTL, 사용 즉시 소각
+model AppAuthCode {
+  code      String    @id
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// 30초 넘는 LLM 작업의 폴링 잡. 기동 시 RUNNING(10분 초과) → FAILED 정리. refId 는 대상 행(Chat·Lesson·Evaluation·StudyPlan) id, FK 없음
+model AiJob {
+  id         String    @id @default(cuid())
+  userId     String
+  kind       JobKind
+  status     JobStatus @default(QUEUED)
+  refId      String?   @db.VarChar(40)
+  progress   Int       @default(0)
+  stage      String?   @db.VarChar(40)
+  attempts   Int       @default(0)
+  error      String?   @db.VarChar(500)
+  /// enqueue 시점 입력 스냅샷 — {promptKey, promptVersion, inputMeta(ids·길이·해시)} 만. 프롬프트·대화 본문은 넣지 않는다(정합성 수정 #1, 2026-09-26)
+  payload    Json?
+  /// RequestTrace.traceId (FK 없음)
+  traceId    String?   @db.VarChar(40)
+  createdAt  DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([kind, status, createdAt])
+}
+
+/// APK 배포본 목록. GET /api/app/version 이 최신·minSupported 를 읽는다. deployer 가 네이티브 변경 배포 시 INSERT
+model AppRelease {
+  versionCode  Int      @id
+  versionName  String   @db.VarChar(20)
+  apkPath      String   @db.VarChar(300)
+  sha256       String   @db.VarChar(64)
+  notes        String?  @db.VarChar(1000)
+  /// 이 값보다 낮은 versionCode 의 앱은 강제 업데이트 배너
+  minSupported Int
+  createdAt    DateTime @default(now())
+}
+
+/// 모든 관리자 행위의 감사 로그(§93·§125-10). append-only, 삭제 경로 없음. before/after 는 SECRET 키를 credentialRef 로 치환한 값
+model AuditLog {
+  id             String       @id @default(cuid())
+  environment    Environment
+  actorUserId    String?
+  /// 계정 삭제(SetNull) 후에도 누가 했는지 읽히도록 스냅샷
+  actorEmailSnap String?      @db.VarChar(120)
+  actorRoleSnap  Role?
+  /// capability 이름과 같은 규약: config.apply · voices.disable · override.create · prompts.activate …
+  action         String       @db.VarChar(80)
+  scope          ConfigScope?
+  targetId       String?      @db.VarChar(120)
+  before         Json?
+  after          Json?
+  reason         String?      @db.VarChar(500)
+  ip             String?      @db.VarChar(64)
+  traceId        String?      @db.VarChar(40)
+  createdAt      DateTime     @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([environment, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([scope, targetId, createdAt])
+  @@index([action, createdAt])
+}
+
+// ═══════════════════════════════ L1 preferences ═══════════════════════════════
+
+/// 학습 설정만(규칙 6). 화면 폼 1:1 이라 컬럼으로. 음성·엔진 항목은 절대 넣지 않는다 → UserVoiceSetting / UserSpeechSetting
+model Profile {
+  userId         String       @id
+  displayName    String?      @db.VarChar(40)
+  level          JlptLevel    @default(N5)
+  politeness     Politeness   @default(POLITE)
+  goalLevel      JlptLevel?
+  goalTopics     Json?
+  goalDeadline   DateTime?    @db.Date
+  dailyWordCount Int          @default(10)
+  dailyMinutes   Int          @default(15)
+  /// 선생님 이름(사용자 지정, 2026-09-26 결정). null 이면 화면·프롬프트 헤더에서 '선생님'
+  teacherName    String?      @db.VarChar(30)
+  /// 교정 빈도(tutor.md §3 의 3단계). 기본 STRICT = 사용자 확정 "교정에 철저"(2026-09-26)
+  strictness     Strictness   @default(STRICT)
+  explainLang    String       @default("ko") @db.VarChar(5)
+  explainDepth   ExplainDepth @default(NORMAL)
+  updatedAt      DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// AI 선생님 목소리 설정(§39·§72). voiceProfileId null = AppSetting voice.default.profileId 로 해석. style "AUTO" = VoiceProfile.defaults.style
+model UserVoiceSetting {
+  userId         String   @id
+  voiceProfileId String?  @db.VarChar(80)
+  style          String   @default("AUTO") @db.VarChar(40)
+  styleWeight    Float?
+  /// 0.6~1.2 (앱 검증). TTS Parameter Resolver 1순위
+  speed          Float    @default(1.0)
+  /// 0.8~1.2
+  pitch          Float    @default(1.0)
+  /// 0.8~1.2
+  intonation     Float    @default(1.0)
+  ttsMode        TtsMode  @default(NATIVE)
+  /// LEARNING 모드 기본 배속(0.6|0.8|1.0)
+  learningSpeed  Float    @default(0.8)
+  updatedAt      DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voiceProfile VoiceProfile? @relation(fields: [voiceProfileId], references: [id], onDelete: SetNull)
+
+  @@index([voiceProfileId])
+}
+
+/// 음성 인식 모드(§26). explainLang 은 Profile 소유(규칙 6)라 여기 두지 않는다
+model UserSpeechSetting {
+  userId          String          @id
+  recognitionMode RecognitionMode @default(AUTO)
+  /// 모델 미설치·저사양 기기에서 gateway 로 넘어간 횟수 등 라우터 힌트(엔진명 없음)
+  routerHints     Json?
+  updatedAt       DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// 운영 설정 키-값(§43·§106). 환경별. 예: voice.preview.defaultText · voice.preview.textVersion · override.production.enabled · voice.default.profileId
+model AppSetting {
+  environment Environment
+  key         String      @db.VarChar(120)
+  value       Json
+  description String?     @db.VarChar(300)
+  editability Editability @default(RUNTIME_EDITABLE)
+  updatedAt   DateTime    @updatedAt
+
+  @@id([environment, key])
+}
+
+// ═══════════════════════════════ L2 conversation ═══════════════════════════════
+
+/// 회화(TALK)·채팅(CHAT)·질문(ASK) 공용
+model Chat {
+  id            String    @id @default(cuid())
+  userId        String
+  kind          ChatKind
+  title         String    @db.VarChar(100)
+  topicId       String?
+  level         JlptLevel?
+  lastMessageAt DateTime?
+  preview       String?   @db.VarChar(120)
+  messageCount  Int       @default(0)
+  /// 표현 점검(A3)은 채팅당 1회
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  messages    ChatMessage[]
+  corrections Correction[]
+  proposals   TutorProposal[]
+
+  @@index([userId, kind, lastMessageAt])
+}
+
+/// 사용자: STT 원문/타이핑 · 강사: 일본어 응답. toolLog 는 {traceId, model, connectionId, sttMs, llmMs, ttsMs, ttsStartMs, promptChars, attempt} 요약만
+model ChatMessage {
+  id          String        @id @default(cuid())
+  chatId      String
+  userId      String
+  role        MessageRole
+  content     String        @db.Text
+  translation String?       @db.Text
+  reading     String?       @db.Text
+  inputSource InputSource?
+  status      MessageStatus @default(DONE)
+  toolLog     Json?
+  /// RequestTrace.traceId (FK 없음, L5 소유)
+  traceId     String?       @db.VarChar(40)
+  createdAt   DateTime      @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  corrections Correction[]
+  proposals   TutorProposal[]
+  utterances  Utterance[]
+
+  @@index([chatId, id])
+  @@index([userId, createdAt])
+  @@index([traceId])
+}
+
+/// 사용자 메시지 1건에 0~2건. **original 은 어떤 경로로도 UPDATE 하지 않는다(규칙 3).** PROPOSED 인 동안 WordEntry·StudyLog 에 행 없음(규칙 1)
+model Correction {
+  id          String         @id @default(cuid())
+  userId      String
+  chatId      String
+  messageId   String
+  original    String         @db.Text
+  corrected   String         @db.Text
+  explanation String         @db.Text
+  errorType   ErrorType
+  severity    Severity       @default(MINOR)
+  chunkType   ChunkType?
+  status      ProposalStatus @default(PROPOSED)
+  /// accept 시 addWord 옵션으로 만든 WordEntry(source=CORRECTION)
+  savedWordId String?
+  createdAt   DateTime       @default(now())
+  resolvedAt  DateTime?
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat      Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  savedWord WordEntry?  @relation(fields: [savedWordId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+  @@index([chatId])
+  @@index([messageId])
+}
+
+/// 강사 제안 카드(bjj master_actions 방식). 승인 전엔 다른 테이블에 행이 생기지 않는다(규칙 1). result = 채택 시 생성된 행 id 들
+model TutorProposal {
+  id         String         @id @default(cuid())
+  userId     String
+  chatId     String?
+  messageId  String?
+  kind       ProposalKind
+  payload    Json
+  status     ProposalStatus @default(PROPOSED)
+  result     Json?
+  /// 미처리 제안은 30일 후 EXPIRED
+  expiresAt  DateTime?
+  createdAt  DateTime       @default(now())
+  resolvedAt DateTime?
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat    Chat?        @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  message ChatMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+  @@index([chatId, status])
+}
+
+/// Prompt Registry 키(§118). 파일 정본 = src/modules/conversation/prompts/<key>.ts 또는 .claude/agents/tutor.md(key teacher-persona)
+model PromptTemplate {
+  key         String   @id @db.VarChar(80)
+  description String?  @db.VarChar(300)
+  /// 파일 소유 역할(prompt-engineer). 정보용
+  ownerRole   String?  @db.VarChar(40)
+  filePath    String?  @db.VarChar(200)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions PromptVersion[]
+}
+
+/// Prompt 버전(§119). (environment,key) 당 ACTIVE 는 1개 — 앱 트랜잭션으로 보장(MySQL 부분 유니크 없음). 런타임은 ACTIVE 가 있으면 DB, 없으면 파일 v0
+model PromptVersion {
+  id          String       @id @default(cuid())
+  key         String       @db.VarChar(80)
+  environment Environment
+  version     Int
+  body        String       @db.Text
+  source      PromptSource
+  status      PromptStatus @default(DRAFT)
+  /// {tier, model, maxChars, jsonSchemaRef}
+  modelHints  Json?
+  checksum    String       @db.VarChar(64)
+  note        String?      @db.VarChar(300)
+  actorUserId String?
+  createdAt   DateTime     @default(now())
+  activatedAt DateTime?
+  archivedAt  DateTime?
+
+  template PromptTemplate @relation(fields: [key], references: [key], onDelete: Cascade)
+  actor    User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([environment, key, version])
+  @@index([environment, key, status])
+}
+
+// ═══════════════════════════════ L3 learning ═══════════════════════════════
+
+/// 채택된 단어만. AI 제안 단어는 TutorProposal(ADD_WORD) 에 머문다(규칙 1). 삭제 시 참조 행은 SetNull + *Snap 으로 읽힘(규칙 2)
+model WordEntry {
+  id           String        @id @default(cuid())
+  userId       String
+  surface      String        @db.VarChar(80)
+  reading      String?       @db.VarChar(120)
+  meaning      String        @db.VarChar(200)
+  partOfSpeech PartOfSpeech  @default(OTHER)
+  chunkType    ChunkType?
+  jlpt         JlptLevel?
+  example      String?       @db.Text
+  exampleKo    String?       @db.Text
+  note         String?       @db.VarChar(500)
+  category     String?       @db.VarChar(40)
+  source       WordSource    @default(MANUAL)
+  /// 출처 행 id(Correction·Lesson·Evaluation·TutorProposal), FK 없음
+  sourceRefId  String?       @db.VarChar(40)
+  correctCount Int           @default(0)
+  wrongCount   Int           @default(0)
+  lastSeenAt   DateTime?
+  lastResult   VocabAnswer?
+  archived     Boolean       @default(false)
+  archivedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts    VocabAttempt[]
+  corrections Correction[]
+  evalItems   EvaluationItem[]
+
+  @@index([userId, archived, wrongCount])
+  @@index([userId, surface])
+  @@index([userId, category])
+  @@index([userId, createdAt])
+}
+
+/// 오늘의 단어 1세트. 집계는 finish 시점 확정 후 불변. keptAt = 세트 보관(다시 풀기)
+model VocabSession {
+  id             String             @id @default(cuid())
+  userId         String
+  date           DateTime           @db.Date
+  mode           VocabMode
+  requestedCount Int
+  cardCount      Int
+  correctCount   Int                @default(0)
+  wrongCount     Int                @default(0)
+  skippedCount   Int                @default(0)
+  status         VocabSessionStatus @default(IN_PROGRESS)
+  keptAt         DateTime?
+  replayOfId     String?
+  /// 가중 샘플링 시드(재현용)
+  seed           String             @db.VarChar(32)
+  startedAt      DateTime           @default(now())
+  finishedAt     DateTime?
+  durationSec    Int?
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts VocabAttempt[]
+
+  @@index([userId, date])
+  @@index([userId, keptAt])
+}
+
+/// 카드 1장. surfaceSnap/readingSnap/meaningSnap = 삭제 정책 스냅샷(규칙 2). choices 는 보기 스냅샷, 정답은 응답에 미포함
+model VocabAttempt {
+  id          String       @id @default(cuid())
+  sessionId   String
+  wordId      String?
+  order       Int
+  surfaceSnap String       @db.VarChar(80)
+  readingSnap String?      @db.VarChar(120)
+  meaningSnap String       @db.VarChar(200)
+  choices     Json?
+  answer      VocabAnswer?
+  chosenText  String?      @db.VarChar(200)
+  responseMs  Int?
+  /// 위 스와이프 = 다시 보기 표시
+  flagged     Boolean      @default(false)
+  answeredAt  DateTime?
+
+  session VocabSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  word    WordEntry?   @relation(fields: [wordId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, order])
+  @@index([wordId])
+}
+
+/// userId null = 시드 주제(공용, 삭제 불가). tags 는 콘텐츠 소스 확장 슬롯(기획서 "확장 여지")
+model ConversationTopic {
+  id          String    @id @default(cuid())
+  userId      String?
+  title       String    @db.VarChar(80)
+  titleJa     String?   @db.VarChar(80)
+  level       JlptLevel
+  description String?   @db.VarChar(300)
+  tags        Json?
+  isSeed      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  chunks      TopicChunk[]
+  lessons     Lesson[]
+  chats       Chat[]
+  evaluations Evaluation[]
+
+  @@index([userId, level])
+  @@index([isSeed, level])
+}
+
+/// 주제의 조각(이름·액션·느낌·꾸밈)
+model TopicChunk {
+  id        String    @id @default(cuid())
+  topicId   String
+  chunkType ChunkType
+  textJa    String    @db.VarChar(120)
+  reading   String?   @db.VarChar(160)
+  meaningKo String    @db.VarChar(160)
+  order     Int       @default(0)
+  note      String?   @db.VarChar(200)
+
+  topic ConversationTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, chunkType, order])
+}
+
+/// 오늘의 회화 1:1 수업(이해→문법→문제→응용→말하기). content = A4 스키마 JSON. sourceText = 사용자가 붙여넣은 자막 문장(레퍼런스3)
+model Lesson {
+  id              String       @id @default(cuid())
+  userId          String
+  topicId         String?
+  date            DateTime     @db.Date
+  kind            LessonKind
+  title           String       @db.VarChar(120)
+  level           JlptLevel
+  content         Json?
+  status          LessonStatus @default(GENERATING)
+  stageDone       Int          @default(0)
+  progress        Json?
+  score           Int?
+  /// REVIEW 레슨의 재료 레슨 id 목록(코드가 만든 mixSpec 근거), FK 없음
+  sourceLessonIds Json?
+  sourceText      String?      @db.Text
+  model           String?      @db.VarChar(20)
+  /// PromptVersion.version 태그 스냅샷(FK 없음)
+  promptVersion   String?      @db.VarChar(20)
+  error           String?      @db.VarChar(300)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  completedAt     DateTime?
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  reviewSchedule ReviewSchedule?
+  utterances     Utterance[]
+
+  @@index([userId, date])
+  @@index([userId, kind, status])
+  @@index([userId, topicId])
+}
+
+/// 오늘의 복습 세션(due item 묶음). **주기(3~7일)·대상은 강사(A11)가 정하고 코드가 범위를 강제·기록**한다(사용자 결정 2026-09-26, 종전 "코드가 3일 고정" 교체). 학습은 사용자가 시작해야 기록된다(제안→채택)
+model ReviewSchedule {
+  id             String       @id @default(cuid())
+  userId         String
+  dueDate        DateTime     @db.Date
+  /// RepetitionItem.id 배열(균등 랜덤 추출 결과, seed 저장). 종전 sourceLessonIds 를 대체
+  itemIds        Json
+  /// 추출 재현용
+  seed           String?      @db.VarChar(32)
+  status         ReviewStatus @default(DUE)
+  lessonId       String?      @unique
+  decidedBy      DecidedBy    @default(FALLBACK)
+  /// A11 rationale_ko 요약(≤300자). 화면 "오늘의 복습" 카드에 표시
+  tutorRationale String?      @db.VarChar(300)
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, dueDate])
+  @@index([userId, status])
+}
+
+/// 반복 학습 항목(R-1). 레슨 완료·교정 채택·단어 세트 finish 가 등록/갱신. **학습 횟수·오답·강사 피드백 횟수를 기록**하고, 강사(A11)가 3~7일 간격을 정한다.
+/// 스냅샷 컬럼(textJa·meaningKo)으로 원본 삭제 후에도 읽힌다(규칙 2). 카운터는 증가만
+model RepetitionItem {
+  id             String             @id @default(cuid())
+  userId         String
+  itemType       RepetitionItemType
+  /// 원천 행(Lesson·TopicChunk·WordEntry·Scenario·Correction) 참조, FK 없음
+  refType        String             @db.VarChar(30)
+  refId          String             @db.VarChar(40)
+  textJa         String             @db.VarChar(200)
+  meaningKo      String?            @db.VarChar(200)
+  studiedCount   Int                @default(0)
+  lastStudiedAt  DateTime?
+  correctCount   Int                @default(0)
+  wrongCount     Int                @default(0)
+  /// 교정 제안·오답·되묻기 등 강사 피드백 누적(별도 기록 요구사항)
+  feedbackCount  Int                @default(0)
+  lastFeedbackAt DateTime?
+  /// 3~7 (코드가 클램프). FOCUS 면 ≤3
+  intervalDays   Int                @default(3)
+  nextDueAt      DateTime?          @db.Date
+  priority       RepetitionPriority @default(NORMAL)
+  decidedBy      DecidedBy          @default(FALLBACK)
+  decisionReason String?            @db.VarChar(200)
+  decidedAt      DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, refType, refId])
+  @@index([userId, nextDueAt])
+  @@index([userId, priority, studiedCount])
+}
+
+/// 달력·분석·성장기록 원천. 삭제 가능하나 StatsSnapshot 은 남는다(규칙 2). origin=DIRECT 는 사용자가 직접 수행, ACCEPTED 는 제안 채택
+model StudyLog {
+  id               String    @id @default(cuid())
+  userId           String
+  date             DateTime  @db.Date
+  type             StudyType
+  origin           LogOrigin
+  /// 대상 행 id(Chat·VocabSession·Lesson·Evaluation), FK 없음
+  refId            String?   @db.VarChar(40)
+  summary          String    @db.VarChar(500)
+  result           Json?
+  correctionsCount Int       @default(0)
+  durationSec      Int?
+  createdAt        DateTime  @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evaluation Evaluation?
+
+  @@index([userId, date])
+  @@index([userId, type, date])
+}
+
+/// 출석. (app)/layout 의 AttendancePing 이 하루 1회 멱등 체크인
+model Attendance {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime @db.Date
+  checkedInAt DateTime @default(now())
+  source      String   @default("APP_OPEN") @db.VarChar(20)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+/// AI평가. DONE 전이는 StudyLog 생성·studyLogId·StatsSnapshot 과 같은 트랜잭션(기록률 100% 근거)
+model Evaluation {
+  id            String     @id @default(cuid())
+  userId        String
+  kind          EvalKind
+  topicId       String?
+  level         JlptLevel
+  status        EvalStatus @default(GENERATING)
+  totalScore    Int?
+  /// 5차원 0~5 {accuracy, vocabulary, grammar, naturalness, assembly}
+  rubric        Json?
+  comment       String?    @db.Text
+  nextFocus     Json?
+  model         String?    @db.VarChar(20)
+  promptVersion String?    @db.VarChar(20)
+  studyLogId    String?    @unique
+  error         String?    @db.VarChar(300)
+  startedAt     DateTime   @default(now())
+  submittedAt   DateTime?
+  completedAt   DateTime?
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic    ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  studyLog StudyLog?          @relation(fields: [studyLogId], references: [id], onDelete: SetNull)
+
+  items EvaluationItem[]
+
+  @@index([userId, completedAt])
+  @@index([userId, status])
+}
+
+/// 평가 문항. 객관식은 코드 채점, 서술형만 LLM(A7). wordSurfaceSnap 은 단어 삭제 후에도 문항이 읽히게 하는 스냅샷
+model EvaluationItem {
+  id              String       @id @default(cuid())
+  evaluationId    String
+  order           Int
+  kind            EvalItemKind
+  prompt          Json
+  expected        Json?
+  wordId          String?
+  wordSurfaceSnap String?      @db.VarChar(80)
+  chunkType       ChunkType?
+  answerText      String?      @db.Text
+  inputSource     InputSource?
+  score           Int?
+  maxScore        Int          @default(10)
+  feedback        String?      @db.Text
+  dims            Json?
+  answeredAt      DateTime?
+
+  evaluation Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  word       WordEntry? @relation(fields: [wordId], references: [id], onDelete: SetNull)
+
+  utterances Utterance[]
+
+  @@unique([evaluationId, order])
+  @@index([wordId])
+}
+
+/// 강사 분석 = 공부계획서(A8). PROPOSED → 사용자 확인 → ACCEPTED(현재 1개), 이전 ACCEPTED 는 ARCHIVED(규칙 1)
+model StudyPlan {
+  id          String     @id @default(cuid())
+  userId      String
+  status      PlanStatus @default(PROPOSED)
+  periodStart DateTime   @db.Date
+  periodEnd   DateTime   @db.Date
+  analysis    Json
+  curriculum  Json
+  /// {from, to, hash} — 같은 hash 면 재분석하지 않고 재사용
+  sourceRange Json
+  model       String?    @db.VarChar(20)
+  createdAt   DateTime   @default(now())
+  acceptedAt  DateTime?
+  archivedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+}
+
+/// 삭제 정책 구현체(규칙 2). 생성·증가만. 삭제 경로(단어·기록·세션·채팅 삭제)에서 절대 쓰지 않는다. 성장기록·분석은 여기서만 읽는다
+model StatsSnapshot {
+  id        String       @id @default(cuid())
+  userId    String
+  kind      SnapshotKind
+  /// DAILY=YYYY-MM-DD · VOCAB_SESSION=<sessionId> · EVALUATION=<evaluationId> · LESSON=<lessonId>
+  periodKey String       @db.VarChar(40)
+  data      Json
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, periodKey])
+  @@index([userId, kind, createdAt])
+}
+
+/// Learning History 집계(§70). Correction ACCEPTED·SpeechAnalysis 완료 시 count 증가만. 원본 행 삭제에도 불변
+model LearnerErrorStat {
+  id        String    @id @default(cuid())
+  userId    String
+  type      ErrorType
+  /// 예: "に/で" · "long-vowel" · "te-form"
+  pattern   String    @db.VarChar(80)
+  count     Int       @default(0)
+  firstAt   DateTime  @default(now())
+  lastAt    DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, pattern])
+  @@index([userId, count])
+}
+
+// ═══════════════════════════════ L4 speech ═══════════════════════════════
+
+/// 발화 1건(음성 기획안 §15). 오디오는 DATA_ROOT/users/<userId>/utterances/YYYY-MM/<id>.wav, 보존 30일 → purge 후 audioPath null.
+/// realtimeEngine/analysisEngine 은 실제 사용된 EngineConnection.key 스냅샷(FK 없음, 지표 비교용). trainingOptIn 기본 false(§71 운영≠학습)
+model Utterance {
+  id                   String          @id @default(cuid())
+  userId               String
+  chatMessageId        String?
+  evaluationItemId     String?
+  lessonId             String?
+  audioPath            String?         @db.VarChar(300)
+  audioBytes           Int?
+  durationMs           Int
+  sampleRate           Int             @default(16000)
+  realtimeEngine       String          @db.VarChar(80)
+  realtimeText         String          @db.Text
+  analysisEngine       String?         @db.VarChar(80)
+  analysisText         String?         @db.Text
+  /// 정규화 후 편집거리 유사도(§8). < 0.85(ACCURATE 모드 0.9) 면 requiresReview
+  transcriptConfidence Float?
+  requiresReview       Boolean         @default(false)
+  finalText            String?         @db.Text
+  finalSource          FinalSource     @default(REALTIME)
+  status               UtteranceStatus @default(RECORDED)
+  /// {vadMs, sttMs, uploadMs, segments}
+  timings              Json?
+  traceId              String?         @db.VarChar(40)
+  trainingOptIn        Boolean         @default(false)
+  audioExpiresAt       DateTime?
+  audioDeletedAt       DateTime?
+  createdAt            DateTime        @default(now())
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatMessage    ChatMessage?    @relation(fields: [chatMessageId], references: [id], onDelete: SetNull)
+  evaluationItem EvaluationItem? @relation(fields: [evaluationItemId], references: [id], onDelete: SetNull)
+  lesson         Lesson?         @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  analysis SpeechAnalysis?
+  jobs     SpeechJob[]
+
+  @@index([userId, createdAt])
+  @@index([chatMessageId])
+  @@index([status, createdAt])
+  @@index([audioExpiresAt])
+}
+
+/// 분석 결과(§15·§16). Phase 2 = grammar/transcript, Phase 3 = pronunciation/fluency/mora/pitch. 텍스트·점수는 영구(오디오와 별개)
+model SpeechAnalysis {
+  id                 String   @id @default(cuid())
+  utteranceId        String   @unique
+  grammarScore       Float?
+  pronunciationScore Float?
+  fluencyScore       Float?
+  /// [{surface, score0to5, issues[]}]
+  wordScores         Json?
+  mora               Json?
+  pitch              Json?
+  feedbackKo         String?  @db.Text
+  /// {analysisStt, comparator, pronunciation} 버전 스냅샷
+  engineVersions     Json
+  analyzedAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  utterance Utterance @relation(fields: [utteranceId], references: [id], onDelete: Cascade)
+}
+
+/// MariaDB 큐(Redis 대체). worker 가 SELECT … FOR UPDATE SKIP LOCKED 로 폴링. 실패 시 attempts+1 · runAfter 백오프 후 QUEUED 복귀, maxAttempts 초과 → FAILED
+model SpeechJob {
+  id          String        @id @default(cuid())
+  userId      String
+  utteranceId String
+  kind        SpeechJobKind
+  status      JobStatus     @default(QUEUED)
+  attempts    Int           @default(0)
+  maxAttempts Int           @default(3)
+  runAfter    DateTime      @default(now())
+  lockedBy    String?       @db.VarChar(80)
+  lockedAt    DateTime?
+  error       String?       @db.VarChar(500)
+  traceId     String?       @db.VarChar(40)
+  createdAt   DateTime      @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  utterance Utterance @relation(fields: [utteranceId], references: [id], onDelete: Cascade)
+
+  @@unique([utteranceId, kind])
+  @@index([status, runAfter])
+  @@index([userId, status])
+}
+
+/// TTS 합성 캐시(§44). key = sha1(text|voiceProfileId|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion). 미리듣기도 같은 캐시. 파일은 DATA_ROOT/tts-cache/
+model TtsCache {
+  key                 String    @id @db.VarChar(64)
+  voiceProfileId      String?   @db.VarChar(80)
+  style               String    @db.VarChar(40)
+  styleWeight         Float
+  speed               Float
+  pitch               Float
+  intonation          Float
+  engineConnectionKey String    @db.VarChar(80)
+  textVersion         Int       @default(1)
+  textHash            String    @db.VarChar(64)
+  path                String    @db.VarChar(300)
+  bytes               Int
+  durationMs          Int?
+  hits                Int       @default(0)
+  lastHitAt           DateTime?
+  createdAt           DateTime  @default(now())
+
+  @@index([voiceProfileId])
+  @@index([lastHitAt])
+}
+
+/// TTS 모델(SBV2 model_assets 디렉토리 단위, /models/info 동기화 결과). id = 모델 디렉토리명. 물리 파일은 tts-service(M4) 에 있다
+model VoiceModel {
+  id                     String      @id @db.VarChar(80)
+  engineId               String      @db.VarChar(60)
+  path                   String?     @db.VarChar(300)
+  /// [{id, name}] — /models/info spk2id
+  speakers               Json
+  /// [name] — /models/info style2id
+  styles                 Json
+  version                String?     @db.VarChar(40)
+  status                 VoiceStatus @default(IMPORTING)
+  statusReason           String?     @db.VarChar(300)
+  sha256                 String?     @db.VarChar(64)
+  /// 마지막 동기화에 쓴 EngineConnection.key(FK 없음)
+  syncedFromConnectionKey String?    @db.VarChar(80)
+  importedAt             DateTime?
+  lastSyncedAt           DateTime?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
+  engine   Engine         @relation(fields: [engineId], references: [id], onDelete: Restrict)
+  profiles VoiceProfile[]
+
+  @@index([engineId, status])
+}
+
+/// AI 선생님 목소리(§30). 코드 enum 이 아니라 데이터. 사용자에게는 displayName/description 만 노출(model·speaker 비노출).
+/// defaults = {style, styleWeight, speed, pitch, intonation} (Resolver 2순위). 선택 가능 = status AVAILABLE && enabled
+model VoiceProfile {
+  id           String      @id @db.VarChar(80)
+  displayName  String      @db.VarChar(60)
+  description  String?     @db.VarChar(300)
+  ttsEngineId  String      @db.VarChar(60)
+  voiceModelId String      @db.VarChar(80)
+  speaker      String      @db.VarChar(80)
+  speakerId    Int?
+  defaults     Json
+  previewPath  String?     @db.VarChar(300)
+  status       VoiceStatus @default(IMPORTING)
+  statusReason String?     @db.VarChar(300)
+  enabled      Boolean     @default(true)
+  sortOrder    Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  engine Engine     @relation(fields: [ttsEngineId], references: [id], onDelete: Restrict)
+  model  VoiceModel @relation(fields: [voiceModelId], references: [id], onDelete: Restrict)
+
+  styles       VoiceStyle[]
+  userSettings UserVoiceSetting[]
+  importJobs   VoiceImportJob[]
+
+  @@index([status, enabled, sortOrder])
+}
+
+/// 프로필이 노출하는 스타일(§29). name = SBV2 style 이름, label = 사용자 표시명
+model VoiceStyle {
+  id                 String @id @default(cuid())
+  voiceProfileId     String @db.VarChar(80)
+  name               String @db.VarChar(40)
+  label              String @db.VarChar(40)
+  styleWeightDefault Float  @default(1.0)
+  sortOrder          Int    @default(0)
+
+  profile VoiceProfile @relation(fields: [voiceProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([voiceProfileId, name])
+}
+
+/// Voice Package 가져오기 작업(§33·§34). 패키지 zip 은 DATA_ROOT/voice-packages/, 검증→model_assets→refresh→테스트→등록. 음성 Phase 4
+model VoiceImportJob {
+  id             String            @id @default(cuid())
+  packageName    String            @db.VarChar(120)
+  packagePath    String?           @db.VarChar(300)
+  sha256         String            @db.VarChar(64)
+  manifest       Json?
+  status         VoiceImportStatus @default(UPLOADED)
+  stage          String?           @db.VarChar(40)
+  log            Json?
+  error          String?           @db.VarChar(500)
+  voiceProfileId String?           @db.VarChar(80)
+  voiceModelId   String?           @db.VarChar(80)
+  actorUserId    String?
+  createdAt      DateTime          @default(now())
+  finishedAt     DateTime?
+
+  voiceProfile VoiceProfile? @relation(fields: [voiceProfileId], references: [id], onDelete: SetNull)
+  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+// ═══════════════════════════════ L5 engine ═══════════════════════════════
+
+/// Engine Descriptor 스냅샷(§48·§97). 정본은 코드(각 어댑터 descriptor()) — 기동 시 upsert. 환경 무관(같은 코드)
+model Engine {
+  id              String     @id @db.VarChar(60)
+  displayName     String     @db.VarChar(80)
+  type            EngineType
+  /// [ConnectionType]
+  connectionTypes Json
+  /// ["TRANSCRIPTION","WORD_TIMESTAMP"] · ["MULTI_VOICE","STYLE","SPEED","PITCH","INTONATION"] · ["JSON_SCHEMA","STREAMING"]
+  capabilities    Json
+  schemaVersion   String     @db.VarChar(20)
+  pluginVersion   String?    @db.VarChar(20)
+  providerClass   String?    @db.VarChar(120)
+  enabled         Boolean    @default(true)
+  /// 마지막 기동 시 어댑터 로드 여부·초기화 오류(§99). 실시간 값은 GET /api/admin/v1/plugins
+  loaded          Boolean    @default(false)
+  initError       String?    @db.VarChar(500)
+  lastSyncedAt    DateTime   @default(now())
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  connections   EngineConnection[]
+  voiceModels   VoiceModel[]
+  voiceProfiles VoiceProfile[]
+}
+
+/// Engine Connection Profile(§49~§54). "그 기술을 어디서 어떤 설정으로". id 는 cuid, key 는 슬러그(환경별로 같은 key 의 행이 따로 있다).
+/// connection = {baseUrl, wsPath, binPath, timeoutMs, retry, region…} · runtime = {model, device, computeType, numThreads, decodingMethod, modelVersion…}
+/// credentialRef 만 저장(규칙 5). 변경은 반드시 ConfigurationVersion(ENGINE_CONNECTION) 경유
+model EngineConnection {
+  id               String         @id @default(cuid())
+  environment      Environment
+  key              String         @db.VarChar(80)
+  engineId         String         @db.VarChar(60)
+  name             String         @db.VarChar(80)
+  role             EngineRole
+  connectionType   ConnectionType
+  enabled          Boolean        @default(true)
+  connection       Json
+  runtime          Json
+  credentialRef    String?        @db.VarChar(120)
+  /// RUNTIME_EDITABLE. PRODUCTION 에서 DEBUG 이상은 SUPER_ADMIN + TTL(role-permission.md §6)
+  logLevel         String         @default("INFO") @db.VarChar(10)
+  status           EngineStatus   @default(UNKNOWN)
+  statusReason     String?        @db.VarChar(300)
+  lastHealthAt     DateTime?
+  lastFunctionalAt DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  engine Engine @relation(fields: [engineId], references: [id], onDelete: Restrict)
+
+  healthChecks EngineHealth[]
+  primaryOf    EngineFallbackPolicy[]
+  metricsDaily EngineMetricsDaily[]
+
+  @@unique([environment, key])
+  @@index([environment, role, enabled, status])
+  @@index([engineId])
+}
+
+/// Health(5분 주기·수동)·Functional(수동·배포 후) 결과(§58·§59). connection 당 최근 200건만 보존(앱이 prune)
+model EngineHealth {
+  id           String       @id @default(cuid())
+  connectionId String
+  kind         HealthKind
+  ok           Boolean
+  /// 이 결과로 판정된 상태
+  status       EngineStatus
+  latencyMs    Int?
+  /// {models, memoryMb, version, transcript, audioBytes, errorCode, message} — 시크릿·원음 없음
+  detail       Json?
+  traceId      String?      @db.VarChar(40)
+  checkedAt    DateTime     @default(now())
+
+  connection EngineConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, checkedAt])
+  @@index([connectionId, kind, checkedAt])
+}
+
+/// 역할별 Fallback(§61). fallbackConnectionIds = 순서 있는 EngineConnection.id 배열(FK 없음, 검증은 앱). 변경은 ConfigurationVersion(FALLBACK_POLICY)
+model EngineFallbackPolicy {
+  id                    String      @id @default(cuid())
+  environment           Environment
+  role                  EngineRole
+  primaryConnectionId   String
+  fallbackConnectionIds Json
+  /// 실패 시 다음 connection 으로 1회 재시도
+  retryOnce             Boolean     @default(true)
+  enabled               Boolean     @default(true)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  primary EngineConnection @relation(fields: [primaryConnectionId], references: [id], onDelete: Restrict)
+
+  @@unique([environment, role])
+}
+
+/// 설정 변경 버전(§93·§94). 모든 관리자 변경은 새 버전, Rollback 도 새 버전(restoredFromVersion). 삭제 없음.
+/// targetId = EngineConnection.id · EngineFallbackPolicy.id · PromptTemplate.key · AppSetting.key · VoiceProfile.id · ConfigurationPreset.id
+model ConfigurationVersion {
+  id                  String              @id @default(cuid())
+  environment         Environment
+  scope               ConfigScope
+  targetId            String              @db.VarChar(120)
+  version             Int
+  /// 적용 후 전체 값(SECRET 키는 credentialRef)
+  snapshot            Json
+  /// [{key, before, after, source: ConfigSource}]
+  diff                Json?
+  status              ConfigVersionStatus @default(ACTIVE)
+  actorUserId         String?
+  reason              String?             @db.VarChar(500)
+  /// Apply 직전 Functional Test 결과 요약(Production 필수)
+  testResult          Json?
+  restoredFromVersion Int?
+  createdAt           DateTime            @default(now())
+  supersededAt        DateTime?
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([environment, scope, targetId, version])
+  @@index([environment, scope, targetId, status])
+  @@index([actorUserId, createdAt])
+}
+
+/// 임시(TEMPORARY, TTL)·세션(SESSION) 오버라이드(§106·§107). Resolver 8순위. expiresAt 경과·revokedAt 이면 무효. PRODUCTION 은 AppSetting override.production.enabled 게이트
+model RuntimeOverride {
+  id          String       @id @default(cuid())
+  environment Environment
+  scope       ConfigScope
+  targetId    String       @db.VarChar(120)
+  patch       Json
+  kind        OverrideKind
+  sessionId   String?      @db.VarChar(80)
+  expiresAt   DateTime
+  actorUserId String?
+  reason      String?      @db.VarChar(300)
+  createdAt   DateTime     @default(now())
+  revokedAt   DateTime?
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([environment, scope, targetId, expiresAt])
+  @@index([sessionId])
+  @@index([expiresAt])
+}
+
+/// 요청 추적(§110). steps = [{name, engineId, connectionId, model, startedAt, latencyMs, status, errorCode?, sizes?}].
+/// **원음·전체 대화 텍스트·시크릿 없음(규칙 7).** 텍스트가 필요하면 DebugSession(captureText) 범위에서 별도 저장. 보존 90일
+model RequestTrace {
+  traceId        String      @id @db.VarChar(40)
+  environment    Environment
+  userId         String?
+  kind           TraceKind
+  status         TraceStatus @default(OK)
+  steps          Json
+  totalMs        Int?
+  errorCode      String?     @db.VarChar(40)
+  /// 대상 종류·id(chatMessage·utterance·evaluationItem·healthCheck), FK 없음
+  refType        String?     @db.VarChar(30)
+  refId          String?     @db.VarChar(40)
+  debugSessionId String?
+  createdAt      DateTime    @default(now())
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  debugSession DebugSession? @relation(fields: [debugSessionId], references: [id], onDelete: SetNull)
+
+  @@index([environment, kind, createdAt])
+  @@index([userId, createdAt])
+  @@index([refType, refId])
+  @@index([debugSessionId])
+}
+
+/// RequestTrace 일별 집계(§111). 매일 03:00 KST 물화 + Diagnostics 화면 요청 시 당일분 재계산. Trace purge 전에 물화
+model EngineMetricsDaily {
+  id           String   @id @default(cuid())
+  connectionId String
+  date         DateTime @db.Date
+  requests     Int      @default(0)
+  errors       Int      @default(0)
+  avgMs        Int?
+  p50Ms        Int?
+  p95Ms        Int?
+  computedAt   DateTime @default(now())
+
+  connection EngineConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, date])
+  @@index([date])
+}
+
+// ═══════════════════════════════ L0 admin ═══════════════════════════════
+
+/// 설정 조합 프리셋(§105). snapshot 은 Export 형식과 동일(SECRET → credentialRef). 적용은 Validate→Diff→Apply 로 ConfigurationVersion 생성
+model ConfigurationPreset {
+  id              String      @id @default(cuid())
+  environment     Environment
+  name            String      @db.VarChar(80)
+  description     String?     @db.VarChar(300)
+  snapshot        Json
+  /// [{scope, targetId}] 요약
+  scopeSummary    Json?
+  createdByUserId String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([environment, name])
+}
+
+/// 명시적 디버그 세션(§113). 이 범위에서만 원음·전체 텍스트 수집 허용. TTL 필수(PRODUCTION ≤ 60분), 수집물은 expiresAt+7일 후 삭제
+model DebugSession {
+  id            String      @id @default(cuid())
+  environment   Environment
+  actorUserId   String
+  purpose       String      @db.VarChar(300)
+  captureAudio  Boolean     @default(false)
+  captureText   Boolean     @default(false)
+  /// 수집 대상 사용자(FK 없음). null = actor 본인
+  targetUserId  String?     @db.VarChar(40)
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime    @default(now())
+
+  actor  User           @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  traces RequestTrace[]
+
+  @@index([environment, expiresAt])
+}

@@ -15,7 +15,7 @@
 
 ```prisma
 enum TraceKind { TURN PREVIEW PLAYGROUND E2E FUNCTIONAL_TEST }
-enum TraceStatus { OK PARTIAL FAILED }
+enum TraceStatus { OK PARTIAL ERROR }   // domain-model §3 과 동일(정합성 #9, 2026-09-26). 단계(step) 상태는 아래 status 목록
 
 model RequestTrace {
   traceId        String   @id @db.VarChar(40)      // "trc_" + ULID
@@ -97,7 +97,7 @@ model EngineMetricsDaily {
 
 ## 8. 보존
 
-- `RequestTrace`: **30일**(design-spec §18 데이터 보존과 동일). 일일 스케줄이 `createdAt < now-30d` 를 삭제(배치 5,000행). `debugSessionId` 가 있는 행도 동일.
+- `RequestTrace`: **90일**(design-spec §18·domain-model §6 과 동일 — 정합성 #9 로 30일→90일 정정, `AppSetting trace.retentionDays=90`). 일일 스케줄이 `createdAt < now-90d` 를 삭제(배치 5,000행). `debugSessionId` 가 있는 행도 동일(수집물은 `expiresAt+7일`).
 - `EngineMetricsDaily`: 365일. 삭제 없이 월 단위 롤업은 Phase 4 검토.
 - 삭제 정책 원칙(스냅샷 불변)과 충돌하지 않는다: Trace 는 집계 대상이지 `StatsSnapshot` 이 아니다.
 

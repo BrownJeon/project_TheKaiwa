@@ -1,0 +1,5 @@
+# 로컬 실행 미러 대상 (scripts/sync-local.sh 가 읽는다). NFS 는 noexec 이라 실행은 ~/.node-local/thekaiwa 에서만.
+NAME=thekaiwa
+DIRS="src public prisma android"
+FILES="tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs next-env.d.ts package.json package-lock.json .npmrc capacitor.config.ts .env"
+EXCLUDES="build/ .gradle/ local.properties"

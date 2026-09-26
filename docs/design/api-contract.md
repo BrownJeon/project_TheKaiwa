@@ -173,11 +173,11 @@
 | 55 | GET | `/api/v1/jobs/:id` | AI 잡 폴링 | S | infra/jobs | 1 | — | `AiJob` |
 | 56 | GET | `/api/v1/topics?level=&mine=` | 주제(시드+사용자, 조각 포함) | S | learning/topics | 2 | query | 목록 |
 | 57 | POST | `/api/v1/topics` | 사용자 주제 생성 | S | learning/topics | 2 | `{title,titleJa?,level,description?,chunks[]}` | `ConversationTopic` |
-| 58 | GET | `/api/v1/lessons/today` | 오늘 레슨 모드(NEW/REVIEW/BOTH) | S | learning/lessons+reviewSchedule | 2 | — | `{mode,review?,guard?,lesson?}` |
+| 58 | GET | `/api/v1/lessons/today` | 오늘 레슨 모드(NEW/REVIEW/BOTH) | S | learning/lessons+repetition | 2 | — | `{mode,date,review?,guard?,todayLessons[],cycle}`(정합성 #2, review 에 `itemIds·decidedBy·tutorRationale`) |
 | 59 | POST | `/api/v1/lessons` | 레슨 생성(A4, 잡) | S | learning/lessons | 2 | `{topicId}` 또는 `{sourceText}` | `{lessonId,jobId}` |
 | 60 | GET | `/api/v1/lessons/:id` | 레슨 상세 | S | learning/lessons | 2 | — | `Lesson` |
 | 61 | PATCH | `/api/v1/lessons/:id/progress` | 단계 진행 저장 | S | learning/lessons | 2 | `{stageDone,progress}` | `Lesson` |
-| 62 | POST | `/api/v1/lessons/:id/complete` | 레슨 완료(트랜잭션+복습 upsert) | S | learning/lessons | 2 | `{score?}` | `{lesson,studyLogId,nextReview?}` |
+| 62 | POST | `/api/v1/lessons/:id/complete` | 레슨 완료(트랜잭션+RepetitionItem 갱신+A11 잡) | S | learning/lessons+repetition | 2 | `{score?}` | `{lesson,studyLogId,reviewDecisionJobId,nextReview?}` |
 | 63 | POST | `/api/v1/reviews/:id/start` | 복습 레슨 생성(A5, 잡) | S | learning/reviewSchedule | 2 | — | `{lessonId,jobId}` |
 | 64 | POST | `/api/v1/reviews/:id/skip` | 복습 건너뛰기 | S | learning/reviewSchedule | 2 | — | `ReviewSchedule` |
 | 65 | POST | `/api/v1/evaluations` | 평가 출제(A6, 잡) | S | learning/evaluation | 2 | `{kind,topicId?,level?}` | `{evaluationId,jobId}` |
@@ -402,10 +402,10 @@
 
 #### #11~#12 `GET/PUT /api/v1/settings/profile`
 
-화이트리스트 필드만: `displayName(≤40)`, `level(JlptLevel)`, `politeness(POLITE|CASUAL)`, `goalLevel?`, `goalTopics?(string[] ≤10, 각 ≤40)`, `goalDeadline?(YYYY-MM-DD)`, `dailyWordCount(5~30)`, `dailyMinutes(5~120)`, `strictness(GENTLE|NORMAL|STRICT)`, `explainLang(ko|ja|en)`, `explainDepth(BRIEF|NORMAL|DETAILED)`. 음성·엔진 관련 키는 여기서 받지 않는다(있으면 `400`).
+화이트리스트 필드만: `displayName(≤40)`, `teacherName?(≤30, null="선생님" — 2026-09-26 결정)`, `level(JlptLevel)`, `politeness(POLITE|CASUAL)`, `goalLevel?`, `goalTopics?(string[] ≤10, 각 ≤40)`, `goalDeadline?(YYYY-MM-DD)`, `dailyWordCount(5~30)`, `dailyMinutes(5~120)`, `strictness(GENTLE|NORMAL|STRICT)`, `explainLang(ko|ja|en)`, `explainDepth(BRIEF|NORMAL|DETAILED)`. 음성·엔진 관련 키는 여기서 받지 않는다(있으면 `400`).
 
 ```json
-{ "success": true, "data": { "displayName": "준", "level": "N4", "politeness": "POLITE", "goalLevel": "N3", "goalTopics": ["여행", "직장"], "goalDeadline": "2026-12-31", "dailyWordCount": 10, "dailyMinutes": 15, "strictness": "NORMAL", "explainLang": "ko", "explainDepth": "NORMAL", "updatedAt": "…" }, "message": null }
+{ "success": true, "data": { "displayName": "준", "teacherName": "유우", "level": "N4", "politeness": "POLITE", "goalLevel": "N3", "goalTopics": ["여행", "직장"], "goalDeadline": "2026-12-31", "dailyWordCount": 10, "dailyMinutes": 15, "strictness": "NORMAL", "explainLang": "ko", "explainDepth": "NORMAL", "updatedAt": "…" }, "message": null }
 ```
 
 #### #13~#14 `GET/PUT /api/v1/settings/voice`
@@ -510,6 +510,8 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 | `durationMs` | int | 플러그인 계측값(서버 값과 20% 이상 차이면 서버 값 채택) |
 | `segments` | JSON string? | `[{ "start": 0, "end": 1840, "text": "…" }]` ≤ 50개 |
 | `timings` | JSON string? | `{ "vadMs", "decodeMs" }` — `toolLog` 계측 원천 |
+| `lessonId` | string? | 레슨 "말하기"·청취 단계 발화(소유 검사). `Utterance.lessonId` 로 저장(정합성 +1) |
+| `evaluationItemId` | string? | AI평가 말하기 문항 발화(소유 검사). `Utterance.evaluationItemId` 로 저장 |
 
 ```json
 ← { "utteranceId": "u_01…", "status": "RECORDED", "analysisQueued": true, "expiresAt": "2026-10-26T…" }
@@ -578,7 +580,7 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 #### #28 `POST /api/v1/chats`
 
 ```json
-→ { "kind": "TALK", "topicId": "t_seed_01", "title": "新宿で道を聞く", "level": "N4" }
+→ { "kind": "TALK", "topicId": "t_seed_01", "title": "新宿で道を聞く", "level": "N4", "lessonId": null, "scenarioId": null }   // lessonId = 레슨 "말하기" 단계 역할극(정합성 #11), scenarioId = §6 제안(Scenario 도입 시)
 ← { "id": "c_01…", "kind": "TALK", "title": "…", "topic": { "id": "t_seed_01", "title": "길 묻기" }, "level": "N4", "messageCount": 0, "running": false, "createdAt": "…" }
 ```
 
@@ -836,13 +838,13 @@ POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4"
 
 #### #62 `POST /api/v1/lessons/:id/complete` `{ "score": 80 }`(0~100 선택)
 
-트랜잭션: `Lesson.status=DONE, completedAt, score` → `StudyLog(LESSON|REVIEW, DIRECT)` → `StatsSnapshot(LESSON)+DAILY` → `kind=REVIEW` 면 `ReviewSchedule.status=DONE, resolvedAt`(사이클 리셋) / `kind=NEW` 면 §7-4 재계산으로 다음 `ReviewSchedule` upsert.
+트랜잭션(2026-09-26 R-1 반영): `Lesson.status=DONE, completedAt, score` → `StudyLog(LESSON|REVIEW, DIRECT)` → `StatsSnapshot(LESSON)+DAILY` → `RepetitionItem` 등록/갱신(레슨의 chunks·grammar·핵심 표현을 항목으로 upsert, `studiedCount+1`, quiz 오답은 `wrongCount+1`, 강사 교정은 `feedbackCount+1`) → `kind=REVIEW` 면 `ReviewSchedule.status=DONE, resolvedAt` → 트랜잭션 **뒤** `AiJob(REVIEW_DECISION)` enqueue(A11 강사 판단, 3~7일, 코드가 클램프·폴백). 응답의 `nextReview` 는 판단 잡이 끝나기 전엔 `null`(클라이언트는 `jobs/:id` 폴링 후 `lessons/today` 재조회).
 
 ```json
-← { "lesson": { "id": "ls_…", "status": "DONE" }, "studyLogId": "sl_…", "nextReview": { "dueDate": "2026-09-29", "sourceLessonIds": ["ls_…"] } }
+← { "lesson": { "id": "ls_…", "status": "DONE" }, "studyLogId": "sl_…", "reviewDecisionJobId": "j_…", "nextReview": null }
 ```
 
-#### #63 `POST /api/v1/reviews/:id/start` → `{ "lessonId": "ls_…", "jobId": "j_…" }` — A5 복습 혼합 레슨(`mixSpec` 은 코드가 만든다, 후검증 `chunks ⊆ mixSpec` 실패 시 1회 재시도). 이미 `lessonId` 가 있으면 그 레슨 반환. `status≠DUE` 면 `409`.
+#### #63 `POST /api/v1/reviews/:id/start` → `{ "lessonId": "ls_…", "jobId": "j_…" }` — A5 복습 혼합 레슨(`mixSpec` = `ReviewSchedule.itemIds` 의 `RepetitionItem` 들 — 코드가 만든다, 후검증 `chunks ⊆ mixSpec` 실패 시 1회 재시도). 이미 `lessonId` 가 있으면 그 레슨 반환. `status≠DUE` 면 `409`.
 
 #### #64 `POST /api/v1/reviews/:id/skip` → `{ "id", "status": "SKIPPED", "resolvedAt" }`. 다음 학습일에 코드가 다시 DUE 를 만든다.
 
@@ -932,7 +934,7 @@ POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4"
 
 #### #77 `POST /api/v1/plan/:id/accept` · `/reject` (Phase 3)
 
-`accept`: 트랜잭션으로 기존 `ACCEPTED → ARCHIVED(archivedAt)`, 대상 `ACCEPTED(acceptedAt)`. `reviewEvery` 는 §7-4 알고리즘의 `R` 로 즉시 반영된다. `reject`: `REJECTED`. `PROPOSED` 가 아니면 `409`.
+`accept`: 트랜잭션으로 기존 `ACCEPTED → ARCHIVED(archivedAt)`, 대상 `ACCEPTED(acceptedAt)`. `reviewEvery`(2~4, 기본 3 — 정합성 #14·15) 는 **참고값**이다: 2026-09-26 결정으로 실제 복습 간격은 A11 강사 판단(항목별 3~7일, `RepetitionItem.intervalDays`)이 정하고, `reviewEvery` 는 A11 프롬프트 헤더에 '학습자가 원하는 리듬'으로만 전달된다. `reject`: `REJECTED`. `PROPOSED` 가 아니면 `409`.
 
 #### #78 `GET /api/v1/plan/growth?weeks=8` (Phase 3)
 
@@ -955,7 +957,7 @@ POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4"
 
 ### 2-18. 무엇이든 물어보세요 (ASK · Phase 3)
 
-전용 엔드포인트 없음. `POST /api/v1/chats { "kind": "ASK", "title": "…" }` → `#32 POST /api/v1/chats/:id/turns` 재사용(A9: 페르소나 전체 + `[모드] ASK`, 최근 12개 ≤8,000자, `profile.tutorModel` 대신 `runtime.tiers.review` 티어, 120s). `done` 은 §67 형태이되 `correction=null`, `learning` 은 선택, `conversation.replyJa` 대신 **`conversation.answerMd`**(한국어 마크다운 ≤4,000자, `replyReading/replyKo` 는 `null`)를 채우고 `proposals[]` 에 `ADD_WORD/ADD_TOPIC/SCHEDULE_REVIEW` 제안 카드를 싣는다. ASK 대화는 `StudyLog(ASK)` 를 만들지 않는다(제안 채택 시에만). Phase 3b 는 MCP `propose_*` 도구로 같은 제안을 만든다(계약 동일).
+전용 엔드포인트 없음. `POST /api/v1/chats { "kind": "ASK", "title": "…" }` → `#32 POST /api/v1/chats/:id/turns` 재사용(A9: 페르소나 전체 + `[모드] ASK`, 최근 12개 ≤8,000자, `profile.tutorModel` 대신 `runtime.tiers.review` 티어, 120s). `done` 은 §67 형태이되 `correction=null`, `learning` 은 선택, `conversation.replyJa` 대신 **`conversation.answerMd`**(한국어 마크다운 ≤4,000자, `replyReading/replyKo` 는 `null`)를 채우고 `proposals[]` 에 `ADD_WORD·ADD_STUDY_LOG·ADD_TOPIC·SET_LEVEL` 제안 카드를 싣는다(정합성 #3 로 통일; `SCHEDULE_REVIEW` 는 A11 복습 판단의 정식 경로로만 생성). **(3차 보완)** `conversation.sources[]`(`{type, id, date, label}` — 본인 기록 근거, `learning/recordRetrieval` 화이트리스트 조회 결과에서만), `conversation.confidence`(`HIGH|MEDIUM|LOW`), `conversation.needsScope?`(결과 없음·불확실 시 범위 되묻기 문장)를 additive 로 추가한다(`structuredResponse@1` 선택 필드). ASK 대화는 `StudyLog(ASK)` 를 만들지 않는다(제안 채택 시에만). Phase 3b 는 MCP `propose_*` 도구로 같은 제안을 만든다(계약 동일).
 
 ### 2-19. 관리자 공통 규약 (`/api/admin/v1/*`)
 
@@ -1579,5 +1581,60 @@ sequenceDiagram
 | 8 | `X-Tts-Resolved` 헤더로 SBV2 파라미터를 관리자에게 노출하는 것이 "엔진명 비노출" 원칙과 충돌하는지 | 관리자 Playground 한정 허용(사용자 API 에는 없음) | reviewer 감사 |
 | 9 | Prompt 회귀 픽스처 테스트를 PRODUCTION activate 의 필수 조건으로 둘 때 Claude 구독 사용량(20문장×sonnet) | 픽스처 크기 20 고정, haiku 로 실행 가능 여부는 prompt-engineer 결정 | task-004 |
 | 10 | `EngineMetricsDaily` 물화 시점(03:00 KST 배치)과 `diagnostics.today` 실시간 재계산의 부하 | RequestTrace 90일 보존 내에서 인덱스 집계, 문제 시 시간별 물화 | Phase 3 |
-| 11 | ASK 의 `conversation.answerMd` 가 §67 스키마의 확장인지 별도 스키마인지 | `structuredResponse@1` 에 선택 필드로 추가(additive) | task-015 |
+| 11 | ASK 의 `conversation.answerMd` 가 §67 스키마의 확장인지 별도 스키마인지 | `structuredResponse@1` 에 선택 필드로 추가(additive) — **2026-09-26 확정**: `answerMd·sources·confidence·needsScope` 도 같은 방식 | task-015 |
 | 12 | `POST /api/internal/speech/jobs/claim` 을 Phase 2 에 구현할지(현 설계는 DB 직접 폴링) | 미구현·계약만 예약 | Phase 2 실측 |
+
+## 6. 제안·추가 엔드포인트 (3차 보완 2026-09-26)
+
+정본 `learning-personalization-and-llm-data.md` §1~§3 과 `domain-model.md §9` 와 짝. **결정 완료**(R-1 반복 학습·R-3 청취 구간)는 §1 총람에 승격 대상, **사용자 결정 필요** 항목은 그 결정 후 승격한다. 모두 `/api/v1`·capability 규약 동일.
+
+### 6-1. 반복 학습 (결정 완료 — 승격 대상)
+
+| 메서드·경로 | 목적 | 계약 |
+|---|---|---|
+| `GET /api/v1/reviews/due` | 오늘의 복습 카드 | `→ { "schedule": { "id", "dueDate", "status", "decidedBy": "TUTOR|FALLBACK", "tutorRationale": "…", "items": [ { "id", "itemType", "textJa", "meaningKo", "studiedCount", "wrongCount", "feedbackCount", "priority", "intervalDays", "nextDueAt" } ] } | null, "guard": null | { "reason": "insufficient", "needed": 1 }, "decisionPending": false }` — `decisionPending=true` 면 A11 잡 진행 중(`jobs/:id` 폴링) |
+| `POST /api/v1/reviews/decision` | 강사 재판단 요청(하루 1회 자동 + 수동 새로고침) | `→ {}` `← { "jobId" }` — `AiJob(REVIEW_DECISION)`. 결과는 `RepetitionItem.intervalDays/priority/decisionReason` + `ReviewSchedule` upsert. 코드가 3~7 클램프·FOCUS ≤3·누락 폴백 |
+| `GET /api/v1/repetition/items?priority=&due=1&limit=50` | 반복 항목 목록(서랍장 "복습 대상" 탭) | `→ { "items": [ … 위 필드 + "decisionReason", "decidedAt" ] }` — 사용자는 읽기만(직접 편집 없음, 강사 판단 우선) |
+| `#58 GET /api/v1/lessons/today` (변경) | `review` 가 `ReviewSchedule` 새 형태(`itemIds`·`decidedBy`·`tutorRationale`), `cycle.reviewEvery` 는 참고값 | 위 표 |
+| `#62` (변경) | 완료 트랜잭션에 `RepetitionItem` 갱신 + `reviewDecisionJobId` | §2 #62 |
+| `#54 finish`·`#35 accept`·`#32 turns done` (변경, 정합성 #7) | 단어 세트 finish → 단어별 `RepetitionItem(WORD)` 갱신 / 교정 accept → `RepetitionItem(EXPRESSION, feedbackCount+1)` + `StatsSnapshot(DAILY).corrections.accepted+1` / 턴 done → `DAILY.talkTurns|chatTurns+1` | 각 항목 |
+
+### 6-2. 청취 구간·단어 메모 (결정 완료 — 승격 대상)
+
+| 메서드·경로 | 목적 | 계약 |
+|---|---|---|
+| `#61 PATCH /api/v1/lessons/:id/progress` (변경) | `progress.listen{segmentsDone[], memoWords[{ja, reading?}]}` 허용 | 서버가 `memoWords` 중 단어장 미등록 항목을 `TutorProposal(ADD_WORD)` 로 생성해 응답 `proposals[]` 에 싣는다(채택 후 저장) |
+| `#60 GET /api/v1/lessons/:id` (변경) | `content.dialogue[].segment`, `content.nextPreview{kind, ref, teaser_ko}`, `audio.dialogue[]` 에 구간별 `rate` 변형(0.8/1.0) URL | — |
+
+### 6-3. 주제·상황 (사용자 결정 필요 — Scenario 도입 Phase)
+
+| 메서드·경로 | 목적 | 계약 |
+|---|---|---|
+| `GET /api/v1/scenarios?topicId=&level=&recommended=1&limit=20` | 상황 목록(주제 선택 후 / 바로 선택) | `→ { "items": [ { "id", "title", "titleJa", "level", "difficulty", "roles", "goal", "keyExpressions": [...], "topics": [ { "id", "title" } ], "recommended": true, "lastAttemptAt" } ] }` — `recommended` 는 `learning/skills`(도입 시) 또는 `RepetitionItem` FOCUS·미학습 우선 |
+| `GET /api/v1/scenarios/:id` | 상세(역할·목표·조건·분기·완료 기준) | — |
+| `POST /api/v1/scenarios` | 사용자 상황 추가 | `{title, level, roles, goal, keyExpressions, topicIds[]}` |
+| `#59 POST /api/v1/lessons` (변경) | `{scenarioId}` 허용(주제·상황 중 하나 이상) | `Lesson.scenarioId` |
+| `#28 POST /api/v1/chats` (변경) | `{scenarioId?, lessonId?}` → 역할극 세션. 턴 헤더에 `[상황]` 블록 | `done.learning.scenario{goalAchieved, communicationSuccess, usedExpressions[], missedExpressions[]}`(additive) |
+| `GET /api/v1/scenarios/:id/attempts` | 내 시도 이력(목표 달성·사용 표현) | `StudyLog.result.scenario` 파생 |
+
+### 6-4. 능력 축·관측 (사용자 결정 필요)
+
+| 메서드·경로 | 목적 | 계약 |
+|---|---|---|
+| `GET /api/v1/skills` | 5축 현재 추정·신뢰도·근거·재평가 권장일 | `→ { "skills": [ { "skill": "VOCAB_RECALL", "level": 42, "band": "N5", "confidence": 0.6, "trend": 1, "evidence": [ { "refType", "refId", "date" } ], "lastAssessedAt", "reviewDueAt" } ] }` — 화면은 성장기록 탭 |
+| (내부) `learning.recordObservation` | 라우트가 세트 attempt·턴 done·교정 accept·역할극 종료·평가 채점에서 호출 | API 없음 |
+
+### 6-5. '무엇이든 물어보세요' 기록 조회 (Phase 3a)
+
+- 별도 엔드포인트 없음. `#32` 턴(ASK)이 서버에서 `conversation.askRouter.classifyIntent` → `learning.retrieveRecords(userId, intent, scope)`(화이트리스트: `getProgressSummary·getDueReviews·getRecentCorrections·findExpressions·getLessonsByTopic·getSkillState`) → 결과 ≤2,000자를 프롬프트에 삽입. **LLM 은 SQL 을 만들거나 실행하지 않는다.** `done.conversation.sources[]`·`confidence`·`needsScope` 는 §2 ASK 참조.
+- 사용자가 `needsScope` 에 답하면 같은 채팅에서 다음 턴으로 이어진다(별도 API 없음). 타 사용자 기록은 조회 계층이 `userId` 로 강제(QA: 격리 0건).
+
+### 6-6. 데이터 흐름(엔진별 전송 범위, 사용자 결정 필요 항목 포함)
+
+| 지점 | 전송 대상 엔진 | 범위 | 최소화 |
+|---|---|---|---|
+| A1/A2 턴 | Claude CLI(외부 구독 경로) | 헤더 ≤300자(표시명·수준·설정·약점 top3) + 최근 6/12개 + 발화 | 이름 대신 표시명, 이메일·id 없음 |
+| A9 ASK | Claude CLI | 헤더 ≤600 + 조회 결과 ≤2,000자(발췌 ≤300자/건) + 최근 12개 | 가명화, 원문 대화 전문 금지 — **범위 확대는 사용자 결정 필요** |
+| A11 복습 판단 | Claude CLI(sonnet) | 항목 텍스트·횟수·오답·피드백 ≤40건 | 원문 대화 없음 |
+| A10 단어 보강 | home-m4(LAN) 또는 haiku | 단어 1개 | — |
+| 3c 의미 검색 | home-m4 `bge-m3`(LAN) + Qdrant | 채택 교정·레슨 표현·요약 | 대화 전문 임베딩 금지 — 도입 조건 사용자 결정 |

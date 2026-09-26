@@ -11,6 +11,8 @@
 | [design/role-permission.md](design/role-permission.md) | Role 4단계 × capability 매트릭스·라우트 매핑 |
 | `design/speech-platform/00~15` | Voice·Engine·Connection·Health·Router·Fallback·설정 UI (기획안 §77) |
 | `design/admin-console/00~16` | Console IA·Resolver·Version·Audit·Diff·Rollback·Playground·Trace·Prompt Registry·Environment (기획안 §128) |
+| [design/learning-personalization-and-llm-data.md](design/learning-personalization-and-llm-data.md) | **학습 개인화·기록 검색·반복 학습(강사 판단 3~7일)·주제·상황·M4 모델/파인튜닝·지표** (3차 보완 2026-09-26) |
+| [design/tutor-persona-validation.md](design/tutor-persona-validation.md) | 강사 페르소나 v1 검증 세트 사양 |
 
 ---
 
@@ -29,6 +31,8 @@
 | Voice·Engine 관리 | 기획안 §25~§77 채택 — Voice 는 데이터(Registry·Profile·Package Import·상태·통합 미리듣기), Engine = Descriptor(코드)+Connection Profile(DB)+Configuration Schema+Health/Functional Test+Fallback, 사용자/관리자 설정 분리, Credential 은 `credentialRef` 만, LLM/Speech/Learning 6층 분리 |
 | Admin Console | 기획안 §78~§128 채택 — Role 4단계(capability), Effective Configuration + 8층 Source, Schema 기반 Form/JSON 편집(Validate→Test→Diff→Apply), ConfigurationVersion·Audit·Rollback, Environment(LOCAL/PRODUCTION 사용), Plugin Registry, Playground·E2E·Trace·Diagnostics·Log level, Prompt Registry, Preset/Export/Import/Override |
 | 팀 | leader(Opus)·designer(Opus)·developer(Opus)·prompt-engineer(Sonnet)·reviewer(Sonnet)·qa(Haiku)·deployer(Haiku) + 강사 런타임 페르소나 `tutor.md` |
+| 강사 페르소나 v1 | 단일 페르소나 · **일본인 원어민** · **교정에 철저**(strictness 기본 STRICT) · **한국어 설명 + 일본어 대화** · 이름은 사용자 지정(`Profile.teacherName`, 기본 '선생님') · 목소리(Voice)와 독립 (2026-09-26 확정) |
+| 강사 역할·반복 규칙(기획서 대조 후 피드백) | 스케줄·커리큘럼 주체 = **강사**(코드는 범위 강제·기록): 복습 주기 3일 고정이 아니라 **3~7일에서 강사가 판단**, 학습 횟수를 DB 기록(`RepetitionItem`), **균등 랜덤** 반복, 오답·피드백 많은 항목은 별도 기록(FOCUS)해 3일로 단축 · 청취 구간 반복·단어 메모·"조금 아쉬운 종료 지점" 반영 · 강사의 개발팀 편입·타임아웃 수치는 현재 설계 유지 (2026-09-26 확정, 상세 `design/learning-personalization-and-llm-data.md` §0·§2) |
 | 이번 산출물 | **설계 문서만**. 코드·실물 `schema.prisma`·API 구현은 Phase 0 이후 |
 
 ## 1. 목적과 범위
@@ -142,18 +146,16 @@ plugins/sherpa-stt/                                                    # Capacit
 ### 7-3. 오늘의 회화 (Lesson) — 자체 생성 + 붙여넣기
 - 주제(`ConversationTopic`+조각) 또는 사용자가 붙여넣은 자막 문장(`Lesson.sourceText`, 레퍼런스3 경로) → A4 가 5단계 수업(이해 dialogue → 문법 → 문제 quiz 5 → 응용 3 → 말하기 3) 생성(잡+폴링). 단계 진행은 `PATCH /lessons/:id/progress`, 완료는 트랜잭션(`StudyLog(LESSON,DIRECT)`+스냅샷+`ReviewSchedule` upsert).
 - 외부 콘텐츠(흘려듣기 구간) 큐레이션은 제외, 대화문 TTS 반복 재생으로 대체(§16 권고 2).
+- **(3차 보완)** 주제(topic) 아래 **상황(scenario)** 단위 역할극을 둔다: `주제 선택 → 관련 상황 선택` 기본, 익숙하면 상황 바로 선택. 레슨 5단계의 "말하기" = 그 상황의 역할극 세션(`Chat(kind=TALK, scenarioId)`), 종료 시 목표 달성·사용 표현을 구조화 응답으로 반환. 엔티티 `Scenario`·`ScenarioTopic` 은 정본 §9 제안(사용자 결정 필요). 상세 `design/learning-personalization-and-llm-data.md` §1.
+- **(피드백 #11)** 레슨 1단계 "이해"에 **청취 구간 반복**(대화문을 2~3줄 구간으로 0.8×→1.0× 반복 재생)과 **들린 단어 메모**(단어장 미등록 단어는 `TutorProposal(ADD_WORD)` 카드로 제안, 채택 후 저장)를 넣고, 레슨·복습 세션은 다음 구간·상황 하나를 예고하고 끝낸다(**"조금 아쉬운 종료 지점"**, `content.nextPreview`).
 
-### 7-4. 3일 반복 (`learning/reviewSchedule`) — 코드가 '언제·무엇', LLM 은 '어떻게 섞을지'만
-- 학습일 = `Lesson(NEW, DONE)` 1건↑인 KST 날짜(달력일 아님). `R = StudyPlan.curriculum.reviewEvery ?? 3`.
-```
-1. due = ReviewSchedule(DUE) 있으면: R학습일 이상 미뤄졌으면 EXPIRED + 재료를 carryPool 로 승계, 아니면 {mode:'BOTH', review:due}
-2. S = 마지막 복습 완료 이후 학습일; |S| < R → {mode:'NEW', guard:{reason:'cycle', needed:R-|S|}}
-3. src = S 의 마지막 R일 NEW/DONE 레슨(날짜당 ≤2, 총 ≤6, 최신 우선) + carryPool ≤2
-   최소 기록 가드: |src| < 2 또는 날짜 수 < 2 → {mode:'NEW', guard:{reason:'insufficient'}}
-4. upsert ReviewSchedule(dueDate=오늘, sourceLessonIds=src) → {mode:'BOTH'}
-재진입: 마지막 NEW 레슨 7일↑ 전이면 최근 R학습일 레슨으로 복습부터(reason:'stale'). complete(REVIEW)→DONE·리셋 / skip→SKIPPED(당일).
-```
-- `mixSpec`(코드): 재료 레슨의 chunks 타입별 라운드로빈 8 + grammar 3 + quiz 오답 ≤3 + 채택 교정 ≤3 → A5 가 "이 재료만으로" REVIEW 레슨. 후검증 `chunks ⊆ mixSpec` 실패 시 1회 재시도.
+### 7-4. 반복 학습 — 강사가 3~7일에서 판단, 코드가 범위·기록·추출 (2026-09-26 사용자 결정으로 "3일 고정" 교체)
+- **주체 분담**: 강사(LLM, A11 `REVIEW_DECISION`) = 항목별 다음 간격(3~7일)·FOCUS 지정·오늘 볼 항목 구성·근거 한 줄 / 코드(`learning/repetition`) = 후보·통계 제공, **범위 강제**(min 3·max 7, FOCUS ≤3), 클램프·누락 폴백(3일), 균등 랜덤 추출, 기록. 기획서 "강사 에이전트 로직에 최소 학습 로그 기준 명시" = A11 입력 조건(학습일 2일·재료 2건 미만이면 복습 안 열기).
+- **단위**: `RepetitionItem`(EXPRESSION·CHUNK·GRAMMAR·SCENARIO·WORD·LESSON). 레슨 완료·교정 채택·단어 세트 finish 가 등록/갱신하고 **학습 횟수(studiedCount)·정오답·강사 피드백 횟수(feedbackCount)** 를 기록한다. `feedbackCount ≥3` 또는 강사 지정이면 `priority=FOCUS`("많이 틀리거나 피드백이 많은 내용은 별도 기록").
+- **판단 시점**: 레슨/세트/역할극 완료 트랜잭션 뒤 비동기 잡(`JobKind.REVIEW_DECISION`, sonnet, 60s, batch) + 하루 첫 진입 시 due 재판단. 결과는 `ReviewSchedule(dueDate, itemIds, decidedBy, tutorRationale)` 로 저장되어 "오늘의 복습" 카드에 근거와 함께 표시되고, **사용자가 시작하면** 학습(REVIEW 레슨 A5, 기록은 DIRECT).
+- **균등 랜덤 추출**(코드): due 항목 중 `weight = 1/(1+studiedCount) × (FOCUS ? 2 : 1)` 가중 비복원 샘플링(seed 저장), 세션 크기는 `dailyMinutes` 기준(15분 → 6~8), 최근 3세션 노출 항목은 감쇠. 세션 완료 시 `studiedCount+1`.
+- **폴백**: LLM 실패·타임아웃·범위 밖 → `decidedBy=FALLBACK`, 기존 `intervalDays` 유지(초기 3, FOCUS 3).
+- **A5 복습 레슨**은 그대로: 추출된 항목이 `mixSpec` 이 되고 "어떻게 섞을지"는 강사. 근거 연구(간격 효과)는 3~7일 범위를 뒷받침하는 정도로만 인용하고 최적 간격은 단정하지 않는다(`learning-personalization-and-llm-data.md` §2·§5).
 
 ### 7-5. AI평가 (`learning/evaluation`)
 - 난이도 = JLPT 5단계(N5 입문 ~ N1 고급, 기준 `tutor.md` §4). 기본 `Profile.level`, 같은 레벨 ≥90 두 번 연속 → `SET_LEVEL` 제안.
@@ -164,19 +166,19 @@ plugins/sherpa-stt/                                                    # Capacit
 ### 7-6. 공부계획표 — 달력 · 분석 · 성장기록
 - **출석**: `(app)/layout.tsx` 의 `AttendancePing` 이 하루 1회 `POST /api/v1/attendance/check-in`(멱등, `@@unique([userId,date])`, DAILY 스냅샷 `attended`).
 - **달력**: `StudyLog`+`Attendance` 파생(`GET /api/v1/plan/calendar?month=`), 일 상세.
-- **분석**: `POST /api/v1/plan/analysis {from,to}` → 코드가 입력 집계(출석·유형별 횟수·평가 추이·오류 유형 top5·오답 단어 top10·목표) → A8(opus, batch) → `StudyPlan(PROPOSED)` → 사용자 확인 → ACCEPTED(이전 ARCHIVED). 같은 `sourceRange.hash` 면 재생성 안 함. **Learning History**(§70): `LearnerErrorStat` 가 교정 채택·분석 완료 시 갱신되어 A8 입력·프롬프트 헤더에 쓰인다.
+- **분석**: `POST /api/v1/plan/analysis {weeks}`(범위는 코드가 산출, 정합성 수정 #5) → 코드가 입력 집계(출석·유형별 횟수·평가 추이·오류 유형 top5·오답 단어 top10·`RepetitionItem` FOCUS·목표) → A8(opus, batch) → `StudyPlan(PROPOSED)` → 사용자 확인 → ACCEPTED(이전 ARCHIVED). 같은 `sourceRange.hash` 면 재생성 안 함. **Learning History**(§70): `LearnerErrorStat` 가 교정 채택·분석 완료 시 갱신되어 A8 입력·프롬프트 헤더에 쓰인다. **(3차 제안)** 능력 축 5개(`LearnerSkillState`: 어휘 회상·문형/조사·듣고 응답·문장 산출·대화 유지)와 관측 이벤트(`LearningObservation`)를 코드가 갱신해 A8·A11 의 근거로 쓰는 안은 정본 §9 제안(사용자 결정 필요).
 - **성장기록**: `GET /api/v1/plan/growth` 는 **`StatsSnapshot` 만** 읽는다(삭제 후 추이 불변). 평가 5차원 레이더·일별 활동·연속 출석·수준 이력.
 
 ### 7-7. 서랍장 · 무엇이든 물어보세요 · 설정 허브
 - **서랍장**: 단어장 CRUD·보관·카테고리·검색·정렬(최근/오답/가나다), `drawer/corrections`(채택 교정 모음).
-- **무엇이든 물어보세요**: `Chat(kind=ASK)` + 턴 라우트 재사용, 페르소나 전체 + 학습자 헤더(≤600자) + 최근 12개(bjj `buildWindow`), A9 응답 `answer_md` + 제안 카드(ADD_WORD·ADD_STUDY_LOG·ADD_TOPIC·SET_LEVEL). 3b 에서 MCP `propose_*` 로 전환.
+- **무엇이든 물어보세요**: `Chat(kind=ASK)` + 턴 라우트 재사용, 페르소나 전체 + 학습자 헤더(≤600자) + 최근 12개(bjj `buildWindow`), A9 응답 `conversation.answerMd` + 제안 카드(ADD_WORD·ADD_STUDY_LOG·ADD_TOPIC·SET_LEVEL, 정합성 수정 #3). **(3차 보완)** 질문 의도(진도·복습 / 배운 표현·교정 / 일반 일본어 / 혼합)에 따라 서버 조회 계층 `learning/recordRetrieval`(화이트리스트 함수만, LLM SQL 금지, userId 강제, 최소 필드)이 본인 기록을 찾아 프롬프트에 넣고, 응답에 `sources[]`(날짜·레슨·표현)·`confidence`·`needsScope`(불확실 시 범위 되묻기)를 더한다. 3a=정형 조회, 3b=MCP `propose_*`, 3c=필요 시 로컬 임베딩 의미 검색(`retrieveKnowledge` 슬롯). 상세 `design/learning-personalization-and-llm-data.md` §3.
 - **설정 허브 `/settings`**(기획안 §72): 기본정보·목표·학습(수준·설명 언어·교정 빈도=strictness·설명 상세도) / **AI 선생님**(VoiceProfile 카드·스타일·속도·Pitch·Intonation·**▶ 현재 설정으로 미리듣기**(저장 전 draft)) / 음성 인식(자동·빠른 응답·높은 정확도·오프라인) / Advanced·Voice 관리·AI Engine Console 진입은 capability 있을 때만.
 
 ## 8. LLM / Conversation 플랫폼 (기획안 §65~§70)
 
 - **구성**: Foundation LLM(Claude) + System Prompt + Teacher Persona(`tutor.md`, key `teacher-persona`) + Conversation Context(창) + Learner Profile(헤더) + Learning History(`LearnerErrorStat`) + Lesson Context + Japanese Knowledge Base(RAG 슬롯, home-m4 `/v1/kb` 후보). 파인튜닝 없음.
 - **Conversation Orchestrator**(`conversation/orchestrator`, bjj `masterChat.js` 이식): 사용자 메시지·assistant `PENDING` 행 INSERT → `accepted` → PromptBuilder(페르소나 절 필터 + `[모드]` 헤더 + 학습자 헤더 + 창) → engine.router → `completeJson`(구조화 응답 검증, `correction.original` 바이트 일치 검증) → 저장 → `done`. 사용자당 동시 턴 1(메모리 락 + DB `PENDING`), 기동 시 `PENDING→FAILED`. Speech(STT/TTS) 는 라우트가 조합.
-- **구조화 응답(§67)**: `{conversation:{replyJa,replyReading,replyKo}, correction:null|{required,original,corrected,explanationKo,errorType,severity,chunkType}, learning:{grammarPoint,difficulty}, speech:{style:NEUTRAL|ENCOURAGING|CALM|CHEERFUL}, endOfTopic}`. LLM 은 speaker/model/pitch/styleWeight 를 정하지 않는다(§68).
+- **구조화 응답(§67)**: `{conversation:{replyJa,replyReading,replyKo}, correction:null|{required,original,corrected,explanationKo,errorType,severity,chunkType}, learning:{grammarPoint,difficulty}, speech:{style:NEUTRAL|ENCOURAGING|CALM|CHEERFUL}, endOfTopic, proposals[]}`(`proposals` 는 정합성 수정 #13 로 추가, ASK 는 `conversation.answerMd`+`sources`+`confidence`+`needsScope` 확장). LLM 은 speaker/model/pitch/styleWeight 를 정하지 않는다(§68). 학습자 헤더 상한은 모드별: TALK ≤300자, ASK·PLAN·REVIEW_DECISION ≤600자(정합성 #6).
 - **TTS Parameter 우선순위(§69)**: User Setting(AUTO 아닌 값) > VoiceProfile.defaults > Persona 힌트 > Conversation Context(복습=LEARNING 속도) > LLM `speech.style`.
 - **Prompt Registry**: 파일(`conversation/prompts/**`, `tutor.md`) = `SOURCE_CODE` v0, `npm run prompts:sync` → `PromptVersion(SOURCE_CODE)`, Console 편집 = `CONSOLE` 버전, ACTIVE 가 런타임 우선.
 
@@ -190,7 +192,8 @@ plugins/sherpa-stt/                                                    # Capacit
 | A6 | 평가 출제 | `[모드] EVAL_GEN` + kind·level·topic + 단어 ≤15 + 14일 해시 | `items[{kind,prompt,expected,dims,chunk_type?,word_surface?}]` | sonnet | 60s | 잡 |
 | A7 | 평가 채점 | `[모드] EVAL_GRADE` + 루브릭 + 서술형 문항·답 | `items[{order,score,feedback_ko}], rubric{5}, total, comment_ko, next_focus` | sonnet | 120s | 잡, DONE 단일 트랜잭션 |
 | A8 | 분석→계획서 | `[모드] PLAN` + 코드 집계 ≤6,000자 | `analysis{strengths,weaknesses,level_estimate,evidence}, curriculum{reviewEvery,weeks[]}, rationale_ko` | opus | 300s | 잡(batch), hash 캐시 |
-| A9 | 무엇이든 | 페르소나 전체 + `[모드] ASK` + 헤더 ≤600 + 최근 12개 ≤8,000 | `answer_md, proposals[]` | UserVoice… 아님 — Profile 기본 sonnet | 120s | SSE |
+| A9 | 무엇이든 | 페르소나 전체 + `[모드] ASK` + 헤더 ≤600 + 조회된 본인 기록 ≤2,000자(`recordRetrieval`) + 최근 12개 ≤8,000 | `conversation.answerMd, sources[], confidence, needsScope?, proposals[]` | sonnet(`runtime.tiers.review`, 정합성 #4) | 120s | SSE |
+| A11 | **복습 판단**(REVIEW_DECISION) | `[모드] REVIEW_DECISION` + 헤더 ≤600 + due·후보 `RepetitionItem` ≤40건(횟수·정오답·피드백·현재 간격·FOCUS) ≤4,000자 | `decisions[{itemId, nextIntervalDays 3~7, priority, reason_ko}], sessionPlan{itemIds[], mixNote_ko}, rationale_ko` — 코드가 범위 클램프·누락 폴백 | sonnet | 60s | 잡(batch), 완료 트랜잭션 후·하루 첫 진입 |
 | A10 | 단어 보강 | surface | `reading, meaning_ko, part_of_speech, jlpt, example_ja, example_ko` | home-m4/haiku | 20s | 동기·캐시 |
 
 - **페르소나 절 구조**(`tutor.md` v0, prompt-engineer 가 v1): 1 정체성 · 2 말투 · 3 교정 원칙 · 4 난이도 N5~N1 · 5 조각 프레임 · 6 모드별 출력 · 7 커리큘럼 규칙 · 8 하지 말 것 · 9 Claude Code 세션. 런타임 `persona.ts` 가 `## N.` 절 필터(A1 은 1·3·4·6).
@@ -298,7 +301,7 @@ plugins/sherpa-stt/                                                    # Capacit
 | 상단 아바타 | `/settings`(기본정보·목표·학습 / AI 선생님+미리듣기 / 음성 인식 / Advanced·Voice 관리·Console 진입은 capability) | 5. 프로필 | 1 |
 | 콘솔 | `(admin)/admin/*` 별도 레이아웃 | 기획안 §80 | 1(읽기) / 2~4 |
 
-모바일 원칙: 412×892 기준·앱 WebView ≈390px → 360/390/412 검증, `100dvh`, 터치 44px(푸시투토크 ≥64px), 일본어 16px↑·후리가나 토글, 화면당 스크롤 1곳, 음성 우선 입력 + 텍스트 폴백 상시. 사용자 화면에 엔진명·model_id·speaker_id 0건.
+모바일 원칙: 412×892 기준·앱 WebView ≈390px → 360/390/412 검증, `100dvh`, 터치 44px(푸시투토크 ≥64px), 일본어 16px↑·후리가나 토글, 화면당 스크롤 1곳, 음성 우선 입력 + 텍스트 폴백 상시. 사용자 화면에 엔진명·model_id·speaker_id 0건. **종료 지점 원칙**(레퍼런스2, 피드백 #11): 레슨·복습·역할극 세션은 완결감 대신 다음 구간·상황 하나를 예고하고 끝낸다. 오늘 탭은 "주제 → 상황" 2단 선택 + "바로 상황 고르기", 복습 카드에는 강사의 판단 근거 한 줄을 보여 준다.
 
 ## 12. 안드로이드 앱 · APK 갱신
 
@@ -336,13 +339,13 @@ plugins/sherpa-stt/                                                    # Capacit
 | 007 | AI 회화(음성) 실시간 교정 | `RealtimeSttClient` 라우팅·`TtsPlayer`·5구간 계측, 실기기 30턴 p50 ≤5s, 원문 무수정, 권한 거부 안내, 웹 gateway 동작 | 003, 006 |
 | 008 | 단어장 최소판 + 오늘의 단어 | CRUD·보관·카테고리, 세트 생성(정답 미노출)·CHOICE·finish 트랜잭션, 10장 3분, 삭제 후 집계 불변, 풀<4 FLIP | 002, 005 |
 | 009 | Phase 1 통합 QA·라이브·APK | nginx·Gitea·webhook·첫 blue/green, 운영 e2e(회화·채팅·단어), `RELEASE_RESULT ok`, 롤백 리허설, APK 배포본·배너 | 006, 007, 008 |
-| 010~012 | Phase 2: 주제·조각·오늘의 회화·3일 반복 / AI평가 / 달력 | 3일 가드·만료 승계·stale, 기록률 100% 트랜잭션, 첫 평가 20건 루브릭 조정 라운드 | 009 |
+| 010~012 | Phase 2: 주제·상황(`Scenario`, 결정 시)·오늘의 회화(청취 구간 반복·단어 메모·nextPreview)·**반복 학습(RepetitionItem·A11 강사 판단 3~7일·균등 랜덤·FOCUS)** / AI평가 / 달력 | 최소 기록 가드·범위 클램프·폴백, 기록률 100% 트랜잭션, 첫 평가 20건 루브릭 조정 라운드, 복습 카드에 근거 표시 | 009 |
 | 012b | 음성 P2 | worker+`SpeechJob`·WhisperEngine·Comparator·requiresReview 카드·발화 로그 | 009 |
 | 012c | Console P2 | Form/JSON 편집·Validate/Test/Diff/Apply·Version·History·Rollback·Prompt Registry sync/activate/test·Playground | 005b |
-| 013~015 | Phase 3: 분석·성장기록 / 서랍장 전체 / 무엇이든(3a→3b MCP) | 성장기록=스냅샷만, 분석 hash 캐시, ASK 제안 카드 | 012 |
+| 013~015 | Phase 3: 분석·성장기록(+능력 축·관측 제안 도입 시) / 서랍장 전체 / 무엇이든(3a 정형 조회·출처 표시 → 3b MCP → 3c 의미 검색 조건부) | 성장기록=스냅샷만, 분석 hash 캐시, ASK `sources`·`needsScope`, 타 사용자 격리 0건 | 012 |
 | 015b | 음성 P3 | PronunciationAnalyzer(narabas+pyopenjtalk+F0), 단어별 ★ 피드백 | 012b |
 | 015c | Console P3 | E2E·Diagnostics·Debug session·Log level | 012c |
-| 016 | Phase 4 | Voice Package Import·수명주기·스타일·감정 / Preset·Export/Import·Override / Admin Web 분리 검토 | 015* |
+| 016 | Phase 4 | Voice Package Import·수명주기·스타일·감정 / Preset·Export/Import·Override / Admin Web 분리 검토 / **M4 모델 벤치마크(Qwen3·Qwen3-Swallow·Qwen3.5 후보 vs Claude 기준선)·공통 강사 행동 LoRA 실험(별도 시간대, 사용자 결정)** | 015* |
 
 병렬: 003·004·005·005b 는 002 직후 동시(파일 경계 분리). 006·008 독립.
 
@@ -352,6 +355,8 @@ plugins/sherpa-stt/                                                    # Capacit
 1. **'전화1번' 원어민 통화**: 자체 구현하지 않는다. AI평가 데이터가 쌓이고 만족도가 낮을 때 외부 서비스 연동만 검토. 스키마 흔적 없음.
 2. **오늘의 회화 콘텐츠**: 자체 생성(A4) + 사용자 붙여넣기(`Lesson.sourceText`). 외부 콘텐츠 큐레이션은 저작권·수급 문제로 제외, 확장 여지만.
 3. **AI평가 채점 기준**: §7-5 초안 채택, Phase 2 첫 20건 사용자 검토 라운드.
+
+**사용자 결정 필요(3차 보완, `learning-personalization-and-llm-data.md` §8)**: `Scenario`·`ScenarioTopic` 도입 Phase / `LearnerSkillState`·`LearningObservation` 도입 여부·Phase / 개인 기록의 Claude CLI(외부 구독 경로) 전송 범위 / 과거 대화 의미 검색(로컬 임베딩) 도입 조건 / M4 LoRA 실험 착수 조건·시간대. `reviewEvery`(PLAN) 는 참고값이며 실제 간격은 A11 항목별 3~7일(범위 고정, 정합성 #14·15).
 
 | 리스크 | 조치 |
 |---|---|
@@ -384,7 +389,7 @@ plugins/sherpa-stt/                                                    # Capacit
 
 ## 18. 데이터 정책
 
-- **운영 데이터 ≠ 학습 데이터(§71)**: 사용자 대화·음성은 모델 학습에 자동 사용하지 않는다. `Utterance.trainingOptIn` 기본 false, 사용 시 허가→익명화→품질 검증→Dataset 등록 절차(현 단계 미구현).
+- **운영 데이터 ≠ 학습 데이터(§71)**: 사용자 대화·음성은 모델 학습에 자동 사용하지 않는다. `Utterance.trainingOptIn` 기본 false, 사용 시 허가→익명화→품질 검증→Dataset 등록 절차(현 단계 미구현). **조회·개인화(본인 기록을 프롬프트/조회로 반영, ASK 기록 검색)와 가중치 학습(파인튜닝)은 별도 동의·처리 경로**다 — 전자는 기본 기능, 후자는 opt-in 데이터셋에만(상세 `learning-personalization-and-llm-data.md` §3·§4·§6). 개인 기록이 Claude CLI(외부 구독 경로)로 전송되는 범위(헤더 ≤600자·조회 결과 ≤2,000자·최근 12개)는 문서화·최소화(가명화)하며 확대는 사용자 결정 사항.
 - **보존**: 오디오 원본 30일(사용자 삭제 시 즉시 삭제), 분석 결과·텍스트 영구, `RequestTrace` 90일, `AuditLog`·`ConfigurationVersion` 영구.
 - **삭제**: 사용자 삭제 기능은 `users/<id>/` 파일 트리 정리를 함께 넣는다(TheMeal 교훈). 집계 스냅샷은 삭제 경로에서 불변.
 - **로그**: 원음·전체 대화·API Key·토큰은 일반 로그 금지, `DebugSession` 에서만 제한 수집(§113). Production 은 TRACE 레벨 제한.

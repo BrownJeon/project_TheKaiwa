@@ -1,0 +1,18 @@
+{
+  "name": "thekaiwa",
+  "version": "0.0.1",
+  "private": true,
+  "description": "TheKaiwa — DB 준비 단계 최소 패키지(Phase 0 스캐폴딩 전). Prisma 스키마 push 용도만.",
+  "scripts": {
+    "db:generate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma generate",
+    "db:push": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma db push --skip-generate",
+    "db:validate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma validate"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.0.0",
+    "prisma": "^6.0.0"
+  }
+}

@@ -21,7 +21,7 @@
 
 | 용어 | 정의 | 위치 |
 |---|---|---|
-| **Engine Descriptor** | 어댑터 코드가 선언하는 엔진 정체성: `id`(`faster-whisper`·`sherpa-onnx`·`style-bert`·`claude-cli`·`home-m4`), `displayName`, `type(EngineType)`, `roles(EngineRole[])`, `connectionTypes`, `capabilities`, `pluginVersion`, `schemaVersion`. 기동 시 `Engine` 테이블에 스냅샷 upsert | 코드 `src/modules/engine/adapters/*/descriptor()` → DB `Engine` |
+| **Engine Descriptor** | 어댑터 코드가 선언하는 엔진 정체성: `id`(`faster-whisper`·`sherpa-onnx-reazon`·`style-bert-vits2`·`claude-cli`·`home-m4-api` — domain-model §7 시드와 동일, 정합성 #10), `displayName`, `type(EngineType)`, `roles(EngineRole[])`, `connectionTypes`, `capabilities`, `pluginVersion`, `schemaVersion`. 기동 시 `Engine` 테이블에 스냅샷 upsert | 코드 `src/modules/engine/adapters/*/descriptor()` → DB `Engine` |
 | **Configuration Schema** | 엔진별 설정 키 목록과 메타데이터(§5 규격). `DEFAULT` 층의 값 원천이자 Validate·Form/JSON UI·Editability 판정의 기준 | 코드 `configurationSchema()` |
 | **Connection Profile** | "그 엔진을 어디에서 어떤 설정으로 쓰는가"(§47). `EngineConnection{environment, key, engineId, role, connectionType, connection Json, runtime Json, credentialRef, logLevel, status}` | DB `EngineConnection` |
 | **Effective Configuration** | 환경·대상(scope+targetId)·요청 컨텍스트에 대해 8층을 병합한 최종 키-값 집합. 키마다 `{value, source, sourceRef, editability}` 를 갖는다 | Resolver 출력(캐시), `GET /api/admin/v1/config/effective` |
@@ -249,7 +249,7 @@ Engine Router(`engine/router`)는 역할 → connection 선택만 한다: `Engin
 { "key": "runtime.vadFilter",    "type": "BOOLEAN", "default": true, "editability": "RUNTIME_EDITABLE" }
 ```
 
-#### sherpa-onnx (`engineId: sherpa-onnx`, type STT, roles [REALTIME_STT], connectionTypes [ONDEVICE, HTTP]) — ReazonSpeech zipformer int8 + silero VAD
+#### sherpa-onnx-reazon (`engineId: sherpa-onnx-reazon`, type STT, roles [REALTIME_STT], connectionTypes [ONDEVICE, HTTP]) — ReazonSpeech zipformer int8 + silero VAD
 
 ```json
 { "key": "connection.baseUrl",         "type": "URL", "default": "http://127.0.0.1:8100", "editability": "RUNTIME_EDITABLE", "appliesTo": ["HTTP"], "strict": true }
@@ -274,7 +274,7 @@ Engine Router(`engine/router`)는 역할 → connection 선택만 한다: `Engin
 
 `vad.silenceMs`(기획 표기)는 `runtime.vad.minSilenceMs` 로 통일한다. ONDEVICE connection 의 RUNTIME_EDITABLE 키는 `GET /api/v1/speech/config` 로 다음 앱 기동(또는 `configVersion` ETag 변경 감지) 시 반영된다 — 서버 프로세스 재시작은 없다.
 
-#### style-bert (`engineId: style-bert`, type TTS, roles [TTS], connectionTypes [HTTP]) — Style-Bert-VITS2 on M4 tts-service
+#### style-bert-vits2 (`engineId: style-bert-vits2`, type TTS, roles [TTS], connectionTypes [HTTP]) — Style-Bert-VITS2 on M4 tts-service
 
 ```json
 { "key": "connection.baseUrl",        "type": "URL", "default": "http://192.168.219.100:8200", "editability": "RUNTIME_EDITABLE", "strict": true, "envAlias": ["TTS_SERVICE_URL","TTS_BASE_URL"] }
@@ -316,7 +316,7 @@ Engine Router(`engine/router`)는 역할 → connection 선택만 한다: `Engin
 { "key": "runtime.maxConcurrentTurnsPerUser", "type": "INTEGER", "default": 1, "editability": "READ_ONLY" }
 ```
 
-#### home-m4 (`engineId: home-m4`, type LLM, roles [LLM], connectionTypes [HTTP]) — home-m4-api `/v1/chat`(qwen), 어댑터 전용(회화 턴 금지)
+#### home-m4-api (`engineId: home-m4-api`, type LLM, roles [LLM], connectionTypes [HTTP]) — home-m4-api `/v1/chat`(qwen), 어댑터 전용(회화 턴 금지)
 
 ```json
 { "key": "connection.baseUrl",        "type": "URL", "default": "http://192.168.219.100:8000/v1", "editability": "RUNTIME_EDITABLE", "strict": true, "envAlias": ["AI_API_BASE"] }
@@ -326,7 +326,7 @@ Engine Router(`engine/router`)는 역할 → connection 선택만 한다: `Engin
 { "key": "runtime.temperature",       "type": "NUMBER", "default": 0.3, "min": 0, "max": 1.5, "editability": "RUNTIME_EDITABLE" }
 { "key": "runtime.maxOutputTokens",   "type": "INTEGER", "default": 1024, "min": 128, "max": 4096, "editability": "RUNTIME_EDITABLE" }
 { "key": "runtime.systemFirst",       "type": "BOOLEAN", "default": true, "editability": "READ_ONLY", "description": "첫 메시지 system 강제(주식분석가 프롬프트 주입 방지)" }
-{ "key": "runtime.allowedTasks",      "type": "JSON", "default": ["wordEnrich","distractorGen","reviewFallback"], "editability": "RUNTIME_EDITABLE", "description": "회화·채팅 턴(talk/chat/ask)은 어떤 설정으로도 허용되지 않는다(Validate 의존성)" }
+{ "key": "runtime.allowedTasks",      "type": "JSON", "default": ["wordEnrich","distractorGen","chatReviewFallback"], "editability": "RUNTIME_EDITABLE", "description": "회화·채팅 턴(talk/chat/ask)은 어떤 설정으로도 허용되지 않는다(Validate 의존성)" }
 ```
 
 ---
@@ -404,7 +404,7 @@ v(n+1) ACTIVE ──rollback to v(k)──▶ v(n+1) ROLLED_BACK, v(n+2) ACTIVE(
 
 - **같은 DB, `environment` 컬럼으로 분리.** 설정 계열 엔티티(`EngineConnection·EngineFallbackPolicy·ConfigurationVersion·RuntimeOverride·AppSetting·PromptVersion·ConfigurationPreset·RequestTrace·AuditLog·DebugSession`) 는 전부 `environment` 를 갖고, 프로세스는 `infra/db` 의 `scoped(env)` 헬퍼로 `where environment = APP_ENV` 를 자동으로 붙인다. 학습 데이터(`User·Chat·WordEntry…`)는 환경 컬럼이 없다(개발·운영 공유는 TheMeal 관례).
 - `APP_ENV` 미설정 → 기동 실패(`infra/config` 가 throw). `APP_ENV=PRODUCTION` 인데 `NODE_ENV≠production` 이면 경고. Python 서비스는 같은 값을 env 로 받아 `/health.env` 로 보고하고, 앱은 connection 의 서비스 env 가 앱과 다르면 `MISCONFIGURED(statusReason="service env mismatch")` — 단 **LOCAL 앱 → PRODUCTION M4 tts-service** 는 실제 운영 관행이라 허용하되 콘솔 배지 경고(`admin-console/16` §3).
-- seed(`prisma/seed.ts`) 는 `EngineConnection` 6종(`claude-cli·home-m4·reazon-ondevice·reazon-gateway·whisper-voicevault·style-bert-m4`)·`EngineFallbackPolicy` 4역할·`VoiceProfile` 2~3·`AppSetting` 기본을 **LOCAL 과 PRODUCTION 두 환경에 각각** 넣는다(`speech.config.yml` 의 `environments.<env>` 블록으로 baseUrl 만 다름).
+- seed(`prisma/seed.ts`) 는 `EngineConnection` 6종(key `claude-cli-local·home-m4-lan·reazon-ondevice·reazon-gateway·whisper-voicevault·style-bert-m4`)·`EngineFallbackPolicy` 4역할·`VoiceProfile` 2~3·`AppSetting` 기본을 **LOCAL 과 PRODUCTION 두 환경에 각각** 넣는다(`speech.config.yml` 의 `environments.<env>` 블록으로 baseUrl 만 다름).
 - **배지**: 콘솔 상단 Environment 배지(`GET /api/admin/v1/environment`). PRODUCTION 은 경고색 + 적용 버튼 라벨 "PRODUCTION 에 적용". 다른 환경의 행을 보는 중이면 배지에 "viewing: LOCAL" 을 덧붙인다.
 - **환경 교차 편집**: 조회는 `?environment=` 로 다른 환경을 볼 수 있으나(SUPER_ADMIN), 변경의 `targetEnvironment` 는 **대상 행의 `environment`** 다. `APP_ENV=LOCAL` 프로세스에서 PRODUCTION 행 편집은 SUPER_ADMIN 만 + `AuditLog.after.crossEnvironment=true`. PRODUCTION 프로세스에서 LOCAL 행 편집은 자유.
 - **승격 경로**: LOCAL 에서 검증한 설정을 PRODUCTION 으로 옮기는 정식 경로는 `config/export`(LOCAL) → `config/import`(PRODUCTION, `config.import.production`, §8 흐름). connection 참조는 `key` 로 직렬화되어 환경 간 id 차이를 흡수한다.

@@ -24,7 +24,7 @@ model: sonnet
 <responsibilities>
 ## 핵심 책임
 1. **강사 페르소나 `.claude/agents/tutor.md`**(key `teacher-persona`): 설계안 §8 절 구조(정체성·말투·교정 원칙·N5~N1 난이도 기준·조각 프레임·모드별 출력·커리큘럼 규칙·하지 말 것·Claude Code 세션 안내)를 4,000~6,000자로 유지. `## N.` 헤딩 단위로 절 필터가 걸리므로 헤딩 번호를 바꾸면 런타임(`conversation/persona`)과 함께 조정한다.
-2. **프롬프트 모듈** `src/modules/conversation/prompts/{talk,chat,chatReview,lesson,reviewMix,evalGen,evalGrade,planAnalysis,ask,wordEnrich}.ts`: 각 파일은 `SYSTEM_PROMPT`(또는 페르소나 절 선택자), `buildUserPrompt(input)`, `OUTPUT_SCHEMA`(JSON Schema, `api-contract.md` 의 응답 스키마와 1:1), `PROMPT_VERSION` 을 export. 모든 프롬프트에 "응답은 JSON 객체 하나뿐" 지시문.
+2. **프롬프트 모듈** `src/modules/conversation/prompts/{talk,chat,chatReview,lesson,reviewMix,reviewDecision,evalGen,evalGrade,planAnalysis,ask,wordEnrich}.ts`(`reviewDecision` = A11 복습 판단: 항목별 3~7일·FOCUS·근거, 코드가 범위 클램프): 각 파일은 `SYSTEM_PROMPT`(또는 페르소나 절 선택자), `buildUserPrompt(input)`, `OUTPUT_SCHEMA`(JSON Schema, `api-contract.md` 의 응답 스키마와 1:1), `PROMPT_VERSION` 을 export. 모든 프롬프트에 "응답은 JSON 객체 하나뿐" 지시문.
 3. **§67 구조화 응답 준수**: `{conversation:{replyJa,replyReading,replyKo}, correction:null|{required,original,corrected,explanationKo,errorType,severity,chunkType}, learning:{grammarPoint,difficulty}, speech:{style}, endOfTopic}`. `strictness`(GENTLE/NORMAL/STRICT)·`level`·`politeness`·`explainDepth` 를 헤더로 받아 교정 강도·설명 분량을 조절한다.
 4. **Prompt Registry 연동**: 파일이 `SOURCE_CODE` v0 정본. 변경 후 `npm run prompts:sync` 로 `PromptVersion(SOURCE_CODE)` 을 올리고, Console 에서 만든 `CONSOLE` 버전과 충돌하면 Leader 와 어느 쪽을 ACTIVE 로 둘지 합의한다. 회귀 픽스처는 두 경로 모두에 적용.
 5. **회귀 픽스처** `tests/prompts/fixtures/*.json`(입력·기대 스키마·금지 패턴) + `tests/prompts/*.test.ts`: 교정 샘플 20문장(조사·활용·존댓말·자연스러움·정답 문장 포함), 레슨 재료→chunks ⊆ mixSpec 검증, 평가 채점 루브릭 범위 검증. JSON 파싱 실패·원문 변조·엔진명 노출 사례는 즉시 회귀 케이스로.
@@ -108,7 +108,7 @@ export const OUTPUT_SCHEMA = { /* api-contract.md 응답 스키마와 1:1 */ }
 </verification>
 
 <references>
-- [docs/design-spec.md §8(A1~A10·페르소나 절 구조)](../../docs/design-spec.md) · [docs/design/api-contract.md](../../docs/design/api-contract.md)(응답 스키마 정본) · [docs/design/admin-console/14-prompt-registry-versioning.md](../../docs/design/admin-console/14-prompt-registry-versioning.md) · [.claude/agents/tutor.md](tutor.md)
+- [docs/design-spec.md §7-4·§8(A1~A11·페르소나 절 구조)](../../docs/design-spec.md) · [docs/design/tutor-persona-validation.md](../../docs/design/tutor-persona-validation.md)(검증 세트 V1~V9 — task-004 에서 픽스처로 실체화) · [docs/design/learning-personalization-and-llm-data.md](../../docs/design/learning-personalization-and-llm-data.md)(§2 교정 방식·A11, §3 ASK 기록 조회) · [docs/design/api-contract.md](../../docs/design/api-contract.md)(응답 스키마 정본) · [docs/design/admin-console/14-prompt-registry-versioning.md](../../docs/design/admin-console/14-prompt-registry-versioning.md) · [.claude/agents/tutor.md](tutor.md)
 - 참고 페르소나: `bjj-trainning/.claude/agents/gym-master.md`, 참고 프롬프트 패턴: `TheMeal/src/lib/ai/prompts/*`
 - 워크스페이스: [`../../../docs/agent-vault-protocol.md`](../../../docs/agent-vault-protocol.md) · [`../../../docs/agent-communication-protocol.md`](../../../docs/agent-communication-protocol.md)
 </references>

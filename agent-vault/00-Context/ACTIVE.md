@@ -8,15 +8,15 @@ tags:
 
 ## 한 줄 요약
 
-**설계 단계 완료(2026-09-26), 구현 코드 0줄.** 사용자 기획서 4종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 33종(`docs/design/speech-platform/00~15`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
+**설계 단계 완료 + 2·3차 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), DB 는 사용자 권한 SQL 실행 대기. 사용자 기획서 4종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 33종(`docs/design/speech-platform/00~15`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
 
 ### 사용자만 할 수 있는 것 (Phase 0 착수 전)
-- ⬜ **Gitea 저장소 `project_TheKaiwa` 생성**(맥 PAT 은 `write:repository` 뿐이라 생성 불가 — Gitea UI 에서) → `git remote add origin` 후 push
-- ⬜ **NAS MariaDB** `thekaiwa` DB·계정 생성 → `.env` `DATABASE_URL`
+- ✅ **Gitea 저장소 `project_TheKaiwa`** 생성·연결·push 완료(2026-09-26, `origin/main` 추적)
+- ⬜ **NAS MariaDB** `thekaiwa` DB·계정 생성(권한 SQL 은 [[OPS-QUEUE]] #2) → `TheKaiwa/.env` 에 `DATABASE_URL` → Leader 가 우분투 미러에서 `prisma db push`(48 테이블, `prisma/schema.prisma` 준비됨)
 - ⬜ **Google OAuth 클라이언트** 발급 — redirect URI `https://kaiwa.xn--lh0b87pnudm10a4vd.com/api/auth/google/callback`(퓨니코드)
 - ⬜ **nginx vhost** `kaiwa.xn--lh0b87pnudm10a4vd.com` → `127.0.0.1:3010` + `/ws/speech` → `127.0.0.1:8100`(Upgrade) 적용(sudo). DNS·TLS 는 와일드카드라 손댈 필요 없음
 - ⬜ **맥 M4** 에 `~/kaiwa-tts-run` 디렉토리·venv·Style-Bert-VITS2 설치 위치 승인(tts-service)
-- ⬜ `cc-sync-codex/sync-projects.ps1` 실행(pwsh 있는 머신) → `.codex/`·`AGENTS.md` 생성
+- ⏸ `cc-sync-codex/sync-projects.ps1` 실행 — **1차 구현 후로 보류**(사용자 결정 2026-09-26)
 - ⬜ 포트 3010·8100 이 서버에서 비어 있는지 `ss -ltnp` 확인(문서 기준으로는 비어 있음)
 
 ## 1. 읽는 순서
@@ -27,8 +27,9 @@ tags:
 | 2 | [`../../docs/design-spec.md`](../../docs/design-spec.md) | **통합 설계안** — §0 확정 사항 · §8 LLM · §9 음성 · §9-B Voice/Engine · §9-C Console · §15 Phase |
 | 3 | `../../docs/design/domain-model.md` · `api-contract.md` · `module-dependency.md` · `configuration-resolution.md` · `role-permission.md` | **정본 5종** — 엔티티·API·모듈·설정 해석·권한 |
 | 4 | `../../docs/design/speech-platform/00~15` · `../../docs/design/admin-console/00~16` | 세부 설계 33종 |
-| 5 | [[task-001-initial-planning]] | 설계 과정 전체 기록 — 무엇을 왜 정했는지 |
-| 6 | [[stack-and-llm-choice]] · [[speech-architecture-decisions]] | 결정 이유 |
+| 4b | [`../../docs/design/learning-personalization-and-llm-data.md`](../../docs/design/learning-personalization-and-llm-data.md) · [`tutor-persona-validation.md`](../../docs/design/tutor-persona-validation.md) | **학습 개인화·반복 학습(강사 판단 3~7일)·주제·상황·기록 조회·M4 방안·지표** / 페르소나 검증 세트 |
+| 5 | [[task-001-initial-planning]] · [[task-003b-tutor-persona-v1]] | 설계 과정 전체 기록 — 무엇을 왜 정했는지 |
+| 6 | [[stack-and-llm-choice]] · [[speech-architecture-decisions]] · [[tutor-persona-choice]] | 결정 이유 |
 
 원문 4종은 `../../docs/{기획서,음성처리-기획안,음성처리-추가기획안,관리자콘솔-기획안}-원본.md` 에 그대로 있다(수정 금지).
 
@@ -45,6 +46,9 @@ tags:
 | Voice/Engine | Voice 는 데이터(Registry·Profile·Package Import·통합 미리듣기), Engine = Descriptor(코드)+Connection(DB)+Schema+Health/Test+Fallback, Secret 은 `credentialRef` 만 |
 | Console | Role 4단계(capability), Effective Config + 8층 Source, ConfigurationVersion·Audit·Rollback, Environment(LOCAL/PRODUCTION), Playground·E2E·Trace, Prompt Registry |
 | 팀 | leader·designer·developer·prompt-engineer·reviewer·qa·deployer 7인 + 강사 페르소나 `tutor.md` |
+| 강사 페르소나 v1 | 단일 · 일본인 원어민 · 교정에 철저(strictness 기본 STRICT) · 한국어 설명+일본어 대화 · 이름 사용자 지정(`Profile.teacherName`) · 런타임 전용(개발팀 미편입) |
+| 반복 학습 | **강사가 3~7일에서 판단(A11)**, 코드는 범위 강제·`RepetitionItem` 기록·균등 랜덤 추출·FOCUS(≤3일)·폴백. "3일 고정" 폐기 |
+| 학습 설계 보완 | 주제→상황 역할극(`Scenario` 제안)·관측/능력 축(제안)·ASK 기록 조회 계층(3a 정형 조회, LLM SQL 금지, 출처 표시)·M4 모델 후보(Qwen3·Qwen3-Swallow·Qwen3.5, 벤치마크 대상)·LoRA 는 공통 강사 행동만·개인 데이터 학습 금지 유지 — 사용자 결정 필요 항목은 새 문서 §8 |
 | 이번 산출물 | **설계 문서만**. 코드·실물 스키마 없음 |
 
 ## 3. 다음 세션이 반드시 지켜야 할 것
@@ -58,6 +62,6 @@ tags:
 
 ## 4. 다음 작업 — Phase 0
 
-**[[task-002-phase0-scaffolding]] 이력서 작성 완료(status: todo).** 사용자 선결 항목(위 ⬜) 중 저장소·DB·OAuth 가 끝나면 designer → developer×2 → reviewer → qa 순으로 배정한다. 병렬 착수 가능: task-003(플러그인+음성 P0)·task-004(AI 클라이언트+페르소나 v1)·task-005(설정 허브)·task-005b(Console 골격)는 002 직후.
+**[[task-002-phase0-scaffolding]] 이력서 작성 완료(status: todo).** DB 선행: 사용자가 [[OPS-QUEUE]] #2 SQL 을 실행하고 `.env` 를 두면 Leader 가 `prisma db push` 로 48 테이블을 만든다(시드는 task-002). 사용자 선결 항목(위 ⬜) 중 저장소·DB·OAuth 가 끝나면 designer → developer×2 → reviewer → qa 순으로 배정한다. 병렬 착수 가능: task-003(플러그인+음성 P0)·task-004(AI 클라이언트+페르소나 v1)·task-005(설정 허브)·task-005b(Console 골격)는 002 직후.
 
 Phase 1 전체 계획은 [[board]] Backlog 와 `design-spec.md` §15.

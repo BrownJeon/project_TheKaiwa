@@ -140,7 +140,7 @@ WebSocket `/ws/speech` 는 Next.js 라우트가 아니라 nginx `Upgrade` 프록
 | 책임 | 학습자 상태·기록·집계·커리큘럼 결정 코드(3일 반복·세트 생성·채점 규칙). 기획서의 "오늘의 공부·계획표·서랍장" 도메인. |
 | 서브디렉토리 | `learnerProfile/`(프롬프트 헤더용 요약) · `attendance/` · `studyLog/` · `vocab/`(setGenerator·distractors·grading·stats·words) · `topics/` · `lessons/`(+`reviewSchedule` §7-4) · `evaluation/`(rubric·scoring) · `studyPlan/` · `learningHistory/`(errorStats §70) · `snapshots/` · `knowledge/`(RAG 슬롯, home-m4 `/v1/kb`) |
 | 소유 테이블 | `WordEntry`, `VocabSession`, `VocabAttempt`, `ConversationTopic`, `TopicChunk`, `Lesson`, `ReviewSchedule`, `StudyLog`, `Attendance`, `Evaluation`, `EvaluationItem`, `StudyPlan`, `StatsSnapshot`, `LearnerErrorStat` |
-| 공개 API | `getLearnerContext(userId)`(level·goal·최근 약점 — 프롬프트 헤더 ≤300자 재료) · attendance: `checkIn(userId, kstDate)` · `listAttendance(userId, month)` · studyLog: `recordStudyLog(userId, entry, tx?)` · `listStudyLogs` · `deleteStudyLog`(`snapshotKept:true`) · vocab: `listWords`/`createWord`/`updateWord`/`archiveWord`/`unarchiveWord`/`deleteWord`/`listCategories` · `enrichWord(surface)`(A10) · `createVocabSession(userId, opts)`(정답 미노출 DTO) · `getVocabSession` · `recordAttempt(sessionId, order, answer)` · `finishVocabSession(sessionId)`(단일 트랜잭션) · `keepVocabSession`/`replayVocabSession` · `getVocabStats` · topics: `listTopics(userId, level?)` · `createTopic` · lessons: `getTodayLesson(userId)`(`{mode, review?, guard?}`) · `createLesson(userId, {topicId} \| {sourceText})`(잡) · `updateLessonProgress` · `completeLesson(userId, lessonId)`(트랜잭션 + `ReviewSchedule` upsert) · `startReview`/`skipReview` · `getLessonContext(lessonId)` · evaluation: `createEvaluation` · `answerEvaluationItem` · `submitEvaluation`(잡) · `getEvaluation` · studyPlan: `requestPlanAnalysis`(잡, hash 캐시) · `getLatestAnalysis`/`getCurrentPlan` · `acceptPlan`/`rejectPlan` · learningHistory: `recordErrorStat(userId, type, pattern, tx?)` · `getErrorStats(userId)` · snapshots: `getCalendar(userId, month)` · `getDay(userId, date)` · `getGrowth(userId)`(`StatsSnapshot` 만) · knowledge: `retrieveKnowledge(userId, query)` |
+| 공개 API | `getLearnerContext(userId)`(level·goal·최근 약점 — 프롬프트 헤더 ≤300자 재료) · attendance: `checkIn(userId, kstDate)` · `listAttendance(userId, month)` · studyLog: `recordStudyLog(userId, entry, tx?)` · `listStudyLogs` · `deleteStudyLog`(`snapshotKept:true`) · vocab: `listWords`/`createWord`/`updateWord`/`archiveWord`/`unarchiveWord`/`deleteWord`/`listCategories` · `enrichWord(surface)`(A10) · `createVocabSession(userId, opts)`(정답 미노출 DTO) · `getVocabSession` · `recordAttempt(sessionId, order, answer)` · `finishVocabSession(sessionId)`(단일 트랜잭션) · `keepVocabSession`/`replayVocabSession` · `getVocabStats` · topics: `listTopics(userId, level?)` · `createTopic` · lessons: `getTodayLesson(userId)`(`{mode, date, review?, guard?, todayLessons[], cycle}` — api-contract #58 과 동일, 정합성 #2) · `createLesson(userId, {topicId} \| {sourceText})`(잡) · `updateLessonProgress` · `completeLesson(userId, lessonId)`(트랜잭션 + `ReviewSchedule` upsert) · `startReview`/`skipReview` · `getLessonContext(lessonId)` · evaluation: `createEvaluation` · `answerEvaluationItem` · `submitEvaluation`(잡) · `getEvaluation` · studyPlan: `requestPlanAnalysis`(잡, hash 캐시) · `getLatestAnalysis`/`getCurrentPlan` · `acceptPlan`/`rejectPlan` · learningHistory: `recordErrorStat(userId, type, pattern, tx?)` · `getErrorStats(userId)` · snapshots: `getCalendar(userId, month)` · `getDay(userId, date)` · `getGrowth(userId)`(`StatsSnapshot` 만) · knowledge: `retrieveKnowledge(userId, query)` |
 | 허용 import | `preferences`, `engine`, `infra` |
 | 비고 | 레슨·평가·계획 생성의 LLM 호출(A4~A8·A10)은 이 모듈 안에서 `engine.llm` 을 직접 쓴다(conversation 을 거치지 않음 — 턴이 아니므로). 프롬프트 본문은 `conversation/prompts/*` 가 아니라 **이 모듈이 `engine.llm` 에 넘길 문자열을 `promptRegistry` 에서 받는다**: `conversation.getActivePrompt(key)` 는 L2 이므로 L3 가 import 할 수 없다 → 라우트/잡 러너가 `getActivePrompt` 결과를 인자로 넘긴다(§4-4 참고). |
 
@@ -189,7 +189,7 @@ WebSocket `/ws/speech` 는 Next.js 라우트가 아니라 nginx `Upgrade` 프록
 |---|---|---|---|---|---|---|---|---|
 | **app** | · | ✓ (`(admin)`·`/api/admin/v1` 만) | ✓ | ✓ | ✓ | ✓ | ✗(규칙: admin 경유) | ✓ (auth·validation·dates·logging·native 만, `importNames` 제한) |
 | **admin** | ✗ | · | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **conversation** | ✗ | ✗ | · | ✓ (`getLearnerContext`·`getLessonContext`·`getErrorStats`·`retrieveKnowledge` 읽기) | ✗(규칙: 라우트가 조합) | ✓ | ✓ (`llm` 파사드·`trace`) | ✓ |
+| **conversation** | ✗ | ✗ | · | ✓ (`getLearnerContext`·`getLessonContext`·`getErrorStats`·`retrieveKnowledge`·`retrieveRecords` 읽기 — 3차 보완) | ✗(규칙: 라우트가 조합) | ✓ | ✓ (`llm` 파사드·`trace`) | ✓ |
 | **learning** | ✗ | ✗ | ✗ | · | ✗(규칙: 라우트가 조합) | ✓ | ✓ (`llm` 파사드 — A4~A8·A10) | ✓ |
 | **speech** | ✗ | ✗ | ✗ | ✗ | · | ✓ | ✓ (`stt`·`tts` 파사드·`router`·`trace`) | ✓ |
 | **preferences** | ✗ | ✗ | ✗ | ✗ | ✗ | · | ✗(불필요) | ✓ |
@@ -399,7 +399,7 @@ LLM 호출 없음, `UserVoiceSetting` 쓰기 없음(저장은 별도 `PUT /api/v
   → learning.createLesson(userId, {topicId}, {prompt, promptVersion})   # L3 에 인자로 넘긴다
        └─ (AiJob 러너) engine.llm.completeJson({task:'lesson', tier:'balanced', …})
 ```
-잡 러너(`infra.jobs` 위에서 도는 `src/modules/learning/jobs/*`)도 같은 규칙: 프롬프트는 enqueue 시점에 `AiJob.payload` 로 스냅샷해 넘긴다.
+잡 러너(`infra.jobs` 위에서 도는 `src/modules/learning/jobs/*`)도 같은 규칙: 프롬프트 **키·버전·입력 메타**를 enqueue 시점에 `AiJob.payload` 로 스냅샷해 넘긴다(본문은 넣지 않음 — domain-model `AiJob.payload`, 정합성 #1).
 
 ---
 
@@ -541,3 +541,21 @@ M4 `kaiwa-tts` 배포는 home-m4-api 와 동일: NFS 가 아닌 로컬 `~/kaiwa-
 | 7 | `/models/*` 서빙 주체 | 운영 nginx `alias DATA_ROOT/models/`(Range 지원), 개발은 `src/app/models/[...path]/route.ts` 폴백 | task-003 |
 | 8 | 온디바이스 WASM(브라우저) 경로 | `RealtimeSttClient` 세 번째 구현 슬롯(`WasmSherpaClient`)만 예약 | 음성 P4 |
 | 9 | Admin Web 의 별도 앱 분리 | `(admin)` 라우트 그룹 + `modules/admin` 이 경계라 분리 시 라우트만 옮기면 됨 | 음성 P4 |
+
+
+## 10. 제안 모듈 (3차 보완 2026-09-26 — 사용자 결정 필요 항목은 표기, 반복 학습은 결정 완료)
+
+정본 `../learning-personalization-and-llm-data.md` 와 짝. 행렬(§3)은 변하지 않는다 — 전부 L3 `learning` 안의 하위 모듈이거나 conversation→learning **읽기** 함수 추가다.
+
+| 모듈 | 위치 | 공개 API(index.ts) | 소유 테이블 | 상태 |
+|---|---|---|---|---|
+| `learning/repetition` | L3 | `registerRepetitionItems(userId, items[], tx)`(레슨 complete·교정 accept·세트 finish 트랜잭션에서 호출) · `recordRepetitionOutcome(userId, itemId, {outcome, feedback}, tx)` · `listDueItems(userId, date)` · `sampleReviewSession(userId, items, dailyMinutes, seed)`(균등 랜덤: `1/(1+studiedCount)×(FOCUS?2:1)`) · `applyTutorDecision(userId, decisions[])`(3~7 클램프·FOCUS ≤3·`decidedBy` 기록) · `fallbackDecision(userId, items)` · `enqueueReviewDecision(userId)`(`AiJob(REVIEW_DECISION)`) | `RepetitionItem`, `ReviewSchedule`(기존) | **결정 완료**(R-1). Phase 2 |
+| `learning/scenarios` | L3 | `listScenarios(userId, {topicId?, level?, recommended?})` · `getScenario(id)` · `createScenario` · `evaluateScenarioCompletion(chatId)`(핵심 표현 사용·목표 발화·강사 `goalAchieved` 결합) | `Scenario`, `ScenarioTopic` | 사용자 결정 필요(도입 Phase) |
+| `learning/observations` | L3 | `recordObservation(userId, obs, tx)`(kind·outcome·latency·confidence·refId) · `listObservations(userId, range)` | `LearningObservation` | 사용자 결정 필요 |
+| `learning/skills` | L3 | `updateSkillState(userId, observations[])`(결정적: 지수이동평균+신뢰도 가중, 채택만으로 상향 금지·REUSED 필요) · `getSkillState(userId)` · `pickTaskCandidates(userId, skill)`(실패→−1/단서, 2회 성공→+1/도움 감소) | `LearnerSkillState` | 사용자 결정 필요 |
+| `learning/recordRetrieval` | L3 | `retrieveRecords(userId, intent, scope)` — 화이트리스트 함수 조합만: `getProgressSummary(range)` · `getDueReviews()` · `getRecentCorrections(filter)` · `findExpressions(query, range)` · `getLessonsByTopic(topicId)` · `getSkillState()`; 결과 ≤2,000자·건수 상한·`sourceRef{type,id,date,label}` 첨부 · **LLM 이 SQL 을 만들거나 실행하지 않음**, userId 는 세션 주입 | (읽기 전용: 위 L3 테이블) | Phase 3a |
+| `learning/knowledge` | L3 | `retrieveKnowledge(userId, query)`(기존 슬롯) — 3c 에서 로컬 임베딩(home-m4 `bge-m3` + Qdrant 컬렉션 `thekaiwa_<userId>`) 구현, 대상은 채택 교정·레슨 표현·요약(대화 전문 아님) | (없음) | 조건부(정형 조회로 못 푸는 질문 ≥20% 실측) |
+| `conversation/askRouter` | L2 | `classifyIntent(text)`(PROGRESS/EXPRESSION/GENERAL/MIXED) — 규칙 우선, 필요 시 LLM 1회 | — | Phase 3a |
+
+- 라우트 조합 시퀀스 추가: **복습 판단** = `learning.completeLesson` 트랜잭션 → `learning.enqueueReviewDecision` → 잡 러너가 `conversation.getActivePrompt('reviewDecision')`+`learning.listDueItems` 로 A11 호출 → `learning.applyTutorDecision`(클램프) → 실패 시 `fallbackDecision`. **ASK** = `conversation.askRouter.classifyIntent` → `learning.retrieveRecords` → `conversation.buildTurnContext`(기록 ≤2,000자 삽입) → 턴.
+- 금기 추가: `retrieveRecords` 결과를 프롬프트에 넣을 때 이름·이메일·id 를 가명화하고 원문 대화는 발췌 ≤300자, Trace 에는 개수·해시만.

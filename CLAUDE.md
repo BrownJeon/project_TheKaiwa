@@ -1,6 +1,6 @@
 # TheKaiwa (일본어회화)
 
-**AI 일본어 선생님과 말하고(회화)·쓰고(채팅) 교정받으며, 오늘의 단어·회화·평가와 3일 반복 커리큘럼으로 회화를 훈련하는 개인 모바일 앱 (kaiwa.미라클펭귄.com)**
+**AI 일본어 선생님과 말하고(회화)·쓰고(채팅) 교정받으며, 오늘의 단어·회화·평가와 강사가 3~7일에서 판단하는 반복 커리큘럼으로 회화를 훈련하는 개인 모바일 앱 (kaiwa.미라클펭귄.com)**
 
 모바일 웹(갤럭시 S25+ Chrome)으로 테스트하고, 같은 서버를 Capacitor 안드로이드 앱(WebView `server.url`)으로 감싸 운영한다. 앱은 운영 웹을 로드하므로 **웹 변경 = 웹 배포**, **네이티브 변경(플러그인·Manifest·Capacitor 설정) = APK 재빌드·재설치**(deployer 가 배포본·업데이트 안내 담당).
 
@@ -28,9 +28,9 @@
 
 - **통합 설계안(단일 출처)**: [docs/design-spec.md](docs/design-spec.md) — §0 확정 사항 · §3 6층 아키텍처 · §8 LLM/Conversation · §9 음성 · §9-B Voice/Engine · §9-C Admin Console · §15 Phase
 - **정본 5종**: [domain-model](docs/design/domain-model.md)(DB Entity·Prisma) · [api-contract](docs/design/api-contract.md)(API·WS·SSE) · [module-dependency](docs/design/module-dependency.md)(6층 모듈·import 행렬) · [configuration-resolution](docs/design/configuration-resolution.md)(8층 설정 해석) · [role-permission](docs/design/role-permission.md)(Role×capability)
-- **세부 설계**: `docs/design/speech-platform/00~15` · `docs/design/admin-console/00~16`
+- **세부 설계**: `docs/design/speech-platform/00~15` · `docs/design/admin-console/00~16` · [learning-personalization-and-llm-data](docs/design/learning-personalization-and-llm-data.md)(학습 개인화·반복 학습·주제/상황·기록 조회·M4 방안) · [tutor-persona-validation](docs/design/tutor-persona-validation.md)
 - **원문 보존(수정 금지)**: `docs/{기획서,음성처리-기획안,음성처리-추가기획안,관리자콘솔-기획안}-원본.md`
-- **결정 이유**: `agent-vault/30-Knowledge/decisions/{stack-and-llm-choice,speech-architecture-decisions}.md`
+- **결정 이유**: `agent-vault/30-Knowledge/decisions/{stack-and-llm-choice,speech-architecture-decisions,tutor-persona-choice}.md`
 
 ## 디렉토리 구조 (설계, Phase 0 에서 생성)
 
@@ -107,18 +107,18 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | developer | **Opus** | Next.js·Prisma·6층 모듈·Python 음성 서비스·Kotlin 플러그인 구현(adapter 경유), 네이티브 변경 고지 |
 | prompt-engineer | **Sonnet** | 강사 페르소나 `tutor.md`·프롬프트 모듈(A1~A10)·JSON 계약·회귀 픽스처·Prompt Registry sync |
 | reviewer | **Sonnet** | 6층 경계·보안·LLM 계약·학습 원칙·ConfigurationVersion·엔진명 누출·네이티브 고지 독립 감사 |
-| qa | **Haiku** | 인증·capability·제안→채택 행 수·스냅샷·3일 반복 가드·기록률·5초/3분 지표·양 경로 STT·3폭·실기기·APK 배너 검증 |
+| qa | **Haiku** | 인증·capability·제안→채택 행 수·스냅샷·복습 판단 범위(3~7일·FOCUS ≤3) 가드·기록률·5초/3분 지표·양 경로 STT·3폭·실기기·APK 배너 검증 |
 | deployer | **Haiku** | `scripts/deploy.sh TheKaiwa`·음성 서비스 헬스·M4 배포(사용자 승인)·**APK 재빌드·배포본·업데이트 안내** |
-| tutor (런타임) | Sonnet | `.claude/agents/tutor.md` = 강사 페르소나(key `teacher-persona`). 개발팀 아님, 앱 런타임이 `--agents` 로 로드 |
+| tutor (런타임) | Sonnet | `.claude/agents/tutor.md` v1 = 일본인 원어민·교정 철저·한국어 설명+일본어 대화·이름 사용자 지정·복습 주기 3~7일 판단(key `teacher-persona`). 개발팀 아님, 앱 런타임이 `--agents` 로 로드 |
 
 ## Phase 로드맵
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
 | 설계 | 기획서 4종 통합·6층 재설계·정본 5종·설계 문서 33종·팀·vault | ✅ 완료 (2026-09-26) |
-| 0 | 스캐폴딩·6층 골격·Prisma·seed·OAuth·health·앱 셸·pm2·deploy 경로 | ⬜ [[task-002]] (사용자 선결: Gitea·DB·OAuth) |
+| 0 | 스캐폴딩·6층 골격·Prisma·seed·OAuth·health·앱 셸·pm2·deploy 경로 | ⬜ [[task-002]] (Gitea ✅ · DB SQL 대기 · OAuth) — `prisma/schema.prisma`·`package.json`·`sync-local.sh` 는 준비됨 |
 | 1 | 온디바이스 STT 플러그인+gateway+M4 TTS P0 실측 / AI 클라이언트+페르소나 v1 / 설정 허브+미리듣기 / Console 골격 / AI 채팅·교정 / AI 회화 / 단어장+오늘의 단어 / 통합 QA·라이브·APK | ⬜ task-003~009 |
-| 2 | 오늘의 회화·3일 반복 / AI평가 / 달력 / 음성 P2(whisper 분석·Ensemble) / Console P2(편집·Version·Rollback·Prompt Registry·Playground) | ⬜ |
+| 2 | 오늘의 회화(주제·상황·청취 구간)·반복 학습(강사 판단 3~7일·RepetitionItem) / AI평가 / 달력 / 음성 P2(whisper 분석·Ensemble) / Console P2(편집·Version·Rollback·Prompt Registry·Playground) | ⬜ |
 | 3 | 분석·성장기록 / 서랍장 전체 / 무엇이든 물어보세요 / 음성 P3(발음 분석) / Console P3(E2E·Diagnostics·Debug) | ⬜ |
 | 4 | Voice Package Import·스타일·Preset·Export/Import·Override·Admin Web 분리 검토 | ⬜ |
 
@@ -143,7 +143,7 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | 대상 프로세스 | thekaiwa · thekaiwa-speech-gateway · thekaiwa-speech-worker |
 | M4 tts-service | `git push` 웹훅(사용자 승인 게이트), `http://192.168.219.100:8200/health` |
 | APK | 네이티브 변경 시 deployer `<apk_release>` → `/app/download/latest.apk` + `/api/app/version` 배너 |
-| 현재 상태 | ⬜ 저장소·DB·OAuth·nginx·M4 준비 전(사용자 선결, OPS-QUEUE) |
+| 현재 상태 | 저장소 ✅(origin/main) · DB·OAuth·nginx·M4 준비 전(사용자 선결, OPS-QUEUE) |
 
 - 배포는 **`origin` 의 ref 기준**이다 — push 되지 않은 커밋은 나가지 않는다.
 - `--with-migrate`(DB 마이그레이션)는 **사용자 승인 사항**이다. 개발과 운영이 같은 NAS MariaDB 를 본다.
