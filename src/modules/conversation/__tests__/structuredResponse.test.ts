@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { validateOutput } from '../../engine/json/schemaValidate'
-import { checkChatReview, checkTalkResponse, countJaSentences, isVerbatimQuote } from '../structuredResponse/checks'
+import { checkChatReview, checkTalkResponse, countJaSentences, isExactOriginal, isVerbatimQuote } from '../structuredResponse/checks'
 import { CHAT_SCHEMA, TALK_SCHEMA, type TutorResponse } from '../structuredResponse/schemas'
 
 const input = '昨日映画を見に行くました'
@@ -20,20 +20,29 @@ test('TALK 스키마: 정상 응답 통과, CHAT 스키마는 correction 이 있
   assert.deepEqual(validateOutput({ ...ok, correction: null }, CHAT_SCHEMA), { ok: true })
 })
 
-test('원문 무수정(V1): 바이트 일치·연속 부분 인용만 허용', () => {
-  assert.ok(isVerbatimQuote(input, input))
-  assert.ok(isVerbatimQuote('はい。' + input, input))
-  assert.ok(!isVerbatimQuote(input, '昨日映画を見に行きました'))
-  assert.ok(!isVerbatimQuote(input, ' ' + input))
+test('원문 무수정(V1): TALK 는 바이트 일치만, REVIEW 는 메시지 전체 또는 문장 하나 전체만', () => {
+  assert.ok(isExactOriginal(input, input))
+  assert.ok(!isExactOriginal(input, '行く'), '두 글자 조각 인용은 거부(REV-004 Critical 우회 케이스)')
+  assert.ok(!isExactOriginal('はい。' + input, input), 'TALK 는 부분 인용도 거부')
+  assert.ok(!isExactOriginal(input, '昨日映画を見に行きました'))
+  assert.ok(!isExactOriginal(input, ' ' + input))
+  const two = 'はい、そうです。' + input + '。'
+  assert.ok(isVerbatimQuote(two, input + '。'), 'REVIEW: 문장 하나 전체는 허용')
+  assert.ok(!isVerbatimQuote(two, '行く'), 'REVIEW: 문장 안 조각은 거부')
+  assert.ok(!isVerbatimQuote(two, '映画を見に'), 'REVIEW: 문장 일부는 거부')
   assert.deepEqual(checkTalkResponse(input, ok), [])
   const bad = { ...ok, correction: { ...ok.correction!, original: '昨日、映画を見に行くました' } }
   assert.equal(checkTalkResponse(input, bad).length, 1)
+  const partial = { ...ok, correction: { ...ok.correction!, original: '行くました' } }
+  assert.equal(checkTalkResponse(input, partial).length, 1)
 })
 
-test('replyJa 2문장 상한과 corrected==original 검출', () => {
+test('replyJa 문장 상한(재시도는 3문장 초과부터)과 corrected==original 검출', () => {
   assert.equal(countJaSentences('はい。そうです。いいですね！'), 3)
-  const long = { ...ok, conversation: { ...ok.conversation, replyJa: 'はい。そうです。いいですね！' } }
-  assert.ok(checkTalkResponse(input, long).some((v) => v.includes('2문장')))
+  const three = { ...ok, conversation: { ...ok.conversation, replyJa: 'はい。そうです。いいですね！' } }
+  assert.deepEqual(checkTalkResponse(input, three), [])
+  const four = { ...ok, conversation: { ...ok.conversation, replyJa: 'はい。そうです。いいですね！何を見ましたか？' } }
+  assert.ok(checkTalkResponse(input, four).some((v) => v.includes('3문장')))
   const same = { ...ok, correction: { ...ok.correction!, corrected: input } }
   assert.ok(checkTalkResponse(input, same).some((v) => v.includes('null')))
 })

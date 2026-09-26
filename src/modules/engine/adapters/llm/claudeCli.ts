@@ -7,6 +7,14 @@
  * 페르소나는 `--agents {tutor}` + `--agent tutor` 로 주입하되 **agents JSON 에 model 을 싣지 않고 `--model` 이 권위**다
  * (bjj gymMasterPersona 원칙: 둘 다 실으면 CLI 버전에 따라 이기는 쪽이 달라진다).
  *
+ * ── 지연 실측(2026-09-27, 우분투, CLI 2.1.222, haiku, decisions/llm-japanese-quality.md) ─────────────────
+ *  · 기본 spawn 만으로 'OK' 응답 8.4~10.6s — 전역 설정의 훅 12종·플러그인 12개가 매 spawn 마다 돈다.
+ *    `--setting-sources ""` + `--strict-mcp-config`(빈 MCP) + `--no-session-persistence` → 2.5~3.1s.
+ *  · haiku 4.5 가 **extended thinking** 으로 돌아 TALK 1회에 출력 10,615토큰(대부분 thinking)·40~120s.
+ *    `MAX_THINKING_TOKENS=0` + `--settings {"alwaysThinkingEnabled":false}` → 353토큰·4.6~5.3s.
+ *  · `--json-schema` 는 +~1s(5.5~6.3s). 기본은 끄고 프롬프트 스키마 + extractJson + ajv 로 검증한다.
+ *  · `--bare` 는 구독(OAuth) 인증을 읽지 않아(API 키 전용) 쓸 수 없다.
+ *
  * bjj `backend/src/services/claudeCli.js`(옵션·큐·재시도가 풍부)와
  * TheThinker `src/lib/ai/claude-cli.ts`(TS)를 하나로 합쳤다.
  *
@@ -138,6 +146,10 @@ export interface ClaudeCliOptions {
   tools?: readonly AllowedTool[]
   /** 모델(haiku·sonnet·opus). router 가 tier 로 정해 넘긴다. */
   model?: string
+  /** 시스템 프롬프트 전체 교체(`--system-prompt`). 페르소나를 싣는 기본 경로다 — Claude Code 기본(코딩 에이전트) 시스템 프롬프트가 섞이지 않는다. */
+  systemPrompt?: string
+  /** extended thinking. 기본 false — 켜면 haiku 도 수십 초가 걸린다(실측). 깊은 분석(opus) 에서만 명시적으로 켠다. */
+  thinking?: boolean
   /** `--agents` 로 넘길 서브에이전트 정의. **model 키를 넣지 않는다**(buildClaudeArgs 가 검사). */
   agents?: Record<string, { description: string; prompt: string }>
   /** `--agent <name>` — 메인 스레드를 이 에이전트로 실행(페르소나 = 시스템 프롬프트). */
@@ -230,6 +242,10 @@ export function buildClaudeArgs(prompt: string, opts: ClaudeCliOptions = {}): st
 
   const args = ['--print']
   if (opts.promptInArgv) args.push(prompt)
+  // 매 spawn 의 고정비를 없앤다(실측 9s→3s): 사용자·프로젝트 설정(훅·플러그인)과 MCP 서버를 읽지 않고 세션을 저장하지 않는다.
+  args.push('--setting-sources', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--no-session-persistence')
+  if (!opts.thinking) args.push('--settings', '{"alwaysThinkingEnabled":false}')
+  if (opts.systemPrompt) args.push('--system-prompt', opts.systemPrompt)
   // bypassPermissions 가 아니다 — 그것은 경로 검사까지 껐다(보안 결정 3).
   args.push('--permission-mode', 'dontAsk')
   args.push('--model', opts.model ?? readDefaultModel())
@@ -266,8 +282,10 @@ export function buildClaudeArgs(prompt: string, opts: ClaudeCliOptions = {}): st
  * `~/.npm-global/bin`을 PATH 앞에 붙이는 이유: 시스템 `/usr/bin/claude`가 구버전일 때
  * `--json-schema`/`--tools` 동작이 다르다(bjj에서 실제로 API 400을 유발한 이력).
  */
-function cleanEnv(): NodeJS.ProcessEnv {
+function cleanEnv(thinking = false): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
+  // thinking 을 끄는 두 번째 겹 — settings 가 무시되는 CLI 버전에서도 토큰 예산 0 으로 막는다.
+  if (!thinking) env.MAX_THINKING_TOKENS = '0'
   const drop = [
     'CLAUDECODE',
     'CLAUDE_CODE_ENTRYPOINT',
@@ -325,7 +343,7 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
     // shell 없이 argv 배열로만 실행한다(모듈 헤더 보안 결정 1).
     const proc = spawn(cliPath, args, {
       cwd: opts.cwd ?? tmpdir(),
-      env: cleanEnv(),
+      env: cleanEnv(opts.thinking === true),
       stdio: promptInArgv ? ['ignore', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
     })
 

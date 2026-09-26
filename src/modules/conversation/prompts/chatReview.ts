@@ -32,7 +32,7 @@ export function buildChatReviewRequest(input: ChatReviewInput): LlmJsonRequest<C
     '[모드] REVIEW',
     renderHeader(input.learner, 600),
     '[지시] 아래는 이번 채팅에서 학습자가 쓴 메시지 전부입니다. 각 메시지의 틀린 표현을 **빠짐없이** 찾아 items 에 한 건씩 적으세요.',
-    '- message_id 는 아래 id 를 그대로 씁니다. original 은 그 메시지에서 틀린 부분을 한 글자도 바꾸지 않고 인용합니다(문장 전체 또는 연속된 구간). 오류가 없는 메시지는 items 에 넣지 않습니다.',
+    '- message_id 는 아래 id 를 그대로 씁니다. original 은 그 메시지 전체 또는 틀린 문장 하나 **전체**를 한 글자도 바꾸지 않고 인용합니다(문장 안의 일부만 잘라 쓰지 않음). 오류가 없는 메시지는 items 에 넣지 않습니다.',
     '- explanation_ko 는 한국어로 어느 조각(이름·액션·느낌·꾸밈)이 왜 틀렸는지. summary_ko 는 전체 총평 2~3문장, strengths·focus 는 각각 최대 3개.',
     INJECTION_GUARD,
   ].join('\n')

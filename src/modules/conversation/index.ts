@@ -5,7 +5,7 @@
 export { loadPersona, PersonaUnavailableError, AGENT_NAME } from './persona/loader'
 export type { LoadedPersona, PersonaOptions } from './persona/loader'
 export * from './structuredResponse/schemas'
-export { isVerbatimQuote, checkTalkResponse, checkChatResponse, checkChatReview, countJaSentences } from './structuredResponse/checks'
+export { isExactOriginal, isVerbatimQuote, splitJaSentences, checkTalkResponse, checkChatResponse, checkChatReview, countJaSentences, REPLY_SENTENCE_HARD_CAP } from './structuredResponse/checks'
 export { buildWindow } from './window'
 export type { WindowMessage } from './window'
 export type { LearnerHeader } from './prompts/header'

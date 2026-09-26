@@ -26,6 +26,17 @@ test('agents 에 model 을 넣으면 거부한다', () => {
   assert.throws(() => buildClaudeArgs('x', { agents: { tutor: { description: 'd', prompt: 'p', model: 'opus' } as never } }))
 })
 
+test('고정비 제거 플래그와 thinking 끄기가 기본으로 붙는다', () => {
+  const args = buildClaudeArgs('x', { model: 'haiku', systemPrompt: 'P' })
+  assert.equal(args[args.indexOf('--setting-sources') + 1], '')
+  assert.ok(args.includes('--strict-mcp-config'))
+  assert.deepEqual(JSON.parse(args[args.indexOf('--mcp-config') + 1]), { mcpServers: {} })
+  assert.ok(args.includes('--no-session-persistence'))
+  assert.deepEqual(JSON.parse(args[args.indexOf('--settings') + 1]), { alwaysThinkingEnabled: false })
+  assert.equal(args[args.indexOf('--system-prompt') + 1], 'P')
+  assert.ok(!buildClaudeArgs('x', { thinking: true }).includes('--settings'))
+})
+
 test('stream-json 은 --verbose 를 동반하고 json-schema 는 인라인 JSON 이다', () => {
   const args = buildClaudeArgs('x', { outputFormat: 'stream-json', jsonSchema: { type: 'object' } })
   assert.ok(args.includes('--verbose'))

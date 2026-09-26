@@ -1,6 +1,7 @@
 /**
- * home-m4-api `/v1/chat` 클라이언트 — TheMeal에서 텍스트 LLM을 부르는 **유일한 경로**다
- * (CLAUDE.md "AI 연동 원칙": 라우트에서 fetch 직접 호출 금지). 설계안 §8.
+ * home-m4-api `/v1/chat` 어댑터 — TheKaiwa 에서는 **보조 작업 전용**(connection `runtime.allowedTasks`:
+ * 단어 보강·보기 생성·점검 폴백 후보)이며 회화·채팅·질문에는 router 가 배정하지 않는다. TheMeal `src/lib/ai/llmClient.ts`
+ * 이식본이라 아래 실측 기록은 TheMeal 때의 것이다(게이트웨이 계약은 같다). 라우트에서 직접 부르지 않고 `engine.llm` 파사드만 쓴다.
  *
  * ── 실측으로 확정된 게이트웨이 계약 (2026-09-10 · 재확인 2026-09-11) ─────────
  * - 인증 헤더는 **`X-API-Key`**. `Authorization: Bearer`로 보내면 401이다(재확인: 401).

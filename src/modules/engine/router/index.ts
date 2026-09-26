@@ -57,8 +57,10 @@ async function loadChain(role: EngineRole): Promise<ResolvedConnection[]> {
     ...ids.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => Boolean(r)),
     ...rows.filter((r) => !ids.includes(r.id)),
   ]
-  const list = ordered
+  const list: ResolvedConnection[] = ordered
     .filter((r) => !SKIP_STATUS.has(r.status))
+    // 정책 체인 밖 connection 은 allowedTasks 가 있을 때만 후보로 남긴다.
+    .filter((r) => ids.includes(r.id) || Array.isArray((r.runtime as Record<string, unknown> | null)?.allowedTasks))
     .map((r) => ({
       id: r.id,
       key: r.key,
@@ -67,11 +69,7 @@ async function loadChain(role: EngineRole): Promise<ResolvedConnection[]> {
       connection: (r.connection ?? {}) as Record<string, unknown>,
       runtime: (r.runtime ?? {}) as Record<string, unknown>,
       credentialRef: r.credentialRef,
-      inChain: ids.includes(r.id),
     }))
-    // 정책 체인 밖 connection 은 allowedTasks 가 있을 때만 후보로 남긴다.
-    .filter((r) => r.inChain || Array.isArray(r.runtime.allowedTasks))
-    .map(({ inChain: _inChain, ...rest }) => rest)
   cache.set(key, { at: Date.now(), list })
   return list
 }
@@ -114,6 +112,8 @@ export async function withFallback<T>(
       return { value: await fn(c), connection: c }
     } catch (e) {
       lastErr = e
+      // 예산을 다 쓴 실패(타임아웃)는 다음 후보로 넘겨도 남은 시간이 없다 — 바로 올린다.
+      if ((e as { name?: string })?.name?.includes('Timeout')) throw e
       console.warn(`[router] ${role} connection=${c.key} 실패 — ${list.length > 1 ? '다음 후보' : '후보 없음'}`)
     }
   }

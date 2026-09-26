@@ -290,6 +290,8 @@ export async function runJsonWithRetry<T = unknown>(
   const r1 = evaluateAttempt(raw1, opts.schema, opts.extraCheck)
   if (r1.ok) return { data: r1.data as T, attempts: 1 }
 
+  // 재시도 원인을 남긴다 — 위반 문구는 필드 경로·규칙뿐이라 학습자 원문이 들어가지 않는다(extraCheck 문구도 고정 문장).
+  console.warn(`[json] 1차 응답 계약 위반 → 재시도: ${r1.parseError ? 'JSON 파싱 실패' : r1.violations.slice(0, 3).join(' / ').slice(0, 300)}`)
   const hint = r1.parseError ? RETRY_PARSE : RETRY_SCHEMA(r1.violations)
   const raw2 = await attempt({ hint, previousRaw: truncate(raw1, 8000) })
   const r2 = evaluateAttempt(raw2, opts.schema, opts.extraCheck)

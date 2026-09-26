@@ -26,9 +26,9 @@ export interface TalkInput {
 
 export function talkInstruction(): string {
   return [
-    '[지시] 아래 대화의 마지막 학습자 말에 선생님으로서 답하세요.',
-    '- conversation.replyJa: 학습자 수준 안의 자연스러운 일본어 1~2문장. 질문 하나로 대화를 이어 갑니다. replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 한국어 번역.',
-    '- correction: 마지막 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 학습자가 쓴 문장을 한 글자도 바꾸지 말고 그대로 복사하고, corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장.',
+    '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다).',
+    '- conversation.replyJa: 학습자 수준 안의 자연스러운 일본어 **최대 2문장** — ① 짧은 반응 한 문장 ② 대화를 잇는 질문 한 문장. 교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 한국어 번역.',
+    '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장.',
     '- learning.grammarPoint 는 이번 턴의 핵심 문법(없으면 null), difficulty 는 학습자 수준. speech.style 은 답의 분위기. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 학습자가 모르는 새 단어를 단어장에 넣자고 제안할 때만(최대 2개, 보통 빈 배열).',
     INJECTION_GUARD,
   ].join('\n')
