@@ -1,0 +1,563 @@
+/**
+ * Claude CLI(`claude --print`) spawn 어댑터 — TheKaiwa 에서 Claude 를 부르는 **유일한 경로**다
+ * (engine/adapters 밖에서 spawn·엔진명 금지). TheMeal `src/lib/ai/claudeCli.ts` 이식 + bjj `claudeCli.js`
+ * 의 `--agents`/`--agent`/`--max-turns`/`stream-json` 확장(module-dependency §7).
+ *
+ * TheKaiwa 차이: 도구는 **전부 끈다**(`--tools ""` — 회화·점검·레슨 모두 텍스트만 생성, MCP 는 Phase 3b),
+ * 페르소나는 `--agents {tutor}` + `--agent tutor` 로 주입하되 **agents JSON 에 model 을 싣지 않고 `--model` 이 권위**다
+ * (bjj gymMasterPersona 원칙: 둘 다 실으면 CLI 버전에 따라 이기는 쪽이 달라진다).
+ *
+ * bjj `backend/src/services/claudeCli.js`(옵션·큐·재시도가 풍부)와
+ * TheThinker `src/lib/ai/claude-cli.ts`(TS)를 하나로 합쳤다.
+ *
+ * ── 보안 결정 세 가지 ────────────────────────────────────────────────────────
+ * 1. **argv 배열 spawn만 쓴다.** 셸을 거치지 않으므로(`shell:false` 기본) 사용자 입력
+ *    (레시피 URL·파일명·메모)이 아무리 이상해도 명령이 되지 않는다. 문자열 조립 금지.
+ * 2. **프롬프트는 기본적으로 stdin으로 보낸다.** argv에 실으면 (a) 단일 인자 한계
+ *    `MAX_ARG_STRLEN`(131,072바이트)에 걸리고, (b) 같은 호스트의 다른 프로세스가
+ *    `/proc/<pid>/cmdline`으로 프롬프트 전문을 읽을 수 있다. 사용자 식단·사진 경로가
+ *    들어가는 프롬프트라 (b)가 더 중요하다.
+ * 3. **`--tools` 화이트리스트 + `--permission-mode dontAsk` 두 겹으로 막는다.**
+ *    `--tools`는 도구 **이름**만 제한하고 `Read`가 여는 **경로**는 제한하지 않는다. 예전에
+ *    쓰던 `bypassPermissions`는 그 경로 검사마저 꺼서, 프롬프트에 섞인 외부 문자열
+ *    (SNS 캡션·자막·사진 속 글자)이 지시문처럼 동작하면 `.env`나 다른 사용자의 쿠키까지
+ *    읽어 응답에 실어 보낼 수 있었다.
+ *
+ *    `dontAsk`는 **묻지 않고 거부**한다 — 비대화 모드에서 멈추지 않으면서(그게 원래
+ *    `bypassPermissions`를 쓴 이유였다) cwd 밖 읽기를 막는다. 2026-09-12 실측:
+ *      · cwd 안(상대·절대 경로) → 읽힌다
+ *      · cwd 밖 절대경로 / `../` / **cwd 안에 심어 둔 심볼릭 링크** → 전부 거부
+ *      · `WebSearch`는 dontAsk에서 기본 거부라 `--allowedTools WebSearch`로 되살린다
+ *      · `--allowedTools "Read(//<절대경로>/**)"`로 **한 디렉터리만** 추가 허용할 수 있고,
+ *        그때도 그 밖(`/etc/…`·다른 디렉터리)은 계속 거부된다
+ *    → 그래서 **cwd = 읽어도 되는 디렉터리**가 곧 권한 경계다. 비전 호출은 프레임이 있는
+ *      사용자별 디렉터리를 cwd로 넘긴다(visionClient). 자세한 근거·대안 비교는
+ *      `agent-vault/30-Knowledge/decisions/claude-cli-read-scope.md`.
+ *    (`--tools`를 아예 안 주면 CLI 기본값 = 전체 도구다. 이 모듈은 항상 명시한다.)
+ *
+ * ⚠️ 서버 전용 모듈이다. 클라이언트 컴포넌트에서 import하면 `child_process`가 브라우저
+ *    번들에 들어가려다 빌드가 깨진다.
+ */
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
+
+import { LlmError } from './homeM4'
+
+// ── 환경 변수 ────────────────────────────────────────────────────────────────
+
+function readCliPath(): string {
+  return process.env.CLAUDE_CLI_PATH?.trim() || 'claude'
+}
+
+/** 모델 미지정 시 기본값. 실제로는 router 가 task→tier→`runtime.modelByTier` 로 항상 넘긴다. */
+export function readDefaultModel(): string {
+  return 'sonnet'
+}
+
+function readDefaultTimeoutMs(): number {
+  const n = Number(process.env.CLAUDE_TIMEOUT_MS)
+  return Number.isFinite(n) && n > 0 ? n : 240_000
+}
+
+// ── 오류 ─────────────────────────────────────────────────────────────────────
+
+/** `message`는 서버 로그용 원문, `userMessage`는 화면용 한국어(llmClient와 같은 계약). */
+export class ClaudeCliError extends LlmError {
+  constructor(message: string, userMessage: string, options?: { cause?: unknown }) {
+    super(message, userMessage, options)
+    this.name = 'ClaudeCliError'
+  }
+}
+
+export class ClaudeCliNotFoundError extends ClaudeCliError {
+  constructor(cliPath: string, cause?: unknown) {
+    super(
+      `Claude CLI를 실행할 수 없습니다(경로: ${cliPath}) — 설치 여부와 CLAUDE_CLI_PATH를 확인하세요`,
+      'AI 분석 도구를 사용할 수 없습니다. 관리자에게 문의해 주세요.',
+      { cause },
+    )
+    this.name = 'ClaudeCliNotFoundError'
+  }
+}
+
+export class ClaudeCliTimeoutError extends ClaudeCliError {
+  readonly timeoutMs: number
+
+  constructor(timeoutMs: number) {
+    const sec = Math.round(timeoutMs / 1000)
+    const label = sec >= 120 ? `${Math.round(sec / 60)}분` : `${sec}초`
+    super(
+      `claude CLI ${timeoutMs}ms 상한 초과로 중단`,
+      `AI 분석이 시간 상한(${label})을 넘겨 중단됐습니다. 잠시 후 다시 시도해 주세요.`,
+    )
+    this.name = 'ClaudeCliTimeoutError'
+    this.timeoutMs = timeoutMs
+  }
+}
+
+export class ClaudeCliExecError extends ClaudeCliError {
+  readonly exitCode: number | null
+
+  constructor(exitCode: number | null, stderr: string) {
+    super(
+      `claude CLI 실패(exit=${exitCode ?? 'null'}): ${stderr.slice(0, 500) || 'stderr 없음'}`,
+      'AI 분석에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+    )
+    this.name = 'ClaudeCliExecError'
+    this.exitCode = exitCode
+  }
+}
+
+// ── argv 조립 ────────────────────────────────────────────────────────────────
+
+/**
+ * 허용 도구 화이트리스트 — TheKaiwa 는 **비어 있다**(모든 AI 지점이 텍스트 생성만). 늘리려면 Leader 승인이
+ * 필요하다(모듈 헤더 보안 결정 3). Phase 3b 의 MCP `propose_*` 는 `--mcp-config` 로 따로 연다.
+ */
+export const ALLOWED_TOOLS = [] as const
+export type AllowedTool = (typeof ALLOWED_TOOLS)[number]
+
+/** stdin으로 보내도 프롬프트가 무한정 커지면 안 된다 — 비정상 입력의 상한(문자). */
+const PROMPT_CHAR_CAP = 200_000
+/** argv로 보낼 때의 한계 — `MAX_ARG_STRLEN`(131,072바이트)보다 여유 있게 잡는다. */
+const ARGV_PROMPT_BYTE_CAP = 100_000
+
+/**
+ * 자식 출력 상한(문자). 없으면 **모델이 폭주할 때 이 서버의 메모리가 먼저 죽는다** —
+ * 큐 동시성이 1이라 프로세스는 하나지만, 한 프로세스가 수 GB 를 뱉는 것은 막지 못한다.
+ *
+ * 넘으면 **잘라서 파싱하지 않고 던진다.** 잘린 JSON 은 "스키마 위반"으로 나타나 원인이
+ * 용량이라는 사실을 아무도 모르게 된다(같은 함정을 yt-dlp 메타에서 이미 한 번 밟았다 —
+ * [[ingest-toolchain-budgets]]).
+ */
+const OUTPUT_CHAR_CAP = 4_000_000
+
+export interface ClaudeCliOptions {
+  /** 사용할 도구. 생략하면 `--tools ""`(전부 비활성) — 도구 없이 텍스트만 생성한다. */
+  tools?: readonly AllowedTool[]
+  /** 모델(haiku·sonnet·opus). router 가 tier 로 정해 넘긴다. */
+  model?: string
+  /** `--agents` 로 넘길 서브에이전트 정의. **model 키를 넣지 않는다**(buildClaudeArgs 가 검사). */
+  agents?: Record<string, { description: string; prompt: string }>
+  /** `--agent <name>` — 메인 스레드를 이 에이전트로 실행(페르소나 = 시스템 프롬프트). */
+  agent?: string
+  /** `--max-turns`. 도구가 없어 1이면 충분하다. */
+  maxTurns?: number
+  /** `stream-json` 이면 NDJSON 이벤트를 줄 단위로 `onEvent` 에 흘리고 결과 텍스트를 돌려준다(`--verbose` 동반). */
+  outputFormat?: 'text' | 'stream-json'
+  /** stream-json 이벤트 콜백(첫 토큰 시각·사용량 계측). 예외는 삼킨다. */
+  onEvent?: (event: Record<string, unknown>) => void
+  /** 구조화 출력 스키마. 객체를 주면 `--json-schema <inline JSON>`으로 넘긴다.
+   *  CLI가 강제해 주더라도 **응답 검증은 우리가 다시 한다**(`schemaValidate`) — 모델이
+   *  스키마를 지켜도 값이 자리표시자일 수 있고, CLI 버전에 따라 강제 수준이 다르다. */
+  jsonSchema?: object
+  /** 타임아웃(ms). 생략 시 `CLAUDE_TIMEOUT_MS`(기본 240초). */
+  timeoutMs?: number
+  /** 작업 디렉터리. **이것이 곧 Read 권한 경계다**(보안 결정 3) — `dontAsk` 에서 도구는
+   *  cwd 안만 읽을 수 있다. 비전 호출은 **읽을 이미지가 있는 디렉터리**를 넘긴다
+   *  (visionClient). 기본은 OS 임시 디렉터리 — 소스 트리 안에서 도구가 돌지 않게 한다. */
+  cwd?: string
+  /** cwd 외에 읽기를 허용할 절대 디렉터리(각각 `Read(//<dir>/**)` 로 들어간다).
+   *  **꼭 필요할 때만 쓴다** — 여기에 적은 만큼 권한 경계가 넓어진다. 예: 프레임과 원본
+   *  사진이 서로 다른 디렉터리에 있을 때. */
+  readDirs?: readonly string[]
+  /** `batch`는 백그라운드 잡용 — 사용자가 기다리는 `interactive` 뒤로 밀린다. */
+  priority?: 'interactive' | 'batch'
+  /** 총 시도 횟수(재시도 포함). 기본 interactive 2 / batch 1. */
+  maxAttempts?: number
+  /** 프롬프트를 argv로 보낸다(디버깅·argv 비교용). 기본 false = stdin. */
+  promptInArgv?: boolean
+}
+
+function assertPromptSize(prompt: string, promptInArgv: boolean): void {
+  if (prompt.length > PROMPT_CHAR_CAP) {
+    throw new ClaudeCliError(
+      `프롬프트가 너무 깁니다(${prompt.length}자 > ${PROMPT_CHAR_CAP})`,
+      '분석할 내용이 너무 많습니다. 범위를 줄여 다시 시도해 주세요.',
+    )
+  }
+  if (promptInArgv) {
+    const bytes = Buffer.byteLength(prompt, 'utf8')
+    if (bytes >= ARGV_PROMPT_BYTE_CAP) {
+      throw new ClaudeCliError(
+        `argv 프롬프트가 너무 깁니다(${bytes}바이트 ≥ ${ARGV_PROMPT_BYTE_CAP}) — stdin 모드를 쓰세요`,
+        '분석할 내용이 너무 많습니다. 범위를 줄여 다시 시도해 주세요.',
+      )
+    }
+  }
+}
+
+function assertTools(tools: readonly string[] | undefined): void {
+  if (!tools) return
+  for (const t of tools) {
+    if (!(ALLOWED_TOOLS as readonly string[]).includes(t)) {
+      throw new ClaudeCliError(
+        `허용되지 않은 도구입니다: '${t}' (허용: ${ALLOWED_TOOLS.join(', ')})`,
+        'AI 요청을 구성하지 못했습니다.',
+      )
+    }
+  }
+}
+
+/**
+ * 추가 읽기 허용 디렉터리를 검사한다. 권한 규칙 문자열(`Read(//<dir>/**)`)에 그대로 박히므로
+ * **글롭 메타문자가 섞이면 의도보다 넓게 열린다** — `*`·`?`·`[`·`{`·`)` 를 거부한다.
+ * 상대 경로도 거부한다(규칙의 `//` 접두사가 절대경로를 뜻한다).
+ */
+function assertReadDir(dir: string): string {
+  const d = dir.replace(/\/+$/, '')
+  if (!d.startsWith('/') || d.includes('..') || /[*?[\]{})(]/.test(d)) {
+    throw new ClaudeCliError(
+      `읽기 허용 디렉터리가 올바르지 않습니다: '${dir}' (글롭 문자 없는 절대 경로여야 함)`,
+      'AI 요청을 구성하지 못했습니다.',
+    )
+  }
+  return d
+}
+
+/**
+ * argv를 만든다. **export하는 것은 편의가 아니라 검증 요건이다** — reviewer·QA가 claude를
+ * 실제로 띄우지 않고 "셸 조립이 없고, 도구가 화이트리스트이며, 프롬프트가 argv에 없다"를
+ * 확인할 수 있어야 한다.
+ *
+ * 가변 인자(`--tools a b c`)가 뒤에 오면 프롬프트를 삼키므로, argv 모드의 프롬프트는 반드시
+ * `--print` 바로 뒤에 둔다(bjj P0-1 실측).
+ */
+export function buildClaudeArgs(prompt: string, opts: ClaudeCliOptions = {}): string[] {
+  assertTools(opts.tools)
+  const readDirs = (opts.readDirs ?? []).map(assertReadDir)
+
+  const args = ['--print']
+  if (opts.promptInArgv) args.push(prompt)
+  // bypassPermissions 가 아니다 — 그것은 경로 검사까지 껐다(보안 결정 3).
+  args.push('--permission-mode', 'dontAsk')
+  args.push('--model', opts.model ?? readDefaultModel())
+  // 항상 명시한다 — 생략하면 CLI 기본값이 "전체 도구"다.
+  if (opts.tools && opts.tools.length > 0) args.push('--tools', ...opts.tools)
+  else args.push('--tools', '')
+
+  // dontAsk 는 cwd 안 읽기만 자동 허용한다. 그 밖은 여기에 적은 것만 열린다.
+  const allow: string[] = []
+  for (const dir of readDirs) allow.push(`Read(//${dir}/**)`)
+  if (allow.length > 0) args.push('--allowedTools', ...allow)
+
+  if (opts.agents) {
+    for (const [name, def] of Object.entries(opts.agents)) {
+      if ('model' in (def as object)) {
+        throw new ClaudeCliError(`--agents.${name} 에 model 을 넣지 마세요 — --model 이 권위입니다`, 'AI 요청을 구성하지 못했습니다.')
+      }
+    }
+    args.push('--agents', JSON.stringify(opts.agents))
+  }
+  if (opts.agent) args.push('--agent', opts.agent)
+  if (opts.maxTurns != null) args.push('--max-turns', String(opts.maxTurns))
+  if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema))
+  // stream-json 은 `--verbose` 가 없으면 CLI 가 거부한다(bjj P0-3 실측).
+  if (opts.outputFormat === 'stream-json') args.push('--output-format', 'stream-json', '--verbose')
+  return args
+}
+
+/**
+ * 자식 프로세스에 넘길 env. Claude Code가 자기 세션에서 주입한 변수를 지운다 — 남겨두면
+ * 중첩 실행으로 오인해 동작이 달라진다. `ANTHROPIC_API_KEY`도 지워 CLI가 구독 인증을 쓰게
+ * 한다(서버 env에 키가 있어도 과금 경로가 갈리지 않도록).
+ *
+ * `~/.npm-global/bin`을 PATH 앞에 붙이는 이유: 시스템 `/usr/bin/claude`가 구버전일 때
+ * `--json-schema`/`--tools` 동작이 다르다(bjj에서 실제로 API 400을 유발한 이력).
+ */
+function cleanEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  const drop = [
+    'CLAUDECODE',
+    'CLAUDE_CODE_ENTRYPOINT',
+    'CLAUDE_CODE_SSE_PORT',
+    'CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING',
+    'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS',
+    'CLAUDE_CODE_EXECPATH',
+    'CLAUDE_AGENT_SDK_VERSION',
+    'VSCODE_IPC_HOOK_CLI',
+    'VSCODE_CLI_REQUIRE_TOKEN',
+    'VSCODE_HANDLES_UNCAUGHT_ERRORS',
+    'VSCODE_HANDLES_SIGPIPE',
+    'VSCODE_ESM_ENTRYPOINT',
+    'VSCODE_L10N_BUNDLE_LOCATION',
+    'VSCODE_NLS_CONFIG',
+    'VSCODE_AGENT_FOLDER',
+    'VSCODE_CWD',
+    'ELECTRON_RUN_AS_NODE',
+    'ANTHROPIC_API_KEY',
+    // 우리 시크릿이 자식 프로세스로 새지 않게 한다 — Claude CLI는 이 값들이 필요 없다.
+    'AI_API_KEY',
+    'HOME_M4_API_KEY',
+    'SPEECH_INTERNAL_SECRET',
+    'GOOGLE_CLIENT_ID',
+    'DATABASE_URL',
+    'JWT_SECRET',
+    'GOOGLE_CLIENT_SECRET',
+    'SIGNUP_INVITE_CODE',
+  ]
+  for (const k of drop) delete env[k]
+
+  const npmGlobalBin = `${homedir()}/.npm-global/bin`
+  if (existsSync(npmGlobalBin) && env.PATH && !env.PATH.startsWith(npmGlobalBin)) {
+    env.PATH = `${npmGlobalBin}:${env.PATH}`
+  }
+  return env
+}
+
+// ── 실행 ─────────────────────────────────────────────────────────────────────
+
+function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
+  const cliPath = readCliPath()
+  const timeoutMs = opts.timeoutMs ?? readDefaultTimeoutMs()
+  const promptInArgv = opts.promptInArgv === true
+
+  return new Promise((resolve, reject) => {
+    let args: string[]
+    try {
+      args = buildClaudeArgs(prompt, opts)
+    } catch (e) {
+      reject(e)
+      return
+    }
+
+    // shell 없이 argv 배열로만 실행한다(모듈 헤더 보안 결정 1).
+    const proc = spawn(cliPath, args, {
+      cwd: opts.cwd ?? tmpdir(),
+      env: cleanEnv(),
+      stdio: promptInArgv ? ['ignore', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
+    })
+
+    let out = ''
+    let err = ''
+    let settled = false
+    let timedOut = false
+
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      clearTimeout(killTimer)
+      fn()
+    }
+
+    // SIGTERM으로 먼저 정리 기회를 주고, 5초 뒤에도 살아 있으면 SIGKILL로 확실히 죽인다.
+    // 남은 claude 프로세스가 쌓이면 M4가 아니라 이 서버의 메모리를 갉아먹는다.
+    let killTimer: NodeJS.Timeout = setTimeout(() => {}, 0)
+    const timer = setTimeout(() => {
+      timedOut = true
+      proc.kill('SIGTERM')
+      killTimer = setTimeout(() => proc.kill('SIGKILL'), 5_000)
+    }, timeoutMs)
+
+    if (!promptInArgv && proc.stdin) {
+      // stdin이 먼저 닫히는 경쟁 상황(프로세스 즉시 종료)에서 EPIPE로 프로세스가 죽지 않게 한다.
+      proc.stdin.on('error', () => {})
+      proc.stdin.end(prompt, 'utf8')
+    }
+
+    let overflowed = false
+    // stream-json 은 NDJSON 이다 — 청크 경계가 줄 경계와 다르므로 줄 버퍼가 필수다(bjj 계약 E).
+    const streaming = opts.outputFormat === 'stream-json'
+    let lineBuf = ''
+    let resultEvent: Record<string, unknown> | null = null
+    const feed = (chunk: string) => {
+      lineBuf += chunk
+      let nl: number
+      while ((nl = lineBuf.indexOf('\n')) !== -1) {
+        const line = lineBuf.slice(0, nl).trim()
+        lineBuf = lineBuf.slice(nl + 1)
+        if (!line) continue
+        let ev: Record<string, unknown>
+        try {
+          ev = JSON.parse(line) as Record<string, unknown>
+        } catch {
+          continue
+        }
+        if (ev.type === 'result') resultEvent = ev
+        if (opts.onEvent) {
+          try {
+            opts.onEvent(ev)
+          } catch {
+            /* 계측 콜백 오류는 호출을 실패시키지 않는다 */
+          }
+        }
+      }
+    }
+
+    proc.stdout?.on('data', (d: Buffer) => {
+      if (out.length > OUTPUT_CHAR_CAP) {
+        if (!overflowed) {
+          overflowed = true
+          proc.kill('SIGTERM')
+        }
+        return
+      }
+      const s = d.toString('utf8')
+      out += s
+      if (streaming) feed(s)
+    })
+    proc.stderr?.on('data', (d: Buffer) => {
+      // stderr 는 진단용이라 앞부분만 있으면 충분하다.
+      if (err.length < 100_000) err += d.toString('utf8')
+    })
+
+    proc.on('error', (e: NodeJS.ErrnoException) => {
+      finish(() => {
+        if (e.code === 'ENOENT' || e.code === 'EACCES') reject(new ClaudeCliNotFoundError(cliPath, e))
+        else reject(new ClaudeCliError(`claude CLI 실행 오류: ${e.message}`, 'AI 분석에 실패했습니다.', { cause: e }))
+      })
+    })
+
+    proc.on('close', (code: number | null) => {
+      finish(() => {
+        if (timedOut) {
+          reject(new ClaudeCliTimeoutError(timeoutMs))
+          return
+        }
+        if (overflowed) {
+          reject(
+            new ClaudeCliError(
+              `claude 출력이 상한(${OUTPUT_CHAR_CAP}자)을 넘겨 중단`,
+              'AI 응답이 너무 길어 처리하지 못했습니다. 범위를 줄여 다시 시도해 주세요.',
+            ),
+          )
+          return
+        }
+        if (code !== 0 && code !== null) {
+          reject(new ClaudeCliExecError(code, err.trim()))
+          return
+        }
+        if (streaming) {
+          if (lineBuf.trim()) feed('\n')
+          const ev = resultEvent as Record<string, unknown> | null
+          if (!ev) {
+            reject(new ClaudeCliExecError(code, err.trim() || 'stream-json result 이벤트 없음'))
+            return
+          }
+          if (ev.is_error === true) {
+            reject(new ClaudeCliExecError(code, String(ev.result ?? 'claude 실행 오류').slice(0, 500)))
+            return
+          }
+          // --json-schema 를 쓰면 CLI 가 구조화 결과를 `structured_output` 에 싣는 버전이 있다 — 있으면 그것을 쓴다.
+          const structured = ev.structured_output
+          const text = structured != null ? JSON.stringify(structured) : typeof ev.result === 'string' ? ev.result.trim() : ''
+          if (!text) {
+            reject(new ClaudeCliExecError(code, '빈 응답'))
+            return
+          }
+          resolve(text)
+          return
+        }
+        const trimmed = out.trim()
+        // CLI가 exit 0으로 "Execution error"만 뱉는 경우가 있다 — 성공으로 오인하면
+        // 그 문자열이 그대로 JSON 파서로 흘러들어가 엉뚱한 스키마 오류로 둔갑한다.
+        if (trimmed === 'Execution error' || trimmed.startsWith('Execution error\n')) {
+          reject(new ClaudeCliExecError(code, err.trim() || 'Execution error'))
+          return
+        }
+        if (!trimmed) {
+          reject(new ClaudeCliExecError(code, err.trim() || '빈 응답'))
+          return
+        }
+        resolve(trimmed)
+      })
+    })
+  })
+}
+
+// ── 우선순위 2레인 직렬 큐 ────────────────────────────────────────────────────
+//
+// 동시성은 1이다. Claude CLI는 구독 rate limit을 공유하고 프로세스 하나가 수백 MB를 쓰므로,
+// 레슨·평가 잡 여러 건이 동시에 뜨면 서버가 먼저 무너진다. 대신 레인을 둘로 나눠 사용자가
+// 기다리는 요청(interactive)이 백그라운드 잡(batch) 뒤에서 굶지 않게 한다.
+
+interface QueueItem {
+  task: () => Promise<string>
+  resolve: (v: string) => void
+  reject: (e: unknown) => void
+}
+
+const interactiveQueue: QueueItem[] = []
+const batchQueue: QueueItem[] = []
+let workerBusy = false
+
+function pump(): void {
+  if (workerBusy) return
+  const item = interactiveQueue.shift() ?? batchQueue.shift()
+  if (!item) return
+  workerBusy = true
+  item.task().then(
+    (result) => {
+      workerBusy = false
+      item.resolve(result)
+      pump()
+    },
+    (e) => {
+      workerBusy = false
+      item.reject(e)
+      pump()
+    },
+  )
+}
+
+function schedule(priority: 'interactive' | 'batch', task: () => Promise<string>): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const item: QueueItem = { task, resolve, reject }
+    if (priority === 'batch') batchQueue.push(item)
+    else interactiveQueue.push(item)
+    pump()
+  })
+}
+
+/** 재시도해도 의미가 있는 실패인가 — 일시적 실행 오류만 해당. 타임아웃·설치 누락·프롬프트
+ *  크기 초과는 다시 걸어도 같은 결과라 재시도하지 않는다(사용자만 두 배로 기다린다). */
+function isRetryable(e: unknown): boolean {
+  if (e instanceof ClaudeCliTimeoutError) return false
+  if (e instanceof ClaudeCliNotFoundError) return false
+  if (e instanceof ClaudeCliExecError) return true
+  return false
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+/**
+ * Claude CLI 호출 — 직렬 큐 + 일시적 실패 재시도.
+ *
+ * 프롬프트에 사용자 데이터가 들어가므로 **로그에 프롬프트를 남기지 않는다**(길이만 남긴다).
+ */
+export async function callClaude(prompt: string, opts: ClaudeCliOptions = {}): Promise<string> {
+  const priority = opts.priority ?? 'interactive'
+  const maxAttempts = opts.maxAttempts ?? (priority === 'batch' ? 1 : 2)
+  assertPromptSize(prompt, opts.promptInArgv === true)
+  assertTools(opts.tools)
+
+  const task = async (): Promise<string> => {
+    let lastErr: unknown
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const startedAt = Date.now()
+      try {
+        const out = await runOnce(prompt, opts)
+        console.info(
+          `[claudeCli] 완료 — model=${opts.model ?? readDefaultModel()} agent=${opts.agent ?? '없음'} ` +
+            `promptChars=${prompt.length} elapsed=${Date.now() - startedAt}ms attempt=${attempt}`,
+        )
+        return out
+      } catch (e) {
+        lastErr = e
+        if (attempt < maxAttempts && isRetryable(e)) {
+          console.warn(`[claudeCli] 일시적 실패 — ${attempt}/${maxAttempts} 재시도`)
+          await sleep(1000 * attempt)
+          continue
+        }
+        throw e
+      }
+    }
+    throw lastErr ?? new ClaudeCliError('unreachable', 'AI 분석에 실패했습니다.')
+  }
+
+  return schedule(priority, task)
+}

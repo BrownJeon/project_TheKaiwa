@@ -1,7 +1,10 @@
 /**
- * L5 Engine Management — registry/{descriptors, schemas, plugins}·connections·credentials(ref)·health·functionalTest·router·fallbackPolicy·configuration/{resolver, versions, overrides, validate, diff}·metrics·trace·adapters/{llm, stt, tts}·json. 상위 층 타입을 모른다. 엔진명은 adapters 와 seed 에만. Phase 1 = task-004·005b.
- *
- * 이 파일이 모듈의 **유일한 공개 API** 다 — 다른 층·모듈은 `@/modules/engine` 만 import 한다(eslint no-restricted-imports).
- * 정본: docs/design/module-dependency.md
+ * L5 Engine Management — 역할 파사드만 export 한다(어댑터는 export 하지 않는다). 정본 module-dependency L5.
+ * Phase 1(task-004): llm 파사드·router·json. registry·connections·health·configuration·trace 는 task-005b 이후.
  */
-export {}
+export * as llm from './llm'
+export type { LlmRequest, LlmJsonRequest, LlmTextResult, LlmJsonResult, LlmPersona, LlmTurnMessage } from './llm'
+export { resolveConnection, resolveCandidates, withFallback, currentEnvironment, clearRouterCache, NoEngineAvailableError, LLM_TASKS, isLlmTask } from './router'
+export type { LlmTask, LlmTier, ResolvedConnection } from './router'
+export { extractJson } from './json/extractJson'
+export { validateOutput as validateAgainstSchema, JSON_ONLY_INSTRUCTION } from './json/schemaValidate'
