@@ -8,8 +8,8 @@
  * `/api/auth/google`까지 이어주지 않으면 딥링크 보존이 죽은 코드가 된다.
  */
 import { isGoogleLoginEnabled } from '@/modules/infra/auth/oauth/config'
-import AppDeepLink from './AppDeepLink'
-import GoogleLoginButton from './GoogleLoginButton'
+import AppDeepLink from './AppDeepLink.client'
+import GoogleLoginButton from './GoogleLoginButton.client'
 
 export const dynamic = 'force-dynamic'
 

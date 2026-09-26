@@ -12,7 +12,7 @@
 import { cookies } from 'next/headers'
 import { OAUTH_PENDING_COOKIE, verifyPendingSignup } from '@/modules/infra/auth/oauth/pending'
 import { isInviteRequired } from '@/modules/infra/auth/signup-gate'
-import InviteForm from './InviteForm'
+import InviteForm from './InviteForm.client'
 
 export const dynamic = 'force-dynamic'
 

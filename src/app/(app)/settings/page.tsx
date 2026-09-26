@@ -1,7 +1,7 @@
 import { auth } from '@/modules/infra'
 import AppBar from '@/components/shell/AppBar'
 import ComingSoon from '@/components/common/ComingSoon'
-import LogoutButton from './LogoutButton'
+import LogoutButton from './LogoutButton.client'
 
 /**
  * 설정 허브(기획서 "5. 프로필" → 설계안 §7-7·§11). Phase 0 은 계정 확인·로그아웃만 두고,

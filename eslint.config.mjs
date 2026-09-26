@@ -63,6 +63,9 @@ const eslintConfig = defineConfig([
   ...boundary('src/modules/admin/**', [], ['preferences', 'conversation', 'learning', 'speech', 'engine', 'infra'], 'admin 은 각 모듈의 index 공개 API 로만 import 한다'),
   // 라우트: engine 직접 import 금지(규칙 4, admin 경유). infra 는 auth·native·dates·jwt·session 만 하위 경로 허용(TheMeal 인증 이식).
   ...boundary('src/app/**', ['engine'], ['admin', 'preferences', 'conversation', 'learning', 'speech', 'infra'], '라우트는 모듈 index 공개 API 만 — engine 은 admin 경유', ['auth', 'native', 'dates', 'jwt', 'session']),
+  // app 안의 클라이언트 컴포넌트는 `*.client.tsx` 로 이름 짓는다(VoiceVault KeyboardInset.client.tsx 관례) — 이 파일들은
+  // infra index(Prisma 재export)를 import 할 수 없다(reviewer 재검증 Medium-5). flat config 는 뒤 블록이 규칙을 통째로 덮으므로 같은 인자에 banInfraRoot 만 더한다.
+  ...boundary('src/app/**/*.client.tsx', ['engine'], ['admin', 'preferences', 'conversation', 'learning', 'speech', 'infra'], '클라이언트 컴포넌트는 서버 모듈을 import 하지 않는다', ['auth/oauth/next-path', 'native', 'dates'], true),
   // 컴포넌트: 서버 모듈(Prisma 포함 infra index·auth)을 끌어오지 않는다(규칙 5). 클라이언트 안전 진입점만.
   ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates'], true),
 ])

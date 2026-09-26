@@ -49,4 +49,9 @@ updated: 2026-09-26
 - [x] 4. prisma/seed.ts + seed-data 4종(OWNER SUPER_ADMIN·주제 5·N5 50·Engine 5·connection 6×2환경·Fallback·Voice 3·AppSetting·PromptTemplate 키)
 - [x] 5. 우분투 미러 npm install → prisma generate → typecheck/lint → next build → db seed
 - [x] 6. pm2 thekaiwa 기동(미러) → https://kaiwa.… health 200·로그인·5탭 확인(사용자 육안: 폰)
-- [ ] 7. reviewer·qa 순환 (진행 중 — 5·6 결과: typecheck 0·lint 0 error·build OK·seed 2회 멱등(주제5·조각60·엔진5·conn12·정책8·voice3·style6·setting12·prompt11)·pm2 thekaiwa online 127.0.0.1:3010·https health ok·Permissions-Policy microphone=(self)·보호 경로 307→/login·/api/auth/me 401·google 307. **폰 로그인·5탭은 사용자 육안**, OWNER 첫 로그인 후 db:seed 재실행 필요)(Permissions-Policy·3폭·IDOR) → 최종 요약·커밋
+- [ ] 7. reviewer·qa 순환 (reviewer 1차 PASS_WITH_NOTES 8건 → 전부 수정·재검증 PASS_WITH_NOTES 1건(app 클라이언트 컴포넌트의 infra index) → `*.client.tsx` 관례+ESLint 금지로 해소. QA 실행 중. 이전 기록: — 5·6 결과: typecheck 0·lint 0 error·build OK·seed 2회 멱등(주제5·조각60·엔진5·conn12·정책8·voice3·style6·setting12·prompt11)·pm2 thekaiwa online 127.0.0.1:3010·https health ok·Permissions-Policy microphone=(self)·보호 경로 307→/login·/api/auth/me 401·google 307. **폰 로그인·5탭은 사용자 육안**, OWNER 첫 로그인 후 db:seed 재실행 필요)(Permissions-Policy·3폭·IDOR) → 최종 요약·커밋
+
+## Reviewer 기록 (2026-09-26)
+- 1차(커밋 e22fd7e): PASS_WITH_NOTES — High 2(ESLint 글롭 깊이로 경계 우회 가능 / `/api/health` 키에 엔진명), Medium 3(OAuth 쿠키 `tm_*` 잔존 / seed 환경별 값 정본 차이 / infra 하위 import 무제한), Low 3(주석 `/home`·정본 credentialRef·가타카나 읽기).
+- 수정(커밋 659342c): ESLint `boundary()` 정규식 생성기(모든 깊이 금지·index 우회 금지·컴포넌트의 infra index 금지, 음성 테스트 9건) · health 는 `admin.getHealthSummary()` 로 역할 키(`llm·stt_gateway·stt_analysis·tts`)·boolean·1.5s 프로브·60s 캐시 · 쿠키 `thekaiwa_oauth_{state,pending}` · 문서 동기화(api-contract #1, design-spec §13, domain-model §7: LOCAL 도 우분투 미러).
+- 재검증: PASS_WITH_NOTES 1건 — `src/app` 의 `'use client'` 파일이 `@/modules/infra`(Prisma) 를 import 할 수 있음 → 앱 내 클라이언트 컴포넌트를 `*.client.tsx` 로 개명(4개)하고 그 패턴에 infra index 금지 추가, 음성 테스트 1건 확인. `server-only` 는 tsx 단위 테스트에서 예외를 던져 채택하지 않음.
