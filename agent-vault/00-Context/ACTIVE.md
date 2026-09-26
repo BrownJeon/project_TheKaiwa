@@ -8,13 +8,13 @@ tags:
 
 ## 한 줄 요약
 
-**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), **DB 스키마 생성 완료(50 테이블, seed 미실행)**, **Google OAuth 클라이언트 검증 완료**. 남은 선결은 nginx vhost 적용(사용자 sudo, conf 준비됨)뿐이며 **task-002 Phase 0 착수 준비 완료**. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
+**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), **DB 스키마 생성 완료(50 테이블, seed 미실행)**, **Google OAuth 클라이언트 검증 완료**. nginx vhost 적용 완료. **task-002 Phase 0 착수 준비 완료** — 사용자 "task-002 진행" 대기. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
 
 ### 사용자만 할 수 있는 것 (Phase 0 착수 전)
 - ✅ **Gitea 저장소 `project_TheKaiwa`** 생성·연결·push 완료(2026-09-26, `origin/main` 추적)
 - ✅ **NAS MariaDB** `thekaiwa` DB·계정 생성(사용자, 2026-09-26) → `TheKaiwa/.env` 생성·비밀번호 입력 → 우분투 미러 `~/.node-local/thekaiwa` 에서 prisma 6.19.3 `validate`·`db push`·`generate` 완료 — **50 테이블, utf8mb4_unicode_ci, `Correction.original` TEXT** (seed 는 task-002)
 - ✅ **Google OAuth 클라이언트** — `.env` 의 ID·시크릿 검증(토큰 엔드포인트 `invalid_grant` = 자격 일치) + redirect URI `https://kaiwa.xn--lh0b87pnudm10a4vd.com/api/auth/google/callback` 등록 확인(인증 엔드포인트 200, 2026-09-26). 콘솔에는 `/api/auth/callback/google` 항목도 남아 있으나 무해
-- ⬜ **nginx vhost** — conf·절차 준비됨: [`../../docs/nginx/README.md`](../../docs/nginx/README.md)(`sites-available` 복사 + 심볼릭 링크 + `nginx -t` + reload, modsecurity id 9001010). 사용자 sudo 실행 후 `curl -sI` 로 502 확인(앱 기동 전 정상). task-002 완료 기준 "폰 https 로그인" 에 필요하므로 **task-002 진행 중 적용**
+- ✅ **nginx vhost** 적용됨(2026-09-26 23:07, `/`·`/ws/speech` 502 = 앱·gateway 미기동 정상). APK `/app/download/` 는 alias 대신 앱 라우트 프록시로 conf 를 고쳤으니 task-009 전 재적용 1회. 원래 절차: [`../../docs/nginx/README.md`](../../docs/nginx/README.md)(`sites-available` 복사 + 심볼릭 링크 + `nginx -t` + reload, modsecurity id 9001010). 사용자 sudo 실행 후 `curl -sI` 로 502 확인(앱 기동 전 정상). task-002 완료 기준 "폰 https 로그인" 에 필요하므로 **task-002 진행 중 적용**
 - ⬜ **맥 M4** 에 `~/kaiwa-tts-run` 디렉토리·venv·Style-Bert-VITS2 설치 위치 승인(tts-service)
 - ⏸ `cc-sync-codex/sync-projects.ps1` 실행 — **1차 구현 후로 보류**(사용자 결정 2026-09-26)
 - ✅ 포트 3010·8100 비어 있음(2026-09-26 `ss -ltnp` 실측; 8090 whisper·3009 TheMeal 점유). 우분투 node 20.20.2·npm 10.8.2·Claude CLI 2.1.222(claude.ai 로그인)·JDK 21·pm2 6.0.14·Python 3.10 확인. M4 home-m4-api :8000 응답, :8200 은 미기동(task-003)
