@@ -15,7 +15,7 @@ tags:
 - (없음)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
-- [[task-002-phase0-scaffolding]] — Phase 0: Next.js 스캐폴딩·6층 골격·Prisma(정본)·seed·OAuth·health·앱 셸·pm2·deploy.yml (선결: 사용자 ⬜ 1~3)
+- [[task-002-phase0-scaffolding]] — Phase 0: Next.js 스캐폴딩·6층 골격·Prisma(정본, **DB 50 테이블 이미 push 됨**)·seed·OAuth(검증 완료)·health·앱 셸·pm2·deploy.yml — **착수 준비 완료 2026-09-26**(nginx vhost 는 사용자 sudo 적용 대기, `docs/nginx/`)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
 - task-004 — AI 클라이언트 계층(engine adapters·router) + 강사 페르소나 v1 + prompts{talk,chat,chatReview} + 회귀 픽스처 + haiku 왕복·qwen 비교 실측
 - task-005 — 설정 허브(`/settings`: AI 선생님·통합 미리듣기·음성 인식 모드·학습) + 출석 체크인

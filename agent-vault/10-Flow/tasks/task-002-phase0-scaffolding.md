@@ -20,7 +20,7 @@ updated: 2026-09-26
 `design-spec.md` §15 Phase 0: 폰 브라우저에서 `https://kaiwa.미라클펭귄.com` 로그인 → 5탭 이동이 되고, `/api/health` 200(`status: ok`), 360/390/412 세 폭 잘림 0, `api-contract.md` 의 Phase 0 라우트가 전부 존재하는 상태.
 
 ## 관련 과거 이력 요약
-- **선행 완료(2026-09-26, [[task-003c-tts-productization-design]] 직후)**: NAS MariaDB `thekaiwa` DB·계정 생성(사용자) → `.env` 생성(JWT·내부 시크릿 난수, DATA_ROOT=NFS `files/thekaiwa`) → 우분투 `~/.node-local/thekaiwa` 에서 prisma 6.19.3 `validate`·`db push --skip-generate`·`generate` 완료 → **50 테이블**(정본 §3 그대로, seed 미실행). `scripts/sync-local.sh` 는 `src/` 부재를 허용하도록 guard 추가. Google OAuth 클라이언트 값은 아직 `.env` 에 없음 — 스캐폴딩 전에 채워야 로그인 e2e 가능.
+- **선행 완료(2026-09-26, [[task-003c-tts-productization-design]] 직후)**: NAS MariaDB `thekaiwa` DB·계정 생성(사용자) → `.env` 생성(JWT·내부 시크릿 난수, DATA_ROOT=NFS `files/thekaiwa`) → 우분투 `~/.node-local/thekaiwa` 에서 prisma 6.19.3 `validate`·`db push --skip-generate`·`generate` 완료 → **50 테이블**(정본 §3 그대로, seed 미실행). `scripts/sync-local.sh` 는 `src/` 부재를 허용하도록 guard 추가. Google OAuth 클라이언트는 `.env` 에 입력·검증 완료(ID·시크릿·redirect URI `/api/auth/google/callback`). nginx vhost conf 는 `docs/nginx/` 에 준비(사용자 sudo 적용 대기 — 로그인 e2e 전에 적용). 우분투 실측: 포트 3010·8100 빈 상태, node 20.20.2, Claude CLI 2.1.222 로그인됨, JDK 21, pm2 6, whisper :8090 정상, M4 :8000 응답·:8200 미기동. **착수 준비 완료(2026-09-26)** — 사용자 "진행" 지시 시 leader 가 developer×2·designer·reviewer·qa 로 분배.
 - [[task-001-initial-planning]] — 정본 5종·확정 결정. TheMeal Phase 0(`TheMeal/agent-vault/10-Flow/tasks/task-002-phase0-scaffolding.md`)이 같은 골격의 선례(Next.js 16·Prisma·OAuth·앱 셸·health·pm2, 회귀 35/35, `.env.example` 시크릿 Critical 교훈).
 - 선결(사용자): Gitea 저장소 · NAS DB · Google OAuth 클라이언트 → [[OPS-QUEUE]].
 
