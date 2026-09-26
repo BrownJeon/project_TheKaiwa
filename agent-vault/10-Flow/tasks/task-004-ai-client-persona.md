@@ -1,7 +1,7 @@
 ---
 task_id: task-004
 title: "AI 클라이언트 계층(engine llm 파사드·router·어댑터) + 강사 페르소나 로더 + prompts{talk,chat,chatReview} + 실측"
-status: doing
+status: done
 roles_involved: [leader, prompt-engineer, developer, reviewer, qa]
 related_tasks: [task-002-phase0-scaffolding, task-003b-tutor-persona-v1]
 tags:
@@ -9,7 +9,7 @@ tags:
   - domain/tutor
   - domain/infra
 created: 2026-09-26
-updated: 2026-09-26
+updated: 2026-09-27
 ---
 
 ## 목표 (Leader 작성)
@@ -25,7 +25,7 @@ design-spec §15 task-004: engine adapters(claudeCli·homeM4)·router·llm 파�
 - [x] 6-결과: tsc 0 · lint 0 error · 단위 테스트 16/16 · TALK 페르소나 2,522자
 - [x] 7. 실측 스크립트(`tests/live/llm-measure.ts`): talk 20문장 × haiku, `--json-schema` 켬/끔 비교, 경과 p50/p95·스키마 위반율·원문 일치 → `30-Knowledge/decisions/llm-japanese-quality.md`
 - [x] 7-결과: [[llm-japanese-quality]] — 기본 CLI 는 spawn 9s + thinking 40~120s → 플래그·thinking 끄기로 20문장 p50 5.1s·p95 5.8s·실패 0·재시도 0·검출 16/16·오탐 0/4. `--json-schema` 기본 끔(실패 6/20), 페르소나는 `--system-prompt`, replyJa 상한 3문장. **A1 p50 ≤4s 미달** → 상주 세션 등은 task-007
-- [ ] 8. reviewer 재검증(REV-004 Critical·High·Medium 수정 반영) → qa → 최종 요약
+- [x] 8. reviewer 재검증(REV-004 Critical·High·Medium 수정 반영) → qa → 최종 요약
 
 ## 결정·메모
 - **TALK 예산 해석**: 페르소나(1·3·4(수준 행)·6(TALK 행) ≈2,600자)는 `--agents` 시스템 프롬프트, "총 ≤3,000자" 는 사용자 프롬프트(모드·학습자 헤더·창·발화)에 적용. 실측 지연으로 재판단.
@@ -58,3 +58,13 @@ design-spec §15 task-004: engine adapters(claudeCli·homeM4)·router·llm 파�
 - 잔여 Low(비차단): (a) REVIEW 의 "메시지 전체 또는 문장 하나 전체" 허용이 `docs/design/api-contract.md` #33 의 문자 그대로의 "message.content 바이트 일치" 표현과는 다소 다름 — 문서 쪽에 이 허용을 명시적으로 반영 권고(보안 결함 아님, 문서 정합성). (b) `infra.runtime.spawnArgv` 미도입 — REV-004 와 동일하게 task-005b 로 추적 유지. (c) A1 p50 5.1s(목표 ≤4s 미달)는 developer 가 이미 task-007 후속으로 명시, reviewer 범위 밖.
 
 **Reviewer → QA**: high_risk_areas = [원문 검증(TALK/CHAT/REVIEW 세 경로 회귀), 데드라인/폴백 벽시계 실측(특히 폴백 발생 시나리오), REVIEW 다건 오류 항목 처리]. native_change=false.
+
+## QA 기록 (2026-09-27)
+- **PASS(결함 0)** — tsc 0 · lint 에러 0 · 단위 테스트 18/18 · next build 0 · 미러에 tutor.md·픽스처 존재 · engine 밖 엔진명 0 · 실호출 5문장(실패 0·p50 4.97s·검출 3/3·오탐 0/2·12s 초과 0) · 인젝션 표본(원문 바이트 일치·proposals 비어 있음·설정 변경 없음, 1회 재시도로 9.4s) · health 200·pm2 online.
+
+## 최종 요약 (Leader, 사용자용)
+AI 선생님을 부르는 서버 쪽 기반을 만들었습니다. 아직 화면은 없고(회화·채팅 화면은 task-006·007), 이 층이 그 화면들이 쓸 "선생님 호출 창구"입니다.
+- **구성**: 엔진 층에 Claude CLI·home-m4 어댑터, DB 의 폴백 정책을 읽는 라우터, `complete/completeJson` 파사드(응답 JSON 검증·1회 재시도·요청 전체 시간 상한). 대화 층에 강사 페르소나 로더(`tutor.md` 에서 필요한 절과 학습자 수준·모드 행만 골라 2,522자), 회화·채팅·표현 점검 프롬프트 3종, 원문 무수정 검사(회화는 한 글자라도 다르면 거부).
+- **실측으로 찾은 큰 문제 2개**: Claude CLI 가 매번 전역 설정의 훅 12개·플러그인 12개를 불러 시작만 9초였고, haiku 가 긴 "생각(thinking)"을 켠 채 돌아 회화 한 번에 40~120초가 걸렸습니다. 둘 다 꺼서 **회화 한 턴 5.1초(p95 5.8초)**, 20문장 중 오류 16개 모두 찾고 맞는 문장 4개는 건드리지 않았습니다.
+- **남은 것 2개**: ① 목표였던 회화 턴 4초 이내는 아직 못 맞췄습니다(CLI 시작 2초 + 생성 3초). 음성 회화(task-007)에서 CLI 를 대화마다 계속 띄워 두는 방식으로 줄일 계획입니다. ② qwen(맥 M4) 비교는 thekaiwa 전용 API 키가 없어 보류했습니다.
+- 자세한 수치: [[llm-japanese-quality]]
