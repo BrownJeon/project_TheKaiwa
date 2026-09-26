@@ -21,7 +21,7 @@ multipart(오디오) 또는 JSON(텍스트):
   "mode": "TALK",                                                       // TALK | CHAT
   "learner": { "level": "N4", "politeness": "POLITE", "strictness": "NORMAL", "explainLang": "ko", "explainDepth": "NORMAL" },
   "history": [ { "role": "USER", "textJa": "こんにちは" }, { "role": "ASSISTANT", "textJa": "こんにちは！今日は何をしましたか？" } ],
-  "voice": { "voiceProfileId": "haruka", "style": "AUTO", "speed": 0.9, "ttsMode": "LEARNING" },
+  "voice": { "voiceProfileId": "haruka", "style": "AUTO", "speed": 0.9, "speechProfile": "LEARNING_NORMAL" },
   "engines": { "stt": { "connectionId": null, "role": "ANALYSIS_STT" }, "llm": { "connectionId": null, "tier": "fast" }, "tts": { "connectionId": null } },
   "prompt": { "talkVersion": null, "personaVersion": null },
   "overrides": {},

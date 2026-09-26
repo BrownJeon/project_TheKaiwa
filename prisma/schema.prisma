@@ -1,5 +1,5 @@
-// TheKaiwa — Prisma 스키마 실물. 정본은 docs/design/domain-model.md §3 (수정은 정본 → 이 파일 순서, 2026-09-26 추출)
-// 제안 엔티티(§9: Scenario·LearningObservation·LearnerSkillState)는 사용자 결정 후 승격 시 추가한다.
+// TheKaiwa — Prisma 스키마 실물. 정본은 docs/design/domain-model.md §3 (수정은 정본 → 이 파일 순서, 2026-09-26 재추출: SpeechProfile·TtsCache 확장·발음 사전 P0)
+// 제안 엔티티(§9 Scenario·Observation·SkillState, §10 VoiceModelVersion·Golden·QualityRun·AbCompare)는 사용자 결정 후 승격 시 추가한다.
 
 // TheKaiwa — DB 스키마 정본. 원본은 docs/design/domain-model.md §3 이며 실물 prisma/schema.prisma 는 이 블록을 그대로 옮긴다.
 // 규칙: (1) AI 제안은 PROPOSED 로만 존재, 채택 시 저장 (2) StatsSnapshot 은 생성·증가만, *Snap 컬럼으로 이력 보존
@@ -277,9 +277,13 @@ enum ExplainDepth {
 }
 
 /// 학습용 TTS 모드(음성 기획안 §11). LEARNING 은 speed 0.6/0.8/1.0 비교 듣기
-enum TtsMode {
+/// 교육용 Speech Profile(5차 TTS 보완 §138, 정본 speech-platform/16 §5). 종전 TtsMode{NATIVE,LEARNING} 교체. NATIVE=사용자 speed 그대로(기본, TALK/CHAT) · LEARNING_NORMAL=학습 표준 1.0 프리셋(레슨 낭독) · LEARNING_SLOW=learningSpeed(0.6·0.8), 모라 타이밍·악센트 유지 · PRONUNCIATION=0.8, 명확 발화, 、에서도 분할 · SHADOWING=0.9, 청크 뒤 gap=직전 청크 길이. 프로필은 정책(속도 배율·분할·간격)이고 수치는 User/VoiceProfile 층이 준다
+enum SpeechProfile {
   NATIVE
-  LEARNING
+  LEARNING_NORMAL
+  LEARNING_SLOW
+  PRONUNCIATION
+  SHADOWING
 }
 
 /// 사용자 음성 인식 모드(추가 기획안 §26). Speech Mode Resolver 가 엔진 역할 조합으로 해석
@@ -593,7 +597,7 @@ model UserVoiceSetting {
   pitch          Float    @default(1.0)
   /// 0.8~1.2
   intonation     Float    @default(1.0)
-  ttsMode        TtsMode  @default(NATIVE)
+  speechProfile  SpeechProfile @default(NATIVE)   // 종전 ttsMode(5차 보완 §138). 설정 화면 선택지는 NATIVE·LEARNING_NORMAL·LEARNING_SLOW, PRONUNCIATION·SHADOWING 은 화면이 요청 단위로 지정
   /// LEARNING 모드 기본 배속(0.6|0.8|1.0)
   learningSpeed  Float    @default(0.8)
   updatedAt      DateTime @updatedAt
@@ -1241,8 +1245,18 @@ model SpeechJob {
 
 /// TTS 합성 캐시(§44). key = sha1(text|voiceProfileId|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion). 미리듣기도 같은 캐시. 파일은 DATA_ROOT/tts-cache/
 model TtsCache {
+  /// sha1(normalizedText|voiceProfileId|modelVersion|dictionaryVersion|speechProfile|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion) — 5차 보완 §155 로 normalizedText·modelVersion·dictionaryVersion·speechProfile 추가
   key                 String    @id @db.VarChar(64)
   voiceProfileId      String?   @db.VarChar(80)
+  /// JapaneseTextNormalizer + PronunciationLexicon 적용 후 세그먼트 텍스트(캐시 판단 기준, 청크 단위 ≤200). 원문은 저장하지 않음. textHash = sha1(normalizedText)
+  normalizedText      String    @db.VarChar(200)
+  modelVersion        String    @db.VarChar(20)
+  dictionaryVersion   Int       @default(0)
+  speechProfile       SpeechProfile @default(NATIVE)
+  /// TtsTimingMetadata {method:'FORCED_ALIGN'|'ENGINE', alignerVersion, words[{text,startMs,endMs,charStart,charEnd}], moras[{mora,startMs,endMs,wordIndex}], phonemes?[]} (P1, speech-platform/16 §8)
+  timing              Json?
+  /// aligner 버전(변경 시 timing 만 재계산, 오디오 유지)
+  timingVersion       String?   @db.VarChar(40)
   style               String    @db.VarChar(40)
   styleWeight         Float
   speed               Float
@@ -1260,6 +1274,61 @@ model TtsCache {
 
   @@index([voiceProfileId])
   @@index([lastHitAt])
+}
+
+/// 발음 사전 적용 범위(5차 §130). 우선순위 USER > VOICE > LESSON > COURSE > GLOBAL (좁은 범위가 이김)
+enum LexiconScope {
+  GLOBAL
+  COURSE
+  LESSON
+  VOICE
+  USER
+}
+
+/// Pronunciation Lexicon Service(5차 §130~§132, P0, 정본 speech-platform/16 §2). 엔진 내부 사전이 아니라 플랫폼 공통 데이터(설정 계열 → environment 컬럼). 적용은 TTS 파이프라인의 Lexicon 단계(플랫폼 치환 A 기본, SBV2 user_dict push B 는 어댑터 옵션)
+model PronunciationLexiconEntry {
+  id          String       @id @default(cuid())
+  environment Environment
+  surface     String       @db.VarChar(40)
+  /// 읽기(가타카나·長音符 ー 만, L-5)
+  reading     String       @db.VarChar(60)
+  /// 악센트 핵 모라 위치(0=平板, ≤ 모라 수). pyopenjtalk user-dict accent_type 과 동일 의미
+  accentType  Int          @default(0)
+  /// PROPER_NOUN·PERSON·PLACE·COMMON·LOANWORD·ABBREVIATION
+  wordType    String?      @db.VarChar(20)
+  /// 같은 길이 최장 일치가 겹칠 때 큰 쪽 우선(L-3)
+  priority    Int          @default(10)
+  scope       LexiconScope @default(GLOBAL)
+  /// scope 가 COURSE/LESSON/VOICE/USER 일 때 대상 id(topicId(Scenario 도입 시 scenarioId)·lessonId·voiceProfileId·userId). GLOBAL 은 null. FK 없음
+  scopeRefId  String?      @db.VarChar(40)
+  note        String?      @db.VarChar(200)
+  /// false 는 매칭 제외, 스냅샷·Export 에는 남음(L-4). 물리 삭제 없음
+  enabled     Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([environment, scope, scopeRefId, surface])
+  @@index([environment, scope, scopeRefId, enabled])
+  @@index([environment, surface])
+}
+
+/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전(대상은 ROLLED_BACK). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog(scope=LEXICON) 만
+model PronunciationLexiconVersion {
+  id            String   @id @default(cuid())
+  environment   Environment
+  /// 환경별 단조 증가 정수
+  version       Int
+  /// enabled 항목 정렬 후 sha256
+  snapshotHash  String   @db.VarChar(64)
+  /// 이 버전에 포함된 entry 스냅샷 [{surface, reading, accentType, wordType, priority, scope, scopeRefId, enabled}]
+  snapshot      Json
+  changeSummary String?  @db.VarChar(300)
+  actorUserId   String?
+  status        ConfigVersionStatus @default(ACTIVE)
+  createdAt     DateTime @default(now())
+
+  @@unique([environment, version])
+  @@index([environment, status])
 }
 
 /// TTS 모델(SBV2 model_assets 디렉토리 단위, /models/info 동기화 결과). id = 모델 디렉토리명. 물리 파일은 tts-service(M4) 에 있다

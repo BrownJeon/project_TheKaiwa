@@ -103,14 +103,14 @@ AVAILABLE ──disable──▶ DISABLED ──DELETE──▶ DELETING ──M
 
 ### 3.5 `UserVoiceSetting` 재배정
 
-`disable`/sync-ERROR 시 `voiceProfileId = X` 인 모든 `UserVoiceSetting` 을 트랜잭션 하나에서 `AppSetting voice.defaultProfileId` 로 바꾸고 `style='AUTO'` 로 초기화한다(다른 voice 의 style 이름은 유효하지 않으므로). `speed·pitch·intonation·styleWeight·ttsMode` 는 유지. 각 사용자에게는 다음 앱 기동 시 `GET /api/v1/settings/voice` 응답의 `notice: {code:'VOICE_REASSIGNED', from:'Mio', to:'Haruka'}` 로 1회 안내(13 §3.6). 기본 voice 자체가 대상이면 V-7 로 거부 → 관리자가 `AppSetting` 을 먼저 바꿔야 한다.
+`disable`/sync-ERROR 시 `voiceProfileId = X` 인 모든 `UserVoiceSetting` 을 트랜잭션 하나에서 `AppSetting voice.defaultProfileId` 로 바꾸고 `style='AUTO'` 로 초기화한다(다른 voice 의 style 이름은 유효하지 않으므로). `speed·pitch·intonation·styleWeight·speechProfile` 는 유지. 각 사용자에게는 다음 앱 기동 시 `GET /api/v1/settings/voice` 응답의 `notice: {code:'VOICE_REASSIGNED', from:'Mio', to:'Haruka'}` 로 1회 안내(13 §3.6). 기본 voice 자체가 대상이면 V-7 로 거부 → 관리자가 `AppSetting` 을 먼저 바꿔야 한다.
 
 ### 3.6 M4 파일 처리
 
 | 경로(M4 `~/kaiwa-tts-run/`) | 용도 | 규칙 |
 |---|---|---|
 | `imports/<jobId>/` | 업로드 해제 스테이징 | job 종료 시 삭제. 시작 전 여유 디스크 ≥ zip×3 확인(`E_IMPORT_DISK_FULL`) |
-| `model_assets/<modelName>/` | 서비스 모델 | `kaiwa-manifest.json`(manifest + importedAt + jobId) 동봉. 디렉토리 교체는 `.importing` → rename 원자적 |
+| `model_assets/<modelName>/` | 서비스 모델 | `kaiwa-manifest.json`(manifest + importedAt + jobId) 동봉. 디렉토리 교체는 `.importing` → rename 원자적. **5차 보완(P1)**: 버전 도입 시 `model_assets/<modelName>@<version>/` 로 두고 `replace=true` 는 새 `VoiceModelVersion` 을 만든다(`16` §10); 참여자 "SBV2 server_fastapi" 는 래퍼 내부 모델 홀더로 읽는다 |
 | `model_assets/_failed/`, `model_assets_archived/` | 실패·보관 | SBV2 스캔 대상 밖. purge runbook 이 정리 |
 | `secrets/` | tts-service 자체 토큰 | 08 |
 

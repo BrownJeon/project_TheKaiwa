@@ -51,7 +51,7 @@ connection 장애 시 같은 역할의 다음 connection 으로 넘어가되(§6
 |---|---|---|---|
 | `REALTIME_STT` | 온디바이스 → gateway(§3.5). gateway → 온디바이스 역방향은 ACCURATE 모드에서만 | 텍스트 입력 폴백(항상 노출되어 있는 텍스트 필드로 유도) | "음성 인식을 사용할 수 없어 텍스트로 입력해 주세요" 1회 |
 | `ANALYSIS_STT` | worker 가 chain 순회 | `SpeechJob.attempts` 1→2→3, 백오프 1분·5분·30분(dequeue 조건 `nextAttemptAt`). 3회 후 `SpeechJob.FAILED`·`Utterance.status=FAILED`, `transcriptConfidence=null`, 실시간 텍스트가 최종(`finalSource=REALTIME`) | 없음(비동기). 교정 카드에 "정밀 분석 생략" 작은 표시 |
-| `TTS` | Phase 1 후보 없음. `UNAVAILABLE` 이어도 `TtsCache` HIT 는 계속 서빙(캐시 우선) | 텍스트만 응답 + `speech.audio=null`. 턴은 실패가 아님 | 말풍선에 스피커 아이콘 비활성 + "음성을 준비하지 못했어요 · 다시 시도" |
+| `TTS` | Phase 1 후보 없음. `UNAVAILABLE` 이어도 `TtsCache` HIT 는 계속 서빙(캐시 우선). 5차 §158 Hybrid 라우터: 후보 순서 SERVER → ON_DEVICE(P2, 현재 없음) → TEXT_ONLY, 선택 결과를 `GET /api/v1/speech/tts/status.executionMode` 로 노출 | 텍스트만 응답 + `speech.audio=null`, `executionMode=TEXT_ONLY`·`fallbackReason=SERVER_ERROR|SERVER_TIMEOUT|NO_CONNECTION|OFFLINE`. 턴은 실패가 아님 | 말풍선에 스피커 아이콘 비활성 + "음성을 준비하지 못했어요 · 다시 시도" + **강사 프로필 옆 상태 표시등 🔴 "자막만"**(TEXT_ONLY, 전환 시 토스트 1회, 복귀는 health 1회 성공 후 🟡 전환 중 → 🟢 온라인; `16` §12) |
 | `LLM` (talk/chat) | `claude-cli-local` → `home-m4-lan` `fallbackTalk`: 페르소나 `--agents` 없이 축약 프롬프트·창 6턴·`extractJson`+`schemaValidate`. 응답에 `degraded:true` | 턴 `FAILED`, 사용자 메시지는 보존, "다시 보내기" | "지금은 간단 모드로 답해요" 배지(폴백) / 오류 토스트(소진) |
 | `LLM` (chatReview/lesson/eval/analysis) | **폴백 없음**(품질·스키마 크기 때문) | `AiJob` 백오프 재시도(기존 규칙) | 잡 화면 "다시 만들기" |
 

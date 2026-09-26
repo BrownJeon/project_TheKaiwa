@@ -118,7 +118,7 @@ WebSocket `/ws/speech` 는 Next.js 라우트가 아니라 nginx `Upgrade` 프록
 | 책임 | 사용자별 설정의 읽기·쓰기·화이트리스트 검증. **값의 의미 해석(엔진 파라미터 변환)은 하지 않는다**(그건 L4 `speech/tts/parameterResolver`). |
 | 서브디렉토리 | `profile/`(학습 설정: `level·politeness·goal*·daily*·strictness·explainLang·explainDepth`) · `voiceSetting/` · `speechSetting/` · `appSetting/`(운영 설정 KV) |
 | 소유 테이블 | `Profile`, `UserVoiceSetting`, `UserSpeechSetting`, `AppSetting` |
-| 공개 API | `getProfile(userId)` · `updateProfile(userId, patch)` · `getVoiceSetting(userId)`(없으면 기본 voice 로 생성) · `updateVoiceSetting(userId, patch)` · `reassignVoiceSetting(fromVoiceProfileId, toVoiceProfileId, tx?)` · `getSpeechSetting(userId)` · `updateSpeechSetting(userId, patch)` · `getAppSetting<T>(key, fallback)` · `setAppSetting(key, value, tx?)` · 타입 `Profile`, `UserVoiceSetting`, `UserSpeechSetting`, `RecognitionMode`, `TtsMode` |
+| 공개 API | `getProfile(userId)` · `updateProfile(userId, patch)` · `getVoiceSetting(userId)`(없으면 기본 voice 로 생성) · `updateVoiceSetting(userId, patch)` · `reassignVoiceSetting(fromVoiceProfileId, toVoiceProfileId, tx?)` · `getSpeechSetting(userId)` · `updateSpeechSetting(userId, patch)` · `getAppSetting<T>(key, fallback)` · `setAppSetting(key, value, tx?)` · 타입 `Profile`, `UserVoiceSetting`, `UserSpeechSetting`, `RecognitionMode`, `SpeechProfile` |
 | 허용 import | `infra` |
 | 비고 | `USER_SETTING` 은 설정 해석 규칙의 7순위 소스다. 이 모듈은 값을 **저장·반환만** 하고, Resolver(L5 `engine/configuration`)나 L4 가 요청 시 합성한다. §76 에서 L1 이 "최상층"으로 그려진 것은 사용자 접점이라는 뜻이고, import 순서상으로는 **리프 데이터 모듈**이다(§3). |
 
@@ -559,3 +559,28 @@ M4 `kaiwa-tts` 배포는 home-m4-api 와 동일: NFS 가 아닌 로컬 `~/kaiwa-
 
 - 라우트 조합 시퀀스 추가: **복습 판단** = `learning.completeLesson` 트랜잭션 → `learning.enqueueReviewDecision` → 잡 러너가 `conversation.getActivePrompt('reviewDecision')`+`learning.listDueItems` 로 A11 호출 → `learning.applyTutorDecision`(클램프) → 실패 시 `fallbackDecision`. **ASK** = `conversation.askRouter.classifyIntent` → `learning.retrieveRecords` → `conversation.buildTurnContext`(기록 ≤2,000자 삽입) → 턴.
 - 금기 추가: `retrieveRecords` 결과를 프롬프트에 넣을 때 이름·이메일·id 를 가명화하고 원문 대화는 발췌 ≤300자, Trace 에는 개수·해시만.
+
+## 11. TTS 플랫폼 계층 (5차 기획안 §129~§163, 2026-09-26)
+
+정본 `../speech-platform/16-tts-productization-layer.md`. 층 배치는 그대로: **TTS Platform = L4 `speech/tts`**, **Engine Adapter = L5 `engine/adapters/tts`**, 엔진은 M4 `speech/tts-service`(자체 FastAPI, `style_bert_vits2` 라이브러리 직접 사용).
+
+| 컴포넌트(§160) | 위치 | 공개 API / 책임 | Phase |
+|---|---|---|---|
+| `JapaneseTextNormalizer` | `speech/tts/normalizer` | `normalize(text, {context}) → {normalizedText, decisions[]}` — 숫자·날짜·시간·단위·Counter·기호·영문·외래어·고유명사·약어 읽기 결정, 엔진 정규화에 의존하지 않음 | P0 |
+| `PronunciationLexiconService` | `speech/tts/lexicon` | `applyLexicon(normalizedText, scopeCtx) → {text, applied[], dictionaryVersion}` · `getActiveVersion()` · admin: `upsertEntry`·`disableEntry`·`import`·`export`·`createVersion`·`rollback(v)`·`preview` | P0 |
+| `SpeechRenderingPlan` | `speech/tts/renderingPlan` | `buildPlan({text, responseMeta, speechProfile, userSetting, voiceProfile, personaHint}) → RenderingPlan{voiceId, profile, segments[{text, style, speed, pauseBeforeMs, emphasis?}]}` — 엔진 독립 표현만 | P0 |
+| `TTS Parameter Resolver`(기존) | `speech/tts/parameterResolver` | 값 우선순위(User > VoiceProfile > Persona > Context > LLM) 결정 → **출력은 RenderingPlan** | 기존 |
+| `SpeechProfile` | enum(L1 `UserVoiceSetting.speechProfile`) + `speech/tts/profiles`(프로필→기본 speed/style 매핑표) | NATIVE·LEARNING_NORMAL·LEARNING_SLOW·PRONUNCIATION·SHADOWING | P0 |
+| `TtsChunkScheduler` + `sentenceDetector` | `speech/tts/chunkScheduler/{index,sentenceDetector}` | 문장 감지(。！？…·닫는 괄호, ≤100자 초과 시 、 2차 분할, 4자 미만 병합, 정규화 전 원문 + token map) → 청크 0 즉시·이후 큐(동시 1~2) → 캐시 HIT 는 합성 없이 즉시 → SSE `audio{chunkIndex,…,last,status}` emit, TTFA 계측, 새 턴 시 대기 청크 취소 | P0 |
+| `TtsAudioCache`(기존 확장) | `speech/tts/cache` | 키 12요소(정규화 텍스트·모델 버전·사전 버전·프로필 포함), `dictionaryVersion`/`modelVersion` 구버전 purge | P0 |
+| `TtsRuntimeStatus` | `speech/tts/status` + 클라 `TtsRuntimeStatusIndicator` | 라우터 선택 결과 기반 `executionMode`·`fallbackReason` 계산·캐시, `GET /api/v1/speech/tts/status` | P0 |
+| `TtsPlaybackQueue` | 클라 `speech/tts/TtsPlaybackQueue`(기존 `TtsPlayer` 대체) | `chunkIndex` 순 재생(먼저 온 HIT 는 버퍼)·다음 URL 프리페치·profile gap + `pauseBeforeMs`·새 턴/이탈/모드 전환 시 큐 비움·`clientTimings{playbackStartDelayMs, firstAudioAtMs}` 를 다음 턴 요청에 동봉 | P0 |
+| `TtsMetricsCollector` | `engine/metrics` 확장 + `speech/tts/metrics` | TTFA·합성 지연·오디오 길이·RTF·큐 대기·모델 로드·재생 시작 지연 → `RequestTrace` sub-steps + `EngineMetricsDaily` TTS 컬럼 | P1 |
+| `TtsTimingMetadata` | `speech/tts/timing`(narabas 정렬은 Python `speech/worker` 잡) | 합성 wav + 텍스트 → words/moras/phonemes 타이밍 → `TtsCache.timing` | P1 |
+| `TtsGoldenDataset`·`TtsQualityEvaluator` | `admin/playground` + `speech/tts/quality` + Python `speech/worker` 잡 | Golden 문장 관리·회귀 실행·A/B blind compare | P1 |
+| `VoiceModelVersion`·`VoiceDeploymentPolicy` | `speech/voices/versions` + `engine/router`(Canary 세션 배정) | 버전 상태 전이·Canary %·Promote(SUPER_ADMIN) | P1 |
+| 어댑터 매핑 | `engine/adapters/tts/styleBertHttp` | RenderingPlan 세그먼트 → SBV2 파라미터(예: ENCOURAGING → style Friendly·style_weight 0.8·intonation_scale 1.1 / SLOW → length 1.25 / EMPHASIS → intonation_scale 1.2·앞뒤 pause) — 매핑표는 어댑터 `descriptor().capabilities` 와 함께 코드 소유, 다른 엔진은 다른 매핑 | P0 |
+| `OnDeviceTtsRuntime`·`TtsModelOptimizer` | (research) `plugins/sherpa-tts?` | ONNX 최적화·양자화·모바일 런타임 평가(§156~§157 기준) | P2 |
+
+- import 행렬 불변: `speech/tts/*` → `engine`(어댑터·router·trace) → `infra`. Admin 화면은 L0 `admin/{speech/lexicon, speech/quality, voices/versions, diagnostics/tts}` 조합 모듈이 `speech/voices`·`speech/tts`·`engine/metrics` 를 호출. Python `speech/tts-service` 는 `style_bert_vits2`·narabas·pyopenjtalk 를 직접 import 하고 `speech/common` 은 import 하지 않는다(§5 원칙 유지). `EngineDescriptor.capabilities` 에 `SUPPORTS_STYLE·SUPPORTS_INTONATION·SUPPORTS_PITCH·SUPPORTS_USER_DICT·SUPPORTS_TIMING` 추가(speech-platform/05 §3.3). `conversation` 은 여전히 `speech` 를 import 하지 않고, 턴 라우트가 `structuredResponse → chunkScheduler` 를 잇는다.
+- 금기 추가: 라우트·LLM·클라이언트가 SBV2 파라미터명(`style_weight`, `length`, `pitch_scale`…)을 다루지 않는다(어댑터 전용). 정규화·사전 결과(`normalizedText`)는 캐시 키·Trace 해시에만 쓰고 원문은 Trace 에 남기지 않는다.

@@ -16,7 +16,7 @@
 | LLM | **Claude CLI 구독**(`--print --permission-mode dontAsk --json-schema`, 회화 haiku / 점검·레슨·평가 sonnet / 분석 opus) — `src/modules/engine/adapters/llm/claudeCli` 유일 경로. home-m4-api `/v1/chat`(qwen)은 어댑터만(단어 보강·폴백 후보) |
 | 실시간 STT | **온디바이스** Capacitor 플러그인 `@thekaiwa/sherpa-stt`(Kotlin + sherpa-onnx AAR + ReazonSpeech zipformer int8, 모델은 첫 실행 시 `/models/` 다운로드). 폴백 = 우분투 gateway(`speech/gateway`, WS `/ws/speech`, 127.0.0.1:8100). **안드로이드 기본 STT/TTS 미사용** |
 | 분석 STT | VoiceVault whisper-service 재사용(127.0.0.1:8090) — `speech/worker` 가 MariaDB `SpeechJob` 큐로 비동기 처리, Transcript Ensemble(confidence·requiresReview) |
-| TTS | **Style-Bert-VITS2 on 맥 M4**(`~/kaiwa-tts-run`, :8200, AGPL 격리) — 다중 Voice Profile·통합 미리듣기·Learning/Native 속도. 앱은 `/api/v1/speech/tts` 프록시·캐시만 |
+| TTS | **Style-Bert-VITS2 on 맥 M4**(`~/kaiwa-tts-run`, :8200, AGPL 격리, `style_bert_vits2` 라이브러리 위 **자체 FastAPI 래퍼** — 원 `server_fastapi` 에는 사전·타이밍·스트리밍·pitch 라우트 없음) — 다중 Voice Profile·통합 미리듣기. 앱 L4 `speech/tts` 가 **TTS 플랫폼 층**(발음 사전+버전·Japanese Text Normalizer·엔진 독립 Rendering Plan·`SpeechProfile` 5종·청크 스트리밍+Playback Queue·캐시 키 12요소·실행 상태 표시등)을 소유하고, 어댑터만 SBV2 파라미터를 안다(정본 `docs/design/speech-platform/16-tts-productization-layer.md`) |
 | 발음 분석 | 음성 Phase 3: narabas + pyopenjtalk + F0 (모라·長音·促音·피치·유창성) |
 | 엔진 관리 | Engine Descriptor(코드) + Connection Profile(DB) + Configuration Schema + Health/Functional Test + Fallback + 8층 설정 해석(Effective Configuration) + ConfigurationVersion·Audit·Rollback |
 | 앱 | Capacitor 7 Android(루트 `android/`), `server.url` 퓨니코드, edge-to-edge·쿠키 flush·KeyboardInset(VoiceVault 보정 5종) |

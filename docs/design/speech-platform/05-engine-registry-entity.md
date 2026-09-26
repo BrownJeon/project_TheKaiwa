@@ -54,6 +54,7 @@ interface EngineDescriptor {
 | | `SEGMENT_PARTIAL` | 세그먼트 단위 partial 이벤트. 실시간 자막 UI 활성 조건 |
 | | `WORD_TIMESTAMP` | 단어 타임스탬프. Pronunciation(Phase 3) 정렬 입력 |
 | | `LANGUAGE_JA` · `LANGUAGE_DETECT` | 일본어 지원 / 언어 자동 감지 |
+| TTS(5차 보완, `16` §4.4) | `SUPPORTS_STYLE` · `SUPPORTS_INTONATION` · `SUPPORTS_PITCH` · `SUPPORTS_USER_DICT` · `SUPPORTS_TIMING` | Rendering Plan 의 축을 어댑터가 지원하는지. 없는 축은 조용히 버리고(13 §3.5) 사용자 설정 UI 도 숨김. `SUPPORTS_PITCH`·`SUPPORTS_INTONATION` 은 task-003 에서 SBV2 `TTSModel.infer` 인자 실측 후 확정 |
 | | `ONDEVICE` · `STREAMING_WS` | 온디바이스 실행 가능 / WebSocket 스트리밍 프로토콜(§9 gateway) |
 | TTS | `MULTI_VOICE` · `STYLE` · `SPEED` · `PITCH` · `INTONATION` | 파라미터 지원 여부. Parameter Resolver(13)가 미지원 키를 **버림**(오류 아님) |
 | | `MODEL_REFRESH` · `VOICE_IMPORT` | `POST /admin/models/refresh` / Voice Package Import(03) 가능. 없으면 Voice 관리 화면의 Import·Sync 버튼 숨김 |

@@ -59,7 +59,7 @@ model EngineMetricsDaily {
 
 ```json
 {
-  "name": "STT",                        // VAD | STT | ORCHESTRATOR | LLM | TTS | TTS_SENTENCE | PLAYBACK | CACHE | ROUTER | FALLBACK
+  "name": "STT",                        // VAD | STT | ORCHESTRATOR | LLM | TTS | TTS_NORMALIZE | TTS_LEXICON | TTS_PLAN | TTS_QUEUE | TTS_SYNTH (구 TTS_SENTENCE) | TTS_ENCODE | TTS_TIMING | PLAYBACK | CACHE | ROUTER | FALLBACK
   "seq": 1,
   "engineId": "faster-whisper",
   "connectionId": "whisper-voicevault",
@@ -75,7 +75,7 @@ model EngineMetricsDaily {
 }
 ```
 
-단계별 `meta` 허용 키: STT `{audioMs, transcriptChars, segments, confidence}` · ORCHESTRATOR `{promptKey, promptVersion, personaVersion, assembledChars, windowTurns}` · LLM `{tier, inputTokens?, outputTokens?, cacheReadTokens?, structuredOk, jsonRetry}` · TTS `{sentences, ttsStartMs, cacheHit, resolvedParams}` · ROUTER `{role, candidates[], chosen}`. 그 외 키는 기록 시 제거된다(화이트리스트).
+단계별 `meta` 허용 키: STT `{audioMs, transcriptChars, segments, confidence}` · ORCHESTRATOR `{promptKey, promptVersion, personaVersion, assembledChars, windowTurns}` · LLM `{tier, inputTokens?, outputTokens?, cacheReadTokens?, structuredOk, jsonRetry}` · TTS `{sentences, chunks, ttfaMs, speechProfile, cacheHits, resolvedParams, modelVersion, dictionaryVersion}` · TTS_NORMALIZE `{inputChars, outputChars, rulesApplied}` · TTS_LEXICON `{dictionaryVersion, matches}` · TTS_PLAN `{segments, styleSource, speechProfile}` · TTS_QUEUE `{waitMs, position}` · TTS_SYNTH `{chunkIndex, synthMs, audioMs, rtf, modelLoaded, modelVersion, cacheHit, connectionKey}` · TTS_ENCODE `{bytes, format}` · TTS_TIMING `{words, moras, method, alignMs}` · PLAYBACK `{playbackStartDelayMs, firstAudioAtMs}`(5차 보완, `speech-platform/16` §7.2) · ROUTER `{role, candidates[], chosen}`. 그 외 키는 기록 시 제거된다(화이트리스트).
 
 ## 5. traceId 전파 (앱 → gateway/worker → M4 tts-service)
 
@@ -128,7 +128,7 @@ sequenceDiagram
   R->>L: completeJson (env KAIWA_TRACE_ID)
   L-->>T: step LLM
   R->>TTS: POST /synthesize (X-Trace-Id)
-  TTS-->>T: step TTS(+TTS_SENTENCE)
+  TTS-->>T: step TTS(+TTS_NORMALIZE·TTS_LEXICON·TTS_PLAN·TTS_QUEUE·TTS_SYNTH[i]·TTS_ENCODE)
   R->>T: end(status, totalMs) → ChatMessage.toolLog{traceId,…}
   W-->>R: /api/internal/speech/utterances/:id/analysis (X-Trace-Id)
   R->>T: appendStep(STT analysis)

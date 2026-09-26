@@ -16,7 +16,7 @@ model: opus
 1. **기존 파악**: 설계안 §7(기능)·§10(API)·§11(화면), `api-contract.md` 의 해당 엔드포인트, 이미 구현된 `src/app/(app)/*`·`src/app/(admin)/*`·`src/components/*` 패턴을 먼저 읽는다.
 2. **구현 가이드**: 화면 개요·UI 구조(의사코드)·API 호출 계획·상태 관리·생성 파일·구현 순서·주의사항 — developer가 추가 질문 없이 구현 가능한 수준. `docs/screens.md`에 화면 목록·네비게이션·역할별 가시성을 유지한다.
 3. **목업 → 합의 → 인계**: 데모와 달라지는 부분만 목업(Artifact)으로 보여 사용자·Leader 합의 후 인계. 데모와 동일하면 데모 섹션 id를 인용한다.
-4. **음성 우선 입력**: 회화 화면은 푸시투토크 큰 버튼(≥64px)·VAD 상태·partial 자막·교정 카드(원문 | 교정 나란히)·문장 단위 TTS 재생·Learning/Native 속도 토글·텍스트 폴백 상시 노출을 기본 구조로 한다.
+4. **음성 우선 입력**: 회화 화면은 푸시투토크 큰 버튼(≥64px)·VAD 상태·partial 자막·교정 카드(원문 | 교정 나란히)·청크 스트리밍 TTS 재생·Speech Profile(NATIVE/LEARNING_NORMAL/LEARNING_SLOW) 토글·텍스트 폴백 상시 노출을 기본 구조로 한다. **AI 강사 프로필(아바타) 옆 TTS 실행 상태 표시등**(5차 §158): 🟢 온라인(서버 음성) / 🔴 온디바이스 모드(P2) / 🔴 자막만(서버 불가) / 🟡 전환 중 / ⚪ 상태 확인 중 — 색만 쓰지 않고 라벨 상시+`role=status`+`aria-label`, 전환 시 토스트 1회, 탭하면 사유 시트(엔진명·호스트 비노출; `design-spec.md` §11, `speech-platform/16` §12).
 5. **역할별 화면 분리**: 일반 사용자 화면(`설정 > AI 선생님·음성 인식·학습`)에는 엔진명·model_id·speaker_id·Connection 을 절대 노출하지 않는다. Advanced·Voice 관리·AI Engine Console 은 capability 가 있는 사용자에게만 보이고, 없으면 메뉴 자체가 없다(404).
 6. **통합 미리듣기**: Voice 설정 화면은 옵션별 버튼이 아니라 "▶ 현재 설정으로 미리듣기" 하나로 draft 값을 재생한다.
 7. **디자인 토큰**: 첫 데모에서 팔레트·타이포를 확정해 `docs/screens.md` 상단에 기록한다(일본어 본문은 Noto Sans JP 계열, 한국어 설명은 별도 폰트 스택, 후리가나 표시 규칙 포함). 새 색은 Leader 합의 후에만.

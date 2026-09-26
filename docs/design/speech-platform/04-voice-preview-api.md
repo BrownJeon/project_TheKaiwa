@@ -37,7 +37,8 @@
 ### 3.3 캐시 키
 
 ```
-key = sha1( text | voiceId | style | styleWeight | speed | pitch | intonation | engineConnectionId | textVersion )
+key = sha1( normalizedText | voiceId | modelVersion | dictionaryVersion | speechProfile | style | styleWeight | speed | pitch | intonation | engineConnectionKey | textVersion )
+# 2026-09-26 5차 보완 §155: text → normalizedText(정규화·사전 적용 후), modelVersion(VoiceModelVersion 또는 VoiceModel.version), dictionaryVersion(ACTIVE PronunciationLexiconVersion), speechProfile 추가. 미리듣기도 같은 키(profile 은 사용자 설정값)
 ```
 
 | 구성 | 정규화 |
@@ -47,6 +48,8 @@ key = sha1( text | voiceId | style | styleWeight | speed | pitch | intonation | 
 | 수치 4개 | 소수점 2자리 고정 문자열(`0.90`) |
 | `engineConnectionId` | Router 가 실제로 고른 TTS connection(11). 같은 voice 라도 호스트가 바뀌면 다른 키 |
 | `textVersion` | 미리듣기는 `voice.preview.textVersion`, 대화 TTS 는 `0` 고정 |
+| `normalizedText` | Normalizer + Lexicon 적용 후 문자열. 원문이 같아도 사전 버전이 바뀌면 키가 바뀐다(`16-tts-productization-layer.md`) |
+| `modelVersion`·`dictionaryVersion` | 버전 승격·사전 변경 시 자연 무효(purge 는 LRU) |
 
 `TtsCache{key @id, voice(=voiceId), style, rate(=speed), path, bytes, hits, createdAt, lastHitAt}` — `path` 는 `DATA_ROOT/tts-cache/<key[0:2]>/<key>.wav`. 대화 TTS(`POST /api/v1/speech/tts`)도 같은 함수·테이블을 쓴다.
 

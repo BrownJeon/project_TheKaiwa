@@ -8,11 +8,11 @@ tags:
 
 ## 한 줄 요약
 
-**설계 단계 완료 + 2·3차 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), DB 는 사용자 권한 SQL 실행 대기. 사용자 기획서 4종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 33종(`docs/design/speech-platform/00~15`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
+**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), DB 는 사용자 권한 SQL 실행 대기. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
 
 ### 사용자만 할 수 있는 것 (Phase 0 착수 전)
 - ✅ **Gitea 저장소 `project_TheKaiwa`** 생성·연결·push 완료(2026-09-26, `origin/main` 추적)
-- ⬜ **NAS MariaDB** `thekaiwa` DB·계정 생성(권한 SQL 은 [[OPS-QUEUE]] #2) → `TheKaiwa/.env` 에 `DATABASE_URL` → Leader 가 우분투 미러에서 `prisma db push`(48 테이블, `prisma/schema.prisma` 준비됨)
+- ⬜ **NAS MariaDB** `thekaiwa` DB·계정 생성(권한 SQL 은 [[OPS-QUEUE]] #2) → `TheKaiwa/.env` 에 `DATABASE_URL` → Leader 가 우분투 미러에서 `prisma db push`(50 테이블, `prisma/schema.prisma` 준비됨 — 5차 보완으로 발음 사전 2 테이블 추가)
 - ⬜ **Google OAuth 클라이언트** 발급 — redirect URI `https://kaiwa.xn--lh0b87pnudm10a4vd.com/api/auth/google/callback`(퓨니코드)
 - ⬜ **nginx vhost** `kaiwa.xn--lh0b87pnudm10a4vd.com` → `127.0.0.1:3010` + `/ws/speech` → `127.0.0.1:8100`(Upgrade) 적용(sudo). DNS·TLS 는 와일드카드라 손댈 필요 없음
 - ⬜ **맥 M4** 에 `~/kaiwa-tts-run` 디렉토리·venv·Style-Bert-VITS2 설치 위치 승인(tts-service)
@@ -26,12 +26,12 @@ tags:
 | 1 | [`../../CLAUDE.md`](../../CLAUDE.md) | 프로젝트 정체성·스택·6층 모듈·금기·팀 구성 |
 | 2 | [`../../docs/design-spec.md`](../../docs/design-spec.md) | **통합 설계안** — §0 확정 사항 · §8 LLM · §9 음성 · §9-B Voice/Engine · §9-C Console · §15 Phase |
 | 3 | `../../docs/design/domain-model.md` · `api-contract.md` · `module-dependency.md` · `configuration-resolution.md` · `role-permission.md` | **정본 5종** — 엔티티·API·모듈·설정 해석·권한 |
-| 4 | `../../docs/design/speech-platform/00~15` · `../../docs/design/admin-console/00~16` | 세부 설계 33종 |
+| 4 | `../../docs/design/speech-platform/00~16` · `../../docs/design/admin-console/00~16` | 세부 설계 34종 — **16 = TTS Productization 층**(5차 보완) |
 | 4b | [`../../docs/design/learning-personalization-and-llm-data.md`](../../docs/design/learning-personalization-and-llm-data.md) · [`tutor-persona-validation.md`](../../docs/design/tutor-persona-validation.md) | **학습 개인화·반복 학습(강사 판단 3~7일)·주제·상황·기록 조회·M4 방안·지표** / 페르소나 검증 세트 |
-| 5 | [[task-001-initial-planning]] · [[task-003b-tutor-persona-v1]] | 설계 과정 전체 기록 — 무엇을 왜 정했는지 |
+| 5 | [[task-001-initial-planning]] · [[task-003b-tutor-persona-v1]] · [[task-003c-tts-productization-design]] | 설계 과정 전체 기록 — 무엇을 왜 정했는지 |
 | 6 | [[stack-and-llm-choice]] · [[speech-architecture-decisions]] · [[tutor-persona-choice]] | 결정 이유 |
 
-원문 4종은 `../../docs/{기획서,음성처리-기획안,음성처리-추가기획안,관리자콘솔-기획안}-원본.md` 에 그대로 있다(수정 금지).
+원문 5종은 `../../docs/{기획서,음성처리-기획안,음성처리-추가기획안,관리자콘솔-기획안,tts-보완-기획안}-원본.md` 에 그대로 있다(수정 금지).
 
 ## 2. 확정된 결정 (2026-09-26 사용자 확정)
 
@@ -49,6 +49,7 @@ tags:
 | 강사 페르소나 v1 | 단일 · 일본인 원어민 · 교정에 철저(strictness 기본 STRICT) · 한국어 설명+일본어 대화 · 이름 사용자 지정(`Profile.teacherName`) · 런타임 전용(개발팀 미편입) |
 | 반복 학습 | **강사가 3~7일에서 판단(A11)**, 코드는 범위 강제·`RepetitionItem` 기록·균등 랜덤 추출·FOCUS(≤3일)·폴백. "3일 고정" 폐기 |
 | 학습 설계 보완 | 주제→상황 역할극(`Scenario` 제안)·관측/능력 축(제안)·ASK 기록 조회 계층(3a 정형 조회, LLM SQL 금지, 출처 표시)·M4 모델 후보(Qwen3·Qwen3-Swallow·Qwen3.5, 벤치마크 대상)·LoRA 는 공통 강사 행동만·개인 데이터 학습 금지 유지 — 사용자 결정 필요 항목은 새 문서 §8 |
+| TTS 5차 보완 | TTS 는 **플랫폼 층**(L4 `speech/tts`): 발음 사전+버전·Japanese Text Normalizer·엔진 독립 Rendering Plan·`SpeechProfile` 5종(`TtsMode` 교체)·청크 스트리밍+Playback Queue·캐시 키 12요소·**강사 프로필 옆 실행 상태 표시등**(P0) / 관측·Timing·Golden 회귀·A/B·Voice Versions/Canary(P1 제안) / 온디바이스 TTS(P2 research). **M4 tts-service = `style_bert_vits2` 위 자체 FastAPI**(원 서버에 사전·타이밍·스트리밍·pitch 없음, 실측). 사용자 결정 5건은 [[task-003c-tts-productization-design]] |
 | 이번 산출물 | **설계 문서만**. 코드·실물 스키마 없음 |
 
 ## 3. 다음 세션이 반드시 지켜야 할 것
@@ -58,6 +59,7 @@ tags:
 - **Secret 은 `credentialRef` 만**, 관리자 변경은 `ConfigurationVersion`+`AuditLog` 필수
 - **NFS noexec** — `node_modules`·빌드·pm2 는 `~/.node-local/thekaiwa/`, NFS `src/` 가 편집 대상. 빌드 출력을 `| head` 로 자르지 말 것(SIGPIPE)
 - **네이티브 변경은 착수 전 고지** + `versionCode` 증가 + deployer APK
+- **TTS**: 라우트·LLM·클라이언트는 SBV2 파라미터명을 모른다(어댑터 전용). 발음 사전 변경은 새 `PronunciationLexiconVersion` + `AuditLog`. 원문은 Trace 에 남기지 않고 `normalizedText` 해시만
 - 5초 예산 실측 게이트(§9)를 task-003 에서 먼저 통과시킬 것 — 못 맞추면 목표 재정의는 사용자 결정
 
 ## 4. 다음 작업 — Phase 0

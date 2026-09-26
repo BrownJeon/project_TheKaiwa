@@ -55,6 +55,10 @@ Voices                                     [PRODUCTION]   [재동기화] [Import
 | 이력 | `ConfigurationVersion(VOICE_PROFILE)` 목록(누가·언제·diff 요약·[롤백] Phase 2) · `EngineHealth(FUNCTIONAL)` 최근 5건 · `VoiceImportJob` 링크 | 읽기 |
 | 위험 구역 | `[비활성화]`(AVAILABLE) / `[삭제]`(DISABLED) — §3.6 | |
 
+### 3.3b Versions 탭 `/admin/voices/[id]/versions` (5차 보완 §152~§154, P1 — 사용자 결정)
+
+`VoiceModelVersion` 목록(version·deployStatus·canaryPercent·validatedAt·promotedAt·Golden 회귀 결과 링크)과 전이 버튼 validate → stage → canary{percent} → promote → deprecate(`voices.manage`, PRODUCTION promote/canary 는 SUPER_ADMIN 확인). 정본 `16-tts-productization-layer.md` §10, API `../api-contract.md` §7-2.
+
 ### 3.4 Preview Playground (상세 안 패널, 음성 Phase 4; Phase 1 은 기본 문장 버튼만)
 
 ```

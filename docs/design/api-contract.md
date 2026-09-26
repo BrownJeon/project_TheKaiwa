@@ -127,7 +127,7 @@
 | 11 | GET | `/api/v1/settings/profile` | 학습 설정 조회 | S | preferences | 1 | — | `Profile` 화이트리스트 |
 | 12 | PUT | `/api/v1/settings/profile` | 학습 설정 수정 | S | preferences | 1 | 화이트리스트 | 동일 |
 | 13 | GET | `/api/v1/settings/voice` | AI 선생님 음성 설정 | S | preferences | 1 | — | `UserVoiceSetting` |
-| 14 | PUT | `/api/v1/settings/voice` | 음성 설정 저장 | S | preferences | 1 | `{voiceProfileId,style,styleWeight,speed,pitch,intonation,ttsMode}` | 동일 |
+| 14 | PUT | `/api/v1/settings/voice` | 음성 설정 저장 | S | preferences | 1 | `{voiceProfileId,style,styleWeight,speed,pitch,intonation,speechProfile}` | 동일 |
 | 15 | GET | `/api/v1/settings/speech` | 음성 인식 설정 | S | preferences | 1 | — | `UserSpeechSetting` |
 | 16 | PUT | `/api/v1/settings/speech` | 인식 모드 저장 | S | preferences | 1 | `{recognitionMode,explainLang}` | 동일 |
 | 17 | GET | `/api/v1/voices` | 선택 가능한 Voice 목록 | S | speech/voices | 1 | — | `[{id,name,description,available,defaults,styles[]}]` |
@@ -138,7 +138,7 @@
 | 21a | PATCH | `/api/v1/speech/utterances/:id` | requiresReview 발화의 finalText 확정(USER) | S | speech/utterances | 2 | `{finalText}` | `Utterance` |
 | 21b | GET | `/api/v1/speech/utterances/:id/audio` | 소유자 원음(30일) | S | speech/utterances | 2 | — | `audio/wav` |
 | 22 | GET | `/api/v1/speech/utterances/:id` | 발화·분석 결과 | S | speech/utterances | 2 | — | `Utterance`+`SpeechAnalysis` |
-| 23 | POST | `/api/v1/speech/tts` | 문장 → 음성(캐시) | S | speech/tts | 1 | `{text,context?}` | `audio/wav` 또는 `{url,cacheKey}` |
+| 23 | POST | `/api/v1/speech/tts` | 문장 → 음성(정규화·사전·Rendering Plan·캐시) | S | speech/tts | 1 | `{text,voiceId?,speechProfile?,renderingPlan?,context?}` | `audio/wav` 또는 `{url,cacheKey,durationMs,ttfaMs,timing?,runtime}` (5차 §133·§146) |
 | 24 | GET | `/api/v1/speech/tts/:cacheKey` | 캐시 오디오 조회 | S | speech/tts | 1 | — | `audio/wav` |
 | 25 | POST | `/api/v1/attendance/check-in` | 출석(멱등) | S | learning/attendance | 1 | — | `{date,isNew,streak}` |
 | 26 | GET | `/api/v1/attendance?month=` | 월 출석 | S | learning/attendance | 1 | query | `{month,days[]}` |
@@ -413,10 +413,10 @@
 `UserVoiceSetting` 1:1. `PUT` 본문:
 
 ```json
-{ "voiceProfileId": "teacher_haruka", "style": "AUTO", "styleWeight": null, "speed": 0.9, "pitch": 1.0, "intonation": 1.1, "ttsMode": "LEARNING" }
+{ "voiceProfileId": "teacher_haruka", "style": "AUTO", "styleWeight": null, "speed": 0.9, "pitch": 1.0, "intonation": 1.1, "speechProfile": "NATIVE" }
 ```
 
-- 검증: `voiceProfileId` 는 `VoiceProfile.status = AVAILABLE`(아니면 `400`, 상세 `VOICE_NOT_AVAILABLE`), `style` 은 `"AUTO"` 또는 해당 Voice 의 `VoiceStyle.name`, `styleWeight 0~2 | null`, `speed 0.6~1.2`, `pitch 0.8~1.2`, `intonation 0.8~1.2`, `ttsMode NATIVE|LEARNING`.
+- 검증: `voiceProfileId` 는 `VoiceProfile.status = AVAILABLE`(아니면 `400`, 상세 `VOICE_NOT_AVAILABLE`), `style` 은 `"AUTO"` 또는 해당 Voice 의 `VoiceStyle.name`, `styleWeight 0~2 | null`, `speed 0.6~1.2`, `pitch 0.8~1.2`, `intonation 0.8~1.2`, `speechProfile NATIVE|LEARNING_NORMAL|LEARNING_SLOW|PRONUNCIATION|SHADOWING`(5차 §138, 종전 `ttsMode`; 기본 `NATIVE`, 설정 화면 선택지는 앞 3종).
 - 응답은 저장값 + `voice: { id, name }`(엔진·model·speaker 는 **미노출**). 저장 시 `AuditLog` 는 남기지 않는다(사용자 설정).
 - `"AUTO"` 는 TTS Parameter Resolver 에서 "사용자 미지정" 으로 해석되어 하위 우선순위로 넘어간다(`configuration-resolution.md` §4).
 
@@ -479,7 +479,9 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
     "gateway": { "enabled": true, "wsPath": "/ws/speech", "frameMs": 40, "sampleRate": 16000 },
     "fallback": { "onDeviceFailureThreshold": 2, "toGateway": true, "toTextOnly": true },
     "upload": { "maxBytes": 2097152, "maxDurationMs": 60000, "format": "wav/pcm16/16k/mono" },
-    "tts": { "sentenceMaxChars": 100, "learningSpeeds": [0.6, 0.8, 1.0], "nativeSpeed": 1.0 }
+    "tts": { "sentenceMaxChars": 100, "learningSpeeds": [0.6, 0.8, 1.0], "nativeSpeed": 1.0,
+             "speechProfiles": [ { "id": "NATIVE", "label": "자연 속도" }, { "id": "LEARNING_NORMAL", "label": "학습 속도" }, { "id": "LEARNING_SLOW", "label": "천천히" } ],
+             "fallbackChain": [ "style-bert-m4" ] }
   },
   "message": null
 }
@@ -536,18 +538,26 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 - `PATCH /api/v1/speech/utterances/:id` body `{ "finalText": "…" }`(≤1,000자) 는 `requiresReview=true` 인 발화에 한해 학습자가 두 안 중 하나(또는 직접 입력)를 고르는 경로 — `finalSource=USER`. 이미 확정된 발화는 `409`. (총람 #22 에 포함되는 보조 메서드)
 - `GET …/audio` 는 소유자에게만 `audio/wav`(30일 후 `404`).
 
-#### #23 `POST /api/v1/speech/tts` — 문장 → 음성
+#### #23 `POST /api/v1/speech/tts` — 문장 → 음성 (5차 TTS 보완 §133~§146 반영, 2026-09-26)
 
 ```json
-→ { "text": "そうですね。昨日は何をしましたか？", "context": { "chatId": "c_01…", "messageId": "m_…", "sentenceIdx": 0, "mode": "LEARNING", "speed": 0.8, "styleHint": "ENCOURAGING" } }
-← 200 audio/wav  (헤더 X-Tts-Cache-Key, X-Tts-Duration-Ms, X-Trace-Id)
-   또는 Accept: application/json → { "url": "/api/v1/speech/tts/<cacheKey>", "cacheKey": "…", "cached": false, "durationMs": 1420 }
+→ { "text": "そうですね。昨日は何をしましたか？", "voiceId": null, "speechProfile": null,
+    "renderingPlan": null, "chatMessageId": "m_…",
+    "context": { "sentenceIdx": 0, "styleHint": "ENCOURAGING", "lessonId": null, "topicId": null } }
+← 200 audio/wav  (헤더 X-Tts-Cache-Key, X-Tts-Duration-Ms, X-Tts-Ttfa-Ms, X-Tts-Execution-Mode: SERVER, X-Trace-Id)
+   또는 Accept: application/json →
+   { "url": "/api/v1/speech/tts/<cacheKey>", "cacheKey": "…", "cached": false, "durationMs": 1420, "ttfaMs": 610,
+     "normalizedText": "そうですね。昨日は何をしましたか？", "dictionaryVersion": 13, "modelVersion": "1.0",
+     "timing": null,
+     "runtime": { "executionMode": "SERVER", "connectionKey": "style-bert-m4" } }
 ```
 
-- `text` ≤ **100자**(SBV2 상한; 넘으면 `400 SENTENCE_TOO_LONG` — 문장 분할은 클라이언트·오케스트레이터 책임). `context.speed` 는 Learning 비교 듣기용(0.6/0.8/1.0 만), `styleHint` 는 §67 `speech.style` 값만.
-- 파라미터 확정은 **TTS Parameter Resolver**(`configuration-resolution.md` §4): 사용자 설정(non-AUTO) > VoiceProfile.defaults > 페르소나 힌트 > `context`(복습/학습 모드) > `styleHint`. 요청이 speaker/model/pitch/styleWeight 를 직접 지정할 수 없다(키가 있으면 `400`).
-- 캐시 키 = `sha1(text|voiceProfileId|style|styleWeight|speed|pitch|intonation|engineConnectionId|textVersion)`. `TtsCache.hits` 증가. 사용자당 60/분.
-- 오류: `422`(TTS connection 없음) · `502` · `504`(8초). `RequestTrace.kind = TURN`(chatId 있으면 해당 턴 trace 에 step 병합) 또는 `PREVIEW`.
+- **파이프라인(§133)**: `text` → `JapaneseTextNormalizer`(숫자·날짜·시간·단위·Counter·기호·영문·외래어·고유명사·약어 읽기 결정) → `PronunciationLexicon`(ACTIVE 사전 버전, 범위 우선순위 USER>VOICE>LESSON>COURSE>GLOBAL) → `SpeechRenderingPlan`(엔진 독립 세그먼트: `style ∈ FRIENDLY|CALM|ENCOURAGING|EXPLANATION|EMPHASIS`, `speed ∈ NORMAL|SLOW|VERY_SLOW`, `pauseBeforeMs`) → TTS Parameter Resolver(User > VoiceProfile > Persona > Context > LLM `styleHint`) → 어댑터가 SBV2 파라미터로 변환 → M4 tts-service. `renderingPlan` 을 직접 주면(레슨 세그먼트 제어·관리자 Playground) 정규화·사전만 거치고 Resolver 는 값 검증만 한다. **LLM·앱은 엔진 파라미터를 직접 주지 않는다.**
+- `voiceId` 없으면 `UserVoiceSetting.voiceProfileId`, `speechProfile` 없으면 `UserVoiceSetting.speechProfile`(기본 NATIVE; 요청값 = 화면 문맥 > 사용자 설정, LLM 은 정하지 않음). 본 라우트는 **단일 청크·동기 응답**(≤100자 세그먼트 1개, 초과는 `400`). 여러 문장은 `#32` 턴의 SSE `audio` 이벤트 또는 `POST /api/v1/speech/tts/chunks`(§7-1) 가 청크 단위로 처리한다. `chatMessageId` 는 소유자 검사 후 Trace 연결용.
+- 캐시 키 = `sha1(normalizedText|voiceProfileId|modelVersion|dictionaryVersion|speechProfile|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion)`(5차 §155). `TtsCache.hits` 증가. 사용자당 60/분.
+- `timing`(P1, 5차 §145~§146): `{ "words": [ { "text": "昨日", "startMs": 0, "endMs": 420 } ], "moras": [...], "source": "ALIGN" }` — 합성 wav 를 narabas 로 강제정렬해 산출·캐시(옵션 A). P1 전엔 `null`.
+- `runtime.executionMode ∈ SERVER|ON_DEVICE|TEXT_ONLY` — 라우터 실제 선택 결과(§158). TEXT_ONLY 는 서버 TTS 불가·온디바이스 없음(자막만) → 본문 없이 `422 TTS_UNAVAILABLE` + `runtime` JSON. 온디바이스 TTS 는 P2(research track).
+- 오류: `422 TTS_UNAVAILABLE`(connection 없음/TEXT_ONLY) · `502` · `504`(8초). `RequestTrace` 에 TTS 하위 단계 `TTS`(부모)·`TTS_NORMALIZE`·`TTS_LEXICON`·`TTS_PLAN`·`TTS_QUEUE`·`TTS_SYNTH[i]`(기존 `TTS_SENTENCE` 대체)·`TTS_ENCODE`·`TTS_TIMING`·`PLAYBACK`(클라 보고) 를 기록(§144, meta 화이트리스트는 `speech-platform/16` §7.2·`admin-console/13` §4). 본문·표기·읽기는 어느 step 에도 없다.
 
 #### #24 `GET /api/v1/speech/tts/:cacheKey`
 
@@ -615,9 +625,10 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 요청(JSON):
 
 ```json
-{ "text": "昨日映画を見に行くました", "utteranceId": "u_01…", "inputSource": "REALTIME_STT" }
+{ "text": "昨日映画を見に行くました", "utteranceId": "u_01…", "inputSource": "REALTIME_STT",
+  "clientTimings": { "prevMessageId": "m_…", "playbackStartDelayMs": 120, "firstAudioAtMs": 4180 } }
 ```
-또는 끊김 복구 `{ "resumePending": true }`.
+또는 끊김 복구 `{ "resumePending": true }`. `clientTimings`(선택, 5차 §142)는 직전 턴의 재생 계측을 보고하며 `RequestTrace` `PLAYBACK` step 으로 지연 기록된다.
 
 | 필드 | 검증 |
 |---|---|
@@ -1638,3 +1649,47 @@ sequenceDiagram
 | A11 복습 판단 | Claude CLI(sonnet) | 항목 텍스트·횟수·오답·피드백 ≤40건 | 원문 대화 없음 |
 | A10 단어 보강 | home-m4(LAN) 또는 haiku | 단어 1개 | — |
 | 3c 의미 검색 | home-m4 `bge-m3`(LAN) + Qdrant | 채택 교정·레슨 표현·요약 | 대화 전문 임베딩 금지 — 도입 조건 사용자 결정 |
+
+## 7. TTS 플랫폼 보완 엔드포인트 (5차 기획안 §129~§163, 2026-09-26)
+
+정본 `speech-platform/16-tts-productization-layer.md`·`domain-model.md §3(P0)·§10(P1)` 과 짝. P0 는 Phase 1 승격 대상, P1 은 Phase 2, P2 는 Phase 4.
+
+### 7-1. 사용자 (P0)
+
+| 메서드·경로 | 목적 | 계약 |
+|---|---|---|
+| `GET /api/v1/speech/tts/status` | AI 강사 프로필 옆 **실행 상태 표시등**(§158, `speech-platform/16` §12) | `→ { "executionMode": "SERVER|ON_DEVICE|TEXT_ONLY", "networkStatus": "ONLINE|OFFLINE", "serverHealth": "HEALTHY|DEGRADED|UNAVAILABLE|UNKNOWN", "fallbackReason": null|"SERVER_ERROR|SERVER_TIMEOUT|NO_CONNECTION|OFFLINE", "lastUpdatedAt": "…" }` — 서버 관점(TTS role connection 최근 `EngineHealth` + 최근 N분 폴백 소진). 클라가 자기 네트워크 상태를 합쳐 5상태(🟢 ONLINE / 🔴 ON_DEVICE / 🔴 TEXT_ONLY / 🟡 SWITCHING / ⚪ CHECKING)로 변환, 폴링은 정상 5분·저하 30초, 대화 중에는 합성 결과 `runtime.executionMode` 가 곧 신호. 판단 근거는 네트워크가 아니라 **TTS Router 의 실제 선택 결과**. 색+라벨+`aria-label`(`role=status`), 전환 시 1회 토스트 |
+| `POST /api/v1/speech/tts/chunks` (신규) | 레슨 대화문·긴 본문·비교 듣기용 청크 스트리밍 | `{text ≤2,000, voiceId?, speechProfile?, chatMessageId?, lessonId?}` → SSE `audio` 이벤트(아래)와 `done{audioCount}`. 분당 20회 |
+| `#32` SSE `audio` 이벤트 (변경) | 청크 재생(§140~§141) | `audio { "chunkIndex": 0, "text": "そうですね。", "url": "/api/v1/speech/tts/<cacheKey>", "cacheKey": "…", "durationMs": 820, "last": false, "ttfaMs": 640, "timing": null, "runtime": { "executionMode": "SERVER", "connectionKey": "style-bert-m4" }, "status": "OK|FAILED" }` — 기존 `idx` → `chunkIndex`, 캐시 HIT 청크는 순서와 무관하게 먼저 도착할 수 있고 클라 `TtsPlaybackQueue` 가 `chunkIndex` 순으로만 재생·다음 URL 프리페치. 청크 실패는 그 청크만 `FAILED`(턴은 정상 `done`, `audioCount` 감소). `ttfaMs` 는 첫 청크에만 |
+| `#23` (변경) | 위 상세 | — |
+| `#24 GET /api/v1/speech/tts/:cacheKey` (변경) | 응답 헤더에 `X-Tts-Model-Version`·`X-Tts-Dictionary-Version`; `Accept: application/json` 이면 `{audioUrl, durationMs, timing}`(timing 만 가져오는 경로, 신규 라우트 없음) | — |
+| `#19 GET /api/v1/speech/config` (변경) | `tts.speechProfiles[]`(라벨은 서버 관리)·`tts.fallbackChain[]` 추가 | — |
+
+### 7-2. 관리자 (P0: 사전 / P1: 품질·버전·지표)
+
+| 메서드·경로 | capability | 계약 |
+|---|---|---|
+| `GET /api/admin/v1/lexicon?q=&scope=&scopeRefId=&page=` | `voices.read` | 발음 사전 검색(`PronunciationLexiconEntry`, 현재 환경). 표기·읽기·scope 필터 |
+| `POST /api/admin/v1/lexicon` · `PUT …/:id` · `DELETE …/:id`(=`enabled=false`) | `voices.manage` | 변경마다 새 `PronunciationLexiconVersion`(ACTIVE) + `AuditLog`. PRODUCTION 은 SUPER_ADMIN 확인(사전 변경은 발음 전체에 영향) |
+| `POST /api/admin/v1/lexicon/import?mode=MERGE|REPLACE_SCOPE&dryRun=1`(CSV/JSON) · `GET …/export` | `voices.manage` / `voices.read` | CSV 헤더 `surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled`(같은 키의 JSON 배열 가능). `dryRun` 은 diff(추가·수정·삭제 건수·오류 행)만, 게시 시 새 버전. Export 메타 `dictionaryVersion·environment·exportedAt` |
+| `POST /api/admin/v1/lexicon/preview` | `voices.manage` | `{text(≤200), voiceId?, draftEntries?[]}` → 래퍼 `/g2p` 읽기·악센트 문자열 + 합성 오디오(`bypassCache`, `RequestTrace(PLAYGROUND)`, 캐시 저장 안 함). 저장 전 항목 효과 듣기 |
+| `GET /api/admin/v1/lexicon/versions` · `POST …/versions/:v/rollback` | `voices.read` / `voices.manage` | Rollback = 과거 스냅샷을 새 ACTIVE 버전으로(§132), TtsCache 는 `dictionaryVersion` 으로 자연 무효 |
+| `GET /api/admin/v1/voices/:id/versions` · `POST …/versions`(패키지 업로드) · `POST …/versions/:v/validate|stage|canary{percent}|promote|deprecate` | `voices.manage`(promote/canary PRODUCTION 은 SUPER_ADMIN) | `VoiceModelVersion.deployStatus` 전이(§153~§154). validate = Golden 회귀 실행 후 합격 시 |
+| `GET/POST /api/admin/v1/tts/golden` · `PUT/DELETE …/:id` · `POST …/import` | `voices.manage` | Golden Dataset(§149, 카테고리 12종, 100~300문장) |
+| `POST /api/admin/v1/tts/quality-runs {voiceModelVersionId, baselineVersionId?}` · `GET …/:id`(results·metrics) | `voices.manage` | 회귀 실행(§150): 실패율·지연·TTFA·RTF·길이 편차·(수동)발음/자연스러움/악센트 |
+| `POST /api/admin/v1/tts/ab-compare` · `GET …?voiceA=&voiceB=` | `voices.manage` | Blind Compare 세션(§151): 문장별 A/B 무작위 순서 재생·5항목 점수 |
+| `GET /api/admin/v1/tts/metrics?range=&connectionId=&voiceId=` | `engine.read` | §143 대시보드(`(admin)/admin/diagnostics/tts`): req/min·avg·p50·p95·p99·TTFA·error rate·cache hit·voice/engine 별·model load·폴백 건수. 당일은 `RequestTrace` 즉석 집계(60초 캐시), 과거는 `EngineMetricsDaily`. 경보: 15분 창 TTFA p95 > 2s 또는 error > 5% → WARN 로그 + 배지 |
+
+### 7-3. Python tts-service(M4) 내부 계약 변경
+
+- **tts-service 는 SBV2 `server_fastapi.py` 프록시가 아니라 `style_bert_vits2` 라이브러리 위의 자체 FastAPI** 다(실측: server_fastapi 에는 `pitch_scale/intonation_scale`·사용자 사전·타이밍·스트리밍 라우트가 없음; `TTSModel.infer` 의 pitch/intonation 인자 존재는 task-003 검증, 없으면 descriptor 에서 축을 끄고 UI 도 숨김). narabas·pyopenjtalk 는 래퍼가 직접 import 하고 `speech/common` 은 import 하지 않는다.
+- `POST /synthesize {segments[{text, style, styleWeight, speed, pitch, intonation, pauseBeforeMs}], voice:{model, version, speaker}, engine:{sdpRatio, noise, noiseW, language}, lexiconHints[{surface, reading, accentType, wordType}], dictionaryVersion, modelVersion, timing:boolean}` → `audio/wav`(청크 1개) + 헤더 `X-Trace-Id`(echo)·`X-Synth-Ms`·`X-Queue-Ms`·`X-Model-Load-Ms`·`X-Model-Loaded: hit|cold`·`X-Encode-Ms`·`X-Audio-Ms`; `timing=true` 면 오디오를 먼저 돌려주고 timing 은 완료 후 콜백(`/api/internal/speech/tts-timing {cacheKey, timing, alignerVersion}`)으로 `TtsCache.timing` 에 붙인다(옵션 A). 래퍼는 `dictionaryVersion` 별 pyopenjtalk user-dict 컴파일 산출물을 최근 3개 버전 보관.
+- `POST /g2p {text, lexiconHints[], dictionaryVersion}` → `{reading, accent, moras[]}`(사전 미리듣기·정규화 검증) · `GET /voices`(모델·`versions[]`·화자·스타일, `/models/info` 정규화) · `POST /admin/lexicon/apply {dictionaryVersion, snapshotHash, entries[]}`(게시 직후 선컴파일, 실패해도 게시 유효 — lazy 컴파일) · `POST /admin/models/refresh` · `GET /health {ok, service:'tts-service', version, modelLoaded, models, memoryMb, dictionaryVersion, modelVersions[], alignerVersion?}` · `GET /metrics`(요청·지연·RTF·큐).
+- 옵션 B(SBV2 `text/user_dict` push) 사용 여부는 task-003 에서 "SBV2 내부 g2p 가 전역 pyopenjtalk user-dict 를 따르는지" 실측 후 결정(정본 domain-model §8 #17, `speech-platform/16` §2.4).
+
+### 7-4. §5 미결 추가
+| # | 항목 | 가정 | 시점 |
+|---|---|---|---|
+| 13 | `timing` 산출 방식 A(narabas 정렬) vs B(VITS duration) | A | Phase 2 |
+| 14 | 청크 스트리밍의 전송 방식(SSE `audio` URL vs WS 바이너리) | SSE URL(캐시 재사용) | task-007 실측 |
+| 15 | 온디바이스 TTS 도입 전 TEXT_ONLY 상태의 UX(자막 자동 표시·재시도 버튼) | 자막 + "다시 시도" | task-003 |

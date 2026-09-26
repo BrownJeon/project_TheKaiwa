@@ -19,6 +19,7 @@ model: opus
 4. **제안→채택·스냅샷·버전**: AI 산출은 `Correction`/`TutorProposal`/`StudyPlan` 의 `PROPOSED` 로만 생성, 채택 시에만 `WordEntry`/`StudyLog(ACCEPTED)` 생성. 사용자 직접 행위는 `StudyLog(DIRECT)`+`StatsSnapshot` 을 **같은 트랜잭션**에서. `Correction.original` UPDATE 금지. 관리자 설정 변경은 `ConfigurationVersion`+`AuditLog` 없이 저장 금지. Secret 은 `credentialRef` 만.
 5. **보안·소유자**: 모든 `/api/v1/*` 라우트 `auth()` + `userId` 소유자 검사(타인 404), `/api/admin/v1/*` 는 `can(user, capability)`, `/api/internal/*` 는 `X-Internal-Secret`, WS 는 60초 티켓. 파일 경로는 `DATA_ROOT` 하위 정규화, 업로드 상한(발화 ≤60s·≤2MB, Voice Package 크기 상한).
 6. **음성 경계**: 실시간 경로(플러그인/gateway → 턴 → TTS)에 분석 작업을 동기로 넣지 않는다. 분석은 `SpeechJob` 큐. `RequestTrace`·로그에 원음·전체 대화·Secret 을 남기지 않는다.
+7. **TTS 플랫폼 층**(정본 `docs/design/speech-platform/16-tts-productization-layer.md`, `module-dependency.md` §11): 텍스트는 `speech/tts/normalizer → lexicon → renderingPlan → chunkScheduler → engine/adapters/tts` 순서만 탄다. 라우트·LLM·클라이언트 코드에 SBV2 파라미터명(`style_weight`·`length`·`pitch_scale`…)을 쓰지 않는다(어댑터 전용). 캐시 키는 12요소(`normalizedText·modelVersion·dictionaryVersion·speechProfile` 포함). M4 `speech/tts-service` 는 SBV2 `server_fastapi` 프록시가 아니라 `style_bert_vits2` 라이브러리 위의 자체 FastAPI 다. 발음 사전 변경은 새 `PronunciationLexiconVersion` + `AuditLog` 없이 저장하지 않는다.
 7. **네이티브 변경 고지**: `plugins/**`·`android/**`·`capacitor.config.ts`·Manifest·Gradle 을 바꾸는 작업은 **착수 전에** Leader·deployer 에 "APK 재설치 필요"를 알리고 `versionCode` 를 올린다. 모델 파일은 저장소에 커밋하지 않고 `/models` 서빙 경로 규약을 따른다.
 8. **Reviewer 인계**: 단위 테스트 1개 이상, `npm run lint`·`typecheck`(Python 은 `ruff`·`mypy` 가능 범위) 통과, 아래 인계 포맷.
 </responsibilities>

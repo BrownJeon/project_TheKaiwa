@@ -8,7 +8,7 @@
 
 ## 2. 범위
 
-- 포함: 필드·범위·기본값, 지연 생성, `style='AUTO'`·`styleWeight=null` 의미, `ttsMode`, `recognitionMode` 요약, Parameter Resolver 입력·우선순위·출력, `Profile` 에서 제거되는 컬럼, API 규칙.
+- 포함: 필드·범위·기본값, 지연 생성, `style='AUTO'`·`styleWeight=null` 의미, `speechProfile`(종전 `ttsMode`), `recognitionMode` 요약, Parameter Resolver 입력·우선순위·출력, `Profile` 에서 제거되는 컬럼, API 규칙.
 - 제외: 학습 설정(`Profile.level·explainLang·strictness·explainDepth`, L3 문서), 라우팅(11), 미리듣기(04).
 
 ## 3. 설계
@@ -24,7 +24,7 @@
 | `speed` | 0.6~1.2, step 0.05 | 1.0 | Learning 프리셋 0.6·0.8·1.0 은 UI 스냅 |
 | `pitch` | 0.8~1.2, step 0.05 | 1.0 | |
 | `intonation` | 0.8~1.2, step 0.05 | 1.0 | |
-| `ttsMode` | `NATIVE` / `LEARNING` | `NATIVE` | §3.4 |
+| `speechProfile` | `NATIVE|LEARNING_NORMAL|LEARNING_SLOW|PRONUNCIATION|SHADOWING` | `NATIVE` | §3.4 (5차 보완 §138, 종전 `ttsMode NATIVE/LEARNING` 교체) |
 | `updatedAt` | | | |
 
 범위 상수는 `src/modules/speech/voices/profiles.ts` 의 것을 `preferences/voiceSetting` 이 import 한다(01 §3.3 과 단일 출처).
@@ -50,14 +50,17 @@
 - `recognitionMode='AUTO'` = Router 판단(온디바이스 우선, 11 §3.3).
 - `voiceProfileId` 에는 AUTO 가 없다(항상 구체 voice). 페르소나·LLM 은 voice 를 바꿀 수 없다(§69 "Haruka 를 Takumi 로 못 바꿈").
 
-### 3.4 `ttsMode`
+### 3.4 `speechProfile` (5차 TTS 보완 §138 — 종전 `ttsMode` 교체, 2026-09-26)
 
-| 값 | 회화 턴(TALK/CHAT) | 레슨·복습·평가 듣기 | "자연 속도로 듣기" 버튼 |
-|---|---|---|---|
-| `NATIVE` | `speed` 그대로 | `speed` 그대로 | 없음 |
-| `LEARNING` | `snap(speed, [0.6, 0.8, 1.0])` | 동일 | 같은 문장을 `speed=1.0` 으로 재요청(요청 단위 override, 저장 안 함) |
+| 값 | 의미 | speed | 세그먼트·간격 | style 편향 | 기본 문맥 |
+|---|---|---|---|---|---|
+| `NATIVE`(기본) | 실제 회화에 가까운 발음·속도 | 사용자 `speed` 그대로(기본 1.0) | 문장 단위, gap 0 | 없음(LLM 라벨 허용) | TALK/CHAT, "자연 속도로 듣기"(요청 단위 COMPARE) |
+| `LEARNING_NORMAL` | 학습용 표준 속도 | 1.0 프리셋 | 문장 단위, gap 200ms | 없음 | 레슨 대화문 낭독 |
+| `LEARNING_SLOW` | 느리되 **모라 타이밍·악센트 유지** | 사용자 `learningSpeed`(0.6·0.8), 엔진 `length` 배율만, 음소별 늘림 금지 | 문장 단위, gap 300ms | `EXPLANATION` 우선 | 회화 복습·"천천히 듣기" |
+| `PRONUNCIATION` | 발음 비교가 쉽게 명확히 | 0.8 프리셋 | `、` 에서도 분할, `pauseBeforeMs` 300 | `EXPLANATION`, LLM 라벨 무시 | 발음 연습·LISTEN_RESPOND 재청취 |
+| `SHADOWING` | 따라 말하기 | 0.9(0.8·1.0 스냅) | gap = 직전 청크 `durationMs` | `CALM` | 섀도잉·청취 구간 반복 |
 
-`snap` 은 가장 가까운 프리셋. `ttsMode` 는 사용자 층의 `speed` 값을 **어떻게 읽을지**를 정하는 사용자 설정이므로 Context 층이 아니라 사용자 층에서 처리한다.
+프로필은 **정책**(속도 배율·스냅·분할·간격)이고 수치는 여전히 User/VoiceProfile 층이 준다. 설정 화면 선택지는 NATIVE·LEARNING_NORMAL·LEARNING_SLOW 세 개(라벨은 `GET /api/v1/speech/config.tts.speechProfiles`), PRONUNCIATION·SHADOWING 은 화면(문맥)이 요청 단위로 지정. 우선순위: 요청 `speechProfile`(Context 층) > 사용자 설정, LLM 은 정하지 않는다. 결과는 엔진 독립 `RenderingPlan` 으로 나가고 SBV2 파라미터 변환은 어댑터가 한다(정본 `16-tts-productization-layer.md` §4·§5, `../module-dependency.md` §11).
 
 ### 3.5 TTS Parameter Resolver (`src/modules/speech/tts/parameterResolver.ts`)
 
@@ -67,7 +70,7 @@
 
 | 순위 | 층 | `style` | `styleWeight` | `speed` | `pitch` | `intonation` | voice/model/speaker |
 |---|---|---|---|---|---|---|---|
-| 1 | User Setting(AUTO·null 아닌 값) | ✓ | ✓ | ✓(`ttsMode` 적용, COMPARE 면 1.0) | ✓ | ✓ | `voiceProfileId` ✓ |
+| 1 | User Setting(AUTO·null 아닌 값) | ✓ | ✓ | ✓(`speechProfile` 적용, COMPARE 면 NATIVE) | ✓ | ✓ | `voiceProfileId` ✓ |
 | 2 | `VoiceProfile.defaults`(`style` 은 `'AUTO'` 허용) | ✓ | ✓ | ✓ | ✓ | ✓ | `model_id`·`speaker_id` **고정** |
 | 3 | Persona 힌트(`tutor.md` 말투 절 → `styleHint`) | 힌트만 | — | — | — | — | — |
 | 4 | Conversation Context(`EVAL`·`LESSON` → 또박또박 `Neutral` 계열) | 힌트만 | — | — | — | — | — |
@@ -99,7 +102,7 @@
 
 ### 3.7 `Profile` 정리
 
-제거: `tutorModel`(→ connection `runtime.tiers`), `ttsRate`·`ttsVoiceId`·`ttsStyle`·`ttsMode`(→ `UserVoiceSetting`), `sttMode`(→ `UserSpeechSetting.recognitionMode`). 유지: `level·politeness·goal*·daily*·strictness·explainLang` + 추가 `explainDepth(BRIEF|NORMAL|DETAILED)`. `vocabMode` 의 거취(학습 설정 잔류 vs 제거)는 정본 `../domain-model.md` 를 따른다. 신규 프로젝트라 데이터 마이그레이션은 없고 seed 만 바뀐다.
+제거: `tutorModel`(→ connection `runtime.tiers`), `ttsRate`·`ttsVoiceId`·`ttsStyle`·`ttsMode`(→ `UserVoiceSetting.speechProfile` 등), `sttMode`(→ `UserSpeechSetting.recognitionMode`). 유지: `level·politeness·goal*·daily*·strictness·explainLang` + 추가 `explainDepth(BRIEF|NORMAL|DETAILED)`. `vocabMode` 의 거취(학습 설정 잔류 vs 제거)는 정본 `../domain-model.md` 를 따른다. 신규 프로젝트라 데이터 마이그레이션은 없고 seed 만 바뀐다.
 
 ## 4. 시퀀스 — 턴의 파라미터 해석
 
@@ -123,12 +126,12 @@ sequenceDiagram
 | `E_SETTING_VOICE_UNAVAILABLE` | 422 | `voiceProfileId` 가 AVAILABLE 아님 |
 | `E_SETTING_STYLE_UNKNOWN` | 422 | `style` 이 AUTO 도 아니고 그 profile 의 style 도 아님 |
 | `E_SETTING_RANGE` | 422 | 수치 범위·step 위반(`details.field`) |
-| `E_SETTING_MODE_INVALID` | 422 | `recognitionMode`·`ttsMode` enum 밖 |
+| `E_SETTING_MODE_INVALID` | 422 | `recognitionMode`·`speechProfile` enum 밖 |
 | `E_SETTING_FORBIDDEN` | 403 | 타인 행 |
 
 ## 6. Phase
 
-- Phase 1: 두 테이블·지연 생성·API·Resolver(층 1·2·5 — 페르소나 힌트는 tutor.md v1 에 절이 있으면 포함)·`ttsMode`·`styleMap` 시드.
+- Phase 1: 두 테이블·지연 생성·API·Resolver(층 1·2·5 — 페르소나 힌트는 tutor.md v1 에 절이 있으면 포함)·`speechProfile` 3종(NATIVE·LEARNING_NORMAL·LEARNING_SLOW)·`styleMap` 시드. PRONUNCIATION·SHADOWING 은 Phase 3.
 - Phase 2: Context 힌트(레슨·평가 화면), `ACCURATE` 모드 실효.
 - 음성 Phase 4: `partialSubtitle`·`autoSendOnFinal`(채택 시), 스타일·감정 확장에 따른 `styleMap` 갱신.
 

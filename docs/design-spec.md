@@ -1,6 +1,6 @@
 # TheKaiwa 통합 설계안 (일본어회화 앱)
 
-> **단일 출처.** 사용자 기획서 4종(`기획서-원본.md` · `음성처리-기획안-원본.md` §1~§24 · `음성처리-추가기획안-원본.md` §25~§77 · `관리자콘솔-기획안-원본.md` §78~§128)을 통합하고, 6층 플랫폼 아키텍처에 맞게 DB Entity·API·모듈·설정 해석·권한을 재설계한 결과다. 세부 정본은 `docs/design/` 5종과 `speech-platform/`·`admin-console/` 문서 33종이며, 이 문서는 요약과 결정을 담는다. 작성 2026-09-26. **구현 코드 없음.**
+> **단일 출처.** 사용자 기획서 5종(`기획서-원본.md` · `음성처리-기획안-원본.md` §1~§24 · `음성처리-추가기획안-원본.md` §25~§77 · `관리자콘솔-기획안-원본.md` §78~§128 · `tts-보완-기획안-원본.md` §129~§163)을 통합하고, 6층 플랫폼 아키텍처에 맞게 DB Entity·API·모듈·설정 해석·권한을 재설계한 결과다. 세부 정본은 `docs/design/` 5종과 `speech-platform/`·`admin-console/` 문서 33종이며, 이 문서는 요약과 결정을 담는다. 작성 2026-09-26. **구현 코드 없음.**
 
 | 정본 | 내용 |
 |---|---|
@@ -11,6 +11,7 @@
 | [design/role-permission.md](design/role-permission.md) | Role 4단계 × capability 매트릭스·라우트 매핑 |
 | `design/speech-platform/00~15` | Voice·Engine·Connection·Health·Router·Fallback·설정 UI (기획안 §77) |
 | `design/admin-console/00~16` | Console IA·Resolver·Version·Audit·Diff·Rollback·Playground·Trace·Prompt Registry·Environment (기획안 §128) |
+| [design/speech-platform/16-tts-productization-layer.md](design/speech-platform/16-tts-productization-layer.md) | **TTS Productization 층** — 발음 사전·정규화·Rendering Plan·Speech Profile·청크 스트리밍·Observability·Timing·품질 평가·모델 버전/Canary·캐시 키·온디바이스 로드맵·Hybrid 라우터+상태 표시등 (5차 보완 §129~§163, 2026-09-26) |
 | [design/learning-personalization-and-llm-data.md](design/learning-personalization-and-llm-data.md) | **학습 개인화·기록 검색·반복 학습(강사 판단 3~7일)·주제·상황·M4 모델/파인튜닝·지표** (3차 보완 2026-09-26) |
 | [design/tutor-persona-validation.md](design/tutor-persona-validation.md) | 강사 페르소나 v1 검증 세트 사양 |
 
@@ -33,6 +34,7 @@
 | 팀 | leader(Opus)·designer(Opus)·developer(Opus)·prompt-engineer(Sonnet)·reviewer(Sonnet)·qa(Haiku)·deployer(Haiku) + 강사 런타임 페르소나 `tutor.md` |
 | 강사 페르소나 v1 | 단일 페르소나 · **일본인 원어민** · **교정에 철저**(strictness 기본 STRICT) · **한국어 설명 + 일본어 대화** · 이름은 사용자 지정(`Profile.teacherName`, 기본 '선생님') · 목소리(Voice)와 독립 (2026-09-26 확정) |
 | 강사 역할·반복 규칙(기획서 대조 후 피드백) | 스케줄·커리큘럼 주체 = **강사**(코드는 범위 강제·기록): 복습 주기 3일 고정이 아니라 **3~7일에서 강사가 판단**, 학습 횟수를 DB 기록(`RepetitionItem`), **균등 랜덤** 반복, 오답·피드백 많은 항목은 별도 기록(FOCUS)해 3일로 단축 · 청취 구간 반복·단어 메모·"조금 아쉬운 종료 지점" 반영 · 강사의 개발팀 편입·타임아웃 수치는 현재 설계 유지 (2026-09-26 확정, 상세 `design/learning-personalization-and-llm-data.md` §0·§2) |
+| TTS 상용 벤치마크 보완(5차) | 기획안 §129~§163 채택 — TTS 를 엔진 호출이 아니라 **플랫폼 층**(§9-D)으로: Pronunciation Lexicon(버전·범위 우선순위) · Japanese Text Normalizer · Speech Rendering Plan(엔진 독립 세그먼트 제어) · Speech Profile 5종(`SpeechProfile`, 종전 `TtsMode` 교체) · 청크 스트리밍+Playback Queue+TTFA · TTS Observability/Trace · Timing Metadata(P1) · Golden Dataset·회귀·A/B(P1) · Voice Model Version+Canary(P1) · 캐시 키에 normalizedText·modelVersion·dictionaryVersion · 온디바이스 TTS 는 P2 research · **Hybrid 라우터 + AI 강사 프로필 옆 실행 상태 표시등**(초록=서버, 빨강=온디바이스/음성 불가). 기존 결정(SBV2·M4·Voice Registry·Resolver 우선순위·AGPL 격리) 유지, M4 tts-service 는 SBV2 `server_fastapi` 프록시가 아니라 **자체 FastAPI 래퍼**(실측: 사용자 사전·타이밍·스트리밍·pitch/intonation 라우트 없음) (2026-09-26) |
 | 이번 산출물 | **설계 문서만**. 코드·실물 `schema.prisma`·API 구현은 Phase 0 이후 |
 
 ## 1. 목적과 범위
@@ -51,7 +53,7 @@
 | 인증 | `@workspace/auth-oauth` Google + httpOnly JWT + 초대코드 + 앱 딥링크 60초 `AppAuthCode` | TheMeal·VoiceVault 검증 경로 |
 | 앱 | Capacitor 7 Android, `server.url` 퓨니코드, `adjustMarginsForEdgeToEdge:'auto'`·`errorPath`, `MainActivity.onPause` 쿠키 flush, `KeyboardInset`, `scripts/build-apk.sh`(JDK 21, 우분투) | VoiceVault 보정 5종. TheMeal `next.config.ts` 의 `microphone=()` 은 **복사 금지**(`microphone=(self)`) |
 | LLM | Claude CLI(`claudeCli.ts` = TheMeal + bjj `--agents`/`stream-json` 확장), home-m4 어댑터(`llmClient.ts`, system-first 가드) | 구독 비용 0, 일본어 교정 품질. qwen 은 P0 비교 실측 후 보조 용도 결정 |
-| 음성 | §9 | — |
+| 음성 | §9 · TTS 플랫폼 층 §9-D(발음 사전·정규화·Rendering Plan·Speech Profile·청크 스트리밍·상태 표시등) | — |
 | 큐·잡 | MariaDB `SpeechJob`/`AiJob` 폴링(`SELECT … FOR UPDATE SKIP LOCKED`) | 우분투에 Redis 없음, 1인 앱 처리량 |
 | 재사용 | bjj `masterChat.js`(턴·락·SSE·폴링), `gymMasterPersona.js`, `SwipeCardDeck.jsx`(제스처·셔플·제외집합) | §7 참조. 픽미업은 퀴즈가 아니므로 정오답·보관은 신규 |
 
@@ -197,7 +199,7 @@ plugins/sherpa-stt/                                                    # Capacit
 | A10 | 단어 보강 | surface | `reading, meaning_ko, part_of_speech, jlpt, example_ja, example_ko` | home-m4/haiku | 20s | 동기·캐시 |
 
 - **페르소나 절 구조**(`tutor.md` v0, prompt-engineer 가 v1): 1 정체성 · 2 말투 · 3 교정 원칙 · 4 난이도 N5~N1 · 5 조각 프레임 · 6 모드별 출력 · 7 커리큘럼 규칙 · 8 하지 말 것 · 9 Claude Code 세션. 런타임 `persona.ts` 가 `## N.` 절 필터(A1 은 1·3·4·6).
-- **5초 예산**: VAD endpoint 0.4~0.6 + 온디바이스 디코드 0.2~0.4 + 업로드/INSERT 0.1~0.2 + **Claude CLI 스폰+haiku 2.0~3.5** + 첫 문장 TTS 0.4~1.0(M4) + 재생 0.1 = 3.2~5.8s. 초과 시 ① 문장 단위 TTS 파이프라인 ② 프롬프트 다이어트 ③ TTS 캐시·ONNX ④ `--include-partial-messages` ⑤ 큐 동시성 2 ⑥ 응답/교정 2이벤트.
+- **5초 예산**: VAD endpoint 0.4~0.6 + 온디바이스 디코드 0.2~0.4 + 업로드/INSERT 0.1~0.2 + **Claude CLI 스폰+haiku 2.0~3.5** + 첫 청크 **TTFA** 0.4~1.0(M4 캐시 MISS, HIT ≤0.12; 5차 §142) + 재생 시작 지연 ≤0.15 = 3.2~5.8s. 초과 시 ① 문장 단위 TTS 파이프라인 ② 프롬프트 다이어트 ③ TTS 캐시·ONNX ④ `--include-partial-messages` ⑤ 큐 동시성 2 ⑥ 응답/교정 2이벤트.
 
 ## 9. 음성 플랫폼 (기획안 §1~§24)
 
@@ -220,7 +222,7 @@ plugins/sherpa-stt/                                                    # Capacit
 
 **gateway 폴백 프로토콜**(`wss://kaiwa.…/ws/speech`, nginx Upgrade → 127.0.0.1:8100): 클라 `start{chatId,sampleRate:16000,ticket}` → binary PCM16 40ms → `stop`; 서버 `vad{state}`·`partial{segIdx,text}`·`final{utteranceId,text,engine,durationMs,segments}`·`error`; ping 15s; 인증 `POST /api/v1/speech/ticket`(60초 JWT). 끊김=오류 아님.
 
-**TTS 모드(§10·§11)**: Native(1.0×) / Learning(0.6·0.8·1.0×, `length`) / 스타일(Teacher·Friendly·Casual·Formal·Cheerful) — Phase 1 기본 보이스+속도, Phase 4 스타일·감정·캐릭터. 같은 문장 "학습자용 → 자연 속도" 비교 듣기. 캐시 키 sha1(text|voiceId|style|styleWeight|speed|pitch|intonation|engineConnectionId|textVersion).
+**TTS 모드(§10·§11 → 5차 §138 로 확장)**: 종전 Native/Learning 2모드는 **Speech Profile 5종**(`NATIVE`(기본, 사용자 speed 그대로)·`LEARNING_NORMAL`(1.0 프리셋)·`LEARNING_SLOW`(`learningSpeed` 0.6·0.8, 모라 타이밍·악센트 유지)·`PRONUNCIATION`·`SHADOWING`)으로 교체(§9-D). 스타일(FRIENDLY·CALM·ENCOURAGING·EXPLANATION·EMPHASIS)은 Rendering Plan 세그먼트 속성. Phase 1 기본 보이스+프로필 3종(NATIVE·LEARNING_NORMAL·LEARNING_SLOW), Phase 4 감정·캐릭터. 같은 문장 "학습자용 → 자연 속도" 비교 듣기. 캐시 키 sha1(normalizedText|voiceId|modelVersion|dictionaryVersion|speechProfile|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion).
 
 **서비스 구성(§18·§19 → 워크스페이스)**: 기획안의 Docker 분리는 사용자 결정으로 **우분투 pm2+venv**(gateway `thekaiwa-speech-gateway` :8100, worker `thekaiwa-speech-worker`), **M4 tts-service**(`~/kaiwa-tts-run`, :8200), Redis/Postgres 대신 **MariaDB `SpeechJob` 큐**. conversation-service/learning-analysis-service 는 Next.js 모듈. gateway/worker → 앱 콜백 `/api/internal/*`.
 
@@ -283,6 +285,35 @@ plugins/sherpa-stt/                                                    # Capacit
 
 **§128 문서**: `admin-console/00-integration-review.md` · 01 console-information-architecture · 02 role-permission-model · 03 engine-configuration-schema · 04 effective-configuration-resolver · 05 configuration-source-priority · 06 configuration-version-entity · 07 configuration-audit-entity · 08 configuration-diff-api · 09 configuration-rollback-api · 10 raw-json-configuration-api · 11 engine-playground-api · 12 end-to-end-test-api · 13 request-trace-model · 14 prompt-registry-versioning · 15 developer-diagnostic-api · 16 environment-configuration-policy.
 
+## 9-D. TTS Productization 층 (5차 보완 기획안 §129~§163, 2026-09-26) — 세부: `design/speech-platform/16-tts-productization-layer.md`
+
+**요지**: 상용 TTS(SELVAS 등) 벤치마크에서 가져올 것은 "엔진"이 아니라 **엔진 위의 플랫폼 층**이다. 발음 사전·정규화·발화 제어·프로필·스트리밍·관측·품질 평가·버전 배포·캐시가 SBV2 등 특정 엔진에 묶이지 않게 L4 `speech/tts` 에 둔다. 온디바이스 TTS 는 P2 연구 트랙이며 §158 의 Hybrid 라우터·상태 표시등만 P0 로 앞당긴다.
+
+**기존 설계와의 관계(§159 유지 항목)**: Voice Registry·VoiceProfile·통합 미리듣기(§9-B), TTS Parameter Resolver 우선순위(User > VoiceProfile > Persona > Context > LLM), M4 Style-Bert-VITS2·AGPL 격리, `TtsCache`, Engine Router·Fallback, Admin Console 6층 — 전부 유지. 바뀌는 것: ① `TtsMode{NATIVE,LEARNING}` → `SpeechProfile` 5종 ② Resolver 의 **출력이 SBV2 파라미터가 아니라 엔진 독립 `RenderingPlan`** 이고 SBV2 변환은 어댑터가 한다 ③ 캐시 키에 `normalizedText·modelVersion·dictionaryVersion·speechProfile` 이 들어간다 ④ M4 tts-service 는 `server_fastapi.py` 프록시가 아니라 `style_bert_vits2` 라이브러리 위의 **자체 FastAPI**(실측 2026-09-26: 원 서버에는 `/voice`·`/g2p`·`/models/info|refresh`·`/status` 만 있고 사용자 사전 라우트·타이밍 출력·스트리밍·`pitch_scale/intonation_scale` 인자가 없다).
+
+**컴포넌트(§160) → 위치·Phase** (정본 `module-dependency.md` §11):
+
+| 컴포넌트 | 위치 | Phase |
+|---|---|---|
+| Pronunciation Lexicon Service + 버전(§130~§132) — `PronunciationLexiconEntry{surface, reading, accentType, wordType, priority, scope GLOBAL|COURSE|LESSON|VOICE|USER, scopeRefId, enabled}` · `PronunciationLexiconVersion{version, snapshotHash, snapshot, status}`, 범위 우선순위 USER>VOICE>LESSON>COURSE>GLOBAL, Rollback = 새 버전, 적용은 플랫폼 치환(엔진 사전 push 는 어댑터 옵션) | L4 `speech/tts/lexicon` + Admin `Pronunciation Dictionary` 화면 | **P0(Phase 1)** |
+| Japanese Text Normalizer(§134~§135) — 숫자·날짜·시간·단위·Counter·기호·영문·외래어·고유명사·약어 읽기 결정, 엔진 정규화에 의존하지 않음 | `speech/tts/normalizer` | P0 |
+| Speech Rendering Plan(§136~§137) — `{voiceId, profile, segments[{text, style FRIENDLY|CALM|ENCOURAGING|EXPLANATION|EMPHASIS, speed NORMAL|SLOW|VERY_SLOW, pauseBeforeMs}]}`, LLM·앱은 엔진 파라미터를 직접 주지 않음. 레슨 세그먼트 제어(설명=EXPLANATION 느림, 예문=NORMAL, 핵심 표현=EMPHASIS+앞뒤 pause) | `speech/tts/renderingPlan` + 어댑터 매핑표 | P0 |
+| Speech Profile 5종(§138) — `UserVoiceSetting.speechProfile`, LEARNING_SLOW 는 "느리되 모라 타이밍·악센트 유지" | L1 + `speech/tts/profiles` | P0 |
+| Streaming/Chunk TTS + Playback Queue + TTFA(§139~§142) — 문장 단위 청크 순차 합성, SSE `audio{chunkIndex}`, 클라 `TtsPlaybackQueue`, 지표 TTFA·`playbackStartDelay` | `speech/tts/chunkScheduler` + 클라 | P0(기존 "1문장 재생 중 2문장 합성"의 정식화) |
+| Hybrid TTS 라우터 + **실행 상태 표시등**(§158) — `GET /api/v1/speech/tts/status {executionMode SERVER|ON_DEVICE|TEXT_ONLY, networkStatus, serverHealth HEALTHY|DEGRADED|UNAVAILABLE|UNKNOWN, fallbackReason SERVER_ERROR|SERVER_TIMEOUT|NO_CONNECTION|OFFLINE, lastUpdatedAt}`, 판단은 라우터의 실제 선택 결과(히스테리시스: 합성 연속 2회 실패→전환, health 1회 성공→복귀). 프로필 옆 5상태 🟢 ONLINE / 🔴 ON_DEVICE(P2) / 🔴 TEXT_ONLY(Phase 1 의 유일한 빨간불, "자막만") / 🟡 SWITCHING / ⚪ CHECKING, 색+라벨+`aria-label`, 전환 시 1회 토스트 | `speech/tts/status` + `TtsRuntimeStatusIndicator` | P0(온디바이스 TTS 가 없는 동안 빨강=TEXT_ONLY) |
+| 캐시 키 확장(§155) — `TtsCache{normalizedText, modelVersion, dictionaryVersion, speechProfile, timing?}` | `speech/tts/cache` | P0 |
+| TTS Observability·Trace(§143~§144) — `RequestTrace` 하위 단계 `TTS_NORMALIZE·TTS_LEXICON·TTS_PLAN·TTS_QUEUE·TTS_SYNTH[i]·TTS_ENCODE·TTS_TIMING·PLAYBACK`(본문 없음), `EngineMetricsDaily` TTS 컬럼(p99·ttfa p50/p95·rtfAvg·cacheHitRate·byVoice), `diagnostics/tts` 대시보드·경보(TTFA p95 > 2s / error > 5%) | `engine/metrics`·`engine/trace` | P1(Phase 2) |
+| Timing Metadata(§145~§146) — 단어/모라/음소 타이밍(자막 하이라이트·섀도잉·발음 비교 정렬). 산출은 **narabas 강제정렬(옵션 A, 권고)** vs VITS duration(B, research) | `speech/tts/timing` + Python worker 잡 | P1 |
+| Quality Evaluation(§147~§151) — Golden Dataset(카테고리 12종·100~300문장) · 회귀 실행(실패율·지연·TTFA·RTF·길이 편차 + 수동 점수) · A/B Blind Compare | Admin `TTS Quality` + `speech/tts/quality` + worker | P1 |
+| Model Versioning·Deployment·Canary(§152~§154) — `VoiceModelVersion.deployStatus TRAINED→VALIDATED→STAGING→CANARY→PRODUCTION→DEPRECATED`, Canary 세션 % 배정, Promote 는 SUPER_ADMIN | Admin `Voice Versions` + `speech/voices/versions` + `engine/router` | P1 |
+| On-Device TTS 로드맵(§156~§157) — ONNX 최적화·양자화·모바일 런타임·평가 기준(모델 크기·RTF·메모리·발열·품질 손실) | research, `plugins/sherpa-tts?` | P2(Phase 4 이후) |
+
+**우선순위(§162) → Phase**: P0(사전·정규화·Rendering Plan·Profile·청크 스트리밍·상태 표시등·캐시 키) = **task-003 실측 + task-007 회화 + task-005 설정**, P1(Observability·Timing·Golden·회귀·A/B·버전·Canary) = **task-012b 음성 P2 + task-012c Console P2**, P2(온디바이스 TTS) = task-016 이후 research.
+
+**정본 변경(2026-09-26)**: `domain-model.md` §3 — `enum SpeechProfile`, `UserVoiceSetting.speechProfile`, `TtsCache` 확장, `PronunciationLexiconEntry`·`PronunciationLexiconVersion`·`LexiconScope`(48→50 모델, `prisma/schema.prisma` 재추출) / §10 제안 — `VoiceModelVersion`·`TtsGoldenSentence`·`TtsQualityRun`·`TtsQualityResult`·`TtsAbCompare`·`EngineMetricsDaily` 확장 컬럼. `api-contract.md` #23 교체 + §7(status·lexicon·golden·quality-runs·ab-compare·voices versions·tts/metrics·tts-service 내부 계약). `module-dependency.md` §11. Admin Console IA 에 Pronunciation Dictionary·TTS Quality·Voice Versions·TTS 대시보드 추가.
+
+**사용자 결정 필요**: ① 발음 사전 적용 방식 — 플랫폼 치환(기본) vs SBV2 `text/user_dict` push 병행(LGPL 부분, 어댑터 옵션) ② Timing 산출 A(narabas 정렬) vs B(VITS duration) ③ P1(품질·버전·지표) 의 Phase 2 편입 여부(Console P2 와 같이 갈지, Phase 4 로 미룰지) ④ TEXT_ONLY 상태 UX(자막 자동 표시 + "다시 시도") ⑤ 온디바이스 TTS 연구 착수 조건(서버 TTS p95 실측 후) ⑥ 품질 합격 기준 수치(§9.4)·1인 앱에서 Canary 실효성·USER scope 사전 등록 UI Phase — 전체 15건은 `speech-platform/16` §16.
+
 ## 10. API (요약 — 정본 `design/api-contract.md`)
 
 - 응답 `{success, data, message}`. 무버전: `/api/health`(공개, boolean checks 만), `/api/auth/*`, `/api/app/version`, `/models/*`. 사용자 `/api/v1/*`(소유자 검사 → 타인 404), 관리자 `/api/admin/v1/*`(capability → 403), 서비스 콜백 `/api/internal/*`(`X-Internal-Secret`), `wss /ws/speech`, SSE `POST /api/v1/chats/:id/turns`.
@@ -298,10 +329,10 @@ plugins/sherpa-stt/                                                    # Capacit
 | 계획표 | `/plan` → `calendar` · `analysis` · `growth` | 3. 공부계획표 | 2 / 3 |
 | 서랍장 | `/drawer/words`(+`[wordId]`), `/drawer/corrections` | 4. 서랍장 | 1(최소) / 3 |
 | 질문 | `/ask`, `/ask/[chatId]` (Phase 3 전 "준비 중") | 6. 무엇이든 물어보세요 | 3 |
-| 상단 아바타 | `/settings`(기본정보·목표·학습 / AI 선생님+미리듣기 / 음성 인식 / Advanced·Voice 관리·Console 진입은 capability) | 5. 프로필 | 1 |
+| 상단 아바타 | `/settings`(기본정보·목표·학습 / AI 선생님+미리듣기+Speech Profile / 음성 인식 / Advanced·Voice 관리·Console 진입은 capability) | 5. 프로필 | 1 |
 | 콘솔 | `(admin)/admin/*` 별도 레이아웃 | 기획안 §80 | 1(읽기) / 2~4 |
 
-모바일 원칙: 412×892 기준·앱 WebView ≈390px → 360/390/412 검증, `100dvh`, 터치 44px(푸시투토크 ≥64px), 일본어 16px↑·후리가나 토글, 화면당 스크롤 1곳, 음성 우선 입력 + 텍스트 폴백 상시. 사용자 화면에 엔진명·model_id·speaker_id 0건. **종료 지점 원칙**(레퍼런스2, 피드백 #11): 레슨·복습·역할극 세션은 완결감 대신 다음 구간·상황 하나를 예고하고 끝낸다. 오늘 탭은 "주제 → 상황" 2단 선택 + "바로 상황 고르기", 복습 카드에는 강사의 판단 근거 한 줄을 보여 준다.
+모바일 원칙: 412×892 기준·앱 WebView ≈390px → 360/390/412 검증, `100dvh`, 터치 44px(푸시투토크 ≥64px), 일본어 16px↑·후리가나 토글, 화면당 스크롤 1곳, 음성 우선 입력 + 텍스트 폴백 상시. 사용자 화면에 엔진명·model_id·speaker_id 0건. **종료 지점 원칙**(레퍼런스2, 피드백 #11): 레슨·복습·역할극 세션은 완결감 대신 다음 구간·상황 하나를 예고하고 끝낸다. 오늘 탭은 "주제 → 상황" 2단 선택 + "바로 상황 고르기", 복습 카드에는 강사의 판단 근거 한 줄을 보여 준다. **TTS 실행 상태 표시등**(5차 §158): 회화·레슨 화면의 AI 강사 프로필(아바타) 옆 8~10px 점 + 짧은 라벨 — 🟢 "온라인"(서버 음성) / 🔴 "온디바이스 모드"(P2) / 🔴 "자막만"(서버 불가·온디바이스 없음, Phase 1 의 유일한 빨간불) / 🟡 "전환 중" / ⚪ "상태 확인 중"; 색만으로 구분하지 않고 `role=status`·`aria-label`·라벨 상시 표시, 상태 전환 시 토스트 1회, 탭하면 사유 시트(엔진명·호스트 비노출). 상태는 `GET /api/v1/speech/tts/status`(서버 관점) + 클라 네트워크 상태로 판정, 폴링 정상 5분·저하 30초, 대화 중엔 합성 결과가 곧 신호(`speech-platform/16` §12).
 
 ## 12. 안드로이드 앱 · APK 갱신
 
@@ -331,21 +362,21 @@ plugins/sherpa-stt/                                                    # Capacit
 |---|---|---|---|
 | 001 | 초기 기획·설계 확정 | ✅ 이 문서 + 정본·설계 문서 | — |
 | 002 | Phase 0 스캐폴딩 | 폰 https 로그인→5탭, 3폭 잘림 0, health 200, Permissions-Policy 검사, 6층 골격+ESLint, Prisma 정본+seed(Engine·connection 6·VoiceProfile·AppSetting), api-contract Phase 0 라우트 일치 | 001 + 사용자 선결 |
-| 003 | 온디바이스 STT 플러그인 + 음성 서비스 P0 + Capacitor 셸 | APK 로그인 유지, 온디바이스 20문장 partial/final, 모델 다운로드→재사용, gateway 폴백 동일, SBV2 1문장 합성·재생, **실측 게이트 6항목** → `decisions/speech-p0-measurements.md`, deployer APK | 002 |
+| 003 | 온디바이스 STT 플러그인 + 음성 서비스 P0 + Capacitor 셸 | APK 로그인 유지, 온디바이스 20문장 partial/final, 모델 다운로드→재사용, gateway 폴백 동일, **M4 tts-service 자체 FastAPI**(`style_bert_vits2` 라이브러리, `/synthesize` RenderingPlan 계약·pitch/intonation·사전 옵션 실측) 1문장 합성·재생, 정규화·발음 사전(P0)·`SpeechProfile`·캐시 키 12요소, **실측 게이트 6항목 + TTFA** → `decisions/speech-p0-measurements.md`, deployer APK | 002 |
 | 004 | AI 클라이언트 계층 + 강사 페르소나 v1 | engine adapters(claudeCli·homeM4)·router·resolver 최소, `tutor.md` v1, prompts{talk,chat,chatReview}+픽스처 20문장, A1 p50 ≤4s, json-schema+agents 동시 동작, qwen 비교 | 002 |
-| 005 | 설정 허브 + 출석 | AI 선생님(VoiceProfile·통합 미리듣기 draft)·음성 인식 4모드·학습, settings API 3종, voices/preview 캐시, 하루 2회 열어도 출석 1행, 화면 엔진명 0 | 002, 003 |
-| 005b | Admin Console 골격 | capability 가드(USER `/admin` 404), Dashboard, Effective Config+Source(env 덮어쓴 키 `ENVIRONMENT`), Plugins·Connections·Health/Test→`RequestTrace`·`EngineHealth`, History 읽기, Secret 미노출 | 002, 003 |
+| 005 | 설정 허브 + 출석 | AI 선생님(VoiceProfile·통합 미리듣기 draft·**Speech Profile 선택**)·음성 인식 4모드·학습, settings API 3종, voices/preview 캐시, 하루 2회 열어도 출석 1행, 화면 엔진명 0 | 002, 003 |
+| 005b | Admin Console 골격 | capability 가드(USER `/admin` 404), Dashboard, Effective Config+Source(env 덮어쓴 키 `ENVIRONMENT`), Plugins·Connections·Health/Test→`RequestTrace`·`EngineHealth`, History 읽기, **Pronunciation Dictionary(검색·추가·수정·비활성·Import/Export·미리듣기·버전 Rollback)**, Secret 미노출 | 002, 003 |
 | 006 | AI 채팅 + 표현 점검 + 교정 채택 | SSE 턴·락·폴링, `original` 바이트 일치, 채택 전 행 0, IDOR 404, 이모지 500 없음 | 004, 005 |
-| 007 | AI 회화(음성) 실시간 교정 | `RealtimeSttClient` 라우팅·`TtsPlayer`·5구간 계측, 실기기 30턴 p50 ≤5s, 원문 무수정, 권한 거부 안내, 웹 gateway 동작 | 003, 006 |
+| 007 | AI 회화(음성) 실시간 교정 | `RealtimeSttClient` 라우팅·**청크 스트리밍 TTS(SSE `audio{chunkIndex}`·`TtsPlaybackQueue`·TTFA 계측)**·Rendering Plan(LLM `styleHint` 만)·**프로필 옆 실행 상태 표시등**(SERVER/TEXT_ONLY)·5구간 계측, 실기기 30턴 p50 ≤5s·TTFA p50 ≤1.0s, 원문 무수정, 권한 거부 안내, 웹 gateway 동작 | 003, 006 |
 | 008 | 단어장 최소판 + 오늘의 단어 | CRUD·보관·카테고리, 세트 생성(정답 미노출)·CHOICE·finish 트랜잭션, 10장 3분, 삭제 후 집계 불변, 풀<4 FLIP | 002, 005 |
 | 009 | Phase 1 통합 QA·라이브·APK | nginx·Gitea·webhook·첫 blue/green, 운영 e2e(회화·채팅·단어), `RELEASE_RESULT ok`, 롤백 리허설, APK 배포본·배너 | 006, 007, 008 |
 | 010~012 | Phase 2: 주제·상황(`Scenario`, 결정 시)·오늘의 회화(청취 구간 반복·단어 메모·nextPreview)·**반복 학습(RepetitionItem·A11 강사 판단 3~7일·균등 랜덤·FOCUS)** / AI평가 / 달력 | 최소 기록 가드·범위 클램프·폴백, 기록률 100% 트랜잭션, 첫 평가 20건 루브릭 조정 라운드, 복습 카드에 근거 표시 | 009 |
-| 012b | 음성 P2 | worker+`SpeechJob`·WhisperEngine·Comparator·requiresReview 카드·발화 로그 | 009 |
-| 012c | Console P2 | Form/JSON 편집·Validate/Test/Diff/Apply·Version·History·Rollback·Prompt Registry sync/activate/test·Playground | 005b |
+| 012b | 음성 P2 | worker+`SpeechJob`·WhisperEngine·Comparator·requiresReview 카드·발화 로그 · **TTS P1: Observability(Trace 하위 단계·`EngineMetricsDaily` TTS 컬럼)·Timing Metadata(narabas 정렬, 자막 하이라이트·섀도잉)** | 009 |
+| 012c | Console P2 | Form/JSON 편집·Validate/Test/Diff/Apply·Version·History·Rollback·Prompt Registry sync/activate/test·Playground · **TTS Quality(Golden Dataset·회귀·A/B Blind)·Voice Versions(TRAINED→…→PRODUCTION·Canary %)·TTS 대시보드**(사용자 결정 ③) | 005b |
 | 013~015 | Phase 3: 분석·성장기록(+능력 축·관측 제안 도입 시) / 서랍장 전체 / 무엇이든(3a 정형 조회·출처 표시 → 3b MCP → 3c 의미 검색 조건부) | 성장기록=스냅샷만, 분석 hash 캐시, ASK `sources`·`needsScope`, 타 사용자 격리 0건 | 012 |
 | 015b | 음성 P3 | PronunciationAnalyzer(narabas+pyopenjtalk+F0), 단어별 ★ 피드백 | 012b |
 | 015c | Console P3 | E2E·Diagnostics·Debug session·Log level | 012c |
-| 016 | Phase 4 | Voice Package Import·수명주기·스타일·감정 / Preset·Export/Import·Override / Admin Web 분리 검토 / **M4 모델 벤치마크(Qwen3·Qwen3-Swallow·Qwen3.5 후보 vs Claude 기준선)·공통 강사 행동 LoRA 실험(별도 시간대, 사용자 결정)** | 015* |
+| 016 | Phase 4 | Voice Package Import·수명주기·스타일·감정 / Preset·Export/Import·Override / Admin Web 분리 검토 / **온디바이스 TTS research(ONNX 최적화·양자화·모바일 런타임 평가, §156~§157)** / **M4 모델 벤치마크(Qwen3·Qwen3-Swallow·Qwen3.5 후보 vs Claude 기준선)·공통 강사 행동 LoRA 실험(별도 시간대, 사용자 결정)** | 015* |
 
 병렬: 003·004·005·005b 는 002 직후 동시(파일 경계 분리). 006·008 독립.
 
@@ -356,6 +387,8 @@ plugins/sherpa-stt/                                                    # Capacit
 2. **오늘의 회화 콘텐츠**: 자체 생성(A4) + 사용자 붙여넣기(`Lesson.sourceText`). 외부 콘텐츠 큐레이션은 저작권·수급 문제로 제외, 확장 여지만.
 3. **AI평가 채점 기준**: §7-5 초안 채택, Phase 2 첫 20건 사용자 검토 라운드.
 
+**사용자 결정 필요(5차 TTS 보완, §9-D)**: 발음 사전 적용 방식(플랫폼 치환 vs SBV2 user_dict push 병행) / Timing 산출 A(narabas) vs B(VITS duration) / TTS P1(품질·버전·지표)의 Phase 2 편입 vs Phase 4 / TEXT_ONLY UX / 온디바이스 TTS 연구 착수 조건.
+
 **사용자 결정 필요(3차 보완, `learning-personalization-and-llm-data.md` §8)**: `Scenario`·`ScenarioTopic` 도입 Phase / `LearnerSkillState`·`LearningObservation` 도입 여부·Phase / 개인 기록의 Claude CLI(외부 구독 경로) 전송 범위 / 과거 대화 의미 검색(로컬 임베딩) 도입 조건 / M4 LoRA 실험 착수 조건·시간대. `reviewEvery`(PLAN) 는 참고값이며 실제 간격은 A11 항목별 3~7일(범위 고정, 정합성 #14·15).
 
 | 리스크 | 조치 |
@@ -365,7 +398,11 @@ plugins/sherpa-stt/                                                    # Capacit
 | Claude 구독 공유 rate limit | 회화 haiku 고정, 분석·레슨 batch 레인, 동시 턴 1, `toolLog.model` 집계 |
 | 3일 반복이 기록 부족 시 무의미 | 최소 기록 가드·만료 승계·7일 재진입, 해석을 문서에 고정 |
 | 강사가 기록을 임의 변경 | `PROPOSED` 전용 스키마, QA 행 수 대조 |
-| SBV2 AGPL·모델 약관 | M4 별도 디렉토리·HTTP 경계·`LICENSE-NOTICE.md`, 개인 이용 |
+| SBV2 AGPL·모델 약관 | M4 별도 디렉토리·HTTP 경계·`LICENSE-NOTICE.md`, 개인 이용. 자체 FastAPI 래퍼도 같은 디렉토리(AGPL 경계 안) |
+| SBV2 원 서버에 사전·타이밍·스트리밍·pitch 라우트 없음(실측) | tts-service 를 라이브러리 위 자체 래퍼로(task-003), `pitch_scale/intonation_scale` 은 `infer()` 인자로 실측, 사전은 플랫폼 치환 기본 |
+| 발음 사전·정규화 오류가 전 발화에 전파 | 사전 변경은 새 버전+Audit, PRODUCTION 은 SUPER_ADMIN 확인, Golden 회귀(P1) 전엔 미리듣기 필수, `dictionaryVersion` 으로 캐시 자연 무효·Rollback |
+| 청크 스트리밍이 문장 경계에서 억양 단절 | 문장 단위(。？！) 청크 + 100자 상한, 세그먼트 pause 로 이음, TTFA 와 자연스러움을 실측 게이트에 같이 둠 |
+| 상태 표시등이 실제와 어긋남(네트워크만 보고 판단) | 판단 근거는 라우터의 실제 선택 결과, 30초 캐시·턴마다 갱신, `fallbackReason` 노출 |
 | 휴대폰 온디바이스 부담(148MB·RSS·배터리) | Wi-Fi 다운로드·재개, `num_threads` 실측, 오류 2회 gateway 폴백, `sttMode=GATEWAY` |
 | 네이티브 변경 시 재설치 누락 | deployer `<apk_release>` + `/api/app/version` 배너 + `reinstall_required` |
 | 개발·운영 같은 DB 에서 설정 혼선 | `environment` 컬럼·`APP_ENV`, Production 보호, Override 비활성 |

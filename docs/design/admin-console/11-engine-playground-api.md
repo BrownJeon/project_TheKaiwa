@@ -37,7 +37,7 @@
 ```json
 { "connectionId": "style-bert-m4", "text": "こんにちは。今日は何について話しましょうか？",
   "voiceProfileId": "haruka", "style": "Friendly", "styleWeight": 0.8, "speed": 0.9, "pitch": 1.0, "intonation": 1.1,
-  "ttsMode": "LEARNING", "returnAudio": "url" }
+  "speechProfile": "LEARNING_NORMAL", "renderingPlan": null, "returnAudio": "url" }
 ```
 
 - `text` ≤300자(문장 분할은 사용자 경로와 동일한 `speech/tts/sentenceSplit`), 파라미터 범위는 `UserVoiceSetting` 과 같은 제약(speed 0.6~1.2 등)을 **관리자는 넘을 수 있으나** 스키마 `min/max` 는 넘을 수 없다(§116 "더 상세한 Preview").

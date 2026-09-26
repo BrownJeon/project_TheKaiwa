@@ -21,11 +21,14 @@
 | Speech › TTS | `speech/tts` | 역할 `TTS` 동일 + Voice 요약 | 동일 | 1 / 2 |
 | LLM | `llm` | 역할 `LLM`: Provider·Connection·모델·temperature 등 Schema 동적 폼(§117) | `engine.read` | 1 / 2 |
 | Voices | `voices`, `voices/[id]` | §114~§116 관리·상세·Preview Playground | `voices.read` / `voices.manage` | 1(목록) / 4(Import·상세 Preview) |
+| Voices › Versions (5차 §152~§154) | `voices/[id]/versions` | `VoiceModelVersion` 목록·TRAINED→VALIDATED→STAGING→CANARY(%)→PRODUCTION→DEPRECATED 전이·Golden 회귀 결과 링크 | `voices.manage` (Promote/Canary PRODUCTION 은 SUPER_ADMIN) | 2(P1, 사용자 결정) |
+| Speech › TTS › Pronunciation Dictionary (5차 §130~§132) | `speech/tts/lexicon`, `speech/tts/lexicon/versions` | 발음 사전 검색·추가·수정·비활성·Import/Export·범위(GLOBAL/COURSE/LESSON/VOICE/USER)·적용 전/후 미리듣기·버전 목록·Rollback | `voices.read` / `voices.manage` (PRODUCTION 변경 확인은 SUPER_ADMIN) | **1(P0)** |
+| Speech › TTS › TTS Quality (5차 §147~§151) | `speech/tts/quality` (탭: Golden · Regression Runs · A/B Compare) | Golden Dataset 관리·회귀 실행·결과표(실패율·지연·TTFA·RTF·길이 편차·수동 점수)·Blind A/B 세션 | `voices.manage` | 2(P1, 사용자 결정) |
 | Plugins | `plugins`, `plugins/[id]` | §97~§99 Descriptor·Schema·Capabilities·Loaded·initError | `plugins.read` | 1 |
 | Connections | `connections`, `connections/[id]` | Connection Profile CRUD·Health·Functional Test·Log level | `engine.read` / `engine.connections.manage` | 1(읽기·테스트) / 2(편집) |
 | Configuration | `configuration` (탭: Form · Raw JSON · Diff · Presets · Export/Import · Overrides) | §86~§92·§102~§107 | `config.effective.read` (Raw `config.raw.read`, 편집 `config.edit`) | 1(Effective 읽기) / 2 / 4 |
 | Prompts | `prompts`, `prompts/[key]` | §118~§120 버전 목록·편집·Test·Activate | `prompts.read` / `prompts.edit` / `prompts.activate` | 2 |
-| Diagnostics | `diagnostics`, `diagnostics/[connectionId]` | §111~§113 Health·Metrics·Log level·Debug session | `engine.read` / `trace.read` / `debug_session.create` | 1(Health) / 3 |
+| Diagnostics | `diagnostics`, `diagnostics/[connectionId]` | §111~§113 Health·Metrics·Log level·Debug session · **TTS Observability 대시보드** `diagnostics/tts`(5차 §143: req/min·avg·p50·p95·p99·TTFA·error rate·cache hit·voice/engine 별·model load·폴백 건수) | `engine.read` / `trace.read` / `debug_session.create` | 1(Health) / 2(TTS 대시보드, P1) / 3 |
 | Playground | `playground` (탭: STT · TTS · LLM · E2E) | §108·§109 | `playground.use` / `e2e.run` | 2 / 3(E2E) |
 | History | `history` (탭: Config versions · Audit · Rollback) | §93·§94 | `audit.read` / `config.rollback` | 2 |
 
@@ -54,6 +57,7 @@
 |---|---|
 | USER | 없음 — `/admin/**` 전부 404 |
 | ADMIN | Dashboard · Speech · LLM · Voices · Connections · Configuration(Form·Presets·Export) · Diagnostics(Health) · History(Audit·Rollback) |
+| ADMIN 추가(5차) | Pronunciation Dictionary · Voices › Versions · TTS Quality · Diagnostics › TTS 대시보드 |
 | DEVELOPER | ADMIN + Plugins · Configuration(Raw JSON·Diff·Overrides·Import) · Prompts(편집·Activate) · Diagnostics(Metrics·Log level·Debug) · Playground · Trace 뷰 |
 | SUPER_ADMIN | 전부 + Credential ref 연결 UI · Production 확인 다이얼로그 · Environment 정책 편집 · Production Import |
 
@@ -97,7 +101,7 @@ sequenceDiagram
 
 ## 10. Phase
 
-1: 셸·배지·Dashboard·Speech/LLM 읽기·Plugins·Connections 읽기·Diagnostics Health · 2: Configuration 편집 탭·Prompts·Playground·History · 3: E2E·Diagnostics 전체 · 4: Presets/Export/Import/Overrides 탭·Voices Import·Admin Web 분리 검토.
+1: 셸·배지·Dashboard·Speech/LLM 읽기·Plugins·Connections 읽기·Diagnostics Health·**Pronunciation Dictionary(P0)** · 2: Configuration 편집 탭·Prompts·Playground·History·**Voices › Versions·TTS Quality·TTS 대시보드(P1, 사용자 결정)** · 3: E2E·Diagnostics 전체 · 4: Presets/Export/Import/Overrides 탭·Voices Import·Admin Web 분리 검토.
 
 ## 11. 미결
 

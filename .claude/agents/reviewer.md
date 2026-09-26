@@ -18,7 +18,7 @@ model: sonnet
 4. 운영성 — `RequestTrace`·로그·사용자 안내 분리, 헬스체크 boolean 만, ConfigurationVersion·AuditLog 기록, RESTART_REQUIRED 키 런타임 적용 시도
 5. 성능 — 5초 예산 구간 계측 존재, A1 프롬프트 3,000자 상한, N+1(단어 목록·달력 집계), 오디오 스트리밍
 6. 보안 — 소유자 검사(타인 404), capability 검사(`can`), `AppAuthCode` TTL·1회용·소각, WS 티켓 60초, `X-Internal-Secret`, spawn argv, `DATA_ROOT` prefix, 업로드 MIME·크기, Secret 이 DB·앱·Export·Trace·로그에 없음, Production 보호 우회
-7. 학습 원칙 — AI 산출 `PROPOSED` 전용·채택 전 타 테이블 행 0, `Correction.original` 무수정, `StatsSnapshot` 증가 전용, `StudyLog.origin` 구분, 사용자 화면·라우트에 엔진명·model_id·speaker_id 노출 0, LLM 이 TTS 파라미터를 정하지 않음
+7. 학습 원칙 — AI 산출 `PROPOSED` 전용·채택 전 타 테이블 행 0, `Correction.original` 무수정, `StatsSnapshot` 증가 전용, `StudyLog.origin` 구분, 사용자 화면·라우트에 엔진명·model_id·speaker_id 노출 0, LLM 이 TTS 파라미터를 정하지 않음(LLM 은 `styleHint` 만, Resolver 출력은 엔진 독립 RenderingPlan, SBV2 파라미터명은 `engine/adapters/tts` 밖에 0건), TTS 캐시 키에 `normalizedText·modelVersion·dictionaryVersion·speechProfile` 포함, 발음 사전 변경은 `PronunciationLexiconVersion`+`AuditLog`, Trace 에 원문 대신 `normalizedText` 해시만, 상태 표시등은 라우터 실제 선택 결과 기준
 
 **Strict Mode**: 관대한 판정 금지.
 </responsibilities>

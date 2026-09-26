@@ -81,7 +81,7 @@ erDiagram
     string voiceProfileId FK
     string style
     float speed
-    TtsMode ttsMode
+    SpeechProfile speechProfile
   }
   UserSpeechSetting {
     string userId PK
@@ -664,9 +664,13 @@ enum ExplainDepth {
 }
 
 /// 학습용 TTS 모드(음성 기획안 §11). LEARNING 은 speed 0.6/0.8/1.0 비교 듣기
-enum TtsMode {
+/// 교육용 Speech Profile(5차 TTS 보완 §138, 정본 speech-platform/16 §5). 종전 TtsMode{NATIVE,LEARNING} 교체. NATIVE=사용자 speed 그대로(기본, TALK/CHAT) · LEARNING_NORMAL=학습 표준 1.0 프리셋(레슨 낭독) · LEARNING_SLOW=learningSpeed(0.6·0.8), 모라 타이밍·악센트 유지 · PRONUNCIATION=0.8, 명확 발화, 、에서도 분할 · SHADOWING=0.9, 청크 뒤 gap=직전 청크 길이. 프로필은 정책(속도 배율·분할·간격)이고 수치는 User/VoiceProfile 층이 준다
+enum SpeechProfile {
   NATIVE
-  LEARNING
+  LEARNING_NORMAL
+  LEARNING_SLOW
+  PRONUNCIATION
+  SHADOWING
 }
 
 /// 사용자 음성 인식 모드(추가 기획안 §26). Speech Mode Resolver 가 엔진 역할 조합으로 해석
@@ -980,7 +984,7 @@ model UserVoiceSetting {
   pitch          Float    @default(1.0)
   /// 0.8~1.2
   intonation     Float    @default(1.0)
-  ttsMode        TtsMode  @default(NATIVE)
+  speechProfile  SpeechProfile @default(NATIVE)   // 종전 ttsMode(5차 보완 §138). 설정 화면 선택지는 NATIVE·LEARNING_NORMAL·LEARNING_SLOW, PRONUNCIATION·SHADOWING 은 화면이 요청 단위로 지정
   /// LEARNING 모드 기본 배속(0.6|0.8|1.0)
   learningSpeed  Float    @default(0.8)
   updatedAt      DateTime @updatedAt
@@ -1628,8 +1632,18 @@ model SpeechJob {
 
 /// TTS 합성 캐시(§44). key = sha1(text|voiceProfileId|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion). 미리듣기도 같은 캐시. 파일은 DATA_ROOT/tts-cache/
 model TtsCache {
+  /// sha1(normalizedText|voiceProfileId|modelVersion|dictionaryVersion|speechProfile|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion) — 5차 보완 §155 로 normalizedText·modelVersion·dictionaryVersion·speechProfile 추가
   key                 String    @id @db.VarChar(64)
   voiceProfileId      String?   @db.VarChar(80)
+  /// JapaneseTextNormalizer + PronunciationLexicon 적용 후 세그먼트 텍스트(캐시 판단 기준, 청크 단위 ≤200). 원문은 저장하지 않음. textHash = sha1(normalizedText)
+  normalizedText      String    @db.VarChar(200)
+  modelVersion        String    @db.VarChar(20)
+  dictionaryVersion   Int       @default(0)
+  speechProfile       SpeechProfile @default(NATIVE)
+  /// TtsTimingMetadata {method:'FORCED_ALIGN'|'ENGINE', alignerVersion, words[{text,startMs,endMs,charStart,charEnd}], moras[{mora,startMs,endMs,wordIndex}], phonemes?[]} (P1, speech-platform/16 §8)
+  timing              Json?
+  /// aligner 버전(변경 시 timing 만 재계산, 오디오 유지)
+  timingVersion       String?   @db.VarChar(40)
   style               String    @db.VarChar(40)
   styleWeight         Float
   speed               Float
@@ -1647,6 +1661,61 @@ model TtsCache {
 
   @@index([voiceProfileId])
   @@index([lastHitAt])
+}
+
+/// 발음 사전 적용 범위(5차 §130). 우선순위 USER > VOICE > LESSON > COURSE > GLOBAL (좁은 범위가 이김)
+enum LexiconScope {
+  GLOBAL
+  COURSE
+  LESSON
+  VOICE
+  USER
+}
+
+/// Pronunciation Lexicon Service(5차 §130~§132, P0, 정본 speech-platform/16 §2). 엔진 내부 사전이 아니라 플랫폼 공통 데이터(설정 계열 → environment 컬럼). 적용은 TTS 파이프라인의 Lexicon 단계(플랫폼 치환 A 기본, SBV2 user_dict push B 는 어댑터 옵션)
+model PronunciationLexiconEntry {
+  id          String       @id @default(cuid())
+  environment Environment
+  surface     String       @db.VarChar(40)
+  /// 읽기(가타카나·長音符 ー 만, L-5)
+  reading     String       @db.VarChar(60)
+  /// 악센트 핵 모라 위치(0=平板, ≤ 모라 수). pyopenjtalk user-dict accent_type 과 동일 의미
+  accentType  Int          @default(0)
+  /// PROPER_NOUN·PERSON·PLACE·COMMON·LOANWORD·ABBREVIATION
+  wordType    String?      @db.VarChar(20)
+  /// 같은 길이 최장 일치가 겹칠 때 큰 쪽 우선(L-3)
+  priority    Int          @default(10)
+  scope       LexiconScope @default(GLOBAL)
+  /// scope 가 COURSE/LESSON/VOICE/USER 일 때 대상 id(topicId(Scenario 도입 시 scenarioId)·lessonId·voiceProfileId·userId). GLOBAL 은 null. FK 없음
+  scopeRefId  String?      @db.VarChar(40)
+  note        String?      @db.VarChar(200)
+  /// false 는 매칭 제외, 스냅샷·Export 에는 남음(L-4). 물리 삭제 없음
+  enabled     Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([environment, scope, scopeRefId, surface])
+  @@index([environment, scope, scopeRefId, enabled])
+  @@index([environment, surface])
+}
+
+/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전(대상은 ROLLED_BACK). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog(scope=LEXICON) 만
+model PronunciationLexiconVersion {
+  id            String   @id @default(cuid())
+  environment   Environment
+  /// 환경별 단조 증가 정수
+  version       Int
+  /// enabled 항목 정렬 후 sha256
+  snapshotHash  String   @db.VarChar(64)
+  /// 이 버전에 포함된 entry 스냅샷 [{surface, reading, accentType, wordType, priority, scope, scopeRefId, enabled}]
+  snapshot      Json
+  changeSummary String?  @db.VarChar(300)
+  actorUserId   String?
+  status        ConfigVersionStatus @default(ACTIVE)
+  createdAt     DateTime @default(now())
+
+  @@unique([environment, version])
+  @@index([environment, status])
 }
 
 /// TTS 모델(SBV2 model_assets 디렉토리 단위, /models/info 동기화 결과). id = 모델 디렉토리명. 물리 파일은 tts-service(M4) 에 있다
@@ -1988,7 +2057,7 @@ model DebugSession {
 | `AppRelease` | APK 배포본·최소 지원 버전 | `versionCode`, `sha256`, `minSupported` | L6 | deployer 네이티브 변경 배포 | 삭제 없음 | 1 |
 | `AuditLog` | 관리자 행위 감사 | `action`, `scope`, `targetId`, `before/after`, `actorEmailSnap` | L6 | 모든 admin 쓰기·민감 읽기(role-permission.md §7) | **append-only, 삭제 없음** | 1 |
 | `Profile` | 학습 설정(기본정보·목표·학습) | `level`, `politeness`, `goal*`, `dailyWordCount`, `dailyMinutes`, `strictness`(기본 STRICT), `explainLang`, `explainDepth`, `teacherName` | L1 | 첫 로그인 시 기본값 upsert | User Cascade. `SET_LEVEL` 제안은 채택 시에만 반영 | 1 |
-| `UserVoiceSetting` | AI 선생님 목소리 설정 | `voiceProfileId`, `style`, `speed`, `pitch`, `intonation`, `ttsMode` | L1 | 설정 화면 첫 저장(없으면 기본값으로 해석) | Voice DISABLED 시 앱이 `voiceProfileId=null`(기본 voice) 전환, hard delete 시 SetNull | 1 |
+| `UserVoiceSetting` | AI 선생님 목소리 설정 | `voiceProfileId`, `style`, `speed`, `pitch`, `intonation`, `speechProfile` | L1 | 설정 화면 첫 저장(없으면 기본값으로 해석) | Voice DISABLED 시 앱이 `voiceProfileId=null`(기본 voice) 전환, hard delete 시 SetNull | 1 |
 | `UserSpeechSetting` | 음성 인식 모드 | `recognitionMode` | L1 | 설정 화면 첫 저장 | User Cascade | 1 |
 | `AppSetting` | 환경별 운영 설정 키-값 | `[environment,key]`, `value`, `editability` | L1 | 시드(§7) / Console 편집(ConfigurationVersion APP_SETTING) | 삭제 없음(키 폐기 시 값만 null) | 1 |
 
@@ -2031,6 +2100,8 @@ model DebugSession {
 | `SpeechAnalysis` | 분석 결과 | `grammarScore`, `pronunciationScore`, `fluencyScore`, `wordScores`, `mora`, `pitch`, `feedbackKo` | L4 | worker `POST /api/internal/speech/utterances/:id/analysis` | Utterance Cascade | 2/3 |
 | `SpeechJob` | 분석 큐(MariaDB) | `kind`, `status`, `attempts`, `runAfter`, `lockedBy` | L4 | Utterance 저장 직후 enqueue(ANALYSIS_STT), 분석 후 PRONUNCIATION | Utterance Cascade. DONE/FAILED 30일 후 purge | 2 |
 | `TtsCache` | 합성 캐시 | `key`, 파라미터 스냅샷, `path`, `hits`, `lastHitAt` | L4 | 첫 합성·미리듣기 | LRU(`lastHitAt`)·용량 상한 purge. Voice ARCHIVED 시 `voiceProfileId` 기준 purge | 1 |
+| `PronunciationLexiconEntry` | 발음 사전 항목(표기·읽기·악센트·우선순위·범위, 환경별) | `environment`, `surface`, `reading`, `accentType`, `priority`, `scope`, `scopeRefId`, `enabled` | L4 | Admin Console Pronunciation Dictionary·Import·(Phase 2) 사용자 USER scope | 삭제 = `enabled=false` + 새 사전 버전(물리 삭제 없음) | 1(P0) |
+| `PronunciationLexiconVersion` | 사전 스냅샷 버전(환경당 ACTIVE 1, Rollback) | `environment`, `version`, `snapshotHash`, `snapshot`, `status` | L4 | 항목 변경·Import·Rollback 마다 | 삭제 없음 | 1(P0) |
 | `VoiceModel` | TTS 모델(SBV2 디렉토리) | `id`(모델명), `speakers`, `styles`, `status`, `sha256` | L4 | 시드 / `POST /api/admin/v1/voices/sync` / Import | Engine Restrict. 물리 삭제는 tts-service 관리 작업, 행은 ARCHIVED 로 보존 | 1 |
 | `VoiceProfile` | AI 선생님 목소리 | `displayName`, `voiceModelId`, `speaker`, `defaults`, `status`, `enabled`, `sortOrder` | L4 | 시드 2~3개 / Import REGISTERED | API 로 hard delete 없음(DISABLED→DELETING→ARCHIVED). UserVoiceSetting 은 disable 시 앱이 기본 voice 로 전환 | 1 |
 | `VoiceStyle` | 프로필별 스타일 | `name`, `label`, `styleWeightDefault` | L4 | 프로필과 함께(모델 `styles` 부분집합) | Profile Cascade | 1 |
@@ -2158,6 +2229,8 @@ model DebugSession {
 | `RepetitionItem` | 등록(레슨 complete·교정 accept·세트 finish) → 매 세션 `studiedCount/correct/wrong/feedbackCount` 증가 → A11(`REVIEW_DECISION` 잡) 이 `intervalDays 3~7`·`priority`·`decisionReason` 결정, 코드가 클램프(FOCUS ≤3)·`nextDueAt` 산출·`decidedBy` 기록 → LLM 실패 시 FALLBACK(기존 interval 유지, 초기 3) |
 | `VocabSessionStatus` | `IN_PROGRESS` →(finish 트랜잭션)→ `DONE` / →(24h 미완료 배치)→ `ABANDONED`(집계 없음) |
 | `MessageStatus` | `PENDING`(ASSISTANT 자리) → `DONE` / `FAILED`(12s fail-fast·기동 정리) |
+| `PronunciationLexiconVersion.status` | 항목 변경·Import 시 새 버전 `ACTIVE`(직전 → `SUPERSEDED`) / Rollback 은 과거 스냅샷을 새 버전으로 복제(`ROLLED_BACK` 표시는 되돌려진 버전) — TtsCache 는 `dictionaryVersion` 불일치로 자연 무효 |
+| `VoiceModelVersion.deployStatus`(§10 제안) | `TRAINED` → `VALIDATED`(Golden 회귀 통과) → `STAGING` → `CANARY`(세션 % 배정) → `PRODUCTION`(SUPER_ADMIN 확인) → `DEPRECATED` |
 
 ## 6. 삭제·스냅샷 정책 매트릭스
 
@@ -2183,7 +2256,8 @@ model DebugSession {
 | `ConfigurationVersion` · `AuditLog` · `StatsSnapshot` · `LearnerErrorStat` · `RepetitionItem` · `Attendance` · `PromptVersion` · `AppRelease` | **삭제 경로 없음** | — | 전부 | — |
 | `RequestTrace` 90일 purge | — | `ChatMessage.traceId` 등은 문자열이라 dangling 허용 | `EngineMetricsDaily`(purge 전 물화) | DebugSession 수집물은 `expiresAt+7일` |
 | `RuntimeOverride` | 만료/revoke 후 30일 purge | — | `AuditLog(override.create/revoke)` | — |
-| `TtsCache` | LRU·용량 상한·Voice ARCHIVED 기준 purge | — | — | wav 삭제 |
+| `TtsCache` | LRU·용량 상한·Voice ARCHIVED·`dictionaryVersion`/`modelVersion` 구버전 기준 purge | — | — | wav 삭제 |
+| `PronunciationLexiconEntry` 삭제 | (물리 삭제 없음) `enabled=false` + 새 `PronunciationLexiconVersion` | — | 모든 과거 버전 스냅샷 | — |
 | `AppAuthCode` · `AiJob`(30일) · `SpeechJob`(30일) · `VoiceImportJob`(90일) | 배치 purge | — | — | 패키지 zip 7일 |
 
 ## 7. 시드 데이터 (`prisma/seed.ts`, 첫 실행·멱등 upsert)
@@ -2376,3 +2450,80 @@ model LearnerSkillState {
 | `StatsSnapshot.data` (LESSON) | `{kind, topicId?, scenarioId?, score, stageDone, date}` |
 | `Lesson.content.dialogue[].segment` | 청취 구간 번호(2~3줄 단위), `Lesson.content.nextPreview` = `{kind:'segment'|'scenario', ref, teaser_ko}` (피드백 #11) |
 | `Lesson.progress.listen` | `{segmentsDone:[...], memoWords:[{ja, reading?}]}` |
+| 17 | 발음 사전 적용 방식: 플랫폼 치환(엔진 무관, 기본) vs SBV2 `text/user_dict`(LGPL) push — 둘 다 `dictionaryVersion` 키 | 기본 A(치환), B 는 어댑터 옵션 | task-003 SBV2 래퍼 실측 |
+| 18 | TTS Timing Metadata 산출: A) 합성 wav 를 narabas 로 강제정렬 후 pyopenjtalk 모라 매핑 / B) VITS duration predictor 추출 | A 권고(P1), B 는 research | Phase 2 |
+| 19 | `EngineMetricsDaily` 에 TTS 지표(ttfa p50/p95·rtf·cacheHitRate·byVoice) 컬럼 추가 vs 별도 `TtsMetricsDaily` | 컬럼 추가(§10 제안) | Phase 2 Observability |
+
+## 10. TTS 플랫폼 제안 엔티티 (5차 보완 §129~§163, P1 — 도입 시 §3 승격)
+
+P0(발음 사전·`SpeechProfile`·`TtsCache` 확장)는 §3 본문에 반영했다. 아래는 P1(품질·버전·배포·지표)·P2(온디바이스) 용이며 정본 `speech-platform/16-tts-productization-layer.md` 와 짝.
+
+```prisma
+enum VoiceDeployStatus { TRAINED VALIDATED STAGING CANARY PRODUCTION DEPRECATED }
+
+/// Voice = VoiceProfile + Model Version(§152). VoiceProfile.voiceModelId 는 PRODUCTION 버전을 가리키고, CANARY 는 세션 % 배정
+model VoiceModelVersion {
+  id             String            @id @default(cuid())
+  voiceModelId   String
+  version        String            @db.VarChar(20)      // 1.0 · 1.1 · 2.0
+  deployStatus   VoiceDeployStatus @default(TRAINED)
+  canaryPercent  Int               @default(0)          // 0~100, CANARY 일 때만
+  packageSha256  String            @db.VarChar(64)
+  path           String            @db.VarChar(300)     // tts-service model_assets/<model>/<version>/
+  validatedAt    DateTime?
+  promotedAt     DateTime?
+  deprecatedAt   DateTime?
+  notes          String?           @db.VarChar(500)
+  createdAt      DateTime          @default(now())
+
+  @@unique([voiceModelId, version])
+  @@index([deployStatus])
+}
+
+/// Golden Dataset(§149): 카테고리별 대표 문장 100~300
+model TtsGoldenSentence {
+  id              String   @id @default(cuid())
+  category        String   @db.VarChar(40)      // GENERAL·LONG_VOWEL·SOKUON·PITCH_ACCENT·COUNTER·DATE·NUMBER·PROPER_NOUN·LOANWORD·QUESTION·EMOTION·LONG_SENTENCE
+  text            String   @db.VarChar(300)
+  expectedReading String?  @db.VarChar(400)     // 기대 읽기(카타카나), 정규화·사전 검증용
+  tags            Json?
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+}
+
+/// 회귀 실행(§150): 대상 버전 vs 기준 버전에 같은 Golden set 합성
+model TtsQualityRun {
+  id                  String   @id @default(cuid())
+  voiceModelVersionId String
+  baselineVersionId   String?
+  status              String   @default("QUEUED") @db.VarChar(20)   // QUEUED|RUNNING|DONE|FAILED
+  metrics             Json?    // {failureRate, avgLatencyMs, ttfaP50, rtf, durationDeltaPct, autoScores?}
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  finishedAt          DateTime?
+}
+
+model TtsQualityResult {
+  id          String   @id @default(cuid())
+  runId       String
+  sentenceId  String
+  audioPath   String   @db.VarChar(300)
+  durationMs  Int?
+  latencyMs   Int?
+  failed      Boolean  @default(false)
+  scores      Json?    // {pronunciation, naturalness, pitchAccent, speed} 수동/자동
+  @@unique([runId, sentenceId])
+}
+
+/// A/B Blind Compare(§151)
+model TtsAbCompare {
+  id          String   @id @default(cuid())
+  voiceA      String   @db.VarChar(120)   // VoiceModelVersion.id 또는 VoiceProfile.id
+  voiceB      String   @db.VarChar(120)
+  sentenceId  String
+  raterUserId String?
+  scores      Json     // {naturalness, pronunciation, teacherSuitability, clarity, preference: 'A'|'B'}
+  createdAt   DateTime @default(now())
+}
+```
+`EngineMetricsDaily` 확장 컬럼(제안, 별도 `TtsMetricsDaily` 대신): `p99Ms Int?`, `ttfaP50Ms Int?`, `ttfaP95Ms Int?`, `rtfAvg Float?`, `cacheHitRate Float?`, `queueDelayMs Int?`, `modelLoadMs Int?`, `byVoice Json?`(`{voiceId:{requests, errors, p50Ms}}`, TTS connection 행만). 추가 제안: `VoiceModel.currentVersionId String?`(PRODUCTION 버전 포인터), `JobKind.TTS_QUALITY_RUN`(회귀 실행 잡), `AppSetting` 키 `tts.styleMap`·`tts.normalizer.overrides`·`tts.cache.maxBytes`(2GB)·`tts.cache.warmupSentences`. Canary 세션 배정은 `RequestTrace.steps[].meta.modelVersion` 으로 추적.

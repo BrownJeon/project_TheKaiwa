@@ -74,6 +74,7 @@ result.ok && result.status=DEGRADED                         → DEGRADED, failur
 
 ```json
 { "ok": true, "service": "gateway|worker|tts-service", "version": "git-sha", "modelLoaded": true, "vadLoaded": true,
+  "dictionaryVersion": 13, "modelVersions": ["1.0.0"], "alignerVersion": "narabas-…",   // tts-service 만(5차 보완, 16 §7)
   "models": 3, "memoryMb": 512, "uptimeSec": 86400, "activeSessions": 1, "queueDepth": 0, "configSource": "app|seed",
   "degraded": false, "message": null }
 ```
