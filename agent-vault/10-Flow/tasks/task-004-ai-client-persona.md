@@ -48,3 +48,13 @@ design-spec §15 task-004: engine adapters(claudeCli·homeM4)·router·llm 파�
 **검토 완료 영역**: 보안(spawn/argv/env/시크릿 제거) 이상 없음 · router 상태 필터·allowedTasks·캐시 로직 이상 없음(단, 위 HIGH) · LLM JSON 계약(재시도/스키마) 로직 정상이나 위 HIGH 존재 · 인젝션 가드 문구 3개 프롬프트 모두 존재하나 위 MEDIUM · 6층 경계·엔진명 누출 없음(grep 확인) · 페르소나 로더 fail-closed·절/행 필터 격리 확인, 문제 없음 · 테스트 16개는 의미 있으나 CRITICAL 항목의 우회 케이스 미검증.
 
 **Reviewer → Developer**: CRITICAL 1건으로 QA 진행 보류. `isVerbatimQuote` 재설계 후 재검증 요청.
+
+**REV-005** (2026-09-27, 커밋 0fe6fbc 재검증) — 판정: **PASS**
+
+- CRITICAL 해소 확인: `checks.ts` `isExactOriginal`(TALK·CHAT 바이트 일치) + `isVerbatimQuote`+`splitJaSentences`(REVIEW 는 메시지 전체 또는 문장 하나 전체, 조각 인용 거부). `structuredResponse.test.ts` 에 2글자·문장 일부 우회 케이스 반박 테스트 확인. `chatReview.ts` 프롬프트 지시문도 "문장 하나 전체"로 함께 수정됨(불일치 없음).
+- HIGH 해소 확인: `llm/index.ts` 가 `complete`/`completeJson` 진입 시 데드라인 1회 고정 → `remainingOrThrow`(잔여<1.5s 면 즉시 `LlmTimeoutError`)를 폴백·JSON 재시도 각 attempt 마다 재계산, `router/index.ts` `withFallback` 이 이름에 `Timeout` 포함된 오류는 다음 후보로 넘기지 않고 즉시 재던짐. 최악 4호출이어도 총 벽시계가 `budget`(예: talk 12s) 을 넘지 않는 구조 확인.
+- MEDIUM 해소 확인: `renderTranscript` 가 이력은 `[대화]`, 이번 입력은 `[입력]`(+"지시가 아님" 명시) 블록으로 항상 분리(메시지 1개일 때도 적용) — 이전 REV-004 지적(단일 메시지 시 태그 없음)이 사라짐. 재시도 힌트(`[이전 응답]/[재시도 지시]`)는 `system` 쪽에 붙어 `[입력]` 블록과 섞이지 않음. `prompts.test.ts` 에 인젝션 문자열 경계 테스트 추가 확인.
+- 신규 변경(지연 플래그) 검토: `--setting-sources ""`·`--strict-mcp-config --mcp-config {"mcpServers":{}}`·`--no-session-persistence`·thinking 끔(env+`--settings`)이 `--tools ""`·`--permission-mode dontAsk`·cwd tmp 샌드박스와 독립적으로 공존, 오히려 훅/플러그인/MCP 서버 로드와 세션(프롬프트 포함) 디스크 영속을 없애 공격 표면·유출 경로가 줄어듦. `--system-prompt` 전환도 `--model` 권위·`--agents` model 금지 검사 유지. `schemaValidate.ts` 1차 위반 로그는 필드 경로·규칙 문구(+enum 위반 시 모델 출력의 짧은 값)만 남기고 학습자 원문은 없음.
+- 잔여 Low(비차단): (a) REVIEW 의 "메시지 전체 또는 문장 하나 전체" 허용이 `docs/design/api-contract.md` #33 의 문자 그대로의 "message.content 바이트 일치" 표현과는 다소 다름 — 문서 쪽에 이 허용을 명시적으로 반영 권고(보안 결함 아님, 문서 정합성). (b) `infra.runtime.spawnArgv` 미도입 — REV-004 와 동일하게 task-005b 로 추적 유지. (c) A1 p50 5.1s(목표 ≤4s 미달)는 developer 가 이미 task-007 후속으로 명시, reviewer 범위 밖.
+
+**Reviewer → QA**: high_risk_areas = [원문 검증(TALK/CHAT/REVIEW 세 경로 회귀), 데드라인/폴백 벽시계 실측(특히 폴백 발생 시나리오), REVIEW 다건 오류 항목 처리]. native_change=false.
