@@ -8,7 +8,12 @@ tags:
 
 ## 한 줄 요약
 
-**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), **DB 스키마 생성 완료(50 테이블, seed 미실행)**, **Google OAuth 클라이언트 검증 완료**. nginx vhost 적용 완료. **task-002 Phase 0 완료(2026-09-26)** — `https://kaiwa.미라클펭귄.com` 에 로그인+5탭 앱 셸이 떠 있다(pm2 `thekaiwa`, 미러 실행). **task-004 완료(2026-09-27)** — `engine.llm` 파사드·router·페르소나 로더·프롬프트 3종, 회화 턴 p50 5.1s([[llm-japanese-quality]]: CLI 는 반드시 설정/MCP 생략·thinking 끔). 다음은 사용자 조치가 필요 없는 task-005(설정 허브·출석) → 006(채팅·점검·교정 채택) → 008(단어장·오늘의 단어) → 005b(콘솔 골격) 순으로 자율 진행. task-003(M4 tts 디렉토리 승인·실기기)은 사용자 조치 대기. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
+**⏸ 2026-09-27 일시 정지(사용자 지시: 점검·개발환경 개선 후 재개).** 설계 완료 후 Phase 1 구현 중 — task-002(스캐폴딩)·task-004(AI 클라이언트·페르소나)·task-005(설정 허브·출석) 완료, 앱이 `https://kaiwa.미라클펭귄.com` 에 떠 있다(pm2 `thekaiwa`, 우분투 미러 실행, `pm2 save` 안 함). 재개 순서: task-006(채팅·표현 점검·교정 채택) → 008(단어장·오늘의 단어) → 005b(콘솔 골격) → 003(M4 tts·온디바이스 STT, 사용자 조치 필요) → 007(음성 회화).
+
+### 재개 시 먼저 볼 것
+- 결정 기록 [[llm-japanese-quality]] — Claude CLI 는 반드시 설정/MCP 생략·thinking 끔(안 하면 회화 1턴 40~120초). 회화 턴 p50 5.1s 로 목표 4s 미달 → task-007 에서 상주 CLI 세션 실측.
+- 인증이 필요한 API 검증은 `tests/live/qa-session.ts`(QA 계정, localhost 전용) + `tests/live/task005-smoke.sh` 패턴.
+- 커밋은 `git -c user.name=brownjeon -c user.email=ifries8611@gmail.com commit` (저장소·전역 git 신원 미설정).
 
 ### 사용자만 할 수 있는 것 (Phase 0 착수 전)
 - ✅ **Gitea 저장소 `project_TheKaiwa`** 생성·연결·push 완료(2026-09-26, `origin/main` 추적)

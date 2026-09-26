@@ -1,7 +1,7 @@
 ---
 task_id: task-005
 title: "설정 허브(기본정보·학습·AI 선생님 목소리·음성 인식) + 출석 체크인"
-status: review
+status: done
 roles_involved: [leader, developer, reviewer, qa]
 related_tasks: [task-002-phase0-scaffolding, task-004-ai-client-persona, task-003-speech-p0]
 tags:
@@ -60,3 +60,13 @@ QA 전달 high_risk_areas: qa-session.ts 도메인 스코프, OFFLINE 헤더 위
 - Low `registry.ts pickDefaults` 5키만 통과 확인.
 
 tsc/lint/test 수치는 이번에도 재실행하지 않음(node_modules 미설치) — 우분투 실측 보고 신뢰. QA 진행 가능.
+
+## QA 기록 (2026-09-27)
+- **PASS(결함 0)** — tsc 0 · lint 에러 0 · 단위 테스트 24/24 · build 0 · QA 계정 스모크 16항목 계약대로(응답에 엔진·모델·speaker 문자열 0) · 운영 도메인에서 QA 쿠키 무효(API 401·페이지 307→/login) · 비로그인 401 봉투·health 200 · 같은 날 체크인 2회 → DB 1행.
+- 설정 화면 360/390/412 육안: **NOT_VERIFIED — 사용자 폰 확인 필요**(로그인 필요).
+
+## 최종 요약 (Leader, 사용자용)
+설정 화면과 출석 체크를 붙였습니다. 상단 아바타 → 설정에서 ① 이번 달 출석·연속 출석 ② 내 이름·선생님 이름·수준·목표·문체·교정 강도·설명 자세히·하루 단어 수·공부 시간 ③ AI 선생님 목소리(3명)·말투·들려주는 방식(자연 속도·학습 속도·천천히)·속도·높낮이·억양 ④ 음성 인식 방식(자동·빠르게·정확하게·오프라인)을 바꿀 수 있습니다. 앱을 열면 하루 한 번 자동으로 출석이 찍힙니다.
+- 화면과 응답에 엔진·모델 이름은 나오지 않고, 잘못된 값은 서버가 거절합니다.
+- **미리듣기 소리는 아직 나오지 않습니다** — 맥 M4 목소리 서버(task-003)가 생기면 동작하며, 그 전에는 "목소리 서버 준비 중" 안내가 뜹니다.
+- 검증용으로 QA 테스트 계정(`qa-bot@thekaiwa.test`, 비밀번호 없음)을 만들었습니다. 이 계정의 세션은 서버 내부(localhost)에서만 통하고 운영 도메인에서는 막힙니다.
