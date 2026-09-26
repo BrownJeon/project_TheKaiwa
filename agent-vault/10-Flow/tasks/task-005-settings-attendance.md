@@ -45,3 +45,18 @@ design-spec §15 task-005: `/settings` 에 기본정보·목표·학습 / AI 선
 8. **[LOW, 추측]** `src/modules/speech/voices/registry.ts:28` — `VoiceProfile.defaults` JSON 통째 캐스팅 응답 포함, 화이트리스트 없음(현재 seed는 안전).
 
 QA 전달 high_risk_areas: qa-session.ts 도메인 스코프, OFFLINE 헤더 위조, goalTopics null 저장. native_change: false.
+
+## Reviewer 재검증 (2026-09-27, 커밋 564a03c)
+
+**REV-006 재검증 · 판정: PASS** (Critical 0 · High 0 · Medium 0 · Low 0, 잔여 노트만). 8건 전부 코드 확인.
+
+- High(QA 토큰): `jwt.ts isQaTokenAllowed`(Host=localhost·`X-Real-IP` 없음)+`auth.ts`/`proxy.ts` 적용·1시간·PRODUCTION 가드 확인. Host 기반 판단만으로는 이론상 이 저장소 밖 nginx 전역 설정(이 vhost 가 443 의 `default_server` 인지)에 의존해 불완전하지만, `ecosystem.config.js`(`-H 127.0.0.1`로 3010 loopback 전용 확인)와 `docs/nginx/kaiwa....conf`의 `location /`·`/ws/speech`가 `proxy_set_header X-Real-IP $remote_addr`를 **무조건 덮어쓰는** 점을 함께 보면, 외부 요청은 Host 위조 여부와 무관하게 X-Real-IP 조건에서 항상 막힌다 — 이중 방어라 실효성 있음. smoke #16(X-Real-IP 주입 시 401)도 이 경로를 검증. 잔여 노트(비차단): 코드 주석이 Host 근거만 언급하고 더 확실한 근거(X-Real-IP 강제 주입+loopback 바인딩)는 적지 않음 — 다음에 손댈 때 주석 보강 권장. 커밋 메시지의 "사용 후 쿠키 삭제"는 실제 삭제 코드가 없음(cosmetic, 비차단).
+- M1 `Prisma.DbNull` 정확히 적용(`preferences/index.ts:27-29`) — undefined/null 분기 올바름.
+- M2 `modeResolver.ts` OFFLINE+web→GATEWAY로 정정, 위험 수용 코멘트 명시.
+- M3 `http.ts` 정확한 이름 Set 4개로 교체 — 저장소 내 실제로 던지는 모든 에러 이름(`grep` 확인: JsonSchemaError·Llm*·ClaudeCli*·NoEngineAvailableError) 전부 커버.
+- M4 `settings/voice/route.ts` 재배정+`notice` 구현, DB persist 확인(재조회 시 notice 재발생 안 함), 동시요청도 update 멱등이라 안전.
+- M5 `http.ts` 버킷 500개 초과 시 만료분 스윕 — 무한누적 해소.
+- M6 `validate.ts`에서 두 필드 필수 강제 + `SpeechSettings.tsx`가 항상 explainLang 동반 전송 확인.
+- Low `registry.ts pickDefaults` 5키만 통과 확인.
+
+tsc/lint/test 수치는 이번에도 재실행하지 않음(node_modules 미설치) — 우분투 실측 보고 신뢰. QA 진행 가능.

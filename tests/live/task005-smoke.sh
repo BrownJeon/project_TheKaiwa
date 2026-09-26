@@ -21,3 +21,6 @@ echo "13 AUTO 복구";           j -X PUT $B/api/v1/settings/speech -d '{"recogn
 echo "14 check-in x2";         j -X POST $B/api/v1/attendance/check-in; j -X POST $B/api/v1/attendance/check-in
 echo "15 attendance";          j "$B/api/v1/attendance"; j "$B/api/v1/attendance?month=2026-13"
 echo "16 QA 토큰 + 프록시 헤더(401 이어야 함)"; curl -s -m 10 -H "$C" -H "X-Real-IP: 1.2.3.4" $B/api/v1/settings/profile; echo
+# QA 세션 쿠키는 1시간짜리지만 남겨 두지 않는다.
+rm -f "${1:-/tmp/kaiwa-qa-cookie}"
+echo "(QA 쿠키 삭제)"

@@ -57,6 +57,8 @@ export type TokenPayload = { userId: string; email: string; qa?: true }
  * QA 토큰 허용 조건: Host 가 127.0.0.1/localhost 이고 nginx 의 `X-Real-IP` 가 없다.
  *  - nginx 의 kaiwa vhost 는 모든 location 에서 `Host $host`(= kaiwa 도메인)를 붙이고, 외부에서 Host 를 127.0.0.1 로 보내면
  *    kaiwa vhost 가 아니라 기본 서버로 가서 3010 에 닿지 않는다 → 외부 요청은 Host 조건을 만족할 수 없다.
+ *  - 더 확실한 근거는 두 번째 조건이다: kaiwa vhost 의 `location /`·`/ws/speech` 는 `X-Real-IP $remote_addr` 를 **무조건 덮어써** 보내고,
+ *    앱은 `127.0.0.1:3010` 에만 바인딩돼(ecosystem.config.js) nginx 를 거치지 않는 외부 경로가 없다 → 이중 방어(reviewer REV-006 재검증 메모).
  *  - `X-Forwarded-For` 는 보지 않는다 — Next.js 서버가 직접 요청에도 스스로 붙인다(2026-09-27 실측).
  */
 export function isQaTokenAllowed(headers: Headers): boolean {
