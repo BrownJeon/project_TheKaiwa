@@ -1,7 +1,9 @@
 /**
- * L4 Speech Platform — utterances·stt/{RealtimeSttClient, OnDeviceSherpaClient, WebSocketSttClient, modeResolver}·tts/{normalizer, lexicon, renderingPlan, profiles, chunkScheduler, cache, status, parameterResolver, TtsPlaybackQueue}·voices·pronunciation·analysis. conversation 을 import 하지 않는다. Phase 1 = task-003·007.
- *
- * 이 파일이 모듈의 **유일한 공개 API** 다 — 다른 층·모듈은 `@/modules/speech` 만 import 한다(eslint no-restricted-imports).
- * 정본: docs/design/module-dependency.md
+ * L4 Speech Platform — 공개 API(module-dependency L4). task-005 범위: Voice 목록·검증, 인식 모드 해석, 미리듣기 진입점.
+ * conversation·learning 을 import 하지 않는다(라우트가 조합). 실제 합성(TTS 플랫폼 층)은 task-003.
  */
-export {}
+export { listSelectableVoices, assertSelectableVoice } from './voices/registry'
+export type { SelectableVoice } from './voices/registry'
+export { resolveRecognitionMode, platformFrom } from './stt/modeResolver'
+export type { RecognitionMode, ResolvedRecognition } from './stt/modeResolver'
+export { previewVoice } from './voices/preview'

@@ -1,3 +1,4 @@
+import AttendancePing from '@/components/shell/AttendancePing'
 import NativeFlag from '@/components/shell/NativeFlag'
 import TabBar from '@/components/shell/TabBar'
 
@@ -35,6 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       }}
     >
       <NativeFlag />
+      <AttendancePing />
       <main className="min-h-0 min-w-0 overflow-y-auto bg-ground">{children}</main>
       <TabBar />
     </div>

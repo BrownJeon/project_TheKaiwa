@@ -1,7 +1,60 @@
 /**
- * L1 User Preference — Profile(학습 설정)·UserVoiceSetting·UserSpeechSetting·AppSetting. 공개 API: getProfile/updateProfile/getVoiceSetting/updateVoiceSetting/getSpeechSetting/updateSpeechSetting/getAppSetting/setAppSetting (task-005).
- *
- * 이 파일이 모듈의 **유일한 공개 API** 다 — 다른 층·모듈은 `@/modules/preferences` 만 import 한다(eslint no-restricted-imports).
- * 정본: docs/design/module-dependency.md
+ * L1 User Preference — Profile(학습 설정)·UserVoiceSetting·UserSpeechSetting·AppSetting. 공개 API(module-dependency L1).
+ * 행은 **지연 생성**한다(첫 조회 때 기본값으로 upsert — speech-platform/13). 엔진·Voice 모델은 모른다:
+ * Voice 가용성 검사는 speech 층이, 조합은 라우트가 한다.
  */
-export {}
+import { prisma } from '@/modules/infra'
+import type { Environment } from '@prisma/client'
+import type { ProfilePatch, VoiceDraft } from './validate'
+
+export * from './validate'
+
+const PROFILE_SELECT = {
+  displayName: true, teacherName: true, level: true, politeness: true, goalLevel: true, goalTopics: true, goalDeadline: true,
+  dailyWordCount: true, dailyMinutes: true, strictness: true, explainLang: true, explainDepth: true, updatedAt: true,
+} as const
+
+function serializeProfile<T extends { goalDeadline: Date | null }>(p: T): Omit<T, 'goalDeadline'> & { goalDeadline: string | null } {
+  return { ...p, goalDeadline: p.goalDeadline ? p.goalDeadline.toISOString().slice(0, 10) : null }
+}
+
+export async function getProfile(userId: string) {
+  const p = await prisma.profile.upsert({ where: { userId }, update: {}, create: { userId }, select: PROFILE_SELECT })
+  return serializeProfile(p)
+}
+
+export async function updateProfile(userId: string, patch: ProfilePatch) {
+  const data = { ...patch, goalTopics: patch.goalTopics === null ? undefined : patch.goalTopics }
+  const p = await prisma.profile.upsert({ where: { userId }, update: data, create: { userId, ...data }, select: PROFILE_SELECT })
+  return serializeProfile(p)
+}
+
+const VOICE_SELECT = { voiceProfileId: true, style: true, styleWeight: true, speed: true, pitch: true, intonation: true, speechProfile: true, updatedAt: true } as const
+
+export async function getVoiceSetting(userId: string, defaultVoiceProfileId: string | null) {
+  return prisma.userVoiceSetting.upsert({
+    where: { userId },
+    update: {},
+    create: { userId, voiceProfileId: defaultVoiceProfileId },
+    select: VOICE_SELECT,
+  })
+}
+
+export async function updateVoiceSetting(userId: string, draft: VoiceDraft) {
+  return prisma.userVoiceSetting.upsert({ where: { userId }, update: draft, create: { userId, ...draft }, select: VOICE_SELECT })
+}
+
+export async function getSpeechSetting(userId: string) {
+  return prisma.userSpeechSetting.upsert({ where: { userId }, update: {}, create: { userId }, select: { recognitionMode: true, updatedAt: true } })
+}
+
+export async function updateSpeechSetting(userId: string, patch: { recognitionMode?: 'AUTO' | 'FAST' | 'ACCURATE' | 'OFFLINE' }) {
+  return prisma.userSpeechSetting.upsert({ where: { userId }, update: patch, create: { userId, ...patch }, select: { recognitionMode: true, updatedAt: true } })
+}
+
+/** AppSetting(현재 APP_ENV 행) 조회 — 없으면 fallback. */
+export async function getAppSetting<T>(key: string, fallback: T): Promise<T> {
+  const env = (process.env.APP_ENV ?? 'LOCAL').toUpperCase() as Environment
+  const row = await prisma.appSetting.findUnique({ where: { environment_key: { environment: env, key } } })
+  return row ? (row.value as T) : fallback
+}
