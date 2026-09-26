@@ -93,7 +93,9 @@ export function renderTranscript(system: string, messages: LlmTurnMessage[]): st
 async function callOnce(c: ResolvedConnection, req: LlmRequest, system: string, tier: LlmTier, timeoutMs: number, priority: 'interactive' | 'batch'): Promise<{ text: string; model: string; promptChars: number }> {
   const model = modelFor(c, tier)
   if (c.engineId === 'claude-cli') {
-    const useFlag = Boolean(req.jsonSchema) && c.runtime.jsonSchemaFlag !== false
+    // ENVIRONMENT 층 덮어쓰기(configuration-resolution §2, `KAIWA_<ROLE>_<KEY>` 관례): 실측 비교용으로 `KAIWA_LLM_JSON_SCHEMA_FLAG=0`.
+    const flagOff = c.runtime.jsonSchemaFlag === false || process.env.KAIWA_LLM_JSON_SCHEMA_FLAG === '0'
+    const useFlag = Boolean(req.jsonSchema) && !flagOff
     const prompt = renderTranscript(req.jsonSchema ? withJsonOnly(system, useFlag ? undefined : req.jsonSchema) : system, req.messages)
     const text = await callClaude(prompt, {
       model,

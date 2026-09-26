@@ -1,0 +1,158 @@
+{
+ "version": "talk-corrections@v1",
+ "note": "합성 문장만(사용자 실데이터 아님, 검증 세트 §3). 오류 16·정답 4. V1 원문 무수정·V6 검출 측정용",
+ "items": [
+  {
+   "id": "e01",
+   "level": "N5",
+   "input": "昨日映画を見に行くました",
+   "hasError": true,
+   "expectedCorrected": "昨日映画を見に行きました",
+   "errorType": "CONJUGATION"
+  },
+  {
+   "id": "e02",
+   "level": "N5",
+   "input": "私は学生だです",
+   "hasError": true,
+   "expectedCorrected": "私は学生です",
+   "errorType": "GRAMMAR"
+  },
+  {
+   "id": "e03",
+   "level": "N5",
+   "input": "昨日友だちを会いました",
+   "hasError": true,
+   "expectedCorrected": "昨日友だちに会いました",
+   "errorType": "PARTICLE"
+  },
+  {
+   "id": "e04",
+   "level": "N5",
+   "input": "今、日本語が勉強しています",
+   "hasError": true,
+   "expectedCorrected": "今、日本語を勉強しています",
+   "errorType": "PARTICLE"
+  },
+  {
+   "id": "e05",
+   "level": "N5",
+   "input": "明日学校に行きました",
+   "hasError": true,
+   "expectedCorrected": "明日学校に行きます",
+   "errorType": "GRAMMAR"
+  },
+  {
+   "id": "e06",
+   "level": "N5",
+   "input": "このケーキはおいしいでした",
+   "hasError": true,
+   "expectedCorrected": "このケーキはおいしかったです",
+   "errorType": "CONJUGATION"
+  },
+  {
+   "id": "e07",
+   "level": "N5",
+   "input": "先生、これを食べるか？",
+   "hasError": true,
+   "expectedCorrected": "先生、これを食べますか？",
+   "errorType": "POLITENESS"
+  },
+  {
+   "id": "e08",
+   "level": "N5",
+   "input": "私の趣味は本を読みます",
+   "hasError": true,
+   "expectedCorrected": "私の趣味は本を読むことです",
+   "errorType": "GRAMMAR"
+  },
+  {
+   "id": "e09",
+   "level": "N5",
+   "input": "毎朝バスで乗ります",
+   "hasError": true,
+   "expectedCorrected": "毎朝バスに乗ります",
+   "errorType": "PARTICLE"
+  },
+  {
+   "id": "e10",
+   "level": "N5",
+   "input": "この花はとてもきれいだです",
+   "hasError": true,
+   "expectedCorrected": "この花はとてもきれいです",
+   "errorType": "GRAMMAR"
+  },
+  {
+   "id": "e11",
+   "level": "N5",
+   "input": "昨日はとても寒いでした",
+   "hasError": true,
+   "expectedCorrected": "昨日はとても寒かったです",
+   "errorType": "CONJUGATION"
+  },
+  {
+   "id": "e12",
+   "level": "N5",
+   "input": "図書館で本が借りました",
+   "hasError": true,
+   "expectedCorrected": "図書館で本を借りました",
+   "errorType": "PARTICLE"
+  },
+  {
+   "id": "e13",
+   "level": "N5",
+   "input": "私は名前は田中です",
+   "hasError": true,
+   "expectedCorrected": "私の名前は田中です",
+   "errorType": "PARTICLE"
+  },
+  {
+   "id": "e14",
+   "level": "N5",
+   "input": "週末に静かの公園に行きました",
+   "hasError": true,
+   "expectedCorrected": "週末に静かな公園に行きました",
+   "errorType": "GRAMMAR"
+  },
+  {
+   "id": "e15",
+   "level": "N5",
+   "input": "先生、もう一回言ってくれ",
+   "hasError": true,
+   "expectedCorrected": "先生、もう一回言ってください",
+   "errorType": "POLITENESS"
+  },
+  {
+   "id": "e16",
+   "level": "N5",
+   "input": "三時に家を帰りました",
+   "hasError": true,
+   "expectedCorrected": "三時に家に帰りました",
+   "errorType": "PARTICLE"
+  },
+  {
+   "id": "c01",
+   "level": "N5",
+   "input": "すみません、駅はどこですか。",
+   "hasError": false
+  },
+  {
+   "id": "c02",
+   "level": "N5",
+   "input": "昨日、友だちと映画を見に行きました。",
+   "hasError": false
+  },
+  {
+   "id": "c03",
+   "level": "N5",
+   "input": "このケーキはとてもおいしかったです。",
+   "hasError": false
+  },
+  {
+   "id": "c04",
+   "level": "N5",
+   "input": "週末は家でゆっくりしたいです。",
+   "hasError": false
+  }
+ ]
+}

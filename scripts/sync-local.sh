@@ -30,6 +30,13 @@ if [ -d "$PROJECT_ROOT/prisma" ]; then
   rsync -a --delete "$PROJECT_ROOT/prisma/" "$LOCAL_ROOT/prisma/"
 fi
 
+# 강사 페르소나(런타임이 `<cwd>/.claude/agents/tutor.md` 를 읽는다)와 테스트 픽스처·실측 스크립트.
+mkdir -p "$LOCAL_ROOT/.claude/agents"
+cp "$PROJECT_ROOT/.claude/agents/tutor.md" "$LOCAL_ROOT/.claude/agents/tutor.md"
+if [ -d "$PROJECT_ROOT/tests" ]; then
+  rsync -a --delete "$PROJECT_ROOT/tests/" "$LOCAL_ROOT/tests/"
+fi
+
 # 안드로이드 프로젝트(Phase 7). NFS 가 소스이고 **빌드는 미러에서만** 돈다(noexec).
 #   · `build/`·`.gradle/` 은 산출물이라 보내지 않는다 — 보내면 매 동기화마다 수백 MB 가 오간다.
 #   · `local.properties` 는 **기계마다 다른 값**(`sdk.dir`)이라 덮어쓰면 안 된다.
