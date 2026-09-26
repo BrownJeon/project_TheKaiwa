@@ -1,0 +1,35 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/agent-vault/context-inject.sh\"" } ] }
+    ],
+    "SubagentStart": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/agent-vault/context-inject.sh\"" } ] }
+    ],
+    "SubagentStop": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/agent-vault/log-gate.sh\"" } ] }
+    ],
+    "TaskCompleted": [
+      { "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/agent-vault/log-gate.sh\"" } ] }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(mkdir *)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(pm2 logs *)",
+      "Bash(pm2 list)"
+    ],
+    "deny": []
+  }
+}

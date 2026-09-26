@@ -1,0 +1,34 @@
+# deps / build
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+# env / secrets
+.env
+.env.*
+!.env.example
+shared/secrets/
+# data
+files/
+*.wav
+*.apk
+# speech services
+speech/**/venv/
+speech/**/__pycache__/
+speech/models/**
+!speech/models/README.md
+speech/tts-service/model_assets/
+# android
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+*.keystore
+*.jks
+# plugin build
+plugins/**/build/
+plugins/**/node_modules/
+# misc
+.DS_Store
+*.log

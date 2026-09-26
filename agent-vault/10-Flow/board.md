@@ -1,0 +1,32 @@
+---
+tags:
+  - type/board
+---
+# 칸반 보드
+
+> 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
+
+## Done
+- [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
+
+## Doing
+- (없음)
+
+## Backlog (Phase 1, 순서·의존은 design-spec §15)
+- [[task-002-phase0-scaffolding]] — Phase 0: Next.js 스캐폴딩·6층 골격·Prisma(정본)·seed·OAuth·health·앱 셸·pm2·deploy.yml (선결: 사용자 ⬜ 1~3)
+- task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + M4 tts-service + Capacitor 셸 + **§9 실측 게이트 6항목** (002 후, 003·004·005 병렬)
+- task-004 — AI 클라이언트 계층(engine adapters·router) + 강사 페르소나 v1 + prompts{talk,chat,chatReview} + 회귀 픽스처 + haiku 왕복·qwen 비교 실측
+- task-005 — 설정 허브(`/settings`: AI 선생님·통합 미리듣기·음성 인식 모드·학습) + 출석 체크인
+- task-005b — Admin Console 골격(capability 가드·Dashboard·Effective Config 읽기·Plugins·Connections·Health/Test·Trace·History 읽기)
+- task-006 — AI 채팅 + 표현 점검 + 교정 채택(SSE 턴·TurnContext·PROPOSED 규칙)
+- task-007 — AI 회화(음성) 실시간 교정(RealtimeSttClient 라우팅·TtsPlayer·5초 계측)
+- task-008 — 단어장 최소판 + 오늘의 단어(스와이프 덱·CHOICE·finish 트랜잭션·스냅샷)
+- task-009 — Phase 1 통합 QA·실기기·라이브 배포·APK 배포본
+
+## Phase 2 이후
+- 010 주제·조각·오늘의 회화·3일 반복 · 011 AI평가 · 012 달력 · 012b 음성 P2(worker·SpeechJob·Comparator) · 012c Console P2(편집·Diff·Version·Rollback·Prompt Registry·Playground) · 013 분석·성장기록 · 014 서랍장 전체 · 015 무엇이든 물어보세요(3a→3b MCP) · 015b 음성 P3(PronunciationAnalyzer) · 016 음성 P4(Voice Package Import·스타일·Preset·Override)
+
+## 미결정
+- Style-Bert-VITS2 기본 모델 화자 id 매핑(Haruka/Sakura/Takumi 표시명 ↔ speaker) — task-003 실측 후
+- `EngineMetricsDaily` 물화 vs 뷰 — Phase 3 진입 시
+- Redis 도입 여부 — SpeechJob 처리량이 문제될 때만
