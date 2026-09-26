@@ -9,7 +9,7 @@ tags:
 | # | 항목 | 필요 이유 | 담당 | 상태 |
 |---|------|----------|------|------|
 | 1 | Gitea 저장소 `project_TheKaiwa` 생성 | push=배포 경로, webhook | 사용자 | ✅ 2026-09-26 (webhook 등록은 task-002/009) |
-| 2 | NAS MariaDB `thekaiwa` DB·계정 — 관리자로 실행: `CREATE DATABASE thekaiwa CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER 'thekaiwa'@'%' IDENTIFIED BY '<비밀번호>'; GRANT ALL PRIVILEGES ON thekaiwa.* TO 'thekaiwa'@'%'; FLUSH PRIVILEGES;` 후 `TheKaiwa/.env` 에 `DATABASE_URL=mysql://thekaiwa:<비밀번호>@192.168.219.154:3306/thekaiwa` | `prisma db push` | 사용자 → Leader 검증 | 🔄 SQL 제시(2026-09-26) |
+| 2 | NAS MariaDB `thekaiwa` DB·계정 — 관리자로 실행: `CREATE DATABASE thekaiwa CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER 'thekaiwa'@'%' IDENTIFIED BY '<비밀번호>'; GRANT ALL PRIVILEGES ON thekaiwa.* TO 'thekaiwa'@'%'; FLUSH PRIVILEGES;` 후 `TheKaiwa/.env` 에 `DATABASE_URL=mysql://thekaiwa:<비밀번호>@192.168.219.154:3306/thekaiwa` | `prisma db push` | 사용자 → Leader 검증 | ✅ 완료(2026-09-26): SQL 실행(사용자) → `.env` 생성·비밀번호 입력 → 우분투 미러 prisma 6.19.3 validate·db push·generate, **50 테이블·utf8mb4_unicode_ci 확인**. `package-lock.json` 을 NFS 로 복사해 커밋. seed 는 task-002 |
 | 3 | Google OAuth 클라이언트(퓨니코드 콜백) | 로그인 | 사용자 | ⬜ |
 | 4 | nginx vhost `kaiwa.*` + `/ws/speech` Upgrade + `/app/download/` | 웹·gateway 폴백·APK 배포본 | 사용자(sudo) | ⬜ |
 | 5 | 맥 M4 `~/kaiwa-tts-run` 준비(venv·SBV2·모델) | tts-service | 사용자 | ⬜ |

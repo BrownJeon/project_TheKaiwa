@@ -18,7 +18,10 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCAL_ROOT="$HOME/.node-local/thekaiwa"
 
 mkdir -p "$LOCAL_ROOT"
-rsync -a --delete "$PROJECT_ROOT/src/" "$LOCAL_ROOT/src/"
+# src/ 는 Phase 0 스캐폴딩 전(DB 준비 단계)에는 없을 수 있다.
+if [ -d "$PROJECT_ROOT/src" ]; then
+  rsync -a --delete "$PROJECT_ROOT/src/" "$LOCAL_ROOT/src/"
+fi
 if [ -d "$PROJECT_ROOT/public" ]; then
   rsync -a --delete "$PROJECT_ROOT/public/" "$LOCAL_ROOT/public/"
 fi

@@ -8,12 +8,12 @@ tags:
 
 ## 한 줄 요약
 
-**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), DB 는 사용자 권한 SQL 실행 대기. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
+**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), **DB 스키마 생성 완료(50 테이블, seed 미실행)**, Google OAuth 클라이언트 값 입력 대기. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
 
 ### 사용자만 할 수 있는 것 (Phase 0 착수 전)
 - ✅ **Gitea 저장소 `project_TheKaiwa`** 생성·연결·push 완료(2026-09-26, `origin/main` 추적)
-- ⬜ **NAS MariaDB** `thekaiwa` DB·계정 생성(권한 SQL 은 [[OPS-QUEUE]] #2) → `TheKaiwa/.env` 에 `DATABASE_URL` → Leader 가 우분투 미러에서 `prisma db push`(50 테이블, `prisma/schema.prisma` 준비됨 — 5차 보완으로 발음 사전 2 테이블 추가)
-- ⬜ **Google OAuth 클라이언트** 발급 — redirect URI `https://kaiwa.xn--lh0b87pnudm10a4vd.com/api/auth/google/callback`(퓨니코드)
+- ✅ **NAS MariaDB** `thekaiwa` DB·계정 생성(사용자, 2026-09-26) → `TheKaiwa/.env` 생성·비밀번호 입력 → 우분투 미러 `~/.node-local/thekaiwa` 에서 prisma 6.19.3 `validate`·`db push`·`generate` 완료 — **50 테이블, utf8mb4_unicode_ci, `Correction.original` TEXT** (seed 는 task-002)
+- ⬜ **Google OAuth 클라이언트** 발급 — redirect URI `https://kaiwa.xn--lh0b87pnudm10a4vd.com/api/auth/google/callback`(퓨니코드). `.env` 의 `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET` 두 줄이 비어 있음(2026-09-26 확인) → 값 입력 후 Leader 가 Google 인증·토큰 엔드포인트로 검증(로그인 없이 `invalid_grant` 응답으로 확인)
 - ⬜ **nginx vhost** `kaiwa.xn--lh0b87pnudm10a4vd.com` → `127.0.0.1:3010` + `/ws/speech` → `127.0.0.1:8100`(Upgrade) 적용(sudo). DNS·TLS 는 와일드카드라 손댈 필요 없음
 - ⬜ **맥 M4** 에 `~/kaiwa-tts-run` 디렉토리·venv·Style-Bert-VITS2 설치 위치 승인(tts-service)
 - ⏸ `cc-sync-codex/sync-projects.ps1` 실행 — **1차 구현 후로 보류**(사용자 결정 2026-09-26)
