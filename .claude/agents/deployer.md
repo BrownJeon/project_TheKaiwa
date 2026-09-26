@@ -116,7 +116,7 @@ scripts/deploy.sh TheKaiwa --rollback    # 직전 릴리스로 복귀 (사용자
 **절차**
 1. QA PASS 의 `reinstall_required=true` 확인, `android/app/build.gradle` 의 `versionCode` 가 직전 배포본보다 증가했는지 확인(안 됐으면 developer 반송).
 2. 우분투에서 `bash scripts/build-apk.sh`(JDK 21, `ANDROID_HOME=~/.node-local/android-sdk`, 출력은 로그 파일로 — **파이프로 자르지 않는다**). 산출물 `~/.node-local/thekaiwa/android/app/build/outputs/apk/debug/app-debug.apk`.
-3. `sha256sum` 을 구하고 배포본을 `DATA_ROOT/releases/thekaiwa-<versionName>.apk` 로 복사(사용자 승인 후). nginx `/app/download/latest.apk` 가 그 파일을 가리키는지 확인.
+3. `sha256sum` 을 구하고 배포본을 `DATA_ROOT/releases/thekaiwa-<versionName>.apk` 로 복사(사용자 승인 후). 앱 라우트 `GET /app/download/latest.apk`(DATA_ROOT/releases 스트리밍, nginx 는 프록시 — www-data 는 NFS 경로를 못 읽음)가 그 파일을 가리키는지 확인.
 4. `AppRelease` 행 추가 요청(developer/leader 가 seed 스크립트 또는 admin API 로) → `GET /api/app/version` 이 새 `latestCode` 를 반환하는지 `curl` 확인.
 5. task `## 배포 기록` 에 `apk_version`·`apk_sha256`·`reinstall_required=true` 기록, Leader 와 사용자에게 **"앱을 업데이트해 주세요: <URL>, v<versionName>, 변경 요약"** 을 보고한다.
 6. 디버그 키스토어(`~/.android/debug.keystore`)가 없으면 덮어쓰기 설치가 막힌다 — 존재 확인, 없으면 즉시 에스컬레이션.
