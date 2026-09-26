@@ -1,7 +1,7 @@
 ---
 task_id: task-002
 title: "Phase 0 — Next.js 스캐폴딩·6층 골격·Prisma 정본·seed·OAuth·health·앱 셸·pm2·deploy 경로"
-status: todo
+status: done
 roles_involved: [leader, designer, developer, reviewer, qa]
 related_tasks: [task-001-initial-planning]
 tags:
@@ -49,9 +49,20 @@ updated: 2026-09-26
 - [x] 4. prisma/seed.ts + seed-data 4종(OWNER SUPER_ADMIN·주제 5·N5 50·Engine 5·connection 6×2환경·Fallback·Voice 3·AppSetting·PromptTemplate 키)
 - [x] 5. 우분투 미러 npm install → prisma generate → typecheck/lint → next build → db seed
 - [x] 6. pm2 thekaiwa 기동(미러) → https://kaiwa.… health 200·로그인·5탭 확인(사용자 육안: 폰)
-- [ ] 7. reviewer·qa 순환 (reviewer 1차 PASS_WITH_NOTES 8건 → 전부 수정·재검증 PASS_WITH_NOTES 1건(app 클라이언트 컴포넌트의 infra index) → `*.client.tsx` 관례+ESLint 금지로 해소. QA 실행 중. 이전 기록: — 5·6 결과: typecheck 0·lint 0 error·build OK·seed 2회 멱등(주제5·조각60·엔진5·conn12·정책8·voice3·style6·setting12·prompt11)·pm2 thekaiwa online 127.0.0.1:3010·https health ok·Permissions-Policy microphone=(self)·보호 경로 307→/login·/api/auth/me 401·google 307. **폰 로그인·5탭은 사용자 육안**, OWNER 첫 로그인 후 db:seed 재실행 필요)(Permissions-Policy·3폭·IDOR) → 최종 요약·커밋
+- [x] 7. reviewer·qa 순환 (reviewer 1차 PASS_WITH_NOTES 8건 → 전부 수정·재검증 PASS_WITH_NOTES 1건(app 클라이언트 컴포넌트의 infra index) → `*.client.tsx` 관례+ESLint 금지로 해소. QA 실행 중. 이전 기록: — 5·6 결과: typecheck 0·lint 0 error·build OK·seed 2회 멱등(주제5·조각60·엔진5·conn12·정책8·voice3·style6·setting12·prompt11)·pm2 thekaiwa online 127.0.0.1:3010·https health ok·Permissions-Policy microphone=(self)·보호 경로 307→/login·/api/auth/me 401·google 307. **폰 로그인·5탭은 사용자 육안**, OWNER 첫 로그인 후 db:seed 재실행 필요)(Permissions-Policy·3폭·IDOR) → 최종 요약·커밋
 
 ## Reviewer 기록 (2026-09-26)
 - 1차(커밋 e22fd7e): PASS_WITH_NOTES — High 2(ESLint 글롭 깊이로 경계 우회 가능 / `/api/health` 키에 엔진명), Medium 3(OAuth 쿠키 `tm_*` 잔존 / seed 환경별 값 정본 차이 / infra 하위 import 무제한), Low 3(주석 `/home`·정본 credentialRef·가타카나 읽기).
 - 수정(커밋 659342c): ESLint `boundary()` 정규식 생성기(모든 깊이 금지·index 우회 금지·컴포넌트의 infra index 금지, 음성 테스트 9건) · health 는 `admin.getHealthSummary()` 로 역할 키(`llm·stt_gateway·stt_analysis·tts`)·boolean·1.5s 프로브·60s 캐시 · 쿠키 `thekaiwa_oauth_{state,pending}` · 문서 동기화(api-contract #1, design-spec §13, domain-model §7: LOCAL 도 우분투 미러).
 - 재검증: PASS_WITH_NOTES 1건 — `src/app` 의 `'use client'` 파일이 `@/modules/infra`(Prisma) 를 import 할 수 있음 → 앱 내 클라이언트 컴포넌트를 `*.client.tsx` 로 개명(4개)하고 그 패턴에 infra index 금지 추가, 음성 테스트 1건 확인. `server-only` 는 tsx 단위 테스트에서 예외를 던져 채택하지 않음.
+
+## QA 기록 (2026-09-26)
+- **PASS(결함 0)** — 11항목: health(역할 키·boolean·엔진명/URL 미노출) · 보안 헤더(`microphone=(self)`·`X-Frame-Options: DENY`) · 보호 경로 6개 307→`/login?callbackUrl=` · 위조 세션 쿠키 차단 · `/api/auth/me` 401·logout POST 200/GET 405 · Google 시작 307(redirect_uri 퓨니코드·`thekaiwa_oauth_state` HttpOnly Secure) · app-exchange 잘못된 코드 307 · callback state 없음 → `oauth_error=invalid_state` · `127.0.0.1:3010` 만 리슨·pm2 online · 소스 grep(엔진명 0, TheMeal 흔적은 이식 이력 주석뿐) · 시드 행 수 9종 기대값 일치.
+- 화면: 로그인 360/390/412 가로 넘침 0·버튼 52px(Leader 실브라우저). **로그인 후 5탭은 `NOT_VERIFIED` — 사용자 폰 확인 필요.**
+
+## 최종 요약 (Leader, 사용자용)
+Phase 0 스캐폴딩을 마쳤습니다. `https://kaiwa.미라클펭귄.com` 에서 Google 로그인 화면이 뜨고, 로그인하면 하단 5탭(회화·오늘·계획표·서랍장·질문)과 상단 아바타(설정·로그아웃)로 된 앱 셸이 보입니다. 각 탭은 아직 "준비 중" 안내만 있고 기능은 task-003~008 에서 채웁니다.
+- **구조**: Next.js 16.3.2 + Prisma 6.19.3, `src/modules` 6층 골격과 ESLint 경계 규칙(층 역방향·모듈 내부 경로·클라이언트의 Prisma import 를 error 로 차단, 음성 테스트로 확인). 인증은 TheMeal 방식 그대로(Google·초대코드·앱 딥링크 60초 코드), 쿠키는 `thekaiwa_*`, 권한은 Role 4단계(OWNER_EMAIL = SUPER_ADMIN).
+- **DB 시드**: 주제 5·조각 60·엔진 5·연결 6×2환경·폴백 정책·목소리 3·운영 설정·프롬프트 키 11. 두 번 실행해도 결과 동일.
+- **운영**: pm2 `thekaiwa` 가 우분투 미러에서 `127.0.0.1:3010` 으로 실행 중(nginx 뒤). `pm2 save` 는 하지 않아 서버 재부팅 시 자동 기동되지 않으며, blue/green 정식 배포는 task-009 에서 합니다.
+- **사용자 확인 2건**: ① 폰에서 로그인해 5탭이 잘리지 않는지 봐 주세요(초대코드는 `.env` 의 `SIGNUP_INVITE_CODE` — OWNER 계정은 초대코드 없이 SUPER_ADMIN 으로 생성). ② 첫 로그인 뒤 Leader 가 `npm run db:seed` 를 한 번 더 돌려 설정 기본 행·N5 단어 50개를 넣습니다.

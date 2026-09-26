@@ -8,7 +8,7 @@ tags:
 
 ## 한 줄 요약
 
-**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), **DB 스키마 생성 완료(50 테이블, seed 미실행)**, **Google OAuth 클라이언트 검증 완료**. nginx vhost 적용 완료. **task-002 Phase 0 착수 준비 완료** — 사용자 "task-002 진행" 대기. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
+**설계 단계 완료 + 2·3·5차(TTS) 보완(2026-09-26), 구현 코드 0줄.** Git 원격 연동 완료(`origin/main`), **DB 스키마 생성 완료(50 테이블, seed 미실행)**, **Google OAuth 클라이언트 검증 완료**. nginx vhost 적용 완료. **task-002 Phase 0 완료(2026-09-26)** — `https://kaiwa.미라클펭귄.com` 에 로그인+5탭 앱 셸이 떠 있다(pm2 `thekaiwa`, 미러 실행). 다음은 사용자 조치가 필요 없는 **task-004(AI 클라이언트·페르소나)** 부터 자율 진행, task-003(M4 tts 디렉토리 승인·실기기)은 사용자 조치 대기. 사용자 기획서 5종(원 기획서·음성 처리 아키텍처·Voice/Engine 관리 플랫폼·Admin Console·TTS 상용 벤치마크 보완)을 통합 설계안 `docs/design-spec.md` 와 정본 5종(`docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md`) + 설계 문서 34종(`docs/design/speech-platform/00~16`, `docs/design/admin-console/00~16`)으로 확정했다. 다음은 **task-002 Phase 0 스캐폴딩**이다.
 
 ### 사용자만 할 수 있는 것 (Phase 0 착수 전)
 - ✅ **Gitea 저장소 `project_TheKaiwa`** 생성·연결·push 완료(2026-09-26, `origin/main` 추적)
