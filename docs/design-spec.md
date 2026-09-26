@@ -337,7 +337,7 @@ plugins/sherpa-stt/                                                    # Capacit
 ## 12. 안드로이드 앱 · APK 갱신
 
 - `capacitor.config.ts`: `appId com.miraclepenguin.kaiwa`, `server.url https://kaiwa.xn--lh0b87pnudm10a4vd.com`, `androidScheme https`, `cleartext false`, `errorPath`, `adjustMarginsForEdgeToEdge:'auto'`, `webDir public/app-shell`. Manifest: 딥링크 intent-filter·`singleTask`·`RECORD_AUDIO`. `MainActivity.onPause` 쿠키 flush. 앱/웹 분기는 로그인·실시간 STT 경로·APK 배너 세 곳.
-- **APK 갱신 운영**: 네이티브 변경 판정(`plugins/**`·`android/**`·`capacitor.config.ts`·Manifest·플러그인 버전) → developer 가 착수 전 고지 + `versionCode` 증가 → deployer `scripts/build-apk.sh`(우분투 JDK 21) → sha256 → `DATA_ROOT/releases/thekaiwa-<ver>.apk` + nginx `/app/download/latest.apk` → `AppRelease` 행 → `GET /api/app/version {latest, latestCode, minSupported, url, notes, reinstallRequired}` → 앱 배너("새 버전 v1.2 — 다운로드"). 웹만 바뀐 배포는 배너 없음. 디버그 키스토어 백업 필수.
+- **APK 갱신 운영**: 네이티브 변경 판정(`plugins/**`·`android/**`·`capacitor.config.ts`·Manifest·플러그인 버전) → developer 가 착수 전 고지 + `versionCode` 증가 → deployer `scripts/build-apk.sh`(우분투 JDK 21) → sha256 → `DATA_ROOT/releases/thekaiwa-<ver>.apk` + `latest.apk` 심볼릭 링크 → 앱 라우트 `GET /app/download/latest.apk` 가 DATA_ROOT 에서 스트리밍(nginx 는 프록시만 — www-data 는 `/home/brownjeon` 750 을 못 지나 alias 불가, 2026-09-26 실측) → `AppRelease` 행 → `GET /api/app/version {latest, latestCode, minSupported, url, notes, reinstallRequired}` → 앱 배너("새 버전 v1.2 — 다운로드"). 웹만 바뀐 배포는 배너 없음. 디버그 키스토어 백업 필수.
 
 ## 13. 인프라·운영
 
