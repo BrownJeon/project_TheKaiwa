@@ -2,6 +2,24 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 
+/**
+ * 경계 규칙 생성기. `banned` 모듈은 모든 깊이 금지, `indexOnly` 모듈은 index(루트)만 허용하고 하위 경로 금지
+ * (`allowSub` 에 적은 하위 진입점은 예외), `banInfraRoot` 는 infra index(= Prisma 포함) 자체를 금지한다.
+ * 음성 테스트(2026-09-26): 층별 금지·index 우회·컴포넌트의 infra index import 9건이 모두 error 로 잡히고 허용 경로는 통과.
+ */
+function boundary(files, banned, indexOnly, message, allowSub = [], banInfraRoot = false) {
+  // 모듈(src/modules/**)은 라우트·화면을 모른다. 라우트는 컴포넌트를 쓰고, 컴포넌트는 라우트를 import 하지 않는다.
+  const ui = files.startsWith('src/modules/') ? '^@/(app|components)/' : files.startsWith('src/components/') ? '^@/app/' : null
+  const patterns = ui ? [{ regex: ui, message }] : []
+  if (banned.length) patterns.push({ regex: `^@/modules/(${banned.join('|')})(/|$)`, message })
+  if (indexOnly.length) {
+    const except = allowSub.length ? `(?!(${allowSub.join('|')})(/|$))` : ''
+    patterns.push({ regex: `^@/modules/(${indexOnly.join('|')})/${except}`, message: `${message} (index 우회 금지)` })
+  }
+  if (banInfraRoot) patterns.push({ regex: '^@/modules/infra$', message: `${message} (infra index 는 Prisma 를 포함)` })
+  return [{ files: [files.endsWith('**') ? `${files}/*.{ts,tsx}` : files], rules: { 'no-restricted-imports': ['error', { patterns }] } }]
+}
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -31,34 +49,22 @@ const eslintConfig = defineConfig([
       'react-hooks/set-state-in-effect': 'warn',
     },
   },
-  // ── 6층 import 경계(module-dependency.md §2) — 위→아래로만: app(+admin) → {preferences, conversation, learning, speech} → engine → infra
-  // 같은 층·다른 모듈은 index.ts 공개 API 로만(내부 파일 경로 금지). conversation ↔ speech 는 서로 import 하지 않는다(라우트가 조합).
-  {
-    files: ['src/modules/infra/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [{ group: ['@/modules/engine', '@/modules/engine/*', '@/modules/speech', '@/modules/speech/*', '@/modules/learning', '@/modules/learning/*', '@/modules/conversation', '@/modules/conversation/*', '@/modules/preferences', '@/modules/preferences/*', '@/modules/admin', '@/modules/admin/*', '@/app/*', '@/components/*'], message: 'infra(L6) 는 상위 층을 import 하지 않는다' }] }] },
-  },
-  {
-    files: ['src/modules/engine/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [{ group: ['@/modules/speech', '@/modules/speech/*', '@/modules/learning', '@/modules/learning/*', '@/modules/conversation', '@/modules/conversation/*', '@/modules/preferences', '@/modules/preferences/*', '@/modules/admin', '@/modules/admin/*', '@/app/*', '@/components/*', '@/modules/infra/*/*'], message: 'engine(L5) 는 infra 공개 API 만 import 한다' }] }] },
-  },
-  {
-    files: ['src/modules/{preferences,learning}/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [{ group: ['@/modules/admin', '@/modules/admin/*', '@/app/*', '@/components/*', '@/modules/*/*/*'], message: 'L1~L3 은 admin/app 을 모르고, 다른 모듈은 index 공개 API 로만 import 한다' }] }] },
-  },
-  {
-    files: ['src/modules/conversation/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [{ group: ['@/modules/speech', '@/modules/speech/*', '@/modules/admin', '@/modules/admin/*', '@/app/*', '@/components/*', '@/modules/*/*/*'], message: 'conversation(L2) 은 speech 를 import 하지 않는다 — 라우트가 조합' }] }] },
-  },
-  {
-    files: ['src/modules/speech/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [{ group: ['@/modules/conversation', '@/modules/conversation/*', '@/modules/admin', '@/modules/admin/*', '@/app/*', '@/components/*', '@/modules/*/*/*'], message: 'speech(L4) 는 conversation 을 import 하지 않는다 — 라우트가 조합' }] }] },
-  },
-  {
-    files: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
-    // infra 는 예외: 인증(TheMeal 이식)은 `@/modules/infra/auth/oauth/*` 를 그대로 쓰고, 클라이언트 컴포넌트는
-    // Prisma 를 끌어오지 않도록 `@/modules/infra/native` 같은 클라이언트 안전 하위 진입점을 쓴다.
-    rules: { 'no-restricted-imports': ['error', { patterns: [{ group: ['@/modules/admin/*', '@/modules/preferences/*', '@/modules/conversation/*', '@/modules/learning/*', '@/modules/speech/*', '@/modules/engine/*'], message: '라우트·화면은 각 모듈의 index 공개 API 만 import 한다(엔진명·spawn·fetch 직접 사용 금지)' }] }] },
-  },
+  // ── 6층 import 경계(module-dependency.md §3-1 행렬) ──────────────────────────────────────────
+  // `group` 글롭은 `*` 가 `/` 를 넘지 않아 깊이마다 따로 적어야 하고 한 단계만 빠져도 뚫린다(reviewer 2026-09-26 High-1).
+  // 그래서 **정규식**으로 "금지 모듈(모든 깊이)" 과 "허용 모듈의 내부 경로(index 우회)" 를 함께 막는다.
+  // 같은 모듈 안에서는 상대 경로(./x)를 쓰므로 이 규칙에 걸리지 않는다.
+  ...boundary('src/modules/infra/**', ['admin', 'preferences', 'conversation', 'learning', 'speech', 'engine'], [], 'infra(L6) 는 상위 층을 import 하지 않는다'),
+  ...boundary('src/modules/engine/**', ['admin', 'preferences', 'conversation', 'learning', 'speech'], ['infra'], 'engine(L5) 는 infra 공개 API 만 import 한다'),
+  ...boundary('src/modules/preferences/**', ['admin', 'conversation', 'learning', 'speech', 'engine'], ['infra'], 'preferences(L1) 는 infra 만 import 한다'),
+  ...boundary('src/modules/learning/**', ['admin', 'conversation', 'speech'], ['preferences', 'engine', 'infra'], 'learning(L3) 은 conversation·speech 를 import 하지 않는다 — 라우트가 조합'),
+  ...boundary('src/modules/conversation/**', ['admin', 'speech'], ['learning', 'preferences', 'engine', 'infra'], 'conversation(L2) 은 speech 를 import 하지 않는다 — 라우트가 조합'),
+  // speech 클라이언트 코드는 네이티브 브리지(`@/modules/infra/native`, 클라이언트 안전 진입점)만 예외로 허용
+  ...boundary('src/modules/speech/**', ['admin', 'conversation', 'learning'], ['preferences', 'engine', 'infra'], 'speech(L4) 는 conversation·learning 을 import 하지 않는다 — 라우트가 조합', ['native']),
+  ...boundary('src/modules/admin/**', [], ['preferences', 'conversation', 'learning', 'speech', 'engine', 'infra'], 'admin 은 각 모듈의 index 공개 API 로만 import 한다'),
+  // 라우트: engine 직접 import 금지(규칙 4, admin 경유). infra 는 auth·native·dates·jwt·session 만 하위 경로 허용(TheMeal 인증 이식).
+  ...boundary('src/app/**', ['engine'], ['admin', 'preferences', 'conversation', 'learning', 'speech', 'infra'], '라우트는 모듈 index 공개 API 만 — engine 은 admin 경유', ['auth', 'native', 'dates', 'jwt', 'session']),
+  // 컴포넌트: 서버 모듈(Prisma 포함 infra index·auth)을 끌어오지 않는다(규칙 5). 클라이언트 안전 진입점만.
+  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates'], true),
 ])
 
 export default eslintConfig

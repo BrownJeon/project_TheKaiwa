@@ -2281,13 +2281,13 @@ model DebugSession {
 | key | engineId | role | connectionType | connection (LOCAL / PRODUCTION) | runtime | credentialRef |
 |---|---|---|---|---|---|---|
 | `claude-cli-local` | `claude-cli` | LLM | CLI | `{binPath:"$CLAUDE_CLI_PATH", timeoutMs:120000}` | `{modelByTier:{fast:"haiku",balanced:"sonnet",deep:"opus"}, concurrency:1, interactiveLane:true, permissionMode:"dontAsk", tools:"", agentsFile:".claude/agents/tutor.md"}` | null(구독 로그인) |
-| `home-m4-lan` | `home-m4-api` | LLM | HTTP | `{baseUrl:"http://127.0.0.1:8000" / "http://<m4-lan>:8000", timeoutMs:180000, retry:0}` | `{model:"qwen2.5:14b", systemFirst:true, allowedTasks:["wordEnrich","distractorGen","chatReviewFallback"]}` | `env:AI_API_KEY` |
+| `home-m4-lan` | `home-m4-api` | LLM | HTTP | `{baseUrl:"http://192.168.219.100:8000", timeoutMs:180000, retry:0}` | `{model:"qwen2.5:14b-instruct", systemFirst:true, allowedTasks:["wordEnrich","distractorGen","chatReviewFallback"]}` | `env:HOME_M4_API_KEY` |
 | `reazon-ondevice` | `sherpa-onnx-reazon` | REALTIME_STT | ONDEVICE | `{manifestUrl:"/models/reazonspeech-int8/manifest.json", modelBytes:160000000}` | `{provider:"cpu", numThreads:2, decodingMethod:"greedy_search", modelVersion:"zipformer-ja-reazonspeech-2024-08-01-int8", vad:{model:"silero", endpointSilenceMs:500}, partial:true}` | null |
 | `reazon-gateway` | `sherpa-onnx-reazon` | REALTIME_STT | HTTP | `{baseUrl:"http://127.0.0.1:8100", wsPath:"/ws/speech", timeoutMs:15000}` | `{provider:"cpu", numThreads:4, decodingMethod:"greedy_search", modelVersion:"zipformer-ja-reazonspeech-2024-08-01-int8", vad:{model:"silero", endpointSilenceMs:500}}` | null |
 | `whisper-voicevault` | `faster-whisper` | ANALYSIS_STT | HTTP | `{baseUrl:"http://127.0.0.1:8090", timeoutMs:120000, retry:1}` | `{model:"medium", computeType:"int8", device:"cpu", language:"ja"}` | null |
-| `style-bert-m4` | `style-bert-vits2` | TTS | HTTP | `{baseUrl:"http://127.0.0.1:8200" / "http://<m4-lan>:8200", timeoutMs:20000, retry:1}` | `{language:"JP", maxChars:100, defaultModel:"jvnv-F1-jp", sdpRatio:0.2, noise:0.6}` | null(LAN 내부) |
+| `style-bert-m4` | `style-bert-vits2` | TTS | HTTP | `{baseUrl:"http://192.168.219.100:8200", timeoutMs:20000, retry:1}` | `{language:"JP", maxChars:100, defaultModel:"jvnv-F1-jp", sdpRatio:0.2, noise:0.6}` | null(LAN 내부) |
 
-LOCAL 의 `reazon-gateway`·`whisper-voicevault` 는 맥에서 우분투로 닿지 않으므로 시드 직후 Health 가 `UNAVAILABLE` 이 되는 것이 정상이다(LOCAL 기본 `enabled=false` 로 시드).
+**2026-09-26 구현 시 변경**: LOCAL 도 우분투 미러(`~/.node-local/thekaiwa`)에서 돌기 때문에 두 환경의 connection 값이 같다(M4 는 LAN `192.168.219.100`, gateway·whisper 는 `127.0.0.1`). 그래서 시드는 환경별 분기 없이 같은 값을 넣고 `enabled=true` 로 둔다. 맥에서 LOCAL 을 돌리게 되면 그때 LOCAL 행만 콘솔에서 바꾼다(ConfigurationVersion 이 생기면 재시드가 덮어쓰지 않는다).
 
 **6. `EngineFallbackPolicy` 시드(환경별)**
 

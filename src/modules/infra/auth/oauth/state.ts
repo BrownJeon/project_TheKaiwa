@@ -16,7 +16,7 @@ import jwt from 'jsonwebtoken'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { sanitizeNextPath, parsePlatform, type AuthPlatform } from '@/modules/infra/auth/oauth/next-path'
 
-export const OAUTH_STATE_COOKIE = 'tm_oauth_state'
+export const OAUTH_STATE_COOKIE = 'thekaiwa_oauth_state'
 
 /** state 유효기간(초) — 제공자 동의 화면에 머무는 시간을 감안, 그 이상은 불필요. */
 export const OAUTH_STATE_MAX_AGE_SEC = 10 * 60

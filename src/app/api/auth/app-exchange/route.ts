@@ -2,7 +2,7 @@
  * GET /api/auth/app-exchange?code= — 앱 딥링크 코드 → 세션 쿠키 (설계안 §5-2).
  *
  * 앱이 `thekaiwa://auth/callback?code=`를 받으면 WebView를 이 주소로 이동시킨다. 여기서
- * 코드를 **소각**하고 진짜 세션 쿠키를 심은 뒤 `/home`으로 302한다.
+ * 코드를 **소각**하고 진짜 세션 쿠키를 심은 뒤 `/study/today`(DEFAULT_NEXT_PATH)로 302한다.
  *
  * ★ 실패는 만료·재사용·미존재를 구분하지 않는다 — 전부 같은 응답으로 수렴시켜 "그 코드는
  *   존재하지만 이미 썼다" 같은 정보가 새지 않게 한다(`consumeAppAuthCode` 계약).

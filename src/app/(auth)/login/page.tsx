@@ -48,9 +48,9 @@ export default async function LoginPage({
         The<span className="text-accent">Kaiwa</span>
       </h1>
       <p className="mt-1 mb-6 text-ink2">
-        SNS 레시피 · 냉장고 · 추천 · 기록 · 분석
+        AI 선생님과 회화 · 교정 · 단어 · 평가
         <br />
-        하나의 식단관리
+        매일 조금씩 일본어 회화
       </p>
 
       {message && (

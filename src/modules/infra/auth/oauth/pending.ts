@@ -15,7 +15,7 @@ import jwt from 'jsonwebtoken'
 import { sanitizeNextPath, parsePlatform, type AuthPlatform } from '@/modules/infra/auth/oauth/next-path'
 import type { OAuthProfile } from '@/modules/infra/auth/oauth/providers'
 
-export const OAUTH_PENDING_COOKIE = 'tm_oauth_pending'
+export const OAUTH_PENDING_COOKIE = 'thekaiwa_oauth_pending'
 export const OAUTH_PENDING_MAX_AGE_SEC = 15 * 60
 
 function getPendingSecret(): string {

@@ -347,7 +347,7 @@ plugins/sherpa-stt/                                                    # Capacit
 | 맥 M4(192.168.219.100) | `~/kaiwa-tts-run`(venv+uvicorn :8200, 크론 와치독, `git push` 웹훅 — 사용자 승인 게이트); `home-m4-api` :8000 보조 |
 | 배포 | `scripts/deploy.sh TheKaiwa`(release.sh) = push 후 `origin` ref 기준. `--with-migrate` 사용자 승인. `docs/deploy-order.md` 정본(Phase 0) |
 | 큐·잡 | MariaDB `SpeechJob`/`AiJob`, worker 폴링, 기동 시 RUNNING→FAILED 정리 |
-| 헬스 | `/api/health` checks(env_database·env_jwt·env_google_oauth·claude_cli·speech_gateway·tts_service·whisper_service) boolean, gateway/tts `/health`(모델 로드·메모리·버전) |
+| 헬스 | `/api/health` checks(env_database·env_jwt·env_google_oauth·env_data_root·env_internal_secret·llm·stt_gateway·stt_analysis·tts — 역할 이름) boolean, gateway/tts `/health`(모델 로드·메모리·버전) |
 | 데이터 | `DATA_ROOT/users/<id>/utterances/YYYY-MM/*.wav`(30일), `tts-cache/`, `releases/*.apk`, `speech/models/`(미커밋) |
 
 ## 14. 환경 변수 · 시크릿

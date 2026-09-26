@@ -1,6 +1,6 @@
 /**
  * OAuth `nextPath` 검증 — 서버 리다이렉트용. VoiceVault `src/lib/auth/oauth/next-path.ts`를
- * 그대로 이식(기본 착지 경로만 TheMeal의 홈 `/home`으로 교체).
+ * 그대로 이식(기본 착지 경로만 TheKaiwa 의 '오늘' 탭 `/study/today` 로 교체).
  *
  * URL 파서 기반(sentinel origin 비교) 방식을 쓰는 이유: 리터럴 문자열 블랙리스트
  * (`startsWith('//')` 등)는 제어문자·인코딩 우회에 취약하다.

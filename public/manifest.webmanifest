@@ -1,7 +1,7 @@
 {
   "name": "TheKaiwa — 일본어 회화 훈련",
   "short_name": "TheKaiwa",
-  "description": "SNS 레시피 수집·냉장고·추천·기록·분석을 하나로 묶은 개인 일본어 회화 훈련",
+  "description": "AI 일본어 선생님과 매일 회화·교정·단어·평가로 익히는 개인 일본어 회화 훈련",
   "start_url": "/study/today",
   "scope": "/",
   "display": "standalone",
