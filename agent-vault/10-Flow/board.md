@@ -23,7 +23,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- (없음) — 다음 003f(Capacitor·온디바이스 STT·APK — 폰 실측 필요) / 009(통합 QA·blue/green)
+- [[task-003f-android-ondevice-stt]] — 안드로이드 앱(Capacitor 셸)·온디바이스 STT 플러그인·모델 배포·APK 배포본/배너 (2026-09-28 착수, **네이티브 변경** — 설치·실측은 사용자 폰)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
