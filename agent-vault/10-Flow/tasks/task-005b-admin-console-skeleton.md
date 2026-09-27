@@ -135,6 +135,32 @@ design-spec §15 task-005b: Admin/Developer AI Engine Console 의 Phase 1 골격
 
 ## Reviewer 기록
 
+- **REV-009**(보안 중심, judge C1 focus=security) — 범위: `git diff 8ca6548..HEAD -- src tests eslint.config.mjs`(A 커밋 53cb989·2ec7bbb·039030e·7ce4059·0a2b99f, B 커밋 6ea4ff1, 122파일). 판정 **PASS_WITH_NOTES**(Critical 0·High 0·Medium 1·Low 3).
+- **확인됨(근거 포함)**:
+  - `permissions/matrix.ts` 33행 전체가 `role-permission.md §3` 과 1:1 — `permissions.test.ts`가 **실제 NFS 문서 파일을 읽어** 대조하는 테스트(`복사본 표가 정본 문서 §3 과 같다`)까지 포함해 `npm test` 재실행으로 201/201 PASS 직접 확인(스킵 아님, ok 82).
+  - 19개 `/api/admin/v1/*` 라우트 전부 첫 줄 `requireCapability`(직접 각 route.ts 열람), capability 값이 role-permission §4-2·api-contract.md 의 실제 캡슐(예: fallback-policies GET=`engine.read`, PUT만 `engine.connections.manage` — api-contract.md #99/#100 로 role-permission §4-2 표의 뭉뚱그린 행 표기보다 우선 적용, H4 원칙과 일치)와 일치.
+  - `console.access` 없으면 404(`hiddenNotFound`, 힌트 없음), 부족하면 403 `data.details.missing`(`guard.ts`) — `src/proxy.ts`가 `/admin/**`·`/api/admin/**`에서 **DB User.role**(JWT 에 role 없음)로 재확인, matcher 에 `/api/admin/:path*` 명시 포함 확인. capability 캐시 없음(`actorFrom`이 매 호출 `auth()`→Prisma).
+  - QA 역할 계정 이중 방어 확인: ①`isQaTokenAllowed`(host=localhost && !X-Real-IP, nginx 가 전부 X-Real-IP 를 덮어써 외부 요청은 불가) ②`infra/auth.ts` 신규 게이트 `payload.qa && role!=='USER' && APP_ENV==='PRODUCTION' → null`(코드 직접 확인) — 프록시 우회를 가정해도 라우트가 부르는 `auth()`가 다시 막는 이중 구조. 두 계층 모두 코드로 확인(라이브 재현은 하지 않음, 개발 서버 기동 금지 지시 준수).
+  - Secret 처리: `infra/mask.ts`(sk-/Bearer/JWT/32자+hex·base64/시크릿 키 이름 판정, `credentialRef` 는 예외), `infra/secrets.ts`(`describeCredentialRef` 는 존재만 stat, `file:` 이름 규칙(`/` 불가)+dirname 재확인으로 경로 순회 차단), `admin/present.ts`(`maskPath`/`scrubServerPath`/`pathValue`가 PATH 키의 env 유래 절대경로를 `$NAME` 자리표시자로), `resolver.ts`(SECRET_REF 인데 ref 형식이 아니면 `E_CONN_SECRET_VALUE`로 **값 자체를 stack 에서 drop** — warnings 에도 값 미포함) 확인. 모든 provider `modelSummary(values)` 가 `runtime.model*` 류 화이트리스트 키만 읽어(SECRET_REF·PATH 없음) 대시보드가 미마스킹 raw effective 값을 직접 노출하지 않음을 5개 어댑터 전부 확인.
+  - SSRF: `httpHealth.ts` — 주소는 Effective(DB·서버 env)만(요청 본문 URL 없음, health/functionalTest 라우트 확인), `redirect:'manual'`(따라가지 않고 3xx 를 DEGRADED 로), http(s) only, URL 자격증명 거부, 본문 64KB 스트리밍 cap, 시크릿 헤더 미첨부.
+  - spawn: `probeClaudeCliVersion` — 실행 파일은 서버 `CLAUDE_CLI_PATH`(env)만(DB `connection.binPath` 는 spawn 대상 아님), argv 배열(`['--version']`)·`stdio` 파이프·5s 타임아웃·stdout 4KB cap·stderr 폐기·`cleanEnv`(시크릿 9종 delete) 확인.
+  - `AuditLog`: `recordAudit` 유일 진입점, UPDATE/DELETE 경로 없음(코드 전체에 삭제/수정 함수 없음), `secrets.read_ref`(#101) 조회마다 1행(`listSecretRefs`) — SecretsSheet.tsx 가 시트를 **열 때만**(`open ? path : null`) fetch 하도록 확인.
+  - 6층 경계: `admin/engines`·`admin/voices` 가 `@/modules/speech`·`@/modules/preferences` 의 **index.ts export 만** import(`speech/voices/admin.ts`·`preferences.countUsersByVoice`, 둘 다 자기 층 소유 테이블만 쿼리) — module-dependency 위반 없음. `eslint.config.mjs` 변경 0(diff --stat 확인).
+  - `npm run typecheck`(exit 0) · `npm run lint`(exit 0, warning 5건은 기존 패턴과 동일한 `set-state-in-effect` 뿐, 신규 error 0) · `npm test`(201/201 PASS) 전부 재실행 확인.
+- **이슈**:
+
+| 심각도 | 위치 | 내용 | 근거 | 권고 |
+|---|---|---|---|---|
+| MEDIUM | `src/modules/admin/configuration/effective.ts:16-24`(`getEffectiveConfig`) | `config.raw.read` 보유자가 PRODUCTION 대상 Effective Configuration 을 sourceRef·layers 까지(`full:true`) 조회해도 `AuditLog` 가 남지 않는다 | role-permission.md §7 "민감 읽기도 기록: … `config.raw.read`(PRODUCTION 대상만)" 명문 요건. `grep -rn recordAudit src/modules` 결과 호출부는 `admin/engines/index.ts:131`(secrets.read_ref) 뿐, `effective.ts` 에는 없음 | `environment==='PRODUCTION' && full` 일 때 `recordAudit({action:'config.raw.read', targetId, environment, actor, after:{scope,targetId}})` 추가. Phase 1 은 SUPER_ADMIN 1인 앱이라 당장 악용 경로는 아니지만 Phase 2(config.edit 실사용) 전에 고칠 것 |
+| LOW | `src/modules/engine/functionalTest/index.ts:31-40`(`claimSlot`) | 30초 rate-limit 이 프로세스 메모리 Map + DB 조회 조합인데 둘 다 원자적이지 않다 — pm2 blue/green 두 프로세스에서 거의 동시에 들어오면 DB 커밋 전 경합으로 30초당 1회를 넘겨 통과할 수 있음(Claude 구독 호출 보호 목적의 약화) | `lastStarted` Map 은 프로세스 로컬, `prisma.engineHealth.findFirst` 확인 후 실제 기록까지 사이 창(레이스) 있음 | Phase 2 에서 DB 유니크 제약/원자적 upsert 또는 짧은 분산 락으로 승격 권고(현재는 ADMIN 이상만 트리거 가능해 악용 난이도는 낮음) |
+| LOW | `src/modules/admin/present.ts:22-23`(`SERVER_PATH`) | 서버 절대경로 마스킹이 고정 접두사 목록(`home|Users|root|opt|var|etc|tmp|mnt|srv|usr|private|Volumes|data|apps`)에 의존, 실제 `DATA_ROOT`/`SECRETS_DIR` 값에서 파생되지 않음 | 현재 배포 경로(NFS `/home/...`, M4 `/Users/...`)는 전부 포함되나 목록 밖 접두사로 배포 경로가 바뀌면 조용히 마스킹이 빠짐. 스모크 `pathNeedles()`가 실제 env 값으로 보완 확인하지만 그것도 실행 시점 값에 한정 | 정적 목록 + 실제 `process.env.DATA_ROOT`/`SECRETS_DIR` 파생 패턴을 함께 쓰도록 방어선 추가 권고(당장 차단 아님) |
+| LOW | `src/modules/engine/connections/index.ts:33`(`findConnectionAnyEnvironment`) | export 됐지만 어디서도 호출·재-export 되지 않는 죽은 코드(engine/index.ts 가 export 안 함) | `grep -rn findConnectionAnyEnvironment src/` 결과 정의부 1건뿐 | 정리 또는 실제 사용처(예: Health 대상 확인 경로) 연결 |
+
+- **high_risk_areas(QA 전달)**: (1) 권한 매트릭스 실제 서버 대조(4계정 role×capability 표본, 자동 테스트는 코드 상수만 검증) (2) QA 역할 계정 운영 도메인 무효화(criterion 10) 실측 (3) 응답 전체 Secret·서버경로 grep(criterion 4, H1) (4) Health/Functional Test UNAVAILABLE·429·30초 잠금 (5) 360/390/412 3폭 + `/settings` ADMIN 진입 행(8b, B 반영 후 재확인) (6) 콘솔 진입 시나리오(없는 id·다른 role 직접 URL) 404/403 실동작.
+- **native_change**: false(android/·capacitor.config.ts·plugins/** 변경 없음, diff 확인).
+- 종합: Critical 0·High 0 → PASS 기준 충족. Medium 1건은 Phase 1 단일 소유자 구조상 즉시 악용 경로는 아니나 §7 명문 요건 위반이라 Developer 수정 요청(비차단, QA 진행 가능). Low 3건은 권고. → [[task-005b-admin-console-skeleton]]
+
 ## QA 기록
 
 ## 최종 요약
+- [2026-09-27 17:30] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=security / budget_rule=CX-limit-ok | overrides=- | fallback=- | tokens=995

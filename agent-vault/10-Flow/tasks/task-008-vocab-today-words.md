@@ -109,6 +109,16 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 
 ## Codex 검토
 
+
+### [2026-09-27 08:13] C2 adversarial-review focus=concurrency — done
+- judge 판정: [2026-09-27 15:53] codex_gate/C2 / 호출 차수: 1/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=4cac3de(task_file) snapshot=5ddbe10
+- 지적 2건:
+  - [medium] src/modules/learning/vocab/words.ts:334 — setWordArchived가 사용자 행 잠금 없이 실행, 동시 createVocabSession과 겹칠 때 archived 상태 엇갈림 (권고: withTransaction/lockUserRow 추가)
+  - [low] src/modules/learning/vocab/sessions.ts:365 — getVocabSession이 finish와 겹칠 때 session.status(IN_PROGRESS)와 카드 정답 상태 불일치 (권고: 트랜잭션/FOR UPDATE)
+- 검토하지 못한 범위: 2프로세스 실경합·DB 명령·빌드·테스트는 제약상 미수행, task-005b 범위 제외
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T081350Z-task-008-C2/raw.txt
+
 ## Designer 기록
 - [14:58] 2026-09-27 구현 가이드 작성 → `docs/screens.md` §4 단어장·§5 오늘의 단어 추가, §2 표의 오늘·서랍장 행 갱신(§1·§3 무수정). 목업 Artifact 는 만들지 않음(task-006 과 같은 방식, 필요하면 Leader 요청으로 별도).
 - [14:58] 단어장: `/drawer/words` 한 경로, 상세·수정·추가는 바텀시트(`?word=`·`?add=1` 진입 후 replace). 추가 = 표현 → [뜻 채우기](A10 초안, 저장 안 됨, `valid:false` 는 표현 단계에 머묾) → 확인·수정 → [저장]. 409 는 [그 단어 보기]로 안내. 삭제 확인 "지난 기록과 통계는 그대로 남아요". 빈 단어장 + [기본 단어 50개 넣기](#46b, 추가 시트에서도 항상 가능).
@@ -172,6 +182,7 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 - **트러블슈팅(재발 가능)**: ① Prisma `contains` 는 `%`·`_` 를 이스케이프하지 않는다(`contains:'%'` 가 전 행 일치 실측) → `infra.escapeLike` 로 `\` 이스케이프. ② NAS MariaDB 쓰기 COMMIT ≈0.4~0.5s — 쓰기 API p50 의 바닥값. ③ Next dev 는 소스 동기화(HMR) 때 모듈을 다시 평가해 enrich 메모리 캐시가 비워진다(운영 `next start` 에는 해당 없음). ④ Fact-Forcing 훅이 `rm -rf` 가 든 Bash 를 막는다 — 임시 파일은 `rm -f` + `rmdir` 로.
 - **알려진 한계**: enrich 캐시·분당 제한은 프로세스 메모리(blue/green 두 프로세스면 최대 40/분·캐시 분리). 오늘 DONE 제외는 세트 `date`(시작일) 기준이라 자정 넘어 끝낸 세트는 "시작한 날" 단어로 제외된다. `listCategories` 는 DB 콜레이션으로 묶어 대소문자·가나만 다른 분류는 한 칩(대표 표기 하나). 삭제된 단어 카드의 예문은 재생 시 없음(Snap 에 예문 컬럼이 없음).
 - [15:47] **REV-008 수정** — 커밋 `10b770e`. H1: `toCardDto` 공개 조건 `answered || status === 'DONE'`(ABANDONED 는 진행 중과 같이 미답 CHOICE 정답·예문 숨김, FLIP 뜻은 F1 그대로). grep 결과 정답을 `status !== 'IN_PROGRESS'` 로 여는 곳은 이 한 줄뿐(#48 은 카드 없음, #53 은 새 세트를 IN_PROGRESS 로 직렬화, finish ABANDONED 응답의 wrongWords 는 0개). L1: `keepVocabSession` 을 사용자 행 → 세트 행 잠금 트랜잭션으로(다시 풀기와 직렬화). 단위 테스트에 `toCardDto('CHOICE'|'FLIP','ABANDONED', 미답)` 추가, 스모크에 6h′(ABANDONED #49 재조회)·6h″(ABANDONED keep 409)·8e′(keep 해제·재보관 동시) 추가. tsc 0·lint 0 error·test 146/146·스모크 **72/72 PASS**(attempt p50 628ms, 10장 사용자 총 129.2s). dev 3011 종료.
+- [17:25] **Codex C2 수정** — 커밋 `b0eebcf`. ① [medium] `setWordArchived` → `withTransaction` + `lockUserRow` 후 대상 단어 갱신(`setWordArchivedTx` 분리, 세트 생성의 풀 읽기와 직렬화). ② [low] `getVocabSession` → 트랜잭션 안에서 `lockSession`(세트 행 FOR UPDATE) 후 카드를 이어 읽음(`readVocabSessionTx` 분리, 응답 계약 불변). 단위 테스트 2개(가짜 tx 로 '사용자 행 → 단어', '세트 행 → 세션 → 카드' 호출 순서 고정), 스모크 5i(보관·세트 생성 동시 — 보관 단어가 세트에 있으면 startedAt < archivedAt)·5j(보관 뒤 세트에 없음) 추가. tsc 0 · lint 0 error(내 영역 경고 0, 전체 경고 5 는 B·기존 파일) · test 203/203 · 스모크 **74/74 PASS** · attempt p50 670ms(직전 604~628ms — NAS COMMIT 편차 범위, 스모크는 답 사이에 #49 를 부르지 않음) · #49 조회 35ms(첫 컴파일·잠금 대기 시 ~0.5s) · 10장 사용자 총 128.8s. dev 3011 종료.
 
 ### B(화면)
 - [15:31] 구현 완료 — 커밋 `e06796c`(자기 파일만 경로 지정, 65파일). `npm run typecheck` 0 · `npm run lint` 0 error(경고 4 = 기존 settings·login 파일, vocab 0) · `npm test` 146/146(내 테스트 4파일 + 기존 chat 테스트 전부 통과). build·dev·pm2 미사용. 서버 코드는 열지 않고 계약(api-contract §2-9·§2-10)과 위 A 기록만 보고 맞췄다.
@@ -264,6 +275,42 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 
 → [[task-008-vocab-today-words]]
 
+### Codex C2 지적 판정 (2026-09-27)
+
+원본: `.claude/state/codex-review/runs/20260927T081350Z-task-008-C2/raw.txt`(snapshot=5ddbe10). 현재 코드(작업 트리, `setWordArchived`/`getVocabSession` 모두 REV-008 H1/L1 수정과 무관한 그대로임을 확인 후) 기준으로 재검증.
+
+**[medium] `words.ts:334` `setWordArchived` 사용자 행 잠금 없음 → 채택**
+
+- **재확인**: `lockUserRow(tx,userId)`(`infra/tx.ts:38`)는 `User` 행만 `FOR UPDATE` 로 잠근다. `setWordArchived` 는 `withTransaction`/`lockUserRow` 를 전혀 쓰지 않고 `prisma.wordEntry.updateMany(...)` 를 단독 statement 로 실행한다 — `createVocabSession`(`sessions.ts:288-289`)이 잡는 `User` 행 잠금과 애초에 **잠그는 테이블·행 자체가 달라** 서로 대기하지 않는다. `updateWord`·`deleteWord`·`createWord`·`addSeedPack`·(수정된)`keepVocabSession` 은 전부 "사용자 행 → 대상 행" 을 지키는데 `setWordArchived` 만 이 규약 밖에 있다는 Codex 관찰이 코드로 확인된다.
+- **실제 영향**: 정답 누출·데이터 손상이 **아니라 UX/계약 불일치**다 — archive 요청이 `createVocabSession` 트랜잭션의 `active = findMany({archived:false})` 읽기 직후·`insertSession` 커밋 전에 끼어들면, 방금 보관 처리된 단어가 그 순간 만들어진 IN_PROGRESS 세트 카드에 여전히 포함될 수 있다(#45 "보관 단어는 세트 생성 풀에서 제외" 위반, 그 세트 한정·일회성). 반대(unarchive)면 그 세트에서만 누락되고 다음 세트부터는 정상 포함되므로 그쪽은 무해하다. 데이터 정합성(WordEntry.archived 값 자체·StatsSnapshot)은 깨지지 않는다 — 세션에 "보관된 단어 카드가 하나 섞여 들어간" 표시상 불일치뿐이다.
+- **판정 근거**: 이번 task-008 diff 로 신설된 코드이고(라우트 `#45`), 원 REV-008 1차 감사에서 IDOR 관점으로만 보고 이 잠금 결여를 놓친 내 실책이 맞다. 재현 조건이 좁지만(동일 사용자가 archive 와 세트 생성을 같은 수 ms 안에 겹쳐야 함) 코드 근거가 명확하고 이 프로젝트의 일관된 "사용자 행 우선 잠금" 관례를 깨는 유일한 쓰기 경로라 **오탐 아님**.
+- **채택 시 권고 범위**: `setWordArchived` 를 `withTransaction(async (tx) => { await lockUserRow(tx, userId); ...조건부 updateMany... ...findFirst...})` 형태로 바꿔 다른 쓰기 함수와 같은 패턴에 맞춘다(파일 범위: `src/modules/learning/vocab/words.ts` 한 함수만, 라우트·타입 변경 불필요). 회귀 테스트: 단위 테스트에 "archive 트랜잭션이 사용자 행을 잠그는지"(가짜 tx 로 `lockUserRow` 호출 여부) 또는 스모크에 "동시 archive + createVocabSession" 케이스 추가 권장.
+
+**[low] `sessions.ts:365` `getVocabSession` 비트랜잭션 읽기 → 채택**
+
+- **재확인**: `getVocabSession` 이 `session`(`vocabSession.findFirst`)과 `attempts`(`vocabAttempt.findMany`)를 트랜잭션 밖에서 별도 statement 로 읽는다(`sessions.ts:367,369`). `finishVocabSession` 은 같은 트랜잭션에서 미답 `attempt.answer` 를 SKIPPED 로 바꾼 **뒤** `session.status` 를 DONE 으로 바꾼다(순서: `sessions.ts:473` attempts 먼저, `480` session 그다음). READ COMMITTED 라 GET 의 두 statement 사이에 finish 가 커밋되면 GET 이 "session 은 옛(IN_PROGRESS) 값, attempts 는 새(SKIPPED) 값" 조합을 읽을 길이 이론상 있다.
+- **누출 방향 확인(Leader 질의)**: `toCardDto` 의 `reveal = answered || status==='DONE'` 에서 `answered = a.answer != null` 이 **status 와 무관하게 단독으로 참**이 된다. 그래서 이 레이스가 실제로 일어나면 `status:'IN_PROGRESS'` 인 세션 응답 안에 (원래 미답이었다가 finish 가 SKIPPED 로 확정한) 카드의 `correctText`/`example`/`exampleKo` 가 노출된다 — **누출 방향이 맞다**(반대 방향, 즉 "이미 답한 카드의 정답을 오히려 숨기는" 실패는 아니다). 다만 이 레이스는 **자기 자신이 그 세트에 대해 막 `finish` 를 호출한 순간**에만 열리는 창이고(호출자가 바로 그 finish 를 건 사용자), finish 응답 자체가 몇 ms 뒤 같은 정보를 정식으로 돌려준다 — H1(생성→abandon→GET 이 100% 결정적으로 재현되는 정답 상시 노출)과 달리 **제3자 접근이나 반복 악용 경로가 아니라 자기 세트의 자기 데이터가 마이크로초 단위 레이스로 몇 ms 일찍 보이는 것**이라 Codex 의 LOW 판정에 동의한다.
+- **판정 근거**: 코드 경로·순서(`attempts` UPDATE 가 `session` UPDATE 보다 먼저 커밋 준비되는 것)까지 실제로 일치함을 확인했고 READ COMMITTED 하에서 이 두 statement 사이에 다른 트랜잭션이 끼어들 수 있다는 전제도 맞다 — **오탐 아님**, 다만 실사용 영향은 Codex 요약대로 낮다(자기 데이터 조기 노출, 제3자 무관, 서버 상태 자체는 항상 일관).
+- **채택 시 권고 범위**: `getVocabSession` 이 `session` 을 읽을 때 `recordAttempt`/`finishVocabSession` 과 같은 `lockSession`(세트 행 `FOR UPDATE`, 소유자 조건 포함) 을 트랜잭션 안에서 쓰고 그 안에서 `attempts` 를 이어 읽게 한다 — finish 도 같은 세트 행을 잠그므로 GET 이 그 잠금을 기다리는 동안 finish 가 완전히 커밋되거나(그 뒤 GET 이 일관된 DONE 스냅샷을 읽음), finish 가 GET 뒤로 밀린다(그 뒤 GET 은 일관된 IN_PROGRESS 스냅샷). 파일 범위: `src/modules/learning/vocab/sessions.ts`의 `getVocabSession` 한 함수(읽기 전용 트랜잭션 1개 추가, 응답 스키마·계약 변경 없음).
+
+**종합**: 2건 모두 **채택**(오탐 없음). Critical/High 급 신규 이슈는 아니고(1: MEDIUM, 2: LOW) H1 처럼 결정적·반복 가능한 정답 상시 노출은 아니지만, 둘 다 이 프로젝트가 스스로 정한 "쓰기는 사용자 행부터, 읽기도 finish 와 경합하면 같은 잠금을 공유" 관례에서 벗어난 실제 코드 결함이다. Developer 수정 후 Reviewer 재순환 필요.
+
+### Codex C2 수정 재검증 (2026-09-27) — 커밋 `b0eebcf`
+
+**범위**: `git diff 10b770e..b0eebcf -- src tests` 는 126 files(+8776/-30)인데, 그중 대부분(admin console 91개 파일·`src/proxy.ts`·`speech/voices/admin.ts`·`engine/**` 다수·`tests/live/task005b-smoke.*`)은 **task-005b(콘솔 골격)가 이 사이에 별도로 머지된 것**이라 이번 재검증 범위 밖이다(그쪽은 별도 REV 대상). Codex C2 수정과 직접 관련된 것은 `src/modules/learning/vocab/words.ts`·`src/modules/learning/vocab/sessions.ts`·`src/modules/learning/__tests__/task008.test.ts`·`tests/live/task008-smoke.ts` 4개뿐이라 이 4개만 diff 로 정독. `npm run typecheck`(0 error)·`npm run lint`(0 error — 경고 5건 중 vocab 관련 0, 새로 늘어난 1건은 task-005b `admin/trace/DiagnosticsScreen.tsx` 로 이번 범위 밖)·`npm test`(**203/203 PASS**, `Codex C2-1`·`Codex C2-2` 포함) 재실행.
+
+**판정**: **PASS** (Critical 0 · High 0 · Medium 0 · Low 0) — 2건 모두 해소 확인.
+
+- **[medium] setWordArchived 해소 확인**: `setWordArchivedTx(tx, userId, id, archived)` 신설, 본문 첫 줄이 `await lockUserRow(tx, userId)`(이후 `tx.wordEntry.updateMany`→`findFirst`), 공개 `setWordArchived` 는 `withTransaction((tx) => setWordArchivedTx(...))` 로 감싸는 얇은 래퍼. 이제 `createVocabSession`(`sessions.ts:288-289`, `lockUserRow` 먼저)과 **같은 `User` 행을 두고 경합**하므로 두 트랜잭션이 완전히 직렬화된다 — 원 지적의 "잠그는 테이블 자체가 달라 대기하지 않는다" 문제가 근본적으로 없어짐. 단위 테스트(`Codex C2-1`, 가짜 tx 로 호출 순서 `['lock:user','word:update','word:read']` 검증 + 없는/남의 단어 404)와 라이브 스모크 **5i**(archive·createVocabSession 동시 실행 → 포함 여부와 무관하게 "포함됐다면 `set.startedAt < word.archivedAt`"라는 순서 불변식으로 검증, bare pass/fail 이 아니라 **직렬화 순서 자체**를 확인하는 설계라 더 엄격함)·**5j**(보관 뒤 새 세트에는 그 단어 없음, `cardCount===4`)로 코드·런타임 양쪽 확인.
+- **[low] getVocabSession 해소 확인**: `readVocabSessionTx(tx, userId, id)` 신설 — `lockSession(tx, userId, id)`(세트 행 `FOR UPDATE`, `recordAttempt`/`finishVocabSession` 과 동일 함수)로 잠근 뒤 그 안에서 `attempts` 를 이어 읽음. 공개 `getVocabSession` 은 `withTransaction((tx) => readVocabSessionTx(...))` 래퍼. `finish`(세트 행 잠금 보유 중 attempts→session 순으로 갱신)와 GET 이 이제 같은 행을 두고 완전히 직렬화되므로 "session=IN_PROGRESS(stale)+attempts=SKIPPED(new)" 혼재 조합이 더는 나오지 않는다(한쪽이 끝나야 다른 쪽이 그 행을 본다). 단위 테스트(`Codex C2-2`, 호출 순서 `['lock:session','session:read','attempts:read']` + 미답 CHOICE 카드 `correctText===undefined`)로 확인.
+- **교착 재점검(Leader 질의)**: `readVocabSessionTx`/`getVocabSession` 은 **세트 행만** 잠그고(`lockUserRow` 를 잡지 않는다 — 갱신된 파일 상단 주석도 "조회(#49): 세트 행 → 카드 읽기"로 명시, `recordAttempt`(#50)와 같은 급) `finishVocabSession`(사용자 행→세트 행)·`keepVocabSession`(REV-008 L1, 사용자 행→세트 행)은 두 자원을 그 순서로 잡는다. GET 이 자원을 **하나만** 요청하므로(사용자 행을 잡은 채 세트 행을 기다리는 경로가 없다) GET 을 낀 두-자원 역순 사이클 자체가 성립할 수 없다 — 교착 불가능. `createVocabSession`/`replayVocabSession` 이 세트 행을 잠그지 않고 평범한 SELECT 로만 다른(원본) 세션을 읽는 경로와도 InnoDB 비잠금 읽기라 충돌하지 않는다. `withTransaction` 의 P2034 재시도(`infra/tx.ts`)가 혹시 모를 잠금 대기 초과까지 흡수한다.
+- **응답 계약·정답 미노출 불변**: `readVocabSessionTx` 의 반환 형태(`{session,cards}`)와 `toCardDto` 호출 방식은 REV-008 H1 수정본과 동일(이번 diff 는 `toCardDto` 자체를 건드리지 않음) — `getVocabSession` 을 부르는 라우트(`vocab/sessions/[id]/route.ts`)도 무변경. DONE 결과 화면·FLIP(F1) 비회귀는 H1 재검증 때 이미 확인했고 이번 변경은 그 로직에 손대지 않았으므로 그대로 유효.
+- **범위 확인**: `words.ts`/`sessions.ts` 두 함수 모두 트랜잭션 스코프 전용 신규 export(`setWordArchivedTx`/`readVocabSessionTx`)이고 `learning/index.ts`(barrel)에는 추가되지 않음 — L3 공개 API 표면·6층 경계 변화 없음.
+
+**QA 인계**: task-005b(admin console) 파일이 같은 `git log` 구간에 섞여 들어온 것은 이번 재검증에서 코드만 훑고 판단하지 않았다(별도 REV 대상 — Leader 확인 필요). task-008 자체의 QA-012 는 이미 10b770e 기준으로 PASS 했으므로, 이번 Codex C2 수정분(5i/5j 스모크 포함)만 QA 가 한 번 더 실행 확인 권장.
+
+→ [[task-008-vocab-today-words]]
+
 ## QA 기록
 
 ### QA-012 (2026-09-27, 감사 QA-012, 커밋 4e1af12/10b770e 기준, 미러 dev :3011·:3012)
@@ -337,6 +384,6 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 **운영 빌드 확인**: 운영과 분리한 복제본(`~/.node-local/thekaiwa-buildcheck`, `.next` 미복사)에서 `next build` exit 0, 기본 단어 팩 JSON 이 서버 번들에 포함됨을 확인하고 복제본 삭제.
 
 **⚠ 운영 반영 대기(사용자)**: task-006·008 모두 운영에 아직 없습니다. 반영하려면 `npm run build`(미러) 후 `pm2 restart thekaiwa` 가 필요합니다(Claude 권한 정책상 운영 재시작 불가). 커밋 다수 미push.
-**⚠ Codex 보류**: judge C1·C2 모두 Codex 필요 판정 → 사용자 지시(한도 충전 후 재확인)로 override. 동시성은 reviewer 코드 추적 + QA 실경합으로 대체 검증.
+**Codex 검토(사용자 한도 초기화 후 재개)**: C2 exec 모드 실행(165초) → 지적 2건(Medium: 보관 토글이 사용자 행을 잠그지 않아 세트 생성과 엇갈림 / Low: 세트 조회가 끝내기와 겹칠 때 자기 세트 정답이 조금 일찍 보임) → reviewer 둘 다 채택 → 수정 `b0eebcf`(스모크 74/74) → 재검증 PASS. QA 재확인은 task-005b QA 와 함께. 호출 1/4.
 **폰에서 확인할 것**: 실제 손가락 스와이프 감도(위·좌·우), 뜻 채우기·검색 중 Gboard 입력.
 **발견(backlog)**: `persona/loader.ts` 의 동적 `statSync` 가 빌드 시 "프로젝트 전체 추적" 경고(task-004 부터, 빌드는 통과) · webpack dev 모드에서 `crypto` 모듈 해석 실패(Turbopack 기본 경로는 정상).
