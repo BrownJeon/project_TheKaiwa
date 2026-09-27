@@ -12,7 +12,7 @@
  */
 import { callClaude } from '../adapters/llm/claudeCli'
 import { HomeM4ApiCaller, LlmContractError, LlmTimeoutError, type LlmMessage } from '../adapters/llm/homeM4'
-import { runJsonWithRetry, withJsonOnly, type RunJsonResult } from '../json/schemaValidate'
+import { extractAndValidate, runJsonWithRetry, withJsonOnly, type RunJsonResult } from '../json/schemaValidate'
 import { LLM_TASKS, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
 
 export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, toUserMessage } from '../adapters/llm/homeM4'
@@ -208,5 +208,49 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
     ...meta,
     connectionKey: connection.key,
     elapsedMs: Date.now() - startedAt,
+  }
+}
+
+// ── Functional Test 프로브(task-005b #96) ────────────────────────────────────
+
+/** 고정 스키마 — 사용자 데이터·자유 텍스트 없음. */
+export const PROBE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ok', 'echo'],
+  properties: { ok: { type: 'boolean', const: true }, echo: { type: 'string', maxLength: 20 } },
+} as const
+
+export interface ProbeResult {
+  ok: boolean
+  schemaValid: boolean
+  model: string
+  outputChars: number
+  elapsedMs: number
+  /** 실패한 경우 오류 이름(LlmTimeoutError·ClaudeCliNotFoundError…) — 메시지는 싣지 않는다. */
+  errorName: string | null
+}
+
+/**
+ * **지정한 connection 하나**에 고정 JSON 스키마 요청을 1회 보낸다(재시도·폴백 없음). Router 를 거치지 않으므로 콘솔 Functional Test 전용이다.
+ * 프롬프트는 상수이고 응답 본문은 돌려주지 않는다(길이·스키마 통과 여부만).
+ */
+export async function probeConnection(c: ResolvedConnection, timeoutMs = 30_000): Promise<ProbeResult> {
+  const startedAt = Date.now()
+  const req: LlmRequest = {
+    task: 'wordEnrich',
+    system: '연결 점검용 요청이다. {"ok":true,"echo":"テスト"} 와 같은 JSON 객체 하나만 출력하라.',
+    messages: [{ role: 'user', content: 'ping' }],
+    jsonSchema: PROBE_SCHEMA,
+  }
+  let model = ''
+  try {
+    const out = await callOnce(c, req, 'fast', timeoutMs, 'interactive', null)
+    model = out.model
+    const v = extractAndValidate(out.text, PROBE_SCHEMA)
+    return { ok: v.ok, schemaValid: v.ok, model, outputChars: out.text.length, elapsedMs: Date.now() - startedAt, errorName: v.ok ? null : 'JsonSchemaError' }
+  } catch (e) {
+    const name = (e as { name?: string })?.name
+    return { ok: false, schemaValid: false, model, outputChars: 0, elapsedMs: Date.now() - startedAt, errorName: typeof name === 'string' ? name.slice(0, 40) : 'Error' }
   }
 }

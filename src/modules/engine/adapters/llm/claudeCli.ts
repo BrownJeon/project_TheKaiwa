@@ -579,3 +579,55 @@ export async function callClaude(prompt: string, opts: ClaudeCliOptions = {}): P
 
   return schedule(priority, task)
 }
+
+// ── Health 프로브(task-005b #95) ─────────────────────────────────────────────
+
+export interface ClaudeCliProbe {
+  ok: boolean
+  version: string | null
+  errorCode: string | null
+  latencyMs: number
+}
+
+const VERSION_TOKEN = /^[\w.\-+ ()]{1,60}$/
+
+/**
+ * `claude --version` 만 실행한다 — 모델 호출 없음, LLM 큐 밖(사용자 턴을 막지 않는다).
+ * 실행 파일은 런타임과 같은 서버 env(`CLAUDE_CLI_PATH`)만 쓴다 — DB connection 의 `binPath` 를 spawn 하지 않는다
+ * (관리자 편집 값이 실행 파일이 되는 경로를 만들지 않기 위해). argv 배열·셸 없음·5초 상한·stdout 4KB 상한, stderr 는 버린다.
+ */
+export function probeClaudeCliVersion(timeoutMs = 5_000): Promise<ClaudeCliProbe> {
+  const startedAt = Date.now()
+  return new Promise((resolve) => {
+    let out = ''
+    let settled = false
+    // spawn 이 동기로 던지면 타이머 전에 done 이 불린다 — 그래서 핸들을 객체에 담아 둔다.
+    const timer: { id?: NodeJS.Timeout } = {}
+    const done = (p: Omit<ClaudeCliProbe, 'latencyMs'>) => {
+      if (settled) return
+      settled = true
+      if (timer.id) clearTimeout(timer.id)
+      resolve({ ...p, latencyMs: Date.now() - startedAt })
+    }
+    let proc: ReturnType<typeof spawn>
+    try {
+      proc = spawn(readCliPath(), ['--version'], { cwd: tmpdir(), env: cleanEnv(false), stdio: ['ignore', 'pipe', 'ignore'] })
+    } catch {
+      done({ ok: false, version: null, errorCode: 'SPAWN_FAILED' })
+      return
+    }
+    timer.id = setTimeout(() => {
+      proc.kill('SIGKILL')
+      done({ ok: false, version: null, errorCode: 'ETIMEDOUT' })
+    }, timeoutMs)
+    proc.stdout?.on('data', (b: Buffer) => {
+      if (out.length < 4096) out += b.toString('utf8')
+    })
+    proc.on('error', (e: NodeJS.ErrnoException) => done({ ok: false, version: null, errorCode: e.code === 'ENOENT' ? 'NOT_FOUND' : 'SPAWN_FAILED' }))
+    proc.on('close', (code) => {
+      if (code !== 0) return done({ ok: false, version: null, errorCode: `EXIT_${code ?? 'SIGNAL'}` })
+      const first = out.split('\n')[0]?.trim() ?? ''
+      done({ ok: true, version: VERSION_TOKEN.test(first) ? first : null, errorCode: null })
+    })
+  })
+}

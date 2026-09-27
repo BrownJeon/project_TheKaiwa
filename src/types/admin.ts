@@ -71,10 +71,30 @@ export interface AdminPage<T> {
   nextCursor: string | null
 }
 
-/** 403 응답 `data.details` — 화면이 "이 기능에는 ○○ 권한이 필요합니다" 를 띄울 때 쓴다(404 는 힌트 없음). */
+/** 403 응답 `data.details`(api-contract §2-19) — 화면이 "이 기능에는 ○○ 권한이 필요합니다" 를 띄울 때 쓴다(404 는 힌트 없음). */
 export interface ForbiddenDetails {
   missing: Capability[]
-  requiredCapability: Capability
+}
+
+/**
+ * 서버 컴포넌트 헬퍼(`@/modules/admin` 의 `getConsoleAccess()`·`requireConsolePage()`)가 돌려주는 현재 사용자 정보.
+ * 매 요청 DB 에서 역할을 읽어 만든다(캐시 없음). menu 는 이미 capability·Phase 로 거른 것.
+ */
+export interface ConsoleViewer {
+  id: string
+  email: string
+  name: string | null
+  role: AdminRole
+  environment: AdminEnvironment
+  capabilities: Capability[]
+  menu: AdminMenuItem[]
+}
+
+/** `requireConsolePage(capability)` 결과 — allowed=false 면 콘솔 안 403 화면(메뉴 유지)을 그린다. */
+export interface ConsolePageAccess {
+  viewer: ConsoleViewer
+  allowed: boolean
+  missing: Capability[]
 }
 
 /** 콘솔 메뉴 한 줄(`src/modules/admin/console/menu.ts` 상수). 서버 컴포넌트가 capability 로 거른 뒤 props 로 넘긴다. */
@@ -159,8 +179,17 @@ export interface EngineConnectionDto {
   updatedAt: string
 }
 
+/**
+ * "실행하지 않은" 결과의 단일 표현(task-005b H2). `status` 는 항상 EngineStatus enum 값이고 이유는 `detail.reason` 이다.
+ *   NOT_APPLICABLE  — 서버에서 확인할 대상이 아님(ONDEVICE·worker 내장 LOCAL)        → ok:false, status:'UNKNOWN',    skipped:true
+ *   SERVICE_DOWN    — 기능 테스트 전 서비스 확인에서 실패(연결 거부·타임아웃·5xx 등)  → ok:false, status:'UNAVAILABLE'|'DEGRADED'|'MISCONFIGURED', skipped:true, errorCode 동반
+ *   NOT_IMPLEMENTED — 서비스는 응답하지만 음성 기능 테스트 자산·경로가 아직 없음(task-003) → ok:false, status:'UNKNOWN',    skipped:true
+ * 실행했는데 실패한 경우는 skipped/reason 이 없고 errorCode·message 만 있다. `status:'UNKNOWN'` 결과는 connection 상태를 바꾸지 않는다.
+ */
+export type HealthSkipReason = 'NOT_APPLICABLE' | 'SERVICE_DOWN' | 'NOT_IMPLEMENTED'
+
 export interface HealthDetailDto {
-  /** 실패 분류: ECONNREFUSED·ETIMEDOUT·ENOTFOUND·HTTP_<status>·SPAWN_FAILED·EXIT_<code>·CREDENTIAL_MISSING·NOT_SUPPORTED … */
+  /** 실패 분류: ECONNREFUSED·ETIMEDOUT·ENOTFOUND·HTTP_<status>·NOT_FOUND·SPAWN_FAILED·EXIT_<code>·CREDENTIAL_MISSING·PLUGIN_NOT_LOADED·SCHEMA_INVALID … */
   errorCode?: string
   /** 고정 한국어 문구(URL·경로·stderr 없음). */
   message?: string
@@ -170,8 +199,9 @@ export interface HealthDetailDto {
   memoryMb?: number
   device?: string
   serviceEnv?: string
+  /** true = 검사·테스트를 실행하지 않았다(이유는 reason). */
   skipped?: boolean
-  skipReason?: string
+  reason?: HealthSkipReason
   /** FUNCTIONAL(LLM) */
   schemaValid?: boolean
   model?: string

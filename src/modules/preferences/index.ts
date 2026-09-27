@@ -65,3 +65,10 @@ export async function getAppSetting<T>(key: string, fallback: T): Promise<T> {
   const row = await prisma.appSetting.findUnique({ where: { environment_key: { environment: env, key } } })
   return row ? (row.value as T) : fallback
 }
+
+/** Voice 별 사용자 수(관리자 #82 `usage.users`) — UserVoiceSetting 은 preferences 소유라 여기서 센다. */
+export async function countUsersByVoice(voiceProfileIds: string[]): Promise<Map<string, number>> {
+  if (voiceProfileIds.length === 0) return new Map()
+  const rows = await prisma.userVoiceSetting.groupBy({ by: ['voiceProfileId'], where: { voiceProfileId: { in: voiceProfileIds } }, _count: { _all: true } })
+  return new Map(rows.filter((r) => r.voiceProfileId).map((r) => [r.voiceProfileId as string, r._count._all]))
+}
