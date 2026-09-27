@@ -92,6 +92,15 @@ design-spec §15 task-005b 완료 기준 중 이월분 "**Pronunciation Dictiona
 
 ## Codex 검토
 
+### [2026-09-28 10:20] C2 adversarial-review focus=security — done
+- judge 판정: 2026-09-28 07:05 codex_required=true / mode=adversarial-review / focus=security / budget_rule=CX-limit-unknown-r2 · 호출 차수: 1/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=0c493c6(task_file) snapshot=6fd4542
+- 지적 1건: [medium] src/modules/speech/tts/lexiconStore.ts:385 — rollback 시 과거 스냅샷이 손상된 경우 **snapshotHash 검증 없이** 손상된 스냅샷도 새 ACTIVE 버전으로 세탁될 수 있음. (조건: snapshot이 DB 수동 변경·버그·운영 사고로 snapshotHash와 불일치하거나 형식이 깨진 상태) (impact: 정상 항목이 비활성화되거나 잘못된 읽기가 운영 TTS에 적용, 무결성 필드가 보호에 쓰이지 않음) (권고: rollback 대상 조회 시 snapshotHash도 함께 읽고, 엄격 파싱한 snapshot의 enabled 항목 해시가 저장된 snapshotHash와 일치하는지 검증 후에만 planRollback 수행; 불일치/malformed 행은 409/422로 거절)
+- 검토하지 못한 범위: 테스트와 라이브 스모크(읽기 전용 검토 조건), 프론트엔드 19개 컴포넌트 전체 줄 검토(권한/PRODUCTION/XSS 패턴 검색만 실행)
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T220709Z-task-003g-C2/raw.txt
+
+**요약**: 관리자 API의 기본 권한 가드, voices.manage 쓰기 보호, PRODUCTION 추가 capability 및 확인 문구, import 크기 제한과 CSV 인젝션 이스케이프는 대체로 구현되어 있으나, rollback이 보유한 snapshotHash를 검증하지 않아 버전 스냅샷 손상/변조가 새 ACTIVE 버전으로 승격될 수 있다.
+
 ## Designer 기록
 
 - [05:21] 화면 가이드 완료 → `docs/screens.md` **§10 관리자 콘솔 — 발음 사전**(10-0~10-11) + 변경 이력·§2 콘솔 행·§6 머리말·§6-1 메뉴 4a 행·§6-2 E(TTS 링크)·§6-10 문구 갱신. 결정 요약:
@@ -389,6 +398,33 @@ A 의 새 테스트(`lexiconAdmin.test.ts` "dryRun 계획 = 실제 적용 결과
 ```
 
 **결론**: Critical 0·High 0·Medium 0·Low 0 → **PASS**. A(`171763e`)·B(`5a91b58`) 두 수정은 서로 다른 층(데이터 무결성 vs 화면 가시성)에서 REV-017/018 Medium 을 각각 온전히 해소하고, 실측 재현으로 두 수정이 상호 배타적이지 않고 정확히 정합하게 조합됨을 확인했다. 왕복 불변·dryRun=실제 적용 모두 A 자신의 신규 테스트 + 이번 독립 전체 스위트 재실행(426/426)으로 재확인, 회귀 없음. 참고 사항(비차단): `speech/__tests__/lexiconAdmin.test.ts` 에 REV-017 점검 범위 밖이던 기존 eslint warning 5건이 있음(이번 두 수정과 무관, 391행 이전 원본 코드) — QA·Leader 는 배포를 막을 사유로 보지 말고 원하면 별도 tech-debt 로 분리. QA 인계: REV-018 이 남긴 "dryRun 화면 가시성 재확인" 항목은 이번에 실제로 보이는 것을 확인했으니 완료 처리해도 된다 — 남은 QA 관심사는 실기기/실역할(PRODUCTION·voices.read 단독)이 여전히 단위 테스트로만 검증된다는 기존 한계뿐(REV-017/018 과 동일, 신규 아님).
+
+### Codex C2 지적 판정 (2026-09-28)
+
+**대상**: `## Codex 검토` §[2026-09-28 10:20] C2, 지적 1건(`src/modules/speech/tts/lexiconStore.ts:385` rollback — `snapshotHash` 미검증). 원본 `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T220709Z-task-003g-C2/raw.txt` 대조 완료. **Read 전용 — 스크래치 생성 안 함**(코드 읽기·grep 만으로 판정, 삭제할 것 없음).
+
+#### 판정: **채택**(ADOPT) — 단, 영향(impact) 서술 일부는 근거로 반박·정정
+
+- **코드 확인**: `lexiconStore.ts:385` `ROLLBACK` 분기가 `tx.pronunciationLexiconVersion.findUnique({..., select: { snapshot: true } })` 로 **`snapshotHash` 를 select 조차 하지 않고** `readSnapshot(target.snapshot)` 결과를 곧장 `planRollback(rows, ...)` 에 넘긴다(387행). `lexiconStore.ts` 전체를 grep 한 결과 `snapshotHash` 를 읽어 비교하는 코드는 **어디에도 없다** — 있는 용례는 전부 (a) 새 버전 생성 시 `after` 로부터 직접 재계산해 저장(433행, 항상 신뢰 가능) (b) DTO 로 그대로 노출(157·261행, 화면 표시용) (c) Export 정합성 배지(`X-Lexicon-Consistent`, 252-255행 — 이건 "지금 항목 표 vs 지금 ACTIVE 버전" 비교이지 "롤백 대상 스냅샷이 제 것과 일치하는지" 비교가 아니다) 뿐이다. Codex 의 지적 위치·근거가 정확함을 코드로 재확인.
+
+#### (a) `snapshotHash` 재계산 가능성 — **가능·결정적**
+- `snapshotHash()`(`src/modules/speech/tts/lexicon.ts:132-138`): `entries.filter(e => e.enabled)` → 각 항목을 `[scope, scopeRefId ?? '', surface, reading, accentType, priority, wordType ?? ''].join('\u0001')` 로 정준화 → **정렬** → `\u0002` 로 합쳐 sha256 hex. **꺼진 항목·`note`·`enabled` 자체는 해시에 안 들어간다**(주석 "snapshotHash = 활성 항목 해시" 그대로, task-003g A 결정 ⑩과 일치). 정렬을 거치므로 입력 배열의 순서는 무관하고, 같은 활성-항목 집합이면 항상 같은 해시가 나온다 — **`readSnapshot(target.snapshot)` 의 결과(또는 그 대신 쓸 엄격 파서의 결과)를 그대로 이 함수에 넣어 재계산한 값을 `target.snapshotHash` 와 비교하는 것이 구조적으로 가능**하다(별도 파생 로직 불필요, 기존 함수 그대로 재사용).
+
+#### (b) `loadActiveLexicon`(합성 경로)·버전 diff 도 같은 결함의 영향을 받는가 — **부분적으로만**
+- **버전 diff·목록은 영향받음(확인)**: `versionOf`(157행)와 diff 계산(240-241행, `readSnapshot(base.snapshot)`/`readSnapshot(row.snapshot)`)이 rollback 과 **같은** `readSnapshot`(`lexiconRules.ts:282-302`)을 쓴다. 이 함수는 `surface`·`reading`·`scope`(enum 소속) 만 타입 검사하고 그 밖(읽기 가나 형식·악센트 범위·우선순위 범위·scope/scopeRefId 정합) 은 검사하지 않으며, 타입이 안 맞는 행은 **조용히 버린다**(`continue`, 오류·경고 없음). 따라서 스냅샷이 손상되면 버전 상세의 `entryCount`/`enabledCount`·diff 행 수가 **아무 표시 없이 과소 집계**된다 — Codex 가 지목한 지점(rollback)뿐 아니라 관리자가 매일 보는 버전 기록 화면도 같은 구멍을 공유한다(이번 리뷰에서 Codex 원문에 없던 추가 확인 사항).
+- **합성(TTS) 경로는 별도 방어가 있어 Codex 의 "잘못된 읽기가 운영 TTS 에 적용" 단정은 과장됨**: `loadActiveLexicon`(`lexicon.ts:173-184`)은 `readSnapshot` 이 아니라 **자체의 더 엄격한 `parseSnapshot`**(같은 파일 140-162행)을 쓴다. `parseSnapshot` 은 각 행을 만든 뒤 **`validateLexiconEntry(e)`(55-64행 — 표기 1~40·일본어 포함, 읽기 가타카나+ー ≤60, 악센트 0~모라수, 우선순위 0~1000, scope/scopeRefId 정합, wordType enum)를 통과한 것만** `out.push` 한다(주석 "스냅샷이 손상돼도 잘못된 읽기를 엔진에 보내지 않는다" — 의도적 방어). 즉 **타입은 맞지만 업무 규칙을 어기는 값**(가나가 아닌 읽기, 범위 밖 악센트 등)이 손상된 롤백 대상 스냅샷을 통해 새 ACTIVE 버전·`PronunciationLexiconEntry` 실제 행에 들어가더라도, 다음에 그 버전을 `loadActiveLexicon` 이 읽을 때 `validateLexiconEntry` 가 걸러내 **TTS 엔진에는 전달되지 않는다**. 이 방어는 rollback 경로의 설계가 아니라 **완전히 별개 코드(합성 전용 파서)의 부수 효과**이므로, "고쳐지지 않아도 안전하다"는 뜻이 아니라 "이 특정 하위 impact 문장은 근거가 약하다"는 뜻으로 정정한다.
+- **그래도 남는 진짜 위험(=Codex 핵심 impact, 확인됨)**: `planRollback`(`lexiconRules.ts:479-497`)은 "대상 스냅샷의 키 집합과 다른, 지금 활성 상태인 항목은 비활성화"(492-495행) 방식으로 동작한다. `readSnapshot` 이 타입 손상 때문에 **정상적으로 존재해야 할 키를 조용히 빠뜨리면**, 그 키를 가진 **현재 정상·활성 항목이 "대상에 없다"고 오인되어 비활성화된다** — Codex 의 "정상 항목이 비활성화" 문장은 코드 추적으로 정확히 재현되는 실제 결함이다(단, "잘못된 읽기가 적용"은 위에서 정정한 대로 별도 방어에 막힘). 또한 이 오작동은 `snapshotHash` 검증이 있었다면 애초에 롤백 자체가 거절돼 발생하지 않았을 일이므로, 권고안이 겨냥하는 근본 방어(무결성 확인 후에만 진행)는 여전히 올바르다.
+
+#### (c) 도달 경로 — 순수 API 공격이 아니라 방어 심층화(defense-in-depth)
+- `toSnapshot`(스냅샷 직렬화 직전 자료)에 들어가는 모든 `LexiconEntryFields` 는 정상 쓰기 경로(CREATE·UPDATE·IMPORT 의 `parseEntryInput`, 그리고 ROLLBACK 자신도 과거의 이미 검증된 스냅샷)에서 나온다 — **정상적인 `voices.manage` 관리자가 API 만으로 업무 규칙에 어긋나는 행을 스냅샷에 주입할 방법은 없다**(schema.prisma 확인: `snapshot Json` 컬럼에 DB 레벨 제약도 없음, 순수 애플리케이션 코드가 유일한 방어선). 손상은 Codex 가 명시한 대로 DB 직접 수정·과거 버그·운영 사고로만 도달 가능 — 원격 미인증/일반 관리자 공격면이 아니라 **데이터 무결성·방어 심층화** 문제. 이 판단 근거로 Codex 의 MEDIUM 심각도에 **동의**(HIGH 로 올리지 않음, LOW 로 낮추지도 않음).
+
+#### 채택 시 — 심각도·수정안·필요 테스트
+- **심각도**: **MEDIUM**(Codex 원 판정과 동일하게 유지). 근거: 공격 표면이 API 가 아니라 DB 직접 접근·과거 버그 조건부이고(위 (c)), TTS 합성 결과 자체는 별도 방어로 보호되지만(위 (b)), 관리자가 실제로 보는 버전 기록·되돌리기 확인 화면과 실제 `PronunciationLexiconEntry` 행의 무결성이 아무 경고 없이 깨질 수 있다는 점은 실질적인 데이터 무결성 결함이다.
+- **수정 범위**: `lexiconStore.ts:385` 의 `findUnique` select 에 `snapshotHash: true` 추가 → `readSnapshot`(또는 malformed 행을 **버리지 않고 오류로 보고하는** 새 엄격 파서)으로 얻은 활성 항목들로 `snapshotHash(...)` 재계산 → 저장된 `target.snapshotHash` 와 **바이트 단위 일치**해야만 `planRollback` 진행. 불일치·malformed 행 존재 시 새 오류 타입(예: `LexiconSnapshotIntegrityError`, 422 UNPROCESSABLE·`details.reason:'SNAPSHOT_INTEGRITY'` — 409 CONFLICT 의 `VERSION_CONFLICT`/`baseVersion` 의미와 겹치지 않게 구분 권고, 최종 코드 이름은 A 재량)로 거절. 버전 diff(240-241행)·버전 목록(157행)에도 같은 엄격 파서를 적용해 손상을 "0개로 조용히" 대신 "표시하거나 최소한 로그"하는 것을 함께 권고(같은 루트 원인 공유 — 국소 확장이면 됨).
+- **필요 테스트**: ① 정상(변조 없음) 스냅샷으로 롤백 — 기존 425+ 테스트 그대로 통과(회귀 없음) 확인 ② `target.snapshot` 을 해시와 불일치하게 직접 변조(가짜 tx 에 손상된 snapshot 주입) 후 rollback → 새 오류로 거절·버전/감사 생성 0(현재는 테스트가 이 케이스를 전혀 다루지 않음, `readSnapshot`/`snapshotHash`/`malformed` grep 으로 확인) ③ 타입은 맞지만 업무 규칙 위반 행(예: 히라가나 읽기)이 섞인 스냅샷 → 해시가 이미 그 값을 포함해 계산됐다면(즉 저장 당시엔 유효했으나 그 뒤 룰이 강화된 경우) 처리 정책을 A 가 결정해 문서화 ④ (권장) 버전 diff·목록 API 가 손상된 스냅샷을 만나면 무엇을 반환하는지 최소 1건.
+- **재순환 범위**: `lexiconStore.ts`(ROLLBACK 분기)·필요 시 `lexiconRules.ts`(엄격 파서 추가)·`lexiconStore.ts` 버전 diff/목록 두 곳 국소 수정 — 화면(B)·다른 API 경로는 무관해 전체 재순환 불필요, 서버만 재검증하면 됨(Leader 최종 판단).
+
+**요약**: Codex C2 지적 채택. 위치·근거·핵심 impact("정상 항목 비활성화")는 코드로 재현 확인, "잘못된 읽기가 TTS 에 적용" 부분은 `loadActiveLexicon` 의 별도 `validateLexiconEntry` 방어로 실제로는 막혀 있어 근거를 정정했으나 그렇다고 결함이 사라지는 것은 아니다(합성은 우연히 보호되지만 관리자 화면·DB 데이터 무결성은 그대로 노출). Developer 수정 요청, 수정 후 Reviewer(서버만) 국소 재검증 권고.
 
 ## QA 기록
 
