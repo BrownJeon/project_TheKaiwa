@@ -187,6 +187,8 @@ flowchart TD
 
 ## 6. Chunked / Low-latency Delivery (§139~§141)
 
+> **task-007 구현 반영(2026-09-28, REV-014 M1)**: 턴(#32) 경로의 Sentence Detector·청크 스케줄링은 `speech/tts/chunkScheduler` 가 아니라 **`conversation/orchestrator/{sentences,turnAudio}.ts`(L2)** 에 있다 — LLM 스트림(`--include-partial-messages`)에서 `conversation.replyJa` 경로를 증분 추출(`engine/json/jsonPathStream`)해 문장을 자르는 일은 LLM 응답 구조를 아는 conversation 만 할 수 있고, conversation 은 speech 를 import 하지 않으므로 라우트가 주입한 speaker 콜백(`speech/tts/turnSpeaker`)으로 **문장 1개씩** 합성을 맡긴다. speech 는 문장 단위 합성·캐시·서명 URL(`speech/tts/audioUrl`)만 소유한다. 아래 §6.1·§6.2 의 규칙(분할 기준·청크 0 우선·동시 1~2·캐시 우선·실패는 그 청크만)은 그대로 적용되며, "LLM 스트리밍은 후속 최적화"는 task-007 에서 **적용됨**(조기 첫 문장 합성 + 안전 필터, `runtime.earlySentenceTts`). SSE `audio.runtime` 에는 `connectionKey` 를 싣지 않는다(task-003d U5). `POST /api/v1/speech/tts/chunks`(독립 경로)는 레슨(Phase 2)에서 `speech/tts` 쪽에 만든다.
+
 ### 6.1 Sentence Detector (`speech/tts/chunkScheduler/sentenceDetector`)
 
 `。！？` 와 `…`·닫는 괄호 뒤에서 분할, 세그먼트 ≤ `runtime.maxChars`(100)를 넘으면 `、` 에서 2차 분할, 4자 미만 조각은 앞 문장에 합침. 입력은 정규화 **전** 원문이며 분할 좌표를 token map 과 함께 유지한다(TALK 는 원래 ≤2문장).
