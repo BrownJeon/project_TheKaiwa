@@ -188,6 +188,7 @@ flowchart TD
 ## 6. Chunked / Low-latency Delivery (§139~§141)
 
 > **task-007 구현 반영(2026-09-28, REV-014 M1)**: 턴(#32) 경로의 Sentence Detector·청크 스케줄링은 `speech/tts/chunkScheduler` 가 아니라 **`conversation/orchestrator/{sentences,turnAudio}.ts`(L2)** 에 있다 — LLM 스트림(`--include-partial-messages`)에서 `conversation.replyJa` 경로를 증분 추출(`engine/json/jsonPathStream`)해 문장을 자르는 일은 LLM 응답 구조를 아는 conversation 만 할 수 있고, conversation 은 speech 를 import 하지 않으므로 라우트가 주입한 speaker 콜백(`speech/tts/turnSpeaker`)으로 **문장 1개씩** 합성을 맡긴다. speech 는 문장 단위 합성·캐시·서명 URL(`speech/tts/audioUrl`)만 소유한다. 아래 §6.1·§6.2 의 규칙(분할 기준·청크 0 우선·동시 1~2·캐시 우선·실패는 그 청크만)은 그대로 적용되며, "LLM 스트리밍은 후속 최적화"는 task-007 에서 **적용됨**(조기 첫 문장 합성 + 안전 필터, `runtime.earlySentenceTts`). SSE `audio.runtime` 에는 `connectionKey` 를 싣지 않는다(task-003d U5). `POST /api/v1/speech/tts/chunks`(독립 경로)는 레슨(Phase 2)에서 `speech/tts` 쪽에 만든다.
+> **SHADOWING 과 청크 동시성(Codex C2-1, 2026-09-28)**: SHADOWING 의 `gapMs:"PREVIOUS_DURATION"` 은 직전 청크 길이를 알아야 하는데 턴 청크는 동시 2개로 합성되어 청크 1 시작 시점에 청크 0 길이가 없다. task-007 은 TALK 턴에서 저장값 SHADOWING·PRONUNCIATION 을 NATIVE 로 낮추고(`speech/tts/profiles.resolveSpeechProfile`), 사용자 저장값을 Phase 1 3종으로 제한했다(#14·#18). **Phase 3 섀도잉 화면이 요청 단위로 SHADOWING 을 쓸 때는** 그 경로에서 청크를 순차 합성(동시 1)하거나 `pauseBeforeMs` 를 직전 청크 duration 수신 후 확정해야 한다.
 
 ### 6.1 Sentence Detector (`speech/tts/chunkScheduler/sentenceDetector`)
 
