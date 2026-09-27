@@ -7,7 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
-- [[task-003d-tts-p0]] — **TTS P0**(2026-09-27). M4 자체 FastAPI(`:8200` 상시·pf·워치독) + 앱 TTS 플랫폼(정규화·사전·Rendering Plan·Profile·12요소 캐시·상태 판정)·미리듣기·상태 표시등. Codex C1·C2(보안) 각 3건 반영, QA-014 재확인 PASS, 합성 p50 716ms·HIT 24ms. **앱 운영 반영 대기**
+- [[task-003d-tts-p0]] — **TTS P0**(2026-09-27). M4 자체 FastAPI(`:8200` 상시·pf·워치독) + 앱 TTS 플랫폼(정규화·사전·Rendering Plan·Profile·12요소 캐시·상태 판정)·미리듣기·상태 표시등. Codex C1·C2(보안) 각 3건 반영, QA-014 재확인 PASS, 합성 p50 716ms·HIT 24ms. 운영 반영 완료
 - [[task-005b-admin-console-skeleton]] — **Admin Console 골격**(2026-09-27). 권한 매트릭스·404/403·Effective Config+출처·Plugins/Connections·Health/Functional Test·Trace·비밀 이름만+감사, 콘솔 화면 14. REV-009+Codex C2(보안)→수정→QA-013(터치 44px)→수정→PASS. 발음 사전·#93b 이월. 19:15 운영 반영
 - [[task-008-vocab-today-words]] — **단어장 최소판 + 오늘의 단어**(2026-09-27). 라우트 18(#40~#46b·#47~#54)·가중 샘플링·정답 미노출·서버 채점·finish 단일 트랜잭션·A10 초안, 화면(단어장·오늘 홈·스와이프 덱·결과). REV-008(H1 수정)→PASS·QA-012 PASS(2프로세스 실경합·실브라우저 3폭). 운영 반영(18:26)·Codex C2 지적 2건 수정
 - [[task-006-chat-correction]] — **AI 채팅 + 표현 점검 + 교정 채택**(2026-09-27). 서버 13라우트·SSE 턴·사용자당 락·점검(동기/잡)·채택 트랜잭션, 화면 3종. REV-007 PASS_WITH_NOTES·QA-011 PASS(결함 0, 2프로세스 경합 실증). 운영 반영(18:26)·Codex C2 지적 0

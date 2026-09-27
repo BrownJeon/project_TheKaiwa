@@ -1,7 +1,7 @@
 ---
 task_id: task-003d
 title: "TTS P0 — M4 tts-service + 앱 TTS 플랫폼 층 + 미리듣기·상태 표시등"
-status: done-deploy-pending
+status: done
 base_ref: bbb1f31
 risk_level: R2
 roles_involved: [leader, judge, designer, developer, reviewer, qa, codex, deployer]
@@ -379,7 +379,7 @@ QA → Developer: 결함 #1(High) 리포트 발송. QA → Reviewer: 결함 #1 �
 **검증**: REV-010 PASS → Codex C2(보안) 지적 3건 채택(TTS 시크릿 전송 대상 env 고정·공개 /health 최소화·로그 원문 제거) → 수정 → REV-011 PASS → QA-014 FAIL(High: 진행 중 합성에 합류한 요청이 MISS 로 표시) → 수정 → REV-012 PASS → **QA-014 재확인 PASS**. 단위 테스트 247(앱)·82(M4). 설계 단계 Codex C1 지적 3건(TTS 전용 시크릿·/admin loopback 전용·캐시 조회 URL 은 task-007 서명 URL)도 반영.
 **실측 게이트(TTS)**: 앱 경유 캐시 없는 합성 **p50 716ms**(목표 1.0s)·캐시 적중 **p50 24ms**(목표 0.12s) · M4 직접 MPS p50 0.24s · 콜드 스타트 약 4.5~7s · 메모리 RSS 1.2GB + GPU 2.6GB(요청마다 GPU 메모리가 새던 문제 발견·수정). Ollama 동시 부하는 미측정(권한 밖).
 **운영**: M4 `:8200` 상시 기동(22:46 첫 배포, 23:19 health 분리 재배포 `36f3795`) · pf 방화벽(우분투 IP·localhost 만, 사용자 적용 — **재부팅 지속 LaunchDaemon 은 사용자 확인 필요**) · crontab 매분 워치독 · 발음 사전 시드(LOCAL·PRODUCTION 6건+v1) · M4 `.env` TTS 전용 시크릿.
-**⚠ 앱 운영 반영 대기**: 앱 쪽 TTS 코드는 운영 pm2 에 아직 없음(미러 build + `pm2 restart thekaiwa` 필요).
+**운영 반영 완료(2026-09-28 00:0x, 사용자 지시)**: 격리 빌드 + TTS 스모크(M4 포함) 17/20(잔여 3 = 알려진 테스트 쪽 문제) 선검증 → 미러 build → `pm2 restart thekaiwa`, https health 의 degraded 가 `stt_gateway` 만 남음(TTS 정상).
 **사용자 확인**: 세 목소리(Haruka=F1·Sakura=F2·Takumi=M1) 매핑이 마음에 드는지 미리듣기로 확인 → 미결 "화자 매핑" 종결.
 **후속(backlog)**: 스모크 9·9b(분당 제한 소진 순서)·9c(`/g2p` 장음 표기 기대값) 테스트 보정 · 싱글플라이트 전역 카운터(Low, 극히 드문 M4 중복 호출 1회) · TraceKind `TTS` 추가(Phase 2) · 발음 사전 관리 화면 003g · pitch/intonation 변경 시 +0.4s 후처리 최적화 · Ollama 동시 부하 측정.
 - [2026-09-27 21:45] codex_gate/C1 engine=jev → codex_required / adversarial-review / security / CX-limit-ok | overrides=- | fallback=- | tokens=882- [2026-09-27 22:35] codex_gate/C2 engine=jev → codex_required / adversarial-review / security / CX-limit-ok | overrides=- | fallback=- | tokens=1010
