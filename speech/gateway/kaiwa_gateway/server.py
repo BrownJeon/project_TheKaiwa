@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket
+
 from kaiwa_speech_common import __version__ as common_version
 from kaiwa_speech_common.config import Settings, load_settings
 from kaiwa_speech_common.engine.errors import EngineUnavailableError

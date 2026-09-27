@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect, WebSocketState
+
 from kaiwa_speech_common.config import Settings
 from kaiwa_speech_common.engine.errors import EngineOverloadedError, EngineUnavailableError
 from kaiwa_speech_common.engine.interfaces import EngineRole, SpeechRequest, TranscriptionSegment, UtteranceResult
@@ -22,7 +24,6 @@ from kaiwa_speech_common.ids import session_id, trace_id
 from kaiwa_speech_common.internal_client import CallbackError, InternalClient
 from kaiwa_speech_common.logging import get_logger, text_fingerprint
 from kaiwa_speech_common.router import SpeechEngineRouter
-from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from .limits import SessionLimitError, SessionRegistry, TokenBucket
 from .store import StoreError, UtteranceStore

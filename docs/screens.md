@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e)
 
 ---
 
@@ -78,7 +78,7 @@
 | 회화 | `/study/ai?tab=chat\|talk` | AI와 공부하기 홈(회화·채팅 전환, 채팅 목록) | 로그인 사용자 | 보임 | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]` | 채팅방 | 소유자(타인 404) | **숨김** | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]/review` | 표현 점검 결과 | 소유자 | **숨김** | **task-006(§3)** |
-| 회화 | `/study/ai/talk/[chatId]` | 음성 회화방(헤더 아바타 옆 TTS 상태 표시등 = §7 컴포넌트 재사용) | 소유자 | 숨김 | task-007 |
+| 회화 | `/study/ai/talk/[chatId]` | 음성 회화방(헤더 아바타 옆 TTS 상태 표시등 = §7 컴포넌트 재사용 · 푸시투토크 = §8 `PushToTalkButton`·`useRealtimeStt` 재사용) | 소유자 | 숨김 | task-007 |
 | 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드·최근 기록·보관한 세트, 회화·평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** |
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
 | 오늘 | `/study/today/talk/[lessonId]`, `eval/[evaluationId]` | 오늘의 회화 · AI 평가 | 소유자 | 숨김 | Phase 2 |
@@ -86,7 +86,7 @@
 | 서랍장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** |
 | 서랍장 | `/drawer/corrections` | 채택 교정 모음 | 로그인 | 보임 | Phase 3 |
 | 질문 | `/ask` | 무엇이든 물어보세요 | 로그인 | 보임 | Phase 3 |
-| 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** |
+| 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** · 음성 인식 절 **마이크 테스트 task-003e(§8)** |
 | 콘솔 | `/admin` → `/admin/dashboard` | 대시보드(역할별 엔진·연결·모델·상태, 30초 갱신) | `console.access` 없으면 **앱 공통 404** | **별도 셸**(환경 띠·콘솔 바, 탭 없음) | **task-005b(§6)** |
 | 콘솔 | `/admin/speech/{realtime,analysis,tts}` · `/admin/llm` | 역할 페이지(지금 쓰는 연결·Health/기능 테스트·예비 순서·설정값 요약) | `engine.read` | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/voices` | 목소리 목록(읽기) | `voices.read` | 별도 셸 | **task-005b(§6)** |
@@ -3325,3 +3325,273 @@ unmount · visibilitychange(hidden) → stop()
 | ⑤ | **사용자 응답의 `runtime.connectionKey`** | #23 JSON·SSE `audio` 예시의 `"connectionKey": "style-bert-m4"` 는 엔진명이 사용자 응답에 실리는 것 → 완료 기준 10 위반. 사용자 라우트에선 빼거나(권장) 불투명 값으로 | QA 응답 grep 에서 `style-bert` 검출 |
 | ⑥ | 공용 변경 3건 | `Toast` 지속시간 선택 인자(정본 ≤4s, 현 2.6s 고정) · `TeacherAvatar` 를 chat → common 이동 · `LearningSettings` 저장 후 `router.refresh()` | 각각 토스트가 짧게 사라짐 · 아바타 중복 코드 · 이름 변경이 새로고침 전까지 안 보임 |
 | ⑦ | 상태 조회 실패의 표현 | 앱 서버 자체 불통(상태 조회 연속 2회 실패)도 "자막만(NO_CONNECTION)" | 별도 상태가 필요하면 정본 5상태 밖이라 사용자 합의 |
+
+---
+
+## 8. 음성 인식 — 마이크 테스트 (task-003e)
+
+> 정본: `api-contract.md` #19·#20·§2-29(#142 `/ws/speech` `v:1`)·§0-3(WS 티켓) · `module-dependency.md` §2 L4(speech/stt 클라 export)·§3-1 규칙 5 · `design-spec.md` §9·§11(푸시투토크 ≥64px). 새 색 없음(§1-1 토큰만). 톤은 §7 과 같다(라벨 상시·색만으로 구분하지 않음·엔진명 0).
+
+### 8-0. 한눈에 보는 결정
+
+1. **위치**: 설정 → "음성 인식" 절의 모드 카드 **아래 두 번째 카드 "마이크 테스트"**. 점검용이다. task-007 회화 화면은 **같은 `PushToTalkButton`·`useRealtimeStt`·`sttCopy`**와 같은 `createRealtimeSttClient` 를 그대로 쓴다(화면 배치만 다름).
+2. **입력 = 푸시투토크(누르고 있는 동안 녹음) 하나, 72px 원형 버튼.** 이유: ① task-007 회화와 같은 손동작을 여기서 미리 익힌다 ② 발화 끝 = 손 뗌 = WS `stop`(#142 "푸시투토크 놓음")이라 끝이 분명하고 자동 정지 타이머·끝점 대기가 필요 없다 ③ 정지를 잊어 마이크가 켜진 채 남는 일이 없다(개인정보·서버 저장). 누르는 동안 동작하는 것이 기능의 본질이라 WCAG 2.5.2 예외(무전기형)에 해당한다. 탭 시작/정지의 장점(권한 프롬프트와 안 겹침)은 아래 ③ 규칙으로 대신 얻는다.
+3. **첫 누름 = 권한만**: 권한이 아직 없으면 그 누름은 권한 요청만 하고 녹음하지 않는다(프롬프트가 떠 있는 동안 손을 떼므로). 허용 뒤 "이제 누른 채로 말해 보세요". 설정 화면에 들어오는 것만으로는 권한을 묻지 않는다(마운트 시 `getUserMedia` 금지).
+4. **누르는 즉시 녹음**: 연결(티켓·WS) 전 프레임은 클라가 최대 3초 버퍼했다가 `start` 직후 보낸다 — 첫 음절을 잃지 않는다. 연결은 1.5초를 넘길 때만 상태 줄에 보인다.
+5. **결과**: partial = `text-ink2`(회색, 5.4:1) + 끝 "…", final = `text-ink`. 일본어 17px/1.7 `lang="ja"`. 누를 때마다 비우고 새로 쓴다. 저장·목록 없음(메모리에만, 카드를 떠나면 사라짐).
+6. **레벨 미터 채택**(5칸, `aria-hidden`): "마이크가 소리를 받는가"를 서버와 따로 보여 주는 것이 점검의 핵심이다. 녹음 중 3초 넘게 거의 무음이면 힌트.
+7. **오류는 카드 안 인라인 `role="alert"`**(권한 거부처럼 따라 해야 하는 안내가 길어 토스트 부적합). 가벼운 힌트는 상태 줄(빨강 아님).
+8. **`aria-live` 는 final 만 낭독**. partial·"듣고 있어요" 는 낭독하지 않는다 — 녹음 중 스크린리더 음성이 마이크로 들어간다.
+9. **엔진명·서버 주소 0**: 클라이언트가 `ready.engine/model`·`final.engine`·`traceId`·`sessionId` 를 이벤트로 올리지 않고 버린다. 경로 안내는 모드 카드와 같은 말("서버에서 / 휴대폰에서 바로 알아들어요").
+10. **점검 발화 저장 여부는 Leader 확인**(§8-11 ①). 화면 문구는 결정에 따라 A/B 한 줄만 바뀐다.
+
+### 8-1. 화면 개요
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | 마이크 권한·입력 소리·서버 인식이 되는지 말해 보고 바로 확인한다(인식 결과는 점검용) |
+| 진입 | 상단 아바타 → `/settings` → "음성 인식" 절(§2 설정 행) |
+| 역할별 가시성 | 로그인 사용자 전원, 관리자도 같은 화면(엔진 상태는 콘솔 `/admin/speech/realtime`) |
+| 앱/웹 분기 | 웹 = 항상 서버 경로(`kind:'GATEWAY'`). 앱(003f) = `createRealtimeSttClient` 가 온디바이스를 고르면 `kind:'ONDEVICE'` — 화면은 경로 안내 한 줄·권한 거부 조치 줄만 달라진다 |
+| 재사용 | task-007 회화방 입력 바: `PushToTalkButton`(같은 크기·제스처) + `useRealtimeStt({purpose:'TALK', chatId})`, partial 은 자막 줄로 |
+
+### 8-2. UI 구조 (의사코드, 390px 기준)
+
+#### A. 카드 배치 — `SpeechSettings` 안
+
+```
+Section
+  SectionHeader "음성 인식"                               ← 기존
+  (모드 로딩/오류/Card radiogroup)                        ← 기존. early return 을 이 블록 안으로 옮겨
+  MicTestCard                                              ← 모드 조회가 실패해도 테스트 카드는 보이게
+```
+
+#### B. `MicTestCard` (Card, `mt-3 flex flex-col gap-3`)
+
+```
+h4  "마이크 테스트"                                        15px semibold ink
+p   "버튼을 누른 채로 일본어로 말해 보세요. …"              13px ink2 break-keep
+p   "지금은 서버에서 알아들어요."                            12px ink2 ← pathCaption(kind)
+div TranscriptBox  rounded-xl bg-surface2 p-3 min-h-[96px]
+      비었을 때: "여기에 알아들은 말이 나와요 · 예) <span lang=ja>こんにちは</span>"   13px ink3(placeholder 전용)
+      있을 때:  <p lang="ja" class="text-[17px] leading-[1.7] whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0">
+                  {committed 들(줄바꿈)}<span class="text-ink2">{partial 세그먼트 이어붙임}<span aria-hidden>…</span></span>
+div flex-col items-center gap-2 pt-1
+  PushToTalkButton                                       72×72
+  p#mic-status  13px ink2 min-h-5 text-center              ← 상태 줄 · 힌트(§8-8 ⓑⓒ)
+  MicLevelMeter  h-6                                      ← 녹음 중에만 보임(invisible), 자리는 항상 차지 — 흔들림 0
+MicTestAlert (오류 때만)  role=alert rounded-xl bg-bad-soft px-3.5 py-3 13px text-bad break-keep
+      1줄 무엇 · 2줄 어떻게(§8-8 ⓐ)
+p   저장 안내(§8-8 ⓓ)                                      12px ink2
+p.sr-only aria-live="polite" aria-atomic                  ← final 낭독 전용
+```
+
+#### C. `PushToTalkButton`
+
+```tsx
+<button type="button" aria-label="누르고 있는 동안 말하기" aria-pressed={phase === 'recording'}
+  aria-busy={phase === 'starting' || phase === 'finishing'} aria-describedby={describedBy}
+  disabled={disabled || phase === 'finishing'} data-rec={phase === 'recording'}
+  onPointerDown={(e) => { if (e.button !== 0 || !e.isPrimary) return; e.currentTarget.setPointerCapture(e.pointerId); onPress() }}
+  onPointerUp={onRelease} onPointerCancel={onAbort}
+  onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); onPress() } }}
+  onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') onRelease() }}
+  onBlur={() => phase === 'recording' && onAbort()} onContextMenu={(e) => e.preventDefault()}
+  className="group relative grid h-[72px] w-[72px] flex-none place-items-center rounded-full bg-accent text-on-accent
+             touch-none select-none [-webkit-touch-callout:none] [-webkit-tap-highlight-color:transparent]
+             transition-transform focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent
+             disabled:opacity-40 data-[rec=true]:scale-105 motion-reduce:transition-none motion-reduce:data-[rec=true]:scale-100">
+  <span aria-hidden className="absolute -inset-1.5 rounded-full ring-[6px] ring-accent-soft opacity-0
+        group-data-[rec=true]:opacity-100 motion-safe:group-data-[rec=true]:animate-pulse" />   {/* 링만 깜빡임 */}
+  {starting|finishing ? <Spinner 24 /> : <MicIcon 28 aria-hidden />}
+</button>
+```
+
+| phase | 모양 (색 외 단서 포함) | 상태 줄 |
+|---|---|---|
+| `idle` | accent 원 · 마이크 | 누르고 있는 동안 말해요 |
+| `starting` | 원 안 스피너 | (권한을 묻는 중이면) 마이크 사용을 허용해 주세요 |
+| `recording` | **1.05배 + 바깥 링**(accent-soft, 링만 펄스) · `aria-pressed=true` | 듣고 있어요 · 0:03 — 손을 떼면 끝나요 |
+| `finishing` | 원 안 스피너 · disabled | 알아듣는 중… |
+| `unavailable` | opacity 40 · disabled | 지금은 쓸 수 없어요 (사유는 alert) |
+
+- 포인터 캡처: 손가락이 버튼 밖으로 미끄러져도 녹음은 이어지고, 어디서 떼든 끝난다. 두 번째 손가락·오른쪽 버튼은 무시.
+- 누르면 먼저 `stopAllTts()`(§7 `ttsAudio`) — 미리듣기 소리가 마이크로 들어가지 않게. (task-007 은 TTS 재생 중 버튼을 막는다 — 선생님 말을 끊지 않도록. 이 차이는 `disabled` prop 으로만 난다.)
+
+#### D. `MicLevelMeter` — 5칸 막대(폭 4px·간격 3px·높이 8/12/16/20/24px), 켜진 칸 `bg-accent`, 꺼진 칸 `bg-line`. 기준 dBFS −50/−40/−32/−25/−18. `aria-hidden`.
+
+### 8-3. 상태 관리
+
+#### A. 화면이 기대하는 클라이언트 계약 (developer B — `@/modules/speech/stt/client`, §8-11 ④)
+
+```ts
+createRealtimeSttClient(config: SpeechConfig | null): RealtimeSttClient
+interface RealtimeSttClient {
+  readonly kind: 'GATEWAY' | 'ONDEVICE'
+  begin(o: { purpose: 'MIC_TEST' | 'TALK'; chatId?: string }): Promise<void> // 마이크 열기+캡처 시작에 resolve(연결은 병행·프레임 버퍼), 실패는 reject(SttError{code})
+  end(): void        // stop → final 대기
+  cancel(): void     // 발화 폐기(final 없음)
+  dispose(): void    // 트랙·AudioContext·WS 정리
+  subscribe(fn: (e: SttEvent) => void): () => void
+}
+type SttEvent =
+  | { type: 'level'; db: number }                              // ≈10Hz
+  | { type: 'connecting'; slow: boolean }                      // ready 전, 1.5s 넘으면 slow
+  | { type: 'partial'; segIdx: number; text: string }
+  | { type: 'final'; text: string; durationMs: number; utteranceId: string | null }
+  | { type: 'error'; code: SttErrorCode; retryAfterSec?: number }
+type SttErrorCode = 'INSECURE' | 'UNSUPPORTED' | 'MIC_DENIED' | 'MIC_NOT_FOUND' | 'MIC_BUSY' | 'OFFLINE'
+  | 'SERVER_UNAVAILABLE' | 'CONNECT_FAILED' | 'CONNECTION_LOST' | 'TICKET' | 'REPLACED' | 'BUSY' | 'ENGINE_ERROR' | 'TIMEOUT'
+```
+
+- 서버 코드·close 코드 → `SttErrorCode` 정규화는 **클라이언트가 끝낸다**(§8-8 ⓐ "원인" 열). 화면은 서버 원문 `message` 를 쓰지 않는다.
+- **마이크는 누를 때만 연다.** `end()`/`cancel()` 즉시 트랙 stop(브라우저 녹음 표시가 손 뗀 순간 꺼짐). WS 는 다음 누름을 위해 유휴 60초까지 유지(새 티켓 불필요), 카드 언마운트·`visibilitychange:hidden`·`offline` 이면 `dispose()`.
+- 캡처 `AudioContext` 는 재생용 `ttsAudio` 컨텍스트와 분리하고, `begin()` 을 누름 핸들러 안에서 동기로 호출해 제스처 안에서 깨운다.
+
+#### B. `useRealtimeStt({ purpose, chatId? })` + 순수 `sttUiReducer`
+
+반환 `{ phase, transcript: { committed: string[]; segs: Record<number,string> }, db, elapsedSec, hint, error, kind, press(), release(), abort() }`
+
+| 지금 | 사건 | 다음 | 부수 |
+|---|---|---|---|
+| `idle` | `press` | `starting` | transcript·hint·error 비움 · `stopAllTts()` · `permBefore` = Permissions API(`'prompt'\|'granted'\|'denied'\|'unknown'`) · `t0` · `begin()` |
+| `starting` | `begin` 성공 · 아직 누름 | `recording` | 30초 타이머 · 경과초 |
+| `starting` | `begin` 성공 · 이미 뗌 | `idle` | `cancel()` · hint = `permBefore==='prompt'` 또는 (`unknown` 이고 begin ≥600ms) ? **권한 허용** : **짧게 누름** |
+| `starting` | `begin` 실패 | `idle` | error(code) |
+| `recording` | `release`, 누른 지 <300ms | `idle` | `cancel()` · hint 짧게 누름 |
+| `recording` | `release` | `finishing` | `end()` · 8초 타이머 |
+| `recording` | 30초 | `finishing` | `end()` · hint 자동 멈춤 |
+| `recording` | `abort`(pointercancel·blur·hidden) | `idle` | `cancel()` · hint 녹음 끊김 |
+| `recording`·`finishing` | `partial` | 그대로 | `segs[segIdx]=text` |
+| `recording` | `final`(끝점 — 누르는 중에도 올 수 있음) | 그대로 | `committed.push(text)` · segs 비움 |
+| `finishing` | `final` | `idle` | 위와 같음 + 낭독 · text 가 비면 hint 빈 결과 |
+| `finishing` | 8초 | `idle` | `cancel()` · error TIMEOUT |
+| 어디서든 | `error` | `idle`(unavailable 계열은 `unavailable`) | `cancel()` · error |
+| 어디서든 | `offline` / `online` | `unavailable(OFFLINE)` / `idle` | `cancel()` |
+
+- 녹음 중 최근 3초 최댓값 < −50 dBFS → hint 소리 작음(녹음은 계속).
+- `starting` 의 "마이크 사용을 허용해 주세요" 는 `permBefore==='prompt'` 이거나 400ms 를 넘길 때만(허용된 기기에서 깜빡임 방지).
+
+#### C. 마운트 시 사전 점검 `micPreflight()` (권한을 묻지 않는다)
+
+| 조건 | 결과 |
+|---|---|
+| `!window.isSecureContext` | `unavailable(INSECURE)` |
+| `navigator.mediaDevices?.getUserMedia`·`AudioWorkletNode`·`WebSocket` 중 없음 (`kind==='GATEWAY'` 일 때) | `unavailable(UNSUPPORTED)` |
+| `!navigator.onLine` | `unavailable(OFFLINE)` |
+| #19 `gateway.enabled === false` 이고 `kind==='GATEWAY'` | `unavailable(SERVER_UNAVAILABLE)` |
+| `permissions.query({name:'microphone'})` = `denied` | error `MIC_DENIED` 표시, **버튼은 누를 수 있음**. `onchange` 로 `granted` 가 되면 error 지움 |
+
+### 8-4. API 호출 계획
+
+| # | 엔드포인트 | 시점 | 파라미터 | 사용 필드 | 에러 처리 |
+|---|---|---|---|---|---|
+| 19 | `GET /api/v1/speech/config` | 카드 마운트 1회 | — | `gateway.enabled`·`gateway.{wsPath,sampleRate,frameMs}`·(앱) `onDevice.enabled`. `connectionKey`·`model` 은 화면·state 에 안 씀 | 실패 → `config=null` 로 클라 생성(티켓 응답 값 사용), 버튼 막지 않음 |
+| 20 | `POST /api/v1/speech/ticket` | 누름 때 열린 WS 가 없을 때만(클라 내부) | `{ purpose: 'MIC_TEST' }`(§8-11 ①), `chatId` 없음 | `ticket`·`wsPath`·`sampleRate`·`frameMs` | 422 → SERVER_UNAVAILABLE · 429 → BUSY(`Retry-After`) · 401 → `api.ts` 로그인 이동 · 5xx/0 → CONNECT_FAILED |
+| 142 | WS `wss://{location.host}{wsPath}` | 티켓 직후 | 보냄 `start{v:1,sampleRate:16000,ticket,partial:true,clientPlatform:'web'}` · binary PCM16 40ms · `stop` · `cancel` · 유휴 15s `ping` | 받음 `ready`(연결 확인만) · `partial{segIdx,text}` · `final{text,durationMs,utteranceId}` · `error{code}` · `pong`. `vad` 는 이 화면에서 안 씀 | close·error 코드 → §8-8 ⓐ |
+
+### 8-5. 컴포넌트 분해 (`src/components/speech/*`)
+
+| 이름 | 종류 | props / 반환 | 상태 |
+|---|---|---|---|
+| `MicTestCard` | 컴포넌트 | 없음 | `useRealtimeStt({purpose:'MIC_TEST'})` · preflight · #19 |
+| `PushToTalkButton` | 컴포넌트 (007 재사용) | `{ phase; disabled?; onPress; onRelease; onAbort; describedBy }` | 없음(판정은 훅) |
+| `MicLevelMeter` | 컴포넌트 | `{ db: number \| null; active: boolean }` | 없음 |
+| `useRealtimeStt` | 훅 (007 재사용) | `{ purpose; chatId?; config }` → §8-3 B | 클라 인스턴스·타이머 |
+| `sttUiState.ts` | 순수 로직 | `sttUiReducer`·`initialSttUi`·`transcriptText()` | 상태기계(§8-3 B 표) |
+| `sttCopy.ts` | 문구 (007 재사용) | 오류(웹/앱 두 벌 조치 줄)·상태 줄·힌트·경로 안내·저장 안내 | — |
+| `micPreflight.ts` | 로직 | `micPreflight(kind, config)`·`watchMicPermission(cb)` | — |
+
+### 8-6. 생성/수정 파일 목록
+
+| 구분 | 파일 |
+|---|---|
+| 생성 | `src/components/speech/{MicTestCard.tsx, PushToTalkButton.tsx, MicLevelMeter.tsx, useRealtimeStt.ts, sttUiState.ts, sttCopy.ts, micPreflight.ts}` |
+| 생성 | `src/components/speech/__tests__/sttUiState.test.ts` — §8-3 B 표 전 행 · 첫 누름=권한만(녹음 0) · 300ms 미만 취소 · 누르는 중 final 누적 · 8초 TIMEOUT · 빈 final 힌트 · error 후 idle · 소리 작음 힌트 |
+| 수정 | `src/components/settings/SpeechSettings.tsx` — early return 을 모드 블록 안으로, 그 아래 `<MicTestCard />` |
+| (범위 밖·참고) | 클라이언트 `src/modules/speech/stt/client/*`(Leader's Plan developer B) — 이 문서는 인터페이스만 §8-3 A 로 고정 |
+
+### 8-7. 구현 순서
+
+1. `sttCopy` → `sttUiState`(+테스트) — 클라이언트 없이 가능.
+2. `micPreflight` · `PushToTalkButton` · `MicLevelMeter`.
+3. 클라이언트 계약(§8-3 A)의 가짜 구현(단위 테스트 전용, 화면에 개발용 스위치 금지)으로 `useRealtimeStt` → `MicTestCard`.
+4. `SpeechSettings` 결합 → 실 클라이언트 연결.
+5. 실서버(완료 기준 5): Playwright Chromium `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<테스트 wav>` + 마이크 권한 부여 → `mouse.down()` 3~5초 `mouse.up()` → partial(회색)→final(검정). 권한 미부여 컨텍스트 → MIC_DENIED 문구. gateway 중지 → SERVER_UNAVAILABLE 또는 CONNECT_FAILED 문구. 360/390/412 스크린샷.
+
+### 8-8. 한국어 UI 문구 (`sttCopy.ts`)
+
+ⓐ **오류** — `MicTestAlert` 1줄(무엇) + 2줄(어떻게)
+
+| 코드 | 원인 (클라가 정규화) | 1줄 | 2줄 | 버튼 |
+|---|---|---|---|---|
+| INSECURE | `isSecureContext=false`(http 주소) | 이 주소에서는 마이크를 쓸 수 없어요. | https:// 로 시작하는 주소로 열어 주세요. | 막힘 |
+| UNSUPPORTED | `mediaDevices`·`AudioWorkletNode`·`WebSocket` 없음 | 이 브라우저에서는 음성 인식을 쓸 수 없어요. | 최신 Chrome 으로 열어 주세요. | 막힘 |
+| MIC_DENIED | `NotAllowedError`·`SecurityError`·권한 `denied` | 마이크 사용이 막혀 있어요. | 웹: 주소창 왼쪽 아이콘(사이트 정보) → 권한 → 마이크 → 허용으로 바꾼 뒤 다시 눌러 주세요. / 앱(003f): 휴대폰 설정 → 애플리케이션 → 일본어교육 → 권한 → 마이크 → 허용 | 누를 수 있음 |
+| MIC_NOT_FOUND | `NotFoundError`·`OverconstrainedError` | 마이크를 찾지 못했어요. | 마이크나 이어폰이 연결되어 있는지 확인해 주세요. | 누를 수 있음 |
+| MIC_BUSY | `NotReadableError`·`AbortError` | 다른 앱이 마이크를 쓰고 있어요. | 통화·녹음 앱을 닫고 다시 눌러 주세요. | 누를 수 있음 |
+| OFFLINE | `navigator.onLine=false` | 인터넷에 연결되어 있지 않아요. | 연결되면 바로 쓸 수 있어요. | 막힘 |
+| SERVER_UNAVAILABLE | #19 `gateway.enabled=false` · #20 `422` · `error ENGINE_UNAVAILABLE` · close `4422` | 음성 인식 서버가 준비 중이에요. | 잠시 후 다시 시도해 주세요. | 마운트 판정이면 막힘, 누름 결과면 누를 수 있음 |
+| CONNECT_FAILED | #20 5xx/0 · `ready` 전에 닫힘(`1006`·`1011`) | 음성 인식 서버에 연결하지 못했어요. | 잠시 후 다시 눌러 주세요. | 누를 수 있음 |
+| CONNECTION_LOST | 녹음·결과 대기 중 close `1006`·`4408`·`1011` | 연결이 끊겨 방금 한 말을 놓쳤어요. | 다시 눌러 말해 주세요. | 누를 수 있음 |
+| TICKET | close `4401`·`4403`·`error UNAUTHENTICATED`(README `TICKET_INVALID`·`TICKET_USED`) — **1회는 새 티켓으로 조용히 재시도**(버퍼 유지), 그래도 실패하면 표시 | 연결 준비에 실패했어요. | 화면을 새로 고친 뒤 다시 눌러 주세요. | 누를 수 있음 |
+| REPLACED | close `4409`(다른 창이 새 세션을 염) | 다른 창에서 음성 인식을 시작해 이 창의 연결을 닫았어요. | 다시 누르면 이 창에서 쓸 수 있어요. | 누를 수 있음 |
+| BUSY | #20 `429` · `error RATE_LIMITED` · close `4429`(README `SESSION_LIMIT`) | 지금은 음성 인식을 쓰기 어려워요. | {n}초 뒤에 다시 눌러 주세요. (n 없으면 "잠시 후") | 누를 수 있음 |
+| ENGINE_ERROR | `error ENGINE_ERROR`·`VALIDATION`(README `AUDIO_FORMAT`) · close `4413` | 알아듣다가 문제가 생겼어요. | 다시 눌러 말해 주세요. | 누를 수 있음 |
+| TIMEOUT | 손 뗀 뒤 8초 안에 `final` 없음 | 결과가 너무 늦어지고 있어요. | 다시 눌러 말해 주세요. | 누를 수 있음 |
+| (표시 안 함) | `error CALLBACK_FAILED`(README — `final` 텍스트는 옴) | — 결과만 보여 준다 | | |
+
+ⓑ **상태 줄** — §8-2 C 표. 결과를 받은 뒤 `idle` 은 "다시 해 보려면 또 누르고 말해요". 연결이 느리면(`connecting.slow`) 녹음 중 줄을 "연결하는 중… 계속 말해도 돼요".
+
+ⓒ **힌트**(상태 줄 자리, 다음 누름에 지움)
+
+| 자리 | 문구 |
+|---|---|
+| 짧게 누름(<300ms) | 버튼을 누른 채로 말하고, 다 말하면 손을 떼세요. |
+| 권한 허용 직후 | 마이크를 허용했어요. 이제 버튼을 누른 채로 말해 보세요. |
+| 빈 결과 | 말소리를 알아듣지 못했어요. 조금 더 크고 또렷하게 말해 보세요. |
+| 30초 도달 | 30초가 지나 자동으로 멈췄어요. |
+| 녹음 중 무음 3초 | 소리가 거의 들리지 않아요. 마이크 가까이에서 말해 보세요. |
+| 녹음 끊김 | 녹음이 중간에 멈췄어요. 다시 눌러 주세요. |
+
+ⓓ **카드 고정 문구 · 낭독**
+
+| 자리 | 문구 |
+|---|---|
+| 제목 / 설명 | 마이크 테스트 / 버튼을 누른 채로 일본어로 말해 보세요. 알아들은 말이 바로 보여요. |
+| 경로 안내 | `GATEWAY` 지금은 서버에서 알아들어요. · `ONDEVICE`(003f) 지금은 휴대폰에서 바로 알아들어요. |
+| 빈 결과 자리 | 여기에 알아들은 말이 나와요 · 예) こんにちは |
+| 버튼 `aria-label` | 누르고 있는 동안 말하기 |
+| 낭독(final) | 알아들은 말: {text} ← text 는 `<span lang="ja">` |
+| 저장 안내 A(권장) | 점검용이라 목소리와 알아들은 말을 저장하지 않아요. |
+| 저장 안내 B | 알아들은 말은 학습 기록에 남지 않아요. 녹음은 인식 품질 확인용으로 30일 보관 뒤 자동 삭제돼요. |
+
+### 8-9. 360/390/412 · 접근성 체크리스트
+
+- [ ] 360: 카드 안쪽 폭 ≈298px 에서 가로 넘침 0. alert·설명(한국어)은 `break-keep`, 결과(일본어)는 `break-keep` 금지 + `[overflow-wrap:anywhere]`.
+- [ ] 버튼 72×72(≥64). 그 밖의 터치 대상 ≥44px. 레벨 미터 자리가 항상 있어 녹음 시작·끝에 카드 높이가 바뀌지 않음.
+- [ ] 누른 채 손가락을 버튼 밖으로 옮겨도 녹음 유지, 떼면 끝. 녹음 중 페이지가 스크롤되지 않음(`touch-none`). 길게 눌러도 텍스트 선택·컨텍스트 메뉴·확대 없음(Chrome Android).
+- [ ] 손 뗀 즉시 브라우저 녹음 표시(주소창 마이크 아이콘)가 꺼짐. 설정 화면 진입만으로 권한 프롬프트가 뜨지 않음.
+- [ ] 키보드: 포커스 링 보임, Space/Enter 를 누르고 있는 동안 녹음, 떼면 끝, 포커스 이탈 시 취소.
+- [ ] TalkBack: "누르고 있는 동안 말하기" + 눌림 상태(`aria-pressed`) 낭독, 두 번 탭하고 길게 누르기로 녹음, final 만 한 번 낭독(일본어 음성). 오류는 `role=alert` 로 즉시 낭독.
+- [ ] 흑백에서도 녹음 중이 구분됨(확대·링·상태 줄 "듣고 있어요"). `prefers-reduced-motion`: 링 펄스·확대·스피너 회전 없음.
+- [ ] partial(`ink2`)·final(`ink`)·alert(`bad`/`bad-soft`) 명암비 ≥4.5:1(§1-1), 다크 모드 토큰만.
+
+### 8-10. 주의사항
+
+- **엔진명·주소 0**: 화면·`aria-label`·alert·`console` 에 `reazon`·`sherpa`·`gateway`·호스트·포트·`:8100`·`wsPath`·`connectionKey`·`traceId` 를 싣지 않는다. WS URL 은 `location.host` + `wsPath` 로 만들고 표시하지 않는다.
+- **텍스트·오디오 비보존**: 인식 결과는 React state 에만. `console.log`·`localStorage`·분석 이벤트에 전사 텍스트·PCM 을 남기지 않는다.
+- **제스처 밖에서 녹음 시작 금지**: `useEffect`·타이머에서 `begin()` 을 부르지 않는다(AudioContext 가 `suspended` 로 남고 WebView 에서 막힘).
+- **빈 상태·로딩**: #19 로딩 중에도 카드는 그리고 버튼은 누를 수 있다(설정 값은 티켓 응답으로 충분). 모드 조회 실패와 테스트 카드는 서로 막지 않는다.
+- **권한 거부 상태를 저장하지 않는다**(브라우저가 기억). 거부 뒤 사용자가 설정을 바꾸면 `permission.onchange` 로 alert 가 사라진다 — 지원하지 않는 브라우저는 다음 누름에서 확인.
+- **오프라인 전환 중 녹음** → 즉시 취소 + OFFLINE. 다시 온라인이면 alert 를 지우고 `idle`.
+- 30초 상한은 이 카드의 점검용 값이다(서버 상한 60초). task-007 은 `maxSec` 옵션으로 정한다.
+
+### 8-11. Leader 확인 요청
+
+| # | 항목 | 화면이 가정한 것 | 틀리면 |
+|---|---|---|---|
+| ① | **점검 발화 저장 여부** | **A(권장)**: #20 body `purpose:"MIC_TEST"` → 티켓 claim → gateway 가 wav·`Utterance`·internal 콜백·`SpeechJob` 을 **건너뛰고** `final.utteranceId:null`. 이유: 점검 발화가 30일 보관·(P2) 분석 큐에 섞이지 않고, "저장하지 않아요" 를 그대로 말할 수 있다. 완료 기준 4(wav+Utterance)는 `purpose` 없는 티켓(스크립트)으로 검증 | **B**: 현 계약대로 저장 → 저장 안내를 B 문구로(§8-8 ⓓ). 화면 동작은 같음 |
+| ② | **WS 응답의 엔진명** | `ready.engine/model`·`final.engine`(= `reazon-gateway`·`reazonspeech-int8@…`)은 사용자에게 가는 프레임 → 완료 기준 6 "사용자 응답 엔진명 0" 과 충돌(§7-11 ⑤ 와 같은 문제). 권장: gateway 가 사용자 WS 에서 빼고 internal 콜백·trace 에만. 클라이언트는 어느 쪽이든 버린다 | 남기면 QA 가 WS 프레임 grep 에서 검출 |
+| ③ | **gateway README ↔ api-contract 불일치** | 화면은 계약(§2-29) 기준 + README 코드도 매핑(§8-8 ⓐ 원인 열). 불일치: 티켓 `aud` `speech-ws`↔`ws-speech` · 오류 코드(`TICKET_INVALID/TICKET_USED/SESSION_LIMIT/AUDIO_FORMAT/CALLBACK_FAILED`) · `stop` 후 세션 종료↔10분 유지 · close `4429`↔`4409` | 어느 쪽이 정본인지 developer A 에 확정 필요(화면은 둘 다 견딤) |
+| ④ | 클라이언트 진입점 | components 는 서버 코드 없는 진입점 `@/modules/speech/stt/client` 만 import(`@/modules/infra/native` 와 같은 방식, module-dependency §3-1 규칙 5) | 경로가 다르면 import 한 줄만 바뀜 |

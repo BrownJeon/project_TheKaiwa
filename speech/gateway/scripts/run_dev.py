@@ -33,8 +33,19 @@ KEYS = (
     "SPEECH_STT_NUM_THREADS",
     "SECRETS_DIR",
 )
-UVICORN_ARGS = ["--ws-max-size", "65536", "--ws-ping-interval", "15", "--ws-ping-timeout", "30", "--ws-per-message-deflate", "false",
-                "--no-server-header", "--timeout-graceful-shutdown", "5"]
+UVICORN_ARGS = [
+    "--ws-max-size",
+    "65536",
+    "--ws-ping-interval",
+    "15",
+    "--ws-ping-timeout",
+    "30",
+    "--ws-per-message-deflate",
+    "false",
+    "--no-server-header",
+    "--timeout-graceful-shutdown",
+    "5",
+]
 
 
 def read_env_file(path: Path) -> dict[str, str]:
