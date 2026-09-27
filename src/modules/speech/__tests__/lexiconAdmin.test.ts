@@ -12,6 +12,7 @@ import {
   applyPlan,
   diffRows,
   entryKey,
+  fieldsOf,
   normalizeReading,
   parseEntryInput,
   planRows,
@@ -27,7 +28,7 @@ import {
   toSnapshot,
   type LexiconEntryRow,
 } from '../tts/lexiconRules'
-import { LexiconDuplicateError, LexiconEntryInvalidError, LexiconImportInvalidError, LexiconRollbackRejectedError, LexiconVersionConflictError, writeLexicon } from '../tts/lexiconStore'
+import { checkSnapshot, getLexiconVersionDiff, LexiconDuplicateError, LexiconEntryInvalidError, LexiconImportInvalidError, LexiconRollbackRejectedError, LexiconSnapshotIntegrityError, LexiconVersionConflictError, writeLexicon } from '../tts/lexiconStore'
 import { concatWav, wavInfo } from '../tts/wav'
 
 const F = (o: Partial<LexiconEntryFields> & Pick<LexiconEntryFields, 'surface' | 'reading'>): LexiconEntryFields => ({
@@ -42,6 +43,12 @@ const F = (o: Partial<LexiconEntryFields> & Pick<LexiconEntryFields, 'surface' |
 })
 const R = (id: string, o: Partial<LexiconEntryFields> & Pick<LexiconEntryFields, 'surface' | 'reading'>): LexiconEntryRow => ({ id, ...F(o) })
 const codes = (r: { errors: { field: string; code: string }[] }) => r.errors.map((e) => `${e.field}:${e.code}`)
+/** 시드 v1 처럼 note 키가 없는 스냅샷 행. */
+function withoutNote<T extends { note?: unknown }>(x: T): Omit<T, 'note'> {
+  const c = { ...x }
+  delete c.note
+  return c
+}
 
 // ── G3 검증 ─────────────────────────────────────────────────────────────
 
@@ -150,7 +157,7 @@ test('Rollback 계획: 항목 표를 대상 스냅샷과 같게(추가·갱신·
     R('a', { surface: '明日', reading: 'アス', note: '메모' }),
     R('c', { surface: '秋葉原', reading: 'アキハバラ' }),
   ]
-  const legacy = readSnapshot(target.map(({ note: _n, ...rest }) => rest))
+  const legacy = readSnapshot(target.map(withoutNote))
   const items = planRollback(existing, legacy)
   assert.deepEqual(
     items.map((i) => `${i.action}:${(i.action === 'ADD' ? i.after : i.before).surface}`).sort(),
@@ -163,7 +170,7 @@ test('Rollback 계획: 항목 표를 대상 스냅샷과 같게(추가·갱신·
 })
 
 test('diff: ADDED·CHANGED·DISABLED(꺼짐·대상에 없는 활성 키)·ENABLED, 옛 스냅샷(note 없음)은 메모 비교 안 함, 요약 ≤300', () => {
-  const { note: _n, ...legacyTomorrow } = F({ surface: '明日', reading: 'アシタ' })
+  const legacyTomorrow = withoutNote(F({ surface: '明日', reading: 'アシタ' }))
   const d = diffRows(
     [legacyTomorrow, F({ surface: '今日', reading: 'キョー' }), F({ surface: '昨日', reading: 'キノー', enabled: false }), F({ surface: '秋', reading: 'アキ' })],
     [F({ surface: '明日', reading: 'アシタ', note: '메모' }), F({ surface: '今日', reading: 'キョウ' }), F({ surface: '昨日', reading: 'キノー' }), F({ surface: '春', reading: 'ハル' }), F({ surface: '冬', reading: 'フユ', enabled: false })],
@@ -230,7 +237,7 @@ test('왕복 불변: Export CSV/JSON → 같은 표에 Import 하면 전부 UNCH
   assert.ok(csv.startsWith('﻿surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled\r\n'))
   const fromCsv = parseLexiconFile(csv, 'csv')
   assert.deepEqual(planImport(existing, fromCsv.rows, 'REPLACE_SCOPE').counts, { add: 0, update: 0, disable: 0, unchanged: 3, error: 0 })
-  const json = JSON.stringify({ dictionaryVersion: 3, environment: 'LOCAL', exportedAt: 'x', entries: existing.map(({ id: _id, ...f }) => f) })
+  const json = JSON.stringify({ dictionaryVersion: 3, environment: 'LOCAL', exportedAt: 'x', entries: existing.map(fieldsOf) })
   assert.deepEqual(planImport(existing, parseLexiconFile(json, 'json').rows, 'MERGE').counts, { add: 0, update: 0, disable: 0, unchanged: 3, error: 0 })
 })
 
@@ -286,25 +293,33 @@ test('WAV 잇기: 길이 = 합 + 간격, 형식이 다르면 null', () => {
 type Ver = { id: string; environment: string; version: number; status: string; snapshotHash: string; snapshot: unknown; changeSummary: string | null; actorUserId: string | null; createdAt: Date }
 type Ent = LexiconEntryRow & { environment: string; createdAt: Date; updatedAt: Date }
 
-function fakeTx(entries: Ent[], versions: Ver[]): Tx {
+function fakeTx(entries: Ent[], versions: Ver[], writes: string[] = []): Tx {
   let n = 100
   const now = () => new Date()
   const envOf = (w: { environment?: string }) => w.environment
   const db = {
     $queryRaw: async () => [],
     pronunciationLexiconVersion: {
-      findFirst: async ({ where }: { where: { environment: string; status?: string } }) =>
-        versions.filter((v) => v.environment === envOf(where) && (!where.status || v.status === where.status)).sort((a, b) => b.version - a.version)[0] ?? null,
+      findFirst: async ({ where }: { where: { environment: string; status?: string; version?: { lt: number } } }) =>
+        versions
+          .filter((v) => v.environment === envOf(where) && (!where.status || v.status === where.status) && (!where.version || v.version < where.version.lt))
+          .sort((a, b) => b.version - a.version)[0] ?? null,
       aggregate: async ({ where }: { where: { environment: string } }) => {
         const vs = versions.filter((v) => v.environment === where.environment).map((v) => v.version)
         return { _max: { version: vs.length ? Math.max(...vs) : null } }
       },
       updateMany: async ({ where, data }: { where: { environment: string; status: string }; data: { status: string } }) => {
+        writes.push('version.updateMany')
         let count = 0
-        for (const v of versions) if (v.environment === where.environment && v.status === where.status) (v.status = data.status), count++
+        for (const v of versions) {
+          if (v.environment !== where.environment || v.status !== where.status) continue
+          v.status = data.status
+          count++
+        }
         return { count }
       },
       create: async ({ data }: { data: Omit<Ver, 'id' | 'createdAt'> }) => {
+        writes.push('version.create')
         if (versions.some((v) => v.environment === data.environment && v.version === data.version)) throw Object.assign(new Error('unique'), { code: 'P2002' })
         const row = { ...data, id: `v${n++}`, createdAt: now() }
         versions.push(row)
@@ -316,15 +331,20 @@ function fakeTx(entries: Ent[], versions: Ver[]): Tx {
     pronunciationLexiconEntry: {
       findMany: async ({ where }: { where: { environment: string } }) => entries.filter((e) => e.environment === where.environment),
       create: async ({ data }: { data: Omit<Ent, 'id' | 'createdAt' | 'updatedAt'> }) => {
+        writes.push('entry.create')
         const row = { ...data, id: `e${n++}`, createdAt: now(), updatedAt: now() }
         entries.push(row)
         return row
       },
       createMany: async ({ data }: { data: Omit<Ent, 'id' | 'createdAt' | 'updatedAt'>[] }) => {
+        writes.push('entry.createMany')
         for (const d of data) entries.push({ ...d, id: `e${n++}`, createdAt: now(), updatedAt: now() })
         return { count: data.length }
       },
-      update: async ({ where, data }: { where: { id: string }; data: Partial<Ent> }) => Object.assign(entries.find((e) => e.id === where.id)!, data, { updatedAt: now() }),
+      update: async ({ where, data }: { where: { id: string }; data: Partial<Ent> }) => {
+        writes.push('entry.update')
+        return Object.assign(entries.find((e) => e.id === where.id)!, data, { updatedAt: now() })
+      },
       findUnique: async ({ where }: { where: { id: string } }) => entries.find((e) => e.id === where.id) ?? null,
     },
   }
@@ -334,7 +354,7 @@ function fakeTx(entries: Ent[], versions: Ver[]): Tx {
 test('버전 전이: 변경마다 새 ACTIVE 1·직전 SUPERSEDED, 무변경은 버전 없음, baseVersion 불일치 409, 중복 409, Rollback = 새 ACTIVE·대체된 버전 ROLLED_BACK·대상 상태 불변', async () => {
   const seed = [F({ surface: '明日', reading: 'アシタ', accentType: 3 }), F({ surface: '日本橋', reading: 'ニホンバシ' })]
   const entries: Ent[] = seed.map((f, i) => ({ ...f, id: `s${i}`, environment: 'LOCAL', createdAt: new Date(), updatedAt: new Date() }))
-  const v1Snapshot = toSnapshot(seed).map(({ note: _n, ...rest }) => rest) // 시드 v1 은 note 없음
+  const v1Snapshot = toSnapshot(seed).map(withoutNote) // 시드 v1 은 note 없음
   const versions: Ver[] = [{ id: 'v1', environment: 'LOCAL', version: 1, status: 'ACTIVE', snapshotHash: snapshotHash(seed), snapshot: v1Snapshot, changeSummary: '시드', actorUserId: null, createdAt: new Date() }]
   const tx = fakeTx(entries, versions)
   const ctx = (baseVersion: number) => ({ environment: 'LOCAL' as const, actorUserId: 'admin', baseVersion, reason: 'QA' })
@@ -443,4 +463,75 @@ test('REV-017: dryRun 계획 = 실제 적용 결과(짧은 행·빈 칸·새 항
   assert.equal(entries.find((e) => e.surface === '日本橋')?.note, null)
   const rows2 = parseLexiconFile(formatLexiconCsv(toSnapshot(entries) as LexiconEntryFields[]), 'csv').rows
   assert.deepEqual(planImport(entries, rows2, 'REPLACE_SCOPE').counts, { add: 0, update: 0, disable: 0, unchanged: 3, error: 0 })
+})
+
+// ── Codex C2: 스냅샷 무결성(해시·모양·규칙) — 가짜 tx 에 손상 스냅샷을 넣는다(라이브 DB 는 건드리지 않음) ──────
+
+function c2Fixture(v1Snapshot: unknown, v1Hash?: string) {
+  const seed = [F({ surface: '明日', reading: 'アシタ', accentType: 3 }), F({ surface: '日本橋', reading: 'ニホンバシ' })]
+  const now = [...seed, F({ surface: '秋葉原', reading: 'アキハバラ' })]
+  const entries: Ent[] = now.map((f, i) => ({ ...f, id: `s${i}`, environment: 'LOCAL', createdAt: new Date(), updatedAt: new Date() }))
+  const versions: Ver[] = [
+    { id: 'v1', environment: 'LOCAL', version: 1, status: 'SUPERSEDED', snapshotHash: v1Hash ?? snapshotHash(seed), snapshot: v1Snapshot, changeSummary: '시드', actorUserId: null, createdAt: new Date() },
+    { id: 'v2', environment: 'LOCAL', version: 2, status: 'ACTIVE', snapshotHash: snapshotHash(now), snapshot: toSnapshot(now), changeSummary: '추가', actorUserId: 'admin', createdAt: new Date() },
+  ]
+  const writes: string[] = []
+  return { seed, entries, versions, writes, tx: fakeTx(entries, versions, writes) }
+}
+const rollbackTo1 = (tx: Tx) => writeLexicon(tx, { environment: 'LOCAL', actorUserId: 'admin', baseVersion: 2, reason: 'QA' }, { kind: 'ROLLBACK', targetVersion: 1 })
+
+test('C2: 정상 스냅샷(시드처럼 note 없음 포함)은 무결성 OK → 되돌리기 그대로 동작', async () => {
+  const seed = [F({ surface: '明日', reading: 'アシタ', accentType: 3 }), F({ surface: '日本橋', reading: 'ニホンバシ' })]
+  const legacy = toSnapshot(seed).map(withoutNote)
+  assert.equal(checkSnapshot(legacy, snapshotHash(seed)).integrity, 'OK')
+  const f = c2Fixture(legacy)
+  const r = await rollbackTo1(f.tx)
+  assert.deepEqual([r.version.version, r.counts], [3, { add: 0, update: 0, disable: 1 }])
+  assert.equal(f.versions[2].snapshotHash, f.versions[0].snapshotHash)
+})
+
+test('C2: 해시 불일치(정상 행 하나가 빠진 스냅샷) → 되돌리기 거절 MISMATCH, 버전·항목·감사 쓰기 0', async () => {
+  const seed = [F({ surface: '明日', reading: 'アシタ', accentType: 3 }), F({ surface: '日本橋', reading: 'ニホンバシ' })]
+  const tampered = toSnapshot([seed[0]]) // 日本橋 가 빠짐 — 예전 readSnapshot 이면 정상 항목 日本橋 를 끄는 계획이 나왔다
+  const f = c2Fixture(tampered, snapshotHash(seed))
+  await assert.rejects(rollbackTo1(f.tx), (e: unknown) => e instanceof LexiconSnapshotIntegrityError && e.integrity === 'MISMATCH' && e.version === 1)
+  assert.deepEqual(f.writes, []) // writeLexicon 이 던지면 admin commit 은 감사 행을 쓰지 않는다(같은 tx 안, 반환 뒤에만 기록)
+  assert.deepEqual(f.versions.map((v) => `${v.version}:${v.status}`), ['1:SUPERSEDED', '2:ACTIVE'])
+  assert.ok(f.entries.every((e) => e.enabled))
+})
+
+test('C2: 모양 손상(MALFORMED)·규칙 위반/정규형 아님/키 중복(INVALID_ENTRIES) → 행을 버리지 않고 거절(해시가 그 값으로 계산됐어도)', async () => {
+  const good = toSnapshot([F({ surface: '明日', reading: 'アシタ', accentType: 3 })])[0]
+  const cases: [string, unknown[], string, string[]][] = [
+    ['악센트 문자열', [{ ...good, accentType: '3' }], 'MALFORMED', ['E_SNAPSHOT_ROW']],
+    ['scopeRefId 키 없음', [Object.fromEntries(Object.entries(good).filter(([k]) => k !== 'scopeRefId'))], 'MALFORMED', ['E_SNAPSHOT_ROW']],
+    ['배열 아님', { rows: [] } as unknown as unknown[], 'MALFORMED', ['E_SNAPSHOT_SHAPE']],
+    ['히라가나 읽기(옛 규칙)', [{ ...good, reading: 'あした', accentType: 0 }], 'INVALID_ENTRIES', ['E_READING']],
+    ['우선순위 범위 밖', [{ ...good, priority: 5000 }], 'INVALID_ENTRIES', ['E_PRIORITY']],
+    ['정규형 아님(앞 공백)', [{ ...good, surface: ' 明日' }], 'INVALID_ENTRIES', ['E_NOT_CANONICAL']],
+    ['키 중복', [good, { ...good, reading: 'アス', accentType: 0 }], 'INVALID_ENTRIES', ['E_DUPLICATE_KEY']],
+  ]
+  for (const [name, snap, integrity, codes] of cases) {
+    const rows = Array.isArray(snap) ? (snap as LexiconEntryFields[]).filter((r) => r && typeof r === 'object') : []
+    const hash = snapshotHash(rows.map((r) => ({ ...r, note: r.note ?? null })))
+    const c = checkSnapshot(snap, hash)
+    assert.equal(c.integrity, integrity, name)
+    assert.deepEqual(c.issues.at(-1)?.codes, codes, name)
+    const f = c2Fixture(snap, hash)
+    await assert.rejects(rollbackTo1(f.tx), (e: unknown) => e instanceof LexiconSnapshotIntegrityError && e.integrity === integrity, name)
+    assert.deepEqual(f.writes, [], name)
+  }
+})
+
+test('C2: 버전 diff — 손상 스냅샷은 그럴듯한 diff 대신 거절(어느 버전인지), compare=active 는 지금 항목 표 기준', async () => {
+  const seed = [F({ surface: '明日', reading: 'アシタ', accentType: 3 }), F({ surface: '日本橋', reading: 'ニホンバシ' })]
+  const bad = c2Fixture(toSnapshot([seed[0]]), snapshotHash(seed))
+  await assert.rejects(getLexiconVersionDiff('LOCAL', 1, 'active', bad.tx), (e: unknown) => e instanceof LexiconSnapshotIntegrityError && e.version === 1)
+  await assert.rejects(getLexiconVersionDiff('LOCAL', 2, 'previous', bad.tx), (e: unknown) => e instanceof LexiconSnapshotIntegrityError && e.version === 1) // 비교 기준(앞 버전)이 손상
+  const good = c2Fixture(toSnapshot(seed))
+  const prev = await getLexiconVersionDiff('LOCAL', 2, 'previous', good.tx)
+  assert.deepEqual([prev?.against, prev?.row.integrity, prev?.rows.map((r) => `${r.kind}:${r.surface}`)], [1, 'OK', ['ADDED:秋葉原']])
+  good.entries.find((e) => e.surface === '日本橋')!.enabled = false // 지금 항목 표만 바뀐 상태(스냅샷과 다름)
+  const act = await getLexiconVersionDiff('LOCAL', 1, 'active', good.tx)
+  assert.deepEqual([act?.against, act?.rows.map((r) => `${r.kind}:${r.surface}`).sort()], [2, ['DISABLED:秋葉原', 'ENABLED:日本橋']])
 })

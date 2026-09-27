@@ -415,7 +415,7 @@ async function main() {
     for (const b of baseEntries) {
       const cur = nowEntries.find((e) => e.id === b.id)
       if (!cur || JSON.stringify(cur) === JSON.stringify(b)) continue
-      const { id: _id, environment: _env, createdAt: _c, ...data } = b
+      const data = { surface: b.surface, reading: b.reading, accentType: b.accentType, wordType: b.wordType, priority: b.priority, scope: b.scope, scopeRefId: b.scopeRefId, note: b.note, enabled: b.enabled, updatedAt: b.updatedAt }
       await prisma.pronunciationLexiconEntry.update({ where: { id: b.id }, data })
       restored++
     }

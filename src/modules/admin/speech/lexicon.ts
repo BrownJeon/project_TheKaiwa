@@ -162,7 +162,18 @@ function flattenImportErrors(plan: ImportPlan): { errors: LexiconImportErrorDto[
 
 /** speech 저장소 오류(이름) → 봉투 오류. */
 function mapStoreError(e: unknown): never {
-  const err = e as { name?: string; baseVersion?: number; currentVersion?: number; existing?: LexiconEntryDto | null; errors?: LexiconFieldError[]; plan?: ImportPlan; reason?: string }
+  const err = e as {
+    name?: string
+    baseVersion?: number
+    currentVersion?: number
+    existing?: LexiconEntryDto | null
+    errors?: LexiconFieldError[]
+    plan?: ImportPlan
+    reason?: string
+    version?: number
+    integrity?: string
+    issues?: unknown[]
+  }
   switch (err?.name) {
     case 'LexiconVersionConflictError':
       throw new ApiError('CONFLICT', '그 사이 다른 곳에서 사전이 바뀌었어요. 목록을 새로 불러온 뒤 다시 시도해 주세요.', { reason: 'VERSION_CONFLICT', baseVersion: err.baseVersion ?? null, currentVersion: err.currentVersion ?? null })
@@ -182,6 +193,14 @@ function mapStoreError(e: unknown): never {
         ...(plan ? flattenImportErrors(plan) : { errors: [], errorsTruncated: 0 }),
       })
     }
+    case 'LexiconSnapshotIntegrityError':
+      // 409 가 아니라 422: 다시 불러와도 풀리지 않는 데이터 문제(동시 변경 충돌과 구분) — Codex C2.
+      throw new ApiError('UNPROCESSABLE', `사전 버전 v${err.version} 기록이 손상돼 비교·되돌리기를 할 수 없어요.`, {
+        reason: 'E_SNAPSHOT_INTEGRITY',
+        version: err.version ?? null,
+        integrity: err.integrity ?? null,
+        issues: err.issues ?? [],
+      })
     case 'LexiconRollbackRejectedError':
       throw new ApiError('CONFLICT', err.reason === 'NO_CHANGE' ? '지금 사전과 내용이 같아 되돌릴 것이 없어요.' : '이미 사용 중인 버전입니다.', { reason: err.reason ?? 'ALREADY_ACTIVE' })
   }
@@ -259,6 +278,7 @@ async function versionDtos(actor: AdminActor, rows: readonly LexiconVersionRow[]
       entryCount: v.entryCount,
       enabledCount: v.enabledCount,
       snapshotHash: v.snapshotHash,
+      integrity: v.integrity,
       reason: audit?.reason ?? null,
       action: audit?.action ?? null,
       restoredFrom: audit ? restoredFromOf(audit.after) : null,
@@ -586,7 +606,12 @@ export async function getLexiconVersionDto(actor: AdminActor, versionParam: stri
   const version = parseVersionParam(versionParam)
   const compare = (sp.get('compare') ?? 'previous').trim()
   if (compare !== 'previous' && compare !== 'active') throw invalid('compare', 'compare 는 previous·active 중 하나입니다.')
-  const d = await getLexiconVersionDiff(actor.environment, version, compare)
+  let d: Awaited<ReturnType<typeof getLexiconVersionDiff>>
+  try {
+    d = await getLexiconVersionDiff(actor.environment, version, compare)
+  } catch (e) {
+    mapStoreError(e)
+  }
   if (!d) throw new ApiError('NOT_FOUND', '사전 버전을 찾을 수 없습니다.')
   const [dto] = await versionDtos(actor, [d.row])
   return { ...dto, compare, against: d.against, counts: d.counts, rows: d.rows.slice(0, LEXICON_LIMITS.diffRowsMax), truncated: Math.max(0, d.rows.length - LEXICON_LIMITS.diffRowsMax) }

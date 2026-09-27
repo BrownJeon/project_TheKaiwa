@@ -49,6 +49,7 @@ export const LEXICON_PRODUCTION_CONFIRM = 'PRODUCTION'
  *   409 CONFLICT      : VERSION_CONFLICT(details.baseVersion·currentVersion) · E_LEXICON_DUPLICATE(details.existing·existingId) · ALREADY_ACTIVE · NO_CHANGE
  *   422 UNPROCESSABLE : E_LEXICON_ENTRY_INVALID(details.errors·fields) · E_IMPORT_HAS_ERRORS(details.counts·errors) · E_IMPORT_FORMAT · E_IMPORT_HEADER
  *                       · E_IMPORT_TOO_MANY_ROWS · E_IMPORT_TOO_LARGE · E_PREVIEW_TEXT_TOO_LONG
+ *                       · E_SNAPSHOT_INTEGRITY(details.version·integrity·issues — 되돌리기·버전 diff 대상 스냅샷이 손상)
  *   403 FORBIDDEN     : details.missing(['config.apply.production'] 등) · PRODUCTION_CONFIRMATION_REQUIRED
  */
 export type LexiconErrorReason =
@@ -63,6 +64,7 @@ export type LexiconErrorReason =
   | 'E_IMPORT_TOO_MANY_ROWS'
   | 'E_IMPORT_TOO_LARGE'
   | 'E_PREVIEW_TEXT_TOO_LONG'
+  | 'E_SNAPSHOT_INTEGRITY'
   | 'PRODUCTION_CONFIRMATION_REQUIRED'
 
 /**
@@ -90,6 +92,21 @@ export type LexiconFieldCode =
 export type LexiconImportMode = 'MERGE' | 'REPLACE_SCOPE'
 export type LexiconFormat = 'csv' | 'json'
 export type LexiconVersionStatus = 'ACTIVE' | 'SUPERSEDED' | 'ROLLED_BACK'
+
+/**
+ * 버전 스냅샷 무결성(Codex C2) — OK 가 아니면 되돌리기·diff 가 422 E_SNAPSHOT_INTEGRITY 로 거절된다(화면: "기록 손상" 배지 + 되돌리기 숨김).
+ *   MALFORMED       = 배열이 아니거나 필드 타입·누락이 있는 행
+ *   INVALID_ENTRIES = 모양은 맞지만 지금의 쓰기 규칙 위반·정규형 아님·키 중복(규칙이 나중에 강화된 옛 버전 포함)
+ *   MISMATCH        = 행은 전부 멀쩡한데 활성 항목 해시가 저장된 snapshotHash 와 다름(행 변조·누락)
+ */
+export type LexiconSnapshotIntegrity = 'OK' | 'MALFORMED' | 'INVALID_ENTRIES' | 'MISMATCH'
+
+/** 손상 행(배열 index 0부터, 배열 자체가 아니면 -1). codes = E_SNAPSHOT_SHAPE·E_SNAPSHOT_ROW·E_NOT_CANONICAL·E_DUPLICATE_KEY 또는 칸 코드. */
+export interface LexiconSnapshotIssueDto {
+  index: number
+  surface: string | null
+  codes: string[]
+}
 
 /** 항목 값(식별자·시각 제외) — 스냅샷·Import·diff 공통 모양. */
 export interface LexiconEntryFields {
@@ -132,9 +149,13 @@ export interface LexiconVersionDto {
   actor: LexiconActorDto | null
   /** 되돌림은 "v7 로 되돌림: {이유}". */
   changeSummary: string | null
+  /** 스냅샷 배열 원소 수(손상 행 포함). */
   entryCount: number
+  /** 멀쩡한 행 중 켜진 수. */
   enabledCount: number
   snapshotHash: string
+  /** 스냅샷 무결성 — OK 가 아니면 이 버전으로 되돌리기·diff 불가. */
+  integrity: LexiconSnapshotIntegrity
   /** 감사 행의 변경 이유·action(`lexicon.create|update|disable|import|rollback`) — 시드는 null. */
   reason: string | null
   action: string | null
@@ -202,7 +223,10 @@ export interface LexiconVersionListDto {
   activeVersion: number
 }
 
-/** `GET /versions/:v?compare=previous|active` — `against`(바로 앞 버전 또는 지금 ACTIVE) → 이 버전으로 가는 변화. */
+/**
+ * `GET /versions/:v?compare=previous|active` — `against` → 이 버전으로 가는 변화. previous = 바로 앞 버전 스냅샷,
+ * active = **지금 항목 표**(되돌리기가 실제로 비교하는 기준, against = 지금 ACTIVE 번호). 어느 쪽 스냅샷이든 손상이면 422 E_SNAPSHOT_INTEGRITY.
+ */
 export interface LexiconVersionDetailDto extends LexiconVersionDto {
   compare: 'previous' | 'active'
   against: number | null

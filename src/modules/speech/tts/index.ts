@@ -35,8 +35,10 @@ export {
   LexiconEntryInvalidError,
   LexiconImportInvalidError,
   LexiconRollbackRejectedError,
+  LexiconSnapshotIntegrityError,
+  checkSnapshot,
 } from './lexiconStore'
-export type { LexiconListQuery, LexiconListResult, LexiconVersionRow, LexiconVersionDiff, LexiconWriteContext, LexiconOp, LexiconWriteResult } from './lexiconStore'
+export type { LexiconListQuery, LexiconListResult, LexiconVersionRow, LexiconVersionDiff, LexiconWriteContext, LexiconOp, LexiconWriteResult, CheckedSnapshot } from './lexiconStore'
 export { parseEntryInput, collectScopeRefs, scopeRefKey, planRows, countPlan, fieldsOf as lexiconFieldsOf } from './lexiconRules'
 export type { ImportRowInput, ImportPlan, ImportRowResult, PlanItem, RawEntryInput } from './lexiconRules'
 export { parseLexiconFile, formatLexiconCsv } from './lexiconCsv'

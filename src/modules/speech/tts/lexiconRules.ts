@@ -301,6 +301,90 @@ export function readSnapshot(raw: unknown): LexiconSnapshotRowDto[] {
   return sortEntries(out)
 }
 
+/** 스냅샷 한 행의 문제(행 번호는 배열 index, 0부터). */
+export interface SnapshotIssue {
+  index: number
+  surface: string | null
+  codes: string[]
+}
+
+export interface StrictSnapshot {
+  /** 모양·규칙을 통과한 행만(정렬됨). */
+  rows: LexiconSnapshotRowDto[]
+  /** 배열 원소 수(손상 행 포함). */
+  total: number
+  /** MALFORMED = 배열 아님·필드 타입/누락 · INVALID_ENTRIES = 타입은 맞지만 쓰기 규칙 위반·정규형 아님·키 중복. 빈 배열이면 문제 없음. */
+  malformed: SnapshotIssue[]
+  invalid: SnapshotIssue[]
+}
+
+const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v)
+const strOrNull = (v: unknown): v is string | null => v === null || typeof v === 'string'
+
+/**
+ * 스냅샷 엄격 읽기(Codex C2) — `readSnapshot` 처럼 조용히 버리지 않고 문제 행을 보고한다. Rollback·버전 diff·목록 무결성 표시가 쓴다.
+ * 행마다 ① 모양: surface·reading 문자열, accentType·priority 정수, scope 5종, scopeRefId·wordType 키가 있고 문자열|null, enabled 불리언,
+ * note 는 없거나 문자열|null ② 규칙: 지금의 쓰기 검증(`parseEntryInput`)을 통과하고 정규화해도 값이 그대로(정규형) ③ 키 중복 없음.
+ * 해시 대조는 저장소(`lexiconStore`)가 `lexicon.snapshotHash` 로 한다(이 파일은 순수).
+ */
+export function readSnapshotStrict(raw: unknown): StrictSnapshot {
+  const malformed: SnapshotIssue[] = []
+  const invalid: SnapshotIssue[] = []
+  if (!Array.isArray(raw)) return { rows: [], total: 0, malformed: [{ index: -1, surface: null, codes: ['E_SNAPSHOT_SHAPE'] }], invalid }
+  const rows: LexiconSnapshotRowDto[] = []
+  const keys = new Set<string>()
+  raw.forEach((r, index) => {
+    const o = r && typeof r === 'object' && !Array.isArray(r) ? (r as Record<string, unknown>) : null
+    const surface = o && typeof o.surface === 'string' ? o.surface : null
+    const shapeOk =
+      !!o &&
+      typeof o.surface === 'string' &&
+      typeof o.reading === 'string' &&
+      isInt(o.accentType) &&
+      isInt(o.priority) &&
+      typeof o.scope === 'string' &&
+      o.scope in SCOPE_ORDER &&
+      'scopeRefId' in o &&
+      strOrNull(o.scopeRefId) &&
+      'wordType' in o &&
+      strOrNull(o.wordType) &&
+      typeof o.enabled === 'boolean' &&
+      (!('note' in o) || strOrNull(o.note))
+    if (!o || !shapeOk) {
+      malformed.push({ index, surface, codes: ['E_SNAPSHOT_ROW'] })
+      return
+    }
+    const row: LexiconSnapshotRowDto = {
+      surface: o.surface as string,
+      reading: o.reading as string,
+      accentType: o.accentType as number,
+      priority: o.priority as number,
+      scope: o.scope as LexiconScopeName,
+      scopeRefId: o.scopeRefId as string | null,
+      wordType: o.wordType as LexiconWordType | null,
+      ...('note' in o ? { note: o.note as string | null } : {}),
+      enabled: o.enabled as boolean,
+    }
+    const parsed = parseEntryInput({ ...row, note: row.note ?? null }, null)
+    if (!parsed.value) {
+      invalid.push({ index, surface, codes: [...new Set(parsed.errors.map((e) => e.code))] })
+      return
+    }
+    if (!sameFields(parsed.value, { ...row, note: row.note ?? null })) {
+      invalid.push({ index, surface, codes: ['E_NOT_CANONICAL'] })
+      return
+    }
+    const key = entryKey(row)
+    if (keys.has(key)) {
+      invalid.push({ index, surface, codes: ['E_DUPLICATE_KEY'] })
+      return
+    }
+    keys.add(key)
+    rows.push(row)
+  })
+  return { rows: sortEntries(rows), total: raw.length, malformed, invalid }
+}
+
 // ── 변경 계획 ───────────────────────────────────────────────────────────
 
 export type PlanItem =

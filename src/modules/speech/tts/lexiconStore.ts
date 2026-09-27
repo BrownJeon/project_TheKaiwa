@@ -15,7 +15,19 @@
  */
 import type { Environment, Prisma } from '@prisma/client'
 import { escapeLike, prisma, type Tx } from '@/modules/infra'
-import type { LexiconDiffCountsDto, LexiconDiffRowDto, LexiconEntryDto, LexiconEntryFields, LexiconFieldError, LexiconImportMode, LexiconScopeName, LexiconSnapshotRowDto, LexiconVersionStatus } from '@/types/lexicon'
+import type {
+  LexiconDiffCountsDto,
+  LexiconDiffRowDto,
+  LexiconEntryDto,
+  LexiconEntryFields,
+  LexiconFieldError,
+  LexiconImportMode,
+  LexiconScopeName,
+  LexiconSnapshotIntegrity,
+  LexiconSnapshotIssueDto,
+  LexiconSnapshotRowDto,
+  LexiconVersionStatus,
+} from '@/types/lexicon'
 import { clearLexiconCache, snapshotHash } from './lexicon'
 import {
   applyPlan,
@@ -28,7 +40,7 @@ import {
   planImport,
   planRollback,
   planUpdate,
-  readSnapshot,
+  readSnapshotStrict,
   refNotFound,
   rollbackSummary,
   scopeRefKey,
@@ -92,6 +104,18 @@ export class LexiconImportInvalidError extends Error {
   }
 }
 
+/** 버전 스냅샷 손상(Codex C2) — 되돌리기·diff 를 거절한다(→ 422 E_SNAPSHOT_INTEGRITY). 행을 조용히 버리고 진행하지 않는다. */
+export class LexiconSnapshotIntegrityError extends Error {
+  constructor(
+    readonly version: number,
+    readonly integrity: Exclude<LexiconSnapshotIntegrity, 'OK'>,
+    readonly issues: LexiconSnapshotIssueDto[],
+  ) {
+    super(`사전 버전 v${version} 스냅샷 손상(${integrity})`)
+    this.name = 'LexiconSnapshotIntegrityError'
+  }
+}
+
 /** Rollback 대상이 지금 ACTIVE(ALREADY_ACTIVE) 이거나 되돌려도 항목 표가 같다(NO_CHANGE). */
 export class LexiconRollbackRejectedError extends Error {
   constructor(readonly reason: 'ALREADY_ACTIVE' | 'NO_CHANGE') {
@@ -147,14 +171,50 @@ export interface LexiconVersionRow {
   snapshotHash: string
   entryCount: number
   enabledCount: number
+  integrity: LexiconSnapshotIntegrity
 }
 
 const VERSION_SELECT = { version: true, status: true, changeSummary: true, actorUserId: true, createdAt: true, snapshotHash: true, snapshot: true } as const
 type VersionSelected = Prisma.PronunciationLexiconVersionGetPayload<{ select: typeof VERSION_SELECT }>
 
+export interface CheckedSnapshot {
+  integrity: LexiconSnapshotIntegrity
+  /** 멀쩡한 행(정렬). integrity 가 OK 일 때만 전체 스냅샷과 같다. */
+  rows: LexiconSnapshotRowDto[]
+  total: number
+  issues: LexiconSnapshotIssueDto[]
+}
+
+/**
+ * 스냅샷 무결성 판정(Codex C2): 엄격 읽기(모양·쓰기 규칙·정규형·키 중복) → 멀쩡하면 활성 항목 해시를 `lexicon.snapshotHash`(생성 때와 같은 함수)로
+ * 다시 계산해 저장값과 비교. 해시는 활성 항목의 (범위·대상·표기·읽기·악센트·우선순위·종류)만 덮는다 — 꺼진 행·메모 변조는 ①②③ 검사로만 잡힌다.
+ */
+export function checkSnapshot(raw: unknown, storedHash: string): CheckedSnapshot {
+  const s = readSnapshotStrict(raw)
+  if (s.malformed.length) return { integrity: 'MALFORMED', rows: s.rows, total: s.total, issues: [...s.malformed, ...s.invalid].slice(0, 50) }
+  if (s.invalid.length) return { integrity: 'INVALID_ENTRIES', rows: s.rows, total: s.total, issues: s.invalid.slice(0, 50) }
+  const hash = snapshotHash(s.rows.map((r) => ({ ...r, note: r.note ?? null })))
+  return hash === storedHash ? { integrity: 'OK', rows: s.rows, total: s.total, issues: [] } : { integrity: 'MISMATCH', rows: s.rows, total: s.total, issues: [] }
+}
+
+function assertIntact(version: number, c: CheckedSnapshot): LexiconSnapshotRowDto[] {
+  if (c.integrity !== 'OK') throw new LexiconSnapshotIntegrityError(version, c.integrity, c.issues)
+  return c.rows
+}
+
 function versionRowOf(v: VersionSelected): LexiconVersionRow {
-  const entries = readSnapshot(v.snapshot)
-  return { version: v.version, status: v.status, changeSummary: v.changeSummary, actorUserId: v.actorUserId, createdAt: v.createdAt, snapshotHash: v.snapshotHash, entryCount: entries.length, enabledCount: entries.filter((e) => e.enabled).length }
+  const c = checkSnapshot(v.snapshot, v.snapshotHash)
+  return {
+    version: v.version,
+    status: v.status,
+    changeSummary: v.changeSummary,
+    actorUserId: v.actorUserId,
+    createdAt: v.createdAt,
+    snapshotHash: v.snapshotHash,
+    entryCount: c.total,
+    enabledCount: c.rows.filter((e) => e.enabled).length,
+    integrity: c.integrity,
+  }
 }
 
 export async function activeLexiconVersion(environment: Environment, db: Tx | typeof prisma = prisma): Promise<number> {
@@ -227,19 +287,28 @@ export interface LexiconVersionDiff {
 }
 
 /**
- * 버전 상세 diff — `compare=previous`: 바로 앞 번호 버전 → 이 버전(첫 버전은 전부 ADDED) / `compare=active`: 지금 ACTIVE → 이 버전
- * (= 이 버전으로 되돌리면 생길 변화). 스냅샷 전체는 내려보내지 않는다(호출자가 rows 를 자른다).
+ * 버전 상세 diff — `compare=previous`: 바로 앞 번호 버전 스냅샷 → 이 버전(첫 버전은 전부 ADDED) / `compare=active`: **지금 항목 표** → 이 버전
+ * (= 이 버전으로 되돌리면 생길 변화 — Rollback 계획이 비교하는 것과 같은 기준, against = 지금 ACTIVE 번호). 스냅샷 전체는 내려보내지 않는다.
+ * 비교에 쓰는 스냅샷이 손상이면 그럴듯한 diff 대신 `LexiconSnapshotIntegrityError`(어느 버전인지 포함).
  */
-export async function getLexiconVersionDiff(environment: Environment, version: number, compare: 'previous' | 'active'): Promise<LexiconVersionDiff | null> {
-  const row = await prisma.pronunciationLexiconVersion.findUnique({ where: { environment_version: { environment, version } }, select: VERSION_SELECT })
+export async function getLexiconVersionDiff(environment: Environment, version: number, compare: 'previous' | 'active', db: Tx | typeof prisma = prisma): Promise<LexiconVersionDiff | null> {
+  const row = await db.pronunciationLexiconVersion.findUnique({ where: { environment_version: { environment, version } }, select: VERSION_SELECT })
   if (!row) return null
-  const base =
-    compare === 'previous'
-      ? await prisma.pronunciationLexiconVersion.findFirst({ where: { environment, version: { lt: version } }, orderBy: { version: 'desc' }, select: { version: true, snapshot: true } })
-      : await prisma.pronunciationLexiconVersion.findFirst({ where: { environment, status: 'ACTIVE' }, orderBy: { version: 'desc' }, select: { version: true, snapshot: true } })
-  const from: LexiconSnapshotRowDto[] = base ? readSnapshot(base.snapshot) : []
-  const d = diffRows(from, readSnapshot(row.snapshot))
-  return { row: versionRowOf(row), against: base?.version ?? null, ...d }
+  const to = assertIntact(version, checkSnapshot(row.snapshot, row.snapshotHash))
+  let from: LexiconSnapshotRowDto[] = []
+  let against: number | null = null
+  if (compare === 'previous') {
+    const base = await db.pronunciationLexiconVersion.findFirst({ where: { environment, version: { lt: version } }, orderBy: { version: 'desc' }, select: { version: true, snapshot: true, snapshotHash: true } })
+    if (base) {
+      from = assertIntact(base.version, checkSnapshot(base.snapshot, base.snapshotHash))
+      against = base.version
+    }
+  } else {
+    const [entries, active] = await Promise.all([db.pronunciationLexiconEntry.findMany({ where: { environment }, select: ENTRY_SELECT }), activeLexiconVersion(environment, db)])
+    from = sortEntries(entries.map((e) => fieldsOf(rowOf(e))))
+    against = active || null
+  }
+  return { row: versionRowOf(row), against, ...diffRows(from, to) }
 }
 
 /**
@@ -382,9 +451,10 @@ export async function writeLexicon(tx: Tx, ctx: LexiconWriteContext, op: Lexicon
     }
     case 'ROLLBACK': {
       if (op.targetVersion === activeVersion) throw new LexiconRollbackRejectedError('ALREADY_ACTIVE')
-      const target = await tx.pronunciationLexiconVersion.findUnique({ where: { environment_version: { environment, version: op.targetVersion } }, select: { snapshot: true } })
+      const target = await tx.pronunciationLexiconVersion.findUnique({ where: { environment_version: { environment, version: op.targetVersion } }, select: { snapshot: true, snapshotHash: true } })
       if (!target) throw new LexiconVersionNotFoundError()
-      items = planRollback(rows, readSnapshot(target.snapshot))
+      // 손상된 스냅샷으로 되돌리면 빠진 키의 정상 항목이 "대상에 없음" 으로 꺼진다 — 해시·규칙이 맞을 때만 진행(Codex C2).
+      items = planRollback(rows, assertIntact(op.targetVersion, checkSnapshot(target.snapshot, target.snapshotHash)))
       if (items.length === 0) throw new LexiconRollbackRejectedError('NO_CHANGE')
       break
     }
