@@ -102,6 +102,9 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 - [2026-09-28 02:35] intake engine=jev → task_type=feature, risk=R1, developer_model=opus, next=assign | overrides=- | fallback=- | tokens=1127
   - **override**(Leader): risk **R2** 적용 — 신호도 high 0.51/normal 0.49 경계이고, 이번 범위에 서명 URL(인증 우회 시 타인 오디오 노출)·발화 소유 검사(IDOR)·자식 프로세스 수명(누수·고아) 이 들어 있어 보안·운영 위험을 R2 로 본다. developer_model=opus·next=assign 채택.
 
+
+- [2026-09-28 04:09] C2 engine=jev → codex_required=true, mode=adversarial-review, focus=concurrency | overrides=- | fallback=- | tokens=994
+
 ## Codex 검토
 
 ### [2026-09-28 01:59] C1 adversarial-review focus=security — done
@@ -118,6 +121,15 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 - **C1-1 서명 URL 식별자 누출 → 채택(K5 수정)**: URL 에 `userId`·`messageId` 원문을 싣지 않는다. 토큰 = `base64url({k:cacheKey, e:exp})` + `.` + `HMAC-SHA256(키, "tts-audio|" + userId + "|" + k + "|" + e)` — **userId 는 MAC 입력에만** 들어가고 검증 시 세션 사용자로 재계산(타인 세션이면 MAC 불일치 → 404). cacheKey 는 내용 해시라 식별자가 아니다. 키는 `JWT_SECRET` 에서 HKDF(`info="thekaiwa/tts-audio-url/v1"`)로 파생(새 env 불필요), 비교는 `timingSafeEqual`. messageId 결속은 빼고 만료(10분)+사용자 결속으로 충분하다고 판단. AEAD·nonce 저장소는 과함(DB 쓰기 추가·Redis 없음).
 - **C1-2 utteranceId 재사용/경합 → 부분 채택(K6 수정)**: 스키마 변경(`Utterance.chatId`·`chatMessageId @unique`)은 공유 DB `db push` = 사용자 승인 사항이라 **이번엔 하지 않고** 코드로 막는다 — ① 수락 전 검사: 소유자 + `chatMessageId IS NULL`(이미 연결된 발화는 `409 CONFLICT {reason:"UTTERANCE_USED"}`) + 생성 10분 이내(오래된 발화 재사용 차단) ② 수락 뒤 연결은 **조건부** `updateMany WHERE id AND userId AND chatMessageId IS NULL` — count 0 이면 턴은 계속하되 Trace warning(사용자당 턴 락이 이미 동시 턴을 막으므로 경합은 이중 방어). 발화↔chat 결속(티켓 chatId 보존)은 스키마가 필요해 **후속 백로그**(domain-model 에 `Utterance.chatId` 추가 제안으로 기록, 사용자 승인 시 db push). 같은 사용자 자기 발화를 자기 다른 방에 쓰는 것은 타인 노출이 아니라 수용.
 - **C1-3 조기 TTS 선노출 → 채택(K2-2 수정)**: ① 추출기는 **경로 인식 증분 JSON 토크나이저**(최상위 객체의 `conversation.replyJa` 문자열 값만, 이스케이프 처리, 다른 문자열 값 안의 `"replyJa"` 흉내는 무시) — 정규식 금지 ② 문장별 **최소 안전 필터** 통과 시에만 합성: 길이 2~100자, 제어문자 0, 가나/한자 비율 ≥50%, URL·이메일·`[A-Za-z]{4,}` 연속 영문·엔진/모델명 패턴·`system`/`prompt`/`JSON` 같은 지시문 누출 패턴 0 — 실패하면 조기 경로를 끄고 최종 검증 후 합성(정상 경로)으로 되돌린다 ③ 최종 검증 실패(재시도) 시 이미 나간 문장은 되돌릴 수 없음을 **잔여 위험으로 수용**(강사 페르소나 고정·필터 통과 문장 1~2개 한정, 발생 시 Trace `AUDIO_TEXT_MISMATCH` 기록·클라는 최종 텍스트로 정정). 조기 경로는 설정값(`runtime.earlySentenceTts`, 기본 on)으로 끌 수 있게.
+
+### [2026-09-28 04:17] C2 adversarial-review focus=concurrency — done
+- judge 판정: [[task-007-talk-voice-web.md#판단-기록-judge]] §106 C2 gate codex_required / 호출 차수: 2/4 (R2)
+- 대상: repo=TheKaiwa base=05f0cbb snapshot=98732a2
+- 지적 **2건**:
+  - [medium] **TTS chunk 동시 합성 vs SHADOWING 이전 길이 정책 충돌** (turnAudio.ts:266) — 최대 2개 동시 합성 중 chunk 1이 chunk 0 완료 전 시작 → `previousDurationMs` null 전달 → SHADOWING 정책의 이전 문장 길이만큼 쉼이 무시됨 → 다음 문장 즉시 재생. 권고: 이전 duration 필요한 프로필은 순차화하거나 계산을 분리, 최소한 프로필 메타 노출로 concurrency=1 조절.
+  - [medium] **Early sentence mismatch 시 진행 중 TTS 취소 불가** (turnAudio.ts:211) — 최종 JSON 검증 실패/재시도 후 이미 보낸 문장과 다르면 `finalize()` 가 queue만 비우고 실행 중 speaker 작업은 취소 안 함 → `done` 이벤트 최대 9초 지연(청크 타임아웃) + M4 자원 낭비. 권고: TurnSpeaker에 AbortSignal 전달해 mismatch 시 in-flight 합성 취소, 또는 mismatch 확정 시 settled 즉시 해제.
+- 검토하지 못한 범위: 라이브 M4 TTS 부하 테스트·Playwright 재실행(read-only 범위) / MariaDB 실제 동시 격리 재현(코드·Prisma만 검증).
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T191314Z-task-007-C2/raw.txt
 
 ## Designer 기록
 - [02:13] 가이드 완료 → `docs/screens.md` §9(9-0~9-11) + 변경 이력·§2 회화 두 행·§3 "회화 준비 중" 문구(§3-1 진입·3-2 A·3-5·3-8 ⓖ)·§7-3 A 폴링 멈춤 범위·§8-1/8-2 C(재생 중 버튼 → barge-in) 갱신. 경로: 홈 `/study/ai`(기본 `tab=talk`) → 방 `/study/ai/talk/[chatId]`(탭 숨김, 머리 56px = ← · 아바타 40·이름 · 표시등 · ⋯).
