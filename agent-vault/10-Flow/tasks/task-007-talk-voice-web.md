@@ -90,6 +90,21 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 
 ## Codex 검토
 
+### [2026-09-28 01:59] C1 adversarial-review focus=security — done
+- judge 판정: [[task-007-talk-voice-web.md#판단-기록-judge]] §87~89 intake(R1→override R2) · §108 C1 gate codex_required / 호출 차수: 1/4 (R2)
+- 대상: repo=TheKaiwa base=05f0cbb(HEAD_fallback 아님, 설계 문서 변경) snapshot=worktree-e87f3f
+- 지적 **3건**:
+  - [medium] **서명 URL 식별자 누출** (task-007-talk-voice-web.md:54) — K5 `/api/v1/speech/tts/<token>` 이 `base64url(payload).HMAC` 형식일 때 userId·messageId 원문 노출 (히스토리·로그·Referer) → 프라이버시/추적 위험. 권고: 진정한 opaque (랜덤 nonce 매핑 또는 JWE/AEAD), 최소한 URL 페이로드에 원문 금지.
+  - [medium] **utteranceId 재사용/경합** (task-007-talk-voice-web.md:55) — K6 Utterance 모델에 chatId 없고 chatMessageId unique 아님 → 한 녹음을 여러 턴/채팅에 재사용 가능, 경합 시 마지막 update 우승 → 음성/채팅 증거 관계 깨짐, 다시 듣기/감사 기록 섞임. 권고: chatId 저장, 조건부 update WHERE id=? AND userId=? AND chatMessageId IS NULL AND chatId=?, chatMessageId @unique 제약.
+  - [medium] **초기 partial LLM 음성 선노출** (task-007-talk-voice-web.md:49) — K2 step 2 `--include-partial-messages` delta에서 첫 문장 추출 → 최종 JSON 검증 전 TTS 합성/SSE 송신 → 검증 실패/보안 필터 실패 응답도 음성으로 선노출 (프롬프트 인젝션, 엔진명, 시스템 지시문 등). 권고: 초기 청크도 경로 확인 + 최소 보안 필터(길이, 제어문자, URL/secret/엔진명/지시문 패턴) 후 합성, 또는 검증 완료 후 조기 TTS 실행.
+- 검토하지 못한 범위: 실제 HMAC 검증 방식(constant-time 비교)·라우트 응답 헤더·프로세스 정리 구현·테스트/빌드/E2E (설계 문서 변경만, 코드 diff 없음).
+- 원본: `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T165640Z-task-007-C1/raw.txt`
+
+### C1 지적 판정 (Leader, 2026-09-28 — 설계 단계라 Leader 가 판정, 구현 반영은 reviewer 가 확인)
+- **C1-1 서명 URL 식별자 누출 → 채택(K5 수정)**: URL 에 `userId`·`messageId` 원문을 싣지 않는다. 토큰 = `base64url({k:cacheKey, e:exp})` + `.` + `HMAC-SHA256(키, "tts-audio|" + userId + "|" + k + "|" + e)` — **userId 는 MAC 입력에만** 들어가고 검증 시 세션 사용자로 재계산(타인 세션이면 MAC 불일치 → 404). cacheKey 는 내용 해시라 식별자가 아니다. 키는 `JWT_SECRET` 에서 HKDF(`info="thekaiwa/tts-audio-url/v1"`)로 파생(새 env 불필요), 비교는 `timingSafeEqual`. messageId 결속은 빼고 만료(10분)+사용자 결속으로 충분하다고 판단. AEAD·nonce 저장소는 과함(DB 쓰기 추가·Redis 없음).
+- **C1-2 utteranceId 재사용/경합 → 부분 채택(K6 수정)**: 스키마 변경(`Utterance.chatId`·`chatMessageId @unique`)은 공유 DB `db push` = 사용자 승인 사항이라 **이번엔 하지 않고** 코드로 막는다 — ① 수락 전 검사: 소유자 + `chatMessageId IS NULL`(이미 연결된 발화는 `409 CONFLICT {reason:"UTTERANCE_USED"}`) + 생성 10분 이내(오래된 발화 재사용 차단) ② 수락 뒤 연결은 **조건부** `updateMany WHERE id AND userId AND chatMessageId IS NULL` — count 0 이면 턴은 계속하되 Trace warning(사용자당 턴 락이 이미 동시 턴을 막으므로 경합은 이중 방어). 발화↔chat 결속(티켓 chatId 보존)은 스키마가 필요해 **후속 백로그**(domain-model 에 `Utterance.chatId` 추가 제안으로 기록, 사용자 승인 시 db push). 같은 사용자 자기 발화를 자기 다른 방에 쓰는 것은 타인 노출이 아니라 수용.
+- **C1-3 조기 TTS 선노출 → 채택(K2-2 수정)**: ① 추출기는 **경로 인식 증분 JSON 토크나이저**(최상위 객체의 `conversation.replyJa` 문자열 값만, 이스케이프 처리, 다른 문자열 값 안의 `"replyJa"` 흉내는 무시) — 정규식 금지 ② 문장별 **최소 안전 필터** 통과 시에만 합성: 길이 2~100자, 제어문자 0, 가나/한자 비율 ≥50%, URL·이메일·`[A-Za-z]{4,}` 연속 영문·엔진/모델명 패턴·`system`/`prompt`/`JSON` 같은 지시문 누출 패턴 0 — 실패하면 조기 경로를 끄고 최종 검증 후 합성(정상 경로)으로 되돌린다 ③ 최종 검증 실패(재시도) 시 이미 나간 문장은 되돌릴 수 없음을 **잔여 위험으로 수용**(강사 페르소나 고정·필터 통과 문장 1~2개 한정, 발생 시 Trace `AUDIO_TEXT_MISMATCH` 기록·클라는 최종 텍스트로 정정). 조기 경로는 설정값(`runtime.earlySentenceTts`, 기본 on)으로 끌 수 있게.
+
 ## Designer 기록
 
 ## Prompt-Engineer 기록
