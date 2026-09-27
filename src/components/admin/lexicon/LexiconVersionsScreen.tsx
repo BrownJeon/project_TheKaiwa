@@ -13,14 +13,14 @@ import { useNow } from '@/components/common/useNow'
 import type { LexiconRollbackResultDto, LexiconVersionDto, LexiconVersionListDto } from '@/types/lexicon'
 import { useConsoleToast } from '../console/ConsoleProvider'
 import { BackLink, ConsoleError, ConsoleLoading, EmptyNote, LoadError, loadErrorText } from '../console/ConsoleStates'
-import { formatAgo } from '../console/format'
 import RefreshLine from '../console/RefreshLine'
 import { useAdminResource } from '../console/useAdminResource'
-import { VersionStatusBadge } from './Badges'
+import { IntegrityBadge, VersionStatusBadge } from './Badges'
 import { versionsPath } from './lexiconApi'
-import { actorLabel, rollbackToast, VERSION_STATUS_DESC } from './lexiconCopy'
+import { INTEGRITY_KO, rollbackToast, VERSION_STATUS_DESC } from './lexiconCopy'
 import { useLexiconAccess } from './useLexiconAccess'
 import VersionDetailSheet from './VersionDetailSheet'
+import VersionRow from './VersionRow'
 
 const PATH = '/admin/speech/tts/lexicon/versions'
 
@@ -111,6 +111,12 @@ export default function LexiconVersionsScreen({ initialV }: { initialV: number |
               <span className="break-keep">{VERSION_STATUS_DESC[s]}</span>
             </li>
           ))}
+          <li className="flex min-w-0 items-center gap-2">
+            <IntegrityBadge integrity="MISMATCH" />
+            <span className="break-keep">
+              {INTEGRITY_KO.MALFORMED} · {INTEGRITY_KO.INVALID_ENTRIES} · {INTEGRITY_KO.MISMATCH} — 이 버전으로는 비교·되돌리기를 할 수 없어요
+            </span>
+          </li>
         </ul>
       </details>
       <RefreshLine loadedAt={first.loadedAt} reloading={first.reloading} onReload={first.reload} />
@@ -125,22 +131,7 @@ export default function LexiconVersionsScreen({ initialV }: { initialV: number |
           {first.err ? <ConsoleError message={loadErrorText(first.err, '버전 기록')} onRetry={first.reload} /> : null}
           <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
             {items.map((v) => (
-              <li key={v.version}>
-                <button type="button" onClick={() => open(v.version)} className="flex min-h-[64px] w-full min-w-0 flex-col gap-0.5 px-3.5 py-2.5 text-left">
-                  <span className="flex w-full min-w-0 items-center gap-2">
-                    <span className="font-mono text-[15px] font-semibold">v{v.version}</span>
-                    <VersionStatusBadge status={v.status} />
-                    <span className="ml-auto text-[12px] tabular-nums text-ink2">{formatAgo(v.createdAt, now)}</span>
-                  </span>
-                  <span className="w-full min-w-0 truncate text-[14px]">{v.changeSummary ?? '요약 없음'}</span>
-                  <span className="flex w-full min-w-0 gap-2 text-[12px] text-ink2">
-                    <span className="min-w-0 flex-1 truncate">
-                      {actorLabel(v.actor)} · 항목 {v.entryCount}개(사용 중 {v.enabledCount})
-                    </span>
-                    <span aria-hidden="true">›</span>
-                  </span>
-                </button>
-              </li>
+              <VersionRow key={v.version} v={v} now={now} onOpen={open} />
             ))}
           </ul>
           {moreError ? (
@@ -159,6 +150,7 @@ export default function LexiconVersionsScreen({ initialV }: { initialV: number |
         <VersionDetailSheet
           key={openV}
           version={openV}
+          summary={items.find((x) => x.version === openV) ?? null}
           activeVersion={activeVersion}
           access={access}
           onClose={() => open(null)}

@@ -5,7 +5,7 @@
  */
 import type { Err } from '@/components/common/errors'
 import { retryAfterOf } from '@/components/common/errors'
-import { LEXICON_LIMITS, type LexiconScopeName, type LexiconVersionStatus, type LexiconWordType } from '@/types/lexicon'
+import { LEXICON_LIMITS, type LexiconScopeName, type LexiconSnapshotIntegrity, type LexiconVersionStatus, type LexiconWordType } from '@/types/lexicon'
 import type { DraftField, FieldError, FieldErrors } from './kana'
 
 // ── ⓐ 공통 · 라벨 ──────────────────────────────────────────────────────────
@@ -70,6 +70,25 @@ export const VERSION_STATUS_DESC: Record<LexiconVersionStatus, string> = {
   ACTIVE: '지금 적용 중',
   SUPERSEDED: '새 버전에 밀려났어요',
   ROLLED_BACK: '이 버전의 변경을 되돌려 새 버전으로 바꿨어요',
+}
+
+/** 스냅샷 무결성(A Codex C2) — OK 가 아니면 "기록 손상" 뱃지 + 되돌리기 숨김. */
+export const DAMAGED_LABEL = '기록 손상'
+
+export const INTEGRITY_KO: Record<Exclude<LexiconSnapshotIntegrity, 'OK'>, string> = {
+  MALFORMED: '기록 형식이 깨졌어요',
+  INVALID_ENTRIES: '지금 규칙에 맞지 않는 항목이 있어요',
+  MISMATCH: '내용이 저장된 기록(해시)과 달라요',
+}
+
+export function isDamaged(integrity: LexiconSnapshotIntegrity | null | undefined): boolean {
+  return Boolean(integrity) && integrity !== 'OK'
+}
+
+/** 항목 수 줄 — entryCount 는 손상 행 포함, enabledCount 는 멀쩡한 행 중 켜진 수라 손상 버전은 그 뜻을 밝힌다. */
+export function versionCountText(v: { entryCount: number; enabledCount: number; integrity?: LexiconSnapshotIntegrity | null }): string {
+  if (isDamaged(v.integrity)) return `항목 ${v.entryCount}개(손상 행 포함) · 멀쩡한 사용 중 ${v.enabledCount}`
+  return `항목 ${v.entryCount}개(사용 중 ${v.enabledCount})`
 }
 
 export type DiffKind = 'ADDED' | 'CHANGED' | 'DISABLED' | 'ENABLED'
@@ -281,6 +300,29 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
+/** 422 E_SNAPSHOT_INTEGRITY — 버전 비교·되돌리기 대상 스냅샷이 손상. 다시 불러와도 풀리지 않는 데이터 문제라 재시도 버튼을 두지 않는다. */
+export function isSnapshotIntegrityError(err: Err): boolean {
+  return err.status === 422 && subCode(err) === 'E_SNAPSHOT_INTEGRITY'
+}
+
+const RESTORE_HINT = '올바른 내보내기 파일이 있으면 가져오기로 복구해 주세요.'
+
+/**
+ * 손상 안내. `details.version` 이 보고 있는 버전이면 그 버전 자체가 손상(비교·되돌리기 불가),
+ * 다른 번호면 비교 상대(직전 버전)가 손상 — 이 버전으로 되돌리기는 막히지 않는다.
+ */
+export function integrityErrorText(err: Err, target: number): string {
+  const v = num(err.details.version) ?? target
+  if (v !== target) return `직전 버전 v${v} 기록이 손상돼 비교할 수 없어요.`
+  return `v${v} 기록이 손상돼 비교·되돌리기를 할 수 없어요. ${RESTORE_HINT}`
+}
+
+/** 손상 오류가 가리키는 버전이 보고 있는 버전 자신인가(번호가 없으면 자신으로 본다). */
+export function integrityErrorIsTarget(err: Err, target: number): boolean {
+  const v = num(err.details.version)
+  return v === null || v === target
+}
+
 function conflictVersions(err: Err, fallbackBase: number | null): string {
   const base = num(err.details.baseVersion) ?? fallbackBase
   const cur = num(err.details.currentVersion)
@@ -320,6 +362,10 @@ export function writeErrorNotice(err: Err, kind: WriteKind, ctx: { baseVersion?:
   if (err.status === 404) {
     if (kind === 'rollback') return { text: '그 버전을 찾을 수 없어요.' }
     return { text: '이 항목을 찾을 수 없어요. 목록을 새로 불러와 주세요.', action: 'refreshList' }
+  }
+  if (sc === 'E_SNAPSHOT_INTEGRITY') {
+    const v = num(err.details.version)
+    return { text: `${v !== null ? `v${v} ` : '이 버전 '}기록이 손상돼 되돌릴 수 없어요. ${RESTORE_HINT}` }
   }
   if (err.status === 413 || sc === 'E_IMPORT_TOO_LARGE' || sc === 'TOO_LARGE' || sc === 'FILE_TOO_LARGE') {
     const kb = num(err.details.kb) ?? num(err.details.sizeKb)

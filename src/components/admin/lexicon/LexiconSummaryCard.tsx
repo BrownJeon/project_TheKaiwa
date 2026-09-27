@@ -4,6 +4,7 @@ import { Card } from '@/components/common/ui'
 import type { AdminEnvironment } from '@/types/admin'
 import type { LexiconListDto } from '@/types/lexicon'
 import { formatAgo } from '../console/format'
+import { IntegrityBadge } from './Badges'
 import { actorLabel } from './lexiconCopy'
 
 export default function LexiconSummaryCard({ list, env, now }: { list: LexiconListDto | null; env: AdminEnvironment; now: number }) {
@@ -14,6 +15,7 @@ export default function LexiconSummaryCard({ list, env, now }: { list: LexiconLi
         <h2 className="min-w-0 flex-1 truncate text-[16px] font-semibold">
           {env} 사전{list ? ` v${list.dictionaryVersion}` : ''}
         </h2>
+        <IntegrityBadge integrity={active?.integrity} />
         <Link href="/admin/speech/tts/lexicon/versions" className="-my-2 inline-flex h-11 flex-none items-center text-[13px] font-medium text-accent">
           버전 기록 ›
         </Link>
