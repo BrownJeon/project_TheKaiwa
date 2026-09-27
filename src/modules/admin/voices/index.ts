@@ -8,7 +8,7 @@ import { getVoiceForAdmin, listVoicesForAdmin, type AdminVoiceRow } from '@/modu
 import type { VoiceStatus } from '@prisma/client'
 import type { AdminVoiceDto } from '@/types/admin'
 import { hiddenNotFound } from '../permissions/guard'
-import { displayJson } from '../present'
+import { displayAny, displayJson } from '../present'
 
 const STATUSES: readonly VoiceStatus[] = ['IMPORTING', 'VALIDATING', 'AVAILABLE', 'DISABLED', 'ERROR', 'DELETING', 'ARCHIVED']
 
@@ -26,7 +26,7 @@ function dto(v: AdminVoiceRow, users: number): AdminVoiceDto {
     speakerId: v.speakerId,
     defaults: displayJson(v.defaults),
     styles: v.styles,
-    model: v.model ? { id: v.model.id, status: v.model.status, version: v.model.version, speakers: v.model.speakers, styles: v.model.styles } : null,
+    model: v.model ? { id: v.model.id, status: v.model.status, version: v.model.version, speakers: displayAny(v.model.speakers), styles: displayAny(v.model.styles) } : null,
     usage: { users },
     previewAvailable: Boolean(v.previewPath),
     updatedAt: v.updatedAt.toISOString(),
