@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-003g-lexicon-admin]] — **발음 사전 관리**(2026-09-28). 콘솔 API 9라우트+화면(검색·추가·수정·끄기·미리듣기 비교·Import dryRun/Export·버전 diff·Rollback), 버전+감사 한 트랜잭션·환경 잠금·스냅샷 무결성. REV-017~020·Codex C2 1 반영·QA-017 PASS·화면 E2E 55/55, 운영 반영
 - [[task-007-talk-voice-web]] — **AI 회화(음성) 웹 경로**(2026-09-28). 푸시투토크→턴→문장별 청크 TTS(SSE audio)·재생 큐·barge-in·교정 카드 즉시, 예열 CLI·첫 문장 조기 합성으로 손 뗌→첫 음성 바이트 p50 ≈1.8~2.1s, #24 서명 URL·발화 1회 연결. Codex C1 3·C2 2 반영, REV-014~016·QA-016 PASS, 화면 E2E 40/40, 운영 반영·운영 스모크 37/37
 - [[task-003e-stt-gateway-web]] — **STT gateway + 웹 음성 인식 + 마이크 테스트**(2026-09-28). pm2 `thekaiwa-speech-gateway`(127.0.0.1:8100, nginx wss), 60초 1회 티켓·Origin 허용 목록·발화 저장/콜백, 합성 20문장 CER 0.57%·final p50 63ms. REV-013→Codex C2 2건→QA-015 PASS, 운영 E2E 215ms
 - [[task-003d-tts-p0]] — **TTS P0**(2026-09-27). M4 자체 FastAPI(`:8200` 상시·pf·워치독) + 앱 TTS 플랫폼(정규화·사전·Rendering Plan·Profile·12요소 캐시·상태 판정)·미리듣기·상태 표시등. Codex C1·C2(보안) 각 3건 반영, QA-014 재확인 PASS, 합성 p50 716ms·HIT 24ms. 운영 반영 완료
@@ -22,7 +23,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- [[task-003g-lexicon-admin]] — 발음 사전 관리(콘솔 API+화면: 검색·추가·수정·비활성·Import/Export·미리듣기·버전 Rollback) (2026-09-28 착수)
+- (없음) — 다음 003f(Capacitor·온디바이스 STT·APK — 폰 실측 필요) / 009(통합 QA·blue/green)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
