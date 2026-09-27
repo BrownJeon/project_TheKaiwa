@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d)
 
 ---
 
@@ -78,7 +78,7 @@
 | 회화 | `/study/ai?tab=chat\|talk` | AI와 공부하기 홈(회화·채팅 전환, 채팅 목록) | 로그인 사용자 | 보임 | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]` | 채팅방 | 소유자(타인 404) | **숨김** | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]/review` | 표현 점검 결과 | 소유자 | **숨김** | **task-006(§3)** |
-| 회화 | `/study/ai/talk/[chatId]` | 음성 회화방 | 소유자 | 숨김 | task-007 |
+| 회화 | `/study/ai/talk/[chatId]` | 음성 회화방(헤더 아바타 옆 TTS 상태 표시등 = §7 컴포넌트 재사용) | 소유자 | 숨김 | task-007 |
 | 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드·최근 기록·보관한 세트, 회화·평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** |
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
 | 오늘 | `/study/today/talk/[lessonId]`, `eval/[evaluationId]` | 오늘의 회화 · AI 평가 | 소유자 | 숨김 | Phase 2 |
@@ -86,7 +86,7 @@
 | 서랍장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** |
 | 서랍장 | `/drawer/corrections` | 채택 교정 모음 | 로그인 | 보임 | Phase 3 |
 | 질문 | `/ask` | 무엇이든 물어보세요 | 로그인 | 보임 | Phase 3 |
-| 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** |
+| 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** |
 | 콘솔 | `/admin` → `/admin/dashboard` | 대시보드(역할별 엔진·연결·모델·상태, 30초 갱신) | `console.access` 없으면 **앱 공통 404** | **별도 셸**(환경 띠·콘솔 바, 탭 없음) | **task-005b(§6)** |
 | 콘솔 | `/admin/speech/{realtime,analysis,tts}` · `/admin/llm` | 역할 페이지(지금 쓰는 연결·Health/기능 테스트·예비 순서·설정값 요약) | `engine.read` | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/voices` | 목소리 목록(읽기) | `voices.read` | 별도 셸 | **task-005b(§6)** |
@@ -3029,3 +3029,299 @@ aliveRef                                      // 언마운트 뒤 결과는 버�
 | ⑯ | 일괄 상태 확인 | 새 API 없이 #95 를 순서대로 N번(대시보드 = 역할 주 연결 4개, 연결 목록 = enabled 전부). 완료 기준 5(seed 전부 실행)를 화면에서도 할 수 있게 | 버튼을 뺀다 |
 | ⑰ | IA 추가 경로 | `/admin/diagnostics/traces/[traceId]`(01 에 없음 — `diagnostics/[connectionId]` 는 Phase 3) · `/admin` → dashboard redirect. 01 §3 표 갱신 필요 | 경로를 `?trace=` 시트로 바꾼다 |
 | ⑱ | Health 결과의 traceId | #95 응답 예시에 `traceId` 가 없다(#96 만 있음). Health 는 Trace 줄 없이 그린다 | Health 도 Trace 를 남긴다면 싣기만 하면 화면이 그린다 |
+
+---
+
+## 7. 음성(TTS) — 상태 표시등 · 미리듣기 (task-003d)
+
+> 정본: `speech-platform/16` §5·§12 · `design-spec.md` §14 "TTS 실행 상태 표시등" · `api-contract.md` #18·§7 보완(`GET /api/v1/speech/tts/status`) · `speech-platform/04` §1(통합 미리듣기). 새 색 없음(§1-1 토큰만).
+
+### 7-0. 한눈에 보는 결정
+
+1. **표시등은 이번 task 에서 설정 → "AI 선생님 목소리" 카드 머리에 붙는다**(선생님 아바타 옆, 이름 아래 줄). 회화 화면(task-007)은 **같은 컴포넌트·같은 스토어를 그대로 쓴다** — 앱 전체에 상태 스토어는 하나다.
+2. 5상태 = 점(10px) + **라벨 상시** + `role="status"` + `aria-label`. 색만으로 구분하지 않는다. Phase 1 의 빨간불은 **"자막만"(TEXT_ONLY) 하나**다. "온디바이스 모드"는 코드·문구만 두고 P2 까지 나오지 않는다.
+3. 판정은 클라가 한다: `navigator.onLine` + `GET /api/v1/speech/tts/status` + 합성 결과 신호(미리듣기·task-007 의 SSE `audio`). 서버 응답의 `networkStatus` 는 쓰지 않는다(서버는 폰의 네트워크를 모른다).
+4. 폴링: 온라인·정상 **5분**, 느림(DEGRADED)·자막만 **30초**. 화면이 가려지면 멈추고, 다시 보이면 주기가 지났을 때만 바로 확인. `offline` 이벤트는 즉시 "자막만", `online` 이벤트는 즉시 재확인("전환 중").
+5. **토스트는 설정된 상태가 바뀔 때 1회**(온라인 ↔ 자막만). 첫 확인 결과(확인 중 → X)에는 토스트가 없다. 토스트는 스토어가 전환 1건당 한 번만 내보낸다.
+6. 점을 누르면 **사유 시트** — 지금 상태·이유(사유 코드별 한국어)·인터넷·목소리 서버·마지막 확인 시각·[지금 다시 확인]. 엔진명·호스트·포트·연결 키는 **어디에도** 없다.
+7. 미리듣기는 **통합 버튼 1개**("▶ 현재 설정으로 미리듣기", `speech-platform/04` §1 — 옵션·카드마다 버튼을 두지 않는다). 세 목소리는 카드를 골라 같은 버튼으로 듣는다. **다시 누르면 정지**, 설정을 바꾸면 재생을 멈추고 대기 중 결과를 버린다.
+8. 오디오는 **탭 핸들러 안에서 동기로 `AudioContext` 를 깨운 뒤**(자동재생 정책) 받은 wav 를 재생한다. 응답은 `Accept: audio/wav` 본문으로 받는다(캐시 URL #24 에 의존하지 않음 — §7-11 ③).
+
+### 7-1. 화면 개요
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | ① 선생님 목소리를 지금 들을 수 있는지(서버 음성 / 자막만)를 한눈에 ② 저장 전 설정으로 목소리를 들어 보고 고른다 |
+| 진입 | 상단 아바타 → `/settings` → "AI 선생님 목소리" 섹션(§2 설정 행) |
+| 역할별 가시성 | 로그인 사용자 전원. 관리자라도 이 화면엔 엔진 정보가 없다(엔진 상태는 콘솔 `/admin/speech/tts`) |
+| 앱/웹 분기 | 없음. 네트워크 판정은 둘 다 `navigator.onLine` + `online`/`offline` 이벤트(WebView 도 동작) |
+| 재사용 | task-007 회화방 헤더 `[←] (아바타) 이름 / ● 온라인` — 같은 `TtsRuntimeStatusIndicator` 를 두고 SSE `audio` 결과를 `reportSynthesis` 로 넣는다 |
+
+### 7-2. UI 구조 (의사코드, 390px 기준)
+
+#### A. 목소리 카드 머리 — `VoiceCardHead`(VoiceSettings 안)
+
+```
+Section
+  SectionHeader "AI 선생님 목소리"                     ← 기존
+  Card flex-col gap-3.5
+    ┌ VoiceCardHead ─────────────────────────────┐
+    │ (유)  유우                                   │  TeacherAvatar md(40px, accent-soft, 첫 글자) · 이름 15px semibold truncate
+    │       ● 온라인 ›                              │  TtsRuntimeStatusIndicator (점 10px + 라벨 12px + › ink3)
+    └──────────────────────────────────────────────┘
+    <hr border-line>
+    목소리 radiogroup · 말투 · 들려주는 방식 · 속도/높낮이/억양    ← 기존 그대로
+    VoicePreviewButton   (w-full h-12, ghost)  "▶ 현재 설정으로 미리듣기"
+    <p 12px ink2 id=preview-hint>  "Sakura · 친근 · 천천히 — 저장하지 않은 설정도 그대로 들려드려요"
+    Btn primary w-full "저장"                                    ← 기존(BtnRow 두 칸 → 세로 두 줄)
+  Toast (기존 useToast 하나 — 미리듣기 오류와 상태 전환 안내가 같은 자리를 쓴다)
+```
+
+- 이름은 `teacherName`(설정 #11, 비우면 "선생님") — `page.tsx`(서버)가 채팅방과 같은 방식(`getProfile().teacherName?.trim() || '선생님'`)으로 읽어 `VoiceSettings teacherName` prop 으로 넘긴다. 학습 설정에서 이름을 저장하면 `router.refresh()` 로 머리 이름이 바로 바뀐다(클라 상태는 유지됨).
+- 미리듣기를 한 줄 전체 폭으로 내린 이유: "현재 설정으로 미리듣기"가 BtnRow 반 칸(360px 에서 ≈145px)에 들어가지 않는다.
+- 목소리 목록 로딩 중엔 머리(표시등 포함)를 그리지 않는다(기존 `LoadingBlock`). 목소리 0개면 머리 + 기존 빈 문구.
+
+#### B. 표시등 — `TtsRuntimeStatusIndicator`
+
+```tsx
+<button type="button" onClick={open} aria-haspopup="dialog"
+  aria-label={`선생님 목소리 상태: ${label}. 눌러서 자세히 보기`}
+  className="relative inline-flex max-w-full items-center gap-1.5 rounded text-[12px] leading-4
+             before:absolute before:-inset-x-2 before:-inset-y-3.5 before:content-['']   /* 히트 44px */
+             focus-visible:outline-2 focus-visible:outline-accent">
+  <span aria-hidden className={DOT[state]} />                 {/* h-2.5 w-2.5 rounded-full flex-none */}
+  <span role="status" className={LABEL[state]}>{label}</span>
+  <span aria-hidden className="text-ink3">›</span>
+</button>
+<TtsStatusSheet open={…} … />
+```
+
+| 상태 | 점(`DOT`) | 라벨 색(`LABEL`) |
+|---|---|---|
+| ONLINE | `bg-good` | `text-ink2` |
+| TEXT_ONLY | `bg-bad` | `text-bad`(라이트 ≈6.5:1 · 다크 ≈6.7:1) |
+| ON_DEVICE (P2) | `bg-bad` | `text-bad` |
+| SWITCHING | `bg-warn motion-safe:animate-pulse` | `text-ink2` |
+| CHECKING | 속 빈 원 `border-2 border-ink3` (색·모양 모두 다름) | `text-ink2` |
+
+- 점은 `aria-hidden` 보조 표시이고 뜻은 라벨이 전한다(warn 점 / surface 2.95:1 이어도 라벨이 있어 허용).
+- 라벨·›는 `flex-none`(줄지 않음), 이름 줄만 `truncate`. 히트영역 `before:` 는 위(이름 줄 — 비대화형)와 아래(구분선까지 ≥14px)로만 나간다.
+
+#### C. 사유 시트 — `TtsStatusSheet`(공용 `Sheet`, 제목 "선생님 목소리 상태")
+
+```
+● 자막만                                         ← 점 + 라벨 17px semibold
+지금은 목소리를 만들 수 없어 자막만 보여 드려요.     ← 상태 설명(§7-8 ⓐ) 15px ink
+복구되면 자동으로 다시 들려드려요.
+
+<dl> (행 간격 12px, 라벨 13px ink2 / 값 15px ink)
+  이유              목소리 서버에 연결할 수 없어요.      ← fallbackReason(§7-8 ⓑ) — TEXT_ONLY·SWITCHING 일 때만
+  이렇게 해 보세요   서버가 점검 중일 수 있어요. 자동으로 다시 확인해요.
+  인터넷            연결됨 | 끊김                         ← navigator.onLine
+  목소리 서버        정상 | 느림 | 사용할 수 없음 | 확인 전 ← serverHealth
+  마지막 확인        3분 전 (21:48) | 아직 확인 전         ← lastUpdatedAt (useNow 30초 틱)
+  자동 확인         5분마다 | 30초마다
+</dl>
+[ 지금 다시 확인 ]   Btn ghost w-full h-12 — 확인 중엔 "확인하는 중…" disabled, 5초에 1회까지
+```
+
+- 시트엔 `executionMode` 원문·`connectionKey`·traceId·URL 이 없다. 오프라인이면 [지금 다시 확인]은 disabled + "인터넷에 연결되면 바로 확인해요".
+
+#### D. 미리듣기 — `VoicePreviewButton`
+
+| phase | 버튼 | 비고 |
+|---|---|---|
+| `idle` | ▶ 현재 설정으로 미리듣기 | 기본 |
+| `loading` | (스피너) 목소리 만드는 중… · `disabled` `aria-busy` | 동시 1건(04 `E_PREVIEW_IN_FLIGHT`) |
+| `playing` | ■ 정지 (`aria-label="미리듣기 정지"`) | 다시 누르면 정지 → idle |
+| `blocked` | ▶ 눌러서 듣기 | 받은 소리를 브라우저가 막았을 때(`NotAllowedError`) — 이번 탭으로 바로 재생 |
+| `cooldown` | ▶ {n}초 뒤에 다시 들을 수 있어요 · `disabled` | 429 `retryAfterSec`(`useCountdown`) |
+| 오프라인 / 저장 중 | idle 문구 · `disabled` | 힌트 줄이 이유를 말한다(§7-8 ⓓ) |
+
+- 저장 중엔 미리듣기만 막고, 재생 중에도 [저장]은 누를 수 있다(지금의 `busy` 하나를 `saving` 과 preview phase 로 나눈다).
+- 힌트 줄(`aria-describedby`): "{목소리} · {말투 라벨} · {방식 라벨} — 저장하지 않은 설정도 그대로 들려드려요". 자막만 상태면 "지금은 선생님 목소리를 들을 수 없어요(자막만). 눌러 보면 다시 확인해요." — 버튼은 막지 않는다(누르면 재확인 신호가 된다).
+
+### 7-3. 상태 관리
+
+#### A. 상태 스토어 — `createTtsStatusStore(deps)` + 싱글턴 + `useTtsRuntimeStatus()`
+
+- **앱 전체 1개**(모듈 싱글턴, `useSyncExternalStore`). 구독자가 생기면 시작, 0 이 되면 타이머 정지. 화면을 옮겨도 마지막 상태를 기억한다.
+- 테스트 가능하게 팩토리 `deps = { fetchStatus(signal), isOnline(), now(), setTimer/clearTimer }` 로 만들고 싱글턴은 그 인스턴스 하나.
+- 스냅샷: `{ state, reason, serverHealth, networkOnline, lastUpdatedAt, checking: boolean, pollMs }`
+
+**판정 `derive()`**
+
+| 입력 | 결과 state | reason |
+|---|---|---|
+| `isOnline() === false` | TEXT_ONLY (P2: 온디바이스 있으면 ON_DEVICE) | OFFLINE |
+| 기억한 상태 없음 + 첫 조회 진행 중 | CHECKING (≤3s) | — |
+| `executionMode = SERVER` | ONLINE (`serverHealth=DEGRADED` 면 폴링 30초) | — |
+| `executionMode = TEXT_ONLY` | TEXT_ONLY | `fallbackReason ?? 'NO_CONNECTION'` |
+| `executionMode = ON_DEVICE` | ON_DEVICE (Phase 1 서버는 보내지 않음 — 방어용) | `fallbackReason` |
+| 상태 조회 자체 실패(네트워크·5xx·3초 타임아웃) | **1회째는 직전 상태 유지** + 30초 뒤 재시도(CHECKING 중이면 3초 뒤 1회), **연속 2회째** TEXT_ONLY | NO_CONNECTION |
+
+**트리거**
+
+| 사건 | 동작 |
+|---|---|
+| 첫 구독 | 기억한 상태가 없으면 CHECKING + 조회. 있으면 그대로 보이고, 주기가 지났으면 조용히 조회 |
+| 폴링 타이머 | 조용히 조회("전환 중"을 띄우지 않음). 결과가 다르면 바로 새 상태 + 토스트 |
+| `visibilitychange` | hidden → 타이머 정지 · visible → 주기 지났으면 조용히 조회, 아니면 남은 시간으로 예약 |
+| `offline` | 즉시 TEXT_ONLY(OFFLINE) + (직전 ONLINE 이면) 토스트 |
+| `online` | **SWITCHING** + 즉시 조회 |
+| `recheck()`(시트 버튼·아래 합성 신호) | **SWITCHING** + 즉시 조회 |
+| `reportSynthesis({ok:true, cacheHit:false})` | 실패 카운터 0. 현재 TEXT_ONLY 면 `recheck()` |
+| `reportSynthesis({ok:true, cacheHit:true})` | 변화 없음(캐시 재생은 상태를 바꾸지 않는다 — 16 §12.2) |
+| `reportSynthesis({ok:false, status:422})` | 즉시 `recheck()`(서버가 "지금 합성 불가"라고 답함) |
+| `reportSynthesis({ok:false, status:502\|504\|0})` | 카운터+1, **연속 2회**면 `recheck()`(16 §12.2 히스테리시스) |
+| 429 · 400 | 무시(상태와 무관) |
+
+- **SWITCHING 표시**: 최소 600ms(깜빡임 방지) ~ 조회가 끝날 때까지(3초 타임아웃 → 조회 실패 규칙).
+- **토스트**: 설정된 상태가 {ONLINE, TEXT_ONLY, ON_DEVICE} 사이에서 바뀔 때만 스토어가 `announce(message)` 를 1회 낸다(`transitionSeq` + 처리 표시 — 표시등이 둘 붙어도 한 번). CHECKING → X 는 조용하다. 지속 4초(`onAnnounce` 로 화면의 `toast.show(msg, 4000)`).
+- 대화 중(task-007)에는 합성 결과가 곧 신호이므로 회화방이 `pause(true)` 로 폴링을 멈추고 SSE `audio{status, runtime.executionMode}` 를 `reportSynthesis` 로 넣는다(`executionMode === 'TEXT_ONLY'` 면 조회 없이 바로 설정).
+
+#### B. 미리듣기 — `useVoicePreview({ onError, onSignal })`
+
+```
+toggle(draft)   ← 반드시 onClick 안에서 동기로 호출
+  playing  → stop() → idle
+  blocked  → playPending()  (이번 탭 제스처로 재생)
+  idle     → unlockTtsAudio()               ← 동기! 첫 await 앞에서
+             phase=loading, key=draftKey(draft), ac=new AbortController(10s)
+             res = await apiPostAudio('/api/v1/voices/preview', draft, {signal})
+             if (key !== 현재 draftKey) → 버리고 idle      (그 사이 설정을 바꿈)
+             onSignal({ok:true, cacheHit: res.cache === 'HIT'})
+             try playWav(res.data) → playing, ended → idle
+             catch NotAllowedError → blocked(버퍼 보관) · 그 외 → onError(재생 실패) → idle
+  오류: ApiError.status 로 분기(§7-8 ⓔ) · 429 → cooldownUntil = now + retryAfterSec·1000
+        422/502/504/0 → onSignal({ok:false, status})
+invalidate()  ← draft 가 바뀌는 모든 onChange 에서: 재생 정지 + 대기 중 요청 abort + blocked 버퍼 폐기
+unmount · visibilitychange(hidden) → stop()
+```
+
+- `ttsAudio.ts`: 싱글턴 `AudioContext`. `unlockTtsAudio()` = 없으면 생성, `suspended` 면 `resume()` — **탭 핸들러 안 동기 호출**이 핵심(Chrome 자동재생 정책·안드로이드 WebView `mediaPlaybackRequiresUserGesture` 둘 다 제스처 안에서 깨운 컨텍스트는 이후 재생 허용; 실기기 WebView 확인은 003f/007). `playWav(buf)` = `decodeAudioData` → `BufferSource.start()`, 반환 `{ stop(), ended }`, 컨텍스트가 `running` 이 아니면 `NotAllowedError`. `AudioContext` 가 없는 환경만 `HTMLAudioElement` + `URL.createObjectURL`(정지·종료 시 `revokeObjectURL`). task-007 `TtsPlaybackQueue` 가 같은 컨텍스트를 쓴다(청크 사이 gap 을 정확히 줄 수 있음).
+- `useEffect`·타이머에서 처음 재생을 시작하지 않는다(제스처 밖이라 WebView 에서 막힌다).
+
+### 7-4. API 호출 계획
+
+| # | 엔드포인트 | 메서드 | 파라미터 | 사용 필드 | 에러 처리 |
+|---|---|---|---|---|---|
+| 11 | (서버 컴포넌트) `getProfile(userId)` | — | — | `teacherName` | 없음 → "선생님" |
+| 17·13·14 | `/api/v1/voices` · `/api/v1/settings/voice` | GET·PUT | 기존 | 기존 | 기존(task-005) |
+| 18 | `/api/v1/voices/preview` | POST, **`Accept: audio/wav`** | draft `{voiceProfileId, style, styleWeight, speed, pitch, intonation}` (+`speechProfile` — §7-11 ①) | 본문 wav(ArrayBuffer) · 헤더 `X-Tts-Cache: HIT\|MISS`(§7-11 ③) | 422·429(`details.retryAfterSec` → `Retry-After`)·502·504·0 → §7-8 ⓔ + 상태 신호 |
+| §7 보완 | `/api/v1/speech/tts/status` | GET | — | `executionMode`·`serverHealth`·`fallbackReason`·`lastUpdatedAt` (`networkStatus` 무시) | 3초 타임아웃, 실패 규칙 §7-3 A. 401 → api.ts 로그인 이동 |
+
+- `common/api.ts` 에 `apiPostAudio(path, body, opts)` 추가 → `{ data: ArrayBuffer, cache: 'HIT'|'MISS'|null }`. 2xx 가 아니면 **기존 `send` 의 봉투 파싱·`ApiError` 생성을 그대로 재사용**(함수로 추출), `X-Client-Platform` 헤더도 동일.
+- 응답 DTO 타입 `TtsStatusResponse` 는 `src/types/tts.ts` 에 두고 서버 라우트와 공유한다(`components/**` 는 `@/modules/speech` 를 import 하지 않는다 — 서버 코드가 번들에 들어온다).
+
+### 7-5. 컴포넌트 분해 (`src/components/speech/*`)
+
+| 이름 | 종류 | props / 반환 | 상태 |
+|---|---|---|---|
+| `TtsRuntimeStatusIndicator` | 컴포넌트 | `{ onAnnounce?: (msg: string) => void; className?: string }` | 시트 열림 |
+| `TtsStatusSheet` | 컴포넌트 | `{ open; onClose; snapshot; onRecheck }` | 없음(스냅샷 표시만) |
+| `useTtsRuntimeStatus` | 훅 | → `{ snapshot, recheck(), reportSynthesis(r), pause(b) }` | 스토어 구독 |
+| `ttsStatusStore.ts` | 로직 | `createTtsStatusStore(deps)`·`ttsStatusStore`(싱글턴)·`derive()` | 상태기계 |
+| `ttsStatusCopy.ts` | 문구 | 상태 라벨·설명·사유·토스트(§7-8) — task-007 재사용 | — |
+| `VoicePreviewButton` | 컴포넌트 | `{ phase; cooldownSec; disabled; onClick; describedBy }` | 없음 |
+| `useVoicePreview` | 훅 | `{ onError, onSignal }` → `{ phase, cooldownSec, toggle(draft), stop(), invalidate() }` | phase·버퍼·AbortController |
+| `ttsAudio.ts` | 로직 | `unlockTtsAudio()`·`playWav(buf)`·`stopAllTts()` | 싱글턴 AudioContext |
+| `common/TeacherAvatar` | 컴포넌트 | `{ name; size?: 'sm'(28) \| 'md'(40) }` — 채팅 `MessageBubble` 의 것을 옮김 | — |
+
+### 7-6. 생성/수정 파일 목록
+
+| 구분 | 파일 |
+|---|---|
+| 생성 | `src/components/speech/{TtsRuntimeStatusIndicator.tsx, TtsStatusSheet.tsx, ttsStatusStore.ts, ttsStatusCopy.ts, VoicePreviewButton.tsx, useVoicePreview.ts, ttsAudio.ts}` |
+| 생성 | `src/components/speech/__tests__/ttsStatusStore.test.ts` — derive 표 전 행 · 조회 실패 1회 유지/2회 TEXT_ONLY · 502 연속 2회 → recheck · 캐시 HIT 무변화 · 토스트 전환당 1회(CHECKING→X 는 0회) · 폴링 주기 5분/30초 선택 |
+| 생성 | `src/components/common/TeacherAvatar.tsx` · `src/types/tts.ts` |
+| 수정 | `src/components/settings/VoiceSettings.tsx`(머리·미리듣기 훅·busy 분리·`teacherName` prop·onChange 마다 `invalidate()`) · `src/app/(app)/settings/page.tsx`(teacherName) · `src/components/settings/LearningSettings.tsx`(저장 성공 후 `router.refresh()`) |
+| 수정 | `src/components/common/api.ts`(`apiPostAudio`) · `src/components/common/Toast.tsx`(`show(msg, ms?)` 선택 인자, 기본 2600 유지) · `src/components/chat/MessageBubble.tsx`(`TeacherAvatar` import 로 교체, 모양 동일) |
+
+### 7-7. 구현 순서
+
+1. 공용: `TeacherAvatar` 이동 · `Toast` 지속시간 인자 · `apiPostAudio` · `types/tts.ts`.
+2. `ttsStatusCopy` → `ttsStatusStore`(+테스트) → `useTtsRuntimeStatus`.
+3. `TtsRuntimeStatusIndicator` + `TtsStatusSheet` — 서버 라우트가 아직이면 단위 테스트의 가짜 `fetchStatus` 로 5상태를 확인한다(화면에 개발용 쿼리 파라미터·스위치를 만들지 않는다).
+4. `ttsAudio` → `useVoicePreview` → `VoicePreviewButton`.
+5. `VoiceSettings` 결합 · `page.tsx` · `LearningSettings`.
+6. 실서버: M4 정상 🟢 → M4 중지 후 미리듣기 2회 또는 30초 폴링 → 🔴 자막만 + 토스트 1회 → M4 재기동 → 🟢 + "다시 연결" 토스트(완료 기준 8). 세 목소리 소리 확인·11회째 429(완료 기준 7).
+
+### 7-8. 한국어 UI 문구
+
+ⓐ **상태 라벨 · 시트 설명**
+
+| 상태 | 라벨(점 옆·`aria-label`) | 시트 설명 |
+|---|---|---|
+| ONLINE | 온라인 | 선생님 목소리를 서버에서 만들어 들려드리고 있어요. |
+| TEXT_ONLY | 자막만 | 지금은 목소리를 만들 수 없어 자막만 보여 드려요. 복구되면 자동으로 다시 들려드려요. |
+| ON_DEVICE (P2) | 온디바이스 모드 | 서버 대신 이 기기에서 목소리를 만들고 있어요. 서버 음성과 조금 다르게 들릴 수 있어요. |
+| SWITCHING | 전환 중 | 연결 상태가 바뀌어 확인하고 있어요. 잠시만 기다려 주세요. |
+| CHECKING | 상태 확인 중 | 선생님 목소리를 쓸 수 있는지 확인하고 있어요. |
+| (aria-label) | 선생님 목소리 상태: {라벨}. 눌러서 자세히 보기 | |
+
+ⓑ **사유 코드**(TEXT_ONLY·SWITCHING 일 때 "이유" / "이렇게 해 보세요")
+
+| 코드 | 이유 | 이렇게 해 보세요 |
+|---|---|---|
+| `SERVER_ERROR` | 목소리 서버에서 오류가 났어요. | 자동으로 다시 확인하고 있어요. 대화는 자막으로 계속할 수 있어요. |
+| `SERVER_TIMEOUT` | 목소리 서버의 응답이 너무 늦어요. | 잠시 뒤 자동으로 다시 확인해요. |
+| `NO_CONNECTION` | 목소리 서버에 연결할 수 없어요. | 서버가 점검 중일 수 있어요. 자동으로 다시 확인해요. |
+| `OFFLINE` | 인터넷에 연결되어 있지 않아요. | Wi-Fi 나 모바일 데이터를 확인해 주세요. 연결되면 바로 다시 확인해요. |
+| (없음) | 지금은 목소리를 만들 수 없어요. | 자동으로 다시 확인해요. |
+
+ⓒ **시트 행 · 토스트**
+
+| 자리 | 문구 |
+|---|---|
+| 행 라벨 | 이유 · 이렇게 해 보세요 · 인터넷 · 목소리 서버 · 마지막 확인 · 자동 확인 |
+| 값 | 연결됨 / 끊김 · 정상 / 느림 / 사용할 수 없음 / 확인 전 · 방금 / {n}분 전 ({HH:mm}) / 아직 확인 전 · 5분마다 / 30초마다 |
+| 버튼 | 지금 다시 확인 / 확인하는 중… / (오프라인) 인터넷에 연결되면 바로 확인해요 |
+| 토스트 → 자막만 | 서버 연결이 원활하지 않아 지금은 자막만 표시합니다. 음성은 복구되면 다시 재생돼요. |
+| 토스트 → 온라인 | 서버 음성으로 다시 연결되었습니다. |
+| 토스트 → 온디바이스(P2) | 서버 연결이 원활하지 않아 온디바이스 모드로 전환했습니다. |
+
+ⓓ **미리듣기 버튼 · 힌트** — 버튼은 §7-2 D 표. 힌트: 기본 "{목소리} · {말투} · {방식} — 저장하지 않은 설정도 그대로 들려드려요" · 자막만 "지금은 선생님 목소리를 들을 수 없어요(자막만). 눌러 보면 다시 확인해요." · 오프라인 "인터넷에 연결되면 들을 수 있어요."
+
+ⓔ **미리듣기 오류(토스트, HTTP status 로 분기 — 서버 `message` 는 400 에만)**
+
+| status | 문구 |
+|---|---|
+| 422 | 선생님 목소리 서버가 준비 중이에요. 잠시 후 다시 들어 보세요. |
+| 429 | 미리듣기는 1분에 10번까지예요. {n}초 뒤에 다시 들어 보세요. |
+| 502 | 목소리를 만들다가 문제가 생겼어요. 다시 눌러 주세요. |
+| 504 | 목소리 서버 응답이 늦어요. 잠시 후 다시 눌러 주세요. |
+| 0 | 연결하지 못했어요. 네트워크를 확인해 주세요. |
+| 재생 실패(디코드 등) | 소리를 재생하지 못했어요. 다시 눌러 주세요. |
+
+### 7-9. 360/390/412 · 접근성 체크리스트
+
+- [ ] 360: 머리 행 = 아바타 40 + 간격 12 + 이름 열(truncate). 가장 긴 라벨 "온디바이스 모드 ›"·"상태 확인 중 ›"가 한 줄, 잘리지 않음.
+- [ ] 표시등 히트 44px(`before:`), 아래 목소리 카드와 겹치지 않음(구분선까지 ≥14px). 포커스 링 보임, Enter/Space 로 시트, Esc 로 닫고 포커스가 표시등으로 돌아옴(공용 `Sheet`).
+- [ ] 흑백 화면에서도 5상태가 라벨·모양(속 빈 원 = 확인 중, 깜빡임 = 전환 중)으로 구분됨.
+- [ ] `prefers-reduced-motion`: 전환 중 깜빡임·버튼 스피너 멈춤("…" 정적).
+- [ ] 미리듣기 버튼 h-12 전폭, 360 에서 "▶ 현재 설정으로 미리듣기" 한 줄. 힌트는 `aria-describedby`.
+- [ ] 시트 하단 safe-area(공용 `Sheet`), 스크롤은 시트 내부 한 곳(내용이 짧아 보통 없음).
+- [ ] 화면 세로 스크롤 1곳 유지(설정 페이지 `main`), 토스트가 하단 탭에 가리지 않음(기존 위치).
+- [ ] 다크 모드: `text-bad`·`bg-good`·`bg-warn`·`border-ink3` 토큰만 — 하드코딩 색 0.
+
+### 7-10. 주의사항
+
+- **엔진명 0**: 화면·`aria-label`·토스트·콘솔 로그에 `style-bert`·`M4`·호스트·포트·`:8200`·`connectionKey`·traceId 를 싣지 않는다. #23·SSE `audio` 의 `runtime.connectionKey` 는 **읽지도 저장하지도 않는다**(§7-11 ⑤).
+- **자동재생**: 첫 재생은 반드시 탭 제스처 안에서 `unlockTtsAudio()` 후. 막히면 `blocked` 로 한 번 더 누르게 한다(오류 토스트 아님).
+- **draft 불일치 금지**: 소리가 나는 동안 설정을 바꾸면 즉시 정지. 늦게 온 응답이 바뀐 설정 뒤에 재생되면 사용자는 새 설정 소리로 착각한다.
+- **요청 절약**: 폴링은 표시등이 떠 있는 동안에만(구독 0 이면 정지). 미리듣기는 10/분이라 카드 선택만으로 재생하지 않는다.
+- **pitch/intonation 미지원 판명 시**(16 §16 ①): 해당 슬라이더를 숨긴다 — 서버가 알려 줄 자리가 필요하면 Leader 판단.
+- 저장하지 않고 떠나도 경고하지 않는다(기존 동작 유지).
+
+### 7-11. Leader 확인 요청
+
+| # | 항목 | 화면이 가정한 것 | 틀리면 |
+|---|---|---|---|
+| ① | **미리듣기에 "들려주는 방식" 반영** | #18 body 에 `speechProfile`(NATIVE·LEARNING_NORMAL·LEARNING_SLOW) 추가, 서버가 적용(캐시 키 12요소에 이미 포함). 현 라우트는 주석으로 무시 중. LEARNING_SLOW 속도는 저장된 `learningSpeed`(없으면 0.8) | 힌트에서 방식을 빼고 "들려주는 방식은 회화에서 적용돼요" 한 줄 — "천천히"를 골라도 미리듣기가 빠른 이유를 설명해야 한다 |
+| ② | 카드별 ▶ | 정본 `speech-platform/04` §1("옵션마다 버튼을 두지 않는다")·designer 원칙 6 에 따라 **통합 버튼 1개**. 세 목소리 = 카드 선택 → 같은 버튼(완료 기준 7 도 이 동작으로 확인) | 카드별 ▶ 가 꼭 필요하면 "그 카드 선택 + 같은 draft 재생"으로만 추가(별도 샘플 개념 없이) |
+| ③ | 미리듣기 응답 경로 · 헤더 | `Accept: audio/wav` 본문 사용 → #24 캐시 URL 불필요(Codex C1 3번째 지적과 무관하게 동작). **`X-Tts-Cache: HIT\|MISS` 헤더**를 실어 달라(04 에는 있고 #18 에는 없음) | 헤더가 없으면 미리듣기 성공을 복귀 신호로 못 써서 복귀가 폴링(30초)에만 의존 |
+| ④ | 422 코드 이름 | #23 은 `TTS_UNAVAILABLE`, `ApiErrorCode` 엔 `ENGINE_UNAVAILABLE` 만 있다. 화면은 **HTTP status 로만** 분기하므로 동작 무관 | 정본 표기 통일만 |
+| ⑤ | **사용자 응답의 `runtime.connectionKey`** | #23 JSON·SSE `audio` 예시의 `"connectionKey": "style-bert-m4"` 는 엔진명이 사용자 응답에 실리는 것 → 완료 기준 10 위반. 사용자 라우트에선 빼거나(권장) 불투명 값으로 | QA 응답 grep 에서 `style-bert` 검출 |
+| ⑥ | 공용 변경 3건 | `Toast` 지속시간 선택 인자(정본 ≤4s, 현 2.6s 고정) · `TeacherAvatar` 를 chat → common 이동 · `LearningSettings` 저장 후 `router.refresh()` | 각각 토스트가 짧게 사라짐 · 아바타 중복 코드 · 이름 변경이 새로고침 전까지 안 보임 |
+| ⑦ | 상태 조회 실패의 표현 | 앱 서버 자체 불통(상태 조회 연속 2회 실패)도 "자막만(NO_CONNECTION)" | 별도 상태가 필요하면 정본 5상태 밖이라 사용자 합의 |
