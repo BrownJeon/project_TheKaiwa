@@ -1046,7 +1046,7 @@ model Chat {
   @@index([userId, kind, lastMessageAt])
 }
 
-/// 사용자: STT 원문/타이핑 · 강사: 일본어 응답. toolLog 는 {traceId, model, connectionId, sttMs, llmMs, ttsMs, ttsStartMs, promptChars, attempt} 요약만
+/// 사용자: STT 원문/타이핑 · 강사: 일본어 응답. toolLog 는 {traceId, model, connection(=EngineConnection.key), sttMs, llmMs, ttsMs, ttsStartMs, totalMs, promptChars, attempt, meta{learning…}} 요약만(task-006 구현 기준 2026-09-27)
 model ChatMessage {
   id          String        @id @default(cuid())
   chatId      String
@@ -2066,7 +2066,7 @@ model DebugSession {
 | 모델 | 목적 | 핵심 필드 | 소유 층 | 생성 시점 | 삭제/보존 정책 | Phase |
 |---|---|---|---|---|---|---|
 | `Chat` | 회화·채팅·질문 세션 | `kind`, `topicId`, `reviewedAt`, `messageCount` | L2 | `POST /api/v1/chats` | 사용자 삭제 가능 → Message·Correction Cascade, Proposal/Utterance SetNull, StatsSnapshot 불변 | 1 |
-| `ChatMessage` | 턴 메시지 | `role`, `content`, `inputSource`, `toolLog`, `traceId` | L2 | 턴 시작(USER) / 턴 완료(ASSISTANT, PENDING→DONE) | Chat Cascade. 기동 시 PENDING(10분↑)→FAILED | 1 |
+| `ChatMessage` | 턴 메시지 | `role`, `content`, `inputSource`, `toolLog`, `traceId` | L2 | 턴 시작(USER) / 턴 완료(ASSISTANT, PENDING→DONE) | Chat Cascade. 기동·조회 시 PENDING(180초↑, 메모리 락 없음)→FAILED(task-006) | 1 |
 | `Correction` | AI 교정 제안 | `original`(불변), `corrected`, `errorType`, `status`, `savedWordId` | L2 | A1 턴 응답 / A3 점검 결과 (PROPOSED) | Message Cascade. ACCEPTED 시 WordEntry·LearnerErrorStat 생성/증가, 그 뒤 Correction 삭제돼도 유지 | 1 |
 | `TutorProposal` | 강사 제안 카드 | `kind`, `payload`, `status`, `result` | L2 | A1/A9 응답의 `proposals[]` (PROPOSED) | 30일 미처리 EXPIRED, Chat 삭제 시 SetNull 로 남김 | 1 |
 | `PromptTemplate` | Prompt Registry 키 | `key`, `filePath`, `ownerRole` | L2 | `npm run prompts:sync` 첫 실행 | 삭제 없음 | 2 |
@@ -2251,7 +2251,7 @@ model DebugSession {
 | `Utterance.trainingOptIn` | — | — | 기본 `false`. 운영 데이터 ≠ 학습 데이터(§71). true 라도 **자동 사용 없음** — 별도 허가·익명화·품질검증·Dataset 등록 절차 문서(`docs/design/speech-platform/`)를 거친다 | — |
 | `VoiceProfile` disable/delete | (hard delete 없음) | 앱이 `UserVoiceSetting.voiceProfileId=null` 로 전환(DISABLED 시점) | 행(ARCHIVED), `ConfigurationVersion`, 과거 `TtsCache` 키(purge 대상) | tts-service 물리 삭제는 별도 작업 |
 | `VoiceModel` | Engine Restrict | `VoiceModel.syncedFromConnectionKey` 는 문자열 | ARCHIVED 행 | — |
-| `EngineConnection` 삭제 | `EngineHealth`, `EngineMetricsDaily` | — (FallbackPolicy primary 참조 시 **Restrict**, fallback 배열 포함 시 앱이 거부) | `ConfigurationVersion`·`AuditLog`(targetId 문자열), `Utterance.realtimeEngine`·`TtsCache.engineConnectionKey`·`toolLog.connectionId` 스냅샷 | — |
+| `EngineConnection` 삭제 | `EngineHealth`, `EngineMetricsDaily` | — (FallbackPolicy primary 참조 시 **Restrict**, fallback 배열 포함 시 앱이 거부) | `ConfigurationVersion`·`AuditLog`(targetId 문자열), `Utterance.realtimeEngine`·`TtsCache.engineConnectionKey`·`toolLog.connection` 스냅샷 | — |
 | `Engine` | Connection·Model·Profile 있으면 Restrict | — | 코드에서 제거된 엔진은 `enabled=false` 로 남김 | — |
 | `ConfigurationVersion` · `AuditLog` · `StatsSnapshot` · `LearnerErrorStat` · `RepetitionItem` · `Attendance` · `PromptVersion` · `AppRelease` | **삭제 경로 없음** | — | 전부 | — |
 | `RequestTrace` 90일 purge | — | `ChatMessage.traceId` 등은 문자열이라 dangling 허용 | `EngineMetricsDaily`(purge 전 물화) | DebugSession 수집물은 `expiresAt+7일` |

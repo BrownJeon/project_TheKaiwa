@@ -596,7 +596,7 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 ← { "id": "c_01…", "kind": "TALK", "title": "…", "topic": { "id": "t_seed_01", "title": "길 묻기" }, "level": "N4", "messageCount": 0, "running": false, "createdAt": "…" }
 ```
 
-- `title` ≤100(없으면 주제 제목 또는 `"새 회화"`), `level` 기본 `Profile.level`. `kind=ASK` 는 Phase 3 전엔 `400 FEATURE_NOT_READY`. TALK/CHAT 은 사용자당 진행 중(최근 7일·미종료) 대화 상한 없음, 목록 정렬 `lastMessageAt desc`.
+- `title` ≤100(없으면 주제 제목 또는 TALK `"새 회화"`·CHAT `"새 채팅"`), `level` 기본 `Profile.level`. `kind=ASK` 는 Phase 3 전엔 `400 FEATURE_NOT_READY`. TALK/CHAT 은 사용자당 진행 중(최근 7일·미종료) 대화 상한 없음, 목록 정렬 `lastMessageAt desc`.
 
 #### #29 `GET /api/v1/chats/:id?after=<messageId>&limit=50`
 

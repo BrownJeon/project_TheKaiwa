@@ -105,10 +105,15 @@ design-spec §15 task-006: AI 채팅(텍스트) 화면과 SSE 턴 처리, 사용
 - **L4** `utteranceId`·`lessonId`·`scenarioId` 는 `400 FEATURE_NOT_READY`(task-007·Phase 2 에서 연다) — 승인.
 - **L5** 점검 Trace `kind=TURN, refType='chatReview'`, #29 `learning` 은 `toolLog.meta` 에 저장(응답에는 `learning` 만 노출, toolLog 비노출) — 승인. TraceKind 에 REVIEW 추가는 task-005b 콘솔에서 판단.
 
+- **L6** (REV-007 L2 종결) developer A "정본과 다르게 한 것" ①~⑬ 전부 승인: ①=L1 ②=L2 ③ CHAT 기본 제목 "새 채팅"(api-contract #28 개정) ④⑤=L4 ⑥⑧=L5 ⑦ toolLog 키 `connection`+`totalMs`·`meta` 를 정본으로 채택(domain-model 개정 — REV-007 M1 해소, task-005b 콘솔은 이 키를 읽는다) ⑨ `messageCount` 는 수락 tx 에서 +2(실패 턴도 두 행 유지) ⑩ #37 `chatId` 지정 시 limit 100 ⑪ 턴 저장 tx 내부 순서 ⑫ 분당 12턴은 거절 요청도 센다 ⑬ 단어 중복은 JS 바이트 일치(unicode_ci 가 は/ぱ·히라/가타를 같게 봐서). domain-model 의 stale 기준도 180초로 개정.
+- REV-007 L1(메모리 rateLimit 이 blue/green 전환 창에서 최대 ~24/분)은 알려진 한계로 수용 — Redis 도입 논의 때 재검토.
+
 ## 판단 기록 (judge)
 - [2026-09-27] intake engine=jev(jev-1.13.0, 첫 실제 호출) → task_type=feature(conf 1.00) / complexity=2.97(conf 0.97, 4단계 중 Hard) / needs_info=0.38(아님) / risk=R2(high 0.96) / developer_model=**opus** / next=assign | overrides=- | fallback=- | tokens=1031($0.000043), 325ms
   - Leader 해석: R2 는 Jev 판정(규칙 경로 매칭 없음) — 교정 원문 무수정·채택 전 저장 0·IDOR·턴 잠금이 데이터 무결성·권한 영역이라 타당. `leader.md` R2 보강 기준(`Correction.original`)과도 일치. → C2 에서 규칙상 Codex 개입(R2), 한도 미기록이어도 R2 는 허용.
 - [2026-09-27 10:58] codex_gate/C1 engine=jev → codex_required=true(concurrency 0.94) / mode=adversarial-review / budget=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=1102
+- [2026-09-27 11:58] codex_gate/C2 engine=jev → codex_required=true(concurrency 포커스) / mode=adversarial-review / budget=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=1142
+  - **override**(Leader, 11:59): Codex 미호출 — 사용자 지시 "Codex 토큰 사용량이 없어 실패했을 수도 있다, 충전되면 한 번 더 확인". C1 재실행 + C2 는 한도 충전 후 재확인 대기(호출 차수 1/4 사용, 남은 3회). REV-007 이 동시성 Q1~Q3 을 코드 추적으로 확인(반례 없음)한 상태로 QA 진행.
 
 ## Codex 검토
 ### [2026-09-27 11:32] C1 adversarial-review focus=concurrency — 실패(Codex CLI 문법)
@@ -165,6 +170,48 @@ design-spec §15 task-006: AI 채팅(텍스트) 화면과 SSE 턴 처리, 사용
 - [11:43] **알려진 한계**: Claude CLI 는 프로세스당 직렬 큐라 동기 점검(sonnet 8~18s) 중에는 다른 채팅 턴이 기다린다(데드라인에 큐 대기 포함 — 잡 경로는 batch 레인) · 잡은 같은 프로세스 백그라운드라 재시작 시 진행 중 잡은 5분 뒤 stale → FAILED · 두 프로세스 실경합(blue/green)은 코드 경로·단일 프로세스 경합으로만 확인 · `instrumentation.ts` 기동 정리는 실행 여부를 따로 확인하지 못했다(dev 기동 로그에 오류는 없으나 정리 대상 0건이면 로그를 남기지 않음 — build·pm2 재시작 후 QA 가 오래된 PENDING 1건으로 확인 권장) · C1 Codex 가 못 본 Q1~Q3 은 위 결론으로 reviewer·C2 에 넘김.
 
 ## Reviewer 기록
+
+### REV-007 (2026-09-27, 커밋 b5fa603 기준, base 77aead8)
+
+**판정: PASS_WITH_NOTES** — Critical 0 · High 0 · Medium 1 · Low 2.
+
+**실행 검증**: `npm run typecheck` 0 · `npm run lint` 0 error(경고 4건은 task-006 무관 기존 파일) · `npm test` 83/83 pass(chat 컴포넌트 24건 포함) · `eslint.config.mjs` diff 없음(허용 목록 변경 없음, Developer 주장과 일치).
+
+**동시성(최우선 검토, Q1~Q3 코드 추적)** — `orchestrator/index.ts`·`locks.ts`·`infra/tx.ts`·`review/index.ts`·`learning/snapshots/index.ts` 를 라인 단위로 추적한 결과, Developer A 의 Q1~Q3 결론을 **확인함**(반례 없음):
+- 잠금 순서가 사용자(`lockUserRow` raw `SELECT…FOR UPDATE`) → 채팅(raw `FOR UPDATE`) → 행으로 모든 쓰기 트랜잭션(`acceptTurn`·`saveTurn`·`claimReview`·저장 tx·`acceptCorrection`·`acceptProposal`·`createWord`·`bumpDailySnapshot`)에 일관 적용되어 교착 없이 전역 직렬화 지점이 된다. 사용자 행 락은 트랜잭션 커밋까지 유지되므로, blue/green 두 프로세스가 동시에 같은 사용자의 서로 다른 채팅에 턴을 걸어도 두 번째 `acceptTurn` tx 는 첫 번째가 커밋할 때까지 대기했다가 READ COMMITTED 로 방금 커밋된 PENDING 을 보고 `409 {runningMessageId}` 를 받는다(반례 탐색: 채팅 행 락만으로는 서로 다른 채팅이 통과하는 반례가 실제로 존재해 사용자 행 락 추가가 필요했다는 Developer 주장이 코드로 확인됨).
+- `resumePending`(D1/L2, 180초 조건)은 `acceptTurn` 의 "사용자 전체 PENDING" 선검사(라이브 PENDING 이 있으면 즉시 409)가 먼저 걸리므로, 살아 있는 다른 인스턴스의 턴을 리줌으로 덮어쓸 경로가 없다. stale sweep(`updateMany where status=PENDING`)과 리줌 판정이 **같은 트랜잭션** 안에서 일어나 자기 쓰기 가시성으로 정확히 맞물린다.
+- `review/index.ts` Q3: `claimReview` 가 채팅 행 FOR UPDATE 를 잡은 채로 `reviewedAt`·`AiJob` 활성 여부를 확인·생성하므로, 두 프로세스가 동시에 점검을 걸어도 뒤쪽은 채팅 행 잠금 대기 → 커밋된 RUNNING AiJob 을 보고 409. 저장은 `updateMany(where reviewedAt IS NULL)` 선행이라 경합에서 진 쪽은 전체 롤백.
+- `learning/snapshots/index.ts` `bumpDailySnapshot` 은 `INSERT…ON DUPLICATE KEY UPDATE id=id` → `SELECT…FOR UPDATE` → 병합 패턴으로, ADD_STUDY_LOG 채택과 교정 채택이 같은 날짜 행을 동시에 건드려도(서로 다른 제안/교정 id) 손실 갱신이 없음을 확인(각 tx 는 사용자 행 잠금까지 먼저 거치므로 이중 직렬화).
+- `instrumentation.ts` 는 `NEXT_RUNTIME!=='nodejs'` 조기 반환으로 Edge/빌드 단계에서 DB 를 건드리지 않음을 확인. 기동 정리와 조회 시 지연 정리(`sweepStalePending`)가 같은 180초 기준을 공유해 정리 누락이 없다.
+
+**원문 불변** — `corrections/index.ts` 의 `CorrectionUpdate = Omit<Prisma.CorrectionUncheckedUpdateManyInput, 'original'|'id'|'userId'|'chatId'|'messageId'>` 타입으로 컴파일 타임에 `original` UPDATE 를 막고, 저장소 전체에서 `.correction.update*(` 호출이 `updateCorrections()` 한 곳뿐임을 grep 으로 확인(raw SQL UPDATE 도 없음). `orchestrator/shape.ts`·`review/filter.ts` 모두 `original` 저장값을 모델 출력이 아니라 서버가 가진 원문(`serverOriginal()`/서버 `text`)에서만 취함을 확인. D11 소프트 재시도(`schemaValidate.ts runJsonSoft`)는 재시도 실패·예외 시 스키마를 통과한 1차 응답으로 안전 복귀함을 코드로 확인(기존 `completeJson` 기본 경로는 `softExtraCheck` 미지정 시 그대로 — 회귀 없음, 단위 테스트 `softExtraCheck.test.ts` 로도 고정).
+
+**채택 전 행 0 / IDOR** — 라이브 스모크(`tests/live/task006-smoke.ts`)를 직접 읽어 주장을 검증: 5a 항목이 실제로 `Buffer.from(...).equals(...)` 로 DB `original` 과 서버 원문을 바이트 비교하고, 9번 항목이 두 번째 QA 계정으로 13개 엔드포인트(조회·수정·삭제·턴·재시도·점검·교정 목록/채택/거절·제안 목록/채택/거절·잡 조회)를 실제로 호출해 전부 404 및 `u2rows===0` 을 확인한다(코드만 읽고 신뢰한 것이 아니라 테스트 본문을 대조함). 13개 라우트 전부 `requireSession()` 뒤 `userId` 스코프 쿼리/`getOwnedChat` 을 거치는 것도 개별 확인.
+
+**6층 경계** — `module-dependency.md` §3-1 행렬 대조: conversation→infra(prisma 직접 포함) 는 허용(✓, app 행만 제한), conversation→learning 은 쓰기 함수 import 없이 `getErrorStats`/`getTopicRef` 읽기만(확인: `conversation/index.ts`·`turnContext.ts`·grep 으로 learning 쓰기 함수 import 없음), 라우트는 `withTransaction` 을 통해서만 tx 를 열고 prisma 를 직접 import 하지 않음(라우트 11개 전수 확인). speech 참조 없음. `eslint.config.mjs` 무변경.
+
+**엔진명 누출** — `src/app`·`src/components` 전체에 `claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|home-m4` grep 0건(테스트·주석의 `CLAUDE.md` 문서명 언급 제외), `toolLog` 는 사용자 응답(JSON·SSE) 어디에도 직렬화되지 않음(`getChatDetail`/`serializeMessage` 가 `learningFrom()` 으로 필요한 필드만 추출). `labels.ts` 가 400 외 모든 상태코드에서 서버 `message` 를 화면에 노출하지 않게 차단.
+
+**입력 안전** — `infra/text.ts`(`sanitizeText`·`codePointLength`·`truncateCodePoints`)가 D10 대로 제어문자 제거 시 `\n`·`\t` 보존, 짝 없는 서로게이트 치환, 그래핌 경계 자르기를 구현. `chats/validate.ts`(`parseTurnBody`·`parseTitle`)가 저장 전 항상 이 경로를 거치며, 저장된 `content` 가 이후 모든 바이트 비교의 기준이 되는 구조를 확인.
+
+**SSE·화면** — `infra/sse.ts` 가 `X-Accel-Buffering: no`·15초 `: ping`·연결 취소와 무관한 처리 지속을 구현(턴 처리는 `startTurn` 이 스트림 생성 전에 이미 백그라운드로 분리돼 있어 SSE `cancel()` 이 처리를 막지 못함). 클라이언트 `chat/sse.ts` 파서는 `TextDecoder` 스트림 모드 + 라인 버퍼로 청크 경계(멀티바이트 문자·`\r\n` 분리)를 안전하게 처리(단위테스트 7건). `diff.ts` 는 표시 전용이며 조각을 이으면 원문과 동일함을 테스트가 보증.
+
+**이슈**
+
+| # | 심각도 | 내용 | 근거 | 권고 |
+|---|---|---|---|---|
+| M1 | Medium | `toolLog` 의 connection 키 이름이 정본과 다름 — domain-model.md `ChatMessage` 주석은 `{traceId, model, **connectionId**, sttMs, llmMs, ttsMs, ttsStartMs, promptChars, attempt}` 인데 구현(`orchestrator/index.ts:124` `saveTurn`)은 `connection`(+ `totalMs`·`meta` 추가 필드)을 씀. 현재는 `toolLog` 가 사용자 응답에 노출되지 않아 기능·보안 영향은 없지만, task-005b Admin Console 이 이 필드를 그대로 읽으면 어긋난다. | `docs/design/domain-model.md` ChatMessage 주석 vs `src/modules/conversation/orchestrator/index.ts:124-133` | Leader 가 정본 필드명을 `connection` 으로 개정하거나 구현을 `connectionId` 로 맞추는 결정을 task-005b 착수 전에 확정하고 domain-model.md 를 갱신 |
+| L1 | Low | `infra/http.ts rateLimit` 이 프로세스 메모리 버킷이라 blue/green 롤링 배포 전환 중(두 프로세스 동시 기동) 사용자당 분당 12턴 상한이 사실상 최대 ~24/분까지 완화될 수 있음(전환 창에서만, 소프트 어뷰징 가드) | `src/modules/infra/http.ts:122-135` | 배포 계약서(정본)에 이미 알려진 한계로 기록되어 있으면 그대로 두되, Redis 등 공유 저장소 도입 논의 시 재검토 항목에 추가 권고 |
+| L2 | Low | Developer A 가 남긴 "정본과 다르게 한 것·Leader 판단 요청" 13개 항목(2026-09-27 11:43 기록) 중 도메인 모델 텍스트 개정이 반영된 것(①)과 별개로, toolLog 키(⑦)·trace kind 매핑(⑧) 등 일부가 아직 Leader 의 명시적 승인 기록 없이 남아 있음(L1~L5 는 승인됨, 이후 ①~⑬ 목록은 미승인) | task 이력서 "Developer 기록 > A(서버)" 마지막 항목 | Leader 가 최종 요약 전에 ①~⑬ 를 검토·승인 기록으로 닫을 것을 권고(기능 결함은 아님) |
+
+**QA 인계 high_risk_areas**:
+1. blue/green 실제 2-프로세스 동시성은 코드 추적·단일 프로세스 재현으로만 검증됨(Q1~Q3) — 실제 두 pm2 인스턴스로 동시 턴 유발 테스트 가능하면 우선 권장.
+2. 화면 360/390/412 실제 렌더·교정 카드 컨테이너 쿼리 전환·44px 터치 타겟은 Developer B 가 NOT_VERIFIED 로 명시(코드상 폭 계산만) — 헤드리스 확인 필요.
+3. 실기기 키보드(`resizes-content`·Gboard 일본어 IME 확정 Enter·앱 WebView)는 NOT_VERIFIED.
+4. A(서버)·B(화면)가 명세 가정으로 개발되어 실제 통합 배선(dev 서버 기동 후 브라우저로 SSE 스트림 수신) 미검증 — Developer B 가 "A 와 합칠 때 확인할 계약 가정" 12건을 남김, QA 가 실통합에서 확인 권고.
+5. `src/instrumentation.ts` 기동 정리 로직은 실행 자체를 관찰하지 못함(정리 대상 0건이면 무로그) — pm2 재기동 후 오래된 PENDING 1건으로 실측 권고(Developer A 도 동일 권고).
+
+**native_change**: false (android/·plugins/·capacitor.config.ts 변경 없음, 웹만).
 
 ## QA 기록
 
