@@ -15,10 +15,12 @@
 | 항목 | 규칙 |
 |---|---|
 | 서명 | HS256 만(`alg` 혼동 차단), 키 = 앱과 같은 `JWT_SECRET` 문자열 |
-| 필수 클레임 | `sub`(userId, `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`) · `aud:"ws-speech"` · `jti`(8~128자) · `exp` |
-| 선택 클레임 | `iat` · `chatId`(sub 와 같은 문자 규칙) · `purpose: "TURN" \| "MIC_TEST"`(없으면 TURN, 그 밖 값은 거부) |
+| 필수 클레임 | `sub`(userId, `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`) · `aud:"ws-speech"` · `jti`(8~128자) · `iat` · `exp` (앱 `signScopedToken` 이 `iat` 를 넣는다) |
+| 선택 클레임 | `chatId`(sub 와 같은 문자 규칙) · `purpose: "TURN" \| "MIC_TEST"`(없으면 TURN, 그 밖 값은 거부) |
 | 수명 | `exp - now > 120s` 면 티켓이 아니라고 보고 거부(같은 키의 장수명 토큰 차단). leeway 2s. 앱 세션 JWT 는 `aud` 가 없어 거부 |
 | 1회용 | `jti` 는 **다른 검증을 모두 통과한 뒤** 소비 — 메모리 캐시(만료+32s, 최대 10,000개, 넘치면 4429) |
+| 재시작 | 재사용 기록이 메모리뿐이라 재시작하면 잊는다 → **`iat` 가 gateway 기동 시각보다 이른 티켓은 거부**(4401 `ticket issued before gateway start`). 허용 오차 **2초**(`BOOT_SKEW_SEC` — 앱·gateway 는 같은 호스트·같은 시계라 오차는 `iat` 초 절삭뿐; 기동 직전 ≤2초에 발급된 티켓이 재시작 뒤 1회 쓰일 수 있는 잔여 위험은 받아들인다). `iat` 가 now+2초보다 미래여도 거부. 클라이언트는 4401 에서 새 티켓으로 1회 재시도하므로 사용자 영향은 재연결 1번(task-003e Codex C2) |
+| 단일 프로세스 전제 | jti 캐시·세션 레지스트리(사용자당 1)는 프로세스 메모리다 — **pm2 `instances: 1`, uvicorn `--workers` 미지정**(ecosystem.config.js)으로만 돌린다. 여러 프로세스로 늘리면 재사용 차단·사용자당 1 세션이 깨지므로 그 전에 공유 저장소(Redis 등)로 옮길 것. 런타임 가드는 두지 않는다 |
 | `purpose=MIC_TEST` | 설정 화면 마이크 테스트. **wav 저장·internal 콜백·Utterance 행 없음**, `final.utteranceId:null` (task-003e M1) |
 
 ## 3. WS 프로토콜 `v:1` (정본 api-contract §2-29 + 이 절의 세부)

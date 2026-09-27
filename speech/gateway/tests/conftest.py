@@ -91,7 +91,9 @@ class FakeProvider:
     def __init__(self) -> None:
         self.sessions: list[SherpaRealtimeSession] = []
 
-    async def open_session(self, request: Any, ctx: Any, on_vad: Any, on_partial: Any, on_final: Any, on_error: Any) -> SherpaRealtimeSession:
+    async def open_session(
+        self, request: Any, ctx: Any, on_vad: Any, on_partial: Any, on_final: Any, on_error: Any
+    ) -> SherpaRealtimeSession:
         opts = request.options
         session = SherpaRealtimeSession(
             decode=fake_decode,
@@ -159,7 +161,11 @@ class CallbackRecorder:
         uid = payload["userId"]
         body = self.body or {
             "success": True,
-            "data": {"utteranceId": "cutt0001", "audioPath": f"users/{uid}/utterances/2026-09/cutt0001.wav", "expiresAt": "2026-10-28T00:00:00Z"},
+            "data": {
+                "utteranceId": "cutt0001",
+                "audioPath": f"users/{uid}/utterances/2026-09/cutt0001.wav",
+                "expiresAt": "2026-10-28T00:00:00Z",
+            },
         }
         return httpx.Response(200, json=body)
 
@@ -167,6 +173,41 @@ class CallbackRecorder:
 @pytest.fixture
 def provider() -> FakeProvider:
     return FakeProvider()
+
+
+class _GracefulSession:
+    """Starlette TestClient 의 WS 종료 경합(Python 3.10) 회피.
+
+    TestClient 는 with 를 빠져나갈 때 close(1000) 직후 곧바로 서버 태스크의 CancelScope 를 cancel 한다. 서버 핸들러가
+    그 사이에 막 끝나면 3.10 asyncio 에는 `uncancel()` 이 없어 걸려 있던 취소가 스코프 밖으로 새고, `fut.result()` 가
+    CancelledError 를 낸다(테스트 하네스 문제 — uvicorn 운영 경로와 무관). 여기서 먼저 닫고 서버 세션이 풀릴 때까지 기다린다.
+    """
+
+    def __init__(self, inner: Any, client: TestClient) -> None:
+        self._inner = inner
+        self._client = client
+        self._ws: Any = None
+
+    def __enter__(self) -> Any:
+        self._ws = self._inner.__enter__()
+        return self._ws
+
+    def __exit__(self, *exc: Any) -> Any:
+        registry = self._client.app.state.deps.registry  # type: ignore[attr-defined]
+        try:
+            self._ws.close(1000)
+        except Exception:  # noqa: BLE001 — 이미 서버가 닫았으면 그대로 진행
+            pass
+        deadline = time.monotonic() + 2.0
+        while (len(registry) or registry.pending) and time.monotonic() < deadline:
+            time.sleep(0.005)
+        time.sleep(0.02)
+        return self._inner.__exit__(*exc)
+
+
+class GatewayTestClient(TestClient):
+    def websocket_connect(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore[override]
+        return _GracefulSession(super().websocket_connect(*args, **kwargs), self)
 
 
 def build_client(settings: Settings, provider: Any | None, recorder: CallbackRecorder | None = None) -> TestClient:
@@ -177,4 +218,4 @@ def build_client(settings: Settings, provider: Any | None, recorder: CallbackRec
     if recorder is not None:
         client = InternalClient("http://app.test", INTERNAL_SECRET, "LOCAL", 2000, transport=httpx.MockTransport(recorder.handler))
     app = create_app(settings, router=router, client=client, load_engine=False)
-    return TestClient(app)
+    return GatewayTestClient(app)

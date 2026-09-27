@@ -26,3 +26,6 @@ strict = true
 ignore_missing_imports = true
 exclude = ["tests/"]
 mypy_path = "../common"
+
+[tool.ruff.lint.isort]
+known-first-party = ["kaiwa_gateway", "kaiwa_speech_common", "tests"]

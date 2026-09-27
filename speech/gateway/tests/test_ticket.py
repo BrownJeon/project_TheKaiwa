@@ -94,3 +94,26 @@ def test_replay_cache_expiry_and_capacity() -> None:
     assert not cache.seen("a")
     cache.add("c", 1030)
     assert cache.seen("b") and cache.seen("c")
+
+
+def test_iat_required_and_not_in_future() -> None:
+    with pytest.raises(TicketError) as e:
+        verifier().verify(make_ticket(iat=None))
+    assert e.value.kind == "INVALID"
+    with pytest.raises(TicketError):
+        verifier().verify(make_ticket(iat=int(time.time()) + 30))
+
+
+def test_ticket_issued_before_boot_rejected_after_restart() -> None:
+    """Codex C2: 재사용 기록(메모리)이 재시작으로 사라져도 재시작 전 티켓은 못 쓴다."""
+    now = time.time()
+    issued_before = make_ticket(iat=int(now) - 10, exp=int(now) + 50)
+    restarted = TicketVerifier(JWT_SECRET, boot_epoch=now)
+    with pytest.raises(TicketError) as e:
+        restarted.verify(issued_before)
+    assert e.value.kind == "INVALID" and "before gateway start" in str(e.value)
+    # 기동 뒤(또는 허용 오차 2s 안) 발급 티켓은 통과
+    assert restarted.verify(make_ticket(iat=int(now))).user_id == "cuser0001"
+    assert restarted.verify(make_ticket(iat=int(now) - 2)).user_id == "cuser0001"
+    # 같은 티켓이라도 기동 전 프로세스(재시작 전)에서는 유효했다
+    assert TicketVerifier(JWT_SECRET, boot_epoch=now - 60).verify(issued_before).user_id == "cuser0001"

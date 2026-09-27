@@ -129,6 +129,16 @@ def test_forged_ticket_closes_4401(tmp_path: Path, provider: Any) -> None:
     assert close == 4401
 
 
+def test_ticket_issued_before_boot_closes_4401(tmp_path: Path, provider: Any) -> None:
+    import time as _time
+
+    old = make_ticket(purpose="MIC_TEST", iat=int(_time.time()) - 30)
+    with build_client(make_settings(tmp_path), provider) as client, client.websocket_connect("/ws/speech") as ws:
+        ws.send_json(start_msg(old))
+        got, close = expect_close(ws)
+    assert close == 4401 and got[0]["code"] == "UNAUTHENTICATED" and "before gateway start" in got[0]["message"]
+
+
 def test_ticket_reuse_closes_4403(tmp_path: Path, provider: Any) -> None:
     ticket = make_ticket(purpose="MIC_TEST")
     with build_client(make_settings(tmp_path), provider) as client:
@@ -236,7 +246,12 @@ def test_turn_callback_failure_orphans_wav(tmp_path: Path, provider: Any) -> Non
 
 @pytest.mark.parametrize(
     "audio_path",
-    ["users/cother/utterances/2026-09/x.wav", "users/cuser0001/utterances/../../x.wav", "/etc/passwd", "users/cuser0001/utterances/incoming/x.wav"],
+    [
+        "users/cother/utterances/2026-09/x.wav",
+        "users/cuser0001/utterances/../../x.wav",
+        "/etc/passwd",
+        "users/cuser0001/utterances/incoming/x.wav",
+    ],
 )
 def test_turn_rejects_bad_audio_path(tmp_path: Path, provider: Any, audio_path: str) -> None:
     recorder = CallbackRecorder(body={"success": True, "data": {"utteranceId": "cutt0002", "audioPath": audio_path}})
@@ -325,7 +340,10 @@ def test_bad_frame_size_is_dropped_then_fatal(tmp_path: Path, provider: Any) -> 
 
 
 def test_frame_flood_closes_4413(tmp_path: Path, provider: Any) -> None:
-    with build_client(make_settings(tmp_path, frames_per_sec=1.0, frame_burst=5), provider) as client, client.websocket_connect("/ws/speech") as ws:
+    with (
+        build_client(make_settings(tmp_path, frames_per_sec=1.0, frame_burst=5), provider) as client,
+        client.websocket_connect("/ws/speech") as ws,
+    ):
         ws.send_json(start_msg(make_ticket(purpose="MIC_TEST")))
         ws.receive_json()
         for _ in range(10):
@@ -347,7 +365,10 @@ def test_unknown_and_oversized_text_are_non_fatal(tmp_path: Path, provider: Any)
 
 
 def test_idle_timeout_closes_4408(tmp_path: Path, provider: Any) -> None:
-    with build_client(make_settings(tmp_path, session_idle_timeout_sec=1), provider) as client, client.websocket_connect("/ws/speech") as ws:
+    with (
+        build_client(make_settings(tmp_path, session_idle_timeout_sec=1), provider) as client,
+        client.websocket_connect("/ws/speech") as ws,
+    ):
         ws.send_json(start_msg(make_ticket(purpose="MIC_TEST")))
         ws.receive_json()
         got, close = expect_close(ws)
