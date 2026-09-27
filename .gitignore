@@ -51,3 +51,6 @@ logs/
 /model_assets/
 /model_assets_archived/
 /imports/
+
+# 시놀로지 NAS 메타데이터(파일마다 생김) — 커밋 금지
+@eaDir/

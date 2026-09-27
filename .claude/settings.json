@@ -3,6 +3,12 @@
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "hooks": {
+    "PreToolUse": [
+      { "matcher": "^(Bash|Agent|Task)$", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/codex-switch/guard.sh\"", "timeout": 10 } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/codex-switch/guard.sh\"", "timeout": 10 } ] }
+    ],
     "SessionStart": [
       { "matcher": "", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/agent-vault/context-inject.sh\"" } ] }
     ],
@@ -28,7 +34,9 @@
       "Bash(curl -s http://localhost:*)",
       "Bash(curl -s http://127.0.0.1:*)",
       "Bash(pm2 logs *)",
-      "Bash(pm2 list)"
+      "Bash(pm2 list)",
+      "Bash(pm2 restart thekaiwa)",
+      "Bash(pm2 restart thekaiwa --update-env)"
     ],
     "deny": []
   }

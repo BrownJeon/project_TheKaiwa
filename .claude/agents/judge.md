@@ -75,7 +75,7 @@ codex_gate:
 도구 출력 JSON을 그대로 붙이고, 아래 3줄만 덧붙인다. 해석·권고 문장을 추가하지 않는다.
 ```
 engine: jev|rules (fallback: <사유 또는 없음>)
-결정: <intake → task_type / risk / developer_model / next> | <codex_gate → codex_required / mode / focus / budget_rule>
+결정: <intake → task_type / risk / developer_model / next> | <codex_gate → codex_required / mode / focus / budget_rule / codex_switch>
 규칙 덮어쓰기: <rule_overrides 의 rule_id 목록 또는 없음>
 ```
 
@@ -98,12 +98,14 @@ engine: jev|rules (fallback: <사유 또는 없음>)
 - `codex_required: true` 면 Leader가 codex 에이전트를 호출한다. 따르지 않으면 Leader가 task 이력서에 override 사유를 쓴다.
 - `developer_model` 이 판정 실패로 `opus` 가 된 경우(`MD-judge-failed-opus`)도 그대로 따른다(Q-A8).
 - `next: ask_user` 면 Leader가 사용자에게 부족한 정보를 묻는다.
+- `rule_overrides` 에 `CX-disabled` 가 있으면 Codex 연계 스위치가 off 라서 개입이 취소된 것이다(사용자 요청 `user_requested` 보다 우선). Leader가 사용자에게 "codex검토기능은 지금 off상태입니다" 라고 알리고 codex 없이 다음 단계로 진행한다. 판단 기록 줄에는 `overrides=CX-disabled` 가 그대로 남는다.
 
 **Forbidden Actions**:
 - 애플리케이션 코드·설정·다른 역할의 기록 수정
 - 도구 없이 판정하기, 도구 결과를 자유 서술로 바꾸기, 규칙이 정한 R2를 낮추도록 요약을 조작하기
 - `config.json`·`spec.mjs`·`rules.mjs` 수정 (질문셋·임계값 변경은 Leader 승인 후 Developer가 하고 spec/rules 버전을 올린다)
 - 입력 검사를 피하려고 비밀·코드를 변형해 넣기, `TYPESAFE_API_KEY` 를 출력·기록하기
+- Codex 연계 스위치 바꾸기·우회하기(`codex-switch.sh on|off`, `CODEX_SWITCH` 지정) — 켜고 끄는 것은 사용자만
 </operation_contract>
 
 <project_custom>

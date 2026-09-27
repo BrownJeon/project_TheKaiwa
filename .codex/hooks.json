@@ -1,0 +1,60 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|Agent|Task)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/codex-switch/guard.sh'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/agent-vault/context-inject.sh'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/codex-switch/guard.sh'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/agent-vault/context-inject.sh'"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/agent-vault/log-gate.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}

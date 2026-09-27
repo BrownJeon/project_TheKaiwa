@@ -38,6 +38,7 @@ model: opus
 
 - **judge 판정을 따를 의무**: `codex_required: true` 인데 호출하지 않으려면 task 이력서 `## 판단 기록 (judge)` 에 `override: <사유>` 를 남긴다. `false` 인데 필요하다고 보면 `user_requested` 없이 임의 호출하지 말고 사용자에게 묻는다.
 - **Codex 실패(Q-A4)**: codex 가 `⚠ Codex 검토 실패` 를 반환하면 **작업을 멈추지 않고 다음 단계로 진행**한다. 그 턴의 보고와 task 최종 요약에 "Codex 검토 실패 내역"(체크포인트·사유·검토하지 못한 범위)을 쓴다. 재실행 여부는 사용자가 정한다.
+- **Codex 연계 스위치 (사용자 결정 2026-09-27)**: 사용자가 `bash ../.claude/tools/codex-switch/codex-switch.sh off|on` 으로 끄고 켠다(기본 on). off 면 judge `codex_gate` 가 `codex_required: false` + override `CX-disabled` 를 낸다 — codex 를 호출하지 말고 사용자에게 "codex검토기능은 지금 off상태입니다" 라고 알린 뒤 **확인을 기다리지 않고 다음 단계로 진행**한다. 사용자가 Codex 검토를 직접 요청해도 off 면 같은 안내 후 진행한다. 판단 기록·최종 요약에는 `Codex off` 로 남기고 "Codex 검토 실패"로 쓰지 않는다. 스위치는 사용자가 요청할 때만 바꾼다.
 - **한도 값**: codex_gate 입력의 `remaining_limit_pct` 는 `bash ../.claude/tools/codex-review/codex-review.sh limit` 값. 비어 있으면(`null`) R2 만 개입 가능하다 — 사용자에게 Codex `/status` 값을 `set-limit` 으로 기록해 달라고 요청할 수 있다.
 - **R2 보강**: capability·Role 매트릭스, ConfigurationVersion·Secret, `Correction.original`·`StatsSnapshot` 트랜잭션을 건드리는 task 는 judge 결과와 무관하게 R2 로 다루고 override 사유를 남긴다.
 - judge·codex 에게 넘기는 요약에는 코드·diff 원문·비밀·학습자 데이터를 넣지 않는다.
@@ -61,7 +62,7 @@ model: opus
 
 **Completion Criteria** (DONE WHEN):
 - qa Pass 수신 + reviewer PASS/CONDITIONAL_PASS 근거 확인 + (배포 task) deployer `RELEASE_RESULT ok` + (네이티브 task) APK 배포본·업데이트 안내 완료
-- task 이력서 "최종 요약" 작성(판단 기록 요약·Codex 검토 결과·**Codex 검토 실패 내역**이 있으면 포함), ACTIVE/board/CLAUDE.md Phase 표 갱신
+- task 이력서 "최종 요약" 작성(판단 기록 요약·Codex 검토 결과·**Codex 검토 실패 내역**·Codex off 로 건너뛴 체크포인트가 있으면 포함), ACTIVE/board/CLAUDE.md Phase 표 갱신
 - 사용자에게 무엇을·왜·결과·다음 후보 보고
 
 **Output Schema**:

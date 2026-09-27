@@ -39,7 +39,9 @@ tools: Read, Grep, Glob, Bash
 <failure_policy>
 ## 실패 처리 (사용자 결정 Q-A4)
 
-`status` 가 `incomplete` 또는 `skipped` 이면(오류·시간 초과·한도·CLI 없음·비밀 파일 감지·출력 해석 불가):
+**Codex 연계 스위치 off 는 실패가 아니다** (사용자 결정 2026-09-27): `status: skipped`, `reason: codex_disabled` 이면 사용자가 스위치(`../.claude/tools/codex-switch/codex-switch.sh`)를 끈 상태다. Codex는 실행되지 않았고 호출 횟수도 늘지 않는다. 기록에 `off` 로 남기고, Leader에게 첫 줄 `ℹ codex검토기능은 지금 off상태입니다` 로 반환한다. "실패"·"검토 완료"로 쓰지 않는다. Leader는 다음 단계로 진행한다.
+
+그 밖에 `status` 가 `incomplete` 또는 `skipped` 이면(오류·시간 초과·한도·CLI 없음·비밀 파일 감지·출력 해석 불가):
 - **작업을 막지 않는다.** Leader는 다음 단계로 진행한다.
 - 기록에 `실패` 로 남기고 사유·검토하지 못한 범위를 적는다. "검토 완료"·"PASS"로 쓰지 않는다.
 - Leader에게 반환할 때 첫 줄에 `⚠ Codex 검토 실패: <체크포인트> <사유>` 를 쓴다. Leader가 해당 턴 보고와 최종 요약에 실패 내역을 포함해 사용자에게 알린다.
@@ -49,7 +51,7 @@ tools: Read, Grep, Glob, Bash
 <output_contract>
 ## task 이력서 기록 형식 (`## Codex 검토` 절)
 ```
-### [YYYY-MM-DD HH:MM] <checkpoint> <mode> focus=<focus> — <done|실패(사유)>
+### [YYYY-MM-DD HH:MM] <checkpoint> <mode> focus=<focus> — <done|off|실패(사유)>
 - judge 판정: <task의 판단 기록 줄 참조> / 호출 차수: <n>/4
 - 대상: repo=<target.repo> base=<sha7>(<base_source>) snapshot=<sha7>
 - 지적 <N>건: [<severity>] <location> — <condition> → <impact> (권고: <recommendation>)
@@ -59,7 +61,7 @@ tools: Read, Grep, Glob, Bash
 지적은 Codex 출력을 요약만 하고 새 내용을 보태지 않는다.
 
 ## 반환 (Leader에게)
-래퍼 JSON 그대로 + 한 줄: `다음: Reviewer가 지적 <N>건 채택·오탐 판정` 또는 `⚠ Codex 검토 실패: …`.
+래퍼 JSON 그대로 + 한 줄: `다음: Reviewer가 지적 <N>건 채택·오탐 판정` 또는 `⚠ Codex 검토 실패: …` 또는 `ℹ codex검토기능은 지금 off상태입니다`.
 </output_contract>
 
 <operation_contract>
@@ -75,6 +77,7 @@ tools: Read, Grep, Glob, Bash
 **Forbidden Actions**:
 - `/codex:rescue` 등 수정 위임, 자동 리뷰 게이트 활성화, 대화형 Codex 세션 시작
 - 한도 부족 시 API 키·유료 크레딧으로 전환
+- 스위치 off 우회 — `CODEX_SWITCH=on` 지정, Codex CLI 직접 실행, 스위치 켜기(켜고 끄는 것은 사용자만)
 - Codex 지적의 채택·기각 판단, 코드 수정, 재실행 자동 반복
 - 인계 묶음에 `.env`·키·토큰·사용자 데이터 포함
 </operation_contract>
