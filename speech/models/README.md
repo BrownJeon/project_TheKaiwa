@@ -1,6 +1,11 @@
 # speech/models — 서빙 모델 manifest 규약 (파일 미커밋)
 
-> 상태: 설계 골격. 여기에는 **README 와 manifest 예시만** 둔다. 모델 파일(수백 MB)은 저장소에 커밋하지 않고(`.gitignore`: `speech/models/**` 중 `README.md`·`*.example.json` 제외) 우분투 `DATA_ROOT/models/` 에 배치해 `/models/*` 로 서빙한다.
+> 상태: **task-003e(2026-09-28) — `fetch_models.py`·`manifest.example.json`(실제 값) 추가.** gateway 가 이 모델로 동작 중(실측 `agent-vault/30-Knowledge/decisions/speech-p0-measurements.md` STT 절).
+>
+> **받기**: `python3 speech/models/fetch_models.py` → `speech/models/reazonspeech-int8/2024-08-01-int8-v1/` + `manifest.json`(표준 라이브러리만, 이어받기·sha256 불일치 시 폐기 후 3회 재시도). 서빙 위치로 바로: `--dest "$DATA_ROOT/models"`. 검사만: `--verify-only`. 출처는 **HuggingFace `reazon-research/reazonspeech-k2-v2` @`291488c8…`(= sherpa-onnx `sherpa-onnx-zipformer-ja-reazonspeech-2024-08-01` 의 원본 파일, Apache-2.0)** 의 int8 encoder/joiner·fp32 decoder·tokens + k2-fsa 릴리스 `silero_vad.onnx` — k2-fsa tar.bz2 는 fp32 까지 713MB 라 파일 단위로 받는다. 실제 합계 **169.8MB**(encoder 154.7MB · decoder 11.8MB · joiner 2.7MB · tokens 46KB · vad 0.64MB). sha256 핀은 스크립트 `FILES` 상수.
+> gateway 는 `SPEECH_MODELS_DIR`(ecosystem: `.env` 값 > `DATA_ROOT/models`(manifest 있으면) > 저장소 `speech/models`)의 `reazonspeech-int8/manifest.json` 을 읽고 파일별 크기·sha256 을 검증한 뒤 로드한다(≈1.0s). 온디바이스 서빙(`/models/*`, task-003f)은 `--dest "$DATA_ROOT/models"` 로 한 번 더 받는다.
+>
+> 여기에는 **README·manifest 예시·받기 스크립트만** 둔다. 모델 파일(수백 MB)은 저장소에 커밋하지 않고(`.gitignore`: `speech/models/**` 중 `README.md`·`*.example.json` 제외) 우분투 `DATA_ROOT/models/` 에 배치해 `/models/*` 로 서빙한다.
 
 ## 1. 용도
 
@@ -80,5 +85,6 @@
 
 ## 6. 파일
 
-- `manifest.example.json` — 위 형식의 예시(task-003 에서 추가, 커밋 대상).
+- `manifest.example.json` — 실제 받은 버전의 manifest(커밋 대상, `createdAt` 만 받을 때마다 다름).
+- `fetch_models.py` — 받기·검증 스크립트(커밋 대상).
 - 그 외 모든 파일은 `.gitignore` 대상.

@@ -1,7 +1,8 @@
-"""TheKaiwa 음성 엔진 인터페이스 골격 — Protocol/dataclass 시그니처만 (구현 없음).
+"""TheKaiwa 음성 엔진 인터페이스 — Protocol/dataclass.
 
-설계 단계 산출물이다(2026-09-26). 구현(task-003)에서는 이 파일을
-`speech/common/kaiwa_speech_common/engine/interfaces.py` 로 옮기고 gateway 는 re-export 한다.
+설계 골격(2026-09-26, `speech/gateway/interfaces.py`)을 task-003e 에서 이 위치로 옮겼다(gateway 는 re-export).
+실시간 세션 계약은 구현에 맞춰 다듬었다: 발화 1개의 결과는 `UtteranceResult`(텍스트 + 저장할 PCM + 종료 사유)
+이고 `on_final` 하나로만 나온다(`stop` 도 같은 경로 — 세션 안에서 partial·final 순서가 뒤섞이지 않게).
 TS 쪽 `src/modules/engine` 의 `EngineProvider`·역할 파사드와 개념·이름을 맞춘다
 (대응표: docs/design/module-dependency.md §5-1). 메서드명은 Python 관례(snake_case)를 쓰되
 TS 이름을 docstring 에 병기한다.
@@ -15,10 +16,10 @@ TS 이름을 docstring 에 병기한다.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, Callable, Mapping, Optional, Protocol, Sequence, runtime_checkable
-
+from typing import Any, Protocol, runtime_checkable
 
 # ── 공통 열거형 ──────────────────────────────────────────────────────────────
 
@@ -54,13 +55,13 @@ class Editability(str, Enum):
     RUNTIME_EDITABLE = "RUNTIME_EDITABLE"
     RESTART_REQUIRED = "RESTART_REQUIRED"
     REDEPLOY_REQUIRED = "REDEPLOY_REQUIRED"
-    SECRET = "SECRET"
+    SECRET = "SECRET"  # noqa: S105 — 편집성 라벨(값이 아니다)
 
 
 # ── 데이터 객체 ──────────────────────────────────────────────────────────────
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class AudioData:
     """PCM 오디오 한 덩어리.
 
@@ -77,10 +78,13 @@ class AudioData:
     sample_rate: int = 16000
     channels: int = 1
     duration_ms: int = 0
-    source_path: Optional[str] = None
+    source_path: str | None = None
+
+    def __repr__(self) -> str:
+        return f"AudioData(bytes={len(self.pcm)}, sample_rate={self.sample_rate}, duration_ms={self.duration_ms})"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class TranscriptionSegment:
     """VAD 세그먼트 1개의 디코드 결과. WS `partial`/`final.segments[]` 의 항목."""
 
@@ -88,10 +92,13 @@ class TranscriptionSegment:
     text: str
     start_ms: int
     end_ms: int
-    confidence: Optional[float] = None
+    confidence: float | None = None
+
+    def __repr__(self) -> str:
+        return f"TranscriptionSegment(seg_idx={self.seg_idx}, chars={len(self.text)}, start_ms={self.start_ms}, end_ms={self.end_ms})"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class TranscriptionResult:
     """STT 결과. TS `TranscriptionResult` 와 필드 동일.
 
@@ -111,7 +118,30 @@ class TranscriptionResult:
     connection_id: str = ""
     language: str = "ja"
     timings_ms: Mapping[str, int] = field(default_factory=dict)
-    raw: Optional[Mapping[str, Any]] = None
+    raw: Mapping[str, Any] | None = None
+
+    def __repr__(self) -> str:
+        return f"TranscriptionResult(chars={len(self.text)}, segments={len(self.segments)}, connection_id={self.connection_id!r})"
+
+
+@dataclass(frozen=True, repr=False)
+class UtteranceResult:
+    """실시간 세션의 발화 1개 결과 — `on_final` 의 인자.
+
+    Attributes:
+        result: 세그먼트 텍스트를 이은 전사(구두점 없음 — 모델 출력 그대로).
+        audio: 저장할 발화 PCM(푸시투토크면 누른 동안 전체, 끝점 모드면 세그먼트 ± 여유).
+        reason: "stop"(클라 stop) | "endpoint"(VAD 끝점, endpoint=auto) | "max_length"(발화 상한 도달, 강제).
+        timings_ms: {"vad": 끝점 대기(오디오 시간), "stt": 종료 신호 → 텍스트 완성(벽시계), "decode": 세그먼트 디코드 합}.
+    """
+
+    result: TranscriptionResult
+    audio: AudioData
+    reason: str
+    timings_ms: Mapping[str, int] = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        return f"UtteranceResult(reason={self.reason!r}, {self.result!r}, {self.audio!r})"
 
 
 @dataclass(frozen=True)
@@ -152,13 +182,13 @@ class SpeechRequest:
 
     trace_id: str
     role: EngineRole
-    user_id: Optional[str] = None
-    chat_id: Optional[str] = None
-    utterance_id: Optional[str] = None
+    user_id: str | None = None
+    chat_id: str | None = None
+    utterance_id: str | None = None
     options: Mapping[str, Any] = field(default_factory=dict)
-    text: Optional[str] = None
-    voice: Optional[VoiceOptions] = None
-    audio: Optional[AudioData] = None
+    text: str | None = None
+    voice: VoiceOptions | None = None
+    audio: AudioData | None = None
 
 
 @dataclass(frozen=True)
@@ -172,7 +202,7 @@ class ConnectionProfile:
     enabled: bool
     connection: Mapping[str, Any] = field(default_factory=dict)  # baseUrl·timeoutMs·retry …
     runtime: Mapping[str, Any] = field(default_factory=dict)  # model·numThreads·decodingMethod …
-    credential_ref: Optional[str] = None
+    credential_ref: str | None = None
     status: str = "UNKNOWN"
 
 
@@ -191,7 +221,7 @@ class EngineContext:
     connection: ConnectionProfile
     effective: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     environment: str = "LOCAL"
-    secret_resolver: Optional[Callable[[str], str]] = None
+    secret_resolver: Callable[[str], str] | None = None
     logger: Any = None
 
 
@@ -203,7 +233,7 @@ class HealthCheckResult:
     latency_ms: int
     status: str  # HEALTHY | DEGRADED | UNAVAILABLE | MISCONFIGURED
     detail: Mapping[str, Any] = field(default_factory=dict)  # 모델 로드 여부·메모리·버전 등, 시크릿 없음
-    checked_at: Optional[str] = None  # ISO8601
+    checked_at: str | None = None  # ISO8601
 
 
 @dataclass(frozen=True)
@@ -238,9 +268,9 @@ class ConfigurationKey:
     type: str  # string | number | integer | boolean | enum | object
     default: Any = None
     description: str = ""
-    min: Optional[float] = None
-    max: Optional[float] = None
-    enum: Optional[Sequence[str]] = None
+    min: float | None = None
+    max: float | None = None
+    enum: Sequence[str] | None = None
     impact: str = ""  # 바꾸면 무엇이 달라지는지 한 줄
     editability: Editability = Editability.RUNTIME_EDITABLE
     restart_required: bool = False
@@ -256,8 +286,9 @@ class ConfigurationSchema:
 # ── 콜백 타입 ────────────────────────────────────────────────────────────────
 
 PartialCallback = Callable[[TranscriptionSegment], Awaitable[None]]
-FinalCallback = Callable[[TranscriptionResult], Awaitable[None]]
-VadCallback = Callable[[str, int], Awaitable[None]]  # (state: "speech"|"silence", at_ms)
+FinalCallback = Callable[[UtteranceResult], Awaitable[None]]
+VadCallback = Callable[[str, int], Awaitable[None]]  # (state: "SPEECH"|"SILENCE", at_ms — 현재 발화 시작 기준)
+ErrorCallback = Callable[[BaseException], Awaitable[None]]
 
 
 # ── 엔진 Protocol ────────────────────────────────────────────────────────────
@@ -280,24 +311,29 @@ class RealtimeSttSession(Protocol):
     """WS 세션 1개에 대응하는 실시간 인식 세션(VAD 상태기계 + 세그먼트 디코드).
 
     생성은 `RealtimeSttEngine.open_session(...)` 이 한다. 프레임은 40ms PCM16 mono.
-    콜백은 이벤트 루프에서 await 되므로 무거운 디코드는 구현이 스레드 풀로 넘긴다.
+    디코드는 세션별 순차 작업 큐에서 스레드 풀로 넘긴다 — `push_frame` 은 디코드를 기다리지 않는다.
+    콜백(on_vad·on_partial·on_final·on_error)은 이벤트 루프에서 발생 순서대로 await 된다.
     """
 
     async def push_frame(self, pcm16_frame: bytes) -> None:
-        """40ms 프레임 1개를 넣는다. VAD 전이 시 on_vad, 세그먼트 종료 시 디코드 → on_partial."""
+        """프레임 1개를 넣는다. VAD 전이 시 on_vad, 세그먼트 종료 시 디코드 → on_partial(끝점 모드면 on_final)."""
         ...
 
-    async def stop(self) -> TranscriptionResult:
-        """남은 버퍼를 강제 세그먼트로 처리하고 전체 결과를 돌려준다(WS `stop` 또는 max_utterance_sec)."""
+    async def stop(self) -> None:
+        """현재 발화를 끝낸다 — 남은 음성을 디코드해 on_final 을 **정확히 1회** 부른다(말이 없으면 빈 텍스트)."""
+        ...
+
+    async def cancel(self) -> None:
+        """현재 발화를 버린다(on_final 없음). 세션은 유지."""
         ...
 
     async def close(self) -> None:
-        """리소스 해제. stop 없이 끊긴 세션(idle timeout)에도 호출된다."""
+        """리소스 해제. stop 없이 끊긴 세션(idle timeout)에도 호출된다. 대기 중인 작업은 버린다."""
         ...
 
     @property
     def elapsed_ms(self) -> int:
-        """세션 시작 이후 받은 오디오 길이(ms). 상한 판정에 쓴다."""
+        """현재 발화에 쌓인 오디오 길이(ms)."""
         ...
 
 
@@ -312,8 +348,9 @@ class RealtimeSttEngine(SpeechToTextEngine, Protocol):
         on_vad: VadCallback,
         on_partial: PartialCallback,
         on_final: FinalCallback,
+        on_error: ErrorCallback,
     ) -> RealtimeSttSession:
-        """세션을 만든다. `request.options` 의 endpoint_silence_ms 등 요청 단위 값을 적용한다."""
+        """세션을 만든다. `request.options` 의 endpoint(manual|auto)·partial 등 요청 단위 값을 적용한다."""
         ...
 
 
@@ -344,17 +381,15 @@ class EngineProvider(Protocol):
     Health 와 Functional Test 는 분리한다(추가 기획안 §59): 전자는 가볍고 주기적, 후자는 실제 추론.
     """
 
-    def descriptor(self) -> EngineDescriptor:
-        ...
+    def descriptor(self) -> EngineDescriptor: ...
 
-    def configuration_schema(self) -> ConfigurationSchema:
-        ...
+    def configuration_schema(self) -> ConfigurationSchema: ...
 
     async def health_check(self, ctx: EngineContext) -> HealthCheckResult:
         """프로세스·모델 로드·엔드포인트 응답만 본다. 추론하지 않는다."""
         ...
 
-    async def functional_test(self, ctx: EngineContext, asset_path: Optional[str] = None) -> FunctionalTestResult:
+    async def functional_test(self, ctx: EngineContext, asset_path: str | None = None) -> FunctionalTestResult:
         """실제 추론 1회. STT 는 `speech/test-assets/ja-sample.wav`, TTS 는 고정 문장, LLM 은 고정 JSON 스키마."""
         ...
 

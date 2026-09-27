@@ -58,3 +58,38 @@ aliases:
   ~/kaiwa-tts-run/.venv/bin/python ~/kaiwa-tts-run/speech/tts-service/scripts/bench_synth.py --url http://127.0.0.1:8200 --env-file ~/kaiwa-tts-run/.env --n 20 --label mps-with-ollama
   ```
   비교 기준: 위 표 MPS plain p50 0.24s / p95 0.31s. 메모리는 `footprint $(pgrep -f "uvicorn app:app --app-dir")` 로 함께 기록.
+
+## STT — gateway 폴백 (developer A, task-003e, 2026-09-28 00:20~00:40)
+
+> 출처 task: [[task-003e-stt-gateway-web]] · 서비스 정본: `speech/gateway/README.md` · 도구: `speech/gateway/scripts/measure_stt.py`(offline = 엔진 직접 / ws = 떠 있는 gateway 에 40ms 프레임을 실시간 속도로).
+
+**조건**: 우분투 서버 AMD Ryzen 5 8600G(6C/12T)·RAM 30GB · Python 3.10.12 · sherpa-onnx 1.13.8 · ReazonSpeech zipformer int8(encoder·joiner int8 + decoder fp32, `reazonspeech-int8@2024-08-01-int8-v1`) + silero VAD · `num_threads=2` · `greedy_search` · 끝점 무음 500ms. gateway 는 임시 포트 8199(`scripts/run_dev.py`, pm2 아님), 티켓 `purpose=MIC_TEST`(저장·콜백 없음). 입력 = `speech/test-assets/stt20` **합성음 20문장**(M4 TTS jvnv-F1/F2/M1, 1.8~5.2s, 앞뒤 무음 0.3s) — 사람 목소리보다 쉬우므로 인식률은 상한값으로 읽는다(사람 실측은 003f 실기기). CER = NFKC·구두점·공백 제거 후 문자 편집거리 / 정답 길이, 숫자 표기 후보(7時/七時 등) 중 최소. "정답" = CER ≤0.1(= 유사도 ≥0.9, speech/README §6 ④ 규칙).
+
+| 게이트 항목 | 목표 | 결과 | 판정 |
+|---|---|---|---|
+| 인식률 20문장 (④) | 정답 ≥16 · CER ≤10% 권장 | **20/20 · CER 0.57%** (오류는 「ください」→「下さい」 표기 1건뿐) | ✅ |
+| 세그먼트 디코드 지연 p50 / p95 | 5s 발화 ≤0.8s (②) | **64ms / 78ms** (5.2s 문장 ≈75ms) | ✅ |
+| RTF (디코드 / 음성 길이) p50 | 기록 | **0.017** (threads 1: 0.023 · 4: 0.015) | 기록 |
+| 푸시투토크 `stop` → `final` p50 / p95 | 기록 | **66ms / 81~105ms** (WS 왕복 포함, 저장 없음) | 기록 |
+| 발화 끝 → `final` p50 / p95 (끝점 모드) | 기록 | **607ms / 694ms** (= 끝점 무음 500ms + 디코드·전송 ≈100ms) | 기록 |
+| 세션 3개 동시 `stop`→`final` p50 / p95 | 기록 | **77ms / 103ms** (60/60 정답) | 기록 |
+| 메모리 (⑥) | 상주 ≈0.5GB | 모델 로드 후 **≈330MB** · 세션 1개 피크 **≈410MB** · 3개 동시 피크 **≈510MB** | ✅ → pm2 `max_memory_restart: 1G` |
+| 모델 로드(기동) | 기록 | **≈1.0s**(170MB sha256 검증 포함, NFS 에서 읽음) + 워밍업 디코드 | 기록 |
+| TURN 저장 E2E (완료 기준 4) | 기록 | developer B 스모크(8100 임시 인스턴스 → dev 앱 3011) `stored=True`, storeMs 156ms(dev 서버 기준) | B 스모크 PASS |
+
+**세부**
+
+| 측정 | 값 |
+|---|---|
+| offline(파일 통째, VAD 없음) threads 1 / 2 / 4 — 디코드 p50·p95 | 87·110 / 63·78 / 58·70 ms |
+| ws manual 1회차·2회차 stop→final p50·p95 | 66·105 / 65·81 ms |
+| 브라우저 `getUserMedia`→WS→첫 partial (②) | **미측정(A)** — 웹 클라이언트(developer B)·QA Playwright fake audio(`stt20/fake-mic-48k.wav`) 몫 |
+
+## 발견·결정 (STT)
+
+1. **디코드 입력 앞 무음이 ~0.3s 이하면 발화 첫 단어가 통째로 빠진다.** stt20 01 「こんにちは、今日はいい天気ですね」 → 「今日はいい天気ですね」(offline·ws 모두, greedy·beam 모두). 앞에 무음 0.2s 만 더해도 회복. → 어댑터가 모든 디코드 입력에 **앞 0.4s·뒤 0.2s 무음**을 덧댄다(`LEAD_ZERO_MS`/`TAIL_ZERO_MS`, RTF 영향 ≈+0.001). 수정 전 CER 1.98%·19/20 → 수정 후 0.57%·20/20. **온디바이스 플러그인(003f)도 같은 모델이므로 같은 패딩이 필요하다**(Kotlin 쪽 VAD 세그먼트 디코드 전에).
+2. **모델 출력에 구두점이 없다**(「こんにちは今日はいい天気ですね」). 화면·LLM 입력은 그대로 쓰되, 교정 비교(worker Comparator)는 원래 구두점을 지우므로 영향 없음. 필요하면 앱에서 문장부호 복원 검토(후속).
+3. **숫자는 한자 숫자로 나온다**(「7時」→「七時」, 「200円」→「二百円」, 「15日」→「十五日」). 정답 표기 후보(`alternatives`)로 처리. 학습 화면에서 숫자 표기 차이를 오답으로 보지 않게 교정 로직이 유의할 것(prompt-engineer 공유).
+4. **표기 흔들림**: 「りんご」/「リンゴ」(offline 에서만 リンゴ), 「ください」/「下さい」 — 의미 동일, CER 에는 오류로 잡힘.
+5. **자원**: 디코드가 RTF 0.017 로 매우 빨라 서버 CPU 여유가 크다. threads 2→4 이득은 ≈5ms 뿐이라 2 유지(동시 세션 대비). 동시 세션 상한 `max_sessions=8` 유지.
+6. **ReazonSpeech 가 무음만 넣으면 「えっ」 같은 환각**을 낸다(0 입력 1초 → 「えっ」). VAD(`min_speech_ms=250`)가 걸러 무음 `stop` 은 빈 final 이 된다 — VAD 없이 파일 통째 디코드하는 경로(Functional Test 등)는 유의.

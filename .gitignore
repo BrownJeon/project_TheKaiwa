@@ -18,6 +18,12 @@ speech/**/venv/
 speech/**/__pycache__/
 speech/models/**
 !speech/models/README.md
+!speech/models/fetch_models.py
+!speech/models/manifest.example.json
+# Python 도구 캐시(ruff·mypy·pytest)
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
 speech/tts-service/model_assets/
 # android
 android/build/

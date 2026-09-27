@@ -1,5 +1,7 @@
 # speech/test-assets — Functional Test 고정 오디오
 
+> **stt20(task-003e, 2026-09-28)** — STT 실측용 합성 음성 20문장: `stt20/sentences.json`(정답·숫자 표기 후보, 커밋) + `stt20/NN.wav`(16kHz mono PCM16, 앞뒤 무음 0.3s, **git 미추적**) + `stt20/fake-mic-{16k,48k}.wav`(문장 01·09·13 을 2초 간격으로 이은 18초 — Playwright `--use-file-for-fake-audio-capture` 용, 미추적). 생성: `~/.node-local/thekaiwa-speech/venv/bin/python speech/test-assets/make_test_audio.py`(M4 tts-service `/synthesize` 직접, `TTS_SERVICE_SECRET` 은 env 또는 `.env` 에서 읽고 출력 안 함, jvnv-F1/F2/M1 순환, 있는 파일은 건너뜀 — 1회 20호출). **합성음이라 인식률을 과대평가한다** — 사람 목소리 실측은 task-003f 실기기. 아래 `ja-sample.wav`(사용자 녹음)와는 별개다.
+>
 > 상태: **`ja-sample.wav` 는 아직 없다.** task-003 에서 사용자가 녹음해 이 디렉토리에 두고 커밋한다(수십 KB, 커밋 대상 — `.gitignore` 의 `*.wav` 규칙에서 이 파일만 예외 `!speech/test-assets/ja-sample.wav`).
 
 ## 1. 용도

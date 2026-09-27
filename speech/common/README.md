@@ -1,6 +1,8 @@
 # speech/common — gateway·worker 공용 패키지 `kaiwa_speech_common` (골격)
 
-> 상태: 설계 골격. TS `src/modules/engine` 층의 개념을 Python 으로 미러링한다(대응표: [`docs/design/module-dependency.md`](../../docs/design/module-dependency.md) §5-1). tts-service 는 **이 패키지를 import 하지 않는다**(AGPL 경계).
+> 상태: **Phase 1 일부 구현(task-003e, 2026-09-28)** — gateway 가 쓰는 부분만: `engine/interfaces.py`(골격에서 이동·실시간 세션 계약 정리) · `engine/errors.py` · `engine/adapters/{__init__ 레지스트리, stt/reazon_sherpa.py}` · `router.py`(역할당 connection 1개, Fallback 순회 없음) · `config.py`(1·3·4층) · `secrets.py` · `logging.py`(MaskFilter) · `audio.py` · `ids.py` · `internal_client.py`. 아직 없음: `db.py`·`health.py`·`trace.py`·`engine/{descriptor,schema}.py`·whisper·style_bert 어댑터·`schemas/*.json`(worker·Phase 2). 설치는 `pip install -e` 대신 **PYTHONPATH**(`speech/gateway/README.md` §7).
+>
+> TS `src/modules/engine` 층의 개념을 Python 으로 미러링한다(대응표: [`docs/design/module-dependency.md`](../../docs/design/module-dependency.md) §5-1). tts-service 는 **이 패키지를 import 하지 않는다**(AGPL 경계).
 
 ## 1. 역할
 
@@ -34,7 +36,7 @@ speech/common/
 └── tests/
 ```
 
-- 설치: `~/.node-local/thekaiwa-speech/venv/bin/pip install -e speech/common` (editable — 릴리스 디렉토리가 바뀌어도 `-e` 링크는 릴리스 경로를 가리키므로 **배포마다 재실행**한다; deploy.yml 의 post-step).
+- 설치: **하지 않는다** — 프로세스가 `PYTHONPATH=<root>/speech/gateway:<root>/speech/common` 으로 읽는다(ecosystem.config.js). editable 설치는 설치 경로를 박아 넣어 릴리스마다 재실행이 필요했다(2026-09-28 변경). 실행 의존성 핀은 `speech/gateway/requirements.txt`. `pyproject.toml` 은 도구 설정(pytest·ruff·mypy)과 선택적 `pip install -e` 용으로만 둔다.
 - gateway·worker 는 `from kaiwa_speech_common.router import SpeechEngineRouter` 처럼 패키지로 import 한다. 상대 경로 `sys.path` 조작 금지.
 - 의존성: `sherpa-onnx`, `numpy`, `sqlalchemy`, `pymysql`, `pyyaml`, `httpx`, `pydantic`. `faster-whisper` 는 `whisper.mode=local` 일 때만 extras(`pip install -e 'speech/common[local-whisper]'`).
 

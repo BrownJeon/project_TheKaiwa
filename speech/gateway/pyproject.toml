@@ -1,0 +1,28 @@
+# 설치 대상 패키지가 아니다 — 도구 설정만 둔다(실행 의존성은 requirements.txt).
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "../common"]
+addopts = "-q -p no:cacheprovider"
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]
+"scripts/*.py" = ["S310", "BLE001", "S311"]
+"interfaces.py" = ["F403"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+exclude = ["tests/"]
+mypy_path = "../common"

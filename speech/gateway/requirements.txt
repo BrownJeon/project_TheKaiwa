@@ -1,0 +1,14 @@
+# thekaiwa-speech-gateway (우분투, Python 3.10.12 시스템 인터프리터의 venv ~/.node-local/thekaiwa-speech/venv)
+# 2026-09-28 설치·실측한 조합(task-003e). 바꾸려면 별도 승인 작업(venv 는 릴리스 밖 공유 자원 — 롤백으로 되돌아가지 않음).
+# 공용 패키지(speech/common)는 설치하지 않고 PYTHONPATH 로 읽는다(ecosystem.config.js — 릴리스마다 `pip install -e` 재실행이 필요 없게).
+sherpa-onnx==1.13.8
+sherpa-onnx-core==1.13.8
+numpy==2.2.6
+fastapi==0.141.1
+starlette==1.7.0
+pydantic==2.13.5
+uvicorn[standard]==0.54.0
+websockets==16.1.1
+PyJWT==2.15.0
+httpx==0.28.1
+PyYAML==6.0.3

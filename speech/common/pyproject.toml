@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kaiwa-speech-common"
+version = "0.1.0"
+description = "TheKaiwa speech services shared package (gateway·worker) — tts-service 는 import 하지 않는다(AGPL 경계)"
+requires-python = ">=3.10"
+# 실행 의존성 핀은 speech/gateway/requirements.txt 가 정본(venv 는 릴리스 밖 공유 자원).
+dependencies = []
+
+[tool.setuptools.packages.find]
+include = ["kaiwa_speech_common*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q -p no:cacheprovider"
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+exclude = ["tests/"]
