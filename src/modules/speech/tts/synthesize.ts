@@ -10,7 +10,8 @@ import { currentEnvironment, newTraceId, recordTrace, tts, type TraceStep, type 
 import { codePointLength } from '@/modules/infra'
 import { getAppSetting, getVoiceSettingForTts } from '@/modules/preferences'
 import { loadTtsVoice, type TtsVoice } from '../voices/registry'
-import { isCacheKey, readCachedAudio, storeCachedAudio, TTS_TEXT_VERSION, ttsCacheKey, type CacheKeyParts } from './cache'
+import { isCacheKey, readCachedAudio, storeCachedAudio, TTS_TEXT_VERSION, ttsCacheKey, type CacheKeyParts, type CachedAudio } from './cache'
+import { createSingleFlight } from './singleFlight'
 import { TtsRequestError, TtsUnavailableError } from './errors'
 import { lexiconDigest, loadActiveLexicon, selectEntries } from './lexicon'
 import { stopwatch, synthSteps, ttsStep } from './metrics'
@@ -102,18 +103,21 @@ async function pickVoice(explicit: string | null | undefined, saved: string | nu
   return v
 }
 
-// ── 같은 키 동시 합성은 하나로 합친다 ──────────────────────────────────────
+// ── 같은 키 합성은 하나로 합친다(출처: CACHE·SHARED·SYNTH — singleFlight) ──────────────
 
-const inflight = new Map<string, Promise<{ out: TtsSynthOutput; durationMs: number }>>()
+type Synthesized = { out: TtsSynthOutput; durationMs: number; parts: CacheKeyParts }
 
-/**
- * 합성 → WAV 검증까지를 약속으로 돌려주고, 캐시 저장은 뒤에서 이어 한다(첫 오디오를 저장 I/O 만큼 늦추지 않는다).
- * 같은 키 요청은 저장이 끝날 때까지 이 약속을 공유한다 — 저장 전 도착한 요청도 두 번 합성하지 않는다.
- */
-function synthOnce(target: TtsTarget, voice: TtsVoice, key: string, parts: CacheKeyParts, hints: readonly TtsLexiconHint[], traceId: string) {
-  const running = inflight.get(key)
-  if (running) return running
-  const synth = tts
+const flights = createSingleFlight<CachedAudio, Synthesized>({
+  readCache: (key) => readCachedAudio(key),
+  // 첫 오디오를 저장 I/O 만큼 늦추지 않는다 — 저장은 응답 뒤에 이어지고, 끝날 때까지 같은 키 요청은 합류한다.
+  store: (key, r) => storeCachedAudio(key, r.parts, r.out.audio, r.durationMs),
+  onStoreError: (e) => {
+    if (!tts.isTtsEngineError(e)) console.warn('[tts] 캐시 저장 실패:', e instanceof Error ? e.name : 'unknown')
+  },
+})
+
+function startSynthesis(target: TtsTarget, voice: TtsVoice, parts: CacheKeyParts, hints: readonly TtsLexiconHint[], traceId: string): Promise<Synthesized> {
+  return tts
     .synthesize(
       target,
       { model: voice.voiceModelId, speakerId: voice.speakerId, modelVersion: parts.modelVersion },
@@ -133,16 +137,8 @@ function synthOnce(target: TtsTarget, voice: TtsVoice, key: string, parts: Cache
     .then((out) => {
       const info = wavInfo(out.audio)
       if (!info) throw new tts.TtsEngineError('BAD_AUDIO', 'NOT_WAV')
-      return { out, durationMs: info.durationMs }
+      return { out, durationMs: info.durationMs, parts }
     })
-  inflight.set(key, synth)
-  synth
-    .then((r) => storeCachedAudio(key, parts, r.out.audio, r.durationMs))
-    .catch((e) => {
-      if (!tts.isTtsEngineError(e)) console.warn('[tts] 캐시 저장 실패:', e instanceof Error ? e.name : 'unknown')
-    })
-    .finally(() => inflight.delete(key))
-  return synth
 }
 
 /** 캐시 키까지의 준비 결과(합성 전). 라이브 스모크가 같은 키를 계산할 때도 쓴다. */
@@ -231,43 +227,60 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
   const seg = { normalizedText: p.normalizedText, hints: p.hints }
   const lex = { dictionaryVersion: p.dictionaryVersion }
 
-  let t = stopwatch()
-  const hit = isCacheKey(key) ? await readCachedAudio(key) : null
-  if (hit) {
+  const base = { traceId, normalizedText: seg.normalizedText, dictionaryVersion: lex.dictionaryVersion, modelVersion: voice.modelVersion }
+  const fromCache = (hit: CachedAudio, ms: number): SynthesizeResult => {
     const ttfaMs = Math.round(total())
-    steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: hit.durationMs, status: 'OK' }))
+    steps.push(ttsStep('TTS_SYNTH[0]', ms, { chunkIndex: 0, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: hit.durationMs, status: 'OK' }))
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
-    return { audio: hit.audio, cached: true, durationMs: hit.durationMs ?? wavInfo(hit.audio)?.durationMs ?? null, ttfaMs, traceId, normalizedText: seg.normalizedText, dictionaryVersion: lex.dictionaryVersion, modelVersion: voice.modelVersion }
+    return { ...base, audio: hit.audio, cached: true, durationMs: hit.durationMs ?? wavInfo(hit.audio)?.durationMs ?? null, ttfaMs }
   }
 
-  // 사용할 수 없는 연결에 매번 8초씩 기다리지 않는다 — 판정이 불가면(30초마다 재확인) 바로 자막만.
-  if (target.status === 'UNAVAILABLE' || target.status === 'MISCONFIGURED' || breakerOpen()) {
-    const a = await assessAvailability({ allowProbe: true })
-    if (a.health === 'UNAVAILABLE') {
-      steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: false, connectionKey: target.key, status: 'SKIPPED', errorCode: 'TTS_UNAVAILABLE' }))
-      void finishTrace(traceId, steps, total(), 'ERROR', 'TTS_UNAVAILABLE', input, { ...meta, cacheHits: 0 })
-      throw new TtsUnavailableError(a.reason ?? 'SERVER_ERROR', traceId)
+  const t = stopwatch()
+  if (!isCacheKey(key)) throw new Error('캐시 키 형식 오류')
+  const found = await flights.lookup(key)
+  if (found.source === 'CACHE') return fromCache(found.value, t())
+
+  let run: { source: 'SHARED' | 'SYNTH'; promise: Promise<Synthesized> }
+  if (found.source === 'SHARED') run = found
+  else {
+    // 사용할 수 없는 연결에 매번 8초씩 기다리지 않는다 — 판정이 불가면(30초마다 재확인) 바로 자막만. 합류 요청은 엔진을 부르지 않으므로 건너뛴다.
+    if (target.status === 'UNAVAILABLE' || target.status === 'MISCONFIGURED' || breakerOpen()) {
+      const a = await assessAvailability({ allowProbe: true })
+      if (a.health === 'UNAVAILABLE') {
+        steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: false, connectionKey: target.key, status: 'SKIPPED', errorCode: 'TTS_UNAVAILABLE' }))
+        void finishTrace(traceId, steps, total(), 'ERROR', 'TTS_UNAVAILABLE', input, { ...meta, cacheHits: 0 })
+        throw new TtsUnavailableError(a.reason ?? 'SERVER_ERROR', traceId)
+      }
     }
+    const produced = await flights.produce(key, found.seq, () => startSynthesis(target, voice, parts, seg.hints, traceId))
+    if (produced.source === 'CACHE') return fromCache(produced.value, t())
+    run = produced
   }
 
-  t = stopwatch()
+  // SHARED = 진행 중·저장 중인 합성에 합류(엔진 호출 0) → 사용자에게는 캐시 적중(HIT). SYNTH 만 MISS·상태 판정 대상.
+  const shared = run.source === 'SHARED'
   try {
-    const { out, durationMs } = await synthOnce(target, voice, key, parts, seg.hints, traceId)
+    const { out, durationMs } = await run.promise
     const ttfaMs = Math.round(total())
+    if (shared) {
+      steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: durationMs, status: 'OK' }))
+      void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
+      return { ...base, audio: out.audio, cached: true, durationMs, ttfaMs }
+    }
     recordSynthSuccess()
     steps.push(...synthSteps(out, { connectionKey: target.key, modelVersion: voice.modelVersion, ms: t(), durationMs }))
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 0, ttfaMs })
-    return { audio: out.audio, cached: false, durationMs, ttfaMs, traceId, normalizedText: seg.normalizedText, dictionaryVersion: lex.dictionaryVersion, modelVersion: voice.modelVersion }
+    return { ...base, audio: out.audio, cached: false, durationMs, ttfaMs }
   } catch (e) {
-    // 엔진 호출 실패만 상태 판정(연속 실패)에 넣는다. 그 밖의 예외(DB 등)는 그대로 올린다(500).
+    // 엔진 호출 실패만 상태 판정(연속 실패)에 넣는다 — 합류 요청은 원 요청이 이미 셌으므로 세지 않는다. 그 밖의 예외(DB 등)는 그대로(500).
     if (!tts.isTtsEngineError(e)) throw e
     const kind: TtsFailureKind = e.kind
-    recordSynthFailure(kind, e.code)
+    if (!shared) recordSynthFailure(kind, e.code)
     steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: false, connectionKey: target.key, status: kind === 'TIMEOUT' ? 'TIMEOUT' : 'FAILED', errorCode: e.code }))
     void finishTrace(traceId, steps, total(), 'ERROR', `TTS_${kind}`, input, { ...meta, cacheHits: 0 })
     if (kind === 'TEXT_TOO_LONG') throw new TtsRequestError('TEXT_TOO_LONG')
-    // TtsEngineError 에는 kind·code 만 있다(요청 문장·주소·시크릿 없음).
-    throw Object.assign(e, { traceId })
+    // 같은 오류 객체를 합류 요청들이 나눠 받는다 — traceId 는 복사본에 붙인다(TtsEngineError 에는 kind·code 만, 문장·주소·시크릿 없음).
+    throw Object.assign(new tts.TtsEngineError(kind, e.code, e.retryAfterSec), { traceId })
   }
 }
 
