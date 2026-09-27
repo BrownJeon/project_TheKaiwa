@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 // Next 16 은 `middleware` 파일 규약을 `proxy` 로 바꿨다(빌드 경고). 동작은 동일 — 페이지 라우트의 세션 유무만 본다.
 import { SESSION_COOKIE_NAME, isQaTokenAllowed, verifyJwt } from '@/modules/infra/jwt'
+import { prisma } from '@/modules/infra/db'
+import { can } from '@/modules/admin/permissions/can'
 
 /**
  * 인증 없이 접근 가능한 경로. 이 목록에 없는 모든 경로는 기본적으로 보호 대상이다 —
@@ -30,14 +32,35 @@ const PUBLIC_PATHS = new Set(['/', '/login', '/invite'])
 const PUBLIC_PREFIXES: readonly string[] = []
 
 /**
- * `src/lib/jwt.ts`만 import한다 — `src/lib/auth.ts`(Prisma·`jsonwebtoken` 포함)를 여기서
- * import하면 안 된다(Edge Runtime에서 `jsonwebtoken`의 `jwt.verify()`가
- * "The edge runtime does not support Node.js 'crypto' module"로 크래시하는 것이
- * VoiceVault·TheThinker에서 실측 확인됨 — `src/lib/jwt.ts` 상단 주석 참고).
- *
- * 미들웨어는 "유효한 토큰이 있는가"만 판단해 통과/리다이렉트를 결정하고, role 등 상세
- * 정보는 각 페이지/API 라우트가 `src/lib/auth.ts`의 `auth()`(Node.js 런타임)로 다시 확인한다.
+ * JWT 검증은 `infra/jwt`(jose)만 쓴다 — `infra/auth`(next/headers `cookies()`)는 proxy 문맥에서 쓸 수 없다.
+ * Next 16 proxy 는 Node.js 런타임이 기본이라(`node_modules/next/dist/docs/.../proxy.md` "Runtime") 관리자 경로에서만
+ * Prisma 로 역할을 조회한다(아래 ADMIN_*). 그 밖의 경로는 "유효한 토큰이 있는가"만 판단하고,
+ * role 등 상세는 각 페이지/API 라우트가 `auth()` 로 다시 확인한다.
  */
+/**
+ * 관리자 콘솔 경로(role-permission §5, admin-console/01 §8) — `console.access` 가 없는 사용자(USER)에게는 **존재 자체를 숨긴다**:
+ * 페이지는 앱 공통 404 로 rewrite, API 는 라우트와 같은 모양의 404 봉투. 역할은 JWT 가 아니라 **DB 에서** 읽는다
+ * (JWT 에 role 이 없다 — Next 16 proxy 는 Node 런타임이라 Prisma 조회가 가능). 이것은 1차 방어선일 뿐이고
+ * 최종 판단은 항상 각 라우트의 `requireCapability`·서버 컴포넌트의 `requireConsolePage` 가 다시 한다(미들웨어 우회 대비).
+ */
+const ADMIN_PAGE = /^\/admin(\/|$)/
+const ADMIN_API = /^\/api\/admin(\/|$)/
+
+async function hasConsoleAccess(userId: string): Promise<boolean> {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } })
+    return Boolean(user && can(user.role, 'console.access').allowed)
+  } catch {
+    return false
+  }
+}
+
+function apiEnvelope(status: 401 | 404) {
+  return status === 401
+    ? NextResponse.json({ success: false, data: { code: 'UNAUTHENTICATED' }, message: '로그인이 필요합니다.' }, { status })
+    : NextResponse.json({ success: false, data: { code: 'NOT_FOUND' }, message: '요청한 항목을 찾을 수 없습니다.' }, { status })
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
   const isPublic = PUBLIC_PATHS.has(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))
@@ -46,6 +69,15 @@ export async function proxy(req: NextRequest) {
   const verified = token ? await verifyJwt(token) : null
   // QA 테스트 토큰은 localhost 직접 요청에서만 통과(운영 도메인에서 쿠키가 새어도 무효).
   const payload = verified?.qa && !isQaTokenAllowed(req.headers) ? null : verified
+
+  if (ADMIN_API.test(pathname)) {
+    if (!payload) return apiEnvelope(401)
+    return (await hasConsoleAccess(payload.userId)) ? NextResponse.next() : apiEnvelope(404)
+  }
+  if (ADMIN_PAGE.test(pathname) && payload && !(await hasConsoleAccess(payload.userId))) {
+    // 존재하지 않는 경로로 rewrite → 앱 공통 not-found(404). 주소창은 그대로라 콘솔이 있다는 힌트가 없다.
+    return NextResponse.rewrite(new URL('/__not-found', req.nextUrl.origin))
+  }
 
   if (isPublic || payload) {
     return NextResponse.next()
@@ -62,7 +94,9 @@ export const config = {
   // 로그인 HTML을 받게 되는 문제 방지.
   // PWA 자산(manifest·icons·app-shell)도 제외한다 — 매니페스트가 로그인 HTML로 치환되면
   // 설치 배너가 조용히 깨진다.
+  // `/api/admin/*` 만은 예외로 여기서도 본다 — USER 에게 관리자 API 의 존재를 숨기기 위해(위 ADMIN_API).
   matcher: [
     '/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|app-shell/|app/download/).*)',
+    '/api/admin/:path*',
   ],
 }

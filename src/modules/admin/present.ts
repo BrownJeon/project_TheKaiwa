@@ -143,6 +143,15 @@ export function fallbackDto(v: FallbackPolicyView, version: number | null): Fall
 /** 경고에서 괄호 안(환경 변수 이름·키 이름)을 뺀 코드만 — ADMIN 요약용. */
 const codeOnly = (w: string) => w.replace(/\(.*\)$/, '')
 
+/**
+ * PATH 키 값(H1): env 에서 온 절대 경로는 **해석값 대신 env 참조(`$NAME`)**, 그 밖의 절대 경로는 파일 이름만.
+ * (seed `claude-cli-local.connection.binPath = "$CLAUDE_CLI_PATH"` → Effective 가 env 로 풀려도 응답에는 `$CLAUDE_CLI_PATH`.)
+ */
+function pathValue(value: unknown, type: string, sourceRef: string): unknown {
+  if (type === 'PATH' && typeof value === 'string' && /^(\/|~\/)/.test(value) && sourceRef.startsWith('env:')) return `$${sourceRef.slice(4)}`
+  return displayValue(value, type)
+}
+
 export function effectiveDto(
   eff: EffectiveConfiguration,
   opts: { full: boolean; secretExists: (ref: string) => boolean },
@@ -150,7 +159,7 @@ export function effectiveDto(
   const keys: EffectiveKeyDto[] = eff.keys.map((k) => {
     const base: EffectiveKeyDto = {
       key: k.key,
-      value: displayValue(k.value, k.type),
+      value: pathValue(k.value, k.type, k.sourceRef),
       source: k.source,
       editability: k.editability,
       restartRequired: k.restartRequired,
@@ -160,7 +169,7 @@ export function effectiveDto(
     }
     if (opts.full) {
       base.sourceRef = k.sourceRef
-      base.layers = k.layers.map((l) => ({ source: l.source, value: displayValue(l.value, k.type), sourceRef: l.sourceRef }))
+      base.layers = k.layers.map((l) => ({ source: l.source, value: pathValue(l.value, k.type, l.sourceRef), sourceRef: l.sourceRef }))
       if (k.warnings.length) base.warnings = k.warnings
     } else if (k.warnings.length) {
       base.warnings = [...new Set(k.warnings.map(codeOnly))]

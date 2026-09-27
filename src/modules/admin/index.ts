@@ -46,6 +46,11 @@ export {
   listPluginDtos,
   getPluginDto,
   getSchemaDto,
+  parseEngineRole,
+  parseEngineStatus,
+  parseHealthKind,
+  parseEngineId,
+  roleParam,
 } from './engines'
 
 // Configuration · Diagnostics · Voices

@@ -2,7 +2,7 @@
  * Engine·Connection·Fallback·Secret·Plugin 조합(api-contract #90~#101·#103·#121·#122) — engine 층 공개 API 를 부르고 DTO 로 바꾼다.
  * 쓰기는 Health/Functional 결과(engine 이 기록)와 `secrets.read_ref` 민감 읽기 감사 1행뿐(task-005b G2).
  */
-import { describeCredentialRef, recordAudit } from '@/modules/infra'
+import { ApiError, describeCredentialRef, recordAudit } from '@/modules/infra'
 import {
   defaultConfiguration,
   fallbackRolesByConnection,
@@ -206,3 +206,32 @@ export function getSchemaDto(engineId: string): ConfigurationSchemaDto {
   return schemaDto(s)
 }
 
+
+// ── 쿼리 검증(라우트가 얇게 유지되도록 여기서) ────────────────────────────────
+
+const ENGINE_ROLES: readonly EngineRole[] = ['REALTIME_STT', 'ANALYSIS_STT', 'TTS', 'LLM']
+const ENGINE_STATUSES: readonly EngineStatus[] = ['UNKNOWN', 'HEALTHY', 'DEGRADED', 'UNAVAILABLE', 'MISCONFIGURED', 'DISABLED']
+const HEALTH_KINDS: readonly HealthKind[] = ['HEALTH', 'FUNCTIONAL']
+
+function oneOf<T extends string>(list: readonly T[], raw: string | null | undefined, field: string): T | undefined {
+  if (raw == null || raw === '') return undefined
+  if (!(list as readonly string[]).includes(raw)) throw new ApiError('VALIDATION', `${field} 값이 올바르지 않습니다.`, { field })
+  return raw as T
+}
+
+export const parseEngineRole = (raw: string | null | undefined) => oneOf(ENGINE_ROLES, raw, 'role')
+export const parseEngineStatus = (raw: string | null | undefined) => oneOf(ENGINE_STATUSES, raw, 'status')
+export const parseHealthKind = (raw: string | null | undefined) => oneOf(HEALTH_KINDS, raw, 'kind')
+
+export function parseEngineId(raw: string | null | undefined): string | undefined {
+  if (raw == null || raw === '') return undefined
+  if (!/^[a-z0-9-]{1,60}$/.test(raw)) throw new ApiError('VALIDATION', 'engineId 형식이 올바르지 않습니다.', { field: 'engineId' })
+  return raw
+}
+
+/** 역할 경로 파라미터(#99a) — 모르는 역할은 404(존재 비노출과 같은 모양). */
+export function roleParam(raw: string): EngineRole {
+  const r = raw.toUpperCase()
+  if (!(ENGINE_ROLES as readonly string[]).includes(r)) throw hiddenNotFound()
+  return r as EngineRole
+}

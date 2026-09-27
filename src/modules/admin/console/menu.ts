@@ -48,6 +48,8 @@ export const ADMIN_MENU: readonly AdminMenuItem[] = [
 
 /** actor(또는 역할)가 볼 수 있는 메뉴·탭만 — `maxPhase` 이하(기본 1: 화면이 있는 것)만 남긴다. */
 export function menuFor(who: { role: string }, opts: { maxPhase?: number } = {}): AdminMenuItem[] {
+  // voices.read 처럼 USER 도 가진 capability 가 있으므로 콘솔 진입(console.access)부터 확인한다.
+  if (!can(who, 'console.access').allowed) return []
   const maxPhase = opts.maxPhase ?? 1
   const ok = (cap: Capability) => can(who, cap).allowed
   return ADMIN_MENU.filter((m) => m.phase <= maxPhase && ok(m.capability)).map((m) =>
