@@ -2,7 +2,8 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
 import { deriveSubkey } from '@/modules/infra'
-import { signTtsAudioToken, verifyTtsAudioToken, TTS_AUDIO_URL_PATH } from '../tts/audioUrl'
+import { readSignedTtsAudio, signTtsAudioToken, verifyTtsAudioToken, TTS_AUDIO_URL_PATH } from '../tts/audioUrl'
+import { clearRecentAudio, recallRecentAudio, recentAudioStats, rememberRecentAudio, RECENT_AUDIO_MAX_ENTRIES } from '../tts/recentAudio'
 import { chunkPauseMs } from '../tts/synthesize'
 
 const saved = process.env.JWT_SECRET
@@ -67,4 +68,34 @@ test('청크 앞 간격: 첫 청크 0, 이후 프로필 간격(NATIVE 0·LEARNIN
   assert.equal(chunkPauseMs('NATIVE', 1, 150), 150)
   assert.equal(chunkPauseMs('SHADOWING', 1, 0, 1234), 1234)
   assert.equal(chunkPauseMs('SHADOWING', 1, 0, null), 0)
+})
+
+test('방금 합성한 오디오 보관소: TTL·항목 상한·바이트 상한, 같은 키는 교체', () => {
+  clearRecentAudio()
+  const now = 1_790_000_000_000
+  const a = (n: number) => ({ audio: Buffer.alloc(n, 1), durationMs: 800, modelVersion: '1.0.0', dictionaryVersion: 1 })
+  rememberRecentAudio(KEY, a(10), now, 1_000)
+  assert.equal(recallRecentAudio(KEY, now + 999)?.audio.length, 10)
+  assert.equal(recallRecentAudio(KEY, now + 1_000), null, 'TTL 지나면 없음')
+  assert.equal(recentAudioStats().bytes, 0)
+  for (let i = 0; i < RECENT_AUDIO_MAX_ENTRIES + 5; i++) rememberRecentAudio(i.toString(16).padStart(40, '0'), a(100), now)
+  assert.equal(recentAudioStats().entries, RECENT_AUDIO_MAX_ENTRIES, '항목 상한 — 오래된 것부터 버림')
+  assert.equal(recallRecentAudio('0'.repeat(40), now), null)
+  rememberRecentAudio(KEY, a(10 * 1024 * 1024), now)
+  rememberRecentAudio('cd'.repeat(20), a(10 * 1024 * 1024), now)
+  assert.ok(recentAudioStats().bytes <= 16 * 1024 * 1024, '바이트 상한')
+  assert.equal(recallRecentAudio(KEY, now), null, '바이트 상한에서 먼저 넣은 큰 항목이 밀려남')
+  clearRecentAudio()
+})
+
+test('#24 MISS 경합 수정: 캐시 행 커밋 전에도 서명 검증을 통과하면 보관소에서 바로 준다(DB 없이), 서명이 틀리면 보관소를 보지 않는다', async () => {
+  clearRecentAudio()
+  const wav = Buffer.from('RIFF....WAVEfmt ')
+  rememberRecentAudio(KEY, { audio: wav, durationMs: 900, modelVersion: '1.0.0', dictionaryVersion: 3 })
+  const s = signTtsAudioToken(U1, KEY)
+  const got = await readSignedTtsAudio(U1, s.token)
+  assert.ok(got && got.audio.equals(wav) && got.durationMs === 900 && got.modelVersion === '1.0.0' && got.dictionaryVersion === 3 && got.remainingSec > 590)
+  assert.equal(await readSignedTtsAudio(U2, s.token), null, '타인 세션 — 보관소에 있어도 null')
+  assert.equal(await readSignedTtsAudio(U1, 'garbage'), null)
+  clearRecentAudio()
 })

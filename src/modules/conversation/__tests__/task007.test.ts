@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { mock, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ApiError } from '@/modules/infra'
 import { parseTurnBody } from '../chats/validate'
@@ -7,6 +7,8 @@ import { splitForSpeech, StreamingSentenceSplitter } from '../orchestrator/sente
 import { TurnAudio, type TurnSpeaker, type TurnSpeechRequest, type TurnSpeechResult } from '../orchestrator/turnAudio'
 import type { TurnEvent } from '../orchestrator/stream'
 import { TALK_SCHEMA } from '../structuredResponse/schemas'
+import { startTurn, turnDeps } from '../orchestrator'
+import { currentTurnLock } from '../orchestrator/locks'
 
 const code = (c: string, reason?: string) => (e: unknown) => e instanceof ApiError && e.code === c && (!reason || (e.details as { field?: string })?.field === reason)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -204,4 +206,91 @@ test('문장 하나 실패·시간 초과는 그 청크만 FAILED(url null), 나
   assert.equal(a[1].url, null)
   assert.equal(h.audio.metrics().audioCount, 1)
   assert.ok(h.audio.steps().some((s) => s.name === 'TTS[2]' && s.errorCode === 'TTS_TIMEOUT'))
+})
+
+// ── 수락 거절 뒤 선행 LLM abort(REV-014 M2) ─────────────────────────────
+
+
+function setupTurnMocks(opts: { accept: () => Promise<never>; gateThrows?: boolean }) {
+  const llm = { calls: 0, aborted: false }
+  mock.method(turnDeps, 'precheckChat', async () => ({ kind: 'TALK', level: 'N5' }))
+  mock.method(turnDeps, 'buildLearnerHeader', async () => ({ level: 'N5' }))
+  mock.method(turnDeps, 'loadRecentHistory', async () => [])
+  const accept = mock.method(turnDeps, 'acceptTurn', opts.accept)
+  mock.method(turnDeps, 'completeJson', (req: { signal?: AbortSignal; onTextDelta?: (d: string, call: number) => void }) => {
+    llm.calls++
+    return new Promise((_resolve, reject) => {
+      // 첫 문장이 수락보다 먼저 확정되는 최악의 순서 — 조기 합성이 speaker 를 부르려 한다.
+      req.onTextDelta?.('{"speech":{"style":"CALM"},"conversation":{"replyJa":"そうですね。どこへ', 1)
+      req.signal?.addEventListener('abort', () => {
+        llm.aborted = true
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      })
+    })
+  })
+  return { llm, accept }
+}
+
+test('수락 거절(409 — 다른 인스턴스 진행 중 턴): 먼저 띄운 LLM 을 abort, speaker 0회, 이벤트 0(핸들 없음), 락 해제', async (t) => {
+  t.after(() => mock.restoreAll())
+  const userId = 'u-rev014-m2-a'
+  const { llm, accept } = setupTurnMocks({
+    accept: async () => {
+      await sleep(30)
+      throw new ApiError('CONFLICT', '이미 답을 기다리는 중이에요.', { runningMessageId: 'm-other-instance' })
+    },
+  })
+  let speakerFactoryCalls = 0
+  let gateCalls = 0
+  await assert.rejects(
+    startTurn({
+      userId,
+      chatId: 'c-rev014',
+      request: { resume: false, text: 'はい', inputSource: 'TEXT', utteranceId: null, clientTimings: null },
+      hooks: {
+        gate: async () => {
+          gateCalls++
+        },
+        speaker: () => {
+          speakerFactoryCalls++
+          return async () => ({ status: 'OK', executionMode: 'SERVER', url: null, cacheKey: null, durationMs: null, cached: false, pauseBeforeMs: 0, errorCode: null })
+        },
+      },
+    }),
+    (e: unknown) => e instanceof ApiError && e.code === 'CONFLICT',
+  )
+  await sleep(20)
+  assert.equal(gateCalls, 1, 'gate 는 통과했다')
+  assert.equal(llm.calls, 1, 'LLM 은 수락보다 먼저 떴다')
+  assert.equal(accept.mock.callCount(), 1)
+  assert.equal(llm.aborted, true, '수락 거절 → LLM abort(claude 자식 kill 은 engine claudeWarm 테스트)')
+  assert.equal(speakerFactoryCalls, 0, '수락 전에는 합성하지 않는다 — 조기 문장이 있었어도')
+  assert.equal(currentTurnLock(userId), null, '락 해제')
+})
+
+test('gate 거절(발화 404)·채팅 확인 거절이면 LLM 도 수락도 시작하지 않는다', async (t) => {
+  t.after(() => mock.restoreAll())
+  const { llm, accept } = setupTurnMocks({ accept: async () => Promise.reject(new Error('불리면 안 됨')) })
+  await assert.rejects(
+    startTurn({
+      userId: 'u-rev014-m2-b',
+      chatId: 'c-rev014',
+      request: { resume: false, text: 'はい', inputSource: 'REALTIME_STT', utteranceId: 'u1', clientTimings: null },
+      hooks: {
+        gate: async () => {
+          throw new ApiError('NOT_FOUND', '녹음을 찾을 수 없어요.')
+        },
+      },
+    }),
+    (e: unknown) => e instanceof ApiError && e.code === 'NOT_FOUND',
+  )
+  assert.equal(llm.calls, 0)
+  assert.equal(accept.mock.callCount(), 0)
+  mock.method(turnDeps, 'precheckChat', async () => {
+    throw new ApiError('NOT_FOUND', '채팅을 찾을 수 없어요.')
+  })
+  await assert.rejects(startTurn({ userId: 'u-rev014-m2-c', chatId: 'c-x', request: { resume: false, text: 'はい', inputSource: 'TEXT', utteranceId: null, clientTimings: null } }), (e: unknown) => e instanceof ApiError && e.code === 'NOT_FOUND')
+  assert.equal(llm.calls, 0)
+  assert.equal(currentTurnLock('u-rev014-m2-b'), null)
+  assert.equal(currentTurnLock('u-rev014-m2-c'), null)
 })

@@ -12,6 +12,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { deriveSubkey } from '@/modules/infra'
 import { isCacheKey, readCachedAudio } from './cache'
+import { recallRecentAudio } from './recentAudio'
 
 export const TTS_AUDIO_URL_PATH = '/api/v1/speech/tts/'
 export const TTS_AUDIO_URL_TTL_SEC = 600
@@ -76,10 +77,16 @@ export interface SignedAudioFile {
   remainingSec: number
 }
 
-/** 서명 검증 → 캐시 파일. 실패는 전부 null(라우트가 같은 404 로). */
+/**
+ * 서명 검증 → (방금 합성한 오디오 보관소 → 캐시 파일). 실패는 전부 null(라우트가 같은 404 로).
+ * 보관소는 검증을 통과한 뒤에만 본다 — 서명이 틀린 요청에는 어느 저장소에 무엇이 있는지 드러나지 않는다.
+ * 합성 직후 캐시 행 커밋 전(≈1s)에 온 요청도 바로 200 이다(recentAudio 주석 — MISS 청크 404 경합 수정).
+ */
 export async function readSignedTtsAudio(userId: string, token: unknown, now = Date.now()): Promise<SignedAudioFile | null> {
   const v = verifyTtsAudioToken(userId, token, now)
   if (!v) return null
+  const recent = recallRecentAudio(v.cacheKey, now)
+  if (recent) return { ...recent, remainingSec: v.remainingSec }
   const hit = await readCachedAudio(v.cacheKey)
   if (!hit) return null
   return { audio: hit.audio, durationMs: hit.durationMs, modelVersion: hit.modelVersion ?? null, dictionaryVersion: hit.dictionaryVersion ?? null, remainingSec: v.remainingSec }

@@ -718,7 +718,10 @@ export async function callClaudeDetailed(prompt: string, opts: ClaudeCliOptions 
     let lastErr: unknown
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       // 큐에서 기다리는 동안 취소됐으면 프로세스를 쓰지 않는다(예열 프로세스도 꺼내지 않는다).
-      if (opts.signal?.aborted) throw new ClaudeCliAbortedError()
+      if (opts.signal?.aborted) {
+        console.info('[claudeCli] 취소 — 시작 전')
+        throw new ClaudeCliAbortedError()
+      }
       const startedAt = Date.now()
       let warm: WarmUse = 'OFF'
       try {
@@ -726,9 +729,9 @@ export async function callClaudeDetailed(prompt: string, opts: ClaudeCliOptions 
         if (key) {
           const w = take(key)
           if (w) {
+            warm = 'HIT'
             try {
               r = await runWarm(w, prompt, runOpts)
-              warm = 'HIT'
             } catch (e) {
               if (!(e instanceof ClaudeWarmUnusableError)) throw e
               warm = 'FALLBACK'
@@ -744,6 +747,7 @@ export async function callClaudeDetailed(prompt: string, opts: ClaudeCliOptions 
         return { text: r.text, warm, firstDeltaMs: r.firstDeltaAt === null ? null : r.firstDeltaAt - startedAt }
       } catch (e) {
         lastErr = e
+        if (e instanceof ClaudeCliAbortedError) console.info(`[claudeCli] 취소 — elapsed=${Date.now() - startedAt}ms warm=${warm}`)
         if (attempt < maxAttempts && isRetryable(e)) {
           console.warn(`[claudeCli] 일시적 실패 — ${attempt}/${maxAttempts} 재시도`)
           await sleep(1000 * attempt)

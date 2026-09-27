@@ -28,6 +28,7 @@ if (!c1file || !c2file) throw new Error('사용: task007-smoke.ts <cookie1> <coo
 const C1 = readFileSync(c1file, 'utf8').trim()
 const C2 = readFileSync(c2file, 'utf8').trim()
 const DEV_PID = Number(process.env.DEV_PID ?? 0)
+const DEV_LOG = process.env.DEV_LOG ?? ''
 const prisma = new PrismaClient()
 const LEAK = /claude|anthropic|haiku|sonnet|opus|qwen|style-?bert|reazon|whisper|sherpa|connectionKey|"model"|toolLog|192\.168\.|:8200|:8100/i
 const results: { id: string; ok: boolean }[] = []
@@ -78,7 +79,7 @@ interface Turn {
   raw: string
   envelope: Res['json']
 }
-async function turn(cookie: string, chatId: string, body: unknown): Promise<Turn> {
+async function turn(cookie: string, chatId: string, body: unknown, onAudio?: (data: Record<string, unknown>) => void): Promise<Turn> {
   const t0 = performance.now()
   const r = await fetch(`${BASE}/api/v1/chats/${chatId}/turns`, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (!(r.headers.get('content-type') ?? '').includes('text/event-stream')) {
@@ -103,14 +104,18 @@ async function turn(cookie: string, chatId: string, body: unknown): Promise<Turn
       if (block.startsWith(':')) continue
       const ev = /^event: (.+)$/m.exec(block)?.[1]
       const d = /^data: (.+)$/m.exec(block)?.[1]
-      if (ev && d) events.push({ event: ev, data: JSON.parse(d), at: performance.now() - t0 })
+      if (ev && d) {
+        const e = { event: ev, data: JSON.parse(d) as Record<string, unknown>, at: performance.now() - t0 }
+        events.push(e)
+        if (ev === 'audio') onAudio?.(e.data)
+      }
     }
   }
   return { status: r.status, events, raw, envelope: null }
 }
-async function turnOk(cookie: string, chatId: string, body: unknown): Promise<Turn> {
+async function turnOk(cookie: string, chatId: string, body: unknown, onAudio?: (data: Record<string, unknown>) => void): Promise<Turn> {
   for (let i = 0; i < 4; i++) {
-    const r = await turn(cookie, chatId, body)
+    const r = await turn(cookie, chatId, body, onAudio)
     if (r.status !== 429 && !(r.status === 409 && r.envelope?.data?.details && 'runningMessageId' in (r.envelope.data.details as object))) return r
     await sleep(r.status === 429 ? 15_000 : 2_000)
   }
@@ -163,7 +168,12 @@ async function main(): Promise<void> {
   // ── A. TALK 턴 SSE ─────────────────────────────────────────────────
   await call(C1, 'GET', `/api/v1/chats/${talk}`) // 방 진입 = 예열
   await sleep(3_000)
-  const t1 = await turnOk(C1, talk, { text: '昨日映画を見に行くました', clientTimings: { sttMs: 70 } })
+  // audio 이벤트를 받는 **그 순간** #24 를 부른다(MISS 청크의 캐시 행 커밋 전 경합 — 수정 전에는 0.6~1.4s 동안 404).
+  const immediate: Promise<{ cached: boolean; status: number }>[] = []
+  const grab = (d: Record<string, unknown>) => {
+    if (d.status === 'OK') immediate.push(call(C1, 'GET', String(d.url)).then((r) => ({ cached: d.cached === true, status: r.status })))
+  }
+  const t1 = await turnOk(C1, talk, { text: '昨日映画を見に行くました', clientTimings: { sttMs: 70 } }, grab)
   const names = t1.events.map((e) => e.event)
   const audios = t1.events.filter((e) => e.event === 'audio')
   const done = t1.events.filter((e) => e.event === 'done')
@@ -188,6 +198,9 @@ async function main(): Promise<void> {
   check('A7 audio URL 에 userId 0·/api/v1/speech/tts/ 접두', okAudios.every((a) => String(a.data.url).startsWith('/api/v1/speech/tts/') && !String(a.data.url).includes(qa.id)))
   const reply = (d1.conversation as { replyJa?: string } | undefined)?.replyJa ?? ''
   check('A8 audio 문장을 이으면 최종 replyJa(들리는 것 = 보이는 것)', audios.sort((a, b) => (a.data.chunkIndex as number) - (b.data.chunkIndex as number)).map((a) => a.data.text).join('').replace(/\s/g, '') === reply.replace(/\s/g, ''), `chunks=${audios.length} replyLen=${reply.length}`)
+
+  const im = await Promise.all(immediate)
+  check('A9 audio 이벤트 직후 #24 즉시 200(MISS 청크 포함 — 커밋 전 경합 없음)', im.length > 0 && im.every((x) => x.status === 200), im.map((x) => `${x.cached ? 'HIT' : 'MISS'}:${x.status}`).join(','))
 
   // ── B. CHAT ──────────────────────────────────────────────────────
   const tc = await turnOk(C1, chat, { text: '今日はいい天気ですね。' })
@@ -221,17 +234,33 @@ async function main(): Promise<void> {
   const u23 = String(data(j23).url ?? '')
   check('D1 #23 JSON → 서명 URL 재생 200·엔진명 0', j23.status === 200 && u23.startsWith('/api/v1/speech/tts/') && (await call(C1, 'GET', u23)).status === 200 && !LEAK.test(j23.text), `${j23.status} cached=${String(data(j23).cached)}`)
 
+  const uniq = `今日は${'〇一二三四五六七八九'.split('').sort(() => Math.random() - 0.5).slice(0, 4).join('')}回目の練習です。`
+  const jm = await call(C1, 'POST', '/api/v1/speech/tts', { json: { text: uniq }, headers: { Accept: 'application/json' } })
+  const rm = await call(C1, 'GET', String(data(jm).url ?? ''))
+  check('D2 #23 새 문장(MISS) JSON → 곧바로 서명 URL 200(캐시 행 커밋 전)', jm.status === 200 && data(jm).cached === false && rm.status === 200 && rm.bytes.subarray(0, 4).toString('ascii') === 'RIFF', `${jm.status} cached=${String(data(jm).cached)} → ${rm.status}`)
+
   // ── E. utteranceId ───────────────────────────────────────────────
-  check('E1 REALTIME_STT 인데 utteranceId 없음 → 400', (await turn(C1, talk, { text: 'はい', inputSource: 'REALTIME_STT' })).status === 400)
-  check('E2 없는 utteranceId → 404', (await turn(C1, talk, { text: 'はい', utteranceId: 'cnotexist000000000000000' })).status === 404)
+  const rows = () => prisma.chatMessage.count({ where: { chatId: talk } })
+  /** 수락 전 거절이면 행이 늘지 않고 SSE 도 없다(JSON 봉투). */
+  const rejected = async (body: unknown) => {
+    const before = await rows()
+    const r = await turn(C1, talk, body)
+    return { status: r.status, reason: reason({ json: r.envelope } as Res), sse: r.events.length, rowsAdded: (await rows()) - before, details: r.envelope?.data?.details }
+  }
+  const e1 = await rejected({ text: 'はい', inputSource: 'REALTIME_STT' })
+  check('E1 REALTIME_STT 인데 utteranceId 없음 → 400·행 0', e1.status === 400 && e1.rowsAdded === 0 && e1.sse === 0)
+  const e2 = await rejected({ text: 'はい', utteranceId: 'cnotexist000000000000000' })
+  check('E2 없는 utteranceId → 404·행 0', e2.status === 404 && e2.rowsAdded === 0 && e2.sse === 0)
   const up2 = await call(C2, 'POST', '/api/v1/speech/utterances', { form: uploadForm('こんにちは', sttKey) })
   const u2 = String(data(up2).utteranceId ?? '')
   if (u2) createdUtterances.push(u2)
-  check('E3 타인 utteranceId → 404(행 0)', up2.status === 200 && (await turn(C1, talk, { text: 'こんにちは', utteranceId: u2 })).status === 404)
+  const e3 = await rejected({ text: 'こんにちは', utteranceId: u2 })
+  check('E3 타인 utteranceId → 404·행 0(DB 확인)', up2.status === 200 && e3.status === 404 && e3.rowsAdded === 0 && e3.sse === 0)
   const up1 = await call(C1, 'POST', '/api/v1/speech/utterances', { form: uploadForm('今日は雨です', sttKey) })
   const u1 = String(data(up1).utteranceId ?? '')
   if (u1) createdUtterances.push(u1)
-  check('E4 utteranceId + inputSource TEXT → 400', (await turn(C1, talk, { text: '今日は雨です', utteranceId: u1, inputSource: 'TEXT' })).status === 400)
+  const e4 = await rejected({ text: '今日は雨です', utteranceId: u1, inputSource: 'TEXT' })
+  check('E4 utteranceId + inputSource TEXT → 400·행 0', e4.status === 400 && e4.rowsAdded === 0)
   const prevAssistant = String(d1.assistantMessageId ?? '')
   const tv = await turnOk(C1, talk, { text: '今日は雨ですね', utteranceId: u1, inputSource: 'REALTIME_STT', clientTimings: { prevMessageId: prevAssistant, sttMs: 64, releaseToFirstAudioEventMs: 3800, firstAudioAtMs: 3950, playbackStartDelayMs: 140 } })
   const dv = tv.events.find((e) => e.event === 'done')?.data ?? {}
@@ -239,16 +268,28 @@ async function main(): Promise<void> {
   await sleep(1_500)
   const urow = u1 ? await prisma.utterance.findUnique({ where: { id: u1 }, select: { chatMessageId: true, finalText: true, finalSource: true } }) : null
   check('E5 고친 글자로 보냄 → 연결·finalText=text·finalSource=USER', tv.status === 200 && !!urow && urow.chatMessageId === dv.userMessageId && urow.finalText === '今日は雨ですね' && urow.finalSource === 'USER')
-  const reuse = await turn(C1, talk, { text: '今日は雨ですね', utteranceId: u1 })
-  check('E6 같은 utteranceId 재사용 → 409 UTTERANCE_USED', reuse.status === 409 && reason({ json: reuse.envelope } as Res) === 'UTTERANCE_USED')
+  const reuse = await rejected({ text: '今日は雨ですね', utteranceId: u1 })
+  check('E6 같은 utteranceId 재사용 → 409 UTTERANCE_USED·행 0', reuse.status === 409 && reuse.reason === 'UTTERANCE_USED' && reuse.rowsAdded === 0 && reuse.sse === 0)
   const up3 = await call(C1, 'POST', '/api/v1/speech/utterances', { form: uploadForm('古い録音', sttKey) })
   const u3 = String(data(up3).utteranceId ?? '')
   if (u3) {
     createdUtterances.push(u3)
     await prisma.utterance.update({ where: { id: u3 }, data: { createdAt: new Date(Date.now() - 11 * 60_000) } })
   }
-  const old = await turn(C1, talk, { text: '古い録音', utteranceId: u3 })
-  check('E7 10분 지난 발화 → 409 UTTERANCE_EXPIRED', old.status === 409 && reason({ json: old.envelope } as Res) === 'UTTERANCE_EXPIRED')
+  const old = await rejected({ text: '古い録音', utteranceId: u3 })
+  check('E7 10분 지난 발화 → 409 UTTERANCE_EXPIRED·행 0', old.status === 409 && old.reason === 'UTTERANCE_EXPIRED' && old.rowsAdded === 0)
+
+  // E8(REV-014 M2): gate·채팅 확인은 통과 → LLM 을 먼저 띄움 → 수락 트랜잭션이 "다른 인스턴스의 진행 중 턴" 으로 409.
+  // 다른 채팅에 살아 있는(180초 안) PENDING 강사 행을 직접 넣어 그 상황을 만든다(이 프로세스의 메모리 락에는 없다).
+  const ghost = await prisma.chatMessage.create({ data: { chatId: chat, userId: qa.id, role: 'ASSISTANT', content: '', status: 'PENDING' }, select: { id: true } })
+  const logBefore = DEV_LOG ? readFileSync(DEV_LOG, 'utf8').split('\n').length : 0
+  const e8 = await rejected({ text: 'もう一度話しましょう' })
+  await sleep(1_500)
+  const logTail = DEV_LOG ? readFileSync(DEV_LOG, 'utf8').split('\n').slice(logBefore).join('\n') : ''
+  await prisma.chatMessage.delete({ where: { id: ghost.id } })
+  check('E8 수락 거절(409 runningMessageId)·행 0·SSE 0', e8.status === 409 && (e8.details as { runningMessageId?: string } | undefined)?.runningMessageId === ghost.id && e8.rowsAdded === 0 && e8.sse === 0)
+  if (DEV_LOG) check('E9 먼저 띄운 LLM 이 취소됨(서버 로그 `[claudeCli] 취소`)', /\[claudeCli\] 취소/.test(logTail) && !/\[claudeCli\] 완료/.test(logTail))
+  else skip('E9 LLM 취소 로그', 'DEV_LOG 없음')
 
   // ── F. #21b ──────────────────────────────────────────────────────
   const a1 = await call(C1, 'GET', `/api/v1/speech/utterances/${u1}/audio`)

@@ -49,7 +49,12 @@ async function readLearnerBase(userId: string): Promise<LearnerBase> {
 
 function loadLearnerBase(userId: string): Promise<LearnerBase> {
   const hit = learnerBaseCache.get(userId)
-  if (hit && Date.now() - hit.at < LEARNER_BASE_TTL_MS) return hit.value
+  if (hit && Date.now() - hit.at < LEARNER_BASE_TTL_MS) {
+    // Map 삽입 순서를 최근 사용 순으로 — 상한에서 가장 오래 안 쓴 사용자부터 내린다(REV-014 Low-7).
+    learnerBaseCache.delete(userId)
+    learnerBaseCache.set(userId, hit)
+    return hit.value
+  }
   const value = readLearnerBase(userId)
   if (learnerBaseCache.size >= 500) learnerBaseCache.delete(learnerBaseCache.keys().next().value as string)
   const entry = { at: Date.now(), value }

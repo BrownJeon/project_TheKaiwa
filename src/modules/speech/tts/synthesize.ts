@@ -20,6 +20,7 @@ import { isSpeechProfile, PROFILE_POLICIES, type SpeechProfileName } from './pro
 import { buildRenderingPlan, prepareSegments, type RequestedLabels } from './renderingPlan'
 import { assessAvailability, breakerOpen, recordSynthFailure, recordSynthSuccess } from './status'
 import { SEGMENT_STYLES, type LlmSpeechStyle, type SegmentStyle } from './types'
+import { rememberRecentAudio } from './recentAudio'
 import { wavInfo } from './wav'
 
 /** 단일 합성 경로의 세그먼트 상한(서비스 상한과 같다). 연결 설정이 더 작으면 어댑터가 한 번 더 막는다. */
@@ -148,6 +149,8 @@ function startSynthesis(target: TtsTarget, voice: TtsVoice, parts: CacheKeyParts
     .then((out) => {
       const info = wavInfo(out.audio)
       if (!info) throw new tts.TtsEngineError('BAD_AUDIO', 'NOT_WAV')
+      // 캐시 저장(파일·행 커밋)은 응답 뒤에 이어진다 — 그 사이 #24 가 서명 URL 로 바로 받을 수 있게 먼저 메모리에 둔다(recentAudio).
+      rememberRecentAudio(ttsCacheKey(parts), { audio: out.audio, durationMs: info.durationMs, modelVersion: parts.modelVersion, dictionaryVersion: parts.dictionaryVersion })
       return { out, durationMs: info.durationMs, parts }
     })
 }

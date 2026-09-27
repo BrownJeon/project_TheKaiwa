@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildClaudeArgs, callClaudeDetailed, drainWarmPool, prewarmClaude, textDeltaOf, warmPoolSnapshot } from '../adapters/llm/claudeCli'
+import { buildClaudeArgs, callClaudeDetailed, ClaudeCliAbortedError, drainWarmPool, prewarmClaude, textDeltaOf, warmPoolSnapshot } from '../adapters/llm/claudeCli'
 
 /**
  * 가짜 CLI — 실제 claude 대신 argv·stdin 규약만 흉내 낸다(stream-json 입력이면 메시지 1줄, 아니면 stdin 전체).
@@ -27,6 +27,12 @@ process.stdin.on('end', () => {
     if (sp.includes('SILENT_WARM')) process.exit(0)
   }
   const reply = '{"conversation":{"replyJa":"はい。' + process.pid + '"}}'
+  if (sp.includes('SLOW') && streamOut) {
+    // 첫 조각(자기 pid)만 내고 오래 멈춘다 — 호출자가 abort 해야 끝난다.
+    process.stdout.write(JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'pid=' + process.pid } } }) + '\\n')
+    setTimeout(() => {}, 60000)
+    return
+  }
   if (!streamOut) { process.stdout.write(reply); return }
   const out = [{ type: 'system', subtype: 'init' }]
   if (partial) for (const t of [reply.slice(0, 12), reply.slice(12)]) out.push({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: t } } })
@@ -158,4 +164,60 @@ test('drain 뒤 살아 있는 예열 프로세스 0', async () => {
   await sleep(300)
   assert.ok(pids.every((p) => !alive(p)))
   assert.equal(warmPoolSnapshot().idle, 0)
+})
+
+async function abortMidway(opts: Record<string, unknown>): Promise<{ pid: number; err: unknown; ms: number }> {
+  const ac = new AbortController()
+  let pid = 0
+  const t0 = Date.now()
+  const p = callClaudeDetailed('入力', {
+    model: 'haiku',
+    timeoutMs: 30_000,
+    maxAttempts: 1,
+    ...opts,
+    signal: ac.signal,
+    onTextDelta: (d) => {
+      pid = Number(/pid=(\d+)/.exec(d)?.[1] ?? 0)
+      ac.abort()
+    },
+  })
+  const err = await p.then(
+    () => null,
+    (e: unknown) => e,
+  )
+  return { pid, err, ms: Date.now() - t0 }
+}
+
+test('abort(수락 거절): 실행 중인 cold 자식을 죽이고 AbortError(재시도·폴백 없음)', async () => {
+  const r = await abortMidway({ systemPrompt: 'SLOW-cold' })
+  assert.ok(r.err instanceof ClaudeCliAbortedError && (r.err as Error).name === 'AbortError')
+  assert.ok(r.pid > 0)
+  await sleep(300)
+  assert.ok(!alive(r.pid), '자식 프로세스가 죽었다')
+  assert.ok(r.ms < 5_000)
+})
+
+test('abort: 예열에서 꺼낸 자식도 죽이고, 다음 턴용으로 다시 채운다', async () => {
+  prewarmClaude({ model: 'haiku', systemPrompt: 'SLOW-warm' }, limits)
+  await sleep(200)
+  const idle = warmPoolSnapshot().pids[0]
+  const r = await abortMidway({ systemPrompt: 'SLOW-warm' })
+  assert.ok(r.err instanceof ClaudeCliAbortedError)
+  assert.equal(r.pid, idle, '예열 프로세스를 썼다')
+  await sleep(300)
+  assert.ok(!alive(r.pid))
+  assert.equal(warmPoolSnapshot().idle, 1, '원하던 키라 다시 채움')
+})
+
+test('abort: 큐에서 기다리는 동안 이미 취소됐으면 프로세스를 띄우지 않는다', async () => {
+  const ac = new AbortController()
+  ac.abort()
+  const before = warmPoolSnapshot().stats.spawned
+  const err = await callClaudeDetailed('入力', { model: 'haiku', systemPrompt: 'never', signal: ac.signal, maxAttempts: 1 }).then(
+    () => null,
+    (e: unknown) => e,
+  )
+  assert.ok(err instanceof ClaudeCliAbortedError)
+  assert.equal(warmPoolSnapshot().stats.spawned, before)
+  assert.equal(warmPoolSnapshot().active, 0)
 })

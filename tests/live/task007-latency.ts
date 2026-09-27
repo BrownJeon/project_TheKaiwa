@@ -87,6 +87,11 @@ interface TurnRow {
   n: number
   sttMs: number
   stopToFirstAudioMs: number | null
+  /** 손 뗌 → 첫 청크 오디오 바이트 수신 완료(#24 200). 클라 재시도(404 만, B chunkFetch 간격)를 흉내 낸다. */
+  stopToFirstBytesMs: number | null
+  firstBytesRetries: number
+  /** 모든 OK 청크를 이벤트 즉시 한 번 받아 본 결과(MISS/HIT 별 첫 시도 상태). */
+  chunkProbes: { cached: boolean; status: number }[]
   reqToFirstAudioMs: number | null
   reqToDoneMs: number
   traceId: string
@@ -105,13 +110,15 @@ async function runTurn(chatId: string, stt: Stt, prevMessageId: string | null): 
   const r = await fetch(`${BASE}/api/v1/chats/${chatId}/turns`, { method: 'POST', headers: { Cookie: COOKIE, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (!(r.headers.get('content-type') ?? '').includes('text/event-stream')) {
     const txt = await r.text()
-    return { row: { sttMs, stopToFirstAudioMs: null, reqToFirstAudioMs: null, reqToDoneMs: performance.now() - reqAt, traceId: '', audioCount: 0, firstCached: null, status: `HTTP${r.status}:${txt.slice(0, 80)}`, warnings: [] }, assistantMessageId: null, utteranceUsed: false }
+    return { row: { sttMs, stopToFirstAudioMs: null, stopToFirstBytesMs: null, firstBytesRetries: 0, chunkProbes: [], reqToFirstAudioMs: null, reqToDoneMs: performance.now() - reqAt, traceId: '', audioCount: 0, firstCached: null, status: `HTTP${r.status}:${txt.slice(0, 80)}`, warnings: [] }, assistantMessageId: null, utteranceUsed: false }
   }
   let firstAudioAt: number | null = null
   let firstCached: boolean | null = null
   let done: Record<string, unknown> | null = null
   let err: Record<string, unknown> | null = null
   const warnings: string[] = []
+  let firstBytes: Promise<{ at: number; retries: number } | null> = Promise.resolve(null)
+  const probes: Promise<{ cached: boolean; status: number }>[] = []
   const reader = r.body!.getReader()
   const dec = new TextDecoder()
   let buf = ''
@@ -127,9 +134,14 @@ async function runTurn(chatId: string, stt: Stt, prevMessageId: string | null): 
       const d = /^data: (.+)$/m.exec(block)?.[1]
       if (!ev || !d) continue
       const data = JSON.parse(d) as Record<string, unknown>
+      if (ev === 'audio' && data.status === 'OK' && firstAudioAt !== null) {
+        const cached = data.cached === true
+        probes.push(fetch(`${BASE}${String(data.url)}`, { headers: { Cookie: COOKIE } }).then(async (res) => (await res.arrayBuffer(), { cached, status: res.status })))
+      }
       if (ev === 'audio' && firstAudioAt === null && data.status === 'OK') {
         firstAudioAt = performance.now()
         firstCached = data.cached === true
+        firstBytes = fetchChunk(String(data.url))
       }
       if (ev === 'done') done = data
       if (ev === 'error') err = data
@@ -137,10 +149,14 @@ async function runTurn(chatId: string, stt: Stt, prevMessageId: string | null): 
     }
   }
   const doneAt = performance.now()
+  const fb = await firstBytes
   return {
     row: {
       sttMs,
       stopToFirstAudioMs: firstAudioAt === null ? null : Math.round(firstAudioAt - stt.stopAt),
+      stopToFirstBytesMs: fb ? Math.round(fb.at - stt.stopAt) : null,
+      firstBytesRetries: fb?.retries ?? 0,
+      chunkProbes: await Promise.all(probes),
       reqToFirstAudioMs: firstAudioAt === null ? null : Math.round(firstAudioAt - reqAt),
       reqToDoneMs: Math.round(doneAt - reqAt),
       traceId: String(done?.traceId ?? err?.traceId ?? ''),
@@ -151,6 +167,18 @@ async function runTurn(chatId: string, stt: Stt, prevMessageId: string | null): 
     },
     assistantMessageId: done ? String(done.assistantMessageId) : null,
     utteranceUsed: !!stt.utteranceId,
+  }
+}
+
+/** 클라(B `components/talk/chunkFetch`)처럼 #24 를 받는다 — 404 만 250·500·750·1000·1500ms 간격 재시도. 바이트를 다 받은 시각. */
+const RETRY_MS = [250, 500, 750, 1000, 1500]
+async function fetchChunk(url: string): Promise<{ at: number; retries: number } | null> {
+  for (let i = 0; ; i++) {
+    const r = await fetch(`${BASE}${url}`, { headers: { Cookie: COOKIE } })
+    const buf = await r.arrayBuffer()
+    if (r.status === 200 && buf.byteLength > 44) return { at: performance.now(), retries: i }
+    if (r.status !== 404 || i >= RETRY_MS.length) return null
+    await sleep(RETRY_MS[i])
   }
 }
 
@@ -182,7 +210,7 @@ async function main(): Promise<void> {
       const t = await runTurn(chatId, stt, prev)
       prev = t.assistantMessageId ?? prev
       rows.push({ n, ...t.row })
-      console.log(`#${n} wav${id} stt=${t.row.sttMs}ms stop→audio=${t.row.stopToFirstAudioMs ?? '-'}ms req→done=${t.row.reqToDoneMs}ms audio=${t.row.audioCount} ${t.row.status}`)
+      console.log(`#${n} wav${id} stt=${t.row.sttMs}ms stop→audio=${t.row.stopToFirstAudioMs ?? '-'}ms stop→bytes=${t.row.stopToFirstBytesMs ?? '-'}ms(${t.row.firstCached ? 'HIT' : 'MISS'}, 재시도 ${t.row.firstBytesRetries}) req→done=${t.row.reqToDoneMs}ms audio=${t.row.audioCount} ${t.row.status}`)
       // 분당 12턴 제한 안으로(턴 시작 간격 ≥ 5.5s) + 재생 시간 흉내.
       const wait = 5_500 - (performance.now() - started)
       if (wait > 0) await sleep(wait)
@@ -224,6 +252,10 @@ async function main(): Promise<void> {
     console.log('| 구간 | n | p50 ms | p90 ms |')
     console.log('|---|---|---|---|')
     line('stop → 첫 audio 이벤트(실측)', earlyTtfa)
+    line('**stop → 첫 청크 오디오 바이트(#24 200)**', rows.map((r) => r.stopToFirstBytesMs ?? NaN))
+    line('  └ 그중 첫 청크 MISS', rows.filter((r) => r.firstCached === false).map((r) => r.stopToFirstBytesMs ?? NaN))
+    line('  └ 그중 첫 청크 HIT', rows.filter((r) => r.firstCached === true).map((r) => r.stopToFirstBytesMs ?? NaN))
+    line('첫 audio 이벤트 → 바이트(#24 받기)', rows.filter((r) => r.stopToFirstBytesMs !== null && r.stopToFirstAudioMs !== null).map((r) => (r.stopToFirstBytesMs as number) - (r.stopToFirstAudioMs as number)))
     line('stop → final(STT)', rows.map((r) => r.sttMs))
     line('턴 요청 → 첫 audio', rows.map((r) => r.reqToFirstAudioMs ?? NaN))
     line('ACCEPT(LLM 과 병렬)', accept)
@@ -233,7 +265,10 @@ async function main(): Promise<void> {
     line('ttfaServerMs(청크0 합성)', ttfaServer)
     line('턴 요청 → done', rows.map((r) => r.reqToDoneMs))
     line('반사실: 조기 추출 끔 stop → 첫 audio', noEarly)
-    console.log(`첫 청크 캐시 HIT ${rows.filter((r) => r.firstCached).length}/${rows.filter((r) => r.firstCached !== null).length}`)
+    console.log(`첫 청크 캐시 HIT ${rows.filter((r) => r.firstCached).length}/${rows.filter((r) => r.firstCached !== null).length} · 첫 청크 #24 404 재시도 ${rows.reduce((n, r) => n + r.firstBytesRetries, 0)}회(턴 ${rows.filter((r) => r.firstBytesRetries > 0).length}) · 받기 실패 ${rows.filter((r) => r.stopToFirstAudioMs !== null && r.stopToFirstBytesMs === null).length}`)
+    const pr = rows.flatMap((r) => r.chunkProbes)
+    const miss = pr.filter((x) => !x.cached)
+    console.log(`2번째 이후 청크 즉시 받기: MISS ${miss.length}건 중 404 ${miss.filter((x) => x.status === 404).length} · HIT ${pr.length - miss.length}건 중 404 ${pr.filter((x) => x.cached && x.status === 404).length} · 그 밖 비200 ${pr.filter((x) => x.status !== 200 && x.status !== 404).length}`)
     const w = rows.flatMap((r) => r.warnings)
     console.log(`status 경고: AUDIO_TEXT_MISMATCH ${w.filter((x) => x === 'AUDIO_TEXT_MISMATCH').length} · TTS_UNAVAILABLE ${w.filter((x) => x === 'TTS_UNAVAILABLE').length} · CORRECTION_ORIGINAL_MISMATCH ${w.filter((x) => x === 'CORRECTION_ORIGINAL_MISMATCH').length}`)
   } finally {

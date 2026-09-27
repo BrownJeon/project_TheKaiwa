@@ -21,7 +21,7 @@
  */
 import { Prisma, type ChatKind, type InputSource, type JlptLevel } from '@prisma/client'
 import { ApiError, classifyError, dates, lockUserRow, prisma, withTransaction } from '@/modules/infra'
-import { appendTraceSteps, llm, newTraceId, recordTrace, type LlmJsonResult, type TraceStep } from '@/modules/engine'
+import { appendTraceSteps, llm, newTraceId, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceStep } from '@/modules/engine'
 import { buildChatRequest } from '../prompts/chat'
 import { buildTalkRequest } from '../prompts/talk'
 import type { TutorResponse } from '../structuredResponse/schemas'
@@ -203,9 +203,9 @@ interface Preload {
 
 /** 수락과 병렬로 이력·학습자 헤더 재료를 읽는다. 실패는 여기서 삼키고(미처리 거부 방지) 사용 시점에 다시 읽는다. */
 function startPreload(userId: string, chatId: string, resume: boolean): Preload {
-  const history = resume ? null : loadRecentHistory(userId, chatId)
+  const history = resume ? null : turnDeps.loadRecentHistory(userId, chatId)
   history?.catch(() => undefined)
-  void buildLearnerHeader(userId, null).catch(() => undefined)
+  void turnDeps.buildLearnerHeader(userId, null).catch(() => undefined)
   return { history }
 }
 
@@ -286,7 +286,7 @@ function startLlmRun(o: {
   o.emit({ event: 'status', data: { stage: 'LLM', elapsedMs: startAt } })
   const ac = new AbortController()
   // softExtraCheck: 후검증 위반이 재시도 뒤에도 남으면 던지지 않고 서버가 정리한다(CHAT 교정 null·TALK 원문 불일치 교정 버림).
-  const promise = llm.completeJson<TutorResponse>({
+  const promise = turnDeps.completeJson<TutorResponse>({
     ...req,
     softExtraCheck: true,
     signal: ac.signal,
@@ -432,6 +432,18 @@ async function patchToolLog(a: AcceptedTurn, toolLog: ToolLog): Promise<void> {
 }
 
 /**
+ * 수락 경로의 DB·LLM 의존(REV-014 M2) — 운영 코드는 이 객체를 통해서만 부르고, 단위 테스트는 `mock.method(turnDeps, …)` 로
+ * 바꿔 끼워 "gate 통과 → LLM 선행 시작 → 수락 거절" 인터리빙(LLM abort·행 0·이벤트 0)을 DB 없이 재현한다.
+ */
+export const turnDeps = {
+  precheckChat,
+  acceptTurn,
+  loadRecentHistory,
+  buildLearnerHeader,
+  completeJson: <T>(req: LlmJsonRequest<T>): Promise<LlmJsonResult<T>> => llm.completeJson<T>(req),
+}
+
+/**
  * #32 턴 시작. 수락까지 기다려 돌려주고(그 전 실패는 던진다), 나머지는 백그라운드에서 끝까지 돈다.
  * 라우트는 `handle.subscribe` 를 SSE 에 연결하기만 한다 — 연결이 끊겨도 `handle.done` 은 저장까지 간다.
  *
@@ -466,15 +478,15 @@ export async function startTurn(input: { userId: string; chatId: string; request
   let acceptMs = 0
   try {
     if (!request.resume) {
-      const [pre] = await Promise.all([precheckChat(input.userId, input.chatId), hooks.gate ? hooks.gate() : Promise.resolve()])
+      const [pre] = await Promise.all([turnDeps.precheckChat(input.userId, input.chatId), hooks.gate ? hooks.gate() : Promise.resolve()])
       const [learner, history] = await Promise.all([
-        buildLearnerHeader(input.userId, pre.level),
-        (preload.history ?? Promise.reject(new Error('no preload'))).catch(() => loadRecentHistory(input.userId, input.chatId)),
+        turnDeps.buildLearnerHeader(input.userId, pre.level),
+        (preload.history ?? Promise.reject(new Error('no preload'))).catch(() => turnDeps.loadRecentHistory(input.userId, input.chatId)),
       ])
       run = startLlmRun({ kind: pre.kind, text: request.text, learner, history, speaker, emit: early.emit, elapsed })
     }
     const t = Date.now()
-    accepted = await acceptTurn(input.userId, input.chatId, request)
+    accepted = await turnDeps.acceptTurn(input.userId, input.chatId, request)
     acceptMs = Date.now() - t
   } catch (e) {
     run?.abort()
