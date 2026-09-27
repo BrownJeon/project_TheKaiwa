@@ -169,6 +169,7 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
   7. #43 `partOfSpeech:null` → `OTHER`(컬럼 NOT NULL), 빈 PATCH `{}` 는 현재 값 200. #50 `responseMs` 는 선택(없으면 null).
 - **트러블슈팅(재발 가능)**: ① Prisma `contains` 는 `%`·`_` 를 이스케이프하지 않는다(`contains:'%'` 가 전 행 일치 실측) → `infra.escapeLike` 로 `\` 이스케이프. ② NAS MariaDB 쓰기 COMMIT ≈0.4~0.5s — 쓰기 API p50 의 바닥값. ③ Next dev 는 소스 동기화(HMR) 때 모듈을 다시 평가해 enrich 메모리 캐시가 비워진다(운영 `next start` 에는 해당 없음). ④ Fact-Forcing 훅이 `rm -rf` 가 든 Bash 를 막는다 — 임시 파일은 `rm -f` + `rmdir` 로.
 - **알려진 한계**: enrich 캐시·분당 제한은 프로세스 메모리(blue/green 두 프로세스면 최대 40/분·캐시 분리). 오늘 DONE 제외는 세트 `date`(시작일) 기준이라 자정 넘어 끝낸 세트는 "시작한 날" 단어로 제외된다. `listCategories` 는 DB 콜레이션으로 묶어 대소문자·가나만 다른 분류는 한 칩(대표 표기 하나). 삭제된 단어 카드의 예문은 재생 시 없음(Snap 에 예문 컬럼이 없음).
+- [15:47] **REV-008 수정** — 커밋 `10b770e`. H1: `toCardDto` 공개 조건 `answered || status === 'DONE'`(ABANDONED 는 진행 중과 같이 미답 CHOICE 정답·예문 숨김, FLIP 뜻은 F1 그대로). grep 결과 정답을 `status !== 'IN_PROGRESS'` 로 여는 곳은 이 한 줄뿐(#48 은 카드 없음, #53 은 새 세트를 IN_PROGRESS 로 직렬화, finish ABANDONED 응답의 wrongWords 는 0개). L1: `keepVocabSession` 을 사용자 행 → 세트 행 잠금 트랜잭션으로(다시 풀기와 직렬화). 단위 테스트에 `toCardDto('CHOICE'|'FLIP','ABANDONED', 미답)` 추가, 스모크에 6h′(ABANDONED #49 재조회)·6h″(ABANDONED keep 409)·8e′(keep 해제·재보관 동시) 추가. tsc 0·lint 0 error·test 146/146·스모크 **72/72 PASS**(attempt p50 628ms, 10장 사용자 총 129.2s). dev 3011 종료.
 
 ### B(화면)
 - [15:31] 구현 완료 — 커밋 `e06796c`(자기 파일만 경로 지정, 65파일). `npm run typecheck` 0 · `npm run lint` 0 error(경고 4 = 기존 settings·login 파일, vocab 0) · `npm test` 146/146(내 테스트 4파일 + 기존 chat 테스트 전부 통과). build·dev·pm2 미사용. 서버 코드는 열지 않고 계약(api-contract §2-9·§2-10)과 위 A 기록만 보고 맞췄다.
@@ -200,6 +201,66 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
   12. 결과 행 링크는 `/drawer/words?word=<wordId>`, `wordId:null`(지운 단어)은 링크 없이 "지운 단어" 뱃지.
 
 ## Reviewer 기록
+
+### REV-008 (2026-09-27) — task-008 단어장·오늘의 단어, 커밋 be82a63·6b27a97·e06796c 감사
+
+**범위**: `git diff 4cac3de..54ec31f -- src tests eslint.config.mjs`(102 files, +8778/-155). `npm run typecheck`(0 error)·`npm run lint`(0 error, 기존 무관 경고 4)·`npm test`(146/146 PASS) 재실행으로 Developer 보고와 일치 확인. `build`·`dev`·pm2·DB 쓰기·Claude CLI 호출은 지시대로 실행하지 않음.
+
+**판정**: **CONDITIONAL_PASS** (Critical 0 · High 1 · Medium 0 · Low 1)
+
+**Critical**: 없음.
+
+**High (1건)**
+
+| # | 이슈 | 컴포넌트 | 심각도 |
+|---|---|---|---|
+| H1 | **ABANDONED 세트의 CHOICE 카드가 한 번도 답하지 않았는데 GET #49 에서 정답(`correctText`)이 그대로 노출된다** | `src/modules/learning/vocab/sessions.ts:128-145`(`toCardDto`) + `src/modules/learning/vocab/sessions.ts:462-511`(`finishVocabSession` ABANDONED 분기) | HIGH |
+
+- **조건**: `toCardDto` 의 공개 조건이 `const reveal = answered || status !== 'IN_PROGRESS'`(line 132)다. api-contract #49 원문은 "**status=DONE 이면** 전체 카드 정답 포함"이라고만 하는데, 구현은 `IN_PROGRESS 가 아니면 전부`(즉 DONE **과 ABANDONED 모두**)를 reveal 조건으로 잡았다.
+- **재현**: ① `POST /vocab/sessions`(CHOICE, 아무 장수) ② 카드에 한 번도 답하지 않고 곧바로 `POST /vocab/sessions/:id/finish` → `finishVocabSession`(line 469)이 "답한 카드 0장" 분기로 들어가 세션을 `ABANDONED` 로만 닫고(`finishedAt` 만 갱신) **`VocabAttempt.answer` 를 SKIPPED 로 바꾸는 `updateMany` 를 타지 않는다**(그 줄은 469번 이후, 이 분기는 그 전에 `return`) → 모든 카드가 `answer=null` 로 영구히 남는다. ③ `GET /vocab/sessions/:id`(#49) 호출 → `getVocabSession` 이 `toCardDto(s.mode='CHOICE', s.status='ABANDONED', attempt)` 를 부른다 → `answered=false` 이지만 `status !== 'IN_PROGRESS'` 가 참이라 `reveal=true` → 응답에 `correctText`(=`meaningSnap`, 실제 정답 뜻)·`example`·`exampleKo` 가 **한 번도 답하지 않은 카드에도** 그대로 실린다.
+- **영향**: "정답 미노출"은 이 task 의 완료 기준 3·F1·checklist 1순위로 명시된 핵심 계약이다. 이 경로로는 사용자가 세트를 만들고 바로 0장으로 끝낸(=`ABANDONED`) 뒤 그 세트를 다시 읽기만 하면 방금 뽑힌 단어 전부의 뜻을 힌트 없이 확인할 수 있다 — 오늘 DONE 제외 규칙도 ABANDONED 에는 적용되지 않으므로 같은 단어가 다음 세트에도 다시 나올 수 있어 반복 악용이 가능하다. 프런트(B)는 `session.status==='ABANDONED'` 를 보면 덱을 그리지 않고 안내 화면으로 돌린다고 기록했지만(개발자 B 기록 §확인 못 한 것 위, "ABANDONED 세트 주소로 직접 오면…" 문구), 이는 **참조 클라이언트의 선택**일 뿐 서버 계약 자체가 새고 있어 다른 클라이언트(추후 API 재사용·Export·직접 호출)에는 방어가 없다.
+- **증거**: `src/modules/learning/__tests__/task008.test.ts:112-133` 의 `toCardDto` 단위 테스트는 `'IN_PROGRESS'`·`'DONE'` 두 상태만 검사하고 `'ABANDONED'` 는 다루지 않는다. `tests/live/task008-smoke.ts:290-294` 의 F2 스모크도 `finish` 응답(`session.status/studyLogId`)만 확인하고 그 뒤 `GET #49` 를 다시 호출해 카드 내용을 보지 않는다 — 그래서 69/69 PASS 로도 이 결함이 드러나지 않았다.
+- **권고**: `toCardDto` 의 reveal 조건을 계약 문구 그대로 `status === 'DONE'` 로 좁힌다(`const reveal = answered || status === 'DONE'`). 이렇게 하면 ABANDONED 세트는 IN_PROGRESS 와 같은 수준으로 미답 카드를 계속 숨긴다(F2 가 요구하는 "기록·스냅샷·카운터 변화 0" 과도 자연스럽게 맞는다 — ABANDONED 는애초에 "본 적 없는 것으로 친다"는 취지). 회귀 테스트로 `toCardDto('CHOICE','ABANDONED', {..답 없음..})` 이 `correctText`/`example`/`exampleKo` 를 갖지 않는지 단위 테스트에 추가하고, `task008-smoke.ts` 의 F2 케이스(6h) 뒤에 `GET #49` 를 한 번 더 호출해 카드가 여전히 숨겨져 있는지 확인하는 스텝을 추가할 것을 권한다.
+
+**Low (1건, 비차단)**
+
+| # | 이슈 | 컴포넌트 | 비고 |
+|---|---|---|---|
+| L1 | `keepVocabSession`(#52)은 사용자 행 잠금 없이 조건부 `updateMany` 하나로 끝나고, `replayVocabSession`(#53)은 `lockUserRow` 로 자기 자신끼리는 직렬화되지만 **동시 `keep(false)` 호출과는 어떤 잠금도 공유하지 않는다**. 이론상 "보관 해제"와 "다시 풀기"가 동시에 오면 방금 해제된 세트가 그대로 replay 될 수 있다(데이터 손상·이중 반영은 없음 — replay 시점에 `keptAt` 이 아직 non-null 이면 정상 케이스로만 진행되고, 최악의 경우도 사용자가 막 해제하려던 세트 하나가 한 번 더 복제되는 수준). Developer 기록의 "반례 검토" 목록에는 이 조합이 빠져 있다. | `src/modules/learning/vocab/sessions.ts:522-531`(`keepVocabSession`)·`537-562`(`replayVocabSession`) | 기록만, 수정 필수 아님 |
+
+**확인됨(문제 없음, 근거 포함)**
+
+- **동시성 — 핵심 시나리오 6종 코드 추적 결과 Developer 자기 점검과 일치**: 동시 세트 생성 2회(사용자 행 직렬 → 두 번째 409), 같은 `order` 동시 답(세트 행 `FOR UPDATE` + `answer IS NULL` 조건부 갱신, `sessions.ts:402-429`), 동시 finish 3회(사용자 행 → 세트 행 → 상태 확인 후 멱등 재응답, `sessions.ts:462-511`), 답↔finish 겹침(둘 다 세트 행을 잡아 순서만 갈릴 뿐 순환 없음), 단어 삭제↔finish(둘 다 사용자 행을 먼저 잡아 직렬, `words.ts:323-331`), 동시 seed-pack(사용자 행 직렬, `seedPack.ts:65-84`) — 잠금 순서(사용자 행 → 세트 행 → 카드/단어 행)가 모든 쓰기 경로에서 일관되고 `withTransaction` 의 READ COMMITTED(`infra/tx.ts`)와 맞물려 교착·이중 반영 여지를 찾지 못했다.
+- **finish 멱등·트랜잭션**: `finishVocabSession` 하나의 `withTransaction` 안에 카드 SKIPPED 확정 → 세션 카운터 → 단어 카운터(E5, `correctCount/wrongCount` 만 증가·SKIPPED 는 `lastSeenAt/lastResult` 만) → `recordStudyLog` → `createVocabSessionSnapshot` → `bumpDailySnapshot` 이 전부 들어 있다(`sessions.ts:462-511`). 이미 DONE/ABANDONED 면 재호출 시 같은 `finishResult()` 를 재구성해 돌려주고 부작용이 없다. F2(답 0장 → ABANDONED, 기록·스냅샷·카운터 변화 0)도 코드로 확인.
+- **삭제 후 집계 불변**: `deleteWord` 는 `WordEntry` 행만 지우고(`words.ts:323-331`) `StatsSnapshot` 을 전혀 건드리지 않는다. `#54`(`stats.ts`)는 `StatsSnapshot(VOCAB_SESSION)` 만 읽으므로 원본 삭제와 무관하게 값이 불변임을 코드로 확인. `VocabAttempt.wordId` 는 스키마 `onDelete: SetNull`(`prisma/schema.prisma:863`)이고 `*Snap` 컬럼이 이력을 보존한다.
+- **6층 경계**: `learning/**` 전체(신규 `vocab/{words,seedPack,enrich,sessions,setGenerator,distractors,stats}.ts` 포함)에 `@/modules/conversation` import 없음(grep 확인). `#42` 의 교정 참조는 Leader 승인 예외대로 라우트(`words/[id]/route.ts`)가 `conversation.listCorrectionRefsByWord`(읽기 전용, `userId` 스코프)와 `learning.getWordDetail` 을 조합하는 방식으로 구현돼 있다. `learning/vocab/enrich.ts` 는 `conversation` 의 `WordEnrichResponse` 타입을 import 하지 않고 구조적으로 같은 필드의 로컬 타입(`WordEnrichOutput`)을 쓴다(module-dependency §4-4 그대로). `eslint.config.mjs` 는 이번 diff 에서 변경되지 않았고 기존 경계 규칙(`no-restricted-imports`)이 그대로 이 파일들에 적용된 채로 lint 0 error.
+- **components/common 이동(F10)**: `chat/{errors,storage,useNow}.ts` → `common/`, `chat/format.ts` 의 공용부(`toDate` 포함)만 `common/format.ts` 로 이동하고 채팅 전용 `GROUP_GAP_MS`/`withinGroupGap` 은 `chat/format.ts` 에 남아 있음을 diff 로 확인. 14개 chat 컴포넌트는 import 경로만 바뀌었고 `chat/__tests__/format.test.ts` 포함 기존 chat 테스트 전부(146/146 안에 포함) 통과.
+- **IDOR**: 신규 라우트 17개 전부 `requireSession()` 뒤 서비스 함수에 `userId` 를 넘기고, 서비스 함수는 전부 `where:{id,userId}` 로 걸러 없거나 남의 것이면 `notFound()`(404)를 던진다(`words.ts`·`sessions.ts` 전체 확인). `lockSession` 의 원시 SQL(`sessions.ts:221-226`)도 `WHERE id=… AND userId=… FOR UPDATE` 로 소유자 조건이 잠금 자체에 들어있다.
+- **A10(E8·F8)**: `buildWordEnrichRequest`(`conversation/prompts/wordEnrich.ts`)가 `INJECTION_GUARD` 를 포함하고, `--json-schema`(`WORD_ENRICH_SCHEMA`) + `checkWordEnrich` 후검증 + 캐시(`enrich.ts`)가 정상 연결. 라우트(`words/route.ts`)는 본문 검증 → `rateLimit('enrich:<userId>', 20)`(분당 20) → 표현 중복 409(LLM 호출 전) → `enrichWord` 순서로, `valid:false` 응답은 `saved:false` 유지(DB 행 0). 진단 diff·소스 전체에 `claude|haiku|sonnet|opus|qwen|home-m4|reazon|whisper` 등 엔진 식별자가 `src/` 실제 코드(주석 포함)에는 나타나지 않고, 테스트·실측 스크립트의 `LEAK` 정규식 안에만 있음을 grep 으로 확인.
+- **seed-pack 정적 import**: `prisma/seed-data/words-n5.json` 을 `learning/vocab/seedPack.ts` 가 상대 경로로 정적 import. `tsconfig.json` 의 `resolveJsonModule:true` 와 Next.js(webpack/Turbopack) 의 표준 JSON 모듈 인라인 동작, `next.config.ts` 에 JSON/외부화 관련 예외 설정이 없는 점으로 미루어 서버 청크에 포함될 구조로 판단(코드 근거 판단, `build` 미실행이라 완전 확정은 아님 — QA 인계).
+- **화면 통합 가정(B 12개) 대조**: #41(`{draft,saved:false}`+409 `existingId`)·#43(부분 갱신·`null` 허용)·#45(archived 토글)·#46(배열+count/archivedCount)·#47/#53(`session.downgraded`+빈 풀 `{session:null,empty}`)·#48(`answeredCount` 포함)·#49(F1 FLIP 상시 `meaning`)·#50(`{order,flagged}` 표시 전용·`chosenText` 검증)·#51(`ABANDONED` 판별)·#52(`keptAt`)·#54(`byCount`/`daily`) 전부 A 쪽 실제 응답 필드와 어긋남 없음을 코드 대조로 확인. H1 은 #49 의 "미답 카드 정답 숨김" 가정이 ABANDONED 상태에서만 깨지는 경우라 이 목록에는 없던 사각지대다.
+
+**QA 인계**
+
+- `high_risk_areas`: ① **H1 수정 후 재검증 필수** — GET #49 on ABANDONED session, 특히 "세트 생성 → 즉시 finish(0장) → GET" 시나리오. ② finish/attempt/replay 동시성(코드 추적만 했고 실경합 재현은 Developer 스모크 6종에 의존 — QA 가 별도 재현하면 더 좋음). ③ seed-pack JSON 이 실제 프로덕션 빌드 산출물에 포함되는지는 이번 리뷰가 `build` 를 실행하지 않아 코드 근거 판단만 했다(운영 배포 전 반드시 실측 필요, 단 QA 도 `next dev` 만 쓰므로 `next build` 실측은 deployer 단계가 될 수 있음). ④ 화면 실렌더(360/390/412·스와이프 제스처·Gboard)는 B 가 전혀 실행하지 못했다(NOT_VERIFIED) — dev 서버 하이드레이션 가능한 환경에서 QA 가 처음 확인.
+- `native_change`: **false**(웹만, APK 재빌드 불필요).
+
+→ [[task-008-vocab-today-words]]
+
+### REV-008 재검증 (2026-09-27) — 커밋 `10b770e`
+
+**범위**: `git diff 54ec31f..10b770e -- src tests eslint.config.mjs`(3 files, +29/-11 — `sessions.ts`·`task008.test.ts`·`task008-smoke.ts` 뿐). `npm run typecheck`(0 error)·`npm run lint`(0 error, 기존 무관 경고 4 그대로)·`npm test`(146/146 PASS) 재실행.
+
+**판정**: **PASS** (Critical 0 · High 0 · Medium 0 · Low 0)
+
+- **H1 수정 확인**: `toCardDto` 의 `reveal` 이 `answered || status === 'DONE'` 로 좁혀짐(`sessions.ts:126`). 경로별 확인 — **#47/#53**(`insertSession`)은 `status` 인자를 항상 리터럴 `'IN_PROGRESS'` 로 넘겨 애초에 이 조건의 영향을 받지 않음(수정 전후 동일, 새 세트는 늘 진행 중으로 시작하므로 맞다) · **#49**(`getVocabSession`)은 실제 `s.status` 를 넘기므로 ABANDONED 에서 이제 `reveal=false`(미답 카드는 IN_PROGRESS 와 동일하게 숨김) · **#50 flag 전용**(`kind==='flag'` 분기)은 애초에 `toCardDto` 를 호출하지 않고 `{order,flagged}` 만 반환하므로 이번 버그와 무관(전후 동일) · **#51**(`finishResult`)도 `toCardDto` 를 쓰지 않고(세션 요약 + `wrongWords` 뿐), ABANDONED 의 `wrongWords` 는 `answer:'WRONG'` 조건 매치가 원천적으로 0건이라 안전. `grep -n "reveal\|!== 'IN_PROGRESS'" src/modules/learning/vocab/sessions.ts` 로 다른 사본 로직이 없음을 재확인.
+- **DONE·FLIP 비회귀 확인**: `status==='DONE'` 조건은 명시적으로 유지되어 결과 화면(전 카드 정답)은 그대로 동작. FLIP 은 `mode==='FLIP'` 이 `reveal` 과 독립적으로 `card.meaning`/`example`/`exampleKo` 를 항상 채우는 라인이라(수정 대상 밖) ABANDONED+FLIP 에서도 F1 대로 뜻이 보이는지 새 테스트(`abandonedFlip`)로 확인, `correctText`/`answer` 는 여전히 미노출(둘을 구분하는 것이 맞음 — "뜻은 보여도 채점 여부는 아직 모른다"). 단위 테스트(`task008.test.ts:112-133`)와 라이브 스모크(6h′: GET 재조회로 5장 전부 `choiceCardHides` 통과, 6h″: ABANDONED `keep` → 409) 모두 이 경계를 코드로 재확인.
+- **L1 수정 확인**: `keepVocabSession` 이 `withTransaction` + `lockUserRow` → `lockSession`(세트 행 `FOR UPDATE`, 소유자 조건 포함) 순서로 바뀜 — `replayVocabSession`·`finishVocabSession`·`createVocabSession`·`deleteWord`·`updateWord`·`addSeedPack` 이 전부 쓰는 "사용자 행 → 세트/대상 행" 순서와 일치해 새 교착 경로가 생기지 않음(세트 행을 사용자 행보다 먼저 잡는 함수가 없음을 재확인). `kept === !!s.keptAt` 단락으로 같은 상태 재요청은 추가 쓰기 없이 그대로 반환 — 8b(멱등 유지) 회귀 없음. 스모크 8e′(동시 해제/재보관 2건 → 둘 다 200, 이후 강제로 `kept:true` 재설정해 뒤 흐름과 격리)로 직렬화·무결성 확인.
+- **회귀 없음**: 변경 파일이 이 3개뿐이라 6층 경계·IDOR·A10·seed-pack 등 나머지 항목은 REV-008 1차 결과가 그대로 유효.
+
+**QA 인계 갱신**: 이전 `high_risk_areas` ①(H1 재검증)은 해소로 종료. ②~④(동시성 실경합·seed-pack build 포함 여부·화면 3폭 실렌더)는 그대로 유효. `native_change: false` 불변.
+
+→ [[task-008-vocab-today-words]]
 
 ## QA 기록
 
