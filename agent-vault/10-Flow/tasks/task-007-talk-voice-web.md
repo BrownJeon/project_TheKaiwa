@@ -174,6 +174,22 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 - [03:25] 격리 빌드(`~/.node-local/thekaiwa-buildcheck-a`, node_modules `cp -al`, .next·logs 제외) **exit 0**(새 라우트 `/tts/[token]`·`/utterances/[id]/audio` 포함) 후 삭제. 경고 3건(Dynamic filesystem access)은 기존 코드(persona loader·`--version` 프로브) — 이번 변경 아님. 수동 시험 Chat·Trace 정리 완료.
 
 - [03:29] 커밋 `6d8b3b1`(A 파일만 경로 지정 — B 의 components·app/(app)·eslint·speech/tts/client 와 vault 이력서는 포함 안 함, push 안 함). **dev 서버 종료 확인**: 종료 전 워커 자식 대기 예열 1개(RSS 267MB) → `kill <dev pid>` 뒤 워커·`claude --print` **0**, 3011 LISTEN 0(완료 기준 8 — dev 서버 종료 후 고아 0). 스크래치 쿠키 삭제.
+- [03:40] **[High] MISS 청크 #24 404 경합 수정(B E2E 발견)** — 원인 확인: `synthesizeSentence` 는 singleFlight 가 캐시 저장(파일 쓰기 + `TtsCache` 행 커밋)을 **응답 뒤로** 미루도록 돼 있어(003d 설계 — 첫 오디오를 저장 I/O 만큼 늦추지 않음) SSE `audio` 가 행 커밋보다 먼저 나간다. NAS 커밋 fsync 100~500ms + NFS 파일 쓰기라 0.6~1.4s 동안 #24 가 404. **(a) 채택** — `speech/tts/recentAudio.ts`: 합성 직후(`startSynthesis` 의 then — 어느 호출자에게 결과가 가기 **전**) 오디오를 프로세스 메모리에 60초 보관(항목 64·16MB 상한, 넘으면 오래된 것부터), `readSignedTtsAudio` 가 **서명 검증을 통과한 뒤에만** 보관소를 먼저 보고 없으면 DB/파일. 이유: ① TTFA 에 아무것도 더하지 않는다(c 는 커밋 100~500ms 를 그대로 더함) ② (b) "파일 먼저 쓰고 키로 직접 서빙" 은 NFS 쓰기(수백 ms)를 여전히 이벤트 앞이나 경합 창에 두고, 행 없는 파일을 읽는 새 경로(경로·존재 판정)를 연다 — (a) 는 새 경로 없이 검증 뒤 메모리 조회뿐이라 오라클·경로 탈출 표면이 늘지 않는다 ③ 캐시 저장이 실패해도 60초는 들린다. globalThis 에 둬서 턴 라우트와 #24 라우트 번들이 달라도 같은 보관소(프로세스 1개 = pm2 `thekaiwa`). **blue/green**: 전환 순간 #24 가 다른 인스턴스로 가면 그쪽 보관소엔 없다 → 캐시 저장이 끝나기 전(≈1s)만 404 → B 의 클라 재시도(`chunkFetch`, 404 만)가 덮는다 — 전환은 순간이고 창이 1s 안팎이라 **수용**. B 파일 `chunkFetch.ts` 는 **수정 안 함**: 404 일 때만 재시도하므로 서버가 즉시 200 이면 한 번도 기다리지 않는다(아래 실측 재시도 0회).
+- [03:45] **[REV-014 M2] 수락 거절 인터리빙 테스트** — `orchestrator/index.ts` 의 DB·LLM 의존을 `turnDeps{precheckChat, acceptTurn, loadRecentHistory, buildLearnerHeader, completeJson}` 로 모아(운영 동작 동일) 단위 테스트가 `mock.method` 로 바꿔 낀다. `conversation/__tests__/task007`: ① gate 통과 → LLM 선행 시작(조기 첫 문장까지 흘림) → 수락 409 → `startTurn` 이 409 로 거절(핸들 없음 = 이벤트 0)·LLM signal abort·speaker 팩토리 0회(수락 전 합성 없음)·락 해제 ② gate 404·채팅 확인 404 → LLM·수락 0회. `engine/__tests__/claudeWarm`(가짜 CLI): cold 실행 중 abort → `ClaudeCliAbortedError`·**자식 pid 죽음** / 예열에서 꺼낸 자식 abort → 죽음 + 재충전 / 이미 취소된 요청 → spawn 0. 라이브 `task007-smoke` **E8**: 다른 채팅에 살아 있는 PENDING 강사 행(다른 인스턴스 턴 흉내)을 넣고 턴 → 409 `runningMessageId`·**DB 행 수 불변**·SSE 0, **E9**: dev 로그에 `[claudeCli] 취소`(완료 없음). claudeCli 에 취소 로그 추가(시작 전 취소 포함), 취소 시 warm 표시가 OFF 로 찍히던 것 수정(꺼낸 순간 HIT).
+- [03:48] **[REV-014 Low]** ⑧ 스모크 "행 0" 라벨 → E1~E4·E6·E7·E8 이 모두 **DB 에서 해당 채팅 행 수 전후 비교 + SSE 0** 을 실제로 확인. ⑦ `learnerBaseCache` 를 진짜 LRU 로(적중 시 맨 뒤로). ④ `appendTraceSteps` read-modify-write 는 **그대로**: 같은 traceId 에 PLAYBACK 을 쓰는 것은 그 다음 턴 하나뿐(사용자당 턴 락)이라 동시 append 가 사실상 없다 — 원자적 JSON_ARRAY_APPEND 로 바꾸면 MariaDB 전용 raw SQL 이 생겨 이득보다 비용이 크다. ⑥ `steps` 가 SSE 로 새는 경로: audio 이벤트는 필드를 하나씩 골라 만들고(스프레드 없음) 기존 단위 테스트("speaker 의 관리자 단계는 SSE 로 나가지 않는다")가 막는다 — 추가 조치 없음. ⑤ 테스트 수 차이는 B 테스트 포함 여부(현재 367/367).
+- [03:52] **검증**: 단위 **367/367**(신규: 수락 거절 2·abort 3·보관소 2), tsc 0·eslint 0 error, 격리 build exit 0(`thekaiwa-buildcheck-a` 생성·삭제). 라이브 스모크 **39/39**(+SKIP TEXT_ONLY) — 새 **A9** 턴 audio 이벤트 **받는 순간** #24 → 200 · **D2** #23 새 문장(MISS, cached:false) → 곧바로 서명 URL 200 · E8·E9.
+- [03:55] **재실측 — 손 뗌 → 첫 청크 오디오 바이트 수신(#24 200, 클라 재시도 흉내 포함)**, `task007-latency.sh 3011 14` + `… 10`(2번째 이후 청크까지 이벤트 즉시 받기):
+
+  | 구간 | 14턴 p50 / p90 | 10턴 p50 / p90 |
+  |---|---|---|
+  | stop → 첫 audio 이벤트 | 1,847 / 2,926 | 1,711 / 2,400 |
+  | **stop → 첫 청크 바이트(#24 200)** | **1,921 / 2,975** | **1,761 / 2,960** |
+  | └ 첫 청크 MISS | 2,504 / 3,879 (n=3) | 2,984 (n=1) |
+  | 첫 audio 이벤트 → 바이트 | 48 / 128 | 49 / 409 |
+  | ttfaServerMs(청크0) | 97 / 742 | 20 / 457 |
+
+  **#24 404 재시도 0회**(24턴 전부), 2번째 이후 청크 즉시 받기 MISS 8건·HIT 7건 **404 0**. warm HIT 24/24, AUDIO_TEXT_MISMATCH 0. (14턴 #1 HIT 의 1.0s 는 dev 서버가 `/tts/[token]` 라우트를 처음 컴파일한 시간.) dev 서버 종료 뒤 워커·`claude --print` 0.
+- [03:58] 커밋 `de48fe3`(A 파일 13개 — api-contract #24 "발급 직후 곧바로 200" 주석 포함, B 파일·vault 미포함, push 안 함).
 
 **정본과 다르게 한 것**
 1. 청크 스케줄러·문장 감지를 `speech/tts/chunkScheduler` 가 아니라 `conversation/orchestrator/{turnAudio,sentences}` 에 뒀다 — LLM 스트림 조각에서 바로 끊어야 하고 conversation 은 speech 를 import 할 수 없어서. speech 는 문장 1개 합성(`createTurnSpeaker`)만. 문장 규칙은 §6.1 과 거의 같고(4자 병합 대신 "부호 뺀 2자"), 최종 대조는 앞부분 일치라 경계가 달라도 된다.
@@ -190,6 +206,8 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 - NAS MariaDB 커밋 fsync(100~500ms)는 코드로 못 줄였다 — `done` 은 저장 커밋을 기다린다(합성과 병렬이라 대부분 가려짐). 근본 해결은 위 에스컬레이션.
 - 예열 RSS 265MB/개. 스키마 변경 제안(`Utterance.chatId`·`chatMessageId @unique`)은 domain-model §8 #17.
 - CLI 구독 한도 도달이 로그에 원인 없이 `exit=1 stderr 없음` 으로만 남는다.
+
+**B 용 계약 요약 추가(03:55)**: #24 는 이제 `audio` 이벤트 **직후 곧바로 200**(방금 합성한 청크 포함) — `chunkFetch` 의 404 재시도는 방어용으로 남겨도 기다림이 생기지 않는다(blue/green 전환 순간에만 쓰일 수 있음).
 
 **B 용 계약 요약(A 확정 — 코드 타입 `src/types/talk.ts`, 정본 api-contract #24·#29·#32·§7-1)**
 - **#32 요청** `{text, inputSource?, utteranceId?, clientTimings?}` — `utteranceId` 만 주면 `REALTIME_STT`(명시해도 됨), `TEXT`+id 는 400. 글자로 고쳐 보낼 때도 같은 id + 고친 text + `REALTIME_STT`(서버가 finalSource=USER). `clientTimings = {prevMessageId, sttMs, releaseToFirstAudioEventMs, firstAudioAtMs, playbackStartDelayMs}` — 기준 손 뗌(글자 턴은 보내기 누름), `sttMs` 만 이번 턴·나머지는 `prevMessageId`(같은 채팅의 직전 강사 메시지) 턴, 각 0~120000(밖이면 400), 모르는 키 무시. **수락 전 오류(JSON 봉투)**: 404(채팅·발화 없음/타인) · 409 `details.runningMessageId`(턴 진행 중) · 409 `details.reason` `UTTERANCE_USED`|`UTTERANCE_EXPIRED`(→ 글자 턴으로 재전송 권장) · 400 · 429 `Retry-After`. 수락 전 거절된 발화는 같은 id 로 다시 보내도 된다.
