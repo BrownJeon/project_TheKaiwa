@@ -44,3 +44,10 @@ logs/
 /*.jpg
 /*.jpeg
 /*.webp
+
+# 맥 M4 tts-service 로컬 실행 산출물 — ~/kaiwa-tts-run 은 이 저장소의 clone 루트다(speech/tts-service/SETUP-M4.md)
+/.venv/
+.venv/
+/model_assets/
+/model_assets_archived/
+/imports/
