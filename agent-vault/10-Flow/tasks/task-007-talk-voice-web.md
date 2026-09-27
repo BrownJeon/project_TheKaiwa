@@ -442,6 +442,41 @@ Leader 의 C1-1/C1-2/C1-3 판정문이 실제 구현과 일치하는지 코드�
 
 두 건 모두 Developer(A)에게 수정 요청 → 수정 후 Reviewer 재순환(REV-016 예정). Critical·High 아니므로 QA 진행을 막을 필요는 없으나, 두 fix 모두 작고 국소적이라 QA 이전 반영을 권고.
 
+### REV-016 (2026-09-28, 0293cd3 — Codex C2 수정 재검증)
+
+**판정: PASS** (Critical 0 · High 0 · Medium 0 · Low 1 — 기존 트레이드오프 재확인)
+
+**검증 방법**: `git show 0293cd3`(9파일) 전량 정독 + `git show d7451b2`(각주 커밋) 대조. 독립 재실행은 REV-014·015 와 같은 `git archive` 스크래치 방식 — `~/.node-local/thekaiwa-revcheck-0293cd3`(node_modules 는 운영 미러에서 하드링크, 검증 뒤 삭제). 운영 pm2 미러는 건드리지 않았다.
+
+**독립 재실행 결과**: `tsc --noEmit` exit 0 · `eslint src` 0 error(경고 5 = 기존 파일, REV-015 와 동일 — 이번 diff 무관) · `node --test`(전체) **373 pass / 0 fail** — **A 보고 "373/373" 독립 재확인**. C2 관련 신규 테스트 6건(불일치 시 settled 즉시·그 뒤 이벤트 0 / TEXT_ONLY 동시 2 즉시·이벤트 0 / 정상 경로 회귀(TIMEOUT 확인) / 턴 전체 done 즉시(1.5s 안, 9s 아님) / TALK SHADOWING·PRONUNCIATION→NATIVE / 저장·미리듣기 3종 제한)을 `--test-name-pattern` 으로 개별 재확인 — 전부 `ok`.
+
+#### C2-1 재검증
+
+- **① `resolveSpeechProfile`(`speech/tts/profiles.ts`) 동작**: 코드(`if (i.requested) return i.requested` → `saved` 계산 → `contextMode==='TALK' && !USER_SPEECH_PROFILES.includes(saved)` 면 `NATIVE`)와 신규 테스트(`speech/__tests__/task007.test.ts` "회화(TALK) 문맥은 저장된 SHADOWING·PRONUNCIATION 을 물려받지 않고 NATIVE 로 낮춘다")를 대조 — **Leader 확인 항목 3가지 모두 코드·테스트로 확인**: (a) TALK + 저장값 SHADOWING/PRONUNCIATION → NATIVE(`resolveSpeechProfile({saved:'SHADOWING',contextMode:'TALK'})==='NATIVE'`, `PROFILE_POLICIES.NATIVE.gapMs===0` 도 같이 확인) (b) 명시적 요청값은 컨텍스트 무관하게 유지(`{requested:'SHADOWING', saved:'NATIVE', contextMode:'TALK'}` → `'SHADOWING'`) (c) 다른 컨텍스트(`TTS`·`PREVIEW`)는 저장값 SHADOWING 그대로 유지. `chunkPauseMs(NATIVE, 1, 0, null)===0` 로 "동시 합성으로 직전 길이를 몰라도 SHADOWING 만의 문제였던 조용한 쉼-0 이 재현되지 않음"도 같이 확인됨.
+- **② `preferences/validate.parseVoiceDraft` 제한 + api-contract 일치**: `SPEECH_PROFILES`(5종, 컬럼 enum 그대로) 와 별개로 `USER_SPEECH_PROFILES`(3종)를 신설해 `oneOf(body.speechProfile, ..., USER_SPEECH_PROFILES)` 로 검사 — `PUT /api/v1/settings/voice`(#14, `requireSpeechProfile:true`)·`POST /api/v1/voices/preview`(#18, `requireSpeechProfile:false` 지만 필드가 오면 같은 검사)**둘 다** PRONUNCIATION·SHADOWING 을 `400 VALIDATION` 으로 거절함을 코드(`validate.ts:119` 변경)·신규 테스트(`preferences/__tests__/validate.test.ts` 6-way 단언: 3종 통과·2종×2컨텍스트 400)로 확인. `docs/design/api-contract.md` #13~#14 절이 "PRONUNCIATION·SHADOWING 은 저장할 수 없다(400)... 컬럼 enum 은 5종 그대로이며, 옛 행에 두 값이 남아 있어도 회화(TALK) 턴은 그 저장값을 물려받지 않고 NATIVE 로 합성한다" 로 정확히 갱신됨을 정독 확인 — 코드·계약·정본 3층 일치. `#18` 이 실제로 Settings 화면(§7) 의 통합 미리듣기(`voices/preview/route.ts`, "문장은 서버 고정·저장하지 않은 draft")이고 그 화면 자체가 3종만 노출하므로 이 제한이 실사용 흐름을 깨지 않음을 라우트 정독으로 확인.
+- **③ 6층 경계**: `grep -rn "SpeechProfile\|speechProfile" src/modules/conversation/` **0건** — 청크 스케줄러(`turnAudio.ts`)는 여전히 프로필을 전혀 모른다(이번 diff 가 `turnAudio.ts` 의 `run()`·`enqueue`·요청 구성부를 건드리지 않았음을 `git show 0293cd3 -- turnAudio.ts` 로 확인 — 변경은 `checkSettled()` 뿐). 프로필 판단은 전부 `speech/tts/synthesize.ts:prepareSentence`(speech 층)에서 일어난다 — L2↔L4 경계 유지.
+- 운영 DB 실측(A 04:30 "QA 계정 저장값을 DB 직접 SHADOWING 으로 → TALK 턴 Trace `speechProfile`=NATIVE·NATIVE / #23 은 SHADOWING 유지 → 원복")은 **프로덕션 DB 직접 조작이라 Reviewer 범위 밖**(Read 전용) — 재현하지 않았다. 다만 위 단위 테스트가 정확히 같은 조건(`saved:'SHADOWING', contextMode:'TALK'` vs `contextMode:'TTS'`)을 결정적으로 검증하므로 별도 재현 없이도 충분한 확신을 얻었다.
+- **Phase 3 각주(`d7451b2`)**: `speech-platform/16-tts-productization-layer.md` §6 에 "SHADOWING 과 청크 동시성" 각주가 정확히 REV-015 가 요청한 내용(이번 fix 의 범위·Phase 3 섀도잉 화면 착수 시 순차화 또는 `pauseBeforeMs` 재계산 필요)을 담고 있음을 확인.
+
+#### C2-2 재검증
+
+- **① `settled()` 가 불일치·TEXT_ONLY 확정 시 즉시 풀리는지**: `checkSettled()` 조건이 `this.total !== null && this.queue.length === 0 && (this.running === 0 || this.m.mismatch || this.m.textOnly)` 로 확장됐고, `finalize()` 의 불일치 분기가 `this.m.mismatch=true` 설정 직후 `this.checkSettled()` 를 **동기 호출**함을 코드로 확인(대기 중인 job 의 `.finally()` 콜백을 기다리지 않음). 신규 테스트 2건(불일치·TEXT_ONLY 동시 2)이 `Promise.race([settled(), sleep(50)→'TIMEOUT'])` 로 **SETTLED 가 50ms 안에 이김**(gate 는 테스트가 끝날 때까지 안 풀어 둔 채로)을 단언 — 재실행에서 통과 확인.
+- **② 늦게 끝난 합성이 캐시만 남기고 이벤트 0, done 뒤 이벤트 0**: 두 단계 방어를 코드로 확인 — (a) `run()` 내부의 기존 가드(`if (this.m.mismatch || this.m.textOnly) return`, 위치는 `traceSteps.push`·`durations.set` **뒤**·`emit('audio')` **앞**)가 언제 끝나든 오디오 이벤트 송신 자체를 막는다 (b) `stream.ts` 의 `finished` 플래그가 `emit()` 자체를 no-op 으로 만든다(`done`/`error` 이후 어떤 이벤트도 스트림에 안 실림) — 이중 방어. 신규 테스트가 `release()` 로 gate 를 연 **뒤**(즉 `done`/`settled` 가 이미 확정된 뒤) `sleep(30)` 하고 이벤트 개수가 그대로임을 단언 — 재실행 통과. **턴 전체 테스트**(`startTurn` 을 `turnDeps` mock 으로 완전히 감싼 e2e 형)는 speaker 가 테스트가 끝날 때까지 전혀 풀리지 않는 gate 로 막혀 있는데도(9초는커녕 아예 안 풀림) `done` 이 **1.5초 race 안에** 도착하고, 그 뒤 `release()` 해도 이벤트가 늘지 않으며 `currentTurnLock` 이 null(락 정상 해제)임을 확인 — 가장 설득력 있는 증거.
+- **③ 정상 경로가 여전히 모든 청크를 기다리는지(회귀)**: `this.m.mismatch`·`this.m.textOnly` 가 모두 false 인 일반 완료는 조건이 `running===0` 하나로 그대로 남는다(수학적으로 원래 조건과 동치). 신규 "회귀" 테스트가 청크 1을 gate 로 막아 두고 `Promise.race(settled(), sleep(50))` 가 **TIMEOUT** 으로 나옴(=settled 가 성급하게 안 풀림)을 먼저 확인한 뒤 `release()` 하고 정상 완료를 재확인 — 이 테스트가 "회귀 없음"을 직접 증명한다. 기존 "조기 경로" 정상완료 테스트(102-124행, 이번 diff 로 안 바뀜)도 그대로 통과.
+- **④ Trace 스텝 누락 부작용 평가(Leader 요청)**: `orchestrator/index.ts:387-389` 에서 `await audio.settled()` 직후 `steps.push(...audio.steps())` 가 **그 시점의 스냅샷**을 한 번만 복사해 간다. `settled()` 가 일찍 풀리면 아직 `run()` 이 `this.traceSteps.push(...)`(296행대, `emit` 가드보다 앞)에 도달하지 못한 job 의 TTS 스텝은 이 스냅샷에 없다 — 그 job 이 나중에 끝나 `this.traceSteps` 에 늦게 추가돼도 `processTurn` 의 로컬 `steps` 배열은 이미 복사가 끝나 `recordTrace(...)` 에 반영되지 않는다. **확인 결과**: (a) 크래시·미처리 rejection 없음(`run()` 이미 내부 try/catch, `.finally()` 의 `pump()`·`checkSettled()` 재호출도 안전, no-op) (b) 영향 범위는 **관리자 전용 Trace 진단 정보**(`TTS[i]` 스텝의 합성 시간·cacheHit 등) 하나뿐 — 사용자 응답(SSE)·저장 데이터(ChatMessage)·`toolLog.audioCount`(이미 `metrics()` 에서 mismatch/textOnly 이전에 카운트된 값만 집계, 즉 정확함) 어디에도 영향 없음 (c) 코드 주석·dev log 에 이미 명시적으로 문서화된 **의도된 트레이드오프**임을 확인. **결론**: 부작용은 실재하나 Low — 기능·보안·데이터 무결성에 영향 없는 진단 정보 완결성 손실뿐이라 이번 fix 를 막을 이유가 아니다.
+- **M4 자원 낭비(취소 자체)**: 이번 fix 로 해결되지 않음(REV-015 권고에서도 "후속 과제"로 명시) — `AbortSignal` 배관 없음을 재확인, 의도된 범위 밖.
+
+#### Low
+
+1. **관리자 Trace 스텝 누락(위 C2-2 ④)** — 기능·보안 영향 없는 진단 정보 손실. 이미 코드 주석·dev log 에 문서화된 의도된 트레이드오프. Phase 2 Admin Diagnostics(§16) 강화 시 "늦게 끝난 TTS 스텝을 비동기로 Trace 에 추가로 patch" 를 후속 과제로 고려할 수 있다는 점만 기록(급하지 않음, 코드 수정 요구 아님).
+
+#### QA 인계 추가
+
+- REV-015 의 high_risk_areas·QA 실행 방법 메모는 그대로 유효(변경 없음).
+- (신규, 낮은 우선순위) `PUT /api/v1/settings/voice`·`POST /api/v1/voices/preview` 에 `speechProfile:"PRONUNCIATION"`|`"SHADOWING"` 을 직접 보내면 `400`(`VALIDATION`)인지 스모크 1회 확인 권고 — 이미 단위 테스트로 커버되나 실제 라우트 왕복까지 QA 가 한 번 눈으로 보면 좋음.
+
+`native_change`: false.
+
 ## QA 기록
 
 ## 최종 요약
