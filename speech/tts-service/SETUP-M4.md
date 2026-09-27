@@ -2,7 +2,7 @@
 
 > 작성 2026-09-27 · 대상: 맥 mini M4(`192.168.219.100`) 에 앉아서(또는 SSH) **대화형 터미널**로 실행.
 > 목적: task-003(TTS 서비스 구현) 착수 전에 **실행 디렉토리·Python 환경·Style-Bert-VITS2·기본 모델**을 준비하고, 1문장 합성이 되는지·얼마나 걸리는지 확인한다.
-> 서비스 코드(`app.py` — 자체 FastAPI 래퍼)는 아직 없다. 이 가이드의 6단계까지 하면 task-003 에서 코드만 올리면 된다.
+> 1~6단계는 2026-09-27 완료. 서비스 코드(`app.py`, task-003d)가 들어왔으므로 **§6-2 방화벽 → §7 기동·워치독** 순서로 이어 간다(둘 다 사용자 승인·sudo 필요).
 > 설계 근거: [`README.md`](README.md)(배치·포트·env) · [`LICENSE-NOTICE.md`](LICENSE-NOTICE.md)(AGPL 경계) · `docs/design/speech-platform/16-tts-productization-layer.md`.
 
 ## 0. 먼저 알아 둘 것
@@ -72,6 +72,9 @@ from huggingface_hub import snapshot_download
 # 기본 모델: Style-Bert-VITS2 배포 JVNV 모델(여성 1). 모델 카드의 이용 약관을 확인한다.
 snapshot_download(repo_id="litagin/style_bert_vits2_jvnv", allow_patterns=["jvnv-F1-jp/*"],
                   local_dir="model_assets")
+# 화자 매핑(task-003d T2): Haruka=jvnv-F1-jp · Sakura=jvnv-F2-jp · Takumi=jvnv-M1-jp — 2026-09-27 Leader 가 받음
+snapshot_download(repo_id="litagin/style_bert_vits2_jvnv", allow_patterns=["jvnv-F2-jp/*", "jvnv-M1-jp/*"],
+                  local_dir="model_assets")
 # JP-Extra 가 쓰는 일본어 BERT(첫 합성 때 자동으로도 받지만 미리 받아 둔다)
 snapshot_download(repo_id="ku-nlp/deberta-v2-large-japanese-char-wwm")
 print("ok")
@@ -99,25 +102,65 @@ afplay /tmp/kaiwa-tts-check.wav                     # 소리가 나면 성공
 
 ## 6. 비밀값·포트 준비 — ✅ 2026-09-27 완료(Leader 가 SSH 로 처리)
 
-- `~/kaiwa-tts-run/.env`(권한 600)에 **`KAIWA_TTS_*` 7개 키만** 둔다: `KAIWA_TTS_INTERNAL_SECRET`(우분투 `SPEECH_INTERNAL_SECRET` 과 같은 값 — 해시로 일치 확인) · `KAIWA_TTS_PORT=8200` · `KAIWA_TTS_MODEL_ASSETS` · `KAIWA_TTS_DEFAULT_MODEL=jvnv-F1-jp` · `KAIWA_TTS_DEVICE=mps` · `KAIWA_TTS_LOG_DIR` · `KAIWA_TTS_QUEUE_TIMEOUT_MS=8000`.
+- `~/kaiwa-tts-run/.env`(권한 600)에 **`KAIWA_TTS_*` 7개 키만** 둔다: `KAIWA_TTS_INTERNAL_SECRET`(**TTS 전용 값** — 우분투 `TTS_SERVICE_SECRET` 과 같고 `SPEECH_INTERNAL_SECRET` 과는 다르다, 2026-09-27 Codex C1 S1 로 교체·해시 일치 확인) · `KAIWA_TTS_PORT=8200` · `KAIWA_TTS_MODEL_ASSETS` · `KAIWA_TTS_DEFAULT_MODEL=jvnv-F1-jp` · `KAIWA_TTS_DEVICE=mps` · `KAIWA_TTS_LOG_DIR` · `KAIWA_TTS_QUEUE_TIMEOUT_MS=8000`.
 - ⚠ 앱의 `.env` 전체(DB·JWT·OAuth 시크릿)를 M4 에 복사하지 않는다 — TTS 서비스에 필요 없고 노출 면만 늘어난다(2026-09-27 전체 복사본을 발견해 7개 키로 교체).
 - 다시 만들 때(우분투에서, 값 미출력):
   ```bash
-  { grep '^SPEECH_INTERNAL_SECRET=' ~/NFS/homes/brownjeon/project/TheKaiwa/.env | sed 's/^SPEECH_INTERNAL_SECRET=/KAIWA_TTS_INTERNAL_SECRET=/'; printf '%s\n' KAIWA_TTS_PORT=8200 KAIWA_TTS_MODEL_ASSETS=/Users/brownjeon/kaiwa-tts-run/model_assets KAIWA_TTS_DEFAULT_MODEL=jvnv-F1-jp KAIWA_TTS_DEVICE=mps KAIWA_TTS_LOG_DIR=/Users/brownjeon/kaiwa-tts-local-logs KAIWA_TTS_QUEUE_TIMEOUT_MS=8000; } \
+  { grep '^TTS_SERVICE_SECRET=' ~/NFS/homes/brownjeon/project/TheKaiwa/.env | sed 's/^TTS_SERVICE_SECRET=/KAIWA_TTS_INTERNAL_SECRET=/'; printf '%s\n' KAIWA_TTS_PORT=8200 KAIWA_TTS_MODEL_ASSETS=/Users/brownjeon/kaiwa-tts-run/model_assets KAIWA_TTS_DEFAULT_MODEL=jvnv-F1-jp KAIWA_TTS_DEVICE=mps KAIWA_TTS_LOG_DIR=/Users/brownjeon/kaiwa-tts-local-logs KAIWA_TTS_QUEUE_TIMEOUT_MS=8000; } \
     | ssh brownjeon@192.168.219.100 'umask 077; cat > ~/kaiwa-tts-run/.env.new && mv -f ~/kaiwa-tts-run/.env.new ~/kaiwa-tts-run/.env'
   ```
 - 포트 8200 비어 있음 확인(2026-09-27 21:26).
 
-## 7. task-003 에서 이어서 할 것 (지금은 하지 않음)
+## 6-2. 방화벽(pf) — **8200 상시 기동 전 필수**(사용자 sudo, 2026-09-27 Codex C1 S2)
+
+8200 은 `0.0.0.0` 에 바인드되므로 macOS pf 로 **우분투가 들어오는 주소와 localhost 에만** 연다. M4 가 보는 우분투 주소는 사설 IP 가 아니라 **`125.177.194.26`**(공유기 NAT hairpin — 2026-09-27 SSH `SSH_CLIENT` 와 서비스 로그 `client=` 로 실측). 이 값이 바뀌면(공유기·회선 교체) 서비스 로그 `unauthorized … client=` 로 다시 확인해 규칙을 고친다.
+
+```bash
+# 1) 규칙 파일(표준 com.apple 앵커 밑에 두므로 /etc/pf.conf 는 고치지 않는다)
+sudo tee /etc/pf.anchors/kaiwa-tts >/dev/null <<'PF'
+pass in quick on lo0 proto tcp from any to any port 8200
+pass in quick proto tcp from 125.177.194.26 to any port 8200
+block drop in quick proto tcp from any to any port 8200
+PF
+# 2) 올리기 + pf 켜기(이미 켜져 있으면 -E 는 참조 카운트만 올린다)
+sudo pfctl -a com.apple/kaiwa-tts -f /etc/pf.anchors/kaiwa-tts
+sudo pfctl -E
+sudo pfctl -a com.apple/kaiwa-tts -s rules          # 세 줄이 보이면 적용됨
+# 3) 확인: 우분투에서 curl -s -m 3 http://192.168.219.100:8200/health → 200,
+#          같은 LAN 의 다른 기기(폰 등)에서 → 응답 없음(타임아웃)
+```
+
+**재부팅 지속**: 앵커 규칙은 재부팅 때 사라진다. 부팅 때 다시 올리려면 LaunchDaemon 을 둔다(`sudo` 필요, 붙여 넣을 때 들여쓰기 없이):
+
+```bash
+sudo tee /Library/LaunchDaemons/com.kaiwa.pf.plist >/dev/null <<'PL'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.kaiwa.pf</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/sh</string><string>-c</string>
+    <string>/sbin/pfctl -a com.apple/kaiwa-tts -f /etc/pf.anchors/kaiwa-tts; /sbin/pfctl -E</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+PL
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.kaiwa.pf.plist
+```
+
+- 한계: NAT hairpin 을 거쳐 들어오는 **다른** 내부 기기도 같은 `125.177.194.26` 으로 보일 수 있다 — pf 는 1차 차단이고, 2차는 `X-Internal-Secret`(TTS 전용 값)·`/admin/*` loopback 전용·본문/문장 상한·큐 타임아웃이다.
+- 해제: `sudo pfctl -a com.apple/kaiwa-tts -F rules`.
+
+## 7. 기동·워치독·배포 (task-003d 코드 — **사용자 승인 후** 실행)
 
 | 단계 | 내용 |
 |---|---|
-| 서비스 코드 | `speech/tts-service/app.py`(자체 FastAPI — `/synthesize`·`/voices`·`/health`·`/g2p` 등, README §2) 구현 후 `git pull` |
-| 기동 | `cd ~/kaiwa-tts-run/speech/tts-service && ../../.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8200` |
-| 워치독 | `crontab -e` 에 `* * * * * ~/kaiwa-tts-run/speech/tts-service/scripts/kaiwa-tts-watchdog.sh >> ~/kaiwa-tts-local-logs/watchdog.log 2>&1` |
-| 배포 | Gitea push → webhook-deploy(사용자 승인 게이트) — home-m4-api 와 같은 방식 |
-| 방화벽(선택) | 우분투 서버의 실제 접속 IP 를 서비스 로그로 확인한 뒤 macOS `pf` 로 8200 을 그 IP 에만 허용. 그 전까지는 LAN + `X-Internal-Secret` 헤더로 보호 |
-| 앱 연결 | 우분투 `.env` `TTS_SERVICE_URL=http://192.168.219.100:8200` 확인 → 관리자 콘솔 `Speech › TTS` 에서 [상태 확인]·[기능 테스트] |
+| 0. 방화벽 | §6-2 (필수 선행) |
+| 1. 코드 반영 | 우분투에서 `speech/tts-service/scripts/deploy-from-ubuntu.sh origin/main` — SSH push → M4 `git merge --ff-only` → 핀 대조 → `restart.sh`(8200 기동·warmedUp 대기) → smoke. 실패하면 직전 SHA 로 롤백. 첫 기동도 이 명령 하나로 된다 |
+| (수동 기동) | M4: `~/kaiwa-tts-run/speech/tts-service/scripts/restart.sh` (종료만 `--stop`) |
+| 2. 워치독 | M4 `crontab -e` 에 `* * * * * ~/kaiwa-tts-run/speech/tts-service/scripts/kaiwa-tts-watchdog.sh >> ~/kaiwa-tts-local-logs/watchdog.log 2>&1` (일시 중지 `touch ~/kaiwa-tts-run/.watchdog-off`) |
+| 3. 확인 | 우분투: `curl -s http://192.168.219.100:8200/health` → `status:"OK"`·`warmedUp:true`·`modelsLoaded:3`·`device:"mps"`, 시크릿 없이 `POST /synthesize` → 401, 원격 `POST /admin/models/refresh` → 404 |
+| 4. 앱 연결 | 우분투 `.env` `TTS_SERVICE_URL=http://192.168.219.100:8200`·`TTS_SERVICE_SECRET` 확인 → 관리자 콘솔 `Speech › TTS` 에서 [상태 확인]·[기능 테스트] |
 
 ## 8. 끝나면 알려 줄 것
 

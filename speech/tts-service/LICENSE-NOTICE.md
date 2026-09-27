@@ -43,5 +43,5 @@
 
 ## 5. 문서·표시
 
-- 이 파일은 `speech/tts-service/` 루트에 유지하고, 서비스 `GET /health.version` 응답에 `license: "AGPL-3.0 (see LICENSE-NOTICE.md)"` 를 포함한다.
+- 이 파일은 `speech/tts-service/` 루트에 유지하고, 서비스 `GET /health` 응답에 `license: "AGPL-3.0 (see LICENSE-NOTICE.md)"` 필드를 둔다(`kaiwa_tts/__init__.py` `LICENSE`, task-003d 구현).
 - Style-Bert-VITS2 원 저작권·라이선스 전문은 pip 패키지에 포함된 것을 따르며, 이 디렉토리에 `THIRD_PARTY_LICENSES/` 로 사본을 두는 것은 task-003 에서 결정한다.

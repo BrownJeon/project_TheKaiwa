@@ -1,0 +1,19 @@
+# kaiwa-tts (맥 M4, Python 3.11.16) — 2026-09-27 M4 실측으로 확정한 조합. 버전을 올리려면 SETUP-M4.md 5단계 재검증 후.
+# transformers>=5 는 BERT 를 fp16 으로 올려 half/float 불일치, numpy>=2 는 pyopenjtalk-dict ABI 불일치,
+# setuptools>=81 은 pkg_resources 제거로 pyopenjtalk import 실패(SETUP-M4.md "문제 해결").
+# scripts/check_pins.py 가 배포 때 설치본과 이 핀을 대조한다(불일치면 배포 중단·롤백).
+style-bert-vits2==2.5.0
+torch==2.14.0
+torchaudio==2.11.0
+transformers==4.57.6
+numpy==1.26.4
+setuptools==80.10.2
+pyopenjtalk-dict==0.3.4.dev2
+pyworld-prebuilt==0.3.6.post1
+safetensors==0.8.0
+huggingface_hub==0.36.2
+loguru==0.7.3
+fastapi==0.141.1
+starlette==1.7.0
+pydantic==2.13.5
+uvicorn[standard]==0.54.0

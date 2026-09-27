@@ -1,0 +1,7 @@
+# 계약 테스트 전용(모델·torch 불필요). M4 venv 또는 우분투 임시 venv 에 설치.
+fastapi==0.141.1
+starlette==1.7.0
+pydantic==2.13.5
+numpy==1.26.4
+httpx==0.28.1
+pytest==9.1.1
