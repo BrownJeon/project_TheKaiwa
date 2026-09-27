@@ -8,15 +8,17 @@ tags:
 
 ## 한 줄 요약
 
-재개 문구: "일본어교육 작업 이어서 진행해줘". 프로젝트 표시 이름은 `일본어교육`(기술 식별자는 `TheKaiwa`/`thekaiwa`). Phase 1 구현 중 — task-002·004·005·**006(AI 채팅·표현 점검·교정 채택, 2026-09-27 QA PASS)** 완료. 앱은 `https://kaiwa.미라클펭귄.com`(pm2 `thekaiwa`, 우분투 미러 `~/.node-local/thekaiwa` 에서 `next start`, `pm2 save` 안 함). 다음 순서: **task-006 운영 반영 확인** → task-008(단어장·오늘의 단어) → 005b(콘솔 골격) → 003(M4 tts·온디바이스 STT, 사용자 조치 필요) → 007(음성 회화).
+재개 문구: "일본어교육 작업 이어서 진행해줘". 프로젝트 표시 이름은 `일본어교육`(기술 식별자는 `TheKaiwa`/`thekaiwa`). Phase 1 구현 중 — task-002·004·005·**006(AI 채팅·표현 점검·교정 채택)·008(단어장·오늘의 단어)** 완료(2026-09-27 둘 다 QA PASS, **운영 미반영**). 앱은 `https://kaiwa.미라클펭귄.com`(pm2 `thekaiwa`, 우분투 미러 `~/.node-local/thekaiwa` 에서 `next start`, `pm2 save` 안 함). 다음 순서: **task-006·008 운영 반영(사용자)** → 005b(콘솔 골격) → 003(M4 tts·온디바이스 STT, 사용자 조치 필요) → 007(음성 회화).
 
 ### 재개 시 먼저 볼 것
-- **⚠ task-006 운영 반영 미완(사용자 결정)** — 2026-09-27 통합 `npm run build` 성공 후 `pm2 restart thekaiwa` 가 Claude 권한 정책(운영 배포)으로 거부됨. 빌드가 운영 프로세스의 미러 `.next` 를 이미 덮어써서 **재시작 전 운영 화면이 어긋났을 수 있다**. 사용자가 `pm2 restart thekaiwa` 를 직접 하거나 허용해야 한다. 이후 origin push(커밋 다수 미push). **교훈: 운영 재시작 권한이 확인되기 전에는 미러에서 `next build` 를 돌리지 말 것**(검증은 `next dev -p 3011` — Next 16 dev 는 `.next/dev` 라 안전).
+- **⚠ task-006·008 운영 반영 미완(사용자 결정)** — `pm2 restart thekaiwa` 는 Claude 권한 정책(운영 배포)으로 거부된다. 미러 `.next` 는 task-006 시점 빌드(운영 프로세스는 그 이전 빌드로 기동 중 → 화면 어긋남 가능). 반영 절차: 미러에서 `npm run build` → `pm2 restart thekaiwa` → origin push(커밋 다수 미push). task-008 코드의 운영 빌드는 격리 복제본에서 exit 0 확인됨(기본 단어 팩 JSON 번들 포함). **교훈: 운영 재시작 권한이 확인되기 전에는 미러에서 `next build` 를 돌리지 말 것**(검증은 `next dev -p 3011` — Next 16 dev 는 `.next/dev` 라 안전).
 - **Codex 재확인 대기** — task-006 C1(설계)·C2(구현) Codex 검토가 실패/보류: C1 은 codex-cli 0.128.0 `exec review` 가 `--commit`+표준입력을 함께 못 받는 인자 오류(래퍼 기본 모드를 exec 로 수정함), C2 는 사용자 지시 "토큰 충전되면 한 번 더 확인"으로 override. 한도 충전 후 `codex` 에이전트로 task-006 C2(adversarial-review·concurrency)를 다시 돌리고 exec 모드 동작도 확인(호출 1/4 사용).
 - **judge·codex 운용**([[task-017-dev-env-judge-codex]]): 접수 시 `base_ref` → judge `intake`, C1(설계 직후)·C2(reviewer PASS 직후)·C3(결함 2회 재발) 마다 judge `codex_gate`. judge 도구는 Linux 에서 테스트 18/18(2026-09-27). NFS git 은 dubious ownership → 래퍼 실행 시 `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'` 환경변수로 넘김(전역 설정 변경 금지).
-- 사용자 폰 확인 항목(task-006): Gboard 일본어 IME 확정 Enter 미전송·보내기 후 키보드 유지·입력창 가림 없음·채팅 화면 3폭 실제 렌더(헤드리스 dev 는 하이드레이션 실패로 정적 셸만 확인).
+- 사용자 폰 확인 항목: (006) Gboard 일본어 IME 확정 Enter 미전송·보내기 후 키보드 유지·입력창 가림 없음 / (008) 실제 손가락 스와이프 감도·뜻 채우기·검색 중 Gboard 입력.
+- **dev 서버 화면 검증 팁(QA-012 발견)**: Next 16 dev 는 `127.0.0.1` 로 열면 cross-origin 보호로 `_next/static` 청크가 403 → 하이드레이션 실패. **`localhost:3011` 로 접속**하면 정상(task-006 QA-011 의 "하이드레이션 실패"도 같은 원인 추정 — 채팅 화면 3폭은 이 방법으로 재확인 가능). `--webpack` dev 는 `crypto` 해석 실패로 못 씀.
+- **운영과 분리한 빌드 검증**: `~/.node-local/thekaiwa-buildcheck` 에 미러를 복제(`node_modules` 는 `cp -al` 하드링크, `.next`·`logs` 제외) 후 `next build` → 확인 뒤 삭제. 미러에서 직접 build 금지.
 - 결정 기록 [[llm-japanese-quality]] — Claude CLI 는 반드시 설정/MCP 생략·thinking 끔(안 하면 회화 1턴 40~120초). 회화 턴 p50 5.1s 로 목표 4s 미달 → task-007 에서 상주 CLI 세션 실측.
-- 인증이 필요한 API 검증은 `tests/live/qa-session.ts`(QA 계정 2개 `qa-bot`·`qa-bot2`, localhost 전용) + `tests/live/task006-smoke.sh <port>` 패턴(dev 서버 3011).
+- 인증이 필요한 API 검증은 `tests/live/qa-session.ts`(QA 계정 2개 `qa-bot`·`qa-bot2`, localhost 전용) + `tests/live/task006-smoke.sh`·`task008-smoke.sh <port>` 패턴(dev 서버 3011, 2프로세스 경합은 하드링크 복제 + 3012).
 - 커밋은 `git -c safe.directory=$PWD -c user.name=brownjeon -c user.email=ifries8611@gmail.com commit` (저장소·전역 git 신원 미설정).
 
 ### 사용자만 할 수 있는 것 (Phase 0 착수 전)

@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-008-vocab-today-words]] — **단어장 최소판 + 오늘의 단어**(2026-09-27). 라우트 18(#40~#46b·#47~#54)·가중 샘플링·정답 미노출·서버 채점·finish 단일 트랜잭션·A10 초안, 화면(단어장·오늘 홈·스와이프 덱·결과). REV-008(H1 수정)→PASS·QA-012 PASS(2프로세스 실경합·실브라우저 3폭). **운영 반영 사용자 대기**·Codex C1/C2 한도 충전 후 재확인
 - [[task-006-chat-correction]] — **AI 채팅 + 표현 점검 + 교정 채택**(2026-09-27). 서버 13라우트·SSE 턴·사용자당 락·점검(동기/잡)·채택 트랜잭션, 화면 3종. REV-007 PASS_WITH_NOTES·QA-011 PASS(결함 0, 2프로세스 경합 실증). **운영 반영(pm2 재시작) 사용자 결정 대기**·Codex C1/C2 한도 충전 후 재확인
 - [[task-017-dev-env-judge-codex]] — **개발환경 개선 선도입**(2026-09-27): judge(Jev 판정)·codex(외부 검토) 에이전트 적용, 공용 도구·템플릿, 테스트 18건·독립 리뷰 PASS. 실제 호출 검증은 task-006 진행 중
 - [[task-005-settings-attendance]] — **설정 허브·출석**(2026-09-27). API 7개·설정 화면 4섹션·AttendancePing, reviewer 2회(High 1 포함 8건 수정)·QA 9항목 PASS. 미리듣기 소리는 task-003 후
@@ -17,17 +18,17 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- (없음) — 다음 task-008(단어장 최소판 + 오늘의 단어)
+- (없음) — 다음 task-005b(Admin Console 골격)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
 - task-005b — Admin Console 골격(capability 가드·Dashboard·Effective Config 읽기·Plugins·Connections·Health/Test·Trace·History 읽기)
 - task-007 — AI 회화(음성) 실시간 교정(RealtimeSttClient 라우팅·청크 스트리밍 TTS+TtsPlaybackQueue·프로필 옆 실행 상태 표시등·5초/TTFA 계측)
-- task-008 — 단어장 최소판 + 오늘의 단어(스와이프 덱·CHOICE·finish 트랜잭션·스냅샷)
 - task-009 — Phase 1 통합 QA·실기기·라이브 배포·APK 배포본
 
 ## 정리 backlog (task-006 발견, 소규모)
 - `infra/http.ts` 기본 오류 문구 "AI 엔진…" 사용자 노출 가능 · 공용 `Badge` warn/accent·`ink3` 라이트 명암비 미달 · `ComingSoon` Phase/task 번호 노출
+- `conversation/persona/loader.ts` 동적 `statSync` → 빌드 "프로젝트 전체 추적" 경고(정적 경로 또는 `outputFileTracingExcludes`) · webpack dev 에서 `crypto` 해석 실패(Turbopack 기본은 정상)
 
 ## Phase 2 이후
 - 010 주제·상황(결정 시)·오늘의 회화(청취 구간·단어 메모·nextPreview)·**반복 학습(RepetitionItem·A11 강사 판단 3~7일)** · 011 AI평가 · 012 달력 · 012b 음성 P2(worker·SpeechJob·Comparator) · 012c Console P2(편집·Diff·Version·Rollback·Prompt Registry·Playground) · 013 분석·성장기록 · 014 서랍장 전체 · 015 무엇이든 물어보세요(3a→3b MCP) · 015b 음성 P3(PronunciationAnalyzer) · 016 음성 P4(Voice Package Import·스타일·Preset·Override)

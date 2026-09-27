@@ -196,7 +196,7 @@ plugins/sherpa-stt/                                                    # Capacit
 | A8 | 분석→계획서 | `[모드] PLAN` + 코드 집계 ≤6,000자 | `analysis{strengths,weaknesses,level_estimate,evidence}, curriculum{reviewEvery,weeks[]}, rationale_ko` | opus | 300s | 잡(batch), hash 캐시 |
 | A9 | 무엇이든 | 페르소나 전체 + `[모드] ASK` + 헤더 ≤600 + 조회된 본인 기록 ≤2,000자(`recordRetrieval`) + 최근 12개 ≤8,000 | `conversation.answerMd, sources[], confidence, needsScope?, proposals[]` | sonnet(`runtime.tiers.review`, 정합성 #4) | 120s | SSE |
 | A11 | **복습 판단**(REVIEW_DECISION) | `[모드] REVIEW_DECISION` + 헤더 ≤600 + due·후보 `RepetitionItem` ≤40건(횟수·정오답·피드백·현재 간격·FOCUS) ≤4,000자 | `decisions[{itemId, nextIntervalDays 3~7, priority, reason_ko}], sessionPlan{itemIds[], mixNote_ko}, rationale_ko` — 코드가 범위 클램프·누락 폴백 | sonnet | 60s | 잡(batch), 완료 트랜잭션 후·하루 첫 진입 |
-| A10 | 단어 보강 | surface | `reading, meaning_ko, part_of_speech, jlpt, example_ja, example_ko` | home-m4/haiku | 20s | 동기·캐시 |
+| A10 | 단어 보강 | surface(+level) | `valid, invalidReason, reading, meaning, partOfSpeech, jlpt, example, exampleKo`(비일본어면 `valid:false`) | haiku(실측 p50 2.8s·위반 0/15, 2026-09-27) · home-m4 미검증 | 20s | 동기·캐시, draft 만(저장은 사용자 확인 후) |
 
 - **페르소나 절 구조**(`tutor.md` v0, prompt-engineer 가 v1): 1 정체성 · 2 말투 · 3 교정 원칙 · 4 난이도 N5~N1 · 5 조각 프레임 · 6 모드별 출력 · 7 커리큘럼 규칙 · 8 하지 말 것 · 9 Claude Code 세션. 런타임 `persona.ts` 가 `## N.` 절 필터(A1 은 1·3·4·6).
 - **5초 예산**: VAD endpoint 0.4~0.6 + 온디바이스 디코드 0.2~0.4 + 업로드/INSERT 0.1~0.2 + **Claude CLI 스폰+haiku 2.0~3.5** + 첫 청크 **TTFA** 0.4~1.0(M4 캐시 MISS, HIT ≤0.12; 5차 §142) + 재생 시작 지연 ≤0.15 = 3.2~5.8s. 초과 시 ① 문장 단위 TTS 파이프라인 ② 프롬프트 다이어트 ③ TTS 캐시·ONNX ④ `--include-partial-messages` ⑤ 큐 동시성 2 ⑥ 응답/교정 2이벤트.

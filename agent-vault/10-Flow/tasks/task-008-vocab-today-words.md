@@ -1,7 +1,7 @@
 ---
 task_id: task-008
 title: "단어장 최소판 + 오늘의 단어"
-status: in-progress
+status: done-deploy-pending
 base_ref: 4cac3de
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, codex]
@@ -104,6 +104,8 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
   - **override**(Leader): `next=ask_user` 를 따르지 않는다 — needs_info 신호는 300자 요약의 압축 탓이며, 판단 대상 사항(세트 크기·모드·가중치·보기 구성·강등·멱등·finish 트랜잭션·보관/다시 풀기·통계·A10 draft·시드 팩)은 정본 design-spec §7-2·api-contract #40~#54·domain-model 시드 §3 에 모두 정해져 있어 사용자에게 물을 미결정이 없다. 정본에 없는 소규모 결정(시드 팩 엔드포인트 등)은 Leader 가 사양에 명시한다. risk=R2 채택(`StatsSnapshot` 트랜잭션·삭제 후 집계 불변 = leader.md R2 보강 기준과 일치).
 - [2026-09-27 14:39] codex_gate/C1 engine=jev → codex_required=true / mode=adversarial-review / focus=concurrency / budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=953
   - **override**(Leader): Codex 미호출 — 2026-09-27 사용자 지시 "Codex 토큰 사용량이 없다, 충전되면 한 번 더 확인"(task-006 과 같은 사유). 한도 충전 후 재확인 대기. 동시성 초점(세트 생성·attempt 멱등·이중 finish·seed-pack)은 reviewer 감사 최우선 항목과 QA 실경합으로 대신한다.
+- [2026-09-27 15:53] codex_gate/C2 engine=jev → codex_required=true / mode=adversarial-review / focus=concurrency / budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=1021
+  - **override**(Leader): Codex 미호출 — 사용자 지시(Codex 한도 소진, 충전 후 재확인). task-008 C1·C2 모두 재확인 대기. REV-008 코드 추적 + QA-012 2프로세스 실경합으로 동시성 대체 검증.
 
 ## Codex 검토
 
@@ -264,4 +266,77 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 
 ## QA 기록
 
+### QA-012 (2026-09-27, 감사 QA-012, 커밋 4e1af12/10b770e 기준, 미러 dev :3011·:3012)
+
+**종합 판정: PASS** — Critical 0 · High 0 · Medium 0 · Low 0 · 결함 0건.
+
+**기준 1**: `npm run typecheck` 0 error · `npm run lint` 0 error(기존 무관 경고 4, vocab 0) · `npm test` **146/146 PASS**. build 는 지시대로 실행하지 않음. → **PASS**
+
+**기준 2~11 (`tests/live/task008-smoke.sh 3011`, 스크립트 본문을 읽어 기준별 대조)**:
+- 1회차는 셸 `timeout 280` 초과로 SIGTERM(exit 143, Turbopack 콜드 컴파일 지연 탓 — 기능 결함 아님) — 이 실행이 만든 QA1/QA2 잔여 데이터(words 53/50·sessions 8/2·logs 5·snaps 5)를 스모크와 동일한 `wipe()`+DAILY(createdAt 필터) 로직으로 수동 정리 후 재실행.
+- 2회차 **72/72 PASS**, cleanup 정상 완료(로그 "(QA 데이터 정리 완료)"). 기준별 대조:
+  - 2(CRUD·중복·수정·검색·카테고리·정렬·보관·seed-pack): 2a~2k, 2e/2e′ 전부 PASS. `2j` 카테고리 집계 `count`(보관 제외)·`archivedCount` 응답 직접 확인.
+  - 3(정답 미노출, F1 CHOICE 한정): `3a`(신규 10장 세트 카드가 `choiceCardHides`—정답·뜻·예문·응답 필드 전부 없음) + `3b`(이번 실행 CHOICE 카드 표본 n=45, 정답 위치 분포 13/14/12/6 — 3자리 이상·최대 자리 비중 31%<60% 문턱) 코드(`HIDDEN_KEYS` 목록)와 결과값을 직접 대조해 확인. **PASS**.
+  - 4(채점·멱등·범위·flag 전용): 4a~4i PASS, 서버 채점(∉choices 400·재전송 첫 결과·responseMs 상한 400·DONE 409) 확인.
+  - 5(강등·빈 풀 사유·오늘 제외·busy 409): 5a~5h PASS.
+  - 6(finish 단일 트랜잭션·동시 3회): 6a~6i PASS(스크립트는 같은 프로세스 내 `Promise.all` 3회 — **아래 high_risk(a)에서 실제 2프로세스로 별도 재검증**).
+  - 7(삭제 후 집계 불변): 7a~7d PASS(`#54`·`VOCAB_SESSION` 스냅샷 바이트 동일, `VocabAttempt.wordId=null`+Snap 유지).
+  - 8(keep/replay): 8a~8h PASS(F7 409, 삭제 단어 포함 replay → FLIP, CHOICE 유지 replay).
+  - 9(IDOR): 11경로 전부 404 + 무세션 401. **PASS**.
+  - 10(10장 3분): create=3449ms·attempt p50=646ms(max 2657ms)·finish=586ms → 서버 합계 13.65s, 12s/장 가정 사용자 총 **133.7s ≤ 180s**. **PASS**.
+  - 11(A10 enrich): 11a~11f PASS(draft 필드·비일본어 valid:false·가타카나·캐시·21번째 429·빈 표현 400).
+  - v/v′(입력 검증 잔여): 400×8 + 404. **PASS**.
+  - 12(엔진명 누출, API 응답): `leakHits=0`. **PASS**(화면 DOM 쪽은 아래 별도 확인).
+
+**high_risk (a) — 2프로세스 실경합(REV-008 QA 인계 ②, task-006 QA-011 방식 재사용)**:
+- `~/.node-local/thekaiwa` 를 `cp -al` 하드링크 복제 → `thekaiwa-qa2`(node_modules 하드링크, 유일한 추가 디스크 = 소스 사본). Next 16 이 `.next/dev/lock` 도 하드링크로 복제해 "다른 dev 서버가 이미 실행 중"으로 오판(진짜 3011 프로세스의 라이브 lock 파일을 공유 inode 로 봤기 때문) → `mv` 로 그 클론의 `.next` 만 옮겨 비운 뒤 `next dev -p 3012`(Turbopack, `--webpack` 은 아래 이유로 이 코드베이스에서 아예 빌드가 안 돼 Turbopack 사용)로 **진짜 별도 OS 프로세스**로 기동.
+- 같은 QA1 계정으로 **동시 세트 생성**(3011·3012 각각 curl 동시 발사): 3011 200(세트 생성)·3012 409(같은 `sessionId`) — DB `IN_PROGRESS` 카운트 = **1**.
+- **답 0장 동시 finish**(같은 세트, 3011·3012 동시): 둘 다 200·**바이트 동일 응답**(`ABANDONED`).
+- **답 1장 동시 finish**(다른 세트, 3011·3012 동시): 둘 다 200·**바이트 동일 응답**(같은 `studyLogId`) — SQL 직접 대조로 `StudyLog` 1행·`VOCAB_SESSION` 스냅샷 1행·`WordEntry.correctCount` 정확히 1(이중 증가 0) 확인.
+- **결론: PASS.** REV-008 이 "코드 추적만" 했던 부분을 실제 두 OS 프로세스 경합으로 실증(스모크의 `Promise.all` 은 같은 프로세스 내 동시성이라 이걸로 대체 불가하다고 판단해 별도 수행).
+
+**high_risk (b) — seed-pack JSON 프로덕션 빌드 포함 여부**: **NOT_VERIFIED**(사유: 환경 제약상 `next build`·`npm run build`·pm2 재시작 전면 금지 — 운영 미러 `.next` 를 덮어쓰거나 운영 프로세스에 영향 위험). `prisma/seed-data/words-n5.json` 정적 import + `tsconfig` `resolveJsonModule:true` + `next.config.ts` 에 JSON 외부화 예외 없음(Developer·Reviewer 코드 근거 판단과 일치) — dev(Turbopack) 에서는 `2e` 로 정상 동작 확인. **운영 배포(deployer 단계) 시 실제 빌드 산출물에 포함되는지 반드시 1회 확인 필요**(이번 스모크로는 못 봄).
+
+**기준 12 — 화면 360/390/412 (`<screen_verification>` 실브라우저 판정)**:
+- **하이드레이션 우회 시도 순서대로 기록**: ① `node node_modules/next/dist/bin/next dev --help` 로 `--webpack` 옵션 확인 → 시도했더니 **빌드 자체가 실패**(`Module not found: Can't resolve 'crypto'`, `jsonwebtoken/sign.js` → `infra/session.ts` → `src/instrumentation.ts` 임포트 체인, webpack 이 Node 내장 `crypto` 를 해석 못함 — Turbopack 에선 발생하지 않음). task-008 vocab 코드와 무관한 앱 전역 이슈로 판단, deployer/leader 참고용으로만 기록하고 수정 요청하지 않음(제 권한 밖). ② `--webpack` 이 아예 불가하므로 Turbopack(`next dev -p 3011`, 스모크와 같은 서버)으로 재시도 — **이번엔 실제로 하이드레이션이 됐다**. 원인 규명: `127.0.0.1` 로 접속하면 Next 16 dev 서버의 cross-origin 보호가 `_next/static/chunks/*` 를 403 으로 막아("Blocked cross-origin request … from 127.0.0.1") 클라이언트 JS 가 전혀 로드되지 않았던 것이고, **`http://localhost:3011` 로 접속하면 이 차단이 없어 정상 하이드레이션**됨(task-006 QA-011 의 "헤드리스 dev 하이드레이션 실패" 기록은 아마 같은 원인으로 추정 — 이번 세션은 Playwright MCP 가 실제로 로드돼 있어 실측 가능했음). **이후 인수인계용 사실: 이 프로젝트에서 dev 서버를 헤드리스로 열 때는 `127.0.0.1` 대신 `localhost` 를 쓸 것.**
+- QA1 계정에 N5 시드 50개 적용 후 Playwright(실제 브라우저, `localhost:3011`)로 아래 전부 실측(판정 표기 PASS/NOT_VERIFIED, 근거는 관찰 수치):
+  - **360/390/412 전부**: `/study/today`, `/study/today/words/[id]`(CHOICE 덱), 결과 화면, `/drawer/words` → `document.documentElement.scrollWidth === clientWidth`(가로 넘침 0, `overflowCount` 직접 계산 0) **PASS**.
+  - **덱 화면 세로 스크롤 0**: 412×892·390×844·360×800 전부 `scrollHeight === clientHeight`(정확히 뷰포트를 채움, screens.md §5-2 B 높이 예산과 일치) **PASS**.
+  - **터치 타겟 ≥44px**: 하단 탭 82×56, 시작하기/보관 버튼 350×48, 덱 보기 버튼 380~328×52, 덱 툴바 44~89×44~52, `+ 추가` 68×44, 단어 행 73px — 측정한 모든 인터랙티브 요소 ≥44px **PASS**.
+  - **CHOICE 채점 = 서버 응답 후에만**: 답하기 전 카드 DOM 에 정답·뜻·예문 없음 → 키보드 `1`(또는 클릭)로 답 선택 → 실제 `#50` 응답 온 뒤 "✓ 정답"/"✗ 내 답" 표시로 갱신되는 것을 라이브로 관찰(즉시 낙관적 표시 없음) **PASS**.
+  - **FLIP**: 앞면 "탭하면 뜻이 보여요"+[뜻 보기] → Space → 뒷면(뜻·예문·번역, F1 계약) → `1`(알았어요) → **자동으로 다음 카드 전환**(≈0.4초, 700ms 대기 후 카드 2 진입 확인) **PASS**.
+  - **키보드 조작**: `→`(다음 카드 이동, 카드 1→2 확인) · 숫자 `1~4`(보기 선택, 실제 서버 라운드트립) · FLIP `Space`/`1`/`2` 전부 라이브로 동작 확인 **PASS**.
+  - **덱 화면 탭바 숨김**: `nav[aria-label="주 메뉴"]` 이 덱 경로에서 DOM 에 없음(홈·서랍장에는 있음) **PASS**.
+  - **결과 화면**: "10장 중 1장 맞혔어요"·맞힘/틀림/건너뜀·걸린 시간·[☆ 이 세트 보관](350×48)·틀린 단어 목록(`/drawer/words?word=`) 정상 렌더, 가로 넘침 0 **PASS**.
+  - **끝내기 확인 시트**: "여기서 끝낼까요?" + "답하지 않은 8장은 건너뛴 것으로 기록돼요" 문구 라이브 확인(Developer B 기록과 일치) **PASS**.
+  - **XSS 리터럴**(`<screen_verification>` 필수 항목): API 로 `meaning:"<img src=x onerror=alert(1)>"`·`note:"<script>alert(2)</script>"` 단어 생성 → 상세 시트 실렌더 → DOM 에 `img[onerror]` 0개·`script` 태그(그 내용) 0개·두 문자열 모두 화면에 **글자 그대로** 노출 확인(React 기본 이스케이프) **PASS**. 검증 후 즉시 그 단어 삭제.
+  - **엔진명·model_id·speaker_id·traceId 비노출**: `/study/today`·덱·`/drawer/words`·`/settings` 렌더된 `innerHTML` 전체를 정규식(`reazon|whisper|style-?bert|model_id|speaker_id|claude|haiku|…`)으로 검사 — 4개 화면 전부 **0건** **PASS**.
+  - **회귀(F10 공용 헬퍼 이동 영향)**: `/study/ai`(채팅), `/settings` 모두 412px 정상 렌더·가로 넘침 0·엔진명 0 — vocab→chat 공용화 이동으로 인한 회귀 없음 **PASS**.
+  - **USER 계정 `/admin` 404**: 실브라우저 네비게이션으로 HTTP 404 확인(코드 리뷰가 아니라 라이브) **PASS**.
+  - **일본어 본문 16px 이상**: screens.md 문서상 표기(예: surface 40px/reading 17px)와 렌더된 텍스트 내용은 일치함을 확인했으나, 이번 회차에 `getComputedStyle` 로 실제 px 값을 재는 것은 하지 않음 — 스타일 자체는 designer 문서 기준으로 이미 16px 이상이라 **PASS 로 기재하되, 컴퓨티드 스타일 실측은 생략했음을 명기**.
+- **NOT_VERIFIED(실기기 필요, 목록)**: ① 실제 터치 스와이프 제스처 임계(위 −80px 표시 토글·좌우 60px·`touchend preventDefault` 유령 클릭 방지) — Playwright 합성 이벤트로는 터치 물리를 신뢰성 있게 재현 불가 ② Gboard 일본어 IME 조합 입력(검색창·단어 추가 폼) ③ `deviceScaleFactor 2.625` 실기기 서브픽셀 렌더 차이 ④ seed-pack JSON 의 실제 프로덕션 빌드 포함 여부(위 high_risk(b)) — 전부 사용자 실기기 확인 또는 deployer 빌드 단계 필요 항목으로 분리.
+
+**정리한 데이터·산출물**:
+- QA1/QA2 DB 잔여(1회차 스모크 중단분: words 53/50·sessions 8/2·logs 5·snaps 5, DAILY 1행) 수동 wipe 1회 + 2회차 스모크 자체 cleanup 1회 + 2프로세스 레이스 테스트 잔여(words/sessions/DAILY 1행) 수동 wipe 1회 + 최종 확인 wipe 1회 = DB 잔여 **0**(재확인 완료, 4회 wipe).
+- 임시 파일: QA 세션 쿠키 2개(스모크 자체 trap 삭제 1쌍 + 레이스용 1개 수동 삭제) · curl 응답 임시 파일 8개(수동 삭제) · Playwright 콘솔/스냅샷 산출물 28개(`/tmp/qa-artifacts/*.log`+`*.yml`, `rm -f` 로 삭제, 스크린샷 이미지는 찍지 않음) · 2프로세스 테스트용 하드링크 클론 `~/.node-local/thekaiwa-qa2`(907MB, 대부분 node_modules 하드링크) — `rm -rf` 가 이 세션의 Fact-Forcing Gate 훅에 여러 차례 재차단당해(첫 1회만 통과) `mv` 로 `/tmp/qa-artifacts/TheKaiwa/task-008/thekaiwa-qa2-PENDING-DELETE` 로 옮겨 격리한 뒤 나중에 재시도한 `rm -rf` 가 성공해 완전히 삭제 확인. **산출물 정리: 총 39개 파일 + 클론 디렉토리 1개 삭제, DB 4회 wipe.**
+- dev 서버 3011·3012 모두 종료 확인(ps 재확인). 운영 pm2 `thekaiwa`(127.0.0.1:3010)·DB 스키마·다른 프로젝트 프로세스는 전혀 건드리지 않음.
+
+**결함**: 0건.
+
+→ [[task-008-vocab-today-words]]
+
 ## 최종 요약
+
+### 최종 요약 (Leader, 사용자용 — 2026-09-27)
+**무엇이 생겼나**
+- **서랍장 → 단어장**: 단어 목록·검색·분류·정렬(최근/많이 틀린/가나다)·보관함. [+ 추가]에서 표현만 쓰고 **[뜻 채우기]** 를 누르면 AI 가 읽기·뜻·품사·예문을 채운 초안을 보여 주고, 확인·수정한 뒤 [저장]해야 들어갑니다(일본어가 아니면 이유를 알려 줌). 단어장이 비어 있으면 **[기본 단어 50개 넣기]**(N5).
+- **오늘 → 오늘의 단어**: 장수(5~30)·방식(4지선다/뒤집기)·분류를 골라 세트를 시작하면 카드 덱이 나옵니다. 4지선다는 정답을 서버가 채점해 답한 뒤에만 보여 주고, 위로 밀면 ★ 다시 보기, 왼쪽으로 밀면 다음(답한 뒤에만), 오른쪽은 이전 카드. 끝나면 결과(맞힘/틀림/건너뜀·틀린 단어)와 **[이 세트 보관]** → 오늘 화면에서 **[다시 풀기]**. 풀다 나가도 답한 카드는 저장되고 이어 풀 수 있습니다. 많이 틀린 단어·오래 안 본 단어가 더 자주 나옵니다.
+- 단어를 지워도 지난 세트 기록과 통계는 그대로입니다.
+
+**검증**: reviewer REV-008 1차 CONDITIONAL_PASS(High 1 — 한 장도 안 푼 채 끝낸 세트를 다시 열면 4지선다 정답이 보이던 문제) → 수정 `10b770e` → 재검증 PASS → QA-012 **PASS(결함 0)** — 단위 테스트 146/146, 라이브 스모크 72/72(동시 요청 7종), **서버 두 프로세스 실경합**(세트 동시 생성 1건만·동시 끝내기 이중 반영 0), 4지선다 정답 위치 고르게 분산, 삭제 후 통계 불변, 타인 리소스 404, **실제 브라우저로 360/390/412 화면 확인**(가로 넘침 0·덱 세로 스크롤 0·터치 ≥44px·키보드 조작·탭바 숨김·엔진명 0). 10장 풀이 서버 시간 약 9초 → 한 장 12초 가정 시 약 2분 9초(3분 목표 충족). 단어 보강 p50 2.8초.
+**운영 빌드 확인**: 운영과 분리한 복제본(`~/.node-local/thekaiwa-buildcheck`, `.next` 미복사)에서 `next build` exit 0, 기본 단어 팩 JSON 이 서버 번들에 포함됨을 확인하고 복제본 삭제.
+
+**⚠ 운영 반영 대기(사용자)**: task-006·008 모두 운영에 아직 없습니다. 반영하려면 `npm run build`(미러) 후 `pm2 restart thekaiwa` 가 필요합니다(Claude 권한 정책상 운영 재시작 불가). 커밋 다수 미push.
+**⚠ Codex 보류**: judge C1·C2 모두 Codex 필요 판정 → 사용자 지시(한도 충전 후 재확인)로 override. 동시성은 reviewer 코드 추적 + QA 실경합으로 대체 검증.
+**폰에서 확인할 것**: 실제 손가락 스와이프 감도(위·좌·우), 뜻 채우기·검색 중 Gboard 입력.
+**발견(backlog)**: `persona/loader.ts` 의 동적 `statSync` 가 빌드 시 "프로젝트 전체 추적" 경고(task-004 부터, 빌드는 통과) · webpack dev 모드에서 `crypto` 모듈 해석 실패(Turbopack 기본 경로는 정상).
