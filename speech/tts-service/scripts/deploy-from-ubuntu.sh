@@ -41,16 +41,23 @@ fi
 PREV="$(git rev-parse HEAD)"
 echo "[m4] prev=$PREV"
 
+RESTART="$SERVICE_DIR/scripts/restart.sh"
 rollback() {
   echo "[m4] ROLLBACK → $PREV"
+  # 새 버전 프로세스가 떠 있을 수 있다 — 코드를 되돌리기 전에 새 스크립트로 먼저 내린다.
+  if [ -f "$RESTART" ]; then /bin/bash "$RESTART" --stop || true; fi
   git reset --hard "$PREV" >/dev/null
-  "$SERVICE_DIR/scripts/restart.sh" || echo "[m4] restart after rollback FAILED — manual check needed"
+  if [ -f "$RESTART" ]; then
+    /bin/bash "$RESTART" || echo "[m4] restart after rollback FAILED — manual check needed"
+  else
+    echo "[m4] previous revision has no tts-service — left stopped"
+  fi
   exit 1
 }
 
 git merge --ff-only "$SHA" || { echo "[m4] not a fast-forward from $PREV — abort (no change)"; exit 4; }
 "$PY" "$SERVICE_DIR/scripts/check_pins.py" "$SERVICE_DIR/requirements.txt" || rollback
-"$SERVICE_DIR/scripts/restart.sh" || rollback
+/bin/bash "$RESTART" || rollback
 "$PY" "$SERVICE_DIR/scripts/smoke.py" --url "http://127.0.0.1:$(grep -E '^KAIWA_TTS_PORT=' "$RUN_DIR/.env" | tail -n 1 | cut -d= -f2 || echo 8200)" --env-file "$RUN_DIR/.env" || rollback
 echo "[m4] deployed $(git rev-parse --short HEAD)"
 REMOTE

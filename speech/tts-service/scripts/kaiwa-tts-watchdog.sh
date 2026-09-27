@@ -46,7 +46,7 @@ fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 echo "$(ts) [watchdog] health=$code/$code2 → restart"
-if "$SERVICE_DIR/scripts/restart.sh"; then
+if /bin/bash "$SERVICE_DIR/scripts/restart.sh"; then
   echo "$(ts) [watchdog] restart ok"
 else
   echo "$(ts) [watchdog] restart FAILED (rc=$?)"
