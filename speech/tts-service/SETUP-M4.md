@@ -55,6 +55,13 @@ git status --short | head                          # .venv 가 목록에 보이�
 - `mps True` 가 나오면 GPU(MPS) 사용 가능.
 - `pyopenjtalk` 빌드 오류가 나면 1단계 `cmake` 설치를 확인하고 `pip install style-bert-vits2` 를 다시 실행한다.
 - 5단계에서 `ModuleNotFoundError: No module named 'pkg_resources'` 가 나면 위 `setuptools<81` 줄을 실행(그래도 나면 `setuptools<70`). `torch.jit.script`·`weight_norm` FutureWarning 은 무시해도 된다.
+- `ValueError: numpy.dtype size changed … Expected 96 from C header, got 88` 가 나면 pyopenjtalk 가 numpy 2.x 헤더로 빌드됐는데 설치된 numpy 는 SBV2 가 쓰는 1.x 라는 뜻 — numpy 는 그대로 두고 pyopenjtalk 만 현재 numpy 기준으로 다시 빌드한다(2026-09-27 실측):
+  ```bash
+  pip install cython
+  PKG=$(pip show pyopenjtalk-dict >/dev/null 2>&1 && echo pyopenjtalk-dict || echo pyopenjtalk); VER=$(pip show $PKG | awk '/^Version/{print $2}')
+  pip install --force-reinstall --no-deps --no-build-isolation --no-cache-dir --no-binary "$PKG" "$PKG==$VER"
+  python -c "import pkg_resources, pyopenjtalk; print('ok')"
+  ```
 
 ## 4. 기본 목소리 모델 + 일본어 BERT 받기
 
