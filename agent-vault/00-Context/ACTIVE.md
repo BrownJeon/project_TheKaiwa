@@ -19,7 +19,7 @@ tags:
 - 사용자 폰 확인 항목: (006) Gboard 일본어 IME 확정 Enter 미전송·보내기 후 키보드 유지·입력창 가림 없음 / (008) 실제 손가락 스와이프 감도·뜻 채우기·검색 중 Gboard 입력.
 - **dev 서버 화면 검증 팁(QA-012 발견)**: Next 16 dev 는 `127.0.0.1` 로 열면 cross-origin 보호로 `_next/static` 청크가 403 → 하이드레이션 실패. **`localhost:3011` 로 접속**하면 정상(task-006 QA-011 의 "하이드레이션 실패"도 같은 원인 추정 — 채팅 화면 3폭은 이 방법으로 재확인 가능). `--webpack` dev 는 `crypto` 해석 실패로 못 씀.
 - **운영과 분리한 빌드 검증**: `~/.node-local/thekaiwa-buildcheck` 에 미러를 복제(`node_modules` 는 `cp -al` 하드링크, `.next`·`logs` 제외) 후 `next build` → 확인 뒤 삭제. 미러에서 직접 build 금지.
-- 결정 기록 [[llm-japanese-quality]] — Claude CLI 는 반드시 설정/MCP 생략·thinking 끔(안 하면 회화 1턴 40~120초). 회화 턴 p50 5.1s 로 목표 4s 미달 → task-007 에서 상주 CLI 세션 실측.
+- 결정 기록 [[llm-japanese-quality]] — Claude CLI 는 반드시 설정/MCP 생략·thinking 끔(안 하면 회화 1턴 40~120초). task-007 에서 **예열 CLI(프로세스당 1요청) + 첫 문장 조기 합성**으로 해결 — 손 뗌→첫 음성 바이트 p50 ≈1.8~2.1s(웹 경로).
 - 인증이 필요한 API 검증은 `tests/live/qa-session.ts`(QA 계정 2개 `qa-bot`·`qa-bot2`, localhost 전용) + `tests/live/task006-smoke.sh`·`task008-smoke.sh <port>` 패턴(dev 서버 3011, 2프로세스 경합은 하드링크 복제 + 3012).
 - 커밋은 `git -c safe.directory=$PWD -c user.name=brownjeon -c user.email=ifries8611@gmail.com commit` (저장소·전역 git 신원 미설정).
 
