@@ -51,14 +51,49 @@ export function describeCredentialRef(ref: string): CredentialRefStatus | null {
 
 /**
  * 내부 서비스 공유 시크릿(부팅 env — configuration-resolution §10 "내부 시크릿은 설정 키가 아니라 부팅 env").
+ * **시크릿은 짝지어진 서버 env 주소와 origin(스킴+호스트+포트)이 정확히 같은 대상에게만 내준다**(Codex C2 Finding 1):
+ * DB·Effective 설정의 baseUrl 은 관리자 편집 대상이 될 수 있으므로(Phase 2 connection 편집 API) 허용 목록이 될 수 없다 —
+ * DB 로 바꿀 수 없는 env 가 허용 목록이다. env 주소가 비어 있으면 어디에도 보내지 않는다.
  * 이름은 고정 목록만 받는다(임의 env 노출 차단). 값은 호출 헤더에만 싣고 로그·응답·Trace 에 남기지 않는다.
  * 16자 미만이면 설정 누락으로 본다(M4 tts-service 가 같은 기준으로 401).
  */
-const SERVICE_SECRET_NAMES = ['TTS_SERVICE_SECRET'] as const
-export type ServiceSecretName = (typeof SERVICE_SECRET_NAMES)[number]
+const SERVICE_SECRETS = {
+  TTS_SERVICE_SECRET: { targetEnv: 'TTS_SERVICE_URL' },
+} as const
+export type ServiceSecretName = keyof typeof SERVICE_SECRETS
 
-export function readServiceSecret(name: ServiceSecretName): string | null {
-  if (!(SERVICE_SECRET_NAMES as readonly string[]).includes(name)) return null
+function secretValue(name: ServiceSecretName): string | null {
+  if (!Object.hasOwn(SERVICE_SECRETS, name)) return null
   const v = process.env[name]?.trim()
   return v && v.length >= 16 ? v : null
+}
+
+/** 시크릿 값이 설정돼 있는가(값은 돌려주지 않는다 — Health 의 설정 점검용). */
+export function hasServiceSecret(name: ServiceSecretName): boolean {
+  return secretValue(name) !== null
+}
+
+/** 시크릿과 짝지어진 허용 origin(서버 env). http(s)·자격증명 없는 URL 만, 아니면 null. */
+export function serviceSecretOrigin(name: ServiceSecretName): string | null {
+  if (!Object.hasOwn(SERVICE_SECRETS, name)) return null
+  const raw = process.env[SERVICE_SECRETS[name].targetEnv]?.trim().split(/\s+/)[0]
+  if (!raw) return null
+  try {
+    const u = new URL(raw)
+    if ((u.protocol !== 'http:' && u.protocol !== 'https:') || u.username || u.password) return null
+    return u.origin
+  } catch {
+    return null
+  }
+}
+
+export type ServiceSecretGrant = { ok: true; secret: string } | { ok: false; reason: 'SECRET_MISSING' | 'TARGET_UNSET' | 'TARGET_NOT_ALLOWED' }
+
+/** `target` 이 허용 origin 과 정확히 같을 때만 시크릿을 내준다. */
+export function readServiceSecretFor(name: ServiceSecretName, target: URL): ServiceSecretGrant {
+  const allowed = serviceSecretOrigin(name)
+  if (!allowed) return { ok: false, reason: 'TARGET_UNSET' }
+  if (target.origin !== allowed || target.username || target.password) return { ok: false, reason: 'TARGET_NOT_ALLOWED' }
+  const secret = secretValue(name)
+  return secret ? { ok: true, secret } : { ok: false, reason: 'SECRET_MISSING' }
 }

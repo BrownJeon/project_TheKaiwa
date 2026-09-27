@@ -2,17 +2,20 @@
  * Style-Bert-VITS2 Engine Provider — 맥 M4 tts-service(자체 FastAPI 래퍼, :8200). 합성은 `styleBertHttp`.
  * 스키마 키는 실제 저장 모양(seed `style-bert-m4`: `runtime.defaultModel`)을 따른다. SBV2 파라미터명은 이 디렉토리 밖으로 나가지 않는다.
  *
- * Health = `GET /health`(무인증, 시크릿 헤더 없음 — httpHealth 규칙) 의 `status` 로 판정 + 앱 쪽 `TTS_SERVICE_SECRET` 설정 여부.
+ * Health = ① 주소 점검(설정 baseUrl 의 origin 이 서버 env `TTS_SERVICE_URL` 과 같아야 한다 — 다르면 호출하지 않고 MISCONFIGURED, Codex C2 Finding 1)
+ *   → ② 공개 `GET /health`(무인증·시크릿 없음, liveness `{status, warmedUp}` — 옛 서비스의 전체 필드도 그대로 받는다)의 `status` 판정
+ *   → ③ 앱 `TTS_SERVICE_SECRET` 설정 여부 → ④ `detail` 요청일 때만(관리자 콘솔) `GET /health/detail`(시크릿) 로 device·모델 수·메모리 보강.
+ *   상태 표시등 확인(speech/tts/status)은 ④ 없이 공개 경로만 쓴다(Finding 3).
  *   OK → HEALTHY · DEGRADED(워밍업 전·CPU 폴백 — 합성은 된다) → DEGRADED · LOADING(기동 중 — 합성이 503) · FAILED(모델 0) → UNAVAILABLE
  *   · MISCONFIGURED(서비스 시크릿 없음) → MISCONFIGURED. 상태등 판정은 "새 문장을 합성할 수 있는가"(16 §12) 기준이다.
  * Functional Test = 기본 모델로 고정 문장 1회 합성(30초 상한) — 오디오는 저장하지 않고 크기·길이만 남긴다.
  */
-import { readServiceSecret } from '@/modules/infra'
+import { hasServiceSecret, readServiceSecretFor } from '@/modules/infra'
 import type { EngineProvider, HealthOutcome } from '../../registry/types'
 import { isTtsEngineError } from '../../tts/errors'
-import { probeHttpHealth, type HealthInterpreter } from '../common/httpHealth'
+import { healthUrl, probeHttpHealth, type HealthInterpreter } from '../common/httpHealth'
 import { key, LOG_LEVEL_KEY, REPO_ADAPTERS, SCHEMA_GROUPS } from '../common/schema'
-import { maxCharsOf, synthesizeHttp } from './styleBertHttp'
+import { fetchHealthDetail, maxCharsOf, synthesizeHttp } from './styleBertHttp'
 
 const FUNCTIONAL_TEXT = 'これはテストです。'
 const FUNCTIONAL_TIMEOUT_MS = 30_000
@@ -79,13 +82,23 @@ export const styleBertVits2Provider: EngineProvider = {
       LOG_LEVEL_KEY,
     ],
   }),
-  async healthCheck(profile) {
+  async healthCheck(profile, opts) {
+    const target = healthUrl(profile.values['connection.baseUrl'], '/synthesize')
+    if (target) {
+      const grant = readServiceSecretFor('TTS_SERVICE_SECRET', target)
+      if (!grant.ok && grant.reason !== 'SECRET_MISSING') {
+        const message = grant.reason === 'TARGET_UNSET' ? '서버의 TTS 주소 설정(env)이 비어 있어 내부 인증을 보낼 수 없습니다' : '허용되지 않은 TTS 주소입니다(서버 env 의 TTS 주소와 다름)'
+        return { ok: false, status: 'MISCONFIGURED', latencyMs: null, detail: { errorCode: grant.reason, message } }
+      }
+    }
     const out = await probeHttpHealth(profile.values['connection.baseUrl'], { interpret })
     if (!out.ok) return out
-    if (!readServiceSecret('TTS_SERVICE_SECRET')) {
+    if (!hasServiceSecret('TTS_SERVICE_SECRET')) {
       return { ok: false, status: 'MISCONFIGURED', latencyMs: out.latencyMs, detail: { ...out.detail, errorCode: 'CREDENTIAL_MISSING', message: '앱 서버의 TTS 내부 시크릿이 설정돼 있지 않습니다' } }
     }
-    return out
+    if (opts?.detail === false) return out
+    const extra = await fetchHealthDetail(profile)
+    return extra ? { ...out, detail: { ...out.detail, ...extra } } : out
   },
   async functionalTest(profile) {
     const model = typeof profile.values['runtime.defaultModel'] === 'string' ? (profile.values['runtime.defaultModel'] as string) : ''

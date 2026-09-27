@@ -34,18 +34,21 @@ function wav(): Buffer {
 }
 
 type FetchImpl = (url: URL, init: RequestInit) => Promise<Response>
-async function withFetch<T>(impl: FetchImpl, fn: () => Promise<T>, secret: string | null = SECRET): Promise<T> {
+const ALLOWED = 'http://127.0.0.1:65530'
+/** fetch·시크릿·허용 주소(env TTS_SERVICE_URL)를 잠시 바꿔 실행한다. null = 비움. */
+async function withFetch<T>(impl: FetchImpl, fn: () => Promise<T>, secret: string | null = SECRET, allowedUrl: string | null = ALLOWED): Promise<T> {
   const keepFetch = globalThis.fetch
-  const keepSecret = process.env.TTS_SERVICE_SECRET
+  const keep = { secret: process.env.TTS_SERVICE_SECRET, url: process.env.TTS_SERVICE_URL }
   globalThis.fetch = impl as unknown as typeof fetch
-  if (secret === null) delete process.env.TTS_SERVICE_SECRET
-  else process.env.TTS_SERVICE_SECRET = secret
+  const put = (k: string, v: string | null | undefined) => (v === null || v === undefined ? delete process.env[k] : (process.env[k] = v))
+  put('TTS_SERVICE_SECRET', secret)
+  put('TTS_SERVICE_URL', allowedUrl)
   try {
     return await fn()
   } finally {
     globalThis.fetch = keepFetch
-    if (keepSecret === undefined) delete process.env.TTS_SERVICE_SECRET
-    else process.env.TTS_SERVICE_SECRET = keepSecret
+    put('TTS_SERVICE_SECRET', keep.secret)
+    put('TTS_SERVICE_URL', keep.url)
   }
 }
 
@@ -138,30 +141,79 @@ test('오류에는 요청 문장·시크릿이 실리지 않는다', async () =>
   }
 })
 
-test('Health: /health status 로 판정 + 앱 시크릿 설정 여부(무인증, 시크릿 헤더 없음)', async () => {
-  const health = (body: Record<string, unknown>, secret: string | null = SECRET) => {
-    let sentSecret: string | undefined
+test('Health: 공개 /health(시크릿 없음) status 판정 → 관리자 상세는 /health/detail(시크릿, 허용 주소만) · 표시등 확인은 상세 생략', async () => {
+  const run = (pub: Record<string, unknown>, opts: { detail?: boolean } | undefined, detail: { status: number; body?: Record<string, unknown> } = { status: 200, body: { status: 'OK', modelsLoaded: 3, models: ['a', 'b', 'c'], device: 'mps', memoryMb: 2900, version: '0.2.0' } }, secret: string | null = SECRET) => {
+    const calls: { path: string; secret?: string }[] = []
     return withFetch(
-      async (_u, init) => {
-        sentSecret = (init.headers as Record<string, string>)['x-internal-secret']
-        return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+      async (u, init) => {
+        const path = new URL(String(u)).pathname
+        calls.push({ path, secret: (init.headers as Record<string, string>)['x-internal-secret'] })
+        if (path === '/health/detail') return new Response(detail.body ? JSON.stringify(detail.body) : 'x', { status: detail.status, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify(pub), { status: 200, headers: { 'content-type': 'application/json' } })
       },
-      async () => ({ out: await styleBertVits2Provider.healthCheck(PROFILE), sentSecret }),
+      async () => ({ out: await styleBertVits2Provider.healthCheck(PROFILE, opts), calls }),
       secret,
     )
   }
-  const ok = await health({ ok: true, status: 'OK', modelsLoaded: 3, models: ['a', 'b', 'c'], device: 'mps', warmedUp: true, memoryMb: 2900 })
-  assert.equal(ok.out.status, 'HEALTHY')
-  assert.equal(ok.out.detail.models, 3)
-  assert.equal(ok.out.detail.device, 'mps')
-  assert.equal(ok.sentSecret, undefined)
-  assert.equal((await health({ ok: true, status: 'DEGRADED', warmedUp: false })).out.status, 'DEGRADED')
-  assert.equal((await health({ ok: false, status: 'LOADING' })).out.status, 'UNAVAILABLE')
-  assert.equal((await health({ ok: false, status: 'FAILED', modelsLoaded: 0 })).out.status, 'UNAVAILABLE')
-  assert.equal((await health({ ok: false, status: 'MISCONFIGURED' })).out.status, 'MISCONFIGURED')
-  const noSecret = await health({ ok: true, status: 'OK' }, null)
+  // 새 공개 모양 {status, warmedUp} + 관리자 상세
+  const admin = await run({ status: 'OK', warmedUp: true }, undefined)
+  assert.equal(admin.out.status, 'HEALTHY')
+  assert.deepEqual(admin.calls.map((c) => [c.path, c.secret ?? null]), [['/health', null], ['/health/detail', SECRET]])
+  assert.equal(admin.out.detail.models, 3)
+  assert.equal(admin.out.detail.device, 'mps')
+  assert.equal(admin.out.detail.memoryMb, 2900)
+  // 표시등 확인: 공개 경로만, 시크릿 전송 0
+  const probe = await run({ status: 'OK', warmedUp: true }, { detail: false })
+  assert.equal(probe.out.status, 'HEALTHY')
+  assert.deepEqual(probe.calls.map((c) => [c.path, c.secret ?? null]), [['/health', null]])
+  // 배포 전 서비스(상세 404) — 옛 전체 모양 공개 /health 에서 상세를 그대로 받는다
+  const old = await run({ ok: true, status: 'OK', modelsLoaded: 3, models: ['a', 'b', 'c'], device: 'cpu', warmedUp: true }, undefined, { status: 404 })
+  assert.equal(old.out.status, 'HEALTHY')
+  assert.equal(old.out.detail.models, 3)
+  assert.equal(old.out.detail.device, 'cpu')
+  assert.equal((await run({ status: 'DEGRADED', warmedUp: false }, { detail: false })).out.status, 'DEGRADED')
+  assert.equal((await run({ status: 'LOADING', warmedUp: false }, { detail: false })).out.status, 'UNAVAILABLE')
+  assert.equal((await run({ ok: false, status: 'FAILED' }, { detail: false })).out.status, 'UNAVAILABLE')
+  assert.equal((await run({ ok: false, status: 'MISCONFIGURED' }, { detail: false })).out.status, 'MISCONFIGURED')
+  const noSecret = await run({ status: 'OK', warmedUp: true }, undefined, undefined, null)
   assert.equal(noSecret.out.status, 'MISCONFIGURED')
   assert.equal(noSecret.out.detail.errorCode, 'CREDENTIAL_MISSING')
+  assert.ok(noSecret.calls.every((c) => c.path === '/health' && !c.secret))
+})
+
+test('시크릿 전송 대상 고정(Codex C2): env TTS_SERVICE_URL 과 origin 이 다르거나 env 가 없으면 호출·시크릿 전송 0', async () => {
+  let calls = 0
+  const count: FetchImpl = async () => {
+    calls++
+    return new Response(new Uint8Array(wav()), { status: 200 })
+  }
+  const at = (baseUrl: string) => ({ ...PROFILE, values: { ...PROFILE.values, 'connection.baseUrl': baseUrl } })
+  const synth = (baseUrl: string, allowed: string | null = ALLOWED) => kindOf(withFetch(count, () => synthesizeHttp(at(baseUrl), VOICE, SEG, { traceId: 't', timeoutMs: 8000 }), SECRET, allowed))
+  assert.equal(await synth('http://evil.test:65530'), 'MISCONFIGURED:TARGET_NOT_ALLOWED')
+  assert.equal(await synth('http://127.0.0.1:65531'), 'MISCONFIGURED:TARGET_NOT_ALLOWED')
+  assert.equal(await synth('https://127.0.0.1:65530'), 'MISCONFIGURED:TARGET_NOT_ALLOWED')
+  assert.equal(await synth(ALLOWED, null), 'MISCONFIGURED:TARGET_UNSET')
+  assert.equal(await synth(ALLOWED, 'not a url'), 'MISCONFIGURED:TARGET_UNSET')
+  assert.equal(calls, 0)
+  // 같은 origin(경로·기본 포트 표기 차이는 같다) — 호출한다
+  assert.equal(await synth(`${ALLOWED}/`, `${ALLOWED}/v1`), 'ok')
+  assert.equal(await synth('http://127.0.0.1', 'http://127.0.0.1:80'), 'ok')
+  assert.equal(calls, 2)
+  // 관리자 Health: 허용되지 않은 주소면 네트워크 호출 없이 MISCONFIGURED(사유 문구), 기능 테스트도 같다
+  calls = 0
+  const h = await withFetch(count, () => styleBertVits2Provider.healthCheck(at('http://evil.test:8200')))
+  assert.equal(h.status, 'MISCONFIGURED')
+  assert.equal(h.detail.errorCode, 'TARGET_NOT_ALLOWED')
+  assert.match(h.detail.message ?? '', /허용되지 않은 TTS 주소/)
+  const unset = await withFetch(count, () => styleBertVits2Provider.healthCheck(PROFILE), SECRET, null)
+  assert.equal(unset.detail.errorCode, 'TARGET_UNSET')
+  const ft = await withFetch(count, () => styleBertVits2Provider.functionalTest!(at('http://evil.test:8200')))
+  assert.equal(ft.status, 'MISCONFIGURED')
+  assert.equal(calls, 0)
+  // 상세 조회도 허용 주소가 아니면 시크릿을 보내지 않는다
+  const { fetchHealthDetail } = await import('../adapters/tts/styleBertHttp')
+  assert.equal(await withFetch(count, () => fetchHealthDetail(at('http://evil.test:8200'))), null)
+  assert.equal(calls, 0)
 })
 
 test('Functional Test: 고정 문장 1회 합성 → 크기·길이만(오디오 저장 없음)', async () => {

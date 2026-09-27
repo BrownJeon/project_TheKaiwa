@@ -64,7 +64,8 @@ export function healthOf(s: EngineStatus): TtsServerHealth {
 async function probe(target: TtsTarget): Promise<{ health: TtsServerHealth; reason: TtsFallbackReason | null }> {
   state.lastProbeAt = Date.now()
   try {
-    const r = await runHealthCheck(currentEnvironment(), target.id)
+    // 표시등 확인은 공개 liveness 만(인증 상세 조회 없음, Codex C2 Finding 3).
+    const r = await runHealthCheck(currentEnvironment(), target.id, { detail: false })
     tts.clearTargetCache()
     const health = healthOf(r.connection.status)
     if (r.health.ok) {

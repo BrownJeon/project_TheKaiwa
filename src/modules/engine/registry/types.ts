@@ -98,8 +98,11 @@ export type SourceCodeLayer = Record<string, { value: unknown; sourceRef: string
 export interface EngineProvider {
   descriptor: EngineDescriptor
   configurationSchema(): ConfigurationSchema
-  /** 5초 이내. 실패는 throw 가 아니라 `{ok:false, status:'UNAVAILABLE'|'DEGRADED'|'MISCONFIGURED'}` 로 돌려준다. */
-  healthCheck(profile: ConnectionProfile): Promise<HealthOutcome>
+  /**
+   * 5초 이내. 실패는 throw 가 아니라 `{ok:false, status:'UNAVAILABLE'|'DEGRADED'|'MISCONFIGURED'}` 로 돌려준다.
+   * `detail:false` = 상태 판정만(표시등 확인 등) — 인증이 필요한 상세 조회를 건너뛴다. 기본은 상세 포함(관리자 콘솔).
+   */
+  healthCheck(profile: ConnectionProfile, opts?: { detail?: boolean }): Promise<HealthOutcome>
   /** 콘솔 대시보드용 모델 요약(엔진별 키 해석은 어댑터만 안다). */
   modelSummary(values: Record<string, unknown>): string | null
   /** 어댑터 코드 상수(SOURCE_CODE 층). 없으면 빈 층. */

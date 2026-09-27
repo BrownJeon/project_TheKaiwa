@@ -13,11 +13,13 @@
  *
  * 보안: 주소는 Effective 설정(DB·서버 env)에서만 온다(요청 본문 URL 없음). http(s)·자격증명 없는 URL 만, 리다이렉트 미추종,
  * 응답 상한 8MB, 오류 본문은 4KB 까지만 읽어 `error.code` 만 쓴다. 시크릿·문장은 예외 메시지·로그에 싣지 않는다.
+ * **시크릿 전송 대상 고정(Codex C2 Finding 1)**: `TTS_SERVICE_SECRET` 은 서버 env `TTS_SERVICE_URL` 과 origin 이 정확히 같은 주소에만
+ * 보낸다(`infra.readServiceSecretFor`). DB·Effective baseUrl 의 origin 이 다르거나 env 가 비면 **호출 자체를 하지 않고** MISCONFIGURED.
  */
-import { readServiceSecret } from '@/modules/infra'
-import type { ConnectionProfile, TtsLexiconHint, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef } from '../../registry/types'
+import { readServiceSecretFor } from '@/modules/infra'
+import type { ConnectionProfile, HealthDetail, TtsLexiconHint, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef } from '../../registry/types'
 import { TtsEngineError } from '../../tts/errors'
-import { healthUrl } from '../common/httpHealth'
+import { healthUrl, pickCommonDetail } from '../common/httpHealth'
 
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024
 const MAX_ERROR_BYTES = 4 * 1024
@@ -99,8 +101,9 @@ function isWav(buf: Buffer): boolean {
 export async function synthesizeHttp(profile: ConnectionProfile, voice: TtsVoiceRef, seg: TtsSegmentInput, opts: { traceId: string; timeoutMs: number }): Promise<TtsSynthOutput> {
   const url = healthUrl(profile.values['connection.baseUrl'], '/synthesize')
   if (!url) throw new TtsEngineError('MISCONFIGURED', 'BAD_BASE_URL')
-  const secret = readServiceSecret('TTS_SERVICE_SECRET')
-  if (!secret) throw new TtsEngineError('MISCONFIGURED', 'SECRET_MISSING')
+  const grant = readServiceSecretFor('TTS_SERVICE_SECRET', url)
+  if (!grant.ok) throw new TtsEngineError('MISCONFIGURED', grant.reason)
+  const secret = grant.secret
   const text = substituteReadings(seg.text, seg.lexiconHints)
   if ([...text].length > maxCharsOf(profile.values)) throw new TtsEngineError('TEXT_TOO_LONG', 'TEXT_TOO_LONG')
 
@@ -163,5 +166,34 @@ export async function synthesizeHttp(profile: ConnectionProfile, voice: TtsVoice
       modelLoaded: ((v) => (v === 'hit' || v === 'cold' ? v : null))(res.headers.get('x-model-loaded')),
       styleFallback: res.headers.get('x-kaiwa-style-fallback') === '1',
     },
+  }
+}
+
+/**
+ * 관리자 Health 상세(`GET /health/detail`, 시크릿 필요) — device·모델 수·메모리·버전. 공개 `/health` 는 liveness 만 준다(Codex C2 Finding 3).
+ * 시크릿 전송 규칙은 합성과 같다(허용 origin 만). 404(배포 전 서비스)·401·네트워크 오류는 null — 상세 없이 공개 판정만 쓴다.
+ * 결과는 화이트리스트 필드(숫자·짧은 식별자)만.
+ */
+export async function fetchHealthDetail(profile: ConnectionProfile, timeoutMs = 3_000): Promise<HealthDetail | null> {
+  const url = healthUrl(profile.values['connection.baseUrl'], '/health/detail')
+  if (!url) return null
+  const grant = readServiceSecretFor('TTS_SERVICE_SECRET', url)
+  if (!grant.ok) return null
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs), headers: { accept: 'application/json', 'x-internal-secret': grant.secret } })
+    if (res.status !== 200) {
+      await res.body?.cancel().catch(() => undefined)
+      return null
+    }
+    const buf = await readCapped(res, 64 * 1024)
+    if (!buf) return null
+    const json = JSON.parse(buf.toString('utf8')) as unknown
+    if (!json || typeof json !== 'object' || Array.isArray(json)) return null
+    const j = json as Record<string, unknown>
+    const d = pickCommonDetail(j)
+    if (typeof j.modelsLoaded === 'number' && Number.isFinite(j.modelsLoaded)) d.models = Math.trunc(j.modelsLoaded)
+    return d
+  } catch {
+    return null
   }
 }

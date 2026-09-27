@@ -86,14 +86,14 @@ export async function recordHealth(
   return { health, connection }
 }
 
-async function execute(row: EngineConnection): Promise<HealthRunResult> {
+async function execute(row: EngineConnection, opts: { detail?: boolean }): Promise<HealthRunResult> {
   const provider = getProvider(row.engineId)
   let outcome: HealthOutcome
   if (!provider) {
     outcome = { ok: false, status: 'MISCONFIGURED', latencyMs: null, detail: { errorCode: 'PLUGIN_NOT_LOADED', message: '엔진 플러그인이 로드되지 않았습니다' } }
   } else {
     try {
-      outcome = await provider.healthCheck(await profileOf(row))
+      outcome = await provider.healthCheck(await profileOf(row), opts)
     } catch {
       outcome = { ok: false, status: 'UNAVAILABLE', latencyMs: null, detail: { errorCode: 'CHECK_FAILED', message: '헬스 체크를 실행하지 못했습니다' } }
     }
@@ -101,11 +101,12 @@ async function execute(row: EngineConnection): Promise<HealthRunResult> {
   return recordHealth(row, 'HEALTH', outcome, { updateStatus: true })
 }
 
-export async function runHealthCheck(environment: Environment, connectionId: string): Promise<HealthRunResult> {
+/** `detail:false` 는 상태 판정만(TTS 표시등 확인) — 인증이 필요한 상세 조회를 건너뛴다. 관리자 콘솔은 기본(상세 포함). */
+export async function runHealthCheck(environment: Environment, connectionId: string, opts: { detail?: boolean } = {}): Promise<HealthRunResult> {
   const row = await loadTarget(environment, connectionId)
   const running = inflight.get(row.id)
   if (running) return running
-  const p = execute(row).finally(() => inflight.delete(row.id))
+  const p = execute(row, opts).finally(() => inflight.delete(row.id))
   inflight.set(row.id, p)
   return p
 }
