@@ -1,7 +1,7 @@
 ---
 task_id: task-007
 title: "AI 회화(음성) — 웹 경로: 푸시투토크 → 턴 → 청크 스트리밍 TTS · 5초 예산"
-status: in-progress
+status: done
 base_ref: 05f0cbb
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, codex]
@@ -101,8 +101,7 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 ## 판단 기록 (judge)
 - [2026-09-28 02:35] intake engine=jev → task_type=feature, risk=R1, developer_model=opus, next=assign | overrides=- | fallback=- | tokens=1127
   - **override**(Leader): risk **R2** 적용 — 신호도 high 0.51/normal 0.49 경계이고, 이번 범위에 서명 URL(인증 우회 시 타인 오디오 노출)·발화 소유 검사(IDOR)·자식 프로세스 수명(누수·고아) 이 들어 있어 보안·운영 위험을 R2 로 본다. developer_model=opus·next=assign 채택.
-
-
+- [2026-09-28 03:15] codex_gate/C1 engine=jev → codex_required=true, mode=adversarial-review, focus=security, budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=862
 - [2026-09-28 04:09] C2 engine=jev → codex_required=true, mode=adversarial-review, focus=concurrency | overrides=- | fallback=- | tokens=994
 
 ## Codex 검토
@@ -527,14 +526,21 @@ QA-016 이 NOT_VERIFIED 로 남긴 완료 기준 9(화면)를 B 의 `tests/live/
 
 ## 최종 요약
 
-**QA-016 (2026-09-28)**: ✅ **PASS 판정·결함 0건**
-- 서버 smoke 검증: SSE 순서·audio 필드·계약 39/39 PASS
-- 지연 실측 E2E: stop→첫 audio p50 **2,061ms**(≤4,000s ✓) · 예열 warm 100% · 404 재시도 0회
-- 보안: 비밀값·민감정보 노출 0 · Trace 원문 0건
-- 단위 테스트: 373/373 PASS · 예열 프로세스 정상 · 고아 프로세스 0
-- 미검증: Playwright E2E(환경 미비) · 실기기(APK 미보유) → 사용자 육안 확인 필요
-- 배포 선결: DB 정리 완료 · gateway·M4 정상 · 보안 검증 완료
+### 최종 요약 (Leader, 사용자용 — 2026-09-28)
+**무엇이 생겼나**: 하단 "회화" 탭(이제 기본 탭)에 **말로 하는 AI 회화방**이 열렸습니다. 마이크 버튼을 누른 채 일본어로 말하고 손을 떼면, 선생님이 일본어로 답하면서 **문장마다 바로 소리 내어** 읽어 줍니다. 틀린 표현이 있으면 내 말 바로 아래에 교정 카드(내 문장 | 고친 문장, 채택/무시)가 뜹니다.
+- 선생님이 말하는 중에 버튼을 누르면 즉시 멈추고 내 말을 듣습니다(끼어들기). 말하기 어려울 때는 키보드 아이콘으로 글자 입력으로 바꿀 수 있습니다.
+- 말풍선마다 ▶ 다시 듣기(선생님 목소리)·▶ 내 목소리(30일 보관), 읽기(후리가나)·번역 토글, 문법 포인트가 붙습니다. 방 메뉴에서 들려주는 방식(보통·학습용 보통·학습용 느리게)을 바꿀 수 있습니다.
+- 음성 합성 서버가 멈추면 대화는 글자로 계속되고 선생님 이름 옆 표시등이 "자막만"으로 바뀝니다.
 
-Reviewer REV-014·015·016 모두 PASS. Developer 수정 사항(Codex C1-1~3·C2-1~2) 완벽 반영. **배포 준비 완료**.
+**빨라진 것**: 말을 끝내고 선생님 첫 목소리 데이터가 도착하기까지 **p50 약 1.8~2.1초**(목표 4초, 웹 경로 합성 음성 실측). 비결 셋 — ① AI 선생님 프로그램을 미리 띄워 두기(첫 글자 1.5초→0.8초) ② 답의 **첫 문장이 나오는 즉시 음성 합성 시작**(나머지 답을 기다리지 않음, 안전 필터 통과 문장만) ③ DB 저장을 기다리지 않고 AI 호출을 동시에 시작.
 
-- [2026-09-28 03:15] codex_gate/C1 engine=jev → codex_required=true, mode=adversarial-review, focus=security, budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=862
+**검증**: Codex C1(설계 보안) 3건 반영(오디오 주소에 사용자 정보 제거·발화 1회만 연결·조기 음성 안전장치) → developer A·B 구현 → REV-014(서버)·REV-015(화면) → Codex C2(동시성) 2건 반영 → REV-016 PASS → **QA-016 PASS(결함 0)** + Leader 화면 E2E(가짜 마이크, 실 Chrome) **40/40**. 단위 테스트 373. **운영 반영 완료**(04:55, 격리 빌드 → 미러 빌드 → pm2 재시작, health ok·degraded 없음) + 운영 프로세스 스모크 **37/37**(QA 데이터 정리 확인).
+
+**운영 메모**: 미리 띄운 AI 프로세스는 1개당 약 270MB, 10분 쓰지 않으면 스스로 정리됩니다(최대 대기 2개).
+
+**남은 것·결정 필요(급하지 않음)**:
+1. **폰 실측**(p50 ≤5초·실제 목소리 인식)은 앱(003f) 이후 사용자와 함께.
+2. **NAS MariaDB 커밋 지연**(건당 0.1~0.5초, fsync 설정) — 완화하면 더 빨라지지만 정전 시 최근 ~1초 데이터 손실 위험·다른 프로젝트와 공유 DB → 사용자 결정.
+3. **"발화 1개 = 메시지 1개" DB 제약**(`Utterance.chatId`·`chatMessageId` 고유) — 지금은 코드로 막음, 스키마 변경(db push)은 사용자 승인 시(domain-model §8 #17).
+4. 음성 합성 중지 상태(자막만) 실경로 확인은 M4 가 운영과 공유라 단위 테스트로 대신함 — M4 점검일에 확인.
+5. 후속 개선 후보: 불일치 시 M4 합성 요청 자체 취소(AbortSignal)·Phase 3 섀도잉 화면의 청크 순차 합성(speech-platform/16 각주).
