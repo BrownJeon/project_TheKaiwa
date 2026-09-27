@@ -95,7 +95,8 @@ export interface ParsedEntry {
 
 /**
  * 입력 1건 → 항목 값. `base` 가 있으면(수정·Import 갱신) **들어온 키만** 덮어쓰고, 없으면(추가) 빠진 키는 기본값.
- * 빈 문자열·null 은 "기본값"(accentType 0·priority 10·scope GLOBAL·scopeRefId/wordType/note null·enabled true)이다.
+ * 빈 문자열·null 은 "기본값"(accentType 0·priority 10·scope GLOBAL·scopeRefId/wordType/note null·enabled true)이다 — 키가 **없는** 것
+ * (undefined·키 자체 없음)과 구분한다: 없는 키는 base 값 유지. CSV 파서는 짧은 행의 뒤쪽 칸을 키로 만들지 않는다(REV-017).
  * CSV 는 모든 값이 문자열이라 숫자·불리언 문자열도 받는다.
  */
 export function parseEntryInput(raw: RawEntryInput, base: LexiconEntryFields | null = null): ParsedEntry {
@@ -392,7 +393,9 @@ export const refNotFound = (): LexiconFieldError => err('scopeRefId', 'E_SCOPE_R
 
 /**
  * Import 계획. MERGE = 파일의 행을 추가·갱신만. REPLACE_SCOPE = 추가로, 파일에 나온 (scope, scopeRefId) 묶음 안에서
- * **파일에 없는 활성 항목을 비활성**(물리 삭제 없음). 빠진 열은 기존 값 유지(갱신)·기본값(추가). 같은 키가 파일에 두 번이면 뒤 행 오류.
+ * **파일에 없는 활성 항목을 비활성**(물리 삭제 없음). 빠진 열·칸·키는 기존 값 유지(갱신)·기본값(추가). 같은 키가 파일에 두 번이면 뒤 행 오류.
+ * 꺼진 항목과 같은 키의 행에 `enabled` 값이 없으면 **꺼진 채로** 다른 값만 갱신한다 — 일괄 가져오기가 파일이 말하지 않은 켜기를 하지 않게
+ * (되살리려면 `enabled=true` 를 적는다. 단건 추가(POST)의 되살림은 화면에서 한 항목을 명시적으로 추가하는 행위라 다르다).
  * `missingRefs` = 존재하지 않는 대상(`scopeRefKey`) — 호출자가 미리 조회해 넘긴다(이 함수는 순수).
  */
 export function planImport(existing: readonly LexiconEntryRow[], rows: readonly ImportRowInput[], mode: LexiconImportMode, missingRefs: ReadonlySet<string> = new Set()): ImportPlan {

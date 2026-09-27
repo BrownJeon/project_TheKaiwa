@@ -391,3 +391,56 @@ test('버전 전이: 변경마다 새 ACTIVE 1·직전 SUPERSEDED, 무변경은 
     ['ADDED:御徒町'],
   )
 })
+
+// ── REV-017 M1: 빠진 값(짧은 행·없는 키) vs 명시적 빈 값 ─────────────────────
+
+const HEADER = 'surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled'
+const CUSTOM = { surface: '明日', reading: 'アシタ', accentType: 3, priority: 500, wordType: 'COMMON' as const, note: 'keep me', enabled: false }
+
+test('REV-017: 머리글보다 짧은 행의 뒤쪽 칸은 값 없음 — 기존 값 유지(꺼진 항목은 꺼진 채), 새 항목은 기본값', () => {
+  const existing = [R('a', CUSTOM)]
+  const same = parseLexiconFile(`${HEADER}\n明日,アシタ\n`, 'csv')
+  assert.deepEqual(same.rows[0].raw, { surface: '明日', reading: 'アシタ' })
+  assert.deepEqual(same.rows[0].errors, [])
+  assert.deepEqual(planImport(existing, same.rows, 'MERGE').counts, { add: 0, update: 0, disable: 0, unchanged: 1, error: 0 })
+
+  const changed = planImport(existing, parseLexiconFile(`${HEADER}\n明日,アスノヒ\n`, 'csv').rows, 'MERGE')
+  assert.deepEqual(changed.counts, { add: 0, update: 1, disable: 0, unchanged: 0, error: 0 })
+  assert.deepEqual(changed.items[0].after, F({ ...CUSTOM, reading: 'アスノヒ' }))
+  assert.equal(planRows(changed.items)[0].kind, 'CHANGED') // 켜지지 않는다
+
+  const added = planImport(existing, parseLexiconFile(`${HEADER}\n今日,キョー\n`, 'csv').rows, 'MERGE')
+  assert.deepEqual(added.items[0].after, F({ surface: '今日', reading: 'キョー' }))
+})
+
+test('REV-017: 칸이 있는 빈 값("")·JSON null 은 명시적 기본값 — 메모·종류 지움·우선순위 10·enabled 빈 칸은 true(켜짐)', () => {
+  const existing = [R('a', CUSTOM)]
+  const cleared = planImport(existing, parseLexiconFile(`${HEADER}\n明日,アシタ,3,,GLOBAL,,,,\n`, 'csv').rows, 'MERGE')
+  assert.deepEqual(cleared.items[0].after, F({ surface: '明日', reading: 'アシタ', accentType: 3 }))
+  assert.equal(planRows(cleared.items)[0].kind, 'ENABLED')
+  const partial = planImport(existing, parseLexiconFile(`${HEADER}\n明日,アシタ,3,500,GLOBAL,,COMMON,\n`, 'csv').rows, 'MERGE') // note 빈 칸, enabled 칸 없음
+  assert.deepEqual(partial.items[0].after, F({ ...CUSTOM, note: null }))
+
+  const jsonMissing = planImport(existing, parseLexiconFile(JSON.stringify([{ surface: '明日', reading: 'アシタ' }]), 'json').rows, 'MERGE')
+  assert.deepEqual(jsonMissing.counts.unchanged, 1)
+  const jsonNull = planImport(existing, parseLexiconFile(JSON.stringify([{ surface: '明日', reading: 'アシタ', note: null, wordType: null }]), 'json').rows, 'MERGE')
+  assert.deepEqual(jsonNull.items[0].after, F({ ...CUSTOM, note: null, wordType: null }))
+})
+
+test('REV-017: dryRun 계획 = 실제 적용 결과(짧은 행·빈 칸·새 항목 섞음), 적용 뒤 Export → Import 변경 0', async () => {
+  const seed = [F(CUSTOM), F({ surface: '日本橋', reading: 'ニホンバシ', note: '메모' })]
+  const entries: Ent[] = seed.map((f, i) => ({ ...f, id: `s${i}`, environment: 'LOCAL', createdAt: new Date(), updatedAt: new Date() }))
+  const versions: Ver[] = [{ id: 'v1', environment: 'LOCAL', version: 1, status: 'ACTIVE', snapshotHash: snapshotHash(seed), snapshot: toSnapshot(seed), changeSummary: '시드', actorUserId: null, createdAt: new Date() }]
+  const rows = parseLexiconFile(`${HEADER}\n明日,アスノヒ\n日本橋,ニッポンバシ,0,10,GLOBAL,,,,\n秋葉原,アキハバラ\n`, 'csv').rows
+  const before = entries.map(({ id, surface, reading, accentType, priority, scope, scopeRefId, wordType, note, enabled }) => ({ id, surface, reading, accentType, priority, scope, scopeRefId, wordType, note, enabled }))
+  const plan = planImport(before, rows, 'MERGE')
+  const expected = toSnapshot(applyPlan(before, plan.items))
+  const r = await writeLexicon(fakeTx(entries, versions), { environment: 'LOCAL', actorUserId: 'admin', baseVersion: 1, reason: 'QA' }, { kind: 'IMPORT', rows, mode: 'MERGE' })
+  assert.deepEqual(r.importPlan?.counts, plan.counts)
+  assert.deepEqual(toSnapshot(entries), expected)
+  assert.deepEqual(readSnapshot(versions[1].snapshot), readSnapshot(expected))
+  assert.equal(entries.find((e) => e.surface === '明日')?.enabled, false)
+  assert.equal(entries.find((e) => e.surface === '日本橋')?.note, null)
+  const rows2 = parseLexiconFile(formatLexiconCsv(toSnapshot(entries) as LexiconEntryFields[]), 'csv').rows
+  assert.deepEqual(planImport(entries, rows2, 'REPLACE_SCOPE').counts, { add: 0, update: 0, disable: 0, unchanged: 3, error: 0 })
+})

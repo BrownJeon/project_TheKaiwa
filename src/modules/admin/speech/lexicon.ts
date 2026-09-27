@@ -522,10 +522,10 @@ export function parsePreviewBody(body: Record<string, unknown>): PreviewRequest 
   return { text, voiceId, drafts, compare: body.compare === true, side }
 }
 
+/** 예문 길이 초과는 speech 가 PreviewTextTooLongError 로 바꿔 올리므로(→ 422 E_PREVIEW_TEXT_TOO_LONG) 여기 없다(REV-017 L1). */
 const PREVIEW_PROBLEM: Record<string, { field: string; message: string }> = {
   VOICE_NOT_AVAILABLE: { field: 'voiceId', message: '선택할 수 없는 목소리예요.' },
   TEXT_EMPTY: { field: 'text', message: '읽을 내용이 없어요.' },
-  TEXT_TOO_LONG: { field: 'text', message: '예문이 너무 길어요. 더 짧게 줄여 주세요.' },
 }
 
 /** speech·engine TTS 오류 → 봉투(엔진명·주소 없음, traceId 만). */

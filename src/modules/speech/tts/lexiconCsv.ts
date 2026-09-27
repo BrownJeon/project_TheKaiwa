@@ -5,6 +5,10 @@
  * CSV 인젝션 방어: Export 는 `= + - @ 탭 CR '` 로 시작하는 셀 앞에 `'` 를 붙인다(스프레드시트가 수식으로 해석하지 않게).
  * Import 는 **`'` 뒤에 그 문자들이 오는 셀만** 앞의 `'` 하나를 떼어 되돌린다 → Export → Import 가 값 그대로(왕복 불변).
  * Export 앞에는 UTF-8 BOM 을 붙이고(엑셀이 일본어를 바르게 연다) Import 는 BOM 을 떼어 낸다.
+ *
+ * 빠진 값과 빈 값(REV-017): 머리글에 없는 열 · 머리글보다 짧은 행의 뒤쪽 칸 · JSON 에 없는 키 = **값 없음**(갱신이면 기존 값 유지, 추가면 기본값).
+ * 칸이 있는데 빈 문자열(CSV `,,`) · JSON `null` = **명시적 빈 값**(기본값으로 되돌림 — accentType 0·priority 10·scope GLOBAL·
+ * scopeRefId/wordType/note null·enabled true). 머리글보다 긴 행은 E_ROW_FORMAT.
  */
 import type { LexiconEntryFields, LexiconFieldError, LexiconFormat } from '@/types/lexicon'
 import { LEXICON_CSV_COLUMNS, LEXICON_LIMITS } from '@/types/lexicon'
@@ -122,8 +126,10 @@ function parseCsvFile(text: string): ParsedLexiconFile {
   if (data.length === 0) return fileError('E_IMPORT_FORMAT', '가져올 데이터 행이 없습니다.')
   const rows: ImportRowInput[] = data.map((rec, idx) => {
     const raw: Record<string, unknown> = {}
+    // 머리글보다 짧은 행의 뒤쪽 칸은 키를 만들지 않는다 — "머리글에 없는 열" 과 같이 기존 값 유지(갱신)·기본값(추가)(REV-017 M1).
+    // 칸이 있고 비어 있으면('') 명시적 빈 값 = 기본값으로 되돌림(Export 는 늘 9칸을 다 쓴다).
     columns.forEach((c, i) => {
-      if (c) raw[c] = unescapeCsvCell(rec.cells[i] ?? '')
+      if (c && i < rec.cells.length) raw[c] = unescapeCsvCell(rec.cells[i])
     })
     const errors: LexiconFieldError[] = rec.cells.length > header.length ? [{ field: 'row', code: 'E_ROW_FORMAT', message: `${rec.line}번째 줄: 칸 수가 머리글보다 많습니다.` }] : []
     return { row: idx + 1, raw, errors }

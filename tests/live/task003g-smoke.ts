@@ -297,6 +297,9 @@ async function main() {
     expectedAudits++
     check('6c MERGE 적용 → 추가 2·새 버전 1', applyOk.status === 200 && d(applyOk).applied === true && vOf(applyOk) === v + 1 && JSON.stringify(d(applyOk).counts) === JSON.stringify({ add: 2, update: 0, disable: 0, unchanged: 0, error: 0 }), `${applyOk.status} ${JSON.stringify(d(applyOk).counts)}`)
     v = vOf(applyOk)
+    // REV-017: 머리글보다 짧은 행의 뒤쪽 칸 = 값 없음 → 기존 값(priority 20·COMMON·메모) 유지 = 변경 0
+    const shortRow = await upload(cAdmin, `${L}/import?mode=MERGE&dryRun=1`, { name: 'short.csv', content: `surface,reading,scope,scopeRefId,priority,wordType,note,enabled\n検証単語,ケンショウタンゴ,USER,${qa.id}\n` })
+    check('6c2 짧은 행(뒤쪽 칸 없음) → 기존 값 유지(UNCHANGED, 변경 0)', shortRow.status === 200 && JSON.stringify(d(shortRow).counts) === JSON.stringify({ add: 0, update: 0, disable: 0, unchanged: 1, error: 0 }), `${shortRow.status} ${JSON.stringify(d(shortRow).counts)}`)
     const scopeEnabled = await prisma.pronunciationLexiconEntry.count({ where: { environment: 'LOCAL', scope: 'USER', scopeRefId: qa.id, enabled: true } })
     const repl = await upload(cAdmin, `${L}/import?mode=REPLACE_SCOPE`, { name: 'qa.csv', content: [header, good1].join('\n') }, { baseVersion: String(v), reason: 'QA 범위 교체' })
     expectedAudits++
