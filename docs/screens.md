@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g)
 
 ---
 
@@ -94,7 +94,8 @@
 | 콘솔 | `/admin/plugins` · `/admin/plugins/[id]` | 플러그인 로드 상태·스키마 | `plugins.read`(DEVELOPER+, 없으면 콘솔 403) | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/configuration` | 설정값 Effective(키·값·Source 배지) — Effective 탭만 | `config.effective.read` | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/diagnostics` (`?tab=health\|traces`) · `/admin/diagnostics/traces/[traceId]` | Health 기록 · 요청 Trace 목록/상세 | `engine.read` / Trace 는 `trace.read` | 별도 셸 | **task-005b(§6)** |
-| 콘솔 | `/admin/{prompts,playground,history}` · `speech/tts/lexicon` 등 | 편집·버전·Playground·발음 사전 | — | 메뉴 없음 | Phase 2+ (발음 사전은 task-003 이후) |
+| 콘솔 | `/admin/speech/tts/lexicon` (`?q=&scope=&ref=&inactive=1&page=`) · `/admin/speech/tts/lexicon/versions` (`?v=` 버전 상세 시트) | 발음 사전(검색·범위 필터·항목 추가/수정/끄기/다시 켜기 시트·적용 전/후 미리듣기·가져오기 dryRun→적용·내보내기) · 버전 기록(상세 diff·되돌리기) — 메뉴 "엔진 › 발음 사전" · TTS 역할 페이지 링크 카드 | `voices.read`(보기·내보내기·버전 보기) / `voices.manage`(쓰기·미리듣기) · PRODUCTION 쓰기 = SUPER_ADMIN + 확인 문구 | 별도 셸 | **task-003g(§10)** |
+| 콘솔 | `/admin/{prompts,playground,history}` 등 | 편집·버전·Playground·이력 | — | 메뉴 없음 | Phase 2+ |
 
 - **하위 화면(대화방·결과 화면)은 하단 탭을 숨기고 `←` 헤더로 돌아간다.** 키보드가 올라온 뒤 대화가 보이는 높이를 확보하기 위해서다(412×892 에서 키보드 ≈330px → 남는 ≈560px 중 탭 바 66px 는 12%).
 - 사용자 화면 전체에서 엔진·모델·호스트 이름(`claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert`)·`traceId`·"AI 엔진" 같은 구현 용어는 0건이다.
@@ -1925,7 +1926,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 ## 6. Admin Console — Phase 1 (task-005b)
 
 > 정본: IA `docs/design/admin-console/01`(메뉴·진입·레이아웃·404/403) · 권한 `docs/design/role-permission.md` §3·§4 · API `docs/design/api-contract.md`(§6-4 의 #번호) · Source `configuration-resolution.md` §2·`admin-console/04`·`05` · Trace `admin-console/13` · 환경 `admin-console/16` · Health/기능 테스트 `speech-platform/09`·`10`·`14`.
-> 이 절은 **Phase 1 화면만** 다룬다. 편집·Version·Rollback·Prompts·Playground·History·발음 사전(G1 이월)은 없다 — 메뉴에도 그리지 않는다.
+> 이 절은 **Phase 1 화면만** 다룬다. 편집·Version·Rollback·Prompts·Playground·History 는 없다 — 메뉴에도 그리지 않는다. 발음 사전(G1 이월)은 task-003g 에서 **§10** 으로 추가됐다(메뉴 1행·TTS 역할 페이지 링크, 쓰기·버전·되돌리기는 사전 자체 버전 규칙).
 
 ### 6-0. 한눈에 보는 결정
 
@@ -1960,6 +1961,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 | 2 | 엔진 | `/admin/speech/realtime` | Realtime STT | 실시간 음성 인식 | `engine.read` | |
 | 3 | 엔진 | `/admin/speech/analysis` | Analysis STT | 분석용 음성 인식 | `engine.read` | |
 | 4 | 엔진 | `/admin/speech/tts` | TTS | 선생님 목소리 합성 | `engine.read` | |
+| 4a | 엔진 | `/admin/speech/tts/lexicon` | 발음 사전 | 읽기·악센트 고치기·버전 | `voices.read` | **task-003g(§10)** — id `speech-tts-lexicon`, 구현 라벨(한국어) 기준 |
 | 5 | 엔진 | `/admin/llm` | LLM | 대답·교정·레슨 생성 | `engine.read` | |
 | 6 | 자원 | `/admin/voices` | Voices | 목소리 목록 | `voices.read` | §6-11 ③ |
 | 7 | 자원 | `/admin/connections` | Connections | 연결·Health·기능 테스트 | `engine.read` | |
@@ -1968,7 +1970,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 | 10 | 설정·진단 | `/admin/diagnostics` | Diagnostics | Health 기록·요청 Trace | `engine.read` | Trace 탭 `trace.read` |
 
 - 바 제목은 `pathname` 을 메뉴 `path` 의 **가장 긴 접두사**로 찾는다(`/admin/connections/abc` → "Connections"). 상세 화면의 항목 이름은 본문 `h2` 로 쓴다(`h1` 은 바 제목 하나).
-- Phase 2+ 메뉴(Prompts·Playground·History·Pronunciation Dictionary·Voices › Versions·TTS Quality)는 상수에 두더라도 `phase > 1` 이면 거른다.
+- Phase 2+ 메뉴(Prompts·Playground·History·Voices › Versions·TTS Quality)는 상수에 두더라도 `phase > 1` 이면 거른다. Pronunciation Dictionary 는 task-003g 에서 `phase: 1` 로 열렸다(4a 행, §10-1).
 
 ### 6-2. UI 구조 (의사코드, 390px 기준)
 
@@ -2378,6 +2380,7 @@ chips   = 화이트리스트 키만: version · models · memoryMb · serviceEnv
 - `modelLabel(runtime)`: `model` → `defaultModel` → `modelVersion` → `modelByTier` 값들을 ` / ` 로 → 없으면 "—"(서버가 `modelLabel` 을 주면 그걸 쓴다, §6-11 ⑨).
 - 정책(#99a)이 404 면 "지금 쓰는 연결" 자리에 회색 카드 "이 역할에 정책이 없어요" + 이 역할의 연결 목록(#91?role=)을 "정책 밖 연결" 모양으로 보인다.
 - Engine 선택·Fallback 편집·연결 설정 폼(14 §3.2~§3.3)은 Phase 2 — 그리지 않는다.
+- TTS 역할 페이지는 "목소리" 섹션 바로 아래에 "발음 사전" 링크 카드를 둔다(`voices.read`, 요청 추가 없음) — §10-2 J(task-003g).
 
 와이어프레임(390px, Realtime STT):
 ```
@@ -3001,7 +3004,7 @@ aliveRef                                      // 언마운트 뒤 결과는 버�
 - **꺼진 서비스 = 정상 결과**: UNAVAILABLE 을 빨간 카드·오류 토스트로 만들지 않는다. 대시보드 카드 바탕도 바꾸지 않는다.
 - **동시 요청**: 필터·대상 칩을 빨리 바꾸면 요청이 겹친다 — abort + 요청 번호 비교. 일괄 상태 확인은 **순서대로**(CLI spawn·M4 부하 — 병렬 금지).
 - **PRODUCTION**: 띠는 어떤 화면에서도 숨기지 않는다. Phase 1 은 설정 쓰기가 없지만 PRODUCTION 에서 누른 테스트도 운영 `EngineHealth`·`RequestTrace` 에 남는다.
-- **발음 사전**(01 표 P0)은 G1 로 이번 범위 밖 — 메뉴·링크 없음.
+- **발음 사전**(01 표 P0)은 task-005b 에서는 G1 로 범위 밖이었고, task-003g 에서 §10 으로 열렸다(메뉴 "엔진 › 발음 사전" · TTS 역할 페이지 링크). 사전 화면만은 콘솔 안이어도 엔진·모델 이름을 쓰지 않는다(§10-0 ⑬).
 - **오프라인**: 목록은 ErrorBlock + 다시 시도, 폴링은 다음 주기에 다시 시도한다. 테스트 실행 중 끊기면 ErrorBlock 이고, 결과는 나중에 "최근 결과"에서 확인된다.
 
 ### 6-11. Leader 확인 요청 (계약 불일치·해석·공백)
@@ -4215,3 +4218,1103 @@ createTtsPlaybackQueue(deps) → {
 | ⑩ | **방에서 "들려주는 방식" 변경** | #14 에 부분 PUT 이 없어 #13 GET → `speechProfile` 만 바꿔 전체 PUT. 설정 화면과 같은 값을 바꾼다(designer 원칙 "Speech Profile 토글") | 메뉴엔 "목소리·속도 설정 ›"(→ `/settings`) 링크만 |
 | ⑪ | **#24 서명 URL 사용 범위** | 큐는 `audio.url` 이 `/api/v1/speech/tts/` 로 시작할 때만 받고, 다시 듣기는 보관본·#23 으로만(10분 만료 URL 재사용 안 함). URL·토큰을 DOM·로그에 남기지 않는다 | — |
 | ⑫ | **발견 이슈**(이번 task 에서 B 가 고침) | `useRealtimeStt` 가 `final.utteranceId` 를 버린다 · `useChatTurn.send` 가 `busy` 면 조용히 무시한다(음성 자동 전송에선 말이 사라짐 → QUEUED 로 해결) · `PendingCorrectionsCard` 가 CHAT 만 거른다 · `CorrectionCard` 가 늘 "n/m" 카운터를 그린다 | — |
+
+---
+
+## 10. 관리자 콘솔 — 발음 사전 (task-003g)
+
+> 정본: IA `admin-console/01` §3(Speech › TTS › Pronunciation Dictionary 행) · API `api-contract.md` §7-2 lexicon 5행(이 절에서는 L1~L9 로 부른다, §10-4) · 엔티티 `domain-model.md` `PronunciationLexiconEntry`·`PronunciationLexiconVersion`(§5 상태 전이·§6 물리 삭제 없음) · 규칙 `speech-platform/16` §2(범위 우선순위 L-1~L-5·버전·방식 A·Import/Export·Preview) · 권한 `role-permission.md` §3·§6(PRODUCTION) · 되돌리기 상태 `admin-console/09` §5(ROLLED_BACK = 밀려난 직전 ACTIVE). 콘솔 셸·공용 조각·404/403 은 §6 그대로. 새 색 없음(§1-1 토큰만).
+> 이 절은 **콘솔 안이지만 엔진·모델·서비스 이름을 쓰지 않는다**(§6-0 ⑨ 의 예외 — 사전은 엔진 독립 데이터다). "읽기 확인"·"미리듣기"·"선생님 목소리 서비스" 같은 중립 용어만 쓴다.
+
+### 10-0. 한눈에 보는 결정
+
+1. **경로 2개 · 메뉴 1행**: `/admin/speech/tts/lexicon`(사전 목록 — 항목·가져오기·내보내기 시트 포함) · `/admin/speech/tts/lexicon/versions`(버전 기록 — 버전 상세·되돌리기 시트). 메뉴는 "엔진" 묶음의 **음성 합성 바로 아래 "발음 사전"** 한 줄(`voices.read`). 바 제목은 가장 긴 접두사 규칙으로 두 경로 모두 "발음 사전". TTS 역할 페이지 맨 아래에 링크 카드 하나.
+2. **한 화면 = 목록 + 시트**: 추가·수정·보기·끄기·다시 켜기는 공용 `Sheet` 하나(`LexiconEntrySheet`)의 모드다. 항목 상세 경로를 따로 만들지 않는다(항목 단건 GET 이 정본에 없다).
+3. **목록은 폭으로 모양을 바꾼다**: 목록 컨테이너 ≥720px(데스크톱) = `<table>` 7열(표기·읽기·악센트·우선순위·범위·상태·수정), <720px(360·390·412) = 카드 행. 같은 데이터·같은 동작, 가로 스크롤 0. 필터(검색·범위·대상·꺼진 항목 포함)·쪽 번호는 URL 쿼리에 남긴다(새로 고침·뒤로 가기 보존 — §6 Diagnostics·Configuration 과 같은 "서버 page 가 읽어 `initial*` 로 넘기고 클라이언트는 `router.replace`" 방식).
+4. **쓰기 권한 4갈래**(§10-1 표): `voices.read` 만 → 보기 전용(쓰기·미리듣기 버튼이 DOM 에 없음) · `voices.manage` → 쓰기·미리듣기 · PRODUCTION 에서 `config.apply.production` 없음(ADMIN·DEVELOPER) → 보기 + 미리듣기 · PRODUCTION + SUPER_ADMIN → 쓰기 + **확인 문구 `PRODUCTION` 입력**, 확정 버튼 이름에 환경명("PRODUCTION 에 저장").
+5. **모든 쓰기에 이유 필수**(1~200자, 빠른 이유 칩으로 채울 수 있음)와 **`baseVersion`**(화면이 마지막으로 본 사용 중 사전 번호). 409 `VERSION_CONFLICT` 는 입력을 지우지 않고 "다른 곳에서 사전이 바뀌었어요 (v{a} → v{b})" + [새로 불러오기].
+6. **저장 1번 = 새 사전 버전 1개.** 성공 토스트에 새 번호를 보인다("저장했어요 · 사전 v8"). 여러 변경을 한 버전으로 묶어 게시하는 기능(16 §2.3)은 이번에 없다(§10-11 ⑩).
+7. **지우기 없음**: 버튼 이름은 "끄기"다(`DELETE` = `enabled=false`). 확인 단계에서 "지우지 않아요 — 버전 기록과 내보내기에 남고 언제든 다시 켤 수 있어요"를 말한다. 꺼진 항목은 "다시 켜기"(`PUT enabled:true`)로 되살린다. 목록 발밑에 "항목은 지우지 않고 끄기만 해요" 한 줄.
+8. **저장 전 미리듣기**(시트 안 `LexiconPreviewPanel`): 예문 → [읽기 확인] → **적용 전(지금 사전 v{n}) / 적용 후(이 입력 반영)** 두 줄에 가나 읽기·높낮이 표기(↑↓)·[▶]. 초안은 저장되지 않는다(`draftEntries`). 두 줄이 같으면 "지금과 같게 읽어요", 예문에 표기가 걸리지 않으면 ⚠ 안내. 입력이 바뀌면 결과를 흐리게 하고 "입력이 바뀌었어요 — 다시 확인해 주세요".
+9. **악센트 입력 = 모라 칩**(`0 평판 | 1 ニ | 2 ホ | …`, 칩 = "이 모라 다음에서 내려감") + 입력값의 표기(`ニ↑ホンバシ`). **지금 선생님 목소리는 읽기만 따르고 높낮이는 스스로 정한다**(방식 A 치환) — 화면은 이것을 숨기지 않는다: 악센트 칸 아래 한 줄 + 미리듣기 "적용 후" 는 **실제로 읽을 높낮이**(§10-11 ①).
+10. **가져오기 = 미리 보기 뒤 적용**: 파일(CSV/JSON, ≤256KB·≤2,000행) + 방식(합치기 MERGE / 범위 바꾸기 REPLACE_SCOPE — 위험 설명) → [변경 내용 미리 보기](dryRun) → 추가·수정·끄기·그대로·오류 수 + 행별 오류표 + 바뀌는 항목 → **오류 0 이고 바뀌는 것이 있을 때만** 이유 → [적용]. 파일·방식을 바꾸면 미리 본 결과를 버린다. 적용은 dryRun 때의 `baseVersion` 을 보내고, 그 사이 바뀌었으면 409 → 다시 미리 보기.
+11. **내보내기**는 보기 전용 역할도 쓴다(`voices.read`): CSV / JSON 을 골라 사용 중 사전 전체(꺼진 항목 포함)를 내려받는다. 파일명 `kaiwa-lexicon-{env}-v{n}.{csv|json}`.
+12. **버전 기록**: 번호·상태(사용 중 / 이전 / 되돌려짐)·시각·작업자·요약·항목 수. 행 → 상세 시트(직전 버전과 비교) → [v{n} 내용으로 되돌리기](지금과 비교 + 이유 + PRODUCTION 확인) → 새 버전. 사용 중 버전과 지금과 내용이 같은 버전에는 되돌리기 확정 버튼이 없다.
+13. **서버 문구 비노출**: 이 화면은 서버 `message` 를 그리지 않는다(HTTP status·코드로 고른 §10-8 문구만). 가져오기 행 오류도 코드 → 문구.
+
+### 10-1. 화면 개요 · 메뉴
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | 관리자·개발자가 선생님 목소리가 **잘못 읽는 단어**(인명·지명·외래어·숫자 예외)의 읽기를 고치고, 저장 전에 들어 보고, 잘못 고쳤으면 이전 버전 내용으로 되돌린다 |
+| 진입 | 콘솔 메뉴 "엔진 › 발음 사전" · TTS 역할 페이지(`/admin/speech/tts`) 맨 아래 "발음 사전 ›" 카드 · 버전 기록은 목록 요약 카드의 "버전 기록 ›" |
+| 역할별 가시성 | USER: 두 경로 모두 `/admin/**` 404(§6) · ADMIN·DEVELOPER·SUPER_ADMIN: 메뉴 보임(`voices.read`), 쓰기는 아래 표 |
+| 환경 | 지금 프로세스 환경(`APP_ENV`)의 사전만 보고 바꾼다. 환경 띠(§6)는 그대로, 요약 카드 제목에 "{env} 사전 v{n}" 을 한 번 더 쓴다. 다른 환경 사전 편집(role-permission §6-6)은 없다 |
+| 앱/웹 분기 | 없음. 앱 WebView(≈390)는 내보내기 파일 저장이 안 될 수 있어 앱에서만 안내 한 줄(§10-2 H) |
+| 하단 탭 | 없음(콘솔 셸) |
+| 음성 | 미리듣기 ▶ 만. 자동재생 없음 — ▶ 탭 핸들러 안에서만 재생 시작(§7-0 ⑧ 과 같은 규칙) |
+
+**메뉴 행**(`src/modules/admin/console/menu.ts`, `speech-tts` 바로 다음 — 소유 §10-11 ⑫)
+```ts
+{ id: 'speech-tts-lexicon', path: '/admin/speech/tts/lexicon', label: '발음 사전', capability: 'voices.read', phase: 1, group: 'speech' },
+```
+`labels.ts` → `MENU_SUB['speech-tts-lexicon'] = '읽기·악센트 고치기·버전'`. 바: "AI Engine Console · 엔진 / 발음 사전"(버전 기록 경로도 같은 제목, 본문 `h2` 가 "버전 기록").
+
+**페이지 가드**(§6-2 B — 모든 `page.tsx` 첫 줄)
+
+| 경로 | page capability | 화면 | 서버가 읽어 넘기는 쿼리(검증 후) |
+|---|---|---|---|
+| `/admin/speech/tts/lexicon` | `voices.read` | `LexiconScreen` | `q`(≤40자) · `scope`(5종 중 하나) · `ref`(`/^[\w-]{1,40}$/`) · `inactive`(`'1'`) · `page`(1~1000 정수) — 틀리면 버린다 |
+| `/admin/speech/tts/lexicon/versions` | `voices.read` | `LexiconVersionsScreen` | `v`(1 이상 정수) — 틀리면 버린다 |
+
+**쓰기 권한 표**(`useLexiconAccess()` — 숨김용일 뿐, 서버가 진실)
+
+| 상황 | 목록·보기·내보내기·버전 보기 | 미리듣기·문장 읽기 확인 | 추가·수정·끄기/켜기·가져오기·되돌리기 | 안내 줄(요약 카드 아래) |
+|---|---|---|---|---|
+| `voices.read` 만 | ✅ | — (패널 없음) | — (버튼 DOM 0) | 보기 전용이에요 — 바꾸려면 voices.manage 권한이 필요해요. |
+| `voices.manage`, env ≠ PRODUCTION | ✅ | ✅ | ✅ 이유 필수 | 없음 |
+| `voices.manage`, env = PRODUCTION, `config.apply.production` 없음(ADMIN·DEVELOPER) | ✅ | ✅ | — (버튼 DOM 0) | 운영 환경 사전은 SUPER_ADMIN 만 바꿀 수 있어요. 읽기 확인·미리듣기는 할 수 있어요. |
+| SUPER_ADMIN, env = PRODUCTION | ✅ | ✅ | ✅ 이유 + 확인 문구 `PRODUCTION` | 운영 환경 사전이에요 — 바꾸면 모든 학습자의 선생님 목소리 읽기가 바뀌어요. |
+
+```ts
+// src/components/admin/lexicon/useLexiconAccess.ts
+const can = useCan(); const env = useConsoleEnv()
+const canManage = can('voices.manage')
+const canWrite = canManage && (env !== 'PRODUCTION' || can('config.apply.production'))
+return {
+  canManage, canWrite, canPreview: canManage, needsConfirm: canWrite && env === 'PRODUCTION', env,
+  note: !canManage ? 'READ_ONLY' : !canWrite ? 'PROD_SUPER_ONLY' : env === 'PRODUCTION' ? 'PROD_WARN' : null,
+}
+```
+- 현 역할 표(role-permission §3)에서는 콘솔 역할이 모두 `voices.manage` 를 가져 "`voices.read` 만"인 계정이 없다. 이 갈래는 코드로 두고 단위 테스트(가짜 capability)로 확인한다(§10-9, §10-11 ⑬).
+
+### 10-2. UI 구조 (의사코드, 390px 기준)
+
+#### A. 사전 목록 — `/admin/speech/tts/lexicon` · `LexiconScreen`
+
+```tsx
+// src/app/(admin)/admin/speech/tts/lexicon/page.tsx (서버)
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const g = await requireConsolePage('voices.read', { path: '/admin/speech/tts/lexicon' })
+  if (!g.allowed) return <ConsoleForbidden missing={g.missing} role={g.viewer.role} />
+  return <LexiconScreen initialParams={parseLexiconParams(await searchParams)} />   // §10-1 표의 검증, 틀린 값은 버린다
+}
+```
+
+```
+<p className="text-[13px] text-ink2 break-keep">{INTRO}</p>                                   ← §10-8 ⓐ
+<details className="mt-1"><summary className="flex h-11 cursor-pointer items-center text-[13px] font-medium">적용 규칙</summary><RulesNote /></details>
+<LexiconSummaryCard list={list.data} env now />
+{access.note && <p role="note" className="mt-2 rounded-xl bg-surface2 px-3 py-2 text-[13px] text-ink break-keep">{NOTE[access.note]}</p>}
+<div className="@container mt-3"><div className="flex flex-col gap-2 @min-[720px]:flex-row">             ← 액션 줄
+  {access.canWrite && <Btn variant="primary" className="w-full @min-[720px]:w-auto" onClick={openAdd}>＋ 항목 추가</Btn>}
+  <div className="flex gap-2 [&>*]:min-w-0 [&>*]:flex-1 @min-[720px]:[&>*]:flex-none">
+    {access.canWrite && <Btn variant="ghost" onClick={openImport}>가져오기</Btn>}
+    <Btn variant="ghost" onClick={openExport}>내보내기</Btn>
+  </div>
+</div></div>
+{access.canPreview && <LexiconSentenceCheck voices />}                                            ← §E 끝 · 선택(구현 순서 마지막)
+<LexiconFilters params voices onChange={setParams} />                                            ← §C
+<RefreshLine loadedAt reloading onReload={list.reload} />
+{list.status === 'loading' && !list.data ? <ConsoleLoading /> :
+ list.err && !list.data ? <LoadError err={list.err} name="발음 사전" onRetry={list.reload} /> :
+ <>
+   <p aria-live="polite" className="mb-1.5 mt-1 text-[12px] text-ink2">{total}개{filtered ? ' · 조건에 맞는 항목' : ''}</p>
+   {items.length === 0 ? <EmptyNote>{filtered ? EMPTY_FILTERED : EMPTY_ALL}</EmptyNote>
+                       : <LexiconList items total page canWrite voiceName now onOpen={openEntry} />}
+   <Pager page pageSize total onPage />                                                              ← total ≤ pageSize 면 그리지 않는다
+   <p className="mt-3 text-[12px] text-ink2 break-keep">항목은 지우지 않고 끄기만 해요 — 버전 기록과 내보내기에 남아요.</p>
+ </>}
+<LexiconEntrySheet … />  <LexiconImportSheet … />  <LexiconExportSheet … />
+```
+- 버튼 `Btn` 기본 크기(h-12)를 쓴다 — `size="sm"`(38px)은 콘솔 터치 기준(44px) 미달이라 쓰지 않는다.
+
+**LexiconSummaryCard**
+```
+<Card className="mt-2">
+  <div className="flex min-w-0 items-center gap-2">
+    <h2 className="min-w-0 flex-1 truncate text-[16px] font-semibold">{env} 사전 v{dictionaryVersion}</h2>
+    <Link href="/admin/speech/tts/lexicon/versions" className="-my-2 inline-flex h-11 flex-none items-center text-[13px] font-medium text-accent">버전 기록 ›</Link>
+  </div>
+  {counts && <p className="text-[13px] text-ink2">사용 중 {counts.enabled} · 꺼짐 {counts.disabled}</p>}
+  {active && <p className="mt-0.5 truncate text-[12px] text-ink2">마지막 변경 {formatAgo(active.createdAt, now)} · {actorLabel(active.actor)}{active.changeSummary ? ` · ${active.changeSummary}` : ''}</p>}
+  {dictionaryVersion === 0 && <p className="text-[13px] text-ink2">아직 사전 버전이 없어요 — 첫 항목을 추가하면 v1 이 만들어져요.</p>}
+</Card>
+```
+- `changeSummary` 는 서버가 만든 한 줄(≤300자)이라 `truncate`. 전문은 버전 기록에서 본다.
+- 목록을 아직 못 읽었으면 제목 자리에 "{env} 사전" 만(번호 없음).
+
+**RulesNote**(접힘, 12.5px ink2 목록 4줄): ① 범위가 좁을수록 먼저 적용돼요: 사용자 > 목소리 > 레슨 > 코스 > 전체 ② 한 문장 안에서는 긴 표기가 먼저예요(日本橋駅 이 日本橋 보다 먼저). 길이가 같으면 우선순위가 큰 쪽 ③ 꺼진 항목은 쓰이지 않지만 버전 기록과 내보내기에 남아요 ④ 바꾸면 다음 문장부터 반영돼요. 이미 만든 소리는 새 사전으로 다시 만들어요. — 일본어 예시 단어는 `<span lang="ja">`.
+
+와이어프레임(390px, LOCAL, DEVELOPER):
+```
+┌──────────────────────────────────────┐
+│ LOCAL  개발 환경 — 운영과 분리된…  v0.1.0 │
+│ ☰  AI Engine Console · 엔진     ↩ 앱으로 │
+│    발음 사전                            │
+├──────────────────────────────────────┤
+│ 선생님 목소리가 잘못 읽는 단어(인명·지명·  │
+│ 외래어 등)의 읽기를 고쳐요. 바꾸면 다음 …  │
+│ 적용 규칙                           ˅  │
+│ ┌ LOCAL 사전 v7           버전 기록 › ┐ │
+│ │ 사용 중 6 · 꺼짐 1                   │ │
+│ │ 마지막 변경 3분 전 · 관리자 · 日本橋 … │ │
+│ └────────────────────────────────────┘ │
+│ [            ＋ 항목 추가            ] │ h-12 primary
+│ [    가져오기    ] [    내보내기    ]   │ h-12 ghost
+│ 문장으로 읽기 확인                   ˅  │ (선택)
+│ ┌ ⌕ 표기·읽기 검색 (예: 日本橋, ニホン) ┐ │
+│ [모든 범위][GLOBAL][COURSE][LESSON][VO→ │ ChipRadio
+│ [꺼진 항목 포함]                          │ ToggleButton
+│ 마지막 갱신 16:32:05     [다시 불러오기] │
+│ 7개                                    │
+│ ┌──────────────────────────────────┐ │
+│ │ 日本橋                     ●사용 중 │ │ 17px ja
+│ │ ニホンバシ · 악센트 0(평판)           │ │ 15px ja + 13px
+│ │ GLOBAL · 우선 10 · 지명 · 3분 전    › │ │ 12px ink2
+│ ├──────────────────────────────────┤ │
+│ │ 等々力                         꺼짐 │ │
+│ │ トドロキ · 악센트 0(평판)             │ │
+│ │ VOICE 하루카 · 우선 10 · 지명 · 어제 › │ │
+│ └──────────────────────────────────┘ │
+│ 항목은 지우지 않고 끄기만 해요 — 버전 기록과…│
+└──────────────────────────────────────┘
+```
+
+데스크톱(≥1024, 사이드바 + 본문 최대 960):
+```
+│ 사이드바     │ 선생님 목소리가 잘못 읽는 단어(…)의 읽기를 고쳐요. 바꾸면 다음 문장부터 반영돼요.          │
+│ 엔진         │ ┌ LOCAL 사전 v7                                                  버전 기록 › ┐ │
+│  실시간 음성… │ │ 사용 중 6 · 꺼짐 1 · 마지막 변경 3분 전 · 관리자 · 日本橋 악센트 수정          │ │
+│  분석 음성 … │ └──────────────────────────────────────────────────────────────────────────┘ │
+│  음성 합성    │ [＋ 항목 추가] [가져오기] [내보내기]                                          │
+│ ▌발음 사전    │ ┌ ⌕ 표기·읽기 검색 ──────────┐                              [꺼진 항목 포함]   │
+│  LLM         │ [모든 범위][GLOBAL][COURSE][LESSON][VOICE][USER]                             │
+│ 자원 …       │ ┌──────────┬───────────┬────────┬─────┬───────────┬───────┬────────┐       │
+│              │ │ 표기      │ 읽기        │ 악센트  │ 우선 │ 범위        │ 상태   │ 수정    │       │
+│              │ ├──────────┼───────────┼────────┼─────┼───────────┼───────┼────────┤       │
+│              │ │ 日本橋    │ ニホンバシ   │ 0 평판 │ 10  │ GLOBAL     │●사용 중│ 3분 전  │       │
+│              │ │ 神保町    │ ジンボーチョー│ 3      │ 10  │ GLOBAL     │●사용 중│ 어제    │       │
+│              │ │ 等々力    │ トドロキ     │ 0 평판 │ 10  │ VOICE 하루카│ 꺼짐   │ 어제    │       │
+│              │ └──────────┴───────────┴────────┴─────┴───────────┴───────┴────────┘       │
+│              │ ‹ 이전                    1 / 1                    다음 ›                    │
+```
+- 액션 줄: <720 은 [＋ 항목 추가] 전폭 한 줄 + [가져오기][내보내기] 반반. ≥720 은 한 줄 왼쪽 정렬.
+- 필터: <720 은 검색 → 범위 칩 → (대상) → 토글 세로. ≥720 은 검색(최대 360px)과 토글이 한 줄(`@min-[720px]:flex-row justify-between`), 칩은 그 아래.
+
+#### B. 항목 목록 — `LexiconList` · `EntryStatusBadge` · `Pager`
+
+```tsx
+<div className="@container">
+  <table className="hidden w-full table-fixed border-separate border-spacing-0 overflow-hidden rounded-[14px] border border-line bg-surface @min-[720px]:table">
+    <caption className="sr-only">발음 사전 항목 {total}개 중 {from}–{to}</caption>
+    <colgroup>표기 20% · 읽기 22% · 악센트 10% · 우선 7% · 범위 17% · 상태 11% · 수정 13%</colgroup>
+    <thead><tr className="text-left text-[12px] text-ink2">
+      {['표기','읽기','악센트','우선순위','범위','상태','수정'].map(h => <th scope="col" className="px-3 py-2 font-medium">{h}</th>)}
+    </tr></thead>
+    <tbody>{items.map(e =>
+      <tr key={e.id} onClick={() => onOpen(e)} className="cursor-pointer align-top hover:bg-surface2 [&>td]:border-t [&>td]:border-line [&>td]:px-3 [&>td]:py-2">
+        <td><button type="button" aria-label={`${e.surface} ${canWrite ? '고치기' : '보기'}`} onClick={stop(onOpen(e))}
+                    lang="ja" className="min-h-11 w-full text-left text-[16px] font-semibold [overflow-wrap:anywhere]">{e.surface}</button></td>
+        <td lang="ja" className="pt-3 text-[15px] [overflow-wrap:anywhere]">{e.reading}</td>
+        <td className="pt-3 text-[13px] tabular-nums">{e.accentType}{e.accentType === 0 && <span className="text-ink2"> 평판</span>}</td>
+        <td className="pt-3 text-[13px] tabular-nums">{e.priority}</td>
+        <td className="pt-3 text-[13px]"><span className="font-mono">{e.scope}</span>{e.scopeRefId && <span className="block truncate text-[12px] text-ink2">{refLabel(e)}</span>}</td>
+        <td className="pt-3"><EntryStatusBadge enabled={e.enabled} /></td>
+        <td className="pt-3 text-[12px] text-ink2">{formatAgo(e.updatedAt, now)}</td>
+      </tr>)}
+    </tbody>
+  </table>
+  <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface @min-[720px]:hidden">
+    {items.map(e => <li key={e.id}>
+      <button type="button" onClick={() => onOpen(e)} className="flex min-h-[64px] w-full min-w-0 flex-col gap-0.5 px-3.5 py-2.5 text-left">
+        1줄 <span className="flex min-w-0 items-start gap-2">
+              <span lang="ja" className="min-w-0 flex-1 text-[17px] font-semibold [overflow-wrap:anywhere]">{e.surface}</span>
+              <EntryStatusBadge enabled={e.enabled} /></span>
+        2줄 <span className="min-w-0 text-[13px] text-ink2 [overflow-wrap:anywhere]"><span lang="ja" className="text-[15px] text-ink">{e.reading}</span> · 악센트 {e.accentType}{e.accentType === 0 ? '(평판)' : ''}</span>
+        3줄 <span className="flex min-w-0 gap-2 text-[12px] text-ink2">
+              <span className="min-w-0 flex-1 truncate"><span className="font-mono">{e.scope}</span>{e.scopeRefId ? ` ${refLabel(e)}` : ''} · 우선 {e.priority}{e.wordType ? ` · ${WORD_TYPE_KO[e.wordType]}` : ''} · {formatAgo(e.updatedAt, now)}</span>
+              <span aria-hidden="true">›</span></span>
+      </button></li>)}
+  </ul>
+</div>
+```
+- 행 전체가 누르는 곳이다. 표에서는 첫 칸 `<button>` 이 키보드·스크린리더 진입점이고 `<tr onClick>` 은 마우스 편의일 뿐이다(`tr` 에 role·tabIndex 를 주지 않는다. 버튼 클릭이 tr 로 두 번 올라가지 않게 `stopPropagation`).
+- 표기·읽기는 **자르지 않고 줄바꿈**한다(`[overflow-wrap:anywhere]`) — 40자 표기도 칸 안에서 여러 줄. 범위의 대상만 `truncate`(전체는 시트에서).
+- `refLabel(e)`: VOICE → #82 목록의 `displayName`(못 찾으면 id 앞 8자 + "…") · 그 밖 → id 앞 8자 + "…"(모노).
+- 꺼진 항목 행을 흐리게 하지 않는다(명암비) — 뱃지 "꺼짐"만.
+- 두 모양이 모두 DOM 에 있고 하나는 `display:none` 이다(스크린리더에는 하나만 읽힌다). E2E 는 보이는 쪽만 센다(`:visible`).
+
+**EntryStatusBadge**(`lexicon/Badges.tsx`)
+```
+enabled  → <span aria-label="상태: 사용 중" className="inline-flex h-[22px] flex-none items-center gap-1 rounded-md bg-good-soft px-2 text-[11.5px] font-semibold text-good"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-good" />사용 중</span>
+disabled → <span aria-label="상태: 꺼짐" className="… bg-surface2 text-ink2">꺼짐</span>
+```
+
+**Pager**
+```
+<nav aria-label="쪽 이동" className="mt-3 flex items-center justify-between">
+  <button type="button" disabled={page <= 1} className="h-11 px-3 text-[14px] font-medium text-ink disabled:text-ink2">‹ 이전</button>
+  <span aria-live="polite" className="text-[13px] tabular-nums text-ink2">{page} / {pages}</span>
+  <button type="button" disabled={page >= pages} className="h-11 px-3 text-[14px] font-medium text-ink disabled:text-ink2">다음 ›</button>
+</nav>
+```
+- 쪽을 바꾸면 `document.querySelector('[data-app-shell] main')?.scrollTo({ top: 0 })`.
+- 목록을 읽은 뒤 `page > pages`(항목을 끄고 꺼진 항목 포함을 해제한 경우 등)면 마지막 쪽으로 `router.replace`.
+
+#### C. 필터 — `LexiconFilters`
+
+```
+<input type="search" aria-label="표기·읽기 검색" placeholder="표기·읽기 검색 (예: 日本橋, ニホン)" enterKeyHint="search" lang="ja"
+       className="{INPUT} mt-3" value={qDraft} onChange />                        ← 300ms 디바운스 → setParams({ q }) (IME 조합 중에는 보내지 않는다)
+<div className="mt-2"><ChipRadio ariaLabel="범위" options={[
+   { value: 'ALL', label: '모든 범위' }, { value: 'GLOBAL', label: 'GLOBAL', mono: true }, …COURSE·LESSON·VOICE·USER(mono) ]} value={scope} /></div>
+{scope === 'VOICE' && <select aria-label="목소리" className="{INPUT} mt-2">모든 목소리 · {#82 displayName}</select>}                ← setParams({ ref })
+{scope ∈ COURSE|LESSON|USER && <input aria-label="대상 id" placeholder="대상 id (선택)" autoCapitalize="off" spellCheck={false}
+                                         className="{INPUT} mt-2 font-mono" />}                                                     ← 500ms 디바운스 → ref
+<div className="mt-2 flex items-center gap-2"><ToggleButton pressed={inactive} onToggle>꺼진 항목 포함</ToggleButton></div>
+```
+- URL 쿼리: `q` · `scope`(ALL 이면 뺀다) · `ref` · `inactive=1` · `page`(1 이면 뺀다). 필터가 바뀌면 `page` 를 뺀다. `router.replace('/admin/speech/tts/lexicon?…', { scroll: false })`.
+- 목록 경로 = `/api/admin/v1/lexicon?` + `q` · `scope` · `scopeRefId=ref` · `enabled=inactive ? 'all' : '1'` · `page` · `pageSize=50`(§10-11 ⑤). 범위가 ALL 이 되면 `ref` 도 뺀다.
+- 검색어는 그대로 보낸다(히라가나로 쳐도 읽기에서 찾는 것은 서버 몫, §10-11 ⑤).
+- `INPUT` 클래스는 §4-2 B 와 같은 모양을 lexicon 안 상수로 둔다: `h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3 text-[16px] text-ink placeholder:text-ink3`(placeholder 의 ink3 는 §1-1 허용). `(app)` 의 `AcceptCorrectionSheet` 를 import 하지 않는다. `select` 도 같은 높이·테두리.
+
+#### D. 항목 시트 — `LexiconEntrySheet` (mode: `'add' | 'edit' | 'view' | 'confirmDisable' | 'confirmEnable' | 'discard'`)
+
+열기: [＋ 항목 추가] → `add` · 행 → `canWrite ? 'edit' : 'view'`. 제목: 항목 추가 / 항목 고치기 / 항목 보기 / 항목 끄기 / 항목 다시 켜기 / (discard 는 앞 제목 유지).
+`dismissible={!submitting}`. 닫기(✕·배경·Esc) 때 `dirty` 면 닫지 않고 `discard` 모드로. 모드가 바뀌면 시트 제목으로 포커스.
+
+```
+mode 'add' | 'edit':
+  {mode === 'edit' && <EntryHead entry />}        ← 표기(lang=ja 20px semibold) + 상태 뱃지 / 12px ink2 "{scope} · {대상} · {종류}" / 12px ink2 "표기·범위는 바꿀 수 없어요 — 끄고 새로 추가해 주세요."
+  {mode === 'edit' && !entry.enabled &&
+     <p className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 rounded-xl bg-surface2 px-3 py-1.5 text-[13px] text-ink">
+       꺼진 항목이에요. 고쳐 저장해도 꺼진 채로 남아요.
+       <button type="button" className="h-11 font-semibold text-accent" onClick={→ 'confirmEnable'}>다시 켜기</button></p>}
+  <EntryForm mode draft errors voices onChange />      ← 아래
+  {canPreview && <LexiconPreviewPanel mode="compare" draft={validDraft} voices lockedVoiceId={draft.scope === 'VOICE' ? draft.scopeRefId : null} />}   ← §E
+  <hr className="my-4 border-line" />
+  <WriteConfirmFields reason confirm needsConfirm quick={QUICK_REASONS.save} errors />                                                          ← §F
+  {notice && <SheetNotice notice onAction />}           ← 409·403·404·500·0(§10-8 ⓓ). 필드 오류(422)는 각 칸 아래
+  <p className="mt-2 text-[12px] text-ink2">저장하면 사전 v{baseVersion + 1} 이 만들어지고 다음 문장부터 반영돼요.</p>
+  <BtnRow>
+    <Btn variant="primary" aria-busy={submitting} onClick={submit}>{submitting ? '저장하는 중…' : needsConfirm ? 'PRODUCTION 에 저장' : '저장'}</Btn>
+    <Btn variant="ghost" onClick={requestClose}>취소</Btn>
+  </BtnRow>
+  {mode === 'edit' && entry.enabled && <button type="button" className="mt-2 flex h-11 w-full items-center justify-center text-[14px] font-semibold text-bad" onClick={→ 'confirmDisable'}>이 항목 끄기</button>}
+
+mode 'view':   (보기 전용 · PRODUCTION 의 ADMIN·DEVELOPER)
+  <EntryHead entry />
+  <Card flat className="mt-3"><KeyValueList items=[
+     읽기 {reading}(node: lang=ja 16px) · 악센트 {n}{n===0 ? ' 평판' : ''} {accentNotation}(lang=ja) · 우선순위 {priority} · 범위 {SCOPE_KO[scope]}
+     · 대상 <MonoId value={scopeRefId} copy label="대상 id" />(GLOBAL 이면 행 없음) · 종류 · 메모 · 상태 · 수정 {formatDateTime(updatedAt)} ] /></Card>
+  {canPreview && <LexiconPreviewPanel mode="current" initialText={entry.surface} voices />}
+  <Btn variant="ghost" className="mt-3 w-full" onClick={onClose}>닫기</Btn>
+
+mode 'confirmDisable':
+  <p lang="ja" className="text-[20px] font-semibold [overflow-wrap:anywhere]">{surface}</p>
+  <p className="mt-1 text-[14px] break-keep">이 항목을 끌까요? 다음 문장부터 이 읽기(<span lang="ja">{reading}</span>)를 쓰지 않아요.</p>
+  <p className="mt-1 text-[13px] text-ink2 break-keep">지우지 않아요 — 버전 기록과 내보내기에 남고, 언제든 다시 켤 수 있어요.</p>
+  <WriteConfirmFields quick={QUICK_REASONS.disable} … />
+  {notice && <SheetNotice … />}
+  <BtnRow><Btn variant="danger" aria-busy>{needsConfirm ? 'PRODUCTION 에서 끄기' : '끄기'}</Btn><Btn variant="ghost">돌아가기</Btn></BtnRow>   ← 돌아가기 = 'edit'(입력 유지) → L4
+
+mode 'confirmEnable':  같은 모양 — "이 항목을 다시 켤까요? 다음 문장부터 이 읽기를 다시 써요." · 빠른 이유 `QUICK_REASONS.enable`
+  <BtnRow><Btn variant="primary">{needsConfirm ? 'PRODUCTION 에서 다시 켜기' : '다시 켜기'}</Btn><Btn variant="ghost">돌아가기</Btn></BtnRow>   → L3 `{enabled: true, reason, baseVersion, confirm?}`
+
+mode 'discard':
+  <p className="text-[15px]">저장하지 않은 입력이 있어요. 닫을까요?</p>
+  <BtnRow><Btn variant="danger">입력 버리고 닫기</Btn><Btn variant="ghost">계속 쓰기</Btn></BtnRow>
+```
+
+**EntryForm**(add 는 모든 칸, edit 는 표기·범위·대상 칸 없음 — `EntryHead` 가 보여 준다)
+```
+Field 표기*      input#lexSurface lang=ja placeholder="예: 日本橋, 等々力"                    1~40   ← add 만, 시트가 열리면 자동 포커스
+Field 읽기*      input#lexReading lang=ja placeholder="예: ニホンバシ (히라가나로 써도 돼요)" autoCapitalize="off" spellCheck={false}
+                 onChange: 친 그대로 보관 · onBlur·저장 직전: toKatakana(trim) 로 바꿔 칸에 다시 쓴다(IME 조합 중에는 바꾸지 않는다)
+                 아래 12px ink2: 가나만이면 "가타카나로 저장해요 · {moraCount}모라" / 히라가나가 섞여 있으면 "저장할 때 가타카나로 바꿔요 · {n}모라"
+Field 악센트     <AccentPicker reading={toKatakana(draft.reading)} value={draft.accentType} error onChange />             ← 아래
+                 아래 12px ink2: "입력한 악센트는 저장돼요. 지금 목소리에는 읽기만 반영되고 높낮이는 목소리가 스스로 정해요."(§10-11 ①)
+<div className="grid grid-cols-2 gap-2.5">                                                          ← 360 에서도 2열(각 ≥150px)
+  Field 우선순위  input type=number inputMode=numeric min=0 max=100 step=1 (기본 10)               0~100
+  Field 종류      select: 선택 안 함 · 고유명사 · 인명 · 지명 · 일반어 · 외래어 · 약어
+</div>
+<p className="text-[12px] text-ink2">우선순위는 같은 길이의 표기가 겹칠 때만 써요(큰 쪽이 먼저).</p>
+Field 범위*      (add 만) <ScopePicker value onChange />                      ← 라디오 카드 5개, 1열(각 min-h-[56px]): 코드(모노) + 한 줄 설명
+Field 대상*      (add, scope ≠ GLOBAL)
+                   VOICE → select(#82: displayName, 상태가 사용 가능이 아니면 " (꺼짐)" 덧붙임)
+                   그 밖 → input font-mono autoCapitalize=off spellCheck=false placeholder="{코스|레슨|사용자} id"   ≤40
+                   아래 12px ink2: "저장할 때 서버가 있는 id 인지 확인해요."
+Field 메모       textarea rows=2(자동 높이 최대 5줄) placeholder="왜 이렇게 읽는지 (선택)"   ≤200
+```
+- 길이는 코드포인트(`cpLength`)로 세고 `maxLength` 속성은 쓰지 않는다. [저장]은 늘 누를 수 있고, 틀린 칸이 있으면 요청 없이 **첫 오류 칸으로 포커스** + 칸 아래 12px `text-bad` + `aria-invalid`·`aria-describedby`(§4-2 B 와 같은 규칙). 필수 표시는 라벨 뒤 `<span aria-hidden="true">*</span>` + `aria-required`.
+- 검증은 `validateDraft()`(순수, §10-5) → 오류 키 → §10-8 ⓑ 문구. 서버 422 의 필드 코드도 같은 표로 바꾼다.
+- `dirty` = add 는 어느 칸이든 값이 있으면 · edit 는 읽기·악센트·우선순위·종류·메모 중 하나가 원래 값과 다르면(이유 칸은 dirty 에 넣지 않는다). edit 에서 `!dirty` 로 [저장]을 누르면 토스트 "바뀐 내용이 없어요", 요청 없음.
+- 저장 요청: add → L2 `{surface, reading, accentType, priority, scope, scopeRefId, wordType, note, reason, baseVersion, confirm?}` · edit → L3 `{reading, accentType, priority, wordType, note, reason, baseVersion, confirm?}`(편집 칸 전부). 빈 선택값은 `null`, 문자열은 앞뒤 공백 제거.
+- 성공 → 시트 닫기 · 토스트 "저장했어요 · 사전 v{n}" · `baseVersion = n` · 목록 다시 읽기.
+
+**ScopePicker**
+```
+<div role="radiogroup" aria-label="범위" className="grid gap-2">
+  {SCOPES.map(s => <button type="button" role="radio" aria-checked={v === s} className="flex min-h-[56px] min-w-0 flex-col justify-center rounded-xl border px-3 py-2 text-left {v===s ? 'border-accent bg-accent-soft ring-1 ring-accent' : 'border-line bg-surface'}">
+     <span className="font-mono text-[13px] font-semibold text-ink">{s}</span>
+     <span className="text-[13px] text-ink break-keep">{SCOPE_KO[s]}</span></button>)}
+</div>
+```
+- 선택 표시는 테두리·링(글자는 늘 `ink`) — `accent-soft` 위 글자 명암비 문제 없음(§1-1 `ink`/`accent-soft` 13+).
+- 기본값 GLOBAL. 범위를 바꾸면 대상 칸을 비운다.
+
+**AccentPicker**
+```
+<p id="lexAccentLabel" className="text-[12.5px] font-medium text-ink2">악센트 <span className="font-normal">(내려가는 자리)</span></p>
+{moras.length === 0
+  ? <p className="text-[12px] text-ink2">읽기를 먼저 입력해 주세요.</p>
+  : <div role="radiogroup" aria-labelledby="lexAccentLabel" className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 py-1">
+      <button role="radio" aria-checked={v === 0} aria-label="0, 평판 — 내려가지 않음" className="h-11 min-w-[64px] flex-none rounded-full border px-3 text-[13px] {on}">0 평판</button>
+      {moras.map((m, i) => <button role="radio" aria-checked={v === i + 1} aria-label={`${i + 1}, ${m} 다음에서 내려감`}
+         className="h-11 min-w-[52px] flex-none rounded-full border px-2.5 {on}">
+         <span className="mr-1 text-[11px] tabular-nums">{i + 1}</span><span lang="ja" className="text-[16px]">{m}</span></button>)}
+    </div>}
+{moras.length > 0 && <p lang="ja" aria-label={spokenAccent(notation)} className="mt-1 text-[16px] tracking-wide">{notation}</p>}
+{error && <p id="lexAccentErr" className="mt-1 text-[12px] text-bad">{error}</p>}
+```
+- `moras = splitMoras(toKatakana(reading))`, `notation = accentNotation(moras, v)`. 읽기가 가나가 아니면 칩 대신 "읽기를 먼저 입력해 주세요"(값은 유지).
+- 칩 색은 `ChipRadio` 와 같다(선택 `border-accent bg-accent text-on-accent`, 나머지 `border-line bg-surface text-ink`). 선택 칩 안 숫자도 `text-on-accent`(ink2 를 쓰지 않는다 — accent 위 명암비).
+- 키보드: roving tabindex(선택 칩만 `tabIndex=0`), ←/→ 로 옮기며 고른다. 고른 칩이 밖이면 `scrollIntoView({ inline: 'nearest', block: 'nearest' })`(첫 그리기 제외).
+- 읽기를 바꿔 값이 모라 수를 넘으면 **값을 몰래 바꾸지 않고** 오류 "악센트는 0(평판)부터 {n}(모라 수)까지예요."를 보인다.
+- `accentNotation(moras, n)`: n=0 → `m1↑m2…`(한 모라 단어는 화살표 없음) · n=1 → `m1↓m2…` · n≥2 → `m1↑m2…mn↓m(n+1)…`(n = 모라 수면 끝에 `↓`). 미리듣기 `accent` 와 같은 기호다. `spokenAccent` 는 ↑ → " 올라감 ", ↓ → " 내려감 ".
+
+와이어프레임(390, 'edit'):
+```
+┌ 항목 고치기                          ✕ ┐
+│ 日本橋                        ●사용 중 │ 20px ja
+│ GLOBAL · 지명                          │
+│ 표기·범위는 바꿀 수 없어요 — 끄고 새로 추가…│
+│ 읽기*                                  │
+│ ┌ ニホンバシ                          ┐ │ 16px ja
+│ 가타카나로 저장해요 · 5모라                │
+│ 악센트 (내려가는 자리)                    │
+│ [0 평판][1 ニ][2 ホ][3 ン][4 バ][5 シ]    │ radiogroup, 가로 스크롤
+│ ニ↑ホンバシ                              │
+│ 입력한 악센트는 저장돼요. 지금 목소리에는… │
+│ 우선순위           종류                  │
+│ ┌ 10          ┐  ┌ 지명            ▾ ┐  │
+│ 우선순위는 같은 길이의 표기가 겹칠 때만…    │
+│ 메모 ┌ 東京 日本橋(大阪 日本橋=ニッポン…┐  │
+│ ── 미리듣기 ──────────────────────── │
+│ 저장하지 않은 입력으로 읽어 봐요. 사전은…  │
+│ 예문 ┌ 日本橋で降ります           ┐ 8/100 │
+│ 목소리 ┌ 기본 목소리              ▾ ┐     │
+│ [            읽기 확인            ]      │ ghost h-12
+│ ┌ 적용 전 · 지금 사전 v7           (▶) ┐│
+│ │ ニ↓ホンバシデ オ↑リマス                ││
+│ │ 적용 후 · 이 입력                (▶) ││
+│ │ ニ↑ホンバシデ オ↑リマス                ││
+│ │ ● 읽기가 달라져요 · 이 예문에 1번 적용   ││
+│ └──────────────────────────────────┘│
+│ ────────────────────────────────── │
+│ 변경 이유*                              │
+│ ┌                               ┐ 0/200│
+│ [오독 수정][새 고유명사][악센트 조정][우선…→│
+│ 저장하면 사전 v8 이 만들어지고 다음 문장부터…│
+│ [      저장      ] [      취소      ]  │
+│             이 항목 끄기                 │ text-bad 44px
+└─────────────────────────────────────┘
+```
+
+#### E. 미리듣기 — `LexiconPreviewPanel` (mode: `'compare' | 'current'`) · `LexiconSentenceCheck`
+
+```
+<section aria-labelledby="lexPreviewTitle" className="mt-4">
+  <h3 id="lexPreviewTitle" className="text-[14px] font-semibold">미리듣기</h3>
+  <p className="text-[12px] text-ink2 break-keep">{mode === 'compare' ? '저장하지 않은 입력으로 읽어 봐요. 사전은 바뀌지 않아요.' : '지금 사전으로 읽어 봐요.'}</p>
+  Field 예문    textarea lang=ja rows=1(자동 높이 최대 3줄) ≤100, 카운터 "{n}/100"
+                처음 값 = 표기. 사용자가 예문을 직접 고치기 전까지는 표기를 따라 바뀐다(`exampleTouched`)
+  Field 목소리  select: "기본 목소리"(voiceId 생략) + #82 중 `status === 'AVAILABLE' && enabled` 인 것(displayName)
+                `lockedVoiceId` 가 있으면(VOICE 범위 초안) 그 목소리로 고정·비활성 + 12px ink2 "목소리 범위 항목이라 그 목소리로 들어요"
+  <Btn variant="ghost" className="mt-2 w-full" aria-busy={phase === 'checking'} disabled={cooling} onClick={check}>
+    {phase === 'checking' ? '읽는 중…' : cooling ? `${n}초 뒤 다시` : '읽기 확인'}</Btn>
+  {mode === 'compare' && !draftValid && <p className="mt-1 text-[12px] text-ink2">표기·읽기를 올바르게 입력하면 확인할 수 있어요.</p>}   ← 이때 [읽기 확인]은 누르면 첫 오류 칸 포커스(요청 없음)
+  <div aria-live="polite" className="min-w-0">
+    {result && <div className="mt-2 rounded-xl border border-line bg-surface2 p-3 {stale ? 'opacity-60' : ''}">
+       <ReadingRow label={mode === 'compare' ? `적용 전 · 지금 사전 v${d.dictionaryVersion}` : `지금 사전 v${d.dictionaryVersion}`} side={d.before} which="before" />
+       {d.after && <ReadingRow label="적용 후 · 이 입력" side={d.after} which="after" className="mt-2 border-t border-line pt-2" />}
+       {d.after && <p className="mt-2 flex items-start gap-1.5 text-[13px] text-ink break-keep">
+          <span aria-hidden="true" className="mt-1.5 h-2 w-2 flex-none rounded-full {changed ? 'bg-good' : 'bg-ink2'}" />
+          {changed ? '읽기가 달라져요' : '지금과 같게 읽어요'}{hits > 0 ? ` · 이 예문에 ${hits}번 적용` : ''}</p>}
+       {d.after && hits === 0 && <p className="mt-1 text-[13px] text-ink break-keep">⚠ 이 예문에는 이 항목이 걸리지 않았어요. 예문에 표기 「<span lang="ja">{surface}</span>」가 있는지, 더 긴 표기의 다른 항목이 먼저 걸리지 않았는지 확인해 주세요.</p>}
+       {stale && <p className="mt-1 text-[12px] text-ink2">입력이 바뀌었어요 — 다시 확인해 주세요.</p>}
+    </div>}
+    {notice && <p className="mt-2 text-[13px] text-ink break-keep">{notice}</p>}          ← 429·502/503/504·422(예문)·소리 실패·0(§10-8 ⓒ)
+  </div>
+</section>
+```
+
+**ReadingRow**
+```
+<div className="flex min-w-0 items-start gap-2 {className}">
+  <div className="min-w-0 flex-1">
+    <p className="text-[12px] text-ink2">{label}</p>
+    <p lang="ja" aria-label={spokenAccent(side.accent || side.reading)} className="text-[16px] leading-[1.7] [overflow-wrap:anywhere]">{side.accent || side.reading}</p>
+    {side.accent && stripArrows(side.accent) !== side.reading && <p lang="ja" className="text-[13px] text-ink2 [overflow-wrap:anywhere]">{side.reading}</p>}
+  </div>
+  <PlayButton which playing={playing === which} loading={audioLoading === which} disabled={stale || cooling} onClick={() => play(which)} />
+</div>
+```
+- `PlayButton`: 44×44 원형 `border border-line bg-surface`, ▶ / ■(재생 중) / "…"(받는 중, 정적 — `prefers-reduced-motion` 무관). `aria-label` = "적용 전 읽기 듣기" · "적용 후 읽기 듣기" · (재생 중) "멈추기". 한 번에 하나만 소리 난다(다른 쪽을 누르면 앞 소리를 멈추고 새로 재생).
+- **소리 가져오기**(§10-3 C): 응답에 `side.audioUrl` 이 있으면 그 URL 을 받아(`apiGetAudio`) 재생, 없으면 같은 L7 을 `Accept: audio/wav` + `side` 로 다시 불러(`apiPostAudio`) 재생. 둘 다 **▶ 탭 핸들러 안에서 동기로 `unlockTtsAudio()`** 를 먼저 부른다(§7-0 ⑧).
+- `changed` = `before.accent !== after.accent || before.reading !== after.reading`. `hits` = `after.matches` 중 표기가 초안 표기와 같은 것의 수(서버가 `matches` 를 안 주면 ⚠ 줄은 그리지 않고 두 줄 비교만).
+- 결과는 **초안 키**(`surface|reading|accentType|priority|scope|ref|wordType|text|voiceId`)와 함께 보관한다. 키가 바뀌면 `stale`(흐림 + ▶ 비활성) 이고 재생 중이면 멈춘다.
+- 모드 `'current'`(보기 시트·문장 확인): 한 줄만, `draftEntries` 없이 부른다.
+
+**LexiconSentenceCheck**(목록 머리, `canPreview` 일 때 — **선택, 구현 순서 마지막**)
+```
+<details className="mt-3 rounded-[14px] border border-line bg-surface">
+  <summary className="flex h-12 cursor-pointer items-center px-3.5 text-[14px] font-medium">문장으로 읽기 확인</summary>
+  <div className="px-3.5 pb-3">
+    <p className="text-[12px] text-ink2 break-keep">선생님이 이상하게 읽는 문장을 넣어 보고, 틀린 단어를 찾아 항목으로 추가해요.</p>
+    <LexiconPreviewPanel mode="current" initialText="" voices />
+  </div>
+</details>
+```
+
+#### F. 쓰기 확인 칸 — `WriteConfirmFields`(항목 저장·끄기·켜기·가져오기·되돌리기 공용)
+
+```
+Field 변경 이유*  textarea#lexReason rows=2 placeholder="예: 日本橋 가 ニッポンバシ 로 읽혀서"  ≤200, 카운터 "{n}/200"
+<div role="group" aria-label="빠른 이유" className="no-scrollbar -mx-4 mt-1.5 flex gap-1.5 overflow-x-auto px-4 py-1">
+  {quick.map(t => <button type="button" className="h-11 flex-none rounded-full border border-line bg-surface px-3 text-[13px] text-ink">{t}</button>)}
+</div>                                           ← 누르면: 칸이 비었으면 그 글로, 이미 글이 있으면 뒤에 " · {t}"
+{needsConfirm && <div className="mt-3 rounded-xl border border-bad bg-surface p-3">
+  <p className="text-[13px] font-semibold text-bad">운영 환경(PRODUCTION) 사전을 바꿔요</p>
+  <p className="mt-0.5 text-[13px] text-ink break-keep">모든 학습자의 선생님 목소리 읽기가 바뀌어요. 확인하려면 아래에 PRODUCTION 을 그대로 입력해 주세요.</p>
+  <input aria-label="확인 문구" autoCapitalize="characters" autoComplete="off" spellCheck={false} placeholder="PRODUCTION" className="{INPUT} mt-2 font-mono" />
+</div>}
+```
+- `QUICK_REASONS`: 저장 = 오독 수정 · 새 고유명사 · 악센트 조정 · 우선순위 조정 / 끄기 = 잘못 넣은 항목 · 더 이상 필요 없음 · 다른 항목과 겹침 / 켜기 = 다시 필요해짐 / 가져오기 = 일괄 추가 · 사전 복원 / 되돌리기 = 문제 있는 변경 되돌림.
+- 확정 버튼은 늘 누를 수 있다. 누르면 이유(비었음·200자 초과)·확인 문구 불일치를 먼저 검사해 첫 오류 칸 포커스(요청 없음). 확인 문구는 **대소문자까지 정확히** `PRODUCTION`(앞뒤 공백만 무시).
+- `text-bad` on `bg-surface` 는 `bad`/`bad-soft` 보다 명암비가 높다(글자 사용 가능 — §6 `MISCONFIGURED` 뱃지와 같은 조합).
+
+#### G. 가져오기 시트 — `LexiconImportSheet`(step: `'pick' | 'checking' | 'reviewed' | 'applying'`)
+
+```
+Sheet title="사전 가져오기" dismissible={step !== 'checking' && step !== 'applying'}
+ FilePick:
+   <input id="lexImportFile" type="file" accept=".csv,.json,text/csv,application/json" className="sr-only" onChange />
+   <label htmlFor="lexImportFile" className="{Btn ghost 모양, h-12} w-full cursor-pointer">{file ? '다른 파일 고르기' : '파일 고르기 (CSV · JSON)'}</label>
+   {file && <p className="mt-1 truncate text-[13px]">{file.name} · {kb(file.size)}KB</p>}
+   {fileError && <p className="mt-1 text-[12px] text-bad">{fileError}</p>}     ← 요청 전 검사: 확장자 csv/json 아님 · 256KB 초과(§10-8 ⓓ)
+   <details className="mt-2"><summary className="flex h-11 cursor-pointer items-center text-[13px] font-medium">파일 형식</summary>
+     <p className="text-[12.5px] text-ink2">CSV(UTF-8) 첫 줄:</p>
+     <code className="block font-mono text-[12px] [overflow-wrap:anywhere]">surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled</code>
+     <p className="text-[12.5px] text-ink2 break-keep">JSON: 같은 키를 가진 객체의 배열 · 최대 2,000행 · 256KB · 내보내기 파일을 그대로 다시 올릴 수 있어요.</p></details>
+ ModePick <div role="radiogroup" aria-label="가져오는 방식" className="mt-3 grid gap-2">   (카드 2개, ScopePicker 와 같은 모양)
+   ◉ 합치기 (MERGE) — 파일의 항목을 추가하거나, 같은 표기·범위의 항목을 파일 값으로 고쳐요. 파일에 없는 항목은 그대로 둬요.
+   ○ 범위 바꾸기 (REPLACE_SCOPE) — 파일에 나온 범위(예: GLOBAL)를 파일 내용으로 통째로 바꿔요.
+        <span className="block text-[13px] font-semibold text-bad">⚠ 그 범위에서 파일에 없는 항목은 모두 꺼져요.</span>
+ <Btn variant="ghost" className="mt-3 w-full" aria-busy={step === 'checking'} onClick={dryRun}>{step === 'checking' ? '파일을 확인하는 중…' : '변경 내용 미리 보기'}</Btn>
+   → L5 `?mode=&dryRun=1`(multipart `file`) → step 'reviewed'. 파일·방식을 바꾸면 결과를 버리고 'pick'. 파일이 없으면 누를 때 "파일을 골라 주세요"
+
+ step 'reviewed' → <ImportReview result mode />
+   <div aria-live="polite" className="mt-3 rounded-xl border border-line bg-surface2 p-3">
+     <p className="text-[14px] font-semibold">{rows}행 확인 · 지금 사전 v{baseVersion} 기준</p>
+     <ul className="mt-1.5 flex flex-wrap gap-1.5">  CountChip × 5 — 추가 {add} · 수정 {update} · 끄기 {disable} · 그대로 {unchanged} · 오류 {error}
+         (0 도 보인다 · 끄기 >0 은 `border border-bad bg-surface text-bad` · 오류 >0 은 `bg-bad-soft text-bad` · 나머지 `bg-surface text-ink`) </ul>
+     {mode === 'REPLACE_SCOPE' && scopes?.length > 0 && <p className="mt-1.5 text-[13px] break-keep">바뀌는 범위: {scopes.map(s => `${s.scope}${s.scopeRefId ? ` ${short(s.scopeRefId)}` : ''}(끄기 ${s.disable})`).join(' · ')}</p>}
+   </div>
+   {disable > 0 && <p role="alert" className="mt-2 rounded-xl border border-bad bg-surface px-3 py-2 text-[13px] font-semibold text-bad break-keep">⚠ 적용하면 {disable}개 항목이 꺼져요.</p>}
+   {errors.length > 0 && <ImportErrorTable errors total={error} />}
+   {changes?.length > 0 && <details className="mt-2"><summary className="flex h-11 cursor-pointer items-center text-[13px] font-medium">바뀌는 항목 보기 ({add + update + disable})</summary>
+       <LexiconDiffList rows={changes} truncated={changesTruncated ?? 0} /></details>}
+   {error > 0 ? <p className="mt-3 text-[13px] text-ink break-keep">오류가 있는 행을 고친 파일로 다시 확인해 주세요. 오류가 0 일 때만 적용할 수 있어요.</p>
+    : add + update + disable === 0 ? <p className="mt-3 text-[13px] text-ink">바뀌는 항목이 없어요 — 지금 사전과 같아요.</p>
+    : <>
+        <WriteConfirmFields quick={QUICK_REASONS.import} … />
+        {notice && <SheetNotice … />}
+        <p className="mt-2 text-[12px] text-ink2">적용하면 사전 v{baseVersion + 1} 이 만들어져요.</p>
+        <BtnRow>
+          <Btn variant="primary" aria-busy={step === 'applying'}>{step === 'applying' ? '적용하는 중…' : `${needsConfirm ? 'PRODUCTION 에 적용' : '적용'}${disable > 0 ? ` (${disable}개 끄기 포함)` : ''}`}</Btn>
+          <Btn variant="ghost">취소</Btn>
+        </BtnRow>
+      </>}
+   → 적용 = L5 `?mode=&dryRun=0`(multipart `file`·`reason`·`baseVersion`(dryRun 결과 값)·`confirm?`) → 시트 닫기 · 토스트 "가져왔어요 · 사전 v{n} (추가 a · 수정 b · 끄기 c)" · 목록 다시 읽기
+```
+
+**ImportErrorTable**
+```
+<div className="@container mt-2">
+  <p className="text-[13px] font-semibold text-bad">오류 {total}행{errors.length < total ? ` (앞 ${errors.length}개만 보여요)` : ''}</p>
+  ≥560: <table className="mt-1 w-full table-fixed text-[13px]"><thead>행(14%) · 칸(24%) · 사유</thead> … </table>
+  <560: <ul className="mt-1 divide-y divide-line rounded-xl border border-line bg-surface">
+          <li className="px-3 py-2 text-[13px] break-keep"><span className="font-semibold tabular-nums">{row}행</span>{field && <span className="font-mono text-ink2"> · {field}</span>} — {importErrorText(code)}</li></ul>
+</div>
+```
+- 행 번호는 **파일 기준**(CSV 는 머리글이 1행이라 첫 데이터가 2행) — 서버 값 그대로 보인다. 시트는 480px 라 표는 사실상 넓은 데스크톱 시트에서만 나온다.
+
+와이어프레임(390, reviewed, REPLACE_SCOPE):
+```
+┌ 사전 가져오기                        ✕ ┐
+│ [          다른 파일 고르기          ]  │
+│ lexicon-global.csv · 12KB             │
+│ 파일 형식                          ˅   │
+│ ┌ MERGE                              ┐│
+│ │ 합치기 — 파일의 항목을 추가하거나…     ││
+│ └────────────────────────────────────┘│
+│ ┏ REPLACE_SCOPE                      ┓│ 선택(링)
+│ ┃ 범위 바꾸기 — 파일에 나온 범위를…     ┃│
+│ ┃ ⚠ 그 범위에서 파일에 없는 항목은 모두 꺼져요.┃│
+│ ┗────────────────────────────────────┛│
+│ [        변경 내용 미리 보기        ]    │
+│ ┌ 42행 확인 · 지금 사전 v7 기준       ┐ │
+│ │ [추가 30][수정 5][끄기 2][그대로 5][오류 0]│
+│ │ 바뀌는 범위: GLOBAL(끄기 2)          │ │
+│ └────────────────────────────────────┘ │
+│ ⚠ 적용하면 2개 항목이 꺼져요.             │
+│ 바뀌는 항목 보기 (37)               ˅   │
+│ 변경 이유* ┌                        ┐   │
+│ [일괄 추가][사전 복원]                   │
+│ 적용하면 사전 v8 이 만들어져요.            │
+│ [적용 (2개 끄기 포함)] [    취소    ]     │
+└─────────────────────────────────────┘
+```
+
+#### H. 내보내기 시트 — `LexiconExportSheet`
+
+```
+Sheet title="사전 내보내기"
+<p className="text-[14px] break-keep">지금 쓰는 {env} 사전 v{n} 전체(꺼진 항목 포함 {total}개)를 내려받아요. 이 파일을 그대로 가져오면 바뀌는 것이 없어요.</p>
+<ConsoleSegmented ariaLabel="파일 형식" options={[{ value: 'csv', label: 'CSV' }, { value: 'json', label: 'JSON' }]} value={format} className="mt-3" />
+<p className="mt-1 text-[12px] text-ink2">{format === 'csv' ? '엑셀·스프레드시트에서 열 수 있어요.' : '다른 도구나 백업에 쓰기 좋아요.'}</p>
+{isNativeApp() && <p className="mt-2 text-[12px] text-ink2 break-keep">앱에서는 파일 저장이 안 될 수 있어요. 안 되면 컴퓨터 브라우저에서 내려받아 주세요.</p>}
+{error && <div className="mt-2"><ConsoleError message={error} /></div>}
+<BtnRow><Btn variant="primary" aria-busy={busy}>{busy ? '만드는 중…' : '내려받기'}</Btn><Btn variant="ghost">닫기</Btn></BtnRow>
+```
+- `{total}` 은 L1 `counts.enabled + counts.disabled`(없으면 "꺼진 항목 포함" 만).
+- 내려받기(`lexiconApi.downloadExport`): `fetch('/api/admin/v1/lexicon/export?format=…', { credentials: 'same-origin', cache: 'no-store' })` → 401 이면 `api.ts` 와 같이 로그인으로 · `res.ok` 이고 `Content-Type` 이 `application/json` 봉투가 아니면(또는 JSON 형식을 골랐고 본문이 봉투 모양이 아니면) blob → `URL.createObjectURL` → 숨은 `<a download={filename}>` 클릭 → 곧바로 revoke · 실패면 봉투를 읽어 status 로 §10-8 ⓓ.
+- 파일명: `Content-Disposition` 의 `filename` → 없으면 `kaiwa-lexicon-{env 소문자}-v{n}.{csv|json}`.
+- 성공 토스트 "내려받았어요 · v{n}", 시트는 닫지 않는다(다른 형식도 받을 수 있게).
+
+#### I. 버전 기록 — `/admin/speech/tts/lexicon/versions` · `LexiconVersionsScreen` · `VersionDetailSheet`
+
+```
+<BackLink href="/admin/speech/tts/lexicon">발음 사전</BackLink>
+<h2 className="text-[17px] font-semibold">버전 기록</h2>
+<p className="text-[13px] text-ink2 break-keep">{env} 사전의 모든 변경이 버전으로 남아요. 되돌리기는 과거 버전 내용으로 새 버전을 만들어요(기록은 지우지 않아요).</p>
+<details><summary className="flex h-11 cursor-pointer items-center text-[13px] font-medium">상태 뜻</summary>
+  <ul className="text-[12.5px] text-ink2"> <VersionStatusBadge ACTIVE/> 지금 적용 중 · <VersionStatusBadge SUPERSEDED/> 새 버전에 밀려났어요 · <VersionStatusBadge ROLLED_BACK/> 이 버전의 변경을 되돌려 새 버전으로 바꿨어요 </ul></details>
+<RefreshLine … />
+{first.status === 'loading' && !items.length ? <ConsoleLoading /> : first.err && !items.length ? <LoadError … name="버전 기록" /> :
+ <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
+   <li><button type="button" onClick={() => openVersion(v.version)} className="flex min-h-[64px] w-full min-w-0 flex-col gap-0.5 px-3.5 py-2.5 text-left">
+     1줄 <span className="flex min-w-0 items-center gap-2"><span className="font-mono text-[15px] font-semibold">v{version}</span><VersionStatusBadge status />
+           <span className="ml-auto text-[12px] tabular-nums text-ink2">{formatAgo(createdAt, now)}</span></span>
+     2줄 <span className="min-w-0 truncate text-[14px]">{changeSummary ?? '요약 없음'}</span>
+     3줄 <span className="flex min-w-0 gap-2 text-[12px] text-ink2"><span className="min-w-0 flex-1 truncate">{actorLabel(actor)} · 항목 {entryCount}개{enabledCount !== undefined ? `(사용 중 ${enabledCount})` : ''}</span><span aria-hidden="true">›</span></span>
+   </button></li>
+ </ul>}
+{hasMore && <Btn variant="ghost" className="mt-3 w-full" aria-busy={loadingMore}>{loadingMore ? '불러오는 중…' : '더 보기'}</Btn>}
+<VersionDetailSheet version={openV} activeVersion onClose onRolledBack />      ← URL ?v={n}(router.replace). 새로 고침해도 시트가 열린다
+```
+- `VersionStatusBadge`(`lexicon/Badges.tsx`): ACTIVE `bg-good-soft text-good` + 점 "사용 중" · SUPERSEDED `bg-surface2 text-ink2` "이전" · ROLLED_BACK `border border-bad bg-surface text-bad` "되돌려짐"(§6 `TraceStatusBadge PARTIAL` 과 같은 모양). `aria-label="상태: {글자}"`.
+- `actorLabel(actor)`: `actor?.name` → 없고 작업자 자체가 없으면(시드) "시스템" → 그 밖 "알 수 없음". 역할이 있으면 뒤에 `({role})`.
+
+**VersionDetailSheet**(mode `'view' | 'confirmRollback'`)
+```
+Sheet title="버전 v{n}" dismissible={!submitting}
+ mode 'view':   (L8a ?compare=previous — 시트를 열 때 한 번)
+   loading → <ConsoleLoading /> · 404 → <p className="text-[14px]">그 버전을 찾을 수 없어요.</p> · 그 밖 오류 → ConsoleError + 다시 시도
+   <div className="flex min-w-0 flex-wrap items-center gap-2"><VersionStatusBadge status /><span className="text-[13px] text-ink2">{formatDateTime(createdAt)} · {actorLabel(actor)}</span></div>
+   <p className="mt-1 text-[14px] [overflow-wrap:anywhere]">{changeSummary ?? '요약 없음'}</p>
+   <KeyValueList className="mt-2" items=[ 항목 수 {entryCount}개{enabledCount !== undefined ? ` (사용 중 ${enabledCount})` : ''} · 스냅샷 해시 <MonoId value={snapshotHash.slice(0, 12)} copy label="스냅샷 해시" /> ] />
+   <SectionHeader title={against ? `직전 버전(v${against})과 비교` : '첫 버전'} />
+   <DiffCounts counts />  <LexiconDiffList rows truncated />
+   {status === 'ACTIVE' ? <p className="mt-3 text-[13px] text-ink2">지금 쓰는 버전이에요.</p>
+    : canWrite && <Btn variant="ghost" className="mt-3 w-full" onClick={→ 'confirmRollback'}>v{n} 내용으로 되돌리기</Btn>}
+ mode 'confirmRollback':   (L8a ?compare=active — 이 모드에 들어올 때 한 번)
+   <p className="text-[14px] break-keep">지금(v{active}) 사전을 v{n} 내용으로 되돌리면:</p>
+   <DiffCounts counts />  <LexiconDiffList rows truncated />
+   {allZero ? <p className="mt-2 text-[13px] text-ink">지금 사전과 내용이 같아 되돌릴 것이 없어요.</p>
+            + <Btn variant="ghost" className="mt-3 w-full">돌아가기</Btn>
+    : <>
+       <p className="mt-2 text-[13px] text-ink2 break-keep">새 버전 v{active + 1} 이 만들어지고 v{active} 는 '되돌려짐'으로 표시돼요. 다음 문장부터 반영돼요.</p>
+       <WriteConfirmFields quick={QUICK_REASONS.rollback} … />
+       {notice && <SheetNotice … />}
+       <BtnRow><Btn variant="primary" aria-busy>{needsConfirm ? 'PRODUCTION 에서 되돌리기' : `v${n} 내용으로 되돌리기`}</Btn><Btn variant="ghost">돌아가기</Btn></BtnRow>
+      </>}
+   → L9 `{reason, baseVersion: active, confirm?}` → 시트 닫기(`?v` 제거) · 토스트 "되돌렸어요 · v{n} 내용으로 사전 v{m}" · 첫 쪽부터 다시 읽기
+```
+- `activeVersion` 은 목록 첫 행(ACTIVE)의 번호. 목록이 아직 없으면 되돌리기 버튼을 그리지 않는다.
+
+**DiffCounts** — 칩 4개(0 도 보인다): 추가 {added} · 수정 {changed} · 끔 {disabled} · 다시 켬 {enabled}. 모양은 가져오기 `CountChip`(`bg-surface2 text-ink`, 끔 >0 만 `border border-bad bg-surface text-bad`).
+
+**LexiconDiffList**(버전 상세·되돌리기 확인·가져오기 미리 보기 공용)
+```
+<ul className="mt-2 divide-y divide-line rounded-xl border border-line bg-surface">
+  <li className="min-w-0 px-3 py-2">
+    1줄 <span className="flex min-w-0 items-center gap-2"><NeutralBadge>{DIFF_KO[kind]}</NeutralBadge>
+          <span lang="ja" className="min-w-0 flex-1 text-[15px] font-semibold [overflow-wrap:anywhere]">{surface}</span>
+          <span className="flex-none font-mono text-[12px] text-ink2">{scope}{scopeRefId ? ` ${short(scopeRefId)}` : ''}</span></span>
+    2줄(13px, 가나 조각은 lang=ja):
+      ADDED    → {after.reading} · 악센트 {after.accentType} · 우선 {after.priority}
+      CHANGED  → 바뀐 칸만 ` · ` 로: 읽기 {b} → {a} · 악센트 {b} → {a} · 우선 {b} → {a} · 종류 {b} → {a} · 메모 바뀜
+      DISABLED → {before.reading} · 이제 쓰지 않아요
+      ENABLED  → {after.reading} · 다시 써요
+  </li>
+</ul>
+{truncated > 0 && <p className="mt-1 text-[12px] text-ink2">외 {truncated}개</p>}
+빈 rows → <EmptyNote>바뀐 항목이 없어요.</EmptyNote>
+```
+- 종류는 글자 뱃지(추가·수정·끔·다시 켬)로 뜻을 전한다. 색·기호만 쓰지 않는다.
+
+와이어프레임(390, 버전 기록):
+```
+│    발음 사전                            │
+├──────────────────────────────────────┤
+│ ← 발음 사전                              │
+│ 버전 기록                                │
+│ LOCAL 사전의 모든 변경이 버전으로 남아요. … │
+│ 상태 뜻                             ˅   │
+│ 마지막 갱신 16:40:11     [다시 불러오기] │
+│ ┌──────────────────────────────────┐ │
+│ │ v9 [●사용 중]                 방금 │ │
+│ │ v7 로 되돌림: 문제 있는 변경 되돌림   │ │
+│ │ 관리자(SUPER_ADMIN) · 항목 7개(사용… › │ │
+│ ├──────────────────────────────────┤ │
+│ │ v8 [되돌려짐]              10분 전 │ │
+│ │ 가져오기 REPLACE_SCOPE: 추가 30 · …  │ │
+│ │ 개발자(DEVELOPER) · 항목 37개       › │ │
+│ ├──────────────────────────────────┤ │
+│ │ v1 [이전]                 9월 27일 │ │
+│ │ 시드 v1(task-003d)                 │ │
+│ │ 시스템 · 항목 6개                   › │ │
+│ └──────────────────────────────────┘ │
+│ [              더 보기              ] │
+```
+
+#### J. TTS 역할 페이지 링크 — `RoleScreen` 수정
+
+`role === 'TTS' && can('voices.read')` 인 "목소리" 섹션 **바로 아래**:
+```
+<Section> <SectionHeader title="발음 사전" />
+  <Link href="/admin/speech/tts/lexicon" className="flex min-h-[56px] min-w-0 items-center gap-2 rounded-[14px] border border-line bg-surface px-3.5 py-2.5">
+    <span className="min-w-0 flex-1"><span className="block text-[14px]">읽기가 틀린 단어 고치기</span>
+      <span className="block truncate text-[12px] text-ink2">항목·미리듣기·가져오기·버전 기록</span></span>
+    <span aria-hidden="true">›</span></Link>
+</Section>
+```
+- 요청을 더 부르지 않는다(버전 번호·항목 수는 사전 화면에서).
+
+### 10-3. 상태 관리
+
+**A. `LexiconScreen`**
+```
+params   = useState(initialParams)  // { q, scope: 'ALL'|Scope, ref, inactive: boolean, page: number } — 서버 page 가 검증해 넘긴 값
+setParams(patch) → setState + router.replace(`/admin/speech/tts/lexicon${qs}`, { scroll: false })   // 필터가 바뀌면 page 삭제
+list     = useAdminResource<LexiconListDto>(listPath(params))        // path 가 바뀌면 이전 요청 abort·늦은 응답 버림(훅 기능)
+voices   = useAdminResource<AdminVoiceDto[]>('/api/admin/v1/voices') // refLabel·목소리 select. 실패해도 화면은 동작(id 로 표시)
+baseVersion = useState<number | null>  ← list 가 올 때마다 list.data.dictionaryVersion 로, 쓰기 성공 응답의 version.version 으로 즉시
+sheet    = { mode: 'closed'|'add'|'edit'|'view'|…; entry: LexiconEntryDto | null }
+importOpen · exportOpen: boolean
+now      = useNow(true, 30_000)
+```
+- 쓰기 성공 뒤: `setBaseVersion(res.version.version)` → `list.reload()` → 토스트(`useConsoleToast`). 추가한 항목이 지금 필터·쪽에서 안 보여도 필터를 몰래 바꾸지 않는다.
+- 항목 시트가 열린 동안 목록이 다시 와도 시트 안 `entry` 는 열 때의 값을 쓴다(입력 중 값이 바뀌지 않게). 409 뒤 [새로 불러오기]만 `entry` 를 새 값으로 바꾼다.
+
+**B. `useLexiconForm(mode, entry, baseVersion)`** — `draft` · `touched` · `errors = validateDraft(draft, mode)` · `serverFieldErrors` · `notice` · `submitting` · `dirty` · `submit(kind: 'save'|'disable'|'enable')`
+```
+submit: 클라 오류(칸·이유·확인 문구) 있으면 첫 칸 focus, return
+        body = toBody(kind, draft, reason, baseVersion, confirm?)
+        kind save+add → createEntry · save+edit → updateEntry · disable → disableEntry · enable → updateEntry({ enabled: true, … })
+        200 → onSaved(res, kind)
+        409 VERSION_CONFLICT     → notice(conflict: details.baseVersion → details.currentVersion) + [새로 불러오기]
+                                   = list.reload() → baseVersion 갱신 → entry 를 새 목록의 같은 id 로 바꿈(없으면 404 안내). 입력은 그대로
+        409 E_LEXICON_DUPLICATE  → notice + [그 항목 열기]: details.existing 이 있으면 그 항목으로 mode 'edit'(canWrite) 전환,
+                                   없으면 필터 { q: 표기, scope, inactive: true } 로 바꾸고 시트를 닫는다(§10-11 ⑥)
+        422                      → serverFieldErrors = mapFieldErrors(details) → 첫 칸 focus(이유·확인 문구 코드도 같은 경로)
+        403                      → notice(PRODUCTION / 권한) · 404 → notice("찾을 수 없어요") + [목록 새로 고침]
+        429                      → notice("{n}초 뒤") · 0·500 → notice(재시도). 모든 실패에서 입력 유지
+```
+
+**C. `useLexiconPreview({ mode })`**
+```
+phase: 'idle' | 'checking' | 'ready' | 'error'
+result: { key: string; data: LexiconPreviewDto } | null          // key = draftKey(초안 + 예문 + voiceId)
+stale  = result !== null && result.key !== currentKey
+cooldownUntil: number | null  ← 429(retryAfterOf) — [읽기 확인]·▶ 모두 잠금, useCountdown 으로 남은 초
+playing: 'before' | 'after' | null · audioLoading: 같은 값 | null · playbackRef: TtsPlayback | null · acRef: AbortController | null
+
+check():      acRef abort → apiPost(L7, { text, voiceId?, draftEntries: mode === 'compare' ? [toDraftEntry(draft)] : undefined, compare: mode === 'compare' })
+play(which):  (onClick 안에서 **동기로** 먼저) unlockTtsAudio()
+              playing === which 면 stop 하고 끝. 다른 쪽이 재생 중이면 stop
+              audioLoading = which
+              buf = side.audioUrl ? await apiGetAudio(side.audioUrl) : (await apiPostAudio(L7, { …check 때 본문, side: which })).data
+              playbackRef = await playWav(buf) → playing = which → ended 에 null
+invalidate(): 초안 키가 바뀌는 onChange 마다 — 재생 정지 + 받는 중인 요청 abort(결과는 stale 로 남긴다)
+시트 닫기·언마운트: abort + stop
+```
+- `audioUrl` 은 상태에만 두고 `<audio src>`·DOM·로그에 싣지 않는다(받아서 ArrayBuffer 로 재생).
+
+**D. `useLexiconImport(baseVersionFromList)`** — `file` · `fileError` · `mode: 'MERGE' | 'REPLACE_SCOPE'`(기본 MERGE) · `step` · `review: LexiconImportResultDto | null` · `reason` · `confirm` · `notice`.
+- `setFile`·`setMode` → `review = null`, `step = 'pick'`, `notice = null`. 적용 409 → notice(§10-8 ⓓ) + [다시 미리 보기](같은 파일·방식으로 dryRun 재실행). 적용 성공 → 시트 닫고 상위 `onApplied(res)`.
+- 파일은 `File` 객체로만 들고 있다(`FileReader` 로 읽지 않는다).
+
+**E. `LexiconVersionsScreen`**
+```
+first   = useAdminResource<LexiconVersionListDto>(versionsPath(1))
+more    = { items: LexiconVersionDto[]; page: number; loadingMore: boolean; reqNo: number }  // [더 보기] = apiGet(versionsPath(page+1)), 요청 번호로 늦은 응답 버림
+items   = [...first.data.items, ...more.items]   (first 가 다시 오면 more 초기화)
+openV   = useState(initialV) + router.replace(`?v=${n}` | '')
+detail  = useAdminResource<LexiconVersionDetailDto>(openV ? versionDetailPath(openV, 'previous') : null)
+confirm = useAdminResource<LexiconVersionDetailDto>(openV && mode === 'confirmRollback' ? versionDetailPath(openV, 'active') : null)
+activeVersion = items.find(v => v.status === 'ACTIVE')?.version ?? null
+되돌리기 성공 → openV = null → first.reload()(more 초기화) → 토스트
+```
+- `useLexiconAccess()`(§10-1)는 렌더마다 계산하고 저장하지 않는다.
+- 사전 항목·초안·capability·미리듣기 소리를 브라우저 저장소(localStorage·sessionStorage·IndexedDB)에 두지 않는다.
+
+### 10-4. API 호출 계획
+
+모두 `@/components/common/api`(`apiGet`·`apiPost`·`apiPut`·`apiDelete`·`apiUpload`·`apiPostAudio`·`apiGetAudio`) + `@/components/common/errors`(`toErr`·`retryAfterOf`). 경로의 id 는 `encodeURIComponent`, 쿼리는 `URLSearchParams`. 요청 함수는 `lexiconApi.ts` 한 곳에 둔다. 번호 L1~L9 는 이 절의 이름(정본 §7-2 표는 번호가 없다).
+
+| # | 엔드포인트 | 메서드 | capability | 화면 | 파라미터 / 본문 | 사용 필드 | 오류 처리 |
+|---|---|---|---|---|---|---|---|
+| L1 | `/api/admin/v1/lexicon` | GET | voices.read | 목록·요약 카드 | `q` `scope` `scopeRefId` `enabled=1\|all` `page` `pageSize=50` | `items[]` · `page, pageSize, total` · `dictionaryVersion` · `counts{enabled, disabled}` · `active` | `LoadError`(403 카드 · 404 "권한이 바뀌었을 수 있어요" · 그 밖 ErrorBlock) |
+| L2 | `/api/admin/v1/lexicon` | POST | voices.manage (+PRODUCTION `config.apply.production`) | 항목 추가 | `{surface, reading, accentType, priority, scope, scopeRefId, wordType, note, reason, baseVersion, confirm?}` | `entry` · `version{version, createdAt}` | §10-3 B |
+| L3 | `/api/admin/v1/lexicon/:id` | PUT | 〃 | 수정 · 다시 켜기 | `{reading, accentType, priority, wordType, note, enabled?, reason, baseVersion, confirm?}` | 〃 | 〃 + 404 |
+| L4 | `/api/admin/v1/lexicon/:id` | DELETE(**본문 있음**) | 〃 | 끄기 | `{reason, baseVersion, confirm?}` | `entry{enabled:false}` · `version` | 〃 |
+| L5 | `/api/admin/v1/lexicon/import?mode=MERGE\|REPLACE_SCOPE&dryRun=1\|0` | POST multipart | 〃 | 가져오기 | `file`(+적용 때 `reason`·`baseVersion`·`confirm?`) | `LexiconImportResultDto` | 413·415·422(형식·행 수·오류 행)·409·403 → §10-8 ⓓ |
+| L6 | `/api/admin/v1/lexicon/export?format=csv\|json` | GET(파일) | voices.read | 내보내기 | — | 본문 파일 · `Content-Disposition` | 봉투 오류면 status 로 §10-8 ⓓ |
+| L7 | `/api/admin/v1/lexicon/preview` | POST | voices.manage | 미리듣기·문장 확인 | JSON: `{text(화면 ≤100), voiceId?, draftEntries?[{surface, reading, accentType, priority, scope, scopeRefId, wordType}], compare?}` / 소리: 같은 본문 + `side` + `Accept: audio/wav` | `dictionaryVersion` · `before`·`after{reading, accent, matches?, audioUrl?}` | 429 쿨다운 · 502/503/504 "목소리 서비스" · 422 예문 · 0 |
+| L8 | `/api/admin/v1/lexicon/versions?page=&pageSize=20` | GET | voices.read | 버전 기록 | — | `items[]` · `page, pageSize, total` | LoadError |
+| L8a | `/api/admin/v1/lexicon/versions/:v?compare=previous\|active` | GET | voices.read | 버전 상세 · 되돌리기 확인 | — | 버전 필드 + `compare, against, counts, rows(≤100), truncated` | 404 → 시트 안 "그 버전을 찾을 수 없어요" · **정본에 없음 → §10-11 ②** |
+| L9 | `/api/admin/v1/lexicon/versions/:v/rollback` | POST | voices.manage (+PRODUCTION) | 되돌리기 | `{reason, baseVersion, confirm?}` | `version{version}` · `replaced{version, status}` | 409(`VERSION_CONFLICT`·`ALREADY_ACTIVE`·`NO_CHANGE`)·403·404 |
+| 82 | `/api/admin/v1/voices` | GET | voices.read | 대상 이름 · 목소리 select | — | `id, displayName, status, enabled` **만** | 조용히 id 로 대신 |
+
+**화면이 기대하는 DTO**(`src/types/admin.ts` "Lexicon" 절 — §6-11 ⑪ 과 같은 원칙: A 의 응답이 이 모양을 맞추거나, A 가 먼저 정한 이름이 있으면 B 가 그 이름을 따른다)
+```ts
+export type LexiconScopeName = 'GLOBAL' | 'COURSE' | 'LESSON' | 'VOICE' | 'USER'
+export type LexiconWordType = 'PROPER_NOUN' | 'PERSON' | 'PLACE' | 'COMMON' | 'LOANWORD' | 'ABBREVIATION'
+export interface LexiconEntryDto {
+  id: string; surface: string; reading: string; accentType: number; priority: number
+  scope: LexiconScopeName; scopeRefId: string | null; wordType: LexiconWordType | null; note: string | null
+  enabled: boolean; updatedAt: string
+}
+export interface LexiconActorDto { name: string | null; role: string | null }
+export interface LexiconVersionDto {
+  version: number; status: 'ACTIVE' | 'SUPERSEDED' | 'ROLLED_BACK'; createdAt: string
+  actor: LexiconActorDto | null; changeSummary: string | null; entryCount: number; enabledCount?: number; snapshotHash: string
+}
+export interface LexiconListDto {
+  items: LexiconEntryDto[]; page: number; pageSize: number; total: number
+  dictionaryVersion: number; counts?: { enabled: number; disabled: number }; active?: LexiconVersionDto | null
+}
+export interface LexiconVersionListDto { items: LexiconVersionDto[]; page: number; pageSize: number; total: number }
+export interface LexiconWriteResultDto { entry?: LexiconEntryDto; version: { version: number; createdAt: string } }
+export interface LexiconSnapshotRowDto {
+  surface: string; reading: string; accentType: number; priority: number
+  scope: LexiconScopeName; scopeRefId: string | null; wordType: LexiconWordType | null; enabled: boolean; note?: string | null
+}
+export interface LexiconDiffRowDto {
+  kind: 'ADDED' | 'CHANGED' | 'DISABLED' | 'ENABLED'; surface: string; scope: LexiconScopeName; scopeRefId: string | null
+  before: LexiconSnapshotRowDto | null; after: LexiconSnapshotRowDto | null
+}
+export interface LexiconDiffCountsDto { added: number; changed: number; disabled: number; enabled: number }
+export interface LexiconVersionDetailDto extends LexiconVersionDto {
+  compare: 'previous' | 'active'; against: number | null; counts: LexiconDiffCountsDto; rows: LexiconDiffRowDto[]; truncated: number
+}
+export interface LexiconImportErrorDto { row: number; field: string | null; code: string }
+export interface LexiconImportResultDto {
+  dryRun: boolean; mode: 'MERGE' | 'REPLACE_SCOPE'; baseVersion: number; rows: number
+  counts: { add: number; update: number; disable: number; unchanged: number; error: number }
+  scopes?: { scope: LexiconScopeName; scopeRefId: string | null; disable: number }[]
+  changes?: LexiconDiffRowDto[]; changesTruncated?: number
+  errors: LexiconImportErrorDto[]; errorsTruncated?: number
+  version?: { version: number }                       // dryRun=0 성공일 때
+}
+export interface LexiconPreviewSideDto { reading: string; accent: string; matches?: { surface: string; reading: string }[]; audioUrl?: string | null }
+export interface LexiconPreviewDto { dictionaryVersion: number; before: LexiconPreviewSideDto; after?: LexiconPreviewSideDto }
+```
+- `confirm` 은 PRODUCTION 일 때만 싣는다(화면은 입력이 `'PRODUCTION'` 과 같을 때만 보낸다).
+- 서버 `message` 는 이 화면에서 그리지 않는다(§10-0 ⑬). `details` 만 읽는다: `baseVersion`·`currentVersion`(409) · `existingId`·`existing`(중복) · `missing`(403) · `fields`(`{[field]: code}`) 또는 `errors`(`[{field, code}]`)(422) · `retryAfterSec`(429) · `rows`(행 수 초과).
+- `common/api.ts` 의 `apiDelete` 에 선택 본문 인자를 더한다(§10-6) — 이유를 URL 에 싣지 않기 위해서다(접근 로그 노출).
+
+### 10-5. 컴포넌트 분해 (`src/components/admin/lexicon/*`)
+
+| 이름 | 종류 | props / 반환 | 상태 |
+|---|---|---|---|
+| `LexiconScreen` | client | `{ initialParams: LexiconParams }` | §10-3 A |
+| `LexiconSummaryCard` | client | `{ list: LexiconListDto \| null; env: AdminEnvironment; now: number }` | — |
+| `LexiconFilters` | client | `{ params: LexiconParams; voices: AdminVoiceDto[]; onChange(patch) }` | qDraft·refDraft(디바운스·IME) |
+| `LexiconList` · `Pager` | client | `{ items; total; page; pageSize; canWrite; voiceName(id): string \| null; now; onOpen(e) }` · `{ page; pageSize; total; onPage(n) }` | — |
+| `Badges.tsx` — `EntryStatusBadge` · `VersionStatusBadge` · `CountChip` | client | `{ enabled }` · `{ status }` · `{ label; n; tone: 'plain'\|'warn'\|'error' }` | — |
+| `LexiconEntrySheet` | client | `{ open; mode; entry; baseVersion; voices; onClose(); onSaved(res, kind); onFindDuplicate(q, scope) }` | §10-3 B(`useLexiconForm`) |
+| `EntryForm` · `ScopePicker` · `AccentPicker` | client | `{ mode; draft; errors; voices; onChange(patch) }` · `{ value; onChange }` · `{ reading; value; error?; onChange }` | — |
+| `LexiconPreviewPanel` (+ 안쪽 `ReadingRow`·`PlayButton`) | client | `{ mode: 'compare'\|'current'; draft?: DraftEntry \| null; draftValid?: boolean; initialText?: string; voices; lockedVoiceId?: string \| null; onInvalidDraft?() }` | §10-3 C(`useLexiconPreview`) |
+| `LexiconSentenceCheck` | client | `{ voices }` | — |
+| `WriteConfirmFields` | client | `{ reason; onReason; confirm; onConfirm; needsConfirm; quick: readonly string[]; errors: { reason?: string; confirm?: string } }` | — |
+| `SheetNotice` | client | `{ notice: { text: string; action?: { label: string; onClick(): void } } }` | — |
+| `LexiconImportSheet` · `ImportReview` · `ImportErrorTable` | client | `{ open; baseVersion; onClose(); onApplied(res) }` · `{ result; mode }` · `{ errors; total }` | §10-3 D(`useLexiconImport`) |
+| `LexiconExportSheet` | client | `{ open; env; dictionaryVersion; total: number \| null; onClose() }` | format·busy·error |
+| `LexiconVersionsScreen` | client | `{ initialV: number \| null }` | §10-3 E |
+| `VersionDetailSheet` · `DiffCounts` · `LexiconDiffList` | client | `{ version: number \| null; activeVersion: number \| null; onClose(); onRolledBack(res) }` · `{ counts }` · `{ rows; truncated }` | view / confirmRollback |
+| `useLexiconAccess` | hook | `() → { canManage, canWrite, canPreview, needsConfirm, env, note }` | — |
+| `lexiconParams.ts` | 순수(서버 page·클라이언트 공용 — fetch·브라우저 API 없음) | `parseLexiconParams(sp) → LexiconParams` · `parseVersionParam(sp) → number \| null` · `toQuery(params)` | — |
+| `lexiconApi.ts` | 순수+fetch(클라이언트) | `listPath(params)` · `createEntry` · `updateEntry` · `disableEntry` · `importLexicon(file, mode, dryRun, extra?)` · `downloadExport(format, env, v)` · `preview(body)` · `previewAudio(body, side)` · `versionsPath(page)` · `versionDetailPath(v, compare)` · `rollback(v, body)` | — |
+| `kana.ts` | 순수 | `toKatakana` · `isReading` · `splitMoras` · `moraCount` · `accentNotation(moras, n)` · `spokenAccent(s)` · `stripArrows(s)` · `hasJapanese` · `hasHiddenChar` · `validateDraft(draft, mode) → FieldErrors` · `draftKey(…)` | — |
+| `lexiconCopy.ts` | 순수 | 라벨(`SCOPE_KO`·`WORD_TYPE_KO`·`VERSION_STATUS_KO`·`DIFF_KO`) · §10-8 문구 · `fieldErrorText(field, code, ctx)` · `writeErrorNotice(err, kind)` · `importErrorText(code)` · `previewErrorText(err)` · `QUICK_REASONS` · `actorLabel(actor)` | — |
+
+`kana.ts` 규칙(서버 `src/modules/speech/tts/text.ts` 와 같아야 한다 — 테스트로 대조):
+- `toKatakana`: 히라가나 U+3041~U+3096 → +0x60, `ゝゞ` → `ヽヾ`, `ー`·가타카나는 그대로, 앞뒤 공백 제거. 그 밖 문자는 그대로 둔다(검증에서 걸린다).
+- `isReading(s)` = `/^[ァ-ヺー]+$/`(서버 `KATAKANA_READING` 과 같은 식). `・`·공백·반각 가나는 불가.
+- 작은 가나 = `ァィゥェォャュョヮヵヶ`(서버 `SMALL_KANA` 와 같다). `splitMoras`: 작은 가나는 앞 모라에 붙이고, 맨 앞 작은 가나는 다음 모라에 붙인다. `ッ`·`ン`·`ー` 는 각각 한 모라. `moraCount(r) = splitMoras(r).length` = 서버 `moraCount(r)`.
+- `hasJapanese` = 가나·한자·`々〆ヵヶ` 가 하나라도 있음. `hasHiddenChar` = 제어문자(U+0000~001F·007F~009F)·폭 없는 문자(U+200B~200F·2028~202E·2060~2064·FEFF).
+
+재사용: `Sheet` · `ui.tsx`(`Card`·`Btn`·`BtnRow`·`Field`·`Section`·`SectionHeader`) · `ConsoleSegmented` · 콘솔 `ChipRadio`·`ToggleButton`·`RefreshLine`·`KeyValueList`·`MonoId`/`CopyButton`·`NeutralBadge`·`ConsoleStates`(`LoadError`·`ConsoleLoading`·`ConsoleError`·`EmptyNote`·`BackLink`·`ConsoleForbidden`)·`useAdminResource`·`ConsoleProvider`(`useCan`·`useConsoleEnv`·`useConsoleToast`)·`format.ts`(`formatAgo`·`formatDateTime`) · `common/format`(`cpLength`) · `common/useNow`(`useNow`·`useCountdown`) · `@/modules/infra/native`(`isNativeApp` — `api.ts` 와 같은 경로) · **`@/components/speech/ttsAudio`(`unlockTtsAudio`·`playWav`) — 화면 문구 없는 재생 유틸이라 예외로 import(§10-11 ⑪)**. `EmptyBlock`·`LoadingBlock`(ink3 글자)은 쓰지 않는다. 콘솔 컴포넌트를 `(app)` 화면에서 import 하지 않는다.
+
+### 10-6. 생성/수정 파일 목록 (developer B)
+
+신규
+- `src/app/(admin)/admin/speech/tts/lexicon/page.tsx` — `requireConsolePage('voices.read', { path })` → `<LexiconScreen initialParams={parseLexiconParams(await searchParams)} />`
+- `src/app/(admin)/admin/speech/tts/lexicon/versions/page.tsx` — 같은 가드 → `<LexiconVersionsScreen initialV={parseVersionParam(await searchParams)} />`
+- `src/components/admin/lexicon/{LexiconScreen,LexiconSummaryCard,LexiconFilters,LexiconList,Badges,LexiconEntrySheet,EntryForm,ScopePicker,AccentPicker,LexiconPreviewPanel,LexiconSentenceCheck,WriteConfirmFields,SheetNotice,LexiconImportSheet,ImportReview,LexiconExportSheet,LexiconVersionsScreen,VersionDetailSheet,LexiconDiffList}.tsx`
+- `src/components/admin/lexicon/{useLexiconAccess,useLexiconForm,useLexiconPreview,useLexiconImport,lexiconParams,lexiconApi,kana,lexiconCopy}.ts` — `lexiconParams.ts` 는 서버 page 가 import 하므로 `'use client'`·브라우저 API·`common/api` import 가 없어야 한다
+- `src/components/admin/lexicon/__tests__/{kana,lexiconCopy,access}.test.ts` — ① `isReading`·`moraCount` 가 서버 `@/modules/speech/tts/text` 와 같은지(표본 30개: 拗音·ッ·ン·ー·ヴ·ヵ·맨 앞 작은 가나·반각·ひらがな) ② `toKatakana`(ゝゞ·ー 유지·공백) ③ `accentNotation` 0·1·중간·끝(尾高)·한 모라 ④ `validateDraft` 모든 오류 키(표기 빈 값·41자·일본어 없음·숨은 문자 / 읽기 비·가나 밖·61자 / 악센트 범위 / 우선순위 -1·101·1.5 / 범위별 대상) ⑤ 오류 매핑(409 두 갈래·422 필드·403 PRODUCTION·429·502/503/504·0·모르는 코드) ⑥ `useLexiconAccess` 네 갈래(가짜 capability — `voices.read` 만인 역할이 실제로 없어서, §10-11 ⑬) ⑦ `parseLexiconParams` 틀린 값 버림
+- `src/types/admin.ts` — "Lexicon" 절 DTO(§10-4). A 가 먼저 같은 타입을 두면 그것을 쓴다
+
+수정
+- `src/modules/admin/console/menu.ts` — 메뉴 1행(§10-1). **A 소유 모듈 — Leader 가 한 사람에게 정해 준다(§10-11 ⑫)**
+- `src/components/admin/console/labels.ts` — `MENU_SUB['speech-tts-lexicon']`
+- `src/components/admin/console/RoleScreen.tsx` — TTS "발음 사전" 링크 카드(§10-2 J)
+- `src/components/common/api.ts` — `apiDelete<T>(path, body?)`(본문이 있을 때만 JSON `Content-Type`). 기존 호출(인자 1개) 무영향
+
+화면이 기대는 A 의 공개 API: `requireConsolePage(cap, { path })`(있음) · L1~L9 라우트(+L8a — §10-11 ②) · (있으면) 응답 타입. 이름이 달라지면 A 기준으로 B 가 맞춘다.
+
+### 10-7. 구현 순서
+
+1. `kana.ts`·`lexiconCopy.ts`·`lexiconParams.ts` + 단위 테스트(서버 `text.ts` 대조 포함) → `types/admin.ts` Lexicon 절 → `lexiconApi.ts` → `apiDelete` 본문 인자.
+2. 페이지 2개 + 가드 + 메뉴 행·`MENU_SUB`(A 라우트가 아직이면 목록 자리 ErrorBlock 까지만 확인 — 화면에 개발용 가짜 데이터·스위치를 만들지 않는다).
+3. `useLexiconAccess` → `LexiconScreen`(요약 카드·안내 줄·액션 줄·필터·URL 쿼리·`LexiconList` 표/카드·`Pager`).
+4. `LexiconEntrySheet` view → add/edit(`EntryForm`·`ScopePicker`·`AccentPicker`·`WriteConfirmFields`·`useLexiconForm`) → confirmDisable·confirmEnable·discard.
+5. `LexiconPreviewPanel`(`useLexiconPreview`·재생) — A 의 L7 응답 모양(§10-11 ③)을 확인한 뒤.
+6. `LexiconExportSheet` → `LexiconImportSheet`(dryRun → 적용).
+7. `LexiconVersionsScreen` → `VersionDetailSheet`(L8a 가 없으면 §10-11 ② 대안) → 되돌리기.
+8. `RoleScreen` 링크 카드 → (선택) `LexiconSentenceCheck`.
+9. §10-9 자체 점검 — dev 서버(LOCAL), QA 계정 ADMIN·DEVELOPER·SUPER_ADMIN. **USER scope·가짜 표기만** 쓰고 끝나면 되돌리기로 기준선에 맞춘다(운영 pm2 가 `APP_ENV=LOCAL` 이라 LOCAL 사전 = 실사용자 발음, A 기록 05:06).
+
+### 10-8. 한국어 UI 문구 (`lexiconCopy.ts`)
+
+ⓐ 공통 · 라벨
+
+| 자리 | 문구 |
+|---|---|
+| 소개(`INTRO`) | 선생님 목소리가 잘못 읽는 단어(인명·지명·외래어 등)의 읽기를 고쳐요. 바꾸면 다음 문장부터 반영돼요. |
+| 적용 규칙 | 적용 규칙 / 범위가 좁을수록 먼저 적용돼요: 사용자 > 목소리 > 레슨 > 코스 > 전체 / 한 문장 안에서는 긴 표기가 먼저예요(日本橋駅 이 日本橋 보다 먼저). 길이가 같으면 우선순위가 큰 쪽이에요. / 꺼진 항목은 쓰이지 않지만 버전 기록과 내보내기에 남아요. / 바꾸면 다음 문장부터 반영돼요. 이미 만든 소리는 새 사전으로 다시 만들어요. |
+| 요약 카드 | {env} 사전 v{n} / 버전 기록 › / 사용 중 {a} · 꺼짐 {b} / 마지막 변경 {ago} · {작업자} · {요약} / 아직 사전 버전이 없어요 — 첫 항목을 추가하면 v1 이 만들어져요. |
+| 안내 줄(`NOTE`) | READ_ONLY: 보기 전용이에요 — 바꾸려면 voices.manage 권한이 필요해요. / PROD_SUPER_ONLY: 운영 환경 사전은 SUPER_ADMIN 만 바꿀 수 있어요. 읽기 확인·미리듣기는 할 수 있어요. / PROD_WARN: 운영 환경 사전이에요 — 바꾸면 모든 학습자의 선생님 목소리 읽기가 바뀌어요. |
+| 액션 | ＋ 항목 추가 / 가져오기 / 내보내기 / 문장으로 읽기 확인 |
+| 필터 | 표기·읽기 검색 (예: 日本橋, ニホン) (aria: 표기·읽기 검색) / (aria) 범위: 모든 범위 · GLOBAL · COURSE · LESSON · VOICE · USER / 모든 목소리 / 대상 id (선택) / 꺼진 항목 포함 |
+| 목록 | {n}개 · 조건에 맞는 항목 / 표기 · 읽기 · 악센트 · 우선순위 · 범위 · 상태 · 수정 / 평판 / 악센트 {n}(평판) / 우선 {n} / (aria) {표기} 고치기 · {표기} 보기 / (aria) 쪽 이동 / ‹ 이전 · {p} / {q} · 다음 › / 항목은 지우지 않고 끄기만 해요 — 버전 기록과 내보내기에 남아요. |
+| 빈 목록 | (전체) 아직 항목이 없어요. [＋ 항목 추가]로 첫 단어를 넣어 보세요. — 보기 전용이면 "아직 항목이 없어요." 만 / (조건) 조건에 맞는 항목이 없어요. 검색어나 범위를 바꿔 보세요. |
+| 상태 | 사용 중 · 꺼짐 (aria: 상태: 사용 중 · 상태: 꺼짐) |
+| 범위 `SCOPE_KO` | GLOBAL 전체 — 모든 학습자·모든 목소리 / COURSE 코스 — 한 주제(코스)에서만 / LESSON 레슨 — 한 레슨에서만 / VOICE 목소리 — 한 목소리에서만 / USER 사용자 — 한 학습자에게만(이름 같은 개인 고유명사) |
+| 대상 이름 | 코스 id · 레슨 id · 목소리 · 사용자 id |
+| 종류 `WORD_TYPE_KO` | 선택 안 함 · PROPER_NOUN 고유명사 · PERSON 인명 · PLACE 지명 · COMMON 일반어 · LOANWORD 외래어 · ABBREVIATION 약어 |
+| 시트 제목 | 항목 추가 / 항목 고치기 / 항목 보기 / 항목 끄기 / 항목 다시 켜기 / 사전 가져오기 / 사전 내보내기 / 버전 v{n} |
+| 항목 머리 | 표기·범위는 바꿀 수 없어요 — 끄고 새로 추가해 주세요. / 꺼진 항목이에요. 고쳐 저장해도 꺼진 채로 남아요. / 다시 켜기 |
+| 칸 | 표기* / 읽기* / 악센트 (내려가는 자리) / 우선순위 / 종류 / 범위* / 대상* / 메모 / 변경 이유* / (aria) 확인 문구 |
+| 칸 도움말 | 가타카나로 저장해요 · {n}모라 / 저장할 때 가타카나로 바꿔요 · {n}모라 / 읽기를 먼저 입력해 주세요 / 입력한 악센트는 저장돼요. 지금 목소리에는 읽기만 반영되고 높낮이는 목소리가 스스로 정해요. / 우선순위는 같은 길이의 표기가 겹칠 때만 써요(큰 쪽이 먼저). / 저장할 때 서버가 있는 id 인지 확인해요. / (꺼짐) |
+| placeholder | 예: 日本橋, 等々力 / 예: ニホンバシ (히라가나로 써도 돼요) / 코스 id · 레슨 id · 사용자 id / 왜 이렇게 읽는지 (선택) / 예: 日本橋 가 ニッポンバシ 로 읽혀서 / PRODUCTION |
+| 악센트 칩 | 0 평판 / {i} {모라} (aria: 0, 평판 — 내려가지 않음 · {i}, {모라} 다음에서 내려감) |
+| 저장 줄 | 저장하면 사전 v{n} 이 만들어지고 다음 문장부터 반영돼요. / 적용하면 사전 v{n} 이 만들어져요. |
+| 버튼 | 저장 / PRODUCTION 에 저장 / 저장하는 중… / 취소 / 이 항목 끄기 / 끄기 / PRODUCTION 에서 끄기 / 다시 켜기 / PRODUCTION 에서 다시 켜기 / 돌아가기 / 닫기 / 입력 버리고 닫기 / 계속 쓰기 / 새로 불러오기 / 그 항목 열기 / 목록 새로 고침 |
+| 끄기 확인 | 이 항목을 끌까요? 다음 문장부터 이 읽기({reading})를 쓰지 않아요. / 지우지 않아요 — 버전 기록과 내보내기에 남고, 언제든 다시 켤 수 있어요. |
+| 켜기 확인 | 이 항목을 다시 켤까요? 다음 문장부터 이 읽기를 다시 써요. |
+| 닫기 확인 | 저장하지 않은 입력이 있어요. 닫을까요? |
+| PRODUCTION 확인 | 운영 환경(PRODUCTION) 사전을 바꿔요 / 모든 학습자의 선생님 목소리 읽기가 바뀌어요. 확인하려면 아래에 PRODUCTION 을 그대로 입력해 주세요. |
+| 빠른 이유(`QUICK_REASONS`) | save: 오독 수정 · 새 고유명사 · 악센트 조정 · 우선순위 조정 / disable: 잘못 넣은 항목 · 더 이상 필요 없음 · 다른 항목과 겹침 / enable: 다시 필요해짐 / import: 일괄 추가 · 사전 복원 / rollback: 문제 있는 변경 되돌림 |
+| 토스트 | 저장했어요 · 사전 v{n} / 껐어요 · 사전 v{n} / 다시 켰어요 · 사전 v{n} / 가져왔어요 · 사전 v{n} (추가 {a} · 수정 {b} · 끄기 {c}) / 되돌렸어요 · v{k} 내용으로 사전 v{n} / 내려받았어요 · v{n} / 바뀐 내용이 없어요 |
+
+ⓑ 입력 검증(칸 아래 12px `text-bad` — 서버 422 필드 코드도 같은 표)
+
+| 칸 | 조건 · 서버 코드 | 문구 |
+|---|---|---|
+| 표기 | 비었음 · `E_SURFACE` | 표기를 입력해 주세요. |
+| 표기 | 40자 초과 · `E_SURFACE` | 표기는 40자까지예요({n}자). |
+| 표기 | 일본어 글자 없음 · `E_SURFACE_NOT_JA` | 일본어 글자(가나·한자)가 들어가야 해요. |
+| 표기 | 제어·보이지 않는 문자 · `E_SURFACE_CHARS` | 보이지 않는 문자가 섞여 있어요. 지우고 다시 입력해 주세요. |
+| 읽기 | 비었음 | 읽기를 입력해 주세요. |
+| 읽기 | 가나·ー 밖 문자 · `E_READING` | 읽기는 가나(히라가나·가타카나)와 장음 ー 만 쓸 수 있어요. |
+| 읽기 | 60자 초과 | 읽기는 60자까지예요({n}자). |
+| 악센트 | 범위 밖 · `E_ACCENT` | 악센트는 0(평판)부터 {n}(모라 수)까지예요. |
+| 우선순위 | 정수 아님·범위 밖 · `E_PRIORITY` | 우선순위는 0~100 사이 정수예요. |
+| 범위 | 안 고름 · `E_SCOPE` | 범위를 골라 주세요. |
+| 대상 | 비었음 · `E_SCOPE_REF` | {대상 이름}를 입력해 주세요. / (VOICE) 목소리를 골라 주세요. |
+| 대상 | 40자 초과 | 대상 id 는 40자까지예요. |
+| 대상 | 없는 id · `E_SCOPE_REF_NOT_FOUND` | 그 id 의 {대상}를 찾을 수 없어요. |
+| 종류 | `E_WORD_TYPE` | 종류를 목록에서 골라 주세요. |
+| 메모 | 200자 초과 · `E_NOTE` | 메모는 200자까지예요. |
+| 이유 | 비었음 · `E_REASON` | 변경 이유를 입력해 주세요. |
+| 이유 | 200자 초과 | 이유는 200자까지예요({n}자). |
+| 확인 문구 | 불일치 · `E_CONFIRM` | PRODUCTION 을 그대로 입력해야 바꿀 수 있어요. |
+| 예문 | 비었음 | 예문을 입력해 주세요. |
+| 예문 | 100자 초과 | 예문은 100자까지예요({n}자). |
+| (모르는 코드) | — | 입력값을 확인해 주세요 ({code}) |
+
+ⓒ 미리듣기
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 미리듣기 / 저장하지 않은 입력으로 읽어 봐요. 사전은 바뀌지 않아요. / 지금 사전으로 읽어 봐요. / 선생님이 이상하게 읽는 문장을 넣어 보고, 틀린 단어를 찾아 항목으로 추가해요. |
+| 칸 | 예문 / 목소리 / 기본 목소리 / (꺼짐) / 목소리 범위 항목이라 그 목소리로 들어요 |
+| 버튼 | 읽기 확인 / 읽는 중… / {n}초 뒤 다시 / (aria) 적용 전 읽기 듣기 · 적용 후 읽기 듣기 · 지금 사전으로 듣기 · 멈추기 |
+| 줄 라벨 | 적용 전 · 지금 사전 v{n} / 적용 후 · 이 입력 / 지금 사전 v{n} |
+| 판정 | 읽기가 달라져요 / 지금과 같게 읽어요 / · 이 예문에 {n}번 적용 / ⚠ 이 예문에는 이 항목이 걸리지 않았어요. 예문에 표기 「{surface}」가 있는지, 더 긴 표기의 다른 항목이 먼저 걸리지 않았는지 확인해 주세요. / 입력이 바뀌었어요 — 다시 확인해 주세요. / 표기·읽기를 올바르게 입력하면 확인할 수 있어요. |
+| 429 | 미리듣기는 1분에 10번까지예요. {n}초 뒤에 다시 해 주세요. |
+| 502·503·504 | 지금은 선생님 목소리 서비스에 닿지 않아 읽기 확인·미리듣기를 할 수 없어요. 저장은 할 수 있어요. |
+| 422 예문(치환 뒤 길이 초과 포함) | 예문이 너무 길어요. 더 짧게 줄여 주세요. |
+| 소리만 실패(읽기는 옴) | 소리를 만들지 못했어요. 읽기는 위에서 확인할 수 있어요. |
+| 재생 실패·만료 | 소리를 재생하지 못했어요. [읽기 확인]을 다시 눌러 주세요. |
+| 403 | 미리듣기 권한이 없어요 (voices.manage). |
+| 0 | 연결하지 못했어요. 네트워크를 확인해 주세요. |
+
+ⓓ 저장·끄기·켜기·가져오기·되돌리기 오류(`SheetNotice` — 확정 버튼 위, `role="alert"`)
+
+| status · code | 문구 | 보조 버튼 |
+|---|---|---|
+| 409 `VERSION_CONFLICT` | 다른 곳에서 사전이 바뀌었어요 (v{base} → v{current}). 새로 불러온 뒤 다시 저장해 주세요. 입력한 내용은 그대로예요. | 새로 불러오기 |
+| 409 `VERSION_CONFLICT`(가져오기 적용) | 미리 본 뒤에 사전이 바뀌었어요 (v{base} → v{current}). 변경 내용을 다시 확인해 주세요. | 다시 미리 보기 |
+| 409 `VERSION_CONFLICT`(되돌리기) | 다른 곳에서 사전이 바뀌었어요 (v{base} → v{current}). 목록을 새로 불러온 뒤 다시 확인해 주세요. | 새로 불러오기 |
+| 409 `E_LEXICON_DUPLICATE` | 같은 범위에 「{surface}」 항목이 이미 있어요{꺼져 있으면 " (꺼져 있어요)"}. | 그 항목 열기 |
+| 409 `ALREADY_ACTIVE` | 지금 쓰는 버전이에요. | — |
+| 409 `NO_CHANGE` | 지금 사전과 내용이 같아 되돌릴 것이 없어요. | — |
+| 403(`missing` 에 `config.apply.production` · code `PRODUCTION_CONFIRMATION_REQUIRED`) | 운영 환경 사전은 SUPER_ADMIN 이 확인 문구를 넣어야 바꿀 수 있어요. | — |
+| 403 그 밖 | 이 변경 권한이 없어요 ({missing}). | — |
+| 404(항목) | 이 항목을 찾을 수 없어요. 목록을 새로 불러와 주세요. | 목록 새로 고침 |
+| 404(버전) | 그 버전을 찾을 수 없어요. | — |
+| (요청 전) 확장자 | CSV 나 JSON 파일만 올릴 수 있어요. | — |
+| (요청 전) 256KB 초과 · 413 · `E_IMPORT_TOO_LARGE` | 파일이 256KB 를 넘어요({n}KB). 나눠서 올려 주세요. | — |
+| 422 `E_IMPORT_TOO_MANY_ROWS` | 2,000행을 넘어요({n}행). 나눠서 올려 주세요. | — |
+| 415 · 422 `E_IMPORT_FORMAT` | 파일을 읽지 못했어요. UTF-8 CSV 나 JSON 배열인지 확인해 주세요. | — |
+| 422 `E_IMPORT_HEADER` | CSV 첫 줄(머리글)이 형식과 달라요. [파일 형식]을 확인해 주세요. | — |
+| 422 `E_IMPORT_HAS_ERRORS`(적용 때) | 오류가 있는 행이 있어 적용하지 않았어요. 고친 파일로 다시 확인해 주세요. | 다시 미리 보기 |
+| 422 필드(항목 저장) | (각 칸 아래 ⓑ) | — |
+| 429 | 너무 자주 눌렀어요. {n}초 뒤에 다시 해 주세요. | — |
+| 500 | 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요. 입력한 내용은 그대로예요. | — |
+| 0 | 연결하지 못했어요. 네트워크를 확인해 주세요. | — |
+| 0(가져오기 적용·되돌리기 중 끊김) | 연결이 끊겼어요. 적용됐는지 모르니 목록을 새로 불러와 확인해 주세요. | 목록 새로 고침 |
+| 401 | (`api.ts` 가 로그인으로 보낸다 — 화면 문구 없음) | — |
+
+가져오기 행 오류(`importErrorText`, 모르는 코드는 "확인이 필요해요 ({code})")
+
+| code | 문구 |
+|---|---|
+| `E_SURFACE` · `E_SURFACE_NOT_JA` · `E_SURFACE_CHARS` | 표기가 비었거나 40자를 넘거나, 일본어가 아니거나 보이지 않는 문자가 있어요 |
+| `E_READING` | 읽기는 가나와 ー 만 쓸 수 있어요(60자까지) |
+| `E_ACCENT` | 악센트가 0~모라 수 밖이에요 |
+| `E_PRIORITY` | 우선순위는 0~100 정수예요 |
+| `E_SCOPE` | 범위는 GLOBAL·COURSE·LESSON·VOICE·USER 중 하나예요 |
+| `E_SCOPE_REF` | GLOBAL 은 대상 id 가 비어야 하고, 나머지는 있어야 해요 |
+| `E_SCOPE_REF_NOT_FOUND` | 대상 id 를 찾을 수 없어요 |
+| `E_WORD_TYPE` | 종류 값이 목록에 없어요 |
+| `E_NOTE` | 메모가 200자를 넘어요 |
+| `E_DUPLICATE_IN_FILE` | 파일 안에 같은 표기·범위가 두 번 있어요 |
+| `E_ENABLED` | enabled 는 true 또는 false 여야 해요 |
+| `E_ROW_FORMAT` | 칸 수가 머리글과 달라요 |
+
+ⓔ 가져오기 · 내보내기 · 버전
+
+| 자리 | 문구 |
+|---|---|
+| 가져오기 | 파일 고르기 (CSV · JSON) / 다른 파일 고르기 / {name} · {n}KB / 파일을 골라 주세요 / 파일 형식 / CSV(UTF-8) 첫 줄: / JSON: 같은 키를 가진 객체의 배열 · 최대 2,000행 · 256KB · 내보내기 파일을 그대로 다시 올릴 수 있어요. / (aria) 가져오는 방식 |
+| 방식 | 합치기 (MERGE) — 파일의 항목을 추가하거나, 같은 표기·범위의 항목을 파일 값으로 고쳐요. 파일에 없는 항목은 그대로 둬요. / 범위 바꾸기 (REPLACE_SCOPE) — 파일에 나온 범위(예: GLOBAL)를 파일 내용으로 통째로 바꿔요. / ⚠ 그 범위에서 파일에 없는 항목은 모두 꺼져요. |
+| 미리 보기 | 변경 내용 미리 보기 / 파일을 확인하는 중… / {n}행 확인 · 지금 사전 v{v} 기준 / 추가 {n} · 수정 {n} · 끄기 {n} · 그대로 {n} · 오류 {n} / 바뀌는 범위: {…} / ⚠ 적용하면 {n}개 항목이 꺼져요. / 바뀌는 항목 보기 ({n}) / 오류 {n}행 (앞 {k}개만 보여요) / 행 · 칸 · 사유 / {row}행 · {field} — {사유} / 오류가 있는 행을 고친 파일로 다시 확인해 주세요. 오류가 0 일 때만 적용할 수 있어요. / 바뀌는 항목이 없어요 — 지금 사전과 같아요. |
+| 적용 | 적용 / PRODUCTION 에 적용 / ({n}개 끄기 포함) / 적용하는 중… |
+| 내보내기 | 지금 쓰는 {env} 사전 v{n} 전체(꺼진 항목 포함 {total}개)를 내려받아요. 이 파일을 그대로 가져오면 바뀌는 것이 없어요. / (aria) 파일 형식: CSV · JSON / 엑셀·스프레드시트에서 열 수 있어요. / 다른 도구나 백업에 쓰기 좋아요. / 앱에서는 파일 저장이 안 될 수 있어요. 안 되면 컴퓨터 브라우저에서 내려받아 주세요. / 내려받기 / 만드는 중… / 내려받지 못했어요. 잠시 뒤 다시 눌러 주세요. |
+| 버전 기록 | ← 발음 사전 / 버전 기록 / {env} 사전의 모든 변경이 버전으로 남아요. 되돌리기는 과거 버전 내용으로 새 버전을 만들어요(기록은 지우지 않아요). / 상태 뜻 / 지금 적용 중 · 새 버전에 밀려났어요 · 이 버전의 변경을 되돌려 새 버전으로 바꿨어요 / 요약 없음 / 항목 {n}개(사용 중 {m}) / 시스템 · 알 수 없음 / 더 보기 |
+| 버전 상세 | 직전 버전(v{n})과 비교 / 첫 버전 / 항목 수 · 스냅샷 해시 / 추가 · 수정 · 끔 · 다시 켬 / 이제 쓰지 않아요 · 다시 써요 · 메모 바뀜 · 외 {n}개 · 바뀐 항목이 없어요. / 지금 쓰는 버전이에요. / v{n} 내용으로 되돌리기 |
+| 되돌리기 확인 | 지금(v{a}) 사전을 v{n} 내용으로 되돌리면: / 새 버전 v{a+1} 이 만들어지고 v{a} 는 '되돌려짐'으로 표시돼요. 다음 문장부터 반영돼요. / 지금 사전과 내용이 같아 되돌릴 것이 없어요. / PRODUCTION 에서 되돌리기 |
+| 버전 상태 | ACTIVE 사용 중 · SUPERSEDED 이전 · ROLLED_BACK 되돌려짐 |
+| diff 종류(`DIFF_KO`) | ADDED 추가 · CHANGED 수정 · DISABLED 끔 · ENABLED 다시 켬 |
+| TTS 역할 링크 | 발음 사전 / 읽기가 틀린 단어 고치기 / 항목·미리듣기·가져오기·버전 기록 |
+| 메뉴 | 발음 사전 / 읽기·악센트 고치기·버전 |
+
+### 10-9. 360/390/412 · 데스크톱 · 접근성 체크리스트
+
+폭·배치
+- [ ] 360·390·412 + 데스크톱(1280·1024) — 두 화면·다섯 시트 모두 가로 스크롤 0. 긴 값으로 확인: 표기 40자(한자만), 읽기 60자(拗音·ー 섞기), cuid 25자 scopeRefId, 메모 200자, 이유 200자, changeSummary 300자, 가져오기 오류 200행, 파일 이름 120자, 악센트 칩 40개.
+- [ ] 목록 컨테이너 <720 = 카드, ≥720 = 표(1024 에서 사이드바를 뺀 본문 ≈744px 에서 표). 표는 `table-fixed` + 칸 안 줄바꿈으로 넘치지 않는다(표기·읽기를 `truncate` 로 자르지 않는다).
+- [ ] 세로 스크롤은 `main` 하나 + 열린 시트 안 하나. 범위 칩·악센트 칩·빠른 이유 줄은 가로 스크롤만(스크롤바 숨김), 포커스 링이 잘리지 않음(`py-1`).
+- [ ] 시트(85dvh)에서 390·키보드가 올라와도 이유 칸·[저장]까지 시트 안 스크롤로 닿는다.
+- [ ] 필터·쪽이 URL 에 남는다: 새로 고침·뒤로 가기 뒤 같은 목록. `?v=` 로 버전 상세가 다시 열린다. 틀린 쿼리(`?scope=X&page=-1`)는 조용히 무시.
+
+터치·글자
+- [ ] 카드 행 ≥64px, 표 첫 칸 버튼 ≥44px, 모든 버튼·칩·▶·토글·쪽 이동·"이 항목 끄기"·`<summary>` ≥44px. `Btn size="sm"`(38px) 을 쓰지 않는다.
+- [ ] 일본어(표기·읽기·예문·높낮이 표기·diff 표기·RulesNote 예시)는 `lang="ja"` + 16px 이상(목록 표기 17px·표 16px·읽기 15px 는 보조 줄), 한국어 문장에만 `break-keep`.
+- [ ] 읽어야 하는 글에 `ink3`·`warn` 글자·`accent` 뱃지 글자 없음(§1-1). 꺼진 행을 흐리게 하지 않는다. 되돌려짐 뱃지·PRODUCTION 확인 상자·끄기 경고 = `text-bad` on `bg-surface`.
+- [ ] 다크 모드: 토큰만, 하드코딩 색 0.
+
+권한·노출
+- [ ] USER: 두 경로 모두 `/zzz` 와 같은 404, 메뉴·TTS 링크 없음(§6).
+- [ ] ADMIN·DEVELOPER·SUPER_ADMIN(LOCAL): 메뉴 "엔진 › 발음 사전", 모든 쓰기 버튼·미리듣기 보임, 확인 문구 칸 없음.
+- [ ] PRODUCTION 갈래는 `access.test.ts`(가짜 env·capability)로: ADMIN·DEVELOPER → 쓰기 버튼 0 + 안내 줄, 미리듣기 있음 · SUPER_ADMIN → 확인 문구 칸, 버튼 "PRODUCTION 에 저장", 문구가 다르면 요청 0. (실제 PRODUCTION 프로세스에서 누르지 않는다.)
+- [ ] `voices.read` 만(가짜 capability): 쓰기·미리듣기·가져오기·되돌리기 버튼 DOM 0, 내보내기·버전 보기 있음, 안내 줄 "보기 전용이에요".
+- [ ] **엔진명 0**: 두 화면·시트의 렌더 텍스트·`aria-label`·토스트에서 `g2p|openjtalk|mecab|user[_-]?dict|style-?bert|sbv2|\bM4\b|:8200|reazon|whisper|claude|haiku|sonnet|opus|qwen` 0건(대소문자 무시). `src/components/admin/lexicon/**` 의 문자열 리터럴도 같은 grep 0(주석 제외).
+- [ ] 서버 `message` 를 그리지 않는다 — 409·422 에서도 §10-8 문구만.
+
+동작(완료 기준 7 · 5 · 6 대응)
+- [ ] 검색(표기·읽기)·범위 칩·목소리/대상 id·꺼진 항목 포함·쪽 이동이 L1 파라미터로 나간다(네트워크 탭). 빠르게 쳐도 요청이 겹쳐 보이지 않는다(디바운스·abort).
+- [ ] 추가·수정·끄기·다시 켜기 → 토스트 "사전 v{n+1}" · 요약 카드 번호 갱신 · 이유 없이 누르면 요청 0 + 이유 칸 포커스. 수정 없이 [저장] → "바뀐 내용이 없어요", 요청 0.
+- [ ] 두 탭에서 같은 사전을 연 뒤 한쪽 저장 → 다른 쪽 저장 시 409 안내·입력 유지 → [새로 불러오기] 뒤 저장 성공.
+- [ ] 같은 표기·범위 추가 → 중복 안내 + [그 항목 열기].
+- [ ] 미리듣기: 적용 전/후 두 줄(가나·↑↓), ▶ 각각 재생, 다른 쪽 누르면 앞 소리 멈춤, 재생 중 입력을 바꾸면 멈추고 흐려짐. 저장 없이 닫으면 DB 행·버전·TtsCache 변화 0(QA 가 API·DB 로 대조). 11번째 요청 → 카운트다운. 목소리 서비스가 꺼진 상태 → "선생님 목소리 서비스에 닿지 않아…" + [저장]은 동작.
+- [ ] 가져오기: 256KB 초과·다른 확장자는 요청 없이 거절. dryRun → 개수·오류 행(잘못된 가나·중복·scopeRefId) 표시, DB 변화 0. 오류가 있으면 적용 버튼 없음. 오류 0 → 적용 → 새 버전. REPLACE_SCOPE 끄기 수가 세 곳(방식 설명·결과·버튼)에 보임. 내보낸 파일 다시 가져오기 → "바뀌는 항목이 없어요".
+- [ ] 내보내기 CSV·JSON: 파일명·내용(꺼진 항목 포함), 데스크톱 Chrome 에서 저장됨, 시트가 닫히지 않음.
+- [ ] 버전 기록: 상태 3종 뱃지·상세 diff·되돌리기 → 새 ACTIVE + 직전 "되돌려짐", 사용 중 버전엔 버튼 없음, 같은 내용이면 "되돌릴 것이 없어요". `?v=` 새로 고침.
+- [ ] 끝나면 QA 데이터를 되돌려 시드 GLOBAL 6건 그대로(완료 기준 8).
+
+접근성
+- [ ] 시트: `role=dialog aria-modal`, 제목 포커스, 닫으면 연 버튼으로 포커스 복귀, Esc(제출 중 제외). 모드가 바뀌면 제목으로 포커스.
+- [ ] 표: sr-only `<caption>`·`<th scope="col">`, 첫 칸 버튼 `aria-label="{표기} 고치기|보기"`. 카드 목록은 `<ul>` + 행 `<button>`.
+- [ ] 범위 칩·범위 카드·악센트 칩·가져오기 방식 = `role=radiogroup/radio` + `aria-checked`, 꺼진 항목 포함 = `aria-pressed`. 악센트 칩은 ←/→ 이동.
+- [ ] 오류 칸 `aria-invalid` + `aria-describedby`, 제출 실패 시 첫 오류 칸 포커스. notice 는 `role="alert"`, 미리듣기 결과·가져오기 결과·목록 개수·쪽 번호는 `aria-live="polite"`.
+- [ ] 높낮이 표기의 `aria-label` 은 ↑↓ 대신 "올라감·내려감".
+- [ ] 뱃지는 글자로 뜻을 전한다(점 `aria-hidden`). 포커스 링이 보인다(outline 제거 금지).
+
+### 10-10. 주의사항
+
+- **엔진명·서버 문구**: 콘솔이지만 이 화면은 엔진 독립 데이터라 엔진·모델·서비스 이름을 쓰지 않는다(§10-0 ⑬). #82 목소리 DTO 의 `ttsEngineId`·`model`·`speaker` 는 읽지 않는다(`id`·`displayName`·`status`·`enabled` 만).
+- **초안은 저장이 아니다**: 미리듣기(L7)는 쓰기가 아니다 — 이유·확인 문구를 묻지 않고 PRODUCTION 의 ADMIN·DEVELOPER 도 쓸 수 있다. 결과 카드에 "사전은 바뀌지 않아요"를 늘 적는다.
+- **악센트 정직성**(§10-11 ①): 입력한 악센트가 지금 소리에 반영되지 않는다는 사실을 칸 아래에 적는다. 미리듣기 "적용 후" 높낮이가 입력한 악센트와 달라도 오류로 표시하지 않는다.
+- **REPLACE_SCOPE 위험**: 방식 설명·미리 보기 결과·확정 버튼 세 곳에서 끄기 수를 말한다. 오류 행이 하나라도 있으면 적용 버튼이 없다(부분 적용이 의도치 않은 끄기로 번지지 않게).
+- **baseVersion**: 쓰기 요청은 늘 화면이 본 사용 중 번호를 싣고, 성공하면 응답 번호로 **즉시** 갱신한다(목록 재조회를 기다리면 연속 저장이 헛 409 가 된다).
+- **자동재생 금지**: 결과가 와도 저절로 재생하지 않는다. ▶ 탭 핸들러 안에서 동기로 `unlockTtsAudio()`.
+- **소리·URL 흔적**: 미리듣기 소리를 브라우저 저장소에 두지 않는다. `audioUrl` 을 DOM(`src` 속성)·`console.log` 에 남기지 않는다.
+- **다운로드**: 내보내기 blob URL 은 클릭 직후 revoke. 앱 WebView 는 저장이 안 될 수 있어(DownloadListener 없음) 앱에서만 안내 한 줄 — 기능은 숨기지 않는다.
+- **파일 읽기**: 가져오기 파일을 화면에서 파싱·표시하지 않는다(`FileReader` 없음). 크기·확장자만 보고 내용 검증은 서버 결과를 그린다. `dangerouslySetInnerHTML` 금지(표기·메모·changeSummary 모두 글자로).
+- **운영 주의**: 운영 pm2 가 `APP_ENV=LOCAL` 이라 dev·QA 가 LOCAL 사전에 쓴 것이 **실사용자 발음**이 된다(A 기록 05:06). 화면 점검은 USER scope·가짜 표기만, 끝나면 되돌리기로 기준선 복귀.
+- **캐시**: 사전이 바뀌면 TTS 캐시는 버전 키로 자연히 새로 만들어진다 — 화면에 "캐시 비우기" 같은 버튼을 두지 않는다.
+- **오프라인**: 목록은 ErrorBlock + 다시 시도. 시트 안 쓰기는 notice + 입력 유지. 가져오기 적용·되돌리기 중 끊기면 결과를 모르므로 "목록을 새로 불러와 확인" 안내(§10-8 ⓓ).
+
+### 10-11. Leader 확인 요청
+
+| # | 항목 | 화면이 가정한 것 | 틀리면 |
+|---|---|---|---|
+| ① | **악센트가 소리에 반영되지 않음** | 현 방식 A 는 표기를 가타카나 읽기로 **치환만** 하고(`engine/adapters/tts/styleBertHttp.ts` `substituteReadings`, 주석 "악센트는 엔진 g2p 에 맡김"), 높낮이는 합성기가 정한다 → `accentType` 은 저장만 되고 소리에 영향이 없다. 화면은 이것을 악센트 칸 아래 한 줄로 밝히고, 미리듣기 "적용 후" 에 실제 높낮이를 보인다 | 사용자 결정 사항: 악센트 칸을 숨기거나(엔티티엔 남김) 방식 B(엔진 사용자 사전)를 앞당긴다. **화면 권장은 숨기지 않고 두기**(시드 값 보존·방식 B 대비·정직한 안내) |
+| ② | **버전 상세 diff API(L8a) 없음** | 정본 표는 버전 목록·rollback 만. 상세·되돌리기 확인에 `GET …/lexicon/versions/:v?compare=previous\|active` → `{…버전 필드, compare, against, counts, rows(≤100), truncated}` 를 요청(스냅샷 두 개를 서버가 비교 — 화면에 스냅샷 전체를 내려보내지 않는다) | 없으면: 상세 = 메타·요약만, 되돌리기 확인 = "v{n} 의 항목 {entryCount}개로 되돌려요" 한 줄(무엇이 바뀌는지 모르고 되돌리게 됨 — 권장하지 않음) |
+| ③ | **미리듣기 응답 모양** | JSON `{dictionaryVersion, before, after?}` 를 `compare:true` 한 번으로(읽기 확인만이라 가볍다). 소리는 ㉠`side.audioUrl`(task-007 서명 URL 규칙: 사용자 결속·10분·실패 404) 또는 ㉡같은 L7 을 `Accept: audio/wav` + `side` 로 다시 호출(§7 과 같은 wav 본문) — 화면은 둘 다 처리. `draftEntries` 는 **범위 문맥과 상관없이 이번 요청에 적용**하고 같은 키(범위·대상·표기)의 저장 항목을 대신한다(USER·LESSON 초안도 들어 볼 수 있게). `after.matches` 로 적용 횟수 | `compare` 가 없으면 화면이 L7 을 두 번 부른다(분당 10회를 두 배로 씀). 초안이 범위 때문에 안 걸리면 "걸리지 않았어요"만 나온다 |
+| ④ | 예문 길이 | 계약 ≤200 이지만 합성 1회 상한이 100자(tts-service `/synthesize`)이고 치환으로 길어진다 → 화면 상한 **100자**, 초과 422 는 "예문이 너무 길어요" | A 가 문장 분할을 하면 200 으로 올린다(숫자 하나) |
+| ⑤ | L1 파라미터·응답 | `enabled=1\|all`(Leader G1, 정본 표엔 없음) · `pageSize=50` · 정렬 `updatedAt desc` · 응답에 `dictionaryVersion`·`counts`·`active`(요약 카드용). 검색어의 히라가나 → 읽기(가타카나) 매칭은 서버 몫 | `counts`·`active` 가 없으면 요약 카드가 L8 1쪽을 한 번 더 읽는다 |
+| ⑥ | 중복 409 본문 | `E_LEXICON_DUPLICATE` + `details.existing`(항목 DTO) → [그 항목 열기]가 바로 그 항목 시트를 연다(꺼진 중복 포함 — unique 가 `enabled` 와 무관) | `existingId` 만이면 표기·범위·꺼진 항목 포함으로 필터를 걸어 찾게 한다 |
+| ⑦ | **검증 경계 불일치** | 정본(domain-model 주석·16 §2.2 L-4·현 `validateLexiconEntry`) = 읽기 **가타카나·ー 만, ≤60**, 우선순위 0~1000 / Leader G3 = 가나(히라가나 포함) 1~80, 우선순위 0~100. 화면: 히라가나 입력 허용 → **보내기 전에 가타카나로 바꿈**(저장값은 늘 가타카나), 읽기 ≤60(DB 컬럼 `VarChar(60)`), 우선순위 0~100. 표기 "일본어 문자 포함"·"숨은 문자" 코드 이름(`E_SURFACE_NOT_JA`·`E_SURFACE_CHARS`)은 화면 제안 | A 의 최종 규칙으로 `validateDraft` 숫자·코드만 바꾼다. 읽기 80 을 쓰려면 DB 컬럼 변경(사용자 승인) |
+| ⑧ | PRODUCTION 확인 필드 | 본문 `confirm: 'PRODUCTION'`(대상 환경 이름을 그대로 입력). 버튼은 SUPER_ADMIN(`config.apply.production`)에게만 보인다. 다른 역할은 PRODUCTION 에서 보기 + 미리듣기만 | 필드 이름·값만 맞추면 된다. admin-console/09 §3 의 `confirmation.token` 방식이면 토큰 발급 호출이 하나 더 필요 |
+| ⑨ | **가져오기는 전부 아니면 전무** | 오류 행이 1개라도 있으면 적용하지 않는다(화면은 버튼을 숨기고, 서버도 dryRun=0 을 422 `E_IMPORT_HAS_ERRORS` 로 거절). multipart 필드 `file`·`reason`·`baseVersion`·`confirm`, 쿼리 `mode`·`dryRun`. 결과에 `changes`(≤100)·`scopes`(REPLACE_SCOPE 범위별 끄기 수)·`errors`(≤200) | "오류 행 빼고 적용"을 원해도 REPLACE_SCOPE 에서는 막아야 한다(빠진 행이 끄기로 번짐) |
+| ⑩ | 묶음 게시 없음 | 16 §2.3 의 "변경 묶어서 게시"(draft 항목 `versionId=null`)는 엔티티에 칸이 없어 이번엔 **저장 1번 = 버전 1개** | 필요하면 스키마 변경(사용자 승인) + 화면에 "게시 대기" 목록 추가 |
+| ⑪ | `components/speech/ttsAudio` import | admin 이 `(app)` 컴포넌트를 import 하지 않는 규칙(§6-5)의 예외 — 화면 문구 없는 재생 유틸(`unlockTtsAudio`·`playWav`)만. 다음에 `components/common/audio` 로 옮기길 권장(별도 task) | 옮기면 import 경로만 바뀐다 |
+| ⑫ | 메뉴 행 소유 | `menu.ts` 는 A 소유 모듈이다. 한 줄이라 **B 가 추가하고 A 에 알리길 권장**(A 는 라우트·서비스에 집중) | A 가 추가하면 B 는 `MENU_SUB` 만 |
+| ⑬ | `voices.read` 만인 역할이 없다 | role-permission §3 에서 콘솔 역할(ADMIN·DEVELOPER·SUPER_ADMIN)은 모두 `voices.manage` 를 가진다 → "보기 전용" 화면은 실제 계정으로 못 본다. 완료 기준 2·7 의 "읽기 전용 역할 버튼 0" 은 단위 테스트(가짜 capability)로 확인 | QA 가 실제 화면으로 봐야 한다면 임시 역할·capability 조작이 필요(권장하지 않음) |
+| ⑭ | ROLLED_BACK 뜻 | A 기록(05:06)·admin-console/09 §5 대로 **밀려난 직전 ACTIVE** 가 ROLLED_BACK, 복원 대상은 그대로. 뱃지 "되돌려짐"·설명 문구는 이 뜻 기준. `schema.prisma`·domain-model 주석("대상은 ROLLED_BACK")·16 §2.3 과 반대라 정본 주석 정리 필요 | 뜻이 바뀌면 설명 문구만 바꾼다 |
+| ⑮ | 작업자·되돌림 표시 | `PronunciationLexiconVersion` 에 `rollbackOf` 칸이 없다 → 되돌림은 `changeSummary`(예: "v7 로 되돌림: {이유}")로만 보인다. 작업자는 `actorUserId` → User 조인으로 `actor{name, role}`, 둘 다 없으면(시드) "시스템". `entryCount`·`enabledCount` 는 스냅샷 길이로 서버가 계산 | `rollbackOf` 를 칸으로 두려면 스키마 변경(사용자 승인) |
+| ⑯ | `AuditLog.scope` | 16 §2.3 은 `AuditLog(scope=LEXICON)` 인데 `ConfigScope` enum 에 LEXICON 이 없다(추가 = db push 승인 사항). 화면과 무관하지만 A 가 `scope=null` + `action='lexicon.*'` 로 둘지 확인 필요 | — |
+| ⑰ | 범위 대상 고르기 | COURSE·LESSON·USER 는 고르는 목록 API 가 없어 **id 직접 입력**(저장 때 서버가 존재 확인). VOICE 만 #82 목록에서 고른다 | Phase 2 에 주제·레슨·사용자 검색 API 가 생기면 select 로 바꾼다 |
+| ⑱ | `apiDelete` 본문 | L4 가 `reason`·`baseVersion`·`confirm` 을 **본문**으로 받는다(이유를 URL 에 싣지 않는다 — 접근 로그 노출). `common/api.ts` 의 `apiDelete` 에 선택 본문 인자 추가 | A 가 `POST …/:id/disable` 을 따로 두면 그걸 쓴다 |
+| ⑲ | §6-1 메뉴 라벨 표기 | §6-1 표의 라벨(Dashboard·TTS…)은 영문이지만 구현 `menu.ts` 는 한국어(대시보드·음성 합성…)다. 이 절은 구현 값("발음 사전")을 따른다 | 다음에 §6 을 만지는 task 가 §6-1 표를 `menu.ts` 값으로 맞춘다 |
