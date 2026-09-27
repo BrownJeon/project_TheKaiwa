@@ -125,6 +125,16 @@ design-spec §15 task-006: AI 채팅(텍스트) 화면과 SSE 턴 처리, 사용
 - 기록 파일: `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T020209Z-task-006-C1/stderr.txt`
 - Leader(11:40): 원인은 codex-cli 0.128.0 의 `exec review` 가 `--commit` 과 표준입력 프롬프트를 함께 받지 않는 것(0단계 미확인 항목). README 0단계 3항대로 워크스페이스 `.claude/tools/codex-review/config.env` 기본 모드를 **exec** 로 바꿨다(exec 모드 프롬프트가 `git diff base snapshot` 을 안내). 실패 정책(Q-A4)대로 C1 은 재실행하지 않고 구현으로 진행 — C1 재실행 여부는 사용자 결정. 동시성 질문 Q1~Q3 은 reviewer 감사 초점과 C2 Codex 인계 묶음에 그대로 넘긴다.
 - Leader(11:50) **사용자 지시**: "지금 Codex 토큰 사용량이 없어 실패했을 수도 있다 — 토큰이 충전되면 한 번 더 확인하는 형태로 진행". → 이번 task 의 Codex 검토(C1 재실행 + C2)는 **한도 충전 후 재확인 대기**로 둔다. C2 에서 judge 가 `codex_required: true` 를 내도 호출하지 않고 `override: 사용자 지시(Codex 한도 소진, 충전 후 재확인)` 를 판단 기록에 남긴다. 참고: C1 실패 자체는 stderr 상 인자 오류(exit 2, 0초)라 한도 문제는 아직 드러나지 않았고, 설정은 exec 로 고쳐 두었다 — 재확인 때 한도와 exec 모드를 함께 검증한다.
+### [2026-09-27 17:09] C2 adversarial-review focus=concurrency — done
+- judge 판정: 2026-09-27 11:58 codex_gate/C2 engine=jev → codex_required=true(concurrency 포커스) / 호출 차수: 2/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=77aead82(<task_file>) snapshot=413dccf7(exec 스냅샷)
+- 지적 0건 — Q1·Q2·Q3 동시성 경로 정적 추적 완료; 사용자 행 FOR UPDATE 직렬화·PENDING 조건부 저장·review/accept 트랜잭션·snapshot 증가 순서에서 구체적 반례 미발견
+- 검토하지 못한 범위: 
+  - task-006 범위 밖: admin/task-008 화면·API
+  - 극단 실측: 실제 DB 실행 중 blue/green 2프로세스 경합(코드 경로와 단일 프로세스 경합만 검증)
+  - 라이브 런타임: LLM 타임아웃·서버 재시작·instrumentation stale 기동 정리 로그
+- exec 모드 첫 검증: wrapper 설정 수정(`review` → `exec`) 후 정상 실행 확인. 180초 내 완료(183s), exit_code=0. stderr 에 Codex 모델 캐시 경고(max verbosity 파싱)만, 검토 결과에 영향 없음.
+- 원본: `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T080728Z-task-006-C2/raw.txt` · command: `codex exec -s read-only --ephemeral -o … -`
 
 ## Designer 기록
 - [10:51] 2026-09-27 AI 채팅 구현 가이드 작성 → `docs/screens.md`(신규: §1 토큰·명암비 실측 / §2 화면 목록 / §3 AI 채팅). 목업 Artifact 는 만들지 않음(TheKaiwa 데모 없음 — 필요 시 Leader 요청으로 별도).
@@ -275,7 +285,7 @@ design-spec §15 task-006: AI 채팅(텍스트) 화면과 SSE 턴 처리, 사용
 
 **⚠ 운영 반영 대기(사용자 결정)**: 통합 빌드는 성공했지만 **`pm2 restart thekaiwa` 가 권한 정책(운영 배포)으로 거부**됐습니다. 빌드가 운영 프로세스가 쓰는 미러 `.next` 를 이미 덮어써서, 재시작 전까지 운영 화면이 어긋난 상태일 수 있습니다(확인 불가). 커밋 3건 이상이 origin 에 push 되지 않았습니다.
 
-**⚠ Codex 검토 실패·보류 내역**: C1(설계) — Codex CLI 0.128.0 의 `exec review` 가 `--commit` 과 표준입력 지시를 함께 받지 않아 0초 만에 실패(인자 오류) → 워크스페이스 래퍼 기본 모드를 exec 로 수정. C2(리뷰 후) — judge 가 Codex 필요로 판정했으나 **사용자 지시로 한도 충전 후 재확인 대기**(override). 검토하지 못한 범위: 동시성 설계·구현 전체(대신 reviewer 코드 추적 + QA 실프로세스 경합으로 확인). 호출 차수 1/4 사용.
+**Codex 검토**: C1(설계) — codex-cli 0.128.0 `exec review` 인자 오류로 실패(0초) → 래퍼 기본 모드 exec 로 수정. C2(구현) — 한도 소진으로 보류했다가 **사용자가 한도 초기화 후 재확인 지시 → 2026-09-27 17:09 exec 모드 첫 실측 실행, 183초, 지적 0건**(턴 잠금·resumePending·점검/채택·스냅샷 경로 반례 없음, REV-007 결론과 일치). 호출 차수 2/4. 미검토: 실DB 2프로세스 경합(QA-011 이 실측)·라이브 타임아웃.
 
 **남은 확인(사용자)**: 실기기(S25+) 채팅 화면 — Gboard 일본어 IME 확정 Enter 가 전송되지 않는지, 보내기 후 키보드 유지, 키보드가 입력창을 가리지 않는지, 360/390/412 실제 렌더(헤드리스 dev 서버에서 하이드레이션이 안 돼 정적 셸만 확인됨 — 운영 빌드 반영 후 재확인 권장).
 

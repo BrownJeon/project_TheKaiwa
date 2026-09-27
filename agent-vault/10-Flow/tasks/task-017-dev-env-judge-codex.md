@@ -41,10 +41,10 @@ updated: 2026-09-27
 ## 0단계 확인 항목 (운용 시작 전) — 2026-09-27 사용자 결정: **실제 호출 검증은 맥 환경의 별도 세션**에서 진행. 맥 워크스페이스 = `/Volumes/homes/brownjeon/project`
 - [ ] 워크스페이스 `.claude/secrets/jev-judge.env` 에 `TYPESAFE_API_KEY` (없으면 judge는 규칙 엔진으로만 동작) — 키·상태 파일은 NAS 워크스페이스 하위(사용자 결정 2026-09-27)
 - [x] Codex 자동 리뷰 게이트 비활성 확인(사용자, 2026-09-27)
-- [ ] `node --test .claude/tools/jev-judge/test/judge.test.mjs` Linux에서 통과
+- [x] `node --test .claude/tools/jev-judge/test/judge.test.mjs` Linux에서 통과 — 2026-09-27 18/18(테스트 2건 환경 독립화: 가짜 fetch 타임아웃의 unref 타이머·실제 키 파일 격리)
 - [x] `codex exec --help`·`codex exec review --help` 확인 → `config.env` 작성(review 모드, `-c sandbox_mode="read-only"`, 폴백 exec `-s read-only`) (2026-09-27)
-- [ ] 첫 실제 Codex 실행 후 `runs/<run>/stderr.txt`·`command.txt` 확인(sandbox_mode 경고 없음, review 가 표준입력 지시문+`--commit` 동시 수용)
-- [ ] Codex `/status` 남은 한도를 `codex-review.sh set-limit <pct>` 로 기록(없으면 R2만 Codex 개입)
+- [x] 첫 실제 Codex 실행 — 2026-09-27 task-006 C1: codex-cli 0.128.0 `exec review` 가 `--commit` 과 표준입력 프롬프트 동시 수용 **불가**(exit 2) → `config.env` 기본 `CODEX_MODE=exec`. task-006 C2 exec 모드 성공(183초, exit 0, stderr 는 모델 캐시 경고뿐). NFS git dubious ownership 은 `GIT_CONFIG_COUNT/KEY_0/VALUE_0` 환경변수로 해결. 래퍼 `.sh`·`config.env` CRLF→LF 변환
+- [x] 한도 기록 — 2026-09-27 사용자 "토큰 초기화" → `set-limit 100`
 - [x] Q-A9: push 로 자동배포가 돼도 지금은 상관없음(사용자, 2026-09-27)
 - [ ] 맥: `timeout` 부재 대응 — `brew install coreutils`(gtimeout) 권장, 없으면 perl alarm 폴백(윈도우에서 미검증, 맥에서 시간 초과 1회 확인)
 - [ ] 판정 1회 시험: `--dry-run` 으로 전송 본문 확인 → 실제 intake 1회 → `--budget` 확인
