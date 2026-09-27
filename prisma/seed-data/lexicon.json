@@ -1,0 +1,11 @@
+{
+  "note": "발음 사전 시드 v1(task-003d) — GLOBAL 범위. 악센트(accentType)는 초안이며 사용자 청취·/g2p 대조로 확정한다(speech-platform/16 §2, §15 P0 '日本橋 류 5건').",
+  "entries": [
+    { "surface": "日本橋", "reading": "ニホンバシ", "accentType": 0, "priority": 10, "wordType": "PLACE", "note": "東京 日本橋(大阪 日本橋=ニッポンバシ 와 구분)" },
+    { "surface": "秋葉原", "reading": "アキハバラ", "accentType": 3, "priority": 10, "wordType": "PLACE", "note": null },
+    { "surface": "御徒町", "reading": "オカチマチ", "accentType": 3, "priority": 10, "wordType": "PLACE", "note": null },
+    { "surface": "神保町", "reading": "ジンボーチョー", "accentType": 3, "priority": 10, "wordType": "PLACE", "note": null },
+    { "surface": "等々力", "reading": "トドロキ", "accentType": 0, "priority": 10, "wordType": "PLACE", "note": null },
+    { "surface": "明日", "reading": "アシタ", "accentType": 3, "priority": 10, "wordType": "COMMON", "note": "회화체 읽기 고정(アス·ミョウニチ 오독 방지)" }
+  ]
+}

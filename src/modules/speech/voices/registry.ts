@@ -54,3 +54,33 @@ export async function assertSelectableVoice(voiceProfileId: string, style: strin
   if (style !== 'AUTO' && !v.styles.some((s) => s.name === style)) throw Object.assign(new Error('STYLE_NOT_AVAILABLE'), { name: 'VoiceStyleInvalidError' })
   return { id: v.id, name: v.displayName }
 }
+
+/** 합성에 쓰는 Voice(내부 전용 — 사용자 응답으로 내보내지 않는다). 모델 참조·버전은 DB 데이터. */
+export interface TtsVoice {
+  id: string
+  name: string
+  voiceModelId: string
+  speakerId: number | null
+  defaults: unknown
+  styles: { name: string; styleWeightDefault: number }[]
+  modelVersion: string
+}
+
+/** 선택 가능(프로필 AVAILABLE·enabled, 모델 AVAILABLE)한 Voice 만. 아니면 null. */
+export async function loadTtsVoice(voiceProfileId: string): Promise<TtsVoice | null> {
+  if (!voiceProfileId || voiceProfileId.length > 80) return null
+  const v = await prisma.voiceProfile.findFirst({
+    where: { id: voiceProfileId, status: 'AVAILABLE', enabled: true },
+    select: {
+      id: true,
+      displayName: true,
+      voiceModelId: true,
+      speakerId: true,
+      defaults: true,
+      styles: { orderBy: { sortOrder: 'asc' }, select: { name: true, styleWeightDefault: true } },
+      model: { select: { version: true, status: true } },
+    },
+  })
+  if (!v || v.model.status !== 'AVAILABLE') return null
+  return { id: v.id, name: v.displayName, voiceModelId: v.voiceModelId, speakerId: v.speakerId, defaults: v.defaults, styles: v.styles, modelVersion: (v.model.version ?? '1.0.0').slice(0, 20) }
+}

@@ -113,7 +113,7 @@ export function connectionDto(c: EngineConnectionRow, extra: { engineName: strin
 }
 
 const DETAIL_STR = ['errorCode', 'message', 'version', 'device', 'serviceEnv', 'reason', 'model'] as const
-const DETAIL_NUM = ['httpStatus', 'models', 'memoryMb', 'outputChars', 'attempts'] as const
+const DETAIL_NUM = ['httpStatus', 'models', 'memoryMb', 'outputChars', 'attempts', 'audioBytes', 'durationMs'] as const
 const DETAIL_BOOL = ['skipped', 'schemaValid'] as const
 
 /** DB detail JSON 을 화이트리스트 필드로만(저장 당시 어긋난 키가 있어도 응답에 안 나간다). */

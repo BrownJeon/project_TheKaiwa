@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PrismaClient, Prisma, type Environment } from '@prisma/client'
+import { seedLexicon } from './seed-lexicon'
 
 const prisma = new PrismaClient()
 const data = (name: string) => JSON.parse(readFileSync(join(__dirname, 'seed-data', name), 'utf-8'))
@@ -153,6 +154,7 @@ async function main() {
   await seedEngines(envs)
   await seedVoices()
   await seedAppSettings(envs)
+  await seedLexicon(prisma, envs, data('lexicon.json').entries)
   await seedPromptTemplates()
   await seedOwner()
 }

@@ -207,6 +207,9 @@ export interface HealthDetailDto {
   model?: string
   outputChars?: number
   attempts?: number
+  /** FUNCTIONAL(TTS) — 고정 문장 합성 결과(오디오 자체는 저장하지 않음) */
+  audioBytes?: number
+  durationMs?: number
 }
 
 export interface HealthDto {

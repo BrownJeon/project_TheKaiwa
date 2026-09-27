@@ -48,3 +48,17 @@ export function describeCredentialRef(ref: string): CredentialRefStatus | null {
     return { ref, source: 'file', exists: false, mtime: null }
   }
 }
+
+/**
+ * 내부 서비스 공유 시크릿(부팅 env — configuration-resolution §10 "내부 시크릿은 설정 키가 아니라 부팅 env").
+ * 이름은 고정 목록만 받는다(임의 env 노출 차단). 값은 호출 헤더에만 싣고 로그·응답·Trace 에 남기지 않는다.
+ * 16자 미만이면 설정 누락으로 본다(M4 tts-service 가 같은 기준으로 401).
+ */
+const SERVICE_SECRET_NAMES = ['TTS_SERVICE_SECRET'] as const
+export type ServiceSecretName = (typeof SERVICE_SECRET_NAMES)[number]
+
+export function readServiceSecret(name: ServiceSecretName): string | null {
+  if (!(SERVICE_SECRET_NAMES as readonly string[]).includes(name)) return null
+  const v = process.env[name]?.trim()
+  return v && v.length >= 16 ? v : null
+}

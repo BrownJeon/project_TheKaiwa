@@ -1,9 +1,12 @@
 /**
- * 통합 미리듣기(api-contract #18) — draft 설정으로 고정 문장을 합성한다. LLM 호출 없음.
- * TTS 플랫폼 층(정규화·사전·Rendering Plan·캐시)과 M4 tts-service 어댑터는 **task-003** 에서 들어온다.
- * 그 전까지는 TTS 역할 connection 을 쓸 어댑터가 없으므로 `ENGINE_UNAVAILABLE(422)` 로 명확히 알린다
- * — 화면은 "음성 서버 준비 중" 안내를 띄우고, 가짜 오디오를 만들지 않는다.
+ * 통합 미리듣기(api-contract #18, module-dependency §4-2) — **저장 전 draft** 로 고정 문장을 합성한다. LLM 호출 없음.
+ * 문장은 AppSetting `voice.preview.defaultText`(사용자가 보낼 수 없음), 캐시 키 textVersion 은 `voice.preview.textVersion`.
+ * draft 는 사용자 설정 층(Resolver 1순위)을 대신하고, `speechProfile`(들려주는 방식)도 반영한다(U1).
+ * 파이프라인·캐시·상태 판정은 `/api/v1/speech/tts` 와 같다(`tts/synthesize`). Trace refType = voicePreview.
  */
+import { isSpeechProfile, type SpeechProfileName } from '../tts/profiles'
+import { previewSettings, synthesizeSentence, type SynthesizeResult } from '../tts/synthesize'
+
 export interface PreviewDraft {
   voiceProfileId: string
   style: string
@@ -11,16 +14,18 @@ export interface PreviewDraft {
   speed: number
   pitch: number
   intonation: number
+  speechProfile?: SpeechProfileName | null
 }
 
-export class TtsNotReadyError extends Error {
-  readonly userMessage = '선생님 목소리 서버를 준비하고 있어요. 준비되면 미리듣기를 쓸 수 있어요.'
-  constructor(voiceProfileId: string) {
-    super(`TTS 어댑터 미설치(task-003 전) — voice=${voiceProfileId}`)
-    this.name = 'NoEngineAvailableError'
-  }
-}
-
-export async function previewVoice(draft: PreviewDraft): Promise<never> {
-  throw new TtsNotReadyError(draft.voiceProfileId)
+export async function previewVoice(userId: string, draft: PreviewDraft): Promise<SynthesizeResult> {
+  const { text, textVersion } = await previewSettings()
+  return synthesizeSentence({
+    userId,
+    text,
+    voiceId: draft.voiceProfileId,
+    speechProfile: isSpeechProfile(draft.speechProfile) ? draft.speechProfile : 'NATIVE',
+    draft: { style: draft.style, styleWeight: draft.styleWeight, speed: draft.speed, pitch: draft.pitch, intonation: draft.intonation },
+    textVersion,
+    trace: { refType: 'voicePreview', refId: draft.voiceProfileId },
+  })
 }

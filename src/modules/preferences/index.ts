@@ -42,6 +42,11 @@ export async function getVoiceSetting(userId: string, defaultVoiceProfileId: str
   })
 }
 
+/** TTS 합성용 읽기(행을 만들지 않는다) — LEARNING_SLOW 배속(learningSpeed)까지. 없으면 null(호출자가 기본값). */
+export async function getVoiceSettingForTts(userId: string) {
+  return prisma.userVoiceSetting.findUnique({ where: { userId }, select: { ...VOICE_SELECT, learningSpeed: true } })
+}
+
 /** 저장된 목소리가 비활성·보관됐을 때 기본 목소리로 바꾸고 스타일을 AUTO 로 초기화(speech-platform/03 재배정 규칙). */
 export async function reassignVoice(userId: string, toVoiceProfileId: string) {
   return prisma.userVoiceSetting.update({ where: { userId }, data: { voiceProfileId: toVoiceProfileId, style: 'AUTO' }, select: VOICE_SELECT })

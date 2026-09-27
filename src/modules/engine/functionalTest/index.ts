@@ -1,7 +1,8 @@
 /**
  * Functional Test(api-contract #96, module-dependency L5 `functionalTest/`) — Phase 1 범위(task-005b G4):
  *   LLM : 지정 connection 에 고정 JSON 스키마 요청 1회(재시도·폴백 없음, 30초 상한). 응답 본문은 저장·반환하지 않는다.
- *   STT·TTS : 테스트 자산·합성 경로가 task-003 이라 **실행하지 않는다** — 서비스가 없으면 reason SERVICE_DOWN(상태는 Health 판정),
+ *   TTS     : (task-003d) Health 통과 후 Provider `functionalTest` — 고정 문장 1회 합성(30초), 오디오는 저장하지 않고 크기·길이만.
+ *   STT     : 테스트 자산이 task-003e 라 **실행하지 않는다** — 서비스가 없으면 reason SERVICE_DOWN(상태는 Health 판정),
  *            있으면 UNKNOWN + reason NOT_IMPLEMENTED, ONDEVICE 는 NOT_APPLICABLE(`@/types/admin` HealthSkipReason 표현 규칙).
  * connection 당 30초에 1회(메모리 + DB 최근 기록 이중 확인, 동시 요청은 먼저 온 하나만) — Claude 구독 사용량 보호.
  * 기록: `EngineHealth(FUNCTIONAL)`·`lastFunctionalAt`·`RequestTrace(FUNCTIONAL_TEST)`(단계 ms·상태·모델명만, 원문 없음).
@@ -82,13 +83,18 @@ async function testSpeech(row: EngineConnection): Promise<{ outcome: HealthOutco
   // 대상 아님(ONDEVICE 등) — Health 가 이미 NOT_APPLICABLE 로 돌려준다.
   if (h.detail.reason === 'NOT_APPLICABLE') return { outcome: h, steps }
   if (!h.ok) return { outcome: { ...h, detail: { ...h.detail, skipped: true, reason: 'SERVICE_DOWN' } }, steps }
+  if (provider.functionalTest) {
+    const outcome = await provider.functionalTest(await profileOf(row))
+    steps.push({ name: provider.descriptor.type, ms: outcome.latencyMs ?? 0, connectionKey: row.key, engineId: row.engineId, status: outcome.ok ? 'OK' : 'FAILED' })
+    return { outcome, steps }
+  }
   steps.push({ name: provider.descriptor.type, ms: 0, connectionKey: row.key, status: 'SKIPPED' })
   return {
     outcome: {
       ok: false,
       status: 'UNKNOWN',
       latencyMs: h.latencyMs,
-      detail: { ...h.detail, skipped: true, reason: 'NOT_IMPLEMENTED', message: '서비스는 응답하지만 음성 기능 테스트(샘플 전사·고정 문장 합성)는 task-003 에서 열립니다' },
+      detail: { ...h.detail, skipped: true, reason: 'NOT_IMPLEMENTED', message: '서비스는 응답하지만 음성 기능 테스트(샘플 전사)는 task-003e 에서 열립니다' },
     },
     steps,
   }
