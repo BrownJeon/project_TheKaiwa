@@ -3,7 +3,8 @@
  * 스키마 키는 실제 저장 모양(seed `style-bert-m4`: `runtime.defaultModel`)을 따른다. SBV2 파라미터명은 이 디렉토리 밖으로 나가지 않는다.
  *
  * Health = `GET /health`(무인증, 시크릿 헤더 없음 — httpHealth 규칙) 의 `status` 로 판정 + 앱 쪽 `TTS_SERVICE_SECRET` 설정 여부.
- *   OK → HEALTHY · DEGRADED·LOADING(워밍업·모델 로딩) → DEGRADED · FAILED(모델 0) → UNAVAILABLE · MISCONFIGURED(서비스 시크릿 없음) → MISCONFIGURED
+ *   OK → HEALTHY · DEGRADED(워밍업 전·CPU 폴백 — 합성은 된다) → DEGRADED · LOADING(기동 중 — 합성이 503) · FAILED(모델 0) → UNAVAILABLE
+ *   · MISCONFIGURED(서비스 시크릿 없음) → MISCONFIGURED. 상태등 판정은 "새 문장을 합성할 수 있는가"(16 §12) 기준이다.
  * Functional Test = 기본 모델로 고정 문장 1회 합성(30초 상한) — 오디오는 저장하지 않고 크기·길이만 남긴다.
  */
 import { readServiceSecret } from '@/modules/infra'
@@ -19,7 +20,7 @@ const FUNCTIONAL_TIMEOUT_MS = 30_000
 const SERVICE_STATUS: Record<string, { status: HealthOutcome['status']; message?: string }> = {
   OK: { status: 'HEALTHY' },
   DEGRADED: { status: 'DEGRADED', message: '워밍업 전이거나 기본 모델·장치가 기대와 다릅니다' },
-  LOADING: { status: 'DEGRADED', message: '모델을 불러오는 중입니다' },
+  LOADING: { status: 'UNAVAILABLE', message: '모델을 불러오는 중입니다(기동 중)' },
   FAILED: { status: 'UNAVAILABLE', message: '불러온 음성 모델이 없습니다' },
   MISCONFIGURED: { status: 'MISCONFIGURED', message: '서비스 쪽 내부 인증 설정이 비어 있습니다' },
 }

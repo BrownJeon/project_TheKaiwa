@@ -1,6 +1,6 @@
 'use client'
 
-import { TeacherAvatar } from './MessageBubble'
+import TeacherAvatar from '@/components/common/TeacherAvatar'
 
 const EXAMPLES = ['こんにちは。はじめまして。', '今日はいい天気ですね。', '週末に映画を見ました。'] as const
 

@@ -12,10 +12,11 @@ export function useToast() {
   const [message, setMessage] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const show = useCallback((msg: string) => {
+  /** `ms` 는 선택(기본 2.6초) — 상태 전환 안내처럼 조금 더 읽어야 하는 문구만 늘린다(≤4초, screens §7-3). */
+  const show = useCallback((msg: string, ms = 2600) => {
     setMessage(msg)
     if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => setMessage(null), 2600)
+    timer.current = setTimeout(() => setMessage(null), ms)
   }, [])
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])

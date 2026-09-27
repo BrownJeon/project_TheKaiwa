@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiPut, errorMessage } from '@/components/common/api'
 import Segmented from '@/components/common/Segmented'
@@ -25,6 +26,7 @@ const inputCls = 'h-11 w-full min-w-0 rounded-xl border border-line bg-surface p
 /** 설정 허브 · 기본정보·목표·학습(api-contract #11·#12). 선생님 이름은 비우면 "선생님". */
 export default function LearningSettings() {
   const [p, setP] = useState<Profile | null>(null)
+  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const toast = useToast()
@@ -51,6 +53,8 @@ export default function LearningSettings() {
       const { displayName, teacherName, level, politeness, goalLevel, dailyWordCount, dailyMinutes, strictness, explainDepth } = p
       setP(await apiPut<Profile>('/api/v1/settings/profile', { displayName: displayName || null, teacherName: teacherName || null, level, politeness, goalLevel, dailyWordCount, dailyMinutes, strictness, explainDepth }))
       toast.show('학습 설정을 저장했어요')
+      // 목소리 카드 머리의 선생님 이름(서버 컴포넌트가 읽음)을 바로 갱신한다 — 클라 상태는 유지된다(screens §7-2 A).
+      router.refresh()
     } catch (e) {
       toast.show(errorMessage(e))
     } finally {

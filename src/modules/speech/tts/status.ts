@@ -98,7 +98,11 @@ export interface TtsAvailability {
  * 지금 1순위 TTS 연결을 쓸 수 있는가. `allowProbe` 면 필요할 때 Health 를 한 번 돌려 판정을 새로 한다.
  * (P0 는 폴백 connection 이 없다 — 여러 개가 되면 다음 후보 판정은 합성 경로가 이어서 한다.)
  */
-export async function assessAvailability(opts: { allowProbe: boolean }): Promise<TtsAvailability> {
+/**
+ * `probeBudgetMs`: 확인을 기다리는 상한 — 넘으면 지금 아는 값으로 답하고 확인은 뒤에서 끝난다(connection 상태가 갱신돼 다음 조회에 반영).
+ * 화면은 상태 조회를 3초에 끊으므로(screens §7-3) 응답이 그보다 늦지 않게 한다.
+ */
+export async function assessAvailability(opts: { allowProbe: boolean; probeBudgetMs?: number }): Promise<TtsAvailability> {
   const list = await tts.targets()
   const target = list[0] ?? null
   if (!target) return { target: null, health: 'UNAVAILABLE', reason: 'NO_CONNECTION' }
@@ -106,9 +110,15 @@ export async function assessAvailability(opts: { allowProbe: boolean }): Promise
   let reason: TtsFallbackReason | null = health === 'UNAVAILABLE' ? (state.lastReason ?? 'SERVER_ERROR') : null
   const lastCheckAt = Math.max(state.lastProbeAt, target.lastHealthAt?.getTime() ?? 0)
   if (opts.allowProbe && needsProbe(health, breakerOpen(), lastCheckAt, Date.now())) {
-    const r = await probe(target)
-    health = r.health
-    reason = r.reason
+    const running = probe(target)
+    const budget = opts.probeBudgetMs ?? 2_500
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const r = await Promise.race([running, new Promise<null>((res) => (timer = setTimeout(() => res(null), budget)))])
+    clearTimeout(timer)
+    if (r) {
+      health = r.health
+      reason = r.reason
+    }
   }
   if (breakerOpen()) {
     health = 'UNAVAILABLE'
@@ -118,7 +128,7 @@ export async function assessAvailability(opts: { allowProbe: boolean }): Promise
 }
 
 export async function getTtsStatus(): Promise<TtsStatusResponse> {
-  const a = await assessAvailability({ allowProbe: true })
+  const a = await assessAvailability({ allowProbe: true, probeBudgetMs: 2_000 })
   const last = Math.max(state.lastProbeAt, state.lastSignalAt, a.target?.lastHealthAt?.getTime() ?? 0)
   return {
     executionMode: a.health === 'UNAVAILABLE' ? 'TEXT_ONLY' : 'SERVER',

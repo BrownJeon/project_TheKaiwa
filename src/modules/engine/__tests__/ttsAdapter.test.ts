@@ -156,7 +156,7 @@ test('Health: /health status 로 판정 + 앱 시크릿 설정 여부(무인증,
   assert.equal(ok.out.detail.device, 'mps')
   assert.equal(ok.sentSecret, undefined)
   assert.equal((await health({ ok: true, status: 'DEGRADED', warmedUp: false })).out.status, 'DEGRADED')
-  assert.equal((await health({ ok: true, status: 'LOADING' })).out.status, 'DEGRADED')
+  assert.equal((await health({ ok: false, status: 'LOADING' })).out.status, 'UNAVAILABLE')
   assert.equal((await health({ ok: false, status: 'FAILED', modelsLoaded: 0 })).out.status, 'UNAVAILABLE')
   assert.equal((await health({ ok: false, status: 'MISCONFIGURED' })).out.status, 'MISCONFIGURED')
   const noSecret = await health({ ok: true, status: 'OK' }, null)

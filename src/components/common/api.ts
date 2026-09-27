@@ -197,7 +197,11 @@ export async function apiStream(
 
   const contentType = res.headers.get('Content-Type') ?? ''
   if (res.ok && contentType.includes('text/event-stream') && res.body) return res.body
+  throw await errorFromResponse(res)
+}
 
+/** 본문이 JSON 봉투가 아닌 성공 응답을 받는 경로(SSE·오디오)의 실패 해석 — 봉투의 message·code·details·Retry-After 를 그대로. */
+async function errorFromResponse(res: Response): Promise<ApiError> {
   let envelope: ApiEnvelope<unknown> | null = null
   try {
     envelope = (await res.json()) as ApiEnvelope<unknown>
@@ -206,7 +210,27 @@ export async function apiStream(
   }
   const failed = envelope && envelope.success === false ? envelope : null
   const message = failed && typeof failed.message === 'string' && failed.message ? failed.message : `요청을 처리하지 못했습니다 (${res.status})`
-  throw new ApiError(message, res.status, failed?.data?.code ?? null, failed?.data?.details ?? null, parseRetryAfter(res))
+  return new ApiError(message, res.status, failed?.data?.code ?? null, failed?.data?.details ?? null, parseRetryAfter(res))
+}
+
+/**
+ * 오디오 응답 POST(#18 미리듣기·#23 합성) — 성공이면 `audio/wav` 본문과 `X-Tts-Cache`(HIT|MISS)만 돌려준다.
+ * 실패는 `send()` 와 같은 규칙(401 로그인 이동·봉투 → ApiError·취소는 AbortError 그대로).
+ */
+export async function apiPostAudio(path: string, body: unknown, opts?: { signal?: AbortSignal }): Promise<{ data: ArrayBuffer; cache: 'HIT' | 'MISS' | null }> {
+  let res: Response
+  try {
+    const headers = clientHeaders({ 'Content-Type': 'application/json', Accept: 'audio/wav' })
+    res = await fetch(path, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers, body: JSON.stringify(body ?? {}), signal: opts?.signal })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    throw new ApiError('연결하지 못했습니다. 네트워크를 확인해 주세요.', 0)
+  }
+  if (res.status === 401) handleUnauthorized()
+  const contentType = res.headers.get('Content-Type') ?? ''
+  if (!res.ok || !contentType.startsWith('audio/')) throw await errorFromResponse(res)
+  const cache = res.headers.get('X-Tts-Cache')
+  return { data: await res.arrayBuffer(), cache: cache === 'HIT' || cache === 'MISS' ? cache : null }
 }
 
 /** 사용자가 누른 취소인가. 오류 문구를 띄우면 안 되는 유일한 경우다. */

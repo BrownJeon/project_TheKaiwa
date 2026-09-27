@@ -10,16 +10,10 @@ import type { ChatMessageView, TurnStage } from '@/types/chat'
 import { formatClock } from '@/components/common/format'
 import { DETACHED_TEXT, SLOW_TEXT, stageText, type FailureView } from './labels'
 import { elapsedSec, useNow } from '@/components/common/useNow'
+import TeacherAvatar from '@/components/common/TeacherAvatar'
 
 const JA_BODY = 'whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] leading-[1.7]'
 
-export function TeacherAvatar({ name }: { name: string }) {
-  return (
-    <span aria-hidden="true" className="grid h-7 w-7 flex-none place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-ink">
-      {Array.from(name)[0] ?? '선'}
-    </span>
-  )
-}
 
 /** 강사 쪽 줄: 아바타 칸(28px)을 늘 비워 두어 묶음 안 말풍선이 한 줄로 맞는다. */
 function TutorRow({ teacherName, showHeader, children }: { teacherName: string; showHeader: boolean; children: React.ReactNode }) {

@@ -145,19 +145,29 @@ function synthOnce(target: TtsTarget, voice: TtsVoice, key: string, parts: Cache
   return synth
 }
 
-export async function synthesizeSentence(input: SynthesizeInput): Promise<SynthesizeResult> {
-  const traceId = newTraceId()
-  const total = stopwatch()
-  const steps: TraceStep[] = []
-  const env = currentEnvironment()
+/** 캐시 키까지의 준비 결과(합성 전). 라이브 스모크가 같은 키를 계산할 때도 쓴다. */
+export interface PreparedSentence {
+  voice: TtsVoice
+  profile: SpeechProfileName
+  dictionaryVersion: number
+  normalizedText: string
+  hints: readonly TtsLexiconHint[]
+  target: TtsTarget | null
+  parts: CacheKeyParts | null
+  key: string | null
+  steps: TraceStep[]
+}
 
+/** 목소리·프로필 결정 → 사전 매칭 → 정규화 → Rendering Plan → (TTS 연결이 있으면) 캐시 키. 네트워크 호출 없음. */
+export async function prepareSentence(input: SynthesizeInput): Promise<PreparedSentence> {
+  const steps: TraceStep[] = []
   // draft(미리듣기)여도 저장된 learningSpeed 는 쓴다(LEARNING_SLOW 배속 — screens §7-11 ①).
   const setting = await getVoiceSettingForTts(input.userId)
   const voice = await pickVoice(input.voiceId, setting?.voiceProfileId)
   const profile: SpeechProfileName = input.speechProfile ?? (isSpeechProfile(setting?.speechProfile) ? setting!.speechProfile : 'NATIVE')
 
   let t = stopwatch()
-  const lex = await loadActiveLexicon(env)
+  const lex = await loadActiveLexicon(currentEnvironment())
   const selected = selectEntries(lex.entries, { userId: input.userId, voiceId: voice.id, lessonId: input.scope?.lessonId ?? null, topicId: input.scope?.topicId ?? null })
   const lexMs = t()
 
@@ -186,31 +196,42 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
   const eff = plan.segments[0].effective
   steps.push(ttsStep('TTS_PLAN', t(), { segments: plan.segments.length, styleSource: base.sourceByKey.style, speechProfile: profile }))
 
-  const targets = await tts.targets()
-  const target = targets[0]
-  if (!target) {
-    void finishTrace(traceId, steps, total(), 'ERROR', 'TTS_UNAVAILABLE', input, { profile, lex: lex.dictionaryVersion, model: voice.modelVersion, cacheHits: 0 })
+  const target = (await tts.targets())[0] ?? null
+  const parts: CacheKeyParts | null = target
+    ? {
+        normalizedText: seg.normalizedText,
+        voiceProfileId: voice.id,
+        modelVersion: voice.modelVersion,
+        dictionaryVersion: lex.dictionaryVersion,
+        lexiconDigest: lexiconDigest(seg.hints),
+        speechProfile: profile as SpeechProfile,
+        style: eff.style,
+        styleWeight: eff.styleWeight,
+        speed: eff.speed,
+        pitch: eff.pitch,
+        intonation: eff.intonation,
+        engineConnectionKey: target.key,
+        textVersion: input.textVersion ?? TTS_TEXT_VERSION,
+      }
+    : null
+  return { voice, profile, dictionaryVersion: lex.dictionaryVersion, normalizedText: seg.normalizedText, hints: seg.hints, target, parts, key: parts ? ttsCacheKey(parts) : null, steps }
+}
+
+export async function synthesizeSentence(input: SynthesizeInput): Promise<SynthesizeResult> {
+  const traceId = newTraceId()
+  const total = stopwatch()
+  const p = await prepareSentence(input)
+  const { voice, profile, steps } = p
+  const meta = { profile, lex: p.dictionaryVersion, model: voice.modelVersion }
+  if (!p.target || !p.parts || !p.key) {
+    void finishTrace(traceId, steps, total(), 'ERROR', 'TTS_UNAVAILABLE', input, { ...meta, cacheHits: 0 })
     throw new TtsUnavailableError('NO_CONNECTION', traceId)
   }
-  const parts: CacheKeyParts = {
-    normalizedText: seg.normalizedText,
-    voiceProfileId: voice.id,
-    modelVersion: voice.modelVersion,
-    dictionaryVersion: lex.dictionaryVersion,
-    lexiconDigest: lexiconDigest(seg.hints),
-    speechProfile: profile as SpeechProfile,
-    style: eff.style,
-    styleWeight: eff.styleWeight,
-    speed: eff.speed,
-    pitch: eff.pitch,
-    intonation: eff.intonation,
-    engineConnectionKey: target.key,
-    textVersion: input.textVersion ?? TTS_TEXT_VERSION,
-  }
-  const key = ttsCacheKey(parts)
-  const meta = { profile, lex: lex.dictionaryVersion, model: voice.modelVersion }
+  const { target, parts, key } = p
+  const seg = { normalizedText: p.normalizedText, hints: p.hints }
+  const lex = { dictionaryVersion: p.dictionaryVersion }
 
-  t = stopwatch()
+  let t = stopwatch()
   const hit = isCacheKey(key) ? await readCachedAudio(key) : null
   if (hit) {
     const ttfaMs = Math.round(total())

@@ -1,5 +1,6 @@
 import { userCan } from '@/modules/admin'
 import { auth } from '@/modules/infra'
+import { getProfile } from '@/modules/preferences'
 import AppBar from '@/components/shell/AppBar'
 import AttendanceCard from '@/components/settings/AttendanceCard'
 import LearningSettings from '@/components/settings/LearningSettings'
@@ -17,6 +18,8 @@ export default async function SettingsPage() {
   const user = session?.user
   // 매 요청 DB 역할로 확인한다(캐시 없음). 콘솔 행은 engine.read 보유자에게만 — 서버 컴포넌트라 USER 번들에 문자열이 없다.
   const showConsole = user ? await userCan('engine.read') : false
+  // 목소리 카드 머리의 선생님 이름(설정 #11, 비우면 "선생님") — 채팅방과 같은 규칙(screens §7-2 A).
+  const teacherName = user ? (await getProfile(user.id)).teacherName?.trim() || '선생님' : '선생님'
   return (
     <>
       <AppBar title="설정" />
@@ -29,7 +32,7 @@ export default async function SettingsPage() {
           <LogoutButton />
         </section>
         <LearningSettings />
-        <VoiceSettings />
+        <VoiceSettings teacherName={teacherName} />
         <SpeechSettings />
         {showConsole ? <AdminConsoleEntry /> : null}
       </div>
