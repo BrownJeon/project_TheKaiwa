@@ -57,9 +57,11 @@ for f in tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs next-
 done
 
 # .env 는 next 가 cwd 기준으로 로드하므로 반드시 미러에도 있어야 한다.
-# (권한 600 유지 — cp -p 로 모드까지 복사)
+# 권한은 복사 후 600 으로 강제한다 — NFS 쪽 모드가 777 로 보여 `cp -p` 만으로는 로컬 디스크에서
+# 시크릿이 누구나 읽을 수 있게 됐다(2026-09-28 task-003e developer A 발견).
 if [ -f "$PROJECT_ROOT/.env" ]; then
-  cp -p "$PROJECT_ROOT/.env" "$LOCAL_ROOT/.env"
+  cp "$PROJECT_ROOT/.env" "$LOCAL_ROOT/.env"
+  chmod 600 "$LOCAL_ROOT/.env"
 fi
 
 exit 0
