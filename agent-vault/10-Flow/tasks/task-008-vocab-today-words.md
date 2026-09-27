@@ -372,6 +372,23 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 
 → [[task-008-vocab-today-words]]
 
+### QA-012 보충 (2026-09-27, Codex C2 수정 `b0eebcf` 재스모크)
+
+**목적**: Codex C2 지적 2건(보관 토글 사용자 행 잠금 없음 / 세트 조회 비트랜잭션 읽기) 수정 커밋 `b0eebcf` 이후, Reviewer 의 "Codex C2 수정 재검증" PASS 인계에 따라 스모크 재실행 — 특히 신규 케이스 **5i·5j**.
+
+**종합 판정: PASS** — 결함 0건(QA-012 원 판정 불변).
+
+- 실행: `bash tests/live/task008-smoke.sh 3011`(task-005b QA-013 세션과 같은 미러 dev 서버, 사전에 `npm run typecheck`(exit 0)·`npm run lint`(exit 0)·`npm test`(**207/207 PASS**, task-005b 병합분 포함 전체 스위트) 확인 후 실행) → **74/74 PASS**.
+- **5i**(보관·세트 생성 동시 실행): `PASS 5i 보관·세트 생성 동시 → 둘 다 200, 보관 단어가 세트에 있으면 세트가 먼저(startedAt < archivedAt) — included=false cards=4` — 이번 실행에서는 세트 생성이 먼저 잠금을 얻어 `included=false`(보관 처리된 단어가 새 세트에 안 들어감)로 나왔고, 순서 불변식(포함됐다면 `startedAt < archivedAt`)은 코드상 어느 순서든 성립하도록 설계된 assertion — `setWordArchivedTx`가 `lockUserRow` 를 거쳐 `createVocabSession` 과 같은 `User` 행을 두고 실제로 경합함을 재확인.
+- **5j**(보관 뒤 만든 세트에 보관 단어 없음): `PASS 5j 보관 뒤 만든 세트에는 보관 단어 없음` — 그대로 PASS.
+- 그 외 전 카테고리(2 CRUD·3 정답 미노출·4 채점/멱등·5 강등/빈풀·6 finish 트랜잭션·7 삭제 후 집계 불변·8 keep/replay·9 IDOR·10 10장 3분·11 A10 enrich·12 엔진명 0) 회귀 없이 전부 PASS. 10장 3분 지표 재확인: create=519ms·attempt p50=519ms(max 1346ms)·finish=553ms → 서버 합계 7.15s, 사용자 총 **127.1s ≤ 180s**.
+- **task-005b 병합 영향 없음 확인**: `git diff 10b770e..b0eebcf` 는 admin 콘솔(task-005b) 파일이 다수 섞여 있으나 task-008 관련 변경은 `words.ts`·`sessions.ts`·`task008.test.ts`·`task008-smoke.ts` 4개뿐(Reviewer "Codex C2 수정 재검증" 기록과 동일 범위) — 이번 QA-012 보충도 이 4개 파일 + 스모크 결과만 근거로 판단.
+- **정리**: QA 계정(qa-bot/qa-bot2) `WordEntry`/`VocabSession` 0건 재확인(스모크 자체 cleanup, 출력 "(QA 데이터 정리 완료)"). 임시 쿠키·curl 산출물은 task-005b QA-013 세션의 `/tmp/qa-artifacts/` 정리에 포함되어 함께 삭제(잔여 0개 확인). 미러 dev 서버는 이 QA-013 세션 종료 시 함께 정리.
+
+**결함**: 0건(QA-012 판정 유지).
+
+→ [[task-008-vocab-today-words]]
+
 ## 최종 요약
 
 ### 최종 요약 (Leader, 사용자용 — 2026-09-27)

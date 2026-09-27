@@ -91,6 +91,13 @@ design-spec §15 task-005b: Admin/Developer AI Engine Console 의 Phase 1 골격
 
 ## Codex 검토
 
+
+### [2026-09-27 17:40] C2 adversarial-review focus=security — done
+- judge 판정: codex_gate/C2 codex_required=true mode=adversarial-review (호출 1/4 사용, 한도 충분)
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=36ebc7e(task_file) snapshot=2d79e62
+- 지적 1건: [MEDIUM] src/modules/admin/configuration/effective.ts:23 — PRODUCTION 대상 Effective Config를 `config.raw.read` 보유자(DEVELOPER/SUPER_ADMIN)가 full 상세 조회 시 AuditLog 누락 → 감사 추적 불가·포렌식 불가 (권고: `environment==='PRODUCTION' && full` 일 때 recordAudit 추가, 값 아닌 메타데이터만 기록)
+- 검토하지 못한 범위: 실제 DB seed·운영 env 값 / 라이브 서버·브라우저·네트워크 프로브 / diff 의 task-008 변경
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T082511Z-task-005b-C2
 ## Designer 기록
 - [16:45] 산출물: `docs/screens.md` §6 Admin Console — Phase 1(6-0 결정~6-11 확인 요청) 신규, §2 설정·콘솔 행 갱신(콘솔 경로 8행). 코드·다른 문서 수정 없음.
 - [16:45] 셸: `(admin)/layout.tsx` 별도 셸 = 환경 띠 32px(PRODUCTION `bg-bad text-surface`, 숨김 불가) + 콘솔 바 52px(☰·제목·↩앱으로) + `main` 1곳 스크롤, ≥1024 사이드바 232px. 모바일 메뉴 = 공용 `Sheet` 재사용. 메뉴 10개(ADMIN 9 — Plugins 없음), 값은 `menu.ts`(A)가 거른 목록을 props 로.
@@ -162,7 +169,72 @@ design-spec §15 task-005b: Admin/Developer AI Engine Console 의 Phase 1 골격
 - **native_change**: false(android/·capacitor.config.ts·plugins/** 변경 없음, diff 확인).
 - 종합: Critical 0·High 0 → PASS 기준 충족. Medium 1건은 Phase 1 단일 소유자 구조상 즉시 악용 경로는 아니나 §7 명문 요건 위반이라 Developer 수정 요청(비차단, QA 진행 가능). Low 3건은 권고. → [[task-005b-admin-console-skeleton]]
 
+### REV-009 재검증(커밋 a17bc53, 범위 `git diff 109893f..a17bc53 -- src tests`)
+
+- **Codex C2 지적 판정: 채택** — 원본(`…/runs/20260927T082511Z-task-005b-C2/last.txt`) 지적은 `src/modules/admin/configuration/effective.ts:23`, "PRODUCTION 대상 FULL(config.raw.read) 조회에 AuditLog 없음"으로 REV-009 M1 과 위치·근거(`secrets.read_ref` 는 남기는데 `config.raw.read` 는 안 남김, role-permission §7)·권고까지 동일한 지적이다. 근거 확인 후 채택(오탐·범위 밖 아님).
+- **판정: PASS** — Medium 1·Low 2(2·3) 전부 해소 확인, Low 1(claimSlot 레이스)은 Leader 결정으로 Phase 2 backlog 이월(결함 아님).
+  1. **① AuditLog**: `getEffectiveConfig` 가 `deps.resolve` 이후 `rawReadAuditEntry(actor, environment, eff, full)` 로 `environment==='PRODUCTION' && full` 일 때만 엔트리를 만들어 **`effectiveDto` 반환 전에** `await deps.audit(entry)` 호출(코드 확인, `effective.ts:23-53`) — 감사 실패 시 상세 응답도 나가지 않는 fail-closed 설계. `after`는 `{detail:'FULL', crossEnvironment?}` 뿐 실제 키 값 없음. 단위테스트(`effective-audit.test.ts`) 3건 직접 실행 확인: PRODUCTION+FULL(DEVELOPER/SUPER_ADMIN)→1행(값 미포함, `!JSON.stringify(e).includes('env:SOME_KEY')` 단언 포함) / LOCAL+FULL·PRODUCTION+SUMMARY(ADMIN)→0행 / 400 검증 실패→0행(해석·감사 전에 종료). `npm test` 재실행으로 ok 82~84 전부 PASS 확인(가짜 skip 아님).
+  2. **② 경로 마스킹**: `present.ts` 에 `runtimePrefixes()`(DATA_ROOT·SECRETS_DIR·KAIWA_SECRETS_DIR·HOME·cwd, 길이 1 이하 제외) + `hasRuntimePath()`(고정 `SERVER_PATH` 와 같은 경계 규칙 `(^|[\s"'=:(,])`…`(\/|$|[\s"',)])`, regex 특수문자 escape) 추가, `scrubServerPath` 가 고정 목록 OR 런타임 접두사로 판정. 신규 테스트(`secrets-mask.test.ts` 추가분) 직접 실행 확인(ok 101): `DATA_ROOT=/zzdata/kaiwa`·`SECRETS_DIR=/qqsec/...` 를 임시로 심어 그 경로들이 파일명만 남거나 `***` 로 가려짐, **오탐 방지 확인** — URL 경로(`http://host/zzdata/kaiwa/x`)·형제 디렉터리(`/zzdata/kaiwa2/x`)·무관 경로(`/ws/speech`)는 그대로 통과. REV-009 Low 2 정확히 해소.
+  3. **③ 죽은 코드 제거**: `findConnectionAnyEnvironment` 삭제(`engine/connections/index.ts`) — 전체 저장소 `grep -rn findConnectionAnyEnvironment . --include=*.ts` 0건(정의부도 없음), `engine/index.ts` 는 애초에 export 안 했으므로 깨진 참조 없음. `npm run typecheck` exit 0 으로 재확인.
+  4. **④ 회귀 없음**: `npm run typecheck`(exit 0)·`npm run lint`(exit 0, 기존과 동일한 warning 5건뿐·신규 error 0)·`npm test`(207/207 PASS, 신규 4건 포함 — 기존 201 + 신규 6 중 실제 관측은 207, 전부 ok) 전부 직접 재실행. 정본 대조 테스트(`복사본 표가 정본 문서 §3 과 같다` ok 85)도 여전히 스킵 없이 PASS — 매트릭스 무변경 확인.
+  5. **Low 1 처리 확인**: `functionalTest/index.ts` `claimSlot` 레이스는 이번 diff 에 손대지 않음(파일 미변경) — Leader 결정대로 Phase 2 backlog 이월, 이번 재검증 범위에서 결함으로 재판정하지 않음.
+- 종합: Critical 0·High 0·Medium 0·Low 1(backlog 이월, 결함 아님) → **PASS**. QA 인계. → [[task-005b-admin-console-skeleton]]
+
 ## QA 기록
+
+### QA-013 (2026-09-27, 감사 QA-013, 커밋 a17bc53 기준, 미러 dev :3011)
+
+**종합 판정: FAIL** — Critical 0 · High 0 · **Medium 1**(터치 타겟 <44px, 6개 요소·4개 파일) · Low 0 · 결함 1건. 나머지 기준 전부 PASS. Developer 수정 후 **Reviewer 부터 재순환** 필요.
+
+**환경**: 운영 pm2 `thekaiwa`(3010) 는 기동·재시작하지 않음(읽기 요청만, 기준 10). 검증은 `bash scripts/sync-local.sh && cd ~/.node-local/thekaiwa && node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 3011`(화면은 `localhost:3011`), 끝나고 프로세스 종료 확인.
+
+**기준별 대조**
+
+1. **PASS** — `npm run typecheck` exit 0(에러 0) · `npm run lint` exit 0(에러 0, 기존 무관 경고 5건: `set-state-in-effect` × 5, REV-009 재검증 기록과 동일) · `npm test` **207/207 PASS**(REV-009 재검증 기록과 일치). build 는 Leader 격리 복제본에서 이미 exit 0 확인 — 재실행하지 않음(지시 준수).
+2. **PASS** — `bash tests/live/task005b-smoke.sh 3011` **47/47 PASS**. 스크립트 결과를 그대로 믿지 않고 **role-permission.md §3 매트릭스 기준 18개 GET 엔드포인트 × 4역할 = 72회**를 직접 curl 로 재현(스모크가 안 쓰는 별도 QA 쿠키·별도 호출): USER 는 `overview·engines·engine-connections(+detail+health)·fallback-policies(+detail)·me/capabilities·plugins(+detail)·secrets·traces(+detail)·voices(+detail)·config/effective·config/schema·environment` **전부 404**(존재하는 엔드포인트와 존재하지 않는 엔드포인트 `/api/admin/v1/totallyFakeEndpoint` 의 404 응답 바이트가 완전히 동일함을 직접 대조 — 존재 비노출 확인), ADMIN 은 `plugins`·`plugins/{id}`·`traces`·`traces/{traceId}`·`config/schema/{id}` 에서 **403** `{"code":"FORBIDDEN","details":{"missing":["plugins.read"]}}`(캡ability 이름이 요청한 capability 와 정확히 일치, 나머지는 200), DEVELOPER·SUPER_ADMIN 은 18개 전부 200(§3 표와 완전 일치). `config/effective?scope=ENGINE_CONNECTION&targetId=…` 응답을 직접 비교해 ADMIN=`"detail":"SUMMARY"`(sourceRef·layers 키 없음) vs DEVELOPER=`"detail":"FULL"`(sourceRef·layers 있음)을 API 레벨에서 재확인. 없는 id(`engine-connections/zzz`·`plugins/zzz`·`voices/zzz`·`traces/zzz`·`fallback-policies/NOTAROLE`·`config/schema/zzz`) → SUPER_ADMIN 으로도 전부 `{"code":"NOT_FOUND"}` 404. 세션 쿠키 없음 → 401(반면 세션은 있으나 console.access 없는 USER 는 404 — 두 실패가 구분됨, 스펙대로). 브라우저로 역할별 메뉴 개수 직접 확인: ADMIN **9개**(플러그인 없음, 진단 페이지엔 있으나 "요청 Trace" 탭 자체가 없음 — Health 기록만) / DEVELOPER **10개**(플러그인 포함, 진단 탭 있음) / SUPER_ADMIN 10개. USER `/admin/dashboard` 실브라우저 네비게이션 → HTTP 404(Next 공통 404 페이지, 콘솔 UI 요소 0개 — 코드가 아니라 실제 렌더 확인). ADMIN 이 `/admin/plugins`·`/admin/connections/zzz` 로 직접 이동 → 둘 다 HTTP 200 + 콘솔 안 카드("이 화면을 볼 권한이 없어요 · 필요한 권한 plugins.read · 내 역할 ADMIN" / "찾을 수 없어요 · 지금 환경은 LOCAL 이에요") — 설계(H4·designer 404/403 카드)와 일치.
+3. **PASS** — SUPER_ADMIN 브라우저 렌더로 대시보드 확인: 4개 엔진 역할(Realtime STT·Analysis STT·TTS·LLM) 카드에 표시 이름·connection key·모델·상태 배지·"아직 상태 확인 안 함", 목소리 "사용 가능 3·꺼짐 0", 요청 기록(24h) "회화 턴 1·오류 0·p50 11초". 환경 배지 "LOCAL · 개발 환경 — 운영과 분리된 설정 행을 봐요"(이 미러는 APP_ENV=LOCAL 이라 경고색 대상 아님 — 정상).
+4. **PASS** — DEVELOPER 뷰에서 `connection.binPath` 가 `source:"ENVIRONMENT"`·`sourceRef:"env:CLAUDE_CLI_PATH"`(env 가 덮은 키, §4b) 로 나오는 것을 API·화면 둘 다에서 확인. 화면은 절대 경로 대신 `$CLAUDE_CLI_PATH` **자리표시자**로만 보여준다(연결 상세 페이지 "connection.binPath: $CLAUDE_CLI_PATH", credentialRef "없음") — 실제 서버 경로·시크릿 값 DOM 노출 0. 스모크 4h(158개 응답에 서버 `.env` 비밀값 7종 grep → 0)·H1(서버 절대경로 0)도 재확인.
+5. **PASS** — smoke 5a~5k 전부 통과(6개 connection 200/500아님, UNAVAILABLE+사유, ONDEVICE UNKNOWN+NOT_APPLICABLE, SSRF 방지, LLM 기능 테스트 통과·지연 기록, Trace 원문 없음, 30초 429). **상태 원복을 스크립트 신뢰 없이 직접 DB 조회로 재확인**: 실행 후 `EngineConnection` 6행 전부 `status=UNKNOWN`(시작 전 상태와 동일), `EngineHealth` 행 0, `RequestTrace(kind=FUNCTIONAL_TEST)` 행 0 — 스모크의 `finally` 블록 복원 로직이 실제로 동작함을 raw 쿼리로 검증(운영이 같은 LOCAL connection 행을 공유하므로 이 확인이 필수라 별도로 수행).
+6. **PASS** — `#101` 응답 `{ref, source, exists, usedBy, lastUsedAt}` 만(값 필드 없음), 조회마다 `AuditLog(secrets.read_ref)` 1행 증가(스모크 6b). QA 매트릭스 재현 중 ADMIN/DEVELOPER/SUPER_ADMIN 세 번의 추가 `GET /secrets` 호출로 감사 로그가 3행 더 늘었음을 확인(누적 23행) — `AuditLog` 는 불변·영구 보존이 설계(role-permission §7)라 정리 대상 아님, 그대로 둠.
+7. **PASS** — smoke 7a~7g(plugins 5개 loaded, engines schema 역할별 null/값, fallback effectiveOrder, voices, traces 커서+마스킹, connections effectiveSummary). 플러그인 상세 화면의 "소스 파일" 값이 `src/modules/engine/adapters/llm/claudeCli.ts`(저장소 상대 경로)로, 서버 절대 경로가 아님을 확인 — PATH 타입 키(`binPath`·`agentsFile`)는 "기본값 서버 경로 · 표시하지 않음"으로 화면에서도 가려짐.
+8. **PASS** — USER 로 `/settings` 실렌더 → `innerHTML`·`innerText` 어디에도 `/admin/dashboard` 링크나 "AI Engine Console" 문자열 없음(스모크 8a 와 별개로 직접 재확인). ADMIN 은 스모크 8b PASS(링크 있음, B 반영분 확인).
+9. **FAIL(부분)** — 아래 "화면 검증(360/390/412)" 절 참조. 가로 스크롤 0(대시보드·연결 목록·연결 상세·설정(Effective)·진단·Trace 상세·플러그인 상세, 412px 전부 + 연결 상세 360px + 설정 390px)·1024px 이상 사이드바(215px, 햄버거 숨김)·403/404 인콘솔 카드·환경 배지는 전부 PASS 지만, **터치 타겟 6개가 44px 미만**(Medium, 아래 결함 참조)이라 기준 9 전체는 FAIL.
+10. **PASS** — 운영 도메인(`https://kaiwa.xn--lh0b87pnudm10a4vd.com`)에 SUPER_ADMIN QA 쿠키로 직접 재현(스모크와 별개 curl): `GET /api/v1/settings/profile` → 401, `GET /admin/dashboard`(리다이렉트 미추종) → 307, `GET /api/admin/v1/me/capabilities` → 401. 참고로 `GET /api/health` 는 `{"env":"LOCAL","status":"degraded",...}` 를 돌려주는데, 이는 task-005b 변경과 무관한 기존 알려진 상태(ACTIVE.md — 운영 pm2 가 `APP_ENV=LOCAL` 로 도는 문제, stt_gateway·tts 서비스 미기동)이지 이번 작업의 회귀가 아니다.
+
+**[결함 #1] [Medium] 터치 타겟 6개가 ≥44px 미달 — 신규 admin 콘솔 4개 파일**
+
+- **파일·라인**:
+  - `src/components/admin/console/DashboardScreen.tsx:94`(주 연결 상태 확인 버튼, `Btn size="sm"`)
+  - `src/components/admin/console/ConnectionsScreen.tsx:77,82`(모두 상태 확인 / 시크릿 참조 버튼, `Btn size="sm"`)
+  - `src/components/admin/console/HealthHistoryList.tsx:60`(결과 종류 Segmented)
+  - `src/components/admin/trace/DiagnosticsScreen.tsx:159,165`(기간·결과 Segmented)
+  - (참고, 같은 원인) Configuration 화면의 "대상 연결" ChipRadio 도 36px — `src/components/admin/configEditor` 계열
+- **실행 명령**: Playwright(`localhost:3011`, 412×892, SUPER_ADMIN 세션) `getBoundingClientRect()` 측정.
+- **실제**: `Btn size="sm"` → `h-[38px]`(대시보드 "주 연결 상태 확인" 380×38, 연결 목록 "모두 상태 확인"·"시크릿 참조" 각 186×38), `Segmented size="sm"` → 각 칩 69×32(연결 상세 "결과 종류", 진단 화면 "기간"·"결과"), ChipRadio(설정 화면 "대상 연결") → 36px. `src/components/common/ui.tsx:105`에 `size === 'sm' ? 'h-[38px] …' : 'h-12 …'` 로 정의된 공용 컴포넌트를, 이번 task 가 새로 만든 admin 콘솔 4개 파일(`DashboardScreen`·`ConnectionsScreen`·`HealthHistoryList`·`DiagnosticsScreen`)에서 처음 `size="sm"` 으로 채택하며 발생(다른 프로젝트 파일의 기존 `size="sm"` 사용처는 이번 diff 범위 밖).
+- **기대**: CLAUDE.md 모바일 UI 원칙 "터치 44px↑" 및 이 task 완료 기준 9 "터치 ≥44px" — 상호작용 요소는 최소 44px 가 있어야 한다.
+- **원인 추정**: `Btn size="sm"`(38px)·`Segmented`(32px)·ChipRadio(36px) 컴포넌트가 시각적 밀도를 위해 44px 미만으로 고정 설계돼 있고, 이번 task 가 이 변형들을 관리자 콘솔의 실행형 버튼·필터 칩에 그대로 가져다 씀. 뷰포트 폭과 무관한 고정 CSS 라 360/390/412 세 폭 모두에서 동일하게 재현됨(별도로 세 폭 각각 재측정할 필요 없이 결정적).
+- **영향 범위**: 관리자 전용 화면(SUPER_ADMIN·ADMIN·DEVELOPER 만 접근), 학습자 화면 회귀 없음. 클릭 자체는 되지만(요소가 비활성이 아님) 손가락 터치 정확도가 떨어짐.
+- **권고**: 이 6개 사용처만 `size="sm"` 대신 `size="md"`(48px)로 바꾸거나, 시각 크기는 유지하되 히트박스만 44px 로 넓히는 별도 유틸리티(예: 패딩으로 `min-h-11` 확보)를 추가. 공용 컴포넌트 자체의 `sm` 기본값을 올리면 다른 화면(task-008 vocab 등, 이미 QA-012 PASS)에 영향을 줄 수 있으니 이번 6개 사용처 국소 수정을 권장.
+
+**화면 검증(360/390/412, `<screen_verification>` 실브라우저)**
+
+| 항목 | 판정 | 근거 |
+|---|---|---|
+| 다크/라이트 | NOT_VERIFIED | 이 프로젝트는 다크모드 토큰 분기가 없음(design-spec 확인, 라이트 고정) — 해당 없음(N/A 로 처리, PASS 아님) |
+| 가로 스크롤 0 | PASS | 412px: 대시보드·연결 목록·연결 상세·설정(Effective)·진단(Health/Trace)·Trace 상세·플러그인 상세 전부 `scrollWidth===clientWidth`(412) / 360px: 연결 상세 동일(360) / 390px: 설정 화면 동일(390) |
+| 터치 대상 ≥44px | **FAIL** | 위 결함 #1 — 6개 요소 32~38px |
+| 1024px+ 사이드바 | PASS | 1280px 에서 사이드바(nav) 실측 215px 폭으로 상시 노출, 햄버거 버튼 `display:none` |
+| 메뉴 개수(ADMIN 9·DEVELOPER+ 10) | PASS | 브라우저 실측(위 기준 2) |
+| PRODUCTION 아님 배지(LOCAL) | PASS | "LOCAL · 개발 환경 — 운영과 분리된 설정 행을 봐요" 노출 |
+| XSS 리터럴 | N/A(이번 화면 범위 밖) | admin 콘솔의 신규 표시 데이터는 seed·config·트레이스 요약(구조화 값)뿐 외부 LLM 자유 텍스트 렌더 경로가 없음 — 자유 텍스트 XSS 검증은 task-008 QA-012 에서 이미 수행(PASS, `<img onerror>`·`<script>` 텍스트로만 남음 확인) |
+| 엔진명·model_id·speaker_id 비노출 | PASS(콘솔은 예외 허용) | G6 대로 콘솔 화면엔 노출 허용(claude-cli-local·haiku 등 실제로 보임, 의도된 동작) — 학습자 화면(`/study/ai`·`/study/today`)에서는 0건 재확인(아래 회귀) |
+| 관리자 콘솔 capability 없는 계정 404 | PASS | USER `/admin/**` 전부 HTTP 404(실브라우저), API 는 404 봉투 |
+
+**학습자 화면 회귀(F10 관련 없음, 006/008 공용 컴포넌트 영향 없음 확인)**: USER 계정으로 `/study/ai`·`/study/today` 실렌더 — 가로 넘침 0, 엔진명(`reazon|whisper|style-?bert|model_id|speaker_id|claude-cli|haiku|sonnet|opus`) 패턴 0건. `/settings` 콘솔 진입 행 없음(위 기준 8).
+
+**정리한 산출물**: QA 세션 쿠키 4개(USER/ADMIN/DEVELOPER/SUPER_ADMIN) · curl 스크래치 JSON 약 15개 · `qa013-*.log`(typecheck/lint/test/스모크 5종) · dev 서버 stdout 로그 1개 · Playwright `page-*.yml` 스냅샷 약 20개 + `console-*.log` — **산출물 정리: 전부 삭제, `/tmp/qa-artifacts/` 잔여 파일 0개 확인**. 미러 dev 서버(3011) 종료 확인(포트 재확인), 운영 pm2 `thekaiwa`(3010) health 200 불변, `EngineConnection`(LOCAL 6행) 상태 UNKNOWN 원복 확인, `EngineHealth`/`RequestTrace(FUNCTIONAL_TEST)` 0행, QA 계정 5개 모두 `WordEntry`/`VocabSession` 0건(task-008 오염 없음).
+
+**반환**: Developer 에게 결함 #1(Medium, 터치 타겟) 리포트 — 재현·기대·실제 위 표·본문 참조. 수정 후 **Reviewer 부터 재순환**.
 
 ## 최종 요약
 - [2026-09-27 17:30] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=security / budget_rule=CX-limit-ok | overrides=- | fallback=- | tokens=995

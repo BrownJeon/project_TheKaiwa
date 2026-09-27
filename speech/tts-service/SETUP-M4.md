@@ -70,6 +70,8 @@ ls -la model_assets/jvnv-F1-jp/                     # config.json · *.safetenso
 ```
 
 - 파일이 `~/kaiwa-tts-run/model_assets/jvnv-F1-jp/` 아래에 있어야 한다. 다른 폴더에 풀렸으면 이 경로로 옮긴다.
+- **일본어 BERT(약 1.3GB)는 Hugging Face 공용 캐시**(`~/.cache/huggingface/hub/models--ku-nlp--deberta-v2-large-japanese-char-wwm/`)에 저장된다 — `model_assets` 로 옮기지 않는다(5단계가 같은 이름으로 캐시에서 찾는다). 로그인·토큰 불필요. 확인: `ls -lh ~/.cache/huggingface/hub/models--ku-nlp--deberta-v2-large-japanese-char-wwm/snapshots/*/` 에 `config.json`·토크나이저·1GB 넘는 모델 파일.
+- 끊기거나 느리면 같은 명령을 다시 실행(받은 부분은 건너뜀). `No module named huggingface_hub` 면 가상환경이 꺼진 것 — `source .venv/bin/activate` 후 재실행.
 - 다른 화자(F2·M1·M2)는 task-003 에서 화자 매핑(Haruka/Sakura/Takumi)을 정할 때 추가로 받는다.
 
 ## 5. 1문장 합성 확인 (MPS·CPU 시간 측정)
