@@ -212,6 +212,19 @@ export default function RoleScreen({ role }: { role: EngineRoleName }) {
         </Section>
       ) : null}
 
+      {role === 'TTS' && can('voices.read') ? (
+        <Section>
+          <SectionHeader title="발음 사전" />
+          <Link href="/admin/speech/tts/lexicon" className="flex min-h-[56px] min-w-0 items-center gap-2 rounded-[14px] border border-line bg-surface px-3.5 py-2.5">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px]">읽기가 틀린 단어 고치기</span>
+              <span className="block truncate text-[12px] text-ink2">항목·미리듣기·가져오기·버전 기록</span>
+            </span>
+            <span aria-hidden="true">›</span>
+          </Link>
+        </Section>
+      ) : null}
+
       {role === 'LLM' && tiers && typeof tiers === 'object' && !Array.isArray(tiers) ? (
         <Section>
           <SectionHeader title="모델 단계" />

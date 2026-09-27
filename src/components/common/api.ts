@@ -161,7 +161,8 @@ export const apiPost = <T>(path: string, body?: unknown, opts?: ApiOptions) =>
   request<T>('POST', path, body ?? {}, opts)
 export const apiPut = <T>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {})
 export const apiPatch = <T>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {})
-export const apiDelete = <T>(path: string) => request<T>('DELETE', path)
+/** 본문은 선택 — 발음 사전 끄기처럼 이유를 URL(접근 로그)에 싣지 않아야 하는 삭제만 넘긴다. 기존 호출(인자 1개)은 그대로. */
+export const apiDelete = <T>(path: string, body?: unknown) => request<T>('DELETE', path, body)
 
 /**
  * SSE 요청(api-contract §0-9, #32 턴). `EventSource` 는 POST 본문을 못 보내서 fetch 스트림을 쓴다.
@@ -250,6 +251,37 @@ export async function apiGetAudio(path: string, opts?: { signal?: AbortSignal })
   const contentType = res.headers.get('Content-Type') ?? ''
   if (!res.ok || !contentType.startsWith('audio/')) throw await errorFromResponse(res)
   return res.arrayBuffer()
+}
+
+/**
+ * 파일 내려받기 GET(발음 사전 내보내기) — 성공(2xx)이면 본문을 blob 으로, `Content-Disposition` 의 파일명과 함께 돌려준다.
+ * JSON 파일도 성공이면 봉투가 아니므로 **status 로만** 성공을 가른다. 실패는 `apiGetAudio` 와 같은 규칙(401 로그인 이동·봉투 → ApiError).
+ */
+export async function apiGetFile(path: string, opts?: { signal?: AbortSignal }): Promise<{ blob: Blob; filename: string | null }> {
+  let res: Response
+  try {
+    res = await fetch(path, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: clientHeaders(), signal: opts?.signal })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    throw new ApiError('연결하지 못했습니다. 네트워크를 확인해 주세요.', 0)
+  }
+  if (res.status === 401) handleUnauthorized()
+  if (!res.ok) throw await errorFromResponse(res)
+  return { blob: await res.blob(), filename: filenameOf(res.headers.get('Content-Disposition')) }
+}
+
+function filenameOf(disposition: string | null): string | null {
+  if (!disposition) return null
+  const star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disposition)
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].trim())
+    } catch {
+      // 잘못 인코딩된 값이면 아래 일반 filename 으로.
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(disposition)
+  return plain ? plain[1].trim() : null
 }
 
 /** 사용자가 누른 취소인가. 오류 문구를 띄우면 안 되는 유일한 경우다. */

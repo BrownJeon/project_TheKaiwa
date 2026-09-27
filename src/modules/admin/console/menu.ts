@@ -1,7 +1,7 @@
 /**
  * 콘솔 메뉴 단일 상수(admin-console/01 §3·§9) — 사이드바·드로어·breadcrumb 이 이것만 읽는다.
  * 표시 여부는 capability 로만 거른다(없는 메뉴는 렌더하지 않는다, §6). 서버가 매 요청 다시 검사하므로 메뉴는 UX 일 뿐이다.
- * Phase 1 에 화면이 있는 항목만 `phase: 1`. 발음 사전(01 표 "1(P0)")은 task-005b G1 결정으로 task-003 이후로 이월해 여기 없다.
+ * Phase 1 에 화면이 있는 항목만 `phase: 1`. 발음 사전(01 표 "1(P0)")은 task-005b G1 결정으로 이월됐다가 task-003g 에서 열렸다(음성 합성 바로 아래).
  */
 import type { AdminMenuItem, Capability } from '@/types/admin'
 import { can } from '../permissions/can'
@@ -11,6 +11,7 @@ export const ADMIN_MENU: readonly AdminMenuItem[] = [
   { id: 'speech-realtime', path: '/admin/speech/realtime', label: '실시간 음성 인식', capability: 'engine.read', phase: 1, group: 'speech' },
   { id: 'speech-analysis', path: '/admin/speech/analysis', label: '분석 음성 인식', capability: 'engine.read', phase: 1, group: 'speech' },
   { id: 'speech-tts', path: '/admin/speech/tts', label: '음성 합성', capability: 'engine.read', phase: 1, group: 'speech' },
+  { id: 'speech-tts-lexicon', path: '/admin/speech/tts/lexicon', label: '발음 사전', capability: 'voices.read', phase: 1, group: 'speech' },
   { id: 'llm', path: '/admin/llm', label: 'LLM', capability: 'engine.read', phase: 1, group: 'llm' },
   { id: 'voices', path: '/admin/voices', label: '목소리', capability: 'voices.read', phase: 1, group: 'voices' },
   { id: 'connections', path: '/admin/connections', label: '연결', capability: 'engine.read', phase: 1, group: 'engines' },

@@ -219,6 +219,7 @@ const MENU_SUB: Record<string, string> = {
   'speech-realtime': '실시간 음성 인식',
   'speech-analysis': '분석용 음성 인식',
   'speech-tts': '선생님 목소리 합성',
+  'speech-tts-lexicon': '읽기·악센트 고치기·버전',
   llm: '대답·교정·레슨 생성',
   voices: '목소리 목록',
   connections: '연결·Health·기능 테스트',
