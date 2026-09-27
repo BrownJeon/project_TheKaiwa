@@ -16,8 +16,16 @@ const TABS = [
   { href: '/ask', match: '/ask', label: '질문', path: 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01' },
 ] as const
 
+/**
+ * 하단 탭을 숨기는 하위 화면(screens.md §2). 채팅방은 키보드가 올라오면 남는 높이가 ≈560px 인데
+ * 탭 바(66px)까지 두면 대화가 보이는 칸이 더 줄어든다 — 이 화면들은 `BackBar` 의 `←` 로 돌아간다.
+ */
+const HIDDEN_PREFIXES = ['/study/ai/chat/'] as const
+
 export default function TabBar() {
   const pathname = usePathname()
+
+  if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null
 
   return (
     <nav

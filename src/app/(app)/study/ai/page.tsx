@@ -1,11 +1,17 @@
 import AppBar from '@/components/shell/AppBar'
-import ComingSoon from '@/components/common/ComingSoon'
+import StudyAiHome from '@/components/chat/StudyAiHome'
 
-export default function Page() {
+/**
+ * AI와 공부하기 홈(screens.md §3-2 A). 탭은 서버가 `searchParams` 로 받아 넘긴다 — 클라이언트에서
+ * `useSearchParams` 를 쓰면 Suspense 경계가 필요해진다. 기본은 채팅(음성 회화가 열리면 `talk` 로 바꾼다).
+ */
+export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string | string[] }> }) {
+  const { tab } = await searchParams
+  const initialTab = tab === 'talk' ? 'talk' : 'chat'
   return (
     <>
-      <AppBar title="회화" />
-      <ComingSoon phase="Phase 1 · task-006·007" title="AI와 공부하기" items={['AI 회화: 말하면 선생님이 대답하고 틀린 표현을 바로 짚어 줘요', 'AI 채팅: 일본어로 대화하고 대화 뒤에 표현을 점검해요', '교정은 제안만 하고, 저장은 직접 채택할 때만 해요']} />
+      <AppBar title="AI와 공부하기" />
+      <StudyAiHome initialTab={initialTab} />
     </>
   )
 }

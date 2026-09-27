@@ -1,0 +1,228 @@
+'use client'
+
+/**
+ * 채팅방의 **유일한 스크롤 영역**(screens.md §3-2 C MessageList). 스크롤은 코드가 관리한다(`overflow-anchor:none`):
+ * 첫 로드 → 맨 아래 / 새 메시지 → 바닥 120px 안이면 따라 내려감, 아니면 "새 메시지 ↓" / 이전 메시지를 앞에
+ * 붙이면 보던 자리 유지 / 목록 높이가 줄면(키보드) 바닥에 붙어 있던 경우 계속 바닥.
+ */
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import type { ChatMessageView, ProposalDto } from '@/types/chat'
+import { formatDateDivider, kstDateKey, withinGroupGap } from './format'
+import { LOST_FAILURE } from './labels'
+import { FailedBubble, FailedLine, PendingBubble, TutorBubble, UserBubble } from './MessageBubble'
+import ProposalCard from './ProposalCard'
+import RoomIntro from './RoomIntro'
+import type { ChatTurn } from './useChatTurn'
+
+export interface MessageListHandle {
+  scrollToBottom: () => void
+}
+
+const BOTTOM_SLACK_PX = 120
+
+export default function MessageList({
+  chatId,
+  messages,
+  proposals,
+  teacherName,
+  readingDefault,
+  turn,
+  hasOlder,
+  loadingOlder,
+  onLoadOlder,
+  onPick,
+  onProposalChange,
+  onToast,
+  handleRef,
+}: {
+  chatId: string
+  messages: ChatMessageView[]
+  proposals: ProposalDto[]
+  teacherName: string
+  readingDefault: boolean
+  turn: ChatTurn
+  hasOlder: boolean
+  loadingOlder: boolean
+  onLoadOlder: () => void
+  onPick: (text: string) => void
+  onProposalChange: (p: ProposalDto) => void
+  onToast: (msg: string) => void
+  handleRef: RefObject<MessageListHandle | null>
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const atBottomRef = useRef(true)
+  const [atBottom, setAtBottom] = useState(true)
+  /** 바닥에서 벗어날 때의 마지막 메시지 — 그 뒤로 새 메시지가 오면 알약을 띄운다. */
+  const [leftAtLastId, setLeftAtLastId] = useState<string | null>(null)
+  const prev = useRef<{ first: string | null; last: string | null; count: number; scrollHeight: number }>({
+    first: null,
+    last: null,
+    count: 0,
+    scrollHeight: 0,
+  })
+
+  const lastId = messages.length ? messages[messages.length - 1].id : null
+  const firstId = messages.length ? messages[0].id : null
+
+  const scrollToBottom = () => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    atBottomRef.current = true
+    setAtBottom(true)
+  }
+
+  useImperativeHandle(handleRef, () => ({ scrollToBottom }))
+
+  const onScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK_PX
+    if (near !== atBottomRef.current) {
+      atBottomRef.current = near
+      setAtBottom(near)
+      if (!near) setLeftAtLastId(lastId)
+    }
+  }
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const p = prev.current
+    if (p.count === 0 && messages.length > 0) {
+      el.scrollTop = el.scrollHeight
+    } else if (firstId !== p.first && lastId === p.last && messages.length > p.count) {
+      // 이전 메시지를 앞에 붙였다 — 늘어난 높이만큼 내려 보던 자리를 지킨다.
+      el.scrollTop += el.scrollHeight - p.scrollHeight
+    } else if (atBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+    }
+    prev.current = { first: firstId, last: lastId, count: messages.length, scrollHeight: el.scrollHeight }
+  }, [messages, firstId, lastId])
+
+  // 진행 말풍선이 나타나거나 사라질 때도 바닥에 붙어 있었으면 따라간다.
+  const pendingVisible = turn.phase === 'streaming' || turn.phase === 'detached'
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (el && atBottomRef.current) el.scrollTop = el.scrollHeight
+  }, [pendingVisible, turn.phase])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let lastHeight = el.clientHeight
+    const ro = new ResizeObserver(() => {
+      const h = el.clientHeight
+      if (h < lastHeight && atBottomRef.current) el.scrollTop = el.scrollHeight
+      lastHeight = h
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const showPill = !atBottom && lastId !== null && leftAtLastId !== null && lastId !== leftAtLastId
+
+  const lastMessage = messages[messages.length - 1]
+  const trailingPending = pendingVisible && !(lastMessage && lastMessage.role === 'ASSISTANT' && lastMessage.status === 'PENDING')
+  const resumeBusy = turn.phase === 'sending'
+  const failure = turn.failure ?? LOST_FAILURE
+
+  const rows: React.ReactNode[] = []
+  let prevKey = ''
+  messages.forEach((m, i) => {
+    const key = kstDateKey(m.createdAt)
+    const divider = key !== prevKey && key !== ''
+    if (divider) {
+      rows.push(
+        <li key={`d_${key}_${m.id}`} role="separator" className="my-3 flex items-center gap-3 text-[12px] text-ink2">
+          <span aria-hidden="true" className="h-px flex-1 bg-line" />
+          {formatDateDivider(m.createdAt)}
+          <span aria-hidden="true" className="h-px flex-1 bg-line" />
+        </li>,
+      )
+    }
+    prevKey = key || prevKey
+    const before = messages[i - 1]
+    const after = messages[i + 1]
+    const groupStart = divider || !before || before.role !== m.role || !withinGroupGap(before.createdAt, m.createdAt)
+    const groupEnd =
+      !after || after.role !== m.role || !withinGroupGap(m.createdAt, after.createdAt) || kstDateKey(after.createdAt) !== key
+    const isLast = i === messages.length - 1
+
+    let node: React.ReactNode
+    if (m.role === 'USER') {
+      node = <UserBubble chatId={chatId} message={m} showTime={groupEnd} />
+    } else if (m.status === 'DONE') {
+      node = (
+        <>
+          <TutorBubble message={m} teacherName={teacherName} showHeader={groupStart} showTime={groupEnd} readingDefault={readingDefault} />
+          {proposals
+            .filter((p) => p.kind === 'ADD_WORD' && p.messageId === m.id)
+            .map((p) => (
+              <div key={p.id} className="mt-1.5 pl-9">
+                <div className="max-w-[85%]">
+                  <ProposalCard proposal={p} onChange={onProposalChange} onToast={onToast} />
+                </div>
+              </div>
+            ))}
+        </>
+      )
+    } else if (m.status === 'PENDING' && pendingVisible && isLast) {
+      node = <PendingBubble teacherName={teacherName} showHeader={groupStart} stage={turn.stage} startedAt={turn.startedAt} detached={turn.phase === 'detached'} />
+    } else if (isLast) {
+      node = <FailedBubble teacherName={teacherName} showHeader={groupStart} failure={failure} busy={resumeBusy} onRetry={() => void turn.resume()} />
+    } else {
+      node = <FailedLine />
+    }
+    rows.push(
+      <li key={m.id} className={groupStart ? 'mt-3 first:mt-0' : 'mt-1'}>
+        {node}
+      </li>,
+    )
+  })
+  if (trailingPending) {
+    rows.push(
+      <li key="__pending" className="mt-3">
+        <PendingBubble teacherName={teacherName} showHeader stage={turn.stage} startedAt={turn.startedAt} detached={turn.phase === 'detached'} />
+      </li>,
+    )
+  }
+
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        role="log"
+        aria-label="대화 내용"
+        aria-live="polite"
+        aria-relevant="additions"
+        className="h-full overflow-y-auto overscroll-contain px-4 py-3 [overflow-anchor:none]"
+      >
+        {hasOlder ? (
+          <div className="mb-2 flex justify-center">
+            <button
+              type="button"
+              onClick={onLoadOlder}
+              aria-disabled={loadingOlder || undefined}
+              aria-busy={loadingOlder || undefined}
+              className="inline-flex h-11 items-center rounded-xl border border-line bg-surface px-4 text-[13px] font-semibold text-ink"
+            >
+              {loadingOlder ? '불러오는 중…' : '이전 메시지 보기'}
+            </button>
+          </div>
+        ) : null}
+        {messages.length === 0 && !trailingPending ? <RoomIntro teacherName={teacherName} onPick={onPick} /> : <ul className="min-w-0">{rows}</ul>}
+      </div>
+      {showPill ? (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="absolute bottom-3 left-1/2 inline-flex h-9 -translate-x-1/2 items-center rounded-full border border-line bg-surface px-3.5 text-[13px] font-semibold text-ink shadow-md before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']"
+        >
+          새 메시지 ↓
+        </button>
+      ) : null}
+    </div>
+  )
+}

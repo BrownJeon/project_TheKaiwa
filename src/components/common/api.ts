@@ -14,12 +14,27 @@ export class ApiError extends Error {
   readonly status: number
   /** 서버 봉투의 `data.code`(api-contract §0-5). 네트워크 오류·봉투 없음이면 null. */
   readonly code: ApiErrorCode | null
+  /**
+   * 봉투의 `data.details`(선택). 화면이 **같은 status 안에서** 갈라야 할 때 쓴다 —
+   * 409 단어 중복 `existingId`·만료 제안 `status`·턴 충돌 `runningMessageId`(task-006 D6), 429 `retryAfterSec`.
+   */
+  readonly details: Record<string, unknown> | null
+  /** 429 의 `Retry-After` 헤더(초). 헤더가 없으면 null — 화면은 `details.retryAfterSec` 를 먼저 본다. */
+  readonly retryAfterSec: number | null
 
-  constructor(message: string, status: number, code: ApiErrorCode | null = null) {
+  constructor(
+    message: string,
+    status: number,
+    code: ApiErrorCode | null = null,
+    details: Record<string, unknown> | null = null,
+    retryAfterSec: number | null = null,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.details = details
+    this.retryAfterSec = retryAfterSec
   }
 }
 
@@ -58,6 +73,20 @@ export interface ApiOptions {
   onMessage?: (message: string | null) => void
 }
 
+function parseRetryAfter(res: Response): number | null {
+  const raw = res.headers.get('Retry-After')
+  if (!raw) return null
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 0 ? Math.ceil(n) : null
+}
+
+function clientHeaders(init?: HeadersInit): Headers {
+  // 앱 WebView 는 플랫폼을 알린다 — 서버가 인식 모드(OFFLINE 허용 여부)·음성 경로를 해석할 때 쓴다(api-contract #16).
+  const headers = new Headers(init)
+  if (isNativeApp()) headers.set('X-Client-Platform', 'app')
+  return headers
+}
+
 async function send<T>(
   method: string,
   path: string,
@@ -66,9 +95,7 @@ async function send<T>(
 ): Promise<T> {
   let res: Response
   try {
-    // 앱 WebView 는 플랫폼을 알린다 — 서버가 인식 모드(OFFLINE 허용 여부)·음성 경로를 해석할 때 쓴다(api-contract #16).
-    const headers = new Headers(init.headers)
-    if (isNativeApp()) headers.set('X-Client-Platform', 'app')
+    const headers = clientHeaders(init.headers)
     res = await fetch(path, {
       method,
       credentials: 'same-origin',
@@ -100,7 +127,8 @@ async function send<T>(
         ? envelope.message
         : `요청을 처리하지 못했습니다 (${res.status})`
     const code = envelope && envelope.success === false && envelope.data ? envelope.data.code : null
-    throw new ApiError(message, res.status, code)
+    const details = envelope && envelope.success === false && envelope.data?.details ? envelope.data.details : null
+    throw new ApiError(message, res.status, code, details, parseRetryAfter(res))
   }
 
   opts?.onMessage?.(typeof envelope.message === 'string' ? envelope.message : null)
@@ -134,6 +162,52 @@ export const apiPost = <T>(path: string, body?: unknown, opts?: ApiOptions) =>
 export const apiPut = <T>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {})
 export const apiPatch = <T>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {})
 export const apiDelete = <T>(path: string) => request<T>('DELETE', path)
+
+/**
+ * SSE 요청(api-contract §0-9, #32 턴). `EventSource` 는 POST 본문을 못 보내서 fetch 스트림을 쓴다.
+ *
+ * 헤더·401 로그인 이동·봉투 오류 해석은 위 `send()` 와 **같은 규칙**을 공유하고, 성공이면
+ * `text/event-stream` 본문 스트림을 그대로 돌려준다(이벤트 파싱은 호출부 — 화면마다 이벤트가 다르다).
+ * `Content-Type` 이 SSE 가 아니면 서버가 봉투로 거절한 것이다(409·429·400 …) → `ApiError`.
+ *
+ * 취소(`signal`)는 스트림만 끊는다 — 서버는 끝까지 처리·저장하므로(§0-9) 화면은 돌아와서 폴링으로 이어 붙인다.
+ */
+export async function apiStream(
+  path: string,
+  body: unknown,
+  opts?: { signal?: AbortSignal },
+): Promise<ReadableStream<Uint8Array>> {
+  let res: Response
+  try {
+    const headers = clientHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' })
+    res = await fetch(path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers,
+      body: JSON.stringify(body ?? {}),
+      signal: opts?.signal,
+    })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    throw new ApiError('연결하지 못했습니다. 네트워크를 확인해 주세요.', 0)
+  }
+
+  if (res.status === 401) handleUnauthorized()
+
+  const contentType = res.headers.get('Content-Type') ?? ''
+  if (res.ok && contentType.includes('text/event-stream') && res.body) return res.body
+
+  let envelope: ApiEnvelope<unknown> | null = null
+  try {
+    envelope = (await res.json()) as ApiEnvelope<unknown>
+  } catch {
+    envelope = null
+  }
+  const failed = envelope && envelope.success === false ? envelope : null
+  const message = failed && typeof failed.message === 'string' && failed.message ? failed.message : `요청을 처리하지 못했습니다 (${res.status})`
+  throw new ApiError(message, res.status, failed?.data?.code ?? null, failed?.data?.details ?? null, parseRetryAfter(res))
+}
 
 /** 사용자가 누른 취소인가. 오류 문구를 띄우면 안 되는 유일한 경우다. */
 export function isAbort(e: unknown): boolean {

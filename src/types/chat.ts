@@ -1,0 +1,255 @@
+/**
+ * AI 채팅 화면의 클라이언트 DTO — api-contract #27~#39·#55 응답 모양을 **그대로 옮긴** 타입이다.
+ * 서버 모듈(Prisma 타입)을 import 하지 않는다: 화면은 계약만 알고, 서버 구현이 바뀌어도 계약이 같으면 그대로 돈다.
+ * enum 문자열은 `domain-model.md`(prisma/schema.prisma) 값과 같다.
+ */
+
+export type ChatKind = 'TALK' | 'CHAT' | 'ASK'
+export type MessageRole = 'USER' | 'ASSISTANT'
+export type MessageStatus = 'PENDING' | 'DONE' | 'FAILED'
+export type InputSource = 'REALTIME_STT' | 'SERVER_STT' | 'TEXT'
+export type ErrorType =
+  | 'GRAMMAR'
+  | 'PARTICLE'
+  | 'CONJUGATION'
+  | 'VOCABULARY'
+  | 'POLITENESS'
+  | 'NATURALNESS'
+  | 'WORD_ORDER'
+  | 'PRONUNCIATION'
+  | 'OTHER'
+export type Severity = 'MINOR' | 'MAJOR'
+export type ChunkType = 'NAME' | 'ACTION' | 'FEELING' | 'MODIFIER'
+export type ProposalKind = 'ADD_WORD' | 'ADD_STUDY_LOG' | 'ADD_TOPIC' | 'SET_LEVEL' | 'SCHEDULE_REVIEW'
+export type ProposalStatus = 'PROPOSED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
+export type JobStatus = 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED'
+export type TurnStage = 'PROMPT' | 'LLM' | 'PARSE' | 'TTS'
+export type PartOfSpeech = 'NOUN' | 'VERB' | 'ADJ_I' | 'ADJ_NA' | 'ADVERB' | 'PARTICLE' | 'EXPRESSION' | 'OTHER'
+
+export interface Paged<T> {
+  items: T[]
+  nextCursor: string | null
+}
+
+/** #27 목록 항목 */
+export interface ChatSummary {
+  id: string
+  kind: ChatKind
+  title: string
+  topic?: { id: string; title: string } | null
+  level?: string | null
+  lastMessageAt: string | null
+  preview: string | null
+  messageCount: number
+  reviewedAt: string | null
+  running: boolean
+}
+
+/** #28 응답 */
+export interface CreatedChat {
+  id: string
+  kind: ChatKind
+  title: string
+  messageCount: number
+  running: boolean
+  createdAt: string
+}
+
+/** #29 `chat` */
+export interface ChatInfo {
+  id: string
+  kind: ChatKind
+  title: string
+  level?: string | null
+  running: boolean
+  reviewedAt: string | null
+  messageCount: number
+}
+
+export interface LearningInfo {
+  grammarPoint?: string | null
+  difficulty?: string | null
+}
+
+/** #29 메시지의 교정 객체 = #34 항목의 부분집합. #34 는 `chat`·`savedWordId`·시각을 더 싣는다. */
+export interface CorrectionDto {
+  id: string
+  status: ProposalStatus
+  original: string
+  corrected: string
+  explanation: string
+  errorType: ErrorType
+  severity: Severity
+  chunkType: ChunkType | null
+  savedWordId?: string | null
+  messageId?: string
+  chat?: { id: string; title: string; kind: ChatKind }
+  createdAt?: string
+  resolvedAt?: string | null
+}
+
+/** #29 메시지 */
+export interface ChatMessage {
+  id: string
+  role: MessageRole
+  content: string
+  reading?: string | null
+  translation?: string | null
+  inputSource?: InputSource | null
+  status: MessageStatus
+  learning?: LearningInfo | null
+  corrections?: CorrectionDto[]
+  createdAt: string
+}
+
+/** 화면 전용: 서버 응답 전 임시 사용자 말풍선(`tmp_…`). 서버 값이 오면 교체된다. */
+export interface ChatMessageView extends ChatMessage {
+  localStatus?: 'SENDING'
+}
+
+/** #29 응답 */
+export interface ChatDetail {
+  chat: ChatInfo
+  messages: ChatMessage[]
+  pendingProposals: number
+  nextCursor: string | null
+}
+
+export interface AddWordPayload {
+  surface: string
+  reading?: string | null
+  meaning?: string | null
+}
+
+/** ADD_STUDY_LOG payload — 점검 총평을 재방문·잡 경로에서도 복원하려고 여기 보관한다(task-006 결정 3·D4). */
+export interface StudyLogPayload {
+  chatId?: string
+  messageCount?: number
+  correctionCount?: number
+  summaryKo?: string | null
+  strengths?: string[] | null
+  focus?: string[] | null
+  skippedMessages?: number | null
+}
+
+/** #37 항목 */
+export interface ProposalDto {
+  id: string
+  kind: ProposalKind
+  payload: Record<string, unknown>
+  status: ProposalStatus
+  chat?: { id: string; title: string } | null
+  messageId?: string | null
+  createdAt?: string
+  resolvedAt?: string | null
+  result?: Record<string, unknown> | null
+}
+
+/* ── #32 턴 SSE 이벤트 ───────────────────────────────────────────── */
+
+export interface TurnAcceptedEvent {
+  userMessageId: string
+  assistantMessageId: string
+  traceId?: string
+}
+
+export interface TurnStatusEvent {
+  stage: TurnStage
+  elapsedMs?: number
+  warning?: string
+}
+
+export interface TurnDoneEvent {
+  userMessageId: string
+  assistantMessageId: string
+  conversation: { replyJa: string; replyReading?: string | null; replyKo?: string | null }
+  correction?: unknown
+  learning?: LearningInfo | null
+  speech?: { style?: string } | null
+  endOfTopic?: boolean
+  proposals?: Array<Pick<ProposalDto, 'id' | 'kind' | 'payload' | 'status'> & { messageId?: string | null }>
+  audioCount?: number
+  traceId?: string
+}
+
+export interface TurnErrorEvent {
+  code?: string
+  message?: string
+  traceId?: string
+  retryable?: boolean
+}
+
+/* ── #33 표현 점검 ───────────────────────────────────────────────── */
+
+export interface ReviewItemDto {
+  correctionId: string
+  messageId: string
+  original: string
+  corrected: string
+  explanation?: string
+  explanationKo?: string
+  errorType: ErrorType
+  severity: Severity
+  chunkType: ChunkType | null
+  status: ProposalStatus
+}
+
+export interface ReviewSyncResponse {
+  items: ReviewItemDto[]
+  summaryKo?: string | null
+  strengths?: string[] | null
+  focus?: string[] | null
+  skippedMessages?: number | null
+  dropped?: number
+  reviewedAt: string
+}
+
+export interface ReviewJobResponse {
+  jobId: string
+}
+
+/** #55 */
+export interface JobDto {
+  id: string
+  kind: string
+  status: JobStatus
+  progress: number
+  stage: string | null
+  refId: string | null
+  error: string | null
+  createdAt: string
+  finishedAt: string | null
+}
+
+/* ── #35·#38 채택 ───────────────────────────────────────────────── */
+
+export interface CorrectionAcceptBody {
+  addWord?: {
+    surface: string
+    reading?: string
+    meaning: string
+    partOfSpeech?: PartOfSpeech
+    chunkType?: ChunkType
+    category?: string
+  }
+}
+
+export interface CorrectionAcceptResponse {
+  correction: { id: string; status: ProposalStatus; resolvedAt: string | null; savedWordId: string | null }
+  word?: { id: string; surface: string } | null
+}
+
+export interface CorrectionRejectResponse {
+  id: string
+  status: ProposalStatus
+  resolvedAt: string | null
+}
+
+export interface ProposalAcceptResponse {
+  proposal: { id: string; kind: ProposalKind; status: ProposalStatus; result?: Record<string, unknown> | null }
+}
+
+export interface ProposalRejectResponse {
+  id: string
+  status: ProposalStatus
+}
