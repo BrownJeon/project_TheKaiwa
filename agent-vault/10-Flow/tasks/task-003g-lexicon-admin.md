@@ -157,6 +157,13 @@ design-spec §15 task-005b 완료 기준 중 이월분 "**Pronunciation Dictiona
   - A `171763e`(짧은 CSV 행 = 기존 값 유지, 꺼진 항목은 `enabled` 명시 없으면 꺼진 채 → CHANGED) 영향 확인: 화면 문구·골든 표(`parseEntryInput` 전체 키 입력)는 무관. 가져오기 "파일 형식" 접힘에 한 줄 추가 — "빈 칸은 기본값이고, 없는 칸(짧은 행·없는 열)은 기존 값을 그대로 둬요. 꺼진 항목은 enabled 를 true 로 적어야 다시 켜져요."
   - 검증: 회귀 테스트 1(`access.test.ts` — REV 재현 모양 priority 500→10·note 삭제·enabled false→true 행이 읽기·악센트·우선·종류·메모를 모두 보이고 "· 다시 켬" 중복 없음, 끔 행 + 우선순위 변화, 다른 칸 그대로면 덧붙이지 않음, after 없음) · tsc 0 · eslint 0 error(내 파일 경고 0) · **전체 426/426 PASS**. 화면 렌더만 바뀐 국소 수정이라 라이브 E2E 는 다시 돌리지 않음(같은 컴포넌트를 `renderToStaticMarkup` 로 검증), dev 서버 기동 없음 — 3011/3012 비어 있음 확인.
   - 기록 정정: [05:58] 의 "단위 신규 29" 는 실측 27(`kana` 8·`lexiconCopy` 13·`access` 6 — REV-018 지적), 이번 +1 로 28.
+- [07:30] **Codex C2 화면 반영·커밋 `cb8e77e`**(A `31bbc5f` 계약 — `LexiconVersionDto.integrity`·422 `E_SNAPSHOT_INTEGRITY`).
+  - **"기록 손상" 뱃지**(`Badges.IntegrityBadge` — `border-bad bg-surface text-bad`, OK·값 없음이면 그리지 않음, 뜻은 aria-label: MALFORMED "기록 형식이 깨졌어요" / INVALID_ENTRIES "지금 규칙에 맞지 않는 항목이 있어요" / MISMATCH "내용이 저장된 기록(해시)과 달라요"): 버전 행(새 `VersionRow.tsx` 로 분리)·상세 머리(`VersionHead` — 뜻 한 줄 추가)·목록 요약 카드(`active.integrity`)·버전 화면 "상태 뜻" 범례.
+  - **되돌리기 숨김**: `rollbackSlot(v, active, canWrite, knownDamaged)` 에 `'damaged'` 갈래 — 손상이면 버튼 대신 "기록이 손상돼 이 버전으로는 되돌릴 수 없어요."(사용 중 버전은 손상이어도 "지금 쓰는 버전이에요"가 먼저).
+  - **항목 수 문구**: `entryCount`(손상 행 포함)·`enabledCount`(멀쩡한 행 중 켜진 수) 뜻에 맞춰 손상 버전만 "항목 N개(손상 행 포함) · 멀쩡한 사용 중 M", OK 는 기존 "항목 N개(사용 중 M)"(`versionCountText`).
+  - **422 E_SNAPSHOT_INTEGRITY**: 상세(compare=previous)·되돌리기 확인(compare=active)·되돌리기 적용 모두 **시트 안 안내만** — `VersionLoadError` 가 재시도 버튼 없이 `role=alert`, 빈 diff·개수 칩을 그리지 않는다. 문구(§10-8 ⓓ 에 추가할 것): 대상 손상 "v{n} 기록이 손상돼 비교·되돌리기를 할 수 없어요. 올바른 내보내기 파일이 있으면 가져오기로 복구해 주세요." / `details.version` 이 직전 버전이면 "직전 버전 v{p} 기록이 손상돼 비교할 수 없어요."(대상이 멀쩡하면 목록의 버전 정보로 머리를 그리고 되돌리기는 막지 않음 — 되돌리기 확인은 지금 항목 표 기준이라 동작) / 적용 응답 422 → `writeErrorNotice` "v{n} 기록이 손상돼 되돌릴 수 없어요. …가져오기로 복구해 주세요."(보조 버튼 없음) + 확정 버튼을 거두고 [돌아가기]만. 상세 시트는 목록 항목을 `summary` 로 받는다(상세가 422 여도 머리 정보).
+  - **검증**: 단위 +5(`integrity.test.ts` — 뱃지 OK/없음/손상 3종·aria 뜻, 버전 행 integrity 값별 뱃지·항목 수 문구, `rollbackSlot` 값별(OK 만 버튼·손상 3종 damaged·사용 중 current·knownDamaged), 머리 뜻 한 줄, 422 안내 alert·재시도/빈 diff 없음·서버 message 없음·대상/직전 구분·rollback 알림 보조 버튼 없음) · tsc 0 · eslint 0 error(내 파일 경고 0) · **전체 435/435 PASS**(A 430 + 5). 버전 화면 구조를 바꿔 **라이브 E2E 재실행 55/55 PASS**(A 스모크 미실행 확인 후, 하드링크 복제본 dev 3012) — 원복 PASS(LOCAL v1·항목 6), dev 3012 PID 종료·`ss -ltn` 3011/3012 비어 있음·복제본·쿠키 삭제.
+  - **한계**: 손상 스냅샷은 라이브 DB 에 만들 수 없어(A 도 가짜 tx 만) 뱃지·안내는 단위 렌더 테스트로만 확인. 목록 첫 쪽 밖 버전을 `?v=` 로 직접 열었는데 직전 버전이 손상이면 머리 정보 없이 안내만 보인다(되돌리기 버튼도 없음 — 목록에서 열면 정상).
 
 ## Reviewer 기록
 
