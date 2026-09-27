@@ -88,6 +88,7 @@ export default function LexiconImportSheet({
         <p className="text-[12.5px] text-ink2">CSV(UTF-8) 첫 줄:</p>
         <code className="block font-mono text-[12px] [overflow-wrap:anywhere]">{LEXICON_CSV_COLUMNS.join(',')}</code>
         <p className="mt-1 text-[12.5px] text-ink2 break-keep">JSON: 같은 키를 가진 객체의 배열 · 최대 2,000행 · 256KB · 내보내기 파일을 그대로 다시 올릴 수 있어요.</p>
+        <p className="mt-1 text-[12.5px] text-ink2 break-keep">빈 칸은 기본값이고, 없는 칸(짧은 행·없는 열)은 기존 값을 그대로 둬요. 꺼진 항목은 enabled 를 true 로 적어야 다시 켜져요.</p>
       </details>
       <div className="mt-3">
         <RadioCards options={MODE_OPTIONS} value={im.mode} onChange={im.setMode} ariaLabel="가져오는 방식" />

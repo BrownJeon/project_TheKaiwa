@@ -23,7 +23,8 @@ function wordTypeText(v: LexiconSnapshotRowDto['wordType']): string {
   return v ? WORD_TYPE_KO[v] ?? v : '없음'
 }
 
-function changedParts(b: LexiconSnapshotRowDto, a: LexiconSnapshotRowDto): React.ReactNode[] {
+/** 바뀐 칸만. `withEnabled=false` 는 켜짐/꺼짐을 종류 뱃지·첫 문구가 이미 말하는 끔·다시 켬 행에서 쓴다. */
+function changedParts(b: LexiconSnapshotRowDto, a: LexiconSnapshotRowDto, withEnabled = true): React.ReactNode[] {
   const parts: React.ReactNode[] = []
   if (b.reading !== a.reading)
     parts.push(
@@ -35,7 +36,7 @@ function changedParts(b: LexiconSnapshotRowDto, a: LexiconSnapshotRowDto): React
   if (b.priority !== a.priority) parts.push(<span key="p">우선 {b.priority} → {a.priority}</span>)
   if ((b.wordType ?? null) !== (a.wordType ?? null)) parts.push(<span key="w">종류 {wordTypeText(b.wordType)} → {wordTypeText(a.wordType)}</span>)
   if ((b.note ?? null) !== (a.note ?? null) && !(b.note === undefined || a.note === undefined)) parts.push(<span key="n">메모 바뀜</span>)
-  if (b.enabled !== a.enabled) parts.push(<span key="e">{a.enabled ? '다시 켬' : '끔'}</span>)
+  if (withEnabled && b.enabled !== a.enabled) parts.push(<span key="e">{a.enabled ? '다시 켬' : '끔'}</span>)
   return parts
 }
 
@@ -47,19 +48,35 @@ function detail(row: LexiconDiffRowDto): React.ReactNode {
         {ja(after.reading)} · 악센트 {after.accentType} · 우선 {after.priority}
       </>
     )
-  if (kind === 'DISABLED' && before) return <>{ja(before.reading)} · 이제 쓰지 않아요</>
-  if (kind === 'ENABLED' && after) return <>{ja(after.reading)} · 다시 써요</>
+  // 서버는 켜짐/꺼짐이 바뀌면 다른 칸이 함께 바뀌어도 끔·다시 켬으로 분류한다 — 같은 변경에 딸린 칸 변화도 이어 보여야
+  // 가져오기 미리 보기·버전 비교·되돌리기 확인에서 우선순위·종류·메모가 조용히 바뀌는 것을 놓치지 않는다(REV-018).
+  if (kind === 'DISABLED' && before)
+    return (
+      <>
+        {ja(before.reading)} · 이제 쓰지 않아요{after ? joinParts(changedParts(before, after, false), true) : null}
+      </>
+    )
+  if (kind === 'ENABLED' && after)
+    return (
+      <>
+        {ja(after.reading)} · 다시 써요{before ? joinParts(changedParts(before, after, false), true) : null}
+      </>
+    )
   if (kind === 'CHANGED' && before && after) {
     const parts = changedParts(before, after)
     if (parts.length === 0) return '바뀐 칸 없음'
-    return parts.map((p, i) => (
-      <span key={i}>
-        {i > 0 ? ' · ' : ''}
-        {p}
-      </span>
-    ))
+    return joinParts(parts, false)
   }
   return null
+}
+
+function joinParts(parts: React.ReactNode[], leadingSep: boolean): React.ReactNode {
+  return parts.map((p, i) => (
+    <span key={i}>
+      {leadingSep || i > 0 ? ' · ' : ''}
+      {p}
+    </span>
+  ))
 }
 
 export default function LexiconDiffList({ rows, truncated }: { rows: readonly LexiconDiffRowDto[]; truncated: number }) {

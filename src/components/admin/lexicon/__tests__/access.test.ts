@@ -113,6 +113,37 @@ test('diff 표시: 수정은 바뀐 칸만, 끔·다시 켬·추가 문구, 외 
   assert.match(counts, /border-bad/)
 })
 
+test('diff 표시: 다시 켬·끔 행도 같은 변경에 딸린 칸 변화를 전부 보인다(REV-018)', () => {
+  const b = { surface: '日本橋', reading: 'ニホンバシ', accentType: 0, priority: 500, scope: 'GLOBAL' as const, scopeRefId: null, wordType: 'COMMON' as const, enabled: false, note: 'keep me' }
+  const enabledRow: LexiconDiffRowDto = {
+    kind: 'ENABLED',
+    surface: '日本橋',
+    scope: 'GLOBAL',
+    scopeRefId: null,
+    before: b,
+    after: { ...b, reading: 'ニッポンバシ', accentType: 2, priority: 10, wordType: null, note: null, enabled: true },
+  }
+  const html = renderToStaticMarkup(createElement(LexiconDiffList, { rows: [enabledRow], truncated: 0 }))
+  const text = html.replace(/<[^>]+>/g, '')
+  assert.match(text, /ニッポンバシ · 다시 써요/)
+  assert.match(text, /읽기 ニホンバシ → ニッポンバシ/)
+  assert.match(text, /악센트 0 → 2/)
+  assert.match(text, /우선 500 → 10/)
+  assert.match(text, /종류 일반어 → 없음/)
+  assert.match(text, /메모 바뀜/)
+  assert.doesNotMatch(text, /· 다시 켬/, '켜짐은 뱃지·첫 문구가 이미 말한다(상세 줄에 중복 없음)')
+
+  const disabledRow: LexiconDiffRowDto = { ...enabledRow, kind: 'DISABLED', before: { ...b, enabled: true }, after: { ...b, enabled: false, priority: 20 } }
+  const off = renderToStaticMarkup(createElement(LexiconDiffList, { rows: [disabledRow], truncated: 0 })).replace(/<[^>]+>/g, '')
+  assert.match(off, /ニホンバシ · 이제 쓰지 않아요 · 우선 500 → 20/)
+  assert.doesNotMatch(off, /· 끔/)
+
+  const plainOff = renderToStaticMarkup(createElement(LexiconDiffList, { rows: [{ ...disabledRow, after: { ...b, enabled: false } }], truncated: 0 })).replace(/<[^>]+>/g, '')
+  assert.match(plainOff, /ニホンバシ · 이제 쓰지 않아요$/m, '다른 칸이 그대로면 덧붙이지 않는다')
+  const noAfter = renderToStaticMarkup(createElement(LexiconDiffList, { rows: [{ ...disabledRow, after: null }], truncated: 0 })).replace(/<[^>]+>/g, '')
+  assert.match(noAfter, /이제 쓰지 않아요/)
+})
+
 test('버전 상세 발밑: 사용 중 = 안내, 쓰기 가능 = 되돌리기 버튼, 보기 전용 = 없음 · 지금과 같으면 되돌릴 것 없음', () => {
   assert.equal(rollbackSlot({ status: 'ACTIVE', version: 9 }, 9, true), 'current')
   assert.equal(rollbackSlot({ status: 'SUPERSEDED', version: 7 }, 9, true), 'button')
