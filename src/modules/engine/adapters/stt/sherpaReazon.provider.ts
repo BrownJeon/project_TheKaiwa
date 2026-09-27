@@ -20,10 +20,6 @@ export const interpretGatewayHealth: HealthInterpreter = (json) => {
   const s = typeof json.status === 'string' ? GATEWAY_STATUS[json.status] : undefined
   if (s) return { ok: false, status: s.status, detail: { errorCode: `SERVICE_${String(json.status)}`, message: s.message } }
   if (json.ok === false) return { ok: false, status: 'UNAVAILABLE', detail: { errorCode: 'SERVICE_NOT_READY', message: '서비스는 떠 있지만 인식 준비가 되지 않았습니다' } }
-  const models = Array.isArray(json.models) ? (json.models as unknown[]) : null
-  if (models && !models.some((m) => !!m && typeof m === 'object' && (m as { loaded?: unknown }).loaded === true)) {
-    return { ok: false, status: 'UNAVAILABLE', detail: { errorCode: 'MODEL_NOT_LOADED', message: '서비스는 떠 있지만 인식 모델이 로드되지 않았습니다' } }
-  }
   return {}
 }
 

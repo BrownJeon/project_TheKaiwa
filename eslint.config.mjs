@@ -5,9 +5,10 @@ import nextTs from 'eslint-config-next/typescript'
 /**
  * 경계 규칙 생성기. `banned` 모듈은 모든 깊이 금지, `indexOnly` 모듈은 index(루트)만 허용하고 하위 경로 금지
  * (`allowSub` 에 적은 하위 진입점은 예외), `banInfraRoot` 는 infra index(= Prisma 포함) 자체를 금지한다.
+ * `banRoots` 는 그 밖의 모듈 루트 index 자체를 금지한다(하위 진입점만 허용 — 컴포넌트의 speech, task-003e REV-013).
  * 음성 테스트(2026-09-26): 층별 금지·index 우회·컴포넌트의 infra index import 9건이 모두 error 로 잡히고 허용 경로는 통과.
  */
-function boundary(files, banned, indexOnly, message, allowSub = [], banInfraRoot = false) {
+function boundary(files, banned, indexOnly, message, allowSub = [], banInfraRoot = false, banRoots = []) {
   // 모듈(src/modules/**)은 라우트·화면을 모른다. 라우트는 컴포넌트를 쓰고, 컴포넌트는 라우트를 import 하지 않는다.
   const ui = files.startsWith('src/modules/') ? '^@/(app|components)/' : files.startsWith('src/components/') ? '^@/app/' : null
   const patterns = ui ? [{ regex: ui, message }] : []
@@ -17,6 +18,7 @@ function boundary(files, banned, indexOnly, message, allowSub = [], banInfraRoot
     patterns.push({ regex: `^@/modules/(${indexOnly.join('|')})/${except}`, message: `${message} (index 우회 금지)` })
   }
   if (banInfraRoot) patterns.push({ regex: '^@/modules/infra$', message: `${message} (infra index 는 Prisma 를 포함)` })
+  if (banRoots.length) patterns.push({ regex: `^@/modules/(${banRoots.join('|')})$`, message: `${message} (서버 코드가 든 루트 index — 클라이언트 진입점만)` })
   return [{ files: [files.endsWith('**') ? `${files}/*.{ts,tsx}` : files], rules: { 'no-restricted-imports': ['error', { patterns }] } }]
 }
 
@@ -68,7 +70,8 @@ const eslintConfig = defineConfig([
   ...boundary('src/app/**/*.client.tsx', ['engine'], ['admin', 'preferences', 'conversation', 'learning', 'speech', 'infra'], '클라이언트 컴포넌트는 서버 모듈을 import 하지 않는다', ['auth/oauth/next-path', 'native', 'dates'], true),
   // 컴포넌트: 서버 모듈(Prisma 포함 infra index·auth)을 끌어오지 않는다(규칙 5). 클라이언트 안전 진입점만.
   // `stt/client` = speech 의 클라이언트 안전 진입점(task-003e M4, Leader 승인 2026-09-28 — module-dependency §3 규칙 5).
-  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates', 'stt/client'], true),
+  // speech 루트 index(Prisma·engine 포함)는 컴포넌트에서 금지 — 컴포넌트가 쓰는 speech 는 `@/modules/speech/stt/client` 뿐(REV-013).
+  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates', 'stt/client'], true, ['speech']),
   // speech 클라이언트 진입점은 브라우저 번들에 들어간다 — 서버 코드(다른 모듈·speech 서버 파일·Node/Prisma/Next 서버 API)를 끌어오지 않는다.
   // 허용: 네이티브 브리지(`@/modules/infra/native`)·`@/types/*`·같은 디렉터리 상대 경로. 위 speech 경계 블록을 이 파일들에 한해 대체한다.
   {

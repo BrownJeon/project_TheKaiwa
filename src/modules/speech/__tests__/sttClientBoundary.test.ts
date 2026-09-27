@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -19,4 +19,28 @@ test('speech 클라이언트 진입점은 서버 모듈을 import 하지 않는�
     for (const s of specs) assert.ok(ALLOWED.some((re) => re.test(s)), `${f}: 허용되지 않은 import '${s}'`)
     assert.doesNotMatch(src, /process\.env|reazon|sherpa|whisper/i, `${f}: 서버 설정·엔진명`)
   }
+})
+
+/** 컴포넌트가 쓰는 speech 는 `@/modules/speech/stt/client` 뿐 — 루트 index(Prisma·engine 포함)·다른 하위 경로 금지(REV-013 M2, eslint 와 이중 확인). */
+const COMPONENTS = join(__dirname, '..', '..', '..', 'components')
+
+function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f)
+    return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(f) ? [p] : []
+  })
+}
+
+function speechImportViolations(src: string): string[] {
+  const specs = [...src.matchAll(/(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]/g), ...src.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1])
+  return specs.filter((s) => /^@\/modules\/speech(\/|$)/.test(s) && !/^@\/modules\/speech\/stt\/client(\/|$)/.test(s))
+}
+
+test('컴포넌트는 speech 루트 index 를 import 하지 않는다(stt/client 만)', () => {
+  assert.deepEqual(speechImportViolations(`import { x } from '@/modules/speech'`), ['@/modules/speech'], '루트 금지를 잡는다')
+  assert.deepEqual(speechImportViolations(`import type { Y } from '@/modules/speech/tts'`), ['@/modules/speech/tts'])
+  assert.deepEqual(speechImportViolations(`import { z } from '@/modules/speech/stt/client'`), [])
+  const files = walk(COMPONENTS)
+  assert.ok(files.length > 10)
+  for (const f of files) assert.deepEqual(speechImportViolations(readFileSync(f, 'utf8')), [], f)
 })

@@ -65,6 +65,8 @@ export interface RecordedUtterance {
 export async function recordUploadedUtterance(userId: string, input: UploadInput): Promise<RecordedUtterance> {
   const wav = parseWav(input.audio)
   if (!wav || !isPcm16Mono16k(wav)) throw new ApiError('VALIDATION', '16kHz 모노 PCM16 wav 만 받을 수 있어요.', { field: 'audio', reason: 'AUDIO_FORMAT' })
+  // 저장은 버퍼 전체다 — data 선언 뒤에 덧붙은 바이트가 있으면 길이 검증이 저장물과 어긋나므로 거부한다(REV-013 M1).
+  if (wav.trailingBytes > 0) throw new ApiError('VALIDATION', '녹음 파일 형식이 올바르지 않아요.', { field: 'audio', reason: 'AUDIO_FORMAT' })
   if (wav.durationMs > UTTERANCE_MAX_DURATION_MS) throw new ApiError('VALIDATION', '60초 이하로 녹음해 주세요.', { field: 'audio', reason: 'AUDIO_TOO_LONG' })
   if (input.audio.length > UTTERANCE_MAX_BYTES) throw new ApiError('VALIDATION', '녹음 파일이 너무 커요.', { field: 'audio', reason: 'TOO_LARGE' })
   const key = await realtimeKey(input.realtimeConnectionKey)

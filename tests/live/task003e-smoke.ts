@@ -199,6 +199,10 @@ async function main(): Promise<void> {
   check('E8 lessonId 400 FEATURE_NOT_READY', u6.status === 400 && code(u6) === 'FEATURE_NOT_READY')
   check('E9 connection 모름 400', (await call(cUser, 'POST', '/api/v1/speech/utterances', { form: uploadForm(wav(300), { realtimeConnectionKey: 'nope' }) })).status === 400)
   check('E10 JSON 본문 400', (await call(cUser, 'POST', '/api/v1/speech/utterances', { json: { text: 'x' } })).status === 400)
+  // REV-013 M1: data 선언은 1초인데 뒤에 PCM 59초를 덧붙인 파일 → 400(저장 0)
+  const forged = Buffer.concat([wav(1000), Buffer.alloc(32_000 * 59)])
+  const u7 = await call(cUser, 'POST', '/api/v1/speech/utterances', { form: uploadForm(forged, { realtimeConnectionKey: key }) })
+  check('E11 헤더 조작(선언 뒤 덧붙은 PCM) 400 AUDIO_FORMAT', u7.status === 400 && u7.json?.data?.details?.reason === 'AUDIO_FORMAT', `status=${u7.status}`)
 
   // ── F. 30일 정리 ────────────────────────────────────────────────────
   const oldId = `csmokepurge${Date.now().toString(36)}`.slice(0, 25)
