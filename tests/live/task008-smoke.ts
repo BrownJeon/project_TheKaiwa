@@ -198,6 +198,20 @@ async function main() {
   const allDone = await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { category: '소수' })
   check('5f 오늘 끝낸 세트 단어만 남음 → ALL_DONE_TODAY', (d(allDone).empty as Json)?.reason === 'ALL_DONE_TODAY', JSON.stringify(d(allDone)))
 
+  // 보관 ↔ 세트 생성 동시(Codex C2-1): 보관된 단어가 세트에 들어 있다면 세트가 먼저 만들어졌어야 한다(startedAt < archivedAt)
+  const raceIds: string[] = []
+  for (const [s1, m1] of [['競一', '경일'], ['競二', '경이'], ['競三', '경삼'], ['競四', '경사'], ['競五', '경오']]) raceIds.push(String((d(await api(COOKIE1, 'POST', '/api/v1/words', { surface: `${s1}語`, meaning: `${m1}어`, category: '경합' })).word as Json).id))
+  const [arA, crA] = await Promise.all([api(COOKIE1, 'POST', `/api/v1/words/${raceIds[0]}/archive`), api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { category: '경합', count: 5 })])
+  const raceSet = d(crA) as unknown as Created
+  const included = (raceSet.cards ?? []).some((c) => c.wordId === raceIds[0])
+  const archivedAtMs = Date.parse(String(d(arA).archivedAt))
+  const startedMs = Date.parse(String(raceSet.session?.startedAt))
+  check('5i 보관·세트 생성 동시 → 둘 다 200, 보관 단어가 세트에 있으면 세트가 먼저(startedAt < archivedAt)', arA.status === 200 && crA.status === 200 && (!included || startedMs < archivedAtMs), `included=${included} cards=${raceSet.session?.cardCount}`)
+  await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${raceSet.session?.id}/finish`)
+  const afterArch = d(await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { category: '경합', count: 5 })) as unknown as Created
+  check('5j 보관 뒤 만든 세트에는 보관 단어 없음', !(afterArch.cards ?? []).some((c) => c.wordId === raceIds[0]) && (afterArch.cards ?? []).length === 4)
+  await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${afterArch.session?.id}/finish`)
+
   // 동시 세트 생성 2회
   const [cA, cB] = await Promise.all([api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 10 }), api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 10 })])
   const inProg = await prisma.vocabSession.count({ where: { userId: u1, status: 'IN_PROGRESS' } })

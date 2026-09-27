@@ -7,8 +7,10 @@
  * 잠금 순서(교착 방지 — task-006 과 같은 "사용자 행 → 대상 행"):
  *   - 생성·다시 풀기: 사용자 행 → (진행 중 세트 확인) → 세트·카드 생성
  *   - 답(attempt): 세트 행(`FOR UPDATE`) → 카드 행 조건부 갱신(`answer IS NULL`)
+ *   - 조회(#49): 세트 행(`FOR UPDATE`) → 카드 읽기(끝내기 도중의 반쯤 바뀐 상태를 읽지 않게)
+ *   - 보관(#52): 사용자 행 → 세트 행(다시 풀기와 직렬화)
  *   - 끝내기(finish): 사용자 행 → 세트 행 → 카드 → 단어 카운터 → StudyLog → 스냅샷(VOCAB_SESSION·DAILY)
- *   - 단어 삭제(words.deleteWord)·수정도 사용자 행을 먼저 잡는다 → finish 의 카운터 갱신과 직렬화된다.
+ *   - 단어 삭제·수정·보관(words.*)도 사용자 행을 먼저 잡는다 → finish 의 카운터 갱신·세트 생성의 풀 읽기와 직렬화된다.
  * answer 와 finish 는 같은 세트 행을 잡으므로 서로의 중간 상태를 보지 않는다(답이 먼저면 집계에 들어가고, finish 가 먼저면 답은 409).
  */
 import type { PartOfSpeech, Prisma, VocabAnswer, VocabMode, VocabSessionStatus } from '@prisma/client'
@@ -361,13 +363,20 @@ export async function listVocabSessions(userId: string, q: SessionListQuery): Pr
   }
 }
 
-/** #49 — #47 형태. 답한 카드·끝난 세트만 정답 포함. */
+/**
+ * #49 조회(트랜잭션 `tx` 안) — 세트 행을 답·끝내기와 같은 `FOR UPDATE` 로 잡고 카드를 이어 읽는다. finish 는 카드를 SKIPPED 로
+ * 바꾼 뒤 세트를 DONE 으로 바꾸므로, 잠금 없이 두 번 읽으면 "IN_PROGRESS 세트 + SKIPPED 확정 카드(정답 공개)" 조합이 보일 수 있다(Codex C2).
+ */
+export async function readVocabSessionTx(tx: Tx, userId: string, id: string): Promise<{ session: VocabSessionDto; cards: VocabCardDto[] }> {
+  const s = await lockSession(tx, userId, id)
+  const attempts = await tx.vocabAttempt.findMany({ where: { sessionId: id }, orderBy: { order: 'asc' }, select: ATTEMPT_SELECT })
+  return { session: toSessionDto(s), cards: attempts.map((a) => toCardDto(s.mode, s.status, a)) }
+}
+
+/** #49 — #47 형태. 답한 카드·DONE 세트만 정답 포함. */
 export async function getVocabSession(userId: string, id: string): Promise<{ session: VocabSessionDto; cards: VocabCardDto[] }> {
   if (!isValidId(id)) throw notFound()
-  const s = await prisma.vocabSession.findFirst({ where: { id, userId }, select: SESSION_SELECT })
-  if (!s) throw notFound()
-  const attempts = await prisma.vocabAttempt.findMany({ where: { sessionId: id }, orderBy: { order: 'asc' }, select: ATTEMPT_SELECT })
-  return { session: toSessionDto(s), cards: attempts.map((a) => toCardDto(s.mode, s.status, a)) }
+  return withTransaction((tx) => readVocabSessionTx(tx, userId, id))
 }
 
 // ── #50 답 ───────────────────────────────────────────────────────────────────

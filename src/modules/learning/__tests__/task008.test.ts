@@ -280,3 +280,40 @@ test('A10 draft(E8·F8): valid=false 면 사전 필드 비움, 캐시 키 = (표
   assert.equal(cachedDraft('w0', null, 6_000), null, '오래된 것부터 버림')
   assert.notEqual(cachedDraft('w599', null, 6_000), null)
 })
+
+/** 가짜 tx — 호출 순서를 기록한다(잠금이 대상 쓰기·읽기보다 먼저인지). */
+function fakeTx(log: string[], rows: { word?: unknown; session?: unknown; attempts?: unknown[] }) {
+  return {
+    $queryRaw: async (strings: TemplateStringsArray) => {
+      const sql = strings.join('?')
+      log.push(sql.includes('`User`') ? 'lock:user' : sql.includes('VocabSession') ? 'lock:session' : `raw:${sql}`)
+      return [{ id: 'x' }]
+    },
+    wordEntry: {
+      updateMany: async () => (log.push('word:update'), { count: 1 }),
+      findFirst: async () => (log.push('word:read'), rows.word ?? null),
+    },
+    vocabSession: { findUniqueOrThrow: async () => (log.push('session:read'), rows.session) },
+    vocabAttempt: { findMany: async () => (log.push('attempts:read'), rows.attempts ?? []) },
+  } as never
+}
+
+test('Codex C2-1: 보관 토글은 사용자 행을 먼저 잠근 뒤 단어를 갱신한다', async () => {
+  const { setWordArchivedTx } = await import('../vocab/words')
+  const log: string[] = []
+  const word = { id: 'w1', surface: 's', reading: null, meaning: 'm', partOfSpeech: 'NOUN', chunkType: null, jlpt: null, example: null, exampleKo: null, note: null, category: null, source: 'MANUAL', sourceRefId: null, correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null, archived: true, archivedAt: NOW, createdAt: NOW, updatedAt: NOW }
+  const dto = await setWordArchivedTx(fakeTx(log, { word }), 'u1', 'w1', true)
+  assert.deepEqual(log, ['lock:user', 'word:update', 'word:read'])
+  assert.equal(dto.archivedAt, NOW.toISOString())
+  await assert.rejects(setWordArchivedTx(fakeTx([], {}), 'u1', 'w1', true), code('NOT_FOUND'), '없거나 남의 단어 404')
+})
+
+test('Codex C2-2: #49 조회는 세트 행을 잠근 뒤 카드를 읽는다(한 스냅샷), 미답 CHOICE 정답 없음', async () => {
+  const { readVocabSessionTx } = await import('../vocab/sessions')
+  const log: string[] = []
+  const session = { id: 'vs1', date: new Date('2026-09-27T00:00:00Z'), mode: 'CHOICE', requestedCount: 5, cardCount: 1, correctCount: 0, wrongCount: 0, skippedCount: 0, status: 'IN_PROGRESS', keptAt: null, replayOfId: null, seed: 'Cabc', startedAt: NOW, finishedAt: null, durationSec: null }
+  const out = await readVocabSessionTx(fakeTx(log, { session, attempts: [{ id: 'a1', ...attemptBase }] }), 'u1', 'vs1')
+  assert.deepEqual(log, ['lock:session', 'session:read', 'attempts:read'])
+  assert.equal(out.session.status, 'IN_PROGRESS')
+  assert.equal(out.cards[0].correctText, undefined)
+})

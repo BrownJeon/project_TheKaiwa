@@ -330,13 +330,23 @@ export async function deleteWord(userId: string, id: string): Promise<{ deleted:
   return { deleted: true, snapshotKept: true }
 }
 
-/** #45 — 보관 토글. 이미 그 상태면 그대로 돌려준다(`archivedAt` 유지). */
-export async function setWordArchived(userId: string, id: string, archived: boolean): Promise<WordDto> {
+/**
+ * #45 보관 토글(트랜잭션 `tx` 안). 이미 그 상태면 그대로 돌려준다(`archivedAt` 유지).
+ * 사용자 행을 먼저 잡는다 — 세트 생성(#47)도 사용자 행을 잡고 풀을 읽으므로, 보관이 끝난 뒤 만들어진 세트에 그 단어가 섞이지 않는다(Codex C2).
+ */
+export async function setWordArchivedTx(tx: Tx, userId: string, id: string, archived: boolean): Promise<WordDto> {
   if (!isValidId(id)) throw notFound()
-  await prisma.wordEntry.updateMany({ where: { id, userId, archived: !archived }, data: { archived, archivedAt: archived ? new Date() : null } })
-  const w = await prisma.wordEntry.findFirst({ where: { id, userId }, select: WORD_SELECT })
+  await lockUserRow(tx, userId)
+  await tx.wordEntry.updateMany({ where: { id, userId, archived: !archived }, data: { archived, archivedAt: archived ? new Date() : null } })
+  const w = await tx.wordEntry.findFirst({ where: { id, userId }, select: WORD_SELECT })
   if (!w) throw notFound()
   return toWordDto(w)
+}
+
+/** #45 — `setWordArchivedTx` 를 자체 트랜잭션으로. */
+export async function setWordArchived(userId: string, id: string, archived: boolean): Promise<WordDto> {
+  if (!isValidId(id)) throw notFound()
+  return withTransaction((tx) => setWordArchivedTx(tx, userId, id, archived))
 }
 
 export interface CategoryCount {
