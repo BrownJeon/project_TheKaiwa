@@ -46,7 +46,7 @@ python --version                                   # Python 3.11.x
 pip install --upgrade pip wheel setuptools
 pip install torch torchaudio                       # macOS arm64 기본 휠 = MPS 지원
 pip install style-bert-vits2 "fastapi" "uvicorn[standard]" "pydantic>=2" huggingface_hub
-pip install "setuptools<81"                         # pyopenjtalk 가 pkg_resources 를 쓴다 — 최신 setuptools 에는 없음(2026-09-27 실측 오류)
+pip install "setuptools<81" "numpy<2" "transformers<5"   # 2026-09-27 M4 실측으로 확정한 조합(아래 문제 해결 참고)
 python -c "import pkg_resources, pyopenjtalk; print('ok')"
 python -c "import torch; print('torch', torch.__version__, 'mps', torch.backends.mps.is_available())"
 git status --short | head                          # .venv 가 목록에 보이면 알려 줄 것(.gitignore 보강 필요)
@@ -54,6 +54,7 @@ git status --short | head                          # .venv 가 목록에 보이�
 
 - `mps True` 가 나오면 GPU(MPS) 사용 가능.
 - `pyopenjtalk` 빌드 오류가 나면 1단계 `cmake` 설치를 확인하고 `pip install style-bert-vits2` 를 다시 실행한다.
+- **확정 조합(2026-09-27 M4 실측)**: Python 3.11.16 · style-bert-vits2 2.5.0 · torch 2.14.0 · transformers **4.57.6** · numpy **1.26.4** · setuptools **80.10.2**. 최신 버전을 그대로 받으면 아래 세 오류가 차례로 난다.
 - 5단계에서 `ModuleNotFoundError: No module named 'pkg_resources'` 가 나면 위 `setuptools<81` 줄을 실행(그래도 나면 `setuptools<70`). `torch.jit.script`·`weight_norm` FutureWarning 은 무시해도 된다.
 - `ValueError: numpy.dtype size changed … Expected 96 from C header, got 88 from PyObject` 가 나면 **pyopenjtalk-dict 바이너리는 numpy 1.x 로 빌드됐는데 설치된 numpy 는 2.x** 라는 뜻(2026-09-27 실측: numpy 2.4.6 + pyopenjtalk-dict 0.3.4.dev2). numpy 를 1.x 로 맞춘다:
   ```bash
@@ -83,73 +84,29 @@ ls -la model_assets/jvnv-F1-jp/                     # config.json · *.safetenso
 - 끊기거나 느리면 같은 명령을 다시 실행(받은 부분은 건너뜀). `No module named huggingface_hub` 면 가상환경이 꺼진 것 — `source .venv/bin/activate` 후 재실행.
 - 다른 화자(F2·M1·M2)는 task-003 에서 화자 매핑(Haruka/Sakura/Takumi)을 정할 때 추가로 받는다.
 
-## 5. 1문장 합성 확인 (CPU 먼저, MPS 는 실패해도 계속)
+## 5. 1문장 합성 확인 (CPU·MPS)
 
 ```bash
-cd ~/kaiwa-tts-run && source .venv/bin/activate
-python - <<'PY'
-import glob, time, wave
-import numpy as np
-from style_bert_vits2.constants import Languages
-from style_bert_vits2.nlp import bert_models
-from style_bert_vits2.tts_model import TTSModel
-
-bert = "ku-nlp/deberta-v2-large-japanese-char-wwm"
-bert_models.load_model(Languages.JP, bert)
-bert_models.load_tokenizer(Languages.JP, bert)
-
-d = "model_assets/jvnv-F1-jp"
-weights = sorted(glob.glob(f"{d}/*.safetensors"))[-1]
-text = "こんにちは。今日はいい天気ですね。"
-saved = None
-for device in ("cpu", "mps"):
-    try:
-        m = TTSModel(model_path=weights, config_path=f"{d}/config.json",
-                     style_vec_path=f"{d}/style_vectors.npy", device=device)
-        t = time.time(); m.infer(text=text); warm = time.time() - t
-        t = time.time(); sr, audio = m.infer(text=text); hot = time.time() - t
-        print(f"RESULT {device}: first {warm:.2f}s, second {hot:.2f}s, sr={sr}")
-        if saved is None: saved = (sr, audio)
-    except Exception as e:
-        print(f"RESULT {device}: FAILED {type(e).__name__}: {str(e)[:160]}")
-if saved:
-    sr, audio = saved
-    with wave.open("/tmp/kaiwa-tts-check.wav", "wb") as w:
-        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
-        w.writeframes(np.asarray(audio, dtype=np.int16).tobytes())
-    print("saved /tmp/kaiwa-tts-check.wav")
-PY
+cd ~/kaiwa-tts-run && git pull          # 확인 스크립트(speech/tts-service/scripts/check_synth.py) 받기
+.venv/bin/python speech/tts-service/scripts/check_synth.py
 afplay /tmp/kaiwa-tts-check.wav                     # 소리가 나면 성공
-pip show style-bert-vits2 torch 2>/dev/null | grep -E '^(Name|Version)'
 ```
 
-- 목표는 **두 번째 합성 ≤1.0초**(설계 P0). `RESULT` 로 시작하는 두 줄을 알려 주면 task-003 실측 게이트 기록에 넣는다.
-- 첫 실행 때 pyopenjtalk 가 일본어 사전(`open_jtalk_dic_utf_8-1.11`, 22.6MB)을 자동으로 받는다 — 정상.
-- **MPS 에서 `RuntimeError: Input type (c10::Half) and bias type (float) should be the same`**(2026-09-27 실측): BERT 특징은 half, 합성 모델은 float 로 부딪히는 정밀도 불일치. CPU 결과로 진행하고 MPS 는 task-003 에서 라이브러리 버전에 맞춰 dtype 을 맞춘다.
+- 출력의 `BERT_DTYPE` 은 **`torch.float32`** 여야 한다. `float16` 이면 transformers 가 5.x 인 것 — `pip install "transformers<5"`.
+- `RESULT cpu: …`·`RESULT mps: …` 두 줄. 목표는 **두 번째 합성 ≤1.0초**(설계 P0). 첫 실행 때 pyopenjtalk 가 일본어 사전(22.6MB)을 자동으로 받는다 — 정상.
+- **실측(2026-09-27, Leader 가 SSH 로 실행)**: `cpu: first 0.78s, second 0.39s` · `mps: first 4.16s, second 0.21s`(sr 44100, 「こんにちは。今日はいい天気ですね。」 2.54초 음성, RMS 5538·유성 69%, 피크 32767 — 클리핑 여부는 task-003 품질 실측). MPS 첫 합성 4초는 워밍업 — 서비스 기동 시 워밍업 합성 1회로 흡수.
+- (해결된 문제) MPS·CPU 모두 `RuntimeError: Input type (c10::Half) and bias type (float) should be the same` — 원인은 transformers 5.x 가 BERT 를 체크포인트 dtype(float16)으로 로드한 것. `transformers<5` 로 해결.
 
-## 6. 비밀값·포트 준비 (서비스 기동은 task-003 에서)
+## 6. 비밀값·포트 준비 — ✅ 2026-09-27 완료(Leader 가 SSH 로 처리)
 
-```bash
-# 우분투 앱과 같은 내부 비밀값을 tts 서비스 전용 .env 에 넣는다(값을 화면에 출력하지 않는다).
-umask 077
-grep '^SPEECH_INTERNAL_SECRET=' /Volumes/homes/brownjeon/project/TheKaiwa/.env \
-  | sed 's/^SPEECH_INTERNAL_SECRET=/KAIWA_TTS_INTERNAL_SECRET=/' > ~/kaiwa-tts-run/.env
-cat >> ~/kaiwa-tts-run/.env <<'ENV'
-KAIWA_TTS_PORT=8200
-KAIWA_TTS_MODEL_ASSETS=/Users/REPLACE_ME/kaiwa-tts-run/model_assets
-KAIWA_TTS_DEFAULT_MODEL=jvnv-F1-jp
-KAIWA_TTS_DEVICE=mps
-KAIWA_TTS_LOG_DIR=/Users/REPLACE_ME/kaiwa-tts-local-logs
-KAIWA_TTS_QUEUE_TIMEOUT_MS=8000
-ENV
-sed -i '' "s#/Users/REPLACE_ME#$HOME#g" ~/kaiwa-tts-run/.env
-chmod 600 ~/kaiwa-tts-run/.env
-grep -c '^KAIWA_TTS_INTERNAL_SECRET=.\+' ~/kaiwa-tts-run/.env   # 1 이면 성공(값은 안 보임)
-lsof -nP -iTCP:8200 -sTCP:LISTEN || echo "8200 비어 있음"
-```
-
-- 첫 줄의 NFS 경로(`/Volumes/homes/...`)는 **대화형 터미널에서만** 읽힌다. 권한 오류가 나면 Finder 로 NAS 를 한 번 연 뒤 다시 실행한다.
-- 이 비밀값은 2026-09-27 에 새로 교체된 값이다(이전 값은 폐기).
+- `~/kaiwa-tts-run/.env`(권한 600)에 **`KAIWA_TTS_*` 7개 키만** 둔다: `KAIWA_TTS_INTERNAL_SECRET`(우분투 `SPEECH_INTERNAL_SECRET` 과 같은 값 — 해시로 일치 확인) · `KAIWA_TTS_PORT=8200` · `KAIWA_TTS_MODEL_ASSETS` · `KAIWA_TTS_DEFAULT_MODEL=jvnv-F1-jp` · `KAIWA_TTS_DEVICE=mps` · `KAIWA_TTS_LOG_DIR` · `KAIWA_TTS_QUEUE_TIMEOUT_MS=8000`.
+- ⚠ 앱의 `.env` 전체(DB·JWT·OAuth 시크릿)를 M4 에 복사하지 않는다 — TTS 서비스에 필요 없고 노출 면만 늘어난다(2026-09-27 전체 복사본을 발견해 7개 키로 교체).
+- 다시 만들 때(우분투에서, 값 미출력):
+  ```bash
+  { grep '^SPEECH_INTERNAL_SECRET=' ~/NFS/homes/brownjeon/project/TheKaiwa/.env | sed 's/^SPEECH_INTERNAL_SECRET=/KAIWA_TTS_INTERNAL_SECRET=/'; printf '%s\n' KAIWA_TTS_PORT=8200 KAIWA_TTS_MODEL_ASSETS=/Users/brownjeon/kaiwa-tts-run/model_assets KAIWA_TTS_DEFAULT_MODEL=jvnv-F1-jp KAIWA_TTS_DEVICE=mps KAIWA_TTS_LOG_DIR=/Users/brownjeon/kaiwa-tts-local-logs KAIWA_TTS_QUEUE_TIMEOUT_MS=8000; } \
+    | ssh brownjeon@192.168.219.100 'umask 077; cat > ~/kaiwa-tts-run/.env.new && mv -f ~/kaiwa-tts-run/.env.new ~/kaiwa-tts-run/.env'
+  ```
+- 포트 8200 비어 있음 확인(2026-09-27 21:26).
 
 ## 7. task-003 에서 이어서 할 것 (지금은 하지 않음)
 
