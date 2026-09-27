@@ -6,11 +6,11 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import Segmented from '@/components/common/Segmented'
 import { useNow } from '@/components/common/useNow'
 import type { HealthDto, HealthKindName } from '@/types/admin'
 import { StatusBadge } from './Badges'
 import { useCan } from './ConsoleProvider'
+import ConsoleSegmented from './ConsoleSegmented'
 import { ConsoleLoading, EmptyNote, LoadError } from './ConsoleStates'
 import { formatAgo, formatMs } from './format'
 import { HEALTH_KIND_KO } from './labels'
@@ -57,7 +57,7 @@ export default function HealthHistoryList({
       <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h3 className="min-w-0 truncate text-[15px] font-semibold">{title}</h3>
         <div className="w-[220px] min-w-0 max-w-full">
-          <Segmented size="sm" ariaLabel="결과 종류" options={KIND_OPTIONS} value={kind} onChange={setKind} />
+          <ConsoleSegmented ariaLabel="결과 종류" options={KIND_OPTIONS} value={kind} onChange={setKind} />
         </div>
       </div>
       {res.status === 'loading' ? <ConsoleLoading /> : null}

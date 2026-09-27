@@ -5,11 +5,11 @@
  * 미리듣기·재동기화·활성화는 Phase 2 — 버튼을 그리지 않는다.
  */
 import { useState } from 'react'
-import { Card, ErrorBlock } from '@/components/common/ui'
+import { Card } from '@/components/common/ui'
 import type { AdminVoiceDto } from '@/types/admin'
 import { VoiceStatusBadge } from './Badges'
 import { ChipRadio, type ChipOption, ToggleButton } from './ChipRadio'
-import { ConsoleLoading, EmptyNote, LoadError, loadErrorText } from './ConsoleStates'
+import { ConsoleError, ConsoleLoading, EmptyNote, LoadError, loadErrorText } from './ConsoleStates'
 import KeyValueList, { type KvItem } from './KeyValueList'
 import { type VoiceFilter, voiceFilterOf } from './labels'
 import MonoId from './MonoId'
@@ -63,7 +63,7 @@ export default function VoicesScreen() {
   return (
     <>
       <RefreshLine loadedAt={res.loadedAt} reloading={res.reloading} onReload={res.reload} />
-      {res.err ? <ErrorBlock message={loadErrorText(res.err, '목소리')} onRetry={res.reload} /> : null}
+      {res.err ? <ConsoleError message={loadErrorText(res.err, '목소리')} onRetry={res.reload} /> : null}
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           <ChipRadio ariaLabel="목소리 상태" options={options} value={filter} onChange={setFilter} bleed="-ml-4 pl-4" />

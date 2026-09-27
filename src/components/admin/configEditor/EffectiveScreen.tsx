@@ -6,11 +6,11 @@
  */
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, ErrorBlock, SectionHeader } from '@/components/common/ui'
+import { Card, SectionHeader } from '@/components/common/ui'
 import type { ConfigSourceName, EffectiveConfigDto, EngineConnectionDto } from '@/types/admin'
 import { ChipRadio, type ChipOption } from '../console/ChipRadio'
 import { sortConnections } from '../console/connectionText'
-import { ConsoleLoading, EmptyNote, LoadError, loadErrorText } from '../console/ConsoleStates'
+import { ConsoleError, ConsoleLoading, EmptyNote, LoadError, loadErrorText } from '../console/ConsoleStates'
 import { formatClockSec, groupByPrefix } from '../console/format'
 import { ROLE_LABEL, sourceLayer } from '../console/labels'
 import { useAdminResource } from '../console/useAdminResource'
@@ -126,7 +126,7 @@ export default function EffectiveScreen({ initialTarget }: { initialTarget: stri
               </Card>
               {eff.err ? (
                 <div className="mt-2">
-                  <ErrorBlock message={loadErrorText(eff.err, '설정값')} onRetry={eff.reload} />
+                  <ConsoleError message={loadErrorText(eff.err, '설정값')} onRetry={eff.reload} />
                 </div>
               ) : null}
               <details className="mt-2">

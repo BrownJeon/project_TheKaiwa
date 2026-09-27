@@ -6,13 +6,13 @@
  */
 import { useState } from 'react'
 import Link from 'next/link'
-import { Btn, ErrorBlock } from '@/components/common/ui'
+import { Btn } from '@/components/common/ui'
 import { useNow } from '@/components/common/useNow'
 import type { EngineConnectionDto, EngineRoleName } from '@/types/admin'
 import { StatusBadge } from './Badges'
 import { ChipRadio, type ChipOption } from './ChipRadio'
 import { useCan } from './ConsoleProvider'
-import { ConsoleLoading, EmptyNote, LoadError, loadErrorText } from './ConsoleStates'
+import { ConsoleError, ConsoleLoading, EmptyNote, LoadError, loadErrorText } from './ConsoleStates'
 import { formatAgo } from './format'
 import { policyPlace, sortConnections } from './connectionText'
 import { CONN_TYPE_KO, ROLE_LABEL, ROLE_ORDER } from './labels'
@@ -70,16 +70,16 @@ export default function ConnectionsScreen() {
   return (
     <>
       <RefreshLine loadedAt={list.loadedAt} reloading={list.reloading} onReload={list.reload} />
-      {list.err ? <ErrorBlock message={loadErrorText(list.err, '연결')} onRetry={list.reload} /> : null}
+      {list.err ? <ConsoleError message={loadErrorText(list.err, '연결')} onRetry={list.reload} /> : null}
       {canHealth || canSecrets ? (
         <div className="mt-1 flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
           {canHealth ? (
-            <Btn variant="ghost" size="sm" disabled={b !== null} aria-busy={b !== null} onClick={() => void run(enabledIds).then(list.reload)}>
+            <Btn variant="ghost" size="sm" className="min-h-11" disabled={b !== null} aria-busy={b !== null} onClick={() => void run(enabledIds).then(list.reload)}>
               {b ? `확인 중 ${b.done}/${b.total}…` : '모두 상태 확인'}
             </Btn>
           ) : null}
           {canSecrets ? (
-            <Btn variant="ghost" size="sm" aria-haspopup="dialog" onClick={() => setSecretsOpen(true)}>
+            <Btn variant="ghost" size="sm" className="min-h-11" aria-haspopup="dialog" onClick={() => setSecretsOpen(true)}>
               시크릿 참조
             </Btn>
           ) : null}

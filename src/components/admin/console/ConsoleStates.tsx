@@ -6,7 +6,7 @@
  * 공용 `LoadingBlock`·`EmptyBlock` 은 `ink3` 글자라 쓰지 않는다(§1-1).
  */
 import Link from 'next/link'
-import { Card, ErrorBlock } from '@/components/common/ui'
+import { Card } from '@/components/common/ui'
 import type { Err } from '@/components/common/errors'
 import { useConsoleEnv } from './ConsoleProvider'
 
@@ -42,6 +42,23 @@ export function ConsoleNotFound({ backHref, backLabel }: { backHref: string; bac
         {backLabel}
       </Link>
     </Card>
+  )
+}
+
+/**
+ * 콘솔 오류 상자 — 공용 `ErrorBlock` 과 같은 모양이지만 [다시 시도]를 44px 로(QA-013: 공용은 글자 높이뿐).
+ * 공용 컴포넌트는 학습 화면이 함께 쓰므로 고치지 않는다.
+ */
+export function ConsoleError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div role="alert" className="rounded-xl border border-bad-soft bg-bad-soft px-3.5 py-3 text-[13px] text-bad">
+      <div className="break-keep">{message}</div>
+      {onRetry ? (
+        <button type="button" onClick={onRetry} className="-mb-2 -ml-1 mt-0.5 inline-flex h-11 items-center px-1 font-semibold underline">
+          다시 시도
+        </button>
+      ) : null}
+    </div>
   )
 }
 
@@ -86,7 +103,7 @@ export function LoadError({
     if (notFound) return <ConsoleNotFound backHref={notFound.backHref} backLabel={notFound.backLabel} />
     return (
       <div className="mt-3">
-        <ErrorBlock message="콘솔에 들어갈 권한이 바뀌었을 수 있어요." />
+        <ConsoleError message="콘솔에 들어갈 권한이 바뀌었을 수 있어요." />
         <Link href="/settings" className="mt-2 inline-flex h-11 items-center text-[14px] font-medium text-accent">
           설정으로
         </Link>
@@ -95,7 +112,7 @@ export function LoadError({
   }
   return (
     <div className="mt-3">
-      <ErrorBlock message={loadErrorText(err, name)} onRetry={onRetry} />
+      <ConsoleError message={loadErrorText(err, name)} onRetry={onRetry} />
     </div>
   )
 }

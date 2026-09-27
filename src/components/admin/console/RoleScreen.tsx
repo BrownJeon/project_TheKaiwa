@@ -6,12 +6,12 @@
  * Engine 선택·Fallback 편집·연결 설정 폼은 Phase 2 — 그리지 않는다.
  */
 import Link from 'next/link'
-import { Card, ErrorBlock, Section, SectionHeader } from '@/components/common/ui'
+import { Card, Section, SectionHeader } from '@/components/common/ui'
 import { useNow } from '@/components/common/useNow'
 import type { AdminVoiceDto, ConnectionRefDto, EngineConnectionDetailDto, EngineConnectionDto, EngineRoleName, FallbackPolicyDto } from '@/types/admin'
 import { StatusBadge } from './Badges'
 import { useCan } from './ConsoleProvider'
-import { ConsoleLoading, LoadError, loadErrorText } from './ConsoleStates'
+import { ConsoleError, ConsoleLoading, LoadError, loadErrorText } from './ConsoleStates'
 import EffectiveSummaryCard from './EffectiveSummaryCard'
 import EngineTestPanel from './EngineTestPanel'
 import { displayValue, formatAgo, modelLabel } from './format'
@@ -188,7 +188,7 @@ export default function RoleScreen({ role }: { role: EngineRoleName }) {
       ) : null}
       {conns.status === 'error' && conns.err ? (
         <div className="mt-3">
-          <ErrorBlock message={loadErrorText(conns.err, '연결 목록')} onRetry={conns.reload} />
+          <ConsoleError message={loadErrorText(conns.err, '연결 목록')} onRetry={conns.reload} />
         </div>
       ) : null}
 
@@ -198,7 +198,7 @@ export default function RoleScreen({ role }: { role: EngineRoleName }) {
         <Section>
           <SectionHeader title="목소리" />
           {voices.status === 'error' && voices.err ? (
-            <ErrorBlock message={loadErrorText(voices.err, '목소리')} onRetry={voices.reload} />
+            <ConsoleError message={loadErrorText(voices.err, '목소리')} onRetry={voices.reload} />
           ) : (
             <Link href="/admin/voices" className="flex min-h-[56px] min-w-0 items-center gap-2 rounded-[14px] border border-line bg-surface px-3.5 py-2.5 text-[14px]">
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">

@@ -1,15 +1,14 @@
 'use client'
 
 /**
- * 가로 칩 줄(대상 연결·필터)과 `aria-pressed` 토글(screens.md §6-2 C). 단어장 `CategoryChips`·`ArchiveToggle` 과 같은 규칙이지만
+ * 가로 칩 줄(대상 연결·필터)과 `aria-pressed` 토글(screens.md §6-2 C). 단어장 `CategoryChips`·`ArchiveToggle` 과 모양은 같지만
  * admin 은 `(app)` 컴포넌트를 import 하지 않으므로 따로 둔다.
- * 히트영역은 **세로로만** 44px(`::before`) — 가로로 넓히면 옆 칩 클릭을 가로챈다. 줄의 `py-1` 은 `overflow-x:auto` 가
- * 세로도 잘라 44px `::before` 가 잘리는 것을 막는다.
+ * 콘솔은 칩·토글 **자체를 44px** 로 둔다(QA-013 — `::before` 히트영역은 요소 크기로 측정되지 않는다). 좌우 간격(gap-2)은 그대로라
+ * 옆 칩 클릭을 가로채지 않는다. 줄의 `py-1` 은 `overflow-x:auto` 가 세로도 잘라 포커스 링이 잘리는 것을 막는다.
  */
 import { useEffect, useRef } from 'react'
 
-const CHIP =
-  "relative h-9 min-w-[44px] flex-none rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']"
+const CHIP = 'h-11 min-w-[44px] flex-none rounded-full border px-3.5 text-[13px]'
 
 export interface ChipOption<T extends string> {
   value: T
@@ -74,7 +73,7 @@ export function ToggleButton({ pressed, onToggle, children }: { pressed: boolean
       type="button"
       aria-pressed={pressed}
       onClick={onToggle}
-      className={`relative h-8 flex-none rounded-[9px] px-3 text-[13px] font-medium before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[''] ${
+      className={`h-11 flex-none rounded-xl px-3 text-[13px] font-medium ${
         pressed ? 'bg-accent-soft text-ink ring-1 ring-accent' : 'bg-surface2 text-ink2'
       }`}
     >

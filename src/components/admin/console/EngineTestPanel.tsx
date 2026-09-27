@@ -13,11 +13,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { retryAfterOf, toErr } from '@/components/common/errors'
-import { Btn, Card, ErrorBlock } from '@/components/common/ui'
+import { Btn, Card } from '@/components/common/ui'
 import { elapsedSec, useCountdown, useNow } from '@/components/common/useNow'
 import type { ConnectionTypeName, EngineRoleName, EngineStatusName, HealthKindName, HealthRunDto } from '@/types/admin'
 import { useCan } from './ConsoleProvider'
-import { missingOf } from './ConsoleStates'
+import { ConsoleError, missingOf } from './ConsoleStates'
 import { HEALTH_KIND_KO, panelHelp } from './labels'
 import TestResultCard, { type TestResult } from './TestResultCard'
 
@@ -171,7 +171,7 @@ export default function EngineTestPanel({ connection, onDone }: { connection: Pa
         {notice ? <p className="mt-3 text-[13px] text-ink break-keep">{notice}</p> : null}
         {error ? (
           <div className="mt-3">
-            <ErrorBlock message={error} />
+            <ConsoleError message={error} />
           </div>
         ) : null}
         {result ? <TestResultCard kind={result.kind} result={result.body} receivedAt={result.receivedAt} /> : null}

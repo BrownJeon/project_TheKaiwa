@@ -5,12 +5,12 @@
  * 카드 전체가 역할 페이지 링크이고 안에 버튼을 두지 않는다(실행은 역할 페이지에서). UNAVAILABLE 카드도 바탕은 그대로.
  */
 import Link from 'next/link'
-import { Btn, ErrorBlock, Section, SectionHeader } from '@/components/common/ui'
+import { Btn, Section, SectionHeader } from '@/components/common/ui'
 import { useNow } from '@/components/common/useNow'
 import type { EngineRoleName, OverviewDto, OverviewRoleDto } from '@/types/admin'
 import { StatusBadge } from './Badges'
 import { useCan } from './ConsoleProvider'
-import { ConsoleLoading, LoadError, loadErrorText } from './ConsoleStates'
+import { ConsoleError, ConsoleLoading, LoadError, loadErrorText } from './ConsoleStates'
 import { formatAgo, formatMs } from './format'
 import { ROLE_KO, ROLE_LABEL, ROLE_ORDER, ROLE_PATH } from './labels'
 import RefreshLine from './RefreshLine'
@@ -87,11 +87,11 @@ export default function DashboardScreen() {
       <RefreshLine loadedAt={overview.loadedAt} reloading={overview.reloading} polling onReload={overview.reload} />
       {overview.err ? (
         <div className="mb-2">
-          <ErrorBlock message={loadErrorText(overview.err, '대시보드')} onRetry={overview.reload} />
+          <ConsoleError message={loadErrorText(overview.err, '대시보드')} onRetry={overview.reload} />
         </div>
       ) : null}
       {can('health.run') && primaryIds.length > 0 ? (
-        <Btn variant="ghost" size="sm" className="mt-1 w-full" disabled={b !== null} aria-busy={b !== null} onClick={() => void run(primaryIds).then(overview.reload)}>
+        <Btn variant="ghost" size="sm" className="mt-1 min-h-11 w-full" disabled={b !== null} aria-busy={b !== null} onClick={() => void run(primaryIds).then(overview.reload)}>
           {b ? `상태 확인 중 ${b.done}/${b.total}…` : '주 연결 상태 확인'}
         </Btn>
       ) : null}

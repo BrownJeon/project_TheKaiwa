@@ -9,13 +9,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiGet, isAbort } from '@/components/common/api'
 import { type Err, toErr } from '@/components/common/errors'
-import Segmented from '@/components/common/Segmented'
 import { Btn } from '@/components/common/ui'
 import { useNow } from '@/components/common/useNow'
 import type { AdminPage, EngineConnectionDto, TraceKindName, TraceListItemDto, TraceStatusName } from '@/types/admin'
 import { ChipRadio, type ChipOption } from '../console/ChipRadio'
 import { sortConnections } from '../console/connectionText'
 import { useCan } from '../console/ConsoleProvider'
+import ConsoleSegmented from '../console/ConsoleSegmented'
 import { ConsoleLoading, EmptyNote, LoadError } from '../console/ConsoleStates'
 import HealthHistoryList from '../console/HealthHistoryList'
 import { useAdminResource } from '../console/useAdminResource'
@@ -156,13 +156,13 @@ function TracesTab() {
   return (
     <>
       <div className="mt-2.5">
-        <Segmented size="sm" ariaLabel="기간" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
+        <ConsoleSegmented ariaLabel="기간" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
       </div>
       <div className="mt-2">
         <ChipRadio ariaLabel="종류" options={KIND_OPTIONS} value={kind} onChange={setKind} />
       </div>
       <div className="mt-2">
-        <Segmented size="sm" ariaLabel="결과" options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+        <ConsoleSegmented ariaLabel="결과" options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       {loading ? <ConsoleLoading /> : null}
       {failed && st.err ? <LoadError err={st.err} name="Trace" onRetry={retry} /> : null}
@@ -210,7 +210,8 @@ export default function DiagnosticsScreen({ initialTab, initialConnection }: { i
   return (
     <>
       {canTrace ? (
-        <Segmented
+        <ConsoleSegmented
+          size="md"
           ariaLabel="진단 보기"
           options={TAB_OPTIONS}
           value={tab}
