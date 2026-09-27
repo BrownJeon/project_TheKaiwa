@@ -130,7 +130,7 @@ speech:
     host: 127.0.0.1                                           # [RS] nginx 뒤에서만 듣는다
     port: 8100                                                # [RS]
     ticket_ttl_sec: 60                                        # [RT] POST /api/v1/speech/ticket JWT 수명(아래로는 못 줄인다: 앱이 발급 후 연결까지 여유)
-    ticket_audience: speech-ws                                # [RO] 티켓 aud 클레임
+    ticket_audience: ws-speech                                # [RO] 티켓 aud 클레임(api-contract §0-3 정본 — gateway 코드는 상수로 고정, task-003e)
     max_sessions: 8                                           # [RT] 동시 WS 세션 상한(초과 429). 우분투 CPU 실측 후 조정
     frame_ms: 40                                              # [RO] 클라 PCM16 프레임 길이
     max_utterance_sec: 60                                     # [RT] 한 발화 상한(초과 시 강제 final)

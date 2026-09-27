@@ -46,7 +46,7 @@ DB = NAS MariaDB(앱과 같은 DB, Python 은 SpeechJob + 설정 행만) · 큐 
 - **우분투(gateway·worker)**: pm2 + venv. venv 경로 `~/.node-local/thekaiwa-speech/venv`(릴리스 밖 공유 자원, VoiceVault `voicevault-whisper` 와 같은 등급 — `requirements.txt` 변경은 별도 승인 작업, 롤백으로 되돌아가지 않음).
   ```
   python3 -m venv ~/.node-local/thekaiwa-speech/venv
-  ~/.node-local/thekaiwa-speech/venv/bin/pip install -e speech/common -r speech/gateway/requirements.txt -r speech/worker/requirements.txt
+  ~/.node-local/thekaiwa-speech/venv/bin/pip install -r speech/gateway/requirements.txt   # speech/common 은 설치하지 않고 PYTHONPATH 로 읽는다(ecosystem.config.js — task-003e, gateway README §실행)
   ```
   `ecosystem.config.js` 항목 이름: **`thekaiwa-speech-gateway`**(`uvicorn app:app --host 127.0.0.1 --port 8100`, cwd `speech/gateway`) · **`thekaiwa-speech-worker`**(`python main.py`, cwd `speech/worker`). `interpreter:'none'`, env 는 `.env` 에서 `pickNonEmpty` 로 주입(VoiceVault 방식 — Python 은 dotenv 를 읽지 않는다). 초안은 module-dependency §5-2.
 - **M4(tts-service)**: `~/kaiwa-tts-run`(NFS 밖 독립 git clone) + venv + `uvicorn app:app --host 0.0.0.0 --port 8200` + crontab 매분 워치독 + `git push` 후 사용자 승인 배포. 상세 [`tts-service/README.md`](tts-service/README.md).
