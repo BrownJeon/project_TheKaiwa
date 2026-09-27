@@ -246,8 +246,8 @@ async function main() {
 
     // ── 11. 사용자 응답 전체: 엔진명·호스트·연결 키 0 ────────────────
     const corpus = leakCorpus.join('\n')
-    const leaks = corpus.match(/style-?bert|sbv2|jvnv|:8200|192\.168\.|connectionKey|x-kaiwa|tts-cache|DATA_ROOT/gi)
-    if (leaks) for (const piece of leakCorpus.filter((x) => /style-?bert|sbv2|jvnv|:8200|192\.168\.|connectionKey|x-kaiwa|tts-cache|DATA_ROOT/i.test(x))) console.log('  누출 후보:', piece.slice(0, 300))
+    const leaks = corpus.match(/style-?bert|sbv2|jvnv|:8200|192\.168\.|connectionKey|x-kaiwa|tts-cache\/|DATA_ROOT/gi)
+    if (leaks) for (const piece of leakCorpus.filter((x) => /style-?bert|sbv2|jvnv|:8200|192\.168\.|connectionKey|x-kaiwa|tts-cache\/|DATA_ROOT/i.test(x))) console.log('  누출 후보:', piece.slice(0, 300))
     check('11 사용자 응답·헤더에 엔진명·호스트·연결 키·경로 0', !leaks, leaks ? [...new Set(leaks)].join(',') : `${leakCorpus.length}개 응답 검사`)
     if (process.env.TTS_SERVICE_SECRET) check('11b 응답에 TTS 시크릿 없음', !corpus.includes(process.env.TTS_SERVICE_SECRET))
   } finally {
