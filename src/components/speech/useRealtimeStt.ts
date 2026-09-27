@@ -6,6 +6,9 @@
  *
  * `press()` 는 누름 핸들러에서 **동기로** 불러야 한다 — 그 안에서 client.begin() 이 AudioContext 를 깨운다.
  * 결과 텍스트는 React state 에만 있다(저장·로그 없음). 엔진·추적 값은 클라이언트가 이미 버렸다.
+ *
+ * `onFinal`(task-007 회화방): 손을 뗀 뒤(`finishing`) 받은 final 을 발화 id·길이·시각과 함께 올린다 — 회화방은 곧바로 턴을 보낸다.
+ * 시각은 `performance.now()` 기준(`releasedAt` = 손 뗌 또는 30초 자동 멈춤). 마이크 테스트는 넘기지 않으니 그대로다.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { apiPost, ApiError } from '@/components/common/api'
@@ -28,6 +31,17 @@ async function fetchTicket(body: { purpose: SttPurpose; chatId?: string }): Prom
   }
 }
 
+export interface SttFinal {
+  text: string
+  /** gateway 가 저장한 발화 id(TURN). 콜백 실패면 null — 회화방은 글자 턴으로 보낸다(§9-11 ②). */
+  utteranceId: string | null
+  durationMs: number
+  releasedAt: number
+  finalAt: number
+}
+
+const perfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+
 export interface UseRealtimeStt {
   ui: SttUiState
   kind: SttKind
@@ -36,8 +50,20 @@ export interface UseRealtimeStt {
   abort: () => void
 }
 
-export function useRealtimeStt(o: { purpose: SttPurpose; chatId?: string; config: SttClientConfig | null; maxSec?: number }): UseRealtimeStt {
-  const { purpose, chatId, config, maxSec } = o
+export function useRealtimeStt(o: {
+  purpose: SttPurpose
+  chatId?: string
+  config: SttClientConfig | null
+  maxSec?: number
+  onFinal?: (f: SttFinal) => void
+}): UseRealtimeStt {
+  const { purpose, chatId, config, maxSec, onFinal } = o
+  const onFinalRef = useRef(onFinal)
+  useLayoutEffect(() => {
+    onFinalRef.current = onFinal
+  }, [onFinal])
+  /** 이번 발화가 finishing 으로 넘어간 시각(performance.now) */
+  const releasedAtRef = useRef<number | null>(null)
   const [initial] = useState(() => initialSttUi(0, maxSec))
   const stateRef = useRef<SttUiState>(initial)
   const [ui, setUi] = useState<SttUiState>(initial)
@@ -65,8 +91,15 @@ export function useRealtimeStt(o: { purpose: SttPurpose; chatId?: string; config
             return apply({ type: 'CONNECTING', slow: e.slow })
           case 'partial':
             return apply({ type: 'PARTIAL', segIdx: e.segIdx, text: e.text })
-          case 'final':
-            return apply({ type: 'FINAL', now, text: e.text })
+          case 'final': {
+            const wasFinishing = stateRef.current.phase === 'finishing'
+            apply({ type: 'FINAL', now, text: e.text })
+            if (wasFinishing && onFinalRef.current) {
+              const finalAt = perfNow()
+              onFinalRef.current({ text: e.text, utteranceId: e.utteranceId, durationMs: e.durationMs, releasedAt: releasedAtRef.current ?? finalAt, finalAt })
+            }
+            return
+          }
           case 'error':
             return apply({ type: 'ERROR', now, code: e.code, retryAfterSec: e.retryAfterSec })
           default:
@@ -113,6 +146,7 @@ export function useRealtimeStt(o: { purpose: SttPurpose; chatId?: string; config
   const apply = useCallback(
     (ev: SttUiEvent) => {
       const r = sttUiReducer(stateRef.current, ev)
+      if (r.state.phase === 'finishing' && stateRef.current.phase !== 'finishing') releasedAtRef.current = perfNow()
       if (r.state !== stateRef.current) {
         stateRef.current = r.state
         setUi(r.state)

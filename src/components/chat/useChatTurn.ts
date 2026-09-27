@@ -9,6 +9,8 @@
  * - 재시도는 언제나 `{resumePending:true}` 하나(task-006 D1) — 임시 사용자 말풍선을 만들지 않는다.
  * - 스트림·타이머·마운트 여부처럼 렌더와 무관한 값은 컨트롤러 객체에 두고, 화면에 보일 값만 React 상태로 낸다.
  * - `traceId` 는 어디에도 출력하지 않는다(DOM·토스트·콘솔).
+ * - 회화방(task-007)은 선택 콜백으로 SSE `audio`·`status.warning`·`accepted`·`done`·끝남을 받고, `send` 에 입력 경로·발화 id·계측을 싣는다.
+ *   채팅은 이 옵션을 넘기지 않으므로 동작이 같다.
  */
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { apiGet, apiStream, isAbort } from '@/components/common/api'
@@ -16,8 +18,11 @@ import type {
   ChatDetail,
   ChatInfo,
   ChatMessageView,
+  ClientTimings,
+  InputSource,
   ProposalDto,
   TurnAcceptedEvent,
+  TurnAudioEvent,
   TurnDoneEvent,
   TurnErrorEvent,
   TurnStage,
@@ -25,7 +30,7 @@ import type {
 } from '@/types/chat'
 import { retryAfterOf, toErr } from '@/components/common/errors'
 import { LOST_FAILURE, NETWORK_SEND_ERROR, turnFailure, turnNoticeText, type FailureView } from './labels'
-import { endsWithUnfinishedReply, findLastIndex, isTemp, lastServerId, mergeMessages, turnBaseOf } from './messages'
+import { correctionFromDone, endsWithUnfinishedReply, findLastIndex, isTemp, lastServerId, mergeMessages, turnBaseOf } from './messages'
 import { parseEventData, readSse } from './sse'
 
 export type TurnPhase = 'idle' | 'sending' | 'streaming' | 'detached' | 'failed'
@@ -49,6 +54,23 @@ export interface TurnState {
   endOfTopic: boolean
 }
 
+export interface SendOptions {
+  inputSource?: InputSource
+  utteranceId?: string | null
+  clientTimings?: ClientTimings
+}
+
+/** 보내지 못한 이유(회화방 UnsentBar 가 문구·버튼을 고른다). status 0 = 네트워크, -1 = 스트림이 accepted 전에 끊김. */
+export interface RestoreInfo {
+  opts: SendOptions
+  status: number
+  message: string | null
+  details: Record<string, unknown>
+}
+
+/** 턴이 끝난 방식 — done(정상)·error(accepted 뒤 실패)·detached(accepted 뒤 끊김 → 폴링)·rejected(accepted 전 거절). */
+export type SettledKind = 'done' | 'error' | 'detached' | 'rejected'
+
 export interface TurnDeps {
   chatId: string
   getMessages: () => ChatMessageView[]
@@ -56,9 +78,15 @@ export interface TurnDeps {
   patchChat: (fn: (c: ChatInfo) => ChatInfo) => void
   addProposals: (ps: ProposalDto[]) => void
   reloadProposals: () => void
-  /** 보내지 못했을 때 입력창이 비어 있으면 원문을 되돌린다. */
-  restoreText: (text: string) => void
+  /** 보내지 못했을 때 원문을 되돌린다(채팅: 입력창이 비어 있으면 · 회화: 보내지 못한 말 띠). */
+  restoreText: (text: string, info?: RestoreInfo) => void
   onNotFound: () => void
+  /* ── 회화방(task-007) 선택 콜백 — 채팅은 넘기지 않는다 ── */
+  onAccepted?: (a: TurnAcceptedEvent) => void
+  onAudio?: (ev: TurnAudioEvent, assistantMessageId: string) => void
+  onWarning?: (warning: string, assistantMessageId: string) => void
+  onDone?: (dn: TurnDoneEvent) => void
+  onSettled?: (kind: SettledKind, assistantMessageId: string | null) => void
 }
 
 const INITIAL: TurnState = {
@@ -82,7 +110,9 @@ interface RunContext {
   /** 새 턴이면 임시 말풍선 id, 재시도면 null */
   tmpId: string | null
   text: string | null
+  opts: SendOptions
 }
+
 
 interface PollState {
   baseId: string | null
@@ -102,6 +132,10 @@ class TurnController {
   /** 스트리밍 중 화면이 가려졌는가 — 모바일은 백그라운드에서 연결이 조용히 죽을 수 있어 돌아오면 폴링으로 갈아탄다. */
   private hiddenWhileStreaming = false
   private currentBase: string | null = null
+  /** 폴링이 이어받은 턴의 강사 메시지(끝나면 onSettled 로 알린다) */
+  private pollingFor: string | null = null
+  /** 스트리밍 중인 턴의 강사 메시지 id(accepted 에서) */
+  private currentAssistant: string | null = null
 
   constructor(private readonly setState: Dispatch<SetStateAction<TurnState>>) {}
 
@@ -131,23 +165,42 @@ class TurnController {
     return this.phase === 'sending' || this.phase === 'streaming' || this.phase === 'detached'
   }
 
-  send = async (text: string): Promise<void> => {
-    if (!this.alive || this.busy) return
+  send = async (text: string, opts: SendOptions = {}): Promise<void> => {
+    if (!this.alive) return
+    if (this.busy) {
+      // 조용히 버리면 말이 사라진다(음성 자동 전송) — 거절로 되돌려 호출자가 다시 보내게 한다. 호출자는 isBusy() 로 먼저 거른다.
+      this.d.restoreText(text, { opts, status: 409, message: null, details: {} })
+      return
+    }
     const d = this.d
     const now = Date.now()
     const messages = d.getMessages()
-    const ctx: RunContext = { baseId: lastServerId(messages), tmpId: `tmp_${now}`, text }
+    const ctx: RunContext = { baseId: lastServerId(messages), tmpId: `tmp_${now}`, text, opts }
+    const inputSource: InputSource = opts.inputSource ?? 'TEXT'
     d.setMessages((ms) => [
       ...ms,
-      { id: ctx.tmpId as string, role: 'USER', content: text, status: 'DONE', localStatus: 'SENDING', createdAt: new Date(now).toISOString(), corrections: [] },
+      {
+        id: ctx.tmpId as string,
+        role: 'USER',
+        content: text,
+        inputSource,
+        ...(opts.utteranceId ? { utteranceId: opts.utteranceId } : {}),
+        status: 'DONE',
+        localStatus: 'SENDING',
+        createdAt: new Date(now).toISOString(),
+        corrections: [],
+      },
     ])
     this.set({ phase: 'sending', stage: null, startedAt: now, notice: null, failure: null, endOfTopic: false })
-    await this.run({ text, inputSource: 'TEXT' }, ctx)
+    const body: Record<string, unknown> = { text, inputSource }
+    if (opts.utteranceId) body.utteranceId = opts.utteranceId
+    if (opts.clientTimings) body.clientTimings = opts.clientTimings
+    await this.run(body, ctx)
   }
 
   resume = async (): Promise<void> => {
     if (!this.alive || this.busy) return
-    const ctx: RunContext = { baseId: turnBaseOf(this.d.getMessages()), tmpId: null, text: null }
+    const ctx: RunContext = { baseId: turnBaseOf(this.d.getMessages()), tmpId: null, text: null, opts: {} }
     this.set({ phase: 'sending', stage: null, startedAt: Date.now(), notice: null })
     await this.run({ resumePending: true }, ctx)
   }
@@ -169,6 +222,8 @@ class TurnController {
     this.set({ notice: null })
   }
 
+  isBusy = (): boolean => this.alive && this.busy
+
   onHidden = () => {
     if (this.phase === 'streaming') this.hiddenWhileStreaming = true
   }
@@ -184,7 +239,8 @@ class TurnController {
       this.abort?.abort()
       this.abort = null
       this.set({ phase: 'detached' })
-      this.startPolling(this.currentBase)
+      this.startPolling(this.currentBase, this.currentAssistant)
+      this.d.onSettled?.('detached', this.currentAssistant)
       void this.pollOnce()
     } else if (this.phase === 'detached' && this.poll) {
       void this.pollOnce()
@@ -222,6 +278,10 @@ class TurnController {
         } else if (ev.event === 'status') {
           const s = parseEventData<TurnStatusEvent>(ev)
           if (s?.stage && this.phase === 'streaming') this.set({ stage: s.stage })
+          if (s?.warning && st.accepted) d.onWarning?.(s.warning, st.accepted.assistantMessageId)
+        } else if (ev.event === 'audio') {
+          const au = parseEventData<TurnAudioEvent>(ev)
+          if (au && st.accepted && Number.isInteger(au.chunkIndex)) d.onAudio?.(au, st.accepted.assistantMessageId)
         } else if (ev.event === 'done') {
           const dn = parseEventData<TurnDoneEvent>(ev)
           if (!dn?.assistantMessageId || !dn.conversation) return
@@ -242,13 +302,15 @@ class TurnController {
     if (!this.alive || st.terminal) return
     if (st.accepted) {
       this.set({ phase: 'detached' })
-      this.startPolling(ctx.baseId)
+      this.startPolling(ctx.baseId, st.accepted.assistantMessageId)
+      d.onSettled?.('detached', st.accepted.assistantMessageId)
     } else {
       this.lostBeforeAccept(ctx)
     }
   }
 
   private onAccepted(a: TurnAcceptedEvent, ctx: RunContext) {
+    this.currentAssistant = a.assistantMessageId
     const pending: ChatMessageView = {
       id: a.assistantMessageId,
       role: 'ASSISTANT',
@@ -281,6 +343,7 @@ class TurnController {
       })
     }
     this.set({ phase: 'streaming', stage: null, failure: null })
+    this.d.onAccepted?.(a)
   }
 
   private onDone(dn: TurnDoneEvent, ctx: RunContext) {
@@ -290,11 +353,24 @@ class TurnController {
       reading: dn.conversation.replyReading ?? null,
       translation: dn.conversation.replyKo ?? null,
       learning: dn.learning ?? null,
+      ...(dn.speech?.style ? { speechStyle: dn.speech.style } : {}),
       status: 'DONE',
     }
+    // 회화(TALK)의 교정은 대화 중 즉시 — 해당 사용자 말풍선에 붙인다(CHAT 은 늘 null).
+    const corr = dn.correction && typeof dn.correction === 'object' && dn.correction.id ? correctionFromDone(dn.correction) : null
+    const uid = dn.userMessageId
     this.d.setMessages((ms) => {
-      if (ms.some((m) => m.id === aid)) return ms.map((m) => (m.id === aid ? { ...m, ...reply } : m))
-      return [...ms, { id: aid, role: 'ASSISTANT', createdAt: new Date().toISOString(), ...reply } as ChatMessageView]
+      let out = ms.some((m) => m.id === aid)
+        ? ms.map((m) => (m.id === aid ? { ...m, ...reply } : m))
+        : [...ms, { id: aid, role: 'ASSISTANT', createdAt: new Date().toISOString(), ...reply } as ChatMessageView]
+      if (corr && uid) {
+        out = out.map((m) => {
+          if (m.id !== uid) return m
+          const list = m.corrections ?? []
+          return { ...m, corrections: list.some((c) => c.id === corr.id) ? list : [...list, corr] }
+        })
+      }
+      return out
     })
     if (dn.proposals?.length) {
       this.d.addProposals(dn.proposals.map((p) => ({ ...p, messageId: p.messageId ?? aid })))
@@ -302,6 +378,8 @@ class TurnController {
     const added = ctx.tmpId ? 2 : 0
     this.d.patchChat((c) => ({ ...c, running: false, messageCount: c.messageCount + added }))
     this.set({ phase: 'idle', stage: null, startedAt: null, failure: null, endOfTopic: !!dn.endOfTopic })
+    this.d.onDone?.(dn)
+    this.d.onSettled?.('done', aid)
   }
 
   private onError(er: TurnErrorEvent, accepted: TurnAcceptedEvent | null, ctx: RunContext) {
@@ -311,57 +389,67 @@ class TurnController {
       this.d.setMessages((ms) => ms.map((m) => (m.id === aid ? { ...m, status: 'FAILED' } : m)))
       this.d.patchChat((c) => ({ ...c, running: false }))
       this.set({ phase: 'failed', stage: null, failure })
+      this.d.onSettled?.('error', aid)
       return
     }
     // accepted 전 error — 사용자 메시지가 저장됐는지 모른다: 원문을 돌려주고 서버 상태로 맞춘다.
-    this.dropTemp(ctx)
+    this.dropTemp(ctx, { status: er.code === 'ENGINE_UNAVAILABLE' ? 422 : -1, message: null, details: {} })
     this.set({ phase: ctx.tmpId ? 'idle' : 'failed', stage: null, notice: { kind: 'error', text: failure.text } })
+    this.d.onSettled?.('rejected', null)
     void this.syncNew()
   }
 
   /** 스트림이 열리기 전 봉투 오류(400·404·409·429·422·5xx) 또는 네트워크 실패. */
   private rejected(e: unknown, ctx: RunContext) {
     const err = toErr(e)
-    this.dropTemp(ctx)
     const backTo: TurnPhase = ctx.tmpId ? 'idle' : 'failed'
-    if (err.status === 404) {
-      this.set({ phase: 'idle', stage: null, notice: { kind: 'notFound', text: turnNoticeText(err) } })
-      this.d.onNotFound()
-      return
-    }
     if (err.status === 429) {
       const sec = retryAfterOf(err)
+      // 막힌 시각을 먼저 둔다 — 되돌려 받은 화면(UnsentBar)이 같은 렌더에서 카운트다운을 그리게.
       this.set({ phase: backTo, stage: null, blockedUntil: Date.now() + sec * 1000, notice: { kind: 'rate', text: '', retryAfterSec: sec } })
+      this.dropTemp(ctx, { status: 429, message: null, details: err.details })
+      this.d.onSettled?.('rejected', null)
+      return
+    }
+    this.dropTemp(ctx, { status: err.status, message: err.message || null, details: err.details })
+    if (err.status === 404) {
+      this.set({ phase: 'idle', stage: null, notice: { kind: 'notFound', text: turnNoticeText(err) } })
+      this.d.onSettled?.('rejected', null)
+      this.d.onNotFound()
       return
     }
     if (err.status === 409 && !ctx.tmpId) {
       // 다시 받을 대상이 없다(다른 기기·탭이 이미 끝냈다) — 서버 상태로 맞춘다.
       this.set({ phase: 'idle', stage: null, failure: null })
+      this.d.onSettled?.('rejected', null)
       void this.syncNew()
       return
     }
     this.set({ phase: backTo, stage: null, notice: { kind: 'error', text: turnNoticeText(err) } })
+    this.d.onSettled?.('rejected', null)
     // 네트워크 실패·409(같은 사용자의 다른 턴)는 서버에 무엇이 있는지 모른다 — 조용히 맞춘다.
     if (err.status === 0 || err.status === 409) void this.syncNew()
   }
 
   private lostBeforeAccept(ctx: RunContext) {
-    this.dropTemp(ctx)
+    this.dropTemp(ctx, { status: 0, message: null, details: {} })
     this.set({ phase: ctx.tmpId ? 'idle' : 'failed', stage: null, notice: { kind: 'error', text: NETWORK_SEND_ERROR } })
+    this.d.onSettled?.('rejected', null)
     void this.syncNew()
   }
 
-  private dropTemp(ctx: RunContext) {
+  private dropTemp(ctx: RunContext, why: Omit<RestoreInfo, 'opts'>) {
     if (!ctx.tmpId) return
     const tmpId = ctx.tmpId
     this.d.setMessages((ms) => ms.filter((m) => m.id !== tmpId))
-    if (ctx.text) this.d.restoreText(ctx.text)
+    if (ctx.text) this.d.restoreText(ctx.text, { ...why, opts: ctx.opts })
   }
 
   /* ── 폴링 ─────────────────────────────────────────────────────── */
 
-  private startPolling(baseId: string | null) {
+  private startPolling(baseId: string | null, assistantMessageId: string | null = null) {
     this.stopPolling()
+    this.pollingFor = assistantMessageId
     const p: PollState = { baseId, startedAt: Date.now(), timer: null, inFlight: false }
     this.poll = p
     this.schedule(p)
@@ -370,6 +458,7 @@ class TurnController {
   private stopPolling() {
     if (this.poll?.timer) clearTimeout(this.poll.timer)
     this.poll = null
+    this.pollingFor = null
   }
 
   private schedule(p: PollState) {
@@ -384,8 +473,10 @@ class TurnController {
     if (p.timer) clearTimeout(p.timer)
     p.timer = null
     if (Date.now() - p.startedAt > POLL_MAX_MS) {
+      const aid = this.pollingFor
       this.stopPolling()
       this.set({ phase: 'failed', stage: null, failure: LOST_FAILURE })
+      this.d.onSettled?.('error', aid)
       return
     }
     p.inFlight = true
@@ -395,22 +486,27 @@ class TurnController {
       if (this.poll !== p || !this.alive) return
       this.applyServer(r)
       if (!r.chat.running) {
+        const aid = this.pollingFor
         this.stopPolling()
         const merged = mergeMessages(this.d.getMessages(), r.messages)
         const last = merged[merged.length - 1]
         if (last && last.role === 'ASSISTANT' && last.status === 'DONE') {
           this.set({ phase: 'idle', stage: null, startedAt: null, failure: null })
           this.d.reloadProposals()
+          this.d.onSettled?.('done', aid ?? last.id)
         } else {
           this.set({ phase: 'failed', stage: null, failure: LOST_FAILURE })
+          this.d.onSettled?.('error', aid)
         }
         return
       }
     } catch (e) {
       if (this.poll !== p || !this.alive) return
       if (toErr(e).status === 404) {
+        const aid = this.pollingFor
         this.stopPolling()
         this.set({ phase: 'idle', stage: null })
+        this.d.onSettled?.('error', aid)
         this.d.onNotFound()
         return
       }
@@ -446,11 +542,13 @@ class TurnController {
 }
 
 export interface ChatTurn extends TurnState {
-  send: (text: string) => Promise<void>
+  send: (text: string, opts?: SendOptions) => Promise<void>
   resume: () => Promise<void>
   attach: (baseId: string | null) => void
   markFailed: () => void
   clearNotice: () => void
+  /** 렌더를 기다리지 않는 현재 진행 여부(음성 final 콜백처럼 렌더 밖에서 판단할 때). */
+  isBusy: () => boolean
 }
 
 export function useChatTurn(deps: TurnDeps): ChatTurn {
@@ -480,5 +578,6 @@ export function useChatTurn(deps: TurnDeps): ChatTurn {
     attach: ctl.attach,
     markFailed: ctl.markFailed,
     clearNotice: ctl.clearNotice,
+    isBusy: ctl.isBusy,
   }
 }

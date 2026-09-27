@@ -8,6 +8,7 @@
  * 서버가 아직 답하는 중이면 곧바로 폴링, 마지막 강사 답이 실패면 [다시 받기] 상태로 시작한다(자동 재시도 없음).
  */
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiGet } from '@/components/common/api'
 import { readStore, writeStore } from '@/components/common/storage'
@@ -53,6 +54,7 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
   const [nudgeDismissed, setNudgeDismissed] = useState(() => readStore('session', KEYS.nudge(chatId)) === '1')
   const [menuOpen, setMenuOpen] = useState(false)
   const toast = useToast()
+  const router = useRouter()
 
   const roomRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ComposerHandle | null>(null)
@@ -94,6 +96,11 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
           apiGet<Paged<ProposalDto>>(`/api/v1/proposals?chatId=${encodeURIComponent(chatId)}`).catch(() => null),
         ])
         if (cancelled) return
+        // 음성 회화는 회화방에서 연다(목록 밖 링크·북마크 대비, task-007 §9-3 H).
+        if (detail.chat.kind === 'TALK') {
+          router.replace(`/study/ai/talk/${encodeURIComponent(chatId)}`)
+          return
+        }
         setChat(detail.chat)
         setMessages(detail.messages)
         messagesRef.current = detail.messages
@@ -111,7 +118,7 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
     return () => {
       cancelled = true
     }
-  }, [chatId, attempt, attach, markFailed])
+  }, [chatId, attempt, attach, markFailed, router])
 
   const loadOlder = async () => {
     if (!olderCursor || loadingOlder) return

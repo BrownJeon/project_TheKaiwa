@@ -24,7 +24,8 @@ export function useToast() {
   return { message, show }
 }
 
-export default function Toast({ message }: { message: string | null }) {
+/** `bottomPx` = 하단에서 띄울 거리(기본 84 — 하단 탭·채팅 입력창 위). 회화방 음성 입력 바(≈116px)는 더 띄운다. */
+export default function Toast({ message, bottomPx = 84 }: { message: string | null; bottomPx?: number }) {
   return (
     <div
       role="status"
@@ -32,7 +33,7 @@ export default function Toast({ message }: { message: string | null }) {
       className={`pointer-events-none fixed left-4 right-4 z-50 rounded-xl bg-ink px-3.5 py-3 text-[13px] text-surface shadow-lg transition-opacity ${
         message ? 'opacity-100' : 'opacity-0'
       }`}
-      style={{ bottom: 'calc(84px + env(safe-area-inset-bottom))' }}
+      style={{ bottom: `calc(${bottomPx}px + env(safe-area-inset-bottom))` }}
     >
       {message}
     </div>

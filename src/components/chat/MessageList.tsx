@@ -4,6 +4,9 @@
  * 채팅방의 **유일한 스크롤 영역**(screens.md §3-2 C MessageList). 스크롤은 코드가 관리한다(`overflow-anchor:none`):
  * 첫 로드 → 맨 아래 / 새 메시지 → 바닥 120px 안이면 따라 내려감, 아니면 "새 메시지 ↓" / 이전 메시지를 앞에
  * 붙이면 보던 자리 유지 / 목록 높이가 줄면(키보드) 바닥에 붙어 있던 경우 계속 바닥.
+ *
+ * 회화방(task-007 §9-2 E)은 선택 슬롯으로 말풍선을 바꿔 그린다(`renderUser`·`renderTutor`·`renderPending`·`intro`·`tail`·`liveOff`).
+ * `followContent` 면 내용 높이가 늘 때(문장이 드러남·교정 카드·부분 인식) 바닥에 붙어 있던 경우 계속 바닥. 채팅은 넘기지 않는다.
  */
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { ChatMessageView, ProposalDto } from '@/types/chat'
@@ -17,6 +20,13 @@ import type { ChatTurn } from './useChatTurn'
 
 export interface MessageListHandle {
   scrollToBottom: () => void
+}
+
+/** 슬롯이 받는 말풍선 문맥(묶음·시각) */
+export interface RowContext {
+  groupStart: boolean
+  groupEnd: boolean
+  isLast: boolean
 }
 
 const BOTTOM_SLACK_PX = 120
@@ -35,6 +45,13 @@ export default function MessageList({
   onProposalChange,
   onToast,
   handleRef,
+  renderUser,
+  renderTutor,
+  renderPending,
+  intro,
+  tail,
+  liveOff,
+  followContent,
 }: {
   chatId: string
   messages: ChatMessageView[]
@@ -49,7 +66,20 @@ export default function MessageList({
   onProposalChange: (p: ProposalDto) => void
   onToast: (msg: string) => void
   handleRef: RefObject<MessageListHandle | null>
+  renderUser?: (m: ChatMessageView, ctx: RowContext) => React.ReactNode
+  /** 완료(DONE) 강사 답 — 제안 카드까지 슬롯이 그린다 */
+  renderTutor?: (m: ChatMessageView, ctx: RowContext) => React.ReactNode
+  /** 진행 중 강사 답 — null 을 돌려주면 기본 PendingBubble */
+  renderPending?: (m: ChatMessageView, ctx: RowContext) => React.ReactNode | null
+  /** 빈 방 안내(없으면 채팅 RoomIntro) */
+  intro?: React.ReactNode
+  /** 목록 꼬리(회화: 부분 인식 말풍선) */
+  tail?: React.ReactNode
+  /** 녹음 중 — 스크린리더 음성이 마이크로 들어가지 않게 낭독을 끈다 */
+  liveOff?: boolean
+  followContent?: boolean
 }) {
+  const contentRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const atBottomRef = useRef(true)
   const [atBottom, setAtBottom] = useState(true)
@@ -121,6 +151,20 @@ export default function MessageList({
     return () => ro.disconnect()
   }, [])
 
+  useEffect(() => {
+    const el = scrollRef.current
+    const inner = contentRef.current
+    if (!followContent || !el || !inner || typeof ResizeObserver === 'undefined') return
+    let lastHeight = inner.offsetHeight
+    const ro = new ResizeObserver(() => {
+      const h = inner.offsetHeight
+      if (h > lastHeight && atBottomRef.current) el.scrollTop = el.scrollHeight
+      lastHeight = h
+    })
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [followContent])
+
   const showPill = !atBottom && lastId !== null && leftAtLastId !== null && lastId !== leftAtLastId
 
   const lastMessage = messages[messages.length - 1]
@@ -150,9 +194,13 @@ export default function MessageList({
       !after || after.role !== m.role || !withinGroupGap(m.createdAt, after.createdAt) || kstDateKey(after.createdAt) !== key
     const isLast = i === messages.length - 1
 
+    const ctx: RowContext = { groupStart, groupEnd, isLast }
+    const pendingSlot = m.role === 'ASSISTANT' && m.status === 'PENDING' && pendingVisible && isLast && renderPending ? renderPending(m, ctx) : null
     let node: React.ReactNode
     if (m.role === 'USER') {
-      node = <UserBubble chatId={chatId} message={m} showTime={groupEnd} />
+      node = renderUser ? renderUser(m, ctx) : <UserBubble chatId={chatId} message={m} showTime={groupEnd} />
+    } else if (m.status === 'DONE' && renderTutor) {
+      node = renderTutor(m, ctx)
     } else if (m.status === 'DONE') {
       node = (
         <>
@@ -168,6 +216,8 @@ export default function MessageList({
             ))}
         </>
       )
+    } else if (pendingSlot) {
+      node = pendingSlot
     } else if (m.status === 'PENDING' && pendingVisible && isLast) {
       node = <PendingBubble teacherName={teacherName} showHeader={groupStart} stage={turn.stage} startedAt={turn.startedAt} detached={turn.phase === 'detached'} />
     } else if (isLast) {
@@ -188,6 +238,13 @@ export default function MessageList({
       </li>,
     )
   }
+  if (tail) {
+    rows.push(
+      <li key="__tail" className="mt-3">
+        {tail}
+      </li>,
+    )
+  }
 
   return (
     <div className="relative min-h-0 flex-1">
@@ -196,10 +253,11 @@ export default function MessageList({
         onScroll={onScroll}
         role="log"
         aria-label="대화 내용"
-        aria-live="polite"
+        aria-live={liveOff ? 'off' : 'polite'}
         aria-relevant="additions"
         className="h-full overflow-y-auto overscroll-contain px-4 py-3 [overflow-anchor:none]"
       >
+        <div ref={contentRef} className="min-w-0">
         {hasOlder ? (
           <div className="mb-2 flex justify-center">
             <button
@@ -213,7 +271,12 @@ export default function MessageList({
             </button>
           </div>
         ) : null}
-        {messages.length === 0 && !trailingPending ? <RoomIntro teacherName={teacherName} onPick={onPick} /> : <ul className="min-w-0">{rows}</ul>}
+        {messages.length === 0 && !trailingPending && !tail ? (
+          (intro ?? <RoomIntro teacherName={teacherName} onPick={onPick} />)
+        ) : (
+          <ul className="min-w-0">{rows}</ul>
+        )}
+        </div>
       </div>
       {showPill ? (
         <button

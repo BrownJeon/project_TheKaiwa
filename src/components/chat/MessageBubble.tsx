@@ -3,6 +3,7 @@
 /**
  * 말풍선 6종(screens.md §3-2 C 표). 일본어 본문은 전부 `lang="ja"` 17px, `pre-wrap` + `overflow-wrap:anywhere`
  * (줄바꿈 보존·공백 없는 긴 일본어·이모지·URL 이 가로로 넘치지 않게). 일본어 블록에는 `break-keep` 을 쓰지 않는다.
+ * 회화방(task-007 §9-5)은 선택 슬롯(`body`·`actions`·`headerExtra`·`correctionChip`)만 더 넘긴다 — 넘기지 않으면 채팅 그대로.
  */
 import Link from 'next/link'
 import { useState } from 'react'
@@ -12,16 +13,30 @@ import { DETACHED_TEXT, SLOW_TEXT, stageText, type FailureView } from './labels'
 import { elapsedSec, useNow } from '@/components/common/useNow'
 import TeacherAvatar from '@/components/common/TeacherAvatar'
 
-const JA_BODY = 'whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] leading-[1.7]'
+export const JA_BODY = 'whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] leading-[1.7]'
 
-
-/** 강사 쪽 줄: 아바타 칸(28px)을 늘 비워 두어 묶음 안 말풍선이 한 줄로 맞는다. */
-function TutorRow({ teacherName, showHeader, children }: { teacherName: string; showHeader: boolean; children: React.ReactNode }) {
+/** 강사 쪽 줄: 아바타 칸(28px)을 늘 비워 두어 묶음 안 말풍선이 한 줄로 맞는다. `headerExtra` = 이름 뒤(회화: "· 말하는 중"). */
+export function TutorRow({
+  teacherName,
+  showHeader,
+  headerExtra,
+  children,
+}: {
+  teacherName: string
+  showHeader: boolean
+  headerExtra?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <div className="flex min-w-0 gap-2">
       <div className="w-7 flex-none pt-5">{showHeader ? <TeacherAvatar name={teacherName} /> : null}</div>
       <div className="flex min-w-0 max-w-[85%] flex-col items-start">
-        {showHeader ? <p className="mb-1 truncate text-[12px] text-ink2">{teacherName}</p> : null}
+        {showHeader ? (
+          <p className="mb-1 flex min-w-0 max-w-full items-center gap-1 text-[12px] text-ink2">
+            <span className="min-w-0 truncate">{teacherName}</span>
+            {headerExtra}
+          </p>
+        ) : null}
         {children}
       </div>
     </div>
@@ -45,9 +60,23 @@ export function CorrectionChip({ chatId, message }: { chatId: string; message: C
   )
 }
 
-export function UserBubble({ chatId, message, showTime }: { chatId: string; message: ChatMessageView; showTime: boolean }) {
+export function UserBubble({
+  chatId,
+  message,
+  showTime,
+  actions,
+  correctionChip = true,
+}: {
+  chatId: string
+  message: ChatMessageView
+  showTime: boolean
+  /** 시각 줄 맨 앞(회화: ▶ 내 목소리) */
+  actions?: React.ReactNode
+  /** 점검 결과로 가는 교정 칩 — 회화는 결과 화면이 없어 끈다 */
+  correctionChip?: boolean
+}) {
   const sending = message.localStatus === 'SENDING'
-  const chip = (message.corrections?.length ?? 0) > 0
+  const chip = correctionChip && (message.corrections?.length ?? 0) > 0
   return (
     <div className="flex min-w-0 flex-col items-end">
       <div className="min-w-0 max-w-[80%] rounded-2xl rounded-br-md bg-accent-soft px-3.5 py-2.5 text-ink">
@@ -56,8 +85,9 @@ export function UserBubble({ chatId, message, showTime }: { chatId: string; mess
           {message.content}
         </p>
       </div>
-      {sending || showTime || chip ? (
-        <div className="flex min-h-6 items-center gap-2 text-[12px] text-ink2">
+      {sending || showTime || chip || actions ? (
+        <div className="flex min-h-6 min-w-0 max-w-full flex-wrap items-center justify-end gap-x-2 text-[12px] text-ink2">
+          {actions}
           {sending ? <span>보내는 중…</span> : showTime ? <time dateTime={message.createdAt}>{formatClock(message.createdAt)}</time> : null}
           {chip && !sending ? <CorrectionChip chatId={chatId} message={message} /> : null}
         </div>
@@ -72,12 +102,20 @@ export function TutorBubble({
   showHeader,
   showTime,
   readingDefault,
+  body,
+  actions,
+  headerExtra,
 }: {
   message: ChatMessageView
   teacherName: string
   showHeader: boolean
   showTime: boolean
   readingDefault: boolean
+  /** 본문 대신 그릴 것(회화: 문장 `<span>` 분할 — 다시 듣기 강조). 없으면 `content` 그대로 */
+  body?: React.ReactNode
+  /** 아래 줄 맨 앞(회화: ▶ 다시 듣기) */
+  actions?: React.ReactNode
+  headerExtra?: React.ReactNode
 }) {
   // null = 사용자 기본값을 따른다(메뉴의 "읽기 항상 펼치기"가 바뀌면 손대지 않은 말풍선도 같이 바뀐다).
   const [readingOpen, setReadingOpen] = useState<boolean | null>(null)
@@ -87,14 +125,14 @@ export function TutorBubble({
   const showReading = hasReading && (readingOpen ?? readingDefault)
   const translation = message.translation?.trim() ? message.translation : null
   const grammar = message.learning?.grammarPoint?.trim() || null
-  const hasFooter = hasReading || !!translation || !!grammar || showTime
+  const hasFooter = hasReading || !!translation || !!grammar || showTime || !!actions
 
   return (
-    <TutorRow teacherName={teacherName} showHeader={showHeader}>
+    <TutorRow teacherName={teacherName} showHeader={showHeader} headerExtra={headerExtra}>
       <div className="min-w-0 max-w-full rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-2.5">
         <span className="sr-only">{teacherName}:</span>
         <p lang="ja" className={JA_BODY}>
-          {message.content}
+          {body ?? message.content}
         </p>
         {showReading ? (
           <p lang="ja" className="mt-1 whitespace-pre-wrap text-[14px] leading-[1.6] text-ink2 [overflow-wrap:anywhere]">
@@ -107,6 +145,7 @@ export function TutorBubble({
       </div>
       {hasFooter ? (
         <div className="flex min-w-0 flex-wrap items-center gap-x-1 text-[12px] text-ink2">
+          {actions}
           {hasReading ? (
             <button
               type="button"

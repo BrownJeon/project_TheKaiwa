@@ -1,6 +1,9 @@
 'use client'
 
-/** 채팅방 ⋯ 메뉴(screens.md §3-2 C ChatMenuSheet): 제목 바꾸기(#30) · 읽기 항상 펼치기 · 채팅 삭제(#31, 확인 단계). */
+/**
+ * 채팅방 ⋯ 메뉴(screens.md §3-2 C ChatMenuSheet): 제목 바꾸기(#30) · 읽기 항상 펼치기 · 채팅 삭제(#31, 확인 단계).
+ * 회화방(task-007 §9-2 H)은 `chat.kind` 로 문구·삭제 뒤 경로만 바뀌고, `extra` 슬롯에 "들려주는 방식"을 넣는다.
+ */
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { apiDelete, apiPatch } from '@/components/common/api'
@@ -24,6 +27,7 @@ export default function ChatMenuSheet({
   onRenamed,
   onReadingDefault,
   onToast,
+  extra,
 }: {
   open: boolean
   chat: ChatInfo
@@ -33,7 +37,10 @@ export default function ChatMenuSheet({
   onRenamed: (title: string) => void
   onReadingDefault: (on: boolean) => void
   onToast: (msg: string) => void
+  extra?: React.ReactNode
 }) {
+  const talk = chat.kind === 'TALK'
+  const noun = talk ? '회화' : '채팅'
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('menu')
   const [title, setTitle] = useState(chat.title)
@@ -81,19 +88,20 @@ export default function ChatMenuSheet({
     setError(null)
     try {
       await apiDelete(`/api/v1/chats/${encodeURIComponent(chat.id)}`)
-      router.replace('/study/ai?tab=chat')
+      router.replace(talk ? '/study/ai?tab=talk' : '/study/ai?tab=chat')
     } catch (e) {
       setError(actionErrorText(toErr(e)))
       setBusy(false)
     }
   }
 
-  const sheetTitle = mode === 'rename' ? '제목 바꾸기' : mode === 'confirmDelete' ? '채팅 삭제' : '채팅 메뉴'
+  const sheetTitle = mode === 'rename' ? '제목 바꾸기' : mode === 'confirmDelete' ? `${noun} 삭제` : `${noun} 메뉴`
 
   return (
     <Sheet open={open} title={sheetTitle} onClose={close} dismissible={!busy}>
       {mode === 'menu' ? (
         <div className="flex flex-col divide-y divide-line">
+          {talk ? <p className="truncate pb-2 text-[15px] font-semibold">{chat.title}</p> : null}
           <button
             type="button"
             className={ROW}
@@ -113,6 +121,7 @@ export default function ChatMenuSheet({
               />
             </span>
           </button>
+          {extra}
           <button
             type="button"
             aria-disabled={turnBusy || undefined}
@@ -125,7 +134,7 @@ export default function ChatMenuSheet({
               }
             }}
           >
-            채팅 삭제
+            {noun} 삭제
           </button>
         </div>
       ) : mode === 'rename' ? (
@@ -154,7 +163,7 @@ export default function ChatMenuSheet({
         </div>
       ) : (
         <div className="flex flex-col gap-1">
-          <p className="text-[15px] font-semibold break-keep">이 채팅을 삭제할까요?</p>
+          <p className="text-[15px] font-semibold break-keep">{talk ? '이 회화를 삭제할까요?' : '이 채팅을 삭제할까요?'}</p>
           <p className="text-[14px] text-ink2 break-keep">메시지와 교정·제안이 함께 지워져요. 이미 남긴 공부 기록은 그대로 남아요.</p>
           {error ? (
             <p role="alert" className="mt-1 text-[12px] text-bad break-keep">

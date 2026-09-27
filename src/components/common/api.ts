@@ -233,6 +233,25 @@ export async function apiPostAudio(path: string, body: unknown, opts?: { signal?
   return { data: await res.arrayBuffer(), cache: cache === 'HIT' || cache === 'MISS' ? cache : null }
 }
 
+/**
+ * 오디오 GET(#24 서명 URL 청크·#21b 내 목소리, task-007) — 성공이면 `audio/*` 본문. 실패는 `apiPostAudio` 와 같은 규칙
+ * (401 로그인 이동·봉투 → ApiError·취소는 AbortError). 경로는 호출자가 고정 접두로 거른 것만 넘긴다.
+ */
+export async function apiGetAudio(path: string, opts?: { signal?: AbortSignal }): Promise<ArrayBuffer> {
+  let res: Response
+  try {
+    const headers = clientHeaders({ Accept: 'audio/wav' })
+    res = await fetch(path, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers, signal: opts?.signal })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    throw new ApiError('연결하지 못했습니다. 네트워크를 확인해 주세요.', 0)
+  }
+  if (res.status === 401) handleUnauthorized()
+  const contentType = res.headers.get('Content-Type') ?? ''
+  if (!res.ok || !contentType.startsWith('audio/')) throw await errorFromResponse(res)
+  return res.arrayBuffer()
+}
+
 /** 사용자가 누른 취소인가. 오류 문구를 띄우면 안 되는 유일한 경우다. */
 export function isAbort(e: unknown): boolean {
   return e instanceof DOMException && e.name === 'AbortError'

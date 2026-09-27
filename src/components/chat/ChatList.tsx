@@ -9,10 +9,13 @@ import { apiGet } from '@/components/common/api'
 import { Btn, ErrorBlock, LoadingBlock, Section, SectionHeader } from '@/components/common/ui'
 import type { ChatKind, ChatSummary, Paged } from '@/types/chat'
 import ChatListItem from './ChatListItem'
+import { TALK_HOME } from '@/components/talk/talkCopy'
 import { toErr } from '@/components/common/errors'
 import { actionErrorText } from './labels'
 
 export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () => void }) {
+  const talk = kind === 'TALK'
+  const basePath = talk ? '/study/ai/talk/' : '/study/ai/chat/'
   const [items, setItems] = useState<ChatSummary[] | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -69,12 +72,12 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
   } else if (items.length === 0) {
     content = (
       <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center">
-        <p className="text-[15px] font-semibold">아직 채팅이 없어요</p>
+        <p className="text-[15px] font-semibold">{talk ? TALK_HOME.emptyTitle : '아직 채팅이 없어요'}</p>
         <p className="mt-1 text-[14px] text-ink2 break-keep">
-          일본어로 하고 싶은 말을 써 보세요. 틀려도 괜찮아요 — 대화를 마치면 선생님이 문장마다 고쳐 줘요.
+          {talk ? TALK_HOME.emptyBody : '일본어로 하고 싶은 말을 써 보세요. 틀려도 괜찮아요 — 대화를 마치면 선생님이 문장마다 고쳐 줘요.'}
         </p>
         <Btn className="mt-3" onClick={onNew}>
-          첫 채팅 시작하기
+          {talk ? TALK_HOME.emptyAction : '첫 채팅 시작하기'}
         </Btn>
       </div>
     )
@@ -83,7 +86,7 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
       <>
         <ul className="flex min-w-0 flex-col gap-2">
           {items.map((c) => (
-            <ChatListItem key={c.id} chat={c} href={`/study/ai/chat/${encodeURIComponent(c.id)}`} now={now} />
+            <ChatListItem key={c.id} chat={c} href={`${basePath}${encodeURIComponent(c.id)}`} now={now} />
           ))}
         </ul>
         {error ? (
@@ -93,7 +96,7 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
         ) : null}
         {nextCursor ? (
           <Btn variant="ghost" className="mt-2 w-full" onClick={() => void more()} aria-busy={loadingMore || undefined}>
-            {loadingMore ? '불러오는 중…' : '이전 채팅 더 보기'}
+            {loadingMore ? '불러오는 중…' : talk ? TALK_HOME.more : '이전 채팅 더 보기'}
           </Btn>
         ) : null}
       </>
@@ -102,7 +105,7 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
 
   return (
     <Section>
-      <SectionHeader title="채팅" />
+      <SectionHeader title={talk ? TALK_HOME.section : '채팅'} />
       {content}
     </Section>
   )

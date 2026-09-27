@@ -96,6 +96,12 @@ export interface ChatMessage {
   reading?: string | null
   translation?: string | null
   inputSource?: InputSource | null
+  /** USER · 음성으로 보낸 말의 발화 id(task-007 §9-11 ⑥). 내 목소리 다시 듣기(#21b)에 쓴다. */
+  utteranceId?: string | null
+  /** USER · 발화 원음이 아직 있는가(보존 기간 안·삭제 안 됨). 모르면(없는 필드) 있다고 보고 404 에서 숨긴다. */
+  audioAvailable?: boolean | null
+  /** ASSISTANT · 이 답의 말투(`done.speech.style` 과 같은 값) — 다시 듣기 #23 이 캐시를 맞히게 싣는다. */
+  speechStyle?: string | null
   status: MessageStatus
   learning?: LearningInfo | null
   corrections?: CorrectionDto[]
@@ -159,11 +165,29 @@ export interface TurnStatusEvent {
   warning?: string
 }
 
+/** #32 `audio`·`clientTimings` 는 회화 계약 타입(`./talk`, A 확정)을 그대로 쓴다. */
+export type { TurnAudioEvent } from './talk'
+export type { TurnClientTimings as ClientTimings } from './talk'
+
+/** #32 `done.correction` — TALK 만(CHAT·ASK 는 늘 null). */
+export interface TurnCorrection {
+  id: string
+  required?: boolean
+  original: string
+  corrected: string
+  explanationKo?: string | null
+  explanation?: string | null
+  errorType: ErrorType
+  severity: Severity
+  chunkType?: ChunkType | null
+  status?: ProposalStatus
+}
+
 export interface TurnDoneEvent {
   userMessageId: string
   assistantMessageId: string
   conversation: { replyJa: string; replyReading?: string | null; replyKo?: string | null }
-  correction?: unknown
+  correction?: TurnCorrection | null
   learning?: LearningInfo | null
   speech?: { style?: string } | null
   endOfTopic?: boolean

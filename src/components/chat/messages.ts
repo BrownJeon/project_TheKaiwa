@@ -2,7 +2,7 @@
  * 채팅방 메시지 목록 계산(순수). 턴 훅·방 화면·단위 테스트가 같이 쓴다.
  * 서버 값이 오면 **id 기준으로 덮어쓴다**(폴링·재방문 동기화) — 화면이 가진 사본은 늘 서버의 부분집합 + 임시 말풍선이다.
  */
-import type { ChatMessage, ChatMessageView } from '@/types/chat'
+import type { ChatMessage, ChatMessageView, CorrectionDto, TurnCorrection } from '@/types/chat'
 
 export const TEMP_PREFIX = 'tmp_'
 
@@ -60,4 +60,18 @@ export function pendingCorrectionCount(ms: readonly ChatMessageView[]): number {
 export function endsWithUnfinishedReply(ms: readonly ChatMessageView[]): boolean {
   const last = ms[ms.length - 1]
   return !!last && last.role === 'ASSISTANT' && last.status !== 'DONE'
+}
+
+/** 턴 `done.correction`(TALK) → #29 교정 모양. `required` 는 #29 에 없어 버린다 — 새로고침 전후 모양을 같게(task-007 §9-3 C). */
+export function correctionFromDone(c: TurnCorrection): CorrectionDto {
+  return {
+    id: c.id,
+    status: c.status ?? 'PROPOSED',
+    original: c.original,
+    corrected: c.corrected,
+    explanation: c.explanationKo ?? c.explanation ?? '',
+    errorType: c.errorType,
+    severity: c.severity,
+    chunkType: c.chunkType ?? null,
+  }
 }

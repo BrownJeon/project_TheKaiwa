@@ -43,6 +43,7 @@ export default function CorrectionCard({
   highlighted,
   onAccept,
   onReject,
+  showCounter = true,
 }: {
   correction: CorrectionDto
   index: number
@@ -51,6 +52,8 @@ export default function CorrectionCard({
   highlighted: boolean
   onAccept: (c: CorrectionDto) => void
   onReject: (c: CorrectionDto) => void
+  /** "n/m" — 회화는 말마다 1건이라 "1/1" 을 숨긴다(task-007 §9-11 ⑫). `<li>` 라 목록 밖에서는 `<ul>` 로 감싼다. */
+  showCounter?: boolean
 }) {
   const c = correction
   const diff = diffCodepoints(c.original, c.corrected)
@@ -64,9 +67,11 @@ export default function CorrectionCard({
       }`}
     >
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="flex-none text-[12px] text-ink2">
-          {index}/{total}
-        </span>
+        {showCounter ? (
+          <span className="flex-none text-[12px] text-ink2">
+            {index}/{total}
+          </span>
+        ) : null}
         <Badge>{ERROR_TYPE_LABEL[c.errorType] ?? '기타'}</Badge>
         {c.severity === 'MAJOR' ? <Badge tone="bad">중요</Badge> : null}
         {chunk ? <span className="min-w-0 truncate text-[12px] text-ink2">{chunk}</span> : null}

@@ -1,6 +1,6 @@
 'use client'
 
-/** 새 채팅 시트(#28). 제목은 선택, 코드포인트 100자(`maxLength` 대신 — IME 조합·이모지). */
+/** 새 채팅·회화 시트(#28, `kind` 기본 CHAT — task-007 회화는 TALK). 제목은 선택, 코드포인트 100자(`maxLength` 대신 — IME 조합·이모지). */
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { apiPost } from '@/components/common/api'
@@ -11,8 +11,9 @@ import { toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
 import { actionErrorText } from './labels'
 
-export default function NewChatSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function NewChatSheet({ open, onClose, kind = 'CHAT' }: { open: boolean; onClose: () => void; kind?: 'CHAT' | 'TALK' }) {
   const router = useRouter()
+  const talk = kind === 'TALK'
   const [title, setTitle] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [fieldError, setFieldError] = useState<string | null>(null)
@@ -34,8 +35,8 @@ export default function NewChatSheet({ open, onClose }: { open: boolean; onClose
     setError(null)
     try {
       const t = title.trim()
-      const r = await apiPost<CreatedChat>('/api/v1/chats', t ? { kind: 'CHAT', title: t } : { kind: 'CHAT' })
-      router.push(`/study/ai/chat/${encodeURIComponent(r.id)}`)
+      const r = await apiPost<CreatedChat>('/api/v1/chats', t ? { kind, title: t } : { kind })
+      router.push(`/study/ai/${talk ? 'talk' : 'chat'}/${encodeURIComponent(r.id)}`)
     } catch (e) {
       const err = toErr(e)
       if (err.status === 400) setFieldError(err.message || actionErrorText(err))
@@ -47,7 +48,7 @@ export default function NewChatSheet({ open, onClose }: { open: boolean; onClose
   const hint = tooLong ? '제목은 100자까지 쓸 수 있어요' : fieldError
 
   return (
-    <Sheet open={open} title="새 채팅" onClose={close} dismissible={!submitting}>
+    <Sheet open={open} title={talk ? '새 회화' : '새 채팅'} onClose={close} dismissible={!submitting}>
       <form
         onSubmit={(e) => {
           e.preventDefault()

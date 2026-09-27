@@ -19,6 +19,8 @@ export interface ComposerHandle {
   restore: (text: string) => void
   /** 예문 칩 — 입력창을 채우고 포커스(자동 전송 없음). */
   fill: (text: string) => void
+  /** 회화방 음성→글자 전환 — 키보드가 뜨는 것은 사용자가 고른 동작이다. */
+  focus: () => void
 }
 
 const MAX_CP = 1000
@@ -33,6 +35,8 @@ export default function Composer({
   onSend,
   onBlocked,
   handleRef,
+  leading,
+  onTextChange,
 }: {
   chatId: string
   busy: boolean
@@ -42,6 +46,10 @@ export default function Composer({
   /** 보낼 수 없는 이유 안내(토스트) */
   onBlocked: (reason: string) => void
   handleRef: RefObject<ComposerHandle | null>
+  /** 입력창 왼쪽(회화: 🎤 말로 입력하기 44px) */
+  leading?: React.ReactNode
+  /** 입력 내용이 바뀔 때(회화: 비우면 고쳐 보내려던 발화 연결을 버린다) */
+  onTextChange?: (text: string) => void
 }) {
   const [text, setText] = useState(() => readStore('session', KEYS.draft(chatId)) ?? '')
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -54,6 +62,7 @@ export default function Composer({
       setText(t)
       taRef.current?.focus()
     },
+    focus: () => taRef.current?.focus(),
   }))
 
   useLayoutEffect(() => {
@@ -109,6 +118,7 @@ export default function Composer({
         }}
         className="flex min-w-0 items-end gap-2 px-3 pt-2"
       >
+        {leading}
         <textarea
           ref={taRef}
           lang="ja"
@@ -119,7 +129,10 @@ export default function Composer({
           aria-label="메시지 입력"
           placeholder={placeholder}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            onTextChange?.(e.target.value)
+          }}
           onKeyDown={(e) => {
             if (e.key !== 'Enter') return
             if (e.nativeEvent.isComposing || e.keyCode === 229) return

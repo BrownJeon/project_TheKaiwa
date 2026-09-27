@@ -71,7 +71,8 @@ const eslintConfig = defineConfig([
   // 컴포넌트: 서버 모듈(Prisma 포함 infra index·auth)을 끌어오지 않는다(규칙 5). 클라이언트 안전 진입점만.
   // `stt/client` = speech 의 클라이언트 안전 진입점(task-003e M4, Leader 승인 2026-09-28 — module-dependency §3 규칙 5).
   // speech 루트 index(Prisma·engine 포함)는 컴포넌트에서 금지 — 컴포넌트가 쓰는 speech 는 `@/modules/speech/stt/client` 뿐(REV-013).
-  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates', 'stt/client'], true, ['speech']),
+  // `tts/client` = 클라 재생 큐(TtsPlaybackQueue)·문장 분할 진입점(task-007 B, 같은 규칙 5 — Leader 지시로 stt/client 와 같은 방식).
+  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates', 'stt/client', 'tts/client'], true, ['speech']),
   // speech 클라이언트 진입점은 브라우저 번들에 들어간다 — 서버 코드(다른 모듈·speech 서버 파일·Node/Prisma/Next 서버 API)를 끌어오지 않는다.
   // 허용: 네이티브 브리지(`@/modules/infra/native`)·`@/types/*`·같은 디렉터리 상대 경로. 위 speech 경계 블록을 이 파일들에 한해 대체한다.
   {
@@ -84,6 +85,23 @@ const eslintConfig = defineConfig([
             { regex: '^@/(app|components)/', message: 'speech 클라이언트는 화면을 import 하지 않는다' },
             { regex: '^@/modules/(?!infra/native(/|$))', message: 'speech 클라이언트는 서버 모듈을 import 하지 않는다(네이티브 브리지만 허용)' },
             { regex: '^\\.\\.(/|$)', message: 'speech 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다' },
+            { regex: '^(node:|@prisma/|next/(server|headers)$|jsonwebtoken$|jose$)', message: 'speech 클라이언트는 서버 전용 패키지를 import 하지 않는다' },
+          ],
+        },
+      ],
+    },
+  },
+  // TTS 클라이언트 진입점(재생 큐)도 같다. 상위 경로는 순수 문장 분할기 `../sentences` 하나만 허용(다시 듣기를 서버와 같은 경계로 나눈다).
+  {
+    files: ['src/modules/speech/tts/client/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { regex: '^@/(app|components)/', message: 'speech 클라이언트는 화면을 import 하지 않는다(오디오·fetch 는 주입)' },
+            { regex: '^@/modules/', message: 'TTS 클라이언트는 다른 모듈을 import 하지 않는다' },
+            { regex: '^\\.\\.(/(?!sentences$)|$)', message: 'TTS 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다 — 순수 ../sentences 만' },
             { regex: '^(node:|@prisma/|next/(server|headers)$|jsonwebtoken$|jose$)', message: 'speech 클라이언트는 서버 전용 패키지를 import 하지 않는다' },
           ],
         },
