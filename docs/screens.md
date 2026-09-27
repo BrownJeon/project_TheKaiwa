@@ -5146,7 +5146,7 @@ export interface LexiconPreviewDto { dictionaryVersion: number; before: LexiconP
 | 읽기 | 가나·ー 밖 문자 · `E_READING` | 읽기는 가나(히라가나·가타카나)와 장음 ー 만 쓸 수 있어요. |
 | 읽기 | 60자 초과 | 읽기는 60자까지예요({n}자). |
 | 악센트 | 범위 밖 · `E_ACCENT` | 악센트는 0(평판)부터 {n}(모라 수)까지예요. |
-| 우선순위 | 정수 아님·범위 밖 · `E_PRIORITY` | 우선순위는 0~100 사이 정수예요. |
+| 우선순위 | 정수 아님·범위 밖 · `E_PRIORITY` | 우선순위는 0~1000 사이 정수예요. |
 | 범위 | 안 고름 · `E_SCOPE` | 범위를 골라 주세요. |
 | 대상 | 비었음 · `E_SCOPE_REF` | {대상 이름}를 입력해 주세요. / (VOICE) 목소리를 골라 주세요. |
 | 대상 | 40자 초과 | 대상 id 는 40자까지예요. |
@@ -5157,7 +5157,7 @@ export interface LexiconPreviewDto { dictionaryVersion: number; before: LexiconP
 | 이유 | 200자 초과 | 이유는 200자까지예요({n}자). |
 | 확인 문구 | 불일치 · `E_CONFIRM` | PRODUCTION 을 그대로 입력해야 바꿀 수 있어요. |
 | 예문 | 비었음 | 예문을 입력해 주세요. |
-| 예문 | 100자 초과 | 예문은 100자까지예요({n}자). |
+| 예문 | 200자 초과 | 예문은 200자까지예요({n}자). |
 | (모르는 코드) | — | 입력값을 확인해 주세요 ({code}) |
 
 ⓒ 미리듣기
@@ -5203,6 +5203,9 @@ export interface LexiconPreviewDto { dictionaryVersion: number; before: LexiconP
 | 0 | 연결하지 못했어요. 네트워크를 확인해 주세요. | — |
 | 0(가져오기 적용·되돌리기 중 끊김) | 연결이 끊겼어요. 적용됐는지 모르니 목록을 새로 불러와 확인해 주세요. | 목록 새로 고침 |
 | 401 | (`api.ts` 가 로그인으로 보낸다 — 화면 문구 없음) | — |
+| 422 `E_SNAPSHOT_INTEGRITY`(버전 상세·되돌리기 확인 diff — 이 버전 손상) | v{n} 기록이 손상돼 비교·되돌리기를 할 수 없어요. 올바른 내보내기 파일이 있으면 가져오기로 복구해 주세요. | 없음(빈 diff·개수 칩 안 보임) |
+| 422 `E_SNAPSHOT_INTEGRITY`(직전 버전 손상) | 직전 버전 v{p} 기록이 손상돼 비교할 수 없어요. | 없음(이 버전이 멀쩡하면 되돌리기는 가능) |
+| 422 `E_SNAPSHOT_INTEGRITY`(되돌리기 거절) | v{n} 기록이 손상돼 되돌릴 수 없어요. 올바른 내보내기 파일이 있으면 가져오기로 복구해 주세요. | 없음(확정 버튼 거둠, [돌아가기]만) |
 
 가져오기 행 오류(`importErrorText`, 모르는 코드는 "확인이 필요해요 ({code})")
 
