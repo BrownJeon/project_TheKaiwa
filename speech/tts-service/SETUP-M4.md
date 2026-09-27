@@ -46,12 +46,15 @@ python --version                                   # Python 3.11.x
 pip install --upgrade pip wheel setuptools
 pip install torch torchaudio                       # macOS arm64 기본 휠 = MPS 지원
 pip install style-bert-vits2 "fastapi" "uvicorn[standard]" "pydantic>=2" huggingface_hub
+pip install "setuptools<81"                         # pyopenjtalk 가 pkg_resources 를 쓴다 — 최신 setuptools 에는 없음(2026-09-27 실측 오류)
+python -c "import pkg_resources, pyopenjtalk; print('ok')"
 python -c "import torch; print('torch', torch.__version__, 'mps', torch.backends.mps.is_available())"
 git status --short | head                          # .venv 가 목록에 보이면 알려 줄 것(.gitignore 보강 필요)
 ```
 
 - `mps True` 가 나오면 GPU(MPS) 사용 가능.
 - `pyopenjtalk` 빌드 오류가 나면 1단계 `cmake` 설치를 확인하고 `pip install style-bert-vits2` 를 다시 실행한다.
+- 5단계에서 `ModuleNotFoundError: No module named 'pkg_resources'` 가 나면 위 `setuptools<81` 줄을 실행(그래도 나면 `setuptools<70`). `torch.jit.script`·`weight_norm` FutureWarning 은 무시해도 된다.
 
 ## 4. 기본 목소리 모델 + 일본어 BERT 받기
 
