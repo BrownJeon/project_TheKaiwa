@@ -441,6 +441,72 @@ A 의 새 테스트(`lexiconAdmin.test.ts` "dryRun 계획 = 실제 적용 결과
 
 **요약**: Codex C2 지적 채택. 위치·근거·핵심 impact("정상 항목 비활성화")는 코드로 재현 확인, "잘못된 읽기가 TTS 에 적용" 부분은 `loadActiveLexicon` 의 별도 `validateLexiconEntry` 방어로 실제로는 막혀 있어 근거를 정정했으나 그렇다고 결함이 사라지는 것은 아니다(합성은 우연히 보호되지만 관리자 화면·DB 데이터 무결성은 그대로 노출). Developer 수정 요청, 수정 후 Reviewer(서버만) 국소 재검증 권고.
 
+### REV-020 (2026-09-28, 31bbc5f + cb8e77e — Codex C2 수정 재검증)
+
+**대상**: A `31bbc5f`(무결성 검사: 모양·규칙·정규형·키 중복·`snapshotHash`, `checkSnapshot`→`OK|MALFORMED|INVALID_ENTRIES|MISMATCH`) + B `cb8e77e`(화면: "기록 손상" 뱃지·되돌리기 숨김·422 안내) + Leader `448414a`(screens.md §10-8 구현 반영). Codex C2 판정(위)의 권고 4가지("① 정상 회귀 ② 해시 불일치 거절+쓰기 0 ③ 업무 규칙 위반 행 정책 ④ diff/목록 API 반응")를 그대로 완료 기준으로 재검증.
+
+**독립 재실행**: `~/.node-local/thekaiwa-revcheck-003g-d`(`git archive cb8e77e` + 미러 `node_modules` 하드링크, 검증 후 삭제 완료).
+- `tsc --noEmit -p tsconfig.json` → 0 오류.
+- `eslint --max-warnings=0`(A·B 가 건드린 14개 파일: `lexiconRules.ts`·`lexiconStore.ts`·`admin/speech/lexicon.ts`·`types/lexicon.ts`·`speech/tts/index.ts`·`speech/__tests__/lexiconAdmin.test.ts`·`Badges.tsx`·`LexiconSummaryCard.tsx`·`LexiconVersionsScreen.tsx`·`VersionDetailSheet.tsx`·`VersionRow.tsx`·`lexiconCopy.ts`·`integrity.test.ts`·`access.test.ts`) → **0건**(REV-019 때 남아 있던 `lexiconAdmin.test.ts` 의 기존 warning 5건도 이번에 함께 정리됐음을 확인 — A 커밋 메시지의 "테스트·스모크 lint 경고 정리"가 실제로 그 파일임을 재확인).
+- 전체 프로젝트 단위 테스트(58 파일) 재실행 → **435/435 PASS** — B 가 보고한 수치와 정확히 일치.
+- **독립 재현 스크립트**(A·B 테스트를 그대로 재실행하는 것을 넘어, Codex 가 묘사한 시나리오를 직접 재구성): Codex 원문의 "DB 수동 변경"을 그대로 흉내 — `entries` 테이블(진짜 데이터)에는 `日本橋` 가 정상·활성 상태로 있지만 `version.snapshot` JSON 에서만 그 행이 사라진 변조 스냅샷을 만들어 실제 `writeLexicon(ROLLBACK)` 을 호출:
+  ```
+  checkSnapshot 결과: integrity = MISMATCH
+  rollback 결과: 거절됨 — LexiconSnapshotIntegrityError(integrity=MISMATCH, version=1)
+  쓰기 호출 수 = 0
+  日本橋 여전히 활성인가 = true (비활성화되지 않음)
+  compare=active: against=2(지금 ACTIVE 번호), rows=[](정상 상태라 차이 없음 — 지금 항목 표 기준 확인)
+  ```
+  A·B 의 자체 테스트를 신뢰하는 데 그치지 않고, Codex 가 지목한 정확한 실패 모드(정상 항목이 조용히 꺼짐)를 이 리뷰가 직접 재구성해 막혔음을 확인했다.
+
+#### 1. 무결성 검사가 Codex 시나리오를 실제로 잡는가 (PASS)
+- **모양(MALFORMED)**: `readSnapshotStrict`(`lexiconRules.ts`)가 각 행에 대해 `surface`·`reading` 문자열, `accentType`·`priority` 정수, `scope` 5종 소속, `scopeRefId`·`wordType` **키 존재** + 문자열|null, `enabled` 불리언, `note`(있으면 문자열|null)를 검사 — 이 중 하나라도 어긋나면 그 행을 **버리지 않고** `SnapshotIssue`로 보고한다(코드 읽기로 확인, `readSnapshot`의 옛 "타입 다르면 `continue`" 패턴을 정확히 대체).
+- **규칙 위반·정규형·키 중복(INVALID_ENTRIES)**: 모양이 맞는 행마다 `parseEntryInput(row, null)`로 **지금** 쓰기 규칙 전체를 재검증하고, 통과해도 `sameFields(parsed.value, row)`로 "재정규화해도 값이 그대로인가"(정규형)까지 확인, 마지막으로 `entryKey` 중복을 잡는다. A의 7종 테스트(악센트 문자열·scopeRefId 키 없음·배열 아님→MALFORMED / 히라가나 읽기·우선순위 5000·앞 공백·키 중복→INVALID_ENTRIES)를 스크래치에서 함께 재확인(435 안에 포함) — 전부 통과.
+- **해시(MISMATCH)**: `checkSnapshot`이 모양·규칙 통과 행만으로 `lexicon.snapshotHash()`(생성 때와 **같은 함수**)를 재계산해 저장된 `snapshotHash`와 바이트 비교. 위 독립 재현 스크립트로 "정상 항목 하나가 스냅샷에서만 사라짐" 시나리오가 정확히 `MISMATCH`로 잡힘을 재확인.
+- **결론**: Codex 가 언급한 세 가지 손상 경로(수동 DB 편집·과거 버그·운영 사고)가 낳을 수 있는 세 가지 손상 형태(모양 손상·업무 규칙 위반·값 변조) 모두 개별적으로 대응하는 검사가 있고, 어느 하나라도 걸리면 롤백이 진행되지 않는다.
+
+#### 2. 정상 경로·시드 버전 롤백 회귀 (PASS)
+- A 의 신규 테스트 "정상 스냅샷(시드처럼 note 없음 포함)은 무결성 OK → 되돌리기 그대로 동작"이 **실제 시드 v1 의 모양**(note 키 자체가 없는 레거시 스냅샷)을 재현해 `checkSnapshot(...).integrity === 'OK'` + 롤백 성공을 직접 단언 — `readSnapshotStrict`의 모양 검사가 `note` 를 "없거나 문자열|null"로 허용하고, `parseEntryInput({...row, note: row.note ?? null}, null)`이 없는 키를 `null` 로 강제 정규화해 검증하므로 note 가 아예 없는 레거시 스냅샷도 정규형 검사(`sameFields`)를 통과함을 코드로 확인(양쪽 다 note=null 로 비교되므로 불일치 없음).
+- 기존 "버전 전이" 테스트(REV-017 이전부터 있던, 시드 v1 스냅샷을 쓰는 케이스)가 435 안에서 그대로 통과 — 무결성 검사 도입이 정상 스냅샷의 롤백을 막지 않음을 재확인.
+- 실제 DB 의 LOCAL·PRODUCTION v1(시드 GLOBAL 6)은 A 기록에 따르면 전부 OK — 실서비스 데이터에 영향 없음(운영 DB 는 이번 재검증에서 건드리지 않음).
+
+#### 3. 거절 전 쓰기 0 (PASS)
+- 코드 순서로 확인: `writeLexicon`의 `ROLLBACK` 분기는 `items = planRollback(rows, assertIntact(...))` 한 줄이고, `assertIntact`가 던지면 이 줄에서 함수가 즉시 예외로 빠져나가 이후의 모든 DB 쓰기(`tx.pronunciationLexiconEntry.create/update`·`tx.pronunciationLexiconVersion.create/updateMany`)에 도달하지 않는다 — 코드 구조상 "그 뒤에" 쓰기가 있을 수 없다.
+- A 의 두 테스트("해시 불일치... 버전·항목·감사 쓰기 0", "모양 손상·규칙 위반... 7종 각각 쓰기 0")가 가짜 tx 에 쓰기 호출을 기록하는 `writes: string[]` 계측을 두고 매 케이스 `assert.deepEqual(f.writes, [])`로 직접 확인 — 435 안에서 재확인.
+- 이 리뷰의 독립 재현 스크립트도 별도의 `writeCount` 계측으로 0을 직접 확인(위 "독립 재현" 절) — A 의 테스트 하네스에 의존하지 않는 두 번째 증거.
+
+#### 4. `compare=active` 를 지금 항목 표로 바꾼 것의 타당성 (PASS — 건전한 개선으로 판단)
+- **왜 바뀌었는지**: 이전(REV-019 시점)엔 `compare=active`의 기준이 ACTIVE 버전의 **저장된 스냅샷**이었다. 무결성 검사 도입 후 이 스냅샷 자체가 `assertIntact`를 통과해야 하므로, ACTIVE 버전 자신의 JSON 이 (드물지만) `INVALID_ENTRIES`(규칙이 나중에 강화된 경우 등)에 걸리면 "지금과 비교"라는 되돌리기 확인 화면 자체가 열리지 않는 모순이 생긴다. A 는 기준을 **실제 롤백이 읽는 것과 같은 소스**(`tx.pronunciationLexiconEntry.findMany`, 즉 `rows`)로 바꿔 이 모순을 없앴다.
+- **일관성 검증**: `pronunciationLexiconEntry` 테이블에 쓰는 코드 경로는 `writeLexicon` 내부 3곳(`create`·`createMany`·`update`, `lexiconStore.ts`)뿐이고, 이 세 곳은 전부 같은 트랜잭션 안에서 새 버전의 `snapshot`(`toSnapshot(after)`)도 함께 쓴다 — grep 으로 재확인. 즉 정상 운전에서는 "지금 항목 표"와 "ACTIVE 버전의 스냅샷"이 항상 같은 내용이어야 하고, 다르다면 그 자체가 이미 이번 무결성 검사가 잡아야 할 손상 상태다. 따라서 이 변경은 **"평소엔 결과가 똑같고, ACTIVE 스냅샷 쪽만 손상됐을 때는 되돌리기 확인이 계속 동작하게 해 주는" 순수한 개선**이지, 다른 의미로 바뀐 게 아니다.
+- **정합성 실측**: A 의 새 diff 테스트가 `good.entries.find(...).enabled = false`로 **엔트리 테이블만** 직접 바꾼 뒤 `compare=active` 결과가 그 변화를 정확히 반영함을 확인(`ENABLED:日本橋`) — 스냅샷이 아니라 진짜 살아있는 테이블을 본다는 것을 직접 증명하는 테스트, 435 안에서 재확인. 이 리뷰의 독립 스크립트에서도 `against=2`(지금 ACTIVE 번호)가 유지됨을 재확인 — 번호는 그대로, 내용만 소스가 바뀌었다.
+- **참고(경합 가능성, 비차단)**: `compare=active` 핸들러가 `entries.findMany`와 `activeLexiconVersion`(버전 번호)을 `Promise.all`로 병렬 조회한다 — 트랜잭션으로 묶여 있지 않은 읽기 전용 GET 이라, 두 조회 사이에 다른 관리자가 쓰기를 커밋하면 "번호"와 "내용"이 한 틱 어긋나 보일 수 있다. 이는 표시 전용 화면의 일시적 stale-read이고(실제 롤백 자체는 `baseVersion` 트랜잭션 검사로 별도 보호됨), 이번 Codex 지적이나 두 수정의 정합성과는 무관한 기존 클래스의 문제라 새 이슈로 세우지 않는다(참고 기록만).
+
+#### 5. 화면·서버 계약 일치 (PASS)
+- `LexiconVersionDto.integrity` 필드·422 `E_SNAPSHOT_INTEGRITY`(`details.version`·`integrity`·`issues`) 를 B 가 정확히 그 모양대로 소비(`isSnapshotIntegrityError`·`integrityErrorText`·`integrityErrorIsTarget`, `lexiconCopy.ts`) — 서버 `message` 는 여전히 렌더하지 않음(`integrity.test.ts`의 "서버 문구 없음" 단언으로 재확인, 기존 §10-0 ⑬ 원칙과 일관).
+- "기록 손상" 뱃지 4곳(요약 카드·버전 행·버전 상세 머리·버전 화면 범례) 모두 코드로 확인, `IntegrityBadge`가 `OK`·값 없음에서 빈 문자열을 반환(`integrity.test.ts` 로 재확인).
+- 되돌리기 버튼 숨김: `rollbackSlot`의 `'damaged'` 갈래가 `status==='ACTIVE'`(현재 버전) 판정보다 **뒤에** 오지만, 실제로는 `if (v.status==='ACTIVE' || v.version===active) return 'current'`가 먼저 평가되므로 "사용 중인데 손상"이어도 여전히 "지금 쓰는 버전이에요"가 우선 — 코드 순서·`integrity.test.ts`("사용 중 버전은 손상이어도 current") 양쪽으로 확인. 이는 사용자 경험상 타당한 선택(어차피 그 버전으로 "되돌릴" 필요가 없으므로).
+- Leader `448414a`의 screens.md §10-8 변경 3건(우선순위 0~1000·예문 200자·`E_SNAPSHOT_INTEGRITY` 문구 3행)이 실제 구현(`LEXICON_LIMITS.priorityMax=1000`·`previewTextMax=200`·`lexiconCopy.ts`의 정확한 문구)과 **바이트 단위로 일치**함을 대조 확인 — 새 불일치 없음.
+- `?v=` 딥링크로 첫 쪽 밖 버전을 열었는데 그 버전의 **직전** 버전이 손상인 경우 머리 정보 없이 안내만 뜨는 한계는 B 가 스스로 문서화했고, 코드 추적으로 원인(그 버전 자신의 `summary`가 아직 로드되지 않은 목록 페이지에 없을 때만 발생)이 명확하며 목록에서 눌러 여는 정상 경로에는 영향 없음 — 새 이슈로 세우지 않음(문서화된 한계로 인정).
+- 발견 없음.
+
+#### 종합 판정
+
+```json
+{
+  "reviewId": "REV-020",
+  "status": "PASS",
+  "issues": [],
+  "summary": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "high_risk_areas": [
+    "compare=active 의 Promise.all 병렬 읽기(entries·활성 버전 번호)가 트랜잭션으로 묶이지 않아 동시 쓰기 중이면 일시적으로 어긋나 보일 수 있음(표시 전용, 실제 롤백은 baseVersion 으로 별도 보호) — 새 이슈 아님, 참고만",
+      "?v= 딥링크로 목록 첫 쪽 밖 버전을 열고 그 직전 버전이 손상이면 머리 정보 없이 안내만 표시(B 가 문서화한 한계, 목록에서 여는 정상 경로는 무관)"
+  ],
+  "native_change": false
+}
+```
+
+**결론**: Critical 0·High 0·Medium 0·Low 0 → **PASS**. Codex C2 판정이 요구한 완화(무결성 검사·거절 전 쓰기 0·정상 회귀 없음·diff/목록 API 반응)를 A·B 가 전부 구현했고, 이 리뷰는 A·B 의 435개 테스트를 독립 재실행(tsc 0·eslint 0·435/435)하는 데 그치지 않고 Codex 가 묘사한 정확한 손상 시나리오("DB 수동 변경으로 정상 항목이 스냅샷에서만 사라짐")를 직접 재구성해 거절·쓰기 0·항목 유지가 실제로 일어남을 별도로 확인했다. `compare=active`→지금 항목 표 전환은 무결성 검사 도입이 낳은 모순(ACTIVE 스냅샷 자신이 손상되면 확인 화면이 못 열리는 문제)을 없애는 건전한 개선으로 판단하며, 항상 같은 트랜잭션에서 함께 쓰이는 두 데이터 소스이므로 정상 운전 중 의미 차이는 없다. 화면·서버 계약(신규 필드·422·문구·screens.md §10-8)도 전부 일치. QA 인계: 이번 재검증으로 새로 열 항목 없음 — task-003g 서버·화면 보안/무결성 트랙은 여기서 닫아도 된다(남은 것은 REV-017/018/019 가 이미 넘긴 실기기·PRODUCTION 실역할 한계뿐, 반복 아님).
+
 ## QA 기록
 
 ## 최종 요약
