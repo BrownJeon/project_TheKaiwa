@@ -93,10 +93,17 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 - **F10 공용 변경**: TabBar `HIDDEN_PREFIXES` 에 `/study/today/words/` 추가 승인, 오늘 탭 앱바 제목 "오늘의 공부" 승인. vocab 이 `components/chat/{format,errors,storage}` 를 직접 import 하지 말고 **공용 헬퍼를 `components/common/` 으로 옮겨** 두 기능이 함께 쓴다(chat 동작 불변 — 기존 chat 단위 테스트가 그대로 통과해야 함).
 → api-contract #41·#47·#48·#49·#51·#53 개정(2026-09-27).
 
+### 구현 중 Leader 판단 (2026-09-27)
+- **L1** developer A 예외: #42 교정 목록은 conversation 에 읽기 전용 `listCorrectionRefsByWord(userId, wordId)` 를 추가해 라우트가 조합(learning 이 Correction 을 직접 읽지 않음 — 각 층 자기 테이블 원칙).
+- **L2** developer A "정본과 다르게 한 것" 1~7 승인: ① `VocabSession.seed` 첫 글자 = 요청 모드(C|F)로 강등 재계산(스키마 변경 대신 — domain-model 주석 개정) ② VOCAB_SESSION 스냅샷 `data.date` 추가 ③ `durationSec` 3600 상한 ④ streak 은 오늘 세트가 없으면 어제부터 ⑤ #42 `attempts` = CORRECT+WRONG ⑥ 응답 필드 추가(삭제 없음) ⑦ PATCH `partOfSpeech:null` → OTHER. 표시 전용 요청은 답한 카드에도 허용(E2 확장, IN_PROGRESS 한정 유지).
+- **L3** developer B: 지시 목록 밖 `useNow` 도 `components/common/` 으로 이동 승인(vocab→chat import 제거 목적, chat 은 import 경로만 변경·테스트 통과).
+
 ## 판단 기록 (judge)
 - [2026-09-27 14:34] intake engine=jev → task_type=feature / risk=R2 / developer_model=opus / next=ask_user | overrides=- | fallback=- | tokens=1156
   - (신호) complexity 2.92(conf 0.92) · needs_info 0.63 · risk high 0.69
   - **override**(Leader): `next=ask_user` 를 따르지 않는다 — needs_info 신호는 300자 요약의 압축 탓이며, 판단 대상 사항(세트 크기·모드·가중치·보기 구성·강등·멱등·finish 트랜잭션·보관/다시 풀기·통계·A10 draft·시드 팩)은 정본 design-spec §7-2·api-contract #40~#54·domain-model 시드 §3 에 모두 정해져 있어 사용자에게 물을 미결정이 없다. 정본에 없는 소규모 결정(시드 팩 엔드포인트 등)은 Leader 가 사양에 명시한다. risk=R2 채택(`StatsSnapshot` 트랜잭션·삭제 후 집계 불변 = leader.md R2 보강 기준과 일치).
+- [2026-09-27 14:39] codex_gate/C1 engine=jev → codex_required=true / mode=adversarial-review / focus=concurrency / budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=953
+  - **override**(Leader): Codex 미호출 — 2026-09-27 사용자 지시 "Codex 토큰 사용량이 없다, 충전되면 한 번 더 확인"(task-006 과 같은 사유). 한도 충전 후 재확인 대기. 동시성 초점(세트 생성·attempt 멱등·이중 finish·seed-pack)은 reviewer 감사 최우선 항목과 QA 실경합으로 대신한다.
 
 ## Codex 검토
 
@@ -122,6 +129,75 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 - [14:55] **모델 매트릭스 갱신 보류**: `docs/design-spec.md` §8 A10 행("home-m4/haiku·20s·동기·캐시")은 아직 안 고쳤다 — editable_files 지침대로 Leader 사전 협의 후 반영 요망. 제안 문구: "A10 | 단어 보강 | surface | reading, meaning_ko, part_of_speech, jlpt, example_ja, example_ko | haiku(실측, home-m4 미검증) | 20s | 동기·캐시, 프롬프트 ≈2,000~2,750자, 위반율 0%(n=15, 2026-09-27)". home-m4(qwen)는 이번 실측에서 라우터가 매번 `home-m4-lan 실패 → 다음 후보`로 넘어가 claude-cli 로만 응답했다(로컬 개발 환경에 home-m4 커넥션 자체가 없어서로 보임 — thekaiwa 전용 `HOME_M4_API_KEY` 부재는 task-004 결정 기록에도 이미 남아 있다) — qwen 비교는 그 키가 생긴 뒤 별도 실측 필요.
 
 ## Developer 기록
+### A(서버)
+- [15:29] 구현 완료 — 커밋 `6b27a97`(자기 파일만 경로 지정). tsc 0 · lint 0 error(기존 경고 4, 무관 파일) · 단위 테스트 전체 통과(learning `task008.test.ts` 20개 + conversation `correctionRefs.test.ts` 1개) · 라이브 스모크 `tests/live/task008-smoke.sh 3011` **69/69 PASS 두 번**(dev 3011 은 끝나고 종료, build·pm2 미사용).
+- **변경 파일**: `src/modules/learning/vocab/{words(확장),seedPack,enrich,setGenerator,distractors,sessions,stats}.ts` · `learning/snapshots/index.ts`(+`createVocabSessionSnapshot`) · `learning/index.ts` · `learning/__tests__/task008.test.ts` · 라우트 13파일/17핸들러 `src/app/api/v1/words/{route,[id]/route,[id]/archive,[id]/unarchive,categories,seed-pack}` · `src/app/api/v1/vocab/{sessions/route,sessions/[id]/route,[id]/attempts,[id]/finish,[id]/keep,[id]/replay,stats}` · `infra/text.ts`+`infra/index.ts`(`escapeLike` 추가만) · `tests/live/task008-smoke.{sh,ts}`·`README.md`.
+- **Leader 승인 예외(conversation 2파일)**: #42 `corrections:[{id,chatId}]` 는 Correction(L2 소유)을 읽어야 해서, `conversation/corrections/index.ts` 에 읽기 전용 `listCorrectionRefsByWord(userId, wordId)`(userId·savedWordId 필터, 최대 20, 기존 함수·UPDATE 경로 무변경)를 추가하고 `conversation/index.ts` 에 export 한 줄. #42 라우트가 `learning.getWordDetail` 결과와 조합. 테스트 `conversation/__tests__/correctionRefs.test.ts`(가짜 DB 로 where 에 userId 가 실리는지·잘못된 id 는 DB 미호출).
+- **E·F 구현 방식**
+  - E1 seed-pack: `prisma/seed-data/words-n5.json` **정적 import**(`seedPack.ts`) — 번들러가 서버 청크에 넣으므로 cwd 무관. dev(Turbopack) 실측 OK, `next build` 는 금지라 빌드 산출물 포함 여부는 미실측(정적 import 라 포함되는 게 정상). 모듈 로드 시 형태 검증(품사·조각 enum). 사용자 행 잠금 → 후보를 DB(콜레이션)로 좁히고 JS `Set`(바이트 일치)로 판정 → `createMany`.
+  - E2·F9 flag 전용: 답 필드 없이 `{order, flagged}` → IN_PROGRESS 에서만(아니면 409), 응답 `{order, flagged}` 2키. 답과 함께 온 `flagged` 는 첫 답 저장 때만 반영(재전송은 변경 없음).
+  - E3: 이전 날짜 IN_PROGRESS 도 새 세트 409 `{sessionId}`, 기록 날짜 = 세션 `date`(StudyLog·DAILY·스냅샷 `data.date`).
+  - E4·F7 replay: 보관한 DONE 만(409), 사용자 행 잠금 → 진행 중 409 → 원 세트 카드 순서대로 현재 단어(있으면 최신 값)/삭제 단어는 `*Snap` → 새 시드로 셔플 → 삭제 단어 하나라도 있으면 전체 FLIP. CHOICE 유지 시 보기는 현재 보관 안 한 단어 뜻에서 새로 뽑음.
+  - E5: finish 에서 미답 → SKIPPED, 단어 카운터는 CORRECT/WRONG 만 +1, SKIPPED 는 `lastSeenAt`·`lastResult` 만(자동 SKIPPED 포함 — 정본 문구대로).
+  - E6 보기: `distractors.pickChoices` — 사용자 **보관 안 한** 단어 뜻(카테고리·오늘 DONE 무관) 중 정답과 다른 문자열(바이트), 같은 품사 우선 → 부족분 다른 품사, 4개를 시드 셔플. 강등 조건 = 풀 <4 **또는** 서로 다른 뜻 <4(또는 어떤 카드든 보기 3개를 못 채움).
+  - E7 동시성: 아래 "동시성 자기 점검".
+  - E8·F8 enrich: 라우트가 `conversation.buildWordEnrichRequest({surface, level=Profile.level})` 로 요청을 만들어 `learning.enrichWord(input, request)` 에 값으로 넘김. learning 은 conversation 타입을 import 하지 않고 로컬 구조 타입 `WordEnrichOutput`. 순서: 본문 검증(400) → `rateLimit(enrich:<userId>, 20/분)`(429) → 같은 표현 있으면 409 `{existingId}`(LLM 호출 전) → 메모리 캐시(키=[surface, level], 500개·24h, LRU 근사) → `engine.llm.completeJson`. `valid:false` → `200 {draft:{valid:false, invalidReason, 나머지 null}, saved:false}`. 저장 0.
+  - F1: FLIP 카드는 #47·#49 에 `meaning`(Snap)·`example`·`exampleKo`(현재 단어, 삭제면 null). CHOICE 미답 카드 키 = `order·wordId·surface·reading·choices·flagged·answered` 뿐(단위 테스트로 키 목록 고정).
+  - F2: 답(사용자가 답·건너뛰기 한 카드) 0장 finish → ABANDONED(`finishedAt` 만), StudyLog·스냅샷·카운터 0, `studyLogId:null`.
+  - F3 #48: `startedAt desc,id desc` 키셋 커서, `kept=0|1`·`status` 필터, `answeredCount` = `answeredAt` 있는 카드 수(끝낼 때 자동 SKIPPED 제외).
+  - F4 #49: 세션에 개수·`durationSec`·`keptAt`·`replayOfId`·`finishedAt`, 답한 카드·끝난 세트(DONE·ABANDONED)는 `answer·correctText·chosenText·example·exampleKo·answeredAt`.
+  - F5: `NO_WORDS`(보관 안 한 단어 0) → `NO_WORDS_IN_CATEGORY` → `ALL_DONE_TODAY` 순 판정, `cta` 는 각각 `[ADD_WORD,SEED_PACK]`·`[ALL_CATEGORIES,ADD_WORD]`·`[]`.
+  - F6 #46: `groupBy(category, archived)` → `count`(보관 제외)·`archivedCount`, null 분류는 끝.
+  - 가중 샘플링: `w = clamp(1+2·wrong−0.5·correct, 0.25, 8) × recency(null 2.0 / ≥7일 1.5 / ≥1일 1.0 / <24h 0.3)`, PRNG = cyrb128→sfc32(시드 문자열 전체), 후보를 id 로 정렬 → Efraimidis–Spirakis(key=ln(u)/w 상위 k) → Fisher-Yates. 같은 시드·같은 후보 → 같은 결과(입력 순서 무관)를 단위 테스트로 보장.
+- **동시성 자기 점검(Codex 보류 대체, 결론)** — 잠금 순서: 생성·replay·finish·단어 수정·삭제·seed-pack = **사용자 행 → (세트 행) → 대상 행**, 답 = 세트 행 → 카드 행, 보관/keep = 단일 조건부 UPDATE.
+  1. 동시 세트 생성 2회: 둘 다 사용자 행 대기 → 두 번째는 READ COMMITTED 로 첫 번째가 커밋한 IN_PROGRESS 를 봄 → 409 `{sessionId}`. 실측 200/409·DB 진행 중 1.
+  2. 같은 order 동시 답: 세트 행 `FOR UPDATE` 로 직렬 + `answer IS NULL` 조건부 갱신 → 두 번째 이후는 첫 결과 반환. 실측 5동시 → 결과 1개·DB 일치.
+  3. 동시 finish: 사용자 행 → 세트 행 잠금 후 상태 확인 → 두 번째 이후는 DONE 을 보고 같은 응답(`finishResult` 한 함수로 재구성). VOCAB_SESSION 은 `@@unique(userId,kind,periodKey)` 가 최종 보증. 실측 3동시 → 응답 바이트 동일·StudyLog 1·스냅샷 1·카운터 1회·DAILY 1회분.
+  4. finish ↔ 답 겹침: 같은 세트 행을 잡으므로 (답 먼저 → 집계 포함) 또는 (finish 먼저 → 답 409). 답은 사용자 행을 잡지 않지만 finish 가 사용자→세트 순, 답이 세트만이라 순환 없음. 실측 두 실행에서 두 순서 모두 관찰(409/correct=1, 200/correct=2), 스냅샷=세션 카운터.
+  5. 동시 seed-pack: 사용자 행 직렬 → 두 번째 added 0. 실측 50/0·SEED 행 50.
+  6. 단어 삭제 ↔ finish: 둘 다 사용자 행 먼저 → 직렬. 삭제가 먼저면 finish 는 `wordId=null` 카드의 카운터를 건너뜀(Snap 유지), finish 가 먼저면 카운터 갱신 후 삭제. FK SET NULL(카드 행 X 잠금)과 finish 의 카드 UPDATE 가 역순으로 잠글 여지는 사용자 행 선점으로 제거. 실측 둘 다 200·스냅샷 3/0/2 일치.
+  7. 반례 검토(문제 없음으로 결론): 삭제 ↔ 답(답은 wordId 를 바꾸지 않아 FK 부모 잠금 없음, 순환 없음) · 보관(archive, 잠금 없음) ↔ 세트 생성(카드 INSERT 가 부모 S 잠금 → archive 단일 문장 끝나길 기다릴 뿐) · keep ↔ finish(keep 은 DONE 조건부 UPDATE, IN_PROGRESS 면 409) · replay ↔ 원 세트 삭제 불가(세트 삭제 API 없음). P2034(교착) 가 나더라도 `withTransaction` 이 전체 재시도.
+- **스모크 결과(완료 기준별)**: 2 CRUD·중복 409·히라/가타 비중복·수정 read_only·표현 변경 409·seed-pack 50→0·목록/커서/검색(`%` 글자 그대로)/카테고리/정렬/보관/집계 ✅ · 3 CHOICE 미답 키 7개만(#47·#49)·정답 위치 45장 12/11/10/12 ✅ · 4 채점·∉choices 400·재전송 첫 결과·responseMs 60,001 400·DONE 409·flag 전용 ✅ · 5 FLIP 강등(풀 1·풀 3)·NO_WORDS·NO_WORDS_IN_CATEGORY·ALL_DONE_TODAY·오늘 DONE 제외·진행 중 409 ✅ · 6 finish 전 항목·동시 3회·ABANDONED ✅ · 7 삭제 후 #54·스냅샷 바이트 동일·Snap·#49 정상·streak ✅ · 8 keep/replay(F7 409·keptAt 유지·삭제 단어 → FLIP·CHOICE 유지 replay) ✅ · 9 IDOR 11종 404·원본 불변·무세션 401 ✅ · 10 아래 ✅ · 11 enrich draft·F8·캐시·분당 21번째 429 ✅ · 엔진명 0 ✅. Claude CLI 실호출 6회(스모크 2회 × 3).
+- **기준 10(10장 3분)**: 세트 생성 607~686ms · attempt p50 **604~618ms**(max 892ms) · finish 1.76~2.42s · 서버 합계 8.6~9.8s → 12s/장 가정 사용자 총 **128.6~129.8s ≤ 180s**. 지연 원인 실측: 쿼리는 전부 0~2ms 인데 **쓰기 트랜잭션 COMMIT 이 400~530ms**(NAS MariaDB 디스크 동기화) — 모듈 직접 호출에서도 attempt ≈120~530ms 중 COMMIT 이 대부분. 코드로 줄일 수 있는 건 왕복 몇 ms 뿐이라 손대지 않음(화면의 "확인 중…" 상태로 흡수, 운영도 같은 NAS).
+- **정본과 다르게 / 정본 공백을 메운 것**
+  1. `VocabSession.seed` 첫 글자 = 요청 모드(`C`/`F`) + 30hex — 스키마에 요청 모드 컬럼이 없어 #49 가 `downgraded` 를 다시 계산하려고. PRNG 는 문자열 전체를 시드로 씀(재현성 유지).
+  2. VOCAB_SESSION 스냅샷 `data` 에 `date`(세션 KST 날짜) 추가 — #54 `daily` 를 스냅샷만으로 만들려고(정본 형태의 확장, 기존 키 유지).
+  3. `durationSec` = 벽시계(finishedAt−startedAt) 초, **3,600 에서 자름**(떠났다가 며칠 뒤 끝낸 세트가 통계를 망가뜨리지 않게).
+  4. `streakDays`: 오늘 세트가 없으면 어제부터 셈(오늘 풀면 이어지는 연속 기록). ABANDONED 는 스냅샷이 없어 영향 0.
+  5. #42 `stats.attempts`·`last7d` 는 CORRECT/WRONG 만 셈(SKIPPED 제외), `corrections` 는 위 conversation 예외 함수.
+  6. 응답에 계약보다 **추가된 필드**(삭제 없음): WordEntry `archivedAt` · 세션 `finishedAt` 항상 · #51 `wrongWords[].reading` · #54 `byCount/daily[].sessions·skipped` · draft `surface` · #47 empty `cta` 사유별.
+  7. #43 `partOfSpeech:null` → `OTHER`(컬럼 NOT NULL), 빈 PATCH `{}` 는 현재 값 200. #50 `responseMs` 는 선택(없으면 null).
+- **트러블슈팅(재발 가능)**: ① Prisma `contains` 는 `%`·`_` 를 이스케이프하지 않는다(`contains:'%'` 가 전 행 일치 실측) → `infra.escapeLike` 로 `\` 이스케이프. ② NAS MariaDB 쓰기 COMMIT ≈0.4~0.5s — 쓰기 API p50 의 바닥값. ③ Next dev 는 소스 동기화(HMR) 때 모듈을 다시 평가해 enrich 메모리 캐시가 비워진다(운영 `next start` 에는 해당 없음). ④ Fact-Forcing 훅이 `rm -rf` 가 든 Bash 를 막는다 — 임시 파일은 `rm -f` + `rmdir` 로.
+- **알려진 한계**: enrich 캐시·분당 제한은 프로세스 메모리(blue/green 두 프로세스면 최대 40/분·캐시 분리). 오늘 DONE 제외는 세트 `date`(시작일) 기준이라 자정 넘어 끝낸 세트는 "시작한 날" 단어로 제외된다. `listCategories` 는 DB 콜레이션으로 묶어 대소문자·가나만 다른 분류는 한 칩(대표 표기 하나). 삭제된 단어 카드의 예문은 재생 시 없음(Snap 에 예문 컬럼이 없음).
+
+### B(화면)
+- [15:31] 구현 완료 — 커밋 `e06796c`(자기 파일만 경로 지정, 65파일). `npm run typecheck` 0 · `npm run lint` 0 error(경고 4 = 기존 settings·login 파일, vocab 0) · `npm test` 146/146(내 테스트 4파일 + 기존 chat 테스트 전부 통과). build·dev·pm2 미사용. 서버 코드는 열지 않고 계약(api-contract §2-9·§2-10)과 위 A 기록만 보고 맞췄다.
+- **파일**: 신규 `src/types/vocab.ts` · `src/components/vocab/`{`WordsScreen`,`WordSearchBar`,`CategoryChips`,`ArchiveToggle`,`WordRow`,`WordsEmpty`,`WordAddSheet`,`WordForm`,`WordDetailSheet`,`TodayHome`,`TodayWordsCard`,`VocabStatsCard`(WeekStrip 포함),`KeptSets`,`TodayComingSoon`,`FinishConfirmSheet`,`VocabSessionScreen`,`VocabDeck`,`DeckProgress`,`DeckNotice`,`SwipeCardStack`,`VocabCardFace`,`ChoiceList`,`FlipControls`,`DeckToolbar`,`GestureHint`,`VocabResult`,`WordResultList`}`.tsx` · {`useVocabDeck`,`useAttemptQueue`,`useCardTimer`,`hooks`,`deck`,`format`,`labels`,`validate`}`.ts` · `__tests__/{deck,format,validate,labels}.test.ts` · `src/app/(app)/study/today/words/[sessionId]/page.tsx`. 수정 `src/app/(app)/study/today/page.tsx`(앱바 "오늘의 공부" + `dailyWordCount`) · `src/app/(app)/drawer/words/page.tsx`(`?word=`·`?add=1` → props) · `src/components/shell/TabBar.tsx`(`HIDDEN_PREFIXES` 에 `/study/today/words/`).
+- **F10 공용 헬퍼 이동**(git mv, 채팅 동작 불변): `chat/errors.ts` → `common/errors.ts`(그대로) · `chat/format.ts` → `common/format.ts`(KST·`cpLength`, `toDate` export 추가) — 채팅 전용 `GROUP_GAP_MS`·`withinGroupGap` 은 `chat/format.ts` 에 남김 · `chat/storage.ts` → `common/storage.ts`(`readStore`·`writeStore`) — 채팅 저장 키 `KEYS` 는 `chat/storageKeys.ts` · **`chat/useNow.ts` → `common/useNow.ts`**(지시 3종 밖이지만 같은 이유 — 추가 시트의 진행 초·429 카운트다운이 필요해 vocab 이 chat 을 import 하지 않게 함께 옮김). chat 14파일은 import 경로만 바뀜, `chat/__tests__/format.test.ts` 도 import 만.
+- **가이드와 달라진 점(사유)**
+  1. F1 확정에 따라 FLIP 은 "앞면 → [뜻 보기]/탭/Space → 뒷면 → [알았어요]/[몰랐어요] → 0.4초 뒤 자동 다음". §5-2 D 대체 흐름(뜻 없음)은 `card.meaning` 이 비었을 때만 쓰는 방어로 남김.
+  2. F2 반영: 끝내기 시트는 답 0장이면 제목 "이 세트를 그만둘까요?"·본문 "지금 그만두면 기록 없이 세트가 닫혀요"·버튼 [그만두기]. #51 이 `ABANDONED` 면 덱은 오늘 홈으로 `replace` + 토스트 "답한 카드가 없어서 기록 없이 세트를 닫았어요.", 오늘 홈 [여기서 끝내기]는 제자리 토스트 + 다시 읽기. `ABANDONED` 세트 주소로 직접 오면 "기록 없이 닫은 세트예요" 안내 + [오늘로].
+  3. F3·F5 반영: 풀던 세트는 #48 `?limit=10` 의 `IN_PROGRESS`(항상 가장 최근 세트)에서 `answeredCount` 로 바로 그림(#49 추가 호출은 `answeredCount` 가 없을 때만). 빈 풀은 서버 사유 사용 — `NO_WORDS` → 빈 단어장 상태, `NO_WORDS_IN_CATEGORY` 또는 분류 선택 중 → "‘분류’에서 오늘 풀 단어가 없어요", 그 외 → "오늘 풀 단어를 모두 풀었어요".
+  4. 분류 칩 "전체 n" = 기준 개수 **전부의 합(분류 없음 포함)** — 가이드는 "보이는 칩의 합"이지만 분류 없는 단어도 "전체"에 나오므로 숫자와 목록이 맞게 함.
+  5. 덱 → 오늘 홈 안내는 `sessionStorage kaiwa.vocab.flash`(문구 1개) 하나로 통일 — 떠남("풀던 세트는 저장했어요…")·기록 없이 닫힘·다시 풀기 409("풀던 세트를 먼저 끝내 주세요") 세 경우. 가이드의 `kaiwa.vocab.left = sessionId` 대신.
+  6. 저장 선택값(정렬·방식·분류·읽기)은 `useSyncExternalStore` + 메모리 사본(`hooks.ts useStoredPref`) — 서버 렌더는 기본값, 하이드레이션 뒤 저장값으로 바뀌어 불일치 경고가 없고, 저장소가 막혀도 이번 방문 동안 고른 값이 유지됨. `?word=`/`?add=1` 시트도 `useHydrated()` 뒤에 연다(포털 하이드레이션 불일치 방지).
+  7. 결과 띠 FLIP "✓ 알았어요"/"✗ 몰랐어요"는 good/bad 톤(§5-2 D 흐름 문구 기준 — §5-2 B 표는 중립으로 읽힐 여지가 있음). 건너뜀만 중립.
+  8. 추가 시트 [뜻 채우기]: 빈 표현이면 `aria-disabled` + "표현을 적으면 누를 수 있어요", 80자 초과는 입력 아래에 바로 표시. 폼의 예문·메모 칸은 접힌 동안 그리지 않는다(숨긴 textarea 는 자동 높이를 잴 수 없음 — 값은 폼 상태에 유지).
+  9. 카드 드래그의 세로 이동은 위쪽만 따라온다(표시 제스처 힌트) — bjj 는 아래로도 따라옴.
+- **확인 못 한 것(NOT_VERIFIED)**: 이번 지시로 `next dev`·build 를 돌리지 않아 **화면 실렌더 0회** — 360/390/412 가로 넘침·덱 높이(412×780·390×800 스크롤 없음)·실기기 제스처(탭/밀기 임계·touchend 유령 클릭·두 손가락·touchcancel)·Gboard 검색 조합·키보드 초점 이동은 QA(dev 3011)·사용자 폰 확인 항목. 제스처 판정·키 매핑·요청 큐 순서·타이머는 단위 테스트로만 확인.
+- **A 와 합칠 때 확인할 계약 가정**
+  1. #42 응답은 평평한 `WordEntry + stats + corrections` 라고 보고, `{word, stats, corrections}` 로 감싸 와도 받게 정규화(`validate.normalizeWordDetail`).
+  2. #46 응답은 배열(`{items}` 로 감싸도 받음), 항목 `count`(보관 제외)·`archivedCount`.
+  3. #41 enrich 응답 `{draft:{…}, saved:false}`, `valid:false` 면 `invalidReason` 을 표현 아래에 그대로 보인다(선생님 설명 — 엔진 용어가 없어야 함). 409 `details.existingId` 는 enrich·저장 둘 다 [그 단어 보기]로 처리. 429 는 `details.retryAfterSec` → `Retry-After` → 10초 순.
+  4. #43 은 바뀐 필드만, 비운 선택값 `null`(`jlpt:null` 포함). `partOfSpeech` 는 늘 enum 값을 보낸다. 응답은 `WordEntry`.
+  5. #45 응답은 `archived`(+`archivedAt`) — 전체 WordEntry 여도 병합. #44 는 응답 본문을 쓰지 않음(404 도 삭제로 취급).
+  6. #47·#53 `session.downgraded`, 빈 풀 `{session:null, empty:{reason}}`. 덱은 #47 카드를 쓰지 않고 늘 #49 로 다시 읽음.
+  7. #49 카드: `answered`/`answer` 둘 중 하나라도 있으면 답한 카드. CHOICE 정답 표시는 **#50 응답 `correctText` 와 문자열이 같은 보기**. FLIP 카드는 `meaning`(+예문)을 처음부터 가진다고 가정(F1) — 없으면 대체 흐름.
+  8. #50 CHOICE 본문에 `flagged`(현재 로컬 값)를 함께 보냄, 표시 전용은 `{order, flagged}` 만(F9 응답은 쓰지 않음 — 실패 시에만 되돌림). `responseMs` 는 0~60,000 으로 잘라 보냄, 건너뛰기에는 없음. 409 → #49 다시 읽기(DONE 이면 결과 + "이미 끝난 세트예요"), 400 → #49 다시 읽기.
+  9. #51 `session.status==='ABANDONED'` 로 F2 판별. DONE 이면 #49 를 한 번 더 읽어 카드 정답·예문을 채움(실패하면 #51 개수·시간만).
+  10. #52 응답에서 `keptAt` 만 사용. #53 은 보관 세트에서만 버튼을 보인다(F7), 409 → 오늘 홈 + 안내.
+  11. #48 `?kept=1&limit=5` 는 DONE 만 걸러 보인다(방어). #54 `byCount` 가 비면 통계 섹션 숨김, `daily[].date` 로 최근 7일 칸.
+  12. 결과 행 링크는 `/drawer/words?word=<wordId>`, `wordId:null`(지운 단어)은 링크 없이 "지운 단어" 뱃지.
 
 ## Reviewer 기록
 

@@ -1216,7 +1216,7 @@ model VocabSession {
   status         VocabSessionStatus @default(IN_PROGRESS)
   keptAt         DateTime?
   replayOfId     String?
-  /// 가중 샘플링 시드(재현용)
+  /// 가중 샘플링 시드(재현용). 첫 글자 = 요청 모드(C|F) — 강등(`downgraded`) 재계산용, 나머지가 PRNG 시드(task-008 구현 2026-09-27)
   seed           String             @db.VarChar(32)
   startedAt      DateTime           @default(now())
   finishedAt     DateTime?
