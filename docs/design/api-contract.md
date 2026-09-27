@@ -637,7 +637,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 | `text` | 1~1,000자, 제어문자 제거 후 공백만이면 `400` |
 | `utteranceId` | 선택. 소유자 검사(타인 404). 있으면 `text` 는 `Utterance.finalText` 와 같아야 하며 다르면 서버가 `Utterance.finalText=text, finalSource=USER` 로 갱신 |
 | `inputSource` | `InputSource{REALTIME_STT,SERVER_STT,TEXT}`; `utteranceId` 없이 `REALTIME_STT` 는 `400` |
-| `resumePending` | true 면 다른 필드 무시. 마지막 강사 메시지가 `PENDING`(진행 중 락 없음) 또는 `FAILED` 면 그 앞 사용자 메시지로 다시 실행한다(강사 행을 `PENDING` 으로 되돌려 재사용, 사용자 행은 새로 만들지 않음 — task-006 D1). 둘 다 아니면 `409` |
+| `resumePending` | true 면 다른 필드 무시. 마지막 강사 메시지가 **180초가 지난** `PENDING`(blue/green 두 인스턴스에서 서로의 메모리 락이 보이지 않으므로 시간 조건만 신뢰) 또는 `FAILED` 면 그 앞 사용자 메시지로 다시 실행한다(강사 행을 `PENDING` 으로 되돌려 재사용, 사용자 행은 새로 만들지 않음 — task-006 D1). 둘 다 아니면 `409` |
 
 동시성: 사용자당 진행 중 턴 1(`Chat` 행 `SELECT … FOR UPDATE` + 메모리 락). 초과는 `409 CONFLICT { "details": { "runningMessageId": "m_…" } }`. 분당 12턴 초과 `429`.
 

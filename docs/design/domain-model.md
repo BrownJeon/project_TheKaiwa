@@ -2444,7 +2444,7 @@ model LearnerSkillState {
 | `StudyLog.result` (LESSON·REVIEW) | `{stageDone, score, quizCorrect, quizTotal, listen:{segmentsDone, memoWords:[...]}, scenario?:{scenarioId, goalAchieved, communicationSuccess, hintsUsed, usedExpressions:[...], missedExpressions:[...]}}` |
 | `StudyLog.result` (TALK·CHAT) | `{turns, corrections:{proposed, accepted, ignored}, scenario?:{…위와 동일}, endOfTopic}` |
 | `StudyLog.result` (EVALUATION) | `{total, grade, rubric:{accuracy,vocabulary,grammar,naturalness,assembly}}` |
-| `StatsSnapshot.data` (DAILY) | `{attended, words:{sessions,correct,wrong}, talkTurns, chatTurns, corrections:{proposed,accepted}, lessons, reviews, evals, repetition:{studied, focus}}` — `talkTurns`·`corrections.accepted` 는 턴 `done`·교정 accept 가 증가(정합성 #7) |
+| `StatsSnapshot.data` (DAILY) | `{attended, words:{sessions,correct,wrong}, talkTurns, chatTurns, corrections:{proposed,accepted}, lessons, reviews, evals, repetition:{studied, focus}}` — **턴 `done` 은 스냅샷을 바꾸지 않는다**(AI 산출은 채택 시에만 저장 — task-006 완료 기준 6). `chatTurns`/`talkTurns`·`corrections.proposed` 는 대화 종료 `ADD_STUDY_LOG` 제안 채택이, `corrections.accepted` 는 교정 accept 가 증가(정합성 #7, 2026-09-27 task-006 개정) |
 | `StatsSnapshot.data` (VOCAB_SESSION) | `{cardCount, correct, wrong, skipped, durationSec, mode}` |
 | `StatsSnapshot.data` (EVALUATION) | `{kind, level, total, rubric, date}` |
 | `StatsSnapshot.data` (LESSON) | `{kind, topicId?, scenarioId?, score, stageDone, date}` |
