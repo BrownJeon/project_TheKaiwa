@@ -130,6 +130,67 @@ design-spec §15 task-003 중 **TTS 부분(P0)** — 폰 없이 끝낼 수 있�
 
 ## Reviewer 기록
 
+### REV-010 (2026-09-27, 보안 중심 — judge C1 focus=security)
+
+**판정: PASS** (Critical 0 · High 0 · Medium 0 · Low 0 — 발견 없음)
+
+**범위**: `git diff bbb1f31..HEAD -- speech src tests prisma/seed-data prisma/seed.ts .env.example`(96파일, +7150/-132) + 스코프 밖이지만 `seed.ts` 가 직접 import 하는 신규 `prisma/seed-lexicon.ts`(54줄, 커밋 b1a5bd6, 원 diff 경로 지정에서 누락된 것을 추가로 확인).
+
+**재실행 검증**:
+- `npm run typecheck` — 0 error.
+- `npm run lint` — 0 error(경고 5는 전부 기존 `set-state-in-effect`, 신규 파일 무관 — Developer 주장과 일치).
+- `npm test` — **242/242 PASS**(직접 재실행, Developer 주장과 일치).
+- M4 `pytest`(`speech/tts-service`) — **미실행**: 우분투 시스템 python3(3.10)에 `fastapi`/`pytest` 미설치, 이 세션은 venv 설치·패키지 설치 권한 밖(Read 전용 감사 원칙과도 상충)이라 건너뜀. 대신 `tests/test_api.py`·`tests/test_units.py`(합 34개 테스트 함수) 목록을 확인해 보안 시나리오(loopback IPv4/IPv6, secret 필수, docs 비활성, body 8KB 초과(Content-Length·chunked 둘 다), NaN 거부, 100자 경계, model/speaker 미상)가 전부 커버됨을 코드 레벨로 확인. Developer 의 "78 passed" 실측은 직접 재현하지 못했으므로 **NOT_VERIFIED(코드 리뷰로 정합성만 확인)** — QA/Deployer 가 M4 venv 에서 1회 재실행 권고.
+
+**1. M4 서비스 보안(Python)** — 이슈 없음.
+- `security.py` `InternalGate`: `X-Internal-Secret` 은 sha256 다이제스트끼리 `hmac.compare_digest` 로 상수시간 비교(길이 차이로도 안 샘), 없음·불일치·서버 미설정(`secret_ok=False`) 전부 401, 값은 로그에 없음(`log.warning` 은 path·client IP 만).
+- `/admin/*` 는 `is_admin_path`(첫 세그먼트 판정, 대소문자 무시) + `is_loopback`(`scope["client"]`) 로 원격이면 시크릿 검사 전에 404. `restart.sh`/README 가 uvicorn 을 **`--no-proxy-headers`** 로 띄워(직접 확인, `scripts/restart.sh:101`) `X-Forwarded-For` 헤더로 `scope["client"]` 를 원격→loopback 으로 위장할 경로가 없음을 코드로 확인(uvicorn 옵션 자체가 그 헤더를 안 본다). `test_admin_from_remote_is_404_even_with_secret`·`test_admin_from_ipv6_loopback` 로 테스트도 있음.
+- 본문 8KB(Content-Length 사전 거부 + 청크 수신 중 누적 거부 둘 다 구현, `security.py:99-119`), 텍스트 100자(`config.py MAX_TEXT_CHARS`), 큐 타임아웃 8초 기본(503 BUSY, `Retry-After`).
+- 오류 응답(`_validation_error`)은 위치·타입만 돌려주고 입력값(문장) 자체는 절대 되돌리지 않음(`server.py:139-141`). `/health` 는 무인증이지만 시크릿·경로 필드가 없음(스키마 확인). 로그는 trace·model·글자수·지연만, 문장 전문은 `log.debug`(DEBUG 레벨 한정, 기본 INFO) 로만 — 원 SBV2 라이브러리가 문장 전문을 INFO 로 찍던 것도 ERROR 로 낮춤(`backend.py:54-61`).
+- `/g2p` 는 같은 `clean_text`(NFC·제어문자·길이 200) 검증을 통과해야만 처리.
+- 스크립트(`restart.sh`·`kaiwa-tts-watchdog.sh`·`deploy-from-ubuntu.sh`): `.env` 를 `source` 하지 않고 한 줄씩 파싱해 `KAIWA_TTS_*` 화이트리스트 키만 export(명령 주입 불가), `REMOTE_DIR` 정규식 검증, mkdir 락(배포↔워치독 상호 배제, 15분 stale 회수), 롤백이 새 프로세스를 먼저 내리고(`--stop`) `git reset --hard` 후 재기동, 시크릿 값은 어디서도 echo 되지 않음(`_client.py` 도 동일 원칙).
+- `.safetensors` 만 모델 가중치로 허용(`.pth/.pt` pickle RCE 차단, `models.py` 주석·코드 확인), 심볼릭 링크로 `model_assets` 밖을 가리키는 항목은 `_inside()` 로 거부.
+
+**2. AGPL 경계** — 이슈 없음. `grep -rn style_bert_vits2 src speech/common speech/gateway speech/worker` 0건, `speech/tts-service/**` 는 `speech/common` import 0건(코드·`LICENSE-NOTICE.md` §2 규칙과 일치, `kaiwa_tts/__init__.py` 에 명시 주석).
+
+**3. 앱 TTS 보안** — 이슈 없음.
+- `styleBertHttp.ts`: `readServiceSecret('TTS_SERVICE_SECRET')` 만 사용(`SPEECH_INTERNAL_SECRET` 참조 0건, `grep` 확인) — **Codex C1 S1 채택 확인**. `redirect: 'manual'`(리다이렉트 미추종), 응답 8MB(`readCapped`, 초과 시 스트림 취소), 오류 본문 4KB 상한 후 `error.code` 정규식(`^[A-Z][A-Z0-9_]{1,40}$`)만 채택, 예외 메시지에 시크릿·문장 없음.
+- `cache.ts`/`infra/storage.ts`: 캐시 파일 경로는 **키(16진 40자)로만** 재구성(`cacheSegments`, 읽기 때도 DB 의 `path` 컬럼을 신뢰하지 않음), `storage.dataPath` 가 세그먼트 정규식 검증 + `resolve()` 후 `startsWith(root+sep)` 로 `DATA_ROOT` 이탈 차단.
+- 사용자 응답·헤더 검사: `src/types/tts.ts`(`TTS_HEADERS`)·`_lib/tts.ts` 에 엔진명·connectionKey·cacheKey·호스트 없음, `voices/registry.ts` 의 `pickDefaults` 가 `VoiceProfile.defaults` JSON 을 5개 알려진 키로만 골라내 관리자가 raw 편집으로 엔진 식별자를 넣어도 새지 않음(REV-006 Low 재확인).
+- **GET `/api/v1/speech/tts/:cacheKey` 라우트 없음** — diff·디렉터리 어디에도 생성되지 않음, api-contract 도 이 task 범위에서 만들지 않기로 명시(§ Codex C1 S3) — **채택 확인**.
+- 레이트리밋: `tts:${userId}` 60/분(`route.ts:15`), `preview:${userId}` 10/분(`preview/route.ts:16`), `tts-status:${userId}` 20/분(`status/route.ts:13`) — `rateLimit()`(기존 infra, 사용자별 버킷). 세 라우트 전부 `requireSession()` 선행.
+
+**4. 파이프라인 정확성** — 설계 문서·골든셋과 대조해 이슈 없음.
+- Normalizer(`normalizer.ts`) 예외표: 1日=ついたち·14/24日=じゅうよっか/にじゅうよっか·1人/2人=ひとり/ふたり·기간 1日=いちにち(一日中/一日目 제외)·20歳=はたち 전부 구현·`normalizerGolden.ts` 28건과 대조 일치. 규칙 우선순위(사전 보호→날짜>시간>통화·단위>조수사>숫자→약어/외래어→기호→통과)가 `RULES` 배열 순서·`occupied` 구간 선점 방식으로 정확히 구현됨.
+- Lexicon(`lexicon.ts`): USER>VOICE>LESSON>COURSE>GLOBAL 우선순위(`SCOPE_RANK`), 최장 일치+같은 길이 priority 큰 쪽(`findLexiconMatches`), 정본이 `ACTIVE PronunciationLexiconVersion.snapshot`(테이블 아님) — 설계 §2 그대로. `prisma/seed-lexicon.ts` 는 환경에 버전이 이미 있으면 건드리지 않는 멱등 가드 + entries·version 생성을 한 트랜잭션.
+- 캐시 키(`cache.ts`) 12요소 — JSON 배열 해시 방식(`|` 구분자 충돌 회피)·`lexiconDigest` 로 사전 범위 세분화는 "요소 수 12 유지 + 정본 사전 요소를 세분"한 합리적 확장(정본 §11.1 변형이 아니라 그 안의 한 요소를 안전하게 만든 것) — 타당함.
+- ParameterResolver(`parameterResolver.ts`) 우선순위 User>VoiceProfile>Persona>Context>LLM>DEFAULT, `styleWeight`/`speed`/`pitch`/`intonation` 각각 같은 순서로 재현 — 설계 §4 그대로.
+- RenderingPlan(`renderingPlan.ts`) §4.3 배율표(ENCOURAGING styleWeight×0.8·intonation×1.1, CALM ×0.8/×0.95, EXPLANATION speed×0.9, EMPHASIS styleWeight×1.1·intonation×1.15·speed×0.9·pause≥150) 전부 표와 숫자까지 일치.
+- SpeechProfile(`profiles.ts`) LEARNING_SLOW 는 `speedFactor:'LEARNING_SPEED'`+`defaultLabel:'EXPLANATION'` 두 정책이 합성돼 `learningSpeed(0.8) × EXPLANATION(0.9) = 0.72` 가 되는 것을 확인 — Developer 가 이미 자기 기록에 투명하게 남겼고, §4.3·§5 표를 문자 그대로 적용한 자연스러운 결과(임의 로직 추가 아님)라 **타당함**. 다만 사용자에게 "느리게"가 기대보다 더 느려질 수 있어 Leader 가 의도된 것인지 한 번 확인하는 것을 권한다(코드 결함 아님, UX 판단 사항).
+- `status.ts` 히스테리시스: 연속 2회 실패 또는 Health 실패 → TEXT_ONLY, 복귀는 Health 1회 성공(`FAILURE_THRESHOLD=2`), 조회 주기 미확인 3초·저하 30초·정상 5분(`needsProbe`) — §12.2 그대로. `probe()` 가 `runHealthCheck` 를 통해 **운영이 보는 `EngineConnection.status` 를 갱신**하는 부작용은 Developer 가 명시했고 설계 §12.2 "네트워크가 아니라 Router 의 실제 선택 결과 기준"과 일치하는 의도된 동작(사용자 상태 조회가 관리자 화면에도 정직하게 반영됨) — 결함 아님.
+
+**5. 6층 경계** — grep 으로 위반 0건 확인: `speech/**` 가 `conversation`/`learning` import 0, `app/api/v1/speech`·`voices` 라우트가 `@prisma/client`·`engine/*` 내부 직접 import 0(전부 module index 경유), `components/speech/**` 가 `infra`/`engine`/`prisma` import 0(서버 모듈 없음). 엔진명 노출: `grep -rniE "reazon|whisper|style-bert|claude|sbv2|jvnv" src/app src/components src/modules/{preferences,conversation,learning,speech}` → 매치는 전부 `.claude/agents/tutor.md`·Claude CLI 관련 기존 주석(TTS 무관) 뿐, TTS 경로 0건.
+- 담당 밖 3+3건 적합성: `infra/secrets.ts`(`readServiceSecret`, 고정 이름 목록만) · `infra/storage.ts`(신규, DATA_ROOT 안전 경로) · `preferences.getVoiceSettingForTts`(자기 `userId` 행만, `learningSpeed` 추가 select) · `admin/present.ts`+`types/admin.ts`(`DETAIL_NUM` 에 `audioBytes`/`durationMs` 화이트리스트 추가, additive) · `engine/functionalTest/index.ts`(TTS provider.functionalTest 위임, STT 는 동작 불변) · U6 공용 3건(`Toast.show(msg, ms=2600)` 기본값 유지 하위호환, `TeacherAvatar`→`components/common` 이동은 import 경로만 갱신·두 사용처 다 반영 확인, `LearningSettings` 저장 후 `router.refresh()` 는 서버 컴포넌트 재조회 트리거일 뿐 클라 상태 보존) — 전부 범위·필요성 적절, 기존 동작 회귀 없음.
+
+**6. 화면** — 이슈 없음. `ttsStatusStore.ts`: 앱 전체 싱글턴, `transitionSeq`/`consumeAnnouncement` 로 전환당 토스트 정확히 1회, 폴링 5분/30초·가시성/온라인 이벤트 반응. `useVoicePreview.ts`: `toggle()` 이 `unlockTtsAudio()` 를 **첫 `await` 이전에 동기 호출**(탭 핸들러 안, `useVoicePreview.ts:94`), draft 변경 시 `invalidate=stop`(재생·대기·blocked 버퍼 전부 폐기), 429 는 `Retry-After` 기반 카운트다운. `ttsStatusCopy.ts`/`TtsStatusSheet.tsx` 문구에 엔진명·호스트·포트·연결키 0(육안 확인, 전체 문자열 스캔).
+
+**7. TraceKind 판정(요청 항목)**: `TraceKind` enum(`prisma/schema.prisma:414`)에 `TTS` 값을 추가하지 않고 기존 `PREVIEW` + `refType`(`speechTts`/`voicePreview`, `RequestTrace.refType` 은 원래 자유 문자열 필드이고 `@@index([refType, refId])` 도 이미 있음)으로 구분한 설계는 **타당함** — 스키마 변경 없이 기존에 이런 구분을 위해 만들어진 필드를 그대로 쓴 것. 다만 `EngineMetricsDaily`(§7.3, 이 task 범위 아님) 가 나중에 `kind` 단위로만 집계한다면 `speechTts`(사용자 실사용)와 `voicePreview`(설정 미리듣기)가 섞일 수 있으니, task-007/003g 에서 `EngineMetricsDaily` 를 손댈 때 `refType` 도 같이 분리 집계하도록 Leader 가 메모해 두길 권한다(코드 결함 아님, 설계 이월 항목).
+
+**Codex C1 지적 판정 (지적마다 채택/오탐/범위밖)**:
+- **[high] S1 시크릿 재사용** → **채택·해소 확인**. `TTS_SERVICE_SECRET` 신설(`.env.example:42`), `infra/secrets.ts` 의 `SERVICE_SECRET_NAMES` 가 이 이름만 허용, `styleBertHttp.ts`·`styleBertVits2.provider.ts` 전부 이 함수만 호출, `SPEECH_INTERNAL_SECRET` 참조 0건(grep). M4 쪽도 `KAIWA_TTS_INTERNAL_SECRET` 을 같은 값으로 교체(README·SETUP-M4 확인, 실제 M4 `.env` 값은 미접속 확인 불가하나 절차·문서는 일치).
+- **[medium] S2 `/admin/*` 노출** → **채택·코드 레벨 해소 확인**. `security.py` 가 loopback 아니면 404(원격 우회 불가, `--no-proxy-headers` 로 헤더 위장도 불가), pf 방화벽은 "8200 상시 기동 전 필수 조건"으로 SETUP-M4.md·README 에 명시되고 **사용자 승인 후 실행 대상**(T4)으로 아직 미실행 — 현재 M4 서비스 자체가 기동 전이므로 노출 위험이 실제로 발생하지 않은 상태. 코드 방어(loopback+시크릿)는 방화벽과 무관하게 이미 유효.
+- **[medium] S3 캐시 조회 권한** → **채택·이월 확인**. `GET /api/v1/speech/tts/:cacheKey` 라우트가 이번 diff 에 없음(디렉터리 확인), 서명 URL 필요성이 task-007 로 명시 이월됨. 이번 `POST /speech/tts`·`/voices/preview` 는 응답 본문으로만 오디오를 주므로 오라클 문제 자체가 발생하지 않음.
+
+**high_risk_areas (QA 인계)**:
+1. M4 tts-service 가 아직 기동 전(사용자 승인 대기)이라 **완료 기준 2·3·4·6·7·9 는 라이브 미검증**(developer 기록과 동일) — M4 기동 후 `TTS_SMOKE_EXPECT_M4=1 bash tests/live/task003d-smoke.sh 3011`(9·9b·9c) 재실행 필요.
+2. M4 venv 에서 `pytest`(78개) 1회 재실행 권고 — 이 세션은 의존성 미설치로 재현 못함(코드 리뷰로 정합성만 확인).
+3. `npm run db:seed` 미실행 상태(코드만 존재) — 실행 후 GLOBAL 6항목 적용·`dictionaryVersion` 변경 시 캐시 미적중을 라이브로 재확인.
+4. 레이트리밋(60/10/20 분) 실동작 확인, 429 `Retry-After` 카운트다운 화면 확인.
+5. 상태 표시등 5상태·사유 시트·토스트 1회 를 360/390/412 실브라우저로 확인(이번 감사는 코드·문구 스캔만, 렌더 확인은 QA 소관).
+6. M4 기동 후 관리자 콘솔 TTS Health/Functional Test 가 실제 HEALTHY·3모델로 전환되는지, `EngineHealth`/`AuditLog` 오염 없이 원복되는지.
+
+**native_change**: false (웹·M4 만, `plugins/**`·`android/**`·Manifest 변경 없음).
+
 ## QA 기록
 
 ## 최종 요약
