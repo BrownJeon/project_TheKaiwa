@@ -36,7 +36,7 @@
 
 ```
 TheKaiwa/
-├── .claude/{settings.json, agents/{leader,designer,developer,prompt-engineer,reviewer,qa,deployer,tutor}.md}
+├── .claude/{settings.json, agents/{leader,designer,developer,prompt-engineer,reviewer,qa,deployer,judge,codex,tutor}.md}
 ├── agent-vault/{00-Context,10-Flow,20-Log,30-Knowledge}
 ├── docs/{design-spec.md, design/{정본 5종, speech-platform/, admin-console/}, *-원본.md, screens.md, demo/, nginx/, deploy-order.md}
 ├── prisma/{schema.prisma, seed.ts, seed-data/}          # Phase 0
@@ -109,6 +109,8 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | reviewer | **Sonnet** | 6층 경계·보안·LLM 계약·학습 원칙·ConfigurationVersion·엔진명 누출·네이티브 고지 독립 감사 |
 | qa | **Haiku** | 인증·capability·제안→채택 행 수·스냅샷·복습 판단 범위(3~7일·FOCUS ≤3) 가드·기록률·5초/3분 지표·양 경로 STT·3폭·실기기·APK 배너 검증 |
 | deployer | **Haiku** | `scripts/deploy.sh TheKaiwa`·음성 서비스 헬스·M4 배포(사용자 승인)·**APK 재빌드·배포본·업데이트 안내** |
+| judge | **Haiku** | Jev 판정 도구 실행 — 작업 접수 분류(유형·복잡도·developer 모델)·Codex 개입 판정(C1·C2·C3). 직접 추론·코드 수정 금지 (2026-09-27 개발환경 개선 선도입, ADP-001-C02) |
+| codex | **Haiku** | judge 개입 판정 시에만 Codex CLI 읽기 전용 검토 실행·기록. 실패해도 작업 진행 후 실패 내역 보고 |
 | tutor (런타임) | Sonnet | `.claude/agents/tutor.md` v1 = 일본인 원어민·교정 철저·한국어 설명+일본어 대화·이름 사용자 지정·복습 주기 3~7일 판단(key `teacher-persona`). 개발팀 아님, 앱 런타임이 `--agents` 로 로드 |
 
 ## Phase 로드맵
@@ -167,9 +169,11 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
   - reviewer        (Sonnet) — 6층 경계·보안·LLM 계약·제안→채택·ConfigurationVersion 독립 감사
   - qa              (Haiku)  — 인증·권한·집계·스냅샷·지표(5초/3분)·양 경로 STT·3폭·실기기 검증
   - deployer        (Haiku)  — 운영 배포(scripts/deploy.sh TheKaiwa)·M4 TTS·APK 재빌드·업데이트 안내
+  - judge           (Haiku)  — Jev 판정: 작업 접수 분류·developer 모델·Codex 개입(C1 설계·C2 리뷰 후·C3 재발)
+  - codex           (Haiku)  — judge 판정 시에만 Codex 읽기 전용 외부 검토, 실패는 보고 후 진행
   · tutor           (런타임 페르소나, 개발팀 아님) — .claude/agents/tutor.md
 
-워크플로우: Leader → Designer → Prompt-Engineer → Developer → Reviewer → QA → Deployer → Leader
+워크플로우: Leader(→Judge 접수) → Designer → Prompt-Engineer → [Judge C1 → Codex?] → Developer → Reviewer → [Judge C2 → Codex? → Reviewer 판정] → QA → Deployer → Leader
 작업 지시 방법:
   → leader에게 직접 요청하면 팀이 역할별로 분담해서 처리합니다.
   → 팀 정리 시: "팀 정리해줘" 또는 "Clean up the team"

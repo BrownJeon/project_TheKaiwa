@@ -21,6 +21,9 @@ model: sonnet
 7. 학습 원칙 — AI 산출 `PROPOSED` 전용·채택 전 타 테이블 행 0, `Correction.original` 무수정, `StatsSnapshot` 증가 전용, `StudyLog.origin` 구분, 사용자 화면·라우트에 엔진명·model_id·speaker_id 노출 0, LLM 이 TTS 파라미터를 정하지 않음(LLM 은 `styleHint` 만, Resolver 출력은 엔진 독립 RenderingPlan, SBV2 파라미터명은 `engine/adapters/tts` 밖에 0건), TTS 캐시 키에 `normalizedText·modelVersion·dictionaryVersion·speechProfile` 포함, 발음 사전 변경은 `PronunciationLexiconVersion`+`AuditLog`, Trace 에 원문 대신 `normalizedText` 해시만, 상태 표시등은 라우터 실제 선택 결과 기준
 
 **Strict Mode**: 관대한 판정 금지.
+
+### Codex 검토 결과 판정 (2026-09-27 개발환경 개선)
+judge 가 C2(Reviewer PASS 직후)에서 Codex 개입을 판정하면 Leader 가 codex 를 호출하고, 그 결과(task 이력서 `## Codex 검토`)가 당신에게 온다. 지적마다 **채택 / 오탐 / 범위 밖** 을 근거와 함께 판정해 Reviewer 기록 절에 남긴다. 채택 지적은 Developer 수정 → 당신부터 재순환한다. Codex 지적을 근거 확인 없이 그대로 채택하거나, Codex 가 PASS 했다는 이유로 자기 감사를 생략하지 않는다. Codex 검토가 실패(⚠)해도 당신의 판정 기준은 바뀌지 않는다.
 </responsibilities>
 
 <operation_contract>

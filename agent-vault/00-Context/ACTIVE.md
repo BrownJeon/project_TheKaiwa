@@ -1,6 +1,6 @@
 ---
 project: TheKaiwa
-updated: 2026-09-26
+updated: 2026-09-27
 tags:
   - type/context
 ---
@@ -11,6 +11,7 @@ tags:
 **⏸ 2026-09-27 일시 정지(사용자 지시: 점검·개발환경 개선 후 재개). 재개 문구: "일본어교육 작업 이어서 진행해줘".** 프로젝트 표시 이름은 `일본어교육`(폴더·저장소·도메인 등 기술 식별자는 `TheKaiwa`/`thekaiwa` 그대로). 설계 완료 후 Phase 1 구현 중 — task-002(스캐폴딩)·task-004(AI 클라이언트·페르소나)·task-005(설정 허브·출석) 완료, 앱이 `https://kaiwa.미라클펭귄.com` 에 떠 있다(pm2 `thekaiwa`, 우분투 미러 실행, `pm2 save` 안 함). 재개 순서: task-006(채팅·표현 점검·교정 채택) → 008(단어장·오늘의 단어) → 005b(콘솔 골격) → 003(M4 tts·온디바이스 STT, 사용자 조치 필요) → 007(음성 회화).
 
 ### 재개 시 먼저 볼 것
+- **2026-09-27 개발환경 개선 적용([[task-017-dev-env-judge-codex]])** — 팀에 **judge**(Jev 판정)·**codex**(외부 검토)가 추가됐다. task 접수 시 frontmatter `base_ref` 기록 → judge `intake`(developer 모델·위험도), 설계 직후 C1·reviewer PASS 직후 C2·결함 2회 재발 C3 마다 judge `codex_gate` → `codex_required: true` 면 codex 호출. Codex 실패는 멈추지 않고 진행 후 사용자에게 실패 내역 보고. 절차는 `leader.md` `<judge_codex>`. Codex 실제 호출은 Linux 세션에서만(Windows 에 CLI 없음) — **첫 C2 가 Codex 실측 검증**이다.
 - 결정 기록 [[llm-japanese-quality]] — Claude CLI 는 반드시 설정/MCP 생략·thinking 끔(안 하면 회화 1턴 40~120초). 회화 턴 p50 5.1s 로 목표 4s 미달 → task-007 에서 상주 CLI 세션 실측.
 - 인증이 필요한 API 검증은 `tests/live/qa-session.ts`(QA 계정, localhost 전용) + `tests/live/task005-smoke.sh` 패턴.
 - 커밋은 `git -c user.name=brownjeon -c user.email=ifries8611@gmail.com commit` (저장소·전역 git 신원 미설정).
