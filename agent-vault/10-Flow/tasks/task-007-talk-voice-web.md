@@ -84,6 +84,20 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 ### 네이티브 변경
 없음(003f).
 
+### 설계 확정 — designer §9-11 (Leader, 2026-09-28)
+- **① barge-in 채택**: 재생 중 푸시투토크 = 재생 즉시 정지 → 녹음(K8). §8·designer 원칙의 "재생 중 비활성"은 "누르면 멈춘다는 표시"로 읽는다. 에코는 정지 후 녹음 + `getUserMedia` 기본 에코 제거.
+- **② `final.utteranceId:null`** → `{text, inputSource:"TEXT"}` 로 보낸다(내 목소리 ▶ 없음). 계약 변경 없음.
+- **③ SSE `audio` 에 `cached:boolean`·`pauseBeforeMs:number` 추가**(A). 엔진 정보가 아니므로 허용. 없으면 클라 기본 false·0.
+- **④ TTS 를 시도하지 않은 TALK 턴**(TEXT_ONLY·connection 불가)은 `status{stage:"TTS", warning:"TTS_UNAVAILABLE"}` 를 `done` 전에 1회(A). 문장별 실패는 `audio{status:"FAILED"}`.
+- **⑤ `clientTimings`** = `{prevMessageId, sttMs, releaseToFirstAudioEventMs, firstAudioAtMs, playbackStartDelayMs}` — 기준점은 **손 뗌(글자 턴은 보내기 누름)**, 모두 직전 턴 값(단 `sttMs` 는 이번 턴). 서버는 숫자 범위(0~120000) 검증 후 Trace `STT`·`PLAYBACK` step 에만 기록(A 가 계약 고정).
+- **⑥ #29 확장(A)**: USER 메시지 `utteranceId` + `audioAvailable:boolean`(보존 기간 안·삭제 안 됨) — Utterance 는 speech 테이블이므로 **#29 라우트가 conversation 결과에 speech 조회를 조합**(conversation 이 Utterance 를 읽지 않는다). ASSISTANT `speechStyle`(toolLog meta.style — 다시 듣기 #23 캐시 HIT 용).
+- **⑦ AUDIO_TEXT_MISMATCH**: 재생 중 청크도 즉시 끊고 드러낸 문장을 거둔 뒤 `done` 최종 텍스트만(들리는 것 = 보이는 것).
+- **⑧ 같은 `utteranceId` 재전송 허용** — 수락 전 거절(409 턴 진행 중·429·네트워크)이라 아직 연결 안 된 발화만(C1-2: `chatMessageId IS NULL`·10분 이내). [글자로 고치기] = 같은 id + 고친 text + `REALTIME_STT` → `finalSource=USER`.
+- **⑨ 표시등 폴링 pause 는 턴 진행 중에만**(방 체류 중엔 30초 폴링 유지).
+- **⑩ 방 메뉴 "들려주는 방식"** = #13 GET → `speechProfile` 만 바꿔 #14 PUT(설정 화면과 같은 값). 채택.
+- **⑪ #24 URL** 은 큐가 `/api/v1/speech/tts/` 접두만 수락, 다시 듣기는 보관본·#23 으로(만료 URL 재사용 금지), URL·토큰을 DOM 속성·로그에 남기지 않음. 채택.
+- **⑫ 기존 결함 4건** B 가 이번 task 에서 수정(useRealtimeStt utteranceId·useChatTurn busy 무시→QUEUED·PendingCorrectionsCard TALK 포함·CorrectionCard 단건 카운터 숨김). 채택.
+
 ## 판단 기록 (judge)
 - [2026-09-28 02:35] intake engine=jev → task_type=feature, risk=R1, developer_model=opus, next=assign | overrides=- | fallback=- | tokens=1127
   - **override**(Leader): risk **R2** 적용 — 신호도 high 0.51/normal 0.49 경계이고, 이번 범위에 서명 URL(인증 우회 시 타인 오디오 노출)·발화 소유 검사(IDOR)·자식 프로세스 수명(누수·고아) 이 들어 있어 보안·운영 위험을 R2 로 본다. developer_model=opus·next=assign 채택.

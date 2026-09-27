@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007)
 
 ---
 
@@ -75,10 +75,10 @@
 
 | 탭/진입 | 경로 | 화면 | 가시성 | 하단 탭 | 상태 |
 |---|---|---|---|---|---|
-| 회화 | `/study/ai?tab=chat\|talk` | AI와 공부하기 홈(회화·채팅 전환, 채팅 목록) | 로그인 사용자 | 보임 | **task-006(§3)** |
+| 회화 | `/study/ai?tab=talk\|chat` (기본 `talk`) | AI와 공부하기 홈(회화·채팅 전환 · 회화 목록/채팅 목록 · 채택 대기 교정 요약) | 로그인 사용자 | 보임 | **task-006(§3)** · 회화 탭 **task-007(§9-2 A)** |
 | 회화 | `/study/ai/chat/[chatId]` | 채팅방 | 소유자(타인 404) | **숨김** | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]/review` | 표현 점검 결과 | 소유자 | **숨김** | **task-006(§3)** |
-| 회화 | `/study/ai/talk/[chatId]` | 음성 회화방(헤더 아바타 옆 TTS 상태 표시등 = §7 컴포넌트 재사용 · 푸시투토크 = §8 `PushToTalkButton`·`useRealtimeStt` 재사용) | 소유자 | 숨김 | task-007 |
+| 회화 | `/study/ai/talk/[chatId]` (`#cr_{교정 id}` 로 카드 위치) | 음성 회화방(머리 = 선생님 아바타·이름 + TTS 상태 표시등(§7) · 푸시투토크 72px(§8) + 글자 입력 전환 · 문장별 점진 표시·재생·barge-in · 교정 카드 즉시) | 소유자(타인 404) | **숨김** | **task-007(§9)** |
 | 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드·최근 기록·보관한 세트, 회화·평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** |
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
 | 오늘 | `/study/today/talk/[lessonId]`, `eval/[evaluationId]` | 오늘의 회화 · AI 평가 | 소유자 | 숨김 | Phase 2 |
@@ -119,7 +119,7 @@
 | 항목 | 내용 |
 |---|---|
 | 목적 | 일본어로 텍스트 대화(A2) → 대화 뒤 표현 점검(A3) → 문장별 교정 카드에서 **내가 고른 것만** 저장 |
-| 진입 | 하단 탭 "회화" → `/study/ai`(기본 `tab=chat` — task-007 이 음성 회화를 열면 기본값을 `talk` 로 바꾼다) |
+| 진입 | 하단 탭 "회화" → `/study/ai`(기본 `tab=talk` — task-007 부터, §9-2 A) → [채팅] 탭 |
 | 역할별 가시성 | 로그인 사용자 전원. 관리자 전용 요소 없음. 타인 채팅은 404 화면 |
 | 앱/웹 분기 | 없음(텍스트 전용). 키보드 처리만 실기기 차이(§3-9) |
 | TTS 상태 표시등 | 채팅은 음성이 없어 **두지 않는다**(회화방 task-007 에서) |
@@ -133,10 +133,7 @@
 AppBar title="AI와 공부하기"                       ← 기존 AppBar(설정 아바타 포함)
 <div className="px-4 pb-8">
   Segmented ariaLabel="공부 방식" [회화 | 채팅]      ← router.replace(`?tab=`) · scroll:false
-  tab === 'talk' → TalkComingSoon
-      카드: "음성 회화는 곧 열려요"
-            "말하면 선생님이 대답하고, 틀린 표현은 그 자리에서 짚어 줘요."
-            "지금은 채팅으로 연습해 보세요."   [채팅으로 연습하기] → tab=chat
+  tab === 'talk' → 회화 탭(§9-2 A — ＋ 새 회화 · 교정 요약 · 회화 목록). task-006 의 `TalkComingSoon`("음성 회화는 곧 열려요")은 task-007 에서 삭제
       (사용자 화면에 Phase·task 번호를 쓰지 않는다)
   tab === 'chat' →
     Btn primary full "＋ 새 채팅"  → NewChatSheet
@@ -176,7 +173,7 @@ AppBar title="AI와 공부하기"                       ← 기존 AppBar(설정
 │ nextCursor 있으면: "더 있어요 — 채팅별 점검 결과에서 확인해요" 12px ink2
 └──────────────────────────────────────────┘
 ```
-- 행의 링크 대상: `chat.kind === 'CHAT'` → `…/chat/{id}/review`, `TALK` → task-007 방(그 전엔 CHAT 만 나온다).
+- 행의 링크 대상: `chat.kind === 'CHAT'` → `…/chat/{id}/review#cr_{crId}`, `TALK` → `/study/ai/talk/{id}#cr_{crId}`(보조 줄 "{제목} · 회화에서 보기 ›", §9-2 A). 카드는 회화·채팅 두 탭 모두에 보인다.
 
 #### B. 새 채팅 시트 — `NewChatSheet`
 
@@ -549,8 +546,8 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 | 컴포넌트/모듈 | 종류 | props | 상태 |
 |---|---|---|---|
 | `StudyAiHome` | client | `{ initialTab: 'chat'\|'talk' }` | `tab` |
-| `TalkComingSoon` | client | `{ onGoChat(): void }` | — |
-| `ChatList` | client | `{ kind: 'CHAT'\|'TALK' }`(task-007 재사용) | `items, nextCursor, loading, loadingMore, error` |
+| ~~`TalkComingSoon`~~ | — | task-007 에서 삭제(회화 탭은 §9-2 A) | — |
+| `ChatList` | client | `{ kind: 'CHAT'\|'TALK' }` — kind 별 섹션 제목·빈 상태·행 링크(§9-2 A) | `items, nextCursor, loading, loadingMore, error` |
 | `ChatListItem` | client | `{ chat: ChatSummary; href: string }` | — |
 | `PendingCorrectionsCard` | client | — | `items, hasMore`(오류 시 숨김) |
 | `NewChatSheet` | client | `{ open; onClose() }` | `title, submitting, error` |
@@ -710,7 +707,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 | 자리 | 문구 |
 |---|---|
 | 앱바 / 전환 | AI와 공부하기 / 회화 · 채팅 |
-| 회화 준비 중 | 음성 회화는 곧 열려요 / 말하면 선생님이 대답하고, 틀린 표현은 그 자리에서 짚어 줘요. / 지금은 채팅으로 연습해 보세요. / 채팅으로 연습하기 |
+| ~~회화 준비 중~~ | task-007 에서 삭제 — 회화 탭 문구는 §9-8 ⓕ |
 | 새 채팅 | ＋ 새 채팅 / 새 채팅 / 제목 (선택) / 비워 두면 자동으로 정해져요 / 시작하기 / 만드는 중… / 제목은 100자까지 쓸 수 있어요 |
 | 빈 목록 | 아직 채팅이 없어요 / 일본어로 하고 싶은 말을 써 보세요. 틀려도 괜찮아요 — 대화를 마치면 선생님이 문장마다 고쳐 줘요. / 첫 채팅 시작하기 |
 | 목록 | 아직 메시지가 없어요 / 이전 채팅 더 보기 / 어제 |
@@ -3178,7 +3175,7 @@ Section
 
 - **SWITCHING 표시**: 최소 600ms(깜빡임 방지) ~ 조회가 끝날 때까지(3초 타임아웃 → 조회 실패 규칙).
 - **토스트**: 설정된 상태가 {ONLINE, TEXT_ONLY, ON_DEVICE} 사이에서 바뀔 때만 스토어가 `announce(message)` 를 1회 낸다(`transitionSeq` + 처리 표시 — 표시등이 둘 붙어도 한 번). CHECKING → X 는 조용하다. 지속 4초(`onAnnounce` 로 화면의 `toast.show(msg, 4000)`).
-- 대화 중(task-007)에는 합성 결과가 곧 신호이므로 회화방이 `pause(true)` 로 폴링을 멈추고 SSE `audio{status, runtime.executionMode}` 를 `reportSynthesis` 로 넣는다(`executionMode === 'TEXT_ONLY'` 면 조회 없이 바로 설정).
+- 대화 중(task-007)에는 합성 결과가 곧 신호이므로 회화방이 **턴 진행 중에만** `pause(true)` 로 폴링을 멈추고(턴이 끝나면 `pause(false)` — 방에 머무는 동안 복구도 폴링으로 잡는다) SSE `audio{status, runtime.executionMode}` 를 `reportSynthesis` 로 넣는다(`TEXT_ONLY` 는 422 신호 → 재확인). 매핑 표는 §9-3 F.
 
 #### B. 미리듣기 — `useVoicePreview({ onError, onSignal })`
 
@@ -3353,7 +3350,7 @@ unmount · visibilitychange(hidden) → stop()
 | 진입 | 상단 아바타 → `/settings` → "음성 인식" 절(§2 설정 행) |
 | 역할별 가시성 | 로그인 사용자 전원, 관리자도 같은 화면(엔진 상태는 콘솔 `/admin/speech/realtime`) |
 | 앱/웹 분기 | 웹 = 항상 서버 경로(`kind:'GATEWAY'`). 앱(003f) = `createRealtimeSttClient` 가 온디바이스를 고르면 `kind:'ONDEVICE'` — 화면은 경로 안내 한 줄·권한 거부 조치 줄만 달라진다 |
-| 재사용 | task-007 회화방 입력 바: `PushToTalkButton`(같은 크기·제스처) + `useRealtimeStt({purpose:'TALK', chatId})`, partial 은 자막 줄로 |
+| 재사용 | task-007 회화방 입력 바: `PushToTalkButton`(같은 크기·제스처) + `useRealtimeStt({purpose:'TURN', chatId, onFinal})`, partial 은 목록 꼬리의 부분 인식 말풍선으로(§9-2 E) |
 
 ### 8-2. UI 구조 (의사코드, 390px 기준)
 
@@ -3416,7 +3413,7 @@ p.sr-only aria-live="polite" aria-atomic                  ← final 낭독 전�
 | `unavailable` | opacity 40 · disabled | 지금은 쓸 수 없어요 (사유는 alert) |
 
 - 포인터 캡처: 손가락이 버튼 밖으로 미끄러져도 녹음은 이어지고, 어디서 떼든 끝난다. 두 번째 손가락·오른쪽 버튼은 무시.
-- 누르면 먼저 `stopAllTts()`(§7 `ttsAudio`) — 미리듣기 소리가 마이크로 들어가지 않게. (task-007 은 TTS 재생 중 버튼을 막는다 — 선생님 말을 끊지 않도록. 이 차이는 `disabled` prop 으로만 난다.)
+- 누르면 먼저 `stopAllTts()`(§7 `ttsAudio`) — 미리듣기 소리가 마이크로 들어가지 않게. (task-007 회화방은 TTS 재생 중에도 버튼을 막지 않는다 — **누르면 선생님 말을 즉시 멈추고 녹음(barge-in, Leader K8)**. 재생 큐를 먼저 멈추는 순서는 §9-3 C. 생각 중(턴 진행·소리 전)에만 `disabled`.)
 
 #### D. `MicLevelMeter` — 5칸 막대(폭 4px·간격 3px·높이 8/12/16/20/24px), 켜진 칸 `bg-accent`, 꺼진 칸 `bg-line`. 기준 dBFS −50/−40/−32/−25/−18. `aria-hidden`.
 
@@ -3595,3 +3592,626 @@ type SttErrorCode = 'INSECURE' | 'UNSUPPORTED' | 'MIC_DENIED' | 'MIC_NOT_FOUND' 
 | ② | **WS 응답의 엔진명** | `ready.engine/model`·`final.engine`(= `reazon-gateway`·`reazonspeech-int8@…`)은 사용자에게 가는 프레임 → 완료 기준 6 "사용자 응답 엔진명 0" 과 충돌(§7-11 ⑤ 와 같은 문제). 권장: gateway 가 사용자 WS 에서 빼고 internal 콜백·trace 에만. 클라이언트는 어느 쪽이든 버린다 | 남기면 QA 가 WS 프레임 grep 에서 검출 |
 | ③ | **gateway README ↔ api-contract 불일치** | 화면은 계약(§2-29) 기준 + README 코드도 매핑(§8-8 ⓐ 원인 열). 불일치: 티켓 `aud` `speech-ws`↔`ws-speech` · 오류 코드(`TICKET_INVALID/TICKET_USED/SESSION_LIMIT/AUDIO_FORMAT/CALLBACK_FAILED`) · `stop` 후 세션 종료↔10분 유지 · close `4429`↔`4409` | 어느 쪽이 정본인지 developer A 에 확정 필요(화면은 둘 다 견딤) |
 | ④ | 클라이언트 진입점 | components 는 서버 코드 없는 진입점 `@/modules/speech/stt/client` 만 import(`@/modules/infra/native` 와 같은 방식, module-dependency §3-1 규칙 5) | 경로가 다르면 import 한 줄만 바뀜 |
+
+---
+
+## 9. AI 회화(음성) — 회화방 (task-007)
+
+> 정본: `api-contract.md` #19·#20·#21b·#23·#24·#27~#39·§0-9(SSE)·§2-29(#142)·§7-1(SSE `audio{chunkIndex…}`) · `speech-platform/16` §5(Speech Profile)·§6.3(TtsPlaybackQueue)·§6.4(TTFA)·§12(표시등) · `design-spec.md` §8(A1·5초 예산)·§11 · task-007 Leader's Plan K3·K5·K6·K7·K8. 재사용: §3(채팅 목록·말풍선·교정·제안·턴 훅)·§7(표시등·`ttsAudio`)·§8(푸시투토크·`useRealtimeStt`·`sttCopy`). 새 색 없음(§1-1 토큰만). 서버 계약이 비어 있거나 모호한 곳은 §9-11 에 가정과 함께 적었다.
+
+### 9-0. 한눈에 보는 결정
+
+1. **경로 2개**: 홈 `/study/ai`(**기본 탭을 `talk` 로**) → 회화방 `/study/ai/talk/[chatId]`. 방은 하단 탭을 숨기고, 머리는 `TalkRoomHeader`(← · 선생님 아바타 40px·이름 · **TTS 표시등**(§7 컴포넌트 그대로) · ⋯), 56px.
+2. **음성 우선 입력**: 입력 바 가운데 **푸시투토크 72px**(§8 `PushToTalkButton` 그대로), 왼쪽 ⌨(글자로 입력) 44px, 오른쪽 ■(선생님 말 멈추기 — 말하는 중에만) 44px. 글자 모드는 채팅 `Composer` 재사용 + 왼쪽 🎤(말로 입력) 44px. 텍스트 폴백은 언제나 한 번의 탭 거리다.
+3. **턴 상태 6개** = 대기 → 녹음 → 인식 중 → (보내기 대기) → 선생님 생각 중 → 말하는 중 → 대기. 화면 상태를 따로 저장하지 않고 **STT·턴·재생 세 상태에서 순수 함수 `deriveTalkState` 로 유도**한다(§9-3 A) — 셋이 어긋나 버튼이 잠기는 사고를 막고 단위 테스트로 고정한다.
+4. **자동 전송**: 손을 떼고 `final` 이 오면 확인·편집 단계 없이 곧바로 #32(5초 예산). trim 뒤 코드포인트 **≤1자면 보내지 않고** 상태 줄 힌트. 고쳐서 보내려면 글자 모드(또는 보내지 못한 말의 [글자로 고치기]).
+5. **선생님 말풍선 점진 표시**: SSE `audio` 가 올 때마다 **chunkIndex 0 부터 빈틈없이 이어진 앞부분만** 문장 단위로 드러내고(늦게 온 앞 청크를 기다림), 지금 재생 중인 문장을 `bg-accent-soft` 로 강조. `done` 에서 본문을 `replyJa` 로 확정하고 읽기(§1-3)·번역·문법 칩·▶ 를 붙인다. `audio` 없이 `done`(자막만)이면 그때 전체를 한 번에 보이고 표시등에 신호를 넣는다.
+6. **재생 = `TtsPlaybackQueue`**(`chunkIndex` 순·도착 즉시 받아 두기·청크 간격). **barge-in**: 재생 중 푸시투토크를 누르면 소리를 즉시 멈추고 녹음한다 — §8-2 C 의 "007 은 재생 중 버튼을 막는다" 메모를 **이 절이 대체**한다(Leader K8, §9-11 ①). 다시 듣기 2종(선생님 ▶ · 내 목소리 ▶). 자동재생이 막히면 입력 바 위 "눌러서 듣기" 띠 한 번.
+7. **교정 카드는 대화 중 즉시**: `done.correction` 을 해당 사용자 말풍선 **바로 아래** `CorrectionCard`(원문 | 교정 나란히, 전체형)로 붙인다. 채팅은 대화 뒤 점검 결과 화면에서 한꺼번에 — 이것이 두 화면의 가장 큰 차이다. 채택 시트·단어 제안 카드는 채팅 것 그대로.
+8. **보내지 못한 말은 사라지지 않는다**: 턴이 거절되면(409·429·네트워크·422·400) 인식한 문장을 입력 바 위 `UnsentBar` 에 남기고 [다시 보내기]·[글자로 고치기]·✕ 를 준다(음성 모드엔 되돌릴 입력창이 없다).
+9. **aria-live**: 녹음 중(starting·recording) 대화 목록 `aria-live="off"`, 부분 인식 말풍선 `aria-hidden`, 생성 중인 선생님 말풍선 `aria-busy="true"` → `done` 에 한 번만 낭독. 토스트는 녹음이 끝난 뒤로 미룬다. 스크린리더 음성이 마이크로 들어가지 않게 하는 규칙이다.
+10. **엔진명 0**: `audio.runtime.connectionKey`(오더라도)·`cacheKey`·`url`(서명 토큰)·`traceId`·`ttfaMs` 는 화면·DOM 속성·콘솔에 싣지 않는다. 경로 안내·오류 문구는 §8 과 같은 말만 쓴다.
+
+### 9-1. 화면 개요
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | 일본어로 **말로** 대화(A1) — 선생님이 문장 단위로 바로 소리 내어 답하고, 틀린 표현은 그 자리에서 교정 카드로 보여 주며, 내가 채택한 것만 저장한다 |
+| 진입 | 하단 탭 "회화" → `/study/ai`(기본 `tab=talk`) → 목록 행 또는 [＋ 새 회화] · 홈 "채택을 기다리는 교정" 의 회화 행 → `/study/ai/talk/{id}#cr_{교정 id}` |
+| 역할별 가시성 | 로그인 사용자 전원. 관리자 전용 요소 없음(엔진 상태는 콘솔 `/admin/speech/*`). 타인 회화는 404 화면 |
+| 앱/웹 분기 | 이번 task = **웹 경로만**(`kind:'GATEWAY'`). 앱(003f)은 `createRealtimeSttClient` 가 온디바이스를 고르고, 화면 차이는 권한 거부 조치 줄(§8-8 ⓐ `native`) 하나다. 자동재생 규칙은 WebView(`mediaPlaybackRequiresUserGesture`)도 같은 코드로 견딘다(실기기 확인 003f) |
+| 재사용 | §3 `ChatList`·`NewChatSheet`·`MessageList`·`MessageBubble`·`CorrectionCard`·`AcceptCorrectionSheet`·`ProposalCard`·`useChatTurn`·`Composer`·`ChatMenuSheet`·`TurnNotice` · §7 `TtsRuntimeStatusIndicator`·`ttsAudio` · §8 `PushToTalkButton`·`useRealtimeStt`·`sttCopy`·`MicLevelMeter`·`micPreflight` |
+| 새 것 | `src/components/talk/*`(방·머리·입력 바·띠·재생 훅·상태 유도) · 클라 재생 큐 `@/modules/speech/tts/client`(module-dependency L4 `TtsPlaybackQueue` 자리) |
+
+### 9-2. UI 구조 (의사코드, 390px 기준)
+
+#### A. 홈 `/study/ai` — `StudyAiHome`(회화 탭)
+
+```
+AppBar title="AI와 공부하기"
+<div className="px-4 pb-8">
+  Segmented ariaLabel="공부 방식" [회화 | 채팅]         ← 기본 talk (page.tsx: tab==='chat' ? 'chat' : 'talk')
+  tab === 'talk' →
+    Btn primary full "＋ 새 회화"   → NewChatSheet kind='TALK'
+    PendingCorrectionsCard           ← 두 탭 모두. 행 링크: CHAT → …/chat/{id}/review#cr_{crId} · TALK → /study/ai/talk/{id}#cr_{crId}
+    ChatList kind="TALK"             ← 섹션 제목 "회화", 행 링크 /study/ai/talk/{id}, 빈 상태 = 회화용 문구(§9-8 ⓕ)
+  tab === 'chat' → 지금 그대로(§3-2 A)
+</div>
+```
+- `TalkComingSoon` 은 삭제한다(§3-5 행 갱신).
+- 목록 행(`ChatListItem`)은 그대로 쓴다. TALK 은 `reviewedAt` 이 늘 null 이라 "점검 완료" 뱃지가 없고, `running` 이면 "답하는 중".
+- `PendingCorrectionsCard` 의 행 보조 줄: CHAT "{제목} · 결과 보기 ›" / TALK "{제목} · 회화에서 보기 ›". 지금 `kind==='CHAT'` 만 거르는 필터를 TALK 까지 넓힌다(ASK 는 교정이 없다).
+
+#### B. 새 회화 시트 — `NewChatSheet kind='TALK'`
+
+§3-2 B 와 같다. 차이: 시트 제목 "새 회화", 제출 `{ kind:'TALK', title? }`(비우면 서버가 "새 회화"), 성공 시 `router.push('/study/ai/talk/' + id)`. 주제 선택(`topicId`)은 Phase 2.
+
+#### C. 회화방 `/study/ai/talk/[chatId]` — `TalkRoom`
+
+레이아웃(앱 셸 `main` 안을 **정확히 100%** 채운다 — `main` 은 스크롤되지 않고 목록만 스크롤):
+```
+<div ref=roomRef data-talk-state={state} className="flex h-full min-h-0 min-w-0 flex-col bg-ground" style={{'--kb-inset': …}}>
+  TalkRoomHeader     flex-none  56px
+  MessageList        flex-1 min-h-0 overflow-y-auto overscroll-contain   ← 유일한 스크롤(§3 컴포넌트 + 슬롯, §9-2 E)
+  StripSlot          flex-none  (띠는 한 번에 하나 — 우선순위 §9-2 G)
+  VoiceBar | TextBar flex-none  padding-bottom: max(8px, env(safe-area-inset-bottom)); TextBar 만 margin-bottom: var(--kb-inset,0px)
+</div>
+```
+- `data-talk-state`(IDLE·RECORDING·RECOGNIZING·QUEUED·THINKING·SPEAKING)는 QA 자동화용 속성이다. 엔진·추적 값은 싣지 않는다.
+
+와이어프레임(390px, 말하는 중):
+```
+┌──────────────────────────────────────┐
+│ ←  (유)  유우                       ⋯ │ TalkRoomHeader 56px
+│          ● 온라인 ›                    │ 표시등(§7-2 B), 히트 44px
+├──────────────────────────────────────┤
+│          ── 9월 28일 (월) ──            │
+│                 ┌───────────────────┐ │
+│                 │ 昨日映画を見に行く  │ │ 사용자 말풍선 = 인식 텍스트(17px ja)
+│                 │ ました              │ │
+│                 └───────────────────┘ │
+│              [▶ 내 목소리]  14:02      │ 44px 히트, 12px ink2 시각
+│ ┌ 활용 ───────────────────────────┐   │ CorrectionCard 전체형(즉시)
+│ │ 내 문장          │ 이렇게 고쳐요     │ │ 390·412 나란히 / 360 위아래
+│ │ …行くました      │ …行きました       │ │
+│ │ 「行くました」가 아니라 「行きました」… │ │
+│ │ 선생님 제안이에요. 채택해야 저장돼요.   │ │
+│ │ [ 채택 ]            [ 무시 ]          │ │
+│ └──────────────────────────────────────┘ │
+│ (유) 유우 · ▮▮▮ 말하는 중                │ 이름 줄(그룹 첫 말풍선)
+│ ┌───────────────────────────┐          │
+│ │ ░そうですか。░ 何を見ました │          │ 재생 중 문장 bg-accent-soft
+│ │ か？ …                     │          │ 뒤따를 문장이 있으면 끝에 "…"(aria-hidden)
+│ └───────────────────────────┘          │
+│ [■ 멈춤]  14:02                         │ done 전: 읽기·번역 없음
+├──────────────────────────────────────┤
+│    ▮▮ 선생님이 말하는 중 · 누르면 멈추고 말해요 │ 상태 줄 h-6, 13px ink2
+│  [⌨]            ( 🎤 )             [■] │ 44 · 72 · 44
+└──────────────────────────────────────┘ safe-area
+```
+
+#### D. 머리 — `TalkRoomHeader`
+
+```
+<header className="flex h-14 min-w-0 flex-none items-center gap-1 border-b border-line bg-surface px-1">
+  <Link href="/study/ai?tab=talk" aria-label="회화 목록으로" className="grid h-11 w-11 flex-none place-items-center">←</Link>
+  <TeacherAvatar name={teacherName} size="md" />              ← 40px, aria-hidden(이름이 옆에 있다)
+  <div className="min-w-0 flex-1 pl-1.5">
+    <h1 className="truncate text-[16px] font-semibold leading-5">{teacherName}<span className="sr-only">, 회화: {title}</span></h1>
+    <TtsRuntimeStatusIndicator onAnnounce={announce} />         ← §7-2 B 그대로(점 10px + 라벨 12px + ›)
+  </div>
+  <button aria-label="회화 메뉴" className="grid h-11 w-11 flex-none place-items-center">⋯</button>
+</header>
+```
+- 회화 제목은 머리에 보이지 않는다(360 에서 이름·표시등과 세 줄 경쟁). 제목은 목록·메뉴 시트 첫 줄·`sr-only` 로.
+- 56px 인 이유: 표시등 히트영역(`before:-inset-y-3.5`)이 목록 첫 버튼("이전 메시지 보기")과 겹치지 않게(§7-9 "구분선까지 ≥14px" 와 같은 규칙).
+- `announce(msg)`: 녹음 중(RECORDING)이면 보류했다가 녹음이 끝나면 `toast.show(msg, 4000)` — §9-0 ⑨.
+
+#### E. 대화 목록 — `MessageList`(§3 컴포넌트 + 슬롯)
+
+§3-2 C MessageList 의 스크롤 규칙(첫 로드 맨 아래 · 바닥 120px 안이면 따라감 · "새 메시지 ↓" · 이전 메시지 보기 · ResizeObserver)을 그대로 쓰고, **선택 슬롯**만 더한다(채팅은 넘기지 않으니 동작이 같다):
+
+| 슬롯 | 회화방이 넘기는 것 |
+|---|---|
+| `renderUser(m)` | `UserBubble`(`correctionChip={false}`, `actions`=내 목소리 ▶) + 그 아래 교정 카드들 |
+| `renderTutor(m)` | 완료(`DONE`) 선생님 말풍선 = `TalkTutorBubble mode="done"` |
+| `renderPending(m)` | 청크가 1개 이상 드러났으면 `TalkTutorBubble mode="streaming"`, 아니면 기존 `PendingBubble` |
+| `intro` | `TalkIntro`(빈 방) |
+| `tail` | `LiveUtteranceBubble`(녹음·인식 중·보내기 대기) |
+| `liveOff` | `state === 'RECORDING'` 이면 `aria-live="off"` |
+
+**사용자 말풍선**(`UserBubble` + 회화 슬롯):
+```
+                 ┌───────────────────┐
+                 │ 昨日映画を見に行く  │   17px ja, accent-soft (그대로)
+                 └───────────────────┘
+          [▶ 내 목소리] · 14:02 · 보내는 중…      ← 한 줄(12px ink2), ▶ 는 13px 텍스트 버튼 h-11
+<ul className="mt-1.5 w-full"><CorrectionCard showCounter={false} … /></ul>   ← m.corrections 마다(TALK 은 0~1건)
+```
+- ▶ 내 목소리는 `inputSource==='REALTIME_STT'` 이고 `utteranceId` 가 있을 때만(글자로 보낸 말·새로고침 뒤 id 가 없는 말엔 없다 — §9-11 ⑥). 재생 중엔 "■ 멈춤". 404(30일 지남)면 토스트 후 그 메시지의 버튼을 숨긴다.
+- 채팅의 `CorrectionChip`(점검 결과로 가는 링크)은 회화에서 쓰지 않는다 — 결과 화면이 없다.
+- 교정 카드: §3-2 E 그대로(원문 | 교정 나란히 · diff 강조 · 유형/중요 뱃지 · 채택/무시 · 처리 후 한 줄). 회화에선 카드마다 1건이라 "1/1" 카운터를 숨긴다(`showCounter={false}`). 카드 폭은 목록 전체(`w-full`) — 360 에서 카드 안쪽 <320px 이라 위아래.
+- 카드는 `done` 에서 붙는다. 그때 바닥에 붙어 있었으면 바닥을 유지하므로 선생님 말풍선은 제자리에 있고 카드가 위에서 밀고 들어온다.
+
+**선생님 말풍선**(`TalkTutorBubble`, 안쪽은 §3 `TutorRow`·`TutorBubble` 재사용):
+
+| mode | 조건 | 모양 |
+|---|---|---|
+| (생각 중) | `PENDING`, 드러난 청크 0 | 기존 `PendingBubble`(점 3개 + 단계 문구 §3-8 ⓑ · 5초부터 초 · 12초부터 "조금 오래…") |
+| `streaming` | `PENDING`, 드러난 청크 ≥1 | 흰 말풍선에 드러난 문장들을 `<span>` 으로 이어 붙임(17px ja). 재생 중 문장 `rounded-sm bg-accent-soft`(글자 `ink`, 13:1). 아직 올 청크가 있으면 끝에 `…`(ink2, aria-hidden). 말풍선 `aria-busy="true"`. 아래 줄: [■ 멈춤](이 메시지가 재생 중일 때만) |
+| `done` | `DONE` | `TutorBubble` 그대로(읽기·번역 토글·문법 칩·시각) + `body` 슬롯(청크 문장을 이은 것이 `content` 와 **정확히 같을 때만** 문장 `<span>` 분할 — 다시 듣기 중 강조용, 아니면 `content` 통째) + `actions` 슬롯 맨 앞 [▶ 다시 듣기] |
+| 실패 | `FAILED` | 마지막이면 `FailedBubble`(§3-8 ⓒ, [다시 받기] = `resume()`), 아니면 `FailedLine` |
+
+- 이름 줄(그룹 첫 말풍선): 이 메시지가 재생 중이면 `{teacherName} · ▮▮▮ 말하는 중`(막대 3개 12px `bg-accent`, `motion-safe` 에서만 움직임, 글자 `ink2`). 막대는 `aria-hidden`, "말하는 중" 은 글자라 색 없이도 보인다.
+- 강조는 색만이 아니다: 재생 중 문장은 배경 + 말풍선의 [■ 멈춤] 버튼 + 이름 줄 "말하는 중" 세 단서.
+- 드러내기 규칙(`visiblePrefix`): 받은 청크를 `chunkIndex` 로 정렬해 0 부터 이어진 것까지만. FAILED 청크도 **글자는 드러낸다**(소리만 없다). `AUDIO_TEXT_MISMATCH` 경고를 받으면 드러낸 문장을 모두 거두고 `PendingBubble`("답을 정리하고 있어요")로 돌아가 `done` 을 기다린다(§9-3 B).
+- `done` 뒤 본문은 언제나 `replyJa`(서버 저장값)다. 청크 문장과 달라도 `replyJa` 가 이긴다.
+- 단어 제안(`ADD_WORD`)은 채팅과 같이 해당 선생님 말풍선 아래 `ProposalCard`(§3-2 G).
+
+**부분 인식 말풍선**(`LiveUtteranceBubble`, 목록 꼬리 — 오른쪽 정렬):
+
+| 때 | 모양 | 접근성 |
+|---|---|---|
+| 녹음 중, partial 없음 | 점선 테두리(`border border-dashed border-line bg-surface`) 안 "듣고 있어요…"(14px ink2, 한국어) | `aria-hidden` |
+| 녹음·인식 중, partial 있음 | 점선 테두리 안 partial(17px ja **`ink2`** 5.4:1) + `…` | `aria-hidden` |
+| 보내기 대기(QUEUED) | 실선 `bg-accent-soft` 말풍선(final, `ink`) + 아래 12px ink2 "선생님 말이 끝나면 바로 보낼게요" | 보통(마이크가 닫힌 뒤라 낭독 가능) |
+
+- `final` 로 보내는 순간 같은 렌더에서 임시 사용자 말풍선(`보내는 중…`)이 나타나고 이 꼬리는 사라진다(깜빡임 없음).
+
+**빈 방** — `TalkIntro`(§3 `RoomIntro` 톤):
+```
+(유) 유우에게 일본어로 말을 걸어 보세요.
+     아래 버튼을 누른 채로 말하고, 다 말하면 손을 떼세요. 바로 보내져요.
+     틀린 표현은 선생님이 그 자리에서 고쳐 줘요.
+     이렇게 시작해 보세요: こんにちは。はじめまして。 · 今日は何をしましたか。   ← lang=ja 15px ink2, 누르는 기능 없음(말로 해 보는 예)
+```
+
+#### F. 입력 바
+
+**VoiceBar**(음성 모드, 기본):
+```
+<div className="border-t border-line bg-surface px-4 pt-2" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+  <p id="talk-status" className="flex h-6 items-center justify-center gap-2 text-[13px] text-ink2 break-keep">
+    <MicLevelMeter db active={state==='RECORDING'} />   ← 녹음 중에만 보임(invisible 로 자리 유지 — 흔들림 0)
+    {statusText}                                         ← §9-3 A 표 · 힌트가 있으면 힌트
+  </p>
+  <div className="mt-1 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center">
+    <IconButton aria-label="글자로 입력하기" onClick={toText} ⌨ />          ← 녹음·인식 중 aria-disabled
+    <div className="flex justify-center"><PushToTalkButton … describedBy="talk-status" /></div>
+    {speaking ? <IconButton aria-label="선생님 말 멈추기" onClick={stop} ■ /> : <span aria-hidden className="h-11 w-11" />}
+  </div>
+</div>
+```
+- 높이 ≈ 8 + 24 + 4 + 72 + 8 = 116px(+safe-area). 412×892(주소창 포함 ≈780)에서 목록 ≈ 600px.
+- `PushToTalkButton` 은 고치지 않는다: `phase`=STT 단계, `disabled`=§9-3 A 표, `label`=상태별 aria-label. 누름·뗌·취소 핸들러는 방이 감싼다(§9-3 C barge-in 순서).
+
+**TextBar**(글자 모드): §3 `Composer` + `leading` 슬롯의 🎤(`aria-label="말로 입력하기"`, 44×44).
+```
+[🎤] [ 일본어로 써 보세요 — 보내면 선생님이 말로 대답해요 ] [↑]
+```
+- 보내기 = `send(text, { inputSource:'TEXT', clientTimings })`. IME·Enter·포커스 유지·초안·1,000자 규칙은 §3-2 C 그대로(초안 키도 `kaiwa.chat.draft.{chatId}` 공유).
+- 모드 전환: 음성→글자는 입력창에 포커스(키보드가 뜨는 것은 사용자가 고른 동작), 글자→음성은 입력창 blur(키보드 내림). 녹음·인식 중엔 전환 버튼 `aria-disabled` + 토스트 "말하는 중에는 바꿀 수 없어요".
+- 모드는 `sessionStorage kaiwa.talk.inputMode`(`voice|text`, 기본 voice) — "지금은 말하기 어려운 곳" 은 그때그때라 브라우저 세션 동안만 기억한다.
+- 글자 모드에서 선생님 말 멈추기는 말풍선의 [■ 멈춤] 으로(새로 보내도 멈춘다).
+
+#### G. 입력 바 위 띠(StripSlot, 한 번에 하나 — 위 칸이 이긴다)
+
+| 우선 | 띠 | 언제 | 모양 · 동작 |
+|---|---|---|---|
+| 1 | `SttAlert` | STT 오류(§8-8 ⓐ 코드) | `role="alert"` `rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad break-keep` — 1줄 무엇 + 2줄 어떻게(`sttErrorCopy(code,{native})`). 막힘 계열(INSECURE·UNSUPPORTED·OFFLINE·SERVER_UNAVAILABLE)과 MIC_DENIED·CONNECT_FAILED 엔 [글자로 대화하기](44px 밑줄 텍스트 버튼). 막힘 아닌 것엔 ✕(44) |
+| 2 | `UnsentBar` | 자동 전송·다시 보내기가 `accepted` 전에 거절됨 | `role="alert"` 테두리 카드: 1줄 이유(13px ink2, §9-8 ⓒ) · 2줄 「{text}」(15px ja, 2줄 말줄임) · [다시 보내기](primary, 44) [글자로 고치기](ghost) [✕ 버리기](44, `aria-label="보내지 않고 버리기"`). 429 면 [다시 보내기] 가 "{n}초 뒤" `aria-disabled` 카운트다운 |
+| 3 | `AutoplayBar` | 자동재생이 막힘(큐 `blocked`) | `role="status"` 전폭 버튼 h-12 `bg-accent-soft text-ink`: "▶ 눌러서 선생님 말 듣기" + 12px ink2 "브라우저가 소리를 막았어요". 탭 → 같은 핸들러 안에서 `unlockTtsAudio()` → `queue.resumeBlocked()` |
+| 4 | `TurnNotice` | 글자 모드의 봉투 오류·다시 받기 거절(§3 그대로) | §3-2 C |
+| 5 | `TopicEndNudge` | 직전 `done.endOfTopic` · 대기 · 이 메시지에서 닫지 않음 | 44px 한 줄 "이 이야기는 여기까지 한 것 같아요. 새 회화로 넘어갈까요?" [새 회화](→ `NewChatSheet kind='TALK'`) [✕]. 닫음 = `sessionStorage kaiwa.talk.topicEnd.{chatId}` = 그 메시지 id |
+
+#### H. 메뉴 — `ChatMenuSheet`(kind 로 문구만 바뀜) + "들려주는 방식"
+
+```
+Sheet title="회화 메뉴"
+  (첫 줄) {title} 15px semibold truncate
+  [제목 바꾸기]                  → #30 (§3 그대로)
+  [읽기 항상 펼치기]  role=switch  → localStorage kaiwa.chat.readingDefault(채팅과 공유)
+  들려주는 방식  role=radiogroup  (자연 속도 | 학습 속도 | 천천히)   ← 라벨은 #19 tts.speechProfiles[].label, 없으면 이 기본 문구
+      선택 즉시 #13 GET → speechProfile 만 바꿔 #14 PUT(나머지 값 그대로) → 토스트 "다음 대답부터 {라벨}로 들려드려요"
+      저장 중엔 radio aria-disabled · 실패면 원래 값으로 되돌리고 토스트(§9-8 ⓔ)
+  [회화 삭제] (danger)          → 확인 단계 "이 회화를 삭제할까요?" … → #31 → router.replace('/study/ai?tab=talk')
+```
+- 턴 진행 중에는 [회화 삭제] `aria-disabled` + 토스트 "답을 받는 중에는 지울 수 없어요"(§3 과 같음).
+- 들려주는 방식은 설정 → AI 선생님 목소리 카드의 같은 값이다(§7). 메뉴에서 바꾸면 설정 화면에도 반영된다(§9-11 ⑩).
+
+### 9-3. 상태 관리
+
+#### A. 화면 상태 — `deriveTalkState(input)` (순수, `talkState.ts`)
+
+입력: `stt.phase`(§8 `idle|starting|recording|finishing|unavailable`) · `turn.phase`(§3 `idle|sending|streaming|detached|failed`) · `playback.phase`(`idle|waiting|playing|blocked`)·`playback.source`(`turn|replay|mine`) · `queued`(보내기 대기 발화 있음) · `blockedUntil`(429) · `mode`(`voice|text`) · `sttError`.
+
+판정 순서(위가 이긴다): ① stt `starting|recording` → **RECORDING** ② stt `finishing` → **RECOGNIZING** ③ `queued` → **QUEUED** ④ playback `playing` → **SPEAKING** ⑤ turn `sending|streaming|detached` → **THINKING** ⑥ 그 밖 → **IDLE**(하위 표시: `unavailable`·`rateLimited`).
+
+| 상태 | 푸시투토크(`phase` · `disabled` · `aria-label`) | 상태 줄(`#talk-status`) | 목록 | ⌨ / ■ | 다음 |
+|---|---|---|---|---|---|
+| **IDLE** 대기 | idle · 누를 수 있음 · "누르고 있는 동안 말하기" | 누르고 있는 동안 말해요 (힌트·오류 있으면 그것) | — | ⌨ 보임 / ■ 숨김 | 누름 → RECORDING(첫 누름이 권한 프롬프트면 권한만 — §8-0 ③) |
+| IDLE·rateLimited | idle · **disabled** | {n}초 뒤에 말할 수 있어요 | — | ⌨ 보임 | 카운트다운 0 → IDLE |
+| IDLE·unavailable | unavailable(opacity 40) · disabled | 지금은 말로 할 수 없어요 · 글자로 대화해 보세요 | — | ⌨ 보임 + SttAlert | 온라인 복귀·권한 허용 → IDLE |
+| **RECORDING** 녹음 | recording(1.05배 + 바깥 링)/starting(스피너) · `aria-pressed=true` · "누르고 있는 동안 말하기" | 듣고 있어요 · 0:03 — 손을 떼면 보내요 · (권한) 마이크 사용을 허용해 주세요 · (연결 느림) 연결하는 중… 계속 말해도 돼요 · 레벨 미터 | 꼬리에 부분 인식 말풍선 · 목록 `aria-live=off` | ⌨ aria-disabled / ■ 숨김 | 뗌 → RECOGNIZING · 300ms 미만 → IDLE(힌트) · 30초 → RECOGNIZING(자동) · 오류 → IDLE(SttAlert) |
+| **RECOGNIZING** 인식 중 | finishing(스피너) · disabled(`aria-busy`) | 알아듣는 중… | 꼬리 유지(마지막 partial) | ⌨ aria-disabled | `final` 비었음 → IDLE(힌트 빈 결과) · ≤1자 → IDLE(힌트 너무 짧음) · 그 밖 → 앞 턴이 끝났으면 **즉시 #32**(THINKING), 진행 중이면 QUEUED · 8초 → IDLE(TIMEOUT) |
+| **QUEUED** 보내기 대기 | idle 모양 · disabled | 선생님 답이 끝나면 바로 보낼게요 | 꼬리 = 보낼 말(실선) | ⌨ aria-disabled | 앞 턴 `done`/`error` → #32(THINKING) · 앞 턴이 detached → UnsentBar(IDLE) |
+| **THINKING** 선생님 생각 중 | idle 모양 · **disabled** | 선생님이 생각하고 있어요 · (detached) 연결을 다시 확인하고 있어요 | 임시 사용자 말풍선 "보내는 중…" → `PendingBubble` → 청크가 드러나면 streaming 말풍선 | ⌨ 보임 / ■ 숨김 | 첫 청크 재생 → SPEAKING · `done`(소리 없음) → IDLE · `error` → IDLE(FailedBubble) · 청크 사이 받기 대기 중이면 계속 THINKING |
+| **SPEAKING** 말하는 중 | idle 모양 · **누를 수 있음** · "누르면 선생님 말을 멈추고 말하기" | 선생님이 말하는 중 · 누르면 멈추고 말해요 (다시 듣기 중) 다시 듣는 중 · 누르면 멈추고 말해요 (내 목소리) 내 목소리를 듣는 중 | 재생 중 문장 강조 · 이름 줄 "말하는 중" | ⌨ 보임 / **■ 보임** | 마지막 청크 끝 → (턴 진행 중이면 THINKING, 아니면) IDLE · 누름 → **barge-in** → RECORDING · ■ → IDLE |
+
+- THINKING 에서 버튼을 `disabled` 로 두는 이유: 서버는 사용자당 턴 1개(409)라 지금 말해도 보낼 수 없다. 이유는 `aria-describedby` 로 연결된 상태 줄이 늘 보여 준다(눌러도 반응 없는 버튼 금지 원칙 충족).
+- SPEAKING 인데 턴이 아직 `streaming`(뒤 청크 합성 중)일 때 barge-in 하면, 인식이 끝났을 때 QUEUED 로 가서 `done` 을 기다린다 — 턴 락이 풀리기 전에 보내 409 를 맞지 않게.
+- 순수 함수라 표 전 행을 `__tests__/talkState.test.ts` 로 고정한다.
+
+#### B. 한 턴의 흐름 (음성, 정상 경로)
+
+```
+t0 손 뗌  ── useRealtimeStt.release() → END → WS stop                 (releasedAt = performance.now())
+t1 final  ── onFinal{text, utteranceId, durationMs}                    (stop→final p50 63ms, task-003e)
+            trim·코드포인트 ≤1 검사 → turn.send(text, { inputSource:'REALTIME_STT', utteranceId, clientTimings })
+            (utteranceId 가 null 이면 inputSource:'TEXT' — §9-11 ②) · queue.startTurn() 은 accepted 에서
+t2 accepted ── 임시 말풍선 → userMessageId · PENDING 선생님 말풍선 · 표시등 pause(true) · queue.startTurn(assistantMessageId)
+   status{PROMPT|LLM|PARSE|TTS} ── PendingBubble 단계 문구
+t3 audio{chunkIndex:0, text, url, status:'OK', last:false} ── queue.push → 받기(#24) → 자동재생
+            말풍선이 문장 0 을 드러냄 · 재생 문장 강조 · reportSynthesis(ok) · SPEAKING
+   audio{1…} ── 도착 즉시 받기, 0 이 끝나면 간격 뒤 1 재생
+   status{warning:'AUDIO_TEXT_MISMATCH'} ── queue.abortTurn(): 소리 즉시 정지 · 남은 청크 버림 · 드러낸 문장 거둠 → PendingBubble
+t4 done   ── 본문 replyJa 확정 · 읽기/번역/문법/▶ · correction → 사용자 말풍선 아래 교정 카드 · 제안 카드 · queue.endTurn()
+            표시등 pause(false) · audio 0건이면 표시등 신호(§9-3 F) · 보내기 대기 발화가 있으면 이제 보냄
+t5 마지막 청크 끝 ── IDLE
+```
+- 5초 예산: t0→t3(첫 `audio` 수신) p50 ≤4.0s 가 서버 목표(완료 기준 7), 화면이 더하는 것은 받기+재생 시작 지연(≤150ms, 16 §6.4)뿐이다. **t1 과 #32 사이에 아무 대기도 두지 않는다**(디바운스·확인·애니메이션 금지).
+- 끊김(`accepted` 뒤): §3 그대로 detached 폴링. 폴링으로 받은 답에는 청크가 없으므로 **자동재생하지 않는다**(제스처 밖 재생·늦은 소리 방지) — 말풍선의 ▶ 로 듣는다.
+- `error`(accepted 뒤): 선생님 말풍선 FAILED + [다시 받기](`resume()`, 청크는 새로 온다). 이미 드러난 청크는 거둔다.
+
+#### C. 방이 엮는 것 — `TalkRoom`
+
+**STT**: `useRealtimeStt({ purpose:'TURN', chatId, config, maxSec:30, onFinal })`. 훅 확장(B): `SttEvent.final` 의 `utteranceId`·`durationMs` 를 버리지 않고 `onFinal({ text, utteranceId, durationMs, releasedAt, finalAt })` 로 올린다(`finishing` 에서 받은 final 만 — 30초 상한이라 녹음 중 강제 final 은 오지 않는다). 마이크 테스트는 `onFinal` 을 넘기지 않으니 그대로다.
+
+**누름·뗌 핸들러(순서가 중요)**:
+```
+onPress  = () => { queue.interrupt('BARGE_IN'); unlockTtsAudio(); setTalkHint(null); stt.press() }   // 모두 동기, 첫 await 앞
+onRelease = () => { unlockTtsAudio(); stt.release() }       // 터치에선 pointerup 이 사용자 활성화를 준다(pointerdown 은 아님)
+onAbort   = () => stt.abort()
+```
+- `queue.interrupt` 를 `stt.press()`(내부 `stopAllTts`) 보다 **먼저** 부른다: `stopAllTts` 만 부르면 큐가 "청크가 끝났다"로 알고 다음 청크를 재생한다.
+- `unlockTtsAudio()` 를 누름과 뗌 **둘 다에서** 부른다: 모바일 Chrome 은 `pointerdown`(터치)을 사용자 활성화로 치지 않고 `pointerup` 을 친다. 새로고침으로 방에 바로 들어와 첫 동작이 푸시투토크여도 뗌에서 오디오 컨텍스트가 깨어 답을 자동재생한다.
+
+**턴**: `useChatTurn` 확장(B, 채팅은 새 옵션을 넘기지 않아 동작 불변):
+- `send(text, opts?: { inputSource?: InputSource; utteranceId?: string; clientTimings?: ClientTimings })` → 본문 `{ text, inputSource: opts?.inputSource ?? 'TEXT', utteranceId?, clientTimings? }`. 임시 말풍선에 `inputSource`·`utteranceId` 를 싣는다(▶ 내 목소리가 곧바로 보이게).
+- `TurnDeps` 선택 콜백: `onAccepted(a)` · `onAudio(ev: TurnAudioEvent, assistantMessageId)` · `onWarning(warning, assistantMessageId)` · `onDone(dn)` · `onSettled(kind: 'done'|'error'|'detached'|'rejected')`.
+- SSE 파서: `event: audio` → `parseEventData<TurnAudioEvent>` → `accepted` 뒤에만 `onAudio`. `status.warning` → `onWarning`(CHAT 은 지금처럼 무시).
+- `done`: `dn.correction` 이 있으면 `{ id, status, original, corrected, explanation: explanationKo, errorType, severity, chunkType }` 로 바꿔 **사용자 메시지(`userMessageId`)의 `corrections`** 에 넣는다. `required` 는 쓰지 않는다(#29 로 다시 읽으면 없는 값 — 새로고침 전후 모양을 같게). CHAT 은 늘 null 이라 영향 없음.
+- `restoreText(text)`: 음성으로 보낸 턴이면 `UnsentBar`(text + utteranceId + 이유), 글자 모드면 지금처럼 입력창 복원.
+
+**보내기 대기(QUEUED)**: `final` 이 왔는데 `turn.phase ∈ {sending, streaming}` 이면 `queued = { text, utteranceId, sttMs }` 로 두고, `onSettled('done'|'error')` 에서 보낸다. `onSettled('detached')` 면 보내지 않고 `UnsentBar`("선생님 답을 확인한 뒤 다시 보내 주세요")로 옮긴다. 대기는 최대 1개(QUEUED 에선 버튼이 막힌다).
+
+**보내지 못한 말(`UnsentBar`)**: [다시 보내기] = 같은 `text`·`utteranceId`·`REALTIME_STT` 로 `send` · [글자로 고치기] = 글자 모드로 바꾸고 입력창을 그 문장으로 채움 + `pendingUtteranceId` 기억 → 보낼 때 `{ text: 고친 글, utteranceId, inputSource:'REALTIME_STT' }`(서버가 `finalSource=USER` 로 갱신 — K6) · [✕] = 버림(발화 wav 는 연결되지 않은 채 30일 뒤 정리). 글자 모드에서 입력창을 비우거나 다른 글을 보내면 `pendingUtteranceId` 를 버린다.
+
+#### D. 재생 큐 — `TtsPlaybackQueue`(`@/modules/speech/tts/client`, 클라 전용·DOM 비의존)
+
+```ts
+interface PlaybackDeps {
+  fetchAudio(url: string, signal: AbortSignal): Promise<ArrayBuffer>   // components 가 apiGetAudio(#24) 로 주입
+  play(buf: ArrayBuffer): Promise<TtsPlayback>                         // components/speech/ttsAudio.playWav
+  onSignal?(s: SynthesisSignal): void                                  // 받기 실패 등 → 표시등
+  now(): number; setTimer(fn: () => void, ms: number): unknown; clearTimer(h: unknown): void
+}
+type PlaybackSource = 'turn' | 'replay' | 'mine'
+interface PlaybackSnapshot { phase: 'idle' | 'waiting' | 'playing' | 'blocked'; source: PlaybackSource | null; messageId: string | null; chunkIndex: number | null }
+
+createTtsPlaybackQueue(deps) → {
+  startTurn(assistantMessageId): void          // 새 턴 — 앞 턴·다시 듣기 정지, 대기 청크 비움
+  push(messageId, c: { chunkIndex: number; url?: string; status: 'OK' | 'FAILED'; last: boolean; pauseBeforeMs?: number }): void
+  endTurn(messageId): void                      // done/error — 더 올 청크 없음(비어 있는 index 는 건너뜀)
+  abortTurn(messageId): void                    // AUDIO_TEXT_MISMATCH — 즉시 정지 + 남은 청크 재생 안 함
+  interrupt(reason: 'BARGE_IN' | 'USER_STOP' | 'HIDDEN' | 'NEW_TURN'): void   // 지금 소리 정지. 그 턴의 청크는 계속 받아 두되 자동재생하지 않음
+  playParts(source, messageId, parts: Array<() => Promise<ArrayBuffer>>): void  // 다시 듣기(버퍼·#23·#21b) — 앞 소리 정지
+  resumeBlocked(): void                         // 자동재생 차단 뒤 탭(탭 핸들러 안에서 unlockTtsAudio() 다음에)
+  buffersOf(messageId): ArrayBuffer[] | null    // 다시 듣기용 보관본 — 최근 20 메시지·총 8MB LRU
+  timingsOf(messageId): { firstAudioEventAt?: number; firstPlayAt?: number; autoplayed: boolean }
+  subscribe(fn): () => void; getSnapshot(): PlaybackSnapshot; dispose(): void
+}
+```
+- **재생 순서** = `chunkIndex` 0,1,2… 다음 index 가 아직 없으면 `waiting`. `FAILED` 청크·받기 실패 청크는 건너뛴다. `endTurn` 뒤엔 빈 index 도 건너뛰고 끝낸다.
+- **받기** = `push` 즉시(동시 2). 재생만 순서대로. 받은 wav 는 다시 듣기용으로 보관(디코드는 재생할 때 — `playWav` 가 한다).
+- **간격** = `pauseBeforeMs ?? 0`(§9-11 ③ — 없으면 NATIVE 기준 0).
+- `play()` 가 `NotAllowedError` → `blocked`(그 청크에서 멈춤) → `AutoplayBar`. 다음 푸시투토크 뗌에서도 컨텍스트가 깨므로 다음 턴부터는 자동재생된다.
+- 새 턴의 첫 소리가 오면 다시 듣기(`replay`·`mine`)를 멈추고 턴이 이긴다. 다시 듣기를 누르면 턴 자동재생을 멈춘다(`interrupt('NEW_TURN')` 과 같은 효과 — 그 턴 청크는 계속 받아 둠).
+- `visibilitychange: hidden`·언마운트 → `interrupt('HIDDEN')` + 받기 abort. 돌아와도 이어서 재생하지 않는다(16 §6.3 "화면 이탈 시 큐 비움").
+- 위치 이유: module-dependency L4 공개 API 의 클라 `TtsPlaybackQueue` 자리. 오디오 컨텍스트(`ttsAudio`)는 components 에 있으므로 **주입**받는다(하위 층이 상위 층을 import 하지 않게). 진입점 `@/modules/speech/tts/client/index.ts` 는 `createTtsPlaybackQueue` 와 순수 `splitSentences`(`../sentences`)만 내보내고, 서버 코드 유입은 경계 테스트로 막는다(stt/client 와 같은 방식).
+
+#### E. 다시 듣기
+
+| 버튼 | 소스(앞이 이긴다) | 비고 |
+|---|---|---|
+| 선생님 ▶ 다시 듣기 | ① `queue.buffersOf(id)` 가 청크 수만큼 있으면 그것 ② 없으면 `splitSentences(content, { maxChars: 100 })` 문장마다 #23 `POST /api/v1/speech/tts`(`Accept: audio/wav`, `{ text, chatMessageId: id, context: { sentenceIdx: i } }`) — 차례로, 다음 문장 1개 미리 받기 | 서명 URL(#24)은 10분 만료라 다시 쓰지 않는다. 새로고침 뒤 첫 회는 캐시 MISS 일 수 있다(§9-11 ⑥) |
+| 내 목소리 ▶ | #21b `GET /api/v1/speech/utterances/{utteranceId}/audio` | 404 = 30일 지남·없음 → 토스트 + 그 메시지 버튼 숨김(메모리 Set) |
+
+- 버튼 상태: `idle` "▶ 다시 듣기"/"▶ 내 목소리" → `loading` "불러오는 중…"(`aria-busy`) → `playing` "■ 멈춤"(다시 누르면 `interrupt('USER_STOP')`). 44px 히트, 13px `ink2` 글자.
+- RECORDING·RECOGNIZING 중엔 `aria-disabled` + 토스트 "말하는 중에는 들을 수 없어요". THINKING 중엔 들을 수 있다(새 턴 소리가 오면 그쪽이 이긴다).
+- 다시 듣기의 `#23` 결과는 미리듣기(§7-3 B)와 같은 규칙으로 표시등에 신호를 넣는다.
+- 탭 핸들러 안에서 `unlockTtsAudio()` 를 먼저 부른다(동기).
+
+#### F. 표시등 신호 (§7 스토어 재사용)
+
+| 사건 | 호출 |
+|---|---|
+| 방 마운트 | 머리의 `TtsRuntimeStatusIndicator` 가 구독(첫 조회·폴링 시작) |
+| 턴 시작(`accepted`) / 끝(`onSettled`) | `pause(true)` / `pause(false)` — **턴 진행 중에만** 폴링을 멈춘다(§7-3 A 마지막 줄을 좁힘, §9-11 ⑨) |
+| `audio.status==='OK'` | `reportSynthesis({ ok: true, cacheHit: ev.cached === true })` |
+| `audio.status==='FAILED'` · 청크 받기 실패(404·0) | `reportSynthesis({ ok: false, status: 502 })` (받기 실패는 status 그대로) |
+| `audio.runtime?.executionMode === 'TEXT_ONLY'` · 또는 TALK `done` 인데 이 턴 `audio` 0건 | 턴당 1회 `reportSynthesis({ ok: false, status: 422 })` → 스토어가 재확인 → 자막만(🔴) + 토스트 1회 |
+| `runtime.connectionKey` | **읽지도 저장하지도 않는다**(U5) |
+
+#### G. `clientTimings`(다음 턴 요청에 싣는다, K7)
+
+방이 턴마다 `{ assistantMessageId, origin: 'release' | 'send', originAt, finalAt? }` 를 기억하고, 큐의 `timingsOf(id)` 와 합쳐 **다음 `send` 에** 싣는다(`performance.now()` 차이, 정수 ms, 0~120,000 밖이면 뺀다, 글자 없음):
+
+| 필드 | 뜻 | 빼는 경우 |
+|---|---|---|
+| `sttMs` | **이번 턴** 손 뗌(30초 자동 멈춤이면 그 시각) → `final` | 글자로 보낸 턴 |
+| `prevMessageId` | 직전 턴 `assistantMessageId` | 방에서 첫 턴·새로고침 뒤 첫 턴 |
+| `firstAudioAtMs` | 직전 턴 기준점(손 뗌·글자면 보내기) → 첫 청크 **실제 재생 시작** | 자동재생 안 됨(차단·barge-in 이 먼저·자막만·폴링 복구) |
+| `playbackStartDelayMs` | 직전 턴 첫 `audio` 수신 → 첫 재생 시작 | 위와 같음 |
+| `releaseToFirstAudioEventMs` | 직전 턴 손 뗌 → 첫 `audio` 수신(완료 기준 7 의 클라 관측치) | 글자 턴·`audio` 0건 |
+
+- 계약(#32 예시)에는 앞 3필드만 있다. 추가 2필드와 `firstAudioAtMs` 기준점은 §9-11 ⑤ — 계약이 정해지면 이름만 맞춘다.
+
+#### H. 방 데이터
+
+- 첫 로드 병렬: #29 `?limit=50` · #37 `?chatId=` · #19(실패 → `config=null`, 버튼을 막지 않음). #29 가 서버 예열 트리거다(K2) — 화면은 따로 예열 요청을 만들지 않는다.
+- `chat.kind !== 'TALK'` → `router.replace('/study/ai/chat/' + id)`. 반대로 `ChatRoom` 은 `kind === 'TALK'` 면 `/study/ai/talk/{id}` 로 replace(목록 밖 링크·북마크 대비).
+- `running` → detached 폴링, 마지막 강사 답 FAILED → [다시 받기] 상태(§3-3 방 데이터와 같음, 자동 재시도 없음).
+- `location.hash` 가 `#cr_…` 면 첫 렌더 뒤 그 카드로 `scrollIntoView({ block: 'center' })` + `highlighted` 2초. 로드한 50개 안에 없으면 맨 아래.
+- 입력 모드 초기값: `sessionStorage kaiwa.talk.inputMode`(기본 voice). 단, 웹에서 #19 `gateway.enabled === false` 이거나 사전 점검이 막힘(INSECURE·UNSUPPORTED)이면 **글자 모드로 시작** + SttAlert(한 번).
+- 읽기 기본값·visible 복귀 동기화(`?after=`)는 §3 과 같다.
+- 떠날 때: 큐 `dispose` · STT 훅 정리(마이크·WS) · 턴 abort(서버는 끝까지 처리 — 돌아오면 폴링).
+
+### 9-4. API 호출 계획
+
+| # | 엔드포인트 | 메서드 | 화면 동작 | 파라미터 | 사용 필드 | 오류 처리 |
+|---|---|---|---|---|---|---|
+| 27 | `/api/v1/chats` | GET | 회화 목록·더 보기 | `kind=TALK&limit=20&cursor=` | `items[].{id,title,preview,lastMessageAt,messageCount,running}`, `nextCursor` | ErrorBlock + 다시 시도 |
+| 28 | `/api/v1/chats` | POST | 새 회화 시트 | `{kind:'TALK', title?}` | `id` | 400 입력 아래 / 그 외 시트 안 ErrorBlock |
+| 29 | `/api/v1/chats/:id` | GET | 방 로드·턴 폴링·visible 동기화·이전 메시지 | `limit=50` · `after=` · `cursor=` | `chat.{kind,title,running,messageCount}` · `messages[]`(`inputSource`, USER `utteranceId`·`corrections`, ASSISTANT `reading/translation/learning`) · `pendingProposals` · `nextCursor` | 404 → 찾을 수 없음 화면 |
+| 30·31 | `/api/v1/chats/:id` | PATCH·DELETE | 메뉴 | `{title}` / — | `title` / `deleted` | §3 과 같음 |
+| 32 | `/api/v1/chats/:id/turns` | POST(SSE) | 자동 전송·다시 보내기·글자 보내기·다시 받기 | `{text, inputSource:'REALTIME_STT', utteranceId, clientTimings?}` · `{text, inputSource:'TEXT', clientTimings?}` · `{resumePending:true}` | `accepted` · `status{stage,warning}` · `audio{chunkIndex,text,url,durationMs,last,status,runtime.executionMode}`(+ `cached`·`pauseBeforeMs` §9-11 ③) · `done{conversation,correction,learning,proposals,endOfTopic,audioCount}` · `error{code,retryable}` | 봉투 → UnsentBar(음성)/TurnNotice(글자) · SSE error → FailedBubble · 끊김 → 폴링 |
+| 34 | `/api/v1/corrections` | GET | 홈 교정 요약(두 탭) | `status=PROPOSED&limit=3` | `id,original,chat{id,title,kind}` | 조용히 숨김 |
+| 35·36 | `/api/v1/corrections/:id/accept`·`reject` | POST | 교정 카드 채택·무시 | §3-2 F | §3-2 F | §3-2 F |
+| 37·38·39 | `/api/v1/proposals` … | GET·POST | 단어 제안 카드 | `chatId=` | §3-2 G | §3-2 G |
+| 19 | `/api/v1/speech/config` | GET | 방 마운트 1회 | — | `gateway.enabled` · `tts.speechProfiles[].label` · `tts.sentenceMaxChars`. `connectionKey`·`model` 은 state 에 두지 않음 | 실패 → null |
+| 20 | `/api/v1/speech/ticket` | POST | 누를 때 열린 연결이 없으면(클라 내부) | `{purpose:'TURN', chatId}` | `ticket`… | §8-4 |
+| 142 | WS `/ws/speech` | — | 녹음(클라 내부) | `start{v:1,…,chatId}` | `partial{segIdx,text}` · `final{text,utteranceId,durationMs}` | §8-8 ⓐ |
+| 24 | `audio.url`(= `/api/v1/speech/tts/<서명 토큰>`) | GET | 큐의 청크 받기 | — | `audio/wav` | 404(만료·변조·타인 모두 같음)·0 → 그 청크 건너뜀 + 신호 · 401 → 로그인 |
+| 23 | `/api/v1/speech/tts` | POST, `Accept: audio/wav` | 선생님 ▶(보관본 없을 때) | `{text(문장 ≤100), chatMessageId, context:{sentenceIdx}}` | 본문 wav · `X-Tts-Cache` | §9-8 ⓔ + 신호 |
+| 21b | `/api/v1/speech/utterances/:id/audio` | GET | 내 목소리 ▶ | — | `audio/wav` | 404 → "녹음이 없어요" + 버튼 숨김 |
+| §7-1 | `/api/v1/speech/tts/status` | GET | 표시등(스토어) | — | §7-4 | §7-3 A |
+| 13·14 | `/api/v1/settings/voice` | GET·PUT | 메뉴 "들려주는 방식" | GET 값에서 `speechProfile` 만 바꿔 PUT | `speechProfile` | 400·422·0 → 되돌림 + 토스트 |
+
+- `common/api.ts` 에 **`apiGetAudio(path, { signal })`** 추가 → `ArrayBuffer`. 실패는 `apiPostAudio` 와 같은 규칙(401 로그인 이동·봉투 → `ApiError`·취소는 AbortError). 큐는 `audio.url` 이 **`/api/v1/speech/tts/` 로 시작할 때만** 받는다(그 밖 URL 은 버림 — 서버 응답을 그대로 fetch 대상으로 쓰지 않는다).
+- 타입(`src/types/chat.ts`): `TurnAudioEvent{chunkIndex,text,url?,durationMs?,last,status,runtime?:{executionMode},cached?,pauseBeforeMs?}` · `TurnCorrection`(done 의 교정) · `ClientTimings` · `ChatMessage.utteranceId?` 추가. `cacheKey`·`ttfaMs`·`timing`·`connectionKey` 는 타입에 두지 않는다(쓰지 않는 값을 받지 않는다).
+
+### 9-5. 컴포넌트 분해
+
+`src/components/talk/*`
+
+| 이름 | 종류 | props / 반환 | 상태 |
+|---|---|---|---|
+| `TalkRoom` | 컴포넌트 | `{ chatId: string; teacherName: string }` | `load, chat, messages, proposals, chunks: Record<msgId, AudioChunkView[]>, olderCursor, config, mode, queued, unsent, pendingUtteranceId, talkHint, gone: Set<msgId>, menuOpen, newOpen` + `useChatTurn` + `useRealtimeStt` + `useTalkPlayback` |
+| `TalkRoomHeader` | 컴포넌트 | `{ teacherName; title; onMenu(); onAnnounce(msg) }` | — |
+| `TalkTutorBubble` | 컴포넌트 | `{ message; chunks; mode: 'streaming'\|'done'; teacherName; showHeader; showTime; readingDefault; playing: {chunkIndex}\|null; replay: ReplayState; onReplay(); onStop() }` | — (읽기·번역 펼침은 `TutorBubble` 내부) |
+| `TalkUserActions` | 컴포넌트 | `{ message; replay: ReplayState; hidden: boolean; onPlay(); onStop() }` | — |
+| `LiveUtteranceBubble` | 컴포넌트 | `{ kind: 'listening'\|'recognizing'\|'queued'; partial: string; text?: string }` | — |
+| `TalkIntro` | 컴포넌트 | `{ teacherName }` | — |
+| `VoiceBar` | 컴포넌트 | `{ view: TalkView; sttPhase; db; onPress; onRelease; onAbort; onKeyboard(); onStop() }` | — |
+| `SttAlert` · `UnsentBar` · `AutoplayBar` · `TopicEndNudge` | 컴포넌트 | 각 §9-2 G | UnsentBar: 429 카운트다운(`useCountdown`) |
+| `ReplayButton` | 컴포넌트 | `{ state: 'idle'\|'loading'\|'playing'; idleLabel; ariaLabel; disabled?; onClick() }` | — |
+| `SpeakingBars` | 표시 | 막대 3개(`aria-hidden`, `motion-safe` 애니메이션) | — |
+| `useTalkPlayback` | 훅 | `(deps: { onSignal }) → { snapshot, queue, replayTutor(msg), replayMine(msg), stop() }` — 큐 싱글턴(방 단위)·`apiGetAudio`/`playWav` 주입·visibility 처리 | 큐 인스턴스 |
+| `talkState.ts` | 순수 | `deriveTalkState(input) → TalkView{ state, ptt:{disabled,label}, statusText, showStop, keyboardDisabled }` | 상태표(§9-3 A) |
+| `revealChunks.ts` | 순수 | `visiblePrefix(chunks)` · `sentenceSpans(content, chunks) → string[] \| null` | — |
+| `timings.ts` | 순수 | `buildClientTimings(prev, current, queueTimings)` | — |
+| `talkCopy.ts` | 문구 | §9-8 전부(상태 줄·힌트·띠·버튼·토스트·낭독) | — |
+
+클라 모듈 `src/modules/speech/tts/client/*`
+
+| 이름 | 종류 | 내용 |
+|---|---|---|
+| `index.ts` | 진입점 | `createTtsPlaybackQueue`, 타입, `splitSentences`(re-export) — 서버 import 0 |
+| `playbackQueue.ts` | 로직 | §9-3 D |
+
+기존 것 확장(모두 **추가 prop·기본값 = 지금 동작**)
+
+| 파일 | 바꿈 |
+|---|---|
+| `chat/MessageList.tsx` | 슬롯 `renderUser`·`renderTutor`·`renderPending`·`intro`·`tail`·`liveOff` |
+| `chat/MessageBubble.tsx` | `TutorRow` export · `TutorBubble` 에 `body?`·`actions?`·`headerExtra?` · `UserBubble` 에 `actions?`·`correctionChip?`(기본 true) |
+| `chat/CorrectionCard.tsx` | `showCounter?`(기본 true) — 목록 밖에서 쓸 때를 위해 `<li>` 는 그대로 두고 회화는 `<ul>` 로 감싼다 |
+| `chat/useChatTurn.ts` | `send(text, opts?)` · `onAccepted/onAudio/onWarning/onDone/onSettled` · done 교정 붙이기 |
+| `chat/Composer.tsx` | `leading?` 슬롯 |
+| `chat/ChatMenuSheet.tsx` | `chat.kind` 로 문구·삭제 뒤 경로 · `extra?` 슬롯(들려주는 방식) |
+| `chat/NewChatSheet.tsx` | `kind?: 'CHAT'\|'TALK'`(기본 CHAT) |
+| `chat/ChatList.tsx` | kind 별 섹션 제목·빈 상태·행 링크 |
+| `chat/PendingCorrectionsCard.tsx` | TALK 행 포함 + 링크·보조 줄 분기 |
+| `chat/StudyAiHome.tsx` | 회화 탭 = 새 회화 버튼·교정 요약·회화 목록 |
+| `chat/ChatRoom.tsx` | `kind==='TALK'` → talk 경로로 replace |
+| `speech/useRealtimeStt.ts` · `speech/sttUiState.ts` | `onFinal` 옵션 · FINAL 사건에 `utteranceId`·`durationMs`(리듀서는 무시, 훅이 전달) |
+
+### 9-6. 생성/수정 파일 목록 (developer B)
+
+신규
+- `src/app/(app)/study/ai/talk/[chatId]/page.tsx` — 서버: `params`(Promise) → `auth()`(없으면 `/login?callbackUrl=…`) + `getProfile(userId).teacherName?.trim() || '선생님'` → `<TalkRoom chatId teacherName />`
+- `src/components/talk/{TalkRoom, TalkRoomHeader, TalkTutorBubble, TalkUserActions, LiveUtteranceBubble, TalkIntro, VoiceBar, SttAlert, UnsentBar, AutoplayBar, TopicEndNudge, ReplayButton, SpeakingBars}.tsx`
+- `src/components/talk/{useTalkPlayback, talkState, revealChunks, timings, talkCopy}.ts`
+- `src/components/talk/__tests__/{talkState, revealChunks, timings}.test.ts` — 상태표 전 행 · 드러내기(순서 뒤바뀜·FAILED·빈틈) · 문장 분할 일치/불일치 · clientTimings 빼는 경우
+- `src/modules/speech/tts/client/{index, playbackQueue}.ts` + `src/modules/speech/__tests__/{ttsPlaybackQueue, ttsClientBoundary}.test.ts` — 순서 재생·HIT 먼저 도착·FAILED 건너뜀·endTurn 뒤 빈틈·abortTurn·interrupt 뒤 자동재생 안 함·blocked→resume·새 턴이 다시 듣기를 이김·LRU / 진입점이 서버 모듈을 끌어오지 않음
+
+수정
+- `src/app/(app)/study/ai/page.tsx` — 기본 탭 `talk`(`tab==='chat' ? 'chat' : 'talk'`), 주석 갱신
+- `src/components/shell/TabBar.tsx` — `HIDDEN_PREFIXES` 에 `'/study/ai/talk/'`
+- `src/components/common/api.ts` — `apiGetAudio()`(기존 함수 시그니처 불변)
+- `src/types/chat.ts` — §9-4 타입
+- §9-5 "기존 것 확장" 표의 chat·speech 파일들
+- 삭제: `src/components/chat/TalkComingSoon.tsx`
+
+### 9-7. 구현 순서
+
+1. 순수: `types/chat.ts` 추가 → `talkState`·`revealChunks`·`timings` + 테스트 → `modules/speech/tts/client` 큐 + 테스트(가짜 `fetchAudio`·`play`).
+2. 채팅 확장(동작 불변): `useChatTurn`(send opts·audio·warning·교정 붙이기)·`MessageList`/`MessageBubble` 슬롯·`CorrectionCard showCounter`·`Composer leading`·`ChatMenuSheet`·`NewChatSheet`·`ChatList`·`PendingCorrectionsCard`·`ChatRoom` kind 검사·`api.ts apiGetAudio`·`TabBar`. **채팅 회귀**: 기존 단위 테스트 전부 + 채팅방 보내기·점검 스모크.
+3. `useRealtimeStt` `onFinal`(utteranceId) — 마이크 테스트 회귀 확인.
+4. 홈: `StudyAiHome` 회화 탭·기본 탭 talk·`TalkComingSoon` 삭제.
+5. 방 골격: `page.tsx`·`TalkRoom` 로드(#29·#37·#19)·`TalkRoomHeader`(표시등)·목록 슬롯·`TalkIntro`·`VoiceBar`/`TextBar` 전환·모드 기억.
+6. 턴: final → 자동 전송 · ≤1자 · QUEUED · `UnsentBar` · `clientTimings`.
+7. 재생: `useTalkPlayback`(#24 받기)·점진 표시·강조·`AutoplayBar`·barge-in·■·표시등 신호·hidden 처리.
+8. 교정·제안 즉시 표시·채택 시트·hash 스크롤·`TopicEndNudge`.
+9. 다시 듣기 2종(#23·#21b)·메뉴 "들려주는 방식".
+10. 오류·빈 상태 전부 → §9-9 자체 점검 → Playwright(Chromium `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>` + 마이크 권한): PTT `mouse.down` 3초 `up` → 사용자 말풍선 → `data-talk-state` THINKING→SPEAKING → 문장 순서 드러남 → 교정 카드 → 재생 중 다시 `mouse.down` 하면 SPEAKING→RECORDING(barge-in) · 권한 미부여 컨텍스트 → MIC_DENIED 문구 · gateway 중지 → 서버 문구 · TTS 불가 모의 → 텍스트 + "자막만" · 360/390/412 스크린샷(완료 기준 9) → reviewer.
+
+### 9-8. 한국어 UI 문구 (`talkCopy.ts` — §3-8·§7-8·§8-8 에 있는 것은 그 표를 쓴다)
+
+ⓐ **상태 줄**(`#talk-status`, 13px ink2)
+
+| 상태 | 문구 |
+|---|---|
+| IDLE | 누르고 있는 동안 말해요 |
+| IDLE·rateLimited | {n}초 뒤에 말할 수 있어요 |
+| IDLE·unavailable | 지금은 말로 할 수 없어요 · 글자로 대화해 보세요 |
+| RECORDING | 듣고 있어요 · {m}:{ss} — 손을 떼면 보내요 |
+| RECORDING(권한 대기) | 마이크 사용을 허용해 주세요 |
+| RECORDING(연결 느림) | 연결하는 중… 계속 말해도 돼요 |
+| RECOGNIZING | 알아듣는 중… |
+| QUEUED | 선생님 답이 끝나면 바로 보낼게요 |
+| THINKING | 선생님이 생각하고 있어요 |
+| THINKING(detached) | 연결을 다시 확인하고 있어요 |
+| SPEAKING(턴) | 선생님이 말하는 중 · 누르면 멈추고 말해요 |
+| SPEAKING(다시 듣기) | 다시 듣는 중 · 누르면 멈추고 말해요 |
+| SPEAKING(내 목소리) | 내 목소리를 듣는 중 · 누르면 멈추고 말해요 |
+
+ⓑ **힌트**(상태 줄 자리, 다음 누름에 지움) — §8-8 ⓒ 를 쓰되 회화용 두 줄을 더한다
+
+| 자리 | 문구 |
+|---|---|
+| 짧게 누름 · 권한 허용 직후 · 빈 결과 · 녹음 끊김 · 소리 작음 | §8-8 ⓒ 그대로 |
+| 30초 도달(회화) | 30초가 지나 자동으로 멈추고 보냈어요. |
+| 1자 이하(회화) | 너무 짧아서 보내지 않았어요. 한 번 더 말해 보세요. |
+
+ⓒ **띠**
+
+| 띠 | 상황 | 문구 | 버튼 |
+|---|---|---|---|
+| SttAlert | STT 오류 | §8-8 ⓐ 1줄·2줄(MIC_DENIED 는 웹/앱 두 벌) | 글자로 대화하기 · ✕ |
+| UnsentBar | 409 | 선생님이 아직 답하는 중이라 보내지 못했어요. | 다시 보내기 · 글자로 고치기 · ✕ |
+| UnsentBar | 429 | 너무 빨리 말했어요. {n}초 뒤에 다시 보낼 수 있어요. | 다시 보내기({n}초) · 글자로 고치기 · ✕ |
+| UnsentBar | 네트워크(0) | 보내지 못했어요. 네트워크를 확인해 주세요. | 같음 |
+| UnsentBar | 422 | 지금은 선생님이 답할 수 없어요. 잠시 후 다시 보내 주세요. | 같음 |
+| UnsentBar | 400 | 서버 문구 그대로(400 만) | 글자로 고치기 · ✕ |
+| UnsentBar | 앞 턴 연결 끊김(QUEUED 중 detached) | 선생님 답을 확인한 뒤 다시 보내 주세요. | 다시 보내기 · 글자로 고치기 · ✕ |
+| AutoplayBar | 자동재생 차단 | ▶ 눌러서 선생님 말 듣기 / 브라우저가 소리를 막았어요 | (띠 전체) |
+| TopicEndNudge | endOfTopic | 이 이야기는 여기까지 한 것 같아요. 새 회화로 넘어갈까요? | 새 회화 · ✕ |
+| TurnNotice(글자 모드) | 봉투 오류 | §3-8 ⓐ | — |
+
+ⓓ **턴 실패·진행**(말풍선) — §3-8 ⓑⓒ 그대로. 회화에서만 쓰는 줄: `AUDIO_TEXT_MISMATCH` 뒤 PendingBubble "답을 정리하고 있어요"(ⓑ PARSE 문구 재사용 — 따로 알리지 않는다).
+
+ⓔ **다시 듣기·메뉴 토스트**(HTTP status 로 분기)
+
+| 상황 | 문구 |
+|---|---|
+| #23 422 | 지금은 선생님 목소리를 들을 수 없어요(자막만). |
+| #23 429 | 다시 듣기를 너무 자주 눌렀어요. {n}초 뒤에 다시 눌러 주세요. |
+| #23 502 | 목소리를 만들다가 문제가 생겼어요. 다시 눌러 주세요. |
+| #23 504 | 목소리 서버 응답이 늦어요. 잠시 후 다시 눌러 주세요. |
+| 0 | 연결하지 못했어요. 네트워크를 확인해 주세요. |
+| 재생 실패(디코드) | 소리를 재생하지 못했어요. 다시 눌러 주세요. |
+| #21b 404 | 녹음이 없어요. 내 목소리는 30일 동안만 보관해요. |
+| 녹음 중 다시 듣기 | 말하는 중에는 들을 수 없어요 |
+| 녹음 중 모드 전환 | 말하는 중에는 바꿀 수 없어요 |
+| 들려주는 방식 저장 | 다음 대답부터 {라벨}로 들려드려요 / 저장하지 못했어요. 다시 골라 주세요. |
+
+ⓕ **홈·방·버튼·aria**
+
+| 자리 | 문구 |
+|---|---|
+| 홈 | ＋ 새 회화 / 섹션 제목 "회화" / 이전 회화 더 보기 |
+| 빈 목록 | 아직 회화가 없어요 / 버튼을 누른 채로 일본어로 말하면 선생님이 대답해요. 틀린 표현은 그 자리에서 고쳐 줘요. / 첫 회화 시작하기 |
+| 교정 요약 행(TALK) | {제목} · 회화에서 보기 › |
+| 새 회화 시트 | 새 회화 / 제목 (선택) / 비워 두면 자동으로 정해져요 / 시작하기 / 만드는 중… |
+| 머리(aria) | 회화 목록으로 · 회화 메뉴 · (sr-only) , 회화: {제목} |
+| 빈 방 | {teacherName}에게 일본어로 말을 걸어 보세요. / 아래 버튼을 누른 채로 말하고, 다 말하면 손을 떼세요. 바로 보내져요. / 틀린 표현은 선생님이 그 자리에서 고쳐 줘요. / 이렇게 시작해 보세요: |
+| 부분 인식 | 듣고 있어요… / 선생님 말이 끝나면 바로 보낼게요 |
+| 푸시투토크 aria-label | 누르고 있는 동안 말하기 / 누르면 선생님 말을 멈추고 말하기 |
+| 입력 바 버튼 aria-label | 글자로 입력하기 · 말로 입력하기 · 선생님 말 멈추기 |
+| 글자 모드 입력창 | 일본어로 써 보세요 — 보내면 선생님이 말로 대답해요 |
+| 말풍선 버튼 | ▶ 다시 듣기 / ▶ 내 목소리 / ■ 멈춤 / 불러오는 중… · (aria) 선생님 말 다시 듣기 · 내 목소리 다시 듣기 · 멈추기 |
+| 이름 줄 | {teacherName} · 말하는 중 |
+| 메뉴 | 회화 메뉴 / 제목 바꾸기 / 읽기 항상 펼치기 / 들려주는 방식(자연 속도 · 학습 속도 · 천천히) / 회화 삭제 |
+| 삭제 확인 | 이 회화를 삭제할까요? / 메시지와 교정·제안이 함께 지워져요. 이미 남긴 공부 기록은 그대로 남아요. / 삭제 / 취소 |
+| 찾을 수 없음 | 이 회화를 찾을 수 없어요. 삭제되었을 수 있어요. [회화 목록으로] |
+| 불러오기 실패 | 회화를 불러오지 못했어요. [다시 시도] |
+
+ⓖ **낭독(스크린리더)** — 말풍선 앞 `sr-only` "나:" / "{teacherName}:"(§3 그대로). 생성 중 말풍선은 `aria-busy` 라 `done` 뒤 한 번만 읽힌다. 부분 인식 말풍선은 읽지 않는다.
+
+### 9-9. 360/390/412 · 접근성 체크리스트
+
+폭·배치
+- [ ] 세 폭에서 가로 스크롤 0(`scrollWidth === innerWidth`). 공백 없는 긴 일본어·이모지를 사용자·선생님 말풍선·UnsentBar·교정 카드에 넣고 확인.
+- [ ] 스크롤 영역은 `MessageList` 하나(`main`·입력 바·띠 스크롤 없음). 시트 내부만 예외.
+- [ ] 머리 360: ← 44 + 아바타 40 + 이름·표시등 열(`min-w-0`, 이름 말줄임, "상태 확인 중 ›" 한 줄) + ⋯ 44 겹침 없음. 표시등 히트가 목록 첫 버튼과 겹치지 않음(56px).
+- [ ] 입력 바 360: ⌨ 44 · PTT 72 · ■ 44 가 한 줄, PTT 는 가운데 고정(■ 가 나타나도 움직이지 않음 — 빈 자리 유지). 상태 줄 가장 긴 문구("다시 듣는 중 · 누르면 멈추고 말해요")가 레벨 미터와 함께 한 줄 또는 `break-keep` 두 줄 안에서 입력 바 높이를 바꾸지 않음(h-6 넘치면 문구 줄임 — qa 확인).
+- [ ] 교정 카드: 360 위아래 / 390·412 나란히. 선생님 말풍선 아래 줄 버튼들(▶·읽기·번역·문법 칩·시각)은 줄바꿈으로 넘침 0.
+- [ ] 100dvh·safe-area: 입력 바 `padding-bottom: max(8px, env(safe-area-inset-bottom))`, 글자 모드 키보드 = §3-9 키보드 항목 그대로(`resizes-content` + `--kb-inset`).
+- [ ] 일본어 요소 전부 `lang="ja"`(말풍선·부분 인식·UnsentBar 문장·예문), 일본어 블록에 `break-keep` 없음.
+
+터치·글자
+- [ ] 푸시투토크 72×72, 그 밖 모든 대상 ≥44px(⌨·■·🎤·▶ 다시 듣기·▶ 내 목소리·띠 버튼·표시등).
+- [ ] 일본어 본문 17px, 부분 인식 `ink2`(5.4:1), 캡션 ≥12px, 읽어야 하는 글에 `ink3`·`warn`·`accent` 뱃지 글자 없음(§1-1). 재생 강조 `ink`/`accent-soft`.
+- [ ] 누른 채 손가락이 버튼 밖으로 나가도 녹음 유지, 떼면 끝. 녹음 중 목록이 스크롤되지 않음(`touch-none`), 길게 눌러도 선택·메뉴 없음(§8-9 그대로).
+
+음성·재생
+- [ ] 손 떼고 `final` → #32 요청까지 화면 지연 0(디바운스·확인 없음). ≤1자 → 요청 0 + 힌트.
+- [ ] 문장이 `chunkIndex` 순서로만 드러나고 재생된다(캐시 HIT 가 먼저 와도). 재생 중 문장 강조가 소리와 맞는다.
+- [ ] barge-in: 재생 중 누르면 **100ms 안에 소리 정지** + 녹음 시작, 그 턴 남은 청크는 자동재생되지 않음(▶ 로는 들을 수 있음).
+- [ ] 새로고침 직후 첫 동작이 푸시투토크여도 답이 자동재생된다(뗌에서 unlock). 막히면 AutoplayBar 한 번, 탭하면 그 청크부터 재생.
+- [ ] TTS 불가 모의: 턴은 텍스트로 끝나고 표시등이 "자막만"(토스트 1회). 복구 뒤 다음 턴 소리가 나면 "온라인"(토스트 1회).
+- [ ] 화면을 가리면(탭 전환) 소리 멈춤, 돌아와도 이어서 재생하지 않음.
+
+접근성
+- [ ] 녹음 중 목록 `aria-live="off"`, 부분 인식 `aria-hidden`, 생성 중 말풍선 `aria-busy` → `done` 뒤 한 번 낭독. 녹음 중엔 토스트가 뜨지 않음(끝난 뒤 뜸).
+- [ ] PTT: `aria-pressed`·`aria-busy`·`aria-describedby="talk-status"`, 상태별 `aria-label`(말하는 중엔 "누르면 선생님 말을 멈추고 말하기"). Space/Enter 누르고 있는 동안 녹음.
+- [ ] 띠: SttAlert·UnsentBar `role="alert"`, AutoplayBar `role="status"`, 표시등 `role="status"`(§7).
+- [ ] 비활성은 `aria-disabled`/`disabled` + 보이는 이유(상태 줄·토스트). 흑백에서도 상태 구분(PTT 확대·링·스피너·상태 줄 글자, 재생 강조 = 배경 + "말하는 중" 글자 + ■ 버튼).
+- [ ] `prefers-reduced-motion`: 링 펄스·확대·말하는 중 막대·점 애니메이션 정지.
+
+엔진명·비밀 비노출
+- [ ] 방·홈 `document.body.innerText`·모든 `aria-label`·토스트에 `claude|haiku|sonnet|opus|qwen|reazon|sherpa|whisper|style-bert|gateway|엔진|모델|trace` 0건.
+- [ ] DOM 속성·`console` 에 `audio.url`(서명 토큰)·`cacheKey`·`connectionKey`·`traceId` 0건(`<audio src>` 를 쓰지 않는다 — fetch 후 버퍼 재생).
+
+### 9-10. 주의사항
+
+- **빈 상태**: 회화 목록 0 · 방 메시지 0(`TalkIntro`) · 교정 없음(카드 없음, 칭찬 문구 없음 — 대화 흐름을 끊지 않는다) · 교정 요약 0(카드 숨김).
+- **로딩**: 방 첫 로드 `LoadingBlock`(머리는 ←만). 다시 듣기 "불러오는 중…". 메뉴 저장 중 radio `aria-disabled`.
+- **권한 거부**: 방 진입만으로 권한을 묻지 않는다(§8-0 ③). 거부 상태면 SttAlert(웹/앱 두 벌 조치) + [글자로 대화하기] — 대화는 막히지 않는다.
+- **오프라인**: STT `OFFLINE` → PTT unavailable + SttAlert. 턴 보내기 전 실패는 UnsentBar(말은 남는다). `accepted` 뒤 끊김은 오류가 아니다(폴링).
+- **원문 무수정**: 사용자 말풍선은 인식 텍스트 그대로(trim 은 **≤1자 판정에만** 쓰고 보낼 때는 서버 규칙대로 원문을 보낸다 — 교정 원문 바이트 일치 검사 대상이다). 교정 카드는 §3 규칙 그대로.
+- **AI 는 제안만**: 교정·제안은 채택 전 "저장됨" 을 보이지 않는다(낙관적 갱신 금지).
+- **발화 보존**: 내 목소리는 서버 30일 보관(#21b). 화면은 wav 를 메모리에만 두고(큐 LRU 8MB) 저장소·로그에 남기지 않는다. 인식 텍스트·partial 도 `console`·`localStorage` 금지(초안 `sessionStorage` 는 글자 모드 입력창만).
+- **자동재생**: 소리는 `useEffect`·타이머에서 처음 시작하지 않는다 — 컨텍스트는 PTT 누름·뗌·▶·AutoplayBar 탭 핸들러 안에서만 깨우고, 깨어 있는 컨텍스트로 SSE 청크를 재생한다.
+- **중복 전송**: final 1개 = 턴 1개. 훅이 `busy` 면 `send` 를 부르지 않고 QUEUED 로(지금 `send` 는 busy 면 조용히 무시한다 — 말이 사라지는 사고). 서버 409 가 최종 보증.
+- **메모리**: 방을 떠나면 큐 버퍼 해제. 한 방에서 오래 대화해도 LRU 20 메시지·8MB.
+- **범위 밖(다음 task 후보)**: 문장 하나만 눌러 듣기 · "천천히 다시 듣기" 버튼(말풍선별 `speechProfile:'LEARNING_SLOW'` #23) · 핸즈프리(`endpoint:'auto'`) · 발음 분석 표시(Phase 3).
+
+### 9-11. Leader 확인 요청
+
+| # | 항목 | 화면이 가정한 것 | 틀리면 |
+|---|---|---|---|
+| ① | **barge-in vs "재생 중 버튼 막기"** | K8(재생 중 누르면 즉시 멈추고 녹음)을 따르고, §8-2 C 메모와 designer 원칙 "TTS 재생 중 마이크 버튼 비활성 시각화"를 **"재생 중엔 누르면 멈춘다는 표시(라벨·상태 줄·■)"** 로 바꿔 읽는다. 에코는 `stopAllTts` 뒤 녹음 시작 + `getUserMedia` 기본 에코 제거로 막는다 | 재생 중 PTT `disabled` + ■ 로만 멈춤(완료 기준 9 의 barge-in 문구도 수정 필요) |
+| ② | **`final.utteranceId: null`**(gateway 콜백 실패 — README §4 "텍스트 턴으로 이어간다") | `{ text, inputSource:'TEXT' }` 로 보낸다(REALTIME_STT 인데 id 없음 = 400 이므로). 그 말엔 ▶ 내 목소리가 없다 | `SERVER_STT` 등 다른 값을 쓰거나, REALTIME_STT+id 없음을 허용 |
+| ③ | **SSE `audio` 추가 필드** | `cached: boolean`(캐시 HIT 는 표시등을 바꾸지 않는 16 §12.2 규칙용) · `pauseBeforeMs: number`(Speech Profile gap + Rendering Plan — 클라가 프로필 정책을 중복해 알지 않게). 없으면 `cached=false`·간격 0 | HIT 재생도 "새 합성 성공" 으로 세어 자막만→온라인 복귀가 조금 빨라질 수 있음 · 학습 속도 프로필의 문장 사이 쉼이 사라짐 |
+| ④ | **자막만 턴의 신호** | 서버가 TTS 를 시도하지 않은 턴에 `status{stage:'TTS', warning:'TTS_UNAVAILABLE'}`(또는 `done.tts.executionMode`)를 싣기 권장. 없으면 "TALK 인데 `audio` 0건 + `audioCount=0`" 으로 추정해 422 신호(재확인) | 문장이 0개인 답(거의 없음)도 재확인 1회를 부른다 — 무해 |
+| ⑤ | **`clientTimings` 필드** | 계약 3필드(`prevMessageId·playbackStartDelayMs·firstAudioAtMs`) + **`sttMs`**(이번 턴 손 뗌→final, K7 STT step) + **`releaseToFirstAudioEventMs`**(완료 기준 7 의 클라 관측치). `firstAudioAtMs` 기준점 = 손 뗌(글자 턴은 보내기) | developer A 가 계약에 이름·정의를 고정하면 `timings.ts` 만 맞춘다 |
+| ⑥ | **#29 추가 필드** | USER 메시지 `utteranceId`(계약 예시엔 있으나 현 직렬화 `MESSAGE_SELECT` 에 없음) + `audioExpired`(또는 `audioExpiresAt`) · ASSISTANT `speechStyle`(toolLog meta.style — #23 다시 듣기 캐시 HIT 용) | 새로고침 뒤 ▶ 내 목소리 숨김 · 다시 듣기 첫 회 MISS(문장당 ≈0.7s) |
+| ⑦ | **AUDIO_TEXT_MISMATCH 처리 강도** | "남은 청크 버림" 에 더해 **재생 중 청크도 즉시 끊고** 드러낸 문장을 거둔 뒤 `done` 의 최종 텍스트만 보인다(들리는 것 = 보이는 것) | 재생 중 문장은 끝까지 들려주고 다음부터 버림 |
+| ⑧ | **보내지 못한 말 다시 보내기** | 같은 `utteranceId` 로 재전송 허용(아직 메시지에 연결 전). [글자로 고치기] = 같은 id + 고친 text + `REALTIME_STT` → 서버 `finalSource=USER`(K6) | 재전송은 id 없이 TEXT 로(▶ 내 목소리·발화 연결을 잃음) |
+| ⑨ | **표시등 폴링 멈춤 범위** | §7-3 A "회화방이 `pause(true)`" 를 **턴 진행 중에만**으로 좁힌다 — 방에 머무는 동안 자막만→복구를 폴링(30초)으로도 잡도록 | 방 전체 pause 면 복구는 다음 턴 소리로만 알 수 있다 |
+| ⑩ | **방에서 "들려주는 방식" 변경** | #14 에 부분 PUT 이 없어 #13 GET → `speechProfile` 만 바꿔 전체 PUT. 설정 화면과 같은 값을 바꾼다(designer 원칙 "Speech Profile 토글") | 메뉴엔 "목소리·속도 설정 ›"(→ `/settings`) 링크만 |
+| ⑪ | **#24 서명 URL 사용 범위** | 큐는 `audio.url` 이 `/api/v1/speech/tts/` 로 시작할 때만 받고, 다시 듣기는 보관본·#23 으로만(10분 만료 URL 재사용 안 함). URL·토큰을 DOM·로그에 남기지 않는다 | — |
+| ⑫ | **발견 이슈**(이번 task 에서 B 가 고침) | `useRealtimeStt` 가 `final.utteranceId` 를 버린다 · `useChatTurn.send` 가 `busy` 면 조용히 무시한다(음성 자동 전송에선 말이 사라짐 → QUEUED 로 해결) · `PendingCorrectionsCard` 가 CHAT 만 거른다 · `CorrectionCard` 가 늘 "n/m" 카운터를 그린다 | — |
