@@ -1,7 +1,7 @@
 ---
 task_id: task-005b
 title: "Admin Console 골격 (읽기 + Health·Functional Test)"
-status: in-progress
+status: done-deploy-pending
 base_ref: 36ebc7e
 risk_level: R2
 roles_involved: [leader, judge, designer, developer, reviewer, qa, codex]
@@ -180,6 +180,19 @@ design-spec §15 task-005b: Admin/Developer AI Engine Console 의 Phase 1 골격
   5. **Low 1 처리 확인**: `functionalTest/index.ts` `claimSlot` 레이스는 이번 diff 에 손대지 않음(파일 미변경) — Leader 결정대로 Phase 2 backlog 이월, 이번 재검증 범위에서 결함으로 재판정하지 않음.
 - 종합: Critical 0·High 0·Medium 0·Low 1(backlog 이월, 결함 아님) → **PASS**. QA 인계. → [[task-005b-admin-console-skeleton]]
 
+### QA-013 수정 재검증(커밋 647c380, 범위 `git diff a17bc53..647c380 -- src`)
+
+- **판정: PASS** — QA-013 Medium(콘솔 터치 대상 44px 미만 6곳) 전부 해소, 회귀 없음.
+- **① 44px 근거**: 11개 파일, `components/common/**` 무변경(diff --stat 로 확인) 전제로 admin 전용 래퍼/클래스만 수정.
+  - `Btn size="sm"` 3곳(ConnectionsScreen "모두 상태 확인"·"시크릿 참조", DashboardScreen "주 연결 상태 확인")에 `className="min-h-11"` 추가 — 공용 `Btn` 의 `sm` 은 `h-[38px]`(고정 height) 인데, CSS 는 `height`·`min-height` 가 함께 있으면 `min-height` 가 계산값의 하한이 되어 38<44 인 경우 실제 렌더 높이가 44px 로 결정된다(클래스 문자열 순서 무관, CSS2.1 §10.7 표준 동작 — 클래스명 충돌이 아니라 서로 다른 속성이라 임의 병합 우려 없음).
+  - `ChipRadio`(칩)·`ToggleButton` — 기존 `h-9`/`h-8` + `::before` 44px 히트영역 확장 방식을 버리고 **요소 자체를 `h-11`** 로(칩은 `min-w-[44px]` 도 이미 있어 44×44 충족). `::before` 히트영역은 실제 클릭은 되지만 `getBoundingClientRect`/자동화 감사 도구가 측정하는 "요소 박스"에는 반영되지 않는다는 지적이 타당 — QA 가 실제로 이 방식으로 측정했다면 재발했을 문제를 근본적으로 제거.
+  - `ConsoleSegmented`(신규, 4곳: HealthHistoryList·DiagnosticsScreen 기간/결과/탭) — 공용 `Segmented` 를 감싸고 `[&_button]:min-h-11` 로 **admin 트리 내부의 버튼에만** `min-height:44px` 부여. 공용 `Segmented` 자체 코드는 무변경이라 학습 화면(task-008, 끼니·활동량 등 h-8/h-9 유지)에는 영향이 없다 — 셀렉터가 `ConsoleSegmented` 래퍼 하위로 scope 됨을 코드로 확인.
+  - `ConsoleError`(신규) — 공용 `ErrorBlock` 과 `role="alert"`·메시지 구조·`<button type="button" onClick={onRetry}>다시 시도</button>` 시맨틱을 그대로 복제하고 재시도 버튼만 `h-11`(+음수 마진으로 시각적 크기 보정). `ErrorBlock` 자체는 무변경.
+- **② 공용 컴포넌트 불변·학습자 화면 영향 0**: `git diff --stat a17bc53..647c380 -- src/components/common src/app src/modules` 전부 빈 결과 — `Segmented.tsx`·`ui.tsx`(`Btn`·`ErrorBlock`) 원본 그대로. 변경 파일 11개 전부 `src/components/admin/**` 안(단어장·채팅·오늘의 단어 등 학습자 컴포넌트 경로 0건).
+- **③ 접근성·동작 불변**: `ConsoleSegmented` 는 `Segmented` 의 `role="radiogroup"`/`role="radio"`/`aria-checked`/props(options·value·onChange·ariaLabel·size)를 그대로 전달하는 순수 래퍼 div 1개만 추가(레이아웃 영향 없음, 호출부 기존 wrapping div 구조와 호환 확인). `ChipRadio`/`ToggleButton` 은 className 문자열만 변경, `aria-pressed`·`onClick`·`role="radio"` 등 기존 마크업 그대로. `ConsoleError` 도 위와 같이 `ErrorBlock` 과 동일 시맨틱. 키보드 포커스·이벤트 핸들러 변경 없음.
+- **④ 회귀**: `npm run typecheck`(exit 0)·`npm run lint`(exit 0, 기존과 동일한 warning 5건뿐)·`npm test`(207/207 PASS, 테스트 파일 변경 없음 — 이 수정은 CSS/JSX 전용) 전부 재실행 확인. 전 admin 컴포넌트에서 44px 미만 고정 height 유틸(`h-6~h-10`) 잔존 여부도 grep 으로 재확인 → 0건(6곳 국한이 아니라 같은 패턴 전체가 해소됨).
+- 종합: Critical 0·High 0·Medium 0·Low 0(신규) → **PASS**. QA 재실행 권장. → [[task-005b-admin-console-skeleton]]
+
 ## QA 기록
 
 ### QA-013 (2026-09-27, 감사 QA-013, 커밋 a17bc53 기준, 미러 dev :3011)
@@ -236,5 +249,59 @@ design-spec §15 task-005b: Admin/Developer AI Engine Console 의 Phase 1 골격
 
 **반환**: Developer 에게 결함 #1(Medium, 터치 타겟) 리포트 — 재현·기대·실제 위 표·본문 참조. 수정 후 **Reviewer 부터 재순환**.
 
+### QA-013 재측정(2026-09-27, 커밋 647c380 기준, Reviewer "QA-013 수정 재검증" PASS 인계 후 — 해당 결함만 재측정)
+
+**종합 판정: PASS** — 결함 #1(터치 타겟 <44px) 전 요소 해소 확인. 그 외 기준은 이번 재측정 범위 밖(원 QA-013 1~8·10 판정 불변, criterion 9 도 가로 넘침·사이드바·403/404 카드는 원래 PASS 였던 항목이라 재확인만).
+
+**환경**: 동일 제약 — 운영 pm2 `thekaiwa`(3010) 미기동·미재시작, 미러 `bash scripts/sync-local.sh && cd ~/.node-local/thekaiwa && node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 3011`, 화면은 `localhost:3011`, Health/Test 미실행(연결 상태 재확인 결과 전부 `UNKNOWN` 불변 — 이번 세션에서 어떤 Health/Test 호출도 하지 않음).
+
+**기준 1(회귀)**: `npm run typecheck` exit 0(에러 0) · `npm run lint` exit 0(에러 0, 기존과 동일한 경고 5건) · `npm test` **207/207 PASS**(테스트 파일 변경 없음, Developer 기록과 일치).
+
+**요소별 측정값(`getBoundingClientRect().height`, px)**
+
+| 요소 | 위치 | 계정 | 412 | 390 | 360 | 비고 |
+|---|---|---|---|---|---|---|
+| "주 연결 상태 확인" | Dashboard | DEV | 44 | 44 | 44 | `min-h-11` 로 `h-[38px]` 극복, `w`=380/-/- |
+| "주 연결 상태 확인" | Dashboard | ADMIN | 44 | — | — | 412 재확인, 동일 클래스라 회귀 없음 |
+| "모두 상태 확인" | Connections 목록 | DEV | 44 | — | 44 | w=186/-/160 |
+| "시크릿 참조" | Connections 목록 | DEV | 44 | — | 44 | w=186/-/160 |
+| "모두 상태 확인"·"시크릿 참조" | Connections 목록 | ADMIN | 44 | — | — | 412 재확인 |
+| ChipRadio "역할"(5칩) | Connections 목록 | DEV·ADMIN | 44(전부) | — | — | |
+| ConsoleSegmented "결과 종류"(3칩) | 연결 상세(claude-cli-local) `HealthHistoryList` | DEV | 44(전부) | — | — | |
+| ConsoleSegmented "진단 보기"(2탭, `size="md"`) | Diagnostics | DEV | 44 | — | 44 | ADMIN 은 `trace.read` 없어 탭 자체 미노출(정상, `hasTraceTab:false` 확인) |
+| ConsoleSegmented "기간"(3)·"결과"(4) | Diagnostics(Trace 탭) | DEV | 44(전부) | — | 44(전부) | |
+| ChipRadio "종류"(6) | Diagnostics(Trace 탭) | DEV | 44(전부) | — | 44(전부) | |
+| ChipRadio "연결"(6, Health 뷰) | Diagnostics | DEV·ADMIN | 44(전부) | — | — | |
+| ChipRadio "대상 연결"(6)·"출처"(5) | Configuration(Effective) | DEV | 44(전부) | — | 44(전부) | |
+| ChipRadio "대상 연결"·"출처" | Configuration | ADMIN | 44(전부) | — | — | 412 재확인 |
+| ChipRadio "목소리 상태"(4) | Voices | DEV | 44(전부) | 44(전부) | — | |
+| ChipRadio "목소리 상태" | Voices | ADMIN | 44(전부) | — | — | 412 재확인 |
+| ToggleButton "보관 포함" | Voices | DEV | 44 | 44 | — | ADMIN 412 에서도 44 재확인 |
+| `ConsoleError` "다시 시도" | Dashboard(재현: `window.fetch` 를 일시적으로 거부하도록 오버라이드해 "다시 불러오기" 클릭 → 오류 배너 유발, 실제 서버·네트워크 변경 없음, 측정 직후 원래 `fetch` 로 복원) | DEV | 44 | — | — | w=59 |
+
+**가로 넘침**: 위 표의 모든 페이지 × 측정한 폭에서 `document.documentElement.scrollWidth === clientWidth`(overflow=0) 확인(대시보드·연결 목록·연결 상세·설정·진단 총 5화면 × 해당 폭).
+
+**학습자 화면 회귀**: `/study/today`·`/drawer/words`·`/study/ai`(USER, 412px) — 가로 넘침 0, 엔진명(`reazon|whisper|style-?bert|model_id|speaker_id|claude-cli|haiku|sonnet|opus`) 패턴 0건 재확인. `git diff a17bc53..647c380 --stat -- src/components/common src/app src/modules` 가 빈 결과임을 Reviewer 기록과 별개로 직접 재실행해 확인(공용 컴포넌트·학습자 라우트 무변경).
+
+**결함**: 0건. QA-013 원 결함 #1 해소 확인.
+
+**정리한 산출물**: QA 세션 쿠키 2개(ADMIN/DEVELOPER) · `qa013b-*.log`(typecheck/lint/test) · dev 서버 stdout 로그 1개 · Playwright `page-*.yml`/`console-*.log` 약 20개 — **산출물 정리: 전부 삭제, `/tmp/qa-artifacts/` 잔여 파일 0개 확인**. 미러 dev 서버(3011) 종료 확인, 운영 pm2 `thekaiwa`(3010) health 200 불변, `EngineConnection`(LOCAL 6행) 상태 `UNKNOWN` 불변(Health/Test 미실행이라 원복 확인 자체가 무의미 — 애초에 안 건드림).
+
+**반환**: Leader 에게 PASS 보고. Deployer 인계는 Leader 판단(다른 열린 항목 없으면 이번 결함 해소로 task-005b 전체 QA 완료).
+
 ## 최종 요약
+
+### 최종 요약 (Leader, 사용자용 — 2026-09-27)
+**무엇이 생겼나**: 관리자·개발자용 **AI Engine Console**(`/admin`). 설정 → 맨 아래 "관리자 › AI Engine Console"(권한 있는 계정에만 보임)으로 들어갑니다.
+- 대시보드(역할별 사용 중인 엔진·연결·모델·상태·환경 배지), 음성 인식·TTS·LLM 역할별 화면, 목소리 목록, 플러그인·연결 목록/상세, 설정값(Effective — 값마다 어느 층에서 왔는지 출처 배지), 진단(상태 점검 이력·요청 추적).
+- 연결마다 **[상태 확인]·[기능 테스트]** 버튼 — 서비스가 꺼져 있으면 오류가 아니라 "사용할 수 없음" 회색 카드로, LLM 기능 테스트는 30초에 1번.
+- 일반 사용자에게는 콘솔이 존재하지 않는 것처럼 404, 권한이 모자라면 콘솔 안에서 403 카드. 비밀값은 이름·존재 여부만(조회 시 감사 기록), 서버 경로는 가림.
+- 이번엔 **읽기와 점검 실행만** — 설정 변경·버전·롤백은 Phase 2.
+
+**검증**: reviewer REV-009 PASS_WITH_NOTES(Medium 1: 운영 대상 상세 설정 조회 감사 누락 / Low 3) + **Codex C2 보안 검토(지적 1건 = 같은 Medium)** → 수정 `a17bc53` → 재검증 PASS → QA-013 FAIL(Medium: 콘솔 버튼·칩 44px 미만) → 수정 `647c380` → 재검증 PASS → **QA 재측정 PASS**. 권한 매트릭스를 역할 4종 × 엔드포인트 18개(72회) 직접 호출로 대조, 응답 158건에 비밀값·서버 경로 0, 운영 도메인에서 QA 관리자 쿠키 무효, 3폭·1024↑ 화면, 학습자 화면 회귀 0. 단위 테스트 207/207, 라이브 스모크 47/47.
+**Codex**: C1(설계)은 한도 소진 시점이라 생략, C2(구현) 1회 실행(1/4).
+
+**⚠ 운영 반영 상태**: 2026-09-27 18:26 사용자 지시 배포에 이 task 의 **수정 전 코드(`109893f`)** 가 들어가 있습니다. 수정분(`a17bc53` 감사 기록·경로 마스킹, `647c380` 터치 44px)은 **재빌드·재시작이 필요**합니다.
+**로드맵 조정(사용자 확인 사항)**: ① 발음 사전(원래 이 task 의 P0)은 TTS 서비스가 있어야 동작해 **task-003 이후로 이월** ② 비밀 참조 연결 쓰기(#93b)는 **Phase 2** 로 이월 ③ functional test 30초 제한의 원자성(Low)은 Phase 2 backlog.
+**발견**: 운영 pm2 가 `APP_ENV=LOCAL` 로 돌아 콘솔 배지가 LOCAL·PRODUCTION 보호 규칙 미발동, 그리고 개발 서버에서 상태 점검을 돌리면 운영이 쓰는 connection 상태 행이 잠시 바뀐다(같은 DB·같은 LOCAL 행) → task-009 에서 운영 환경 분리 필요.
 - [2026-09-27 17:30] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=security / budget_rule=CX-limit-ok | overrides=- | fallback=- | tokens=995
