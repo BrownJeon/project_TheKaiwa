@@ -68,6 +68,9 @@ design-spec §15 task-003 중 남은 **앱·온디바이스** 부분 — 같은 
 **있음** — `android/`(신규)·`plugins/sherpa-stt/android`(신규)·Manifest·`capacitor.config.ts`(필요 시). 첫 배포본 `versionCode 1`. 이후 이 파일들이 바뀌면 versionCode 증가 + deployer APK 재빌드 + 배너.
 
 ## 판단 기록 (judge)
+- [2026-09-28 08:34] intake engine=jev → task_type/feature complexity/2.75 needs_info/true risk/R2 developer_model/opus next/ask_user | overrides=R2-native | fallback=- | tokens=1020
+  - **override**(Leader): `next=ask_user` 미적용 — 사용자 지시(2026-09-28 "사용자가 필요할 때까지 계속 작업 진행"). 사용자만 할 수 있는 것은 F6(폰 설치·실측)뿐이고 계획상 그 지점에서 멈춘다. 네이티브 변경은 착수 전 고지함(Leader 보고). 그 밖의 범위·계약은 정본(design-spec §9·§12·plugins/sherpa-stt/README·api-contract #5·#8~#10·#19)과 Plan F1~F5 에 확정. risk R2(R2-native) 채택.
+- [2026-09-28 08:34] codex_gate/C1 engine=jev → codex_required/true mode/adversarial-review focus/security budget_rule/CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=849
 
 ## Codex 검토
 
