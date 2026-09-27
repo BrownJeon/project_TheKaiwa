@@ -4,7 +4,7 @@
  */
 import { getAppSetting } from '@/modules/preferences'
 import { countVoicesByStatus } from '@/modules/speech'
-import { configActivity, effectiveValues, getProvider, listFallbackPolicies, recentHealth, resolveEffective, turnStats24h, type EngineConnectionRow } from '@/modules/engine'
+import { configActivity, effectiveValues, getProvider, latestVersions, listFallbackPolicies, recentHealth, resolveEffective, turnStats24h, type EngineConnectionRow } from '@/modules/engine'
 import type { Environment } from '@prisma/client'
 import type { AdminEnvironment, EngineRoleName, EnvironmentDto, OverviewDto, OverviewRoleDto } from '@/types/admin'
 import pkg from '../../../../package.json'
@@ -30,9 +30,14 @@ export async function getOverview(environment: Environment): Promise<OverviewDto
   ])
   let llm: OverviewDto['llm'] = null
   const roles: OverviewRoleDto[] = []
+  const activeOf = (role: EngineRoleName) => {
+    const v = policies.find((p) => p.policy.role === role)
+    return v ? (v.effectiveOrder[0] ?? v.primary) : null
+  }
+  const versions = await latestVersions(environment, 'ENGINE_CONNECTION', ROLE_ORDER.map(activeOf).filter((c): c is EngineConnectionRow => Boolean(c)).map((c) => c.id))
   for (const role of ROLE_ORDER) {
     const v = policies.find((p) => p.policy.role === role)
-    const active = v ? (v.effectiveOrder[0] ?? v.primary) : null
+    const active = activeOf(role)
     const provider = active ? getProvider(active.engineId) : null
     const values = active ? await effectiveOf(active) : {}
     roles.push({
@@ -43,7 +48,7 @@ export async function getOverview(environment: Environment): Promise<OverviewDto
       statusReason: active?.statusReason ?? null,
       lastHealthAt: active?.lastHealthAt?.toISOString() ?? null,
       fallbacks: v?.fallbacks.length ?? 0,
-      configVersion: null,
+      configVersion: active ? (versions.get(active.id) ?? null) : null,
       model: provider ? provider.modelSummary(values) : null,
     })
     if (role === 'LLM' && active) {

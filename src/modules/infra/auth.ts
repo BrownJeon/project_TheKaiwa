@@ -41,6 +41,9 @@ export async function auth(): Promise<AppSession> {
     })
     // 토큰 발급 이후 계정이 삭제된 엣지 케이스 — 세션 없음으로 처리.
     if (!user) return null
+    // 관리자 권한 QA 계정(task-005b, tests/live/qa-session.ts)은 운영 프로세스에서 세션이 되지 않는다 —
+    // 운영 호스트의 localhost 로 QA 토큰이 들어와도 콘솔 권한을 얻지 못하게(USER QA 는 기존대로).
+    if (payload.qa && user.role !== 'USER' && (process.env.APP_ENV ?? '').toUpperCase() === 'PRODUCTION') return null
 
     return { user: { id: user.id, email: user.email, name: user.name, role: user.role } }
   } catch (e) {

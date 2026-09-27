@@ -58,6 +58,9 @@ test('CONNECTION_PROFILE 은 ENVIRONMENT 를 덮는다(DB 가 env 를 덮음), R
   set(l, 'RUNTIME_OVERRIDE', 'runtime.cpuThreads', 16)
   const r = mergeLayers(KEYS, 'HTTP', l)
   assert.equal(pick(r, 'connection.baseUrl').source, 'CONNECTION_PROFILE')
+  assert.equal(pick(r, 'connection.baseUrl').shadowed, true)
+  // 기본값만 덮은 키는 shadowed 가 아니다
+  assert.equal(pick(r, 'connection.timeoutMs').shadowed, false)
   assert.equal(pick(r, 'connection.timeoutMs').source, 'RUNTIME_OVERRIDE')
   const threads = pick(r, 'runtime.cpuThreads')
   assert.equal(threads.source, 'DEFAULT')

@@ -244,7 +244,8 @@ export function mergeLayers(keys: SchemaKey[], connectionType: string | null, la
       editability,
       restartRequired: k.restartRequired,
       secret: k.type === 'SECRET_REF',
-      shadowed: stack.some((s) => !same(s.value, winner.value)),
+      // 스키마 기본값을 덮는 것은 정상 — '설정된 값이 더 높은 층에 가려졌다'(§12-1 threads) 만 표시한다.
+      shadowed: stack.some((s) => s.source !== 'DEFAULT' && !same(s.value, winner.value)),
       layers: stack,
       warnings,
     }
