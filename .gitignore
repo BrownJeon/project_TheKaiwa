@@ -36,3 +36,11 @@ plugins/**/node_modules/
 tsconfig.tsbuildinfo
 next-env.d.ts
 logs/
+
+# 검증 산출물(스크린샷·스냅샷·로그)은 /tmp/qa-artifacts 에 둔다 — 워크스페이스 docs/browser-verification.md §5
+# 루트에 새어 나와도 커밋되지 않게 막는다(2026-09-27 TheMeal 루트 QA 스크린샷 48장 커밋 사고)
+/.playwright-mcp/
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
