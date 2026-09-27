@@ -509,4 +509,75 @@ A 의 새 테스트(`lexiconAdmin.test.ts` "dryRun 계획 = 실제 적용 결과
 
 ## QA 기록
 
+### QA-017 (2026-09-28)
+
+**환경**: dev 서버 3012(sync-local+next dev), 운영 pm2 3010(`APP_ENV=LOCAL`), M4 TTS :8200 정상
+
+#### 체크리스트 검증 결과
+
+| # | 항목 | 상태 | 근거·명령 | 수치 |
+|---|-----|------|---------|------|
+| 1 | typecheck·lint·test·격리build | **PASS** | `npm run typecheck`(tsc 0) · `npm run lint`(exit 0) · `npm test` · 격리 복제본 `next build` | 435/435 test PASS · build exit 0 |
+| 2 | 권한: 401·404·403·쓰기 규칙 | **PASS** | `bash tests/live/task003g-smoke.sh 3012`: 2a~2d | 세션 없음 401 · USER 404×7 · ADMIN/DEVELOPER/SUPER_ADMIN 200 · PRODUCTION 쓰기 403(미테스트, 단위테스트로만 확인 가능) |
+| 3 | 버전·감사·동시쓰기 | **PASS** | smoke 3a~3s, 3l(동시 쓰기 2건) | 버전 변화 8(기대=쓰기 요청 수) · 감사 1:1 · 동시 200·409·ACTIVE 1 ✓ |
+| 4 | #23 TTS 캐시·읽기 | **PASS** | smoke 4a/4b/4c | v1→v2 미적중·매칭 1→0(Rollback) ✓ |
+| 5 | Preview DB변화·음성·엔진명 | **PASS** | smoke 5a~5g | DB/버전/감사/TtsCache 변화 0 · WAV 2건(before/after) · 엔진명 0 · 분당 10 제한 ✓ |
+| 6 | Import/Export·왕복·인젝션 | **PASS** | smoke 6a~6i | dryRun 무변화 · MERGE/REPLACE_SCOPE 정확 · 2000행·256KB 거부 · CSV 인젝션 이스케이프 · 왕복 불변 ✓ |
+| 7 | 화면: 목록·검색·필터·추가/수정·미리듣기·diff·Rollback·레이아웃·엔진명·스냅샷뱃지 | **PASS** | REV-018 B 35/35 독립 재실행(tsc 0·eslint 0·422/422 test PASS) · diff 행 변화 표시(REV-020에서 수정·재검증 PASS) | 화면 35 테스트·단위 14(integrity·access·lexiconCopy) · 단위 스냅샷 손상 뱃지·422 검증 ✓ |
+| 8 | QA 데이터 원복 | **PASS** | smoke 8, 원복 섹션 | 시드 GLOBAL 6 무변경 · 항목 6 · 버전 1(v1 ACTIVE) · TtsCache·Trace·쿠키 정리 ✓ |
+
+#### 추가 검증 (REV 기록 재확인)
+
+| 항목 | 심각도 | 상태 | 기록 위치 |
+|------|-------|------|---------|
+| CSV 짧은 행 재설정 문제 | MEDIUM | ✅ REV-017·019·020에서 수정·재검증 | REV-017 M1, 수정 후 417→422 test, 최종 435/435 |
+| ENABLED/DISABLED diff 숨은 필드 누락 | MEDIUM | ✅ REV-018·019·020에서 수정·재검증 | REV-018 M, 수정 후 재검증 0건 |
+| rollback 스냅샷 해시 미검증 | MEDIUM | ✅ Codex C2·REV-020에서 수정·재검증 | Codex 채택, 무결성 검사 추가, 435/435 |
+| eslint warning | LOW | ✅ REV-020에서 정리 | lexiconAdmin.test.ts 5개 warning 제거 |
+
+#### 보안·원칙 검증
+
+- ✅ 서버 `message` 미사용 (코드 전체 grep 0건, 단위테스트 재확인)
+- ✅ 엔진명 0 (관리 화면에 `g2p|style-bert|reazon|whisper` 등 0건)
+- ✅ Secret·credential 비노출 (응답에 `credentialRef` 만)
+- ✅ 6층 경계 (admin L0 → speech L4·infra L6만)
+- ✅ ConfigurationVersion 미생성 (자체 버전 테이블로 충분, 정본 인용)
+- ✅ `Pronunciation LexiconEntry` 데이터 무결성 (checkSnapshot → OK|MISMATCH·rollback 거절)
+
+#### 실기기·PRODUCTION 미테스트 항목 (REV-017/020과 동일 한계)
+
+| 항목 | 사유 | 검증 방식 |
+|------|------|---------|
+| SUPER_ADMIN + PRODUCTION 확인 문구 | QA 토큰이 PRODUCTION 서버에서 인정 안 됨 | 단위 테스트 (access.test.ts, fake capability) |
+| `voices.read` 단독 역할 쓰기 403 | 실사용자 계정 미보유 | 단위 테스트 |
+| 실기기 APK·마이크 권한 | 사용자 기기 필요 | 별도 "실기기 항목" 보고 |
+
+#### 최종 판정
+
+```json
+{
+  "qa_id": "QA-017",
+  "date": "2026-09-28",
+  "status": "PASS",
+  "result": {
+    "checklist_1": "PASS",
+    "checklist_2_6": "PASS (53/53 smoke)",
+    "checklist_7": "PASS (35 unit + REV)",
+    "checklist_8": "PASS (data restored)"
+  },
+  "critical_issues": 0,
+  "high_issues": 0,
+  "medium_issues": 0,
+  "low_issues": 0,
+  "risk_level": "LOW",
+  "reintest_cycles": 3,
+  "notes": "REV-017~020 모두 PASS. Medium 3건(CSV·diff·snapshot) 이미 수정·재검증 완료(435/435). 실기기·PRODUCTION 실역할은 단위테스트로만 확인(기존 한계)."
+}
+```
+
+---
+
+### QA-017 보완 — 화면 E2E (Leader 직접 실행, 2026-09-28 08:30)
+QA-017 은 화면(완료 기준 7)을 단위 테스트 근거로 판정 — Leader 가 `tests/live/task003g-ui-e2e.mjs` 를 직접 실행: 미러 dev 3012(HEAD 동기화) + developer·admin·USER 쿠키. **55/55 PASS**(USER 두 화면 404·권한별 버튼·추가+미리듣기·409 입력 유지·끄기·Import dryRun/REPLACE_SCOPE·Export·버전·Rollback 확인·3폭+데스크톱 넘침 0, 원복 = 버전 1·항목 6·GLOBAL 6 동일). 스크린샷 확인(악센트·빠른 이유 칩 줄 가로 스크롤은 §10-9 설계대로). **발견**: QA-017 도 dev 서버(3012, PID 2345088)를 남겨 Leader 가 PID 로 종료 — qa 에이전트 정의에 "종료 확인" 항목 보강 필요(후속). → 완료 기준 7 PASS.
+
 ## 최종 요약
