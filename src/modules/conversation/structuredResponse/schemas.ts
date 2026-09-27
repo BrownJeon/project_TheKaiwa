@@ -104,16 +104,21 @@ const proposals = {
   },
 } as const
 
-/** A1 회화 턴(TALK) — 교정 0~1건. */
+/**
+ * A1 회화 턴(TALK) — 교정 0~1건.
+ * 선언 순서 = 출력 순서 지시(talk@v2: speech → conversation → correction → learning → endOfTopic → proposals). `withJsonOnly` 가
+ * 이 스키마를 프롬프트에 그대로 싣기 때문에 선언 순서가 지시와 어긋나면 모델이 헷갈린다. `speech.style` 이 먼저 와야 첫 문장
+ * 조기 합성(task-007 K2-2)이 말투를 알고 시작한다. 검증 의미는 순서와 무관하다.
+ */
 export const TALK_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['conversation', 'correction', 'learning', 'speech', 'endOfTopic', 'proposals'],
+  required: ['speech', 'conversation', 'correction', 'learning', 'endOfTopic', 'proposals'],
   properties: {
+    speech,
     conversation,
     correction: { anyOf: [{ type: 'null' }, correctionObject] },
     learning,
-    speech,
     endOfTopic: { type: 'boolean' },
     proposals,
   },

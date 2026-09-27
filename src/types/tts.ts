@@ -26,4 +26,7 @@ export const TTS_HEADERS = {
   ttfaMs: 'X-Tts-Ttfa-Ms',
   executionMode: 'X-Tts-Execution-Mode',
   traceId: 'X-Trace-Id',
+  /** #24(task-007) — 캐시 오디오의 모델·사전 버전(엔진명 아님). */
+  modelVersion: 'X-Tts-Model-Version',
+  dictionaryVersion: 'X-Tts-Dictionary-Version',
 } as const

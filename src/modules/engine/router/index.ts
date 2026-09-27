@@ -112,9 +112,10 @@ export async function withFallback<T>(
       return { value: await fn(c), connection: c }
     } catch (e) {
       lastErr = e
-      // 예산을 다 쓴 실패(타임아웃)는 다음 후보로 넘겨도 남은 시간이 없다 — 바로 올린다.
-      if ((e as { name?: string })?.name?.includes('Timeout')) throw e
-      console.warn(`[router] ${role} connection=${c.key} 실패 — ${list.length > 1 ? '다음 후보' : '후보 없음'}`)
+      // 예산을 다 쓴 실패(타임아웃)는 다음 후보로 넘겨도 남은 시간이 없다 — 바로 올린다. 호출자가 취소한 요청(AbortError)도 그대로.
+      const name = (e as { name?: string })?.name ?? ''
+      if (name.includes('Timeout') || name === 'AbortError') throw e
+      console.warn(`[router] ${role} connection=${c.key} 실패(${name || 'Error'}) — ${list.length > 1 ? '다음 후보' : '후보 없음'}`)
     }
   }
   throw lastErr

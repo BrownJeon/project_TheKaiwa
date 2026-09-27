@@ -26,6 +26,7 @@ export type { CredentialRefStatus, ServiceSecretName, ServiceSecretGrant } from 
 export { dataRoot, dataPath, writeDataFile, readDataFile, removeDataFile, ensureDataDir, StorageError } from './storage'
 export { maskSensitive, maskString, looksSecret, MASK } from './mask'
 export { signScopedToken, verifyScopedToken } from './scopedToken'
+export { deriveSubkey } from './keys'
 export type { ScopedToken, ScopedTokenPayload } from './scopedToken'
 export { checkInternalSecret, INTERNAL_SECRET_HEADER } from './internalAuth'
 export type { InternalAuthResult } from './internalAuth'

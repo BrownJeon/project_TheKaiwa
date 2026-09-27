@@ -1,0 +1,31 @@
+import { fail, ok, rateLimit, requireSession, withApi } from '@/modules/infra'
+import { readSignedTtsAudio, TTS_AUDIO_URL_PATH } from '@/modules/speech'
+import { TTS_HEADERS } from '@/types/tts'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+type Ctx = { params: Promise<{ token: string }> }
+
+/**
+ * #24 캐시 오디오(서명 URL, task-007 K5 · Codex C1-1) — `GET /api/v1/speech/tts/<token>`. 토큰은 SSE `audio.url` 로만 받는다.
+ * 세션 없음 401. 형식·만료(10분)·서명(세션 사용자로 재계산)·캐시 없음은 **전부 같은 404**(존재 오라클 금지).
+ * `Cache-Control: private, max-age=<남은 초>`. `Accept: application/json` 이면 `{audioUrl, durationMs, timing:null}`.
+ * 정적 세그먼트 `/tts/status` 가 이 동적 세그먼트보다 우선한다(Next.js 라우팅). 사용자당 240/분.
+ */
+export const GET = withApi<Ctx>(async (req, ctx) => {
+  const s = await requireSession()
+  rateLimit(`tts-audio:${s.user.id}`, 240)
+  const { token } = await ctx.params
+  const f = await readSignedTtsAudio(s.user.id, token)
+  if (!f) return fail('NOT_FOUND', '오디오를 찾을 수 없어요.')
+  const cache = `private, max-age=${Math.max(0, f.remainingSec)}`
+  if ((req.headers.get('accept') ?? '').includes('application/json')) {
+    return ok({ audioUrl: `${TTS_AUDIO_URL_PATH}${token}`, durationMs: f.durationMs, timing: null }, null, { headers: { 'Cache-Control': cache } })
+  }
+  const headers = new Headers({ 'Content-Type': 'audio/wav', 'Content-Length': String(f.audio.length), 'Cache-Control': cache })
+  if (f.durationMs !== null) headers.set(TTS_HEADERS.durationMs, String(f.durationMs))
+  if (f.modelVersion) headers.set(TTS_HEADERS.modelVersion, f.modelVersion)
+  if (f.dictionaryVersion !== null) headers.set(TTS_HEADERS.dictionaryVersion, String(f.dictionaryVersion))
+  return new Response(new Uint8Array(f.audio), { status: 200, headers })
+})

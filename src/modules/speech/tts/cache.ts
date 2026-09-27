@@ -8,7 +8,7 @@
  * - 사전 요소는 `dictionaryVersion` 에 **적용된 힌트 요약(lexiconDigest)** 을 덧붙인다. 버전이 같아도 범위(USER·LESSON·COURSE)가
  *   달라 다른 읽기가 적용된 요청끼리 오디오가 섞이지 않게 하기 위함(정본 12요소의 "사전 버전" 요소를 세분한 것 — 요소 수는 그대로).
  * - 파일 경로는 **키(16진 40자)만**으로 만든다. 사용자 입력은 경로에 들어가지 않고, 조회 때도 DB 의 path 를 믿지 않고 키에서 다시 만든다.
- * 용량 LRU·예열·정리 잡은 P1(task-012b). 오디오 조회 URL(#24)은 서명 URL 과 함께 task-007.
+ * 용량 LRU·예열·정리 잡은 P1(task-012b). 오디오 조회 URL(#24)은 서명 URL(`audioUrl.ts`, task-007).
  */
 import { createHash } from 'node:crypto'
 import type { SpeechProfile } from '@prisma/client'
@@ -69,12 +69,15 @@ export function cacheSegments(key: string): [string, string, string] {
 export interface CachedAudio {
   audio: Buffer
   durationMs: number | null
+  /** #24 응답 헤더용(task-007). 합성 직후 값에는 없다. */
+  modelVersion?: string
+  dictionaryVersion?: number
 }
 
 /** HIT 면 파일을 읽고 hits·lastHitAt 을 올린다. 행은 있는데 파일이 없으면 행을 지우고 MISS. */
 export async function readCachedAudio(key: string): Promise<CachedAudio | null> {
   const segs = cacheSegments(key)
-  const row = await prisma.ttsCache.findUnique({ where: { key }, select: { durationMs: true } })
+  const row = await prisma.ttsCache.findUnique({ where: { key }, select: { durationMs: true, modelVersion: true, dictionaryVersion: true } })
   if (!row) return null
   const audio = await readDataFile(segs)
   if (!audio) {
@@ -82,7 +85,7 @@ export async function readCachedAudio(key: string): Promise<CachedAudio | null> 
     return null
   }
   void prisma.ttsCache.update({ where: { key }, data: { hits: { increment: 1 }, lastHitAt: new Date() } }).catch(() => undefined)
-  return { audio, durationMs: row.durationMs }
+  return { audio, durationMs: row.durationMs, modelVersion: row.modelVersion, dictionaryVersion: row.dictionaryVersion }
 }
 
 export async function storeCachedAudio(key: string, parts: CacheKeyParts, audio: Buffer, durationMs: number | null): Promise<void> {

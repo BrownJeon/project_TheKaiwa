@@ -65,6 +65,24 @@ export async function recordTrace(t: TraceRecord): Promise<void> {
   }
 }
 
+/**
+ * 이미 기록된 Trace 에 단계를 덧붙인다(task-007 K7 — 다음 턴이 보고한 직전 턴 재생 계측 `PLAYBACK`). 주인(userId)이 같은 행만,
+ * 한 행 steps 는 최대 64개. 실패는 삼킨다(계측이 요청을 막지 않는다).
+ */
+export async function appendTraceSteps(traceId: string, userId: string, steps: TraceStep[]): Promise<boolean> {
+  try {
+    const row = await prisma.requestTrace.findFirst({ where: { traceId, userId }, select: { steps: true } })
+    if (!row) return false
+    const prev = Array.isArray(row.steps) ? (row.steps as unknown as TraceStep[]) : []
+    const next = [...prev, ...steps].slice(0, 64)
+    await prisma.requestTrace.updateMany({ where: { traceId, userId }, data: { steps: next as unknown as Prisma.InputJsonValue } })
+    return true
+  } catch (e) {
+    console.warn('[trace] 단계 덧붙이기 실패:', e instanceof Error ? e.name : 'unknown')
+    return false
+  }
+}
+
 // ── 조회(task-005b #128·#129, 대시보드 24h 요약) ─────────────────────────────
 
 

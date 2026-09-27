@@ -42,15 +42,16 @@ export function stopwatch(): () => number {
 /** MISS 합성 결과 → TTS_QUEUE·TTS_SYNTH[0]·TTS_ENCODE 단계(엔진이 준 헤더 계측값, 없으면 생략). */
 export function synthSteps(
   out: { audio: Buffer; metrics: { httpMs: number; synthMs: number | null; queueMs: number | null; encodeMs: number | null; audioMs: number | null; modelLoaded: 'hit' | 'cold' | null } },
-  m: { connectionKey: string; modelVersion: string; ms: number; durationMs: number },
+  m: { connectionKey: string; modelVersion: string; ms: number; durationMs: number; chunkIndex?: number },
 ): TraceStep[] {
+  const idx = m.chunkIndex ?? 0
   const steps: TraceStep[] = []
   if (out.metrics.queueMs !== null) steps.push(ttsStep('TTS_QUEUE', out.metrics.queueMs, { waitMs: out.metrics.queueMs, position: 0 }))
   const synthMs = out.metrics.synthMs ?? out.metrics.httpMs
   const audioMs = out.metrics.audioMs ?? m.durationMs
   steps.push(
-    ttsStep('TTS_SYNTH[0]', m.ms, {
-      chunkIndex: 0,
+    ttsStep(`TTS_SYNTH[${idx}]`, m.ms, {
+      chunkIndex: idx,
       synthMs,
       audioMs,
       rtf: audioMs > 0 ? synthMs / audioMs : null,

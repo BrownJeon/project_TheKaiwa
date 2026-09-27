@@ -3,6 +3,7 @@
  * task-006: chats(조회·생성·수정·삭제)·orchestrator(턴·사용자당 락·stale 정리)·review(A3 점검)·corrections·proposals(상태 전이).
  * task-008: `wordEnrich`(A10 단어 보강 요청 빌더 — 실행은 `learning/vocab/enrich` 가 라우트를 거쳐 값으로 받는다,
  * L3 는 L2 를 import 하지 않는다).
+ * task-007: 턴 훅(gate·onAccepted·speaker — 라우트가 speech 로 구현해 넘긴다)·TALK 문장 음성 스케줄러·조기 첫 문장·예열(prewarmTalkTurn).
  * speech 를 import 하지 않는다(라우트가 조합). learning 은 **읽기**만 — 채택 결과 쓰기는 라우트가 learning 에 위임한다.
  */
 export { loadPersona, PersonaUnavailableError, AGENT_NAME } from './persona/loader'
@@ -23,11 +24,13 @@ export type { WordEnrichInput } from './prompts/wordEnrich'
 
 // ── task-006 ──
 export { parseCreateChat, parseTitle, parseKind, parseTurnBody, CHAT_KINDS, TURN_TEXT_MAX, CHAT_TITLE_MAX } from './chats/validate'
-export type { CreateChatInput, TurnRequest } from './chats/validate'
-export { createChat, listChats, getChatDetail, updateChatTitle, deleteChat, sweepStalePending } from './chats'
+export type { CreateChatInput, TurnRequest, TurnClientTimings } from './chats/validate'
+export { createChat, listChats, getChatDetail, getOwnedChat, updateChatTitle, deleteChat, sweepStalePending } from './chats'
 export type { ChatDto, ChatDetailDto, MessageDto } from './chats'
-export { startTurn } from './orchestrator'
-export type { TurnHandle, TurnAccepted } from './orchestrator'
+export { startTurn, prewarmTalkTurn } from './orchestrator'
+export type { TurnHandle, TurnAccepted, TurnHooks } from './orchestrator'
+export type { TurnSpeaker, TurnSpeechRequest, TurnSpeechResult } from './orchestrator/turnAudio'
+export { forgetLearnerBase } from './turnContext'
 export type { TurnEvent } from './orchestrator/stream'
 export { STALE_PENDING_MS } from './orchestrator/locks'
 export { reviewChat, REVIEW_SYNC_MAX_USER_MESSAGES } from './review'

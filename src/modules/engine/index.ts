@@ -4,18 +4,21 @@
  * task-005b: registry(Provider·스키마)·connections·fallbackPolicy 읽기·health·functionalTest·configuration/resolver(8층, 읽기 전용)·trace 조회.
  * task-003d: tts 파사드(targets·synthesize·maxChars, 오류는 TtsEngineError.kind 로 분류).
  * task-003e: stt 파사드(REALTIME_STT targets·공개 실행값·개발용 ws 주소·connection 검증).
+ * task-007: llm.prewarm(예열 CLI)·onTextDelta(조기 추출)·mentionsEngineIdentity, 경로 인식 증분 JSON 리더, trace appendTraceSteps.
  */
 export * as llm from './llm'
 export * as tts from './tts'
 export * as stt from './stt'
 export type { SttTarget, SttPublicRuntime } from './stt'
 export type { TtsTarget, TtsFailureKind, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics } from './tts'
-export type { LlmRequest, LlmJsonRequest, LlmTextResult, LlmJsonResult, LlmPersona, LlmTurnMessage } from './llm'
+export type { LlmRequest, LlmJsonRequest, LlmTextResult, LlmJsonResult, LlmPersona, LlmTurnMessage, WarmUse } from './llm'
 export { resolveConnection, resolveCandidates, withFallback, currentEnvironment, clearRouterCache, NoEngineAvailableError, LLM_TASKS, isLlmTask } from './router'
 export type { LlmTask, LlmTier, ResolvedConnection } from './router'
 export { extractJson } from './json/extractJson'
+export { createJsonPathStreamReader } from './json/jsonPathStream'
+export type { JsonPathWatch, JsonPathStreamReader } from './json/jsonPathStream'
 export { validateOutput as validateAgainstSchema, JSON_ONLY_INSTRUCTION } from './json/schemaValidate'
-export { newTraceId, recordTrace } from './trace'
+export { newTraceId, recordTrace, appendTraceSteps } from './trace'
 export type { TraceStep, TraceRecord } from './trace'
 export { listTraces, getTrace, turnStats24h } from './trace'
 export type { TraceFilter } from './trace'

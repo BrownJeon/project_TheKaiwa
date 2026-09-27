@@ -1046,7 +1046,7 @@ model Chat {
   @@index([userId, kind, lastMessageAt])
 }
 
-/// 사용자: STT 원문/타이핑 · 강사: 일본어 응답. toolLog 는 {traceId, model, connection(=EngineConnection.key), sttMs, llmMs, ttsMs, ttsStartMs, totalMs, promptChars, attempt, meta{learning…}} 요약만(task-006 구현 기준 2026-09-27)
+/// 사용자: STT 원문/타이핑 · 강사: 일본어 응답. toolLog 는 {traceId, model, connection(=EngineConnection.key), llmMs, promptChars, attempt, totalMs, sttMs(클라 보고), llmFirstSentenceMs, warm(HIT|MISS|FALLBACK|OFF), ttsStartMs, ttfaMs, audioCount, meta{learning, style, endOfTopic, warning}} 요약만 — 원문·응답 전문 없음(task-006 → task-007 구현 기준 2026-09-28. TTS 값은 합성이 저장과 병렬이라 모든 청크가 끝난 뒤 같은 객체로 한 번 더 쓴다)
 model ChatMessage {
   id          String        @id @default(cuid())
   chatId      String
@@ -2327,7 +2327,7 @@ model DebugSession {
 | 2 | `EngineMetricsDaily` 물화 vs 뷰 | **물화 테이블**(Trace 90일 purge 뒤에도 지표 유지, MariaDB 에서 p95 는 앱 계산이 단순) | Phase 3 Diagnostics 착수 시. 뷰로 바꿔도 API 계약은 동일 |
 | 3 | `EngineConnection.id`(cuid) vs `key`(슬러그) 중 admin API 경로 파라미터 | 경로는 `id`, 응답에 `key` 포함. Fallback 배열·Trace·Utterance 스냅샷은 사람이 읽는 `key` 를 쓰는 곳(Utterance·TtsCache)과 `id` 를 쓰는 곳(FallbackPolicy)이 갈린다 | api-contract 와 대조 후 한쪽으로 통일(제안: 스냅샷=key, 참조=id) |
 | 4 | `PromptVersion` "환경·키당 ACTIVE 1개" 를 DB 로 강제할 방법 | 앱 트랜잭션(`SELECT … FOR UPDATE`) | 구현 시 `activeKey` 생성 컬럼(ACTIVE 일 때만 key, 아니면 null) + unique 로 강제하는 안 검토 |
-| 5 | `Utterance` 와 `ChatMessage` 의 생성 순서(발화 → 메시지) 에서 `chatMessageId` 를 채우는 시점 | 턴 시작 시 USER 메시지 INSERT 직후 Utterance UPDATE(app 층 조합) | task-007 |
+| 5 | `Utterance` 와 `ChatMessage` 의 생성 순서(발화 → 메시지) 에서 `chatMessageId` 를 채우는 시점 | **확정(task-007)**: #32 라우트가 수락 **전** speech 로 검사(소유자·`chatMessageId IS NULL`(아니면 409 `UTTERANCE_USED`)·생성 10분 이내(아니면 409 `UTTERANCE_EXPIRED`)), 수락 **직후** 조건부 `updateMany WHERE id AND userId AND chatMessageId IS NULL` 로 연결(+ 보낸 text ≠ finalText 면 `finalText=text, finalSource=USER`). count 0 이면 턴은 계속하고 Trace `UTTERANCE_LINK` 경고 | 확정 |
 | 6 | `LearnerErrorStat.pattern` 어휘 통제(자유 문자열이면 집계가 갈라짐) | prompt-engineer 가 `errorType` 별 pattern 코드표를 tutor 프롬프트 스키마 enum 으로 고정 | task-004/006 |
 | 7 | `ErrorType.PRONUNCIATION` 추가(계획 초안에 없음) | `LearnerErrorStat` 전용, `Correction` 에서는 검증으로 거부 | 코디네이터 확인 |
 | 8 | `Profile.displayName` 유지 여부(규칙 6 목록 밖) | 기획서 "프로필 > 기본정보" 근거로 유지, 음성/엔진 무관 | 코디네이터 확인 |
@@ -2339,6 +2339,7 @@ model DebugSession {
 | 14 | `Scenario`·`ScenarioTopic` 도입 Phase(§9 제안) | Phase 2 task-010 에 포함 권고 | **사용자 결정 필요** |
 | 15 | `LearnerSkillState`·`LearningObservation` 도입 여부(§9 제안) | Phase 3 task-013, 기존 테이블 파생으로 시작 가능 | **사용자 결정 필요** |
 | 16 | `StudyLog.result`·`StatsSnapshot.data` JSON 형태(정합성 #12) | §9-3 에 정의 | 확정(문서화) |
+| 17 | 발화 ↔ 채팅 결속과 1회 연결의 DB 강제(Codex task-007 C1-2 후속) | **제안(사용자 승인 후 `db push`)**: `Utterance.chatId String?`(티켓 `chatId` 를 gateway 콜백이 보존) + `chatMessageId @unique`. 지금은 코드 검사(위 #5)와 사용자당 턴 락으로 막는다 — 같은 사용자가 자기 발화를 자기 다른 방에 쓰는 것은 수용 | **사용자 결정 필요**(공유 DB 스키마 변경) |
 
 ## 9. 제안 엔티티 (3차 보완 2026-09-26 — 본문 §3 미변경, 사용자 결정 후 승격)
 

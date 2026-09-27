@@ -21,6 +21,8 @@ export * from './limits'
 export { parseUploadForm, parseGatewayBody } from './validate'
 export type { UploadInput, GatewayUtteranceInput, UtteranceSegment, UtteranceTimings } from './validate'
 export { parseWav, isPcm16Mono16k } from './wav'
+export { checkUtteranceForTurn, linkUtteranceToMessage, readUtteranceAudio, utterancesForMessages, UTTERANCE_TURN_WINDOW_MS } from './turn'
+export type { TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance } from './turn'
 export type { WavInfo } from './wav'
 
 const DAY_MS = 24 * 60 * 60 * 1000

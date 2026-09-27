@@ -28,9 +28,10 @@ test('턴 본문: 빈 문자열·공백/제어문자만·1,001자는 400, 1,000�
   assert.ok(!nl.resume && nl.text === '一行目\n二行目\t終わり', 'D10: \\n·\\t 보존, 그 밖 제어문자 제거')
 })
 
-test('턴 본문: utteranceId 없는 REALTIME_STT 는 400, utteranceId 는 음성 회화 전까지 FEATURE_NOT_READY, resumePending 은 다른 필드 무시', () => {
+test('턴 본문: utteranceId 없는 REALTIME_STT 는 400, utteranceId 는 task-007 부터 받는다, resumePending 은 다른 필드 무시', () => {
   assert.throws(() => parseTurnBody({ text: 'はい', inputSource: 'REALTIME_STT' }), code('VALIDATION'))
-  assert.throws(() => parseTurnBody({ text: 'はい', inputSource: 'REALTIME_STT', utteranceId: 'u_1' }), code('FEATURE_NOT_READY'))
+  const voice = parseTurnBody({ text: 'はい', inputSource: 'REALTIME_STT', utteranceId: 'u_1' })
+  assert.ok(!voice.resume && voice.utteranceId === 'u_1' && voice.inputSource === 'REALTIME_STT')
   assert.throws(() => parseTurnBody({ text: 'はい', inputSource: 'VOICE' }), code('VALIDATION'))
   assert.deepEqual(parseTurnBody({ resumePending: true, text: '' }), { resume: true })
   assert.throws(() => parseTurnBody({ resumePending: 'yes', text: 'a' }), code('VALIDATION'))

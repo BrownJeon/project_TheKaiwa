@@ -2,6 +2,15 @@
  * 턴 오케스트레이터(api-contract #32, bjj `masterChat.runTurn` 이식) — 수락(사용자 행·PENDING 강사 행 저장) → PROMPT → LLM → PARSE →
  * 저장 → `done`. 수락 전 실패(404·409·400)는 호출자에게 던지고(라우트가 봉투로), 수락 뒤 실패는 강사 행 FAILED + `error` 이벤트.
  *
+ * task-007(음성 회화):
+ *  - TALK 이고 라우트가 `speaker` 를 주면 문장 음성(`audio` 이벤트)을 만든다 — 합성은 speaker(라우트가 speech 로 구현)가,
+ *    어떤 문장을 언제 보낼지는 `TurnAudio` 가 정한다. LLM 스트림에서 첫 문장을 조기 추출해(안전 필터 통과분만) 검증 전에 합성을
+ *    시작하고, 검증 뒤 나머지를 합성한다. 저장 트랜잭션은 합성과 **병렬**, `done` 은 저장 + 모든 청크가 끝난 뒤 1회.
+ *  - 수락 전 검사(`gate`, 예: 발화 소유)·잠금 없는 채팅 확인·학습자 헤더/이력 미리 읽기를 병렬로 끝낸 뒤 **LLM 을 수락 커밋과 병렬로** 띄운다
+ *    (NAS 커밋 100~500ms — startTurn 주석). 수락이 거절되면 LLM 을 abort. 수락 직후 `onAccepted`(예: 발화 연결)를 LLM 과 병렬로 돈다.
+ *  - 계측: Trace `STT`(클라)·`ACCEPT`·`PROMPT`·`LLM`(warm·firstDeltaMs·firstSentenceMs)·`PARSE`·`SAVE`·`TTS[i]`, 직전 턴 Trace 에 `PLAYBACK`.
+ *    원문·전사·응답 전문은 Trace·toolLog·로그에 넣지 않는다.
+ *
  * 사용자당 턴 1(Q1):
  *   ① 메모리 락(이 프로세스) — 같은 사용자의 두 번째 요청은 즉시 409.
  *   ② 수락 트랜잭션에서 **사용자 행 `FOR UPDATE`** 로 직렬화한 뒤(여러 채팅·blue/green 두 프로세스 공통 지점) 채팅 행 `FOR UPDATE`,
@@ -12,22 +21,35 @@
  */
 import { Prisma, type ChatKind, type InputSource, type JlptLevel } from '@prisma/client'
 import { ApiError, classifyError, dates, lockUserRow, prisma, withTransaction } from '@/modules/infra'
-import { llm, newTraceId, recordTrace, type TraceStep } from '@/modules/engine'
+import { appendTraceSteps, llm, newTraceId, recordTrace, type LlmJsonResult, type TraceStep } from '@/modules/engine'
 import { buildChatRequest } from '../prompts/chat'
 import { buildTalkRequest } from '../prompts/talk'
 import type { TutorResponse } from '../structuredResponse/schemas'
-import { buildLearnerHeader, loadHistoryBefore } from '../turnContext'
+import { buildLearnerHeader, loadHistoryBefore, loadRecentHistory } from '../turnContext'
+import type { WindowMessage } from '../window'
+import type { LearnerHeader } from '../prompts/header'
 import { chatPreview, notFoundChat } from '../chats'
-import type { TurnRequest } from '../chats/validate'
+import type { TurnClientTimings, TurnRequest } from '../chats/validate'
+import { TurnAudio, type TurnSpeaker } from './turnAudio'
 import { proposalExpiresAt } from '../proposals'
 import { currentTurnLock, isMessageLocallyRunning, isStalePending, releaseTurnLock, tryAcquireTurnLock, type TurnLock } from './locks'
 import { isRetryableTurnError, shapeTurnResponse, turnErrorMessage, type ShapedTurn } from './shape'
-import { TurnStream, type TurnListener } from './stream'
+import { TurnStream, type TurnEvent, type TurnListener } from './stream'
 
 export interface TurnAccepted {
   userMessageId: string
   assistantMessageId: string
   traceId: string
+}
+
+/** 라우트가 조합해 넣는 훅(conversation 은 speech 를 모른다 — 발화·음성은 라우트가 speech 로 구현해 넘긴다). */
+export interface TurnHooks {
+  /** 수락 **전에** 끝나야 하는 검사(예: 발화 소유·미연결·10분). 던지면 수락하지 않는다(행 0). 이력 미리 읽기와 병렬. */
+  gate?: () => Promise<void>
+  /** 수락 직후 1회(예: 발화 ↔ 사용자 메시지 연결). LLM 과 병렬로 돌고 결과 단계는 Trace 에 남는다. 실패해도 턴은 계속. */
+  onAccepted?: (a: TurnAccepted) => Promise<TraceStep | null>
+  /** TALK 턴 문장 음성. 없으면 텍스트만(CHAT·ASK 는 주어져도 쓰지 않는다). */
+  speaker?: (a: TurnAccepted) => TurnSpeaker
 }
 
 export interface TurnHandle {
@@ -50,6 +72,7 @@ interface AcceptedTurn {
   assistantMessageId: string
   pendingSince: Date
   traceId: string
+  resumed: boolean
 }
 
 const USER_MESSAGE_SELECT = { id: true, content: true, createdAt: true, inputSource: true } as const
@@ -70,7 +93,7 @@ async function acceptTurn(userId: string, chatId: string, req: TurnRequest): Pro
     if (stale.length) await tx.chatMessage.updateMany({ where: { id: { in: stale.map((p) => p.id) }, status: 'PENDING' }, data: { status: 'FAILED' } })
 
     const traceId = newTraceId()
-    const base = { chatId, kind: chat.kind, level: chat.level, traceId }
+    const base = { chatId, kind: chat.kind, level: chat.level, traceId, resumed: req.resume }
 
     if (req.resume) {
       // D1: 마지막 강사 메시지가 FAILED(방금 정리된 죽은 PENDING 포함)면 그 앞 사용자 메시지로 다시 돈다. 살아 있는 PENDING 은 위에서 409.
@@ -109,31 +132,34 @@ async function acceptTurn(userId: string, chatId: string, req: TurnRequest): Pro
   })
 }
 
-interface LlmMeta {
+/**
+ * `ChatMessage.toolLog`(api-contract #32 저장 순서) — 계측 숫자·짧은 식별자만. 원문·응답 전문 없음.
+ * TTS 값(ttsStartMs·ttfaMs·audioCount)은 합성이 저장과 병렬이라 모든 청크가 끝난 뒤 같은 객체로 한 번 더 쓴다.
+ */
+interface ToolLog {
+  traceId: string
   model: string
   connection: string
   llmMs: number
   promptChars: number
   attempt: number
+  totalMs: number
+  sttMs: number | null
+  llmFirstSentenceMs: number | null
+  warm: string | null
+  ttsStartMs?: number | null
+  ttfaMs?: number | null
+  audioCount?: number
+  meta: { learning: ShapedTurn['learning']; style: ShapedTurn['speech']['style']; endOfTopic: boolean; warning: ShapedTurn['warning'] }
 }
 
-async function saveTurn(userId: string, a: AcceptedTurn, shaped: ShapedTurn, meta: LlmMeta & { totalMs: number }) {
+async function saveTurn(userId: string, a: AcceptedTurn, shaped: ShapedTurn, toolLog: ToolLog) {
   return withTransaction(async (tx) => {
     // 잠금 순서 통일(사용자 → 채팅 → 행): 다른 인스턴스의 수락 트랜잭션과 교착하지 않게 사용자 행부터 잡는다.
     await lockUserRow(tx, userId)
-    const toolLog = {
-      traceId: a.traceId,
-      model: meta.model,
-      connection: meta.connection,
-      llmMs: meta.llmMs,
-      promptChars: meta.promptChars,
-      attempt: meta.attempt,
-      totalMs: meta.totalMs,
-      meta: { learning: shaped.learning, style: shaped.speech.style, endOfTopic: shaped.endOfTopic, warning: shaped.warning },
-    }
     const res = await tx.chatMessage.updateMany({
       where: { id: a.assistantMessageId, status: 'PENDING', createdAt: a.pendingSince },
-      data: { status: 'DONE', content: shaped.reply.replyJa, reading: shaped.reply.replyReading || null, translation: shaped.reply.replyKo || null, toolLog, traceId: a.traceId },
+      data: { status: 'DONE', content: shaped.reply.replyJa, reading: shaped.reply.replyReading || null, translation: shaped.reply.replyKo || null, toolLog: toolLog as unknown as Prisma.InputJsonValue, traceId: a.traceId },
     })
     if (res.count === 0) throw new ApiError('CONFLICT', '대화가 바뀌어 답을 저장하지 못했어요.')
 
@@ -171,9 +197,123 @@ async function markAssistantFailed(a: AcceptedTurn, errorCode: string): Promise<
   }
 }
 
-async function processTurn(userId: string, a: AcceptedTurn, lock: TurnLock, stream: TurnStream, startedAt: number): Promise<void> {
-  const steps: TraceStep[] = []
-  const elapsed = () => Date.now() - startedAt
+interface Preload {
+  history: Promise<WindowMessage[]> | null
+}
+
+/** 수락과 병렬로 이력·학습자 헤더 재료를 읽는다. 실패는 여기서 삼키고(미처리 거부 방지) 사용 시점에 다시 읽는다. */
+function startPreload(userId: string, chatId: string, resume: boolean): Preload {
+  const history = resume ? null : loadRecentHistory(userId, chatId)
+  history?.catch(() => undefined)
+  void buildLearnerHeader(userId, null).catch(() => undefined)
+  return { history }
+}
+
+/**
+ * 수락 전 채팅 확인(잠금 없는 읽기) — 먼저 띄울 LLM 의 모드(TALK/CHAT)·수준을 정한다. 수락 트랜잭션이 잠금을 잡고 다시 확인한다.
+ * 남의 채팅·없음 404, ASK 는 아직 FEATURE_NOT_READY(수락과 같은 판정).
+ */
+async function precheckChat(userId: string, chatId: string): Promise<{ kind: ChatKind; level: JlptLevel | null }> {
+  const chat = await prisma.chat.findFirst({ where: { id: chatId, userId }, select: { kind: true, level: true } })
+  if (!chat) throw notFoundChat()
+  if (chat.kind === 'ASK') throw new ApiError('FEATURE_NOT_READY', '무엇이든 물어보기는 아직 준비 중이에요.')
+  return chat
+}
+
+function clientSteps(t: TurnClientTimings | null): TraceStep[] {
+  return t?.sttMs != null ? [{ name: 'STT', ms: t.sttMs, source: 'client' }] : []
+}
+
+/** 직전 턴(prevMessageId = 직전 강사 메시지)의 재생 계측을 그 턴 Trace 에 덧붙인다. 남의 메시지·없는 Trace 는 조용히 건너뛴다. */
+async function recordPlayback(userId: string, chatId: string, t: TurnClientTimings | null): Promise<void> {
+  if (!t?.prevMessageId) return
+  if (t.playbackStartDelayMs == null && t.firstAudioAtMs == null && t.releaseToFirstAudioEventMs == null) return
+  const prev = await prisma.chatMessage.findFirst({ where: { id: t.prevMessageId, userId, chatId, role: 'ASSISTANT' }, select: { traceId: true } })
+  if (!prev?.traceId) return
+  await appendTraceSteps(prev.traceId, userId, [
+    {
+      name: 'PLAYBACK',
+      ms: t.playbackStartDelayMs ?? 0,
+      playbackStartDelayMs: t.playbackStartDelayMs,
+      firstAudioAtMs: t.firstAudioAtMs,
+      releaseToFirstAudioEventMs: t.releaseToFirstAudioEventMs,
+    },
+  ])
+}
+
+/** 수락(`accepted`) 전에 난 이벤트를 모아 두었다가 `accepted` 바로 뒤에 순서대로 내보낸다 — 스트림은 항상 accepted 로 시작한다. */
+class EarlyEmitter {
+  private buf: TurnEvent[] = []
+  private opened = false
+  constructor(private readonly stream: TurnStream) {}
+  readonly emit = (e: TurnEvent): void => {
+    if (this.opened) this.stream.emit(e)
+    else this.buf.push(e)
+  }
+  open(): void {
+    this.opened = true
+    for (const e of this.buf) this.stream.emit(e)
+    this.buf = []
+  }
+}
+
+/** 프롬프트 조립 + LLM 시작(+ TALK 이면 문장 음성 스케줄러). 수락과 병렬로 먼저 띄울 수 있게 떼어 냈다. */
+interface LlmRun {
+  promise: Promise<LlmJsonResult<TutorResponse>>
+  audio: TurnAudio | null
+  /** 턴 시작 → LLM 시작(ms). */
+  startAt: number
+  promptMs: number
+  abort: () => void
+}
+
+function startLlmRun(o: {
+  kind: ChatKind
+  text: string
+  learner: LearnerHeader
+  history: WindowMessage[]
+  speaker: TurnSpeaker | null
+  emit: (e: TurnEvent) => void
+  elapsed: () => number
+}): LlmRun {
+  o.emit({ event: 'status', data: { stage: 'PROMPT', elapsedMs: o.elapsed() } })
+  const t = Date.now()
+  const input = { todayKst: dates.todayKst(), learner: o.learner, history: o.history, text: o.text }
+  const req = o.kind === 'TALK' ? buildTalkRequest(input) : buildChatRequest(input)
+  const promptMs = Date.now() - t
+  const audio = o.kind === 'TALK' && o.speaker ? new TurnAudio({ speaker: o.speaker, emit: o.emit, elapsed: o.elapsed, early: true }) : null
+  const startAt = o.elapsed()
+  o.emit({ event: 'status', data: { stage: 'LLM', elapsedMs: startAt } })
+  const ac = new AbortController()
+  // softExtraCheck: 후검증 위반이 재시도 뒤에도 남으면 던지지 않고 서버가 정리한다(CHAT 교정 null·TALK 원문 불일치 교정 버림).
+  const promise = llm.completeJson<TutorResponse>({
+    ...req,
+    softExtraCheck: true,
+    signal: ac.signal,
+    ...(audio ? { onTextDelta: (d: string, call: number) => audio.onDelta(d, call) } : {}),
+  })
+  // 수락이 끝나기 전에 실패해도 미처리 거부가 되지 않게(뒤에서 await 가 같은 거부를 받는다).
+  promise.catch(() => undefined)
+  return { promise, audio, startAt, promptMs, abort: () => ac.abort() }
+}
+
+interface ProcessInput {
+  userId: string
+  a: AcceptedTurn
+  lock: TurnLock
+  stream: TurnStream
+  elapsed: () => number
+  acceptMs: number
+  hooks: TurnHooks
+  clientTimings: TurnClientTimings | null
+  /** 수락과 병렬로 먼저 띄운 LLM(끊김 복구가 아니면 항상). 없으면 여기서 띄운다. */
+  run: LlmRun | null
+  speaker: TurnSpeaker | null
+}
+
+async function processTurn(p: ProcessInput): Promise<void> {
+  const { userId, a, lock, stream, elapsed } = p
+  const steps: TraceStep[] = [...clientSteps(p.clientTimings), { name: 'ACCEPT', ms: p.acceptMs, parallelWithLlm: p.run !== null }]
   let released = false
   const release = () => {
     if (released) return
@@ -181,29 +321,74 @@ async function processTurn(userId: string, a: AcceptedTurn, lock: TurnLock, stre
     releaseTurnLock(lock)
   }
   let trace: { status: 'OK' | 'ERROR'; errorCode: string | null } = { status: 'OK', errorCode: null }
+  const acc: TurnAccepted = { userMessageId: a.userMessage.id, assistantMessageId: a.assistantMessageId, traceId: a.traceId }
+  const acceptedHook = p.hooks.onAccepted
+    ? p.hooks.onAccepted(acc).catch((e) => {
+        console.warn('[turn] 수락 후 훅 실패:', e instanceof Error ? e.name : 'unknown')
+        return { name: 'ON_ACCEPTED', ms: 0, warning: 'HOOK_FAILED' } as TraceStep
+      })
+    : Promise.resolve(null)
+  let audio: TurnAudio | null = p.run?.audio ?? null
+  let toolLog: ToolLog | null = null
   try {
-    stream.emit({ event: 'status', data: { stage: 'PROMPT', elapsedMs: elapsed() } })
-    let t = Date.now()
-    const [learner, history] = await Promise.all([buildLearnerHeader(userId, a.level), loadHistoryBefore(a.chatId, a.userMessage)])
-    const input = { todayKst: dates.todayKst(), learner, history, text: a.userMessage.content }
-    const req = a.kind === 'TALK' ? buildTalkRequest(input) : buildChatRequest(input)
-    steps.push({ name: 'PROMPT', ms: Date.now() - t })
-
-    stream.emit({ event: 'status', data: { stage: 'LLM', elapsedMs: elapsed() } })
-    t = Date.now()
-    // softExtraCheck: 후검증 위반이 재시도 뒤에도 남으면 던지지 않고 아래에서 서버가 정리한다(CHAT 교정 null·TALK 원문 불일치 교정 버림).
-    const r = await llm.completeJson<TutorResponse>({ ...req, softExtraCheck: true })
-    const llmMs = Date.now() - t
-    steps.push({ name: 'LLM', ms: llmMs, connection: r.connectionKey, model: r.model, attempts: r.attempts ?? 1, promptChars: r.promptChars, residualViolations: r.residualViolations?.length ?? 0 })
+    let run = p.run
+    if (!run) {
+      const [learner, history] = await Promise.all([buildLearnerHeader(userId, a.level), loadHistoryBefore(a.chatId, a.userMessage)])
+      run = startLlmRun({ kind: a.kind, text: a.userMessage.content, learner, history, speaker: p.speaker, emit: (e) => stream.emit(e), elapsed })
+      audio = run.audio
+    }
+    steps.push({ name: 'PROMPT', ms: run.promptMs })
+    const r = await run.promise
+    const llmMs = elapsed() - run.startAt
+    const am = audio?.metrics()
+    // LLM 시작 → 스트림에서 첫 문장이 확정된 시각(조기 경로). 조기 문장이 없으면 null.
+    const firstSentenceMs = am?.firstSentenceMs != null ? am.firstSentenceMs - run.startAt : null
+    steps.push({
+      name: 'LLM',
+      ms: llmMs,
+      startMs: run.startAt,
+      connection: r.connectionKey,
+      model: r.model,
+      attempts: r.attempts ?? 1,
+      promptChars: r.promptChars,
+      residualViolations: r.residualViolations?.length ?? 0,
+      warm: r.warm ?? null,
+      firstDeltaMs: r.firstDeltaMs ?? null,
+      firstSentenceMs,
+      earlyStop: am?.earlyStop ?? null,
+    })
 
     stream.emit({ event: 'status', data: { stage: 'PARSE', elapsedMs: elapsed() } })
-    t = Date.now()
+    let t = Date.now()
     const shaped = shapeTurnResponse(a.kind, a.userMessage.content, r.data)
     if (shaped.warning) stream.emit({ event: 'status', data: { stage: 'PARSE', elapsedMs: elapsed(), warning: shaped.warning } })
-    const saved = await saveTurn(userId, a, shaped, { model: r.model, connection: r.connectionKey, llmMs, promptChars: r.promptChars, attempt: r.attempts ?? 1, totalMs: elapsed() })
+    // 검증을 통과한 답으로 남은 문장 합성을 시작하고, 저장은 그와 병렬로(첫 음성 경로에서 뺀다).
+    audio?.finalize(shaped.reply.replyJa, shaped.speech.style)
     steps.push({ name: 'PARSE', ms: Date.now() - t })
-
+    t = Date.now()
+    toolLog = {
+      traceId: a.traceId,
+      model: r.model,
+      connection: r.connectionKey,
+      llmMs,
+      promptChars: r.promptChars,
+      attempt: r.attempts ?? 1,
+      totalMs: elapsed(),
+      sttMs: p.clientTimings?.sttMs ?? null,
+      llmFirstSentenceMs: firstSentenceMs,
+      warm: r.warm ?? null,
+      meta: { learning: shaped.learning, style: shaped.speech.style, endOfTopic: shaped.endOfTopic, warning: shaped.warning },
+    }
+    const saved = await saveTurn(userId, a, shaped, toolLog)
+    steps.push({ name: 'SAVE', ms: Date.now() - t })
+    // 저장이 끝났으면 다음 턴을 받아도 된다 — 남은 합성은 락과 무관하다.
     release()
+    if (audio) {
+      await audio.settled()
+      const m = audio.metrics()
+      steps.push(...audio.steps())
+      toolLog = { ...toolLog, ttsStartMs: m.ttsStartMs, ttfaMs: m.ttfaMs, audioCount: m.audioCount }
+    }
     stream.emit({
       event: 'done',
       data: {
@@ -215,7 +400,7 @@ async function processTurn(userId: string, a: AcceptedTurn, lock: TurnLock, stre
         speech: shaped.speech,
         endOfTopic: shaped.endOfTopic,
         proposals: saved.proposals,
-        audioCount: 0,
+        audioCount: audio?.metrics().audioCount ?? 0,
         traceId: a.traceId,
       },
     })
@@ -230,29 +415,98 @@ async function processTurn(userId: string, a: AcceptedTurn, lock: TurnLock, stre
     release()
     stream.finish()
   }
+  if (audio && toolLog?.audioCount !== undefined) await patchToolLog(a, toolLog)
+  const hookStep = await acceptedHook
+  if (hookStep) steps.push(hookStep)
   await recordTrace({ traceId: a.traceId, kind: 'TURN', userId, status: trace.status, steps, totalMs: elapsed(), errorCode: trace.errorCode, refType: 'chatMessage', refId: a.assistantMessageId })
+  await recordPlayback(userId, a.chatId, p.clientTimings).catch(() => undefined)
+}
+
+/** TTS 계측을 더한 toolLog 를 다시 쓴다(DONE 이고 이 턴의 traceId 인 행만). 실패는 로그만. */
+async function patchToolLog(a: AcceptedTurn, toolLog: ToolLog): Promise<void> {
+  try {
+    await prisma.chatMessage.updateMany({ where: { id: a.assistantMessageId, status: 'DONE', traceId: a.traceId }, data: { toolLog: toolLog as unknown as Prisma.InputJsonValue } })
+  } catch (e) {
+    console.warn('[turn] toolLog TTS 계측 기록 실패:', e instanceof Error ? e.name : 'unknown')
+  }
 }
 
 /**
  * #32 턴 시작. 수락까지 기다려 돌려주고(그 전 실패는 던진다), 나머지는 백그라운드에서 끝까지 돈다.
  * 라우트는 `handle.subscribe` 를 SSE 에 연결하기만 한다 — 연결이 끊겨도 `handle.done` 은 저장까지 간다.
+ *
+ * 수락 트랜잭션과 LLM 을 **병렬로** 시작한다(task-007 K2-3): NAS MariaDB 는 커밋마다 fsync(`innodb_flush_log_at_trx_commit=1`
+ * + `sync_binlog=1`)라 커밋 1회가 100~500ms 다(실측). 잠금 없는 확인(채팅 소유·모드·수준, 발화 gate)을 먼저 끝내고 LLM 을 띄운 뒤
+ * 수락을 기다린다. 수락이 거절되면(409 등) LLM 을 abort 하고 그 오류를 그대로 던진다(행 0·이벤트 0). 끊김 복구는 이전 사용자
+ * 메시지가 있어야 하므로 수락 뒤에 띄운다. 음성 합성은 수락 뒤에만 시작한다(speaker 가 수락을 기다린다).
  */
-export async function startTurn(input: { userId: string; chatId: string; request: TurnRequest }): Promise<TurnHandle> {
+export async function startTurn(input: { userId: string; chatId: string; request: TurnRequest; hooks?: TurnHooks }): Promise<TurnHandle> {
   if (typeof input.chatId !== 'string' || !input.chatId || input.chatId.length > 40) throw notFoundChat()
   const lock = tryAcquireTurnLock(input.userId, input.chatId)
   if (!lock) throw turnConflict(currentTurnLock(input.userId)?.assistantMessageId ?? null)
   const startedAt = Date.now()
+  const elapsed = () => Date.now() - startedAt
+  const hooks = input.hooks ?? {}
+  const request = input.request
+  const stream = new TurnStream()
+  const early = new EarlyEmitter(stream)
+  const preload = startPreload(input.userId, input.chatId, request.resume)
+  let acceptedResolve: (a: TurnAccepted) => void = () => {}
+  let acceptedReject: (e: unknown) => void = () => {}
+  const acceptedPromise = new Promise<TurnAccepted>((res, rej) => {
+    acceptedResolve = res
+    acceptedReject = rej
+  })
+  acceptedPromise.catch(() => undefined)
+  // 먼저 뜬 LLM 의 첫 문장이 수락보다 빨라도 합성은 수락 뒤에 — 거절된 턴의 음성을 만들지 않는다.
+  const speaker: TurnSpeaker | null = hooks.speaker ? async (req) => hooks.speaker!(await acceptedPromise)(req) : null
+
+  let run: LlmRun | null = null
   let accepted: AcceptedTurn
+  let acceptMs = 0
   try {
-    accepted = await acceptTurn(input.userId, input.chatId, input.request)
+    if (!request.resume) {
+      const [pre] = await Promise.all([precheckChat(input.userId, input.chatId), hooks.gate ? hooks.gate() : Promise.resolve()])
+      const [learner, history] = await Promise.all([
+        buildLearnerHeader(input.userId, pre.level),
+        (preload.history ?? Promise.reject(new Error('no preload'))).catch(() => loadRecentHistory(input.userId, input.chatId)),
+      ])
+      run = startLlmRun({ kind: pre.kind, text: request.text, learner, history, speaker, emit: early.emit, elapsed })
+    }
+    const t = Date.now()
+    accepted = await acceptTurn(input.userId, input.chatId, request)
+    acceptMs = Date.now() - t
   } catch (e) {
+    run?.abort()
+    acceptedReject(e)
     releaseTurnLock(lock)
     throw e
   }
   lock.assistantMessageId = accepted.assistantMessageId
-  const stream = new TurnStream()
   const acc: TurnAccepted = { userMessageId: accepted.userMessage.id, assistantMessageId: accepted.assistantMessageId, traceId: accepted.traceId }
+  acceptedResolve(acc)
   stream.emit({ event: 'accepted', data: acc })
-  void processTurn(input.userId, accepted, lock, stream, startedAt).catch((e) => console.error('[turn] 예기치 못한 예외:', e instanceof Error ? e.message : String(e)))
+  early.open()
+  const clientTimings = request.resume ? null : request.clientTimings
+  // 끊김 복구(resume)는 사용자 행이 이미 있으므로 발화 연결 훅을 다시 돌리지 않는다(음성은 speaker 로 다시 만든다).
+  const turnHooks: TurnHooks = accepted.resumed ? { speaker: hooks.speaker } : hooks
+  void processTurn({ userId: input.userId, a: accepted, lock, stream, elapsed, acceptMs, hooks: turnHooks, clientTimings, run, speaker }).catch((e) =>
+    console.error('[turn] 예기치 못한 예외:', e instanceof Error ? e.message : String(e)),
+  )
   return { accepted: acc, subscribe: (l) => stream.subscribe(l), done: stream.done }
+}
+
+/**
+ * TALK 방 진입·푸시투토크 티켓 때 LLM 을 예열한다(task-007 K2-1, 명시적 warm 라우트 없음). 실제 턴과 **같은 페르소나**가 나오도록
+ * `buildTalkRequest` 를 그대로 써서 모양만 넘긴다(학습자 헤더는 60초 캐시를 채우는 효과도 있다). 실패는 삼킨다.
+ */
+export async function prewarmTalkTurn(userId: string, chat: { kind: ChatKind; level: JlptLevel | null }): Promise<string> {
+  if (chat.kind !== 'TALK') return 'NOT_TALK'
+  try {
+    const learner = await buildLearnerHeader(userId, chat.level)
+    const req = buildTalkRequest({ todayKst: dates.todayKst(), learner, history: [], text: '…' })
+    return await llm.prewarm(req)
+  } catch {
+    return 'FAILED'
+  }
 }

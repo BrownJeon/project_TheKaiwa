@@ -59,6 +59,13 @@ export const claudeCliProvider: EngineProvider = {
       key('runtime.agentsFile', 'PATH', '.claude/agents/tutor.md', { editability: 'READ_ONLY', description: '강사 페르소나 파일(내용 버전은 Prompt Registry, Phase 2)' }),
       key('runtime.jsonSchemaFlag', 'BOOLEAN', false, { envAlias: ['KAIWA_LLM_JSON_SCHEMA_FLAG'], description: '--json-schema 사용(실측 +~1s). 기본은 프롬프트 스키마 + ajv' }),
       key('runtime.thinkingForDeep', 'BOOLEAN', false, { description: 'tier deep 에서만 extended thinking 허용' }),
+      key('runtime.earlySentenceTts', 'BOOLEAN', true, {
+        description: '회화 턴 첫 문장 조기 합성 — 생성 중인 응답에서 첫 문장을 먼저 꺼내 음성으로 만든다(안전 필터 통과 문장만). 끄면 응답 검증 뒤 합성',
+        impact: '회화 첫 음성까지의 시간(TTFA)',
+      }),
+      key('runtime.prewarm', 'BOOLEAN', true, { description: '회화 방 진입·말하기 시작 때 CLI 프로세스를 미리 띄워 둔다(대기 중 토큰 사용 0, 프로세스당 1요청)', impact: '회화 턴 지연·서버 메모리' }),
+      key('runtime.prewarmMaxIdle', 'INTEGER', 2, { min: 0, max: 4, description: '대기 프로세스 전체 상한(0 = 예열 끔). 1개 ≈ 서버 메모리 100~200MB' }),
+      key('runtime.prewarmIdleTtlSec', 'INTEGER', 600, { min: 60, max: 3600, description: '대기 프로세스 유휴 수명(초). 지나면 내린다' }),
       LOG_LEVEL_KEY,
     ],
   }),

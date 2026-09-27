@@ -136,10 +136,10 @@
 | 20 | POST | `/api/v1/speech/ticket` | WS 60초 티켓 | S | speech/stt | 1 | `{chatId?}` | `{ticket,expiresAt,wsPath}` |
 | 21 | POST | `/api/v1/speech/utterances` | 발화 wav+실시간 텍스트 업로드 | S | speech/utterances | 1 | multipart ≤2MB/≤60s | `{utteranceId,status}` |
 | 21a | PATCH | `/api/v1/speech/utterances/:id` | requiresReview 발화의 finalText 확정(USER) | S | speech/utterances | 2 | `{finalText}` | `Utterance` |
-| 21b | GET | `/api/v1/speech/utterances/:id/audio` | 소유자 원음(30일) | S | speech/utterances | 2 | — | `audio/wav` |
+| 21b | GET | `/api/v1/speech/utterances/:id/audio` | 소유자 원음(30일) — 회화방 "내 발음 다시 듣기" | S | speech/utterances | 1(task-007 최소판) | — | `audio/wav` |
 | 22 | GET | `/api/v1/speech/utterances/:id` | 발화·분석 결과 | S | speech/utterances | 2 | — | `Utterance`+`SpeechAnalysis` |
 | 23 | POST | `/api/v1/speech/tts` | 문장 → 음성(정규화·사전·Rendering Plan·캐시) | S | speech/tts | 1 | `{text,voiceId?,speechProfile?,renderingPlan?,context?}` | `audio/wav` 또는 `{url,cacheKey,durationMs,ttfaMs,timing?,runtime}` (5차 §133·§146) |
-| 24 | GET | `/api/v1/speech/tts/:cacheKey` | 캐시 오디오 조회 | S | speech/tts | 1 | — | `audio/wav` |
+| 24 | GET | `/api/v1/speech/tts/:token` | 캐시 오디오 조회(**서명 URL**, 사용자 결속·10분) | S | speech/tts | 1 | — | `audio/wav` 또는 `{audioUrl,durationMs,timing}` |
 | 25 | POST | `/api/v1/attendance/check-in` | 출석(멱등) | S | learning/attendance | 1 | — | `{date,isNew,streak}` |
 | 26 | GET | `/api/v1/attendance?month=` | 월 출석 | S | learning/attendance | 1 | query | `{month,days[]}` |
 | 27 | GET | `/api/v1/chats?kind=&limit=&cursor=` | 대화 목록 | S | conversation/chats | 1 | query | 목록 |
@@ -147,7 +147,7 @@
 | 29 | GET | `/api/v1/chats/:id?after=` | 대화 상세(메시지·running) | S | conversation/chats | 1 | query | `Chat`+messages |
 | 30 | PATCH | `/api/v1/chats/:id` | 제목 변경 | S | conversation/chats | 1 | `{title}` | `Chat` |
 | 31 | DELETE | `/api/v1/chats/:id` | 대화 삭제 | S | conversation/chats | 1 | — | `{deleted:true}` |
-| 32 | POST | `/api/v1/chats/:id/turns` | **턴 실행(SSE)** | S | app(conversation+speech 조합) | 1 | `{text,utteranceId?,inputSource}` 또는 `{resumePending:true}` | SSE |
+| 32 | POST | `/api/v1/chats/:id/turns` | **턴 실행(SSE)** | S | app(conversation+speech 조합) | 1 | `{text,utteranceId?,inputSource?,clientTimings?}` 또는 `{resumePending:true}` | SSE |
 | 33 | POST | `/api/v1/chats/:id/review` | 채팅 표현 점검(A3) | S | conversation/corrections | 1 | — | `{items[]}` 또는 `{jobId}` |
 | 34 | GET | `/api/v1/corrections?status=&chatId=` | 교정 목록 | S | conversation/corrections | 1 | query | 목록 |
 | 35 | POST | `/api/v1/corrections/:id/accept` | 교정 채택(+단어 추가) | S | conversation/corrections | 1 | `{addWord?}` | `Correction`(+`wordId`) |
@@ -458,7 +458,7 @@
 
 - 검증은 #14 와 동일(`"AUTO"` 허용 → Voice defaults 로 해석). 사용자당 10/분(`429`).
 - `speechProfile`(선택, "들려주는 방식" draft — task-003d U1)도 반영한다.
-- 응답: 본문 `audio/wav`(+ `X-Tts-Cache: HIT|MISS`, `X-Trace-Id`). **JSON(`url`·`cacheKey`) 응답은 #24 서명 URL 과 함께 task-007** 에서 연다(task-003d S3 — 캐시 키로 오디오를 가져오는 경로는 사용자·대상에 묶인 짧은 만료 HMAC 서명 URL 필수).
+- 응답: 본문 `audio/wav`(+ `X-Tts-Cache: HIT|MISS`, `X-Trace-Id`). **JSON(`url`·`cacheKey`) 응답은 #24 서명 URL 과 함께 task-007** 에서 연다(task-003d S3 — 캐시 키로 오디오를 가져오는 경로는 사용자·대상에 묶인 짧은 만료 HMAC 서명 URL 필수). task-007 은 #23 JSON 변형만 열었다 — 미리듣기(#18)는 여전히 wav 본문만(JSON 은 필요해지면 같은 서명 URL 로).
 - 캐시 키 = `sha1(text|voiceProfileId|style|styleWeight|speed|pitch|intonation|engineConnectionId|previewTextVersion)`; `TtsCache` 히트면 합성하지 않는다.
 - 오류: TTS connection 없음 `422`, 합성 실패 `502`, 8초 초과 `504`. `RequestTrace.kind = PREVIEW`.
 
@@ -540,7 +540,7 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 ```
 
 - `PATCH /api/v1/speech/utterances/:id` body `{ "finalText": "…" }`(≤1,000자) 는 `requiresReview=true` 인 발화에 한해 학습자가 두 안 중 하나(또는 직접 입력)를 고르는 경로 — `finalSource=USER`. 이미 확정된 발화는 `409`. (총람 #22 에 포함되는 보조 메서드)
-- `GET …/audio` 는 소유자에게만 `audio/wav`(30일 후 `404`).
+- `GET …/audio`(#21b) 는 소유자에게만 `audio/wav`(30일 후 `404`). **task-007 에서 이 한 경로만 먼저 열었다(최소판)**: 타인·없음·보존 기한 지남·파일 없음은 모두 `404`, 세션 없음 `401`, `Cache-Control: private, max-age=300`, 헤더 `X-Audio-Duration-Ms`, 사용자당 60/분. `GET /utterances/:id`(#22 본문)·`PATCH`(#21a)는 Phase 2.
 
 #### #23 `POST /api/v1/speech/tts` — 문장 → 음성 (5차 TTS 보완 §133~§146 반영, 2026-09-26)
 
@@ -550,10 +550,11 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
     "context": { "sentenceIdx": 0, "styleHint": "ENCOURAGING", "lessonId": null, "topicId": null } }
 ← 200 audio/wav  (헤더 X-Tts-Cache-Key, X-Tts-Duration-Ms, X-Tts-Ttfa-Ms, X-Tts-Execution-Mode: SERVER, X-Trace-Id)
    또는 Accept: application/json →
-   { "url": "/api/v1/speech/tts/<cacheKey>", "cacheKey": "…", "cached": false, "durationMs": 1420, "ttfaMs": 610,
+   { "url": "/api/v1/speech/tts/<token>", "cacheKey": "…", "cached": false, "durationMs": 1420, "ttfaMs": 610,
      "normalizedText": "そうですね。昨日は何をしましたか？", "dictionaryVersion": 13, "modelVersion": "1.0",
      "timing": null,
-     "runtime": { "executionMode": "SERVER" } }        // connectionKey 등 엔진 식별자는 사용자 응답에 싣지 않는다(task-003d U5 — 관리자 Trace 에만)
+     "runtime": { "executionMode": "SERVER" }, "traceId": "t_…" }   // connectionKey 등 엔진 식별자는 사용자 응답에 싣지 않는다(task-003d U5 — 관리자 Trace 에만)
+   // task-007 구현: JSON 변형의 url 은 #24 서명 URL(10분). 다시 듣기(지난 메시지 ▶)는 #29 speechStyle 을 styleHint 로 실어 이 경로로 문장별 요청 — 같은 캐시 키라 HIT.
 ```
 
 - **파이프라인(§133)**: `text` → `JapaneseTextNormalizer`(숫자·날짜·시간·단위·Counter·기호·영문·외래어·고유명사·약어 읽기 결정) → `PronunciationLexicon`(ACTIVE 사전 버전, 범위 우선순위 USER>VOICE>LESSON>COURSE>GLOBAL) → `SpeechRenderingPlan`(엔진 독립 세그먼트: `style ∈ FRIENDLY|CALM|ENCOURAGING|EXPLANATION|EMPHASIS`, `speed ∈ NORMAL|SLOW|VERY_SLOW`, `pauseBeforeMs`) → TTS Parameter Resolver(User > VoiceProfile > Persona > Context > LLM `styleHint`) → 어댑터가 SBV2 파라미터로 변환 → M4 tts-service. `renderingPlan` 을 직접 주면(레슨 세그먼트 제어·관리자 Playground) 정규화·사전만 거치고 Resolver 는 값 검증만 한다. **LLM·앱은 엔진 파라미터를 직접 주지 않는다.**
@@ -563,9 +564,21 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 - `runtime.executionMode ∈ SERVER|ON_DEVICE|TEXT_ONLY` — 라우터 실제 선택 결과(§158). TEXT_ONLY 는 서버 TTS 불가·온디바이스 없음(자막만) → 본문 없이 `422 ENGINE_UNAVAILABLE`(§0-5 코드, `details.reason:"TTS_UNAVAILABLE"`) + `runtime` JSON. 온디바이스 TTS 는 P2(research track).
 - 오류: `422 ENGINE_UNAVAILABLE`(§0-5 코드, `details.reason:"TTS_UNAVAILABLE"`)(connection 없음/TEXT_ONLY) · `502` · `504`(8초). `RequestTrace` 에 TTS 하위 단계 `TTS`(부모)·`TTS_NORMALIZE`·`TTS_LEXICON`·`TTS_PLAN`·`TTS_QUEUE`·`TTS_SYNTH[i]`(기존 `TTS_SENTENCE` 대체)·`TTS_ENCODE`·`TTS_TIMING`·`PLAYBACK`(클라 보고) 를 기록(§144, meta 화이트리스트는 `speech-platform/16` §7.2·`admin-console/13` §4). 본문·표기·읽기는 어느 step 에도 없다.
 
-#### #24 `GET /api/v1/speech/tts/:cacheKey`
+#### #24 `GET /api/v1/speech/tts/:token` — 캐시 오디오(서명 URL, task-007 K5 · Codex C1-1)
 
-`TtsCache` 조회 → `audio/wav`, `Cache-Control: private, max-age=86400`. 키는 사용자 소유가 아니므로 세션만 검사한다(키 자체가 추측 불가). 없으면 `404`.
+`:token` 은 **서버가 발급한 서명 토큰**이다(캐시 키를 그대로 받지 않는다 — task-003d S3). 발급처: #32 SSE `audio.url`, #23 `Accept: application/json` 의 `url`.
+
+```
+token = base64url(JSON {"k": <cacheKey 40hex>, "e": <만료 epoch 초>}) + "." + base64url(HMAC-SHA256(K, "tts-audio|" + userId + "|" + k + "|" + e))
+K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio-url/v1", 32바이트)   // 새 env 없음, 세션 서명 키와 용도 분리
+```
+
+- **userId 는 URL 에 없다**(MAC 입력에만). 검증은 요청 세션 사용자로 MAC 을 다시 계산해 `timingSafeEqual` — 다른 사람 세션이면 불일치. messageId 는 결속하지 않는다(만료 + 사용자 결속으로 충분, Leader 판정).
+- 만료 **10분**(발급 시각 기준). 서명이 맞아도 만료가 지금+1시간보다 먼 토큰은 거부(서버가 만든 적 없는 형태).
+- 응답: `200 audio/wav` + `Cache-Control: private, max-age=<남은 초>` + `X-Tts-Duration-Ms`·`X-Tts-Model-Version`·`X-Tts-Dictionary-Version`(§7-1). `Accept: application/json` 이면 `{ audioUrl, durationMs, timing: null }`(timing P1).
+- 세션 없음 `401`. **형식 오류·만료·서명 불일치(타인 세션 포함)·캐시 없음은 전부 같은 `404` 본문**(존재 오라클 금지). 사용자당 240/분.
+- 라우팅: 정적 세그먼트 `/api/v1/speech/tts/status`(§7-1)·`/tts/chunks` 가 이 동적 세그먼트보다 우선한다.
+- 클라이언트는 이 URL 을 보관·재사용하지 않는다(재생 큐가 받은 턴 안에서만 쓴다). 지난 메시지 다시 듣기는 #23.
 
 ### 2-5. 출석 (L3 learning/attendance)
 
@@ -617,6 +630,7 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 }, "message": null }
 ```
 
+- **task-007 구현 차이**: USER 메시지에 `utteranceId`(연결된 발화, 없으면 `null`)·`audioAvailable`(원음이 보존 기간 안이고 지워지지 않음 = #21b 재생 가능) — `Utterance` 는 speech 테이블이라 **#29 라우트가 conversation 결과에 speech 조회를 조합**한다. ASSISTANT 메시지에 `speechStyle`(저장된 LLM `speech.style` — 다시 듣기 #23 의 `styleHint` 로 쓰면 같은 캐시 키 HIT). 예시의 `audio[]` 는 **채우지 않는다**(task-007 후속 — 다시 듣기는 #23 문장별 요청). TALK 방 첫 조회(`after` 없음)는 LLM 예열 트리거다(응답과 무관).
 - `after` 는 폴링 재개용(그 id 이후만, 오름차순). `after` 가 없으면 **최근 `limit`(기본 50)건을 오름차순**으로 주고 `nextCursor` 는 그보다 **오래된** 메시지 쪽 커서다(`?cursor=` 로 이전 메시지 로드, task-006 D2). `toolLog` 는 사용자 응답에 싣지 않는다(개발자는 `traceId` 로 `/api/admin/v1/traces/:id`).
 - 메시지 `status: PENDING` 이 남아 있고 `running=false` 면 클라이언트는 `{resumePending:true}` 턴을 호출해 정리한다.
 
@@ -630,15 +644,16 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 
 ```json
 { "text": "昨日映画を見に行くました", "utteranceId": "u_01…", "inputSource": "REALTIME_STT",
-  "clientTimings": { "prevMessageId": "m_…", "playbackStartDelayMs": 120, "firstAudioAtMs": 4180 } }
+  "clientTimings": { "prevMessageId": "m_…", "sttMs": 63, "releaseToFirstAudioEventMs": 3900, "firstAudioAtMs": 4180, "playbackStartDelayMs": 120 } }
 ```
-또는 끊김 복구 `{ "resumePending": true }`. `clientTimings`(선택, 5차 §142)는 직전 턴의 재생 계측을 보고하며 `RequestTrace` `PLAYBACK` step 으로 지연 기록된다.
+또는 끊김 복구 `{ "resumePending": true }`. `clientTimings`(선택, 5차 §142 · task-007 designer §9-11 ⑤): 기준점은 **손 뗌**(글자 턴은 보내기 누름). `sttMs`(손 뗌 → final)만 **이번 턴** 값이고 나머지 셋(`releaseToFirstAudioEventMs` 손 뗌 → 첫 audio 이벤트, `firstAudioAtMs` 손 뗌 → 첫 재생 시작, `playbackStartDelayMs` 첫 audio 수신 → 재생 시작)은 `prevMessageId`(직전 강사 메시지) 턴 값이다. 각 0~120000 숫자(범위 밖·숫자 아님 `400`), 모르는 키는 무시. 서버는 이번 Trace `STT` step 과 직전 턴 Trace `PLAYBACK` step 에만 쓴다(응답·화면에 싣지 않는다).
 
 | 필드 | 검증 |
 |---|---|
 | `text` | 1~1,000자, 제어문자 제거 후 공백만이면 `400` |
-| `utteranceId` | 선택. 소유자 검사(타인 404). 있으면 `text` 는 `Utterance.finalText` 와 같아야 하며 다르면 서버가 `Utterance.finalText=text, finalSource=USER` 로 갱신 |
-| `inputSource` | `InputSource{REALTIME_STT,SERVER_STT,TEXT}`; `utteranceId` 없이 `REALTIME_STT` 는 `400` |
+| `utteranceId` | 선택(task-007). **수락 전** 검사: 세션 사용자 소유(타인·없음 `404`) · 아직 어느 메시지에도 연결되지 않음(아니면 `409 CONFLICT {reason:"UTTERANCE_USED"}`) · 생성 10분 이내(아니면 `409 {reason:"UTTERANCE_EXPIRED"}` — 클라는 글자 턴으로 다시 보낼 수 있다). 수락 전 거절(409 턴 진행 중·429·네트워크)로 아직 연결되지 않은 발화는 같은 id 로 재전송 가능. **수락 직후** 조건부 연결(`WHERE chatMessageId IS NULL`)하고 `text ≠ Utterance.finalText` 면 `finalText=text, finalSource=USER`(글자로 고쳐 보냄). 연결 경합으로 count 0 이면 턴은 계속하고 Trace `UTTERANCE_LINK` 경고 |
+| `inputSource` | `InputSource{REALTIME_STT,SERVER_STT,TEXT}`; `utteranceId` 없이 `REALTIME_STT` 는 `400`, `utteranceId` 와 `TEXT` 를 함께 보내면 `400`, `utteranceId` 만 오면 `REALTIME_STT` |
+| `clientTimings` | 선택 객체(위). 형식·범위 위반 `400` |
 | `resumePending` | true 면 다른 필드 무시. 마지막 강사 메시지가 **180초가 지난** `PENDING`(blue/green 두 인스턴스에서 서로의 메모리 락이 보이지 않으므로 시간 조건만 신뢰) 또는 `FAILED` 면 그 앞 사용자 메시지로 다시 실행한다(강사 행을 `PENDING` 으로 되돌려 재사용, 사용자 행은 새로 만들지 않음 — task-006 D1). 둘 다 아니면 `409` |
 
 동시성: 사용자당 진행 중 턴 1(`Chat` 행 `SELECT … FOR UPDATE` + 메모리 락). 초과는 `409 CONFLICT { "details": { "runningMessageId": "m_…" } }`. 분당 12턴 초과 `429`.
@@ -648,9 +663,9 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 | event | data | 시점 |
 |---|---|---|
 | `accepted` | `{ "userMessageId": "m_1", "assistantMessageId": "m_2", "traceId": "t_…" }` | 사용자 메시지 저장 직후(`ASSISTANT` 는 `PENDING` 행) |
-| `status` | `{ "stage": "PROMPT\|LLM\|PARSE\|TTS", "elapsedMs": 812 }` | 단계 진입마다 |
-| `audio` | `{ "idx": 0, "text": "そうですね。", "url": "/api/v1/speech/tts/<key>", "cacheKey": "…", "durationMs": 900, "last": false }` | 문장별 TTS 완료마다(문장 1 합성 → 재생 중 문장 2 합성). 텍스트 전용 모드(CHAT·ASK·TTS 불가)는 생략 |
-| `done` | 아래 §67 구조화 응답 | 저장 완료 후 1회 |
+| `status` | `{ "stage": "PROMPT\|LLM\|PARSE\|TTS", "elapsedMs": 812, "warning"?: "…", "runtime"?: {…} }` | 단계 진입마다(TTS 는 첫 청크 합성 시작 때 1회 — 조기 경로면 LLM 도중). `warning`: PARSE `CORRECTION_ORIGINAL_MISMATCH` · TTS `AUDIO_TEXT_MISMATCH`(아래) · TTS `TTS_UNAVAILABLE` + `runtime:{executionMode:"TEXT_ONLY"}`(이 턴은 자막만 — 이후 audio 없음, `done` 전 1회) |
+| `audio` | `{ "chunkIndex": 0, "text": "そうですね。", "url": "/api/v1/speech/tts/<token>", "cacheKey": "…", "durationMs": 900, "cached": false, "pauseBeforeMs": 0, "last": false, "ttfaMs": 2350, "runtime": { "executionMode": "SERVER" }, "status": "OK" }` | **TALK 만**. 문장 합성이 끝날 때마다(동시 2, 캐시 HIT 는 먼저 도착 가능 — 클라는 `chunkIndex` 순으로만 재생). 필드는 §7-1 표 |
+| `done` | 아래 §67 구조화 응답 | 저장 + **모든 청크 종료 뒤** 1회 |
 | `error` | `{ "code": "ENGINE_TIMEOUT", "message": "…", "traceId": "t_…", "retryable": true }` | 실패 시 1회 후 종료. 사용자 메시지는 남고 `ASSISTANT` 행은 `FAILED` |
 
 `done` payload (§67 구조화 응답을 그대로 실음):
@@ -670,12 +685,16 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
   "traceId": "t_…"
 }
 ```
+(`audioCount` = 이 턴에서 보낸 `audio{status:"OK"}` 수. `FAILED`·TEXT_ONLY·불일치 뒤 버린 청크는 세지 않는다.)
 
 - `correction` 은 CHAT/ASK 에서 항상 `null`(A2·A9 는 교정 금지). `correction.original` 은 사용자 `text` 와 **바이트 일치**해야 하며 불일치는 서버가 교정을 버리고 `status` 이벤트 `{ "stage": "PARSE", "warning": "CORRECTION_ORIGINAL_MISMATCH" }` 를 낸다.
 - `speech.style ∈ {NEUTRAL, ENCOURAGING, CALM, CHEERFUL}` — TTS Parameter Resolver 의 5순위 입력일 뿐 speaker/model/pitch/styleWeight 를 정하지 않는다.
 - 저장 순서(bjj `masterChat` 이식): 사용자 메시지 → `PENDING` 강사 메시지 → LLM → 교정·제안 `PROPOSED` 행 → 강사 메시지 `DONE`(content/reading/translation/toolLog{traceId,model,connectionId,sttMs,llmMs,ttsMs,ttsStartMs,promptChars,attempt}) → `Chat.lastMessageAt/preview/messageCount` → `done`. 어느 단계도 `WordEntry`·`StudyLog` 를 직접 쓰지 않는다(채택 후에만).
-- 시간 예산: LLM 12s fail-fast(TALK) / 20s(CHAT) / 120s(ASK), 문장 TTS 8s. 예산 초과 시 `error{ENGINE_TIMEOUT}`; TTS 만 실패하면 `done` 은 정상이고 `audio` 가 없으며 `done.audioCount=0`(클라이언트는 텍스트로 진행).
-- 계측: `RequestTrace{kind:TURN}` 에 `STT(클라 제공 timings)·PROMPT·LLM·PARSE·TTS[n]` step 기록. 원문·응답 전문은 Trace 에 저장하지 않는다(DebugSession 헤더가 있을 때만 `captureText`).
+- 시간 예산: LLM 12s fail-fast(TALK) / 20s(CHAT) / 120s(ASK), 문장 TTS 8s(청크 스케줄러 상한 9s = 합성 8s + 준비). 예산 초과 시 `error{ENGINE_TIMEOUT}`; TTS 만 실패하면 `done` 은 정상이고 그 문장은 `audio{status:"FAILED"}`(url·cacheKey·durationMs null), TTS 를 쓸 수 없으면(TEXT_ONLY) `status{TTS, warning:"TTS_UNAVAILABLE"}` 1회·audio 없음·`done.audioCount=0`(클라이언트는 텍스트로 진행).
+- **TALK 문장 음성(task-007 K2·K3)**: 라우트가 speech 턴 합성기를 conversation 에 주입한다(두 모듈 상호 import 없음). ① **조기 경로** — LLM 스트림(`--include-partial-messages`)을 경로 인식 증분 JSON 리더로 읽어 최상위 `conversation.replyJa` 문자열만 문장 단위(。！？!?… 경계, 부호 뺀 2자 이상)로 꺼내고, 안전 필터(2~100자·제어문자 0·가나/한자 ≥50%·URL/이메일 0·연속 영문 4자 0·JSON/마크업 기호 0·엔진명 0·지시문 낱말 0)를 통과한 문장부터 **검증 전에** 합성한다(첫 LLM 호출만, 필터·리더 실패 시 조기 경로 끔). `speech.style` 이 먼저 오면 첫 청크부터 말투에 반영(talk@v2 키 순서). ② **최종 경로** — 검증을 통과한 replyJa 에서 이미 보낸 문장들을 앞부분 일치로 떼고 나머지를 합성. 앞부분이 맞지 않으면(재시도로 답이 바뀜) `status{TTS, warning:"AUDIO_TEXT_MISMATCH"}` 후 남은·진행 중 청크를 내보내지 않는다 — 클라는 재생을 끊고 드러낸 문장을 거둔 뒤 `done` 의 최종 텍스트만 보인다(들리는 것 = 보이는 것). 조기 경로는 LLM connection `runtime.earlySentenceTts`(기본 true)로 끈다. 잔여 위험(검증 전 문장 1~2개가 소리로 나갈 수 있음)은 C1-3 판정으로 수용.
+- **수락과 LLM 병렬(task-007 K2-3)**: 잠금 없는 확인(채팅 소유·모드·수준, `utteranceId` 검사)을 끝낸 뒤 LLM 을 띄우고 수락 트랜잭션(커밋 100~500ms — NAS MariaDB fsync)을 병렬로 기다린다. 수락이 거절되면(404·409·400) LLM 을 abort 하고 그 오류를 봉투로 돌려준다(행 0·SSE 0). 수락 전 이벤트는 모았다가 `accepted` 바로 뒤에 순서대로 보낸다. 음성 합성은 수락 뒤에만. 끊김 복구(`resumePending`)는 수락 뒤에 LLM 을 띄운다. 사용자당 턴 락은 **저장 직후** 풀린다(남은 합성은 락과 무관 — `done` 은 그 뒤).
+- **예열(K2-1)**: TALK 방 첫 조회(#29, `after` 없음)·TALK 방 TURN 티켓(#20)에서 LLM CLI 를 미리 띄운다(명시적 warm 라우트 없음, 응답과 무관). connection `runtime.prewarm`(기본 true)·`prewarmMaxIdle`(기본 2, 0 = 끔)·`prewarmIdleTtlSec`(기본 600).
+- 계측: `RequestTrace{kind:TURN}` 에 `STT`(clientTimings.sttMs)·`ACCEPT`(parallelWithLlm)·`PROMPT`·`LLM`(startMs·warm·firstDeltaMs·firstSentenceMs·earlyStop)·`PARSE`·`SAVE`·`TTS[i]`(chunkIndex·early·cacheHit·status·errorCode, 0번 ttfaServerMs)·speech 하위 단계(`TTS_SYNTH[i]` 등, 관리자 전용)·`UTTERANCE_LINK`, 다음 턴이 보고하면 이 Trace 에 `PLAYBACK` 을 덧붙인다. `toolLog` 키는 domain-model ChatMessage 주석. 원문·전사·응답 전문은 Trace·toolLog·로그에 저장하지 않는다(DebugSession 헤더가 있을 때만 `captureText`).
 
 #### #33 `POST /api/v1/chats/:id/review` — 채팅 표현 점검(A3)
 
@@ -1666,9 +1685,9 @@ sequenceDiagram
 |---|---|---|
 | `GET /api/v1/speech/tts/status` | AI 강사 프로필 옆 **실행 상태 표시등**(§158, `speech-platform/16` §12) | `→ { "executionMode": "SERVER|ON_DEVICE|TEXT_ONLY", "networkStatus": "ONLINE|OFFLINE", "serverHealth": "HEALTHY|DEGRADED|UNAVAILABLE|UNKNOWN", "fallbackReason": null|"SERVER_ERROR|SERVER_TIMEOUT|NO_CONNECTION|OFFLINE", "lastUpdatedAt": "…" }` — 서버 관점(TTS role connection 최근 `EngineHealth` + 최근 N분 폴백 소진). 클라가 자기 네트워크 상태를 합쳐 5상태(🟢 ONLINE / 🔴 ON_DEVICE / 🔴 TEXT_ONLY / 🟡 SWITCHING / ⚪ CHECKING)로 변환, 폴링은 정상 5분·저하 30초, 대화 중에는 합성 결과 `runtime.executionMode` 가 곧 신호. 판단 근거는 네트워크가 아니라 **TTS Router 의 실제 선택 결과**. 색+라벨+`aria-label`(`role=status`), 전환 시 1회 토스트 |
 | `POST /api/v1/speech/tts/chunks` (신규) | 레슨 대화문·긴 본문·비교 듣기용 청크 스트리밍 | `{text ≤2,000, voiceId?, speechProfile?, chatMessageId?, lessonId?}` → SSE `audio` 이벤트(아래)와 `done{audioCount}`. 분당 20회 |
-| `#32` SSE `audio` 이벤트 (변경) | 청크 재생(§140~§141) | `audio { "chunkIndex": 0, "text": "そうですね。", "url": "/api/v1/speech/tts/<cacheKey>", "cacheKey": "…", "durationMs": 820, "last": false, "ttfaMs": 640, "timing": null, "runtime": { "executionMode": "SERVER", "connectionKey": "style-bert-m4" }, "status": "OK|FAILED" }` — 기존 `idx` → `chunkIndex`, 캐시 HIT 청크는 순서와 무관하게 먼저 도착할 수 있고 클라 `TtsPlaybackQueue` 가 `chunkIndex` 순으로만 재생·다음 URL 프리페치. 청크 실패는 그 청크만 `FAILED`(턴은 정상 `done`, `audioCount` 감소). `ttfaMs` 는 첫 청크에만 |
+| `#32` SSE `audio` 이벤트 (변경, **task-007 구현 확정**) | 청크 재생(§140~§141) | `audio { "chunkIndex": 0, "text": "そうですね。", "url": "/api/v1/speech/tts/<token>", "cacheKey": "…", "durationMs": 820, "cached": false, "pauseBeforeMs": 0, "last": false, "ttfaMs": 2350, "runtime": { "executionMode": "SERVER" }, "status": "OK\|FAILED" }` — 기존 `idx` → `chunkIndex`. **`runtime` 에 `connectionKey` 를 싣지 않는다**(task-003d U5 — 관리자 Trace 에만). `url` = #24 서명 URL(10분·사용자 결속), `FAILED` 면 `url·cacheKey·durationMs` null·`cached` false. `cached` = 캐시 HIT(합류 포함). `pauseBeforeMs` = 이 청크 앞 재생 간격(SpeechProfile 간격 정책 + Rendering Plan 쉼, 첫 청크 0 — 클라가 프로필 정책을 몰라도 된다). `last` = 서버가 마지막임을 **알 때만** true(조기 청크는 항상 false) — 끝의 기준은 `done`. `ttfaMs` 는 `chunkIndex:0` 에만: 턴 요청 수신 → 첫 청크 오디오 준비(서버 ms, 실패 청크면 null). `timing` 은 P1 전까지 싣지 않는다. 캐시 HIT 청크는 순서와 무관하게 먼저 도착할 수 있고 클라 `TtsPlaybackQueue` 가 `chunkIndex` 순으로만 재생·다음 URL 프리페치. 청크 실패는 그 청크만 `FAILED`(턴은 정상 `done`, `audioCount` 는 OK 수) |
 | `#23` (변경) | 위 상세 | — |
-| `#24 GET /api/v1/speech/tts/:cacheKey` (변경) | 응답 헤더에 `X-Tts-Model-Version`·`X-Tts-Dictionary-Version`; `Accept: application/json` 이면 `{audioUrl, durationMs, timing}`(timing 만 가져오는 경로, 신규 라우트 없음) | — |
+| `#24 GET /api/v1/speech/tts/:token` (변경, task-007 구현) | 서명 URL(§2 #24) — 응답 헤더에 `X-Tts-Model-Version`·`X-Tts-Dictionary-Version`; `Accept: application/json` 이면 `{audioUrl, durationMs, timing}`(timing 만 가져오는 경로, 신규 라우트 없음) | — |
 | `#19 GET /api/v1/speech/config` (변경) | `tts.speechProfiles[]`(라벨은 서버 관리)·`tts.fallbackChain[]` 추가 | — |
 
 ### 7-2. 관리자 (P0: 사전 / P1: 품질·버전·지표)

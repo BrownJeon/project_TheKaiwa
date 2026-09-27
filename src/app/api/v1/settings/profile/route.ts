@@ -1,4 +1,5 @@
 import { ok, readJsonObject, requireSession, withApi } from '@/modules/infra'
+import { forgetLearnerBase } from '@/modules/conversation'
 import { getProfile, parseProfilePatch, updateProfile } from '@/modules/preferences'
 
 export const runtime = 'nodejs'
@@ -10,9 +11,11 @@ export const GET = withApi(async () => {
   return ok(await getProfile(s.user.id))
 })
 
-/** #12 학습 설정 수정 — 화이트리스트 밖 키(음성·엔진 등)는 400. */
+/** #12 학습 설정 수정 — 화이트리스트 밖 키(음성·엔진 등)는 400. 저장 뒤 턴 프롬프트용 학습자 헤더 캐시(60초)를 비운다(task-007). */
 export const PUT = withApi(async (req) => {
   const s = await requireSession()
   const patch = parseProfilePatch(await readJsonObject(req))
-  return ok(await updateProfile(s.user.id, patch))
+  const saved = await updateProfile(s.user.id, patch)
+  forgetLearnerBase(s.user.id)
+  return ok(saved)
 })

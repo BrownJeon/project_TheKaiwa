@@ -2,6 +2,10 @@
  * L4 `speech/tts` — TTS 플랫폼 층 공개면(speech-platform/16 §1.1). 라우트는 `@/modules/speech` 를 통해서만 쓴다.
  */
 export { synthesizeSentence, previewSettings, TTS_SEGMENT_MAX_CHARS, TTS_SENTENCE_TIMEOUT_MS } from './synthesize'
+export { signTtsAudioToken, verifyTtsAudioToken, readSignedTtsAudio, TTS_AUDIO_URL_PATH, TTS_AUDIO_URL_TTL_SEC } from './audioUrl'
+export type { SignedTtsAudio, VerifiedTtsAudio, SignedAudioFile } from './audioUrl'
+export { createTurnSpeaker } from './turnSpeaker'
+export type { TurnChunkRequest, TurnChunkAudio } from './turnSpeaker'
 export type { SynthesizeInput, SynthesizeResult } from './synthesize'
 export { getTtsStatus } from './status'
 export { TtsRequestError, TtsUnavailableError } from './errors'

@@ -16,7 +16,7 @@ import { TtsRequestError, TtsUnavailableError } from './errors'
 import { lexiconDigest, loadActiveLexicon, selectEntries } from './lexicon'
 import { stopwatch, synthSteps, ttsStep } from './metrics'
 import { resolveTtsParameters, type UserVoiceInput } from './parameterResolver'
-import { isSpeechProfile, type SpeechProfileName } from './profiles'
+import { isSpeechProfile, PROFILE_POLICIES, type SpeechProfileName } from './profiles'
 import { buildRenderingPlan, prepareSegments, type RequestedLabels } from './renderingPlan'
 import { assessAvailability, breakerOpen, recordSynthFailure, recordSynthSuccess } from './status'
 import { SEGMENT_STYLES, type LlmSpeechStyle, type SegmentStyle } from './types'
@@ -40,7 +40,12 @@ export interface SynthesizeInput {
   styleHint?: LlmSpeechStyle | null
   scope?: { lessonId?: string | null; topicId?: string | null }
   textVersion?: number
-  trace: { refType: string; refId?: string | null }
+  /** Resolver 4순위(대화 문맥). 없으면 미리듣기 PREVIEW·그 밖 TTS. 회화 턴은 TALK. */
+  contextMode?: 'TALK' | 'LESSON_READ' | 'REVIEW' | 'PREVIEW' | 'EVAL' | 'TTS'
+  /** 여러 청크 중 몇 번째인가(task-007 턴 청크). Trace 단계 첨자와 청크 앞 간격(`pauseBeforeMs`)에 쓴다. */
+  chunk?: { index: number; previousDurationMs?: number | null }
+  /** `record:false` 면 이 함수가 Trace 를 따로 남기지 않고 `steps` 만 돌려준다(턴 Trace 가 합친다). */
+  trace: { refType: string; refId?: string | null; record?: boolean }
 }
 
 export interface SynthesizeResult {
@@ -52,6 +57,12 @@ export interface SynthesizeResult {
   normalizedText: string
   dictionaryVersion: number
   modelVersion: string
+  /** 12요소 캐시 키(#24 서명 URL 의 대상). */
+  cacheKey: string
+  /** 이 청크 앞 재생 간격(ms) — SpeechProfile 간격 정책 + Rendering Plan 세그먼트 쉼. 첫 청크는 0. */
+  pauseBeforeMs: number
+  /** 허용 meta 만 담은 단계(본문 없음). `trace.record:false` 인 호출자가 자기 Trace 에 합친다. */
+  steps: TraceStep[]
 }
 
 // ── AppSetting(30초 캐시) ─────────────────────────────────────────────────
@@ -152,6 +163,15 @@ export interface PreparedSentence {
   parts: CacheKeyParts | null
   key: string | null
   steps: TraceStep[]
+  pauseBeforeMs: number
+}
+
+/** 청크 앞 간격 — 첫 청크 0, 이후는 프로필 간격(숫자 또는 직전 청크 길이)과 세그먼트 쉼 중 큰 값. */
+export function chunkPauseMs(profile: SpeechProfileName, index: number, segmentPauseMs: number, previousDurationMs?: number | null): number {
+  if (index <= 0) return 0
+  const gap = PROFILE_POLICIES[profile].gapMs
+  const g = gap === 'PREVIOUS_DURATION' ? Math.max(0, Math.round(previousDurationMs ?? 0)) : gap
+  return Math.min(10_000, Math.max(g, segmentPauseMs))
 }
 
 /** 목소리·프로필 결정 → 사전 매칭 → 정규화 → Rendering Plan → (TTS 연결이 있으면) 캐시 키. 네트워크 호출 없음. */
@@ -177,7 +197,7 @@ export async function prepareSentence(input: SynthesizeInput): Promise<PreparedS
 
   t = stopwatch()
   const user: UserVoiceInput | null = input.draft ?? (setting ? { style: setting.style, styleWeight: setting.styleWeight, speed: setting.speed, pitch: setting.pitch, intonation: setting.intonation } : null)
-  const base = resolveTtsParameters({ user, voiceDefaults: voice.defaults, voiceStyles: voice.styles, personaHint: null, context: { mode: input.trace.refType === 'voicePreview' ? 'PREVIEW' : 'TTS' }, llmStyle: input.styleHint ?? null })
+  const base = resolveTtsParameters({ user, voiceDefaults: voice.defaults, voiceStyles: voice.styles, personaHint: null, context: { mode: input.contextMode ?? (input.trace.refType === 'voicePreview' ? 'PREVIEW' : 'TTS') }, llmStyle: input.styleHint ?? null })
   const plan = buildRenderingPlan({
     voiceId: voice.id,
     speechProfile: profile,
@@ -210,7 +230,8 @@ export async function prepareSentence(input: SynthesizeInput): Promise<PreparedS
         textVersion: input.textVersion ?? TTS_TEXT_VERSION,
       }
     : null
-  return { voice, profile, dictionaryVersion: lex.dictionaryVersion, normalizedText: seg.normalizedText, hints: seg.hints, target, parts, key: parts ? ttsCacheKey(parts) : null, steps }
+  const pauseBeforeMs = chunkPauseMs(profile, input.chunk?.index ?? 0, plan.segments[0].pauseBeforeMs, input.chunk?.previousDurationMs)
+  return { voice, profile, dictionaryVersion: lex.dictionaryVersion, normalizedText: seg.normalizedText, hints: seg.hints, target, parts, key: parts ? ttsCacheKey(parts) : null, steps, pauseBeforeMs }
 }
 
 export async function synthesizeSentence(input: SynthesizeInput): Promise<SynthesizeResult> {
@@ -227,10 +248,12 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
   const seg = { normalizedText: p.normalizedText, hints: p.hints }
   const lex = { dictionaryVersion: p.dictionaryVersion }
 
-  const base = { traceId, normalizedText: seg.normalizedText, dictionaryVersion: lex.dictionaryVersion, modelVersion: voice.modelVersion }
+  const idx = input.chunk?.index ?? 0
+  const synthName = `TTS_SYNTH[${idx}]`
+  const base = { traceId, normalizedText: seg.normalizedText, dictionaryVersion: lex.dictionaryVersion, modelVersion: voice.modelVersion, cacheKey: key, pauseBeforeMs: p.pauseBeforeMs, steps }
   const fromCache = (hit: CachedAudio, ms: number): SynthesizeResult => {
     const ttfaMs = Math.round(total())
-    steps.push(ttsStep('TTS_SYNTH[0]', ms, { chunkIndex: 0, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: hit.durationMs, status: 'OK' }))
+    steps.push(ttsStep(synthName, ms, { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: hit.durationMs, status: 'OK' }))
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
     return { ...base, audio: hit.audio, cached: true, durationMs: hit.durationMs ?? wavInfo(hit.audio)?.durationMs ?? null, ttfaMs }
   }
@@ -247,7 +270,7 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
     if (target.status === 'UNAVAILABLE' || target.status === 'MISCONFIGURED' || breakerOpen()) {
       const a = await assessAvailability({ allowProbe: true })
       if (a.health === 'UNAVAILABLE') {
-        steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: false, connectionKey: target.key, status: 'SKIPPED', errorCode: 'TTS_UNAVAILABLE' }))
+        steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: false, connectionKey: target.key, status: 'SKIPPED', errorCode: 'TTS_UNAVAILABLE' }))
         void finishTrace(traceId, steps, total(), 'ERROR', 'TTS_UNAVAILABLE', input, { ...meta, cacheHits: 0 })
         throw new TtsUnavailableError(a.reason ?? 'SERVER_ERROR', traceId)
       }
@@ -263,12 +286,12 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
     const { out, durationMs } = await run.promise
     const ttfaMs = Math.round(total())
     if (shared) {
-      steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: durationMs, status: 'OK' }))
+      steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: durationMs, status: 'OK' }))
       void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
       return { ...base, audio: out.audio, cached: true, durationMs, ttfaMs }
     }
     recordSynthSuccess()
-    steps.push(...synthSteps(out, { connectionKey: target.key, modelVersion: voice.modelVersion, ms: t(), durationMs }))
+    steps.push(...synthSteps(out, { connectionKey: target.key, modelVersion: voice.modelVersion, ms: t(), durationMs, chunkIndex: idx }))
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 0, ttfaMs })
     return { ...base, audio: out.audio, cached: false, durationMs, ttfaMs }
   } catch (e) {
@@ -276,11 +299,11 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
     if (!tts.isTtsEngineError(e)) throw e
     const kind: TtsFailureKind = e.kind
     if (!shared) recordSynthFailure(kind, e.code)
-    steps.push(ttsStep('TTS_SYNTH[0]', t(), { chunkIndex: 0, cacheHit: false, connectionKey: target.key, status: kind === 'TIMEOUT' ? 'TIMEOUT' : 'FAILED', errorCode: e.code }))
+    steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: false, connectionKey: target.key, status: kind === 'TIMEOUT' ? 'TIMEOUT' : 'FAILED', errorCode: e.code }))
     void finishTrace(traceId, steps, total(), 'ERROR', `TTS_${kind}`, input, { ...meta, cacheHits: 0 })
     if (kind === 'TEXT_TOO_LONG') throw new TtsRequestError('TEXT_TOO_LONG')
     // 같은 오류 객체를 합류 요청들이 나눠 받는다 — traceId 는 복사본에 붙인다(TtsEngineError 에는 kind·code 만, 문장·주소·시크릿 없음).
-    throw Object.assign(new tts.TtsEngineError(kind, e.code, e.retryAfterSec), { traceId })
+    throw Object.assign(new tts.TtsEngineError(kind, e.code, e.retryAfterSec), { traceId, steps })
   }
 }
 
@@ -293,6 +316,7 @@ async function finishTrace(
   input: SynthesizeInput,
   m: { profile: string; lex: number; model: string; cacheHits: number; ttfaMs?: number },
 ): Promise<void> {
+  if (input.trace.record === false) return
   const parent = ttsStep('TTS', totalMs, { sentences: 1, chunks: 1, ttfaMs: m.ttfaMs ?? null, speechProfile: m.profile, cacheHits: m.cacheHits, modelVersion: m.model, dictionaryVersion: m.lex, status })
   await recordTrace({
     traceId,

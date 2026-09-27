@@ -11,6 +11,7 @@ import { getTopicRef } from '@/modules/learning'
 import { getProfile } from '@/modules/preferences'
 import { isStalePending, locallyRunningMessageIds, STALE_PENDING_MS } from '../orchestrator/locks'
 import { serializeCorrection, CORRECTION_SELECT } from '../corrections/serialize'
+import { SPEECH_STYLES } from '../structuredResponse/schemas'
 import type { CreateChatInput } from './validate'
 
 export const PREVIEW_MAX = 120
@@ -150,6 +151,8 @@ export interface MessageDto {
   createdAt: string
   traceId?: string | null
   learning?: { grammarPoint: string | null; difficulty: string | null } | null
+  /** ASSISTANT: 저장된 LLM `speech.style`(다시 듣기 #23 의 styleHint — 같은 캐시 키로 HIT). task-007. */
+  speechStyle?: string | null
   corrections?: ReturnType<typeof serializeCorrection>[]
 }
 
@@ -165,6 +168,15 @@ function learningFrom(toolLog: Prisma.JsonValue | null): MessageDto['learning'] 
   return { grammarPoint: typeof r.grammarPoint === 'string' ? r.grammarPoint : null, difficulty: typeof r.difficulty === 'string' ? r.difficulty : null }
 }
 
+const STYLES = new Set<string>(SPEECH_STYLES)
+
+/** toolLog.meta.style — §67 speech.style 값만. */
+function styleFrom(toolLog: Prisma.JsonValue | null): string | null {
+  const meta = toolLog && typeof toolLog === 'object' && !Array.isArray(toolLog) ? (toolLog as Record<string, unknown>).meta : null
+  const st = meta && typeof meta === 'object' && !Array.isArray(meta) ? (meta as Record<string, unknown>).style : null
+  return typeof st === 'string' && STYLES.has(st) ? st : null
+}
+
 function serializeMessage(m: MessageRow, corrections: ReturnType<typeof serializeCorrection>[] | undefined): MessageDto {
   const base: MessageDto = {
     id: m.id,
@@ -177,7 +189,7 @@ function serializeMessage(m: MessageRow, corrections: ReturnType<typeof serializ
     createdAt: m.createdAt.toISOString(),
   }
   if (m.role === 'USER') return { ...base, corrections: corrections ?? [] }
-  return { ...base, traceId: m.traceId, learning: m.status === 'DONE' ? learningFrom(m.toolLog) : null }
+  return { ...base, traceId: m.traceId, learning: m.status === 'DONE' ? learningFrom(m.toolLog) : null, speechStyle: m.status === 'DONE' ? styleFrom(m.toolLog) : null }
 }
 
 export interface ChatDetailDto {

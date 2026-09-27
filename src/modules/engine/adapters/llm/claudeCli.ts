@@ -46,10 +46,11 @@
  * ⚠️ 서버 전용 모듈이다. 클라이언트 컴포넌트에서 import하면 `child_process`가 브라우저
  *    번들에 들어가려다 빌드가 깨진다.
  */
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 
+import { DEFAULT_WARM_LIMITS, isWanted, prewarm, replenish, take, trackActive, warmKeyOf, type PrewarmOutcome, type WarmLimits, type WarmProcess } from './claudeWarmPool'
 import { LlmError } from './homeM4'
 
 // ── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -101,6 +102,14 @@ export class ClaudeCliTimeoutError extends ClaudeCliError {
     )
     this.name = 'ClaudeCliTimeoutError'
     this.timeoutMs = timeoutMs
+  }
+}
+
+/** `signal` 로 취소됨 — 재시도·폴백 대상이 아니다(name 이 'AbortError'). */
+export class ClaudeCliAbortedError extends ClaudeCliError {
+  constructor() {
+    super('claude CLI 호출 취소', 'AI 요청이 취소됐습니다.')
+    this.name = 'AbortError'
   }
 }
 
@@ -180,6 +189,17 @@ export interface ClaudeCliOptions {
   maxAttempts?: number
   /** 프롬프트를 argv로 보낸다(디버깅·argv 비교용). 기본 false = stdin. */
   promptInArgv?: boolean
+  /**
+   * assistant 텍스트 조각 콜백(task-007 K2-2). 주면 `stream-json` + `--include-partial-messages` 로 실행해 생성 중인 텍스트를
+   * 조각마다 흘린다(최종 결과는 그대로 `result` 이벤트 기준). 콜백 예외는 삼킨다.
+   */
+  onTextDelta?: (text: string) => void
+  /** 취소(task-007 — 수락이 거절된 턴의 선행 LLM). 큐 대기 중이면 시작하지 않고, 실행 중이면 자식을 죽이고 `ClaudeCliAbortedError`. */
+  signal?: AbortSignal
+  /** `--include-partial-messages`(stream-json 출력 전용). 보통 `onTextDelta` 가 켠다. */
+  includePartialMessages?: boolean
+  /** `--input-format stream-json` — 예열 프로세스가 메시지 1줄을 나중에 받는 형식(claudeWarmPool). */
+  inputFormat?: 'text' | 'stream-json'
 }
 
 function assertPromptSize(prompt: string, promptInArgv: boolean): void {
@@ -270,7 +290,14 @@ export function buildClaudeArgs(prompt: string, opts: ClaudeCliOptions = {}): st
   if (opts.maxTurns != null) args.push('--max-turns', String(opts.maxTurns))
   if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema))
   // stream-json 은 `--verbose` 가 없으면 CLI 가 거부한다(bjj P0-3 실측).
-  if (opts.outputFormat === 'stream-json') args.push('--output-format', 'stream-json', '--verbose')
+  if (opts.outputFormat === 'stream-json') {
+    args.push('--output-format', 'stream-json', '--verbose')
+    if (opts.includePartialMessages) args.push('--include-partial-messages')
+  }
+  if (opts.inputFormat === 'stream-json') {
+    if (opts.outputFormat !== 'stream-json' || opts.promptInArgv) throw new ClaudeCliError('--input-format stream-json 은 stream-json 출력·stdin 프롬프트에서만 씁니다', 'AI 요청을 구성하지 못했습니다.')
+    args.push('--input-format', 'stream-json')
+  }
   return args
 }
 
@@ -326,37 +353,53 @@ function cleanEnv(thinking = false): NodeJS.ProcessEnv {
 
 // ── 실행 ─────────────────────────────────────────────────────────────────────
 
-function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
-  const cliPath = readCliPath()
-  const timeoutMs = opts.timeoutMs ?? readDefaultTimeoutMs()
-  const promptInArgv = opts.promptInArgv === true
+/** 예열 프로세스가 메시지를 받고도 아무것도 내지 않고 끝났다 — 호출자가 cold 로 다시 띄운다(요청 실패가 아니다). */
+export class ClaudeWarmUnusableError extends ClaudeCliError {
+  constructor(detail: string) {
+    super(`예열 프로세스 사용 불가: ${detail}`, 'AI 분석에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+    this.name = 'ClaudeWarmUnusableError'
+  }
+}
 
+interface CollectResult {
+  text: string
+  /** 첫 텍스트 delta 를 받은 시각(Date.now). stream-json 이 아니거나 delta 가 없으면 null. */
+  firstDeltaAt: number | null
+}
+
+/** stream-json 한 줄에서 assistant 텍스트 조각을 꺼낸다(`--include-partial-messages` 의 content_block_delta/text_delta). */
+export function textDeltaOf(ev: Record<string, unknown>): string | null {
+  if (ev.type !== 'stream_event') return null
+  const inner = ev.event as { type?: unknown; delta?: { type?: unknown; text?: unknown } } | undefined
+  if (inner?.type !== 'content_block_delta' || inner.delta?.type !== 'text_delta') return null
+  return typeof inner.delta.text === 'string' ? inner.delta.text : null
+}
+
+/**
+ * 자식 하나의 출력을 끝까지 모은다(cold·예열 공용). spawn·stdin 쓰기는 호출자가 한다.
+ * `initial` 은 예열 프로세스가 꺼내지기 전에 낸 출력이다. `warm` 이면 이벤트를 하나도 못 받고 끝난 경우를 사용 불가로 돌린다.
+ */
+function collect(proc: ChildProcess, cliPath: string, opts: ClaudeCliOptions, timeoutMs: number, initial: { stdout: string; stderr: string } | null, warm: boolean): Promise<CollectResult> {
   return new Promise((resolve, reject) => {
-    let args: string[]
-    try {
-      args = buildClaudeArgs(prompt, opts)
-    } catch (e) {
-      reject(e)
-      return
-    }
-
-    // shell 없이 argv 배열로만 실행한다(모듈 헤더 보안 결정 1).
-    const proc = spawn(cliPath, args, {
-      cwd: opts.cwd ?? tmpdir(),
-      env: cleanEnv(opts.thinking === true),
-      stdio: promptInArgv ? ['ignore', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
-    })
-
     let out = ''
-    let err = ''
+    let err = initial?.stderr ?? ''
     let settled = false
     let timedOut = false
+    let aborted = false
+    let sawEvent = false
+    let firstDeltaAt: number | null = null
 
+    const onAbort = () => {
+      aborted = true
+      proc.kill('SIGTERM')
+      killTimer = setTimeout(() => proc.kill('SIGKILL'), 5_000)
+    }
     const finish = (fn: () => void) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
       clearTimeout(killTimer)
+      opts.signal?.removeEventListener('abort', onAbort)
       fn()
     }
 
@@ -368,12 +411,8 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
       proc.kill('SIGTERM')
       killTimer = setTimeout(() => proc.kill('SIGKILL'), 5_000)
     }, timeoutMs)
-
-    if (!promptInArgv && proc.stdin) {
-      // stdin이 먼저 닫히는 경쟁 상황(프로세스 즉시 종료)에서 EPIPE로 프로세스가 죽지 않게 한다.
-      proc.stdin.on('error', () => {})
-      proc.stdin.end(prompt, 'utf8')
-    }
+    if (opts.signal?.aborted) queueMicrotask(onAbort)
+    else opts.signal?.addEventListener('abort', onAbort, { once: true })
 
     let overflowed = false
     // stream-json 은 NDJSON 이다 — 청크 경계가 줄 경계와 다르므로 줄 버퍼가 필수다(bjj 계약 E).
@@ -393,7 +432,17 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
         } catch {
           continue
         }
+        sawEvent = true
         if (ev.type === 'result') resultEvent = ev
+        const delta = opts.onTextDelta ? textDeltaOf(ev) : null
+        if (delta) {
+          if (firstDeltaAt === null) firstDeltaAt = Date.now()
+          try {
+            opts.onTextDelta!(delta)
+          } catch {
+            /* 조기 추출 콜백 오류는 호출을 실패시키지 않는다 */
+          }
+        }
         if (opts.onEvent) {
           try {
             opts.onEvent(ev)
@@ -403,8 +452,7 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
         }
       }
     }
-
-    proc.stdout?.on('data', (d: Buffer) => {
+    const onStdout = (s: string) => {
       if (out.length > OUTPUT_CHAR_CAP) {
         if (!overflowed) {
           overflowed = true
@@ -412,24 +460,31 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
         }
         return
       }
-      const s = d.toString('utf8')
       out += s
       if (streaming) feed(s)
-    })
+    }
+
+    proc.stdout?.on('data', (d: Buffer) => onStdout(d.toString('utf8')))
     proc.stderr?.on('data', (d: Buffer) => {
       // stderr 는 진단용이라 앞부분만 있으면 충분하다.
       if (err.length < 100_000) err += d.toString('utf8')
     })
+    if (initial?.stdout) onStdout(initial.stdout)
 
     proc.on('error', (e: NodeJS.ErrnoException) => {
       finish(() => {
-        if (e.code === 'ENOENT' || e.code === 'EACCES') reject(new ClaudeCliNotFoundError(cliPath, e))
+        if (warm && !sawEvent) reject(new ClaudeWarmUnusableError(`spawn error ${e.code ?? ''}`))
+        else if (e.code === 'ENOENT' || e.code === 'EACCES') reject(new ClaudeCliNotFoundError(cliPath, e))
         else reject(new ClaudeCliError(`claude CLI 실행 오류: ${e.message}`, 'AI 분석에 실패했습니다.', { cause: e }))
       })
     })
 
     proc.on('close', (code: number | null) => {
       finish(() => {
+        if (aborted) {
+          reject(new ClaudeCliAbortedError())
+          return
+        }
         if (timedOut) {
           reject(new ClaudeCliTimeoutError(timeoutMs))
           return
@@ -443,12 +498,16 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
           )
           return
         }
+        if (streaming && lineBuf.trim()) feed('\n')
+        if (warm && !sawEvent) {
+          reject(new ClaudeWarmUnusableError(`exit=${code ?? 'null'} 출력 없음`))
+          return
+        }
         if (code !== 0 && code !== null) {
           reject(new ClaudeCliExecError(code, err.trim()))
           return
         }
         if (streaming) {
-          if (lineBuf.trim()) feed('\n')
           const ev = resultEvent as Record<string, unknown> | null
           if (!ev) {
             reject(new ClaudeCliExecError(code, err.trim() || 'stream-json result 이벤트 없음'))
@@ -465,7 +524,7 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
             reject(new ClaudeCliExecError(code, '빈 응답'))
             return
           }
-          resolve(text)
+          resolve({ text, firstDeltaAt })
           return
         }
         const trimmed = out.trim()
@@ -479,11 +538,101 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
           reject(new ClaudeCliExecError(code, err.trim() || '빈 응답'))
           return
         }
-        resolve(trimmed)
+        resolve({ text: trimmed, firstDeltaAt })
       })
     })
   })
 }
+
+function spawnClaude(cliPath: string, args: string[], opts: ClaudeCliOptions, stdinPiped: boolean): ChildProcess {
+  // shell 없이 argv 배열로만 실행한다(모듈 헤더 보안 결정 1). detached 를 쓰지 않는다(서버와 같은 프로세스 그룹).
+  return spawn(cliPath, args, {
+    cwd: opts.cwd ?? tmpdir(),
+    env: cleanEnv(opts.thinking === true),
+    stdio: stdinPiped ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
+  })
+}
+
+function runCold(prompt: string, opts: ClaudeCliOptions): Promise<CollectResult> {
+  const cliPath = readCliPath()
+  const timeoutMs = opts.timeoutMs ?? readDefaultTimeoutMs()
+  const promptInArgv = opts.promptInArgv === true
+  let args: string[]
+  let proc: ChildProcess
+  try {
+    args = buildClaudeArgs(prompt, opts)
+    proc = spawnClaude(cliPath, args, opts, !promptInArgv)
+  } catch (e) {
+    return Promise.reject(e)
+  }
+  const untrack = trackActive(proc)
+  if (!promptInArgv && proc.stdin) {
+    // stdin이 먼저 닫히는 경쟁 상황(프로세스 즉시 종료)에서 EPIPE로 프로세스가 죽지 않게 한다.
+    proc.stdin.on('error', () => {})
+    proc.stdin.end(prompt, 'utf8')
+  }
+  return collect(proc, cliPath, opts, timeoutMs, null, false).finally(untrack)
+}
+
+/** 예열 프로세스에 user 메시지 1줄을 쓰고 stdin 을 닫는다 — 프로세스당 1요청(세션이 이어지지 않는다). */
+function runWarm(w: WarmProcess, prompt: string, opts: ClaudeCliOptions): Promise<CollectResult> {
+  const timeoutMs = opts.timeoutMs ?? readDefaultTimeoutMs()
+  const untrack = trackActive(w.proc)
+  const p = collect(w.proc, readCliPath(), { ...opts, outputFormat: 'stream-json' }, timeoutMs, { stdout: w.stdout, stderr: w.stderr }, true)
+  const line = `${JSON.stringify({ type: 'user', message: { role: 'user', content: prompt } })}\n`
+  try {
+    w.proc.stdin!.end(line, 'utf8')
+  } catch {
+    w.proc.kill('SIGTERM')
+  }
+  return p.finally(untrack)
+}
+
+/** 예열 프로세스의 argv — 요청 옵션에서 실행 시점 값(타임아웃·레인·콜백)을 빼고 stream-json 입출력을 강제한다. */
+function warmArgs(opts: ClaudeCliOptions): string[] {
+  return buildClaudeArgs('', {
+    tools: opts.tools,
+    model: opts.model,
+    systemPrompt: opts.systemPrompt,
+    thinking: opts.thinking,
+    agents: opts.agents,
+    agent: opts.agent,
+    maxTurns: opts.maxTurns,
+    jsonSchema: opts.jsonSchema,
+    readDirs: opts.readDirs,
+    outputFormat: 'stream-json',
+    includePartialMessages: true,
+    inputFormat: 'stream-json',
+  })
+}
+
+function warmKeyFor(opts: ClaudeCliOptions): string | null {
+  if (opts.promptInArgv) return null
+  try {
+    return warmKeyOf(readCliPath(), opts.cwd ?? tmpdir(), warmArgs(opts))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 이 옵션으로 곧 올 요청을 위해 CLI 를 미리 띄운다(K2-1). 같은 옵션의 `callClaude*` 가 대기 프로세스를 꺼내 쓴다.
+ * 실패해도 던지지 않는다(다음 요청이 cold 로 돈다).
+ */
+export function prewarmClaude(opts: ClaudeCliOptions, limits: WarmLimits = DEFAULT_WARM_LIMITS): PrewarmOutcome {
+  try {
+    assertTools(opts.tools)
+    const args = warmArgs(opts)
+    const cliPath = readCliPath()
+    const key = warmKeyOf(cliPath, opts.cwd ?? tmpdir(), args)
+    return prewarm(key, () => spawnClaude(cliPath, args, opts, true), limits)
+  } catch {
+    return 'FAILED'
+  }
+}
+
+export { warmPoolSnapshot, drainWarmPool } from './claudeWarmPool'
+export type { WarmLimits, PrewarmOutcome, WarmPoolSnapshot } from './claudeWarmPool'
 
 // ── 우선순위 2레인 직렬 큐 ────────────────────────────────────────────────────
 //
@@ -491,14 +640,14 @@ function runOnce(prompt: string, opts: ClaudeCliOptions): Promise<string> {
 // 레슨·평가 잡 여러 건이 동시에 뜨면 서버가 먼저 무너진다. 대신 레인을 둘로 나눠 사용자가
 // 기다리는 요청(interactive)이 백그라운드 잡(batch) 뒤에서 굶지 않게 한다.
 
-interface QueueItem {
-  task: () => Promise<string>
-  resolve: (v: string) => void
+interface QueueItem<T> {
+  task: () => Promise<T>
+  resolve: (v: T) => void
   reject: (e: unknown) => void
 }
 
-const interactiveQueue: QueueItem[] = []
-const batchQueue: QueueItem[] = []
+const interactiveQueue: QueueItem<unknown>[] = []
+const batchQueue: QueueItem<unknown>[] = []
 let workerBusy = false
 
 function pump(): void {
@@ -520,9 +669,9 @@ function pump(): void {
   )
 }
 
-function schedule(priority: 'interactive' | 'batch', task: () => Promise<string>): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const item: QueueItem = { task, resolve, reject }
+function schedule<T>(priority: 'interactive' | 'batch', task: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const item = { task, resolve, reject } as QueueItem<unknown>
     if (priority === 'batch') batchQueue.push(item)
     else interactiveQueue.push(item)
     pump()
@@ -542,28 +691,57 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+/** `HIT` 예열 프로세스 사용 · `MISS` 원하던 키인데 대기 프로세스 없음(cold) · `FALLBACK` 예열이 못 쓰게 돼 cold · `OFF` 예열 대상 아님. */
+export type WarmUse = 'HIT' | 'MISS' | 'FALLBACK' | 'OFF'
+
+export interface ClaudeCallResult {
+  text: string
+  warm: WarmUse
+  /** 실행 시작(큐 통과 후) → 첫 텍스트 delta(ms). `onTextDelta` 가 없거나 delta 가 없으면 null. */
+  firstDeltaMs: number | null
+}
+
 /**
- * Claude CLI 호출 — 직렬 큐 + 일시적 실패 재시도.
+ * Claude CLI 호출 — 직렬 큐 + 일시적 실패 재시도 + (있으면) 예열 프로세스 사용.
  *
  * 프롬프트에 사용자 데이터가 들어가므로 **로그에 프롬프트를 남기지 않는다**(길이만 남긴다).
  */
-export async function callClaude(prompt: string, opts: ClaudeCliOptions = {}): Promise<string> {
+export async function callClaudeDetailed(prompt: string, opts: ClaudeCliOptions = {}): Promise<ClaudeCallResult> {
   const priority = opts.priority ?? 'interactive'
   const maxAttempts = opts.maxAttempts ?? (priority === 'batch' ? 1 : 2)
   assertPromptSize(prompt, opts.promptInArgv === true)
   assertTools(opts.tools)
+  const runOpts: ClaudeCliOptions = opts.onTextDelta ? { ...opts, outputFormat: 'stream-json', includePartialMessages: true } : opts
+  const key = warmKeyFor(opts)
 
-  const task = async (): Promise<string> => {
+  const task = async (): Promise<ClaudeCallResult> => {
     let lastErr: unknown
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // 큐에서 기다리는 동안 취소됐으면 프로세스를 쓰지 않는다(예열 프로세스도 꺼내지 않는다).
+      if (opts.signal?.aborted) throw new ClaudeCliAbortedError()
       const startedAt = Date.now()
+      let warm: WarmUse = 'OFF'
       try {
-        const out = await runOnce(prompt, opts)
+        let r: CollectResult | null = null
+        if (key) {
+          const w = take(key)
+          if (w) {
+            try {
+              r = await runWarm(w, prompt, runOpts)
+              warm = 'HIT'
+            } catch (e) {
+              if (!(e instanceof ClaudeWarmUnusableError)) throw e
+              warm = 'FALLBACK'
+              console.warn(`[claudeCli] 예열 프로세스 사용 불가 → cold`)
+            }
+          } else if (isWanted(key)) warm = 'MISS'
+        }
+        if (!r) r = await runCold(prompt, runOpts)
         console.info(
           `[claudeCli] 완료 — model=${opts.model ?? readDefaultModel()} agent=${opts.agent ?? '없음'} ` +
-            `promptChars=${prompt.length} elapsed=${Date.now() - startedAt}ms attempt=${attempt}`,
+            `promptChars=${prompt.length} elapsed=${Date.now() - startedAt}ms attempt=${attempt} warm=${warm}`,
         )
-        return out
+        return { text: r.text, warm, firstDeltaMs: r.firstDeltaAt === null ? null : r.firstDeltaAt - startedAt }
       } catch (e) {
         lastErr = e
         if (attempt < maxAttempts && isRetryable(e)) {
@@ -572,12 +750,20 @@ export async function callClaude(prompt: string, opts: ClaudeCliOptions = {}): P
           continue
         }
         throw e
+      } finally {
+        // 프로세스당 1요청 — 쓴 키는 다음 턴을 위해 다시 채운다(원하던 키만, TTL 안).
+        if (key) replenish(key)
       }
     }
     throw lastErr ?? new ClaudeCliError('unreachable', 'AI 분석에 실패했습니다.')
   }
 
   return schedule(priority, task)
+}
+
+/** 텍스트만 필요한 호출자용(기존 계약). */
+export async function callClaude(prompt: string, opts: ClaudeCliOptions = {}): Promise<string> {
+  return (await callClaudeDetailed(prompt, opts)).text
 }
 
 // ── Health 프로브(task-005b #95) ─────────────────────────────────────────────

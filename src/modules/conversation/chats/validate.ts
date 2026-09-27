@@ -70,13 +70,44 @@ export function parseCreateChat(body: Record<string, unknown>): CreateChatInput 
   return { kind, title: parseTitle(body.title, { required: false }), topicId: optionalId(body.topicId, 'topicId'), level }
 }
 
+/**
+ * #32 `clientTimings`(task-007 designer §9-11 ⑤) — 기준점은 **손 뗌**(글자 턴은 보내기 누름). `sttMs` 만 이번 턴 값이고
+ * 나머지는 `prevMessageId` 턴(직전 강사 메시지)의 재생 계측이다. 서버는 0~120000 숫자만 받아 Trace `STT`·`PLAYBACK` 단계에만 쓴다.
+ */
+export interface TurnClientTimings {
+  prevMessageId: string | null
+  sttMs: number | null
+  releaseToFirstAudioEventMs: number | null
+  firstAudioAtMs: number | null
+  playbackStartDelayMs: number | null
+}
+
+export const CLIENT_TIMING_MAX_MS = 120_000
+const TIMING_FIELDS = ['sttMs', 'releaseToFirstAudioEventMs', 'firstAudioAtMs', 'playbackStartDelayMs'] as const
+
 export type TurnRequest =
   | { resume: true }
-  | { resume: false; text: string; inputSource: InputSource }
+  | { resume: false; text: string; inputSource: InputSource; utteranceId: string | null; clientTimings: TurnClientTimings | null }
+
+function parseClientTimings(v: unknown): TurnClientTimings | null {
+  if (v === undefined || v === null) return null
+  if (typeof v !== 'object' || Array.isArray(v)) bad('clientTimings', 'object', 'clientTimings 형식이 올바르지 않습니다.')
+  const o = v as Record<string, unknown>
+  const out: TurnClientTimings = { prevMessageId: optionalId(o.prevMessageId, 'clientTimings.prevMessageId'), sttMs: null, releaseToFirstAudioEventMs: null, firstAudioAtMs: null, playbackStartDelayMs: null }
+  for (const f of TIMING_FIELDS) {
+    const x = o[f]
+    if (x === undefined || x === null) continue
+    if (typeof x !== 'number' || !Number.isFinite(x) || x < 0 || x > CLIENT_TIMING_MAX_MS) bad(`clientTimings.${f}`, `0~${CLIENT_TIMING_MAX_MS}`, 'clientTimings 값이 올바르지 않습니다.')
+    out[f] = Math.round(x)
+  }
+  return out
+}
 
 /**
- * #32 본문. `resumePending:true` 면 다른 필드는 보지 않는다. `utteranceId`(음성 발화)는 음성 회화(task-007)와 함께 열린다 —
- * 발화 소유자 검사·finalText 갱신은 speech 층 일이라 지금은 `400 FEATURE_NOT_READY`.
+ * #32 본문. `resumePending:true` 면 다른 필드는 보지 않는다.
+ * `utteranceId`(음성 발화, task-007): `inputSource` 를 생략하면 `REALTIME_STT` 로 본다. `REALTIME_STT` 인데 없으면 400,
+ * `TEXT` 와 함께 오면 400(발화에 묶인 턴은 음성 입력이다 — 인식 결과를 글자로 고쳐 보내도 `REALTIME_STT` + 같은 id + 고친 text).
+ * 발화 소유자·미연결·10분 검사와 finalText 갱신은 speech 층 일이라 라우트가 조합한다.
  */
 export function parseTurnBody(body: Record<string, unknown>): TurnRequest {
   if (body.resumePending === true) return { resume: true }
@@ -85,16 +116,13 @@ export function parseTurnBody(body: Record<string, unknown>): TurnRequest {
   const text = sanitizeText(body.text, { multiline: true })
   if (!text) bad('text', 'blank', '보낼 내용을 입력해 주세요.')
   if (codePointLength(text) > TURN_TEXT_MAX) bad('text', `length 1~${TURN_TEXT_MAX}`, `메시지는 ${TURN_TEXT_MAX}자까지 보낼 수 있어요.`)
-  let inputSource: InputSource = 'TEXT'
+  const utteranceId = optionalId(body.utteranceId, 'utteranceId')
+  let inputSource: InputSource = utteranceId ? 'REALTIME_STT' : 'TEXT'
   if (body.inputSource !== undefined && body.inputSource !== null) {
     if (typeof body.inputSource !== 'string' || !(INPUT_SOURCES as readonly string[]).includes(body.inputSource)) bad('inputSource', INPUT_SOURCES.join('|'), 'inputSource 값이 올바르지 않습니다.')
     inputSource = body.inputSource as InputSource
   }
-  const utteranceId = optionalId(body.utteranceId, 'utteranceId')
   if (inputSource === 'REALTIME_STT' && !utteranceId) bad('utteranceId', 'required', '음성 인식 입력에는 utteranceId 가 필요합니다.')
-  if (utteranceId) throw featureNotReady('음성 회화는 아직 준비 중이에요.')
-  if (body.clientTimings !== undefined && body.clientTimings !== null && (typeof body.clientTimings !== 'object' || Array.isArray(body.clientTimings))) {
-    bad('clientTimings', 'object', 'clientTimings 형식이 올바르지 않습니다.')
-  }
-  return { resume: false, text, inputSource }
+  if (utteranceId && inputSource === 'TEXT') bad('inputSource', 'REALTIME_STT|SERVER_STT', '음성 발화는 inputSource 가 REALTIME_STT 여야 합니다.')
+  return { resume: false, text, inputSource, utteranceId, clientTimings: parseClientTimings(body.clientTimings) }
 }

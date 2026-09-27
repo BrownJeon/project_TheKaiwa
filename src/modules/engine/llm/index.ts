@@ -10,13 +10,15 @@
  *     (model 은 agents JSON 에 넣지 않는다). home-m4 에서는 system 메시지 앞머리에 들어간다.
  *   - `system` 은 모드별 출력 지시(JSON-only 포함). `messages` 는 대화 창(마지막이 이번 입력).
  */
-import { callClaude } from '../adapters/llm/claudeCli'
+import { callClaudeDetailed, prewarmClaude, type ClaudeCliOptions, type PrewarmOutcome, type WarmUse } from '../adapters/llm/claudeCli'
 import { HomeM4ApiCaller, LlmContractError, LlmTimeoutError, type LlmMessage } from '../adapters/llm/homeM4'
 import { extractAndValidate, runJsonWithRetry, withJsonOnly, type RunJsonResult } from '../json/schemaValidate'
-import { LLM_TASKS, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
+import { LLM_TASKS, resolveCandidates, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
 
 export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, toUserMessage } from '../adapters/llm/homeM4'
 export { JsonSchemaError } from '../json/schemaValidate'
+export { mentionsEngineIdentity } from '../adapters/llm/identity'
+export type { WarmUse } from '../adapters/llm/claudeCli'
 
 export interface LlmPersona {
   name: string
@@ -41,6 +43,14 @@ export interface LlmRequest {
   priority?: 'interactive' | 'batch'
   /** completeJson 이 채운다. claude-cli 는 `--json-schema` 로 강제(connection `runtime.jsonSchemaFlag !== false`), home-m4 는 프롬프트에 스키마를 싣는다. */
   jsonSchema?: object
+  /**
+   * 생성 중인 응답 텍스트 조각(task-007 K2-2 첫 문장 조기 추출). `call` 은 이 요청 안에서 몇 번째 LLM 호출인지(1 = 첫 호출,
+   * 2 = JSON 재시도 또는 폴백 후보). 스트리밍을 지원하는 연결(claude-cli)이고 그 연결의 `runtime.earlySentenceTts !== false`
+   * 일 때만 불린다 — 안 불려도 최종 결과는 같다. 조각은 검증 전 텍스트이므로 호출자가 최종 결과와 반드시 대조한다.
+   */
+  onTextDelta?: (delta: string, call: number) => void
+  /** 취소(task-007 — 수락과 병렬로 먼저 시작한 턴 LLM 을 수락 실패 시 멈춘다). claude-cli 만 실제로 자식을 멈춘다. */
+  signal?: AbortSignal
 }
 
 export interface LlmJsonRequest<T> extends LlmRequest {
@@ -60,6 +70,10 @@ export interface LlmMeta {
   elapsedMs: number
   promptChars: number
   attempts?: 1 | 2
+  /** 첫 호출의 예열 프로세스 사용 결과(claude-cli 만, 그 밖은 null). */
+  warm?: WarmUse | null
+  /** 요청 시작 → 첫 호출의 첫 텍스트 조각(ms). 조각을 흘리지 않았으면 null. */
+  firstDeltaMs?: number | null
 }
 
 export interface LlmTextResult extends LlmMeta {
@@ -120,6 +134,38 @@ interface RetryHint {
   previousRaw: string
 }
 
+/** claude-cli 로 보낼 옵션 중 **프로세스 모양을 정하는 것**(예열 키와 같아야 한다 — prewarm 과 callOnce 공용). */
+function claudeShape(c: ResolvedConnection, req: LlmRequest, tier: LlmTier): { opts: ClaudeCliOptions; useFlag: boolean } {
+  // `--json-schema` 는 opt-in(실측 +~1s). connection `runtime.jsonSchemaFlag=true` 또는 ENVIRONMENT 층
+  // `KAIWA_LLM_JSON_SCHEMA_FLAG=1`(configuration-resolution §2) 일 때만 쓰고, 기본은 프롬프트 스키마 + extractJson + ajv.
+  const envFlag = process.env.KAIWA_LLM_JSON_SCHEMA_FLAG
+  const useFlag = Boolean(req.jsonSchema) && (envFlag != null ? envFlag === '1' : c.runtime.jsonSchemaFlag === true)
+  return {
+    useFlag,
+    opts: {
+      model: modelFor(c, tier),
+      ...(useFlag ? { jsonSchema: req.jsonSchema } : {}),
+      // 페르소나 = 시스템 프롬프트(--system-prompt). `--agents`/`--agent` 도 지연은 같았으나(실측), 기본 코딩 에이전트
+      // 시스템 프롬프트가 섞이지 않는 쪽을 택한다. model 은 여전히 --model 이 권위.
+      ...(req.persona ? { systemPrompt: req.persona.prompt } : {}),
+      thinking: tier === 'deep' && c.runtime.thinkingForDeep === true,
+    },
+  }
+}
+
+function intRuntime(c: ResolvedConnection, key: string, fallback: number, min: number, max: number): number {
+  const v = c.runtime[key]
+  return typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max ? v : fallback
+}
+
+interface CallOutcome {
+  text: string
+  model: string
+  promptChars: number
+  warm: WarmUse | null
+  firstDeltaAt: number | null
+}
+
 async function callOnce(
   c: ResolvedConnection,
   req: LlmRequest,
@@ -127,29 +173,26 @@ async function callOnce(
   timeoutMs: number,
   priority: 'interactive' | 'batch',
   retry: RetryHint | null,
-): Promise<{ text: string; model: string; promptChars: number }> {
+  onDelta?: (delta: string) => void,
+): Promise<CallOutcome> {
   const model = modelFor(c, tier)
   if (c.engineId === 'claude-cli') {
-    // `--json-schema` 는 opt-in(실측 +~1s). connection `runtime.jsonSchemaFlag=true` 또는 ENVIRONMENT 층
-    // `KAIWA_LLM_JSON_SCHEMA_FLAG=1`(configuration-resolution §2) 일 때만 쓰고, 기본은 프롬프트 스키마 + extractJson + ajv.
-    const envFlag = process.env.KAIWA_LLM_JSON_SCHEMA_FLAG
-    const useFlag = Boolean(req.jsonSchema) && (envFlag != null ? envFlag === '1' : c.runtime.jsonSchemaFlag === true)
+    const { opts, useFlag } = claudeShape(c, req, tier)
     let system = req.jsonSchema ? withJsonOnly(req.system, useFlag ? undefined : req.jsonSchema) : req.system
     // 재시도 힌트는 학습자 입력 블록이 아니라 지시 쪽에 붙인다 — [입력] 뒤에 오면 학습자 말처럼 읽힌다.
     if (retry) system += `\n\n[이전 응답]\n${retry.previousRaw}\n\n[재시도 지시]\n${retry.hint}`
     const prompt = renderTranscript(system, req.messages)
-    const text = await callClaude(prompt, {
-      model,
+    const streamDeltas = Boolean(onDelta) && c.runtime.earlySentenceTts !== false
+    const startedAt = Date.now()
+    const r = await callClaudeDetailed(prompt, {
+      ...opts,
       timeoutMs,
       priority,
       maxAttempts: 1, // 재시도는 JSON 계약 쪽(runJsonWithRetry)과 router 폴백이 맡는다
-      ...(useFlag ? { jsonSchema: req.jsonSchema } : {}),
-      // 페르소나 = 시스템 프롬프트(--system-prompt). `--agents`/`--agent` 도 지연은 같았으나(실측), 기본 코딩 에이전트
-      // 시스템 프롬프트가 섞이지 않는 쪽을 택한다. model 은 여전히 --model 이 권위.
-      ...(req.persona ? { systemPrompt: req.persona.prompt } : {}),
-      thinking: tier === 'deep' && c.runtime.thinkingForDeep === true,
+      ...(streamDeltas ? { onTextDelta: onDelta } : {}),
+      ...(req.signal ? { signal: req.signal } : {}),
     })
-    return { text, model, promptChars: prompt.length + (req.persona?.prompt.length ?? 0) }
+    return { text: r.text, model, promptChars: prompt.length + (req.persona?.prompt.length ?? 0), warm: r.warm, firstDeltaAt: r.firstDeltaMs === null ? null : startedAt + r.firstDeltaMs }
   }
   if (c.engineId === 'home-m4-api') {
     const base = typeof c.connection.baseUrl === 'string' ? c.connection.baseUrl : ''
@@ -160,7 +203,7 @@ async function callOnce(
     const messages: LlmMessage[] = [{ role: 'system', content: sys }, ...req.messages]
     if (retry) messages.push({ role: 'assistant', content: retry.previousRaw }, { role: 'user', content: retry.hint })
     const text = await caller.chat(messages, { timeoutMs })
-    return { text, model, promptChars: messages.reduce((n, m) => n + m.content.length, 0) }
+    return { text, model, promptChars: messages.reduce((n, m) => n + m.content.length, 0), warm: null, firstDeltaAt: null }
   }
   throw new LlmContractError(`LLM 어댑터가 없는 엔진입니다: ${c.engineId}`)
 }
@@ -190,11 +233,16 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
   const startedAt = Date.now()
   const deadline = startedAt + budget
   let meta = { model: '', promptChars: 0 }
+  let calls = 0
+  let first: { warm: WarmUse | null; firstDeltaMs: number | null } | null = null
   const { value, connection } = await withFallback('LLM', { task: req.task }, async (c) => {
     const result: RunJsonResult<T> = await runJsonWithRetry<T>(
       async (retry) => {
-        const out = await callOnce(c, req, tier, remainingOrThrow(deadline, budget, startedAt, meta.promptChars), priority, retry)
+        const call = ++calls
+        const onDelta = req.onTextDelta ? (d: string) => req.onTextDelta!(d, call) : undefined
+        const out = await callOnce(c, req, tier, remainingOrThrow(deadline, budget, startedAt, meta.promptChars), priority, retry, onDelta)
         meta = { model: out.model, promptChars: out.promptChars }
+        if (call === 1) first = { warm: out.warm, firstDeltaMs: out.firstDeltaAt === null ? null : out.firstDeltaAt - startedAt }
         return out.text
       },
       { schema: req.jsonSchema, extraCheck: req.extraCheck as ((d: unknown) => string[]) | undefined, softExtraCheck: req.softExtraCheck === true },
@@ -206,8 +254,32 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
     attempts: value.attempts,
     ...(req.softExtraCheck ? { residualViolations: value.residualViolations ?? [], candidates: value.candidates ?? [value.data] } : {}),
     ...meta,
+    warm: (first as { warm: WarmUse | null } | null)?.warm ?? null,
+    firstDeltaMs: (first as { firstDeltaMs: number | null } | null)?.firstDeltaMs ?? null,
     connectionKey: connection.key,
     elapsedMs: Date.now() - startedAt,
+  }
+}
+
+/**
+ * 곧 올 요청을 위해 LLM 을 예열한다(task-007 K2-1) — 이 요청(`req`)과 **같은 모양**(모델·페르소나·플래그)의 CLI 를 미리 띄워 둔다.
+ * 사용자 데이터는 넘어가지 않는다(모양만 쓴다 — `system`·`messages` 는 무시). primary connection 이 claude-cli 이고
+ * `runtime.prewarm !== false` 일 때만. 상한·TTL 은 connection `runtime.prewarmMaxIdle`(기본 2, 0 = 끔)·`runtime.prewarmIdleTtlSec`(기본 600).
+ * 실패해도 던지지 않는다(다음 요청이 cold 로 돈다).
+ */
+export async function prewarm(req: LlmRequest): Promise<PrewarmOutcome | 'NOT_APPLICABLE'> {
+  try {
+    const spec = LLM_TASKS[req.task]
+    const tier = req.tier ?? spec.tier
+    const [c] = await resolveCandidates('LLM', { task: req.task })
+    if (!c || c.engineId !== 'claude-cli' || c.runtime.prewarm === false) return 'NOT_APPLICABLE'
+    const { opts } = claudeShape(c, req, tier)
+    return prewarmClaude(opts, {
+      maxIdle: intRuntime(c, 'prewarmMaxIdle', 2, 0, 4),
+      idleTtlMs: intRuntime(c, 'prewarmIdleTtlSec', 600, 60, 3_600) * 1_000,
+    })
+  } catch {
+    return 'FAILED'
   }
 }
 

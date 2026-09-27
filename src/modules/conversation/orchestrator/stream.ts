@@ -3,7 +3,7 @@
  * 구독자는 붙는 순간 지난 이벤트를 다시 받은 뒤 이어서 받는다. 연결이 끊겨 구독을 놓아도 처리는 계속된다(§0-9).
  */
 export interface TurnEvent {
-  event: 'accepted' | 'status' | 'done' | 'error'
+  event: 'accepted' | 'status' | 'audio' | 'done' | 'error'
   data: unknown
 }
 
