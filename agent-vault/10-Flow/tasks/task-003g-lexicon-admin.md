@@ -346,6 +346,48 @@ design-spec §15 task-005b 완료 기준 중 이월분 "**Pronunciation Dictiona
 
 **결론**: Critical 0·High 0·Medium 1·Low 0 → **PASS**(REV-017 서버 PASS 와 별개로 화면 자체도 PASS). 신규 MEDIUM(ENABLED/DISABLED diff 표시 누락)은 REV-017 MEDIUM-1(서버 CSV 짧은 행 재설정)과 사실상 같은 근본 위험을 공유하므로, **Developer 가 두 건을 한 번에 고치는 것을 권고**(서버 CSV 파서 수정 + `LexiconDiffList.detail()` 수정) — 수정 후 Reviewer 재순환은 두 파일(`lexiconCsv.ts`/`lexiconRules.ts`·`LexiconDiffList.tsx`)만 국소 재검증하면 되고 전체 재순환은 불필요(Leader 최종 판단). QA 인계: 위 `high_risk_areas` 참고, 특히 REV-017 이 이미 요청한 "dryRun 화면 가시성" 항목은 이번 실측으로 **"안 보임"이 확정**됐으니 QA 체크리스트에서 "화면에 표시되는지 확인"이 아니라 "표시되지 않음을 API 응답과 대조해 인지하고 넘어간다"로 갱신해 진행. 그 외 6영역(6층 경계·권한 렌더·계약 정합·Import/Export·버전 화면·접근성/XSS/공용 회귀) 전부 발견 없음.
 
+### REV-019 (2026-09-28, 171763e + 5a91b58 — REV-017/018 Medium 재검증)
+
+**대상**: A `171763e`(REV-017 M1 — CSV 짧은 행) + B `5a91b58`(REV-018 M — ENABLED/DISABLED diff 표시). 두 수정이 **서로 정합한지**(합성 시나리오에서 함께 올바르게 동작하는지)·왕복 불변 유지·dryRun 계획=실제 적용 일치·회귀 여부를 중점 검증.
+
+**독립 재실행**: `~/.node-local/thekaiwa-revcheck-003g-c`(`git archive 5a91b58` + 미러 `node_modules` 하드링크, 검증 후 삭제 완료).
+- `tsc --noEmit -p tsconfig.json` → 0 오류.
+- `eslint --max-warnings=0`(양쪽이 건드린 파일 7개: `lexiconCsv.ts`·`lexiconRules.ts`·`admin/speech/lexicon.ts`·`LexiconDiffList.tsx`·`LexiconImportSheet.tsx`·`access.test.ts`·`speech/__tests__/lexiconAdmin.test.ts`) → **`lexiconAdmin.test.ts` 에서 warning 5건**(`_n`/`_id` 미사용 변수·표현식 단독문, 152·165·233·303·336번 줄대) — **이번 두 수정과 무관한 기존 코드**임을 직접 확인(전부 A 원커밋 `5f8d9c1` 당시부터 있던 391행 이내 코드, 171763e 는 391행 뒤에 새 테스트만 추가). REV-017 이 애초에 이 테스트 파일을 `--max-warnings=0` 점검 대상에 넣지 않아 놓친 것 — 이번 두 Medium 수정의 결함이 아니라서 이슈로 세지 않음(Leader 참고용, 원하면 별도 tech-debt 로 분리).
+- 전체 프로젝트 단위 테스트(57 파일) 재실행 → **426/426 PASS** — Leader 가 전한 "425·426" 두 보고와 정확히 일치(A 단독 425, B 추가 1건으로 426).
+
+#### 1. 두 수정의 상호 정합성 (PASS) — 실측 재현
+스크래치에서 서버 함수(`parseLexiconFile`·`planImport`·`planRows`)를 직접 호출해 두 시나리오를 재현:
+- **시나리오 1(짧은 행)** — 기존 `{priority:500, wordType:COMMON, note:'keep me', enabled:false}` 항목에 `明日,アスノヒ`(표기·읽기 두 칸만) 을 MERGE → 결과 `{reading:'アスノヒ', priority:500, wordType:'COMMON', note:'keep me', enabled:false}`(나머지 전부 유지) · `kind:'CHANGED'`. **되살아나지 않고 값도 안 지워짐** — A 의 근본 수정이 이 경로에서 완전히 작동, 이 kind 는 원래부터 있던 `changedParts()` 전체 표시 경로를 타므로 B 의 수정이 없어도 이미 다 보임(두 수정이 서로 다른 문제를 겨냥해 안전하게 겹치지 않는다).
+- **시나리오 2(명시적 빈 칸 전체)** — 같은 기존 항목에 `明日,アシタ,3,,GLOBAL,,,,`(칸은 다 있고 값만 비움) 을 MERGE → 결과 `{priority:10, wordType:null, note:null, enabled:true}` · `kind:'ENABLED'`(A 계약대로 "빈 값 = 기본값" 이 의도적으로 적용된 경우). 이 정확한 모양(우선순위 500→10·종류 삭제·메모 삭제·enabled false→true)은 B 의 회귀 테스트(`access.test.ts:116-142`, 전체 스위트에 포함돼 PASS 확인)가 그대로 다루는 입력이고, 코드 추적으로 `detail()` 의 `ENABLED` 분기가 이제 `changedParts(before, after, false)` 를 이어 붙여 "다시 써요 · 읽기 …· 우선 500 → 10 · 종류 일반어 → 없음 · 메모 바뀜" 전부를 보임을 확인.
+- **결론**: 두 수정은 **같은 근본 위험의 서로 다른 층**을 고친다 — A 는 "의도치 않은 값 손실·되살림 자체를 없앰"(서버 데이터 무결성), B 는 "의도된 되살림·전환에 딸려 오는 다른 칸 변화를 안 보이게 하지 않음"(화면 가시성). A 가 고쳐 놓아 시나리오 1 류(REV-017 이 원래 재현했던 "짧은 행" 문제)는 이제 `ENABLED` 로도 안 가고 `CHANGED` 로 가 애초에 B 의 새 분기를 안 타지만, 시나리오 2 류(정상적인 명시적 초기화·PUT `{enabled:true, priority:X}` 같은 정당한 관리자 조작)는 여전히 `ENABLED`/`DISABLED` 로 분류되고 B 의 수정이 정확히 이 경우를 커버한다 — **분류 기준 자체(서버 `diffKind()`)는 이번에 손대지 않았고 그래도 정합하다.**
+
+#### 2. 왕복 불변 (PASS)
+A 의 새 테스트(`lexiconAdmin.test.ts` "dryRun 계획 = 실제 적용 결과…") 가 짧은 행·빈 칸·새 항목이 섞인 파일을 적용한 뒤 `Export → Import(REPLACE_SCOPE)` 로 왕복해 `counts:{add:0,update:0,disable:0,unchanged:3,error:0}` 을 직접 단언 — 전체 스위트 재실행으로 PASS 재확인. B 의 표시 변경은 렌더 전용이라 왕복 로직에 관여하지 않음(코드 추적으로 확인, `LexiconDiffList`·`LexiconImportSheet` 어디에도 요청 본문·파일 생성 로직 없음).
+
+#### 3. dryRun 계획 = 실제 적용 (PASS)
+같은 A 테스트가 `writeLexicon`(가짜 tx) 결과의 `importPlan.counts` 를 `planImport` 의 사전 계산 `counts` 와 직접 비교해 일치 확인(`assert.deepEqual(r.importPlan?.counts, plan.counts)`), 적용 후 항목·버전 스냅샷도 `applyPlan` 예측값과 일치. dryRun 이 보여주는 것과 실제 적용 결과가 어긋날 여지 없음.
+
+#### 4. 회귀 (PASS)
+- A 변경분(`lexiconCsv.ts`·`lexiconRules.ts`) 이 `wordType`·`scope`·`scopeRefId`·`note`·`accentType`·`priority` 등 다른 필드의 기존 "빈 값=기본값" 로직을 건드리지 않았음을 diff 로 확인(오직 `raw[c]=` 대입 조건 한 줄과 주석만 변경) — 다른 필드 검증 순서·오류 코드 불변.
+- B 변경분(`LexiconDiffList.tsx`) 의 `changedParts(b,a,withEnabled=true)` 신규 3번째 인자가 **`CHANGED` 분기 호출부에서는 항상 기본값(true)** 이고, `CHANGED` kind 는 서버 `diffKind()` 상 `before.enabled===after.enabled` 일 때만 나오므로(enabled 다르면 반드시 ENABLED/DISABLED) `withEnabled` 플래그가 `CHANGED` 표시에 실질적 영향을 주지 않음을 코드로 확인 — 기존 `CHANGED` 행 표시(REV-017/018 이전부터 있던 동작)에 회귀 없음.
+- `LexiconImportSheet.tsx` 에 추가된 안내 문구 한 줄("빈 칸은 기본값이고, 없는 칸(짧은 행·없는 열)은 기존 값을 그대로 둬요…")은 기존 "파일 형식" `<details>` 안에 이어 붙은 것으로 레이아웃·다른 문구에 영향 없음(코드 확인).
+- 전체 426/426 PASS 로 프로젝트 전역 회귀 없음 재확인.
+
+#### 종합 판정
+
+```json
+{
+  "reviewId": "REV-019",
+  "status": "PASS",
+  "issues": [],
+  "summary": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "high_risk_areas": [],
+  "native_change": false
+}
+```
+
+**결론**: Critical 0·High 0·Medium 0·Low 0 → **PASS**. A(`171763e`)·B(`5a91b58`) 두 수정은 서로 다른 층(데이터 무결성 vs 화면 가시성)에서 REV-017/018 Medium 을 각각 온전히 해소하고, 실측 재현으로 두 수정이 상호 배타적이지 않고 정확히 정합하게 조합됨을 확인했다. 왕복 불변·dryRun=실제 적용 모두 A 자신의 신규 테스트 + 이번 독립 전체 스위트 재실행(426/426)으로 재확인, 회귀 없음. 참고 사항(비차단): `speech/__tests__/lexiconAdmin.test.ts` 에 REV-017 점검 범위 밖이던 기존 eslint warning 5건이 있음(이번 두 수정과 무관, 391행 이전 원본 코드) — QA·Leader 는 배포를 막을 사유로 보지 말고 원하면 별도 tech-debt 로 분리. QA 인계: REV-018 이 남긴 "dryRun 화면 가시성 재확인" 항목은 이번에 실제로 보이는 것을 확인했으니 완료 처리해도 된다 — 남은 QA 관심사는 실기기/실역할(PRODUCTION·voices.read 단독)이 여전히 단위 테스트로만 검증된다는 기존 한계뿐(REV-017/018 과 동일, 신규 아님).
+
 ## QA 기록
 
 ## 최종 요약
