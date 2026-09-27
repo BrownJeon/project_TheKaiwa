@@ -104,10 +104,35 @@ export async function requireSession(): Promise<NonNullable<AppSession>> {
   return session
 }
 
+/**
+ * 본문을 **상한까지만** 읽는다 — 넘으면 null. `Content-Length` 가 상한을 넘으면 읽기 전에, 없거나 거짓이면 스트림을 읽다가
+ * 넘는 순간 끊는다(`req.text()` 는 전부 메모리에 올린 뒤에야 크기를 알 수 있다 — task-003e Codex C2).
+ */
+export async function readBodyCapped(req: Request, maxBytes: number): Promise<Uint8Array | null> {
+  const declared = Number(req.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) return null
+  if (!req.body) return new Uint8Array(0)
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
+}
+
 /** JSON 본문 — 객체만, 기본 64KB 상한(§0-2). */
 export async function readJsonObject(req: NextRequest, maxBytes = 64 * 1024): Promise<Record<string, unknown>> {
-  const text = await req.text()
-  if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new ApiError('VALIDATION', '요청 본문이 너무 큽니다.')
+  const bytes = await readBodyCapped(req, maxBytes)
+  if (!bytes) throw new ApiError('VALIDATION', '요청 본문이 너무 큽니다.')
+  const text = new TextDecoder().decode(bytes)
   if (!text.trim()) return {}
   let body: unknown
   try {
