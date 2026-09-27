@@ -72,6 +72,14 @@ design-spec §15 task-003 중 **STT 서버 경로(gateway) + 웹 폴백** — �
 - [2026-09-27 09:16] codex_gate/C1 engine=jev → codex_required=false / focus=security / budget_rule=CX-limit-unknown-r2 / codex_switch=on | overrides=- | fallback=- | tokens=876
 
 ## Codex 검토
+### [2026-09-28 01:02] C2 adversarial-review focus=security — done
+- judge 판정: 이력서 169줄([2026-09-28 00:56] codex_gate/C2) / 호출 차수: 1/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=b4feaa5(task_file) snapshot=e4d2337
+- 지적 2건:
+  - [medium] speech/gateway/kaiwa_gateway/ticket.py:45 — jti replay cache가 프로세스 로컬 메모리에만 저장 → 재시작·다중 worker 시 1회 사용 보장 깨짐. 60초 내 노출된 티켓이 gateway 재시작 또는 다른 worker 라우팅 후 재사용 가능 (권고: Redis/DB 원자 처리, boot epoch 검증, 다중 worker 금지 명시)
+  - [medium] src/modules/infra/http.ts:108 — JSON 본문 크기 제한이 await req.text() 전체 버퍼링 뒤에 적용 → nginx 32MB 제한 전 앱 메모리 압박. 인증 사용자 기준 ticket API DoS 가능 (권고: Content-Length 사전 검사, 스트리밍 capped reader 적용)
+- 검토하지 못한 범위: 서버/gateway 기동·pytest·실행 런타임·실제 DB 데이터 무결성 (정적 읽기 전용 지시)
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T155804Z-task-003e-C2/raw.txt
 
 ## Designer 기록
 - [00:06] 가이드 완료 → `docs/screens.md` §8(8-0~8-11) + §2 설정·음성 회화방 행 갱신. 위치 = 설정 "음성 인식" 절 모드 카드 아래 "마이크 테스트" 카드(모드 조회 실패와 무관하게 보임). task-007 은 `PushToTalkButton`·`useRealtimeStt`·`sttCopy` 재사용.
@@ -233,14 +241,3 @@ design-spec §15 task-003 중 **STT 서버 경로(gateway) + 웹 폴백** — �
 **발견·조치**: 인식 모델이 앞 무음이 짧으면 첫 단어를 빠뜨림 → 앞 0.4s·뒤 0.2s 무음 패딩(003f 온디바이스도 같게) · 미러 `.env` 권한이 777 이던 문제 → 600 강제(sync-local).
 **후속**: 003f(Capacitor·온디바이스 STT·APK — 폰 필요, #19 `onDevice.model` 엔진명 표기 결정 포함) · 발화 조회/오디오 #22·서명 URL(007) · CSP 도입 시 `worker-src blob:` · pm2 `save`/자동 기동 등록은 task-009(첫 blue/green)와 함께.
 - [2026-09-28 00:56] codex_gate/C2 engine=jev → codex_required=true / mode=adversarial-review / focus=security / budget_rule=CX-limit-unknown-r2 / codex_switch=on | overrides=- | fallback=- | tokens=1027
-
-## Codex 검토
-
-### [2026-09-28 01:02] C2 adversarial-review focus=security — done
-- judge 판정: 이력서 169줄([2026-09-28 00:56] codex_gate/C2) / 호출 차수: 1/4
-- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=b4feaa5(task_file) snapshot=e4d2337
-- 지적 2건:
-  - [medium] speech/gateway/kaiwa_gateway/ticket.py:45 — jti replay cache가 프로세스 로컬 메모리에만 저장 → 재시작·다중 worker 시 1회 사용 보장 깨짐. 60초 내 노출된 티켓이 gateway 재시작 또는 다른 worker 라우팅 후 재사용 가능 (권고: Redis/DB 원자 처리, boot epoch 검증, 다중 worker 금지 명시)
-  - [medium] src/modules/infra/http.ts:108 — JSON 본문 크기 제한이 await req.text() 전체 버퍼링 뒤에 적용 → nginx 32MB 제한 전 앱 메모리 압박. 인증 사용자 기준 ticket API DoS 가능 (권고: Content-Length 사전 검사, 스트리밍 capped reader 적용)
-- 검토하지 못한 범위: 서버/gateway 기동·pytest·실행 런타임·실제 DB 데이터 무결성 (정적 읽기 전용 지시)
-- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T155804Z-task-003e-C2/raw.txt
