@@ -109,7 +109,7 @@ const attemptBase: Parameters<typeof toCardDto>[2] = {
   answer: null, chosenText: null, flagged: false, answeredAt: null, word: { example: '映画を見ました。', exampleKo: '영화를 봤어요.' },
 }
 
-test('정답 미노출(F1): CHOICE·진행 중·미답 카드에는 정답·뜻·예문 없음, 답하면·끝나면 포함, FLIP 은 뜻·예문 처음부터', () => {
+test('정답 미노출(F1·REV-008): CHOICE 미답 카드는 진행 중·ABANDONED 모두 정답·뜻·예문 없음, 답하면·DONE 이면 포함, FLIP 은 뜻·예문 처음부터', () => {
   const hidden = toCardDto('CHOICE', 'IN_PROGRESS', { ...attemptBase })
   assert.deepEqual(Object.keys(hidden).sort(), ['answered', 'choices', 'flagged', 'order', 'reading', 'surface', 'wordId'].sort())
   const json = JSON.stringify(hidden)
@@ -121,6 +121,13 @@ test('정답 미노출(F1): CHOICE·진행 중·미답 카드에는 정답·뜻�
   const done = toCardDto('CHOICE', 'DONE', { ...attemptBase, answer: 'SKIPPED' })
   assert.equal(done.correctText, '영화')
   assert.equal(done.answer, 'SKIPPED')
+  const abandoned = toCardDto('CHOICE', 'ABANDONED', { ...attemptBase })
+  assert.deepEqual(Object.keys(abandoned).sort(), Object.keys(hidden).sort(), 'ABANDONED(F2) 미답 카드도 정답·예문 없음(REV-008 H1)')
+  assert.equal(abandoned.correctText, undefined)
+  assert.equal(abandoned.exampleKo, undefined)
+  const abandonedFlip = toCardDto('FLIP', 'ABANDONED', { ...attemptBase, choices: null })
+  assert.equal(abandonedFlip.meaning, '영화', 'FLIP 은 F1 대로 뜻 포함')
+  assert.equal(abandonedFlip.correctText, undefined)
   const flip = toCardDto('FLIP', 'IN_PROGRESS', { ...attemptBase, choices: null })
   assert.equal(flip.meaning, '영화')
   assert.equal(flip.example, '映画を見ました。')

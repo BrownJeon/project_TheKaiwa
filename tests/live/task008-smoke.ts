@@ -293,6 +293,12 @@ async function main() {
   const zf = await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${z.session?.id}/finish`)
   check('6h 답 0장 finish → ABANDONED, studyLogId null, 기록·스냅샷 0(F2)', (d(zf).session as Json).status === 'ABANDONED' && d(zf).studyLogId === null && (await prisma.studyLog.count({ where: { userId: u1, type: 'WORDS' } })) === logCount0 && (await prisma.statsSnapshot.count({ where: { userId: u1, periodKey: String(z.session?.id) } })) === 0)
 
+  const z49 = await api(COOKIE1, 'GET', `/api/v1/vocab/sessions/${z.session?.id}`)
+  const zCards = (d(z49).cards as Card[]) ?? []
+  check('6h′ ABANDONED 세트 #49 재조회 → CHOICE 미답 카드 정답·예문 여전히 없음(REV-008 H1)', z49.status === 200 && (d(z49).session as Json).status === 'ABANDONED' && zCards.length === 5 && zCards.every(choiceCardHides), `mode=${(d(z49).session as Json)?.mode}`)
+  const zKeep = await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${z.session?.id}/keep`, { kept: true })
+  check('6h″ ABANDONED 세트 keep → 409', zKeep.status === 409)
+
   // 답과 finish 겹침
   const ov = d(await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 5 })) as unknown as Created
   const ovId = String(ov.session?.id)
@@ -351,6 +357,9 @@ async function main() {
   const rpWords = (rpS.cards ?? []).map((c) => c.wordId ?? `snap:${c.surface}`).sort()
   check('8d 삭제 단어 포함 세트 replay → 같은 단어 목록·replayOfId·전체 FLIP(downgraded, E4)', rp.status === 200 && rpS.session?.replayOfId === sid && rpS.session?.mode === 'FLIP' && rpS.session?.downgraded === true && JSON.stringify(origWords) === JSON.stringify(rpWords), `${rp.status} mode=${rpS.session?.mode}`)
   const rpBusy = await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${sid}/replay`)
+  const unkeepRace = await Promise.all([api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${sid}/keep`, { kept: false }), api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${sid}/keep`, { kept: true })])
+  check('8e′ keep 해제·재보관 동시 → 둘 다 200(사용자 행 직렬), 최종 상태 = 나중에 처리된 쪽', unkeepRace.every((r) => r.status === 200), unkeepRace.map((r) => `${r.status}:${d(r).keptAt ? 'kept' : 'unkept'}`).join(','))
+  await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${sid}/keep`, { kept: true })
   check('8e 진행 중 세트 있으면 replay 409', rpBusy.status === 409)
   const keepIP = await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${rpS.session?.id}/keep`, { kept: true })
   check('8f 진행 중 세트 keep → 409', keepIP.status === 409)

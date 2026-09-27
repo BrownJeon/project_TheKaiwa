@@ -122,14 +122,15 @@ function parseChoices(raw: Prisma.JsonValue | null): string[] {
 }
 
 /**
- * 카드 직렬화 — **정답 미노출 규칙이 사는 곳**. CHOICE·진행 중·미답이면 order·표기·읽기·보기·표시 여부만 나간다.
- * `revealAll` = 끝난 세트(DONE·ABANDONED): 전 카드 정답 포함(결과 화면).
+ * 카드 직렬화 — **정답 미노출 규칙이 사는 곳**. CHOICE 미답 카드는 order·표기·읽기·보기·표시 여부만 나간다.
+ * 전 카드 정답은 **DONE 세트에서만**(결과 화면, api-contract #49). ABANDONED(답 0장으로 닫힌 세트, F2)는 "본 적 없는 세트"라
+ * 진행 중과 똑같이 숨긴다 — 오늘 DONE 제외 규칙이 적용되지 않아 같은 단어가 다음 세트에 다시 나오기 때문(REV-008 H1).
  */
 export function toCardDto(mode: VocabMode, status: VocabSessionStatus, a: Omit<AttemptRow, 'id'>): VocabCardDto {
   const answered = a.answer != null
   const card: VocabCardDto = { order: a.order, wordId: a.wordId, surface: a.surfaceSnap, reading: a.readingSnap, flagged: a.flagged, answered }
   if (mode === 'CHOICE') card.choices = parseChoices(a.choices)
-  const reveal = answered || status !== 'IN_PROGRESS'
+  const reveal = answered || status === 'DONE'
   if (mode === 'FLIP' || reveal) {
     card.example = a.word?.example ?? null
     card.exampleKo = a.word?.exampleKo ?? null
@@ -521,13 +522,14 @@ export function parseKeepBody(body: Record<string, unknown>): boolean {
 
 /** #52 — DONE 세트만(아니면 409). 이미 보관한 세트를 다시 보관해도 `keptAt` 은 처음 값 유지. */
 export async function keepVocabSession(userId: string, id: string, kept: boolean): Promise<VocabSessionDto> {
-  if (!isValidId(id)) throw notFound()
-  const s = await prisma.vocabSession.findFirst({ where: { id, userId }, select: { status: true } })
-  if (!s) throw notFound()
-  if (s.status !== 'DONE') throw new ApiError('CONFLICT', '끝낸 세트만 보관할 수 있어요.', { status: s.status })
-  if (kept) await prisma.vocabSession.updateMany({ where: { id, userId, status: 'DONE', keptAt: null }, data: { keptAt: new Date() } })
-  else await prisma.vocabSession.updateMany({ where: { id, userId, keptAt: { not: null } }, data: { keptAt: null } })
-  return toSessionDto(await prisma.vocabSession.findFirstOrThrow({ where: { id, userId }, select: SESSION_SELECT }))
+  // 다시 풀기(#53)와 같은 잠금 순서(사용자 행 → 세트 행) — "보관 해제 ↔ 다시 풀기" 겹침을 직렬화한다(REV-008 L1).
+  return withTransaction(async (tx) => {
+    await lockUserRow(tx, userId)
+    const s = await lockSession(tx, userId, id)
+    if (s.status !== 'DONE') throw new ApiError('CONFLICT', '끝낸 세트만 보관할 수 있어요.', { status: s.status })
+    if (kept === !!s.keptAt) return toSessionDto(s)
+    return toSessionDto(await tx.vocabSession.update({ where: { id }, data: { keptAt: kept ? new Date() : null }, select: SESSION_SELECT }))
+  })
 }
 
 /**
