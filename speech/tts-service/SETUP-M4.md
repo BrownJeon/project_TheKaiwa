@@ -159,7 +159,7 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/com.kaiwa.pf.plist
 | 1. 코드 반영 | 우분투에서 `speech/tts-service/scripts/deploy-from-ubuntu.sh origin/main` — SSH push → M4 `git merge --ff-only` → 핀 대조 → `restart.sh`(8200 기동·warmedUp 대기) → smoke. 실패하면 직전 SHA 로 롤백. 첫 기동도 이 명령 하나로 된다 |
 | (수동 기동) | M4: `~/kaiwa-tts-run/speech/tts-service/scripts/restart.sh` (종료만 `--stop`) |
 | 2. 워치독 | M4 `crontab -e` 에 `* * * * * ~/kaiwa-tts-run/speech/tts-service/scripts/kaiwa-tts-watchdog.sh >> ~/kaiwa-tts-local-logs/watchdog.log 2>&1` (일시 중지 `touch ~/kaiwa-tts-run/.watchdog-off`) |
-| 3. 확인 | 우분투: `curl -s http://192.168.219.100:8200/health` → `status:"OK"`·`warmedUp:true`·`modelsLoaded:3`·`device:"mps"`, 시크릿 없이 `POST /synthesize` → 401, 원격 `POST /admin/models/refresh` → 404 |
+| 3. 확인 | 우분투: `curl -s http://192.168.219.100:8200/health` → `{"status":"OK","warmedUp":true}` 두 필드만 · 시크릿 없이 `GET /health/detail`·`POST /synthesize` → 401 · 상세(`modelsLoaded:3`·`device:"mps"`)는 `speech/tts-service/scripts/smoke.py --url http://192.168.219.100:8200`(시크릿은 `TTS_SERVICE_SECRET` 환경 변수) · 원격 `POST /admin/models/refresh` → 404 |
 | 4. 앱 연결 | 우분투 `.env` `TTS_SERVICE_URL=http://192.168.219.100:8200`·`TTS_SERVICE_SECRET` 확인 → 관리자 콘솔 `Speech › TTS` 에서 [상태 확인]·[기능 테스트] |
 
 ## 8. 끝나면 알려 줄 것

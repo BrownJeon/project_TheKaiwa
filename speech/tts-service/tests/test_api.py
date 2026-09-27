@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
+import logging
 import time
 import wave
 from collections.abc import Iterator
@@ -23,11 +25,13 @@ REMOTE = ("192.168.219.154", 50000)
 
 
 def _wait_ready(client: TestClient) -> dict[str, Any]:
+    """공개 /health 로 기동 완료를 기다린 뒤 상세(/health/detail, 시크릿)를 돌려준다. 시크릿 미설정이면 공개 본문."""
     body: dict[str, Any] = {}
     for _ in range(200):
         body = client.get("/health").json()
         if body["status"] not in ("LOADING",):
-            return body
+            detail = client.get("/health/detail", headers=AUTH)
+            return detail.json() if detail.status_code in (200, 503) else body
         time.sleep(0.01)
     raise AssertionError(f"not ready: {body}")
 
@@ -56,8 +60,22 @@ def _synth(client: TestClient, body: dict[str, Any], headers: dict[str, str] | N
 # ---- health ----
 
 
-def test_health_is_public_and_has_no_secret_or_path(client: TestClient, assets: Path) -> None:
+def test_public_health_is_minimal(client: TestClient) -> None:
     r = client.get("/health")
+    assert r.status_code == 200
+    # 무인증 응답에는 liveness 두 필드뿐 — 모델·장치·메모리·버전·인증 설정 여부 없음(Codex C2).
+    assert r.json() == {"status": "OK", "warmedUp": True}
+
+
+@pytest.mark.parametrize("headers", [{}, {"X-Internal-Secret": "wrong"}])
+def test_health_detail_requires_secret(client: TestClient, headers: dict[str, str]) -> None:
+    r = client.get("/health/detail", headers=headers)
+    assert r.status_code == 401
+    assert "modelsLoaded" not in r.text
+
+
+def test_health_detail_has_no_secret_or_path(client: TestClient, assets: Path) -> None:
+    r = client.get("/health/detail", headers=AUTH)
     assert r.status_code == 200
     body = r.json()
     for key in ("ok", "version", "modelsLoaded", "defaultModel", "device", "uptimeSec", "warmedUp", "memoryMb"):
@@ -82,7 +100,8 @@ def test_health_reports_loading_then_degraded_on_cpu_fallback(assets: Path) -> N
 def test_health_misconfigured_when_secret_missing(assets: Path, backend: FakeBackend) -> None:
     with _client(assets, backend, internal_secret="") as c:
         body = _wait_ready(c)
-        assert body["status"] == "MISCONFIGURED" and body["authConfigured"] is False
+        assert set(body) == {"status", "warmedUp"} and body["status"] == "MISCONFIGURED"
+        assert c.get("/health/detail", headers={"X-Internal-Secret": ""}).status_code == 401
         # 서버 시크릿이 비어 있으면 빈 헤더로도 통과하지 못한다(fail-closed).
         assert c.post("/synthesize", json={"text": "テスト"}, headers={"X-Internal-Secret": ""}).status_code == 401
 
@@ -110,8 +129,10 @@ def test_startup_hang_is_stuck(assets: Path) -> None:
             time.sleep(0.01)
         runner._busy_since = time.monotonic() - 61  # 15s × 4 초과
         r = c.get("/health")
+        detail = c.get("/health/detail", headers=AUTH)
         fb.gate.set()
-    assert r.status_code == 503 and r.json()["status"] == "STUCK"
+    assert r.status_code == 503 and r.json() == {"status": "STUCK", "warmedUp": False}
+    assert detail.status_code == 503 and detail.json()["status"] == "STUCK"
 
 
 def test_health_stuck_returns_503(assets: Path, backend: FakeBackend) -> None:
@@ -234,6 +255,31 @@ def test_pitch_adjust_failure_retries_without_adjust(client: TestClient, backend
     assert r.status_code == 200
     assert r.headers["X-Kaiwa-Adjust"] == "skipped"
     assert backend.calls[-1]["pitch_scale"] == 1.0
+
+
+def test_logs_never_contain_text_even_at_debug(assets: Path, backend: FakeBackend) -> None:
+    records: list[logging.LogRecord] = []
+
+    class Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = Capture(level=logging.DEBUG)
+    logger = logging.getLogger("kaiwa_tts")
+    logger.addHandler(handler)
+    text = "秘密の文章です。"
+    try:
+        with _client(assets, backend, log_level="DEBUG") as c:
+            _wait_ready(c)
+            assert _synth(c, {"text": text, "traceId": "t_log"}).status_code == 200
+            assert _synth(c, {"text": text + "\n続き"}).status_code == 400
+            assert c.post("/g2p", json={"text": text}, headers=AUTH).status_code == 200
+    finally:
+        logger.removeHandler(handler)
+    lines = [r.getMessage() for r in records]
+    assert not any(text in line or "秘密" in line for line in lines)
+    digest = hashlib.sha256(text.encode()).hexdigest()[:12]
+    assert any("trace=t_log" in line and f"text_sha={digest}" in line and "chars=8" in line for line in lines)
 
 
 def test_x_kaiwa_model_is_id_not_path(client: TestClient, assets: Path) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import logging
 import resource
@@ -63,6 +64,10 @@ def encode_wav(sample_rate: int, audio: NDArray[Any]) -> bytes:
     return buf.getvalue()
 
 
+def text_digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
 def peak_rss_mb() -> int:
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     # macOS 는 바이트, Linux 는 KB.
@@ -98,8 +103,7 @@ def configure_logging(settings: Settings) -> None:
 def create_app(settings: Settings | None = None, backend: Backend | None = None, *, autoload: bool = True) -> FastAPI:
     settings = settings or Settings.from_env()
     configure_logging(settings)
-    debug = settings.log_level == "DEBUG"
-    holder = ModelHolder(settings, backend or Sbv2Backend(settings.bert_model, debug=debug))
+    holder = ModelHolder(settings, backend or Sbv2Backend(settings.bert_model))
     runner = SerialRunner(queue_timeout_s=settings.queue_timeout_ms / 1000)
     started = time.monotonic()
     if not settings.auth_configured:
@@ -186,6 +190,13 @@ def create_app(settings: Settings | None = None, backend: Backend | None = None,
 
     @app.get("/health")
     async def health() -> JSONResponse:
+        # 무인증 liveness(워치독·restart.sh·앱 표시등) — 모델·장치·메모리·버전은 싣지 않는다(fingerprinting 최소화, Codex C2).
+        status_code, body = health_body()
+        return JSONResponse({"status": body["status"], "warmedUp": body["warmedUp"]}, status_code=status_code)
+
+    @app.get("/health/detail")
+    async def health_detail() -> JSONResponse:
+        # InternalGate 가 X-Internal-Secret 을 요구한다(PUBLIC_PATHS 는 /health 정확 일치만).
         status_code, body = health_body()
         return JSONResponse(body, status_code=status_code)
 
@@ -242,20 +253,20 @@ def create_app(settings: Settings | None = None, backend: Backend | None = None,
         }
         if req.traceId:
             headers["X-Trace-Id"] = req.traceId
+        # 문장 원문은 어떤 로그 레벨에서도 남기지 않는다 — 글자 수·해시 앞 12자·traceId 로만 대조한다(Codex C2).
         log.info(
-            "synth ok trace=%s model=%s profile=%s chars=%d audio_ms=%d queue_ms=%d synth_ms=%d total_ms=%d adjust=%s",
+            "synth ok trace=%s model=%s profile=%s chars=%d text_sha=%s audio_ms=%d queue_ms=%d synth_ms=%d total_ms=%d adjust=%s",
             req.traceId or "-",
             model_id,
             req.profile or "-",
             len(text),
+            text_digest(text),
             audio_ms,
             queue_ms,
             result.synth_ms,
             total_ms,
             result.adjust,
         )
-        if debug:
-            log.debug("synth text trace=%s text=%s", req.traceId or "-", text)
         return Response(content=wav, media_type="audio/wav", headers=headers)
 
     @app.post("/g2p")

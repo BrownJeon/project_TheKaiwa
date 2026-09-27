@@ -39,9 +39,10 @@ def post_json(url: str, body: dict[str, Any], secret: str, timeout: float = 30.0
         return e.code, dict(e.headers.items()), e.read(), time.perf_counter() - t0
 
 
-def get_json(url: str, timeout: float = 5.0) -> tuple[int, dict[str, Any]]:
+def get_json(url: str, timeout: float = 5.0, secret: str | None = None) -> tuple[int, dict[str, Any]]:
+    req = urllib.request.Request(url, headers={"X-Internal-Secret": secret} if secret else {})  # noqa: S310
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
             return resp.status, json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read() or b"{}")

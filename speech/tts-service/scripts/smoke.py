@@ -1,4 +1,4 @@
-"""배포 직후 스모크 — /health 가 warmedUp 이고 /synthesize 1문장이 WAV 를 돌려주는지. 실패면 exit 1.
+"""배포 직후 스모크 — 공개 /health 가 warmedUp, /health/detail(시크릿) 200, /synthesize 1문장이 WAV 인지. 실패면 exit 1.
 
 실행(M4): .venv/bin/python speech/tts-service/scripts/smoke.py --url http://127.0.0.1:8200 --env-file ~/kaiwa-tts-run/.env
 """
@@ -20,15 +20,20 @@ def main() -> int:
     args = ap.parse_args()
     base = args.url.rstrip("/")
 
+    secret = load_secret(args.env_file)
     code, health = get_json(f"{base}/health")
-    summary = {k: health.get(k) for k in ("status", "device", "modelsLoaded", "warmedUp", "coldStartMs", "memoryMb", "version")}
-    print("HEALTH", code, json.dumps(summary, ensure_ascii=False))
+    print("HEALTH", code, json.dumps(health, ensure_ascii=False))
     if code != 200 or not health.get("warmedUp"):
+        return 1
+    dcode, detail = get_json(f"{base}/health/detail", secret=secret)
+    summary = {k: detail.get(k) for k in ("device", "deviceFallback", "modelsLoaded", "coldStartMs", "memoryMb", "gpuMb", "version")}
+    print("DETAIL", dcode, json.dumps(summary, ensure_ascii=False))
+    if dcode != 200:
         return 1
     body = {"text": "こんにちは。今日はいい天気ですね。", "traceId": "smoke"}
     if args.model:
         body["voice"] = {"model": args.model}
-    status, headers, payload, secs = post_json(f"{base}/synthesize", body, load_secret(args.env_file))
+    status, headers, payload, secs = post_json(f"{base}/synthesize", body, secret)
     lower = {k.lower(): v for k, v in headers.items()}
     ok = status == 200 and payload[:4] == b"RIFF" and len(payload) > 1000
     print(

@@ -1,6 +1,6 @@
 # speech/tts-service — Style-Bert-VITS2 래퍼 (맥 M4)
 
-> 상태: **P0 구현(task-003d, 2026-09-27)** — `/synthesize`·`/voices`·`/health`·`/g2p`·`/admin/models/refresh`. **이 디렉토리는 AGPL-3.0 경계 안**이다 — [`LICENSE-NOTICE.md`](LICENSE-NOTICE.md) 필독. 앱은 HTTP 로만 부르고(`engine/adapters/tts` 만), 이 서비스는 `speech/common` 을 import 하지 않는다. SBV2 `server_fastapi.py` 프록시가 아니라 **`style_bert_vits2` 라이브러리 위의 자체 FastAPI** 다(speech-platform/16 §1.2). 이 문서 §2 가 앱 어댑터가 따르는 계약이다 — `docs/design/api-contract.md` #147~#152·§7-3 의 옛 필드명(`modelName/speakerId/length…`, 세그먼트 배열)은 이 표로 대체된다.
+> 상태: **P0 구현(task-003d, 2026-09-27)** — `/synthesize`·`/voices`·`/health`·`/health/detail`·`/g2p`·`/admin/models/refresh`. **이 디렉토리는 AGPL-3.0 경계 안**이다 — [`LICENSE-NOTICE.md`](LICENSE-NOTICE.md) 필독. 앱은 HTTP 로만 부르고(`engine/adapters/tts` 만), 이 서비스는 `speech/common` 을 import 하지 않는다. SBV2 `server_fastapi.py` 프록시가 아니라 **`style_bert_vits2` 라이브러리 위의 자체 FastAPI** 다(speech-platform/16 §1.2). 이 문서 §2 가 앱 어댑터가 따르는 계약이다 — `docs/design/api-contract.md` #147~#152·§7-3 의 옛 필드명(`modelName/speakerId/length…`, 세그먼트 배열)은 이 표로 대체된다.
 
 ## 1. 배치·실행
 
@@ -14,20 +14,21 @@
 | 프로세스 | [`scripts/restart.sh`](scripts/restart.sh) 가 `python -m uvicorn app:app --app-dir ~/kaiwa-tts-run/speech/tts-service --host 0.0.0.0 --port 8200 --no-access-log --no-proxy-headers` 를 nohup 으로 띄운다. launchd·pm2 아님 |
 | 워치독 | crontab 매분 [`scripts/kaiwa-tts-watchdog.sh`](scripts/kaiwa-tts-watchdog.sh) — `/health` 무응답 또는 503(STUCK) 이 5초 간격 2회면 `restart.sh`. 배포와 `~/kaiwa-tts-run/.deploy.lock`(mkdir 락) 으로 조율, 15분 넘은 락은 치움. `touch ~/kaiwa-tts-run/.watchdog-off` 로 일시 중지 |
 | 배포 | 우분투에서 [`scripts/deploy-from-ubuntu.sh [ref]`](scripts/deploy-from-ubuntu.sh)(**사용자 승인 게이트**) — M4 는 Gitea 에서 pull 못 함(키체인). SSH push → M4 `git merge --ff-only` → 핀 대조 → restart → smoke, 실패 시 직전 SHA 로 롤백. 모델은 기동 때 전부 올라가므로 배포 뒤 refresh 불필요 |
-| 로그 | `~/kaiwa-tts-local-logs/tts-service-<port>.log`(20MB 넘으면 `.1` 로 한 벌 보존) · `watchdog.log`. 요청 로그는 trace·모델·글자 수·지연만, **합성 문장 전문은 `KAIWA_TTS_LOG_LEVEL=DEBUG` 일 때만**. SBV2 라이브러리 자체 로그(문장 전문을 INFO 로 찍음)는 ERROR 로 낮춘다 |
+| 로그 | `~/kaiwa-tts-local-logs/tts-service-<port>.log`(20MB 넘으면 `.1` 로 한 벌 보존) · `watchdog.log`. 요청 로그는 trace·모델·글자 수·`text_sha`(sha256 앞 12자)·지연만 — **합성 문장 원문은 어떤 로그 레벨에서도 남기지 않는다**(Codex C2, 발음 확인은 `/g2p`). SBV2 라이브러리 자체 로그(문장 전문·음소열을 INFO/DEBUG 로 찍음)는 항상 ERROR 로 낮춘다 |
 | 바인드·노출 | `0.0.0.0:8200` + **macOS pf 로 8200 을 우분투 접속 IP 와 localhost 에만 허용(상시 기동 전 필수, SETUP-M4 §6-2)**. 인증은 `X-Internal-Secret`(TTS 전용 값 — 우분투 `TTS_SERVICE_SECRET` = M4 `KAIWA_TTS_INTERNAL_SECRET`, `SPEECH_INTERNAL_SECRET` 과 다름). `/admin/*` 는 loopback 만 |
 | 메모리 | 모델 3종(F1·F2·M1) MPS 상주 footprint ≈3.3GB(RSS ≈1.2GB, 나머지 GPU). CPU 모드 ≈2.0~2.4GB. §6 |
 
 ## 2. 엔드포인트 (앱 어댑터 `engine/adapters/tts` 가 따르는 계약)
 
-공통: 오류 본문은 `{"error": {"code", "message"}}`. `/health` 외 전부 `X-Internal-Secret` 필수(없음·불일치·서버 미설정 모두 **401**, 상수시간 비교). `/admin/*` 는 요청 원격 주소가 loopback(127.0.0.1/::1)이 아니면 시크릿과 무관하게 **404**. 요청 본문 ≤8KB(초과 **413**). 알 수 없는 필드·범위 밖 값·NaN 은 **400 `INVALID_REQUEST`**(입력값은 되돌려 주지 않음). `/docs`·`/openapi.json` 없음.
+공통: 오류 본문은 `{"error": {"code", "message"}}`. `GET /health`(정확히 이 경로) 외 전부 `X-Internal-Secret` 필수(없음·불일치·서버 미설정 모두 **401**, 상수시간 비교). `/admin/*` 는 요청 원격 주소가 loopback(127.0.0.1/::1)이 아니면 시크릿과 무관하게 **404**. 요청 본문 ≤8KB(초과 **413**). 알 수 없는 필드·범위 밖 값·NaN 은 **400 `INVALID_REQUEST`**(입력값은 되돌려 주지 않음). `/docs`·`/openapi.json` 없음.
 
 | 메서드·경로 | 요청 | 응답 | 비고 |
 |---|---|---|---|
 | `POST /synthesize` | 아래 표 | `200 audio/wav`(PCM16 mono, 모델 샘플레이트 44.1kHz) + 헤더 | 문장 1개 = 요청 1개. 캐시 없음(앱 `DATA_ROOT/tts-cache`) |
 | `GET /voices` | — | `{defaultModel, models:[{modelName, version, checkpoint, status:'LOADED'\|'DISABLED'\|'ERROR', loaded, sampleRate, speakers:[{id,name}], styles:[…], defaultStyle, sha256, error}]}` | `model_assets` 스캔 정규화. 경로 없음. `VoiceModel` 동기화 입력 |
 | `POST /g2p` | `{text(1~200자)}` | `{normalizedText, reading, accent, moras:[{mora, tone:0\|1}]}` | 엔진이 실제로 읽을 읽기·악센트(SBV2 `normalize_text` + `g2kata_tone`, pyopenjtalk). `accent` 는 상승 `↑`·하강 `↓` 표기(예 雨 `ア↓メ` / 飴 `ア↑メ`), 구두점에서 끊김. 앱 정규화·발음 사전 검증용 |
-| `GET /health` | — | `{ok, status, service, version, license, modelsLoaded, models:[id], defaultModel, device, requestedDevice, deviceFallback, warmedUp, coldStartMs, uptimeSec, memoryMb, gpuMb, queue, authConfigured}` | 인증 없음. 시크릿·경로 없음. `status`: `LOADING`(기동 중) · `OK` · `DEGRADED`(워밍업 전·MPS→CPU 폴백·기본 모델 없음 — `ok:true`) · `FAILED`(모델 0) · `MISCONFIGURED`(시크릿 미설정) · `STUCK`(합성이 90초 넘게 안 끝남, **HTTP 503** — 워치독 재기동 신호). 나머지는 HTTP 200 |
+| `GET /health` | — | `{status, warmedUp}` **만** | **인증 없음** — 워치독·`restart.sh`·앱 liveness 용. 모델·장치·메모리·버전·인증 설정 여부는 싣지 않는다(fingerprinting 최소화, 2026-09-27 Codex C2). `status`: `LOADING`(기동 중) · `OK` · `DEGRADED`(워밍업 전·MPS→CPU 폴백·기본 모델 없음) · `FAILED`(모델 0) · `MISCONFIGURED`(시크릿 미설정) · `STUCK`(합성·refresh 가 90초, 기동이 360초 넘게 안 끝남 → **HTTP 503**, 워치독 재기동 신호). 나머지는 HTTP 200 |
+| `GET /health/detail` | — | `{ok, status, service, version, license, modelsLoaded, models:[id], defaultModel, device, requestedDevice, deviceFallback, warmedUp, coldStartMs, uptimeSec, memoryMb, gpuMb, queue, authConfigured}` | **`X-Internal-Secret` 필수**(없음·불일치 401). 앱 Health·상태 표시등·관리자 콘솔이 부른다. 시크릿·경로 없음. `ok` = `status ∈ {OK, DEGRADED}`, 앱 ONLINE 판정은 `ok && warmedUp`. HTTP 코드는 `/health` 와 같다(STUCK 만 503). M4 로컬 스크립트는 `.env` 의 시크릿을 환경 변수로만 넘겨 부른다 |
 | `POST /admin/models/refresh` | — | `{models, added, reloaded, removed, errors:[{modelName, code}]}` | **loopback 전용**. `model_assets` 재스캔 → 새/변경(파일 크기·mtime) 모델만 로드·워밍업, 사라진 모델 언로드. 변경 모델 로드 실패 시 기존 것을 유지 |
 
 **`POST /synthesize` 요청**(모든 키는 이 이름 그대로, 알 수 없는 키는 400):
@@ -57,7 +58,7 @@
 ## 3. 합성 규칙
 
 - **입력 문장 ≤100자**. 분할은 호출자(앱 sentence detector)가 한다.
-- 모든 모델 작업(로드·워밍업·합성·g2p·refresh)은 **단일 워커 스레드**에서 직렬 실행하고, 대기 상한 `KAIWA_TTS_QUEUE_TIMEOUT_MS`(기본 8000) 를 넘으면 503. 이벤트 루프는 막히지 않아 합성 중에도 `/health` 가 응답한다.
+- 모든 모델 작업(로드·워밍업·합성·g2p·refresh)은 **단일 워커 스레드**에서 직렬 실행하고, 대기 상한 `KAIWA_TTS_QUEUE_TIMEOUT_MS`(기본 8000) 를 넘으면 503. 이벤트 루프는 막히지 않아 합성 중에도 `/health`·`/health/detail` 이 응답한다.
 - BERT·모델은 **float32 로 고정**(transformers 버전과 무관 — 5.x 의 fp16 로드 충돌 방지). MPS 는 매 합성 뒤 `torch.mps.empty_cache()` — 안 하면 문장 길이마다 캐시가 쌓여 footprint 가 요청당 ≈45MB 씩 늘어난다(§6).
 - 기동: 포트를 먼저 열고(`status: LOADING`) 뒤에서 BERT → 모델 전부 로드 → 모델마다 워밍업 합성 1회 → `warmedUp: true`. MPS 사용 불가거나 워밍업이 MPS 에서 실패하면 **CPU 로 전부 다시 올리고** `deviceFallback: true`(DEGRADED).
 - 가중치는 `*.safetensors` 만 로드한다(.pth/.pt 는 pickle — 임의 코드 실행 위험). `model_assets` 밖을 가리키는 심볼릭 링크, `.`·`_` 로 시작하는 디렉토리, `.disabled` 마커 모델은 로드하지 않는다.
@@ -110,7 +111,7 @@ Import 단계(§34, `GET /admin/voices/import/{id}.stage`): `UPLOADED → PACKAG
 | `KAIWA_TTS_QUEUE_TIMEOUT_MS` | 8000 | 500~60000 |
 | `KAIWA_TTS_WARMUP_TEXT` | `こんにちは。今日はいい天気ですね。` | 선택 |
 | `KAIWA_TTS_HOST` | `0.0.0.0` | 선택(로컬 실측 때 `127.0.0.1`) |
-| `KAIWA_TTS_LOG_LEVEL` | `INFO` | 선택. `DEBUG` 에서만 문장 전문 기록 |
+| `KAIWA_TTS_LOG_LEVEL` | `INFO` | 선택. `DEBUG` 여도 문장 원문은 기록하지 않는다 |
 | `KAIWA_TTS_STUCK_SEC` | 90 | 선택. 합성·refresh 1건이 이보다 오래 걸리면 health `STUCK`(503) |
 | `KAIWA_TTS_BERT_MODEL` | `ku-nlp/deberta-v2-large-japanese-char-wwm` | 선택 |
 
@@ -137,11 +138,11 @@ Import 단계(§34, `GET /admin/voices/import/{id}.stage`): `UPLOADED → PACKAG
 
 | 파일 | 실행 위치 | 역할 |
 |---|---|---|
-| `restart.sh [--port N] [--host H] [--device cpu\|mps] [--wait S] [--stop]` | M4 | `.env` 의 `KAIWA_TTS_*` export → 이 디렉토리에서 띄운 uvicorn 만 골라 TERM(20초 폴링 후 KILL) → 포트를 다른 프로세스가 잡고 있으면 중단(home-m4-api·Ollama 보호) → nohup 기동 → `/health` 가 `warmedUp` 이 될 때까지 대기(기본 240s). macOS bash 3.2 호환 |
+| `restart.sh [--port N] [--host H] [--device cpu\|mps] [--wait S] [--stop]` | M4 | `.env` 의 `KAIWA_TTS_*` export → 이 디렉토리에서 띄운 uvicorn 만 골라 TERM(20초 폴링 후 KILL) → 포트를 다른 프로세스가 잡고 있으면 중단(home-m4-api·Ollama 보호) → nohup 기동 → 공개 `/health` 가 `warmedUp` 이 될 때까지 대기(기본 240s) → 로컬 시크릿(환경 변수)으로 `/health/detail` 요약(장치·모델 수·콜드 스타트) 출력. macOS bash 3.2 호환 |
 | `kaiwa-tts-watchdog.sh` | M4 crontab 매분 | §1 워치독 |
 | `deploy-from-ubuntu.sh [ref]` | 우분투 | §1 배포(롤백 포함). `KAIWA_TTS_M4`·`KAIWA_TTS_REMOTE_DIR` 로 대상 변경 |
 | `check_pins.py [requirements.txt]` | M4 | 설치본 = 핀 대조, 불일치 exit 1 |
-| `smoke.py --url --env-file` | M4/우분투 | health warmedUp + 1문장 WAV 확인 |
+| `smoke.py --url --env-file` | M4/우분투 | 공개 `/health` warmedUp + `/health/detail`(시크릿) 200 + 1문장 WAV 확인 |
 | `bench_synth.py --url --env-file --n [--model --speed --pitch --intonation]` | M4/우분투 | p50/p95·RTF(문장 원문은 출력 안 함) |
 | `check_synth.py` | M4 | SETUP-M4 5단계 설치 확인(라이브러리 직접) |
 

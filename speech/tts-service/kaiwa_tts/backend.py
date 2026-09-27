@@ -47,16 +47,15 @@ class Backend(Protocol):
 class Sbv2Backend:
     """style_bert_vits2 2.5.0 라이브러리 직접 호출. 모델·BERT 는 float32 로 고정한다."""
 
-    def __init__(self, bert_model: str, debug: bool) -> None:
+    def __init__(self, bert_model: str) -> None:
         self.bert_model = bert_model
-        self.debug = debug
 
     def _quiet_library_logs(self) -> None:
-        # SBV2 는 loguru INFO 로 합성 문장 전문을 찍는다 — DEBUG 가 아니면 ERROR 만 남긴다.
+        # SBV2 는 loguru INFO/DEBUG 로 합성 문장 전문·음소열을 찍는다 — 서비스 로그 레벨과 무관하게 ERROR 만 남긴다.
         from style_bert_vits2.logging import logger as sbv2_logger
 
         sbv2_logger.remove()
-        sbv2_logger.add(sys.stderr, level="DEBUG" if self.debug else "ERROR", format="{time:HH:mm:ss} | sbv2 {level} | {message}")
+        sbv2_logger.add(sys.stderr, level="ERROR", format="{time:HH:mm:ss} | sbv2 {level} | {message}")
         warnings.filterwarnings("ignore", category=FutureWarning)
         warnings.filterwarnings("ignore", category=UserWarning, module="torch")
 

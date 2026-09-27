@@ -110,13 +110,21 @@ while :; do
     tail -n 20 "$LOG_FILE" | sed 's/^/    /'
     exit 1
   fi
+  # 공개 /health 는 {status, warmedUp} 만 준다. 장치·모델 수는 로컬에서 시크릿으로 /health/detail 을 부른다
+  # (시크릿은 환경 변수로만 넘겨 argv·출력에 싣지 않는다).
   body="$(curl -s -m 3 "http://127.0.0.1:$PORT/health" || true)"
   if [ -n "$body" ]; then
     state="$(printf '%s' "$body" | "$VENV/bin/python" -c 'import json,sys
 d=json.load(sys.stdin)
-print(d.get("status"), "warm" if d.get("warmedUp") else "cold", d.get("device"), d.get("modelsLoaded"), d.get("coldStartMs"))' 2>/dev/null || echo "parse-error")"
+print(d.get("status"), "warm" if d.get("warmedUp") else "cold")' 2>/dev/null || echo "parse-error")"
     case "$state" in
-      *" warm "*) say "ready: status/warm/device/models/coldStartMs = $state ($(( $(date +%s) - START ))s)"; exit 0 ;;
+      *" warm")
+        detail="$("$VENV/bin/python" -c 'import json,os,urllib.request
+req=urllib.request.Request("http://127.0.0.1:%s/health/detail" % os.environ["KAIWA_TTS_PORT"], headers={"X-Internal-Secret": os.environ.get("KAIWA_TTS_INTERNAL_SECRET", "")})
+d=json.load(urllib.request.urlopen(req, timeout=3))
+print("device=%s fallback=%s models=%s coldStartMs=%s" % (d.get("device"), d.get("deviceFallback"), d.get("modelsLoaded"), d.get("coldStartMs")))' 2>/dev/null || echo "detail-unavailable")"
+        say "ready: $state $detail ($(( $(date +%s) - START ))s)"
+        exit 0 ;;
       FAILED*|MISCONFIGURED*) say "not healthy: $state"; exit 1 ;;
     esac
   fi
