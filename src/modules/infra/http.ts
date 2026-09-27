@@ -7,12 +7,17 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { ApiErrorCode } from '@/types/api'
 import { auth, type AppSession } from './auth'
 
-const STATUS: Record<ApiErrorCode, number> = {
+/** 서버가 내는 `data.code` — 화면과 같은 목록(`@/types/api`: §0-5 공통 + #28·#32·#38 `FEATURE_NOT_READY`, #33 `ALREADY_REVIEWED`). */
+export type ServerErrorCode = ApiErrorCode
+
+const STATUS: Record<ServerErrorCode, number> = {
   VALIDATION: 400,
+  FEATURE_NOT_READY: 400,
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  ALREADY_REVIEWED: 409,
   ENGINE_UNAVAILABLE: 422,
   RATE_LIMITED: 429,
   ENGINE_ERROR: 502,
@@ -27,7 +32,7 @@ const VALIDATION_ERRORS = new Set(['ReviewTooLargeError'])
 
 export class ApiError extends Error {
   constructor(
-    readonly code: ApiErrorCode,
+    readonly code: ServerErrorCode,
     readonly userMessage: string,
     readonly details?: Record<string, unknown>,
   ) {
@@ -40,22 +45,44 @@ export function ok<T>(data: T, message: string | null = null, init?: ResponseIni
   return NextResponse.json({ success: true, data, message }, init)
 }
 
-export function fail(code: ApiErrorCode, message: string, details?: Record<string, unknown>): NextResponse {
-  return NextResponse.json({ success: false, data: { code, ...(details ? { details } : {}) }, message }, { status: STATUS[code] })
+export function fail(code: ServerErrorCode, message: string, details?: Record<string, unknown>): NextResponse {
+  const init: ResponseInit = { status: STATUS[code] }
+  const retryAfter = details?.retryAfterSec
+  if (code === 'RATE_LIMITED' && typeof retryAfter === 'number') init.headers = { 'Retry-After': String(retryAfter) }
+  return NextResponse.json({ success: false, data: { code, ...(details ? { details } : {}) }, message }, init)
+}
+
+export interface ClassifiedError {
+  code: ServerErrorCode
+  status: number
+  userMessage: string
+  details?: Record<string, unknown>
+}
+
+/**
+ * 오류 → (코드·HTTP status·사용자 문구). 봉투 응답과 SSE `error` 이벤트가 같은 판정을 쓴다.
+ * 엔진 오류는 **정확한 이름 목록**으로만 매핑한다 — 부분 일치는 무관한 버그를 '일시적 엔진 오류'로 숨긴다(REV-006 M3).
+ * 오류 객체에 `traceId`(문자열)가 붙어 있으면 엔진 오류(502/504/422)의 `details.traceId` 로 싣는다(§0-5).
+ */
+export function classifyError(e: unknown): ClassifiedError {
+  if (e instanceof ApiError) return { code: e.code, status: STATUS[e.code], userMessage: e.userMessage, details: e.details }
+  const name = (e as { name?: string })?.name ?? ''
+  const userMessage = (e as { userMessage?: string })?.userMessage
+  const traceId = (e as { traceId?: unknown })?.traceId
+  const withTrace = typeof traceId === 'string' ? { traceId } : undefined
+  const pick = (code: ServerErrorCode, message: string): ClassifiedError => ({ code, status: STATUS[code], userMessage: message, ...(withTrace ? { details: withTrace } : {}) })
+  if (UNAVAILABLE_ERRORS.has(name)) return pick('ENGINE_UNAVAILABLE', userMessage ?? 'AI 엔진을 지금 사용할 수 없습니다.')
+  if (TIMEOUT_ERRORS.has(name)) return pick('ENGINE_TIMEOUT', userMessage ?? '응답이 늦어 중단했습니다. 잠시 후 다시 시도해 주세요.')
+  if (ENGINE_ERRORS.has(name)) return pick('ENGINE_ERROR', userMessage ?? 'AI 처리에 실패했습니다.')
+  if (VALIDATION_ERRORS.has(name)) return { code: 'VALIDATION', status: 400, userMessage: userMessage ?? '요청을 처리할 수 없습니다.' }
+  return { code: 'INTERNAL', status: 500, userMessage: '요청을 처리하지 못했습니다.' }
 }
 
 /** 엔진·도메인 오류를 봉투로. 알 수 없는 예외는 500 INTERNAL(발생 자체가 결함 — §0-5). */
 export function toErrorResponse(e: unknown): NextResponse {
-  if (e instanceof ApiError) return fail(e.code, e.userMessage, e.details)
-  const name = (e as { name?: string })?.name ?? ''
-  const userMessage = (e as { userMessage?: string })?.userMessage
-  // **정확한 이름 목록**으로만 매핑한다 — 부분 일치는 무관한 버그를 '일시적 엔진 오류'로 숨긴다(REV-006 M3).
-  if (UNAVAILABLE_ERRORS.has(name)) return fail('ENGINE_UNAVAILABLE', userMessage ?? 'AI 엔진을 지금 사용할 수 없습니다.')
-  if (TIMEOUT_ERRORS.has(name)) return fail('ENGINE_TIMEOUT', userMessage ?? '응답이 늦어 중단했습니다. 잠시 후 다시 시도해 주세요.')
-  if (ENGINE_ERRORS.has(name)) return fail('ENGINE_ERROR', userMessage ?? 'AI 처리에 실패했습니다.')
-  if (VALIDATION_ERRORS.has(name)) return fail('VALIDATION', userMessage ?? '요청을 처리할 수 없습니다.')
-  console.error('[api] 처리되지 않은 예외:', e instanceof Error ? `${e.name}: ${e.message}` : String(e))
-  return fail('INTERNAL', '요청을 처리하지 못했습니다.')
+  const c = classifyError(e)
+  if (c.code === 'INTERNAL') console.error('[api] 처리되지 않은 예외:', e instanceof Error ? `${e.name}: ${e.message}` : String(e))
+  return fail(c.code, c.userMessage, c.details)
 }
 
 type Handler<C> = (req: NextRequest, ctx: C) => Promise<NextResponse | Response>

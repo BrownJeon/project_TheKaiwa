@@ -253,11 +253,22 @@ export interface RunJsonOptions {
   schema: object
   /** ajv로 표현할 수 없는 추가 검사(예: 재료명 중복, 합계 불일치). 위반이 있으면 재시도한다. */
   extraCheck?: (data: unknown) => string[]
+  /**
+   * true 면 `extraCheck` 위반은 **재시도 1회 뒤에도 던지지 않는다**(스키마·파싱 위반은 그대로 던진다). 결과의
+   * `residualViolations` 에 남은 위반을, `candidates` 에 스키마를 통과한 시도 전부를 담아 돌려주고 항목별로 버리는 판단은
+   * 호출자가 한다 — 항목 하나의 위반으로 응답 전체를 잃지 않기 위해서다(task-006 D11). 재시도 호출 자체가 실패하거나
+   * 재시도 응답이 스키마를 어기면 첫 응답으로 돌아간다(이미 받은 정상 항목을 버리지 않는다).
+   */
+  softExtraCheck?: boolean
 }
 
 export interface RunJsonResult<T> {
   data: T
   attempts: 1 | 2
+  /** softExtraCheck 일 때만: `data` 에 남은 extraCheck 위반(없으면 빈 배열). */
+  residualViolations?: string[]
+  /** softExtraCheck 일 때만: 스키마를 통과한 시도의 데이터(시도 순서, 마지막이 `data` 와 같지 않을 수 있다). */
+  candidates?: T[]
 }
 
 function evaluateAttempt(raw: string, schema: object, extraCheck?: (data: unknown) => string[]): AnalyzeResult {
@@ -286,6 +297,7 @@ export async function runJsonWithRetry<T = unknown>(
   attempt: JsonAttemptFn,
   opts: RunJsonOptions,
 ): Promise<RunJsonResult<T>> {
+  if (opts.softExtraCheck) return runJsonSoft<T>(attempt, opts)
   const raw1 = await attempt(null)
   const r1 = evaluateAttempt(raw1, opts.schema, opts.extraCheck)
   if (r1.ok) return { data: r1.data as T, attempts: 1 }
@@ -298,6 +310,37 @@ export async function runJsonWithRetry<T = unknown>(
   if (r2.ok) return { data: r2.data as T, attempts: 2 }
 
   throw new JsonSchemaError(r2.parseError ? ['JSON 파싱 실패'] : r2.violations, raw2)
+}
+
+/**
+ * softExtraCheck 경로(task-006 D11). 재시도는 기존과 같이 1회뿐이고, 스키마·파싱 위반의 처리도 같다. 다른 점은
+ * extraCheck 위반이 남아도 던지지 않고 마지막으로 스키마를 통과한 데이터를 돌려준다는 것 하나다.
+ */
+async function runJsonSoft<T>(attempt: JsonAttemptFn, opts: RunJsonOptions): Promise<RunJsonResult<T>> {
+  const extra = (d: unknown) => (opts.extraCheck ? finalizeViolations(opts.extraCheck(d)) : [])
+  const raw1 = await attempt(null)
+  const s1 = extractAndValidate(raw1, opts.schema)
+  const v1 = s1.ok ? extra(s1.data) : []
+  if (s1.ok && v1.length === 0) return { data: s1.data as T, attempts: 1, residualViolations: [], candidates: [s1.data as T] }
+
+  const violations = s1.ok ? v1 : s1.parseError ? null : s1.violations
+  console.warn(`[json] 1차 응답 계약 위반 → 재시도(soft): ${violations ? violations.slice(0, 3).join(' / ').slice(0, 300) : 'JSON 파싱 실패'}`)
+  const hint = violations ? RETRY_SCHEMA(violations) : RETRY_PARSE
+  let raw2: string
+  try {
+    raw2 = await attempt({ hint, previousRaw: truncate(raw1, 8000) })
+  } catch (e) {
+    // 재시도 호출이 실패(시간 초과 등)해도 스키마를 통과한 첫 응답이 있으면 그것을 쓴다.
+    if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T] }
+    throw e
+  }
+  const s2 = extractAndValidate(raw2, opts.schema)
+  if (s2.ok) {
+    const candidates = s1.ok ? [s1.data as T, s2.data as T] : [s2.data as T]
+    return { data: s2.data as T, attempts: 2, residualViolations: extra(s2.data), candidates }
+  }
+  if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T] }
+  throw new JsonSchemaError(s2.parseError ? ['JSON 파싱 실패'] : s2.violations, raw2)
 }
 
 // ── 텍스트 LLM(home-m4-api) 경로 ──────────────────────────────────────────────

@@ -47,6 +47,11 @@ export interface LlmJsonRequest<T> extends LlmRequest {
   jsonSchema: object
   /** ajv 로 표현할 수 없는 후검증(예: `correction.original` 바이트 일치). 위반 문구 배열을 돌려준다. */
   extraCheck?: (data: T) => string[]
+  /**
+   * true 면 재시도 1회 뒤에도 남은 `extraCheck` 위반을 던지지 않고 `residualViolations`·`candidates` 와 함께 돌려준다
+   * (스키마 위반은 그대로 `JsonSchemaError`). 항목별로 버리는 판단은 호출자 몫이다 — task-006 D11. 기본 false(기존 동작).
+   */
+  softExtraCheck?: boolean
 }
 
 export interface LlmMeta {
@@ -63,6 +68,10 @@ export interface LlmTextResult extends LlmMeta {
 
 export interface LlmJsonResult<T> extends LlmMeta {
   data: T
+  /** softExtraCheck 요청에서만: `data` 에 남은 extraCheck 위반. */
+  residualViolations?: string[]
+  /** softExtraCheck 요청에서만: 스키마를 통과한 시도들의 데이터(시도 순서). */
+  candidates?: T[]
 }
 
 function modelFor(c: ResolvedConnection, tier: LlmTier): string {
@@ -188,9 +197,16 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
         meta = { model: out.model, promptChars: out.promptChars }
         return out.text
       },
-      { schema: req.jsonSchema, extraCheck: req.extraCheck as ((d: unknown) => string[]) | undefined },
+      { schema: req.jsonSchema, extraCheck: req.extraCheck as ((d: unknown) => string[]) | undefined, softExtraCheck: req.softExtraCheck === true },
     )
     return result
   })
-  return { data: value.data, attempts: value.attempts, ...meta, connectionKey: connection.key, elapsedMs: Date.now() - startedAt }
+  return {
+    data: value.data,
+    attempts: value.attempts,
+    ...(req.softExtraCheck ? { residualViolations: value.residualViolations ?? [], candidates: value.candidates ?? [value.data] } : {}),
+    ...meta,
+    connectionKey: connection.key,
+    elapsedMs: Date.now() - startedAt,
+  }
 }
