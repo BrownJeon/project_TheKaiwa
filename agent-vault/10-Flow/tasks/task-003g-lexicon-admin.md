@@ -133,6 +133,112 @@ design-spec §15 task-005b 완료 기준 중 이월분 "**Pronunciation Dictiona
 
 ## Reviewer 기록
 
+### REV-017 (2026-09-28, 서버 5f8d9c1+a408f00)
+
+**대상**: `5f8d9c1`(A API 구현, 39파일) + `a408f00`(smoke 설명 1행). B 의 미커밋 화면·`kana.test.ts` 는 대상 아님(별도 REV 예정). 정본 대조: api-contract.md §0-5·§1-3·§7-2·§7-2a, domain-model.md(PronunciationLexicon*·§5·§6), role-permission.md §3·§6, admin-console/06·09(ROLLED_BACK 의미), speech-platform/16 §2, module-dependency.md §11·226행 import 행렬.
+
+**독립 재실행**: `~/.node-local/thekaiwa-revcheck-003g` 에 `git archive a408f00` 추출 + `~/.node-local/thekaiwa/node_modules` 하드링크(cp -al) — 운영 미러 무변경, 검증 후 삭제.
+- `tsc --noEmit -p tsconfig.json` → 0 오류.
+- `eslint`(변경된 전 파일: admin/speech/lexicon.ts·speech/tts/lexicon*.ts·wav.ts·types/lexicon.ts·app/api/admin/v1/lexicon/**·admin/index.ts·learning/refs.ts·infra/{users,audit,http,multipart,index}.ts·engine/{index,tts/index,registry/types}.ts·engine/adapters/tts/{styleBertHttp,styleBertVits2.provider}.ts·speech/tts/{index,synthesize}.ts) → `--max-warnings=0` 0건.
+- `node --import tsx --test` 신규 22건(`admin/__tests__/lexicon.test.ts` 6·`speech/__tests__/lexiconAdmin.test.ts` 16) 스크래치에서 단독 재실행 → **22/22 PASS**, A 자체 보고와 일치.
+- 라이브 `tests/live/task003g-smoke.ts`(52건)는 **재실행하지 않음** — 운영 pm2 가 `APP_ENV=LOCAL` 이라 이 사전이 실사용자 발음이고(task 이력서 A 기록 확인), 재실행은 실제 LOCAL DB·M4 TTS·TtsCache 를 다시 건드린다. 대신 스크립트 전문을 정독해 (a) `finally` 블록의 원복 로직이 항목·버전·상태·TtsCache·Trace 를 모두 시작 전 스냅샷과 비교해 되돌리고 `check('8 원복', …)`으로 재검증함 (b) 52개 체크가 완료 기준 2~6·8 을 실제로 커버함을 확인. 재현 가능성 판단 근거는 있으나 라이브 수치 자체는 A 보고를 신뢰.
+
+#### 1. 권한 (PASS)
+- `requireCapability`(005b 인프라, 이번 diff 로 변경 없음) 체인 확인: 세션 없음 → 401 `UNAUTHENTICATED` · `console.access` 없음(USER, `voices.read`만 보유) → **모든 7 라우트 동일하게 404**(`hiddenNotFound()`, capability 종류와 무관 — `guard.ts:74`에서 capability 확인보다 먼저 걸림) · capability 부족 → 403 `details.missing`.
+- `voices.read`/`voices.manage` 매트릭스: `can()` 단위 테스트(`lexicon.test.ts:26-31`)로 USER=voices.read만·ADMIN/DEVELOPER/SUPER_ADMIN=voices.manage 확인.
+- PRODUCTION 쓰기: `admin/speech/lexicon.ts:113-118` `authorizeLexiconWrite` 가 `assertCapability(actor,'voices.manage',{targetEnvironment:actor.environment, productionSensitive:true})` 로 **create/update/disable/import/rollback 전부**에 `config.apply.production`(SUPER_ADMIN 전용, matrix 상 ADMIN/DEVELOPER 는 없음)을 요구 — role-permission 매트릭스의 Voice 프로필 규칙("disable/delete 만 P")보다 넓지만, api-contract.md 의 **기존**(A 변경 전) 문구 "PRODUCTION 은 SUPER_ADMIN 확인(사전 변경은 발음 전체에 영향)"과 Leader §10-11 ⑧ 요청과 정확히 일치 — 의도된 확장이며 정본과 충돌 없음. `confirm` 불일치(소문자 `'production'` 포함) → 403 `PRODUCTION_CONFIRMATION_REQUIRED`, 우회 경로 0(`lexicon.test.ts:33-44` 로 재검증, 라우트 레벨 `requireCapability('voices.manage')` 는 컨텍스트 없이 1차 게이트 — 방어 심층화일 뿐 우회 아님).
+- 발견 없음.
+
+#### 2. 버전·감사 무결성 (PASS)
+- `writeLexicon`(`lexiconStore.ts:327-458`): 트랜잭션 = 환경 잠금(`lockAndRead` — 가장 오래된 버전 행 `FOR UPDATE`) → `baseVersion` 확인(불일치 409 `VERSION_CONFLICT`) → 항목 변경 → 직전 ACTIVE `SUPERSEDED`(Rollback 은 `ROLLED_BACK`) → 새 ACTIVE(`max+1`) → (호출자가 같은 tx 로) `AuditLog` 1행. 변경 0(`items.length===0`) 이면 버전·감사 없이 `changed:false` 조기 반환(`lexiconStore.ts:394-408`) — Rollback 만 `NO_CHANGE`/`ALREADY_ACTIVE` 로 명시적 거부.
+- **동시 쓰기 직렬화**: `withTransaction`(`infra/tx.ts:25-38`, 기존 인프라·이번 diff 무변경)이 `isolationLevel: ReadCommitted` 를 명시 — MariaDB 기본(REPEATABLE READ)이 아니라 READ COMMITTED 이므로 `FOR UPDATE` 로 대기했다가 풀린 뒤의 평범한 SELECT 가 그 사이 커밋된 최신 행을 정확히 본다(격리 수준을 코드로 확인). 잠그는 행 = "그 환경에서 번호가 가장 작은 버전 행"(물리 삭제 없어 불변) → 두 프로세스(blue/green) 쓰기가 이 행 하나를 두고 직렬화. **버전 0개 환경**(첫 쓰기)은 잠글 행이 없어 두 첫 쓰기가 경합할 수 있으나 `@@unique([environment, version])` 가 마지막 방어(P2002 → `isUniqueViolation` 매핑 → 409) — 코드·주석·단위 테스트(`lexiconAdmin.test.ts` "버전 전이") 모두 일치. 라이브 3l(같은 baseVersion 동시 POST 2건 → 200/409, ACTIVE 1)로 A 가 실측했다고 기록 — 재실행은 안 했으나 잠금 논리 자체는 코드로 안전성 확인됨.
+- **ROLLED_BACK 의미**: `writeLexicon:428`이 "현재 ACTIVE" 를 `ROLLED_BACK` 으로 바꾸고 복원 대상(과거 버전) 행은 건드리지 않음 — `docs/design/admin-console/09-configuration-rollback-api.md:59` "현재 ACTIVE → ROLLED_BACK(복원 대상 :id 의 상태는 그대로)" 와 정확히 일치. domain-model·schema.prisma 주석은 A 가 이번 diff 로 정정(스키마 구조 변경 0, 주석만) — 확인함.
+- `E_LEXICON_DUPLICATE`(활성 키 중복) 시 꺼진 동일 키는 되살림(`revived:true`, 같은 id, 물리 행 증가 없음) — `planCreate`(`lexiconRules.ts:331-337`)·라이브 3i·단위 테스트로 3중 확인.
+- 발견 없음(설계 의도와 구현 1:1).
+
+#### 3. Import/Export 보안 (PASS, MEDIUM 1건)
+- **상한이 파서 이전에 강제됨을 코드로 확인**: `readFormDataCapped`(`infra/multipart.ts` 신규) → `readBodyCapped`(`infra/http.ts:112-128`, 기존)가 `Content-Length` 선검사 + 스트림을 상한(288KB = 256KB+32KB 여유) 넘는 순간 `reader.cancel()` 하고 `null` 반환 — **CSV/JSON 파싱은 이 함수가 통과시킨 바이트만 본다**(`importLexicon`: `form = await readFormDataCapped(...)` 이 먼저, 이후 `file.size > importMaxBytes` 재검사, 그 다음에야 `parseLexiconFile`). 2,000행 상한(`lexiconCsv.ts:121,143`)은 레코드 분해 뒤 개수만 비교(파일 자체가 이미 256KB 로 막혀 있어 자원 고갈 위험은 없음).
+- 인코딩: `TextDecoder('utf-8',{fatal:true})` 로 깨진 UTF-8 은 즉시 `E_IMPORT_FORMAT`. BOM 은 CSV·JSON 양쪽에서 제거 후 파싱.
+- **전부 아니면 전무**: `planImport` 의 `counts.error>0` 이면 `writeLexicon` 이 커밋 전에 `LexiconImportInvalidError` 던짐(`lexiconStore.ts:378`) → 422 `E_IMPORT_HAS_ERRORS`, DB 변화 0(dryRun 경로는 애초에 트랜잭션 밖).
+- **REPLACE_SCOPE 범위 한정**: `planImport`(`lexiconRules.ts:457-468`)이 파일에 실제로 등장한 `(scope,scopeRefId)` 쌍만 `pairs` 에 넣고 그 쌍 안에서만 비활성 — 다른 범위 영향 없음(단위 테스트 12·라이브 6d 확인).
+- **CSV 인젝션**: `escapeCsvCell`/`unescapeCsvCell`(`lexiconCsv.ts:14-24`) — `=+-@\t\r'` 로 시작하는 셀에 `'` 접두, Import 시 그 접두만 제거 → 왕복 불변을 코드·단위 테스트("CSV 인젝션")·라이브 6f(`,'=1+1,` 확인) 3중으로 검증. 셀이 원래 `'` 로 시작해도(`''...`) 대칭적으로 복원됨을 정규식으로 확인.
+- **Export = 항목 표(스냅샷 아님)의 정합성**: `exportLexicon`(`lexiconStore.ts:249-256`)이 `PronunciationLexiconEntry` 테이블을 직접 읽고 `consistent = (activeSnapshotHash === snapshotHash(entries))` 로 스냅샷과의 차이(시드 v1 처럼 `note` 가 없던 시절 등)를 헤더(`X-Lexicon-Consistent`)로 알림 — 왕복 불변(Export→Import dryRun 변화 0)이 스냅샷 기준이었다면 깨졌을 케이스(시드 메모 없음)를 항목 표 기준으로 우회한 결정이 타당함. 단위 테스트("왕복 불변")·라이브 6h 로 확인.
+- **MEDIUM-1 — CSV 짧은 행(열 수 부족)이 기존 값 보존 대신 기본값으로 조용히 재설정됨.**
+  - 위치: `src/modules/speech/tts/lexiconCsv.ts:123-130`(`parseCsvFile` — `raw[c] = unescapeCsvCell(rec.cells[i] ?? '')`, 행이 머리글보다 짧으면 없는 칸을 `''` 로 채움) + `src/modules/speech/tts/lexiconRules.ts:58-60,101-107`(`present()`/`has()` — "칸이 있고 빈 문자열"과 "명시적으로 비움"을 구분하지 않고 둘 다 "기본값으로 재설정" 분기로 감).
+  - 근거: 스크래치에서 재현 — 머리글 9열, 데이터 행 2열(`明日,アシタ`)인 CSV 를 파싱해 기존 항목(`priority:500, wordType:'COMMON', note:'keep me', enabled:false`)에 patch 적용한 결과 `{priority:10, wordType:null, note:null, enabled:true}`, 오류 0건. **꺼져 있던 항목이 되살아나고(enabled:false→true) priority·wordType·note 가 조용히 지워짐** — 행 길이 검사(`lexiconCsv.ts:128`)는 머리글보다 **긴** 행만 `E_ROW_FORMAT` 으로 잡고 짧은 행은 경고조차 없음. 이는 같은 함수의 문서화된 계약(`lexiconRules.ts:394-397` "빠진 열은 기존 값 유지(갱신)·기본값(추가)")과 정면으로 어긋난다 — 이 계약은 "헤더에 그 열 자체가 없는" 경우에만 실제로 지켜지고(`present()` 가 정확히 false), "헤더엔 있지만 이 행만 짧은" 경우엔 깨진다.
+  - 위험: MERGE Import 로 손으로 만들거나 외부에서 받은 열 수가 적은 CSV(예: `surface,reading` 두 칸만으로 새 단어를 추가하려는 파일)를 올렸을 때, 그 표기·범위 키가 **이미 존재**하면(특히 비활성 상태였다면) 의도치 않게 되살아나고 세부 설정이 사라진다. Export→Import 표준 왕복(항상 9열 전부 씀)은 영향 없음.
+  - 완화 요인: dryRun 의 `changes` 배열이 이 변경을 `before/after` 로 보여주므로(예: `enabled:false→true`) 신중히 검토하면 적용 전에 발견 가능하고, 적용 후에도 Rollback 으로 되돌릴 수 있어 영구 손실은 아니다. 이 때문에 CRITICAL/HIGH 가 아니라 MEDIUM.
+  - 권고: 행이 머리글보다 짧을 때 누락된 뒤쪽 칸은 `raw[c]='` 대신 아예 키를 만들지 않아(헤더에 없는 열과 같은 취급) `present()` 가 false 를 돌려주게 하거나, 열 수 불일치를 **길든 짧든** 행 오류(`E_ROW_FORMAT`)로 잡아 admin 이 명시적으로 인지하게 한다.
+
+#### 4. Preview (PASS)
+- DB·버전·TtsCache 변화 0: `previewLexiconAudio`(`lexiconPreview.ts:192-237`)가 `tts.synthesize`(엔진 파사드)를 **직접** 호출 — `synthesizeSentence`/`flights`(singleFlight)/`storeCachedAudio`/`rememberRecentAudio` 를 전혀 거치지 않음을 import·호출 그래프로 확인(캐시 관련 함수 어디에도 안 씀). 라이브 5c(`before===after` 스냅샷 대조 + `cacheLeak===0`)로도 확인.
+- `draftEntries`(≤20) 검증·상한(`parsePreviewBody`, `admin/speech/lexicon.ts:500-523`) 확인. `Accept: audio/wav`+`side` 는 route 레벨에서 `requireCapability('voices.manage')` 이후 분기(읽기 확인과 같은 권한, `voices.read` 단독 불가) — 분당 제한도 읽기 확인·소리 각각 별도 키(`lexicon-preview:`·`lexicon-preview-audio:`)로 10회(라이브 5g 확인, `rateLimit` 자체는 기존 인프라의 프로세스 내 메모리 버킷 — blue/green 2 프로세스면 사실상 최대 20/분 가능성 있으나 이는 기존 rateLimit 유틸의 일반적 특성이지 이번 diff 의 신규 결함 아님, 참고만).
+- 100자 초과 처리: 서버 계약은 `text≤200`(화면 상한 100 은 B 권한) → `packChunks`(60자 단위) + `MAX_CHUNKS=8` 로 문장 분할·이어 합성(200ms 간격), 그래도 넘으면 `PreviewTextTooLongError`→422 `E_PREVIEW_TEXT_TOO_LONG`. `prepareSentence` 내부에서 나는 `TtsRequestError('TEXT_TOO_LONG')` 도 `lexiconPreview.ts:92-97`(`run()`)에서 같은 오류로 변환됨을 확인.
+- 엔진명 0: `previewCorpus` 정규식 검사(라이브 5f) + 코드 전체 grep(`style-bert|sbv2|reazon|whisper` 등)으로 `admin/speech/lexicon.ts`·`speech/tts/lexicon*.ts`·`types/lexicon.ts`·API 라우트에서 0건 확인. `g2pHttp`(엔진 어댑터, `engine/adapters/tts/styleBertHttp.ts`)만 엔진 세부(모델·시크릿 헤더)를 알고, 응답은 가나·악센트 문자열만 상위로 올라옴.
+- **LOW-1 — `mapPreviewError`(`admin/speech/lexicon.ts:525-546`)의 `PREVIEW_PROBLEM.TEXT_TOO_LONG`(400) 분기가 도달 불가능한 죽은 코드.** `prepareSentence` 가 내는 `TtsRequestError('TEXT_TOO_LONG')` 은 `lexiconPreview.ts` 의 `run()` 클로저에서 이미 `PreviewTextTooLongError` 로 변환돼 상위로 나가므로(먼저 잡힘), `mapPreviewError` 가 raw `TtsRequestError('TEXT_TOO_LONG')` 를 받을 경로가 없다(실제 동작은 항상 422 `E_PREVIEW_TEXT_TOO_LONG` 로 귀결 — 버그는 아니고 유지보수성 문제). 권고: 그 항목을 `PREVIEW_PROBLEM` 에서 빼거나 "도달 불가·방어용" 주석 추가.
+
+#### 5. 6층 경계 (PASS)
+- `admin/speech/lexicon.ts` 는 `@/modules/speech`(barrel, `export * from './tts'` 로 lexicon 심볼 전부 노출) 와 `@/modules/learning`(barrel, `topicExists`·`lessonExists` 추가 export) 만 import — 둘 다 `module-dependency.md:226` `admin: ['conversation','learning','speech','preferences','engine','infra']` 에 이미 허용된 방향(신규 `learning/refs.ts` 는 "소유 목록 밖" 이라는 A 의 겸손한 자기신고와 달리, 실제로는 admin→learning 자체는 기존에 이미 허용된 경로 — A 가 "이 파일이 새로 생겼다"는 뜻으로 쓴 말이지 경계 위반은 아님). `speech`→`admin` 역방향 import 는 grep 으로 0건 확인.
+- `speech/tts/lexicon*.ts` 어디에도 `admin` import 없음(권한·감사는 전부 `admin/speech/lexicon.ts` 조합, `lexiconStore.ts` 헤더 주석과 실제 코드 일치).
+- `refs.ts`(`topicExists`/`lessonExists`)·`infra/users.ts`(`userExists`/`userBriefs`) 모두 읽기 전용, 소유 테이블(`ConversationTopic`/`Lesson`/`User`) 밖 컬럼 접근 없음, `environment` 컬럼이 애초에 없는 테이블이라(글로벌 콘텐츠·계정) 환경 필터 누락이 문제 되지 않음을 스키마로 확인.
+- 엔진명 누출 0(위 4번과 동일 grep 결과 재확인).
+
+#### 6. 캐시 무효화 (PASS — "특히 확인" 항목 결론: 오염 불가능)
+- 즉시·지연 반영 메커니즘: `writeLexicon` 커밋 성공 시 호출자(`admin/speech/lexicon.ts:218` `commit()`)가 `afterLexiconCommit()`→`clearLexiconCache()`(`speech/tts/lexicon.ts:186-188`)로 **쓴 프로세스**의 30초 메모리 캐시(`loadActiveLexicon`)를 즉시 비움. 다른 프로세스(blue/green 상대)는 자기 캐시가 있으면 최대 30초 뒤에야 새 버전을 읽음 — 설계 의도대로 동작.
+- **"30초 동안 옛 사전으로 합성된 오디오가 새 버전 키로 캐시되는 오염 가능성"**: 없음. 근거 — (1) `PronulciationLexiconVersion` 행은 생성된 뒤 `snapshot`이 **불변**(상태만 바뀜, Rollback 도 새 행 생성), 즉 버전 번호 하나는 영원히 같은 내용 하나만 가리킨다. (2) `prepareSentence`(`synthesize.ts:192-204`)에서 캐시 키의 `dictionaryVersion`(`parts.dictionaryVersion`)과 실제 치환에 쓴 사전 항목(`selected`/`hints`)이 **같은 `loadActiveLexicon()` 호출 결과**(`lex`)에서 나온다 — 즉 어떤 프로세스가 아무리 오래된 캐시(예: v1)를 들고 있어도, 그 요청은 캐시 키에 `dictionaryVersion=1` 을 찍고 실제로 v1 사전으로 합성한 오디오를 그 키에 저장한다(내용과 키가 항상 일치). 버전 번호가 재사용되지 않으므로 "v1 캐시 키인데 실제로는 v2 사전으로 합성됨" 같은 어긋남이 구조적으로 발생할 수 없다. (3) Preview 경로(`lexiconPreview.ts`)는 애초에 `tts.synthesize` 직접 호출로 캐시에 아무것도 쓰지 않으므로(4번 항목) 이 경로에서 오염이 생길 여지 자체가 없다.
+- 발견 없음.
+
+#### 7. 검증 규칙·테스트 충분성 (PASS)
+- 표기(1~40, `E_SURFACE`·`E_SURFACE_CHARS`·`E_SURFACE_NOT_JA`) · 읽기(가타카나+ー 만, ≤60, `KATAKANA_READING=/^[ァ-ヺー]+$/` 로 히라가나 확실히 거부 — `text.ts`, 기존 코드 재사용 확인) · 악센트(0~모라 수) · 우선순위(0~1000) · `scopeRefId` 존재 확인(COURSE=Topic·LESSON=Lesson·VOICE=VoiceProfile·USER=User, 전부 스키마상 `environment` 컬럼이 없어 환경 무관 존재 확인이 맞음) 모두 DB 컬럼 폭(`VarChar(40/60/20/200)`)·`LEXICON_LIMITS` 상수·검증 함수 3자가 일치.
+- `E_IMMUTABLE`(표기·범위·대상 변경 금지)·스코프 GLOBAL=null 대 그 외 필수 규칙 확인.
+- 신규 단위 테스트 22건 스크래치 독립 재실행 **22/22 PASS**(위 "독립 재실행" 절). 커버리지: 권한·PRODUCTION·쓰기 메타·목록 쿼리·미리듣기 본문·감사 대상·정규화·검증·패치·키·계획(추가/중복/되살림/수정/비활성)·Import(MERGE/REPLACE_SCOPE)·Rollback 계획·diff·CSV 인젝션·CSV 파서(BOM/CRLF/따옴표/빈 줄)·파일 파서(헤더/2,000행/JSON)·왕복 불변·미리듣기 forced 우선순위·문장 조각·WAV 잇기·**가짜 tx 버전 전이 전 과정**(위 2번 확인) — 실사용 시나리오를 폭넓게 덮음.
+- 라이브 smoke 52건은 재실행하지 않았으나 스크립트 정독으로 원복 절차의 건전성(시작 전/후 항목·버전·상태 완전 대조, `AuditLog` 만 의도적으로 남김 + 재실행 시 버전 번호 재사용에 대비한 `AUDIT_SKEW_MS` 처리)을 확인함.
+
+#### 종합 판정
+
+```json
+{
+  "reviewId": "REV-017",
+  "status": "PASS",
+  "issues": [
+    {
+      "issue": "CSV Import 에서 머리글보다 짧은 데이터 행의 누락된 뒤쪽 칸이 '기존 값 유지' 대신 '빈 값→기본값 재설정'으로 처리됨(문서화된 계약과 불일치)",
+      "severity": "MEDIUM",
+      "component": "src/modules/speech/tts/lexiconCsv.ts:123-130, src/modules/speech/tts/lexiconRules.ts:58-60,101-107",
+      "risk": "MERGE Import 로 열 수가 적은 CSV(예: surface,reading 두 칸)를 올리면 같은 키의 기존 항목이 비활성 상태였어도 조용히 되살아나고(enabled:false→true) priority·wordType·note·accentType 이 기본값으로 초기화됨. 경고·오류 0.",
+      "evidence": "스크래치(a408f00) 독립 재현: 2열 CSV 행 + base={priority:500,wordType:'COMMON',note:'keep me',enabled:false} → parseEntryInput 결과 {priority:10,wordType:null,note:null,enabled:true}, errors:[] (행 길이 검사는 머리글보다 긴 행만 E_ROW_FORMAT 으로 잡음, lexiconCsv.ts:128)",
+      "recommendation": "행이 머리글보다 짧을 때 누락된 칸은 raw 객체에 키 자체를 넣지 않아 present() 가 false 를 반환하게 하거나(헤더에 없는 열과 동일 취급), 열 수 불일치를 길든 짧든 E_ROW_FORMAT 오류로 잡는다."
+    },
+    {
+      "issue": "mapPreviewError 의 PREVIEW_PROBLEM.TEXT_TOO_LONG(400) 분기가 도달 불가능한 죽은 코드",
+      "severity": "LOW",
+      "component": "src/modules/admin/speech/lexicon.ts:525-546",
+      "risk": "실제 동작에는 영향 없음(항상 422 E_PREVIEW_TEXT_TOO_LONG 로 귀결) — 유지보수 시 혼동 가능",
+      "evidence": "lexiconPreview.ts:92-97 run() 이 prepareSentence 의 TtsRequestError('TEXT_TOO_LONG')을 이미 PreviewTextTooLongError 로 변환해 상위로 던지므로 mapPreviewError 는 PreviewTextTooLongError 분기(첫 줄)에서 항상 먼저 잡힘",
+      "recommendation": "PREVIEW_PROBLEM 에서 TEXT_TOO_LONG 항목 제거 또는 '도달 불가·방어용' 주석 추가"
+    },
+    {
+      "issue": "findAuditsByTargets(targetId IN + action prefix) 접근 패턴에 맞는 인덱스 없음",
+      "severity": "LOW",
+      "component": "src/modules/infra/audit.ts:56-67, prisma/schema.prisma:558-561",
+      "risk": "현재 개인 규모 앱에서는 문제 없으나 AuditLog(전 관리 기능 공유 테이블)가 커지면 GET /lexicon/versions* 페이지 로드마다 비효율적 스캔 가능",
+      "evidence": "기존 인덱스 [environment,createdAt]·[actorUserId,createdAt]·[scope,targetId,createdAt]·[action,createdAt] 중 targetId 를 선두로 갖는 것이 없음",
+      "recommendation": "필요 시 @@index([environment, targetId]) 후속 추가(지금은 블로킹 아님)"
+    }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 1, "low": 2 },
+  "high_risk_areas": [
+    "Import MERGE — 열 수가 적은(짧은) CSV 행으로 기존 비활성 항목을 재활성화·설정 초기화할 수 있는지 재현(MEDIUM-1), dryRun 화면에서 이 변경이 실제로 눈에 띄게 표시되는지(B 화면 몫)",
+    "동시 쓰기 2건(같은 baseVersion) 라이브 재현 — 200/409 분리·ACTIVE 1행 유지(A 자체 라이브 3l 보고, Reviewer 는 코드·단위테스트로만 확인, 라이브 재현 권장",
+    "PRODUCTION confirm 우회 경로(대소문자·공백 변형 등) 화면에서도 동일하게 막히는지(B 화면 통합 후)",
+    "미리듣기 분당 10회 제한이 blue/green 2 프로세스 운영에서 실질적으로 몇 회까지 허용되는지(기존 rateLimit 인프라 특성, 참고 항목)"
+  ],
+  "native_change": false
+}
+```
+
+**결론**: Critical 0·High 0·Medium 1·Low 2 → **PASS**. MEDIUM-1(CSV 짧은 행 재설정)은 표준 Export→Import 왕복에는 영향 없고 Rollback 으로 되돌릴 수 있어 QA·배포를 막을 사유는 아니나, Developer 가 후속 커밋으로 고치는 것을 권고(수정 시 Reviewer 재순환 원칙에 따라 그 부분만 재검증하면 됨 — 새 Critical/High 가 아니므로 전체 재순환 불필요 판단은 Leader 몫). B(화면)는 이번 REV 대상이 아니며 완료 시 별도 REV-01x 로 진행한다.
+
 ## QA 기록
 
 ## 최종 요약
