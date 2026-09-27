@@ -9,7 +9,7 @@
  *  - 앞뒤 공백을 걷어 내고 비교하지 않는다 — 모델이 고친 흔적을 숨기지 않기 위해서다.
  * 저장 시에는 라우트가 모델 값이 아니라 **서버가 가진 원문**을 `Correction.original` 에 넣는다(task-006) — 이 검사는 계약 위반 탐지용이다.
  */
-import type { ChatReviewResponse, TutorResponse } from './schemas'
+import type { ChatReviewResponse, TutorResponse, WordEnrichResponse } from './schemas'
 
 /** TALK·CHAT: 바이트 일치만. */
 export function isExactOriginal(input: string, original: string): boolean {
@@ -74,5 +74,61 @@ export function checkChatReview(messages: { id: string; text: string }[], data: 
     if (!isVerbatimQuote(text, it.original)) v.push(`items[${i}].original 은 해당 메시지 전체 또는 그 안의 문장 하나 전체를 한 글자도 바꾸지 않고 인용해야 한다`)
     if (it.corrected === it.original) v.push(`items[${i}].corrected 가 original 과 같다`)
   })
+  return v
+}
+
+/**
+ * A10 단어 보강(V9 계열) — 스키마가 표현 못 하는 두 가지만 본다: ① `valid` 와 나머지 필드의 일관성
+ * ② `example` 이 `surface` 를 표기 그대로(한자·가나 변경 없이) 포함하는지.
+ *
+ * **활용형 예외를 둔다(2026-09-27 실측 결정, 최초에는 "예외 없음"으로 갔다가 뒤집음)**: 처음에는 `surface` 가
+ * 사전형이든 활용형(예: 「行きました」)이든 리터럴 부분 일치만 보면 된다고 판단했다. 그런데 haiku 로 12건 실측 중
+ * VERB `かける`(다의어 픽스처, w08)가 **재시도 1회 후에도 계속 드롭됐다**(위반율 1/12 ≈ 8% > 목표 5%). 원인은
+ * 표기 이탈이 아니라 — 프롬프트로 "표기 그대로" 를 아무리 강조해도 모델이 자연스러움을 위해 예문을 활용형으로
+ * 쓰기 때문이었다(`かける` 사전형 대신 `かけました`/`かけて` 등, `raw` 확인: 재시도 두 후보 모두 활용형).
+ * VERB(食べる) 도 최초 실측에서 1회 재시도가 필요했던 항목이었다(정본형 대신 활용 시도가 먼저 나옴) — 이 카테고리
+ * 전체가 구조적으로 걸린다는 뜻이다. 그래서 VERB·ADJ_I 는 **어간(표기에서 마지막 1글자를 뺀 나머지)**이
+ * 리터럴로 들어 있으면 통과시킨다 — 일본어 활용은 어간을 보존하고 어미만 바꾸므로(1군 동사·い형용사는 항상,
+ * カ변格·サ변格 같은 불규칙 동사·「いい」 같은 예외는 못 잡지만 드물다) 값싸고 결정적인 근사다. 그 밖의 품사
+ * (NOUN·ADJ_NA·ADVERB·PARTICLE·EXPRESSION·OTHER)는 활용이 없으니 여전히 리터럴 전체 일치만 인정한다 —
+ * 여기서 어간 근사를 쓰면 한자→가나 이탈(예: 「掛ける」로 바꿔치기) 같은 진짜 계약 위반을 놓친다.
+ *
+ * `reading` 이 히라가나·장음 부호(ー) 밖의 문자(가타카나·한자·로마자·공백)를 쓰면 위반 — 가타카나 외래어
+ * (コーヒー 등)에서 모델이 원표기를 그대로 reading 에 넣는 이탈이 관찰돼 추가했다(정규화 함정, 재발 가능).
+ * `invalidReason` 유무만 보고 그 밖의 필드(예: valid=false 인데 partOfSpeech 가 채워짐)는 **묻지 않는다** —
+ * 그 값은 라우트가 버리므로 검사 비용 대비 재시도만 늘어난다(과도한 검사로 재시도가 잦아지지 않게).
+ */
+const WORD_ENRICH_READING_RE = /^[ぁ-ゖー]+$/
+const WORD_ENRICH_CONJUGATABLE_POS = new Set<WordEnrichResponse['partOfSpeech']>(['VERB', 'ADJ_I'])
+
+/** VERB·ADJ_I 는 어간(마지막 1글자를 뺀 나머지)까지만, 그 밖은 표기 전체가 리터럴로 들어 있어야 한다. */
+function exampleCoversSurface(surface: string, example: string, partOfSpeech: WordEnrichResponse['partOfSpeech']): boolean {
+  if (example.includes(surface)) return true
+  if (partOfSpeech && WORD_ENRICH_CONJUGATABLE_POS.has(partOfSpeech) && surface.length >= 2) {
+    return example.includes(surface.slice(0, -1))
+  }
+  return false
+}
+
+export function checkWordEnrich(surface: string, data: WordEnrichResponse): string[] {
+  const v: string[] = []
+  if (data.valid) {
+    if (data.invalidReason !== null) v.push('valid=true 이면 invalidReason 은 null 이어야 한다')
+    if (!data.reading) v.push('valid=true 이면 reading 이 있어야 한다')
+    else if (!WORD_ENRICH_READING_RE.test(data.reading)) v.push('reading 은 히라가나와 장음 부호(ー)만 사용해야 한다 — 가타카나·한자·로마자·공백을 쓰지 않는다')
+    if (!data.meaning) v.push('valid=true 이면 meaning 이 있어야 한다')
+    if (!data.partOfSpeech) v.push('valid=true 이면 partOfSpeech 가 있어야 한다')
+    if (!data.example) v.push('valid=true 이면 example 이 있어야 한다')
+    else if (!exampleCoversSurface(surface, data.example, data.partOfSpeech)) {
+      v.push(
+        data.partOfSpeech && WORD_ENRICH_CONJUGATABLE_POS.has(data.partOfSpeech)
+          ? 'example 은 [단어]를 그대로 또는 그 어간을 살린 활용형으로 포함해야 한다(한자·가나 표기 자체는 바꾸지 않는다)'
+          : 'example 은 [단어]를 표기 그대로(한자·가나를 바꾸지 않고) 포함해야 한다',
+      )
+    }
+    if (!data.exampleKo) v.push('valid=true 이면 exampleKo 가 있어야 한다')
+  } else if (!data.invalidReason) {
+    v.push('valid=false 이면 invalidReason 에 한국어로 이유를 적어야 한다')
+  }
   return v
 }

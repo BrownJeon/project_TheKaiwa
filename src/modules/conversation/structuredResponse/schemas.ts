@@ -171,3 +171,46 @@ export const CHAT_REVIEW_SCHEMA = {
     focus: { type: 'array', maxItems: 5, items: { type: 'string', maxLength: 200 } },
   },
 } as const
+
+/**
+ * A10 단어 보강(WORD_ENRICH) — domain-model `WordEntry` 필드명과 그대로 맞춘다(카멜케이스, 변환 계층 불필요).
+ * `reading/meaning/partOfSpeech/example/exampleKo` 는 `valid:true` 일 때만 채운다(스키마는 전부 nullable 로 두고
+ * "valid 면 null 아님"은 표현할 수 없어 `checks.ts` 의 `checkWordEnrich` 가 맡는다). `jlpt` 는 valid 여도 모르면 null 허용.
+ * `example`/`exampleKo` 상한 200자는 domain-model `@db.Text`(사실상 무제한, ≤2,000 지침) 안에서 A10 이 "단어 1개"만
+ * 다루는 동기·저지연 지점이라 더 좁혀 잡았다(짧은 예문 1문장이면 충분, 큰 상한은 지연·재시도 비용만 늘린다).
+ */
+export const PART_OF_SPEECH = ['NOUN', 'VERB', 'ADJ_I', 'ADJ_NA', 'ADVERB', 'PARTICLE', 'EXPRESSION', 'OTHER'] as const
+export type PartOfSpeech = (typeof PART_OF_SPEECH)[number]
+
+export interface WordEnrichResponse {
+  /** 입력이 실제 일본어 단어·표현으로 보이면 true. false 면 사전 필드는 참고용일 뿐 저장하지 않는다(라우트 책임). */
+  valid: boolean
+  /** valid=false 일 때만 한국어 이유(예: "한국어 문자열이라 일본어 단어로 볼 수 없어요"). valid=true 면 null. */
+  invalidReason: string | null
+  /** 히라가나 + 장음 부호(ー)만(가타카나·한자·로마자·공백 금지) — `checks.ts` 가 정규식으로 검증. */
+  reading: string | null
+  /** 한국어 뜻. 여럿이면 대표 1~3개를 ", " 로 이어 쓴다(설명문 아님). */
+  meaning: string | null
+  partOfSpeech: PartOfSpeech | null
+  /** 모르면 지어내지 말고 null(N5~N1 확신 있을 때만). */
+  jlpt: JlptLevel | null
+  /** 입력 표현을 표기 그대로(한자·가나 변경 없이) 포함하는 짧은 일본어 예문 1개. */
+  example: string | null
+  exampleKo: string | null
+}
+
+export const WORD_ENRICH_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['valid', 'invalidReason', 'reading', 'meaning', 'partOfSpeech', 'jlpt', 'example', 'exampleKo'],
+  properties: {
+    valid: { type: 'boolean' },
+    invalidReason: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
+    reading: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 120 }] },
+    meaning: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
+    partOfSpeech: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...PART_OF_SPEECH] }] },
+    jlpt: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...JLPT_LEVELS] }] },
+    example: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
+    exampleKo: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
+  },
+} as const

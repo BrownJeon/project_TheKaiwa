@@ -66,7 +66,7 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 ### 완료 기준 (qa 실행 확인)
 1. tsc 0 · lint 에러 0 · 단위 테스트 전부 통과(**build 는 하지 않음** — 운영 반영은 사용자).
 2. 단어 CRUD: 추가(완전 본문 즉시 저장 / `enrich` → draft 만, DB 행 0) · 같은 표현 `409 {existingId}` · 수정(카운터·source 변경 불가) · 검색·카테고리·정렬 3종·보관 토글(보관 단어 목록 분리) · 카테고리 집계 · 기본 단어 팩 50개 추가 후 재실행 시 `added 0`.
-3. **정답 미노출**: #47·#49(IN_PROGRESS) 응답 어디에도 미답 카드의 정답 문자열·정답 위치 힌트 없음(보기 4개 중 정답 위치가 세트마다 분산 — 20세트 표본에서 한 자리 고정 아님).
+3. **정답 미노출(CHOICE 세트, F1)**: #47·#49(IN_PROGRESS) 응답 어디에도 미답 카드의 정답 문자열·정답 위치 힌트 없음(보기 4개 중 정답 위치가 세트마다 분산 — 20세트 표본에서 한 자리 고정 아님).
 4. CHOICE 채점 서버: 맞힘/틀림 판정, `chosenText ∉ choices` 400, 같은 `order` 재전송은 첫 결과 그대로, `responseMs` 범위 밖 400, DONE 세트에 attempt 409. flag 전용 요청(E2).
 5. 풀<4(뜻이 다른 단어 <4) → FLIP 강등 `downgraded:true`, 풀 0 → `empty.reason=NO_WORDS`. 오늘 DONE 세트 단어는 새 세트에서 제외. 진행 중 세트 있으면 409 `{sessionId}`.
 6. **finish 단일 트랜잭션**: 미답 → SKIPPED, 세션 카운터·`durationSec`, WordEntry 카운터(E5), StudyLog(WORDS, DIRECT, refId) 1행, StatsSnapshot(VOCAB_SESSION) 1행 + DAILY `words` 증가. **동시 finish 2회 → 스냅샷·카운터 한 번만**, 재호출은 같은 응답.
@@ -80,6 +80,19 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 ### 네이티브 변경 / APK 재설치
 없음(웹만).
 
+### 설계 확정 (Leader, designer §5-11 확인 10건 — F1~F10)
+- **F1 FLIP 뒷면**: FLIP 세트 카드는 `meaning`·`example`·`exampleKo` 를 #47·#49 에 처음부터 싣는다(자기 채점). **정답 미노출은 CHOICE 세트에만** — 완료 기준 3 을 "CHOICE 세트"로 좁힌다. 다시 풀기로 FLIP 강등된 세트도 동일.
+- **F2 답 0장 끝내기**: 답한 카드 0장이면 finish 가 `ABANDONED`(StudyLog·스냅샷·카운터·연속 기록 변화 0). 1장 이상이면 기존 finish(미답 SKIPPED).
+- **F3 #48**: 정렬 `startedAt desc`, `status` 필터(IN_PROGRESS 등)·항목 `answeredCount`·`startedAt` 추가.
+- **F4 #49 DONE**: 세션에 `correct/wrong/skippedCount·durationSec·keptAt·replayOfId`, 답한 카드에 `exampleKo`.
+- **F5 빈 풀 사유**: `NO_WORDS | ALL_DONE_TODAY | NO_WORDS_IN_CATEGORY`.
+- **F6 #46**: `count` = 보관 제외, `archivedCount` = 보관. "분류 없음" 칩은 두지 않는다(designer 안 채택).
+- **F7 #53**: 보관한 DONE 세트만 다시 풀기(아니면 409).
+- **F8 #41 비일본어**: `200 { draft:{valid:false, invalidReason}, saved:false }`(400 아님).
+- **F9 E2 표시 전용 응답**: `{order, flagged}` 만(미답 카드 정답 미포함).
+- **F10 공용 변경**: TabBar `HIDDEN_PREFIXES` 에 `/study/today/words/` 추가 승인, 오늘 탭 앱바 제목 "오늘의 공부" 승인. vocab 이 `components/chat/{format,errors,storage}` 를 직접 import 하지 말고 **공용 헬퍼를 `components/common/` 으로 옮겨** 두 기능이 함께 쓴다(chat 동작 불변 — 기존 chat 단위 테스트가 그대로 통과해야 함).
+→ api-contract #41·#47·#48·#49·#51·#53 개정(2026-09-27).
+
 ## 판단 기록 (judge)
 - [2026-09-27 14:34] intake engine=jev → task_type=feature / risk=R2 / developer_model=opus / next=ask_user | overrides=- | fallback=- | tokens=1156
   - (신호) complexity 2.92(conf 0.92) · needs_info 0.63 · risk high 0.69
@@ -88,8 +101,25 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 ## Codex 검토
 
 ## Designer 기록
+- [14:58] 2026-09-27 구현 가이드 작성 → `docs/screens.md` §4 단어장·§5 오늘의 단어 추가, §2 표의 오늘·서랍장 행 갱신(§1·§3 무수정). 목업 Artifact 는 만들지 않음(task-006 과 같은 방식, 필요하면 Leader 요청으로 별도).
+- [14:58] 단어장: `/drawer/words` 한 경로, 상세·수정·추가는 바텀시트(`?word=`·`?add=1` 진입 후 replace). 추가 = 표현 → [뜻 채우기](A10 초안, 저장 안 됨, `valid:false` 는 표현 단계에 머묾) → 확인·수정 → [저장]. 409 는 [그 단어 보기]로 안내. 삭제 확인 "지난 기록과 통계는 그대로 남아요". 빈 단어장 + [기본 단어 50개 넣기](#46b, 추가 시트에서도 항상 가능).
+- [14:58] 오늘 홈: 오늘의 단어 카드 5상태(준비·풀던 세트(E3)·빈 단어장·오늘 풀 단어 없음·오류) + 최근 30일(streak·7일 칸·byCount) + 보관한 세트(다시 풀기) + "곧 열려요"(Phase 번호 없음). 덱·결과는 같은 경로 `/study/today/words/[id]`(DONE 이면 결과), 탭 바 숨김.
+- [14:58] 덱: 제스처 영역(가운데 80%·3장 스택)에는 카드 면만 두고, 보기·버튼은 영역 밖에 둔다(`touchend preventDefault` 가 영역 안 click·유령 클릭을 죽이기 때문). 위=★ 표시 토글(카드는 넘어가지 않음), 왼쪽=답한 뒤에만 다음(아니면 저항 ×0.25 + 안내), 오른쪽=이전(읽기 전용). 키 1~4·Space/Enter·←/→·F·R·S. bjj 힌트 문구의 방향이 반대인 것을 바로잡음.
+- [14:58] 채점은 #50 응답으로만 그린다(보기는 "확인 중…" → ✓/✗). #50·#51 은 세션당 직렬 큐(finish 가 마지막 답보다 먼저 가지 않게), responseMs 는 보이는 동안만 세고 60,000 에서 자름. 조작 수: CHOICE 2번/장, FLIP 2번/장(자기 채점 후 자동 다음). 덱에서는 하단 Toast 대신 힌트 줄·알림 줄을 쓴다.
+- [14:58] Leader 확인 요청(§5-11): ① **FLIP 뒷면 데이터 계약 공백** — FLIP 세트 카드에만 `meaning`(+예문) 포함 권장, 미확정이면 "자기 채점 → 뒷면" 대체 흐름(화면은 둘 다 지원) ② 답 0장 진행 중 세트를 ABANDONED 로 닫는 경로 ③ #48 정렬·`status` 필터/`answeredCount` ④ #49 DONE 세션에 개수·durationSec·keptAt·replayOfId, 카드에 exampleKo ⑤ #47 빈 풀 사유 세분화(선택) ⑥ #46 count 의미·분류 없음 필터 ⑦ #53 은 보관 세트만인지 ⑧ #41 `valid:false` 응답 모양 ⑨ E2 표시 전용 응답 ⑩ 전역 변경(TabBar 숨김 경로, chat 유틸 import, 오늘 앱바 제목).
+- [14:58] 20-Log 한 줄은 Leader 지시("다른 파일 수정 금지")에 따라 남기지 않음. Leader 가 합칠 때 기록 바람.
 
 ## Prompt-Engineer 기록
+
+- [14:55] **A10 요청 빌더**(`src/modules/conversation/prompts/wordEnrich.ts`, 신규) — `buildWordEnrichRequest({ surface, level? }): LlmJsonRequest<WordEnrichResponse>`(`task:'wordEnrich'`, 이미 `router/tasks.ts` 에 등록돼 있던 tier=fast·20s). `surface` 는 앞뒤 공백만 trim, 빈 문자열이면 `WordEnrichInputError`(둘 다 export). **페르소나(tutor.md)를 쓰지 않는다** — A10 은 대화 턴이 아니라 사전 조회 1회라 절 필터를 최소로 줘도 "저는 선생님입니다" 류 정체성 문장이 새거나 톤이 섞일 위험만 있고 얻는 게 없어서(A1 실측이 페르소나 유무와 지연이 무관함을 이미 보여줬다). 대신 짧은 자체 `LlmPersona` 리터럴(`WORD_ENRICH_PERSONA`, ~110자)을 `persona` 필드에 넣어 `--system-prompt` 가 실리게 해서 Claude Code 기본 코딩 에이전트 시스템 프롬프트가 안 섞이게 했다(engine/llm/index.ts `callOnce` — `req.persona` 있을 때만 `systemPrompt` 전달). `learning/vocab/enrich`(developer A) 는 이 함수가 만든 요청 객체를 **값으로만** 받아 `engine.llm.completeJson` 을 부르면 된다(module-dependency §4-4, L3 는 L2 를 import 하지 않음) — **응답 타입 `WordEnrichResponse` 는 learning 쪽에서 import 하지 말고, 같은 필드를 갖는 자체 로컬 타입을 구조적으로 맞춰 쓰길 권한다**(cross-layer type import 도 boundary 위반이라 eslint `no-restricted-imports` 에 걸린다 — `learning(L3) 은 conversation·speech 를 import 하지 않는다` 규칙, 확인차 실제로 `learning/**` 에서 `@/modules/conversation` 을 import 하는 임시 파일로 lint 걸어 봄, error 로 잡힘).
+- [14:55] **출력 필드**(`structuredResponse/schemas.ts` 끝에 추가, 기존 스키마는 안 건드림) — `WORD_ENRICH_SCHEMA`/`WordEnrichResponse`/`PART_OF_SPEECH`(`PartOfSpeech` 타입, domain-model `PartOfSpeech` enum 그대로: NOUN·VERB·ADJ_I·ADJ_NA·ADVERB·PARTICLE·EXPRESSION·OTHER)가 카멜케이스(`reading/meaning/partOfSpeech/jlpt/example/exampleKo`)라 `WordEntry` 필드명과 1:1 — developer 가 draft 매핑에 변환 계층이 필요 없다. `valid:boolean`+`invalidReason:string|null` 로 "일본어 단어가 아님" 판정을 표현한다(한국어·영어·오타·의미 없는 문자열 → `valid:false`). 길이 한도는 domain-model 한도 이내: `reading` ≤120(`WordEntry.reading`), `meaning` 1~200(`WordEntry.meaning`), `example`/`exampleKo` 는 도메인이 `@db.Text`(≤2,000 지침)지만 A10 이 "단어 1개"만 다루는 동기·저지연 지점이라 200자로 더 좁혔다(짧은 예문 1개면 충분, 큰 상한은 지연·재시도 비용만 늘어난다). `jlpt` 는 valid 여도 모르면 null 허용(강제 안 함). api-contract #41 의 `{draft:{...}, saved:false}` 래핑은 이 스키마 바깥(route 몫) — 여기는 LLM 계약 필드만.
+- [14:55] **후검증**(`structuredResponse/checks.ts` 끝에 `checkWordEnrich` 추가) — ① `valid` 와 나머지 필드 일관성(valid=true 인데 invalidReason 있음 / valid=false 인데 invalidReason 없음) ② `reading` 이 히라가나+장음부호(ー)만인지(정규식 `/^[ぁ-ゖー]+$/`) ③ `example` 이 `surface` 를 포함하는지. **jlpt 일치는 검사하지 않는다**(모르면 null 이 정답이라 강제할 게 없음), valid=false 일 때 다른 필드가 null 인지도 강제하지 않는다(route 가 버리므로 검사 비용 대비 재시도만 늘어남) — "과도한 검사로 재시도가 잦아지지 않게" 지시를 따랐다.
+- [14:55] **함정 기록 1(재발 가능) — 활용형 예외, 처음엔 "없음"으로 갔다가 실측으로 뒤집음**: 최초 설계는 "surface 자체가 사전형이든 활용형(行きました)이든 example 은 표기 그대로 리터럴 포함만 보면 된다"였다(형태소 분석보다 훨씬 싸다는 이유). 그런데 haiku 로 픽스처 12건 1패스 실측(1차)에서 VERB `かける`(다의어, w08)가 **재시도 1회 후에도 계속 드롭**됐다(위반율 1/12 ≈ 8.3% > 목표 5%). `softExtraCheck` 로 raw 후보를 까 보니 원인은 표기 이탈(한자 바꿔치기)이 아니라 — 모델이 자연스러움을 위해 사전형 대신 활용형(`かけました`/`かけて`)으로 예문을 쓰기 때문이었다. 프롬프트 지시를 아무리 강하게("표기를 절대 바꾸지 마라") 다시 써도(2차 실측, 여전히 1/12 드롭) 이 자체는 안 고쳐졌다 — **왜냐하면 활용은 "표기를 바꾸는" 게 아니라 일본어 문법상 당연한 것**이라 지시와 모델의 자연스러운 문장 생성이 근본적으로 충돌했다. 최종 결정: 검사 쪽을 바꿨다 — `VERB`·`ADJ_I` 는 **어간(표기 마지막 1글자를 뺀 나머지)**이 리터럴로 들어 있으면 통과(`surface.length>=2` 가드로 1글자 표기의 빈 문자열 통과 구멍 방지). `NOUN`·`ADJ_NA`·`EXPRESSION` 등 활용 없는 품사는 여전히 리터럴 전체 일치만 인정(안 그러면 한자→가나 이탈 같은 진짜 위반을 놓친다). 프롬프트도 "활용형으로 써도 되지만 어간은 유지" 로 다시 썼다. **재발 시 확인할 곳**: `checks.ts` 의 `exampleCoversSurface`(비export, 내부 함수) 와 `wordEnrich.ts` 의 example 지시문 두 곳을 같이 봐야 한다 — 검사만 풀고 프롬프트를 그대로 두면 haiku 가 계속 활용형을 우선시하므로 무의미하지 않지만, 프롬프트도 명시적으로 "활용 가능"이라고 알려 주는 편이 모델이 헷갈리지 않는다(재시도 자체가 아예 없어짐 — 최종 검증에서 attempts 전부 1).
+- [14:55] **함정 기록 2 — 가타카나 외래어 reading 정규화**: `コーヒー`(w07) 실측에서 모델이 `reading` 에 가타카나 원표기를 그대로 넣는 이탈은 **관찰되지 않았다**(전부 `こーひー` 로 정규화해서 냄, 4/4 실측 통과) — 다만 `checks.ts` 주석에 정규식(`/^[ぁ-ゖー]+$/`)을 미리 넣어 뒀으니 재발하면(다른 모델·tier 교체 시) 여기서 잡힌다. 재시도 유발 없이 통과했다는 뜻은 이 방어가 "보험"으로 남아 있어도 비용이 없다는 것.
+- [14:55] **실측(최종, 수정 반영 후) 요약** — 우분투 미러, Claude CLI 2.1.222, haiku, `tests/live/word-enrich-measure.ts`(픽스처 `tests/prompts/fixtures/word-enrich.json` 12건: 유효 9·무효 3): n=15(전체 12패스 + `かける` 반복 3) 기준 **dropped=0/15(0%, 목표 ≤5% 충족)** · 재시도=0/15 · p50=2,795ms · p95=8,559ms(1건 이상치, 그 외 전부 2.6~3.4s) · max=8,559ms(20s 예산 안, 12s 회화 예산과 비교해도 여유) · `valid` 판정 일치 15/15 · `reading` 정확 일치 12/12 · `partOfSpeech` 일치 12/12 · `meaning` 키워드 포함 12/12 · 엔진명 누출 0. `jlpt` 일치는 8/12(다의어 `かける` 반복에서 N3/N4 를 섞어 답함 — **계약 위반 아님**, jlpt 는 "모르면 null" 이지 강제 일치 대상이 아니라서 fixture 의 `expectedJlpt:null` 기대와 어긋난 것뿐이고 checks.ts 도 검사하지 않는다). **총 호출 수는 계획한 18회를 넘겼다**(1차 18 + 2차 12 + 디버그 1 + 최종 15 = 46회) — 1차 실측에서 목표(≤5%) 초과 결함을 발견해 원인 진단(디버그 1콜)·프롬프트 재작성·검사 로직 수정·재검증까지 거쳤기 때문. 재검증 없이 넘겼으면 8% 위반율이 그대로 developer 인계본에 들어갔을 것이라 판단상 필요한 초과였다고 본다.
+- [14:55] **프롬프트 길이**: A1(TALK) 3,000자 상한과 별개로 A10 은 대화가 아니라 훨씬 짧다 — 실측 `promptChars`(engine 이 재는 system+messages+persona 합) 는 학습자 수준 유무에 따라 1,969~2,750자(픽스처 12건 전부 ≤1,500자 단위테스트로 회귀 고정, `wordEnrich.test.ts` "프롬프트 총 길이" — 단, 그 테스트는 `renderTranscript` 결과 기준이라 engine 이 리포트하는 `promptChars`(대화 이력 렌더링 방식이 달라 페르소나 별도 합산)와 정확히 같은 수치는 아니고 상한 취지만 같다).
+- [14:55] **테스트**: `src/modules/conversation/__tests__/wordEnrich.test.ts`(신규, 11개) — 픽스처 개수·요청 빌더 형태·level 생략·공백 trim/빈 문자열 에러·프롬프트 길이·스키마 통과/위반·`checkWordEnrich` 정상/위반(활용형 허용·1글자 가드 포함)·valid=false 관용도·픽스처 9건 합성 응답 스키마+후검증 회귀. `npm run typecheck`·`npm run lint`(0 에러, 기존 4개 경고는 무관 파일) ·`npm test`(93/93 통과) 확인 완료.
+- [14:55] **모델 매트릭스 갱신 보류**: `docs/design-spec.md` §8 A10 행("home-m4/haiku·20s·동기·캐시")은 아직 안 고쳤다 — editable_files 지침대로 Leader 사전 협의 후 반영 요망. 제안 문구: "A10 | 단어 보강 | surface | reading, meaning_ko, part_of_speech, jlpt, example_ja, example_ko | haiku(실측, home-m4 미검증) | 20s | 동기·캐시, 프롬프트 ≈2,000~2,750자, 위반율 0%(n=15, 2026-09-27)". home-m4(qwen)는 이번 실측에서 라우터가 매번 `home-m4-lan 실패 → 다음 후보`로 넘어가 claude-cli 로만 응답했다(로컬 개발 환경에 home-m4 커넥션 자체가 없어서로 보임 — thekaiwa 전용 `HOME_M4_API_KEY` 부재는 task-004 결정 기록에도 이미 남아 있다) — qwen 비교는 그 키가 생긴 뒤 별도 실측 필요.
 
 ## Developer 기록
 

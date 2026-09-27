@@ -1,0 +1,120 @@
+{
+ "version": "word-enrich@v1",
+ "note": "합성 표현만(사용자 실데이터 아님). A10 단어 보강(WORD_ENRICH) 회귀·실측용 — 유효 9건(한자어·가나만·동사 사전형·활용형·い형용사·な형용사·가타카나 외래어·다의어·관용 표현) + 무효 3건(한국어·영어·의미 없는 문자열).",
+ "items": [
+  {
+   "id": "w01",
+   "surface": "映画",
+   "level": "N5",
+   "valid": true,
+   "expectedPartOfSpeech": "NOUN",
+   "expectedJlpt": "N5",
+   "expectedReading": "えいが",
+   "meaningKeywords": ["영화"]
+  },
+  {
+   "id": "w02",
+   "surface": "ありがとう",
+   "level": "N5",
+   "valid": true,
+   "expectedPartOfSpeech": "EXPRESSION",
+   "expectedJlpt": "N5",
+   "expectedReading": "ありがとう",
+   "meaningKeywords": ["고마워", "감사"]
+  },
+  {
+   "id": "w03",
+   "surface": "食べる",
+   "level": "N5",
+   "valid": true,
+   "expectedPartOfSpeech": "VERB",
+   "expectedJlpt": "N5",
+   "expectedReading": "たべる",
+   "meaningKeywords": ["먹다"]
+  },
+  {
+   "id": "w04",
+   "surface": "行きました",
+   "level": "N5",
+   "valid": true,
+   "expectedPartOfSpeech": "VERB",
+   "expectedJlpt": "N5",
+   "expectedReading": "いきました",
+   "meaningKeywords": ["갔", "가다"],
+   "note": "이미 활용된 표기(과거 정중형) 그대로 입력 — example 은 이 표기 자체를 리터럴로 포함해야 한다(활용형 예외 없음, checks.ts 참고)"
+  },
+  {
+   "id": "w05",
+   "surface": "忙しい",
+   "level": "N4",
+   "valid": true,
+   "expectedPartOfSpeech": "ADJ_I",
+   "expectedJlpt": "N4",
+   "expectedReading": "いそがしい",
+   "meaningKeywords": ["바쁘다", "바쁜"]
+  },
+  {
+   "id": "w06",
+   "surface": "静か",
+   "level": "N5",
+   "valid": true,
+   "expectedPartOfSpeech": "ADJ_NA",
+   "expectedJlpt": "N5",
+   "expectedReading": "しずか",
+   "meaningKeywords": ["조용"]
+  },
+  {
+   "id": "w07",
+   "surface": "コーヒー",
+   "level": "N5",
+   "valid": true,
+   "expectedPartOfSpeech": "NOUN",
+   "expectedJlpt": "N5",
+   "expectedReading": "こーひー",
+   "meaningKeywords": ["커피"],
+   "note": "가타카나 외래어 — reading 은 히라가나로 정규화(こーひー)돼야 한다(가타카나 그대로면 위반, checks.ts 정규식)"
+  },
+  {
+   "id": "w08",
+   "surface": "かける",
+   "level": "N3",
+   "valid": true,
+   "expectedPartOfSpeech": "VERB",
+   "expectedJlpt": null,
+   "expectedReading": "かける",
+   "meaningKeywords": ["걸다"],
+   "note": "다의어 — meaning 은 대표 뜻 1~3개를 ', '로 이어 쓰는지만 본다(정확한 의미 개수는 강제하지 않음)"
+  },
+  {
+   "id": "w09",
+   "surface": "よろしくお願いします",
+   "level": "N5",
+   "valid": true,
+   "expectedPartOfSpeech": "EXPRESSION",
+   "expectedJlpt": "N5",
+   "expectedReading": "よろしくおねがいします",
+   "meaningKeywords": ["잘 부탁"]
+  },
+  {
+   "id": "w10",
+   "surface": "사과",
+   "level": null,
+   "valid": false,
+   "note": "한국어 문자열"
+  },
+  {
+   "id": "w11",
+   "surface": "apple",
+   "level": null,
+   "valid": false,
+   "note": "영어 문자열"
+  },
+  {
+   "id": "w12",
+   "surface": "ㅁㄴㅇㄹ",
+   "level": null,
+   "valid": false,
+   "note": "의미 없는 자모 나열(오타/난타)"
+  }
+ ]
+}
