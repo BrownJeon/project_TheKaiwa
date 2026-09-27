@@ -83,7 +83,7 @@ ls -la model_assets/jvnv-F1-jp/                     # config.json · *.safetenso
 - 끊기거나 느리면 같은 명령을 다시 실행(받은 부분은 건너뜀). `No module named huggingface_hub` 면 가상환경이 꺼진 것 — `source .venv/bin/activate` 후 재실행.
 - 다른 화자(F2·M1·M2)는 task-003 에서 화자 매핑(Haruka/Sakura/Takumi)을 정할 때 추가로 받는다.
 
-## 5. 1문장 합성 확인 (MPS·CPU 시간 측정)
+## 5. 1문장 합성 확인 (CPU 먼저, MPS 는 실패해도 계속)
 
 ```bash
 cd ~/kaiwa-tts-run && source .venv/bin/activate
@@ -101,22 +101,31 @@ bert_models.load_tokenizer(Languages.JP, bert)
 d = "model_assets/jvnv-F1-jp"
 weights = sorted(glob.glob(f"{d}/*.safetensors"))[-1]
 text = "こんにちは。今日はいい天気ですね。"
-for device in ("mps", "cpu"):
-    m = TTSModel(model_path=weights, config_path=f"{d}/config.json",
-                 style_vec_path=f"{d}/style_vectors.npy", device=device)
-    t = time.time(); m.infer(text=text); warm = time.time() - t      # 첫 합성(워밍업 포함)
-    t = time.time(); sr, audio = m.infer(text=text); hot = time.time() - t
-    print(f"{device}: first {warm:.2f}s, second {hot:.2f}s, sr={sr}")
-with wave.open("/tmp/kaiwa-tts-check.wav", "wb") as w:
-    w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
-    w.writeframes(np.asarray(audio, dtype=np.int16).tobytes())
-print("saved /tmp/kaiwa-tts-check.wav")
+saved = None
+for device in ("cpu", "mps"):
+    try:
+        m = TTSModel(model_path=weights, config_path=f"{d}/config.json",
+                     style_vec_path=f"{d}/style_vectors.npy", device=device)
+        t = time.time(); m.infer(text=text); warm = time.time() - t
+        t = time.time(); sr, audio = m.infer(text=text); hot = time.time() - t
+        print(f"RESULT {device}: first {warm:.2f}s, second {hot:.2f}s, sr={sr}")
+        if saved is None: saved = (sr, audio)
+    except Exception as e:
+        print(f"RESULT {device}: FAILED {type(e).__name__}: {str(e)[:160]}")
+if saved:
+    sr, audio = saved
+    with wave.open("/tmp/kaiwa-tts-check.wav", "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+        w.writeframes(np.asarray(audio, dtype=np.int16).tobytes())
+    print("saved /tmp/kaiwa-tts-check.wav")
 PY
 afplay /tmp/kaiwa-tts-check.wav                     # 소리가 나면 성공
+pip show style-bert-vits2 torch 2>/dev/null | grep -E '^(Name|Version)'
 ```
 
-- 목표는 **두 번째 합성 ≤1.0초**(설계 P0). 숫자를 그대로 알려 주면 task-003 의 실측 게이트 기록에 넣는다.
-- `mps` 에서 오류가 나면 `cpu` 결과만이라도 알려 준다. 라이브러리 버전에 따라 `TTSModel` 인자 이름이 다르면 오류 메시지를 그대로 알려 주면 된다.
+- 목표는 **두 번째 합성 ≤1.0초**(설계 P0). `RESULT` 로 시작하는 두 줄을 알려 주면 task-003 실측 게이트 기록에 넣는다.
+- 첫 실행 때 pyopenjtalk 가 일본어 사전(`open_jtalk_dic_utf_8-1.11`, 22.6MB)을 자동으로 받는다 — 정상.
+- **MPS 에서 `RuntimeError: Input type (c10::Half) and bias type (float) should be the same`**(2026-09-27 실측): BERT 특징은 half, 합성 모델은 float 로 부딪히는 정밀도 불일치. CPU 결과로 진행하고 MPS 는 task-003 에서 라이브러리 버전에 맞춰 dtype 을 맞춘다.
 
 ## 6. 비밀값·포트 준비 (서비스 기동은 task-003 에서)
 
