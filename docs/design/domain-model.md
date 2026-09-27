@@ -1699,7 +1699,7 @@ model PronunciationLexiconEntry {
   @@index([environment, surface])
 }
 
-/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전(대상은 ROLLED_BACK). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog(scope=LEXICON) 만
+/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전, 밀려난 직전 ACTIVE 가 ROLLED_BACK(복원 대상 버전 상태는 그대로 — admin-console/09 §5 와 같은 뜻). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog 만(scope=null·action lexicon.*·targetId lexicon:v<n> — ConfigScope 에 LEXICON 없음, task-003g)
 model PronunciationLexiconVersion {
   id            String   @id @default(cuid())
   environment   Environment
@@ -2229,7 +2229,7 @@ model DebugSession {
 | `RepetitionItem` | 등록(레슨 complete·교정 accept·세트 finish) → 매 세션 `studiedCount/correct/wrong/feedbackCount` 증가 → A11(`REVIEW_DECISION` 잡) 이 `intervalDays 3~7`·`priority`·`decisionReason` 결정, 코드가 클램프(FOCUS ≤3)·`nextDueAt` 산출·`decidedBy` 기록 → LLM 실패 시 FALLBACK(기존 interval 유지, 초기 3) |
 | `VocabSessionStatus` | `IN_PROGRESS` →(finish 트랜잭션)→ `DONE` / →(24h 미완료 배치)→ `ABANDONED`(집계 없음) |
 | `MessageStatus` | `PENDING`(ASSISTANT 자리) → `DONE` / `FAILED`(12s fail-fast·기동 정리) |
-| `PronunciationLexiconVersion.status` | 항목 변경·Import 시 새 버전 `ACTIVE`(직전 → `SUPERSEDED`) / Rollback 은 과거 스냅샷을 새 버전으로 복제(`ROLLED_BACK` 표시는 되돌려진 버전) — TtsCache 는 `dictionaryVersion` 불일치로 자연 무효 |
+| `PronunciationLexiconVersion.status` | 항목 변경·Import 시 새 버전 `ACTIVE`(직전 → `SUPERSEDED`) / Rollback 은 과거 스냅샷을 새 버전으로 복제(`ROLLED_BACK` = 밀려난 직전 ACTIVE, 복원 대상은 상태 그대로 — task-003g) — TtsCache 는 `dictionaryVersion` 불일치로 자연 무효 |
 | `VoiceModelVersion.deployStatus`(§10 제안) | `TRAINED` → `VALIDATED`(Golden 회귀 통과) → `STAGING` → `CANARY`(세션 % 배정) → `PRODUCTION`(SUPER_ADMIN 확인) → `DEPRECATED` |
 
 ## 6. 삭제·스냅샷 정책 매트릭스

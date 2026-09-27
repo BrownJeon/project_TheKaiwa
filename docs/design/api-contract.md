@@ -55,6 +55,7 @@
 | 403 | `FORBIDDEN` | capability 부족, **Production 보호**(`confirm` 없음·SUPER_ADMIN 아님·override 비활성), 초대코드 불일치 | 안내만, 재시도 없음 |
 | 404 | `NOT_FOUND` | 리소스 없음 **또는 타인 소유**, capability 없는 admin 페이지 | 목록으로 복귀 |
 | 409 | `CONFLICT` | 사용자당 동시 턴 1 초과, 상태 전이 위반(예: DONE 세션에 attempt), 이미 채택/거절된 제안 재승인, `ConfigurationVersion` 낙관적 충돌(`baseVersion` 불일치) | 최신 상태 재조회 후 안내 |
+| 422 | `UNPROCESSABLE` | 요청 모양은 맞지만 도메인 규칙 위반(task-003g 발음 사전 — 칸 규칙·가져오기 파일·미리듣기 예문). 갈래는 `details.reason`(`E_LEXICON_ENTRY_INVALID`·`E_IMPORT_*`·`E_PREVIEW_TEXT_TOO_LONG`, §7-2a) | 칸 오류 표시(`details.errors`·`fields`) |
 | 422 | `ENGINE_UNAVAILABLE` | Engine Router 가 역할에 대해 선택 가능한 connection 이 없음(전부 `UNAVAILABLE/DISABLED/MISCONFIGURED`) | 텍스트 폴백 안내, 관리자면 콘솔 링크 |
 | 429 | `RATE_LIMITED` | 초대코드 시도, 미리듣기(사용자당 10/분), TTS(60/분), 턴(분당 12), 내부 콜백 폭주 | `Retry-After` 초 후 재시도 |
 | 502 | `ENGINE_ERROR` | 어댑터 호출이 실패로 종료(HTTP 5xx·프로세스 비정상 종료·스키마 위반 응답 재시도 소진) | "잠시 후 다시" + traceId 표시(개발자만) |
@@ -275,6 +276,15 @@
 | 137 | GET | `/api/admin/v1/audit?from=&to=&scope=&actor=` | 감사 로그 | `audit.read` | infra/audit | 1 | query | `AuditLog[]` |
 | 137a | PATCH | `/api/admin/v1/users/:id/role` | 역할 변경 | `users.role.manage` | admin/permissions | 1 | `{role,reason}` | `{user}` |
 | 137b | GET | `/api/admin/v1/me/capabilities` | 내 capability(UI 숨김용) | `console.access` | admin/permissions | 1 | — | `{role,capabilities[]}` |
+| 138 | GET | `/api/admin/v1/lexicon?q=&scope=&scopeRefId=&enabled=1\|all&sort=&page=&pageSize=` | 발음 사전 목록(task-003g) | `voices.read` | admin/speech/lexicon → speech/tts | 1 | query | `LexiconListDto`(§7-2a) |
+| 139 | POST | `/api/admin/v1/lexicon` | 항목 추가(→ 새 버전 + Audit) | `voices.manage` (+PRODUCTION `config.apply.production`) | 〃 | 1 | 항목 + `{baseVersion,reason,confirm?}` | `LexiconWriteResultDto` |
+| 139a | GET · PUT · DELETE | `/api/admin/v1/lexicon/:id` | 항목 조회 · 수정 · 비활성(DELETE 본문 이유) | `voices.read` / `voices.manage` | 〃 | 1 | 부분 / `{baseVersion,reason,confirm?}` | `LexiconEntryDto` / `LexiconWriteResultDto` |
+| 140 | POST | `/api/admin/v1/lexicon/import?mode=&dryRun=` | Import(multipart, 전부 아니면 전무) | `voices.manage` | 〃 | 1 | multipart `file`·`reason`·`baseVersion`·`confirm` | `LexiconImportResultDto` |
+| 141 | GET | `/api/admin/v1/lexicon/export?format=csv\|json` | Export(파일) | `voices.read` | 〃 | 1 | — | 파일 |
+| 142 | POST | `/api/admin/v1/lexicon/preview` | 저장 전 미리듣기(읽기 확인 JSON · `Accept: audio/wav`+`side` 소리) | `voices.manage` | 〃 | 1 | `{text,voiceId?,draftEntries?,compare?,side?}` | `LexiconPreviewDto` / `audio/wav` |
+| 143 | GET | `/api/admin/v1/lexicon/versions?page=&pageSize=` | 사전 버전 목록 | `voices.read` | 〃 | 1 | query | `LexiconVersionListDto` |
+| 143a | GET | `/api/admin/v1/lexicon/versions/:v?compare=previous\|active` | 버전 상세 + diff | `voices.read` | 〃 | 1 | query | `LexiconVersionDetailDto` |
+| 144 | POST | `/api/admin/v1/lexicon/versions/:v/rollback` | Rollback(=새 ACTIVE) | `voices.manage` (+PRODUCTION) | 〃 | 1 | `{baseVersion,reason,confirm?}` | `LexiconRollbackResultDto` |
 
 ### 1-4. 내부 `/api/internal` · WebSocket · Python 서비스
 
@@ -1695,16 +1705,40 @@ sequenceDiagram
 
 | 메서드·경로 | capability | 계약 |
 |---|---|---|
-| `GET /api/admin/v1/lexicon?q=&scope=&scopeRefId=&page=` | `voices.read` | 발음 사전 검색(`PronunciationLexiconEntry`, 현재 환경). 표기·읽기·scope 필터 |
-| `POST /api/admin/v1/lexicon` · `PUT …/:id` · `DELETE …/:id`(=`enabled=false`) | `voices.manage` | 변경마다 새 `PronunciationLexiconVersion`(ACTIVE) + `AuditLog`. PRODUCTION 은 SUPER_ADMIN 확인(사전 변경은 발음 전체에 영향) |
-| `POST /api/admin/v1/lexicon/import?mode=MERGE|REPLACE_SCOPE&dryRun=1`(CSV/JSON) · `GET …/export` | `voices.manage` / `voices.read` | CSV 헤더 `surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled`(같은 키의 JSON 배열 가능). `dryRun` 은 diff(추가·수정·삭제 건수·오류 행)만, 게시 시 새 버전. Export 메타 `dictionaryVersion·environment·exportedAt` |
-| `POST /api/admin/v1/lexicon/preview` | `voices.manage` | `{text(≤200), voiceId?, draftEntries?[]}` → 래퍼 `/g2p` 읽기·악센트 문자열 + 합성 오디오(`bypassCache`, `RequestTrace(PLAYGROUND)`, 캐시 저장 안 함). 저장 전 항목 효과 듣기 |
-| `GET /api/admin/v1/lexicon/versions` · `POST …/versions/:v/rollback` | `voices.read` / `voices.manage` | Rollback = 과거 스냅샷을 새 ACTIVE 버전으로(§132), TtsCache 는 `dictionaryVersion` 으로 자연 무효 |
+| `GET /api/admin/v1/lexicon?q=&scope=&scopeRefId=&enabled=1\|all&sort=recent\|surface&page=&pageSize=` | `voices.read` | 발음 사전 목록(현재 환경). **task-003g 구현 — 상세 §7-2a** |
+| `POST /api/admin/v1/lexicon` · `GET/PUT …/:id` · `DELETE …/:id`(=`enabled=false`, **이유는 본문**) | `voices.read`(GET) / `voices.manage` | 변경마다 새 `PronunciationLexiconVersion`(ACTIVE) + `AuditLog`(scope=null, action `lexicon.*`). PRODUCTION 은 `config.apply.production`(SUPER_ADMIN) + 본문 `confirm:"PRODUCTION"` |
+| `POST /api/admin/v1/lexicon/import?mode=MERGE\|REPLACE_SCOPE&dryRun=1\|0`(**multipart**) · `GET …/export?format=csv\|json` | `voices.manage` / `voices.read` | CSV 헤더 `surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled`(같은 키의 JSON 배열 또는 `{entries}`). 전부 아니면 전무(오류 행 ≥1 → 422 `E_IMPORT_HAS_ERRORS`). Export 메타 `dictionaryVersion·environment·exportedAt`(JSON 본문·CSV 는 헤더) |
+| `POST /api/admin/v1/lexicon/preview` | `voices.manage` | `{text(≤200), voiceId?, draftEntries?[≤20], compare?, side?}` → JSON 읽기·악센트(`before`=지금 사전, `after`=초안 적용) / `Accept: audio/wav`+`side` → 합성 WAV. 캐시·DB 변화 0, `RequestTrace(PLAYGROUND)` |
+| `GET /api/admin/v1/lexicon/versions?page=&pageSize=` · `GET …/versions/:v?compare=previous\|active` · `POST …/versions/:v/rollback` | `voices.read` / `voices.read` / `voices.manage` | Rollback = 과거 스냅샷을 새 ACTIVE 버전으로(§132), 밀려난 직전 ACTIVE = `ROLLED_BACK`, TtsCache 는 `dictionaryVersion` 으로 자연 무효 |
 | `GET /api/admin/v1/voices/:id/versions` · `POST …/versions`(패키지 업로드) · `POST …/versions/:v/validate|stage|canary{percent}|promote|deprecate` | `voices.manage`(promote/canary PRODUCTION 은 SUPER_ADMIN) | `VoiceModelVersion.deployStatus` 전이(§153~§154). validate = Golden 회귀 실행 후 합격 시 |
 | `GET/POST /api/admin/v1/tts/golden` · `PUT/DELETE …/:id` · `POST …/import` | `voices.manage` | Golden Dataset(§149, 카테고리 12종, 100~300문장) |
 | `POST /api/admin/v1/tts/quality-runs {voiceModelVersionId, baselineVersionId?}` · `GET …/:id`(results·metrics) | `voices.manage` | 회귀 실행(§150): 실패율·지연·TTFA·RTF·길이 편차·(수동)발음/자연스러움/악센트 |
 | `POST /api/admin/v1/tts/ab-compare` · `GET …?voiceA=&voiceB=` | `voices.manage` | Blind Compare 세션(§151): 문장별 A/B 무작위 순서 재생·5항목 점수 |
 | `GET /api/admin/v1/tts/metrics?range=&connectionId=&voiceId=` | `engine.read` | §143 대시보드(`(admin)/admin/diagnostics/tts`): req/min·avg·p50·p95·p99·TTFA·error rate·cache hit·voice/engine 별·model load·폴백 건수. 당일은 `RequestTrace` 즉석 집계(60초 캐시), 과거는 `EngineMetricsDaily`. 경보: 15분 창 TTFA p95 > 2s 또는 error > 5% → WARN 로그 + 배지 |
+
+### 7-2a. 발음 사전 관리 API 상세 (task-003g 구현, 2026-09-28)
+
+DTO 는 `src/types/lexicon.ts` 가 단일 출처(화면 `components/admin/lexicon` 도 여기서 import). 서비스 = `admin/speech/lexicon`(L0: 권한·PRODUCTION·감사·대상 확인) → `speech/tts/{lexiconStore,lexiconRules,lexiconCsv,lexiconPreview}`(L4). 엔진 읽기 확인은 `engine.tts.g2p`(어댑터 → tts-service `POST /g2p`).
+
+**공통 쓰기 규칙** — 본문 `baseVersion`(화면이 본 ACTIVE 번호, 사전이 비었으면 0 — 없거나 정수가 아니면 400) · `reason`(1~200자, 칸 오류 `E_REASON`) · `confirm`(PRODUCTION 만 `"PRODUCTION"`). 한 트랜잭션 = 환경 잠금(가장 오래된 버전 행 `FOR UPDATE` — 두 관리자·두 프로세스 직렬화, 버전 행이 없던 환경은 `@@unique(environment, version)` 가 마지막 방어) → `baseVersion` 확인 → 항목 변경 → 직전 ACTIVE `SUPERSEDED`(Rollback 이면 `ROLLED_BACK`) → 새 버전(번호 = 최대+1, 스냅샷 = 환경의 모든 항목 + `note`, `snapshotHash` = 활성 항목) → `AuditLog` 1행(`scope=null`, `action=lexicon.create|update|disable|import|rollback`, `targetId=lexicon:v<새 버전>`). **ConfigurationVersion 은 만들지 않는다**(자체 버전 테이블이 정본). 변경이 없으면 버전·감사 없이 `changed:false`(Rollback 은 409 `NO_CHANGE`). 저장 1번 = 버전 1개. 커밋 뒤 이 프로세스의 사전 캐시를 비운다(다른 프로세스 ≤30초).
+
+**검증(정본 16 §2.2 L-4 우선)** — 표기 1~40자, 공백·제어·보이지 않는 문자 금지(`E_SURFACE_CHARS`), 가나·한자 1자 이상(`E_SURFACE_NOT_JA`), 빈 값·길이 `E_SURFACE` · 읽기 = **가타카나·長音符(ー)만** 1~60자(반각 가나는 전각으로 바꿔 받음, 히라가나 거부 — 화면이 보내기 전에 가타카나로 변환) `E_READING` · 악센트 0~모라 수 정수 `E_ACCENT` · 우선순위 0~1000 `E_PRIORITY` · 범위 `E_SCOPE` · 대상 id(GLOBAL 은 null, 그 외 필수·`[A-Za-z0-9_-]{1,40}`) `E_SCOPE_REF`, 존재(COURSE=주제·LESSON=레슨·VOICE=목소리·USER=사용자) `E_SCOPE_REF_NOT_FOUND` · 종류 `E_WORD_TYPE` · 메모 ≤200 `E_NOTE` · 사용 여부 `E_ENABLED`. 같은 (범위, 대상, 표기) 활성 항목이 있으면 409 `E_LEXICON_DUPLICATE`(꺼진 항목이면 그 행을 되살린다 — `revived:true`, 같은 id). 수정은 키(표기·범위·대상)를 바꾸지 않는다(`E_IMMUTABLE`).
+
+| 경로 | 요청 | 응답(`data`) | 오류 |
+|---|---|---|---|
+| `GET /lexicon` | `q`(≤40, 표기 부분 일치 + 히라가나→가타카나로 바꾼 읽기 부분 일치) · `scope`(`ALL`·5종) · `scopeRefId` · `enabled=1\|all\|0`(기본 all) · `sort=recent`(updatedAt desc, 기본)`\|surface` · `page`(1~) · `pageSize`(1~100, 기본 50) | `{environment, items: LexiconEntryDto[], page, pageSize, total, dictionaryVersion, counts:{enabled, disabled}, active: LexiconVersionDto\|null}` — counts·active 는 필터와 무관한 사전 전체 | 400 |
+| `GET /lexicon/:id` | — | `LexiconEntryDto{id, surface, reading, accentType, priority, scope, scopeRefId, wordType, note, enabled, moraCount, createdAt, updatedAt}` | 404 |
+| `POST /lexicon` | 항목 필드(`surface, reading, accentType?, priority?, scope?, scopeRefId?, wordType?, note?`) + 쓰기 공통 | `LexiconWriteResultDto{changed, entry, version:{version, createdAt}, previousVersion, revived?}` | 400·403·409(`VERSION_CONFLICT`·`E_LEXICON_DUPLICATE`)·422(`E_LEXICON_ENTRY_INVALID`) |
+| `PUT /lexicon/:id` | 바꿀 필드만(`reading, accentType, priority, wordType, note, enabled`) + 쓰기 공통 | 〃 (같은 값이면 `changed:false`) | + 404·422 `E_IMMUTABLE` |
+| `DELETE /lexicon/:id` | **본문** `{baseVersion, reason, confirm?}`(이유를 URL 에 싣지 않는다) | 〃 (`entry.enabled=false`, 이미 꺼져 있으면 `changed:false`) | 〃 |
+| `POST /lexicon/import?mode=MERGE\|REPLACE_SCOPE&dryRun=1\|0` | **multipart** `file`(`.csv`/`.json`, ≤256KB, ≤2,000행, UTF-8) + 적용 때 `baseVersion`·`reason`·`confirm?`, 선택 `format=csv\|json`. MERGE = 추가·갱신만(빠진 열은 기존 값 유지), REPLACE_SCOPE = 파일에 나온 (범위, 대상) 묶음에서 파일에 없는 활성 항목을 끈다 | `LexiconImportResultDto{dryRun, mode, format, baseVersion, rows, counts:{add, update, disable, unchanged, error}, scopes:[{scope, scopeRefId, disable}], changes: LexiconDiffRowDto[≤100], changesTruncated, errors:[{row, field, code}≤200], errorsTruncated, warnings, applied, version:{version, createdAt}\|null}` — dryRun 은 DB 변화 0, 그 `baseVersion` 을 적용 요청에 보낸다 | 400(mode·dryRun·file 없음·baseVersion) · 403 · 409 · 422 `E_IMPORT_HAS_ERRORS`(details `counts·errors·errorsTruncated`) · `E_IMPORT_TOO_LARGE` · `E_IMPORT_TOO_MANY_ROWS`(details `rows`) · `E_IMPORT_FORMAT` · `E_IMPORT_HEADER` · `E_LEXICON_ENTRY_INVALID`(이유) |
+| `GET /lexicon/export?format=csv\|json` | — | 파일(봉투 없음) `Content-Disposition: attachment; filename="lexicon-<env>-v<n>-<KST yyyymmdd>.<ext>"`, 헤더 `X-Lexicon-Dictionary-Version`·`X-Lexicon-Environment`·`X-Lexicon-Exported-At`·`X-Lexicon-Consistent`(항목 표 == ACTIVE 스냅샷). CSV = UTF-8 BOM + 머리글 + CRLF, `= + - @ 탭 CR '` 로 시작하는 셀은 `'` 접두(가져올 때 그 접두만 제거 → 왕복 불변). JSON = `{dictionaryVersion, environment, exportedAt, entries}` | 400 |
+| `POST /lexicon/preview` | `{text(1~200), voiceId?, draftEntries?[≤20 항목 필드], compare?:boolean, side?:'before'\|'after'}`. 초안은 범위 문맥과 무관하게 적용되고 같은 키의 저장 항목을 대신한다(저장 안 함). 예문은 서버가 문장 단위 60자 이하 조각으로 나눠 조각마다 읽기 확인·합성(소리는 200ms 간격으로 이어 붙임) | JSON(기본): `LexiconPreviewDto{dictionaryVersion, voiceId, before, after\|null, traceId}`, 쪽 = `{normalizedText, reading, accent, matches:[{surface, reading, accentType, scope, source:'DRAFT'\|'ACTIVE'}] (등장마다, ≤50), audioUrl:null}` — `before` = 지금 사전(ACTIVE), `after` = `compare:true` 일 때 지금 사전 + 초안. **소리** = 같은 경로 `Accept: audio/wav` + `side` → `audio/wav`(헤더 `X-Tts-Duration-Ms`·`X-Lexicon-Dictionary-Version`·`X-Trace-Id`, `Cache-Control: private, no-store`). 목소리 수치는 중립(스타일 AUTO·속도 1)·NATIVE. `TtsCache`·singleFlight·메모리 보관 0 | 400(text·side·초안 모양) · 422 `E_LEXICON_ENTRY_INVALID`(초안 칸, details `index`) · 422 `E_PREVIEW_TEXT_TOO_LONG` · 422 `ENGINE_UNAVAILABLE` · 429(읽기 확인·소리 각각 관리자당 분당 10) · 502 · 504 |
+| `GET /lexicon/versions?page=&pageSize=` | `pageSize` 1~50(기본 20) | `{environment, items: LexiconVersionDto[], page, pageSize, total, activeVersion}`, `LexiconVersionDto{version, status, createdAt, actor:{name, role}\|null(시드), changeSummary, entryCount, enabledCount, snapshotHash, reason, action, restoredFrom}` — 되돌림의 `changeSummary` = `v7 로 되돌림: {이유}` | 400 |
+| `GET /lexicon/versions/:v?compare=previous\|active` | `previous`(기본) = 바로 앞 버전 → v, `active` = 지금 ACTIVE → v(되돌리면 생길 변화) | `LexiconVersionDetailDto` = 버전 필드 + `{compare, against, counts:{added, changed, disabled, enabled}, rows: LexiconDiffRowDto[≤100]{kind, surface, scope, scopeRefId, before, after}, truncated}` — 옛 스냅샷(시드 v1)은 메모를 비교하지 않는다 | 400·404 |
+| `POST /lexicon/versions/:v/rollback` | 쓰기 공통 | `LexiconRollbackResultDto{version:{version, createdAt}, replaced:{version, status:'ROLLED_BACK'}, restoredFrom, counts:{add, update, disable}}` — 항목 표를 대상 스냅샷과 같게(스냅샷에 없는 활성 항목은 끔, 물리 삭제 없음), 새 ACTIVE 의 snapshotHash = 대상 | 403·404·409(`VERSION_CONFLICT`·`ALREADY_ACTIVE`·`NO_CHANGE`)·422(이유) |
+
+**오류 봉투**: 화면은 status 먼저, 같은 status 안은 `details.reason`. 409 `CONFLICT` + `reason` ∈ `VERSION_CONFLICT`(details `baseVersion`·`currentVersion`) · `E_LEXICON_DUPLICATE`(details `existing`=항목 DTO(꺼진 항목 포함)·`existingId`) · `ALREADY_ACTIVE` · `NO_CHANGE`. 422 `UNPROCESSABLE` + `reason` ∈ `E_LEXICON_ENTRY_INVALID`(details `errors[{field, code, message}]`·`fields{field: code}`) · `E_IMPORT_*` · `E_PREVIEW_TEXT_TOO_LONG`. 403 `FORBIDDEN` + `missing`(예 `config.apply.production`) 또는 `reason: PRODUCTION_CONFIRMATION_REQUIRED`. USER(콘솔 없음)는 모든 경로 404, 세션 없음 401.
 
 ### 7-3. Python tts-service(M4) 내부 계약 변경
 

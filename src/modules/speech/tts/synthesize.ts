@@ -13,7 +13,7 @@ import { loadTtsVoice, type TtsVoice } from '../voices/registry'
 import { isCacheKey, readCachedAudio, storeCachedAudio, TTS_TEXT_VERSION, ttsCacheKey, type CacheKeyParts, type CachedAudio } from './cache'
 import { createSingleFlight } from './singleFlight'
 import { TtsRequestError, TtsUnavailableError } from './errors'
-import { lexiconDigest, loadActiveLexicon, selectEntries } from './lexicon'
+import { lexiconDigest, loadActiveLexicon, selectEntries, type LexiconEntryData } from './lexicon'
 import { stopwatch, synthSteps, ttsStep } from './metrics'
 import { resolveTtsParameters, type UserVoiceInput } from './parameterResolver'
 import { PROFILE_POLICIES, resolveSpeechProfile, type SpeechProfileName } from './profiles'
@@ -47,6 +47,11 @@ export interface SynthesizeInput {
   chunk?: { index: number; previousDurationMs?: number | null }
   /** `record:false` 면 이 함수가 Trace 를 따로 남기지 않고 `steps` 만 돌려준다(턴 Trace 가 합친다). */
   trace: { refType: string; refId?: string | null; record?: boolean }
+  /**
+   * 사전 미리듣기 전용(task-003g, `prepareSentence` 만 본다): ACTIVE 사전 항목 대신 쓸 목록. `'NONE'` = 사전 없이(적용 전 읽기).
+   * `forced` = 저장 전 초안 — 문맥과 무관하게 적용·우선. `dictionaryVersion` 은 여전히 ACTIVE 번호(Trace 용).
+   */
+  lexicon?: { entries: readonly LexiconEntryData[]; forced?: ReadonlySet<LexiconEntryData> } | 'NONE'
 }
 
 export interface SynthesizeResult {
@@ -187,7 +192,9 @@ export async function prepareSentence(input: SynthesizeInput): Promise<PreparedS
 
   let t = stopwatch()
   const lex = await loadActiveLexicon(currentEnvironment())
-  const selected = selectEntries(lex.entries, { userId: input.userId, voiceId: voice.id, lessonId: input.scope?.lessonId ?? null, topicId: input.scope?.topicId ?? null })
+  const source = input.lexicon === 'NONE' ? [] : (input.lexicon?.entries ?? lex.entries)
+  const forced = input.lexicon && input.lexicon !== 'NONE' ? input.lexicon.forced : undefined
+  const selected = selectEntries(source, { userId: input.userId, voiceId: voice.id, lessonId: input.scope?.lessonId ?? null, topicId: input.scope?.topicId ?? null }, forced)
   const lexMs = t()
 
   t = stopwatch()

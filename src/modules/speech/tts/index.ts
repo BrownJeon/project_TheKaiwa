@@ -16,3 +16,30 @@ export { SEGMENT_STYLES, SEGMENT_SPEEDS, LLM_SPEECH_STYLES } from './types'
 export type { SegmentStyle, SegmentSpeed, LlmSpeechStyle } from './types'
 export { parseTtsRequest, TTS_TEXT_MAX } from './request'
 export type { TtsRequest } from './request'
+// 발음 사전 관리(task-003g) — admin L0 `admin/speech/lexicon` 이 조합한다(권한·감사·대상 id 확인은 admin 몫).
+export {
+  listLexiconEntries,
+  getLexiconEntry,
+  listLexiconVersions,
+  getLexiconVersionDiff,
+  exportLexicon,
+  dryRunLexiconImport,
+  activeLexiconVersion,
+  writeLexicon,
+  afterLexiconCommit,
+  immutableKeyErrors,
+  LexiconVersionConflictError,
+  LexiconEntryNotFoundError,
+  LexiconVersionNotFoundError,
+  LexiconDuplicateError,
+  LexiconEntryInvalidError,
+  LexiconImportInvalidError,
+  LexiconRollbackRejectedError,
+} from './lexiconStore'
+export type { LexiconListQuery, LexiconListResult, LexiconVersionRow, LexiconVersionDiff, LexiconWriteContext, LexiconOp, LexiconWriteResult } from './lexiconStore'
+export { parseEntryInput, collectScopeRefs, scopeRefKey, planRows, countPlan, fieldsOf as lexiconFieldsOf } from './lexiconRules'
+export type { ImportRowInput, ImportPlan, ImportRowResult, PlanItem, RawEntryInput } from './lexiconRules'
+export { parseLexiconFile, formatLexiconCsv } from './lexiconCsv'
+export type { ParsedLexiconFile } from './lexiconCsv'
+export { previewLexiconReadings, previewLexiconAudio, PreviewTextTooLongError } from './lexiconPreview'
+export type { LexiconPreviewInput, LexiconPreviewAudio } from './lexiconPreview'

@@ -15,7 +15,7 @@ import type { EngineProvider, HealthOutcome } from '../../registry/types'
 import { isTtsEngineError } from '../../tts/errors'
 import { healthUrl, probeHttpHealth, type HealthInterpreter } from '../common/httpHealth'
 import { key, LOG_LEVEL_KEY, REPO_ADAPTERS, SCHEMA_GROUPS } from '../common/schema'
-import { fetchHealthDetail, maxCharsOf, synthesizeHttp } from './styleBertHttp'
+import { fetchHealthDetail, g2pHttp, maxCharsOf, synthesizeHttp } from './styleBertHttp'
 
 const FUNCTIONAL_TEXT = 'これはテストです。'
 const FUNCTIONAL_TIMEOUT_MS = 30_000
@@ -123,6 +123,7 @@ export const styleBertVits2Provider: EngineProvider = {
   tts: {
     maxChars: maxCharsOf,
     synthesize: synthesizeHttp,
+    g2p: g2pHttp,
   },
   modelSummary: (values) => (typeof values['runtime.defaultModel'] === 'string' ? (values['runtime.defaultModel'] as string) : null),
 }

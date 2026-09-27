@@ -47,3 +47,29 @@ export async function recordAudit(entry: AuditEntry, tx?: Tx): Promise<string> {
   })
   return row.id
 }
+
+export interface AuditBrief {
+  targetId: string
+  action: string
+  actorEmailSnap: string | null
+  actorRoleSnap: Role | null
+  reason: string | null
+  after: unknown
+  createdAt: Date
+}
+
+/**
+ * 대상 id 목록의 감사 행(읽기 전용 — 버전 목록에 작업자·이유를 붙일 때, task-003g). `actionPrefix` 로 자원 종류를 좁힌다.
+ * 한 대상에 여러 행이면 최신 것만.
+ */
+export async function findAuditsByTargets(environment: Environment, targetIds: readonly string[], actionPrefix: string): Promise<Map<string, AuditBrief>> {
+  const out = new Map<string, AuditBrief>()
+  if (targetIds.length === 0) return out
+  const rows = await prisma.auditLog.findMany({
+    where: { environment, targetId: { in: [...targetIds] }, action: { startsWith: actionPrefix } },
+    orderBy: { createdAt: 'desc' },
+    select: { targetId: true, action: true, actorEmailSnap: true, actorRoleSnap: true, reason: true, after: true, createdAt: true },
+  })
+  for (const r of rows) if (r.targetId && !out.has(r.targetId)) out.set(r.targetId, { ...r, targetId: r.targetId })
+  return out
+}

@@ -5,12 +5,13 @@
  * task-003d: tts 파사드(targets·synthesize·maxChars, 오류는 TtsEngineError.kind 로 분류).
  * task-003e: stt 파사드(REALTIME_STT targets·공개 실행값·개발용 ws 주소·connection 검증).
  * task-007: llm.prewarm(예열 CLI)·onTextDelta(조기 추출)·mentionsEngineIdentity, 경로 인식 증분 JSON 리더, trace appendTraceSteps.
+ * task-003g: tts.g2p(발음 사전 미리듣기 읽기 확인).
  */
 export * as llm from './llm'
 export * as tts from './tts'
 export * as stt from './stt'
 export type { SttTarget, SttPublicRuntime } from './stt'
-export type { TtsTarget, TtsFailureKind, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics } from './tts'
+export type { TtsTarget, TtsFailureKind, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics, TtsG2pOutput } from './tts'
 export type { LlmRequest, LlmJsonRequest, LlmTextResult, LlmJsonResult, LlmPersona, LlmTurnMessage, WarmUse } from './llm'
 export { resolveConnection, resolveCandidates, withFallback, currentEnvironment, clearRouterCache, NoEngineAvailableError, LLM_TASKS, isLlmTask } from './router'
 export type { LlmTask, LlmTier, ResolvedConnection } from './router'

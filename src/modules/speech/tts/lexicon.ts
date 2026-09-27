@@ -1,6 +1,6 @@
 /**
  * PronunciationLexiconService(speech-platform/16 §2, P0) — 사전 읽기·범위 해석·최장 일치·버전.
- * 관리 화면·API(추가·수정·Import·Rollback)는 task-003g. 이 파일은 **읽기와 적용**만 한다(쓰기 0).
+ * 이 파일은 **읽기와 적용**만 한다(쓰기 0). 관리 쓰기(추가·수정·비활성·Import·Rollback)는 `lexiconStore`(task-003g).
  *
  * 적용 방식 A(§2.4): 정규화 전에 원문에서 매칭 구간을 찾아 정규화기가 건드리지 못하게 보호하고(§3.2 ①),
  * 매칭 결과를 엔진 독립 `lexiconHints[{surface, reading, accentType, wordType}]` 로 어댑터에 넘긴다.
@@ -78,14 +78,18 @@ function inScope(e: LexiconEntryData, ctx: LexiconContext): boolean {
   }
 }
 
-/** 문맥에 해당하는 enabled 항목 중 표기마다 가장 좁은 범위 1건(L-1·L-3). 키는 working 표기. */
-export function selectEntries(entries: readonly LexiconEntryData[], ctx: LexiconContext): Map<string, LexiconEntryData> {
+/**
+ * 문맥에 해당하는 enabled 항목 중 표기마다 가장 좁은 범위 1건(L-1·L-3). 키는 working 표기.
+ * `forced`(사전 미리듣기의 저장 전 초안, task-003g)는 문맥과 무관하게 적용되고 같은 표기의 다른 항목보다 우선한다.
+ */
+export function selectEntries(entries: readonly LexiconEntryData[], ctx: LexiconContext, forced?: ReadonlySet<LexiconEntryData>): Map<string, LexiconEntryData> {
   const out = new Map<string, LexiconEntryData>()
+  const rank = (e: LexiconEntryData) => SCOPE_RANK[e.scope] + (forced?.has(e) ? 10 : 0)
   for (const e of entries) {
-    if (!e.enabled || !inScope(e, ctx)) continue
+    if (!e.enabled || !(forced?.has(e) || inScope(e, ctx))) continue
     const key = toWorkingText(e.surface)
     const cur = out.get(key)
-    if (!cur || SCOPE_RANK[e.scope] > SCOPE_RANK[cur.scope]) out.set(key, e)
+    if (!cur || rank(e) > rank(cur)) out.set(key, e)
   }
   return out
 }

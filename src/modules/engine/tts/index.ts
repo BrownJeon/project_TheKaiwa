@@ -5,18 +5,19 @@
  *                           상태등 판정(§12)이 "지금 쓸 수 없는 연결" 도 알아야 해서 Router(가용만)와 따로 둔다. DISABLED·enabled=false 제외.
  *   synthesize(target, …) : 그 connection 의 Effective 설정으로 어댑터 호출(30초 메모리 캐시).
  *   maxChars(target)      : 세그먼트 글자 수 상한.
+ *   g2p(target, …)        : 엔진이 실제로 읽을 읽기·악센트(발음 사전 미리듣기, task-003g). 어댑터에 없으면 MISCONFIGURED(NO_G2P).
  */
 import type { EngineConnection, EngineStatus } from '@prisma/client'
 import { prisma } from '@/modules/infra'
 import { profileOf } from '../health'
 import { getProvider } from '../registry'
-import type { ConnectionProfile, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef } from '../registry/types'
+import type { ConnectionProfile, TtsG2pOutput, TtsLexiconHint, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef } from '../registry/types'
 import { currentEnvironment } from '../router'
 import { TtsEngineError } from './errors'
 
 export { TtsEngineError, isTtsEngineError } from './errors'
 export type { TtsFailureKind } from './errors'
-export type { TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics } from '../registry/types'
+export type { TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics, TtsG2pOutput } from '../registry/types'
 
 export interface TtsTarget {
   id: string
@@ -78,4 +79,10 @@ export async function maxChars(target: TtsTarget): Promise<number> {
 export async function synthesize(target: TtsTarget, voice: TtsVoiceRef, segment: TtsSegmentInput, opts: { traceId: string; timeoutMs: number }): Promise<TtsSynthOutput> {
   const adapter = adapterOf(target)
   return adapter.synthesize(await profileFor(target), voice, segment, opts)
+}
+
+export async function g2p(target: TtsTarget, text: string, hints: readonly TtsLexiconHint[], opts: { timeoutMs: number }): Promise<TtsG2pOutput> {
+  const adapter = adapterOf(target)
+  if (!adapter.g2p) throw new TtsEngineError('MISCONFIGURED', 'NO_G2P')
+  return adapter.g2p(await profileFor(target), text, hints, opts)
 }

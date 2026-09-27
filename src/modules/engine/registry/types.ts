@@ -160,8 +160,18 @@ export interface TtsSynthOutput {
   metrics: TtsSynthMetrics
 }
 
+/** 엔진이 실제로 읽을 읽기·악센트(발음 사전 미리듣기, task-003g). 문자열은 가나·악센트 기호뿐 — 엔진명·모델명 없음. */
+export interface TtsG2pOutput {
+  normalizedText: string
+  reading: string
+  /** 상승 `↑`·하강 `↓` 표기(구두점에서 끊김). */
+  accent: string
+}
+
 export interface TtsAdapter {
   /** 세그먼트 글자 수 상한(Effective 설정). */
   maxChars(values: Record<string, unknown>): number
   synthesize(profile: ConnectionProfile, voice: TtsVoiceRef, segment: TtsSegmentInput, opts: { traceId: string; timeoutMs: number }): Promise<TtsSynthOutput>
+  /** 읽기 확인(선택). 사전 힌트 적용은 합성과 같은 방식으로 어댑터가 한다. 없으면 파사드가 MISCONFIGURED(NO_G2P). */
+  g2p?(profile: ConnectionProfile, text: string, hints: readonly TtsLexiconHint[], opts: { timeoutMs: number }): Promise<TtsG2pOutput>
 }

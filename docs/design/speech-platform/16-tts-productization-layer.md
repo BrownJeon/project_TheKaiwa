@@ -74,13 +74,13 @@ flowchart TD
 | L-1 | 같은 `surface` 가 여러 scope 에 있으면 가장 좁은 scope 1건만 적용. 같은 scope 안에서는 unique 라 충돌 없음(문맥은 ref 를 하나씩만 가진다) |
 | L-2 | 문장 안에서는 **최장 일치 우선**(`日本橋駅` 항목이 있으면 `日本橋` 보다 먼저), 같은 길이면 `priority` 큰 쪽 |
 | L-3 | `enabled=false` 는 매칭에서 제외되지만 스냅샷·Export 에는 남는다 |
-| L-4 | `reading` 은 가타카나·長音符 만, `accentType ≤ 모라 수`; 위반 시 `E_LEXICON_ENTRY_INVALID`(422) |
+| L-4 | `reading` 은 가타카나·長音符 만(≤60), `accentType ≤ 모라 수`, `priority` 0~1000; 위반 시 422 `UNPROCESSABLE` + `details.reason=E_LEXICON_ENTRY_INVALID`(칸 코드 `E_READING`·`E_ACCENT`… — api-contract §7-2a). 표기는 가나·한자 1자 이상·공백/제어 문자 없음(`E_SURFACE_NOT_JA`·`E_SURFACE_CHARS`, task-003g) |
 | L-5 | USER scope 는 학습자 이름·선생님 이름(`Profile.teacherName`) 등 개인 고유명사 전용. Phase 2 설정 화면에서 학습자가 자기 읽기를 등록(관리자 API 와 같은 검증) |
 
 ### 2.3 버전 · 롤백(§132)
 
-- 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 모두 **한 트랜잭션에서 새 `PronunciationLexiconVersion`** 을 만들고 직전 ACTIVE 를 SUPERSEDED 로 내린다. 연속 편집은 UI 의 "변경 묶어서 게시"(draft 항목은 `versionId=null` 보관, 게시 시 1버전)로 묶는다.
-- Rollback 은 삭제가 아니라 **대상 버전 스냅샷을 복사한 새 버전**(기존 ConfigurationVersion 원칙과 동일). 대상 버전은 ROLLED_BACK 표시. `AuditLog(scope=LEXICON)` 필수, PRODUCTION 은 `config.apply.production`(SUPER_ADMIN 확인). 별도 `ConfigurationVersion` 행은 만들지 않는다(스냅샷이 수천 행이라 자체 버전 테이블이 정본).
+- 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 모두 **한 트랜잭션에서 새 `PronunciationLexiconVersion`** 을 만들고 직전 ACTIVE 를 SUPERSEDED 로 내린다. "변경 묶어서 게시"(draft 항목 `versionId=null`)는 엔티티에 칸이 없어 task-003g 에서는 **저장 1번 = 버전 1개**(묶음 게시는 스키마 변경 = 사용자 승인 사항).
+- Rollback 은 삭제가 아니라 **대상 버전 스냅샷을 복사한 새 버전**(기존 ConfigurationVersion 원칙과 동일). **밀려난 직전 ACTIVE 가 ROLLED_BACK**, 복원 대상 버전의 상태는 그대로(admin-console/09 §5 와 같은 뜻 — task-003g 정리). `AuditLog` 필수(`scope=null` + `action='lexicon.*'` + `targetId='lexicon:v<n>'` — `ConfigScope` 에 LEXICON 이 없고 enum 추가는 db push 라 task-003g 에서 하지 않음), PRODUCTION 은 `config.apply.production`(SUPER_ADMIN) + 확인 문구 `confirm:"PRODUCTION"`. 별도 `ConfigurationVersion` 행은 만들지 않는다(스냅샷이 수천 행이라 자체 버전 테이블이 정본). 되돌려도 항목 표가 같으면 409 `NO_CHANGE`.
 - 게시 직후 앱은 래퍼에 `POST /admin/lexicon/apply {dictionaryVersion, snapshotHash, entries[]}` 로 컴파일을 미리 시킨다(실패해도 게시는 유효 — 요청 시 lazy 컴파일). 래퍼는 최근 3개 버전의 산출물을 보관해 캐시 미스 재합성·회귀 실행이 옛 버전을 요구해도 응답한다.
 
 ### 2.4 적용 방식 — A(기본) / B(보조), 둘 다 `dictionaryVersion` 으로 키 지정
@@ -95,7 +95,7 @@ flowchart TD
 ### 2.5 Import / Export · Preview · 화면(§131)
 
 - **형식**: CSV(UTF-8, 헤더 `surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled`) 와 같은 키의 JSON 배열. Export 머리에 `dictionaryVersion`·`environment`·`exportedAt`. Import 는 `mode=MERGE|REPLACE_SCOPE` + `dryRun=true` 로 diff(추가·수정·삭제 건수, 오류 행)를 먼저 보여 준 뒤 게시 → 새 버전.
-- **Preview**: `POST /api/admin/v1/lexicon/preview {text(≤200), voiceId?, draftEntries?[]}` → 래퍼 `/g2p` 읽기·악센트 문자열 + 합성 오디오(`bypassCache`, `RequestTrace(PLAYGROUND)`, 캐시 저장 안 함). 저장 전 항목의 효과를 듣는 용도(§131 "발음 미리듣기").
+- **Preview**: `POST /api/admin/v1/lexicon/preview {text(≤200), voiceId?, draftEntries?[], compare?, side?}` → 래퍼 `/g2p` 읽기·악센트 문자열(`before` = 지금 사전, `after` = 초안 적용)·적용 항목, 소리는 같은 경로 `Accept: audio/wav` + `side`(`bypassCache`, `RequestTrace(PLAYGROUND)`, 캐시 저장 안 함 — task-003g, api-contract §7-2a). 저장 전 항목의 효과를 듣는 용도(§131 "발음 미리듣기").
 - **Admin 페이지 Pronunciation Dictionary**(`(admin)/admin/speech/tts/lexicon`, `voices.manage`; 읽기 `voices.read`): 검색(표기·읽기·scope) · 추가 · 수정 · 삭제 · Import · Export · Preview · Version History(버전 목록·diff·`changeSummary`) · Rollback. **API**(api-contract §7): `GET/POST /api/admin/v1/lexicon`, `PUT/DELETE …/lexicon/:id`, `POST …/lexicon/import`, `GET …/lexicon/export`, `POST …/lexicon/preview`, `GET …/lexicon/versions`, `POST …/lexicon/versions/:version/rollback`.
 
 ## 3. Japanese Text Normalizer (`speech/tts/normalizer`, §134)

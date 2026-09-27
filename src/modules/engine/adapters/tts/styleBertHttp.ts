@@ -17,7 +17,7 @@
  * 보낸다(`infra.readServiceSecretFor`). DB·Effective baseUrl 의 origin 이 다르거나 env 가 비면 **호출 자체를 하지 않고** MISCONFIGURED.
  */
 import { readServiceSecretFor } from '@/modules/infra'
-import type { ConnectionProfile, HealthDetail, TtsLexiconHint, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef } from '../../registry/types'
+import type { ConnectionProfile, HealthDetail, TtsG2pOutput, TtsLexiconHint, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef } from '../../registry/types'
 import { TtsEngineError } from '../../tts/errors'
 import { healthUrl, pickCommonDetail } from '../common/httpHealth'
 
@@ -167,6 +167,64 @@ export async function synthesizeHttp(profile: ConnectionProfile, voice: TtsVoice
       styleFallback: res.headers.get('x-kaiwa-style-fallback') === '1',
     },
   }
+}
+
+/** 서비스 `/g2p` 입력 상한(README §2) — 치환 뒤 길이 기준. */
+export const G2P_MAX_CHARS = 200
+const MAX_G2P_BYTES = 64 * 1024
+const G2P_TEXT = /^[^\u0000-\u001f\u007f]{0,2000}$/
+
+/**
+ * 읽기 확인(`POST /g2p {text}` → `{normalizedText, reading, accent}`) — 발음 사전 미리듣기(task-003g). 합성과 같은 방식으로
+ * 사전 힌트를 표기→가타카나 치환한 뒤 보낸다(엔진이 실제로 읽을 모양). 시크릿 전송·리다이렉트·응답 상한 규칙은 합성과 같다.
+ * 응답 문자열은 제어문자 없는 2,000자 이하만 받는다(그 밖은 BAD_AUDIO 가 아니라 ENGINE_ERROR).
+ */
+export async function g2pHttp(profile: ConnectionProfile, text: string, hints: readonly TtsLexiconHint[], opts: { timeoutMs: number }): Promise<TtsG2pOutput> {
+  const url = healthUrl(profile.values['connection.baseUrl'], '/g2p')
+  if (!url) throw new TtsEngineError('MISCONFIGURED', 'BAD_BASE_URL')
+  const grant = readServiceSecretFor('TTS_SERVICE_SECRET', url)
+  if (!grant.ok) throw new TtsEngineError('MISCONFIGURED', grant.reason)
+  const body = substituteReadings(text, hints)
+  if ([...body].length > G2P_MAX_CHARS) throw new TtsEngineError('TEXT_TOO_LONG', 'TEXT_TOO_LONG')
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      redirect: 'manual',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(opts.timeoutMs),
+      headers: { 'content-type': 'application/json', accept: 'application/json', 'x-internal-secret': grant.secret },
+      body: JSON.stringify({ text: body }),
+    })
+  } catch (e) {
+    const code = networkCode(e)
+    throw new TtsEngineError(code === 'ETIMEDOUT' ? 'TIMEOUT' : 'UNAVAILABLE', code)
+  }
+  if (res.status !== 200) {
+    const code = await errorCode(res)
+    if (res.status === 401 || res.status === 403) throw new TtsEngineError('MISCONFIGURED', `HTTP_${res.status}`)
+    if (res.status === 413 || code === 'TEXT_TOO_LONG') throw new TtsEngineError('TEXT_TOO_LONG', code || `HTTP_${res.status}`)
+    if (res.status === 503 || res.status === 502 || res.status === 504) throw new TtsEngineError('UNAVAILABLE', code || `HTTP_${res.status}`)
+    if (res.status >= 400 && res.status < 500) throw new TtsEngineError('REJECTED', code || `HTTP_${res.status}`)
+    throw new TtsEngineError('ENGINE_ERROR', code || `HTTP_${res.status}`)
+  }
+  let json: unknown
+  try {
+    const buf = await readCapped(res, MAX_G2P_BYTES)
+    if (!buf) throw new TtsEngineError('ENGINE_ERROR', 'G2P_TOO_LARGE')
+    json = JSON.parse(buf.toString('utf8'))
+  } catch (e) {
+    if (e instanceof TtsEngineError) throw e
+    const code = networkCode(e)
+    throw new TtsEngineError(code === 'ETIMEDOUT' ? 'TIMEOUT' : 'ENGINE_ERROR', code === 'NETWORK_ERROR' ? 'G2P_BAD_JSON' : code)
+  }
+  const j = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === 'string' && G2P_TEXT.test(v) ? v : null)
+  const normalizedText = str(j.normalizedText)
+  const reading = str(j.reading)
+  const accent = str(j.accent)
+  if (normalizedText === null || reading === null || accent === null) throw new TtsEngineError('ENGINE_ERROR', 'G2P_BAD_SHAPE')
+  return { normalizedText, reading, accent }
 }
 
 /**
