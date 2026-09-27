@@ -85,6 +85,8 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 없음(003f).
 
 ## 판단 기록 (judge)
+- [2026-09-28 02:35] intake engine=jev → task_type=feature, risk=R1, developer_model=opus, next=assign | overrides=- | fallback=- | tokens=1127
+  - **override**(Leader): risk **R2** 적용 — 신호도 high 0.51/normal 0.49 경계이고, 이번 범위에 서명 URL(인증 우회 시 타인 오디오 노출)·발화 소유 검사(IDOR)·자식 프로세스 수명(누수·고아) 이 들어 있어 보안·운영 위험을 R2 로 본다. developer_model=opus·next=assign 채택.
 
 ## Codex 검토
 
@@ -103,3 +105,4 @@ design-spec §15 task-007 — **말로 대화하는 AI 회화방**. 푸시투토
 ## QA 기록
 
 ## 최종 요약
+- [2026-09-28 03:15] codex_gate/C1 engine=jev → codex_required=true, mode=adversarial-review, focus=security, budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=862
