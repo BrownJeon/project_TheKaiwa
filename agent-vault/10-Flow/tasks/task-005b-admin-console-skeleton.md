@@ -1,7 +1,7 @@
 ---
 task_id: task-005b
 title: "Admin Console 골격 (읽기 + Health·Functional Test)"
-status: done-deploy-pending
+status: done
 base_ref: 36ebc7e
 risk_level: R2
 roles_involved: [leader, judge, designer, developer, reviewer, qa, codex]
@@ -301,7 +301,7 @@ design-spec §15 task-005b: Admin/Developer AI Engine Console 의 Phase 1 골격
 **검증**: reviewer REV-009 PASS_WITH_NOTES(Medium 1: 운영 대상 상세 설정 조회 감사 누락 / Low 3) + **Codex C2 보안 검토(지적 1건 = 같은 Medium)** → 수정 `a17bc53` → 재검증 PASS → QA-013 FAIL(Medium: 콘솔 버튼·칩 44px 미만) → 수정 `647c380` → 재검증 PASS → **QA 재측정 PASS**. 권한 매트릭스를 역할 4종 × 엔드포인트 18개(72회) 직접 호출로 대조, 응답 158건에 비밀값·서버 경로 0, 운영 도메인에서 QA 관리자 쿠키 무효, 3폭·1024↑ 화면, 학습자 화면 회귀 0. 단위 테스트 207/207, 라이브 스모크 47/47.
 **Codex**: C1(설계)은 한도 소진 시점이라 생략, C2(구현) 1회 실행(1/4).
 
-**⚠ 운영 반영 상태**: 2026-09-27 18:26 사용자 지시 배포에 이 task 의 **수정 전 코드(`109893f`)** 가 들어가 있습니다. 수정분(`a17bc53` 감사 기록·경로 마스킹, `647c380` 터치 44px)은 **재빌드·재시작이 필요**합니다.
+**⚠ 운영 반영 상태**: 2026-09-27 18:26 사용자 지시 배포에 이 task 의 **수정 전 코드(`109893f`)** 가 들어가 있습니다. 수정분(`a17bc53`·`647c380`)은 **19:15 사용자 지시로 재배포 완료**(격리 빌드 스모크 47/47 선검증 → 미러 build → `pm2 restart`, https 200).
 **로드맵 조정(사용자 확인 사항)**: ① 발음 사전(원래 이 task 의 P0)은 TTS 서비스가 있어야 동작해 **task-003 이후로 이월** ② 비밀 참조 연결 쓰기(#93b)는 **Phase 2** 로 이월 ③ functional test 30초 제한의 원자성(Low)은 Phase 2 backlog.
 **발견**: 운영 pm2 가 `APP_ENV=LOCAL` 로 돌아 콘솔 배지가 LOCAL·PRODUCTION 보호 규칙 미발동, 그리고 개발 서버에서 상태 점검을 돌리면 운영이 쓰는 connection 상태 행이 잠시 바뀐다(같은 DB·같은 LOCAL 행) → task-009 에서 운영 환경 분리 필요.
 - [2026-09-27 17:30] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=security / budget_rule=CX-limit-ok | overrides=- | fallback=- | tokens=995

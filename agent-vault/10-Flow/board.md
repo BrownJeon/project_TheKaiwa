@@ -7,9 +7,9 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
-- [[task-005b-admin-console-skeleton]] — **Admin Console 골격**(2026-09-27). 권한 매트릭스·404/403·Effective Config+출처·Plugins/Connections·Health/Functional Test·Trace·비밀 이름만+감사, 콘솔 화면 14. REV-009+Codex C2(보안)→수정→QA-013(터치 44px)→수정→PASS. 발음 사전·#93b 이월. **수정분 운영 재반영 대기**
-- [[task-008-vocab-today-words]] — **단어장 최소판 + 오늘의 단어**(2026-09-27). 라우트 18(#40~#46b·#47~#54)·가중 샘플링·정답 미노출·서버 채점·finish 단일 트랜잭션·A10 초안, 화면(단어장·오늘 홈·스와이프 덱·결과). REV-008(H1 수정)→PASS·QA-012 PASS(2프로세스 실경합·실브라우저 3폭). **운영 반영 사용자 대기**·Codex C1/C2 한도 충전 후 재확인
-- [[task-006-chat-correction]] — **AI 채팅 + 표현 점검 + 교정 채택**(2026-09-27). 서버 13라우트·SSE 턴·사용자당 락·점검(동기/잡)·채택 트랜잭션, 화면 3종. REV-007 PASS_WITH_NOTES·QA-011 PASS(결함 0, 2프로세스 경합 실증). **운영 반영(pm2 재시작) 사용자 결정 대기**·Codex C1/C2 한도 충전 후 재확인
+- [[task-005b-admin-console-skeleton]] — **Admin Console 골격**(2026-09-27). 권한 매트릭스·404/403·Effective Config+출처·Plugins/Connections·Health/Functional Test·Trace·비밀 이름만+감사, 콘솔 화면 14. REV-009+Codex C2(보안)→수정→QA-013(터치 44px)→수정→PASS. 발음 사전·#93b 이월. 19:15 운영 반영
+- [[task-008-vocab-today-words]] — **단어장 최소판 + 오늘의 단어**(2026-09-27). 라우트 18(#40~#46b·#47~#54)·가중 샘플링·정답 미노출·서버 채점·finish 단일 트랜잭션·A10 초안, 화면(단어장·오늘 홈·스와이프 덱·결과). REV-008(H1 수정)→PASS·QA-012 PASS(2프로세스 실경합·실브라우저 3폭). 운영 반영(18:26)·Codex C2 지적 2건 수정
+- [[task-006-chat-correction]] — **AI 채팅 + 표현 점검 + 교정 채택**(2026-09-27). 서버 13라우트·SSE 턴·사용자당 락·점검(동기/잡)·채택 트랜잭션, 화면 3종. REV-007 PASS_WITH_NOTES·QA-011 PASS(결함 0, 2프로세스 경합 실증). 운영 반영(18:26)·Codex C2 지적 0
 - [[task-017-dev-env-judge-codex]] — **개발환경 개선 선도입**(2026-09-27): judge(Jev 판정)·codex(외부 검토) 에이전트 적용, 공용 도구·템플릿, 테스트 18건·독립 리뷰 PASS. 실제 호출 검증은 task-006 진행 중
 - [[task-005-settings-attendance]] — **설정 허브·출석**(2026-09-27). API 7개·설정 화면 4섹션·AttendancePing, reviewer 2회(High 1 포함 8건 수정)·QA 9항목 PASS. 미리듣기 소리는 task-003 후
 - [[task-004-ai-client-persona]] — **AI 클라이언트·페르소나 로더·프롬프트 3종**(2026-09-27). CLI 지연 원인 2개 해소 → 회화 턴 p50 5.1s·검출 16/16·오탐 0/4, reviewer 2회(Critical 1 수정)·QA 9항목 PASS. 4s 목표·qwen 비교는 후속 → [[llm-japanese-quality]]
