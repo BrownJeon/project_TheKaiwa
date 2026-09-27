@@ -294,3 +294,113 @@ test('gate 거절(발화 404)·채팅 확인 거절이면 LLM 도 수락도 시�
   assert.equal(currentTurnLock('u-rev014-m2-b'), null)
   assert.equal(currentTurnLock('u-rev014-m2-c'), null)
 })
+
+// ── 불일치·자막 전환 뒤 진행 중 합성을 기다리지 않는다(Codex C2-2) ─────────────
+
+test('불일치 확정 → 느린 조기 합성이 아직 돌아도 settled 즉시, 그 합성이 끝나도 이벤트 0', async () => {
+  let release: () => void = () => {}
+  const gate = new Promise<void>((r) => (release = r))
+  const h = harness(async (req) => {
+    await gate
+    return okResult(req)
+  })
+  h.feed('{"speech":{"style":"CALM"},"conversation":{"replyJa":"そうですね。映画')
+  await sleep(10)
+  assert.equal(h.calls.length, 1, '조기 청크 합성 진행 중')
+  h.audio.finalize('いいですね。映画は好きですか？', 'CALM')
+  const r = await Promise.race([h.audio.settled().then(() => 'SETTLED'), sleep(50).then(() => 'TIMEOUT')])
+  assert.equal(r, 'SETTLED', '진행 중 합성(최대 9s)을 기다리지 않는다')
+  const eventsAtSettle = h.events.length
+  release()
+  await sleep(30)
+  assert.equal(h.events.length, eventsAtSettle, 'settled 뒤(= done 뒤) 끝난 합성은 아무것도 내보내지 않는다')
+  assert.equal(h.audios().length, 0)
+})
+
+test('TEXT_ONLY(동시 2): 한 청크가 자막 전환을 알리면 다른 청크 합성을 기다리지 않고 settled — 늦게 끝난 청크도 이벤트 0', async () => {
+  let release: () => void = () => {}
+  const gate = new Promise<void>((r) => (release = r))
+  const h = harness(
+    async (req) => {
+      if (req.chunkIndex === 0) return { status: 'FAILED', executionMode: 'TEXT_ONLY', url: null, cacheKey: null, durationMs: null, cached: false, pauseBeforeMs: 0, errorCode: 'TTS_UNAVAILABLE' }
+      await gate
+      return okResult(req)
+    },
+    { early: false },
+  )
+  h.audio.finalize('はい。そうです。そうですね。', 'CALM')
+  const r = await Promise.race([h.audio.settled().then(() => 'SETTLED'), sleep(50).then(() => 'TIMEOUT')])
+  assert.equal(r, 'SETTLED')
+  assert.deepEqual(h.warnings(), ['TTS_UNAVAILABLE'])
+  const n = h.events.length
+  release()
+  await sleep(30)
+  assert.equal(h.events.length, n)
+  assert.equal(h.audios().length, 0)
+})
+
+test('회귀: 정상 경로는 진행 중 청크가 끝나야 settled', async () => {
+  let release: () => void = () => {}
+  const gate = new Promise<void>((r) => (release = r))
+  const h = harness(async (req) => {
+    if (req.chunkIndex === 1) await gate
+    return okResult(req)
+  }, { early: false })
+  h.audio.finalize('はい。そうです。', 'CALM')
+  const r = await Promise.race([h.audio.settled().then(() => 'SETTLED'), sleep(50).then(() => 'TIMEOUT')])
+  assert.equal(r, 'TIMEOUT')
+  release()
+  await h.audio.settled()
+  assert.equal(h.audios().length, 2)
+})
+
+test('턴 전체(Codex C2-2): 조기 문장 뒤 재시도로 답이 바뀌면 느린 합성을 기다리지 않고 done 이 곧바로 나가고, done 뒤 이벤트 0', async (t) => {
+  t.after(() => mock.restoreAll())
+  let release: () => void = () => {}
+  const gate = new Promise<void>((r) => (release = r))
+  mock.method(turnDeps, 'precheckChat', async () => ({ kind: 'TALK', level: 'N5' }))
+  mock.method(turnDeps, 'buildLearnerHeader', async () => ({ level: 'N5' }))
+  mock.method(turnDeps, 'loadRecentHistory', async () => [])
+  mock.method(turnDeps, 'acceptTurn', async () => ({
+    chatId: 'c-c22',
+    kind: 'TALK',
+    level: 'N5',
+    userMessage: { id: 'um-c22', content: 'はい', createdAt: new Date(), inputSource: 'TEXT' },
+    assistantMessageId: 'am-c22',
+    pendingSince: new Date(),
+    traceId: 't_c22',
+    resumed: false,
+  }))
+  mock.method(turnDeps, 'saveTurn', async () => ({ correction: null, proposals: [] }))
+  const final = { speech: { style: 'CALM' }, conversation: { replyJa: 'いいですね。映画は好きですか？', replyReading: 'x', replyKo: 'y' }, correction: null, learning: { grammarPoint: null, difficulty: 'N5' }, endOfTopic: false, proposals: [] }
+  mock.method(turnDeps, 'completeJson', async (req: { onTextDelta?: (d: string, call: number) => void }) => {
+    req.onTextDelta?.('{"speech":{"style":"CALM"},"conversation":{"replyJa":"そうですね。映画', 1)
+    await sleep(30)
+    return { data: final, connectionKey: 'k', model: 'm', elapsedMs: 30, promptChars: 10, attempts: 2, warm: 'HIT', firstDeltaMs: 5, residualViolations: [], candidates: [final] }
+  })
+  const handle = await startTurn({
+    userId: 'u-c22',
+    chatId: 'c-c22',
+    request: { resume: false, text: 'はい', inputSource: 'TEXT', utteranceId: null, clientTimings: null },
+    hooks: {
+      speaker: () => async (req) => {
+        await gate // 조기 청크 합성이 오래 걸린다(최대 9s 상한까지)
+        return okResult(req)
+      },
+    },
+  })
+  const events: TurnEvent[] = []
+  const sub = handle.subscribe((e) => events.push(e))
+  const r = await Promise.race([sub.then(() => 'DONE'), sleep(1_500).then(() => 'TIMEOUT')])
+  assert.equal(r, 'DONE', 'done 이 합성 상한(9s)을 기다리지 않는다')
+  const names = events.map((e) => e.event)
+  assert.equal(names.at(-1), 'done')
+  assert.ok(events.some((e) => e.event === 'status' && (e.data as { warning?: string }).warning === 'AUDIO_TEXT_MISMATCH'))
+  assert.ok(!names.includes('audio'))
+  assert.equal((events.at(-1)!.data as { audioCount: number }).audioCount, 0)
+  const n = events.length
+  release()
+  await sleep(50)
+  assert.equal(events.length, n, 'done 뒤 이벤트 0')
+  assert.equal(currentTurnLock('u-c22'), null)
+})

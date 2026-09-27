@@ -13,6 +13,12 @@ export const SPEECH_KEYS = ['recognitionMode', 'explainLang'] as const
 
 export const JLPT = ['N5', 'N4', 'N3', 'N2', 'N1'] as const
 export const SPEECH_PROFILES = ['NATIVE', 'LEARNING_NORMAL', 'LEARNING_SLOW', 'PRONUNCIATION', 'SHADOWING'] as const
+/**
+ * #14 저장·#18 미리듣기 draft 로 받는 프로필 — 설정 화면 선택지 3종만(Codex task-007 C2-1). PRONUNCIATION·SHADOWING 은 화면이
+ * 요청 단위로 지정한다(#23 `speechProfile`, 정본 speech-platform/13 §3·16 §5). 2026-09-28 운영 DB 저장 행은 NATIVE·LEARNING_SLOW 뿐이라
+ * 이 제한으로 깨지는 기존 행은 없다(설정 화면·회화방 메뉴도 3종만 보낸다).
+ */
+export const USER_SPEECH_PROFILES = ['NATIVE', 'LEARNING_NORMAL', 'LEARNING_SLOW'] as const
 export const RECOGNITION_MODES = ['AUTO', 'FAST', 'ACCURATE', 'OFFLINE'] as const
 
 const bad = (field: string, reason: string, message: string): never => {
@@ -110,7 +116,7 @@ export function parseVoiceDraft(body: Record<string, unknown>, opts: { requireSp
     speed: num(body.speed, 'speed', 0.6, 1.2)!,
     pitch: num(body.pitch, 'pitch', 0.8, 1.2)!,
     intonation: num(body.intonation, 'intonation', 0.8, 1.2)!,
-    speechProfile: opts.requireSpeechProfile || 'speechProfile' in body ? oneOf(body.speechProfile, 'speechProfile', SPEECH_PROFILES)! : 'NATIVE',
+    speechProfile: opts.requireSpeechProfile || 'speechProfile' in body ? oneOf(body.speechProfile, 'speechProfile', USER_SPEECH_PROFILES)! : 'NATIVE',
   }
 }
 

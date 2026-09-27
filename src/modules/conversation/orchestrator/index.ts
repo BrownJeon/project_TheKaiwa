@@ -379,7 +379,7 @@ async function processTurn(p: ProcessInput): Promise<void> {
       warm: r.warm ?? null,
       meta: { learning: shaped.learning, style: shaped.speech.style, endOfTopic: shaped.endOfTopic, warning: shaped.warning },
     }
-    const saved = await saveTurn(userId, a, shaped, toolLog)
+    const saved = await turnDeps.saveTurn(userId, a, shaped, toolLog)
     steps.push({ name: 'SAVE', ms: Date.now() - t })
     // 저장이 끝났으면 다음 턴을 받아도 된다 — 남은 합성은 락과 무관하다.
     release()
@@ -432,12 +432,13 @@ async function patchToolLog(a: AcceptedTurn, toolLog: ToolLog): Promise<void> {
 }
 
 /**
- * 수락 경로의 DB·LLM 의존(REV-014 M2) — 운영 코드는 이 객체를 통해서만 부르고, 단위 테스트는 `mock.method(turnDeps, …)` 로
- * 바꿔 끼워 "gate 통과 → LLM 선행 시작 → 수락 거절" 인터리빙(LLM abort·행 0·이벤트 0)을 DB 없이 재현한다.
+ * 턴 경로의 DB·LLM 의존(REV-014 M2·Codex C2-2) — 운영 코드는 이 객체를 통해서만 부르고, 단위 테스트는 `mock.method(turnDeps, …)` 로
+ * 바꿔 끼워 "gate 통과 → LLM 선행 시작 → 수락 거절"(LLM abort·행 0·이벤트 0)과 "불일치 뒤 느린 합성이 있어도 done 즉시" 를 DB 없이 재현한다.
  */
 export const turnDeps = {
   precheckChat,
   acceptTurn,
+  saveTurn,
   loadRecentHistory,
   buildLearnerHeader,
   completeJson: <T>(req: LlmJsonRequest<T>): Promise<LlmJsonResult<T>> => llm.completeJson<T>(req),

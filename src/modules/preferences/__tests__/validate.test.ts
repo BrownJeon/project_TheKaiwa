@@ -38,6 +38,15 @@ test('음성 draft: 범위(속도 0.6~1.2·높낮이·억양 0.8~1.2·styleWeigh
   assert.equal(parseVoiceDraft(noProfile, { requireSpeechProfile: false }).speechProfile, 'NATIVE')
 })
 
+test('음성 draft(task-007 Codex C2-1): 저장·미리듣기 프로필은 설정 화면 3종만 — PRONUNCIATION·SHADOWING 은 화면이 요청 단위로', () => {
+  const base = { voiceProfileId: 'teacher_haruka', style: 'AUTO', speed: 0.9, pitch: 1, intonation: 1.1 }
+  for (const p of ['NATIVE', 'LEARNING_NORMAL', 'LEARNING_SLOW']) assert.equal(parseVoiceDraft({ ...base, speechProfile: p }, { requireSpeechProfile: true }).speechProfile, p)
+  for (const p of ['PRONUNCIATION', 'SHADOWING']) {
+    assert.match(code(() => parseVoiceDraft({ ...base, speechProfile: p }, { requireSpeechProfile: true })), /^VALIDATION/, `PUT ${p}`)
+    assert.match(code(() => parseVoiceDraft({ ...base, speechProfile: p }, { requireSpeechProfile: false })), /^VALIDATION/, `미리듣기 ${p}`)
+  }
+})
+
 test('인식 모드: 웹에서 OFFLINE 은 400, 앱은 허용', () => {
   assert.match(code(() => parseSpeechPatch({ recognitionMode: 'OFFLINE', explainLang: 'ko' }, 'web')), /^VALIDATION:offline_web/)
   assert.deepEqual(parseSpeechPatch({ recognitionMode: 'OFFLINE', explainLang: 'ko' }, 'app'), { recognitionMode: 'OFFLINE', explainLang: 'ko' })

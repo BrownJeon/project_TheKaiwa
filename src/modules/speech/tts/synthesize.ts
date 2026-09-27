@@ -16,7 +16,7 @@ import { TtsRequestError, TtsUnavailableError } from './errors'
 import { lexiconDigest, loadActiveLexicon, selectEntries } from './lexicon'
 import { stopwatch, synthSteps, ttsStep } from './metrics'
 import { resolveTtsParameters, type UserVoiceInput } from './parameterResolver'
-import { isSpeechProfile, PROFILE_POLICIES, type SpeechProfileName } from './profiles'
+import { PROFILE_POLICIES, resolveSpeechProfile, type SpeechProfileName } from './profiles'
 import { buildRenderingPlan, prepareSegments, type RequestedLabels } from './renderingPlan'
 import { assessAvailability, breakerOpen, recordSynthFailure, recordSynthSuccess } from './status'
 import { SEGMENT_STYLES, type LlmSpeechStyle, type SegmentStyle } from './types'
@@ -183,7 +183,7 @@ export async function prepareSentence(input: SynthesizeInput): Promise<PreparedS
   // draft(미리듣기)여도 저장된 learningSpeed 는 쓴다(LEARNING_SLOW 배속 — screens §7-11 ①).
   const setting = await getVoiceSettingForTts(input.userId)
   const voice = await pickVoice(input.voiceId, setting?.voiceProfileId)
-  const profile: SpeechProfileName = input.speechProfile ?? (isSpeechProfile(setting?.speechProfile) ? setting!.speechProfile : 'NATIVE')
+  const profile: SpeechProfileName = resolveSpeechProfile({ requested: input.speechProfile, saved: setting?.speechProfile, contextMode: input.contextMode })
 
   let t = stopwatch()
   const lex = await loadActiveLexicon(currentEnvironment())

@@ -5,6 +5,7 @@ import { deriveSubkey } from '@/modules/infra'
 import { readSignedTtsAudio, signTtsAudioToken, verifyTtsAudioToken, TTS_AUDIO_URL_PATH } from '../tts/audioUrl'
 import { clearRecentAudio, recallRecentAudio, recentAudioStats, rememberRecentAudio, RECENT_AUDIO_MAX_ENTRIES } from '../tts/recentAudio'
 import { chunkPauseMs } from '../tts/synthesize'
+import { PROFILE_POLICIES, resolveSpeechProfile } from '../tts/profiles'
 
 const saved = process.env.JWT_SECRET
 before(() => {
@@ -98,4 +99,20 @@ test('#24 MISS 경합 수정: 캐시 행 커밋 전에도 서명 검증을 통�
   assert.equal(await readSignedTtsAudio(U2, s.token), null, '타인 세션 — 보관소에 있어도 null')
   assert.equal(await readSignedTtsAudio(U1, 'garbage'), null)
   clearRecentAudio()
+})
+
+test('회화(TALK) 문맥은 저장된 SHADOWING·PRONUNCIATION 을 물려받지 않고 NATIVE 로 낮춘다(Codex C2-1) — 다른 문맥·요청 지정은 그대로', () => {
+  assert.equal(resolveSpeechProfile({ saved: 'SHADOWING', contextMode: 'TALK' }), 'NATIVE')
+  assert.equal(resolveSpeechProfile({ saved: 'PRONUNCIATION', contextMode: 'TALK' }), 'NATIVE')
+  const p = resolveSpeechProfile({ saved: 'SHADOWING', contextMode: 'TALK' })
+  assert.equal(PROFILE_POLICIES[p].gapMs, 0, 'NATIVE 간격 정책(직전 길이 아님)')
+  assert.equal(PROFILE_POLICIES[p].speedFactor, 1)
+  assert.equal(chunkPauseMs(p, 1, 0, null), 0, '동시 합성으로 직전 길이를 몰라도 틀린 쉼이 생기지 않는다')
+  for (const saved of ['NATIVE', 'LEARNING_NORMAL', 'LEARNING_SLOW'] as const) assert.equal(resolveSpeechProfile({ saved, contextMode: 'TALK' }), saved)
+  // 회귀: 회화가 아닌 문맥(#23 다시 듣기 TTS·미리듣기)은 저장값 그대로, 화면이 요청으로 지정하면 그 값.
+  assert.equal(resolveSpeechProfile({ saved: 'SHADOWING', contextMode: 'TTS' }), 'SHADOWING')
+  assert.equal(resolveSpeechProfile({ saved: 'SHADOWING', contextMode: 'PREVIEW' }), 'SHADOWING')
+  assert.equal(resolveSpeechProfile({ requested: 'SHADOWING', saved: 'NATIVE', contextMode: 'TALK' }), 'SHADOWING')
+  assert.equal(resolveSpeechProfile({ saved: 'BOGUS', contextMode: 'TTS' }), 'NATIVE')
+  assert.equal(resolveSpeechProfile({ saved: null }), 'NATIVE')
 })

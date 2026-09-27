@@ -250,8 +250,14 @@ export class TurnAudio {
     }
   }
 
+  /**
+   * 모든 청크가 끝나면 풀린다. 단 불일치(AUDIO_TEXT_MISMATCH)·자막 전환(TEXT_ONLY)이 확정되면 **진행 중 합성을 기다리지 않는다**
+   * (Codex C2-2) — 그 결과는 어차피 내보내지 않으므로(run 의 가드) `done` 을 최대 청크 상한(9s)까지 늦출 이유가 없다.
+   * 진행 중이던 합성은 뒤에서 끝나 캐시에만 남고(이벤트 0), 그 청크의 관리자 Trace 단계는 빠질 수 있다.
+   * 진행 중 합성의 실제 취소(M4 요청 중단)는 하지 않는다 — speaker 에 AbortSignal 계약이 없다(후속).
+   */
   private checkSettled(): void {
-    if (this.total !== null && this.running === 0 && this.queue.length === 0) this.resolveSettled?.()
+    if (this.total !== null && this.queue.length === 0 && (this.running === 0 || this.m.mismatch || this.m.textOnly)) this.resolveSettled?.()
   }
 
   private async run(job: Job): Promise<void> {

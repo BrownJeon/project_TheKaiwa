@@ -38,6 +38,24 @@ export const PROFILE_POLICIES: Readonly<Record<SpeechProfileName, ProfilePolicy>
   SHADOWING: { speedFactor: 0.9, gapMs: 'PREVIOUS_DURATION', splitAtComma: false, pauseBeforeMs: 0, defaultLabel: 'CALM', honorLlmLabel: false, fixIntonation: false },
 }
 
+/**
+ * 사용자 설정(#14)으로 저장·상속할 수 있는 프로필 — 설정 화면 선택지 3종. PRONUNCIATION·SHADOWING 은 **화면이 요청 단위로** 지정한다
+ * (정본 speech-platform/13 §3·16 §5, domain-model UserVoiceSetting.speechProfile). Phase 1 은 3종만.
+ */
+export const USER_SPEECH_PROFILES = ['NATIVE', 'LEARNING_NORMAL', 'LEARNING_SLOW'] as const satisfies readonly SpeechProfileName[]
+
+/**
+ * 합성에 쓸 프로필 — 요청값(화면 문맥) > 사용자 저장값 > NATIVE. **회화(TALK) 문맥은 저장값에서 PRONUNCIATION·SHADOWING 을 물려받지
+ * 않는다**(Codex C2-1): 회화방은 그 두 프로필을 지정하는 화면이 아니고, SHADOWING 의 "직전 청크 길이만큼 쉼" 은 턴 청크 동시 합성
+ * (직전 길이를 모름)과 맞지 않는다. 옛 행·API 직접 호출로 저장된 값이 있어도 회화에서는 NATIVE 로 낮춘다.
+ */
+export function resolveSpeechProfile(i: { requested?: SpeechProfileName | null; saved?: unknown; contextMode?: string | null }): SpeechProfileName {
+  if (i.requested) return i.requested
+  const saved: SpeechProfileName = isSpeechProfile(i.saved) ? i.saved : 'NATIVE'
+  if (i.contextMode === 'TALK' && !(USER_SPEECH_PROFILES as readonly string[]).includes(saved)) return 'NATIVE'
+  return saved
+}
+
 /** LEARNING_SLOW 입력값 — 허용 프리셋만(범위 밖은 0.8). */
 export function learningSpeedFactor(v: unknown): number {
   return v === 0.6 || v === 0.8 || v === 1 ? v : 0.8
