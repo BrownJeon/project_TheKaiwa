@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { callClaude } from '../../src/modules/engine/adapters/llm/claudeCli'
 import { llm } from '../../src/modules/engine'
-import { buildTalkRequest, type TutorResponse } from '../../src/modules/conversation'
+import { buildTalkRequest, splitJaSentences, type TutorResponse } from '../../src/modules/conversation'
 
 type Item = { id: string; level: string; input: string; hasError: boolean; expectedCorrected?: string; errorType?: string }
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/talk-corrections.json'), 'utf8')) as { items: Item[] }
@@ -45,11 +45,20 @@ async function runTalk(label: string) {
       // 12s fail-fast 가 운영 값이지만 분포를 보려고 실측은 60s 까지 허용하고, 12s 초과 건수를 따로 센다.
       const r = await llm.completeJson<TutorResponse>({ ...req, timeoutMs: 60_000 })
       const c = r.data.correction
+      // task-007 K4-4: JSON.parse 는 소스 텍스트의 키 순서로 프로퍼티를 넣는다(extractAndValidate 가 재구성 없이
+      // parsed 를 그대로 돌려준다) — 그래서 Object.keys(r.data) 가 모델이 실제로 낸 키 순서다(가공 아님).
+      const topOrder = Object.keys(r.data as object)
+      const convOrder = Object.keys(r.data.conversation as object)
+      const topOrderOk = topOrder.includes('speech') && topOrder.includes('conversation') && topOrder.indexOf('speech') < topOrder.indexOf('conversation')
+      const convOrderOk = convOrder[0] === 'replyJa'
+      const sentences = splitJaSentences(r.data.conversation.replyJa)
       rows.push({
         id: it.id, ms: r.elapsedMs, attempts: r.attempts, model: r.model, promptChars: r.promptChars,
         hasError: it.hasError, detected: Boolean(c), errorType: c?.errorType ?? null, expectedType: it.errorType ?? null,
         correctedMatch: c && it.expectedCorrected ? norm(c.corrected) === norm(it.expectedCorrected) : null,
         replyJa: r.data.conversation.replyJa, corrected: c?.corrected ?? null,
+        topOrder, convOrder, topOrderOk, convOrderOk,
+        sentenceCount: sentences.length, firstSentenceChars: sentences[0]?.length ?? 0,
       })
     } catch (e) {
       rows.push({ id: it.id, ms: Date.now() - t, error: (e as Error).name + ': ' + (e as Error).message.slice(0, 160) })
@@ -61,6 +70,7 @@ async function runTalk(label: string) {
   const ms = ok.map((r) => r.ms as number)
   const errs = ok.filter((r) => r.hasError)
   const clean = ok.filter((r) => !r.hasError)
+  const firstSentenceChars = ok.map((r) => r.firstSentenceChars as number)
   return {
     label,
     n: rows.length,
@@ -71,6 +81,17 @@ async function runTalk(label: string) {
     falsePositive: `${clean.filter((r) => r.detected).length}/${clean.length}`,
     typeMatch: `${errs.filter((r) => r.errorType === r.expectedType).length}/${errs.length}`,
     correctedExact: `${errs.filter((r) => r.correctedMatch === true).length}/${errs.length}`,
+    // task-007 K4-4: 키 순서 준수율 — top: speech 가 conversation 보다 앞, conv: replyJa 가 conversation 의 첫 키.
+    topOrderRate: `${ok.filter((r) => r.topOrderOk).length}/${ok.length}`,
+    convOrderRate: `${ok.filter((r) => r.convOrderOk).length}/${ok.length}`,
+    bothOrderRate: `${ok.filter((r) => r.topOrderOk && r.convOrderOk).length}/${ok.length}`,
+    // pct(xs, 0) 은 기존 헬퍼의 인덱스 계산이 -1 이 되는 경계 버그가 있어(p=0 미사용) min 은 직접 구한다.
+    firstSentenceChars: {
+      min: firstSentenceChars.length ? Math.min(...firstSentenceChars) : NaN,
+      p50: pct(firstSentenceChars, 50),
+      p90: pct(firstSentenceChars, 90),
+      max: firstSentenceChars.length ? Math.max(...firstSentenceChars) : NaN,
+    },
     rows,
   }
 }
@@ -90,6 +111,8 @@ async function main() {
   for (const r of results) {
     console.log(`\n## ${r.label}\nn=${r.n} 실패=${r.failures} 재시도=${r.retried} p50=${r.p50}ms p95=${r.p95}ms max=${r.max}ms 12s초과=${r.over12s}`)
     console.log(`오류 검출 ${r.detectRate} · 오탐(정답 문장 교정) ${r.falsePositive} · 유형 일치 ${r.typeMatch} · 교정문 정확 일치 ${r.correctedExact}`)
+    console.log(`키 순서 준수 — top(speech<conversation) ${r.topOrderRate} · conv(replyJa 첫키) ${r.convOrderRate} · 둘 다 ${r.bothOrderRate}`)
+    console.log(`replyJa 첫 문장 글자 수 — min ${r.firstSentenceChars.min} p50 ${r.firstSentenceChars.p50} p90 ${r.firstSentenceChars.p90} max ${r.firstSentenceChars.max}`)
     for (const row of r.rows) console.log(JSON.stringify(row))
   }
   writeFileSync('/tmp/kaiwa-llm-measure.json', JSON.stringify({ at: new Date().toISOString(), baseline: b, results }, null, 1))

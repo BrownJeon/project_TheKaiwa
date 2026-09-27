@@ -6,7 +6,7 @@ import { renderTranscript } from '../../engine/llm'
 import { buildChatRequest } from '../prompts/chat'
 import { buildChatReviewRequest, REVIEW_MAX_CHARS, REVIEW_MAX_MESSAGES, ReviewTooLargeError } from '../prompts/chatReview'
 import { renderHeader, renderToday } from '../prompts/header'
-import { buildTalkRequest, TALK_USER_PROMPT_CAP } from '../prompts/talk'
+import { buildTalkRequest, talkInstruction, TALK_USER_PROMPT_CAP } from '../prompts/talk'
 
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/talk-corrections.json'), 'utf8')) as {
   items: { id: string; level: string; input: string; hasError: boolean }[]
@@ -39,6 +39,61 @@ test('헤더 상한과 선생님 이름 기본값, 오늘 요일', () => {
   assert.ok(renderHeader({ ...learner, goal: 'x'.repeat(400) }, 300).length <= 300)
   assert.match(renderHeader({ level: 'N5' }, 300), /선생님 이름 선생님/)
   assert.equal(renderToday('2026-09-27'), '[오늘] 2026-09-27 (일, KST)')
+})
+
+test('TALK: 출력 JSON 키 순서 지시문 — 최상위 speech 가 conversation 보다 먼저, conversation 안은 replyJa 가 먼저(task-007 K4-1)', () => {
+  const instr = talkInstruction()
+  assert.ok(instr.includes('speech → conversation'), '최상위 키 순서를 명시하는 지시문이 있어야 한다')
+  const speechIdx = instr.indexOf('"speech"')
+  const conversationIdx = instr.indexOf('"conversation"')
+  assert.ok(speechIdx !== -1 && conversationIdx !== -1 && speechIdx < conversationIdx, '[순서 예]의 speech 가 conversation 보다 앞이어야 한다')
+  const replyJaIdx = instr.indexOf('"replyJa"')
+  const replyReadingIdx = instr.indexOf('"replyReading"')
+  const replyKoIdx = instr.indexOf('"replyKo"')
+  assert.ok(replyJaIdx !== -1 && replyReadingIdx !== -1 && replyKoIdx !== -1)
+  assert.ok(replyJaIdx < replyReadingIdx && replyReadingIdx < replyKoIdx, 'conversation 안은 replyJa→replyReading→replyKo 순서여야 한다')
+})
+
+test('TALK: replyJa 첫 문장을 짧은 맞장구로 유도하는 지시·예시가 있다(TTFA, task-007 K4-2) — 교정 설명은 여전히 correction 에만', () => {
+  const instr = talkInstruction()
+  assert.ok(instr.includes('そうですね') && instr.includes('아주 짧은 맞장구'), '첫 문장을 짧게 유도하는 예시·지시가 있어야 한다')
+  assert.ok(instr.includes('최대 2문장'))
+  assert.ok(instr.includes('교정 설명') && instr.includes('replyJa 에 넣지 않습니다'), '교정 설명은 correction 에만 — 기존 원칙 유지')
+})
+
+test('TALK: altText + 최대 이력 창이 겹쳐도 사용자 프롬프트는 ≤3,000자(순서 지시문 추가 후 여유 확인, task-007 K4-1)', () => {
+  const req = buildTalkRequest({
+    todayKst: '2026-09-27',
+    learner,
+    history: longHistory,
+    text: '明日学校に行きました',
+    altText: 'これは音声認識の第二候補としてよくある長さの発話文です大体六十字くらいを想定していますよろしく',
+  })
+  const prompt = renderTranscript(req.system, req.messages)
+  assert.ok(prompt.length <= TALK_USER_PROMPT_CAP, `altText 조합 ${prompt.length}자`)
+})
+
+test('TALK: persona(→ claudeCli --system-prompt)는 날짜·헤더 세부값·altText·이력·발화가 달라도 바이트 동일 — 예열 프로세스 재사용 전제(task-007 K4-3)', () => {
+  const a = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
+  const b = buildTalkRequest({
+    todayKst: '2026-10-05',
+    learner: { ...learner, streakDays: 99, weaknesses: ['WORD_ORDER(9)'] },
+    history: longHistory,
+    text: '昨日映画を見に行くました',
+    altText: '昨日映画を見に行きました',
+  })
+  // buildTalkRequest 는 항상 persona 를 채운다(LlmRequest.persona 는 completeJson 의 다른 호출자를 위한 선택 필드일 뿐) — 테스트에서만 단언한다.
+  assert.equal(a.persona!.prompt, b.persona!.prompt, '같은 학습자·같은 수준·같은 모드면 persona 는 턴이 달라도 바이트 동일해야 한다')
+  assert.ok(!a.persona!.prompt.includes('2026-09-27'), '날짜는 persona 가 아니라 system/messages 쪽에만 있어야 한다')
+  assert.ok(!b.persona!.prompt.includes('昨日映画'), '이번 발화는 persona 가 아니라 messages 쪽에만 있어야 한다')
+  assert.ok(!b.persona!.prompt.includes('WORD_ORDER(9)'), '학습자 헤더(약점 등)는 persona 가 아니라 system 쪽에만 있어야 한다')
+})
+
+test('CHAT: persona 도 같은 원칙 — 턴마다 바뀌는 값과 무관하게 바이트 동일, TALK 과는 절 필터가 달라 서로 다르다(task-007 K4-3)', () => {
+  const a = buildChatRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
+  const b = buildChatRequest({ todayKst: '2026-10-05', learner: { ...learner, streakDays: 99 }, history: longHistory, text: 'こんばんは' })
+  assert.equal(a.persona!.prompt, b.persona!.prompt)
+  assert.notEqual(a.persona!.prompt, buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'x' }).persona!.prompt)
 })
 
 test('CHAT·REVIEW 요청 구성', () => {
