@@ -62,3 +62,11 @@ export function truncateCodePoints(s: string, max: number): string {
 export function toPreview(s: string, max: number): string {
   return truncateCodePoints(s.replace(/\s+/g, ' ').trim(), max)
 }
+
+/**
+ * `LIKE` 부분 일치용 이스케이프 — Prisma `contains` 는 `%`·`_` 를 이스케이프하지 않는다(2026-09-27 실측: `contains:'%'` 가
+ * 전 행과 일치). MariaDB 기본 이스케이프 문자(`\`)로 `\`·`%`·`_` 를 글자 그대로 찾게 만든다.
+ */
+export function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}

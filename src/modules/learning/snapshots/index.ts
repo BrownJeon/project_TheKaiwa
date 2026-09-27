@@ -87,3 +87,23 @@ export async function bumpDailySnapshot(userId: string, date: string, delta: Dai
   const row = await tx.statsSnapshot.findUnique({ where: { id: locked[0].id }, select: { data: true } })
   await tx.statsSnapshot.update({ where: { id: locked[0].id }, data: { data: mergeDaily(row?.data, delta) as unknown as Prisma.InputJsonValue } })
 }
+
+/** VOCAB_SESSION `data`(domain-model §9-3 `{cardCount, correct, wrong, skipped, durationSec, mode}` + 기록 날짜 `date` — #54 일별 집계용). */
+export interface VocabSessionSnapshotData {
+  cardCount: number
+  correct: number
+  wrong: number
+  skipped: number
+  durationSec: number
+  mode: 'CHOICE' | 'FLIP'
+  /** 세션 `date`(시작한 KST 날짜, E3). */
+  date: string
+}
+
+/**
+ * 세트 1개의 확정 집계 — finish 트랜잭션 안에서 **한 번만** 만든다(`@@unique(userId, kind, periodKey=sessionId)` 가 최종 보증).
+ * 이후 원본(단어·세트) 삭제와 무관하게 불변이다(규칙 2).
+ */
+export async function createVocabSessionSnapshot(userId: string, sessionId: string, data: VocabSessionSnapshotData, tx: Tx): Promise<void> {
+  await tx.statsSnapshot.create({ data: { userId, kind: 'VOCAB_SESSION', periodKey: sessionId, data: data as unknown as Prisma.InputJsonValue } })
+}

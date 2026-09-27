@@ -13,7 +13,7 @@ export { ok, fail, withApi, requireSession, readJsonObject, rateLimit, ApiError,
 export type { ServerErrorCode, ClassifiedError } from './http'
 export { withTransaction, lockUserRow } from './tx'
 export type { Tx, TxOptions } from './tx'
-export { sanitizeText, codePointLength, truncateCodePoints, toPreview } from './text'
+export { sanitizeText, codePointLength, truncateCodePoints, toPreview, escapeLike } from './text'
 export { encodeCursor, decodeCursor, parseLimit, isTimeIdCursor, isOffsetCursor } from './pagination'
 export { sseResponse, formatSseEvent, SSE_PING_MS } from './sse'
 export type { SseChannel } from './sse'

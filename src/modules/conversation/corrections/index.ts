@@ -129,3 +129,17 @@ export async function countChatCorrections(userId: string, chatId: string, tx?: 
   const rejected = get('REJECTED')
   return { proposed, accepted, rejected, total: proposed + accepted + rejected + get('EXPIRED') }
 }
+
+/** `listCorrectionRefsByWord` 가 쓰는 최소 DB 면(테스트가 가짜를 넣을 수 있게). */
+export interface CorrectionRefReader {
+  correction: { findMany(args: { where: { userId: string; savedWordId: string }; select: { id: true; chatId: true }; orderBy: { createdAt: 'desc' }; take: number }): Promise<{ id: string; chatId: string }[]> }
+}
+
+/**
+ * #42 단어 상세의 `corrections:[{id, chatId}]`(task-008, Leader 승인 예외) — 그 단어를 만든(`savedWordId`) 교정의 참조만, **읽기 전용**.
+ * Correction 은 L2 소유라 learning 이 직접 읽지 않고 라우트가 이 함수를 조합한다. 항상 `userId` 로 거른다.
+ */
+export async function listCorrectionRefsByWord(userId: string, wordId: string, db: CorrectionRefReader = prisma as unknown as CorrectionRefReader): Promise<{ id: string; chatId: string }[]> {
+  if (!validId(wordId) || !userId) return []
+  return db.correction.findMany({ where: { userId, savedWordId: wordId }, select: { id: true, chatId: true }, orderBy: { createdAt: 'desc' }, take: 20 })
+}
