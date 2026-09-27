@@ -1,6 +1,6 @@
 ---
 project: TheKaiwa
-updated: 2026-09-27
+updated: 2026-09-28
 tags:
   - type/context
 ---
@@ -8,7 +8,7 @@ tags:
 
 ## 한 줄 요약
 
-재개 문구: "일본어교육 작업 이어서 진행해줘". 프로젝트 표시 이름은 `일본어교육`(기술 식별자는 `TheKaiwa`/`thekaiwa`). Phase 1 구현 중 — task-002·004·005·**006(AI 채팅)·008(단어장)·005b(관리자 콘솔 골격)·003d(TTS P0 — 미리듣기·M4 :8200)·003e(STT gateway·마이크 테스트, pm2 `thekaiwa-speech-gateway`)** 완료·운영 반영(2026-09-27 전부 QA PASS). 운영에는 19:15 재배포분(`1dca406`, 005b 수정 포함)이 떠 있고 origin push 완료. 앱은 `https://kaiwa.미라클펭귄.com`(pm2 `thekaiwa`, 우분투 미러 `~/.node-local/thekaiwa` 에서 `next start`, `pm2 save` 안 함). 다음 순서: 007(AI 회화 음성 — 웹 경로) / 003g / 003f(폰) — 003e 완료·운영 가동(2026-09-28). 이전 계획: 003e(gateway·웹 STT) / 003f(Capacitor·온디바이스 STT·APK, 폰 필요) / 003g(발음 사전 관리) → 007(음성 회화)(M4 tts — 사용자가 `speech/tts-service/SETUP-M4.md` 진행 중) → 007(음성 회화) → 003(M4 tts·온디바이스 STT, 사용자 조치 필요) → 007(음성 회화).
+재개 문구: "일본어교육 작업 이어서 진행해줘". 프로젝트 표시 이름은 `일본어교육`(기술 식별자는 `TheKaiwa`/`thekaiwa`). Phase 1 구현 중 — task-002·004·005·**006(AI 채팅)·008(단어장)·005b(관리자 콘솔 골격)·003d(TTS P0 — 미리듣기·M4 :8200)·003e(STT gateway·마이크 테스트)** 완료·운영 반영(2026-09-27~28 전부 QA PASS). 운영 프로세스: pm2 `thekaiwa`(3010, 우분투 미러 `~/.node-local/thekaiwa` 에서 `next start`) · pm2 `thekaiwa-speech-gateway`(127.0.0.1:8100, nginx `wss://…/ws/speech`) · M4 tts :8200(crontab watchdog). **`pm2 save` 안 함** — 재부팅 시 앱·gateway 가 자동 기동되지 않는다(task-009 에서 등록). 앱 `https://kaiwa.미라클펭귄.com`. **다음 순서: 007(AI 회화 음성 — 웹 경로 먼저) → 003g(발음 사전 관리 화면) → 003f(Capacitor·온디바이스 STT·APK, 사용자 폰 필요) → 009(통합 QA·blue/green).**
 
 ### 재개 시 먼저 볼 것
 - **운영 반영 완료(2026-09-27 18:26, 사용자 지시)** — task-006·008·005b(005b 는 QA 전, 격리 복제본 운영 빌드로 스모크 005b 47/47·008 74/74 선검증) 를 미러 `npm run build` + `pm2 restart thekaiwa` 로 반영, https health 200·청크 200. origin push 완료(`c411fc3`, **origin 은 공개 도메인 URL 이라 이 PC 자격 증명이 없음 → LAN URL `http://192.168.219.154:3000/brownjeon/project_TheKaiwa.git` 로 push 후 `update-ref refs/remotes/origin/main`**). `SPEECH_INTERNAL_SECRET` 회전 완료(세션 출력 노출 사고 대응, NFS·미러 `.env` 동일 값).
