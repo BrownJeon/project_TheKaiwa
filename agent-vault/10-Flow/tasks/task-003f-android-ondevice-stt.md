@@ -73,6 +73,23 @@ design-spec §15 task-003 중 남은 **앱·온디바이스** 부분 — 같은 
 - [2026-09-28 08:34] codex_gate/C1 engine=jev → codex_required/true mode/adversarial-review focus/security budget_rule/CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=849
 
 ## Codex 검토
+### [2026-09-28 08:39] C1 adversarial-review focus=security — done
+- judge 판정: `mode=adversarial-review, focus=security, budget_rule=CX-limit-unknown-r2` (2026-09-28 08:34) / 호출 차수: 1/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=218664e(task_file) snapshot=5221fc1
+- 지적 4건:
+  - **[HIGH]** 딥링크 탈취 (task-003f:39) — 사용자 기기에 악성 앱이 같은 `thekaiwa://auth/callback` 스킴 등록 → 코드 선점 → 세션 획득 위험 / **권고**: Android Verified App Links(assetlinks.json + 서명 지문) + PKCE verifier 결속
+  - **[MEDIUM]** Debug APK (task-003f:43) — `gradlew assembleDebug` 배포본 → debuggable variant → WebView 디버깅·쿠키 노출 위험 / **권고**: `assembleRelease` + non-debuggable + 외부 키스토어 관리
+  - **[MEDIUM]** Manifest 서명 부재 (task-003f:40) — manifest 자체 unsigned → 중간자·오배포 시 변조/다운그레이드 모델 설치 / **권고**: Ed25519 서명 + APK pinning + 단조 증가 버전
+  - **[MEDIUM]** WebView 외부 navigation (task-003f:41) — 외부 URL이 WebView 안에서 열리면 `window.Capacitor` 플러그인 노출 / **권고**: allowNavigation 제한(같은 호스트만) + 외부 링크는 Custom Tabs 강제 + QA 테스트 추가
+- 검토하지 못한 범위: F1~F5 실제 구현 코드 (아직 없음, diff 0개), 실제 manifest/Android manifest 파일, runtime 동작, F6 실기기 테스트
+- **설계 평가**: 현재 계획만으로는 구현 시 보안 결함이 유지될 위험 — 특히 딥링크 인증 방식을 C1 단계에서 수정 필요
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260927T233734Z-task-003f-C1/
+
+### C1 지적 판정 (Leader, 2026-09-28 — 설계 단계, 구현 반영은 reviewer 가 확인)
+- **C1-1 [HIGH] 딥링크 커스텀 스킴 탈취 → 채택(PKCE 결속, 스키마 변경 없이)**: 앱이 로그인 시작 때 `verifier`(32바이트 랜덤, WebView 메모리 + 복귀 대비 sessionStorage — 10분·1회용이라 세션 토큰 금지 규칙과 별개)를 만들고 `challenge=S256(verifier)` 를 OAuth 시작 요청에 싣는다 → 서명된 state/pending 에 `challenge` 를 함께 서명해 콜백까지 운반 → `complete`(앱 흐름)는 딥링크에 **`code_r`(랜덤)만** 싣고 DB `AppAuthCode.code` 에는 `sha256(code_r + ":" + challenge)` 를 저장 → `app-exchange` 는 `code_r`+`verifier` 를 받아 `sha256(code_r + ":" + S256(verifier))` 로 조건부 소각. 코드를 가로챈 다른 앱은 verifier 가 없어 교환 불가. 기존 1회성·60초·실패 사유 단일화 유지, `next` 는 같은 출처 경로만(오픈 리다이렉트 재확인). **Verified App Links(https 콜백 + assetlinks.json)** 는 PKCE 로 탈취가 무력화되므로 **후속 강화 항목**으로 기록(사이드로드 디버그 서명 앱의 검증 실패 시 로그인이 멈출 위험 대비 실측 후 결정).
+- **C1-2 [MEDIUM] debuggable APK 배포 → 채택(새 키 없이)**: 배포본은 **`assembleRelease` + `signingConfig` = 기존 디버그 키스토어**(설계 §12 "디버그 서명 사이드로드" 결정을 유지하면서 debuggable=false), `WebView.setWebContentsDebuggingEnabled(false)`(Capacitor `webContentsDebuggingEnabled:false`), 빌드 스크립트가 `aapt2 dump badging`/`apkanalyzer` 로 `debuggable` 없음을 검사해 있으면 실패. 키스토어는 `~/.android/debug.keystore` → 백업 위치를 기록(커밋 금지). 개발용 debug 빌드는 배포 경로에 올리지 않는다.
+- **C1-3 [MEDIUM] manifest 서명 부재 → 부분 채택**: 서명(Ed25519 + APK 핀) 은 **보류** — 이 앱은 WebView 가 같은 서버에서 UI 전체를 받으므로 서버 침해 시 manifest 서명과 무관하게 앱이 장악된다(위협 모델상 이득 작음). 대신 ① manifest·모델 URL 은 **같은 운영 origin 의 https 만**(리다이렉트로 다른 호스트 불가), ② manifest 스키마 엄격 검증(파일 수·이름 패턴·크기 상한·총량 ≤300MB), ③ 파일별 sha256 필수, ④ **다운그레이드 금지**(설치된 버전보다 낮은 manifest 는 거부, 명시적 재설치만), ⑤ `.part` 재개 후 전체 sha256 재검증·원자적 rename. 서명은 후속 강화 항목.
+- **C1-4 [MEDIUM] WebView 외부 탐색 → 채택**: `server.allowNavigation` 을 운영 호스트 하나로 한정(또는 비움), 외부 URL·`target=_blank`·302 외부는 시스템 브라우저/Custom Tabs 로(WebViewClient `shouldOverrideUrlLoading` 확인), 플러그인(SherpaStt·Browser) 호출은 운영 origin 문서에서만 가능함을 검증. QA 기준 추가: 외부 링크가 WebView 에 남지 않음.
 
 ## Designer 기록
 
