@@ -5,6 +5,7 @@ import { apiGet, apiPut, errorMessage } from '@/components/common/api'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Card, ErrorBlock, LoadingBlock, Section, SectionHeader } from '@/components/common/ui'
 import { isNativeApp } from '@/modules/infra/native'
+import MicTestCard from '@/components/speech/MicTestCard'
 
 type Mode = 'AUTO' | 'FAST' | 'ACCURATE' | 'OFFLINE'
 interface SpeechSetting {
@@ -19,7 +20,10 @@ const MODES: { value: Mode; label: string; desc: string; appOnly?: boolean }[] =
   { value: 'OFFLINE', label: '오프라인', desc: '인터넷 없이 휴대폰에서만 알아들어요', appOnly: true },
 ]
 
-/** 설정 허브 · 음성 인식 모드(api-contract #15·#16). 웹에서는 오프라인을 고를 수 없다. */
+/**
+ * 설정 허브 · 음성 인식 모드(api-contract #15·#16). 웹에서는 오프라인을 고를 수 없다.
+ * task-003e: 모드 카드 아래 마이크 테스트 카드(screens §8-2 A) — 모드 조회가 실패하거나 로딩 중이어도 테스트 카드는 보인다.
+ */
 export default function SpeechSettings() {
   const [s, setS] = useState<SpeechSetting | null>(null)
   const [native, setNative] = useState(false)
@@ -39,10 +43,8 @@ export default function SpeechSettings() {
     setNative(isNativeApp())
   }, [load])
 
-  if (error) return <ErrorBlock message={error} onRetry={load} />
-  if (!s) return <LoadingBlock />
-
   const choose = async (mode: Mode) => {
+    if (!s) return
     const prev = s
     setS({ ...s, recognitionMode: mode })
     try {
@@ -58,21 +60,28 @@ export default function SpeechSettings() {
   return (
     <Section>
       <SectionHeader title="음성 인식" />
-      <Card>
-        <div role="radiogroup" aria-label="음성 인식 방식" className="flex flex-col gap-2">
-          {MODES.map((m) => {
-            const on = s.recognitionMode === m.value
-            const disabled = m.appOnly && !native
-            return (
-              <button key={m.value} type="button" role="radio" aria-checked={on} aria-disabled={disabled} disabled={disabled} onClick={() => choose(m.value)}
-                className={`min-h-[52px] rounded-xl border px-3.5 py-2.5 text-left disabled:opacity-50 ${on ? 'border-accent bg-accent-soft' : 'border-line bg-surface'}`}>
-                <span className="block text-[15px] font-semibold text-ink">{m.label}</span>
-                <span className="block text-[13px] text-ink2">{disabled ? '앱에서만 쓸 수 있어요' : m.desc}</span>
-              </button>
-            )
-          })}
-        </div>
-      </Card>
+      {error ? (
+        <ErrorBlock message={error} onRetry={load} />
+      ) : !s ? (
+        <LoadingBlock />
+      ) : (
+        <Card>
+          <div role="radiogroup" aria-label="음성 인식 방식" className="flex flex-col gap-2">
+            {MODES.map((m) => {
+              const on = s.recognitionMode === m.value
+              const disabled = m.appOnly && !native
+              return (
+                <button key={m.value} type="button" role="radio" aria-checked={on} aria-disabled={disabled} disabled={disabled} onClick={() => choose(m.value)}
+                  className={`min-h-[52px] rounded-xl border px-3.5 py-2.5 text-left disabled:opacity-50 ${on ? 'border-accent bg-accent-soft' : 'border-line bg-surface'}`}>
+                  <span className="block text-[15px] font-semibold text-ink">{m.label}</span>
+                  <span className="block text-[13px] text-ink2">{disabled ? '앱에서만 쓸 수 있어요' : m.desc}</span>
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+      )}
+      <MicTestCard />
       <Toast message={toast.message} />
     </Section>
   )

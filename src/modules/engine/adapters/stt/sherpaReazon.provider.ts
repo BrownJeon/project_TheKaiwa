@@ -2,10 +2,30 @@
  * sherpa-onnx + ReazonSpeech Engine Provider — 실시간 STT(온디바이스 플러그인 / 우분투 gateway 폴백).
  * 실제 인식 어댑터(`reazonOnDevice`·`reazonGateway`)는 task-003. 여기서는 descriptor·schema·health 만.
  * ONDEVICE 연결은 서버에서 확인할 대상이 없다 — Health 는 "생략(UNKNOWN)" 으로 기록하고 connection 상태를 바꾸지 않는다.
+ * HTTP(gateway) 연결은 gateway 공개 `/health`(시크릿 없음)로 판정한다(task-003e): `status` LOADING·FAILED 또는 `ok:false` 면
+ * 인식할 수 없으므로 UNAVAILABLE(티켓 발급 중단), MISCONFIGURED 는 그대로, `ok:true`(OK) 면 HEALTHY.
  */
 import type { EngineProvider } from '../../registry/types'
-import { probeHttpHealth } from '../common/httpHealth'
+import { probeHttpHealth, type HealthInterpreter } from '../common/httpHealth'
 import { key, LOG_LEVEL_KEY, REPO_ADAPTERS, SCHEMA_GROUPS } from '../common/schema'
+
+const GATEWAY_STATUS: Record<string, { status: 'UNAVAILABLE' | 'MISCONFIGURED'; message: string }> = {
+  LOADING: { status: 'UNAVAILABLE', message: '인식 모델을 불러오는 중입니다(기동 중)' },
+  FAILED: { status: 'UNAVAILABLE', message: '인식 모델을 불러오지 못했습니다' },
+  MISCONFIGURED: { status: 'MISCONFIGURED', message: '서비스 쪽 설정(티켓 검증 키 등)이 비어 있습니다' },
+}
+
+/** 공개 `/health` = `{ok, status: LOADING|OK|FAILED|MISCONFIGURED}`(A 계약). 시크릿을 붙인 상세(#143)는 보지 않는다. */
+export const interpretGatewayHealth: HealthInterpreter = (json) => {
+  const s = typeof json.status === 'string' ? GATEWAY_STATUS[json.status] : undefined
+  if (s) return { ok: false, status: s.status, detail: { errorCode: `SERVICE_${String(json.status)}`, message: s.message } }
+  if (json.ok === false) return { ok: false, status: 'UNAVAILABLE', detail: { errorCode: 'SERVICE_NOT_READY', message: '서비스는 떠 있지만 인식 준비가 되지 않았습니다' } }
+  const models = Array.isArray(json.models) ? (json.models as unknown[]) : null
+  if (models && !models.some((m) => !!m && typeof m === 'object' && (m as { loaded?: unknown }).loaded === true)) {
+    return { ok: false, status: 'UNAVAILABLE', detail: { errorCode: 'MODEL_NOT_LOADED', message: '서비스는 떠 있지만 인식 모델이 로드되지 않았습니다' } }
+  }
+  return {}
+}
 
 export const sherpaReazonProvider: EngineProvider = {
   descriptor: {
@@ -55,7 +75,7 @@ export const sherpaReazonProvider: EngineProvider = {
     if (profile.connectionType === 'ONDEVICE') {
       return { ok: false, status: 'UNKNOWN', latencyMs: null, detail: { skipped: true, reason: 'NOT_APPLICABLE', message: '온디바이스 연결은 기기에서만 확인할 수 있습니다' } }
     }
-    return probeHttpHealth(profile.values['connection.baseUrl'])
+    return probeHttpHealth(profile.values['connection.baseUrl'], { interpret: interpretGatewayHealth })
   },
   modelSummary: (values) => (typeof values['runtime.modelVersion'] === 'string' ? (values['runtime.modelVersion'] as string) : null),
 }

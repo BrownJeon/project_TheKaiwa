@@ -61,3 +61,10 @@ export async function readDataFile(segments: string[]): Promise<Buffer | null> {
 export async function removeDataFile(segments: string[]): Promise<void> {
   await rm(dataPath(...segments), { force: true })
 }
+
+/** 파일을 다른 프로세스(gateway)가 옮겨 넣을 디렉터리를 미리 만든다. 마지막 조각은 파일명이며 만들지 않는다. */
+export async function ensureDataDir(segments: string[]): Promise<string> {
+  const full = dataPath(...segments)
+  await mkdir(dirname(full), { recursive: true })
+  return full
+}

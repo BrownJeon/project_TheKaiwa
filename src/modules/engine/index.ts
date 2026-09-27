@@ -3,9 +3,12 @@
  * Phase 1(task-004): llm 파사드·router·json. task-006: trace 최소판(newTraceId·recordTrace).
  * task-005b: registry(Provider·스키마)·connections·fallbackPolicy 읽기·health·functionalTest·configuration/resolver(8층, 읽기 전용)·trace 조회.
  * task-003d: tts 파사드(targets·synthesize·maxChars, 오류는 TtsEngineError.kind 로 분류).
+ * task-003e: stt 파사드(REALTIME_STT targets·공개 실행값·개발용 ws 주소·connection 검증).
  */
 export * as llm from './llm'
 export * as tts from './tts'
+export * as stt from './stt'
+export type { SttTarget, SttPublicRuntime } from './stt'
 export type { TtsTarget, TtsFailureKind, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics } from './tts'
 export type { LlmRequest, LlmJsonRequest, LlmTextResult, LlmJsonResult, LlmPersona, LlmTurnMessage } from './llm'
 export { resolveConnection, resolveCandidates, withFallback, currentEnvironment, clearRouterCache, NoEngineAvailableError, LLM_TASKS, isLlmTask } from './router'

@@ -12,3 +12,4 @@
 
 실행 위치는 `~/.node-local/thekaiwa`(NFS noexec). 예: `node --env-file=.env --import tsx tests/live/qa-session.ts /tmp/kaiwa-qa-cookie`
 - `task003d-smoke.sh [port]` — TTS P0(합성·미리듣기·상태·캐시·레이트 리밋·엔진명 누출). M4 없이 도는 경로가 기본, M4 8200 가동 후 `TTS_SMOKE_EXPECT_M4=1 TTS_SMOKE_G2P_URL=http://192.168.219.100:8200` 로 MISS→HIT·LEARNING_SLOW·정규화 골든 대조까지(task-003d).
+- `task003e-smoke.sh [port]` — STT 서버 경로(#19 config·ETag / #20 티켓 aud·60초·purpose·IDOR·분당 20 / #21 업로드 형식·60초·2MB·IDOR / internal 콜백 404·401·행·경로 / 30일 정리 / 엔진명·시크릿 누출)와, DB 의 gateway 주소(기본 127.0.0.1:8100)에 gateway 가 떠 있으면 WS E2E(TURN 저장·MIC_TEST 미저장·재사용 4403·위조/무start 4401)·관리자 Health 까지(task-003e). QA 계정 Utterance·wav·임시 Chat 은 끝에 지우고 LOCAL gateway connection 상태를 원복한다. Node 20 이라 `--experimental-websocket` 로 돈다.

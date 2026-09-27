@@ -67,7 +67,26 @@ const eslintConfig = defineConfig([
   // infra index(Prisma 재export)를 import 할 수 없다(reviewer 재검증 Medium-5). flat config 는 뒤 블록이 규칙을 통째로 덮으므로 같은 인자에 banInfraRoot 만 더한다.
   ...boundary('src/app/**/*.client.tsx', ['engine'], ['admin', 'preferences', 'conversation', 'learning', 'speech', 'infra'], '클라이언트 컴포넌트는 서버 모듈을 import 하지 않는다', ['auth/oauth/next-path', 'native', 'dates'], true),
   // 컴포넌트: 서버 모듈(Prisma 포함 infra index·auth)을 끌어오지 않는다(규칙 5). 클라이언트 안전 진입점만.
-  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates'], true),
+  // `stt/client` = speech 의 클라이언트 안전 진입점(task-003e M4, Leader 승인 2026-09-28 — module-dependency §3 규칙 5).
+  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates', 'stt/client'], true),
+  // speech 클라이언트 진입점은 브라우저 번들에 들어간다 — 서버 코드(다른 모듈·speech 서버 파일·Node/Prisma/Next 서버 API)를 끌어오지 않는다.
+  // 허용: 네이티브 브리지(`@/modules/infra/native`)·`@/types/*`·같은 디렉터리 상대 경로. 위 speech 경계 블록을 이 파일들에 한해 대체한다.
+  {
+    files: ['src/modules/speech/stt/client/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { regex: '^@/(app|components)/', message: 'speech 클라이언트는 화면을 import 하지 않는다' },
+            { regex: '^@/modules/(?!infra/native(/|$))', message: 'speech 클라이언트는 서버 모듈을 import 하지 않는다(네이티브 브리지만 허용)' },
+            { regex: '^\\.\\.(/|$)', message: 'speech 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다' },
+            { regex: '^(node:|@prisma/|next/(server|headers)$|jsonwebtoken$|jose$)', message: 'speech 클라이언트는 서버 전용 패키지를 import 하지 않는다' },
+          ],
+        },
+      ],
+    },
+  },
 ])
 
 export default eslintConfig
