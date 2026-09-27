@@ -7,7 +7,8 @@
  */
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { ChatMessageView, ProposalDto } from '@/types/chat'
-import { formatDateDivider, kstDateKey, withinGroupGap } from './format'
+import { formatDateDivider, kstDateKey } from '@/components/common/format'
+import { withinGroupGap } from './format'
 import { LOST_FAILURE } from './labels'
 import { FailedBubble, FailedLine, PendingBubble, TutorBubble, UserBubble } from './MessageBubble'
 import ProposalCard from './ProposalCard'

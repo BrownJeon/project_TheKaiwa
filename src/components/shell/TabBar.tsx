@@ -19,8 +19,9 @@ const TABS = [
 /**
  * 하단 탭을 숨기는 하위 화면(screens.md §2). 채팅방은 키보드가 올라오면 남는 높이가 ≈560px 인데
  * 탭 바(66px)까지 두면 대화가 보이는 칸이 더 줄어든다 — 이 화면들은 `BackBar` 의 `←` 로 돌아간다.
+ * 오늘의 단어 덱·결과(task-008 F10)는 덱 높이 예산(≈640px)이 탭 바만큼 줄면 412×780 에서 스크롤이 생긴다.
  */
-const HIDDEN_PREFIXES = ['/study/ai/chat/'] as const
+const HIDDEN_PREFIXES = ['/study/ai/chat/', '/study/today/words/'] as const
 
 export default function TabBar() {
   const pathname = usePathname()

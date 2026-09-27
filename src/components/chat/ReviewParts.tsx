@@ -2,7 +2,7 @@
 
 /** 점검 결과 화면의 표시 전용 조각(screens.md §3-2 D): 안내 · 진행 · 총평. */
 import { Btn, Card } from '@/components/common/ui'
-import { elapsedSec, useNow } from './useNow'
+import { elapsedSec, useNow } from '@/components/common/useNow'
 
 export interface ReviewSummaryData {
   summaryKo?: string | null

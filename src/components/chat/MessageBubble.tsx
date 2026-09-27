@@ -7,9 +7,9 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import type { ChatMessageView, TurnStage } from '@/types/chat'
-import { formatClock } from './format'
+import { formatClock } from '@/components/common/format'
 import { DETACHED_TEXT, SLOW_TEXT, stageText, type FailureView } from './labels'
-import { elapsedSec, useNow } from './useNow'
+import { elapsedSec, useNow } from '@/components/common/useNow'
 
 const JA_BODY = 'whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] leading-[1.7]'
 

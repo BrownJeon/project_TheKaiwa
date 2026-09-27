@@ -9,7 +9,7 @@ import { apiGet } from '@/components/common/api'
 import { Btn, ErrorBlock, LoadingBlock, Section, SectionHeader } from '@/components/common/ui'
 import type { ChatKind, ChatSummary, Paged } from '@/types/chat'
 import ChatListItem from './ChatListItem'
-import { toErr } from './errors'
+import { toErr } from '@/components/common/errors'
 import { actionErrorText } from './labels'
 
 export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () => void }) {

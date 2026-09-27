@@ -23,7 +23,7 @@ import type {
   TurnStage,
   TurnStatusEvent,
 } from '@/types/chat'
-import { retryAfterOf, toErr } from './errors'
+import { retryAfterOf, toErr } from '@/components/common/errors'
 import { LOST_FAILURE, NETWORK_SEND_ERROR, turnFailure, turnNoticeText, type FailureView } from './labels'
 import { endsWithUnfinishedReply, findLastIndex, isTemp, lastServerId, mergeMessages, turnBaseOf } from './messages'
 import { parseEventData, readSse } from './sse'

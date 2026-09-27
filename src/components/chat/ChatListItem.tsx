@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Badge } from '@/components/common/ui'
 import type { ChatSummary } from '@/types/chat'
-import { formatListTime } from './format'
+import { formatListTime } from '@/components/common/format'
 
 /** 채팅 목록 한 줄(행 전체가 링크, ≥64px). 뱃지는 둘 다면 "답하는 중"만. */
 export default function ChatListItem({ chat, href, now }: { chat: ChatSummary; href: string; now: Date | null }) {

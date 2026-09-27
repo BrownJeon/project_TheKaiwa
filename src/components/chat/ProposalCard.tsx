@@ -8,8 +8,8 @@ import { useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { Btn, BtnRow } from '@/components/common/ui'
 import type { ProposalAcceptResponse, ProposalDto, ProposalRejectResponse, ProposalStatus, StudyLogPayload } from '@/types/chat'
-import { detailString, toErr } from './errors'
-import { cpLength } from './format'
+import { detailString, toErr } from '@/components/common/errors'
+import { cpLength } from '@/components/common/format'
 import { actionErrorText } from './labels'
 
 const STATUSES: readonly ProposalStatus[] = ['PROPOSED', 'ACCEPTED', 'REJECTED', 'EXPIRED']

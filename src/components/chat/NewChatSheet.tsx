@@ -7,8 +7,8 @@ import { apiPost } from '@/components/common/api'
 import Sheet from '@/components/common/Sheet'
 import { Btn, BtnRow, ErrorBlock, Field } from '@/components/common/ui'
 import type { CreatedChat } from '@/types/chat'
-import { toErr } from './errors'
-import { cpLength } from './format'
+import { toErr } from '@/components/common/errors'
+import { cpLength } from '@/components/common/format'
 import { actionErrorText } from './labels'
 
 export default function NewChatSheet({ open, onClose }: { open: boolean; onClose: () => void }) {

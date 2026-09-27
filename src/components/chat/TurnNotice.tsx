@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useEffect } from 'react'
 import { turnNoticeText } from './labels'
 import type { TurnNoticeState } from './useChatTurn'
-import { useCountdown } from './useNow'
+import { useCountdown } from '@/components/common/useNow'
 
 export default function TurnNotice({
   notice,

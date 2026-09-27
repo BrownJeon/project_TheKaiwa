@@ -9,9 +9,10 @@
  * - 초안은 sessionStorage 에 입력창 내용 그대로 둔다(300ms 디바운스) — 보내면 비워지고, 못 보내면 원문이 돌아온다.
  */
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import { cpLength } from './format'
-import { KEYS, readStore, writeStore } from './storage'
-import { useCountdown } from './useNow'
+import { cpLength } from '@/components/common/format'
+import { readStore, writeStore } from '@/components/common/storage'
+import { KEYS } from './storageKeys'
+import { useCountdown } from '@/components/common/useNow'
 
 export interface ComposerHandle {
   /** 입력창이 비어 있을 때만 원문을 되돌린다(그새 다음 말을 쓰기 시작했으면 덮지 않는다). */

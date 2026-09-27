@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cpLength, formatClock, formatDateDivider, formatListTime, kstDateKey, withinGroupGap } from '../format'
+import { cpLength, formatClock, formatDateDivider, formatListTime, kstDateKey } from '../../common/format'
+import { withinGroupGap } from '../format'
 
 // 2026-09-27(일) 14:00 KST = 05:00Z
 const NOW = new Date('2026-09-27T05:00:00.000Z')
