@@ -243,6 +243,105 @@ design-spec §15 task-005b 완료 기준 중 이월분 "**Pronunciation Dictiona
 
 **결론**: Critical 0·High 0·Medium 1·Low 2 → **PASS**. MEDIUM-1(CSV 짧은 행 재설정)은 표준 Export→Import 왕복에는 영향 없고 Rollback 으로 되돌릴 수 있어 QA·배포를 막을 사유는 아니나, Developer 가 후속 커밋으로 고치는 것을 권고(수정 시 Reviewer 재순환 원칙에 따라 그 부분만 재검증하면 됨 — 새 Critical/High 가 아니므로 전체 재순환 불필요 판단은 Leader 몫). B(화면)는 이번 REV 대상이 아니며 완료 시 별도 REV-01x 로 진행한다.
 
+### REV-018 (2026-09-28, 화면 760c50e)
+
+**대상**: `760c50e`(B 화면·콘솔 공용 파일 4종 수정, 41파일). 서버(A, `5f8d9c1`+`a408f00`)는 REV-017 대상 — 이번 REV 는 화면만. 비교 기준: `docs/screens.md` §10(설계 가이드 전문 — §10-0~10-11)·§6(콘솔 공통) · task 이력서 G4·설계 확정 19건·"### A(서버)" B 계약 요약·"### B(화면)" 기록·REV-017.
+
+**독립 재실행**: `~/.node-local/thekaiwa-revcheck-003g-b`(REV-017 과 동일 방식 — `git archive 760c50e` + `~/.node-local/thekaiwa/node_modules` 하드링크, 검증 후 삭제 완료).
+- `tsc --noEmit -p tsconfig.json` → 0 오류.
+- `eslint --max-warnings=0`(`src/components/admin/lexicon`·`src/components/common/api.ts`·`src/modules/admin/console/menu.ts`·`src/components/admin/console/{labels,RoleScreen}.tsx`·lexicon 라우트 2개) → 0건.
+- 전체 프로젝트 단위 테스트(`find src -name '*.test.ts'`, 57개 파일) 재실행 → **422/422 PASS**(B 보고와 정확히 일치). lexicon 3종 테스트 파일만 따로도 재확인: `kana.test.ts` 8·`lexiconCopy.test.ts` 13·`access.test.ts` 6 = 27건 전부 PASS(B 는 "29"로 기록했으나 실측 27 — 사소한 계수 오차, 전체 합계 422 는 B 보고와 정확히 일치해 영향 없음, 지적 대상 아님).
+
+#### 1. 6층·eslint 경계 (PASS)
+- `eslint.config.mjs:75` 의 컴포넌트 경계 규칙(`boundary('src/components/**', ['engine','admin','conversation','learning','preferences'], ['speech','infra'], …, ['native','dates','stt/client','tts/client'], true, ['speech'])`)을 직접 해석·검증: `@/modules/speech/**` 하위 경로는 `native`·`dates`·`stt/client`·`tts/client` 4개만 예외이고 `tts/lexicon*`·`text`(정규화 규칙)는 이 예외에 없어 **정규식 자체가 컴포넌트의 서버 사전 규칙 import 를 error 로 막는다** — B 가 `kana.ts` 를 서버 함수 재호출 대신 "골든 표 고정" 방식으로 우회한 것이 임기응변이 아니라 **툴링이 강제하는 유일한 합법 경로**임을 확인.
+- `kana.test.ts` 골든 표 정확성 실측 대조: 서버 `src/modules/speech/tts/text.ts`(`KATAKANA_READING`·`SMALL_KANA`·`moraCount`)와 `lexiconRules.ts`(`normalizeSurface`·`JAPANESE_CHAR`·`BAD_SURFACE_CHAR`·`SCOPE_REF_RE`·`cleanNote`·검증 순서"길이→숨은 문자→일본어")를 직접 읽어 `kana.ts` 의 같은 이름 함수·정규식과 **문자 단위로 동일**함을 확인(표기·읽기·악센트·우선순위 0~1000 상수 일치, `LEXICON_LIMITS` 값도 `src/types/lexicon.ts` 원본과 대조). 드리프트 위험은 "서버가 바뀌면 골든을 다시 떠야 한다"는 문서화된 구조적 한계일 뿐, 지금 시점 불일치는 0건 — 경계 테스트를 통과하면서 관리 가능한 수준으로 대응함.
+- admin 이 `(app)` 컴포넌트를 쓰는 예외는 `@/components/speech/ttsAudio`(`unlockTtsAudio`·`playWav`) 한 곳(`useLexiconPreview.ts:12`)뿐 — §10-11 ⑪ 그대로, 문구 없는 재생 유틸 한정 확인.
+- `src/types/admin.ts` diff 없음(0줄 변경) — A 의 "`types/admin.ts` 에 Lexicon DTO 재정의 금지" 계약을 B 가 그대로 지킴(설계 가이드 §10-4 는 애초에 `types/admin.ts` 안에 DTO 를 적었으나, A 가 이미 `@/types/lexicon` 을 만들어 두어 B 가 계약대로 그쪽을 단일 출처로 따름 — 가이드보다 최신 A 계약을 올바르게 우선함).
+- 발견 없음.
+
+#### 2. 권한 렌더 (PASS)
+- `useLexiconAccess`(`lexiconAccess()`)가 screens.md §10-1 표·`useLexiconForm` 등과 정확히 같은 4갈래 계산식을 그대로 구현, `access.test.ts`(가짜 capability)로 6개 조합 모두 확인.
+- **DOM 부재 확인**: `LexiconScreen.tsx:89` `openEntry` 가 `access.canWrite ? 'edit' : 'view'` 로 시트 모드 자체를 가르기 때문에, 쓰기 버튼(저장·끄기·다시 켜기)이 렌더되는 `'add'|'edit'|'confirmDisable'|'confirmEnable'` 모드는 `canWrite=false` 인 경로로는 애초에 도달 불가(가짜 캡을 렌더링 조건으로 흉내내는 게 아니라 상태 전이 자체가 막힘) — `LexiconActions`(추가·가져오기 버튼)·`LexiconEntrySheet`(저장·끄기 버튼)·`VersionDetailSheet`(되돌리기 버튼, `rollbackSlot()` 이 `canWrite` 요구) 세 곳 모두 코드로 직접 추적해 확인, `access.test.ts:37-48`(`renderToStaticMarkup` 로 "항목 추가"·"가져오기" 문자열 부재)·`access.test.ts:116-123`(`rollbackSlot`)이 이를 재확인.
+- SUPER_ADMIN + PRODUCTION: `needsConfirm=true` 일 때만 `WriteConfirmFields.tsx:80-105` 의 확인 문구 입력이 렌더(그 밖엔 DOM 에 없음), `kana.ts:202`(`validateWriteMeta`) 가 대소문자까지 정확히 `PRODUCTION`(앞뒤 공백만 trim)과 일치해야 통과 — `access.test.ts:50-60`·`kana.test.ts:150-156` 로 이중 확인.
+- USER 404: 두 `page.tsx` 모두 `requireConsolePage('voices.read', …)` → `!g.allowed` 시 `ConsoleForbidden`(기존 005b 인프라, 이번 diff 로 미변경) — 서버 재검사가 항상 최종 결정이고, 클라 `useLexiconAccess` 는 "숨김용"이라는 주석·구조 그대로.
+- 발견 없음.
+
+#### 3. 계약 정합 (PASS)
+- DTO 단일 출처(`@/types/lexicon`) 준수(위 1번). `apiDelete(path, body)`(URL 에 이유 없음)·`preview({...,compare:true})`+`Accept: audio/wav`+`side`(`lexiconApi.ts:132-136`) 확인.
+- 409 `VERSION_CONFLICT`: `useLexiconForm.ts` 의 catch 블록이 `draft`·`reason`·`confirm` 상태를 전혀 건드리지 않고 `notice`·`onConflictVersion` 만 갱신 — 입력 유지 확인(코드 추적, `writeErrorNotice` 문구도 "입력한 내용은 그대로예요" 일치).
+- `E_LEXICON_DUPLICATE` → `[그 항목 열기]`: `LexiconEntrySheet.tsx:130-133`(`onOpenExisting`) → `existing` 있으면 그 항목으로 `mode: access.canWrite?'edit':'view'` 전환, 없으면 검색 필터로 대체 — §10-11 ⑥ 그대로.
+- `E_IMMUTABLE`: `useLexiconForm.ts:189-197`(`HIDDEN_IN_EDIT` 로 표기·범위·대상 칸 오류를 지우고 남는 게 없으면 알림 `IMMUTABLE_TEXT`) 확인.
+- `revived`·`NO_CHANGE`·`ALREADY_ACTIVE`·`E_IMPORT_HAS_ERRORS` 모두 `lexiconCopy.ts`(`savedToast`·`writeErrorNotice`)에서 서버 `details.reason`/`data.code` 갈래로 정확히 분기, **서버 `message` 는 코드 전체에서 한 번도 읽지 않음**(단위 테스트 "서버 message 는 어떤 문구에도 섞이지 않는다" PASS 로 재확인, `err.message` grep 0건).
+- 가타카나 변환(`toKatakana`)·읽기 ≤60·우선순위 0~1000 이 서버와 문자 단위로 일치(위 1번), `EntryForm.tsx` 의 우선순위 칸이 `type="text" inputMode="numeric"`(B 가 `type="number"` 를 피한 이유 — 지수 표기 등으로 빈 값이 되어 기본값으로 몰래 저장되는 것을 막음)로 구현돼 있어 정직한 선택.
+- 발견 없음.
+
+#### 4. Import/Export UI (MEDIUM 1건)
+- 256KB·확장자 사전 거부: `useLexiconImport.ts:20-24`(`fileProblem`)가 `dryRun()` 진입 전에 검사, 실패 시 요청 0(코드 확인) — §10-9 체크리스트 항목과 일치.
+- dryRun 오류 0 일 때만 적용 버튼: `canApply()`(`r.counts.error===0 && add+update+disable>0`)와 `LexiconImportSheet.tsx:103-107` 의 렌더 분기 일치.
+- REPLACE_SCOPE 끄기 수 3곳: ① `MODE_OPTIONS` 방식 설명의 `warn` 문구(`LexiconImportSheet.tsx:24`) ② `ImportReview.tsx:74-78` "바뀌는 범위: …(끄기 N)" ③ 적용 버튼 라벨의 `({disable}개 끄기 포함)`(`LexiconImportSheet.tsx:123`) — 3곳 모두 코드로 확인.
+- 다운로드 안전: `common/api.ts` 신규 `apiGetFile`(401→로그인 이동, 실패→봉투 오류, 성공→blob+`Content-Disposition` 파싱) + `lexiconApi.ts:downloadExport`(객체 URL 을 클릭 직후 `setTimeout(…,0)` 으로 revoke, 같은 틱 revoke 로 인한 빈 파일 문제를 주석으로 명시 회피) — 안전.
+- **MEDIUM-1(신규) — `LexiconDiffList` 의 `ENABLED`/`DISABLED` 종류 표시가 같은 변경에 동반된 다른 칸 값 변화(우선순위·종류·메모·악센트)를 완전히 숨긴다.**
+  - 위치: `src/components/admin/lexicon/LexiconDiffList.tsx:42-63`(`detail()` 함수) — `kind==='ENABLED'` 는 `{after.reading} · 다시 써요` 만, `kind==='DISABLED'` 는 `{before.reading} · 이제 쓰지 않아요` 만 렌더한다. 반면 `kind==='CHANGED'` 행은 `changedParts()`(38번 줄까지, `reading`·`accentType`·`priority`·`wordType`·`note`·`enabled` 전부 비교)로 바뀐 칸을 전부 보여준다.
+  - 근거: 서버 `diffKind()`(`src/modules/speech/tts/lexiconRules.ts:512-516`)를 직접 대조 — `before.enabled` 와 `after.enabled` 가 다르면(꺼짐→켜짐 또는 켜짐→꺼짐) **다른 칸이 몇 개 바뀌었든 무조건 `ENABLED`/`DISABLED` 로 분류되고 `CHANGED` 가 되지 않는다**(`diffKind` 는 enabled 전이를 최우선으로 본다). 이 분류 자체는 서버 코드라 REV-017 대상이지만, **화면 쪽에서 `ENABLED`/`DISABLED` 행에 대해 다른 필드 변화를 아예 렌더하지 않는 결정은 B 의 몫**이고, `LexiconDiffRowDto` 의 `before`/`after` 에는 두 상태의 전체 스냅샷(우선순위·종류·메모·악센트 포함)이 이미 들어 있어 렌더할 재료는 있다.
+  - 재현: 스크래치에서 `LexiconDiffList`·`detail()` 을 직접 호출해 재확인 — `before={priority:500,wordType:'COMMON',note:'keep me',enabled:false,...}`, `after={priority:10,wordType:null,note:null,enabled:true,...}` (REV-017 MEDIUM-1 이 재현한 CSV 짧은 행 결과와 동일 모양)를 `kind:'ENABLED'` 행으로 넣으면 화면 출력은 정확히 `"{reading} · 다시 써요"` 뿐 — 우선순위 500→10·종류 COMMON→없음·메모 삭제는 화면 어디에도 나타나지 않는다.
+  - 영향 범위: 이 컴포넌트는 세 곳에서 재사용된다 — 가져오기 dryRun 검토(`ImportReview.tsx:89`), 버전 상세 "직전 버전과 비교"(`VersionDetailSheet.tsx:152`), 되돌리기 확인 "지금과 비교"(`VersionDetailSheet.tsx:174`). 세 곳 모두 같은 맹점을 공유한다.
+  - 위험: REV-017 이 MEDIUM-1(서버 CSV 짧은 행 문제)을 QA·배포를 막지 않는 이유로 든 완화 요인이 "**dryRun 의 changes 배열이 이 변경을 before/after 로 보여주므로 신중히 검토하면 적용 전에 발견 가능**"이었고, REV-017 은 이 점을 `high_risk_areas` 에 "dryRun 화면에서 이 변경이 실제로 눈에 띄게 표시되는지(B 화면 몫)" 로 명시해 확인을 요청했다. 이번 실측 결과 **그 완화 요인이 성립하지 않는다** — 관리자가 dryRun 화면만 보고는 우선순위·종류·메모가 조용히 초기화된다는 사실을 알 수 없다. 서버 CSV 버그 없이도(예: 정상적인 "다시 켜기 + 다른 칸 동시 수정" PUT 요청) 같은 맹점이 발생할 수 있어 순수 서버 버그의 파생물만은 아니다.
+  - 완화 요인: 되돌리기(Rollback)로 항상 원복 가능해 영구 손실은 아니고, API 응답 자체(`before`/`after` 전체 객체)에는 정보가 남아 있어 API 로 직접 확인하면 알 수 있다(화면 전용 맹점). 이 때문에 REV-017 MEDIUM-1 과 같은 급으로 MEDIUM 유지(HIGH 로 올리지 않음).
+  - 권고: `LexiconDiffList.tsx` 의 `detail()` 에서 `ENABLED`/`DISABLED` 케이스도 `changedParts()` 로 계산한 그 외 칸 차이를 이어 붙인다(예: `{reading} · 다시 써요 · 우선 500 → 10 · 종류 COMMON → 없음 · 메모 바뀜`). CountChip 요약(추가/수정/끄기/그대로/오류)과 무관하게 상세 행 텍스트만 고치면 되는 국소 수정.
+- 발견 그 외 없음.
+
+#### 5. 버전 화면 (PASS)
+- `?v=` 상세: `VersionDetailSheet` 가 `versionDetailPath(version,'previous')` 로 열 때 한 번 비교, 되돌리기 확인은 `versionDetailPath(version,'active')` 로 별도 호출 — §10-11 ② L8a 계약과 일치.
+- 되돌리기 확인 diff: `mode==='confirmRollback'` 에서만 `against` 리소스를 가져와 `DiffCounts`+`LexiconDiffList` 로 렌더, `isAllZero()` 면 확정 버튼 대신 "되돌릴 것이 없어요"+돌아가기 — 코드 확인.
+- ACTIVE 에 되돌리기 없음: `rollbackSlot()` 이 `d.status==='ACTIVE' || d.version===active` 면 `'current'`(안내 문구만, 버튼 없음) 반환 — `access.test.ts:116-120` 로 4가지 경우 모두 확인.
+- 하이드레이션 수정 방식 타당성 평가: `useHydrated()`(`useSyncExternalStore(noopSubscribe, ()=>true, ()=>false)`)는 "서버 스냅샷=false, 클라 스냅샷=true" 조합으로 하이드레이션 직후 리렌더를 강제하는 React 공식 패턴(SSR 환경에서 `isClient` 를 안전하게 얻는 표준 관용구)이다. `useEffect`+`useState` 로도 같은 효과를 얻을 수 있지만 `useSyncExternalStore` 쪽이 React 가 "이 값은 서버·클라가 다를 수 있다"고 인지하는 공식 경로라 하이드레이션 경고를 구조적으로 막는다는 점에서 **더 정확한 해법** — 임기응변이 아니라 정답에 가까운 선택으로 판단.
+- 발견 없음.
+
+#### 6. 접근성·3폭·터치·엔진명·XSS (PASS)
+- `dangerouslySetInnerHTML`·`innerHTML`·`eval(` grep 0건(`src/components/admin/lexicon/**`·`app/(admin)/admin/speech/tts/lexicon/**`) — 표기·읽기·메모·`changeSummary` 등 사용자/관리자 입력이 전부 JSX 텍스트 자식으로만 렌더됨을 직접 확인, XSS 벡터 없음.
+- 엔진명 0: 단위 테스트("엔진명 0: src/components/admin/lexicon 의 코드") PASS + 별도 수동 grep(`g2p|style-?bert|sbv2|reazon|whisper|claude|haiku|sonnet|opus|qwen`, 대소문자 무시)으로 코드 전체 0건 재확인(주석 제외 기준과 별개로 문자열 리터럴 자체도 없음).
+- 터치 44px: 버튼 클래스 `h-11`(44px)·`h-12`(48px) 일관 사용, `Btn size="sm"` 미사용(grep 0건) 확인.
+- 로컬 저장소 미사용: `localStorage|sessionStorage` grep 0건(설계 "소리·초안을 브라우저 저장소에 두지 않는다"·"용도별 컴포넌트는 상태로만" 원칙과 일치).
+- `console.log`·`.message` 직접 참조 0건(서버 message 비노출 원칙과 일치, 3번 항목과 중복 확인).
+- 발견 없음.
+
+#### 7. 공용 변경 회귀 (PASS)
+- `common/api.ts`: `apiDelete<T>(path, body?)` — 기존 시그니처(1인자)는 `body` 가 `undefined` 로 `request()` 에 전달돼 동작 무변화. 실제 기존 호출부 2곳(`ChatMenuSheet.tsx:90`·`WordDetailSheet.tsx:192`, 모두 1인자)을 grep 으로 확인 — 회귀 없음. 신규 `apiGetFile` 은 독립 함수로 추가, 기존 함수 수정 없음.
+- `menu.ts`: 신규 행 1개 추가만(기존 행 무변경), 소유자 A 에게 알림 기록(§10-11 ⑫ 그대로) — `git diff` 로 순수 추가 확인.
+- `labels.ts`·`RoleScreen.tsx`: 각각 `MENU_SUB` 키 1개, TTS 역할 페이지 조건부 `<Section>` 1개 추가 — 기존 분기·기존 역할 렌더에 영향 없음(추가된 블록은 `role==='TTS' && can('voices.read')` 신규 조건이라 다른 role 렌더 경로를 전혀 타지 않음).
+- 전체 회귀 테스트: 프로젝트 전체 422개 단위 테스트 재실행 결과 422/422 PASS(0 실패) — 공용 파일 4종 수정이 기존 화면·모듈 테스트를 깨지 않았음을 직접 확인(위 "독립 재실행" 참고).
+- 발견 없음.
+
+#### 8. 테스트 재실행 (PASS)
+- 위 "독립 재실행" 절 참고. tsc 0·eslint 0·lexicon 단위 27/27·전체 프로젝트 422/422 모두 B 자체 보고와 일치(테스트 개수 소계 표기 오차 1건은 위에서 별도 명시, 심각도 없음).
+
+#### 종합 판정
+
+```json
+{
+  "reviewId": "REV-018",
+  "status": "PASS",
+  "issues": [
+    {
+      "issue": "LexiconDiffList 의 ENABLED/DISABLED 종류 표시가 같은 변경에 동반된 다른 칸(우선순위·종류·메모·악센트) 값 변화를 숨긴다 — REV-017 MEDIUM-1 이 기댄 'dryRun 화면에서 눈에 띄게 표시되는지' 완화 요인이 성립하지 않음을 확인",
+      "severity": "MEDIUM",
+      "component": "src/components/admin/lexicon/LexiconDiffList.tsx:42-63(detail 함수, ENABLED/DISABLED 분기)",
+      "risk": "가져오기 dryRun 검토·버전 상세 diff·되돌리기 확인 diff 세 화면 모두에서, enabled 전이가 동반된 행은 다른 필드 변화(예: 우선순위 500→10·종류 초기화·메모 삭제)를 관리자가 화면만 보고는 전혀 알 수 없다. Rollback 으로 원복 가능하고 API 응답 자체엔 정보가 남아 영구 손실은 아니라 MEDIUM 유지.",
+      "evidence": "서버 diffKind()(src/modules/speech/tts/lexiconRules.ts:512-516)는 enabled 전이를 최우선으로 분류해 다른 필드 변화 여부와 무관하게 kind 를 ENABLED/DISABLED 로 고정한다. detail()(LexiconDiffList.tsx)의 ENABLED/DISABLED 분기는 changedParts() 를 호출하지 않아 그 재료(전체 before/after 스냅샷)가 있음에도 렌더하지 않는다 — 스크래치에서 before={priority:500,wordType:'COMMON',note:'keep me',enabled:false}/after={priority:10,wordType:null,note:null,enabled:true} 를 kind:'ENABLED' 로 넣어 직접 재현, 출력은 '{reading} · 다시 써요' 뿐",
+      "recommendation": "detail() 의 ENABLED/DISABLED 분기에도 changedParts(before,after) 결과를 이어 붙여(예: '{reading} · 다시 써요 · 우선 500 → 10 · 종류 COMMON → 없음 · 메모 바뀜') 세 화면(ImportReview·VersionDetailSheet 비교·되돌리기 확인) 모두가 자동으로 혜택을 보게 한다 — LexiconDiffList.tsx 한 파일의 국소 수정"
+    }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 1, "low": 0 },
+  "high_risk_areas": [
+    "MEDIUM(신규): ENABLED/DISABLED diff 행의 숨은 필드 변화 — QA 가 REV-017 MEDIUM-1 시나리오(CSV 짧은 행)를 재현할 때 dryRun 화면에 우선순위·종류·메모 변화가 안 보인다는 점을 실제 화면으로도 재확인 권장(API 응답과 대조)",
+    "PRODUCTION 확인 문구·역할별 쓰기 버튼 부재는 전부 단위 테스트(가짜 capability)로만 확인됨(voices.read 단독 역할이 실사용자 계정에 없음, §10-11 ⑬) — QA 도 동일 제약이라 실기기·실역할 재현 불가능은 기존 한계이지 이번 REV 결함 아님"
+  ],
+  "native_change": false
+}
+```
+
+**결론**: Critical 0·High 0·Medium 1·Low 0 → **PASS**(REV-017 서버 PASS 와 별개로 화면 자체도 PASS). 신규 MEDIUM(ENABLED/DISABLED diff 표시 누락)은 REV-017 MEDIUM-1(서버 CSV 짧은 행 재설정)과 사실상 같은 근본 위험을 공유하므로, **Developer 가 두 건을 한 번에 고치는 것을 권고**(서버 CSV 파서 수정 + `LexiconDiffList.detail()` 수정) — 수정 후 Reviewer 재순환은 두 파일(`lexiconCsv.ts`/`lexiconRules.ts`·`LexiconDiffList.tsx`)만 국소 재검증하면 되고 전체 재순환은 불필요(Leader 최종 판단). QA 인계: 위 `high_risk_areas` 참고, 특히 REV-017 이 이미 요청한 "dryRun 화면 가시성" 항목은 이번 실측으로 **"안 보임"이 확정**됐으니 QA 체크리스트에서 "화면에 표시되는지 확인"이 아니라 "표시되지 않음을 API 응답과 대조해 인지하고 넘어간다"로 갱신해 진행. 그 외 6영역(6층 경계·권한 렌더·계약 정합·Import/Export·버전 화면·접근성/XSS/공용 회귀) 전부 발견 없음.
+
 ## QA 기록
 
 ## 최종 요약
