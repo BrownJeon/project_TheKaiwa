@@ -1,0 +1,32 @@
+{
+ "version": "chat-review@v1",
+ "note": "합성 채팅 1건(사용자 실데이터 아님, task-006). A3(REVIEW) 검출률·인용 규칙(메시지 전체 또는 문장 하나 전체 바이트 일치)·이모지 실측용. 학습자 메시지만(강사 응답은 리뷰 대상이 아니라 넣지 않는다), 오래된 것부터 최근 순.",
+ "level": "N4",
+ "messages": [
+  { "id": "cljk0a1b2c000008uz3f9h1a", "text": "おはようございます。昨日友だちを会いました。" },
+  { "id": "cljk0a1b2c000008uz3f9h1b", "text": "映画がとても面白いでした。もう一度見たいです。" },
+  { "id": "cljk0a1b2c000008uz3f9h1c", "text": "先生、この漢字の読み方を教えてください。" },
+  { "id": "cljk0a1b2c000008uz3f9h1d", "text": "今日は😀楽しかったです🎉" },
+  { "id": "cljk0a1b2c000008uz3f9h1e", "text": "週末に友だちと静かの公園に行きました。" },
+  { "id": "cljk0a1b2c000008uz3f9h1f", "text": "先生、もう一回言ってくれ。" },
+  { "id": "cljk0a1b2c000008uz3f9h1g", "text": "毎朝七時に起きて、会社まで電車で行きます。" },
+  { "id": "cljk0a1b2c000008uz3f9h1h", "text": "図書館で本が借りました。とても勉強になりました。" },
+  { "id": "cljk0a1b2c000008uz3f9h1i", "text": "すみません、駅はどこですか。" },
+  { "id": "cljk0a1b2c000008uz3f9h1j", "text": "私の趣味は写真を撮ることです。よく週末に公園へ行きます。" }
+ ],
+ "note_expectedFindings": "sentenceOriginal 은 해당 메시지 안에서 오류가 있는 문장 하나 전체(。로 끝남) — items[].original 이 이 문자열 또는 메시지 전체와 바이트 일치해야 정답으로 센다(checks.isVerbatimQuote 와 같은 규칙).",
+ "expectedFindings": [
+  { "messageId": "cljk0a1b2c000008uz3f9h1a", "sentenceOriginal": "昨日友だちを会いました。", "errorType": "PARTICLE", "expectedCorrected": "昨日友だちに会いました。" },
+  { "messageId": "cljk0a1b2c000008uz3f9h1b", "sentenceOriginal": "映画がとても面白いでした。", "errorType": "CONJUGATION", "expectedCorrected": "映画がとても面白かったです。" },
+  { "messageId": "cljk0a1b2c000008uz3f9h1e", "sentenceOriginal": "週末に友だちと静かの公園に行きました。", "errorType": "GRAMMAR", "expectedCorrected": "週末に友だちと静かな公園に行きました。" },
+  { "messageId": "cljk0a1b2c000008uz3f9h1f", "sentenceOriginal": "先生、もう一回言ってくれ。", "errorType": "POLITENESS", "expectedCorrected": "先生、もう一回言ってください。" },
+  { "messageId": "cljk0a1b2c000008uz3f9h1h", "sentenceOriginal": "図書館で本が借りました。", "errorType": "PARTICLE", "expectedCorrected": "図書館で本を借りました。" }
+ ],
+ "cleanMessageIds": [
+  "cljk0a1b2c000008uz3f9h1c",
+  "cljk0a1b2c000008uz3f9h1d",
+  "cljk0a1b2c000008uz3f9h1g",
+  "cljk0a1b2c000008uz3f9h1i",
+  "cljk0a1b2c000008uz3f9h1j"
+ ]
+}
