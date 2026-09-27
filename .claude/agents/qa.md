@@ -123,6 +123,8 @@ jest(단위, mock: `child_process.spawn`·engine adapters·gateway/tts HTTP), su
 - 파일이 꼭 필요하면(스크립트 `page.screenshot`, 전후 비교 등) `/tmp/qa-artifacts/TheKaiwa/<task-id>/` 아래 절대경로만 쓴다.
 - 판정을 이력서에 적은 **직후** 그 폴더와 응답에 찍힌 스크린샷 파일을 지우고, 보고에 `산출물 정리: N개 삭제` 를 남긴다.
 - 근거는 파일명이 아니라 **관찰 결과(측정 px·요소·색)를 글로** 남긴다 — 지우고 나면 파일명은 끊긴 링크다.
+- **띄운 프로세스는 보고 전에 전부 끈다** — dev 서버(3011·3012)·개발 gateway(8197 등)·격리 빌드 복제본. 띄울 때 PID 를 파일에 적고 그 PID 로만 끈다(`pkill -f` 금지 — 자기 셸을 죽인다). 끈 뒤 `ss -ltn` 으로 포트가 비었는지, `ls -d ~/.node-local/thekaiwa*` 로 복제본이 없는지 확인하고 보고에 `프로세스 정리: dev 3012 종료·포트 비움` 처럼 남긴다. 2026-09-28 QA-016·017 이 dev 서버를 남겨 Leader 가 치웠다.
+- **화면 E2E 는 단위 테스트로 갈음하지 않는다** — task 가 제공한 Playwright 스크립트(`tests/live/*-ui-e2e.mjs`, `playwright-core` 는 `~/node_modules`, 브라우저 `/usr/bin/google-chrome`, 필요하면 `NODE_PATH=$HOME/node_modules`)를 실제로 돌린다. 막히면 오류 메시지 원문을 기록하고 NOT_VERIFIED 로 둔다(PASS 로 적지 않는다).
 </screen_verification>
 
 <references>
