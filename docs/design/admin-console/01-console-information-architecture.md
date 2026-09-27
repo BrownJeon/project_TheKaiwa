@@ -29,6 +29,7 @@
 | Configuration | `configuration` (탭: Form · Raw JSON · Diff · Presets · Export/Import · Overrides) | §86~§92·§102~§107 | `config.effective.read` (Raw `config.raw.read`, 편집 `config.edit`) | 1(Effective 읽기) / 2 / 4 |
 | Prompts | `prompts`, `prompts/[key]` | §118~§120 버전 목록·편집·Test·Activate | `prompts.read` / `prompts.edit` / `prompts.activate` | 2 |
 | Diagnostics | `diagnostics`, `diagnostics/[connectionId]` | §111~§113 Health·Metrics·Log level·Debug session · **TTS Observability 대시보드** `diagnostics/tts`(5차 §143: req/min·avg·p50·p95·p99·TTFA·error rate·cache hit·voice/engine 별·model load·폴백 건수) | `engine.read` / `trace.read` / `debug_session.create` | 1(Health) / 2(TTS 대시보드, P1) / 3 |
+| (보조) 루트·Trace 상세 | `/admin` → `dashboard` redirect · `diagnostics/traces/[traceId]` | 진입 기본 경로 · Trace 1건 상세(#129) | `console.access` / `trace.read` | 1 (task-005b H6) |
 | Playground | `playground` (탭: STT · TTS · LLM · E2E) | §108·§109 | `playground.use` / `e2e.run` | 2 / 3(E2E) |
 | History | `history` (탭: Config versions · Audit · Rollback) | §93·§94 | `audit.read` / `config.rollback` | 2 |
 

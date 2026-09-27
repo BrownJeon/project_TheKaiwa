@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b)
 
 ---
 
@@ -86,8 +86,15 @@
 | 서랍장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** |
 | 서랍장 | `/drawer/corrections` | 채택 교정 모음 | 로그인 | 보임 | Phase 3 |
 | 질문 | `/ask` | 무엇이든 물어보세요 | 로그인 | 보임 | Phase 3 |
-| 상단 아바타 | `/settings` | 설정 허브 | 로그인(Advanced 는 capability) | 보임 | task-005 ✅ |
-| 콘솔 | `(admin)/admin/*` | 관리자 콘솔 | capability 없으면 404 | 별도 레이아웃 | task-005b |
+| 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** |
+| 콘솔 | `/admin` → `/admin/dashboard` | 대시보드(역할별 엔진·연결·모델·상태, 30초 갱신) | `console.access` 없으면 **앱 공통 404** | **별도 셸**(환경 띠·콘솔 바, 탭 없음) | **task-005b(§6)** |
+| 콘솔 | `/admin/speech/{realtime,analysis,tts}` · `/admin/llm` | 역할 페이지(지금 쓰는 연결·Health/기능 테스트·예비 순서·설정값 요약) | `engine.read` | 별도 셸 | **task-005b(§6)** |
+| 콘솔 | `/admin/voices` | 목소리 목록(읽기) | `voices.read` | 별도 셸 | **task-005b(§6)** |
+| 콘솔 | `/admin/connections` · `/admin/connections/[id]` | 연결 목록·상세(Health/기능 테스트·최근 결과·시크릿 참조 시트) | `engine.read`(시크릿 시트 `secrets.read_ref`) | 별도 셸 | **task-005b(§6)** |
+| 콘솔 | `/admin/plugins` · `/admin/plugins/[id]` | 플러그인 로드 상태·스키마 | `plugins.read`(DEVELOPER+, 없으면 콘솔 403) | 별도 셸 | **task-005b(§6)** |
+| 콘솔 | `/admin/configuration` | 설정값 Effective(키·값·Source 배지) — Effective 탭만 | `config.effective.read` | 별도 셸 | **task-005b(§6)** |
+| 콘솔 | `/admin/diagnostics` (`?tab=health\|traces`) · `/admin/diagnostics/traces/[traceId]` | Health 기록 · 요청 Trace 목록/상세 | `engine.read` / Trace 는 `trace.read` | 별도 셸 | **task-005b(§6)** |
+| 콘솔 | `/admin/{prompts,playground,history}` · `speech/tts/lexicon` 등 | 편집·버전·Playground·발음 사전 | — | 메뉴 없음 | Phase 2+ (발음 사전은 task-003 이후) |
 
 - **하위 화면(대화방·결과 화면)은 하단 탭을 숨기고 `←` 헤더로 돌아간다.** 키보드가 올라온 뒤 대화가 보이는 높이를 확보하기 위해서다(412×892 에서 키보드 ≈330px → 남는 ≈560px 중 탭 바 66px 는 12%).
 - 사용자 화면 전체에서 엔진·모델·호스트 이름(`claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert`)·`traceId`·"AI 엔진" 같은 구현 용어는 0건이다.
@@ -1915,3 +1922,1110 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 | ⑧ | #41 일본어 아닌 입력 | A10 이 `valid:false`+`invalidReason`(prompt-engineer 스키마)을 내므로 #41 은 `{ draft: { valid:false, invalidReason }, saved:false }` 로 돌려준다고 가정. 화면은 400 + 서버 문구도 같은 자리에서 처리한다(§4-2 B) | `valid` 가 응답에서 빠지면 화면이 일본어 아님을 알 수 없어 빈 폼으로 넘어간다 |
 | ⑨ | E2 표시 전용 응답 | `{order, flagged}` 만 돌려주고 미답 카드의 정답 필드는 없다 | 정답 누출(완료 기준 3 위반) |
 | ⑩ | 전역·공용 변경 | TabBar `HIDDEN_PREFIXES` 에 `/study/today/words/` 추가 · vocab 이 `@/components/chat/{format,errors,storage}` 를 import(공용 폴더로 옮기는 정리는 별도) · 오늘 앱바 제목 "오늘" → "오늘의 공부" | 탭을 유지하면 덱 높이 예산(≈640px)이 66px 줄어 412×780 에서 스크롤이 생긴다 |
+
+---
+
+## 6. Admin Console — Phase 1 (task-005b)
+
+> 정본: IA `docs/design/admin-console/01`(메뉴·진입·레이아웃·404/403) · 권한 `docs/design/role-permission.md` §3·§4 · API `docs/design/api-contract.md`(§6-4 의 #번호) · Source `configuration-resolution.md` §2·`admin-console/04`·`05` · Trace `admin-console/13` · 환경 `admin-console/16` · Health/기능 테스트 `speech-platform/09`·`10`·`14`.
+> 이 절은 **Phase 1 화면만** 다룬다. 편집·Version·Rollback·Prompts·Playground·History·발음 사전(G1 이월)은 없다 — 메뉴에도 그리지 않는다.
+
+### 6-0. 한눈에 보는 결정
+
+1. **별도 셸** `src/app/(admin)/layout.tsx`. 학습 앱 하단 탭이 없다. 위에서부터 **환경 띠(32px, 숨길 수 없음)** → **콘솔 바(52px: ☰ · 제목 · ↩ 앱으로)** → 본문. 세로 스크롤은 `main` 한 곳. ≥1024px 는 왼쪽 사이드바(232px) + 본문(최대 960px).
+2. **메뉴**: 모바일은 ☰ → 공용 `Sheet`(아래에서 올라오는 메뉴), 데스크톱은 사이드바. 둘 다 서버가 capability·Phase 로 거른 같은 목록(`menu.ts`)을 쓴다. 권한 없는 메뉴·버튼은 **렌더하지 않는다**(비활성·툴팁 아님).
+3. **환경 띠**: `PRODUCTION` = 빨간 띠(`bg-bad text-surface`) + "운영 환경 — 변경은 확인 절차를 거칩니다". `LOCAL` = 회색 띠. 앱 버전은 오른쪽 끝.
+4. **404 / 403**: `console.access` 가 없으면(USER) 앱의 **아무 없는 주소와 똑같은** 404 다(콘솔 전용 not-found 를 만들지 않는다). 콘솔 사용자인데 화면 capability 가 부족하면 콘솔 안 **403 카드**(메뉴·띠 유지, 필요한 권한 이름 표시). 콘솔 안에서 id 가 없으면 콘솔 안 "찾을 수 없어요" 카드.
+5. **표 대신 카드**: 목록은 카드·행 목록, 키·값은 `dl`(카드 폭 <420px 이면 위아래로). 가로 스크롤 0. 긴 키·URL·ref 는 모노 글꼴 + `[overflow-wrap:anywhere]`.
+6. **Health·기능 테스트 = 한 패널**(`EngineTestPanel`): [상태 확인] [기능 테스트] → 진행(경과 초) → 결과 카드(상태·사유·지연·traceId). **서비스가 꺼져 있는 것은 오류가 아니다** — 결과 카드는 회색 바탕 + "응답 없음" 뱃지 + 사유 + "서비스가 꺼져 있으면 정상적인 결과예요". 빨간 ErrorBlock 은 HTTP 실패(500·네트워크)에만 쓴다.
+7. **429**: 버튼 자리에서 카운트다운("{n}초 뒤 다시"). LLM 기능 테스트는 끝난 직후 30초를 화면이 먼저 잠근다(G4 와 같은 값 — 헛 429 방지).
+8. **Source 배지** = 층 번호 + 이름(`4 ENVIRONMENT`). 강조는 둘만 — `ENVIRONMENT`(굵은 윤곽: "env 가 덮었다"), `RUNTIME_OVERRIDE`(빨강 바탕). 나머지는 회색. DEVELOPER 이상은 행을 펼쳐 층별 값·`sourceRef` 를 본다(서버가 `layers` 를 줄 때만 펼침 표시).
+9. **엔진명은 보여 주고, 비밀·서버 경로는 안 보여 준다**(G6): 엔진·모델·baseUrl·connection key 는 표시. `credentialRef` 는 이름만(🔒). 값이 의심되는 키는 `•••`, `/` 로 시작하는 경로 값은 "서버 경로 · 표시하지 않음". 시크릿 **존재 여부는 [시크릿 참조] 시트를 열 때만** 조회한다(조회마다 감사 로그 1행 — 페이지 진입만으로는 부르지 않는다).
+10. **갱신**: 대시보드만 30초 폴링(보이는 동안만, G5). 나머지는 진입·[다시 불러오기]·테스트 직후에만 읽는다.
+11. **`/settings` 진입**: 맨 아래 "관리자" 섹션에 한 줄 "AI Engine Console ›"(`engine.read` 보유자만). 서버 컴포넌트라 USER 의 DOM·번들에 문자열이 없다. 역할 상태 요약 행(speech-platform 14 §7 미결 1)은 두지 않는다.
+
+### 6-1. 화면 개요 · 메뉴
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | 관리자·개발자가 역할(실시간 인식·분석 인식·음성 합성·LLM)별로 **지금 어떤 엔진·연결·모델이 어떤 상태로 쓰이는지** 보고, Health·기능 테스트를 직접 돌리고, 설정값이 **어느 층에서 왔는지**(Source)와 요청 Trace 를 확인한다. Phase 1 은 **읽기 + 테스트 실행**만(쓰기 0, G2) |
+| 진입 | `/settings` 맨 아래 "관리자 › AI Engine Console" → `/admin/dashboard`. `/admin` 은 `/admin/dashboard` 로 redirect. 딥링크 없음 |
+| 역할별 가시성 | USER: `/admin/**` 전부 404, `/settings` 관리자 행 없음 · ADMIN: 메뉴 9개(Plugins 없음), Diagnostics 는 Health 기록만, Effective 는 값+Source 이름만 · DEVELOPER·SUPER_ADMIN: 메뉴 10개 + Trace 탭 + Effective 층 펼치기 |
+| 앱/웹 분기 | 없음. 앱 WebView(≈390px)에서도 같은 화면. ONDEVICE 연결의 기기 테스트 버튼은 음성 Phase 4(이번엔 안내 문구만) |
+| 하단 탭 | 없음(별도 셸). 돌아가기는 콘솔 바 [↩ 앱으로] = `/settings` |
+| 음성 | 기능 테스트 결과에 `detail.audioUrl` 이 있을 때만 `<audio controls>`(TTS — task-003 뒤에 실제로 생김) |
+
+**메뉴 상수 값** — `src/modules/admin/console/menu.ts`(developer A 소유). 화면은 layout 이 걸러 준 목록을 props 로만 받는다(클라이언트가 `@/modules/admin` 을 import 하지 않는다).
+
+| 순서 | group | path | label(바 제목) | sub(메뉴 설명) | capability | 비고 |
+|---|---|---|---|---|---|---|
+| 1 | 개요 | `/admin/dashboard` | Dashboard | 역할별 엔진·상태 한눈에 | `engine.read` | |
+| 2 | 엔진 | `/admin/speech/realtime` | Realtime STT | 실시간 음성 인식 | `engine.read` | |
+| 3 | 엔진 | `/admin/speech/analysis` | Analysis STT | 분석용 음성 인식 | `engine.read` | |
+| 4 | 엔진 | `/admin/speech/tts` | TTS | 선생님 목소리 합성 | `engine.read` | |
+| 5 | 엔진 | `/admin/llm` | LLM | 대답·교정·레슨 생성 | `engine.read` | |
+| 6 | 자원 | `/admin/voices` | Voices | 목소리 목록 | `voices.read` | §6-11 ③ |
+| 7 | 자원 | `/admin/connections` | Connections | 연결·Health·기능 테스트 | `engine.read` | |
+| 8 | 자원 | `/admin/plugins` | Plugins | 엔진 플러그인 로드 상태 | `plugins.read` | DEVELOPER+ |
+| 9 | 설정·진단 | `/admin/configuration` | Configuration | 실제 적용값과 출처 | `config.effective.read` | Effective 탭만 |
+| 10 | 설정·진단 | `/admin/diagnostics` | Diagnostics | Health 기록·요청 Trace | `engine.read` | Trace 탭 `trace.read` |
+
+- 바 제목은 `pathname` 을 메뉴 `path` 의 **가장 긴 접두사**로 찾는다(`/admin/connections/abc` → "Connections"). 상세 화면의 항목 이름은 본문 `h2` 로 쓴다(`h1` 은 바 제목 하나).
+- Phase 2+ 메뉴(Prompts·Playground·History·Pronunciation Dictionary·Voices › Versions·TTS Quality)는 상수에 두더라도 `phase > 1` 이면 거른다.
+
+### 6-2. UI 구조 (의사코드, 390px 기준)
+
+#### A. 셸 — `src/app/(admin)/layout.tsx`(서버) + `ConsoleShell`(클라이언트)
+
+```tsx
+// src/app/(admin)/layout.tsx — export const dynamic = 'force-dynamic'
+const access = await getConsoleAccess()      // @/modules/admin(developer A): 세션 → User(DB) → role·capabilities(console.access 파생 포함)
+                                             //   + environment{environment, appVersion, services}(#81 과 같은 값) + menu(§6-1, capability·phase 로 거름)
+if (!access) redirect('/login?callbackUrl=/admin/dashboard')     // 미인증(proxy 가 먼저 막지만 이중)
+if (!access.capabilities.includes('console.access')) notFound()  // USER → 앱 공통 404. 이보다 먼저 콘솔 데이터를 읽지 않는다
+return <ConsoleShell access={toClientAccess(access)}>{children}</ConsoleShell>
+```
+
+```tsx
+// ConsoleShell (client) — ConsoleProvider 로 {role, capabilities, environment} 를 내려 준다(useCan)
+<ConsoleProvider value={…}>
+  <div data-app-shell className="grid h-[100dvh] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-surface"
+       style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <NativeFlag />                                        ← @/components/shell/NativeFlag 재사용(앱 상태바 최소 24px 규칙). null 을 렌더
+    <EnvStrip environment appVersion />                   ← 32px. main 밖이라 늘 보인다
+    <ConsoleBar menu onOpenMenu />                        ← 52px
+    <div className="grid min-h-0 min-w-0 lg:grid-cols-[232px_minmax(0,1fr)]">
+      <ConsoleSidebar menu className="hidden lg:flex" />  ← ≥1024 만. 자체 overflow-y-auto(데스크톱 예외)
+      <main className="min-h-0 min-w-0 overflow-y-auto bg-ground">
+        <div className="mx-auto w-full max-w-[960px] px-4 pt-3 lg:px-6"
+             style={{ paddingBottom: 'max(40px, calc(16px + env(safe-area-inset-bottom)))' }}>
+          {children}
+        </div>
+      </main>
+    </div>
+    <ConsoleMenuSheet open menu onClose />                ← 공용 Sheet(제목 "콘솔 메뉴") — body 포털
+  </div>
+</ConsoleProvider>
+```
+- `data-app-shell` + `main` 구조를 그대로 두는 이유: 공용 `Sheet` 가 `[data-app-shell] main` 의 스크롤을 잠그고, `globals.css` 의 앱 상태바 안전장치(`[data-native] [data-app-shell]`)가 그대로 걸린다.
+
+와이어프레임(390px, PRODUCTION):
+```
+┌──────────────────────────────────────┐
+│▌PRODUCTION▐ 운영 환경 — 변경은 확…  v0.4.2│ EnvStrip 32px  bg-bad text-surface
+├──────────────────────────────────────┤
+│ ☰  AI Engine Console · 자원      ↩ 앱으로│ ConsoleBar 52px
+│    Connections                          │   12px ink2 / 17px semibold
+├──────────────────────────────────────┤
+│ (main — 이 화면의 유일한 세로 스크롤)       │
+└──────────────────────────────────────┘
+```
+
+데스크톱(≥1024):
+```
+┌ EnvStrip ──────────────────────────────────────────────────────────────┐
+├ ConsoleBar (☰ 숨김) ────────────────────────────────────────────────────┤
+│ 사이드바 232px             │ main (가운데, 최대 960px, 카드 2열)              │
+│ 개요                       │                                              │
+│  ▌Dashboard               │                                              │
+│ 엔진                       │                                              │
+│  Realtime STT …           │                                              │
+│ ────────                  │                                              │
+│ ↩ 학습 앱으로 돌아가기        │                                              │
+│ 내 역할 DEVELOPER          │                                              │
+└───────────────────────────┴──────────────────────────────────────────────┘
+```
+
+**EnvStrip**
+```
+<div role="note" aria-label="환경: {ENV_KO[env]}({env}). {ENV_MESSAGE[env]}"
+     className="flex min-h-8 min-w-0 items-center gap-2 px-4 text-[12px] {STRIP[env]}">
+  <span className="flex-none rounded px-1.5 py-px font-mono text-[11.5px] font-bold tracking-wide {PILL[env]}">{env}</span>
+  <span className="min-w-0 flex-1 truncate">{ENV_MESSAGE[env]}</span>
+  {appVersion && <span className="flex-none tabular-nums">v{appVersion}</span>}
+</div>
+```
+
+| env | 띠(STRIP) | 알약(PILL) | 문구 |
+|---|---|---|---|
+| `PRODUCTION` | `bg-bad text-surface`(라이트·다크 ≈6.6:1) | `bg-surface text-bad` | 운영 환경 — 변경은 확인 절차를 거칩니다 |
+| `LOCAL` | `bg-surface2 text-ink2` | `border border-ink2 text-ink` | 개발 환경 — 운영과 분리된 설정 행을 봐요 |
+| `DEVELOPMENT`·`STAGING` | `bg-surface2 text-ink` | `border border-ink text-ink` | {env} 환경 |
+
+- 01 §5 의 "슬롯 = 파랑"은 토큰이 없어 회색 윤곽으로 대신한다(슬롯은 지금 쓰지 않음, §6-11 ⑬). 01 §5 의 Override 켜짐·개수는 Override 가 Phase 4 라 이번엔 띠에 넣지 않는다(§6-11 ④).
+- 360px 에서 문구가 길면 말줄임한다. 전체 문구는 `aria-label` 과 메뉴 시트 머리에 한 번 더 보인다.
+
+**ConsoleBar**
+```
+<header className="flex h-[52px] min-w-0 items-center gap-1 border-b border-line bg-surface pl-1 pr-1 lg:pl-4">
+  <button type="button" aria-label="콘솔 메뉴 열기" aria-haspopup="dialog"
+          className="grid h-11 w-11 flex-none place-items-center rounded-full lg:hidden">☰(svg)</button>
+  <div className="min-w-0 flex-1">
+    <p className="truncate text-[12px] leading-tight text-ink2">AI Engine Console · {group}</p>
+    <h1 className="truncate text-[17px] font-semibold leading-tight">{label}</h1>
+  </div>
+  <Link href="/settings" aria-label="학습 앱으로 돌아가기"
+        className="flex h-11 flex-none items-center gap-1 rounded-xl px-3 text-[13px] font-medium text-ink2">↩ 앱으로</Link>
+</header>
+```
+
+**ConsoleNavList**(메뉴 시트·사이드바 공용)
+```
+<nav aria-label="콘솔 메뉴">
+  (시트에서만) <p className="mb-2 rounded-xl bg-surface2 px-3 py-2 text-[12px] text-ink2">{env} · {ENV_MESSAGE}</p>
+  for group:
+    <p className="mt-3 px-3 text-[12px] font-medium text-ink2">{group}</p>
+    <Link href={path} aria-current={active ? 'page' : undefined} onClick={onNavigate}
+          className="flex min-h-[52px] min-w-0 flex-col justify-center rounded-xl px-3 {active ? 'bg-accent-soft ring-1 ring-accent font-semibold' : ''}">
+      <span className="truncate text-[15px] text-ink">{label}</span>
+      <span className="truncate text-[12px] font-normal text-ink2">{sub}</span>
+    </Link>
+  <hr className="my-3 border-line" />
+  <Link href="/settings" className="flex min-h-[52px] items-center rounded-xl px-3 text-[15px] text-ink">↩ 학습 앱으로 돌아가기</Link>
+  <p className="px-3 pb-2 text-[12px] text-ink2">내 역할 {role}</p>
+</nav>
+```
+- 활성 판정은 바 제목과 같은 "가장 긴 접두사". 링크를 누르면 시트를 닫는다(pathname 변경 effect 로도 닫는다).
+
+#### B. 가드 · 403 · 콘솔 안 404
+
+`layout` 은 클라이언트 이동 때 다시 실행되지 않는다. 그래서 **모든 `page.tsx`(서버)가 첫 줄에서 화면 capability 를 다시 검사**한다.
+
+```tsx
+// 예: src/app/(admin)/admin/plugins/page.tsx
+const g = await requireConsolePage('plugins.read')     // @/modules/admin: console.access 가 없으면 안에서 notFound()
+if (!g.ok) return <ConsoleForbidden missing={g.missing} role={g.role} />
+return <PluginsScreen />
+```
+
+| 화면 | 페이지 capability |
+|---|---|
+| dashboard · speech/* · llm · connections(+[id]) · diagnostics | `engine.read` |
+| voices | `voices.read` |
+| plugins(+[id]) | `plugins.read` |
+| configuration | `config.effective.read` |
+| diagnostics/traces/[traceId] | `trace.read` |
+
+**ConsoleForbidden**(콘솔 안 403 — 메뉴·환경 띠는 그대로)
+```
+<Card className="mt-6 text-center">
+  자물쇠 아이콘 40px text-ink2 (aria-hidden)
+  <h2 className="mt-2 text-[17px] font-semibold">이 화면을 볼 권한이 없어요</h2>
+  <p className="mt-1 text-[14px] text-ink2 [overflow-wrap:anywhere]">필요한 권한 <code className="font-mono text-ink">{missing.join(', ')}</code> · 내 역할 {role}</p>
+  <p className="mt-1 text-[13px] text-ink2">역할은 소유자(SUPER_ADMIN)가 바꿀 수 있어요.</p>
+  <Link href="/admin/dashboard" className="(Btn ghost 모양) mt-4 w-full">대시보드로</Link>
+</Card>
+```
+- 같은 카드를 클라이언트가 API **403** 을 받았을 때도 쓴다(`details.missing` → 없으면 `[details.requiredCapability]`, §6-11 ①).
+
+**ConsoleNotFound**(콘솔 사용자 + 없는 id — `/admin/connections/zzz`·`/admin/plugins/zzz`·`/admin/diagnostics/traces/zzz`)
+```
+<Card className="mt-6 text-center">
+  <h2 className="text-[17px] font-semibold">찾을 수 없어요</h2>
+  <p className="mt-1 text-[14px] text-ink2">지웠거나 다른 환경의 항목일 수 있어요. 지금 환경은 {env} 이에요.</p>
+  <Link href={backHref} className="(Btn ghost) mt-4 w-full">{backLabel}</Link>
+</Card>
+```
+- `notFound()` 를 쓰지 않는다 — 화면이 API 404 를 받아 이 카드를 그린다(콘솔 전용 not-found 경계를 만들지 않기 위해, §6-0 ④).
+
+#### C. 공용 조각 (`src/components/admin/console/*`)
+
+**StatusBadge** — `EngineStatus` 와 테스트 결과를 한 뱃지로. 점은 장식(`aria-hidden`), 뜻은 글자가 진다.
+
+| 값 | 클래스 | 글자 |
+|---|---|---|
+| `HEALTHY` | `bg-good-soft text-good` + 점 `bg-good` | 정상 |
+| `DEGRADED` | `bg-warn-soft text-ink` + 점 `bg-warn` | 저하 |
+| `UNAVAILABLE` | `bg-bad-soft text-bad` + 점 `bg-bad` | 응답 없음 |
+| `MISCONFIGURED` | `border border-bad bg-surface text-bad` | 설정 오류 |
+| `DISABLED` | `bg-surface2 text-ink2` | 꺼짐 |
+| `UNKNOWN` | `border border-dashed border-ink2 bg-surface text-ink2` | 미확인 |
+| 결과 `PASSED`(기능 테스트 ok) | `bg-good-soft text-good` | 통과 |
+| 결과 `FAILED`(기능 테스트 실패, 서비스는 응답함) | `bg-bad-soft text-bad` | 실패 |
+| 결과 `TIMEOUT` | `bg-bad-soft text-bad` | 시간 초과 |
+| 결과 `SKIPPED` | `bg-surface2 text-ink2` | 건너뜀 |
+
+```
+<span aria-label="상태: {글자}({값})" className="inline-flex h-[22px] flex-none items-center gap-1 rounded-md px-2 text-[11.5px] font-semibold {tone}">
+  {dot && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full {dotTone}" />}{글자}
+</span>
+```
+- `warn` 글자·`accent` 뱃지 글자·`ink3` 글자는 쓰지 않는다(§1-1). 14 §3.5 의 "MISCONFIGURED = 보라"는 토큰이 없어 **빨강 윤곽**으로 대신한다(보라는 금지 미학이기도 하다).
+
+**SourceBadge** — `{층 번호} {ConfigSource}`
+```
+<span aria-label="출처 {n}층 {SOURCE}, {SOURCE_KO}" className="inline-flex h-[22px] max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 font-mono text-[11px] {tone}">
+  <span className="tabular-nums">{n}</span><span className="truncate">{SOURCE}</span>
+</span>
+```
+
+| Source | 층 | 톤 |
+|---|---|---|
+| `DEFAULT` · `SOURCE_CODE` · `APPLICATION_CONFIG` · `DATABASE` · `CONNECTION_PROFILE` · `USER_SETTING` | 1·2·3·5·6·7 | `bg-surface2 text-ink2` |
+| `ENVIRONMENT` | 4 | `border border-ink bg-surface font-semibold text-ink` |
+| `RUNTIME_OVERRIDE` | 8 | `bg-bad-soft text-bad` |
+
+**EditabilityText** — 뱃지가 아니라 12px `text-ink2` 글자: 읽기 전용 · 즉시 반영 · 재시작 필요 · 재배포 필요 · 시크릿(참조만). `restartRequired:true` 면 "재시작 필요".
+
+**KeyValueList**
+```
+<dl className="@container grid min-w-0 gap-y-2">
+  each → <div className="grid min-w-0 gap-0.5 @min-[420px]:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] @min-[420px]:gap-3">
+    <dt className="min-w-0 text-[12.5px] text-ink2 [overflow-wrap:anywhere] {mono ? 'font-mono' : ''}">{label ?? key}</dt>
+    <dd className="min-w-0 text-[14px] text-ink [overflow-wrap:anywhere] {mono ? 'font-mono text-[13px]' : ''}">{displayValue(key, value)}</dd>
+  </div>
+</dl>
+```
+**`displayValue(key, value)`**(`console/format.ts`, 순수 — 단위 테스트 대상)
+1. `null`·`undefined` → "없음"(ink2)
+2. boolean → "예" / "아니요"
+3. 배열 → `, ` 로 잇기(요소가 객체면 JSON 한 줄)
+4. 객체 → `JSON.stringify` 한 줄(모노, 줄바꿈 허용)
+5. 문자열이 `/` 로 시작하고 (키가 `/(path|dir|file)$/i` 로 끝나거나 스키마 타입이 `PATH`) → **"서버 경로 · 표시하지 않음"**
+6. 키가 `/(token|secret|password|passwd|api[-_]?key)/i` 에 맞고 `credentialRef` 가 아니면 → "•••(숨김)"
+7. 값이 `"***"` → "•••(숨김)"
+8. 나머지는 그대로.
+- 5·6 은 **방어선**일 뿐이다 — 서버 응답에 애초에 없어야 한다(§6-11 ⑦).
+
+**MonoId + CopyButton** — `traceId`·connection key·ref 이름: `font-mono text-[13px] [overflow-wrap:anywhere]` + 44×44 복사 버튼(`aria-label="{이름} 복사"`, `navigator.clipboard.writeText` try/catch → 토스트 "복사했어요" / "복사하지 못했어요"). 링크 안(카드 전체가 링크)에서는 복사 버튼을 두지 않는다.
+
+**RefreshLine**
+```
+<div className="flex min-w-0 items-center gap-2 text-[12px] text-ink2">
+  <span className="min-w-0 flex-1 truncate">마지막 갱신 {HH:mm:ss}{polling && ' · 30초마다 새로 고침'}</span>
+  <button type="button" aria-busy={reloading} className="h-11 flex-none px-2 text-[13px] font-medium text-ink">{reloading ? '불러오는 중…' : '다시 불러오기'}</button>
+</div>
+```
+
+**ChipRadio** — 가로 칩 줄(대상 연결·필터). §4 `CategoryChips` 와 같은 규칙: `no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4`, 칩 `relative h-9 min-w-[44px] flex-none rounded-full border px-3 text-[13px]` + 세로만 `before:` 히트 44px, `role="radio" aria-checked`, 선택 `bg-accent text-on-accent border-accent`, 나머지 `bg-surface text-ink border-line`, 선택 칩이 화면 밖이면 `scrollIntoView({inline:'nearest', block:'nearest'})`. admin 은 `(app)` 컴포넌트를 import 하지 않으므로 admin 안에 따로 둔다.
+
+**ConsoleLoading** — 첫 로드 자리. `<p role="status" className="py-8 text-center text-[13px] text-ink2">불러오는 중…</p>`(공용 `LoadingBlock` 은 `ink3` 글자라 쓰지 않는다, §1-1).
+
+**ToggleButton** — `aria-pressed` 알약(§4 ArchiveToggle 과 같은 모양·히트영역). Voices 의 "보관 포함"에 쓴다.
+
+**EngineTestPanel**(역할 페이지·연결 상세 공용)
+```
+props: { connection: { id, key, role, connectionType, enabled }, onDone(result | null) }
+if (!can('health.run') && !can('functional_test.run')) return null
+
+<Card>
+  {!connection.enabled
+    ? <p className="text-[13px] text-ink2">꺼져 있는 연결이에요 — 켜기는 다음 단계(편집)에서 할 수 있어요.</p>
+    : <div className="flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
+        {can('health.run') && <Btn variant="ghost" onClick={() => start('HEALTH')} disabled={busy || cooling('HEALTH')} aria-busy={run?.kind === 'HEALTH'}>
+            {run?.kind === 'HEALTH' ? '확인 중…' : cooling('HEALTH') ? `${n}초 뒤 다시` : '상태 확인'}</Btn>}
+        {can('functional_test.run') && connection.connectionType !== 'ONDEVICE' &&
+          <Btn variant="ghost" …>{run?.kind === 'FUNCTIONAL' ? '테스트 중…' : cooling('FUNCTIONAL') ? `${n}초 뒤 다시` : '기능 테스트'}</Btn>}
+      </div>}
+  <p className="mt-2 text-[12px] text-ink2 break-keep">{PANEL_HELP[connectionType][role]}</p>   ← §6-8 ⓑ
+  <div aria-live="polite" className="min-w-0">
+    {run    && <p role="status" className="mt-3 text-[13px] text-ink2">{KIND_KO[run.kind]} 중… {elapsed}초</p>}
+    {notice && <p className="mt-3 text-[13px] text-ink break-keep">{notice}</p>}              ← 409·429·403·404 안내(카드 아님)
+    {error  && <div className="mt-3"><ErrorBlock message={error} /></div>}                     ← 500·네트워크만
+    {result && <TestResultCard kind={result.kind} result={result.body} receivedAt={result.receivedAt} />}
+  </div>
+</Card>
+```
+- 같은 연결에서는 한 번에 하나만 돌린다(`busy` 동안 두 버튼 다 잠금). 결과가 오면 `onDone` → 부모가 연결(#91a)·기록(#95a)을 다시 읽는다.
+- ONDEVICE 연결은 [기능 테스트] 버튼이 없다(서버가 NOT_APPLICABLE 을 돌려줄 뿐이라 헛 요청). 도움말 줄이 이유를 말한다.
+- 버튼은 둘 다 `ghost`. 주 버튼(accent)으로 만들지 않는다 — LLM 기능 테스트는 비용이 드는 호출이다.
+
+**TestResultCard**
+```
+<div role="group" aria-label="{KIND_KO[kind]} 결과" className="mt-3 min-w-0 rounded-xl border border-line bg-surface2 p-3">
+  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+    <StatusBadge value={view.badge} /> <span className="text-[13px] font-semibold">{KIND_KO[kind]}</span>
+    <span className="ml-auto text-[12px] tabular-nums text-ink2">{formatMs(latencyMs)} · {formatAgo(checkedAt ?? receivedAt)}</span>
+  </div>
+  {view.reason && <p className="mt-1.5 text-[14px] text-ink break-keep">{view.reason}</p>}
+  {view.hint && <p className="mt-1 text-[12.5px] text-ink2 break-keep">{view.hint}</p>}
+  {detail.message && <p className="mt-1 font-mono text-[12px] text-ink2 [overflow-wrap:anywhere]">{detail.message}</p>}   ← 서버가 ≤200자로 자른 값
+  {view.chips.length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5">
+      {view.chips.map(([k, v]) => <li className="max-w-full rounded-md bg-surface px-2 py-0.5 font-mono text-[12px] text-ink2 [overflow-wrap:anywhere]">{k} {v}</li>)}</ul>}
+  {detail.transcript && <p lang="ja" className="mt-2 text-[16px] leading-[1.7] [overflow-wrap:anywhere]">{detail.transcript}</p>}
+  {detail.audioUrl && <audio controls preload="none" src={detail.audioUrl} className="mt-2 w-full" />}
+  {traceId && <TraceRef traceId />}          ← MonoId + 복사 + (trace.read 일 때만) "Trace 보기 ›" → /admin/diagnostics/traces/{traceId}
+  {connectionStatus && <p className="mt-2 text-[12px] text-ink2">연결 상태를 {STATUS_KO[connectionStatus]}(으)로 바꿨어요</p>}
+</div>
+```
+- 결과 카드는 **언제나 회색 바탕**(`bg-surface2`)이다. 상태는 뱃지와 사유 글로만 말한다(응답 없음 = 빨간 카드가 아니다).
+
+**`resultView(kind, r)`**(`console/resultView.ts`, 순수 — 단위 테스트 대상)
+```
+skipped = r.ok === null || r.status === 'NOT_APPLICABLE' || r.status === 'SKIPPED'
+          || r.detail?.skipped === true || code === 'E_TEST_INPUT_MISSING'            // code = r.detail?.errorCode ?? r.errorCode
+badge   = skipped                    ? 'SKIPPED'
+        : kind === 'HEALTH'          ? r.status                                        // HEALTHY | DEGRADED | UNAVAILABLE | MISCONFIGURED
+        : r.ok                       ? 'PASSED'
+        : r.status === 'UNAVAILABLE' || r.status === 'MISCONFIGURED' ? r.status
+        : code === 'E_TEST_TIMEOUT'  ? 'TIMEOUT' : 'FAILED'
+reason  = code ? (ERROR_CODE_TEXT[code] ?? `실패했어요 (${code})`) : (r.ok || skipped ? null : '실패했어요 (코드 없음)')
+hint    = badge === 'UNAVAILABLE' ? '서비스가 꺼져 있으면 정상적인 결과예요. 서비스를 켠 뒤 다시 확인해 주세요.'
+        : badge === 'SKIPPED'     ? (r.hint ?? SKIP_TEXT[r.detail?.reason ?? code ?? 'ONDEVICE'])
+        : null
+chips   = 화이트리스트 키만: version · models · memoryMb · serviceEnv · model · schemaValid · outputChars · audioBytes · durationMs · cer · expectedSimilarity · httpStatus · timeoutMs
+```
+- 모르는 `detail` 키는 그리지 않는다(예상 밖 필드 노출 방지).
+
+**HealthHistoryList**(#95a)
+```
+<SectionHeader title="최근 결과" right={<div className="w-[220px] min-w-0"><Segmented size="sm" ariaLabel="결과 종류" [전체|상태 확인|기능 테스트] /></div>} />
+<ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
+  <li> (row.traceId && can('trace.read') ? <Link href=/admin/diagnostics/traces/{id}> : <div>)
+    className="flex min-h-[56px] min-w-0 flex-col justify-center gap-0.5 px-3.5 py-2"
+    1줄: <StatusBadge value={resultView(row.kind, row).badge} /> <span className="text-[13px]">{KIND_KO[row.kind]}</span>
+         <span className="ml-auto text-[12px] tabular-nums text-ink2">{formatAgo(row.checkedAt)}</span>
+    2줄: <span className="truncate text-[12px] text-ink2">{formatMs(row.latencyMs)} · {view.reason ?? '문제 없음'}{row.traceId && ' · trace'}</span>
+  </li>
+</ul>
+빈 목록 → <p className="rounded-[14px] border border-dashed border-line px-4 py-6 text-center text-[13px] text-ink2">아직 실행한 기록이 없어요. [상태 확인]을 눌러 보세요.</p>
+```
+- 360px 에서 SectionHeader 제목과 Segmented 가 한 줄에 안 들어가면 Segmented 를 제목 아래 줄로 내린다(`flex-wrap`). 빈 상태에 `EmptyBlock`(ink3 글자)을 쓰지 않는다(§1-1).
+
+#### D. Dashboard — `/admin/dashboard` · `DashboardScreen`
+
+```
+<RefreshLine polling />
+{can('health.run') && <Btn variant="ghost" size="sm" className="mt-1 w-full">{bulk ? `상태 확인 중 ${done}/${total}…` : '주 연결 상태 확인'}</Btn>}
+   ↑ overview.roles[].connection.id 로 #95 를 **순서대로**(병렬 금지) 호출 → 끝나면 #80 다시. 실패가 있으면 토스트 "{k}개는 실행하지 못했어요", 없으면 "{n}개 연결을 확인했어요"
+<ServiceEnvWarning />   ← environment.services[*].env 가 현재 env 와 다를 때만(16 §3): <Card> ⚠(aria-hidden) "음성 서비스 {svc} 가 {env1} 환경으로 보고했어요. 이 콘솔은 {env2} 이에요." (ink 글자)
+<Section> <SectionHeader title="엔진 역할" />
+  <div className="@container"><div className="grid gap-2.5 @min-[640px]:grid-cols-2">  RoleCard × 4 (REALTIME_STT → ANALYSIS_STT → TTS → LLM 고정 순서) </div></div>
+{can('voices.read') && <Section> <SectionHeader title="목소리" />
+  <Link href="/admin/voices" className="Card flex min-h-[56px] items-center …">사용 가능 {a} · 꺼짐 {d} · 가져오는 중 {i} <span aria-hidden className="ml-auto">›</span></Link>}
+{can('trace.read') && overview.traces24h && <Section> <SectionHeader title="요청 기록 (24시간)" />
+  <Link href="/admin/diagnostics?tab=traces" className="Card …">회화 턴 {turns} · 오류 {errors} · p50 {formatMs} · p95 {formatMs} ›</Link>}
+```
+
+**RoleCard** — 카드 전체가 역할 페이지 링크. 안에 버튼을 두지 않는다(중첩 대화형 금지 — 실행은 역할 페이지에서).
+```
+<Link href={ROLE_PATH[role]} className="block min-h-[56px] min-w-0 rounded-[14px] border border-line bg-surface p-3.5">
+  <div className="flex min-w-0 items-center gap-2">
+    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{ROLE_LABEL[role]} <span className="font-normal text-ink2">· {ROLE_KO[role]}</span></span>
+    <StatusBadge value={status} />
+  </div>
+  <p className="mt-1 truncate text-[14px]">{engine.displayName ?? engine.id}</p>
+  <p className="truncate text-[13px] text-ink2">{connection.name} · <span className="font-mono">{connection.key}</span>{fallbacks > 0 && ` · 예비 ${fallbacks}`}</p>
+  {model && <p className="truncate text-[13px] text-ink2">모델 <span className="font-mono">{model}</span></p>}
+  {role === 'LLM' && llm?.tiers && <p className="font-mono text-[12.5px] text-ink2 [overflow-wrap:anywhere]">talk {t} · review {r} · analysis {a}</p>}
+  <p className="mt-1 flex min-w-0 gap-2 text-[12px] text-ink2">
+    <span className="min-w-0 flex-1 truncate">{lastHealthAt ? `상태 확인 ${formatAgo(lastHealthAt)}` : '아직 상태 확인 안 함'}{statusReason && ` · ${statusReason}`}</span>
+    <span aria-hidden="true">›</span>
+  </p>
+</Link>
+```
+- 역할에 연결이 없으면 같은 자리에 회색 카드 "이 역할에 연결이 없어요"(링크 유지).
+- `UNAVAILABLE` 카드도 **바탕은 그대로**다. 뱃지·사유 한 줄로만 알린다.
+
+와이어프레임(390px, LOCAL):
+```
+┌──────────────────────────────────────┐
+│ LOCAL  개발 환경 — 운영과 분리된…  v0.1.0 │
+│ ☰  AI Engine Console · 개요    ↩ 앱으로 │
+│    Dashboard                           │
+├──────────────────────────────────────┤
+│ 마지막 갱신 16:32:05 · 30초마다… [다시 불러오기]│
+│ [          주 연결 상태 확인           ] │
+│ 엔진 역할                              │
+│ ┌ Realtime STT · 실시간 음성 인식 ●정상┐ │
+│ │ ReazonSpeech (sherpa-onnx)         │ │
+│ │ 온디바이스 ReazonSpeech · reazon-o… │ │
+│ │ 모델 zipformer-ja-reazonspeech-…    │ │
+│ │ 상태 확인 3분 전                  › │ │
+│ └────────────────────────────────────┘ │
+│ ┌ TTS · 선생님 목소리 합성  ●응답 없음 ┐ │
+│ │ Style-Bert-VITS2                   │ │
+│ │ Style-Bert-VITS2 (맥 M4) · style-b… │ │
+│ │ 상태 확인 5분 전 · connection refu… › │ │
+│ └────────────────────────────────────┘ │
+│  … Analysis STT · LLM                  │
+│ 목소리                                 │
+│ ┌ 사용 가능 3 · 꺼짐 0 · 가져오는 중 0 ›┐ │
+└──────────────────────────────────────┘
+```
+
+#### E. 역할 페이지 — `/admin/speech/{realtime,analysis,tts}` · `/admin/llm` · `RoleScreen({ role })`
+
+```
+<p className="text-[13px] text-ink2 break-keep">{ROLE_DESC[role]}</p>
+<RefreshLine />
+<Section> <SectionHeader title="지금 쓰는 연결" right={<Link href={`/admin/connections/${primary.id}`} className="-my-2 inline-flex h-11 flex-none items-center text-[13px] font-medium text-accent">연결 상세 ›</Link>} />   ← SectionHeader 의 href 링크는 높이가 44px 가 안 돼 right 로 넣는다
+  <Card>  (#91a)
+    <div className="flex min-w-0 items-center gap-2"><h2 className="min-w-0 flex-1 truncate text-[16px] font-semibold">{name}</h2><StatusBadge value={enabled ? status : 'DISABLED'} /></div>
+    <MonoId value={key} copy />
+    <KeyValueList className="mt-2" items=[
+      엔진 {engineName(engineId)} · 방식 {CONN_TYPE_KO[connectionType]} · 모델 {modelLabel(runtime)}(mono)
+      · 주소 {connection.baseUrl ?? connection.binPath ?? connection.manifestUrl}(mono, displayValue 규칙)
+      · 마지막 확인 {formatAgo(lastHealthAt) || '없음'} · 마지막 기능 테스트 {formatAgo(lastFunctionalAt) || '없음'} · 상태 사유 {statusReason}(있을 때만) ] />
+  </Card>
+  <EngineTestPanel connection={primary} onDone={reloadAll} />
+<Section> <SectionHeader title="예비 연결 순서" />  (#99a)
+  <ol className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
+    each(순서 i, conn): <li><Link href=/admin/connections/{id} className="flex min-h-[56px] min-w-0 items-center gap-3 px-3.5 py-2">
+       <span className="w-5 flex-none text-center font-mono text-[13px] text-ink2">{i}</span>
+       <span className="min-w-0 flex-1"><span className="block truncate text-[14px]">{name}{i === 1 && ' (기본)'}</span><span className="block truncate font-mono text-[12px] text-ink2">{key}</span></span>
+       <StatusBadge value={status} /> <span aria-hidden>›</span></Link></li>
+  </ol>
+  fallbacks 가 비면 목록 아래: <p className="mt-2 text-[12px] text-ink2">예비 연결 없음 — 이 연결이 안 되면 이 기능을 쓸 수 없어요</p>
+  <p className="mt-1 text-[12px] text-ink2">{retryOnce ? '실패하면 다음 연결로 한 번 다시 시도해요' : '실패해도 다른 연결로 넘기지 않아요'}{!policy.enabled && ' · 정책 꺼짐'}</p>
+{others.length > 0 && <Section> <SectionHeader title="정책 밖 연결" />   ← #91?role= 결과 중 primary·fallbacks 에 없는 것(예: LLM 의 home-m4-lan)
+  같은 행 모양 + 2줄에 12px ink2 {runtime.allowedTasks ? `특정 작업에만 쓰여요: ${tasks}` : '라우터가 고르지 않아요'}(runtime 은 #91 에 없으면 생략)}
+{can('config.effective.read') && primary.effectiveSummary && <Section> <SectionHeader title="설정값 요약" />
+  <Card> <p className="text-[14px]">설정 {keys}개</p>
+    <div className="mt-2 flex flex-wrap gap-1.5">{층 번호 순, 0 인 층 빼고: <span className="inline-flex items-center gap-1"><SourceBadge source /> <span className="text-[12px] tabular-nums text-ink2">{n}</span></span>}</div>
+    <Link href={`/admin/configuration?target=${encodeURIComponent(primary.key)}`} className="mt-2 flex h-11 items-center justify-end text-[14px] font-medium text-accent">설정값 전체 보기 ›</Link>
+  </Card>}
+{role === 'TTS' && can('voices.read') && <Section> "목소리" — Dashboard 의 목소리 링크 카드와 같은 모양(#82 한 번 읽어 상태별로 센다)}
+{role === 'LLM' && primary.runtime?.modelByTier && <Section> "모델 단계" — <Card><KeyValueList items={Object.entries(modelByTier)} mono /></Card>}
+```
+- `modelLabel(runtime)`: `model` → `defaultModel` → `modelVersion` → `modelByTier` 값들을 ` / ` 로 → 없으면 "—"(서버가 `modelLabel` 을 주면 그걸 쓴다, §6-11 ⑨).
+- 정책(#99a)이 404 면 "지금 쓰는 연결" 자리에 회색 카드 "이 역할에 정책이 없어요" + 이 역할의 연결 목록(#91?role=)을 "정책 밖 연결" 모양으로 보인다.
+- Engine 선택·Fallback 편집·연결 설정 폼(14 §3.2~§3.3)은 Phase 2 — 그리지 않는다.
+
+와이어프레임(390px, Realtime STT):
+```
+│ ☰  AI Engine Console · 엔진     ↩ 앱으로 │
+│    Realtime STT                        │
+├──────────────────────────────────────┤
+│ 회화 중 학습자의 말을 바로 글자로 바꿔요. │
+│ 기본은 휴대폰 안에서, 안 되면 서버에서.   │
+│ 마지막 갱신 16:32:05     [다시 불러오기] │
+│ 지금 쓰는 연결              연결 상세 › │
+│ ┌──────────────────────────────────┐ │
+│ │ 온디바이스 ReazonSpeech      ●정상 │ │
+│ │ reazon-ondevice               [⧉] │ │
+│ │ 엔진                              │ │
+│ │ ReazonSpeech (sherpa-onnx)        │ │
+│ │ 방식                              │ │
+│ │ 휴대폰(ONDEVICE)                  │ │
+│ │ 모델                              │ │
+│ │ zipformer-ja-reazonspeech-2024-…  │ │
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │
+│ │ [            상태 확인            ] │ │
+│ │ 상태 확인은 서버에 있는 기기용 모델   │ │
+│ │ 파일 목록을 봐요. 기능 테스트는 휴대폰 │ │
+│ │ 안에서만 할 수 있어요(…)             │ │
+│ │ ┌ ●정상 상태 확인     38ms · 방금 ┐ │ │
+│ │ │ [version zipformer-…]           │ │ │
+│ │ └────────────────────────────────┘ │ │
+│ └──────────────────────────────────┘ │
+│ 예비 연결 순서                          │
+│ ┌ 1 온디바이스 ReazonSpeech (기본) ●정상›┐│
+│ │ 2 ReazonSpeech gateway(폴백) ●응답 없음›││
+│ └──────────────────────────────────┘ │
+│ 실패하면 다음 연결로 한 번 다시 시도해요   │
+│ 설정값 요약                            │
+│ ┌ 설정 14개                           ┐ │
+│ │ [1 DEFAULT] 9  [3 APPLICATION_CONFIG] 5│
+│ │                  설정값 전체 보기 › │ │
+│ └──────────────────────────────────┘ │
+```
+
+#### F. Voices — `/admin/voices` · `VoicesScreen`(읽기 전용)
+
+```
+<RefreshLine />
+<div className="flex min-w-0 items-center gap-2">
+  <div className="min-w-0 flex-1"><ChipRadio ariaLabel="목소리 상태" [전체 {n}|사용 가능 {n}|꺼짐 {n}|오류 {n}] /></div>   ← 받은 목록을 화면에서 거른다
+  <ToggleButton pressed={includeArchived}>보관 포함</ToggleButton>                                                     ← 바꾸면 #82 ?includeArchived=1 로 다시 읽기
+</div>
+<div className="@container mt-3"><ul className="grid gap-2.5 @min-[640px]:grid-cols-2"> VoiceCard × n (sortOrder 순 — 서버 순서 그대로) </ul></div>
+빈 목록 → 점선 안내 "등록된 목소리가 없어요."
+```
+**VoiceCard** — 버튼 없음(미리듣기 #89a·재동기화 #88·활성화 #85 는 Phase 2).
+```
+<li className="Card">
+  <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{displayName}</span><VoiceStatusBadge status enabled /></div>
+  <MonoId value={id} copy />
+  <KeyValueList items=[ 모델 {model.id}{model.version && ` v${model.version}`}(mono) · 화자 {speaker} · 스타일 {styles.map(s => s.label).join(' · ') || '없음'} · 쓰는 사용자 {usage.users}명 · 상태 사유 {statusReason}(있을 때만) ] />
+</li>
+```
+
+| VoiceStatus | 톤 | 글자 |
+|---|---|---|
+| `AVAILABLE` + enabled | good | 사용 가능 |
+| `AVAILABLE` + enabled=false · `DISABLED` | neutral | 꺼짐 |
+| `ERROR` | bad | 오류 |
+| `IMPORTING` · `VALIDATING` | 점선 neutral | 가져오는 중 · 검증 중 |
+| `DELETING` · `ARCHIVED` | neutral | 삭제 중 · 보관됨 |
+
+#### G. Plugins — `/admin/plugins` · `/admin/plugins/[id]`(DEVELOPER+)
+
+목록(#121)
+```
+<div className="@container"><ul className="grid gap-2.5 @min-[640px]:grid-cols-2">
+ <li><Link href={`/admin/plugins/${encodeURIComponent(id)}`} className="block min-h-[56px] min-w-0 rounded-[14px] border border-line bg-surface p-3.5">
+   1줄 <span className="min-w-0 flex-1 truncate font-mono text-[15px] font-semibold">{id}</span> <LoadedBadge loaded /> {orphan && <Badge tone="neutral">등록 불일치</Badge>}
+   2줄 13px ink2 truncate: {type} · v{version} · 역할 {roles.join(', ')} · 연결 {connections}개
+   3줄 13px ink2 truncate: 방식 {connectionTypes.join(', ')}
+   {initError && <p className="mt-1 line-clamp-2 text-[13px] text-bad [overflow-wrap:anywhere]">{initError}</p>}
+ </Link></li>
+</ul></div>
+```
+`LoadedBadge`: `loaded` → good "로드됨" / 아니면 bad "로드 실패".
+
+상세(#122)
+```
+<Link href="/admin/plugins" className="inline-flex h-11 items-center text-[14px] text-ink2">← 플러그인 목록</Link>
+<div className="flex min-w-0 items-center gap-2"><h2 className="min-w-0 flex-1 font-mono text-[18px] font-semibold [overflow-wrap:anywhere]">{id}</h2><LoadedBadge loaded /></div>
+<Section "정보"> <Card><KeyValueList items=[ 표시 이름 · 종류 · 버전 · 구현 클래스(providerClass, mono) · 역할 · 연결 방식 · 스키마 버전 · 소스 파일(sourcePath — 저장소 상대 경로만, `/` 로 시작하면 숨김) ] /></Card>
+<Section "기능(capabilities)"> <div className="flex flex-wrap gap-1.5">{capabilities.map(c => <Badge tone="neutral"><span className="font-mono">{c}</span></Badge>)}</div>
+{initError && <Section "초기화 오류"> <p className="rounded-xl bg-bad-soft p-3 font-mono text-[12.5px] text-bad [overflow-wrap:anywhere]">{initError}</p>}
+<Section "설정 키 ({n})">
+  <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
+    each key: <li className="min-w-0 px-3.5 py-2.5">
+      1줄 <span className="font-mono text-[13px] [overflow-wrap:anywhere]">{key}</span> <span className="text-[12px] text-ink2">{type}</span>
+      2줄 13px: 기본값 <span className="font-mono">{displayValue(key, default)}</span>{min/max 있으면 ` · ${min}~${max}`}{enum 있으면 ` · ${enum.join(' / ')}`}
+      3줄 12px ink2: {EditabilityText}{productionSensitive && ' · 운영 민감'}
+      {description && <p className="mt-0.5 text-[13px] text-ink2 break-keep">{description}</p>}
+    </li>
+  </ul>
+<Section "기본 설정 문서">
+  <details className="rounded-[14px] border border-line bg-surface"><summary className="flex h-11 cursor-pointer items-center px-3.5 text-[14px] font-medium">펼쳐 보기</summary>
+    <pre className="whitespace-pre-wrap px-3.5 pb-3 font-mono text-[12.5px] [overflow-wrap:anywhere]">{JSON.stringify(defaultConfiguration, null, 2)}</pre></details>
+```
+- 404 → `ConsoleNotFound backHref="/admin/plugins" backLabel="플러그인 목록으로"`.
+
+#### H. Connections — `/admin/connections` · `/admin/connections/[id]`
+
+목록(#91 전체 1회)
+```
+<RefreshLine />
+<div className="mt-1 flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
+  {can('health.run') && <Btn variant="ghost" size="sm">{bulk ? `확인 중 ${done}/${total}…` : '모두 상태 확인'}</Btn>}   ← enabled 인 연결마다 #95 를 순서대로 → 끝나면 #91 다시
+  {can('secrets.read_ref') && <Btn variant="ghost" size="sm">시크릿 참조</Btn>}                                     ← SecretsSheet 열기
+</div>
+<div className="mt-2.5"><ChipRadio ariaLabel="역할" [전체 {n}|Realtime STT {n}|Analysis STT {n}|TTS {n}|LLM {n}] /></div>   ← 화면에서 거른다
+<div className="@container mt-3"><ul className="grid gap-2.5 @min-[640px]:grid-cols-2"> ConnectionCard × n (역할 순 → key 순) </ul></div>
+```
+**ConnectionCard**(카드 전체 링크 → 상세)
+```
+1줄 <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{name}</span> <StatusBadge value={enabled ? status : 'DISABLED'} />
+2줄 <span className="block truncate font-mono text-[13px] text-ink2">{key}</span>
+3줄 13px ink2 truncate: {ROLE_LABEL[role]} · {engineName(engineId)} · {CONN_TYPE_KO[connectionType]}
+4줄 12px ink2 truncate: {fallbackRole.primaryOf.length ? `${ROLE_LABEL} 기본` : fallbackRole.fallbackOf.length ? `${ROLE_LABEL} 예비` : '정책 밖'} · {lastHealthAt ? `확인 ${formatAgo}` : '확인 안 함'}  ›
+```
+
+**SecretsSheet**(#101 — **시트를 열 때 한 번** 조회. 페이지 진입만으로는 부르지 않는다)
+```
+<Sheet open title="시크릿 참조" onClose>
+  <p className="text-[13px] text-ink2 break-keep">값은 보이지 않아요. 참조 이름·있는지·마지막 사용만 보여 줘요. 열 때마다 조회 기록(감사 로그)이 남아요.</p>
+  loading → LoadingBlock 대신 13px ink2 "불러오는 중…"(ink3 금지) · error → ErrorBlock + 다시 시도
+  <ul className="mt-3 divide-y divide-line">
+    each: <li className="min-w-0 py-2.5 {ref === highlightRef ? 'rounded-xl bg-accent-soft px-2' : ''}">
+      1줄 <span className="min-w-0 flex-1 font-mono text-[13px] [overflow-wrap:anywhere]">{ref}</span> {exists ? <Badge tone="good">있음</Badge> : <Badge tone="bad">없음</Badge>}
+      2줄 12px ink2: {source === 'file' ? '파일' : '환경 변수'} · 사용 연결 {usedBy.map(idToKey).join(', ') || '없음'}(mono) · {lastUsedAt ? `마지막 사용 ${formatAgo}` : '사용 기록 없음'}
+    </li>
+  </ul>
+  빈 목록 → "연결에 걸린 시크릿 참조가 없어요."
+</Sheet>
+```
+- `usedBy` 는 connection id 다 → 목록(#91)에서 key 로 바꿔 보인다(못 찾으면 id 그대로).
+
+상세(#91a + #95a)
+```
+<Link href="/admin/connections" className="inline-flex h-11 items-center text-[14px] text-ink2">← 연결 목록</Link>
+<Card>
+  <div className="flex min-w-0 items-center gap-2"><h2 className="min-w-0 flex-1 text-[17px] font-semibold [overflow-wrap:anywhere]">{name}</h2><StatusBadge value={enabled ? status : 'DISABLED'} /></div>
+  <MonoId value={key} copy />
+  <p className="mt-1 text-[12px] text-ink2 [overflow-wrap:anywhere]">{ROLE_LABEL[role]} · {engineName(engineId)} · {CONN_TYPE_KO[connectionType]} · {environment} · 설정 v{version ?? '—'}</p>
+  <p className="text-[12px] text-ink2">{primaryOf.length ? `${ROLE_LABEL}의 기본 연결` : fallbackOf.length ? `${ROLE_LABEL}의 예비 연결` : '정책 밖 연결'}</p>
+  {statusReason && <p className="mt-1 text-[13px] text-ink [overflow-wrap:anywhere]">{statusReason}</p>}
+  {!enabled && <p className="mt-1 text-[12px] text-ink2">꺼진 연결 — 라우터가 고르지 않아요</p>}
+</Card>
+<EngineTestPanel connection onDone={() => { conn.reload(); setHistoryKey(k => k + 1) }} />
+<Section "연결 정보"> <Card>
+  <KeyValueList mono items={flattenDot(connection)} />                       ← baseUrl·wsPath·timeoutMs·retry·binPath(displayValue 규칙)·manifestUrl …
+  credentialRef 행: credentialRef
+     ? <><span className="font-mono">{credentialRef}</span> 🔒(aria-label 시크릿 참조)
+         {can('secrets.read_ref') && <button className="ml-1 h-11 px-2 text-[13px] font-medium text-accent">있는지 확인</button>}</>   ← SecretsSheet(highlightRef)
+     : "없음"
+</Card>
+<Section "실행 설정 (runtime)"> <Card><KeyValueList mono items={[...flattenDot(runtime), ['로그 레벨', logLevel]]} /></Card>   ← 중첩 객체는 `vad.model` 처럼 점 표기
+{can('config.effective.read') && effectiveSummary && <Section "설정값 요약"> (E 와 같은 카드)}
+<HealthHistoryList connectionId={id} limit={20} reloadKey={historyKey} />
+```
+- 404 → `ConsoleNotFound backHref="/admin/connections" backLabel="연결 목록으로"`.
+
+#### I. Configuration — `/admin/configuration` · `EffectiveScreen`(Effective 탭만)
+
+```
+<SectionHeader title="대상 연결" />
+<ChipRadio ariaLabel="대상 연결" options={#91 전체, 역할 순, 라벨 = key(mono)} value={target} />   ← ?target=<key> 로 시작(없으면 첫 연결), 바꾸면 router.replace
+<Card flat className="mt-2.5">
+  <p className="text-[13px] [overflow-wrap:anywhere]">{name} · {ROLE_LABEL[role]} · <span className="font-mono">{engineId}</span> 스키마 v{schemaVersion}</p>
+  <p className="text-[12px] text-ink2">해석 {HH:mm:ss}{cacheHit && ' (캐시)'} · {environment}</p>
+</Card>
+<details className="mt-2"><summary className="flex h-11 cursor-pointer items-center text-[13px] font-medium">출처 8층이란?</summary><SourceLegend /></details>
+<input type="search" aria-label="설정 키 검색" placeholder="키 검색 (예: timeout)" className="(§4 입력 모양, 16px) mt-1" />   ← 화면 안에서 바로 거른다(요청 없음)
+<div className="mt-2.5"><ChipRadio ariaLabel="출처" [전체 {n} | 있는 층만 "{n층} {SOURCE} {개수}"] /></div>
+for (prefix, rows) of groupByPrefix(filtered):                  // 'connection' · 'runtime' · 'logging' · 그 외 첫 마디
+  <p className="mb-1.5 mt-4 font-mono text-[12px] text-ink2">{prefix}.*</p>
+  <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface"> EffectiveRow × n </ul>
+빈 결과 → 점선 안내 "조건에 맞는 키가 없어요."
+```
+**EffectiveRow**
+```
+<li>
+  <{expandable ? 'button' : 'div'} aria-expanded={expandable ? expanded : undefined} onClick={toggle}
+     className="flex min-h-[56px] w-full min-w-0 flex-col gap-1 px-3.5 py-2.5 text-left">
+    1줄 <span className="flex min-w-0 items-start gap-2">
+          <span className="min-w-0 flex-1 font-mono text-[13px] text-ink2 [overflow-wrap:anywhere]">{key}</span>
+          {secret && <span aria-label="시크릿 참조">🔒</span>}
+          {shadowed && <span className="flex-none text-[12px] text-ink">⚠ 가려진 값</span>}
+        </span>
+    2줄 <span className="font-mono text-[15px] text-ink [overflow-wrap:anywhere]">{secret ? refName(value) : displayValue(key, value)}</span>
+    3줄 <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <SourceBadge source /> <EditabilityText editability restartRequired />
+          {source === 'ENVIRONMENT' && <span className="text-[12px] text-ink2">env 가 덮고 있어요</span>}
+          {expandable && <span aria-hidden="true" className="ml-auto text-ink2">{expanded ? '˄' : '˅'}</span>}
+        </span>
+  </…>
+  {expanded && <ol className="mx-3.5 mb-3 border-l-2 border-line pl-3">   ← layers, 낮은 층 → 높은 층
+     each(layer, i): <li className="py-1 text-[12px]">
+        <span className="flex min-w-0 flex-wrap items-center gap-2"><SourceBadge source={layer.source} /><span className="font-mono text-ink [overflow-wrap:anywhere]">{displayValue(key, layer.value)}</span>{i === last && <span className="text-ink2">← 사용 중</span>}</span>
+        {layer.sourceRef && <span className="block font-mono text-[11.5px] text-ink2 [overflow-wrap:anywhere]">{layer.sourceRef}</span>}
+     </li></ol>}
+</li>
+```
+- `expandable = Array.isArray(row.layers) && row.layers.length > 0`. ADMIN 응답에는 `layers`·`sourceRef` 가 없으므로(#102 "ADMIN 은 값+Source 이름만") 펼침 표시 자체가 없다.
+- `shadowed = row.shadowed ?? (layers 에 마지막과 다른 값이 있음)`. ADMIN 은 서버가 `shadowed` 를 줘야만 보인다(§6-11 ⑥).
+- 시크릿 키: 값 칸에 ref 이름만. 서버가 값 대신 객체(`{credentialRef, exists}`)를 주면 `credentialRef` 만 쓰고 **`exists` 는 그리지 않는다**(존재 여부는 `secrets.read_ref` + 감사 경로로만).
+- Form·Raw JSON·Diff·Presets·Export·Overrides 탭은 없다(Phase 2~4). 탭 줄 자체를 그리지 않는다.
+- `SourceLegend`: 1→8 순서로 `<SourceBadge/> {한국어 뜻}` 한 줄씩 + 끝에 "위 층이 아래 층을 키 하나씩 덮어요. USER_SETTING·RUNTIME_OVERRIDE 는 이 화면(관리 설정)에는 보통 나오지 않아요."
+
+와이어프레임(390px, DEVELOPER):
+```
+│    Configuration                       │
+├──────────────────────────────────────┤
+│ 대상 연결                               │
+│ [reazon-ondevice][reazon-gateway][whi→ │
+│ ┌ ReazonSpeech gateway(폴백) · Realtime┐│
+│ │ STT · sherpa-onnx-reazon 스키마 v1    ││
+│ │ 해석 16:32:05 · LOCAL               ││
+│ └────────────────────────────────────┘│
+│ 출처 8층이란?                      ˅   │
+│ ┌ ⌕ 키 검색 (예: timeout)            ┐ │
+│ [전체 14][1 DEFAULT 6][3 APPLICATION_C→ │
+│ connection.*                           │
+│ ┌──────────────────────────────────┐ │
+│ │ connection.baseUrl                │ │
+│ │ http://127.0.0.1:8100             │ │
+│ │ [4 ENVIRONMENT] 재시작 필요         │ │
+│ │ env 가 덮고 있어요               ˅ │ │
+│ ├──────────────────────────────────┤ │
+│ │ connection.timeoutMs              │ │
+│ │ 15000                             │ │
+│ │ [3 APPLICATION_CONFIG] 즉시 반영   ˅ │ │
+│ └──────────────────────────────────┘ │
+│ runtime.*                              │
+│ ┌──────────────────────────────────┐ │
+│ │ runtime.numThreads      ⚠ 가려진 값 │ │
+│ │ 4                                 │ │
+│ │ [4 ENVIRONMENT] 재시작 필요       ˄ │ │
+│ │ ┊ [1 DEFAULT] 2                    │ │
+│ │ ┊ schema:sherpa-onnx-reazon@1#…    │ │
+│ │ ┊ [3 APPLICATION_CONFIG] 4          │ │
+│ │ ┊ file:speech.config.yml#connect…  │ │
+│ │ ┊ [4 ENVIRONMENT] 4 ← 사용 중        │ │
+│ │ ┊ env:KAIWA_CONN_REAZON_GATEWAY_RU…│ │
+│ └──────────────────────────────────┘ │
+```
+
+#### J. Diagnostics — `/admin/diagnostics` · `DiagnosticsScreen` / `/admin/diagnostics/traces/[traceId]` · `TraceDetailScreen`
+
+```
+{can('trace.read') && <Segmented ariaLabel="진단 보기" [Health 기록 | 요청 Trace] value={tab} />}   ← ?tab=health|traces(router.replace). trace.read 가 없으면 Segmented 없이 Health 기록만, ?tab=traces 는 무시
+tab = health:
+  <div className="mt-2.5"><ChipRadio ariaLabel="연결" options={#91, 라벨 key(mono)} value={connectionId} /></div>
+     ← ?connection=<id>. 없으면 status 가 HEALTHY 가 아닌 첫 연결 → 없으면 첫 연결
+  <HealthHistoryList connectionId limit={50} />      ← 실행 버튼은 두지 않는다(실행은 역할·연결 화면에서)
+tab = traces:
+  <Segmented size="sm" ariaLabel="기간" [24시간|7일|30일] />                          ← from = now - 기간(ISO), to 생략
+  <div className="mt-2"><ChipRadio ariaLabel="종류" [전체|회화 턴|기능 테스트|미리듣기|플레이그라운드|E2E] /></div>
+  <div className="mt-2"><Segmented size="sm" ariaLabel="결과" [전체|정상|일부 실패|실패] /></div>
+  <p className="mb-1.5 mt-3 text-[12px] text-ink2" aria-live="polite">{items.length}건{nextCursor && ' 이상'} · 보관 90일</p>
+  <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface"> TraceRow × n </ul>
+  {nextCursor && <Btn variant="ghost" className="mt-3 w-full" aria-busy={loadingMore}>{loadingMore ? '불러오는 중…' : '더 보기'}</Btn>}
+  빈 목록 → 점선 안내 "이 조건의 기록이 없어요."
+```
+**TraceRow**(행 전체 링크 → 상세, ≥56px)
+```
+<Link href={`/admin/diagnostics/traces/${encodeURIComponent(traceId)}`} className="flex min-h-[56px] min-w-0 flex-col justify-center gap-0.5 px-3.5 py-2">
+  1줄 <Badge tone="neutral">{TRACE_KIND_KO[kind]}</Badge> <TraceStatusBadge status /> <span className="ml-auto text-[12px] tabular-nums text-ink2">{formatMs(totalMs)} · {formatAgo(createdAt)}</span>
+  2줄 <span className="truncate font-mono text-[12px] text-ink2">{stepNames.join(' › ')}{errorCode && ` · ${errorCode}`}</span>
+</Link>
+```
+`TraceStatusBadge`: `OK` good "정상" · `PARTIAL` `border border-bad bg-surface text-bad` "일부 실패" · `ERROR` bad "실패".
+
+**TraceDetailScreen**(#129)
+```
+<Link href="/admin/diagnostics?tab=traces" className="inline-flex h-11 items-center text-[14px] text-ink2">← Trace 목록</Link>
+<Card>
+  <h2 className="sr-only">Trace 상세</h2>
+  <MonoId value={traceId} copy />
+  <div className="mt-2 flex flex-wrap items-center gap-2"><Badge tone="neutral">{TRACE_KIND_KO[kind]}</Badge><TraceStatusBadge status /><span className="text-[13px] tabular-nums">{formatMs(totalMs)}</span></div>
+  <KeyValueList className="mt-2" items=[ 환경 {environment} · 시각 {M월 D일 HH:mm:ss} · 대상 {refType} {refId}(mono, 링크 없음) · 디버그 세션 {debugSessionId ?? '없음'} · 사용자 {userId ?? '—'}(서버가 마스킹한 그대로) ] />
+</Card>
+<Section> <SectionHeader title={`단계 (${steps.length})`} />
+  <ol className="grid gap-2"> StepCard × n </ol>
+```
+**StepCard**
+```
+<li className="Card">
+  <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 flex-1 truncate font-mono text-[14px] font-semibold">{name}</span><StepStatusBadge status /><span className="flex-none text-[13px] tabular-nums">{formatMs(latencyMs)}</span></div>
+  <div aria-hidden="true" className="mt-2 h-1.5 rounded-full bg-surface2"><div className="h-full rounded-full {BAR[status]}" style={{ width: `${Math.max(2, Math.min(100, latencyMs / totalMs * 100))}%` }} /></div>
+  <p className="mt-2 text-[12.5px] text-ink2 [overflow-wrap:anywhere]">{engineId}{connectionKey && ` · ${connectionKey}`}{model && ` · 모델 ${model}`}{attempt > 1 && ` · ${attempt}번째 시도`}{fallbackFrom && ` · ${fallbackFrom} 에서 넘어옴`}{cache && ` · 캐시 ${cache}`}{client && ` · ${client}`}</p>
+  {sizes·meta 가 있으면 <ul className="mt-1.5 flex flex-wrap gap-1.5">{k v 칩 — neutral 12px 모노, 값이 객체면 JSON 한 줄}</ul>}
+  {errorCode && <p className="mt-1.5 text-[13px] font-semibold text-bad">{errorCode}</p>}
+  {errorMessage && <p className="font-mono text-[12px] text-ink2 [overflow-wrap:anywhere]">{errorMessage}</p>}
+</li>
+```
+- 막대 색 `BAR`: `OK` `bg-ink2` · `FAILED`·`TIMEOUT` `bg-bad` · `FALLBACK` `bg-warn` · `SKIPPED` 채우지 않음. 막대는 장식이고 상태는 뱃지 글자가 진다. TTS 문장 단계처럼 겹쳐 도는 단계도 "전체 대비 비율"로만 그린다.
+- `captured`(Debug 캡처, Phase 3)는 그리지 않는다. Trace 에는 본문이 없으므로 "본문 보기" 자리도 없다.
+- 404 → `ConsoleNotFound backHref="/admin/diagnostics?tab=traces" backLabel="Trace 목록으로"` · 403 → `ConsoleForbidden`.
+
+#### K. `/settings` 진입 행 — `AdminConsoleEntry`
+
+위치: `src/app/(app)/settings/page.tsx` 의 `<SpeechSettings />` **바로 아래**(설정 허브 맨 끝).
+```tsx
+// settings/page.tsx(서버) — 추가 두 줄
+const showConsole = user ? await userCan(user.id, 'engine.read') : false   // @/modules/admin(developer A). 결과를 캐시하지 않는다
+…
+<SpeechSettings />
+{showConsole && <AdminConsoleEntry />}
+```
+```tsx
+// src/components/settings/AdminConsoleEntry.tsx — 서버 컴포넌트('use client' 금지: 문자열이 USER 번들·DOM 에 들어가지 않게)
+<Section>
+  <SectionHeader title="관리자" />
+  <Link href="/admin/dashboard" className="flex min-h-[56px] min-w-0 items-center gap-3 rounded-[14px] border border-line bg-surface px-3.5 py-2.5">
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-[15px] font-semibold text-ink">AI Engine Console</span>
+      <span className="block truncate text-[13px] text-ink2">엔진·연결 상태를 보고 테스트해요</span>
+    </span>
+    <svg chevron 20px aria-hidden="true" />
+  </Link>
+</Section>
+```
+```
+│ 음성 인식                                │
+│ ┌ … (기존) ┐                             │
+│ 관리자                                   │
+│ ┌──────────────────────────────────┐   │
+│ │ AI Engine Console              › │   │ 56px
+│ │ 엔진·연결 상태를 보고 테스트해요       │   │
+│ └──────────────────────────────────┘   │
+```
+
+### 6-3. 상태 관리
+
+`useAdminResource<T>(path: string | null, opts?: { pollMs?: number })` (`console/useAdminResource.ts`)
+```
+state: { status: 'loading'|'ready'|'error'; data: T | null; err: Err | null; loadedAt: number | null; reloading: boolean }
+reload(): 이전 요청 abort → apiGet(path, { signal }) → ready(data, loadedAt = Date.now()) | error(toErr(e))  (AbortError 는 무시)
+path 변경 → data 비우고 즉시 reload · path = null → 아무것도 안 함
+pollMs → setInterval(reload), document.visibilityState === 'visible' 일 때만.
+         visibilitychange → visible 이면 loadedAt 이 pollMs 보다 오래됐을 때 즉시 reload
+reload 중에는 이전 data 를 유지한다(깜박임 없음). RefreshLine 만 "불러오는 중…"
+```
+- 오류 분기(HTTP status 먼저): 401 = `api.ts` 가 로그인으로 보냄 · 403 = `ConsoleForbidden(details.missing)` · 404 = 상세 화면은 `ConsoleNotFound`, 목록 화면은 ErrorBlock "콘솔에 들어갈 권한이 바뀌었을 수 있어요" + [설정으로] · 그 외 = ErrorBlock(§6-8 ⓐ) + 다시 시도.
+
+`EngineTestPanel`
+```
+run: { kind: 'HEALTH'|'FUNCTIONAL'; startedAt: number } | null
+result: { kind; body: HealthResultDto | FunctionalResultDto; receivedAt: number } | null
+notice: string | null                         // 409·429·403·404 안내(카드 아님)
+error: string | null                          // 500·네트워크
+cooldownUntil: { HEALTH?: number; FUNCTIONAL?: number }   // useCountdown 으로 남은 초
+aliveRef                                      // 언마운트 뒤 결과는 버린다. 요청은 끊지 않는다(서버는 끝까지 기록한다)
+```
+
+| 응답 | 처리 |
+|---|---|
+| 200 | `result` 교체(notice·error 비움) → `onDone(body)`. LLM 역할의 FUNCTIONAL 이면 `cooldownUntil.FUNCTIONAL = now + 30s` |
+| 409 `E_TEST_IN_FLIGHT` | notice "이미 실행 중이에요. 끝나면 아래 기록에 나타나요." → 5초 뒤 `onDone(null)`(기록만 다시 읽기) |
+| 409 `E_HEALTH_NOT_ENABLED` · `E_TEST_NOT_ENABLED` | notice "꺼져 있는 연결이라 실행하지 않았어요." |
+| 429 | `cooldownUntil[kind] = now + retryAfterOf(err) * 1000`, 버튼 글자 "{n}초 뒤 다시", notice "{n}초에 한 번만 실행할 수 있어요." |
+| 403 | notice "이 실행 권한이 없어요 ({missing})" — 버튼은 그대로 둔다(서버가 진실) |
+| 404 | notice "연결을 찾을 수 없어요. 목록을 다시 불러와 주세요." |
+| 504 | `result` = 시간 초과 카드(`badge TIMEOUT`, `details.traceId` 가 있으면 표시) |
+| 502 | `result` = 실패 카드(`badge FAILED`, `details.traceId`) |
+| 500 · 네트워크(0) | `error` → ErrorBlock "실행하지 못했어요. 잠시 뒤 다시 눌러 주세요." (다시 누를 수 있음) |
+
+화면별
+- `DashboardScreen`: `overview = useAdminResource('/api/admin/v1/overview', { pollMs: 30_000 })` · `bulk: { done; total; failed } | null`(도는 동안 폴링 reload 는 건너뛴다).
+- `RoleScreen`: `policy`(#99a) → `primary`(#91a, policy 가 온 뒤 id 로) · `conns`(#91 `?role=`) · 목소리(#82, TTS 만) · 엔진 이름(`useEngineNames`). 테스트 뒤 `primary`·`policy` 다시 읽기 + 기록 `reloadKey++`.
+- `ConnectionsScreen`: `list`(#91) · `roleFilter` · `bulk` · `secrets: { open; highlightRef? }`.
+- `ConnectionDetailScreen`: `conn`(#91a) · `historyKey` · `secrets`.
+- `EffectiveScreen`: `targets`(#91) · `target`(URL `?target=` → 없으면 첫 연결 key) · `eff`(#102) · `q` · `sourceFilter` · `expanded: Set<string>`(대상을 바꾸면 비운다) — 대상 칩을 빨리 바꾸면 이전 요청 abort.
+- `DiagnosticsScreen`: `tab` · `connectionId`(URL) · `period: '24h'|'7d'|'30d'` · `kind` · `status` · `traces: { items; nextCursor; loadingMore; reqNo }` — 필터가 바뀌면 커서 초기화·abort·요청 번호 비교(늦게 온 옛 응답 버림). 필터는 URL 에 넣지 않는다(탭·연결만).
+- `TraceDetailScreen`: `trace`(#129).
+- `ConsoleProvider`: layout 이 서버에서 채운 `{ role, capabilities: string[], environment: { environment, appVersion?, services? } }` → `useCan()(cap)`, `useConsoleEnv()`. **클라이언트는 capability 를 저장하지 않는다**(localStorage·sessionStorage 금지).
+- `useEngineNames`: #90 을 모듈 변수 Promise 로 한 번만 읽어 `engineId → displayName` 을 준다(콘솔 세션 동안 재사용, 실패하면 `engineId` 그대로).
+- 상대 시각: `useNow(true, 30_000)` 한 번으로 "3분 전"을 갱신한다.
+
+### 6-4. API 호출 계획
+
+모두 `apiGet`/`apiPost`(`@/components/common/api`) + `toErr`/`retryAfterOf`/`detailString`(`@/components/common/errors`). 경로에 넣는 id·key 는 `encodeURIComponent`, 쿼리는 `URLSearchParams`.
+
+| # | 엔드포인트 | 메서드 | capability | 화면 | 파라미터 | 사용 필드 | 오류 처리 |
+|---|---|---|---|---|---|---|---|
+| 80 | `/api/admin/v1/overview` | GET | engine.read | Dashboard(30초 폴링) | — | `environment` · `roles[].{role, engine{id,displayName}, connection{id,key,name}, status, statusReason?, lastHealthAt, fallbacks, model}` · `voices.{available,disabled,importing}` · `llm.tiers` · `traces24h`(trace.read 일 때만 그림) | ErrorBlock + 다시 시도, 폴링은 계속 |
+| 81 | `/api/admin/v1/environment` | GET | console.access | **layout(서버)** — 모듈 함수로 같은 값을 받는다(fetch 안 함) | — | `environment` · `appVersion` · `services.*.env` | 실패해도 셸은 그린다(띠에 env 만, 버전 생략) |
+| 82 | `/api/admin/v1/voices` | GET | voices.read | Voices · TTS 역할 목소리 요약 · (Dashboard 는 #80 `voices`) | `includeArchived=0\|1` | `id, displayName, status, statusReason, enabled, speaker, model{id,version,status}, styles[].label, usage.users` | ErrorBlock |
+| 90 | `/api/admin/v1/engines` | GET | engine.read | 엔진 표시 이름 맵 | (includeSchema 안 씀) | `engine.{id, displayName, type}` | 조용히 `engineId` 로 대신 |
+| 91 | `/api/admin/v1/engine-connections` | GET | engine.read | Connections 목록 · Configuration 대상 칩 · Diagnostics 연결 칩 · 역할 "정책 밖 연결" | `role=`(역할 화면만) | `id, key, name, engineId, role, connectionType, enabled, status, statusReason, lastHealthAt, fallbackRole{primaryOf,fallbackOf}` | ErrorBlock |
+| 91a | `/api/admin/v1/engine-connections/:id` | GET | engine.read | 연결 상세 · 역할 "지금 쓰는 연결" | — | 위 + `connection{…}, runtime{…}, credentialRef, logLevel, environment, version, lastFunctionalAt, effectiveSummary` | 404 → ConsoleNotFound |
+| 95 | `/api/admin/v1/engine-connections/:id/health` | POST | health.run | [상태 확인] · "주 연결 상태 확인" · "모두 상태 확인" | — | `kind, ok, status, latencyMs, detail{화이트리스트 + errorCode, message}, checkedAt, connectionStatus` | §6-3 표 |
+| 95a | `/api/admin/v1/engine-connections/:id/health` | GET | engine.read | 최근 결과 · Diagnostics Health 기록 | `kind=HEALTH\|FUNCTIONAL`(전체면 생략) `limit=20\|50` | `EngineHealth[]` — `id, kind, ok, status, latencyMs, detail, traceId, checkedAt` | 목록 자리 ErrorBlock |
+| 96 | `/api/admin/v1/engine-connections/:id/test` | POST | functional_test.run | [기능 테스트] | `{}`(overrideRuntime 안 씀) | `ok, status, latencyMs, traceId, detail{…}, hint?` | §6-3 표 |
+| 99a | `/api/admin/v1/fallback-policies/:role` | GET | engine.read | 역할 페이지 예비 순서 | — | `primary{id,key,name,status}, fallbacks[], retryOnce, enabled` | 404 → "이 역할에 정책이 없어요" |
+| 101 | `/api/admin/v1/secrets` | GET | secrets.read_ref | SecretsSheet(**연 때만**, 감사 1행) | — | `ref, source, exists, usedBy, lastUsedAt` | 시트 안 ErrorBlock |
+| 102 | `/api/admin/v1/config/effective` | GET | config.effective.read | Configuration | `scope=ENGINE_CONNECTION&targetId={key}` | `environment, targetKey, engineId, schemaVersion, resolvedAt, cacheHit, keys[].{key, value, source, sourceRef?, editability, restartRequired, secret, layers?, shadowed?}` | 404 → "대상을 찾을 수 없어요" · ErrorBlock |
+| 121 | `/api/admin/v1/plugins` | GET | plugins.read | Plugins 목록 | — | `id, version, type, roles, connectionTypes, loaded, initError, connections, orphan` | 403 → ConsoleForbidden |
+| 122 | `/api/admin/v1/plugins/:id` | GET | plugins.read | Plugin 상세 | — | descriptor · `capabilities[]` · `schema.keys[]` · `defaultConfiguration` · `loaded, initError` · `sourcePath` | 404 → ConsoleNotFound |
+| 128 | `/api/admin/v1/traces` | GET | trace.read | Diagnostics 요청 Trace | `from`(ISO) `kind` `status` `limit=50` `cursor` | `items[].{traceId, kind, status, totalMs, errorCode, stepNames, createdAt}, nextCursor` | ErrorBlock |
+| 129 | `/api/admin/v1/traces/:traceId` | GET | trace.read | Trace 상세 | — | `traceId, environment, kind, status, totalMs, refType, refId, debugSessionId, userId, createdAt, steps[]` | 404 · 403 카드 |
+| 137b | `/api/admin/v1/me/capabilities` | GET | console.access | **화면은 부르지 않는다**(layout 이 서버에서 같은 값을 준다). QA 가 API 로 대조할 때만 | — | — | — |
+
+- Phase 1 표에 있지만 화면이 쓰지 않는 것: #99(전체 정책 — 역할 화면은 #99a, 대시보드는 #80) · #103(스키마 — `config.raw.read` 전용, 플러그인 상세는 #122 에 포함) · #82a(목소리 상세 화면 없음).
+- 서버 `message` 는 콘솔에서 400·409·422 에 한해 보조 줄(12px ink2)로 보여 줘도 된다(콘솔은 엔진 용어 허용). 제목 문구는 §6-8.
+
+### 6-5. 컴포넌트 분해
+
+폴더는 01 §7 목록을 지킨다: `src/components/admin/console/*`(셸·공용·엔진 화면) · `configEditor/*`(Effective) · `trace/*`(진단·Trace). `(app)` 컴포넌트(`chat`·`vocab`·`settings`…)는 import 하지 않는다 — 공용은 `components/common`(+ 셸 인프라 `shell/NativeFlag` 하나).
+
+| 컴포넌트/모듈 | 종류 | props | 상태 |
+|---|---|---|---|
+| `ConsoleShell` | client | `{ access: ClientConsoleAccess; children }` | 메뉴 시트 열림 |
+| `ConsoleProvider` · `useCan` · `useConsoleEnv` | client ctx | `{ value: { role, capabilities, environment } }` | — |
+| `EnvStrip` | client | `{ environment: Environment; appVersion?: string }` | — |
+| `ConsoleBar` | client | `{ menu: MenuItem[]; onOpenMenu() }` | pathname |
+| `ConsoleNavList` | client | `{ menu; role; environment; inSheet?: boolean; onNavigate?() }` | — |
+| `ConsoleSidebar` · `ConsoleMenuSheet` | client | `{ menu; role; environment }` · `+ { open; onClose() }` | — |
+| `ConsoleForbidden` | client | `{ missing: string[]; role?: string }` | — |
+| `ConsoleNotFound` | client | `{ backHref: string; backLabel: string }` | — |
+| `StatusBadge` · `VoiceStatusBadge` · `TraceStatusBadge` · `StepStatusBadge` · `LoadedBadge` | client | `{ value }`(Voice 는 `+ enabled`) | — |
+| `KeyValueList` | client | `{ items: { key: string; label?: string; value: unknown; mono?: boolean }[]; className? }` | — |
+| `MonoId` · `CopyButton` | client | `{ value: string; copy?: boolean; label?: string }` | 토스트 |
+| `ConsoleLoading` | client | `{ label?: string }` | — |
+| `RefreshLine` | client | `{ loadedAt: number \| null; reloading: boolean; polling?: boolean; onReload() }` | — |
+| `ChipRadio` · `ToggleButton` | client | `{ options; value; onChange; ariaLabel }` · `{ pressed; onToggle; children }` | — |
+| `EngineTestPanel` | client | `{ connection: { id; key; role; connectionType; enabled }; onDone(r: TestResultDto \| null) }` | §6-3 |
+| `TestResultCard` · `TraceRef` | client | `{ kind: HealthKind; result: TestResultDto; receivedAt: number }` · `{ traceId }` | — |
+| `HealthHistoryList` | client | `{ connectionId: string; limit?: number; reloadKey?: number }` | kind 필터·목록 |
+| `SecretsSheet` | client | `{ open; highlightRef?: string; connections: ConnectionDto[]; onClose() }` | 목록·로딩 |
+| `DashboardScreen` · `RoleCard` · `ServiceEnvWarning` | client | `{}` · `{ item: OverviewRoleDto; llm?: OverviewDto['llm'] }` · `{}` | §6-3 |
+| `RoleScreen` | client | `{ role: EngineRole }` | §6-3 |
+| `VoicesScreen` · `VoiceCard` | client | `{}` · `{ voice: VoiceAdminDto }` | 필터·보관 포함 |
+| `PluginsScreen` · `PluginDetailScreen` | client | `{}` · `{ id: string }` | — |
+| `ConnectionsScreen` · `ConnectionCard` · `ConnectionDetailScreen` | client | `{}` · `{ conn: ConnectionDto }` · `{ id: string }` | §6-3 |
+| `useAdminResource` | hook | `(path: string \| null, { pollMs? })` | §6-3 |
+| `useEngineNames` | hook | `() → (engineId: string) => string` | 모듈 캐시 |
+| `labels.ts` | 순수 | 역할·연결 방식·상태·Source·Editability·Trace·Voice·HealthKind 라벨, `ERROR_CODE_TEXT`·`SKIP_TEXT`·`PANEL_HELP`·`ENV_MESSAGE`(§6-8) | — |
+| `format.ts` | 순수 | `formatAgo(iso, now)` · `formatMs(ms)` · `displayValue(key, v, type?)` · `flattenDot(obj)` · `modelLabel(runtime)` · `groupByPrefix(rows)` · `refName(v)` | — |
+| `resultView.ts` | 순수 | `resultView(kind, r) → { badge; reason; hint; chips }` | — |
+| `configEditor/EffectiveScreen` · `EffectiveRow` · `SourceBadge` · `SourceLegend` | client | `{}` · `{ row: EffectiveKeyDto; expanded; onToggle() }` · `{ source: ConfigSource }` · `{}` | §6-3 |
+| `trace/DiagnosticsScreen` · `TraceRow` · `TraceDetailScreen` · `StepCard` | client | `{}` · `{ item: TraceListItemDto }` · `{ traceId: string }` · `{ step: TraceStepDto; totalMs: number }` | §6-3 |
+| `settings/AdminConsoleEntry` | **server** | `{}` | — |
+| `src/types/admin.ts` | 타입 | `Capability`(string) · `ClientConsoleAccess` · `MenuItem{path,label,sub,group}` · `OverviewDto`/`OverviewRoleDto` · `ConnectionDto`/`ConnectionDetailDto` · `HealthResultDto`/`FunctionalResultDto`/`TestResultDto` · `EngineHealthDto` · `FallbackPolicyDto` · `SecretRefDto` · `EffectiveDto`/`EffectiveKeyDto`/`EffectiveLayerDto` · `PluginDto`/`PluginDetailDto` · `VoiceAdminDto` · `TraceListItemDto`/`TraceDto`/`TraceStepDto` · 유니온 `EngineRole`·`EngineStatus`·`ConnectionType`·`ConfigSource`·`Editability`·`HealthKind`·`TraceKind`·`TraceStatus`·`VoiceStatus`·`Environment` | — |
+
+재사용: `Sheet`·`Toast/useToast`·`Segmented`·`ui.tsx`(`Card`·`Btn`·`Badge`·`Section`·`SectionHeader`·`Field`·`ErrorBlock`)·`common/format`(`formatClock`·`formatListTime`)·`common/useNow`(`useNow`·`useCountdown`)·`common/errors`·`common/api`. `EmptyBlock`·`LoadingBlock`(ink3 글자)은 쓰지 않는다.
+
+### 6-6. 생성/수정 파일 목록 (developer B)
+
+신규
+- `src/types/admin.ts` — 클라이언트 DTO(§6-5). 서버 모듈을 import 하지 않는다(소유 §6-11 ⑪)
+- `src/app/(admin)/layout.tsx` — 서버, `dynamic = 'force-dynamic'`, `getConsoleAccess()` → `redirect`/`notFound()`/`ConsoleShell`
+- `src/app/(admin)/admin/page.tsx` — `redirect('/admin/dashboard')`
+- `src/app/(admin)/admin/{dashboard,llm,voices,plugins,connections,configuration,diagnostics}/page.tsx`
+- `src/app/(admin)/admin/speech/{realtime,analysis,tts}/page.tsx` — `<RoleScreen role="REALTIME_STT" | "ANALYSIS_STT" | "TTS" />`(llm 은 `"LLM"`)
+- `src/app/(admin)/admin/plugins/[id]/page.tsx` · `connections/[id]/page.tsx` · `diagnostics/traces/[traceId]/page.tsx`
+- `src/components/admin/console/{ConsoleShell,ConsoleProvider,EnvStrip,ConsoleBar,ConsoleNavList,ConsoleSidebar,ConsoleMenuSheet,ConsoleForbidden,ConsoleNotFound,ConsoleLoading,StatusBadge,KeyValueList,MonoId,RefreshLine,ChipRadio,ToggleButton,EngineTestPanel,TestResultCard,HealthHistoryList,SecretsSheet,DashboardScreen,RoleCard,ServiceEnvWarning,RoleScreen,VoicesScreen,VoiceCard,PluginsScreen,PluginDetailScreen,ConnectionsScreen,ConnectionCard,ConnectionDetailScreen}.tsx`
+- `src/components/admin/console/{useAdminResource,useEngineNames,labels,format,resultView}.ts`
+- `src/components/admin/configEditor/{EffectiveScreen,EffectiveRow,SourceBadge,SourceLegend}.tsx`
+- `src/components/admin/trace/{DiagnosticsScreen,TraceRow,TraceDetailScreen,StepCard}.tsx`
+- `src/components/admin/console/__tests__/{format,resultView,labels}.test.ts`
+- `src/components/settings/AdminConsoleEntry.tsx`
+
+수정
+- `src/app/(app)/settings/page.tsx` — `userCan(user.id, 'engine.read')` + `<AdminConsoleEntry />`(맨 아래)
+
+화면이 기대는 developer A 의 공개 API(`@/modules/admin`): `getConsoleAccess()` · `requireConsolePage(cap)` · `userCan(userId, cap)` · `menu.ts` 값(§6-1). 이름이 달라지면 A 의 이름을 따른다.
+
+### 6-7. 구현 순서
+
+1. `types/admin.ts` · `labels.ts` · `format.ts` · `resultView.ts` + 단위 테스트(`displayValue` 의 경로·시크릿 가림, `resultView` 의 SKIPPED·UNAVAILABLE·TIMEOUT·PASSED 갈래, `formatAgo`·`formatMs`).
+2. 셸: layout(A 의 `getConsoleAccess` 가 아직 없으면 같은 모양의 임시 스텁) · `ConsoleShell`·`Provider`·`EnvStrip`·`ConsoleBar`·`NavList`·`Sidebar`·`MenuSheet` · `/admin` redirect · `ConsoleForbidden`·`ConsoleNotFound`.
+3. 공용: `useAdminResource` · 뱃지 류 · `KeyValueList` · `MonoId`/`CopyButton` · `RefreshLine` · `ChipRadio` · `ToggleButton`.
+4. Connections 목록·상세 + `EngineTestPanel`·`TestResultCard`·`HealthHistoryList` + `SecretsSheet`(조각을 가장 많이 쓰는 화면부터).
+5. `RoleScreen`(경로 4개) → Dashboard(폴링·주 연결 상태 확인).
+6. Configuration(Effective).
+7. Diagnostics(Health 기록·Trace 목록) + Trace 상세.
+8. Voices · Plugins 목록·상세.
+9. `/settings` 진입 행.
+10. §6-9 자체 점검 — dev `localhost:3011`, USER·ADMIN·DEVELOPER·SUPER_ADMIN QA 계정 4개(G7).
+
+### 6-8. 한국어 UI 문구
+
+ⓐ 셸·권한·공통
+
+| 자리 | 문구 |
+|---|---|
+| 콘솔 바 | AI Engine Console · {group} / {label} / ↩ 앱으로 (aria: 학습 앱으로 돌아가기) / (aria) 콘솔 메뉴 열기 |
+| 메뉴 | 콘솔 메뉴(시트 제목) / 개요 · 엔진 · 자원 · 설정·진단 / ↩ 학습 앱으로 돌아가기 / 내 역할 {role} |
+| 환경 띠 | 운영 환경 — 변경은 확인 절차를 거칩니다 / 개발 환경 — 운영과 분리된 설정 행을 봐요 / {env} 환경 |
+| 403 | 이 화면을 볼 권한이 없어요 / 필요한 권한 {caps} · 내 역할 {role} / 역할은 소유자(SUPER_ADMIN)가 바꿀 수 있어요. / 대시보드로 |
+| 콘솔 안 404 | 찾을 수 없어요 / 지웠거나 다른 환경의 항목일 수 있어요. 지금 환경은 {env} 이에요. / 연결 목록으로 · 플러그인 목록으로 · Trace 목록으로 |
+| 목록 404 | 콘솔에 들어갈 권한이 바뀌었을 수 있어요. [설정으로] |
+| 갱신 | 마지막 갱신 {HH:mm:ss} · 30초마다 새로 고침 / 다시 불러오기 / 불러오는 중… |
+| 불러오기 실패 | {화면 이름} 정보를 불러오지 못했어요. [다시 시도] |
+| 네트워크 | 연결하지 못했어요. 네트워크를 확인해 주세요. |
+| 복사 | (aria) {이름} 복사 / 복사했어요 / 복사하지 못했어요 |
+| 빈 값·가림 | 없음 / — / •••(숨김) / 서버 경로 · 표시하지 않음 |
+
+ⓑ 상태 확인·기능 테스트
+
+| 자리 | 문구 |
+|---|---|
+| 버튼 | 상태 확인 / 기능 테스트 / 확인 중… / 테스트 중… / {n}초 뒤 다시 |
+| 도움말 HTTP | 상태 확인은 서비스가 응답하는지만 봐요(최대 5초). 기능 테스트는 실제로 한 번 실행해요(최대 30초). |
+| 도움말 CLI(LLM) | 상태 확인은 실행 파일이 뜨는지 봐요. 기능 테스트는 짧은 JSON 질문을 한 번 보내요(30초에 한 번). |
+| 도움말 ONDEVICE | 상태 확인은 서버에 있는 기기용 모델 파일 목록을 봐요. 기능 테스트는 휴대폰 안에서만 할 수 있어요(앱 기기 테스트는 나중에 열려요). |
+| 꺼진 연결 | 꺼져 있는 연결이에요 — 켜기는 다음 단계(편집)에서 할 수 있어요. |
+| 진행 | 상태 확인 중… {n}초 / 기능 테스트 중… {n}초 |
+| 결과 머리 | {뱃지} 상태 확인 · {지연} · {방금} / {뱃지} 기능 테스트 · {지연} · {방금} |
+| 응답 없음 안내 | 서비스가 꺼져 있으면 정상적인 결과예요. 서비스를 켠 뒤 다시 확인해 주세요. |
+| 건너뜀 안내(`SKIP_TEXT`) | ONDEVICE: 휴대폰 안에서 도는 연결이라 서버에서는 테스트하지 않아요. / TEST_ASSET_PENDING·`E_TEST_INPUT_MISSING`: 테스트 자료가 아직 준비되지 않아 건너뛰었어요. / SERVICE_UNAVAILABLE: 서비스가 꺼져 있어 기능 테스트를 건너뛰었어요. |
+| 연결 상태 갱신 | 연결 상태를 {상태}(으)로 바꿨어요 |
+| Trace | trace {id} / Trace 보기 › |
+| 409 진행 중 | 이미 실행 중이에요. 끝나면 아래 기록에 나타나요. |
+| 409 꺼짐 | 꺼져 있는 연결이라 실행하지 않았어요. |
+| 429 | {n}초에 한 번만 실행할 수 있어요. |
+| 403 | 이 실행 권한이 없어요 ({caps}) |
+| 404 | 연결을 찾을 수 없어요. 목록을 다시 불러와 주세요. |
+| 500·네트워크 | 실행하지 못했어요. 잠시 뒤 다시 눌러 주세요. |
+| 일괄 | 주 연결 상태 확인 / 모두 상태 확인 / 상태 확인 중 {i}/{n}… / {n}개 연결을 확인했어요 / {k}개는 실행하지 못했어요 |
+| 기록 | 최근 결과 / 전체 · 상태 확인 · 기능 테스트 / 아직 실행한 기록이 없어요. [상태 확인]을 눌러 보세요. / 문제 없음 |
+
+오류 코드 → 사유(`ERROR_CODE_TEXT` — 모르는 코드는 "실패했어요 ({code})")
+
+| 코드 | 사유 |
+|---|---|
+| `E_HEALTH_CONNECTION_REFUSED` · `ECONNREFUSED` | 서비스에 연결할 수 없어요(연결 거부) |
+| `E_HEALTH_TIMEOUT` · `E_TEST_TIMEOUT` · `ETIMEDOUT` | 응답이 없어요(시간 초과{detail.timeoutMs 있으면 ` ${초}초`}) |
+| `E_HEALTH_HTTP_STATUS` | 서비스가 오류로 응답했어요(HTTP {httpStatus}) |
+| `E_HEALTH_AUTH` · `E_TEST_AUTH` | 인증에 실패했어요 — 시크릿 참조를 확인하세요 |
+| `E_HEALTH_CREDENTIAL_MISSING` | 시크릿 참조를 찾을 수 없어요 |
+| `E_HEALTH_MODEL_NOT_LOADED` | 서비스는 켜졌지만 모델이 아직 올라오지 않았어요 |
+| `E_HEALTH_MANIFEST_MISSING` · `E_HEALTH_MANIFEST_VERSION` | 기기용 모델 파일 목록이 없거나 버전이 달라요 |
+| `ENOENT` | 실행 파일을 찾을 수 없어요 |
+| `E_TEST_UPSTREAM` | 서비스 호출이 실패했어요 |
+| `E_TEST_OUTPUT_INVALID` | 결과 형식이 기준에 맞지 않아요 |
+| `E_TEST_ACCURACY` | 결과가 기준에 못 미쳐요{detail.cer 있으면 ` (CER ${cer})`} |
+| `E_TEST_NOT_APPLICABLE` · `NOT_APPLICABLE` | (건너뜀) 휴대폰 안에서 도는 연결이라 서버에서는 테스트하지 않아요 |
+| `E_TEST_INPUT_MISSING` | (건너뜀) 테스트 자료가 아직 준비되지 않았어요 |
+
+ⓒ 화면별
+
+| 화면 | 문구 |
+|---|---|
+| Dashboard | 엔진 역할 / 목소리 / 요청 기록 (24시간) / 사용 가능 {a} · 꺼짐 {d} · 가져오는 중 {i} / 회화 턴 {n} · 오류 {e} · p50 {s} · p95 {s} / 아직 상태 확인 안 함 / 상태 확인 {ago} / 예비 {n} / 모델 {m} / 이 역할에 연결이 없어요 / 음성 서비스 {svc} 가 {env1} 환경으로 보고했어요. 이 콘솔은 {env2} 이에요. |
+| 역할 | 지금 쓰는 연결 / 연결 상세 › / 엔진 · 방식 · 모델 · 주소 · 마지막 확인 · 마지막 기능 테스트 · 상태 사유 / 예비 연결 순서 / (기본) / 예비 연결 없음 — 이 연결이 안 되면 이 기능을 쓸 수 없어요 / 실패하면 다음 연결로 한 번 다시 시도해요 / 실패해도 다른 연결로 넘기지 않아요 / 정책 꺼짐 / 정책 밖 연결 / 특정 작업에만 쓰여요: {tasks} / 라우터가 고르지 않아요 / 설정값 요약 / 설정 {n}개 / 설정값 전체 보기 › / 모델 단계 / 이 역할에 정책이 없어요 |
+| Voices | (aria) 목소리 상태: 전체 · 사용 가능 · 꺼짐 · 오류 / 보관 포함 / 모델 · 화자 · 스타일 · 쓰는 사용자 {n}명 · 상태 사유 / 등록된 목소리가 없어요. |
+| Plugins | 로드됨 / 로드 실패 / 등록 불일치 / 역할 · 연결 {n}개 · 방식 / ← 플러그인 목록 / 정보 · 기능(capabilities) · 초기화 오류 · 설정 키 ({n}) · 기본 설정 문서 · 펼쳐 보기 / 표시 이름 · 종류 · 버전 · 구현 클래스 · 연결 방식 · 스키마 버전 · 소스 파일 / 기본값 · 운영 민감 |
+| Connections | 모두 상태 확인 / 시크릿 참조 / (aria) 역할 / {역할} 기본 · {역할} 예비 · 정책 밖 / 확인 {ago} · 확인 안 함 / ← 연결 목록 / 연결 정보 · 실행 설정 (runtime) · 로그 레벨 / 있는지 확인 / 꺼진 연결 — 라우터가 고르지 않아요 / {역할}의 기본 연결 · {역할}의 예비 연결 · 정책 밖 연결 / 설정 v{n} |
+| 시크릿 시트 | 시크릿 참조 / 값은 보이지 않아요. 참조 이름·있는지·마지막 사용만 보여 줘요. 열 때마다 조회 기록(감사 로그)이 남아요. / 파일 · 환경 변수 / 있음 · 없음 / 사용 연결 {keys} / 마지막 사용 {ago} · 사용 기록 없음 / 연결에 걸린 시크릿 참조가 없어요. |
+| Configuration | 대상 연결 / 스키마 v{n} / 해석 {HH:mm:ss} (캐시) / 출처 8층이란? / 키 검색 (예: timeout) (aria: 설정 키 검색) / (aria) 출처 / ⚠ 가려진 값 / env 가 덮고 있어요 / ← 사용 중 / 조건에 맞는 키가 없어요. / 대상을 찾을 수 없어요. / 위 층이 아래 층을 키 하나씩 덮어요. USER_SETTING·RUNTIME_OVERRIDE 는 이 화면(관리 설정)에는 보통 나오지 않아요. |
+| Diagnostics | (aria) 진단 보기: Health 기록 · 요청 Trace / (aria) 연결 / (aria) 기간: 24시간 · 7일 · 30일 / (aria) 종류: 전체 · 회화 턴 · 기능 테스트 · 미리듣기 · 플레이그라운드 · E2E / (aria) 결과: 전체 · 정상 · 일부 실패 · 실패 / {n}건 · {n}건 이상 · 보관 90일 / 더 보기 / 이 조건의 기록이 없어요. |
+| Trace 상세 | ← Trace 목록 / 환경 · 시각 · 대상 · 디버그 세션 · 사용자 / 단계 ({n}) / 모델 {m} / {n}번째 시도 / {from} 에서 넘어옴 / 캐시 {HIT\|MISS} |
+| /settings | 관리자 / AI Engine Console / 엔진·연결 상태를 보고 테스트해요 |
+
+ⓓ 라벨
+
+| 값 | 라벨 |
+|---|---|
+| EngineRole `REALTIME_STT` / `ANALYSIS_STT` / `TTS` / `LLM` | Realtime STT · 실시간 음성 인식 / Analysis STT · 분석용 음성 인식 / TTS · 선생님 목소리 합성 / LLM · 대답·교정·레슨 생성 |
+| 역할 설명 `ROLE_DESC` | 회화 중 학습자의 말을 바로 글자로 바꿔요. 기본은 휴대폰 안에서, 안 되면 서버에서. / 대화가 끝난 뒤 녹음을 다시 정확하게 받아 적어요(발음·교정 분석용). / 선생님 목소리로 문장을 읽어 줘요. / 선생님의 대답·교정·레슨·평가를 만들어요. |
+| ConnectionType `ONDEVICE` / `HTTP` / `CLI` / `LOCAL` | 휴대폰(ONDEVICE) / HTTP 서비스 / 명령줄(CLI) / 로컬 작업자(LOCAL) |
+| ConfigSource 1~8 | DEFAULT 스키마 기본값 · SOURCE_CODE 코드 상수 · APPLICATION_CONFIG 설정 파일(yml) · ENVIRONMENT 환경 변수 · DATABASE 콘솔 적용값 · CONNECTION_PROFILE 연결 프로필 · USER_SETTING 사용자 설정 · RUNTIME_OVERRIDE 임시 덮어쓰기 |
+| Editability | READ_ONLY 읽기 전용 · RUNTIME_EDITABLE 즉시 반영 · RESTART_REQUIRED 재시작 필요 · REDEPLOY_REQUIRED 재배포 필요 · SECRET 시크릿(참조만) |
+| HealthKind | HEALTH 상태 확인 · FUNCTIONAL 기능 테스트 |
+| TraceKind | TURN 회화 턴 · PREVIEW 미리듣기 · PLAYGROUND 플레이그라운드 · E2E E2E · FUNCTIONAL_TEST 기능 테스트 |
+| TraceStatus / 단계 status | OK 정상 · PARTIAL 일부 실패 · ERROR 실패 / OK 정상 · FAILED 실패 · TIMEOUT 시간 초과 · SKIPPED 건너뜀 · FALLBACK 예비로 넘김 |
+| Environment | PRODUCTION 운영 · LOCAL 개발 · DEVELOPMENT 개발 서버 · STAGING 스테이징 |
+
+### 6-9. 360/390/412 · 데스크톱 · 접근성 체크리스트
+
+폭·배치
+- [ ] 360·390·412 세 폭, 모든 콘솔 화면에서 가로 스크롤 0. 긴 값으로 확인: 64자 connection key, 긴 baseUrl, `env:KAIWA_CONN_…` sourceRef, 300자 initError, traceId, `6 CONNECTION_PROFILE` 배지, 긴 `runtime.allowedTasks`.
+- [ ] 세로 스크롤은 `main` 하나(메뉴·시크릿 시트 안은 예외). 칩 줄은 가로 스크롤만, 스크롤바 숨김.
+- [ ] 환경 띠·콘솔 바는 스크롤해도 늘 보인다(`main` 밖). 360 에서 띠 문구는 말줄임, 환경 이름·버전은 남는다.
+- [ ] `KeyValueList` 가 카드 폭 <420 에서 위아래, ≥420 에서 두 칸.
+- [ ] ≥1024: 사이드바 + 본문(최대 960px), ☰ 숨김. 카드 목록은 컨테이너 ≥640 에서 2열.
+- [ ] 앱 WebView(≈390)에서 띠가 상태바 아래로 들어가지 않는다(`NativeFlag` + `[data-app-shell]` 24px 규칙).
+
+터치·글자
+- [ ] 행 링크 ≥56px, 버튼·칩·복사·☰·↩앱으로·펼침·"있는지 확인" 히트 ≥44px(칩·Segmented 는 세로 `::before`).
+- [ ] 읽어야 하는 글에 `ink3`·`warn` 글자·`accent` 뱃지 글자 없음. DEGRADED 뱃지는 `text-ink`. 빈 상태에 `EmptyBlock`·`LoadingBlock` 을 쓰지 않는다.
+- [ ] PRODUCTION 띠 글자(`text-surface` on `bg-bad`) 라이트·다크 ≥4.5:1.
+- [ ] 일본어가 나오는 곳(기능 테스트 인식 결과)만 `lang="ja"`. 키·값·ref 는 모노 + `[overflow-wrap:anywhere]`, `break-keep` 은 한국어 문장에만.
+
+권한·노출
+- [ ] USER: `/admin`·`/admin/dashboard`·`/admin/plugins/x` 가 **없는 주소(`/zzz`)와 같은** 404(상태 코드·본문). `/settings` 에 "관리자" 섹션 없음(DOM·RSC 응답·JS 번들에 "AI Engine Console" 0건).
+- [ ] ADMIN: 메뉴 9개(Plugins 없음), Diagnostics 에 Segmented 없음, `/admin/plugins` 직접 입력 → 콘솔 403 카드(메뉴·띠 유지), `/admin/diagnostics/traces/x` → 403 카드, Configuration 행에 펼침 없음, 결과 카드에 "Trace 보기" 없음.
+- [ ] DEVELOPER·SUPER_ADMIN: 메뉴 10개, Trace 탭, Effective 층 펼침·`sourceRef`.
+- [ ] 권한 없는 버튼은 DOM 에 없다(비활성으로 남지 않는다).
+- [ ] 화면 렌더 텍스트와 콘솔 API 응답 전체에서 Secret 값 0 · 서버 절대 경로 0(`/home/`·`/Users/`·`/root/`) — `.env` 의 실제 비밀값 문자열로 grep(완료 기준 4).
+
+동작
+- [ ] 꺼진 서비스 연결(gateway :8100·M4 :8200)에서 [상태 확인] → 회색 결과 카드 + "응답 없음" 뱃지 + 안내. 빨간 ErrorBlock 아님, 500 없음.
+- [ ] LLM [기능 테스트] 직후 30초 카운트다운. 강제로 429 를 만들면 `Retry-After` 초로 카운트다운.
+- [ ] ONDEVICE 연결에 [기능 테스트] 버튼 없음 + 도움말 문구.
+- [ ] 대시보드 폴링: 탭을 가린 동안 요청 0, 돌아오면 바로 갱신.
+- [ ] 시크릿 시트를 열 때만 #101 이 나간다(목록·상세 진입만으로는 0건) → 열 때마다 AuditLog 1행(완료 기준 6).
+- [ ] "모두 상태 확인"은 요청이 하나씩 순서대로 나간다(네트워크 탭에서 겹침 0).
+
+접근성
+- [ ] 메뉴 시트: `role=dialog aria-modal`, 제목 포커스, 닫으면 ☰ 로 포커스 복귀, Esc. 활성 메뉴 `aria-current="page"`.
+- [ ] 뱃지는 글자로 뜻을 전한다(점 `aria-hidden`, `aria-label="상태: 정상(HEALTHY)"`).
+- [ ] 테스트 진행·결과 `aria-live="polite"`, 실행 중 버튼 `aria-busy`. 칩 `role=radio aria-checked`, 보관 포함 `aria-pressed`, 펼침 `aria-expanded`.
+- [ ] 포커스 링이 보인다(outline 제거 금지).
+
+### 6-10. 주의사항
+
+- **쓰기 0**(G2): 콘솔 화면에서 나가는 쓰기 요청은 #95·#96 두 가지뿐이다. 편집 폼·토글·저장 버튼을 "나중을 위해" 미리 그리지 않는다.
+- **존재 비노출**: USER 가 보는 404 는 앱의 아무 없는 주소와 같아야 한다. `(admin)` 전용 `not-found.tsx`·전용 문구를 만들지 않고, layout 에서 `notFound()` 를 부르기 **전에** 콘솔 데이터(메뉴·환경)를 읽거나 렌더하지 않는다.
+- **capability 는 서버가 진실**: `useCan` 은 숨김용이다. layout 은 클라이언트 이동 때 다시 돌지 않으므로 **페이지마다** `requireConsolePage` 를 부른다. capability 를 브라우저 저장소에 두지 않는다.
+- **비밀·경로**: `credentialRef` 는 이름만, 존재 여부는 시크릿 시트(감사 기록)에서만. `detail`·`meta`·`sizes` 는 화이트리스트/표시 규칙을 거친다. 응답 전체를 덤프하는 "디버그 보기"를 만들지 않는다(플러그인 `defaultConfiguration` 은 스키마 기본값뿐이라 예외). `dangerouslySetInnerHTML` 금지.
+- **엔진명**: 콘솔 안에서는 보여 준다. 대신 콘솔 컴포넌트를 `(app)` 화면에서 import 하지 않고(번들 분리), `/settings` 진입 행은 **서버 컴포넌트**로 둔다.
+- **꺼진 서비스 = 정상 결과**: UNAVAILABLE 을 빨간 카드·오류 토스트로 만들지 않는다. 대시보드 카드 바탕도 바꾸지 않는다.
+- **동시 요청**: 필터·대상 칩을 빨리 바꾸면 요청이 겹친다 — abort + 요청 번호 비교. 일괄 상태 확인은 **순서대로**(CLI spawn·M4 부하 — 병렬 금지).
+- **PRODUCTION**: 띠는 어떤 화면에서도 숨기지 않는다. Phase 1 은 설정 쓰기가 없지만 PRODUCTION 에서 누른 테스트도 운영 `EngineHealth`·`RequestTrace` 에 남는다.
+- **발음 사전**(01 표 P0)은 G1 로 이번 범위 밖 — 메뉴·링크 없음.
+- **오프라인**: 목록은 ErrorBlock + 다시 시도, 폴링은 다음 주기에 다시 시도한다. 테스트 실행 중 끊기면 ErrorBlock 이고, 결과는 나중에 "최근 결과"에서 확인된다.
+
+### 6-11. Leader 확인 요청 (계약 불일치·해석·공백)
+
+| # | 항목 | 화면이 가정한 것 | 틀리면 |
+|---|---|---|---|
+| ① | 403 본문 키 | role-permission §5·api-contract §2-19 대로 `data.details.missing: string[]`. 02 §5 의 `requiredCapability` 는 `missing` 이 없을 때만 대체로 읽는다 | 403 카드의 "필요한 권한"이 빈다 |
+| ② | `secrets.read_ref` 보유 역할 | 정본 매트릭스(role-permission §3)대로 **ADMIN 이상**. admin-console/02 §3 표("SUPER_ADMIN 만")와 어긋남 → 정본을 따른다 | ADMIN 에게 [시크릿 참조]가 보였다가 403 |
+| ③ | Voices 메뉴 capability | 01 §3·api-contract #82 대로 `voices.read`. role-permission §4-1·§4-2 는 `voices.manage` 로 적혀 있다(콘솔 사용자는 둘 다 가지므로 Phase 1 동작 차이는 없음) | 정본 한쪽 정리 필요. 화면은 `menu.ts` 값만 따른다 |
+| ④ | #81 응답 모양 | api-contract 모양(`environment, appVersion, nodeEnv, protection, services`)을 쓴다. 16 §3 의 `policies/activeOverrides/pendingRestart` 는 안 쓴다. 01 §5 의 "Override 켜짐·개수"는 Override 가 Phase 4 라 띠에서 뺐다 | 띠에 Override 정보를 추가 |
+| ⑤ | **SKIPPED 표현** | `EngineStatus` 에 SKIPPED 가 없다. 화면은 `ok:null` · `status:'NOT_APPLICABLE'\|'SKIPPED'` · `detail.skipped:true` · `E_TEST_INPUT_MISSING` 을 모두 SKIPPED 로 본다 → developer A 가 하나로 정하길 권장: `{ ok:null, status:'NOT_APPLICABLE', detail:{ reason:'ONDEVICE'\|'TEST_ASSET_PENDING'\|'SERVICE_UNAVAILABLE' } }`(speech-platform 10 §3.4 확장) | STT·TTS 테스트 자료가 없는 것이 "실패"로 보인다 |
+| ⑥ | #102 모양 | api-contract 의 `keys[]`(04 의 `entries[]` 아님). **요청**: 모든 역할에 `shadowed: boolean` 을 실어 달라(ADMIN 은 `layers` 가 없어 화면이 계산 못 함 — 값·출처 이름뿐이라 민감하지 않음) | ADMIN 화면에 "⚠ 가려진 값"이 안 보인다 |
+| ⑦ | **서버 경로 누출** | seed `claude-cli-local.connection.binPath = '$CLAUDE_CLI_PATH'` 를 resolver 가 env 로 풀면 **절대 경로가 #91a·#102 응답에 실린다** → `PATH` 타입 키는 값 대신 ref(`$CLAUDE_CLI_PATH`·`env:…`)만 응답하게(developer A·reviewer 확인). 화면은 `/` 로 시작하는 경로 값을 가리지만 방어선일 뿐 | 완료 기준 4 식 응답 grep 에서 `/home/…` 검출 |
+| ⑧ | `effectiveSummary`(#91a) 모양 | `{ keys: number, bySource: Partial<Record<ConfigSource, number>> }` 가정 | 필드명만 맞추면 된다 |
+| ⑨ | 모델 표시 | #91a 에 `model` 이 없어 화면이 `runtime.model → defaultModel → modelVersion → modelByTier` 순으로 고른다. A 가 `modelLabel` 을 주면 그걸 쓴다 | 연결마다 모델 표기가 들쭉날쭉 |
+| ⑩ | #80 `traces24h` | ADMIN(`trace.read` 없음)에게는 화면이 숨긴다 → 서버도 빼 주기 권장(02 §4: 메트릭은 `trace.read`) | 응답에만 남는 경미한 권한 누수 |
+| ⑪ | 화면↔서버 경계 | A 가 `@/modules/admin` 에 `getConsoleAccess()`(role·capabilities·environment·거른 menu) · `requireConsolePage(cap)`(console.access 없으면 notFound, 부족하면 `{ok:false, missing, role}`) · `userCan(userId, cap)` 를 공개. 응답 DTO 타입은 B 가 `src/types/admin.ts` 에 쓰고 A 의 응답이 맞춘다(병렬 작업 충돌 방지) | 소유자만 정해 주면 된다 — 이름은 A 기준으로 B 가 맞춤 |
+| ⑫ | 모바일 메뉴 | 01 §7 "햄버거 드로어"를 **공용 `Sheet`(아래에서 올라옴)** 로 구현 — 한 손 조작·코드 재사용 | 왼쪽 드로어를 새로 만든다 |
+| ⑬ | 슬롯 환경 색 | `DEVELOPMENT`·`STAGING` 의 "파랑"은 토큰이 없어 회색 윤곽(지금 쓰지 않는 슬롯). 새 색은 쓰일 때 합의 | — |
+| ⑭ | `/settings` 요약 행 | speech-platform 14 §7 미결 1 → **콘솔 링크 한 줄만**(학습자 화면이 admin API 를 부르지 않게) | 요약을 원하면 서버 컴포넌트로 #80 일부를 읽어 추가 |
+| ⑮ | 404 화면 | USER 의 `/admin` 404 = Next 기본 404(루트 `not-found.tsx` 없음, 영문). 존재 비노출에는 문제없다. 한국어 루트 404 는 앱 전체에 걸리므로 **별도 task** 제안 | — |
+| ⑯ | 일괄 상태 확인 | 새 API 없이 #95 를 순서대로 N번(대시보드 = 역할 주 연결 4개, 연결 목록 = enabled 전부). 완료 기준 5(seed 전부 실행)를 화면에서도 할 수 있게 | 버튼을 뺀다 |
+| ⑰ | IA 추가 경로 | `/admin/diagnostics/traces/[traceId]`(01 에 없음 — `diagnostics/[connectionId]` 는 Phase 3) · `/admin` → dashboard redirect. 01 §3 표 갱신 필요 | 경로를 `?trace=` 시트로 바꾼다 |
+| ⑱ | Health 결과의 traceId | #95 응답 예시에 `traceId` 가 없다(#96 만 있음). Health 는 Trace 줄 없이 그린다 | Health 도 Trace 를 남긴다면 싣기만 하면 화면이 그린다 |

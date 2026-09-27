@@ -75,13 +75,38 @@ design-spec §15 task-005b: Admin/Developer AI Engine Console 의 Phase 1 골격
 ### 네이티브 변경 / APK
 없음.
 
+### 설계 확정 (Leader, designer §6-11 확인 — H1~H6)
+- **H1 경로 누출 차단(보안)**: `binPath` 등 경로 키는 해석된 절대 경로를 응답에 싣지 않고 ref 만, `/` 로 시작하는 값 마스킹. 스모크에 "응답 내 서버 절대 경로 0" 자동 검사.
+- **H2** 미실행 테스트 표현은 A 가 `src/types/admin.ts` 에 하나로 확정(EngineHealth enum + `detail.reason`).
+- **H3** #102 항목마다 `shadowed:boolean`(모든 역할), `layers` 상세는 DEVELOPER 이상.
+- **H4 정본 충돌**: 정본 5종 > admin-console 세부 문서 — `secrets.read_ref` = ADMIN 이상(role-permission §3), Voices 목록 = `voices.read`(api-contract #82·01 표), 403 = `data.details.missing`, #81 = api-contract 모양. admin-console/02 의 어긋난 문구는 정본에 맞춰 이후 정리.
+- **H5 경계**: 서버 컴포넌트 헬퍼(`getConsoleAccess`·`requireConsolePage`·`userCan`)와 `src/types/admin.ts` 는 developer A 소유, B 는 import 만.
+- **H6** `/admin`→`/admin/dashboard` redirect·`/admin/diagnostics/traces/[traceId]` 추가 승인(01 §3 표 갱신). 한국어 루트 404 는 backlog.
+
 ## 판단 기록 (judge)
 - [2026-09-27 16:19] intake engine=jev → task_type=feature / risk=R2 / developer=opus / next=ask_user | overrides=- | fallback=- | tokens=1082
+- [2026-09-27 16:23] codex_gate/C1 engine=jev → codex_required=true / mode=adversarial-review / focus=security | overrides=- | fallback=- | tokens=903
+  - **override**(Leader): Codex 미호출 — 사용자 지시(Codex 한도 소진, 충전 후 재확인). 보안 초점(권한 404/403·Secret 누출·SSRF/spawn·QA role 계정 가드)은 reviewer 최우선 감사 + QA 권한 매트릭스 실측으로 대체.
   - **override**(Leader): `next=ask_user` 미적용 — 판단 대상은 admin-console/00~16·role-permission·configuration-resolution·api-contract 표에 정해져 있고, 유일한 미결(대시보드 갱신 주기)은 G5 기본값으로 정했다. 로드맵 조정(G1 발음 사전 이월·G2 #93b 이월)은 사용자 질문 대신 최종 보고에 명시한다. risk=R2 채택(capability·Secret·Role 매트릭스 = leader.md R2 보강 기준).
 
 ## Codex 검토
 
 ## Designer 기록
+- [16:45] 산출물: `docs/screens.md` §6 Admin Console — Phase 1(6-0 결정~6-11 확인 요청) 신규, §2 설정·콘솔 행 갱신(콘솔 경로 8행). 코드·다른 문서 수정 없음.
+- [16:45] 셸: `(admin)/layout.tsx` 별도 셸 = 환경 띠 32px(PRODUCTION `bg-bad text-surface`, 숨김 불가) + 콘솔 바 52px(☰·제목·↩앱으로) + `main` 1곳 스크롤, ≥1024 사이드바 232px. 모바일 메뉴 = 공용 `Sheet` 재사용. 메뉴 10개(ADMIN 9 — Plugins 없음), 값은 `menu.ts`(A)가 거른 목록을 props 로.
+- [16:45] 404/403: USER 는 앱 공통 404(콘솔 전용 not-found 금지), 콘솔 사용자 capability 부족은 콘솔 안 403 카드(`details.missing`), 없는 id 는 콘솔 안 "찾을 수 없어요" 카드. 페이지마다 `requireConsolePage` 재검사.
+- [16:45] Health/기능 테스트 = `EngineTestPanel` 하나(진행 초·결과 카드·429 카운트다운·409/403 안내). 꺼진 서비스(UNAVAILABLE)는 회색 결과 카드+안내 — 오류 아님. SKIPPED 는 `resultView` 가 파생. LLM 기능 테스트 뒤 30초 선잠금.
+- [16:45] Effective: Source 배지 `{층} {SOURCE}`(ENVIRONMENT 굵은 윤곽·RUNTIME_OVERRIDE 빨강·나머지 회색), DEVELOPER 만 층 펼침(`layers` 있을 때). 시크릿은 ref 이름만, 존재 여부는 [시크릿 참조] 시트 열 때만(#101 감사). 절대 경로 값은 화면에서 가림(방어선).
+- [16:45] `/settings` 맨 아래 "관리자 › AI Engine Console" 한 줄(서버 컴포넌트 `AdminConsoleEntry`, `engine.read`). 역할 요약 행은 두지 않음.
+- Leader 확인 필요(상세 §6-11 ①~⑱):
+  1. 403 본문 키 `details.missing`(02 의 `requiredCapability` 는 대체로만) 확정
+  2. `secrets.read_ref` = ADMIN 이상(정본 매트릭스) vs 02 §3 "SUPER_ADMIN 만" 불일치
+  3. Voices 메뉴 capability `voices.read`(01·#82) vs role-permission §4 `voices.manage` 불일치
+  4. SKIPPED 응답 표현을 A 가 하나로(`ok:null, status:'NOT_APPLICABLE', detail.reason`) 정하길 권장
+  5. #102 에 전 역할 `shadowed:boolean` 추가 요청(ADMIN 은 layers 가 없어 가려진 값 표시 불가)
+  6. **서버 경로 누출 위험**: `claude-cli-local.binPath`(`$CLAUDE_CLI_PATH`)가 resolver 에서 절대 경로로 풀려 #91a·#102 에 실릴 수 있음 → PATH 키는 ref 만 응답하도록 A·reviewer 확인
+  7. 화면↔서버 경계 함수(`getConsoleAccess`·`requireConsolePage`·`userCan`)와 `src/types/admin.ts` 소유자 지정
+  8. IA 추가 경로 `/admin/diagnostics/traces/[traceId]`·`/admin` redirect → 01 §3 갱신, 20-Log 한 줄은 "다른 파일 수정 금지" 지시로 Leader 에 위임
 
 ## Developer 기록
 
