@@ -1,9 +1,11 @@
+import { userCan } from '@/modules/admin'
 import { auth } from '@/modules/infra'
 import AppBar from '@/components/shell/AppBar'
 import AttendanceCard from '@/components/settings/AttendanceCard'
 import LearningSettings from '@/components/settings/LearningSettings'
 import SpeechSettings from '@/components/settings/SpeechSettings'
 import VoiceSettings from '@/components/settings/VoiceSettings'
+import AdminConsoleEntry from './AdminConsoleEntry'
 import LogoutButton from './LogoutButton.client'
 
 /**
@@ -13,6 +15,8 @@ import LogoutButton from './LogoutButton.client'
 export default async function SettingsPage() {
   const session = await auth()
   const user = session?.user
+  // 매 요청 DB 역할로 확인한다(캐시 없음). 콘솔 행은 engine.read 보유자에게만 — 서버 컴포넌트라 USER 번들에 문자열이 없다.
+  const showConsole = user ? await userCan('engine.read') : false
   return (
     <>
       <AppBar title="설정" />
@@ -27,6 +31,7 @@ export default async function SettingsPage() {
         <LearningSettings />
         <VoiceSettings />
         <SpeechSettings />
+        {showConsole ? <AdminConsoleEntry /> : null}
       </div>
     </>
   )
