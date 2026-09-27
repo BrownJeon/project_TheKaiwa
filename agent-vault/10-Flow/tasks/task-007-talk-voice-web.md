@@ -324,6 +324,68 @@ Leader 의 C1-1/C1-2/C1-3 판정문이 실제 구현과 일치하는지 코드�
 
 `native_change`: false.
 
+### REV-015 (2026-09-28, 화면 23b984d + 수정 de48fe3)
+
+**판정: PASS** (Critical 0 · High 0 · Medium 0 · Low 4)
+
+**검증 방법**: `git show --stat`/`git diff 6d8b3b1 23b984d`(B, 52파일) · `git show de48fe3`(A 수정, 13파일) 전량 정독 + `docs/screens.md` §9(9-0~9-11) 전체 재대조. 독립 재실행은 REV-014 와 같은 `git archive` 스크래치 방식 2벌 — `~/.node-local/thekaiwa-revcheck-b`(23b984d 단독, node_modules 는 운영 미러에서 하드링크) · `~/.node-local/thekaiwa-revcheck-full`(de48fe3 = B+A 수정 결합 상태). 둘 다 pm2 운영 미러(`~/.node-local/thekaiwa`)는 건드리지 않았다(파괴적 명령 사전 고지 절차 준수).
+
+**독립 재실행 결과**:
+- 23b984d 단독: `tsc --noEmit` exit 0 · `eslint src` 0 error(경고 5 = 기존 파일, 아래 Low-1) · `node --test`(전체) **360 pass / 0 fail**.
+- de48fe3(B+A 결합, = 현재 `main` 1648cc0 의 코드 상태와 동일): `tsc --noEmit` exit 0 · `eslint src` 0 error(경고 5, 동일) · `node --test` **367 pass / 0 fail** — **A 보고 "367/367" 를 독립 재확인**(REV-014 Low-5 가 지적한 315→354→360→367 수치 변화는 B 가 이후 테스트 파일을 계속 추가했기 때문이며, 실패 0 은 매 단계 일관됨을 확인했다).
+- `grep -rniE "reazon|whisper|style-bert|claude|sonnet|opus|haiku|qwen|sherpa" src/components/talk src/modules/speech/tts/client` — 0건(주석·코드 전부).
+- `grep -rn "console\." src/components/talk src/modules/speech/tts/client` — 0건. `grep -rn "<audio\|new Audio("` — `ttsAudio.ts`(기존 §7 코드, blob object URL 전용, revoke 확인됨) 1건뿐, 회화방 신규 코드에는 0건.
+
+#### 1. B(화면) — 중점 항목별 확인
+
+- **6층·eslint 경계**: `eslint.config.mjs`(diff) 가 `src/modules/speech/tts/client/**` 에 `stt/client` 와 대칭인 별도 블록을 추가 — 화면(`^@/(app|components)/`) 0, 다른 모듈(`^@/modules/`) 0, 상위 경로는 `../sentences` 만 허용(정규식 `^\.\.(/(?!sentences$)|$)`), 서버 전용 패키지(`node:`·`@prisma/`·`next/server`·`jsonwebtoken`·`jose`) 0. `components/**` 허용 하위 진입점에 `tts/client` 를 추가(`stt/client` 와 같은 패턴). **이중 확인**: `speech/__tests__/ttsClientBoundary.test.ts` 가 실제 소스를 정규식으로 파싱해 import 목록을 뽑아 화이트리스트와 대조하고(트리비얼하지 않음, `index.ts`/`playbackQueue.ts` 파일 존재까지 확인), `../sentences` 자체도 import 0(순수)임을 별도 assert. `modules/speech/tts/client/index.ts` 는 `createTtsPlaybackQueue`+타입+`splitSentences` re-export 뿐, `playbackQueue.ts`(646줄)는 `fetchAudio`·`play`·`onSignal`·`now`·`setTimer`·`clearTimer` 전부 주입(DOM·오디오 API 를 import 하지 않음, 코드 전체 정독으로 확인) — **컴포넌트 → `stt/client`·`tts/client` 클라이언트 안전 진입점만** 원칙 충족.
+- **엔진명·model·connectionKey·서명 URL 토큰 노출**: 위 grep 결과 0건. `TalkRoom.tsx:820` 의 `data-talk-state={view.state}` 는 `IDLE|RECORDING|RECOGNIZING|QUEUED|THINKING|SPEAKING` 열거값만(E2E `ENGINE_RE` 도 같은 값 검사). `playbackQueue.ts` 는 `AUDIO_URL_PREFIX`(`/api/v1/speech/tts/`)로 시작하지 않는 `url` 을 아예 슬롯에 담지 않는다(`push()` 내부 `url = ... startsWith(AUDIO_URL_PREFIX) ? c.url : null`) — 서버가 다른 모양의 URL 을 보내도 큐가 fetch 대상으로 쓰지 않는다(§9-11 ⑪ 그대로 구현).
+- **`deriveTalkState`(`talkState.ts:45-89`) 상태 머신**: §9-3 A 판정 순서(RECORDING→RECOGNIZING→QUEUED→SPEAKING→THINKING→IDLE)·각 행의 `ptt.disabled`·`keyboardDisabled`·`showStop`·상태 줄 문구를 표와 1:1 대조 — 전부 일치. SPEAKING 의 PTT `disabled` 는 표에 없는 조건(`sttPhase==='unavailable'` 일 때만 true)을 추가했는데, 마이크 자체가 막힌 상태에서 barge-in 을 눌러도 녹음이 시작될 수 없다는 합리적 방어이지 표 위반이 아니다. 115개 단위 테스트(`talkState.test.ts`)로 전 행 고정, 독립 재실행에서도 통과 확인.
+- **자동 전송**: `TalkRoom.tsx:352-375` `onFinal` — trim 후 코드포인트 ≤1 이면 힌트만 띄우고 리턴(요청 0), 그 밖엔 `turn.isBusy()` → QUEUED/UnsentBar, 아니면 디바운스·확인 없이 곧바로 `sendOutgoing`(§9-9 "화면 지연 0" 항목대로 `setTimeout` 등 인위적 대기 없음 — 코드 추적으로 확인). QUEUED 항목은 `onSettled('done'|'error')` 에서 `setTimeout(…, 0)` 으로 컨트롤러가 idle 로 돌아간 **다음 틱**에 보낸다(같은 SSE 콜백 안에서 새 턴을 열지 않기 위한 스케줄링이며 추가 지연이 아니다).
+- **`TtsPlaybackQueue`(`playbackQueue.ts`)**: `chunkIndex` 순 재생·동시 2 받기(`FETCH_CONCURRENCY=2`, 낮은 index 먼저)·`FAILED`/받기 실패 건너뜀(`t.next++`)·`endTurn` 뒤 빈틈 건너뜀(라인 318-326 `finishTurn`)·`pauseBeforeMs`(첫 청크 0, `t.next>0` 조건)·`interrupt('BARGE_IN')` 이 `turn.autoplay=false` 로 두고 받기는 계속(그 턴 청크는 버리지 않음, §9-3 D 그대로)·`abortTurn`(AUDIO_TEXT_MISMATCH)은 현재 재생까지 즉시 멈추고(`stopCurrent`) `forget()` 으로 보관본까지 지움·`blocked→resumeBlocked`·새 턴이 다시 듣기를 이김(라인 338-342)·LRU 20/8MB(`RETAIN_MESSAGES`/`RETAIN_BYTES`, `evict()`). 20건 단위 테스트로 커버, 독립 재실행 통과. `dispose()` 가 `useTalkPlayback.ts:81-83` 의 언마운트 cleanup(`visibilitychange` 리스너 제거 + `queue.dispose()`)에서 호출됨을 확인 — 메모리 누수 없음.
+- **409 `UTTERANCE_USED`/`UTTERANCE_EXPIRED` 처리(중점 판단 요청)**: `TalkRoom.tsx:243-249` 에서 이 두 사유만 `utteranceId: null` 로 바꿔 `UnsentBar` 에 담는다(다른 409·429·400·0·detached 는 원래 `utteranceId` 유지). **합당하다고 판단**: A 의 "B 용 계약 요약"(이력서 §213)이 이미 "409 `details.reason` `UTTERANCE_USED`\|`UTTERANCE_EXPIRED`(→ 글자 턴으로 재전송 권장)"라고 명시했고, 이 두 사유는 재시도해도 서버가 같은 id 로는 절대 통과시키지 않는 상태(이미 다른 메시지에 연결됨·10분 초과, `checkUtteranceForTurn` 이 매번 다시 거절)라 **§9-11 ⑧ "같은 id 재전송 허용"은 애초에 이 두 사유에는 적용되지 않는다** — A 의 계약이 ⑧ 의 예외를 이미 규정했고 B 가 그 예외만 정확히 구현했다(`resendUnsent` 호출 시 `utteranceId=null` 이므로 `inputSource:'TEXT'` 로 나감, `TalkRoom.tsx:707-717`). §9-8 ⓒ 표에 없던 두 문구를 B 가 추가했다고 스스로 밝힌 것(정본과 다르게 한 것 #3)도 정확히 이 지점이며, 문구("다시 보내면 글자로 보내져요")가 동작을 사용자에게 정확히 알린다. 결함 아님.
+- **`clientTimings` 5필드**: `timings.ts`(`buildClientTimings`) + `talkCopy`/`useTalkPlayback` 조합으로 `sttMs`(이번 턴만)·`prevMessageId`·`firstAudioAtMs`·`playbackStartDelayMs`·`releaseToFirstAudioEventMs` 를 다음 턴 요청에 싣는다. §9-11 ⑤ 에서 Leader 가 승인한 이름 그대로이고 A 의 서버측 검증(0~120000, 밖이면 400)과 필드명이 일치함을 타입(`talk.ts` 재수출)으로 대조.
+- **aria-live**: `MessageList.tsx:256` `aria-live={liveOff ? 'off' : 'polite'}`, `TalkRoom.tsx:841` 에서 `liveOff={view.state === 'RECORDING'}` 로 넘김 — §9-0 ⑨ 그대로. 녹음 중 토스트 지연(`notify`, `recordingRef` 가드) 확인.
+- **360/390/412·터치 44px·PTT 72px**: `VoiceBar.tsx` 의 `h-11 w-11`(44px, ⌨·■)·`PushToTalkButton`(§8 기존 72px 컴포넌트 그대로 재사용, 새로 구현하지 않음) 확인. Playwright E2E(`tests/live/task007-ui-e2e.mjs`) 가 세 폭 `scrollWidth===innerWidth`·모든 상호작용 요소 ≥44px·PTT 정확히 72×72 를 실제로 assert 하는 코드임을 스크립트 정독으로 확인(트리비얼한 항등식이 아니라 실제 `getBoundingClientRect` 비교) — **다만 이 E2E 자체는 라이브 dev 서버·별도 gateway·M4 가 필요해 독립 재실행하지 않았다**(Reviewer 는 기능/라이브 테스트를 실행하지 않는다 — QA 위임, 아래 인계 참고). B 의 자체 보고(40/40 PASS)는 스크립트 내용이 신뢰할 만하다는 근거로만 삼았다.
+- **⑫ 기존 결함 4건이 CHAT 을 깨지 않는지**: `useChatTurn.ts` diff 전체 정독 — `send(text, opts?)` 의 `opts` 는 전부 optional·기본값 `{}`, 새 콜백(`onAccepted`/`onAudio`/`onWarning`/`onDone`/`onSettled`)은 전부 `d.xxx?.()` 로 CHAT 라우트(옵션 미전달)에서는 호출되지 않는다. `busy` 분기가 조용한 무시 대신 `restoreText(text, {status:409,...})` 를 호출하도록 바뀌었지만 CHAT 쪽 `restoreText` 콜백은 `info` 파라미터를 무시하는 기존 시그니처 그대로(`ChatRoom.tsx` 는 이 diff 에 없음 — CHAT 쪽 훅 사용처 미변경). `dropTemp` 가 `why` 를 항상 받도록 바뀌었지만 모든 호출부(`onError`·`rejected`·`lostBeforeAccept`)가 다 갱신됨을 확인, 특히 `rejected()` 의 404/409/429 분기 재구성이 기존 순서(429 먼저 처리 후 return)를 그대로 보존하면서 `dropTemp` 호출 위치만 옮겨졌음을 라인 단위로 대조 — 회귀 없음. 독립 테스트(367/367, CHAT 관련 기존 스펙 포함)로도 확인.
+- **TALK↔CHAT 상호 리다이렉트**: `ChatRoom.tsx`(`detail.chat.kind==='TALK'` → `router.replace('/study/ai/talk/'+id)`) ↔ `TalkRoom.tsx:420-423`(`kind!=='TALK'` → `/study/ai/chat/'+id`) 양방향 확인.
+- **`chunkFetch.ts` 404 재시도**: `CHUNK_RETRY_MS=[250,500,750,1000,1500]`(합 4000ms, 5회 상한) · **404 만** 재시도, 그 밖 오류·`signal.aborted` 는 즉시 던짐(무한 대기·과도한 대기 없음) · `sleepAbortable` 이 `AbortSignal` 리스너를 매번 `removeEventListener` 로 정리(타이머 누수 없음).
+
+#### 2. A(수정, de48fe3) — 중점 항목별 확인
+
+- **보관소가 서명 검증 뒤에만 조회되는지(존재 오라클 0)**: `audioUrl.ts:85-93` `readSignedTtsAudio` — `verifyTtsAudioToken` 이 `null` 이면 **그 즉시 return null**(87행), `recallRecentAudio` 호출(88행)은 검증 통과 뒤에만 실행된다. 서명이 틀린 요청은 보관소를 들여다보지도 않으므로 "방금 합성된 오디오가 있는지"를 서명 없이 알아낼 방법이 없다 — 확인됨.
+- **사용자 결속**: `recentAudio.ts` 의 키는 `cacheKey`(12요소 캐시 키, 내용 해시)뿐이고 `userId` 를 모른다. 이것이 안전한 이유: ① 토큰의 HMAC 이 `userId` 를 MAC 입력에 넣으므로(`audioUrl.ts:25` `mac(userId,k,e)`) 다른 사용자가 같은 `cacheKey` 에 대한 유효 토큰을 스스로 만들 방법이 없다(자기 것이 아니면 서명 검증에서 걸러짐, 검증 자체가 요청 세션 사용자로 MAC 을 재계산) ② `cacheKey` 는 정규화 텍스트·화자·모델·사전 버전·스타일 등으로 정해지는 **내용 해시**이지 사용자 식별값이 아니다 — 같은 문구·같은 목소리 설정이면 서로 다른 사용자도 같은 TTS 오디오를 듣는 것이 기존 `TtsCache`(003d) 설계부터 의도된 동작(캐시 공유)이라 `recentAudio` 가 `userId` 없이 `cacheKey` 만으로 서빙하는 것은 기존 캐시 정책을 그대로 연장한 것이지 새 노출면이 아니다. **결론: 안전.**
+- **메모리 상한·TTL·축출**: `RECENT_AUDIO_TTL_MS=60_000`·`RECENT_AUDIO_MAX_ENTRIES=64`·`RECENT_AUDIO_MAX_BYTES=16MB` — `rememberRecentAudio`(`recentAudio.ts:48-59`)가 매 저장마다 `sweep()`(만료분 제거) 후 개수·바이트 상한을 넘으면 `Map` 삽입 순서(가장 오래된 것)부터 `drop()`. 16MB 초과 단일 항목은 애초에 저장하지 않음(49행).
+- **캐시 저장 실패 시 동작**: `readSignedTtsAudio` 는 `recentAudio` 미스면 `readCachedAudio(v.cacheKey)`(DB/파일)로 폴백하므로, `rememberRecentAudio` 가 애초에 안 불렸거나(예외) 60초가 지났어도 정상 경로(파일 커밋 완료 후)로 200 이 나온다 — 캐시 저장 실패가 청크 재생 자체를 막지 않는다(합성 자체가 실패하지 않는 한).
+- **turnDeps 주입이 운영 경로를 바꾸지 않는지**: `conversation/orchestrator/index.ts` 의 `startTurn`이 실제 호출부(`app/api/v1/chats/[id]/turns/route.ts`)에서 여전히 기본 `turnDeps`(진짜 Prisma·진짜 `completeJson`)를 쓰고, 테스트만 `mock.method(turnDeps, 'xxx', …)` 로 프로퍼티를 바꿔치기(모듈 싱글턴 객체의 메서드 교체이지 별도 구현체 주입이 아님) — 라우트 코드 자체는 diff 에 없음(`git diff 6d8b3b1 de48fe3 -- 'src/app/api/**'` 결과 0). 운영 경로 불변 확인.
+- **abort 시 자식 프로세스 종료**: `claudeWarm.test.ts` diff(위에서 미리보기 확인, cold 실행 중 abort → `ClaudeCliAbortedError` + 자식 pid 종료 / 예열에서 꺼낸 자식 abort → 종료 + 재충전 / 이미 취소된 요청 → spawn 0)와 `conversation/__tests__/task007.test.ts` 의 신규 테스트 2건(`수락 거절(409)…` · `gate 거절…`)을 직접 읽고 재실행(367/367 안에 포함) — **REV-014 Medium-2 가 지적한 "선행 LLM 이 이미 떠 있는데 accept 가 실패하는" 정확한 인터리빙**을 가짜 CLI·가짜 `turnDeps.acceptTurn`(30ms 뒤 409 CONFLICT)으로 재현해 `llm.aborted===true`·`speakerFactoryCalls===0`·`currentTurnLock(userId)===null` 을 단언한다 — **REV-014 Medium-2 해소를 코드·테스트 양쪽에서 확인**.
+- **`console.info('[claudeCli] 취소 …')` 로그**: 경과 시간(ms)·`warm` 상태 문자열만 남기고 프롬프트·응답 전문·시크릿 없음(`claudeCli.ts:721,750`) — Trace/로그 원문 금지 원칙 위반 없음. `warm='HIT'` 를 `runWarm` 호출 **전**으로 옮긴 것도 확인(취소 시 warm 표시 오류 수정, 이전엔 성공 후에만 HIT 로 찍혀 취소 케이스가 항상 OFF 로 잘못 기록됐다).
+
+#### REV-014 Medium 3건 해소 여부
+
+| REV-014 항목 | 해소 여부 | 근거 |
+|---|---|---|
+| Medium-1 (speech-platform/16 §6.1·§6.2 정본-코드 불일치) | **해소** | 커밋 `88ee777` 이 §6 서두에 "task-007 구현 반영" 각주 추가, 권고안 그대로(대상 배치·사유 명시) |
+| Medium-2 (수락 거절 시 LLM abort 경로 자동화 테스트 부재) | **해소** | `de48fe3` 가 정확히 그 인터리빙을 재현하는 단위 테스트 2건 추가(위 확인), 라이브 스모크 E8·E9 도 추가 |
+| Medium-3 (턴 락을 `done` 전 "저장 직후"에 푸는 파급 범위) | **의도된 트레이드오프로 유지, 기록 요구만이었음** | REV-014 도 코드 수정을 요구하지 않고 QA 수동 검증만 요구했다 — 이번 REV 대상 파일(B·de48fe3)에 관련 변경 없음. QA 인계 유지(아래) |
+
+#### Low
+
+1. **`ecosystem.config.js` 의 `require()` 스타일 import 2건이 `npm run lint`(디렉터리 전체 대상) 에서 error 로 잡힘** — task-007 diff 에 이 파일이 없음(`git diff 05f0cbb 23b984d -- ecosystem.config.js` 결과 0, task-003e 부터 있던 기존 파일). B 의 "lint 0 error" 는 `src/` 범위에서는 정확하나, `npm run lint` 를 그대로 돌리면 이 2건이 섞여 나온다는 점을 인지 기록. task-007 결함 아님.
+2. **`RECENT_AUDIO` 전역 메모리 저장소에 admin Trace/진단 노출 없음** — `recentAudioStats()`(엔트리 수·바이트) 는 테스트 전용이고 관리자 콘솔·헬스체크에 연결되지 않았다. task-009 blue/green 준비 전에 이 새 프로세스 메모리 구조(60초·64개·16MB)를 관측할 방법이 없다는 점을 deployer 에게 참고 전달 권고(기능 결함 아님, 운영 가시성 개선 후보).
+3. **`UnsentBar`(`utteranceUsed`/`utteranceExpired`)의 "다시 보내기" 버튼 라벨이 실제로는 "글자로 다시 보내기"에 가까운 동작** — 상태 줄 문구가 "다시 보내면 글자로 보내져요" 라고 미리 알리므로 사용자 오인 위험은 낮지만, 버튼 라벨 자체는 그대로 "다시 보내기"(공용 `UNSENT_BUTTONS.resend`)다. 카피 다듬기 후보일 뿐 기능 결함 아님.
+4. **`ttsAudio.ts` 의 싱글턴 `AudioContext` 는 방을 나가도 `close()` 되지 않는다**(기존 §7 코드, 페이지 수명 동안 유지되는 설계) — 회화방에서 반복 입장·퇴장해도 컨텍스트 자체는 재사용되므로 누수는 아니나, task-007 처럼 오디오를 훨씬 자주 재생하는 화면이 생긴 만큼 참고로 기록.
+
+#### QA 인계 — high_risk_areas (REV-014 승계 + 이번 REV 추가)
+
+- (REV-014 승계) 같은 계정 다중 탭에서 "TALK 턴 오디오 스트리밍 중 다른 채팅 새 턴 시작" 수동 시나리오 — 이번 REV 대상 변경 없음, 여전히 미검증.
+- (REV-014 승계) TEXT_ONLY 실경로(M4 중지 상태에서 1회 이상 회화 턴) — A·B 모두 라이브로 못 봄, 여전히 미검증.
+- (신규) `de48fe3` 의 MISS 청크 즉시 200 수정이 **blue/green 전환 순간**(다른 pm2 인스턴스로 트래픽이 넘어가는 찰나, `recentAudio` 는 프로세스 로컬이라 인스턴스 간 공유되지 않음)에도 클라 재시도(`chunkFetch.ts`)로 소리가 끊기지 않는지 — task-009 첫 blue/green 실전 배포 때 확인 권고(코드는 "창이 1초 안팎이라 수용"으로 설계돼 있고 로직상 타당하나, 실제 blue/green 하에서 관측된 적은 없음).
+- (신규) 예열 프로세스 RSS(~265MB/개, `prewarmMaxIdle=2` 기준 최대 ~0.8GB) — `ecosystem.config.js` pm2 메모리 한도 대비 여유를 task-009 전에 재확인(REV-014 도 동일 권고).
+- **QA 실행 방법 메모**: 로컬 dev 서버(`npm run dev`)에서 웹 STT 를 켜려면 **운영 gateway(8100)는 운영 도메인 Origin 만 허용**하므로 dev 서버 화면은 기본적으로 마이크 연결이 실패한다(`연결 준비에 실패했어요` TICKET/UNAUTHENTICATED). B 가 쓴 방식을 그대로 따를 것: 별도 개발용 gateway 를 `SPEECH_GATEWAY_ALLOWED_ORIGINS=http://localhost:<dev-port>`·`APP_INTERNAL_URL=http://127.0.0.1:<dev-port>` 로 띄우고(`speech/gateway/run_dev.py --port <gw-port>`), 테스트/브라우저 쪽에서만 WS 주소를 그 포트로 바꿔치기한다(`tests/live/task007-ui-e2e.mjs` 의 `--ws-rewrite` 패턴 참고 — 앱 코드·DB connection 행은 건드리지 않는다). 운영 도메인(`kaiwa.미라클펭귄.com`)에서는 이 문제가 없다. 라이브 스모크·지연 스크립트는 `tests/live/task007-smoke.sh`·`tests/live/task007-latency.sh <port> <n>` 로 재실행 가능(둘 다 QA 계정 쿠키 2개 필요).
+
+`native_change`: false.
+
 ## QA 기록
 
 ## 최종 요약
