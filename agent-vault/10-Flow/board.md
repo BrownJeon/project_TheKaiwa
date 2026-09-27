@@ -16,7 +16,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- (task-006 접수 예정)
+- [[task-006-chat-correction]] — **AI 채팅 + 표현 점검 + 교정 채택**(2026-09-27 접수). judge intake: feature·complexity 2.97·**R2**·developer Opus. 다음: Leader 사양 → designer·prompt-engineer → judge C1
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
