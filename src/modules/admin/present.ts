@@ -31,8 +31,26 @@ export function maskPath(v: string): string {
 }
 
 /** 어떤 문자열이든 서버 경로처럼 보이는 부분이 있으면 가린다 — 통째로 경로면 파일 이름만, 섞여 있으면 `***`. */
+/**
+ * 고정 접두사 목록 밖으로 배포 경로가 옮겨가도 새지 않게, 실행 중인 서버의 실제 경로(DATA_ROOT·SECRETS_DIR·HOME·cwd)도
+ * 접두사로 함께 본다(REV-009 Low 2). 매 호출 읽는다 — env 는 기동 후 바뀌지 않지만 테스트가 바꿀 수 있다.
+ */
+function runtimePrefixes(): string[] {
+  const raw = [process.env.DATA_ROOT, process.env.SECRETS_DIR, process.env.KAIWA_SECRETS_DIR, process.env.HOME, process.cwd()]
+  return raw
+    .map((p) => p?.trim().replace(/\/+$/, ''))
+    .filter((p): p is string => Boolean(p && p.startsWith('/') && p.length > 1))
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** 고정 목록과 같은 경계 규칙: 문자열 시작 또는 공백·따옴표·`=:(,` 뒤에 오는 경로만(URL 의 경로 부분은 건드리지 않는다). */
+function hasRuntimePath(v: string): boolean {
+  return runtimePrefixes().some((p) => new RegExp(`(^|[\\s"'=:(,])${escapeRe(p)}(\\/|$|[\\s"',)])`).test(v))
+}
+
 export function scrubServerPath(v: string): string {
-  if (!SERVER_PATH.test(v)) return v
+  if (!SERVER_PATH.test(v) && !hasRuntimePath(v)) return v
   return /^(\/|~\/)\S*$/.test(v) ? maskPath(v) : '***'
 }
 

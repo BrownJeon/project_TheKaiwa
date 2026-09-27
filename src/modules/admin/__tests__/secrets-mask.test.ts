@@ -147,3 +147,24 @@ test('Effective DTO: ADMIN 요약은 sourceRef·layers 없이 shadowed 만, DEVE
   assert.equal(full.keys[1].exists, true)
   assert.ok(!JSON.stringify([summary, full]).includes('/home/'))
 })
+
+test('서버 경로: 실행 중 DATA_ROOT·SECRETS_DIR·HOME·cwd 값도 접두사로 가린다(고정 목록 밖 경로, REV-009 Low 2)', () => {
+  const keep = { DATA_ROOT: process.env.DATA_ROOT, SECRETS_DIR: process.env.SECRETS_DIR }
+  try {
+    process.env.DATA_ROOT = '/zzdata/kaiwa'
+    process.env.SECRETS_DIR = '/qqsec/thekaiwa/secrets/'
+    assert.equal(scrubServerPath('/zzdata/kaiwa/tts-cache/ab.wav'), '…/ab.wav')
+    assert.equal(scrubServerPath('/zzdata/kaiwa'), '…/kaiwa')
+    assert.equal(scrubServerPath('open failed: /qqsec/thekaiwa/secrets/tts-token'), '***')
+    assert.equal(scrubServerPath(`cwd=${process.cwd()}`), '***')
+    // 경계 규칙: URL 의 경로 부분·비슷한 다른 경로는 그대로
+    assert.equal(scrubServerPath('http://host/zzdata/kaiwa/x'), 'http://host/zzdata/kaiwa/x')
+    assert.equal(scrubServerPath('/zzdata/kaiwa2/x'), '/zzdata/kaiwa2/x')
+    assert.equal(scrubServerPath('/ws/speech'), '/ws/speech')
+  } finally {
+    for (const [k, v] of Object.entries(keep)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+  }
+})

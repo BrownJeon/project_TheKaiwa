@@ -29,12 +29,6 @@ export async function getConnection(environment: Environment, idOrKey: string): 
   return prisma.engineConnection.findUnique({ where: { environment_key: { environment, key: idOrKey } } })
 }
 
-/** 환경 무관 단건(Health/Test 대상 확인용 — 호출자가 환경 일치를 검사한다). */
-export async function findConnectionAnyEnvironment(id: string): Promise<EngineConnectionRow | null> {
-  if (!id || id.length > 80) return null
-  return prisma.engineConnection.findUnique({ where: { id } })
-}
-
 export interface FallbackRoles {
   primaryOf: EngineRole[]
   fallbackOf: EngineRole[]
