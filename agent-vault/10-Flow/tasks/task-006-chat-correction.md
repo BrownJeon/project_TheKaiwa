@@ -1,7 +1,7 @@
 ---
 task_id: task-006
 title: "AI 채팅 + 표현 점검 + 교정 채택"
-status: in-progress
+status: done-deploy-pending
 base_ref: 77aead8
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, codex]
@@ -215,4 +215,68 @@ design-spec §15 task-006: AI 채팅(텍스트) 화면과 SSE 턴 처리, 사용
 
 ## QA 기록
 
+### QA-011 (2026-09-27, 커밋 b5fa603 기준, 미러 dev :3011)
+
+**종합 판정: PASS(결함 0건)** — 기준 1~12·14·D1 전부 PASS(라이브 실행), high_risk (a)(b) 실측 PASS(코드 추적을 넘어 실프로세스로 재현), (c) 스모크 기준 4 로 겸함. 기준 13 은 화면 **레이아웃 레벨(정적 셸)만 PASS**, 하이드레이션 이후 상태(채팅 목록·메시지·교정 카드 등)는 이 세션의 Turbopack dev HMR 문제로 **NOT_VERIFIED**(아래 상세, task-006 코드 결함 아님 — 재현·근거 포함).
+
+**실행 명령·수치**:
+- `npm run typecheck` exit 0 / `npm run lint` exit 0(에러 0, 경고 4건 — 기존 settings 파일, Developer 보고와 일치) / `npm test` 83/83 pass, 0 fail (`node --import tsx --test`, 16개 `*.test.ts`).
+- `bash tests/live/task006-smoke.sh 3011`(QA 계정 2개, 실 Claude CLI) → **41/41 PASS**, 턴 p50=5993ms·max=7375ms(예산 20s).
+
+**기준별 대응표**(스모크 스크립트 본문 대조, `tests/live/task006-smoke.ts` 라인 참조):
+| 기준 | 스모크 항목 ID | 결과 |
+|---|---|---|
+| 1 | (별도, npm run 3종) | PASS |
+| 2 | `2 SSE 순서…`·`2 DB USER DONE…messageCount=20`·`2 목록 preview·lastMessageAt 갱신` | PASS |
+| 3 | `3a 다른 채팅 동시 턴 409`·`3b 13번째 429`·`3c Retry-After` | PASS (+ high-risk b 실프로세스 재현) |
+| 4 | `4 끊겨도 서버가 끝까지 처리` | PASS (+ high-risk c) |
+| 5 | `5a~5f`(원문 바이트 SQL 대조·reviewedAt·409 ALREADY_REVIEWED·메시지 0→400·잡 경로 21건·ADD_STUDY_LOG payload) | PASS |
+| 6 | `6a 턴 전후`·`6b 점검 전후` 행수 0 | PASS |
+| 7 | `7a~7f`(WordEntry CORRECTION·재채택 409·중복 409 existingId·거절·original 불변·400 field) | PASS |
+| 8 | `8a~8e`(StudyLog ACCEPTED+DAILY·재채택 409·ADD_WORD TUTOR·만료 409·미지원 kind 400) | PASS |
+| 9 | `9 IDOR 13경로 전부 404` | PASS |
+| 10 | `10a~10c`(이모지 제목·턴·preview 코드포인트) | PASS |
+| 11 | `11 빈·공백/제어문자·1001자·REALTIME_STT·ASK·제목101` | PASS |
+| 12 | `12 엔진·모델명·toolLog 0건`(leakHits, 스모크 전체 41건 대상 정규식 스캔) | PASS |
+| 13 | (별도, 브라우저) | 부분 PASS·부분 NOT_VERIFIED — 아래 |
+| 14 | `14 CHAT 턴 10회 p50` | PASS(p50 5993ms, 예산 20s) |
+| D1 | `D1 마지막 강사 DONE→409`·`D1 FAILED→재사용` | PASS |
+
+**high_risk 실측**(Reviewer REV-007 QA 인계 1~4번 대응):
+- **(a) instrumentation.ts 기동 정리**: QA 계정에 180초보다 오래된(200초) PENDING 강사 메시지를 두 건 직접 생성(각각 lazy·startup 용 채팅). ① lazy: 서버 재기동 없이 `GET /api/v1/chats/:id` 한 번으로 해당 메시지가 `FAILED` 로 지연 정리됨을 확인(응답에 `status:"FAILED"`). ② startup: 어떤 라우트도 건드리지 않고 dev 서버(3011)를 kill 후 재기동 → 콘솔에 `[startup] stale 정리 — 강사 메시지 1건, 잡 0건` 출력, 재기동 직후(라우트 호출 전) Prisma 로 직접 조회해 해당 행이 이미 `FAILED` 임을 확인 — **기동 정리가 실제로 동작**함을 로그+DB 이중으로 검증(라우트 지연 정리와 섞이지 않게 분리). **PASS**.
+- **(b) 두 프로세스 실경합**: `~/.node-local/thekaiwa` 를 하드링크로 복제한 `~/.node-local/thekaiwa-qa2`(node_modules 는 `cp -al`, Turbopack 이 프로젝트 루트 밖 심볼릭 링크를 거부해 심볼릭 링크는 실패함을 먼저 확인)에서 같은 `.env`(같은 NAS DB) 로 `next dev -p 3012` 를 **별도 프로세스**로 기동. 같은 QA 계정으로 서로 다른 두 채팅에 `curl` 두 개를 동시에(3011·3012 각각) 발사 → 3011 이 `200`+`accepted→…→done`(완료), 3012 는 즉시 `409 CONFLICT {"runningMessageId":"<3011 의 assistantMessageId 와 일치>"}`. Reviewer 는 코드 추적으로만 결론 냈던 것을 **실제 두 OS 프로세스**로 재현해 확인 — **PASS**(blue/green 실경합 검증 완료, QA 인계 1번 해소). 테스트 후 3012 프로세스·`thekaiwa-qa2` 미러 삭제 완료.
+- **(c) SSE 끊김 후 처리 지속**: 스모크 기준 4(실 네트워크 abort, 코드 아님 — `AbortController` 로 `accepted` 직후 실제 연결 종료 후 폴링)로 겸함 — **PASS**. 별도 재실행은 Claude CLI 호출 절약을 위해 생략(스모크 자체가 이미 실사용자 시나리오로 검증).
+
+**기준 13(화면 360/390/412) — 상세**:
+- 도구 가용성 실측: `chrome-devtools-mcp`(headful) 는 이 세션에 X서버 없음(`Missing X server`) → 사용 불가 확인. `playwright` MCP(headless) 는 사용 가능 확인, `httpOnly` 세션 쿠키는 `page.context().addCookies()`(CDP 레벨, page JS 아님)로 주입 성공(서버 사이드 `auth()` 통과 확인 — /login 리다이렉트 없이 목표 라우트 그대로 진입).
+- **환경 차단 발견**: Next 16 Turbopack dev 서버가 이 세션에서 클라이언트 하이드레이션을 완료하지 못함 — 부트스트랩 청크 2개(`node_modules_next_dist_20wefz_._.js`, `_1dhpc-u._.js`)가 최초 `<script>` 로드에서 간헐적 403, HMR WebSocket 핸드셰이크가 전부 `net::ERR_INVALID_HTTP_RESPONSE` 로 실패해 "재컴파일 완료" 신호를 못 받음 → 화면이 SSR 로딩 스켈레톤("불러오는 중…")에 영구 정체. **task-006 코드 결함이 아님을 3중 확인**: ① 동일 청크 URL 을 `curl`/`fetch` 로 직접 요청하면 항상 200 ② 실패한 `<script>` 를 나중에 DOM 재주입하면 로드는 성공하나(onload) 그래도 하이드레이션 미완료(WS 알림 부재가 원인, 바이트 문제 아님) ③ **task-006 과 무관한 기존 화면 `/settings` 에서도 완전히 동일한 증상 재현**(같은 두 청크 403, 같은 WS 실패, 같은 무한 로딩) — 이번 task 가 만든 회귀가 아니라 이 세션의 dev 서버/헤드리스 브라우저 조합 환경 이슈로 결론.
+- **정적(SSR) 셸에서 실측 가능했던 항목**(360/390/412 세 폭 × 홈·채팅방·점검 결과·설정 4화면):
+  - 가로 스크롤 0(`scrollWidth === clientWidth`) 전 조합 — **PASS**
+  - 렌더된 텍스트에 엔진명(`claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert`) 0건 — **PASS**
+  - D7 TabBar 숨김: 채팅방·결과 화면 본문에 탭 라벨(회화/오늘/계획표/서랍장/질문) 없음, 홈·설정에는 있음 — **PASS**
+  - `BackBar` `←` 링크 정확히 44×44px(`getBoundingClientRect`) — **PASS**
+  - `Segmented`(회화/채팅 탭) 알약은 보이는 높이 36px 이지만 `::before` 히트영역이 `getComputedStyle(el,'::before')` 로 44px·`position:absolute`·수직 중앙 확인 — 문서화된 "보이는 크기≠누르는 크기" 패턴이 실제로 44px 를 만족(최초 bounding-box 스캔에서 36px 로 오탐했던 것을 `::before` 계산값 확인 후 정정) — **PASS**(기존 공용 컴포넌트, task-006 신규 아님)
+  - 다크/라이트 토큰 반전: `body` 배경 계산값 라이트 `rgb(246,247,244)` / 다크 `rgb(20,24,22)`(`prefers-color-scheme`) — **PASS**
+- **NOT_VERIFIED**(하이드레이션 필요, 위 환경 차단으로 이 세션에서 불가): 채팅 목록·메시지 버블·RoomIntro 빈 상태 렌더 / 교정 카드 컨테이너 쿼리 전환(360 위아래 vs 390·412 나란히) / Composer·보내기 버튼 44×44 실측 / 읽기·번역 토글·가로 칩·새 메시지 알약 등 동적 요소 터치 타겟 / IME 확정 Enter·`useKeyboardInset`·`interactive-widget` 실동작 / 교정문 XSS 리터럴 렌더 확인(교정 카드가 마운트돼야 가능) / `/settings` 키보드 회귀(레이아웃 개형 외 실동작).
+- **권고**: 이 화면 항목들은 실기기(S25+ Chrome) 또는 이 헤드리스 문제가 없는 세션에서 재확인, 또는 배포 후 실제 운영 빌드(Turbopack dev 가 아닌 production build)에서 `post_deploy_checks` 의 360/390/412 확인으로 커버.
+
+**실기기 확인 필요(NOT_VERIFIED, 사용자 폰)**: Gboard 일본어 IME 확정 Enter 미전송, 보내기 후 키보드 유지, `resizes-content`+`visualViewport` 보정 실동작, 앱 WebView(Capacitor, task-003 이후) 키보드 동작 — app-conversion-guide §4 항목과 겹침, task-007/003 이후 함께 재확인 권고.
+
+**QA 데이터 정리**: 스모크 자체 생성분(자동 정리, cleanup() 로그 확인) + 제가 만든 화면용 픽스처 채팅 1건(교정 2·제안 1 포함) + high-risk (a) 용 stale 테스트 채팅 2건 + high-risk (b) 용 race 테스트 채팅 2건 + 스크립트 시행착오로 남은 채팅 3건 = 총 **8건 채팅 삭제**, `qa-bot`·`qa-bot2` 모두 `chats:0`(WordEntry·StudyLog·StatsSnapshot·LearnerErrorStat·AiJob 0 유지) 재확인 완료. `~/.node-local/thekaiwa-qa2`(2차 dev 서버 미러) 삭제, 3011·3012 dev 서버 모두 종료. 산출물 정리: Playwright 스냅샷·콘솔로그 22개 삭제(스크린샷 이미지는 없음 — `filename`/`filePath` 미사용).
+
+**Claude CLI 사용**: 스모크 41항목 내 약 17~19회 + 제 프로세스 경합 실측 1회(승자 턴 완료) = 총 20회 내외(상한 30 이내).
+
 ## 최종 요약
+
+### 최종 요약 (Leader, 사용자용 — 2026-09-27)
+**무엇이 생겼나**: 하단 "회화" 탭에 **AI 채팅**이 생겼습니다. 채팅을 만들어 일본어로 대화하면 선생님이 일본어로 답합니다(읽기·한국어 번역 포함, 대화 중에는 교정 없음). 대화를 마치고 **[표현 점검]** 을 누르면 선생님이 틀린 문장을 한 번에 짚어 주고(원문 | 교정 나란히, 설명·오류 유형), 카드마다 **채택/무시**를 고를 수 있습니다. 채택할 때 단어장에 넣을지 고를 수 있고, 점검이 끝나면 "오늘 공부 기록 남기기" 제안이 하나 뜹니다. **AI 가 만든 것은 채택해야만 저장**됩니다. 회화(음성) 탭은 task-007 전까지 준비 중 안내입니다.
+
+**검증**: reviewer REV-007 PASS_WITH_NOTES(Critical·High 0, Medium 1 은 정본 개정으로 해소) → QA-011 **PASS(결함 0)** — 단위 테스트 83/83, 라이브 스모크 41/41, 교정 원문 바이트 일치·채택 전 다른 테이블 행 0·타인 리소스 13경로 404·이모지 저장 정상·응답에 엔진명 0건, **실제 두 서버 프로세스 동시 턴 경합**(한쪽만 수락·다른 쪽 409)과 **재기동 시 멈춘 응답 정리**까지 실증. 채팅 턴 응답 p50 **약 5~6초**(예산 20초), 표현 점검 p50 약 16초.
+
+**⚠ 운영 반영 대기(사용자 결정)**: 통합 빌드는 성공했지만 **`pm2 restart thekaiwa` 가 권한 정책(운영 배포)으로 거부**됐습니다. 빌드가 운영 프로세스가 쓰는 미러 `.next` 를 이미 덮어써서, 재시작 전까지 운영 화면이 어긋난 상태일 수 있습니다(확인 불가). 커밋 3건 이상이 origin 에 push 되지 않았습니다.
+
+**⚠ Codex 검토 실패·보류 내역**: C1(설계) — Codex CLI 0.128.0 의 `exec review` 가 `--commit` 과 표준입력 지시를 함께 받지 않아 0초 만에 실패(인자 오류) → 워크스페이스 래퍼 기본 모드를 exec 로 수정. C2(리뷰 후) — judge 가 Codex 필요로 판정했으나 **사용자 지시로 한도 충전 후 재확인 대기**(override). 검토하지 못한 범위: 동시성 설계·구현 전체(대신 reviewer 코드 추적 + QA 실프로세스 경합으로 확인). 호출 차수 1/4 사용.
+
+**남은 확인(사용자)**: 실기기(S25+) 채팅 화면 — Gboard 일본어 IME 확정 Enter 가 전송되지 않는지, 보내기 후 키보드 유지, 키보드가 입력창을 가리지 않는지, 360/390/412 실제 렌더(헤드리스 dev 서버에서 하이드레이션이 안 돼 정적 셸만 확인됨 — 운영 빌드 반영 후 재확인 권장).
+
+**범위 밖 발견(backlog)**: `infra/http.ts` 기본 오류 문구 "AI 엔진…", 공용 `Badge` warn·accent·`ink3` 라이트 명암비 미달, `ComingSoon` 의 Phase/task 번호 노출(설정·오늘 등 기존 화면).
