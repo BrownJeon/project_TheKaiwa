@@ -5,7 +5,8 @@
  *     파일 5개 전체를 받아 sha256 = manifest, Range 206·416·If-Range·HEAD·immutable, 경로 탈출·옛 경로·목록 밖·옛 버전 404, 동시 스트림 상한 503.
  *  B. #19 앱/웹: 앱 응답 전체에 엔진명·주소 0(003e I3 의 model 제외 없이), 모델 블록 = 불투명 id·서빙 version, 웹은 onDevice {enabled:false}.
  *  C. #8·#8a: AppRelease 행이 없으면 latest null·다운로드 404, 행이 있으면(deployer 이후) 번호 비교·다운로드 sha256 = 기록값.
- *  D. PKCE(#2·#5): challenge 없는 앱 시작 거부, code_r 만·틀린 verifier·재사용·만료는 같은 app_code_invalid, 맞는 verifier 만 세션.
+ *  D. PKCE(#2·#5): challenge 없는 앱 시작 거부, #5 는 POST JSON 만(GET 405·폼·다른 출처 거절 — REV-021), code_r 만·틀린 verifier·재사용·만료는
+ *     같은 APP_CODE_INVALID, 맞는 verifier 만 세션.
  *
  * 실행(우분투 미러): `bash tests/live/task003f-smoke.sh [포트=3011]`. dev 서버는 `SPEECH_MODELS_DIR=<NFS>/speech/models next dev -H 127.0.0.1 -p 3011`
  * (배포 위치 DATA_ROOT/models 가 아직 없어 저장소 사본을 가리킨다 — 공유 DATA_ROOT 에 쓰지 않는다).
@@ -186,15 +187,29 @@ async function pkce(): Promise<void> {
     ],
   })
   try {
-    const invalid = (r: Response) => r.status === 307 || r.status === 302 ? /\/login\?oauth_error=app_code_invalid$/.test(r.headers.get('location') ?? '') && !r.headers.get('set-cookie') : false
-    check('D3 가로챈 code_r 만(verifier 없음) → app_code_invalid·쿠키 없음', invalid(await get(`/api/auth/app-exchange?code=${codeR}`)))
-    check('D4 틀린 verifier → 같은 실패', invalid(await get(`/api/auth/app-exchange?code=${codeR}&verifier=${randomBytes(32).toString('base64url')}`)))
-    check('D5 DB 에 저장된 결속 값을 code 로 넣어도 실패(code_r 을 되돌릴 수 없다)', invalid(await get(`/api/auth/app-exchange?code=${stored}&verifier=${verifier}`)))
-    const good = await get(`/api/auth/app-exchange?code=${codeR}&verifier=${verifier}&next=${encodeURIComponent('//evil.example/x')}`)
-    const gl = good.headers.get('location') ?? ''
-    check('D6 맞는 verifier → 세션 쿠키 + 같은 출처 착지(오픈 리다이렉트 없음)', (good.status === 307 || good.status === 302) && /thekaiwa_session=/.test(good.headers.get('set-cookie') ?? '') && !gl.includes('evil.example') && /\/study\/today$/.test(gl))
-    check('D7 재사용 → 같은 실패', invalid(await get(`/api/auth/app-exchange?code=${codeR}&verifier=${verifier}`)))
-    check('D8 만료 → 같은 실패', invalid(await get(`/api/auth/app-exchange?code=${codeLate}&verifier=${verifier}`)))
+    const origin = new URL(BASE).origin
+    const post = (body: unknown, headers: Record<string, string> = { 'Content-Type': 'application/json', Origin: origin }) =>
+      fetch(`${BASE}/api/auth/app-exchange`, { method: 'POST', headers, body: typeof body === 'string' ? body : JSON.stringify(body), redirect: 'manual' })
+    const invalid = async (r: Response) => {
+      const t = await r.text()
+      return r.status === 400 && !r.headers.get('set-cookie') && /"code":"APP_CODE_INVALID"/.test(t) && !t.includes('expired') && !t.includes('used')
+    }
+    const other = randomBytes(32).toString('base64url')
+    check('D3 가로챈 code_r 만(verifier 없음) → 같은 실패·쿠키 없음', await invalid(await post({ code: codeR })))
+    check('D4 틀린 verifier → 같은 실패', await invalid(await post({ code: codeR, verifier: other })))
+    check('D5 DB 에 저장된 결속 값을 code 로 넣어도 실패(code_r 을 되돌릴 수 없다)', await invalid(await post({ code: stored, verifier })))
+    const g = await get(`/api/auth/app-exchange?code=${codeR}&verifier=${verifier}`)
+    const gt = await g.text()
+    check('D5b GET(예전 쿼리스트링 교환)은 405·정보 없음·쿠키 없음 — 코드도 태우지 않는다', g.status === 405 && gt === '' && !g.headers.get('set-cookie') && g.headers.get('allow') === 'POST')
+    check('D5c 폼 형식(application/x-www-form-urlencoded) 거절 — 로그인 CSRF', await invalid(await post(`code=${codeR}&verifier=${verifier}`, { 'Content-Type': 'application/x-www-form-urlencoded', Origin: origin })))
+    check('D5d 다른 출처 Origin 거절', await invalid(await post({ code: codeR, verifier }, { 'Content-Type': 'application/json', Origin: 'https://evil.example' })))
+    check('D5e Sec-Fetch-Site: cross-site 거절', await invalid(await post({ code: codeR, verifier }, { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site' })))
+    check('D5f Origin·Sec-Fetch-Site 둘 다 없음 거절', await invalid(await post({ code: codeR, verifier }, { 'Content-Type': 'application/json' })))
+    const good = await post({ code: codeR, verifier, next: '//evil.example/x' })
+    const gj = (await good.json()) as { success?: boolean; data?: { next?: string } }
+    check('D6 맞는 verifier(POST 본문) → 200·세션 쿠키·같은 출처 착지(오픈 리다이렉트 없음)', good.status === 200 && gj.success === true && gj.data?.next === '/study/today' && /thekaiwa_session=/.test(good.headers.get('set-cookie') ?? ''))
+    check('D7 재사용 → 같은 실패', await invalid(await post({ code: codeR, verifier })))
+    check('D8 만료 → 같은 실패', await invalid(await post({ code: codeLate, verifier })))
   } finally {
     await prisma.appAuthCode.deleteMany({ where: { code: { in: [stored, storedLate] } } })
   }

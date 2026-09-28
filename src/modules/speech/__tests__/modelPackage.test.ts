@@ -1,76 +1,104 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { modelDirFromConfig, MODEL_TOTAL_MAX_BYTES, ONDEVICE_MODEL_ID, parseManifest, publicManifest } from '../stt/modelPackage'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { MANIFEST_RULES, ManifestError, parseManifest, parseManifestText } from '../stt/manifestRules'
+import { modelDirFromConfig, ONDEVICE_MODEL_ID, publicManifest } from '../stt/modelPackage'
 
-const sha = (c: string) => c.repeat(64)
+/**
+ * 서버 manifest 검증 = 플러그인 `ManifestValidator`(Manifest.kt) — REV-021 HIGH. 공용 픽스처 `plugins/sherpa-stt/test-fixtures/manifest-cases.json`
+ * (developer A 관리 — Kotlin `ManifestFixtureTest` 도 같은 파일을 읽는다)의 사례마다 `plugin` 판정을 보고, 서버는 valid·APP_UPDATE_REQUIRED
+ * (플러그인 버전 판단 — 서버는 내보낸다)만 통과시키고 나머지는 거절해야 한다. "서버 통과 → 기기 거부"가 한 건도 없어야 한다.
+ */
+const ROOT = join(__dirname, '..', '..', '..', '..')
+const FIXTURE = join(ROOT, 'plugins', 'sherpa-stt', 'test-fixtures', 'manifest-cases.json')
 
-function manifest(over: Record<string, unknown> = {}) {
-  return {
-    name: 'pkg-a',
-    version: '2024-08-01-int8-v1',
-    engine: 'e',
-    model: 'm',
-    sampleRate: 16000,
-    minPluginVersion: '0.1.0',
-    files: [
-      { path: 'encoder.int8.onnx', sha256: sha('a'), bytes: 1000, role: 'encoder' },
-      { path: 'tokens.txt', sha256: sha('b'), bytes: 20, role: 'tokens' },
-    ],
-    totalBytes: 1020,
-    ...over,
-  }
+interface Case {
+  name: string
+  plugin: 'valid' | 'MANIFEST_INVALID' | 'APP_UPDATE_REQUIRED'
+  manifest?: unknown
+  raw?: string
+}
+interface Fixture {
+  limits: { maxManifestBytes: number; maxTotalBytes: number; minFiles: number; maxFiles: number; roles: string[]; engine: string; modelType: string; sampleRate: number }
+  cases: Case[]
 }
 
-/** `speech/models/manifest.example.json` 의 실제 값(미러에는 speech/ 가 동기화되지 않아 옮겨 적는다). */
-const EXAMPLE = { name: "pkg-real", version: "2024-08-01-int8-v1", files: [{"path": "encoder-epoch-99-avg-1.int8.onnx", "sha256": "2c7bd08a8a99f9ddd0d9e458456577b1f6279214e51426f114f9eced44c54e1d", "bytes": 154670139, "role": "encoder"}, {"path": "decoder-epoch-99-avg-1.onnx", "sha256": "58b18211ae06265466bfa17172dab574df94f76c8bcb61a3640c28ba860e4124", "bytes": 11767836, "role": "decoder"}, {"path": "joiner-epoch-99-avg-1.int8.onnx", "sha256": "49cc7ea1d3d35a40a27442db5e89996da64bf0e683a903dce76e99e57a12e4de", "bytes": 2696970, "role": "joiner"}, {"path": "tokens.txt", "sha256": "2c3ac659818a48a0c04010e0593bbc4d7c8a24a054340b01131499c05fd52def", "bytes": 45754, "role": "tokens"}, {"path": "silero_vad.onnx", "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6", "bytes": 643854, "role": "vad"}], totalBytes: 169824553 }
+const fx = JSON.parse(readFileSync(FIXTURE, 'utf8')) as Fixture
+const base = fx.cases.find((c) => c.name === 'valid-disk')?.manifest as Record<string, unknown>
 
-test('#9 parseManifest: 저장소 예시 manifest(실제 값)가 통과한다', () => {
-  const raw = EXAMPLE
-  const m = parseManifest(raw)
+test('규칙 상수 = 픽스처 limits(= Kotlin ManifestValidator)', () => {
+  assert.deepEqual(
+    {
+      maxManifestBytes: MANIFEST_RULES.maxManifestChars,
+      maxTotalBytes: MANIFEST_RULES.maxTotalBytes,
+      minFiles: MANIFEST_RULES.roles.length,
+      maxFiles: MANIFEST_RULES.maxFiles,
+      roles: [...MANIFEST_RULES.roles],
+      engine: MANIFEST_RULES.engine,
+      modelType: MANIFEST_RULES.modelType,
+      sampleRate: MANIFEST_RULES.sampleRate,
+    },
+    fx.limits,
+  )
+})
+
+test('#9 공용 픽스처 전 사례 — 서버 판정 = 플러그인 판정(valid·APP_UPDATE_REQUIRED 만 통과)', () => {
+  assert.ok(fx.cases.length >= 40 && !!base)
+  const mismatch: string[] = []
+  for (const c of fx.cases) {
+    const text = c.raw ?? JSON.stringify(c.manifest)
+    let serverOk = true
+    try {
+      parseManifestText(text)
+    } catch (e) {
+      if (!(e instanceof ManifestError)) throw e
+      serverOk = false
+    }
+    const pluginOk = c.plugin === 'valid' || c.plugin === 'APP_UPDATE_REQUIRED'
+    if (serverOk !== pluginOk) mismatch.push(`${c.name}(server=${serverOk ? 'ok' : 'reject'}, plugin=${c.plugin})`)
+  }
+  assert.deepEqual(mismatch, [], '서버와 플러그인 판정이 갈리는 사례')
+})
+
+test('#9 파서 차이도 서버가 느슨하지 않게: 중복 키·정수 칸의 소수/지수 표기는 거절(org.json 이 거부하는 것)', () => {
+  const good = JSON.stringify(base)
+  assert.doesNotThrow(() => parseManifestText(good))
+  const dup = good.replace('"engine":"sherpa-onnx",', '"engine":"sherpa-onnx","engine":"sherpa-onnx",')
+  assert.notEqual(dup, good)
+  assert.throws(() => parseManifestText(dup), (e: unknown) => e instanceof ManifestError && e.reason === 'manifest is not valid json')
+  assert.throws(() => parseManifestText(good.replace('"sampleRate":16000', '"sampleRate":16000.0')), (e: unknown) => e instanceof ManifestError && e.reason === 'sampleRate')
+  assert.throws(() => parseManifestText(good.replace('"totalBytes":169824553', '"totalBytes":1.69824553e8')), (e: unknown) => e instanceof ManifestError && e.reason === 'totalBytes')
+  const fileDup = good.replace('"role":"vad"', '"role":"vad","role":"vad"')
+  assert.throws(() => parseManifestText(fileDup), /not valid json/, '파일 객체 안 중복 키도')
+  assert.doesNotThrow(() => parseManifestText(good.replace('"license":"Apache-2.0"', '"license":"Apache-2.0","rtf":0.054')), '검사하지 않는 칸의 소수는 플러그인도 받는다')
+  assert.doesNotThrow(() => parseManifestText(JSON.stringify({ ...base, note: 'a "quoted" \\ "engine": x' })), '문자열 안 따옴표·이스케이프는 키가 아니다')
+})
+
+test('#9 실제 배포 manifest(speech/models/reazonspeech-int8) 통과 — 저장소가 보이는 곳에서만(미러는 THEKAIWA_REPO)', (t) => {
+  const repo = process.env.THEKAIWA_REPO ?? ROOT
+  const real = join(repo, 'speech', 'models', 'reazonspeech-int8', 'manifest.json')
+  const example = join(repo, 'speech', 'models', 'manifest.example.json')
+  const path = existsSync(real) ? real : existsSync(example) ? example : null
+  if (!path) {
+    t.skip('저장소 speech/models 가 없는 실행 위치(미러) — 픽스처 valid-disk 사례와 scripts/models-verify.sh 가 같은 값을 본다')
+    return
+  }
+  const m = parseManifestText(readFileSync(path, 'utf8'))
   assert.equal(m.files.length, 5)
-  assert.equal(m.totalBytes, raw.totalBytes)
-  assert.ok(m.totalBytes <= MODEL_TOTAL_MAX_BYTES)
+  assert.deepEqual(new Set(m.files.map((f) => f.role)), new Set(MANIFEST_RULES.roles))
 })
 
-test('#9 parseManifest(C1-3): 이름 패턴·sha256·크기·합계·중복·파일 수·총량 상한 위반은 거부', () => {
-  assert.equal(parseManifest(manifest()).version, '2024-08-01-int8-v1')
-  const bad: Array<[string, Record<string, unknown>]> = [
-    ['경로 구분자', { files: [{ path: '../x', sha256: sha('a'), bytes: 1 }], totalBytes: 1 }],
-    ['하위 경로', { files: [{ path: 'a/b', sha256: sha('a'), bytes: 1 }], totalBytes: 1 }],
-    ['점으로 시작', { files: [{ path: '.env', sha256: sha('a'), bytes: 1 }], totalBytes: 1 }],
-    ['sha256 형식', { files: [{ path: 'a', sha256: 'A'.repeat(64), bytes: 1 }], totalBytes: 1 }],
-    ['sha256 누락', { files: [{ path: 'a', bytes: 1 }], totalBytes: 1 }],
-    ['크기 0', { files: [{ path: 'a', sha256: sha('a'), bytes: 0 }], totalBytes: 0 }],
-    ['크기 소수', { files: [{ path: 'a', sha256: sha('a'), bytes: 1.5 }], totalBytes: 1.5 }],
-    ['합계 불일치', { totalBytes: 1021 }],
-    ['중복 경로', { files: [{ path: 'a', sha256: sha('a'), bytes: 1 }, { path: 'a', sha256: sha('b'), bytes: 1 }], totalBytes: 2 }],
-    ['파일 없음', { files: [], totalBytes: 0 }],
-    ['파일 17개', { files: Array.from({ length: 17 }, (_, i) => ({ path: `f${i}`, sha256: sha('a'), bytes: 1 })), totalBytes: 17 }],
-    ['총량 상한', { files: [{ path: 'a', sha256: sha('a'), bytes: MODEL_TOTAL_MAX_BYTES }, { path: 'b', sha256: sha('a'), bytes: 1 }], totalBytes: MODEL_TOTAL_MAX_BYTES + 1 }],
-    ['version 형식', { version: '../v1' }],
-    ['version 짧음', { version: 'v1' }],
-    ['name 형식', { name: 'a/b' }],
-  ]
-  for (const [label, over] of bad) assert.throws(() => parseManifest(manifest(over)), { name: 'ManifestError' }, label)
-  assert.throws(() => parseManifest(null), { name: 'ManifestError' })
-  assert.throws(() => parseManifest([]), { name: 'ManifestError' })
-})
-
-test('#9 publicManifest: 불투명 id·같은 origin 절대 URL(= manifest 디렉터리/version/path)·설명 필드는 문자열만', () => {
-  const m = parseManifest(manifest({ source: 'x\u0000y', license: 'Apache-2.0' }))
+test('#9 publicManifest: 불투명 id·같은 origin 절대 URL, 내보낸 본문이 다시 같은 규칙을 통과(플러그인이 받는 그대로)', () => {
+  const m = parseManifest(base)
   const p = publicManifest(m, 'https://kaiwa.example')
   assert.equal(p.id, ONDEVICE_MODEL_ID)
-  assert.equal(p.version, '2024-08-01-int8-v1')
-  assert.equal(p.totalBytes, 1020)
-  assert.equal(p.baseUrl, `https://kaiwa.example/models/${ONDEVICE_MODEL_ID}/2024-08-01-int8-v1/`)
-  for (const f of p.files) {
-    const u = new URL(f.url)
-    assert.equal(u.origin, 'https://kaiwa.example')
-    assert.equal(f.url, `${p.baseUrl}${f.path}`, '플러그인 규칙(manifest 디렉터리/version/path)과 같은 주소')
-    assert.match(f.sha256, /^[0-9a-f]{64}$/)
-  }
-  assert.equal((p as Record<string, unknown>).source, undefined, '제어문자가 든 설명 필드는 버린다')
-  assert.equal((p as Record<string, unknown>).license, 'Apache-2.0')
+  assert.equal(p.baseUrl, `https://kaiwa.example/models/${ONDEVICE_MODEL_ID}/${m.version}/`)
+  for (const f of p.files) assert.equal(f.url, `${p.baseUrl}${f.path}`, '플러그인 규칙(manifest 디렉터리/version/path)과 같은 주소')
+  const again = parseManifestText(JSON.stringify(p))
+  assert.deepEqual(again.files, m.files)
+  assert.equal(again.totalBytes, m.totalBytes)
+  assert.equal(again.minPluginVersion, m.minPluginVersion)
 })
 
 test('connection.manifestUrl → 디스크 디렉터리(형식이 다르면 null)', () => {

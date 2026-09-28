@@ -15,6 +15,7 @@ import { isPkceChallenge, isPkceVerifier, pkceChallengeOf } from '../auth/oauth/
 import { createOAuthState, verifyOAuthState } from '../auth/oauth/state'
 import { signPendingSignup, verifyPendingSignup } from '../auth/oauth/pending'
 import { buildGoogleAuthHref } from '../auth/oauth/next-path'
+import { isSameOriginJsonRequest, parseAppExchangeBody } from '../auth/oauth/app-exchange'
 
 // ── Range·ETag ──────────────────────────────────────────────────────────
 
@@ -334,4 +335,25 @@ test('앱 로그인 시작 링크: platform=app 이면 challenge 를 싣는다',
   assert.equal(u.searchParams.get('platform'), 'app')
   assert.equal(u.searchParams.get('challenge'), ch)
   assert.equal(new URL(buildGoogleAuthHref(null, 'web', ch), 'https://x').searchParams.get('challenge'), null, '웹은 싣지 않는다')
+})
+
+test('REV-021 #5 POST: 같은 출처 JSON 만(폼·다른 출처·출처 표시 없음 거절), next 는 같은 출처 경로로', () => {
+  const h = (o: Record<string, string>) => new Headers({ host: 'kaiwa.example', ...o })
+  const json = { 'content-type': 'application/json' }
+  assert.ok(isSameOriginJsonRequest(h({ ...json, origin: 'https://kaiwa.example' })))
+  assert.ok(isSameOriginJsonRequest(h({ ...json, 'sec-fetch-site': 'same-origin' })))
+  assert.ok(isSameOriginJsonRequest(h({ 'content-type': 'application/json; charset=utf-8', origin: 'https://kaiwa.example', 'sec-fetch-site': 'same-origin' })))
+  assert.ok(!isSameOriginJsonRequest(h({ 'content-type': 'application/x-www-form-urlencoded', origin: 'https://kaiwa.example' })), 'HTML 폼 형식')
+  assert.ok(!isSameOriginJsonRequest(h({ 'content-type': 'text/plain', origin: 'https://kaiwa.example' })), 'text/plain(단순 요청)')
+  assert.ok(!isSameOriginJsonRequest(h({ ...json, origin: 'https://evil.example' })), '다른 출처')
+  assert.ok(!isSameOriginJsonRequest(h({ ...json, origin: 'https://kaiwa.example.evil.test' })))
+  assert.ok(!isSameOriginJsonRequest(h({ ...json, 'sec-fetch-site': 'cross-site' })))
+  assert.ok(!isSameOriginJsonRequest(h({ ...json, 'sec-fetch-site': 'same-site', origin: 'https://kaiwa.example' })), '같은 사이트 다른 하위 도메인')
+  assert.ok(!isSameOriginJsonRequest(h(json)), '출처 표시가 하나도 없음')
+  assert.ok(!isSameOriginJsonRequest(new Headers({ ...json, origin: 'https://kaiwa.example' })), 'Host 없음')
+  assert.ok(!isSameOriginJsonRequest(h({ ...json, origin: 'null' })))
+  assert.deepEqual(parseAppExchangeBody({ code: 'c', verifier: 'v', next: '/study/ai' }), { code: 'c', verifier: 'v', next: '/study/ai' })
+  assert.equal(parseAppExchangeBody({ next: '//evil.example/x' }).next, '/study/today')
+  assert.equal(parseAppExchangeBody({ next: 'https://evil.example' }).next, '/study/today')
+  assert.equal(parseAppExchangeBody({}).next, '/study/today')
 })

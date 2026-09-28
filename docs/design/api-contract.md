@@ -115,7 +115,7 @@
 | 2 | GET | `/api/auth/google?platform=web\|app&callbackUrl=&challenge=` | OAuth 시작(앱은 PKCE `challenge` 필수) | P | infra/auth | 0 | query | 302 Google |
 | 3 | GET | `/api/auth/google/callback` | OAuth 콜백 → pending 쿠키 | P | infra/auth | 0 | `code,state` | 302 `/invite` 또는 착지 |
 | 4 | POST | `/api/auth/complete` | 초대코드 확인·계정 생성·세션/딥링크 | P(pending 쿠키) | infra/auth | 0 | `{inviteCode?}` | `{user}` 또는 `{appRedirect}` |
-| 5 | GET | `/api/auth/app-exchange?code=&verifier=&next=` | 앱 코드+PKCE verifier → 세션 쿠키 | P(코드+verifier) | infra/auth | 0 | query | 302 |
+| 5 | POST | `/api/auth/app-exchange` | 앱 코드+PKCE verifier → 세션 쿠키(JSON 본문 — REV-021) | P(코드+verifier, 같은 출처) | infra/auth | 0 | `{code, verifier, next?}` | `{next}` + Set-Cookie |
 | 6 | POST | `/api/auth/logout` | 세션 종료 | S | infra/auth | 0 | — | `{ok:true}` |
 | 7 | GET | `/api/auth/me` | 세션 사용자 | S | infra/auth | 0 | — | `{user}` |
 | 8 | GET | `/api/app/version` | APK 최신 버전·배너 | P | infra | 0 | `X-App-Build`·`X-App-Version` | `{latest,latestCode,minSupported,minSupportedCode,url,notes,sha256,bytes,publishedAt,updateAvailable,reinstallRequired,updateRequired}` |
@@ -357,12 +357,12 @@
 | #2 `GET /api/auth/google?platform=web\|app&callbackUrl=/study/today&challenge=<43자>` | `state` 에 `platform`·`next`(동일 출처 절대경로로 정규화)·**앱이면 PKCE `challenge`**(S256, base64url 43자) 서명. 302 → Google. `platform` 기본 `web`. `platform=app` 인데 challenge 가 없거나 형식이 다르면 Google 로 가지 않고 302 `thekaiwa://auth/callback?error=app_login_invalid`(첫 APK 부터 필수 — task-003f C1-1) |
 | #3 `GET /api/auth/google/callback?code=&state=` | 신원 검증 후 **계정을 만들지 않고** 서명된 pending 쿠키(`thekaiwa_oauth_pending`, 15분 — challenge 도 함께 서명)만 심는다. 기존 사용자면 바로 세션(웹) 또는 `AppAuthCode` 딥링크(앱 — 아래 PKCE 결속). 신규면 302 `/invite` |
 | #4 `POST /api/auth/complete` body `{ "inviteCode": "..." }` | IP 기준 시도 제한(5회/10분, 초과 `429`) → 초대코드 검증(`SIGNUP_INVITE_CODE`, 불일치 `403 FORBIDDEN`) → (앱인데 pending 에 challenge 없으면 계정 생성 **전** `400`) → `User` 생성(`OWNER_EMAIL` 이면 `role: SUPER_ADMIN`, 그 외 `USER`) + `Profile`·`UserVoiceSetting`·`UserSpeechSetting` 기본행. 웹: 세션 쿠키 + `{ "user": {...}, "next": "/study/today" }`. 앱: `{ "appRedirect": "thekaiwa://auth/callback?code=<code_r 64hex>" }`(코드 60초·1회용) |
-| #5 `GET /api/auth/app-exchange?code=<code_r>&verifier=<PKCE verifier>&next=` | 형식(code 64 hex, verifier RFC 7636 43~128자) → `sha256hex(code_r + ":" + S256(verifier))` 로 조건부 UPDATE 1건(소각) → 세션 쿠키 → 302 `next`(동일 출처 경로만). 형식 오류·verifier 불일치·만료·재사용·미존재는 **구분 없이** 302 `/login?oauth_error=app_code_invalid`. 틀린 verifier 시도는 코드를 태우지 않는다(행을 못 찾음) |
+| #5 `POST /api/auth/app-exchange` body `{ "code": "<code_r>", "verifier": "<PKCE verifier>", "next": "/study/ai" }` | **POST JSON 본문만**(task-003f REV-021 — 쿼리스트링은 nginx 접근 로그·WebView 방문 기록에 남는다, RFC 8252 관례). 로그인 CSRF 방어: `Content-Type: application/json` 만(HTML 폼·`text/plain` 거절) + `Sec-Fetch-Site`/`Origin` 중 하나 이상 있고 같은 출처(`Origin` 호스트 = 요청 Host). 본문 ≤4KB. 형식(code 64 hex, verifier RFC 7636 43~128자) → `sha256hex(code_r + ":" + S256(verifier))` 로 조건부 UPDATE 1건(소각) → 세션 쿠키(Set-Cookie) + `200 { "next": "/study/ai" }`(동일 출처 경로만 — 아니면 `/study/today`). 출처·형식 오류·verifier 불일치·만료·재사용·미존재는 **구분 없이** `400 { "code": "APP_CODE_INVALID" }` → 화면은 `/login?oauth_error=app_code_invalid`. 틀린 verifier·잘못된 출처 시도는 코드를 태우지 않는다. **`GET` 은 `405 Allow: POST`(본문 없음)** — 예전 쿼리스트링 교환 경로. 앱 WebView 는 `fetch(…, {method:'POST', credentials:'same-origin'})` 로 교환한 뒤 `location.replace(next)` |
 | #6 `POST /api/auth/logout` | 쿠키 삭제, `{ "ok": true }` |
 | #7 `GET /api/auth/me` | `{ "user": { "id", "email", "name", "role" } }`. 미인증 `401` |
 
 - 세션 JWT payload `{ userId, email, role, iat, exp }`; role 변경 시 다음 요청에서 DB 재조회로 갱신(캐시 5분).
-- **앱 로그인 PKCE 결속(task-003f C1-1, 스키마 변경 없음)**: 앱 WebView 가 시작 때 verifier(32바이트 랜덤 base64url 43자)를 만들어 WebView 메모리 + sessionStorage(10분·1회용)에만 두고 `challenge = base64url(sha256(verifier))` 만 #2 에 싣는다. 콜백·complete 는 딥링크에 랜덤 `code_r` 만 싣고 DB `AppAuthCode.code` 에는 `sha256hex(code_r + ":" + challenge)` 를 저장한다 — `thekaiwa://` 를 가로챈 다른 앱은 verifier 가 없어 #5 를 통과하지 못하고, DB 가 새도 code_r 을 되돌릴 수 없다. Verified App Links(https 콜백 + assetlinks.json)는 후속 강화 항목.
+- **앱 로그인 PKCE 결속(task-003f C1-1, 스키마 변경 없음)**: 앱 WebView 가 시작 때 verifier(32바이트 랜덤 base64url 43자)를 만들어 WebView 메모리 + sessionStorage(10분·1회용)에만 두고 `challenge = base64url(sha256(verifier))` 만 #2 에 싣는다(교환 때 verifier 는 #5 **POST 본문**으로만 — 주소에 싣지 않는다). 콜백·complete 는 딥링크에 랜덤 `code_r` 만 싣고 DB `AppAuthCode.code` 에는 `sha256hex(code_r + ":" + challenge)` 를 저장한다 — `thekaiwa://` 를 가로챈 다른 앱은 verifier 가 없어 #5 를 통과하지 못하고, DB 가 새도 code_r 을 되돌릴 수 없다. Verified App Links(https 콜백 + assetlinks.json)는 후속 강화 항목.
 
 #### #8 `GET /api/app/version` (공개)
 
@@ -402,7 +402,7 @@
 
 공개 경로는 **불투명 패키지 id**(`ondevice-ja-v1`) — #19 사용자 응답에 엔진·모델 이름이 실리지 않게(완료 기준 8, Leader ⑧). 디스크 위치는 `DATA_ROOT/models/<dir>/`(`SPEECH_MODELS_DIR` 절대 경로가 있으면 그 아래) — `<dir>` 은 ONDEVICE REALTIME_STT connection 의 `connection.manifestUrl`(`/models/<dir>/manifest.json`)에서 읽는다. ONDEVICE connection 이 꺼져 있으면 배포도 `404`. nginx `/models/` 는 앱 라우트로 프록시한다(`GET`·`HEAD`, 인증 없음 — 로그인 전 플러그인이 받는다).
 
-**#9 manifest** — 디스크 manifest 를 **매번 엄격 검증**(C1-3: `name`·`version`(`^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$`) 형식, 파일 1~16개, `path` 는 단일 파일명(`/`·`..`·점 시작 불가)·중복 없음, 파일별 `sha256`(소문자 64 hex)·`bytes`(양의 정수) 필수, 합계 = `totalBytes` ≤ 300MiB)한 뒤, 파일마다 **같은 운영 origin 의 절대 URL** 을 붙여 내보낸다. 검증 실패는 배포하지 않음(`404`, 서버 로그만). `Cache-Control: no-cache` + `ETag`(본문 해시, `If-None-Match` → 304).
+**#9 manifest** — 디스크 manifest 를 **플러그인과 같은 규칙으로 매번 검증**(task-003f REV-021 — 정본은 플러그인 `ManifestValidator`(Manifest.kt), 서버 `speech/stt/manifestRules.ts` 가 그대로 옮기고 공용 픽스처 `plugins/sherpa-stt/test-fixtures/manifest-cases.json` 으로 두 구현을 대조한다): 원문 ≤64KiB·JSON 객체(중복 키 거절) · `name`(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, `..` 없음) · `version`(`^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$`, `..` 없음) · **`engine`="sherpa-onnx"·`modelType`="transducer"·`sampleRate`=16000(정수)** · 파일 **5~16개**, 역할 **encoder·decoder·joiner·tokens·vad 가 정확히 한 번씩** · `path` 단일 파일명(`/`·`..`·점 시작·`installed.json`·`.part` 불가)·중복 없음 · `sha256` 소문자 64 hex · `bytes` 정수 1~300MiB · 합계 ≤300MiB = `totalBytes`(정수) · `minPluginVersion`(있으면 `x.y.z`). 검증 실패는 배포하지 않음(`404`, 서버 로그만). 통과본에 파일마다 **같은 운영 origin 의 절대 URL** 을 붙여 내보낸다(내보낸 본문도 같은 규칙을 통과). 배포 전 게이트는 `bash scripts/models-verify.sh [모델 루트]`(같은 규칙 + 파일 크기·sha256). `Cache-Control: no-cache` + `ETag`(본문 해시, `If-None-Match` → 304).
 
 ```json
 {

@@ -9,12 +9,16 @@
  *
  * 실행(dev 서버를 따로 — `SPEECH_MODELS_DIR=<NFS>/speech/models next dev -H 127.0.0.1 -p 3011`):
  *   node --env-file=.env --import tsx tests/live/task003f-ui-e2e.mjs --base http://127.0.0.1:3011 --user <USER 쿠키> --admin <ADMIN 쿠키> [--out <스크린샷 디렉터리>]
- * DB 에 쓰는 것: QA 계정 TALK 방 1개(끝에 삭제). 쿠키·코드·verifier 는 출력하지 않는다.
+ * DB 에 쓰는 것: QA 계정 TALK 방 1개·AppAuthCode 1행(실제 교환 확인 — 둘 다 끝에 삭제). 쿠키·코드·verifier 는 출력하지 않는다.
  */
 import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { randomBytes } from 'node:crypto'
+import { PrismaClient } from '@prisma/client'
 import { chromium } from 'playwright-core'
+import { bindAppAuthCode } from '../../src/modules/infra/auth/oauth/app-code.ts'
+import { pkceChallengeOf } from '../../src/modules/infra/auth/oauth/pkce.ts'
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith('--') ? [...acc, [a.slice(2), all[i + 1]]] : acc), []))
 const BASE = args.base ?? 'http://127.0.0.1:3011'
@@ -33,6 +37,7 @@ const check = (name, ok, detail = '') => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const ENGINE_RE = /reazon|sherpa|zipformer|onnx|int8|whisper|style-?bert|ondevice-ja|manifest|gateway|connectionKey/i
 
+const prisma = new PrismaClient()
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true })
 
 async function context({ width = 390, height = 844, cookie = C_USER, app = true, init = {}, version = null } = {}) {
@@ -305,18 +310,52 @@ try {
     await shot(page, 'app-login-closed-360')
     await page.getByText('Google로 계속하기').click()
     await page.locator('[data-app-login="waiting"]').waitFor()
-    // 교환 요청은 가로채 URL 만 본다 — dev 서버의 실패 302 는 OAUTH_CALLBACK_BASE(운영 도메인)로 가므로 따라가지 않는다(서버 판정은 스모크 D3~D8).
+    // 교환 요청(POST JSON — REV-021)은 가로채 본문만 본다. 서버 판정은 스모크 D3~D8.
     let exchange = null
+    let reply = { status: 400, body: { success: false, data: { code: 'APP_CODE_INVALID' }, message: 'x' } }
     await page.route('**/api/auth/app-exchange**', (route) => {
-      exchange = new URL(route.request().url())
-      return route.fulfill({ status: 302, headers: { Location: `${BASE}/login?oauth_error=app_code_invalid` } })
+      const r = route.request()
+      exchange = { method: r.method(), url: new URL(r.url()), body: JSON.parse(r.postData() ?? '{}'), type: r.headers()['content-type'] }
+      return route.fulfill({ status: reply.status, contentType: 'application/json', body: JSON.stringify(reply.body) })
     })
     await page.evaluate(() => window.__fakeCap.emit('appUrlOpen', `thekaiwa://auth/callback?code=${'ab'.repeat(32)}`))
     await page.waitForURL(/oauth_error=app_code_invalid/, { timeout: 10000 })
-    check('앱 로그인 마무리: 교환 URL = code + verifier(43자) 동시, closeExternal', !!exchange && /^[0-9a-f]{64}$/.test(exchange.searchParams.get('code') ?? '') && /^[A-Za-z0-9_-]{43}$/.test(exchange.searchParams.get('verifier') ?? '') && (await calls(page).catch(() => [])).length >= 0)
+    check(
+      '앱 로그인 마무리: 교환 = POST JSON 본문(code + verifier 43자), 주소에 코드·verifier 없음',
+      !!exchange && exchange.method === 'POST' && /application\/json/.test(exchange.type ?? '') && exchange.url.search === '' && /^[0-9a-f]{64}$/.test(exchange.body.code ?? '') && /^[A-Za-z0-9_-]{43}$/.test(exchange.body.verifier ?? ''),
+    )
     await page.getByText('로그인을 마무리하지 못했어요. 다시 눌러 주세요.').waitFor()
-    check('앱 로그인: DB 에 없는 코드 → app_code_invalid 해요체 문구', true)
+    check('앱 로그인: 교환 실패 → app_code_invalid 해요체 문구', true)
     await shot(page, 'app-login-invalid-360')
+    // 성공 응답이면 서버가 준 같은 출처 경로로 이동한다(세션 쿠키는 이 응답이 심는다 — 여기선 가짜라 로그인으로 되돌아간다).
+    reply = { status: 200, body: { success: true, data: { next: '/study/today' }, message: null } }
+    await page.getByText('Google로 계속하기').click()
+    await page.locator('[data-app-login="waiting"]').waitFor()
+    await page.evaluate(() => window.__fakeCap.emit('appUrlOpen', `thekaiwa://auth/callback?code=${'cd'.repeat(32)}`))
+    await page.waitForURL((u) => u.pathname === '/study/today' || u.searchParams.get('callbackUrl') === '/study/today', { timeout: 10000 })
+    check('앱 로그인 성공 응답 → 서버가 준 착지 경로로 이동(교환 뒤)', exchange?.body.code === 'cd'.repeat(32))
+    await ctx.close()
+  }
+  // 실제 서버 교환(가로채지 않음) — 브라우저가 붙이는 Origin·Sec-Fetch-Site 로 같은 출처 검사를 통과하고 세션이 심기는지.
+  {
+    const { ctx } = await context({ cookie: null, width: 390, init: {}, version: rel({ latestCode: 1, latest: '1.0.0' }) })
+    const page = await ctx.newPage()
+    await page.goto(`${BASE}/login`)
+    await page.getByText('Google로 계속하기').waitFor({ timeout: 15000 })
+    const verifier = randomBytes(32).toString('base64url')
+    const codeR = randomBytes(32).toString('hex')
+    const stored = bindAppAuthCode(codeR, pkceChallengeOf(verifier))
+    const qa = await prisma.user.findUniqueOrThrow({ where: { email: 'qa-bot@thekaiwa.test' }, select: { id: true } })
+    await prisma.appAuthCode.create({ data: { code: stored, userId: qa.id, expiresAt: new Date(Date.now() + 60_000) } })
+    try {
+      await page.evaluate((v) => sessionStorage.setItem('thekaiwa_app_login', JSON.stringify({ verifier: v, at: Date.now() })), verifier)
+      await page.evaluate((c) => window.__fakeCap.emit('appUrlOpen', `thekaiwa://auth/callback?code=${c}`), codeR)
+      await page.waitForURL((u) => u.pathname === '/study/today', { timeout: 15000 })
+      const cookies = await ctx.cookies(BASE)
+      check('앱 로그인 실제 교환(POST·브라우저 출처 헤더) → 세션 쿠키·착지 화면', cookies.some((c) => c.name === 'thekaiwa_session' && c.httpOnly))
+    } finally {
+      await prisma.appAuthCode.deleteMany({ where: { code: stored } })
+    }
     await ctx.close()
   }
 
@@ -383,6 +422,7 @@ try {
   }
 } finally {
   await browser.close()
+  await prisma.$disconnect()
 }
 
 const failed = results.filter((r) => !r.ok)

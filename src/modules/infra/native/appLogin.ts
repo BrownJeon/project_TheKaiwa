@@ -78,11 +78,25 @@ export function openAppLogin(href: string): Promise<boolean> {
   return openExternal(href)
 }
 
-/** 딥링크 코드 + verifier → 교환 주소(같은 출처). `next` 는 서버가 다시 `sanitizeNextPath` 한다. */
-export function appExchangeUrl(origin: string, code: string, verifier: string, next: string | null): string {
-  const target = new URL('/api/auth/app-exchange', origin)
-  target.searchParams.set('code', code)
-  target.searchParams.set('verifier', verifier)
-  if (next) target.searchParams.set('next', next)
-  return target.toString()
+/**
+ * 딥링크 코드 + verifier → 세션(#5, POST JSON — REV-021). 쿼리스트링을 쓰지 않아 코드·verifier 가 접근 로그·방문 기록에 남지 않는다.
+ * 성공이면 서버가 돌려준 같은 출처 착지 경로, 실패(어떤 이유든)면 null — 호출부는 `app_code_invalid` 한 가지로 안내한다.
+ * 세션 쿠키는 이 응답의 Set-Cookie 로 WebView 에 심긴다(같은 출처 fetch).
+ */
+export async function exchangeAppCode(code: string, verifier: string, next: string | null): Promise<string | null> {
+  try {
+    const res = await fetch('/api/auth/app-exchange', {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, verifier, ...(next ? { next } : {}) }),
+    })
+    if (!res.ok) return null
+    const body = (await res.json().catch(() => null)) as { success?: boolean; data?: { next?: unknown } } | null
+    const n = body?.success === true ? body.data?.next : null
+    return typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') ? n : null
+  } catch {
+    return null
+  }
 }
