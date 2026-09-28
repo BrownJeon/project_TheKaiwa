@@ -178,8 +178,12 @@ log "debuggable : no"
 
 # ── 6. 배포본(선택, deployer) ────────────────────────────────────────────────
 if [ "$PUBLISH" -eq 1 ]; then
-  DATA_ROOT="$(sed -n 's/^DATA_ROOT=//p' "$PROJECT_ROOT/.env" | tr -d '"' | tail -1)"
+  # 줄 끝 주석(`값   # 설명`)을 떼어 낸다 — ecosystem.config.js readEnvFile 과 같은 규칙. LC_ALL=C 필수:
+  # 우분투 셸 로캘(sd_IN 등)에서는 sed 가 한글 주석 줄을 정규식으로 다루지 못해 주석까지 경로로 들어갔다
+  # (2026-09-28 첫 --publish 가 `files/thekaiwa   # TheMeal 관례…` 폴더를 만들었음 — Leader 가 지우고 이 줄을 고침).
+  DATA_ROOT="$(sed -n 's/^DATA_ROOT=//p' "$PROJECT_ROOT/.env" | tail -1 | LC_ALL=C sed -E 's/[[:space:]]+#.*$//' | tr -d '"')"
   [ -n "$DATA_ROOT" ] || { log ".env 에 DATA_ROOT 가 없다"; exit 1; }
+  [ -d "$DATA_ROOT" ] || { log "DATA_ROOT 가 디렉터리가 아니다: $DATA_ROOT"; exit 1; }
   REL_DIR="$DATA_ROOT/releases"
   DEST="$REL_DIR/thekaiwa-${VERSION_NAME}.apk"
   mkdir -p "$REL_DIR"

@@ -1,7 +1,7 @@
 ---
 task_id: task-003f
 title: "안드로이드 앱(Capacitor 셸) + 온디바이스 STT 플러그인 + 모델 배포 + APK 배포본·배너"
-status: in-progress
+status: waiting-user
 base_ref: 218664e
 risk_level: R2
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer, codex]
@@ -538,5 +538,22 @@ JVM(67 스위트, `CommitDuringLoadTest`·`ManifestTest`·`ModelDownloaderTest` 
 QA-018 이 NOT_VERIFIED 로 둔 모델 경로·화면을 Leader 가 실행(사유 "개발 환경 미구현·쿠키 미보유" 는 사실과 달라 반려): 미러 dev(`SPEECH_MODELS_DIR=<repo>/speech/models`, 127.0.0.1:3011) → **`task003f-smoke.sh` 36/36**(models manifest·sha256·Range 206/416/If-Range/HEAD·경로 탈출·목록 밖 404·동시 5번째 503·#19 onDevice·app/version·download·PKCE POST D1~D8) → **`task003f-ui-e2e.mjs` 77/77**(가짜 Capacitor — 모델 카드·경로 표시·업데이트 띠·앱 로그인·권한·진단 카드·웹 앱 요소 DOM 0·엔진명 0; 첫 실행은 smoke 직후라 `/api/v1/speech/config` 분당 제한 429 로 71 에서 타임아웃 → 창 지난 뒤 재실행 통과, 제품 결함 아님) → 임시 모델 루트로 dev 재기동 → **`task003f-model-switch.ts` 7/7**. 정리: dev 2회 PID 종료·포트 비움, 임시 루트·쿠키 삭제, QA 계정 채팅·발화·미사용 코드 0 확인, QA-018 이 남긴 `~/.node-local/thekaiwa-buildcheck` 삭제(qa.md 규칙 위반 — 재발). **완료 기준 1~8 PASS**, 9(F6)는 사용자 폰.
 
 ## Deployer 기록
+- [11:17] (Leader 직접) 모델 배치 — `DATA_ROOT/models/reazonspeech-int8`(162MB, repo 로컬 캐시 복사) + `scripts/models-verify.sh "$DATA_ROOT/models"` OK(5파일 sha256 일치). gateway 는 다음 재시작부터 같은 파일을 DATA_ROOT 에서 읽는다(ecosystem 우선순위).
+- [11:18] 웹 — 격리 빌드 exit 0(라우트 `/models/[...path]`·`/api/app/version`·`/app/download/[file]`) → 미러 `npm run build` → `pm2 restart thekaiwa`. health ok·degraded 없음, https manifest(버전 `2024-08-01-int8-v1`, 5파일 169,824,553B) 200, `/api/app/version` latest:null(행 전).
+- [11:19~11:21] APK — `build-apk.sh --publish` 첫 실행이 `.env` DATA_ROOT 의 **줄 끝 한글 주석까지 경로로 읽어**(셸 로캘 sd_IN 에서 sed 가 멀티바이트 줄을 못 다룸) `files/thekaiwa   # TheMeal 관례(NFS files/…` 폴더를 만듦 → 지움 → 스크립트 181행을 `LC_ALL=C sed -E 's/[[:space:]]+#.*$//'` + 디렉터리 존재 검사로 수정(Leader, A 소유 파일 — 한 줄 도구 수정) → 재실행 → `DATA_ROOT/releases/thekaiwa-1.0.0.apk`(35,216,001B, sha256 `b9d9592b…69e4`, versionCode 1, debuggable no, arm64-v8a).
+- [11:22] `AppRelease` 행(versionCode 1·1.0.0·apkPath `thekaiwa-1.0.0.apk`·minSupported 1·노트) → `/api/app/version` latest 1.0.0·url `…/app/download/latest.apk`, 앱 라우트 `latest.apk` 200(attachment·`x-content-sha256` 일치).
+- **⚠ 사용자 sudo 필요**: https `/app/download/*` 가 **403** — 운영 nginx 가 옛 `alias` 설정(www-data 가 /home/brownjeon 750 을 못 지남). 저장소 conf(`docs/nginx/*.conf`)는 앱 라우트 프록시로 이미 수정됨(차이는 이 블록뿐) → `docs/nginx/README.md` 3줄 명령으로 재적용 필요.
 
 ## 최종 요약
+
+### 중간 요약 (Leader, 사용자용 — 2026-09-28, 폰 확인 대기)
+**무엇이 생겼나**: **안드로이드 앱 TheKaiwa 1.0.0**(말풍선 「あ」 아이콘)이 준비됐습니다. 앱은 같은 운영 웹을 띄우고, 앱에서는 **휴대폰 안에서 일본어를 알아듣습니다**(설정 → 음성 인식 → "휴대폰에서 알아듣기" 에서 인식 파일 약 170MB 를 Wi-Fi 로 받은 뒤). 받기 전이나 휴대폰 인식이 두 번 실패하면 지금처럼 서버가 알아듣습니다.
+- 로그인은 Chrome 창에서 하고 앱으로 돌아옵니다(다른 앱이 로그인 코드를 가로채도 쓸 수 없게 결속). 새 버전이 나오면 앱 위쪽에 업데이트 띠가 뜹니다.
+- 관리자 계정이면 설정 맨 아래 "휴대폰 인식 진단" 카드에서 디코드 시간·메모리를 볼 수 있습니다(실측 게이트: 5초 발화 ≤0.8초·≤600MB).
+
+**검증**: Codex C1(설계 보안) 4건 반영 → A(앱·플러그인 Kotlin)·B(웹·서버) → REV-021(High: 서버·앱 모델 목록 규칙 불일치) → 수정·공용 사례 60건 → REV-022 → Codex C2(동시성) 2건 → 수정 → REV-023 PASS → QA-018 PASS + Leader 보완(서버 스모크 36·앱 화면 77·모델 전환 7). 플러그인 JVM 테스트 67, 웹 테스트 487. **운영 반영**(웹·모델 파일·APK 배포본·버전 정보) 완료.
+
+**사용자에게 필요한 것**
+1. **nginx 재적용(sudo, 1회)** — 지금 https 로 APK 를 받으면 403: `docs/nginx/README.md` 의 3줄(cp → ln -sfn → `nginx -t && systemctl reload nginx`).
+2. **폰 설치·확인(F6)** — `https://kaiwa.미라클펭귄.com/app/download/latest.apk` 로 받아 설치(출처를 알 수 없는 앱 허용) 후 아래 목록.
+3. 결정(급하지 않음): 앱 이름 "TheKaiwa" 유지 여부 · 서명 키 백업 위치(`NFS/homes/brownjeon/backup/android-signing/`, 권한 700) · manifest 서명·App Links 는 후속 강화 후보.
