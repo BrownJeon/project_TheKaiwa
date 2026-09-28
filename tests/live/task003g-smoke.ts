@@ -178,7 +178,7 @@ async function main() {
     v = vOf(c1)
     const id1 = e1?.id as string
     const a1 = await prisma.auditLog.findFirst({ where: { environment: 'LOCAL', targetId: `lexicon:v${v}` }, orderBy: { createdAt: 'desc' } })
-    check('3b 감사 1행(action lexicon.create·targetId lexicon:v<n>·이유·작업자)', a1?.action === 'lexicon.create' && a1.reason === 'QA 스모크 추가' && a1.actorEmailSnap === 'qa-admin@thekaiwa.test' && a1.scope === null, a1?.action ?? 'none')
+    check('3b 감사 1행(action lexicon.create·scope LEXICON(task-018)·targetId lexicon:v<n>·이유·작업자)', a1?.action === 'lexicon.create' && a1.reason === 'QA 스모크 추가' && a1.actorEmailSnap === 'qa-admin@thekaiwa.test' && a1.scope === 'LEXICON', `${a1?.action ?? 'none'} scope=${String(a1?.scope)}`)
 
     const t1 = await tts23(SENT)
     check('4b 추가 후 #23: 캐시 미적중·새 사전 버전·매칭 1(읽기 반영)', t1.status === 200 && t1.cached === false && t1.dictionaryVersion === v && t1.matches === 1, JSON.stringify(t1))
@@ -388,12 +388,14 @@ async function main() {
     check('4c Rollback 뒤 #23: 캐시 미적중(새 버전)·매칭 0(원래 읽기)', t2.status === 200 && t2.cached === false && t2.dictionaryVersion === v && t2.matches === 0, JSON.stringify(t2))
     const vl2 = await call(cAdmin, 'GET', `${L}/versions?pageSize=5`)
     const top = ((d(vl2).items as Json[]) ?? [])[0]
-    check('3r 버전 목록 맨 위 = Rollback(changeSummary "v{n} 로 되돌림: 이유"·restoredFrom·action)', top?.version === v && top.restoredFrom === baseActive.version && top.action === 'lexicon.rollback' && top.changeSummary === `v${baseActive.version} 로 되돌림: QA 되돌림`, String(top?.changeSummary))
+    check('3r 버전 목록 맨 위 = Rollback(changeSummary "v{n} 로 되돌림: 이유"·rollbackOf(task-018)·restoredFrom·action)', top?.version === v && top.rollbackOf === baseActive.version && top.restoredFrom === baseActive.version && top.action === 'lexicon.rollback' && top.changeSummary === `v${baseActive.version} 로 되돌림: QA 되돌림`, String(top?.changeSummary))
+    const rbCol = await prisma.pronunciationLexiconVersion.findMany({ where: { environment: 'LOCAL', version: { gt: baseMax } }, select: { version: true, rollbackOf: true } })
+    check('3r2 rollbackOf 칸: 되돌림 버전만 대상 번호, 나머지 null(task-018)', rbCol.length > 0 && rbCol.every((x) => (x.version === v ? x.rollbackOf === baseActive.version : x.rollbackOf === null)), rbCol.map((x) => `v${x.version}:${String(x.rollbackOf)}`).join(','))
 
     // ── 3·감사 대조 ─────────────────────────────────────────────────────
-    const auditRows = await prisma.auditLog.findMany({ where: { environment: 'LOCAL', action: { startsWith: 'lexicon.' }, createdAt: { gte: startedAt } }, select: { targetId: true, actorUserId: true } })
+    const auditRows = await prisma.auditLog.findMany({ where: { environment: 'LOCAL', action: { startsWith: 'lexicon.' }, createdAt: { gte: startedAt } }, select: { targetId: true, actorUserId: true, scope: true } })
     const versionsMade = (await versionRows()).filter((x) => x.version > baseMax).length
-    check('3s 감사 행 수 = 변경 요청 수 = 새 버전 수(1:1)', auditRows.length === expectedAudits && versionsMade === expectedAudits && new Set(auditRows.map((a) => a.targetId)).size === auditRows.length && auditRows.every((a) => qaIds.includes(a.actorUserId ?? '')), `감사 ${auditRows.length}·버전 ${versionsMade}·기대 ${expectedAudits}`)
+    check('3s 감사 행 수 = 변경 요청 수 = 새 버전 수(1:1)·전부 scope LEXICON', auditRows.length === expectedAudits && versionsMade === expectedAudits && new Set(auditRows.map((a) => a.targetId)).size === auditRows.length && auditRows.every((a) => qaIds.includes(a.actorUserId ?? '') && a.scope === 'LEXICON'), `감사 ${auditRows.length}·버전 ${versionsMade}·기대 ${expectedAudits}`)
 
     // ── 5. 분당 10회(마지막 — 다른 미리듣기를 막지 않게) ──────────────────
     let limited: Res | null = null
