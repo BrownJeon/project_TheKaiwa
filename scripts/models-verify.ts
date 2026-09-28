@@ -12,7 +12,7 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { ManifestError, parseManifestText } from '../src/modules/speech/stt/manifestRules.ts'
+import { ManifestError, parseManifestText } from '../src/modules/speech/stt/manifestRules'
 
 const args = process.argv.slice(2)
 const quick = args.includes('--quick')

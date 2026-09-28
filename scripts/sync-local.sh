@@ -36,6 +36,12 @@ cp "$PROJECT_ROOT/.claude/agents/tutor.md" "$LOCAL_ROOT/.claude/agents/tutor.md"
 if [ -d "$PROJECT_ROOT/tests" ]; then
   rsync -a --delete "$PROJECT_ROOT/tests/" "$LOCAL_ROOT/tests/"
 fi
+# scripts/ 의 TypeScript(모델 배포 게이트 models-verify.ts 등)도 미러의 tsc·eslint 범위에 들어가게 한다(tsconfig include `**/*.ts` 가
+# 이미 덮는데 미러에 파일이 없어 검사가 빠졌다 — task-003f REV-022). .sh·.mjs(빌드·아이콘 도구)는 보내지 않는다 — 실행은 NFS 원본에서 한다.
+if [ -d "$PROJECT_ROOT/scripts" ]; then
+  mkdir -p "$LOCAL_ROOT/scripts"
+  rsync -a --delete --include '*.ts' --exclude '*' "$PROJECT_ROOT/scripts/" "$LOCAL_ROOT/scripts/"
+fi
 
 # 안드로이드 프로젝트(Phase 7). NFS 가 소스이고 **빌드는 미러에서만** 돈다(noexec).
 #   · `build/`·`.gradle/` 은 산출물이라 보내지 않는다 — 보내면 매 동기화마다 수백 MB 가 오간다.
