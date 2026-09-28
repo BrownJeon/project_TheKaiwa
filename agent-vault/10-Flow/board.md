@@ -31,6 +31,7 @@ tags:
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) · PE talk@v3(A11 뒤) — **스키마 push 승인 대기 예정**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면은 데모 v1(full) **사용자 승인 대기** · DB `EvaluationItem.textRevealedAt` 승인 대기
 - [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): **서버 운영 반영(67771a5, 운영 32/32)** · 화면은 데모 v1(full) **사용자 승인 대기**
+- [[task-012b-speech-p2]] — 음성 P2 1단계(분석 STT: SpeechJob 적재·내부 claim/결과/분석 API·worker·Whisper HTTP·Comparator·requiresReview 판정 서버·#22/#21a, 화면·스키마·M4 0): judge R2·opus·demo none → **C1 설계 확정 대기**(D-B1~B12). 운영 반영은 worker pm2·webhook `--apps`·venv pyopenjtalk **승인 필요**. 후속 분할 012b-2(카드·발화 로그 화면, 데모)·012b-3(TTS 관측, 스키마)·012b-4(TTS 타이밍, M4)
 - [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) — 구현은 010b·010c 뒤, **스키마 push 승인 대기 예정**
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 

@@ -2184,9 +2184,8 @@ model DebugSession {
 | `GENERATING` | `FAILED` | 출제 실패 | `error` |
 | `READY` | `IN_PROGRESS` | 첫 `POST …/items/{itemId}/answer` | 제한 10분 타이머 시작(`startedAt` 기준) |
 | `IN_PROGRESS` | `GRADING` | `POST …/submit` | 객관식 코드 채점, 서술형 AiJob EVAL_GRADE |
-| `GRADING` | `DONE` | 채점 잡 마지막 단계 **단일 트랜잭션** | `Evaluation DONE + StudyLog(EVALUATION, DIRECT) + studyLogId + StatsSnapshot(EVALUATION+DAILY)`, `LearnerErrorStat` 증가, ≥90 2회 연속이면 `TutorProposal(SET_LEVEL)` |
-| `GRADING` | `GRADING` | 트랜잭션 실패 | 잔류·재시도(QA: `count(DONE) == count(Snapshot EVALUATION)`) |
-| `GRADING` | `FAILED` | maxAttempts 초과 | 수동 재시도 가능 → `GRADING` |
+| `GRADING` | `DONE` | 채점 잡 마지막 단계 **단일 트랜잭션** | `Evaluation DONE + StudyLog(EVALUATION, DIRECT) + studyLogId + StatsSnapshot(EVALUATION+DAILY)`, ≥90 2회 연속이면 `TutorProposal(SET_LEVEL)`. `LearnerErrorStat` 증가는 **하지 않는다**(task-011 — A7 이 오류 유형을 내지 않음, 도입 시 A7 계약에 `errorType` 추가가 선행) |
+| `GRADING` | `GRADING` | 트랜잭션 실패·채점 잡 실패 | 잔류 + `error` 기록, 사용자가 다시 제출하면 새 채점 잡(QA: `count(DONE) == count(Snapshot EVALUATION)`). **`GRADING → FAILED` 전이는 두지 않는다**(task-011 구현 — 답은 보존되고 재제출로 복구) |
 
 ### 5-5. `ProposalStatus` — `Correction` / `TutorProposal`
 

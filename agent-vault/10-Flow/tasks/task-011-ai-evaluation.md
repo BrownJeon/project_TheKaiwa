@@ -175,3 +175,7 @@ Leader 지시로 developer 위험 보고 해결. `evalSchemas.ts` 에 평가 전
 - 실행 검증: `tsc` 0 · `eslint` 0 errors · 단위 706건 705 pass/1 skip/0 fail(`task011.test.ts` 13·`evaluationFencing.test.ts` 7·`evalGen.test.ts`/`evalGrade.test.ts` 포함) · `next build` 클린 성공(`/api/v1/evaluations` 전 6 라우트 생성 확인).
 - **릴리스 동반 가능**: 예.
 
+
+### 2026-09-28 23:05 Leader — 운영 반영(서버)·정본 정리
+- 서버·A6/A7 은 통합 릴리스 `67771a5` 로 운영 반영, 운영 스모크 `SMOKE_ENV=PRODUCTION bash tests/live/task011-smoke.sh 3010` **61/61 PASS**. 화면은 데모 v1 사용자 승인 대기.
+- 정본 정리(21:13 요청분): `module-dependency.md` L3 evaluation 공개 API 를 실제 export 로(`startEvaluation`·`lockEvaluationItemForAnswer`+`saveEvaluationAnswer`·`getEvaluationListenSource`·`listEvaluations`) · `domain-model.md` §5-4 — `GRADING → FAILED` 행 삭제(실패는 GRADING 잔류 + error, 재제출로 복구) · DONE 전이에서 `LearnerErrorStat` 증가 삭제(A7 errorType 없음, 도입 시 A7 계약 선행).
