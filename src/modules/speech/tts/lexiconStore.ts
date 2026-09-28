@@ -166,6 +166,8 @@ export interface LexiconVersionRow {
   version: number
   status: LexiconVersionStatus
   changeSummary: string | null
+  /** Rollback 으로 만든 버전이면 복원한 원본 번호(task-018 ③), 아니면 null. */
+  rollbackOf: number | null
   actorUserId: string | null
   createdAt: Date
   snapshotHash: string
@@ -174,7 +176,7 @@ export interface LexiconVersionRow {
   integrity: LexiconSnapshotIntegrity
 }
 
-const VERSION_SELECT = { version: true, status: true, changeSummary: true, actorUserId: true, createdAt: true, snapshotHash: true, snapshot: true } as const
+const VERSION_SELECT = { version: true, status: true, changeSummary: true, rollbackOf: true, actorUserId: true, createdAt: true, snapshotHash: true, snapshot: true } as const
 type VersionSelected = Prisma.PronunciationLexiconVersionGetPayload<{ select: typeof VERSION_SELECT }>
 
 export interface CheckedSnapshot {
@@ -208,6 +210,7 @@ function versionRowOf(v: VersionSelected): LexiconVersionRow {
     version: v.version,
     status: v.status,
     changeSummary: v.changeSummary,
+    rollbackOf: v.rollbackOf,
     actorUserId: v.actorUserId,
     createdAt: v.createdAt,
     snapshotHash: v.snapshotHash,
@@ -503,6 +506,7 @@ export async function writeLexicon(tx: Tx, ctx: LexiconWriteContext, op: Lexicon
         snapshotHash: snapshotHash(after),
         snapshot: toSnapshot(after) as unknown as Prisma.InputJsonValue,
         changeSummary,
+        rollbackOf: op.kind === 'ROLLBACK' ? op.targetVersion : null,
         actorUserId: ctx.actorUserId,
         status: 'ACTIVE',
       },

@@ -159,7 +159,9 @@ export interface LexiconVersionDto {
   /** 감사 행의 변경 이유·action(`lexicon.create|update|disable|import|rollback`) — 시드는 null. */
   reason: string | null
   action: string | null
-  /** Rollback 으로 만든 버전이면 복원한 원본 번호. */
+  /** Rollback 으로 만든 버전이면 복원한 원본 번호 — `PronunciationLexiconVersion.rollbackOf` 칸(task-018 ③, 그 전 버전은 null). 화면 "v{n} 로 되돌림". */
+  rollbackOf: number | null
+  /** 호환 필드: `rollbackOf` 가 있으면 그 값, 없으면(task-018 전 되돌림) 감사 행 `after.restoredFrom`. */
   restoredFrom: number | null
 }
 

@@ -5,6 +5,8 @@
  *  - gateway 경로(internal 콜백): gateway 가 wav 를 쓰고, 앱은 id·경로를 정해 행을 만든 뒤 DATA_ROOT 상대 경로를 돌려준다
  *    (gateway 가 `.part` → 그 경로로 옮김. 절대 경로 `finalPath` 는 보내지 않는다 — 두 프로세스의 DATA_ROOT 표기 차이로 어긋날 수 있어서).
  *  - 경로 = `DATA_ROOT/users/<userId>/utterances/<YYYY-MM(KST)>/<id>.wav`, DB 에는 DATA_ROOT 상대 경로만. 조각 검증은 infra.storage.
+ *  - 대화방(`chatId`, task-018 ①): 두 경로 모두 **라우트가 소유를 확인한 방 id** 만 넘긴다(speech 는 Chat 을 모른다). 없으면 null.
+ *    확인과 저장 사이에 방이 지워지면 FK(SetNull 관계) 위반 P2003 → 404.
  *  - 보존 30일: `audioExpiresAt` 이 지난 wav 를 지우고 `audioPath=null`·`audioDeletedAt` 기록(행·텍스트는 영구).
  *    정리는 별도 잡 없이 **발화가 새로 기록될 때 프로세스당 1시간에 1번** 뒤에서 돈다(한 번에 200건).
  * 원음·전사 전문은 로그에 남기지 않는다(길이·id 만).
@@ -12,8 +14,8 @@
 import { randomBytes } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { ApiError, dates, ensureDataDir, prisma, removeDataFile, writeDataFile } from '@/modules/infra'
-import { stt } from '@/modules/engine'
 import { UTTERANCE_MAX_BYTES, UTTERANCE_MAX_DURATION_MS, UTTERANCE_RETENTION_DAYS, UTTERANCE_SAMPLE_RATE } from './limits'
+import { utteranceDb } from './store'
 import { isPcm16Mono16k, parseWav } from './wav'
 import type { GatewayUtteranceInput, UploadInput, UtteranceSegment, UtteranceTimings } from './validate'
 
@@ -47,7 +49,7 @@ function timingsJson(timings: UtteranceTimings | null, segments: UtteranceSegmen
 }
 
 async function realtimeKey(ref: string): Promise<string> {
-  const c = await stt.findRealtimeConnection(ref)
+  const c = await utteranceDb.realtimeConnection(ref)
   if (!c) throw new ApiError('VALIDATION', '인식 경로 값이 올바르지 않아요.', { field: 'realtimeConnectionKey', reason: 'CONNECTION_INVALID' })
   return c.key
 }
@@ -63,7 +65,12 @@ export interface RecordedUtterance {
   expiresAt: string
 }
 
-/** #21 — 온디바이스 최종 텍스트 + wav. 길이는 헤더로 계산(클라이언트 값과 20% 넘게 다르면 서버 값). Phase 1 은 분석 큐 없음. */
+const ownerGone = () => new ApiError('NOT_FOUND', '사용자나 대화를 찾을 수 없어요.')
+
+/**
+ * #21 — 온디바이스 최종 텍스트 + wav. 길이는 헤더로 계산(클라이언트 값과 20% 넘게 다르면 서버 값). Phase 1 은 분석 큐 없음.
+ * `input.chatId` 는 라우트가 소유를 확인한 값이어야 한다.
+ */
 export async function recordUploadedUtterance(userId: string, input: UploadInput): Promise<RecordedUtterance> {
   const wav = parseWav(input.audio)
   if (!wav || !isPcm16Mono16k(wav)) throw new ApiError('VALIDATION', '16kHz 모노 PCM16 wav 만 받을 수 있어요.', { field: 'audio', reason: 'AUDIO_FORMAT' })
@@ -81,27 +88,26 @@ export async function recordUploadedUtterance(userId: string, input: UploadInput
   const expiresAt = new Date(now.getTime() + UTTERANCE_RETENTION_DAYS * DAY_MS)
   await writeDataFile(segs, input.audio)
   try {
-    await prisma.utterance.create({
-      data: {
-        id,
-        userId,
-        audioPath: segs.join('/'),
-        audioBytes: input.audio.length,
-        durationMs,
-        sampleRate: UTTERANCE_SAMPLE_RATE,
-        realtimeEngine: key,
-        realtimeText: input.text,
-        finalText: input.text,
-        finalSource: 'REALTIME',
-        status: 'RECORDED',
-        timings: timingsJson(input.timings, input.segments),
-        audioExpiresAt: expiresAt,
-        createdAt: now,
-      },
-      select: { id: true },
+    await utteranceDb.create({
+      id,
+      userId,
+      chatId: input.chatId,
+      audioPath: segs.join('/'),
+      audioBytes: input.audio.length,
+      durationMs,
+      sampleRate: UTTERANCE_SAMPLE_RATE,
+      realtimeEngine: key,
+      realtimeText: input.text,
+      finalText: input.text,
+      finalSource: 'REALTIME',
+      status: 'RECORDED',
+      timings: timingsJson(input.timings, input.segments),
+      audioExpiresAt: expiresAt,
+      createdAt: now,
     })
   } catch (e) {
     await removeDataFile(segs).catch(() => undefined)
+    if (isFkMissing(e)) throw ownerGone()
     throw e
   }
   schedulePurge()
@@ -116,7 +122,7 @@ export interface RegisteredGatewayUtterance {
   expiresAt: string
 }
 
-/** gateway `final` 직전 콜백 — 행을 만들고 저장 위치를 돌려준다. 소유자는 gateway 가 검증한 티켓 `sub`. */
+/** gateway `final` 직전 콜백 — 행을 만들고 저장 위치를 돌려준다. 소유자는 gateway 가 검증한 티켓 `sub`, 방은 티켓 `chatId`(라우트가 소유 확인). */
 export async function registerGatewayUtterance(input: GatewayUtteranceInput): Promise<RegisteredGatewayUtterance> {
   const key = await realtimeKey(input.realtimeEngine)
   const now = new Date()
@@ -124,35 +130,33 @@ export async function registerGatewayUtterance(input: GatewayUtteranceInput): Pr
   const segs = utteranceSegments(input.userId, id, now)
   const expiresAt = new Date(now.getTime() + UTTERANCE_RETENTION_DAYS * DAY_MS)
   try {
-    await prisma.utterance.create({
-      data: {
-        id,
-        userId: input.userId,
-        audioPath: segs.join('/'),
-        audioBytes: input.audioBytes,
-        durationMs: input.durationMs,
-        sampleRate: input.sampleRate,
-        realtimeEngine: key,
-        realtimeText: input.realtimeText,
-        finalText: input.realtimeText,
-        finalSource: 'REALTIME',
-        status: 'RECORDED',
-        timings: timingsJson(input.timings, input.segments),
-        traceId: input.traceId,
-        audioExpiresAt: expiresAt,
-        createdAt: now,
-      },
-      select: { id: true },
+    await utteranceDb.create({
+      id,
+      userId: input.userId,
+      chatId: input.chatId,
+      audioPath: segs.join('/'),
+      audioBytes: input.audioBytes,
+      durationMs: input.durationMs,
+      sampleRate: input.sampleRate,
+      realtimeEngine: key,
+      realtimeText: input.realtimeText,
+      finalText: input.realtimeText,
+      finalSource: 'REALTIME',
+      status: 'RECORDED',
+      timings: timingsJson(input.timings, input.segments),
+      traceId: input.traceId,
+      audioExpiresAt: expiresAt,
+      createdAt: now,
     })
   } catch (e) {
-    if (isFkMissing(e)) throw new ApiError('NOT_FOUND', '사용자를 찾을 수 없어요.')
+    if (isFkMissing(e)) throw ownerGone()
     throw e
   }
   try {
     await ensureDataDir(segs)
   } catch (e) {
     // 파일이 들어갈 자리가 없으면 행도 남기지 않는다(gateway 는 콜백 실패로 처리 — README §5 _orphan).
-    await prisma.utterance.delete({ where: { id } }).catch(() => undefined)
+    await utteranceDb.remove(id).catch(() => undefined)
     throw e
   }
   schedulePurge()

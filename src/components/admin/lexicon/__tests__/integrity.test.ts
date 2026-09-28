@@ -27,6 +27,7 @@ const version = (p: Partial<LexiconVersionDto>): LexiconVersionDto => ({
   integrity: 'OK',
   reason: null,
   action: 'lexicon.create',
+  rollbackOf: null,
   restoredFrom: null,
   ...p,
 })

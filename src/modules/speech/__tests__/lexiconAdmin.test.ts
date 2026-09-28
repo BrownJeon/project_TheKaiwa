@@ -290,7 +290,7 @@ test('WAV 잇기: 길이 = 합 + 간격, 형식이 다르면 null', () => {
 
 // ── 버전 전이(메모리 가짜 트랜잭션) ──────────────────────────────────────
 
-type Ver = { id: string; environment: string; version: number; status: string; snapshotHash: string; snapshot: unknown; changeSummary: string | null; actorUserId: string | null; createdAt: Date }
+type Ver = { id: string; environment: string; version: number; status: string; snapshotHash: string; snapshot: unknown; changeSummary: string | null; rollbackOf?: number | null; actorUserId: string | null; createdAt: Date }
 type Ent = LexiconEntryRow & { environment: string; createdAt: Date; updatedAt: Date }
 
 function fakeTx(entries: Ent[], versions: Ver[], writes: string[] = []): Tx {
@@ -390,6 +390,8 @@ test('버전 전이: 변경마다 새 ACTIVE 1·직전 SUPERSEDED, 무변경은 
   assert.deepEqual([rb.version.version, rb.restoredFrom, rb.counts, rb.changeSummary], [5, 1, { add: 0, update: 0, disable: 1 }, 'v1 로 되돌림: QA'])
   assert.equal(statuses(), '1:SUPERSEDED 2:SUPERSEDED 3:SUPERSEDED 4:ROLLED_BACK 5:ACTIVE')
   assert.equal(versions[4].snapshotHash, versions[0].snapshotHash)
+  // task-018 ③: 되돌림 버전만 원본 번호를 rollbackOf 칸에(changeSummary 문장은 그대로), 일반 쓰기는 null
+  assert.deepEqual(versions.slice(1).map((v) => v.rollbackOf), [null, null, null, 1])
   assert.equal(entries.length, 3) // 물리 삭제 없음 — 되돌린 항목은 비활성으로 남는다
   assert.equal(entries.find((e) => e.surface === '秋葉原')?.enabled, false)
   await assert.rejects(writeLexicon(tx, ctx(5), { kind: 'ROLLBACK', targetVersion: 5 }), (e: unknown) => e instanceof LexiconRollbackRejectedError && e.reason === 'ALREADY_ACTIVE')

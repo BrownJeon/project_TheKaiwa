@@ -3,8 +3,8 @@
  * 사전 데이터의 읽기·쓰기(잠금·버전·스냅샷)는 L4 `speech`(`lexiconStore`) 공개 함수만 쓴다(module-dependency §11 `admin/speech/lexicon`).
  *
  * 버전·감사(domain-model·16 §2.3): 사전은 자체 버전 테이블(`PronunciationLexiconVersion`)이 정본이라 **ConfigurationVersion 은 만들지 않는다**.
- * 변경 1건 = 새 ACTIVE 버전 1 + AuditLog 1(같은 트랜잭션). AuditLog.scope = null + action `lexicon.*`(Leader ⑯ — `ConfigScope` 에 LEXICON 을
- * 넣는 건 공유 DB db push 라 하지 않음), targetId `lexicon:v<새 버전>` 으로 버전과 1:1.
+ * 변경 1건 = 새 ACTIVE 버전 1 + AuditLog 1(같은 트랜잭션). AuditLog.scope = `LEXICON`(task-018 ② — 그 전 행은 null) + action `lexicon.*`,
+ * targetId `lexicon:v<새 버전>` 으로 버전과 1:1. 되돌림 버전은 `rollbackOf` 칸에 원본 번호가 남는다(task-018 ③).
  * PRODUCTION(요청을 처리하는 프로세스의 APP_ENV — 사전은 환경별 행) 쓰기 = `config.apply.production`(SUPER_ADMIN) + 본문 `confirm:"PRODUCTION"`
  * (task-005b 콘솔에 확인 토큰 방식이 아직 없어 Leader ⑧ 대로 본문 문구).
  *
@@ -12,7 +12,7 @@
  * PRODUCTION_CONFIRMATION_REQUIRED) · 404 · 409 CONFLICT(VERSION_CONFLICT·E_LEXICON_DUPLICATE·ALREADY_ACTIVE·NO_CHANGE) ·
  * 422 UNPROCESSABLE(E_LEXICON_ENTRY_INVALID·E_IMPORT_*·E_PREVIEW_TEXT_TOO_LONG) · 422 ENGINE_UNAVAILABLE · 429 · 502/504.
  */
-import { ApiError, codePointLength, dates, findAuditsByTargets, rateLimit, readFormDataCapped, recordAudit, sanitizeText, userBriefs, userExists, withTransaction, type AuditBrief } from '@/modules/infra'
+import { ApiError, codePointLength, dates, findAuditsByTargets, rateLimit, readFormDataCapped, recordAudit, sanitizeText, userBriefs, userExists, withTransaction, type AuditBrief, type AuditEntry } from '@/modules/infra'
 import { lessonExists, topicExists } from '@/modules/learning'
 import {
   afterLexiconCommit,
@@ -207,10 +207,25 @@ function mapStoreError(e: unknown): never {
   throw e
 }
 
-interface AuditParts {
+export interface AuditParts {
   action: string
   before: unknown
   after: unknown
+}
+
+/** 사전 쓰기 감사 행 — 범위 LEXICON(콘솔 이력의 "발음 사전" 필터), 대상 `lexicon:v<새 버전>`. */
+export function lexiconAuditEntry(actor: AdminActor, version: number, parts: AuditParts, reason: string): AuditEntry {
+  return {
+    environment: actor.environment,
+    actor: { id: actor.id, email: actor.email, role: actor.role },
+    action: parts.action,
+    scope: 'LEXICON',
+    targetId: lexiconAuditTarget(version),
+    before: parts.before,
+    after: parts.after,
+    reason,
+    ip: actor.ip,
+  }
 }
 
 /** 한 트랜잭션: 사전 쓰기(잠금·버전) + 감사 1행. 변경이 없으면 감사도 없다. 커밋 뒤 이 프로세스의 사전 캐시를 비운다. */
@@ -220,13 +235,7 @@ async function commit(actor: AdminActor, meta: LexiconWriteMeta, op: LexiconOp, 
     result = await withTransaction(
       async (tx) => {
         const r = await writeLexicon(tx, { environment: actor.environment, actorUserId: actor.id, baseVersion: meta.baseVersion, reason: meta.reason, missingRefs }, op)
-        if (r.changed) {
-          const a = audit(r)
-          await recordAudit(
-            { environment: actor.environment, actor: { id: actor.id, email: actor.email, role: actor.role }, action: a.action, scope: null, targetId: lexiconAuditTarget(r.version.version), before: a.before, after: a.after, reason: meta.reason, ip: actor.ip },
-            tx,
-          )
-        }
+        if (r.changed) await recordAudit(lexiconAuditEntry(actor, r.version.version, audit(r), meta.reason), tx)
         return r
       },
       { timeoutMs: 60_000, retries: 1 },
@@ -281,7 +290,8 @@ async function versionDtos(actor: AdminActor, rows: readonly LexiconVersionRow[]
       integrity: v.integrity,
       reason: audit?.reason ?? null,
       action: audit?.action ?? null,
-      restoredFrom: audit ? restoredFromOf(audit.after) : null,
+      rollbackOf: v.rollbackOf,
+      restoredFrom: v.rollbackOf ?? (audit ? restoredFromOf(audit.after) : null),
     }
   })
 }

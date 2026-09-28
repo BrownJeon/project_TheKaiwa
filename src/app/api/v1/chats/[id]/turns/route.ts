@@ -12,7 +12,8 @@ type Ctx = { params: Promise<{ id: string }> }
  * 스트림이 끊겨도 턴은 서버에서 끝까지 처리·저장된다(`startTurn` 이 연결과 무관한 promise 로 돈다 — §0-9).
  *
  * conversation 과 speech 는 서로 import 하지 않는다 — 이 라우트가 훅으로 잇는다(module-dependency §4-1):
- *  - `utteranceId`: 수락 전 speech 가 소유자·미연결·10분을 검사(404·409), 수락 직후 조건부 연결 + 고친 글자면 finalText=text(USER).
+ *  - `utteranceId`: 수락 전 speech 가 소유자·미연결·같은 방(발화에 방이 기록돼 있으면, task-018)·10분을 검사(404·409), 수락 직후 조건부 연결
+ *    + 고친 글자면 finalText=text(USER).
  *  - TALK 문장 음성: speech 의 턴 합성기(서명 URL·캐시·8초)를 conversation 의 speaker 자리에 넣는다.
  */
 export const POST = withApi<Ctx>(async (req, ctx) => {
@@ -27,13 +28,13 @@ export const POST = withApi<Ctx>(async (req, ctx) => {
     const text = request.text
     let utterance: TurnUtterance | null = null
     hooks.gate = async () => {
-      utterance = await checkUtteranceForTurn(userId, utteranceId)
+      utterance = await checkUtteranceForTurn(userId, utteranceId, id)
     }
     hooks.onAccepted = async (a) => {
       if (!utterance) return null
       const t = Date.now()
       const r = await linkUtteranceToMessage({ userId, utterance, messageId: a.userMessageId, text })
-      return { name: 'UTTERANCE_LINK', ms: Date.now() - t, linked: r.linked, finalSourceUser: r.finalSourceUser, ...(r.linked ? {} : { warning: 'UTTERANCE_LINK_SKIPPED' }) }
+      return { name: 'UTTERANCE_LINK', ms: Date.now() - t, linked: r.linked, finalSourceUser: r.finalSourceUser, ...(r.warning ? { warning: r.warning } : {}) }
     }
   }
   const turn = await startTurn({ userId, chatId: id, request, hooks })

@@ -74,6 +74,7 @@ WS ping/pong 은 uvicorn 이 한다(`--ws-ping-interval 15 --ws-ping-timeout 30`
 
 - 헤더: `X-Internal-Secret: $SPEECH_INTERNAL_SECRET` · `X-Service: gateway` · `X-Service-Env: $APP_ENV` · `X-Trace-Id` · `Content-Type: application/json`.
 - 본문: `{userId, chatId:string|null, durationMs, sampleRate:16000, audioBytes, realtimeEngine:"reazon-gateway"(connection key 스냅샷), realtimeText(≤1000자), segments:[{segIdx,start,end,text}](≤50, 넘치면 50번째에 합침), timings:{vadMs,sttMs,decodeMs}, traceId, tmpPath}` — 오디오 바이트는 싣지 않는다(tmpPath 는 DATA_ROOT 상대, 앱이 안 써도 됨).
+- 앱은 `chatId`(티켓 클레임)가 그 사용자의 방인지 다시 확인해 `Utterance.chatId` 로 남긴다(task-018 — #32 턴이 같은 방 발화만 받는다). 아니면 `404` → 아래 실패 처리(4xx 는 재시도 없음).
 - 응답: 앱 봉투 `{success:true, data:{utteranceId, audioPath, finalPath?, expiresAt?}}`(봉투 없이 data 만 와도 받음). `audioPath` = `users/<같은 userId>/utterances/<…>.wav`(DATA_ROOT 상대, 조각 `[A-Za-z0-9][A-Za-z0-9._-]*`, `incoming`·`_orphan` 금지). `finalPath` 가 오면 `DATA_ROOT/audioPath` 와 같아야 한다. id·경로는 앱이 정한다(Utterance 는 L4 speech 소유 테이블, Python 은 앱 테이블을 쓰지 않는다).
 - 실패: 타임아웃 5s(`gateway.internal_callback_timeout_ms`), **연결 오류·5xx 만 1회 재시도**(타임아웃은 재시도 안 함 — 실시간 경로가 두 배가 된다). 그래도 실패하면 wav 를 `users/<userId>/utterances/_orphan/<32hex>.wav` 로 옮기고 `final.utteranceId:null`(텍스트는 그대로 → 클라는 텍스트 턴으로 이어간다). 콜백은 성공했는데 `audioPath` 가 규칙 밖이면 행은 살아 있으므로 `utteranceId` 는 돌려주고 파일만 `_orphan`.
 - 연결이 끊겨 콜백이 취소되면 `.part` 를 `_orphan` 으로 옮긴다(incoming 에 방치하지 않는다). 보존 30일 삭제는 앱 정리 잡 몫 — gateway 는 지우지 않는다.

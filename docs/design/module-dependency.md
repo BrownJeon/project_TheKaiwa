@@ -304,11 +304,13 @@ export default [
   infra.native.getSherpaStt() 존재+모델 설치 → speech.createRealtimeSttClient(config, capability)
      ├─ OnDeviceSherpaClient  : SherpaStt.start() … 이벤트 vad/partial/final{text, durationMs, wavPath}
      └─ WebSocketSttClient    : POST /api/v1/speech/ticket ⇒ wss /ws/speech (nginx ⇒ gateway :8100)
-                                gateway: VAD+ReazonSpeech → final{utteranceId,…} (gateway 가 ⇒ POST /api/internal/speech/utterances 로 행 생성)
+                                gateway: VAD+ReazonSpeech → final{utteranceId,…} (gateway 가 ⇒ POST /api/internal/speech/utterances 로 행 생성
+                                — 라우트가 티켓 chatId 를 conversation.getOwnedChat 으로 확인한 뒤 Utterance.chatId 로 저장, task-018)
   (온디바이스 경로) ⇒ POST /api/v1/speech/utterances (multipart wav ≤60s·≤2MB, realtimeText, timings)
 
 [POST /api/v1/speech/utterances]
   infra.requireUser → infra.parseBody
+  → conversation.getOwnedChat(userId, chatId)                     # chatId 가 있으면 소유 확인(타인 404) — 라우트 조합, 확인한 방만 저장(task-018)
   → speech.createUtterance(userId, {chatId, realtimeEngine, realtimeText, durationMs, timings})
   → speech.storeUtteranceAudio(userId, utteranceId, wav)          # infra.storage.utteranceAudioPath
   → speech.enqueueAnalysis(utteranceId, 'ANALYSIS_STT')            # infra.jobs.enqueueSpeechJob (recognitionMode≠OFFLINE)

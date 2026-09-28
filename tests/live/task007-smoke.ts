@@ -10,6 +10,8 @@
  *  G. #29: USER utteranceId·audioAvailable, ASSISTANT speechStyle
  *  H. clientTimings: 이번 Trace STT 단계, 직전 Trace PLAYBACK 단계 / Trace·toolLog 에 원문 0
  *  I. 예열 프로세스: dev 서버 자식 claude 대기 ≤ 2
+ *  K. task-018 발화 ↔ 방: #21·internal 콜백 chatId 저장(타인 방 404)·다른 방 발화 409 UTTERANCE_OTHER_CHAT·같은 방 발화 연결·DB unique(P2002)
+ *     — `db push`(Utterance.chatId·chatMessageId @unique) 뒤에만 돌린다. internal 콜백은 `.env` 의 SPEECH_INTERNAL_SECRET 이 필요하다.
  * TTS 불가(TEXT_ONLY) 경로는 M4 가 운영과 공유라 멈출 수 없어 단위 테스트(conversation/__tests__/task007 TEXT_ONLY)로 갈음한다(SKIP 표시).
  *
  * 실행(우분투 미러): `bash tests/live/task007-smoke.sh [포트=3011]`. Claude CLI 약 8회. 만든 행(QA 계정 Chat·Utterance·wav·Trace)은 끝에 지운다.
@@ -141,8 +143,9 @@ function wav(ms: number): Buffer {
   for (let i = 44; i + 1 < b.length; i += 2) b.writeInt16LE(Math.round(Math.sin(i / 20) * 3000), i)
   return b
 }
-function uploadForm(text: string, key: string): FormData {
+function uploadForm(text: string, key: string, chatId?: string): FormData {
   const f = new FormData()
+  if (chatId) f.set('chatId', chatId)
   f.set('audio', new File([new Uint8Array(wav(1200))], 'u.wav', { type: 'audio/wav' }))
   f.set('text', text)
   f.set('realtimeConnectionKey', key)
@@ -339,6 +342,51 @@ async function main(): Promise<void> {
     check('I1 대기 예열 CLI ≤ 2', kids.length <= 2, `idle=${kids.length}`)
   } else skip('I1 대기 예열 CLI', 'DEV_PID 없음')
   skip('J TTS 불가(TEXT_ONLY) → done 정상·audioCount 0·TTS_UNAVAILABLE', 'M4 는 운영과 공유 — 단위 테스트 conversation/__tests__/task007 "TEXT_ONLY" 로 갈음')
+
+  // ── K. task-018 발화 ↔ 방 결속·메시지당 발화 1 ────────────────────────
+  const upK = await call(C1, 'POST', '/api/v1/speech/utterances', { form: uploadForm('雨が好きです', sttKey, chat) })
+  const uK = String(data(upK).utteranceId ?? '')
+  if (uK) createdUtterances.push(uK)
+  const kRow = uK ? await prisma.utterance.findUnique({ where: { id: uK }, select: { chatId: true } }) : null
+  check('K1 #21 chatId → Utterance.chatId 저장', upK.status === 200 && kRow?.chatId === chat, `${upK.status}`)
+  const kOther = await rejected({ text: '雨が好きです', utteranceId: uK })
+  check('K2 다른 방(CHAT)에서 녹음한 발화로 TALK 턴 → 409 UTTERANCE_OTHER_CHAT·행 0·SSE 0', kOther.status === 409 && kOther.reason === 'UTTERANCE_OTHER_CHAT' && kOther.rowsAdded === 0 && kOther.sse === 0, `${kOther.status} ${String(kOther.reason)}`)
+  const kForeign = await call(C2, 'POST', '/api/v1/speech/utterances', { form: uploadForm('こんにちは', sttKey, talk) })
+  if (typeof data(kForeign).utteranceId === 'string') createdUtterances.push(String(data(kForeign).utteranceId))
+  check('K3 타인 방 chatId 로 #21 업로드 → 404(행 0)', kForeign.status === 404)
+  const internal = process.env.SPEECH_INTERNAL_SECRET ?? ''
+  if (internal.length >= 16) {
+    const qa2 = await prisma.user.findUniqueOrThrow({ where: { email: 'qa-bot2@thekaiwa.test' }, select: { id: true } })
+    const H = { 'X-Internal-Secret': internal, 'X-Service': 'gateway' }
+    const cb = (userId: string, chatId: string | null) => ({ userId, chatId, durationMs: 1200, sampleRate: 16000, audioBytes: 38444, realtimeEngine: sttKey, realtimeText: 'はい', traceId: null })
+    const reg = await call(null, 'POST', '/api/internal/speech/utterances', { json: cb(qa.id, talk), headers: H })
+    const regId = String(data(reg).utteranceId ?? '')
+    if (regId) createdUtterances.push(regId)
+    const regRow = regId ? await prisma.utterance.findUnique({ where: { id: regId }, select: { chatId: true } }) : null
+    check('K4 internal 콜백: 티켓 chatId → Utterance.chatId 저장', reg.status === 200 && regRow?.chatId === talk, `${reg.status}`)
+    const regForeign = await call(null, 'POST', '/api/internal/speech/utterances', { json: cb(qa2.id, talk), headers: H })
+    if (typeof data(regForeign).utteranceId === 'string') createdUtterances.push(String(data(regForeign).utteranceId))
+    check('K5 internal 콜백: 티켓 사용자의 방이 아니면 404(행 0)', regForeign.status === 404)
+  } else skip('K4·K5 internal 콜백 chatId', 'SPEECH_INTERNAL_SECRET 없음')
+  const upS = await call(C1, 'POST', '/api/v1/speech/utterances', { form: uploadForm('雨の日は家にいます', sttKey, talk) })
+  const uS = String(data(upS).utteranceId ?? '')
+  if (uS) createdUtterances.push(uS)
+  const tS = await turnOk(C1, talk, { text: '雨の日は家にいます', utteranceId: uS, inputSource: 'REALTIME_STT' })
+  const dS = tS.events.find((e) => e.event === 'done')?.data ?? {}
+  traceIds.push(String(dS.traceId ?? ''))
+  await sleep(1_500)
+  const sRow = uS ? await prisma.utterance.findUnique({ where: { id: uS }, select: { chatId: true, chatMessageId: true } }) : null
+  check('K6 같은 방 발화로 턴 → 연결(chatId = 방·chatMessageId = 사용자 메시지)', tS.status === 200 && sRow?.chatId === talk && !!dS.userMessageId && sRow?.chatMessageId === dS.userMessageId)
+  let dupCode = ''
+  if (u3 && dS.userMessageId) {
+    try {
+      await prisma.utterance.update({ where: { id: u3 }, data: { chatMessageId: String(dS.userMessageId) } })
+      dupCode = 'none'
+    } catch (e) {
+      dupCode = (e as { code?: string }).code ?? 'other'
+    }
+  }
+  check('K7 DB: 이미 발화가 붙은 메시지에 두 번째 발화를 붙이면 P2002(chatMessageId @unique)', dupCode === 'P2002', dupCode)
 }
 
 main()

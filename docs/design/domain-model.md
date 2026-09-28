@@ -764,6 +764,8 @@ enum ConfigScope {
   APP_SETTING
   VOICE_PROFILE
   PRESET
+  /// 발음 사전(task-018 ②) — **AuditLog 전용**. 사전은 자체 버전 테이블(PronunciationLexiconVersion)이 정본이라 ConfigurationVersion·RuntimeOverride 는 이 값을 쓰지 않는다
+  LEXICON
 }
 
 enum ConfigVersionStatus {
@@ -1042,6 +1044,7 @@ model Chat {
   messages    ChatMessage[]
   corrections Correction[]
   proposals   TutorProposal[]
+  utterances  Utterance[]
 
   @@index([userId, kind, lastMessageAt])
 }
@@ -1067,7 +1070,8 @@ model ChatMessage {
 
   corrections Correction[]
   proposals   TutorProposal[]
-  utterances  Utterance[]
+  /// 이 메시지로 보낸 발화(0~1 — Utterance.chatMessageId @unique, task-018 ①)
+  utterance   Utterance?
 
   @@index([chatId, id])
   @@index([userId, createdAt])
@@ -1545,7 +1549,11 @@ model LearnerErrorStat {
 model Utterance {
   id                   String          @id @default(cuid())
   userId               String
-  chatMessageId        String?
+  /// 발화가 만들어진 대화방(task-018 ①). gateway 경로 = TURN 티켓의 chatId, 온디바이스(#21) = 요청 chatId — 둘 다 소유자 확인된 방만, 방 밖 녹음·옛 행은 null.
+  /// #32 턴 연결 때 값이 있으면 턴의 방과 같아야 한다(다르면 409 UTTERANCE_OTHER_CHAT). 방 삭제 시 SetNull
+  chatId               String?
+  /// 발화 1개 = 메시지 1개(task-018 ①, §8 #17 해소) — 한 메시지에 발화 둘이 붙지 않게 DB 가 막는다(한 발화가 두 메시지에 붙지 않는 것은 칸이 하나 + 조건부 연결 WHERE chatMessageId IS NULL)
+  chatMessageId        String?         @unique
   evaluationItemId     String?
   lessonId             String?
   audioPath            String?         @db.VarChar(300)
@@ -1571,6 +1579,7 @@ model Utterance {
   createdAt            DateTime        @default(now())
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat           Chat?           @relation(fields: [chatId], references: [id], onDelete: SetNull)
   chatMessage    ChatMessage?    @relation(fields: [chatMessageId], references: [id], onDelete: SetNull)
   evaluationItem EvaluationItem? @relation(fields: [evaluationItemId], references: [id], onDelete: SetNull)
   lesson         Lesson?         @relation(fields: [lessonId], references: [id], onDelete: SetNull)
@@ -1579,7 +1588,7 @@ model Utterance {
   jobs     SpeechJob[]
 
   @@index([userId, createdAt])
-  @@index([chatMessageId])
+  @@index([chatId])
   @@index([status, createdAt])
   @@index([audioExpiresAt])
 }
@@ -1699,7 +1708,7 @@ model PronunciationLexiconEntry {
   @@index([environment, surface])
 }
 
-/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전, 밀려난 직전 ACTIVE 가 ROLLED_BACK(복원 대상 버전 상태는 그대로 — admin-console/09 §5 와 같은 뜻). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog 만(scope=null·action lexicon.*·targetId lexicon:v<n> — ConfigScope 에 LEXICON 없음, task-003g)
+/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전, 밀려난 직전 ACTIVE 가 ROLLED_BACK(복원 대상 버전 상태는 그대로 — admin-console/09 §5 와 같은 뜻). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog 만(scope=LEXICON — task-018 ②, 그 전 행은 null · action lexicon.* · targetId lexicon:v<n>)
 model PronunciationLexiconVersion {
   id            String   @id @default(cuid())
   environment   Environment
@@ -1710,6 +1719,8 @@ model PronunciationLexiconVersion {
   /// 이 버전에 포함된 entry 스냅샷 [{surface, reading, accentType, wordType, priority, scope, scopeRefId, enabled}]
   snapshot      Json
   changeSummary String?  @db.VarChar(300)
+  /// Rollback 으로 만든 버전이면 복원한 원본 버전 번호(task-018 ③). 그 밖·task-018 전 행은 null. changeSummary("v7 로 되돌림: {이유}")는 그대로 남긴다
+  rollbackOf    Int?
   actorUserId   String?
   status        ConfigVersionStatus @default(ACTIVE)
   createdAt     DateTime @default(now())
@@ -2055,7 +2066,7 @@ model DebugSession {
 | `AppAuthCode` | 앱 딥링크 1회용 코드 | `code`, `expiresAt`, `usedAt` | L6 | `GET /api/auth/google/callback?platform=app` | 만료 행 주기 purge | 0 |
 | `AiJob` | 30초 초과 LLM 작업 폴링 | `kind`, `status`, `refId`, `progress`, `payload`(입력 메타만) | L6 | 점검·레슨·평가·분석 요청 | 기동 시 RUNNING(10분↑)→FAILED, 30일 후 purge | 1 |
 | `AppRelease` | APK 배포본·최소 지원 버전 | `versionCode`, `sha256`, `minSupported` | L6 | deployer 네이티브 변경 배포 | 삭제 없음 | 1 |
-| `AuditLog` | 관리자 행위 감사 | `action`, `scope`, `targetId`, `before/after`, `actorEmailSnap` | L6 | 모든 admin 쓰기·민감 읽기(role-permission.md §7) | **append-only, 삭제 없음** | 1 |
+| `AuditLog` | 관리자 행위 감사 | `action`, `scope`(발음 사전 = `LEXICON`, task-018), `targetId`, `before/after`, `actorEmailSnap` | L6 | 모든 admin 쓰기·민감 읽기(role-permission.md §7) | **append-only, 삭제 없음** | 1 |
 | `Profile` | 학습 설정(기본정보·목표·학습) | `level`, `politeness`, `goal*`, `dailyWordCount`, `dailyMinutes`, `strictness`(기본 STRICT), `explainLang`, `explainDepth`, `teacherName` | L1 | 첫 로그인 시 기본값 upsert | User Cascade. `SET_LEVEL` 제안은 채택 시에만 반영 | 1 |
 | `UserVoiceSetting` | AI 선생님 목소리 설정 | `voiceProfileId`, `style`, `speed`, `pitch`, `intonation`, `speechProfile` | L1 | 설정 화면 첫 저장(없으면 기본값으로 해석) | Voice DISABLED 시 앱이 `voiceProfileId=null`(기본 voice) 전환, hard delete 시 SetNull | 1 |
 | `UserSpeechSetting` | 음성 인식 모드 | `recognitionMode` | L1 | 설정 화면 첫 저장 | User Cascade | 1 |
@@ -2096,12 +2107,12 @@ model DebugSession {
 
 | 모델 | 목적 | 핵심 필드 | 소유 층 | 생성 시점 | 삭제/보존 정책 | Phase |
 |---|---|---|---|---|---|---|
-| `Utterance` | 발화 1건(오디오+두 전사) | `audioPath`, `realtimeEngine`, `realtimeText`, `analysisText`, `transcriptConfidence`, `requiresReview`, `finalText`, `status`, `trainingOptIn` | L4 | `POST /api/v1/speech/utterances`(온디바이스) / gateway `final` 콜백 | **오디오 30일** 후 purge(`audioDeletedAt`), 텍스트·분석 영구. 사용자 삭제 시 파일 즉시 삭제 | 1(기록)/2(분석) |
+| `Utterance` | 발화 1건(오디오+두 전사) | `audioPath`, `chatId`(발화가 만들어진 방, task-018), `chatMessageId`(@unique — 메시지당 발화 ≤1), `realtimeEngine`, `realtimeText`, `analysisText`, `transcriptConfidence`, `requiresReview`, `finalText`, `status`, `trainingOptIn` | L4 | `POST /api/v1/speech/utterances`(온디바이스) / gateway `final` 콜백 | **오디오 30일** 후 purge(`audioDeletedAt`), 텍스트·분석 영구. 사용자 삭제 시 파일 즉시 삭제 | 1(기록)/2(분석) |
 | `SpeechAnalysis` | 분석 결과 | `grammarScore`, `pronunciationScore`, `fluencyScore`, `wordScores`, `mora`, `pitch`, `feedbackKo` | L4 | worker `POST /api/internal/speech/utterances/:id/analysis` | Utterance Cascade | 2/3 |
 | `SpeechJob` | 분석 큐(MariaDB) | `kind`, `status`, `attempts`, `runAfter`, `lockedBy` | L4 | Utterance 저장 직후 enqueue(ANALYSIS_STT), 분석 후 PRONUNCIATION | Utterance Cascade. DONE/FAILED 30일 후 purge | 2 |
 | `TtsCache` | 합성 캐시 | `key`, 파라미터 스냅샷, `path`, `hits`, `lastHitAt` | L4 | 첫 합성·미리듣기 | LRU(`lastHitAt`)·용량 상한 purge. Voice ARCHIVED 시 `voiceProfileId` 기준 purge | 1 |
 | `PronunciationLexiconEntry` | 발음 사전 항목(표기·읽기·악센트·우선순위·범위, 환경별) | `environment`, `surface`, `reading`, `accentType`, `priority`, `scope`, `scopeRefId`, `enabled` | L4 | Admin Console Pronunciation Dictionary·Import·(Phase 2) 사용자 USER scope | 삭제 = `enabled=false` + 새 사전 버전(물리 삭제 없음) | 1(P0) |
-| `PronunciationLexiconVersion` | 사전 스냅샷 버전(환경당 ACTIVE 1, Rollback) | `environment`, `version`, `snapshotHash`, `snapshot`, `status` | L4 | 항목 변경·Import·Rollback 마다 | 삭제 없음 | 1(P0) |
+| `PronunciationLexiconVersion` | 사전 스냅샷 버전(환경당 ACTIVE 1, Rollback) | `environment`, `version`, `snapshotHash`, `snapshot`, `status`, `rollbackOf`(되돌림 원본 번호, task-018) | L4 | 항목 변경·Import·Rollback 마다 | 삭제 없음 | 1(P0) |
 | `VoiceModel` | TTS 모델(SBV2 디렉토리) | `id`(모델명), `speakers`, `styles`, `status`, `sha256` | L4 | 시드 / `POST /api/admin/v1/voices/sync` / Import | Engine Restrict. 물리 삭제는 tts-service 관리 작업, 행은 ARCHIVED 로 보존 | 1 |
 | `VoiceProfile` | AI 선생님 목소리 | `displayName`, `voiceModelId`, `speaker`, `defaults`, `status`, `enabled`, `sortOrder` | L4 | 시드 2~3개 / Import REGISTERED | API 로 hard delete 없음(DISABLED→DELETING→ARCHIVED). UserVoiceSetting 은 disable 시 앱이 기본 voice 로 전환 | 1 |
 | `VoiceStyle` | 프로필별 스타일 | `name`, `label`, `styleWeightDefault` | L4 | 프로필과 함께(모델 `styles` 부분집합) | Profile Cascade | 1 |
@@ -2240,7 +2251,7 @@ model DebugSession {
 | `WordEntry` 삭제 | — | `VocabAttempt.wordId`, `Correction.savedWordId`, `EvaluationItem.wordId` | `VocabAttempt.*Snap`, `EvaluationItem.wordSurfaceSnap`, `StatsSnapshot`, `LearnerErrorStat` (규칙 2) | — |
 | `WordEntry` 보관(`archived`) | — | — | 전부(세트 풀에서만 제외) | — |
 | `StudyLog` 삭제 | — | `Evaluation.studyLogId` | `StatsSnapshot`(응답 `snapshotKept:true`), `Attendance` | — |
-| `Chat` 삭제 | `ChatMessage`, `Correction` | `TutorProposal.chatId/messageId`, `Utterance.chatMessageId` | `StatsSnapshot`, `LearnerErrorStat`, 채택으로 생긴 `WordEntry`/`StudyLog(ACCEPTED)`, `RequestTrace`(refId 만 남음) | 오디오는 30일 만료까지 유지 |
+| `Chat` 삭제 | `ChatMessage`, `Correction` | `TutorProposal.chatId/messageId`, `Utterance.chatId/chatMessageId` | `StatsSnapshot`, `LearnerErrorStat`, 채택으로 생긴 `WordEntry`/`StudyLog(ACCEPTED)`, `RequestTrace`(refId 만 남음) | 오디오는 30일 만료까지 유지 |
 | `VocabSession` 삭제 | `VocabAttempt` | — | `StatsSnapshot(VOCAB_SESSION·DAILY)`, `WordEntry` 카운터 | — |
 | `Lesson` 삭제 | — | `ReviewSchedule.lessonId`, `Utterance.lessonId` | `StatsSnapshot(LESSON)`, `StudyLog`(refId 만), `ReviewSchedule.itemIds`(id 문자열), `RepetitionItem`(`textJa` 스냅샷·카운터) | — |
 | `RepetitionItem` | (사용자 삭제 없음 — 단어 보관/삭제·레슨 삭제와 무관하게 유지) | — | 전부(카운터·판단 이력). 계정 삭제 시에만 Cascade | — |
@@ -2327,7 +2338,7 @@ model DebugSession {
 | 2 | `EngineMetricsDaily` 물화 vs 뷰 | **물화 테이블**(Trace 90일 purge 뒤에도 지표 유지, MariaDB 에서 p95 는 앱 계산이 단순) | Phase 3 Diagnostics 착수 시. 뷰로 바꿔도 API 계약은 동일 |
 | 3 | `EngineConnection.id`(cuid) vs `key`(슬러그) 중 admin API 경로 파라미터 | 경로는 `id`, 응답에 `key` 포함. Fallback 배열·Trace·Utterance 스냅샷은 사람이 읽는 `key` 를 쓰는 곳(Utterance·TtsCache)과 `id` 를 쓰는 곳(FallbackPolicy)이 갈린다 | api-contract 와 대조 후 한쪽으로 통일(제안: 스냅샷=key, 참조=id) |
 | 4 | `PromptVersion` "환경·키당 ACTIVE 1개" 를 DB 로 강제할 방법 | 앱 트랜잭션(`SELECT … FOR UPDATE`) | 구현 시 `activeKey` 생성 컬럼(ACTIVE 일 때만 key, 아니면 null) + unique 로 강제하는 안 검토 |
-| 5 | `Utterance` 와 `ChatMessage` 의 생성 순서(발화 → 메시지) 에서 `chatMessageId` 를 채우는 시점 | **확정(task-007)**: #32 라우트가 수락 **전** speech 로 검사(소유자·`chatMessageId IS NULL`(아니면 409 `UTTERANCE_USED`)·생성 10분 이내(아니면 409 `UTTERANCE_EXPIRED`)), 수락 **직후** 조건부 `updateMany WHERE id AND userId AND chatMessageId IS NULL` 로 연결(+ 보낸 text ≠ finalText 면 `finalText=text, finalSource=USER`). count 0 이면 턴은 계속하고 Trace `UTTERANCE_LINK` 경고 | 확정 |
+| 5 | `Utterance` 와 `ChatMessage` 의 생성 순서(발화 → 메시지) 에서 `chatMessageId` 를 채우는 시점 | **확정(task-007, task-018 보강)**: #32 라우트가 수락 **전** speech 로 검사(소유자·`chatMessageId IS NULL`(아니면 409 `UTTERANCE_USED`)·`Utterance.chatId` 가 있으면 턴의 방과 같음(아니면 409 `UTTERANCE_OTHER_CHAT`)·생성 10분 이내(아니면 409 `UTTERANCE_EXPIRED`)), 수락 **직후** 조건부 `updateMany WHERE id AND userId AND chatMessageId IS NULL` 로 연결(+ 보낸 text ≠ finalText 면 `finalText=text, finalSource=USER`). count 0 이면 턴은 계속하고 Trace `UTTERANCE_LINK` 경고 `UTTERANCE_LINK_SKIPPED`, `chatMessageId @unique` 위반(P2002)도 턴은 계속하고 경고 `UTTERANCE_USED` | 확정 |
 | 6 | `LearnerErrorStat.pattern` 어휘 통제(자유 문자열이면 집계가 갈라짐) | prompt-engineer 가 `errorType` 별 pattern 코드표를 tutor 프롬프트 스키마 enum 으로 고정 | task-004/006 |
 | 7 | `ErrorType.PRONUNCIATION` 추가(계획 초안에 없음) | `LearnerErrorStat` 전용, `Correction` 에서는 검증으로 거부 | 코디네이터 확인 |
 | 8 | `Profile.displayName` 유지 여부(규칙 6 목록 밖) | 기획서 "프로필 > 기본정보" 근거로 유지, 음성/엔진 무관 | 코디네이터 확인 |
@@ -2339,7 +2350,7 @@ model DebugSession {
 | 14 | `Scenario`·`ScenarioTopic` 도입 Phase(§9 제안) | Phase 2 task-010 에 포함 권고 | **사용자 결정 필요** |
 | 15 | `LearnerSkillState`·`LearningObservation` 도입 여부(§9 제안) | Phase 3 task-013, 기존 테이블 파생으로 시작 가능 | **사용자 결정 필요** |
 | 16 | `StudyLog.result`·`StatsSnapshot.data` JSON 형태(정합성 #12) | §9-3 에 정의 | 확정(문서화) |
-| 17 | 발화 ↔ 채팅 결속과 1회 연결의 DB 강제(Codex task-007 C1-2 후속) | **제안(사용자 승인 후 `db push`)**: `Utterance.chatId String?`(티켓 `chatId` 를 gateway 콜백이 보존) + `chatMessageId @unique`. 지금은 코드 검사(위 #5)와 사용자당 턴 락으로 막는다 — 같은 사용자가 자기 발화를 자기 다른 방에 쓰는 것은 수용 | **사용자 결정 필요**(공유 DB 스키마 변경) |
+| 17 | 발화 ↔ 채팅 결속과 1회 연결의 DB 강제(Codex task-007 C1-2 후속) | **해소(task-018, 2026-09-28 사용자 승인)**: `Utterance.chatId String?`(+`@@index`, `Chat` FK SetNull) — gateway 경로는 TURN 티켓 `chatId`, 온디바이스 #21 은 요청 `chatId`, 둘 다 라우트가 소유 확인한 방만 저장. `chatMessageId @unique`(메시지당 발화 ≤1, `ChatMessage.utterance` 1:1). 턴 연결은 위 #5(다른 방 발화 409 `UTTERANCE_OTHER_CHAT`, 방이 없는 발화는 예전 규칙). 공유 DB 의 옛 비고유 인덱스 `Utterance_chatMessageId_idx` 는 `db push` 가 지우지 않아 남는다(FK 보조, 무해) | 확정 |
 
 ## 9. 제안 엔티티 (3차 보완 2026-09-26 — 본문 §3 미변경, 사용자 결정 후 승격)
 

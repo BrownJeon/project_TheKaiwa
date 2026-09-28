@@ -26,7 +26,13 @@ export type ConfigSourceName =
   | 'USER_SETTING'
   | 'RUNTIME_OVERRIDE'
 export type EditabilityName = 'READ_ONLY' | 'RUNTIME_EDITABLE' | 'RESTART_REQUIRED' | 'REDEPLOY_REQUIRED' | 'SECRET'
-export type ConfigScopeName = 'ENGINE_CONNECTION' | 'FALLBACK_POLICY' | 'PROMPT' | 'APP_SETTING' | 'VOICE_PROFILE' | 'PRESET'
+/** `LEXICON` 은 AuditLog 전용(task-018 ②) — 발음 사전은 자체 버전 테이블이라 ConfigurationVersion·RuntimeOverride·Effective 에는 나오지 않는다. */
+export type ConfigScopeName = 'ENGINE_CONNECTION' | 'FALLBACK_POLICY' | 'PROMPT' | 'APP_SETTING' | 'VOICE_PROFILE' | 'PRESET' | 'LEXICON'
+/**
+ * 감사 이력(#137 `scope` 필터·History › Audit, Phase 2) 범위 라벨 중 정해진 것. 나머지 범위 라벨은 History 화면 구현 가이드가 정한다.
+ * task-018 전 사전 감사 행은 `scope=null` + action `lexicon.*` 이라 LEXICON 필터는 그 행도 함께 잡아야 한다(api-contract #137).
+ */
+export const AUDIT_SCOPE_LABELS: Partial<Record<ConfigScopeName, string>> = { LEXICON: '발음 사전' }
 export type VoiceStatusName = 'IMPORTING' | 'VALIDATING' | 'AVAILABLE' | 'DISABLED' | 'ERROR' | 'DELETING' | 'ARCHIVED'
 
 /** role-permission.md §2 의 capability 이름(정본 순서). 매트릭스 값은 `src/modules/admin/permissions/matrix.ts`. */

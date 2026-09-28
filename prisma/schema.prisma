@@ -377,6 +377,8 @@ enum ConfigScope {
   APP_SETTING
   VOICE_PROFILE
   PRESET
+  /// 발음 사전(task-018 ②) — **AuditLog 전용**. 사전은 자체 버전 테이블(PronunciationLexiconVersion)이 정본이라 ConfigurationVersion·RuntimeOverride 는 이 값을 쓰지 않는다
+  LEXICON
 }
 
 enum ConfigVersionStatus {
@@ -655,6 +657,7 @@ model Chat {
   messages    ChatMessage[]
   corrections Correction[]
   proposals   TutorProposal[]
+  utterances  Utterance[]
 
   @@index([userId, kind, lastMessageAt])
 }
@@ -680,7 +683,8 @@ model ChatMessage {
 
   corrections Correction[]
   proposals   TutorProposal[]
-  utterances  Utterance[]
+  /// 이 메시지로 보낸 발화(0~1 — Utterance.chatMessageId @unique, task-018 ①)
+  utterance   Utterance?
 
   @@index([chatId, id])
   @@index([userId, createdAt])
@@ -1158,7 +1162,11 @@ model LearnerErrorStat {
 model Utterance {
   id                   String          @id @default(cuid())
   userId               String
-  chatMessageId        String?
+  /// 발화가 만들어진 대화방(task-018 ①). gateway 경로 = TURN 티켓의 chatId, 온디바이스(#21) = 요청 chatId — 둘 다 소유자 확인된 방만, 방 밖 녹음·옛 행은 null.
+  /// #32 턴 연결 때 값이 있으면 턴의 방과 같아야 한다(다르면 409 UTTERANCE_OTHER_CHAT). 방 삭제 시 SetNull
+  chatId               String?
+  /// 발화 1개 = 메시지 1개(task-018 ①, §8 #17 해소) — 한 메시지에 발화 둘이 붙지 않게 DB 가 막는다(한 발화가 두 메시지에 붙지 않는 것은 칸이 하나 + 조건부 연결 WHERE chatMessageId IS NULL)
+  chatMessageId        String?         @unique
   evaluationItemId     String?
   lessonId             String?
   audioPath            String?         @db.VarChar(300)
@@ -1184,6 +1192,7 @@ model Utterance {
   createdAt            DateTime        @default(now())
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat           Chat?           @relation(fields: [chatId], references: [id], onDelete: SetNull)
   chatMessage    ChatMessage?    @relation(fields: [chatMessageId], references: [id], onDelete: SetNull)
   evaluationItem EvaluationItem? @relation(fields: [evaluationItemId], references: [id], onDelete: SetNull)
   lesson         Lesson?         @relation(fields: [lessonId], references: [id], onDelete: SetNull)
@@ -1192,7 +1201,7 @@ model Utterance {
   jobs     SpeechJob[]
 
   @@index([userId, createdAt])
-  @@index([chatMessageId])
+  @@index([chatId])
   @@index([status, createdAt])
   @@index([audioExpiresAt])
 }
@@ -1312,7 +1321,7 @@ model PronunciationLexiconEntry {
   @@index([environment, surface])
 }
 
-/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전, 밀려난 직전 ACTIVE 가 ROLLED_BACK(복원 대상 버전 상태는 그대로 — admin-console/09 §5 와 같은 뜻). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog 만(scope=null·action lexicon.*·targetId lexicon:v<n> — ConfigScope 에 LEXICON 없음, task-003g)
+/// 사전 버전(5차 §132, speech-platform/16 §2.3). 항목 쓰기(추가·수정·삭제·Import·enable 토글)는 한 트랜잭션에서 새 버전 + 직전 ACTIVE→SUPERSEDED, 환경당 ACTIVE 1행. Rollback = 대상 스냅샷을 복사한 새 버전, 밀려난 직전 ACTIVE 가 ROLLED_BACK(복원 대상 버전 상태는 그대로 — admin-console/09 §5 와 같은 뜻). dictionaryVersion(캐시 키·Trace·래퍼 헤더) = ACTIVE 행의 version, 비어 있으면 0. 별도 ConfigurationVersion 행은 만들지 않고 AuditLog 만(scope=LEXICON — task-018 ②, 그 전 행은 null · action lexicon.* · targetId lexicon:v<n>)
 model PronunciationLexiconVersion {
   id            String   @id @default(cuid())
   environment   Environment
@@ -1323,6 +1332,8 @@ model PronunciationLexiconVersion {
   /// 이 버전에 포함된 entry 스냅샷 [{surface, reading, accentType, wordType, priority, scope, scopeRefId, enabled}]
   snapshot      Json
   changeSummary String?  @db.VarChar(300)
+  /// Rollback 으로 만든 버전이면 복원한 원본 버전 번호(task-018 ③). 그 밖·task-018 전 행은 null. changeSummary("v7 로 되돌림: {이유}")는 그대로 남긴다
+  rollbackOf    Int?
   actorUserId   String?
   status        ConfigVersionStatus @default(ACTIVE)
   createdAt     DateTime @default(now())

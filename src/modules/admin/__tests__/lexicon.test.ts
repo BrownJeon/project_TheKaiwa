@@ -7,7 +7,7 @@ import { ApiError } from '@/modules/infra'
 import { LEXICON_PRODUCTION_CONFIRM } from '@/types/lexicon'
 import { can, capabilitiesOf } from '../permissions/can'
 import type { AdminActor } from '../permissions/guard'
-import { authorizeLexiconWrite, fieldErrors, lexiconAuditTarget, parseLexiconListQuery, parsePreviewBody, readWriteMeta } from '../speech/lexicon'
+import { authorizeLexiconWrite, fieldErrors, lexiconAuditEntry, lexiconAuditTarget, parseLexiconListQuery, parsePreviewBody, readWriteMeta } from '../speech/lexicon'
 
 function actor(role: AdminActor['role'], environment: AdminActor['environment'] = 'LOCAL'): AdminActor {
   return { id: `u_${role}`, email: `${role.toLowerCase()}@thekaiwa.test`, name: null, role, capabilities: capabilitiesOf(role), environment, ip: '127.0.0.1' }
@@ -86,4 +86,19 @@ test('미리듣기 본문: 예문 1~200자·초안 ≤20(칸 오류는 422 index
 
 test('감사 대상 id 는 버전과 1:1', () => {
   assert.equal(lexiconAuditTarget(7), 'lexicon:v7')
+})
+
+test('사전 감사 행: scope=LEXICON(task-018 ②)·targetId lexicon:v<새 버전>·작업자 스냅샷·이유·IP', () => {
+  const e = lexiconAuditEntry(actor('ADMIN', 'PRODUCTION'), 9, { action: 'lexicon.rollback', before: { version: 8 }, after: { version: 9, restoredFrom: 7 } }, '오독 되돌림')
+  assert.deepEqual(e, {
+    environment: 'PRODUCTION',
+    actor: { id: 'u_ADMIN', email: 'admin@thekaiwa.test', role: 'ADMIN' },
+    action: 'lexicon.rollback',
+    scope: 'LEXICON',
+    targetId: 'lexicon:v9',
+    before: { version: 8 },
+    after: { version: 9, restoredFrom: 7 },
+    reason: '오독 되돌림',
+    ip: '127.0.0.1',
+  })
 })
