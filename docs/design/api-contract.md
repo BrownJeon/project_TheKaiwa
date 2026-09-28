@@ -111,7 +111,7 @@
 
 | # | Method | Path | 목적 | auth | 층 | Phase | 요청 | 응답 |
 |---|---|---|---|---|---|---|---|---|
-| 1 | GET | `/api/health` | 의존성 boolean 점검 | P | infra | 0 | — | `{app,status,degraded[],checks{}}` |
+| 1 | GET | `/api/health` | 의존성 boolean 점검(필수 실패 시 503) | P | infra | 0 | — | `{app,env,status:ok\|degraded\|down,degraded[],checks{}}` |
 | 2 | GET | `/api/auth/google?platform=web\|app&callbackUrl=&challenge=` | OAuth 시작(앱은 PKCE `challenge` 필수) | P | infra/auth | 0 | query | 302 Google |
 | 3 | GET | `/api/auth/google/callback` | OAuth 콜백 → pending 쿠키 | P | infra/auth | 0 | `code,state` | 302 `/invite` 또는 착지 |
 | 4 | POST | `/api/auth/complete` | 초대코드 확인·계정 생성·세션/딥링크 | P(pending 쿠키) | infra/auth | 0 | `{inviteCode?}` | `{user}` 또는 `{appRedirect}` |
@@ -319,7 +319,9 @@
 
 ### 2-1. Phase 0 — 헬스 · 인증 · 앱 버전 · 모델 서빙
 
-#### #1 `GET /api/health` (공개, 항상 200)
+#### #1 `GET /api/health` (공개 — 필수 의존성 실패면 503)
+
+> **task-009 개정(2026-09-28)**: 운영 blue/green 헬스 게이트(`release.sh` 가 `curl -fsS`)로 쓰이므로 **필수 항목**(`db` = DB 접속 `SELECT 1` 2초 · `env_database` · `env_jwt` · `env_google_oauth` · `env_data_root`) 중 하나라도 실패하면 **HTTP 503 `status:"down"`** — 빈 `.env`·DB 불통 릴리스가 `current` 로 올라가지 않게 한다. 선택 항목(`llm`·`stt_gateway`·`stt_analysis`·`tts`·`env_internal_secret` 등)만 빠지면 **200 `status:"degraded"`**(TTS·M4 가 잠시 죽어도 배포는 막지 않는다). `down` 판정은 5초만 캐시(기동 직후 일시 실패가 30초 헬스 대기 내내 굳지 않게), 나머지 60초. 응답 `data.env` = `APP_ENV`(LOCAL|PRODUCTION). 아래 예시는 degraded(200) 형태, `checks` 에 `db` 키가 추가됐다.
 
 값을 절대 노출하지 않고 **설정·연결 여부 boolean 만** 보고한다(TheMeal `health/route.ts` 규약: 경로·URL·키를 싣지 않는다). 외부 서비스 점검은 각 서비스 `/health` 를 1.5초 타임아웃으로 호출하고 실패는 `false` 로만 기록한다(예외 메시지 미포함). 60초 메모리 캐시.
 

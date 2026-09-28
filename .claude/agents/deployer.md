@@ -83,7 +83,7 @@ model: haiku
 | tts-service(맥 M4) | `~/kaiwa-tts-run`(venv+uvicorn, :8200, 크론 와치독) — `git push` 웹훅 배포, **사용자 승인 게이트** |
 | 재사용 서비스 | VoiceVault whisper-service `127.0.0.1:8090`(분석 STT, 이 프로젝트가 배포하지 않음) |
 
-> ⚠️ **헬스체크의 한계**: `/api/health` 는 의존성이 빠져도 `status: "degraded"` 와 함께 HTTP 200 을 반환한다. 배포 후 반드시 본문 `data.status` 가 `"ok"` 인지, `checks.speech_gateway`·`checks.tts_service` 가 true 인지 확인한다.
+> ⚠️ **헬스체크 규칙(task-009 개정)**: `/api/health` 는 필수 항목(`db`·`env_database`·`env_jwt`·`env_google_oauth`·`env_data_root`)이 실패하면 **503 `down`**(release.sh 가 막는다), 선택 항목만 빠지면 **200 `degraded`**(배포는 통과). 그러니 200 이어도 배포 후 반드시 본문 `data.status == "ok"`·`data.env == "PRODUCTION"`, `checks.stt_gateway`·`checks.tts`·`checks.llm` 이 true 인지 확인한다.
 >
 > ```bash
 > scripts/deploy.sh TheKaiwa --status
@@ -101,7 +101,7 @@ scripts/deploy.sh TheKaiwa --rollback    # 직전 릴리스로 복귀 (사용자
 > 워크스페이스 루트(`/Volumes/homes/brownjeon/project`)에서 실행한다.
 
 ### 프로젝트별 확인 항목
-- [ ] `/api/health` 본문 `data.status == "ok"`, `degraded == []`, `checks.speech_gateway/tts_service/claude_cli == true`
+- [ ] `/api/health` 본문 `data.status == "ok"`, `data.env == "PRODUCTION"`, `degraded == []`, `checks.db/stt_gateway/tts/llm == true`
 - [ ] 홈·오늘·회화 화면이 **360 / 390 / 412 세 폭** 모두 정상
 - [ ] 로그인(구글 OAuth) 진입 — 콜백 베이스가 퓨니코드 도메인
 - [ ] 회화 1턴 실호출(gateway 폴백 경로) → `RequestTrace` 1건 생성, TTS 재생
