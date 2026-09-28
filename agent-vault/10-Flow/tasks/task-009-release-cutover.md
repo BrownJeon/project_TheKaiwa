@@ -1,7 +1,7 @@
 ---
 task_id: task-009
 title: "Phase 1 통합 — 운영 blue/green 컷오버(미러 → 릴리스)·APP_ENV=PRODUCTION·운영 E2E·롤백 리허설"
-status: in-progress
+status: done
 base_ref: caa3155
 risk_level: R2
 roles_involved: [leader, judge, developer, reviewer, deployer, qa, codex]
@@ -160,7 +160,27 @@ design-spec §15 task-009 "Phase 1 통합 QA·라이브·APK" — 지금 운영�
 ```
 
 ## Deployer 기록
+- [13:52] (Leader, deploy-order §9-1) `/home/brownjeon/apps/thekaiwa/{shared,NFS→/home/brownjeon/NFS}` 생성, `shared/.env` = NFS `.env` 복사(600) + `APP_ENV=PRODUCTION` 한 줄 교체(`LC_ALL=C sed` — 셸 로캘 sd_IN 대비), APP_ENV 외 내용 동일 해시 확인(값 미출력).
+- [13:52] `bash scripts/deploy.sh TheKaiwa --dry-run`(NFS noexec 라 `bash` 로) — apps 2·port 3010·origin main·릴리스 직접 빌드·shared .env,logs 확인.
+- [13:53] **첫 컷오버 `--yes` → `RELEASE_RESULT ok`**(`20260928-135312-1264444e`, previous none): `ensure_current_cwd` 가 두 앱(미러 `thekaiwa`·NFS gateway)을 delete 후 릴리스에서 재등록, 헬스 정상. `tradinginvest` 등 다른 앱 무변경(uptime 그대로).
+- [13:54] 확인: health `env PRODUCTION`(직후 60초는 gateway 재기동 캐시로 `degraded [stt_gateway]` → 이후 `ok []`), gateway `/health ok`(모델 1.05s 로드), https 로그인 200·manifest·`/models` manifest·`/app/download/latest.apk` 200(`LingofyJapanese-1.0.1.apk`), 두 앱 cwd = 릴리스·restarts 0, `shared/logs` 4파일.
+- [14:05] **R4 롤백 리허설**: 두 번째 `--yes` → ok(`…140515-7b1f3abd`) → `--rollback --yes` → **`rolled_back`**(current = 첫 릴리스, 두 앱 cwd 이전 릴리스, health PRODUCTION) → 다시 `--yes` → **ok**(`…140558-7b1f3abd`, 현재 운영). 최종 health `PRODUCTION ok []`.
 
 ## QA 기록
+- [13:57~14:04] (Leader) **운영 E2E(PRODUCTION, 3010)** — `task008-smoke` **74/74**(단어) · `task006-smoke` **41/41**(채팅, 턴 p50 4,832ms) · `task007-smoke` 첫 시도 24/37 → 원인: 스크립트가 미러 `.env`(LOCAL) 의 REALTIME_STT connection id 로 업로드(운영은 PRODUCTION 행) — **테스트 도구 문제**, `SMOKE_ENV=PRODUCTION` 추가(7b1f3ab) 후 **37/37** · `task007-latency 3010 3`(실 gateway WS·운영 Origin → 발화 콜백 3010 → 턴 → 청크): 1차 2/3(첫 턴 연결 전 일시 실패 — gateway 로그에 세션 없음), 2차 **3/3**(stop→첫 음성 바이트 2.6~4.2s, #24 404 0). QA 계정 데이터 0 확인. admin 계열 QA 계정은 PRODUCTION 세션 불가(qa-session 안전장치) → 콘솔 배지는 사용자 로그인으로 확인 필요(health `env` 는 PRODUCTION).
 
 ## 최종 요약
+
+### 최종 요약 (Leader, 사용자용 — 2026-09-28)
+**무엇이 바뀌었나**: 운영이 **개발용 미러 폴더에서 벗어나 다른 프로젝트들과 같은 "릴리스 폴더 + 무중단 전환" 구조**로 옮겨졌습니다(`/home/brownjeon/apps/thekaiwa`). 새 버전은 따로 빌드한 뒤 상태 확인을 통과해야만 전환되고, 실패하면 자동으로 이전 버전에 머뭅니다. 배포는 `bash scripts/deploy.sh TheKaiwa --yes` 한 줄, 되돌리기는 `--rollback`.
+- **운영 환경이 PRODUCTION 으로 분리**됐습니다(운영 전용 `shared/.env`). 개발 서버는 LOCAL 그대로라 같은 DB 에서 설정이 섞이지 않습니다. 관리자 콘솔에서 운영 설정을 바꿀 때는 최고 관리자 확인이 적용됩니다.
+- 상태 확인(`/api/health`)이 DB 접속까지 실제로 보도록 바뀌어, DB 가 안 되는 버전은 운영으로 올라가지 못합니다(음성 합성 같은 부가 서비스가 잠시 멈춘 것은 배포를 막지 않음).
+- 개발용 미러는 이제 운영과 무관해서 "미러에서 빌드 금지" 제약이 풀렸습니다.
+
+**검증**: 첫 전환 `ok` → 재배포 `ok` → **롤백 `rolled_back`(정상) → 재배포 `ok`** 리허설 통과. 운영(PRODUCTION)에서 단어 74/74·채팅 41/41·회화 37/37·실제 음성 경로 3/3, 로그인·인식 모델·APK 다운로드 정상. judge·REV-025 PASS(지적 2건 반영 후 전환).
+
+**사용자에게 남은 것**
+1. **`tradinginvest` 가 재부팅 목록(pm2 dump)에 들어 있습니다** — 배포 스크립트가 배포마다 `pm2 save` 를 하므로(이미 오늘 다른 배포들도 저장) 켜져 있는 ⛔ TradingInvest 가 재부팅 때 같이 살아납니다. 끄려면 사용자 결정(`pm2 stop tradinginvest && pm2 save`) — 이 세션은 비활성 프로젝트를 건드리지 않았습니다. TheKaiwa 두 앱은 재부팅 자동 기동이 이제 됩니다(pm2 startup 은 이미 등록돼 있었음).
+2. push 자동 배포(webhook)는 설정하지 않았습니다 — 원하시면 알려 주세요(push 할 때마다 운영 배포).
+3. 관리자 콘솔 PRODUCTION 배지는 사용자 계정으로 한 번 확인 부탁드립니다(QA 관리자 계정은 운영에서 로그인이 막혀 있음).
+4. DB 구조 변경 3건 결정·폰 F6 확인은 그대로 대기.

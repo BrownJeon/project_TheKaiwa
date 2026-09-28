@@ -33,8 +33,9 @@ NFS 편집(SSOT) → ~/.node-local/thekaiwa 미러에서 dev 검증 → git push
                   └─ 503/무응답 → 이전 릴리스로 자동 롤백
 ```
 
-> **현재 상태 (2026-09-28)**: 컷오버 준비(task-009 R1) 완료 — 매니페스트·ecosystem·lock·헬스 게이트가 릴리스 구조를 지원한다.
-> **운영은 아직 미러에서 돈다**(pm2 `thekaiwa` cwd `~/.node-local/thekaiwa`, `thekaiwa-speech-gateway` cwd NFS `speech/gateway`, `APP_ENV=LOCAL`).
+> **현재 상태 (2026-09-28 14:06)**: ✅ **컷오버 완료(task-009 R2·R4)** — 운영은 `/home/brownjeon/apps/thekaiwa/current`(릴리스 `20260928-140558-7b1f3abd`) 에서 두 앱(`thekaiwa` :3010 · `thekaiwa-speech-gateway` 127.0.0.1:8100)이 돈다, `APP_ENV=PRODUCTION`(`shared/.env` 600), 로그 `shared/logs/`, `$BASE/NFS` 링크 있음.
+> 첫 배포 `ok`(13:53) → 두 번째 `ok` → **`--rollback` → `rolled_back`(health ok) → 다시 `ok`** 리허설 통과. 운영 E2E(PRODUCTION): 단어 74/74·채팅 41/41·회화 37/37(`SMOKE_ENV=PRODUCTION`)·게이트웨이 음성 3/3. **미러는 이제 개발 전용 — 미러 `npm run build` 허용.**
+> 배포 직후 1분 정도 health 가 `degraded ['stt_gateway']` 로 보일 수 있다 — gateway 가 모델을 다시 올리는 1~2초 동안의 판정이 60초 캐시에 남기 때문(정상, `curl 127.0.0.1:8100/health` 로 확인).
 > 최초 컷오버는 §9 절차로 Leader·deployer 가 한다. 컷오버가 끝나면 이 블록을 갱신한다.
 
 ---

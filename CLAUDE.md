@@ -147,7 +147,7 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | 대상 프로세스 | thekaiwa · thekaiwa-speech-gateway · thekaiwa-speech-worker |
 | M4 tts-service | `git push` 웹훅(사용자 승인 게이트), `http://192.168.219.100:8200/health` |
 | APK | 네이티브 변경 시 deployer `<apk_release>` → `/app/download/latest.apk` + `/api/app/version` 배너 |
-| 현재 상태 | **컷오버 준비 완료(task-009 R1)** — `deploy.yml` 앱 2개(thekaiwa·thekaiwa-speech-gateway)·`ecosystem.config.js` 릴리스 cwd(`__dirname`)·`shared/logs`·`package-lock.json` 재생성(격리 `npm ci`+build 실측)·`/api/health` 필수 실패 503. **운영은 아직 미러**(`~/.node-local/thekaiwa`, `APP_ENV=LOCAL`) — 컷오버(R2: `$BASE/NFS` 링크·`shared/.env` `APP_ENV=PRODUCTION`·`--yes`)는 `docs/deploy-order.md` §9. 컷오버 전까지 미러 `npm run build` 금지 |
+| 현재 상태 | ✅ **blue/green 운영 중(task-009, 2026-09-28)** — `/home/brownjeon/apps/thekaiwa/current` 릴리스에서 `thekaiwa`·`thekaiwa-speech-gateway`, `APP_ENV=PRODUCTION`(`shared/.env`), 로그 `shared/logs`. 배포 = `bash scripts/deploy.sh TheKaiwa --yes`(origin/main 기준), 롤백 = `--rollback`(리허설 통과). **미러는 개발 전용**(dev·typecheck·test·`npm run build` 허용 — 운영과 무관), 운영 스모크는 `SMOKE_ENV=PRODUCTION` + 포트 3010 |
 
 - 배포는 **`origin` 의 ref 기준**이다 — push 되지 않은 커밋은 나가지 않는다.
 - `--with-migrate`(DB 마이그레이션)는 **사용자 승인 사항**이다. 개발과 운영이 같은 NAS MariaDB 를 본다.
