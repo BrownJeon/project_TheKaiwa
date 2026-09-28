@@ -73,6 +73,13 @@ test('#9 파서 차이도 서버가 느슨하지 않게: 중복 키·정수 칸�
   assert.throws(() => parseManifestText(fileDup), /not valid json/, '파일 객체 안 중복 키도')
   assert.doesNotThrow(() => parseManifestText(good.replace('"license":"Apache-2.0"', '"license":"Apache-2.0","rtf":0.054')), '검사하지 않는 칸의 소수는 플러그인도 받는다')
   assert.doesNotThrow(() => parseManifestText(JSON.stringify({ ...base, note: 'a "quoted" \\ "engine": x' })), '문자열 안 따옴표·이스케이프는 키가 아니다')
+  // 이스케이프로 쓴 같은 키 — 푼 키로 비교해야 잡힌다(Codex C2 후속, A 가 찾은 틈).
+  const esc = good.replace('"engine":', '"\\u0065ngine":"sherpa-onnx","engine":')
+  assert.ok(esc.includes('\\u0065ngine'))
+  assert.throws(() => parseManifestText(esc), /not valid json/, '\\u0065ngine = engine')
+  assert.throws(() => parseManifestText(good.replace('"role":"vad"', '"r\\u006fle":"vad","role":"vad"')), /not valid json/, '파일 객체 안 이스케이프 중복')
+  assert.doesNotThrow(() => parseManifestText(good.replace('"engine":', '"\\u0065ngine":')), '이스케이프로 쓴 키가 한 번뿐이면 정상 키')
+  assert.doesNotThrow(() => parseManifestText(good.replace('"engine":', '"\\/engine":"x","engine":')), '다른 값으로 풀리는 이스케이프 키(/engine)는 중복이 아니다')
 })
 
 test('#9 실제 배포 manifest(speech/models/reazonspeech-int8) 통과 — 저장소가 보이는 곳에서만(미러는 THEKAIWA_REPO)', (t) => {

@@ -140,7 +140,12 @@ export function parseManifest(raw: unknown): ModelManifest {
   return { name, version, totalBytes: sum, files, minPluginVersion, meta }
 }
 
-/** 객체마다 같은 키가 두 번 나오는지(문자열 안 따옴표·이스케이프를 존중하는 작은 스캐너). */
+/**
+ * 객체마다 같은 키가 두 번 나오는지 — 키는 **JSON 문자열 이스케이프를 푼 값**으로 비교한다(`"engine"` 과 `"\u0065ngine"` 은 같은 키).
+ * 원문 글자로 비교하면 이스케이프로 쓴 중복 키를 놓쳐 서버가 플러그인보다 느슨해진다(REV-021 부류, A 가 찾은 틈).
+ * 문자열 끝은 이스케이프(`\x`)를 건너뛰며 찾고, 키 글자는 그 조각을 `JSON.parse` 로 풀어 쓴다(파서와 같은 규칙).
+ * 원문이 JSON 으로 읽히는지는 호출부(`parseManifestText`)가 먼저 확인한다 — 여기서 못 푸는 조각은 거절 쪽(true)으로 둔다.
+ */
 export function hasDuplicateKeys(text: string): boolean {
   const stack: Array<Set<string> | null> = []
   let expectKey = false
@@ -148,17 +153,17 @@ export function hasDuplicateKeys(text: string): boolean {
     const ch = text[i]
     if (ch === '"') {
       let j = i + 1
-      let s = ''
-      while (j < text.length && text[j] !== '"') {
-        if (text[j] === '\\') {
-          s += text[j + 1] ?? ''
-          j += 2
-        } else s += text[j++]
-      }
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1
       const top = stack[stack.length - 1]
       if (expectKey && top) {
-        if (top.has(s)) return true
-        top.add(s)
+        let key: unknown
+        try {
+          key = JSON.parse(text.slice(i, j + 1))
+        } catch {
+          return true
+        }
+        if (typeof key !== 'string' || top.has(key)) return true
+        top.add(key)
       }
       expectKey = false
       i = j
