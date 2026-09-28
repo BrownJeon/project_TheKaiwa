@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f)
 
 ---
 
@@ -78,7 +78,7 @@
 | 회화 | `/study/ai?tab=talk\|chat` (기본 `talk`) | AI와 공부하기 홈(회화·채팅 전환 · 회화 목록/채팅 목록 · 채택 대기 교정 요약) | 로그인 사용자 | 보임 | **task-006(§3)** · 회화 탭 **task-007(§9-2 A)** |
 | 회화 | `/study/ai/chat/[chatId]` | 채팅방 | 소유자(타인 404) | **숨김** | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]/review` | 표현 점검 결과 | 소유자 | **숨김** | **task-006(§3)** |
-| 회화 | `/study/ai/talk/[chatId]` (`#cr_{교정 id}` 로 카드 위치) | 음성 회화방(머리 = 선생님 아바타·이름 + TTS 상태 표시등(§7) · 푸시투토크 72px(§8) + 글자 입력 전환 · 문장별 점진 표시·재생·barge-in · 교정 카드 즉시) | 소유자(타인 404) | **숨김** | **task-007(§9)** |
+| 회화 | `/study/ai/talk/[chatId]` (`#cr_{교정 id}` 로 카드 위치) | 음성 회화방(머리 = 선생님 아바타·이름 + TTS 상태 표시등(§7) · 푸시투토크 72px(§8) + 글자 입력 전환 · 문장별 점진 표시·재생·barge-in · 교정 카드 즉시) | 소유자(타인 404) | **숨김** | **task-007(§9)** · 앱 분기(권한 [앱 설정 열기]·휴대폰→서버 전환 안내·메뉴 "알아듣는 곳" 한 줄) **task-003f(§11-2 D·F)** |
 | 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드·최근 기록·보관한 세트, 회화·평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** |
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
 | 오늘 | `/study/today/talk/[lessonId]`, `eval/[evaluationId]` | 오늘의 회화 · AI 평가 | 소유자 | 숨김 | Phase 2 |
@@ -86,7 +86,10 @@
 | 서랍장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** |
 | 서랍장 | `/drawer/corrections` | 채택 교정 모음 | 로그인 | 보임 | Phase 3 |
 | 질문 | `/ask` | 무엇이든 물어보세요 | 로그인 | 보임 | Phase 3 |
-| 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** · 음성 인식 절 **마이크 테스트 task-003e(§8)** |
+| 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** · 음성 인식 절 **마이크 테스트 task-003e(§8)** · 음성 인식 절 **휴대폰에서 알아듣기 카드(앱만)·인식 방식 문구·경로 한 줄** + 맨 아래 **앱 버전 줄(앱만)** · 관리자 행 아래 **휴대폰 인식 진단(앱 && `engine.read`)** **task-003f(§11-2 A·B·C·G·I)** |
+| 로그인 | `/login`(`?oauth_error=`) · (Custom Tab 안) `/invite` | 로그인(Google) · 앱: Chrome 창 대기 카드·마무리 덮개·창 닫힘 안내 · 초대 뒤 "앱으로 돌아가기" · 강제 업데이트 띠 | 비로그인 | 없음(`(auth)` 레이아웃) | task-002 · 앱 분기·해요체 문구 **task-003f(§11-2 E·G)** |
+| 앱 셸 | 모든 `(app)` 화면 맨 위(상태바 아래 그리드 첫 행) | 앱 업데이트 띠(권장 — 집중 화면 제외·닫으면 그날 숨김 / 강제 — 늘) · 설치 방법 시트 | **앱에서만**(웹 DOM 0·#8 요청 0) | — | **task-003f(§11-2 G)** |
+| (APK 자산) | `public/app-shell/index.html`(`server.errorPath`) | 서버 연결 실패 화면 | 앱, 서버 불통 때만 | 없음 | **task-003f(§11-2 H)** — developer A, 첫 빌드 전 |
 | 콘솔 | `/admin` → `/admin/dashboard` | 대시보드(역할별 엔진·연결·모델·상태, 30초 갱신) | `console.access` 없으면 **앱 공통 404** | **별도 셸**(환경 띠·콘솔 바, 탭 없음) | **task-005b(§6)** |
 | 콘솔 | `/admin/speech/{realtime,analysis,tts}` · `/admin/llm` | 역할 페이지(지금 쓰는 연결·Health/기능 테스트·예비 순서·설정값 요약) | `engine.read` | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/voices` | 목소리 목록(읽기) | `voices.read` | 별도 셸 | **task-005b(§6)** |
@@ -98,7 +101,8 @@
 | 콘솔 | `/admin/{prompts,playground,history}` 등 | 편집·버전·Playground·이력 | — | 메뉴 없음 | Phase 2+ |
 
 - **하위 화면(대화방·결과 화면)은 하단 탭을 숨기고 `←` 헤더로 돌아간다.** 키보드가 올라온 뒤 대화가 보이는 높이를 확보하기 위해서다(412×892 에서 키보드 ≈330px → 남는 ≈560px 중 탭 바 66px 는 12%).
-- 사용자 화면 전체에서 엔진·모델·호스트 이름(`claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert`)·`traceId`·"AI 엔진" 같은 구현 용어는 0건이다.
+- 사용자 화면 전체에서 엔진·모델·호스트 이름(`claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|sherpa|zipformer|onnx`)·`traceId`·"AI 엔진" 같은 구현 용어는 0건이다(온디바이스 모델은 "휴대폰 인식 파일", §11).
+- **앱/웹 분기는 로그인·실시간 인식 경로·APK 배너 세 곳뿐**이다 — 앱 전용 요소 전체 목록과 분기 대응은 §11 머리 표.
 
 ---
 
@@ -3352,7 +3356,7 @@ unmount · visibilitychange(hidden) → stop()
 | 목적 | 마이크 권한·입력 소리·서버 인식이 되는지 말해 보고 바로 확인한다(인식 결과는 점검용) |
 | 진입 | 상단 아바타 → `/settings` → "음성 인식" 절(§2 설정 행) |
 | 역할별 가시성 | 로그인 사용자 전원, 관리자도 같은 화면(엔진 상태는 콘솔 `/admin/speech/realtime`) |
-| 앱/웹 분기 | 웹 = 항상 서버 경로(`kind:'GATEWAY'`). 앱(003f) = `createRealtimeSttClient` 가 온디바이스를 고르면 `kind:'ONDEVICE'` — 화면은 경로 안내 한 줄·권한 거부 조치 줄만 달라진다 |
+| 앱/웹 분기 | 웹 = 항상 서버 경로(`kind:'GATEWAY'`). 앱(003f) = 라우터가 **누를 때마다** 휴대폰/서버를 고른다(`kind`·`route`, §11-3 C). 화면 차이는 넷뿐: 경로 한 줄에 이유까지(§11-2 C·§11-8 ⓔ) · 권한 흐름(한 번 거절 안내·영구 거절 [앱 설정 열기], §11-2 F) · 사전 점검 OFFLINE 은 서버 경로만(휴대폰 경로는 인터넷 없이 알아듣는다) · 오프라인 방식 + 파일 없음 = MODEL_REQUIRED. 휴대폰 경로도 점검 발화를 올리지 않는다. 카드 바로 위에 "휴대폰에서 알아듣기" 카드(§11-2 A) |
 | 재사용 | task-007 회화방 입력 바: `PushToTalkButton`(같은 크기·제스처) + `useRealtimeStt({purpose:'TURN', chatId, onFinal})`, partial 은 목록 꼬리의 부분 인식 말풍선으로(§9-2 E) |
 
 ### 8-2. UI 구조 (의사코드, 390px 기준)
@@ -3371,7 +3375,7 @@ Section
 ```
 h4  "마이크 테스트"                                        15px semibold ink
 p   "버튼을 누른 채로 일본어로 말해 보세요. …"              13px ink2 break-keep
-p   "지금은 서버에서 알아들어요."                            12px ink2 ← pathCaption(kind)
+p   "지금은 서버에서 알아들어요."                            12px ink2 ← pathCaption(kind) — 앱(003f)은 pathCaption(route), 이유까지(§11-8 ⓔ)
 div TranscriptBox  rounded-xl bg-surface2 p-3 min-h-[96px]
       비었을 때: "여기에 알아들은 말이 나와요 · 예) <span lang=ja>こんにちは</span>"   13px ink3(placeholder 전용)
       있을 때:  <p lang="ja" class="text-[17px] leading-[1.7] whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0">
@@ -3478,9 +3482,10 @@ type SttErrorCode = 'INSECURE' | 'UNSUPPORTED' | 'MIC_DENIED' | 'MIC_NOT_FOUND' 
 |---|---|
 | `!window.isSecureContext` | `unavailable(INSECURE)` |
 | `navigator.mediaDevices?.getUserMedia`·`AudioWorkletNode`·`WebSocket` 중 없음 (`kind==='GATEWAY'` 일 때) | `unavailable(UNSUPPORTED)` |
-| `!navigator.onLine` | `unavailable(OFFLINE)` |
+| `!navigator.onLine` (`kind==='GATEWAY'` 일 때만 — 휴대폰 경로는 인터넷 없이 알아듣는다, 003f) | `unavailable(OFFLINE)` |
 | #19 `gateway.enabled === false` 이고 `kind==='GATEWAY'` | `unavailable(SERVER_UNAVAILABLE)` |
 | `permissions.query({name:'microphone'})` = `denied` | error `MIC_DENIED` 표시, **버튼은 누를 수 있음**. `onchange` 로 `granted` 가 되면 error 지움 |
+| (앱, 003f) 플러그인 `checkPermissions()` = `prompt-with-rationale` / `denied` | `'rationale'` → 상태 줄 안내(누르기 전) / `denied` → MIC_DENIED + [앱 설정 열기]. 앱으로 돌아오면(resume) 다시 읽는다 — §11-2 F·§11-3 D |
 
 ### 8-4. API 호출 계획
 
@@ -3527,7 +3532,7 @@ type SttErrorCode = 'INSECURE' | 'UNSUPPORTED' | 'MIC_DENIED' | 'MIC_NOT_FOUND' 
 |---|---|---|---|---|
 | INSECURE | `isSecureContext=false`(http 주소) | 이 주소에서는 마이크를 쓸 수 없어요. | https:// 로 시작하는 주소로 열어 주세요. | 막힘 |
 | UNSUPPORTED | `mediaDevices`·`AudioWorkletNode`·`WebSocket` 없음 | 이 브라우저에서는 음성 인식을 쓸 수 없어요. | 최신 Chrome 으로 열어 주세요. | 막힘 |
-| MIC_DENIED | `NotAllowedError`·`SecurityError`·권한 `denied` | 마이크 사용이 막혀 있어요. | 웹: 주소창 왼쪽 아이콘(사이트 정보) → 권한 → 마이크 → 허용으로 바꾼 뒤 다시 눌러 주세요. / 앱(003f): 휴대폰 설정 → 애플리케이션 → 일본어교육 → 권한 → 마이크 → 허용 | 누를 수 있음 |
+| MIC_DENIED | `NotAllowedError`·`SecurityError`·권한 `denied` | 마이크 사용이 막혀 있어요. | 웹: 주소창 왼쪽 아이콘(사이트 정보) → 권한 → 마이크 → 허용으로 바꾼 뒤 다시 눌러 주세요. / 앱(003f): **[앱 설정 열기] 버튼** + "앱 설정 → 권한 → 마이크 → ‘앱 사용 중에만 허용’을 골라 주세요."(버튼이 없으면 "휴대폰 설정 → 애플리케이션 → {APP_LABEL} → 권한 → …" — §11-8 ⓖ, 앱 이름 §11-11 ⑤) | 누를 수 있음 |
 | MIC_NOT_FOUND | `NotFoundError`·`OverconstrainedError` | 마이크를 찾지 못했어요. | 마이크나 이어폰이 연결되어 있는지 확인해 주세요. | 누를 수 있음 |
 | MIC_BUSY | `NotReadableError`·`AbortError` | 다른 앱이 마이크를 쓰고 있어요. | 통화·녹음 앱을 닫고 다시 눌러 주세요. | 누를 수 있음 |
 | OFFLINE | `navigator.onLine=false` | 인터넷에 연결되어 있지 않아요. | 연결되면 바로 쓸 수 있어요. | 막힘 |
@@ -3539,6 +3544,7 @@ type SttErrorCode = 'INSECURE' | 'UNSUPPORTED' | 'MIC_DENIED' | 'MIC_NOT_FOUND' 
 | BUSY | #20 `429` · `error RATE_LIMITED` · close `4429`(README `SESSION_LIMIT`) | 지금은 음성 인식을 쓰기 어려워요. | {n}초 뒤에 다시 눌러 주세요. (n 없으면 "잠시 후") | 누를 수 있음 |
 | ENGINE_ERROR | `error ENGINE_ERROR`·`VALIDATION`(README `AUDIO_FORMAT`) · close `4413` | 알아듣다가 문제가 생겼어요. | 다시 눌러 말해 주세요. | 누를 수 있음 |
 | TIMEOUT | 손 뗀 뒤 8초 안에 `final` 없음 | 결과가 너무 늦어지고 있어요. | 다시 눌러 말해 주세요. | 누를 수 있음 |
+| MODEL_REQUIRED (앱, 003f) | 오프라인 방식인데 휴대폰 인식 파일 없음·손상 | 휴대폰 인식 파일이 없어요. | 위에서 파일을 받거나 다른 방식을 골라 주세요. (회화방 문구는 §11-8 ⓕ) | 막힘 |
 | (표시 안 함) | `error CALLBACK_FAILED`(README — `final` 텍스트는 옴) | — 결과만 보여 준다 | | |
 
 ⓑ **상태 줄** — §8-2 C 표. 결과를 받은 뒤 `idle` 은 "다시 해 보려면 또 누르고 말해요". 연결이 느리면(`connecting.slow`) 녹음 중 줄을 "연결하는 중… 계속 말해도 돼요".
@@ -3559,7 +3565,7 @@ type SttErrorCode = 'INSECURE' | 'UNSUPPORTED' | 'MIC_DENIED' | 'MIC_NOT_FOUND' 
 | 자리 | 문구 |
 |---|---|
 | 제목 / 설명 | 마이크 테스트 / 버튼을 누른 채로 일본어로 말해 보세요. 알아들은 말이 바로 보여요. |
-| 경로 안내 | `GATEWAY` 지금은 서버에서 알아들어요. · `ONDEVICE`(003f) 지금은 휴대폰에서 바로 알아들어요. |
+| 경로 안내 | 웹 = 지금은 서버에서 알아들어요. · 앱(003f) = `pathCaption(route)` 이유까지 9종(§11-8 ⓔ — 예: 지금은 휴대폰에서 알아들어요. / 지금은 서버에서 알아들어요. 휴대폰 인식 파일을 받으면 …) |
 | 빈 결과 자리 | 여기에 알아들은 말이 나와요 · 예) こんにちは |
 | 버튼 `aria-label` | 누르고 있는 동안 말하기 |
 | 낭독(final) | 알아들은 말: {text} ← text 는 `<span lang="ja">` |
@@ -3622,7 +3628,7 @@ type SttErrorCode = 'INSECURE' | 'UNSUPPORTED' | 'MIC_DENIED' | 'MIC_NOT_FOUND' 
 | 목적 | 일본어로 **말로** 대화(A1) — 선생님이 문장 단위로 바로 소리 내어 답하고, 틀린 표현은 그 자리에서 교정 카드로 보여 주며, 내가 채택한 것만 저장한다 |
 | 진입 | 하단 탭 "회화" → `/study/ai`(기본 `tab=talk`) → 목록 행 또는 [＋ 새 회화] · 홈 "채택을 기다리는 교정" 의 회화 행 → `/study/ai/talk/{id}#cr_{교정 id}` |
 | 역할별 가시성 | 로그인 사용자 전원. 관리자 전용 요소 없음(엔진 상태는 콘솔 `/admin/speech/*`). 타인 회화는 404 화면 |
-| 앱/웹 분기 | 이번 task = **웹 경로만**(`kind:'GATEWAY'`). 앱(003f)은 `createRealtimeSttClient` 가 온디바이스를 고르고, 화면 차이는 권한 거부 조치 줄(§8-8 ⓐ `native`) 하나다. 자동재생 규칙은 WebView(`mediaPlaybackRequiresUserGesture`)도 같은 코드로 견딘다(실기기 확인 003f) |
+| 앱/웹 분기 | task-007 = **웹 경로만**(`kind:'GATEWAY'`). 앱(003f)은 라우터가 누를 때마다 휴대폰/서버를 고르고, 화면 차이는 권한 흐름([앱 설정 열기], §11-2 F) · 전환 안내(오류 2회째 띠 2줄 `switched`·말을 잃지 않은 전환은 토스트 1회, §11-2 D) · MODEL_REQUIRED 띠(오프라인 방식) · ⋯ 메뉴 "알아듣는 곳" 한 줄. **상시 경로 표시는 두지 않는다**(머리 표시등은 목소리 상태 하나 — §11-0 ⑥). 자동재생 규칙은 WebView(`mediaPlaybackRequiresUserGesture`)도 같은 코드로 견딘다(실기기 확인 003f F6) |
 | 재사용 | §3 `ChatList`·`NewChatSheet`·`MessageList`·`MessageBubble`·`CorrectionCard`·`AcceptCorrectionSheet`·`ProposalCard`·`useChatTurn`·`Composer`·`ChatMenuSheet`·`TurnNotice` · §7 `TtsRuntimeStatusIndicator`·`ttsAudio` · §8 `PushToTalkButton`·`useRealtimeStt`·`sttCopy`·`MicLevelMeter`·`micPreflight` |
 | 새 것 | `src/components/talk/*`(방·머리·입력 바·띠·재생 훅·상태 유도) · 클라 재생 큐 `@/modules/speech/tts/client`(module-dependency L4 `TtsPlaybackQueue` 자리) |
 
@@ -3801,7 +3807,7 @@ AppBar title="AI와 공부하기"
 
 | 우선 | 띠 | 언제 | 모양 · 동작 |
 |---|---|---|---|
-| 1 | `SttAlert` | STT 오류(§8-8 ⓐ 코드) | `role="alert"` `rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad break-keep` — 1줄 무엇 + 2줄 어떻게(`sttErrorCopy(code,{native})`). 막힘 계열(INSECURE·UNSUPPORTED·OFFLINE·SERVER_UNAVAILABLE)과 MIC_DENIED·CONNECT_FAILED 엔 [글자로 대화하기](44px 밑줄 텍스트 버튼). 막힘 아닌 것엔 ✕(44) |
+| 1 | `SttAlert` | STT 오류(§8-8 ⓐ 코드) | `role="alert"` `rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad break-keep` — 1줄 무엇 + 2줄 어떻게(`sttErrorCopy(code,{native})`). 막힘 계열(INSECURE·UNSUPPORTED·OFFLINE·SERVER_UNAVAILABLE)과 MIC_DENIED·CONNECT_FAILED 엔 [글자로 대화하기](44px 밑줄 텍스트 버튼). 막힘 아닌 것엔 ✕(44). **앱(003f)**: MIC_DENIED 에 [앱 설정 열기] · MODEL_REQUIRED(막힘)에 [설정 열기]+[글자로 대화하기] · 휴대폰 오류 2회째(전환 순간)·오프라인 방식은 ENGINE_ERROR 2줄 교체(§11-8 ⓕ) |
 | 2 | `UnsentBar` | 자동 전송·다시 보내기가 `accepted` 전에 거절됨 | `role="alert"` 테두리 카드: 1줄 이유(13px ink2, §9-8 ⓒ) · 2줄 「{text}」(15px ja, 2줄 말줄임) · [다시 보내기](primary, 44) [글자로 고치기](ghost) [✕ 버리기](44, `aria-label="보내지 않고 버리기"`). 429 면 [다시 보내기] 가 "{n}초 뒤" `aria-disabled` 카운트다운 |
 | 3 | `AutoplayBar` | 자동재생이 막힘(큐 `blocked`) | `role="status"` 전폭 버튼 h-12 `bg-accent-soft text-ink`: "▶ 눌러서 선생님 말 듣기" + 12px ink2 "브라우저가 소리를 막았어요". 탭 → 같은 핸들러 안에서 `unlockTtsAudio()` → `queue.resumeBlocked()` |
 | 4 | `TurnNotice` | 글자 모드의 봉투 오류·다시 받기 거절(§3 그대로) | §3-2 C |
@@ -3817,6 +3823,7 @@ Sheet title="회화 메뉴"
   들려주는 방식  role=radiogroup  (자연 속도 | 학습 속도 | 천천히)   ← 라벨은 #19 tts.speechProfiles[].label, 없으면 이 기본 문구
       선택 즉시 #13 GET → speechProfile 만 바꿔 #14 PUT(나머지 값 그대로) → 토스트 "다음 대답부터 {라벨}로 들려드려요"
       저장 중엔 radio aria-disabled · 실패면 원래 값으로 되돌리고 토스트(§9-8 ⓔ)
+  (앱만, 003f) 알아듣는 곳  휴대폰에서 | 서버에서 + 이유 한 줄 + [음성 인식 설정 ›]   ← §11-2 D `SttRouteRow`(읽기 전용, extra 안)
   [회화 삭제] (danger)          → 확인 단계 "이 회화를 삭제할까요?" … → #31 → router.replace('/study/ai?tab=talk')
 ```
 - 턴 진행 중에는 [회화 삭제] `aria-disabled` + 토스트 "답을 받는 중에는 지울 수 없어요"(§3 과 같음).
@@ -5321,3 +5328,688 @@ export interface LexiconPreviewDto { dictionaryVersion: number; before: LexiconP
 | ⑰ | 범위 대상 고르기 | COURSE·LESSON·USER 는 고르는 목록 API 가 없어 **id 직접 입력**(저장 때 서버가 존재 확인). VOICE 만 #82 목록에서 고른다 | Phase 2 에 주제·레슨·사용자 검색 API 가 생기면 select 로 바꾼다 |
 | ⑱ | `apiDelete` 본문 | L4 가 `reason`·`baseVersion`·`confirm` 을 **본문**으로 받는다(이유를 URL 에 싣지 않는다 — 접근 로그 노출). `common/api.ts` 의 `apiDelete` 에 선택 본문 인자 추가 | A 가 `POST …/:id/disable` 을 따로 두면 그걸 쓴다 |
 | ⑲ | §6-1 메뉴 라벨 표기 | §6-1 표의 라벨(Dashboard·TTS…)은 영문이지만 구현 `menu.ts` 는 한국어(대시보드·음성 합성…)다. 이 절은 구현 값("발음 사전")을 따른다 | 다음에 §6 을 만지는 task 가 §6-1 표를 `menu.ts` 값으로 맞춘다 |
+
+---
+
+## 11. 안드로이드 앱 전용 화면 (task-003f)
+
+> 정본: `design-spec.md` §9(온디바이스 플러그인·클라이언트 라우팅)·§12(앱·APK 갱신) · `plugins/sherpa-stt/README.md` §4(API·이벤트)·§5(모델 저장·검증)·§7(폴백)·§8(APK) · `speech/models/README.md` §4(Wi-Fi 안내·재개) · `api-contract.md` #2~#5(앱 로그인)·#8(`/api/app/version`)·#9·#10(`/models/*`)·#15/#16·#19(`onDevice`)·#21(발화 업로드)·§0-10(헤더) · `module-dependency.md` §6(플러그인 경계) · `speech-platform/12` §3.5(휴대폰 → 서버 전환) · 워크스페이스 `docs/app-conversion-guide.md` §1-6·§4. 재사용: §7(토스트 규칙)·§8(푸시투토크·`sttCopy`·`micPreflight`·`MicTestAlert`)·§9(회화방 `SttAlert`·`announce`·메뉴 시트 `extra`). 새 색 없음(§1-1 토큰만).
+> **앱/웹 분기는 로그인·실시간 인식 경로·APK 배너 세 곳뿐이다**(CLAUDE.md 모바일 UI 원칙). 이 절의 요소는 모두 아래 표의 한 칸에 속하고, **웹에서는 DOM 에 0개**다(서버 렌더에도 없다 — 마운트 뒤 판정).
+
+| 분기 | 이 절의 요소 |
+|---|---|
+| 로그인 | E 앱 로그인 대기·마무리·실패 · (Custom Tab 안) 초대코드 뒤 "앱으로 돌아가기" |
+| 실시간 인식 경로 | A 휴대폰에서 알아듣기 카드(모델 내려받기) · B 인식 방식 문구 · C 마이크 테스트 경로 한 줄 · D 회화방 전환 안내·메뉴 한 줄 · F 앱 마이크 권한 · I 휴대폰 인식 진단(관리자만) |
+| APK 배너 | G 업데이트 띠·설치 방법 시트·설정 맨 아래 앱 버전 줄 |
+| (APK 자산 — 웹 번들 밖) | H 서버 연결 실패 화면 `public/app-shell/index.html` |
+
+### 11-0. 한눈에 보는 결정
+
+1. **판정은 한 곳**: `isNativeApp()`(bridge)를 **마운트 뒤** 한 번 본다(`useNativeEnv()`). 서버 렌더·첫 렌더에는 앱 요소가 없고, 웹에서는 앱 전용 API(#8)도 부르지 않는다. 플러그인이 없는 셸(`getSherpaStt()===null`)은 "웹처럼" 동작한다 — 카드 없음·서버 경로.
+2. **모델 = "휴대폰에서 알아듣기" 카드**: 설정 → 음성 인식 절, 인식 방식 카드 **아래**·마이크 테스트 **위**(받고 나서 바로 아래에서 시험한다). 사용자 문구에 "모델"·엔진명을 쓰지 않고 **"휴대폰 인식 파일"**이라 부른다. 크기는 #19 `totalBytes` 로 계산해 보인다(지금 169.8MB → "약 170MB", 하드코딩 금지).
+3. **누를 때만 받는다**(첫 실행 자동 다운로드 없음 — §11-11 ⑬). **Wi-Fi 전용이 기본**이고, 모바일 데이터면 거절로 끝내지 않고 "데이터로 받기"를 따로 고르게 한다. 받는 중 [일시정지], 멈춘 뒤 [이어받기]·[받은 것 지우기], 받은 뒤 [지우기](확인 시트), 새 버전이면 [새 버전 받기].
+4. **받기 전·받는 중에도 회화는 된다** — 카드가 늘 "그동안은 서버에서 알아들어요"를 말한다. 받기가 끝나면 **다음 누름부터** 휴대폰 경로(앱 재시작 불필요, §11-11 ⑦).
+5. **정직한 설명**: "말하는 동안의 소리는 서버로 보내지 않아요"까지만 말한다. 회화에서 다 말한 문장은 턴 기록·"내 목소리 ▶"를 위해 서버에 저장되므로(#21, 30일) **"목소리가 서버로 가지 않아요"라고 쓰지 않는다**. 마이크 테스트는 휴대폰 경로에서도 올리지 않는다(`MIC_TEST`).
+6. **경로 표시**: 마이크 테스트 = 늘 한 줄(이유 포함 — 점검 화면이라서). 회화방 = **상시 표시 없음**(머리 표시등은 "선생님 목소리" 상태 하나 — 둘을 나란히 두면 무엇이 "온라인"인지 헷갈린다). 대신 전환 때 안내 1회 + ⋯ 메뉴 시트의 읽기 전용 한 줄 "알아듣는 곳".
+7. **전환(폴백)**: 휴대폰 인식 오류가 **앱 실행 동안 누적 2회**(#19 `fallback.onDeviceFailureThreshold`)면 서버로 바꾸고 앱을 다시 켤 때까지 유지한다. 말이 사라진 오류는 평소 오류 띠(§8-8 ⓐ ENGINE_ERROR — 2회째는 2줄만 "다음부터는 서버에서…")로, 말을 잃지 않은 전환은 토스트 1회로 알린다. 오프라인 방식은 바꾸지 않고 글자 입력을 권한다.
+8. **앱 마이크 권한**: 첫 누름 = 권한만(§8-0 ③ 그대로, 안드로이드 대화상자). 한 번 거절(`prompt-with-rationale`)이면 누르기 전에 이유 한 줄. **다시 묻지 않음(`denied`)이면 오류 띠에 [앱 설정 열기]** + 경로 문구, 앱으로 돌아오면(resume) 자동으로 다시 읽어 띠를 지운다.
+9. **업데이트 띠 = 앱 셸 맨 위 한 줄**. 권장(56px): ✕ 로 닫으면 **그날(KST) 동안** 숨김, 더 새 버전이 나오면 바로 다시. 집중 화면(회화방·채팅방·단어 덱)에서는 권장 띠를 숨긴다. 강제(내 번호 < 최소 지원): 닫기 없음·빨강 톤·**모든 화면**(집중 화면·로그인 포함). 앱 사용을 전면 차단하지는 않는다(§11-11 ④).
+10. **받기 = Chrome(Custom Tabs)로 `/app/download/latest.apk`** — WebView 는 파일 다운로드를 처리하지 못한다(§10-10 과 같은 사정). 띠의 글자를 누르면 **설치 방법 시트**(바뀐 점·4단계·[업데이트 받기]). 설정 맨 아래 **앱 버전 줄**이 띠를 닫은 뒤에도 같은 시트로 가는 길이고, 실기기 확인 때 "지금 깔린 APK 번호"를 보는 자리다.
+11. **앱 로그인**: 버튼 → "Chrome 창을 여는 중…" → **"Chrome 창에서 로그인하고 있어요" 대기 카드**([Chrome 창 다시 열기]) → 딥링크를 받으면 **"로그인 마무리 중…" 덮개**. 창을 그냥 닫고 오면 대기를 풀고 "로그인 창이 닫혔어요" 한 줄. 실패 문구는 해요체로 고쳐 웹과 같이 쓴다(문구는 분기가 아니다).
+12. **서버 연결 실패 화면**(APK 자산)에 템플릿의 TheMeal 흔적(제목·밥 이모지)이 남아 있다 → 첫 APK 빌드 전에 교체(네이티브 변경, developer A).
+13. **개발용 스위치 금지**: 화면·쿼리 파라미터·`localStorage` 로 앱 모드를 켜지 않는다. PC 에서 앱 모드는 **Playwright `addInitScript` 가짜 `window.Capacitor`**(`tests/live/`)와 단위 테스트 가짜 플러그인으로만 본다(§11-7 ⑨).
+14. **실측 숫자는 관리자에게만**: 디코드 시간·메모리·파일 버전은 사용자 화면에 없고, 설정 맨 아래 관리자 행 밑 **휴대폰 인식 진단** 카드(앱 && `engine.read`)에서만 읽는다 — F6 실측 게이트를 adb 없이 폰에서 확인하는 자리(§11-2 I, §11-11 ⑯).
+15. **플러그인 계약은 Developer A v1(08:58)을 따른다** — 메서드·이벤트·오류 코드 이름과 카운트 규칙을 그대로 쓰고, v1 에 없는 것은 `openAppSettings()`(와 선택 `freeBytes`)뿐이다(§11-11 ①).
+
+### 11-1. 화면 개요
+
+| 요소 | 위치(진입) | 목적 | 보이는 조건 | 웹 |
+|---|---|---|---|---|
+| A `OnDeviceModelCard` | 상단 아바타 → `/settings` → 음성 인식 절 | 휴대폰 인식 파일을 받고·멈추고·지우고, 지금 어디서 알아듣는지 안다 | `native && getSherpaStt()` | 없음 |
+| B 인식 방식 문구 | 같은 절 인식 방식 카드 | 방식별 실제 경로를 정확히 말한다 | 늘(문구만 앱/웹 다름) | 웹 문구 |
+| C 경로 한 줄 | §8 마이크 테스트 카드 | 다음 누름이 어디서 알아듣는지·왜 | 늘 | "지금은 서버에서 알아들어요." |
+| D 전환 안내 · 메뉴 한 줄 | §9 회화방 띠·토스트 · ⋯ 메뉴 시트 | 휴대폰 → 서버 전환을 한 번 알리고, 궁금하면 메뉴에서 본다 | 앱 | 없음 |
+| E 로그인 대기·마무리 | `/login` 버튼 자리 · (Custom Tab 안) `/invite` 완료 뒤 | Custom Tab 왕복 중에 무슨 일인지 보인다 | 앱(초대 페이지는 `appRedirect` 응답이 있을 때) | 기존 링크 그대로 |
+| F 앱 마이크 권한 | §8 `MicTestAlert` · §9 `SttAlert` · 상태 줄 | 거절·영구 거절에서 다음 행동이 하나로 보인다 | 앱 문구·버튼 | 웹 문구(§8-8 ⓐ) |
+| G 업데이트 띠 · 설치 시트 · 앱 버전 줄 | `(app)` 셸 맨 위 · `/login`(강제만) · `/settings` 맨 아래 | 새 APK 를 알고, 받고, 설치한다 | 앱 && 최신 번호 > 내 번호 | 없음(요청도 없음) |
+| H 연결 실패 화면 | APK `webDir`(`server.errorPath`) | 서버에 닿지 못할 때 앱이 죽은 것처럼 보이지 않게 | 앱, 서버 불통 | 없음 |
+| I 휴대폰 인식 진단 | `/settings` 맨 아래 관리자 행 아래 | F6 실측 게이트 숫자(디코드 시간·메모리)를 폰에서 읽는다 | 앱 && `engine.read` | 없음 |
+
+- 역할별 가시성: I 만 관리자(`engine.read`), 나머지는 로그인 사용자 공통. 로그인 전에는 E·G(강제)·H 만.
+- 폭: **앱 WebView ≈390 기준**으로 그리고 360·412 에서 확인(§11-9).
+
+### 11-2. UI 구조 (의사코드, 390px 기준)
+
+#### A. 휴대폰에서 알아듣기 카드 — `OnDeviceModelCard`
+
+배치(`SpeechSettings`):
+```
+Section
+  SectionHeader "음성 인식"
+  Card 인식 방식 radiogroup            ← 기존 + 설명 문구(§11-2 B)
+  OnDeviceModelCard                    ← 앱에서만(mt-3). 웹·플러그인 없음이면 null
+  MicTestCard                          ← §8 + 경로 한 줄(§11-2 C)
+```
+
+카드 뼈대(모든 상태 공통):
+```
+Card id="ondevice-card" className="mt-3 flex flex-col gap-3" aria-labelledby={titleId}
+  div flex items-start gap-2
+    h4#titleId "휴대폰에서 알아듣기"           15px semibold ink, min-w-0 flex-1
+    Badge {상태 뱃지}                          flex-none — good | bad | neutral 만(§1-1)
+  p 설명(상태별 §11-8 ⓐ)                      13px ink2 break-keep
+  (상태별 본문 — 아래 표)
+  p 알아 두세요(§11-8 ⓐ)                      12px ink2 break-keep   ← absent·installed 에서만
+```
+
+| phase | 뱃지 | 본문 | 버튼 |
+|---|---|---|---|
+| `checking` | — | 12px ink2 "확인하는 중…"(1초 넘을 때만 보임) | 없음 |
+| `off` | 쓸 수 없음(neutral) | 설명만 "지금은 휴대폰에서 알아듣기를 쓸 수 없어요. 서버에서 알아들어요." | 없음 |
+| `absent` | 받지 않음(neutral) | 메타 줄 "약 170MB · Wi-Fi 에서 받아요"(12px ink2) + "받기 전에도 회화는 서버에서 알아들어요." | **Btn primary w-full "휴대폰에 받기 (약 170MB)"** |
+| `needsConsent`(모바일 데이터) | 받지 않음 | 안내 상자(`rounded-xl bg-surface2 p-3 role=status`) "지금은 Wi-Fi 가 아니에요." / "모바일 데이터로 약 170MB 를 쓰게 돼요. Wi-Fi 에 연결한 뒤 다시 누르거나, 지금 받을 수 있어요." | BtnRow [데이터로 받기](ghost) [나중에](soft → `absent`) |
+| `downloading` | 받는 중(neutral) | `ModelProgress`(아래) + 12px ink2 "받는 동안에도 회화는 서버에서 알아들어요. 다른 화면으로 가도 계속 받아요." | Btn ghost w-full "일시정지" |
+| `verifying` | 받는 중 | 막대 100% + "받은 파일을 확인하는 중…"(`aria-busy`) | 없음 |
+| `paused` | 멈춤(neutral) | 막대(멈춘 위치, 채움 `bg-ink3` — 장식) + "멈춤 · 123MB / 170MB 받음"(12px ink2 tabular-nums) | Btn primary w-full "이어받기" + 텍스트 버튼(h-11 `text-bad` 13px) "받은 것 지우기"(= `deleteModel()` — 설치본이 없을 때만 보인다) |
+| `installed` | 준비됨(good) | 경로 줄(방식·전환별 §11-8 ⓐ, 13px ink) · 메타 "170MB 사용 중"(12px ink2) | Btn danger w-full "지우기" → 확인 시트 |
+| `installed` + 새 버전 | 준비됨 | 경로 줄 + 안내 상자 "새 버전이 있어요(약 170MB). 받는 동안에도 지금 버전으로 알아들어요." | Btn primary w-full "새 버전 받기" · Btn danger w-full "지우기" |
+| `installed` + 새 버전 받는 중·멈춤 | 준비됨 | `ModelProgress title="새 버전 받는 중…"` / 멈춤 줄 | "일시정지" / "이어받기" + "지우기"(설치본까지 전부 — 플러그인 `deleteModel()` 은 설치본·미완성을 함께 지운다. 새 버전 조각만 버리는 버튼은 두지 않는다) |
+| `error` | 문제 있음(bad) — 설치돼 있으면 준비됨 유지 | `ModelAlert`(`role=alert rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad break-keep`, 1줄 무엇 · 2줄 어떻게 — §11-8 ⓑ) | 오류별 1개(§11-8 ⓑ 버튼 열) |
+
+- 받는 중·멈춤은 **설정 화면을 떠나도 유지**된다(앱 전체 스토어 1개, §11-3 B). 돌아오면 그 자리부터 보인다. 완료되면 카드 안 `role=status` 한 줄 "준비됐어요. 이제 휴대폰에서 알아들어요."(다른 화면에 있었으면 알림 없음 — 경로 한 줄과 카드가 말한다).
+- 인터넷이 끊기면(`navigator.onLine=false`) [휴대폰에 받기]·[이어받기]·[새 버전 받기]를 `disabled` 하고 버튼 아래 12px ink2 "인터넷에 연결되면 받을 수 있어요." 받는 중에 끊기면 플러그인 오류 `DOWNLOAD_FAILED` → `error`([이어받기]).
+- 마이크 테스트가 녹음 중이면 [지우기]만 `aria-disabled`(쓰는 중인 파일).
+- 오프라인 방식이 선택돼 있으면 [지우기] `aria-disabled` + 12px ink2 "오프라인 방식에서는 지울 수 없어요 — 먼저 다른 방식을 골라 주세요."
+- 저장 공간: 플러그인 계약 v1(Developer A 기록)에는 여유 공간 조회가 없어 **누른 뒤** `INSUFFICIENT_STORAGE`(여유 < 파일 크기×2.5)로 안다 → `error(INSUFFICIENT_STORAGE)`, 필요량은 `totalBytes×2.5` 로 화면이 계산한다. `checkModel()` 이 `freeBytes` 를 주게 되면 누르기 전에 같은 오류를 보인다(§11-11 ①).
+
+**`ModelProgress`**
+```
+p   "받는 중… 72%"                          15px ink tabular-nums, aria-hidden(막대가 전한다)
+div role="progressbar" aria-label="휴대폰 인식 파일 받기" aria-valuemin=0 aria-valuemax=100 aria-valuenow=72
+    aria-valuetext="170MB 중 123MB 받음" className="h-2 overflow-hidden rounded-full bg-surface2"
+  div className="h-full rounded-full bg-accent transition-[width] motion-reduce:transition-none" style={{ width: '72%' }}
+p   "123MB / 170MB · 남은 시간 약 1분"        12px ink2 tabular-nums
+p.sr-only aria-live="polite"                ← 25·50·75·100% 에서만(§11-8 ⓐ 낭독) — 250ms 이벤트마다 읽지 않는다
+```
+- 남은 시간: 최근 5초 평균 속도, 시작 3초 뒤부터. 60초 미만은 "1분 안에 끝나요". **10초 넘게 진행이 없으면** 남은 시간 대신 "받는 속도가 느려요. Wi-Fi 연결을 확인해 주세요."
+- 막대 채움 `bg-accent` 는 비텍스트(3:1 이상). 숫자는 `ink`/`ink2` 글자로 따로 준다.
+
+**지우기 확인 시트 — `ModelDeleteSheet`**(공용 `Sheet`, 제목 "휴대폰 인식 파일 지우기")
+```
+p 15px ink   지우면 저장 공간 약 170MB 가 비어요. 회화는 서버에서 알아들어요.
+p 13px ink2  다시 쓰려면 약 170MB 를 또 받아야 해요.
+Btn danger w-full "지우기"          ← 진행 중 "지우는 중…" disabled, 시트 dismissible=false
+Btn ghost  w-full mt-2 "취소"
+```
+성공 → 시트 닫고 토스트 "휴대폰 인식 파일을 지웠어요", 카드 `absent`, 경로 즉시 서버. 실패 → 시트 안 한 줄 "지우지 못했어요. 다시 눌러 주세요."
+
+#### B. 인식 방식 카드 설명 (`SpeechSettings` MODES)
+
+라벨은 그대로, 설명(`desc`)만 앱/웹·파일 유무로 고른다(§11-8 ⓓ). 동작 변화는 하나: **앱에서 오프라인 방식은 휴대폰 인식 파일이 있어야 고를 수 있다**(`disabled` + "휴대폰 인식 파일을 받은 뒤 고를 수 있어요"). 이미 오프라인인데 파일이 쓸 수 없게 된 경우(손상)는 라디오를 막지 않고 카드 `error(MODEL_CORRUPT)` 가 이유를 말한다.
+
+#### C. 마이크 테스트 경로 한 줄 (§8-2 B `pathCaption`)
+
+`pathCaption(route)` — `route = { kind, reason }`(§11-3 C), 문구 §11-8 ⓔ. 파일 없음·받는 중처럼 사용자가 바꿀 수 있는 이유면 끝에 "위에서 받을 수 있어요."를 붙인다(카드가 바로 위 — 링크·스크롤 없음). 받기가 끝나거나 지우면 누르지 않아도 줄이 바로 바뀐다.
+- 휴대폰 경로의 마이크 테스트는 **인터넷 없이도 된다** — 사전 점검의 OFFLINE 은 `kind==='GATEWAY'` 일 때만(§8-3 C 갱신).
+- 결과는 휴대폰 경로에서도 저장하지 않는다(#21 업로드 없음, wav 는 플러그인이 지움) — 저장 안내(§8-8 ⓓ A) 그대로.
+- 오프라인 방식 + 파일 없음 → 오류 `MODEL_REQUIRED`(막힘, §11-8 ⓕ 끝 줄).
+
+#### D. 회화방 (§9) — 전환 안내 · 메뉴 한 줄
+
+| 사건 | 화면 |
+|---|---|
+| 휴대폰 인식 오류로 **말이 사라짐**(DECODE_FAILED·OOM, 1회째) | 기존 `SttAlert` ENGINE_ERROR(§8-8 ⓐ) 그대로 |
+| 같은 오류 **2회째**(= 전환) | `SttAlert` ENGINE_ERROR 의 2줄만 "다음부터는 서버에서 알아들어요. 다시 눌러 말해 주세요."(`switched`) — 토스트 없음(띠가 이미 말함) |
+| `start()` 거부처럼 **말을 잃지 않은** 전환(이번 누름이 서버로 이어짐) | `announce`(§9-2 D — 녹음이 끝난 뒤) 토스트 1회 "휴대폰 인식이 잘 안 돼서 서버에서 알아들을게요." |
+| 파일 없음·손상을 누를 때 발견 | 조용히 서버(안내 없음 — 카드·경로 줄이 말한다) |
+| 오프라인 방식 + 휴대폰 오류 | `SttAlert` ENGINE_ERROR, 2줄 "오프라인 방식이라 서버로 바꾸지 않아요. 다시 말하거나 글자로 대화해 주세요." + [글자로 대화하기] |
+| 오프라인 방식 + 파일 없음/손상 | `SttAlert` **MODEL_REQUIRED**(막힘): "휴대폰 인식 파일이 없어요." / "설정 → 음성 인식에서 받거나 다른 방식을 골라 주세요." + [설정 열기](→ `/settings#ondevice-card`) + [글자로 대화하기] |
+
+- 전환 안내(띠 2줄·토스트)는 **앱 실행당 1회**. 다시 켜면 휴대폰부터 쓰고, 또 두 번 실패하면 다시 1회.
+- 턴은 막지 않는다: 휴대폰에서 알아들은 문장의 업로드(#21)가 실패해도 글자로 보낸다(§9-11 ② 규칙 — 그 메시지엔 "내 목소리 ▶"가 없다).
+
+**메뉴 시트 한 줄 — `SttRouteRow`**(앱에서만. `TalkRoom` 이 이미 넘기는 `ChatMenuSheet extra` 안, `SpeechProfileMenu` 아래):
+```
+div flex min-h-[44px] min-w-0 items-center justify-between gap-3 border-t border-line pt-2
+  span 13px ink2 "알아듣는 곳"
+  span 15px ink  "휴대폰에서" | "서버에서"                ← route.kind
+p 12px ink2 break-keep {이유 짧은 꼴 — §11-8 ⓔ 오른쪽 열, 없으면 생략}
+Link href="/settings#ondevice-card" className="inline-flex h-11 items-center text-[13px] font-semibold underline underline-offset-4" "음성 인식 설정 ›"
+```
+- 누를 수 있는 것은 링크 하나. 여기서 경로를 바꾸지 않는다(방식은 설정에서).
+
+#### E. 앱 로그인 — `/login`
+
+버튼 자리(앱에서만 상태가 생긴다 — 웹은 지금의 `<a>` 그대로):
+```
+AppLoginArea (client) — GoogleLoginButton + AppDeepLink 를 한 상태로 감싼다
+  idle        [G  Google로 계속하기]                                   ← 기존 52px
+  opening     [(spinner) Chrome 창을 여는 중…] disabled aria-busy         ← ≤1.5s
+  waiting     div role="status" rounded-[14px] border border-line bg-surface p-3.5
+                (spinner 16) Chrome 창에서 로그인하고 있어요            15px semibold ink
+                로그인이 끝나면 이 화면으로 자동으로 돌아와요.           13px ink2 break-keep
+                Btn ghost w-full mt-3 "Chrome 창 다시 열기"            ← 같은 URL 로 openExternal
+  exchanging  fixed inset-0 z-50 grid place-items-center bg-ground (role="status")
+                (spinner 24) 로그인 마무리 중…                         15px ink
+  closed      idle 로 돌아오며 버튼 위 13px ink2 role="status" "로그인 창이 닫혔어요. 다시 눌러 주세요."
+```
+- 하단 안내 두 줄 중 둘째 줄("앱에서는 Chrome 창에서…")은 **앱에서만** 보인다(웹에서는 뜻 없는 말). 첫 줄("처음이라면 초대코드가 필요합니다")은 공통 — 이 줄의 `text-ink3`(라이트 3.13:1)는 `ink2` 로 올린다(§1-1, 읽어야 하는 글).
+- 오류 배너(기존 `role=alert` 상자)는 웹·앱 공통 — 문구만 해요체로 교체(§11-8 ⓘ).
+- 강제 업데이트 띠(G)를 `main` 맨 위에 둔다(권장 띠는 로그인 뒤 셸에서만).
+
+**Custom Tab 안 초대 페이지**(`/invite`, 새 사용자 — 이 페이지는 앱이 아니라 Chrome 창에 뜬다):
+```
+제출 성공 + appRedirect 응답
+  → location.href = appRedirect (지금 그대로)
+  → 폼 자리를 InviteReturn 으로 바꾼다(0.3s 뒤 — 이미 앱으로 넘어갔으면 보이지 않는다)
+     (spinner) 앱으로 돌아가는 중…                               15px ink
+     앱이 열리지 않으면 아래 버튼을 눌러 주세요.                     13px ink2
+     <a href={appRedirect}> Btn primary w-full "앱으로 돌아가기"    ← 같은 1회용 주소(60초)
+     1분이 지나면 이 창을 닫고 앱에서 다시 로그인해 주세요.            12px ink2
+```
+
+#### F. 앱 마이크 권한 (§8 `MicTestAlert` · §9 `SttAlert` 공통)
+
+앱의 권한은 플러그인 `checkPermissions()`(bridge)로 읽는다(플러그인이 없으면 §8-3 C 의 Permissions API). 서버 경로(WebView 마이크)도 같은 앱 권한 하나를 쓰므로 흐름이 같다.
+
+| 권한 | 누르기 전 | 누름 | 거절 뒤 |
+|---|---|---|---|
+| `granted` | 없음 | 녹음 | — |
+| `prompt` | 없음 | **권한만** 요청(안드로이드 대화상자, §8-0 ③) → 허용: 힌트 PERMISSION_GRANTED | `prompt-with-rationale` 또는 `denied` |
+| `prompt-with-rationale`(한 번 거절) | 상태 줄 자리 13px ink2 "말을 알아들으려면 마이크가 필요해요. 누르면 다시 물어봐요." | 권한만 다시 요청 | 다시 거절 → 대개 `denied` |
+| `denied`(다시 묻지 않음) | 오류 띠 MIC_DENIED(앱 문구) + **[앱 설정 열기]** | 누를 수 있음 — 다시 확인만, 여전히 `denied` 면 띠 유지 + 포커스를 [앱 설정 열기]로 | — |
+
+오류 띠(§8-2 B `MicTestAlert` · §9-2 G `SttAlert` — 모양 그대로, 버튼 줄만 추가):
+```
+role=alert rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad break-keep
+  1줄  마이크 사용이 막혀 있어요.
+  2줄  앱 설정 → 권한 → 마이크 → ‘앱 사용 중에만 허용’을 골라 주세요.
+  [앱 설정 열기]   inline-flex h-11 font-semibold underline underline-offset-4   ← openAppSettings(). false 면 버튼 없이 2줄을 경로형으로(§11-8 ⓖ)
+  (회화방) [글자로 대화하기]                                                    ← §9-2 G 그대로
+```
+- 앱으로 돌아오면(bridge `onAppResume`) 권한을 다시 읽고 `granted` 면 띠를 지우고 힌트 "마이크를 허용했어요. 이제 버튼을 누른 채로 말해 보세요."(§8-8 ⓒ). **돌아온 것만으로 녹음을 시작하지 않는다.**
+- 설정 화면·회화방에 들어오는 것만으로는 권한을 묻지 않는다(§8-0 ③ 그대로).
+
+#### G. 업데이트 띠 · 설치 방법 시트 · 앱 버전 줄
+
+배치 — `(app)/layout.tsx` 그리드에 첫 행을 더한다(상태바 여백은 셸 `paddingTop` 이 이미 처리):
+```
+<div data-app-shell className="grid h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-surface" …>
+  <NativeFlag /> <AttendancePing />
+  <AppUpdateBanner />      ← 웹·해당 없음이면 null(행 높이 0)
+  <main …>{children}</main>
+  <TabBar />
+</div>
+```
+(`NativeFlag`·`AttendancePing` 은 그리는 것이 없어 행을 차지하지 않는다 — 그리드 행 순서가 어긋나지 않게 `AppUpdateBanner` 를 `main` 바로 앞에 둔다.)
+
+**권장 띠**(`state='recommended'`, 집중 화면에서는 null):
+```
+div data-app-update="recommended" role="status" className="flex h-14 min-w-0 items-center gap-1 border-b border-line bg-surface pl-4 pr-1"
+  span aria-hidden className="h-8 w-[3px] flex-none rounded-full bg-accent"          ← 장식(비텍스트)
+  button className="min-h-11 min-w-0 flex-1 py-1.5 pl-2 text-left" onClick={openSheet}
+    span className="block truncate text-[14px] font-semibold text-ink"  "새 앱 버전이 있어요 · v1.1.0"
+    span className="block truncate text-[12px] text-ink2"               "눌러서 바뀐 점·설치 방법 보기"
+  Btn size="sm" variant="primary" className="relative flex-none before:absolute before:-inset-y-1.5 before:inset-x-0" onClick={download} "받기"
+  button aria-label="오늘은 그만 보기" className="grid h-11 w-11 flex-none place-items-center text-ink2" ✕
+```
+
+**강제 띠**(`state='forced'`, 모든 화면):
+```
+div data-app-update="forced" role="alert" className="flex min-w-0 items-center gap-3 border-b border-bad bg-bad-soft px-4 py-2.5"
+  div className="min-w-0 flex-1 text-bad break-keep"
+    p 14px semibold  "앱을 업데이트해 주세요"
+    p 13px           "이 버전(v1.0.0)은 더 이상 지원하지 않아요. 일부 기능이 멈출 수 있어요."
+  Btn size="md" variant="primary" className="flex-none" onClick={openSheet} "업데이트"
+```
+- ✕ 없음. 버튼은 바로 받기가 아니라 **시트**(강제일수록 설치 방법을 먼저 보고 한 번에 끝내게).
+- 로그인 화면: `<AppUpdateBanner forcedOnly insetTop />` 를 `main` 맨 위에. `(auth)` 에는 셸·`NativeFlag` 가 없으므로 띠가 스스로 상태바 여백(`pt-[max(env(safe-area-inset-top),24px)]`)을 가진다.
+
+**설치 방법 시트 — `AppUpdateSheet`**(공용 `Sheet`, 제목 "앱 업데이트")
+```
+p 15px semibold ink tabular-nums   v1.0.0 → v1.1.0
+p 13px ink2                        9월 28일 올라온 버전 · 약 {size}          ← size 는 #8 에 bytes 가 있을 때만(§11-11 ③)
+h3 13px semibold ink2 "바뀐 점"     (notes 가 있을 때만)
+p  15px ink whitespace-pre-wrap break-keep                                  ← 서버 notes 는 글자로만(HTML 아님)
+h3 13px semibold ink2 "설치 방법"
+ol 14px ink leading-6, 항목마다 번호 원(24px bg-surface2 ink 13px) + 간격 10px   ← §11-8 ⓗ 4단계
+Btn primary w-full mt-4 "업데이트 받기"                                     ← openExternal(url)
+p 12px ink2 mt-2 break-keep  설치 실패 안내(§11-8 ⓗ)
+(권장일 때만) Btn ghost w-full mt-2 "나중에"   ← 시트만 닫는다(띠의 ✕ "오늘은 그만 보기"와 다름)
+```
+- [업데이트 받기] → `openExternal(absoluteUrl)`. 버튼 문구를 3초 동안 "Chrome 창에서 받는 중이에요"(disabled — 두 번 받기 방지)로 바꿨다가 되돌린다. `false` 면 `location.href = absoluteUrl`(A 의 DownloadListener 가 시스템 브라우저로 넘긴다). 그것도 예외를 던지면 시트 안 한 줄 "Chrome 창을 열지 못했어요. 잠시 후 다시 눌러 주세요."
+- `url` 은 #8 응답 값을 쓰되 **같은 출처(`location.origin`)의 `/app/download/` 경로일 때만** 연다 — 아니면 `new URL('/app/download/latest.apk', location.origin)`.
+- 바뀐 점이 길면(6줄 넘음) 시트 내부 스크롤 한 곳.
+
+**설정 맨 아래 앱 버전 줄 — `AppVersionRow`**(앱에서만, `SpeechSettings` 다음·관리자 행 앞)
+```
+Section > Card className="flex min-h-[56px] min-w-0 items-center justify-between gap-3"
+  span 14px ink "앱 버전"
+  (최신)    span 14px ink2 tabular-nums "1.0.0 · 최신"
+  (새 버전) button className="inline-flex h-11 min-w-0 items-center text-[14px] font-semibold text-accent" "1.0.0 · 새 버전 1.1.0 ›" → AppUpdateSheet
+  (강제)    button 같은 모양, 글자 text-bad "1.0.0 · 업데이트 필요 ›"
+```
+- `accent` 글자/`surface` 4.80:1(§1-1 ✅). 버전을 모르면(`getAppInfo()` 없음) 줄을 그리지 않는다.
+
+#### H. 서버 연결 실패 화면 — `public/app-shell/index.html` (APK 자산, developer A)
+
+```
+(가운데 정렬, 세로 중앙, 좌우 24px, safe-area)
+  The<span accent>Kaiwa</span>                  28px bold (로그인 화면과 같은 글자 로고)
+  서버에 연결하지 못했어요                        17px semibold ink, mt 16
+  인터넷 연결을 확인한 뒤 다시 시도해 주세요.       14px ink2
+  [다시 시도]     min-height 48, width 200, accent 배경 · on-accent 글자, radius 12, mt 20
+                  ← onclick = location.replace('https://kaiwa.xn--lh0b87pnudm10a4vd.com/')
+  계속 안 되면 서버가 점검 중일 수 있어요.          12px ink2, mt 12
+```
+- 인라인 CSS·인라인 스크립트 한 줄뿐(빌드 도구 없음). 색은 `globals.css` 토큰의 hex 를 그대로 쓰고 `@media (prefers-color-scheme: dark)` 로 다크 값도 넣는다. `<title>TheKaiwa</title>`, `lang="ko"`, 이모지 없음.
+- 이 파일은 **APK 안에 들어간다** — 바꾸면 네이티브 변경(versionCode 증가). 첫 APK(versionCode 1) 빌드 전에 고친다(§11-11 ⑨).
+
+#### I. 휴대폰 인식 진단 — `OnDeviceDiagnosticsCard` (관리자만, §11-11 ⑯)
+
+설정 맨 아래 "관리자 › AI Engine Console" 행(§6-2 K) **바로 아래**. 서버 컴포넌트가 이미 계산하는 `showConsole`(`engine.read`)이 `true` 이고 `ready && native && getSherpaStt()` 일 때만 그린다 — USER 는 DOM 0.
+```
+Section
+  SectionHeader "휴대폰 인식 진단"  + 12px ink2 "관리자에게만 보여요"
+  Card
+    dl grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2   라벨 13px ink2 / 값 14px ink tabular-nums text-right
+      인식기            불러옴 · 스레드 2 | 안 불러옴
+      불러오기 시간      1.2초                                  ← lastLoadMs
+      최근 발화         5.0초 말함 → 0.31초 만에 알아들음          ← 이번 앱 실행의 마지막 final: durationMs · timings.decodeMs
+                        [기준 초과] Badge bad                   ← 5초 이상 발화에서 decodeMs > 800 일 때만
+      메모리            앱 412MB · Java 38MB                     ← rssMb · javaHeapMb, rssMb > 600 이면 [기준 초과]
+      파일 버전         {modelVersion}                           ← 관리자 화면이라 허용(엔진·모델 이름은 없음)
+      앱 구성           플러그인 {pluginVersion} · {abi}
+    BtnRow [다시 읽기](ghost) [미리 불러오기](ghost → preload, 결과 "불러오기 시간" 갱신)
+    p 12px ink2  "측정값은 이 휴대폰 안에만 있어요. 서버로 보내지 않아요."
+```
+- 값은 카드 마운트·[다시 읽기] 때만 읽는다(폴링 없음). 카드는 플러그인을 직접 보지 않고 모델 스토어의 `readDiagnostics()`(→ `getDiagnostics()`)·`preload()` 를 부른다(§11-3 B — `getSherpaStt()` 호출자 2곳 규칙 유지). "최근 발화"는 `OnDeviceSherpaClient` 가 모듈 메모리에 둔 마지막 `timings`(텍스트·소리 없음)를 읽는다 — 저장·전송하지 않는다.
+- 기준값(0.8s·600MB)은 design-spec §9 실측 게이트 그대로. 이 카드는 F6 에서 사용자가 "20문장을 말해 본 뒤 여기 숫자를 알려 주세요" 하는 자리다.
+
+### 11-3. 상태 관리
+
+#### A. 앱 판정 — `useNativeEnv()`
+```ts
+// src/components/common/useNativeEnv.ts
+export function useNativeEnv(): { native: boolean; ready: boolean }   // 마운트 전 {false,false} → 뒤 {isNativeApp(), true}
+```
+- 앱 전용 요소는 `ready && native` 일 때만 렌더(수화 불일치 0·웹 DOM 0). 기존 `useState(() => typeof window!=='undefined' && isNativeApp())`(`MicTestCard`·`TalkRoom`)는 **문구 선택에만** 쓰이므로 그대로 둬도 되지만, 새 코드는 이 훅을 쓴다.
+
+#### B. 모델 스토어 — `onDeviceModelStore`(앱 전체 1개, `@/modules/speech/stt/client/onDeviceModel.ts`) + `useOnDeviceModel()`
+
+- `getSherpaStt()` 의 두 번째(마지막) 호출자(§11-11 ⑥). **라우터(`createRealtimeSttClient`)와 카드가 같은 스냅샷**을 본다 — 카드는 "준비됨"인데 누름이 서버로 가는 어긋남을 막는다.
+```ts
+type ModelPhase = 'unsupported' | 'checking' | 'off' | 'absent' | 'needsConsent' | 'downloading' | 'verifying' | 'paused' | 'installed' | 'error'
+interface ModelSnapshot {
+  phase: ModelPhase
+  installed: boolean              // 휴대폰 경로를 쓸 수 있는가(라우터 입력)
+  updateAvailable: boolean        // 설치 버전 !== #19 model.version
+  updating: boolean               // installed 이면서 새 버전 받는 중·멈춤
+  totalBytes: number | null; receivedBytes: number; etaSec: number | null; slow: boolean
+  requiredBytes: number | null    // totalBytes × 2.5(플러그인 거절 기준과 같음)
+  error: ModelErrorCode | null    // §11-8 ⓑ
+  cellularConsent: boolean        // 이번 앱 실행 동안만
+}
+actions: refresh() · download({ allowCellular? }) · pause() · remove() · dismissError() · readDiagnostics() · preload()   // 뒤 둘은 진단 카드(§11-2 I)만
+```
+- 버전 문자열은 비교에만 쓰고 **스냅샷에도 화면에도 싣지 않는다**(엔진·모델 정보 비노출).
+
+| 사건 | 동작 |
+|---|---|
+| 첫 구독 · `onAppResume` · `online` | `checking`(첫 번만 보임) → #19(ETag) + `checkModel()`(`{installed, version, bytes, downloading, pendingVersion, pendingBytes}` — A 계약 v1) → 아래 판정. 3초 안에 플러그인 응답이 없으면 `absent` 로 보이고 버튼을 누를 때 다시 확인 |
+| 판정 | 플러그인 없음 → `unsupported`(카드 null) · `downloading` → `downloading`(WebView 가 다시 로드돼도 진행 중인 받기를 다시 잡는다 — 이후 `downloadProgress` 로 갱신) · `pendingBytes>0` → `paused` · 설치됨 → `installed`(+`updateAvailable`, `pendingVersion` 이 있으면 새 버전 멈춤) · #19 에 모델 블록이 없거나 `version`·`totalBytes` 가 `null`(서버 배포본 없음) → `off`(설치돼 있으면 `installed` 유지) · 그 외 → `absent` |
+| [휴대폰에 받기]·[이어받기]·[새 버전 받기] | `downloadModel({ manifestUrl: 절대 URL, wifiOnly: !cellularConsent, expectedVersion })` → `downloading` |
+| 플러그인 `NETWORK_NOT_ALLOWED` | `needsConsent` |
+| [데이터로 받기] | `cellularConsent=true` → 다시 `download` |
+| `downloadProgress` | `receivedBytes`·`etaSec` 갱신(최근 5초 평균) · 10초 무진행 → `slow` · 합계 = 전체면 `verifying` |
+| `downloadModel` resolve | `installed` · `updateAvailable=false` · 라우터에 알림(다음 누름부터 휴대폰) |
+| `downloadModel` reject | 코드 → `error`(§11-8 ⓑ). `DOWNLOAD_CANCELLED` → `paused`(오류 아님) · `DOWNLOAD_IN_PROGRESS` → `refresh()`(이미 받는 중) · `NETWORK_NOT_ALLOWED` → `needsConsent` |
+| [일시정지] | `cancelDownload()` → 진행 중 `downloadModel` 이 `DOWNLOAD_CANCELLED` 로 끝남(받은 조각은 남는다) → `paused` |
+| [받은 것 지우기](설치본 없을 때만) · [지우기] 확정 | `deleteModel()`(설치본·미완성 전부) → `absent`(라우터 즉시 서버). `BUSY`(녹음·받기 중) → 시트 안 "지금은 지울 수 없어요. 녹음이나 받기가 끝난 뒤 다시 눌러 주세요." |
+| 라우터가 `MODEL_MISSING`·`MODEL_CORRUPT` 보고 | `checkModel({ verify: true })`(불일치 버전은 플러그인이 지운다) → 손상이면 `error(MODEL_CORRUPT)`, 없으면 `absent` |
+
+- 동시 조작 금지: 요청이 걸려 있는 동안 카드 버튼 `disabled`. 받기는 한 번에 하나(플러그인도 거절).
+- 모바일 데이터 동의는 **이번 앱 실행 동안만** 기억하고 저장소에 남기지 않는다 — 다음 실행의 이어받기는 다시 묻는다.
+
+#### C. 경로 정보 — 라우터가 화면에 주는 것 (`useRealtimeStt().route`)
+
+```ts
+type SttRouteReason = 'WEB' | 'READY' | 'MODEL_ABSENT' | 'MODEL_DOWNLOADING' | 'MODE_ACCURATE' | 'MODE_OFFLINE'
+  | 'ONDEVICE_FAILED' | 'SERVER_DISABLED' | 'UPDATE_REQUIRED'
+interface SttRoute { kind: SttKind; reason: SttRouteReason }
+// SttEvent 에 추가: { type: 'route'; route: SttRoute; switched: boolean }   ← switched = 전환된 순간(안내 1회용)
+// SttErrorCode 에 추가: 'MODEL_REQUIRED'                                     ← 오프라인 방식 + 파일 없음/손상
+```
+- **누를 때마다 고른다**(녹음 중이 아닐 때). 받기가 끝나면 다음 누름부터 휴대폰, 지우면 다음 누름부터 서버. 대기 중에도 스토어가 바뀌면 `route` 를 다시 계산해 경로 한 줄이 바로 바뀐다.
+- 전환 카운터는 **모듈 수준(앱 실행 1회)** — 설정 ↔ 회화방을 오가도 이어지고, 앱을 다시 켜면 0.
+- 플러그인 오류 → 화면 코드(클라이언트가 끝낸다. 화면은 코드만 안다). 코드·카운트 구분은 **Developer A 플러그인 계약 v1**(task 이력서 "A(앱·플러그인)")의 권고를 따른다:
+
+| 플러그인(언제) | 화면 | 카운트 | 이번 누름 |
+|---|---|---|---|
+| `PERMISSION_DENIED`(`start` 거부) | MIC_DENIED | × | 끝(권한 흐름 F) |
+| `INTERRUPTED`(앱이 뒤로 가 세션 취소) | 힌트 INTERRUPTED(§8-8 ⓒ "녹음이 중간에 멈췄어요") | × | 끝 |
+| `ALREADY_STARTED` · `INVALID_ARGUMENT` | — (띠 없음, 개발 오류) | × | `cancel()` 뒤 서버로 이어서 |
+| `MODEL_MISSING`(`start` 거부) | — / 오프라인 방식이면 MODEL_REQUIRED | × | **즉시 서버로 이어서**(버퍼 유지) + 스토어 `refresh` |
+| `AUDIO_INIT_FAILED` · `BUSY` · `MODEL_CORRUPT` · `OOM`(`start` 거부) | — (띠 없음) / 오프라인 방식이면 MIC_BUSY(`AUDIO_INIT_FAILED`)·MODEL_REQUIRED(`MODEL_CORRUPT`)·ENGINE_ERROR | ○ | **서버로 이어서**. 2회째면 `route{switched:true}` → 토스트 1회. `MODEL_CORRUPT` 는 카드 `error` 도 |
+| `DECODE_FAILED` · `OOM` · `MODEL_CORRUPT` · `AUDIO_INIT_FAILED`(세션 중 `error` 이벤트) | ENGINE_ERROR(2회째 `switched`, 오프라인 방식이면 `offlineMode` 2줄) | ○ | 말 잃음 |
+| `final.text` 빈 문자열(`wavPath:null`) | 힌트 EMPTY_RESULT(§8-8 ⓒ) | × | 업로드 없음 |
+| #21 업로드 실패(TURN) | — | × | final 은 그대로, `utteranceId:null` |
+
+#### D. 권한 — 앱
+- `micPreflight(kind, config, native)`: 앱이면 `getSherpaStt()?.checkPermissions()` → `recordAudio`, 없으면 Permissions API. `prompt-with-rationale` 은 `PermState` 새 값 `'rationale'` 로 올려 상태 줄 안내(§11-2 F).
+- 플러그인 `start()` 는 권한을 스스로 묻지 않는다(A 계약 v1). A 기록의 "회화 진입·마이크 테스트 전에 `requestPermissions()`"는 화면 규칙(§8-0 ③ — 진입만으로 묻지 않는다)에 따라 **첫 누름 때** 부른다: 권한이 `granted` 가 아니면 그 누름은 `requestPermissions()` 만 하고 녹음하지 않는다.
+- `watchMicPermission(cb)`: 앱이면 `onAppResume` 에서 다시 읽는다(Permissions API `onchange` 는 WebView 에서 오지 않을 수 있다).
+- `openAppSettings()` 가 `false`(메서드 없음)면 버튼을 그리지 않고 2줄을 경로형으로 바꾼다.
+
+#### E. 업데이트 — `appUpdateStore`(앱 전체 1개, `src/components/shell/useAppUpdate.ts`)
+```ts
+interface AppUpdateSnapshot {
+  state: 'hidden' | 'recommended' | 'forced'
+  mine: { name: string; code: number } | null
+  latest: { name: string; code: number; notes: string | null; url: string; publishedAt: string | null; bytes: number | null } | null
+  dismissedToday: boolean
+}
+```
+| 사건 | 동작 |
+|---|---|
+| 셸·로그인 첫 마운트(앱) | `getAppInfo()` → 없으면 `hidden`(끝). 있으면 #8(`X-App-Version`) 1회 |
+| `onAppResume` | 마지막 확인이 6시간 넘었으면 조용히 #8 다시 |
+| 판정 | `mine.code < minSupportedCode` → `forced` · `mine.code < latest.code` → `recommended` · 그 외 `hidden`. #8 실패 → `hidden`(조용히 — 띠 때문에 오류를 보이지 않는다) |
+| ✕ | `localStorage kaiwa.app.update.dismissed = {"code": latest.code, "day": "YYYY-MM-DD"(KST)}` → `dismissedToday` |
+| 표시 | forced = 늘 · recommended = `!dismissedToday && !focusRoute`. 기록의 `code < latest.code` 이거나 날짜가 오늘이 아니면 다시 보인다 |
+
+- `localStorage` 는 try/catch — 막히면 닫기가 이번 실행 동안만 유지(메모리).
+- 집중 화면 = 지금 `TabBar` 의 `HIDDEN_PREFIXES`(회화방·채팅방·단어 덱). 한 곳(`shell/routes.ts` `FOCUS_ROUTE_PREFIXES`)으로 옮겨 둘이 같이 쓴다.
+- **강제 상태에서는 라우터가 휴대폰 경로를 쓰지 않는다**(`UPDATE_REQUIRED` — 옛 플러그인과 새 웹의 계약이 어긋났을 수 있다, §11-11 ④).
+
+#### F. 앱 로그인 — `AppLoginArea` 상태
+| 지금 | 사건 | 다음 |
+|---|---|---|
+| idle | 버튼 탭(앱) | opening → `openExternal(url)` |
+| opening | `true` | waiting |
+| opening | `false`(플러그인 없음·실패) | 일반 네비게이션(지금의 폴백) |
+| waiting | 딥링크(코드) | exchanging → `closeExternal()` + `location.replace(app-exchange)`(기존 `AppDeepLink`) |
+| waiting | 딥링크(`error`) | 기존대로 `?oauth_error=` 로 replace |
+| waiting | `browserFinished` 뒤 **1.5초 안에 딥링크 없음** | idle + closed 안내 |
+| waiting | [Chrome 창 다시 열기] | opening |
+| exchanging | (문서 이동) | 덮개는 이동까지 유지 |
+- 대기에는 시간 제한을 두지 않는다(계정 선택·2단계 인증은 오래 걸릴 수 있다). `closeExternal()` 로 닫혀도 `browserFinished` 가 오므로 "딥링크를 이미 받았으면 무시".
+- 콜드 스타트(앱이 꺼진 채 딥링크로 깨어남)는 대기 상태 없이 바로 exchanging — 기존 `getLaunchUrl` 경로 그대로.
+- **PKCE(Leader C1-1 채택)**: opening 단계에서 `AppLoginArea` 가 verifier 를 만들어(메모리 + `sessionStorage`, 10분·1회용) challenge 를 #2 에 싣고, 딥링크를 받으면 `code_r`+verifier 로 #5 교환(구현 developer B). 화면 변화는 없다 — [Chrome 창 다시 열기]는 **같은 URL·같은 verifier** 를 다시 쓰고, closed 뒤 버튼을 새로 누르면 새로 만든다. verifier 가 없어진 교환(콜드 스타트로 `sessionStorage` 유실 등)·만료·재사용은 서버가 구분 없이 `app_code_invalid` 로 돌려보내므로 문구도 하나(§11-8 ⓘ). verifier·코드는 화면·`console`·URL 표시줄 어디에도 그리지 않는다.
+
+### 11-4. API 호출 계획
+
+| # | 엔드포인트 | 시점 | 파라미터 | 사용 필드 | 에러 처리 |
+|---|---|---|---|---|---|
+| 19 | `GET /api/v1/speech/config` | 모델 스토어 첫 구독·resume·`online`(ETag 304 재사용) · 마이크 테스트·회화방(기존) | 헤더 `X-Client-Platform: app`(api.ts 가 앱에서 자동) | `onDevice.enabled` · `onDevice.model.{version, manifestUrl, totalBytes}` · `onDevice.connectionKey`(#21 에 그대로 싣기만) · `fallback.onDeviceFailureThreshold` · `gateway.enabled` · `recognitionMode` | 실패 → 설치돼 있으면 `installed` 유지, 아니면 카드 `error(SERVER)` [다시 시도] |
+| 9 | `GET /models/reazonspeech-int8/manifest.json` | **플러그인이** `downloadModel` 안에서. 웹은 #19 `totalBytes` 가 `null` 일 때만 크기용 1회 | — | `totalBytes` 만 | 크기 모름 → 크기 표기 생략 |
+| 10 | `GET /models/reazonspeech-int8/<version>/<file>` | 플러그인만(Range 재개) | `Range` | — | 플러그인 오류 코드(§11-8 ⓑ) |
+| 15/16 | `GET/PUT /api/v1/settings/speech` | 기존(인식 방식) | 기존 | `recognitionMode` | 기존 |
+| 21 | `POST /api/v1/speech/utterances` | `OnDeviceSherpaClient` 가 **TURN final 때만**(MIC_TEST 는 올리지 않음) | multipart `audio`·`text`·`chatId`·`realtimeConnectionKey`(#19 값 그대로)·`durationMs`·`segments`·`timings` | `utteranceId` | 실패 → final 을 `utteranceId:null` 로 넘기고 재시도 없음(§9-11 ②) |
+| 8 | `GET /api/app/version` | 앱 셸·로그인 첫 마운트 1회 · resume(6시간 경과) | 헤더 `X-App-Version: {versionName}`(api.ts 가 앱에서만) | `latest` · `latestCode` · `minSupportedCode`(§11-11 ③) · `url` · `notes` · `publishedAt` · `bytes`(있으면) | 실패 → 띠 없음, 오류 표시 없음 |
+| — | `GET /app/download/latest.apk` | [업데이트 받기]·띠 [받기] | Custom Tabs(`openExternal`)로 연다 — WebView 이동·`fetch` 금지 | — | 열기 실패 → 시트 안 한 줄 / 띠에서는 시트를 연다 |
+| 2 | `GET /api/auth/google?platform=app&next=` | 로그인 버튼(앱) | 기존 `buildGoogleAuthHref` | — | 기존 |
+| 5 | `GET /api/auth/app-exchange?code=&next=` | 딥링크 수신 | `location.replace`(기존) | 302 | 만료·재사용 → `/login?oauth_error=app_code_invalid`(§11-8 ⓘ) |
+
+**bridge 호출**(`src/modules/infra/native/bridge.ts` — `window.Capacitor` 를 읽는 유일한 파일, 전부 "없으면 조용히")
+
+| 함수 | 네이티브 | 부르는 곳 | 없으면 |
+|---|---|---|---|
+| `isNativeApp()` | `Capacitor.isNativePlatform()` | `useNativeEnv`·api.ts | `false` |
+| `getSherpaStt()` **신규** | `Plugins.SherpaStt`(필수 메서드가 전부 있을 때만) | `OnDeviceSherpaClient`·`onDeviceModel` **만** | `null` → 카드 없음·서버 경로 |
+| `getAppInfo()` **신규** | `Plugins.App.getInfo()` → `{ name: version, code: Number(build) }` | `appUpdateStore`·api.ts(`X-App-Version`) | `null` → 띠·앱 버전 줄 없음 |
+| `onAppResume(fn)` **신규** | `Plugins.App.addListener('resume')` | 권한·모델·버전 재확인 | no-op |
+| `openExternal(url)` | `Plugins.Browser.open` | 로그인·APK 받기 | `false` |
+| `onBrowserFinished(fn)` **신규** | `Plugins.Browser.addListener('browserFinished')` | `AppLoginArea` | no-op(대기는 [다시 열기]·딥링크로만 풀림) |
+| `closeExternal()` | `Plugins.Browser.close` | 딥링크 수신(기존) | no-op |
+| `openAppSettings()` **신규** | `Plugins.SherpaStt.openAppSettings()`(§11-11 ①) | 권한 띠 | `false` → 버튼 숨김 |
+
+- `GoogleLoginButton.client.tsx` 안의 **자체 `getBridge()` 사본을 지우고** bridge 를 쓴다(`window.Capacitor` 를 두 곳에서 읽는 상태 해소 — module-dependency §6).
+
+### 11-5. 컴포넌트 분해
+
+| 이름 | 위치 | 종류 | props / 반환 | 상태 |
+|---|---|---|---|---|
+| `OnDeviceModelCard` | components/speech | 컴포넌트 | `{ recognitionMode: RecognitionMode \| null; micBusy?: boolean }` | `useOnDeviceModel` 구독 · 시트 열림 |
+| `ModelProgress` | components/speech | 컴포넌트 | `{ received; total; etaSec; slow; verifying; title? }` | 낭독 단계(ref) |
+| `ModelDeleteSheet` | components/speech | 컴포넌트 | `{ open; onClose; onConfirm(): Promise<void>; bytes }` | 제출 중 |
+| `useOnDeviceModel` | components/speech | 훅 | → `ModelSnapshot` + actions | 스토어 구독 |
+| `modelCopy.ts` | components/speech | 문구 | §11-8 ⓐ~ⓓ | — |
+| `sttCopy.ts`(수정) | components/speech | 문구 | `pathCaption(route)` · `sttErrorCopy(code, { native, switched, offlineMode, canOpenSettings })` · MODEL_REQUIRED · 권한 안내 | — |
+| `MicTestAlert`(수정) | components/speech | 컴포넌트 | `+ onOpenSettings?` | — |
+| `SttAlert`(수정) | components/talk | 컴포넌트 | `+ switched?; offlineMode?; onOpenSettings?` · MODEL_REQUIRED 의 [설정 열기] | — |
+| `SttRouteRow` | components/talk | 컴포넌트 | `{ route: SttRoute }` | 없음 |
+| `AppUpdateBanner` | components/shell | 컴포넌트 | `{ forcedOnly?: boolean; insetTop?: boolean }` | 시트 열림 |
+| `AppUpdateSheet` | components/shell | 컴포넌트 | `{ open; onClose; snapshot }` | 받기 요청 표시(3초) |
+| `useAppUpdate` · `appUpdateStore` | components/shell | 훅·로직 | → `AppUpdateSnapshot` + `dismiss()` | 싱글턴 |
+| `appUpdateCopy.ts` | components/shell | 문구 | §11-8 ⓗ | — |
+| `routes.ts` | components/shell | 상수 | `FOCUS_ROUTE_PREFIXES` | — |
+| `AppVersionRow` | components/settings | 컴포넌트 | 없음 | `useAppUpdate` |
+| `OnDeviceDiagnosticsCard` | components/settings | 컴포넌트 | `{ show: boolean }`(서버의 `showConsole`) | 진단 값·읽는 중 |
+| `useNativeEnv` | components/common | 훅 | → `{ native, ready }` | 마운트 판정 |
+| `formatMB(bytes)` | components/common/format | 순수 | `170MB` · `1.2GB`(10⁶ 기준, 반올림, 최소 1MB) | — |
+| `AppLoginArea` | app/(auth)/login | 클라 | `{ callbackUrl }` — 버튼·딥링크·대기·덮개를 한 상태로 | phase |
+| `InviteReturn` | app/(auth)/invite | 클라 | `{ appRedirect }` | 없음 |
+
+### 11-6. 생성/수정 파일 목록 (developer B — 화면)
+
+| 구분 | 파일 |
+|---|---|
+| 생성 | `src/components/speech/{OnDeviceModelCard.tsx, ModelProgress.tsx, ModelDeleteSheet.tsx, useOnDeviceModel.ts, modelCopy.ts}` |
+| 생성 | `src/components/shell/{AppUpdateBanner.tsx, AppUpdateSheet.tsx, useAppUpdate.ts, appUpdateCopy.ts, routes.ts}` · `src/components/settings/{AppVersionRow.tsx, OnDeviceDiagnosticsCard.tsx}` · `src/components/talk/SttRouteRow.tsx` · `src/components/common/useNativeEnv.ts` |
+| 생성 | `src/app/(auth)/login/AppLoginArea.client.tsx` · `src/app/(auth)/invite/InviteReturn.client.tsx` |
+| 생성(테스트) | `src/components/speech/__tests__/modelCopy.test.ts`(상태·방식별 문구·크기 표기) · `src/components/shell/__tests__/appUpdateStore.test.ts`(판정 3종·하루 1회·새 번호면 다시·집중 화면 숨김·강제는 늘·#8 실패 hidden·`getAppInfo` 없음 hidden) · `src/components/speech/__tests__/sttCopy.test.ts` 보강(경로 한 줄 9종·MIC_DENIED 앱 버튼 유무·MODEL_REQUIRED·switched·offlineMode) |
+| 수정 | `src/components/settings/SpeechSettings.tsx`(카드 삽입·방식 설명·앱 오프라인 비활성 규칙) · `src/app/(app)/settings/page.tsx`(`AppVersionRow` · 관리자 행 아래 `<OnDeviceDiagnosticsCard show={showConsole} />`) · `src/app/(app)/layout.tsx`(그리드 첫 행 `AppUpdateBanner`) · `src/components/shell/TabBar.tsx`(`FOCUS_ROUTE_PREFIXES` import) |
+| 수정 | `src/components/speech/{sttCopy.ts, MicTestCard.tsx(경로 한 줄·권한 버튼·MODEL_REQUIRED), micPreflight.ts(앱 권한·OFFLINE 은 GATEWAY 만), sttUiState.ts('rationale'·MODEL_REQUIRED), useRealtimeStt.ts(route 노출)}` · `src/components/talk/{SttAlert.tsx, TalkRoom.tsx(route·switched 토스트는 announce·메뉴 extra 에 SttRouteRow)}` |
+| 수정 | `src/app/(auth)/login/{page.tsx(AppLoginArea·강제 띠·하단 안내 앱 줄·오류 문구·ink3→ink2), GoogleLoginButton.client.tsx(bridge 사용·phase props), AppDeepLink.client.tsx(onExchanging 콜백)}` · `src/app/(auth)/invite/InviteForm.client.tsx`(appRedirect 뒤 `InviteReturn`) · `src/components/common/{api.ts(X-App-Version), format.ts(formatMB)}` |
+| (범위 밖·참고, developer B 모듈) | `src/modules/infra/native/bridge.ts`(§11-4 신규 6개) · `src/modules/speech/stt/client/{onDeviceModel.ts, OnDeviceSherpaClient.ts, index.ts(라우터), types.ts(route·MODEL_REQUIRED)}` |
+| (범위 밖·참고, developer A) | `public/app-shell/index.html`(§11-2 H) · `capacitor.config.ts` `server.errorPath` · 플러그인 추가 메서드·오류 코드(§11-11 ①) |
+| 테스트 도구(번들 밖) | `tests/live/fake-capacitor.js`(가짜 `window.Capacitor`, §11-7 ⑨) · `tests/live/task003f-ui-e2e.mjs` |
+
+### 11-7. 구현 순서
+
+1. bridge 신규 함수 + 단위 테스트용 가짜 플러그인(`src/modules/speech/stt/client/__tests__/fakeSherpa.ts`) — 모든 함수가 "없으면 조용히"인지 테스트.
+2. `onDeviceModel` 스토어(+테스트: §11-3 B 표 전 행) → 라우터 `route`·전환 카운터(+테스트: §11-3 C 표) — Leader's Plan 완료 기준 5 와 같은 묶음.
+3. 문구(`modelCopy`·`sttCopy` 보강·`appUpdateCopy`) + `formatMB` + `useNativeEnv`.
+4. `OnDeviceModelCard`·`ModelProgress`·`ModelDeleteSheet` → `SpeechSettings` 결합(방식 설명·오프라인 규칙).
+5. 권한 흐름(F): `micPreflight`·`MicTestAlert`·`SttAlert` 버튼 → 경로 한 줄(C) → 회화방 전환 안내·메뉴 한 줄(D).
+6. `appUpdateStore`(+테스트) → `AppUpdateBanner`·`AppUpdateSheet`·`AppVersionRow` → 셸·로그인 배치 → `OnDeviceDiagnosticsCard`(관리자만).
+7. `AppLoginArea`(E)·`InviteReturn`.
+8. (developer A) `app-shell/index.html`·`errorPath` — 첫 `assembleDebug` 전에.
+9. **PC 에서 앱 모드 렌더(완료 기준 7)** — 가짜 `window.Capacitor`:
+   - `tests/live/fake-capacitor.js` 를 Playwright `context.addInitScript({ path })` 로 넣는다(페이지 스크립트보다 먼저 실행 → `isNativeApp()` 가 `true`). `src/` 밖이라 번들에 들어가지 않는다. **앱 코드에 개발용 스위치·쿼리 파라미터를 만들지 않는다.**
+   - 가짜 구성: `isNativePlatform: () => true` · `Plugins.App{ getInfo → {version, build}, addListener('resume'), getLaunchUrl → null }` · `Plugins.Browser{ open(호출 기록), close, addListener('browserFinished') }` · `Plugins.SherpaStt{ checkPermissions, requestPermissions, checkModel({verify}), downloadModel(타이머로 downloadProgress, cancelDownload 면 DOWNLOAD_CANCELLED reject), cancelDownload, deleteModel, preload, start/stop/cancel(level·vad·고정 partial·final), release, deleteWav, getDiagnostics, openAppSettings(호출 기록 — §11-11 ① 반영 전엔 빼서 "버튼 없음" 경로도 찍는다), addListener }` — 메서드·이벤트·오류 코드 이름은 **A 계약 v1 표 그대로**(가짜와 진짜가 갈라지지 않게).
+   - 조종: `window.__fakeCap.set({ appBuild: 1, perm: 'prompt'|'rationale'|'denied'|'granted', model: 'absent'|'partial'|'installed'|'outdated', network: 'wifi'|'metered', diag: {…} })` · `__fakeCap.emit('resume')` · `__fakeCap.emit('browserFinished')` · `__fakeCap.failNext('INSUFFICIENT_STORAGE'|'DOWNLOAD_FAILED'|'OFFLINE'|'APP_UPDATE_REQUIRED'|'MANIFEST_INVALID'|'DECODE_FAILED'|'AUDIO_INIT_FAILED'|'MODEL_MISSING')` · `__fakeCap.progress(ratio)` · `__fakeCap.calls`(호출 기록).
+   - 서버 응답: api.ts 가 `X-Client-Platform: app` 을 붙이므로 개발 DB 에 ONDEVICE 연결이 있으면 #19 가 실제 `onDevice` 를 준다. 없거나 상태를 고정하려면 `page.route('**/api/v1/speech/config')`·`page.route('**/api/app/version')` 로 응답을 바꾼다(띠 3종: `latestCode` = 내 번호 / 내 번호 + 1 / `minSupportedCode` = 내 번호 + 1).
+   - 찍을 것(360·390·412 각각): 카드 상태(absent·needsConsent·downloading·paused·installed·installed+새 버전·error 4종) · 권한 `rationale`·`denied`(+[앱 설정 열기] 호출 기록) · 경로 한 줄 · 띠 권장/강제·시트 · 앱 버전 줄 · 로그인 waiting·closed·exchanging · 회화방 메뉴 한 줄.
+   - **웹 회귀**: 가짜 없이 같은 화면 → `#ondevice-card`·`[data-app-update]`·앱 버전 줄·메뉴 "알아듣는 곳"·로그인 대기 요소 DOM 0, `/api/app/version` 요청 0.
+10. 실기기(F6, 사용자 폰) — §11-9 끝 목록.
+
+### 11-8. 한국어 UI 문구
+
+ⓐ **휴대폰에서 알아듣기 카드**(`modelCopy.ts`)
+
+| 자리 | 문구 |
+|---|---|
+| 제목 | 휴대폰에서 알아듣기 |
+| 뱃지 | 받지 않음 · 받는 중 · 멈춤 · 준비됨 · 쓸 수 없음 · 문제 있음 |
+| 설명(absent·needsConsent·downloading·paused) | 휴대폰 안에서 바로 알아들어요. 말하는 동안 소리를 서버로 보내지 않아서 인터넷이 느려도 빨라요. |
+| 받기 전 안내(absent) | 받기 전에도 회화는 서버에서 알아들어요. |
+| 메타(absent) | 약 {size} · Wi-Fi 에서 받아요 |
+| 버튼 | 휴대폰에 받기 (약 {size}) · 데이터로 받기 · 나중에 · 일시정지 · 이어받기 · 받은 것 지우기 · 새 버전 받기 · 지우기 |
+| needsConsent | 지금은 Wi-Fi 가 아니에요. / 모바일 데이터로 약 {size} 를 쓰게 돼요. Wi-Fi 에 연결한 뒤 다시 누르거나, 지금 받을 수 있어요. |
+| downloading | 받는 중… {p}% · {got} / {size} · 남은 시간 약 {n}분 / 1분 안에 끝나요 · (무진행 10초) 받는 속도가 느려요. Wi-Fi 연결을 확인해 주세요. |
+| downloading 안내 | 받는 동안에도 회화는 서버에서 알아들어요. 다른 화면으로 가도 계속 받아요. |
+| 새 버전 받는 중 제목 | 새 버전 받는 중… |
+| verifying | 받은 파일을 확인하는 중… |
+| paused | 멈춤 · {got} / {size} 받음 |
+| 오프라인(버튼 아래) | 인터넷에 연결되면 받을 수 있어요. |
+| installed 경로 줄 — 자동·빠르게 | 휴대폰에 받아 두었어요. 회화와 마이크 테스트에서 휴대폰으로 알아들어요. |
+| — 정확하게 | 휴대폰에 받아 두었어요. 지금 방식(정확하게)에서는 서버에서 알아들어요. |
+| — 오프라인 | 휴대폰에 받아 두었어요. 서버로 바꾸지 않고 휴대폰에서만 알아들어요. |
+| — 전환 중(오류 2회) | 이번에는 휴대폰 인식이 잘 안 돼서 서버에서 알아듣고 있어요. 앱을 다시 켜면 휴대폰부터 써요. |
+| — 강제 업데이트 중 | 앱을 업데이트하면 다시 휴대폰에서 알아들어요. 그동안은 서버에서 알아들어요. |
+| — 서버가 꺼 둠 | 지금은 서버에서 알아들어요. |
+| installed 메타 | {size} 사용 중 |
+| 새 버전 안내 | 새 버전이 있어요(약 {size}). 받는 동안에도 지금 버전으로 알아들어요. |
+| off | 지금은 휴대폰에서 알아듣기를 쓸 수 없어요. 서버에서 알아들어요. |
+| 알아 두세요(absent·installed) | 회화에서 다 말한 문장은 대화 기록과 ‘내 목소리 다시 듣기’를 위해 서버에 저장돼요(30일 뒤 자동 삭제). 마이크 테스트는 저장하지 않아요. |
+| 오프라인 방식 지우기 막힘 | 오프라인 방식에서는 지울 수 없어요 — 먼저 다른 방식을 골라 주세요. |
+| 낭독(25·50·75·100%) | 4분의 1 받았어요 · 절반 받았어요 · 4분의 3 받았어요 · 다 받았어요. 확인하는 중이에요 |
+| 완료(카드 안 role=status 1회) | 준비됐어요. 이제 휴대폰에서 알아들어요. |
+| 토스트 | 휴대폰 인식 파일을 지웠어요 · 새 버전으로 바꿨어요 |
+
+ⓑ **카드 오류**(`ModelAlert` — 1줄 무엇 · 2줄 어떻게 · 버튼 1개)
+
+| 화면 코드 | 플러그인 코드(A 계약 v1) · 원인 | 1줄 | 2줄 | 버튼 |
+|---|---|---|---|---|
+| INSUFFICIENT_STORAGE | `INSUFFICIENT_STORAGE` — 여유 < 파일 크기×2.5 | 휴대폰 저장 공간이 부족해요. | 여유 공간이 약 {need} 필요해요. 사진이나 앱을 정리한 뒤 다시 눌러 주세요. | 다시 받기 |
+| OFFLINE | `OFFLINE` · 받는 중 `navigator.onLine=false` | 인터넷에 연결되어 있지 않아요. | 받은 부분은 남아 있어요. 연결되면 이어서 받을 수 있어요. | 이어받기(오프라인이면 disabled) |
+| DOWNLOAD_FAILED | `DOWNLOAD_FAILED` — 연결 끊김·타임아웃·파일 확인 실패 | 파일을 다 받지 못했어요. | 다시 누르면 받을 수 있는 곳부터 이어서 받아요. 계속 안 되면 잠시 뒤에 해 보세요. | 이어받기 |
+| SERVER | `MANIFEST_INVALID` · `ORIGIN_NOT_ALLOWED` · `DOWNGRADE_REFUSED` · #19 실패 | 지금은 파일을 받을 수 없어요. | 잠시 후 다시 시도해 주세요. 그동안은 서버에서 알아들어요. | 다시 시도 |
+| APP_UPDATE_REQUIRED | `APP_UPDATE_REQUIRED` — 새 파일이 새 앱을 요구 | 새 앱에서만 받을 수 있는 버전이에요. | 앱을 업데이트한 뒤 받아 주세요. | 설치 방법(→ `AppUpdateSheet`) |
+| MODEL_CORRUPT | 세션 `MODEL_CORRUPT` → `checkModel({verify:true})` 로 확인 | 휴대폰 인식 파일이 손상됐어요. | 다시 받아 주세요. 그동안은 서버에서 알아들어요. | 다시 받기 |
+| (그 밖) | 알 수 없는 코드 | 파일을 받지 못했어요. | 다시 눌러 주세요. | 다시 시도 |
+
+- 오류가 아닌 코드: `NETWORK_NOT_ALLOWED` → `needsConsent` · `DOWNLOAD_CANCELLED` → `paused` · `DOWNLOAD_IN_PROGRESS` → 다시 확인(이미 받는 중). 서버 `message`·플러그인 `err.message`(개발용 영문)는 그리지 않는다.
+
+ⓒ **지우기 시트** — 제목 "휴대폰 인식 파일 지우기" · 본문 "지우면 저장 공간 약 {size} 가 비어요. 회화는 서버에서 알아들어요." · 보조 "다시 쓰려면 약 {size} 를 또 받아야 해요." · 버튼 "지우기" / "지우는 중…" / "취소" · 실패 "지우지 못했어요. 다시 눌러 주세요."
+
+ⓓ **인식 방식 설명**(`SpeechSettings` MODES — 라벨 그대로)
+
+| 값 · 라벨 | 앱 | 앱 · 파일 없음 | 웹 |
+|---|---|---|---|
+| AUTO 자동(권장) | 휴대폰에서 알아듣고, 안 되면 서버에서 알아들어요 | 파일을 받기 전에는 서버에서 알아들어요 | 서버에서 알아들어요(앱에서는 휴대폰에서도 알아들어요) |
+| FAST 빠르게 | 휴대폰에서 바로 알아들어요 | 파일을 받기 전에는 서버에서 알아들어요 | 웹에서는 서버에서 알아들어요(앱에서는 휴대폰에서) |
+| ACCURATE 정확하게 | 서버에서 한 번 더 확인해요(조금 느려요) | 같음 | 같음 |
+| OFFLINE 오프라인 | 서버로 바꾸지 않고 휴대폰에서만 알아들어요(선생님 대답에는 인터넷이 필요해요) | (비활성) 휴대폰 인식 파일을 받은 뒤 고를 수 있어요 | (비활성) 앱에서만 쓸 수 있어요 |
+
+ⓔ **경로 한 줄**(`pathCaption(route)` — 마이크 테스트) · 메뉴 이유 줄(짧은 꼴)
+
+| route | 마이크 테스트 | 회화방 메뉴 이유 줄 |
+|---|---|---|
+| WEB | 지금은 서버에서 알아들어요. | (웹엔 메뉴 줄 없음) |
+| ONDEVICE · READY | 지금은 휴대폰에서 알아들어요. | — |
+| ONDEVICE · MODE_OFFLINE | 지금은 휴대폰에서만 알아들어요(오프라인 방식). | 오프라인 방식 |
+| GATEWAY · MODEL_ABSENT | 지금은 서버에서 알아들어요. 휴대폰 인식 파일을 받으면 휴대폰에서 알아들어요 — 위에서 받을 수 있어요. | 휴대폰 인식 파일을 받기 전이에요 |
+| GATEWAY · MODEL_DOWNLOADING | 지금은 서버에서 알아들어요. 휴대폰 인식 파일을 받는 중이에요. | 휴대폰 인식 파일을 받는 중이에요 |
+| GATEWAY · MODE_ACCURATE | 지금은 서버에서 알아들어요(정확하게 방식). | 정확하게 방식 |
+| GATEWAY · ONDEVICE_FAILED | 휴대폰 인식이 잘 안 돼서 이번에는 서버에서 알아들어요. 앱을 다시 켜면 휴대폰부터 써요. | 휴대폰 인식이 잘 안 돼서 바꿨어요 |
+| GATEWAY · UPDATE_REQUIRED | 지금은 서버에서 알아들어요. 앱을 업데이트하면 휴대폰에서 알아들어요. | 앱 업데이트가 필요해요 |
+| GATEWAY · SERVER_DISABLED | 지금은 서버에서 알아들어요. | — |
+
+ⓕ **회화방 · 마이크 테스트 추가 오류**
+
+| 자리 | 문구 |
+|---|---|
+| 메뉴 줄 라벨 · 값 · 링크 | 알아듣는 곳 · 휴대폰에서 / 서버에서 · 음성 인식 설정 › |
+| 전환 토스트(1회) | 휴대폰 인식이 잘 안 돼서 서버에서 알아들을게요. |
+| ENGINE_ERROR 2줄 — 전환 순간(`switched`) | 다음부터는 서버에서 알아들어요. 다시 눌러 말해 주세요. |
+| ENGINE_ERROR 2줄 — 오프라인 방식 | 오프라인 방식이라 서버로 바꾸지 않아요. 다시 말하거나 글자로 대화해 주세요. |
+| MODEL_REQUIRED(회화방) | 휴대폰 인식 파일이 없어요. / 설정 → 음성 인식에서 받거나 다른 방식을 골라 주세요. · [설정 열기] [글자로 대화하기] |
+| MODEL_REQUIRED(마이크 테스트) | 휴대폰 인식 파일이 없어요. / 위에서 파일을 받거나 다른 방식을 골라 주세요. |
+
+ⓖ **앱 마이크 권한**(§8-8 ⓐ MIC_DENIED 의 앱 줄을 이것으로 바꾼다)
+
+| 자리 | 문구 |
+|---|---|
+| rationale(누르기 전 상태 줄) | 말을 알아들으려면 마이크가 필요해요. 누르면 다시 물어봐요. |
+| MIC_DENIED 1줄 | 마이크 사용이 막혀 있어요. |
+| MIC_DENIED 2줄(버튼 있음) | 앱 설정 → 권한 → 마이크 → ‘앱 사용 중에만 허용’을 골라 주세요. |
+| MIC_DENIED 2줄(버튼 없음) | 휴대폰 설정 → 애플리케이션 → {APP_LABEL} → 권한 → 마이크 → ‘앱 사용 중에만 허용’을 골라 주세요. |
+| 버튼 | 앱 설정 열기 |
+| 돌아와 허용됨(힌트) | 마이크를 허용했어요. 이제 버튼을 누른 채로 말해 보세요.(§8-8 ⓒ 그대로) |
+| 웹(변경 없음) | 주소창 왼쪽 아이콘(사이트 정보) → 권한 → 마이크 → 허용으로 바꾼 뒤 다시 눌러 주세요. |
+
+ⓗ **업데이트**(`appUpdateCopy.ts`)
+
+| 자리 | 문구 |
+|---|---|
+| 권장 띠 | 새 앱 버전이 있어요 · v{latest} / 눌러서 바뀐 점·설치 방법 보기 · [받기] · ✕ `aria-label` "오늘은 그만 보기" |
+| 강제 띠 | 앱을 업데이트해 주세요 / 이 버전(v{mine})은 더 이상 지원하지 않아요. 일부 기능이 멈출 수 있어요. · [업데이트] |
+| 시트 제목·머리 | 앱 업데이트 · v{mine} → v{latest} · {M월 D일} 올라온 버전 · 약 {size} |
+| 시트 절 | 바뀐 점 · 설치 방법 |
+| 설치 방법 1 | [업데이트 받기]를 누르면 Chrome 창에서 파일을 받아요. |
+| 설치 방법 2 | 다 받으면 알림(또는 Chrome ‘다운로드’)에서 받은 파일을 눌러요. |
+| 설치 방법 3 | ‘출처를 알 수 없는 앱’ 설치를 물으면 Chrome 을 허용해 주세요(처음 한 번만). |
+| 설치 방법 4 | [업데이트]를 누르면 끝나요. 로그인과 받아 둔 휴대폰 인식 파일은 그대로 남아요. |
+| 버튼 | 업데이트 받기 · Chrome 창에서 받는 중이에요(3초) · 나중에 |
+| 설치 실패 안내 | ‘앱이 설치되지 않았습니다’가 나오면 기존 앱을 지우고 다시 설치해야 해요. 이때는 로그인과 휴대폰 인식 파일 받기를 다시 해야 해요. |
+| 열기 실패 | Chrome 창을 열지 못했어요. 잠시 후 다시 눌러 주세요. |
+| 앱 버전 줄 | 앱 버전 · {mine} · 최신 / {mine} · 새 버전 {latest} › / {mine} · 업데이트 필요 › |
+
+ⓘ **로그인**(오류 문구는 웹·앱 공통, 해요체로 교체 — `ERROR_MESSAGES`)
+
+| 자리 | 문구 |
+|---|---|
+| opening | Chrome 창을 여는 중… |
+| waiting | Chrome 창에서 로그인하고 있어요 / 로그인이 끝나면 이 화면으로 자동으로 돌아와요. / [Chrome 창 다시 열기] |
+| exchanging | 로그인 마무리 중… |
+| closed | 로그인 창이 닫혔어요. 다시 눌러 주세요. |
+| 하단 안내 둘째 줄(앱에서만) | 앱에서는 Chrome 창에서 로그인한 뒤 자동으로 돌아와요. |
+| `cancelled` | Google 로그인을 취소했어요. |
+| `email_unverified` | 이 Google 계정은 이메일 확인이 끝나지 않았어요. |
+| `invalid_state` | 로그인 요청 시간이 지났어요. 다시 눌러 주세요. |
+| `not_configured` | 서버에 Google 로그인이 아직 준비되지 않았어요. 관리자에게 알려 주세요. |
+| `app_code_invalid`(만료·재사용·확인값 불일치 — 서버가 구분하지 않음) | 로그인을 마무리하지 못했어요. 다시 눌러 주세요. |
+| `account_conflict` | 이 이메일로 이미 다른 계정이 있어요. 관리자에게 알려 주세요. |
+| `failed`(그 밖) | 로그인하지 못했어요. 다시 눌러 주세요. |
+| 초대 뒤(Custom Tab) | 앱으로 돌아가는 중… / 앱이 열리지 않으면 아래 버튼을 눌러 주세요. / [앱으로 돌아가기] / 1분이 지나면 이 창을 닫고 앱에서 다시 로그인해 주세요. |
+
+ⓙ **서버 연결 실패 화면**(APK 자산) — TheKaiwa · 서버에 연결하지 못했어요 · 인터넷 연결을 확인한 뒤 다시 시도해 주세요. · [다시 시도] · 계속 안 되면 서버가 점검 중일 수 있어요.
+
+ⓚ **휴대폰 인식 진단(관리자만)** — 제목 "휴대폰 인식 진단" · 보조 "관리자에게만 보여요" · 행 라벨 "인식기 / 불러오기 시간 / 최근 발화 / 메모리 / 파일 버전 / 앱 구성" · 값 "불러옴 · 스레드 {n} / 안 불러옴 · {s}초 · {d}초 말함 → {t}초 만에 알아들음 / 아직 없음 · 앱 {rss}MB · Java {heap}MB · 플러그인 {v} · {abi}" · 뱃지 "기준 초과"(bad) · 버튼 "다시 읽기 / 미리 불러오기 / 불러오는 중…" · 안내 "측정값은 이 휴대폰 안에만 있어요. 서버로 보내지 않아요." · 읽기 실패 "진단 값을 읽지 못했어요. 다시 눌러 주세요."
+
+### 11-9. 360/390/412 · 접근성 체크리스트
+
+- [ ] **웹 DOM 0**: PC Chrome(가짜 없음)에서 `#ondevice-card`·`[data-app-update]`·앱 버전 줄·메뉴 "알아듣는 곳"·로그인 대기 요소·진단 카드 0, `/api/app/version` 요청 0. 서버 렌더 HTML 에도 없음.
+- [ ] **USER 진단 카드 0**: 가짜 bridge + USER 계정 → 진단 카드 DOM 0 / 관리자 계정 → 보임.
+- [ ] 360: 카드 안쪽 ≈298px — 제목(`min-w-0 flex-1`)+뱃지(`flex-none`) 한 줄, "휴대폰에 받기 (약 170MB)" 한 줄, 진행 숫자 줄 `tabular-nums` 로 흔들림 없음, BtnRow 두 버튼("데이터로 받기"·"나중에")이 반씩 들어감.
+- [ ] 360: 권장 띠 = 막대 3 + 글자 열(truncate) + [받기] + ✕44, 가로 넘침 0. 강제 띠 글자 두 줄 줄바꿈(`break-keep`), [업데이트]가 줄지 않음.
+- [ ] 390×780(앱 WebView 폭): 강제 띠가 있어도 회화방 입력 바·목록이 보이고 세로 스크롤은 목록 한 곳. 권장 띠는 회화방에서 안 보임.
+- [ ] 진행 막대 `role=progressbar` + `aria-valuetext`, 낭독은 25% 단위만. `prefers-reduced-motion`: 막대 폭 전환·스피너 회전 없음.
+- [ ] 모든 버튼 ≥44px(띠 [받기]는 보이는 38 + `before:` 히트). 텍스트 버튼("받은 것 지우기"·"앱 설정 열기"·"음성 인식 설정 ›")은 h-11.
+- [ ] 색만으로 구분하지 않음: 뱃지 글자, 강제 띠 = 빨강 + 제목 글 + ✕ 없음, 멈춤 = "멈춤" 글자.
+- [ ] 명암비: 뱃지는 `good`/`bad`/`neutral` 만, 띠 글자 `ink`/`ink2`/`bad`(on `bad-soft` 5.32) — `warn`·`accent` 톤 뱃지 글자 0(§1-1). 로그인 하단 안내 `ink3` → `ink2`. 다크 모드 토큰만(연결 실패 화면은 hex 두 벌).
+- [ ] 시트(`ModelDeleteSheet`·`AppUpdateSheet`): 하단 safe-area, 내부 스크롤 한 곳(바뀐 점이 길 때), Esc·배경 탭으로 닫힘(제출 중 제외), 닫으면 여는 버튼으로 포커스 복귀.
+- [ ] 로그인 덮개 `role=status` 한 번 낭독, 덮개 중 뒤 버튼 포커스 불가(덮개가 전부 가리고 `inert`).
+- [ ] 권한 띠 [앱 설정 열기] 포커스 링, TalkBack 이 1줄·2줄·버튼 순으로 읽음.
+- [ ] 전환 토스트는 녹음 중에 뜨지 않음(§9-2 D `announce`).
+- [ ] 가짜 bridge 스크린샷 세트(§11-7 ⑨) 360/390/412.
+- **실기기(F6, 사용자 폰 — QA 는 NOT_VERIFIED 로 남기고 요청 목록으로)**: ① Wi-Fi 받기 진행률·일시정지·앱 강제 종료 뒤 이어받기·모바일 데이터 동의 ② 받은 뒤 다음 누름부터 휴대폰(마이크 테스트 경로 줄) ③ 지우기 → 서버 ④ 권한 거절 2번 → [앱 설정 열기] → 허용 후 돌아오면 띠 사라짐 ⑤ 로그인 대기 카드 → 완료 복귀 / 창 닫고 복귀 → "닫혔어요" ⑥ 띠 권장·강제(AppRelease 행은 deployer)·Chrome 다운로드·설치·로그인 유지 ⑦ 서버 차단 시 연결 실패 화면 ⑧ 상태바·키보드와 띠·카드 겹침 없음.
+
+### 11-10. 주의사항
+
+- **엔진명 0**: 카드·띠·시트·토스트·`aria-label`·`console` 에 `reazon`·`sherpa`·`zipformer`·`onnx`·`int8`·모델 버전 문자열·manifest 경로·`connectionKey` 를 싣지 않는다. 사용자 말은 "휴대폰 인식 파일"·"휴대폰에서 / 서버에서"뿐.
+- **정직성**: "목소리가 서버로 가지 않아요" 금지(§11-0 ⑤). "오프라인"은 알아듣기만 인터넷 없이 된다는 뜻 — 선생님 대답에는 인터넷이 필요하다고 방식 설명에 적는다.
+- **자동 다운로드 금지**: 마운트·resume·`online` 에서 `downloadModel` 을 부르지 않는다(이어받기도 누를 때만). 스토어는 확인(`checkModel`)만 한다.
+- **모바일 데이터**: `wifiOnly:true` 가 기본. 동의는 이번 앱 실행 동안만, 저장소에 남기지 않는다.
+- **빈 상태·로딩**: #19 가 늦어도 카드는 `checking` 문구만 — 설정 화면 다른 카드를 막지 않는다. 플러그인 호출이 3초 안에 안 오면 `absent` 로 보이고 누를 때 다시 확인.
+- **오프라인**: 휴대폰 경로의 마이크 테스트는 되고(OFFLINE 사전 점검 제외), 받기 버튼은 막힌다. 회화방은 기존 규칙(턴에는 인터넷 필요).
+- **권한 상태 저장 금지**: 늘 네이티브에 다시 묻는다. 돌아온 것만으로 녹음 시작 금지.
+- **APK 받기**: `fetch`·`<a download>`·blob 금지. Custom Tabs(`openExternal`)로 연다. A 가 `MainActivity` 에 DownloadListener(→ 시스템 브라우저)를 둔다고 했으므로 `openExternal` 이 `false` 일 때만 `location.href = url` 로 넘긴다(그 경우도 시스템 브라우저가 받는다). URL 은 같은 출처 `/app/download/` 만. `notes` 는 글자로만 그린다(`dangerouslySetInnerHTML` 금지).
+- **띠 호출 최소**: #8 은 앱 실행 1회 + 6시간 넘은 resume. 웹에서는 부르지 않는다(`getAppInfo()` 가 `null` 이면 끝).
+- **로그인 코드 1회용**: 딥링크 중복(리스너·콜드 스타트) 처리는 기존 `handled` ref 그대로. 대기 카드가 딥링크 처리를 막지 않는다.
+- **테스트 흔적 금지**: `window.__fakeCap`·가짜 스크립트는 `tests/live/` 에만. `src/` 에 `?native=1` 같은 스위치를 만들면 reviewer 반려.
+- **네이티브 변경 고지**: `app-shell/index.html`·`errorPath`·플러그인 메서드 추가는 APK 에 들어간다 — 첫 빌드 전에 끝내고, 이후 바뀌면 versionCode 증가(CLAUDE.md 금기).
+
+### 11-11. Leader 확인 요청
+
+| # | 항목 | 화면이 가정한 것 | 틀리면 |
+|---|---|---|---|
+| ① | **플러그인 계약 v1(Developer A, 08:58)에 더 필요한 것** | v1 이 이미 준 것으로 화면을 맞췄다(`checkModel` 의 `downloading`·`pendingBytes` · `cancelDownload`(조각 유지) · `deleteModel` · `getDiagnostics` · 오류 코드 전부). **남은 요청 2개**: ⓐ `openAppSettings()`(`Settings.ACTION_APPLICATION_DETAILS_SETTINGS` + `package:` URI — 영구 거절 권한 띠의 [앱 설정 열기]) ⓑ (선택) `checkModel()` 반환에 `freeBytes` — 누르기 전에 저장 공간 부족을 보이려고. 그리고 **확인 1개**: 계약 #9 의 `MODEL_CHECKSUM` 은 v1 에서 `DOWNLOAD_FAILED` 로 합쳐졌다고 보고 문구를 일반화했다 | ⓐ 없으면 권한 띠는 경로 문구만(버튼 없음 — 동작은 됨) · ⓑ 없으면 부족을 누른 뒤에 앎 · 코드가 따로 있으면 §11-8 ⓑ 에 한 행 추가 |
+| ② | **#19 가 방식 때문에 `onDevice.enabled=false` 일 때 모델 정보** | 지금 구현(`stt/config.ts`)은 경로가 GATEWAY 로 풀리면(정확하게 방식 등) `onDevice:{enabled:false}` 만 줘서 카드가 크기·manifest 를 모른다. 가정: 앱 + ONDEVICE 연결이 있으면 `onDevice:{ enabled:false, available:true, model:{…} }` 처럼 **모델 블록은 늘** 싣는다(`enabled` 는 경로 선택만 뜻함) | 정확하게 방식에서 카드가 "이 방식에서는 쓰지 않아요"만 보이고 받기 불가(설치돼 있으면 지우기만) |
+| ③ | **#8 버전 비교 단위** | 계약 예시 `minSupported:"1.1.0"`(문자열) ↔ `AppRelease.minSupported Int`(versionCode). 화면은 **번호(versionCode)로만** 비교: 응답에 `minSupportedCode:Int` 추가(이미 있는 `latestCode` 와 짝), `X-App-Version` 은 versionName 그대로, 앱 번호는 `App.getInfo().build`. 시트용 `bytes`(APK 크기)는 선택 | 문자열 비교면 `1.10.0 < 1.9.0` 류 오판. `bytes` 없으면 시트에서 크기 생략 |
+| ④ | **강제 업데이트의 세기** | 정본 "차단 배너(닫기 불가)"를 **닫을 수 없는 띠 + 모든 화면**으로 해석, 앱 사용은 막지 않는다. 대신 강제 상태에선 휴대폰 경로를 끄고 서버로(`UPDATE_REQUIRED`) — 옛 플러그인과 새 웹의 계약 어긋남 방지 | 전면 차단(업데이트 전 아무것도 못 함)을 원하면 사용자 결정 — 띠 컴포넌트를 재사용한 전체 화면 `AppUpdateBlocker` 로 바꾼다 |
+| ⑤ | **앱 이름(권한 경로 문구)** | 안드로이드 설정에 보이는 이름 = 런처 라벨(`strings.xml app_name`). 지금 `capacitor.config.ts appName:'TheKaiwa'`, §8-8 ⓐ 기존 문구는 "일본어교육". 화면은 상수 `APP_LABEL` 하나로 쓰고, 권장은 **로그인 글자 로고와 같은 "TheKaiwa"** | "일본어교육"으로 정하면 상수 값만 바뀐다(developer A 의 `app_name` 과 같아야 함) |
+| ⑥ | **`getSherpaStt()` 호출자 2곳** | module-dependency §6 "호출자 = `OnDeviceSherpaClient` 만"에 `speech/stt/client/onDeviceModel.ts`(확인·받기·지우기)를 더한다. 화면은 여전히 플러그인을 직접 보지 않는다(스토어 훅만) | 한 곳만 허용이면 `OnDeviceSherpaClient` 에 모델 관리 정적 메서드를 둔다(파일만 다름) |
+| ⑦ | **경로 선택 시점** | speech-platform/12 §3.5 "모델 설치 완료 후 **다음 세션**" 대신 **누를 때마다**(녹음 중 아닐 때) 고른다 — 받자마자 마이크 테스트로 확인할 수 있게. 전환 카운터만 앱 실행 단위 | 세션 단위로 두면 받은 뒤 화면을 떠났다 와야 휴대폰 경로가 되고, 경로 줄이 "받았는데 서버"로 보인다 |
+| ⑧ | **manifest 경로의 모델 이름** | 현 구현의 #19 `manifestUrl` 은 모델 이름이 든 경로였다. Developer B 작업 중 diff(`stt/config.ts`)가 `model{ id:'ondevice-ja-v1', manifestUrl: 불투명 }` 로 바꾸는 중이라 그대로 가정 — 화면은 어느 쪽이든 그리지 않는다. `version`·`totalBytes` 가 `null`(배포본 없음)이면 카드 `off` | B 가 되돌리면 완료 기준 8 을 "화면 노출 0"으로 해석(#9·#10 은 플러그인 고정 공개 경로) |
+| ⑨ | **연결 실패 화면·`errorPath`** | `public/app-shell/index.html` 이 TheMeal 템플릿 그대로(제목·밥 이모지). `capacitor.config.ts` 에 `server.errorPath` 가 없어 서버 불통 때 이 파일이 안 뜰 수 있다(설계안 §12 에는 있음). developer A 가 첫 빌드 전에 둘 다 반영 | 안 하면 불통 때 WebView 기본 오류 화면(영문·주소 노출) 또는 TheMeal 화면 |
+| ⑩ | **APK 받기 경로** | Custom Tabs 에서 `Content-Disposition: attachment` APK 를 열면 Chrome 이 받아 알림으로 설치를 이어 준다고 가정(F6 확인). 예비로 A 의 `MainActivity` DownloadListener(→ 시스템 브라우저) | 둘 다 안 되면 네이티브 DownloadManager(플러그인 메서드 — 네이티브 변경) |
+| ⑪ | **기존 사용자 앱 로그인의 302** | 콜백이 `thekaiwa://` 로 바로 302 해도 Custom Tab 이 앱을 연다고 가정(워크스페이스 선례). 초대 경로는 사용자 탭 뒤라 확실 | F6 에서 안 열리면 서버가 302 대신 "앱으로 돌아가기" 중간 페이지(§11-2 E 초대 화면과 같은 모양)를 준다 — 서버 변경 |
+| ⑫ | `X-Client-Platform` 값 | 계약 §0-10 은 `web \| android`, 구현(api.ts·`platformFrom`)은 `app`. 화면·가짜 bridge 는 구현(`app`)을 따른다 | 정본 표기만 맞추면 된다 |
+| ⑬ | **첫 실행 자동 다운로드** | 하지 않는다(누를 때만). 회화 화면에 "받으세요" 권유도 두지 않는다(대화 방해·분기 최소) | 사용자가 원하면: 자동(권장) 방식 + Wi-Fi + 공간 충분일 때 첫 실행에 받기 시작 + 토스트 "휴대폰 인식 파일을 받고 있어요 — 설정에서 볼 수 있어요" |
+| ⑭ | 인식 방식 설명 수정 | §11-8 ⓓ — 웹의 "빠르게 = 휴대폰에서"처럼 사실과 다른 설명과 "오프라인 = 인터넷 없이"를 고친다(문구만. 동작은 앱 오프라인 비활성 규칙 하나) | 그대로 두면 웹에서 빠르게를 골라도 서버라서 설명과 다르다 |
+| ⑮ | 발화 wav 전달 | A 계약 v1: `convertFileSrc(wavPath)` 를 `fetch` 해 Blob 으로 #21 업로드 → `deleteWav`(VoiceVault 선례). `server.url` 구성에서 되는지는 F6 확인 | 안 되면 휴대폰 경로 턴이 전부 `utteranceId:null`(내 목소리 ▶ 없음) — 이벤트 base64 로 바꾸는 것은 A·B 합의 |
+| ⑯ | **휴대폰 인식 진단 카드(관리자만, §11-2 I)** | F6 실측 게이트(5초 발화 디코드 ≤0.8s·RSS ≤600MB)를 사용자가 adb 없이 폰에서 읽게, `engine.read` 보유자 + 앱에서만 설정 맨 아래에 A 의 `getDiagnostics()` + 마지막 발화 시간을 보인다. USER 화면엔 없다 | 필요 없으면 빼고 F6 을 `adb shell dumpsys meminfo` 로(사용자 폰 개발자 옵션·USB 디버깅 필요) |

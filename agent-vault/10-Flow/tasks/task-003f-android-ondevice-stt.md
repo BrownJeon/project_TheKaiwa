@@ -67,6 +67,22 @@ design-spec §15 task-003 중 남은 **앱·온디바이스** 부분 — 같은 
 ### 네이티브 변경
 **있음** — `android/`(신규)·`plugins/sherpa-stt/android`(신규)·Manifest·`capacitor.config.ts`(필요 시). 첫 배포본 `versionCode 1`. 이후 이 파일들이 바뀌면 versionCode 증가 + deployer APK 재빌드 + 배너.
 
+### 설계 확정 — designer §11-11 (Leader, 2026-09-28)
+- **① 채택(A)**: 플러그인에 `openAppSettings()`(ACTION_APPLICATION_DETAILS_SETTINGS + `package:` URI) 추가, `checkModel()` 반환에 `freeBytes`(선택→채택). 네이티브 계약 v1 → v1.1 로 기록.
+- **② 채택(B)**: #19 는 앱 + 온디바이스 연결이 있으면 경로와 무관하게 `onDevice:{enabled, available, model:{id, version, totalBytes, manifestUrl}}` 모델 블록을 늘 싣는다(`enabled` = 경로 선택만).
+- **③ 채택(B)**: #8 에 `minSupportedCode:Int`·`latestCode:Int`·`bytes` — 비교는 versionCode 정수로만. `X-App-Version` 은 versionName, 앱 번호는 `App.getInfo().build`.
+- **④ 채택**: 강제 업데이트 = 닫을 수 없는 띠(모든 화면), 앱 사용은 막지 않음 + 강제 상태에선 휴대폰 인식 경로 끄고 서버(`UPDATE_REQUIRED`). 전면 차단은 사용자 요청 시.
+- **⑤ 앱 이름 = "TheKaiwa"**(capacitor `appName`·로그인 로고와 동일, `strings.xml app_name` 과 화면 상수 `APP_LABEL` 일치). §8-8 ⓐ "일본어교육" 문구는 "TheKaiwa" 로 정합. 사용자가 다른 이름을 원하면 상수·strings 만 교체(최종 보고에 명시).
+- **⑥ 채택**: `getSherpaStt()` 호출자 = `OnDeviceSherpaClient` + `speech/stt/client/onDeviceModel.ts`(모델 확인·받기·지우기) 두 곳 — module-dependency §6 에 반영(B).
+- **⑦ 채택**: 경로는 **누를 때마다**(녹음 중 아닐 때) 선택, 폴백 카운터(오류 2회)는 앱 실행 단위. speech-platform/12 §3.5 에 각주(B).
+- **⑧ 채택**: `model.id` 는 불투명(`ondevice-ja-v1`), manifestUrl 도 모델명 없는 불투명 경로 — 실제 모델명은 manifest 파일 안에만.
+- **⑨ 채택(A)**: `capacitor.config.ts server.errorPath` 추가 + `public/app-shell/index.html` 을 TheKaiwa 오프라인 화면으로 교체(TheMeal 템플릿 제거) — 첫 빌드 전.
+- **⑩⑪⑮ 채택 — F6 실기기 확인 항목**: APK 받기(Custom Tabs attachment → Chrome 다운로드, 예비 DownloadListener), `thekaiwa://` 302 로 앱 열림, `convertFileSrc(wavPath)` fetch 업로드. 안 되면 F6 결과로 후속.
+- **⑫**: 구현값 `X-Client-Platform: app` 을 정본으로 — api-contract §0-10 표기 수정(B).
+- **⑬ 채택**: 첫 실행 자동 다운로드 없음(누를 때만), 회화 화면 권유 없음.
+- **⑭ 채택(B)**: §11-8 ⓓ 인식 방식 설명 문구 정정.
+- **⑯ 채택(B)**: 관리자(`engine.read`)+앱에서만 설정 맨 아래 **휴대폰 인식 진단 카드**(`getDiagnostics()` + 마지막 발화 디코드 시간·RSS) — F6 실측 게이트를 adb 없이 폰에서 읽기 위함.
+
 ## 판단 기록 (judge)
 - [2026-09-28 08:34] intake engine=jev → task_type/feature complexity/2.75 needs_info/true risk/R2 developer_model/opus next/ask_user | overrides=R2-native | fallback=- | tokens=1020
   - **override**(Leader): `next=ask_user` 미적용 — 사용자 지시(2026-09-28 "사용자가 필요할 때까지 계속 작업 진행"). 사용자만 할 수 있는 것은 F6(폰 설치·실측)뿐이고 계획상 그 지점에서 멈춘다. 네이티브 변경은 착수 전 고지함(Leader 보고). 그 밖의 범위·계약은 정본(design-spec §9·§12·plugins/sherpa-stt/README·api-contract #5·#8~#10·#19)과 Plan F1~F5 에 확정. risk R2(R2-native) 채택.
@@ -93,11 +109,59 @@ design-spec §15 task-003 중 남은 **앱·온디바이스** 부분 — 같은 
 
 ## Designer 기록
 
+- [09:01] 앱 전용 화면 가이드 완료 → `docs/screens.md` **§11 안드로이드 앱 전용 화면**(11-0~11-11) + 변경 이력 · §2(회화방·설정 행 갱신, 로그인·앱 셸·APK 자산 행 추가, 엔진명 목록에 sherpa·zipformer·onnx) · §8-1·§8-2 B·§8-3 C·§8-8 ⓐ(MIC_DENIED 앱 줄·MODEL_REQUIRED 행)·ⓓ · §9-1·§9-2 G·H 앱/웹 분기 문구 정합. 목업 Artifact 는 만들지 않음(task-006·008 과 같은 방식). 결정 요약:
+  - 분기 세 곳 대응표를 §11 머리에 둠 — 모든 앱 요소는 로그인·실시간 인식 경로·APK 배너 중 하나, 웹 DOM 0(마운트 뒤 `useNativeEnv` 판정, 웹은 #8 호출도 없음).
+  - **휴대폰에서 알아듣기 카드**(설정 음성 인식 절, 방식 카드 아래·마이크 테스트 위): 사용자 말은 "휴대폰 인식 파일", 크기는 #19 `totalBytes`(≈170MB). 누를 때만 받기·Wi-Fi 기본·모바일 데이터는 "데이터로 받기" 명시 동의(이번 실행만)·일시정지/이어받기/받은 것 지우기·새 버전 받기·지우기 확인 시트. 설명은 "말하는 동안 소리를 서버로 보내지 않아요"까지만(턴 wav 는 #21 로 저장되므로 "목소리가 서버로 가지 않아요" 금지). 받기 전·중에도 회화는 서버 인식.
+  - **경로 표시**: 마이크 테스트 = 이유까지 9종 한 줄 · 회화방 = 상시 표시 없음(머리 표시등은 목소리 하나), 전환 안내 1회(말 잃은 오류는 띠 2줄 `switched`, 아니면 토스트) + ⋯ 메뉴 "알아듣는 곳" 읽기 전용 줄. 경로는 **누를 때마다** 선택, 전환 카운터는 앱 실행 단위.
+  - **권한(앱)**: 첫 누름 = `requestPermissions()` 만(A 의 "진입 전 요청"을 화면 규칙상 첫 누름으로), `prompt-with-rationale` 안내 줄, `denied` → [앱 설정 열기] + resume 재확인.
+  - **업데이트 띠**: 셸 그리드 첫 행. 권장(닫으면 그날 KST 숨김·새 번호면 다시·집중 화면 숨김) / 강제(닫기 없음·모든 화면·로그인 포함, 전면 차단은 안 함 + 휴대폰 경로 끔). 받기 = Custom Tabs, 설치 방법 시트 4단계, 설정 맨 아래 앱 버전 줄.
+  - **앱 로그인**: opening → waiting 카드([Chrome 창 다시 열기]) → exchanging 덮개 / `browserFinished` 1.5초 뒤 딥링크 없으면 "창이 닫혔어요". PKCE(C1-1)는 화면 변화 없음, `app_code_invalid` 문구 하나로 통일. 오류 문구 해요체. 초대 뒤 Custom Tab 에 "앱으로 돌아가기".
+  - 기타: `public/app-shell/index.html` 이 TheMeal 템플릿 그대로 → 첫 빌드 전 교체(A, 네이티브) · 관리자 전용 **휴대폰 인식 진단 카드**(F6 디코드·RSS 를 adb 없이) · PC 앱 모드 = Playwright `addInitScript` 가짜 `window.Capacitor`(`tests/live/fake-capacitor.js`), 앱 코드 스위치 금지.
+  - Developer A **플러그인 계약 v1(08:58)** 에 맞춰 반영(오류 코드·카운트·`checkModel` pending·`cancelDownload`·`deleteModel`·`getDiagnostics`). B 작업 중 #19 불투명 `manifestUrl` 도 가정.
+  - **Leader 확인 요청(§11-11 ⑯건)** 중 중요: ① `openAppSettings()` 플러그인 추가(없으면 경로 문구만) · ② #19 가 정확하게 방식에서도 모델 블록을 싣기 · ③ #8 `minSupportedCode:Int`(번호 비교) · ④ 강제 업데이트 = 닫을 수 없는 띠(전면 차단 아님) · ⑤ 권한 경로 문구의 앱 이름(`TheKaiwa` 권장 ↔ §8 기존 "일본어교육") · ⑦ 누를 때마다 경로 선택 · ⑨ `errorPath`·app-shell · ⑬ 첫 실행 자동 다운로드 안 함 · ⑯ 진단 카드 채택 여부.
+
 ## Developer 기록
 
 ### A(앱·플러그인)
+- [08:58] 착수 — 순서: 플러그인 JS 계약 고정(아래, B 용) → F1 셸(격리 작업 디렉터리 `~/.node-local/thekaiwa-apk` 에서 `cap add android` → NFS `android/`) → F2 Kotlin → F5 `scripts/build-apk.sh` → `:app:assembleRelease` 실측. sherpa-onnx **1.13.8**(gateway `sherpa-onnx==1.13.8` 와 동일) GitHub 릴리스 AAR `sherpa-onnx-1.13.8.aar` sha256 `633c2432…bd96`(릴리스 digest 와 일치 확인), Kotlin 메타데이터 1.7·Java 8 바이트코드 → Kotlin 2.1.20 으로 컴파일.
+
+#### 플러그인 JS 계약 v1 (고정 — B 는 `window.Capacitor.Plugins.SherpaStt` 로만 부른다)
+정본 README §4 대비 **바뀐 점**: 이벤트·반환에 엔진명·모델 파일명·내부 경로를 싣지 않는다(task-003e M2 와 같은 원칙) — `final.engine`·`checkModel().path`·`downloadProgress.file` 제거, `vad.state` 는 gateway 와 같은 대문자. 추가: `level`·`cancel`·`preload`·`cancelDownload`·`deleteModel`·`deleteWav`·`getDiagnostics`, `start.endpoint`·`audioSource`, `final.reason`·`timings.sttMs`. `start.modelVersion` 옵션은 없앴다(설치된 버전만 쓴다 — 버전 갱신은 `checkModel().version` ≠ #19 `onDevice.modelVersion` 이면 앱이 `downloadModel`).
+
+**메서드** (모두 Promise, 실패는 reject — `err.code` 가 아래 코드, `err.message` 는 개발용 영문·화면 금지)
+
+| 메서드 | 인자 | 결과 |
+|---|---|---|
+| `checkPermissions()` / `requestPermissions()` | — | `{ recordAudio: 'prompt'\|'prompt-with-rationale'\|'granted'\|'denied' }` (Capacitor 표준). **`start` 는 권한을 스스로 묻지 않는다** — 미허용이면 `PERMISSION_DENIED` reject. 회화 진입·마이크 테스트 전에 `requestPermissions()` |
+| `checkModel(o?)` | `{ verify?: boolean }`(true 면 sha256 전체 재계산 ≈1s, 불일치 버전은 삭제) | `{ installed: boolean, version?: string, bytes?: number, downloading: boolean, pendingVersion?: string, pendingBytes?: number }` — pending 은 이어받을 수 있는 미완성 다운로드 |
+| `downloadModel(o)` | `{ manifestUrl: string, wifiOnly?: boolean(기본 true), expectedVersion?: string, allowDowngrade?: boolean(기본 false) }` | `{ version, bytes, alreadyInstalled: boolean }`. `manifestUrl` 은 **앱 `server.url` 과 같은 origin 의 https 만**(아니면 `ORIGIN_NOT_ALLOWED`), 파일 URL = `<manifest 디렉터리>/<version>/<path>`, 리다이렉트는 같은 origin 만 3회. 진행은 `downloadProgress`. 한 번에 하나(`DOWNLOAD_IN_PROGRESS`) |
+| `cancelDownload()` | — | `void` — 진행 중 `downloadModel` 이 `DOWNLOAD_CANCELLED` 로 reject(받은 조각은 남아 다음에 이어받음) |
+| `deleteModel()` | — | `void` — 설치본·미완성 전부 삭제 + 인식기 해제(폴백 실측·설정 "모델 삭제"용). 세션·다운로드 중이면 `BUSY` |
+| `preload(o?)` | `{ numThreads?: number(2), decodingMethod?: 'greedy_search'\|'modified_beam_search' }` | `{ modelVersion, loadMs }`(이미 올라가 있으면 loadMs 0) — 회화방 진입 때 불러 두면 첫 발화 지연이 없다. 선택 |
+| `start(o?)` | `{ vad?: { silenceMs?: 500, threshold?: 0.5, minSpeechMs?: 250, maxSegmentSec?: 30 }, partial?: true, endpoint?: 'manual'(기본, 푸시투토크)\|'auto', numThreads?: 2, decodingMethod?: 'greedy_search', maxUtteranceSec?: 60, saveWav?: true, audioSource?: 'MIC'(기본)\|'VOICE_RECOGNITION' }` | `{ sessionId, modelVersion }` — **마이크를 연 즉시 resolve**(인식기가 아직 안 올라갔으면 뒤에서 올리며 소리는 버퍼). 범위 밖 값은 `INVALID_ARGUMENT`. 이미 세션이 있으면 `ALREADY_STARTED`, 모델 없으면 `MODEL_MISSING` |
+| `stop()` | — | `{ sessionId?: string, utterance?: FinalPayload }` — 캡처를 멈추고 남은 소리를 디코드해 **마지막 `final` 이벤트를 낸 뒤** 같은 payload 로 resolve. 세션이 없으면 `{}` |
+| `cancel()` | — | `void` — 현재 발화 폐기(캡처 중단, `final` 없음) |
+| `release()` | — | `void` — 인식기·VAD 메모리 해제(다음 `start`/`preload` 가 다시 올림). 세션 중이면 세션도 취소 |
+| `deleteWav(o)` | `{ wavPath: string }` | `void` — `final.wavPath` 를 업로드한 뒤 바로 지운다(플러그인 전용 폴더 밖 경로는 `INVALID_ARGUMENT`). 안 불러도 10분 지난 파일은 다음 `start` 가, 전부는 다음 앱 기동이 지운다 |
+| `getDiagnostics()` | — | `{ pluginVersion, abi, modelVersion?, recognizerLoaded, numThreads?, lastLoadMs?, rssMb, javaHeapMb }` — F6 실측(RSS ≤600MB)·진단 화면용 |
+
+**이벤트** (`addListener(name, fn)`)
+
+| 이벤트 | payload |
+|---|---|
+| `vad` | `{ sessionId, state: 'SPEECH'\|'SILENCE', atMs }` — atMs 는 발화 시작 기준 |
+| `level` | `{ sessionId, db }` — dBFS, 바닥 -100, 소수 1자리, ≈100ms 마다(웹 `LevelMeter` 와 같은 식) |
+| `partial` | `{ sessionId, segIdx, text, startMs, endMs }` — `manual` 에서 무음 `silenceMs` 로 끊긴 구간마다. `partial:false`·`auto` 면 없음 |
+| `final` | `FinalPayload = { sessionId, text, durationMs, wavPath: string\|null, segments: [{segIdx, text, startMs, endMs}], timings: { vadMs, decodeMs, loadMs, sttMs }, reason: 'stop'\|'endpoint'\|'max_length', modelVersion }` — `manual`: `stop()` 또는 `maxUtteranceSec` 도달 때 정확히 1회(도달 시 캡처도 멈춤). `auto`: 무음 끝점마다 1회(`endpoint`) + `stop()` 때 1회. text 는 구두점 없는 모델 출력 그대로(gateway 와 같음). **text 가 비면 `wavPath:null`**(업로드할 것 없음). `wavPath` 는 앱 전용 폴더의 16kHz mono PCM16 wav 절대경로 — `window.Capacitor.convertFileSrc(wavPath)` 를 `fetch` 해 Blob 으로 #21 업로드(VoiceVault task-039 §8-2-2 선례) 후 `deleteWav` |
+| `error` | `{ sessionId: string\|null, code, message }` — 세션 중 비동기 오류(세션은 이 시점에 닫힘). `start()`·`downloadModel()` 의 실패는 reject 로만 오고 이벤트로 중복되지 않는다 |
+| `downloadProgress` | `{ version, fileIndex, fileCount, received, total, totalReceived, totalBytes }` — 250ms 간격 + 파일 경계 |
+
+**오류 코드**: 세션 — `PERMISSION_DENIED`·`MODEL_MISSING`·`MODEL_CORRUPT`·`AUDIO_INIT_FAILED`·`DECODE_FAILED`·`OOM`·`ALREADY_STARTED`·`INTERRUPTED`(앱이 백그라운드로 가 세션이 취소됨 — `onPause` 에서 녹음 중단)·`INVALID_ARGUMENT`·`BUSY` / 다운로드 — `NETWORK_NOT_ALLOWED`(과금 네트워크 + wifiOnly, 도중에 바뀌어도 중단)·`OFFLINE`·`ORIGIN_NOT_ALLOWED`·`MANIFEST_INVALID`·`APP_UPDATE_REQUIRED`(manifest `minPluginVersion` > 플러그인)·`DOWNGRADE_REFUSED`·`INSUFFICIENT_STORAGE`(여유 < totalBytes×2.5)·`DOWNLOAD_IN_PROGRESS`·`DOWNLOAD_CANCELLED`·`DOWNLOAD_FAILED`.
+**폴백 카운트 권고(README §7)**: 세지 않음 — `PERMISSION_DENIED`(권한 안내)·`INTERRUPTED`·`ALREADY_STARTED`·`INVALID_ARGUMENT`. 즉시 gateway — `MODEL_MISSING`. 셈 — `MODEL_CORRUPT`·`AUDIO_INIT_FAILED`·`DECODE_FAILED`·`OOM`·`BUSY`.
+**앱 쪽에서 알아 둘 네이티브 동작**: 외부 호스트로의 탐색(링크·`target=_blank`·302)은 Capacitor 가 시스템 브라우저로 넘긴다(`allowNavigation` 비움). WebView 안에서 파일 다운로드 링크(`/app/download/latest.apk`)를 누르면 `MainActivity` 의 DownloadListener 가 시스템 브라우저로 넘긴다 — 배너는 `openExternal(url)`(Custom Tabs)로 열어도 된다.
 
 ### B(웹·서버)
+- [08:53] 착수 — 순서: F4 서버(`/models/*`·`/api/app/version`·`/app/download/*`·#19 `onDevice.model`·C1-1 PKCE) → F3 웹 연결(bridge·온디바이스 클라이언트·라우터·앱 로그인) → 화면(designer §11 이후). A 의 플러그인 계약은 아직 없어 `plugins/sherpa-stt/README.md` §4 로 가정하고 나중에 맞춘다.
 
 ## Reviewer 기록
 
