@@ -203,6 +203,100 @@ design-spec §15 task-003 중 남은 **앱·온디바이스** 부분 — 같은 
 
 ## Reviewer 기록
 
+### REV-021 (2026-09-28, 003f 전체 80f50e1)
+
+**판정: PASS** (Critical 0 · High 1 · Medium 2 · Low 1) — Read 전용 감사, base 218664e → 80f50e1(`60712a6`·`b356f3f`·`cdf23c6`·`eea1763`·`098dd0d`) 전체 확인. 코드 수정 없음.
+
+```json
+{
+  "reviewId": "REV-021",
+  "status": "PASS",
+  "summary": { "critical": 0, "high": 1, "medium": 2, "low": 1 },
+  "high_risk_areas": [
+    "speech/stt/modelPackage.ts parseManifest ↔ plugins/sherpa-stt Manifest.kt ManifestValidator 스키마 괴리(모델 버전 갱신 시)",
+    "auth/oauth PKCE 자체는 견고하나 app-exchange 가 GET 쿼리스트링(code_r+verifier)로 이동",
+    "SherpaSttPlugin.deleteModel ↔ start() TOCTOU(낮은 확률, 자가복구)"
+  ],
+  "native_change": true
+}
+```
+
+#### 중점 1 — A↔B 통합 정합 (가장 중요)
+
+**[HIGH] 서버(B) manifest 검증이 안드로이드 플러그인(A)의 실제 요건보다 구조적으로 느슨함 — 향후 모델판 갱신 시 조용한 전면 장애 가능**
+- **component**: `src/modules/speech/stt/modelPackage.ts:61-90`(`parseManifest`) ↔ `plugins/sherpa-stt/android/src/main/java/com/miraclepenguin/kaiwa/sherpastt/Manifest.kt:67-121`(`ManifestValidator.parse`)
+- **risk**: B 의 `parseManifest` 는 `files.length >= 1`(0건만 거부, 5건 요구 아님), `engine`·`modelType`·`sampleRate` 를 **선택 통과 필드**(`META_STRINGS`, L47/83-88)로만 다루고 값 일치를 강제하지 않는다. 반면 A 의 `ManifestValidator.parse` 는 `engine=="sherpa-onnx"`·`modelType=="transducer"`·`sampleRate==16000`(정수) **정확히 일치**해야 하고, `files.length` 가 `ROLES.size(5)` 미만이면 거부하며 `encoder/decoder/joiner/tokens/vad` **5개 role 전부**가 정확히 한 번씩 있어야 한다(L83, L103). 즉 B 가 "유효"로 판정해 200 으로 내보내는 manifest 중 상당수가 A 에서는 `MANIFEST_INVALID` 로 전량 거부된다. 지금 배포 중인 실제 파일(`speech/models/reazonspeech-int8/manifest.json`)은 우연히 양쪽을 모두 통과하는 값이라 **현재 운영은 정상**이지만, `speech/models/README.md` §5 "버전 올리기 절차" 2단계가 참조하는 **`scripts/models-verify.sh` 는 아직 존재하지 않는다**(`grep` 확인, task-003 표시만 있고 파일 없음) — 다음 모델 버전을 배치할 때 B 를 통과하는 것만 확인하고 올리면(예: `sampleRate` 누락, `engine` 값 변경, 파일 4개로 축소 등) **서버는 200 을 계속 내주는데 전체 안드로이드 클라이언트가 조용히 `MANIFEST_INVALID` 로 막히고**, 화면엔 일반 "받기 실패"만 보여 원인 추적이 어렵다.
+- **evidence**:
+  - `src/modules/speech/__tests__/modelPackage.test.ts:7-22,36` — `manifest()` 픽스처가 파일 **2개**·`engine:'e'`·`modelType` 필드 자체 없음으로 `parseManifest()` 를 **통과시킴**(코드상 throw 없음, `assert.equal(parseManifest(manifest()).version, ...)`)을 테스트가 스스로 증명.
+  - `plugins/sherpa-stt/android/src/test/.../ManifestTest.kt:70-74` `rejectsWrongEngineTypeOrRate` — 같은 종류의 값(엔진·modelType·sampleRate 변경)을 A 는 명시적으로 `MANIFEST_INVALID` 로 거부하는 테스트를 갖고 있어, 요구 수준의 차이가 설계 의도임을 보여준다(느슨함이 실수가 아니라 아예 서버 쪽에 대응 규칙이 없는 것).
+  - Developer 자신의 이력서 09:17 기록도 "스키마 엄격(64KB·**5~16파일**·역할 5종…)"라고 적었는데(B 절), 실제 구현은 `files.length > 0`(1건도 통과)이라 **본인이 의도한 요건과 실제 코드가 이미 어긋나 있다.**
+  - 두 검증기를 같은 fixture 로 교차 실행하는 테스트/스크립트가 어디에도 없다(요청받은 "JVM 테스트나 수동 대조"가 이번 task 에서 이뤄지지 않음).
+- **recommendation**: (1) `parseManifest` 에 `engine`(sherpa-onnx 계열 화이트리스트 또는 connection 설정과 대조)·`modelType`·`sampleRate`(16000 고정 또는 STT_SAMPLE_RATE 상수와 일치) 필수화 + `files.length` 하한을 5(또는 constants 공유)로 올리고 role 5종 완전성 검사를 추가하거나, 최소한 (2) `scripts/models-verify.sh` 를 실제로 만들어 배포 전 게이트로 강제하고 그 스크립트가 Kotlin `ManifestValidator` 와 동일한 규칙(이상적으로는 같은 JSON Schema 파일을 양쪽이 읽거나, CI 에서 Kotlin 유닛테스트 fixture 를 B 검증기에도 흘리는 대조 테스트)을 갖도록 한다. deployer 에게도 "모델판 갱신 전 반드시 이 스크립트를 통과해야 한다"를 배포 절차에 명시.
+
+#### 중점 2 — 보안
+
+**[MEDIUM] PKCE 결속 설계 자체는 견고하나, code_r+verifier 가 GET 쿼리스트링으로 이동해 서버 접근 로그·WebView 내비게이션 기록에 남는다**
+- **component**: `src/modules/infra/native/appLogin.ts:82-88`(`appExchangeUrl`) → `src/app/(auth)/login/AppDeepLink.client.tsx:62`(`window.location.replace(appExchangeUrl(...))`) → `src/app/api/auth/app-exchange/route.ts:27-31`(`GET`, `sp.get('code')`/`sp.get('verifier')`)
+- **risk**: PKCE 결속 자체(`pkce.ts`·`app-code.ts`·`state.ts`·`pending.ts`)는 매우 꼼꼼하다 — challenge 는 서명된 state/pending 안에서만 이동하고, verifier 는 WebView 메모리+sessionStorage 를 벗어나지 않으며, 소각은 원자적 조건부 UPDATE 1건이다. 다만 마지막 한 걸음, 딥링크 코드를 세션으로 바꾸는 요청 자체는 **`code`·`verifier` 를 URL 쿼리스트링에 실은 전체 페이지 네비게이션**(`location.replace`)이다. 이는 (a) nginx 기본 `combined` 로그 포맷이 요청 라인(쿼리스트링 포함)을 그대로 남기므로 `code_r`+`verifier` 쌍이 서버 접근 로그에 평문으로 적재되고, (b) WebView 내비게이션 히스토리에도 같은 URL 이 남는다. 코드가 1회용·60초·원자적 소각이라 **재생 공격 자체는 사실상 불가능**하지만(이미 쓰인 값이라 로그를 읽어도 소용없음), "세션 토큰·API Key 를 URL 에 싣지 않는다"는 이 프로젝트가 다른 모든 곳(§CLAUDE.md 금기, `next-path.ts`·`state.ts` 등)에서 지키는 원칙과 결이 다르고, RFC 8252(네이티브 앱 PKCE) 관례상으로도 코드 교환은 보통 POST 바디로 한다.
+- **evidence**: `appLogin.ts:82-88` `target.searchParams.set('code', code); target.searchParams.set('verifier', verifier)`. `AppDeepLink.client.tsx:62` `window.location.replace(appExchangeUrl(...))`(GET 네비게이션). `app-exchange/route.ts:27` `export async function GET(req: NextRequest)` — POST 가 아님.
+- **recommendation**: `/api/auth/app-exchange` 를 POST(JSON/form body)로 바꾸고 `AppDeepLink.client.tsx` 가 `fetch()` 로 교환한 뒤 응답의 `next` 로 `router.replace`(SPA 네비게이션) 하도록 바꾼다. 서버가 302 로 화면을 옮기는 지금 구조를 유지하고 싶다면 최소한 이 경로만 nginx `access_log off`(또는 쿼리스트링 제외 로그 포맷)로 접근 로그 적재를 막는 완화책을 검토.
+
+#### 중점 5 — Kotlin 품질
+
+**[MEDIUM] `deleteModel()` ↔ `start()` 사이 TOCTOU — 낮은 확률이지만 원자적이지 않음(영향은 자가복구되는 실패로 제한)**
+- **component**: `plugins/sherpa-stt/android/.../SherpaSttPlugin.kt:164-174`(`deleteModel`) vs `:196-248`(`start`, 특히 `store.current()` L205·`SherpaVadEngine` 생성 L211·`recognizer.ensure` L220)
+- **risk**: `deleteModel` 은 `synchronized(lock) { active/downloader 없음을 확인 }` 한 뒤 `lock` **밖에서** `worker.task { store.deleteAll() }` 를 큐에 넣는다. 그 직후(락 해제~worker 실행 사이) 다른 스레드가 `start()` 를 불러 `store.current()` 로 모델 파일 참조를 얻고 `SherpaVadEngine`/`recognizer.ensure` 생성을 시작할 수 있는데, 이 두 작업 순서가 뒤집히면(`deleteAll()` 이 먼저 실행) 방금 얻은 파일 경로가 사라진 채로 네이티브 로드가 시도된다. 실제 코드를 보면 `Recognizer.kt:51-57`·`SherpaVadEngine` 생성자(`Recognizer.kt:99-118`) 양쪽 다 네이티브 생성 실패를 `catch(Throwable)` 로 감싸 `SttException("MODEL_CORRUPT"/"AUDIO_INIT_FAILED", ...)` 로 변환하므로 **크래시로 이어지지는 않고**, 라우터가 이를 셀 수 있는 실패로 집계해 정상적으로 gateway 로 폴백한다(자가복구) — 그래서 심각도를 MEDIUM 으로 제한한다.
+- **recommendation**: `deleteModel` 의 "busy 아님" 판정을 `worker.execute` 블록 안에서 한 번 더 확인(재확인 없이 삭제 진행하지 않기)하거나, `ModelStore` 삭제 자체를 `active`/`downloader` 상태와 같은 락으로 묶어 진짜 원자적 임계구역으로 만든다.
+
+#### 그 밖(운영성, LOW — 이미 문서화된 후속이지만 QA/Leader 인지용으로 재기재)
+
+- **[LOW] `Utterance`/#21 에 `fallbackReason`(온디바이스→gateway 전환 사유) 서버 보고 필드 없음** — `docs/design/speech-platform/12-engine-fallback-policy.md` 각주에 "후속" 으로 이미 명시돼 있어 새 지적은 아니지만, 관리자 "폴백 비율" 대시보드가 이번 task 로 늘어난 전환 사유를 구분하지 못하는 상태로 남는다는 점을 QA/Leader 가 인지하도록 재기재.
+
+#### 통합 정합 실측(요청 항목 1의 "가능하면 JVM 테스트나 수동 대조") — 직접 코드 대조로 수행
+
+Kotlin/Gradle 실행 환경이 이 세션에 없어 JVM 테스트 자체를 재실행하지는 못했으나(개발 로그의 51/51 은 신뢰), 위 HIGH 항목은 **양쪽 검증기 소스를 나란히 읽고 같은 입력에 대한 분기 결과를 직접 대조**해 확인한 것이며 B 쪽 단위테스트(`modelPackage.test.ts`)가 그 느슨함을 스스로 증명하는 fixture 를 이미 갖고 있어 추가 실행 없이도 결론이 코드로 뒷받침된다.
+
+#### 그 외 확인(문제 없음 — 근거만 기재)
+
+- **6층 경계**: `src/modules/infra/__tests__/nativeBoundary.test.ts` 3개 테스트(네이티브 패키지 import 0 / `window.Capacitor` 판독처 `bridge.ts` 유일 / `getOnDeviceStt()` 호출자 `onDeviceModel.ts` 유일) 통과 확인 + `eslint.config.mjs` diff 로 `NATIVE_PACKAGES` 패턴이 모든 경계 블록과 전역 블록에 적용됐음을 확인. **독립 재현(스크래치 클론, 아래)에서 `@capacitor/`·`@thekaiwa/sherpa-stt` grep 결과 실제 import/require 0건(주석 3건만)** 재확인.
+- **PKCE 핵심 로직**: `pkce.ts`·`app-code.ts`(`bindAppAuthCode` = `sha256(code_r:challenge)`, 스키마 무변경, `updateMany` 조건부 단일 UPDATE 로 소각) · `state.ts`/`pending.ts`(challenge 서명 안에만, timing-safe nonce 비교) · `google/route.ts`(challenge 없는 `platform=app` 거부) · `google/callback/route.ts`(판정 순서 1~4, fail-closed) · `next-path.ts`(sentinel origin 오픈 리다이렉트 가드) — 전부 코드 읽고 로직 확인, 결함 없음.
+- **공개 파일 라우트**: `src/app/models/[...path]/route.ts`·`src/app/app/download/[file]/route.ts`·`fileServe.ts`(Range/If-Range/ETag/`StreamSlots` 동시 4)·`storage.ts`(`joinUnder` 경로 조각 화이트리스트+realpath 심볼릭 링크 방어)·`appRelease.ts`(`resolveReleaseDownload`→`verifyReleaseFile` sha256 재계산 대조, 다른 파일이면 404) — 경로 탈출·해시 불일치·기록과 다른 파일 서빙 가능성 없음.
+- **라우터/폴백**: `speech/stt/client/router.ts`(`decideRoute` 순수함수, 누를 때마다 재판정·`STOP_ON_START_FAILURE`·`NOT_COUNTED`·앱 실행 단위 카운터·오프라인 모드 미전환) · `OnDeviceSttClient.ts`(세대 카운터로 경쟁 방지, `handled` Set 으로 final 중복 처리 방지, wav 는 업로드 성공/실패 무관 `finally` 에서 항상 삭제, 업로드 5초 타임아웃) — 설계 문서(§11-11 ⑦, speech-platform/12 각주)와 구현 일치.
+- **Kotlin 자원 해제**: `AudioCapture.kt`(정지 시 `halt()`→join(1.5s)→release 는 캡처 스레드 자신의 `finally`) · `SttSession.kt`(`closedNotified` AtomicBoolean CAS 로 `onClosed` 정확히 1회 보장, `handleOnPause` 가 세션 취소) · `ModelDownloader.kt`/`ModelStore.kt`(Range 재개, 파일별 sha256, 임시디렉터리→커밋 원자적 rename, 다운그레이드 거부, 취소·네트워크 전환 시 조각 보존) — 크래시 유발 지점 없음, 위 TOCTOU 1건 제외 결함 없음.
+- **APK/Manifest/서명**: `AndroidManifest.xml`(딥링크 scheme+host+path 정확 일치, `allowBackup=false`+`dataExtractionRules` 전체 제외, `usesCleartextTraffic=false`, FileProvider `exported=false`+`cache-path` 만) · `build.gradle`(release `debuggable false`·`minifyEnabled false`(JNI 클래스명 보존 이유 명시)·`signingConfigs.sideload`) · `capacitor.config.ts`(`allowNavigation` 비움, `webContentsDebuggingEnabled:false`, `androidScheme:'https'`, `errorPath`) · `MainActivity.java`(`onPause` 쿠키 flush, `DownloadListener` https 만 시스템 브라우저로) — C1-2·C1-4 판정대로 구현됨을 확인.
+- **네이티브 고지·versionCode**: task 이력서에 착수 전 고지 기록 있음(L27), `android/app/build.gradle` `kaiwaVersionCode=1`, 최초 배포이므로 증가 여부는 해당 없음(다음 네이티브 변경부터 적용 대상).
+
+#### 독립 재현(스크래치 클론, `git archive 80f50e1`, 완료 후 삭제) — developer 자기 보고 대비 재검증
+
+| 항목 | Developer 보고 | 독립 재현 결과 | 비고 |
+|---|---|---|---|
+| `tsc --noEmit` | 오류 0(전체 tsc 3건은 TalkRoom.tsx, 별도 진행 중 task 로 설명) | **오류 0**(570개 파일 확인, TalkRoom.tsx 포함) | 개발 로그의 "3건" 이 이 커밋 시점엔 이미 없음(과대 보고 방향 — 기능상 문제 아님, 기록 정확도만 낮음) |
+| eslint(범위: `plugins/`·`capacitor.config.ts`·`infra/native`·`speech/stt`) | 0 | **0** | 일치 |
+| eslint(전체 저장소) | (미보고) | 2 errors(`DiagnosticsScreen.tsx:5-6`, `no-require-imports`)·5 warnings(`set-state-in-effect`, 기존 관행) | **전부 이번 task 밖 파일**(`DiagnosticsScreen.tsx` 은 diff에 없음) — task-003f 회귀 아님 |
+| `npm run test`(스크래치에선 `sync-local.sh` 우회 위해 러너 직접 호출) | 480/480 | **481/481**(64 파일) | 1건 과소 보고(개수 착오) — 기능상 문제 아님 |
+| `grep '@capacitor/\|@thekaiwa/sherpa-stt'` in `src/` | 0(주장) | **실제 import/require 0**(주석 3건만) | 확인됨 |
+| A `assembleDebug`/JVM 51/51 | 재실행 못 함(JDK/Android SDK 없음, developer 자기 환경 결과 신뢰) | — | Kotlin 코드 직접 대조로 로직 검증(위 HIGH 근거) |
+
+스크래치 디렉터리는 검증 후 삭제 확인(`rm -rf` 완료 로그).
+
+#### QA 인계 — high_risk_areas
+1. **모델 manifest 스키마 정합**(위 HIGH) — 지금 QA 는 실기기 없이 통과 가능(현재 파일이 양쪽 다 만족)하지만, **다음 모델 버전 교체 리허설이 있다면 B 검증만으로 안심하지 말고 Kotlin 쪽 규칙(엔진·modelType·sampleRate·5-role)까지 수동 대조**할 것.
+2. **PKCE 경로 GET 노출**(위 MEDIUM) — 기능 회귀는 아니므로 QA 통과 차단 사유는 아니나, nginx 접근 로그 정책(운영 배포 전) 검토를 Leader/deployer 에 전달.
+3. **F6 실기기 확인 목록**(developer 이력서에 이미 상세 기재, QA/사용자 폰 필요 — NOT_VERIFIED로 유지):
+   - APK 설치→연결 실패 화면(비행기 모드)→[다시 시도]
+   - 로그인: Custom Tabs→`thekaiwa://` 302→앱 열림→완전 종료 후 재실행해도 로그인 유지
+   - 키보드/상태바/내비바 겹침 없음, 외부 링크가 WebView 에 안 남고 Chrome 으로 열림
+   - 마이크 권한 첫 대화상자, 2회 거절→[앱 설정 열기]
+   - 모델 받기: Wi-Fi 진행률·일시정지·**강제종료 중 이어받기**·모바일 데이터 명시 동의
+   - 온디바이스 20문장 partial/final + 진단 카드 **`lastDecodeMs` ≤800ms·`rssMb` ≤600MB**(5초 발화, numThreads 2/3/4)
+   - `convertFileSrc(wavPath)` fetch 업로드→회화 턴 "내 목소리 ▶"
+   - 모델 지우기→서버 인식 동일 동작, 말하는 중 홈 버튼→녹음 표시 즉시 꺼짐
+   - 업데이트 띠→Custom Tabs APK 받기→덮어쓰기 설치 후 로그인 유지
+4. **native_change: true** — 첫 배포본이라 versionCode 증가 요건은 해당 없음(다음 네이티브 변경부터 적용).
+
+#### Codex 검토
+이 REV-021 은 C1(설계 단계) 이후 첫 구현 감사이며 C2(Reviewer PASS 직후) 판정은 이 기록 이후 judge 가 수행한다. 여기서는 Codex C1 4건(딥링크 탈취·debuggable·manifest 서명·WebView 탐색)에 대한 **Leader 판정의 구현 반영 여부**만 확인했다 — C1-1(PKCE) 반영 확인(단 위 MEDIUM 잔여), C1-2(release 비디버그) 반영 확인, C1-3(manifest 강화, 서명은 보류 결정대로) 반영 확인하되 **B 쪽 강화가 A 요건에 못 미침을 위 HIGH 로 별도 지적**, C1-4(WebView 탐색 제한) 반영 확인(`Bridge.launchIntent` 동작을 developer 가 Capacitor 7.6.9 소스로 확인한 근거도 코드 구조상 타당).
+
 ## QA 기록
 
 ## Deployer 기록
