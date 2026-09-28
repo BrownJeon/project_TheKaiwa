@@ -381,6 +381,10 @@ Kotlin/Gradle 실행 환경이 이 세션에 없어 JVM 테스트 자체를 재�
 - 다운로드 커밋↔활성 세션 VAD 파일 경합(LOW, 위 3절)은 F6 실기기 확인 시 "모델 받는 중에 회화 시작" 같은 조합 테스트에서 우연히 재현될 가능성은 낮지만 QA 가 인지만 해 둘 것.
 - F6 실기기 확인 목록은 REV-021 과 동일(변경 없음).
 
+#### REV-022 추가 확인 (4061e3c)
+
+**판정: 확인됨 — REV-022 의 신규 발견(Medium, tsc 회귀) 해소.** 스크래치(`git archive` HEAD `7134519`, 검증 후 삭제)에서 `sync-local.sh` 신규 블록만 별도로 재현(실제 `~/.node-local/thekaiwa` 는 건드리지 않음 — `LOCAL_ROOT` 를 스크래치 경로로 대체한 최소 미러를 직접 구성): `models-verify.ts` import 는 확장자 없이 바뀌었고, `tsc --noEmit` 은 **exit 0**(prisma 포함 전체 타입체크, 0 errors). **"옛 import 사본으로 재현" 요청대로** 미러 사본에 `.ts` 확장자를 다시 붙여 재실행하니 **정확히 같은 위치에서 TS5097 재현**(exit 2) → 되돌리면 다시 exit 0 — `sync-local.sh` 의 `scripts/*.ts` 동기화가 실제로 이 회귀를 잡아낼 수 있음을 직접 증명했다. `eslint scripts/models-verify.ts` 도 0. `sync-local.sh` diff 를 직접 읽어 새 블록이 `android/`(별도 rsync, `--filter 'P build/'` 등 보호 그대로)·`plugins/`(별도 rsync) 블록과 소스·타깃이 겹치지 않고 독립적임을 확인 — 기존 동기화에 영향 없음. `models-verify.sh`(스크래치의 스크립트 사본, `node --import tsx`)를 **실제 모델 폴더**(`speech/models`, 읽기 전용)에 대해 직접 실행 — 5개 파일 전부 sha256 일치로 **exit 0**, `manifest.json` 의 `engine` 필드만 변조한 사본으로 재실행하니 `manifest engine invalid` 로 **exit 1**(둘 다 developer 보고와 일치). 잔여 지적 없음.
+
 ## Deployer 기록
 
 ## 최종 요약
