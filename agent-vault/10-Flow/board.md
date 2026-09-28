@@ -33,7 +33,7 @@ tags:
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) · PE talk@v3(A11 뒤) — **스키마 push 승인 대기 예정**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면은 데모 v1(full) **사용자 승인 대기** · DB `EvaluationItem.textRevealedAt` 승인 대기
 - [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): **서버 운영 반영(67771a5, 운영 32/32)** · 화면은 데모 v1(full) **사용자 승인 대기**
-- [[task-012c-console-p2]] — Console P2 1단계(설정 Form/Raw JSON 편집·Validate/Test/Diff/Apply·ConfigurationVersion·이력·Rollback·credentialRef 연결·PRODUCTION 보호, 스키마 0): judge R2·opus·demo **full** · **C1 확정(D-C1~C12, D-C13 은 U-C1 대기)** · Codex C1 지적 3건 채택·정본 반영 → **C1 종결** · 정본 갱신 완료 · designer 데모 v1 → 사용자 승인 대기 · developer A 인계 작성(012b 커밋 뒤 착수, 첫 커밋 = D-C3 선결 게이트). 후속 분할 012c-2(Prompt Registry+Playground)·012c-3(TTS Quality+대시보드, DB 추가), Voice Versions·Canary 는 Phase 4 이관 권고(U-C1)
+- [[task-012c-console-p2]] — Console P2: 설계·Codex C1 종결·데모 v2 게시(사용자 승인 대기) · **서버 1단계(편집 선결 보안 게이트) 운영 반영 `6abe464`**(REV-035·Codex C2 3건 수정·QA PASS) · **서버 2단계(설정 편집·버전·되돌리기 API) 진행 중**
 - [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) — 구현은 010b·010c 뒤, **스키마 push 승인 대기 예정**
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 

@@ -602,3 +602,8 @@ demo_gate:
 - 게이트 스모크 `task012c-gate-smoke.sh 3011 3012 <로그 2>` **26/26**(두 프로세스 30초 슬롯 1건만·SSRF 반례·home-m4 대상 고정·ref 거부·reason 비밀 유사 422·서식 문자 분할 422·LOCAL 행 원복), 서버 로그에 reason 원문 0.
 - 회귀: **003g 54/54 · 006 42/42(p50 4.6s) · 007 44/44 · 008 74/74 · 010 65/65(A4 v7 실생성) · 011 60/60** · 005b 44/47(5c·5j·7c = 운영 gateway 기동 환경 차이, 기준 HEAD 에서도 동일 — R2 후속).
 - **판정: QA PASS** → 012c 서버 1단계 + A4 v7 한 커밋으로 운영 반영. 운영 반영 뒤 006·007·008 운영 스모크로 Claude CLI 자식 env 허용 목록 가용성 재확인(REV-035 재검 권고).
+
+### 2026-09-29 11:55 Leader(메인) — 서버 1단계 운영 반영
+- `6abe464`(012c 서버 1단계 + task-010 A4 v7) push → webhook `RELEASE_RESULT ok`(릴리스 `20260929-084835-6abe464d`, migrated:false). health = degraded[`stt_analysis_worker`] 만(012b 워커 미등록 — 정상).
+- 운영 스모크 `SMOKE_ENV=PRODUCTION`: **006 42/42(p50 4.4s) · 007 44/44 · 008 74/74 · 010 65/65** — Claude CLI 자식 env 허용 목록 운영 가용성 확인(REV-035 재검 권고 이행).
+- D-C3 편집 선결 게이트 통과 → **서버 2단계(인계 절 2~6단계: configuration editable/validate/diff/versions/rollback·소유 층 tx 쓰기·admin editor/history·라우트·테스트) 착수**. 화면은 데모 승인 뒤(developer B).

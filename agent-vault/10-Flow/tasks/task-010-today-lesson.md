@@ -896,3 +896,6 @@ reviewer 21:55 판정(두 건 채택)대로 고쳤다. 스키마 변경·db push
 
 ### 2026-09-29 08:30 Leader — REV-034 High 반영
 - `schemas.ts` 의 `engine/json/schemaValidate` 직접 import → `@/modules/engine` 배럴(`engine/index.ts` 22행 export 에 `enableAdditionalPropertiesStrip` 추가). tsc 0·eslint 0·관련 단위 60/60. task-012c 서버 1단계와 **한 커밋**으로 낸다(engine/index.ts 공유). REV-034 Medium(요청 옵션 opt-in 전환)·ESLint 사각지대(상대경로 교차 모듈 import 미검출)는 정리 backlog.
+
+### 2026-09-29 11:55 Leader — A4 lesson@v7 운영 반영
+- task-012c 서버 1단계와 한 커밋 `6abe464` 로 운영 반영(RELEASE ok). 운영 010 **65/65**.
