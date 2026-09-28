@@ -318,7 +318,67 @@ Kotlin/Gradle 실행 환경이 이 세션에 없어 JVM 테스트 자체를 재�
 #### Codex 검토
 이 REV-021 은 C1(설계 단계) 이후 첫 구현 감사이며 C2(Reviewer PASS 직후) 판정은 이 기록 이후 judge 가 수행한다. 여기서는 Codex C1 4건(딥링크 탈취·debuggable·manifest 서명·WebView 탐색)에 대한 **Leader 판정의 구현 반영 여부**만 확인했다 — C1-1(PKCE) 반영 확인(단 위 MEDIUM 잔여), C1-2(release 비디버그) 반영 확인, C1-3(manifest 강화, 서명은 보류 결정대로) 반영 확인하되 **B 쪽 강화가 A 요건에 못 미침을 위 HIGH 로 별도 지적**, C1-4(WebView 탐색 제한) 반영 확인(`Bridge.launchIntent` 동작을 developer 가 Capacitor 7.6.9 소스로 확인한 근거도 코드 구조상 타당).
 
-## QA 기록
+### REV-022 (2026-09-28, eec8872 + 25c1cae — REV-021 수정 재검증)
+
+**판정: PASS**(Critical 0 · High 0 · Medium 2 · Low 2) — REV-021 의 High 1·Medium 2 전부 실제로 해소됐음을 코드 대조·라이브 테스트 근거로 확인. 재검증 중 새로 발견한 tsc 회귀 1건(Medium, 원인·수정법 확정)과 두 가지 판단 요청(레이스·CSRF)에 대한 결론을 아래에 기재. Read 전용, 코드 수정 없음.
+
+```json
+{
+  "reviewId": "REV-022",
+  "status": "PASS",
+  "summary": { "critical": 0, "high": 0, "medium": 2, "low": 2 },
+  "high_risk_areas": ["scripts/models-verify.ts tsc 회귀(1줄 수정 필요)", "다운로드 커밋↔활성 세션 VAD 파일 경합(사전부터 있던 잔여, 이번 수정 범위 밖)"],
+  "native_change": true
+}
+```
+
+#### 1) HIGH(manifest 스키마 괴리) — **해소 확인**
+- **대조 방법**: (a) `plugins/sherpa-stt/android/.../Manifest.kt`(`ManifestValidator.parse`, 25c1cae 본문 재확인)와 `src/modules/speech/stt/manifestRules.ts`(`parseManifest`)를 **조건 순서 그대로 한 줄씩 대조** — name/version 원값 취득 순서(존재 검사 먼저·형식 검사 나중, 둘 다 name→version 순) · `engine`="sherpa-onnx"·`modelType`="transducer"·`sampleRate`=16000(정수 일치) 필수 · `files.length` 하한 5(`ROLES.size`)~16 · per-file 순서(path→sha256→bytes→role→중복 path→중복 role) · `roles != ROLES` 최종 검사 · `totalBytes` 일치 · `minPluginVersion` semver — **전 조건·전 순서 일치**(파생 코드 아님에도 완전한 포트). `sha256` 은 양쪽 다 소문자 전용 정규식(`[0-9a-f]{64}`, 대문자 거절)으로 통일 확인, `name`/`version` 의 `..` 명시적 거절도 양쪽에 동일 추가됨을 확인.
+  (b) **서버 쪽 픽스처 실행**: 공용 픽스처 `plugins/sherpa-stt/test-fixtures/manifest-cases.json`(53 사례, `MANIFEST_INVALID` 47·`valid` 5·`APP_UPDATE_REQUIRED` 1)을 직접 열람 — `name-dotdot`·`version-dotdot`·`sha-uppercase` 등 이번에 조인 3개 규칙에 대응하는 사례가 실제로 들어 있음을 확인. `src/modules/speech/__tests__/modelPackage.test.ts`(46~62행)가 이 파일의 53개 사례 전부를 서버 `parseManifestText` 로 돌려 "plugin 이 valid·APP_UPDATE_REQUIRED 인 사례만 통과"를 단정하는 테스트임을 코드로 확인(스크래치 클론에서 `npm test` 484/484 전부 통과 — 이 테스트 포함).
+  (c) **JVM 쪽**: 이 세션에 Android SDK/AGP 로 플러그인 모듈 자체를 빌드해 돌리진 않았으나(아래 "실행 한계" 참조), `plugins/sherpa-stt/android/.../ManifestFixtureTest.kt`(`everySharedCaseGetsTheExpectedVerdict`)가 **같은 파일**을 읽어 53개 전부에 대해 `ManifestValidator.parse` 결과가 `plugin` 필드와 일치하는지 assert 하는 구조임을 코드로 확인 — (a)의 줄 단위 대조와 결합하면 "서버가 통과시키는 걸 플러그인이 거절"하는 사례가 남아 있을 가능성은 사실상 없다고 판단.
+  (d) **배포 전 게이트**: REV-021 에서 지적한 미존재 `scripts/models-verify.sh`(참조만 있고 파일 없음)가 이번에 실제로 생겼다 — `scripts/models-verify.ts` 가 `manifestRules.ts` 를 직접 import 해 디스크 버전 디렉터리의 파일 크기·sha256 까지 대조(§아래 신규 발견 참고). `speech/models/README.md` §5 배포 절차에 이 게이트가 두 지점(신규 manifest 검증 전, rename 후 재확인)에 실제로 박혀 있음을 확인.
+- **결론**: HIGH 는 실질적으로 해소. 다만 아래 "신규 발견" 의 tsc 회귀 때문에 이 게이트 스크립트 자체가 **타입체크 기준으로는 깨져 있다**(런타임은 `tsx` 라 정상 동작 — 상세 아래).
+
+#### 2) MEDIUM(PKCE code_r+verifier가 URL에 노출) — **해소 확인**
+- `src/modules/infra/native/appLogin.ts`(`exchangeAppCode`)가 `fetch('/api/auth/app-exchange', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code,verifier,next})})` 로 교환하고, `src/app/(auth)/login/AppDeepLink.client.tsx`(66-68행)가 성공 시 서버가 돌려준 `next` 로만 `location.replace` 함 — **code·verifier 가 URL·주소창·nginx 접근 로그에 더 이상 나타나지 않는다.** `appExchangeUrl`(옛 쿼리스트링 조립 함수) 자체가 삭제됐고 `grep -rn "appExchangeUrl" src/` 0건(스크래치 클론에서 재확인).
+- **"Set-Cookie 가 POST fetch 로 실제 설정되는가"**: 그렇다. `fetch(..., {credentials:'same-origin'})` 는 표준에 따라 같은 출처 응답의 `Set-Cookie` 를 브라우저 쿠키 저장소에 반영한다(JS 가 `res.headers.get('set-cookie')` 로 읽을 수 없는 것과는 별개 — 저장 자체는 JS 개입 없이 일어난다). 응답 처리 코드(`app-exchange/route.ts` 47-48행)는 REV-021 이전과 **동일한** `setSessionCookie(res, {...})`(httpOnly+secure+sameSite=lax, `session.ts`/`jwt.ts` 미변경)를 그대로 쓴다 — 쿠키 옵션 자체는 이번 변경의 영향을 받지 않는다. 이후 `location.replace(next)` 는 이미 쿠키가 심긴 뒤의 별도 네비게이션이라 문제없이 세션이 유지된다. **라이브 E2E**(`tests/live/task003f-ui-e2e.mjs` 신규 블록, 가로채지 않은 실제 서버 교환 1회)가 실제 브라우저의 Origin/Sec-Fetch-Site 로 통과하고 `/study/today` 로 이동함을 코드로 확인(개발자 보고 77/77 — 이 세션에선 dev 서버를 새로 띄우지 않아 직접 재실행하지 않음, 아래 "실행 한계").
+- **CSRF 방어 판정**: 충분하다고 판단한다. ① `Content-Type: application/json` 강제 — HTML `<form>` 은 이 값을 못 보내고(3종 단순 타입 밖), 교차 출처 JS `fetch` 로 이 헤더를 붙이면 브라우저가 CORS 프리플라이트를 강제하는데 서버에 `OPTIONS`/CORS 허용 헤더가 없어 실제 요청이 전송되지 않는다(사전 방어). ② 그 위에 `isSameOriginJsonRequest`(`app-exchange.ts`)가 `Sec-Fetch-Site`(있으면 정확히 `same-origin` 만)와 `Origin`(있으면 Host 와 정확히 일치) 를 **독립적으로** 재확인 — 단위테스트(`task003f.test.ts` 신규 블록)가 `sec-fetch-site: same-site`(같은 최상위 도메인의 다른 서브도메인)까지 거절함을 직접 검증해 흔한 실수(same-site 를 same-origin 으로 착각)를 피했다. ③ 두 표시가 전부 없는 요청(구식 클라이언트 흉내)도 거절 — 앱 WebView(최신 Chromium 기반)는 항상 `Sec-Fetch-Site` 를 보내므로 실사용에 지장 없음.
+- **"실패해도 코드를 태우지 않는다" — 안전한가(Leader 요청 판단)**: **안전하다고 판단한다.** 이 동작은 이번 수정이 새로 만든 것이 아니라 `consumeAppAuthCode`(`app-code.ts`, REV-021 그대로 미변경)의 원래 설계다 — DB 조회 키 자체가 `sha256(code_r + ":" + S256(verifier))`(둘 다 32바이트 랜덤, 각각 256비트 엔트로피)이므로 verifier 를 모르면애초에 "그 행" 을 가리키는 값 자체를 계산할 수 없고(다른 무관한 해시가 나올 뿐), `burn()` 이 매치 없이 0건으로 끝나 아무것도 변경되지 않는다. 무제한 재시도를 허용해도 공격자가 얻는 것은 없다(맞는 code_r 을 추측할 확률·맞는 verifier 를 추측할 확률 모두 사실상 0, 두 조건이 AND 로 걸려 있어 곱해지지도 않고 애초에 개별로도 무의미). 별도 IP 레이트리밋도 없지만(구 GET 경로도 없었음 — 변경 없음), 위와 같은 이유로 필요하지 않다고 판단한다. **라이브 스모크 D3~D8**(가로챈 code_r 만·틀린 verifier·DB 결속값 재사용·GET 405·폼 형식·다른 Origin·`Sec-Fetch-Site: cross-site`·표시 없음 — 전부 거절을 확인한 뒤) **D6 에서 같은 code_r+verifier 로 정상 교환 성공**을 코드로 확인 — 즉 위 8가지 실패 시도 전부가 실제로 코드를 태우지 않았음을 라이브 테스트가 **직접 증명**한다(개발자 보고 스모크 36/36 — 이 세션에서 dev 서버를 새로 띄워 재실행하지는 않음).
+
+#### 3) MEDIUM(deleteModel↔start TOCTOU) — **해소 확인**
+- `ModelGate<S,D>`(신규, `plugins/sherpa-stt/android/.../ModelGate.kt`) — `session`·`download`·`deleting` 세 상태를 **모두 같은 모니터**(`@Synchronized`, 즉 `synchronized(this)`)로 판정+점유한다. `SherpaSttPlugin.start()` 는 `gate.openSession { openSession(o) }` 로 바꿔, 설치본 확인(`store.current()`)·VAD 네이티브 생성·`AudioRecord` 오픈까지 **gate 락 보유 중에** 실행되도록 옮겼다(이전엔 판정만 락 안·실행은 밖이었다) — `deleteModel` 은 `beginDelete()`(판정+점유가 한 호출)로 바뀌어 그 사이 `start`·`downloadModel` 은 즉시 `BUSY`.
+- **레이스**: 세션 로드(`worker.execute` 안의 `recognizer.ensure`)는 **실행 시점에 `store.current()` 를 다시 읽는다**(238행) — 세션 시작과 워커 실행 사이에 다운로드가 새 버전을 커밋해도 스테일 경로를 잡지 않는다. `ModelStore.commit`/`ModelGate` 양쪽 다 관련 코드를 직접 읽어 확인.
+- **데드락 가능성 검토(Leader 요청)**: 이 설계에 쓰이는 락은 사실상 **`gate` 하나뿐**이다(플러그인의 옛 `lock` 필드는 삭제되고 전부 `gate`/`synchronized(gate)` 로 옮겨짐 — `pendingStops` 도 포함, `stop()`·`onClosed` 에서 확인). 자바 모니터는 재진입 가능해서 `synchronized(gate){ gate.session() }`(같은 스레드가 `gate` 를 두 번 잡음)은 안전하다. 두 번째 락을 반대 순서로 잡는 지점이 없어 **A-B/B-A 교착 패턴 자체가 성립하지 않는다.** `openSession` 의 `open()` 람다가 `worker.execute{...}` 를 부르지만 이건 **제출만 하고 기다리지 않는** fire-and-forget 이라 "gate 를 잡은 채 worker 완료를 기다림" 도 없다 — 데드락 경로를 찾지 못했다. 유일한 실질 비용은 **락 보유 시간이 늘어난 것**(네이티브 VAD 로드+마이크 오픈이 몇~수십 ms 걸리는 동안 다른 `start`/`deleteModel`/`downloadModel` 호출이 그만큼 대기) — 이는 원래 버그(삭제된 파일 위에서 로드 시도)를 없애기 위한 의도된 트레이드오프로 판단, 문제 아님.
+- **잔여(이번 수정 범위 밖, LOW)**: `beginDownload` 는 `session != null` 을 막지 않는다(의도 — "다운로드 중에도 회화 가능") — 따라서 **세션이 이미 VAD 파일 경로를 잡은 뒤, 그 세션이 끝나기 전에 다른 다운로드가 커밋**(`ModelStore.commit` 이 옛 버전 디렉터리를 통째로 `deleteRecursively()`)되면 그 세션이 참조 중인 파일이 사라질 수 있는 이론적 경합이 남아 있다. 이 경합은 **REV-021 이전부터 있던 것으로(이번 수정이 다루는 delete-vs-start 문제와 다른 축) 다운로드는 수 분이 걸리고 VAD 네이티브 로드는 세션 시작 직후 수십 ms 안에 끝나 창이 극히 좁다 — 실무 영향은 낮다고 판단해 Low 로만 남긴다(후속 트래킹 권고, 이번 REV-022 판정에는 반영하지 않음).
+- **테스트**: `ModelGateTest.kt`(개발자 주장 — 실패한 open 이 점유를 남기지 않음, 삭제 중 open/download 즉시 BUSY, **2,000회 반복 2-스레드 CyclicBarrier 경합에서 overlap 카운터 0**)·`DeleteVsStartTest.kt`(delete 점유~worker 삭제 사이 start=BUSY, 삭제 후=MODEL_MISSING) 를 직접 열람 — 진짜 두 스레드 풀 기반 동시성 스트레스 테스트로 설계돼 있어(가짜 순차 호출이 아님) 신뢰도가 높다고 판단한다.
+
+#### 신규 발견 — [MEDIUM] `scripts/models-verify.ts` tsc 회귀(TS5097), developer 자기 보고("tsc 0")와 불일치
+- **component**: `scripts/models-verify.ts:15` — `import { ManifestError, parseManifestText } from '../src/modules/speech/stt/manifestRules.ts'`(명시적 `.ts` 확장자)
+- **evidence**: 스크래치 클론(HEAD `ffe9d61` 아카이브)에서 `tsc --noEmit` 독립 재실행 → **exit 2**, `scripts/models-verify.ts(15,50): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.` `tsconfig.json` 은 `allowImportingTsExtensions` 를 켜지 않았고 `"include"` 가 `**/*.ts` 라 이 파일도 전체 타입체크 대상이다.
+- **원인**: `scripts/sync-local.sh` 는 `src/`·`plugins/`·정해진 설정 파일만 미러(`~/.node-local/thekaiwa`)로 보내고 **`scripts/` 디렉터리 자체를 동기화하지 않는다**(`grep scripts scripts/sync-local.sh` 0건). Developer 는 관행대로 `sync-local.sh && cd ~/.node-local/thekaiwa && tsc --noEmit` 로 확인했는데, 그 미러에는 `scripts/models-verify.ts` 가 애초에 없어 tsc 가 이 파일을 본 적이 없다 — "tsc 0 error" 보고가 **거짓이 아니라 사각지대**였다(같은 로그의 `npm run test 484(483 pass+1 skip)` 도 이 세션 스크래치에서 484 pass/0 skip 으로 나왔는데, 이건 버그가 아니라 `modelPackage.test.ts` 의 스킵 조건이 `speech/models/manifest.example.json` 을 상대 경로로 찾는데 git archive 로 뜬 저장소엔 그 파일이 커밋돼 있어 스킵 없이 통과됐을 뿐 — 미러에는 `speech/` 가 없어 스킵되는 것과 대비되는, 실행 위치에 따른 정상적 차이).
+- **risk**: 런타임 영향은 없다(§는 `bash scripts/models-verify.sh` 가 `node --import tsx`(tsx 는 `.ts` 확장자 import 를 허용) 로 실행하므로 배포 게이트 스크립트 자체는 정상 동작 — developer 이력서의 "실측: engine 변조 FAIL exit 1·중복 키 FAIL" 도 이와 일치). 다만 (1) 프로젝트가 모든 이전 REV 에서 "tsc 0" 을 완료 기준으로 삼아 왔는데 이번 커밋은 그 기준을 실제로 어겼고, (2) `scripts/` 가 미러에 없어 이런 종류의 문제가 앞으로도 조용히 재발할 수 있다(사각지대 자체가 남음).
+- **recommendation**: `scripts/models-verify.ts:15` 의 import 에서 `.ts` 확장자만 떼면 끝난다(`from '../src/modules/speech/stt/manifestRules'` — 프로젝트 전역 관행과도 일치). 겸사겸사 `scripts/sync-local.sh` 에 `scripts/` 동기화(또는 최소한 `*.ts` 스크립트)를 추가하거나, tsc 를 NFS 원본에서도 주기적으로 돌리는 습관을 권고(이번처럼 미러 전용 검증이 놓치는 파일이 또 생길 수 있음).
+- **판정에 대한 영향**: Critical/High 아님(런타임 무영향·한 줄 수정) — Medium 으로 기록하고 **Developer 에게 즉시 수정 요청**. 이 항목 때문에 REV-022 를 FAIL/CONDITIONAL 로 내리지는 않지만, **QA 인계 전 이 한 줄은 고쳐져야** "tsc 0" 이 실제 사실이 된다.
+
+#### 회귀 확인(스크래치 클론, HEAD `ffe9d61` 아카이브 — 검증 후 삭제, `~/.node-local/thekaiwa-apk` 는 손대지 않음)
+| 항목 | Developer 보고 | 독립 재현 | 비고 |
+|---|---|---|---|
+| `tsc --noEmit` | 0 | **exit 2, 1건**(`scripts/models-verify.ts` TS5097) | 위 신규 발견 — 미러 사각지대 |
+| eslint(전체 저장소) | (미보고) | 2 errors(`ecosystem.config.js` no-require-imports)·5 warnings(`set-state-in-effect`, 기존 관행) | 전부 **이번 diff 밖 파일** — 회귀 아님(REV-021 때와 동일 항목) |
+| eslint(이번에 손댄 범위: `plugins/`·`capacitor.config.ts`·`infra/auth/oauth/**`·`speech/stt/**`·`api/auth/app-exchange/**`) | 0 | **0** | 일치 |
+| `npm run test` | 483 pass + 1 skip = 484 | **484 pass + 0 skip = 484** | 총량 일치, 배분만 다름(스킵 조건이 저장소 사본 존재 여부에 좌우 — 버그 아님, 위 원인 설명) |
+| `grep appExchangeUrl src/` | (삭제됨) | **0건** | 확인 |
+| `app-exchange/route.ts` 가 `searchParams` 를 더 이상 안 씀 | 주장 | **확인**(`consumeAppAuthCode(input.code, input.verifier)` 만, `searchParams.get` 없음) | 확인 |
+| `@capacitor/*`·`@thekaiwa/sherpa-stt` grep(src) | 0(주장) | **주석만 3건, 실제 import 0** | 확인 |
+
+#### 실행 한계(이 세션에서 직접 하지 못한 것 — 근거는 대신 코드/기존 테스트 열람으로 보강)
+- **JVM 단위 테스트(51→60, `ModelGateTest`·`DeleteVsStartTest`·`ManifestFixtureTest` 포함)를 이 세션에서 직접 실행하지 않았다** — Android SDK/Gradle 전체 빌드는 시간이 오래 걸리고 Leader 가 `~/.node-local/thekaiwa-apk`(developer 전용 빌드 작업 디렉터리)를 건드리지 말라고 지시했으며, 별도의 격리된 Gradle 빌드를 새로 만드는 것도 이번 재검증 범위에서는 과하다고 판단해 **Manifest.kt/ModelGate.kt/ModelGateTest.kt/ManifestFixtureTest.kt 전문을 직접 읽고 TS 쪽과 한 줄씩 대조하는 방법**으로 대신했다(위 1)·3) 절 참고). 이 방식의 한계: 컴파일이 실제로 되는지, 테스트가 실제로 통과하는지는 developer 자기 보고(JVM 60/60)에 의존한다 — 다만 이번 REV-022 에서 **tsc 자기 보고가 미러 사각지대로 실제와 달랐던 사례를 하나 직접 잡아냈으므로**, JVM 쪽도 유사한 사각지대가 있을 가능성은 배제하지 못한다. **권고**: 다음 순환(다음 커밋 또는 QA 단계)에서 한 번은 `bash scripts/build-apk.sh --test` 를 **개발자 본인이 아닌 다른 사람/세션**이 재실행해 JVM 60/60 을 한 번 더 확인하는 것을 권장.
+- 라이브 스모크(36/36)·화면 E2E(77/77) 를 이 세션에서 dev 서버를 새로 띄워 재실행하지 않았다(REV-021 때와 같은 이유 — 실행 중인 pm2/dev 환경과 충돌 위험, 그리고 이번엔 코드 열람만으로도 로직 정합을 충분히 확인할 수 있었다고 판단). 대신 두 스크립트의 **신규 추가된 assertion 코드**(D3~D8 POST 변환, D5b~D5f CSRF 케이스, 실제 서버 교환 블록)를 전문 열람해 검증 대상·판정 로직이 이번 수정과 정확히 대응함을 확인했다.
+
+#### QA 인계 갱신
+- REV-021 의 high_risk_areas 3건 중 2건(PKCE 노출·TOCTOU) 은 이번에 해소 확인, 나머지 1건(manifest 스키마 정합)도 해소됐으나 **`scripts/models-verify.ts` 한 줄 수정 전까지는 "tsc 0" 이 거짓**이라는 점을 QA 체크리스트에 추가(수정 후 QA 가 `tsc --noEmit` 로 재확인).
+- 다운로드 커밋↔활성 세션 VAD 파일 경합(LOW, 위 3절)은 F6 실기기 확인 시 "모델 받는 중에 회화 시작" 같은 조합 테스트에서 우연히 재현될 가능성은 낮지만 QA 가 인지만 해 둘 것.
+- F6 실기기 확인 목록은 REV-021 과 동일(변경 없음).
 
 ## Deployer 기록
 
