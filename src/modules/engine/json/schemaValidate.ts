@@ -166,6 +166,75 @@ function finalizeViolations(list: string[]): string[] {
   return head
 }
 
+// ── 스키마 밖 필드 제거(옵트인, task-010 후속) ─────────────────────────────────
+
+/**
+ * 이 WeakSet 에 등록된 스키마 객체만 아래 `stripUnknownAdditionalProperties` 대상이 된다(참조 동일성 기준).
+ * **등록은 `enableAdditionalPropertiesStrip` 로만 한다** — 이 파일은 어떤 스키마도 스스로 등록하지 않는다. 지금
+ * 등록하는 곳은 `conversation/structuredResponse/schemas.ts` 의 `LESSON_SCHEMA` 하나뿐(2026-09-29, task-010 후속:
+ * A4 1차 응답의 `quiz[]` 에 스키마 밖 필드 `q`·`conjugationNote` 가 붙어 `additionalProperties` 위반 → 불필요한
+ * 재시도(+약 30s, 한 번은 149s 상한 초과로 FAILED) — 실측: task-010 이력서 "2026-09-29 01:50 Leader"). TALK·CHAT·
+ * WORD_ENRICH·CHAT_REVIEW·EVAL_GEN·EVAL_GRADE 등 다른 스키마는 등록하지 않으므로 동작이 전혀 바뀌지 않는다.
+ */
+const additionalPropertiesStripSchemas = new WeakSet<object>()
+
+/** `schema`(참조 동일성)를 스키마 밖 필드 제거 대상으로 등록한다. 등록하지 않은 스키마의 검증 동작은 그대로다. */
+export function enableAdditionalPropertiesStrip(schema: object): void {
+  additionalPropertiesStripSchemas.add(schema)
+}
+
+interface WalkSchema {
+  type?: string
+  properties?: Record<string, WalkSchema>
+  additionalProperties?: boolean
+  items?: WalkSchema
+  anyOf?: WalkSchema[]
+}
+
+/**
+ * `data` 를 스키마 트리를 따라 **in-place** 로 정리한다 — 그 위치의 스키마가 `additionalProperties:false` 이고
+ * `properties` 에 없는 키만 지운다. **필수 필드는 절대 건드리지 않는다**(required 키는 항상 `properties` 에도
+ * 있으므로 "추가" 취급되지 않는다). 필드 이름이 통째로 바뀐 경우(예: `promptJa` 대신 `q`)는 이 함수가 손대지
+ * 않는다 — `promptJa` 자리는 여전히 비어 있어 뒤이은 ajv 검증이 `required` 위반으로 그대로 잡고, 지금처럼
+ * 재시도로 간다(이름을 추측해서 매핑하지 않는다). 지운 키의 **경로만**(값은 절대) 돌려준다 — 로그용.
+ */
+function stripAdditionalPropertiesWalk(data: unknown, schema: WalkSchema, path: string, out: string[]): void {
+  if (schema.anyOf) {
+    const branch = schema.anyOf.find((s) => (data === null ? s.type === 'null' : s.type !== 'null'))
+    if (branch) stripAdditionalPropertiesWalk(data, branch, path, out)
+    return
+  }
+  if (schema.type === 'array') {
+    if (!Array.isArray(data) || !schema.items) return
+    data.forEach((item, i) => stripAdditionalPropertiesWalk(item, schema.items!, `${path}/${i}`, out))
+    return
+  }
+  if (schema.type === 'object') {
+    if (data === null || typeof data !== 'object' || Array.isArray(data) || !schema.properties) return
+    const record = data as Record<string, unknown>
+    if (schema.additionalProperties === false) {
+      const allowed = new Set(Object.keys(schema.properties))
+      for (const key of Object.keys(record)) {
+        if (!allowed.has(key)) {
+          delete record[key]
+          out.push(path ? `${path}/${key}` : key)
+        }
+      }
+    }
+    for (const [key, subSchema] of Object.entries(schema.properties)) {
+      if (key in record) stripAdditionalPropertiesWalk(record[key], subSchema, path ? `${path}/${key}` : key, out)
+    }
+  }
+}
+
+/** 등록된 스키마면 `data` 를 정리하고 제거한 키 경로 목록을 돌려준다(등록 안 됐으면 항상 `[]`, `data` 도 그대로). */
+function stripUnknownAdditionalProperties(data: unknown, schema: object): string[] {
+  if (!additionalPropertiesStripSchemas.has(schema)) return []
+  const out: string[] = []
+  stripAdditionalPropertiesWalk(data, schema as WalkSchema, '', out)
+  return out
+}
+
 export type ValidateResult = { ok: true } | { ok: false; violations: string[] }
 
 /** ajv 구조 검증 + 자리표시자 잔존 검사. */
@@ -200,6 +269,12 @@ export function extractAndValidate(raw: string, schema: object): AnalyzeResult {
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { ok: false, parseError: true }
+  }
+
+  const removed = stripUnknownAdditionalProperties(parsed, schema)
+  if (removed.length > 0) {
+    // 키 이름·개수만(값·원문·학습자 텍스트 없음) — 등록된 스키마(현재 LESSON 하나)에서만 나온다.
+    console.info(`[json] 스키마 밖 필드 제거: ${removed.slice(0, 10).join(', ')}${removed.length > 10 ? ` 외 ${removed.length - 10}건` : ''}`)
   }
 
   const result = validateOutput(parsed, schema)

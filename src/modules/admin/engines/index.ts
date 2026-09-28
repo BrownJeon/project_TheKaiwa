@@ -2,8 +2,9 @@
  * Engine·Connection·Fallback·Secret·Plugin 조합(api-contract #90~#101·#103·#121·#122) — engine 층 공개 API 를 부르고 DTO 로 바꾼다.
  * 쓰기는 Health/Functional 결과(engine 이 기록)와 `secrets.read_ref` 민감 읽기 감사 1행뿐(task-005b G2).
  */
-import { ApiError, describeCredentialRef, recordAudit } from '@/modules/infra'
+import { ApiError, describeCredentialRef, isDeniedCredentialRef, recordAudit } from '@/modules/infra'
 import {
+  allowedRefsFor,
   defaultConfiguration,
   fallbackRolesByConnection,
   getConfigurationSchema,
@@ -107,33 +108,43 @@ export async function getFallbackPolicyDto(environment: Environment, role: Engin
 }
 
 /**
- * #101 — 환경의 connection 이 쓰는 credentialRef 이름·존재 여부만(값은 읽지 않는다). 조회 자체를 AuditLog 1행으로 남긴다(role-permission §7 민감 읽기).
- * ref 형식이 아닌 저장값(평문 의심)은 목록에 싣지 않고 개수만 감사 after 에 남긴다.
+ * #101 — 환경의 connection 이 쓰는 credentialRef + 어댑터 descriptor 가 허용한 ref 의 이름·존재 여부만(값은 읽지 않는다).
+ * 조회 자체를 AuditLog 1행으로 남긴다(role-permission §7 민감 읽기).
+ * - `allowedFor` = 그 ref 를 걸 수 있는 connection key(task-012c Codex C1 CX-1) — 허용됐지만 아무도 쓰지 않는 ref 도 싣는다(#93b 선택지·"서버에 없음" 안내).
+ * - ref 형식이 아닌 저장값(평문 의심)·전역 거부 분류(부팅·내부 시크릿) ref 는 목록에 싣지 않고 개수만 감사 after 에 남긴다.
  */
 export async function listSecretRefs(actor: AdminActor, environment: Environment): Promise<SecretRefDto[]> {
   const rows = await listConnections({ environment })
-  const byRef = new Map<string, { id: string; key: string }[]>()
+  const usedBy = new Map<string, { id: string; key: string }[]>()
+  const allowedFor = new Map<string, string[]>()
   let invalid = 0
+  let denied = 0
   for (const r of rows) {
+    for (const ref of allowedRefsFor(r.engineId, r.connectionType)) allowedFor.set(ref, [...(allowedFor.get(ref) ?? []), r.key])
     if (!r.credentialRef) continue
     if (!describeCredentialRef(r.credentialRef)) {
       invalid++
       continue
     }
-    byRef.set(r.credentialRef, [...(byRef.get(r.credentialRef) ?? []), { id: r.id, key: r.key }])
+    usedBy.set(r.credentialRef, [...(usedBy.get(r.credentialRef) ?? []), { id: r.id, key: r.key }])
   }
-  const items: SecretRefDto[] = [...byRef.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([ref, usedBy]) => {
-      const st = describeCredentialRef(ref)!
-      return { ref, source: st.source, exists: st.exists, mtime: st.mtime, usedBy, lastUsedAt: null }
-    })
+  const refs = [...new Set([...usedBy.keys(), ...allowedFor.keys()])].sort((a, b) => a.localeCompare(b))
+  const items: SecretRefDto[] = []
+  for (const ref of refs) {
+    const st = describeCredentialRef(ref)
+    if (!st) continue
+    if (isDeniedCredentialRef(ref)) {
+      denied++
+      continue
+    }
+    items.push({ ref, source: st.source, exists: st.exists, mtime: st.mtime, usedBy: usedBy.get(ref) ?? [], allowedFor: [...new Set(allowedFor.get(ref) ?? [])].sort(), lastUsedAt: null })
+  }
   await recordAudit({
     environment: actor.environment,
     actor: { id: actor.id, email: actor.email, role: actor.role },
     action: 'secrets.read_ref',
     targetId: environment,
-    after: { refs: items.length, invalidRefs: invalid, viewedEnvironment: environment, ...(environment !== actor.environment ? { crossEnvironment: true } : {}) },
+    after: { refs: items.length, invalidRefs: invalid, deniedRefs: denied, viewedEnvironment: environment, ...(environment !== actor.environment ? { crossEnvironment: true } : {}) },
     ip: actor.ip,
   })
   return items

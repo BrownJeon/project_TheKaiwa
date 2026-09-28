@@ -434,3 +434,33 @@ v4 재측정에서 드러난 유일한 잔존 실패 유형은 `checkLessonRespo
 **developer 제안(코드 변경 없음, 관측 개선 사양만)**: 지금 `AiJob.error` 에는 실패 코드만 남아(예: `ENGINE_ERROR`) 어느 검사에 걸렸는지 사후에 알 방법이 없다(이번 진단도 별도 라이브 스크립트로 원문을 다시 뽑아야 했다). `checkLessonResponse`/스키마 위반의 **검사 코드만**(원문·학습자 텍스트는 절대 없이) `AiJob.error` 에 `LLM_INVALID:<checkCode>` 형태로 남기면(예: `LLM_INVALID:READING_PATTERN`·`LLM_INVALID:CONTENT_MATCH`·`LLM_INVALID:TARGET_ID`) 다음에 비슷한 잔존 실패가 나올 때 스모크 로그만으로 원인을 바로 좁힐 수 있다. `checks.ts` 위반 문구는 현재 자유 텍스트라 코드화하려면 각 위반에 짧은 상수 코드를 붙이는 작은 리팩터가 필요하다 — developer·Leader 판단.
 
 **재발 가능한 함정(추가)**: ⑧ 검사(`checks.ts`)와 보정(`repair.ts`)을 먼저 만들고 그에 대응하는 **지시문을 프롬프트에 빠뜨리는** 패턴이 이번에도 재현됐다(v3 가 ④ 검사·보정을 만들 때 지시문을 안 붙였다가 v5 에서 뒤늦게 채움) — 새 후검증 규칙을 추가할 때는 "이 규칙을 모델이 프롬프트만 보고 알 수 있는가"를 체크리스트로 넣을 것. ⑨ 데이터 무결성(존재하지 않는 참조)과 콘텐츠 품질(존재는 하지만 완벽히 안 담김)은 **다른 심각도**로 다뤄야 한다 — 전자는 항상 강제하되, 후자는 재시도까지 소진한 뒤라면 "완벽하지 않은 결과라도 살리는" 게 "아무것도 못 주는" 것보다 나을 수 있다(이번 lesson@v6 의 tolerateContentMismatch 가 그 사례). ⑩ 라이브 실측 스크립트를 여러 라운드(진단·1차 수정·2차 수정·3차 수정) 연속으로 돌리면 Claude CLI 구독 세션 한도(§9-1 과 동일 계열)에 걸릴 수 있다 — 한 세션에서 재측정을 몇 차례나 돌릴지 미리 예산을 잡고, 한도에 걸리면 "재시도"가 아니라 "다음 세션/시간대로 이월"이 맞는 대응이다.
+
+## 12. A4 스키마 밖 필드(quiz[] 의 q·conjugationNote 등) — ajv 전 결정적 제거(2026-09-29, prompt-engineer, [[task-010-today-lesson]])
+
+**배경**: lesson@v6 운영 반영(§11) 뒤 라이브 재검증(Leader 01:50 절)에서 새 재시도 원인이 드러났다 — 1차 응답의 `quiz[]` 항목에 스키마 밖 필드(`q`·`conjugationNote`)가 붙어 ajv `additionalProperties` 위반 → 재시도(+약 30s, 한 번은 재시도 중 149s 상한 초과로 FAILED). §11 의 콘텐츠 매칭(④)·reading pattern 과는 **다른 계층**의 문제다 — 그 둘은 ajv 통과 **후** `extraCheck`(repair→check)가 잡는 것이고, 이번은 ajv **자체**가 거부해 `repairLessonResponse` 가 관여할 기회조차 없었다.
+
+**원인 확인**: 검증 순서는 `extractJson`(파싱) → ajv(`validateOutput`) → (통과 시에만) `extraCheck`. 라이브로 확보한 1차 원문에서 스키마 밖 키는 **필수 필드가 전부 채워진 뒤에 덧붙은 것**이었다(예: quiz 항목에 `promptKo`·`promptJa`·`choices`·`answer`·`targetIds`·`explanationKo` 가 다 있고 그 위에 `q`·`conjugationNote` 가 얹힘) — 이름을 바꿔치기한 사례(필수 필드 자리를 비우고 그 자리에 다른 이름을 쓴 경우)는 관측되지 않았다. "결정적으로 지워도 안전한" 전제(필수 필드가 이미 다 있음)를 실제로 만족한다.
+
+**조치(결정적, LESSON 한정)**: `engine/json/schemaValidate.ts` 에 `enableAdditionalPropertiesStrip(schema)`(WeakSet 등록) 신설 — 등록된 스키마에 한해 `extractAndValidate` 가 ajv 호출 **직전**에 스키마 트리를 따라가며 `additionalProperties:false` 이고 `properties` 에 없는 키만 in-place 로 지운다. required 키는 항상 `properties` 에도 있어 "추가" 취급되지 않으므로 원천적으로 안 건드리고, 이름이 바뀐 경우는 그 필수 필드 자리가 여전히 비어 있어 ajv 가 그대로 잡아 지금처럼 재시도한다(추측 매핑 없음). `schemas.ts` 에서 `LESSON_SCHEMA` **하나만** 등록했다 — 순수 `validateOutput`(ajv 만, `engine/index.ts` 의 `validateAgainstSchema`)과 TALK·CHAT·WORD_ENRICH·CHAT_REVIEW·EVAL_GEN·EVAL_GRADE 는 손대지 않아 동작이 전혀 바뀌지 않는다(회귀 테스트로 TALK_SCHEMA 를 직접 대조). `lessonInstruction` 끝에 "정해진 키만 씁니다" 한 줄도 보조로 추가(+151자, 예산 9,500자 안에서 흡수) — 핵심 방어는 결정적 제거이고 이 줄은 발생률을 낮추는 보조 수단이다. `LESSON_PROMPT_VERSION`: `lesson@v6` → `lesson@v7`.
+
+**딥임포트 예외**: `schemas.ts` 가 `@/modules/engine` 배럴을 거치지 않고 `engine/json/schemaValidate` 를 직접 import 한다 — 이 시점에 `engine/index.ts`·`engine/llm`·`engine/adapters`·`engine/functionalTest`·`admin`·`infra` 가 task-012c developer 작업으로 동시에 uncommitted 상태라 배럴에 새 export 를 추가하면 충돌 위험이 있었다(`schemaValidate.ts` 자체는 그 범위 밖). `lesson.test.ts` 가 이미 같은 파일을 테스트에서 직접 import 하는 전례가 있어 완전히 새로운 패턴은 아니다. 배럴이 안정되면 재노출로 정리하는 것을 후속 과제로 남긴다.
+
+**검증**:
+- 단위: 격리 스냅샷(`git archive HEAD(37e2ad7)` + 이번 5개 변경 파일만 덮어씀, task-012c 동시 편집분 배제)에서 `tsc`·eslint 클린, 전체 단위 **758/758 PASS·0 fail·3 skip**(신규 8건 — lesson@v7 4건 + `engine/__tests__/additionalPropertiesStrip.test.ts` 4건: additionalProperties 제거·미등록 스키마 불변·이름 바뀐 필수 누락은 여전히 잡힘·anyOf null 분기).
+- 라이브(미러, 실제 Claude CLI, Claude CLI 총 11회 — 예산 14회 이내): `lesson-paste-diagnose.ts --runs-paste 4 --runs-topic 3` — **n=7 성공=7 실패=0**.
+
+| run | 결과 | attempts | 1차 위반 원인 |
+|---|---|---|---|
+| paste#1 | OK | 1 | - |
+| paste#2 | OK | 1 | - |
+| paste#3 | OK | 2 | 콘텐츠 매칭④(speaking modelAnswerJa) — 이번 수정과 무관, 기존 lesson@v6 눈감기로 회복 |
+| paste#4 | OK | 2 | `quiz/3/choices` 중복(ajv uniqueItems) — 이번 수정과 무관 |
+| topic#1 | OK | 1 | - |
+| topic#2 | OK | 2 | `quiz/2/choices` 5개 초과(ajv maxItems) — 이번 수정과 무관 |
+| topic#3 | OK | 1 | **`quiz/0/choicesNote` 스키마 밖 필드 → 조용히 제거되어 재시도 없이 통과**(로그: `[json] 스키마 밖 필드 제거: quiz/0/choicesNote`) |
+
+**topic#3 이 이번 수정의 직접 증거다** — 이전에 관측된 필드명(`q`·`conjugationNote`)과 다른 새 이름(`choicesNote`)인데도 제네릭 스키마 트리 워커가 잡아냈다(하드코딩된 필드명 목록이 아니라 스키마 구조 기반이라 일반화됨). 이 표본에서 additionalProperties 로 인한 재시도는 0건 — 1건은 "재시도"가 아니라 "조용히 흡수"됐고, 그것이 정확히 목표한 효과다. 표본 7건이라 "재시도율 몇 % 감소"를 통계로 확정하지는 않는다(§11-3 의 v6 한계 기록과 같은 절제).
+
+**변경 파일**: `src/modules/engine/json/schemaValidate.ts`(`enableAdditionalPropertiesStrip`·`stripAdditionalPropertiesWalk`) · `src/modules/conversation/structuredResponse/schemas.ts`(등록 1줄) · `src/modules/conversation/prompts/lesson.ts`(`lesson@v7`) · `src/modules/conversation/__tests__/lesson.test.ts`(+4) · 신규 `src/modules/engine/__tests__/additionalPropertiesStrip.test.ts`(4건). 다른 A 지점 무변경.
+
+**재발 가능한 함정(추가)**: ⑪ ajv `additionalProperties:false` 위반은 `extraCheck`/`repair.ts` 가 절대 못 본다 — 그 둘은 ajv **통과 후**에만 불리므로, "결정적 보정"을 추가할 때 "이 위반이 ajv 단계인가 extraCheck 단계인가"를 먼저 가려야 한다(같은 "결정적으로 고치기" 원칙이라도 훅을 거는 위치가 다르다). ⑫ 모델이 스키마에 없는 참고용 키를 붙이는 습관은 **필드명이 고정돼 있지 않다**(`q`→`choicesNote` 로 다른 회차에 다른 이름이 나옴) — 특정 필드명을 화이트리스트로 막는 방식은 두더지 잡기가 되므로, 스키마 구조 기반(무엇이 아니라 "어디에 있어야 하는가")으로 일반화해 지우는 편이 맞다.

@@ -65,6 +65,16 @@
  * 옮겼다. 카운터는 router 폴백(`completeJson` → `withFallback` 이 다음 connection 에서 `runJsonWithRetry` 를 새로
  * 부른다)을 넘어 누적돼 새 connection 의 1차부터 ④ 완화를 켰고, 1차가 ajv 단계에서 걸리면 번호가 밀렸다 — 엔진 번호는
  * 둘 다 없다(connection 마다 1부터, ajv 에서 걸린 시도도 번호를 차지). 프롬프트 지시문·버전은 바뀌지 않았다.
+ *
+ * **v7(2026-09-29, task-010 후속 — A4 1차 응답 스키마 밖 필드로 인한 재시도 줄이기)** — 운영 반영 뒤 라이브 재측정
+ * (Leader 01:50 절)에서 `checkLessonResponse`④(콘텐츠 매칭) 외의 새 재시도 원인이 드러났다: 1차 응답의 `quiz[]` 에
+ * 스키마 밖 필드(`q`·`conjugationNote`)가 붙어 ajv `additionalProperties` 위반 → 재시도(+약 30s, 한 번은 재시도
+ * 중 149s 상한 초과로 FAILED). `LESSON_SCHEMA` 를 `engine/json/schemaValidate.ts` 의
+ * `enableAdditionalPropertiesStrip` 에 등록해 **필수 필드가 모두 있는 객체의 스키마 밖 키만 ajv 전에 결정적으로
+ * 지운다**(필드 이름이 통째로 바뀐 경우는 손대지 않는다 — 그 required 자리는 여전히 비어 있어 지금처럼 재시도로
+ * 간다, `schemas.ts` `LESSON_SCHEMA` 주석 참고). 아래 지시문에도 "정해진 키만 쓰라"는 한 줄을 추가했다(근본
+ * 발생률을 낮추는 보조 수단 — 핵심 방어는 위 결정적 제거다). 스키마·`repair.ts`·`checks.ts` 의 나머지 로직은
+ * 바꾸지 않았다. 재측정 표는 `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`(§12).
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -73,7 +83,7 @@ import { repairLessonResponse, type LessonRepairSourceChunk } from '../structure
 import { LESSON_SCHEMA, type ChunkType, type JlptLevel, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const LESSON_PROMPT_VERSION = 'lesson@v6'
+export const LESSON_PROMPT_VERSION = 'lesson@v7'
 
 /**
  * `renderTranscript(req.system, req.messages)` 상한(persona 는 별도 `--system-prompt` 라 여기 안 든다, talk.ts 와 같은
@@ -224,6 +234,7 @@ function lessonInstruction(hasTopic: boolean): string {
       ' 있다면 [직전 예고]와 자연스럽게 이어지게 합니다.',
     '- reading 계열 필드(dialogue.reading·chunks.reading·grammar.exampleReading·application.modelReading·speaking.modelReading)는 **가나(히라가나 또는 가타카나)로만** 씁니다 — 한자·로마자·한글은 절대 쓰지 않습니다. 보통 말은 히라가나로: 「私は元気です。」(한자, 금지)도 「watashi wa genki desu」(로마자, 금지)도 아니라 「わたしはげんきです。」(히라가나, 이렇게)처럼 적습니다. **외래어는 가타카나 표기 그대로 둡니다**: 「コーヒー」(가타카나, 이렇게) — 히라가나로 억지로 바꾸지 않습니다(「こーひー」로 바꾸지 마세요). ja·textJa·exampleJa·modelAnswerJa 같은 일본어 필드에 한국어를 섞지 않습니다.',
     '- speaker·모델 이름 같은 엔진 식별 정보는 어디에도 쓰지 않습니다.',
+    '- 각 항목은 위에서 정한 키만 씁니다 — quiz·application·speaking 등 어디에도 q, note, conjugationNote 같은 참고용 키를 새로 만들어 덧붙이지 마세요. 설명·메모는 이미 정해진 explanationKo 같은 키 안에만 적습니다.',
     INJECTION_GUARD,
   ].join('\n')
 }

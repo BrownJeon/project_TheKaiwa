@@ -307,6 +307,8 @@ export interface SchemaKeyDto {
   userSettable?: boolean
   strict?: boolean
   envAlias?: string[]
+  /** SECRET_REF 키만 — 걸 수 있는 ref 의 정확한 목록(task-012c Codex C1 CX-1, admin-console/03 `allowedRefs`). 이름뿐, 값 없음. */
+  allowedRefs?: readonly string[]
 }
 
 export interface ConfigurationSchemaDto {
@@ -370,6 +372,11 @@ export interface SecretRefDto {
   exists: boolean
   mtime: string | null
   usedBy: { id: string; key: string }[]
+  /**
+   * 이 ref 를 걸 수 있는 connection key(어댑터 descriptor 의 정확한 허용 목록 기준, task-012c Codex C1 CX-1 · api-contract #101).
+   * 허용됐지만 아직 어느 연결도 쓰지 않는 ref 도 목록에 나온다(usedBy 빈 배열). 전역 거부 분류(부팅·내부 시크릿) ref 는 목록에 싣지 않는다.
+   */
+  allowedFor: string[]
   /** 사용 시각 추적은 Phase 2(SecretResolver). Phase 1 은 null. */
   lastUsedAt: string | null
 }

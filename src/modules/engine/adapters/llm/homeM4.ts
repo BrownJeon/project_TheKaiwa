@@ -31,6 +31,10 @@
  */
 import { Agent as HttpAgent, request as httpRequest, type IncomingMessage, type RequestOptions } from 'node:http'
 import { Agent as HttpsAgent, request as httpsRequest } from 'node:https'
+import { readCredentialFor } from '@/modules/infra'
+// credentials/index 가 아니라 policy 를 직접 쓴다 — index → registry → providers → homeM4.provider 순환을 피하려고(REV-035 Low 2).
+import { checkCredentialRef } from '../../credentials/policy'
+import { HOME_M4_ALLOWED_REFS, HOME_M4_TARGET_ENV, homeM4TargetProblem } from './homeM4.provider'
 
 // ── 타임아웃 예산 ─────────────────────────────────────────────────────────────
 //
@@ -172,6 +176,38 @@ export class LlmContractError extends LlmError {
     super(message, 'AI 요청을 구성하지 못했습니다. 잠시 후 다시 시도해 주세요.')
     this.name = 'LlmContractError'
   }
+}
+
+export type HomeM4Misconfig = 'BAD_BASE_URL' | 'TARGET_UNSET' | 'TARGET_NOT_ALLOWED' | 'REF_NOT_ALLOWED' | 'SECRET_MISSING' | 'SECRET_PERMISSION'
+
+/**
+ * 연결 설정 때문에 **요청을 보내지 않은** 실패(task-012c D-C3(a)) — 주소가 서버 env origin 밖·허용 밖 credentialRef·키 없음.
+ * `code` 는 짧은 식별자만(주소·ref·값 없음). Router 는 다음 후보로 넘어가고, Functional Test 는 MISCONFIGURED(code) 로 기록한다.
+ */
+export class LlmMisconfiguredError extends LlmContractError {
+  readonly code: HomeM4Misconfig
+
+  constructor(code: HomeM4Misconfig, connectionKey: string) {
+    super(`home-m4-api connection ${connectionKey} 설정으로는 호출하지 않는다(${code})`)
+    this.name = 'LlmMisconfiguredError'
+    this.code = code
+  }
+}
+
+/**
+ * connection 행(주소·credentialRef) → 호출 준비. API 키는 **주소 origin 이 서버 env `AI_API_BASE` 와 정확히 같을 때만** 해석해 돌려준다
+ * (DB 주소는 관리자 편집 대상이라 허용 목록이 될 수 없다 — TTS `readServiceSecretFor` 와 같은 규칙). ref 는 이 어댑터의 허용 목록 +
+ * 전역 거부 분류를 먼저 통과해야 한다(Codex C1 CX-1). 조건이 하나라도 어긋나면 **호출 0** — `LlmMisconfiguredError`.
+ */
+export function prepareHomeM4Call(c: { key: string; connection: Record<string, unknown>; credentialRef: string | null }): { base: string; apiKey: string } {
+  const raw = c.connection.baseUrl
+  const problem = homeM4TargetProblem(raw)
+  if (problem) throw new LlmMisconfiguredError(problem, c.key)
+  const base = (raw as string).replace(/\/+$/, '')
+  if (!checkCredentialRef(HOME_M4_ALLOWED_REFS, c.credentialRef, { checkExists: false }).ok) throw new LlmMisconfiguredError('REF_NOT_ALLOWED', c.key)
+  const grant = readCredentialFor(c.credentialRef, new URL(`${base}/v1/chat`), HOME_M4_TARGET_ENV, HOME_M4_ALLOWED_REFS)
+  if (!grant.ok) throw new LlmMisconfiguredError(grant.reason, c.key)
+  return { base, apiKey: grant.secret }
 }
 
 function userMessageForStatus(status: number): string {

@@ -5,8 +5,11 @@
  * 그래도 방어적으로: http(s) 만, URL 안 자격증명(`user:pass@`) 거부, 리다이렉트 미추종, 응답 본문 64KB 상한,
  * 결과에는 **화이트리스트 필드(숫자·짧은 식별 문자열)만** 남긴다 — 응답 본문·URL·예외 메시지를 싣지 않는다.
  * 헬스 요청에 시크릿 헤더(X-Internal-Secret 등)를 붙이지 않는다(주소가 관리자 편집 대상이 되는 Phase 2 에서 유출 경로가 되므로).
+ * (task-012c D-C3(c)) 요청 전에 연결 주소 허용 목록(loopback·LAN·서버 env origin, `targetPolicy`)을 통과해야 하고 — 밖이면 호출 0·
+ * `MISCONFIGURED(HOST_NOT_ALLOWED)` — 이름 주소는 검사한 IP 로 고정해 연결한다(DNS 재바인딩).
  */
 import type { HealthDetail, HealthOutcome } from '../../registry/types'
+import { vetConnectionUrl } from './targetPolicy'
 
 const MAX_BODY_BYTES = 64 * 1024
 export const HEALTH_TIMEOUT_MS = 5_000
@@ -87,9 +90,14 @@ export async function probeHttpHealth(baseUrl: unknown, opts: { path?: string; t
   const url = healthUrl(baseUrl, opts.path)
   if (!url) return fail('MISCONFIGURED', 'BAD_BASE_URL', '연결 주소 설정이 올바르지 않습니다')
   const startedAt = Date.now()
+  const vet = await vetConnectionUrl(url.toString())
+  if (!vet.ok) {
+    if (vet.reason === 'DNS_FAILED') return fail('UNAVAILABLE', 'ENOTFOUND', NETWORK_MESSAGE.ENOTFOUND, Date.now() - startedAt)
+    return fail('MISCONFIGURED', 'HOST_NOT_ALLOWED', '허용되지 않은 연결 주소입니다(같은 기기·집 LAN·서버에 설정된 서비스 주소만)')
+  }
   let res: Response
   try {
-    res = await fetch(url, { method: 'GET', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(opts.timeoutMs ?? HEALTH_TIMEOUT_MS), headers: { accept: 'application/json' } })
+    res = await fetch(vet.connectUrl, { method: 'GET', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(opts.timeoutMs ?? HEALTH_TIMEOUT_MS), headers: { accept: 'application/json' } })
   } catch (e) {
     const code = networkCode(e)
     return fail('UNAVAILABLE', code, NETWORK_MESSAGE[code] ?? '서비스에 연결하지 못했습니다', Date.now() - startedAt)

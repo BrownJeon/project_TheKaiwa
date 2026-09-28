@@ -31,6 +31,11 @@ export interface SchemaKey {
   envAlias?: string[]
   /** 값이 **시크릿 자체**인 별칭 — 값은 읽지 않고 `env:<NAME>` ref 로만 바꾼다(§2-1 `AI_API_KEY`). */
   envSecretAlias?: string[]
+  /**
+   * SECRET_REF 키 필수 — 이 키에 넣을 수 있는 ref 의 정확한 목록(`env:NAME`·`file:name`, 정확 일치, task-012c Codex C1 CX-1).
+   * 빈 배열 = 어떤 ref 도 걸 수 없음. 전역 거부 분류(infra `isDeniedCredentialRef`)가 먼저라 여기 적어도 부팅 시크릿은 통과하지 못한다(스키마 자체 검증도 거부).
+   */
+  allowedRefs?: readonly string[]
 }
 
 export interface ConfigurationSchema {

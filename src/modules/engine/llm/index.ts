@@ -11,11 +11,11 @@
  *   - `system` 은 모드별 출력 지시(JSON-only 포함). `messages` 는 대화 창(마지막이 이번 입력).
  */
 import { callClaudeDetailed, prewarmClaude, type ClaudeCliOptions, type PrewarmOutcome, type WarmUse } from '../adapters/llm/claudeCli'
-import { HomeM4ApiCaller, LlmContractError, LlmTimeoutError, type LlmMessage } from '../adapters/llm/homeM4'
+import { HomeM4ApiCaller, LlmContractError, LlmMisconfiguredError, LlmTimeoutError, prepareHomeM4Call, type LlmMessage } from '../adapters/llm/homeM4'
 import { extractAndValidate, runJsonWithRetry, withJsonOnly, type JsonAttemptInfo, type RunJsonResult } from '../json/schemaValidate'
 import { LLM_TASKS, resolveCandidates, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
 
-export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, toUserMessage } from '../adapters/llm/homeM4'
+export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, LlmMisconfiguredError, toUserMessage } from '../adapters/llm/homeM4'
 export { JsonSchemaError } from '../json/schemaValidate'
 export { mentionsEngineIdentity } from '../adapters/llm/identity'
 export type { WarmUse } from '../adapters/llm/claudeCli'
@@ -104,13 +104,6 @@ function modelFor(c: ResolvedConnection, tier: LlmTier): string {
   if (byTier && typeof byTier[tier] === 'string') return byTier[tier]
   if (typeof c.runtime.model === 'string') return c.runtime.model
   throw new LlmContractError(`connection ${c.key} 에 tier=${tier} 모델이 없습니다(runtime.modelByTier/model)`)
-}
-
-function resolveCredential(ref: string | null): string | undefined {
-  if (!ref) return undefined
-  if (ref.startsWith('env:')) return process.env[ref.slice(4)]?.trim() || undefined
-  // file:<name> 은 SecretResolver(infra.secrets, task-005b) 도입 시 지원한다.
-  throw new LlmContractError(`지원하지 않는 credentialRef 형식입니다: ${ref.split(':')[0]}:`)
 }
 
 /**
@@ -206,10 +199,9 @@ async function callOnce(
     return { text: r.text, model, promptChars: prompt.length + (req.persona?.prompt.length ?? 0), warm: r.warm, firstDeltaAt: r.firstDeltaMs === null ? null : startedAt + r.firstDeltaMs }
   }
   if (c.engineId === 'home-m4-api') {
-    const base = typeof c.connection.baseUrl === 'string' ? c.connection.baseUrl : ''
-    const key = resolveCredential(c.credentialRef)
-    if (!base || !key) throw new LlmContractError(`connection ${c.key} 의 baseUrl 또는 credential 이 없습니다`)
-    const caller = new HomeM4ApiCaller(base.replace(/\/+$/, ''), key, model)
+    // 주소 origin 이 서버 env 와 다르거나 ref 가 허용 밖이면 여기서 던진다 — API 키는 해석조차 하지 않는다(task-012c D-C3(a)).
+    const { base, apiKey } = prepareHomeM4Call(c)
+    const caller = new HomeM4ApiCaller(base, apiKey, model)
     const sys = [req.persona?.prompt, req.jsonSchema ? withJsonOnly(req.system, req.jsonSchema) : req.system].filter(Boolean).join('\n\n')
     const messages: LlmMessage[] = [{ role: 'system', content: sys }, ...req.messages]
     if (retry) messages.push({ role: 'assistant', content: retry.previousRaw }, { role: 'user', content: retry.hint })
@@ -315,6 +307,8 @@ export interface ProbeResult {
   elapsedMs: number
   /** 실패한 경우 오류 이름(LlmTimeoutError·ClaudeCliNotFoundError…) — 메시지는 싣지 않는다. */
   errorName: string | null
+  /** 설정 때문에 호출하지 않은 실패만(`LlmMisconfiguredError.code` — TARGET_NOT_ALLOWED 등). 그 밖은 null(기존 errorName 매핑). */
+  errorCode: string | null
 }
 
 /**
@@ -334,9 +328,17 @@ export async function probeConnection(c: ResolvedConnection, timeoutMs = 30_000)
     const out = await callOnce(c, req, 'fast', timeoutMs, 'interactive', null)
     model = out.model
     const v = extractAndValidate(out.text, PROBE_SCHEMA)
-    return { ok: v.ok, schemaValid: v.ok, model, outputChars: out.text.length, elapsedMs: Date.now() - startedAt, errorName: v.ok ? null : 'JsonSchemaError' }
+    return { ok: v.ok, schemaValid: v.ok, model, outputChars: out.text.length, elapsedMs: Date.now() - startedAt, errorName: v.ok ? null : 'JsonSchemaError', errorCode: null }
   } catch (e) {
     const name = (e as { name?: string })?.name
-    return { ok: false, schemaValid: false, model, outputChars: 0, elapsedMs: Date.now() - startedAt, errorName: typeof name === 'string' ? name.slice(0, 40) : 'Error' }
+    return {
+      ok: false,
+      schemaValid: false,
+      model,
+      outputChars: 0,
+      elapsedMs: Date.now() - startedAt,
+      errorName: typeof name === 'string' ? name.slice(0, 40) : 'Error',
+      errorCode: e instanceof LlmMisconfiguredError ? e.code : null,
+    }
   }
 }

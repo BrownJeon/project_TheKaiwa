@@ -2,7 +2,7 @@
  * Engine Registry(module-dependency L5 `registry/`) — 코드 Provider 목록 + 스키마 자체 검증(admin-console/03 §8) + DB `Engine` 스냅샷 대조.
  * Phase 1 은 **읽기만** 한다(`Engine` 행 upsert·syncDescriptorsToDb 는 Phase 2 — task-005b G2 쓰기 0).
  */
-import { prisma } from '@/modules/infra'
+import { isCredentialRef, isDeniedCredentialRef, prisma } from '@/modules/infra'
 import type { Environment } from '@prisma/client'
 import { PROVIDERS } from '../adapters/providers'
 import type { ConfigurationSchema, EngineProvider, SchemaKey } from './types'
@@ -56,6 +56,10 @@ export function selfCheckSchema(schema: ConfigurationSchema, engineId: string): 
     if (k.restartRequired !== (k.editability === 'RESTART_REQUIRED' || k.editability === 'REDEPLOY_REQUIRED')) errs.push(`restartRequired 불일치 ${k.key}`)
     if ((k.type === 'SECRET_REF') !== (k.editability === 'SECRET')) errs.push(`SECRET 표기 불일치 ${k.key}`)
     if (checkValue(k, k.default).length > 0) errs.push(`default 가 제약 위반 ${k.key}`)
+    if (k.type === 'SECRET_REF') {
+      if (!Array.isArray(k.allowedRefs)) errs.push(`allowedRefs 없음 ${k.key}`)
+      else if (k.allowedRefs.some((r) => !isCredentialRef(r) || isDeniedCredentialRef(r))) errs.push(`allowedRefs 에 형식 오류·거부 분류 ref ${k.key}`)
+    } else if (k.allowedRefs !== undefined) errs.push(`SECRET_REF 가 아닌 키의 allowedRefs ${k.key}`)
   }
   return errs
 }

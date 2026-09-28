@@ -4,12 +4,15 @@
  *   TTS     : (task-003d) Health 통과 후 Provider `functionalTest` — 고정 문장 1회 합성(30초), 오디오는 저장하지 않고 크기·길이만.
  *   STT     : 테스트 자산이 task-003e 라 **실행하지 않는다** — 서비스가 없으면 reason SERVICE_DOWN(상태는 Health 판정),
  *            있으면 UNKNOWN + reason NOT_IMPLEMENTED, ONDEVICE 는 NOT_APPLICABLE(`@/types/admin` HealthSkipReason 표현 규칙).
- * connection 당 30초에 1회(메모리 + DB 최근 기록 이중 확인, 동시 요청은 먼저 온 하나만) — Claude 구독 사용량 보호.
- * 기록: `EngineHealth(FUNCTIONAL)`·`lastFunctionalAt`·`RequestTrace(FUNCTIONAL_TEST)`(단계 ms·상태·모델명만, 원문 없음).
+ * connection 당 30초에 1회 — Claude 구독 사용량 보호. (task-012c D-C9) 슬롯은 **DB 조건부 갱신 한 문장**으로 잡는다:
+ *   `UPDATE EngineConnection SET lastFunctionalAt=now WHERE id=? AND (lastFunctionalAt IS NULL OR lastFunctionalAt < now−30s)` 가 1행을 바꿨을 때만 실행
+ *   (blue/green 두 프로세스·같은 프로세스 동시 요청 모두 1건 — 옛 메모리 Map 은 프로세스 사이를 못 막았다, REV-009 Low 1).
+ *   그래서 `lastFunctionalAt` 은 "마지막 **시작** 시각"이다(결과 시각은 `EngineHealth.checkedAt`).
+ * 기록: `EngineHealth(FUNCTIONAL)`·`RequestTrace(FUNCTIONAL_TEST)`(단계 ms·상태·모델명만, 원문 없음).
  * connection 상태(status)는 바꾸지 않는다 — 일시적 구독 한도·지연으로 Router 가 연결을 빼 버리지 않게(상태 판정은 Health 몫).
  */
 import { prisma } from '@/modules/infra'
-import type { EngineConnection, Environment } from '@prisma/client'
+import type { EngineConnection, Environment, PrismaClient } from '@prisma/client'
 import { probeConnection } from '../llm'
 import { getProvider } from '../registry'
 import type { HealthOutcome } from '../registry/types'
@@ -27,17 +30,23 @@ export class FunctionalTestRateLimitedError extends Error {
   }
 }
 
-const lastStarted = new Map<string, number>()
+export type SlotDb = Pick<PrismaClient, 'engineConnection'>
 
-async function claimSlot(connectionId: string): Promise<void> {
-  const now = Date.now()
-  const mem = lastStarted.get(connectionId)
-  if (mem && now - mem < FUNCTIONAL_TEST_INTERVAL_MS) throw new FunctionalTestRateLimitedError(Math.ceil((FUNCTIONAL_TEST_INTERVAL_MS - (now - mem)) / 1000))
-  // 동기 구간에서 먼저 잡는다 — 같은 프로세스의 동시 요청은 여기서 하나만 통과한다.
-  lastStarted.set(connectionId, now)
-  const last = await prisma.engineHealth.findFirst({ where: { connectionId, kind: 'FUNCTIONAL' }, orderBy: { checkedAt: 'desc' }, select: { checkedAt: true } })
-  const age = last ? now - last.checkedAt.getTime() : Infinity
-  if (age < FUNCTIONAL_TEST_INTERVAL_MS) throw new FunctionalTestRateLimitedError(Math.ceil((FUNCTIONAL_TEST_INTERVAL_MS - age) / 1000))
+/**
+ * 30초 슬롯 선점(D-C9). 조건부 UPDATE 가 0행이면 남은 초를 계산해 `FunctionalTestRateLimitedError`(1~30초).
+ * 시각은 앱 값(UTC Date)이다 — 두 프로세스가 같은 호스트라 시계가 같다. 다른 호스트 시계가 앞서 미래 시각이 적혀 있어도 대기는 30초를 넘기지 않는다.
+ */
+export async function claimFunctionalSlot(connectionId: string, now: Date = new Date(), db: SlotDb = prisma): Promise<void> {
+  const cutoff = new Date(now.getTime() - FUNCTIONAL_TEST_INTERVAL_MS)
+  const r = await db.engineConnection.updateMany({
+    where: { id: connectionId, OR: [{ lastFunctionalAt: null }, { lastFunctionalAt: { lt: cutoff } }] },
+    data: { lastFunctionalAt: now },
+  })
+  if (r.count === 1) return
+  const row = await db.engineConnection.findUnique({ where: { id: connectionId }, select: { lastFunctionalAt: true } })
+  const age = row?.lastFunctionalAt ? now.getTime() - row.lastFunctionalAt.getTime() : 0
+  const left = Math.ceil((FUNCTIONAL_TEST_INTERVAL_MS - Math.max(0, age)) / 1000)
+  throw new FunctionalTestRateLimitedError(Math.min(FUNCTIONAL_TEST_INTERVAL_MS / 1000, Math.max(1, left)))
 }
 
 function asResolved(row: EngineConnection): ResolvedConnection {
@@ -57,6 +66,7 @@ const LLM_ERROR: Record<string, { code: string; message: string; status: HealthO
   ClaudeCliTimeoutError: { code: 'ETIMEDOUT', message: '30초 안에 응답하지 않았습니다', status: 'DEGRADED' },
   ClaudeCliNotFoundError: { code: 'NOT_FOUND', message: 'CLI 실행 파일을 찾을 수 없습니다', status: 'UNAVAILABLE' },
   LlmContractError: { code: 'MISCONFIGURED', message: '연결 설정(주소·자격증명·모델)이 부족합니다', status: 'MISCONFIGURED' },
+  LlmMisconfiguredError: { code: 'MISCONFIGURED', message: '연결 설정(주소·자격증명)이 허용 범위 밖이라 호출하지 않았습니다', status: 'MISCONFIGURED' },
   JsonSchemaError: { code: 'SCHEMA_INVALID', message: '응답이 고정 스키마를 통과하지 못했습니다', status: 'DEGRADED' },
   LlmHttpError: { code: 'HTTP_ERROR', message: '서비스가 오류를 돌려줬습니다', status: 'DEGRADED' },
 }
@@ -67,7 +77,7 @@ async function testLlm(row: EngineConnection): Promise<{ outcome: HealthOutcome;
   if (r.ok) return { outcome: { ok: true, status: 'HEALTHY', latencyMs: r.elapsedMs, detail: { schemaValid: true, model: r.model, outputChars: r.outputChars, attempts: 1 } }, steps: [step] }
   const m = LLM_ERROR[r.errorName ?? ''] ?? { code: 'ENGINE_ERROR', message: 'LLM 호출에 실패했습니다', status: 'DEGRADED' as const }
   return {
-    outcome: { ok: false, status: m.status, latencyMs: r.elapsedMs, detail: { errorCode: m.code, message: m.message, schemaValid: r.schemaValid, ...(r.model ? { model: r.model } : {}), outputChars: r.outputChars, attempts: 1 } },
+    outcome: { ok: false, status: m.status, latencyMs: r.elapsedMs, detail: { errorCode: r.errorCode ?? m.code, message: m.message, schemaValid: r.schemaValid, ...(r.model ? { model: r.model } : {}), outputChars: r.outputChars, attempts: 1 } },
     steps: [step],
   }
 }
@@ -102,7 +112,7 @@ async function testSpeech(row: EngineConnection): Promise<{ outcome: HealthOutco
 
 export async function runFunctionalTest(environment: Environment, connectionId: string, actorUserId: string): Promise<HealthRunResult & { traceId: string }> {
   const row = await loadTarget(environment, connectionId)
-  await claimSlot(row.id)
+  await claimFunctionalSlot(row.id)
   const traceId = newTraceId()
   const startedAt = Date.now()
   const provider = getProvider(row.engineId)

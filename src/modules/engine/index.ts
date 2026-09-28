@@ -6,6 +6,7 @@
  * task-003e: stt 파사드(REALTIME_STT targets·공개 실행값·개발용 ws 주소·connection 검증).
  * task-007: llm.prewarm(예열 CLI)·onTextDelta(조기 추출)·mentionsEngineIdentity, 경로 인식 증분 JSON 리더, trace appendTraceSteps.
  * task-003g: tts.g2p(발음 사전 미리듣기 읽기 확인).
+ * task-012c(1단계 게이트): credentials(ref 허용 목록 판정)·연결 주소 허용 목록(vetConnectionUrl)·Functional Test 슬롯 원자화.
  */
 export * as llm from './llm'
 export * as tts from './tts'
@@ -18,7 +19,7 @@ export type { LlmTask, LlmTier, ResolvedConnection } from './router'
 export { extractJson } from './json/extractJson'
 export { createJsonPathStreamReader } from './json/jsonPathStream'
 export type { JsonPathWatch, JsonPathStreamReader } from './json/jsonPathStream'
-export { validateOutput as validateAgainstSchema, JSON_ONLY_INSTRUCTION } from './json/schemaValidate'
+export { validateOutput as validateAgainstSchema, JSON_ONLY_INSTRUCTION, enableAdditionalPropertiesStrip } from './json/schemaValidate'
 export { newTraceId, recordTrace, appendTraceSteps } from './trace'
 export type { TraceStep, TraceRecord } from './trace'
 export { listTraces, getTrace, turnStats24h } from './trace'
@@ -33,4 +34,8 @@ export { resolveEffective, effectiveValues, ConfigTargetNotFoundError, Unsupport
 export type { EffectiveConfiguration, EffectiveKey, ConfigSourceName } from './configuration/resolver'
 export { runHealthCheck, listHealth, recentHealth, ConnectionNotFoundError, CrossEnvironmentError } from './health'
 export type { HealthRunResult } from './health'
-export { runFunctionalTest, FunctionalTestRateLimitedError, FUNCTIONAL_TEST_INTERVAL_MS } from './functionalTest'
+export { runFunctionalTest, claimFunctionalSlot, FunctionalTestRateLimitedError, FUNCTIONAL_TEST_INTERVAL_MS } from './functionalTest'
+export { allowedRefsFor, checkConnectionCredentialRef, checkCredentialRef } from './credentials'
+export type { CredentialRefCheck, CredentialRefProblem } from './credentials'
+// 연결 주소 허용 목록(D-C3(c)) — 어댑터가 아니라 정책 함수다. env 이름(엔진명 포함)이 adapters/common 에만 있도록 그 자리에 둔다.
+export { vetConnectionUrl, trustedServiceOrigins } from './adapters/common/targetPolicy'

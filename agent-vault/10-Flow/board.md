@@ -44,6 +44,8 @@ tags:
 - `/개선작업` 으로 추가·조회. 항목은 `improvements/items/`, 표는 `improvements/improvements.base`, 규칙은 [[improvements/README|README]]. 구현팀은 건드리지 않는다.
 
 ## 정리 backlog (소규모)
+- (REV-035 재검 Low) Claude CLI 자식 env 허용 목록의 프록시 키(`HTTP(S)_PROXY` 등) — 쓰지 않으면 빼거나 userinfo 제거 · 운영 반영 뒤 006/007/008 운영 스모크로 CLI 가용성 재확인
+- (REV-034) ESLint 6층 규칙이 **상대경로 교차 모듈 import**(`../../engine/...`)를 못 잡는다 — 규칙 보강 · A4 스키마 밖 필드 제거를 WeakSet 전역 등록 대신 `LlmJsonRequest.stripAdditionalProperties` 요청 옵션으로 전환
 - (005b) 발음 사전(Pronunciation Dictionary P0) — task-003 이후 · #93b credentialRef 쓰기·functional test 30초 슬롯 원자성 — Phase 2(012c) · 운영 APP_ENV=LOCAL·dev 상태 점검이 운영 connection 행을 바꾸는 문제 — task-009
 - `infra/http.ts` 기본 오류 문구 "AI 엔진…" 사용자 노출 가능 · 공용 `Badge` warn/accent·`ink3` 라이트 명암비 미달 · `ComingSoon` Phase/task 번호 노출
 - `conversation/persona/loader.ts` 동적 `statSync` → 빌드 "프로젝트 전체 추적" 경고(정적 경로 또는 `outputFileTracingExcludes`) · webpack dev 에서 `crypto` 해석 실패(Turbopack 기본은 정상)

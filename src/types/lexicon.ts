@@ -86,6 +86,8 @@ export type LexiconFieldCode =
   | 'E_ENABLED'
   | 'E_IMMUTABLE'
   | 'E_REASON'
+  /** 이유 칸에 비밀 유사 문자열(task-012c CX-3) — 응답 `details.reason` 도 같은 값. */
+  | 'E_REASON_SECRET_LIKE'
   | 'E_DUPLICATE_IN_FILE'
   | 'E_ROW_FORMAT'
 

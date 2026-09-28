@@ -269,7 +269,12 @@ async function main() {
     const sec2 = await api('ADMIN', 'GET', '/api/admin/v1/secrets')
     const auditAfter = await prisma.auditLog.count({ where: { actorUserId: qaAdmin.id, action: 'secrets.read_ref' } })
     const items = arr(sec)
-    check('6a #101: ref·source·exists·usedBy·lastUsedAt 만(값 필드 없음)', sec.status === 200 && items.length > 0 && items.every((i) => Object.keys(i).sort().join(',') === 'exists,lastUsedAt,mtime,ref,source,usedBy'), JSON.stringify(items).slice(0, 200))
+    // task-012c(Codex C1 CX-1): #101 에 allowedFor[](connection key)가 더해졌다 — 값 필드가 없다는 검사는 그대로.
+    check(
+      '6a #101: ref·source·exists·usedBy·allowedFor·lastUsedAt 만(값 필드 없음)',
+      sec.status === 200 && items.length > 0 && items.every((i) => Object.keys(i).sort().join(',') === 'allowedFor,exists,lastUsedAt,mtime,ref,source,usedBy' && Array.isArray(i.allowedFor) && (i.allowedFor as unknown[]).every((k) => typeof k === 'string')),
+      JSON.stringify(items).slice(0, 200),
+    )
     check('6b 조회마다 AuditLog(secrets.read_ref) 1행', auditAfter - auditBefore === 2 && sec2.status === 200, `${auditAfter - auditBefore}`)
     const lastAudit = await prisma.auditLog.findFirst({ where: { actorUserId: qaAdmin.id, action: 'secrets.read_ref' }, orderBy: { createdAt: 'desc' } })
     check('6c 감사 행: actor 스냅샷(email·role)·environment·after 에 값 없음', lastAudit?.actorEmailSnap === 'qa-admin@thekaiwa.test' && lastAudit?.actorRoleSnap === 'ADMIN' && lastAudit?.environment === 'LOCAL' && !JSON.stringify(lastAudit?.after).includes('env:'), JSON.stringify(lastAudit?.after))

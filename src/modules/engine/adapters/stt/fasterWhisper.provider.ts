@@ -27,7 +27,7 @@ export const fasterWhisperProvider: EngineProvider = {
       key('connection.baseUrl', 'URL', 'http://127.0.0.1:8090', { appliesTo: ['HTTP'], strict: true, envAlias: ['WHISPER_SERVICE_URL'], description: 'whisper-service 주소(VoiceVault 재사용)' }),
       key('connection.timeoutMs', 'INTEGER', 60000, { min: 5000, max: 180000, description: '한 발화(≤60s) 전사 상한' }),
       key('connection.retry', 'INTEGER', 1, { min: 0, max: 3, description: '재시도 횟수' }),
-      key('connection.credentialRef', 'SECRET_REF', null, { appliesTo: ['HTTP'], strict: true, description: '서비스 인증 ref(없으면 null)' }),
+      key('connection.credentialRef', 'SECRET_REF', null, { appliesTo: ['HTTP'], strict: true, allowedRefs: [], description: '서비스 인증 ref(없으면 null) — whisper-service 는 인증이 없어 걸 수 있는 ref 가 없다' }),
       key('runtime.model', 'ENUM', 'medium', {
         enum: ['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'],
         editability: 'RESTART_REQUIRED',

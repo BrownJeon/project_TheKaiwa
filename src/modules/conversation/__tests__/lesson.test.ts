@@ -6,10 +6,10 @@ import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { completeJson, renderTranscript, type LlmExtraCheckInfo } from '../../engine/llm'
 import { routerDeps, type ResolvedConnection } from '../../engine/router'
-import { validateOutput } from '../../engine/json/schemaValidate'
+import { extractAndValidate, validateOutput } from '../../engine/json/schemaValidate'
 import { checkLessonResponse } from '../structuredResponse/checks'
 import { repairLessonResponse, LESSON_REPAIR_CHUNKS_MAX, type LessonRepairSourceChunk } from '../structuredResponse/repair'
-import { LESSON_READING_PATTERN, LESSON_SCHEMA, type ChunkType, type LessonChunkOut, type LessonResponse } from '../structuredResponse/schemas'
+import { LESSON_READING_PATTERN, LESSON_SCHEMA, TALK_SCHEMA, type ChunkType, type LessonChunkOut, type LessonResponse } from '../structuredResponse/schemas'
 import { loadPersona } from '../persona/loader'
 import {
   buildLessonRequest,
@@ -618,8 +618,14 @@ test('REV-032 M1: router 폴백 — connection A 가 2회 다 실패한 뒤 B �
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as AddressInfo).port
-  const keyEnv = 'KAIWA_TEST_FAKE_LLM_KEY'
+  // task-012c 서버 1단계(home-m4 키 전송 대상 고정·credentialRef 허용 목록) — HOME_M4_ALLOWED_REFS 에 있는 ref 만,
+  // 그리고 대상 origin 이 서버 env AI_API_BASE 와 정확히 같을 때만 키를 해석한다(`homeM4.ts` prepareHomeM4Call).
+  // 가짜 서버를 그 조건에 맞춘다(Leader 지시, developer 수정안).
+  const keyEnv = 'HOME_M4_API_KEY'
+  const prevKey = process.env[keyEnv]
+  const prevBase = process.env.AI_API_BASE
   process.env[keyEnv] = 'test-only'
+  process.env.AI_API_BASE = `http://127.0.0.1:${port}`
   const conn = (key: string, base: string): ResolvedConnection => ({
     id: key,
     key,
@@ -637,7 +643,10 @@ test('REV-032 M1: router 폴백 — connection A 가 2회 다 실패한 뒤 B �
     mock.restoreAll()
     server.closeAllConnections()
     server.close()
-    delete process.env[keyEnv]
+    if (prevKey === undefined) delete process.env[keyEnv]
+    else process.env[keyEnv] = prevKey
+    if (prevBase === undefined) delete process.env.AI_API_BASE
+    else process.env.AI_API_BASE = prevBase
   })
 
   const r = await completeJson<LessonResponse>({ ...req, traceId: 't_REV032fallbackTest0' })
@@ -676,8 +685,7 @@ test('buildLessonRequest 의 extraCheck: 보정으로 계약을 지킬 수 있�
   assert.ok(broken.chunks.some((c) => c.id === c10.id), 'chunk-10 이 채워졌어야 한다')
 })
 
-test('lesson@v6: 프롬프트 버전·id 규칙 위치(chunks 바로 뒤)·reading 예시(가나 허용·한자·로마자 금지·외래어 가타카나)', () => {
-  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v6')
+test('lesson@v6: id 규칙 위치(chunks 바로 뒤)·reading 예시(가나 허용·한자·로마자 금지·외래어 가타카나)', () => {
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
   const chunksIdx = req.system.indexOf('- chunks:')
   const idRuleIdx = req.system.indexOf('- **id 규칙')
@@ -717,6 +725,61 @@ test('lesson@v5: "모범 답 내용 규칙"이 id 규칙 바로 뒤·grammar 보
 test('lesson@v5: sourceText 경로에도 모범 답 내용 규칙이 실린다(주제 경로 전용이 아니다)', () => {
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText })
   assert.ok(req.system.includes('- **모범 답 내용 규칙'))
+})
+
+// ── lesson@v7(2026-09-29, task-010 후속) — 스키마 밖 필드(quiz[] 의 q·conjugationNote 등)로 인한 재시도 줄이기 ──
+
+test('lesson@v7: 프롬프트 버전, "정해진 키만 씁니다" 지시문이 있다', () => {
+  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v7')
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  assert.match(req.system, /q, note, conjugationNote/, '스키마 밖 참고용 키를 만들지 말라는 지시가 있어야 한다')
+})
+
+test('lesson@v7: quiz[] 에 스키마 밖 필드(q·conjugationNote)가 붙어도 필수 필드가 다 있으면 ajv 전에 지워지고 통과한다(재시도 없이)', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const raw = JSON.stringify({
+    ...ok,
+    quiz: ok.quiz.map((q, i) => (i === 0 ? { ...q, q: '이건 중복 필드', conjugationNote: '활용 메모' } : q)),
+  })
+  const result = extractAndValidate(raw, LESSON_SCHEMA)
+  assert.equal(result.ok, true, 'additionalProperties 위반이 아니라 통과해야 한다')
+  if (!result.ok) return
+  const data = result.data as LessonResponse
+  assert.ok(!('q' in data.quiz[0]), '스키마 밖 키 q 는 지워져야 한다')
+  assert.ok(!('conjugationNote' in data.quiz[0]), '스키마 밖 키 conjugationNote 는 지워져야 한다')
+  assert.equal(data.quiz[0].promptKo, ok.quiz[0].promptKo, '실제 필수 필드 값은 그대로 남아야 한다')
+})
+
+test('lesson@v7: 스키마 밖 필드를 지워도 다른 필수 필드가 정말 없으면(이름이 바뀐 경우) 여전히 위반으로 잡는다 — 추측 매핑하지 않는다', () => {
+  const ok = validLessonResponse(fixture.topic)
+  // promptKo·promptJa 둘 다 빼고 그 자리에 q 를 넣은 "이름이 바뀐" 경우 — 지워도 promptKo/promptJa 자리는 여전히 비어 있다.
+  const broken = ok.quiz.map((q, i): object => {
+    if (i !== 0) return q
+    const rest = Object.fromEntries(Object.entries(q).filter(([k]) => k !== 'promptKo' && k !== 'promptJa'))
+    return { ...rest, q: '질문 텍스트' }
+  })
+  const raw = JSON.stringify({ ...ok, quiz: broken })
+  const result = extractAndValidate(raw, LESSON_SCHEMA)
+  assert.equal(result.ok, false, 'promptKo·promptJa 가 없으니 여전히 실패해야 한다(q 를 promptJa 로 추측하지 않는다)')
+  if (result.ok || result.parseError) return
+  assert.ok(
+    result.violations.some((v) => v.includes('promptKo')) || result.violations.some((v) => v.includes('promptJa')),
+    `누락된 필수 필드가 위반에 남아야 한다: ${JSON.stringify(result.violations)}`,
+  )
+})
+
+test('lesson@v7: 등록하지 않은 다른 스키마(TALK)는 스키마 밖 필드를 지우지 않는다 — 동작이 그대로다', () => {
+  const validTalk = {
+    speech: { style: 'NEUTRAL' },
+    conversation: { replyJa: 'こんにちは。', replyReading: 'こんにちは。', replyKo: '안녕하세요.' },
+    correction: null,
+    learning: { grammarPoint: null, difficulty: 'N5' },
+    endOfTopic: false,
+    proposals: [],
+  }
+  const raw = JSON.stringify({ ...validTalk, conversation: { ...validTalk.conversation, extraField: '스키마 밖' } })
+  const result = extractAndValidate(raw, TALK_SCHEMA)
+  assert.equal(result.ok, false, 'TALK_SCHEMA 는 등록하지 않았으므로 지금처럼 additionalProperties 위반으로 실패해야 한다')
 })
 
 // ── persona §6 LESSON 행 ──────────────────────────────────────────────

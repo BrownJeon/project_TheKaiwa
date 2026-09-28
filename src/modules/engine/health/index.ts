@@ -70,9 +70,9 @@ export async function recordHealth(
 ): Promise<HealthRunResult> {
   const now = new Date()
   const touchStatus = opts.updateStatus && o.status !== 'UNKNOWN' && row.status !== 'DISABLED'
+  // FUNCTIONAL 의 lastFunctionalAt 은 시작할 때 슬롯 선점이 이미 적었다(task-012c D-C9 — "마지막 시작 시각"). 여기서 다시 쓰면 슬롯이 끝난 시각 기준으로 밀린다.
   const data: Prisma.EngineConnectionUpdateInput = {
     ...(kind === 'HEALTH' && o.status !== 'UNKNOWN' ? { lastHealthAt: now } : {}),
-    ...(kind === 'FUNCTIONAL' ? { lastFunctionalAt: now } : {}),
     ...(touchStatus ? { status: o.status, statusReason: o.ok ? null : (o.detail.message ?? o.detail.errorCode ?? null)?.slice(0, 300) ?? null } : {}),
   }
   const [health, connection] = await prisma.$transaction([

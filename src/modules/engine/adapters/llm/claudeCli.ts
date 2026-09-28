@@ -302,53 +302,70 @@ export function buildClaudeArgs(prompt: string, opts: ClaudeCliOptions = {}): st
 }
 
 /**
- * 자식 프로세스에 넘길 env. Claude Code가 자기 세션에서 주입한 변수를 지운다 — 남겨두면
- * 중첩 실행으로 오인해 동작이 달라진다. `ANTHROPIC_API_KEY`도 지워 CLI가 구독 인증을 쓰게
- * 한다(서버 env에 키가 있어도 과금 경로가 갈리지 않도록).
- *
- * `~/.npm-global/bin`을 PATH 앞에 붙이는 이유: 시스템 `/usr/bin/claude`가 구버전일 때
- * `--json-schema`/`--tools` 동작이 다르다(bjj에서 실제로 API 400을 유발한 이력).
+ * 자식 프로세스 env **허용 목록**(task-012c Codex C2 ① — 옛 방식은 부모 env 를 통째로 복사한 뒤 알려진 키만 지우는 블랙리스트라
+ * 새 시크릿 env 가 생기면 조용히 새어 나갔다). fail-closed: 아래 이름·`LC_*` 밖의 키는 전부 뺀다.
+ * - 구독 인증은 `HOME`(또는 `CLAUDE_CONFIG_DIR`) 아래 CLI 설정·세션 파일이라 인증 env 가 필요 없다. `ANTHROPIC_API_KEY` 도 넘기지 않아
+ *   서버 env 에 키가 있어도 과금 경로가 갈리지 않는다.
+ * - Claude Code 가 자기 세션에서 주입한 변수(`CLAUDECODE`·`CLAUDE_CODE_ENTRYPOINT`…)는 목록에 없어 자동으로 빠진다 — 남으면 중첩 실행으로 오인.
+ * - `NODE_OPTIONS` 는 넘기지 않는다(dev 서버의 inspect·메모리 플래그가 CLI 에 섞이지 않게).
+ * - `~/.npm-global/bin` 을 PATH 앞에 붙이는 이유: 시스템 `/usr/bin/claude` 가 구버전일 때 `--json-schema`/`--tools` 동작이 다르다(bjj 실측).
  */
-function cleanEnv(thinking = false): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env }
-  // thinking 을 끄는 두 번째 겹 — settings 가 무시되는 CLI 버전에서도 토큰 예산 0 으로 막는다.
-  if (!thinking) env.MAX_THINKING_TOKENS = '0'
-  const drop = [
-    'CLAUDECODE',
-    'CLAUDE_CODE_ENTRYPOINT',
-    'CLAUDE_CODE_SSE_PORT',
-    'CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING',
-    'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS',
-    'CLAUDE_CODE_EXECPATH',
-    'CLAUDE_AGENT_SDK_VERSION',
-    'VSCODE_IPC_HOOK_CLI',
-    'VSCODE_CLI_REQUIRE_TOKEN',
-    'VSCODE_HANDLES_UNCAUGHT_ERRORS',
-    'VSCODE_HANDLES_SIGPIPE',
-    'VSCODE_ESM_ENTRYPOINT',
-    'VSCODE_L10N_BUNDLE_LOCATION',
-    'VSCODE_NLS_CONFIG',
-    'VSCODE_AGENT_FOLDER',
-    'VSCODE_CWD',
-    'ELECTRON_RUN_AS_NODE',
-    'ANTHROPIC_API_KEY',
-    // 우리 시크릿이 자식 프로세스로 새지 않게 한다 — Claude CLI는 이 값들이 필요 없다.
-    'AI_API_KEY',
-    'HOME_M4_API_KEY',
-    'SPEECH_INTERNAL_SECRET',
-    'GOOGLE_CLIENT_ID',
-    'DATABASE_URL',
-    'JWT_SECRET',
-    'GOOGLE_CLIENT_SECRET',
-    'SIGNUP_INVITE_CODE',
-  ]
-  for (const k of drop) delete env[k]
+export const CHILD_ENV_ALLOW: readonly string[] = [
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'LANG',
+  'LANGUAGE',
+  'TZ',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'TERM',
+  // 옛 방식에서도 넘어가던 비시크릿 실행 모드 — CLI(Node 앱) 동작을 바꾸지 않으려고 유지.
+  'NODE_ENV',
+  'XDG_CONFIG_HOME',
+  'XDG_CACHE_HOME',
+  'XDG_DATA_HOME',
+  'XDG_STATE_HOME',
+  'XDG_RUNTIME_DIR',
+  'NODE_EXTRA_CA_CERTS',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  // Claude CLI 가 읽는 비시크릿 설정(설정 디렉터리·자동 업데이트·원격 보고 끄기).
+  'CLAUDE_CONFIG_DIR',
+  'DISABLE_AUTOUPDATER',
+  'DISABLE_TELEMETRY',
+  'DISABLE_ERROR_REPORTING',
+  'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+]
+const CHILD_ENV_ALLOW_SET = new Set(CHILD_ENV_ALLOW)
+const CHILD_ENV_LOCALE = /^LC_[A-Z]+$/
 
-  const npmGlobalBin = `${homedir()}/.npm-global/bin`
-  if (existsSync(npmGlobalBin) && env.PATH && !env.PATH.startsWith(npmGlobalBin)) {
-    env.PATH = `${npmGlobalBin}:${env.PATH}`
+/** 순수 함수(단위 테스트 대상) — `source` 에서 허용 목록만 골라 자식 env 를 만든다. */
+export function buildChildEnv(source: Readonly<Record<string, string | undefined>>, opts: { thinking: boolean; home: string; npmGlobalBinExists: boolean }): NodeJS.ProcessEnv {
+  const env = {} as NodeJS.ProcessEnv
+  for (const [k, v] of Object.entries(source)) {
+    if (typeof v === 'string' && (CHILD_ENV_ALLOW_SET.has(k) || CHILD_ENV_LOCALE.test(k))) env[k] = v
   }
+  if (!env.HOME) env.HOME = opts.home
+  // thinking 을 끄는 두 번째 겹 — settings 가 무시되는 CLI 버전에서도 토큰 예산 0 으로 막는다.
+  if (!opts.thinking) env.MAX_THINKING_TOKENS = '0'
+  const npmGlobalBin = `${opts.home}/.npm-global/bin`
+  if (opts.npmGlobalBinExists && env.PATH && !env.PATH.startsWith(npmGlobalBin)) env.PATH = `${npmGlobalBin}:${env.PATH}`
   return env
+}
+
+function cleanEnv(thinking = false): NodeJS.ProcessEnv {
+  const home = homedir()
+  return buildChildEnv(process.env, { thinking, home, npmGlobalBinExists: existsSync(`${home}/.npm-global/bin`) })
 }
 
 // ── 실행 ─────────────────────────────────────────────────────────────────────

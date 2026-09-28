@@ -329,8 +329,240 @@ demo_gate:
   - 구현 가이드(`docs/screens.md` §13)는 **승인 뒤** 작성(승인 버전 명시). src/** 수정·commit 없음.
 
 ## Developer 기록
+- [07:41] **developer A(opus) — 0단계 편집 키 표 + 1단계 첫 커밋 범위(D-C3(a)(b)(c)·CX-1·CX-3·D-C9) 구현 완료, reviewer 인계 대기.** 편집·버전·라우트(2~6단계)·스키마·화면·Python·conversation 은 손대지 않음. commit·push 없음.
+
+### 0단계 — 편집 키 표(D-C4 · Codex C1 CX-2) — Leader 확인 뒤 확정
+판정 규칙: **012c 편집 허용 = 소비자 APP(Node, 클라이언트 전달 포함) + RUNTIME_EDITABLE + "런타임 실사용값 == Effective" 테스트 가능**. RESTART·REDEPLOY = `restartRequired`(CX-2), Python 소비 = `serviceManaged`, 런타임이 읽지 않는 키 = 편집 거부(콘솔 값 ≠ 실제 값). **verifiable** = `config/test` 가 후보 값으로 실제 실행해 검증할 방법이 있는가(없으면 PRODUCTION 편집 불가 — `partial`). 런타임 읽는 곳의 "행" = `EngineConnection` 행 JSON(router 30초 캐시·Effective 의 CONNECTION_PROFILE 층과 같은 값).
+
+| 대상 · 키 | 소비자 · 런타임 읽는 곳 | editability · strict | env 가 이기나 | 실행 검증(verifiable) | allowedRefs | 012c 편집 · 잠금 이유 |
+|---|---|---|---|---|---|---|
+| **claude-cli** `connection.binPath` | APP — spawn 은 env `CLAUDE_CLI_PATH`(행 값 = `$CLAUDE_CLI_PATH` 자리표시자) | RESTART · strict | 예(자리표시자) | — | — | ✗ 재시작 필요·서버 경로 |
+| claude-cli `connection.timeoutMs` | 미사용(작업별 상한 `LLM_TASKS`, CLI 는 env `CLAUDE_TIMEOUT_MS`) | RUNTIME | 표시만 | — | — | ✗ 런타임 미사용 |
+| claude-cli `connection.authMode` | — | REDEPLOY | — | — | — | ✗ 재배포 |
+| claude-cli `runtime.modelByTier.fast·balanced·deep` | APP `engine/llm` `modelFor`(행) | RUNTIME · **strict** | 아니오 | ✅ 바뀐 tier 마다 후보 모델로 고정 스키마 프로브 1회(Claude) | — | ✓(PRODUCTION = 엄격 키 SUPER_ADMIN) |
+| claude-cli `runtime.concurrency`·`interactiveLane` | APP 코드·env `CLAUDE_CLI_CONCURRENCY` | RESTART | — | — | — | ✗ 재시작 필요 |
+| claude-cli `runtime.permissionMode`·`tools`·`agentsFile` | 코드 고정 | READ_ONLY | — | — | — | ✗ 읽기 전용 |
+| claude-cli `runtime.jsonSchemaFlag` | APP `claudeShape` — env `KAIWA_LLM_JSON_SCHEMA_FLAG` 가 있으면 **env 가 이김** | RUNTIME | 예(설정 시) | ✅ 후보 플래그로 JSON 프로브 1회 | — | ✓ env 미설정일 때만(설정 시 `SHADOWED_BY_ENVIRONMENT` 잠금 — 현재 미설정) |
+| claude-cli `runtime.thinkingForDeep` | APP `claudeShape` | RUNTIME | 아니오 | ✅ deep tier 프로브 1회(opus 호출) | — | ✓ |
+| claude-cli `runtime.earlySentenceTts` | APP `callOnce`(스트리밍 조각) | RUNTIME | 아니오 | ✅ 스트리밍 프로브(첫 조각 수신 확인) | — | ✓ |
+| claude-cli `runtime.prewarm`·`prewarmMaxIdle`·`prewarmIdleTtlSec` | APP `llm.prewarm` | RUNTIME | 아니오 | ❌ 예열 풀이 프로세스 전역이라 후보 값 시험 = 실운영 풀 변경 | — | LOCAL ✓ / PRODUCTION ✗(운영 잠금) |
+| (모든 엔진) `logging.level` | 앱 미사용(`EngineConnection.logLevel` 을 읽는 코드 없음 — 015c) | RUNTIME | — | — | — | ✗ 런타임 미사용 |
+| **home-m4-api** `connection.baseUrl` | APP `prepareHomeM4Call`·Health | RUNTIME · strict | **사실상 env 고정**(`AI_API_BASE` origin 밖이면 호출 0 — 이번 커밋) | — | — | ✗ 서버 env 주소 고정 |
+| home-m4 `connection.timeoutMs`·`retry` | 미사용(작업 예산·429 재시도 1 코드 고정) | RUNTIME | — | — | — | ✗ 런타임 미사용 |
+| home-m4 `connection.credentialRef` | APP `prepareHomeM4Call`(행) | SECRET · strict | env 별칭 `AI_API_KEY`(표시) | ✅ 후보 ref 로 home-m4 프로브 1회(M4, Claude 아님) | `env:HOME_M4_API_KEY`·`env:AI_API_KEY`·`file:home-m4-api-key` | #93b 만(SUPER_ADMIN) ✓ |
+| home-m4 `runtime.model` | APP `modelFor`(행) | RUNTIME · strict | 아니오(env `AI_API_MODEL` 은 아래 층) | ✅ 후보 모델 프로브 1회 | — | ✓ |
+| home-m4 `runtime.temperature`·`maxOutputTokens` | 미사용(env `AI_API_TEMPERATURE` 기본) | RUNTIME | — | — | — | ✗ 런타임 미사용 |
+| home-m4 `runtime.systemFirst` | 코드 고정 | READ_ONLY | — | — | — | ✗ |
+| home-m4 `runtime.allowedTasks` | APP router `allowsTask`(행) | RUNTIME · JSON | 아니오 | ❌ 라우팅 정책(실행 대상 없음) | — | **보류 권고** — 회화·채팅·ASK 금지 task 를 막는 Validate 규칙부터 필요 |
+| **faster-whisper** 전 키(`baseUrl`·`timeoutMs`·`retry`·`language`·`beamSize`·`vadFilter`) | **PYTHON**(worker 가 자기 yml/env) — 앱은 Health 만 | RUNTIME/READ_ONLY(HTTP) | — | — | `credentialRef` = `[]`(인증 없음) | ✗ `serviceManaged`(015c) |
+| faster-whisper `runtime.model`·`computeType`·`device`·`cpuThreads` | PYTHON | READ_ONLY(HTTP)·RESTART | — | — | — | ✗ |
+| **reazon-gateway(HTTP)** `connection.baseUrl` | APP Health·`devWsUrl`(개발만), 운영 클라이언트는 nginx 경로 | RUNTIME · strict | — | — | — | ✗ `serviceManaged`(nginx·pm2) |
+| reazon-gateway `connection.wsPath` | CLIENT(#19 `gateway.wsPath`) — nginx 경로와 묶임 | RUNTIME · strict | — | — | — | ✗ 주소 키(D-C3)·배포 의존 |
+| reazon-gateway `connection.timeoutMs` | 미사용 | RUNTIME | — | — | — | ✗ |
+| reazon-gateway `runtime.decodingMethod`·`vad.endpointSilenceMs`·`vad.threshold` | PYTHON(gateway 자기 설정) | RUNTIME | — | — | — | ✗ `serviceManaged` |
+| reazon-gateway `runtime.partial` | CLIENT(#19 `gateway.partial` → WS start → gateway 가 따름) | RUNTIME | 아니오 | ❌ 서버에서 실행할 대상 없음(#19 응답 재계산만) | — | LOCAL ✓ / PRODUCTION ✗ |
+| reazon `runtime.numThreads`·`modelVersion` | CLIENT·PYTHON | RESTART | — | — | — | ✗ 재시작 필요 |
+| **reazon-ondevice(ONDEVICE)** `manifestUrl`·`modelBytes` | CLIENT | REDEPLOY | — | — | — | ✗ 재배포 |
+| reazon-ondevice `runtime.decodingMethod`·`vad.endpointSilenceMs`·`vad.threshold`·`partial` | CLIENT(#19 `onDevice.runtime` → `OnDeviceSttClient.startOptions`) | RUNTIME | 아니오 | ❌ 기기에서만 실행 | — | LOCAL ✓ / PRODUCTION ✗ |
+| reazon `runtime.provider`·`vad.model` | 고정 | READ_ONLY | — | — | — | ✗ |
+| **style-bert-vits2** `connection.baseUrl` | APP 합성·g2p·Health | RUNTIME · strict | **env 고정**(`TTS_SERVICE_URL` origin, 003d) | — | — | ✗ 서버 env 주소 고정 |
+| TTS `connection.timeoutMs` | APP `synthesizeHttp` = min(요청 상한, 이 값) | RUNTIME | 아니오 | ✅ 후보 값으로 고정 문장 합성 1회(M4) | — | ✓ |
+| TTS `connection.retry` | 미사용 | RUNTIME | — | — | — | ✗ |
+| TTS `connection.credentialRef` | **미사용**(Phase 1 은 env `TTS_SERVICE_SECRET`) | SECRET · strict | — | — | `file:tts-service-token` | ✗(#93b 도 보류 — 런타임이 ref 를 읽지 않음) |
+| TTS `runtime.defaultModel` | Functional Test·요약만(실제 합성은 `VoiceProfile.voiceModelId`) | RUNTIME · strict | — | — | — | ✗ 실사용 아님 |
+| TTS `runtime.maxChars` | APP `maxCharsOf`(코드 상한 100 으로 절삭) | RUNTIME | 아니오 | ✅ 후보 길이 문장 합성 1회 | — | 조건부 ✓ — Validate 상한을 100 으로(스키마 max 200 → 101~200 은 저장돼도 효력 없음) |
+| TTS `runtime.sdpRatio`·`noise`·`noiseW` | APP `synthesizeHttp` 엔진 파라미터 | RUNTIME | 아니오 | ✅ 후보 값 고정 문장 합성 | — | **조건부 ✗** — TTS 캐시 키 12요소에 없어 캐시된 문장은 옛 값(콘솔 값 ≠ 실제). 캐시 키 세분(`engineConnectionKey` 요소에 파라미터 요약) 뒤에만 ✓ — speech 층 변경, Leader 확인 |
+| TTS `runtime.language` · `runtime.device` | 고정 · PYTHON(tts-service) | READ_ONLY · RESTART | — | — | — | ✗ |
+| **FALLBACK_POLICY** `primaryConnectionId`·`fallbackConnectionIds` | APP router `loadChain`(30초)·stt `realtimeTargets`·`analysisTarget`(5초) | strict(productionSensitive) | 아니오 | ✅ 새 primary(와 새로 들어온 fallback) 기능 테스트 1회씩 | — | ✓ |
+| FALLBACK_POLICY `enabled` | APP(정책 꺼짐 = 역할 없음) | strict | 아니오 | 켜기 ✅ primary 기능 테스트 / 끄기 = 검증 대상 없음 | — | ✓ — 끄기의 PRODUCTION 은 #93a 와 같게(이유+확인, 테스트 면제) 제안 → Leader 확인 |
+| FALLBACK_POLICY `retryOnce` | 미사용(router 는 항상 앞 2후보) | — | — | — | — | ✗ 런타임 미사용 |
+| **AppSetting** `voice.preview.defaultText` | APP `previewSettings`(30초 캐시) | RUNTIME | 아니오 | ✅ 후보 문장 합성 1회(M4) | — | ✓ + `voice.preview.textVersion` 같은 트랜잭션 +1(D-C7) |
+| AppSetting `voice.preview.textVersion` | APP(캐시 키) | 자동 | — | — | — | ✗ 자동 |
+| AppSetting `voice.default.profileId` | APP `synthesize` 대체 프로필(30초 캐시) | RUNTIME | 아니오 | ✅ 그 프로필로 합성 1회 · Validate = 같은 환경 VoiceProfile 존재·활성 | — | ✓ |
+| AppSetting `speech.review.threshold` | APP `speech/analysis/apply` → `reviewThreshold` | (행 없음 — 012b 읽기만) | 아니오 | ❌ 계산 키(실행 대상 없음) | — | LOCAL ✓ / PRODUCTION = **Leader 판단**(순수 계산 키의 "검증" 정의). **⑤ 규칙 적용**: 편집 시 ACCURATE = max(설정값, 0.90), 그 밖 모드 = 설정값(0~1) — 지금 `reviewThreshold` 는 설정값이 모든 모드를 덮으므로 012c 편집 구현 때 함께 고친다 |
+| AppSetting `tts.styleMap` | APP(행 있으면) | (행 없음) | — | ❌ | — | 보류(012c 제외 권고) |
+| AppSetting `override.production.enabled`·`debug.production.maxTtlMinutes`·`loglevel.production.maxLevel`·`speech.audio.retentionDays`·`trace.retentionDays` | 정책 키(environment.policy) · 보존일은 코드 상수(`UTTERANCE_RETENTION_DAYS`)라 미사용 | RUNTIME/RESTART | — | — | — | ✗ 정책 키(#123b 일반 키 아님) |
+| **VoiceProfile** `defaults.style·styleWeight·speed·pitch·intonation` | APP `parameterResolver` 2순위 — TTS 캐시 키에 유효값이 들어가 즉시 반영 | RUNTIME | 아니오 | ✅ 그 프로필로 고정 문장 합성 1회 | — | ✓(범위는 parameterResolver 와 동일하게) |
+| VoiceProfile 표시명·정렬 | CLIENT 표시 | — | — | 표시 전용(실행 개념 밖) | — | ✓ LOCAL / PRODUCTION 테스트 면제 여부 **Leader 확인** |
+| VoiceProfile `voiceModelId`·`speakerId`·`enabled` | APP | — | — | — | — | ✗ 012c-2(Voice 관리 #85·#86) |
+
+- 요약: 편집 후보 ✓ = claude tier 모델 3·jsonSchemaFlag·thinkingForDeep·earlySentenceTts · home-m4 model(+credentialRef #93b) · TTS timeoutMs·maxChars(상한 100) · Fallback primary/fallbacks/enabled · AppSetting 미리듣기 문장·기본 프로필 · VoiceProfile defaults 5 — 전부 verifiable ✅. LOCAL 한정(verifiable ❌) = 예열 3키·STT 클라이언트 전달 키·review.threshold. 2단계에서 ✓ 키 전부에 "런타임 실사용값 == Effective" 단위 테스트를 붙인다.
+
+### 1단계 — 첫 커밋 범위 구현
+**(a) 시크릿 전송 대상 고정 — 전수 확인 결과**
+| 시크릿을 싣는 경로 | 전송 대상 | 조치 |
+|---|---|---|
+| home-m4 `x-api-key`(`engine/llm` → `HomeM4ApiCaller`) | 이전: DB `connection.baseUrl` 그대로 | **고침** — `prepareHomeM4Call`: 주소 origin ≠ env `AI_API_BASE` origin 이면 키를 해석조차 하지 않고 `LlmMisconfiguredError(TARGET_NOT_ALLOWED\|TARGET_UNSET\|BAD_BASE_URL)`, ref 가 허용 목록 밖·전역 거부면 `REF_NOT_ALLOWED`. Router 는 다음 후보로, 기능 테스트는 `MISCONFIGURED(errorCode)` |
+| home-m4 Health | 키 없음(공개 `/health`) | 대상 origin 선검사 추가(TTS 와 같게) — 밖이면 요청 0 |
+| TTS `x-internal-secret`(합성·g2p·`/health/detail`) | env `TTS_SERVICE_URL` origin 고정(003d `readServiceSecretFor`) | 변경 없음(이미 고정) |
+| Claude CLI 자식 프로세스 env | (네트워크 아님) | **보강** — 자식 env 삭제 목록에 `TTS_SERVICE_SECRET` 추가(기존 목록에 빠져 있었음) |
+| Google OAuth `client_secret` | 코드 상수 토큰 엔드포인트(설정 편집 대상 아님) | 해당 없음 |
+| `/api/internal/*`·WS 티켓 | 들어오는 쪽 검증(내보내지 않음) | 해당 없음 |
+| admin `/api/health` 프로브 | env 주소, 시크릿 없음 | 해당 없음 |
+
+**(b) credentialRef — 어댑터별 정확한 허용 목록 + 전역 거부(CX-1)**: `SchemaKey.allowedRefs`(SECRET_REF 필수 — 스키마 자체 검증이 없음·형식 오류·거부 분류를 로드 실패로 막음), home-m4 = `env:HOME_M4_API_KEY`·`env:AI_API_KEY`·`file:home-m4-api-key`, TTS = `file:tts-service-token`, whisper = `[]`. 판정 `engine/credentials`(순서 ⓪ 평문 → ① 전역 거부 → ② descriptor 목록 → ③ 형식 → ④ 존재), 전역 거부 분류 `infra.isDeniedCredentialRef`(부팅·내부 시크릿 이름표 + 패턴, `file:` 은 이름을 env 모양으로 바꿔 같은 규칙). 값 해석 `infra.readCredentialFor(ref, target, originEnv)` — 대상 origin → 거부 분류 → `env:`/`file:`(SECRETS_DIR 바로 아래·lstat 일반 파일·0600·소유자·4KB). #101 에 `allowedFor[]`(connection key) — 허용됐지만 아무도 안 쓰는 ref 도 이름만 싣고, 거부 분류 ref 는 빼고 감사 `after.deniedRefs` 로 셈.
+**(c) 연결 주소 호스트 허용 목록**: `infra/netPolicy`(순수 판정 + DNS) + `engine/adapters/common/targetPolicy`(서버 env 서비스 origin = 어댑터 URL 키 envAlias 5개 + `KAIWA_*_CONNECTION_BASEURL`, 상수 = 스키마 합집합을 단위 테스트가 대조). 허용 = env origin 정확 일치 · IP 리터럴 loopback(127/8·::1)·LAN(192.168.219.0/24, IPv4-mapped 포함) · http 이름은 **해석 주소 전부**가 그 대역일 때만이고 실제 연결은 검사한 IP 로 고정(`connectUrl` — DNS 재바인딩). 거부 = 비 http(s)·userinfo·그 밖 주소(0.0.0.0·::·compat·NAT64·링크 로컬·다른 사설망)·env origin 이 아닌 https 이름. 10진·8진·16진 IPv4 는 URL 파서 정규화 뒤 판정. Health(`probeHttpHealth`)가 요청 전에 적용(밖이면 요청 0·`MISCONFIGURED(HOST_NOT_ALLOWED)`), 리다이렉트는 기존대로 미추종. Validate 는 2단계에서 `engine.vetConnectionUrl` 를 부른다(`rule:hostNotAllowed`).
+**(CX-3) reason 공용 검사**: `infra/reason` — `checkReason`/`requireReason`(줄바꿈·제어문자 구간 → 공백 하나·trim · 1~200자(PRODUCTION 10~200) · 비밀 유사(접두 `sk-`·`gh[po]_`·`github_pat_`·`AKIA`·`xox?-`·`Bearer`/`Basic` 토큰·JWT · 키=값/키:값 `password|passwd|secret|token|api_key|apikey|credential` · 24자↑ `[A-Za-z0-9-_+/=]` 연속 중 문자 종류 3↑) → `422 {field:'reason', reason:'E_REASON_SECRET_LIKE'}`, 길이 → `400 VALIDATION {reason:'REASON_*', length, min, max}`, 오류 어디에도 원문 없음·로그 출력 없음). **발음 사전 쓰기 5경로(추가·수정·비활성·Import·Rollback)에 적용**(Leader 03:15).
+**D-C9**: `claimFunctionalSlot` — `updateMany(where id AND (lastFunctionalAt IS NULL OR < now−30s))` 1행일 때만 실행, 아니면 429(`retryAfterSec` 1~30, 미래 시각이어도 ≤30). 메모리 Map·EngineHealth 조회 제거, `recordHealth(FUNCTIONAL)` 은 `lastFunctionalAt` 을 더 쓰지 않음("마지막 시작 시각").
+
+**변경 파일(내 것만)** — 수정: `src/modules/infra/{secrets.ts,index.ts}` · `src/modules/engine/{index.ts,llm/index.ts,functionalTest/index.ts,health/index.ts,registry/index.ts,registry/types.ts}` · `src/modules/engine/adapters/{common/httpHealth.ts,llm/homeM4.ts,llm/homeM4.provider.ts,llm/claudeCli.ts,stt/fasterWhisper.provider.ts,tts/styleBertVits2.provider.ts}` · `src/modules/admin/{engines/index.ts,speech/lexicon.ts}` · `src/types/{admin.ts,lexicon.ts}` · `tests/live/task005b-smoke.ts`(6a 키 집합에 `allowedFor`). 신규: `src/modules/infra/{netPolicy.ts,reason.ts}` · `src/modules/engine/credentials/{index.ts,policy.ts}` · `src/modules/engine/adapters/common/targetPolicy.ts` · 테스트 `src/modules/{infra,engine,admin}/__tests__/task012c.test.ts` · 라이브 `tests/live/task012c-gate-smoke.{sh,ts}`. `prisma/schema.prisma`·화면·conversation·Python·env 파일 무변경.
+- ⚠ **작업 트리에 다른 작업의 미커밋 변경이 섞여 있다**(07:26~07:30, 내 것 아님): `src/modules/engine/json/schemaValidate.ts`·`src/modules/engine/__tests__/additionalPropertiesStrip.test.ts`·`src/modules/conversation/{__tests__/lesson.test.ts,prompts/lesson.ts,structuredResponse/schemas.ts}`·vault task-010·llm-japanese-quality — 커밋 때 분리할 것.
+
+**검증**(격리 복제본 `~/.node-local/thekaiwa-012c-gate`·`-gate2`, `env -i … APP_ENV=LOCAL next dev -H 127.0.0.1`, 끝나고 3019·3020·3021 종료·복제본 삭제, 운영 3010·pm2·미러 무접촉)
+- tsc 0 · eslint 오류 0(경고 5 = 기존 components) · 단위 전체 785: 781 pass·3 skip·**1 fail = REV-032 M1 픽스처(아래 차단)** · 신규 012c 단위 24/24.
+- 라이브 게이트 `task012c-gate-smoke` **25/25**(두 프로세스 3019·3020, LLM 호출 0): A #101 allowedFor 4 · B Health SSRF 9(10.255.255.1·`[::ffff:10.0.0.1]`·169.254.169.254·10진 `134744072` = 요청 0·HOST_NOT_ALLOWED·<2s / loopback·localhost(해석→고정 IP) 통과 / 302 미추종 / userinfo / 응답에 주소 0) · C home-m4 5(127.0.0.1 다른 port → Health·기능 테스트 모두 TARGET_NOT_ALLOWED·`/v1/chat`·키 요청 0 / 같은 host 다른 port(M4 8200) / `env:JWT_SECRET` → REF_NOT_ALLOWED / 원래 설정은 게이트 통과) · **D 동시 4요청(2프로세스) → 200 1·429 3·FUNCTIONAL 행 1, lastFunctionalAt = 시작 시각** · E 사전 reason 비밀 유사 422·행 0·원문 미반환·dev 로그 grep 0 / 201자 422 E_REASON · Z LOCAL 3행 바이트 원복·Health 행 정리.
+- 회귀(3019): **003g 54/54 · 006 42/42(턴 p50 4921ms) · 007 44/44 · 008 74/74**(home-m4 → `LlmMisconfiguredError(SECRET_MISSING)` 로 claude 폴백 3회 — 개발 .env `HOME_M4_API_KEY` 가 빈 값이라 기존과 같은 동작) · **005b 44/47 — 실패 3건(5c·5j·7c)은 기준선 HEAD `37e2ad7` 서버(3021)에서도 똑같이 실패**(스모크가 "gateway 가 떠 있지 않음" 을 전제 — 지금 운영 gateway 8100 가동, 환경 드리프트). dev 로그에 003g 스모크 reason 원문 0.
+- Claude 호출 ≈ 30회(005b 1 + 기준선 005b 1 + 006 ≈16 + 007 ≈9 + 008 3), 게이트 스모크 0.
+
+**정본과 다르게 한 점(reviewer 확인 요청)**
+1. 발음 사전 reason: 길이 오류는 003g 계약대로 **422 칸 오류 `E_REASON`**(CX-3 정본은 400 VALIDATION), 비밀 유사만 `details.reason`·`fields.reason` = `E_REASON_SECRET_LIKE`. **PRODUCTION 사전 쓰기 reason 이 10자 이상으로 강화**(role-permission §7 ② 적용 — 003g 계약 1~200 과 다름). 줄바꿈은 지우던 것 → 공백으로.
+2. credentialRef 검사 순서 앞에 ⓪ "ref 모양 아님(평문 의심)" 을 두었다 → 호출자는 `400 E_CONN_SECRET_VALUE`(§2-19) 로(원문 미반환). 정본 #93b 순서는 ①부터.
+3. 호스트 허용 목록: env origin 은 DNS 검사 없이 신뢰(운영자 설정), **env origin 이 아닌 https 이름은 거부**(fetch 로는 SNI 때문에 IP 고정 불가), `KAIWA_*_CONNECTION_BASEURL` env 도 신뢰 origin 에 포함. 시크릿을 싣는 실호출(home-m4·TTS)은 호스트 목록이 아니라 더 좁은 env origin 고정으로 막는다.
+4. home-m4 `allowedRefs` 에 §2-1 시크릿 별칭 ref `env:AI_API_KEY` 포함. `file:` 값 해석을 이번에 추가(§10 의 60초 캐시는 두지 않음 — 매 호출 읽기).
+5. #101 이 허용됐지만 쓰지 않는 ref 도 싣는다 → 기존 시트(`SecretsSheet`)에 "없음" 배지 행이 늘고 안내 문구("연결에 걸린…")와 어긋남(화면은 developer B 몫).
+6. `selfCheckSchema` 가 SECRET_REF 키의 `allowedRefs` 누락·거부 분류를 **플러그인 로드 실패**로 처리(fail-closed).
+
+**차단·요청(Leader)**
+- **B1 [커밋 차단] `src/modules/conversation/__tests__/lesson.test.ts` REV-032 M1 픽스처**(012c 금지 경로 — prompt-engineer/소유자 수정 필요): 가짜 home-m4 연결이 `env:KAIWA_TEST_FAKE_LLM_KEY` + 임의 127.0.0.1 포트를 써서 이제 의도대로 `TARGET_NOT_ALLOWED` 로 막힌다. 수정안(복제본에서만 적용해 47/47 확인): `keyEnv = 'HOME_M4_API_KEY'`, `process.env.AI_API_BASE = \`http://127.0.0.1:${port}\``, `t.after` 에서 두 값을 원래대로 복원(6줄). 같은 파일을 다른 작업이 지금 고치는 중이라 그쪽과 합칠 것.
+- R1 발음 사전 화면 문구: `E_REASON_SECRET_LIKE`·PRODUCTION 10자 미만이 화면에서 "변경 이유를 입력해 주세요"(lexiconCopy 기본 문구)로 보인다 → developer B(화면) 후속.
+- R2 005b 스모크 5c·5j·7c 기대값을 "gateway 가동" 환경에 맞게 갱신 필요(QA·Leader 판단 — 내 변경과 무관).
+- R3 판단 요청: `speech.review.threshold`·VoiceProfile 표시명처럼 **실행 대상이 없는 키의 PRODUCTION 편집**(CX-2 로는 영구 불가), TTS `sdpRatio·noise·noiseW` 캐시 키 세분, home-m4 `allowedTasks` 보류, Fallback 끄기의 테스트 면제.
+
+**남은 위험**: ① 고엔트로피 규칙 오탐 — 모델 id(`zipformer-ja-…-int8` 같은 24자↑ 소문자·숫자·`-`)를 이유에 쓰면 422(정본 규칙 그대로) ② `lastFunctionalAt` 의미가 "시작 시각"으로 바뀜 — 화면 표기 확인 ③ env 에 적힌 이름 주소는 해석 주소를 검사하지 않음(운영자 신뢰) ④ 개발·운영 `.env` 의 `HOME_M4_API_KEY` 가 비어 있으면 home-m4 는 계속 MISCONFIGURED(기존과 동일, 이번 변경과 무관) ⑤ 라이브에서 QA 계정 감사 행(`secrets.read_ref` 등, LOCAL)이 남음(불변).
+
+### Codex C2 지적 3건 수정(reviewer 10:15 채택분 — Leader 지시)
+- [08:27] **developer A — ①②③ 수정 + REV-035 Low 1·2 완료, reviewer 재순환 대기.** 스키마 0·같은 파일 경계·commit/push 없음.
+  - **① Claude CLI 자식 env 허용 목록**(`engine/adapters/llm/claudeCli.ts`): `{...process.env}` 뒤 delete 하던 블랙리스트를 `buildChildEnv`(순수 함수)로 교체 — **허용 목록 밖 키 전부 제외**(fail-closed). 허용 = `PATH·HOME·USER·LOGNAME·SHELL·LANG·LANGUAGE·LC_*·TZ·TMPDIR·TMP·TEMP·TERM·NODE_ENV·XDG_*(5)·NODE_EXTRA_CA_CERTS·SSL_CERT_FILE/DIR·HTTP(S)_PROXY·NO_PROXY(대소문자)` + CLI 비시크릿 설정 `CLAUDE_CONFIG_DIR·DISABLE_AUTOUPDATER·DISABLE_TELEMETRY·DISABLE_ERROR_REPORTING·CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, 이어서 `MAX_THINKING_TOKENS=0`(thinking 아닐 때)·`~/.npm-global/bin` PATH 보정(기존 그대로). `NODE_OPTIONS` 제외, 세션 주입 변수(`CLAUDECODE`·`CLAUDE_CODE_*`·`VSCODE_*`)는 목록에 없어 자동 제외. `NODE_ENV` 는 옛 방식에서도 넘어가던 비시크릿 실행 모드라 유지(Next 타입이 ProcessEnv 에 요구하기도 함). 라이브: 007 뒤 떠 있던 예열 CLI 자식의 `/proc/<pid>/environ` 키 = **`HOME LANG MAX_THINKING_TOKENS NODE_ENV PATH USER` 6개뿐**(값은 보지 않음).
+  - **② `file:` 시크릿 TOCTOU**(`infra/secrets.ts` `readSecretFile`): `realpath(SECRETS_DIR)/<name>` 을 `openSync(O_RDONLY|O_NOFOLLOW|O_NONBLOCK)` 로 한 번 열고 **그 fd 로** `fstatSync`(일반 파일·0600 류·소유자·≤4KB) → fd 의 실제 경로(`/proc/self/fd/N` readlink)가 `realpath(SECRETS_DIR)/<name>` 인지(디렉터리 성분 바꿔치기·연 뒤 rename 거부) → 같은 fd 로 최대 4KB+1 바이트 `readSync` → `closeSync`. 경로 재오픈 없음. 마지막 성분 링크 = ELOOP → `SECRET_PERMISSION`, FIFO 는 O_NONBLOCK 이라 막히지 않고 fstat 에서 거부. 테스트용 경계 `secretFileDeps{open, fdPath}`(mock.method).
+  - **③ reason 서식 문자 우회**(`infra/reason.ts`): 판정용 형태 `reasonCheckForm` = 저장 규칙(제어문자 → 공백) 뒤 `normalize('NFKC')` → `\p{Cf}`·`\p{Default_Ignorable_Code_Point}` **삭제**(공백 치환 아님 — CGJ·변이 선택자·한글 채움 문자 등 Cf 밖의 폭 0 문자까지) → 공백 정리. `isSecretLikeText` 가 이 형태로 판정. **최소 길이(REQUIRED·TOO_SHORT)도 이 형태의 보이는 글자 수**(폭 0 문자로 10자를 채운 PRODUCTION 이유 거부), 최대 길이는 저장값 기준, **저장값은 기존 그대로**(NFKC 로 바꾸지 않음 — 반각 가나 등 원문 유지). 발음 사전 5경로는 `readWriteMeta → checkReason` 공용이라 자동 적용(호출 5곳 grep 확인 + 단위).
+  - **REV-035 Low 1**: `readCredentialFor(ref, target, originEnv, allowedRefs)` — 호출자 어댑터 허용 목록을 **필수 인자**로 받아 자체 재검사(목록 밖 = `REF_NOT_ALLOWED`). 호출자 `prepareHomeM4Call` 이 `HOME_M4_ALLOWED_REFS` 전달. **Low 2**: `homeM4.ts`·`homeM4.provider.ts` 에 `credentials/policy` 직접 import 이유(순환 회피) 한 줄 주석.
+- 변경 파일(이번 라운드): `src/modules/engine/adapters/llm/claudeCli.ts` · `src/modules/infra/{secrets.ts,reason.ts,index.ts}` · `src/modules/engine/adapters/llm/{homeM4.ts,homeM4.provider.ts}` · 테스트 `src/modules/{infra,engine,admin}/__tests__/task012c.test.ts` · 라이브 `tests/live/task012c-gate-smoke.ts`(E1b 추가).
+- 회귀 테스트(요청분): ① 자식 env — 시크릿·세션 변수·`NODE_OPTIONS`·임의 새 이름 200개(`*_SECRET`·`*_TOKEN`·`*_API_KEY`·`GOOGLE_*`·`*_DATABASE_URL`) 전부 부재, 허용 목록 자체에 시크릿형 이름 0 · ② 0644·심볼릭 링크·디렉터리·FIFO(2초 안)·4KB 초과·없는 파일, **열기 직전 링크로 바꿔치기 → 거부**, **연 뒤 링크로 바꿔치기 → 링크 대상 내용 0·거부**, fd 실제 경로가 밖 → 거부, SECRETS_DIR 자체가 링크면 realpath 로 정상 · ③ soft hyphen·ZWSP·ZWNJ·ZWJ·BOM·word joiner·CGJ·전각(NFKC) 으로 `sk-`·`Bearer `·JWT·`password=`·`token:`·`ghp_`·`AKIA`·고엔트로피 토큰을 끊은 **12 케이스 전부 422**, 한국어·일본어·반각 가나·이모지 이유 5건 통과·저장값 불변, 폭 0 문자만 = REQUIRED, 폭 0 로 채운 PRODUCTION 이유 = TOO_SHORT, 발음 사전 `readWriteMeta` 3 케이스 `E_REASON_SECRET_LIKE`.
+- **검증**(격리 복제본 — 공유 미러와 같은 방식: `node_modules` 하드링크·NFS src 동기화, 3019·3020 `env -i … APP_ENV=LOCAL next dev -H 127.0.0.1`, 끝나고 종료·복제본 삭제, 운영 3010·pm2 무접촉): tsc 0 · eslint 오류 0(경고 5 = 기존 components) · **단위 전체 791: 788 pass·0 fail·3 skip**(PE 픽스처 반영 뒤) · 신규 012c 단위 30/30 · 게이트 스모크 **26/26**(E1b ZWSP·soft hyphen 이유 422·행 0 추가, 2프로세스 슬롯 200·429×3) · **006 42/42(p50 4255ms)·007 44/44·008 74/74**(Claude CLI 실경로 — 허용 목록 env 로 정상) · 003g 1회차 53/54(4b: #23 뒤 RequestTrace 를 2초 안에 못 찾아 `matches:null` — 스모크의 Trace 대기 타이밍, 이번 변경 경로 밖) → 30초 뒤 재실행 **54/54** · dev 로그에 reason 원문(비밀 유사·003g 이유) 0.
+- 남은 점: ① 허용 목록에 없는 CLI 설정 env 가 앞으로 필요해지면 목록에 추가해야 동작(fail-closed 의 대가 — 지금 운영 env 에는 해당 키 없음 확인: `.env`·`.env.example` 에 CLAUDE_CONFIG_DIR·프록시 없음) ② fd 경로 확인은 `/proc` 가 있는 Linux 에서만(없으면 O_NOFOLLOW·fstat 만) ③ 판정용 형태가 CGJ·변이 선택자까지 지우므로 이모지·결합 문자가 많은 이유는 판정에서만 붙어 보인다(저장값 무변경).
 
 ## Reviewer 기록
+
+### 2026-09-29 09:20 reviewer — REV-035
+
+**판정: PASS**(Critical 0 · High 0 · Medium 0 · Low 2) — 7영역 전부 Read 로 감사 + 격리 미러(`~/.node-local/thekaiwa-rev035`, 공유 미러 `~/.node-local/thekaiwa` 와 분리해 동시 작업 중인 dev-012c 등을 건드리지 않음)에서 tsc·eslint·단위 테스트를 독립 재실행해 Developer 주장을 대조 확인. 이번 라운드는 **012c 1단계(편집 선결 보안 게이트 D-C3(a)(b)(c)·Codex C1 CX-1·CX-2 관련 편집키표·CX-3·D-C9)만** — 편집·버전·Diff·Apply·라우트(2~6단계)·화면·스키마·Python 은 코드에 없다(범위 확인 결과 아래 "⑦ 범위 준수").
+
+**검증 방법(재현)**: `rsync` 로 NFS 현재 `src/`·`prisma/` 를 격리 미러에 동기화 → `./node_modules/.bin/tsc --noEmit`(0 에러) · `./node_modules/.bin/eslint <012c 변경 파일 24개>`(0 에러) · `node --import tsx --test` 로 `src/modules/{infra,engine,admin}/__tests__/task012c.test.ts` **24/24 PASS**(Developer 주장과 일치) · 같은 방식으로 engine/admin/infra 의 기존(무관) 단위 17개 파일 **116/116 PASS**(회귀 없음 — `additionalPropertiesStrip.test.ts`·`lesson.test.ts` 는 task-010 A4 범위라 제외) · `netPolicy.ts` 를 별도 스크립트로 직접 호출해 `classifyAddress`·`checkOutboundUrl`·`vetOutboundUrl` 의 DNS 재바인딩·IPv4-mapped·10진/8진/16진 표기·`0.0.0.0`·`[::]`·169.254·userinfo 케이스를 재현(테스트 코드와 별개로 독립 검증) · `git diff --stat prisma/schema.prisma`·`src/app`·`src/modules/conversation`(012c 몫만) 빈 diff 확인.
+
+**① D-C3(a) 시크릿 전송 대상 고정** — `src/modules/engine/adapters/llm/homeM4.ts:201-210` `prepareHomeM4Call` 이 옛 `resolveCredential`(제거 확인, `grep resolveCredential` 0건)을 대체: `homeM4TargetProblem`(`homeM4.provider.ts:23-29`)으로 주소 origin ≠ 서버 env `AI_API_BASE` origin 이면 `LlmMisconfiguredError(TARGET_NOT_ALLOWED)` 를 던져 **키를 해석조차 하지 않는다** — 단위(`engine/__tests__/task012c.test.ts:169-204`, 반례 7종: 다른 origin·같은 host 다른 port·스킴 다름·IPv6 표기·userinfo·부팅 시크릿 ref·null)와 127.0.0.1 임시 서버로 "실제 요청이 0건" 을 세는 테스트(`:206-229`)로 확인 — 내가 직접 재실행해도 통과. Health 경로도 같은 검사(`homeM4.provider.ts:73-86`)를 먼저 거친 뒤에만 `probeHttpHealth`(호스트 허용 목록, ③)로 넘어간다(이중 게이트). Claude CLI 자식 프로세스 env 삭제 목록에 `TTS_SERVICE_SECRET` 추가(`claudeCli.ts:339`, 기존 누락 보강) — 확인.
+
+**② D-C3(b)·Codex C1 CX-1 credentialRef 허용 목록** — 검사 순서(`engine/credentials/policy.ts:14-22`) ⓪ ref 모양 아님(평문 의심, 400) → ① 전역 거부 분류(`infra/secrets.ts:57-98` `isDeniedCredentialRef` — 이름·패턴 목록에 `JWT_SECRET`·`DATABASE_URL`·`SPEECH_INTERNAL_SECRET`·`TTS_SERVICE_SECRET`·`ANTHROPIC_API_KEY`·`OAUTH*`·`file:` 동일 이름 변환 포함) → ② 어댑터 descriptor `allowedRefs`(home-m4=`env:HOME_M4_API_KEY`·`env:AI_API_KEY`·`file:home-m4-api-key`, TTS=`file:tts-service-token`, whisper=`[]`) → ③ 형식 → ④ 존재. 스키마 자체 검증(`registry/index.ts:60-63` `selfCheckSchema`)이 SECRET_REF 키의 `allowedRefs` 누락·거부분류ref·형식오류를 **로드 실패로 fail-closed**(`getProvider`/`getConfigurationSchema` 가 null 반환 → Router·Health 제외, `pluginStates()` 확인) — 단위(`task012c.test.ts:98-108`) 3가지 위반 케이스 모두 로드 실패 문자열 포함 확인. 순서 ⓪이 정본 #93b(①부터)와 다른 점은 Leader 08:10 "정본 차이 채택"에 이미 기록·승인됨(응답은 여전히 `E_CONN_SECRET_VALUE` 400 — 의미상 거부이지 완화가 아니므로 보안적으로 문제 없음).
+
+**③ D-C3(c) 연결 주소 호스트 허용 목록(중점 재현 완료)** — `infra/netPolicy.ts`(엔진 비의존 순수 판정)+`engine/adapters/common/targetPolicy.ts`(env 이름 수집). 직접 재현한 결과: 10진(`3232291684`)·8진(`0300.0250.0333.0144`)·16진(`0xc0a8db64`)·축약(`127.1`) IPv4 표기는 Node `URL` 파서가 정규화한 뒤 판정(우회 불가) · `::ffff:10.0.0.1`(IPv4-mapped, LAN 밖)은 거부·`::ffff:192.168.219.100`(LAN 안)은 허용 · `0.0.0.0`·`[::]`·`169.254.169.254`(메타데이터)·`fe80::1`(zone id 포함)·다른 사설망(10/8·172.16/12)·NAT64(`64:ff9b::`)·IPv4-compatible(`::a.b.c.d`) 전부 거부 · userinfo(`user:pass@`) 거부 · 비 http(s) 거부 · **DNS 재바인딩**: `vetOutboundUrl` 이 이름 호스트를 해석한 **주소 전부**가 허용 대역일 때만 통과시키고, 실제 연결은 검사한 IP 로 고정한 `connectUrl` 을 쓴다(`httpHealth.ts:93,100` 이 `vet.connectUrl` 로 `fetch` — url 이 아님, 직접 확인) — 해석 주소 중 하나라도 밖이면(mixed) 전체 거부. **https 이름은 신뢰 origin 이 아니면 거부**(SNI 로 IP 고정 불가 — 설계·Leader 08:10 승인과 일치). 신뢰 origin(서버 env `AI_API_BASE`·`SPEECH_GATEWAY_URL`·`WHISPER_SERVICE_URL`·`TTS_SERVICE_URL`·`TTS_BASE_URL`·`KAIWA_*_CONNECTION_BASEURL`)은 이름이어도 DNS 검사 없이 신뢰(운영자 설정 — 설계 의도, connectUrl 도 미고정이지만 이는 시크릿 전송 경로가 아니라 Health 전용이라 ①의 origin 고정이 실제 방어선). `SERVICE_URL_ENV_NAMES` 상수가 Provider 스키마 URL 키 envAlias 합집합과 일치하는지 단위(`task012c.test.ts:112-115`)로 자기 검증. 리다이렉트 미추종은 `httpHealth.ts` `redirect:'manual'`(기존 유지) + 라이브 스모크(302 대상에 요청 0)로 재확인.
+
+**④ Codex C1 CX-3 reason 공용 검사** — `infra/reason.ts`: 제어문자→공백·trim, 1~200자(PRODUCTION 10~200), 비밀 유사(접두·Bearer/Basic·JWT 모양·키=값·24자↑ 고엔트로피 3종 이상) 거부, 오류·로그 어디에도 원문 없음(단위 `requireReason` 테스트가 `JSON.stringify` 로 직접 확인). **발음 사전(003g) 쓰기 5경로(추가·수정·비활성·Import·Rollback) 전부 적용**(`admin/speech/lexicon.ts:372,388,409,472,654` grep 확인) — 003g 기존 계약(칸 오류 `E_REASON`)은 유지하고 비밀 유사만 `E_REASON_SECRET_LIKE` 로 갈래를 올리는 방식(Leader 03:15 결정과 일치), 기존 `lexicon.test.ts`(옵션 없이 호출하는 하위호환 케이스 포함)·`effective-audit.test.ts` 등 무관 스위트 재실행에서 회귀 없음 확인.
+
+**⑤ D-C9 Functional Test 30초 슬롯 원자화** — `functionalTest/index.ts` `claimFunctionalSlot` 이 프로세스 메모리 Map(제거 확인)을 DB 조건부 `updateMany(WHERE id AND (lastFunctionalAt IS NULL OR < now−30s))` 로 대체 — MariaDB InnoDB 단일 UPDATE 문은 행 잠금으로 원자적이라 blue/green 두 프로세스·동시 요청에서도 1건만 갱신됨(단위 `task012c.test.ts:279-292` 가짜 원자 DB로 "동시 5요청 중 1건만" 재현, Developer 라이브 스모크도 두 실제 프로세스·동시 4요청 → 200 1·429 3·FUNCTIONAL 행 1 로 확인). **실패 시 슬롯 반납 여부(감사 지시 사항 ⑤)**: 슬롯은 시작 시점에 선점되고 테스트 결과(성공/실패)와 무관하게 30초간 유지된다 — `health/index.ts` 에서 `recordHealth` 가 더 이상 `lastFunctionalAt` 을 갱신하지 않도록 제거해 "결과 시각으로 밀림" 문제도 없앴다(설계 문서·이력서 모두 "마지막 시작 시각"으로 명시, Claude 구독 보호가 성공 여부와 무관하게 걸려야 한다는 의도된 설계 — 결함 아님). 429 응답의 `retryAfterSec` 은 1~30 범위로 클램프 확인.
+
+**⑥ 6층 경계·엔진명 누출** — `grep -rniE "reazon|whisper|style-bert|claude"` 를 012c 변경 파일 전체(admin·infra·types·engine 비-adapter 파일)에 돌려 0건, 유일한 매치는 `engine/adapters/common/targetPolicy.ts:11` 의 `WHISPER_SERVICE_URL`(체크리스트가 명시적으로 허용하는 `engine/adapters` 영역). `engine/index.ts` 는 012c 몫만(신규 export 4줄) 추가됐고 `admin`·`preferences`·`speech`·`conversation` import 없음(engine 이 상위 층을 참조하지 않음 확인). `infra/netPolicy.ts`·`infra/reason.ts` 는 node 내장 + `infra` 내부(`./http`·`./text`)만 import.
+
+**⑦ 범위 준수** — `prisma/schema.prisma` diff 없음(완료 기준 1) · `src/app/**` diff 없음(라우트 미추가, #93·#93a·#93b·#96(슬롯만)·#105~#111 미구현 확인) · `src/modules/conversation/**`·`.claude/agents/tutor.md` 무변경(012c 몫 diff 0) · Python(`speech/**`)·`.env*`·`ecosystem.config.js`·`deploy.yml` 무변경 · 화면(`src/components/**`·`src/app/(admin)/**`) 무변경 — **데모 게이트 재실행 대상 아님**(화면을 바꾼 task 가 아님, `demo_gate.status` 는 designer 몫 그대로 둠). PRODUCTION 행 라이브 접촉 없음(스모크는 LOCAL 3행만, 원복 대조 통과가 Developer 기록에 있고 라이브 실행 자체는 QA 재현 몫).
+
+**⑧ Codex C1 CX-1~3 구현 대조** — Leader 03:05 채택분이 실제 코드에 반영됐는지 확인(재판정이 아니라 구현 검증): CX-1(허용목록+전역거부, ②) 구현 일치 · CX-2(`testResultId` 는 변경 키 전부 검증 시에만)는 **#105 라우트 자체가 아직 없어 코드 대조 대상 없음**(편집 키 표에 RESTART_REQUIRED·REDEPLOY_REQUIRED 키를 편집 후보에서 뺀 것만 이번 범위 — 표는 마크다운 문서라 이번 REV 의 코드 감사 대상이 아니고, 실제 Validate/Test 구현 때(2단계) 재검증 필요) · CX-3(reason 검사, ④) 구현 일치.
+
+**⑨ Leader R3 판단(08:10)과 편집 키 표** — R3 의 4가지 판단(표시 전용 키 `verifiable:NOT_NEEDED`·`speech.review.threshold` PRODUCTION 잠금·TTS `sdpRatio` 류 편집 불가·`allowedTasks` 보류)은 **편집 로직(2단계) 이 아직 구현되지 않아 코드로 검증할 대상이 없다** — 편집 키 표는 이력서 문서일 뿐이고 실제 Validate·Diff·Apply 코드가 붙는 시점(다음 라운드)에 이 REV 의 후속으로 재확인이 필요하다는 점만 QA/다음 Reviewer 라운드에 인계.
+
+**Low 1** — `src/modules/infra/secrets.ts:149` `readCredentialFor` 는 어댑터 descriptor 의 `allowedRefs`(허용 목록, ②)를 **스스로 검사하지 않고** 호출자가 먼저 `checkCredentialRef`/`checkConnectionCredentialRef` 를 통과시켰다고 가정한다(주석에 명시된 계약). 현재 유일한 호출자 `prepareHomeM4Call`(`homeM4.ts:206-207`)은 순서를 정확히 지키고(먼저 `checkCredentialRef`, 그다음 `readCredentialFor`) 단위로 확인됐지만, 이 계약은 "호출자가 항상 순서를 지킨다"는 신뢰에 의존한다 — write 라우트(#93b, 2단계)나 다른 어댑터가 이 함수를 추가로 부를 때 순서를 빠뜨리면 전역 거부 밖의 ref(=descriptor 허용 목록엔 없지만 전역 거부에도 안 걸리는 ref, 예: 다른 엔진의 파일 시크릿)가 origin 고정만 통과하면 새어나갈 수 있다. 차단 사유는 아님(현재 유일 호출자가 정확·글로벌 거부가 부팅 시크릿은 이중 방어) — 권고: `readCredentialFor` 에 선택 `allowedRefs` 파라미터를 추가해 자체적으로도 재검증하거나, 2단계에서 새 호출자를 추가할 때 이 조합을 리뷰 체크리스트에 명시.
+**Low 2** — `homeM4.ts:35`·`homeM4.provider.ts:8` 가 `engine/credentials/index.ts` 대신 `engine/credentials/policy.ts` 를 직접 import 한다(공개 진입점 우회). 순환 참조 회피가 이유로 보인다(`credentials/index.ts` → `registry` → `adapters/providers` → `homeM4.provider.ts` 순환) — 같은 이유로 `targetPolicy.ts` 는 주석 3줄로 명시적으로 설명하는데 이 두 파일에는 그 설명이 없다. 동작에는 문제 없음(기능 확인됨), 유지보수성 권고로만 남김 — 다음에 이 파일을 만지는 사람이 "왜 index 를 안 쓰지" 라고 되묻지 않도록 한 줄 주석 권고.
+
+**요약**: Critical 0 · High 0 · Medium 0 · Low 2(둘 다 차단 아님, 유지보수성 권고). 구현이 D-C3(a)(b)(c)·CX-1·CX-3·D-C9 를 설계·Codex C1 채택분·Leader 확정 사항과 정확히 일치시켰고, 독립 재실행(tsc·eslint·단위 24+116·수동 netPolicy 재현)이 Developer 주장을 전부 뒷받침한다.
+
+**QA 인계 — high_risk_areas**: ["home-m4 API 키 전송 대상 고정(origin 다른 포트·스킴·IPv6 표기 반례)", "연결 주소 호스트 허용 목록의 DNS 재바인딩 방어(이름→IP 해석 뒤 connectUrl 고정)", "credentialRef 전역 거부 분류 vs 어댑터 허용 목록 경계(다른 연결 ref 교차 사용 차단)", "Functional Test 30초 슬롯의 2프로세스 동시성", "발음 사전(003g) reason 검사 회귀(기존 003g 스모크·문구)"] · **native_change: false** · **화면 변경 없음 — 데모 게이트 재검토 불필요**.
+
+### 2026-09-29 10:15 reviewer — Codex C2 판정(012c)
+
+대상: 코디네이터(Leader)가 직접 전달한 Codex C2(adversarial·security) 지적 3건 — 이 시점에 이력서 "## Codex 검토"에는 아직 C2 원본 블록이 기록돼 있지 않아, 전달받은 지적을 코드 인용(파일:줄)으로 먼저 대조한 뒤 판정했다. 셋 다 REV-035 가 PASS 로 넘긴 012c 1단계 diff 안의 코드다 — REV-035 를 다시 열어 대조.
+
+#### 지적 ①(`claudeCli.ts:312` 자식 env 블랙리스트) — **채택(Medium)**
+
+**실제로 자식에 전달되는 env 키 집합을 코드로 확인**: `cleanEnv`(`claudeCli.ts:312-350`)는 `{ ...process.env }` 로 **부모 프로세스 env 전체를 복사한 뒤** `drop` 목록(19개 키)만 `delete` 한다 — 목록에 없는 키는 전부 그대로 남아 자식(`spawn`, `:552`·`:805` 두 호출 지점 모두 이 함수를 거침)에 전달된다. `.env.example`(53줄) 전체와 대조한 결과 **현재 정의된 시크릿 형태 값(`JWT_SECRET`·`DATABASE_URL`·`GOOGLE_CLIENT_SECRET`·`SIGNUP_INVITE_CODE`·`HOME_M4_API_KEY`·`SPEECH_INTERNAL_SECRET`·`TTS_SERVICE_SECRET`·`ANTHROPIC_API_KEY`)는 전부 목록에 있어 지금 이 순간 활성 유출은 없다** — 하지만 이건 목록을 일일이 손으로 맞춰 놓은 결과일 뿐, 구조 자체가 "새 시크릿 env 를 추가하면서 이 배열에 추가하는 걸 잊으면 조용히 새어나간다"는 fail-open 이다. Codex 의 "DB·OAuth·내부 서비스" 예시는 이미 목록에 있지만(`DATABASE_URL`·`GOOGLE_CLIENT_SECRET`·`SPEECH_INTERNAL_SECRET`), **지적의 핵심은 개별 누락이 아니라 방식(블랙리스트) 자체의 구조적 위험**이라 채택.
+
+**허용 목록 전환 시 위험도 판단(지시 사항)**: Claude CLI 는 TheKaiwa 에서 **구독 인증**(`connection.authMode=SUBSCRIPTION`)을 쓴다 — `cleanEnv` 가 굳이 `ANTHROPIC_API_KEY` 를 지우는 이유도 "서버 env 에 키가 있어도 과금 경로가 갈리지 않도록"(코드 주석)이라, CLI 의 인증 자체는 **`HOME` 아래 CLI 자체 설정/세션 파일**을 읽지 env 값의 API 키에 의존하지 않는다(=허용 목록에 인증용 시크릿을 하나도 넣지 않아도 구독 인증은 그대로 동작한다는 뜻 — 오히려 지금 이 함수가 `ANTHROPIC_API_KEY` 를 애써 지우는 행위 자체가 "이 프로세스는 시크릿 env 가 필요 없다"는 설계 의도를 방증한다). 허용 목록으로 옮길 때 실제 위험은 보안이 아니라 **가용성**(CLI 실행에 필요한 것을 빠뜨려 동작이 깨짐) 쪽이다 — `PATH`(`:349-351` 이 이미 `~/.npm-global/bin` 을 앞에 붙이는 로직과 얽혀 있음)·`HOME`(설정·세션 디렉터리)·`LANG`/`LC_*`(문자 인코딩)·`TMPDIR`·`TERM`·`USER`/`LOGNAME`·(npm/node 가 내부적으로 참조할 수 있는 `NODE_OPTIONS`·`NPM_CONFIG_*`·프록시가 있다면 `HTTPS_PROXY`/`NO_PROXY`) 정도가 후보다. Codex 도 이 위험을 알고 "회귀 테스트" 를 권고했는데 타당하다 — 허용 목록으로 바꾸는 커밋은 실LLM 호출 스모크(006·007·008 최소 1회씩)로 CLI 가 여전히 뜨는지 확인하는 회귀가 반드시 같이 들어가야 한다.
+
+**최소 수정 방향**: `drop` 배열을 뒤집어 `ALLOW = ['PATH','HOME','LANG','LC_ALL','LC_CTYPE','TMPDIR','TERM','USER','LOGNAME','SHELL']`(+필요시 `NODE_OPTIONS` 없음 확인 후 제외 유지) 화이트리스트로 바꾸고, `MAX_THINKING_TOKENS` 처럼 이 함수가 직접 설정하는 키는 화이트리스트 이후에 얹는다. `~/.npm-global/bin` PATH 보정 로직(`:349`)은 그대로 유지(허용된 `PATH` 위에 얹는 것뿐이라 영향 없음). 전환은 이번 REV-035 판정을 뒤집는 차단 사유는 아니다(오늘 활성 유출 0) — 다음 Developer 라운드에서 처리하고 회귀 스모크로 재확인 권고.
+
+#### 지적 ②(`secrets.ts:124` `file:` 시크릿 TOCTOU) — **채택(Medium, 근거 있는 상향 고려 사항 포함)**
+
+**코드로 재확인**: `readSecretFile`(`secrets.ts:119-139`, 012c 신규 함수)은 `lstatSync(full)`(`:126`, 심볼릭 링크를 따라가지 않음 → 지금 심볼릭 링크면 `isFile()===false` 로 정상 거부)으로 검사한 **뒤**, `readFileSync(full, 'utf8')`(`:134`)로 **같은 경로 문자열을 다시 열어** 읽는다 — `readFileSync` 는 기본적으로 심볼릭 링크를 따라간다. `lstatSync` 호출과 `readFileSync` 호출 사이(마이크로초~밀리초 창)에 공격자가 `full` 위치의 파일을 심볼릭 링크로 바꿔치기하면, 검사는 "일반 파일·0600·본인 소유"를 통과했지만 실제로 읽히는 것은 **링크가 가리키는 임의의 파일**이다 — 전형적인 TOCTOU(CWE-367) 경합이며 오탐이 아니다. 직접 재현 PoC 는 실행하지 않았다(파일시스템 경합 조작은 이 REV 의 Read-전용·라이브 금지 범위 밖) — 코드 추적만으로 경로가 존재함을 확인.
+
+**현재 도달 가능성(완화 요인, 채택 등급 조정 근거)**: `prisma/seed-data/engines.json` 을 grep 한 결과 이번 시드에서 `file:` 형식 `credentialRef` 를 쓰는 connection 이 **0개**다(home-m4 는 `env:HOME_M4_API_KEY`, TTS 는 `credentialRef:null`—Phase 1 은 `readServiceSecretFor` 고정 시크릿 경로를 씀). 즉 **오늘 운영·개발 어디에서도 이 코드 경로가 실제로 실행되지 않는다**(단위 테스트가 직접 호출할 때만 실행됨, `task012c.test.ts:183-202`). 그래서 지금 당장의 활성 위험은 0 이지만, (a) home-m4 스키마의 `connection.credentialRef` 기본값 자체가 `'file:home-m4-api-key'`(`homeM4.provider.ts:58`)라 새 배포·시드 갱신 시 언제든 `file:` 경로가 살아날 수 있고 (b) #93b(credentialRef 연결 API, 2단계)가 열리면 운영자가 직접 `file:` ref 를 연결하는 정상 플로우 자체가 이 함수를 타게 된다 — **"아직 안 쓰인다"는 이유로 미룰 수 있는 문제가 아니라 2단계 착수 전에 반드시 닫아야 하는 선결 사항**이라고 본다. 이 TheKaiwa 워크스페이스는 한 Linux 사용자(`brownjeon`) 아래 여러 프로젝트가 함께 돈다는 CLAUDE.md 의 서술을 감안하면, `SECRETS_DIR`(0700 소유) 에 쓰기 권한이 생기는 경로(다른 프로젝트의 파일 업로드 취약점 등)가 있다면 이 TOCTOU 로 `brownjeon` 이 읽을 수 있는 **임의 파일**(다른 프로젝트 `.env`, SSH 키 등)을 credentialRef 값으로 흘려받을 수 있어 파급 범위가 TheKaiwa 밖으로 번질 수 있다 — Medium 태그를 그대로 받아들이되, 이 파급 범위를 근거로 다음 라운드 우선순위를 높게 권고한다.
+
+**최소 수정 방향**: `lstatSync`+경로 재오픈 대신 **fd 하나로 열기·검사·읽기를 묶는다** — `fs.openSync(full, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)`(리눅스에서 마지막 경로 성분이 심볼릭 링크면 `ELOOP` 로 즉시 실패 — swap 을 원천 차단) → 그 fd 로 `fs.fstatSync(fd)`(경로가 아니라 **이미 연 파일 자체**를 검사하므로 이후 경로 조작이 무의미) → 같은 fd 로 `fs.readFileSync(fd)`(Node `readFileSync` 는 숫자 fd 를 그대로 받는다) → `fs.closeSync(fd)`. 세 동작이 전부 같은 open file description 을 대상으로 해 검사와 읽기 사이에 끼어들 틈이 없다. `describeCredentialRef`(같은 파일, 값을 읽지 않고 `statSync` 로 존재만 보는 함수)는 내용을 반환하지 않으므로 이번 위험도에서 제외 — 다만 일관성을 위해 같이 정리해도 좋다는 참고만 남긴다.
+
+#### 지적 ③(`reason.ts:25` 유니코드 서식 문자 우회) — **채택(Medium, 직접 재현으로 실증)**
+
+**직접 재현(코드 수정·라이브 없이, 로직만 별도 스크립트에 복제해 순수 함수로 검증)**: `normalizeReason`(`reason.ts:25-27`)의 `CONTROL_RUN`(C0·C1·U+2028/2029)은 유니코드 **서식 문자**(Cf 카테고리 — soft hyphen U+00AD·zero-width space U+200B·ZWNJ U+200C·ZWJ U+200D 등)를 다루지 않는다. `isSecretLikeText`(`:40-44`)의 정규식(`SECRET_PREFIX`·`AUTH_SCHEME`·`JWT_LIKE`·`KEY_VALUE`·`TOKEN_RUN`)은 모두 문자 연속을 전제하므로, 서식 문자를 시크릿 패턴 중간에 끼워 넣으면 연속이 끊겨 탐지를 피한다. 정본 로직(정규식 5개)을 그대로 복제한 독립 스크립트로 6가지 케이스를 시험한 결과:
+
+| 케이스 | 삽입 문자 | `isSecretLikeText` |
+|---|---|---|
+| 기준(평문 `sk-proj-AbCdEf1234567890`) | 없음 | **true(탐지)** |
+| `s` `k-proj-...` 사이 | soft hyphen U+00AD | false(우회) |
+| `password` `=hunter2...` 사이 | ZWSP U+200B | false(우회) |
+| 25자 고엔트로피 토큰 글자마다 | ZWNJ U+200C | false(우회) |
+| `AKIAIOSFODNN7EXAMPLE` 글자마다 | soft hyphen U+00AD | false(우회) |
+| `token` `:qwerty...` 사이 | ZWSP U+200B | false(우회) |
+| `gh` `p_ABCDEF...` 사이 | ZWJ U+200D | false(우회) |
+
+기준 케이스만 탐지되고 나머지 6건 전부 우회됨을 실측 확인 — Codex 지적이 이론이 아니라 100% 재현되는 실제 우회다. 오탐 아님. 서식 문자는 **너비 0** 이라 사람이 감사 화면에서 읽을 때도 거의 보이지 않으면서 원래 문자는 순서대로 다 남아 있어(`s`+`k`+`-`+`p`+`r`+...) 복사·재구성이 쉽다는 점에서 탐지 우회가 곧 "감사 로그에 사실상 읽을 수 있는 비밀이 영구 저장된다"로 직결된다 — CX-3 의 존재 목적(§7 "reason 이 시크릿 유입 경로가 되면 안 된다")을 정확히 무력화한다.
+
+**최소 수정 방향**: `normalizeReason` 에 두 단계를 추가한다 — ① `raw.normalize('NFKC')`(전각/호환 문자 통합 — 별도 우회 클래스 방어, Codex 제안대로) ② **Cf(서식) 카테고리 제거**(공백 치환이 아니라 **삭제**여야 한다 — `\p{Cf}` 를 스페이스로 바꾸면 `s­k` → `s k` 가 되어 여전히 `sk-` 매칭이 깨진다. 원 문자가 폭 0 이라는 성질을 살려 그냥 제거해 `s­k`→`sk` 로 **인접을 복원**해야 탐지 정규식이 다시 걸린다): `raw.normalize('NFKC').replace(/\p{Cf}/gu, '')` 를 `CONTROL_RUN` 치환보다 먼저 적용. 정규식에 `u` 플래그가 필요(현재 파일의 다른 정규식엔 없음 — 신규 정규식에만 추가). 회귀 사례로 위 6건을 `infra/__tests__/task012c.test.ts` 의 `isSecretLikeText`/`checkReason` 테스트에 추가하고, 정상적인 한국어·일본어 문장(예사 사전 사유 문구)이 NFKC 이후에도 그대로 유지되는지 회귀 케이스를 최소 1건 더 권고(한글 음절·일본어 가나/한자는 NFKC 가 실질적으로 형태를 바꾸지 않지만 확인은 저비용).
+
+#### 판정 요약
+
+세 건 **전부 채택**(오탐 0·범위 밖 0), 셋 다 Medium — ①·②는 오늘 시점 활성 유출은 없음(①은 현재 목록이 실제 시크릿을 다 덮고 있고, ②는 `file:` credentialRef 가 아직 아무 데도 쓰이지 않음)이 확인됐지만 구조적 결함이라 다음 라운드 전에 닫는 편이 안전하고, ③은 활성 우회를 직접 재현했다(100% 우회 성공). 세 건 모두 Critical/High 는 아니라 REV-035 의 PASS 판정 자체를 뒤집지는 않으나(1단계 완료 기준·범위 준수는 그대로 유효), **프로토콜대로 채택 지적이 있으므로 developer 수정 → reviewer 재순환 대상**이다 — 특히 ②(TOCTOU)는 #93b(credentialRef 편집, 2단계) 착수 전 선결로, ③(reason 우회)은 CX-3 가 이미 운영(003g 발음사전) 경로에 반영돼 있어 우선순위를 높게 권고한다. 코드 수정은 하지 않았다(Read 전용·라이브 금지 준수, ③의 재현은 원본 로직을 그대로 복제한 별도 스크립트에서만 수행했고 저장소 파일은 건드리지 않았다).
+
+### 2026-09-29 11:05 reviewer — Codex C2 수정 재검(012c)
+
+대상: Developer 기록 "Codex C2 지적 3건 수정"(08:27) — ①②③ + REV-035 Low 1·2. 지시받은 3가지 재검 항목을 코드 추적 + 독립 재실행 + 별도 스크립트 재현으로 확인. 코드 수정·라이브 호출 없음(격리 미러 `~/.node-local/thekaiwa-rev035b` 는 재현·빌드용 스크래치 — 검증 뒤 삭제).
+
+**공통 검증**: 격리 미러(공유 미러와 분리) `tsc --noEmit` 0 에러 · `eslint`(변경 파일 7개 + 신규 테스트 3개) 0 에러 · `task012c.test.ts`(infra/engine/admin) **48/48 PASS**(REV-035 때 24개였던 것이 Codex C2 대응 테스트로 늘어남, Developer "신규 012c 단위 30/30" 과 세 파일 합산 기준 다름 — 직접 센 개별 테스트 수는 48개, 모두 통과) + `claudeArgs.test.ts`·`claudeWarm.test.ts`(buildChildEnv 와 무관 영역 회귀 확인) · 무관 기존 스위트(admin 5·engine 5·infra 5, 총 98건) 전부 회귀 없음.
+
+#### ① 자식 env 허용 목록(`claudeCli.ts` `buildChildEnv`) — 지시 사항 확인 결과
+
+**허용 목록에 프록시 env·인증서 경로·`CLAUDE_CONFIG_DIR` 가 시크릿 유출이나 동작 변경 여지가 있는지**: 코드(`claudeCli.ts:311-352`)로 목록 전체를 확인했다.
+- **인증서 경로**(`NODE_EXTRA_CA_CERTS`·`SSL_CERT_FILE`·`SSL_CERT_DIR`)는 **파일 경로 문자열**이지 시크릿 값 자체가 아니다 — TLS 신뢰 앵커를 어디서 읽을지 알려줄 뿐이라 유출 리스크는 없고, `ALLOWED_TOOLS=[]`(코드 확인, 도구 0개 허용)인 이 CLI 는 애초에 임의 코드 실행·MITM 삽입 경로가 없어 동작 변경 여지도 실질적으로 없다.
+- **`CLAUDE_CONFIG_DIR`**: `.env`·`.env.example`·`ecosystem.config.js` 어디에도 이 이름이 없고(`grep` 0건), `docs/deploy-order.md:258` 가 "인증은 `~/.claude`"(기본 위치)라고 명시한다 — 운영은 이 값을 쓰지 않으므로 현재는 무해한 no-op. Developer 도 "남은 점 ①"에 같은 확인을 남겼다(중복 확인, 일치).
+- **프록시 env(`HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` 대소문자 6개)** — 여기가 **지시 사항의 핵심 우려대로 실제 여지가 있다**: 값이 `http://user:pass@proxy.internal:3128` 형태면 URL 안에 자격 증명이 그대로 들어간다. `.env.example`·`docs/`·`ecosystem.config.js` 어디에도 프록시 설정이 없어(`grep` 0건) **오늘은 이 값 자체가 비어 있어 활성 유출은 없다**(구 블랙리스트 코드에서도 이 6개는 애초에 `drop` 목록에 없어 항상 넘어갔으므로 이번이 새로 연 문은 아니다 — 회귀 아님). 다만 Codex C2 finding ① 의 취지(허용 목록은 "정말 필요한 것만"이어야 fail-closed 가 의미 있다)를 살리면, **지금 아무도 안 쓰는 프록시 값을 미리 허용해 둘 이유가 약하다** — 실제로 회사/집 LAN 프록시가 생기는 시점에 그때 (a) 필요하면 추가하거나 (b) userinfo 를 제거한 origin 만 넘기는 정제 단계를 끼워 넣는 편이 지금 여섯 키를 미리 열어 두는 것보다 안전하다. **차단 사유는 아니다**(활성 유출 0·회귀 아님·CLI 자체가 도구 0개라 탈취 경로가 좁음) — 다음 라운드 권고로 남긴다: 프록시가 실제로 필요해지기 전까지 6개 키를 목록에서 빼거나, 남겨 두려면 `buildChildEnv` 에서 프록시 값에 대해서만 `new URL(v)` 파싱 뒤 `username`/`password` 가 있으면 빼는(origin+path 만 전달) 방어 한 줄을 추가.
+- **운영(pm2 env)에서 CLI 가 필요한 키가 빠지지 않는지**: Developer 가 격리 미러에서 실제 007 스모크 뒤 예열 CLI 자식의 `/proc/<pid>/environ` 을 직접 읽어 `HOME LANG MAX_THINKING_TOKENS NODE_ENV PATH USER` 6개만 남았고, 이 조건에서 **006 42/42·007 44/44·008 74/74 전부 통과**(실 LLM 호출 성공)했다는 라이브 근거를 남겼다 — 코드(`buildChildEnv` 단위 테스트 `task012c.test.ts:298-342`)와 이 라이브 결과가 서로 대조돼 "CLI 가 필요로 하는 키가 목록에서 빠지지 않았다"는 주장을 뒷받침한다. 다만 이 확인은 **격리 미러(개발 환경)의 프로세스 env** 기준이라, pm2 로 기동되는 운영 프로세스(systemd/pm2 daemon 이 물려주는 env 가 로그인 셸과 다를 수 있음 — 예: `LANG`·`TERM` 미설정)에서 동일 결과가 보장된다는 증거는 아니다. **권고**: 운영 반영 뒤 회화·채팅 스모크(006/007) 1회를 deployer/QA 표준 절차에 포함(이미 배포 체크리스트에 있는 항목과 같은 것이라 추가 비용은 낮음).
+
+**판정: 채택분 정상 반영 확인, 잔여 권고 1건(Low) 신규 기록** — 구조(블랙리스트→허용목록 fail-closed) 전환은 정확하고 Codex ①의 핵심 취지를 충족한다. 프록시 env 는 활성 위험이 아니라 차단하지 않되, 다음 라운드에 정리 권고.
+
+#### ② `file:` 시크릿 TOCTOU(`secrets.ts` `readSecretFile`) — 지시 사항 확인 결과
+
+코드(`secrets.ts:140-180`)로 fd 기반 열기·검사·읽기 결합을 확인했다 — `openSync(full, O_RDONLY|O_NOFOLLOW|O_NONBLOCK)`(`:153`) → 그 fd 로 `fstatSync`(`:159-162`, 파일종류·권한·소유자·크기) → 그 fd 의 실제 경로(`/proc/self/fd/N`)가 기대 경로와 일치하는지(`:163-164`) → 같은 fd 로 4KB+1 상한 읽기(`:165-172`) → `finally` 블록에서 `closeSync`(`:178`). 경로 재오픈이 코드 어디에도 없다(`readFileSync(full, …)` 같은 두 번째 open 호출이 사라졌음을 `grep 'readFileSync\|openSync'` 로 확인) — Codex C2 지적이 요구한 최소 수정 방향과 정확히 일치.
+
+**`/proc` 미존재 시 폴백이 fail-open 인지 fail-closed 인지**: `secretFileDeps.fdPath`(`:119-129`)가 `/proc/self/fd/<fd>` `readlinkSync` 실패 시 `null` 을 돌려주고, 호출부(`:163-164`)는 `where !== null && where !== full` 일 때만 거부한다 — 즉 **`/proc` 이 없으면(non-Linux) ③ 단계(경로 재확인) 만 조용히 생략된다(그 항목만 fail-open)**. 다만 이게 전체 TOCTOU 방어를 무력화하는 건 아니라고 판단한다: ①(`O_NOFOLLOW`, 마지막 경로 성분이 심볼릭 링크면 열기 자체가 `ELOOP` 로 실패)과 ②(fstat 이 이미 열린 fd 를 대상으로 하므로 open 이후 어떤 경로 조작도 결과에 영향 없음)는 `/proc` 과 무관하게 **항상** 걸린다 — Codex 가 지적한 원래 취약점("검사 통과 뒤 다른 경로를 다시 열어 읽는다")의 근본 원인(같은 fd 로 안 쓴 것)은 `/proc` 유무와 무관하게 닫혔다. `/proc` 이 없을 때 남는 것은 **더 좁은 잔여 창**(`SECRETS_DIR` 자체를 이루는 **중간 디렉터리 성분**을 `realpathSync(dir)` 호출과 `open()` 호출 사이에 바꿔치기해 `SECRETS_DIR` 밖의 동명 파일을 열게 만드는 경우)뿐이고, 이건 (a) `SECRETS_DIR`(0700, brownjeon 소유) 자체나 그 상위 디렉터리에 쓰기 권한이 있어야 하는 더 강한 전제가 필요하고 (b) 실제 배포 대상(우분투 pm2)에는 `/proc` 이 항상 있어 이 폴백 경로 자체가 도달하지 않는다(Node·Linux 표준 환경). **정리**: 주 위험(최종 파일 심볼릭 링크 스왑)은 fail-closed, 부차 위험(중간 디렉터리 스왑)만 `/proc` 없는 환경에서 조용히 fail-open — 실배포 환경에서는 해당 없음. **권고(비차단)**: `/proc` 부재로 ③이 생략된 경우 경고 로그 한 줄(`console.warn`, 값 없이)을 남기면 향후 배포 환경이 바뀌어도(예: 특정 컨테이너 런타임) 조용히 약화된 방어를 운영이 알아챌 수 있다.
+
+**`O_NONBLOCK` 이 FIFO 외에 부작용 없는지**: POSIX/Linux 의미상 `O_NONBLOCK` 은 **일반 파일 읽기에는 영향이 없다**(항상 즉시 "준비됨"으로 취급돼 `open`·`read` 동작이 달라지지 않는다) — 실제로 영향을 받는 대상은 FIFO(열기가 상대편이 열 때까지 블록되는 것을 막음, Developer 의도한 목적 그대로)와 일부 캐릭터 디바이스뿐이다. 유닉스 도메인 소켓은애초에 `open()` 으로 열 수 없다(`ENXIO`). 디렉터리를 실수로 가리키는 경우는 `O_NONBLOCK` 과 무관하게 `fstatSync` 의 `!st.isFile()` 에서 이미 거부된다(`:160`, 직접 확인). 결론: `O_NONBLOCK` 은 지적된 FIFO-블록 DoS 방지 목적 외에 정상 경로(일반 파일)에 부작용이 없다.
+
+**판정: 채택분 정상 반영 확인** — 주 취약점(최종 파일 TOCTOU)은 fd 결합으로 완전히 닫혔고, `/proc` 부재 시의 잔여 갭은 실배포 환경(Linux)에서 도달 불가능한 경로라 차단 사유가 아니다. 경고 로그 권고 1건(Low, 비차단)만 남긴다.
+
+#### ③ reason 유니코드 서식 문자 판정(`reason.ts` `reasonCheckForm`) — 지시 사항 확인 결과
+
+**직접 재현**(REV-035 때 우회를 실증한 것과 같은 방식 — 원본 정규식·로직을 별도 스크립트에 그대로 복제해 코드 수정 없이 순수 함수로 검증):
+1. **이전에 우회됐던 6가지 케이스를 현재 로직(`normalize('NFKC')` → `\p{Cf}`·`\p{Default_Ignorable_Code_Point}` 삭제)으로 재시험 → 6건 전부 `SECRET_LIKE` 로 다시 탐지됨**(soft hyphen·ZWSP·ZWNJ·ZWJ 삽입 케이스 전부 차단 확인) — Codex C2 ③이 요구한 수정이 실제로 우회를 닫았다.
+2. **일본어 이체자 선택자(IVS, 예: 辻+VS17 U+E0100)·이모지 변이 선택자(하트+VS16)·한글 초성 필러(U+115F)·한글 호환 필러(U+3164)·반각 가나를 섞은 정상적인 사유 문구 7종을 시험 → 전부 정상 통과(`checkReason.ok===true`)하고, 저장되는 값(`r.reason`)이 원문과 정확히 같음**(제어문자 정리 규칙만 적용된 `normalizeReason(raw)` 그대로, `Cf`/`Default_Ignorable` 제거·NFKC 는 판정용 형태에서만 쓰이고 저장값에는 전혀 영향을 주지 않음을 직접 대조). **지시 사항의 우려("이체자 선택자·한글 채움 문자를 잘못 합치거나 저장값을 바꾸지 않는지")는 근거가 없었다** — 잘못 합쳐지지도, 저장값이 바뀌지도 않는다.
+3. **왜 안전한지(구조적 근거)**: 비밀 탐지 정규식(`SECRET_PREFIX`·`AUTH_SCHEME`·`JWT_LIKE`·`KEY_VALUE`·`TOKEN_RUN`)은 전부 **ASCII 영숫자·기호 문자 클래스**(`[A-Za-z0-9\-_+/=]` 등)만 대상으로 한다 — 한글 음절(U+AC00~D7A3)·가나·한자·이체자 선택자(U+E0100 대)·한글 자모/필러(U+1100 대·U+3164)는 애초에 이 문자 클래스 밖이라, 그 사이에 있던 서식·기본 무시 문자를 지워 두 CJK/한글 글자가 "붙어도" ASCII 패턴이 새로 만들어지지 않는다(두 비-ASCII 문자가 인접해 봤자 여전히 비-ASCII). 이 구조적 이유 때문에 "정상적인 한국어·일본어 문장에서 의미 있는 폭-0 문자를 지워도 오탐이 생기지 않는다"는 게 우연이 아니라 설계상 자연스러운 결과다.
+4. **최소 길이(REQUIRED·TOO_SHORT) 검증**: 폭-0 문자만으로 채운 이유는 `REQUIRED`(visible=0), "수정"+ZWSP 12개(PRODUCTION)는 `TOO_SHORT`(visible=2) — 둘 다 프로젝트 자체 테스트(`infra/__tests__/task012c.test.ts:347-359`)에서도 확인되고 내 재현에서도 같은 결과.
+5. 프로젝트 자체 단위(`infra/__tests__/task012c.test.ts:307-336`)의 12개 케이스(soft hyphen·ZWSP·ZWNJ·ZWJ·BOM·word joiner·CGJ·전각 NFKC 조합)를 격리 미러에서 독립 재실행 — 전부 PASS.
+
+**판정: 채택분 정상 반영 확인, 지시 사항의 우려는 근거 없음(오탐·저장값 훼손 모두 미발생)**.
+
+#### REV-035 Low 1·2 확인
+
+- **Low 1**: `readCredentialFor(ref, target, originEnv, allowedRefs)` 로 시그니처가 바뀌어 `allowedRefs` 가 **필수 인자**가 됐다(`secrets.ts:190`, `!allowedRefs.includes(ref)` 를 REF_NOT_ALLOWED 조건에 추가 — `:195`) — 유일한 호출자 `prepareHomeM4Call` 이 `HOME_M4_ALLOWED_REFS` 를 넘긴다(`homeM4.ts:207`). 이제 이 함수 자체가 descriptor 허용 목록을 강제해, 호출자가 사전 검사를 빠뜨려도 새지 않는다 — 해결 확인.
+- **Low 2**: `homeM4.ts:35`·`homeM4.provider.ts:8` 양쪽에 `credentials/policy` 직접 import 이유(순환 회피) 주석 추가 확인 — 해결 확인.
+
+#### 종합 판정
+
+**세 건 모두 채택분이 정확히 반영됐다.** 새로 발견한 잔여 사항은 둘 다 **Low(비차단)**: (a) 자식 env 허용 목록의 프록시 6개 키가 오늘은 무해하지만 미사용 상태로 미리 열려 있음(다음 라운드 정리 또는 userinfo 제거 방어 권고) (b) `/proc` 부재 환경에서 TOCTOU 방어 ③단계가 조용히 생략됨(실배포는 Linux 라 해당 없음, 경고 로그 권고). Critical·High·Medium 신규 0건. **이 재검으로 Codex C2 3건에 대한 재순환은 종결 — REV-035 PASS 판정 유지**, 남은 Low 2건은 QA 진행을 막지 않는 참고 사항으로 인계한다.
+
+**QA 인계 추가(이번 재검)**: ["006/007/008 회화·채팅 실LLM 스모크가 pm2 운영 프로세스에서도 성공하는지(격리 미러 결과와 대조)", "발음 사전·설정 편집 reason 필드에 실제 일본어·한국어 텍스트(변이 선택자·필러 포함) 입력 시 정상 저장·조회되는지 화면/실사용 관점"] · **native_change: false** · **화면 변경 없음**.
 
 ## QA 기록
 
@@ -345,3 +577,28 @@ demo_gate:
 - 게시: https://claude.ai/artifact/6xHJK9pXzMpWxCfSZaT65o (v2, 전체 열람 후 게시 — 합성 데이터·외부 리소스 0·실주소/비밀 0 확인). 사용자 승인 대기(U-C4) + 데모 안 결정 6건(권고 d1 B·d2 A·d3 A·d4 A·d5 A·d6 A).
 - 답: ① 허용됐지만 서버에 없는 참조 **이름 표시 허용**(값 아님, 운영자가 무엇을 넣어야 할지 알아야 함) ② 운영 **끄기에는 기능 테스트 요구 안 함**(이유+PRODUCTION 입력, 기본 연결은 409) — 데모대로 ③ menu.ts `form` 탭·history 메뉴 phase 개방·설정 메뉴 설명 문구 — developer 반영 ④ #108 목록 DTO 에 출처(감사 action)·대상 이름·손상 여부 추가, 손상 판정 규칙은 003g 와 동일 ⑤ Diff DTO 단일 출처 = `types/admin.ts`, 정본은 api-contract #106 을 기준으로 admin-console/08 을 맞춘다(before/after·양쪽 출처·저장값·editability·strict·restartTarget·blocked) ⑥ #105 에 `versionId`(되돌릴 스냅샷) 입력 추가 — 운영 Rollback 사전 테스트용 ⑦ **LOCAL 은 기능 테스트 생략 가능**(운영만 필수 — §8-1 해석과 일치) ⑧ 잠금 배정은 D-C4 편집 키 표가 정본, 데모는 가정 ⑨ DTO 에 키별 `verifiable` 추가 ⑩ "재시작 필요" 문구 그대로.
 - 구현 가이드 주의: 데모의 `speech.review.threshold` 기본 0.72 는 합성값 — 실제 기본은 0.85(ACCURATE 0.90), 012c 에서 ⑤ 규칙(ACCURATE = max(설정, 0.90)) 적용(task-012b 03:30 판단).
+
+### 2026-09-29 08:10 Leader(메인) — 서버 1단계 결과 판단(R3·정본 차이)
+- **B1**: `conversation/__tests__/lesson.test.ts` REV-032 M1 폴백 테스트 픽스처(가짜 home-m4 연결이 허용 밖 ref·임의 포트)를 게이트에 맞게 수정 — 소관 PE(같은 파일을 A4 v7 로 수정 중)에 배정, developer 수정안(keyEnv `HOME_M4_API_KEY`·`AI_API_BASE` = 가짜 서버 origin·t.after 복원) 그대로.
+- **R3 판단**: ① 실행 검증 대상이 없는 키 — **표시 전용 키(VoiceProfile 표시명·정렬)** 는 `verifiable: NOT_NEEDED`(런타임 효과 없음)로 분류해 PRODUCTION 적용 허용, **`speech.review.threshold` 는 PRODUCTION 잠금 유지**(LOCAL 만 편집 — 데모 "운영 잠금"과 일치) ② TTS `sdpRatio·noise·noiseW` 는 캐시 키에 없어 **편집 불가 유지**(캐시 키 확장은 별도) ③ home-m4 `allowedTasks` **보류(편집 불가)** ④ 연결/Fallback **끄기는 기능 테스트 면제**(designer 확인 ② 답과 동일, 기본 연결 끄기는 409).
+- **정본 차이 채택**: 발음 사전 reason 길이 오류는 003g 계약대로 422 `E_REASON`(하위 호환, CX-3 의 400 은 설정 편집 경로) · PRODUCTION 사전 reason ≥10 · credentialRef 검사 맨 앞 "평문 의심" · env origin 아닌 https 이름 주소 거부(SNI 로 IP 고정 불가) · home-m4 `allowedRefs` 에 `env:AI_API_KEY` 별칭 · `file:` 시크릿 매 호출 읽기(캐시 없음 — 성능 문제 시 후속) · #101 미사용 허용 ref 노출(designer 확인 ① 답과 동일) → 정본 반영은 REV 뒤 Leader 에이전트.
+- R1(발음 사전 화면 오류 문구)·R2(005b 스모크 5c·5j·7c 기대값 — 운영 gateway 기동 환경)는 후속: R2 는 이번 라운드에서 스모크 기대값 갱신, R1 은 화면 작업(developer B) 때.
+- [2026-09-29 09:25] codex_gate/C2 engine=jev → **codex_required=true** / wanted_before_budget=true / mode=adversarial-review / focus=security(0.97) / budget_rule=CX-limit-unknown-r2 / codex_switch=on / calls_used=1/4 | overrides=CX-r2-post-review | fallback=- | tokens=1180
+
+
+### [2026-09-29 10:35] C2 adversarial-review focus=security(0.97) — done
+- judge 판정: [2026-09-29 09:25] codex_required=true(adversarial-review · security) / 호출 차수: 2/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa · base=f4a3f32(task_file) · snapshot=c16fd35
+- 지적 3건:
+  - [medium] src/modules/engine/adapters/llm/claudeCli.ts:312 — 자식 환경변수가 블랙리스트 방식(TTS_SERVICE_SECRET 한 항목만 추가)이라 다른 배포 시크릿이 상속될 수 있음 → 허용 목록 방식으로 전환, fail-closed 검사 추가, 미등록 변수 회귀 테스트 권고
+  - [medium] src/modules/infra/secrets.ts:124 — lstatSync와 readFileSync 사이의 TOCTOU 레이스로 검증된 파일을 심볼릭 링크나 다른 파일로 교체 가능 → O_NOFOLLOW로 fd 열고 fstat 후 같은 fd에서 제한된 바이트만 읽기, 읽은 뒤 inode 변경 검증
+  - [medium] src/modules/infra/reason.ts:25 — Unicode format 문자(soft hyphen U+00AD, zero-width space U+200B 등)로 Bearer 토큰·JWT·24자 토큰을 분할하면 정규식 패턴 매치 우회 가능 → 검사 전 Unicode 정규화와 Cf 문자 제거 후 secret-like 판정, soft hyphen·zero-width 분할 회귀 사례 추가
+- 검토하지 못한 범위: MariaDB 다중 프로세스 동시성·격리 수준(읽기 전용) · 아직 구현되지 않은 #101 라우트의 HTTP 응답 봉투 · Export·백업 파이프라인의 reason 원문 추가 복제 여부(범위 밖)
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260928T225948Z-task-012c-C2/raw.txt
+
+
+### 2026-09-29 11:40 Leader(메인) — 통합 QA(012c 서버 1단계 + task-010 A4 v7) PASS
+- 격리 복제본 운영 모드(`next build` → `env -i … next start` 3011·3012 두 프로세스). tsc 0 · eslint 0 · build ok · 단위 **790/791(1 skip, 0 fail)**.
+- 게이트 스모크 `task012c-gate-smoke.sh 3011 3012 <로그 2>` **26/26**(두 프로세스 30초 슬롯 1건만·SSRF 반례·home-m4 대상 고정·ref 거부·reason 비밀 유사 422·서식 문자 분할 422·LOCAL 행 원복), 서버 로그에 reason 원문 0.
+- 회귀: **003g 54/54 · 006 42/42(p50 4.6s) · 007 44/44 · 008 74/74 · 010 65/65(A4 v7 실생성) · 011 60/60** · 005b 44/47(5c·5j·7c = 운영 gateway 기동 환경 차이, 기준 HEAD 에서도 동일 — R2 후속).
+- **판정: QA PASS** → 012c 서버 1단계 + A4 v7 한 커밋으로 운영 반영. 운영 반영 뒤 006·007·008 운영 스모크로 Claude CLI 자식 env 허용 목록 가용성 재확인(REV-035 재검 권고).

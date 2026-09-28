@@ -71,7 +71,11 @@ export const styleBertVits2Provider: EngineProvider = {
       key('connection.baseUrl', 'URL', 'http://192.168.219.100:8200', { strict: true, envAlias: ['TTS_SERVICE_URL', 'TTS_BASE_URL'], description: 'M4 tts-service 주소' }),
       key('connection.timeoutMs', 'INTEGER', 20000, { min: 5000, max: 60000, description: '요청 상한(문장 1건은 8s fail-fast)' }),
       key('connection.retry', 'INTEGER', 1, { min: 0, max: 3, description: '재시도 횟수' }),
-      key('connection.credentialRef', 'SECRET_REF', 'file:tts-service-token', { strict: true, description: 'tts-service 인증 ref(값은 서버 파일). Phase 1 은 앱 env TTS_SERVICE_SECRET 을 쓴다' }),
+      key('connection.credentialRef', 'SECRET_REF', 'file:tts-service-token', {
+        strict: true,
+        allowedRefs: ['file:tts-service-token'],
+        description: 'tts-service 인증 ref(값은 서버 파일). Phase 1 은 앱 env TTS_SERVICE_SECRET 을 쓴다',
+      }),
       key('runtime.defaultModel', 'STRING', 'jvnv-F1-jp', { strict: true, description: '기본 음성 모델(AppSetting voice.default 의 VoiceProfile 과 일치해야 함)' }),
       key('runtime.language', 'ENUM', 'JP', { enum: ['JP'], editability: 'READ_ONLY', description: '언어 고정' }),
       key('runtime.maxChars', 'INTEGER', 100, { min: 50, max: 200, description: '문장 분할 상한(서비스 상한 100 을 넘지 않는다)' }),

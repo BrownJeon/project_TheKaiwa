@@ -12,7 +12,7 @@
  * PRODUCTION_CONFIRMATION_REQUIRED) · 404 · 409 CONFLICT(VERSION_CONFLICT·E_LEXICON_DUPLICATE·ALREADY_ACTIVE·NO_CHANGE) ·
  * 422 UNPROCESSABLE(E_LEXICON_ENTRY_INVALID·E_IMPORT_*·E_PREVIEW_TEXT_TOO_LONG) · 422 ENGINE_UNAVAILABLE · 429 · 502/504.
  */
-import { ApiError, codePointLength, dates, findAuditsByTargets, rateLimit, readFormDataCapped, recordAudit, sanitizeText, userBriefs, userExists, withTransaction, type AuditBrief, type AuditEntry } from '@/modules/infra'
+import { ApiError, checkReason, codePointLength, dates, findAuditsByTargets, rateLimit, readFormDataCapped, recordAudit, sanitizeText, userBriefs, userExists, withTransaction, type AuditBrief, type AuditEntry } from '@/modules/infra'
 import { lessonExists, topicExists } from '@/modules/learning'
 import {
   afterLexiconCommit,
@@ -74,11 +74,20 @@ const SCOPE_REF_RE = /^[A-Za-z0-9_-]{1,40}$/
 
 const invalid = (field: string, message: string, extra: Record<string, unknown> = {}) => new ApiError('VALIDATION', message, { field, ...extra })
 
-/** 422 칸 오류 — `details.errors[{field, code, message}]` + `details.fields{field: code}`(첫 코드). */
+/**
+ * 422 칸 오류 — `details.errors[{field, code, message}]` + `details.fields{field: code}`(첫 코드).
+ * 이유 칸이 비밀 유사 문자열이면 갈래를 `details.reason:'E_REASON_SECRET_LIKE'` 로 올린다(task-012c CX-3 — 설정 편집 경로와 같은 reason, 원문은 싣지 않는다).
+ */
 export function fieldErrors(errors: readonly LexiconFieldError[], extra: Record<string, unknown> = {}): ApiError {
   const fields: Record<string, string> = {}
   for (const e of errors) if (!(e.field in fields)) fields[e.field] = e.code
-  return new ApiError('UNPROCESSABLE', errors[0]?.message ?? '입력값을 확인해 주세요.', { reason: 'E_LEXICON_ENTRY_INVALID', errors, fields, ...extra })
+  const secret = errors.find((e) => e.code === 'E_REASON_SECRET_LIKE')
+  return new ApiError('UNPROCESSABLE', (secret ?? errors[0])?.message ?? '입력값을 확인해 주세요.', {
+    reason: secret ? 'E_REASON_SECRET_LIKE' : 'E_LEXICON_ENTRY_INVALID',
+    errors,
+    fields,
+    ...extra,
+  })
 }
 
 export interface LexiconWriteMeta {
@@ -95,15 +104,28 @@ function parseBaseVersion(raw: unknown): number {
   return n
 }
 
-/** 쓰기 공통 본문: `baseVersion`(지금 ACTIVE 번호, 없으면 0 — 없거나 형식 오류면 400) · `reason`(1~200자, 칸 오류 E_REASON) · `confirm`. */
-export function readWriteMeta(body: Record<string, unknown>): LexiconWriteMeta {
+/**
+ * 쓰기 공통 본문: `baseVersion`(지금 ACTIVE 번호, 없으면 0 — 없거나 형식 오류면 400) · `reason` · `confirm`.
+ * `reason` 은 관리자 쓰기 공용 검사(infra `checkReason`, task-012c Codex C1 CX-3 — Leader 03:15 결정으로 사전 쓰기에도 적용): 줄바꿈·제어문자 → 공백,
+ * 1~200자(PRODUCTION 10~200자), 비밀 유사 문자열 거부. 오류 모양은 003g 계약 그대로 **칸 오류**(422 `E_REASON`)이고 비밀 유사만 `E_REASON_SECRET_LIKE`.
+ */
+export function readWriteMeta(body: Record<string, unknown>, opts: { production?: boolean } = {}): LexiconWriteMeta {
   const baseVersion = parseBaseVersion(body.baseVersion)
-  const reason = typeof body.reason === 'string' ? sanitizeText(body.reason) : ''
+  const r = checkReason(body.reason, { production: opts.production === true })
   const reasonErrors: LexiconFieldError[] = []
-  if (!reason) reasonErrors.push({ field: 'reason', code: 'E_REASON', message: '변경 이유를 입력해 주세요.' })
-  else if (codePointLength(reason) > LEXICON_LIMITS.reasonMax) reasonErrors.push({ field: 'reason', code: 'E_REASON', message: `변경 이유는 ${LEXICON_LIMITS.reasonMax}자 이하여야 합니다.` })
+  if (!r.ok) {
+    const message =
+      r.problem === 'SECRET_LIKE'
+        ? '이유에 비밀번호·키처럼 보이는 문자열이 있어요. 그 부분을 빼고 다시 적어 주세요.'
+        : r.problem === 'TOO_LONG'
+          ? `변경 이유는 ${LEXICON_LIMITS.reasonMax}자 이하여야 합니다.`
+          : r.problem === 'TOO_SHORT'
+            ? `운영(PRODUCTION) 사전 변경은 이유를 ${r.min}자 이상 적어 주세요.`
+            : '변경 이유를 입력해 주세요.'
+    reasonErrors.push({ field: 'reason', code: r.problem === 'SECRET_LIKE' ? 'E_REASON_SECRET_LIKE' : 'E_REASON', message })
+  }
   const confirm = typeof body.confirm === 'string' ? body.confirm : null
-  return { baseVersion, reason, confirm, reasonErrors }
+  return { baseVersion, reason: r.ok ? r.reason : '', confirm, reasonErrors }
 }
 
 /**
@@ -347,7 +369,7 @@ export async function getLexiconEntryDto(actor: AdminActor, id: string): Promise
 // ── 추가·수정·비활성 ─────────────────────────────────────────────────────
 
 export async function createLexiconEntry(actor: AdminActor, body: Record<string, unknown>): Promise<LexiconWriteResultDto> {
-  const meta = readWriteMeta(body)
+  const meta = readWriteMeta(body, { production: actor.environment === 'PRODUCTION' })
   authorizeLexiconWrite(actor, meta)
   const parsed = parseEntryInput(pickEntryFields(body), null)
   if (!parsed.value || meta.reasonErrors.length) throw fieldErrors([...parsed.errors, ...meta.reasonErrors])
@@ -363,7 +385,7 @@ export async function createLexiconEntry(actor: AdminActor, body: Record<string,
 }
 
 export async function updateLexiconEntry(actor: AdminActor, id: string, body: Record<string, unknown>): Promise<LexiconWriteResultDto> {
-  const meta = readWriteMeta(body)
+  const meta = readWriteMeta(body, { production: actor.environment === 'PRODUCTION' })
   authorizeLexiconWrite(actor, meta)
   const patch = pickEntryFields(body)
   if (Object.keys(patch).length === 0) throw invalid('entry', '바꿀 값이 없습니다.')
@@ -384,7 +406,7 @@ export async function updateLexiconEntry(actor: AdminActor, id: string, body: Re
 }
 
 export async function disableLexiconEntry(actor: AdminActor, id: string, body: Record<string, unknown>): Promise<LexiconWriteResultDto> {
-  const meta = readWriteMeta(body)
+  const meta = readWriteMeta(body, { production: actor.environment === 'PRODUCTION' })
   authorizeLexiconWrite(actor, meta)
   if (meta.reasonErrors.length) throw fieldErrors(meta.reasonErrors)
   const r = await commit(actor, meta, { kind: 'DISABLE', id }, new Set(), (w) => {
@@ -447,7 +469,7 @@ export async function importLexicon(actor: AdminActor, req: Request, sp: URLSear
     const v = form.get(k)
     return typeof v === 'string' ? v : undefined
   }
-  const meta = dryRun ? null : readWriteMeta({ baseVersion: field('baseVersion'), reason: field('reason'), confirm: field('confirm') })
+  const meta = dryRun ? null : readWriteMeta({ baseVersion: field('baseVersion'), reason: field('reason'), confirm: field('confirm') }, { production: actor.environment === 'PRODUCTION' })
   if (meta) {
     authorizeLexiconWrite(actor, meta)
     if (meta.reasonErrors.length) throw fieldErrors(meta.reasonErrors)
@@ -629,7 +651,7 @@ export async function getLexiconVersionDto(actor: AdminActor, versionParam: stri
 
 export async function rollbackLexicon(actor: AdminActor, versionParam: string, body: Record<string, unknown>): Promise<LexiconRollbackResultDto> {
   const targetVersion = parseVersionParam(versionParam)
-  const meta = readWriteMeta(body)
+  const meta = readWriteMeta(body, { production: actor.environment === 'PRODUCTION' })
   authorizeLexiconWrite(actor, meta)
   if (meta.reasonErrors.length) throw fieldErrors(meta.reasonErrors)
   const r = await commit(actor, meta, { kind: 'ROLLBACK', targetVersion }, new Set(), (w) => ({
