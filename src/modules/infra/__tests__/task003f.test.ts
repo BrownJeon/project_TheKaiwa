@@ -9,7 +9,7 @@ process.env.JWT_SECRET ??= 'test-jwt-secret-0123456789abcdef'
 
 import { etagMatches, parseRange, serveFile, StreamSlots } from '../fileServe'
 import { realpathInside } from '../storage'
-import { buildVersionInfo, compareVersionNames, parseClientVersion, pickReleaseForFile, releaseFilePath, type ReleaseRow } from '../appRelease'
+import { buildVersionInfo, compareVersionNames, parseClientVersion, pickReleaseForFile, releaseFilePath, verifyReleaseFile, type ReleaseRow } from '../appRelease'
 import { bindAppAuthCode, consumeAppAuthCode, issueAppAuthCode, type AppAuthCodeStore, type AppAuthCodeUser } from '../auth/oauth/app-code'
 import { isPkceChallenge, isPkceVerifier, pkceChallengeOf } from '../auth/oauth/pkce'
 import { createOAuthState, verifyOAuthState } from '../auth/oauth/state'
@@ -215,6 +215,31 @@ test('/app/download: 파일 이름 → 행, apkPath → releases 아래 경로�
   assert.equal(releaseFilePath('/srv/data/releases/../x.apk', dir), null)
   assert.equal(releaseFilePath('sub/thekaiwa.apk', dir), null)
   assert.equal(releaseFilePath('thekaiwa.txt', dir), null)
+})
+
+test('/app/download: 기록 sha256 과 같은 파일만(바뀐 파일·밖을 가리키는 링크·없는 파일은 null)', async () => {
+  const dir = tmp()
+  try {
+    const releases = join(dir, 'releases')
+    mkdirSync(releases)
+    const apk = randomBytes(4096)
+    writeFileSync(join(releases, 'thekaiwa-1.0.0.apk'), apk)
+    const sha = createHash('sha256').update(apk).digest('hex')
+    const row = { ...rel(1, '1.0.0', 1), sha256: sha }
+    const ok = await verifyReleaseFile(row, releases)
+    assert.equal(ok?.sha256, sha)
+    assert.equal(ok?.size, 4096)
+    assert.equal(ok?.fileName, 'thekaiwa-1.0.0.apk')
+    assert.equal(await verifyReleaseFile({ ...row, sha256: 'b'.repeat(64) }, releases), null, '기록과 다른 해시')
+    assert.equal(await verifyReleaseFile({ ...row, apkPath: 'none.apk' }, releases), null)
+    writeFileSync(join(dir, 'outside.apk'), apk)
+    symlinkSync(join(dir, 'outside.apk'), join(releases, 'link.apk'))
+    assert.equal(await verifyReleaseFile({ ...row, apkPath: 'link.apk' }, releases), null, 'releases 밖을 가리키는 링크')
+    writeFileSync(join(releases, 'thekaiwa-1.0.0.apk'), Buffer.concat([apk, Buffer.from('x')]))
+    assert.equal(await verifyReleaseFile(row, releases), null, '파일이 바뀌면(크기·수정 시각) 다시 해시해 거부')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 // ── PKCE(C1-1) ─────────────────────────────────────────────────────────

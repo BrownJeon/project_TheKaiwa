@@ -190,7 +190,12 @@ export interface ReleaseDownload {
 export async function resolveReleaseDownload(file: string): Promise<ReleaseDownload | null> {
   const release = pickReleaseForFile(await listReleases(), file)
   if (!release) return null
-  const dir = dataPath('releases')
+  return verifyReleaseFile(release, dataPath('releases'))
+}
+
+/** 행의 파일이 `releasesDir` 아래 실제로 있고 sha256 이 기록과 같은가(테스트는 임시 디렉터리로). */
+export async function verifyReleaseFile(release: ReleaseRow, releasesDir: string): Promise<ReleaseDownload | null> {
+  const dir = resolve(releasesDir)
   const candidate = releaseFilePath(release.apkPath, dir)
   if (!candidate) return null
   const real = await realpathInside(dir, candidate)

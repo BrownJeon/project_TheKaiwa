@@ -96,8 +96,9 @@
 
 | 헤더 | 용도 |
 |---|---|
-| `X-Client-Platform: web \| android` | 계측(`RequestTrace.steps[].client`)·라우터 device capability 힌트. 없으면 `web` |
-| `X-App-Version: 1.2.0` | 앱 배너·호환 판단(§4). 웹은 생략 |
+| `X-Client-Platform: app` | 앱 WebView 가 붙인다(구현값 `app` 이 정본 — task-003f Leader ⑫, 종전 표기 `android`). 인식 모드 해석(#16 OFFLINE 허용)·#19 `onDevice` 블록·계측. 없거나 다른 값이면 `web`. 클라이언트가 붙이므로 위조될 수 있으나 영향은 자기 계정의 인식 경로뿐 |
+| `X-App-Version: 1.2.0` | 앱 versionName(`App.getInfo().version`). 표시·로그용 — **비교에 쓰지 않는다**. 웹은 생략 |
+| `X-App-Build: 12` | 앱 versionCode(`App.getInfo().build`). #8 배너·강제 업데이트 판단은 **이 정수로만**(task-003f Leader ③ — 이름 문자열 비교는 `1.10 < 1.9` 류 오판). 웹은 생략 |
 | `X-Debug-Session: <DebugSession.id>` | DEVELOPER 이상이 만든 디버그 세션에 요청을 귀속(§2-24). 세션이 없거나 만료면 무시 |
 
 ---
@@ -111,15 +112,16 @@
 | # | Method | Path | 목적 | auth | 층 | Phase | 요청 | 응답 |
 |---|---|---|---|---|---|---|---|---|
 | 1 | GET | `/api/health` | 의존성 boolean 점검 | P | infra | 0 | — | `{app,status,degraded[],checks{}}` |
-| 2 | GET | `/api/auth/google?platform=web\|app&next=` | OAuth 시작 | P | infra/auth | 0 | query | 302 Google |
+| 2 | GET | `/api/auth/google?platform=web\|app&callbackUrl=&challenge=` | OAuth 시작(앱은 PKCE `challenge` 필수) | P | infra/auth | 0 | query | 302 Google |
 | 3 | GET | `/api/auth/google/callback` | OAuth 콜백 → pending 쿠키 | P | infra/auth | 0 | `code,state` | 302 `/invite` 또는 착지 |
 | 4 | POST | `/api/auth/complete` | 초대코드 확인·계정 생성·세션/딥링크 | P(pending 쿠키) | infra/auth | 0 | `{inviteCode?}` | `{user}` 또는 `{appRedirect}` |
-| 5 | GET | `/api/auth/app-exchange?code=` | 앱 코드 → 세션 쿠키 | P(코드) | infra/auth | 0 | query | 302 |
+| 5 | GET | `/api/auth/app-exchange?code=&verifier=&next=` | 앱 코드+PKCE verifier → 세션 쿠키 | P(코드+verifier) | infra/auth | 0 | query | 302 |
 | 6 | POST | `/api/auth/logout` | 세션 종료 | S | infra/auth | 0 | — | `{ok:true}` |
 | 7 | GET | `/api/auth/me` | 세션 사용자 | S | infra/auth | 0 | — | `{user}` |
-| 8 | GET | `/api/app/version` | APK 최신 버전·배너 | P | infra | 0 | `X-App-Version` | `{latest,latestCode,minSupported,url,notes,reinstallRequired}` |
-| 9 | GET | `/models/reazonspeech-int8/manifest.json` | 온디바이스 모델 manifest | P | infra/storage | 0 | — | manifest JSON |
-| 10 | GET | `/models/reazonspeech-int8/<version>/<file>` | 모델 파일(Range 지원) | P | infra/storage | 0 | `Range` | 바이너리 |
+| 8 | GET | `/api/app/version` | APK 최신 버전·배너 | P | infra | 0 | `X-App-Build`·`X-App-Version` | `{latest,latestCode,minSupported,minSupportedCode,url,notes,sha256,bytes,publishedAt,updateAvailable,reinstallRequired,updateRequired}` |
+| 8a | GET | `/app/download/<file>` | APK 배포본(`latest.apk` = 최신) | P | infra | 0 | `Range` | `application/vnd.android.package-archive` |
+| 9 | GET | `/models/ondevice-ja-v1/manifest.json` | 온디바이스 모델 manifest(불투명 id) | P | speech/stt(배포) | 0 | — | manifest JSON |
+| 10 | GET | `/models/ondevice-ja-v1/<version>/<file>` | 모델 파일(Range 지원) | P | speech/stt(배포) | 0 | `Range` | 바이너리 |
 
 ### 1-2. 사용자 `/api/v1`
 
@@ -352,18 +354,19 @@
 
 | # | 계약 |
 |---|---|
-| #2 `GET /api/auth/google?platform=web\|app&next=/study/today` | `state` 에 `platform`·`next`(동일 출처 절대경로로 정규화) 서명. 302 → Google. `platform` 기본 `web` |
-| #3 `GET /api/auth/google/callback?code=&state=` | 신원 검증 후 **계정을 만들지 않고** 서명된 pending 쿠키(`thekaiwa_oauth_pending`, 10분)만 심는다. 기존 사용자면 바로 세션(웹) 또는 `AppAuthCode` 딥링크(앱). 신규면 302 `/invite` |
-| #4 `POST /api/auth/complete` body `{ "inviteCode": "..." }` | IP 기준 시도 제한(5회/10분, 초과 `429`) → 초대코드 검증(`SIGNUP_INVITE_CODE`, 불일치 `403 FORBIDDEN`) → `User` 생성(`OWNER_EMAIL` 이면 `role: SUPER_ADMIN`, 그 외 `USER`) + `Profile`·`UserVoiceSetting`·`UserSpeechSetting` 기본행. 웹: 세션 쿠키 + `{ "user": {...}, "next": "/study/today" }`. 앱: `{ "appRedirect": "thekaiwa://auth/callback?code=<64hex>&next=%2Fstudy%2Ftoday" }`(코드 60초·1회용) |
-| #5 `GET /api/auth/app-exchange?code=&next=` | 코드 형식(64 hex) → 조건부 UPDATE 1건(소각) → 세션 쿠키 → 302 `next`. 만료·재사용·미존재는 **구분 없이** 302 `/login?oauth_error=app_code_invalid` |
+| #2 `GET /api/auth/google?platform=web\|app&callbackUrl=/study/today&challenge=<43자>` | `state` 에 `platform`·`next`(동일 출처 절대경로로 정규화)·**앱이면 PKCE `challenge`**(S256, base64url 43자) 서명. 302 → Google. `platform` 기본 `web`. `platform=app` 인데 challenge 가 없거나 형식이 다르면 Google 로 가지 않고 302 `thekaiwa://auth/callback?error=app_login_invalid`(첫 APK 부터 필수 — task-003f C1-1) |
+| #3 `GET /api/auth/google/callback?code=&state=` | 신원 검증 후 **계정을 만들지 않고** 서명된 pending 쿠키(`thekaiwa_oauth_pending`, 15분 — challenge 도 함께 서명)만 심는다. 기존 사용자면 바로 세션(웹) 또는 `AppAuthCode` 딥링크(앱 — 아래 PKCE 결속). 신규면 302 `/invite` |
+| #4 `POST /api/auth/complete` body `{ "inviteCode": "..." }` | IP 기준 시도 제한(5회/10분, 초과 `429`) → 초대코드 검증(`SIGNUP_INVITE_CODE`, 불일치 `403 FORBIDDEN`) → (앱인데 pending 에 challenge 없으면 계정 생성 **전** `400`) → `User` 생성(`OWNER_EMAIL` 이면 `role: SUPER_ADMIN`, 그 외 `USER`) + `Profile`·`UserVoiceSetting`·`UserSpeechSetting` 기본행. 웹: 세션 쿠키 + `{ "user": {...}, "next": "/study/today" }`. 앱: `{ "appRedirect": "thekaiwa://auth/callback?code=<code_r 64hex>" }`(코드 60초·1회용) |
+| #5 `GET /api/auth/app-exchange?code=<code_r>&verifier=<PKCE verifier>&next=` | 형식(code 64 hex, verifier RFC 7636 43~128자) → `sha256hex(code_r + ":" + S256(verifier))` 로 조건부 UPDATE 1건(소각) → 세션 쿠키 → 302 `next`(동일 출처 경로만). 형식 오류·verifier 불일치·만료·재사용·미존재는 **구분 없이** 302 `/login?oauth_error=app_code_invalid`. 틀린 verifier 시도는 코드를 태우지 않는다(행을 못 찾음) |
 | #6 `POST /api/auth/logout` | 쿠키 삭제, `{ "ok": true }` |
 | #7 `GET /api/auth/me` | `{ "user": { "id", "email", "name", "role" } }`. 미인증 `401` |
 
 - 세션 JWT payload `{ userId, email, role, iat, exp }`; role 변경 시 다음 요청에서 DB 재조회로 갱신(캐시 5분).
+- **앱 로그인 PKCE 결속(task-003f C1-1, 스키마 변경 없음)**: 앱 WebView 가 시작 때 verifier(32바이트 랜덤 base64url 43자)를 만들어 WebView 메모리 + sessionStorage(10분·1회용)에만 두고 `challenge = base64url(sha256(verifier))` 만 #2 에 싣는다. 콜백·complete 는 딥링크에 랜덤 `code_r` 만 싣고 DB `AppAuthCode.code` 에는 `sha256hex(code_r + ":" + challenge)` 를 저장한다 — `thekaiwa://` 를 가로챈 다른 앱은 verifier 가 없어 #5 를 통과하지 못하고, DB 가 새도 code_r 을 되돌릴 수 없다. Verified App Links(https 콜백 + assetlinks.json)는 후속 강화 항목.
 
 #### #8 `GET /api/app/version` (공개)
 
-`AppRelease` 최신 행 + 요청 헤더 `X-App-Version` 비교. 웹만 바뀐 배포는 행이 없으므로 배너가 뜨지 않는다.
+`AppRelease` 최신 행(versionCode 내림차순) + 요청 헤더 `X-App-Build`(versionCode). 웹만 바뀐 배포는 행이 없으므로 배너가 뜨지 않는다. IP 당 60/분, `Cache-Control: no-store`.
 
 ```json
 {
@@ -372,44 +375,65 @@
     "latest": "1.2.0",
     "latestCode": 12,
     "minSupported": "1.1.0",
+    "minSupportedCode": 11,
     "url": "https://kaiwa.xn--lh0b87pnudm10a4vd.com/app/download/latest.apk",
     "notes": "온디바이스 음성 인식 플러그인 갱신",
     "sha256": "…",
+    "bytes": 31457280,
+    "publishedAt": "2026-10-03T09:00:00.000Z",
+    "updateAvailable": true,
     "reinstallRequired": true,
-    "publishedAt": "2026-10-03T09:00:00.000Z"
+    "updateRequired": false
   },
   "message": null
 }
 ```
 
-- `reinstallRequired` = 요청 앱 버전 `< latest` 이고 최신 릴리스가 네이티브 변경을 포함(`AppRelease.reinstallRequired`). 헤더가 없으면 `false`. 앱 버전 `< minSupported` 면 클라이언트는 차단 배너(닫기 불가).
-- 배포 기록: deployer 가 `scripts/build-apk.sh` 후 `AppRelease` 행을 seed 스크립트(`npm run release:apk -- --code 12 --name 1.2.0 --notes …`)로 넣는다.
+- **비교는 versionCode 정수로만**(task-003f Leader ③): `updateAvailable = reinstallRequired = X-App-Build < latestCode`(AppRelease 행 = APK 를 새로 깔아야 하는 네이티브 변경), `updateRequired = X-App-Build < minSupportedCode`(닫을 수 없는 띠 — 앱 사용은 막지 않고 휴대폰 인식 경로만 끈다, Leader ④). `X-App-Build` 가 없거나 형식이 다르면 셋 다 `false`. `minSupported`(이름)는 그 번호의 행이 있을 때만.
+- `url` = `APK_DOWNLOAD_BASE`(https) + `/latest.apk`, 없으면 `/app/download/latest.apk`. 화면은 같은 출처 `/app/download/` 일 때만 연다. `bytes` = 최신 APK 파일 크기(stat, 없으면 `null`).
+- 행이 없으면 `latest`·`latestCode`·`url`·… 전부 `null`, 플래그 `false`.
+- 배포 기록: deployer 가 `scripts/build-apk.sh` 후 `AppRelease` 행(`versionCode`·`versionName`·`apkPath` = `DATA_ROOT/releases/` 아래 **파일 이름**·`sha256`·`notes`·`minSupported`)을 넣는다.
 
-#### #9~#10 온디바이스 모델 서빙 `/models/reazonspeech-int8/*` (공개, 정적)
+#### #8a `GET /app/download/<file>` (공개) — APK 배포본
 
-경로는 플러그인이 하드코딩하는 **고정 URI** 라 무버전이다(모델 갱신은 manifest `version` 으로). `DATA_ROOT/models/reazonspeech-int8/` 를 nginx `alias` 로 직접 서빙(`Accept-Ranges: bytes`, `Cache-Control: public, max-age=86400`, manifest 는 `max-age=300`).
+`latest.apk` = 최신 행, 그 밖은 `apkPath` 파일 이름이 같은 행. `DATA_ROOT/releases/` 아래(실경로 확인)에서 **기록한 `sha256` 과 같은 파일만** 스트리밍한다(파일 해시는 크기·수정 시각 기준 캐시). 헤더 `Content-Type: application/vnd.android.package-archive`·`Content-Disposition: attachment; filename="thekaiwa-1.2.0.apk"`·`X-Content-SHA256`·`ETag: "<sha256>"`·`Accept-Ranges: bytes`(206·416·If-Range)·`Cache-Control: no-cache`(latest) / `public, max-age=86400`(이름 파일). 행·파일이 없거나 해시가 다르면 같은 `404`(서버 로그만). 동시 스트림 4(넘으면 `503 Retry-After: 30`). 앱은 Custom Tabs 로 연다(WebView 이동·`fetch` 금지). nginx 는 프록시만(www-data 는 DATA_ROOT 를 못 읽음).
+
+#### #9~#10 온디바이스 모델 서빙 `/models/<id>/*` (공개) — task-003f
+
+공개 경로는 **불투명 패키지 id**(`ondevice-ja-v1`) — #19 사용자 응답에 엔진·모델 이름이 실리지 않게(완료 기준 8, Leader ⑧). 디스크 위치는 `DATA_ROOT/models/<dir>/`(`SPEECH_MODELS_DIR` 절대 경로가 있으면 그 아래) — `<dir>` 은 ONDEVICE REALTIME_STT connection 의 `connection.manifestUrl`(`/models/<dir>/manifest.json`)에서 읽는다. ONDEVICE connection 이 꺼져 있으면 배포도 `404`. nginx `/models/` 는 앱 라우트로 프록시한다(`GET`·`HEAD`, 인증 없음 — 로그인 전 플러그인이 받는다).
+
+**#9 manifest** — 디스크 manifest 를 **매번 엄격 검증**(C1-3: `name`·`version`(`^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$`) 형식, 파일 1~16개, `path` 는 단일 파일명(`/`·`..`·점 시작 불가)·중복 없음, 파일별 `sha256`(소문자 64 hex)·`bytes`(양의 정수) 필수, 합계 = `totalBytes` ≤ 300MiB)한 뒤, 파일마다 **같은 운영 origin 의 절대 URL** 을 붙여 내보낸다. 검증 실패는 배포하지 않음(`404`, 서버 로그만). `Cache-Control: no-cache` + `ETag`(본문 해시, `If-None-Match` → 304).
 
 ```json
 {
+  "id": "ondevice-ja-v1",
   "name": "reazonspeech-int8",
-  "version": "2024-08-01.1",
+  "version": "2024-08-01-int8-v1",
   "engine": "sherpa-onnx",
-  "modelType": "zipformer-transducer-offline",
+  "model": "zipformer-ja-reazonspeech-2024-08-01-int8",
+  "modelType": "transducer",
   "sampleRate": 16000,
+  "language": "ja",
+  "license": "Apache-2.0",
+  "source": "…",
   "minPluginVersion": "0.1.0",
-  "totalBytes": 167772160,
+  "createdAt": "2026-09-28T00:01:25+0900",
+  "baseUrl": "https://kaiwa.xn--lh0b87pnudm10a4vd.com/models/ondevice-ja-v1/2024-08-01-int8-v1/",
+  "totalBytes": 169824553,
   "files": [
-    { "path": "encoder-epoch-99-avg-1.int8.onnx", "sha256": "…", "bytes": 155189248 },
-    { "path": "decoder-epoch-99-avg-1.onnx",      "sha256": "…", "bytes": 2097152 },
-    { "path": "joiner-epoch-99-avg-1.int8.onnx",  "sha256": "…", "bytes": 1048576 },
-    { "path": "tokens.txt",                        "sha256": "…", "bytes": 65536 },
-    { "path": "silero_vad.onnx",                   "sha256": "…", "bytes": 2228224 }
-  ],
-  "runtimeDefaults": { "numThreads": 2, "decodingMethod": "greedy_search", "provider": "cpu", "vad": { "silenceMs": 500 } }
+    { "path": "encoder-epoch-99-avg-1.int8.onnx", "sha256": "2c7b…", "bytes": 154670139, "role": "encoder",
+      "url": "https://kaiwa.xn--lh0b87pnudm10a4vd.com/models/ondevice-ja-v1/2024-08-01-int8-v1/encoder-epoch-99-avg-1.int8.onnx" }
+  ]
 }
 ```
 
-- 파일 URL = `/models/reazonspeech-int8/<version>/<path>`. 플러그인은 sha256 검증 실패 시 파일을 버리고 `downloadModel` 오류 `MODEL_CHECKSUM` 을 낸다. `runtimeDefaults` 는 `GET /api/v1/speech/config` 가 덮어쓴다(§2-4).
+- 실제 모델 이름(`name`·`engine`·`model`·`source`)은 **manifest 본문에만** 있다(화면·#19 에는 없음).
+- origin: 운영(`NODE_ENV=production`)은 `OAUTH_CALLBACK_BASE`(https), 개발 서버는 요청 origin. 파일 URL = `<manifest 디렉터리>/<version>/<path>`(플러그인 규칙과 같다 — 플러그인은 manifest 와 다른 origin·https 아닌 URL·다른 호스트로의 리다이렉트를 거부, 다운그레이드 거부, `.part` 재개 후 전체 sha256 재검증·원자적 rename).
+
+**#10 파일** — **현재 manifest 의 현재 `version` 에 적힌 파일만**(옛 버전·목록 밖 파일은 `404`), 디스크 크기가 기록과 같을 때만(실경로가 모델 루트 안인지 확인 — 밖을 가리키는 링크는 따라가지 않음). `Accept-Ranges: bytes`, 단일 구간 `206`(여러 구간은 무시하고 `200`), 범위 밖 `416 Content-Range: bytes */<size>`, `ETag: "<sha256>"`(= 이어받기 `If-Range` 기준, 다르면 `200` 전체), `X-Content-SHA256`, `Cache-Control: public, max-age=31536000, immutable`(버전 디렉터리는 불변), `HEAD` 지원.
+
+- **분당 제한 없음, 동시 스트림 4**(프로세스 단위, 넘으면 `503 Retry-After: 30`) — 이어받기 클라이언트는 짧은 간격으로 요청을 여러 번 보내고, nginx `/models/` 는 X-Forwarded-For 를 넘기지 않아 앱이 IP 를 모른다. 대역 제한이 필요하면 nginx(`limit_conn`·`limit_rate`).
+- 모델 갱신 = 새 버전 디렉터리 배치 → `manifest.json` 원자적 교체. #19 `onDevice.model.version` 이 서빙 manifest 를 따르므로 앱은 다음 설정 조회에서 알아챈다(connection `runtime.modelVersion` Apply 불필요).
 
 ### 2-2. 설정 `/api/v1/settings/*` (L1 preferences)
 
@@ -486,9 +510,10 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
     "recognitionMode": "AUTO",
     "onDevice": {
       "enabled": true,
-      "connectionKey": "reazon-ondevice",
+      "available": true,
+      "connectionKey": "cm1k2…(connection id — 불투명)",
       "runtime": { "numThreads": 2, "decodingMethod": "greedy_search", "provider": "cpu", "vad": { "silenceMs": 500, "threshold": 0.5 }, "partial": true },
-      "model": { "name": "reazonspeech-int8", "version": "2024-08-01.1", "manifestUrl": "/models/reazonspeech-int8/manifest.json", "totalBytes": 167772160, "wifiRecommended": true }
+      "model": { "id": "ondevice-ja-v1", "version": "2024-08-01-int8-v1", "manifestUrl": "/models/ondevice-ja-v1/manifest.json", "totalBytes": 169824553, "wifiRecommended": true }
     },
     "gateway": { "enabled": true, "wsPath": "/ws/speech", "frameMs": 40, "sampleRate": 16000 },
     "fallback": { "onDeviceFailureThreshold": 2, "toGateway": true, "toTextOnly": true },
@@ -501,6 +526,8 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 }
 ```
 
+- **(task-003f) `onDevice` 블록**: 앱(`X-Client-Platform: app`) + ONDEVICE connection 이 있으면 **경로와 무관하게** `{enabled, available, connectionKey, runtime, model}` 를 싣는다(Leader ② — 정확하게 방식에서도 설정 카드가 크기·받기·지우기를 보여야 한다). `enabled` = 방식·플랫폼 해석이 휴대폰 경로인가(경로 선택만), `available` = 서버 배포본(#9) 검증 통과. `model` 은 **불투명 id**·서빙 manifest 의 `version`·`totalBytes`·불투명 `manifestUrl` 뿐 — 엔진·모델 이름 없음(완료 기준 8). 배포본이 없으면 `version`·`totalBytes` 가 `null`·`available:false`. `connectionKey` 는 connection id(불투명, task-003e) — #21 `realtimeConnectionKey` 로 그대로 돌려준다. 웹은 `{enabled:false}` 만.
+- 클라이언트 라우터는 **누를 때마다** 경로를 고른다(Leader ⑦): 플러그인 + `onDevice.enabled` + 기기에 파일 설치 → 휴대폰, 그 밖·강제 업데이트(#8 `updateRequired`)·앱 실행 중 휴대폰 오류 `fallback.onDeviceFailureThreshold` 회 누적 → 서버(오프라인 방식은 바꾸지 않음). 상세는 `speech-platform/12` §3.5 각주.
 - `onDevice.enabled=false`(connection DISABLED 또는 사용자 `recognitionMode` 가 gateway 강제) 면 클라이언트 라우터는 `WebSocketSttClient` 만 쓴다. `gateway.enabled=false` + `onDevice.enabled=false` 면 텍스트 입력만(`422` 가 아니라 정상 응답으로 안내).
 - 금지: `credentialRef`, 서버 파일 경로, baseUrl. `connectionKey` 는 계측용(`Utterance.realtimeEngine` 스냅샷) 문자열이며 화면에 표시하지 않는다.
 

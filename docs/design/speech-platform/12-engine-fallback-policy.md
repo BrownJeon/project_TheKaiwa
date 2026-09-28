@@ -68,6 +68,13 @@ connection 장애 시 같은 역할의 다음 connection 으로 넘어가되(§6
 
 `OFFLINE` 모드는 chain 을 `[reazon-ondevice]` 로 잘라 폴백하지 않는다. 전환 결과는 `Utterance.realtimeEngine`·`fallbackReason` 으로 서버에 보고되어 관리자 대시보드 "폴백 비율" 에 집계된다.
 
+> **각주 — task-003f 구현(2026-09-28, Leader ⑦ 판정)**: 위 표의 "세션" 단위를 다음처럼 바꿔 구현했다(`src/modules/speech/stt/client/router.ts`).
+> - 경로는 **누를 때마다**(녹음 중이 아닐 때) 고른다 — 모델 받기가 끝나면 **다음 누름부터** 휴대폰, 지우면 다음 누름부터 서버(앱 재시작·세션 재시작 불필요). 표 1행의 "모델 설치 완료 후 다음 세션" → "다음 누름".
+> - 전환 카운터는 **앱 실행 단위**(모듈 변수 — 화면을 오가도 이어지고 앱을 다시 켜면 0). 셈 = `AUDIO_INIT_FAILED`·`BUSY`·`MODEL_CORRUPT`·`OOM`·`DECODE_FAILED`, 세지 않음 = `PERMISSION_DENIED`·`INTERRUPTED`·`ALREADY_STARTED`·`INVALID_ARGUMENT`·`MODEL_MISSING`(모델 없음은 스토어가 다시 확인해 다음 누름부터 서버). 임계는 #19 `fallback.onDeviceFailureThreshold`(2).
+> - `start()` 거부는 **이번 누름을 서버로 이어 간다**(말을 잃지 않음 — 전환이면 토스트 1회), 세션 중 오류는 말을 잃는다(전환이면 오류 띠 2줄). `PERMISSION_DENIED` 는 이어 가지 않고 권한 안내.
+> - 강제 업데이트 상태(#8 `updateRequired`)에서는 휴대폰 경로를 쓰지 않는다(Leader ④). 클라이언트는 `chain`(connection key 목록)을 받지 않는다 — #19 는 엔진명 없는 `onDevice`/`gateway` 블록만 준다(task-003e).
+> - 이유는 화면에 `SttRoute{kind, reason}`(WEB·READY·MODEL_ABSENT·MODEL_DOWNLOADING·MODE_ACCURATE·MODE_OFFLINE·ONDEVICE_FAILED·SERVER_DISABLED·UPDATE_REQUIRED)로만 간다(screens §11-3 C). 서버 보고용 `fallbackReason` 필드는 #21 에 아직 없다(후속).
+
 ### 3.6 알림
 
 | 사건 | 기록 | 알림 |

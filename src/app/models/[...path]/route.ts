@@ -25,7 +25,7 @@ async function manifest(req: NextRequest, id: string): Promise<Response> {
   if (id !== ONDEVICE_MODEL_ID) return notFound()
   const served = await currentOnDeviceModel()
   if (!served) return notFound()
-  const body = JSON.stringify(publicManifest(served.manifest, publicOrigin(req.nextUrl.origin)))
+  const body = JSON.stringify(publicManifest(served.manifest, publicOrigin(req.nextUrl.origin, req.headers.get('host'))))
   const etag = `"${createHash('sha256').update(body).digest('hex').slice(0, 32)}"`
   const headers = { ETag: etag, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' }
   const inm = req.headers.get('if-none-match')
