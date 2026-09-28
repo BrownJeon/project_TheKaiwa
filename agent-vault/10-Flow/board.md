@@ -25,6 +25,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
+- [[task-018-db-structure-hardening]] — DB 구조 보강 3건(발화 chatId·unique / ConfigScope LEXICON / 사전 rollbackOf) — 사용자 승인 db push (2026-09-28)
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
