@@ -149,9 +149,9 @@ WebSocket `/ws/speech` 는 Next.js 라우트가 아니라 nginx `Upgrade` 프록
 | 항목 | 내용 |
 |---|---|
 | 책임 | 발화(`Utterance`) 수명주기, 실시간 STT 클라이언트 선택, TTS 파라미터 해석·문장 분할·캐시·재생, Voice Registry/Profile/Import/Preview, 분석·발음 결과 조회. **LLM 을 모른다**, 엔진명을 모른다(엔진 역할 `REALTIME_STT/ANALYSIS_STT/TTS` 만 안다). |
-| 서브디렉토리 | `utterances/` · `stt/`(`RealtimeSttClient` 인터페이스, `OnDeviceSherpaClient`, `WebSocketSttClient`, `modeResolver`, `ticket`, `config`) · `tts/`(`parameterResolver`, `sentenceSplit`, `cache`, `synthesize`, `TtsPlayer`) · `voices/`(registry·profiles·importJobs·preview·sync) · `pronunciation/`(결과 조회) · `analysis/`(comparator 결과 반영) |
+| 서브디렉토리 | `utterances/` · `stt/`(`RealtimeSttClient` 인터페이스, `OnDeviceSherpaClient`, `WebSocketSttClient`, `modeResolver`, `ticket`, `config`) · `tts/`(`parameterResolver`, `sentenceSplit`, `cache`, `synthesize`, `TtsPlayer`) · `voices/`(registry·profiles·importJobs·preview·sync) · `pronunciation/`(결과 조회) · `analysis/`(task-012b: 잡 적재 게이트·claim(고아 회수·환경 필터·하트비트)·실패 백오프·결과 반영·`requiresReview` 판정 — comparator 자체는 Python worker) |
 | 소유 테이블 | `Utterance`, `SpeechAnalysis`, `SpeechJob`, `TtsCache`, `VoiceProfile`, `VoiceModel`, `VoiceStyle`, `VoiceImportJob` |
-| 공개 API | utterances: `createUtterance(userId, meta)` · `storeUtteranceAudio(userId, utteranceId, wav)`(→ `infra.storage`) · `getUtterance(userId, id)` · `resolveFinalText(userId, id, choice)` · `applyAnalysisResult(payload)`(internal 콜백용) · `purgeExpiredAudio()`(30일) · stt(서버): `issueSpeechTicket(userId, chatId)` · `getSpeechConfig(userId)`(`/api/v1/speech/config` 응답 — 온디바이스 런타임 설정·모델 manifest URL·fallback 여부, 시크릿 없음) · `resolveSpeechMode(setting, capability)` · `enqueueAnalysis(utteranceId, kind)` · stt(클라): `createRealtimeSttClient(config, capability)` · 타입 `RealtimeSttClient`, `SttEvent` · tts: `resolveTtsParameters(input: {userSetting, voiceDefaults, personaHint?, context, llmStyle?})` · `splitSentences(text, maxChars)` · `synthesize(params, text, traceId)`(캐시 → `engine.tts`) · `TtsPlayer`(클라: 문장 큐·프리페치·모드 전환) · voices: `listAvailableVoices()` · `getVoiceProfile(id)` · `previewVoice(draft, text, textVersion)` · `syncVoiceModels()` · `startVoiceImport(zip, actor)` · `getImportJob(id)` · `updateVoiceProfile` · `activateVoice`/`disableVoice`/`archiveVoice` · pronunciation: `getPronunciation(userId, utteranceId)` |
+| 공개 API | utterances: `createUtterance(userId, meta)` · `storeUtteranceAudio(userId, utteranceId, wav)`(→ `infra.storage`) · `getUtterance(userId, id)` · `resolveFinalText(userId, id, choice, text?)`(#21a, `Utterance` 만) · `applyAnalysisResult(payload)`(internal 콜백용) · analysis(task-012b): `claimAnalysisJobs({workerId, kinds, max})` · `reportJobFailure(jobId, workerId, error, retryable)` · `isAnalysisWorkerAlive()`(적재 게이트·health) · `pickGradingTexts(userId, utteranceIds)`(평가 채점 텍스트 선택 — 라우트가 learning 에 주입) · `purgeExpiredAudio()`(30일) · stt(서버): `issueSpeechTicket(userId, chatId)` · `getSpeechConfig(userId)`(`/api/v1/speech/config` 응답 — 온디바이스 런타임 설정·모델 manifest URL·fallback 여부, 시크릿 없음) · `resolveSpeechMode(setting, capability)` · `enqueueAnalysis(utteranceId, kind)` · stt(클라): `createRealtimeSttClient(config, capability)` · 타입 `RealtimeSttClient`, `SttEvent` · tts: `resolveTtsParameters(input: {userSetting, voiceDefaults, personaHint?, context, llmStyle?})` · `splitSentences(text, maxChars)` · `synthesize(params, text, traceId)`(캐시 → `engine.tts`) · `TtsPlayer`(클라: 문장 큐·프리페치·모드 전환) · voices: `listAvailableVoices()` · `getVoiceProfile(id)` · `previewVoice(draft, text, textVersion)` · `syncVoiceModels()` · `startVoiceImport(zip, actor)` · `getImportJob(id)` · `updateVoiceProfile` · `activateVoice`/`disableVoice`/`archiveVoice` · pronunciation: `getPronunciation(userId, utteranceId)` |
 | 허용 import | `preferences`, `engine`, `infra` |
 | 비고 | `resolveTtsParameters` 의 3순위 `personaHint` 는 **인자로 받는다**(L2 import 금지). 결과는 엔진 중립 `TtsSynthesisRequest{voiceModelRef, speaker, style, styleWeight, speed, pitch, intonation}` 이며, SBV2 파라미터(`model_id·speaker_id·length=1/speed·pitch_scale·intonation_scale`)로의 변환은 L5 어댑터 `tts/styleBertHttp` 가 한다. |
 
@@ -201,8 +201,8 @@ Python 서비스·플러그인(코드 공유 없음, 계약으로만 연결):
 | from \ to | `speech/common` | `speech/gateway` | `speech/worker` | `speech/tts-service` | `plugins/sherpa-stt` | `src/**` |
 |---|---|---|---|---|---|---|
 | **`speech/gateway`** | ✓ (패키지 import) | · | ✗ | ✗ (HTTP 만, Phase 4 슬롯) | ✗ | ✗ (`/api/internal/*` HTTP 콜백만) |
-| **`speech/worker`** | ✓ | ✗ | · | ✗ | ✗ | ✗ (`/api/internal/*` HTTP 콜백만) |
-| **`speech/common`** | · | ✗ | ✗ | ✗ (`StyleBertVitsEngine` 어댑터가 HTTP 로 호출) | ✗ | ✗ (같은 MariaDB 의 `SpeechJob`·설정 행만 읽고 씀) |
+| **`speech/worker`** | ✓ | ✗ | · | ✗ | ✗ | ✗ (`/api/internal/*` HTTP 만 — 잡 클레임 #139·실패 보고 #140·결과 저장 #138, task-012b D-B1) |
+| **`speech/common`** | · | ✗ | ✗ | ✗ (`StyleBertVitsEngine` 어댑터가 HTTP 로 호출) | ✗ | ✗ (**DB 접속 없음** — task-012b D-B1 에서 `SpeechJob` 직접 읽기·쓰기를 폐기, 잡도 `/api/internal/speech/jobs/*` HTTP. 설정은 `speech.config.yml`·env·#141a) |
 | **`speech/tts-service`** | ✗ (**AGPL 경계** — 우리 코드도 import 하지 않는 독립 패키지) | ✗ | ✗ | · | ✗ | ✗ |
 | **`plugins/sherpa-stt`** | ✗ | ✗ | ✗ | ✗ | · | ✗ (모델은 `/models/*` HTTP 다운로드) |
 | **`src/**`** | ✗ | ✗ (WS 는 브라우저→nginx→gateway) | ✗ | ✗ (`engine/adapters/tts/styleBertHttp` 가 HTTP) | ✗ (**`window.Capacitor.Plugins.SherpaStt` 전역만**, TS 정의도 import 안 함) | · |
@@ -313,8 +313,9 @@ export default [
   → conversation.getOwnedChat(userId, chatId)                     # chatId 가 있으면 소유 확인(타인 404) — 라우트 조합, 확인한 방만 저장(task-018)
   → speech.createUtterance(userId, {chatId, realtimeEngine, realtimeText, durationMs, timings})
   → speech.storeUtteranceAudio(userId, utteranceId, wav)          # infra.storage.utteranceAudioPath
-  → speech.enqueueAnalysis(utteranceId, 'ANALYSIS_STT')            # infra.jobs.enqueueSpeechJob (recognitionMode≠OFFLINE)
-  ← { utteranceId }
+  → speech.enqueueAnalysis(utteranceId, 'ANALYSIS_STT')            # 발화 저장과 같은 트랜잭션. 게이트(task-012b D-B3): 워커 claim 120초 안 · recognitionMode≠OFFLINE · ANALYSIS_STT connection enabled · 오디오 있음
+  ← { utteranceId, status, analysisQueued, expiresAt }
+  (gateway TURN 콜백 POST /api/internal/speech/utterances 도 같은 speech.enqueueAnalysis 를 부른다)
 
 [POST /api/v1/chats/:id/turns  (SSE)]
   infra.requireUser → conversation.getChat(소유자 검사, running 409)
@@ -343,13 +344,22 @@ export default [
        └─ engine.tts.synthesize(TtsSynthesisRequest) → engine.router('TTS') → adapters/tts/styleBertHttp ⇒ M4 :8200 /synthesize
   ← audio/wav (+ X-Kaiwa-Trace: traceId)      # 클라 TtsPlayer 가 1문장 재생 중 2문장 요청
 
-[worker (비동기, 대화 지연과 무관)]
-  SpeechJob claim → WhisperEngine ⇒ VoiceVault :8090 /transcribe-chunk → TranscriptComparator
-  ⇒ POST /api/internal/speech/utterances/:id/analysis
+[worker (비동기, 대화 지연과 무관) — task-012b D-B1: DB 접속 없음, HTTP 만]
+  ⇒ POST /api/internal/speech/jobs/claim (#139) → WhisperEngine ⇒ VoiceVault :8090 /transcribe-chunk → TranscriptComparator
+  ⇒ POST /api/internal/speech/utterances/:id/analysis (#138)   |  실패 ⇒ POST /api/internal/speech/jobs/:id/result (#140)
+[POST /api/internal/speech/jobs/claim]
+  infra 공유 시크릿 검사 → speech.claimAnalysisJobs({workerId, kinds, max, env})   # 고아 회수·SKIP LOCKED·환경 필터(D-B11: 비운영 앱은 QA 계정 잡만)·하트비트 기록
+  ← { jobs[] }
 [POST /api/internal/speech/utterances/:id/analysis]
-  infra 공유 시크릿 검사 → speech.applyAnalysisResult(payload)          # Utterance.analysisText·transcriptConfidence·requiresReview
-  → learning.recordErrorStat(userId, …)                                # 라우트가 두 모듈을 순서대로
-  ← 204   # 클라는 GET /api/v1/chats/:id 재조회 시 교정 카드에 "이렇게도 들렸어요" 2안 표시
+  infra 공유 시크릿 검사 → speech.applyAnalysisResult(payload)          # 한 트랜잭션: Utterance(analysisText·transcriptConfidence·requiresReview·ANALYZED) + SpeechAnalysis upsert + SpeechJob DONE
+                                                                        # requiresReview 판정(임계)은 앱. finalText·finalSource 는 바꾸지 않는다(D-B5)
+  → learning.recordErrorStat(userId, …)                                # Phase 3(발음 항목)부터. 라우트가 두 모듈을 순서대로
+  ← 200 { stored, utteranceStatus, transcriptConfidence, requiresReview, finalSource }
+[PATCH /api/v1/speech/utterances/:id  {choice, text?}]   (#21a, task-012b D-B5·D-B6)
+  infra.requireUser → speech.resolveFinalText(userId, id, choice, text)   # 조건부 갱신 1회, Utterance 만 — ChatMessage·Correction·평가 답 불변
+[POST /api/v1/evaluations/:id/submit — 채점(A7) 시작]  (task-012b D-B7)
+  라우트가 조합(learning → speech import 는 ✗ 규칙): learning.submitEvaluation(userId, id, grading) 에 넘기는 grading 콜백에
+  speech 의 발화 텍스트 선택(finalText / analysisText=SERVER_STT / 저장된 답)을 주입한다 — 채점 시작 시점 값, 분석을 기다리지 않는다
 ```
 
 `ChatMessage.toolLog` 에는 `{traceId, vadMs, sttMs, llmMs, ttsMs, ttsStartMs, connectionId}` 요약만 남기고 단계별 원본은 `RequestTrace.steps` 에 있다.
@@ -424,16 +434,17 @@ Python 서비스는 TS `engine` 층의 개념을 **같은 이름으로 미러링
 | `credentials` + `infra/secrets` | `secrets.py` · `resolve_secret(ref)`(`env:NAME` · `file:<name>` → `/home/brownjeon/apps/thekaiwa/shared/secrets/<name>` 0600) | 값은 로그·응답에 절대 싣지 않음 |
 | `health` · `functionalTest` | `health.py` · `HealthCheckResult`, `run_health(provider)`, `run_functional_test(provider, asset)` | `speech/test-assets/ja-sample.wav` 를 STT 기능 테스트 입력으로 |
 | `trace` | `trace.py` · `TraceStep` 을 콜백 payload 에 동봉(`steps[]`) | Python 은 `RequestTrace` 테이블을 직접 쓰지 않고 앱 콜백에 실어 보낸다 |
-| `infra/jobs`(`claimNextJob`) | `db.py` · `claim_next_speech_job()`(`SELECT … FOR UPDATE SKIP LOCKED`) | Python 이 직접 쓰는 유일한 앱 테이블 = `SpeechJob`(claim·complete·fail) |
+| ~~`infra/jobs`(`claimNextJob`)~~ → 앱 `speech/analysis`(`claimAnalysisJobs`·`reportJobFailure`) | **없음**(task-012b D-B1 — 종전 `db.py`·`claim_next_speech_job()` 폐기) | Python 은 **어떤 앱 테이블도 직접 읽고 쓰지 않는다**. `SpeechJob` 잠금(`FOR UPDATE SKIP LOCKED`)·고아 회수·백오프·환경 필터는 앱이 #139·#140 안에서 한다. worker env 에 `DATABASE_URL` 을 싣지 않는다 |
 | `infra/logging.maskSensitive` | `logging.py` · `mask()` | 티켓·시크릿·전체 전사문 마스킹, INFO 에는 길이·해시만 |
-| `/api/internal/*` 호출 | `internal_client.py` · `post_utterance(...)`, `post_analysis(...)`(`X-Internal-Secret`) | 앱이 `Utterance`·`SpeechAnalysis` 행의 소유자 |
+| `/api/internal/*` 호출 | `internal_client.py` · `post_utterance(...)`(gateway), `claim_jobs(...)`·`report_failure(...)`·`post_analysis(...)`(worker) (`X-Internal-Secret`, `X-Service` 는 호출 서비스 이름으로 파라미터화) | 앱이 `Utterance`·`SpeechAnalysis`·`SpeechJob` 행의 소유자 |
+| (Python 전용) 비교기 | `speech/worker/comparator.py` · `TranscriptComparator`(+ 읽기 변환 `ReadingProvider` = pyopenjtalk, worker 전용 requirements) | 앱에는 대응 없음 — 앱은 `similarity`·`flags` 로 `requiresReview` 만 판정(임계는 앱) |
 
 ### 5-2. 프로세스·호스트 배치
 
 | 프로세스 | 호스트 | 바인드 | 실행 | 진입점 |
 |---|---|---|---|---|
 | `thekaiwa-speech-gateway` | 우분투 | `127.0.0.1:8100` (nginx `/ws/speech` 프록시) | pm2 + venv `~/.node-local/thekaiwa-speech/venv` | `uvicorn app:app --host 127.0.0.1 --port 8100` (cwd `speech/gateway`) |
-| `thekaiwa-speech-worker` | 우분투 | 없음(폴링) | pm2 + 같은 venv | `python main.py` (cwd `speech/worker`) |
+| `thekaiwa-speech-worker` | 우분투 | **없음**(앱 `/api/internal/speech/jobs/claim` HTTP 폴링 — task-012b D-B1·D-B4, 생존은 claim 하트비트) | pm2 + 같은 venv(+ `speech/worker/requirements.txt` — 운영 설치는 사용자 승인) | `python main.py` (cwd `speech/worker`) |
 | `kaiwa-tts` | 맥 M4 | `0.0.0.0:8200` (LAN, 우분투에서만 접근) | `~/kaiwa-tts-run` 독립 git clone + venv + uvicorn + **cron 워치독**(home-m4-api 방식, `.deploy.lock` 조율) | `uvicorn app:app --host 0.0.0.0 --port 8200` (cwd `~/kaiwa-tts-run/speech/tts-service`) |
 | (재사용) `voicevault-whisper` | 우분투 | `127.0.0.1:8090` | VoiceVault 소유 pm2 | 변경 없음 — TheKaiwa 는 HTTP 로만 호출 |
 
@@ -454,17 +465,20 @@ pm2 항목 초안(`ecosystem.config.js` 에 task-003 에서 추가; VoiceVault `
   script: `${process.env.HOME}/.node-local/thekaiwa-speech/venv/bin/python`,
   args: 'main.py',
   interpreter: 'none', cwd: `${__dirname}/speech/worker`, instances: 1, autorestart: true, watch: false,
-  max_memory_restart: '1G',   // http 모드에서는 모델을 들지 않는다. local 모드 전환 시 재산정
-  env: { ...pickNonEmpty(dotenv, ['DATABASE_URL','DATA_ROOT','APP_ENV','SPEECH_INTERNAL_SECRET','SPEECH_CONFIG_PATH','APP_INTERNAL_URL','WHISPER_SERVICE_URL']) },
+  max_memory_restart: '1G',   // http 모드에서는 모델을 들지 않는다(pyopenjtalk 사전 ≈100MB). local 모드 전환 시 재산정
+  // task-012b D-B1: DATABASE_URL 을 싣지 않는다(DB 접속 없음). 공용 패키지는 gateway 처럼 PYTHONPATH 로 읽는다.
+  env: { ...pickNonEmpty(dotenv, ['DATA_ROOT','APP_ENV','SPEECH_INTERNAL_SECRET','SPEECH_CONFIG_PATH','APP_INTERNAL_URL','WHISPER_SERVICE_URL','SECRETS_DIR']),
+         PYTHONPATH: `${HERE}/speech/worker:${HERE}/speech/common`, PYTHONDONTWRITEBYTECODE: '1', PYTHONUNBUFFERED: '1' },
+  kill_timeout: 70000,        // SIGTERM 뒤 지금 잡(분석 STT 60s)을 끝낼 시간
   out_file: `${LOG_DIR}/speech-worker-out.log`, error_file: `${LOG_DIR}/speech-worker-err.log`, merge_logs: true, log_date_format: 'YYYY-MM-DD HH:mm:ss',
 }
 ```
 
-venv 는 릴리스 밖 공유 자원이다(VoiceVault whisper 와 같은 등급: `requirements.txt` 변경 = 별도 승인 작업, 롤백으로 되돌아가지 않음). 설치: `~/.node-local/thekaiwa-speech/venv/bin/pip install -e speech/common -r speech/gateway/requirements.txt -r speech/worker/requirements.txt`.
+venv 는 릴리스 밖 공유 자원이다(VoiceVault whisper 와 같은 등급: `requirements.txt` 변경 = 별도 승인 작업, 롤백으로 되돌아가지 않음). 설치: `~/.node-local/thekaiwa-speech/venv/bin/pip install -r speech/gateway/requirements.txt -r speech/worker/requirements.txt`(공용 패키지는 설치하지 않고 PYTHONPATH — task-003e). **task-012b**: worker requirements(pyopenjtalk)의 운영 venv 설치는 사용자 승인(U2), 개발·테스트는 별도 dev venv `~/.node-local/thekaiwa-speech-dev`(운영 venv 를 건드리지 않는다). 워커를 운영 pm2 에 등록하려면 `ecosystem.config.js`·`deploy.yml runtime.apps` 와 함께 저장소 밖 webhook 배포 스크립트(`~/.local/webhook-deploy/deploy-thekaiwa.sh` 의 `--apps`)도 바꿔야 한다 — 사용자 승인(U1).
 
 M4 `kaiwa-tts` 배포는 home-m4-api 와 동일: NFS 가 아닌 로컬 `~/kaiwa-tts-run`(독립 clone) · `git push` 후 사용자 승인 게이트 · webhook-deploy 실패 시 롤백 · crontab `* * * * * ~/kaiwa-tts-run/scripts/kaiwa-tts-watchdog.sh` 가 `/health` 실패 시 재기동 · 로그는 `~/kaiwa-tts-local-logs/`. 상세는 [`speech/tts-service/README.md`](../../speech/tts-service/README.md).
 
-### 5-3. 공통 admin 엔드포인트(세 서비스 동일)
+### 5-3. 공통 admin 엔드포인트(gateway·tts-service — worker 는 제외, task-012b D-B4: 포트를 열지 않고 claim 하트비트로 생존을 알린다)
 
 `GET /health`(모델 로드 여부·메모리·버전·uptime) · `POST /admin/log-level` · `POST /admin/config/apply`(RUNTIME_EDITABLE 키만 수용, RESTART_REQUIRED 는 422 로 거부하고 안내) · `GET /admin/config/effective`. 앱 `admin.getDiagnostics(connectionId)` 가 이 응답을 합쳐 보여 준다. 정본 계약은 `api-contract.md` 의 "서비스 내부 API" 절.
 

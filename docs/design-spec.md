@@ -308,7 +308,7 @@ plugins/sherpa-stt/                                                    # Capacit
 | Model Versioning·Deployment·Canary(§152~§154) — `VoiceModelVersion.deployStatus TRAINED→VALIDATED→STAGING→CANARY→PRODUCTION→DEPRECATED`, Canary 세션 % 배정, Promote 는 SUPER_ADMIN | Admin `Voice Versions` + `speech/voices/versions` + `engine/router` | P1 |
 | On-Device TTS 로드맵(§156~§157) — ONNX 최적화·양자화·모바일 런타임·평가 기준(모델 크기·RTF·메모리·발열·품질 손실) | research, `plugins/sherpa-tts?` | P2(Phase 4 이후) |
 
-**우선순위(§162) → Phase**: P0(사전·정규화·Rendering Plan·Profile·청크 스트리밍·상태 표시등·캐시 키) = **task-003 실측 + task-007 회화 + task-005 설정**, P1(Observability·Timing·Golden·회귀·A/B·버전·Canary) = **task-012b 음성 P2 + task-012c Console P2**, P2(온디바이스 TTS) = task-016 이후 research.
+**우선순위(§162) → Phase**: P0(사전·정규화·Rendering Plan·Profile·청크 스트리밍·상태 표시등·캐시 키) = **task-003 실측 + task-007 회화 + task-005 설정**, P1(Observability·Timing·Golden·회귀·A/B·버전·Canary) = **task-012b-3(관측 지표) + task-012b-4(Timing) + task-012c Console P2(Golden·회귀·A/B·버전·Canary·대시보드)**(2026-09-28 task-012b C1 분할), P2(온디바이스 TTS) = task-016 이후 research.
 
 **정본 변경(2026-09-26)**: `domain-model.md` §3 — `enum SpeechProfile`, `UserVoiceSetting.speechProfile`, `TtsCache` 확장, `PronunciationLexiconEntry`·`PronunciationLexiconVersion`·`LexiconScope`(48→50 모델, `prisma/schema.prisma` 재추출) / §10 제안 — `VoiceModelVersion`·`TtsGoldenSentence`·`TtsQualityRun`·`TtsQualityResult`·`TtsAbCompare`·`EngineMetricsDaily` 확장 컬럼. `api-contract.md` #23 교체 + §7(status·lexicon·golden·quality-runs·ab-compare·voices versions·tts/metrics·tts-service 내부 계약). `module-dependency.md` §11. Admin Console IA 에 Pronunciation Dictionary·TTS Quality·Voice Versions·TTS 대시보드 추가.
 
@@ -376,7 +376,10 @@ plugins/sherpa-stt/                                                    # Capacit
 | 011 | AI 평가 | A6/A7, 기록률 100% 트랜잭션, 첫 평가 20건 루브릭 조정 라운드 | 010b |
 | 012 | 달력 | `StudyLog`+`Attendance` 파생 달력·일 상세 | 010b |
 | 010d | 상황 역할극 | `Scenario`·`ScenarioTopic`(결정 D1 — Phase 2 후반), 주제→상황 2단 선택, 역할극 목표·종료 판정, 레슨 말하기 단계 연결 | 010b |
-| 012b | 음성 P2 | worker+`SpeechJob`·WhisperEngine·Comparator·requiresReview 카드·발화 로그 · **TTS P1: Observability(Trace 하위 단계·`EngineMetricsDaily` TTS 컬럼)·Timing Metadata(narabas 정렬, 자막 하이라이트·섀도잉)** | 009 |
+| 012b | 음성 P2 ① 분석 STT 파이프라인(서버·워커) | worker(DB 접속 없음 — 내부 HTTP claim #139·실패 #140·결과 #138)+`SpeechJob` 적재(워커 생존 게이트)·WhisperEngine(HTTP)·Comparator(pyopenjtalk 읽기 접기)·requiresReview **판정·저장**·#22 조회·#21a 확정(`{choice}`, `Utterance` 만)·평가 말하기 문항 분석 텍스트 선택·health `stt_analysis_worker`. **화면 0·스키마 0·M4 0**. 운영 반영 = worker pm2 등록·webhook `--apps`·운영 venv pyopenjtalk(사용자 승인) — 결정 D-B1~B12는 task-012b 이력서(2026-09-28 C1) | 009 |
+| 012b-2 | 음성 P2 ② 분석 결과 화면 | requiresReview 2안 카드(회화방·채팅방)·발화 로그(위치·목록 API 는 데모에서 결정)·평가 결과의 인식 텍스트 표기 — 데모 게이트 | 012b |
+| 012b-3 | TTS P1 관측 | `EngineMetricsDaily` 물화 잡(03:00 KST)·TTS 컬럼 확장(vs 신설 — speech-platform/16 §16 #3, 스키마 승인)·`GET /api/admin/v1/tts/metrics`·캐시 예열/정리 잡 (대시보드 화면은 012c). Trace 하위 단계는 task-003d·007 에서 구현됨 | 012b |
+| 012b-4 | TTS P1 타이밍 | Timing Metadata(narabas 정렬 A vs VITS duration B 스파이크, M4 설치·배포 승인)·`TtsCache.timing` 부착(칸 있음)·#24 JSON `timing`·자막 하이라이트·섀도잉 강조 화면(데모) | 012b |
 | 012c | Console P2 | Form/JSON 편집·Validate/Test/Diff/Apply·Version·History·Rollback·Prompt Registry sync/activate/test·Playground · **TTS Quality(Golden Dataset·회귀·A/B Blind)·Voice Versions(TRAINED→…→PRODUCTION·Canary %)·TTS 대시보드**(사용자 결정 ③) | 005b |
 | 013~015 | Phase 3: 분석·성장기록(+능력 축·관측 제안 도입 시) / 서랍장 전체 / 무엇이든(3a 정형 조회·출처 표시 → 3b MCP → 3c 의미 검색 조건부) | 성장기록=스냅샷만, 분석 hash 캐시, ASK `sources`·`needsScope`, 타 사용자 격리 0건 | 012 |
 | 015b | 음성 P3 | PronunciationAnalyzer(narabas+pyopenjtalk+F0), 단어별 ★ 피드백 | 012b |

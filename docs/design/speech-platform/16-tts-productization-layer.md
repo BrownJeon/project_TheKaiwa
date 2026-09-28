@@ -268,7 +268,7 @@ flowchart TD
 | 방법 | 합성 wav + 알려진 텍스트를 **narabas**(MIT, wav2vec2 일본어 음소 정렬; Phase 3 발음 분석과 같은 모델) 로 정렬 → pyopenjtalk 모라 매핑 → 단어(token map)·모라·음소 시각 | 래퍼 안에서 `TTSModel.infer` 내부의 duration 출력을 가로채 음소 길이를 얻음 |
 | 실행 위치 | M4 래퍼의 선택 후처리(`timing=true`). 오디오는 먼저 돌려주고 timing 은 완료 후 `TtsCache.timing` 에 붙인다(첫 청취는 자막 강조 없이, 캐시 HIT 부터 강조) | 래퍼 |
 | 위험 | 정렬 실패 시 `timing=null`(오디오는 정상). MPS 미지원이면 CPU | 라이브러리 내부 API 의존 → 버전 업 시 깨짐. 지연 0 이 장점 |
-| 결정 | 기본 | task-012b 에서 스파이크 1회, A 와 오차 비교 후 채택 여부 |
+| 결정 | 기본 | task-012b-4 에서 스파이크 1회, A 와 오차 비교 후 채택 여부 |
 
 ### 8.3 활용(§147, 립싱크·아바타는 P2 비목표)
 
@@ -425,10 +425,12 @@ Hybrid TTS Router: `EngineConnection(style-bert-ondevice, connectionType=ONDEVIC
 | P0 | Rendering Plan + Speech Profile(`speechProfile` 설정·NATIVE/LEARNING 3종 UI) | task-005 / 007 | 사용자 화면 엔진명 0, LLM 라벨→plan 매핑 테스트 |
 | P0 | Chunk Scheduler·`TtsPlaybackQueue`·SSE `chunkIndex`·TTFA 계측·Trace sub-step | **task-007** | 실기기 30턴 p50 ≤5s, TTFA 기록, `toolLog.ttfaMs` |
 | P0 | Runtime Status Indicator(ONLINE·TEXT_ONLY·CHECKING·SWITCHING) + `tts/status` | task-007 | M4 중단 시 빨간불·자막만·복구 시 초록 |
-| **P1** | TTS Metrics 대시보드·`EngineMetricsDaily` 확장; Audio Cache 확장(키는 P0 부터 12요소; 예열·정리 잡·timing 컬럼) | Phase 2 **task-012b** / 012c | 대시보드 지표 10종, 히트율 표시, 예열 후 첫 청크 HIT |
-| P1 | Golden Dataset 관리·Regression Run·A/B Blind | task-012b / 012c | 기준 버전 run 1회 저장 |
-| P1 | Model Versioning·Canary·Voice Versions 페이지 | task-012b | seed 1.0.0 PRODUCTION, canary 배정 chat 고정 검증 |
-| P1 | Timing Metadata(A: narabas 를 M4 에 배치) · Karaoke 자막; Fallback 안내 토스트 | task-012b | `timing.words` 좌표가 원문과 일치; 전환 1회 1토스트 |
+| **P1** | `EngineMetricsDaily` 물화 잡·TTS 컬럼 확장·`GET /api/admin/v1/tts/metrics`; Audio Cache 확장(키는 P0 부터 12요소; 예열·정리 잡·timing 컬럼) | Phase 2 **task-012b-3**(지표·스키마 — 사용자 승인) / 대시보드 화면 **012c** | 대시보드 지표 10종, 히트율 표시, 예열 후 첫 청크 HIT |
+| P1 | Golden Dataset 관리·Regression Run·A/B Blind | **task-012c** | 기준 버전 run 1회 저장 |
+| P1 | Model Versioning·Canary·Voice Versions 페이지 | **task-012c**(Canary 실효성 = 사용자 결정 §16 #5) | seed 1.0.0 PRODUCTION, canary 배정 chat 고정 검증 |
+| P1 | Timing Metadata(A: narabas 를 M4 에 배치) · Karaoke 자막; Fallback 안내 토스트 | **task-012b-4**(M4 설치·배포 승인 + 화면 데모) | `timing.words` 좌표가 원문과 일치; 전환 1회 1토스트 |
+
+> **2026-09-28 task-012b C1(D-B12)**: design-spec §15 012c 행(사용자 결정 ③)을 기준으로 위 표를 정리했다 — 종전 표기(Golden·Versioning·Canary 가 "012b")는 012c 로 옮기고, 012b 는 1단계(분석 STT 파이프라인) · 012b-2(분석 결과 화면) · 012b-3(TTS 관측 지표·스키마) · 012b-4(TTS 타이밍) 로 나눴다(task-012b 이력서 "범위 분할").
 | **P2** | On-Device TTS 연구·양자화·Hybrid Router·(Lip Sync 비목표) | Phase 4 task-016 | §13 기준표 통과 여부 보고 |
 
 ## 16. 미결 · 사용자 결정 필요
@@ -437,10 +439,10 @@ Hybrid TTS Router: `EngineConnection(style-bert-ondevice, connectionType=ONDEVIC
 |---|---|---|---|
 | 1 | 설치될 SBV2 라이브러리 버전의 `TTSModel.infer` 에 `pitch_scale`/`intonation_scale` 존재 여부 | 있음(없으면 pitch/intonation 축을 descriptor 에서 끄고 사용자 설정 UI 도 숨김) | task-003 |
 | 2 | Lexicon 적용 A vs B 최종; Normalizer 라이브러리(pyopenjtalk 내장 / SBV2 normalize / 자체 규칙) | A(내부 g2p 가 user-dict 를 따르지 않으면 B 병행); 자체 규칙 + 엔진 g2p 위임, 골든셋으로 판정 | task-003 |
-| 3 | `EngineMetricsDaily` 확장 vs `TtsMetricsDaily` 신설 | 확장 | task-012b |
+| 3 | `EngineMetricsDaily` 확장 vs `TtsMetricsDaily` 신설 | 확장 | task-012b-3(사용자 — 스키마 push 승인과 함께) |
 | 4 | §9.4 합격 기준 수치 · §13 온디바이스 기준 수치 | 초안 값 | **사용자** |
 | 5 | 1인 앱에서 Canary 의 실효성 — chat 단위 배정 유지 vs A/B Blind 만 운영 | chat 단위 유지(설계 완결성) | **사용자**, Phase 2 |
-| 6 | Timing 계산 위치·동기 여부, narabas 의 M4(MPS) 실행 가능성 | M4 비동기 후처리, 불가 시 우분투 worker 로 이전(캐시에 늦게 붙임) | task-012b |
+| 6 | Timing 계산 위치·동기 여부, narabas 의 M4(MPS) 실행 가능성 | M4 비동기 후처리, 불가 시 우분투 worker 로 이전(캐시에 늦게 붙임) | task-012b-4 |
 | 7 | 클라 재생 계측 보고 경로(`#32 clientTimings` vs 별도 엔드포인트) | `clientTimings` 동봉 | task-007 |
 | 8 | 레슨 오디오·골든셋 캐시 `pinned` 컬럼·예열 문장 목록; 어댑터 엔진 고유 튜닝 변경 시 connection 단위 캐시 정리 액션 | 미도입(`warmupSentences` 만); 관리자 "connection 캐시 정리" 액션 | Phase 2 |
 | 9 | LLM 스트리밍(`--include-partial-messages`)에서 `--json-schema` 부분 JSON 으로 `replyJa` 를 조기 추출할 수 있는지 | 후속 최적화, 실측 전 미채택 | task-007 이후 |

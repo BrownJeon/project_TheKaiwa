@@ -69,7 +69,7 @@ demo_gate:
 |---|---|---|---|
 | **012b (이 이력서)** | 분석 STT 파이프라인: 적재(#21·gateway 콜백) · 내부 API(#139 claim·#140 result·#138 analysis) · `speech/worker`(루프·WhisperEngine HTTP 어댑터·Comparator) · requiresReview **판정·저장**(서버) · 사용자 API #22 GET·#21a PATCH(화면 없음) · 011 말하기 문항 텍스트 선택(D-B7) · 워커 생존 health(additive) | **구현·테스트: 불필요.** 운영 반영(배포) 때만 U1·U2 | 없음(화면 0) |
 | 012b-2 | 분석 결과 **화면**: 회화방·채팅방 사용자 말풍선의 requiresReview 2안 카드("이렇게 들렸어요 / 이렇게도 들렸어요 / 직접 고치기") · **발화 로그**(위치·목록 API 미정) · 평가 결과의 인식 텍스트 표기 | 데모 승인(U3) | delta~full |
-| 012b-3 | **TTS Observability**: `EngineMetricsDaily` 03:00 KST 물화 잡(기존 컬럼) + TTS 컬럼(`p99Ms·ttfaP50Ms·ttfaP95Ms·rtfAvg·cacheHitRate·byVoice`) + `GET /api/admin/v1/tts/metrics` (대시보드 화면은 012c) | 스키마 push(U4, §16 #3) | 없음 |
+| 012b-3 | **TTS Observability**: `EngineMetricsDaily` 03:00 KST 물화 잡(기존 컬럼) + TTS 컬럼(`p99Ms·ttfaP50Ms·ttfaP95Ms·rtfAvg·cacheHitRate·byVoice`) + `GET /api/admin/v1/tts/metrics` · 캐시 예열·정리 잡(speech-platform/16 §15 P1 행) (대시보드 화면은 012c) | 스키마 push(U4, §16 #3) | 없음 |
 | 012b-4 | **TTS Timing Metadata**: narabas 스파이크(A 강제정렬 vs B VITS duration, §8.2) · M4 tts-service `timing=true` 후처리 · `TtsCache.timing` 부착(컬럼 있음) · #24 JSON `timing` · Karaoke 자막·섀도잉 강조 화면 | M4 설치·배포(U5) + 데모 | delta |
 | 012c 로 이관 확인 | Golden Dataset·Regression Run·A/B Blind·Model Versioning·Canary·Voice Versions 페이지·TTS 대시보드 | U6(Canary 실효성·합격 수치) | 012c 에서 |
 
@@ -154,6 +154,7 @@ demo_gate:
 
 ## 판단 기록 (judge)
 - [2026-09-28 23:00] intake engine=jev → task_type=feature · complexity=2.45 · risk=R2 · developer_model=opus · roles=designer?,prompt-engineer?,developer,reviewer,qa · next=assign · actions=assign_developer | overrides=- | fallback=- | tokens=1663 | demo=none/- (ui_change none 0.97)
+- [2026-09-28 23:03] codex_gate/C1 engine=jev → codex_required=false / wanted_before_budget=false / mode=- / focus=- (signal concurrency 0.79) / budget_rule=CX-limit-unknown-r2 / codex_switch=on / calls_used=0 | overrides=- | fallback=- | tokens=1010
 
 ## 작업 기록
 
@@ -166,6 +167,52 @@ demo_gate:
 - `check.mjs init` → demo_gate `not_required`. 012b-2(화면)는 착수 시 별도 intake·데모 게이트.
 - Codex 연계 스위치 on, 한도 값 `null`(stale 2026-09-27) → C1·C2 는 R2 라 `CX-limit-unknown-r2` 규칙 적용 예상(판정은 judge 가 체크포인트에서).
 - 다음: C1 설계 확정(D-B1~B12, 특히 D-B1 claim 경로·D-B2 읽기 접기·D-B11 교차 처리) → judge `codex_gate` C1 → 정본 갱신 → developer(opus) 착수. 운영 반영은 U1·U2 승인 뒤.
+
+### 2026-09-28 23:15 Leader(메인) — 설계 결정 D-B1~B12 확정
+- **채택(권고대로)**: D-B1 #139/#140 내부 HTTP 기본 · D-B2 A(worker 전용 requirements 에 pyopenjtalk, 개발은 별도 dev venv `~/.node-local/thekaiwa-speech-dev`, 운영 venv 설치는 U2) · D-B3 워커 생존 게이트(최근 120s claim) · D-B4 바인드 없음·`/api/health` 에 `stt_analysis_worker`(degraded, 비차단) additive · D-B5 분석 결과만으로 finalText/finalSource 불변, #21a `{choice}` · D-B6 #21a 는 Utterance 만 · D-B7 채점 시점 텍스트 선택(분석 대기 없음) · D-B8 runAfter 오프셋 · D-B10 백오프 3회 후 FAILED, VoiceVault 코드 불변 · D-B12 design-spec §15 기준으로 16 §15 표 정리.
+- **D-B11**: 권고 채택 — APP_ENV≠PRODUCTION 앱의 claim 은 QA 계정(provider `test`) 발화 잡만. 운영 워커가 QA 잡을 처리하는 방향은 허용(QA 데이터). 한계: 운영 워커가 떠 있는 동안 개발 QA 잡을 운영 코드가 먼저 가져갈 수 있다 → 개발 스모크는 "누가 처리했든 결과 계약"만 검사하고, 개발 코드 경로 검증은 단위 테스트·U1 전(운영 워커 없음) 라이브로. `SpeechJob.environment` 컬럼은 도입하지 않는다(필요해지면 별도 승인).
+- **D-B9 보류**: 오디오 30일 정리는 데이터 삭제라 012b 1단계에서 빼고 별도 소작업으로(운영 삭제 대상·건수 미리보기 후).
+- 다음: judge C1 codex_gate → 정본 갱신(api-contract #139/#140 기본·#154 대체·#21a choice, module-dependency §5, domain-model §5-9, speech/worker/README §2, speech-platform/16 §15 표) → developer(opus).
+
+### 2026-09-28 23:03 Leader — judge C1
+- `codex_gate` C1(engine jev): **`codex_required=false`**(wanted_before_budget=false · budget_rule `CX-limit-unknown-r2` · 호출 0/4 · 스위치 on). focus 신호는 concurrency(0.79)였으나 개입 불필요 판정 → Codex 없이 developer 진행. 한도 값은 `null`(마지막 기록 2026-09-27, stale) — C2 도 같은 규칙이 적용될 수 있어 사용자에게 Codex `/status` 값을 `set-limit` 으로 기록해 달라고 요청할 수 있음.
+
+### 2026-09-28 23:10 Leader — 정본 갱신(C1 확정 반영)
+- `docs/design/api-contract.md`: 총람 #21(`analysisQueued`)·#21a(`{choice, text?}`, `Utterance` 만)·#138(앱이 판정)·#139/#140(**기본 경로**, 층 speech/analysis)·#153(HTTP 만)·#154(**claim 하트비트로 대체**) / #1 health `checks.stt_analysis_worker`(additive, 비차단) / #21 적재 조건 4개(D-B3·D-B8, gateway 콜백 동일) / #22·#21a 확정 계약(엔진 정보 비노출·`requiresReview`=확정 대기·조건부 갱신 1회·`409 NOT_REVIEWABLE`·`reviewThreshold` 스냅샷) / #67 옆 말하기 문항 채점 텍스트(D-B7) / §2-28 #138(`comparator{similarity,flags}`·정규화 문자열 미전송·판정은 앱·`finalText` 불변)·#139(고아 회수 15분·SKIP LOCKED·**D-B11 환경 필터+한계**·하트비트)·#140(펜싱 `STALE_CLAIM`·백오프 30s/2m/10m·재시도 대상 구분) / §2-30 worker 루프(HTTP 루프로 교체, SIGTERM, 의존성 승인) / 시퀀스 3-1 claim 단계.
+- `docs/design/module-dependency.md`: Python 행렬(`speech/common` DB 접속 없음, worker = #138~#140 HTTP) · speech 모듈 서브디렉토리·공개 API(`claimAnalysisJobs`·`reportJobFailure`·`isAnalysisWorkerAlive`·`pickGradingTexts`·`resolveFinalText(…, choice, text?)`) · §4-1 흐름(적재 게이트·claim·#138 200·#21a·**평가 채점 텍스트는 submit 라우트가 grading 콜백에 주입 — learning→speech import ✗ 규칙 유지**) · §5-1(`db.py` 폐기, 비교기 행) · §5-2(worker 바인드 없음·`DATABASE_URL` 제거·PYTHONPATH·kill_timeout·U1·U2) · §5-3(worker 제외).
+- `docs/design/domain-model.md`: 모델 표 `SpeechJob` 행 · §5-8 JobStatus(claim 은 앱·백오프 30s/2m/10m·재시도 불가 코드·고아 회수 15분 행 추가) · §5-9 `Utterance.status`(적재 게이트) + **finalText/finalSource/requiresReview 규칙(D-B5·D-B6)** + **SpeechJob 환경 구분(D-B11, 한계 명시)**. Prisma 블록·주석은 schema.prisma 와 같아야 하므로 손대지 않음.
+- `speech/worker/README.md`: 머리말(C1 확정)·흐름도·§2(HTTP 클레임·실패 보고·기동 점검·경로 검증·헤더·로그·requirements = pyopenjtalk 만, dev venv)·§4(워커는 similarity+flags, 판정은 앱, 엣지 규칙 → flags, 앱 쪽 처리 D-B5·D-B7)·§6(콜백 3종 표, internal GET 폐기)·§7.
+- `docs/design/speech-platform/16-tts-productization-layer.md`: §8.2 스파이크 = 012b-4 · §15 표(Golden·Regression·A/B·Versioning·Canary → **012c**, 지표·캐시 잡 → 012b-3, Timing → 012b-4 + D-B12 주석) · §16 #3 → 012b-3, #6 → 012b-4.
+- `docs/design-spec.md`: §15 012b 행을 012b / 012b-2 / 012b-3 / 012b-4 네 행으로 분할 · §9-D P1 → Phase 매핑 문장.
+- **Leader 가 메운 계약 공백 1건(메인 확인 요청)**: #21a `choice=REALTIME` 은 기본값과 같은 `finalSource` 라 "확정됨"을 구분할 칸이 없다 → 스키마 없이 **확정 시 `requiresReview=false`** 로 바꾸고, "원래 재확인 대상이었는가"는 `transcriptConfidence < SpeechAnalysis.engineVersions.reviewThreshold`(#138 때 스냅샷)로 판단하게 적었다. 또 `requiresReview` 판정 주체를 **앱**으로 정리(임계가 사용자 모드·AppSetting 에 달린 앱 정책이라 — 워커는 similarity·flags 만 보냄).
+
+### developer 인계 (2026-09-28 23:11, Leader → developer(opus))
+**읽을 것(이 순서)**: 이 이력서의 "범위 분할"·"설계 결정 후보" 표 + "23:15 Leader(메인) 확정" + 위 "정본 갱신" · `docs/design/api-contract.md` #1 health 노트·#21 적재 조건·#22/#21a 확정 계약·#67 옆 D-B7 노트·§2-28 #138~#140·§2-30 worker 루프 · `docs/design/module-dependency.md` §4-1(speech 흐름)·§5-1·§5-2 · `docs/design/domain-model.md` §5-8·§5-9 · `speech/worker/README.md` §2·§3·§4·§6·§7.
+
+**범위 = 012b 1단계. 스키마 0 · 화면 0 · M4 0.**
+- A. 앱(TypeScript)
+  1. `src/modules/speech/analysis/**`(신규): `enqueueAnalysis`(발화 저장 트랜잭션 안, 게이트 4조건 — D-B3·D-B8) · `claimAnalysisJobs`(고아 회수 15분 → `FOR UPDATE SKIP LOCKED`(MariaDB 버전 먼저 확인, 10.6 미만이면 조건부 `updateMany` 낙관 클레임) → RUNNING·attempts+1·lockedBy/lockedAt/startedAt · **APP_ENV≠PRODUCTION 이면 QA 계정(provider `test`) 발화 잡만**(D-B11) · 하트비트 기록) · `reportJobFailure`(펜싱·백오프·확정 실패+Utterance FAILED 한 트랜잭션) · `applyAnalysisResult`(#138 한 트랜잭션, 판정은 앱, `reviewThreshold` 스냅샷, `finalText/finalSource` 불변, 재보고 `ALREADY_ANALYZED`) · `isAnalysisWorkerAlive()` · `pickGradingTexts()`(D-B7).
+  2. `src/modules/speech/utterances/**`: #21 적재 연결(`analysisQueued`) · `resolveFinalText(userId, id, choice, text?)`(#21a 조건부 갱신 1회, `409 NOT_REVIEWABLE`) · #22 조회(엔진 정보 제외). `src/modules/speech/index.ts` export 추가.
+  3. 라우트: `src/app/api/internal/speech/jobs/claim/route.ts`·`src/app/api/internal/speech/jobs/[id]/result/route.ts`·`src/app/api/internal/speech/utterances/[id]/analysis/route.ts`(신규 — 기존 `/api/internal/speech/utterances/route.ts` 의 내부 인증·`X-Service-Env` 검사·본문 상한 패턴 재사용, `X-Service: worker`) · `src/app/api/internal/speech/utterances/route.ts`(gateway 콜백에 적재 한 곳) · `src/app/api/v1/speech/utterances/route.ts`(#21 응답) · `src/app/api/v1/speech/utterances/[id]/route.ts`(신규 GET #22·PATCH #21a — `[id]/audio` 와 같은 폴더 규칙).
+  4. `src/modules/admin/health.ts`: `checks.stt_analysis_worker` boolean(degraded 에만, 503 게이트 불변).
+  5. D-B7: `src/app/api/v1/evaluations/[id]/submit/route.ts` 가 `learning.submitEvaluation` 에 넘기는 grading 콜백에 speech 텍스트 선택을 **주입**(learning → speech import 금지 — module-dependency 행렬 ✗). `src/modules/learning/evaluation/grade.ts` 는 주입받은 텍스트·`inputSource` 를 채점 결과 트랜잭션에 쓰는 **최소 변경만**(011 화면 `components/eval/**` 무관).
+- B. Python
+  6. `speech/worker/**`(신규): `main.py`(2s 루프·빈 응답 백오프 ≤10s·SIGTERM 마무리·기동 점검) · `handlers/analysis_stt.py` · `comparator.py`(README §4 — NFKC·구두점·가나 접기·`ReadingProvider`(pyopenjtalk)·편집거리·flags) · `requirements.txt`(pyopenjtalk 만) · `tests/**`.
+  7. `speech/common/kaiwa_speech_common/internal_client.py`: `X-Service` 파라미터화(gateway 기본값 유지 — gateway 동작 불변) + `claim_jobs`·`report_failure`·`post_analysis`. `speech/common/kaiwa_speech_common/engine/adapters/stt/whisper_http.py`(신규 — 127.0.0.1:8090 `/transcribe-chunk`, 60s, 503·타임아웃 = retryable, 4xx = 즉시 실패). 엔진명 문자열은 이 어댑터에만.
+- C. 테스트: 앱 단위 `src/modules/speech/__tests__/**`(적재 게이트 4조건·claim 필터·펜싱·백오프·#138 멱등·#21a 동시 2요청·D-B7 선택 규칙) · `speech/worker/tests/**`(비교기 README §7 사례 + 七時/7時·빈 문자열·3배 길이·ACCURATE 는 앱 쪽 테스트) · `speech/common/tests/**`(클라이언트 헤더).
+
+**하지 말 것**
+- `prisma/schema.prisma` 변경·`db push`(`git diff prisma/schema.prisma` 빈 diff 가 완료 조건) · `src/components/**`·`src/app/(app)/**`·`src/app/(admin)/**` 화면 · `speech/tts-service/**`(M4) · VoiceVault 코드 · `ecosystem.config.js`·`deploy.yml`·`.env*`(Leader 파일 — 필요한 항목은 기록에 초안으로 남길 것) · **운영 venv `~/.node-local/thekaiwa-speech/venv` 에 pip 설치 금지**.
+- **운영 3010 금지**: 워커·스모크를 `127.0.0.1:3010` 에 붙이지 말 것, `pm2` 로 `thekaiwa*` 를 재기동·중지·등록하지 말 것, 운영 gateway(8100) 재기동 금지.
+- 커밋·push 금지(push = 운영 배포 webhook). 완료 후 변경 파일 목록을 기록에 남기면 Leader 가 QA PASS 뒤 커밋한다.
+
+**개발 환경**
+- Python: dev venv `~/.node-local/thekaiwa-speech-dev` 를 새로 만든다(`python3.10 -m venv` → `pip install -r speech/gateway/requirements.txt -r speech/worker/requirements.txt`). pyopenjtalk 설치에 sudo(시스템 패키지·cmake 등)가 필요하면 **멈추고 보고**(사용자 승인 사항). 사전 다운로드가 필요하면 dev venv 안에만.
+- 라이브 검증: 미러를 하드링크 복제한 격리 dev 서버(`~/.node-local/thekaiwa-012b` 등 — `node_modules` 는 `cp -al`, `.next`·`logs` 제외, ACTIVE "운영과 분리한 빌드 검증" 패턴)를 **포트 3017** 로 띄운다(`APP_ENV=LOCAL` — NFS·미러 `.env` 값). 워커는 `APP_INTERNAL_URL=http://127.0.0.1:3017`·`APP_ENV=LOCAL` 로 dev venv 에서 직접 실행(pm2 아님). 브라우저 확인이 필요하면 `localhost:3017`. 작업 후 `ss -ltn` 으로 3017 정리·복제본 삭제.
+- DB 는 운영과 공유 — 라이브 데이터는 QA 계정(`tests/live/qa-session.ts`, qa-bot·qa-bot2)만. D-B11 필터로 dev 앱은 QA 잡만 가져가지만, 지금은 운영 워커가 없으므로(U1 전) dev 워커가 dev 코드 경로를 실제로 탄다 — 이 기간에 라이브 검증을 끝낼 것. 만든 `SpeechJob`·`Utterance` 는 QA 계정 한정, 정리 방법을 기록.
+- 분석 서비스(127.0.0.1:8090)는 VoiceVault 공용·직렬 — 부하 측정(워커 2개 동시·30초 발화 왕복)은 짧게.
+
+**완료 보고(이 이력서 "Developer 기록")**: 변경 파일 목록 · `tsc`·`eslint`·단위(앱·worker·common) 결과 · 라이브 완료 기준 1~11 중 확인한 것(특히 워커 2개 동시 중복 0·#138 멱등·#21a 동시 2요청·D-B11 필터·턴 p50 무영향·30초 왕복 p50/p95·로그 원문 0) · MariaDB 버전과 잠금 방식 · Leader 파일 초안(ecosystem worker 항목·deploy.yml·`.env.example` 주석) · 정본과 다르게 한 점. 다음은 reviewer → judge C2.
 
 ## Codex 검토
 

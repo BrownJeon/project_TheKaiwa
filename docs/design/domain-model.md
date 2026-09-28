@@ -2109,7 +2109,7 @@ model DebugSession {
 |---|---|---|---|---|---|---|
 | `Utterance` | 발화 1건(오디오+두 전사) | `audioPath`, `chatId`(발화가 만들어진 방, task-018), `chatMessageId`(@unique — 메시지당 발화 ≤1), `realtimeEngine`, `realtimeText`, `analysisText`, `transcriptConfidence`, `requiresReview`, `finalText`, `status`, `trainingOptIn` | L4 | `POST /api/v1/speech/utterances`(온디바이스) / gateway `final` 콜백 | **오디오 30일** 후 purge(`audioDeletedAt`), 텍스트·분석 영구. 사용자 삭제 시 파일 즉시 삭제 | 1(기록)/2(분석) |
 | `SpeechAnalysis` | 분석 결과 | `grammarScore`, `pronunciationScore`, `fluencyScore`, `wordScores`, `mora`, `pitch`, `feedbackKo` | L4 | worker `POST /api/internal/speech/utterances/:id/analysis` | Utterance Cascade | 2/3 |
-| `SpeechJob` | 분석 큐(MariaDB) | `kind`, `status`, `attempts`, `runAfter`, `lockedBy` | L4 | Utterance 저장 직후 enqueue(ANALYSIS_STT), 분석 후 PRONUNCIATION | Utterance Cascade. DONE/FAILED 30일 후 purge | 2 |
+| `SpeechJob` | 분석 큐(MariaDB) | `kind`, `status`, `attempts`, `runAfter`, `lockedBy` | L4 | Utterance 저장과 같은 트랜잭션에 enqueue(ANALYSIS_STT, 게이트 §5-9), 분석 후 PRONUNCIATION(Phase 3). 잠금·회수·백오프는 앱이 #139·#140 안에서(worker 는 HTTP 만 — task-012b D-B1) | Utterance Cascade. DONE/FAILED 30일 후 purge | 2 |
 | `TtsCache` | 합성 캐시 | `key`, 파라미터 스냅샷, `path`, `hits`, `lastHitAt` | L4 | 첫 합성·미리듣기 | LRU(`lastHitAt`)·용량 상한 purge. Voice ARCHIVED 시 `voiceProfileId` 기준 purge | 1 |
 | `PronunciationLexiconEntry` | 발음 사전 항목(표기·읽기·악센트·우선순위·범위, 환경별) | `environment`, `surface`, `reading`, `accentType`, `priority`, `scope`, `scopeRefId`, `enabled` | L4 | Admin Console Pronunciation Dictionary·Import·(Phase 2) 사용자 USER scope | 삭제 = `enabled=false` + 새 사전 버전(물리 삭제 없음) | 1(P0) |
 | `PronunciationLexiconVersion` | 사전 스냅샷 버전(환경당 ACTIVE 1, Rollback) | `environment`, `version`, `snapshotHash`, `snapshot`, `status`, `rollbackOf`(되돌림 원본 번호, task-018) | L4 | 항목 변경·Import·Rollback 마다 | 삭제 없음 | 1(P0) |
@@ -2222,17 +2222,20 @@ model DebugSession {
 | from | to | 트리거 | 부수 효과 |
 |---|---|---|---|
 | (없음) | `QUEUED` | enqueue(`runAfter=now`) | — |
-| `QUEUED` | `RUNNING` | SpeechJob: worker `FOR UPDATE SKIP LOCKED` 획득(`lockedBy/lockedAt`) / AiJob: 큐 레인 배정 | `startedAt` |
-| `RUNNING` | `DONE` | 처리 완료 | SpeechJob: Utterance `ANALYZED`, SpeechAnalysis / AiJob: 대상 엔티티 전이(§5-3·§5-4) |
-| `RUNNING` | `QUEUED` | 실패 & `attempts < maxAttempts` (SpeechJob) | `attempts+1`, `runAfter = now + 2^attempts 분`, 락 해제 |
-| `RUNNING` | `FAILED` | 실패 & 재시도 소진 / 기동 정리(AiJob RUNNING 10분↑ / SpeechJob `lockedAt` 10분↑는 QUEUED 복귀) | `error`, Utterance `FAILED`(SpeechJob) |
+| `QUEUED` | `RUNNING` | SpeechJob: **앱이 #139 claim 안에서** `FOR UPDATE SKIP LOCKED` 획득(`lockedBy=workerId`·`lockedAt`·`attempts+1`, `runAfter <= now`) — worker 는 DB 에 접속하지 않는다(task-012b D-B1). 비운영 앱은 QA 계정 발화 잡만(D-B11) / AiJob: 큐 레인 배정 | `startedAt` |
+| `RUNNING` | `DONE` | 처리 완료 | SpeechJob: #138 한 트랜잭션에서 Utterance `ANALYZED`·SpeechAnalysis upsert·`finishedAt` / AiJob: 대상 엔티티 전이(§5-3·§5-4) |
+| `RUNNING` | `QUEUED` | 실패 & `retryable` & `attempts < maxAttempts` (SpeechJob, #140 — `lockedBy` 가 보고한 워커일 때만) | `runAfter = now + 30초·2분·10분`(attempts 1·2·3 — `attempts` 는 claim 때 이미 +1), 락 해제, `error` 코드값 |
+| `RUNNING` | `FAILED` | 실패 & (재시도 소진 또는 재시도 불가 — `AUDIO_MISSING`·`EMPTY_TRANSCRIPTS`·분석 서비스 4xx) / 기동 정리(AiJob RUNNING 10분↑) | `error`, Utterance `FAILED`(SpeechJob, 같은 트랜잭션) |
+| `RUNNING` | `QUEUED` | SpeechJob 고아 회수 — `lockedAt` 15분↑(워커가 죽은 잡). 다음 #139 claim 이 트랜잭션 첫 단계로 수행(task-012b) | 락 해제(attempts 유지 — 3회 한도에 포함) |
 | `FAILED` | `QUEUED` | 수동 재시도(Console 또는 사용자 "다시 만들기") | `attempts=0` |
 
 ### 5-9. 기타(요약)
 
 | 엔티티 | 전이 |
 |---|---|
-| `Utterance.status` | `RECORDED` →(SpeechJob enqueue)→ `QUEUED` →(분석 완료)→ `ANALYZED` / →(재시도 소진)→ `FAILED`. `finalSource`: REALTIME(기본) → ANALYSIS(confidence ≥ 임계) → USER(requiresReview 카드에서 선택, 제안→채택) |
+| `Utterance.status` | `RECORDED` →(SpeechJob enqueue)→ `QUEUED` →(분석 완료)→ `ANALYZED` / →(재시도 소진·재시도 불가)→ `FAILED`. 적재는 발화 저장과 같은 트랜잭션, 게이트 = 워커 claim 120초 안·`recognitionMode≠OFFLINE`·ANALYSIS_STT connection enabled·오디오 있음(task-012b D-B3) — 아니면 `RECORDED` 그대로 |
+| `Utterance.finalText/finalSource/requiresReview` (task-012b D-B5·D-B6, 2026-09-28 확정) | **분석 결과(#138)만으로는 `finalText`·`finalSource` 가 바뀌지 않는다**(기본 `REALTIME` = 실시간 텍스트 — 이미 보낸 턴·교정의 근거와 같게). #138 이 `requiresReview = similarity < 임계(0.85, ACCURATE 0.90) \|\| flags` 를 판정하고 적용 임계를 `SpeechAnalysis.engineVersions.reviewThreshold` 에 스냅샷. `requiresReview=true` = **학습자 확정 대기**. #21a `{choice}` 로 학습자가 고르면 한 번의 조건부 갱신(`status=ANALYZED AND requiresReview=true`)으로 `finalText` = 실시간/분석/직접 입력, `finalSource = REALTIME\|ANALYSIS\|USER`(고른 안의 출처 — 제안→채택), `requiresReview=false`. 바꾸는 것은 `Utterance` 뿐 — `ChatMessage.content`·`Correction.original`·평가 답은 불변. "원래 재확인 대상이었는가" = `transcriptConfidence < engineVersions.reviewThreshold`. (task-007 의 "글자로 고치기" 턴 경로도 `finalSource=USER` 를 쓴다 — 그 경로는 턴 수락 전이라 별개) |
+| `SpeechJob` 환경 구분 (task-012b D-B11) | 칸 없음(`environment` 없음) — 개발·운영이 같은 DB·같은 `DATA_ROOT` 를 쓰므로 **`APP_ENV ≠ PRODUCTION` 앱의 claim(#139)은 QA 계정(provider `test`) 발화의 잡만** 돌려준다(개발 코드가 실사용자 발화를 갱신하지 않게). 운영 앱은 필터 없음 — 운영 워커가 개발 QA 잡을 처리하는 것은 허용(QA 데이터). 한계: 운영 워커가 떠 있으면 개발 QA 잡을 운영 코드가 먼저 가져갈 수 있다. `SpeechJob.environment` 칸은 필요해질 때 별도 스키마 승인 |
 | `PromptStatus` | `DRAFT` →(activate)→ `ACTIVE`(같은 environment·key 의 기존 ACTIVE → `ARCHIVED`) ; `DRAFT`/`ACTIVE` → `ARCHIVED` |
 | `PlanStatus` | `PROPOSED` → `ACCEPTED`(기존 ACCEPTED → `ARCHIVED`) / `REJECTED` ; `ACCEPTED` → `ARCHIVED` |
 | `ReviewStatus` | `DUE` → `DONE`(REVIEW 레슨 complete: 포함 `RepetitionItem.studiedCount+1`, A11 재판단 잡) / `SKIPPED`(당일 skip, 다음 학습일 재DUE) / `EXPIRED`(intervalDays 상한(7일) 이상 지연 — 항목은 `nextDueAt` 유지로 자동 승계) |

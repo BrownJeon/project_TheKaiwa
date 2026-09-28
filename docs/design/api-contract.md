@@ -137,8 +137,8 @@
 | 18 | POST | `/api/v1/voices/preview` | draft 설정 통합 미리듣기 | S | speech/voices | 1 | draft | `audio/wav` 또는 `{url}` |
 | 19 | GET | `/api/v1/speech/config` | 앱 기동 시 온디바이스 런타임·manifest·fallback | S | speech | 1 | — | 설정 JSON(시크릿 없음) |
 | 20 | POST | `/api/v1/speech/ticket` | WS 60초 티켓 | S | speech/stt | 1 | `{chatId?}` | `{ticket,expiresAt,wsPath}` |
-| 21 | POST | `/api/v1/speech/utterances` | 발화 wav+실시간 텍스트 업로드 | S | speech/utterances | 1 | multipart ≤2MB/≤60s | `{utteranceId,status}` |
-| 21a | PATCH | `/api/v1/speech/utterances/:id` | requiresReview 발화의 finalText 확정(USER) | S | speech/utterances | 2 | `{finalText}` | `Utterance` |
+| 21 | POST | `/api/v1/speech/utterances` | 발화 wav+실시간 텍스트 업로드(Phase 2: 분석 잡 적재 — 워커 생존 게이트, task-012b D-B3) | S | speech/utterances | 1 | multipart ≤2MB/≤60s | `{utteranceId,status,analysisQueued,expiresAt}` |
+| 21a | PATCH | `/api/v1/speech/utterances/:id` | requiresReview 발화의 텍스트 확정 — 고른 안의 출처 기록(`Utterance` 만 변경, task-012b D-B5·D-B6) | S | speech/utterances | 2 | `{choice:'REALTIME'\|'ANALYSIS'\|'USER', text?}` | `Utterance`(#22 형태) |
 | 21b | GET | `/api/v1/speech/utterances/:id/audio` | 소유자 원음(30일) — 회화방 "내 발음 다시 듣기" | S | speech/utterances | 1(task-007 최소판) | — | `audio/wav` |
 | 22 | GET | `/api/v1/speech/utterances/:id` | 발화·분석 결과 | S | speech/utterances | 2 | — | `Utterance`+`SpeechAnalysis` |
 | 23 | POST | `/api/v1/speech/tts` | 문장 → 음성(정규화·사전·Rendering Plan·캐시) | S | speech/tts | 1 | `{text,voiceId?,speechProfile?,renderingPlan?,context?}` | `audio/wav` 또는 `{url,cacheKey,durationMs,ttfaMs,timing?,runtime}` (5차 §133·§146) |
@@ -297,9 +297,9 @@
 
 | # | Method | Path | 목적 | auth | 층 | Phase | 요청 | 응답 |
 |---|---|---|---|---|---|---|---|---|
-| 138 | POST | `/api/internal/speech/utterances/:id/analysis` | worker → 분석 결과 저장 | I | speech/analysis | 2 | `SpeechAnalysis` 입력 | `{stored:true,requiresReview}` |
-| 139 | POST | `/api/internal/speech/jobs/claim` | (선택) worker 잡 클레임 — DB 직접 폴링 대체 | I | infra/jobs | 2 | `{workerId,kinds[],max}` | `SpeechJob[]` |
-| 140 | POST | `/api/internal/speech/jobs/:id/result` | (선택) 잡 완료/실패 보고 | I | infra/jobs | 2 | `{status,error?}` | `{ok:true}` |
+| 138 | POST | `/api/internal/speech/utterances/:id/analysis` | worker → 분석 결과 저장(requiresReview 는 앱이 판정) | I | speech/analysis | 2 | `{jobId,analysisText,comparator{similarity,flags[]},…}` | `{stored,utteranceStatus,transcriptConfidence,requiresReview,finalSource}` |
+| 139 | POST | `/api/internal/speech/jobs/claim` | **worker 잡 클레임 — 기본 경로**(task-012b D-B1; worker 는 DB 를 직접 읽지 않는다) · 워커 생존 하트비트(D-B3·D-B4) | I | speech/analysis | 2 | `{workerId,kinds[],max}` | `{jobs:[{id,kind,utteranceId,audioPath,realtimeText,recognitionMode,attempts}]}` |
+| 140 | POST | `/api/internal/speech/jobs/:id/result` | 잡 실패 보고(재시도 백오프·확정 실패). 성공은 #138 이 같은 트랜잭션에서 `DONE` | I | speech/analysis | 2 | `{status:'FAILED',error,retryable}` | `{ok:true,jobStatus}` |
 | 141 | POST | `/api/internal/traces` | gateway 단계 trace 병합 | I | engine/trace | 1 | `{traceId,steps[]}` | `{merged:true}` |
 | 141a | GET | `/api/internal/speech/config?role=&connectionKey=` | 서비스 기동 시 Effective config 수신(credentialRef 그대로) | I | engine/configuration/resolver | 1 | query | 평면 config+`configVersion` |
 | 142 | WS | `/ws/speech` | 실시간 STT 폴백 | T | speech/gateway | 1 | `start`/PCM16/`stop` | `vad`/`partial`/`final`/`error` |
@@ -313,8 +313,8 @@
 | 150 | POST | tts-service `/admin/voices/{model}/disable` · `/delete` | 모델 비활성/삭제 | I | speech/tts-service | 4 | — | `{modelName,status}` |
 | 151 | POST | tts-service `/admin/models/refresh` | 모델 재검색(**M4 loopback 전용**, 원격 404 — task-003d S2) | M4 로컬 | speech/tts-service | 2 | — | `{models[]}` |
 | 152 | GET | tts-service `/health` | 로드 모델·장치·예열·메모리(인증 없음, 시크릿·경로 없음) | 공개(LAN) | speech/tts-service | 1 | — | `{ok,version,modelsLoaded,defaultModel,device,uptimeSec,warmedUp,memoryMb}` |
-| 153 | — | worker 잡 루프 | `SpeechJob` 폴링·처리·콜백 | DB+I | speech/worker | 2 | — | §2-28 |
-| 154 | GET/POST | worker `/health` · `/admin/log-level` · `/admin/config/apply` · `/admin/config/effective` | gateway 와 동일 규약 | I | speech/worker | 2 | 동일 | 동일 |
+| 153 | — | worker 잡 루프 | #139 클레임 → 전사·비교 → #138 저장 / #140 실패 보고 (HTTP 만) | I | speech/worker | 2 | — | §2-28 · §2-30 |
+| 154 | — | ~~worker `/health` · `/admin/*`~~ **claim 하트비트로 대체**(task-012b D-B4): worker 는 포트를 열지 않는다. 생존은 앱이 마지막 #139 시각으로 판단해 #1 `/api/health` `checks.stt_analysis_worker`(degraded, 배포 비차단)로 보인다. 설정·로그 레벨은 기동 시 읽는다(`speech.config.yml`·env, #141a 가 구현되면 그것) — 바꾸려면 재기동(Console 은 `RESTART_REQUIRED` 로 표시) | — | speech/worker | 2 | — | — |
 
 ---
 
@@ -358,6 +358,7 @@
 
 - 키는 **역할 이름**(`llm`·`stt_gateway`·`stt_analysis`·`tts`) — 무인증 엔드포인트에 엔진명을 싣지 않는다(2026-09-26 구현 시 변경, 종전 `claude_cli`·`speech_gateway`·`whisper_service`·`tts_service`). `stt_gateway`/`stt_analysis`/`tts` = 각 서비스 `/health` 200(1.5초). `llm` 은 Phase 0 에서 `CLAUDE_CLI_PATH` 설정 여부만, 실행 파일 프로브는 EngineHealth(task-004). 판정은 `admin.getHealthSummary()`(module-dependency §3-1 규칙 4). `status` 는 `ok | degraded | down` — `down`(필수 `db`·`env_database`·`env_jwt`·`env_google_oauth`·`env_data_root` 중 하나 실패)이면 **HTTP 503**, 그 밖은 200. `db` = DB 접속 `SELECT 1`(2초, 실패 사유 미노출).
 - 금지: `checks` 에 문자열·숫자·객체를 넣지 않는다(리뷰어 체크 항목).
+- **task-012b(2026-09-28, additive)**: `checks.stt_analysis_worker`(boolean) — 이 앱 프로세스가 최근 120초 안에 #139 claim 을 받았는가(워커는 포트가 없어 하트비트로 판단, D-B4). false 면 `degraded` 에만 들어가고 **배포 게이트(503)를 막지 않는다**. 워커를 아직 등록하지 않은 운영(U1 전)에서는 계속 degraded 로 보이는 것이 정상이다 — deployer 판정은 기존대로 503 여부만. 필드 이름은 역할 이름 — 엔진명 없음.
 
 #### #2~#7 인증 6종 (TheMeal 이식, 쿠키·스킴·착지만 교체)
 
@@ -570,6 +571,13 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 ```
 
 - 저장: `DATA_ROOT/users/<userId>/utterances/YYYY-MM/<id>.wav`(30일 보존), `Utterance{realtimeText=text, finalText=text, finalSource=REALTIME, status=RECORDED}`. `ANALYSIS_STT` 역할 connection 이 있고 Speech Mode 가 분석을 요구하면 `SpeechJob(ANALYSIS_STT, QUEUED)` 를 같은 트랜잭션에 넣고 `status=QUEUED` — Phase 1 은 항상 `analysisQueued:false`.
+- **분석 잡 적재 조건(task-012b, 2026-09-28 C1 확정)** — 전부 만족할 때만 적재하고 `analysisQueued:true`, 하나라도 아니면 적재 없이 `false`(발화 저장은 그대로):
+  1. **워커 생존 게이트(D-B3)**: 이 앱 프로세스가 최근 **120초** 안에 #139 claim 을 받았다(프로세스 메모리). 워커를 배포하기 전에 앱이 먼저 나가도 `QUEUED` 가 쌓이지 않는다 — 환경변수·AppSetting 없음.
+  2. 사용자 `recognitionMode ≠ OFFLINE`(speech-platform/11 §3.3). 모드별 우선순위는 `runAfter` 오프셋으로 근사(D-B8: FAST = +30초, AUTO·ACCURATE = 즉시).
+  3. 현재 환경의 `ANALYSIS_STT` connection 이 enabled.
+  4. 오디오 파일이 있다(wav 저장 성공).
+  - gateway TURN 콜백(`POST /api/internal/speech/utterances`, task-003e — MIC_TEST 는 원래 저장 안 함)도 같은 규칙으로 적재한다.
+  - `@@unique([utteranceId, kind])` 로 같은 발화 중복 적재는 DB 가 막는다.
 - 원본 오디오는 LLM·Trace·로그로 절대 전달되지 않는다.
 
 #### #22 `GET /api/v1/speech/utterances/:id`
@@ -585,8 +593,18 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 }, "message": null }
 ```
 
-- `PATCH /api/v1/speech/utterances/:id` body `{ "finalText": "…" }`(≤1,000자) 는 `requiresReview=true` 인 발화에 한해 학습자가 두 안 중 하나(또는 직접 입력)를 고르는 경로 — `finalSource=USER`. 이미 확정된 발화는 `409`. (총람 #22 에 포함되는 보조 메서드)
-- `GET …/audio`(#21b) 는 소유자에게만 `audio/wav`(30일 후 `404`). **task-007 에서 이 한 경로만 먼저 열었다(최소판)**: 타인·없음·보존 기한 지남·파일 없음은 모두 `404`, 세션 없음 `401`, `Cache-Control: private, max-age=300`, 헤더 `X-Audio-Duration-Ms`, 사용자당 60/분. `GET /utterances/:id`(#22 본문)·`PATCH`(#21a)는 Phase 2.
+- `PATCH /api/v1/speech/utterances/:id` body `{ "finalText": "…" }`(≤1,000자) 는 `requiresReview=true` 인 발화에 한해 학습자가 두 안 중 하나(또는 직접 입력)를 고르는 경로 — `finalSource=USER`. 이미 확정된 발화는 `409`. (총람 #22 에 포함되는 보조 메서드) — **task-012b C1 에서 아래로 대체**.
+
+**#22 · #21a — task-012b 확정 계약(2026-09-28, D-B5·D-B6)**
+
+- #22 응답은 위 예시 형태. **엔진 정보(`realtimeEngine`·`analysisEngine`·`engineVersions`)는 싣지 않는다**(사용자 API 엔진명 0). `status ≠ ANALYZED` 면 `analysisText`·`transcriptConfidence` 는 `null`, `analysis` 는 `SpeechAnalysis` 가 없으면 `null`. Phase 2 는 `grammarScore·pronunciationScore·fluencyScore·wordScores·feedbackKo` 가 전부 `null`(Phase 3 발음 분석이 채운다). 타인·없음 `404`, 세션 없음 `401`.
+- **`requiresReview` 의 뜻 = "학습자 확정 대기"**. 분석 결과(#138)만으로는 `finalText`·`finalSource` 를 **바꾸지 않는다**(이미 보낸 턴·교정의 근거 텍스트와 같게 유지).
+- #21a 요청 `{ "choice": "REALTIME" | "ANALYSIS" | "USER", "text"?: "…" }` — `USER` 일 때만 `text`(1~1,000자, 앞뒤 공백 제거) 필수, 나머지는 `text` 를 받지 않는다(`400`).
+  - 한 번의 조건부 갱신: `WHERE id=? AND userId=? AND status='ANALYZED' AND requiresReview=true` → `finalText = realtimeText | analysisText | text`, `finalSource = choice`, `requiresReview = false`. 갱신 0행이면 — 타인·없음 `404`, 그 밖(분석 전·재확인 대상 아님·이미 확정) `409 NOT_REVIEWABLE`. 동시 두 요청은 한쪽만 성공.
+  - **`Utterance` 만 바꾼다**: `ChatMessage.content`·`Correction.original`·`EvaluationItem` 답·`Lesson` 기록은 건드리지 않는다(원문 무수정). 확정 뒤 재점검 같은 후속 흐름은 012b-2(화면)에서 정한다.
+  - "원래 재확인 대상이었는가"는 `transcriptConfidence < SpeechAnalysis.engineVersions.reviewThreshold`(#138 때 스냅샷)로 판단한다 — 분석 안 채택률 = 그 집합의 `finalSource` 분포.
+  - 응답 = #22 형태.
+- `GET …/audio`(#21b) 는 소유자에게만 `audio/wav`(30일 후 `404`). **task-007 에서 이 한 경로만 먼저 열었다(최소판)**: 타인·없음·보존 기한 지남·파일 없음은 모두 `404`, 세션 없음 `401`, `Cache-Control: private, max-age=300`, 헤더 `X-Audio-Duration-Ms`, 사용자당 60/분. `GET /utterances/:id`(#22 본문)·`PATCH`(#21a)는 Phase 2(task-012b, 서버만 — 화면은 012b-2).
 
 #### #23 `POST /api/v1/speech/tts` — 문장 → 음성 (5차 TTS 보완 §133~§146 반영, 2026-09-26)
 
@@ -1084,6 +1102,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 - `inputSource` 기본값: `utteranceId` 가 있으면 `REALTIME_STT`, 없으면 `TEXT`. 음성(`REALTIME_STT|SERVER_STT`)인데 발화 id 없음 400 `required`, `TEXT` 인데 발화 id 400 `mismatch`(#32 와 같은 규칙).
 - **한 트랜잭션**: 평가 잠금(사용자 → 평가) → 상태 `READY/IN_PROGRESS` 아니면 409(`ALREADY_DONE`·`SUBMITTED`·`NOT_READY`) → 문항 확인(다른 평가의 문항 404) → `utteranceId` 가 오면 speech 가 소유(404)·미사용(채팅 메시지 409 `UTTERANCE_USED`·대화방 `UTTERANCE_OTHER_CHAT`·레슨 `UTTERANCE_OTHER_LESSON`·다른 문항 `UTTERANCE_USED`)·처음 붙일 때 10분 이내(409 `UTTERANCE_EXPIRED`)를 확인하고 `Utterance.evaluationItemId` 연결(이미 이 문항에 붙은 발화는 재사용 허용) → 채점 재료 = 발화 `finalText`(없으면 실시간 텍스트, L1 — 분석 STT 는 012b) → 답 저장(객관식은 코드 채점 점수도 저장) → 첫 답이면 `READY → IN_PROGRESS`·`startedAt`(10분 시계 시작). 같은 문항 재답은 제출 전까지 덮어쓴다. 사용자당 분당 60.
 - 발화는 #21(`evaluationItemId` 없이) 또는 gateway TURN 티켓(chatId 없이)으로 먼저 만든다 — #21 의 `evaluationItemId` 필드는 계속 400 `FEATURE_NOT_READY`(연결은 #67 이 한다).
+- **말하기 문항의 채점 텍스트(task-012b D-B7, 2026-09-28)**: 채점 잡(#68 A7)이 **시작하는 시점**에 연결된 발화를 다시 본다 — 학습자가 #21a 로 확정했으면(`finalSource ≠ REALTIME`) `finalText`, `status=ANALYZED && requiresReview=false` 이고 확정 전이면 `analysisText`(`inputSource=SERVER_STT`), 그 외(분석 전·실패·확정 대기)는 #67 때 저장한 답 그대로(`REALTIME_STT`). 고른 텍스트·`inputSource` 는 채점 결과와 같은 트랜잭션에 남긴다. **채점은 분석을 기다리지 않는다**(기록률 100%·A7 120초 예산 보호).
 - **"글자로 봤어요"(계약 공백 3) — 보류·Leader 보고**: 듣고 답하기 소리를 못 들을 때 글자를 보여 주고 결과에 표시하려면 (a) 서버가 제출 전에 `textJa` 를 주는 요청과 (b) 그 사실을 남길 칸이 필요하다. 스키마 변경 없이 넣을 곳이 없어(`answerText`·`inputSource` 는 답의 속성이라 공개 여부와 무관, `prompt`·`expected`·`dims` 는 쓰지 않기로 함) 구현하지 않았다. 제안: `POST …/items/:itemId/reveal → {textJa}` + `EvaluationItem.textRevealedAt DateTime?`(다음 db push 묶음) — 결과 `items[].textRevealed`.
 
 #### #67a `POST /api/v1/evaluations/:id/items/:itemId/audio` — 듣고 답하기 소리(task-011, 신설)
@@ -1535,22 +1554,34 @@ Playground 요청은 사용자 데이터를 만들지 않는다(`Chat/ChatMessag
 
 #### #138 `POST /api/internal/speech/utterances/:id/analysis` (worker → 앱, Phase 2)
 
+> **task-012b C1 확정(2026-09-28)** — 아래 #138~#140 이 worker 의 **유일한** 앱 접점이다(D-B1). worker 는 MariaDB 에 접속하지 않고(`DATABASE_URL` 없음) `X-Service: worker` 로 이 세 경로만 부른다. 종전 "worker 가 `SpeechJob` 을 직접 폴링" 서술은 폐기.
+
 ```json
-→ { "jobId": "sj_…", "analysisEngine": "whisper-voicevault", "analysisText": "昨日、新宿で友達と映画を見に行きました",
-    "segments": [ { "start": 0, "end": 2140, "text": "…", "confidence": 0.91 } ], "language": "ja", "latencyMs": 11200,
-    "comparator": { "normalizedRealtime": "きのうしんじゅくでともだちとえいがをみにいきました", "normalizedAnalysis": "…", "similarity": 0.94 },
+→ { "jobId": "sj_…", "workerId": "worker-1", "analysisEngine": "whisper-voicevault", "analysisText": "昨日、新宿で友達と映画を見に行きました",
+    "segments": [ { "start": 0, "end": 2140, "text": "…" } ], "language": "ja", "latencyMs": 11200,
+    "comparator": { "similarity": 0.94, "flags": [], "realtimeLen": 20, "analysisLen": 21, "version": "1.0" },
     "pronunciation": null,                           // Phase 3: { grammarScore?, pronunciationScore, fluencyScore, wordScores[], mora, pitch, feedbackKo }
-    "engineVersions": { "whisper": "medium-int8", "comparator": "1.0" }, "traceId": "t_…" }
+    "engineVersions": { "analysisStt": "medium-int8", "comparator": "1.0", "reading": "pyopenjtalk-<ver>" }, "traceId": "t_…" }
 ← { "stored": true, "utteranceStatus": "ANALYZED", "transcriptConfidence": 0.94, "requiresReview": false, "finalSource": "REALTIME" }
 ```
 
-- 트랜잭션: `Utterance{analysisEngine, analysisText, transcriptConfidence, requiresReview(= similarity < AppSetting speech.review.threshold, 기본 0.85·ACCURATE 0.9), status=ANALYZED}` + `SpeechAnalysis` upsert(`utteranceId @unique`) + `SpeechJob(DONE)` + `LearnerErrorStat`(발음 항목, Phase 3). `requiresReview` 면 `finalText` 를 바꾸지 않고(학습자가 #21a 로 확정) 채팅 화면의 교정 카드가 2안을 보여준다. 이미 `ANALYZED` 인 발화 재보고는 `200 { stored:false, reason:"ALREADY_ANALYZED" }`.
-- 원본 오디오 경로·본문은 요청에 없다(worker 는 `Utterance.audioPath` 를 DB 에서 직접 읽는다 — 같은 호스트 `DATA_ROOT`).
+- **판정은 앱이 한다**: `transcriptConfidence = comparator.similarity`, `requiresReview = similarity < 임계 || flags 가 비어 있지 않음`. 임계 = 사용자 `recognitionMode` 가 ACCURATE 면 0.90, 그 밖 0.85(코드 상수, `AppSetting speech.review.threshold` 가 있으면 그 값 — 012b 는 읽기만). 적용한 임계를 `SpeechAnalysis.engineVersions.reviewThreshold` 에 스냅샷(#21a "원래 재확인 대상" 판단용).
+- `comparator.flags` ⊆ `LENGTH_RATIO`(한쪽 길이가 3배 이상) · `ANALYSIS_EMPTY`(분석 텍스트 빔) · `REALTIME_EMPTY`(실시간 텍스트 빔 — 이때 `similarity=0`). **둘 다 빈 경우는 #138 이 아니라 #140 `FAILED`(`EMPTY_TRANSCRIPTS`, 재시도 없음)**.
+- **정규화 문자열(가나 접기 결과)은 보내지 않는다**(전사 사본이 늘어날 뿐 — 길이만). `segments[].confidence` 는 분석 서비스가 주지 않아 생략(D-B10).
+- 트랜잭션: `Utterance{analysisEngine, analysisText, transcriptConfidence, requiresReview, status=ANALYZED}` + `SpeechAnalysis` upsert(`utteranceId @unique`, Phase 2 는 점수 칸 전부 null·`engineVersions` 만) + 해당 `SpeechJob` `DONE`(`finishedAt`) + `LearnerErrorStat`(발음 항목, Phase 3). **`finalText`·`finalSource` 는 바꾸지 않는다**(D-B5 — 학습자가 #21a 로 확정). 이미 `ANALYZED` 인 발화 재보고는 `200 { stored:false, reason:"ALREADY_ANALYZED" }`(먼저 온 결과가 이긴다 — 잡 회수 뒤 늦게 도착한 결과 포함). `jobId` 가 이 발화의 잡이 아니면 `404`.
+- 원본 오디오 경로·본문은 요청에 없다. worker 는 #139 가 준 `audioPath`(`DATA_ROOT` 상대)를 자기 `DATA_ROOT` 에 붙여 읽고, 결과 경로가 `DATA_ROOT` 밖이거나 `..`·절대경로면 열지 않는다(`#140 AUDIO_MISSING`).
 
-#### #139~#140 잡 클레임·결과 (선택 경로 — 기본은 worker 가 MariaDB 를 직접 폴링, §2-30)
+#### #139~#140 잡 클레임·결과 (기본 경로 — task-012b D-B1)
 
-- #139 `POST /api/internal/speech/jobs/claim` `{ "workerId": "worker-1", "kinds": ["ANALYSIS_STT"], "max": 2 }` → `{ "jobs": [ { "id": "sj_…", "kind", "utteranceId", "audioPath", "realtimeText", "attempts", "leaseUntil": "+5m" } ] }`. 앱이 `SELECT … FOR UPDATE SKIP LOCKED` 로 `RUNNING` 전이. DB 직접 접근을 끊고 싶을 때(별도 호스트 worker)만 쓴다.
-- #140 `POST /api/internal/speech/jobs/:id/result` `{ "status": "DONE" | "FAILED", "error"?: "…(≤300)" }` → `{ ok:true }`. `FAILED` 는 `attempts` 증가, 3회 초과 시 영구 `FAILED` + `Utterance.status=FAILED`.
+- #139 `POST /api/internal/speech/jobs/claim` `{ "workerId": "worker-1", "kinds": ["ANALYSIS_STT"], "max": 1 }` → `{ "jobs": [ { "id": "sj_…", "kind": "ANALYSIS_STT", "utteranceId": "u_…", "audioPath": "users/<uid>/utterances/2026-09/<id>.wav", "realtimeText": "…", "recognitionMode": "AUTO", "attempts": 1 } ] }` (없으면 `jobs: []`, `max` 1~2).
+  - 앱이 한 트랜잭션에서: ① **고아 회수** — `status=RUNNING AND lockedAt < now − 15분` 을 `QUEUED` 로(앞 워커가 죽은 잡) ② `SELECT … FROM SpeechJob WHERE status='QUEUED' AND kind IN (:kinds) AND runAfter <= now() ORDER BY runAfter, createdAt LIMIT :max FOR UPDATE SKIP LOCKED`(MariaDB 10.6+; 미지원이면 `updateMany … WHERE status='QUEUED'` 조건부 낙관 클레임) ③ `RUNNING`·`attempts+1`·`lockedBy=workerId`·`lockedAt`·`startedAt` ④ `Utterance.status` 는 `QUEUED` 유지.
+  - **환경 필터(D-B11)**: `APP_ENV ≠ PRODUCTION` 앱은 **QA 계정(provider `test`) 발화의 잡만** 돌려준다 — 개발·운영이 같은 DB·같은 `DATA_ROOT` 를 쓰므로 개발 코드가 실사용자 발화를 갱신하지 않게. 운영 앱은 필터 없음(운영 워커가 개발 QA 잡을 처리하는 것은 QA 데이터라 허용). **한계**: 운영 워커가 떠 있으면 개발 QA 잡을 운영 코드가 먼저 가져갈 수 있다 — 개발 라이브 검증은 결과 계약만 보고, 개발 코드 경로는 단위 테스트·운영 워커가 없는 동안의 라이브로 확인한다. `SpeechJob.environment` 칸은 두지 않는다(필요해지면 별도 스키마 승인).
+  - **하트비트(D-B3·D-B4)**: 이 호출을 받은 시각을 프로세스 메모리에 둔다 — #21 적재 게이트(120초)와 `/api/health` `checks.stt_analysis_worker`(마지막 claim 120초 안 = ok, 아니면 degraded·비차단)의 근거. 빈 응답이어도 하트비트는 갱신된다(worker 는 2초 간격, 유휴 시 최대 10초 백오프 — 게이트 120초 안).
+- #140 `POST /api/internal/speech/jobs/:id/result` `{ "workerId": "worker-1", "status": "FAILED", "error": "WHISPER_TIMEOUT"(≤300, 코드값·원문 없음), "retryable": true }` → `{ "ok": true, "jobStatus": "QUEUED" | "FAILED" }`.
+  - 펜싱: `status=RUNNING AND lockedBy=workerId` 가 아니면 `409 STALE_CLAIM`(회수·재클레임된 잡 — worker 는 무시).
+  - `retryable && attempts < maxAttempts(3)` → `QUEUED`, `runAfter = now + 30초 · 2분 · 10분`(attempts 1·2·3 순), `lockedBy/lockedAt` 비움. 그 밖 → `FAILED`(`finishedAt`) + `Utterance.status=FAILED`(한 트랜잭션, 재확인 카드 대상 아님).
+  - 재시도 대상(D-B10): 분석 서비스 연결 실패·503·타임아웃·앱 콜백 5xx. 즉시 실패: `AUDIO_MISSING`·`EMPTY_TRANSCRIPTS`·분석 서비스 4xx·`READING_UNAVAILABLE`(읽기 변환기 없음 — 정상 워커는 이 상태로 claim 하지 않는다).
+  - 성공은 #140 을 부르지 않는다 — #138 이 같은 트랜잭션에서 `DONE`.
 
 #### #141 `POST /api/internal/traces` (gateway → 앱, Phase 1)
 
@@ -1628,25 +1659,28 @@ Python 서비스가 자기 역할의 Effective Configuration(시크릿은 `crede
 
 #### worker (우분투 pm2 `thekaiwa-speech-worker`) — 잡 루프 계약 (#153~#154)
 
+**task-012b C1 확정(2026-09-28)** — DB 직접 폴링 루프를 HTTP 루프로 바꾼다(D-B1). 종전 SQL 루프·`leaseUntil/workerId` 칸 서술은 폐기(스키마 칸은 `lockedBy/lockedAt/runAfter`).
+
 ```
-loop every 2s (idle backoff → 10s):
-  jobs = SELECT * FROM SpeechJob WHERE status='QUEUED' AND kind IN (:kinds) AND (leaseUntil IS NULL OR leaseUntil < now())
-         ORDER BY createdAt LIMIT :batch FOR UPDATE SKIP LOCKED
-  UPDATE status='RUNNING', attempts=attempts+1, workerId=:id, leaseUntil=now()+5m, startedAt=now()
+startup: 읽기 변환기(pyopenjtalk) import·사전 로드 확인 — 실패하면 claim 하지 않고 오류 로그만 남기며 대기(앱 health 는 하트비트가 없으니 degraded)
+loop every 2s (빈 응답이면 백오프 → 최대 10s):
+  jobs = POST /api/internal/speech/jobs/claim {workerId, kinds, max:1}        (#139 — 잠금·고아 회수·환경 필터는 앱)
   for job:
-    audio = DATA_ROOT + Utterance.audioPath      (없으면 FAILED 'AUDIO_MISSING', 재시도 없음)
-    text  = adapter(ANALYSIS_STT).transcribe(audio)          # whisper-voicevault HTTP 또는 로컬 faster-whisper
-    cmp   = comparator(Utterance.realtimeText, text)         # NFKC·구두점 제거·かな 변환 → 편집거리 유사도
-    pron  = PronunciationAnalyzer(audio, text)  if kind == PRONUNCIATION (Phase 3)
-    POST /api/internal/speech/utterances/{id}/analysis  (#138)  → 성공 시 status='DONE' (앱이 같은 트랜잭션에서 갱신)
-  on error: attempts < 3 → status='QUEUED', leaseUntil=now()+backoff(30s·2m·10m), error=msg
-            attempts ≥ 3 → status='FAILED' (+ Utterance.status=FAILED via #140 또는 직접 UPDATE)
-startup: RUNNING AND leaseUntil < now()  → QUEUED (고아 잡 회수)
+    path  = DATA_ROOT / job.audioPath   (DATA_ROOT 밖·'..'·절대경로·없음 → #140 FAILED AUDIO_MISSING, retryable=false)
+    text  = adapter(ANALYSIS_STT).transcribe(path)            # HTTP → 분석 STT 서비스(127.0.0.1:8090 /transcribe-chunk, 60s)
+    both empty → #140 FAILED EMPTY_TRANSCRIPTS (retryable=false)
+    cmp   = comparator(job.realtimeText, text)                # NFKC·구두점 제거·가나 접기·한자 읽기(pyopenjtalk) → 편집거리 유사도 + flags
+    pron  = PronunciationAnalyzer(path, text)  if kind == PRONUNCIATION (Phase 3)
+    POST /api/internal/speech/utterances/{utteranceId}/analysis {jobId, workerId, …}   (#138 → 앱이 같은 트랜잭션에서 DONE)
+  on error: POST #140 {status:FAILED, error:<코드>, retryable}  → 앱이 백오프(30s·2m·10m) 재적재 또는 확정 실패
+SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못한 잡은 15분 뒤 앱의 고아 회수가 되돌린다
 ```
 
-- 동시 처리 1(메모리 1.7GB whisper 상주), `batch=1`. `kinds` 는 `runtime.kinds`(`["ANALYSIS_STT"]`, Phase 3 에 `PRONUNCIATION` 추가).
+- 동시 처리 1, `max=1`(분석 서비스가 전역 잠금으로 직렬 — VoiceVault 와 공용이라 워커를 늘려도 빨라지지 않는다). `kinds` = `["ANALYSIS_STT"]`(Phase 3 에 `PRONUNCIATION` 추가, 별도 프로세스 가능).
 - 실시간 경로에 절대 동기로 끼어들지 않는다(큐만). 처리량 부족이 실측되면 Redis 로 교체(사용자 sudo).
-- #154 `GET /health` `{ ok, service:"worker", env, whisper: { reachable, model }, queue: { queued, running, failed24h }, lastJobAt, rssMb }` · `/admin/log-level` · `/admin/config/apply`(RUNTIME_EDITABLE: `runtime.beamSize, language, vadFilter`; RESTART_REQUIRED: `runtime.model, device, computeType, cpuThreads, workers`) · `/admin/config/effective` — gateway 와 동일 규약.
+- 로그: 전사 원문 0 — 길이·`sha1[:8]`·코드값만. 요청 헤더 `X-Service: worker`·`X-Service-Env: <APP_ENV>`·`X-Trace-Id`.
+- 워커 의존성: 운영 venv(`~/.node-local/thekaiwa-speech/venv`, gateway 와 공유)에 `speech/worker/requirements.txt`(pyopenjtalk) 추가 설치 = **사용자 승인(U2)**. 개발·테스트는 별도 dev venv `~/.node-local/thekaiwa-speech-dev`.
+- #154 는 **claim 하트비트로 대체**(D-B4) — 워커는 포트를 열지 않는다. 종전 `GET /health`·`/admin/*` 서술은 폐기.
 
 ---
 
@@ -1699,8 +1733,9 @@ sequenceDiagram
     end
     R->>CO: finalize(assistant DONE, toolLog{traceId,…}, Chat 갱신)
     R-->>C: SSE done{§67 + proposals + traceId}
-    Note over SU,J: 업로드 시점(2)에 SpeechJob(ANALYSIS_STT) enqueue (Phase 2)
-    J->>J: 폴링 · whisper · comparator
+    Note over SU,J: 업로드 시점(2)에 SpeechJob(ANALYSIS_STT) enqueue (Phase 2 — 워커 생존 게이트, task-012b)
+    J->>SU: POST /api/internal/speech/jobs/claim (#139)
+    J->>J: 분석 STT · comparator
     J->>SU: POST /api/internal/speech/utterances/:id/analysis
     SU-->>C: (다음 GET /chats/:id 폴링) requiresReview 카드 갱신
 ```
