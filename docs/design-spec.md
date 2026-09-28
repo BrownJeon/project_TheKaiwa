@@ -281,7 +281,7 @@ plugins/sherpa-stt/                                                    # Capacit
 
 **Console IA(§80·§123)**: `(admin)/admin/{dashboard, speech/{realtime,analysis,tts}, llm, voices, plugins, connections, configuration, prompts, diagnostics, playground, history}` — 별도 레이아웃(추후 독립 Admin Web 분리 가능), Environment 배지, capability 없으면 404.
 
-**Phase**: 앱 1 = Role·capability·Console 골격(Dashboard·Effective Config 읽기+Source·Plugins·Connections·Health/Test·Trace 저장·History 읽기) / 2 = Form·JSON 편집·Validate/Test/Diff/Apply·Version·Rollback·Prompt Registry·Playground / 3 = E2E·Diagnostics·Debug session·Log level / 4 = Preset·Export/Import·Override·Voice Preview Playground·Admin Web 분리.
+**Phase**: 앱 1 = Role·capability·Console 골격(Dashboard·Effective Config 읽기+Source·Plugins·Connections·Health/Test·Trace 저장·History 읽기) / 2 = Form·JSON 편집·Validate/Test/Diff/Apply·Version·Rollback·Prompt Registry·Playground / 3 = E2E·Diagnostics·Debug session·Log level / 4 = Preset·Export/Import·Override·Voice Preview Playground·Admin Web 분리. (2026-09-29 task-012c: 2 = 012c 설정 편집·History(Phase 1 "History 읽기"는 005b 에서 미구현 → 012c)·012c-2 Prompt Registry(A안)·Playground·012c-3 TTS Quality, Python 서비스 설정 반영은 3(015c), 연결 생성·삭제는 4 — §15.)
 
 **§128 문서**: `admin-console/00-integration-review.md` · 01 console-information-architecture · 02 role-permission-model · 03 engine-configuration-schema · 04 effective-configuration-resolver · 05 configuration-source-priority · 06 configuration-version-entity · 07 configuration-audit-entity · 08 configuration-diff-api · 09 configuration-rollback-api · 10 raw-json-configuration-api · 11 engine-playground-api · 12 end-to-end-test-api · 13 request-trace-model · 14 prompt-registry-versioning · 15 developer-diagnostic-api · 16 environment-configuration-policy.
 
@@ -308,7 +308,7 @@ plugins/sherpa-stt/                                                    # Capacit
 | Model Versioning·Deployment·Canary(§152~§154) — `VoiceModelVersion.deployStatus TRAINED→VALIDATED→STAGING→CANARY→PRODUCTION→DEPRECATED`, Canary 세션 % 배정, Promote 는 SUPER_ADMIN | Admin `Voice Versions` + `speech/voices/versions` + `engine/router` | P1 |
 | On-Device TTS 로드맵(§156~§157) — ONNX 최적화·양자화·모바일 런타임·평가 기준(모델 크기·RTF·메모리·발열·품질 손실) | research, `plugins/sherpa-tts?` | P2(Phase 4 이후) |
 
-**우선순위(§162) → Phase**: P0(사전·정규화·Rendering Plan·Profile·청크 스트리밍·상태 표시등·캐시 키) = **task-003 실측 + task-007 회화 + task-005 설정**, P1(Observability·Timing·Golden·회귀·A/B·버전·Canary) = **task-012b-3(관측 지표) + task-012b-4(Timing) + task-012c Console P2(Golden·회귀·A/B·버전·Canary·대시보드)**(2026-09-28 task-012b C1 분할), P2(온디바이스 TTS) = task-016 이후 research.
+**우선순위(§162) → Phase**: P0(사전·정규화·Rendering Plan·Profile·청크 스트리밍·상태 표시등·캐시 키) = **task-003 실측 + task-007 회화 + task-005 설정**, P1(Observability·Timing·Golden·회귀·A/B·버전·Canary) = **task-012b-3(관측 지표) + task-012b-4(Timing) + task-012c-3(Golden·회귀·A/B·대시보드)**(2026-09-28 task-012b C1 분할, 2026-09-29 task-012c 분할) — **버전·Canary 는 사용자 결정 대기**(task-012c U-C1: Voice Package Import 와 함께 Phase 4 로 옮기자는 권고), P2(온디바이스 TTS) = task-016 이후 research.
 
 **정본 변경(2026-09-26)**: `domain-model.md` §3 — `enum SpeechProfile`, `UserVoiceSetting.speechProfile`, `TtsCache` 확장, `PronunciationLexiconEntry`·`PronunciationLexiconVersion`·`LexiconScope`(48→50 모델, `prisma/schema.prisma` 재추출) / §10 제안 — `VoiceModelVersion`·`TtsGoldenSentence`·`TtsQualityRun`·`TtsQualityResult`·`TtsAbCompare`·`EngineMetricsDaily` 확장 컬럼. `api-contract.md` #23 교체 + §7(status·lexicon·golden·quality-runs·ab-compare·voices versions·tts/metrics·tts-service 내부 계약). `module-dependency.md` §11. Admin Console IA 에 Pronunciation Dictionary·TTS Quality·Voice Versions·TTS 대시보드 추가.
 
@@ -380,11 +380,13 @@ plugins/sherpa-stt/                                                    # Capacit
 | 012b-2 | 음성 P2 ② 분석 결과 화면 | requiresReview 2안 카드(회화방·채팅방)·발화 로그(위치·목록 API 는 데모에서 결정)·평가 결과의 인식 텍스트 표기 — 데모 게이트 | 012b |
 | 012b-3 | TTS P1 관측 | `EngineMetricsDaily` 물화 잡(03:00 KST)·TTS 컬럼 확장(vs 신설 — speech-platform/16 §16 #3, 스키마 승인)·`GET /api/admin/v1/tts/metrics`·캐시 예열/정리 잡 (대시보드 화면은 012c). Trace 하위 단계는 task-003d·007 에서 구현됨 | 012b |
 | 012b-4 | TTS P1 타이밍 | Timing Metadata(narabas 정렬 A vs VITS duration B 스파이크, M4 설치·배포 승인)·`TtsCache.timing` 부착(칸 있음)·#24 JSON `timing`·자막 하이라이트·섀도잉 강조 화면(데모) | 012b |
-| 012c | Console P2 | Form/JSON 편집·Validate/Test/Diff/Apply·Version·History·Rollback·Prompt Registry sync/activate/test·Playground · **TTS Quality(Golden Dataset·회귀·A/B Blind)·Voice Versions(TRAINED→…→PRODUCTION·Canary %)·TTS 대시보드**(사용자 결정 ③) | 005b |
+| 012c | Console P2 ① 설정 편집 코어 | Form/Raw JSON 편집·Validate/Test/Diff/Apply(설정 버전+감사 한 트랜잭션, 첫 적용 기준선 v1)·버전 목록/상세·History(버전·감사 #137)·Rollback(새 버전, 스냅샷 엄격 재검증)·연결 수정/enable·**credentialRef 연결(#93b)**·Fallback·AppSetting(일반 키)·VoiceProfile 기본값·PRODUCTION 보호(`confirm:"PRODUCTION"`+무상태 summaryHash+testResultId)·Functional Test 30초 슬롯 원자화. **선결 게이트**: 시크릿 전송 대상 고정·credentialRef 허용 목록·주소 호스트 허용 목록(D-C3). 편집 키 = 앱이 실제로 읽는 키만. **스키마 0**, 화면 데모 게이트 — 결정 D-C1~D-C12 는 task-012c 이력서(2026-09-29 C1) | 005b, 003g |
+| 012c-2 | Console P2 ② Prompt Registry·Playground | Prompt Registry **A안**(코드 키 카탈로그·sync·버전·조립 미리보기·draft 테스트, 런타임 Activate 는 강사 페르소나만)·Playground LLM·TTS·STT·Voice activate/disable/sync/preview — 데모 게이트 | 012c |
+| 012c-3 | Console P2 ③ TTS Quality·대시보드 | **TTS Quality(Golden Dataset·회귀·A/B Blind)·TTS 대시보드**(사용자 결정 ③) — DB 추가(`TtsQualityRun`·`TtsQualityResult`·`TtsAbCompare`, 사용자 승인)·012b-3 지표 선행. **Voice Versions(TRAINED→…→PRODUCTION·Canary %)는 사용자 결정 대기**(U-C1 — Voice Package Import 와 함께 016 으로 옮기자는 권고) | 012c, 012b-3 |
 | 013~015 | Phase 3: 분석·성장기록(+능력 축·관측 제안 도입 시) / 서랍장 전체 / 무엇이든(3a 정형 조회·출처 표시 → 3b MCP → 3c 의미 검색 조건부) | 성장기록=스냅샷만, 분석 hash 캐시, ASK `sources`·`needsScope`, 타 사용자 격리 0건 | 012 |
 | 015b | 음성 P3 | PronunciationAnalyzer(narabas+pyopenjtalk+F0), 단어별 ★ 피드백 | 012b |
-| 015c | Console P3 | E2E·Diagnostics·Debug session·Log level | 012c |
-| 016 | Phase 4 | Voice Package Import·수명주기·스타일·감정 / Preset·Export/Import·Override / Admin Web 분리 검토 / **온디바이스 TTS research(ONNX 최적화·양자화·모바일 런타임 평가, §156~§157)** / **M4 모델 벤치마크(Qwen3·Qwen3-Swallow·Qwen3.5 후보 vs Claude 기준선)·공통 강사 행동 LoRA 실험(별도 시간대, 사용자 결정)** | 015* |
+| 015c | Console P3 | E2E·Diagnostics·Debug session·Log level · **Python 서비스 설정 반영**(`/admin/config/apply` push·부팅 시 `GET /api/internal/speech/config` — 012c D-C10 이관)·Health 5분 스케줄 | 012c |
+| 016 | Phase 4 | Voice Package Import·수명주기·스타일·감정 / Preset·Export/Import·Override(+SESSION override 요청별 전달 — 012c D-C10) / 연결 생성·삭제(#92·#94 — 012c D-C10) / (U-C1 결정 시) Voice Versions·Canary / Admin Web 분리 검토 / **온디바이스 TTS research(ONNX 최적화·양자화·모바일 런타임 평가, §156~§157)** / **M4 모델 벤치마크(Qwen3·Qwen3-Swallow·Qwen3.5 후보 vs Claude 기준선)·공통 강사 행동 LoRA 실험(별도 시간대, 사용자 결정)** | 015* |
 
 병렬: 003·004·005·005b 는 002 직후 동시(파일 경계 분리). 006·008 독립.
 
@@ -395,7 +397,7 @@ plugins/sherpa-stt/                                                    # Capacit
 2. **오늘의 회화 콘텐츠**: 자체 생성(A4) + 사용자 붙여넣기(`Lesson.sourceText`). 외부 콘텐츠 큐레이션은 저작권·수급 문제로 제외, 확장 여지만.
 3. **AI평가 채점 기준**: §7-5 초안 채택, Phase 2 첫 20건 사용자 검토 라운드.
 
-**사용자 결정 필요(5차 TTS 보완, §9-D)**: 발음 사전 적용 방식(플랫폼 치환 vs SBV2 user_dict push 병행) / Timing 산출 A(narabas) vs B(VITS duration) / TTS P1(품질·버전·지표)의 Phase 2 편입 vs Phase 4 / TEXT_ONLY UX / 온디바이스 TTS 연구 착수 조건.
+**사용자 결정 필요(5차 TTS 보완, §9-D)**: 발음 사전 적용 방식(플랫폼 치환 vs SBV2 user_dict push 병행) / Timing 산출 A(narabas) vs B(VITS duration) / TTS P1(품질·버전·지표)의 Phase 2 편입 vs Phase 4(→ §15 에 012b-3·012b-4·012c-3 으로 편입, **2026-09-29 task-012c U-C1 대기: Voice Versions·Canary 만 Phase 4 로 옮기자는 권고** — 새 모델 버전을 들여올 Voice Package Import 가 Phase 4 라 Phase 2 에는 버전이 1개뿐, 1인 앱 Canary 실효성 낮음. 합격 기준 수치(U-C2)는 012c-3 에서 회귀 경보 기준으로만) / TEXT_ONLY UX / 온디바이스 TTS 연구 착수 조건.
 
 **사용자 결정 필요(3차 보완, `learning-personalization-and-llm-data.md` §8)**: `Scenario`·`ScenarioTopic` 도입 Phase / `LearnerSkillState`·`LearningObservation` 도입 여부·Phase / 개인 기록의 Claude CLI(외부 구독 경로) 전송 범위 / 과거 대화 의미 검색(로컬 임베딩) 도입 조건 / M4 LoRA 실험 착수 조건·시간대. `reviewEvery`(PLAN) 는 참고값이며 실제 간격은 A11 항목별 3~7일(범위 고정, 정합성 #14·15).
 

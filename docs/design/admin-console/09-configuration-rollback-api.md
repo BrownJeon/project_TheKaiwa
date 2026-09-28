@@ -13,6 +13,8 @@
 
 ## 3. 요청·응답
 
+> **task-012c 확정(2026-09-29 C1)** — 이 문서의 예시 중 바뀐 것: ① `confirmation{token}` 은 폐기 → 본문 `baseVersion`(= 지금 ACTIVE 번호, `expectActiveVersionId` 대신) + PRODUCTION 이면 `confirm:"PRODUCTION"`·`summaryHash`(대상 스냅샷을 후보로 한 Diff, 서버 재계산 대조)·`testResultId`·`reason≥10`(D-C1, 정본 `../configuration-resolution.md` §8-1, 계약 `../api-contract.md` #109) ② §4 전제 4 는 "지금 스키마에 없는 키만 버림(`droppedKeys`), 남은 키는 지금 규칙으로 엄격 재검증해 위반이면 `422 E_SNAPSHOT_INTEGRITY`"(D-C6 — 발음 사전 Codex C2 교훈) ③ 전제 3(`TARGET_DELETED`)은 012c 에 연결 삭제가 없어 발생하지 않는다(삭제는 Phase 4) ④ §6 Python 서비스 재적용은 **015c 로 이관**(D-C10 — 수신 경로가 아직 없음). 012c 의 Rollback 은 앱 소비 키만 다루므로 `applyResult.services` 는 빈 배열이고 `[다시 밀어넣기]` 도 015c.
+
 ```json
 POST /api/admin/v1/config/versions/cfgv_17/rollback
 {

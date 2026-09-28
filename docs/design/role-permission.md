@@ -131,7 +131,7 @@ O = 허용, P = PRODUCTION 대상일 때 SUPER_ADMIN 확인 필요(§6), - = 없
 | `GET me/capabilities` | (인증만) | 화면이 버튼을 숨기기 위한 목록. 진실은 서버 |
 | `GET overview` | `engine.read` | |
 | `GET engines`, `GET engine-connections`, `GET engine-connections/{id}` | `engine.read` | 응답의 `credentialRef` 는 이름만, `connection` 의 SECRET 키는 `"***"` |
-| `POST/PUT/DELETE engine-connections`, `PUT engine-connections/{id}/enabled`, `GET/PUT fallback-policies/{role}` | `engine.connections.manage` | PRODUCTION 은 §6 흐름 |
+| `POST/PUT/DELETE engine-connections`, `PUT engine-connections/{id}/enabled`, `GET/PUT fallback-policies/{role}` | `engine.connections.manage` | PRODUCTION 은 §6 흐름. `POST`(생성)·`DELETE`(삭제)는 Phase 4(task-012c D-C10), 012c 는 `PUT`·`enabled`·Fallback 만 |
 | `PUT engine-connections/{id}/credential` | `credentials.manage` | body 는 `{credentialRef}` 만. 값 필드가 있으면 400 |
 | `GET secrets` | `secrets.read_ref` | ref 이름·존재 여부·lastUsedAt |
 | `POST engine-connections/{id}/health` | `health.run` | |
@@ -176,7 +176,7 @@ O = 허용, P = PRODUCTION 대상일 때 SUPER_ADMIN 확인 필요(§6), - = 없
 
 대상: `targetEnvironment = PRODUCTION` 인 모든 설정 변경. 현 워크스페이스에서 PRODUCTION 은 우분투 pm2 blue/green 프로세스가 읽는 행이다.
 
-1. **적용 흐름 고정**: `Validate → Functional Test → Change Summary(Diff) → SUPER_ADMIN 확인 → Apply`. `POST config/apply` 는 PRODUCTION 대상이면 `{summaryHash, testResultId, reason}` 을 요구하고, `summaryHash` 가 서버가 마지막에 만든 Diff 의 해시와 다르면 `409 CONFLICT`(다른 변경이 끼어듦), `testResultId` 가 없거나 실패면 `403`. 결과 `ConfigurationVersion.testResult` 에 테스트 요약 저장.
+1. **적용 흐름 고정**: `Validate → Functional Test → Change Summary(Diff) → SUPER_ADMIN 확인 → Apply`. `POST config/apply` 는 PRODUCTION 대상이면 `{confirm:"PRODUCTION", summaryHash, testResultId, reason}` 을 요구하고, `confirm` 이 문자열 `"PRODUCTION"` 이 아니면 `403 {reason:PRODUCTION_CONFIRMATION_REQUIRED}`, `summaryHash` 가 서버가 **같은 후보로 다시 계산한** Diff 해시와 다르면 `409 CONFLICT {reason:SUMMARY_MISMATCH}`(다른 변경이 끼어듦), `testResultId`(= `EngineHealth(FUNCTIONAL).id`, 30분·같은 후보) 가 없거나 실패면 `403 {reason:PRODUCTION_TEST_REQUIRED}`. 결과 `ConfigurationVersion.testResult` 에 테스트 요약 저장. **확인 문자열 통일(task-012c D-C1, 2026-09-29)**: 설정·Rollback·credentialRef·Fallback·(012c-2) 페르소나 활성화·발음 사전 모두 `confirm:"PRODUCTION"` 한 값을 쓴다(옛 표기 `confirm:true`, 서명 확인 토큰 방식은 폐기 — 정본 `configuration-resolution.md` §8-1).
 2. **엄격 대상**(§96): `Engine`·`Model`(runtime.model 등 RESTART_REQUIRED 키)·`Connection`(baseUrl·connectionType·enabled)·`Credential`(credentialRef)·`Fallback`(EngineFallbackPolicy) 변경은 위 흐름 + **SUPER_ADMIN 이 직접 actor** 여야 한다(ADMIN/DEVELOPER 는 PRODUCTION 에서 DRAFT/Diff 까지만 만들고 "승인 요청" 상태로 남긴다 — 1인 앱에서는 같은 사람이 SUPER_ADMIN 으로 확인 단계를 한 번 더 밟는 셈). `reason` 은 필수(10자 이상).
 3. **임시 Override 기본 비활성**: PRODUCTION 의 `RuntimeOverride` 는 `AppSetting override.production.enabled=false` 인 동안 `403`. 켜는 것은 `environment.policy`(SUPER_ADMIN) 이며, 켜진 상태에서도 `override.production` capability + TTL ≤ 30분 + AuditLog. SESSION 오버라이드도 동일.
 4. **Debug session**: PRODUCTION 에서 `captureAudio`/`captureText` 가 true 인 `DebugSession` 은 SUPER_ADMIN 만, TTL ≤ 60분, `targetUserId` 명시 필수. 수집물은 `expiresAt+7일` 에 삭제(domain-model §6).
@@ -185,14 +185,14 @@ O = 허용, P = PRODUCTION 대상일 때 SUPER_ADMIN 확인 필요(§6), - = 없
 7. **Import/Export**: PRODUCTION Import 는 `config.import.production`(SUPER_ADMIN) + 1번 흐름. Export 스냅샷은 SECRET 키를 `credentialRef` 로 치환하고 값이 섞이면 서버가 거부(§103).
 8. **Rollback**: PRODUCTION Rollback 도 1번 흐름(Functional Test 포함) — "이전 버전"이 지금 환경에서 여전히 동작하는지 확인 없이 되돌리지 않는다.
 9. **Voice**: PRODUCTION 에서 Voice `disable`/`delete` 는 사용 중인 사용자 수(`UserVoiceSetting` 집계)를 Change Summary 에 표시하고 SUPER_ADMIN 확인. `activate` 는 Functional TTS 성공이 조건.
-10. **Prompt activate**: PRODUCTION 에서 `prompts.activate` 는 회귀 픽스처 테스트(`POST prompts/{key}/test` 의 픽스처 모드) 통과 결과를 `testResultId` 로 첨부해야 한다.
-11. **UI**: PRODUCTION 배지(경고색) + 적용 버튼 라벨에 환경명 명시("PRODUCTION 에 적용"). 확인 다이얼로그는 Diff 요약과 `reason` 입력을 포함한다.
+10. **Prompt activate**: PRODUCTION 에서 `prompts.activate` 는 회귀 픽스처 테스트(`POST prompts/{key}/test` 의 픽스처 모드) 통과 결과를 `testResultId` 로 첨부해야 한다. (task-012c D-C12: 런타임 ACTIVE 전환 대상은 `teacher-persona` 하나 — 나머지 키는 코드 빌더라 파일 수정·배포로 바꾼다, 012c-2.)
+11. **UI**: PRODUCTION 배지(경고색) + 적용 버튼 라벨에 환경명 명시("PRODUCTION 에 적용"). 확인 다이얼로그는 Diff 요약·테스트 결과·`reason` 입력과 **확인 문자열 `PRODUCTION` 직접 입력** 칸을 포함한다. 권한이 없는 버튼은 비활성이 아니라 렌더링하지 않는다(ADMIN·DEVELOPER 는 PRODUCTION 에서 초안·Diff 까지, "최고관리자 확인 필요" 상태 표시).
 
 정책 키(`environment.policy` 로만 편집): `override.production.enabled`, `debug.production.maxTtlMinutes`, `loglevel.production.maxLevel`, `speech.audio.retentionDays`, `trace.retentionDays`.
 
 ## 7. 감사 (`AuditLog`, domain-model §3 L6)
 
-- **모든 관리자 쓰기**는 같은 트랜잭션에서 `AuditLog` 1행을 남긴다: `environment`(대상 환경), `actorUserId`+`actorEmailSnap`+`actorRoleSnap`, `action`(= capability 이름 또는 `<자원>.<동작>`: `config.apply`, `config.rollback`, `engine.connections.create|update|delete|enable|disable`, `credentials.set|clear`, `voices.create|update|activate|disable|delete|sync|import`, `override.create|revoke`, `prompts.create_version|activate`, `presets.create|delete|apply`, `config.import`, `debug_session.create|revoke`, `users.role.set`, `environment.policy.set`, `loglevel.set`), `scope`(`ConfigScope`, 해당 시), `targetId`, `before`/`after`(SECRET 키는 `credentialRef` 로 치환, 값 마스킹), `reason`, `ip`, `traceId`(테스트·E2E·Functional Test 와 연결).
+- **모든 관리자 쓰기**는 같은 트랜잭션에서 `AuditLog` 1행을 남긴다: `environment`(대상 환경), `actorUserId`+`actorEmailSnap`+`actorRoleSnap`, `action`(= capability 이름 또는 `<자원>.<동작>`: `config.apply`, `config.raw_apply`(Raw JSON 적용), `config.baseline`(첫 적용 기준선 v1, actor 없음 — task-012c D-C5), `config.rollback`, `engine.connections.create|update|delete|enable|disable`, `credentials.set|clear`, `voices.create|update|activate|disable|delete|sync|import`, `override.create|revoke`, `prompts.create_version|activate`, `presets.create|delete|apply`, `config.import`, `debug_session.create|revoke`, `users.role.set`, `environment.policy.set`, `loglevel.set`), `scope`(`ConfigScope`, 해당 시), `targetId`, `before`/`after`(SECRET 키는 `credentialRef` 로 치환, 값 마스킹), `reason`, `ip`, `traceId`(테스트·E2E·Functional Test 와 연결).
 - **민감 읽기도 기록**: `config.export`, `secrets.read_ref`(목록 조회), `debug_session` 수집물 열람, `config.raw.read`(PRODUCTION 대상만). 일반 조회(대시보드·목록)는 기록하지 않는다.
 - **시스템 전이는 기록하지 않는다**: Health 결과에 따른 `EngineStatus` 변화, Override TTL 만료, Job 재시도는 `EngineHealth`/`RuntimeOverride.expiresAt`/`SpeechJob` 자체가 이력이다.
 - **불변**: `AuditLog` 는 UPDATE/DELETE 경로가 없다. 계정 삭제 시 `actorUserId` 만 SetNull, 스냅샷 컬럼으로 읽힌다. 보존 무기한.

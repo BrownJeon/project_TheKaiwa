@@ -21,17 +21,17 @@
 | Speech › TTS | `speech/tts` | 역할 `TTS` 동일 + Voice 요약 | 동일 | 1 / 2 |
 | LLM | `llm` | 역할 `LLM`: Provider·Connection·모델·temperature 등 Schema 동적 폼(§117) | `engine.read` | 1 / 2 |
 | Voices | `voices`, `voices/[id]` | §114~§116 관리·상세·Preview Playground | `voices.read` / `voices.manage` | 1(목록) / 4(Import·상세 Preview) |
-| Voices › Versions (5차 §152~§154) | `voices/[id]/versions` | `VoiceModelVersion` 목록·TRAINED→VALIDATED→STAGING→CANARY(%)→PRODUCTION→DEPRECATED 전이·Golden 회귀 결과 링크 | `voices.manage` (Promote/Canary PRODUCTION 은 SUPER_ADMIN) | 2(P1, 사용자 결정) |
+| Voices › Versions (5차 §152~§154) | `voices/[id]/versions` | `VoiceModelVersion` 목록·TRAINED→VALIDATED→STAGING→CANARY(%)→PRODUCTION→DEPRECATED 전이·Golden 회귀 결과 링크 | `voices.manage` (Promote/Canary PRODUCTION 은 SUPER_ADMIN) | **사용자 결정 대기**(task-012c U-C1 — Phase 4 이관 권고: 새 버전을 들여올 Import 가 Phase 4) |
 | Speech › TTS › Pronunciation Dictionary (5차 §130~§132) | `speech/tts/lexicon`, `speech/tts/lexicon/versions` | 발음 사전 검색·추가·수정·비활성·Import/Export·범위(GLOBAL/COURSE/LESSON/VOICE/USER)·적용 전/후 미리듣기·버전 목록·Rollback | `voices.read` / `voices.manage` (PRODUCTION 변경 확인은 SUPER_ADMIN) | **1(P0)** |
-| Speech › TTS › TTS Quality (5차 §147~§151) | `speech/tts/quality` (탭: Golden · Regression Runs · A/B Compare) | Golden Dataset 관리·회귀 실행·결과표(실패율·지연·TTFA·RTF·길이 편차·수동 점수)·Blind A/B 세션 | `voices.manage` | 2(P1, 사용자 결정) |
+| Speech › TTS › TTS Quality (5차 §147~§151) | `speech/tts/quality` (탭: Golden · Regression Runs · A/B Compare) | Golden Dataset 관리·회귀 실행·결과표(실패율·지연·TTFA·RTF·길이 편차·수동 점수)·Blind A/B 세션 | `voices.manage` | 2(P1) — **task-012c-3**(DB 추가·U-C1·U-C2 뒤) |
 | Plugins | `plugins`, `plugins/[id]` | §97~§99 Descriptor·Schema·Capabilities·Loaded·initError | `plugins.read` | 1 |
-| Connections | `connections`, `connections/[id]` | Connection Profile CRUD·Health·Functional Test·Log level | `engine.read` / `engine.connections.manage` | 1(읽기·테스트) / 2(편집) |
+| Connections | `connections`, `connections/[id]` | Connection Profile CRUD·Health·Functional Test·Log level | `engine.read` / `engine.connections.manage` | 1(읽기·테스트) / 2(편집·enable·credentialRef 연결 — **task-012c**) / 4(생성·삭제 — D-C10) / 3(Log level — 015c) |
 | Configuration | `configuration` (탭: Form · Raw JSON · Diff · Presets · Export/Import · Overrides) | §86~§92·§102~§107 | `config.effective.read` (Raw `config.raw.read`, 편집 `config.edit`) | 1(Effective 읽기) / 2 / 4 |
-| Prompts | `prompts`, `prompts/[key]` | §118~§120 버전 목록·편집·Test·Activate | `prompts.read` / `prompts.edit` / `prompts.activate` | 2 |
-| Diagnostics | `diagnostics`, `diagnostics/[connectionId]` | §111~§113 Health·Metrics·Log level·Debug session · **TTS Observability 대시보드** `diagnostics/tts`(5차 §143: req/min·avg·p50·p95·p99·TTFA·error rate·cache hit·voice/engine 별·model load·폴백 건수) | `engine.read` / `trace.read` / `debug_session.create` | 1(Health) / 2(TTS 대시보드, P1) / 3 |
+| Prompts | `prompts`, `prompts/[key]` | §118~§120 버전 목록·편집·Test·Activate | `prompts.read` / `prompts.edit` / `prompts.activate` | 2 — **task-012c-2**, A안(런타임 Activate 는 강사 페르소나만, `14` 머리) |
+| Diagnostics | `diagnostics`, `diagnostics/[connectionId]` | §111~§113 Health·Metrics·Log level·Debug session · **TTS Observability 대시보드** `diagnostics/tts`(5차 §143: req/min·avg·p50·p95·p99·TTFA·error rate·cache hit·voice/engine 별·model load·폴백 건수) | `engine.read` / `trace.read` / `debug_session.create` | 1(Health) / 2(TTS 대시보드, P1 — **task-012c-3**, 012b-3 지표 뒤) / 3 |
 | (보조) 루트·Trace 상세 | `/admin` → `dashboard` redirect · `diagnostics/traces/[traceId]` | 진입 기본 경로 · Trace 1건 상세(#129) | `console.access` / `trace.read` | 1 (task-005b H6) |
-| Playground | `playground` (탭: STT · TTS · LLM · E2E) | §108·§109 | `playground.use` / `e2e.run` | 2 / 3(E2E) |
-| History | `history` (탭: Config versions · Audit · Rollback) | §93·§94 | `audit.read` / `config.rollback` | 2 |
+| Playground | `playground` (탭: STT · TTS · LLM · E2E) | §108·§109 | `playground.use` / `e2e.run` | 2(**task-012c-2**) / 3(E2E) |
+| History | `history` (탭: Config versions · Audit · Rollback) | §93·§94 | `audit.read` / `config.rollback` | 2 — **task-012c**(D-C8: 설정 버전 목록·상세 `compare=previous\|active`·Rollback + 감사 조회 #137 한 화면, 발음 사전 감사는 옛 `scope=null` 행 포함·사전 버전 되돌리기는 사전 화면으로 링크) |
 
 메뉴 항목은 사용자의 capability 로 **필터링**한다(없는 메뉴는 렌더링하지 않음). 탭 단위도 같다(예: `config.raw.read` 없으면 Raw JSON 탭 없음).
 
@@ -103,6 +103,8 @@ sequenceDiagram
 ## 10. Phase
 
 1: 셸·배지·Dashboard·Speech/LLM 읽기·Plugins·Connections 읽기·Diagnostics Health·**Pronunciation Dictionary(P0)** · 2: Configuration 편집 탭·Prompts·Playground·History·**Voices › Versions·TTS Quality·TTS 대시보드(P1, 사용자 결정)** · 3: E2E·Diagnostics 전체 · 4: Presets/Export/Import/Overrides 탭·Voices Import·Admin Web 분리 검토.
+
+> **2026-09-29 task-012c 분할**: Phase 2 = 012c(Configuration Form·Raw JSON·Diff 탭, 연결 편집, Fallback 편집, History) → 012c-2(Prompts·Playground) → 012c-3(TTS Quality·TTS 대시보드). Voices › Versions 는 사용자 결정 대기(U-C1, Phase 4 이관 권고). 연결 생성·삭제는 4, Log level·Diagnostics 전체는 3(015c).
 
 ## 11. 미결
 

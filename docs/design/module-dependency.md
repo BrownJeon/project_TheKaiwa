@@ -536,7 +536,7 @@ M4 `kaiwa-tts` 배포는 home-m4-api 와 동일: NFS 가 아닌 로컬 `~/kaiwa-
 3. **클라이언트에 시크릿 없음.** 앱·플러그인이 받는 것은 `connectionProfileId`·`credentialRef` 이름·60초 티켓뿐. API Key·`JWT_SECRET`·`SPEECH_INTERNAL_SECRET` 값은 서버 env/`shared/secrets/` 파일에만 있고 `SecretResolver` 가 해석한다. Export 스냅샷·Trace·로그·`/api/v1/speech/config` 응답에 SECRET 키 값이 실리지 않는다.
 4. **실시간 경로에 동기 분석 삽입 금지.** whisper 재분석·발음 분석은 `SpeechJob` 큐 → worker 에서만 돈다. 턴 라우트가 분석 결과를 기다리지 않는다(대화 LLM 은 항상 실시간 텍스트로 먼저 응답).
 5. **원본 오디오를 LLM 에 전달 금지**, 원음·전체 대화 텍스트를 `RequestTrace`·로그·Export 에 저장 금지(`DebugSession` 의 명시적 `captureAudio/captureText` 에서만).
-6. **`ConfigurationVersion` 없는 설정 변경 금지.** 관리자 경로의 모든 변경(Connection·Fallback·Prompt·AppSetting·VoiceProfile·Preset)은 `engine.configuration.apply` 를 거쳐 새 버전을 만든다. Rollback 도 새 버전.
+6. **`ConfigurationVersion` 없는 설정 변경 금지.** 관리자 경로의 모든 변경(Connection·Fallback·Prompt·AppSetting·VoiceProfile·Preset)은 `engine.configuration.apply` 를 거쳐 새 버전을 만든다. Rollback 도 새 버전. (task-012c D-C5, 2026-09-29: engine 은 `AppSetting`(preferences)·`VoiceProfile`(speech) 을 import 할 수 없으므로, 관리자 적용은 **`admin/configuration`(L0)이 `infra.withTransaction` 하나를 열고** 대상 소유 층의 tx 쓰기 함수 + `engine.configuration` 의 버전 기록 + `infra.audit` 를 부른다 — 발음 사전(task-003g)과 같은 조합. `engine.configuration` 은 검증·Diff·버전 기록만 소유한다.)
 7. **역방향 import 금지.** 하위 층이 상위 층 타입을 필요로 하면 설계 오류다 — 콜백 인자·이벤트·라우트 조합으로 되돌린다.
 8. **다른 층 테이블 직접 접근 금지.** `speech` 가 `UserVoiceSetting` 을 읽고 싶으면 `preferences.getVoiceSetting`, `admin` 이 `VoiceProfile` 을 바꾸고 싶으면 `speech.disableVoice`.
 9. **`tts-service` 가 `speech/common` 을 import 하는 것 금지**(AGPL 경계 유지). 앱·gateway·worker 는 tts-service 를 HTTP 로만 부른다. SBV2 원 API(`/voice`, `/models/info`) 를 앱·모바일이 직접 호출하지 않는다(§35).

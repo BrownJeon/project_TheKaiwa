@@ -42,6 +42,8 @@ model ConfigurationVersion {
 
 `origin`·`rollbackOfId`·`importId`·`effectiveHash`·`schemaVersion` 은 계획 §9-C 초안에 없던 보조 필드다(정본 반영 요청, §10 미결).
 
+> **결정(task-012c D-C2, 2026-09-29) — 보조 컬럼은 추가하지 않는다(스키마 0).** 실제 스키마(`prisma/schema.prisma`)는 `restoredFromVersion Int?`·`testResult Json?`·`supersededAt` 을 갖고 위 보조 필드는 없다. 대응: `origin` → `snapshot._meta.origin`(`BASELINE|APPLY|RAW_JSON|ROLLBACK`, 물화·Diff 에서 제외하는 예약 키) + `AuditLog.action`(`config.baseline|config.apply|config.raw_apply|config.rollback`) · `rollbackOfId` → `restoredFromVersion`(번호) · `schemaVersion` → `snapshot._meta.schemaVersion` · `effectiveHash` → 불필요(`baseVersion` 낙관 잠금 + 무상태 `summaryHash`, configuration-resolution §8-1) · `importId` → Phase 4 에서 다시 판단. `diff` 칸은 배열 대신 봉투 `{entries[], summary, candidateHash}`. 정본 = `configuration-resolution.md` §6-2 "task-012c 확정" 단락.
+
 ## 4. 유일성·불변성
 
 - `(environment, scope, targetId, version)` 유일. `version` 은 대상별 직렬 증가이며 트랜잭션 안에서 `MAX(version)+1` 로 채번한다(동시 Apply 는 낙관적 잠금 `baseVersionId`/`baseHash` 불일치로 409).
@@ -82,7 +84,7 @@ snapshot 은 **Effective 가 아니다.** env·yaml 층은 포함하지 않으�
 | Import | 파일에 포함된 각 대상마다 1행 | 대상 id | IMPORT (+공통 `importId`) |
 | Prompt Activate | PROMPT | promptKey | PROMPT_ACTIVATE (snapshot = `{activeVersionId, promptVersion}`) |
 | Preset 저장 | PRESET | presetId | APPLY (Preset 자체의 이력; 적용은 각 대상 버전으로) |
-| 기동 시 최초 물화(yaml → 연결 identity 생성) | ENGINE_CONNECTION | connectionId | SYSTEM (`version=1`, actor = 시스템 계정) |
+| 기동 시 최초 물화(yaml → 연결 identity 생성) | ENGINE_CONNECTION | connectionId | SYSTEM (`version=1`, actor = 시스템 계정) — **task-012c D-C5 로 대체**: 기동 시 일괄 생성 대신 **대상의 첫 적용 때 같은 트랜잭션에서 v1 = 지금 행 값(`_meta.origin=BASELINE`, actor 없음, 감사 `config.baseline`) → 적용 v2**. 모든 scope(ENGINE_CONNECTION·FALLBACK_POLICY·APP_SETTING·VOICE_PROFILE) 공통 |
 
 만들지 **않는** 것: `RuntimeOverride` 생성/철회(임시), Health/Functional Test, Playground, Log level 임시 상향(PRODUCTION TTL 부여 시 — `15` §5), 사용자 설정 변경(7층).
 
@@ -107,6 +109,8 @@ snapshot 은 **Effective 가 아니다.** env·yaml 층은 포함하지 않으�
 ## 11. Phase
 
 1: 기동 시 SYSTEM 버전 1 생성·`GET config/versions` · 2: Apply/Rollback/Prompt Activate 버전 · 4: Import·Preset 버전.
+
+> 실제(2026-09-29): Phase 1(005b)에서는 버전 조회·SYSTEM 버전을 만들지 않았다 → **task-012c** 가 `GET config/versions`(#108·#108a)·첫 적용 기준선·Apply·Rollback 을 한꺼번에 구현, Prompt Activate(`scope=PROMPT`)는 012c-2.
 
 ## 12. 미결
 

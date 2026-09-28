@@ -81,9 +81,9 @@ POST /api/admin/v1/config/diff
 | `changeType` | `ADDED`(스키마 키에 값 신규) · `REMOVED`(관리 층 값 제거 → 하위 층으로 복귀) · `CHANGED` · `UNCHANGED`(기본 생략, `?all=true` 로 포함) |
 | `before.source` / `after.source` | 각각 현재 Effective 와 **candidate 적용 후 Effective** 의 출처. 관리 층 값을 바꿔도 env 가 이기면 `after.source` 가 그대로 `ENVIRONMENT` |
 | `after.storedValue` | 저장될 값(효력 없는 경우 `value` 와 다름) |
-| `blocked` | `SHADOWED_BY_ENVIRONMENT` · `READ_ONLY` · `REDEPLOY_REQUIRED` · `SECRET_VALUE_IN_PAYLOAD` — `READ_ONLY`·`SECRET_VALUE_IN_PAYLOAD` 는 Apply 자체가 400, 나머지는 경고 |
+| `blocked` | `SHADOWED_BY_ENVIRONMENT` · `READ_ONLY` · `REDEPLOY_REQUIRED` · `SECRET_VALUE_IN_PAYLOAD` · **`SERVICE_MANAGED`**(task-012c D-C4 — Python 서비스가 읽는 키, 콘솔 편집 불가) — `READ_ONLY`·`SECRET_VALUE_IN_PAYLOAD`·`SERVICE_MANAGED` 는 Apply 자체가 400, 나머지는 경고 |
 | `summary.affectedServices` | Python 서비스 재기동 필요 여부(어댑터의 `restartTarget` 메타) |
-| `confirmation` | PRODUCTION + `productionSensitive` 변경일 때 `required:true`. 호출자가 `config.apply.production` 을 가지면 `token`(서명, 10분, `candidateHash`+actor 바인딩)을 여기서 발급, 아니면 `null` + SUPER_ADMIN 안내(`16` §6) |
+| `confirmation` | PRODUCTION + `productionSensitive` 변경일 때 `required:true`. ~~호출자가 `config.apply.production` 을 가지면 `token`(서명, 10분) 발급~~ → **task-012c D-C1(2026-09-29)로 폐기**: Diff 는 `summaryHash`(무상태 — apply 가 같은 후보로 다시 계산해 대조)만 돌려주고, apply 는 `confirm:"PRODUCTION"` + `summaryHash` + `testResultId` + `reason≥10` + SUPER_ADMIN(정본 `configuration-resolution.md` §8-1) |
 
 ## 5. UI 렌더링 (§92)
 

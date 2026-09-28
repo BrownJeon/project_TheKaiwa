@@ -838,3 +838,7 @@ reviewer 21:55 판정(두 건 채택)대로 고쳤다. 스키마 변경·db push
 
 ### 2026-09-29 02:40 Leader — QA PASS(REV-032 수정분)·커밋
 - 재실행(간섭 없음, 3011 격리 복제본): **006 42/42(턴 p50 5.1s) · 010 65/65**(주제 A4 68s attempts=2·붙여넣기 37s attempts=1, 모범 답 목표 4/4) · 011 60/60(1차). 단위 720/721·tsc 0(012b 제외 상태). 작업 트리 A4 15파일 = QA 복제본 바이트 동일 확인 후 이 파일들만 커밋(012b 미커밋 변경 제외).
+
+### 2026-09-29 02:50 Leader — A4 lesson@v6 운영 반영
+- `f4a3f32` push → webhook `RELEASE_RESULT ok`(릴리스 `20260929-021307-f4a3f320`), health ok. 운영 스모크 `SMOKE_ENV=PRODUCTION bash tests/live/task010-smoke.sh 3010` **65/65 PASS** — 주제 A4 47s·붙여넣기 36s(둘 다 attempts=1), 모범 답 목표 3/3, 첫 소리 184ms. 운영 11b 후속 종결.
+- 남은 관찰: A4 1차 응답의 `quiz[]` 스키마 밖 필드(`q`·`conjugationNote`)로 인한 재시도·지연 — 허용 밖 필드 결정적 제거 repair 는 PE 후속 후보.

@@ -216,21 +216,21 @@
 | 82 | GET | `/api/admin/v1/voices?status=` | Voice 전체(상태 포함) | `voices.read` | speech/voices | 1 | query | `VoiceProfile[]` |
 | 82a | GET | `/api/admin/v1/voices/:id` | Voice 상세 | `voices.read` | speech/voices | 1 | — | `VoiceProfile`+model+usage |
 | 83 | POST | `/api/admin/v1/voices` | Voice Package zip import | `voices.manage` | speech/voices/importJobs | 4 | multipart zip ≤500MB | `{importJobId}` |
-| 84 | PUT | `/api/admin/v1/voices/:id` | 표시명·설명·defaults·정렬 | `voices.manage` | speech/voices | 2 | 부분 | `VoiceProfile` |
-| 85 | POST | `/api/admin/v1/voices/:id/activate` | AVAILABLE 전환 | `voices.manage` | speech/voices | 2 | — | `VoiceProfile` |
-| 86 | POST | `/api/admin/v1/voices/:id/disable` | DISABLED + 사용자 기본 voice 전환 | `voices.manage` | speech/voices | 2 | `{reason?}` | `{voice,reassignedUsers}` |
+| 84 | PUT | `/api/admin/v1/voices/:id` | 표시명·설명·defaults·정렬 | `voices.manage` | speech/voices | 2 (012c — VOICE_PROFILE: 기본값·표시명·정렬) | 부분 | `VoiceProfile` |
+| 85 | POST | `/api/admin/v1/voices/:id/activate` | AVAILABLE 전환 | `voices.manage` | speech/voices | 2 (012c-2) | — | `VoiceProfile` |
+| 86 | POST | `/api/admin/v1/voices/:id/disable` | DISABLED + 사용자 기본 voice 전환 | `voices.manage` | speech/voices | 2 (012c-2) | `{reason?}` | `{voice,reassignedUsers}` |
 | 87 | DELETE | `/api/admin/v1/voices/:id` | DISABLED→ARCHIVED | `voices.manage` | speech/voices | 4 | — | `VoiceProfile` |
-| 88 | POST | `/api/admin/v1/voices/sync` | tts-service `/voices` 재동기화 | `voices.manage` | speech/voices/registry | 2 | `{connectionId?}` | `{added[],updated[],missing[]}` |
+| 88 | POST | `/api/admin/v1/voices/sync` | tts-service `/voices` 재동기화 | `voices.manage` | speech/voices/registry | 2 (012c-2) | `{connectionId?}` | `{added[],updated[],missing[]}` |
 | 89 | GET | `/api/admin/v1/voices/import-jobs/:id` | import 진행 | `voices.read` | speech/voices/importJobs | 4 | — | `VoiceImportJob` |
-| 89a | POST | `/api/admin/v1/voices/:id/preview` | Voice Preview Playground(텍스트·styleWeight 지정) | `voices.manage` | speech/voices/preview | 2 | `{text,style,styleWeight,speed,pitch,intonation}` | `audio/wav` |
+| 89a | POST | `/api/admin/v1/voices/:id/preview` | Voice Preview Playground(텍스트·styleWeight 지정) | `voices.manage` | speech/voices/preview | 2 (012c-2) | `{text,style,styleWeight,speed,pitch,intonation}` | `audio/wav` |
 | 90 | GET | `/api/admin/v1/engines` | Engine descriptor+schema | `engine.read` | engine/registry | 1 | — | `[{engine,schema}]` |
 | 91 | GET | `/api/admin/v1/engine-connections?role=` | Connection 목록 | `engine.read` | engine/connections | 1 | query | `EngineConnection[]`(credentialRef 만) |
 | 91a | GET | `/api/admin/v1/engine-connections/:id` | Connection 상세 | `engine.read` | engine/connections | 1 | — | `EngineConnection`+effectiveSummary |
-| 92 | POST | `/api/admin/v1/engine-connections` | Connection 생성 | `engine.connections.manage` | engine/connections | 2 | 본문 | `EngineConnection` |
-| 93 | PUT | `/api/admin/v1/engine-connections/:id` | Connection 수정(→ ConfigurationVersion) | `engine.connections.manage` | engine/connections+configuration | 2 | 본문+`baseVersion` | `EngineConnection`+`version` |
-| 93a | PUT | `/api/admin/v1/engine-connections/:id/enabled` | enable/disable | `engine.connections.manage` | engine/connections | 2 | `{enabled,reason}` | `EngineConnection` |
-| 93b | PUT | `/api/admin/v1/engine-connections/:id/credential` | credentialRef 연결/해제(값 없음) | `credentials.manage` | engine/credentials | 1 | `{credentialRef\|null,reason}` | `EngineConnection` |
-| 94 | DELETE | `/api/admin/v1/engine-connections/:id` | Connection 삭제(fallback 참조 시 409) | `engine.connections.manage` | engine/connections | 2 | — | `{deleted:true}` |
+| 92 | POST | `/api/admin/v1/engine-connections` | Connection 생성 | `engine.connections.manage` | engine/connections | 4 (012c D-C10 이관 — Import·Preset 과 함께) | 본문 | `EngineConnection` |
+| 93 | PUT | `/api/admin/v1/engine-connections/:id` | Connection 수정(→ ConfigurationVersion) | `engine.connections.manage` | engine/connections+configuration | 2 (012c — 주소·자격 키는 D-C3 선결 게이트 뒤) | 본문+`baseVersion` | `EngineConnection`+`version` |
+| 93a | PUT | `/api/admin/v1/engine-connections/:id/enabled` | enable/disable | `engine.connections.manage` | engine/connections | 2 (012c) | `{enabled,reason}` | `EngineConnection` |
+| 93b | PUT | `/api/admin/v1/engine-connections/:id/credential` | credentialRef 연결/해제(값 없음) | `credentials.manage` | engine/credentials | 2 (012c — 005b 이월, D-C3(b) 허용 목록) | `{credentialRef\|null,reason}` | `EngineConnection` |
+| 94 | DELETE | `/api/admin/v1/engine-connections/:id` | Connection 삭제(fallback 참조 시 409) | `engine.connections.manage` | engine/connections | 4 (012c D-C10 이관) | — | `{deleted:true}` |
 | 95 | POST | `/api/admin/v1/engine-connections/:id/health` | Health Check 실행 | `health.run` | engine/health | 1 | — | `EngineHealth` |
 | 95a | GET | `/api/admin/v1/engine-connections/:id/health?kind=&limit=` | 최근 Health/Functional 결과 | `engine.read` | engine/health | 1 | query | `EngineHealth[]` |
 | 96 | POST | `/api/admin/v1/engine-connections/:id/test` | Functional Test 실행 | `functional_test.run` | engine/functionalTest | 1 | `{overrideRuntime?}` | `EngineHealth`+`traceId` |
@@ -238,19 +238,19 @@
 | 98 | PUT | `/api/admin/v1/engine-connections/:id/log-level` | 로그 레벨 변경(RUNTIME_EDITABLE) | `config.edit` | engine/connections | 3 | `{level}` | `{level,applied}` |
 | 99 | GET | `/api/admin/v1/fallback-policies` | 역할별 fallback | `engine.read` | engine/fallbackPolicy | 1 | — | `EngineFallbackPolicy[]` |
 | 99a | GET | `/api/admin/v1/fallback-policies/:role` | 역할 단건 | `engine.read` | engine/fallbackPolicy | 1 | — | `EngineFallbackPolicy` |
-| 100 | PUT | `/api/admin/v1/fallback-policies/:role` | fallback 편집(→ Version) | `engine.connections.manage` | engine/fallbackPolicy+configuration | 2 | `{primaryConnectionId,fallbackConnectionIds[]}` | `EngineFallbackPolicy`+`version` |
+| 100 | PUT | `/api/admin/v1/fallback-policies/:role` | fallback 편집(→ Version) | `engine.connections.manage` | engine/fallbackPolicy+configuration | 2 (012c) | `{primaryConnectionId,fallbackConnectionIds[]}` | `EngineFallbackPolicy`+`version` |
 | 101 | GET | `/api/admin/v1/secrets` | credentialRef 이름·존재·마지막 사용 | `secrets.read_ref` | infra/secrets | 1 | — | `[{ref,exists,lastUsedAt}]` |
 | 102 | GET | `/api/admin/v1/config/effective?scope=&targetId=` | Effective Configuration | `config.effective.read` | engine/configuration/resolver | 1 | query | `[{key,value,source,sourceRef,editability}]` |
 | 103 | GET | `/api/admin/v1/config/schema/:engineId` | Configuration Schema | `config.raw.read` | engine/registry/schemas | 1 | — | schema JSON |
-| 104 | POST | `/api/admin/v1/config/validate` | 스키마·의존성 검증 | `config.edit` | engine/configuration/validate | 2 | `{scope,targetId,patch}` | `{valid,errors[],warnings[],impact}` |
-| 105 | POST | `/api/admin/v1/config/test` | 후보 설정으로 Functional Test | `functional_test.run` | engine/functionalTest | 2 | `{scope,targetId,patch}` | 테스트 결과+`traceId` |
-| 106 | POST | `/api/admin/v1/config/diff` | 현재 vs 후보 diff | `config.edit` | engine/configuration/diff | 2 | `{scope,targetId,patch}` | `{changes[]}` |
-| 107 | POST | `/api/admin/v1/config/apply` | 적용 → `ConfigurationVersion` | `config.edit` (+`config.apply.production`) | engine/configuration/versions | 2 | `{scope,targetId,patch,baseVersion,reason,confirm?}` | `ConfigurationVersion` |
-| 108 | GET | `/api/admin/v1/config/versions?scope=&targetId=` | 버전 이력 | `config.effective.read` | engine/configuration/versions | 2 | query | 목록 |
-| 108a | GET | `/api/admin/v1/config/versions/:id` | 버전 상세(snapshot·diff) | `config.effective.read` | engine/configuration/versions | 2 | — | `ConfigurationVersion` |
-| 109 | POST | `/api/admin/v1/config/versions/:id/rollback` | 롤백(=새 버전) | `config.rollback` (+`config.apply.production`) | engine/configuration/versions | 2 | `{reason,confirm?}` | `ConfigurationVersion` |
-| 110 | GET | `/api/admin/v1/config/raw/:scope/:targetId` | Raw JSON 조회 | `config.raw.read` | engine/configuration | 2 | — | `{json,version,schemaRef}` |
-| 111 | PUT | `/api/admin/v1/config/raw/:scope/:targetId` | Raw JSON 저장(검증+dry run) | `config.edit` | engine/configuration | 2 | `{json,baseVersion,dryRun?,reason}` | 검증 결과 또는 `ConfigurationVersion` |
+| 104 | POST | `/api/admin/v1/config/validate` | 스키마·의존성 검증 | `config.edit` | engine/configuration/validate | 2 (012c) | `{scope,targetId,patch}` | `{valid,errors[],warnings[],impact}` |
+| 105 | POST | `/api/admin/v1/config/test` | 후보 설정으로 Functional Test | `functional_test.run` | engine/functionalTest | 2 (012c) | `{scope,targetId,patch}` | 테스트 결과+`traceId` |
+| 106 | POST | `/api/admin/v1/config/diff` | 현재 vs 후보 diff | `config.edit` | engine/configuration/diff | 2 (012c) | `{scope,targetId,patch}` | `{changes[]}` |
+| 107 | POST | `/api/admin/v1/config/apply` | 적용 → `ConfigurationVersion` | `config.edit` (+`config.apply.production`) | engine/configuration/versions | 2 (012c) | `{scope,targetId,patch,baseVersion,reason,confirm?}` | `ConfigurationVersion` |
+| 108 | GET | `/api/admin/v1/config/versions?scope=&targetId=` | 버전 이력 | `config.effective.read` | engine/configuration/versions | 2 (012c) | query | 목록 |
+| 108a | GET | `/api/admin/v1/config/versions/:id` | 버전 상세(snapshot·diff) | `config.effective.read` | engine/configuration/versions | 2 (012c) | — | `ConfigurationVersion` |
+| 109 | POST | `/api/admin/v1/config/versions/:id/rollback` | 롤백(=새 버전) | `config.rollback` (+`config.apply.production`) | engine/configuration/versions | 2 (012c) | `{reason,confirm?}` | `ConfigurationVersion` |
+| 110 | GET | `/api/admin/v1/config/raw/:scope/:targetId` | Raw JSON 조회 | `config.raw.read` | engine/configuration | 2 (012c) | — | `{json,version,schemaRef}` |
+| 111 | PUT | `/api/admin/v1/config/raw/:scope/:targetId` | Raw JSON 저장(검증+dry run) | `config.edit` | engine/configuration | 2 (012c) | `{json,baseVersion,dryRun?,reason}` | 검증 결과 또는 `ConfigurationVersion` |
 | 112 | GET | `/api/admin/v1/config/export?scopes=` | 스냅샷 내보내기(secret→ref) | `config.export` | admin/configuration | 4 | query | export JSON |
 | 113 | POST | `/api/admin/v1/config/import` | 가져오기(Validate→Diff→Apply) | `config.import` (+`config.import.production`) | admin/configuration | 4 | `{snapshot,mode,confirm?}` | diff 또는 versions[] |
 | 114 | GET | `/api/admin/v1/presets` | Preset 목록 | `config.effective.read` | admin/configuration | 4 | — | `ConfigurationPreset[]` |
@@ -264,23 +264,23 @@
 | 122 | GET | `/api/admin/v1/plugins/:id` | Plugin 상세(descriptor·schema·capabilities) | `plugins.read` | engine/registry/plugins | 1 | — | 상세 |
 | 123 | GET | `/api/admin/v1/diagnostics/:connectionId?days=` | health+metrics+서비스 메모리 | `trace.read` | admin/diagnostics | 3 | query | 진단 JSON |
 | 123a | GET | `/api/admin/v1/metrics?from=&to=&role=` | `EngineMetricsDaily` 집계 | `trace.read` | admin/diagnostics | 3 | query | 표 |
-| 123b | GET/PUT | `/api/admin/v1/app-settings/:key` | 운영 설정 키(→ ConfigurationVersion) | `config.edit` (정책 키 `environment.policy`) | preferences/appSetting | 2 | `{value,baseVersion,reason}` | `AppSetting` |
-| 124 | POST | `/api/admin/v1/playground/stt` | STT 단발 테스트 | `playground.use` | admin/playground | 2 | multipart audio ≤2MB | `{text,segments[],latencyMs,traceId}` |
-| 125 | POST | `/api/admin/v1/playground/tts` | TTS 상세 파라미터 테스트 | `playground.use` | admin/playground | 2 | `{text,voiceProfileId,style,styleWeight,speed,pitch,intonation,connectionId?}` | `audio/wav`+`X-Trace-Id` |
-| 126 | POST | `/api/admin/v1/playground/llm` | LLM 프롬프트 테스트 | `playground.use` | admin/playground | 2 | `{promptKey?,promptBody?,input,level,connectionId?}` | `{raw,structured,latencyMs,usage,traceId}` |
+| 123b | GET/PUT | `/api/admin/v1/app-settings/:key` | 운영 설정 키(→ ConfigurationVersion) | `config.edit` (정책 키 `environment.policy`) | preferences/appSetting | 2 (012c — 정책 키 편집은 4) | `{value,baseVersion,reason}` | `AppSetting` |
+| 124 | POST | `/api/admin/v1/playground/stt` | STT 단발 테스트 | `playground.use` | admin/playground | 2 (012c-2) | multipart audio ≤2MB | `{text,segments[],latencyMs,traceId}` |
+| 125 | POST | `/api/admin/v1/playground/tts` | TTS 상세 파라미터 테스트 | `playground.use` | admin/playground | 2 (012c-2) | `{text,voiceProfileId,style,styleWeight,speed,pitch,intonation,connectionId?}` | `audio/wav`+`X-Trace-Id` |
+| 126 | POST | `/api/admin/v1/playground/llm` | LLM 프롬프트 테스트 | `playground.use` | admin/playground | 2 (012c-2) | `{promptKey?,promptBody?,input,level,connectionId?}` | `{raw,structured,latencyMs,usage,traceId}` |
 | 127 | POST | `/api/admin/v1/playground/e2e` | STT→Orchestrator→LLM→TTS | `e2e.run` | admin/playground | 3 | multipart audio + params | `{steps[],totalMs,traceId}` |
-| 127a | GET | `/api/admin/v1/playground/audio/:id` | Playground/E2E 임시 오디오(1시간) | `playground.use` | admin/playground | 2 | — | `audio/wav` |
+| 127a | GET | `/api/admin/v1/playground/audio/:id` | Playground/E2E 임시 오디오(1시간) | `playground.use` | admin/playground | 2 (012c-2) | — | `audio/wav` |
 | 128 | GET | `/api/admin/v1/traces?kind=&from=&to=&connectionId=` | Trace 목록 | `trace.read` | engine/trace | 1 | query | 목록 |
 | 129 | GET | `/api/admin/v1/traces/:traceId` | Trace 상세 | `trace.read` | engine/trace | 1 | — | `RequestTrace` |
 | 130 | POST | `/api/admin/v1/debug-sessions` | Explicit Debug Session | `debug_session.create` | admin/diagnostics | 3 | `{purpose,captureAudio,captureText,ttlMinutes}` | `DebugSession` |
 | 131 | DELETE | `/api/admin/v1/debug-sessions/:id` | 즉시 종료·수집물 삭제 | `debug_session.create` | admin/diagnostics | 3 | — | `{ended:true,purged:true}` |
-| 132 | GET | `/api/admin/v1/prompts` | Prompt Registry | `prompts.read` | conversation/promptRegistry | 2 | — | `PromptTemplate[]`+active version |
-| 133 | GET | `/api/admin/v1/prompts/:key/versions` | 버전 목록 | `prompts.read` | conversation/promptRegistry | 2 | — | `PromptVersion[]`(bodyChars 만) |
-| 133a | GET | `/api/admin/v1/prompts/:key/versions/:v` | 버전 상세(body) | `prompts.read` | conversation/promptRegistry | 2 | — | `PromptVersion` |
-| 134 | POST | `/api/admin/v1/prompts/:key/versions` | 새 버전(DRAFT) | `prompts.edit` | conversation/promptRegistry | 2 | `{body,modelHints?,note}` | `PromptVersion` |
-| 135 | POST | `/api/admin/v1/prompts/:key/versions/:v/activate` | ACTIVE 전환(→ Version+Audit) | `prompts.activate` | conversation/promptRegistry | 2 | `{reason,confirm?}` | `PromptVersion` |
-| 136 | POST | `/api/admin/v1/prompts/:key/test` | draft+입력 → 미리보기 | `prompts.edit` | conversation/promptRegistry | 2 | `{body?,version?,input,level}` | `{structured,raw,latencyMs,traceId}` |
-| 137 | GET | `/api/admin/v1/audit?from=&to=&scope=&actor=` | 감사 로그 | `audit.read` | infra/audit | 1 | query | `AuditLog[]` |
+| 132 | GET | `/api/admin/v1/prompts` | Prompt Registry | `prompts.read` | conversation/promptRegistry | 2 (012c-2 — A안 D-C12) | — | `PromptTemplate[]`+active version |
+| 133 | GET | `/api/admin/v1/prompts/:key/versions` | 버전 목록 | `prompts.read` | conversation/promptRegistry | 2 (012c-2 — A안 D-C12) | — | `PromptVersion[]`(bodyChars 만) |
+| 133a | GET | `/api/admin/v1/prompts/:key/versions/:v` | 버전 상세(body) | `prompts.read` | conversation/promptRegistry | 2 (012c-2 — A안 D-C12) | — | `PromptVersion` |
+| 134 | POST | `/api/admin/v1/prompts/:key/versions` | 새 버전(DRAFT) | `prompts.edit` | conversation/promptRegistry | 2 (012c-2 — A안 D-C12) | `{body,modelHints?,note}` | `PromptVersion` |
+| 135 | POST | `/api/admin/v1/prompts/:key/versions/:v/activate` | ACTIVE 전환(→ Version+Audit) | `prompts.activate` | conversation/promptRegistry | 2 (012c-2 — A안 D-C12) | `{reason,confirm?}` | `PromptVersion` |
+| 136 | POST | `/api/admin/v1/prompts/:key/test` | draft+입력 → 미리보기 | `prompts.edit` | conversation/promptRegistry | 2 (012c-2 — A안 D-C12) | `{body?,version?,input,level}` | `{structured,raw,latencyMs,traceId}` |
+| 137 | GET | `/api/admin/v1/audit?from=&to=&scope=&actor=` | 감사 로그 | `audit.read` | infra/audit | 2 (012c — 표기는 1 이었으나 005b 미구현) | query | `AuditLog[]` |
 | 137a | PATCH | `/api/admin/v1/users/:id/role` | 역할 변경 | `users.role.manage` | admin/permissions | 1 | `{role,reason}` | `{user}` |
 | 137b | GET | `/api/admin/v1/me/capabilities` | 내 capability(UI 숨김용) | `console.access` | admin/permissions | 1 | — | `{role,capabilities[]}` |
 | 138 | GET | `/api/admin/v1/lexicon?q=&scope=&scopeRefId=&enabled=1\|all&sort=&page=&pageSize=` | 발음 사전 목록(task-003g) | `voices.read` | admin/speech/lexicon → speech/tts | 1 | query | `LexiconListDto`(§7-2a) |
@@ -1206,7 +1206,8 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 ### 2-19. 관리자 공통 규약 (`/api/admin/v1/*`)
 
 - 모든 라우트 첫 줄 `requireCapability(req, '<capability>', { targetEnvironment })`. `console.access` 조차 없으면 `404`, capability 부족은 `403 { data: { code: "FORBIDDEN", details: { missing: ["config.edit"] } } }`.
-- **환경 컨텍스트**: 조회는 프로세스 `APP_ENV` 행이 기본이며 `?environment=` 로 다른 환경을 볼 수 있다(SUPER_ADMIN 외에는 `403`). 변경은 **대상 행의 `environment`** 를 `targetEnvironment` 로 삼고, PRODUCTION 이면 `role-permission.md` §6 흐름(`confirm:true` + `summaryHash` + `testResultId` + `reason ≥10자` + SUPER_ADMIN actor). 조건 미충족은 `403 PRODUCTION_PROTECTED`, `summaryHash` 불일치는 `409`.
+- **환경 컨텍스트**: 조회는 프로세스 `APP_ENV` 행이 기본이며 `?environment=` 로 다른 환경을 볼 수 있다(SUPER_ADMIN 외에는 `403`). 변경은 **대상 행의 `environment`** 를 `targetEnvironment` 로 삼고, PRODUCTION 이면 `role-permission.md` §6 흐름(`confirm:"PRODUCTION"` + `summaryHash` + `testResultId` + `reason ≥10자` + SUPER_ADMIN actor — `configuration-resolution.md` §8-1). **확인 방식 통일(task-012c D-C1, 2026-09-29)**: `confirm` 은 불리언이 아니라 **문자열 `"PRODUCTION"`**(발음 사전 §7-2a 와 같은 값), 서명 확인 토큰(옛 admin-console/16 §6)은 쓰지 않는다. 응답: `confirm` 없음·불일치 `403 FORBIDDEN {reason:"PRODUCTION_CONFIRMATION_REQUIRED"}` · `testResultId` 없음/만료/실패/다른 후보 `403 FORBIDDEN {reason:"PRODUCTION_TEST_REQUIRED"}` · SUPER_ADMIN 아님 `403 FORBIDDEN {missing:["config.apply.production"]}` · `summaryHash` 불일치 `409 CONFLICT {reason:"SUMMARY_MISMATCH"}` · `reason` 10자 미만 `400 VALIDATION`.
+- **편집 선결 게이트(task-012c D-C3, 2026-09-29)** — 아래 세 가지가 구현·검증되기 전에는 `connection.baseUrl` 등 주소 키와 `credentialRef` 를 바꾸는 쓰기(#93·#93b·#104~#111 의 해당 키)를 열지 않는다: (a) 시크릿을 보내는 모든 어댑터는 **서버 env 에 적힌 서비스 origin** 과 대상 주소의 origin 이 같을 때만 시크릿을 싣는다(다르면 호출 0·`MISCONFIGURED` — TTS 의 `readServiceSecretFor` 방식을 home-m4 API 키 등 전부로 확대) (b) `credentialRef` 허용 목록 — `env:` 이름은 엔진 스키마가 허용한 이름만, 부팅 시크릿 계열(세션 서명 키·내부 서비스 시크릿·TTS 서비스 시크릿·DB 접속 문자열·OAuth 클라이언트 시크릿·초대코드 등)을 가리키면 `400 VALIDATION {rule:"refNotAllowed"}`, `file:` 은 기존 이름 규칙(§10 of configuration-resolution) (c) 연결 주소 호스트 허용 목록 — loopback·LAN(`192.168.219.0/24`)·서버 env 에 적힌 서비스 origin 만, userinfo·비 http(s) 거부(`400 {rule:"hostNotAllowed"}`), Validate·Health·Test·실호출 공통. `connection.binPath` 는 spawn 에 쓰지 않는다(READ_ONLY).
 - **감사**: 모든 쓰기는 같은 트랜잭션에서 `AuditLog` 1행(`action` = capability 규약). 응답에 `auditId` 를 포함한다. 민감 읽기(`config/export`, `secrets`, PRODUCTION `config/raw`)도 기록.
 - **시크릿 마스킹**: 응답의 `connection` JSON 에서 `SECRET_REF` 타입 키는 `credentialRef` 문자열만, 그 외 시크릿 의심 값은 `"***"`. 요청 본문에 `env:`/`file:` 형식이 아닌 시크릿 값이 오면 `400 E_CONN_SECRET_VALUE`.
 - **낙관적 잠금**: 변경 API 는 `baseVersion`(대상의 현재 `ConfigurationVersion.version`)을 받고 불일치면 `409 { details: { currentVersion } }`.
@@ -1253,7 +1254,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 #### #91~#94 Connection CRUD
 
 - #91 `GET /api/admin/v1/engine-connections?role=&engineId=&status=&environment=` (`engine.read`) → `EngineConnection[]`(§2-19 객체). #91a `GET …/:id` → 상세 + `effectiveSummary`(키 수·최상위 source 분포) + 최근 Health 5건.
-- #92 `POST /api/admin/v1/engine-connections` (`engine.connections.manage`)
+- #92 `POST /api/admin/v1/engine-connections` (`engine.connections.manage`) — **Phase 4 로 이관(task-012c D-C10, 2026-09-29)**: 새 어댑터 없이 만들 연결이 없고, 연결 행은 seed·Import 로만 생긴다. 아래 계약은 Phase 4(Import·Preset) 때 그대로 쓴다.
 
 ```json
 → { "key": "whisper-local-2", "engineId": "faster-whisper", "name": "우분투 whisper 전용", "role": "ANALYSIS_STT", "connectionType": "HTTP", "enabled": false,
@@ -1263,10 +1264,10 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 
 `key` `^[a-z0-9][a-z0-9-]{2,63}$` 환경 내 유일(`409`), `engineId` 존재, `role` 은 디스크립터 `roles` 안, `connectionType ∈ connectionTypes`, `connection/runtime` 은 스키마 검증(`400` 에 `errors[{key,reason}]`). 생성 시 `status=UNKNOWN`, `ConfigurationVersion(ENGINE_CONNECTION, v1)`.
 
-- #93 `PUT /api/admin/v1/engine-connections/:id` (`engine.connections.manage`) — 본문 `{ name?, connection?, runtime?, enabled?, baseVersion, reason, confirm?, summaryHash?, testResultId? }`. 내부적으로 `config/validate → diff → apply` 를 한 번에 수행(Form 편집 경로). 응답 `EngineConnection` + `version` + `restartRequired: ["runtime.model"]`(RESTART_REQUIRED 키가 바뀌면 나열, deployer 안내) + `pushed: { runtimeEditable: ["connection.timeoutMs"], serviceApplied: true }`.
-- #93a `PUT /api/admin/v1/engine-connections/:id/enabled` `{ "enabled": false, "reason": "…" }` (`engine.connections.manage`) — fallback primary 인 connection 을 끄면 `409 PRIMARY_IN_USE`.
-- #93b `PUT /api/admin/v1/engine-connections/:id/credential` `{ "credentialRef": "file:tts-service-token" | null, "reason": "…" }` (`credentials.manage`) — 값 필드가 있으면 `400`. ref 존재 확인 후 `MISCONFIGURED` 해제, `AuditLog(credentials.set|clear)`.
-- #94 `DELETE /api/admin/v1/engine-connections/:id` (`engine.connections.manage`) — fallback primary 참조는 `409 PRIMARY_IN_USE`, fallback 배열 포함은 `409 FALLBACK_IN_USE`. `EngineHealth·EngineMetricsDaily` cascade, `ConfigurationVersion` 은 남는다.
+- #93 `PUT /api/admin/v1/engine-connections/:id` (`engine.connections.manage`) — 본문 `{ name?, connection?, runtime?, enabled?, baseVersion, reason, confirm?, summaryHash?, testResultId? }`. 내부적으로 `config/validate → diff → apply` 를 한 번에 수행(Form 편집 경로, 결과·기록은 #107 과 동일). 응답 `EngineConnection` + `version` + `restartRequired: ["runtime.model"]`(RESTART_REQUIRED 키가 바뀌면 나열) + `applied`(#107 과 같은 모양). **task-012c(2026-09-29) 확정 사항**: ① 편집할 수 있는 키는 **앱(Node)이 실제로 읽는 키 중 "런타임 실사용값 == Effective" 테스트가 있는 키**뿐이다(D-C4 — 키별 표는 task-012c 이력서 "편집 키 표"). Python 서비스(gateway·worker·tts-service)가 읽는 키는 콘솔에서 편집하지 않는다 → `400 VALIDATION {rule:"serviceManaged"}`("서비스 설정 파일에서 관리"). ② 주소·자격 키(`connection.baseUrl`·`wsPath`·`credentialRef`)는 §2-19 편집 선결 게이트(D-C3) 통과 뒤에만 연다. ③ Python 서비스로의 push(`serviceApplied`)는 없다 — Python 쪽 수신 경로(`/admin/config/apply`·#141a)가 생기는 **015c** 로 이관(D-C10).
+- #93a `PUT /api/admin/v1/engine-connections/:id/enabled` `{ "enabled": false, "reason": "…", "baseVersion", "confirm"?, … }` (`engine.connections.manage`) — `enabled` 는 엄격 키(PRODUCTION 은 §2-19 흐름 + SUPER_ADMIN). fallback primary 인 connection 을 끄면 `409 PRIMARY_IN_USE`. `ConfigurationVersion(ENGINE_CONNECTION)` 1행 + 감사.
+- #93b `PUT /api/admin/v1/engine-connections/:id/credential` `{ "credentialRef": "file:tts-service-token" | null, "reason": "…", "baseVersion", "confirm"?, "testResultId"? }` (`credentials.manage` = SUPER_ADMIN, task-012c — 005b 이월) — 값 필드가 있으면 `400`. 검사 순서: ref 형식(`env:`/`file:` 정규식) → **허용 목록(D-C3(b) — 부팅 시크릿 계열 `400 {rule:"refNotAllowed"}`)** → 존재 확인(없으면 `400 {rule:"reference"}`) → PRODUCTION 흐름. 결과: `EngineConnection.credentialRef` 갱신 + `ConfigurationVersion(ENGINE_CONNECTION)`(스냅샷에는 ref 문자열만) + `AuditLog(credentials.set|credentials.clear)`(before/after 는 ref 이름만) 한 트랜잭션, `MISCONFIGURED` 해제는 다음 Health 로.
+- #94 `DELETE /api/admin/v1/engine-connections/:id` (`engine.connections.manage`) — **Phase 4 로 이관(task-012c D-C10)**: 삭제는 Fallback 파손 위험. 계약(fallback primary 참조 `409 PRIMARY_IN_USE`, fallback 배열 포함 `409 FALLBACK_IN_USE`, `EngineHealth·EngineMetricsDaily` cascade, `ConfigurationVersion` 은 남김)은 그때 그대로 쓴다. 012c 에서는 끄기(#93a)만.
 
 #### #95 `POST /api/admin/v1/engine-connections/:id/health` (`health.run`)
 
@@ -1289,6 +1290,8 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 ```
 
 타임아웃 30s(`504`). `RequestTrace(FUNCTIONAL_TEST)`·`EngineHealth(FUNCTIONAL)`·`lastFunctionalAt` 기록. 오디오 결과물은 `TtsCache` 가 아니라 임시 파일(1시간)로 `detail.audioUrl`(admin 세션만).
+
+**30초 슬롯(connection 당 1회, `429 RATE_LIMITED` + `Retry-After`) — 원자화(task-012c D-C9, 2026-09-29)**: 슬롯은 프로세스 메모리가 아니라 DB 조건부 갱신 한 문장으로 잡는다 — `UPDATE EngineConnection SET lastFunctionalAt = now WHERE id = ? AND (lastFunctionalAt IS NULL OR lastFunctionalAt < now − 30s)` 이 1행을 바꿨을 때만 실행(blue/green 두 프로세스·동시 요청에서도 1건). 그래서 `lastFunctionalAt` 은 "마지막 **시작** 시각"이다(결과 시각은 `EngineHealth.checkedAt`). #105 `config/test` 도 같은 슬롯을 쓴다.
 
 #### #97~#98 `GET/PUT /api/admin/v1/engine-connections/:id/log-level`
 
@@ -1343,6 +1346,16 @@ PUT → { "patch": { "override.production.enabled": true }, "reason": "회귀 �
 
 ### 2-23. Configuration (#102~#113, L5 engine/configuration · L0 admin/configuration)
 
+> **task-012c(2026-09-29 C1 확정) — 이 절의 구현 기준.** 012c 가 구현하는 scope = `ENGINE_CONNECTION`·`FALLBACK_POLICY`·`APP_SETTING`·`VOICE_PROFILE`(`PROMPT` 는 012c-2 의 #135 가 같은 버전 기록을 쓴다, `PRESET` 은 Phase 4). 공통 규칙:
+> - **쓰기 조합**: 라우트 → `admin/configuration`(L0: capability·PRODUCTION 게이트·입력·DTO) → `infra.withTransaction` 하나에서 **대상 소유 층의 tx 쓰기**(engine = `EngineConnection`·`EngineFallbackPolicy` / preferences = `AppSetting` / speech = `VoiceProfile`) + `engine.configuration` 버전 기록 + `infra.audit` — engine 은 speech·preferences 를 import 하지 않는다(6층). 직렬화 = 대상 현재 행 `SELECT … FOR UPDATE` + `@@unique(environment, scope, targetId, version)` 충돌 시 `409`.
+> - **낙관적 잠금**: `baseVersion` = 대상의 현재 ACTIVE 번호(버전이 없으면 `0`). 불일치 `409 CONFLICT {reason:"VERSION_CONFLICT", baseVersion, currentVersion}`.
+> - **첫 적용 기준선(D-C5)**: 대상에 ACTIVE 버전이 없으면 같은 트랜잭션에서 **v1 = 지금 행 값(기준선, `snapshot._meta.origin="BASELINE"`, actor 없음, 감사 `config.baseline`)** 을 먼저 쓰고 적용은 v2 가 된다 — seed 상태로도 Rollback 할 수 있다.
+> - **변경 0**: 후보가 지금 저장값과 같으면 버전·감사를 만들지 않고 `200 {changed:false}`(Rollback 만 `409 NO_CHANGE`).
+> - **버전 기록 모양(D-C2, 스키마 0)**: `snapshot` = 관리 층 값 전체(SECRET 은 ref) + 예약 키 `_meta{schemaVersion, origin: BASELINE|APPLY|RAW_JSON|ROLLBACK}`(물화·Diff 에서 제외) · `diff` = 봉투 `{entries:[{key, before, after, beforeSource, afterSource, editability, strict, blocked}], summary, candidateHash}` · 되돌림 원본 = `restoredFromVersion`(번호) · 감사 `action` = `config.baseline|config.apply|config.raw_apply|config.rollback|credentials.set|credentials.clear` 에 `after.versionId`. 추가 컬럼(origin·rollbackOfId·importId·effectiveHash)은 두지 않는다.
+> - **캐시(D-C7)**: 적용한 프로세스는 커밋 직후 라우터·해석 캐시를 비운다. 다른 프로세스(blue/green 전환 순간)는 기존 30초 TTL 로 따라온다(`config.cacheEpoch` 폴링은 두지 않음).
+> - **Python 서비스 push 없음**: 아래 예시의 `pushedToService` 는 012c 에서 항상 `false` 이고, Python 이 읽는 키는 편집 대상이 아니다(#93 ①). 수신 경로는 015c.
+> - **오류 `rule` 정본(Validate·Raw JSON 공통)**: `type|min|max|enum|pattern|maxLength|required|unknownKey|readOnly|secretValue|dependency|reference` + 012c 추가 `serviceManaged|hostNotAllowed|refNotAllowed`. 오류 항목 `{key, rule, message, expected?, actual?, suggestion?, related?}`, 최대 50건, 단계 `stage: JSON_SYNTAX|SCHEMA|DEPENDENCY`(admin-console/10 §5). 아래 #104 예시의 `code:"E_MIN"` 은 옛 표기 — `rule:"min"` 이 정본.
+
 `scope ∈ ConfigScope{ENGINE_CONNECTION,FALLBACK_POLICY,PROMPT,APP_SETTING,VOICE_PROFILE,PRESET}` — enum 의 `LEXICON`(task-018)은 감사(#137) 전용이라 이 절의 엔드포인트는 `400`. `targetId` 는 `ConfigurationVersion.targetId` 규약(`EngineConnection.id` · `EngineFallbackPolicy.id` · `PromptTemplate.key` · `AppSetting.key` · `VoiceProfile.id` · `ConfigurationPreset.id`). 편의상 `ENGINE_CONNECTION` 은 `key` 도 받아 서버가 `id` 로 정규화한다. `patch` 는 점 표기 키 → 값의 평면 객체(`{ "runtime.cpuThreads": 8 }`).
 
 #### #102 `GET /api/admin/v1/config/effective?scope=&targetId=&context=` (`config.effective.read`)
@@ -1378,7 +1391,7 @@ PUT → { "patch": { "override.production.enabled": true }, "reason": "회귀 �
 
 #### #105 `POST /api/admin/v1/config/test` (`functional_test.run`)
 
-`{ scope, targetId, patch }` — 후보 설정을 **메모리에서만 합성**해 #96 과 같은 Functional Test 를 실행(RESTART_REQUIRED 키는 실제 반영 불가하므로 `tested:false, reason:"RESTART_REQUIRED"` 로 표시하고 나머지 키로 테스트). 응답 `{ "ok": true, "testResultId": "eh_…", "traceId": "t_…", "latencyMs": 640, "untested": ["runtime.model"], "expiresAt": "+30m" }`. `testResultId` 는 PRODUCTION apply 의 첨부값(30분 유효).
+`{ scope, targetId, patch }` — 후보 설정을 **메모리에서만 합성**해 #96 과 같은 Functional Test 를 실행(RESTART_REQUIRED 키는 실제 반영 불가하므로 `tested:false, reason:"RESTART_REQUIRED"` 로 표시하고 나머지 키로 테스트). 응답 `{ "ok": true, "testResultId": "eh_…", "traceId": "t_…", "latencyMs": 640, "untested": ["runtime.model"], "expiresAt": "+30m" }`. `testResultId` 는 PRODUCTION apply 의 첨부값(30분 유효). **task-012c 확정(D-C1)**: `testResultId` = `EngineHealth(kind=FUNCTIONAL).id` 이고 `detail.candidateHash`(이 테스트에 쓴 후보의 정규화 해시)·`checkedAt` 을 DB 에 남긴다 — Apply 는 그 행을 읽어 `ok=true` · 30분 이내 · 같은 대상 · `candidateHash` 일치를 확인한다(프로세스 메모리에 두지 않아 blue/green·재기동에도 유효). 30초 슬롯은 #96 과 공유(D-C9). 후보 합성은 메모리에서만 — `EngineConnection`·`TtsCache`·사용자 데이터 무변경.
 
 #### #106 `POST /api/admin/v1/config/diff` (`config.edit`)
 
@@ -1390,37 +1403,42 @@ PUT → { "patch": { "override.production.enabled": true }, "reason": "회귀 �
     "unchanged": 14, "productionProtected": true, "requiredConfirm": "SUPER_ADMIN" }
 ```
 
-`shadowedBy` — 더 높은 층이 같은 키를 덮고 있어 apply 해도 Effective 값이 바뀌지 않는 경우를 미리 경고한다(§83 의 threads 사례).
+`shadowedBy` — 더 높은 층이 같은 키를 덮고 있어 apply 해도 Effective 값이 바뀌지 않는 경우를 미리 경고한다(§83 의 threads 사례). 화면은 이 키의 편집 칸을 잠그고 "서버 설정(env)이 우선"을 안내한다(admin-console/04 §7).
+
+**`summaryHash` — 무상태(task-012c D-C1)**: 서버는 Diff 를 저장하지 않는다. `summaryHash` = sha256(`scope`·`targetId`·`baseVersion`·정규화한 후보·변경 목록) 이고, #107·#109·#111 은 받은 후보로 **Diff 를 다시 계산해** 해시를 대조한다(불일치 `409 SUMMARY_MISMATCH` — 그 사이 다른 변경이 들어왔거나 후보가 달라짐). 유효 기간은 따로 두지 않는다 — `baseVersion` 이 바뀌면 자연히 불일치한다. 응답의 `expiresAt` 은 쓰지 않는다. 변경 행에는 `blocked` 칸(`SHADOWED_BY_ENVIRONMENT`·`READ_ONLY`·`SERVICE_MANAGED`·`SECRET_VALUE_IN_PAYLOAD` — 뒤 3개는 적용 자체가 `400`)을 싣는다.
 
 #### #107 `POST /api/admin/v1/config/apply` (`config.edit`, PRODUCTION +`config.apply.production`)
 
 ```json
 → { "scope": "ENGINE_CONNECTION", "targetId": "whisper-voicevault", "patch": { "runtime.model": "large-v3" }, "baseVersion": 7, "reason": "정확도 부족 — 실측 게이트 ④ 재시도",
-    "confirm": true, "summaryHash": "sha256:…", "testResultId": "eh_…" }
+    "confirm": "PRODUCTION", "summaryHash": "sha256:…", "testResultId": "eh_…" }
 ← 201 { "version": { "id": "cfgv_…", "environment": "PRODUCTION", "scope": "ENGINE_CONNECTION", "targetId": "ec_…", "version": 8, "status": "ACTIVE", "diff": [ … ], "testResult": { "ok": true, "traceId": "t_…" }, "actorUserId": "…", "reason": "…", "createdAt": "…" },
         "previousVersion": { "id": "cfgv_…", "version": 7, "status": "SUPERSEDED" },
         "applied": { "runtimeEditable": [], "pushedToService": false, "restartRequired": ["runtime.model"], "restartTarget": "thekaiwa-speech-worker", "redeployRequired": [] },
         "auditId": "…" }
 ```
 
-- 트랜잭션: validate 재실행 → `baseVersion` 확인(`409`) → 이전 ACTIVE `SUPERSEDED(supersededAt)` → 새 `ConfigurationVersion(ACTIVE, snapshot=적용 후 전체값, diff)` → 대상 행(`EngineConnection.runtime` 등) 갱신 → `AuditLog(config.apply)` → 캐시 무효화. 커밋 후 RUNTIME_EDITABLE 키는 Python 서비스 `POST /admin/config/apply` 로 push(실패해도 버전은 유지, `pushedToService:false` + `EngineHealth(DEGRADED, "config push failed")`).
-- PRODUCTION: `confirm:true` 없음 → `403`; `summaryHash` 가 서버의 마지막 diff 와 다르면 `409`; `testResultId` 없음/실패/만료 → `403 PRODUCTION_TEST_REQUIRED`; 엄격 키(Engine/Model/Connection/Credential/Fallback)는 actor 가 SUPER_ADMIN 이어야 한다. `reason` 10자 이상.
+- 트랜잭션: validate 재실행 → 대상 행 잠금 → `baseVersion` 확인(`409 VERSION_CONFLICT`) → (ACTIVE 없음이면 기준선 v1) → 이전 ACTIVE `SUPERSEDED(supersededAt)` → 새 `ConfigurationVersion(ACTIVE, snapshot=적용 후 전체값+_meta, diff 봉투)` → 대상 행 물화(소유 층 tx 쓰기) → `AuditLog(config.apply)` → 커밋 → 캐시 무효화(§2-23 머리 규칙). ~~커밋 후 RUNTIME_EDITABLE 키는 Python 서비스 push~~ → **015c 이관**(task-012c D-C10): 012c 의 `applied.pushedToService` 는 항상 `false`, `restartRequired`·`restartTarget` 은 앱 소비 키에 한해 안내만.
+- PRODUCTION(task-012c D-C1 확정): `confirm` 이 `"PRODUCTION"` 이 아니면 `403 {reason:"PRODUCTION_CONFIRMATION_REQUIRED"}`; `summaryHash` 가 서버 재계산 값과 다르면 `409 {reason:"SUMMARY_MISMATCH"}`; `testResultId` 없음/실패/30분 초과/다른 후보 → `403 {reason:"PRODUCTION_TEST_REQUIRED"}`; `config.apply.production` 없음 `403 {missing}`; 엄격 키(Engine/Model/Connection/Credential/Fallback — configuration-resolution §8-2)는 **요청자 본인이 SUPER_ADMIN**(위임 없음). `reason` 10자 이상(`400`). 교차 환경(LOCAL 프로세스 → PRODUCTION 행)은 SUPER_ADMIN 만 + 감사 `after.crossEnvironment:true`.
+- AppSetting 파생 규칙(D-C7): `voice.preview.defaultText` 가 바뀌면 같은 트랜잭션에서 `voice.preview.textVersion` 을 +1(미리듣기 캐시 키 무효화) — 두 키 각각 버전 1행.
 
-#### #108 `GET /api/admin/v1/config/versions?scope=&targetId=&status=&limit=&cursor=` (`config.effective.read`) → `{ items: [ { id, version, status, actor: { id, email }, reason, diffSummary: "runtime.model medium→large-v3 (+1)", restoredFromVersion, testResult: { ok }, createdAt, supersededAt } ], nextCursor }`. #108a `GET …/versions/:id` → 전체 `snapshot`(SECRET 은 credentialRef)+`diff`.
+#### #108 `GET /api/admin/v1/config/versions?scope=&targetId=&status=&limit=&cursor=` (`config.effective.read`) → `{ items: [ { id, version, status, actor: { id, email }, reason, diffSummary: "runtime.model medium→large-v3 (+1)", restoredFromVersion, testResult: { ok }, createdAt, supersededAt } ], nextCursor }`. #108a `GET …/versions/:id` → 전체 `snapshot`(SECRET 은 credentialRef)+`diff`. **task-012c 추가**: 목록 항목에 `origin`(`snapshot._meta.origin` — BASELINE·APPLY·RAW_JSON·ROLLBACK)·`integrity`(`OK|MALFORMED|INVALID_ENTRIES` — 지금 스키마로 엄격 재검증한 결과, OK 가 아니면 화면은 "기록 손상" 배지 + 되돌리기 버튼 숨김) · #108a 에 `?compare=previous|active`(발음 사전 §7-2a 와 같은 의미 — `previous` = 바로 앞 버전 → 이 버전, `active` = **지금 저장값** → 이 버전 = 되돌리면 생길 변화) → `{…버전, compare, against, entries[≤200]}`, 손상이면 `422 E_SNAPSHOT_INTEGRITY`. ADMIN 은 `sourceRef` 류 칸 생략(#102 와 같은 요약 규칙).
 
 #### #109 `POST /api/admin/v1/config/versions/:id/rollback` (`config.rollback`, PRODUCTION +`config.apply.production`)
 
 ```json
-→ { "reason": "large-v3 메모리 초과", "confirm": true, "testResultId": "eh_…" }
+→ { "reason": "large-v3 메모리 초과", "baseVersion": 8, "confirm": "PRODUCTION", "summaryHash": "sha256:…", "testResultId": "eh_…" }
 ← 201 { "version": { "id": "cfgv_…", "version": 9, "status": "ACTIVE", "restoredFromVersion": 7, "diff": [ … ] }, "rolledBack": { "id": "cfgv_…", "version": 8, "status": "ROLLED_BACK" }, "applied": { … }, "auditId": "…" }
 ```
 
 대상 버전의 `snapshot` 을 후보로 삼아 #107 과 같은 흐름을 탄다(**새 버전 생성**, 기존 기록 삭제 없음). 되돌림 당한 버전은 `ROLLED_BACK`, 그 사이 버전들은 `SUPERSEDED` 유지. PRODUCTION 은 Functional Test 필수(§6-8).
 
+**task-012c 확정(D-C6)**: `ROLLED_BACK` = **밀려난 직전 ACTIVE**(복원 대상 `:id` 의 상태는 그대로 — admin-console/09 §5, 발음 사전과 같은 의미). 새 ACTIVE 의 `restoredFromVersion` = 대상 번호, 감사 `config.rollback`. 전제 검사: 대상 없음/다른 환경 `404` · 이미 ACTIVE `409 ALREADY_ACTIVE` · 지금 저장값과 같음 `409 NO_CHANGE` · **스냅샷 엄격 재검증** — 지금 스키마에서 사라진 키는 버리고 `warnings.droppedKeys[]`, 새 키는 DEFAULT, 타입·범위·편집성·SECRET 평문·ref 허용 목록 위반은 조용히 버리지 않고 `422 UNPROCESSABLE {reason:"E_SNAPSHOT_INTEGRITY", version, integrity, issues[≤50]}`(버전·감사 쓰기 0) · PRODUCTION 은 §2-19 흐름(`summaryHash` 는 "대상 스냅샷을 후보로 한 Diff" 의 해시). 대상 연결 삭제(`TARGET_DELETED`)는 012c 에 삭제 경로가 없어 발생하지 않는다.
+
 #### #110~#111 Raw JSON `GET/PUT /api/admin/v1/config/raw/:scope/:targetId`
 
 - GET (`config.raw.read`; PRODUCTION 대상은 감사 기록) → `{ "json": { "engine": "faster-whisper", "connection": { … }, "runtime": { … } }, "version": 7, "schemaRef": "faster-whisper@3", "editability": { "runtime.model": "RESTART_REQUIRED", … }, "effectiveDiffers": ["runtime.cpuThreads"] }` — `json` 은 **저장값**(DATABASE/CONNECTION_PROFILE 층)이며 Effective 와 다른 키를 `effectiveDiffers` 로 표시.
-- PUT (`config.edit` + `config.raw.read`) `{ "json": { … 전체 문서 … }, "baseVersion": 7, "dryRun": true, "reason": "…", "confirm"?, "summaryHash"?, "testResultId"? }` — 전체 문서를 받아 저장값과의 diff 를 서버가 계산. `dryRun:true` → `{ validation, diff }` 만 반환(저장 없음). `dryRun:false` → #107 과 동일 결과. JSON 문법 오류는 `400 E_JSON_SYNTAX { line, column }`.
+- PUT (`config.edit` + `config.raw.read`) `{ "json": { … 전체 문서 … }, "baseVersion": 7, "dryRun": true, "reason": "…", "confirm"?, "summaryHash"?, "testResultId"? }` — 전체 문서를 받아 저장값과의 diff 를 서버가 계산. `dryRun:true` → `{ validation, diff }` 만 반환(저장 없음). `dryRun:false` → #107 과 동일 결과. JSON 문법 오류는 `400 E_JSON_SYNTAX { line, column }`. **task-012c**: 오류 봉투는 §2-23 머리 규칙(`400 VALIDATION {stage:"JSON_SYNTAX", line, column}` 형태, `E_JSON_SYNTAX` 는 옛 표기) · `json` 에 `_meta` 는 싣지 않는다 · 저장 버전의 `_meta.origin=RAW_JSON`, 감사 `config.raw_apply` · 편집(PUT)은 DEVELOPER 이상(`config.raw.read`+`config.edit`), ADMIN 은 GET 도 없음(Form 만) · 편집 불가 키(READ_ONLY·SERVICE_MANAGED·D-C3 게이트 전 주소·자격 키)를 바꾸면 `400`.
 
 #### #112 `GET /api/admin/v1/config/export?scopes=ENGINE_CONNECTION,FALLBACK_POLICY,APP_SETTING,VOICE_PROFILE,PROMPT&targetIds=` (`config.export`, 감사 기록)
 
@@ -1459,7 +1477,7 @@ SECRET 키는 항상 `credentialRef` 문자열. connection 참조는 `id` 가 �
 | #122 `GET /api/admin/v1/plugins/:id` (`plugins.read`) | 상세: descriptor · `capabilities[]` · `defaultConfiguration`(스키마 default 만 모은 문서) · `schema` · `loaded` · `initError` · `sourcePath`(`src/modules/engine/adapters/tts/styleBertHttp.ts`) |
 | #123 `GET /api/admin/v1/diagnostics/:connectionId?days=7` (`trace.read`) | `{ "connection": { key, role, status, statusReason, lastHealthAt }, "service": { "modelLoaded": true, "model": "large-v3", "device": "cpu", "memoryMb": 1820, "version": "…", "uptimeSec": 86400 }, "metrics": { "days": [ { date, requests, errors, avgMs, p50Ms, p95Ms } ], "today": { … 당일 RequestTrace 실시간 재계산 … } }, "recentErrors": [ { traceId, errorCode, at } ], "logLevel": { level, source } }` — `service` 는 해당 서비스 `/health` 응답(지원 환경에서만) |
 | #123a `GET /api/admin/v1/metrics?from=&to=&role=` (`trace.read`) | `EngineMetricsDaily` 전 connection 집계 표(Dashboard 차트용) |
-| #123b `GET/PUT /api/admin/v1/app-settings/:key` (`config.edit`; 정책 키는 `environment.policy`) | GET `{ key, value, description, editability, version }` · PUT `{ value, baseVersion, reason }` → `ConfigurationVersion(APP_SETTING)`. 알려진 키: `voice.default`, `voice.preview.defaultText`, `voice.preview.textVersion`, `speech.review.threshold`, `override.production.enabled`(정책), `debug.production.maxTtlMinutes`(정책), `loglevel.production.maxLevel`(정책), `speech.audio.retentionDays`(정책), `trace.retentionDays`(정책) |
+| #123b `GET/PUT /api/admin/v1/app-settings/:key` (`config.edit`; 정책 키는 `environment.policy`) | GET `{ key, value, description, editability, version }` · PUT `{ value, baseVersion, reason }` → `ConfigurationVersion(APP_SETTING)`. 알려진 키: `voice.default`, `voice.preview.defaultText`, `voice.preview.textVersion`, `speech.review.threshold`, `override.production.enabled`(정책), `debug.production.maxTtlMinutes`(정책), `loglevel.production.maxLevel`(정책), `speech.audio.retentionDays`(정책), `trace.retentionDays`(정책). **task-012c(Phase 2) 구현 범위 = 일반 키만** — 키 정의(타입·범위·editability·소비자)는 코드 상수 `appSettingSchema`(configuration-resolution §13 #11), 모르는 키 `404`, 정책 키 편집은 Phase 4(`environment.policy`, 012c 에선 읽기만). `voice.preview.textVersion` 은 직접 편집하지 않고 `defaultText` 변경 때 자동 +1(D-C7). seed 의 실제 키 이름은 `voice.default.profileId`(위 `voice.default` 는 옛 표기) |
 
 ### 2-25. Playground · Trace · Debug Session (#124~#131, L0 admin/playground · L5 engine/trace)
 
@@ -1534,6 +1552,8 @@ Playground 요청은 사용자 데이터를 만들지 않는다(`Chat/ChatMessag
 
 키 규약: `teacher-persona`(= `.claude/agents/tutor.md`), `talk`, `chat`, `chatReview`, `lesson`, `reviewMix`, `evalGen`, `evalGrade`, `planAnalysis`, `ask`, `wordEnrich`. 파일(`src/modules/conversation/prompts/**`)이 `SOURCE_CODE` v0 이고 `npm run prompts:sync` 가 파일→`PromptVersion(source=SOURCE_CODE)` 새 버전으로 올린다. 런타임은 `(environment,key)` 의 `ACTIVE` 가 있으면 DB, 없으면 파일.
 
+> **task-012c D-C12(2026-09-29 확정, 구현은 012c-2) — A안.** 실제 프롬프트(`teacher-persona` 제외)는 템플릿 본문이 아니라 **TS 빌더**(예산·이력 창·altText 상한 로직 + 버전 상수 `*_PROMPT_VERSION`)라 "DB 본문 ACTIVE 가 런타임 우선" 모델을 그대로 적용할 수 없다. 그래서: ① 키 카탈로그는 **코드 기준**(지금 코드: `talk·chat·chatReview·lesson·reviewMix·evalGen·evalGrade·wordEnrich·reviewDecision`(A11 — 위 목록에 없던 키) + `teacher-persona`; `planAnalysis`·`ask` 는 해당 기능 구현 때 추가) ② `prompts:sync` 는 각 키의 버전 상수·고정 입력으로 조립한 예시 본문·체크섬을 `PromptVersion(SOURCE_CODE)` 으로 기록(운영 배포는 DRAFT 만) ③ #132~#134·#136 = 목록·버전·조립 미리보기·draft 테스트(Playground LLM 경로) ④ **#135 런타임 ACTIVE 전환은 `teacher-persona` 만** — 전환 시 페르소나 캐시와 예열 CLI 풀(persona 바이트 키)을 함께 비운다. 나머지 키의 운영 변경은 지금처럼 파일 수정 → 배포. ⑤ 회귀 픽스처 경로는 `tests/prompts/fixtures/<key>.json`(위 `prompts/fixtures` 는 옛 표기). B안(빌더를 템플릿 본문으로 재구성)은 채택하지 않음 — 10개 프롬프트 회귀·5초 예산 위험.
+
 | # | 계약 |
 |---|---|
 | #132 `GET /api/admin/v1/prompts` (`prompts.read`) | `[ { key, description, ownerRole, filePath, active: { version, source, activatedAt, checksum } \| null, latestVersion, fileChecksum, fileDiffersFromActive: true } ]` |
@@ -1544,7 +1564,7 @@ Playground 요청은 사용자 데이터를 만들지 않는다(`Chat/ChatMessag
 
 ### 2-27. Audit · 사용자 역할 · 내 capability (#137, L6 infra/audit · L0 admin/permissions)
 
-- #137 `GET /api/admin/v1/audit?from=&to=&scope=&targetId=&actorUserId=&action=&limit=50&cursor=` (`audit.read`) → `{ items: [ { id, environment, actor: { id, email, roleSnap }, action, scope, targetId, targetKey?, before, after, reason, ip(마스킹 /24), traceId, createdAt } ], nextCursor }`. `before/after` 는 저장 시점에 이미 마스킹된 값. `scope=LEXICON`(화면 라벨 "발음 사전", task-018) 은 task-018 전 사전 감사 행(`scope=null` + `action` `lexicon.*`)도 함께 돌려준다(감사 행은 append-only 라 고쳐 쓰지 않는다).
+- #137 `GET /api/admin/v1/audit?from=&to=&scope=&targetId=&actorUserId=&action=&limit=50&cursor=` (`audit.read`) → `{ items: [ { id, environment, actor: { id, email, roleSnap }, action, scope, targetId, targetKey?, before, after, reason, ip(마스킹 /24), traceId, createdAt } ], nextCursor }`. `before/after` 는 저장 시점에 이미 마스킹된 값. `scope=LEXICON`(화면 라벨 "발음 사전", task-018) 은 task-018 전 사전 감사 행(`scope=null` + `action` `lexicon.*`)도 함께 돌려준다(감사 행은 append-only 라 고쳐 쓰지 않는다). **task-012c 에서 구현(D-C8)** — 표기는 Phase 1 이었으나 005b 에서 만들지 않았다. 필터 `environment`(기본 현재, 다른 환경은 SUPER_ADMIN)·`scope`·`targetId`·`actorUserId`·`action`(접두 일치 `config.`·`lexicon.` 허용)·`from/to`, 정렬 `createdAt desc`, `limit` ≤100. 응답 항목에 `summary`(after 에서 뽑은 한 줄)와 연결 `versionId`(설정 버전 링크)를 더한다. `before/after` 는 8KB 요약·마스킹 그대로이고 값은 없다. 구현 주의(task-018 L2): `scope` 칸을 넓게 select 하는 쿼리는 LEXICON 이전 릴리스로 롤백했을 때 옛 Prisma 클라이언트가 모르는 enum 값을 만날 수 있다 — 롤백 시나리오를 reviewer 가 확인.
 - #137a `PATCH /api/admin/v1/users/:id/role` (`users.role.manage`, SUPER_ADMIN) `{ "role": "DEVELOPER", "reason": "…" }` → `{ user: { id, email, role } }`. 자기 자신을 SUPER_ADMIN 아래로 내리는 것은 `409 LAST_SUPER_ADMIN`(SUPER_ADMIN 최소 1명).
 - #137b `GET /api/admin/v1/me/capabilities` (세션, `console.access`) → `{ "role": "DEVELOPER", "environment": "LOCAL", "capabilities": ["engine.read", …], "productionApplyAllowed": false }` — UI 버튼 숨김 용도일 뿐, 서버는 매 요청 재검사.
 
@@ -1923,7 +1943,7 @@ sequenceDiagram
 | `POST /api/admin/v1/lexicon/import?mode=MERGE\|REPLACE_SCOPE&dryRun=1\|0`(**multipart**) · `GET …/export?format=csv\|json` | `voices.manage` / `voices.read` | CSV 헤더 `surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled`(같은 키의 JSON 배열 또는 `{entries}`). 전부 아니면 전무(오류 행 ≥1 → 422 `E_IMPORT_HAS_ERRORS`). Export 메타 `dictionaryVersion·environment·exportedAt`(JSON 본문·CSV 는 헤더) |
 | `POST /api/admin/v1/lexicon/preview` | `voices.manage` | `{text(≤200), voiceId?, draftEntries?[≤20], compare?, side?}` → JSON 읽기·악센트(`before`=지금 사전, `after`=초안 적용) / `Accept: audio/wav`+`side` → 합성 WAV. 캐시·DB 변화 0, `RequestTrace(PLAYGROUND)` |
 | `GET /api/admin/v1/lexicon/versions?page=&pageSize=` · `GET …/versions/:v?compare=previous\|active` · `POST …/versions/:v/rollback` | `voices.read` / `voices.read` / `voices.manage` | Rollback = 과거 스냅샷을 새 ACTIVE 버전으로(§132), 밀려난 직전 ACTIVE = `ROLLED_BACK`, TtsCache 는 `dictionaryVersion` 으로 자연 무효 |
-| `GET /api/admin/v1/voices/:id/versions` · `POST …/versions`(패키지 업로드) · `POST …/versions/:v/validate|stage|canary{percent}|promote|deprecate` | `voices.manage`(promote/canary PRODUCTION 은 SUPER_ADMIN) | `VoiceModelVersion.deployStatus` 전이(§153~§154). validate = Golden 회귀 실행 후 합격 시 |
+| `GET /api/admin/v1/voices/:id/versions` · `POST …/versions`(패키지 업로드) · `POST …/versions/:v/validate|stage|canary{percent}|promote|deprecate` | `voices.manage`(promote/canary PRODUCTION 은 SUPER_ADMIN) | `VoiceModelVersion.deployStatus` 전이(§153~§154). validate = Golden 회귀 실행 후 합격 시. **사용자 결정 대기(task-012c U-C1, 2026-09-29)**: Phase 4(016, Voice Package Import 와 함께)로 옮기자는 권고 — 결정 전까지 012c-3 범위에 넣지 않는다 |
 | `GET/POST /api/admin/v1/tts/golden` · `PUT/DELETE …/:id` · `POST …/import` | `voices.manage` | Golden Dataset(§149, 카테고리 12종, 100~300문장) |
 | `POST /api/admin/v1/tts/quality-runs {voiceModelVersionId, baselineVersionId?}` · `GET …/:id`(results·metrics) | `voices.manage` | 회귀 실행(§150): 실패율·지연·TTFA·RTF·길이 편차·(수동)발음/자연스러움/악센트 |
 | `POST /api/admin/v1/tts/ab-compare` · `GET …?voiceA=&voiceB=` | `voices.manage` | Blind Compare 세션(§151): 문장별 A/B 무작위 순서 재생·5항목 점수 |

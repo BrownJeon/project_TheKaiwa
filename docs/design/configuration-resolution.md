@@ -351,6 +351,8 @@ POST config/diff ────── 저장값 vs 후보: changes[{key, before, a
 POST config/apply ───── baseVersion 확인 → 트랜잭션(§6-2) → 캐시 무효화 → RUNTIME_EDITABLE 키 서비스 push → 응답 applied{…, restartRequired, restartTarget}
 ```
 
+> **task-012c 확정(2026-09-29 C1, D-C1·D-C4·D-C10)** — 위 그림 중 바뀐 것: ① `summaryHash` 는 **무상태**다 — 서버는 Diff 를 저장하지 않고, apply·rollback 이 받은 후보로 Diff 를 다시 계산해 해시를 대조한다(유효 기간 없음, `baseVersion` 이 바뀌면 자연 불일치). ② `testResultId` = `EngineHealth(FUNCTIONAL).id`(`detail.candidateHash`·`checkedAt` 으로 30분·같은 후보 확인 — DB 라 blue/green·재기동에도 유효). ③ **편집 가능 키는 앱(Node)이 실제로 읽는 키 중 "런타임 실사용값 == Effective" 테스트가 있는 키뿐**이다 — 런타임은 이 Resolver 를 거치지 않고 `EngineConnection` 행 JSON·일부 env 를 직접 읽기 때문(2026-09-29 확인). Python 서비스가 읽는 키는 콘솔 편집 거부(`serviceManaged`). ④ 커밋 후 서비스 push 는 **015c** 로 이관(Python 쪽 수신 경로가 아직 없다) — 012c 의 apply 는 앱 소비 키만 다루므로 push 가 필요 없다.
+
 - Form 편집(`PUT engine-connections/:id`)은 위 4단계를 서버가 한 번에 수행하는 편의 경로이며 결과·기록은 동일하다. Raw JSON `PUT config/raw/:scope/:targetId` 는 `dryRun:true` 로 validate+diff 만, `false` 로 apply 까지.
 - Validate 는 절대 저장하지 않는다. Test 는 사용자 데이터·`TtsCache`·`EngineConnection` 을 바꾸지 않고 `RequestTrace(FUNCTIONAL_TEST)`·`EngineHealth(FUNCTIONAL)` 만 남긴다.
 - 실패한 Validate/Test/Diff 는 `AuditLog` 를 남기지 않는다(Apply 만 기록). 단 PRODUCTION 대상의 Test 는 `testResultId` 를 `EngineHealth.detail` 로 보존해 Apply 가 참조한다.
@@ -377,6 +379,14 @@ post-commit:
   pending = diff.keys.filter(editability in {RESTART_REQUIRED, REDEPLOY_REQUIRED})  # 저장은 됐고 반영은 재시작/재배포 후 — 콘솔 배지 "pending restart"
 ```
 
+**task-012c 확정(2026-09-29, D-C2·D-C5·D-C7) — 위 의사코드의 구현 규칙**
+- **쓰기 조합**: 트랜잭션을 여는 것은 `admin/configuration`(L0)이다. `applyToTarget` 는 대상 **소유 층의 tx 쓰기 함수**(engine = `EngineConnection`·`EngineFallbackPolicy` / preferences = `AppSetting` / speech = `VoiceProfile`)이고, 버전 기록은 `engine.configuration`, 감사는 `infra.audit` — 모두 `infra.withTransaction` 하나(engine 은 speech·preferences 를 import 하지 않는다, module-dependency 규칙 6). `target = SELECT … FOR UPDATE` 는 대상 현재 행, 마지막 방어는 `@@unique(environment, scope, targetId, version)`.
+- **첫 적용 기준선**: `current` 가 없으면(`version 0`) 같은 트랜잭션에서 **v1 = `storedValues(target)`(기준선, `_meta.origin=BASELINE`, actor 없음, 감사 `config.baseline`)** 을 먼저 쓰고 적용은 v2 — seed 상태로 Rollback 가능. 기동 시 SYSTEM 버전 일괄 생성(admin-console/06 §11)은 하지 않는다.
+- **기록 모양(스키마 0)**: `snapshot` 에 예약 키 `_meta{schemaVersion, origin: BASELINE|APPLY|RAW_JSON|ROLLBACK}`(물화·Diff 제외) · `diff` = 봉투 `{entries[], summary, candidateHash}` · 되돌림 원본 = `restoredFromVersion` · 행위 구분 = `AuditLog.action`(`config.baseline|config.apply|config.raw_apply|config.rollback|credentials.set|credentials.clear`) + `after.versionId`. admin-console/06 의 보조 컬럼(origin·rollbackOfId·importId·effectiveHash·schemaVersion)은 두지 않는다.
+- **변경 0**: 후보 == 저장값이면 버전·감사 없음(`changed:false`), rollback 만 `409 NO_CHANGE`.
+- **캐시(D-C7)**: 커밋 직후 **적용한 프로세스**의 라우터·Resolver·관련 캐시를 비운다. `config.cacheEpoch` 는 두지 않는다 — pm2 인스턴스 1개라 다른 프로세스는 blue/green 전환 순간뿐이고 기존 30초 TTL 로 따라온다(§13 #9 결정). AppSetting `voice.preview.defaultText` 변경은 같은 트랜잭션에서 `voice.preview.textVersion` +1.
+- **서비스 push**: 012c 에서는 하지 않는다(015c, §11).
+
 ### 6-3. ConfigurationVersion 상태 전이
 
 ```
@@ -387,6 +397,7 @@ v(n+1) ACTIVE ──rollback to v(k)──▶ v(n+1) ROLLED_BACK, v(n+2) ACTIVE(
 
 - `ACTIVE` 는 `(environment, scope, targetId)` 당 정확히 1개(앱 트랜잭션으로 보장). 삭제 경로 없음. `SUPERSEDED` 와 `ROLLED_BACK` 의 차이는 "다음 버전이 일반 apply 였는가, rollback 이었는가" 뿐이며 둘 다 다시 Rollback 대상이 될 수 있다.
 - **Rollback = 새 버전**(§94): 대상 버전 `snapshot` 을 후보로 §6-1 의 Validate → (PRODUCTION 은 Test) → Diff → Apply 를 그대로 탄다. 스키마가 그 사이 바뀌었으면(`snapshot.schemaVersion < 현재`) 사라진 키는 버리고 새 키는 DEFAULT 로 채우며 `W_SCHEMA_MIGRATED` 경고를 diff 에 남긴다.
+- **Rollback 재검증(task-012c D-C6, 2026-09-29 — 발음 사전 Codex C2 교훈)**: 버리는 것은 "지금 스키마에 없는 키"(`droppedKeys` 경고)뿐이다. 남은 키는 **지금의 쓰기 규칙으로 엄격히 재검증**하고(타입·범위·enum·편집성·SECRET 평문·credentialRef 허용 목록·주소 허용 목록), 하나라도 어기거나 스냅샷 모양이 깨졌으면 조용히 버리지 않고 `422 UNPROCESSABLE {reason:E_SNAPSHOT_INTEGRITY, version, integrity: MALFORMED|INVALID_ENTRIES, issues}` 로 거절한다(버전·감사 쓰기 0). 버전 목록은 같은 검사 결과를 `integrity` 로 보여 주고, OK 가 아니면 화면이 되돌리기를 숨긴다. `ROLLED_BACK` = 밀려난 직전 ACTIVE(복원 대상 상태 불변).
 - Preset apply·Import 는 항목별로 같은 apply 를 반복한다(항목마다 버전 1개). 하나라도 실패하면 전체 롤백(단일 트랜잭션).
 - `PROMPT` scope: `PromptVersion` 자체가 본문 버전이고 `ConfigurationVersion(PROMPT)` 는 "어느 PromptVersion 이 ACTIVE 인가"의 이력이다(`snapshot = {version, checksum}`). Rollback 은 이전 PromptVersion 을 다시 ACTIVE 로.
 - `EngineConnection.status`(Health 결과)·`RuntimeOverride`·`logLevel` 의 TTL 복귀는 버전을 만들지 않는다(시스템 전이). `logLevel` 의 영구 변경만 버전을 만든다.
@@ -426,11 +437,13 @@ Validate ──▶ Functional Test(필수) ──▶ Change Summary(Diff + 영�
 
 | 필드 | 검증 | 실패 |
 |---|---|---|
-| `confirm: true` | 확인 다이얼로그를 거쳤다는 명시 | `403 PRODUCTION_PROTECTED` |
-| `summaryHash` | 서버가 마지막에 만든 Diff 의 `sha256`(30분 유효) 와 일치 — 그 사이 다른 변경이 끼어들면 불일치 | `409 CONFLICT` |
-| `testResultId` | `config/test` 결과(30분 유효, `ok:true`). RESTART_REQUIRED 키만 바뀌는 경우도 나머지 키로 테스트한 결과 필요 | `403 PRODUCTION_TEST_REQUIRED` |
+| `confirm: "PRODUCTION"` | 확인 다이얼로그를 거쳤다는 명시 — **문자열 `"PRODUCTION"`**(task-012c D-C1, 발음 사전과 같은 값. 옛 표기 `confirm:true`) | `403 FORBIDDEN {reason:"PRODUCTION_CONFIRMATION_REQUIRED"}` |
+| `summaryHash` | 서버가 **같은 후보로 Diff 를 다시 계산한** 해시와 일치 — 서버는 Diff 를 저장하지 않는다(무상태, 유효 기간 없음). 그 사이 다른 변경이 끼어들거나 후보가 다르면 불일치 | `409 CONFLICT {reason:"SUMMARY_MISMATCH"}` |
+| `testResultId` | `config/test` 결과 = `EngineHealth(FUNCTIONAL).id` — `ok:true`·30분 이내·같은 대상·`detail.candidateHash` 일치(DB 로 확인). RESTART_REQUIRED 키만 바뀌는 경우도 나머지 키로 테스트한 결과 필요 | `403 FORBIDDEN {reason:"PRODUCTION_TEST_REQUIRED"}` |
 | `reason` | 10자 이상 | `400` |
 | actor | `config.apply.production` 보유 = SUPER_ADMIN. **엄격 키**가 포함되면 요청자 본인이 SUPER_ADMIN 이어야 하며 위임 불가 | `403 FORBIDDEN { missing: ["config.apply.production"] }` |
+
+> **확인 방식 통일(task-012c D-C1, 2026-09-29)**: 이 표가 정본이다. admin-console/16 §6 의 서명 확인 토큰(HMAC, `candidateHash`+actor+10분)은 **폐기**했다 — 같은 보증(확인한 변경 = 적용되는 변경)을 무상태 `summaryHash` 재계산과 DB 의 `testResultId` 로 얻고, blue/green 두 프로세스에서도 그대로 동작한다. 발음 사전(api-contract §7-2a)은 기능 테스트 개념이 없어 `confirm:"PRODUCTION"` + SUPER_ADMIN 만 쓴다.
 
 ADMIN/DEVELOPER 는 PRODUCTION 에서 Validate·Test·Diff 까지 만들고 결과(`summaryHash`·`testResultId`)를 "승인 요청" 으로 남긴다(콘솔 History 의 `pendingProductionApprovals`). 1인 앱에서는 같은 사람이 SUPER_ADMIN 계정으로 확인 단계를 한 번 더 밟는 셈이다.
 
@@ -499,6 +512,11 @@ ADMIN/DEVELOPER 는 PRODUCTION 에서 Validate·Test·Diff 까지 만들고 결�
 - 관리자 UI: `GET /api/admin/v1/secrets` 로 ref 이름·존재 여부·`usedBy`·`lastUsedAt` 만. 값을 만들거나 바꾸는 API 는 없다 — 운영자가 서버 파일로 넣고 `PUT engine-connections/:id/credential {credentialRef}` 로 연결(`credentials.manage`, SUPER_ADMIN).
 - 회전: 파일 교체 → 캐시 60초 자연 만료(또는 Health 실행으로 즉시 재읽기) → `AuditLog(secret.rotated, targetId=ref)`(값 없음). Python 서비스도 자체 `SecretResolver`(`speech/common/secrets.py`)가 같은 규칙으로 파일을 읽는다 — 앱은 서비스에 ref 만 전달하고 값을 보내지 않는다.
 - Claude CLI 는 서버 구독 로그인이라 credentialRef 가 없다(`connection.authMode=SUBSCRIPTION`). 내부 시크릿(`SPEECH_INTERNAL_SECRET`)은 설정 키가 아니라 부팅 env 이며 Resolver 대상이 아니다.
+- **편집 선결 게이트(task-012c D-C3, 2026-09-29) — 콘솔에서 주소·자격 키를 바꿀 수 있게 되기 전에 반드시 갖출 것**:
+  - (a) **시크릿 전송 대상 고정**: 시크릿(API 키·서비스 시크릿)을 헤더로 보내는 모든 어댑터는 **서버 env 에 적힌 그 서비스의 origin** 과 대상 `connection.baseUrl` 의 origin 이 같을 때만 시크릿을 싣는다. 다르면 호출 자체를 하지 않고 `MISCONFIGURED(TARGET_NOT_ALLOWED)`. TTS 는 task-003d 에서 적용(`infra.readServiceSecretFor`), **home-m4 API 키는 2026-09-29 기준 DB 주소로 그대로 전송 중** — 012c 서버 첫 커밋에서 같은 방식으로 고친다.
+  - (b) **credentialRef 허용 목록**: `env:` 이름은 엔진 스키마가 그 연결에 허용한 이름만 받는다. 부팅 시크릿 계열(세션 서명 키·내부 서비스 시크릿·TTS 서비스 시크릿·DB 접속 문자열·OAuth 클라이언트 시크릿·초대코드·그 밖의 서버 전용 env)을 가리키는 ref 는 거부(`refNotAllowed`) — 안 그러면 ref 를 바꿔 부팅 시크릿 값을 연결 주소로 보낼 수 있다. `file:` 은 위 이름 규칙(`SECRETS_DIR` 안).
+  - (c) **연결 주소 호스트 허용 목록**: loopback·LAN(`192.168.219.0/24`)·서버 env 에 적힌 서비스 origin 만. userinfo·비 http(s)·리다이렉트 추종 금지. Validate(편집)·Health·Functional Test·실호출 공통(`hostNotAllowed`).
+  - 세 가지가 구현·테스트되기 전에는 `connection.baseUrl`·`wsPath`·`credentialRef` 편집 API 를 열지 않는다. `connection.binPath` 는 spawn 에 쓰지 않는다(READ_ONLY, 실행 파일은 서버 env 만).
 
 ---
 
@@ -514,6 +532,7 @@ ADMIN/DEVELOPER 는 PRODUCTION 에서 Validate·Test·Diff 까지 만들고 결�
 
 - 부팅 순서(서비스): `speech.config.yml` 로드 → `APP_ENV` 확인 → `GET /api/internal/speech/config` 시도(3회) → 성공 시 Effective 로 덮어쓰기, 실패 시 yml+env 로 **degraded 부팅**(`/health.configSource="APPLICATION_CONFIG"`) → 모델 로드 → `/health.ok=true`. 앱은 Health 응답의 `configVersion` 이 자기 것과 다르면 `effectiveDiffers` 를 계산해 콘솔에 표시.
 - 서비스는 DB 를 직접 읽지 않는다(worker 의 `SpeechJob` 큐 폴링은 예외 — 설정이 아니라 잡). 설정의 진실은 앱 Resolver 하나다.
+- **구현 현황·이관(task-012c D-C10, 2026-09-29)**: 이 절의 서비스 반영(`POST /admin/config/apply` push·부팅 시 `GET /api/internal/speech/config`·`/admin/log-level`)은 gateway·worker·tts-service 어디에도 아직 없다 — 지금 Python 서비스는 자기 `speech.config.yml`+env 로만 기동한다. **015c(Console P3)** 에서 Log level 과 함께 배선한다. 그 전까지(012c) Python 이 읽는 키는 콘솔 편집 대상이 아니다(`serviceManaged` 거부) — 저장해도 서비스가 읽지 않아 "콘솔 값 ≠ 실제 값" 이 되기 때문.
 - ONDEVICE connection(`reazon-ondevice`)은 Python 서비스가 아니라 **앱 클라이언트**가 대상이다: RUNTIME_EDITABLE 키는 `GET /api/v1/speech/config`(ETag `configVersion`) 로 다음 앱 기동·포그라운드 복귀 시 플러그인 `start` 옵션에 반영, `connection.modelVersion`(RESTART_REQUIRED) 은 manifest 재다운로드로 "재시작" 이 대체된다.
 - 로그 레벨: `PUT engine-connections/:id/log-level` → `POST <service>/admin/log-level {level, expiresAt?}`. TTL 은 서비스 자체 타이머로 복귀하고 앱도 만료 시 한 번 더 `INFO` 를 push(이중 안전).
 
@@ -566,9 +585,9 @@ Effective = **4, source=ENVIRONMENT**. 콘솔 Effective 화면: `runtime.cpuThre
 | 3 | ENVIRONMENT 가 DATABASE 보다 **낮은** 순서(관리자 결정이 env 를 덮음)가 운영 관행과 맞는지 — 호스트 고정값을 env 로 강제하고 싶은 경우 | 강제값은 READ_ONLY 스키마/코드 상수로. 필요 시 `KAIWA_LOCK_<KEY>=1` 잠금 플래그 검토 | Phase 2 |
 | 4 | env 명명 `KAIWA_<ROLE>_<KEY_PATH>` 와 기존 짧은 별칭(`SPEECH_THREADS` 등) 공존 기간 | 별칭 표 유지, `.env.example` 은 `KAIWA_*` 로 기재, 1 Phase 뒤 별칭 제거 | task-002 `.env.example` |
 | 5 | ONDEVICE connection 의 "재시작" 정의(앱 재기동 vs 포그라운드 복귀 vs 즉시 push) | 포그라운드 복귀 시 `configVersion` ETag 비교 → 변경 시 플러그인 `release()`→`start()` 재적용 | task-003 실측 |
-| 6 | Python 서비스 push 실패 시 버전을 유지할지(현 설계) vs 자동 롤백 | 유지 + `DEGRADED` + `effectiveDiffers`, 자동 롤백 없음(운영자 판단) | Phase 2 운영 |
-| 7 | SESSION override 를 Python 어댑터 호출에 요청별 파라미터로 전달하는 범위(모든 RUNTIME_EDITABLE 키를 요청마다 실을 수 없음) | 어댑터 요청 스키마에 `runtimeOverride` 슬롯을 두고 서비스가 지원하는 키만(`beamSize·vad.*·sdpRatio·noise*`) 허용 | task-012c |
+| 6 | Python 서비스 push 실패 시 버전을 유지할지(현 설계) vs 자동 롤백 | 유지 + `DEGRADED` + `effectiveDiffers`, 자동 롤백 없음(운영자 판단) | **015c**(push 자체가 015c 로 이관 — task-012c D-C10) |
+| 7 | SESSION override 를 Python 어댑터 호출에 요청별 파라미터로 전달하는 범위(모든 RUNTIME_EDITABLE 키를 요청마다 실을 수 없음) | 어댑터 요청 스키마에 `runtimeOverride` 슬롯을 두고 서비스가 지원하는 키만(`beamSize·vad.*·sdpRatio·noise*`) 허용 | **task-016**(Override 와 함께 — task-012c D-C10 로 012c 에서 이관) |
 | 8 | 스키마 `schemaVersion` 상향 시 기존 `ConfigurationVersion.snapshot` 마이그레이션(키 rename) 규칙 | rename 은 `deprecatedSince` + `renamedTo` 로 1 Phase 자동 매핑 | 첫 스키마 변경 시 |
-| 9 | `config.cacheEpoch` 기반 blue/green 두 슬롯 교차 무효화의 지연(최대 5분 TTL) 허용 여부 | 허용. 즉시성이 필요하면 Redis pub/sub 도입(사용자 sudo) | Phase 2 실측 |
+| 9 | `config.cacheEpoch` 기반 blue/green 두 슬롯 교차 무효화의 지연(최대 5분 TTL) 허용 여부 | **결정(task-012c D-C7, 2026-09-29)**: `cacheEpoch` 를 두지 않는다. 적용한 프로세스는 즉시 무효화, 다른 프로세스(blue/green 전환 순간)는 기존 캐시 TTL 30초로 따라온다. 즉시성이 필요해지면 Redis pub/sub(사용자 sudo) | ✅ 012c |
 | 10 | `runtime.modelIds` 의 실제 Claude 모델 id 문자열(예시는 자리표시) | prompt-engineer 가 task-004 실측 시 확정, seed 에 반영 | task-004 |
-| 11 | `APP_SETTING` 정책 키의 스키마를 코드 상수로 둘지 DB 로 둘지 | 코드 `appSettingSchema.ts`(DEFAULT 층), 값만 DB | — |
+| 11 | `APP_SETTING` 정책 키의 스키마를 코드 상수로 둘지 DB 로 둘지 | 코드 `appSettingSchema.ts`(DEFAULT 층), 값만 DB — task-012c 가 일반 키(타입·범위·editability·소비자)로 만든다, 정책 키 편집은 Phase 4 | 012c |

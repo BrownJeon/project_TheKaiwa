@@ -81,6 +81,8 @@ Console 은 엔진을 직접 호출하지 않는다. 사용자 API(`/api/v1`)와
 | 3 | E2E·Diagnostics 메트릭·Debug session·Log level |
 | 4 | Presets·Export/Import·Temporary/Session Override·Admin Web 분리 검토 |
 
+> **2026-09-29 task-012c(C1 확정)** — Phase 2 를 세 task 로 나눴다: **012c** = Form/JSON 편집·Validate/Test/Diff/Apply·ConfigurationVersion·History(버전·감사)·Rollback·credentialRef 연결·Fallback·AppSetting·VoiceProfile 기본값 · **012c-2** = Prompt Registry(A안 — `14` 머리 참고)·Playground · **012c-3** = TTS Quality·TTS 대시보드. 정본 Phase 2 표에서 빠진 것: 연결 생성·삭제 → 4, Python 서비스 설정 push·Log level·Health 스케줄 → 3(015c), SESSION override 슬롯 → 4(016). Voice Versions·Canary 는 사용자 결정 대기(U-C1). 근거·결정 D-C1~D-C13 은 `agent-vault/10-Flow/tasks/task-012c-console-p2.md`.
+
 ## 8. 검증 규칙
 
 - `01~16` 이 §128 항목 1~16 과 번호 1:1 로 대응하고, 각 문서가 이 표의 해소 결과와 모순되지 않는다.

@@ -41,6 +41,8 @@
 
 ## 6. Production 변경 보호 흐름
 
+> **task-012c D-C1(2026-09-29) — 아래 서명 확인 토큰(HMAC) 흐름은 폐기한다.** 정본은 `../configuration-resolution.md` §8-1: apply·rollback·(012c-2) 페르소나 활성화는 `confirm:"PRODUCTION"` + `summaryHash`(무상태 — 서버가 같은 후보로 Diff 를 다시 계산해 대조) + `testResultId`(`EngineHealth(FUNCTIONAL).id`, 30분·같은 후보) + `reason≥10` + SUPER_ADMIN 본인을 요구한다. 1인 앱에서 "Change Summary 를 반드시 한 번 보게 한다"는 목적은 확인 다이얼로그(`PRODUCTION` 직접 입력)로 지키고, blue/green 두 프로세스에서도 서버 상태 없이 동작한다. §4 의 `production.confirmation.ttlMinutes` 키는 쓰지 않는다.
+
 ```mermaid
 sequenceDiagram
   participant Dev as 편집자(ADMIN/DEVELOPER)
@@ -96,6 +98,8 @@ sequenceDiagram
 
 ## 9. Runtime Override (§106·§107)
 
+> Override(TEMPORARY·SESSION)와 SESSION override 의 Python 요청별 전달(`../configuration-resolution.md` §13 #7)은 **Phase 4(task-016)** — task-012c D-C10 으로 012c 에서 이관(2026-09-29).
+
 | 항목 | TEMPORARY | SESSION |
 |---|---|---|
 | 적용 범위 | 환경 전역(모든 요청) | `sessionId` 일치 요청만(Playground/E2E 의 `sessionId`, 또는 개발자 자신의 앱 세션 쿠키 id) |
@@ -117,7 +121,7 @@ sequenceDiagram
 
 ## 11. Phase
 
-1: `APP_ENV`·행 분리·`GET environment`·배지 · 2: Production 확인 토큰·Functional Test 요구 · 4: Preset·Export/Import·Override·정책 키 편집 UI.
+1: `APP_ENV`·행 분리·`GET environment`·배지 · 2: Production 확인(task-012c — 토큰 대신 §6 머리 방식)·Functional Test 요구 · 4: Preset·Export/Import·Override·정책 키 편집 UI.
 
 ## 12. 미결
 

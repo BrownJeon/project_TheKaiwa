@@ -2,6 +2,8 @@
 
 > 원문 §118·§119·§120. 정본: `../domain-model.md`(L2 conversation 소유) · `../api-contract.md`(`prompts*`) · `../configuration-resolution.md`(SOURCE_CODE 층). 충돌 3 해소(`00` §3)를 구체화한다.
 
+> **task-012c D-C12(2026-09-29 확정, 구현 012c-2) — A안.** 이 문서는 프롬프트를 "placeholder 가 있는 템플릿 본문"으로 가정하지만, 실제 코드는 `teacher-persona`(마크다운 `tutor.md`)를 빼면 **TS 빌더**(예산·이력 창·altText 상한 로직 + 버전 상수 `*_PROMPT_VERSION`)다. 그래서 012c-2 는 ① 키 카탈로그를 코드 기준으로(`reviewDecision`(A11) 추가, `planAnalysis`·`ask` 는 기능 구현 때) ② `prompts:sync` = 버전 상수·고정 입력 조립 예시·체크섬 기록 ③ 목록·버전·조립 미리보기·draft 테스트 ④ **런타임 ACTIVE 전환은 `teacher-persona` 만**(페르소나 캐시·예열 CLI 풀 무효화 포함) — 나머지 키는 파일 수정·배포로 바꾼다. §5 의 "Console 편집본이 런타임 우선"·§6 의 placeholder 해석은 `teacher-persona` 에만 적용한다. B안(빌더 → 템플릿 재구성)은 채택하지 않는다(10개 프롬프트 회귀·5초 예산 위험). 픽스처 경로는 `tests/prompts/fixtures/<key>.json`.
+
 ## 1. 목적
 
 강사 페르소나와 10개 AI 지점의 프롬프트를 코드에만 묶어두지 않고 버전·활성화·롤백·저장 전 테스트가 가능한 레지스트리로 관리하되, **개발 정본은 여전히 저장소 파일(prompt-engineer 소유)** 이 되도록 파일↔DB 관계를 고정한다.

@@ -290,6 +290,16 @@ demo_gate:
     - 이미 넣은 완화: 유휴 claim 은 트랜잭션 없이 읽기 1회(`analysisDb.hasClaimable`) — 빈 큐 BEGIN·잠금 SELECT·COMMIT 제거(단위 24/24).
     - **Leader 결정 필요(D-B8 수정 후보)**: (a) 그대로 두고 운영 모드(`next build`+`next start`)로 다시 재서 기록 (b) **사용자별 디바운스** — 같은 사용자의 새 발화가 올라오면 그 사용자의 QUEUED 분석 잡 `runAfter` 를 뒤로(예: 마지막 발화 +20초) 밀어, 분석이 대화가 멈췄을 때 돈다(앱 enqueue 한 곳, 스키마 0 — 결과는 대화 뒤에 나오므로 012b-2 카드 시점이 늦어짐) (c) 모든 모드 고정 지연(+12초 — 연속 대화에선 다음 턴과 여전히 겹침). 권고 (b)+(a).
   - **QA 계정 나눠 쓰기(Leader 요청)**: 병렬 라이브가 필요하면 developer 는 `QA_ACCOUNT=2`(qa-bot2)만 쓴다 — `task012b-latency.sh` 기본값을 qa-bot2 로 바꿨다(`QA_ACCOUNT` 로 덮을 수 있음). `task012b-smoke.sh` 는 IDOR 검사에 두 계정을 다 쓰므로 다른 QA 라이브와 겹치지 않는 시간에만 돌린다. 이번에 3011 의 006 스모크가 qa-bot 턴 잠금 409 로 막힌 것은 내 턴 지연 측정(01:25~01:55)과 겹쳤기 때문.
+- [02:55] **D-B8 수정 구현(Leader 결정 02:30 — 사용자별 디바운스 + 운영 모드 재측정)**
+  - 코드: `speech/analysis/policy.ts`(`ANALYSIS_DEBOUNCE_MS=20s`·`ANALYSIS_DEBOUNCE_CAP_MS=5분`·`enqueueDelayMs` = max(20초, FAST 30초, gateway 10초)·순수 규칙 `debouncedRunAfter`) · `speech/analysis/db.ts`(`debounceStatement` — `UPDATE SpeechJob SET runAfter = GREATEST(runAfter, LEAST(:now+20s, createdAt + 300s)) WHERE userId AND kind='ANALYSIS_STT' AND status='QUEUED' AND createdAt > :now−5분`, RUNNING·다른 사용자 불변, 시각은 앱 UTC 파라미터 — DB `NOW()` 는 KST 라 섞지 않음) · `speech/utterances/store.ts`(`utteranceDb.create` — 분석 잡을 함께 넣을 때만 발화 생성과 디바운스를 **같은 배치 트랜잭션**(커밋 1회)) · `speech/analysis/enqueue.ts`(새 잡 `createdAt` 도 앱 시각 — 상한 기준). 빈 큐 claim 은 트랜잭션 없이 읽기 1회(`hasClaimable`, 02:10).
+  - 단위: `task012b.test.ts` 26건(디바운스 규칙·상한·지연 20/30초·internal 인증 매트릭스 추가) · 앱 전체 747건 중 746 PASS·1 skip · tsc 0 · eslint 오류 0. 운영 모드 빌드(`next build` 복제본) 통과.
+  - 라이브(운영 모드 `next start`, 3017, `env -i`): 스모크 A **50/50**(3c AUTO·ACCURATE +20.0초·FAST +30.0초 · 3d gateway +20초 · **3e 디바운스**: 같은 사용자 QUEUED → 새 발화+20.0초, 만든 지 6분 된 잡·RUNNING·QA2 잡 불변, 새 잡 +20초 · **3f 상한**: 만든 지 4분 50초 잡은 createdAt+5분에서 멈춤(오차 0ms)) · B **4/4** · C **2/2**(백오프 29.9·118.8초) · 로그 원문 0.
+  - **정본 반영 문안 초안(Leader 반영용)**:
+    - api-contract #21 적재 조건 2번 교체: "사용자 `recognitionMode ≠ OFFLINE`. 새 잡 `runAfter` = 지금 + max(20초, FAST 30초). **사용자별 디바운스(D-B8 수정 2026-09-29)**: 잡을 적재할 때 같은 사용자의 `QUEUED` 분석 잡 `runAfter` 를 `max(runAfter, min(지금+20초, createdAt+5분))` 로 민다(발화 저장과 같은 배치 트랜잭션, `RUNNING`·다른 사용자 불변). 대화가 이어지는 동안에는 분석이 돌지 않아 턴 지연이 워커 유무와 무관해진다(분석 전사가 같은 호스트 CPU 를 다 쓰고 결과 저장이 공유 DB 에 커밋 — 디바운스 없이는 연속 턴 첫 음성 p50 +42% 실측). 결과는 마지막 발화 ≈20초 + 분석 시간 뒤. 만든 지 5분 지난 잡은 더 밀지 않는다(끝없는 대화에서 분석 기아 방지)." · gateway 콜백 문장에 "(gateway 는 콜백 응답 뒤 wav 를 옮긴다 — 20초 디바운스가 파일 이동 여유(≥10초)를 덮는다)".
+    - api-contract §2-28 #139 하트비트 문장 옆: "집을 잡·고아가 없으면 트랜잭션을 열지 않는다(읽기 1회 — 유휴 워커의 공유 DB 왕복 축소). 하트비트는 그대로 갱신."
+    - domain-model §5-8 `(없음)→QUEUED` 행 트리거: "enqueue(`runAfter = now + max(20s, FAST 30s)`) + 같은 사용자 `QUEUED` 잡 디바운스(`runAfter ≤ createdAt+5분`, task-012b D-B8 수정)". §5-9 `Utterance.status` 칸 끝: "`QUEUED` 발화는 대화가 멈춘 뒤(마지막 발화 +20초, 최대 5분) 분석된다".
+    - `speech/worker/README.md` §2: "간격은 `speech.config.yml worker.poll_interval_ms`(현 1초), 빈 응답이면 두 배씩 최대 10초(코드 상수)" · "**운영 워커 수 = 1(권장, Leader 2026-09-29)** — 분석 서비스 전사가 호스트 CPU 코어를 다 써(실측 같은 호스트 CPU 작업 +33%) 워커를 늘리면 대화 경로만 느려진다. 동시 처리 1·`max=1`. 워커 2개는 중복 처리 0 검증용으로만" · §7 실측 항목에 "대화 중 시작된 분석 잡 0(디바운스)·마지막 발화 → 분석 완료 p50/max".
+    - `ecosystem.config.js` 초안(위 [00:35])의 worker 항목 주석에 "instances 1 고정 — 운영 권장 워커 1개(전사가 CPU 코어를 다 쓴다)" 추가.
 
 ## Reviewer 기록
 
