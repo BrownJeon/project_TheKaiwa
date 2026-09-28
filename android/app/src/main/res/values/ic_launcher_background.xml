@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- scripts/gen-app-icons.mjs 가 생성: 웹 maskable 아이콘의 바탕색 -->
 <resources>
-    <color name="ic_launcher_background">#C8471F</color>
+    <color name="ic_launcher_background">#C84B1F</color>
 </resources>
