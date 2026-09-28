@@ -86,7 +86,10 @@ function Diagnostics() {
   }
 
   const loadShown = loadMs ?? diag?.lastLoadMs ?? null
-  const decodeOver = !!last && last.durationMs >= GATE_MIN_SPEECH_MS && last.decodeMs !== null && last.decodeMs > GATE_DECODE_MS
+  // 이번 WebView 의 기록이 없으면(다시 그려짐) 플러그인이 기억하는 마지막 발화 값으로.
+  const lastShown =
+    last ?? (typeof diag?.lastUtteranceMs === 'number' ? { durationMs: diag.lastUtteranceMs, decodeMs: typeof diag.lastDecodeMs === 'number' ? diag.lastDecodeMs : null, at: 0 } : null)
+  const decodeOver = !!lastShown && lastShown.durationMs >= GATE_MIN_SPEECH_MS && lastShown.decodeMs !== null && lastShown.decodeMs > GATE_DECODE_MS
   const rssOver = typeof diag?.rssMb === 'number' && diag.rssMb > GATE_RSS_MB
   const row = (label: string, value: React.ReactNode, over = false) => (
     <>
@@ -105,7 +108,7 @@ function Diagnostics() {
         <dl data-ondevice-diagnostics className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">
           {row(DIAG_COPY.recognizer, diag?.recognizerLoaded ? DIAG_COPY.loaded(diag.numThreads ?? null) : DIAG_COPY.notLoaded)}
           {row(DIAG_COPY.loadTime, loadShown !== null ? DIAG_COPY.seconds(loadShown) : '—')}
-          {row(DIAG_COPY.lastUtterance, last ? DIAG_COPY.utterance(last.durationMs, last.decodeMs) : DIAG_COPY.none, decodeOver)}
+          {row(DIAG_COPY.lastUtterance, lastShown ? DIAG_COPY.utterance(lastShown.durationMs, lastShown.decodeMs) : DIAG_COPY.none, decodeOver)}
           {row(DIAG_COPY.memory, DIAG_COPY.memoryValue(diag?.rssMb ?? null, diag?.javaHeapMb ?? null), rssOver)}
           {row(DIAG_COPY.fileVersion, diag?.modelVersion ?? '—')}
           {row(DIAG_COPY.build, DIAG_COPY.buildValue(diag?.pluginVersion ?? null, diag?.abi ?? null))}

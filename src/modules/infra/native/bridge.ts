@@ -117,6 +117,9 @@ export interface OnDeviceDiagnostics {
   recognizerLoaded?: boolean
   numThreads?: number
   lastLoadMs?: number
+  /** 플러그인이 기억하는 마지막 발화 길이·디코드 시간(WebView 가 다시 그려져 웹 쪽 기록이 없을 때). */
+  lastUtteranceMs?: number
+  lastDecodeMs?: number
   rssMb?: number
   javaHeapMb?: number
 }
