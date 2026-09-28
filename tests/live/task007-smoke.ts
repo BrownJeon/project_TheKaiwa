@@ -157,7 +157,9 @@ const AUDIO_KEYS = ['cached', 'cacheKey', 'chunkIndex', 'durationMs', 'last', 'p
 
 async function main(): Promise<void> {
   const qa = await prisma.user.findUniqueOrThrow({ where: { email: 'qa-bot@thekaiwa.test' }, select: { id: true } })
-  const env = (process.env.APP_ENV ?? 'LOCAL').toUpperCase() as 'LOCAL'
+  // 대상 서버의 환경(업로드 connection id 가 환경별 행이다). 운영(PRODUCTION) 3010 을 칠 때는 SMOKE_ENV=PRODUCTION —
+  // APP_ENV 를 바꾸면 qa-session 이 안전장치로 세션을 만들지 않는다(task-009 컷오버 후 실측).
+  const env = (process.env.SMOKE_ENV ?? process.env.APP_ENV ?? 'LOCAL').toUpperCase() as 'LOCAL'
   const stt = await prisma.engineConnection.findFirst({ where: { environment: env, role: 'REALTIME_STT' }, select: { id: true } })
   const sttKey = stt?.id ?? 'x'
 
