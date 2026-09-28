@@ -8,6 +8,7 @@
  * `/api/auth/google`까지 이어주지 않으면 딥링크 보존이 죽은 코드가 된다.
  */
 import { isGoogleLoginEnabled } from '@/modules/infra/auth/oauth/config'
+import { APP_TAGLINE } from '@/components/common/brand'
 import AppUpdateBanner from '@/components/shell/AppUpdateBanner'
 import AppLoginArea, { AppOnlyLoginNote } from './AppLoginArea.client'
 
@@ -54,13 +55,15 @@ export default async function LoginPage({
       className="mx-auto flex h-dvh w-full max-w-[520px] min-w-0 flex-col justify-center gap-2.5 px-7 pt-8"
       style={{ paddingBottom: 'max(60px, env(safe-area-inset-bottom))' }}
     >
-      <h1 className="text-[44px] leading-none font-bold tracking-[-0.02em]">
-        The<span className="text-accent">Kaiwa</span>
+      {/* "Lingofy Japanese"(brand.ts APP_NAME). 360~412 폭에서는 한 줄에 안 들어가 "Japanese" 가 둘째 줄로 내려간다 —
+          단어 사이에서만 줄바꿈되고 가로 넘침은 없다(task-003h). */}
+      <h1 className="text-[44px] leading-[1.05] font-bold tracking-[-0.02em] break-keep">
+        Lingofy <span className="text-accent">Japanese</span>
       </h1>
       <p className="mt-1 mb-6 text-ink2">
-        AI 선생님과 회화 · 교정 · 단어 · 평가
+        <span className="font-semibold text-ink">{APP_TAGLINE}</span>
         <br />
-        매일 조금씩 일본어 회화
+        AI 선생님과 회화 · 교정 · 단어 · 평가
       </p>
 
       {message && (

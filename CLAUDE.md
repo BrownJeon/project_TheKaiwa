@@ -1,5 +1,7 @@
 # 일본어교육 (TheKaiwa)
 
+> **제품 이름: Lingofy Japanese** · 부제 「일본어가 자연스러워지는 AI 회화」(사용자 결정 2026-09-28, task-003h) — 화면·런처·웹 매니페스트에 쓰는 이름. 저장소·도메인·appId `com.miraclepenguin.kaiwa`·딥링크 `thekaiwa://`·쿠키·pm2·APK 저장 이름 등 **기술 식별자는 TheKaiwa/thekaiwa 그대로**(값 정본 `src/components/common/brand.ts`).
+
 **AI 일본어 선생님과 말하고(회화)·쓰고(채팅) 교정받으며, 오늘의 단어·회화·평가와 강사가 3~7일에서 판단하는 반복 커리큘럼으로 회화를 훈련하는 개인 모바일 앱 (kaiwa.미라클펭귄.com)**
 
 모바일 웹(갤럭시 S25+ Chrome)으로 테스트하고, 같은 서버를 Capacitor 안드로이드 앱(WebView `server.url`)으로 감싸 운영한다. 앱은 운영 웹을 로드하므로 **웹 변경 = 웹 배포**, **네이티브 변경(플러그인·Manifest·Capacitor 설정) = APK 재빌드·재설치**(deployer 가 배포본·업데이트 안내 담당).

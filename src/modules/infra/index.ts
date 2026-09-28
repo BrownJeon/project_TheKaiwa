@@ -28,7 +28,7 @@ export { dataRoot, dataPath, modelsRoot, modelsPath, realpathInside, writeDataFi
 export { serveFile, parseRange, etagMatches, StreamSlots } from './fileServe'
 export type { ByteRange, ServeFileOptions } from './fileServe'
 export { publicOrigin } from './origin'
-export { getAppVersionInfo, resolveReleaseDownload, verifyReleaseFile, buildVersionInfo, parseClientVersion, pickReleaseForFile, releaseFilePath, compareVersionNames, apkDownloadUrl } from './appRelease'
+export { getAppVersionInfo, resolveReleaseDownload, verifyReleaseFile, buildVersionInfo, parseClientVersion, pickReleaseForFile, releaseFilePath, compareVersionNames, apkDownloadUrl, apkDownloadName } from './appRelease'
 export type { AppVersionInfo, ReleaseRow, ClientVersion, ReleaseDownload } from './appRelease'
 export { maskSensitive, maskString, looksSecret, MASK } from './mask'
 export { signScopedToken, verifyScopedToken } from './scopedToken'

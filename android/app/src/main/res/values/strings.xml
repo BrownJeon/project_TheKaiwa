@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">TheKaiwa</string>
-    <string name="title_activity_main">TheKaiwa</string>
+    <string name="app_name">Lingofy Japanese</string>
+    <string name="title_activity_main">Lingofy Japanese</string>
     <string name="package_name">com.miraclepenguin.kaiwa</string>
     <string name="custom_url_scheme">com.miraclepenguin.kaiwa</string>
 </resources>

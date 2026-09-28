@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h)
 
 ---
 
@@ -5548,8 +5548,8 @@ role=alert rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad break-keep
 div data-app-update="recommended" role="status" className="flex h-14 min-w-0 items-center gap-1 border-b border-line bg-surface pl-4 pr-1"
   span aria-hidden className="h-8 w-[3px] flex-none rounded-full bg-accent"          ← 장식(비텍스트)
   button className="min-h-11 min-w-0 flex-1 py-1.5 pl-2 text-left" onClick={openSheet}
-    span className="block truncate text-[14px] font-semibold text-ink"  "새 앱 버전이 있어요 · v1.1.0"
-    span className="block truncate text-[12px] text-ink2"               "눌러서 바뀐 점·설치 방법 보기"
+    span className="block truncate text-[14px] font-semibold text-ink"  "Lingofy Japanese v1.1.0"   ← 이름+버전만(360 에서도 안 잘림, task-003h)
+    span className="block truncate text-[12px] text-ink2"               "새 버전이 나왔어요 · 눌러서 설치 방법 보기"
   Btn size="sm" variant="primary" className="relative flex-none before:absolute before:-inset-y-1.5 before:inset-x-0" onClick={download} "받기"
   button aria-label="오늘은 그만 보기" className="grid h-11 w-11 flex-none place-items-center text-ink2" ✕
 ```
@@ -5558,14 +5558,14 @@ div data-app-update="recommended" role="status" className="flex h-14 min-w-0 ite
 ```
 div data-app-update="forced" role="alert" className="flex min-w-0 items-center gap-3 border-b border-bad bg-bad-soft px-4 py-2.5"
   div className="min-w-0 flex-1 text-bad break-keep"
-    p 14px semibold  "앱을 업데이트해 주세요"
+    p 14px semibold  "Lingofy Japanese를 업데이트해 주세요"
     p 13px           "이 버전(v1.0.0)은 더 이상 지원하지 않아요. 일부 기능이 멈출 수 있어요."
   Btn size="md" variant="primary" className="flex-none" onClick={openSheet} "업데이트"
 ```
 - ✕ 없음. 버튼은 바로 받기가 아니라 **시트**(강제일수록 설치 방법을 먼저 보고 한 번에 끝내게).
 - 로그인 화면: `<AppUpdateBanner forcedOnly insetTop />` 를 `main` 맨 위에. `(auth)` 에는 셸·`NativeFlag` 가 없으므로 띠가 스스로 상태바 여백(`pt-[max(env(safe-area-inset-top),24px)]`)을 가진다.
 
-**설치 방법 시트 — `AppUpdateSheet`**(공용 `Sheet`, 제목 "앱 업데이트")
+**설치 방법 시트 — `AppUpdateSheet`**(공용 `Sheet`, 제목 "Lingofy Japanese 업데이트")
 ```
 p 15px semibold ink tabular-nums   v1.0.0 → v1.1.0
 p 13px ink2                        9월 28일 올라온 버전 · 약 {size}          ← size 는 #8 에 bytes 가 있을 때만(§11-11 ③)
@@ -5584,10 +5584,12 @@ p 12px ink2 mt-2 break-keep  설치 실패 안내(§11-8 ⓗ)
 **설정 맨 아래 앱 버전 줄 — `AppVersionRow`**(앱에서만, `SpeechSettings` 다음·관리자 행 앞)
 ```
 Section > Card className="flex min-h-[56px] min-w-0 items-center justify-between gap-3"
-  span 14px ink "앱 버전"
-  (최신)    span 14px ink2 tabular-nums "1.0.0 · 최신"
-  (새 버전) button className="inline-flex h-11 min-w-0 items-center text-[14px] font-semibold text-accent" "1.0.0 · 새 버전 1.1.0 ›" → AppUpdateSheet
-  (강제)    button 같은 모양, 글자 text-bad "1.0.0 · 업데이트 필요 ›"
+  div min-w-0
+    p 14px ink tabular-nums truncate "Lingofy Japanese v1.0.0"
+    p 12px ink2 truncate             "일본어가 자연스러워지는 AI 회화"      ← 부제(task-003h)
+  (최신)    span 14px ink2 flex-none "최신"
+  (새 버전) button className="inline-flex h-11 flex-none items-center whitespace-nowrap text-[14px] font-semibold text-accent" "새 버전 1.1.0 ›" → AppUpdateSheet
+  (강제)    button 같은 모양, 글자 text-bad "업데이트 필요 ›"
 ```
 - `accent` 글자/`surface` 4.80:1(§1-1 ✅). 버전을 모르면(`getAppInfo()` 없음) 줄을 그리지 않는다.
 
@@ -5595,14 +5597,15 @@ Section > Card className="flex min-h-[56px] min-w-0 items-center justify-between
 
 ```
 (가운데 정렬, 세로 중앙, 좌우 24px, safe-area)
-  The<span accent>Kaiwa</span>                  28px bold (로그인 화면과 같은 글자 로고)
+  Lingofy <span accent>Japanese</span>          28px bold (로그인 화면과 같은 글자 로고, task-003h)
+  일본어가 자연스러워지는 AI 회화                  13px ink2, mt 4
   서버에 연결하지 못했어요                        17px semibold ink, mt 16
   인터넷 연결을 확인한 뒤 다시 시도해 주세요.       14px ink2
   [다시 시도]     min-height 48, width 200, accent 배경 · on-accent 글자, radius 12, mt 20
                   ← onclick = location.replace('https://kaiwa.xn--lh0b87pnudm10a4vd.com/')
   계속 안 되면 서버가 점검 중일 수 있어요.          12px ink2, mt 12
 ```
-- 인라인 CSS·인라인 스크립트 한 줄뿐(빌드 도구 없음). 색은 `globals.css` 토큰의 hex 를 그대로 쓰고 `@media (prefers-color-scheme: dark)` 로 다크 값도 넣는다. `<title>TheKaiwa</title>`, `lang="ko"`, 이모지 없음.
+- 인라인 CSS·인라인 스크립트 한 줄뿐(빌드 도구 없음). 색은 `globals.css` 토큰의 hex 를 그대로 쓰고 `@media (prefers-color-scheme: dark)` 로 다크 값도 넣는다. `<title>Lingofy Japanese</title>`, `lang="ko"`, 이모지 없음.
 - 이 파일은 **APK 안에 들어간다** — 바꾸면 네이티브 변경(versionCode 증가). 첫 APK(versionCode 1) 빌드 전에 고친다(§11-11 ⑨).
 
 #### I. 휴대폰 인식 진단 — `OnDeviceDiagnosticsCard` (관리자만, §11-11 ⑯)
@@ -5925,9 +5928,9 @@ interface AppUpdateSnapshot {
 
 | 자리 | 문구 |
 |---|---|
-| 권장 띠 | 새 앱 버전이 있어요 · v{latest} / 눌러서 바뀐 점·설치 방법 보기 · [받기] · ✕ `aria-label` "오늘은 그만 보기" |
-| 강제 띠 | 앱을 업데이트해 주세요 / 이 버전(v{mine})은 더 이상 지원하지 않아요. 일부 기능이 멈출 수 있어요. · [업데이트] |
-| 시트 제목·머리 | 앱 업데이트 · v{mine} → v{latest} · {M월 D일} 올라온 버전 · 약 {size} |
+| 권장 띠 | Lingofy Japanese v{latest} / 새 버전이 나왔어요 · 눌러서 설치 방법 보기 · [받기] · ✕ `aria-label` "오늘은 그만 보기" |
+| 강제 띠 | Lingofy Japanese를 업데이트해 주세요 / 이 버전(v{mine})은 더 이상 지원하지 않아요. 일부 기능이 멈출 수 있어요. · [업데이트] |
+| 시트 제목·머리 | Lingofy Japanese 업데이트 · v{mine} → v{latest} · {M월 D일} 올라온 버전 · 약 {size} |
 | 시트 절 | 바뀐 점 · 설치 방법 |
 | 설치 방법 1 | [업데이트 받기]를 누르면 Chrome 창에서 파일을 받아요. |
 | 설치 방법 2 | 다 받으면 알림(또는 Chrome ‘다운로드’)에서 받은 파일을 눌러요. |
@@ -5936,7 +5939,7 @@ interface AppUpdateSnapshot {
 | 버튼 | 업데이트 받기 · Chrome 창에서 받는 중이에요(3초) · 나중에 |
 | 설치 실패 안내 | ‘앱이 설치되지 않았습니다’가 나오면 기존 앱을 지우고 다시 설치해야 해요. 이때는 로그인과 휴대폰 인식 파일 받기를 다시 해야 해요. |
 | 열기 실패 | Chrome 창을 열지 못했어요. 잠시 후 다시 눌러 주세요. |
-| 앱 버전 줄 | 앱 버전 · {mine} · 최신 / {mine} · 새 버전 {latest} › / {mine} · 업데이트 필요 › |
+| 앱 버전 줄 | Lingofy Japanese v{mine} / 일본어가 자연스러워지는 AI 회화 · 최신 / 새 버전 {latest} › / 업데이트 필요 › |
 
 ⓘ **로그인**(오류 문구는 웹·앱 공통, 해요체로 교체 — `ERROR_MESSAGES`)
 
@@ -5956,7 +5959,7 @@ interface AppUpdateSnapshot {
 | `failed`(그 밖) | 로그인하지 못했어요. 다시 눌러 주세요. |
 | 초대 뒤(Custom Tab) | 앱으로 돌아가는 중… / 앱이 열리지 않으면 아래 버튼을 눌러 주세요. / [앱으로 돌아가기] / 1분이 지나면 이 창을 닫고 앱에서 다시 로그인해 주세요. |
 
-ⓙ **서버 연결 실패 화면**(APK 자산) — TheKaiwa · 서버에 연결하지 못했어요 · 인터넷 연결을 확인한 뒤 다시 시도해 주세요. · [다시 시도] · 계속 안 되면 서버가 점검 중일 수 있어요.
+ⓙ **서버 연결 실패 화면**(APK 자산) — Lingofy Japanese · 일본어가 자연스러워지는 AI 회화 · 서버에 연결하지 못했어요 · 인터넷 연결을 확인한 뒤 다시 시도해 주세요. · [다시 시도] · 계속 안 되면 서버가 점검 중일 수 있어요.
 
 ⓚ **휴대폰 인식 진단(관리자만)** — 제목 "휴대폰 인식 진단" · 보조 "관리자에게만 보여요" · 행 라벨 "인식기 / 불러오기 시간 / 최근 발화 / 메모리 / 파일 버전 / 앱 구성" · 값 "불러옴 · 스레드 {n} / 안 불러옴 · {s}초 · {d}초 말함 → {t}초 만에 알아들음 / 아직 없음 · 앱 {rss}MB · Java {heap}MB · 플러그인 {v} · {abi}" · 뱃지 "기준 초과"(bad) · 버튼 "다시 읽기 / 미리 불러오기 / 불러오는 중…" · 안내 "측정값은 이 휴대폰 안에만 있어요. 서버로 보내지 않아요." · 읽기 실패 "진단 값을 읽지 못했어요. 다시 눌러 주세요."
 
@@ -6001,7 +6004,7 @@ interface AppUpdateSnapshot {
 | ② | **#19 가 방식 때문에 `onDevice.enabled=false` 일 때 모델 정보** | 지금 구현(`stt/config.ts`)은 경로가 GATEWAY 로 풀리면(정확하게 방식 등) `onDevice:{enabled:false}` 만 줘서 카드가 크기·manifest 를 모른다. 가정: 앱 + ONDEVICE 연결이 있으면 `onDevice:{ enabled:false, available:true, model:{…} }` 처럼 **모델 블록은 늘** 싣는다(`enabled` 는 경로 선택만 뜻함) | 정확하게 방식에서 카드가 "이 방식에서는 쓰지 않아요"만 보이고 받기 불가(설치돼 있으면 지우기만) |
 | ③ | **#8 버전 비교 단위** | 계약 예시 `minSupported:"1.1.0"`(문자열) ↔ `AppRelease.minSupported Int`(versionCode). 화면은 **번호(versionCode)로만** 비교: 응답에 `minSupportedCode:Int` 추가(이미 있는 `latestCode` 와 짝), `X-App-Version` 은 versionName 그대로, 앱 번호는 `App.getInfo().build`. 시트용 `bytes`(APK 크기)는 선택 | 문자열 비교면 `1.10.0 < 1.9.0` 류 오판. `bytes` 없으면 시트에서 크기 생략 |
 | ④ | **강제 업데이트의 세기** | 정본 "차단 배너(닫기 불가)"를 **닫을 수 없는 띠 + 모든 화면**으로 해석, 앱 사용은 막지 않는다. 대신 강제 상태에선 휴대폰 경로를 끄고 서버로(`UPDATE_REQUIRED`) — 옛 플러그인과 새 웹의 계약 어긋남 방지 | 전면 차단(업데이트 전 아무것도 못 함)을 원하면 사용자 결정 — 띠 컴포넌트를 재사용한 전체 화면 `AppUpdateBlocker` 로 바꾼다 |
-| ⑤ | **앱 이름(권한 경로 문구)** | 안드로이드 설정에 보이는 이름 = 런처 라벨(`strings.xml app_name`). 지금 `capacitor.config.ts appName:'TheKaiwa'`, §8-8 ⓐ 기존 문구는 "일본어교육". 화면은 상수 `APP_LABEL` 하나로 쓰고, 권장은 **로그인 글자 로고와 같은 "TheKaiwa"** | "일본어교육"으로 정하면 상수 값만 바뀐다(developer A 의 `app_name` 과 같아야 함) |
+| ⑤ | **앱 이름(권한 경로 문구)** — **결정 갱신(task-003h, 사용자 2026-09-28): "Lingofy Japanese", 부제 "일본어가 자연스러워지는 AI 회화"** | 안드로이드 설정에 보이는 이름 = 런처 라벨(`strings.xml app_name`) = `capacitor.config.ts appName` = 화면 상수 `APP_NAME`(`src/components/common/brand.ts`, `APP_LABEL` 은 그 별칭) = 웹 매니페스트·탭 제목·연결 실패 화면. 로그인 글자 로고는 "Lingofy **Japanese**"(360~412 에서 두 줄). 기술 식별자(appId `com.miraclepenguin.kaiwa`·`thekaiwa://`·쿠키·도메인·저장소·APK 저장 이름 `thekaiwa-*.apk`)는 그대로 — 받는 파일 이름만 `LingofyJapanese-{ver}.apk` | 이름을 또 바꾸면 `brand.ts` + 빌드 밖 자산 4곳(strings.xml·capacitor appName·manifest.webmanifest·app-shell)을 함께 바꾸고 APK versionCode 를 올린다(`brand.test.ts` 가 넷의 일치를 본다) |
 | ⑥ | **`getSherpaStt()` 호출자 2곳** | module-dependency §6 "호출자 = `OnDeviceSherpaClient` 만"에 `speech/stt/client/onDeviceModel.ts`(확인·받기·지우기)를 더한다. 화면은 여전히 플러그인을 직접 보지 않는다(스토어 훅만) | 한 곳만 허용이면 `OnDeviceSherpaClient` 에 모델 관리 정적 메서드를 둔다(파일만 다름) |
 | ⑦ | **경로 선택 시점** | speech-platform/12 §3.5 "모델 설치 완료 후 **다음 세션**" 대신 **누를 때마다**(녹음 중 아닐 때) 고른다 — 받자마자 마이크 테스트로 확인할 수 있게. 전환 카운터만 앱 실행 단위 | 세션 단위로 두면 받은 뒤 화면을 떠났다 와야 휴대폰 경로가 되고, 경로 줄이 "받았는데 서버"로 보인다 |
 | ⑧ | **manifest 경로의 모델 이름** | 현 구현의 #19 `manifestUrl` 은 모델 이름이 든 경로였다. Developer B 작업 중 diff(`stt/config.ts`)가 `model{ id:'ondevice-ja-v1', manifestUrl: 불투명 }` 로 바꾸는 중이라 그대로 가정 — 화면은 어느 쪽이든 그리지 않는다. `version`·`totalBytes` 가 `null`(배포본 없음)이면 카드 `off` | B 가 되돌리면 완료 기준 8 을 "화면 노출 0"으로 해석(#9·#10 은 플러그인 고정 공개 경로) |

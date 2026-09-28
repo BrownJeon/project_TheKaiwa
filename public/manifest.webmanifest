@@ -1,7 +1,7 @@
 {
-  "name": "TheKaiwa — 일본어 회화 훈련",
-  "short_name": "TheKaiwa",
-  "description": "AI 일본어 선생님과 매일 회화·교정·단어·평가로 익히는 개인 일본어 회화 훈련",
+  "name": "Lingofy Japanese",
+  "short_name": "Lingofy Japanese",
+  "description": "일본어가 자연스러워지는 AI 회화",
   "start_url": "/study/today",
   "scope": "/",
   "display": "standalone",

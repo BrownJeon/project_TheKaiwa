@@ -3,12 +3,12 @@
  * 엔진명·서버 주소·경로 이름을 싣지 않는다. 서버가 보낸 message 원문은 쓰지 않는다(코드만 → 이 표).
  */
 import type { SttErrorCode, SttRoute } from '@/modules/speech/stt/client'
+import { APP_NAME } from '@/components/common/brand'
 
 /**
- * 안드로이드 설정에 보이는 앱 이름 = 런처 라벨(`strings.xml app_name`)과 같아야 한다(task-003f Leader ⑤ — "TheKaiwa").
- * 이름을 바꾸면 이 상수와 developer A 의 `app_name` 을 함께 바꾼다.
+ * 안드로이드 설정 → 애플리케이션 목록에 보이는 앱 이름 = 런처 라벨(`strings.xml app_name`)과 같아야 한다(task-003h — brand.ts).
  */
-export const APP_LABEL = 'TheKaiwa'
+export const APP_LABEL = APP_NAME
 
 export interface SttErrorCopy {
   title: string

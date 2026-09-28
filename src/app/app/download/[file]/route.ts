@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { resolveReleaseDownload, serveFile, StreamSlots } from '@/modules/infra'
+import { apkDownloadName, resolveReleaseDownload, serveFile, StreamSlots } from '@/modules/infra'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +24,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ file: string }>
       // latest 는 가리키는 파일이 바뀐다 — 매번 확인(ETag 로 304). 버전 이름 파일은 불변.
       cacheControl: file === 'latest.apk' ? 'no-cache' : 'public, max-age=86400',
       headers: {
-        'Content-Disposition': `attachment; filename="${d.fileName}"`,
+        // 받는 파일 이름은 제품 이름(task-003h), 서버 저장 이름(thekaiwa-*.apk)은 그대로.
+        'Content-Disposition': `attachment; filename="${apkDownloadName(d.release)}"`,
         'X-Content-SHA256': d.sha256,
         'X-App-Version-Code': String(d.release.versionCode),
       },

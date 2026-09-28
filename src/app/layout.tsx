@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { APP_NAME, APP_TAGLINE } from '@/components/common/brand'
 
 export const metadata: Metadata = {
-  title: 'TheKaiwa',
-  description: 'AI 일본어 선생님과 매일 회화·교정·단어·평가로 익히는 개인 일본어 회화 훈련',
+  title: APP_NAME,
+  description: `${APP_TAGLINE} — AI 일본어 선생님과 매일 회화·교정·단어·평가`,
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'TheKaiwa', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: 'default' },
 }
 
 // `viewportFit: 'cover'` + globals.css 의 safe-area 처리로 노치·제스처 바 영역을 다룬다.

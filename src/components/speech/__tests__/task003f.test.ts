@@ -36,9 +36,9 @@ test('경로 한 줄 9종·메뉴 이유 줄 — 엔진명 0, 받을 수 있는 
 })
 
 test('오류 문구 — MIC_DENIED 앱(버튼 있음·없음=앱 이름 경로)·웹, ENGINE_ERROR 전환·오프라인 방식, MODEL_REQUIRED 막힘', () => {
-  assert.equal(APP_LABEL, 'TheKaiwa')
+  assert.equal(APP_LABEL, 'Lingofy Japanese')
   assert.match(sttErrorCopy('MIC_DENIED', { native: true, canOpenSettings: true }).action, /^앱 설정 → 권한/)
-  assert.match(sttErrorCopy('MIC_DENIED', { native: true, canOpenSettings: false }).action, /애플리케이션 → TheKaiwa → 권한/)
+  assert.match(sttErrorCopy('MIC_DENIED', { native: true, canOpenSettings: false }).action, /애플리케이션 → Lingofy Japanese → 권한/)
   assert.match(sttErrorCopy('MIC_DENIED', { native: false }).action, /주소창/)
   assert.equal(sttErrorCopy('ENGINE_ERROR', { native: true }).action, '다시 눌러 말해 주세요.')
   assert.match(sttErrorCopy('ENGINE_ERROR', { native: true, switched: true }).action, /다음부터는 서버에서/)

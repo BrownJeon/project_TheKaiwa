@@ -30,7 +30,8 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.miraclepenguin.kaiwa',
-  appName: 'TheKaiwa',
+  // 사용자에게 보이는 이름(task-003h). appId·딥링크 스킴·도메인은 기술 식별자라 그대로 둔다(바꾸면 다른 앱이 된다).
+  appName: 'Lingofy Japanese',
   webDir: 'public/app-shell',
   // release 빌드에서 플러그인 호출·인식 결과가 logcat 에 남지 않게 한다.
   loggingBehavior: 'none',

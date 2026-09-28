@@ -186,6 +186,14 @@ export interface ReleaseDownload {
   release: ReleaseRow
 }
 
+/**
+ * 사용자가 받는 파일 이름(Content-Disposition) — 제품 이름 기반 `LingofyJapanese-<versionName>.apk`(task-003h).
+ * 서버 저장 이름(`thekaiwa-<versionName>.apk`, apkPath)은 기술 식별자라 그대로다. versionName 형식이 다르면 번호 없이.
+ */
+export function apkDownloadName(release: Pick<ReleaseRow, 'versionName'>): string {
+  return NAME.test(release.versionName) ? `LingofyJapanese-${release.versionName}.apk` : 'LingofyJapanese.apk'
+}
+
 /** 내보낼 APK — 행·경로·실경로·sha256 이 전부 맞을 때만. 아니면 null(404). 기록과 다른 파일은 서버 로그에 남긴다. */
 export async function resolveReleaseDownload(file: string): Promise<ReleaseDownload | null> {
   const release = pickReleaseForFile(await listReleases(), file)

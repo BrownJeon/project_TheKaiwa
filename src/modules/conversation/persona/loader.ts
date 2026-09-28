@@ -105,7 +105,7 @@ function readFresh(): Cache {
   const missing = REQUIRED_SECTIONS.filter((n) => !sections.has(n))
   if (missing.length > 0) throw new PersonaUnavailableError(`페르소나 필수 절 누락: ${missing.join(', ')}`)
   if (body.length < MIN_BODY_CHARS) throw new PersonaUnavailableError(`페르소나 본문이 너무 짧음(${body.length}자 < ${MIN_BODY_CHARS})`)
-  const next: Cache = { mtimeMs: stat.mtimeMs, size: stat.size, description: frontmatter.description || 'TheKaiwa 일본어 선생님', sections, bodyChars: body.length }
+  const next: Cache = { mtimeMs: stat.mtimeMs, size: stat.size, description: frontmatter.description || 'Lingofy Japanese 일본어 선생님', sections, bodyChars: body.length }
   cache = next
   console.info(`[persona] tutor.md 로드 — ${body.length}자`)
   return next
