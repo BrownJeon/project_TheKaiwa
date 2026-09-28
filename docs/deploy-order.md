@@ -371,6 +371,14 @@ scripts/deploy.sh TheKaiwa --yes          # 다시 앞으로 → ok
 
 ---
 
+## 9-6. push 자동 배포(webhook) — 2026-09-28 사용자 지시로 설정
+
+- Gitea `project_TheKaiwa` hook(id 9, push·`main`) → 수신기 `:9999/deploy/project_TheKaiwa`(pm2 `webhook-deploy`, `~/.local/webhook-deploy/server.js` REPOS) → `~/.local/webhook-deploy/deploy-thekaiwa.sh` → `release.sh`(이 문서의 `deploy.yml` 값과 동일, `--health-timeout 120`, **`--migrate` 없음**). 로그 `~/.local/webhook-deploy/logs/project_TheKaiwa.log`. Gitea Actions 는 끔.
+- **push = 운영 배포**다. 코드 커밋은 **QA PASS 뒤에만 push** 한다(검토 전 코드를 push 하면 그대로 운영에 나간다).
+- **문서·기록만 바뀐 push 는 건너뛴다** — 운영 릴리스 SHA 와 새 `main` 사이 바뀐 경로가 전부 `agent-vault/`·`docs/`·`.claude/`·`CLAUDE.md`·`AGENTS.md`·`README.md` 면 `RELEASE_RESULT {"status":"skipped","reason":"docs_only"}` 만 남기고 재시작하지 않는다(작업 기록 push 마다 gateway WS 가 끊기지 않게). 코드가 하나라도 섞이면 배포.
+- DB 스키마 변경은 webhook 이 절대 하지 않는다 — 사람이 백업 뒤 `prisma db push` 를 먼저 하고 그다음 코드를 push(추가만 하는 변경이면 옛 코드도 동작).
+- 되돌리기: 이상하면 `bash scripts/deploy.sh TheKaiwa --rollback`. webhook 끄기: `server.js` REPOS 에서 한 줄 제거 + `pm2 restart webhook-deploy`(또는 Gitea hook 비활성).
+
 ## 10. 개발 흐름 — 컷오버 뒤에도 미러는 계속 쓴다
 
 | 무엇 | 어디서 | 비고 |
