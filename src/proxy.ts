@@ -94,9 +94,10 @@ export const config = {
   // 로그인 HTML을 받게 되는 문제 방지.
   // PWA 자산(manifest·icons·app-shell)도 제외한다 — 매니페스트가 로그인 HTML로 치환되면
   // 설치 배너가 조용히 깨진다.
+  // `app/download/`(APK)·`models/`(온디바이스 모델, #9·#10)는 공개 파일 라우트다 — 로그인 전 앱·플러그인이 받는다.
   // `/api/admin/*` 만은 예외로 여기서도 본다 — USER 에게 관리자 API 의 존재를 숨기기 위해(위 ADMIN_API).
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|app-shell/|app/download/).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|app-shell/|app/download/|models/).*)',
     '/api/admin/:path*',
   ],
 }

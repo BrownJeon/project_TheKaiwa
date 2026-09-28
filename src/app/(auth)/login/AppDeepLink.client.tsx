@@ -1,42 +1,31 @@
 'use client'
 
 /**
- * 앱 로그인의 **마지막 한 칸** — 딥링크를 받아 세션으로 바꾼다(설계안 §5-2).
+ * 앱 로그인의 **마지막 한 칸** — 딥링크를 받아 세션으로 바꾼다(설계안 §5-2, task-003f C1-1 PKCE).
  *
  * ── 이 파일이 없어서 났던 증상 (2026-09-13 실기기) ─────────────────────────
- * APK 로 구글 로그인을 하면 인증은 끝나는데 **로그인 화면으로 되돌아왔다.**
- * nginx 로그가 정확히 말해 줬다:
- *
- *   17:03:34  /api/auth/google?platform=app   307   ← 앱이 올바르게 시작
- *   17:03:38  /api/auth/google/callback       302   ← 구글 인증 성공, `thekaiwa://` 로 302
- *   17:03:47  /api/auth/google?platform=app   307   ← 처음부터 다시 (= 로그인 화면)
- *
- * **`/api/auth/app-exchange` 가 한 번도 호출되지 않았다.** 서버는 제 몫을 다 했고
- * (`thekaiwa://auth/callback?code=` 로 302), APK 에도 intent-filter 가 들어가 앱이 떠올랐지만,
- * **그 딥링크를 듣는 코드가 웹 쪽에 없었다.** `config.ts` 주석이 *"앱의 `appUrlOpen` 핸들러
- * 하나가 처리한다"* 고 적어 둔 그 핸들러가 실제로는 존재하지 않았다 —
- * Phase 0 이 `@capacitor/*` 의존성 없이 만들 수 있는 데까지만 만들고(버튼 쪽 전역 감지),
- * 받는 쪽은 Phase 7 로 미뤄 둔 자리였다.
+ * APK 로 구글 로그인을 하면 인증은 끝나는데 **로그인 화면으로 되돌아왔다.** 서버는 `thekaiwa://auth/callback?code=` 로 302 했고
+ * 앱도 떠올랐지만 **그 딥링크를 듣는 코드가 웹 쪽에 없었다** — `/api/auth/app-exchange` 가 한 번도 호출되지 않았다.
  *
  * ── 왜 fetch 가 아니라 **네비게이션**인가 ──────────────────────────────────
- * `/api/auth/app-exchange` 는 세션 쿠키를 심고 `/study/today` 로 302 한다. `fetch` 로 부르면
- * 쿠키는 심어져도 **화면이 그대로 로그인에 남는다** — 리다이렉트를 따라가는 것은 문서
- * 네비게이션이지 fetch 가 아니다. 그래서 `location.replace` 로 보낸다(`replace` 인 이유:
- * 뒤로가기가 로그인 화면으로 돌아오면 안 된다).
+ * `/api/auth/app-exchange` 는 세션 쿠키를 심고 착지 경로로 302 한다. `fetch` 로 부르면 쿠키는 심어져도 화면이 로그인에 남는다.
+ * 그래서 `location.replace` 로 보낸다(뒤로가기가 로그인 화면으로 돌아오면 안 된다).
+ *
+ * ── PKCE ──────────────────────────────────────────────────────────────
+ * 로그인 시작 때 WebView 가 만든 verifier 를 **꺼내면서 지우고**(1회용) 코드와 함께 보낸다. verifier 가 없으면(10분 지남·앱 프로세스가
+ * 죽어 sessionStorage 유실) 교환할 수 없으므로 서버에 가지 않고 `app_code_invalid` 로 로그인 화면을 다시 띄운다(서버의 실패 문구와 같은 하나).
+ * verifier·코드는 화면·console 에 그리지 않는다.
  */
 import { useEffect, useRef } from 'react'
-import {
-  authCodeFromDeepLink,
-  authErrorFromDeepLink,
-  closeExternal,
-  onAuthDeepLink,
-} from '@/modules/infra/native/bridge'
+import { appExchangeUrl, authCodeFromDeepLink, authErrorFromDeepLink, closeExternal, onAuthDeepLink, takeAppLoginVerifier } from '@/modules/infra/native'
 
-export default function AppDeepLink({ callbackUrl }: { callbackUrl: string | null }) {
-  // **코드는 1회용이다.** 따뜻한 리스너와 콜드 스타트 보정(`getLaunchUrl`)이 같은 주소를
-  // 둘 다 줄 수 있는데, 두 번째 교환은 반드시 실패해 `app_code_invalid` 배너가 뜬다.
-  // 이미 처리를 시작했으면 그 뒤는 무시한다.
+export default function AppDeepLink({ callbackUrl, onExchanging }: { callbackUrl: string | null; onExchanging?: () => void }) {
+  // **코드는 1회용이다.** 따뜻한 리스너와 콜드 스타트 보정(`getLaunchUrl`)이 같은 주소를 둘 다 줄 수 있다 — 처음 것만 처리한다.
   const handled = useRef(false)
+  const exchangingRef = useRef(onExchanging)
+  useEffect(() => {
+    exchangingRef.current = onExchanging
+  }, [onExchanging])
 
   useEffect(() => {
     return onAuthDeepLink((url) => {
@@ -57,15 +46,20 @@ export default function AppDeepLink({ callbackUrl }: { callbackUrl: string | nul
       if (code === null) return // 로그인과 무관한 딥링크 — 앞으로 생길 공유·알림 등
 
       handled.current = true
-      // Custom Tab 이 위에 떠 있는 채로 교환하면 사용자는 **브라우저 화면만 보게 된다.**
-      // 닫는 것을 기다리지 않는다 — 실패해도 교환은 진행돼야 한다.
+      exchangingRef.current?.()
+      // Custom Tab 이 위에 떠 있는 채로 교환하면 사용자는 브라우저 화면만 보게 된다. 닫는 것을 기다리지 않는다.
       void closeExternal()
 
-      const target = new URL('/api/auth/app-exchange', window.location.origin)
-      target.searchParams.set('code', code)
+      const verifier = takeAppLoginVerifier()
+      if (verifier === null) {
+        const back = new URL('/login', window.location.origin)
+        back.searchParams.set('oauth_error', 'app_code_invalid')
+        if (callbackUrl) back.searchParams.set('callbackUrl', callbackUrl)
+        window.location.replace(back.toString())
+        return
+      }
       // middleware 가 붙여 준 원래 목적지를 보존한다(서버가 `sanitizeNextPath` 로 다시 검증한다).
-      if (callbackUrl !== null && callbackUrl !== '') target.searchParams.set('next', callbackUrl)
-      window.location.replace(target.toString())
+      window.location.replace(appExchangeUrl(window.location.origin, code, verifier, callbackUrl !== '' ? callbackUrl : null))
     })
   }, [callbackUrl])
 

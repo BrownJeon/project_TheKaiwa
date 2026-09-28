@@ -22,6 +22,8 @@ export type SttErrorCode =
   | 'BUSY'
   | 'ENGINE_ERROR'
   | 'TIMEOUT'
+  /** 오프라인 방식인데 휴대폰 인식 파일이 없거나 손상됐다(서버로 바꾸지 않는다 — task-003f, screens §11-3 C). */
+  | 'MODEL_REQUIRED'
 
 export type SttEvent =
   | { type: 'level'; db: number }
@@ -29,7 +31,27 @@ export type SttEvent =
   | { type: 'ready' }
   | { type: 'partial'; segIdx: number; text: string }
   | { type: 'final'; text: string; durationMs: number; utteranceId: string | null }
-  | { type: 'error'; code: SttErrorCode; retryAfterSec?: number }
+  /**
+   * `switched` = 이 오류로 휴대폰 → 서버 전환이 일어났다(다음 누름부터 서버, 띠 2줄). `offlineMode` = 오프라인 방식이라 바꾸지 않는다.
+   */
+  | { type: 'error'; code: SttErrorCode; retryAfterSec?: number; switched?: boolean; offlineMode?: boolean }
+  /** 휴대폰 인식 세션이 앱 전환으로 취소됐다(말 잃음, 오류 띠 아님 — 힌트 INTERRUPTED). */
+  | { type: 'interrupted' }
+  /** 다음 누름의 인식 경로(라우터). `switched` = 말을 잃지 않은 전환이 방금 일어났다(토스트 1회). */
+  | { type: 'route'; route: SttRoute; switched: boolean }
+
+/**
+ * 경로와 그 이유(screens §11-3 C). 화면은 이 두 값으로만 문구를 고른다 — 엔진·주소는 모른다.
+ *  WEB = 플러그인 없음(웹·플러그인 없는 셸) · READY = 휴대폰 준비됨 · MODEL_ABSENT/MODEL_DOWNLOADING = 파일 없음/받는 중이라 서버 ·
+ *  MODE_ACCURATE/MODE_OFFLINE = 방식 때문 · ONDEVICE_FAILED = 오류 누적으로 전환(앱 실행 동안) · SERVER_DISABLED = 서버가 휴대폰 경로를 꺼 둠 ·
+ *  UPDATE_REQUIRED = 강제 업데이트 상태라 휴대폰 경로를 쓰지 않음.
+ */
+export type SttRouteReason = 'WEB' | 'READY' | 'MODEL_ABSENT' | 'MODEL_DOWNLOADING' | 'MODE_ACCURATE' | 'MODE_OFFLINE' | 'ONDEVICE_FAILED' | 'SERVER_DISABLED' | 'UPDATE_REQUIRED'
+
+export interface SttRoute {
+  kind: SttKind
+  reason: SttRouteReason
+}
 
 export interface BeginOptions {
   purpose: SttPurpose
@@ -53,16 +75,37 @@ export class SttError extends Error {
   constructor(
     readonly code: SttErrorCode,
     readonly retryAfterSec?: number,
+    /** 휴대폰 경로 실패의 플러그인 코드(라우터가 이어갈지·셀지 판단). 화면에는 쓰지 않는다. */
+    readonly pluginCode?: string,
   ) {
     super(code)
     this.name = 'SttError'
   }
 }
 
-/** #19 응답 중 클라이언트가 쓰는 부분(엔진 식별값은 읽지 않는다). */
+/**
+ * #19 응답 중 클라이언트가 쓰는 부분. `onDevice.connectionKey` 는 불투명 id(#21 업로드에 그대로 돌려준다), 모델은 불투명 id·version 뿐 —
+ * 엔진·모델 이름은 없다.
+ */
 export interface SttClientConfig {
+  recognitionMode?: 'AUTO' | 'FAST' | 'ACCURATE' | 'OFFLINE'
   gateway?: { enabled: boolean; wsPath?: string; sampleRate?: number; frameMs?: number }
-  onDevice?: { enabled: boolean }
+  onDevice?: {
+    /** 경로 선택(사용자 방식·플랫폼 해석 결과)만 뜻한다. 모델 블록은 enabled 와 무관하게 온다(Leader ②). */
+    enabled: boolean
+    /** 서버에 휴대폰 인식 파일 배포본이 있는가. */
+    available?: boolean
+    connectionKey?: string
+    runtime?: {
+      numThreads?: number | null
+      decodingMethod?: string | null
+      vad?: { silenceMs?: number | null; threshold?: number | null }
+      partial?: boolean
+    }
+    model?: { id?: string; version?: string | null; manifestUrl?: string; totalBytes?: number | null; wifiRecommended?: boolean }
+  }
+  fallback?: { onDeviceFailureThreshold?: number; toGateway?: boolean }
+  upload?: { maxBytes?: number; maxDurationMs?: number }
 }
 
 /** #20 응답. `wsUrl` 은 개발 서버에서만 온다. */

@@ -1,3 +1,4 @@
+import AppUpdateBanner from '@/components/shell/AppUpdateBanner'
 import AttendancePing from '@/components/shell/AttendancePing'
 import NativeFlag from '@/components/shell/NativeFlag'
 import TabBar from '@/components/shell/TabBar'
@@ -12,7 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-app-shell
-      className="grid h-[100dvh] grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-surface"
+      className="grid h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-surface"
       style={{
         // ── 상태바(시계·배터리) 아래로 화면이 파고드는 것을 여기서 막는다 ──────────
         //
@@ -37,6 +38,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     >
       <NativeFlag />
       <AttendancePing />
+      {/* APK 업데이트 띠(screens §11-2 G). 감싼 div 는 늘 있어 그리드 첫 행을 지킨다 — 띠가 null 일 때 main 이 auto 행으로
+          밀려 올라가 스크롤 한 곳 규칙이 깨지지 않게(웹·해당 없음이면 높이 0). 그리는 것이 없는 위 둘은 DOM 이 없어 행을 차지하지 않는다. */}
+      <div className="min-w-0">
+        <AppUpdateBanner />
+      </div>
       <main className="min-h-0 min-w-0 overflow-y-auto bg-ground">{children}</main>
       <TabBar />
     </div>

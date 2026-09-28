@@ -15,6 +15,7 @@
 import jwt from 'jsonwebtoken'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { sanitizeNextPath, parsePlatform, type AuthPlatform } from '@/modules/infra/auth/oauth/next-path'
+import { isPkceChallenge } from '@/modules/infra/auth/oauth/pkce'
 
 export const OAUTH_STATE_COOKIE = 'thekaiwa_oauth_state'
 
@@ -45,6 +46,8 @@ interface StatePayload {
   nonce: string
   nextPath: string
   platform: AuthPlatform
+  /** 앱 흐름의 PKCE challenge(task-003f C1-1) — 서명 안에 있어야 콜백까지 위조 없이 운반된다. 웹은 없음. */
+  ch?: string
 }
 
 export interface CreatedState {
@@ -52,9 +55,13 @@ export interface CreatedState {
   nonce: string
 }
 
-export function createOAuthState(nextPath: string, platform: AuthPlatform): CreatedState {
+export function createOAuthState(nextPath: string, platform: AuthPlatform, challenge: string | null = null): CreatedState {
   const nonce = randomBytes(16).toString('hex')
   const payload: StatePayload = { nonce, nextPath: sanitizeNextPath(nextPath), platform }
+  if (platform === 'app') {
+    if (!isPkceChallenge(challenge)) throw new Error('앱 로그인 state 에 PKCE challenge 가 필요합니다')
+    payload.ch = challenge
+  }
   const state = jwt.sign(payload, getStateSecret(), {
     expiresIn: OAUTH_STATE_MAX_AGE_SEC,
     algorithm: 'HS256',
@@ -64,7 +71,7 @@ export function createOAuthState(nextPath: string, platform: AuthPlatform): Crea
 
 export type StateCheckFail = 'missing' | 'malformed' | 'bad_signature' | 'expired' | 'nonce_mismatch'
 export type StateCheckResult =
-  | { ok: true; nextPath: string; platform: AuthPlatform }
+  | { ok: true; nextPath: string; platform: AuthPlatform; challenge: string | null }
   | { ok: false; reason: StateCheckFail }
 
 /** 상수시간 문자열 비교 — 길이가 다른 입력도 SHA-256으로 고정 길이화한 뒤 비교한다. */
@@ -99,9 +106,11 @@ export function verifyOAuthState(
     return { ok: false, reason: 'nonce_mismatch' }
   }
 
+  const platform = parsePlatform(payload.platform)
   return {
     ok: true,
     nextPath: sanitizeNextPath(payload.nextPath),
-    platform: parsePlatform(payload.platform),
+    platform,
+    challenge: platform === 'app' && isPkceChallenge(payload.ch) ? payload.ch : null,
   }
 }

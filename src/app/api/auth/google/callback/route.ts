@@ -15,7 +15,8 @@
  *
  * ★ `platform=app`(state에 서명돼 있음)이면 성공 시 세션 쿠키 대신 60초·1회용
  *   `AppAuthCode`를 발급하고 `thekaiwa://auth/callback?code=`로 302한다. Custom Tabs에서
- *   발급한 쿠키는 앱 WebView로 오지 않기 때문이다(설계안 §5-2).
+ *   발급한 쿠키는 앱 WebView로 오지 않기 때문이다(설계안 §5-2). 코드는 state 의 PKCE challenge 로
+ *   결속돼 앱 WebView 의 verifier 없이는 교환되지 않는다(task-003f C1-1).
  *   신규 가입은 앱에서도 `/invite`(Custom Tabs 안)를 거치고, 딥링크 전환은
  *   `POST /api/auth/complete`가 담당한다.
  */
@@ -84,9 +85,13 @@ async function loginRedirect(
   user: { id: string; email: string },
   nextPath: string,
   platform: AuthPlatform,
+  challenge: string | null,
 ): Promise<NextResponse> {
   if (platform === 'app') {
-    const code = await issueAppAuthCode(user.id)
+    // 서명된 state 가 앱 흐름을 증명하므로 challenge 는 항상 있다(시작 라우트가 없으면 거부) — 없으면 방어적으로 실패.
+    if (challenge === null) return failRedirect(req, 'app_login_invalid', platform)
+    // 딥링크에는 code_r 만 — DB 에는 challenge 로 결속한 값이 들어간다(C1-1).
+    const code = await issueAppAuthCode(user.id, challenge)
     return clearState(deepLinkRedirect(buildAppCallbackDeepLink({ code })))
   }
   const res = clearState(NextResponse.redirect(internalUrl(req, nextPath)))
@@ -131,7 +136,7 @@ export async function GET(req: NextRequest) {
     // 1) 이미 이 Google 신원으로 가입된 회원
     const byOAuth = await findUserByOAuth(profile.providerId)
     if (byOAuth) {
-      return await loginRedirect(req, byOAuth, stateCheck.nextPath, platform)
+      return await loginRedirect(req, byOAuth, stateCheck.nextPath, platform, stateCheck.challenge)
     }
 
     // 2) 미검증 이메일 — 연결·생성 모두 거부(fail-closed, 계정 탈취 방지 핵심)
@@ -151,14 +156,14 @@ export async function GET(req: NextRequest) {
         return failRedirect(req, 'account_conflict', platform)
       }
       console.log(`[oauth] google 계정 연결 user=${linked.id} role=${linked.role} (${maskEmail(profile.email)})`)
-      return await loginRedirect(req, linked, stateCheck.nextPath, platform)
+      return await loginRedirect(req, linked, stateCheck.nextPath, platform, stateCheck.challenge)
     }
 
     // 4) 신규 — 계정을 여기서 만들지 않는다(초대코드 게이트).
     const res = clearState(NextResponse.redirect(internalUrl(req, '/invite')))
     res.cookies.set({
       name: OAUTH_PENDING_COOKIE,
-      value: signPendingSignup(profile, stateCheck.nextPath, platform),
+      value: signPendingSignup(profile, stateCheck.nextPath, platform, stateCheck.challenge),
       ...getPendingCookieOptions(),
     })
     console.log(`[oauth] google 신규 — 초대코드 대기 (${maskEmail(profile.email)}) platform=${platform}`)

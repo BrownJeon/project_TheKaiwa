@@ -9,7 +9,8 @@ import type { SttErrorCode } from '@/modules/speech/stt/client'
 import type { SttHint } from './sttCopy'
 
 export type SttPhase = 'idle' | 'starting' | 'recording' | 'finishing' | 'unavailable'
-export type PermState = 'prompt' | 'granted' | 'denied' | 'unknown'
+/** `rationale` = 앱에서 한 번 거절한 상태(안드로이드 `prompt-with-rationale`) — 누르기 전에 이유 한 줄(screens §11-2 F). */
+export type PermState = 'prompt' | 'rationale' | 'granted' | 'denied' | 'unknown'
 
 export const SHORT_PRESS_MS = 300
 export const PERMISSION_GUESS_MS = 600
@@ -24,6 +25,10 @@ export interface SttUiError {
   retryAfterSec?: number
   /** 마운트 사전 점검에서 난 오류(서버 준비 중이면 버튼을 막는다). */
   mountCheck?: boolean
+  /** 이 오류로 휴대폰 → 서버 전환이 일어났다(ENGINE_ERROR 2줄이 바뀐다 — screens §11-8 ⓕ). */
+  switched?: boolean
+  /** 오프라인 방식이라 서버로 바꾸지 않는다(ENGINE_ERROR 2줄). */
+  offlineMode?: boolean
 }
 
 export interface SttUiState {
@@ -45,6 +50,8 @@ export interface SttUiState {
   hadResult: boolean
   /** final 낭독(aria-live). n 이 바뀌어야 같은 문장도 다시 읽힌다. */
   announce: { text: string; n: number } | null
+  /** 앱에서 권한을 한 번 거절한 상태 — 누르기 전 상태 줄에 이유 한 줄. */
+  rationale: boolean
 }
 
 export type SttUiEvent =
@@ -58,7 +65,11 @@ export type SttUiEvent =
   | { type: 'CONNECTING'; slow: boolean }
   | { type: 'PARTIAL'; segIdx: number; text: string }
   | { type: 'FINAL'; now: number; text: string }
-  | { type: 'ERROR'; now: number; code: SttErrorCode; retryAfterSec?: number }
+  | { type: 'ERROR'; now: number; code: SttErrorCode; retryAfterSec?: number; switched?: boolean; offlineMode?: boolean }
+  /** 앱: 이번 누름은 권한 대화상자만 띄웠다(허용됨) — 녹음하지 않고 힌트만(§11-3 D). */
+  | { type: 'PERMISSION_ONLY'; now: number }
+  /** 휴대폰 인식 세션이 앱 전환으로 취소됐다 — 힌트 INTERRUPTED(오류 띠 아님). */
+  | { type: 'INTERRUPTED'; now: number }
   | { type: 'OFFLINE'; now: number }
   | { type: 'ONLINE'; now: number }
   | { type: 'PREFLIGHT'; error: SttUiError | null; blocking: boolean }
@@ -90,12 +101,13 @@ export function initialSttUi(now = 0, maxSec = DEFAULT_MAX_SEC): SttUiState {
     error: null,
     hadResult: false,
     announce: null,
+    rationale: false,
   }
 }
 
 /** 버튼을 막는 오류(누를 수 없음). 서버 준비 중은 마운트 판정일 때만. */
 export function isBlockingError(e: SttUiError): boolean {
-  return e.code === 'INSECURE' || e.code === 'UNSUPPORTED' || e.code === 'OFFLINE' || (e.code === 'SERVER_UNAVAILABLE' && !!e.mountCheck)
+  return e.code === 'INSECURE' || e.code === 'UNSUPPORTED' || e.code === 'OFFLINE' || e.code === 'MODEL_REQUIRED' || (e.code === 'SERVER_UNAVAILABLE' && !!e.mountCheck)
 }
 
 function toIdle(s: SttUiState, patch: Partial<SttUiState> = {}): SttUiState {
@@ -121,7 +133,7 @@ export function sttUiReducer(s: SttUiState, e: SttUiEvent): SttStep {
       if (s.phase !== 'starting') return { state: s, effects: none }
       if (s.pressed) return { state: { ...s, phase: 'recording', now: e.now, recordingAt: e.now, loudAt: e.now }, effects: none }
       const waited = e.now - (s.pressedAt ?? e.now)
-      const permissionOnly = s.permBefore === 'prompt' || (s.permBefore === 'unknown' && waited >= PERMISSION_GUESS_MS)
+      const permissionOnly = s.permBefore === 'prompt' || s.permBefore === 'rationale' || (s.permBefore === 'unknown' && waited >= PERMISSION_GUESS_MS)
       return { state: toIdle(s, { now: e.now, hint: permissionOnly ? 'PERMISSION_GRANTED' : 'SHORT_PRESS' }), effects: ['CANCEL'] }
     }
     case 'BEGIN_FAIL': {
@@ -166,8 +178,21 @@ export function sttUiReducer(s: SttUiState, e: SttUiEvent): SttStep {
       const empty = !e.text.trim() && s.committed.length === 0
       return { state: toIdle(next, { now: e.now, hadResult: true, hint: empty ? 'EMPTY_RESULT' : s.hint === 'AUTO_STOPPED' ? 'AUTO_STOPPED' : null }), effects: none }
     }
+    case 'PERMISSION_ONLY':
+      if (s.phase !== 'starting') return { state: s, effects: none }
+      return { state: toIdle(s, { now: e.now, hint: 'PERMISSION_GRANTED', error: null, rationale: false }), effects: none }
+    case 'INTERRUPTED': {
+      const busy = s.phase === 'starting' || s.phase === 'recording' || s.phase === 'finishing'
+      if (!busy) return { state: s, effects: none }
+      return { state: toIdle(s, { now: e.now, hint: 'INTERRUPTED', segs: {} }), effects: ['CANCEL'] }
+    }
     case 'ERROR': {
-      const error: SttUiError = { code: e.code, ...(e.retryAfterSec ? { retryAfterSec: e.retryAfterSec } : {}) }
+      const error: SttUiError = {
+        code: e.code,
+        ...(e.retryAfterSec ? { retryAfterSec: e.retryAfterSec } : {}),
+        ...(e.switched ? { switched: true } : {}),
+        ...(e.offlineMode ? { offlineMode: true } : {}),
+      }
       const busy = s.phase === 'starting' || s.phase === 'recording' || s.phase === 'finishing'
       return { state: toIdle(s, { now: e.now, phase: isBlockingError(error) ? 'unavailable' : 'idle', error, segs: {} }), effects: busy ? ['CANCEL'] : none }
     }
@@ -183,10 +208,13 @@ export function sttUiReducer(s: SttUiState, e: SttUiEvent): SttStep {
       if (!e.error) return { state: s.phase === 'unavailable' ? toIdle(s, { error: null }) : s, effects: none }
       return { state: { ...s, phase: e.blocking ? 'unavailable' : 'idle', error: e.error }, effects: none }
     }
-    case 'PERMISSION':
-      if (e.state === 'granted' && s.error?.code === 'MIC_DENIED') return { state: { ...s, error: null }, effects: none }
-      if (e.state === 'denied' && s.phase === 'idle' && !s.error) return { state: { ...s, error: { code: 'MIC_DENIED' } }, effects: none }
-      return { state: s, effects: none }
+    case 'PERMISSION': {
+      const rationale = e.state === 'rationale'
+      const base = rationale === s.rationale ? s : { ...s, rationale }
+      if (e.state === 'granted' && s.error?.code === 'MIC_DENIED') return { state: { ...base, error: null }, effects: none }
+      if (e.state === 'denied' && s.phase === 'idle' && !s.error) return { state: { ...base, error: { code: 'MIC_DENIED' } }, effects: none }
+      return { state: base, effects: none }
+    }
   }
 }
 
@@ -202,7 +230,7 @@ export function transcriptParts(s: Pick<SttUiState, 'committed' | 'segs'>): { co
 
 /** 상태 줄에 "마이크 사용을 허용해 주세요" 를 띄울 때(허용된 기기에서 깜빡이지 않게). */
 export function showAskPermission(s: SttUiState): boolean {
-  return s.phase === 'starting' && (s.permBefore === 'prompt' || (s.pressedAt !== null && s.now - s.pressedAt >= ASK_PERMISSION_SHOW_MS))
+  return s.phase === 'starting' && (s.permBefore === 'prompt' || s.permBefore === 'rationale' || (s.pressedAt !== null && s.now - s.pressedAt >= ASK_PERMISSION_SHOW_MS))
 }
 
 export function elapsedSec(s: SttUiState): number {

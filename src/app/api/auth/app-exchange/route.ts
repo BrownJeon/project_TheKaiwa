@@ -1,13 +1,13 @@
 /**
- * GET /api/auth/app-exchange?code= — 앱 딥링크 코드 → 세션 쿠키 (설계안 §5-2).
+ * GET /api/auth/app-exchange?code=<code_r>&verifier=<PKCE verifier>&next= — 앱 딥링크 코드 → 세션 쿠키 (설계안 §5-2, task-003f C1-1).
  *
- * 앱이 `thekaiwa://auth/callback?code=`를 받으면 WebView를 이 주소로 이동시킨다. 여기서
- * 코드를 **소각**하고 진짜 세션 쿠키를 심은 뒤 `/study/today`(DEFAULT_NEXT_PATH)로 302한다.
+ * 앱이 `thekaiwa://auth/callback?code=`를 받으면 WebView를 이 주소로 이동시킨다(로그인 시작 때 WebView 가 만든 verifier 를 함께).
+ * 여기서 `sha256(code_r + ":" + S256(verifier))` 로 행을 찾아 **소각**하고 진짜 세션 쿠키를 심은 뒤 `next`(같은 출처 경로만)로 302한다.
  *
- * ★ 실패는 만료·재사용·미존재를 구분하지 않는다 — 전부 같은 응답으로 수렴시켜 "그 코드는
+ * ★ 실패는 형식 오류·verifier 불일치·만료·재사용·미존재를 구분하지 않는다 — 전부 같은 응답으로 수렴시켜 "그 코드는
  *   존재하지만 이미 썼다" 같은 정보가 새지 않게 한다(`consumeAppAuthCode` 계약).
- * ★ 이 라우트는 인증 **이전** 단계라 `auth()`를 걸 수 없다. 대신 코드 자체가 자격증명이며,
- *   64자 hex 형식 검사 → 조건부 UPDATE 1건 → 사용자 조회 순으로만 권한이 생긴다.
+ * ★ 이 라우트는 인증 **이전** 단계라 `auth()`를 걸 수 없다. 대신 코드+verifier 가 자격증명이며,
+ *   형식 검사 → 결속 값 재계산 → 조건부 UPDATE 1건 → 사용자 조회 순으로만 권한이 생긴다.
  */
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
 
   try {
-    const user = await consumeAppAuthCode(sp.get('code'))
+    const user = await consumeAppAuthCode(sp.get('code'), sp.get('verifier'))
     if (user === null) {
       const url = internalUrl(req, '/login')
       url.searchParams.set('oauth_error', 'app_code_invalid')

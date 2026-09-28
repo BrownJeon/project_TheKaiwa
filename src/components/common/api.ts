@@ -80,10 +80,23 @@ function parseRetryAfter(res: Response): number | null {
   return Number.isFinite(n) && n >= 0 ? Math.ceil(n) : null
 }
 
+/** 앱 버전(업데이트 스토어가 `getAppInfo()` 로 한 번 채운다). 웹은 늘 null. */
+let appVersion: { name: string; code: number } | null = null
+export function setClientAppVersion(v: { name: string; code: number } | null): void {
+  appVersion = v
+}
+
 function clientHeaders(init?: HeadersInit): Headers {
   // 앱 WebView 는 플랫폼을 알린다 — 서버가 인식 모드(OFFLINE 허용 여부)·음성 경로를 해석할 때 쓴다(api-contract #16).
   const headers = new Headers(init)
-  if (isNativeApp()) headers.set('X-Client-Platform', 'app')
+  if (isNativeApp()) {
+    headers.set('X-Client-Platform', 'app')
+    // api-contract §0-10 — 배너(#8)·호환 판단. 비교는 versionCode(`X-App-Build`)로만.
+    if (appVersion) {
+      headers.set('X-App-Version', appVersion.name)
+      headers.set('X-App-Build', String(appVersion.code))
+    }
+  }
   return headers
 }
 

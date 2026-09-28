@@ -34,13 +34,13 @@ import { KEYS } from '@/components/chat/storageKeys'
 import TurnNotice from '@/components/chat/TurnNotice'
 import { useChatTurn, type RestoreInfo, type SettledKind } from '@/components/chat/useChatTurn'
 import { useKeyboardInset } from '@/components/chat/useKeyboardInset'
-import { STT_HINT_COPY } from '@/components/speech/sttCopy'
+import { STT_HINT_COPY, STT_STATUS_COPY, STT_SWITCH_TOAST } from '@/components/speech/sttCopy'
 import { elapsedSec, showAskPermission, transcriptParts, type SttUiError } from '@/components/speech/sttUiState'
 import { unlockTtsAudio } from '@/components/speech/ttsAudio'
 import { useRealtimeStt, type SttFinal } from '@/components/speech/useRealtimeStt'
 import { useTtsRuntimeStatus } from '@/components/speech/useTtsRuntimeStatus'
 import { isNativeApp } from '@/modules/infra/native'
-import { browserEnvironmentProblem, type SttClientConfig } from '@/modules/speech/stt/client'
+import { browserEnvironmentProblem, onDeviceModelStore, type SttClientConfig } from '@/modules/speech/stt/client'
 import type {
   ChatDetail,
   ChatInfo,
@@ -59,6 +59,7 @@ import type { ReplayState } from './ReplayButton'
 import { completeChunkTexts, hasMoreAfter, sentenceSpans, visiblePrefix, type AudioChunkView } from './revealChunks'
 import SpeechProfileMenu, { type ProfileLabel } from './SpeechProfileMenu'
 import SttAlert from './SttAlert'
+import SttRouteRow from './SttRouteRow'
 import TalkIntro from './TalkIntro'
 import TalkRoomHeader from './TalkRoomHeader'
 import TalkTutorBubble from './TalkTutorBubble'
@@ -74,14 +75,20 @@ import VoiceBar from './VoiceBar'
 type LoadState = 'loading' | 'ready' | 'notFound' | 'error'
 type InputMode = 'voice' | 'text'
 
-/** #19 중 화면이 쓰는 값만(엔진 식별값·connectionKey·model 은 state 에 두지 않는다). */
+/**
+ * #19 중 화면·라우터가 쓰는 값만. 휴대폰 경로는 발화 업로드(#21)에 불투명 연결 id(`connectionKey`)와 실행 값(`runtime`)이 필요하다 —
+ * 모델 블록(받기용)은 설정 카드만 쓰므로 회화방 state 에 두지 않는다. 엔진 이름은 원래 없다.
+ */
 interface SpeechConfigView extends SttClientConfig {
   tts?: { speechProfiles?: ProfileLabel[] }
 }
 
 interface RawSpeechConfig {
+  recognitionMode?: SttClientConfig['recognitionMode']
   gateway?: { enabled?: boolean; wsPath?: string; sampleRate?: number; frameMs?: number }
-  onDevice?: { enabled?: boolean }
+  onDevice?: { enabled?: boolean; available?: boolean; connectionKey?: unknown; runtime?: NonNullable<SttClientConfig['onDevice']>['runtime'] }
+  fallback?: SttClientConfig['fallback']
+  upload?: SttClientConfig['upload']
   tts?: { speechProfiles?: Array<{ id?: unknown; label?: unknown }> }
 }
 
@@ -109,9 +116,22 @@ function pickConfig(raw: RawSpeechConfig): SpeechConfigView {
   const profiles = Array.isArray(raw.tts?.speechProfiles)
     ? raw.tts.speechProfiles.filter((p): p is ProfileLabel => typeof p?.id === 'string' && typeof p?.label === 'string').map((p) => ({ id: p.id, label: p.label }))
     : undefined
+  const od = raw.onDevice
   return {
+    ...(raw.recognitionMode ? { recognitionMode: raw.recognitionMode } : {}),
     ...(gw ? { gateway: { enabled: gw.enabled !== false, wsPath: gw.wsPath, sampleRate: gw.sampleRate, frameMs: gw.frameMs } } : {}),
-    ...(raw.onDevice ? { onDevice: { enabled: raw.onDevice.enabled === true } } : {}),
+    ...(od
+      ? {
+          onDevice: {
+            enabled: od.enabled === true,
+            ...(typeof od.available === 'boolean' ? { available: od.available } : {}),
+            ...(typeof od.connectionKey === 'string' ? { connectionKey: od.connectionKey } : {}),
+            ...(od.runtime ? { runtime: od.runtime } : {}),
+          },
+        }
+      : {}),
+    ...(raw.fallback ? { fallback: raw.fallback } : {}),
+    ...(raw.upload ? { upload: raw.upload } : {}),
     ...(profiles ? { tts: { speechProfiles: profiles } } : {}),
   }
 }
@@ -375,6 +395,11 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   }
 
   const stt = useRealtimeStt({ purpose: 'TURN', chatId, config, maxSec: 30, onFinal })
+  // 말을 잃지 않은 휴대폰 → 서버 전환 — 토스트 1회(녹음 중이면 끝난 뒤, §11-2 D). 말을 잃은 전환은 오류 띠 2줄이 말한다.
+  const switchNotice = stt.switchNotice
+  useEffect(() => {
+    if (switchNotice > 0) announce(STT_SWITCH_TOAST)
+  }, [switchNotice, announce])
   const sttPhase = stt.ui.phase
   const recording = sttPhase === 'starting' || sttPhase === 'recording'
   const listening = recording || sttPhase === 'finishing'
@@ -428,9 +453,11 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         if (props) setProposals(props.items)
         const picked = cfg ? pickConfig(cfg) : null
         setConfig(picked)
-        // 웹에서 서버 인식이 꺼져 있거나 이 브라우저가 막혀 있으면 글자 모드로 시작(SttAlert 가 이유를 한 번 보인다).
+        // 서버 인식이 꺼져 있거나 이 브라우저가 막혀 있으면 글자 모드로 시작(SttAlert 가 이유를 한 번 보인다).
+        // 앱에서 휴대폰 경로가 켜져 있으면(오프라인 방식 등) 서버가 꺼져 있어도 음성으로 시작한다.
         const env = browserEnvironmentProblem()
-        if (picked?.gateway?.enabled === false || env === 'INSECURE' || env === 'UNSUPPORTED') setMode('text')
+        const onDeviceOn = picked?.onDevice?.enabled === true && !!onDeviceModelStore().getPlugin()
+        if (!onDeviceOn && (picked?.gateway?.enabled === false || env === 'INSECURE' || env === 'UNSUPPORTED')) setMode('text')
         setLoad('ready')
         if (detail.chat.running) attach(turnBaseOf(detail.messages))
         else if (endsWithUnfinishedReply(detail.messages)) markFailed()
@@ -525,7 +552,15 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     askPermission: showAskPermission(stt.ui),
     slowConnect: stt.ui.slow,
     quietHint: stt.ui.hint === 'TOO_QUIET' ? STT_HINT_COPY.TOO_QUIET : null,
-    idleHint: talkHint ?? (stt.ui.hint === 'AUTO_STOPPED' ? TALK_HINT.autoStopped : stt.ui.hint && stt.ui.hint !== 'TOO_QUIET' ? STT_HINT_COPY[stt.ui.hint] : null),
+    idleHint:
+      talkHint ??
+      (stt.ui.hint === 'AUTO_STOPPED'
+        ? TALK_HINT.autoStopped
+        : stt.ui.hint && stt.ui.hint !== 'TOO_QUIET'
+          ? STT_HINT_COPY[stt.ui.hint]
+          : stt.ui.rationale && !stt.ui.error
+            ? STT_STATUS_COPY.rationale
+            : null),
   })
   const turnBusy = turn.phase === 'sending' || turn.phase === 'streaming' || turn.phase === 'detached'
 
@@ -776,6 +811,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         code={sttError.code}
         retryAfterSec={sttError.retryAfterSec}
         mountCheck={sttError.mountCheck}
+        switched={sttError.switched}
+        offlineMode={sttError.offlineMode}
         native={native}
         textMode={mode === 'text'}
         onTextMode={() => {
@@ -886,7 +923,13 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
           writeStore('local', KEYS.readingDefault, on ? 'on' : 'off')
         }}
         onToast={notify}
-        extra={<SpeechProfileMenu labels={config?.tts?.speechProfiles ?? null} onToast={notify} />}
+        extra={
+          <>
+            <SpeechProfileMenu labels={config?.tts?.speechProfiles ?? null} onToast={notify} />
+            {/* 앱에서만 "알아듣는 곳" 읽기 전용 한 줄(§11-2 D). 웹·플러그인 없는 셸은 WEB 이라 그리지 않는다. */}
+            {native && stt.route.reason !== 'WEB' ? <SttRouteRow route={stt.route} /> : null}
+          </>
+        }
       />
       <NewChatSheet open={newOpen} kind="TALK" onClose={() => setNewOpen(false)} />
       <AcceptCorrectionSheet

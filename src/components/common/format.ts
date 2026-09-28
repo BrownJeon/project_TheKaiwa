@@ -94,3 +94,13 @@ export function formatDateDivider(iso: string, now: Date = new Date()): string {
 export function cpLength(s: string): number {
   return Array.from(s).length
 }
+
+/**
+ * 파일 크기(10⁶ 기준, 반올림, 최소 1MB) — `170MB` · `1.2GB`(screens §11-5). 휴대폰 인식 파일·APK 크기 표기.
+ */
+export function formatMB(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '1MB'
+  const mb = bytes / 1_000_000
+  if (mb >= 1000) return `${(Math.round(mb / 100) / 10).toFixed(1)}GB`
+  return `${Math.max(1, Math.round(mb))}MB`
+}

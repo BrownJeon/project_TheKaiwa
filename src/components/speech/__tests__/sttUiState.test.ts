@@ -93,7 +93,7 @@ test('권한 묻는 문구는 prompt 이거나 400ms 넘을 때만, 문구에 �
   const s = run(initialSttUi(), { type: 'PRESS', now: 0, perm: 'granted' }, { type: 'TICK', now: 100 }).state
   assert.equal(showAskPermission(s), false)
   assert.equal(showAskPermission(run(s, { type: 'TICK', now: 450 }).state), true)
-  const codes = ['INSECURE', 'UNSUPPORTED', 'MIC_DENIED', 'MIC_NOT_FOUND', 'MIC_BUSY', 'OFFLINE', 'SERVER_UNAVAILABLE', 'CONNECT_FAILED', 'CONNECTION_LOST', 'TICKET', 'REPLACED', 'BUSY', 'ENGINE_ERROR', 'TIMEOUT'] as const
+  const codes = ['INSECURE', 'UNSUPPORTED', 'MIC_DENIED', 'MIC_NOT_FOUND', 'MIC_BUSY', 'OFFLINE', 'SERVER_UNAVAILABLE', 'CONNECT_FAILED', 'CONNECTION_LOST', 'TICKET', 'REPLACED', 'BUSY', 'ENGINE_ERROR', 'TIMEOUT', 'MODEL_REQUIRED'] as const
   for (const c of codes) {
     for (const native of [false, true]) {
       const copy = sttErrorCopy(c, { native, retryAfterSec: 7 })

@@ -8,19 +8,24 @@
  * `/api/auth/google`까지 이어주지 않으면 딥링크 보존이 죽은 코드가 된다.
  */
 import { isGoogleLoginEnabled } from '@/modules/infra/auth/oauth/config'
-import AppDeepLink from './AppDeepLink.client'
-import GoogleLoginButton from './GoogleLoginButton.client'
+import AppUpdateBanner from '@/components/shell/AppUpdateBanner'
+import AppLoginArea, { AppOnlyLoginNote } from './AppLoginArea.client'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * 오류 문구(웹·앱 공통, 해요체 — screens §11-8 ⓘ). `app_code_invalid` 는 만료·재사용·PKCE 확인값 불일치를 서버가 구분하지 않으므로
+ * 문구도 하나. `app_login_invalid`(challenge 없는 앱 요청 — 구버전 셸)는 같은 뜻으로 수렴한다.
+ */
 const ERROR_MESSAGES: Record<string, string> = {
-  cancelled: 'Google 로그인을 취소했습니다.',
-  email_unverified: '이 Google 계정의 이메일이 확인되지 않았습니다.',
-  invalid_state: '로그인 요청이 만료되었거나 유효하지 않습니다. 다시 시도해 주세요.',
-  not_configured: '서버에 Google 로그인이 아직 설정되지 않았습니다.',
-  app_code_invalid: '앱 로그인 코드가 만료되었습니다. 다시 시도해 주세요.',
-  account_conflict: '이 이메일로 이미 다른 계정이 등록돼 있습니다. 관리자에게 문의하세요.',
-  failed: '로그인에 실패했습니다. 다시 시도해 주세요.',
+  cancelled: 'Google 로그인을 취소했어요.',
+  email_unverified: '이 Google 계정은 이메일 확인이 끝나지 않았어요.',
+  invalid_state: '로그인 요청 시간이 지났어요. 다시 눌러 주세요.',
+  not_configured: '서버에 Google 로그인이 아직 준비되지 않았어요. 관리자에게 알려 주세요.',
+  app_code_invalid: '로그인을 마무리하지 못했어요. 다시 눌러 주세요.',
+  app_login_invalid: '로그인을 마무리하지 못했어요. 다시 눌러 주세요.',
+  account_conflict: '이 이메일로 이미 다른 계정이 있어요. 관리자에게 알려 주세요.',
+  failed: '로그인하지 못했어요. 다시 눌러 주세요.',
 }
 
 function firstParam(value: string | string[] | undefined): string | null {
@@ -40,6 +45,11 @@ export default async function LoginPage({
   const configured = isGoogleLoginEnabled()
 
   return (
+    <>
+    {/* 강제 업데이트 띠(앱에서만, 닫기 없음 — §11-2 G). 권장 띠는 로그인 뒤 셸에서만. 셸 밖이라 상태바 여백을 스스로 가진다. */}
+    <div className="fixed inset-x-0 top-0 z-30">
+      <AppUpdateBanner forcedOnly insetTop />
+    </div>
     <main
       className="mx-auto flex h-dvh w-full max-w-[520px] min-w-0 flex-col justify-center gap-2.5 px-7 pt-8"
       style={{ paddingBottom: 'max(60px, env(safe-area-inset-bottom))' }}
@@ -71,17 +81,14 @@ export default async function LoginPage({
         </div>
       )}
 
-      {/* 앱에서 구글 인증을 마치고 `thekaiwa://` 로 돌아오는 것을 **여기서 받는다**.
-          로그인 화면이 곧 사용자가 기다리는 자리라 리스너도 여기 산다. 웹에서는
-          Capacitor 전역이 없어 아무 일도 하지 않는다(그리는 것도 없다). */}
-      <AppDeepLink callbackUrl={firstParam(sp.callbackUrl)} />
-      <GoogleLoginButton callbackUrl={firstParam(sp.callbackUrl)} />
+      {/* 버튼·앱 로그인 대기·딥링크 수신(`thekaiwa://` 로 돌아오는 것을 **여기서 받는다**)을 한 상태로 — 웹은 링크 그대로. */}
+      <AppLoginArea callbackUrl={firstParam(sp.callbackUrl)} />
 
-      <p className="mt-3.5 text-center text-[12.5px] text-ink3">
+      <p className="mt-3.5 text-center text-[12.5px] text-ink2">
         처음이라면 초대코드가 필요합니다.
-        <br />
-        앱에서는 Chrome 창이 열려 로그인 후 자동으로 돌아옵니다.
+        <AppOnlyLoginNote />
       </p>
     </main>
+    </>
   )
 }

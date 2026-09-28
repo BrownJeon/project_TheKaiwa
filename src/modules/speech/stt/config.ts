@@ -6,12 +6,17 @@
  *    "사용자 응답 엔진명 0"(완료 기준 6)과 충돌한다. #21 은 id·key 둘 다 받아 서버가 key 로 스냅샷한다.
  *  - 웹(`platform=web`)에는 onDevice 세부(모델·manifest)를 싣지 않는다 — 웹은 온디바이스 엔진이 없다.
  *  - `tts.fallbackChain`(connection key 목록)은 싣지 않는다(엔진명).
+ *  - (task-003f) `onDevice.model` 은 **불투명 id**(`ondevice-ja-v1`)·배포 manifest 의 `version`·`totalBytes`·불투명 `manifestUrl` 만.
+ *    디스크 디렉터리·모델 이름(엔진명)은 manifest 본문에만 있다. `version` 은 connection `runtime.modelVersion`(gateway 모델 이름)이
+ *    아니라 **지금 서빙 중인 manifest 의 version** — 플러그인이 설치본과 비교해 갱신 여부를 정하는 값이라 서빙본과 같아야 한다.
+ *    배포본이 없으면 `version`·`totalBytes` 가 null(앱은 내려받기를 막고 서버 인식으로 쓴다).
  * `configVersion` 은 응답 본문 해시 — 사용자 모드·플랫폼·서버 설정 중 무엇이 바뀌어도 달라진다(ETag 로 그대로 쓴다).
  */
 import { createHash } from 'node:crypto'
 import { stt } from '@/modules/engine'
 import { SPEECH_PROFILES, TTS_SEGMENT_MAX_CHARS } from '../tts'
 import { gatewayTarget } from './gateway'
+import { onDeviceModelSummary } from './modelPackage'
 import { resolveRecognitionMode, type RecognitionMode } from './modeResolver'
 import { STT_FRAME_MS, STT_SAMPLE_RATE } from './ticket'
 import { UTTERANCE_MAX_BYTES, UTTERANCE_MAX_DURATION_MS } from '../utterances/limits'
@@ -24,10 +29,13 @@ export interface SpeechConfig {
   onDevice:
     | { enabled: false }
     | {
-        enabled: true
+        /** 경로 선택만 뜻한다(방식·플랫폼 해석이 휴대폰인가). 모델 블록은 enabled 와 무관하게 싣는다(task-003f Leader ②). */
+        enabled: boolean
+        /** 서버에 휴대폰 인식 파일 배포본이 있는가(manifest 검증 통과). */
+        available: boolean
         connectionKey: string
         runtime: { numThreads: number | null; decodingMethod: string | null; provider: 'cpu'; vad: { silenceMs: number | null; threshold: number | null }; partial: boolean }
-        model: { version: string | null; manifestUrl: string | null; totalBytes: number | null; wifiRecommended: true }
+        model: { id: string; version: string | null; manifestUrl: string; totalBytes: number | null; wifiRecommended: true }
       }
   gateway: { enabled: boolean; wsPath: string; frameMs: number; sampleRate: number; partial: boolean }
   fallback: { onDeviceFailureThreshold: number; toGateway: boolean; toTextOnly: true }
@@ -48,14 +56,17 @@ export async function getSpeechConfig(input: { recognitionMode: RecognitionMode;
   // OFFLINE 은 폴백하지 않는다(speech-platform/12 §3.5). ACCURATE 는 서버 경로 강제(modeResolver).
   const toGateway = input.recognitionMode !== 'OFFLINE' && gatewayEnabled
 
+  // 앱 + ONDEVICE 연결이 있으면 방식과 무관하게 모델 블록을 싣는다 — 정확하게 방식에서도 설정 카드가 크기·받기·지우기를 보여야 한다.
+  // 웹은 온디바이스 엔진이 없어 `{enabled:false}` 만.
   let onDevice: SpeechConfig['onDevice'] = { enabled: false }
-  if (input.platform === 'app' && od && resolved.realtime === 'ONDEVICE') {
-    const r = await stt.publicRuntime(od)
+  if (input.platform === 'app' && od) {
+    const [r, model] = await Promise.all([stt.publicRuntime(od), onDeviceModelSummary()])
     onDevice = {
-      enabled: true,
+      enabled: resolved.realtime === 'ONDEVICE',
+      available: model.version !== null && model.totalBytes !== null,
       connectionKey: od.id,
       runtime: { numThreads: r.numThreads, decodingMethod: r.decodingMethod, provider: 'cpu', vad: { silenceMs: r.vadSilenceMs, threshold: r.vadThreshold }, partial: r.partial },
-      model: { version: r.modelVersion, manifestUrl: r.manifestUrl, totalBytes: r.modelBytes, wifiRecommended: true },
+      model: { id: model.id, version: model.version, manifestUrl: model.manifestUrl, totalBytes: model.totalBytes, wifiRecommended: true },
     }
   }
 

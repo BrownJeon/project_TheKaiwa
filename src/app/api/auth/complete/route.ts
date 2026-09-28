@@ -54,6 +54,10 @@ export async function POST(req: NextRequest) {
     }
 
     const pending = gated.pending
+    // 앱 가입은 PKCE challenge 로 코드를 결속해야 한다(C1-1). 없으면 계정을 만들기 **전에** 멈춘다.
+    if (pending.platform === 'app' && pending.challenge === null) {
+      return clearPending(fail('인증 정보가 만료되었습니다. Google 로그인을 다시 시도해 주세요', 400))
+    }
 
     // 대기 중 다른 탭/기기에서 같은 신원으로 이미 가입됐을 수 있다.
     const already = await findUserByOAuth(pending.providerId)
@@ -81,8 +85,8 @@ export async function POST(req: NextRequest) {
 
     console.log(`[oauth] 신규 회원 가입 id=${user.id} (${maskEmail(pending.email)}) invite=${gated.inviteGate}`)
 
-    if (pending.platform === 'app') {
-      const code = await issueAppAuthCode(user.id)
+    if (pending.platform === 'app' && pending.challenge !== null) {
+      const code = await issueAppAuthCode(user.id, pending.challenge)
       return clearPending(
         NextResponse.json({
           success: true,

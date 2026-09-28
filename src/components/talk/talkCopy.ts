@@ -144,6 +144,8 @@ export const TALK_ROOM = {
   replayMineAria: '내 목소리 다시 듣기',
   stopAria: '멈추기',
   textInstead: '글자로 대화하기',
+  /** 오프라인 방식 + 휴대폰 인식 파일 없음(MODEL_REQUIRED) — 설정의 휴대폰에서 알아듣기 카드로(§11-8 ⓕ). */
+  openSettings: '설정 열기',
   closeAlert: '닫기',
   mismatch: '답을 정리하고 있어요',
 } as const

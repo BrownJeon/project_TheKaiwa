@@ -68,14 +68,14 @@ export function parsePlatform(raw: unknown): AuthPlatform {
 }
 
 /**
- * 로그인 화면의 "Google로 계속하기" href를 만든다.
+ * 로그인 화면의 "Google로 계속하기" href를 만든다. 앱이면 PKCE `challenge` 를 싣는다(없으면 서버가 앱 흐름을 거부).
  *
  * ★ 오픈 리다이렉트 방어의 최종 권한은 여전히 **서버**(`/api/auth/google`의
  *   `sanitizeNextPath` → `createOAuthState`)에 있다. 이 함수는 그 검증을 대체하거나
  *   우회하지 않고, 같은 `sanitizeNextPath`를 화면 단에서 한 번 더 적용해 애초에 위험한
  *   값이 링크에 실려 나가지 않게 하는 defense in depth일 뿐이다.
  */
-export function buildGoogleAuthHref(rawCallbackUrl: unknown, platform: AuthPlatform = 'web'): string {
+export function buildGoogleAuthHref(rawCallbackUrl: unknown, platform: AuthPlatform = 'web', challenge: string | null = null): string {
   const params = new URLSearchParams()
 
   if (typeof rawCallbackUrl === 'string' && rawCallbackUrl.length > 0) {
@@ -84,7 +84,11 @@ export function buildGoogleAuthHref(rawCallbackUrl: unknown, platform: AuthPlatf
       params.set('callbackUrl', safeNext)
     }
   }
-  if (platform === 'app') params.set('platform', 'app')
+  if (platform === 'app') {
+    params.set('platform', 'app')
+    // PKCE challenge(task-003f C1-1) — verifier 는 WebView 에 남고 이것만 서명된 state 로 운반된다. 서버가 형식을 다시 본다.
+    if (challenge) params.set('challenge', challenge)
+  }
 
   const qs = params.toString()
   return qs.length > 0 ? `${GOOGLE_AUTH_PATH}?${qs}` : GOOGLE_AUTH_PATH

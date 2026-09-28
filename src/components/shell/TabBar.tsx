@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { isFocusRoute } from './routes'
 
 /**
  * 하단 탭 5개(설계안 §11) — 기획서 메뉴 1·2·3·4·6 에 대응하고, 5(프로필)는 상단 아바타(→ /settings)로 간다.
@@ -21,12 +22,11 @@ const TABS = [
  * 탭 바(66px)까지 두면 대화가 보이는 칸이 더 줄어든다 — 이 화면들은 `BackBar` 의 `←` 로 돌아간다.
  * 오늘의 단어 덱·결과(task-008 F10)는 덱 높이 예산(≈640px)이 탭 바만큼 줄면 412×780 에서 스크롤이 생긴다.
  */
-const HIDDEN_PREFIXES = ['/study/ai/chat/', '/study/ai/talk/', '/study/today/words/'] as const
-
 export default function TabBar() {
   const pathname = usePathname()
 
-  if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null
+  // 목록은 `routes.ts` 한 곳 — 권장 업데이트 띠도 같은 화면에서 숨는다(screens §11-3 E).
+  if (isFocusRoute(pathname)) return null
 
   return (
     <nav

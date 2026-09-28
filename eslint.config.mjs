@@ -8,10 +8,17 @@ import nextTs from 'eslint-config-next/typescript'
  * `banRoots` 는 그 밖의 모듈 루트 index 자체를 금지한다(하위 진입점만 허용 — 컴포넌트의 speech, task-003e REV-013).
  * 음성 테스트(2026-09-26): 층별 금지·index 우회·컴포넌트의 infra index import 9건이 모두 error 로 잡히고 허용 경로는 통과.
  */
+/**
+ * 웹 번들은 네이티브 패키지를 import 하지 않는다(module-dependency §6, task-003f) — 같은 번들이 폰(WebView)과 PC 브라우저에 나가고,
+ * 플러그인이 빠진 APK 에서도 화면이 죽지 않아야 한다. 네이티브 기능은 `infra/native/bridge.ts` 가 `window.Capacitor` 전역만 본다.
+ * flat config 는 같은 규칙을 뒤 블록이 통째로 덮으므로 모든 경계 블록에 이 패턴을 함께 싣는다(+ 경계 블록 밖 파일용 전역 블록).
+ */
+const NATIVE_PACKAGES = { regex: '^(@capacitor/|@capacitor-community/|@thekaiwa/sherpa-stt)', message: '웹 번들은 네이티브 패키지를 import 하지 않는다 — @/modules/infra/native 의 bridge 만(module-dependency §6)' }
+
 function boundary(files, banned, indexOnly, message, allowSub = [], banInfraRoot = false, banRoots = []) {
   // 모듈(src/modules/**)은 라우트·화면을 모른다. 라우트는 컴포넌트를 쓰고, 컴포넌트는 라우트를 import 하지 않는다.
   const ui = files.startsWith('src/modules/') ? '^@/(app|components)/' : files.startsWith('src/components/') ? '^@/app/' : null
-  const patterns = ui ? [{ regex: ui, message }] : []
+  const patterns = [NATIVE_PACKAGES, ...(ui ? [{ regex: ui, message }] : [])]
   if (banned.length) patterns.push({ regex: `^@/modules/(${banned.join('|')})(/|$)`, message })
   if (indexOnly.length) {
     const except = allowSub.length ? `(?!(${allowSub.join('|')})(/|$))` : ''
@@ -51,6 +58,8 @@ const eslintConfig = defineConfig([
       'react-hooks/set-state-in-effect': 'warn',
     },
   },
+  // 경계 블록이 덮지 않는 src 파일(proxy.ts·instrumentation.ts·types 등)에도 네이티브 패키지 금지.
+  { files: ['src/**/*.{ts,tsx}'], rules: { 'no-restricted-imports': ['error', { patterns: [NATIVE_PACKAGES] }] } },
   // ── 6층 import 경계(module-dependency.md §3-1 행렬) ──────────────────────────────────────────
   // `group` 글롭은 `*` 가 `/` 를 넘지 않아 깊이마다 따로 적어야 하고 한 단계만 빠져도 뚫린다(reviewer 2026-09-26 High-1).
   // 그래서 **정규식**으로 "금지 모듈(모든 깊이)" 과 "허용 모듈의 내부 경로(index 우회)" 를 함께 막는다.
@@ -82,6 +91,7 @@ const eslintConfig = defineConfig([
         'error',
         {
           patterns: [
+            NATIVE_PACKAGES,
             { regex: '^@/(app|components)/', message: 'speech 클라이언트는 화면을 import 하지 않는다' },
             { regex: '^@/modules/(?!infra/native(/|$))', message: 'speech 클라이언트는 서버 모듈을 import 하지 않는다(네이티브 브리지만 허용)' },
             { regex: '^\\.\\.(/|$)', message: 'speech 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다' },
@@ -99,6 +109,7 @@ const eslintConfig = defineConfig([
         'error',
         {
           patterns: [
+            NATIVE_PACKAGES,
             { regex: '^@/(app|components)/', message: 'speech 클라이언트는 화면을 import 하지 않는다(오디오·fetch 는 주입)' },
             { regex: '^@/modules/', message: 'TTS 클라이언트는 다른 모듈을 import 하지 않는다' },
             { regex: '^\\.\\.(/(?!sentences$)|$)', message: 'TTS 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다 — 순수 ../sentences 만' },

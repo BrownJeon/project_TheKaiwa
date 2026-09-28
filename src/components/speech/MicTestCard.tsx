@@ -8,11 +8,12 @@
 import { useEffect, useId, useState } from 'react'
 import { apiGet } from '@/components/common/api'
 import { Card } from '@/components/common/ui'
-import { isNativeApp } from '@/modules/infra/native'
+import { isNativeApp, openAppSettings } from '@/modules/infra/native'
+import { useCanOpenAppSettings } from '@/components/common/useNativeEnv'
 import type { SttClientConfig } from '@/modules/speech/stt/client'
 import MicLevelMeter from './MicLevelMeter'
 import PushToTalkButton from './PushToTalkButton'
-import { MIC_TEST_COPY, pathCaption, recordingStatus, STT_HINT_COPY, STT_STATUS_COPY, sttErrorCopy } from './sttCopy'
+import { MIC_TEST_COPY, OPEN_APP_SETTINGS, pathCaption, recordingStatus, STT_HINT_COPY, STT_STATUS_COPY, sttErrorCopy } from './sttCopy'
 import { elapsedSec, showAskPermission, transcriptParts, type SttUiState } from './sttUiState'
 import { useRealtimeStt } from './useRealtimeStt'
 
@@ -30,37 +31,61 @@ function statusLine(ui: SttUiState): string {
       return STT_STATUS_COPY.unavailable
     default:
       if (ui.hint) return STT_HINT_COPY[ui.hint]
+      if (ui.rationale && !ui.error) return STT_STATUS_COPY.rationale
       return ui.hadResult ? STT_STATUS_COPY.idleAfterResult : STT_STATUS_COPY.idle
   }
 }
 
-export default function MicTestCard() {
-  const [config, setConfig] = useState<SttClientConfig | null>(null)
+/**
+ * `config` = 설정 화면이 한 번 받은 #19(휴대폰 인식 카드와 같은 값). 없으면 스스로 받는다.
+ */
+export default function MicTestCard({ config: given, onBusy }: { config?: SttClientConfig | null; onBusy?: (busy: boolean) => void } = {}) {
+  const [own, setOwn] = useState<SttClientConfig | null>(null)
+  const config = given !== undefined ? given : own
   // 초기 렌더에 쓰이지 않는 값(오류 문구에만) — 수화 불일치 없음.
   const [native] = useState(() => typeof window !== 'undefined' && isNativeApp())
-  const { ui, kind, press, release, abort } = useRealtimeStt({ purpose: 'MIC_TEST', config })
+  const canSettings = useCanOpenAppSettings()
+  const { ui, route, press, release, abort } = useRealtimeStt({ purpose: 'MIC_TEST', config })
   const statusId = useId()
 
   useEffect(() => {
+    if (given !== undefined) return
     let alive = true
     apiGet<SttClientConfig>('/api/v1/speech/config')
-      .then((c) => alive && setConfig(c))
+      .then((c) => alive && setOwn(c))
       .catch(() => undefined)
     return () => {
       alive = false
     }
-  }, [])
+  }, [given])
+
+  // 녹음 중에는 휴대폰 인식 파일을 지울 수 없다(쓰는 중인 파일 — §11-2 A).
+  const busy = ui.phase === 'starting' || ui.phase === 'recording' || ui.phase === 'finishing'
+  useEffect(() => {
+    onBusy?.(busy)
+  }, [busy, onBusy])
 
   const { committed, partial } = transcriptParts(ui)
   const empty = !committed && !partial
-  const err = ui.error ? sttErrorCopy(ui.error.code, { native, retryAfterSec: ui.error.retryAfterSec, mountCheck: ui.error.mountCheck }) : null
+  const err = ui.error
+    ? sttErrorCopy(ui.error.code, {
+        native,
+        retryAfterSec: ui.error.retryAfterSec,
+        mountCheck: ui.error.mountCheck,
+        switched: ui.error.switched,
+        offlineMode: ui.error.offlineMode,
+        canOpenSettings: canSettings,
+        place: 'micTest',
+      })
+    : null
+  const showSettingsButton = native && canSettings && ui.error?.code === 'MIC_DENIED'
 
   return (
     <Card className="mt-3 flex flex-col gap-3">
       <div className="min-w-0">
         <h4 className="text-[15px] font-semibold text-ink">{MIC_TEST_COPY.title}</h4>
         <p className="mt-1 break-keep text-[13px] text-ink2">{MIC_TEST_COPY.desc}</p>
-        <p className="mt-1 break-keep text-[12px] text-ink2">{pathCaption(kind)}</p>
+        <p className="mt-1 break-keep text-[12px] text-ink2">{pathCaption(route)}</p>
       </div>
 
       <div className="min-h-[96px] min-w-0 rounded-xl bg-surface2 p-3">
@@ -95,6 +120,11 @@ export default function MicTestCard() {
         <div role="alert" className="break-keep rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad">
           <p className="font-semibold">{err.title}</p>
           <p className="mt-0.5">{err.action}</p>
+          {showSettingsButton ? (
+            <button type="button" onClick={() => void openAppSettings()} className="inline-flex h-11 items-center font-semibold underline underline-offset-4">
+              {OPEN_APP_SETTINGS}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

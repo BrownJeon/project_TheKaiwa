@@ -10,6 +10,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_NEXT_PATH } from '@/modules/infra/auth/oauth/next-path'
+import InviteReturn from './InviteReturn.client'
 
 interface CompleteResponse {
   success?: boolean
@@ -21,6 +22,7 @@ export default function InviteForm({ inviteRequired }: { inviteRequired: boolean
   const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [appRedirect, setAppRedirect] = useState<string | null>(null)
   const codeRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -47,9 +49,11 @@ export default function InviteForm({ inviteRequired }: { inviteRequired: boolean
         return
       }
 
-      const appRedirect = body.data?.appRedirect
-      if (typeof appRedirect === 'string' && appRedirect.length > 0) {
-        window.location.href = appRedirect
+      const redirect = body.data?.appRedirect
+      if (typeof redirect === 'string' && redirect.length > 0) {
+        // 앱(Custom Tab) 가입 — 딥링크로 앱에 넘기고, 앱이 안 열리면 누를 수 있게 같은 주소 버튼으로 바꾼다(§11-2 E).
+        setAppRedirect(redirect)
+        window.location.href = redirect
         return
       }
       // `next`는 서명된 대기 토큰에서 나오며 서버가 `sanitizeNextPath`를 이미 통과시켰다.
@@ -60,6 +64,8 @@ export default function InviteForm({ inviteRequired }: { inviteRequired: boolean
       setBusy(false)
     }
   }
+
+  if (appRedirect) return <InviteReturn appRedirect={appRedirect} />
 
   return (
     <form onSubmit={onSubmit} className="flex min-w-0 flex-col gap-3">

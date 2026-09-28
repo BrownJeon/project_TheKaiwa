@@ -2,8 +2,10 @@ import { userCan } from '@/modules/admin'
 import { auth } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
 import AppBar from '@/components/shell/AppBar'
+import AppVersionRow from '@/components/settings/AppVersionRow'
 import AttendanceCard from '@/components/settings/AttendanceCard'
 import LearningSettings from '@/components/settings/LearningSettings'
+import OnDeviceDiagnosticsCard from '@/components/settings/OnDeviceDiagnosticsCard'
 import SpeechSettings from '@/components/settings/SpeechSettings'
 import VoiceSettings from '@/components/settings/VoiceSettings'
 import AdminConsoleEntry from './AdminConsoleEntry'
@@ -34,7 +36,10 @@ export default async function SettingsPage() {
         <LearningSettings />
         <VoiceSettings teacherName={teacherName} />
         <SpeechSettings />
+        {/* 앱에서만(웹은 DOM 0): 앱 버전 줄 · 관리자 행 아래 휴대폰 인식 진단(engine.read — task-003f §11-2 G·I). */}
+        <AppVersionRow />
         {showConsole ? <AdminConsoleEntry /> : null}
+        <OnDeviceDiagnosticsCard show={showConsole} />
       </div>
     </>
   )

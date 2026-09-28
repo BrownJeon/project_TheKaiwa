@@ -14,6 +14,7 @@
 import jwt from 'jsonwebtoken'
 import { sanitizeNextPath, parsePlatform, type AuthPlatform } from '@/modules/infra/auth/oauth/next-path'
 import type { OAuthProfile } from '@/modules/infra/auth/oauth/providers'
+import { isPkceChallenge } from '@/modules/infra/auth/oauth/pkce'
 
 export const OAUTH_PENDING_COOKIE = 'thekaiwa_oauth_pending'
 export const OAUTH_PENDING_MAX_AGE_SEC = 15 * 60
@@ -39,6 +40,8 @@ interface PendingPayload {
   r: string
   /** 'app'이면 가입 완료 후 세션 쿠키 대신 AppAuthCode 딥링크를 돌려준다(설계안 §5-2) */
   pf: AuthPlatform
+  /** 앱 흐름의 PKCE challenge — state 에서 넘겨받아 가입 완료 때 코드 결속에 쓴다(task-003f C1-1). */
+  ch?: string
 }
 
 export interface PendingSignup {
@@ -49,9 +52,10 @@ export interface PendingSignup {
   emailVerified: boolean
   nextPath: string
   platform: AuthPlatform
+  challenge: string | null
 }
 
-export function signPendingSignup(profile: OAuthProfile, nextPath: string, platform: AuthPlatform): string {
+export function signPendingSignup(profile: OAuthProfile, nextPath: string, platform: AuthPlatform, challenge: string | null = null): string {
   const payload: PendingPayload = {
     i: profile.providerId,
     e: profile.email,
@@ -61,6 +65,7 @@ export function signPendingSignup(profile: OAuthProfile, nextPath: string, platf
     r: sanitizeNextPath(nextPath),
     pf: platform,
   }
+  if (platform === 'app' && isPkceChallenge(challenge)) payload.ch = challenge
   return jwt.sign(payload, getPendingSecret(), {
     expiresIn: OAUTH_PENDING_MAX_AGE_SEC,
     algorithm: 'HS256',
@@ -109,6 +114,7 @@ export function verifyPendingSignup(token: string | null | undefined): PendingVe
       emailVerified: payload.v === true,
       nextPath: sanitizeNextPath(payload.r),
       platform: parsePlatform(payload.pf),
+      challenge: parsePlatform(payload.pf) === 'app' && isPkceChallenge(payload.ch) ? payload.ch : null,
     },
   }
 }

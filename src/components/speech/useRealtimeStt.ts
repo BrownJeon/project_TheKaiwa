@@ -12,9 +12,23 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { apiPost, ApiError } from '@/components/common/api'
-import { createRealtimeSttClient, SttError, type RealtimeSttClient, type SttClientConfig, type SttKind, type SttPurpose, type SttTicket } from '@/modules/speech/stt/client'
+import { isAppUpdateRequired, useAppUpdate } from '@/components/shell/useAppUpdate'
+import { isNativeApp, readNativeFile } from '@/modules/infra/native'
+import {
+  createRealtimeSttClient,
+  onDeviceModelStore,
+  PERMISSION_ONLY,
+  SttError,
+  type RoutedSttClient,
+  type SttClientConfig,
+  type SttKind,
+  type SttPurpose,
+  type SttRoute,
+  type SttTicket,
+} from '@/modules/speech/stt/client'
 import { stopAllTts } from './ttsAudio'
 import { micPreflight, watchMicPermission } from './micPreflight'
+import { uploadOnDeviceUtterance } from './onDeviceUpload'
 import { initialSttUi, isBlockingError, sttUiReducer, type PermState, type SttUiEffect, type SttUiEvent, type SttUiState } from './sttUiState'
 
 const TICK_MS = 250
@@ -45,10 +59,16 @@ const perfNow = () => (typeof performance !== 'undefined' ? performance.now() : 
 export interface UseRealtimeStt {
   ui: SttUiState
   kind: SttKind
+  /** 다음 누름의 경로와 이유(screens §11-3 C) — 마이크 테스트 경로 한 줄·회화방 메뉴 줄. */
+  route: SttRoute
+  /** 말을 잃지 않은 휴대폰 → 서버 전환이 일어날 때마다 1씩 는다(회화방 토스트 1회). */
+  switchNotice: number
   press: () => void
   release: () => void
   abort: () => void
 }
+
+const WEB_ROUTE: SttRoute = { kind: 'GATEWAY', reason: 'WEB' }
 
 export function useRealtimeStt(o: {
   purpose: SttPurpose
@@ -67,8 +87,11 @@ export function useRealtimeStt(o: {
   const [initial] = useState(() => initialSttUi(0, maxSec))
   const stateRef = useRef<SttUiState>(initial)
   const [ui, setUi] = useState<SttUiState>(initial)
-  const clientRef = useRef<RealtimeSttClient | null>(null)
-  const [kind, setKind] = useState<SttKind>('GATEWAY')
+  const clientRef = useRef<RoutedSttClient | null>(null)
+  const [route, setRoute] = useState<SttRoute>(WEB_ROUTE)
+  const [switchNotice, setSwitchNotice] = useState(0)
+  const [modelTick, setModelTick] = useState(0)
+  const updateState = useAppUpdate().state
   const permRef = useRef<PermState>('unknown')
   const beginSeq = useRef(0)
   const optsRef = useRef({ purpose, chatId })
@@ -78,13 +101,23 @@ export function useRealtimeStt(o: {
 
   const applyRef = useRef<(ev: SttUiEvent) => void>(() => undefined)
 
-  const client = useCallback((): RealtimeSttClient => {
+  const client = useCallback((): RoutedSttClient => {
     if (!clientRef.current) {
-      const c = createRealtimeSttClient(null, { fetchTicket })
+      const c = createRealtimeSttClient(null, {
+        fetchTicket,
+        clientPlatform: isNativeApp() ? 'android' : 'web',
+        onDevice: { upload: uploadOnDeviceUtterance, readWav: readNativeFile, isUpdateRequired: isAppUpdateRequired },
+      })
       c.subscribe((e) => {
         const now = Date.now()
         const apply = applyRef.current
         switch (e.type) {
+          case 'route':
+            setRoute(e.route)
+            if (e.switched) setSwitchNotice((n) => n + 1)
+            return
+          case 'interrupted':
+            return apply({ type: 'INTERRUPTED', now })
           case 'level':
             return apply({ type: 'LEVEL', now, db: e.db })
           case 'connecting':
@@ -101,7 +134,7 @@ export function useRealtimeStt(o: {
             return
           }
           case 'error':
-            return apply({ type: 'ERROR', now, code: e.code, retryAfterSec: e.retryAfterSec })
+            return apply({ type: 'ERROR', now, code: e.code, retryAfterSec: e.retryAfterSec, switched: e.switched, offlineMode: e.offlineMode })
           default:
             return
         }
@@ -126,6 +159,8 @@ export function useRealtimeStt(o: {
               () => seq === beginSeq.current && applyRef.current({ type: 'BEGIN_OK', now: Date.now() }),
               (err: unknown) => {
                 if (seq !== beginSeq.current) return
+                // 앱 첫 누름 = 권한 대화상자만(허용됨) — 오류가 아니라 힌트(§11-3 D).
+                if (err instanceof SttError && err.pluginCode === PERMISSION_ONLY) return applyRef.current({ type: 'PERMISSION_ONLY', now: Date.now() })
                 const code = err instanceof SttError ? err.code : 'UNSUPPORTED'
                 applyRef.current({ type: 'BEGIN_FAIL', now: Date.now(), code, retryAfterSec: err instanceof SttError ? err.retryAfterSec : undefined })
               },
@@ -163,7 +198,7 @@ export function useRealtimeStt(o: {
   useEffect(() => {
     const seq = beginSeq
     const holder = clientRef
-    setKind(client().kind)
+    setRoute(client().route())
     return () => {
       seq.current++
       holder.current?.dispose()
@@ -171,11 +206,21 @@ export function useRealtimeStt(o: {
     }
   }, [client])
 
-  // 사전 점검(권한은 묻지 않는다) — 설정이 오면 다시.
+  // #19 설정 → 라우터(경로는 누를 때마다 다시 고른다). 휴대폰 인식 파일 상태가 바뀌면 사전 점검을 다시(오프라인 방식 + 파일 없음).
   useEffect(() => {
-    const err = micPreflight(clientRef.current?.kind ?? 'GATEWAY', config)
+    client().configure(config)
+  }, [client, config])
+  useEffect(() => onDeviceModelStore().subscribe(() => setModelTick((n) => n + 1)), [])
+  // 강제 업데이트 상태가 바뀌면 경로를 다시 알린다(UPDATE_REQUIRED).
+  useEffect(() => {
+    client().refresh()
+  }, [client, updateState])
+
+  // 사전 점검(권한은 묻지 않는다) — 설정·경로·파일 상태가 바뀌면 다시.
+  useEffect(() => {
+    const err = micPreflight(route, config, { modelInstalled: onDeviceModelStore().snapshot().installed })
     apply({ type: 'PREFLIGHT', error: err, blocking: err ? isBlockingError(err) : false })
-  }, [config, apply])
+  }, [config, route, modelTick, apply])
 
   useEffect(
     () =>
@@ -219,5 +264,5 @@ export function useRealtimeStt(o: {
   const release = useCallback(() => apply({ type: 'RELEASE', now: Date.now() }), [apply])
   const abort = useCallback(() => apply({ type: 'ABORT', now: Date.now() }), [apply])
 
-  return { ui, kind, press, release, abort }
+  return { ui, kind: route.kind, route, switchNotice, press, release, abort }
 }
