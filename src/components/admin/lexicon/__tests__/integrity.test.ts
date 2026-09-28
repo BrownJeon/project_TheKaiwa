@@ -81,6 +81,19 @@ test('버전 머리: 손상이면 뱃지 + 뜻 한 줄 + 항목 수 뜻', () => 
   assert.doesNotMatch(ok, /기록 손상|손상 행/)
 })
 
+test('되돌림 표시(task-018 ③): rollbackOf 가 있으면 행·머리에 "v{n} 로 되돌림", changeSummary 는 그대로, 없으면 표시 없음', () => {
+  const access = { role: 'DEVELOPER' as const, capabilities: [], environment: 'LOCAL' as const, appVersion: null, menu: [] }
+  const head = (v: LexiconVersionDto) =>
+    text(renderToStaticMarkup(createElement(ConsoleProvider, { access } as unknown as Parameters<typeof ConsoleProvider>[0], createElement(VersionHead, { v }))))
+  const row = (v: LexiconVersionDto) => text(renderToStaticMarkup(createElement(VersionRow, { v, now: 0, onOpen: () => undefined })))
+  const rb = version({ version: 9, rollbackOf: 7, changeSummary: 'v7 로 되돌림: 오독', action: 'lexicon.rollback' })
+  assert.match(row(rb), /v9.*v7 로 되돌림.*v7 로 되돌림: 오독/)
+  assert.match(head(rb), /되돌림v7 로 되돌림/)
+  assert.match(head(rb), /v7 로 되돌림: 오독/)
+  assert.doesNotMatch(row(version({})), /되돌림/)
+  assert.doesNotMatch(head(version({})), /되돌림/)
+})
+
 test('422 E_SNAPSHOT_INTEGRITY: 시트 안 안내만(재시도·빈 diff 없음), 대상/직전 버전 구분', () => {
   const self = err(422, { reason: 'E_SNAPSHOT_INTEGRITY', version: 7, integrity: 'MISMATCH', issues: [] })
   assert.equal(isSnapshotIntegrityError(self), true)

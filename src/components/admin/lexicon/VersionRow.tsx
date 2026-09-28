@@ -12,6 +12,7 @@ export default function VersionRow({ v, now, onOpen }: { v: LexiconVersionDto; n
           <span className="font-mono text-[15px] font-semibold">v{v.version}</span>
           <VersionStatusBadge status={v.status} />
           <IntegrityBadge integrity={v.integrity} />
+          {v.rollbackOf !== null ? <span className="text-[12px] text-ink2">v{v.rollbackOf} 로 되돌림</span> : null}
           <span className="ml-auto text-[12px] tabular-nums text-ink2">{formatAgo(v.createdAt, now)}</span>
         </span>
         <span className="w-full min-w-0 truncate text-[14px]">{v.changeSummary ?? '요약 없음'}</span>

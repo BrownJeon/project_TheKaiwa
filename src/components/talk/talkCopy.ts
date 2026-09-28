@@ -33,8 +33,8 @@ export const PTT_LABEL = {
   bargeIn: '누르면 선생님 말을 멈추고 말하기',
 } as const
 
-/** `utteranceUsed`·`utteranceExpired` = #32 409 `details.reason`(발화가 이미 다른 메시지에 연결됨·10분 지남) — 다시 보내기는 글자 턴. */
-export type UnsentReason = 409 | 429 | 0 | 422 | 400 | 'detached' | 'utteranceUsed' | 'utteranceExpired' | 'other'
+/** `utteranceUsed`·`utteranceExpired`·`utteranceOtherChat` = #32 409 `details.reason`(발화가 이미 다른 메시지에 연결됨·10분 지남·다른 방 녹음, task-018) — 다시 보내기는 글자 턴. */
+export type UnsentReason = 409 | 429 | 0 | 422 | 400 | 'detached' | 'utteranceUsed' | 'utteranceExpired' | 'utteranceOtherChat' | 'other'
 
 export function unsentText(reason: UnsentReason, opts: { retrySec?: number | null; serverMessage?: string | null } = {}): string {
   switch (reason) {
@@ -54,6 +54,8 @@ export function unsentText(reason: UnsentReason, opts: { retrySec?: number | nul
       return '이 말은 이미 보낸 것 같아요. 대화를 확인하고, 다시 보내면 글자로 보내져요.'
     case 'utteranceExpired':
       return '녹음한 지 오래돼 목소리는 붙이지 못해요. 다시 보내면 글자로 보내져요.'
+    case 'utteranceOtherChat':
+      return '다른 대화에서 녹음한 말이라 목소리는 붙이지 못해요. 다시 보내면 글자로 보내져요.'
     default:
       return '보내지 못했어요. 다시 보내 주세요.'
   }

@@ -261,10 +261,10 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     sendingRef.current = null
     const st = info?.status ?? 0
     const why = st === 409 ? info?.details?.reason : null
-    if (why === 'UTTERANCE_USED' || why === 'UTTERANCE_EXPIRED') {
-      // 발화를 다시 붙일 수 없다(이미 연결됨·10분 지남) — 계약 권장대로 다시 보내기는 글자 턴(발화 id 없이).
+    if (why === 'UTTERANCE_USED' || why === 'UTTERANCE_EXPIRED' || why === 'UTTERANCE_OTHER_CHAT') {
+      // 발화를 다시 붙일 수 없다(이미 연결됨·10분 지남·다른 방 녹음) — 계약 권장대로 다시 보내기는 글자 턴(발화 id 없이).
       // 글자로 고쳐 보낸 경우도 같은 띠로 — 입력창에 되돌리면 죽은 발화 id 가 다시 붙는다.
-      setUnsent({ text, utteranceId: null, reason: why === 'UTTERANCE_USED' ? 'utteranceUsed' : 'utteranceExpired' })
+      setUnsent({ text, utteranceId: null, reason: why === 'UTTERANCE_USED' ? 'utteranceUsed' : why === 'UTTERANCE_EXPIRED' ? 'utteranceExpired' : 'utteranceOtherChat' })
       return
     }
     if (via === 'text') {

@@ -94,6 +94,7 @@ export function VersionHead({ v }: { v: LexiconVersionDto }) {
       <KeyValueList
         className="mt-2"
         items={[
+          ...(v.rollbackOf !== null ? [{ key: 'rollbackOf', label: '되돌림', value: `v${v.rollbackOf} 로 되돌림` }] : []),
           { key: 'entryCount', label: '항목 수', value: versionCountText(v) },
           { key: 'snapshotHash', label: '스냅샷 해시', node: <MonoId value={v.snapshotHash.slice(0, 12)} copy label="스냅샷 해시" /> },
         ]}
