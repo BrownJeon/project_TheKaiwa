@@ -64,6 +64,8 @@ design-spec §15 task-009 "Phase 1 통합 QA·라이브·APK" — 지금 운영�
 없음.
 
 ## 판단 기록 (judge)
+- [2026-09-28 00:00] intake engine=jev → task_type=ops · risk=R2 · developer_model=opus · next=assign · demo=none | overrides=- | fallback=- | tokens=1347
+- [2026-09-28 00:01] codex_gate/C1 engine=jev → codex_required=false · mode=null · focus=null · budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=773
 
 ## Codex 검토
 
