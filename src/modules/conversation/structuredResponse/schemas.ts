@@ -248,7 +248,18 @@ export const KANA_READING_PATTERN = '^[\\u3040-\\u309Fー・〜…、。！？!?
  * 가 같은 상수를 쓰고 있어(READING_INPUT 등) 여기서 값을 바꾸면 그쪽 계약이 조용히 달라진다. LESSON 만 별도 상수로
  * 분리했다 — eval 쪽도 가타카나를 허용해야 한다면 그건 task-011 담당·Leader 판단.
  */
-export const LESSON_READING_PATTERN = '^[\\u3040-\\u30FF〜…、。！？!?\\s]*$'
+/**
+ * lesson@v4(2026-09-28, 운영 11b 후속 — prompt-engineer 진단) — v3 의 `぀-ヿ`(히라가나+가타카나)는
+ * **일본어 괄호형 인용부호(「」『』, U+300C~U+300F)를 포함하지 않는다** — 그 문자들은 "CJK 기호·문장부호" 블록
+ * (U+3000~U+303F)에 있어 히라가나·가타카나 블록과 별개다. 운영 스모크(`tests/live/task010-smoke.ts` 의 붙여넣기
+ * 원문, 대화체 인용 `「ご注文はお決まりですか」` 포함)로 8회 재현한 결과 **5/8 이 이 이유로 실패**했다(원문
+ * raw 확보·역파싱, `tests/live/lesson-paste-raw-capture.ts`) — 모델은 인용된 문장의 reading 에도 원문처럼
+ * 「」를 그대로 남겼는데(문장부호를 보존하는 자연스러운 동작, 、。！？를 이미 허용하는 것과 같은 이유), 스키마가
+ * 그 괄호만 빠뜨려 거부했다. **모델 행동은 맞았고 스키마가 좁았던 경우**라 프롬프트 지시문은 바꾸지 않는다(v3
+ * 처럼 모델을 다른 방향으로 유도할 필요가 없다) — ajv `pattern` 만 넓힌다. 재측정(같은 원문 8회 + 주제 2회
+ * 대조) 결과는 `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md` §11·task-010 이력서 참고.
+ */
+export const LESSON_READING_PATTERN = '^[\\u3040-\\u30FF「」『』〜…、。！？!?\\s]*$'
 /** `chunks[]` 개수 한도(`LESSON_SCHEMA` 와 `repair.ts`·`checks.ts` 가 공유 — 하드코딩 중복을 피한다, v2 신뢰도 보강). */
 export const LESSON_CHUNKS_MIN = 4
 export const LESSON_CHUNKS_MAX = 8

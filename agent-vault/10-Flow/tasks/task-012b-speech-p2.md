@@ -220,6 +220,76 @@ demo_gate:
 - (012b 1단계 없음 — 012b-2 에서)
 
 ## Developer 기록
+- [00:35] **012b 1단계 구현 완료(스키마 0·화면 0·M4 0)** — reviewer 인계 대기. LLM 이 필요한 라이브 2건(D-B7 채점 E2E·완료 기준 8 턴 p50)은 Claude CLI 구독 세션 한도(01:20 리셋)로 보류 → 리셋 뒤 재실행해 아래에 덧붙인다(메인에 통지함).
+  - **변경 파일 — 앱(TS)**: 신규 `src/modules/speech/analysis/{index,policy,heartbeat,validate,db,jobs,apply,enqueue,grading}.ts` · `src/modules/speech/utterances/review.ts`(#22·#21a) · `src/app/api/internal/speech/_lib/worker.ts`(worker 인증 공통) · `src/app/api/internal/speech/jobs/claim/route.ts`(#139) · `src/app/api/internal/speech/jobs/[id]/result/route.ts`(#140) · `src/app/api/internal/speech/utterances/[id]/analysis/route.ts`(#138) · `src/app/api/v1/speech/utterances/[id]/route.ts`(GET #22·PATCH #21a) · `src/modules/speech/__tests__/task012b.test.ts`(23건). 수정 `src/modules/speech/{index.ts,utterances/index.ts}`(#21·gateway 콜백 적재 — 같은 쓰기 중첩 create) · `src/app/api/v1/speech/utterances/route.ts`·`src/app/api/internal/speech/utterances/route.ts`(주석만) · `src/modules/admin/health.ts`(`checks.stt_analysis_worker`) · `src/modules/engine/stt/index.ts`(`analysisTarget`·`findAnalysisConnectionKey`) · `src/modules/preferences/index.ts`(`getRecognitionMode(s)` 읽기 전용) · `src/modules/infra/{internalAuth.ts(checkInternalCaller),users.ts(listQaUserIds),index.ts}` · `src/modules/learning/evaluation/grade.ts`(D-B7 최소 변경: `speechAnswers` 주입 칸·`speechAnswerOverrides`·저장 트랜잭션에 답·inputSource) · `src/app/api/v1/evaluations/[id]/submit/route.ts`(`speechAnswers: pickGradingTexts` 주입).
+  - **변경 파일 — Python**: 신규 `speech/worker/{main.py, kaiwa_worker/{__init__,config,comparator,jobs,paths,loop}.py, kaiwa_worker/handlers/{__init__,analysis_stt}.py, requirements.txt(pyopenjtalk==0.4.1·tqdm), pyproject.toml, tests/{conftest,test_comparator,test_handler,test_loop_config}.py}` · `speech/common/kaiwa_speech_common/engine/adapters/stt/whisper_http.py` · `speech/common/tests/test_worker_calls.py`. 수정 `speech/common/kaiwa_speech_common/{internal_client.py(service 파라미터 — gateway 기본값 그대로·claim_jobs·report_failure·post_analysis), engine/adapters/__init__.py(ANALYSIS_STT_FACTORIES·ANALYSIS_STT_ENDPOINT_ENV), engine/errors.py(SttRequestError), config.py(AnalysisSttRuntime dataclass)}`.
+  - **라이브 스크립트**: `tests/live/task012b-smoke.{sh,ts}`(단계 A 가짜 워커 48건 · B 실제 워커 2개 · C 분석 서비스 죽은 워커 · 로그 원문 검사) · `tests/live/task012b-latency.{sh,ts}`(기준 8 — stt·turn 모드).
+  - **정적·단위**: 미러 `tsc --noEmit` 0 · `eslint .` 오류 0(경고 6 중 내 것 0 — 5건은 기존 components) · 앱 단위 **736건 중 735 PASS·1 skip(기존)** · worker pytest **40**(pyopenjtalk 실제 읽기 포함) · common pytest **20** · gateway 회귀 pytest **55** · ruff·ruff format·mypy strict(worker·common·gateway) 통과.
+  - **MariaDB 10.11.11**(서버 기본 REPEATABLE-READ, 앱 트랜잭션은 READ COMMITTED) → claim 은 `SELECT … FOR UPDATE SKIP LOCKED` 로 확정(낙관 claim 폴백 불필요). `runAfter` 비교는 서버 `NOW()` 가 아니라 앱 시각 파라미터(시간대 차이 회피).
+  - **완료 기준 실측**(dev 서버 = 미러 하드링크 복제본 `~/.node-local/thekaiwa-012b-20260928233911`, `APP_ENV=LOCAL`·127.0.0.1:3017, 워커 = dev venv `~/.node-local/thekaiwa-speech-dev` 직접 실행, QA 계정만):
+    1. ✅ #21: 워커 하트비트 없음 → `RECORDED·false·잡 0` / claim 뒤 AUTO·ACCURATE → `QUEUED·true`·잡 1행(runAfter≈now), FAST → +30.0초, OFFLINE → `RECORDED·false`. gateway TURN 콜백(내부 경로 흉내)도 `QUEUED·true`, runAfter +10초(파일 이동 여유).
+    2. ✅ 가짜 워커 2개 동시 claim(max 2) 20건 → 받은 잡 20·중복 0·전부 attempts 1 / **실제 워커 2개** stt20 20건 → 전부 DONE·attempts 1·ANALYZED, 두 워커가 11·9건 나눔.
+    3. ✅ #138: ANALYZED·analysisText·confidence 0.7·requiresReview(AUTO 0.85)·SpeechAnalysis(engineVersions.reviewThreshold 0.85·flags·recognitionMode)·잡 DONE 한 트랜잭션, finalText·finalSource 불변(REALTIME), 재보고 `200 {stored:false, reason:"ALREADY_ANALYZED"}`·값 불변, 다른 발화 jobId 404, 모르는 analysisEngine 400, DONE·FAILED 잡 409.
+    4. ✅ 비교기(pytest, 실제 pyopenjtalk): 「こんにちは。」vs「コンニチワ」=1.0 · 「今日」vs「きょう」=1.0 · 七時 vs 7時=1.0 · 二百円 vs 200円=1.0 · 7% vs 七パーセント=1.0 · 빈 문자열 3규칙(ANALYSIS_EMPTY·REALTIME_EMPTY·둘 다 → EMPTY_TRANSCRIPTS) · 3배 길이 LENGTH_RATIO / 앱: ACCURATE 0.88 → 재확인, AUTO 0.88 → 아님(라이브).
+    5. ✅ 분석 서비스 불가(워커 주소를 닫힌 포트로) → 백오프 29.0초·119.0초(runAfter 를 당겨 가속) → 3회째 FAILED(`ANALYSIS_UNAVAILABLE`)·발화 FAILED / wav 삭제 → 즉시 FAILED(`AUDIO_MISSING`, attempts 1). 가짜 워커로도 30초·2분·FAILED·AUDIO_MISSING(retryable:true 여도 즉시) 확인.
+    6. ✅ #22 소유자 200(엔진 칸·엔진명 없음, 분석 전 null)·타인 404·무세션 401 / #21a requiresReview=false 409·분석 전 409·이미 확정 409·타인 404·본문 400·**동시 두 요청 한쪽만 200(다른 쪽 409)**·finalSource=고른 출처·`ChatMessage.content`·`Correction.original` 바이트 불변.
+    7. ✅ 내부 API 3종 × (시크릿 없음 404·틀림 401·X-Service-Env 다름 409 ENV_MISMATCH·env 헤더 없음 409·X-Service 다름 403·GET 404)·본문 상한(claim 4KB·#138 256KB) 400 / D-B11 은 단위(비운영 claim·#140·#138 모두 QA 계정만, 운영은 필터 없음)로 확인 — 라이브 DB 에 실사용자 발화가 0건이라 실데이터 교차는 만들지 않았다(실사용자 행을 만들지 않기 위해).
+    8. ◐ **실시간 STT 구간**(gateway MIC_TEST 30회, 손 뗌 → final): 워커 없음 p50 56ms·p90 71ms / 워커 2개 + 30초 발화 연속 부하 p50 72ms·p90 95ms(+16ms — 같은 호스트 CPU 경합, 턴 전체 대비 1% 미만). **턴 전체 p50 비교는 LLM 한도로 보류**(리셋 뒤 `task012b-latency.sh 3017 turn 30`). 30초 발화 5건 claim→#138 커밋 p50 11.7초·p95 14.0초, 짧은 발화(stt20, 1.8~5.2초) p50 4.3초·p95 6.1초.
+    9. ✅ 워커 로그 전사 원문 0(길이·sha1[:8]·코드값만, 스모크 L1 자동 검사) · dev 서버 로그 원문 0 · #22·claim·health 응답 엔진명 0 · 실패 코드는 엔진 중립(`ANALYSIS_*`).
+    10. ◐ D-B7 선택 규칙은 실제 DB·실제 #67 연결·#138·#21a 로 확인(분석 완료·재확인 불필요 → 분석 텍스트 SERVER_STT / 재답 문항은 저장된 답과 맞는 발화만 → 분석 전이면 선택 없음 / #21a USER → 그 텍스트 TEXT / learning 주입 지점은 음성 답만 묻고 바뀐 문항만 덮음). **A6 출제·A7 채점 E2E 는 LLM 한도로 보류**(리셋 뒤 `EVAL_LLM=1`).
+    11. ✅ `git diff prisma/schema.prisma` 빈 diff. 회귀: 단위 전부 PASS. 스모크 007·010·011 은 LLM 필요 — 리셋 뒤.
+  - **stt20 신뢰도 분포(참고, U7)**: 실시간 텍스트 자리에 정답 문장을 넣고 분석 STT 와 비교 → p50 1.0, 0.85 미만 1건(05 「駅はどこですか」→ 분석 「低級はどこですか」 0.636), 0.95 미만은 3건(01 いい/良い 0.941, 17 部屋/ケア 0.933). 30초 발화 5건 0.97~1.0. **분석 STT(medium)가 짧은 합성 음성에서 오인한 쪽**이라 012b-2 카드 문구는 "분석 안이 늘 옳다"로 쓰면 안 된다.
+  - **정본과 다르게·공백을 메운 점(Leader 확인 요청)**: ① gateway 경로 잡은 `runAfter +10초` — gateway 가 콜백 응답을 받은 뒤 wav 를 옮겨서, 바로 집으면 AUDIO_MISSING(재시도 없음)으로 끝난다. ② 고아 회수 때 attempts 가 이미 3이면 QUEUED 가 아니라 FAILED(`ORPHANED`)+발화 FAILED(§5-8 "3회 한도에 포함"). ③ #140 은 워커가 retryable:true 를 보내도 `AUDIO_MISSING·AUDIO_INVALID·EMPTY_TRANSCRIPTS·READING_UNAVAILABLE` 은 즉시 FAILED. ④ #138 은 확정 실패(FAILED)·DONE 잡의 늦은 결과를 409 STALE_CLAIM(워커는 무시), 회수돼 QUEUED 인 잡의 결과는 받는다. ⑤ `AppSetting speech.review.threshold` 는 0~1 숫자면 **모든 모드**의 임계(정본 문장 그대로 읽음 — ACCURATE 도 그 값). ⑥ `engineVersions` 에 `reviewThreshold` 외에 `flags`·`recognitionMode` 도 스냅샷(워커가 이 세 키를 보내면 400). ⑦ D-B7: speech 함수는 발화 id 가 아니라 `(userId, [{evaluationItemId, answerText}])` 를 받는다 — 한 문항에 발화가 여럿 붙을 수 있어(같은 문항 재답) 저장된 답과 텍스트가 맞는 발화만 보고, 확정 USER 는 `inputSource=TEXT`, 재확인 대상이었다가 실시간 안을 고른 발화는 finalText·REALTIME_STT. ⑧ 새 내부 라우트 3종은 `X-Service: worker` 가 아니면 403(정본에 코드 미정). **기존 gateway 콜백 라우트(`/api/internal/speech/utterances`)에는 X-Service-Env 검사가 없다** — 인계문과 달리 원래 없었고, gateway 동작을 바꾸지 않으려고 그대로 뒀다(후속 판단). ⑨ worker 패키지는 README §2 트리(`comparator.py`·`handlers/` 최상위) 대신 gateway 처럼 `kaiwa_worker/` 패키지 + `main.py` — 최상위 모듈 이름 `comparator`·`handlers` 충돌 방지. ⑩ `speech.config.yml worker.poll_interval_ms` 는 1000(유휴 백오프 5000 주석)인데 README 는 2초·최대 10초 — 워커는 yml 값(1초)을 쓰고 유휴 최대 10초는 코드 상수. README 에 맞추려면 yml 을 2000 으로(Leader 파일). ⑪ #21 응답 `status` 는 실제 값(`QUEUED`) — 정본 예시의 `"status":"RECORDED","analysisQueued":true` 조합은 나오지 않는다. ⑫ 채팅 턴 "글자로 고치기"로 이미 `finalSource=USER` 인 발화도 #138 은 규칙대로 requiresReview 를 판정한다 — 카드에 띄울지(=USER 확정을 덮을 수 있음)는 012b-2 에서 정할 것.
+  - **Leader 소유 파일 초안**:
+    - `ecosystem.config.js` apps 에 추가(gateway 항목 뒤):
+      ```js
+      {
+        // 분석 STT 워커(task-012b) — 포트 없음(생존 = 앱이 claim 하트비트로 판단, D-B4), DB 접속 없음(DATABASE_URL 을 넘기지 않는다, D-B1).
+        name: 'thekaiwa-speech-worker',
+        script: `${SPEECH_VENV}/bin/python`,
+        args: 'main.py',
+        interpreter: 'none',
+        cwd: `${HERE}/speech/worker`,
+        instances: 1,
+        autorestart: true,
+        watch: false,
+        max_memory_restart: '256M', // http 모드 — 읽기 사전 포함 RSS ≈50~100MB(dev 실측 48MB + numpy)
+        kill_timeout: 70000, // SIGTERM 뒤 지금 잡(분석 STT 60s)을 끝낼 시간 — 넘기면 15분 뒤 앱 고아 회수
+        env: {
+          ...pickNonEmpty(dotenv, ['APP_ENV', 'DATA_ROOT', 'SPEECH_INTERNAL_SECRET', 'APP_INTERNAL_URL', 'WHISPER_SERVICE_URL', 'SPEECH_LOG_LEVEL', 'SECRETS_DIR']),
+          SPEECH_CONFIG_PATH: path.resolve(HERE, dotenv.SPEECH_CONFIG_PATH || 'speech/speech.config.yml'),
+          SPEECH_WORKER_ID: 'worker-1',
+          PYTHONPATH: `${HERE}/speech/worker:${HERE}/speech/common`,
+          PYTHONDONTWRITEBYTECODE: '1',
+          PYTHONUNBUFFERED: '1',
+        },
+        out_file: `${LOG_DIR}/speech-worker-out.log`,
+        error_file: `${LOG_DIR}/speech-worker-err.log`,
+        merge_logs: true,
+        log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      },
+      ```
+    - `deploy.yml` `runtime.apps` 에 `- thekaiwa-speech-worker` + 주석 "생존은 /api/health checks.stt_analysis_worker(degraded — 배포를 막지 않음). 등록 전 운영 venv 에 `pip install -r speech/worker/requirements.txt`(U2)". 저장소 밖 `~/.local/webhook-deploy/deploy-thekaiwa.sh` 의 `--apps` 에도 추가(U1).
+    - `.env.example`: `WHISPER_SERVICE_URL` 주석 "분석 STT — thekaiwa-speech-worker 가 읽는다(앱 health 도)" · `APP_INTERNAL_URL` 주석 "gateway·worker → 앱 내부 콜백" · (선택) `SPEECH_WORKER_ID=worker-1`.
+    - `speech/speech.config.yml` `worker.poll_interval_ms: 2000`(README §2 정합, 선택).
+    - 운영 venv 설치(U2): `~/.node-local/thekaiwa-speech/venv/bin/pip install -r speech/worker/requirements.txt` — 휠이 없어 소스 빌드(cmake 는 pip 빌드 격리, sudo 불필요, 2~3분), 사전 22.6MB 는 첫 g2p 때 GitHub 에서 venv 안으로 받는다(운영 첫 기동 전 한 번 `python -c "import pyopenjtalk; pyopenjtalk.g2p('テスト')"` 권장 — 워커 기동 점검이 받게 둬도 된다).
+  - **트러블슈팅(재발 가능)**: ① pyopenjtalk 0.4.1 은 리눅스 휠 없음 → 소스 빌드가 sudo 없이 됨(빌드 격리가 cmake 를 받는다), 사전은 첫 사용 때 다운로드. ② 이 에이전트 세션의 env(ANTHROPIC_BASE_URL·CLAUDE_CODE_* 등)를 물려받은 dev 서버에서는 Claude CLI 가 `ClaudeCliExecError` — dev 서버를 `env -i HOME PATH USER LANG APP_ENV=LOCAL` 로 띄워야 LLM 이 돈다(어댑터 `cleanEnv` 가 지우는 목록에 없는 변수들). ③ 스크립트에서 `( cd … && python … ) &` 로 띄운 워커는 `kill` 이 서브셸만 죽여 고아로 남는다 → `exec` 필수(스모크·latency sh 에 반영). ④ #21 은 사용자당 30/분 — 스모크가 한 분에 30건 넘게 올리면 429(스모크가 Retry-After 대기). ⑤ TALK 평가 출제도 단어 4개 필요(NOT_ENOUGH_WORDS).
+  - **남은 위험**: (a) 운영 등록(U1·U2) 전까지 운영 health 는 계속 `stt_analysis_worker` degraded(정상). (b) blue/green 전환·앱 재기동 직후 워커의 다음 claim(≤10초) 전까지 올라온 발화는 적재되지 않는다(`analysisQueued:false` — 분석 누락, 대화 영향 없음). (c) 분석 서비스(다른 프로젝트 공용·전역 잠금)가 긴 전사 중이면 잡이 60초 타임아웃 → 백오프 재시도. (d) 워커와 분석 서비스가 같은 호스트 CPU 를 써서 실시간 STT 가 부하 시 +16ms(p50). (e) `/api/internal/*` 는 nginx 에서 막혀 있지 않다(시크릿으로만 보호 — 기존 gateway 경로와 같음). 워커·gateway 는 127.0.0.1 로 부르므로 nginx `location /api/internal/ { return 404; }` 를 권장(Leader 인프라). (f) D-B11 한계: 운영 워커가 떠 있으면 개발 QA 잡을 운영 코드가 처리할 수 있음(정본 명시).
+  - **정리**: 스모크·지연 스크립트가 만든 QA 발화·잡·분석·wav·대화·평가·단어는 매 실행 finally 에서 삭제 — 확인: SpeechJob 0·SpeechAnalysis 0·QA Utterance 0·QA wav 0. dev 서버 3017·복제본·dev venv 는 LLM 재검증 뒤 정리.
+- [02:15] **LLM 리셋(01:21) 뒤 라이브 추가** — dev 3017(복제본, `env -i` 기동) · 워커 dev venv.
+  - **D-B7 채점 E2E(A6·A7 실제 호출) ✅**: 스모크 A 51/51(`EVAL_LLM=1`) — QA2 TALK 평가 출제 → 상황 문항 2개에 발화 연결 → 상황1 발화만 #138(재확인 불필요) → 제출 → A7 채점 DONE 12.8초 → 상황1 `answerText` = 분석 텍스트·`inputSource=SERVER_STT`, 상황2(분석 전) = 저장된 답 그대로·`REALTIME_STT`(채점이 분석을 기다리지 않음). 뒤정리: 평가·잡·기록·스냅샷·단어·발화 0, 오늘 DAILY 복원.
+  - **dev 서버 env 재현 조건(ClaudeCliExecError)**: 이 Claude Code 에이전트 세션 셸에서 `node … next dev` 를 그대로 띄우면 세션 env(`ANTHROPIC_BASE_URL`·`CLAUDE_CODE_OAUTH_SCOPES`·`CLAUDE_CODE_SESSION_ID`·`CLAUDE_CODE_MESSAGING_*`·`CLAUDE_SSH_*` 등)가 앱 → Claude CLI 자식 프로세스로 넘어가(어댑터 `cleanEnv` 가 지우는 목록 밖) CLI 가 실행 오류로 끝난다(`[router] LLM connection=claude-cli-local 실패(ClaudeCliExecError)`). 해결: dev 서버를 `env -i HOME="$HOME" USER="$USER" LANG="$LANG" PATH="$PATH" APP_ENV=LOCAL node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p <포트>` 로 띄운다. pm2 운영 프로세스는 이 문제 없음(에이전트 셸 env 를 물려받지 않음). 후속 후보: `cleanEnv` 가 `CLAUDE_CODE_*`·`CLAUDE_SSH_*`·`ANTHROPIC_BASE_URL` 접두 일괄 제거(engine 어댑터 — 별도 소작업).
+  - **완료 기준 8(턴 지연, 워커 유무) — ✗ 미달, 원인 분석·결정 필요**. 방법: `tests/live/task012b-latency.sh 3017 turn 30` — 턴마다 #21 업로드(stt20 음성) → #32 턴 SSE, 5.6초 간격 연속 30턴, 워커 없음(적재 0) vs 워커 2개(턴마다 그 발화가 곧바로 분석됨). prompt-engineer A4 재검증(Claude CLI)이 같은 시간대에 병행 — LLM 단계 p50 은 두 조건이 거의 같아(3.50s·3.57s) LLM 쪽 영향은 작다.
+    | 조건 | 첫 음성 p50/p90 | done p50/p90 | 비고 |
+    |---|---|---|---|
+    | 1차 워커 없음 | 2,036 / 3,043ms | 5,252 / 7,496ms | queued 0 |
+    | 1차 워커 2 + 30초 발화 연속 부하 | 2,888 / 4,564ms(+42%) | 6,186 / 10,680ms(+18%) | 업로드 부하 자체가 섞임 |
+    | 2차 워커 없음 | 1,987 / 3,453ms | 5,232 / 7,551ms | |
+    | 2차 워커 2(추가 부하 없음) | 3,264 / 5,516ms(+64%) | 6,703 / 13,403ms(+28%) | **오염** — Leader 의 006 스모크(qa-bot)와 겹쳐 턴 2건 409 |
+    단계별(Trace p50, 1차 없음→있음): ACCEPT 614→1,406ms · SAVE 759→1,374 · UTTERANCE_LINK 575→851 · **TTS[0](캐시 HIT) 95→815** · LLM 3,503→3,560 · TTS_SYNTH[1](M4) 639→729. → 늘어난 것은 **LLM·M4 가 아니라 앱 쪽 DB 쓰기·캐시 읽기 단계**. 보조 실측(QA 없음): 분석 서비스가 30초 발화를 전사하는 동안 같은 호스트의 CPU 작업 p50 61→81ms(+33% — faster-whisper 가 CPU 코어를 다 씀), DB `SELECT 1` 은 1ms 그대로 → 원인 후보 = ① 전사 중 CPU 경합(dev 서버 Turbopack 은 CPU 에 민감 — 운영 `next start` 보다 과장) ② 워커 커밋(claim·#138 잡당 2회)이 공유 NAS DB 의 느린 커밋(ACCEPT 기준값부터 600ms)과 겹침. 테스트는 5.6초 간격 연속 턴이라 **모든 분석이 다음 턴과 겹치는 최악 조건**이다.
+    - 이미 넣은 완화: 유휴 claim 은 트랜잭션 없이 읽기 1회(`analysisDb.hasClaimable`) — 빈 큐 BEGIN·잠금 SELECT·COMMIT 제거(단위 24/24).
+    - **Leader 결정 필요(D-B8 수정 후보)**: (a) 그대로 두고 운영 모드(`next build`+`next start`)로 다시 재서 기록 (b) **사용자별 디바운스** — 같은 사용자의 새 발화가 올라오면 그 사용자의 QUEUED 분석 잡 `runAfter` 를 뒤로(예: 마지막 발화 +20초) 밀어, 분석이 대화가 멈췄을 때 돈다(앱 enqueue 한 곳, 스키마 0 — 결과는 대화 뒤에 나오므로 012b-2 카드 시점이 늦어짐) (c) 모든 모드 고정 지연(+12초 — 연속 대화에선 다음 턴과 여전히 겹침). 권고 (b)+(a).
+  - **QA 계정 나눠 쓰기(Leader 요청)**: 병렬 라이브가 필요하면 developer 는 `QA_ACCOUNT=2`(qa-bot2)만 쓴다 — `task012b-latency.sh` 기본값을 qa-bot2 로 바꿨다(`QA_ACCOUNT` 로 덮을 수 있음). `task012b-smoke.sh` 는 IDOR 검사에 두 계정을 다 쓰므로 다른 QA 라이브와 겹치지 않는 시간에만 돌린다. 이번에 3011 의 006 스모크가 qa-bot 턴 잠금 409 로 막힌 것은 내 턴 지연 측정(01:25~01:55)과 겹쳤기 때문.
 
 ## Reviewer 기록
 
@@ -228,3 +298,8 @@ demo_gate:
 ## 배포 기록
 
 ## 최종 요약
+
+### 2026-09-29 02:25 Leader(메인) — D-B8 수정: 사용자별 디바운스
+- 근거(developer [02:15] 실측): 워커 2 + 30초 발화 부하에서 첫 음성 p50 2,036→2,888ms(+42%)·done +18%. LLM 단계는 불변, 늘어난 곳은 앱 DB 쓰기·캐시(ACCEPT·SAVE·TTS[0] HIT) — 분석 전사의 CPU 점유(+33%)와 NAS DB 커밋 겹침. 완료 기준 8(≤10%) 미달.
+- 결정: **(b) 사용자별 디바운스** — 새 발화가 오면 그 사용자의 QUEUED 분석 잡 `runAfter` = 마지막 발화 +20초(RUNNING 불변), **상한 첫 발화 +5분**(끝없는 대화에서 분석이 영원히 밀리지 않게). 워커 기본 동시 처리 1. 재측정은 운영 모드(next build+start)로 (i) 연속 30턴 워커 있음/없음 ≤10% (ii) 대화 멈춤 뒤 마지막 발화→ANALYZED 시간 p50/max. 012b-2 확인 카드는 대화가 멈춘 뒤 뜨는 것으로 설계(데모 때 반영). D-B7 채점은 원래 분석을 기다리지 않으므로 영향 없음(대화 직후 제출이면 실시간 텍스트).
+- (a) 단독·(c) 고정 +12초는 연속 대화와 여전히 겹쳐 기각.

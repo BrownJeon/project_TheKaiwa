@@ -12,7 +12,7 @@
  */
 import { callClaudeDetailed, prewarmClaude, type ClaudeCliOptions, type PrewarmOutcome, type WarmUse } from '../adapters/llm/claudeCli'
 import { HomeM4ApiCaller, LlmContractError, LlmTimeoutError, type LlmMessage } from '../adapters/llm/homeM4'
-import { extractAndValidate, runJsonWithRetry, withJsonOnly, type RunJsonResult } from '../json/schemaValidate'
+import { extractAndValidate, runJsonWithRetry, withJsonOnly, type JsonAttemptInfo, type RunJsonResult } from '../json/schemaValidate'
 import { LLM_TASKS, resolveCandidates, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
 
 export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, toUserMessage } from '../adapters/llm/homeM4'
@@ -51,12 +51,23 @@ export interface LlmRequest {
   onTextDelta?: (delta: string, call: number) => void
   /** 취소(task-007 — 수락과 병렬로 먼저 시작한 턴 LLM 을 수락 실패 시 멈춘다). claude-cli 만 실제로 자식을 멈춘다. */
   signal?: AbortSignal
+  /** 관측용 상관 id(`RequestTrace`·`AiJob` 의 traceId). 프롬프트에는 싣지 않고 `extraCheck` 정보로만 넘긴다(로그 상관용). */
+  traceId?: string
+}
+
+/**
+ * `extraCheck` 두 번째 인자. `attempt`·`maxAttempts` 는 **지금 시도 중인 connection 안에서**의 번호다 — router 폴백으로
+ * 다음 connection 에 넘어가면 다시 1부터 센다(`JsonAttemptInfo` 주석). 엔진은 항상 채워 부르고, 인자를 받지 않는
+ * 기존 검사는 그대로 동작한다. 테스트처럼 직접 부를 때는 생략할 수 있으므로 받는 쪽은 `undefined` 를 첫 시도처럼 다룬다.
+ */
+export interface LlmExtraCheckInfo extends JsonAttemptInfo {
+  traceId: string | null
 }
 
 export interface LlmJsonRequest<T> extends LlmRequest {
   jsonSchema: object
   /** ajv 로 표현할 수 없는 후검증(예: `correction.original` 바이트 일치). 위반 문구 배열을 돌려준다. */
-  extraCheck?: (data: T) => string[]
+  extraCheck?: (data: T, info?: LlmExtraCheckInfo) => string[]
   /**
    * true 면 재시도 1회 뒤에도 남은 `extraCheck` 위반을 던지지 않고 `residualViolations`·`candidates` 와 함께 돌려준다
    * (스키마 위반은 그대로 `JsonSchemaError`). 항목별로 버리는 판단은 호출자 몫이다 — task-006 D11. 기본 false(기존 동작).
@@ -235,6 +246,9 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
   let meta = { model: '', promptChars: 0 }
   let calls = 0
   let first: { warm: WarmUse | null; firstDeltaMs: number | null } | null = null
+  const userCheck = req.extraCheck
+  const traceId = req.traceId ?? null
+  const extraCheck = userCheck ? (d: unknown, info: JsonAttemptInfo) => userCheck(d as T, { ...info, traceId }) : undefined
   const { value, connection } = await withFallback('LLM', { task: req.task }, async (c) => {
     const result: RunJsonResult<T> = await runJsonWithRetry<T>(
       async (retry) => {
@@ -245,7 +259,7 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
         if (call === 1) first = { warm: out.warm, firstDeltaMs: out.firstDeltaAt === null ? null : out.firstDeltaAt - startedAt }
         return out.text
       },
-      { schema: req.jsonSchema, extraCheck: req.extraCheck as ((d: unknown) => string[]) | undefined, softExtraCheck: req.softExtraCheck === true },
+      { schema: req.jsonSchema, extraCheck, softExtraCheck: req.softExtraCheck === true },
     )
     return result
   })

@@ -28,6 +28,43 @@
  * (④) 에 `matching.ts`(서버 `learning/lessons/matching.ts` 와 문자 단위로 같은 정규화, import 는 안 함) 기반
  * 검사·보정을 추가했다. 상세는 `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`(§10 — 다른 task 가
  * 동시에 §9 를 두 번 써서 §10 으로 이어 붙였다).
+ *
+ * **v4(2026-09-28, 운영 11b 붙여넣기 실패 후속)** — 운영 배포 뒤 스모크 11b(붙여넣기 레슨)가 재시도 포함 실패했다.
+ * `tests/live/lesson-paste-diagnose.ts`(운영 스모크와 바이트 단일 원문으로 8회 재현) 결과 **5/8 실패**, 전부
+ * `LESSON_READING_PATTERN`(v3, 히라가나+가타카나) 위반 — `tests/live/lesson-paste-raw-capture.ts` 로 실패 원문을
+ * 역파싱해 확인한 원인은 **일본어 괄호형 인용부호(「」)가 그 패턴에 없었던 것**이다(원문에 대화체 인용
+ * `「ご注文はお決まりですか」`이 있어, 모델이 그 문장의 reading 에도 원문처럼 「」를 자연스럽게 남겼는데 스키마가
+ * 거부했다 — 모델 행동은 맞았고 스키마가 좁았다). `schemas.ts` 의 `LESSON_READING_PATTERN` 에 「」『』
+ * (U+300C~U+300F)를 추가했을 뿐 이 파일(지시문)은 바꾸지 않았다(모델을 다른 방향으로 유도할 이유가 없다 — v3 의
+ * 가타카나 사례와 달리 이번은 모델이 아니라 검증이 틀렸던 경우). 상세·재측정 표는
+ * `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`(§11).
+ *
+ * **v5(2026-09-28, 같은 날 재측정에서 드러난 2차 원인)** — v4 재측정(같은 붙여넣기 원문 8회 + 주제 2회)에서
+ * reading pattern 위반은 0건으로 사라졌지만 1/8 이 **다른 이유**로 실패했다: `checkLessonResponse`④(콘텐츠
+ * 매칭, v3 에서 추가)가 application·speaking 의 `modelAnswerJa` 가 자기 targetIds 의 chunk 표현을 안 담았다고
+ * 계속 잡았는데, 재시도해도 모델이 같은 실수를 반복했다 — 원인은 **이 규칙 자체를 모델에게 알려준 적이 없었던
+ * 것**이다(v3 는 `repairLessonResponse`④·`checkLessonResponse`④ 만 만들고 `lessonInstruction` 에는 대응 지시문을
+ * 안 붙였다). 그래서 아래 `lessonInstruction` 의 id 규칙 바로 뒤에 "모범 답 내용 규칙"을 새로 추가해, modelAnswerJa
+ * 가 가리키는 chunk 표현을 문장 안에 실제로 쓰라고 명시했다(grammar id 는 예외 — matching.ts·checks.ts 와 같은
+ * 기준). 스키마·`repair.ts`·`checks.ts` 는 바꾸지 않았다(이미 올바른 규칙을 검증하고 있었고, 문제는 모델에게
+ * 그 규칙을 안 알려준 것뿐이었다). 재측정 표는 `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`(§11).
+ *
+ * **v6(2026-09-28, v5 재측정에서도 남은 잔여 — 재시도 소진 시 콘텐츠 매칭만 눈감음)** — v5 재측정(같은 원문 8회 +
+ * 주제 2회)에서도 1/8 이 재시도(2회 모두 ajv 통과)까지 끝내고도 여전히 같은 콘텐츠 매칭(④) 위반(단일 참조라
+ * `repairLessonResponse` 가 빈 배열을 만들지 않으려 손대지 못한 경우)으로 실패했다 — v5 의 지시문 추가는 빈도를
+ * 낮췄을 뿐(첫 시도 위반 발생률 3/8→2/8) 0% 를 만들지는 못했다(작은 표본, 통계적으로 확정은 아니다). ④는
+ * "modelAnswerJa 가 자기 targetIds 를 완벽히 보여주지 못한다"는 **콘텐츠 품질** 문제이지 "존재하지 않는 id 를
+ * 가리킨다"는 **데이터 무결성** 문제가 아니다(①~③은 후자라 여전히 강제한다) — 그래서 `checks.ts` 에
+ * `tolerateContentMismatch` 옵션을 추가하고, 아래 `extraCheck` 가 **재시도까지 다 쓴 마지막 호출에서만** 그 옵션을
+ * 켠다(1차에는 그대로 강제해 재시도가 깨끗이 고칠 기회를 준다). 레슨 전체를 잃는 것보다 "모범 답 하나가 목표
+ * 표현을 완벽히 못 보여주는" 게 낫다는 판단이다. 재측정 표는 `agent-vault/30-Knowledge/decisions/
+ * llm-japanese-quality.md`(§11).
+ *
+ * **REV-032 M1(2026-09-29, developer)** — "마지막 시도" 판단을 이 모듈의 클로저 카운터에서 엔진이 넘기는 시도 정보
+ * (`extraCheck(data, info)` 의 `info.attempt`/`info.maxAttempts`, `engine/json/schemaValidate.ts` `JsonAttemptInfo`)로
+ * 옮겼다. 카운터는 router 폴백(`completeJson` → `withFallback` 이 다음 connection 에서 `runJsonWithRetry` 를 새로
+ * 부른다)을 넘어 누적돼 새 connection 의 1차부터 ④ 완화를 켰고, 1차가 ajv 단계에서 걸리면 번호가 밀렸다 — 엔진 번호는
+ * 둘 다 없다(connection 마다 1부터, ajv 에서 걸린 시도도 번호를 차지). 프롬프트 지시문·버전은 바뀌지 않았다.
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -36,7 +73,7 @@ import { repairLessonResponse, type LessonRepairSourceChunk } from '../structure
 import { LESSON_SCHEMA, type ChunkType, type JlptLevel, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const LESSON_PROMPT_VERSION = 'lesson@v3'
+export const LESSON_PROMPT_VERSION = 'lesson@v6'
 
 /**
  * `renderTranscript(req.system, req.messages)` 상한(persona 는 별도 `--system-prompt` 라 여기 안 든다, talk.ts 와 같은
@@ -116,6 +153,11 @@ export interface LessonRequest extends LlmJsonRequest<LessonResponse> {
   skippedChunks: number
 }
 
+/** 로그 상관용 traceId 표기 — 엔진이 발급한 형식(영숫자·`_`·`-`)만 그대로 싣고, 그 밖은 싣지 않는다. */
+function safeTraceId(traceId: string | null): string {
+  return traceId && /^[A-Za-z0-9_-]{1,64}$/.test(traceId) ? traceId : '-'
+}
+
 function clip(s: string, max: number): string {
   if (s.length <= max) return s
   return `${s.slice(0, Math.max(0, max - 1))}…`
@@ -173,6 +215,7 @@ function lessonInstruction(hasTopic: boolean): string {
         ? ' [조각] 목록의 표현을 쓸 때는 그 id 를 **절대 바꾸지 말고 그대로** 쓰고 isNew=false 로 둡니다. dialogue 를 위해 새로 만든 표현만 id 를 "new-1","new-2"… 순서로 붙이고 isNew=true 로 합니다. [조각] 목록에 없는 id 를 지어내지 마세요.'
         : ' [원문]에는 미리 정해진 조각이 없으므로 모든 chunks 의 id 를 "new-1","new-2"… 순서로 붙이고 isNew=true 로 합니다.'),
     '- **id 규칙(가장 중요, 먼저 지킵니다)**: quiz·application·speaking 의 targetIds 에 쓰는 id 는 **먼저 위 chunks 배열이나 아래 grammar 배열에 넣은 id 만** 씁니다. 그 두 배열 밖의 id 는 어디에도(특히 targetIds 에) 쓰지 않습니다 — [조각] 목록에 있어도 이번 chunks 에 넣지 않았으면 targetIds 에도 쓸 수 없습니다.',
+    '- **모범 답 내용 규칙(application·speaking 공통, id 규칙 다음으로 중요)**: modelAnswerJa 가 가리키는 targetIds 중 chunks id 는 그 chunk 의 textJa(또는 자연스러운 활용형)를 **modelAnswerJa 문장 안에 실제로 써서** 보여줘야 합니다 — targetIds 에 넣기만 하고 다른 말로 바꿔 쓰면 안 됩니다. grammar id 를 가리킬 때는 그 문형을 살린 자연스러운 문장이면 충분합니다(pattern 표기 자체가 문장에 그대로 나타날 필요는 없습니다).',
     '- grammar: 1~3개, 이번 수업의 핵심 문형. id 는 "g1","g2","g3" 순서로 붙입니다. pattern(문형 표기)·explanationKo(한국어 설명, 200자 이내)·exampleJa/exampleReading/exampleKo(예문 1개).',
     '- quiz: 정확히 5개, id "q1"~"q5". **전부 4지선다입니다**(다른 형식 금지) — choices 는 서로 다른 4개(80자 이내), answer 는 정답의 인덱스(0~3, choices 순서 기준, 숨기지 말고 그대로 채웁니다). promptKo·promptJa 중 최소 하나는 채우고(문제 성격에 맞는 언어로) 안 쓰는 쪽은 null 로 둡니다. targetIds 는 위 id 규칙을 따릅니다. explanationKo 는 정답 풀이 한 줄(120자 이내).',
     '- application: 정확히 3개, id "a1"~"a3". promptKo(한국어로 과제 상황 설명, 200자 이내)·hintJa(힌트, 없으면 null)·modelAnswerJa/modelReading/modelKo(모범 답 하나)·targetIds(위 id 규칙).',
@@ -250,12 +293,25 @@ export function buildLessonRequest(input: LessonInput): LessonRequest {
     // 보정 먼저(LLM 재호출 없이 결정적으로 고침), 남은 위반만 checkLessonResponse 가 잡아 필요하면 재시도로 보낸다.
     // `data` 는 engine.llm.completeJson 이 최종적으로 돌려주는 것과 같은 참조라 in-place 보정이 그대로 반영된다
     // (repair.ts 상단 주석 — 엔진 코드는 손대지 않았다, 읽기 전용으로 확인).
-    extraCheck: (data) => {
+    extraCheck: (data, info) => {
       const repair = repairLessonResponse({ allowedChunks: repairSourceChunks }, data)
       if (repair.filled || repair.removed || repair.contentMismatchRemoved) {
         console.info(`[lesson] repair — filled=${repair.filled} removed=${repair.removed} contentMismatchRemoved=${repair.contentMismatchRemoved}`)
       }
-      return checkLessonResponse({ allowedChunkIds }, data)
+      const strict = checkLessonResponse({ allowedChunkIds }, data)
+      // 정보가 없으면(직접 호출) 마지막 시도로 보지 않는다 — 완화는 엔진이 "이 connection 의 마지막 시도"라고 알려 줄 때만.
+      if (!info || info.attempt < info.maxAttempts) return strict
+      // 마지막 시도 — repair 로도 못 지운 콘텐츠 매칭(④) 위반만 남았으면(①~③·한글·엔진명은 여전히 강제) 레슨
+      // 전체를 잃지 않기 위해 눈감는다(LessonCheckContext 주석·checks.ts 참고). 데이터는 여전히 실재하는
+      // chunk/grammar id 만 가리킨다 — "완벽히 보여주지 못하는 모범 답"이라는 품질 저하만 허용한다.
+      const tolerant = checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, data)
+      if (tolerant.length < strict.length) {
+        // 상관 id·시도 번호·건수만 남긴다 — 원문·학습자 텍스트·모범 답 내용은 싣지 않는다.
+        console.info(
+          `[lesson] 마지막 시도 — 콘텐츠 매칭(④) 위반 ${strict.length - tolerant.length}건을 눈감고 통과시킴 trace=${safeTraceId(info.traceId)} attempt=${info.attempt}/${info.maxAttempts}`,
+        )
+      }
+      return tolerant
     },
     allowedChunkIds,
     skippedChunks,

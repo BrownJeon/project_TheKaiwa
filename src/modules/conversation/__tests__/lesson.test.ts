@@ -1,12 +1,15 @@
-import { test } from 'node:test'
+import { mock, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
-import { renderTranscript } from '../../engine/llm'
+import { completeJson, renderTranscript, type LlmExtraCheckInfo } from '../../engine/llm'
+import { routerDeps, type ResolvedConnection } from '../../engine/router'
 import { validateOutput } from '../../engine/json/schemaValidate'
 import { checkLessonResponse } from '../structuredResponse/checks'
 import { repairLessonResponse, LESSON_REPAIR_CHUNKS_MAX, type LessonRepairSourceChunk } from '../structuredResponse/repair'
-import { LESSON_SCHEMA, type ChunkType, type LessonChunkOut, type LessonResponse } from '../structuredResponse/schemas'
+import { LESSON_READING_PATTERN, LESSON_SCHEMA, type ChunkType, type LessonChunkOut, type LessonResponse } from '../structuredResponse/schemas'
 import { loadPersona } from '../persona/loader'
 import {
   buildLessonRequest,
@@ -299,6 +302,19 @@ test('LESSON_SCHEMA: reading 계열 필드는 가나(히라가나+가타카나, 
   assert.deepEqual(validateOutput(katakanaLoanword, LESSON_SCHEMA), { ok: true }, '히라가나+가타카나 혼용도 통과해야 한다')
 })
 
+test('LESSON_SCHEMA: reading 계열 필드는 일본어 괄호형 인용부호(「」『』)도 통과해야 한다(lesson@v4, 운영 11b 후속)', () => {
+  const ok = validLessonResponse(fixture.topic)
+  // 운영 스모크 원문의 대화체 인용(「ご注文はお決まりですか」)을 재현 — v3 패턴(히라가나+가타카나만)은 이 두 문자만으로
+  // 거부했었다(tests/live/lesson-paste-raw-capture.ts 로 확보한 실제 실패 원문과 같은 모양).
+  const quotedReading = { ...ok, dialogue: [{ ...ok.dialogue[0], reading: 'てんいんさんに「ごちゅうもんはおきまりですか」ときかれました。' }, ...ok.dialogue.slice(1)] }
+  assert.deepEqual(validateOutput(quotedReading, LESSON_SCHEMA), { ok: true }, '「」 인용부호가 포함된 reading 도 통과해야 한다')
+  const nestedQuote = { ...ok, grammar: [{ ...ok.grammar[0], exampleReading: 'せんせいは『がんばって』といいました。' }] }
+  assert.deepEqual(validateOutput(nestedQuote, LESSON_SCHEMA), { ok: true }, '『』(이중 인용부호)도 통과해야 한다')
+  // 괄호가 있어도 한자·로마자·한글은 여전히 위반이어야 한다(패턴이 무분별하게 넓어지지 않았는지 확인).
+  const kanjiWithQuote = { ...ok, dialogue: [{ ...ok.dialogue[0], reading: '「私」と言いました。' }, ...ok.dialogue.slice(1)] }
+  assert.equal(validateOutput(kanjiWithQuote, LESSON_SCHEMA).ok, false, '인용부호 허용이 한자까지 열어주면 안 된다')
+})
+
 // ── checkLessonResponse ────────────────────────────────────────────────
 
 test('checkLessonResponse: 유효 응답은 위반 0', () => {
@@ -512,6 +528,129 @@ test('repairLessonResponse: 모범 답이 유일한 목표 chunk 표현을 담�
   )
 })
 
+// ── lesson@v6(2026-09-28, v5 재측정 잔여) — tolerateContentMismatch: 재시도까지 다 쓴 마지막 시도에서만 ④ 를 눈감는다 ──
+
+test('checkLessonResponse: tolerateContentMismatch=true 면 ④(콘텐츠 매칭)만 눈감고 ①~③·한글·엔진명은 그대로 강제한다', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const c2 = fixture.topic.chunks[1] // 名前 — 위 "빼면 빈 배열" 테스트와 같은 모양(유일한 참조가 콘텐츠 불일치)
+  const contentMismatch = {
+    ...ok,
+    application: [{ ...ok.application[0], targetIds: [c2.id], modelAnswerJa: '会社員です。', modelReading: 'かいしゃいんです。' }, ...ok.application.slice(1)],
+  }
+  const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
+  assert.notDeepEqual(checkLessonResponse({ allowedChunkIds }, contentMismatch), [], '기본값(false)은 여전히 위반으로 잡아야 한다')
+  assert.deepEqual(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, contentMismatch), [], 'tolerateContentMismatch=true 면 ④ 위반이 사라져야 한다')
+
+  // ①(존재하지 않는 id)·한글 혼입·엔진명 노출은 tolerateContentMismatch 와 무관하게 여전히 걸려야 한다.
+  const missingId = { ...ok, quiz: [{ ...ok.quiz[0], targetIds: ['no-such-id'] }, ...ok.quiz.slice(1)] }
+  assert.ok(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, missingId).some((m) => m.includes('no-such-id')), 'targetIds 존재 검사는 계속 강제돼야 한다')
+  const hangul = { ...ok, dialogue: [{ ...ok.dialogue[0], ja: '안녕하세요。' }, ...ok.dialogue.slice(1)] }
+  assert.ok(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, hangul).some((m) => m.includes('dialogue[0].ja')), '한글 혼입 검사는 계속 강제돼야 한다')
+  const leaked = { ...ok, nextPreview: { ...ok.nextPreview, teaserKo: 'Claude 선생님이 준비했어요' } }
+  assert.ok(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, leaked).some((m) => m.includes('엔진')), '엔진명 노출 검사는 계속 강제돼야 한다')
+})
+
+/** 엔진(`runJsonWithRetry` → `completeJson`)이 extraCheck 에 넘기는 시도 정보(REV-032 M1). */
+function attemptInfo(attempt: number): LlmExtraCheckInfo {
+  return { attempt, maxAttempts: 2, traceId: null }
+}
+
+/** 유일한 참조가 콘텐츠 불일치(④)인 응답 — repair 도 못 고치는 모양(application[0] → 名前, 모범 답엔 없음). */
+function contentMismatchResponse(): LessonResponse {
+  const ok = validLessonResponse(fixture.topic)
+  const c2 = fixture.topic.chunks[1]
+  return {
+    ...ok,
+    application: [{ ...ok.application[0], targetIds: [c2.id], modelAnswerJa: '会社員です。', modelReading: 'かいしゃいんです。' }, ...ok.application.slice(1)],
+  }
+}
+
+/** 존재하지 않는 id(①, 데이터 무결성) — 마지막 시도에서도 눈감지 않는다. */
+function missingIdResponse(): LessonResponse {
+  const ok = validLessonResponse(fixture.topic)
+  return { ...ok, quiz: [{ ...ok.quiz[0], targetIds: ['totally-made-up-id'] }, ...ok.quiz.slice(1)] }
+}
+
+test('buildLessonRequest 의 extraCheck: 콘텐츠 매칭만 남았을 때 1차(재시도 전)에는 그대로 위반, 2차(재시도, 마지막)에는 눈감는다', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const contentMismatch = contentMismatchResponse()
+  const first = req.extraCheck!(structuredClone(contentMismatch), attemptInfo(1))
+  assert.notDeepEqual(first, [], '1차(재시도로 보내기 전)는 여전히 위반으로 잡아야 재시도가 걸린다')
+  const second = req.extraCheck!(structuredClone(contentMismatch), attemptInfo(2))
+  assert.deepEqual(second, [], '2차(마지막 시도)에는 같은 위반을 눈감아 레슨을 살려야 한다')
+})
+
+test('REV-032 M1: extraCheck 는 호출 횟수를 세지 않는다 — 시도 정보가 없거나 1차면 몇 번째 호출이든 완화하지 않는다', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const contentMismatch = contentMismatchResponse()
+  for (let i = 0; i < 3; i++) {
+    assert.notDeepEqual(req.extraCheck!(structuredClone(contentMismatch)), [], `정보 없는 ${i + 1}번째 호출도 강제해야 한다`)
+    assert.notDeepEqual(req.extraCheck!(structuredClone(contentMismatch), attemptInfo(1)), [], `1차 정보면 ${i + 1}번째 호출도 강제해야 한다`)
+  }
+})
+
+test('buildLessonRequest 의 extraCheck: 2차에도 id 존재(①) 같은 데이터 무결성 위반은 눈감지 않는다', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const second = req.extraCheck!(structuredClone(missingIdResponse()), attemptInfo(2))
+  assert.ok(second.some((m) => m.includes('totally-made-up-id')), '2차(마지막)에도 존재하지 않는 id 는 여전히 위반이어야 한다(환각은 repair 도 손대지 않는다)')
+})
+
+test('REV-032 M1: router 폴백 — connection A 가 2회 다 실패한 뒤 B 의 1차에서는 ④ 완화가 꺼지고 2차에서만 켜진다', async (t) => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  // 가짜 LLM(home-m4 형식 `{message:{content}}`) — connection 은 경로(/a·/b)로 가른다. 각 경로의 응답 순서가 곧 시도 순서다.
+  const script: Record<string, string[]> = {
+    '/a/v1/chat': [JSON.stringify(contentMismatchResponse()), JSON.stringify(missingIdResponse())],
+    '/b/v1/chat': [JSON.stringify(contentMismatchResponse()), JSON.stringify(contentMismatchResponse())],
+  }
+  const hits: string[] = []
+  const server = createServer((rq, rs) => {
+    rq.resume()
+    rq.on('end', () => {
+      const path = rq.url ?? ''
+      hits.push(path)
+      const next = script[path]?.shift()
+      if (next === undefined) {
+        rs.writeHead(500).end('unexpected call')
+        return
+      }
+      rs.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ message: { content: next } }))
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as AddressInfo).port
+  const keyEnv = 'KAIWA_TEST_FAKE_LLM_KEY'
+  process.env[keyEnv] = 'test-only'
+  const conn = (key: string, base: string): ResolvedConnection => ({
+    id: key,
+    key,
+    engineId: 'home-m4-api',
+    connectionType: 'HTTP',
+    connection: { baseUrl: `http://127.0.0.1:${port}${base}` },
+    runtime: { model: 'fake-model' },
+    credentialRef: `env:${keyEnv}`,
+  })
+  mock.method(routerDeps, 'loadChain', async () => [conn('fake-a', '/a'), conn('fake-b', '/b')])
+  const infoLines: string[] = []
+  mock.method(console, 'info', (...a: unknown[]) => void infoLines.push(a.map(String).join(' ')))
+  mock.method(console, 'warn', () => {})
+  t.after(() => {
+    mock.restoreAll()
+    server.closeAllConnections()
+    server.close()
+    delete process.env[keyEnv]
+  })
+
+  const r = await completeJson<LessonResponse>({ ...req, traceId: 't_REV032fallbackTest0' })
+
+  assert.deepEqual(hits, ['/a/v1/chat', '/a/v1/chat', '/b/v1/chat', '/b/v1/chat'], 'A 2회(① 로 실패) → B 1차(④ 강제로 재시도) → B 2차')
+  assert.equal(r.connectionKey, 'fake-b')
+  assert.equal(r.attempts, 2, 'B 의 1차에서 완화가 켜졌다면 B 1회로 끝났을 것(클로저 카운터 버그의 증상)')
+  const tolerated = infoLines.filter((l) => l.startsWith('[lesson] 마지막 시도'))
+  assert.equal(tolerated.length, 1, `완화는 B 의 2차에서 한 번만 쓰여야 한다: ${JSON.stringify(tolerated)}`)
+  assert.match(tolerated[0], /trace=t_REV032fallbackTest0 attempt=2\/2$/, '로그에 상관 id·시도 번호가 있어야 한다')
+  assert.ok(!/[぀-ヿ一-鿿]/.test(tolerated[0]), '로그에 모범 답·원문(일본어)을 싣지 않는다')
+})
+
 test('checkLessonResponse ④: grammar targetId 는 콘텐츠 매칭 대상이 아니다(문형이 문장에 그대로 나타나길 기대하지 않는다)', () => {
   const ok = validLessonResponse(fixture.topic)
   // a2 는 이미 targetIds:['g1'] 이고 modelAnswerJa='韓国から来ました。'(문형 pattern '〜から来ました' 자체는 아니지만 자연스러운 활용문).
@@ -537,8 +676,8 @@ test('buildLessonRequest 의 extraCheck: 보정으로 계약을 지킬 수 있�
   assert.ok(broken.chunks.some((c) => c.id === c10.id), 'chunk-10 이 채워졌어야 한다')
 })
 
-test('lesson@v3: 프롬프트 버전·id 규칙 위치(chunks 바로 뒤)·reading 예시(가나 허용·한자·로마자 금지·외래어 가타카나)', () => {
-  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v3')
+test('lesson@v6: 프롬프트 버전·id 규칙 위치(chunks 바로 뒤)·reading 예시(가나 허용·한자·로마자 금지·외래어 가타카나)', () => {
+  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v6')
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
   const chunksIdx = req.system.indexOf('- chunks:')
   const idRuleIdx = req.system.indexOf('- **id 규칙')
@@ -547,6 +686,37 @@ test('lesson@v3: 프롬프트 버전·id 규칙 위치(chunks 바로 뒤)·readi
   assert.ok(chunksIdx < idRuleIdx && idRuleIdx < grammarIdx, 'id 규칙이 chunks 바로 뒤·grammar 보다 앞이어야 한다(더 앞으로)')
   assert.ok(req.system.includes('watashi wa genki desu') || req.system.includes('私は元気です'), 'reading 금지 예시(한자·로마자)가 있어야 한다')
   assert.ok(req.system.includes('コーヒー'), 'v3: 외래어는 가타카나 그대로 두라는 예시가 있어야 한다')
+})
+
+// ── lesson@v4(2026-09-28 운영 11b 후속) — LESSON_READING_PATTERN 에 「」『』 추가 ──────────
+
+test('lesson@v4: LESSON_READING_PATTERN 이 CJK 괄호형 인용부호(「」『』, U+300C~U+300F)를 허용한다 — 프롬프트 지시문은 v3 그대로(모델이 아니라 스키마가 좁았던 경우)', () => {
+  assert.ok(LESSON_READING_PATTERN.includes('「'), 'reading 패턴에 「 가 포함돼야 한다')
+  assert.ok(LESSON_READING_PATTERN.includes('」'), 'reading 패턴에 」 가 포함돼야 한다')
+  assert.ok(LESSON_READING_PATTERN.includes('『') && LESSON_READING_PATTERN.includes('』'), 'reading 패턴에 이중 인용부호 『』 도 포함돼야 한다')
+  // 이번 수정은 검증(스키마) 전용 — lessonInstruction 문구에 인용부호 관련 새 지시를 추가하지 않았다(모델 유도를
+  // 바꿀 이유가 없었다 — 모델 행동은 이미 맞았고 스키마가 좁았을 뿐이다).
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  assert.ok(req.system.includes('reading 계열 필드'), 'reading 지시문 자체는 남아 있어야 한다')
+  assert.ok(!req.system.includes('괄호') && !req.system.includes('인용부호'), 'v4 는 지시문에 괄호·인용부호 관련 새 문구를 추가하지 않는다(스키마만 넓혔다)')
+})
+
+// ── lesson@v5(2026-09-28, v4 재측정에서 드러난 2차 원인) — modelAnswerJa 콘텐츠 매칭 규칙을 모델에게 처음 알린다 ──
+
+test('lesson@v5: "모범 답 내용 규칙"이 id 규칙 바로 뒤·grammar 보다 앞에 있고, chunk 는 실제 포함·grammar 는 예외임을 명시한다', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const idRuleIdx = req.system.indexOf('- **id 규칙')
+  const contentRuleIdx = req.system.indexOf('- **모범 답 내용 규칙')
+  const grammarIdx = req.system.indexOf('- grammar:')
+  assert.ok(idRuleIdx !== -1 && contentRuleIdx !== -1 && grammarIdx !== -1)
+  assert.ok(idRuleIdx < contentRuleIdx && contentRuleIdx < grammarIdx, '모범 답 내용 규칙은 id 규칙 바로 뒤·grammar 보다 앞이어야 한다')
+  assert.match(req.system, /modelAnswerJa.*(문장 안에 실제로 써서|실제로 그 문장)/, 'chunk 표현을 실제로 써야 한다는 지시가 있어야 한다')
+  assert.ok(req.system.includes('grammar id') && req.system.includes('문형을 살린'), 'grammar id 는 문형 활용만으로 충분하다는 예외가 있어야 한다(matching.ts·checks.ts 와 같은 기준)')
+})
+
+test('lesson@v5: sourceText 경로에도 모범 답 내용 규칙이 실린다(주제 경로 전용이 아니다)', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText })
+  assert.ok(req.system.includes('- **모범 답 내용 규칙'))
 })
 
 // ── persona §6 LESSON 행 ──────────────────────────────────────────────

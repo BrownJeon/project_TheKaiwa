@@ -164,7 +164,22 @@ function hasHangul(text: string): boolean {
   return HANGUL_RE.test(text)
 }
 
-export function checkLessonResponse(ctx: { allowedChunkIds: string[] }, data: LessonResponse): string[] {
+export interface LessonCheckContext {
+  allowedChunkIds: string[]
+  /**
+   * lesson@v6(2026-09-28, 운영 11b 후속 2차) — true 면 ④(콘텐츠 매칭, 아래 `checkContentMatch`) 위반을 위반
+   * 목록에 넣지 않는다. `buildLessonRequest` 의 `extraCheck` 가 **`runJsonWithRetry` 의 마지막 시도(2차)에서만**
+   * 이 값을 true 로 준다(재측정에서 확인 — v5 로 지시문을 추가한 뒤에도 sourceText 경로 1/8 이 재시도까지 하고도
+   * 같은 "단일 참조라 repair 가 못 뺀" 콘텐츠 불일치로 실패했다). ①~③(id 존재·중복·isNew 일관성)·한글 혼입·엔진명
+   * 노출은 이 옵션과 무관하게 항상 검사한다 — targetIds 는 여전히 이 레슨에 실재하는 chunk/grammar id 를 가리키므로
+   * (그 존재는 여전히 강제) 데이터 무결성은 깨지지 않고, "모범 답이 그 표현을 완벽히 보여주지 못한다"는 콘텐츠
+   * 품질 저하만 허용하는 것이다 — 레슨 전체를 잃는 것보다 낫다는 Leader 판단(재시도까지 실패한 극히 드문
+   * 잔여 사례 한정). 상세: `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`§11.
+   */
+  tolerateContentMismatch?: boolean
+}
+
+export function checkLessonResponse(ctx: LessonCheckContext, data: LessonResponse): string[] {
   const v: string[] = []
   const allowed = new Set(ctx.allowedChunkIds)
   const chunkIds = new Set<string>()
@@ -212,6 +227,7 @@ export function checkLessonResponse(ctx: { allowedChunkIds: string[] }, data: Le
   // 여기서 남아 있는 것은 "빼면 targetIds 가 비어서 보정하지 못한" 경우다.
   const chunkById = new Map(data.chunks.map((c) => [c.id, c]))
   const checkContentMatch = (targetIds: string[], modelAnswerJa: string, where: string) => {
+    if (ctx.tolerateContentMismatch) return // lesson@v6 — 마지막 시도에서는 이 검사를 건너뛴다(위 LessonCheckContext 주석).
     targetIds.forEach((id) => {
       const c = chunkById.get(id)
       if (!c) return // grammar id 등은 대상 아님(존재 여부는 위 checkTargetIds 가 본다)

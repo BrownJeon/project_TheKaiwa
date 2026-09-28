@@ -381,3 +381,56 @@ COACH 모드는 이 문구를 받지 않는다(severity 게이팅과 무관, e01
 **회귀 테스트**: `evalGen.test.ts` +3(modelReading 가타카나 허용 스키마 통과 2건 + 한자/로마자/한글 여전히 금지 1건 + READING_INPUT 히라가나 유지 확인 1건 — 실제로는 신규 3개 test 블록) → 26건(기존 23+3). 전체 회귀 706건(705 PASS·1 skip) 무관. `EVAL_GEN_PROMPT_VERSION` 을 `evalGen@v2`→`evalGen@v3` 로 올림.
 
 **재발 가능한 함정(추가)**: ⑦ "읽기(reading)" 필드는 전부 같은 규칙을 쓰면 안 된다 — **단어 하나의 읽기**(사전적·평가 대상)는 항상 히라가나, **문장 전체의 읽기**(TTS·후리가나 참고용)는 외래어 자연스러운 표기(가타카나)를 허용하는 것이 맞다. 새 reading 필드를 추가할 때는 먼저 "이 필드가 무엇을 평가/표시하는가"부터 분류하고 패턴을 고른다(⑤ 의 연장 — LESSON 에서 한 번, 이번에 다시 한번 같은 함정이 재현됐다. 세 번째부터는 기본값을 "문장=느슨, 단어=엄격"으로 시작할 것).
+
+## 11. A4 붙여넣기 신뢰도 — 운영 11b 후속 진단(2026-09-28, prompt-engineer, [[task-010-today-lesson]])
+
+**배경**: 2026-09-28 22:38 운영 배포(sha 67771a5) 뒤 3010 스모크 11b(붙여넣기 레슨 READY)가 재시도 2회 뒤에도 FAILED(64s). QA 회차에서도 같은 11b 가 1회 실패한 적이 있었다(REV-030 절 "QA 11b 1회 실패는 재현 안 됨" — 당시엔 원인 미상으로 운영 관찰 항목으로 남겨 뒀다). `AiJob.error` 에는 실패 사유가 코드로만 남고(스모크가 끝에 행을 지움) 어느 검사에 걸렸는지는 기록이 없어, 이번에 운영 스모크와 바이트 단일 원문으로 직접 재현했다.
+
+### 11-1. 1차 진단 — 원인은 reading pattern, 「」 인용부호 누락(lesson@v4)
+
+`tests/live/lesson-paste-diagnose.ts`(신규, `buildLessonRequest.extraCheck` 를 감싸 시도마다 위반을 기록) 로 운영 스모크 원문(`tests/live/task010-smoke.ts:388` 의 `src`, 「ご注文はお決まりですか」대화체 인용 포함)을 **8회** 재현:
+
+| run | 결과 | 위반 |
+|---|---|---|
+| paste#1 | FAILED | dialogue[2].reading·application[0].modelReading·speaking[0].modelReading pattern |
+| paste#2 | OK | - |
+| paste#3 | FAILED | grammar[0].exampleReading·speaking[0].modelReading pattern |
+| paste#4 | FAILED | grammar[1].exampleReading·speaking[2].modelReading pattern(1차는 JSON 파싱 실패) |
+| paste#5 | OK | - |
+| paste#6 | FAILED | dialogue[2].reading·grammar[0].exampleReading·application[0]·speaking[0] pattern |
+| paste#7 | FAILED | application[1].modelReading pattern |
+| paste#8 | OK(재시도) | 1차 콘텐츠 매칭(④) 위반 → 재시도로 회복 |
+
+**5/8 실패, 전부 `LESSON_READING_PATTERN`(lesson@v3, 히라가나+가타카나 `぀-ヿ`) 위반**. `tests/live/lesson-paste-raw-capture.ts`(신규, `JsonSchemaError.raw` 를 `extractJson` 으로 역파싱해 reading 필드를 문자 단위로 재검사)로 실패 원문 하나를 확보 — `dialogue[2].reading = "てんいんさんに「ごちゅうもんはおきまりですか」ときかれて、…"` 에서 오펜더가 정확히 `「`(U+300C)·`」`(U+300D) 두 글자였다. 원문에 대화체 인용이 있으면 모델은 reading 에도 그 인용부호를 자연스럽게 남기는데(、。！？를 이미 보존하는 것과 같은 이유), 그 두 글자가 히라가나·가타카나 블록(U+3040~30FF)이 아니라 "CJK 기호·문장부호" 블록(U+3000~303F)에 있어 스키마가 거부했다 — **모델 행동은 맞았고 스키마가 좁았던 경우**.
+
+**조치**: `schemas.ts` 의 `LESSON_READING_PATTERN` 에 「」『』(U+300C~300F)를 추가(`lesson@v4`). 프롬프트 지시문(`lessonInstruction`)은 바꾸지 않았다 — 모델을 다른 방향으로 유도할 이유가 없었다(v3 의 가타카나 사례와 달리 이번은 검증이 틀렸을 뿐).
+
+**재측정(같은 원문 8회 + 주제 2회, lesson@v4)**: reading pattern 위반 **0/17**(전 attempt 합계) — 완전히 사라짐. 9/10 성공(1/8 은 다른 이유로 잔존, 아래 11-2).
+
+### 11-2. 2차 진단 — 잔존 실패는 콘텐츠 매칭(④), 모델에게 규칙을 알려준 적이 없었다(lesson@v5)
+
+v4 재측정에서 드러난 유일한 잔존 실패 유형은 `checkLessonResponse`④(v3 에서 추가된 "modelAnswerJa 가 자기 targetIds 의 chunk 표현을 담고 있는지" 검사) — `repairLessonResponse`④ 가 이미 "다른 참조가 남아 있으면 빼고, 유일한 참조면 손대지 않는다"로 최대한 보정한 뒤에도 남는, **단일 참조라 뺄 수 없는** 경우다. 원인 확인: `lessonInstruction` 어디에도 "modelAnswerJa 가 targetIds 의 표현을 실제로 담아야 한다"는 지시가 없었다 — v3 는 검사·보정만 만들고 지시문에는 대응 문구를 빠뜨렸다.
+
+**조치**: `lessonInstruction` 의 id 규칙 바로 뒤에 "모범 답 내용 규칙"을 신설(`lesson@v5`) — chunk targetIds 는 문장 안에 실제로 써야 하고, grammar targetIds 는 문형을 살린 자연스러운 문장이면 충분하다고 명시(matching.ts·checks.ts 의 grammar 예외와 일치).
+
+**재측정(같은 원문 8회 + 주제 2회, lesson@v5)**: 9/10 성공. 1차 시도의 콘텐츠 매칭 위반 발생률이 3/8(v4 재측정) → 2/8(v5 재측정)로 낮아졌으나(표본이 작아 통계적으로 확정은 아니다), **1/8 은 재시도까지 다 쓰고도 같은 이유(단일 참조)로 최종 FAILED** — 지시문만으로는 0% 를 보장하지 못했다.
+
+### 11-3. 3차 조치 — 데이터 무결성과 콘텐츠 품질을 분리, 재시도 소진 시에만 후자를 눈감는다(lesson@v6)
+
+④는 "존재하지 않는 id 를 가리킨다"(①~③, 데이터 무결성)와 성격이 다르다 — "실재하는 chunk 를 가리키긴 하는데 모범 답이 그 표현을 완벽히 보여주지 못한다"는 **콘텐츠 품질** 문제다. 단일 참조라 repair 가 뺄 수 없는 극히 드문 잔여 사례까지 매번 레슨 전체를 잃는 것은 과한 대가라고 판단해:
+
+- `checks.ts` `checkLessonResponse` 에 `tolerateContentMismatch?: boolean` 옵션 추가 — true 면 ④(콘텐츠 매칭)만 건너뛰고 ①~③·한글 혼입·엔진명 노출은 그대로 강제한다.
+- `lesson.ts` `buildLessonRequest` 의 `extraCheck` 가 클로저 카운터(`extraCheckAttempt`)로 "이 extraCheck 가 몇 번째로 불렸는가"를 세어, **`engine.llm.completeJson`(`runJsonWithRetry`) 이 허용하는 최대 시도(2, 1차+재시도 1회 고정)에 도달했을 때만** `tolerateContentMismatch:true` 를 준다. 1차에는 그대로 강제해 재시도가 깨끗이 고칠 기회를 준다.
+- **알려진 한계(정직하게 기록)**: 이 카운터는 "extraCheck 가 불린 횟수"이지 "몇 번째 LLM 원문 호출인가"가 아니다 — 1차 원문이 ajv(파싱·스키마) 단계에서 걸리면 extraCheck 자체가 안 불려 카운터가 늘지 않는다. 그래서 "1차가 ajv 로 걸리고 2차가 콘텐츠 매칭만 남는" 드문 겹침에서는 관대하게 봐주지 못하고 그대로 실패할 수 있다 — 기존 동작과 같아 **퇴보는 아니다**, 다만 그 경우까지 완전히 덮지는 못한다. 관측된 실패 표본(11-1·11-2 전부)은 모두 "1차·2차 모두 ajv 통과 + 콘텐츠 매칭만 위반"이라 이 카운터로 충분히 잡힌다.
+
+**검증 방식(라이브 호출 대신 단위 테스트로 직접 확인)** — `lesson.test.ts` 에 `req.extraCheck!` 를 같은 위반 데이터로 두 번 호출해 1차는 위반, 2차는 눈감음을 직접 검증하는 테스트 2건(콘텐츠 매칭 눈감음 / id 존재 위반은 2차에도 그대로) + `checkLessonResponse` 옵션 자체를 검증하는 테스트 1건을 추가했다(총 45건 PASS, 전체 회귀 713건 중 712 PASS·1 skip 무관, `tsc`·`eslint` 클린).
+
+**라이브 재검증 미완료 — Claude CLI 세션 한도**: lesson@v6 의 라이브 재측정(같은 원문 8회 + 주제 2회)을 시도했으나 **10/10 이 시작 2초 안에 `ClaudeCliExecError`(exit=1)로 즉시 실패**했다 — 직접 `claude --print` 로 확인한 결과 `"You've hit your session limit · resets 1:20am (Asia/Seoul)"`(§9-1 과 같은 종류의 환경 제약, 이 세션이 쓰는 구독이 한도에 걸렸다 — 프롬프트·스키마 문제가 아니다). 세션 한도가 풀린 뒤 재측정 필요(목표: 붙여넣기 8/8, 다음 세션 또는 QA 가 이어서). lesson@v6 의 로직 자체는 위 단위 테스트로 확인됐지만, **실제 LLM 응답에서 이 경로가 기대대로 발동하는지는 아직 라이브로 확인되지 않았다** — 이 문서를 읽는 다음 세션은 이 절을 먼저 확인할 것.
+
+### 11-4. 버전 요약
+
+`LESSON_PROMPT_VERSION`: `lesson@v3`(운영 배포분, 11b 실패 원인) → `lesson@v4`(reading pattern에 「」『』 추가, 스키마만) → `lesson@v5`(모범 답 내용 규칙 지시문 추가) → `lesson@v6`(콘텐츠 매칭 눈감음, 재시도 소진 시에만). 변경 파일: `src/modules/conversation/structuredResponse/schemas.ts`(`LESSON_READING_PATTERN`) · `src/modules/conversation/structuredResponse/checks.ts`(`LessonCheckContext.tolerateContentMismatch`) · `src/modules/conversation/prompts/lesson.ts`(지시문·extraCheck 카운터) · `src/modules/conversation/__tests__/lesson.test.ts`(+13건, 32→45) · 신규 `tests/live/lesson-paste-diagnose.ts`·`tests/live/lesson-paste-raw-capture.ts`.
+
+**developer 제안(코드 변경 없음, 관측 개선 사양만)**: 지금 `AiJob.error` 에는 실패 코드만 남아(예: `ENGINE_ERROR`) 어느 검사에 걸렸는지 사후에 알 방법이 없다(이번 진단도 별도 라이브 스크립트로 원문을 다시 뽑아야 했다). `checkLessonResponse`/스키마 위반의 **검사 코드만**(원문·학습자 텍스트는 절대 없이) `AiJob.error` 에 `LLM_INVALID:<checkCode>` 형태로 남기면(예: `LLM_INVALID:READING_PATTERN`·`LLM_INVALID:CONTENT_MATCH`·`LLM_INVALID:TARGET_ID`) 다음에 비슷한 잔존 실패가 나올 때 스모크 로그만으로 원인을 바로 좁힐 수 있다. `checks.ts` 위반 문구는 현재 자유 텍스트라 코드화하려면 각 위반에 짧은 상수 코드를 붙이는 작은 리팩터가 필요하다 — developer·Leader 판단.
+
+**재발 가능한 함정(추가)**: ⑧ 검사(`checks.ts`)와 보정(`repair.ts`)을 먼저 만들고 그에 대응하는 **지시문을 프롬프트에 빠뜨리는** 패턴이 이번에도 재현됐다(v3 가 ④ 검사·보정을 만들 때 지시문을 안 붙였다가 v5 에서 뒤늦게 채움) — 새 후검증 규칙을 추가할 때는 "이 규칙을 모델이 프롬프트만 보고 알 수 있는가"를 체크리스트로 넣을 것. ⑨ 데이터 무결성(존재하지 않는 참조)과 콘텐츠 품질(존재는 하지만 완벽히 안 담김)은 **다른 심각도**로 다뤄야 한다 — 전자는 항상 강제하되, 후자는 재시도까지 소진한 뒤라면 "완벽하지 않은 결과라도 살리는" 게 "아무것도 못 주는" 것보다 나을 수 있다(이번 lesson@v6 의 tolerateContentMismatch 가 그 사례). ⑩ 라이브 실측 스크립트를 여러 라운드(진단·1차 수정·2차 수정·3차 수정) 연속으로 돌리면 Claude CLI 구독 세션 한도(§9-1 과 동일 계열)에 걸릴 수 있다 — 한 세션에서 재측정을 몇 차례나 돌릴지 미리 예산을 잡고, 한도에 걸리면 "재시도"가 아니라 "다음 세션/시간대로 이월"이 맞는 대응이다.

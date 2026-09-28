@@ -47,8 +47,12 @@ import { CHUNK_TYPES, KANA_READING_PATTERN, type ChunkType } from './schemas'
  * 에서만 났다(READING_INPUT 에서 위반이 난 적은 없다) — 문제가 없는 곳을 넓히면 오히려 "정답이 가타카나 그대로여도
  * 됨"을 학습자에게 잘못 보여줄 위험만 커진다. 대신 `prompts/evalGen.ts` 의 지시문에 A10 과 같은 문구("가타카나
  * 외래어도 히라가나로")를 명시해 위반 자체를 줄인다.
+ *
+ * 「」『』(U+300C~U+300F)도 허용한다(REV-032 M2, 2026-09-29 예방) — `LESSON_READING_PATTERN`(lesson@v4)과 같은 근거:
+ * 가나 블록 밖(CJK 기호 블록)이라 빠져 있었고, 대화체 인용이 든 문장의 읽기에 모델이 원문처럼 괄호를 남기면 정상
+ * 출력이 거부된다. 지시문은 바꾸지 않는다(검증만 넓힘). `KANA_READING_PATTERN` 은 그대로다.
  */
-export const EVAL_SENTENCE_READING_PATTERN = '^[\\u3040-\\u30FF〜…、。！？!?\\s]*$'
+export const EVAL_SENTENCE_READING_PATTERN = '^[\\u3040-\\u30FF「」『』〜…、。！？!?\\s]*$'
 
 export const EVAL_ITEM_KINDS = [
   'MEANING_CHOICE',

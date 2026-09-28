@@ -80,9 +80,15 @@ function allowsTask(c: ResolvedConnection, task?: string): boolean {
   return task != null && (allowed as unknown[]).includes(task)
 }
 
+/**
+ * DB 조회 경계 — 운영 코드는 이 객체를 통해서만 정책 체인을 읽고, 단위 테스트는 `mock.method(routerDeps, 'loadChain', …)` 로
+ * 후보 connection 을 바꿔 끼워 폴백 경로(후보 2개)를 DB 없이 재현한다(orchestrator `turnDeps` 와 같은 관례, REV-032 M1 회귀 테스트).
+ */
+export const routerDeps = { loadChain }
+
 /** 역할·task 에 맞는 후보 목록(우선순위 순). 첫 항목이 primary 다. */
 export async function resolveCandidates(role: EngineRole, ctx: { task?: string } = {}): Promise<ResolvedConnection[]> {
-  const chain = await loadChain(role)
+  const chain = await routerDeps.loadChain(role)
   // allowedTasks 가 task 를 **명시**한 connection 을 앞에 둔다(보조 작업은 전용 connection 우선).
   const explicit = chain.filter((c) => Array.isArray(c.runtime.allowedTasks) && allowsTask(c, ctx.task))
   const general = chain.filter((c) => !Array.isArray(c.runtime.allowedTasks))

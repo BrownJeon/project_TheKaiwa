@@ -249,10 +249,29 @@ export class JsonSchemaError extends LlmError {
 /** 시도 1회. `retry`가 null이면 첫 시도, 아니면 위반 목록을 첨부한 재시도다. */
 export type JsonAttemptFn = (retry: { hint: string; previousRaw: string } | null) => Promise<string>
 
+/** 한 `runJsonWithRetry` 호출의 최대 시도 수(1차 + 재시도 1회, 아래 "재시도를 1회로 고정하는 이유"). */
+export const JSON_MAX_ATTEMPTS = 2
+
+/**
+ * `extraCheck` 가 받는 시도 정보 — **이 `runJsonWithRetry` 호출 안에서** 몇 번째 시도인지. router 폴백
+ * (`engine/llm` `completeJson` → `withFallback`)은 connection 마다 이 함수를 새로 부르므로 connection 이 바뀌면
+ * 다시 1부터 센다(REV-032 M1 — 호출자 클로저 카운터는 폴백 경계를 넘어 누적됐다). ajv 단계에서 걸려 `extraCheck`
+ * 가 불리지 않은 시도도 번호를 차지한다.
+ */
+export interface JsonAttemptInfo {
+  /** 1 = 첫 시도, 2 = 위반 목록을 첨부한 재시도. */
+  attempt: number
+  /** `attempt === maxAttempts` 면 이 호출의 마지막 시도다(더 고칠 기회가 없다). */
+  maxAttempts: number
+}
+
 export interface RunJsonOptions {
   schema: object
-  /** ajv로 표현할 수 없는 추가 검사(예: 재료명 중복, 합계 불일치). 위반이 있으면 재시도한다. */
-  extraCheck?: (data: unknown) => string[]
+  /**
+   * ajv로 표현할 수 없는 추가 검사(예: 재료명 중복, 합계 불일치). 위반이 있으면 재시도한다. 두 번째 인자(시도 정보)는
+   * 항상 채워 부르며, 필요 없는 검사는 받지 않아도 된다.
+   */
+  extraCheck?: (data: unknown, info: JsonAttemptInfo) => string[]
   /**
    * true 면 `extraCheck` 위반은 **재시도 1회 뒤에도 던지지 않는다**(스키마·파싱 위반은 그대로 던진다). 결과의
    * `residualViolations` 에 남은 위반을, `candidates` 에 스키마를 통과한 시도 전부를 담아 돌려주고 항목별로 버리는 판단은
@@ -271,11 +290,15 @@ export interface RunJsonResult<T> {
   candidates?: T[]
 }
 
-function evaluateAttempt(raw: string, schema: object, extraCheck?: (data: unknown) => string[]): AnalyzeResult {
+function attemptInfo(attempt: number): JsonAttemptInfo {
+  return { attempt, maxAttempts: JSON_MAX_ATTEMPTS }
+}
+
+function evaluateAttempt(raw: string, schema: object, info: JsonAttemptInfo, extraCheck?: RunJsonOptions['extraCheck']): AnalyzeResult {
   const result = extractAndValidate(raw, schema)
   if (!result.ok) return result
   if (extraCheck) {
-    const extra = extraCheck(result.data)
+    const extra = extraCheck(result.data, info)
     if (extra.length > 0) {
       return { ok: false, parseError: false, violations: finalizeViolations(extra) }
     }
@@ -299,14 +322,14 @@ export async function runJsonWithRetry<T = unknown>(
 ): Promise<RunJsonResult<T>> {
   if (opts.softExtraCheck) return runJsonSoft<T>(attempt, opts)
   const raw1 = await attempt(null)
-  const r1 = evaluateAttempt(raw1, opts.schema, opts.extraCheck)
+  const r1 = evaluateAttempt(raw1, opts.schema, attemptInfo(1), opts.extraCheck)
   if (r1.ok) return { data: r1.data as T, attempts: 1 }
 
   // 재시도 원인을 남긴다 — 위반 문구는 필드 경로·규칙뿐이라 학습자 원문이 들어가지 않는다(extraCheck 문구도 고정 문장).
   console.warn(`[json] 1차 응답 계약 위반 → 재시도: ${r1.parseError ? 'JSON 파싱 실패' : r1.violations.slice(0, 3).join(' / ').slice(0, 300)}`)
   const hint = r1.parseError ? RETRY_PARSE : RETRY_SCHEMA(r1.violations)
   const raw2 = await attempt({ hint, previousRaw: truncate(raw1, 8000) })
-  const r2 = evaluateAttempt(raw2, opts.schema, opts.extraCheck)
+  const r2 = evaluateAttempt(raw2, opts.schema, attemptInfo(2), opts.extraCheck)
   if (r2.ok) return { data: r2.data as T, attempts: 2 }
 
   throw new JsonSchemaError(r2.parseError ? ['JSON 파싱 실패'] : r2.violations, raw2)
@@ -317,10 +340,10 @@ export async function runJsonWithRetry<T = unknown>(
  * extraCheck 위반이 남아도 던지지 않고 마지막으로 스키마를 통과한 데이터를 돌려준다는 것 하나다.
  */
 async function runJsonSoft<T>(attempt: JsonAttemptFn, opts: RunJsonOptions): Promise<RunJsonResult<T>> {
-  const extra = (d: unknown) => (opts.extraCheck ? finalizeViolations(opts.extraCheck(d)) : [])
+  const extra = (d: unknown, n: number) => (opts.extraCheck ? finalizeViolations(opts.extraCheck(d, attemptInfo(n))) : [])
   const raw1 = await attempt(null)
   const s1 = extractAndValidate(raw1, opts.schema)
-  const v1 = s1.ok ? extra(s1.data) : []
+  const v1 = s1.ok ? extra(s1.data, 1) : []
   if (s1.ok && v1.length === 0) return { data: s1.data as T, attempts: 1, residualViolations: [], candidates: [s1.data as T] }
 
   const violations = s1.ok ? v1 : s1.parseError ? null : s1.violations
@@ -337,7 +360,7 @@ async function runJsonSoft<T>(attempt: JsonAttemptFn, opts: RunJsonOptions): Pro
   const s2 = extractAndValidate(raw2, opts.schema)
   if (s2.ok) {
     const candidates = s1.ok ? [s1.data as T, s2.data as T] : [s2.data as T]
-    return { data: s2.data as T, attempts: 2, residualViolations: extra(s2.data), candidates }
+    return { data: s2.data as T, attempts: 2, residualViolations: extra(s2.data, 2), candidates }
   }
   if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T] }
   throw new JsonSchemaError(s2.parseError ? ['JSON 파싱 실패'] : s2.violations, raw2)

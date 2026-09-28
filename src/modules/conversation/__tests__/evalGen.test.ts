@@ -155,6 +155,15 @@ test('evalGen@v3: modelReading 도 한자·로마자·한글은 여전히 금지
   assert.ok(!new RegExp(EVAL_SENTENCE_READING_PATTERN).test('한글'))
 })
 
+test('REV-032 M2: LISTEN_RESPOND 의 modelReading 에 대화체 인용부호(「」『』)가 있어도 스키마를 통과한다(LESSON_READING_PATTERN 과 같은 근거)', () => {
+  const data = cloneData(validTalkResponse())
+  const listen = data.items[1] as Extract<EvalGenItem, { kind: 'LISTEN_RESPOND' }>
+  listen.expected.modelAnswerJa = '店員が「こちらへどうぞ」と言いました。'
+  listen.expected.modelReading = 'てんいんが「こちらへどうぞ」といいました。'
+  assert.deepEqual(validateOutput(data, buildEvalGenSchema('TALK')), { ok: true }, 'modelReading 의 「」 는 거부되면 안 된다')
+  assert.ok(new RegExp(EVAL_SENTENCE_READING_PATTERN).test('『コーヒー』と「おちゃ」'))
+})
+
 test('READING_INPUT 의 reading/accepted 는 여전히 히라가나만(가타카나 금지, evalGen@v3 에서도 유지)', () => {
   const data = cloneData(validWordsResponse())
   const readingItem = data.items[4] as Extract<EvalGenItem, { kind: 'READING_INPUT' }>

@@ -710,6 +710,24 @@ reviewer 21:55 판정(두 건 채택)대로 고쳤다. 스키마 변경·db push
   - task-010 1회차는 58/64 — 7e~7h 5건은 Leader 가 `SMOKE_ENV=PRODUCTION` 을 빠뜨려 LOCAL connection id 로 운영을 친 설정 실수(재실행 PASS). **11b 붙여넣기 레슨은 A4 재시도 2회 뒤에도 FAILED(64s)** — 재실행에서는 attempts=2 로 통과(54s). 붙여넣기 경로 A4 신뢰도 진단을 prompt-engineer 에 배정(실패 검사 코드 재현·보정, 결과는 이 이력서에 추가).
 - `check.mjs deactivate` 완료(active 없음).
 
+### 2026-09-28 23:58 prompt-engineer — A4 붙여넣기 신뢰도(운영 11b 후속)
+
+**과제**: 운영 스모크 11b(붙여넣기 레슨) FAILED 원인 진단. 서버 없이 A4 엔진 경로(`buildLessonRequest` → `llm.completeJson` → `repairLessonResponse` → `checkLessonResponse`, 앱과 같은 함수)를 운영 스모크와 바이트 단일 원문(`tests/live/task010-smoke.ts:388`, 「ご注文はお決まりですか」대화체 인용 포함)으로 반복 호출·DB 쓰기 없음.
+
+**원인 1(진단 1차) — `LESSON_READING_PATTERN`(lesson@v3)이 일본어 인용부호 「」(U+300C/300D)를 안 허용**: 8회 재현 결과 **5/8 실패**, 전부 reading 계열 필드 pattern 위반(`tests/live/lesson-paste-diagnose.ts` 신규). `tests/live/lesson-paste-raw-capture.ts`(신규)로 실패 원문을 역파싱해 오펜더가 정확히 「」임을 확인 — 모델이 인용 문장의 reading 에도 원문처럼 「」를 남겼는데(、。！？보존과 같은 이유) 스키마가 그 두 글자만 빠뜨려 거부했다(모델은 맞았고 스키마가 좁았다). **조치**: `schemas.ts` `LESSON_READING_PATTERN` 에 「」『』 추가(스키마만, 지시문 무변경) → `lesson@v4`. **재측정 8+2회: reading pattern 위반 0/17**(완전 해소), 9/10 성공.
+
+**원인 2(진단 2차) — `checkLessonResponse`④(콘텐츠 매칭)를 지키라는 지시문이 없었다**: v4 재측정의 유일 잔존 실패 유형(1/8) — application/speaking 의 `modelAnswerJa` 가 자기 targetIds 표현을 안 담는데, `lessonInstruction` 에 그 규칙 자체가 없었다(v3 가 검사·보정만 만들고 지시문을 빠뜨림). **조치**: id 규칙 바로 뒤에 "모범 답 내용 규칙" 신설(chunk 는 실제 포함, grammar 는 예외) → `lesson@v5`. **재측정 8+2회**: 1차 시도 위반 발생률 3/8→2/8 로 감소했으나 **1/8 은 재시도까지 소진하고도 최종 FAILED**(단일 참조라 repair 가 못 뺌) — 0% 미달.
+
+**원인 2 잔여 대응(3차 조치) — 데이터 무결성과 콘텐츠 품질을 분리**: ④는 "실재하는 chunk 를 완벽히 못 보여준다"는 콘텐츠 품질 문제이지 ①~③(존재하지 않는 id)류의 데이터 무결성 문제가 아니다. `checks.ts` 에 `tolerateContentMismatch` 옵션 신설(④만 건너뜀, ①~③·한글·엔진명은 그대로 강제) + `lesson.ts` `extraCheck` 가 클로저 카운터로 **재시도까지 소진한 마지막 시도에서만** 그 옵션을 켠다(1차는 여전히 강제) → `lesson@v6`. **한계**: 이 카운터는 "extraCheck 호출 횟수"라 1차가 ajv 로 걸리는 드문 겹침은 못 덮을 수 있다(관측된 실패 표본은 전부 "1·2차 모두 ajv 통과"라 문제 없음). **라이브 재검증 미완료** — v6 검증 라운드 시도 중 Claude CLI 세션 한도(`You've hit your session limit · resets 1:20am`)에 걸려 10/10 이 시작 2초 안에 실패(직접 `claude --print` 로 원인 확인, 프롬프트·스키마와 무관한 환경 제약). v6 의 tolerate-on-final-attempt 로직은 `req.extraCheck!` 를 두 번 호출해 1차=위반·2차=통과를 직접 확인하는 단위 테스트로만 검증됐다 — **다음 세션(또는 한도 리셋 후)에 같은 원문 8회 재측정 필요**.
+
+**측정 소비**: Claude CLI 총 약 46회(진단 16+4, v4 검증 13, v5 검증 13, v6 검증 시도 10=한도로 즉시 실패). 세션 한도로 v6 최종 확인은 다음 세션 이월.
+
+**변경 파일**: `src/modules/conversation/structuredResponse/schemas.ts`(`LESSON_READING_PATTERN`)·`src/modules/conversation/structuredResponse/checks.ts`(`LessonCheckContext.tolerateContentMismatch`)·`src/modules/conversation/prompts/lesson.ts`(`LESSON_PROMPT_VERSION` v3→v6, 지시문·extraCheck)·`src/modules/conversation/__tests__/lesson.test.ts`(32→45건)·신규 `tests/live/lesson-paste-diagnose.ts`·`tests/live/lesson-paste-raw-capture.ts`. 테스트: `lesson.test.ts` 45/45·전체 회귀 713건(712 pass·1 skip 기존)·`tsc --noEmit` 0·`eslint` 0. A1 3,000자 캡 등 기존 불변식 무영향(LESSON 은 9,500자 캡, 여유 확인 — 예산 회귀 테스트 그대로 통과). 원문·기존 픽스처(다른 sourceText) 회귀 없음(주제 경로 2/2 성공 3회 반복). git commit/push 없음.
+
+**developer 제안(구현은 developer 몫, 코드 변경 안 함)**: `AiJob.error` 에 검사 코드만(원문 없이) `LLM_INVALID:<checkCode>` 형태로 남기면 다음 잔존 실패를 스모크 로그만으로 원인 좁히기가 가능해진다(이번처럼 별도 라이브 스크립트로 원문을 다시 뽑을 필요 없음). 상세: `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`§11(11-1~11-4, 실측 표·재발 가능한 함정 ⑧~⑩ 포함).
+
+**Leader 에게**: 원인 1(reading 인용부호)은 확실히 해소(재현 0/17). 원인 2(콘텐츠 매칭)는 v5 로 빈도를 낮췄고 v6 로 "재시도 소진 시 눈감기" 구조를 넣었으나, **v6 자체의 라이브 최종 확인(목표 8/8)은 Claude CLI 세션 한도로 이번 세션에 못 끝냈다** — 다음 세션에서 `cd ~/.node-local/thekaiwa && node --env-file=.env --import tsx tests/live/lesson-paste-diagnose.ts --runs-paste 8 --runs-topic 2` 재실행으로 마무리할 것(코드는 이미 반영·단위 테스트로 로직 검증됨, 운영 배포 여부는 이 재검증 후 Leader 판단 권고).
+
 ## 최종 요약
 
 **오늘의 회화(레슨)가 운영에 반영됐습니다** (2026-09-28, 앱 `https://kaiwa.미라클펭귄.com` → 오늘 탭).
@@ -718,3 +736,105 @@ reviewer 21:55 판정(두 건 채택)대로 고쳤다. 스키마 변경·db push
 - **지킨 원칙**: 메모한 단어는 제안만 하고 채택해야 단어장에 들어갑니다. 수업 완료(기록·통계·반복 항목)는 한 번에 저장되거나 전부 취소되고, 두 번 눌러도 한 번만 반영됩니다. 같은 녹음은 채팅·레슨·평가 중 한 곳에만 쓰입니다.
 - **검증**: 리뷰 REV-028~031 통과, 외부 검토(Codex) 지적 2건 수정 후 재검토 0건, QA 스모크 65/65·화면 E2E 61/61(360/390/412 폭), 운영 스모크 65/65. 수업 생성은 약 35~75초, 첫 소리는 1초 안쪽입니다.
 - **알아 둘 점**: 붙여넣기 수업은 가끔 생성에 실패할 수 있습니다(화면의 [다시 만들기]로 복구). 원인 진단·보정을 진행 중입니다. 같은 배포로 AI 평가·달력의 **서버**도 올라갔지만 화면은 데모 승인 뒤에 만듭니다.
+
+### 2026-09-29 01:25 Leader — A4 v4~v6 판단·후속 절차
+- 원인 1(「」 reading 패턴) 수정 v4 채택. 원인 2(단일 targetId 모범 답 콘텐츠 불일치로 재시도까지 실패)에 대한 v6 **마지막 시도에서만 ④ 콘텐츠 매칭 완화**는 Leader 가 채택한다(PE 주석의 "Leader 판단" 은 이 기록으로 확정) — 근거: ①~③ id 무결성·한글·엔진명은 항상 강제라 데이터는 깨지지 않고, 잃는 것은 해당 과제 모범 답의 표현 시연 품질뿐이며 레슨 전체 FAILED 보다 낫다. 조건: 완화가 실제로 쓰였는지 관측할 수 있어야 한다(reviewer 확인 항목).
+- 라이브 재검증(`lesson-paste-diagnose.ts --runs-paste 8 --runs-topic 2`)은 Claude CLI 한도 리셋(01:20) 뒤 Leader 가 재실행 중 → REV-032(v4~v6 정적 감사) → QA(task010 스모크) → 커밋·push.
+
+### 2026-09-29 01:40 reviewer — REV-032(A4 v4~v6, 정적 감사)
+
+**판정: PASS_WITH_NOTES**(엄격 스키마 기준 PASS — Critical 0 · High 0 · Medium 2 · Low 1, 전부 비차단). 코드 수정 없음(Read 전용), git commit/push 없음.
+
+**범위**: `structuredResponse/{schemas.ts,checks.ts}` · `prompts/lesson.ts` · `__tests__/lesson.test.ts` · 신규 `tests/live/lesson-paste-diagnose.ts`·`lesson-paste-raw-capture.ts` · `tests/live/README.md` 추가 행. 같은 작업 트리에 섞인 task-012b(developer) 미커밋 변경(`speech/**`·`infra/**`·`preferences/**`·`engine/stt/**`·`app/api/{internal,v1}/speech/**`)은 `git diff -- <path>` 로 대상 밖으로 명시 제외하고 열지 않았다.
+
+**1) `LESSON_READING_PATTERN` 범위 — 확인, 문제 없음**
+- `grep -n "READING_PATTERN"`(schemas.ts)으로 대조: `LESSON_READING_PATTERN`(`^[぀-ヿ「」『』〜…、。！？!?\s]*$`)이 쓰이는 곳은 `dialogue.reading`·`chunks.reading`·`grammar.exampleReading`·`application.modelReading`·`speaking.modelReading` 5곳뿐(LESSON_SCHEMA L359·371·387·418·433) — 전부 LESSON. `KANA_READING_PATTERN`(히라가나만, L241)은 **문자 그대로 불변**이고 `evalSchemas.ts`(A6/A7, `READING_INPUT`)가 그대로 참조 중임을 확인. TALK/CHAT 쪽 reading 류(`replyReading`·`proposals.payload.reading`, schemas.ts L52·107)는 애초에 `pattern` 제약 자체가 없어(maxLength 만) 이번 부류의 버그(패턴이 좁아서 정상 출력을 거부)가 구조적으로 발생할 수 없다.
+- **[MEDIUM][신규, 별도 지적] `evalSchemas.ts` L54 `EVAL_SENTENCE_READING_PATTERN = '^[\\u3040-\\u30FF〜…、。！？!?\\s]*$'`가 lesson@v3 시절의 좁은 패턴 그대로다(「」『』 없음)** — A6 `LISTEN_RESPOND`/`SITUATION_RESPOND`의 `expected.modelReading`(모범 응답 문장 전체 읽기)에 쓰인다. `evalGen.ts` L94 지시문상 `LISTEN_RESPOND.prompt.textJa`는 "학습자가 듣게 될 자연스러운 일본어 문장"이라 이번 사고(dialogue.reading의 대화체 인용 「」 보존)와 같은 문형(예: "店員が「こちらへどうぞ」と言いました")이 나올 수 있는 자리다. `modelReading`은 `modelAnswerJa`(모델 자신의 답, 인용을 옮길 이유가 적다)의 읽기라 발생 확률은 dialogue.reading보다는 낮지만 0은 아니다. 아직 실측·운영에서 관측된 적은 없다(§9 A6 실측 기록에 해당 실패 없음, task-011 서버는 배포됐으나 화면 미출시라 실사용 노출도 아직 제한적). **수정 요청 아님** — prompt-engineer/task-011 담당이 다음 A6 실측 라운드에서 대화체 인용을 포함한 픽스처로 한 번 확인하고, 재현되면 lesson@v4와 같은 처방(패턴에 「」『』 추가, 지시문은 그대로)을 권고.
+
+**2) v6 `tolerateContentMismatch` 클로저 카운터 — 단일 요청 내에서는 안전, router 폴백 경로에 숨은 틈 발견**
+- `buildLessonRequest()`는 `src/app/api/v1/lessons/route.ts` POST 핸들러가 **요청마다 새로 호출**하고(L22), `createLesson` → `jobs.runJobInBackground(jobId, () => runGeneration(...))`(`learning/lessons/generate.ts` L226)은 `fn()`을 정확히 1회만 실행한다(`infra/jobs.ts` L178~192, 잡 레벨 재시도 없음) — `extraCheckAttempt`는 레슨 생성 1건(1 HTTP 요청·1 AiJob)에 **정확히 1개**만 존재하고, 캐시·동시 잡·다른 사용자 간에 재사용되거나 새는 경로는 없음을 코드 추적으로 확인(라우트→createLesson→claimLesson/runGeneration 전 구간).
+- 다만 그 "1개"가 `completeJson()` 안에서 예상보다 더 많이 불릴 수 있는 경로를 찾았다. `engine/llm/index.ts` `completeJson`(L238)은 `withFallback('LLM', {task:'lesson'}, async (c) => { ... runJsonWithRetry(...) ... })`으로 감싸는데, `router/index.ts` `withFallback`(L102)은 후보 connection을 **최대 2개까지** 순회하며(`list.slice(0,2)`), 각 후보에서 던진 예외가 `Timeout`/`AbortError`가 아니면 잡아서 **다음 connection으로 다시 `fn(c)`를 통째로 재호출**한다(L113~119). `JsonSchemaError`(재시도 1회까지 다 쓰고도 실패했을 때 `runJsonWithRetry`가 던짐, `schemaValidate.ts` L233)의 `name`은 `'JsonSchemaError'`라 이 조건에 걸리지 않고 **잡혀서 다음 후보로 폴백된다**. 즉 connection 2개가 배정된 role=LLM이라면, connection 1에서 이미 `extraCheckAttempt`가 2(1차+재시도)까지 올라간 뒤 `JsonSchemaError`로 폴백되면, connection 2의 **첫** 호출에서 `evaluateAttempt`가 `extraCheck`를 부르는 순간 카운터는 이미 3이 되어(`3 < LESSON_MAX_JSON_ATTEMPTS(2)`가 false) **connection 2의 1차 시도부터 곧장 `tolerateContentMismatch:true`가 켜진다** — v6가 명시한 "1차에는 그대로 강제해 재시도가 깨끗이 고칠 기회를 준다"는 불변식이 새 connection에서는 지켜지지 않는다. `extraCheckAttempt` 주석이 짚은 한계("1차가 ajv 로 걸리는 드문 겹침")는 **같은 connection 안**의 얘기이고, 이 router 폴백 경로(다른 connection에서 카운터가 이어짐)는 문서·주석 어디에도 언급이 없다.
+  - **현재 seed 설정에서는 도달 불가 확인**: `prisma/seed-data/engines.json`의 `fallbackPolicies`에서 role=LLM은 `{primary:"claude-cli-local", fallbacks:[]}`(fallback 0개)이고, 유일한 다른 LLM connection `home-m4-lan`은 `runtime.allowedTasks:["wordEnrich","distractorGen","chatReviewFallback"]`로 `'lesson'`을 포함하지 않아 `resolveCandidates('LLM',{task:'lesson'})`이 후보 1개만 돌려준다(`router/index.ts` `allowsTask`/`general` 필터로 확인) — 오늘은 `withFallback`의 루프가 1회만 돈다.
+  - **그런데도 Medium인 이유**: 이 프로젝트의 엔진 관리 설계 자체가 "플러그인→gateway 폴백"·EngineFallbackPolicy를 통한 역할별 다중 connection을 1급 기능으로 두고 있고(체크리스트 항목), 관리자가 role=LLM에 두 번째 claude-cli connection(보조 구독 계정 등)을 fallback으로 추가하는 순간 이 틈이 조용히 열린다 — 에러도 로그 경고도 없이 "재시도가 아직 안 끝났는데 완화가 켜짐" 상태가 되고, 기존 단위 테스트(`req.extraCheck!`를 직접 2번 호출)는 이 시나리오를 아예 통과하지 않는 구조라 재발해도 회귀 테스트로 못 잡는다. Leader가 채택 조건으로 건 "완화가 실제로 쓰였는지 관측 가능해야 한다"(위 01:25 절)도 이 경로에서는 "왜 1차인데 완화가 켜졌는지" 구분할 수 없다(아래 3번과 연결).
+  - **권고**(수정은 developer 몫): "마지막 시도"를 호출자(`lesson.ts`)가 클로저 카운터로 추정하지 말고, `runJsonWithRetry`/`completeJson` 쪽이 이미 알고 있는 정보(지금이 이 **connection 안**의 몇 번째 시도인지, 그리고 이게 `withFallback`이 시도할 **마지막 connection**인지)를 `extraCheck(data, meta)`처럼 함께 넘겨주는 형태로 바꾸는 편이 안전하다. 최소 조치로는 `completeJson`의 `withFallback` 콜백 안에서 매 connection 시작 시 카운터를 리셋하는 것도 "같은 connection 안 2회"는 보장하지만 "여러 connection 걸친 완화 조기 발동"은 여전히 못 막는다 — 근본적으로는 `runJsonWithRetry`가 "이번이 이 요청의 최종 시도"라는 사실을 직접 알려줘야 한다.
+
+**3) 관측성 — 로그는 있으나 상관관계 식별자 없음**
+- `lesson.ts` extraCheck의 마지막 분기: `console.info(\`[lesson] 마지막 시도 — 콘텐츠 매칭(④) 위반 ${strict.length - tolerant.length}건을 눈감고 통과시킴\`)` — 완화가 실제로 쓰이면 **로그 자체는 남는다**(원문·학습자 텍스트 없음, 위반 개수만 — 요구사항 충족). 하지만 이 줄에 `lessonId`·`jobId`·`traceId`·`userId` 등 상관관계 식별자가 전혀 없어, pm2 stdout에서 "언제·어느 요청"이었는지 되짚을 방법이 없다. `generate.ts`의 `runGeneration`이 `recordTrace(...)`로 남기는 `TraceStep`(`{name:'LLM', attempts: r.attempts, ...}`)에도 "completeJson이 사실은 tolerant 경로로 통과했다"는 플래그가 없어(`attempts`는 1/2 구분만, tolerant 여부와 무관) `RequestTrace`만 봐서는 이 사고가 있었는지 알 수 없다. **[LOW]** — PE가 이미 같은 문제를 "developer 제안"(`AiJob.error`에 `LLM_INVALID:<checkCode>`)으로 인지·기록해 뒀으므로 새 지적이라기보다 그 제안에 힘을 싣는 확인: 채택 전이라도 최소 `console.info` 줄에 `lessonId`/`jobId`만 더하는 건 이번 v6 코드 자체의 작은 보강으로 값싸다.
+
+**4) 프롬프트 예산·INJECTION_GUARD·JSON-only 계약·버전 일관성 — 문제 없음(직접 재검증)**
+- 미러(`bash scripts/sync-local.sh` → `~/.node-local/thekaiwa`)에서 직접 실행: `tsc --noEmit` **0 오류**. `lesson.test.ts` 단독 **45/45 PASS**(신규 13건 포함, 36~44행대가 v6 클로저·tolerateContentMismatch 테스트 — `req.extraCheck!`를 같은 데이터로 2번 호출해 1차=강제·2차=눈감음을 직접 검증, 2번 항목에서 지적한 router 폴백 시나리오는 이 테스트가 커버하지 않음을 재확인). 전체 회귀 `find src -name '*.test.ts'` **736건 중 735 PASS·1 skip·0 fail**(task-012b 신규 테스트까지 섞여 PE 보고 713보다 늘었으나 실패 0은 동일).
+- 예산: `LESSON_USER_PROMPT_CAP=9,500`(불변) 테스트 3건(`prompt.length <= LESSON_USER_PROMPT_CAP`)이 **동적으로 계산된 현재 프롬프트 길이**를 매번 재기 때문에 v5의 "모범 답 내용 규칙" 지시문 추가분(~200여 자)이 실측치에 이미 반영된 채로 통과했다 — 하드코딩된 옛 글자 수와 비교하는 구조가 아니라 회귀에 안전하다.
+- `INJECTION_GUARD`는 `lesson.ts` import(L69)·사용(L217) 모두 diff 밖이라 불변 확인. "응답은 JSON 객체 하나뿐" 지시문은 `engine/json/schemaValidate.ts`의 `withJsonOnly`가 붙이는 공통 경로라 이번 변경과 무관.
+- `LESSON_PROMPT_VERSION`은 `lesson@v3`→`lesson@v6`로 한 곳(export 상수)만 바뀌었고, `route.ts`(`LESSON_PROMPT_VERSION` import → `gen.promptVersion`) → `generate.ts`의 `saveGeneratedLesson`(`Lesson.promptVersion` 컬럼)·`AiJob.payload.promptVersion` 둘 다 같은 값을 쓰는 것을 코드 추적으로 확인 — 버전 문자열이 갈라지는 지점 없음. 별도 Prompt Registry 모듈(`conversation/promptRegistry`)은 아직 코드로 존재하지 않아(grep 0건) 이번 점검에서 "동기화 누락"이라 부를 대상 자체가 없다(설계 문서상 계획 항목, 이번 범위 아님).
+
+**5) 신규 진단 스크립트 2종 — 안전, README 설명 일치**
+- `lesson-paste-diagnose.ts`·`lesson-paste-raw-capture.ts` 둘 다 `prisma`/DB 호출이 전혀 없음(grep 0건) — `llm.completeJson` 직접 호출 + `readFileSync`/`writeFileSync`(fixture 읽기, `/tmp/kaiwa-lesson-paste-*.json` 쓰기)뿐. `PASTE_TEXT`는 스크립트에 하드코딩된 합성 예문(운영 스모크와 같은 고정 문자열)이라 실사용자 데이터가 아니고, 저장 위치도 운영 밖 `/tmp`(스크래치). 비밀값 출력 없음(`llm.completeJson` 호출에 credential을 직접 다루지 않음, adapter 내부에서만 resolve). `tests/live/README.md`에 추가된 두 줄은 스크립트 동작(감싸기 방식·실행 커맨드·산출 파일 경로·2026-09-28 실측 결과)과 실제 코드를 대조해 전부 일치 확인 — v6 결과는 "라이브 미완료"로 올바르게 비워 둬 과장이 없다.
+
+**QA 전달 high_risk_areas**
+- (신규, 관찰만) A4 붙여넣기 경로 lesson@v6 — 라이브 최종 확인(8/8 목표)이 이 리뷰 시점까지 아직 Leader 재실행 결과로 반영되지 않았다(위 Leader 01:25 절 "재실행 중"). QA는 Leader의 재실행 결과가 붙은 뒤 착수하거나, 붙지 않았으면 직접 붙여넣기 레슨 8회 안팎을 실행해 콘텐츠 매칭 눈감음 로그(`[lesson] 마지막 시도 — 콘텐츠 매칭...`)가 pm2 로그에 찍히는지·그 레슨의 응용/말하기 modelAnswerJa가 그래도 자연스러운지 육안 확인 권고.
+- (신규, 비차단) role=LLM에 두 번째 connection을 배정하는 관리자 설정 변경(엔진 콘솔) 작업이 이후에 생기면, 그 작업의 리뷰는 이번 2번 지적(router 폴백 시 tolerant 조기 발동)을 재확인 항목으로 넣을 것 — 지금은 seed 설정상 도달 불가라 이번 REV에서는 차단하지 않는다.
+- (유지) REV-028~031이 이미 넘긴 항목들(시드 재실행 안전성, 녹음 중 토스트 지연 등)은 이번 범위 밖.
+
+**native_change: false**(플러그인·android·Manifest 미변경, 이번 diff는 서버 프롬프트/스키마/테스트뿐).
+
+### 2026-09-29 01:50 Leader — A4 v6 라이브 재검증 결과·REV-032 반영 지시
+- `lesson-paste-diagnose.ts --runs-paste 8 --runs-topic 2`(미러, 한도 리셋 직후·012b developer LLM 호출과 병행): **붙여넣기 8/8 성공**(1회차 통과 6 · 재시도 회복 2 — paste#7 은 마지막 시도 ④ 완화 로그 `[lesson] 마지막 시도 — 콘텐츠 매칭(④) 위반 1건을 눈감고 통과시킴` 확인) · 주제 1/2(topic#1 = 1차 `quiz` 에 허용 밖 필드 `q` → 재시도 중 CLI 149s 상한 초과 timeout — 신뢰도가 아니라 지연, topic#2 는 `conjugationNote` 허용 밖 필드 → 재시도 성공). reading 패턴 위반 0.
+- 관찰: 모델이 `quiz[]` 에 스키마 밖 필드(`q`·`conjugationNote`)를 붙이는 1차 위반이 재시도·지연의 주원인 — 허용 밖 필드 결정적 제거(repair) 검토는 PE 후속 후보(이번 범위 밖).
+- REV-032 Medium 1(클로저 카운터가 router 폴백 경계를 넘어 누적) → developer 수정: 엔진이 extraCheck 에 시도 정보를 넘기고 lesson.ts 클로저 카운터 제거. Medium 2(`EVAL_SENTENCE_READING_PATTERN` 「」 누락) → 같은 수정에 포함(예방, LESSON 과 같은 근거). Low(완화 로그 상관 id) → 포함.
+
+### 2026-09-29 01:40 developer — REV-032 수정
+- **M1(extraCheck 시도 정보)**: `engine/json/schemaValidate.ts` 에 `JsonAttemptInfo{attempt,maxAttempts}`·`JSON_MAX_ATTEMPTS=2` 추가, `runJsonWithRetry`(엄격·soft 두 경로)가 `extraCheck(data, info)` 로 **그 호출(= router 후보 connection 하나) 안의 시도 번호**를 넘긴다 — connection 이 바뀌면 1부터, ajv 에서 걸린 시도도 번호를 차지(v6 주석의 "1차 ajv 실패 시 번호 밀림" 한계도 같이 해소). `engine/llm` `LlmJsonRequest.extraCheck` 는 `(data, info?: LlmExtraCheckInfo)`(info 선택 — 인자 안 받는 A5/A6/A7/A10/A11 등 기존 검사·직접 호출 테스트 그대로 컴파일), `completeJson` 이 `{...info, traceId}` 를 채워 부른다(기존 `as` 캐스트 제거). `lesson.ts` 클로저 카운터 삭제 → `!info || info.attempt < info.maxAttempts` 면 강제, 마지막 시도에서만 ④ 완화(정보 없으면 완화 안 함). 프롬프트 지시문·`lesson@v6` 버전 불변.
+- **테스트 경계**: `engine/router` 에 `routerDeps = { loadChain }` 추가(`turnDeps` 관례) — `resolveCandidates` 가 이것을 통해 정책 체인을 읽어 단위 테스트가 DB 없이 후보 2개를 끼운다.
+- **M2**: `evalSchemas.ts` `EVAL_SENTENCE_READING_PATTERN` 에 「」『』 추가(주석에 LESSON 과 같은 근거). `KANA_READING_PATTERN` 불변.
+- **Low(관측)**: `LlmRequest.traceId?`(선택, 프롬프트에 안 실림 — extraCheck 정보로만 전달) 추가, `learning/lessons/generate.ts` `runGeneration` 이 `traceId: c.traceId`(AiJob·RequestTrace 와 같은 값)를 넘긴다. 완화 로그 = `[lesson] 마지막 시도 — 콘텐츠 매칭(④) 위반 N건을 눈감고 통과시킴 trace=<traceId> attempt=2/2`(형식 밖 traceId 는 `-`, 원문·학습자 텍스트·모범 답 없음).
+- **테스트**: lesson.test.ts — 기존 2건을 시도 정보 명시 호출로 바꿈 + "정보 없음/1차면 몇 번째 호출이든 강제" + **router 폴백 회귀**(가짜 home-m4 HTTP 서버 + `routerDeps.loadChain` mock, A: ④→① 실패 → B: 1차 ④ 강제로 재시도 → 2차 완화, 호출 순서 A,A,B,B·attempts=2·완화 로그 1회·trace/attempt 포함·일본어 미포함 단언). 옛 클로저 카운터를 미러에 되돌려 넣으면 이 테스트가 실패함을 확인(변이 검사 후 원복). 신규 `engine/__tests__/extraCheckAttempt.test.ts` 5건(번호 전달·ajv 선실패 시 attempt=2·호출마다 1부터·soft 경로·인자 없는 기존 검사 호환). evalGen.test.ts 에 「」 포함 modelReading 통과 1건.
+- **검증(미러)**: `tsc --noEmit` 0 · eslint 0 errors(경고 5 = 기존 components set-state-in-effect, 이번 변경 무관) · 전체 테스트 744 중 743 pass·1 skip·0 fail. Claude CLI 라이브 호출 안 함.
+- **주의(Leader/PE)**: `tests/live/lesson-paste-diagnose.ts` 의 `instrument()` 가 `req.extraCheck = (data) => original(data)` 로 감싸 **시도 정보를 버린다** → 이 스크립트로 돌리면 ④ 완화가 꺼진 채(운영보다 엄격) 측정된다. 다음 라이브 재측정 전에 `(data, info) => original(data, info)` 로 한 줄 전달 필요(내 편집 범위 밖이라 손대지 않음, tsc 는 통과).
+- 012b 범위(`speech/**`·`infra`·`preferences`·`engine/stt`·`grade.ts`·submit 라우트) 미접촉. dev 서버·운영 3010·commit/push 없음. native_change: false.
+
+### 2026-09-29 01:46 reviewer — REV-032 재검(수정 3건)
+
+**판정: PASS** — Critical 0 · High 0 · Medium 0 · Low 0. REV-032 의 Medium 2건·Low 1건 전부 해소를 코드·테스트로 직접 확인했다. 코드 수정 없음(Read 전용), Claude CLI 호출 없음, git commit/push 없음.
+
+**범위**: developer 01:40 절이 밝힌 파일 전부 — `engine/{json/schemaValidate.ts, llm/index.ts, router/index.ts, index.ts, __tests__/extraCheckAttempt.test.ts}` · `conversation/{prompts/lesson.ts, structuredResponse/evalSchemas.ts, __tests__/lesson.test.ts, __tests__/evalGen.test.ts}` · `learning/lessons/generate.ts` · Leader 가 고친 `tests/live/lesson-paste-diagnose.ts`. `conversation/structuredResponse/checks.ts` 는 이번 라운드에 diff 없음(이전 REV-032 대상 그대로, `LessonCheckContext`/`tolerateContentMismatch` 로직 자체는 이미 정확했었다). 012b(`speech/**` 등)는 diff 미열람.
+
+**1) M1 — router 폴백 경계에서 실제로 닫혔는가: 예, 코드·2단 테스트로 확인**
+- `schemaValidate.ts`: `attemptInfo(n) = {attempt: n, maxAttempts: JSON_MAX_ATTEMPTS(=2)}` 를 `runJsonWithRetry`/`runJsonSoft` 내부에서 시도마다 새로 만들어 `extraCheck(data, info)` 로 넘긴다 — **호출자 쪽 상태가 전혀 없다**(예전 `extraCheckAttempt` 클로저 삭제 확인, `lesson.ts` grep 0건). `runJsonWithRetry` 자체가 `completeJson` 의 `withFallback(..., async (c) => { ... runJsonWithRetry(...) ...})` 콜백 안에서 **connection 마다 새로 호출**되므로(기존 구조 그대로, 이번에 안 바뀜) 매 connection 이 자기만의 attempt 1→2 를 가진다. ajv 에서 1차가 걸려도 `attemptInfo(2)` 로 번호가 밀리지 않음을 `evaluateAttempt` 호출부에서 직접 확인.
+- 단위(`engine/__tests__/extraCheckAttempt.test.ts`, 5건) — "1차 ajv 실패해도 재시도는 attempt=2", "`runJsonWithRetry` 를 두 번(라운드 1·2) 독립 호출하면 매번 [1,2]" 를 직접 검증. 미러에서 재실행 **5/5 PASS**.
+- 통합(`lesson.test.ts` "REV-032 M1: router 폴백…") — 가짜 HTTP 서버 2개(경로 `/a`·`/b`) + `mock.method(routerDeps, 'loadChain', ...)` 로 실제 `completeJson`→`withFallback`→`runJsonWithRetry` 전체 경로를 태워 connection A 를 2회(④ 후 ① 실패)로 소진시키고 B 로 폴백시킨 뒤 **B 의 1차는 강제(재시도 유발)·2차만 완화**됨을 확인한다. 핵심 단언 `r.attempts===2`("B 1차에서 완화가 켜졌다면 1회로 끝났을 것 — 클로저 버그의 증상")과 `hits=[A,A,B,B]`·완화 로그 정확히 1회가 모두 통과 — 이전 버전(클로저 카운터)이었다면 B 1차에서 카운터가 이미 3(≥2)이라 곧장 완화되어 `r.attempts===1`·`hits=[A,A,B]` 가 됐을 시나리오라 **회귀를 실제로 잡는 테스트**다. 미러 단독 재실행 **PASS**(40번 서브테스트), `t.after`(`mock.restoreAll`·서버 종료·env 정리)로 다른 테스트로 상태가 새지 않음도 확인(순차 실행 736→745건 전체 재실행에서 이 테스트 전후 다른 파일 실패 없음).
+- **결론**: M1 은 코드 레벨(호출자 상태 제거)과 두 단계 테스트(엔진 유닛 + 실제 폴백을 재현하는 통합)로 이중 확인됐다. 제안했던 두 가지 해법(호출자 카운터 제거 vs `runJsonWithRetry` 가 직접 알려주기) 중 후자를 택해 근본 원인을 없앴다 — 최소 조치(connection 마다 리셋)보다 안전한 선택.
+
+**2) `LlmJsonRequest.extraCheck` 두 번째 인자가 A5·A6·A7·A10·A11 동작을 안 바꾸는가: 예**
+- `grep -rn "extraCheck:" src/modules/conversation/prompts/*.ts` — `lesson.ts` 만 `(data, info)`, 나머지(`reviewDecision.ts`·`reviewMix.ts`·`wordEnrich.ts`·`evalGen.ts`·`chat.ts`·`chatReview.ts`·`talk.ts`·`evalGrade.ts`)는 전부 `(data) => ...` 그대로. `git status --short -- src/modules/conversation/prompts/` 결과도 **`lesson.ts` 하나만** 변경돼 나머지 파일은 diff 자체가 없다 — 코드가 안 바뀌었으니 동작도 안 바뀐다.
+- 타입 레벨: `(d: T) => string[]` 는 TS 구조적 타이핑상 `(d: T, info?: I) => string[]` 자리에 그대로 대입 가능(선언한 매개변수가 더 적은 함수는 더 많은 매개변수의 함수 타입에 할당 가능 — 엔진이 두 번째 인자를 넘겨도 기존 함수는 그냥 무시). `extraCheckAttempt.test.ts` "인자를 받지 않는 기존 extraCheck 도 그대로 동작한다(하위 호환)" 테스트가 이를 실제 `runJsonWithRetry` 실행으로 재확인(PASS).
+- 미러 `tsc --noEmit` **0 오류** — A5/A6/A7/A10/A11 소스 자체가 무변경이니 재검증할 필요조차 없지만, 전체 빌드 타입체크로 간접 확인.
+
+**3) `LlmRequest.traceId` 추가가 프롬프트·Trace·로그에 원문을 싣지 않는가: 예**
+- `engine/llm/index.ts` 전체에서 `traceId` 사용처는 딱 두 곳(인터페이스 필드 선언, `completeJson` 의 `extraCheck` 래퍼가 `{...info, traceId}` 로 합치는 곳)뿐 — `callOnce`·`claudeShape`·`renderTranscript`(실제 프롬프트 조립) 어디에도 없다(grep 확인). 프롬프트에 안 실린다.
+- `Lesson.ts` 의 소비 지점은 `safeTraceId(info.traceId)` 하나뿐 — 정규식 `^[A-Za-z0-9_-]{1,64}$` 화이트리스트를 통과 못 하면 `'-'` 로 대체하는 방어까지 있다(traceId 는 `engine/trace` `newTraceId()` 가 만드는 영숫자뿐이라 실제로는 항상 통과하지만, 방어적으로 안전). 로그 줄 자체(`[lesson] 마지막 시도 — 콘텐츠 매칭(④) 위반 N건을 눈감고 통과시킴 trace=… attempt=…/…`)에는 위반 **개수**·**traceId**·**시도 번호**만 있고 원문·학습자 텍스트·모범 답 문자열이 없다 — 통합 테스트가 `assert.ok(!/[぀-ヿ一-鿿]/.test(tolerated[0]))` 로 일본어(원문·모범 답이 있었다면 반드시 섞였을 문자 범위) 부재를 직접 검증해 PASS.
+- `learning/lessons/generate.ts` 는 기존에 이미 갖고 있던 `c.traceId`(`AiJob`/`RequestTrace` 와 같은 값, `claimLesson` 의 `newTraceId()`)를 `completeJson` 호출에 한 줄 추가로 넘겼을 뿐 — 새로운 traceId 발급·새로운 DB 저장 지점이 생기지 않았다(diff 1줄로 확인).
+
+**4) `routerDeps` 주입이 운영 경로에서 기본값과 동일한가: 예**
+- `routerDeps = { loadChain }` — 정의 시점에 실제 `loadChain` 함수 참조를 그대로 담는다. `resolveCandidates` 가 `loadChain(role)` 대신 `routerDeps.loadChain(role)` 을 부르도록 바뀐 것 외에는 **동작 변경이 없다**(같은 함수, 같은 30초 캐시 Map 클로저 공유). `grep -rln routerDeps src/` 결과는 정의 파일(`router/index.ts`)과 테스트 파일(`lesson.test.ts`) 단 둘뿐 — 운영 라우트·L1~L4 어디서도 이 객체를 건드리지 않는다. `engine/index.ts`(공개 배럴)도 `routerDeps` 를 재노출하지 않아(`export {...} from './router'` 목록에 없음) 상위 층이 실수로라도 닿을 길이 없다 — mock 은 오직 `engine/router` 로 직접 들어가는 테스트 파일에서만 가능하다(orchestrator `turnDeps` 와 같은 관례라는 developer 설명과 일치).
+
+**5) 테스트 픽스처 `engineId: 'home-m4-api'` — 엔진명 누출 규칙상 허용 가능**
+- 체크리스트 그렙 대상은 `reazon|whisper|style-bert|claude`(브랜드·모델명) 4개뿐이고 `home-m4-api` 는 그 중 어느 것도 아니다 — 문자 그대로도 규칙 위반이 아니다. 이 식별자는 애초에 `ResolvedConnection.engineId`(L5 엔진 관리 층의 1급 타입 필드)이고 `engine/router`·`engine/llm` 프로덕션 코드가 이미 분기에 쓰고 있다(`c.engineId === 'home-m4-api'`) — 사용자에게 노출되는 라우트·화면·L1~L4 프로덕션 코드가 이 문자열을 아는 게 아니라, **테스트가 라우터의 실제 분기 로직을 태우려고** 두 connection 을 구분할 값이 필요했을 뿐이다(`claude-cli` 였다면 실제 서브프로세스를 스폰해야 해 테스트가 불가능했을 것 — 실용적 선택).
+- 실제 프로덕션 `lesson.ts`(비-테스트)에는 `engineId` 관련 코드가 0건(diff 확인) — 엔진 인지가 conversation L2 로 새어 들어가지 않았다. 이 문자열은 테스트 프로세스에서만 존재하고 빌드 산출물·사용자 응답 어디에도 포함되지 않는다.
+- **참고(비차단, 정보성)**: 이 통합 테스트가 사실상 "엔진 라우터 폴백" 을 검증하는 테스트라 물리적으로 `engine/__tests__/`(이미 `extraCheckAttempt.test.ts` 가 있는 자리)에 있는 편이 층 경계상 더 깔끔했을 수 있다 — 다만 `lesson.ts` 고유의 `extraCheck`/`tolerateContentMismatch` 완화 로직까지 같이 검증해야 해서 `conversation/__tests__/lesson.test.ts` 에 둔 선택도 이해 가능하고, import 는 `engine/router`(자신의 index.ts)를 통했으므로 층 경계 위반은 아니다. 수정 요청 아님.
+
+**독립 재검증(미러)**
+- `tsc --noEmit`: 0 오류.
+- eslint(변경 파일 10개 명시): 0 error·0 warning.
+- `lesson.test.ts`+`evalGen.test.ts`+`extraCheckAttempt.test.ts` 개별 실행: **79/79 PASS**(router 폴백 통합 테스트 포함).
+- 전체 회귀 `find src -name '*.test.ts'`: **745건 중 744 PASS·1 skip·0 fail**(developer 보고 744/743 과 1건 차이 — 같은 작업 트리를 공유하는 012b 세션이 동시에 테스트를 추가하고 있어 시점 차로 보인다, 실패 0 은 동일해 이번 수정과 무관).
+- `tests/live/lesson-paste-diagnose.ts` — Leader 가 고친 `instrument()` 가 `original(data, info)` 로 시도 정보를 전달함을 코드로 확인(developer 가 지적한 "정보를 버려 운영보다 엄격하게 잰다" 문제 해소, 실행은 안 함·Claude CLI 호출 없음).
+
+**QA 전달 high_risk_areas**: 이전 REV-032 의 "A4 v6 라이브 최종 확인" 항목은 Leader 01:50 절에서 이미 8/8 로 해소됐다(완화 로그 실사용 확인까지 포함) — 이번 재검에서 추가로 전달할 신규 항목 없음. **native_change: false**.
+
+### 2026-09-29 02:10 Leader — QA(REV-032 수정분, 격리 복제본) 1차
+- 격리: `~/.node-local/thekaiwa-qa-a4-0148` = HEAD(`ebc7836`) `src`·`tests` + A4 수정 15파일만 덮어씀(012b 미커밋 변경 제외 — `src/modules/speech/analysis` 없음 확인). `tsc` 0 · 단위 **720/721(1 skip, 0 fail)** — 012b 와 독립 확인. dev 서버는 `env -i` 로 3011(에이전트 세션 env 상속 시 ClaudeCliExecError, dev-012b 발견).
+- 라이브: **011 60/60** · **010 64/65** · **006 35/40**. 실패는 전부 동시 실행 간섭 — 006 은 턴 10회가 `409 CONFLICT 이미 답을 기다리는 중`(runningMessageId 가 계속 바뀜 = 같은 QA 계정으로 012b developer 턴 지연 측정이 동시에 돎), 010 6e 는 채택 전 WordEntry 0→1(012b D-B7 준비로 QA 계정 단어 생성과 겹침 추정). 010 지표: 주제 A4 47s·붙여넣기 54s(둘 다 attempts=1), 모범 답 목표 3/3.
+- 조치: 012b developer 라이브가 끝난 뒤 006·010 재실행. **교훈: QA 계정 라이브는 한 번에 한 에이전트만** — 병렬 라이브가 필요하면 서로 다른 QA 계정을 배정.
+
+### 2026-09-29 02:40 Leader — QA PASS(REV-032 수정분)·커밋
+- 재실행(간섭 없음, 3011 격리 복제본): **006 42/42(턴 p50 5.1s) · 010 65/65**(주제 A4 68s attempts=2·붙여넣기 37s attempts=1, 모범 답 목표 4/4) · 011 60/60(1차). 단위 720/721·tsc 0(012b 제외 상태). 작업 트리 A4 15파일 = QA 복제본 바이트 동일 확인 후 이 파일들만 커밋(012b 미커밋 변경 제외).

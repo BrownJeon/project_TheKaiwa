@@ -199,7 +199,7 @@ async function runGeneration(userId: string, c: Claim, gen: LessonGeneration): P
   try {
     await jobs.updateJobProgress(c.jobId, 10, 'LLM')
     let t = Date.now()
-    const r = await llm.completeJson<LessonGenOutput>({ ...gen.request, priority: 'batch' })
+    const r = await llm.completeJson<LessonGenOutput>({ ...gen.request, priority: 'batch', traceId: c.traceId })
     steps.push({ name: 'LLM', ms: Date.now() - t, connection: r.connectionKey, model: r.model, attempts: r.attempts ?? 1, promptChars: r.promptChars })
     await jobs.updateJobProgress(c.jobId, 90, 'SAVE')
     t = Date.now()
