@@ -16,7 +16,7 @@
 | 경로 | 내용 |
 |---|---|
 | `GET /models/ondevice-ja-v1/manifest.json` | 현재 버전 manifest — 디스크 manifest 를 검증(§3)한 뒤 파일마다 같은 origin 절대 URL(`url`)·`id`·`baseUrl` 을 붙여 내보낸다. `Cache-Control: no-cache` + ETag |
-| `GET /models/ondevice-ja-v1/<version>/<file>` | 모델 파일. 현재 manifest 에 적힌 파일만, Range(이어받기)·ETag(=sha256)·`Cache-Control: public, max-age=31536000, immutable` |
+| `GET /models/ondevice-ja-v1/<version>/<file>` | 모델 파일. 현재 manifest 에 적힌 파일 + **전환 뒤 24시간은 직전 버전의 검증된 스냅샷에 적힌 파일**(진행 중이던 받기의 이어받기, §5), Range·ETag(=sha256)·`Cache-Control: public, max-age=31536000, immutable` |
 | (gateway) `DATA_ROOT/models/reazonspeech-int8/<version>/` | 같은 파일을 로컬 경로로 로드 |
 
 - `ondevice-ja-v1` 은 **불투명 패키지 id** 다 — #19 사용자 응답(`onDevice.model.manifestUrl`)에 엔진·모델 이름이 실리지 않게(task-003f 완료 기준 8). 디스크 디렉터리(`reazonspeech-int8`)는 ONDEVICE connection 설정 `connection.manifestUrl`(`/models/<dir>/manifest.json`)에서 서버가 읽는다. 실제 모델 이름은 manifest 본문에만 있다. 정본: `docs/design/api-contract.md` #9·#10.
@@ -31,7 +31,7 @@
   │   ├── joiner-epoch-99-avg-1.int8.onnx
   │   ├── tokens.txt
   │   └── silero_vad.onnx
-  └── 2024-08-01-int8-v2/           # 갱신 시 새 디렉토리 — 서버는 현재 manifest 버전 파일만 서빙한다(옛 버전은 gateway 롤백용으로 2주 보관)
+  └── 2024-08-01-int8-v2/           # 갱신 시 새 디렉토리 — 옛 버전 디렉토리는 2주 보관(전환 뒤 24시간 이어받기 서빙 + gateway 롤백)
   ```
 
 ## 3. manifest.json 형식 · 검증 규칙
@@ -83,8 +83,9 @@
 3. **게이트**: `bash scripts/models-verify.sh "$DATA_ROOT/models" --manifest "$DATA_ROOT/models/reazonspeech-int8/manifest.new.json"` — 서버·플러그인과 같은 규칙 + 새 버전 디렉토리 파일의 크기·sha256. **FAIL 이면 올리지 않는다**(서버는 그런 manifest 를 내보내지 않고, 앱도 거부한다).
 4. `manifest.new.json` → `manifest.json` 원자적 rename → `bash scripts/models-verify.sh "$DATA_ROOT/models"` 로 한 번 더 확인.
 5. 앱은 다음 설정 조회(#19 — `onDevice.model.version` 이 서빙 manifest 의 version 을 따른다)에서 새 버전을 알아채고, 설정 카드에 [새 버전 받기]가 뜬다(자동 다운로드 없음). **콘솔 Apply 는 필요 없다** — ONDEVICE connection 의 `runtime.modelVersion` 은 앱에 쓰이지 않는다(task-003f).
+   - **전환 중이던 받기**(task-003f Codex C2): 서버는 전환을 알아챈 순간 직전 버전의 **검증된 manifest 스냅샷**을 24시간(최대 2개 버전) 들고 있어, 전환 전에 v1 을 받기 시작한 앱이 v1 파일을 Range 로 끝까지 이어받을 수 있다. 서빙은 스냅샷에 적힌 파일만(경로·크기·sha256) — 디스크에 남아 있기만 한 파일은 내보내지 않는다. manifest(#9)는 즉시 새 버전을 가리키므로 새로 시작하는 받기는 v2 다. 스냅샷은 앱 프로세스 메모리라 **전환 직후 앱을 재시작(배포)하면 사라진다** — 그때 진행 중이던 받기는 404 로 실패하고 다음 받기에서 v2 를 처음부터 받는다(무결성 문제 없음). 그러니 **모델 전환과 앱 재배포를 같은 시점에 하지 않는다.**
 6. gateway 는 **재기동**으로 새 모델을 로드한다(RESTART_REQUIRED — gateway connection `runtime.modelVersion` 은 gateway 쪽 값).
-7. 옛 버전 디렉토리는 2주 뒤 삭제.
+7. 옛 버전 디렉토리는 2주 뒤 삭제(최소 24시간 — 이어받기 서빙 기간 — 은 반드시 남긴다).
 
 ## 6. 파일
 

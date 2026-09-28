@@ -430,10 +430,10 @@
 - 실제 모델 이름(`name`·`engine`·`model`·`source`)은 **manifest 본문에만** 있다(화면·#19 에는 없음).
 - origin: 운영(`NODE_ENV=production`)은 `OAUTH_CALLBACK_BASE`(https), 개발 서버는 요청 origin. 파일 URL = `<manifest 디렉터리>/<version>/<path>`(플러그인 규칙과 같다 — 플러그인은 manifest 와 다른 origin·https 아닌 URL·다른 호스트로의 리다이렉트를 거부, 다운그레이드 거부, `.part` 재개 후 전체 sha256 재검증·원자적 rename).
 
-**#10 파일** — **현재 manifest 의 현재 `version` 에 적힌 파일만**(옛 버전·목록 밖 파일은 `404`), 디스크 크기가 기록과 같을 때만(실경로가 모델 루트 안인지 확인 — 밖을 가리키는 링크는 따라가지 않음). `Accept-Ranges: bytes`, 단일 구간 `206`(여러 구간은 무시하고 `200`), 범위 밖 `416 Content-Range: bytes */<size>`, `ETag: "<sha256>"`(= 이어받기 `If-Range` 기준, 다르면 `200` 전체), `X-Content-SHA256`, `Cache-Control: public, max-age=31536000, immutable`(버전 디렉터리는 불변), `HEAD` 지원.
+**#10 파일** — **현재 manifest 의 현재 `version` 에 적힌 파일**과, **버전 전환 뒤 24시간 동안은 직전 버전(최대 2개)의 검증된 manifest 스냅샷에 적힌 파일**만(task-003f Codex C2 — 전환 전에 시작한 받기의 Range 이어받기용. 서버가 전환을 알아챈 순간부터 TTL, 스냅샷은 프로세스 메모리라 재시작하면 사라진다 — 디스크에서 되살리지 않는다). 디스크에 남아 있기만 한 파일·스냅샷 밖 파일·TTL 지난 버전·배포가 꺼진 뒤(connection 끔·manifest 무효)는 `404`. #9 manifest 는 언제나 최신 버전만 가리킨다. 디스크 크기가 기록과 같을 때만(실경로가 모델 루트 안인지 확인 — 밖을 가리키는 링크는 따라가지 않음). `Accept-Ranges: bytes`, 단일 구간 `206`(여러 구간은 무시하고 `200`), 범위 밖 `416 Content-Range: bytes */<size>`, `ETag: "<sha256>"`(= 이어받기 `If-Range` 기준, 다르면 `200` 전체), `X-Content-SHA256`, `Cache-Control: public, max-age=31536000, immutable`(버전 디렉터리는 불변), `HEAD` 지원.
 
 - **분당 제한 없음, 동시 스트림 4**(프로세스 단위, 넘으면 `503 Retry-After: 30`) — 이어받기 클라이언트는 짧은 간격으로 요청을 여러 번 보내고, nginx `/models/` 는 X-Forwarded-For 를 넘기지 않아 앱이 IP 를 모른다. 대역 제한이 필요하면 nginx(`limit_conn`·`limit_rate`).
-- 모델 갱신 = 새 버전 디렉터리 배치 → `manifest.json` 원자적 교체. #19 `onDevice.model.version` 이 서빙 manifest 를 따르므로 앱은 다음 설정 조회에서 알아챈다(connection `runtime.modelVersion` Apply 불필요).
+- 모델 갱신 = 새 버전 디렉터리 배치 → `bash scripts/models-verify.sh --manifest …` 게이트 → `manifest.json` 원자적 교체. #19 `onDevice.model.version` 이 서빙 manifest 를 따르므로 앱은 다음 설정 조회에서 알아챈다(connection `runtime.modelVersion` Apply 불필요). 옛 버전 디렉터리는 지우지 않는다(위 24시간 이어받기 + gateway 롤백 — speech/models/README §5).
 
 ### 2-2. 설정 `/api/v1/settings/*` (L1 preferences)
 
