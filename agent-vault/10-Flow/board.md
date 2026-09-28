@@ -23,11 +23,15 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
+- [[task-003h-app-branding]] — 앱 이름 Lingofy Japanese·부제 적용(웹 + 앱 1.0.1, 네이티브 변경) (2026-09-28 사용자 지시)
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱 1.0.0·온디바이스 STT — **팀 작업·운영 반영 완료, 사용자 대기**: nginx 재적용(sudo)·폰 설치·F6 실측 (2026-09-28)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
 - task-009 — Phase 1 통합 QA·실기기·라이브 배포·APK 배포본
+
+## 개선 백로그 (사용자 점검분 — task-009 완료 전 착수 금지)
+- `/개선작업` 으로 추가·조회. 항목은 `improvements/items/`, 표는 `improvements/improvements.base`, 규칙은 [[improvements/README|README]]. 구현팀은 건드리지 않는다.
 
 ## 정리 backlog (소규모)
 - (005b) 발음 사전(Pronunciation Dictionary P0) — task-003 이후 · #93b credentialRef 쓰기·functional test 30초 슬롯 원자성 — Phase 2(012c) · 운영 APP_ENV=LOCAL·dev 상태 점검이 운영 connection 행을 바꾸는 문제 — task-009
