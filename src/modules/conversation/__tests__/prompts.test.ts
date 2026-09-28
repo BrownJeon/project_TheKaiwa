@@ -6,7 +6,7 @@ import { renderTranscript } from '../../engine/llm'
 import { buildChatRequest } from '../prompts/chat'
 import { buildChatReviewRequest, REVIEW_MAX_CHARS, REVIEW_MAX_MESSAGES, ReviewTooLargeError } from '../prompts/chatReview'
 import { renderHeader, renderToday } from '../prompts/header'
-import { buildTalkRequest, talkInstruction, TALK_USER_PROMPT_CAP } from '../prompts/talk'
+import { buildTalkRequest, clampAltText, talkInstruction, TALK_ALT_TEXT_MAX, TALK_USER_PROMPT_CAP } from '../prompts/talk'
 
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/talk-corrections.json'), 'utf8')) as {
   items: { id: string; level: string; input: string; hasError: boolean }[]
@@ -71,6 +71,36 @@ test('TALK: altText + 최대 이력 창이 겹쳐도 사용자 프롬프트는 �
   })
   const prompt = renderTranscript(req.system, req.messages)
   assert.ok(prompt.length <= TALK_USER_PROMPT_CAP, `altText 조합 ${prompt.length}자`)
+})
+
+test('TALK: altText 상한 — 상한을 한참 넘는 후보를 줘도 사용자 프롬프트는 항상 ≤3,000자(2026-09-28 altText 갭)', () => {
+  // 최악 조합: 헤더 상한을 채우는 학습자 + 발화 최대(1,000자 — 턴 라우트 검증 상한) + 긴 이력 + 거대 후보.
+  const heavy = { ...learner, displayName: '브라운'.repeat(20), weaknesses: Array.from({ length: 10 }, (_, i) => `CONJUGATION(${i})`), goal: 'x'.repeat(400) }
+  for (const textLen of [1, 20, 500, 1_000]) {
+    for (const altLen of [TALK_ALT_TEXT_MAX + 1, 1_000, 5_000, 50_000]) {
+      const req = buildTalkRequest({ todayKst: '2026-09-28', learner: heavy, history: longHistory, text: 'あ'.repeat(textLen), altText: 'い'.repeat(altLen) })
+      const prompt = renderTranscript(req.system, req.messages)
+      assert.ok(prompt.length <= TALK_USER_PROMPT_CAP, `text=${textLen} alt=${altLen}: ${prompt.length}자`)
+      assert.equal(req.messages.at(-1)!.content, 'あ'.repeat(textLen), '발화 원문은 자르지 않는다')
+      const m = /「(い*…?)」로도 들렸습니다/.exec(req.system)
+      assert.ok(m, '후보 줄이 남는다(예산 충분)')
+      assert.ok(m[1].length <= TALK_ALT_TEXT_MAX && m[1].endsWith('…'), `잘린 후보는 ≤${TALK_ALT_TEXT_MAX}자 + "…"`)
+    }
+  }
+})
+
+test('TALK: clampAltText — 짧은 후보는 그대로·제어문자/공백 정리·서러게이트 쌍 보존·예산 부족이면 생략', () => {
+  assert.equal(clampAltText('昨日映画を見に行きました'), '昨日映画を見に行きました')
+  assert.equal(clampAltText('  昨日\n映画を\t見ました \u0007'), '昨日 映画を 見ました')
+  assert.equal(clampAltText(null), null)
+  assert.equal(clampAltText('   '), null)
+  const long = clampAltText('あ'.repeat(TALK_ALT_TEXT_MAX + 50))!
+  assert.equal(long.length, TALK_ALT_TEXT_MAX)
+  assert.ok(long.endsWith('…'))
+  const emoji = clampAltText('😀'.repeat(150))! // 서러게이트 쌍(2 UTF-16 단위)을 반으로 가르지 않는다
+  assert.ok(emoji.length <= TALK_ALT_TEXT_MAX && !/[\ud800-\udbff]…$/.test(emoji))
+  assert.equal(clampAltText('昨日映画を見に行きました', 5), null, '예산이 최소치(8자) 미만이면 후보 줄 생략')
+  assert.equal(clampAltText('昨日映画を見に行きました', 10), '昨日映画を見に行き…')
 })
 
 test('TALK: persona(→ claudeCli --system-prompt)는 날짜·헤더 세부값·altText·이력·발화가 달라도 바이트 동일 — 예열 프로세스 재사용 전제(task-007 K4-3)', () => {

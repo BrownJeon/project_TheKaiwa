@@ -22,6 +22,37 @@ import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from '
 export const TALK_PROMPT_VERSION = 'talk@v2'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
+/**
+ * altText(STT 두 번째 후보) 상한 — 발화 한 턴 분량. 넘으면 앞 199자 + "…". 2026-09-28 실측: 상한이 없던 때 altText 5,000자면
+ * 사용자 프롬프트가 7,459자(캡 3,000 초과 — 이력 창을 0으로 줄여도 못 막음). 200자면 최악 조합(발화 1,000자·헤더 300·긴 이력)도 2,920자.
+ * 자르는 곳이 여기인 이유: 프롬프트 예산은 conversation 이 소유한다(speech 는 후보 텍스트만 넘기고 캡을 모른다 — 6층 경계).
+ */
+export const TALK_ALT_TEXT_MAX = 200
+/** 이보다 짧게 잘라야만 들어간다면 후보 줄을 빼고 평소처럼 교정한다 — 잘린 후보로 되묻는 것은 학습자에게 혼란만 준다. */
+const TALK_ALT_TEXT_MIN = 8
+/** `renderTranscript` 가 system·발화 밖에 붙이는 고정 문자(`[입력]` 머리말·블록 구분자) 여유. */
+const TRANSCRIPT_OVERHEAD = 120
+
+const altTextLine = (alt: string) => `[인식 후보] 학습자 말이 「${alt}」로도 들렸습니다. 둘 중 어느 쪽인지 먼저 되묻고 교정하지 마세요.`
+
+/**
+ * altText 정리: 제어문자·연속 공백 정리 → `min(TALK_ALT_TEXT_MAX, budget)` 로 자르기(서러게이트 쌍을 가르지 않게 코드포인트 단위,
+ * 잘렸으면 끝에 "…") → 그 한도가 `TALK_ALT_TEXT_MIN` 미만이면 null(후보 줄 생략). `budget` 은 사용자 프롬프트 캡에서 남은 글자 수.
+ */
+export function clampAltText(raw: string | null | undefined, budget: number = TALK_ALT_TEXT_MAX): string | null {
+  if (!raw) return null
+  const clean = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!clean) return null
+  const max = Math.min(TALK_ALT_TEXT_MAX, Math.floor(budget))
+  if (max < TALK_ALT_TEXT_MIN) return null
+  if (clean.length <= max) return clean
+  let out = ''
+  for (const ch of clean) {
+    if (out.length + ch.length > max - 1) break
+    out += ch
+  }
+  return `${out}…`
+}
 
 export interface TalkInput {
   todayKst: string
@@ -53,7 +84,11 @@ export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse
   // K2-1 예열 프로세스가 재사용할 수 있다 — 이미 그런 구조였고 이번에 고친 내용은 없다(확인만). `buildChatRequest` 도 동일.
   const persona = loadPersona({ sections: [1, 3, 4, 6], level: input.learner.level, mode: 'TALK' })
   const head = [renderToday(input.todayKst), '[모드] TALK', renderHeader(input.learner, TALK_HEADER_CAP)]
-  if (input.altText) head.push(`[인식 후보] 학습자 말이 「${input.altText}」로도 들렸습니다. 둘 중 어느 쪽인지 먼저 되묻고 교정하지 마세요.`)
+  // altText 는 상한(200)과 남은 예산 둘 다로 자른다 — 지시문·헤더가 나중에 길어져도 캡(3,000)을 넘지 않게(발화 원문은 자르지 않는다).
+  const baseChars = [...head, talkInstruction()].join('\n').length + input.text.length + TRANSCRIPT_OVERHEAD
+  const altBudget = TALK_USER_PROMPT_CAP - baseChars - altTextLine('').length - 1
+  const alt = clampAltText(input.altText, altBudget)
+  if (alt) head.push(altTextLine(alt))
   const system = [...head, talkInstruction()].join('\n')
   // 사용자 프롬프트 상한에서 헤더·지시·발화를 뺀 나머지를 창에 준다(최대 2,000자·6개).
   const room = Math.max(0, Math.min(2_000, TALK_USER_PROMPT_CAP - system.length - input.text.length - 40))
