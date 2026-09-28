@@ -6,6 +6,8 @@
  *   publicRuntime(target)    : 클라이언트에 내줄 수 있는 실행 값(VAD·partial·스레드·wsPath·manifest) — 주소·시크릿 없음.
  *   devWsUrl(target)         : **개발 서버(NODE_ENV=development)에서만** gateway 에 직접 붙을 ws:// 주소(loopback 만). 운영은 항상 null.
  *   findRealtimeConnection() : id 또는 key 가 현재 환경의 REALTIME_STT connection 인지(`Utterance.realtimeEngine` 스냅샷 검증).
+ *   analysisTarget()         : (task-012b) 분석 STT 잡 적재 게이트 — 현재 환경 ANALYSIS_STT 정책의 쓸 수 있는 connection.
+ *   findAnalysisConnectionKey(): (task-012b) worker 보고 `analysisEngine` 이 현재 환경 ANALYSIS_STT connection key 인지.
  */
 import type { ConnectionType, EngineConnection, EngineStatus } from '@prisma/client'
 import { prisma } from '@/modules/infra'
@@ -119,6 +121,36 @@ export async function devWsUrl(target: SttTarget): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+const ANALYSIS_CACHE_MS = 5_000
+let analysisCache: { at: number; env: string; target: { id: string; key: string } | null } | null = null
+
+/**
+ * 현재 환경의 분석 STT(ANALYSIS_STT) 대상 — 폴백 정책 순서에서 enabled·비DISABLED 인 첫 connection(task-012b 적재 게이트 ③).
+ * 정책이 꺼졌거나 대상이 없으면 null. 5초 캐시(발화 업로드마다 DB 를 치지 않게).
+ */
+export async function analysisTarget(): Promise<{ id: string; key: string } | null> {
+  const env = currentEnvironment()
+  if (analysisCache && analysisCache.env === env && Date.now() - analysisCache.at < ANALYSIS_CACHE_MS) return analysisCache.target
+  const policy = await prisma.engineFallbackPolicy.findUnique({ where: { environment_role: { environment: env, role: 'ANALYSIS_STT' } } })
+  let target: { id: string; key: string } | null = null
+  if (policy?.enabled) {
+    const ids = [policy.primaryConnectionId, ...((policy.fallbackConnectionIds as string[] | null) ?? [])]
+    const rows = await prisma.engineConnection.findMany({ where: { environment: env, role: 'ANALYSIS_STT', enabled: true, id: { in: ids } }, select: { id: true, key: true, status: true } })
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    const hit = ids.map((id) => byId.get(id)).find((r) => !!r && r.status !== 'DISABLED')
+    target = hit ? { id: hit.id, key: hit.key } : null
+  }
+  analysisCache = { at: Date.now(), env, target }
+  return target
+}
+
+/** key → 현재 환경의 ANALYSIS_STT connection key(worker 가 보고한 `analysisEngine` 스냅샷 검증). 없으면 null. */
+export async function findAnalysisConnectionKey(key: string): Promise<string | null> {
+  if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(key)) return null
+  const row = await prisma.engineConnection.findFirst({ where: { key, environment: currentEnvironment(), role: 'ANALYSIS_STT' }, select: { key: true } })
+  return row?.key ?? null
 }
 
 /** id 또는 key → 현재 환경의 REALTIME_STT connection(없거나 다른 역할이면 null). */

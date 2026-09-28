@@ -155,6 +155,7 @@ demo_gate:
 ## 판단 기록 (judge)
 - [2026-09-28 23:00] intake engine=jev → task_type=feature · complexity=2.45 · risk=R2 · developer_model=opus · roles=designer?,prompt-engineer?,developer,reviewer,qa · next=assign · actions=assign_developer | overrides=- | fallback=- | tokens=1663 | demo=none/- (ui_change none 0.97)
 - [2026-09-28 23:03] codex_gate/C1 engine=jev → codex_required=false / wanted_before_budget=false / mode=- / focus=- (signal concurrency 0.79) / budget_rule=CX-limit-unknown-r2 / codex_switch=on / calls_used=0 | overrides=- | fallback=- | tokens=1010
+- [2026-09-29 05:20] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=concurrency / budget_rule=CX-limit-unknown-r2 / codex_switch=on | overrides=CX-r2-post-review | fallback=- | tokens=1454
 
 ## 작업 기록
 
@@ -244,6 +245,12 @@ demo_gate:
 - **M1 인스턴스 id**: `workerId` = `<SPEECH_WORKER_ID>-<부트 nonce 8hex>`(≤80자, `lockedBy`). 펜싱(#140)·self-reclaim 은 인스턴스 id **정확 일치**일 때만, 재기동한 워커의 이전 잡은 **15분 고아 회수**, self-reclaim 은 15분 회수와 **따로 로그** → api-contract #139(① self-reclaim 조건·로그, `workerId` = 인스턴스 id 문단 — #138 은 펜싱하지 않음 명시, 타임아웃 문장), #140 펜싱, #138·#139·#140 예시 id(`worker-1-3f9a0c1e`), §2-30(SIGTERM·워커 수 문장) · domain-model §5-8 고아 회수 행 · module-dependency §4-1 claim 주석·§5-2 worker 행·pm2 초안 주석 2곳 · worker README §2(클레임·인스턴스 id 문단)·§6 표·§7.
 - **L2**: 디바운스 포함 발화 저장 = `withTransaction` 인터랙티브 트랜잭션(READ COMMITTED·P2034 재시도) → api-contract #21 · domain-model §5-8 `(없음)→QUEUED` · module-dependency §4-1. "같은 배치 트랜잭션"·"프로세스마다 고유" 표현은 정본에서 모두 제거(grep 0).
 - **⑫ 확인**: 메인 반영분 api-contract #21a 끝("⑫, 2026-09-29 Leader 확정 — 서버 차단")·domain-model §5-9 끝 일치, 구현(`apply.ts`, developer [03:36])과도 일치. ⑤ 도 메인이 #138 에 "012c 에서 ACCURATE = max(설정값, 0.90)" 로 확정해 둠(이전 "판단 대기" 표기 0).
+- 012c 절·코드 무변경, commit/push 없음.
+
+### 2026-09-29 06:22 Leader — 정본 반영(Codex C2 수정: claim 재검사·디바운스 UPDATE 먼저·kind 필터)
+- api-contract #21 디바운스 문단: 디바운스 UPDATE 를 발화 INSERT 보다 먼저 + "claim 이 같은 규칙을 한 번 더 적용(#139 재검사)" · #139 ① 고아 회수 = 요청 `kinds` 만, **②-b 재검사**(마지막 커밋 발화 +20초 안·잡 5분 안이면 RUNNING 대신 `runAfter = min(발화+20초, createdAt+5분)`, 다른 사용자 최대 3라운드, 사용자 행 전역 잠금 없음·남는 경우 = claim 이 먼저, 경합 40회 위반 0), 유휴 판정 = 요청 `kinds` 만.
+- domain-model §5-8: `(없음)→QUEUED`(UPDATE 먼저) · `QUEUED→RUNNING`(재검사로 미룸) · 고아 회수 행(요청 kind 만).
+- module-dependency §4-1: enqueue 주석(UPDATE 먼저)·claim 주석(kinds·재검사). worker README §2(새 발화 직후 빈 claim 정상)·§7(경합 검증 항목).
 - 012c 절·코드 무변경, commit/push 없음.
 
 ## Codex 검토
@@ -359,6 +366,19 @@ demo_gate:
     - domain-model §5-8 고아 회수 행: "… 또는 **같은 인스턴스 id**(부트 nonce 포함) 워커의 재claim".
     - ⑫ 는 Leader 가 반영 완료(#21a 끝·§5-9).
   - 변경 파일(이번 라운드): `src/modules/speech/analysis/{apply.ts, jobs.ts, db.ts, validate.ts}` · `src/modules/speech/utterances/store.ts` · `src/modules/speech/__tests__/task012b.test.ts` · `speech/worker/{main.py, kaiwa_worker/config.py, tests/test_loop_config.py}` · `tests/live/task012b-smoke.{sh,ts}`.
+- [04:18] **Codex C2 지적 2건 수정(스키마 0) — reviewer 재순환 인계**
+  - **① 디바운스↔claim TOCTOU(Medium)**: 두 겹으로 막았다(사용자 행 전역 잠금 없음).
+    - (a) **claim 재검사** `speech/analysis/jobs.ts lockClaimable`: `lockQueued`(SKIP LOCKED)로 잠근 잡마다, 같은 트랜잭션에서 그 사용자의 최근 커밋된 `Utterance.createdAt`(`analysisDb.lastUtteranceAt` — groupBy `_max`, 기존 `@@index([userId, createdAt])`, 20초 창만)을 다시 읽어 순수 규칙 `policy.claimDeferral` 로 판정: 마지막 발화 +20초가 안 지났고 잡이 만든 지 5분 전이면 **RUNNING 으로 올리지 않고** `runAfter = min(마지막 발화+20초, createdAt+5분)` 로 미뤄 QUEUED 그대로(`analysisDb.deferQueued`). 미룬 잡은 이 트랜잭션에서 runAfter 가 미래라 다음 잠금에서 빠지므로 **다른 사용자 잡은 최대 3라운드 더** 본다.
+    - (b) **발화 저장 쪽 잠금 순서**: `utteranceDb.create` 트랜잭션에서 디바운스 UPDATE 를 발화 INSERT **앞으로** — 진행 중(커밋 전) 발화 트랜잭션이 그 사용자의 옛 QUEUED 잡 행을 먼저 잠가 두므로 동시 claim 의 `SKIP LOCKED` 가 건너뛴다(대기 없음).
+    - 남는 창: "claim 이 잠근 **뒤에** 발화 트랜잭션이 시작된" 경우뿐 — claim 이 발화보다 먼저인 것이라 정상 순서(발화 저장은 claim 커밋까지 디바운스에서 기다렸다 끝남, 교착 없음).
+  - **② kind 필터(Low)**: `hasClaimable`(세 갈래 공통 `kind IN kinds`)·`orphans`·`ownStale` 에 `lockQueued` 와 같은 kind 필터, `recoverOrphans(tx, scope, now, kinds, workerId?)` 로 전달. 지금은 kinds 가 늘 `['ANALYSIS_STT']` 라 동작 변화 없음.
+  - **다중 연결 실DB 경합 테스트** `tests/live/task012b-race.ts`(신규, 미러에서 `node --env-file=.env --import tsx tests/live/task012b-race.ts 40`, qa-bot2 만, 서버·워커·LLM 없이 모듈 직접): **4/4 PASS** — S1 커밋된 새 발화(디바운스 없이 발화만) → claim 이 옛 잡 미룸(runAfter = 발화+20.000초) · S2 발화 트랜잭션이 디바운스로 옛 잡을 잡은 채(커밋 전) 다른 연결 claim → SKIP LOCKED 로 건너뜀(9ms, 대기 없음)·커밋 뒤 +20초 · S3 claim 이 먼저 잠근 채 실제 `utteranceDb.create` → 디바운스에서 대기 후 완료(교착 없음)·옛 잡 RUNNING(claim 이 먼저) · S4 무작위 인터리빙 40회(실제 `utteranceDb.create` ∥ `claimAnalysisJobs`, 지터 0~60/0~400ms) → 위반 0·오류 0(claim 이 먼저였던 2회는 옛 잡을 가져감, 발화가 먼저 끝난 9회는 전부 미룸).
+  - 단위: `task012b.test.ts` **32**(claimDeferral 규칙·재검사 미룸+다른 사용자 다음 라운드·claim 전체에서 markRunning 없음·kinds 전달 3곳 추가) · 앱 전체 **753 중 752 PASS·1 skip** · tsc 0 · eslint 오류 0(경고 5 기존) · worker pytest 41 · common 21.
+  - 라이브(운영 모드 복제본 재생성·`env -i`·3017, qa-bot2 + qa-developer, qa-bot 0건): 스모크 A **55/55**(신규 **3g** 새 발화 직후 claim → 옛 잡 RUNNING 안 됨·runAfter = 새 발화 +20.000초 / **3h** 새 업로드(디바운스 경로)로 같은 옛 잡이 다시 밀림) · B **4/4** · C **2/2**(백오프 28.9·119.4초 — C1·C2 는 재검사 때문에 첫 claim 이 발화 +20초 뒤, 판정 불변) · 로그 원문 0. 스모크 `ready()` 는 이제 잡 runAfter 를 당기면서 이 스모크가 만든 최근 발화를 1분 전으로 옮긴다(재검사에 걸리지 않게 — 가짜 워커 단계 가속용). 정리: QA 발화·잡·분석·wav·대화·평가 0, 3017 종료·복제본 삭제.
+  - **정본 반영 문안 초안**:
+    - api-contract §2-28 #139 ②③ 사이에 추가: "**재검사(Codex C2)**: 잠근 잡마다 같은 트랜잭션에서 그 사용자의 가장 최근 발화 시각(`Utterance.createdAt`, 커밋된 것)을 읽어, 마지막 발화 +20초가 지나지 않았고 잡이 만든 지 5분 전이면 RUNNING 으로 올리지 않고 `runAfter = min(마지막 발화+20초, createdAt+5분)` 으로 미뤄 QUEUED 로 둔다 — 다른 사용자 잡은 같은 claim 에서 계속 본다(최대 3라운드). 발화 저장 트랜잭션은 디바운스 UPDATE 를 발화 INSERT 보다 먼저 해 진행 중인 발화의 옛 잡 행을 잠가 둔다(claim 의 SKIP LOCKED 가 건너뜀). 사용자 행 전역 잠금은 쓰지 않는다 — 남는 경우는 claim 이 발화 저장보다 먼저 잠근 때뿐." · ① 고아 회수·빈 큐 판정에 "요청한 `kinds` 만" 명시. #21 적재 조건 디바운스 문장 끝에 "(claim 재검사가 같은 규칙을 한 번 더 적용한다)".
+    - domain-model §5-8 `QUEUED → RUNNING` 행 트리거 끝: "… 단 그 사용자의 마지막 발화 +20초 안(잡 생성 5분 안)이면 올리지 않고 runAfter 를 미룬다(claim 재검사, task-012b Codex C2)". 고아 회수 행: "요청한 종류(kind)의 잡만".
+  - 변경 파일(이번 라운드): `src/modules/speech/analysis/policy.ts` · `src/modules/speech/analysis/db.ts` · `src/modules/speech/analysis/jobs.ts` · `src/modules/speech/utterances/store.ts` · `src/modules/speech/__tests__/task012b.test.ts` · `tests/live/task012b-smoke.ts` · `tests/live/task012b-race.ts`(신규).
 
 ## Reviewer 기록
 
@@ -429,6 +449,66 @@ demo_gate:
 
 **요약**: Critical 0 · High 0 · Medium 0(이전 self-reclaim Medium → M1 로 근본 해결, 재발 방지 테스트 확인) · Low 1(gateway 콜백 X-Service-Env — 변경 없음, Leader 후속 판단 대상으로 이월). QA 진행 가능.
 
+### 2026-09-29 05:35 reviewer — Codex C2 판정
+
+대상: `## Codex 검토` → "[2026-09-29 03:47] C2 adversarial-review focus=concurrency" 지적 2건. 코드 재추적(Read 전용, 라이브·수정 없음)으로 각각 판정.
+
+#### 지적 1(db.ts:69, debounce↔claim 경합) — **채택(Medium 유지)**
+
+**인터리빙이 실제로 가능한지 코드로 확인**: `claimAnalysisJobs`(`jobs.ts:76-93`)는 `analysisDb.transaction` 안에서 `lockQueued`(`db.ts` — `SELECT id FROM SpeechJob WHERE status='QUEUED' AND kind IN(...) AND runAfter<=now ... FOR UPDATE SKIP LOCKED`)로 후보 잡을 잠근 뒤 `markRunning`(`UPDATE ... SET status='RUNNING' WHERE id IN(ids) AND status='QUEUED'`)으로 전이한다. `utteranceDb.create`(`store.ts:25-33`)는 별도의 `withTransaction` 안에서 새 발화를 만들고 `analysisDb.debounce`(`tx.$executeRaw UPDATE SpeechJob SET runAfter=GREATEST(...) WHERE userId=? AND kind='ANALYSIS_STT' AND status='QUEUED' AND createdAt>...`)로 **같은 사용자의 기존 QUEUED 잡**을 뒤로 민다 — 두 트랜잭션 모두 `infra/tx.ts` 의 READ COMMITTED 를 쓴다.
+- **행 잠금 관점에서는 안전하다**: claim 의 `lockQueued` 가 먼저 그 잡 행을 `FOR UPDATE` 로 잠그면, 뒤이어 도착하는 debounce 의 일반 `UPDATE`(WHERE 절 매치)는 **그 행에 걸려 블록**된다(같은 행을 겨냥하는 배타 잠금 대기) — claim 트랜잭션이 커밋되면 READ COMMITTED 의 락킹 리드 특성상 debounce 는 **커밋된 최신 상태**(`status='RUNNING'`)를 보고 `WHERE status='QUEUED'` 에 걸리지 않아 그 행을 건드리지 않는다. 즉 "잠금이 걸린 뒤"에는 두 트랜잭션이 서로 충돌 없이 정확한 순서로 정리된다(Codex 요약 문단의 "펜싱은 대체로 일관성 유지" 부분과 일치).
+- **그런데 순서 자체(TOCTOU)는 막혀 있지 않다**: claim 의 `lockQueued` SELECT 가 debounce 의 UPDATE 보다 **먼저** 그 잡 행에 도달하면(= 새 발화의 `create+debounce` 트랜잭션이 아직 시작 전이거나 그 행에 이르기 전), claim 은 `runAfter<=now` 조건을 통과한 옛 잡을 그대로 잠그고 RUNNING 으로 넘겨버린다 — debounce 는 그 뒤에 실행돼도 이미 RUNNING 이라 되돌릴 방법이 없다. **공통 선점 자원(같은 사용자 행 잠금 등)이 없어 "누가 먼저 그 잡 행에 도달하는가"가 순전히 타이밍**이라는 Codex 의 지적은 코드로 확인된다 — 오탐이 아니다.
+- **다만 Codex 의 두 번째 문장("동시에 생성되는 두 발화 트랜잭션도 … 각자 자기 잡만 연장")은 실질 위험이 아니다**: 새로 만들어지는 잡은 `analysisEnqueueFor`(`enqueue.ts`)가 생성 시점에 **이미 자기 자신의 `runAfter=now+20s`**(또는 FAST/gateway 보정)를 갖고 태어난다 — `debounce()` 는 **기존의 다른 잡**을 미루는 보조 동작일 뿐, 동시에 생성된 두 잡이 서로를 못 봐도 각자 최소 20초 지연은 이미 확보돼 있다. 이 부분은 오탐에 가깝다고 판단했지만, 핵심 지적(옛 QUEUED 잡이 claim 에 선점당해 debounce 가 무력화될 수 있음)이 유효하므로 지적 전체를 채택한다.
+- **실측과의 관계**: 이 경합은 "새 발화가 도착한 순간 = 옛 잡의 `runAfter` 가 막 지난 순간 = 워커가 마침 그 찰나에 poll" 이라는 좁은 창이 겹쳐야 하고, Developer 의 완료 기준 8 재측정(연속 30턴, 5.6초 간격, 워커 1개)에서 **대화 중 시작된 분석 0/30**·p50 차이 ≤10% 로 실측 통과했다 — 즉 이번 릴리스의 실제 사용 패턴(수 초~수십 초 간격의 자연스러운 턴)에서는 발현 빈도가 낮다는 것이 경험적으로 확인돼 있다. 그러나 이는 "관측된 적 없음"이지 "구조적으로 불가능"은 아니며, 사용자가 정확히 20초 근처 간격으로 계속 말하거나 공유 NAS DB 커밋이 느려지는 부하 상황에서는 창이 넓어질 수 있어 완료 기준 8 의 보장이 흔들릴 수 있다. Medium 유지가 타당.
+- **최소 수정 방향(권고, 락 전체 도입 대신)**: Codex 의 "사용자 행 공유 잠금" 은 모든 claim 이 후보 사용자마다 `User` 행(또는 새 잡별 잠금)을 추가로 잠가야 해 디바운스를 도입한 이유(대화 중 DB 왕복·경합 최소화)를 일부 되돌릴 위험이 있다. 대신 **claim 트랜잭션이 이미 `lockQueued` 로 후보 잡을 잠근 직후, `markRunning` 전에** 그 잡의 `userId` 에 대해 "가장 최근 커밋된 `Utterance.createdAt`"을 한 번 더 읽어(`Utterance` 에 이미 `@@index([userId, createdAt])` 존재 — 인덱스 추가 불필요) `now - lastCreatedAt < ANALYSIS_DEBOUNCE_MS` 면 그 잡을 이번 라운드 `markRunning` 대상에서 제외(그대로 QUEUED 유지, 다음 poll 이 재평가)하는 재검사를 추가하는 편이 비용 대비 효과가 낫다. READ COMMITTED 라 이 재검사도 "직전 찰나에 커밋 전인" 아주 좁은 창은 못 막지만, 현재의 "전혀 재검사 없음" 대비 경합 창을 크게 줄인다. `recoverOrphans` 처럼 이미 트랜잭션 안이라 추가 라운드트립 1회로 끝난다. 실제 두 커넥션 동시성 재현 테스트(Codex 권고)는 dev venv/미러로도 가능하니 다음 Developer 라운드에 추가 권고.
+
+#### 지적 2(db.ts:84, kind 필터 누락) — **채택(Low 유지)**
+
+**코드 확인**: `hasClaimable`(`db.ts:75-82`)의 `OR` 3개 분기 중 `status:'QUEUED'` 분기만 `kind:{in:[...q.kinds]}` 가 있고, 나머지 두 `status:'RUNNING'` 분기(`lockedAt<cutoff`, `lockedBy=workerId`)에는 kind 조건이 없다. `orphans`(`db.ts:84-89`)·`ownStale`(`db.ts:94-96`)도 `status:'RUNNING', lockedAt/lockedBy` 만 보고 kind 조건이 없다 — Codex 주장과 코드가 정확히 일치, 오탐 아님.
+- **오늘 시점 실제 위험은 0**: `SpeechJobKind` enum 에 `PRONUNCIATION` 이 이미 존재하고 `validate.ts KINDS`·Python `jobs.py KINDS` 도 이를 인식하지만(`grep` 확인), **PRONUNCIATION 종류의 `SpeechJob` 을 실제로 만드는 코드 경로가 없다**(`analysisEnqueueFor` 는 `kind:'ANALYSIS_STT'` 하드코딩, `handlers/__init__.py` 주석 "지금은 ANALYSIS_STT 만(PRONUNCIATION 은 Phase 3)") — 따라서 DB 에 PRONUNCIATION 행이 존재할 수 없어 이번 릴리스에서 `orphans`/`ownStale`/`hasClaimable` 의 kind 누락이 실제로 다른 종류 잡을 건드리는 경로는 없다.
+- **`orphans()`(15분 범용 고아 회수)는 kind 무관이어도 설계상 무해**하다고 판단한다 — 어느 워커의 claim 이 트리거하든 "오래 멈춘 RUNNING 을 QUEUED 로 되돌리거나 한도 소진 시 FAILED" 라는 동작 자체는 잡 종류와 무관하게 올바르고, 실제 재-claim 은 `lockQueued` 가 kind 로 정확히 거르므로 최종 소비는 여전히 안전하다.
+- **`ownStale()`(self-reclaim)은 인스턴스 id(REV-033 M1, 부트 nonce)가 프로세스마다 고유한 한 함께 안전**하다 — `lockedBy` 는 `lockQueued`(kind 필터 있음)가 세팅한 값만 들어가므로, 서로 다른 kind 를 요청하는 프로세스가 **서로 다른 `SPEECH_WORKER_ID`(따라서 다른 instance_id)를 쓰는 한** 교차 회수가 발생하지 않는다. M1 전제가 깨지는 경우(운영 실수로 동일 id 재사용)에만 이 kind 필터 부재가 실제 피해로 이어진다 — 즉 이미 존재하는 M1 위험의 부차적 확장판.
+- **그래도 채택하는 이유**: (a) 비용이 매우 낮다(`lockQueued` 와 동일 패턴으로 `kind:{in:kinds}` 추가) (b) 향후 015b(발음 분석, Phase 3) 가 실제로 PRONUNCIATION 워커를 붙일 때 "kind 필터를 빠뜨렸다"는 사실 자체를 다시 검토해야 하는 부담을 남기지 않는 편이 낫다 (c) Codex 권고대로 두 종류 worker 동시 가동 통합 테스트를 그때 추가하려면 지금 필터부터 있어야 의미가 있다.
+- **최소 수정 방향**: `recoverOrphans`(`jobs.ts:44-73`)에 `kinds: readonly SpeechJobKind[]` 파라미터를 추가해 `analysisDb.orphans`·`analysisDb.ownStale` 호출에 전달하고, `db.ts` 두 함수의 `where` 에 `kind:{in:[...kinds]}` 를 추가한다(`hasClaimable` 의 QUEUED 분기와 같은 패턴). `claimAnalysisJobs` 호출부는 이미 갖고 있는 `input.kinds` 를 그대로 넘기면 되므로 시그니처 변경 폭이 작다. 현재 kinds 는 항상 `['ANALYSIS_STT']` 뿐이라 이 변경으로 기존 동작(어떤 행이 선택되는지)은 전혀 바뀌지 않는다(회귀 없음) — 기존 단위 테스트가 그대로 통과해야 정상.
+
+**판정 요약**: 지적 1 **채택**(Medium) — TOCTOU 경합 코드로 확인, 완료 기준 8 실측은 통과했으나 구조적으로 남아 있어 다음 Developer 라운드에서 재검사 로직(락 대신) 추가 권고. 지적 2 **채택**(Low) — 코드 일치 확인, 오늘 실피해 0(경로 자체가 없음)이나 `lockQueued` 와 동일한 kind 필터를 세 곳에 맞추는 저비용 방어 조치로 권고. 두 건 모두 오탐 아님, 범위 밖 아님. 프로토콜대로 두 건 모두 채택이므로 Developer 수정 → Reviewer 재순환 대상이나, Critical/High 는 0 이라 현재 REV-033 재검 PASS 판정 자체를 뒤집지는 않는다(운영 반영 전 처리 권고).
+
+### 2026-09-29 06:10 reviewer — Codex C2 수정 재검
+
+**판정: PASS**(Critical 0 · High 0 · Medium 0 · Low 0 신규) — [04:18] 수정이 지적 1·2 를 실제로 닫았음을 코드 추적 + 독립 재실행으로 확인. 운영 반영 전 남는 결함 없음.
+
+**검증 방법(재현)**: 미러 재동기화 뒤 `tsc --noEmit`(0) · `eslint`(대상 전체 0 에러) · `task012b.test.ts` **32/32 PASS**(신규 4건 포함) · **앱 전체 스위트 753건 — 752 PASS·1 skip**(전체 재실행, Developer 주장과 정확히 일치) · dev venv `speech/worker` pytest **41/41**·`speech/common` pytest **21/21**(이번 라운드 Python 무변경이므로 그대로) · `git diff` 로 `prisma/schema.prisma`·`ecosystem.config.js`·`deploy.yml`·`.env.example`·`speech/speech.config.yml` 무변경 확인.
+
+**① debounce↔claim TOCTOU — 두 겹 방어가 실제로 닫히는지**
+
+두 메커니즘의 담당 범위가 서로 겹치지 않고 상호 보완함을 코드로 확인했다(오탐 소지 없이 직접 추적):
+
+- **(b) 잠금 순서(발화 저장 쪽)**: `store.ts:25-33` 가 `withTransaction(tx => { debounce(tx,...); create(tx,...) })` — 디바운스 UPDATE 를 INSERT 앞으로 옮겼다(`git diff` 로 순서 반전만 확인, 로직 불변). `debounce()`(`db.ts:75-78`)는 `WHERE userId AND kind='ANALYSIS_STT' AND status='QUEUED' AND createdAt>now-5분` 인 기존 잡 행에 **배타 잠금을 거는 UPDATE**다 — 이 UPDATE 가 claim 의 `lockQueued`(`FOR UPDATE SKIP LOCKED`)보다 먼저 그 행에 도달하면, claim 은 그 행을 SKIP LOCKED 로 건너뛴다(대기 없음, 커밋 뒤 값 재조회). 반대로 claim 이 먼저 그 행을 잠그면 debounce 의 UPDATE 는 **그 행에 걸려 블록**됐다가, READ COMMITTED 의 락킹 리드 특성상 claim 커밋 뒤 최신 `status='RUNNING'` 을 보고 매치 없이 지나간다 — 어느 순서든 교착이 아니라 "먼저 잠근 쪽이 이긴다"로 수렴한다(라이브 S2·S3 시나리오와 정확히 일치).
+- **(a) claim 재검사**: `jobs.ts:84-101 lockClaimable` 이 `lockQueued` 로 후보를 잠근 **직후**, 같은 트랜잭션에서 `analysisDb.lastUtteranceAt`(`db.ts:135-139`, `tx.utterance.groupBy` — 비잠금 읽기, `since=now-20초`)로 그 사용자의 최근 **커밋된** 발화를 다시 보고 `policy.claimDeferral`(순수 함수, `policy.ts:67-74`)로 판정한다. **이 재검사가 별도로 필요한 이유**를 코드로 확인했다: `store.ts:26` 의 조기 반환(`if (!data.jobs) return prisma.utterance.create(...)`)은 적재 게이트(D-B3 — 워커 생존·모드·connection·오디오)가 실패한 발화는 **디바운스를 아예 타지 않는다** — 즉 사용자가 방금 말했다는 사실(`Utterance.createdAt`)은 있는데 (b)의 잠금 순서 방어가 발동할 UPDATE 자체가 없는 경우가 생긴다. 재검사는 "잡을 만들었는가" 와 무관하게 `Utterance.createdAt` 을 직접 보므로 이 틈을 메운다 — (a)·(b) 가 서로 다른 실패 모드를 담당해 실질적으로 방어 범위가 겹치지 않는다(중복 방어가 아님).
+- **격리 수준에서 커밋 전 발화가 안 보이는 경우**: `lastUtteranceAt` 은 READ COMMITTED 의 일반(비잠금) 읽기라 **아직 커밋되지 않은** 동시 발화 트랜잭션은 볼 수 없다 — 이는 코드로 확인된 사실이고 재검사 단독으로는 못 막는다. 그러나 이 경우는 정확히 (b)가 처리하는 경우와 겹친다: 발화 트랜잭션이 커밋 전이라는 것은 아직 진행 중이라는 뜻이고, 그 진행 중인 트랜잭션이 디바운스 단계(순서상 맨 앞)에 있다면 이미 그 잡 행을 잠갔을 것이므로 애초에 claim 의 `lockQueued` 가 SKIP LOCKED 로 건너뛰어 재검사 자체를 타지 않는다(잠글 수 없었던 행은 재검사 대상에 들지 않는다). 남는 순수 잔여 창은 developer 문서와 동일하게 "claim 이 발화 트랜잭션 **시작 전**에 이미 그 행을 잠근" 경우뿐이며, 이는 시간적으로 발화가 아직 존재하지 않았던 시점의 결정이라 어떤 메커니즘으로도 막을 수 없는 논리적 한계(미래를 예측할 수 없음)다. **결론: 두 겹 방어가 서로의 담당 범위를 메워 실질적으로 닫혔다** — 라이브 S1(잡 생성 경로를 안 타는 발화)·S2(디바운스가 행을 먼저 잠금)·S3(claim 이 먼저 잠금, 정상 순서)·S4(무작위 인터리빙 40회, 위반 0) 네 시나리오가 이 세 경우(재검사만 발동·잠금순서만 발동·claim 이 이긴 정상 경우)를 각각 정확히 겨냥하고 있어 커버리지가 이론적 분석과 일치한다.
+
+**② UPDATE-먼저 순서 변경 — 교착·대기 증가 검토**
+
+- **새 교착 경로 없음**: enqueue 트랜잭션이 잠그는 자원은 여전히 "이 사용자의 기존 QUEUED `SpeechJob` 행"뿐이고(새로 INSERT 하는 행은 아직 존재하지 않아 경합 대상이 아니다), claim 은 `lockQueued` 에서 **항상 SKIP LOCKED**(비블로킹)만 쓴다 — claim 쪽이 SpeechJob 행을 두고 "기다리는" 경로 자체가 없으므로 (enqueue → claim) 방향의 대기가 (claim → enqueue) 방향의 대기를 만들어 순환하는 고전적 교착 조건이 성립하지 않는다. `recoverOrphans`(`failOrphan` 이 Job→Utterance 순서로 잠금)와 `#138`(Utterance→Job 순서)의 교차 가능성은 **이번 라운드 변경 대상이 아니고**(이미 REV-033 에서 검토 완료, `withTransaction` 의 P2034 재시도로 흡수됨), 이번 순서 반전은 그 조합에 새 경우의 수를 추가하지 않는다(둘 다 SpeechJob·Utterance 두 테이블만 쓰고, enqueue 는 Utterance 를 잠그지 않는다).
+- **대화 경로 지연**: 무경합(일반) 경로에서는 UPDATE 먼저든 INSERT 먼저든 같은 두 문장을 실행하므로 총 지연에 차이가 없다. 경합 경로(클레임이 같은 행을 두고 겹치는 드문 경우)에서도 "언젠가 기다려야 한다"는 사실 자체는 순서를 바꾸기 전에도 있었다(원래 코드도 INSERT 뒤 UPDATE 가 결국 그 행을 두고 경합했을 것) — 순서를 앞당긴 것은 "기다릴지 여부"를 더 일찍 확정할 뿐 총 대기 시간의 기댓값을 늘리지 않는다. 라이브 S2 가 `claimMs < 3_000` 로 실측(대기 없음, 9ms)까지 확인했다.
+
+**③ 3라운드 루프가 claim 트랜잭션을 길게 잡지 않는지**
+
+- `CLAIM_ROUNDS=3`, `max` 는 1~2 로 검증됨(`parseClaimBody`, 변경 없음) — 라운드마다 `lockQueued`+`lastUtteranceAt` 각 1회, 한도 `input.max - picked.length` 로 매 라운드 남은 필요분만 요청해 총 잠금 후보 수는 `max` 를 넘지 않는다(`jobs.ts:86-99` 코드 확인). 종료 조건이 세 개(라운드 소진·후보 없음·`deferred===0`)라 무한 루프 불가능은 코드 구조상 자명하다(정적 상한).
+- **다만 새로 확인한 부수 효과**: 라운드에서 미룬(`deferQueued`) 행도 **이 트랜잭션이 커밋할 때까지 잠금을 유지**한다(`deferQueued` 는 같은 트랜잭션의 UPDATE 일 뿐 잠금을 풀지 않는다) — 따라서 최악의 경우(3라운드 모두 다른 사용자들의 행을 잠갔다가 미루는 경우) 이 claim 트랜잭션은 커밋 시점까지 최대 `3×max`(=6) 개의 `SpeechJob` 행을 쥐고 있을 수 있고, 그 각각의 소유 사용자가 그 사이 새 발화를 저장하면 **그 사용자의 디바운스 UPDATE 가 이 claim 트랜잭션이 끝날 때까지 대기**한다(다른 claim 은 SKIP LOCKED 라 무해하지만, 발화 저장 경로는 블로킹 대기). `max` 가 작고(1~2) 라운드가 겪는 쿼리 수도 적어(라운드당 왕복 2회) 절대적인 지연 폭은 작을 것으로 보이나, 이는 재검사 도입 이전에는 없던 "여러 사용자의 잡을 한 claim 트랜잭션이 동시에 쥐는" 새로운 성격의 대기 확산 경로다 — Critical/High 는 아니되(사용자 수가 적은 현재 QA 규모에서는 사실상 무해, 라이브 테스트에서도 병목 관측 없음) Developer 관측 대상으로 남긴다(신규 이슈로 세지 않음, 운영 반영 뒤 워커 부하·사용자 수가 늘면 재검토 권고).
+
+**④ 상한 5분(anti-starvation)이 지켜지는지**
+
+- 디바운스(`debounce()`, `db.ts:75-78`)와 재검사(`claimDeferral`, `policy.ts:69`)가 **같은 상수**(`ANALYSIS_DEBOUNCE_CAP_MS`)와 **같은 공식**(`LEAST/min(now+20s, createdAt+5분)`)을 각자 SQL·순수 함수로 구현하고 있음을 확인 — 드리프트 없음. 단위 테스트(`claim 재검사 규칙` 358-365행)가 "만든 지 5분 — 상한, 미루지 않음"·"상한이 더 이르면 상한" 두 경계를 값으로 확인한다.
+
+**⑤ 스모크 `ready()` 의 backdate 가 3g 검증을 가리는지**
+
+`tests/live/task012b-smoke.ts:158-161` 의 `ready()` 는 (1) 이 스모크가 최근 30초 안에 만든 발화를 전부 60초 전으로 backdate (2) 지정한 `utteranceIds` 의 잡 `runAfter` 를 과거로 당긴다. **3g(266-277행)를 줄 단위로 추적**: `ready(uG)` 호출 시점에는 `fresh`(새 발화)가 **아직 만들어지지 않았다**(`ready()` 다음 줄에서야 `prisma.utterance.create` 로 생성) — `ready()` 의 첫 번째 동작(backdate)은 호출 시점에 `createdUtterances` 집합에 들어 있는 것만 건드리므로 `fresh` 는 대상이 아니고, `fresh` 는 `createdUtterances` 에 그 뒤에 추가된다(다음 `ready()` 호출 전까지 backdate 되지 않는다). 따라서 claim 호출 시점에 `fresh.createdAt = tNew`(방금, 미backdate) 그대로이고, 이 값이 재검사가 보는 "최근 발화"로 정확히 작동해 3g 의 판정식(`jG.runAfter ≈ tNew+20초`)이 재검사 로직을 실제로 겨냥한다 — **backdate 가 3g 검증을 가리지 않음을 코드로 확인**. 부가로 `fresh` 는 `prisma.utterance.create` 를 **직접** 호출(== `utteranceDb.create` 우회, `jobs` 중첩 없음)해 D-B3 게이트 실패 시나리오(방어 (a)만 발동)를 정확히 흉내 낸다. 3h 는 반대로 정상 업로드 경로(`upload()` → `utteranceDb.create`, 방어 (b) 발동)로 같은 옛 잡이 다시 밀리는지 봐 두 방어를 독립적으로 검증한다 — 설계가 의도와 일치.
+
+**②(kind 필터) 재확인** — `hasClaimable`(`db.ts:81-89`)이 `kind:{in:kinds}` 를 최상위 AND 로 옮겨 `OR` 세 분기(QUEUED·RUNNING 두 갈래) 전부에 적용됨을 확인(이전엔 QUEUED 분기에만 있었다) · `orphans`·`ownStale` 모두 `kinds` 파라미터를 받아 `where` 에 반영 · `recoverOrphans`(`jobs.ts:44-49`)가 `kinds` 를 받아 두 호출에 전달 · `claimAnalysisJobs` 호출부가 `input.kinds` 를 그대로 넘김. 단위 테스트("claim 지적 2")가 `hasClaimable`·`orphans`·`ownStale` 세 곳 모두에 전달된 `kinds` 값을 직접 캡처해 `['ANALYSIS_STT']` 로 전달됨을 확인한다. 오늘 `kinds` 가 항상 `['ANALYSIS_STT']` 뿐이라 기존 동작 변화 없음(회귀 없음, 전체 스위트 재통과로 재확인).
+
+**요약**: 지적 1·2 모두 근본 수정 확인, Critical/High/Medium/Low 신규 없음. ③에서 관측한 "여러 사용자 잡을 한 claim 트랜잭션이 동시에 쥐는" 대기 확산 경로는 결함이 아니라 향후 부하 증가 시 관측 대상으로만 기록(별도 이슈 번호 부여 없음). QA 진행 가능.
+
 ## QA 기록
 
 ## 배포 기록
@@ -444,3 +524,40 @@ demo_gate:
 - **⑤ 채택(현행 유지)**: `AppSetting speech.review.threshold` 는 지금 운영 행 없음 → 코드 그대로. 012c 에서 이 키 편집을 열 때 규칙은 **ACCURATE = max(설정값, 0.90)**(다른 모드는 설정값) — 012c 편집 키 표에 반영.
 - **⑫ 서버 차단**: #138 저장 시점에 `finalSource=USER` 면 `requiresReview=false` 로 저장(#21a 는 409 NOT_REVIEWABLE). 학습자가 직접 고친 텍스트를 카드가 덮어쓸 여지를 화면 규칙에만 맡기지 않는다. 품질 지표는 저장된 `transcriptConfidence` 와 `engineVersions.reviewThreshold` 로 계산 가능하므로 손실 없음. REV-033 지적 수정과 같은 라운드에 developer 가 반영, 정본(#21a 끝·domain-model §5-9)의 "대기" 표기는 이 결정으로 교체.
 - 인프라 후보(사용자 승인 필요, sudo): nginx `location /api/internal/ { return 404; }` — 사용자 대기 목록에 추가.
+
+### [2026-09-29 03:47] C2 adversarial-review focus=concurrency — 지적 2건(medium 1·low 1)
+- judge 판정: codex_required=true / mode=adversarial-review / focus=concurrency / budget_rule=CX-limit-unknown-r2 / 호출 1/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa · base=dd9bd94(task_file) · snapshot=ea20c5a (미커밋 코드 포함)
+- 검토 시간: 95초 · exit_code=0
+
+#### 지적 1: [Medium] src/modules/speech/analysis/db.ts:69 — debounce와 claim 경합
+- **조건**: 기존 QUEUED 잡의 runAfter가 도래하는 순간, 같은 사용자의 새 발화 저장 트랜잭션과 worker claim 트랜잭션이 동시에 실행될 때
+- **증거**: 새 발화 트랜잭션은 발화와 잡을 생성 뒤 기존 QUEUED 잡을 UPDATE하지만, claim이 먼저 `FOR UPDATE SKIP LOCKED`로 기존 잡을 잠그고 RUNNING으로 바꿀 수 있다. debounce UPDATE는 잠금 해제 후 재평가되며 `status='QUEUED'` 조건에서 해당 잡을 제외한다. **공통 사용자 잠금이나 claim 직전 최신 발화 재검사가 없다.** 동시에 생성되는 두 발화 트랜잭션도 READ COMMITTED에서 서로의 미커밋 잡을 보지 못해 각자 자기 잡만 연장할 수 있다.
+- **영향**: 대화가 계속되는 중에도 분석 잡이 조기 실행되어 **의도한 사용자별 20초 정지 구간이 보장되지 않는다.** 공유 Whisper 직렬 자원을 점유해 다른 분석을 지연시키고 디바운스 부하 제어가 입력 요청 타이밍에 따라 **비결정적으로 동작**.
+- **권고**: 발화 적재의 debounce와 claim이 동일한 **사용자별 직렬화 잠금을 공유**하게 하라. 예를 들어 (a) 사용자 행을 잠근 뒤 debounce 하고, (b) claim도 후보 잡의 사용자 행을 잠근 후 runAfter와 **최신 발화 시각을 다시 확인**해야 한다. 실제 MariaDB 두 연결로 claim-vs-enqueue 및 enqueue-vs-enqueue 경합 테스트를 추가하라.
+
+#### 지적 2: [Low] src/modules/speech/analysis/db.ts:84 — kind 필터 누락 (고아 회수·self-reclaim)
+- **조건**: ANALYSIS_STT만 요청한 worker가 존재하는 동안, PRONUNCIATION 종류의 RUNNING 잡이 15분 이상 stale 상태가 되거나 동일 workerId로 잠겨 있을 때
+- **증례**: `lockQueued`는 요청받은 kinds로 제한하지만 `hasClaimable`의 RUNNING 분기, `orphans`, `ownStale`에는 **kind 조건이 없다.** 스키마의 SpeechJobKind에는 ANALYSIS_STT와 PRONUNCIATION이 모두 존재하므로 ANALYSIS_STT claim 호출이 다른 종류 잡을 requeue 또는 fail하고 attempts 한도에 따라 연결된 Utterance까지 FAILED로 바꿀 수 있다.
+- **영향**: 서로 다른 잡 처리기의 수명주기가 결합되어 향후 발음 분석 worker가 **아직 처리 중인 잡을 분석 STT worker가 회수하거나 실패**시킬 수 있다. 두 종류 worker가 동시에 운영되면 불필요한 재처리와 상태 오염.
+- **권고**: `hasClaimable`, `orphans`, `ownStale`과 조건부 회수 UPDATE 모두에 **요청 kinds 조건을 전달**해 적용하라. 회수 직전에도 kind를 WHERE 절에서 다시 검증하고 **서로 다른 worker 종류가 동시에 claim하는 통합 테스트**를 추가하라.
+
+**검토하지 못한 범위**:
+- 테스트 실행 (READ-ONLY 제약상 캐시·산출물 생성 불가)
+- 대규모 문서·콘솔·LLM 변경 (요청 범위 밖)
+- 실제 MariaDB 다중 연결 잠금 순서·격리 수준 재현 테스트
+
+**원본**: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260928T184838Z-task-012b-C2
+
+**요약**: SKIP LOCKED와 결과 저장·실패 보고 간 펜싱은 트랜잭션 충돌 후 상태 재검사로 대체로 일관성을 유지하며, #21a 확정과 #138 저장도 Utterance 행 잠금 및 조건부 UPDATE로 덮어쓰기 경로가 보이지 않았다. 다만 **발화 디바운스와 claim 사이에 공통 사용자 잠금이 없어** 새 발화와 동시에 기존 잡이 조기 선점될 수 있고, **고아 회수 쿼리가 요청 kind를 제한하지 않아** 다른 음성 잡 종류의 상태를 변경할 수 있다.
+
+---
+
+다음: Reviewer가 Codex 지적(Medium 1·Low 1) 채택·오탐 판정
+
+### 2026-09-29 06:50 Leader(메인) — QA(Leader 직접 실행) PASS
+- 격리: 미러 하드링크 복제본(`~/.node-local/thekaiwa-qa-012b-*`, 작업 트리 = HEAD `4a052f1` + 012b 미커밋), **운영 모드**(`next build` → `env -i … next start -H 127.0.0.1 -p 3011`). tsc 0 · build ok · 단위 **752/753(1 skip)** · health = LOCAL degraded[`stt_analysis_worker`](워커 없음 — 정상).
+- 012b 스모크 `EXPECT_NO_WORKER=1 … 3011 ABC`: PASS 61 · FAIL 1(3b) → **원인 = health 요약 60초 캐시**(`admin/health.ts` CACHE_MS — Leader 가 기동 확인용으로 스모크 시작 1분 안에 /api/health 를 불러 false 가 캐시됨, 코드 결함 아님). 60초 넘긴 뒤 A 단계 재실행 **55/55**(3b PASS). B(실제 워커 2개·stt20)·C(분석 서비스 실패 백오프·AUDIO_MISSING) PASS. 교훈: 3b 앞 60초 안에 health 를 부르지 않는다(스모크 설명에 추가 후보).
+- 경합 `task012b-race.ts 20` **4/4**(S4 무작위 20회 위반 0·오류 0).
+- 회귀(같은 서버): **006 42/42(턴 p50 4.5s) · 007 44/44 · 010 65/65 · 011 60/60**.
+- **판정: task-012b 1단계 QA PASS** → 커밋·push(운영 배포). 운영에서는 워커 미등록(U1·U2 대기)이라 적재 0·health `stt_analysis_worker` degraded 만 — 사용자 체감 변화 없음(#22·#21a API·D-B7 텍스트 선택은 분석 결과가 없으니 실시간 텍스트 그대로).

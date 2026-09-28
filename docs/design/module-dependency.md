@@ -314,7 +314,7 @@ export default [
   → speech.createUtterance(userId, {chatId, realtimeEngine, realtimeText, durationMs, timings})
   → speech.storeUtteranceAudio(userId, utteranceId, wav)          # infra.storage.utteranceAudioPath
   → speech.enqueueAnalysis(utteranceId, 'ANALYSIS_STT')            # 발화 저장과 같은 트랜잭션. 게이트(task-012b D-B3): 워커 claim 120초 안 · recognitionMode≠OFFLINE · ANALYSIS_STT connection enabled · 오디오 있음
-                                                                     # runAfter = now+max(20s, FAST 30s) + 같은 사용자 QUEUED 잡 디바운스(≤createdAt+5분, D-B8 수정 2026-09-29) — 같은 트랜잭션(withTransaction, REV-033 L2)
+                                                                     # runAfter = now+max(20s, FAST 30s) + 같은 사용자 QUEUED 잡 디바운스(≤createdAt+5분, D-B8 수정 2026-09-29) — 같은 트랜잭션(withTransaction, REV-033 L2), 디바운스 UPDATE 를 발화 INSERT 보다 먼저(Codex C2)
   ← { utteranceId, status, analysisQueued, expiresAt }
   (gateway TURN 콜백 POST /api/internal/speech/utterances 도 같은 speech.enqueueAnalysis 를 부른다)
 
@@ -349,7 +349,7 @@ export default [
   ⇒ POST /api/internal/speech/jobs/claim (#139) → WhisperEngine ⇒ VoiceVault :8090 /transcribe-chunk → TranscriptComparator
   ⇒ POST /api/internal/speech/utterances/:id/analysis (#138)   |  실패 ⇒ POST /api/internal/speech/jobs/:id/result (#140)
 [POST /api/internal/speech/jobs/claim]
-  infra 공유 시크릿 검사 → speech.claimAnalysisJobs({workerId, kinds, max, env})   # 고아 회수(15분↑ 또는 lockedBy 가 이 인스턴스 id 와 정확히 같은 RUNNING = self-reclaim, 로그 분리)·SKIP LOCKED·환경 필터(D-B11: 비운영 앱은 QA 계정 잡만)·하트비트 기록. 유휴면 트랜잭션 없이 읽기 1회
+  infra 공유 시크릿 검사 → speech.claimAnalysisJobs({workerId, kinds, max, env})   # 고아 회수(요청 kinds 만 — 15분↑ 또는 lockedBy 가 이 인스턴스 id 와 정확히 같은 RUNNING = self-reclaim, 로그 분리)·SKIP LOCKED·재검사(그 사용자 마지막 발화 +20초 안이면 RUNNING 대신 runAfter 미룸, Codex C2)·환경 필터(D-B11: 비운영 앱은 QA 계정 잡만)·하트비트 기록. 유휴면 트랜잭션 없이 읽기 1회
   ← { jobs[] }
 [POST /api/internal/speech/utterances/:id/analysis]
   infra 공유 시크릿 검사 → speech.applyAnalysisResult(payload)          # 한 트랜잭션: Utterance(analysisText·transcriptConfidence·requiresReview·ANALYZED) + SpeechAnalysis upsert + SpeechJob DONE

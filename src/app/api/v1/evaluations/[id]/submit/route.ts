@@ -9,6 +9,7 @@ import {
   type EvalGradeResponse,
 } from '@/modules/conversation'
 import { submitEvaluation, type EvaluationGrading } from '@/modules/learning'
+import { pickGradingTexts } from '@/modules/speech'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,6 +43,8 @@ function gradingFor(userId: string): EvaluationGrading<EvalGradeResponse> {
         ),
       )
     },
+    // task-012b D-B7: 말하기 문항 채점 텍스트는 speech 가 고른다(확정 텍스트 > 재확인 불필요한 분석 텍스트 > 저장된 답) — learning 은 speech 를 모른다.
+    speechAnswers: (items) => pickGradingTexts(userId, items),
   }
 }
 
@@ -50,6 +53,7 @@ function gradingFor(userId: string): EvaluationGrading<EvalGradeResponse> {
  * `Evaluation DONE + StudyLog(EVALUATION, DIRECT) + StatsSnapshot(EVALUATION) + DAILY(evals+1)`, 실패하면 GRADING 에 남는다(다시 제출 = 새 잡,
  * 채점 중 다시 제출 = 같은 잡 `reused:true`). 총점은 코드가 `round(Σscore/Σmax×100)`(LLM total 무시). 10분 넘은 제출도 받는다(`overtime` 표시).
  * 트랜잭션 뒤 가장 최근 DONE 두 건이 같은 레벨 ≥90 이면 SET_LEVEL 제안(conversation) — 채택해야 Profile.level 이 바뀐다.
+ * 음성으로 답한 서술형은 채점 잡 시작 시점에 speech 가 텍스트를 다시 고른다(task-012b D-B7 — 분석을 기다리지 않음, 고른 텍스트·inputSource 는 채점 트랜잭션에 남는다).
  * 응답 `{evaluationId, jobId, status:'GRADING', reused, overtime}`. DONE 409 ALREADY_DONE, 출제 전·실패 409 NOT_READY. 사용자당 분당 10.
  */
 export const POST = withApi<Ctx>(async (req, ctx) => {

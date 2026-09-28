@@ -12,8 +12,10 @@
  * 음성·LLM 같은 선택 의존성만 빠진 상태(`degraded`)는 200 — M4 TTS 가 잠시 꺼져 있다고 웹 배포가 막히면 안 된다.
  * 필수 의존성(`HEALTH_REQUIRED_CHECKS`)이 하나라도 false 면 `down` → 라우트가 503 을 내 새 릴리스를 거부·자동 롤백시킨다.
  * `down` 결과는 5초만 캐시한다 — 60초 캐시면 기동 직후 한 번 실패한 판정이 release.sh 의 30초 대기 내내 굳는다.
+ * `stt_analysis_worker`(task-012b D-B4): 이 프로세스가 최근 120초 안에 worker claim 을 받았는가(워커는 포트가 없다). 선택 항목이라 degraded 에만.
  */
 import { prisma } from '@/modules/infra'
+import { isAnalysisWorkerAlive } from '@/modules/speech'
 
 export type HealthStatus = 'ok' | 'degraded' | 'down'
 type Summary = { status: HealthStatus; degraded: string[]; checks: Record<string, boolean> }
@@ -85,6 +87,7 @@ export async function getHealthSummary(now = Date.now(), dbPing: () => Promise<b
     llm: has('CLAUDE_CLI_PATH'),
     stt_gateway: sttGateway,
     stt_analysis: sttAnalysis,
+    stt_analysis_worker: isAnalysisWorkerAlive(now),
     tts,
   })
   cached = { at: now, value }

@@ -46,6 +46,21 @@ class SttRuntime:
 
 
 @dataclass(frozen=True)
+class AnalysisSttRuntime:
+    """`speech.stt.validation.*` — 분석(검증) STT 어댑터 입력(task-012b worker).
+
+    값은 worker 설정 로더가 채운다(엔진명은 yml 값으로만 온다).
+    """
+
+    engine: str = ""
+    mode: str = "http"
+    endpoint: str = ""
+    model: str = ""
+    language: str = "ja"
+    timeout_ms: int = 60000
+
+
+@dataclass(frozen=True)
 class GatewayConfig:
     """`speech.gateway.*` + 코드 상수(yml 에 없는 DoS 상한)."""
 

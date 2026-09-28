@@ -5,6 +5,7 @@
  *   클라이언트(브라우저) 코드는 이 index 가 아니라 `@/modules/speech/stt/client` 에서만 export 한다(서버 코드 비포함).
  * task-007: 턴 문장 합성(createTurnSpeaker)·#24 서명 URL(audioUrl)·턴 ↔ 발화 연결·#21b 원음·#29 발화 조합.
  * task-010: 레슨 오디오 조각(synthesizeLessonClips, #62c)·레슨 말하기 ↔ 발화 연결(linkUtteranceToLesson, #62b)·#21 lessonId.
+ * task-012b: 분석 STT(`analysis` — 적재 게이트·claim·실패 백오프·결과 반영·requiresReview 판정·평가 채점 텍스트)·#22 조회·#21a 확정.
  * conversation·learning 을 import 하지 않는다(라우트가 조합).
  */
 export { listSelectableVoices, assertSelectableVoice, describeVoice } from './voices/registry'
@@ -40,5 +41,19 @@ export {
   UTTERANCE_TURN_WINDOW_MS,
   linkUtteranceToLesson,
   linkUtteranceToEvaluationItem,
+  getUtteranceView,
+  resolveFinalText,
+  parseResolveBody,
 } from './utterances'
-export type { RecordedUtterance, RegisteredGatewayUtterance, TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance, LessonUtteranceLink, EvaluationUtteranceLink } from './utterances'
+export type { RecordedUtterance, RegisteredGatewayUtterance, TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance, LessonUtteranceLink, EvaluationUtteranceLink, UtteranceView, ResolveChoice } from './utterances'
+export {
+  claimAnalysisJobs,
+  reportJobFailure,
+  applyAnalysisResult,
+  isAnalysisWorkerAlive,
+  pickGradingTexts,
+  parseClaimBody,
+  parseFailureBody,
+  parseAnalysisBody,
+} from './analysis'
+export type { ClaimedJob, FailureResult, AnalysisApplyResult, GradingText } from './analysis'

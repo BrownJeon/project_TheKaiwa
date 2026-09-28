@@ -66,6 +66,20 @@ export async function getSpeechSetting(userId: string) {
   return prisma.userSpeechSetting.upsert({ where: { userId }, update: {}, create: { userId }, select: { recognitionMode: true, updatedAt: true } })
 }
 
+/** 인식 모드 읽기 전용(행이 없으면 기본 AUTO — 행을 만들지 않는다). 분석 잡 적재·재확인 임계 판단용(task-012b). */
+export async function getRecognitionMode(userId: string): Promise<'AUTO' | 'FAST' | 'ACCURATE' | 'OFFLINE'> {
+  const row = await prisma.userSpeechSetting.findUnique({ where: { userId }, select: { recognitionMode: true } })
+  return row?.recognitionMode ?? 'AUTO'
+}
+
+/** 여러 사용자의 인식 모드(행 없으면 빠짐 — 호출자가 AUTO 로 본다). */
+export async function getRecognitionModes(userIds: readonly string[]): Promise<Map<string, 'AUTO' | 'FAST' | 'ACCURATE' | 'OFFLINE'>> {
+  const ids = [...new Set(userIds)]
+  if (ids.length === 0) return new Map()
+  const rows = await prisma.userSpeechSetting.findMany({ where: { userId: { in: ids } }, select: { userId: true, recognitionMode: true } })
+  return new Map(rows.map((r) => [r.userId, r.recognitionMode]))
+}
+
 export async function updateSpeechSetting(userId: string, patch: { recognitionMode?: 'AUTO' | 'FAST' | 'ACCURATE' | 'OFFLINE' }) {
   return prisma.userSpeechSetting.upsert({ where: { userId }, update: patch, create: { userId, ...patch }, select: { recognitionMode: true, updatedAt: true } })
 }

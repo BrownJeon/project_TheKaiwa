@@ -25,3 +25,19 @@ export function checkInternalSecret(headers: Headers): InternalAuthResult {
   if (!expected || expected.length < MIN_SECRET_LENGTH) return 'INVALID'
   return timingSafeEqual(digest(got), digest(expected)) ? 'OK' : 'INVALID'
 }
+
+export type InternalCallerResult = InternalAuthResult | 'SERVICE_MISMATCH' | 'ENV_MISMATCH'
+
+/**
+ * worker 콜백(#138~#140, task-012b)용 — 시크릿 확인 뒤 `X-Service`(호출 서비스 이름)와 `X-Service-Env`(서비스의 APP_ENV)가
+ * 이 경로가 기대하는 서비스·이 앱의 APP_ENV 와 같은지 본다(api-contract §2-28: 다르면 409 ENV_MISMATCH). 헤더가 없으면 불일치로 본다.
+ * 순서는 시크릿이 먼저 — 인증 전에는 어떤 불일치도 알려 주지 않는다.
+ */
+export function checkInternalCaller(headers: Headers, service: 'gateway' | 'worker'): InternalCallerResult {
+  const auth = checkInternalSecret(headers)
+  if (auth !== 'OK') return auth
+  if ((headers.get('x-service') ?? '').trim().toLowerCase() !== service) return 'SERVICE_MISMATCH'
+  const appEnv = (process.env.APP_ENV ?? 'LOCAL').trim().toUpperCase()
+  if ((headers.get('x-service-env') ?? '').trim().toUpperCase() !== appEnv) return 'ENV_MISMATCH'
+  return 'OK'
+}

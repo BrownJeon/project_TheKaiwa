@@ -9,11 +9,14 @@
  *    확인과 저장 사이에 방이 지워지면 FK(SetNull 관계) 위반 P2003 → 404.
  *  - 보존 30일: `audioExpiresAt` 이 지난 wav 를 지우고 `audioPath=null`·`audioDeletedAt` 기록(행·텍스트는 영구).
  *    정리는 별도 잡 없이 **발화가 새로 기록될 때 프로세스당 1시간에 1번** 뒤에서 돈다(한 번에 200건).
+ *  - 분석 잡 적재(task-012b D-B3): 두 경로 모두 행을 만드는 **같은 쓰기**(중첩 create)로 `SpeechJob(ANALYSIS_STT)` 를 넣고 `status=QUEUED`.
+ *    게이트(`analysis/enqueue`)가 아니면 `RECORDED` 그대로·`analysisQueued:false`. gateway 경로는 파일이 콜백 뒤에 옮겨지므로 집는 시각을 늦춘다.
  * 원음·전사 전문은 로그에 남기지 않는다(길이·id 만).
  */
 import { randomBytes } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { ApiError, dates, ensureDataDir, prisma, removeDataFile, writeDataFile } from '@/modules/infra'
+import { analysisEnqueueFor } from '../analysis/enqueue'
 import { UTTERANCE_MAX_BYTES, UTTERANCE_MAX_DURATION_MS, UTTERANCE_RETENTION_DAYS, UTTERANCE_SAMPLE_RATE } from './limits'
 import { utteranceDb } from './store'
 import { isPcm16Mono16k, parseWav } from './wav'
@@ -28,6 +31,8 @@ export { linkUtteranceToLesson, lessonUtteranceProblem } from './lesson'
 export type { LessonUtteranceLink } from './lesson'
 export { linkUtteranceToEvaluationItem, evaluationUtteranceProblem } from './evaluation'
 export type { EvaluationUtteranceLink } from './evaluation'
+export { getUtteranceView, resolveFinalText, parseResolveBody } from './review'
+export type { UtteranceView, ResolveChoice } from './review'
 export type { TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance } from './turn'
 export type { WavInfo } from './wav'
 
@@ -64,15 +69,15 @@ function isFkMissing(e: unknown): boolean {
 
 export interface RecordedUtterance {
   utteranceId: string
-  status: 'RECORDED'
-  analysisQueued: false
+  status: 'RECORDED' | 'QUEUED'
+  analysisQueued: boolean
   expiresAt: string
 }
 
 const ownerGone = () => new ApiError('NOT_FOUND', '사용자나 대화를 찾을 수 없어요.')
 
 /**
- * #21 — 온디바이스 최종 텍스트 + wav. 길이는 헤더로 계산(클라이언트 값과 20% 넘게 다르면 서버 값). Phase 1 은 분석 큐 없음.
+ * #21 — 온디바이스 최종 텍스트 + wav. 길이는 헤더로 계산(클라이언트 값과 20% 넘게 다르면 서버 값). 분석 잡은 게이트를 통과할 때만(task-012b).
  * `input.chatId`·`input.lessonId`(task-010) 는 라우트가 소유를 확인한 값이어야 한다.
  */
 export async function recordUploadedUtterance(userId: string, input: UploadInput): Promise<RecordedUtterance> {
@@ -91,6 +96,7 @@ export async function recordUploadedUtterance(userId: string, input: UploadInput
   const segs = utteranceSegments(userId, id, now)
   const expiresAt = new Date(now.getTime() + UTTERANCE_RETENTION_DAYS * DAY_MS)
   await writeDataFile(segs, input.audio)
+  const analysis = await analysisEnqueueFor(userId, { path: 'upload', hasAudio: input.audio.length > 0, now: now.getTime() })
   try {
     await utteranceDb.create({
       id,
@@ -105,10 +111,11 @@ export async function recordUploadedUtterance(userId: string, input: UploadInput
       realtimeText: input.text,
       finalText: input.text,
       finalSource: 'REALTIME',
-      status: 'RECORDED',
+      status: analysis ? analysis.status : 'RECORDED',
       timings: timingsJson(input.timings, input.segments),
       audioExpiresAt: expiresAt,
       createdAt: now,
+      ...(analysis ? { jobs: analysis.jobs } : {}),
     })
   } catch (e) {
     await removeDataFile(segs).catch(() => undefined)
@@ -116,14 +123,16 @@ export async function recordUploadedUtterance(userId: string, input: UploadInput
     throw e
   }
   schedulePurge()
-  return { utteranceId: id, status: 'RECORDED', analysisQueued: false, expiresAt: expiresAt.toISOString() }
+  return { utteranceId: id, status: analysis ? 'QUEUED' : 'RECORDED', analysisQueued: analysis !== null, expiresAt: expiresAt.toISOString() }
 }
 
 export interface RegisteredGatewayUtterance {
   utteranceId: string
   /** DATA_ROOT 상대 경로(DB 값과 같음). gateway 가 `.part` 를 `DATA_ROOT/<audioPath>` 로 옮긴다. 디렉터리는 앱이 만들어 둔다. */
   audioPath: string
-  status: 'RECORDED'
+  status: 'RECORDED' | 'QUEUED'
+  /** gateway 는 읽지 않는다(추가 필드 — task-012b). */
+  analysisQueued: boolean
   expiresAt: string
 }
 
@@ -134,6 +143,7 @@ export async function registerGatewayUtterance(input: GatewayUtteranceInput): Pr
   const id = newUtteranceId(now.getTime())
   const segs = utteranceSegments(input.userId, id, now)
   const expiresAt = new Date(now.getTime() + UTTERANCE_RETENTION_DAYS * DAY_MS)
+  const analysis = await analysisEnqueueFor(input.userId, { path: 'gateway', hasAudio: input.audioBytes === null || input.audioBytes > 0, now: now.getTime() })
   try {
     await utteranceDb.create({
       id,
@@ -147,11 +157,12 @@ export async function registerGatewayUtterance(input: GatewayUtteranceInput): Pr
       realtimeText: input.realtimeText,
       finalText: input.realtimeText,
       finalSource: 'REALTIME',
-      status: 'RECORDED',
+      status: analysis ? analysis.status : 'RECORDED',
       timings: timingsJson(input.timings, input.segments),
       traceId: input.traceId,
       audioExpiresAt: expiresAt,
       createdAt: now,
+      ...(analysis ? { jobs: analysis.jobs } : {}),
     })
   } catch (e) {
     if (isFkMissing(e)) throw ownerGone()
@@ -165,7 +176,7 @@ export async function registerGatewayUtterance(input: GatewayUtteranceInput): Pr
     throw e
   }
   schedulePurge()
-  return { utteranceId: id, audioPath: segs.join('/'), status: 'RECORDED', expiresAt: expiresAt.toISOString() }
+  return { utteranceId: id, audioPath: segs.join('/'), status: analysis ? 'QUEUED' : 'RECORDED', analysisQueued: analysis !== null, expiresAt: expiresAt.toISOString() }
 }
 
 /** 보존 기한이 지난 오디오 삭제. 파일이 이미 없어도 행은 정리한다. 경로 형식이 틀린 행은 파일을 건드리지 않는다. */

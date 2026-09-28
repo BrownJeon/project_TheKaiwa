@@ -13,6 +13,7 @@ const notFound = () => fail('NOT_FOUND', '요청한 항목을 찾을 수 없습�
  * 앱이 id·저장 경로를 정해 `Utterance(RECORDED)` 를 만들고 `{utteranceId, audioPath(DATA_ROOT 상대), status, expiresAt}` 를 돌려준다.
  * 본문 `chatId`(TURN 티켓 클레임 — 발급 때 소유 확인됨)는 여기서 한 번 더 티켓 사용자의 방인지 확인하고 `Utterance.chatId` 로 남긴다(task-018 ①).
  * 아니면 404 — gateway 는 4xx 를 재시도하지 않고 wav 를 `_orphan` 으로, 클라는 `utteranceId:null` 로 글자 턴을 이어간다(gateway README §4).
+ * 분석 잡 적재(task-012b)는 `registerGatewayUtterance` 가 #21 과 같은 게이트로 같은 쓰기에서 한다(응답 `analysisQueued` 는 gateway 가 읽지 않는 추가 필드).
  * 폭주 방지 600/분(전체). 본문에 원음 없음(경로도 받지 않는다).
  */
 export const POST = withApi(async (req) => {

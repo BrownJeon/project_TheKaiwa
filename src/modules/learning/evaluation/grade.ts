@@ -18,7 +18,7 @@
  * **잡 DONE 은 레벨 제안 단계 뒤**다 — 결과 화면이 잡 DONE 을 보고 #66 을 읽을 때 제안 카드가 이미 있게(트랜잭션 안에서 잡을 끝내면 폴링이
  * 제안 생성보다 먼저 DONE 을 볼 수 있다). 그 사이 프로세스가 죽으면 잡은 5분 뒤 stale FAILED 가 되지만 평가는 이미 DONE — 화면은 #66 status 로 판단한다.
  */
-import type { EvalItemKind, EvalKind, JlptLevel, Prisma } from '@prisma/client'
+import type { EvalItemKind, EvalKind, InputSource, JlptLevel, Prisma } from '@prisma/client'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type TraceStep } from '@/modules/engine'
 import { ApiError, classifyError, dates, jobs, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
@@ -39,6 +39,7 @@ import {
   type EvalRubricScores,
   type LevelUpBasis,
 } from './scoring'
+import { EVAL_ANSWER_TEXT_MAX } from './validate'
 
 export type EvalSubjectiveKind = 'LISTEN_RESPOND' | 'SITUATION_RESPOND' | 'CORRECTION_SPOT'
 
@@ -78,6 +79,12 @@ export interface EvaluationGrading<T extends EvalGradeOutputLike> {
   finalize: (data: T, allowedOrders: number[]) => FinalizedEvalGrade
   /** 트랜잭션 뒤 레벨 제안(실패해도 채점은 끝난 것 — 로그만). */
   onLevelUp?: (c: LevelUpCandidate) => Promise<void>
+  /**
+   * (task-012b D-B7) 음성으로 답한 서술형 문항의 채점 텍스트 — 라우트가 speech 의 선택을 주입한다(learning → speech import ✗).
+   * 채점 잡이 시작할 때 한 번 부르고 분석을 기다리지 않는다. 돌려준 문항만 답·입력 방식을 바꿔 채점하고 저장 트랜잭션에 함께 남긴다.
+   * 없거나 실패하면 저장된 답(실시간 인식) 그대로 채점한다.
+   */
+  speechAnswers?: (items: { evaluationItemId: string; answerText: string }[]) => Promise<Map<string, { text: string; inputSource: InputSource }>>
 }
 
 export interface SubmitEvaluationResult {
@@ -157,6 +164,8 @@ async function claimGrading(userId: string, id: string, promptVersion: string, n
   })
 }
 
+export type SpeechAnswerOverrides = Map<string, { answerText: string; inputSource: InputSource }>
+
 export interface GradedEvaluation {
   items: readonly EvaluationItemRow[]
   scores: Map<string, { score: number; feedback: string | null }>
@@ -164,6 +173,27 @@ export interface GradedEvaluation {
   fin: FinalizedEvalGrade
   model: string
   promptVersion: string
+  /** (D-B7) 채점에 쓴 말하기 문항 텍스트가 저장된 답과 다를 때 — 같은 트랜잭션에서 답·입력 방식을 그 값으로 남긴다. */
+  answers?: SpeechAnswerOverrides
+}
+
+/** (D-B7) 음성 답 서술형 문항만 골라 주입 함수에 묻고, 저장된 답과 다른 것만 돌려준다. 주입 실패는 저장된 답으로 채점(로그만). */
+export async function speechAnswerOverrides(items: readonly EvaluationItemRow[], pick: EvaluationGrading<EvalGradeOutputLike>['speechAnswers']): Promise<SpeechAnswerOverrides> {
+  const out: SpeechAnswerOverrides = new Map()
+  if (!pick) return out
+  const voiced = items.filter((it) => SUBJECTIVE_ITEM_KINDS.has(it.kind) && it.answerText !== null && it.inputSource !== null && it.inputSource !== 'TEXT')
+  if (voiced.length === 0) return out
+  try {
+    const picked = await pick(voiced.map((it) => ({ evaluationItemId: it.id, answerText: it.answerText as string })))
+    for (const it of voiced) {
+      const p = picked.get(it.id)
+      const text = p ? truncateCodePoints(p.text.trim(), EVAL_ANSWER_TEXT_MAX) : ''
+      if (p && text && (text !== it.answerText || p.inputSource !== it.inputSource)) out.set(it.id, { answerText: text, inputSource: p.inputSource })
+    }
+  } catch (e) {
+    console.warn('[evaluation] 말하기 문항 텍스트 선택 실패 — 저장된 답으로 채점:', e instanceof Error ? e.name : 'unknown')
+  }
+  return out
 }
 
 /**
@@ -180,7 +210,10 @@ export async function saveGradedEvaluation(tx: Tx, userId: string, c: GradeClaim
   for (const it of g.items) {
     const s = g.scores.get(it.id)
     if (!s) continue
-    if (s.score !== it.score || s.feedback !== it.feedback) await tx.evaluationItem.update({ where: { id: it.id }, data: { score: s.score, feedback: s.feedback } })
+    const a = g.answers?.get(it.id)
+    if (s.score !== it.score || s.feedback !== it.feedback || a) {
+      await tx.evaluationItem.update({ where: { id: it.id }, data: { score: s.score, feedback: s.feedback, ...(a ? { answerText: a.answerText, inputSource: a.inputSource } : {}) } })
+    }
   }
   const submittedAt = row.submittedAt ?? now
   const durationSec = Math.max(0, Math.round((submittedAt.getTime() - row.startedAt.getTime()) / 1000))
@@ -258,7 +291,12 @@ async function runGrading<T extends EvalGradeOutputLike>(userId: string, c: Grad
   try {
     const ev = await prisma.evaluation.findFirst({ where: { id: c.evaluationId, userId }, select: { kind: true, level: true, status: true, topicId: true } })
     if (!ev || ev.status !== 'GRADING') throw new ApiError('CONFLICT', '평가 상태가 바뀌어 채점하지 않았어요.', { reason: 'STATE_CHANGED' })
-    const items = await prisma.evaluationItem.findMany({ where: { evaluationId: c.evaluationId }, select: ITEM_SELECT })
+    const stored = await prisma.evaluationItem.findMany({ where: { evaluationId: c.evaluationId }, select: ITEM_SELECT })
+    const answers = await speechAnswerOverrides(stored, grading.speechAnswers)
+    const items = stored.map((it) => {
+      const a = answers.get(it.id)
+      return a ? { ...it, answerText: a.answerText, inputSource: a.inputSource } : it
+    })
     const materials = gradingMaterials(ev, items)
     await jobs.updateJobProgress(c.jobId, 10, 'LLM')
     let t = Date.now()
@@ -269,7 +307,7 @@ async function runGrading<T extends EvalGradeOutputLike>(userId: string, c: Grad
     await jobs.updateJobProgress(c.jobId, 90, 'SAVE')
     t = Date.now()
     try {
-      await withTransaction((tx) => saveGradedEvaluation(tx, userId, c, { items, scores, total, fin, model: r.model, promptVersion: grading.promptVersion }))
+      await withTransaction((tx) => saveGradedEvaluation(tx, userId, c, { items, scores, total, fin, model: r.model, promptVersion: grading.promptVersion, answers }))
     } catch (e) {
       if (!(e instanceof EvaluationJobSuperseded)) throw e
       logSuperseded('EVAL_GRADE', c, 'save')
@@ -277,7 +315,7 @@ async function runGrading<T extends EvalGradeOutputLike>(userId: string, c: Grad
       void recordTrace({ traceId: c.traceId, kind: 'TURN', userId, status, steps, totalMs: Date.now() - t0, errorCode, refType: 'evalGrade', refId: c.evaluationId })
       return
     }
-    steps.push({ name: 'SAVE', ms: Date.now() - t, items: items.length, total })
+    steps.push({ name: 'SAVE', ms: Date.now() - t, items: items.length, total, speechText: answers.size })
   } catch (e) {
     status = 'ERROR'
     errorCode = classifyError(e).code
