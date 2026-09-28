@@ -42,7 +42,7 @@ tags:
 2. **우선순위 확정(사용자)** — Leader 가 화면별 분류표(번호·제목·영역·Leader 의견)를 보여 주고 사용자가 `priority`·순서를 정한다.
 3. **task 묶기(Leader)** — 화면(또는 영역) 단위로 개선 task 이력서를 만든다(`tasks/task-<번호>-improve-<화면>.md`, 태그 `domain/improvement`). 항목은 `planned` + `planned_task` 링크, task 이력서에는 포함 항목 `[[IMP-NNNN-…]]` 목록.
 4. **검증 순환** — 프로젝트 성격에 따라:
-   - **화면이 있는 프로젝트(`has_ui: true`)**: **Designer → Developer → Reviewer → QA** (→ 배포 역할이 있으면 Deployer). Designer 가 화면 설계 문서를 먼저 갱신하고 Developer 는 그 설계대로 구현한다.
+   - **화면이 있는 프로젝트(`has_ui: true`)**: **Designer → Developer → Reviewer → QA** (→ 배포 역할이 있으면 Deployer). 화면 개선 task 는 먼저 judge intake 로 데모 수준을 판정받고, full·delta 면 **데모 검토 게이트**(designer 데모 → 사용자 승인 → 구현, 워크스페이스 `docs/demo-review-gate.md`)를 거친다. 현재 화면은 current 로 캡처해 개선안 데모의 "현재 vs 제안" 비교에 쓴다. Designer 가 화면 설계 문서를 먼저 갱신하고 Developer 는 승인된 데모·설계대로 구현한다.
    - **화면이 없는 프로젝트**: Developer → Reviewer → QA.
    - 프로젝트에 judge·codex 체크포인트가 있으면 그대로 적용한다. QA 결함 → Developer 수정 → Reviewer 부터 재순환(워크스페이스 규칙).
 5. **마감** — task 완료 시 포함 항목을 `done` 으로 바꾸고 Leader 가 task 최종 요약에 항목별 결과를 적는다.

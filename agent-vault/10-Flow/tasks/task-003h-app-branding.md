@@ -1,7 +1,7 @@
 ---
 task_id: task-003h
 title: "앱 이름 Lingofy Japanese · 부제 「일본어가 자연스러워지는 AI 회화」 적용 (웹 + 앱 1.0.1)"
-status: in-progress
+status: done
 base_ref: 360a404
 risk_level: R1
 roles_involved: [leader, developer, reviewer, qa]
@@ -113,4 +113,13 @@ updated: 2026-09-28
 
 ## QA 기록
 
+## QA 기록
+- [13:05] (Leader) 운영 확인 — 개발자 실 Chrome 31/31·E2E 77/77, REV-024 회귀(tsc·lint·test 491+1skip) 근거 확인 후 운영 반영 뒤 직접 확인: https 로그인 `<title>Lingofy Japanese</title>`·부제 표시, 360/412 가로 넘침 0(스크린샷 확인 — h1 "Lingofy"/"Japanese" 두 줄), manifest name·short_name·description, `/api/app/version` 1.0.1(code 2)·1.0.0 기기엔 updateAvailable, 다운로드 `LingofyJapanese-1.0.1.apk`·sha256 일치, health ok. 실기기(덮어 설치·런처 이름·설정 앱 목록 이름)는 사용자 폰.
+
 ## 최종 요약
+
+### 최종 요약 (Leader, 사용자용 — 2026-09-28)
+앱 이름이 **Lingofy Japanese**, 부제가 **일본어가 자연스러워지는 AI 회화** 로 바뀌었습니다 — 로그인 화면 로고·부제, 브라우저 탭 제목·설명, 홈 화면 추가 이름, 폰 앱 이름(런처·안드로이드 설정 목록), 권한 안내 문구, 오프라인 화면, 설정의 앱 버전 줄("Lingofy Japanese v1.0.1" + 부제), 업데이트 알림, 받은 설치 파일 이름(`LingofyJapanese-1.0.1.apk`). 이름은 코드 한 곳(`brand.ts`)에서 관리하고 앱 쪽 4곳과 어긋나면 테스트가 막습니다.
+- 내부 식별자(앱 ID·주소·쿠키·서버 이름)는 그대로라 **1.0.0 위에 1.0.1 을 덮어 설치**할 수 있고 로그인·인식 파일이 유지됩니다.
+- **운영 반영 완료**(13:03): 웹 재시작 + 앱 1.0.1(versionCode 2, sha256 `ee8cd0b5…`) 배포본·버전 정보 — 1.0.0 앱에는 업데이트 띠가 뜹니다.
+- 후속(낮음): 강사 페르소나 파일(`tutor.md`) 설명 줄의 옛 이름(화면·대화에는 안 나감) — prompt-engineer 정리.

@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-003h-app-branding]] — **앱 이름 Lingofy Japanese·부제 「일본어가 자연스러워지는 AI 회화」**(2026-09-28). 웹·앱 1.0.1(versionCode 2) 운영 반영, REV-024 PASS
 - [[task-003g-lexicon-admin]] — **발음 사전 관리**(2026-09-28). 콘솔 API 9라우트+화면(검색·추가·수정·끄기·미리듣기 비교·Import dryRun/Export·버전 diff·Rollback), 버전+감사 한 트랜잭션·환경 잠금·스냅샷 무결성. REV-017~020·Codex C2 1 반영·QA-017 PASS·화면 E2E 55/55, 운영 반영
 - [[task-007-talk-voice-web]] — **AI 회화(음성) 웹 경로**(2026-09-28). 푸시투토크→턴→문장별 청크 TTS(SSE audio)·재생 큐·barge-in·교정 카드 즉시, 예열 CLI·첫 문장 조기 합성으로 손 뗌→첫 음성 바이트 p50 ≈1.8~2.1s, #24 서명 URL·발화 1회 연결. Codex C1 3·C2 2 반영, REV-014~016·QA-016 PASS, 화면 E2E 40/40, 운영 반영·운영 스모크 37/37
 - [[task-003e-stt-gateway-web]] — **STT gateway + 웹 음성 인식 + 마이크 테스트**(2026-09-28). pm2 `thekaiwa-speech-gateway`(127.0.0.1:8100, nginx wss), 60초 1회 티켓·Origin 허용 목록·발화 저장/콜백, 합성 20문장 CER 0.57%·final p50 63ms. REV-013→Codex C2 2건→QA-015 PASS, 운영 E2E 215ms
@@ -23,8 +24,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- [[task-003h-app-branding]] — 앱 이름 Lingofy Japanese·부제 적용(웹 + 앱 1.0.1, 네이티브 변경) (2026-09-28 사용자 지시)
-- [[task-003f-android-ondevice-stt]] — 안드로이드 앱 1.0.0·온디바이스 STT — **팀 작업·운영 반영 완료, 사용자 대기**: nginx 재적용(sudo)·폰 설치·F6 실측 (2026-09-28)
+- [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
