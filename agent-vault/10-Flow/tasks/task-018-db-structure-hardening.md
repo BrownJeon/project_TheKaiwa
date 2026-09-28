@@ -100,6 +100,42 @@ demo_gate:
 
 ## Reviewer 기록
 
+### REV-026 (2026-09-28, f96bf42 + b8c506e + 44e9d3e)
+
+**판정: PASS** (Critical 0 · High 0 · Medium 0 · Low 2) — push(=운영 배포) 전 **반드시 고칠 것 없음**. 7영역 전부 검토, DB 는 읽기 전용으로 실측 대조(스키마=DB 상태 대조 §1) 포함.
+
+**① 스키마=DB 실제 상태 일치(실측, 읽기 전용)** — 미러에서 `information_schema` 직접 조회: `Utterance.chatId` varchar(191) NULL·`chatMessageId` varchar(191) NULL 확인, 인덱스 `Utterance_chatId_idx`(비고유)·`Utterance_chatMessageId_key`(UNIQUE, NON_UNIQUE=0)·옛 `Utterance_chatMessageId_idx`(비고유, 잔존 — Deployer 기록과 일치, 무해) 3개 모두 존재, FK `Utterance_chatId_fkey → Chat` DELETE_RULE=`SET NULL`(schema.prisma 와 일치), `AuditLog`·`ConfigurationVersion`·`RuntimeOverride`.scope enum 셋 다 끝에 `LEXICON` 추가만(값 제거·타입 축소 0), `PronunciationLexiconVersion.rollbackOf` int NULL, 중복 `chatMessageId` 그룹 **0**(unique 적용 안전). Deployer 기록의 SQL 미리보기·적용 결과와 완전히 일치. 파괴적 변경 없음.
+
+**② 보안·정합(발화↔방)** — `#21`(`src/app/api/v1/speech/utterances/route.ts`)·internal 콜백(`src/app/api/internal/speech/utterances/route.ts`) 둘 다 저장 전 `conversation.getOwnedChat(userId, chatId)`(index-only import, module-dependency 위반 없음)로 소유 확인 후 저장 — 타인 방이면 두 경로 모두 404, 단위 테스트(`task018.test.ts` P2003 케이스)·라이브 스모크 K3·K5 로 실측 확인. internal 콜백의 `chatId` 는 gateway 가 WS 티켓 클레임에서 꺼내 보내는 값인데, gateway 쪽(`speech/gateway/kaiwa_gateway/connection.py:177`)이 애초에 "start 메시지의 chatId ≠ 티켓의 chatId" 를 4401 로 거절하고 콜백 본문(`connection.py:379`)도 `self.claims.chat_id`(검증된 티켓 클레임)만 쓰므로, 앱 쪽 `getOwnedChat` 재확인은 신뢰 사슬 위의 방어 심화(defense-in-depth)이지 클라이언트 입력을 그대로 믿는 구조가 아니다 — 안전. 턴 판정 순서(`turnUtteranceProblem`: USED → OTHER_CHAT → EXPIRED)는 코드·`task018.test.ts`·api-contract 문서가 정확히 일치. `linkUtteranceToMessage` 의 count-0(경합)·P2002(unique 위반) 모두 턴은 계속하고 Trace 경고만 남기는 설계는 K7(라이브, DB 레벨 P2002 실제 재현)·단위 테스트로 검증됨 — 이 경로는 messageId 가 매 턴 새로 생성돼 실사용에서는 사실상 도달 불가능한 방어 코드이므로 "묵살" 이 아니라 적절한 선택. `#21`P2003(방 삭제 경합) → wav 삭제 후 404(`removeDataFile` 먼저, `isFkMissing` 뒤 판정) 코드·테스트 일치.
+
+**③ 옛 코드 호환(배포 순서)** — 두 우려 모두 확인:
+  - *unique 제약과 옛 `linkUtteranceToMessage`(try/catch 없음)*: `conversation/orchestrator/index.ts:325~328` 의 `onAccepted` 훅 호출이 이미 `.catch(e => ...HOOK_FAILED 경고로 강등)` 로 감싸여 있다 — 이 코드는 task-018 커밋 범위 밖(최근 수정 `6d8b3b1`, task-007, 2026-09-28 03:29 — task-018 14:44 보다 먼저, 즉 지금 운영 중인 옛 코드에 이미 포함). 따라서 unique 위반이 옛 코드에서 발생해도(현실적으로 messageId 가 매 턴 새로 생성돼 거의 불가능) 터짐 없이 경고로 흡수된다 — 위험 낮음, 실측 확인 완료.
+  - *Chat 삭제 SetNull*: FK 규칙이 DB 레벨(`ON DELETE SET NULL`)이라 옛 Prisma 클라이언트가 실행하는 `deleteChat`(`DELETE ... WHERE id AND userId`)도 코드 변경 없이 그대로 안전 — 엔진이 처리, ORM 버전 무관.
+  - *LEXICON enum 롤백 위험(Low 2 참고)*: 새 코드 배포 뒤 LEXICON 행이 쌓인 상태에서 task-018 이전 릴리스로 롤백하면, 그 옛 Prisma 클라이언트가 `scope` 칼럼을 폭넓게 select 하는 쿼리를 실행할 때 런타임 예외 가능성이 있다(Prisma 쿼리 엔진이 알 수 없는 enum 값을 만나는 경우). 그러나 **현재 코드 경로에는 그런 쿼리가 없다** — `findAuditsByTargets`(`src/modules/infra/audit.ts:65`)는 `scope` 를 select 에서 제외하고, `#137` 감사 목록 API 자체가 아직 구현되지 않았다(Phase 2). 지금 당장 막을 것은 없고, Low 로 기록.
+
+**④ LEXICON 감사·rollbackOf** — `lexiconAuditEntry()`(scope 'LEXICON' 고정) 분리·테스트, `writeLexicon` 의 `rollbackOf: op.kind==='ROLLBACK' ? op.targetVersion : null` 코드·버전 전이 테스트(`lexiconAdmin.test.ts` — v2~v4 null, ROLLBACK v5 만 1) 일치. DTO `rollbackOf` 신설 + `restoredFrom` 호환 필드(`rollbackOf ?? 감사 after.restoredFrom`) 로 task-018 이전 되돌림 버전도 깨지지 않음. api-contract #137 에 "LEXICON 필터는 옛 scope=null 행도 함께 잡아야 한다" 규칙을 문서화했으나 History 화면·API 자체가 Phase 2 라 지금은 코드로 강제할 대상이 없음(문서만 있고 실제로 어기는 코드 없음 — 정상).
+
+**⑤ 화면 패치(b8c506e)·데모 게이트** — `TalkRoom.tsx`/`talkCopy.ts` 는 `UTTERANCE_OTHER_CHAT` 을 기존 USED/EXPIRED 와 같은 "글자 턴으로 재전송" 띠에 자연스럽게 편입, `VersionRow`/`VersionDetailSheet` 는 `rollbackOf` 있을 때만 "v{n} 로 되돌림" 표시(changeSummary 유지) — 엔진명·model_id·speaker_id 노출 0(`878717f..HEAD` 전체 diff grep 재확인, engine/adapters·seed 밖 0건). 데모 게이트 독립 재실행: `node ../.claude/tools/demo-gate/check.mjs check --task TheKaiwa/agent-vault/10-Flow/tasks/task-018-db-structure-hardening.md` → `DEMO_GATE_PASSED`(status not_required, judge demo=none) — frontmatter 와 일치. `.claude/state/demo-gate/evidence.jsonl`·`prompts.jsonl` 에 task-018 관련 행이 전혀 없음을 확인했는데, 이는 정상이다(`gate.mjs` 주석: evidence.jsonl 은 approve·waive 성공 매칭만 기록 — not_required 판정은애초에 승인·유예 절차를 타지 않는다). 에이전트가 `.claude/state/demo-gate/` 를 직접 쓴 흔적 없음.
+
+**⑥ 003g 스모크 기대값 개정(44e9d3e) 정당성** — 세 군데 모두 완화가 아니라 **강화**: 3b 는 `a1.scope === null`(옛 계약) → `=== 'LEXICON'`(새 계약, 더 엄격한 정확값 단언으로 교체, 느슨화 아님), 3r 은 기존 `restoredFrom` 단언에 `rollbackOf` 단언을 **추가**, 3r2 는 DB 칼럼 직접 대조를 **신설**(되돌림 버전만 값·나머지 null), 3s 는 기존 1:1 대조에 `scope === 'LEXICON'` 조건을 **추가**. task-018 ②의 의도된 계약 변경에 스모크를 맞춘 것이며 구현에 맞춰 느슨하게 바꾼 사례는 없음.
+
+**⑦ 회귀 독립 재현** — `git archive 44e9d3e` 를 스크래치(`/tmp/.../scratchpad/rev026-44e9d3e`)에 풀고 `~/.node-local/thekaiwa/node_modules` 심볼릭 링크로 연결해 독립 실행(끝에 삭제):
+  - `tsc --noEmit` → 0 에러(Developer 기록과 일치).
+  - `eslint .` → 2 에러 + 5 경고로 처음 나왔으나, 2 에러는 `ecosystem.config.js`(require() 스타일 import) 였다 — 대조 결과 **이 파일은 `npm run lint` 가 항상 거치는 `sync-local.sh` 동기화 대상에 원래 없다**(`~/.node-local/thekaiwa` 미러에 이 파일 자체가 없음, `diff` 로 확인) — `git archive` 가 저장소 전체를 푼 내 스크래치에서만 나타난 아티팩트이고 task-018 커밋 3건 어디도 이 파일을 건드리지 않았다. 미러에서 그대로 `eslint .` 재실행 → 0 에러·5 경고(모두 `react-hooks/set-state-in-effect`, `eslint.config.mjs` 주석에 문서화된 기존·의도적 warn 등급 — task-018 과 무관한 기존 5건과 동일 파일·라인). Developer "lint 0 error(경고 5 기존)" 주장과 정확히 일치.
+  - `npm run test` 상당 명령(70개 `*.test.ts`, `--test-concurrency=1`) → **505/505 pass, 0 fail, 0 skip**. Developer/Deployer 로그의 "504 pass·1 skip" 과 총합(505)은 같으나 skip 유무가 다른데, 원인은 `modelPackage.test.ts:91` 의 `t.skip(...)` 가 "저장소 `speech/models` 가 없는 실행 위치(미러)" 조건부라서다 — 미러(`~/.node-local/thekaiwa`)에는 이 디렉터리가 없어 스킵되지만, `git archive` 로 저장소 전체를 그대로 푼 내 스크래치에는 존재해 실제로 돌고 통과했다. task-018 커밋은 이 파일을 건드리지 않았고, 실패 0 은 두 환경 다 동일 — 회귀 없음 확인.
+
+**Low findings (비차단, push 막지 않음)**
+- L1 — `linkUtteranceToMessage` 의 P2002(unique 위반) 를 Trace 경고 `UTTERANCE_USED` 로 수렴시킨 것은 의미가 살짝 어긋난다("이 발화를 이미 보냄" 이 아니라 "이 메시지에 이미 다른 발화가 연결됨"). 사용자에게는 노출되지 않고(턴은 계속 진행) 실무적으로 거의 도달 불가능한 경로라 지금 막을 필요는 없지만, 다음에 이 파일을 손댈 때 별도 라벨(예: `UTTERANCE_LINK_CONFLICT`)로 분리 권고.
+- L2 — §③ 서술한 LEXICON enum 롤백 시나리오. 지금 코드 경로엔 노출이 없으나, Phase 2 `#137` 감사 이력 API 를 구현할 사람이 `scope` 를 폭넓게 select 하기 전에 한 번 더 고려하도록 `domain-model.md` 미해결 표에 짧게 남겨두길 권고(선택 사항, 이번 task 완료 기준 밖).
+
+**QA 인계 (high_risk_areas)**
+- `#32` 턴에서 다른 방 발화 재전송 시 409 `UTTERANCE_OTHER_CHAT` 띠·문구(360/390/412 세 폭에서 줄바꿈·터치 영역 확인)
+- 발음 사전 버전 목록/상세의 "v{n} 로 되돌림" 표시(행·머리 둘 다, changeSummary 와 중복 정보 아닌지 시각 확인)
+- 배포 직후 pm2 `thekaiwa` 로그에서 `HOOK_FAILED`·`UTTERANCE_USED`(Trace) 스파이크가 없는지 짧게 확인(옛 코드 구간은 이미 지나갔을 가능성이 높지만, 배포 타이밍에 따라 여전히 남아있을 수 있음)
+- 라이브 스모크 K1~K7·003g 3b/3r/3r2/3s 는 팀이 이미 실행해 46/46·54/54 로 PASS 했음 — QA 는 체크리스트 상 재확인만 권고(필수 재실행은 아님)
+
+**native_change: false**
+
 ## QA 기록
 
 ## Deployer 기록
