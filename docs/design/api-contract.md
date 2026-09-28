@@ -330,9 +330,11 @@
   "success": true,
   "data": {
     "app": "thekaiwa",
+    "env": "PRODUCTION",
     "status": "degraded",
     "degraded": ["tts"],
     "checks": {
+      "db": true,
       "env_database": true,
       "env_jwt": true,
       "env_google_oauth": true,
@@ -349,7 +351,7 @@
 }
 ```
 
-- 키는 **역할 이름**(`llm`·`stt_gateway`·`stt_analysis`·`tts`) — 무인증 엔드포인트에 엔진명을 싣지 않는다(2026-09-26 구현 시 변경, 종전 `claude_cli`·`speech_gateway`·`whisper_service`·`tts_service`). `stt_gateway`/`stt_analysis`/`tts` = 각 서비스 `/health` 200(1.5초). `llm` 은 Phase 0 에서 `CLAUDE_CLI_PATH` 설정 여부만, 실행 파일 프로브는 EngineHealth(task-004). 판정은 `admin.getHealthSummary()`(module-dependency §3-1 규칙 4). `status` 는 `ok | degraded`.
+- 키는 **역할 이름**(`llm`·`stt_gateway`·`stt_analysis`·`tts`) — 무인증 엔드포인트에 엔진명을 싣지 않는다(2026-09-26 구현 시 변경, 종전 `claude_cli`·`speech_gateway`·`whisper_service`·`tts_service`). `stt_gateway`/`stt_analysis`/`tts` = 각 서비스 `/health` 200(1.5초). `llm` 은 Phase 0 에서 `CLAUDE_CLI_PATH` 설정 여부만, 실행 파일 프로브는 EngineHealth(task-004). 판정은 `admin.getHealthSummary()`(module-dependency §3-1 규칙 4). `status` 는 `ok | degraded | down` — `down`(필수 `db`·`env_database`·`env_jwt`·`env_google_oauth`·`env_data_root` 중 하나 실패)이면 **HTTP 503**, 그 밖은 200. `db` = DB 접속 `SELECT 1`(2초, 실패 사유 미노출).
 - 금지: `checks` 에 문자열·숫자·객체를 넣지 않는다(리뷰어 체크 항목).
 
 #### #2~#7 인증 6종 (TheMeal 이식, 쿠키·스킴·착지만 교체)
