@@ -214,6 +214,38 @@ demo_gate:
 
 **완료 보고(이 이력서 "Developer 기록")**: 변경 파일 목록 · `tsc`·`eslint`·단위(앱·worker·common) 결과 · 라이브 완료 기준 1~11 중 확인한 것(특히 워커 2개 동시 중복 0·#138 멱등·#21a 동시 2요청·D-B11 필터·턴 p50 무영향·30초 왕복 p50/p95·로그 원문 0) · MariaDB 버전과 잠금 방식 · Leader 파일 초안(ecosystem worker 항목·deploy.yml·`.env.example` 주석) · 정본과 다르게 한 점. 다음은 reviewer → judge C2.
 
+### 2026-09-29 03:18 Leader — 정본 반영(developer 구현 결정)·"정본과 다르게 한 점 ⑫" 분류
+메인 기본 채택분(D-B8 사용자별 디바운스 +20초·상한 5분 · 워커 동시 1 · claim 타임아웃 30초 · self-reclaim · `SPEECH_WORKER_ID` 프로세스별 고유 · 유휴 claim 트랜잭션 없음 · 처리 후 즉시 다음 claim)을 정본에 반영했다. `speech/speech.config.yml` 은 건드리지 않고 README 를 yml 값(1초)에 맞췄다. 012c 절·코드는 손대지 않음(REV-033 동시 감사).
+
+| # | developer 기록 [00:35] ⑫ | 분류 | 정본 반영 위치 |
+|---|---|---|---|
+| ① | gateway 경로 잡 `runAfter +10초`(콜백 응답 뒤 wav 이동) | **채택/정본 수정** — 20초 디바운스가 덮고 10초는 하한 상수로 남김 | api-contract #21 적재 조건(gateway 문장) |
+| ② | 고아 회수 때 `attempts ≥ 3` 이면 `FAILED(ORPHANED)`+발화 FAILED | **채택/정본 수정** | api-contract #139 ① · domain-model §5-8 `RUNNING→FAILED`·고아 회수 행 |
+| ③ | #140 강제 확정 실패 4종(`AUDIO_MISSING·AUDIO_INVALID·EMPTY_TRANSCRIPTS·READING_UNAVAILABLE`, retryable 무시) | **채택/정본 수정** | api-contract #140 · domain-model §5-8 · worker README §2 |
+| ④ | #138 판정 순서 — 이미 ANALYZED 200 → 잡 FAILED/DONE `409 STALE_CLAIM` → 회수돼 QUEUED 인 잡의 늦은 결과는 저장 | **채택/정본 수정** | api-contract #138 · worker README §6 |
+| ⑤ | `AppSetting speech.review.threshold`(0~1)가 **모든 모드**(ACCURATE 포함) 임계 | **Leader 판단 필요** — 현행을 정본에 "판단 대기"로 기록(운영에 행 없음 → 지금 영향 0) | api-contract #138(현행 구현 문장) |
+| ⑥ | `engineVersions` 에 `reviewThreshold`·`flags`·`recognitionMode` 스냅샷, 워커가 이 예약 키를 보내면 400 | **채택/정본 수정** — "원래 재확인 대상" 판단에 flags 포함 | api-contract #138·#21a · domain-model §5-9 |
+| ⑦ | D-B7 `pickGradingTexts(userId, [{evaluationItemId, answerText}])` — 저장된 답과 텍스트가 맞는 발화만, 확정 USER → `TEXT`, 재확인 후 실시간 선택 → `REALTIME_STT` | **채택/정본 수정** | api-contract #67 옆 D-B7 노트 · module-dependency speech 공개 API |
+| ⑧ | 새 내부 라우트 3종 `X-Service ≠ worker` → 403 | **채택/정본 수정** | api-contract §2-28 "구현 현황" |
+| ⑧-b | 기존 gateway 콜백(`/api/internal/speech/utterances`)에 `X-Service-Env` 검사 없음(인계문과 다름) | **현행 유지**(gateway 동작 불변) — **012b-2 이후 검토** | api-contract §2-28 "구현 현황" |
+| ⑨ | worker 패키지 `kaiwa_worker/` + `main.py`(README 트리와 다름) | **채택/정본 수정** | worker README §2 트리 |
+| ⑩ | 폴링 간격 README "2초" vs yml 1초 | **채택/정본 수정** — README·api-contract 를 yml 값(1초)·두 배 백오프 최대 10초·처리 후 즉시 claim 으로. yml 무변경 | worker README §2 · api-contract §2-30·#139 하트비트 문장 |
+| ⑪ | #21 응답 `status` = 실제 값(`QUEUED`) | **채택/정본 수정** | api-contract #21 예시 |
+| ⑫ | 채팅 "글자로 고치기"로 이미 `finalSource=USER` 인 발화도 #138 이 requiresReview 판정 | **Leader 판단 필요**(012b-2 전) — 정본에 "판단 대기"로 기록 | api-contract #21a 끝 · domain-model §5-9 |
+
+메인 결정분(⑫ 밖) 반영 위치: 디바운스·대기 시간 → api-contract #21 · domain-model §5-8 `(없음)→QUEUED`·§5-9 `Utterance.status` · module-dependency §4-1 · worker README §2 / self-reclaim·claim 타임아웃 30초·`workerId` 고유·유휴 claim 읽기 1회 → api-contract #139·§2-30 · domain-model §5-8 · module-dependency §4-1·§5-2 · README §2·§6·§7 / 워커 1개·`instances: 1`·`SPEECH_WORKER_ID`·`max_memory_restart 256M` → module-dependency §5-2 표·pm2 초안 · api-contract §2-30 · README §2 / health 재기동 직후 false 정상 → api-contract #1 노트.
+
+**판단 필요 2건(메인에 보고)**
+- **⑤ 권고**: 현행 유지(운영 행 없음) + 012c 에서 AppSetting 편집을 열 때 "ACCURATE = max(설정값, 0.90)" 또는 키 분리(`speech.review.threshold`·`…Accurate`) 중 하나로 확정. 지금 코드 변경은 불필요.
+- **⑫ 권고**: 서버는 지금대로 두고(판정값은 스냅샷에 남는 게 분석 품질 지표로 유용) 012b-2 화면 규칙으로 "`finalSource ≠ REALTIME` 이면 카드 안 띄움"을 기본안으로 데모에 반영. 서버에서 막고 싶으면(#138 에서 `finalSource=USER` 면 `requiresReview=false` 저장 → #21a 409) apply.ts 조건 1줄 — REV-033 사이클에 넣을지 메인 판단.
+- (⑫ 밖, 참고) developer 남은 위험 (e): `/api/internal/*` nginx 차단(`location /api/internal/ { return 404; }`)은 인프라(sudo) — Leader 후보로 api-contract §2-28 에만 기록.
+
+### 2026-09-29 03:39 Leader — 정본 반영(REV-033 M1·L2) · ⑫ 확인
+- **M1 인스턴스 id**: `workerId` = `<SPEECH_WORKER_ID>-<부트 nonce 8hex>`(≤80자, `lockedBy`). 펜싱(#140)·self-reclaim 은 인스턴스 id **정확 일치**일 때만, 재기동한 워커의 이전 잡은 **15분 고아 회수**, self-reclaim 은 15분 회수와 **따로 로그** → api-contract #139(① self-reclaim 조건·로그, `workerId` = 인스턴스 id 문단 — #138 은 펜싱하지 않음 명시, 타임아웃 문장), #140 펜싱, #138·#139·#140 예시 id(`worker-1-3f9a0c1e`), §2-30(SIGTERM·워커 수 문장) · domain-model §5-8 고아 회수 행 · module-dependency §4-1 claim 주석·§5-2 worker 행·pm2 초안 주석 2곳 · worker README §2(클레임·인스턴스 id 문단)·§6 표·§7.
+- **L2**: 디바운스 포함 발화 저장 = `withTransaction` 인터랙티브 트랜잭션(READ COMMITTED·P2034 재시도) → api-contract #21 · domain-model §5-8 `(없음)→QUEUED` · module-dependency §4-1. "같은 배치 트랜잭션"·"프로세스마다 고유" 표현은 정본에서 모두 제거(grep 0).
+- **⑫ 확인**: 메인 반영분 api-contract #21a 끝("⑫, 2026-09-29 Leader 확정 — 서버 차단")·domain-model §5-9 끝 일치, 구현(`apply.ts`, developer [03:36])과도 일치. ⑤ 도 메인이 #138 에 "012c 에서 ACCURATE = max(설정값, 0.90)" 로 확정해 둠(이전 "판단 대기" 표기 0).
+- 012c 절·코드 무변경, commit/push 없음.
+
 ## Codex 검토
 
 ## Designer 기록
@@ -276,7 +308,7 @@ demo_gate:
   - **트러블슈팅(재발 가능)**: ① pyopenjtalk 0.4.1 은 리눅스 휠 없음 → 소스 빌드가 sudo 없이 됨(빌드 격리가 cmake 를 받는다), 사전은 첫 사용 때 다운로드. ② 이 에이전트 세션의 env(ANTHROPIC_BASE_URL·CLAUDE_CODE_* 등)를 물려받은 dev 서버에서는 Claude CLI 가 `ClaudeCliExecError` — dev 서버를 `env -i HOME PATH USER LANG APP_ENV=LOCAL` 로 띄워야 LLM 이 돈다(어댑터 `cleanEnv` 가 지우는 목록에 없는 변수들). ③ 스크립트에서 `( cd … && python … ) &` 로 띄운 워커는 `kill` 이 서브셸만 죽여 고아로 남는다 → `exec` 필수(스모크·latency sh 에 반영). ④ #21 은 사용자당 30/분 — 스모크가 한 분에 30건 넘게 올리면 429(스모크가 Retry-After 대기). ⑤ TALK 평가 출제도 단어 4개 필요(NOT_ENOUGH_WORDS).
   - **남은 위험**: (a) 운영 등록(U1·U2) 전까지 운영 health 는 계속 `stt_analysis_worker` degraded(정상). (b) blue/green 전환·앱 재기동 직후 워커의 다음 claim(≤10초) 전까지 올라온 발화는 적재되지 않는다(`analysisQueued:false` — 분석 누락, 대화 영향 없음). (c) 분석 서비스(다른 프로젝트 공용·전역 잠금)가 긴 전사 중이면 잡이 60초 타임아웃 → 백오프 재시도. (d) 워커와 분석 서비스가 같은 호스트 CPU 를 써서 실시간 STT 가 부하 시 +16ms(p50). (e) `/api/internal/*` 는 nginx 에서 막혀 있지 않다(시크릿으로만 보호 — 기존 gateway 경로와 같음). 워커·gateway 는 127.0.0.1 로 부르므로 nginx `location /api/internal/ { return 404; }` 를 권장(Leader 인프라). (f) D-B11 한계: 운영 워커가 떠 있으면 개발 QA 잡을 운영 코드가 처리할 수 있음(정본 명시).
   - **정리**: 스모크·지연 스크립트가 만든 QA 발화·잡·분석·wav·대화·평가·단어는 매 실행 finally 에서 삭제 — 확인: SpeechJob 0·SpeechAnalysis 0·QA Utterance 0·QA wav 0. dev 서버 3017·복제본·dev venv 는 LLM 재검증 뒤 정리.
-- [02:15] **LLM 리셋(01:21) 뒤 라이브 추가** — dev 3017(복제본, `env -i` 기동) · 워커 dev venv.
+- [02:08] **LLM 리셋(01:21) 뒤 라이브 추가** — dev 3017(복제본, `env -i` 기동) · 워커 dev venv.
   - **D-B7 채점 E2E(A6·A7 실제 호출) ✅**: 스모크 A 51/51(`EVAL_LLM=1`) — QA2 TALK 평가 출제 → 상황 문항 2개에 발화 연결 → 상황1 발화만 #138(재확인 불필요) → 제출 → A7 채점 DONE 12.8초 → 상황1 `answerText` = 분석 텍스트·`inputSource=SERVER_STT`, 상황2(분석 전) = 저장된 답 그대로·`REALTIME_STT`(채점이 분석을 기다리지 않음). 뒤정리: 평가·잡·기록·스냅샷·단어·발화 0, 오늘 DAILY 복원.
   - **dev 서버 env 재현 조건(ClaudeCliExecError)**: 이 Claude Code 에이전트 세션 셸에서 `node … next dev` 를 그대로 띄우면 세션 env(`ANTHROPIC_BASE_URL`·`CLAUDE_CODE_OAUTH_SCOPES`·`CLAUDE_CODE_SESSION_ID`·`CLAUDE_CODE_MESSAGING_*`·`CLAUDE_SSH_*` 등)가 앱 → Claude CLI 자식 프로세스로 넘어가(어댑터 `cleanEnv` 가 지우는 목록 밖) CLI 가 실행 오류로 끝난다(`[router] LLM connection=claude-cli-local 실패(ClaudeCliExecError)`). 해결: dev 서버를 `env -i HOME="$HOME" USER="$USER" LANG="$LANG" PATH="$PATH" APP_ENV=LOCAL node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p <포트>` 로 띄운다. pm2 운영 프로세스는 이 문제 없음(에이전트 셸 env 를 물려받지 않음). 후속 후보: `cleanEnv` 가 `CLAUDE_CODE_*`·`CLAUDE_SSH_*`·`ANTHROPIC_BASE_URL` 접두 일괄 제거(engine 어댑터 — 별도 소작업).
   - **완료 기준 8(턴 지연, 워커 유무) — ✗ 미달, 원인 분석·결정 필요**. 방법: `tests/live/task012b-latency.sh 3017 turn 30` — 턴마다 #21 업로드(stt20 음성) → #32 턴 SSE, 5.6초 간격 연속 30턴, 워커 없음(적재 0) vs 워커 2개(턴마다 그 발화가 곧바로 분석됨). prompt-engineer A4 재검증(Claude CLI)이 같은 시간대에 병행 — LLM 단계 p50 은 두 조건이 거의 같아(3.50s·3.57s) LLM 쪽 영향은 작다.
@@ -290,7 +322,7 @@ demo_gate:
     - 이미 넣은 완화: 유휴 claim 은 트랜잭션 없이 읽기 1회(`analysisDb.hasClaimable`) — 빈 큐 BEGIN·잠금 SELECT·COMMIT 제거(단위 24/24).
     - **Leader 결정 필요(D-B8 수정 후보)**: (a) 그대로 두고 운영 모드(`next build`+`next start`)로 다시 재서 기록 (b) **사용자별 디바운스** — 같은 사용자의 새 발화가 올라오면 그 사용자의 QUEUED 분석 잡 `runAfter` 를 뒤로(예: 마지막 발화 +20초) 밀어, 분석이 대화가 멈췄을 때 돈다(앱 enqueue 한 곳, 스키마 0 — 결과는 대화 뒤에 나오므로 012b-2 카드 시점이 늦어짐) (c) 모든 모드 고정 지연(+12초 — 연속 대화에선 다음 턴과 여전히 겹침). 권고 (b)+(a).
   - **QA 계정 나눠 쓰기(Leader 요청)**: 병렬 라이브가 필요하면 developer 는 `QA_ACCOUNT=2`(qa-bot2)만 쓴다 — `task012b-latency.sh` 기본값을 qa-bot2 로 바꿨다(`QA_ACCOUNT` 로 덮을 수 있음). `task012b-smoke.sh` 는 IDOR 검사에 두 계정을 다 쓰므로 다른 QA 라이브와 겹치지 않는 시간에만 돌린다. 이번에 3011 의 006 스모크가 qa-bot 턴 잠금 409 로 막힌 것은 내 턴 지연 측정(01:25~01:55)과 겹쳤기 때문.
-- [02:55] **D-B8 수정 구현(Leader 결정 02:30 — 사용자별 디바운스 + 운영 모드 재측정)**
+- [02:22] **D-B8 수정 구현(Leader 결정 — 사용자별 디바운스 + 운영 모드 재측정)**
   - 코드: `speech/analysis/policy.ts`(`ANALYSIS_DEBOUNCE_MS=20s`·`ANALYSIS_DEBOUNCE_CAP_MS=5분`·`enqueueDelayMs` = max(20초, FAST 30초, gateway 10초)·순수 규칙 `debouncedRunAfter`) · `speech/analysis/db.ts`(`debounceStatement` — `UPDATE SpeechJob SET runAfter = GREATEST(runAfter, LEAST(:now+20s, createdAt + 300s)) WHERE userId AND kind='ANALYSIS_STT' AND status='QUEUED' AND createdAt > :now−5분`, RUNNING·다른 사용자 불변, 시각은 앱 UTC 파라미터 — DB `NOW()` 는 KST 라 섞지 않음) · `speech/utterances/store.ts`(`utteranceDb.create` — 분석 잡을 함께 넣을 때만 발화 생성과 디바운스를 **같은 배치 트랜잭션**(커밋 1회)) · `speech/analysis/enqueue.ts`(새 잡 `createdAt` 도 앱 시각 — 상한 기준). 빈 큐 claim 은 트랜잭션 없이 읽기 1회(`hasClaimable`, 02:10).
   - 단위: `task012b.test.ts` 26건(디바운스 규칙·상한·지연 20/30초·internal 인증 매트릭스 추가) · 앱 전체 747건 중 746 PASS·1 skip · tsc 0 · eslint 오류 0. 운영 모드 빌드(`next build` 복제본) 통과.
   - 라이브(운영 모드 `next start`, 3017, `env -i`): 스모크 A **50/50**(3c AUTO·ACCURATE +20.0초·FAST +30.0초 · 3d gateway +20초 · **3e 디바운스**: 같은 사용자 QUEUED → 새 발화+20.0초, 만든 지 6분 된 잡·RUNNING·QA2 잡 불변, 새 잡 +20초 · **3f 상한**: 만든 지 4분 50초 잡은 createdAt+5분에서 멈춤(오차 0ms)) · B **4/4** · C **2/2**(백오프 29.9·118.8초) · 로그 원문 0.
@@ -300,8 +332,102 @@ demo_gate:
     - domain-model §5-8 `(없음)→QUEUED` 행 트리거: "enqueue(`runAfter = now + max(20s, FAST 30s)`) + 같은 사용자 `QUEUED` 잡 디바운스(`runAfter ≤ createdAt+5분`, task-012b D-B8 수정)". §5-9 `Utterance.status` 칸 끝: "`QUEUED` 발화는 대화가 멈춘 뒤(마지막 발화 +20초, 최대 5분) 분석된다".
     - `speech/worker/README.md` §2: "간격은 `speech.config.yml worker.poll_interval_ms`(현 1초), 빈 응답이면 두 배씩 최대 10초(코드 상수)" · "**운영 워커 수 = 1(권장, Leader 2026-09-29)** — 분석 서비스 전사가 호스트 CPU 코어를 다 써(실측 같은 호스트 CPU 작업 +33%) 워커를 늘리면 대화 경로만 느려진다. 동시 처리 1·`max=1`. 워커 2개는 중복 처리 0 검증용으로만" · §7 실측 항목에 "대화 중 시작된 분석 잡 0(디바운스)·마지막 발화 → 분석 완료 p50/max".
     - `ecosystem.config.js` 초안(위 [00:35])의 worker 항목 주석에 "instances 1 고정 — 운영 권장 워커 1개(전사가 CPU 코어를 다 쓴다)" 추가.
+- [03:12] **완료 기준 8 재측정(운영 모드, qa-bot2 만, 워커 1개) ✅ + 측정 중 찾은 결함 2건 수정 — reviewer 인계**
+  - 조건: 복제본 `next build` → `next start`(`env -i`, `APP_ENV=LOCAL`·`NODE_ENV=production`, 127.0.0.1:3017) · 워커 1개(운영 권장값) · Leader 006·010·운영 010 스모크가 끝난 뒤 단독 실행(02:26~02:38) · 연속 30턴 5.6초 간격.
+    | 조건 | 첫 음성 p50 / p90 | done p50 / p90 | 대화 중 시작된 분석 | 실패 |
+    |---|---|---|---|---|
+    | 워커 없음 | 2,463 / 4,510ms | 5,780 / 9,269ms | — | 0 |
+    | 워커 1(디바운스) | 2,492 / 3,434ms(**+1.2%**) | 5,697 / 8,046ms(**−1.4%**) | **0 / 30** | 0 |
+    → **차이 ≤10% 충족**(p90 은 워커 쪽이 더 낮음 — 잡음 범위). 분석 30건 전부 대화가 멈춘 뒤 DONE.
+  - (ii) 대화가 멈춘 뒤 마지막 발화 → 분석 완료: 턴 측정 직후(수정 전 워커) p50 126.9초·max 222.2초 → 아래 수정 후 **analysis 모드(턴 없이 30발화, qa-bot2, 워커 1)**: 첫 분석 시작 23.6초 · **p50 89.9초 · max 155.2초** · 잡당 처리 p50 3.7초. 30발화 백로그 기준이라 짧은 대화(발화 몇 개)는 ≈20초 + 발화당 ≈4~5초.
+  - **측정 중 찾은 결함·수정**: ① **claim 응답 유실 → 잡 15분 고착**: 공유 NAS DB 커밋 지연으로 claim 이 5초(클라 타임아웃)를 넘은 1회에 앱은 잡을 RUNNING 으로 커밋했지만 워커는 못 받아, 고아 회수(15분)까지 멈춤(max 609초의 원인). 수정: (a) 워커 claim 전용 타임아웃 30초(`LoopConfig.claim_timeout_ms`, `InternalClient.claim_jobs(timeout_ms)` — 앱 트랜잭션 15초+대기 5초보다 길게) (b) **앱: 같은 워커가 다시 claim 하면 그 워커가 쥔 RUNNING 잡을 바로 되돌려 다시 준다**(`recoverOrphans(…, workerId)`·`analysisDb.ownStale` — 직렬 워커가 새 일을 달라는 것 = 쥔 잡 없음. 앱 재기동으로 응답이 끊긴 경우도 복구. 같은 id 로 워커 둘을 띄우면 서로의 잡을 되돌릴 수 있음 → `SPEECH_WORKER_ID` 는 프로세스마다 고유, 기본값 `worker-<host>-<pid>`). ② 잡을 처리한 뒤에도 1초씩 쉬던 것 → 바로 다음 claim(디바운스로 풀린 백로그를 빨리 비움, 빈 응답이면 기존대로 1→10초 백오프). + httpx 요청 INFO 로그(발화 id 가 든 URL) 끔.
+  - 스모크(운영 모드, 수정 후): A **51/51**(9c 응답 유실 복구: 같은 워커 재claim → 쥔 잡을 attempts 2 로 다시 줌·다른 워커가 쥔 잡은 RUNNING 그대로 / 10 은 라운드마다 새 워커 id — 결과 없이 같은 id 로 다시 claim 하면 되돌려 받는 것이 이제 정상) · B **4/4**(stt20 claim→완료 p50 4.8초·p95 5.7초, 30초 발화 5건 DONE) · C **2/2**(앞 실행). 단위: app `task012b.test.ts` **27**(자기 잡 회수 추가) · worker pytest **40** · common pytest **21**(claim 타임아웃) · gateway 55 회귀 · ruff·mypy strict · tsc 0 · eslint 오류 0 · 앱 전체 747 중 746 PASS·1 skip(디바운스 반영 시점).
+  - 정리: 3017 종료·복제본 삭제(`ss -ltn` 확인) · QA 발화·잡·분석·wav·대화·평가·단어 0 · dev venv `~/.node-local/thekaiwa-speech-dev` 는 reviewer·QA 재실행용으로 남김(삭제는 QA 뒤 Leader 판단). DB 에 실사용자 발화 1건(운영, 012b 무관 — 잡 0건이라 건드린 것 없음) 확인.
+  - **정본 반영 문안 초안 추가**: api-contract §2-28 #139 ①에 "고아 회수 대상 = `lockedAt` 15분↑ **또는 이 claim 을 보낸 `workerId` 가 쥔 RUNNING**(응답 유실·재기동 복구 — 워커는 직렬이라 새 claim = 쥔 잡 없음). `workerId` 는 프로세스마다 고유해야 한다" · §2-30 worker 루프: "잡을 처리했으면 바로 다음 claim, 빈 응답이면 간격부터 최대 10초 백오프 · claim 요청 타임아웃 30초(앱 커밋 뒤 응답)" · domain-model §5-8 고아 회수 행 트리거에 "또는 같은 워커의 재claim".
+  - **Leader 소유 파일 초안 갱신**: `ecosystem.config.js` worker 항목에 `SPEECH_WORKER_ID: 'worker-1'` 유지 + 주석 "instances 1 고정(운영 권장 워커 1개 — 전사가 CPU 코어를 다 쓴다), id 는 이 프로세스만 쓴다(같은 id 둘이면 재claim 복구가 서로의 잡을 되돌린다)". `speech.config.yml worker.poll_interval_ms` 는 1000 그대로 둬도 된다(처리 뒤 바로 claim, 빈 큐는 트랜잭션 없는 읽기 1회라 부하 작음) — README 의 "2초"를 "yml 값(1초)"으로 고치는 쪽 권장.
+- [03:36] **REV-033 수정 라운드(스키마 0, 같은 파일 경계) — 재검 인계**
+  - **⑫ 서버 차단(Leader 03:30)**: `speech/analysis/apply.ts` — #138 저장 시점에 `finalSource=USER` 면 `requiresReview=false`(유사도·flags 무관). `transcriptConfidence`·`engineVersions.reviewThreshold/flags` 는 그대로 저장. #21a 는 조건 `requiresReview=1` 이라 409 NOT_REVIEWABLE.
+  - **M1 인스턴스 id**: 워커가 기동마다 부트 nonce(`secrets.token_hex(4)`)를 만들어 **claim·#140·#138 의 workerId = `<SPEECH_WORKER_ID>-<nonce>`**(`WorkerSettings.instance_id`, ≤73자 — `lockedBy` VARCHAR(80) 안). 앱은 이미 `lockedBy` **정확 일치**로만 펜싱(#140)·self-reclaim(`ownStale`) 하므로 로직 변경 없이 검증 정규식만 80자로(`WORKER_ID_RE {0,79}`). 같은 SPEECH_WORKER_ID 로 두 프로세스가 떠도·재기동해도 서로의 잡을 되돌리거나 STALE 로 만들지 않는다 — 재기동 전 잡은 15분 고아 회수. + 리뷰 권고 (c): self-reclaim 을 15분 고아 회수와 **따로 로그**(`[speech] 분석 잡 응답 유실 복구 worker=<인스턴스 id> jobs=N`) — 잦으면 claim 응답 지연·id 충돌 신호.
+  - **L2**: `speech/utterances/store.ts` 디바운스 포함 create 를 `withTransaction`(READ COMMITTED·P2034 재시도) 인터랙티브 트랜잭션으로(`analysisDb.debounce(tx, …)`). L1(gateway 콜백 X-Service-Env)은 지시대로 현행 유지.
+  - 검증: tsc 0 · eslint 오류 0(경고 5 = 기존 components) · 앱 단위 **750 중 749 PASS·1 skip**(task012b 29 — ⑫·M1 추가) · worker pytest **41**(인스턴스 id nonce·80자) · common **21** · gateway **55** · ruff·ruff format·mypy strict 통과.
+  - 라이브(운영 모드 `next build`+`next start` 복제본 재생성·`env -i`·3017, **주 계정 qa-bot2 · 다른 계정 qa-developer** — qa-bot 행 0건 확인): 스모크 A **53/53**(신규 6h ⑫: USER 발화 유사도 0.3 → requiresReview=false·임계 0.85 스냅샷·finalText 그대로·#21a 409 / 9d M1: 같은 base·다른 nonce — B 재claim 이 A 잡 불변(RUNNING·attempts 1)·B 의 A 잡 실패 보고 409 STALE·B 자기 잡만 attempts 2 로 복구) · B **4/4**(인스턴스 id `smoke-worker-1-f8b66c84` 등 nonce 확인) · C **2/2**(백오프 29.2·119.0초) · 로그 원문 0. 앱 로그에 self-reclaim·15분 회수가 따로 찍힘 확인. 정리: QA 발화·잡·분석·wav·대화·평가 0, 3017 종료·복제본 삭제.
+  - 스모크 계정 변경: `task012b-smoke.sh` 는 이제 qa-bot2(쓰기 전부)·qa-developer(남의 발화 404·다른 사용자 디바운스)만 — `SMOKE_PRIMARY`·`SMOKE_OTHER`(이메일)로 바꿀 수 있다. qa-bot 은 쓰지 않는다.
+  - **정본 반영 문안 초안(M1)**:
+    - api-contract §2-28 #139: "`workerId` = **워커 인스턴스 id** — `<SPEECH_WORKER_ID>-<부트 nonce 8hex>`(≤80자, `SpeechJob.lockedBy`). 펜싱(#140 `lockedBy = workerId`)과 응답 유실 복구(claim ① 의 '이 workerId 가 쥔 RUNNING 되돌리기')는 이 값이 **정확히 같을 때만** 같은 워커로 본다 — 같은 SPEECH_WORKER_ID 의 다른 프로세스·재기동한 워커는 서로의 잡을 건드리지 않고, 재기동 전 잡은 15분 고아 회수가 처리한다. 앱은 자기 잡 복구를 15분 회수와 따로 로그한다." #138·#140 의 `workerId` 설명에 "(인스턴스 id)" 추가.
+    - `speech/worker/README.md` §2: "`SPEECH_WORKER_ID`(기본 `worker-<host>-<pid>`)는 사람이 읽는 이름이고 실제 claim 식별자는 기동마다 붙는 nonce 를 더한 인스턴스 id(`<id>-<8hex>`) — 같은 이름으로 둘을 띄워도 잡이 섞이지 않는다(그래도 운영은 1개). 재기동하면 새 인스턴스라 이전 잡은 앱의 15분 고아 회수로 돌아온다(SIGTERM 은 지금 잡을 끝내고 멈추므로 보통 남는 잡이 없다)."
+    - module-dependency §5-2 worker 행 비고: "claim 식별자 = SPEECH_WORKER_ID + 부트 nonce(인스턴스 id) — pm2 instances 1".
+    - domain-model §5-8 고아 회수 행: "… 또는 **같은 인스턴스 id**(부트 nonce 포함) 워커의 재claim".
+    - ⑫ 는 Leader 가 반영 완료(#21a 끝·§5-9).
+  - 변경 파일(이번 라운드): `src/modules/speech/analysis/{apply.ts, jobs.ts, db.ts, validate.ts}` · `src/modules/speech/utterances/store.ts` · `src/modules/speech/__tests__/task012b.test.ts` · `speech/worker/{main.py, kaiwa_worker/config.py, tests/test_loop_config.py}` · `tests/live/task012b-smoke.{sh,ts}`.
 
 ## Reviewer 기록
+
+### 2026-09-29 04:20 reviewer — REV-033
+
+**판정: PASS**(Critical 0 · High 0 · Medium 1 · Low 2) — 7영역 전부 Read 로 검토 + 독립 재실행(미러 tsc/eslint/단위, dev venv pytest) 으로 Developer 주장 전부 대조 확인. push 전 반드시 고칠 것은 없음(Medium 1 은 U1 운영 반영 전 권고).
+
+**검증 방법(재현)**: 미러(`~/.node-local/thekaiwa`) `sync-local.sh` 뒤 `tsc --noEmit`(0 에러) · `eslint src/modules/speech src/app/api/internal/speech src/app/api/v1/speech src/modules/admin/health.ts src/modules/learning/evaluation/grade.ts src/app/api/v1/evaluations`(0 에러) · `node --test src/modules/speech/__tests__/task012b.test.ts`(27/27 PASS, Developer 주장과 일치) · speech/evaluation 관련 전체(`__tests__` 24개 파일, 188건: 187 PASS·1 skip, 회귀 없음) · dev venv(`~/.node-local/thekaiwa-speech-dev`)에서 `speech/worker` pytest 40/40, `speech/common` pytest 21/21(Developer 주장과 일치, pyopenjtalk 실제 로드 확인) · `git diff prisma/schema.prisma` 빈 diff 확인.
+
+**① 6층 경계·엔진명** — `learning↔speech` 상호 import 0(grep), `src/modules/speech/index.ts` 는 conversation·learning 을 import 하지 않음(주석·실제 일치). D-B7 은 라우트(`evaluations/[id]/submit/route.ts`)가 `pickGradingTexts` 를 `EvaluationGrading.speechAnswers` 로 주입하는 함수 전달 방식 — `learning/evaluation/grade.ts` 는 speech 를 import하지 않고 주입받은 `Map` 만 쓴다(module-dependency §4-4 규칙 그대로 확장, 설계 의도와 일치). `grep -rniE "reazon|whisper|style-bert|claude"` 를 이번 diff 의 앱 코드(analysis·utterances·internal/v1 라우트·admin/health·engine/stt·preferences·infra·grade.ts) 전체에 돌려 0건(`admin/health.ts` 는 "엔진명을 안 쓴다"는 주석 문자열만, 런타임 노출 아님) — Python 쪽은 `engine/adapters`·`speech/common`(정책상 허용 영역)에만 `reazon`·`whisper` 존재, `speech/worker` 본체(handlers·loop·comparator·jobs)에는 0건. `/api/health` 새 키 `stt_analysis_worker` 는 `HEALTH_REQUIRED_CHECKS` 밖(코드 확인) — 배포 게이트 비차단, degraded 만.
+
+**② 인증(내부·세션)** — `checkInternalCaller`(`internalAuth.ts`)는 시크릿(sha256+`timingSafeEqual`, 길이 미달 시 항상 거부) → `X-Service` → `X-Service-Env` 순으로 확인해 헤더 없음 404·틀림 401·서비스 다름 403·환경 다름 409 를 만든다 — 세 신규 내부 라우트(`jobs/claim`·`jobs/[id]/result`·`utterances/[id]/analysis`)가 `_lib/worker.ts` 로 이 순서를 공유하고, 단위 테스트(`task012b.test.ts` 190행 근처)가 순서(서비스·환경보다 시크릿이 먼저)까지 확인한다. 본문 상한 claim/failure 4KB·analysis 256KB, 옵션 아닌 키 거부(`onlyKeys`), id 정규식(`JOB_ID_RE`) 모두 코드·테스트 일치. `#22`/`#21a`(v1 라우트)는 `requireSession` 뒤 `s.user.id` 만 쓰고 사용자당 60/30 rate limit, 응답 select 에 `realtimeEngine`·`analysisEngine`·`engineVersions` 없음(엔진 정보 비노출, `review.ts` VIEW_SELECT 확인) — 타인 조회·확정은 전부 조건부 UPDATE/WHERE 의 `userId` 가드로 404 (owner 검사 우회 경로 없음).
+
+  - **Low — 기존 gateway 콜백(`src/app/api/internal/speech/utterances/route.ts`)은 `checkInternalSecret` 만 쓰고 `X-Service`/`X-Service-Env` 검사가 없다.** `git diff` 로 대조하면 이번 diff 는 주석 한 줄만 추가했을 뿐 로직은 012b 이전과 동일(회귀 아님, Developer 가 ⑧에서 이미 고지). 다만 D-B11(비운영 앱은 QA 계정만 다뤄야 한다)의 보호가 세 신규 라우트에는 있고 이 경로에는 없다는 뜻이라, 개발·운영이 같은 DB 를 보는 현재 구조에서 이 경로만 환경 검사가 빠진 비대칭이 남는다. 차단 대상은 아니다(실사용자 피해 경로 아님 — gateway 콜백은 티켓 발급 때 이미 검증된 사용자만 부른다) 지만 Leader 후속 판단으로 남겨 둔다.
+
+**③ 큐 동시성(중점 검토)**
+  - **claim(#139)**: `hasClaimable` 읽기 1회 → 없으면 트랜잭션 미개설(유휴 부하 축소) → 트랜잭션 안에서 `recoverOrphans`(15분 고아 + 자기 RUNNING 회수) → `FOR UPDATE SKIP LOCKED`(MariaDB 10.11.11, 코드 주석·Developer 실측 일치) 로 워커 두 개가 같은 잡을 받지 않음 — `task012b.test.ts` "claim: 잠근 잡을…" 단위 + smoke B(워커 2개 20건 중복 0) 로 확인.
+  - **펜싱**: `#140`(`reportJobFailure`) 은 `lockJob`(SELECT FOR UPDATE) → `status===RUNNING && lockedBy===workerId` 아니면 409 STALE_CLAIM. `#138`(`applyAnalysisResult`) 은 발화 행을 먼저 잠그고 `job.status FAILED/DONE` 이면 409, 이미 ANALYZED 면 `ALREADY_ANALYZED`(값 불변) — 두 콜백의 잠금 순서가 반대(#138: 발화→잡, #140: 잡→발화)라 이론상 교착 가능하다고 코드 주석이 명시하는데, 실제로 `analysisDb.transaction` = `withTransaction`(`infra/tx.ts`, READ COMMITTED + P2034 재시도 2회) 을 쓰므로 MariaDB 가 교착을 감지하면 트랜잭션 전체가 재실행된다 — 콜백 함수에 DB 밖 부작용이 없어 재실행이 안전함을 코드로 확인했다(설계상 의도된 완화, 결함 아님).
+  - **자기 잡 회수(self-reclaim, 이번 리뷰의 중점 지시 사항)** — `analysisDb.ownStale`(`db.ts:95`) 은 `status='RUNNING' AND lockedBy=workerId` 인 행을 **잠긴 시각과 무관하게** 고아로 보고 되돌린다(15분 조건이 없음 — `recoverOrphans` 호출부 `db.ts` 주석 "지금 이 순간보다 이전에 잠근 것 전부"). 직렬 워커 한 개가 응답을 놓치고 재기동한 경우(실측 근거: claim 응답이 5초 넘게 걸려 잡이 15분 고착된 사고, `[03:12]` 기록)를 빠르게 복구하는 의도된 설계이고 단위 테스트(`claim: 같은 워커가 쥔 채 남은 RUNNING…`)·smoke A9c/A10 으로 검증됐다. **그런데 이 펜싱은 `workerId` 문자열 하나만으로 "이전 claim 세대"와 "다른 프로세스"를 구분하지 못한다** — `SPEECH_WORKER_ID` 가 우연이든 설정 실수든 같은 값을 쓰는 두 프로세스가 동시에 뜨면(예: 향후 워커도 blue/green 대상에 편입되거나, 수동 테스트 때 env 를 안 지우고 두 번째 인스턴스를 띄우는 경우), 프로세스 B 의 claim 이 프로세스 A 가 **지금 한창 처리 중인** RUNNING 잡을 나이 조건 없이 되돌려 자신이 다시 받아갈 수 있다. 그 뒤 A 가 (자신은 여전히 그 잡을 쥐고 있다고 믿고) `#140` 으로 실패 보고를 늦게 보내면, `lockedBy` 는 여전히 같은 문자열이라 A 의 실패 보고가 **B 가 실제로 처리 중인 잡**에 그대로 적용돼(RUNNING+lockedBy 일치) FAILED/QUEUED 로 뒤집힐 수 있고, 그 직후 B 가 정상적으로 만든 분석 결과를 `#138` 로 보내면 `job.status===FAILED` 라 409 STALE_CLAIM 으로 버려진다 — **정상적으로 계산된 분석 결과 하나가 조용히 소실**된다(재시도 한도까지 다 썼으면 그 발화는 영구히 분석되지 않음). `finalText`/`finalSource`/`ChatMessage`/`Correction` 등 핵심 학습 데이터는 이 경로로 전혀 바뀌지 않으므로(코드로 확인 — apply.ts 는 Utterance.analysisText/status/requiresReview·SpeechAnalysis·SpeechJob 만 건드림) 영향은 "재확인 카드" 보조 기능 한정이지만, 코드 차원의 강제(예: claim 세대 토큰, 최소 잠금 유지 시간)가 없고 순수히 운영 규율(`instances:1`, `SPEECH_WORKER_ID` 고유)에만 의존한다는 점에서 Medium 으로 남긴다.
+    - **근거**: `src/modules/speech/analysis/db.ts:91-106`(`ownStale`/`failOrphan`/`requeueOrphan` — 나이 조건 없음) · `src/modules/speech/analysis/jobs.ts:39-57`(`recoverOrphans`) · `98-112`(`reportJobFailure` 펜싱이 `lockedBy===workerId` 문자열 비교뿐).
+    - **완화 확인**: `speech/worker/README.md` §2 가 이미 "같은 id 로 워커 둘을 띄우면 self-reclaim 이 서로의 잡을 되돌린다" 고 명시하고 운영 권장을 `instances:1`(고유 id)로 못 박았다(Leader ecosystem.config.js 초안도 동일) — 현재 운영에 워커가 아직 배포되지 않아(U1 대기) 실제 피해는 0. **권고**: U1 승인·운영 반영 전에 (a) claim 응답에 짧은 무작위 lease 토큰을 얹어 `#140`/`#138` 검증을 `workerId` 대신 그 토큰으로 하거나, (b) `ownStale` 회수에도 최소 유예(예: 수 초)를 둬 "바로 직전에 내가 받은 잡"은 되돌리지 않게 하거나, (c) 최소한 self-reclaim 발생을 15분 고아 회수와 분리된 카운터/로그로 남겨(`jobs.ts:69` 는 지금 둘을 합쳐 `console.warn` 한 줄로만 남김) 운영에서 id 충돌을 조기 탐지할 것. 코드 수정은 발견만 하고 하지 않음(Read 전용).
+  - **D-B11 환경 필터**: `jobUserScope()`(`currentEnvironment()!=='PRODUCTION'` 이면 `listQaUserIds()`) 가 claim·#140·#138 세 곳 모두에서 `inScope`/`scope` 로 적용됨을 코드로 확인. `listQaUserIds`(`infra/users.ts`)는 `provider:'test' AND email endsWith '@thekaiwa.test'` 로 실사용자(Google OAuth)가 걸리지 않는 조건이고 60초 캐시·최대 50건. 단위 테스트로 "비운영 QA 만/운영 필터 없음"·"QA 계정 0건이면 트랜잭션 없이 즉시 빈 응답" 모두 확인. 문서화된 한계(운영 워커가 떠 있으면 개발 QA 잡을 운영 코드가 먼저 처리할 수 있음)는 QA 데이터만 걸리므로 설계상 허용 범위.
+
+**④ 디바운스(D-B8 수정) 트랜잭션 경계** — `utteranceDb.create`(`utterances/store.ts:24-29`)가 분석 잡을 같이 넣을 때 `prisma.$transaction([create, analysisDb.debounceStatement])` 를 **직접** 호출한다 — 이 파일 유일하게 프로젝트 표준 `withTransaction`(`infra/tx.ts`, READ COMMITTED 명시 + P2034 자동 재시도)을 거치지 않는 지점이다(`grep "prisma.\$transaction\("` 으로 다른 위치에 이 패턴이 없음을 확인). `debounceStatement` 는 `WHERE userId AND kind='ANALYSIS_STT' AND status='QUEUED'`(이 사용자 소유 행만)만 건드리고 claim 의 `SKIP LOCKED` 는 잠긴 행을 건너뛰므로 실제 교착 가능성은 낮다고 판단했지만(Low), 이 트랜잭션만 재시도 안전망 밖에 있는 비일관성은 남는다 — `withTransaction` 경유로 통일 권고.
+
+**⑤ 안정성·값 불변 검증**
+  - **`finalText`/`finalSource` 불변(D-B5)**: `apply.ts` 의 `storeAnalysis` 입력에 `finalText`/`finalSource` 필드가 아예 없다(타입·구현 모두 — `analysisDb.storeAnalysis` 는 `Utterance.analysisEngine/analysisText/transcriptConfidence/requiresReview/status` 만 update). `#21a`(`review.ts resolveDb.update`) 는 `status='ANALYZED' AND requiresReview=1` 조건부 단일 UPDATE 로 그 두 필드만 바꾸고, 세 갈래(REALTIME/ANALYSIS/USER) 모두 SQL 원시 리터럴로 고정돼 앱이 값을 읽고 쓰는 사이 끼어들 틈이 없다(compare-and-swap). 동시 두 PATCH 요청 → 한쪽만 count=1(성공), 한쪽은 count=0→409 로 단위 테스트가 재현.
+  - **`Correction.original`/`ChatMessage.content` 무수정**: 이번 diff 전체(`speech/**`, `internal/speech/**`, `v1/speech/**`, `grade.ts`, `submit/route.ts`)에 해당 테이블 update 호출 0건(grep 확인).
+  - **평가 채점 단일 트랜잭션(011 불변식)**: `saveGradedEvaluation`(`grade.ts`) 은 그대로 유지되고, D-B7 로 추가된 것은 `g.answers`(`speechAnswerOverrides` 결과)를 **같은 update 호출**에 `answerText`/`inputSource` 로 얹는 것뿐 — 세대 펜싱(`assertCurrentEvalJob`)·잠금 순서(`lockEvaluation`)·`StudyLog`+`Evaluation DONE`+`StatsSnapshot`+`DAILY` 트랜잭션 경계는 변경 없음. `speechAnswerOverrides` 실패는 try/catch 로 흡수돼 저장된 답(실시간)으로 채점을 계속한다(기록률 100% 보호) — 코드·주석·테스트("D-B7 learning 주입…") 일치.
+  - **Trace/로그 원문 노출 0**: 앱 쪽 `console.info`(`analysis/route.ts`) 는 id·stored·confidence·review·latency 만, `enqueue.ts`/`grading.ts` 의 catch 는 `e.name` 만 남긴다. `grade.ts` Trace `speechText: answers.size`(개수만). Python 쪽 `handle_analysis_stt.py` 로그는 `text_fingerprint()`(해시) 만 쓰고 원문 없음, `comparator.py`·`internal_client.py`도 정규화 문자열·본문을 로그에 남기지 않음(주석·구현 일치). `paths.py` 는 경로도 로그에 남기지 않는다.
+  - **경로 검증(Python)**: `resolve_audio`(`paths.py`) 가 정규식 + `..`/역슬래시/절대경로 거부 + `resolve(strict=True)` 뒤 `is_relative_to(root)` 로 심볼릭 링크 탈출까지 막는다 — DATA_ROOT 밖 거부 확인.
+  - **타임아웃·재시도 분류**: whisper 어댑터(`whisper_http.py`) 는 타임아웃 미재시도(엔진 자체 60s), 503/5xx 만 재시도 가능 코드, 4xx 즉시 실패 — `internal_client.py` 콜백은 반대로 연결오류·5xx 만 1회 재시도, 타임아웃은 즉시 실패(README 원칙과 일치, 실시간 경로 이중 지연 방지). `NON_RETRYABLE_ERRORS`(policy.ts) 가 `AUDIO_MISSING/AUDIO_INVALID/EMPTY_TRANSCRIPTS/READING_UNAVAILABLE` 를 워커의 `retryable:true` 와 무관하게 즉시 FAILED 처리 — §5-8 규칙과 일치, 단위 테스트로 확인.
+
+**⑥ 운영성** — `stt_analysis_worker` 는 `HEALTH_REQUIRED_CHECKS` 밖(코드 확인, 배포 비차단), 60초 캐시(하트비트 자체는 120초 창) 라 워커 상태 반영에 최대 ~1분 지연이 있을 수 있으나 degraded 표시일 뿐이라 무해. 이번 diff 는 `ConfigurationVersion`/`AuditLog` 대상 변경이 없다(설정 변경 라우트 미포함, 해당 없음).
+
+**⑦ 학습 원칙** — 제안(AI 산출)에 해당하는 신규 상태는 없다(`SpeechJob`/`Utterance.status` 전이는 파이프라인 상태이지 "제안" 개념이 아님, `finalText` 확정은 사용자 명시 선택 `#21a` 에서만). `StudyLog`/`StatsSnapshot` 관련 변경 없음(011 트랜잭션 그대로). 엔진명·model_id·speaker_id 사용자 노출 0(위 ①).
+
+**네이티브 변경**: 없음(이력서 "하지 말 것" 준수 — `plugins/**`·`android/**`·`capacitor.config.ts`·Manifest 무변경 확인). `versionCode` 증가·고지 대상 아님.
+
+**미검토/범위 밖(고지)**: `tests/live/task012b-{smoke,latency}.{sh,ts}` 는 라이브 실행 스크립트라 내용만 훑었고(운영 3010/pm2 금지 가드 확인, `exec` 로 고아 프로세스 방지 확인) 직접 실행은 QA 몫이라 하지 않았다. `ecosystem.config.js`/`deploy.yml`/`.env.example`/`speech.config.yml` 는 Developer 가 손대지 않았고(이력서 "하지 말 것" 확인) 실제 diff 에도 없음 — Leader 의 별도 반영 대상이라 이번 REV 판정 밖.
+
+**요약**: Critical 0 · High 0 · Medium 1(self-reclaim 펜싱이 workerId 문자열 뿐 — U1 전 lease 토큰/최소 유예/분리 로깅 권고) · Low 2(gateway 콜백 X-Service-Env 부재는 기존 동작·비회귀, `utteranceDb.create` 트랜잭션이 `withTransaction` 밖).
+
+**QA 인계 — high_risk_areas**: ["speech/analysis 큐 동시성(claim/#140/#138 펜싱, 특히 워커 재기동·응답유실 시나리오)", "D-B11 비운영 환경 필터(QA 계정 한정)", "#21a 동시 PATCH 경쟁(compare-and-swap)", "011 D-B7 평가 채점 텍스트 선택이 기록률·단일 트랜잭션에 영향 없는지", "워커 유무에 따른 대화 턴 p50 무영향(디바운스)"] · **native_change: false**.
+
+### 2026-09-29 05:05 reviewer — REV-033 재검
+
+**판정: PASS**(Critical 0 · High 0 · Medium 0 · Low 1) — 앞 라운드 Medium 1(self-reclaim 펜싱)·Low 1(디바운스 트랜잭션)이 각각 근본 수정으로 닫혔음을 코드·독립 재실행으로 확인. Low 1(gateway 콜백 X-Service-Env 부재)은 Leader 지시대로 현행 유지 — 이번 라운드 대상 아님, 기존 기록 유지.
+
+**검증 방법(재현, 이번 라운드만)**: 미러 재동기화 뒤 `tsc --noEmit`(0) · `eslint`(대상 전체 0 에러) · `task012b.test.ts` **29/29 PASS**(Developer 주장과 일치, ⑫·M1 신규 2건 포함) · **앱 전체 스위트 750건 — 749 PASS·1 skip**(부분이 아니라 `find src -name '*.test.ts'` 전체를 직접 재실행, Developer 주장과 정확히 일치, 회귀 0) · dev venv(`~/.node-local/thekaiwa-speech-dev`)에서 `speech/worker` pytest **41/41**(신규 `test_instance_id_has_boot_nonce_and_fits_locked_by` 포함) · `speech/common` pytest **21/21**. `git diff` 로 `prisma/schema.prisma`·`ecosystem.config.js`·`deploy.yml`·`.env.example`·`speech/speech.config.yml` 무변경 확인(스키마·인프라 파일 경계 준수).
+
+**① M1(인스턴스 id) — 근본 수정 확인, 문서적 완화가 아님.**
+- **핵심 변경**: `speech/worker/kaiwa_worker/config.py` `WorkerSettings.instance_id` 프로퍼티가 `f"{worker_id}-{instance_nonce}"`(`instance_nonce = secrets.token_hex(4)`, `load_worker_settings()` 호출마다 새로 생성 — CSPRNG 32bit)를 만들고, `main.py` 가 `HandlerDeps.worker_id`·`WorkerLoop.worker_id` **둘 다** `settings.instance_id`(기존 `settings.worker_id` 아님)로 바꿔 claim·#140·#138 에 실리는 값을 전부 인스턴스 id 로 통일했다. 앱 쪽(`db.ts`)의 `ownStale`(self-reclaim)·`reportJobFailure`(#140 펜싱)는 원래도 `lockedBy === workerId` **정확 일치**였고 이번에도 로직 변경이 없다(`git`·직접 대조로 확인) — 즉 "펜싱을 세게 만든" 게 아니라 "펜싱에 넣는 값을 프로세스마다 고유하게" 바꾼 것이라 최소 변경으로 근본 원인을 없앴다. `WORKER_ID_RE`(TS)·`_WORKER_ID`(Python)는 각각 80자·64자 한도이고 `worker_id(≤64)+'-'+nonce(8)=≤73` 로 `SpeechJob.lockedBy VARCHAR(80)` 안(스키마 0).
+- **재기동·15분 회수 상호작용**: nonce 는 프로세스 부팅마다 새로 생성되므로 (a) 같은 프로세스가 claim 응답을 놓치고 다시 부르는 경우(응답 유실) — nonce 불변이라 `ownStale` 이 자기 잡을 즉시 되돌린다(기존 빠른 복구 유지) (b) 프로세스가 죽었다 재기동한 경우 — 새 nonce 라 `ownStale` 이 옛 잡을 찾지 못하고, 나이 기반 `orphans()`(15분, id 무관 쿼리, 이번 라운드 무변경)만 그 잡을 회수한다 — `jobs.ts` 주석·`recoverOrphans` 구현(두 경로를 분리해서 호출)으로 코드상 확인, 별도 회귀는 없다(15분 경로 자체를 건드리지 않음).
+- **테스트가 실제로 이 시나리오를 검증**: Python `test_loop_config.py::test_instance_id_has_boot_nonce_and_fits_locked_by` 는 **같은 env(`SPEECH_WORKER_ID='w'*64`)로 `load_worker_settings()` 를 두 번 독립 호출**(`a`,`b` — 두 프로세스 부팅을 흉내)해 `a.worker_id==b.worker_id`(이름은 같음) 이면서 `a.instance_id!=b.instance_id`(실제 claim 식별자는 다름)임을 값으로 단언한다 — 타당한 테스트, 무의미한 재확인이 아니다. TS `task012b.test.ts` "claim M1: …" 은 `ownStale` 을 실제 WHERE 절처럼(`lockedBy===workerId` 필터) 흉내 낸 스텁으로 "다른 인스턴스는 서로의 잡을 안 건드림"·"같은 인스턴스만 self-reclaim"·"#140 도 인스턴스 id 불일치면 STALE" 세 가지를 값 비교로 확인하고, 80자 경계(73자 통과·81자 거부)도 함께 검증한다. 라이브 스모크 9d(`tests/live/task012b-smoke.ts:431-448`, 실행은 안 했고 코드만 읽음)는 실제 HTTP 라우트를 통해 같은 시나리오(A 가 쥔 잡이 B 의 재claim·B 의 A 잡 실패 보고에도 안 바뀜, B 는 자기 잡만 attempts 2 로 self-reclaim)를 재현하도록 짜여 있어 위 단위 테스트의 결론과 일관된다.
+
+**② ⑫(`finalSource=USER` → `requiresReview=false`) — D-B5/D-B6 과 충돌 없음.**
+- `apply.ts:42` `const requiresReview = u.finalSource === 'USER' ? false : judgeReview(...)` — `analysisDb.storeAnalysis` 호출 입력에는 여전히 `finalText`·`finalSource` 필드가 없다(이번 라운드도 무변경, grep 재확인) — D-B5(분석은 finalText/finalSource 를 바꾸지 않는다)는 그대로 지켜진다. ⑫ 가 바꾸는 것은 **저장되는 `requiresReview` 불리언 하나**뿐이고, `transcriptConfidence`·`engineVersions.reviewThreshold/flags` 스냅샷은 원래 규칙대로 그대로 저장돼(`#138 ⑫` 단위 테스트가 `similarity=0.2·flags=['LENGTH_RATIO']` 를 넣고도 confidence=0.2·snapshot 그대로임을 값으로 확인) 분석 품질 지표가 훼손되지 않는다.
+- **D-B6(⑫가 만드는 유일한 부수효과)**: `requiresReview=false` 가 되면 `#21a`(`resolveDb.update`)의 조건 `WHERE … AND requiresReview = 1` 을 더는 만족하지 못해 재확인 카드 확정 자체가 막힌다(409 NOT_REVIEWABLE) — 이것이 ⑫ 의 의도(학습자가 이미 채팅에서 직접 고친 텍스트를 재확인 카드가 되돌리지 못하게)이고 D-B6("`#21a` 는 Utterance 만 바꾼다")의 전제(재확인 카드가 열릴 수 있는 상태에서만 동작)와 모순되지 않는다. **재진입 경로 없음을 확인**: `finalSource='USER'` 로 만드는 두 지점 — (a) 채팅 턴 "글자로 고치기"(`utteranceDb.link`, 발화 저장·턴 수락 시점 — 분석은 20초+ 디바운스로 그보다 항상 늦게 돎) (b) `#21a` 자신의 `choice:'USER'`(이미 `requiresReview=1` 조건을 소모해 재확정 불가) — 두 경로 다 "#138 이 먼저 `requiresReview=true` 로 확정해 버린 뒤에 뒤늦게 USER 로 바뀌어 ⑫ 를 우회하는" 순서가 코드 구조상 만들어지지 않는다(라우트·트랜잭션 경계 확인). 실측 스모크 6h 도 같은 순서(USER 먼저 세팅 → 분석 나중)로 재현돼 있어 설계와 일치.
+
+**③ withTransaction 재시도 — 디바운스 중복·유실 없음.**
+- `utterances/store.ts:25-33` 가 `withTransaction(async (tx) => { create; analysisDb.debounce(tx, …) })` 로 바뀌었다(기존 `prisma.$transaction([...])` 배열형 대신 인터랙티브 트랜잭션 — REV-033 이전 Low 지적이 요구한 그대로). `infra/tx.ts` 의 재시도는 **P2034(교착) 콜백 전체를 다시 실행**하는 방식이고, MariaDB 는 교착 감지 시 트랜잭션 전체를 롤백하므로(부분 커밋 없음) 재실행이 이전 시도의 `INSERT`/`UPDATE` 흔적을 남기지 않는다 — 같은 `id`(호출자가 미리 생성)로 `tx.utterance.create` 를 다시 불러도 PK 충돌이 나지 않는다(첫 시도가 롤백돼 존재하지 않으므로). `analysisDb.debounce`(`db.ts:69-72`)는 `SET runAfter = GREATEST(runAfter, LEAST(now+20s, createdAt+5m))` 형태의 **단조 증가(멱등) UPDATE** 라 재실행돼도 결과가 같다(두 번 적용해도 한 번 적용한 것과 동일한 최종값) — 유실(트랜잭션이 롤백된 채 재시도가 안 되는 경우는 예외가 그대로 올라가 호출자가 인지) 도, 중복 부작용(두 번 반영돼 의도보다 더 미뤄지는 것)도 없다. 코드 검토로 확인했고, 이 통로 자체가 P2034 를 실제로 유발할 가능성은 낮다고 판단한 이전 라운드 분석(사용자 범위 UPDATE + claim 은 SKIP LOCKED 라 서로 차단하지 않음)도 유효하다.
+
+**④ 신규 테스트의 실효성 — 회귀를 실제로 잡는지.**
+- 스모크 **6h**·**9d**, 단위 "`#138 ⑫`"·"`claim M1`"·`test_instance_id_has_boot_nonce_and_fits_locked_by` 다섯 개 모두 **값 단언**(상태 조합·바이트/숫자 비교)이고 존재 여부나 예외 미발생 같은 약한 단언이 아니다 — 예: `9d` 는 "A 잡이 안 바뀜"을 `rowA.status/lockedBy/attempts` 세 값으로, "B 의 자기 잡만 self-reclaim"을 `attempts===2` 로 정확히 확인한다. `⑫` 단위는 `similarity=0.2`(임계 0.85 훨씬 아래)·`flags` 존재라는 "정상이라면 반드시 requiresReview=true 여야 할" 입력을 골라 그 반대(`false`)가 나오는지 확인하므로, 이 로직을 되돌리면 테스트가 바로 실패하는 구조 — 회귀 방지 효과가 실질적이다. M1 은 두 계층(Python 설정 로더 + TS 펜싱)에서 각각 독립적으로 검증돼 어느 한쪽만 회귀해도 잡힌다.
+
+**남은 사항(이관 없음)**: 정본 반영 문안 초안(M1)은 Leader 몫으로 남아 있고 이번 재검 범위 밖. 이전 REV-033 의 Low(gateway 콜백 X-Service-Env 부재)는 이번 라운드에서 그대로(Leader 가 "L1 은 지시대로 현행 유지"라고 명시) — 재확인 결과 로직 변경 없음(주석 diff 없음), 기존 기록을 유지하되 새 이슈로 다시 세지 않는다.
+
+**요약**: Critical 0 · High 0 · Medium 0(이전 self-reclaim Medium → M1 로 근본 해결, 재발 방지 테스트 확인) · Low 1(gateway 콜백 X-Service-Env — 변경 없음, Leader 후속 판단 대상으로 이월). QA 진행 가능.
 
 ## QA 기록
 
@@ -313,3 +439,8 @@ demo_gate:
 - 근거(developer [02:15] 실측): 워커 2 + 30초 발화 부하에서 첫 음성 p50 2,036→2,888ms(+42%)·done +18%. LLM 단계는 불변, 늘어난 곳은 앱 DB 쓰기·캐시(ACCEPT·SAVE·TTS[0] HIT) — 분석 전사의 CPU 점유(+33%)와 NAS DB 커밋 겹침. 완료 기준 8(≤10%) 미달.
 - 결정: **(b) 사용자별 디바운스** — 새 발화가 오면 그 사용자의 QUEUED 분석 잡 `runAfter` = 마지막 발화 +20초(RUNNING 불변), **상한 첫 발화 +5분**(끝없는 대화에서 분석이 영원히 밀리지 않게). 워커 기본 동시 처리 1. 재측정은 운영 모드(next build+start)로 (i) 연속 30턴 워커 있음/없음 ≤10% (ii) 대화 멈춤 뒤 마지막 발화→ANALYZED 시간 p50/max. 012b-2 확인 카드는 대화가 멈춘 뒤 뜨는 것으로 설계(데모 때 반영). D-B7 채점은 원래 분석을 기다리지 않으므로 영향 없음(대화 직후 제출이면 실시간 텍스트).
 - (a) 단독·(c) 고정 +12초는 연속 대화와 여전히 겹쳐 기각.
+
+### 2026-09-29 03:30 Leader(메인) — ⑤·⑫ 판단
+- **⑤ 채택(현행 유지)**: `AppSetting speech.review.threshold` 는 지금 운영 행 없음 → 코드 그대로. 012c 에서 이 키 편집을 열 때 규칙은 **ACCURATE = max(설정값, 0.90)**(다른 모드는 설정값) — 012c 편집 키 표에 반영.
+- **⑫ 서버 차단**: #138 저장 시점에 `finalSource=USER` 면 `requiresReview=false` 로 저장(#21a 는 409 NOT_REVIEWABLE). 학습자가 직접 고친 텍스트를 카드가 덮어쓸 여지를 화면 규칙에만 맡기지 않는다. 품질 지표는 저장된 `transcriptConfidence` 와 `engineVersions.reviewThreshold` 로 계산 가능하므로 손실 없음. REV-033 지적 수정과 같은 라운드에 developer 가 반영, 정본(#21a 끝·domain-model §5-9)의 "대기" 표기는 이 결정으로 교체.
+- 인프라 후보(사용자 승인 필요, sudo): nginx `location /api/internal/ { return 404; }` — 사용자 대기 목록에 추가.

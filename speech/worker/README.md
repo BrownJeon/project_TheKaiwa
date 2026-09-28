@@ -24,25 +24,31 @@ Utterance(QUEUED) + SpeechJob(QUEUED)            ← 앱이 발화 저장과 같
 ## 2. 잡 루프
 
 ```
-speech/worker/
-├── main.py            # 루프: claim(#139) → dispatch(kind) → #138 | #140, 종료 신호 처리(SIGTERM 시 현재 잡 마무리)
-├── handlers/
-│   ├── analysis_stt.py      # ANALYSIS_STT
-│   └── pronunciation.py     # PRONUNCIATION (Phase 3, worker.pronunciation.enabled)
-├── comparator.py      # TranscriptComparator (+ ReadingProvider — pyopenjtalk)
-├── pronunciation/     # Phase 3: aligner(narabas) · expected(pyopenjtalk) · pitch(pyworld) · scorer
-├── requirements.txt   # worker 전용 추가분만: pyopenjtalk (Phase 3 에 narabas·pyworld·librosa). httpx·PyYAML 등은 gateway requirements 에 이미 있다. DB 드라이버 없음
+speech/worker/                  # task-012b 구현(2026-09-29): gateway 처럼 패키지 + 진입점 — 최상위 모듈 이름(comparator·handlers) 충돌 방지(⑨)
+├── main.py                     # 진입점: 설정 읽기 → kaiwa_worker.loop 실행, 종료 신호 처리(SIGTERM 시 현재 잡 마무리)
+├── kaiwa_worker/
+│   ├── config.py               # speech.config.yml worker.* + env(SPEECH_WORKER_ID·APP_INTERNAL_URL·DATA_ROOT·APP_ENV)
+│   ├── loop.py                 # claim(#139) → dispatch(kind) → #138 | #140, 간격·백오프·claim 타임아웃
+│   ├── jobs.py · paths.py      # 잡 모델 · DATA_ROOT 경로 검증
+│   ├── comparator.py           # TranscriptComparator (+ ReadingProvider — pyopenjtalk)
+│   └── handlers/analysis_stt.py  # ANALYSIS_STT (Phase 3 에 pronunciation.py)
+├── pronunciation/              # (Phase 3) aligner(narabas) · expected(pyopenjtalk) · pitch(pyworld) · scorer
+├── requirements.txt            # worker 전용 추가분만: pyopenjtalk==0.4.1(리눅스 휠 없음 — 소스 빌드, sudo 불필요) · tqdm (Phase 3 에 narabas·pyworld·librosa). httpx·PyYAML 등은 gateway requirements 에 이미 있다. DB 드라이버 없음
+├── pyproject.toml
 └── tests/
 ```
 
-- **클레임(task-012b D-B1)**: `InternalClient.claim_jobs(worker_id, kinds, max=1)` → `POST /api/internal/speech/jobs/claim`. 응답 잡에 `audioPath`(`DATA_ROOT` 상대)·`realtimeText`·`recognitionMode`·`attempts` 가 실려 온다 — 워커는 `SpeechJob`·`Utterance` 어느 테이블도 읽지 않는다. 잠금(`FOR UPDATE SKIP LOCKED`)·고아 회수(`lockedAt` 15분↑ → `QUEUED`)·비운영 앱의 QA 계정 필터(D-B11)는 앱이 claim 안에서 한다. 워커를 2개 띄워도 같은 잡을 두 번 잡지 않는다(앱 잠금).
-- 간격 2초, 빈 응답이면 백오프 최대 10초(앱의 적재 게이트 120초 안에 반드시 한 번 claim 하도록). `max=1`(직렬 원칙 — 분석 STT 서비스가 전역 잠금으로 직렬이고 VoiceVault 와 공용이라 겹쳐도 빨라지지 않는다).
-- **실패(D-B10)**: `InternalClient.report_failure(job_id, worker_id, error=<코드값>, retryable)` → `POST …/jobs/:id/result`. 앱이 `retryable && attempts < 3` 이면 `QUEUED`(`runAfter` +30초·2분·10분), 아니면 `FAILED` + `Utterance.status=FAILED`. 재시도 대상 = 분석 서비스 연결 실패·503·타임아웃·앱 콜백 5xx. 즉시 실패 = `AUDIO_MISSING`·`EMPTY_TRANSCRIPTS`·분석 서비스 4xx. `409 STALE_CLAIM`(회수된 잡)은 무시한다. 에러 문자열에 전사·경로·시크릿을 싣지 않는다.
+- **클레임(task-012b D-B1)**: `InternalClient.claim_jobs(worker_id, kinds, max=1)` → `POST /api/internal/speech/jobs/claim`. 응답 잡에 `audioPath`(`DATA_ROOT` 상대)·`realtimeText`·`recognitionMode`·`attempts` 가 실려 온다 — 워커는 `SpeechJob`·`Utterance` 어느 테이블도 읽지 않는다. 잠금(`FOR UPDATE SKIP LOCKED`)·고아 회수(`lockedAt` 15분↑ → `QUEUED`)·**self-reclaim**(`lockedBy` 가 이 인스턴스 id 와 정확히 같은 `RUNNING` 을 바로 되돌려 다시 줌 — claim 응답 유실·앱 재기동 복구, 앱은 15분 회수와 따로 로그)·비운영 앱의 QA 계정 필터(D-B11)는 앱이 claim 안에서 한다. 워커를 2개 띄워도 같은 잡을 두 번 잡지 않는다(앱 잠금).
+- **`workerId` = 인스턴스 id**(REV-033 M1, 2026-09-29): `SPEECH_WORKER_ID`(기본 `worker-<host>-<pid>`)는 사람이 읽는 이름이고, 실제 claim·#140·#138 식별자는 기동마다 붙는 부트 nonce(`secrets.token_hex(4)`)를 더한 `<id>-<8hex>`(≤80자, `WorkerSettings.instance_id`) — 같은 이름으로 둘을 띄워도 잡이 섞이지 않는다(그래도 운영은 1개). 재기동하면 새 인스턴스라 이전 잡은 앱의 15분 고아 회수로 돌아온다(SIGTERM 은 지금 잡을 끝내고 멈추므로 보통 남는 잡이 없다). claim 요청 타임아웃은 **30초**(`LoopConfig.claim_timeout_ms` — 앱 트랜잭션 15초 + 잠금 대기보다 길게; 공유 NAS DB 커밋이 5초를 넘은 1회에 응답을 놓쳐 잡이 15분 고착된 실측이 근거).
+- **간격(2026-09-29 구현)**: 잡을 처리했으면 **바로 다음 claim**(디바운스로 풀린 백로그를 빨리 비움), 빈 응답이면 `speech.config.yml worker.poll_interval_ms`(현 **1초**)부터 두 배씩 **최대 10초**(코드 상수 — 앱의 적재 게이트 120초 안에 반드시 한 번 claim 하도록). 빈 큐 claim 은 앱이 트랜잭션 없이 읽기 1회로 끝내 부하가 작다. `max=1`(직렬 원칙 — 분석 STT 서비스가 전역 잠금으로 직렬이고 VoiceVault 와 공용이라 겹쳐도 빨라지지 않는다).
+- **운영 워커 수 = 1**(Leader 2026-09-29, pm2 `instances: 1`) — 전사가 호스트 CPU 코어를 다 써(같은 호스트 CPU 작업 +33% 실측) 워커를 늘리면 대화 경로만 느려진다. 워커 2개는 중복 처리 0 검증용으로만.
+- 적재 시점은 앱이 정한다: 새 잡은 지금 +20초(FAST 30초), 같은 사용자의 대기 잡은 새 발화마다 +20초로 밀린다(첫 적재 +5분 상한) — 워커는 대화가 멈춘 뒤의 잡만 받는다(D-B8 수정, api-contract #21).
+- **실패(D-B10)**: `InternalClient.report_failure(job_id, worker_id, error=<코드값>, retryable)` → `POST …/jobs/:id/result`. 앱이 `retryable && attempts < 3` 이면 `QUEUED`(`runAfter` +30초·2분·10분), 아니면 `FAILED` + `Utterance.status=FAILED`. 재시도 대상 = 분석 서비스 연결 실패·503·타임아웃·앱 콜백 5xx(`ANALYSIS_UNAVAILABLE`·`ANALYSIS_TIMEOUT`·`ANALYSIS_SERVER_ERROR`·`CALLBACK_FAILED`). 즉시 실패 = 분석 서비스 4xx 등(`retryable:false`) — 앱은 `AUDIO_MISSING`·`AUDIO_INVALID`·`EMPTY_TRANSCRIPTS`·`READING_UNAVAILABLE` 을 `retryable` 과 무관하게 확정 실패로 본다. 실패 코드는 엔진 중립(`ANALYSIS_*`). `409 STALE_CLAIM`(회수된 잡·이미 끝난 잡)은 무시한다. 에러 문자열에 전사·경로·시크릿을 싣지 않는다.
 - **기동 점검**: 읽기 변환기(pyopenjtalk import·사전 로드)가 안 되면 claim 하지 않고 오류 로그만 남기며 대기한다(앱은 하트비트가 없으니 적재를 멈추고 health 는 degraded).
 - 오디오 읽기: claim 응답의 `audioPath` 를 워커 `DATA_ROOT` 에 붙여 연다. 절대경로·`..`·`DATA_ROOT` 밖·파일 없음은 열지 않고 `AUDIO_MISSING`(재시도 없음).
 - 헤더: `X-Internal-Secret`·`X-Service: worker`·`X-Service-Env: <APP_ENV>`·`X-Trace-Id`(`InternalClient` 의 `X-Service` 는 호출 서비스로 파라미터화 — gateway 는 계속 `gateway`).
 - 워커에 `whisper`·`narabas` 문자열이 있는 곳은 `common/engine/adapters/**` 와 `pronunciation/` 뿐이다. 핸들러는 `router.resolve('ANALYSIS_STT')` 로 엔진을 받는다.
-- 로그: 전사 원문 0 — 길이·`sha1[:8]`·코드값만.
+- 로그: 전사 원문 0 — 길이·`sha1[:8]`·코드값만. httpx 요청 INFO 로그(발화 id 가 든 URL)는 끈다.
 - **의존성 설치(D-B2)**: 운영 venv(`~/.node-local/thekaiwa-speech/venv`, gateway 와 공유·릴리스 밖)에 `requirements.txt` 를 설치하는 것은 **사용자 승인(U2)** — 개발·테스트는 별도 dev venv `~/.node-local/thekaiwa-speech-dev`(gateway requirements + 이 파일)에서만 한다.
 
 ## 3. WhisperEngine
@@ -104,8 +110,8 @@ STT ≠ 발음평가(원칙). 강제 정렬 + 기대값 비교로 산출하며 L
 
 | 호출 | 본문 요지 | 앱 처리 |
 |---|---|---|
-| `POST /api/internal/speech/jobs/claim` (#139) | `{workerId, kinds, max:1}` | 고아 회수·`FOR UPDATE SKIP LOCKED`·환경 필터·하트비트 → `{jobs:[{id, kind, utteranceId, audioPath, realtimeText, recognitionMode, attempts}]}` |
-| `POST /api/internal/speech/utterances/:id/analysis` (#138) | `{jobId, workerId, analysisEngine, analysisText, segments, language, latencyMs, comparator{similarity, flags, realtimeLen, analysisLen, version}, engineVersions, traceId, pronunciation?}` | `speech.applyAnalysisResult` → 한 트랜잭션(`Utterance`·`SpeechAnalysis`·`SpeechJob DONE`, `requiresReview` 판정) → (Phase 3) `learning.recordErrorStat` → `200 {stored, …}` · 이미 분석됨 `200 {stored:false}` |
+| `POST /api/internal/speech/jobs/claim` (#139) | `{workerId(인스턴스 id), kinds, max:1}` (타임아웃 30초) | 고아 회수·self-reclaim·`FOR UPDATE SKIP LOCKED`·환경 필터·하트비트(유휴면 읽기 1회) → `{jobs:[{id, kind, utteranceId, audioPath, realtimeText, recognitionMode, attempts}]}` |
+| `POST /api/internal/speech/utterances/:id/analysis` (#138) | `{jobId, workerId, analysisEngine, analysisText, segments, language, latencyMs, comparator{similarity, flags, realtimeLen, analysisLen, version}, engineVersions, traceId, pronunciation?}` | `speech.applyAnalysisResult` → 한 트랜잭션(`Utterance`·`SpeechAnalysis`·`SpeechJob DONE`, `requiresReview` 판정) → (Phase 3) `learning.recordErrorStat` → `200 {stored, …}` · 이미 분석됨 `200 {stored:false}` · 확정 실패·끝난 잡 `409 STALE_CLAIM`(무시) · 회수돼 QUEUED 인 잡의 늦은 결과는 저장 |
 | `POST /api/internal/speech/jobs/:id/result` (#140) | `{workerId, status:'FAILED', error, retryable}` | 백오프 재적재 또는 확정 실패(+`Utterance FAILED`) · 회수된 잡 `409 STALE_CLAIM` |
 
 ~~`GET /api/internal/speech/utterances/{id}`~~ 는 만들지 않는다(claim 응답이 필요한 값을 준다 — task-012b D-B1). 헤더 `X-Internal-Secret: <SPEECH_INTERNAL_SECRET>`(SecretResolver 로 해석)·`X-Service: worker`·`X-Service-Env`, 타임아웃 5s, 연결 오류·5xx 1회 재시도. #138 이 계속 실패하면 #140 `retryable` 로 보고해 잡을 `QUEUED` 로 되돌린다(결과는 재계산되지만 #138 이 멱등).
@@ -113,6 +119,8 @@ STT ≠ 발음평가(원칙). 강제 정렬 + 기대값 비교로 산출하며 L
 ## 7. 실측·검증 항목 (task-012b)
 
 - 워커 2개 동시 기동 시 같은 잡 중복 처리 0건(`attempts` 대조).
-- 30초 발화 분석 왕복(클레임 → #138 200) p50/p95, 대화 턴 p50 이 워커 유무와 무관함을 30턴 비교로 증명.
+- 30초 발화 분석 왕복(클레임 → #138 200) p50/p95, 대화 턴 p50 이 워커 유무와 무관함을 30턴 비교로 증명(운영 모드 `next start`·워커 1개 — 2026-09-29 첫 음성 p50 +1.2%).
+- **대화 중 시작된 분석 잡 0**(디바운스 — 연속 30턴에서 0/30) · 마지막 발화 → 분석 완료 p50/max(30발화 백로그 p50 90초·max 155초, 잡당 처리 p50 3.7초).
+- claim 응답 유실 복구: 같은 인스턴스 id 재claim → 쥔 잡을 다시 받음(attempts +1), 다른 인스턴스(같은 `SPEECH_WORKER_ID`·다른 nonce 포함)가 쥔 잡은 그대로·그 잡의 실패 보고는 `409 STALE_CLAIM`.
 - 정규화 단위 테스트: 「こんにちは。」 vs 「コンニチワ」 → 히라가나 접기 후 유사도, 한자 표기 차이(「今日」vs「きょう」) 가 페널티 없이 1.0.
 - 로그에 전사 전문 없음(길이·sha1[:8] 만).

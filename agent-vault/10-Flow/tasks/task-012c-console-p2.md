@@ -21,11 +21,11 @@ updated: 2026-09-29
 demo_gate:
   required: true
   level: "full"
-  status: "drafting"
-  version: 0
-  repo_path: ""
-  artifact_url: ""
-  content_sha256: ""
+  status: "review_requested"
+  version: 2
+  repo_path: "docs/demo/task-012c-console-p2-v2.html"
+  artifact_url: "https://claude.ai/artifact/6xHJK9pXzMpWxCfSZaT65o"
+  content_sha256: "39b19fc822fdf8993110aac66a1ad652ae37bf757a176e4a3301508b5067583e"
   decided_by: "judge"
   rule_id: "JV-ui_change"
   approved_by: ""
@@ -210,6 +210,9 @@ demo_gate:
 | 버전 | 상태 | 저장소 파일 | Artifact | 사용자 결정 | 일시 |
 |---|---|---|---|---|---|
 | - | 작성중 | - | - | judge: full (JV-ui_change) | 09-29 02:34 |
+| v1 | 검토요청 | docs/demo/task-012c-console-p2-v1.html | - | 사용자 검토 요청 | 09-29 03:13 |
+| v2 | 작성중 | docs/demo/task-012c-console-p2-v1.html | - | designer: v1 은 게시 전 — Codex C1(CX-1~3, 03:05 채택) 반영해 v2 로 교체 | 09-29 03:18 |
+| v2 | 검토요청 | docs/demo/task-012c-console-p2-v2.html | - | 사용자 검토 요청 | 09-29 03:18 |
 
 **designer 데모 범위(v1, full)** — 콘솔 셸(기존 §6 규칙)·데스크톱 우선 + 390px:
 1. 설정(`/admin/configuration`) 탭: Effective(기존) · **Form**(스키마 자동 생성 필드·editability/source 배지·env 가 이긴 키 잠금 안내·`SERVICE_MANAGED` 키 안내) · **Raw JSON**(읽기 기본, DEVELOPER 에게만 편집 토글·라인 오류 마커·suggestion) · **Diff**(변경 행 색·blocked·재기동 필요 배너·변경 요약) — Form·JSON 은 하나의 초안.
@@ -316,6 +319,14 @@ demo_gate:
 - **판정**: Leader(메인) 03:05 — CX-1·CX-2·CX-3 전부 채택(아래 작업 기록). 정본 반영 완료 → **C1 종결**(작업 기록 "Codex C1 반영·C1 종결").
 
 ## Designer 기록
+- [03:13] 데모 v1(full) `docs/demo/task-012c-console-p2-v1.html` 작성·lint PASS·`status review_requested v1` 기록. 게시 전 이력서 재확인에서 Codex C1(CX-1~3, 03:05 채택) 미반영을 발견 → **v1 파일은 그대로 두고(sha 45761f…) v2 로 교체**.
+- [03:19] **데모 v2(full)** `docs/demo/task-012c-console-p2-v2.html` — lint `DEMO_LINT_PASSED`, `status drafting v2 → review_requested v2`(sha 39b19f…), `artifact_url` 빈 값(Leader 게시). v1 대비 반영: 재시작 필요 키 = "재시작 필요" 잠금(편집 불가, Raw JSON 은 rule `restartRequired`) · 기능 테스트 `ok|partial|failed`(일부만 확인 = 운영 적용 불가, 운영 Form 은 실행 검증 방법 없는 키 "운영 잠금") · 비밀 참조 선택지 = 허용 목록(allowedFor) ∩ 서버에 있음(없는 허용 참조는 이름만 한 줄) · 감사 action `credentials.set|clear`·`engine.connections.enable|disable` · 이유 1~200자(운영 10~200)·줄바꿈 공백·비밀 유사 422.
+  - **화면·상태 70개**(왼쪽 목록, 주소 `#id` 로 바로 열림): 설정 `/admin/configuration`(현재 vs 제안 · Effective 그대로 · Form 5종(연결·서비스 관리 많은 연결·읽기 전용/env/재시작 잠금·운영 설정·목소리 기본값) · Raw JSON 3종(보기·편집+검증 오류·문법 오류) · Diff 2종 · 흐름 11종(테스트 중·실패·일부만 확인·429·적용 시트·첫 적용 기준선·적용 완료·409 충돌·409 뒤 재비교·대상 바꾸기·초안 버리기) · 운영 10종(비 SUPER_ADMIN·운영 잠금·일부만 확인 적용 불가·테스트 필수·확인 창·입력 오류·요약 불일치 409·테스트 만료 403·이유 비밀 유사 422·권한 바뀜 403) · 공통 3종(로딩·실패·403)) · 연결 상세(현재 vs 제안·보기·편집 모드·주소 허용 목록 오류·비밀 참조 연결 개발/운영·있는지 확인·끄기·409 기본 연결) · 역할 페이지 LLM 예비 순서(현재 vs 제안·순서 편집·마지막/꺼진 연결·변경 요약·운영 적용) · **이력 `/admin/history` 신규**(설정 버전 목록·휴대폰 메뉴·상세 직전/지금 비교·되돌리기 개발/운영·운영 비 SUPER_ADMIN·사라진 키 경고·되돌릴 것 없음·기록 손상 422·되돌리는 중 409·빈 이력·감사·행 펼침·발음 사전 옛 기록·결과 없음·로딩·실패).
+  - 틀: 1280·1024(사이드바 ≥1024)·412·390·360·세 폭, 역할(ADMIN·DEVELOPER·SUPER_ADMIN)·환경(LOCAL·PRODUCTION) 토글로 권한별 버튼 렌더링 0 확인, 라이트·다크. 헤드리스 검사 70상태 × 4폭 콘솔 오류 0·가로 넘침 0. 엔진명·실제 주소 문자열 0(가명 엔진 A~E·model-s 등, 주소 10.0.0.x·203.0.113.x, 비밀 이름·사람 전부 가짜). 토큰 `src/app/globals.css@sha256:22f382529f92` 값 고정, 새 색 0.
+  - designer 결정: 보기 탭 4개(Effective·Form·Raw JSON·Diff — 기존 ConsoleSegmented, ADMIN 은 Raw JSON 탭 없음) → 대상 종류(연결·운영 설정·목소리 기본값)+대상 칩 → 요약 카드, 탭끼리 초안 하나 · **적용 막대** = 바뀐 값이 있을 때만 본문 아래 고정(검증·테스트·요약·적용 + 초안 버리기), 운영 비 SUPER_ADMIN 은 마지막 단계 🔒 + "초안·요약까지" 안내, LOCAL 은 테스트 건너뛰기 가능 · 잠금 이유 8종(서비스 관리·읽기 전용·서버 경로·env 가 덮음·환경 정책·자동·재시작 필요·운영 잠금) · 운영 확인 창 = 공용 Sheet(요약·해시·테스트·이유·PRODUCTION 입력, 003g WriteConfirmFields 모양) · 이력 = 설정 버전/감사 2탭 + 발음 사전 버전 링크(003g VersionRow·VersionDetailSheet 모양) · 예비 순서 = ↑↓빼기 44px + 넣을 수 있는 연결(꺼진 연결은 "연결 상세에서 켜기").
+  - **사용자 결정 필요(데모 "결정 필요" A/B, designer 권고)**: (1) Form 칸 묶기 → B 바꿀 수 있는 것 먼저 (2) 휴대폰 Raw JSON 편집 경고 → A 띠만 (3) 감사 전·후 표시 → A 키마다 한 줄(+원문 JSON 펼침) (4) 연결 상세 편집 → A 같은 화면 편집 모드 (5) 목소리 기본값 편집 위치 → A 설정 화면 대상 종류 (6) 운영 설정 편집 단위 → A 키 하나 = 대상 하나.
+  - **Leader 확인 요청(계약·정본)**: ① 허용됐지만 서버에 없는 참조를 이름만 한 줄로 알려도 되는지 ② 운영에서 연결 끄기(#93a)에도 기능 테스트 요구 여부(데모: 끄기 = 이유+PRODUCTION, 켜기 = 테스트 필수) ③ `menu.ts` configuration.tabs 에 `form` 탭 추가·history phase 열기·설정 메뉴 설명 문구 ④ #108 목록 DTO 에 출처(기준선·Form·Raw JSON·되돌리기)·대상 이름·기록 손상 여부 ⑤ Diff DTO 정본 불일치(api-contract #106 `changes[].shadowedBy` vs admin-console/08 `entries[].blocked`) — `types/admin.ts` 단일 출처로 ⑥ 운영 되돌리기용 기능 테스트를 부를 #105 `versionId` 입력 ⑦ LOCAL 테스트 건너뛰기 해석 확인 ⑧ 편집 키 표(D-C4) → 칸 잠금 이유 매핑(데모 키 배정은 가정) ⑨ 키별 `verifiable`(실행 검증 방법 유무)을 DTO 에 실어 운영 잠금·일부만 확인 표시 ⑩ 재시작 필요 잠금 문구.
+  - 구현 가이드(`docs/screens.md` §13)는 **승인 뒤** 작성(승인 버전 명시). src/** 수정·commit 없음.
 
 ## Developer 기록
 
@@ -329,3 +340,8 @@ demo_gate:
 
 ### 2026-09-29 03:15 Leader(메인) — reason 검사 적용 범위
 - 발음 사전(003g) 쓰기 경로(추가·수정·비활성·Import·Rollback 의 reason)에도 **CX-3 공용 reason 검사 함수를 적용한다** — 같은 AuditLog 영구 보존 경로라 같은 유출 위험. developer 첫 커밋(D-C3 + CX-3 공용 함수)에 포함, 003g 스모크(`task003g-smoke.sh`) 회귀 필수.
+
+### 2026-09-29 03:50 Leader(메인) — 데모 v2 게시·designer 확인 요청 10건 답
+- 게시: https://claude.ai/artifact/6xHJK9pXzMpWxCfSZaT65o (v2, 전체 열람 후 게시 — 합성 데이터·외부 리소스 0·실주소/비밀 0 확인). 사용자 승인 대기(U-C4) + 데모 안 결정 6건(권고 d1 B·d2 A·d3 A·d4 A·d5 A·d6 A).
+- 답: ① 허용됐지만 서버에 없는 참조 **이름 표시 허용**(값 아님, 운영자가 무엇을 넣어야 할지 알아야 함) ② 운영 **끄기에는 기능 테스트 요구 안 함**(이유+PRODUCTION 입력, 기본 연결은 409) — 데모대로 ③ menu.ts `form` 탭·history 메뉴 phase 개방·설정 메뉴 설명 문구 — developer 반영 ④ #108 목록 DTO 에 출처(감사 action)·대상 이름·손상 여부 추가, 손상 판정 규칙은 003g 와 동일 ⑤ Diff DTO 단일 출처 = `types/admin.ts`, 정본은 api-contract #106 을 기준으로 admin-console/08 을 맞춘다(before/after·양쪽 출처·저장값·editability·strict·restartTarget·blocked) ⑥ #105 에 `versionId`(되돌릴 스냅샷) 입력 추가 — 운영 Rollback 사전 테스트용 ⑦ **LOCAL 은 기능 테스트 생략 가능**(운영만 필수 — §8-1 해석과 일치) ⑧ 잠금 배정은 D-C4 편집 키 표가 정본, 데모는 가정 ⑨ DTO 에 키별 `verifiable` 추가 ⑩ "재시작 필요" 문구 그대로.
+- 구현 가이드 주의: 데모의 `speech.review.threshold` 기본 0.72 는 합성값 — 실제 기본은 0.85(ACCURATE 0.90), 012c 에서 ⑤ 규칙(ACCURATE = max(설정, 0.90)) 적용(task-012b 03:30 판단).

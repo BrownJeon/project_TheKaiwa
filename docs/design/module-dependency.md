@@ -149,9 +149,9 @@ WebSocket `/ws/speech` 는 Next.js 라우트가 아니라 nginx `Upgrade` 프록
 | 항목 | 내용 |
 |---|---|
 | 책임 | 발화(`Utterance`) 수명주기, 실시간 STT 클라이언트 선택, TTS 파라미터 해석·문장 분할·캐시·재생, Voice Registry/Profile/Import/Preview, 분석·발음 결과 조회. **LLM 을 모른다**, 엔진명을 모른다(엔진 역할 `REALTIME_STT/ANALYSIS_STT/TTS` 만 안다). |
-| 서브디렉토리 | `utterances/` · `stt/`(`RealtimeSttClient` 인터페이스, `OnDeviceSherpaClient`, `WebSocketSttClient`, `modeResolver`, `ticket`, `config`) · `tts/`(`parameterResolver`, `sentenceSplit`, `cache`, `synthesize`, `TtsPlayer`) · `voices/`(registry·profiles·importJobs·preview·sync) · `pronunciation/`(결과 조회) · `analysis/`(task-012b: 잡 적재 게이트·claim(고아 회수·환경 필터·하트비트)·실패 백오프·결과 반영·`requiresReview` 판정 — comparator 자체는 Python worker) |
+| 서브디렉토리 | `utterances/` · `stt/`(`RealtimeSttClient` 인터페이스, `OnDeviceSherpaClient`, `WebSocketSttClient`, `modeResolver`, `ticket`, `config`) · `tts/`(`parameterResolver`, `sentenceSplit`, `cache`, `synthesize`, `TtsPlayer`) · `voices/`(registry·profiles·importJobs·preview·sync) · `pronunciation/`(결과 조회) · `analysis/`(task-012b: 잡 적재 게이트·**사용자별 디바운스**·claim(고아 회수·self-reclaim·환경 필터·하트비트)·실패 백오프·결과 반영·`requiresReview` 판정·평가 채점 텍스트 — comparator 자체는 Python worker. 파일 `policy`(순수 규칙)·`db`·`jobs`·`apply`·`enqueue`·`heartbeat`·`grading`·`validate`) |
 | 소유 테이블 | `Utterance`, `SpeechAnalysis`, `SpeechJob`, `TtsCache`, `VoiceProfile`, `VoiceModel`, `VoiceStyle`, `VoiceImportJob` |
-| 공개 API | utterances: `createUtterance(userId, meta)` · `storeUtteranceAudio(userId, utteranceId, wav)`(→ `infra.storage`) · `getUtterance(userId, id)` · `resolveFinalText(userId, id, choice, text?)`(#21a, `Utterance` 만) · `applyAnalysisResult(payload)`(internal 콜백용) · analysis(task-012b): `claimAnalysisJobs({workerId, kinds, max})` · `reportJobFailure(jobId, workerId, error, retryable)` · `isAnalysisWorkerAlive()`(적재 게이트·health) · `pickGradingTexts(userId, utteranceIds)`(평가 채점 텍스트 선택 — 라우트가 learning 에 주입) · `purgeExpiredAudio()`(30일) · stt(서버): `issueSpeechTicket(userId, chatId)` · `getSpeechConfig(userId)`(`/api/v1/speech/config` 응답 — 온디바이스 런타임 설정·모델 manifest URL·fallback 여부, 시크릿 없음) · `resolveSpeechMode(setting, capability)` · `enqueueAnalysis(utteranceId, kind)` · stt(클라): `createRealtimeSttClient(config, capability)` · 타입 `RealtimeSttClient`, `SttEvent` · tts: `resolveTtsParameters(input: {userSetting, voiceDefaults, personaHint?, context, llmStyle?})` · `splitSentences(text, maxChars)` · `synthesize(params, text, traceId)`(캐시 → `engine.tts`) · `TtsPlayer`(클라: 문장 큐·프리페치·모드 전환) · voices: `listAvailableVoices()` · `getVoiceProfile(id)` · `previewVoice(draft, text, textVersion)` · `syncVoiceModels()` · `startVoiceImport(zip, actor)` · `getImportJob(id)` · `updateVoiceProfile` · `activateVoice`/`disableVoice`/`archiveVoice` · pronunciation: `getPronunciation(userId, utteranceId)` |
+| 공개 API | utterances: `createUtterance(userId, meta)` · `storeUtteranceAudio(userId, utteranceId, wav)`(→ `infra.storage`) · `getUtterance(userId, id)` · `resolveFinalText(userId, id, choice, text?)`(#21a, `Utterance` 만) · `applyAnalysisResult(payload)`(internal 콜백용) · analysis(task-012b): `claimAnalysisJobs({workerId, kinds, max})` · `reportJobFailure(jobId, workerId, error, retryable)` · `applyAnalysisResult` · `isAnalysisWorkerAlive()`(적재 게이트·health) · `parseClaimBody`·`parseFailureBody`·`parseAnalysisBody`(내부 라우트 본문 검사) · 적재·디바운스는 `createUtterance`/gateway 등록 안에서(외부 export 없음) · `pickGradingTexts(userId, [{evaluationItemId, answerText}])`(평가 채점 텍스트 선택 — 라우트가 learning 에 주입, 저장된 답과 텍스트가 맞는 발화만) · `purgeExpiredAudio()`(30일) · stt(서버): `issueSpeechTicket(userId, chatId)` · `getSpeechConfig(userId)`(`/api/v1/speech/config` 응답 — 온디바이스 런타임 설정·모델 manifest URL·fallback 여부, 시크릿 없음) · `resolveSpeechMode(setting, capability)` · `enqueueAnalysis(utteranceId, kind)` · stt(클라): `createRealtimeSttClient(config, capability)` · 타입 `RealtimeSttClient`, `SttEvent` · tts: `resolveTtsParameters(input: {userSetting, voiceDefaults, personaHint?, context, llmStyle?})` · `splitSentences(text, maxChars)` · `synthesize(params, text, traceId)`(캐시 → `engine.tts`) · `TtsPlayer`(클라: 문장 큐·프리페치·모드 전환) · voices: `listAvailableVoices()` · `getVoiceProfile(id)` · `previewVoice(draft, text, textVersion)` · `syncVoiceModels()` · `startVoiceImport(zip, actor)` · `getImportJob(id)` · `updateVoiceProfile` · `activateVoice`/`disableVoice`/`archiveVoice` · pronunciation: `getPronunciation(userId, utteranceId)` |
 | 허용 import | `preferences`, `engine`, `infra` |
 | 비고 | `resolveTtsParameters` 의 3순위 `personaHint` 는 **인자로 받는다**(L2 import 금지). 결과는 엔진 중립 `TtsSynthesisRequest{voiceModelRef, speaker, style, styleWeight, speed, pitch, intonation}` 이며, SBV2 파라미터(`model_id·speaker_id·length=1/speed·pitch_scale·intonation_scale`)로의 변환은 L5 어댑터 `tts/styleBertHttp` 가 한다. |
 
@@ -314,6 +314,7 @@ export default [
   → speech.createUtterance(userId, {chatId, realtimeEngine, realtimeText, durationMs, timings})
   → speech.storeUtteranceAudio(userId, utteranceId, wav)          # infra.storage.utteranceAudioPath
   → speech.enqueueAnalysis(utteranceId, 'ANALYSIS_STT')            # 발화 저장과 같은 트랜잭션. 게이트(task-012b D-B3): 워커 claim 120초 안 · recognitionMode≠OFFLINE · ANALYSIS_STT connection enabled · 오디오 있음
+                                                                     # runAfter = now+max(20s, FAST 30s) + 같은 사용자 QUEUED 잡 디바운스(≤createdAt+5분, D-B8 수정 2026-09-29) — 같은 트랜잭션(withTransaction, REV-033 L2)
   ← { utteranceId, status, analysisQueued, expiresAt }
   (gateway TURN 콜백 POST /api/internal/speech/utterances 도 같은 speech.enqueueAnalysis 를 부른다)
 
@@ -348,7 +349,7 @@ export default [
   ⇒ POST /api/internal/speech/jobs/claim (#139) → WhisperEngine ⇒ VoiceVault :8090 /transcribe-chunk → TranscriptComparator
   ⇒ POST /api/internal/speech/utterances/:id/analysis (#138)   |  실패 ⇒ POST /api/internal/speech/jobs/:id/result (#140)
 [POST /api/internal/speech/jobs/claim]
-  infra 공유 시크릿 검사 → speech.claimAnalysisJobs({workerId, kinds, max, env})   # 고아 회수·SKIP LOCKED·환경 필터(D-B11: 비운영 앱은 QA 계정 잡만)·하트비트 기록
+  infra 공유 시크릿 검사 → speech.claimAnalysisJobs({workerId, kinds, max, env})   # 고아 회수(15분↑ 또는 lockedBy 가 이 인스턴스 id 와 정확히 같은 RUNNING = self-reclaim, 로그 분리)·SKIP LOCKED·환경 필터(D-B11: 비운영 앱은 QA 계정 잡만)·하트비트 기록. 유휴면 트랜잭션 없이 읽기 1회
   ← { jobs[] }
 [POST /api/internal/speech/utterances/:id/analysis]
   infra 공유 시크릿 검사 → speech.applyAnalysisResult(payload)          # 한 트랜잭션: Utterance(analysisText·transcriptConfidence·requiresReview·ANALYZED) + SpeechAnalysis upsert + SpeechJob DONE
@@ -444,7 +445,7 @@ Python 서비스는 TS `engine` 층의 개념을 **같은 이름으로 미러링
 | 프로세스 | 호스트 | 바인드 | 실행 | 진입점 |
 |---|---|---|---|---|
 | `thekaiwa-speech-gateway` | 우분투 | `127.0.0.1:8100` (nginx `/ws/speech` 프록시) | pm2 + venv `~/.node-local/thekaiwa-speech/venv` | `uvicorn app:app --host 127.0.0.1 --port 8100` (cwd `speech/gateway`) |
-| `thekaiwa-speech-worker` | 우분투 | **없음**(앱 `/api/internal/speech/jobs/claim` HTTP 폴링 — task-012b D-B1·D-B4, 생존은 claim 하트비트) | pm2 + 같은 venv(+ `speech/worker/requirements.txt` — 운영 설치는 사용자 승인) | `python main.py` (cwd `speech/worker`) |
+| `thekaiwa-speech-worker` | 우분투 | **없음**(앱 `/api/internal/speech/jobs/claim` HTTP 폴링 — task-012b D-B1·D-B4, 생존은 claim 하트비트) | pm2 **`instances: 1`**(운영 워커 1개 — 전사가 호스트 CPU 코어를 다 쓴다, Leader 2026-09-29) + 같은 venv(+ `speech/worker/requirements.txt` — 운영 설치는 사용자 승인). **claim 식별자 = `SPEECH_WORKER_ID` + 부트 nonce(인스턴스 id `<id>-<8hex>`, REV-033 M1)** — 같은 이름으로 둘이 떠도·재기동해도 잡이 섞이지 않는다(재기동 전 잡은 15분 고아 회수). `SPEECH_WORKER_ID` 미설정 시 `worker-<host>-<pid>` | `python main.py` (cwd `speech/worker`, 패키지 `kaiwa_worker/`) |
 | `kaiwa-tts` | 맥 M4 | `0.0.0.0:8200` (LAN, 우분투에서만 접근) | `~/kaiwa-tts-run` 독립 git clone + venv + uvicorn + **cron 워치독**(home-m4-api 방식, `.deploy.lock` 조율) | `uvicorn app:app --host 0.0.0.0 --port 8200` (cwd `~/kaiwa-tts-run/speech/tts-service`) |
 | (재사용) `voicevault-whisper` | 우분투 | `127.0.0.1:8090` | VoiceVault 소유 pm2 | 변경 없음 — TheKaiwa 는 HTTP 로만 호출 |
 
@@ -465,11 +466,13 @@ pm2 항목 초안(`ecosystem.config.js` 에 task-003 에서 추가; VoiceVault `
   script: `${process.env.HOME}/.node-local/thekaiwa-speech/venv/bin/python`,
   args: 'main.py',
   interpreter: 'none', cwd: `${__dirname}/speech/worker`, instances: 1, autorestart: true, watch: false,
-  max_memory_restart: '1G',   // http 모드에서는 모델을 들지 않는다(pyopenjtalk 사전 ≈100MB). local 모드 전환 시 재산정
+  max_memory_restart: '256M', // http 모드 — 읽기 사전 포함 RSS ≈50~100MB(dev 실측 48MB + numpy, task-012b). local 모드 전환 시 재산정
+  // instances 1 고정 — 운영 권장 워커 1개(전사가 CPU 코어를 다 쓴다). SPEECH_WORKER_ID 는 사람이 읽는 이름 — 실제 claim 식별자는 기동마다 부트 nonce 를 붙인 인스턴스 id(REV-033 M1).
   // task-012b D-B1: DATABASE_URL 을 싣지 않는다(DB 접속 없음). 공용 패키지는 gateway 처럼 PYTHONPATH 로 읽는다.
   env: { ...pickNonEmpty(dotenv, ['DATA_ROOT','APP_ENV','SPEECH_INTERNAL_SECRET','SPEECH_CONFIG_PATH','APP_INTERNAL_URL','WHISPER_SERVICE_URL','SECRETS_DIR']),
+         SPEECH_WORKER_ID: 'worker-1',
          PYTHONPATH: `${HERE}/speech/worker:${HERE}/speech/common`, PYTHONDONTWRITEBYTECODE: '1', PYTHONUNBUFFERED: '1' },
-  kill_timeout: 70000,        // SIGTERM 뒤 지금 잡(분석 STT 60s)을 끝낼 시간
+  kill_timeout: 70000,        // SIGTERM 뒤 지금 잡(분석 STT 60s)을 끝낼 시간 — 넘기면 15분 고아 회수(재기동 = 새 인스턴스 id 라 self-reclaim 대상 아님)
   out_file: `${LOG_DIR}/speech-worker-out.log`, error_file: `${LOG_DIR}/speech-worker-err.log`, merge_logs: true, log_date_format: 'YYYY-MM-DD HH:mm:ss',
 }
 ```
