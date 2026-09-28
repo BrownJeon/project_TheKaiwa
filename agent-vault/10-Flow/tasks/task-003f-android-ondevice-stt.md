@@ -441,6 +441,64 @@ Kotlin/Gradle 실행 환경이 이 세션에 없어 JVM 테스트 자체를 재�
 #### 종합
 두 지적 모두 **채택** — 오탐 아님, 범위 밖도 아님(둘 다 이번 task-003f 의 온디바이스 모델 배포·다운로드 경로 자체의 결함). REV-022 가 이미 남긴 LOW(다운로드 커밋↔활성 세션 VAD 파일 경합)는 지적 1 로 **흡수·상향**된다(같은 근본 원인, 더 넓은 파일 범위) — 그 LOW 항목은 이 판정으로 대체된 것으로 간주하고 별도로 추적하지 않는다. 두 건 다 이번 task-003f 의 QA 통과나 첫 배포를 막을 사유는 아니라고 판단한다(첫 배포엔 모델판 전환이 없다) — 다만 **다음에 실제로 모델판을 올리기 전에** 반드시 고쳐야 한다. Developer 수정 → Reviewer 재순환 필요(신규 REV 차수).
 
+### REV-023 (2026-09-28, 701b065 + c325afc + a412879 — Codex C2 수정 재검증)
+
+**판정: PASS**(Critical 0 · High 0 · Medium 0 · Low 1 — 정보성 명확화 1건, 결함 아님). Codex C2 채택 지적 2건 전부 해소 확인, 회귀 없음. Read 전용, 코드 대조 + 스크래치(`git archive` HEAD `7a86ca4`, 검증 후 삭제) 재실행.
+
+```json
+{
+  "reviewId": "REV-023",
+  "status": "PASS",
+  "summary": { "critical": 0, "high": 0, "medium": 0, "low": 1 },
+  "high_risk_areas": [],
+  "native_change": true
+}
+```
+
+#### 1) A `701b065` [HIGH 해소] — `ModelGate` 모델 파일 잠금(commit/삭제 ↔ 세션 로드 배타)
+
+**해소 확인.** `ModelGate.kt`(39-95행)에 게이트 모니터(`@Synchronized`, 기존 세션/다운로드/삭제 판정용)와 **별도의 `ReentrantLock`**(`files`, `withModelFiles{}`)이 추가됐다. VAD 생성(`openSession()` 프리앰블, 236-241행)·`recognizer.ensure`(worker, `SessionLoad.kt`)·`preload()`·`ModelStore.commit`(rename+옛 버전 삭제, `ModelDownloader.kt`)·`deleteModel`·`checkModel({verify})`의 불일치 삭제가 전부 이 **같은 `files` 락** 안에서 돈다는 것을 각 호출부 diff 로 직접 확인.
+
+- **잠금 순서·교착 분석(모든 스레드·경로 전수 조사)** — 게이트 모니터와 파일 락이 **동시에** 잡히는 유일한 지점은 `openSession()`(플러그인 스레드)뿐이다: `gate.openSession{}`(모니터, `@Synchronized`) 안에서 `gate.withModelFiles{ SherpaVadEngine(...) }`(파일 락)를 부른다 — 항상 **모니터 → 파일 락** 순서. 나머지 다섯 지점(`loadRecognizerForSession`=worker 단독, `checkModel(verify)`=io 단독, `deleteModel`의 `worker.task`=worker 단독, `ModelDownloader.commit`=download 단독, `preload`=worker 단독)은 파일 락**만** 잡고 게이트 모니터는 그 순간 들고 있지 않다(`beginDelete`/`beginDownload`/`gate.session()` 류는 짧게 잡았다 놓는 별개의 호출). **파일 락을 먼저 잡고 그 안에서 게이트 모니터를 잡으려는 경로는 코드 전체에 하나도 없다** — 교착의 전제조건(순환 대기)이 성립할 수 없다. `handleOnPause`(메인 스레드)·`stop`/`cancel`/`release`(플러그인 스레드)·`onClosed`(worker, sink 콜백)는 전부 게이트 모니터만 쓰고 파일 락과는 무관해 로드 1~2초 동안에도 멈추지 않는다 — **`CommitDuringLoadTest.modelFilesLockDoesNotBlockSessionStateQueries`가 실제 스레드로 이를 직접 증명**(파일 락을 쥔 채로 1초 안에 `gate.session()`/`gate.download()` 조회가 끝남을 join 으로 확인)한다. **Leader 질문에 대한 답 — "게이트 모니터 그대로 쓰지 않고 별도 락을 둔 판단은 타당한가"**: 타당하다고 판단한다. 모니터 하나로 통일했다면 `openSession`의 VAD 생성뿐 아니라 **worker 의 1~2초짜리 recognizer 로드까지** 같은 모니터 안에 있어야 배타가 성립하는데, 그러면 로드 내내 `handleOnPause`·`stop`의 `gate.session()` 조회가 멈춘다(A 의 우려가 정확) — 별도 락으로 "짧고 자주 필요한 조회"(모니터)와 "드물고 배타가 중요한 파일 작업"(락)을 분리한 것은 옳은 설계 판단이다. RecognizerHolder 자체의 필드 일관성은 이 락과 무관하게 이미 `worker` 단일 스레드 FIFO 로 보장되므로(같은 스레드에서만 `ensure`/`release` 가 불림), 파일 락의 역할은 순수히 "디스크 파일이 사라지는 순간"과 "네이티브가 그 파일을 읽는 순간"을 겹치지 않게 하는 것 하나로 명확하다.
+- **남은 창(구모델이 로드 중 삭제되는 경우)이 있는가**: **없다고 판단**(파일을 실제로 읽는 모든 경로가 위 목록에서 락으로 덮였음을 직접 확인). `release()`(플러그인 메서드)의 `recognizer.release()` 호출만 파일 락 밖인데, 이는 이미 메모리에 올라온 세션을 놓는 것뿐이라 디스크 접근이 없다(데스크톱 점검이 로드 후 파일 매핑·fd 0 임을 실측했으므로 안전) — 락이 빠진 게 아니라 애초에 락이 필요 없는 자리다. `store.current()`의 bare 호출(`checkModel()`의 비-verify 경로, 상태 표시용) 도 락 밖이지만 이는 stat 기반 상태 조회일 뿐이라 최악의 경우 "설치 안 됨"으로 일시적으로 잘못 보였다가 다음 조회에서 스스로 정정되는 정도(REV-021/022 에서도 같은 설계 원칙 확인)이고 네이티브 로드 실패·크래시 클래스와는 다르다.
+- **모델 버전 일치**: `SttSession.modelVersion` 이 `val`(생성자 고정)에서 `@Volatile var`로 바뀌어(`SttSession.kt`) `SessionLoad.kt` 가 락 안에서 **실제로 올린 버전**으로 덮어쓴다. `worker` 가 FIFO 단일 스레드라 이 로드 태스크가 이후의 모든 decode/`postFinal` 태스크보다 먼저 끝나므로, `FinalResult.modelVersion` 은 항상 실제 로드된 버전을 본다 — `CommitDuringLoadTest.commitBetweenOpenAndLoadMakesSessionReportTheLoadedVersion` 가 직접 확인.
+- **테스트**: `CommitDuringLoadTest.kt`(5건 — 로드 중 commit 대기 후 진행, 열기~로드 사이 commit 시 세션 버전이 실제 로드 버전으로, 실패 보고가 락 밖에서 옴, **commit↔로드 2,000회 경합 0 겹침**, 파일 락이 세션 조회를 막지 않음)을 코드로 직접 읽어 각 assert 가 주장과 정확히 대응함을 확인. JVM 은 이번에도 직접 실행하지 않음(Android SDK 빌드 필요, `~/.node-local/thekaiwa-apk` 미접촉 지시) — 코드 대조로 대체(REV-022 와 같은 한계, 아래 재확인).
+
+#### 2) B `c325afc` [MEDIUM 해소] — 은퇴 버전 검증 스냅샷(24h·최대 2개)
+
+**해소 확인.** `ModelDistribution` 클래스(`modelPackage.ts`)가 `current()` 호출마다 이전 서빙본과 비교해, 바뀌었으면 **그 직전에 이미 `parseManifestText` 로 완전 검증된 스냅샷**을 은퇴 목록에 넣는다(디스크를 다시 읽지 않음 — "디스크에 있기만 하면 서빙"이 아니라 "그때 검증된 것만" 서빙).
+- **TTL**: `note()`(쓰기 시)·`resolveFile()`(읽기 시) 양쪽에서 `t - retiredAt < RETIRED_TTL_MS`(24h) 를 각각 재확인 — 실제 코드로 확인. `modelSwitch.test.ts` 가 `advance(TTL-1)`→200, `advance(2)`→404 로 경계값을 직접 검증(스크래치 실행에서 통과 확인, 아래).
+- **최대 2개**: `note()` 가 새 은퇴 항목을 넣을 때 `.slice(0, RETIRED_MAX)` — 4연속 버전 전환(v1→v2→v3→v4) 테스트로 가장 오래된 v1 이 밀려나 404 임을 실제 코드 실행으로 확인.
+- **되돌리기(switch back)**: `note()` 가 새로 현재가 된 버전을 은퇴 목록에서 **먼저 제거**한 뒤 직전 버전을 추가 — v3 로 되돌리면 `retiredVersions()` 가 `[v4, v2]`(v3 빠짐)이 됨을 테스트로 직접 확인(코드 읽기 + 스크래치 실행 둘 다).
+- **배포 꺼짐**: `resolveFile()` 이 `current()` 가 `null` 이면 은퇴 목록을 아예 안 보고 즉시 404 반환 — connection 이 꺼지거나 manifest 가 무효가 되면 은퇴 버전도 같이 막힘을 확인.
+- **크기·sha256 재확인 — 정밀화**: "재검증"의 실제 메커니즘은 (a) **크기**는 서빙 시점에 `stat()` 으로 라이브 재확인(디스크 파일이 기록과 다른 크기면 404 — `modelSwitch.test.ts` 세 번째 테스트로 확인), (b) **sha256**은 스냅샷을 만든 시점(그 버전이 아직 current 였을 때 `parseManifestText` 로 검증됨)에 확정된 값을 `ETag`/`X-Content-SHA256` 로 그대로 신뢰해 붙이는 것이지, 서빙마다 파일 전체를 다시 읽어 해시를 재계산하지는 않는다(그러면 150MB 파일의 바이트 범위 요청 하나에 전체 파일을 읽어야 해 성능이 무너진다) — 이는 **은퇴 버전만의 특수 규칙이 아니라 현재 버전 파일 서빙(REV-021 이전부터)도 항상 그래 왔던 동일한 신뢰 모델**이라 이번 수정이 새로 낮춘 기준이 아니다. 실제 바이트 무결성은 다운로드가 끝난 뒤 플러그인이 파일별로 재계산해 확인한다(기존 설계). **[LOW·정보성]**: Leader 요약("size and sha256 are re-checked")이 기술적으로는 "크기는 재확인, sha256 은 검증된 값을 신뢰해 라벨로만 사용"임을 명확히 해 둔다 — 결함이 아니라 표현 정밀화이므로 조치 불필요.
+- **재시작 후 미복구·README 경고**: 코드·문서(`speech/models/README.md` §5)를 직접 대조 — 프로세스 재시작 시 은퇴 목록이 비고(디스크에 옛 manifest 사본이 없어 재구성 불가), "모델 전환과 앱 재배포를 같은 시점에 하지 않는다"는 문구가 실제로 §5 에 들어감을 확인. 이 트레이드오프(재시작 중 진행 중이던 받기만 404 로 실패, 무결성 문제 없음)는 1인·수동 배포 환경에서 합리적이라고 판단한다.
+- **테스트**: `modelSwitch.test.ts` 3건(전환 전후·이어받기·스냅샷 밖 파일·TTL 경계·최대 2개·되돌리기·배포 꺼짐·크기 변조) — 스크래치에서 **직접 실행해 3건 전부 통과 확인**(아래). 라이브 `tests/live/task003f-model-switch.ts` 7/7 은 이번 세션에서 dev 서버를 새로 띄워 재실행하지 않음(developer 보고 신뢰 — 코드는 열람해 시나리오가 단위테스트와 일치함을 확인).
+
+#### 3) B `a412879` [정합성 해소] — 이스케이프 중복 키 + 픽스처 60건
+
+**해소 확인.** 서버 `hasDuplicateKeys`(`manifestRules.ts`)가 키 조각을 원문 그대로 비교하던 것에서, 인용부호 포함 원문(`text.slice(i, j+1)`)을 **`JSON.parse` 로 실제 디코드**한 값으로 비교하도록 바뀌었다 — `"engine"` → `"engine"` 처럼 올바른 JSON 이스케이프 규칙으로 풀리므로 `"engine"` 과 정확히 같은 키로 인식된다(파싱 실패 조각은 거절 쪽으로 안전하게 처리). Kotlin `Manifest.kt` 의 신규 `JsonKeys.readString`(직접 짠 이스케이프 디코더 — `\u`·`\n`·`\t`·`\r`·`\b`·`\f`·기타)과 원리는 같고, 만약 `\u` 헥사가 깨져 있어도(극단적 사례) 최종적으로는 두 언어 모두 **바깥 JSON 파서 단계**(`JSON.parse`/`JSONTokener`)에서 잡히므로 최종 판정은 갈리지 않음을 코드로 확인. `trailing content` 거절(Kotlin `nextClean()` 추가, JS 는 `JSON.parse` 가 원래 이 조건을 잡음)도 같은 방향(반대쪽 결여를 서로 보완). 공용 픽스처가 60건(`raw-duplicate-key-escaped`·`raw-trailing-content` 포함, `MANIFEST_INVALID` 53·`valid` 6·`APP_UPDATE_REQUIRED` 1, 중복 이름 없음)으로 늘었음을 직접 확인.
+
+#### 회귀 확인 (스크래치, HEAD `7a86ca4` 아카이브 — 검증 후 삭제, `~/.node-local/thekaiwa-apk` 미접촉)
+
+| 항목 | Developer 보고 | 독립 재현 | 비고 |
+|---|---|---|---|
+| `tsc --noEmit` | 0 | **exit 0** | 일치 |
+| eslint(전체) | 0 error(경고 5 = 기존) | **2 errors(`ecosystem.config.js`, task 밖)·5 warnings(기존 Settings 컴포넌트, task 밖)** | REV-022 때와 동일 항목·동일 사유, 신규 회귀 아님 |
+| `npm run test` | 486 pass + 1 skip = 487 | **487 pass + 0 skip = 487** | 총량 일치. 스킵은 `speech/models/manifest.example.json` 상대경로 존재 여부에 좌우(REV-022 와 같은 환경 의존, 버그 아님) — 아카이브엔 그 파일이 커밋돼 있어 스킵 없이 실행됨 |
+| **60 개 공용 픽스처 전체** — 서버 판정 = 플러그인 판정 | 불일치 0 | **테스트 #389 `ok`**(불일치 0) | `raw-duplicate-key-escaped` 포함 60건 전부 포함해 실행·통과 |
+| `modelSwitch.test.ts` 3건 | 통과 | **테스트 #395·#396·#397 전부 `ok`** | TTL 경계·최대 2개·되돌리기·배포 꺼짐·크기 변조 전부 이 실행에서 직접 확인 |
+| `appExchangeUrl`/`@capacitor` 등 경계 grep | 0 | **0** | 회귀 없음 |
+| `src/app/models/[...path]/route.ts` | 리팩터(공용 `serveModelFile` 재사용) | 코드 대조로 확인 — 동작 동일, 중복 로직 제거만 | 회귀 없음 |
+
+JVM(67 스위트, `CommitDuringLoadTest`·`ManifestTest`·`ModelDownloaderTest` 포함)은 이번에도 실행하지 않고 코드 대조로 대신함(Android SDK 빌드가 필요하고 Leader 지시대로 `~/.node-local/thekaiwa-apk` 는 건드리지 않음) — REV-022 에서 이미 tsc 자기 보고 사각지대를 한 번 실제로 잡아낸 전례가 있어 JVM 쪽도 완전한 보증은 아니라는 점은 재차 밝혀 둔다. 다만 이번엔 Kotlin 로직(`ModelGate`·`SessionLoad`·`JsonKeys`)을 TS 대응 코드·테스트와 문장 단위로 대조했고, TS 쪽(같은 픽스처·같은 락 설계 원칙)은 직접 실행으로 재확인했다.
+
+#### QA 인계
+- **REV-022 의 잔여 3건 모두 해소** — manifest 스키마 정합(HIGH, REV-022)·PKCE 노출(MEDIUM, REV-022)·Codex C2 HIGH(다운로드↔세션 로드)·Codex C2 MEDIUM(버전 전환 중 재개) 전부 코드·테스트로 확인됨. 새 차단 사유 없음.
+- **F6 실기기 확인 시 추가로 볼 것(신규, 폰 필요)**: 모델 받는 중(진행률 표시 중)에 Leader 가 실제로 새 모델판을 배포하는 조합 테스트는 이번 재검증 범위 밖(서버·JVM 단위/통합 테스트로만 확인) — 다음에 실제 모델판을 올릴 때 "받기 진행 중에 전환해도 이어받기가 끊기지 않는다"를 실제 다운로드로 한 번 확인해 두면 좋음(필수는 아님, 코드·테스트 근거는 이미 충분).
+- **문서 정밀화(LOW, 조치 불필요)**: 은퇴 버전 서빙의 "sha256 재검증"은 실제로는 "검증 시점에 확정된 값을 신뢰해 라벨링"이며 매 요청 라이브 재해시가 아님 — 현재 버전 서빙과 동일한 기존 신뢰 모델이라 결함 아님, 향후 문서화 시 참고.
+- native_change: true — 이번 3커밋 모두 Kotlin(A `701b065`)·서버(B `c325afc`·`a412879`) 변경 포함, APK 재빌드 필요(developer 보고 sha256 갱신됨 — deployer 배포본 갱신 대상).
+
 ## QA 기록
 
 ## Deployer 기록
