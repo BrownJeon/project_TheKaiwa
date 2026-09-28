@@ -1,35 +1,31 @@
 /** @type {import('pm2').StartOptions} */
-// `next start` 는 반드시 ~/.node-local/thekaiwa(node_modules 가 실제로 존재하는 곳)에서
-// 실행해야 한다 — 이유는 scripts/sync-local.sh 주석 참고. 배포 시 `npm run build` 가
-// 이미 node-local 을 최신 소스로 동기화해 두므로 pm2 는 그 결과물을 그대로 기동한다.
 const fs = require('node:fs')
 const path = require('node:path')
 
-// pm2 는 out_file/error_file 의 **상위 디렉토리를 만들어 주지 않는다** — 없으면 로그
-// 파일을 열지 못해 기동에 실패하고, 그 실패 자체가 어떤 로그에도 남지 않는다
-// (VoiceVault 2026-09-02 실장애: 204회 크래시 루프). ecosystem 은 pm2 가 앱을 띄우기
-// 전에 평가되므로 여기서 만드는 것이 확실하다.
 /**
- * ── 실행 위치는 **두 세계**를 모두 지원해야 한다 (2026-09-19) ─────────────────
+ * ── 이 파일이 평가되는 곳은 셋이다 (task-009, 2026-09-28) ─────────────────────
  *
- * ① **blue/green 릴리스**(`/home/brownjeon/apps/thekaiwa/releases/<id>/`) — 새 방식.
- *    거기엔 `node_modules` 와 빌드 결과물이 함께 있으므로 **그 자리에서** 돈다.
- *    `release.sh` 의 `ensure_current_cwd` 가 pm2 의 cwd 가 릴리스를 가리키는지 검사하고,
- *    아니면 `current/ecosystem.config.js` 로 재등록한 뒤 **그래도 아니면 배포를 중단**한다
- *    (`current` 를 안 바꾸고 이전 릴리스가 계속 서 있는다). 즉 여기를 고정 경로로 두면
- *    blue/green 이 영원히 성공하지 못한다.
+ * ① **운영 릴리스** `<base>/releases/<id>/ecosystem.config.js` (<base> = /home/brownjeon/apps/thekaiwa).
+ *    release.sh 가 `cd <base>/current && pm2 startOrReload <base>/current/ecosystem.config.js` 로 부른다.
+ *    Node 는 모듈 경로를 realpath 로 풀기 때문에 `__dirname` 은 `current` 가 아니라 **구체적인 릴리스 경로**다 —
+ *    pm2 는 등록 시점의 cwd 문자열을 보관하므로 `current` 를 넣으면 링크가 옮겨간 뒤에도 옛 코드를 돌리는 거짓 성공이
+ *    된다(dev-deploy-workflow §3). 릴리스에는 `npm ci`·`next build` 결과가 함께 있어 **그 자리에서** 돈다.
+ *    `node_modules` 가 없더라도 미러로 빠지지 않는다 — 운영이 조용히 개발 미러 코드를 도는 것(§7-1 함정)보다 기동
+ *    실패로 드러나는 편이 낫다(release.sh 가 헬스 실패로 이전 릴리스로 되돌린다).
+ * ② **NFS 편집 트리** — noexec 이고 `node_modules` 가 없으므로 Next 앱은 미러(`~/.node-local/thekaiwa`)에서 돈다.
+ * ③ `node_modules` 가 옆에 있는 그 밖의 위치(미러에 이 파일을 복사해 둔 경우 등) — 그 자리에서 돈다.
  *
- * ② **NFS 편집 트리에서 읽힌 경우** — 현행 방식. NFS 는 noexec 이고 `node_modules` 도
- *    없으므로 그 자리에서는 못 돈다. 미러(`~/.node-local/thekaiwa`)로 보낸다.
- *
- * 그래서 **`node_modules` 가 옆에 있는지**로 가른다 — 경로 문자열 비교보다 정확하다
- * (릴리스 id 는 매번 바뀌고 미러 경로는 `$HOME` 에 따라 달라진다).
+ * 로그: 운영 릴리스면 릴리스 **밖**의 `<base>/shared/logs`(릴리스가 바뀌고 오래된 릴리스가 지워져도 이어진다 —
+ * 릴리스 안 `logs` 링크 경로를 pm2 에 박으면 그 릴리스가 prune 된 뒤 경로가 끊긴다). 그 밖은 종전대로 `<실행 위치>/logs`.
+ * pm2 는 out_file/error_file 의 **상위 디렉토리를 만들어 주지 않는다** — 없으면 기동에 실패하고 그 실패가 어떤 로그에도
+ * 남지 않는다(VoiceVault 2026-09-02 실장애: 204회 크래시 루프). ecosystem 은 앱보다 먼저 평가되므로 여기서 만든다.
  */
 const HERE = __dirname
 const MIRROR = `${process.env.HOME}/.node-local/thekaiwa`
-const CWD = fs.existsSync(`${HERE}/node_modules`) ? HERE : MIRROR
+const IN_RELEASE = path.basename(path.dirname(HERE)) === 'releases'
+const CWD = IN_RELEASE || fs.existsSync(`${HERE}/node_modules`) ? HERE : MIRROR
 
-const LOG_DIR = `${CWD}/logs`
+const LOG_DIR = IN_RELEASE ? path.resolve(HERE, '../../shared/logs') : `${CWD}/logs`
 fs.mkdirSync(LOG_DIR, { recursive: true })
 
 /**

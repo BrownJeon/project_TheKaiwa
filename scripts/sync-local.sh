@@ -77,4 +77,13 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
   chmod 600 "$LOCAL_ROOT/.env"
 fi
 
+# package-lock.json 은 NFS(git)가 정본이다 — 운영 릴리스는 이 파일로 `npm ci` 한다(task-009). 의존성은 미러에서 `npm install` 로
+# 바꾸므로 미러 lock 이 앞서 나간다. 덮어쓰면 방금 설치한 결과가 lock 에서 사라지므로 복사하지 않고 다르면 알리기만 한다
+# (task-009 전까지 NFS lock 이 prisma 두 개만 담은 채 방치돼 `npm ci` 가 불가능했다).
+if [ -f "$LOCAL_ROOT/package-lock.json" ] && [ -f "$PROJECT_ROOT/package-lock.json" ] \
+  && ! cmp -s "$PROJECT_ROOT/package-lock.json" "$LOCAL_ROOT/package-lock.json"; then
+  echo "⚠ package-lock.json 이 미러와 NFS 에서 다르다 — 미러에서 의존성을 바꿨다면 미러 lock 을 NFS 로 복사해 커밋하라" \
+    "(cp \"$LOCAL_ROOT/package-lock.json\" \"$PROJECT_ROOT/\"). 운영 배포(npm ci)는 NFS lock 만 쓴다." >&2
+fi
+
 exit 0

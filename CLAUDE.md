@@ -147,7 +147,7 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | 대상 프로세스 | thekaiwa · thekaiwa-speech-gateway · thekaiwa-speech-worker |
 | M4 tts-service | `git push` 웹훅(사용자 승인 게이트), `http://192.168.219.100:8200/health` |
 | APK | 네이티브 변경 시 deployer `<apk_release>` → `/app/download/latest.apk` + `/api/app/version` 배너 |
-| 현재 상태 | 저장소 ✅(origin/main) · DB·OAuth·nginx·M4 준비 전(사용자 선결, OPS-QUEUE) |
+| 현재 상태 | **컷오버 준비 완료(task-009 R1)** — `deploy.yml` 앱 2개(thekaiwa·thekaiwa-speech-gateway)·`ecosystem.config.js` 릴리스 cwd(`__dirname`)·`shared/logs`·`package-lock.json` 재생성(격리 `npm ci`+build 실측)·`/api/health` 필수 실패 503. **운영은 아직 미러**(`~/.node-local/thekaiwa`, `APP_ENV=LOCAL`) — 컷오버(R2: `$BASE/NFS` 링크·`shared/.env` `APP_ENV=PRODUCTION`·`--yes`)는 `docs/deploy-order.md` §9. 컷오버 전까지 미러 `npm run build` 금지 |
 
 - 배포는 **`origin` 의 ref 기준**이다 — push 되지 않은 커밋은 나가지 않는다.
 - `--with-migrate`(DB 마이그레이션)는 **사용자 승인 사항**이다. 개발과 운영이 같은 NAS MariaDB 를 본다.

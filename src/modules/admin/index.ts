@@ -11,7 +11,7 @@ import type { MeCapabilitiesDto } from '@/types/admin'
 import { can } from './permissions/can'
 import type { AdminActor } from './permissions/guard'
 
-export { getHealthSummary } from './health'
+export { getHealthSummary, healthHttpStatus } from './health'
 
 // 권한(role-permission.md §5)
 export { CAPABILITIES, ROLE_CAPABILITIES, ROLES, isCapability, isRole } from './permissions/matrix'
