@@ -115,6 +115,8 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | codex | **Haiku** | judge 개입 판정 시에만 Codex CLI 읽기 전용 검토 실행·기록. 실패해도 작업 진행 후 실패 내역 보고 |
 | tutor (런타임) | Sonnet | `.claude/agents/tutor.md` v1 = 일본인 원어민·교정 철저·한국어 설명+일본어 대화·이름 사용자 지정·복습 주기 3~7일 판단(key `teacher-persona`). 개발팀 아님, 앱 런타임이 `--agents` 로 로드 |
 
+화면 신규·구조 변경 작업은 데모 검토 게이트(워크스페이스 [`docs/demo-review-gate.md`](../docs/demo-review-gate.md))를 거친다 — designer 버전별 데모(`docs/demo/<task-id>-<slug>-v<N>.html`) → 사용자 승인 → 구현 (2026-09-28, ADP-001 D-09).
+
 ## Phase 로드맵
 
 | Phase | 내용 | 상태 |

@@ -98,3 +98,12 @@ Reviewer 불일치는 직접 소통·수정·재검증 루프. QA 결함·배포
 - [CLAUDE.md](../../CLAUDE.md) · [docs/design-spec.md](../../docs/design-spec.md) · 정본 `docs/design/{domain-model,api-contract,module-dependency,configuration-resolution,role-permission}.md` · Designer 가이드 `docs/screens.md` · 플러그인 규약 `plugins/sherpa-stt/README.md` · 음성 서비스 `speech/README.md`
 - 이식 원본: `TheMeal/src/lib/{auth.ts,session.ts,jwt.ts,auth/**,ai/{claudeCli,llmClient,extractJson,schemaValidate}.ts}`, `TheMeal/src/app/api/auth/**`, `VoiceVault/src/lib/native/bridge.ts`, `VoiceVault/src/components/nav/KeyboardInset.client.tsx`, `VoiceVault/android/**/MainActivity.java`, `VoiceVault/scripts/build-apk.sh`, `VoiceVault/whisper-service/main.py`, `bjj-trainning/backend/src/services/{masterChat,claudeCli,gymMasterPersona}.js`, `bjj-trainning/web/src/components/SwipeCardDeck.jsx`
 </references>
+
+## 데모 검토 게이트 — 2026-09-28 편입 (ADP-001 D-09)
+
+절차 정본: 워크스페이스 `docs/demo-review-gate.md`.
+
+- **화면 파일 수정 전 필수**: `node ../.claude/tools/demo-gate/check.mjs check --task <배정 task.md>` → `DEMO_GATE_PASSED` 가 아니면 화면 파일(`../.claude/tools/demo-gate/projects.json` 의 이 프로젝트 화면 경로 — src/app/**/{page,layout,loading,error,not-found,template}.tsx · src/app/**/_components/** · src/app/**/components/** · src/components/** · src/app/globals.css · public/app-shell/**)을 **수정하지 않고** BLOCK 사유를 Leader 에게 보고한다. 결과 보고에 check 결과 첫 두 줄을 넣는다.
+- 편집 전 훅이 `[데모 검토 게이트]` 경고를 내면 멈추고 Leader 에게 보고한다. 현재 warn 단계라 편집 자체는 허용되지만 승인 없는 화면 수정은 절차 위반이다.
+- 구현 기준은 구현 가이드에 적힌 **승인 버전 데모 하나**다. 데모 파일(`docs/demo/**`)은 수정하지 않는다.
+- 구현 중 API 제약 등으로 사용자에게 보이는 의미(정보구조·문구 의미·흐름·CTA 동작·단계)를 바꿔야 하면 근거와 함께 Leader 에게 보고한다(의미가 바뀌면 데모 vN+1 재승인, 유지되면 가이드만 갱신).
