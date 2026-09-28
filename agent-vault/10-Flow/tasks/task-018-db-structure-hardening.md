@@ -16,6 +16,23 @@ aliases:
   - task-018
 created: 2026-09-28
 updated: 2026-09-28
+demo_gate:
+  required: false
+  level: "none"
+  status: "not_required"
+  version: 0
+  repo_path: ""
+  artifact_url: ""
+  content_sha256: ""
+  decided_by: "judge"
+  rule_id: ""
+  approved_by: ""
+  approved_at: ""
+  approval_quote: ""
+  waived_by: ""
+  waived_at: ""
+  waiver_quote: ""
+  active: false
 ---
 
 ## 목표 (Leader)
@@ -50,12 +67,45 @@ updated: 2026-09-28
 4. ③ Rollback → rollbackOf 기록·화면 표시.
 5. tsc·lint·test, 운영 배포 ok·health ok.
 
+## 판단 기록 (judge)
+- [2026-09-28 14:45] intake engine=jev → task_type=structural · risk=R2 · developer_model=opus · next=assign | demo=none | overrides=- | fallback=- | tokens=1471
 ## Developer 기록
+- [14:05] **사전 점검(읽기 전용 SELECT, 접속 정보 미출력)**: `Utterance` 0행(연결 0) → `chatMessageId` 비 null 중복 그룹 **0**, `chatId` 칼럼 없음, 인덱스 `Utterance_chatMessageId_idx`(비고유)·FK 보조 인덱스들. `AuditLog` 103행 전부 `scope=null`(그중 `lexicon.*` 75행 — 전부 LOCAL: create 25·import 15·update 15·disable 10·rollback 10). `ConfigurationVersion`·`RuntimeOverride` 0행. 세 테이블 `scope` 칼럼 = `enum('ENGINE_CONNECTION','FALLBACK_POLICY','PROMPT','APP_SETTING','VOICE_PROFILE','PRESET')`. `PronunciationLexiconVersion` LOCAL v1 ACTIVE 1·PRODUCTION v1 ACTIVE 1(되돌림 버전 0 — "되돌림" changeSummary 0행), `rollbackOf` 칼럼 없음.
+- [14:15] **스키마**(schema.prisma = domain-model §3 블록 동시 수정, 기존 문서 차이 2줄 외 일치): ① `Utterance.chatId String?` + `chat Chat? @relation(onDelete: SetNull)` + `@@index([chatId])`, `chatMessageId @unique`(기존 `@@index([chatMessageId])` 는 unique 가 덮어 선언에서 뺌), `ChatMessage.utterances Utterance[]` → `utterance Utterance?`(1:1 — 코드 사용처 0), `Chat.utterances Utterance[]` ② `enum ConfigScope` 끝에 `LEXICON`(AuditLog 전용 주석) ③ `PronunciationLexiconVersion.rollbackOf Int?`. `prisma validate` OK, 미러 `prisma generate` OK(운영은 릴리스 디렉터리라 무관 — pm2 cwd 확인).
+- [14:16] **적용될 SQL**(`prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script` — URL 을 명령줄에 싣지 않고 .env 로):
+  ```sql
+  ALTER TABLE `AuditLog` MODIFY `scope` ENUM('ENGINE_CONNECTION','FALLBACK_POLICY','PROMPT','APP_SETTING','VOICE_PROFILE','PRESET','LEXICON') NULL;
+  ALTER TABLE `ConfigurationVersion` MODIFY `scope` ENUM(… ,'LEXICON') NOT NULL;
+  ALTER TABLE `PronunciationLexiconVersion` ADD COLUMN `rollbackOf` INTEGER NULL;
+  ALTER TABLE `RuntimeOverride` MODIFY `scope` ENUM(… ,'LEXICON') NOT NULL;
+  ALTER TABLE `Utterance` ADD COLUMN `chatId` VARCHAR(191) NULL;
+  CREATE UNIQUE INDEX `Utterance_chatMessageId_key` ON `Utterance`(`chatMessageId`);
+  CREATE INDEX `Utterance_chatId_idx` ON `Utterance`(`chatId`);
+  ALTER TABLE `Utterance` ADD CONSTRAINT `Utterance_chatId_fkey` FOREIGN KEY (`chatId`) REFERENCES `Chat`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ```
+  **파괴적 변경 0**: DROP 0·타입 축소 0·NOT NULL 신규 0(ConfigurationVersion/RuntimeOverride 의 NOT NULL 은 원래 값 재진술, enum 은 끝에 값 추가만). 옛 비고유 `Utterance_chatMessageId_idx` 는 diff 가 지우지 않는다(FK 보조로 남음, 무해 — domain-model §8 #17 에 기록). ⚠ **Leader 참고**: Prisma `db push` 는 unique 추가에 "If there are existing duplicate values, this will fail" 경고를 내며 비대화식이면 `--accept-data-loss` 를 요구할 수 있다 — 중복 0(행 0) 확인됐으니 데이터 손실이 아니라 그 경고다. push 직전 중복 0 재확인 SQL: `SELECT COUNT(*) FROM (SELECT chatMessageId FROM Utterance WHERE chatMessageId IS NOT NULL GROUP BY chatMessageId HAVING COUNT(*)>1) d;`
+- [14:30] **코드 ①**: `speech/utterances/store.ts`(신규 — `utteranceDb` 진입점: 단위 테스트가 바꿔 끼움, Prisma 위임 객체는 mock.method 불가 실측) · `turn.ts` — `turnUtteranceProblem`(순수, 순서 USED → **OTHER_CHAT** → EXPIRED)·`checkUtteranceForTurn(userId, utteranceId, chatId)`·`linkUtteranceToMessage` P2002 → `{linked:false, warning:'UTTERANCE_USED'}`(count 0 = `UTTERANCE_LINK_SKIPPED`) · `index.ts` — #21·gateway 등록 모두 `chatId` 저장, P2003(방·사용자 사라짐) → 404(#21 은 wav 도 삭제) · 라우트: #21 소유 확인을 `getChatDetail`(stale 정리 쓰기 포함) → `getOwnedChat`(읽기 1회), internal 콜백에 `getOwnedChat(input.userId, input.chatId)`(아니면 404 → gateway 4xx 재시도 없음·`_orphan`·클라 글자 턴 — gateway README §4 에 한 줄), #32 가 `id` 를 넘기고 Trace `UTTERANCE_LINK.warning` = 결과 warning. 온디바이스 클라(`OnDeviceSttClient`·`onDeviceUpload`)는 이미 현재 방 `chatId` 를 보내고 있어 변경 없음(확인).
+- [14:32] **코드 ②③**: `admin/speech/lexicon.ts` — `lexiconAuditEntry()`(scope `'LEXICON'`, 순수 함수로 추출) · `lexiconStore.writeLexicon` 새 버전 `rollbackOf = op.kind==='ROLLBACK' ? 대상 : null`, `LexiconVersionRow.rollbackOf` · DTO `LexiconVersionDto.rollbackOf`(칸 값) + `restoredFrom` = `rollbackOf ?? 감사 after.restoredFrom`(호환) · `src/types/admin.ts` `ConfigScopeName` 미러에 LEXICON + `AUDIT_SCOPE_LABELS = { LEXICON: '발음 사전' }`. **콘솔 History 화면·#137 감사 API 는 아직 없다**(menu `history` phase 2) — 범위 필터는 화면이 생길 때 이 라벨을 쓰고, `scope=LEXICON` 이 옛 행(`scope=null`+`lexicon.*`)도 잡아야 한다는 규칙을 api-contract #137 에 적음(감사 행은 append-only 라 backfill 하지 않음). Effective/Configuration 엔드포인트는 SCOPES 목록에 LEXICON 이 없어 400(계약 §2-23 한 줄).
+- [14:35] **문서**: domain-model(§3 블록·§4 Utterance/AuditLog/LexiconVersion 행·§6 Chat 삭제 SetNull·§8 #5 보강·**#17 해소**) · api-contract(#21 chatId·#32 utteranceId OTHER_CHAT·P2002·§2-23 LEXICON 400·#137 LEXICON 필터 규칙·사전 감사 scope·LexiconVersionDto rollbackOf·Rollback 결과) · module-dependency §4-1(라우트가 getOwnedChat 조합) · gateway README §4.
+- [14:38] **테스트**: 신규 `speech/__tests__/task018.test.ts` 6건(방 판정·순서·수락 전 검사 404/409·연결 P2002 수렴·gateway/#21 chatId 저장·P2003 404+wav 삭제 — 보존 정리는 `__kaiwaUtterancePurgeAt` 로 막아 실 DB 무접촉) + `admin/__tests__/lexicon.test.ts` LEXICON 감사 행 1건 + `lexiconAdmin.test.ts` 버전 전이에 `rollbackOf` 단언(일반 null·되돌림 1). `integrity.test.ts` 픽스처에 `rollbackOf:null`. **npm run test 503(502 pass·1 skip·0 fail) · typecheck 0 · lint 0 error**(경고 5 = 기존 settings/diagnostics 화면, 이번 변경 무관) · 엔진명 diff grep 0.
+- [14:40] 🚫 **화면 파일 BLOCK(데모 검토 게이트)** — `node ../.claude/tools/demo-gate/check.mjs check --task agent-vault/10-Flow/tasks/task-018-db-structure-hardening.md` → `DEMO_GATE_BLOCKED` / `reason: task frontmatter 에 demo_gate 가 없습니다. Leader 가 judge intake 결과로 check.mjs init 을 먼저 실행해야 합니다.` → `src/components/**` 4파일을 **고치지 않았다**. 적용할 변경은 패치로 준비·검증만(미러에 적용해 tsc 0·eslint 0·lexicon 화면 테스트 33 pass 확인 후 미러 원복): `…/scratchpad/screen-patch/task018-screens.patch`(62줄) — ① `talkCopy.ts` `UnsentReason` 에 `'utteranceOtherChat'` + 문구 1줄 「다른 대화에서 녹음한 말이라 목소리는 붙이지 못해요. 다시 보내면 글자로 보내져요.」, `TalkRoom.tsx` 409 `UTTERANCE_OTHER_CHAT` 를 USED/EXPIRED 와 같은 띠로(발화 id 없이 글자 턴) ③ `VersionRow.tsx` 상태 배지 옆 「v{n} 로 되돌림」 텍스트, `VersionDetailSheet.tsx` KeyValue 「되돌림: v{n} 로 되돌림」(값 있을 때, changeSummary 유지). 링크(원본 버전 열기)는 행 전체가 버튼이라 중첩 불가 — 필요하면 designer 판단. **게이트 전 영향**: 서버가 409 `UTTERANCE_OTHER_CHAT` 을 내도 지금 클라는 모르는 사유라 "선생님이 아직 답하는 중" 띠 + 같은 발화 id 재전송(다시 409)이 된다 — 정상 UI 에서는 방을 옮기면 녹음 컴포넌트가 내려가 도달하기 어려운 경로.
+- [14:42] **라이브 스모크(db push 뒤, Leader)**: `tests/live/task007-smoke.ts` 에 **K 절** 추가(K1 #21 chatId 저장·K2 다른 방 발화 409 `UTTERANCE_OTHER_CHAT`·행 0·K3 타인 방 chatId 업로드 404·K4 internal 콜백 chatId 저장·K5 타인 방 콜백 404·K6 같은 방 발화 턴 연결·K7 DB unique P2002, Claude CLI +1회). 실행: dev 서버를 미러에서 `node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 3011` → `bash tests/live/task007-smoke.sh 3011`(기존 A~I 회귀 + K). **task003g**: `bash tests/live/task003g-smoke.sh` 로 회귀(3r 은 restoredFrom 로 그대로 PASS 예상) + 수동 확인 2건 — `SELECT scope, action FROM AuditLog WHERE action LIKE 'lexicon.%' AND createdAt >= <스모크 시작>` 전부 `LEXICON`, 되돌림으로 만든 버전 `SELECT version, rollbackOf, changeSummary FROM PronunciationLexiconVersion WHERE environment='LOCAL' ORDER BY version DESC LIMIT 3` → 되돌림 행 `rollbackOf` = 대상 번호·나머지 null(003g 스모크는 끝에 QA 버전을 지운다 — 확인은 스모크 중 또는 `/lexicon/versions` 응답 `rollbackOf`). task003e-smoke D 절(internal 콜백, chatId:null) 회귀 PASS 예상.
+- [14:47] 커밋 **f96bf42**(21파일, push 안 함 — webhook 운영 배포 방지). 이력서·20-Log 는 미커밋(Leader 백업 기록과 함께 Leader 가 커밋). 남은 것: Leader `check.mjs init`(judge intake) → 통과 시 화면 패치 적용·재검증(별도 커밋), db push(백업 뒤, unique 경고 → `--accept-data-loss` 필요할 수 있음), push 뒤 라이브 스모크 K 절.
 
 ## Reviewer 기록
 
 ## QA 기록
 
 ## Deployer 기록
+- [14:47] (Leader) **`prisma db push --accept-data-loss`**(경고는 unique 인덱스 추가 안내뿐 — 사전 재확인 중복 0·Utterance 0행) → 31s 적용·`prisma generate`. 확인: `AuditLog/ConfigurationVersion/RuntimeOverride.scope` +LEXICON, `PronunciationLexiconVersion.rollbackOf int NULL`, `Utterance.chatId varchar(191) NULL`, 인덱스 `Utterance_chatMessageId_key UNIQUE`·`Utterance_chatId_idx`(+ 옛 non-unique `_chatMessageId_idx` 잔존 — 무해). 운영(옛 코드) health `PRODUCTION ok []` — 코드 push 전 DB 먼저 원칙대로. 데모 게이트: judge intake(demo none) → `check.mjs init` → `not_required`, `check` PASS.
+- [14:30] (Leader, Plan 1) **백업**: `mysqldump --single-transaction --routines --triggers --hex-blob thekaiwa`(접속 정보는 `.env` DATABASE_URL 에서 임시 600 옵션 파일 → 즉시 삭제, 값 미출력) → `/home/brownjeon/NFS/homes/brownjeon/project/files/thekaiwa/backups/thekaiwa-20260928-142959-pre-task018.sql.gz`(600, 53,782B, CREATE TABLE 50, "Dump completed"). **복원**(필요 시, 사용자 확인 후): `zcat <파일> | mysql --defaults-extra-file=<옵션 파일> thekaiwa` — 공유 DB 전체를 이 시점으로 되돌리므로 그 뒤 데이터(운영 사용자 기록)가 사라진다 → 먼저 새 칸만 되돌리는 방법(칼럼·인덱스 DROP)을 검토.
 
 ## 최종 요약
+
+## 데모 검토 (demo gate)
+
+> 실행 판정 정본은 frontmatter `demo_gate` 이다. 이 표는 check.mjs 가 함께 기록하는 사람용 이력이다(docs/demo-review-gate.md).
+
+| 버전 | 상태 | 저장소 파일 | Artifact | 사용자 결정 | 일시 |
+|---|---|---|---|---|---|
+| - | 해당없음 | - | - | judge: none | 09-28 14:48 |
