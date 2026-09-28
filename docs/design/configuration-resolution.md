@@ -351,7 +351,7 @@ POST config/diff ────── 저장값 vs 후보: changes[{key, before, a
 POST config/apply ───── baseVersion 확인 → 트랜잭션(§6-2) → 캐시 무효화 → RUNTIME_EDITABLE 키 서비스 push → 응답 applied{…, restartRequired, restartTarget}
 ```
 
-> **task-012c 확정(2026-09-29 C1, D-C1·D-C4·D-C10)** — 위 그림 중 바뀐 것: ① `summaryHash` 는 **무상태**다 — 서버는 Diff 를 저장하지 않고, apply·rollback 이 받은 후보로 Diff 를 다시 계산해 해시를 대조한다(유효 기간 없음, `baseVersion` 이 바뀌면 자연 불일치). ② `testResultId` = `EngineHealth(FUNCTIONAL).id`(`detail.candidateHash`·`checkedAt` 으로 30분·같은 후보 확인 — DB 라 blue/green·재기동에도 유효). ③ **편집 가능 키는 앱(Node)이 실제로 읽는 키 중 "런타임 실사용값 == Effective" 테스트가 있는 키뿐**이다 — 런타임은 이 Resolver 를 거치지 않고 `EngineConnection` 행 JSON·일부 env 를 직접 읽기 때문(2026-09-29 확인). Python 서비스가 읽는 키는 콘솔 편집 거부(`serviceManaged`). ④ 커밋 후 서비스 push 는 **015c** 로 이관(Python 쪽 수신 경로가 아직 없다) — 012c 의 apply 는 앱 소비 키만 다루므로 push 가 필요 없다.
+> **task-012c 확정(2026-09-29 C1, D-C1·D-C4·D-C10)** — 위 그림 중 바뀐 것: ① `summaryHash` 는 **무상태**다 — 서버는 Diff 를 저장하지 않고, apply·rollback 이 받은 후보로 Diff 를 다시 계산해 해시를 대조한다(유효 기간 없음, `baseVersion` 이 바뀌면 자연 불일치). ② `testResultId` = `EngineHealth(FUNCTIONAL).id`(`detail.candidateHash`·`checkedAt` 으로 30분·같은 후보 확인 — DB 라 blue/green·재기동에도 유효). ③ **편집 가능 키는 앱(Node)이 실제로 읽는 키 중 "런타임 실사용값 == Effective" 테스트가 있는 키뿐**이다 — 런타임은 이 Resolver 를 거치지 않고 `EngineConnection` 행 JSON·일부 env 를 직접 읽기 때문(2026-09-29 확인). Python 서비스가 읽는 키는 콘솔 편집 거부(`serviceManaged`). ④ 커밋 후 서비스 push 는 **015c** 로 이관(Python 쪽 수신 경로가 아직 없다) — 012c 의 apply 는 앱 소비 키만 다루므로 push 가 필요 없다. ⑤ **Codex C1 CX-2(2026-09-29 채택)**: 위 그림의 "RESTART_REQUIRED 키는 untested 로 표시하고 나머지 키로 testResultId 발급"은 **폐기**한다. `config/test` 는 **변경된 키 전부를 실제로 실행해 검증했을 때만** `testResultId` 를 발급하고(`status:"ok"`), 검증하지 못한 키가 하나라도 있으면 `status:"partial"` + `untestedKeys[]` 이고 **id 가 없다** → 그 후보는 PRODUCTION 에 적용할 수 없다. 또 **012c 의 편집 가능 키에서 RESTART_REQUIRED(·REDEPLOY_REQUIRED) 키를 뺀다**(재기동 전에는 실행 검증이 불가능하므로) — Validate 가 `rule:"restartRequired"` 로 거부. 필요해지면 배포 검증과 묶는 별도 설계(§12-3 은 그 미래 흐름의 예시로만 남긴다).
 
 - Form 편집(`PUT engine-connections/:id`)은 위 4단계를 서버가 한 번에 수행하는 편의 경로이며 결과·기록은 동일하다. Raw JSON `PUT config/raw/:scope/:targetId` 는 `dryRun:true` 로 validate+diff 만, `false` 로 apply 까지.
 - Validate 는 절대 저장하지 않는다. Test 는 사용자 데이터·`TtsCache`·`EngineConnection` 을 바꾸지 않고 `RequestTrace(FUNCTIONAL_TEST)`·`EngineHealth(FUNCTIONAL)` 만 남긴다.
@@ -439,8 +439,8 @@ Validate ──▶ Functional Test(필수) ──▶ Change Summary(Diff + 영�
 |---|---|---|
 | `confirm: "PRODUCTION"` | 확인 다이얼로그를 거쳤다는 명시 — **문자열 `"PRODUCTION"`**(task-012c D-C1, 발음 사전과 같은 값. 옛 표기 `confirm:true`) | `403 FORBIDDEN {reason:"PRODUCTION_CONFIRMATION_REQUIRED"}` |
 | `summaryHash` | 서버가 **같은 후보로 Diff 를 다시 계산한** 해시와 일치 — 서버는 Diff 를 저장하지 않는다(무상태, 유효 기간 없음). 그 사이 다른 변경이 끼어들거나 후보가 다르면 불일치 | `409 CONFLICT {reason:"SUMMARY_MISMATCH"}` |
-| `testResultId` | `config/test` 결과 = `EngineHealth(FUNCTIONAL).id` — `ok:true`·30분 이내·같은 대상·`detail.candidateHash` 일치(DB 로 확인). RESTART_REQUIRED 키만 바뀌는 경우도 나머지 키로 테스트한 결과 필요 | `403 FORBIDDEN {reason:"PRODUCTION_TEST_REQUIRED"}` |
-| `reason` | 10자 이상 | `400` |
+| `testResultId` | `config/test` 결과 = `EngineHealth(FUNCTIONAL).id` — `ok:true`·30분 이내·같은 대상·`detail.candidateHash` 일치·**`detail.testedKeys ⊇ 이번 변경 키 전부`**(DB 로 확인). **변경 키 전부를 실제로 실행해 검증한 테스트만 id 를 받는다**(Codex C1 CX-2 — 하나라도 검증 못 하면 `partial`+`untestedKeys`, id 없음 → PRODUCTION 적용 불가). 012c 에서는 RESTART_REQUIRED 키가 애초에 편집 대상이 아니다 | `403 FORBIDDEN {reason:"PRODUCTION_TEST_REQUIRED"}` |
+| `reason` | 10~200자(PRODUCTION; 그 외 환경 1~200자), 줄바꿈·제어문자는 공백으로 바꾸고 앞뒤 공백 제거, **비밀 유사 문자열 거부**(Codex C1 CX-3 — 규칙은 `role-permission.md` §7) · 저장은 `AuditLog.reason`·`ConfigurationVersion.reason` 에만, 프로세스 로그에는 싣지 않는다 | 길이 `400` · 비밀 유사 `422 UNPROCESSABLE {reason:"E_REASON_SECRET_LIKE"}` |
 | actor | `config.apply.production` 보유 = SUPER_ADMIN. **엄격 키**가 포함되면 요청자 본인이 SUPER_ADMIN 이어야 하며 위임 불가 | `403 FORBIDDEN { missing: ["config.apply.production"] }` |
 
 > **확인 방식 통일(task-012c D-C1, 2026-09-29)**: 이 표가 정본이다. admin-console/16 §6 의 서명 확인 토큰(HMAC, `candidateHash`+actor+10분)은 **폐기**했다 — 같은 보증(확인한 변경 = 적용되는 변경)을 무상태 `summaryHash` 재계산과 DB 의 `testResultId` 로 얻고, blue/green 두 프로세스에서도 그대로 동작한다. 발음 사전(api-contract §7-2a)은 기능 테스트 개념이 없어 `confirm:"PRODUCTION"` + SUPER_ADMIN 만 쓴다.
@@ -514,9 +514,9 @@ ADMIN/DEVELOPER 는 PRODUCTION 에서 Validate·Test·Diff 까지 만들고 결�
 - Claude CLI 는 서버 구독 로그인이라 credentialRef 가 없다(`connection.authMode=SUBSCRIPTION`). 내부 시크릿(`SPEECH_INTERNAL_SECRET`)은 설정 키가 아니라 부팅 env 이며 Resolver 대상이 아니다.
 - **편집 선결 게이트(task-012c D-C3, 2026-09-29) — 콘솔에서 주소·자격 키를 바꿀 수 있게 되기 전에 반드시 갖출 것**:
   - (a) **시크릿 전송 대상 고정**: 시크릿(API 키·서비스 시크릿)을 헤더로 보내는 모든 어댑터는 **서버 env 에 적힌 그 서비스의 origin** 과 대상 `connection.baseUrl` 의 origin 이 같을 때만 시크릿을 싣는다. 다르면 호출 자체를 하지 않고 `MISCONFIGURED(TARGET_NOT_ALLOWED)`. TTS 는 task-003d 에서 적용(`infra.readServiceSecretFor`), **home-m4 API 키는 2026-09-29 기준 DB 주소로 그대로 전송 중** — 012c 서버 첫 커밋에서 같은 방식으로 고친다.
-  - (b) **credentialRef 허용 목록**: `env:` 이름은 엔진 스키마가 그 연결에 허용한 이름만 받는다. 부팅 시크릿 계열(세션 서명 키·내부 서비스 시크릿·TTS 서비스 시크릿·DB 접속 문자열·OAuth 클라이언트 시크릿·초대코드·그 밖의 서버 전용 env)을 가리키는 ref 는 거부(`refNotAllowed`) — 안 그러면 ref 를 바꿔 부팅 시크릿 값을 연결 주소로 보낼 수 있다. `file:` 은 위 이름 규칙(`SECRETS_DIR` 안).
+  - (b) **credentialRef — 어댑터별 정확한 허용 목록 + 전역 거부 분류**(Codex C1 CX-1, 2026-09-29 채택 — 처음 안 "env 이름 허용 목록"을 대체): ① 각 어댑터 **descriptor 가 자기 연결이 쓸 수 있는 ref 를 정확히 선언**한다(`env:`·`file:` 둘 다, 정확 일치 — 예: home-m4 LLM 어댑터 = 자기 API 키 ref 뿐, TTS 어댑터 = TTS 토큰 파일 ref 뿐). 선언 밖 ref 는 `env:`/`file:` 어느 쪽이든 거부 — 그래서 한 서비스의 시크릿을 다른 연결에 끼워 다른 주소로 보내는 교차 사용이 막힌다(origin 고정 (a) 만으로는 같은 LAN 서비스끼리의 교차를 못 막는다). ② **전역 거부 분류**는 descriptor 보다 먼저 검사하는 이중 방어다 — 부팅·내부 시크릿(세션 서명 키·내부 서비스 시크릿·TTS 서비스 시크릿·DB 접속 문자열·OAuth 클라이언트 시크릿·초대코드·그 밖의 서버 전용 env 와 같은 이름의 `file:`)을 가리키는 ref 는 descriptor 가 실수로 허용해도 거부. ③ 위반은 `422 UNPROCESSABLE {reason:"E_REF_NOT_ALLOWED"}`(Validate 응답에서는 `rule:"refNotAllowed"`), 응답·감사·로그에 ref 외 값 없음. 형식(`env:`/`file:` 정규식)·존재 확인은 그 뒤. ④ 스키마 메타는 SECRET_REF 키에 `allowedRefs[]`(admin-console/03 §3), 화면의 ref 선택지는 `allowedRefs ∩ 존재하는 ref`.
   - (c) **연결 주소 호스트 허용 목록**: loopback·LAN(`192.168.219.0/24`)·서버 env 에 적힌 서비스 origin 만. userinfo·비 http(s)·리다이렉트 추종 금지. Validate(편집)·Health·Functional Test·실호출 공통(`hostNotAllowed`).
-  - 세 가지가 구현·테스트되기 전에는 `connection.baseUrl`·`wsPath`·`credentialRef` 편집 API 를 열지 않는다. `connection.binPath` 는 spawn 에 쓰지 않는다(READ_ONLY, 실행 파일은 서버 env 만).
+  - 세 가지가 구현·테스트되기 전에는 `connection.baseUrl`·`wsPath`·`credentialRef` 편집 API 를 열지 않는다. Codex C1 채택분(CX-1 위 (b) · CX-2 실행 검증 전 키에만 `testResultId` · CX-3 `reason` 검사)도 함께 들어가야 게이트를 연다. `connection.binPath` 는 spawn 에 쓰지 않는다(READ_ONLY, 실행 파일은 서버 env 만).
 
 ---
 
@@ -564,6 +564,8 @@ Effective = **4, source=ENVIRONMENT**. 콘솔 Effective 화면: `runtime.cpuThre
 결과: `speed=0.8 (USER_SETTING)`, `style=Friendly (VOICE_PROFILE)`, `speaker/model=teacher_haruka (VOICE_PROFILE)`, `pitch=1.0 (VOICE_PROFILE)`. 콘솔 `config/effective?scope=VOICE_PROFILE&targetId=teacher_haruka&context=user:u_…` 는 `speed: { value: 0.8, source: USER_SETTING, layers: [DEFAULT 1.0, VOICE_PROFILE 0.9, USER_SETTING 0.8] }` 로 표시한다. 사용자가 설정에서 speed 를 `AUTO` 로 되돌리면 0.9(VOICE_PROFILE), voice 기본도 없으면 1.0(DEFAULT). LLM 이 `speech.style=CHEERFUL` 을 내도 사용자가 `style=Calm` 을 골랐으면 `Calm` 이다. 캐시 키는 해석 결과(0.8·Friendly…)로 만들어지므로 같은 결과를 내는 다른 사용자와 캐시를 공유한다.
 
 ### 12-3. `runtime.model` — whisper 모델 변경(RESTART_REQUIRED) in PRODUCTION
+
+> **2026-09-29 task-012c(Codex C1 CX-2)**: 아래는 **미래 흐름의 예시**다. 012c 에서는 RESTART_REQUIRED 키가 콘솔 편집 대상이 아니고(Validate `rule:restartRequired`), 3번처럼 `untested` 가 있는 테스트는 `testResultId` 를 받지 못한다(`partial`). 이 흐름을 열려면 "재기동 후 실행 검증"을 묶는 별도 설계가 필요하다(015c 이후).
 
 1. DEVELOPER 가 콘솔 Configuration › `whisper-voicevault` Form 에서 `runtime.model: medium → large-v3-turbo` 입력.
 2. `POST config/validate` → `valid:true`, `impact.restartRequired=["runtime.model"]`, `impact.strict=["Model"]`, 경고 `W_RESTART_REQUIRED(thekaiwa-speech-worker)`; `connectionType=HTTP` 인 `whisper-voicevault` 는 `editabilityBy.HTTP=READ_ONLY` 라 실제로는 **`E_READ_ONLY`** 로 거부된다 — 모델은 whisper-service(VoiceVault) 쪽 설정이기 때문. 관리자는 대신 LOCAL connection `whisper-local`(connectionType LOCAL, worker 내장 faster-whisper) 을 대상으로 다시 시도한다.

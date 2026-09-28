@@ -72,6 +72,7 @@ Engine 마다 다른 설정 UI 를 하드코딩하지 않기 위해(§125-6) 모
 | `dependsOn` | 선택 | 조건부 표시·의존성 검증(`10` §4) |
 | `uiHint` | 선택 | 위젯·단계·placeholder |
 | `deprecated` | 선택 | 표시하되 편집 불가, 문서에 표기 |
+| `allowedRefs` | SECRET_REF 필수 | 이 키에 넣을 수 있는 ref 의 **정확한 목록**(`env:NAME`·`file:name`, 정확 일치). 목록 밖은 거부(`422 E_REF_NOT_ALLOWED`) — task-012c Codex C1 CX-1(2026-09-29). 전역 거부 분류(부팅·내부 시크릿)는 이 목록보다 먼저 검사하므로 여기 적어도 통과하지 못한다(`../configuration-resolution.md` §10) |
 
 `READ_ONLY` 예: `runtime.modelPath`(manifest 가 정함) · `REDEPLOY_REQUIRED` 예: `connection.serviceVersion`(pm2 배포로만 변경) · `SECRET` 키는 값 대신 ref 이름만 화면에 나온다(§103·§125-12).
 
@@ -92,7 +93,7 @@ Engine 마다 다른 설정 UI 를 하드코딩하지 않기 위해(§125-6) 모
 | INTEGER / NUMBER / DURATION_MS | number input (`min`·`max`·`step`) | DURATION_MS 는 "ms" 접미 표기 |
 | BOOLEAN | toggle | |
 | ENUM | select | `enum` 순서 유지 |
-| SECRET_REF | ref 선택 드롭다운(`GET secrets` 의 존재 ref 만) | `credentials.manage` 없으면 읽기 전용 표시 |
+| SECRET_REF | ref 선택 드롭다운(**`allowedRefs` ∩ `GET secrets` 의 존재 ref** — task-012c CX-1) | `credentials.manage` 없으면 읽기 전용 표시 |
 | JSON | 코드 블록(접힘) | Raw JSON 탭으로 유도 |
 
 - 각 필드 옆에 `editability` 배지(READ_ONLY 회색 · RUNTIME 초록 · RESTART 주황 · REDEPLOY 빨강 · SECRET 자물쇠)와 현재 `source`(`04`) 를 표시한다.

@@ -41,7 +41,7 @@
 
 ## 6. Production 변경 보호 흐름
 
-> **task-012c D-C1(2026-09-29) — 아래 서명 확인 토큰(HMAC) 흐름은 폐기한다.** 정본은 `../configuration-resolution.md` §8-1: apply·rollback·(012c-2) 페르소나 활성화는 `confirm:"PRODUCTION"` + `summaryHash`(무상태 — 서버가 같은 후보로 Diff 를 다시 계산해 대조) + `testResultId`(`EngineHealth(FUNCTIONAL).id`, 30분·같은 후보) + `reason≥10` + SUPER_ADMIN 본인을 요구한다. 1인 앱에서 "Change Summary 를 반드시 한 번 보게 한다"는 목적은 확인 다이얼로그(`PRODUCTION` 직접 입력)로 지키고, blue/green 두 프로세스에서도 서버 상태 없이 동작한다. §4 의 `production.confirmation.ttlMinutes` 키는 쓰지 않는다.
+> **task-012c D-C1(2026-09-29) — 아래 서명 확인 토큰(HMAC) 흐름은 폐기한다.** 정본은 `../configuration-resolution.md` §8-1: apply·rollback·(012c-2) 페르소나 활성화는 `confirm:"PRODUCTION"` + `summaryHash`(무상태 — 서버가 같은 후보로 Diff 를 다시 계산해 대조) + `testResultId`(`EngineHealth(FUNCTIONAL).id`, 30분·같은 후보·변경 키 전부 실행 검증 — Codex C1 CX-2) + `reason≥10` + SUPER_ADMIN 본인을 요구한다. 1인 앱에서 "Change Summary 를 반드시 한 번 보게 한다"는 목적은 확인 다이얼로그(`PRODUCTION` 직접 입력)로 지키고, blue/green 두 프로세스에서도 서버 상태 없이 동작한다. §4 의 `production.confirmation.ttlMinutes` 키는 쓰지 않는다.
 
 ```mermaid
 sequenceDiagram

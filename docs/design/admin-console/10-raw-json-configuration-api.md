@@ -42,7 +42,7 @@
 
 ## 4. PUT — Edit JSON
 
-> **task-012c 확정(2026-09-29 C1)** — `confirmation{token}` 대신 `confirm:"PRODUCTION"`·`summaryHash`·`testResultId`(D-C1, `../api-contract.md` #111) · 편집 불가 키에 `rule` 3종 추가: `serviceManaged`(Python 서비스가 읽는 키, D-C4) · `hostNotAllowed`(주소 허용 목록 밖, D-C3(c)) · `refNotAllowed`(부팅 시크릿을 가리키는 credentialRef, D-C3(b)) · 저장 버전 `_meta.origin=RAW_JSON`, 감사 `config.raw_apply` · GET·PUT 모두 DEVELOPER 이상(`config.raw.read`).
+> **task-012c 확정(2026-09-29 C1)** — `confirmation{token}` 대신 `confirm:"PRODUCTION"`·`summaryHash`·`testResultId`(D-C1, `../api-contract.md` #111) · 편집 불가 키에 `rule` 4종 추가: `serviceManaged`(Python 서비스가 읽는 키, D-C4) · `hostNotAllowed`(주소 허용 목록 밖, D-C3(c)) · `refNotAllowed`(어댑터 descriptor 의 정확한 허용 목록 밖이거나 전역 거부 분류 — Codex C1 CX-1, 적용 요청은 `422 E_REF_NOT_ALLOWED`) · `restartRequired`(RESTART_REQUIRED·REDEPLOY_REQUIRED 키 — Codex C1 CX-2) · `runFunctionalTest` 결과도 변경 키 전부를 실행 검증했을 때만 `testResultId` 를 준다(CX-2) · `reason` 검사(CX-3, `../role-permission.md` §7) · 저장 버전 `_meta.origin=RAW_JSON`, 감사 `config.raw_apply` · GET·PUT 모두 DEVELOPER 이상(`config.raw.read`).
 
 `PUT /api/admin/v1/config/raw/ENGINE_CONNECTION/whisper-voicevault?dryRun=true|false` (`config.raw.read` + `config.edit`)
 

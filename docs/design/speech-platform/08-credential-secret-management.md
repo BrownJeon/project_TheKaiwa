@@ -15,6 +15,8 @@ API Key·토큰은 모바일 앱·DB·응답·Export·Trace·로그 어디에도
 
 ### 3.1 `credentialRef` 문법
 
+> **허용 범위(task-012c Codex C1 CX-1, 2026-09-29)**: 문법이 맞아도 아무 ref 나 연결할 수 없다 — 어댑터 descriptor 가 그 연결의 SECRET_REF 키에 **정확한 허용 목록**(`allowedRefs`, `env:`·`file:` 정확 일치)을 선언하고, 그보다 먼저 **전역 거부 분류**(부팅·내부 시크릿)를 검사한다. 위반은 `422 E_REF_NOT_ALLOWED`. 정본 `../configuration-resolution.md` §10 (b), 계약 `../api-contract.md` #93b·#101(`allowedFor`).
+
 | 형식 | 정규식 | 해석 | 용도 |
 |---|---|---|---|
 | `env:NAME` | `^env:[A-Z][A-Z0-9_]{2,63}$` | 프로세스 환경변수 `NAME` | 배포 파이프라인이 주입하는 값, 회전이 드문 값(`INTERNAL_TOKEN`) |

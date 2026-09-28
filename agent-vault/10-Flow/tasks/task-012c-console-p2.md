@@ -129,7 +129,7 @@ demo_gate:
 |---|---|---|---|
 | D-C1 | **PRODUCTION 확인 방식 불일치** | ① configuration-resolution §8-1(정본): `confirm:true`+`summaryHash`(30분)+`testResultId`(30분)+`reason≥10`+SUPER_ADMIN ② admin-console/16 §6: HMAC 확인 토큰(`candidateHash`+actor+10분) ③ 003g 구현: `confirm:"PRODUCTION"` 문자열 | **① 채택 + `confirm` 값은 003g 와 같은 리터럴 `"PRODUCTION"`**(화면 일관). `summaryHash` 는 **무상태** — Apply 시 서버가 같은 후보로 Diff 를 다시 계산해 해시 대조(blue/green 두 프로세스·재기동에도 동작, 저장 0). `testResultId` = `EngineHealth(FUNCTIONAL).id`, `detail.candidateHash`·30분 확인(DB, 프로세스 무관). HMAC 토큰(②)은 폐기 → admin-console/16 §6 정본 갱신. 엄격 키(§8-2)는 요청자 본인이 SUPER_ADMIN. 발음 사전(003g)은 기능 테스트 개념이 없어 `confirm` 만 유지(차이 명시) |
 | D-C2 | `ConfigurationVersion` 보조 필드 | 06 §3 `origin·rollbackOfId·importId·effectiveHash·schemaVersion` 제안(스키마에 없음) | **스키마 0 매핑**: origin = `AuditLog.action`(`config.apply`·`config.raw_apply`·`config.rollback`·`config.baseline`) + `after.versionId` · rollbackOf = 기존 `restoredFromVersion`(번호) · schemaVersion·origin 요약 = `snapshot._meta{schemaVersion, origin}`(물화·Diff 에서 제외하는 예약 키) · `diff` 는 배열 대신 봉투 `{entries[], summary, candidateHash}`(Json 컬럼, 주석만 갱신 — db push 불필요) · effectiveHash 불필요(`baseVersion` 잠금으로 충분) · importId 는 Phase 4. 대안: additive 컬럼(origin enum·schemaVersion) — 권고 안 함(010b~011 DB 묶음에 끼울 수는 있음) |
-| D-C3 | **편집 전 선결 보안 3종(R2)** | 003d C2 F1·005b 한계 ② | (a) **시크릿을 보내는 모든 어댑터 origin 고정** — home-m4 `x-api-key` 는 지금 DB `connection.baseUrl` 로 그대로 나감 → 서버 env(`AI_API_BASE`) origin 과 같을 때만 전송, 아니면 호출 0·MISCONFIGURED(TTS `readServiceSecretFor` 패턴 재사용). (b) **credentialRef 허용 목록** — `env:` 이름은 엔진 스키마가 허용한 이름만(home-m4 = API 키 변수 2개), 부팅 시크릿 계열(JWT·내부 시크릿·TTS 시크릿·DB URL·OAuth 시크릿·초대코드 등) 거부. 안 그러면 SUPER_ADMIN 이라도 ref 를 부팅 시크릿으로 바꿔 그 값을 연결 주소로 보낼 수 있다. `file:` 은 기존 이름 규칙(SECRETS_DIR 안). (c) **baseUrl 호스트 허용 목록** — loopback·LAN(192.168.219.0/24)·서버 env 에 적힌 서비스 origin 만, Validate(편집)·Health·Test·실호출 공통, userinfo·비 http(s) 거부. `connection.binPath` 는 계속 spawn 에 쓰지 않음(READ_ONLY) |
+| D-C3 | **편집 전 선결 보안 3종(R2)** — (b) 는 Codex C1 CX-1 로 대체(2026-09-29 03:05 메인 판정), CX-2·CX-3 도 게이트 조건 | 003d C2 F1·005b 한계 ② | (a) **시크릿을 보내는 모든 어댑터 origin 고정** — home-m4 `x-api-key` 는 지금 DB `connection.baseUrl` 로 그대로 나감 → 서버 env(`AI_API_BASE`) origin 과 같을 때만 전송, 아니면 호출 0·MISCONFIGURED(TTS `readServiceSecretFor` 패턴 재사용). (b) **credentialRef 허용 목록** — `env:` 이름은 엔진 스키마가 허용한 이름만(home-m4 = API 키 변수 2개), 부팅 시크릿 계열(JWT·내부 시크릿·TTS 시크릿·DB URL·OAuth 시크릿·초대코드 등) 거부. 안 그러면 SUPER_ADMIN 이라도 ref 를 부팅 시크릿으로 바꿔 그 값을 연결 주소로 보낼 수 있다. `file:` 은 기존 이름 규칙(SECRETS_DIR 안). (c) **baseUrl 호스트 허용 목록** — loopback·LAN(192.168.219.0/24)·서버 env 에 적힌 서비스 origin 만, Validate(편집)·Health·Test·실호출 공통, userinfo·비 http(s) 거부. `connection.binPath` 는 계속 spawn 에 쓰지 않음(READ_ONLY) |
 | D-C4 | **편집 가능 키 = 앱이 실제로 읽는 키만** | 03·resolver 는 스키마 키 전부를 편집 대상으로 가정 | 조사: 런타임은 resolver 가 아니라 행 JSON·env 를 직접 읽는다. → developer 가 C1 전에 **"편집 키 표"**(키·소비자 APP/PYTHON/CLIENT·editability·strict·현재 런타임 읽는 곳)를 만든다. 편집 허용 조건 = 소비자가 APP(Node) + **"런타임 실사용값 == Effective" 단위 테스트**. PYTHON 소비 키(gateway VAD·worker 모델 등)는 Python 이 DB 를 읽지 않으므로 콘솔 편집 거부(`SERVICE_MANAGED` — "서비스 설정 파일에서 관리"), 배선은 015c. CLIENT(ONDEVICE) 키는 `/api/v1/speech/config` 가 행 값을 싣는 경우만 허용. env 가 이기는 키는 Diff `blocked: SHADOWED_BY_ENVIRONMENT`(저장은 되나 효력 없음 — 편집 폼 잠금, admin-console/04 §7) |
 | D-C5 | 첫 Apply 기준선·쓰기 조합 | 06 §11 "기동 시 SYSTEM v1" 미구현, §6-2 "없으면 version 0" | **첫 적용 때 같은 트랜잭션에서 v1 = 현재 행 스냅샷(`_meta.origin=BASELINE`, actor 시스템, 감사 `config.baseline`) → v2 = 적용** — seed 상태로 Rollback 가능, 기동 훅 불필요. 쓰기 조합은 admin(L0)이 `infra.withTransaction` 을 열고 소유 층 tx 함수 + `engine.configuration.recordVersion(tx)` + `infra.audit.record(tx)`(003g 패턴) |
 | D-C6 | Rollback 의미·무결성 | 09 §4 전제 7조건 | 003g 와 동일 의미(ROLLED_BACK = 밀려난 직전 ACTIVE). 전제 3(대상 삭제됨)은 012c 에서 삭제 경로가 없어 불발생. 전제 4 = 엄격 재검증(422), 전제 5 = credentialRef 허용 목록·존재 확인, 6 = D-C1 흐름(Rollback 도 Functional Test 필수 — §8-4) |
@@ -167,12 +167,13 @@ demo_gate:
 5. Diff: before/after `source`, env 가 이기는 키 `blocked:SHADOWED_BY_ENVIRONMENT`·편집 잠금, `restartRequired` 표시, 같은 후보의 `summaryHash` 재현.
 6. Rollback: 새 ACTIVE(`restoredFromVersion`)·직전 ROLLED_BACK·복원 대상 상태 불변 · `ALREADY_ACTIVE`·`NO_CHANGE` 409 · 손상/규칙 위반 스냅샷 422(쓰기 0) · 스키마에서 사라진 키 `droppedKeys` 경고.
 7. 효과: 편집 허용 키(D-C4 표)는 적용 프로세스에서 즉시·다른 프로세스 ≤30초 실제 호출에 반영(Trace·호출 인자로 확인), Rollback 뒤 원복. **"런타임 실사용값 == Effective" 단위 테스트가 편집 허용 키 전부**에 있음.
-8. 보안: 허용 밖 baseUrl → Validate 400 + (DB 를 직접 바꿔도) 어댑터 호출 0·시크릿 전송 0 · credentialRef 부팅 시크릿 계열 → 400 · Health SSRF 허용 목록 · 응답·감사·스냅샷·서버 로그에 시크릿 형태 문자열 0(grep, 005b 방식).
+8. 보안: 허용 밖 baseUrl → Validate 400 + (DB 를 직접 바꿔도) 어댑터 호출 0·시크릿 전송 0 · credentialRef 가 어댑터 descriptor 허용 목록 밖이거나 전역 거부 분류 → **422 `E_REF_NOT_ALLOWED`**(CX-1, `env:`·`file:` 둘 다) · Health SSRF 허용 목록 · 응답·감사·스냅샷·서버 로그에 시크릿 형태 문자열 0(grep, 005b 방식).
 9. #93b: SUPER_ADMIN 만, 값 필드 400, ref 형식·허용 목록·존재 확인, 버전+감사(`credentials.set`/`credentials.clear`).
 10. FT 슬롯: 두 프로세스(3017·3018) 동시 요청 → 실행 1건(Claude 호출 1)·나머지 429.
 11. #137: 필터·페이지, LEXICON 필터에 옛 `scope=null` `lexicon.*` 포함, `before/after` 에 값 0.
 12. 화면(데모 승인 뒤): Form↔Raw JSON 단일 draft 동기화·Diff·적용·Rollback·PRODUCTION 확인 다이얼로그·권한별 버튼 **렌더링 0**(비활성 아님), 360/390/412 + 데스크톱 넘침 0, 엔진명 하드코딩 0(DTO 표시명만).
 13. 회귀: 005b·003g 스모크 PASS, 회화 턴 p50 무영향(007 latency), 스모크 뒤 LOCAL 대상 행·버전 수 기준선 동일.
+14. (Codex C1) CX-2: RESTART_REQUIRED·REDEPLOY_REQUIRED 키 편집 400 · 변경 키 일부만 실행 검증된 `config/test` = `partial`+`untestedKeys`·`testResultId` 없음 → 그 후보의 PRODUCTION 적용 403 · CX-3: `reason` 201자 400 · 줄바꿈이 공백으로 저장 · 비밀 유사 문자열 422 `E_REASON_SECRET_LIKE`(저장 0) · 서버 로그에 reason 원문 0.
 
 ### 네이티브 변경 / APK
 없음. 플러그인·android·Manifest·Capacitor 설정 무변경. APK 재설치 불필요.
@@ -257,24 +258,39 @@ demo_gate:
 - `docs/design/domain-model.md`: 모델 표 `ConfigurationVersion` 행만(기준선·`_meta`·diff 봉투·ROLLED_BACK) — Prisma 블록·§5-8·§5-9 무수정. `docs/design/module-dependency.md`: 규칙 6 에 admin 조합(D-C5) 괄호만.
 - 이름 정합: credentialRef 감사 action 은 role-permission §7 의 `credentials.set|credentials.clear` 로 통일(admin-console/07 의 `credential.link|unlink` 는 옛 표기 — 07 은 이번에 고치지 않았다, 구현은 role-permission 이 정본).
 
+### 2026-09-29 03:05 Leader(메인) — Codex C1 지적 3건 판정(설계 단계, Leader 판정)
+- **CX-1 [high] 채택** — credentialRef `file:`/`env:` 에 **어댑터별 정확한 허용 목록**(descriptor 가 선언: 예 home-m4 LLM 어댑터 = 자기 키 참조만) + 전역 거부 분류(부팅·내부 시크릿: JWT·SPEECH_INTERNAL_SECRET·TTS_SERVICE_SECRET·DB·OAuth 등). 목록 밖 참조는 422. D-C3(b) 를 이것으로 대체.
+- **CX-2 [high] 채택** — `testResultId` 는 **변경된 모든 키를 실제로 실행해 검증했을 때만** 발급(검증 못 한 키가 하나라도 있으면 결과는 `partial` + untestedKeys, id 없음 → PRODUCTION Apply 불가). **012c 편집 가능 키에서 RESTART_REQUIRED 키 제외**(D-C4 편집 키 표에 열 추가) — 필요해지면 배포 검증과 묶는 별도 설계.
+- **CX-3 [medium] 채택** — 확인 이유(reason): 길이 상한(200자)·줄바꿈 제거·비밀 유사 문자열 거부(긴 고엔트로피 토큰, `sk-`·`ghp_`·`AKIA`·`Bearer `·`password=`/`secret=`/`token=` 류) → 422, 로그에는 reason 을 싣지 않음(AuditLog 에만).
+- 다음: 정본 반영(Leader 에이전트) → C1 종결. D-C3 게이트는 CX-1~3 반영 후에만 개방.
+
+### 2026-09-29 02:54 Leader — Codex C1 반영·C1 종결
+- 정본 반영(012b 절 무수정):
+  - **CX-1**(credentialRef 어댑터별 정확 허용 목록 + 전역 거부 분류, 위반 `422 E_REF_NOT_ALLOWED` — D-C3(b) 대체): `docs/design/configuration-resolution.md` §10 (b)·게이트 문장 · `docs/design/api-contract.md` §0-5 422 행·§2-19 (b)·#93b 검사 순서·#101 `allowedFor` · `docs/design/admin-console/03`(스키마 메타 `allowedRefs`·SECRET_REF 선택지) · `docs/design/admin-console/07`(옛 감사 표기 `credential.link|unlink` → `credentials.set|clear` 정리 + action 이름 주석) · `docs/design/admin-console/10`(머리 rule) · `docs/design/speech-platform/08` §3.1 주석.
+  - **CX-2**(`testResultId` 는 변경 키 전부 실행 검증 시에만, 아니면 `partial`+`untestedKeys`·id 없음 → PRODUCTION 적용 불가 · 012c 편집 키에서 RESTART_REQUIRED·REDEPLOY_REQUIRED 제외 `rule:restartRequired`): configuration-resolution §6-1 머리 ⑤·§8-1 `testResultId` 행·§12-3 "미래 흐름" 주석 · api-contract §2-23 rule 목록·#93 ①·#96(PRODUCTION 용 아님)·#105(`status ok|partial|failed`·`testedKeys`·`untestedKeys`)·#106 blocked·#107 · role-permission §6 규칙 1 · admin-console/08 blocked·10·16 머리.
+  - **CX-3**(`reason` 1~200자(PRODUCTION 10~200)·줄바꿈 제거·비밀 유사 `422 E_REASON_SECRET_LIKE`·프로세스 로그 미기록): role-permission §6 규칙 2·**§7 `reason` 규칙(판정 패턴 정본)** · api-contract §2-19·#107 · configuration-resolution §8-1 `reason` 행 · admin-console/07 §5.
+- 아래 "developer 인계" 를 CX-1~3 에 맞춰 고쳤다(편집 키 표 열 추가·첫 커밋 (b) 교체·testedKeys·reason 검사).
+- **C1 종결**(2026-09-29 02:54, 시스템 시각): judge C1 `codex_required` → Codex 1/4 → 지적 3건 전부 채택 → 정본 반영 완료. D-C3 게이트는 CX-1~3 구현·reviewer 통과 뒤에만 연다.
+
 ### developer 인계 (2026-09-29, Leader → developer A(opus) — 서버)
 **착수 시점**: **task-012b 커밋(QA PASS) 뒤**. 012b 가 미커밋으로 `src/modules/{infra/index.ts,infra/internalAuth.ts,infra/users.ts,admin/health.ts,engine/stt/index.ts,preferences/index.ts,speech/index.ts,speech/utterances/**}` 를 고치고 있다 — 그 전에는 아래 0단계(읽기 전용 조사)만. Codex C1 결과가 오면 채택분을 먼저 반영한다(Leader 가 이 절에 덧붙임).
 
 **읽을 것(이 순서)**: 이 이력서 "003g 패턴 재사용"·"설계 결정 후보 D-C1~D-C13" 표 + "03:20 Leader(메인) 확정" + "02:45 정본 갱신" → `docs/design/configuration-resolution.md` §6-1~§6-3(012c 단락)·§8-1·§8-2·§10(편집 선결 게이트)·§11 · `docs/design/api-contract.md` §2-19·§2-21(#93·#93a·#93b·#96)·§2-23(머리 규칙~#111)·§2-24 #123b·§2-27 #137 · `docs/design/role-permission.md` §3·§4-2·§6·§7 · `docs/design/admin-console/{03,04,06,08,09,10}`(머리 주석 우선) · `docs/design/module-dependency.md` 규칙 6·8 · 선례 코드 `src/modules/admin/speech/lexicon.ts`(L0 조합·PRODUCTION·감사) · `src/modules/speech/tts/lexiconStore.ts`(잠금·버전 전이) · `lexiconRules.readSnapshotStrict`(엄격 재검증) · `src/modules/admin/permissions/*` · `src/modules/engine/configuration/resolver.ts` · `src/modules/engine/router/index.ts`(행 JSON·30초 캐시·`clearRouterCache`).
 
 **범위 = 012c 1단계 서버. 스키마 0 · 화면 0(데모 게이트) · M4·Python 0.**
-0. **"편집 키 표" 선행(012b 커밋 전에도 가능, 읽기 전용)** — 각 어댑터 스키마 키(`src/modules/engine/adapters/**/*.provider.ts`) × {소비자 APP/PYTHON/CLIENT · 런타임이 실제로 읽는 곳(파일:행 — 행 JSON 인지 env 인지) · editability · strict · env 가 이기는지 · 012c 편집 허용 여부와 이유}. `FALLBACK_POLICY` 칸, `AppSetting` 일반 키(`appSettingSchema` 초안), `VoiceProfile.defaults` 칸 포함. 결과를 이 이력서 "Developer 기록" 에 표로 → **Leader 확인 뒤 확정**(허용 = APP 소비 + 동등성 테스트 가능한 키만, D-C4).
-1. **첫 커밋 = D-C3 선결 게이트 + D-C9** (주소·자격 키 편집 API 는 이 커밋이 reviewer 를 통과하기 전 열지 않는다):
+0. **"편집 키 표" 선행(012b 커밋 전에도 가능, 읽기 전용)** — 각 어댑터 스키마 키(`src/modules/engine/adapters/**/*.provider.ts`) × 열 {**소비자** APP/PYTHON/CLIENT · **런타임이 실제로 읽는 곳**(파일:행 — 행 JSON 인지 env 인지) · **editability**(RESTART_REQUIRED·REDEPLOY_REQUIRED 면 012c 편집 불가 — Codex C1 CX-2) · strict · env 가 이기는지 · **실행 검증 방법**(`config/test` 가 후보 값으로 실제로 무엇을 실행해 이 키를 검증하는가 — 없으면 "검증 불가 → PRODUCTION 편집 불가" 로 표시, CX-2) · SECRET_REF 면 **`allowedRefs`**(정확한 ref 목록, CX-1) · 012c 편집 허용 여부와 이유}. `FALLBACK_POLICY` 칸, `AppSetting` 일반 키(`appSettingSchema` 초안), `VoiceProfile.defaults` 칸 포함. 결과를 이 이력서 "Developer 기록" 에 표로 → **Leader 확인 뒤 확정**(허용 = APP 소비 + RUNTIME_EDITABLE + 동등성 테스트 가능한 키만, D-C4·CX-2).
+1. **첫 커밋 = D-C3 선결 게이트 + Codex C1 CX-1·CX-3 공용 검사 + D-C9** (주소·자격 키 편집 API 는 이 커밋이 reviewer 를 통과하기 전 열지 않는다):
    - (a) home-m4 API 키 전송 대상 고정 — `src/modules/engine/llm/index.ts` 209~212(DB `connection.baseUrl` 로 키 전송)를 TTS 의 `infra.readServiceSecretFor` 방식으로: 허용 origin = 서버 env(`AI_API_BASE`) origin, 다르면 호출 0·`MISCONFIGURED(TARGET_NOT_ALLOWED)`. 시크릿을 보내는 다른 어댑터가 더 있는지 전수 확인해 기록.
-   - (b) credentialRef 허용 목록 — 엔진 스키마에 연결별 허용 `env:` 이름, 부팅 시크릿 계열 거부 목록(세션 서명 키·내부 서비스 시크릿·TTS 서비스 시크릿·DB URL·OAuth 시크릿·초대코드 등 — 실제 env 이름 목록은 코드 상수, 문서·로그에 값 없음), `file:` 기존 규칙. `rule:"refNotAllowed"`.
+   - (b) **credentialRef — 어댑터별 정확한 허용 목록 + 전역 거부 분류(Codex C1 CX-1, 처음 안 대체)**: 각 어댑터 descriptor 가 SECRET_REF 키에 `allowedRefs`(정확한 `env:`·`file:` 목록 — 예: home-m4 = 자기 API 키 ref 뿐, TTS = 토큰 파일 ref 뿐)를 선언. 검사 순서 = 전역 거부 분류(부팅·내부 시크릿: 세션 서명 키·내부 서비스 시크릿·TTS 서비스 시크릿·DB URL·OAuth 시크릿·초대코드 등 — 실제 이름 목록은 코드 상수, 같은 이름의 `file:` 포함) → descriptor 목록 → 형식 → 존재. 위반 `422 UNPROCESSABLE {reason:"E_REF_NOT_ALLOWED"}`(Validate 는 `rule:"refNotAllowed"`). `GET secrets`(#101) 에 `allowedFor[]` 추가.
+   - (CX-3) **`reason` 공용 검사 함수**(`infra`): 줄바꿈·제어문자 → 공백·trim, 1~200자(PRODUCTION 10~200, `400`), 비밀 유사(role-permission §7 패턴 — 접두 `sk-`·`ghp_`·`AKIA`·`Bearer `·JWT 모양, 키=값 `password=`·`secret=`·`token=`·`api_key=` 류, 24자↑ 고엔트로피 토큰) → `422 {reason:"E_REASON_SECRET_LIKE"}`(원문 되돌려주지 않음), 통과 값은 AuditLog·ConfigurationVersion 에만 — **console/pm2 로그에 reason 출력 금지**(길이만). 발음 사전 쓰기 경로에 같은 함수를 붙일지는 Leader 확인 후.
    - (c) 연결 주소 호스트 허용 목록 — loopback·`192.168.219.0/24`·서버 env 서비스 origin, userinfo·비 http(s)·리다이렉트 추종 거부. Health(`engine/adapters/common/httpHealth.ts`)·Functional Test·실호출·Validate 공통 헬퍼. `rule:"hostNotAllowed"`.
    - D-C9: `src/modules/engine/functionalTest/index.ts` `claimSlot` → `EngineConnection.lastFunctionalAt` 조건부 UPDATE(영향 1행일 때만), 메모리 Map 제거.
    - 단위 테스트(반례: 다른 origin·같은 host 다른 port·IPv6·기본 포트 표기·userinfo·리다이렉트·부팅 시크릿 ref·없는 ref) → reviewer 먼저 한 번(Leader 가 REV 요청).
-2. `src/modules/engine/configuration/{editable,validate,diff,versions,rollback}.ts`(+ `appSettingSchema`) — Validate 5단계·rule 15종, Diff(blocked·무상태 summaryHash), 버전 기록(기준선 v1·`_meta`·diff 봉투·`restoredFromVersion`), 목록/상세/compare/integrity, Rollback 엄격 재검증. engine 은 버전·검증·Diff 만 — 대상 물화는 소유 층.
+2. `src/modules/engine/configuration/{editable,validate,diff,versions,rollback}.ts`(+ `appSettingSchema`) — Validate 5단계·rule 15종, Diff(blocked·무상태 summaryHash), 버전 기록(기준선 v1·`_meta`·diff 봉투·`restoredFromVersion`), 목록/상세/compare/integrity, Rollback 엄격 재검증. engine 은 버전·검증·Diff 만 — 대상 물화는 소유 층. **CX-2**: Validate 가 RESTART_REQUIRED·REDEPLOY_REQUIRED 키 변경을 `rule:"restartRequired"` 로 거부, Diff `blocked:RESTART_REQUIRED`. `config/test`(#105) 는 키별 "실행 검증 방법"으로 실제 실행한 키만 `testedKeys` 에 넣고 **변경 키 전부 검증됐을 때만 `status:"ok"` + `testResultId`**(= `EngineHealth(FUNCTIONAL).id`, `detail{candidateHash, testedKeys}`), 아니면 `partial`(+`untestedKeys`)·`failed` — id 없음. #96 결과는 PRODUCTION 용이 아니다.
 3. 소유 층 tx 쓰기 공개 함수: engine(`EngineConnection` 칸·enabled·credentialRef, `EngineFallbackPolicy`) · preferences(`AppSetting` — `voice.preview.defaultText` 변경 시 `textVersion` +1) · speech(`VoiceProfile.defaults`·표시명·정렬). 전부 `(tx, …)` 인자.
-4. `src/modules/admin/configuration/{editor,history}.ts` — `infra.withTransaction` 하나(대상 행 `FOR UPDATE` → `baseVersion` → 기준선 → 물화 → 버전 → 감사), PRODUCTION 게이트 전 항목(`confirm:"PRODUCTION"`·summaryHash 재계산·testResultId(`EngineHealth` 행: ok·30분·대상·`detail.candidateHash`)·reason≥10·SUPER_ADMIN·엄격 키 본인·교차 환경 `crossEnvironment`), 감사 action(`config.baseline|apply|raw_apply|rollback`·`credentials.set|clear`·`engine.connections.enable|disable`), 커밋 뒤 캐시 무효화. #137 감사 조회(LEXICON = 옛 `scope=null` `lexicon.*` 포함).
+4. `src/modules/admin/configuration/{editor,history}.ts` — `infra.withTransaction` 하나(대상 행 `FOR UPDATE` → `baseVersion` → 기준선 → 물화 → 버전 → 감사), PRODUCTION 게이트 전 항목(`confirm:"PRODUCTION"`·summaryHash 재계산·testResultId(`EngineHealth` 행: ok·30분·대상·`detail.candidateHash`)·reason≥10·SUPER_ADMIN·엄격 키 본인·교차 환경 `crossEnvironment`), 감사 action(`config.baseline|apply|raw_apply|rollback`·`credentials.set|clear`·`engine.connections.enable|disable`), 커밋 뒤 캐시 무효화. #137 감사 조회(LEXICON = 옛 `scope=null` `lexicon.*` 포함). PRODUCTION `testResultId` 확인에 **`testedKeys ⊇ 이번 변경 키`**(CX-2)를, 모든 쓰기에 CX-3 `reason` 검사를 넣는다.
 5. 라우트: `src/app/api/admin/v1/{config/{validate,test,diff,apply,versions,versions/[id],versions/[id]/rollback,raw/[scope]/[targetId]},engine-connections/[id](PUT 추가),engine-connections/[id]/{enabled,credential},fallback-policies/[role](PUT 추가),app-settings/[key],audit}/route.ts` — 첫 줄 `requireCapability`, 얇게. DTO 는 `src/types/admin.ts` 설정 절(단일 출처).
-6. 테스트: `src/modules/{engine,admin}/__tests__/task012c*.test.ts` — 매트릭스(ADMIN Form·DEVELOPER Raw·SUPER_ADMIN credential), PRODUCTION 게이트 전 분기(가짜 env), 기준선·동시 2요청·변경 0·NO_CHANGE·ALREADY_ACTIVE·422 재검증·droppedKeys, **편집 허용 키 전부 "런타임 실사용값 == Effective" 테스트**, 감사 1:1, 시크릿 grep 0. 라이브 `tests/live/task012c-smoke.{sh,ts}`.
+6. 테스트: `src/modules/{engine,admin}/__tests__/task012c*.test.ts` — 매트릭스(ADMIN Form·DEVELOPER Raw·SUPER_ADMIN credential), PRODUCTION 게이트 전 분기(가짜 env), 기준선·동시 2요청·변경 0·NO_CHANGE·ALREADY_ACTIVE·422 재검증·droppedKeys, **편집 허용 키 전부 "런타임 실사용값 == Effective" 테스트**, 감사 1:1, 시크릿 grep 0. 라이브 `tests/live/task012c-smoke.{sh,ts}`. **Codex C1 반례 추가**: 다른 연결의 ref(허용 목록 밖)·전역 거부 ref(`env:`/`file:` 둘 다)·descriptor 가 실수로 허용한 부팅 시크릿 ref → 422 · RESTART_REQUIRED 키 편집 400 · 일부 키만 검증된 테스트 → `partial`·id 없음 → PRODUCTION 403 · 다른 후보/다른 대상의 testResultId 재사용 403 · reason 201자 400·줄바꿈 정리·비밀 유사 7종 422·로그에 reason 0(grep).
 
 **하지 말 것**: `prisma/schema.prisma` 변경·`db push`(완료 조건 = 빈 diff) · 화면(`src/components/**`·`src/app/(admin)/**`·`menu.ts` 의 phase 열기 — 데모 승인·activate 뒤 developer B) · `src/modules/conversation/**`·`.claude/agents/tutor.md`(012c-2) · Python(`speech/**`) · `ecosystem.config.js`·`deploy.yml`·`.env*` · **PRODUCTION 행 라이브 쓰기(교차 환경 포함) 금지** — PRODUCTION 경로는 단위 테스트로만 · 운영 3010·운영 pm2 금지 · 커밋·push 금지(완료 후 변경 파일 목록을 기록, Leader 가 QA PASS 뒤 커밋).
 
@@ -287,7 +303,17 @@ demo_gate:
 **완료 보고("Developer 기록")**: 편집 키 표(0단계) · 변경 파일 목록 · tsc·eslint·단위 결과 · 라이브 완료 기준 1~11(화면 12 제외) 중 확인한 것 · D-C3 반례 결과 · 정본과 다르게 한 점 · 남은 위험. 다음은 reviewer → judge C2.
 
 ## Codex 검토
-- C1: judge `codex_required=true`(adversarial-review · security, 2026-09-29 02:35) — **Leader(메인) 호출 대기**.
+- [2026-09-29 03:52] C1 adversarial-review focus=security(0.80) — done
+  - judge 판정: [2026-09-29 02:35] codex_required=true(adversarial-review · security) / 호출 차수: 1/4
+  - 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa · base=f4a3f32(task_file) · snapshot=cdcbb97
+  - 지적 3건:
+    - [high] docs/design/configuration-resolution.md:515 — credentialRef `file:` 허용 목록이 없어 다른 서비스 시크릿을 같은 연결에 교차 사용 가능(origin 고정만으로 방어 불완전) → 어댑터별 정확한 허용 목록 + 전역 deny 분류 필요
+    - [high] docs/design/api-contract.md:1392 — Functional Test 가 RESTART_REQUIRED 키를 실제 검증하지 않으면서도 success testResultId 발급 → untested 에 strict 변경 시 testResultId 미발급 또는 별도 배포 검증 결과 요구
+    - [medium] docs/design/role-permission.md:195 — reason 필드가 시크릿 유입 경로(감사 로그에 영구 보존) → reason 검증·구조적 시크릿 금지·DLP 검사 또는 마스킹 기록만 저장
+  - 검토하지 못한 범위: 구현 코드(아직 없음) · task-012b worker 음성 부분 · DNS 재바인딩 방어(설계 미정, 구현 검증 단계)
+  - 원본: /home/brownjeon/.claude/state/codex-review/runs/20260928T174829Z-task-012c-C1/
+  - **요약**: D-C3 credentialRef(file:) 와 Functional Test 검증의 의미를 재정의하기 전에는 D-C3 주소·자격 편집 게이트를 열지 말 것 권장
+- **판정**: Leader(메인) 03:05 — CX-1·CX-2·CX-3 전부 채택(아래 작업 기록). 정본 반영 완료 → **C1 종결**(작업 기록 "Codex C1 반영·C1 종결").
 
 ## Designer 기록
 
@@ -300,3 +326,6 @@ demo_gate:
 ## 배포 기록
 
 ## 최종 요약
+
+### 2026-09-29 03:15 Leader(메인) — reason 검사 적용 범위
+- 발음 사전(003g) 쓰기 경로(추가·수정·비활성·Import·Rollback 의 reason)에도 **CX-3 공용 reason 검사 함수를 적용한다** — 같은 AuditLog 영구 보존 경로라 같은 유출 위험. developer 첫 커밋(D-C3 + CX-3 공용 함수)에 포함, 003g 스모크(`task003g-smoke.sh`) 회귀 필수.

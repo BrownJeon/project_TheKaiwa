@@ -50,8 +50,8 @@ model AuditLog {
 | `config.import` | IMPORT | `{targetCount}` / `{importId, versionIds[]}` | Production 이면 `after.confirmedBy` |
 | `preset.create` · `preset.delete` | PRESET | — / `{presetId, name}` | |
 | `override.create` · `override.revoke` · `override.expire` | OVERRIDE | — / `{overrideId, kind, patchKeys[], expiresAt}` | `expire` 는 시스템 actor |
-| `connection.create` · `connection.update` · `connection.delete` | ENGINE_CONNECTION | 변경 필드 | `credentialRef` 변경은 `credential.link` 로 별도 |
-| `credential.link` · `credential.unlink` | ENGINE_CONNECTION | `{credentialRef}` / `{credentialRef}` | ref 이름만, 값 절대 금지 |
+| `connection.create` · `connection.update` · `connection.delete` | ENGINE_CONNECTION | 변경 필드 | `credentialRef` 변경은 `credentials.set`·`credentials.clear` 로 별도 |
+| `credentials.set` · `credentials.clear` | ENGINE_CONNECTION | `{credentialRef}` / `{credentialRef}` | ref 이름만, 값 절대 금지 |
 | `health.run` · `functional_test.run` | ENGINE_CONNECTION | — / `{ok, latencyMs}` | Console 수동 실행만(스케줄 Health 는 `EngineHealth` 로 충분) |
 | `loglevel.set` | LOG_LEVEL | `{level}` / `{level, ttlMinutes?}` | PRODUCTION DEBUG 이상은 `reason` 필수 |
 | `voice.import` · `voice.activate` · `voice.disable` · `voice.archive` · `voice.sync` · `voice.update` | VOICE | 상태·defaults 변경 | Import 는 `after.importJobId` |
@@ -66,6 +66,8 @@ model AuditLog {
 - `SECRET` 키는 `credentialRef` 문자열만. 값·토큰·API 키는 어떤 필드에도 넣지 않는다. 기록 직전 `infra/logging` 의 마스킹 필터를 `before/after/reason` 에 동일 적용한다.
 - 프롬프트 본문·Playground 입력·오디오·대화 텍스트는 넣지 않는다. 필요하면 `traceId`·`versionId` 로 참조만.
 - `before/after` 는 각 8KB 를 넘지 않게 diff 요약으로 줄인다(초과 시 `truncated:true`).
+- **`reason` 입력 검사(task-012c Codex C1 CX-3, 2026-09-29)**: 기록 전에 줄바꿈·제어문자 제거, 1~200자(PRODUCTION 10~200자), 비밀 유사 문자열이면 저장하지 않고 `422 E_REASON_SECRET_LIKE` 로 거절, 통과한 값은 AuditLog(와 ConfigurationVersion)에만 — 프로세스 로그에는 싣지 않는다. 판정 규칙 정본은 `../role-permission.md` §7.
+- **action 이름(2026-09-29 정리)**: 정본은 `../role-permission.md` §7 — credentialRef 연결·해제는 `credentials.set`·`credentials.clear`(옛 표기 `credential.link`·`credential.unlink` 는 쓰지 않는다), 설정 적용은 `config.baseline`·`config.apply`·`config.raw_apply`·`config.rollback`.
 - `ip` 는 nginx `X-Forwarded-For` 첫 값, 저장 30일 후 마스킹(스케줄, 개인정보 최소화).
 
 ## 6. 보존
