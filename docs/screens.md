@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h) · 2026-09-28 **§12 오늘의 회화**(오늘 홈 카드·주제 고르기·붙여넣기·수업 만들기 대기·5단계·종료 카드, 승인 데모 `docs/demo/task-010-today-lesson-v2.html`) 추가, §2 오늘 행·§5-2 A "곧 열려요" 갱신(task-010)
 
 ---
 
@@ -79,9 +79,11 @@
 | 회화 | `/study/ai/chat/[chatId]` | 채팅방 | 소유자(타인 404) | **숨김** | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]/review` | 표현 점검 결과 | 소유자 | **숨김** | **task-006(§3)** |
 | 회화 | `/study/ai/talk/[chatId]` (`#cr_{교정 id}` 로 카드 위치) | 음성 회화방(머리 = 선생님 아바타·이름 + TTS 상태 표시등(§7) · 푸시투토크 72px(§8) + 글자 입력 전환 · 문장별 점진 표시·재생·barge-in · 교정 카드 즉시) | 소유자(타인 404) | **숨김** | **task-007(§9)** · 앱 분기(권한 [앱 설정 열기]·휴대폰→서버 전환 안내·메뉴 "알아듣는 곳" 한 줄) **task-003f(§11-2 D·F)** |
-| 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드·최근 기록·보관한 세트, 회화·평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** |
+| 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드 → **오늘의 회화 카드**·최근 기록·보관한 세트, AI 평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** · 오늘의 회화 카드 **task-010(§12-2 A)** |
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
-| 오늘 | `/study/today/talk/[lessonId]`, `eval/[evaluationId]` | 오늘의 회화 · AI 평가 | 소유자 | 숨김 | Phase 2 |
+| 오늘 | `/study/today/talk/new` · `/study/today/talk/new/paste` | 오늘의 회화 — 주제 고르기(확인 시트) · 문장 붙여넣기 | 로그인 | **숨김** | **task-010(§12-2 B·C)** |
+| 오늘 | `/study/today/talk/[lessonId]` | 오늘의 회화 — 레슨 상태로 분기: 만드는 중·실패 / 5단계(이해·문법·문제·응용·말하기) / 종료 카드 | 소유자(타인 404) | **숨김** | **task-010(§12-2 D~L)** |
+| 오늘 | `/study/today/eval/[evaluationId]` | AI 평가 | 소유자 | 숨김 | Phase 2 |
 | 계획표 | `/plan` | 달력·분석·성장 | 로그인 | 보임 | Phase 2~3 |
 | 서랍장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** |
 | 서랍장 | `/drawer/corrections` | 채택 교정 모음 | 로그인 | 보임 | Phase 3 |
@@ -1382,7 +1384,7 @@ SectionHeader "보관한 세트"  right={nextCursor ? <button 44px>더 보기</b
 ```
 SectionHeader "곧 열려요"
 Card flat ×2 (각 행: 제목 15px semibold + 설명 13px ink2 break-keep + Badge neutral "곧 열려요")
-  오늘의 회화 — 주제와 상황을 골라 선생님과 1:1 수업을 해요.
+  오늘의 회화 — 주제와 상황을 골라 선생님과 1:1 수업을 해요.   ← task-010 에서 제거(§12-2 A — 실제 카드로 바뀜), AI 평가 1개만 남는다
   AI 평가 — 내 단어와 표현으로 지금 실력을 점검해요.
 ```
 Phase·task 번호, 날짜 약속은 쓰지 않는다. 버튼·링크 없음(눌러도 반응 없는 요소를 만들지 않는다).
@@ -6016,3 +6018,579 @@ interface AppUpdateSnapshot {
 | ⑭ | 인식 방식 설명 수정 | §11-8 ⓓ — 웹의 "빠르게 = 휴대폰에서"처럼 사실과 다른 설명과 "오프라인 = 인터넷 없이"를 고친다(문구만. 동작은 앱 오프라인 비활성 규칙 하나) | 그대로 두면 웹에서 빠르게를 골라도 서버라서 설명과 다르다 |
 | ⑮ | 발화 wav 전달 | A 계약 v1: `convertFileSrc(wavPath)` 를 `fetch` 해 Blob 으로 #21 업로드 → `deleteWav`(VoiceVault 선례). `server.url` 구성에서 되는지는 F6 확인 | 안 되면 휴대폰 경로 턴이 전부 `utteranceId:null`(내 목소리 ▶ 없음) — 이벤트 base64 로 바꾸는 것은 A·B 합의 |
 | ⑯ | **휴대폰 인식 진단 카드(관리자만, §11-2 I)** | F6 실측 게이트(5초 발화 디코드 ≤0.8s·RSS ≤600MB)를 사용자가 adb 없이 폰에서 읽게, `engine.read` 보유자 + 앱에서만 설정 맨 아래에 A 의 `getDiagnostics()` + 마지막 발화 시간을 보인다. USER 화면엔 없다 | 필요 없으면 빼고 F6 을 `adb shell dumpsys meminfo` 로(사용자 폰 개발자 옵션·USB 디버깅 필요) |
+
+---
+
+## 12. 오늘의 회화 (task-010)
+
+> **승인 데모: `docs/demo/task-010-today-lesson-v2.html` (v2 · `task-010-v2`, 사용자 승인 2026-09-28 17:54, sha256 `5c9159f5…`)** — 결정 a~d 전부 B. 데모 상태는 주소 `#<id>`(예: `…-v2.html#l1-memo`)로 바로 열린다. 아래 `#id` 는 그 상태를 가리킨다. v2 는 v1 과 화면 내용이 같고 틀 표시 방식만 다르다.
+> 정본: `api-contract.md` §2-11 #55 · §2-12 #56 · §2-13 #58~#62·#62a·#62b·#62c · #21·#21b · #28 · #38·#39 — **developer 가 구현한 계약이다. 데모의 합성 데이터와 필드명이 다르면 계약이 정본이다.** task-010 Leader's Plan L1~L12 · PE `lesson@v1/v2` 스키마(`targetIds` = chunks∪grammar id).
+> 재사용: §5(오늘 홈·`BackBar`·flash 방식) · §3 `ProposalCard`·`Sheet` · §7 표시등·`ttsAudio` · §8 `PushToTalkButton`·`useRealtimeStt`·`sttCopy`·`MicLevelMeter` · §9 재생 큐(`createTtsPlaybackQueue`)·`chunkFetch`·`SttAlert`·barge-in. 새 색 없음.
+> **적용 토큰**(`src/app/globals.css`): `ground` · `surface` · `surface2` · `ink` · `ink2` · `ink3`(placeholder·비활성·장식만) · `line` · `accent` · `accent-soft` · `on-accent` · `good` · `good-soft` · `bad` · `bad-soft` · `--radius`(14px). `warn`·`carb/protein/fat` 는 쓰지 않는다. 글자 색은 §1-1 표를 지킨다 — `accent-soft` 배경 위 글자는 `ink`/`ink2`(추천 상자·다음 시간엔 카드·재생 중 줄).
+
+### 12-0. 한눈에 보는 결정
+
+1. **경로 3개, 모두 하단 탭 숨김**(집중 화면): 주제 고르기 `/study/today/talk/new` · 붙여넣기 `/study/today/talk/new/paste` · 수업 `/study/today/talk/[lessonId]`. 수업 경로 하나가 레슨 `status` 로 **대기(`GENERATING`) / 실패(`FAILED`) / 5단계(`READY`·`IN_PROGRESS`) / 종료 카드(`DONE`)** 를 갈라 그린다(§5 덱·결과와 같은 방식 — 새로고침·재방문·오늘 홈 카드가 한 주소로 끝난다). `routes.ts` `FOCUS_ROUTE_PREFIXES` 에 `/study/today/talk/` 를 더한다.
+2. 오늘 홈: "오늘의 회화" 카드는 **오늘의 단어 카드 바로 아래**(결정 c=B)에 두고, "곧 열려요"에는 AI 평가만 남긴다. 카드 상태 8가지(데모 7개 + 준비됨)를 #58 한 번으로 정한다.
+3. 5단계는 **순서대로**(결정 a=B): 단계 표시에서 끝낸 단계와 지금 단계만 누를 수 있다. 끝낸 단계는 읽기 전용으로 다시 본다. 진행은 `stageDone`(0~5, 줄지 않음) 하나다.
+4. 청취는 **누를 때만 재생**(b=B)하고, **느리게 들을 땐 글자를 가린다**(d=B). 보통 속도로 듣기 시작하거나 [글자 보기]를 누르면 보이고, 자막만(TEXT_ONLY)이면 처음부터 보인다.
+5. 소리는 전부 **#62c → 기존 재생 큐**(`createTtsPlaybackQueue` + `fetchChunkAudio` + `playWav`)로 내고, 표시등은 §7 스토어를 그대로 쓴다. 말하기는 **회화방과 같은 `PushToTalkButton`(72px) + `useRealtimeStt`** 다. 새 오디오·음성 인식 경로를 만들지 않는다.
+6. 저장: 사용자 행위마다 #61 `progress`(클라이언트 칸만)로 남기고, 단계를 넘길 때 `stageDone` 을 올린다. 들린 단어 → 제안은 #62a, 말하기 판정은 #62b(코드 판정, AI 채점 없음), 완료는 #62(서버 재채점·한 트랜잭션).
+7. AI 는 제안만 한다: 들린 단어는 `ProposalCard` 의 [단어장에 추가]를 눌러야 저장된다(#38). 채택 전 단어장 행 0.
+8. 엔진명 0: #62c 의 `runtime`·`clips[].url`(서명)·레슨 `error` 코드는 화면·DOM 속성·콘솔에 싣지 않는다.
+
+### 12-1. 화면 개요
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | 주제(또는 붙여넣은 문장)로 선생님이 만든 5단계 수업(이해 → 문법 → 문제 5 → 응용 3 → 말하기 3)을 하고, 끝나면 기록·반복 항목이 남고 "다음 시간엔" 예고로 다음 수업에 이어진다 |
+| 진입 | 하단 탭 "오늘" → 오늘 홈 "오늘의 회화" 카드 → [수업 만들기]·[주제 고르기]·[이어서 하기]·[시작하기]·[보러 가기]·[다음 수업 만들기]·[끝낸 수업 결과 보기] |
+| 역할별 가시성 | 로그인 사용자 전원. 타인·없는 레슨·잡은 404 → "이 수업을 찾을 수 없어요"(같은 문구, `#l-404`). 관리자 전용 요소 없음 |
+| 앱/웹 분기 | 말하기·말로 쓰기의 인식 경로뿐(§11 라우터가 고른다). 화면 차이는 권한 안내([앱 설정 열기] 등 §11-2 F) 규칙 그대로, 그 외 동일 |
+| 하단 탭 | 오늘 홈은 보임, `/study/today/talk/*` 는 전부 숨김 |
+| TTS 상태 표시등 | 수업 머리(선생님 아바타 옆) — §7 `TtsRuntimeStatusIndicator` 그대로 |
+
+### 12-2. UI 구조 (의사코드, 390px 기준 — 데모 상태 id 인용)
+
+#### A. 오늘 홈 — `TodayHome` 에 `TodayLessonCard` 끼우기 (`#home-compare`)
+
+```
+AppBar "오늘의 공부"
+<div className="px-4 pb-8">
+  TodayWordsCard          (그대로)
+  TodayLessonCard         ← 새로 넣음. Section 간격 18px (결정 c=B)
+  VocabStatsCard?  KeptSets?   (그대로)
+  TodayComingSoon         ← ITEMS 에서 "오늘의 회화" 를 빼고 "AI 평가" 1개만
+</div>
+```
+- `TodayHome` 은 기존 4개 요청과 **나란히** #58 을 읽는다. #58 은 별도 상태로 두어 단어 쪽 실패와 서로 막지 않게 한다. 화면으로 돌아올 때(`visibilitychange`)마다 기존 tick 으로 함께 다시 읽는다.
+- 412×780·390×800·360×740 에서 두 카드의 주 버튼이 모두 첫 화면(탭 바 위)에 들어온다(데모 360 실측: 수업 카드 버튼 하단 ≈730px).
+
+**TodayLessonCard** — `Card` 하나. 머리줄은 `h2 "오늘의 회화"`(15px semibold)이고, 시작 전 상태에서만 오른쪽에 `약 15분`(12px ink2)을 붙인다.
+
+상태는 순수 함수 `deriveLessonCard(today)`(단위 테스트)로 정한다. 표에서 위 줄이 우선한다:
+
+| # | 상태(데모) | 조건(#58) | 내용 |
+|---|---|---|---|
+| 1 | `loading` (`#home-loading`) | 요청 중 | 머리 + "불러오는 중…"(13px ink2, `role=status`) |
+| 2 | `error` (`#home-error`) | #58 실패 | `ErrorBlock`(§12-8 ⓐ) + [다시 시도](이 카드만 다시 읽음) |
+| 3 | `gen` (`#home-gen`) | `todayLessons` 에 `GENERATING` 이 있음(가장 최근) | "수업을 만들고 있어요"(15px semibold) · "{주제} · 보통 1~2분 걸려요. 다 되면 여기서 열 수 있어요."(13px ink2) · 움직이는 띠(높이 4px `surface2` 위 `accent` 40% 폭, `aria-hidden`, reduced-motion 이면 정지) · [보러 가기](ghost full) → 수업 경로 |
+| 4 | `progress` (`#home-progress`) | 오늘 `READY`·`IN_PROGRESS` 중 가장 최근 것, 없으면 `resume` | `stageDone ≥ 1` → "하던 수업이 있어요" / `READY && stageDone 0` → ★"수업이 준비됐어요"(§12-11 ⑤) · "{주제} · {오늘\|M월 D일} 시작 · 5단계 중 {n}단계 끝냄"(준비됨: "{주제} · 5단계 · 약 15분") · `MiniSteps`(5칸) · "다음은 {③ 문제}예요. 단계마다 저장돼요." · [이어서 하기]/[시작하기](primary full) |
+| 5 | `genfail` (`#home-genfail`) | `todayLessons[0]`(가장 최근)이 `FAILED` | "수업을 만들지 못했어요" · "{주제} · 다시 만들면 대부분 잘 만들어져요." · BtnRow [다시 만들기](primary) [주제 고르기](ghost) |
+| 6 | `done` (`#home-done`) | 오늘 `DONE` 이 있음 | "✓ 오늘 수업을 끝냈어요" · "{주제} · 문제 {c}/5 맞힘"(§12-11 ①) · `recommendation.nextPreview` 가 있으면 "다음 시간엔" 상자(`accent-soft` r12 px-3 py-2.5, 12px ink2 "다음 시간엔" + 14px semibold ink `titleKo`) · BtnRow [다음 수업 만들기](primary) [주제 고르기](ghost) · [끝낸 수업 결과 보기](가운데 밑줄 텍스트 버튼 44px → 가장 최근 DONE 레슨) |
+| 7 | `start` (`#home-start`) | 위 어디에도 해당하지 않음 | "선생님과 5단계로 수업해요. 듣기 → 문법 → 문제 → 응용 → 말하기"(13px ink2) · 추천 상자(`surface2` r12 px-3 py-2.5): "추천 주제"(12px ink2) + `Badge neutral {level}`(배경 `surface`) / `{topicTitle}`(15px semibold) / 근거 한 줄(12px ink2, 아래) · BtnRow [수업 만들기](primary) [주제 고르기](ghost) |
+
+- 추천 근거 한 줄(`recommendation.reason`): `CONTINUE` → "지난 시간 예고 · {nextPreview.titleKo}" · `NEXT_TOPIC` → ★"같은 주제를 세 번 했어요 · 새 주제로 넘어가 봐요" · `START` → ★"아직 해 보지 않은 주제예요". `recommendation` 이 null 이면 추천 상자 없이 [주제 고르기](primary full) 하나만 둔다.
+- 주제 이름은 `topic.title`, 붙여넣은 수업(`topic: null`)은 "붙여넣은 문장".
+- `c`(맞힌 수) = `Math.round(score / 100 × 5)` — 문제는 늘 5개(스키마 고정)이고 점수는 서버가 다시 채점한 값이다.
+- `gen` 상태에서는 화면이 보이는 동안 `jobId` 를 5초마다 #55 로 확인하고, `DONE`·`FAILED` 가 되면 #58 을 다시 읽는다(화면이 가려지면 멈춤).
+- `MiniSteps`: `grid grid-cols-5 gap-1`, 칸은 h-7 r8 11.5px. 끝낸 칸 `bg-good-soft text-good font-semibold` "이해 ✓", 다음 칸 `bg-surface ring-[1.5px] ring-accent text-ink font-semibold`, 나머지 `bg-surface2 text-ink2`. `aria-label="5단계 중 {n}단계 끝냄"`.
+
+**카드 버튼 동작**
+
+| 버튼 | 동작 |
+|---|---|
+| [수업 만들기](start) · [다음 수업 만들기](done) | #59 `{topicId: recommendation.topicId}` → `router.push('/study/today/talk/' + lessonId)`. `reused:true` 이고 `status≠GENERATING` 이면 flash "오늘 만든 수업이 있어요. 이어서 할게요." / 409 `GENERATING{lessonId}` → 그 수업으로 push + flash "만들고 있는 수업이 있어요. 끝나면 이어서 할 수 있어요." / 404 → 토스트 "주제를 찾을 수 없어요." / 429 → "잠시 후 다시 눌러 주세요." / 0 → 네트워크 문구 |
+| [다시 만들기](genfail) | 같은 요청을 다시 보낸다(#59 `{topicId}` — 서버가 같은 행을 되살림). 붙여넣은 수업이면 `sessionStorage kaiwa.lesson.src.{lessonId}` 의 원문으로 `{sourceText}`, 원문이 없으면 붙여넣기 화면으로 |
+| [이어서 하기]·[시작하기]·[보러 가기]·[끝낸 수업 결과 보기] | 수업 경로로 push |
+| [주제 고르기] | `/study/today/talk/new` |
+
+- flash 는 §5 와 같은 방식이다: `sessionStorage kaiwa.lesson.flash` 에 문구를 두고, 수업 화면이 마운트될 때 한 번 꺼내 토스트로 보인다.
+- 요청 중 버튼은 `aria-busy` + "만드는 중…"이고, 두 번 눌러도 요청은 한 번이다.
+- [수업 만들기]의 `aria-label` = "수업 만들기, 추천 주제 {topicTitle}".
+
+#### B. 주제 고르기 `/study/today/talk/new` — `LessonTopicsScreen` (`#topics` · `#topics-sheet` · `#topics-loading` · `#topics-error`)
+
+```
+BackBar sticky backHref="/study/today" backLabel="오늘로" title="주제 고르기" subtitle="오늘의 회화"
+<div className="flex flex-col gap-[18px] px-4 pt-3.5 pb-8">        ← main 스크롤 1곳
+  <p 14px> 안내 (§12-8 ⓑ, 수준은 아래 규칙)
+  TopicList          (#56 items 순서 그대로 — 서버가 수준 → 시드 → 만든 순으로 정렬)
+  PasteEntryCard     Card: "갖고 있는 문장으로 수업 만들기"(15 semibold) / 설명 13 ink2 / [문장 붙여넣기](ghost full) → /study/today/talk/new/paste
+</div>
+TopicSheet (Sheet)
+```
+- 안내 문구의 수준: `page.tsx`(서버)가 `getProfile().level` 을 `myLevel` 로 넘기고, #56 응답 `level[]`(실제로 적용한 수준)에서 `myLevel` 보다 높은 것을 "한 단계 위", 낮은 것을 "한 단계 아래"로 쓴다. 수준이 두 개면 "내 수준({N5})과 한 단계 위({N4})", 세 개면 "내 수준({N4})과 한 단계 위·아래", 하나면 "내 수준({N5})".
+- **주제 행** `TopicRow`(`button`, `min-h-[72px] w-full rounded-[14px] border border-line bg-surface px-3.5 py-3 text-left`, `aria-haspopup="dialog"`): 왼쪽 세로 묶음(`min-w-0 flex-1`) — 1줄 `{title}`(15 semibold) + `<span lang=ja class="ml-1.5 text-[13px] text-ink2">{titleJa}</span>` / 2줄 `description`(13 ink2, 두 줄 말줄임) / 3줄 `lessonCount > 0` ? "지난 수업 {n}번 · {M월 D일}"(12 ink2, `lastLessonAt`) : "아직 수업하지 않았어요"(12 `good` semibold). 오른쪽에 `Badge neutral {level}` + `›`(ink3, `aria-hidden`). 행 간격 8px.
+- 로딩: 스켈레톤 4칸(`h-[86px] rounded-[14px] bg-surface2`, `aria-hidden`) + sr-only `role=status` "주제를 불러오는 중…". 오류: `ErrorBlock` "주제를 불러오지 못했어요." + [다시 시도]. **붙여넣기 카드는 로딩·오류 중에도 보인다**(다른 길을 남겨 둔다). 빈 목록은 시드 5개가 있어 사실상 없지만, 생기면 `EmptyBlock` "보여 드릴 주제가 없어요. 문장을 붙여넣어 수업을 만들어 보세요."
+
+**TopicSheet**(`Sheet title={title}`, `#topics-sheet`)
+```
+<p> <span lang=ja 15px>{titleJa}</span>  Badge neutral {level}
+<p 14px mt-1> description
+<h3 15 semibold mt-3> "이 주제의 표현 {chunks.length}개"
+  chunkType 순서(NAME·ACTION·FEELING·MODIFIER)로 묶는다. 묶음 라벨은 §3-8 ⓔ("이름 조각/액션 조각/느낌 조각/꾸밈 조각", 12px ink2)
+  칩 `inline-flex items-baseline gap-1.5 rounded-[10px] bg-surface2 px-2.5 py-1.5`: <span lang=ja 15px>{textJa}</span><span 12 ink2>{meaningKo}</span>   (누르는 기능 없음)
+(lessonCount>0) 상자 bg-surface2 r12 px-3 py-2.5 13px: "지난 수업 {n}번 · {M월 D일}"
+   + (이 주제 = recommendation.topicId && reason CONTINUE) "<b>지난 시간 예고를 이어서 만들어요</b> · {nextPreview.titleKo}"
+<p 12 ink2 mt-3> "수업을 만드는 데 1~2분 걸려요. 만들기 시작하면 취소할 수 없어요."
+BtnRow [수업 만들기](primary) [닫기](ghost)
+```
+- 지난 수업 **제목**(데모의 「はじめての注文」)은 #56 에 없어서 싣지 않는다(§12-11 ②).
+- 예고 줄은 #58 `recommendation` 을 쓴다. 주제 화면이 마운트될 때 #56 과 #58 을 함께 읽고, #58 이 실패하면 조용히 넘어간다(예고 줄만 없다).
+- [수업 만들기] → A 표와 같은 #59 처리. 요청 중에는 시트 `dismissible=false`, 버튼 "만드는 중…".
+
+#### C. 붙여넣기 `/study/today/talk/new/paste` — `LessonPasteScreen` (`#paste` · `#paste-short` · `#paste-noja`)
+
+```
+BackBar sticky backHref="/study/today/talk/new" backLabel="주제 고르기로" title="문장으로 수업 만들기" subtitle="오늘의 회화"
+<div className="flex flex-col gap-[18px] px-4 pt-3.5 pb-8">
+  <p 14px> 설명(§12-8 ⓒ)
+  <div> <label 12.5 ink2 for=paste>붙여넣을 문장</label>
+        <textarea id=paste lang=ja rows=8 16px min-h-[176px] aria-describedby="paste-hint paste-count">
+        <div className="mt-1.5 flex justify-between"> <span id=paste-hint 12 ink2|bad>{hint}</span> <span id=paste-count 12 tabular-nums ink2|bad>{n} / 2,000자</span>
+        (400 NOT_JAPANESE) ErrorBlock 2줄
+  </div>
+  <p 12 ink2> "붙여넣은 문장은 이 수업과 함께 저장돼요."
+  <div> [이 문장으로 수업 만들기](primary full — 50~2,000자가 아니면 aria-disabled, 누르면 이유 토스트)
+        <p 12 ink2 text-center mt-2> 1~2분·취소 불가 안내 </div>
+</div>
+```
+- 글자 수는 코드포인트로 센다(`Array.from(s).length`). 안내: 0자 → "50자 이상 · 3~8줄이 알맞아요" / 1~49자 → "50자 이상 넣어 주세요 · 지금 {n}자" / 2,000자 초과 → "2,000자까지 넣을 수 있어요"(`bad`) / 그 밖 → "3~8줄이 알맞아요".
+- 일본어 비율은 **보낼 때 서버가** 판정한다(400 `reason:"NOT_JAPANESE"` → 오류 상자 "일본어 문장이 너무 적어요." / "일본어가 들어간 문장을 붙여넣어 주세요."). 입력을 고치면 오류 상자를 지운다. 판정 기준을 한 곳에 두려고 클라이언트에서 미리 막지 않는다.
+- 성공하면 원문을 `sessionStorage kaiwa.lesson.src.{lessonId}` 에 두고(실패 시 다시 만들기용, `READY` 가 되면 지움) 수업 경로로 `router.replace`(뒤로가기가 붙여넣기로 돌아오지 않게). 409 `GENERATING` 은 A 표와 같다.
+- 입력 초안은 `sessionStorage kaiwa.lesson.pasteDraft` 에 둔다(화면을 나갔다 와도 유지, 보내면 지움).
+
+#### D. 수업 대기·실패 — `LessonGenScreen` (`#gen-wait` · `#gen-long` · `#gen-offline` · `#gen-fail`)
+
+```
+BackBar backHref="/study/today" backLabel="오늘로" title="수업 만들기" subtitle={주제 | "붙여넣은 문장"}
+<div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3.5 pb-8 flex flex-col gap-[18px]">
+  GenHero(가운데 정렬, pt-6): 스피너 40px(accent, reduced-motion 이면 정지) / <h2 19px bold>선생님이 수업을 만들고 있어요</h2> /
+          <p 14 role=status aria-live=polite>{문구}</p> / <p 12 ink2 tabular-nums>{m:ss} · 보통 1~2분 걸려요</p>
+  (폴링 네트워크 실패 중) note "연결이 끊겼어요. 다시 연결되면 이어서 확인해요. 수업은 계속 만들어지고 있어요."
+  Card flat "이런 순서로 공부해요" + 5줄(번호 원 26px bg-surface + "<b>이해</b> · 대화를 구간별로 듣고, 들린 단어를 메모해요" …)
+  <p 12 ink2> 나가도 계속 만들어짐 · 취소 불가 안내
+  [오늘로 돌아가기](ghost full)
+</div>
+```
+- 폴링: #60 의 `jobId` 로 #55 를 2초 → 3초 → 5초(이후 5초 고정) 간격으로 확인한다. `DONE` → #60 을 다시 읽어 `READY` 면 5단계 화면으로 바꾸고, 토스트 "수업이 준비됐어요" + 초점을 ① 제목(h2)으로 옮긴다. `FAILED` → 실패 모양. 화면이 가려지면 멈추고, 다시 보이면 바로 한 번 확인한다.
+- 문구(`genPhase`): 경과 초 = `now − lesson.createdAt`(서버 시각 기준이라 다시 들어와도 이어진다). 15초 전 "주제와 지난 수업을 살펴보고 있어요" · 45초 전 "대화문을 쓰고 있어요" · 75초 전 "문법과 문제를 만들고 있어요" · 100초 전 "응용·말하기 과제를 고르고 있어요" · 그 뒤 "마지막으로 확인하고 있어요" · 잡 `stage === 'SAVE'` 이면 경과와 상관없이 "마지막으로 확인하고 있어요" · 120초 넘음 "조금 오래 걸리고 있어요. 조금만 더 기다려 주세요." **잡은 LLM(10%) → SAVE(90%) 두 단계만 알려 주므로 % 막대를 그리지 않는다.** 문구는 안내일 뿐 실제 단계와 1:1 이 아니다.
+- 실패 모양: 원 52px `bg-bad-soft text-bad` "!"(`aria-hidden`) / h2 "수업을 만들지 못했어요" / 14px "선생님이 수업을 끝까지 만들지 못했어요. 다시 만들면 대부분 잘 만들어져요." / [다시 만들기](primary full — A 표) / [다른 주제 고르기](ghost full, mt-2). `lesson.error` 코드는 화면에 싣지 않는다.
+
+#### E. 수업 틀 — `LessonStagesScreen` (`#l1` 외 5단계 공통 · `#l-review` · `#l-resume` · `#l-savefail`)
+
+레이아웃(앱 셸 `main` 을 정확히 채우고 본문만 스크롤 — §9 회화방과 같은 방식):
+```
+<div className="mx-auto flex h-full min-h-0 w-full max-w-[520px] min-w-0 flex-col bg-ground">
+  LessonHeader    flex-none 56px
+  StageSteps      flex-none ≈58px
+  <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3.5 pb-8">   ← 유일한 스크롤
+     (다시 보기 중) ReviewNote
+     StageUnderstand | StageGrammar | StageQuiz | StageApply | StageSpeak
+  </div>
+  (⑤만) LessonVoiceBar | LessonTextBar    flex-none, padding-bottom: max(8px, env(safe-area-inset-bottom))
+  Toast
+</div>
+```
+
+**LessonHeader**: `h-14 border-b border-line bg-surface px-1` — [←](44px, `aria-label="오늘로"` → `/study/today`) · `TeacherAvatar md` · `min-w-0 flex-1 pl-1.5` 안에 `h1 16px semibold truncate` = `<span class="sr-only">오늘의 회화, {주제}: </span><span lang=ja>{title}</span>` 과 그 아래 `TtsRuntimeStatusIndicator onAnnounce={toast}`. 한국어 제목(`titleKo`)은 종료 카드에서 쓴다.
+
+**StageSteps**(결정 a=B): `nav aria-label="수업 단계, 5단계 중 {stageDone}단계 끝냄"`, `grid grid-cols-5 border-b border-line bg-surface px-1.5 py-1`. 칸 = `button min-h-[52px] flex-col items-center justify-center gap-0.5 text-[11.5px]`:
+- 원 26px: 끝낸 칸 `bg-good-soft text-good` "✓" · 지금 칸 `bg-accent text-on-accent` + 라벨 ink bold + `aria-current="step"` · 열리지 않은 칸(`n > stageDone + 1`)은 테두리만(`ring-[1.5px] ring-line`, 번호 ink2) + `aria-disabled` — 누르면 토스트 "앞 단계를 마치면 열려요".
+- 칸 사이 선 2px(`line`, 끝낸 구간은 `good`) — `::after` 장식.
+- `aria-label="{n}단계 {이름}[, 끝냄][, 지금 보는 단계][, 앞 단계를 마치면 열려요]"`.
+- 열리는 칸은 `n ≤ stageDone + 1`. 끝낸 단계(`n ≤ stageDone`)를 열면 **다시 보기**(`#l-review`): 맨 위 `note role=status` "끝낸 단계를 다시 보는 중이에요. 저장된 답은 바뀌지 않아요." + 맨 아래 [지금 단계로 · {④ 응용}](primary full). 다시 보기에서는 쓰기 요청을 보내지 않는다(듣기·예문 듣기만 된다).
+- 처음 열 때 단계 = `min(stageDone + 1, 5)`. 생성 직후가 아니고 `stageDone ≥ 1` 이면 토스트 "{③ 문제}부터 이어서 해요. 앞 단계는 저장돼 있어요."(`#l-resume`).
+
+**단계 넘기기**: 각 단계 끝에 [다음 단계 · {② 문법}](primary full 48px). 누르면 대기 중인 progress 쓰기를 먼저 비우고 #61 `{stageDone: 지금 단계}` 를 보낸다. 성공하면 다음 단계로 가서 스크롤을 맨 위로, 초점을 새 단계 h2(`tabIndex=-1`)로 옮긴다. 실패하면 버튼 위 `role=alert` "진행 상황을 저장하지 못했어요. 다시 눌러 주세요."(`#l-savefail`)를 두고 그 자리에 머문다. 400 `monotonic` 은 이미 더 앞서 있다는 뜻이니 #60 을 다시 읽는다.
+
+#### F. ① 이해 — `StageUnderstand` (`#l1` · `#l1-playing` · `#l1-memo` · `#l1-textonly`)
+
+```
+<h2 17px bold tabIndex=-1>① 이해 · 듣고 이해하기</h2>  + 13px ink2 설명(ONLINE / TEXT_ONLY 두 벌, §12-8 ⓔ)
+ToolsRow(mt-2.5): [읽기](Toggle, 기본 켬) [번역](Toggle, 기본 끔)   오른쪽 역할 범례 [A] {rolesKo.A} [B] {rolesKo.B} (12px ink2)
+SegmentCard × segmentCount    (아코디언 — 한 번에 하나만 열림. 처음엔 아직 다 듣지 않은 첫 구간)
+MemoSummaryCard (mt-[18px])
+[다음 단계 · ② 문법]
+```
+- `Toggle`: `h-8 rounded-full border border-line px-3 text-[13px]` + `before:` 로 세로 히트 44px, `aria-pressed`. 켜진 모양 `bg-ink text-surface`. **읽기 켬/끔은 `localStorage kaiwa.chat.readingDefault` 를 공유**한다(§1-3 — 채팅·회화와 같은 기본값). 번역은 늘 끈 채로 시작한다.
+- 역할 칩: 24px r6 12px bold — A `bg-surface2 text-ink`, B `bg-ink text-surface`(글자로도 구분된다). 범례는 20px 칩.
+
+**SegmentCard**(`section rounded-[14px] border border-line bg-surface`, 열리면 `border-accent`):
+- 머리 `button min-h-[52px] w-full px-3.5`(`aria-expanded`·`aria-controls`): "구간 {k}"(15 semibold) + " · {a}~{b}줄"(12 ink2) + (닫혀 있고 메모가 있으면) " · 메모 {n}" · 오른쪽 상태 — 끝냄 `Badge good "들었어요"`(TEXT_ONLY "읽었어요") / 반쯤 "느리게 ✓ · 보통"(12 ink2) · `›` 90° 회전.
+- 몸통(열림, `px-3.5 pb-3.5`):
+  1. (글자 가림 중) "글자를 가리고 먼저 들어요."(12 ink2) + [글자 보기](밑줄 텍스트 버튼 44px).
+  2. 줄: `grid grid-cols-[26px_minmax(0,1fr)] gap-2 -mx-2 rounded-[10px] px-2 py-1.5` — 역할 칩 + `<span class="sr-only">{rolesKo}: </span>` + `<p lang=ja 17px/1.7 whitespace-pre-wrap [overflow-wrap:anywhere]>{ja}</p>` + (읽기 켬 && `reading ≠ ja`) `<p lang=ja 14px ink2>{reading}</p>` + (번역 켬) `<p 13 ink2>{ko}</p>`. **재생 중인 줄은 `bg-accent-soft`**.
+     글자 가림(d=B): 줄마다 역할 칩 + 높이 14px `bg-surface2` 막대 1~2개(글자 수에 따라, `aria-hidden`) + sr-only "{역할}, 글자 가림". 가림 조건 = `ONLINE && 이 구간을 보통 속도로 끝까지 듣지 않음 && [글자 보기]를 누르지 않음`. 보통 속도 재생을 **시작하면** 바로 보인다. TEXT_ONLY·다시 보기에서는 늘 보인다.
+  3. 듣기 순서 `ol aria-label="듣는 순서"` 2칸(h-7 r8 12px): "① 느리게"·"② 보통 속도" — 끝낸 칸 `bg-good-soft text-good` "✓", 다음 차례 `bg-surface ring-[1.5px] ring-accent`, 나머지 `bg-surface2 text-ink2`.
+  4. 상태 줄 `p role=status 13px ink2 min-h-5`(문구 §12-8 ⓔ): 재생 중 "{느리게|보통 속도로} 듣는 중 · {i}/{n}줄" 등.
+  5. 버튼(48px): 재생 중 [■ 멈춤](ghost full) / 느리게 전 [▶ 느리게 듣기 · {배율}](primary full) / 느리게 뒤 BtnRow [▶ 보통 속도로](primary) [다시 느리게](ghost) / 둘 다 들음 BtnRow [다음 구간](primary, 마지막 구간엔 없음) [▶ 다시 듣기](ghost, 보통 속도). `{배율}` = 설정 `learningSpeed`(0.6/0.8/1.0 → "0.6배"…, 없으면 0.8 — `page.tsx` 가 넘김). 재생이 막히면(큐 `blocked`) 그 버튼이 "▶ 눌러서 듣기" → `resumeBlocked()`.
+     **자동 재생 없음(b=B)**: [다음 구간]은 다음 구간을 열기만 한다.
+  6. TEXT_ONLY: 3~5 대신 `note role=status` "지금은 선생님 목소리를 들을 수 없어요(자막만). 목소리가 돌아오면 듣기 버튼이 다시 보여요." + [읽었어요 · 다음 구간](primary full, 마지막 구간은 "읽었어요") → `segmentsDone` 에 넣고 다음 구간을 연다.
+  7. `MemoBox`(`mt-3.5 border-t border-line pt-3`): `label for` "들린 단어 메모" + 오른쪽 "{n}/5"(tabular) / 12 ink2 "들린 단어를 일본어로 적어요. 뜻은 몰라도 괜찮아요." / 칩 줄(36px, `bg-surface2` 15px `lang=ja`, 지우기 ✕ 32px + 히트 44px `aria-label="{단어} 지우기"`) / 입력 줄: `input lang=ja 16px h-11 maxLength=20 enterKeyHint=done autoComplete=off` + [추가](ghost h-11) / 오류 `p role=alert 12.5px bad`.
+     - 규칙(서버와 같음): 앞뒤 공백 제거. 가나·한자가 1자 이상 없으면 "일본어로 적어 주세요. 예) 注文, ちゅうもん". 같은 구간 중복이면 "이미 적은 단어예요." 구간 5개가 차면 입력 비활성 + placeholder "이 구간은 5개까지 적을 수 있어요". 수업 전체 15개면 "수업 전체에서 15개까지 적을 수 있어요." Enter(IME 조합 중 제외)로 추가하고, 추가한 뒤 초점은 입력창에 그대로 둔다.
+- **MemoSummaryCard**(`#l1-memo`): 메모가 0이면 Card flat "들린 단어 메모" + "아직 적은 단어가 없어요. …"(§12-8 ⓔ). 메모가 있으면 Card: "들린 단어 {n}개"(15 semibold) + 읽기 전용 칩 + 설명 "단어장에 없는 단어만 골라 제안해 드려요. 추가를 눌러야 저장돼요." + [단어장에 넣을까요?](ghost full) → #62a:
+  - 요청 중: "단어를 찾아보는 중…"(스피너 14px + `role=status`). 뜻 보강 때문에 몇 초 걸릴 수 있다.
+  - 결과: "단어 제안 {proposals 수}개 · 선생님 제안이에요. 추가를 눌러야 단어장에 저장돼요." + `proposals` 마다 **`ProposalCard`(§3-2 G 그대로 — [단어장에 추가]·[괜찮아요]·✎ 뜻 고쳐서 추가)** + `skipped` 마다 한 줄(`rounded-xl bg-surface2 px-3.5 py-2.5`, 왼쪽 `<span lang=ja 15px>{surface}</span>`, 오른쪽 12 ink2 사유 §12-8 ⓕ).
+  - `ProposalCard` 머리("단어 제안") 자리에 **출처 캡션**을 넣는다: `payload.via === "CHUNK"` → "단어 제안 · 대화 {lineIdx + 1}번째 줄" / `"ENRICH"` → "단어 제안 · 선생님이 찾아본 뜻". `payload.memo ≠ payload.surface` 이면 뜻 아래 12 ink2 "메모 <span lang=ja>{memo}</span> → 사전에 싣는 모양으로 바꿨어요"(ProposalCard 에 선택 prop `caption`·`note` 추가 — §12-5).
+  - 결과를 받은 뒤 새로 적은 단어가 있으면 [새로 적은 단어 {k}개도 제안받기](ghost full). 같은 단어를 다시 보내도 서버는 그때 결과를 돌려준다(새 행 없음).
+  - 다시 들어왔을 때(`progress.listen.proposed` 가 비어 있지 않음): 제안 카드는 저장돼 있지 않으므로, 이 카드가 처음 보일 때 **메모 초안으로 #62a 를 한 번 다시 불러** 지금 상태의 제안 카드를 복원한다.
+
+#### G. ② 문법 — `StageGrammar` (`#l2`)
+
+```
+<h2 tabIndex=-1>② 문법 · 표현과 문형</h2> + 13 ink2 "오늘 대화의 표현 조각과 문형 {g}개예요. 예문을 듣고 소리 내어 따라 읽어 보세요."
+(TEXT_ONLY) note "지금은 선생님 목소리를 들을 수 없어 예문 듣기를 숨겼어요(자막만)."
+Card "오늘의 표현 {chunks.length}개"(15 semibold) + 13 ink2 "대화에 나온 표현 조각이에요. 문제·응용·말하기에서 다시 써요."
+   ExprChip(bg-surface2 r10 px-2.5 py-1.5): <span lang=ja 16px>{textJa}</span> <span 12 ink2>{meaningKo}</span> (isNew) Badge neutral(bg-surface) "새 표현"
+GrammarCard × grammar (Card): "문형 {i}"(12 ink2) / <h3 lang=ja 20px bold>{pattern}</h3> / <p 14px>{explanationKo}</p> /
+   구분선 아래 예문 행(-mx-2 px-2 py-2.5 rounded-[10px], 재생 중 bg-accent-soft): "예문"(12 semibold ink2) + <p lang=ja 17px>{exampleJa}</p>
+   + (읽기 켬) <p lang=ja 14 ink2>{exampleReading}</p> + <p 13 ink2>{exampleKo}</p>   오른쪽 PlayButton 44px 원(aria-label "예문 듣기" / 재생 중 "멈추기")
+[다음 단계 · ③ 문제]
+```
+- 예문 소리 = #62c `{kind:'grammar', idx, pace:'normal'}`.
+
+#### H. ③ 문제 — `StageQuiz` (`#l3` · `#l3-wrong` · `#l3-sum`)
+
+```
+<h2 tabIndex=-1>③ 문제 · {N}문제</h2> + 13 ink2 "답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요."
+QuizTop: "문제 {i} / {N}"(14 bold) · 점 24px × N(aria-hidden — 맞힘 good-soft ✓ / 틀림 bad-soft ✗ / 지금 ring-2 accent / 남음 surface2 번호)
+Card: <p 16 semibold>{promptKo ?? <span lang=ja>{promptJa}</span>}</p>
+      <div role=group aria-label="보기"> ChoiceButton × 4 </div>
+      (답함) Explain(bg-surface2 r12 p-3 role=status): "✓ 맞았어요"(good) | "✗ 틀렸어요 · 정답은 {k}번"(bad) + 14px explanationKo
+(답함) [다음 문제] | 마지막 [결과 보기](primary full)
+```
+- `ChoiceButton`: `grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2.5 min-h-[52px] rounded-xl border border-line bg-surface px-3 py-2.5 text-left mt-2` — 번호 원 24px / 본문(가나·한자가 있으면 `lang=ja` 17px, 아니면 15px — `matchLang`) / 꼬리표. 답한 뒤: 정답 `border-good bg-good-soft` + "✓ 정답"(12 bold good) · 내가 고른 오답 `border-bad bg-bad-soft` + "✗ 내 답"(12 bold bad) · 나머지 `text-ink2`(opacity 금지). `aria-label="{k}번, {보기}[, 정답][, 내 답, 틀림]"`, 답한 뒤에는 넷 다 `aria-disabled`.
+- 채점은 화면이 `content.quiz[].answer` 로 바로 한다(자습이라 정답이 내용에 들어 있다 — 계약 #60). 고르는 즉시 #61 `{progress:{quiz:{answers}}}`(첫 답 고정 — 서버도 바꾸지 않는다). 점수는 완료 때 서버가 다시 계산한다.
+- 답한 뒤 초점은 [다음 문제]로, 다음 문제로 가면 첫 보기로 옮기고 스크롤은 문제 카드 위로 맞춘다.
+- 결과(모두 답함 또는 다시 보기, `#l3-sum`): Card "{N}문제 중 {c}문제 맞혔어요"(22 bold tabular) + 점 줄 + 문항 목록(✓/✗ 24px 원 + 문제 14px + "내 답 {보기} · 정답 {보기}"(12 ink2, 맞힌 문항은 "정답 {보기}"만)) + 12 ink2 "틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요." + [다음 단계 · ④ 응용].
+- 다시 들어왔을 때: 답하지 않은 첫 문항부터, 다 답했으면 결과부터.
+
+#### I. ④ 응용 — `StageApply` (`#l4` · `#l4-voice` · `#l4-compare`)
+
+```
+<h2 tabIndex=-1>④ 응용 · 문장 만들기 {N}개</h2> + 13 ink2 "상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요."
+Top: "상황 {i} / {N}" + 점(끝냄 ✓ good-soft / 지금 ring accent / 남음 번호)
+(다시 보기) 상황 1·2·3 전환 BtnRow(ghost h-11)
+Card(@container):
+  <p 16 semibold>{promptKo}</p>
+  "써 볼 표현"(12 ink2) + ExprChip(targetIds → chunks: textJa·meaningKo | grammar: pattern·"문형")
+  (hintJa 있음) 12 ink2 "힌트 · <span lang=ja>{hintJa}</span>"
+  ─ 쓰기(비교 전) ─
+  label "내 문장" + textarea lang=ja 16px min-h-[84px] maxLength=200
+     | (말로 쓰기) 인식 상자(점선 테두리 min-h-16) + PushToTalkButton 64px + 상태 줄
+  행: [마이크 아이콘 말로 쓰기 | 키보드 아이콘 글자로 쓰기](밑줄 텍스트 버튼 44px) ··· "{n} / 200자"(12 ink2)
+  [모범 답안과 비교하기](primary full, 비었으면 aria-disabled + 토스트 "먼저 문장을 써 보세요")
+  [모르겠어요 · 모범 답안 보기](가운데 밑줄 텍스트 버튼 44px)
+  ─ 비교 ─ (위아래: 컨테이너 ≥440px 에서만 나란히 → 휴대폰 폭에선 늘 위아래)
+    box(bg-surface2 r12 px-3 py-2.5): "내 문장"(12 semibold ink2) + <p lang=ja 17px>{내 답}</p> | 비었으면 13 ink2 "(쓰지 않고 봤어요)"
+    box: "모범 답안"(12 semibold good) + <p lang=ja 17px>{modelAnswerJa}</p> + (읽기 켬) {modelReading} + 13 ink2 {modelKo}
+         + [▶ 모범 답안 듣기](h-11 테두리 버튼, 재생 중 "■ 멈춤")
+  12 ink2 "채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요."
+[다음 상황](primary full) | 마지막 [다음 단계 · ⑤ 말하기]
+```
+- [비교하기] → #61 `{progress:{application:{answers}}}`(그 칸만 새 글자, 다른 칸은 지금 값) 뒤 비교 모양. [모르겠어요]는 저장하지 않고(칸은 null) 비교 모양만 보인다.
+- 말로 쓰기: `useRealtimeStt({ purpose: 'MIC_TEST', config })`(원음을 저장하지 않는 경로 — §12-11 ④). final 텍스트를 입력칸에 넣고(덮어씀), 고치려면 [글자로 쓰기]. 권한·오류 안내는 ⑤ 와 같은 `SttAlert`.
+- 비교 상자의 `@container` 기준 440px 은 데모 v2 결정이다(일본어 줄이 좁게 꺾이지 않게).
+- 모범 답안 소리 = #62c `{kind:'application', idx}`.
+- 다시 들어왔을 때: 답이 저장된 칸은 비교 모양, 나머지는 쓰기부터(건너뛴 칸은 저장되지 않으니 쓰기로 돌아온다).
+
+#### J. ⑤ 말하기 — `StageSpeak` + `LessonVoiceBar` (`#l5` · `#l5-ok` · `#l5-miss` · `#l5-text` · `#l5-denied` · `#l5-fail` · `#l5-donefail`)
+
+```
+<h2 tabIndex=-1>⑤ 말하기 · 과제 {N}개</h2> + 13 ink2 "목표 표현을 넣어 말해 보세요. 아래 버튼을 누른 채로 말하고, 다 말하면 손을 떼요."
+Top: "과제 {i} / {N}" + 점(모두 씀 ✓ good-soft / 일부 △ bg-surface + ring line / 지금 ring accent / 남음 번호)
+Card:
+  <p 16 semibold>{promptKo}</p>
+  "목표 표현"(12 ink2) + ExprChip(targetIds): 결과 전 보통 / 결과 뒤 matchedIds → bg-good-soft + "✓ 썼어요"(12 bold good) · missedIds → "· 아직"(12 ink2) · unknownIds → 표시 없음
+  (음성 인식 오류) SttAlert(§9-2 G ① 그대로, 버튼 문구 "글자로 답하기")
+  결과 전: 인식 상자(점선 테두리 min-h-16 — 녹음 중 partial 17px ja ink2 + "…", aria-hidden) + [이 과제 건너뛰기](밑줄 텍스트 버튼 44px)
+  결과 뒤: "내가 한 말" | "내가 쓴 답"(12 semibold ink2) + 말풍선(bg-accent-soft r14 px-3 py-2, lang=ja 17px, 글자 ink)
+           + (utteranceId && hasAudio) [▶ 내 목소리](밑줄 텍스트 버튼 44px, 재생 중 "■ 멈춤")
+           결과 줄 role=status 14 semibold: used → "✓ 목표 표현을 모두 썼어요"(good) | 아니면 "모범 답안과 비교해 보세요 · 아직 안 쓴 표현 {missed 표기 목록}"(ink)
+           box "모범 답안"(good 라벨) + modelAnswer.ja 17px + (읽기 켬) reading + ko + [▶ 모범 답안 듣기]
+           12 ink2 "다시 하려면 아래 버튼을 또 누르고 말해요."
+(결과 뒤) [다음 과제](primary full) | 마지막 과제: (완료 실패) alert + [수업 마치기](primary full)
+LessonVoiceBar: 상태 줄(h-6, MicLevelMeter + 문구) / grid-cols-[44px_minmax(0,1fr)_44px]: [키보드](aria-label "글자로 답하기") · PushToTalkButton 72px · [■](재생 중만, "소리 멈추기")
+LessonTextBar: [마이크](aria-label "말로 답하기") · textarea lang=ja 16px(1~5줄 자동 높이, placeholder "일본어로 써서 답해 보세요") · [↑](accent 원, aria-label "확인하기")
+```
+- 음성: `useRealtimeStt({ purpose: 'TURN', config, maxSec: 30, onFinal })` — **`chatId` 없이**(방 없는 발화, 계약 #21·#62b). 누르면 먼저 재생 큐 `interrupt('BARGE_IN')`(§9 회화방과 같은 barge-in — 재생 중에도 버튼을 막지 않는다). `onFinal({ text, utteranceId })`: trim 뒤 비었으면 힌트 `STT_HINT_COPY.EMPTY_RESULT`(`#l5-fail`), 아니면 #62b `{itemId, text, utteranceId}`.
+  - #62b 409 `UTTERANCE_*` → 같은 글자로 `utteranceId` 없이 한 번 다시 보내고 [▶ 내 목소리]는 숨긴다(판정은 그대로 받는다).
+  - 앱(휴대폰 인식)은 §11 라우터가 #21 로 wav 를 올리고 `utteranceId` 를 준다 — 화면 코드는 같다.
+- 글자: [키보드] → LessonTextBar(초안은 `sessionStorage kaiwa.lesson.speakDraft.{lessonId}.{itemId}`). Enter(Shift 없이·IME 조합 중 아님) 또는 [↑] → #62b `{itemId, text}`. 비어 있으면 토스트 "일본어로 답을 써 주세요". 글자 모드의 키보드 대응은 회화방 `--kb-inset` 방식 그대로.
+- 결과가 오면 스크롤을 과제 카드 위로 맞춰 결과가 보이게 하고, 초점은 결과 줄로 옮긴다.
+- 상태 줄 문구 = §8-8 ⓑ·ⓒ(`STT_STATUS_COPY`·`recordingStatus`·`STT_HINT_COPY`) + 결과 뒤 대기 "다시 하려면 또 누르고 말해요" + 재생 중 "듣는 중 · 누르면 멈추고 말해요".
+- 과제는 몇 번이든 다시 말할 수 있다(서버는 마지막 시도로 바꾼다). [이 과제 건너뛰기]는 서버 요청 없이 결과를 "(건너뛰었어요)"로 두고 다음 과제로 간다 — 그 과제의 목표는 완료 때 못 쓴 표현으로 센다(계약 #62).
+- [수업 마치기]는 세 과제 모두 결과(또는 건너뜀)가 있을 때만 보인다 → #62 `{}`:
+  - 200 → 응답 `result` 로 종료 카드를 그리고(페이지 새로고침 없이 상태 전환) 초점을 종료 카드 h2 로.
+  - 409 `ALREADY_DONE` → #60 을 다시 읽어 종료 카드 + 토스트 "이미 끝낸 수업이에요. 결과를 보여 드릴게요."
+  - 409 `STAGES_LEFT` → #61 `{stageDone: 4}` 를 한 번 보내고 #62 를 다시 부른다(사용자에게는 보이지 않음). 또 실패하면 아래 오류.
+  - 그 밖 → 버튼 위 `role=alert` "수업 기록을 남기지 못했어요. 다시 눌러 주세요." / "여러 번 눌러도 기록은 한 번만 남아요."(`#l5-donefail`). 요청 중엔 "기록하는 중…" + `aria-busy`, 두 번 눌러도 한 번.
+- 다시 들어왔을 때: `progress.speaking[]`(과제마다 마지막 시도)로 결과를 복원한다. `hasAudio` 는 저장돼 있지 않으니 `utteranceId` 가 있으면 [내 목소리]를 두고, #21b 가 404 면 토스트 "녹음이 없어요. 내 목소리는 30일 동안만 보관해요." 후 숨긴다. 결과가 없는 첫 과제부터 연다.
+
+#### K. 종료 카드 — `LessonEnd` (`#end`)
+
+```
+BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어요" subtitle="{주제} · {M월 D일}"(completedAt, KST)
+<div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3.5 pb-8 flex flex-col gap-[18px]">
+  Hero(가로 flex gap-3): 원 52px good-soft "✓"(aria-hidden) + <div> <h2 20 bold tabIndex=-1>수업을 마쳤어요</h2> <p lang=ja 14>{title}</p> <p 12 ink2>{titleKo}</p> </div>
+  StatTiles(grid-cols-3 gap-2, 칸 bg-surface border r12 py-2.5, 숫자 20 bold tabular + 12 ink2 라벨):
+     "{correct}/{total}" 문제 정답 · "{applicationDone}" 만든 문장 · "{used}/{used+missed}" 쓴 표현
+  Card: "말하기에서 쓴 표현"(15 semibold) + ExprChip(bg-good-soft, ja 16 + ko 12 + ✓) /
+        (missed ≥1) "다음엔 이 표현도 써 보세요" + ExprChip(bg-surface2) /
+        12 ink2 "오늘 배운 표현과 문형은 복습할 항목으로 기록했어요." /
+        (이번에 넣은 단어 ≥1) 행 버튼 "단어장에 넣은 단어 {k}개 · 단어장에서 보기 ›"(accent 13 semibold, 44px, 윗선 → /drawer/words)
+  NextCard(bg-accent-soft r14 p-3.5, aria-labelledby): "다음 시간엔"(13 ink2) / <h3 17 bold>{nextPreview.titleKo}</h3> / <p 14>{nextPreview.teaserKo}</p> / [다음 수업 만들기](primary full mt-3)
+  [이 주제로 선생님과 이어서 말하기](ghost full) + 12 ink2 가운데 "회화 탭에서 ‘{주제}’ 이야기로 새 회화를 시작해요."
+  [오늘로](가운데 밑줄 텍스트 버튼 44px)
+</div>
+```
+- 값: 방금 끝냈으면 #62 `result`(`quiz.correct`·`quiz.total`·`applicationDone`·`expressions.usedIds/missedIds`·`nextPreview`)를 쓴다. 다시 들어왔으면(#60 `DONE`) 같은 값을 계산한다(`endResult.ts`): 정답 = `round(score / 100 × quiz.length)`, 만든 문장 = `progress.application.answers` 에서 글자가 있는 칸 수, 쓴 표현 = `progress.speaking[].matchedIds` 합집합, 못 쓴 표현 = 말하기 목표 전체 − 쓴 것(시도한 과제에서 `matchedIds`·`missedIds` 어디에도 없는 판정 불가는 뺀다), 예고 = `content.nextPreview`.
+- id → 칩: `content.chunks`(textJa·meaningKo) / `content.grammar`(pattern·"문형").
+- "넣은 단어" 수는 이 수업 화면에서 [단어장에 추가]를 누른 수다(`sessionStorage kaiwa.lesson.added.{lessonId}`). 모르면 줄을 숨긴다(§12-11 ⑥).
+- [다음 수업 만들기] → #59 `{topicId: lesson.topic.id}`(A 표 처리). [이어서 말하기] → #28 `{kind:'TALK', topicId}` → `router.push('/study/ai/talk/' + id)`(제목은 서버가 주제 제목으로 정한다). 요청 중 버튼 `aria-busy`.
+- **붙여넣은 수업(`source:'TEXT'`, topic 없음)**: 두 버튼이 쓸 주제가 없다. §12-11 ③ 이 결정되기 전의 권고안 — NextCard 대신 BtnRow [다른 문장으로 수업 만들기](primary → 붙여넣기) [주제 고르기](ghost), [이어서 말하기]는 숨긴다.
+
+#### L. 없음·불러오기 (`#l-404` · `#l-loading` · `#l-loaderr`)
+
+- 수업 경로 #60 이 404 → BackBar("오늘의 회화") + 가운데 "이 수업을 찾을 수 없어요." / 13 ink2 "주소가 잘못되었거나 삭제된 수업이에요." / [오늘로](primary).
+- 불러오는 중: 머리(제목 자리 비움) + 스켈레톤 3칸 + sr-only "수업을 불러오는 중…". 오류: `ErrorBlock` "수업을 불러오지 못했어요." + [다시 시도].
+
+### 12-3. 상태 관리
+
+#### A. 오늘 홈 — `TodayHome` + `deriveLessonCard(today)` (순수, `lesson/cardState.ts`)
+- #58 결과를 `lessonToday`(`loading|ready|error`)로 따로 둔다. §12-2 A 표 순서를 그대로 코드로 옮기고 단위 테스트로 고정한다(GENERATING·오늘 진행·resume·FAILED·DONE·추천 조합).
+- `gen` 이면 `useJobWatch(jobId, { intervalMs: 5000, onSettled: reload })`(화면이 보일 때만).
+
+#### B. 수업 — `useLesson(lessonId)` (`lesson/useLesson.ts`)
+- 상태: `lesson`(#60 DTO) · `stage`(보고 있는 단계) · `saveError` · `completing` · `completeError`.
+- **쓰기 큐 한 줄**(§5 덱과 같은 방식): progress 쓰기(played·segmentsDone·memo·quiz·application)를 큐에 넣어 순서대로 #61 로 보낸다. 화면은 낙관적으로 먼저 바꾼다(사용자 직접 행위라 되돌릴 일이 드물다). 400 이면 그 칸만 되돌리고 오류 문구를 보인다. played·segmentsDone·memo 는 800ms 모아 한 번에 보낸다. `stageDone` 은 큐를 비운 뒤 기다려서 보낸다(실패하면 머문다).
+- 복원(#60 → 화면): 구간 played/segmentsDone/memo, 문제 answers(첫 null), 응용 answers, 말하기 결과. 단계 = `min(stageDone + 1, 5)`.
+- 상태 분기: `GENERATING` → D(폴링), `FAILED` → D 실패, `READY|IN_PROGRESS` → E~J, `DONE` → K.
+
+#### C. 소리 — `useLessonPlayback()` (`lesson/useLessonPlayback.ts`)
+- `useTalkPlayback` 과 같은 구성으로 **`createTtsPlaybackQueue` 1개**를 쓴다(fetchAudio = `fetchChunkAudio(url, signal, apiGetAudio)`, play = `playWav`, onSignal → `useTtsRuntimeStatus().reportSynthesis`). 재생을 새로 구현하지 않는다.
+- 재생 단위 = `queue.playParts('replay', key, parts)`:
+  - 구간 재생: `key = seg:{k}:{pace}`. 구간의 대화 줄마다 part 하나 — part 함수 안에서 #62c `{kind:'dialogue', idx, pace}` 로 `clips` 를 받아 그 오디오를 가져온다(**미리 전부 합성하지 않고 차례로** — 첫 소리 ≤2초). 조각이 2개 이상이면(대화 줄은 ≤80자라 드물다) 이어 붙여 part 하나로 돌려준다. `snapshot.chunkIndex` = 줄 순번 → 줄 강조·"{i}/{n}줄".
+  - 예문·모범 답안·내 목소리: part 하나(#62c `grammar|application|speaking` / #21b).
+- 탭 핸들러 안에서 **동기로 `unlockTtsAudio()`** 를 부른 뒤 재생한다(자동재생 정책, §7-0 ⑧). 막히면(`phase==='blocked'`) 누른 버튼이 "▶ 눌러서 듣기" → `resumeBlocked()`.
+- 중단 없이 마지막 part 까지 끝났을 때만 `played[pace]` 에 그 구간을 넣고, 둘 다 들었으면 `segmentsDone` 에 넣는다.
+- 멈춤: [■] = `interrupt('USER_STOP')` · 단계 이동·화면 가림·언마운트 = `interrupt('HIDDEN')` · 푸시투토크 누름 = `interrupt('BARGE_IN')`.
+- 422 `TTS_UNAVAILABLE` → `reportSynthesis({ ok:false, status:422 })` → 스토어가 TEXT_ONLY 로 바뀌고, 화면은 `useTtsRuntimeStatus().snapshot.state === 'TEXT_ONLY'` 로 자막만 모양이 된다(전환 토스트는 스토어가 1회). 502·504·429·0 → 토스트(§9-8 ⓔ 문구) 후 대기 상태.
+- 서명 URL 은 저장하지 않는다. 다시 들을 때는 #62c 를 다시 부른다(캐시 HIT).
+
+#### D. 말하기 — `useRealtimeStt` + `lesson/useSpeakCheck.ts`
+- ⑤ 는 `useRealtimeStt({ purpose:'TURN', config, maxSec: 30, onFinal })`(회화방과 같은 호출에서 `chatId` 만 뺌), ④ 말로 쓰기는 `useRealtimeStt({ purpose:'MIC_TEST', config, maxSec: 30, onFinal })`. `config` 는 #19 를 읽는 기존 경로 그대로(회화방과 같음).
+- `SttAlert`·힌트·권한 흐름(웹 안내 / 앱 [앱 설정 열기])·앱 전환 토스트(`switchNotice`)는 §9·§11 규칙 그대로다.
+- 녹음 중에는 본문 `aria-live="off"`, 인식 상자 `aria-hidden`, 토스트는 녹음이 끝난 뒤로 미룬다(§9-0 ⑨).
+
+### 12-4. API 호출 계획 (정본 api-contract §2-11~§2-13 · #21 · #21b · #28 · #38 · #39)
+
+| 화면·동작 | 엔드포인트 | 파라미터 | 쓰는 필드 | 오류 처리 |
+|---|---|---|---|---|
+| 오늘 홈 카드 | #58 `GET /api/v1/lessons/today` | — | `todayLessons[{id,status,title,titleKo,stageDone,topic,score,jobId}]` · `resume{id,title,titleKo,stageDone,date}` · `recommendation{topicId,topicTitle,level,reason,nextPreview}` | 실패 → 이 카드만 오류(단어 카드와 별개) |
+| 홈 만드는 중 확인 | #55 `GET /api/v1/jobs/:id` | — | `status` | 실패는 무시(다음 주기) |
+| 주제 목록 | #56 `GET /api/v1/topics` | (없음 — 서버가 수준 ±1) | `items[{id,title,titleJa,level,description,chunks[{chunkType,textJa,meaningKo,order}],lessonCount,lastLessonAt}]` · `level[]` | 오류 블록 + 다시 시도 |
+| 수업 만들기 | #59 `POST /api/v1/lessons` | `{topicId}` \| `{sourceText}` | `lessonId,jobId,status,reused` | 400 `NOT_JAPANESE`(붙여넣기 오류 상자) · `one_of`(버그) · 404(토스트 "주제를 찾을 수 없어요.") · 409 `GENERATING{jobId,lessonId}` → 그 수업으로 · 429 · 0 |
+| 수업 읽기 | #60 `GET /api/v1/lessons/:id` | — | `status,stageDone,score,source,topic,title,titleKo,progress,content,jobId,createdAt,completedAt` | 404 → L · 그 밖 → L 오류 |
+| 대기 폴링 | #55 | — | `status,stage` | 네트워크 실패 → note, 간격 유지 |
+| 진행 저장 | #61 `PATCH /api/v1/lessons/:id/progress` | `{stageDone?}` · `{progress:{listen:{segmentsDone,played:{slow,normal},memo:[{segment,ja}]}, quiz:{answers}, application:{answers}}}` — **서버 칸(`listen.proposed`·`speaking`)은 보내지 않는다** | (응답은 #60 모양 — 화면은 낙관 상태 유지) | 400 `monotonic` → #60 다시 · `LIMIT`·`DUPLICATE`·`NOT_JAPANESE` → 메모 오류 문구 · `TOO_LARGE`·그 밖 → "진행 상황을 저장하지 못했어요." · 409 `ALREADY_DONE`·`NOT_READY` → #60 다시 |
+| 소리 | #62c `POST /api/v1/lessons/:id/audio` | `{kind:'dialogue'\|'grammar'\|'application'\|'speaking', idx, pace:'slow'\|'normal'}` | `clips[{url,durationMs,pauseBeforeMs}]`(`runtime` 은 쓰지 않음) | 422 `TTS_UNAVAILABLE` → 자막만 · 502·504·429·0 → 토스트(§9-8 ⓔ) |
+| 들린 단어 제안 | #62a `POST /api/v1/lessons/:id/memo` | `{segments:[{segment, words}]}`(메모가 있는 구간만, 구간 ≤5·합 ≤15) | `proposals[]`(ProposalDto — `payload{surface,reading,meaning,via,lineIdx,memo}`) · `skipped[{surface,reason}]` | 400 `segment_range`(버그) · 429 "잠시 후 다시 눌러 주세요." · 0 → 네트워크 문구 |
+| 제안 채택·거절 | #38 `POST /api/v1/proposals/:id/accept` · #39 `…/reject` | `{payloadOverride?:{meaning}}` | ProposalCard 그대로 | ProposalCard 그대로(409 이미 있음 등) |
+| 말하기 확인 | #62b `POST /api/v1/lessons/:id/speaking` | `{itemId, text, utteranceId?}` | `used,matchedIds,missedIds,unknownIds,modelAnswer{ja,reading,ko},utteranceId,hasAudio` | 409 `UTTERANCE_*` → utteranceId 없이 1회 다시 · 400 `unknown_item`(버그) · 429·0 → 토스트 "확인하지 못했어요. 다시 말해 주세요." |
+| 발화(앱 경로) | #21 `POST /api/v1/speech/utterances` | §11 라우터가 보낸다(화면은 모름) | `utteranceId` | §11 |
+| 내 목소리 | #21b `GET /api/v1/speech/utterances/:id/audio` | — | wav | 404 → "녹음이 없어요. 내 목소리는 30일 동안만 보관해요." 후 버튼 숨김 |
+| 수업 마치기 | #62 `POST /api/v1/lessons/:id/complete` | `{}` | `lesson,result{score,quiz{correct,total},applicationDone,expressions{usedIds,missedIds},nextPreview}` | 409 `ALREADY_DONE` → #60 + 토스트 · `STAGES_LEFT` → stageDone 4 저장 뒤 1회 다시 · 그 밖 → 완료 오류 줄 |
+| 이어서 말하기 | #28 `POST /api/v1/chats` | `{kind:'TALK', topicId}` | `id` → `/study/ai/talk/{id}` | 404(주제) → 토스트 · 0 → 네트워크 문구 |
+
+### 12-5. 컴포넌트 분해 (`src/components/lesson/*`)
+
+| 파일 | 역할 |
+|---|---|
+| `TodayLessonCard.tsx` | 오늘 홈 카드(8상태) + `MiniSteps` |
+| `cardState.ts` | `deriveLessonCard` 순수 함수 |
+| `LessonTopicsScreen.tsx` · `TopicRow.tsx` · `TopicSheet.tsx` | 주제 고르기 |
+| `LessonPasteScreen.tsx` | 붙여넣기 |
+| `LessonScreen.tsx` | 수업 경로 루트 — #60 을 읽고 상태로 분기 |
+| `LessonGenScreen.tsx` · `genCopy.ts` | 대기·실패, 경과 문구 |
+| `LessonHeader.tsx` · `StageSteps.tsx` · `ReviewNote.tsx` | 수업 틀 |
+| `StageUnderstand.tsx` · `SegmentCard.tsx` · `MemoBox.tsx` · `MemoSummaryCard.tsx` | ① |
+| `StageGrammar.tsx` | ② |
+| `StageQuiz.tsx` · `ChoiceButton.tsx` | ③ |
+| `StageApply.tsx` | ④ |
+| `StageSpeak.tsx` · `LessonVoiceBar.tsx` · `LessonTextBar.tsx` | ⑤ |
+| `LessonEnd.tsx` · `endResult.ts` | 종료 카드, #60 → 결과 계산 |
+| `ExprChip.tsx` · `PlayButton.tsx` · `Toggle.tsx` · `RoleChip.tsx` | 공용 조각 |
+| `useLesson.ts` · `useLessonPlayback.ts` · `useJobWatch.ts` · `useSpeakCheck.ts` | 상태 |
+| `lessonCopy.ts` · `labels.ts` · `matchLang.ts` | 문구(§12-8) · 단계·조각 라벨 · "가나·한자가 있으면 `lang=ja`" 판정 |
+
+- 그대로 재사용(수정 없음): `BackBar`·`Card`·`Btn`·`BtnRow`·`Badge`·`ErrorBlock`·`EmptyBlock`·`Sheet`·`Toast`·`TeacherAvatar`·`TtsRuntimeStatusIndicator`·`PushToTalkButton`·`MicLevelMeter`·`useRealtimeStt`·`sttCopy`·`ttsAudio`·`chunkFetch`·`createTtsPlaybackQueue`.
+- 조금 고쳐 재사용(선택 prop 추가, 기존 호출부 동작 불변): `ProposalCard` — `caption?: string`(기본 "단어 제안")·`note?: ReactNode` · `SttAlert` — `textModeLabel?: string`(기본 "글자로 대화하기", 레슨은 "글자로 답하기").
+- 타입: `src/types/lesson.ts`(#56·#58·#59·#60·#62·#62a·#62b·#62c DTO — 필드명은 계약 그대로).
+
+### 12-6. 생성/수정 파일 목록
+
+- 신규: `src/app/(app)/study/today/talk/new/page.tsx`(서버 — `myLevel`) · `src/app/(app)/study/today/talk/new/paste/page.tsx` · `src/app/(app)/study/today/talk/[lessonId]/page.tsx`(서버 — `teacherName`·`learningSpeed`) · `src/components/lesson/*`(§12-5) · `src/types/lesson.ts`.
+- 수정: `src/components/vocab/TodayHome.tsx`(#58 읽기·카드 넣기) · `src/components/vocab/TodayComingSoon.tsx`(ITEMS 에서 오늘의 회화 제거) · `src/components/shell/routes.ts`(`/study/today/talk/` 추가 — 전역 변경) · `src/components/chat/ProposalCard.tsx`·`src/components/talk/SttAlert.tsx`(선택 prop 추가).
+- 서버·계약 변경 없음.
+
+### 12-7. 구현 순서
+
+1. 타입 + `cardState`(+테스트) → `TodayLessonCard`·`TodayHome`·`TodayComingSoon`(홈만으로 #58 확인).
+2. 주제 고르기·시트·붙여넣기 → #59 → 수업 경로 루트 + 대기·실패(`useJobWatch`).
+3. `useLesson`(쓰기 큐·복원) + 틀(머리·단계 표시·다시 보기).
+4. ①(`useLessonPlayback`·구간·메모·#62a·ProposalCard) → ② → ③ → ④.
+5. ⑤(`useRealtimeStt`·#62b·글자 모드) → #62 → 종료 카드(#62 결과 + #60 재계산) → 이어서 말하기.
+6. 자막만·오류·404·재개 상태 → 3폭·780/892 점검(§12-9) → 데모 v2 와 나란히 대조.
+
+### 12-8. 한국어 UI 문구 (`lessonCopy.ts` — 데모 v2 문구 그대로. ★ = 계약 때문에 더한 줄)
+
+ⓐ **오늘 홈 카드**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 오늘의 회화 / 약 15분 |
+| 로딩·오류 | 불러오는 중… / 오늘의 회화를 불러오지 못했어요. [다시 시도] |
+| 시작 전 | 선생님과 5단계로 수업해요. 듣기 → 문법 → 문제 → 응용 → 말하기 / 추천 주제 / 지난 시간 예고 · {titleKo} / ★같은 주제를 세 번 했어요 · 새 주제로 넘어가 봐요 / ★아직 해 보지 않은 주제예요 / 수업 만들기 / 주제 고르기 / (aria) 수업 만들기, 추천 주제 {주제} |
+| 만드는 중 | 수업을 만들고 있어요 / {주제} · 보통 1~2분 걸려요. 다 되면 여기서 열 수 있어요. / 보러 가기 |
+| 하던 수업 | 하던 수업이 있어요 / {주제} · {오늘\|M월 D일} 시작 · 5단계 중 {n}단계 끝냄 / 다음은 {③ 문제}예요. 단계마다 저장돼요. / 이어서 하기 / (aria) 5단계 중 {n}단계 끝냄 |
+| ★준비됨 | 수업이 준비됐어요 / {주제} · 5단계 · 약 15분 / 시작하기 |
+| 만들기 실패 | 수업을 만들지 못했어요 / {주제} · 다시 만들면 대부분 잘 만들어져요. / 다시 만들기 / 주제 고르기 |
+| 오늘 완료 | ✓ 오늘 수업을 끝냈어요 / {주제} · 문제 {c}/5 맞힘 / 다음 시간엔 / {titleKo} / 다음 수업 만들기 / 주제 고르기 / 끝낸 수업 결과 보기 |
+| 이름 | (붙여넣은 수업) 붙여넣은 문장 |
+| flash·토스트 | 오늘 만든 수업이 있어요. 이어서 할게요. / 만들고 있는 수업이 있어요. 끝나면 이어서 할 수 있어요. / 잠시 후 다시 눌러 주세요. / 연결하지 못했어요. 네트워크를 확인해 주세요. / ★주제를 찾을 수 없어요. / 만드는 중… |
+| 곧 열려요 | AI 평가 — 내 단어와 표현으로 지금 실력을 점검해요. |
+
+ⓑ **주제 고르기**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 주제 고르기 / 오늘의 회화 / (aria) 오늘로 |
+| 안내 | 어떤 이야기로 수업할까요? 내 수준({N5})과 한 단계 위({N4}) 주제를 보여 드려요. (세 수준: 내 수준({N4})과 한 단계 위·아래 주제를 보여 드려요. / 한 수준: 내 수준({N5}) 주제를 보여 드려요.) |
+| 행 | 지난 수업 {n}번 · {M월 D일} / 아직 수업하지 않았어요 |
+| 로딩·오류·빈 | 주제를 불러오는 중… / 주제를 불러오지 못했어요. [다시 시도] / 보여 드릴 주제가 없어요. 문장을 붙여넣어 수업을 만들어 보세요. |
+| 붙여넣기 카드 | 갖고 있는 문장으로 수업 만들기 / 드라마 대사나 교재 문장을 붙여넣으면 그 문장으로 수업을 만들어요. / 문장 붙여넣기 |
+| 시트 | 이 주제의 표현 {n}개 / 이름 조각 · 액션 조각 · 느낌 조각 · 꾸밈 조각 / 지난 수업 {n}번 · {M월 D일} / 지난 시간 예고를 이어서 만들어요 · {titleKo} / 수업을 만드는 데 1~2분 걸려요. 만들기 시작하면 취소할 수 없어요. / 수업 만들기 / 만드는 중… / 닫기 |
+
+ⓒ **붙여넣기**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 문장으로 수업 만들기 / 오늘의 회화 / (aria) 주제 고르기로 |
+| 설명 | 일본어 문장을 붙여넣으면 선생님이 그 문장으로 5단계 수업을 만들어요. 드라마 대사·노래 가사·교재 문장이 좋아요. |
+| 입력 | 붙여넣을 문장 / (placeholder) 예) 今日はいい天気ですね。(줄바꿈) そうですね。散歩に行きませんか。 |
+| 안내 | 50자 이상 · 3~8줄이 알맞아요 / 50자 이상 넣어 주세요 · 지금 {n}자 / 2,000자까지 넣을 수 있어요 / 3~8줄이 알맞아요 / {n} / 2,000자 |
+| 오류 | 일본어 문장이 너무 적어요. / 일본어가 들어간 문장을 붙여넣어 주세요. |
+| 저장·버튼 | 붙여넣은 문장은 이 수업과 함께 저장돼요. / 이 문장으로 수업 만들기 / 수업을 만드는 데 1~2분 걸려요. 만들기 시작하면 취소할 수 없어요. / (막힘 토스트) 50자 이상 넣어 주세요 · 2,000자까지 넣을 수 있어요 |
+
+ⓓ **대기·실패**
+
+| 자리 | 문구 |
+|---|---|
+| 대기 | 수업 만들기 / 선생님이 수업을 만들고 있어요 / 주제와 지난 수업을 살펴보고 있어요 · 대화문을 쓰고 있어요 · 문법과 문제를 만들고 있어요 · 응용·말하기 과제를 고르고 있어요 · 마지막으로 확인하고 있어요 · 조금 오래 걸리고 있어요. 조금만 더 기다려 주세요. / {m:ss} · 보통 1~2분 걸려요 / 연결이 끊겼어요. 다시 연결되면 이어서 확인해요. 수업은 계속 만들어지고 있어요. |
+| 순서 카드 | 이런 순서로 공부해요 / 이해 · 대화를 구간별로 듣고, 들린 단어를 메모해요 / 문법 · 대화에 나온 문형 1~3개 / 문제 · 4지선다 5문제, 바로 정답 확인 / 응용 · 상황에 맞는 문장 3개 직접 만들기 / 말하기 · 목표 표현을 넣어 말하기 3개 |
+| 안내·버튼 | 이 화면을 나가도 수업은 계속 만들어져요. 다 되면 오늘 탭에서 열 수 있어요. 만들기 시작한 수업은 취소할 수 없어요. / 오늘로 돌아가기 / (토스트) 수업이 준비됐어요 |
+| 실패 | 수업을 만들지 못했어요 / 선생님이 수업을 끝까지 만들지 못했어요. 다시 만들면 대부분 잘 만들어져요. / 다시 만들기 / 다른 주제 고르기 / ★(붙여넣은 수업, 원문 없음) 문장 다시 붙여넣기 |
+
+ⓔ **수업 공통 · ① · ②**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | (sr) 오늘의 회화, {주제}: / (aria) 오늘로 |
+| 단계 | 이해 · 문법 · 문제 · 응용 · 말하기 / (aria) 수업 단계, 5단계 중 {n}단계 끝냄 / {n}단계 {이름}, 끝냄 · 지금 보는 단계 · 앞 단계를 마치면 열려요 / (토스트) 앞 단계를 마치면 열려요 |
+| 이동 | 다음 단계 · ② 문법 (· ③ 문제 · ④ 응용 · ⑤ 말하기) / 지금 단계로 · {④ 응용} / 끝낸 단계를 다시 보는 중이에요. 저장된 답은 바뀌지 않아요. / 진행 상황을 저장하지 못했어요. 다시 눌러 주세요. / (토스트) {③ 문제}부터 이어서 해요. 앞 단계는 저장돼 있어요. |
+| ① 제목·설명 | ① 이해 · 듣고 이해하기 / 구간마다 느리게 한 번, 보통 속도로 한 번 들어요. 들린 단어는 메모해 두세요. / (자막만) 지금은 선생님 목소리를 들을 수 없어요. 글자와 읽기로 대화를 따라가 보세요. |
+| 보기 도구 | 읽기 / 번역 / (aria) 보기 설정 |
+| 구간 | 구간 {k} · {a}~{b}줄 · 메모 {n} / 들었어요 / 읽었어요 / 느리게 ✓ · 보통 / 글자를 가리고 먼저 들어요. / 글자 보기 / (sr) {역할}, 글자 가림 / ① 느리게 · ② 보통 속도 / (aria) 듣는 순서 |
+| 구간 상태 | 먼저 느리게 들어 봐요. / 이번엔 보통 속도로 들어 봐요. 글자와 함께 확인해요. / {느리게\|보통 속도로} 듣는 중 · {i}/{n}줄 / 이 구간을 다 들었어요. 들린 단어를 적고 다음 구간으로 가요. / 구간을 모두 들었어요. 아래에서 들린 단어를 단어장에 넣을 수 있어요. |
+| 구간 버튼 | ▶ 느리게 듣기 · {0.8}배 / ▶ 보통 속도로 / 다시 느리게 / 다음 구간 / ▶ 다시 듣기 / ■ 멈춤 / ▶ 눌러서 듣기 |
+| 자막만 | 지금은 선생님 목소리를 들을 수 없어요(자막만). 목소리가 돌아오면 듣기 버튼이 다시 보여요. / 읽었어요 · 다음 구간 / 읽었어요 |
+| 메모 | 들린 단어 메모 / {n}/5 / 들린 단어를 일본어로 적어요. 뜻은 몰라도 괜찮아요. / 예) 注文 / 추가 / (aria) {단어} 지우기 / 이 구간은 5개까지 적을 수 있어요 / 일본어로 적어 주세요. 예) 注文, ちゅうもん / 이미 적은 단어예요. / 수업 전체에서 15개까지 적을 수 있어요. |
+| 메모 모음 | 들린 단어 메모 / 아직 적은 단어가 없어요. 구간을 들으며 들린 단어를 적으면, 단어장에 없는 단어를 골라 제안해 드려요. / 들린 단어 {n}개 / 단어장에 없는 단어만 골라 제안해 드려요. 추가를 눌러야 저장돼요. / 단어장에 넣을까요? / 단어를 찾아보는 중… / 단어 제안 {n}개 · 선생님 제안이에요. 추가를 눌러야 단어장에 저장돼요. / 새로 적은 단어 {k}개도 제안받기 |
+| 제안 카드 | 단어 제안 · 대화 {n}번째 줄 / 단어 제안 · 선생님이 찾아본 뜻 / 메모 {memo} → 사전에 싣는 모양으로 바꿨어요 / (버튼·처리 후 문구는 §3-8 ⓕ `ProposalCard` 그대로) |
+| ② | ② 문법 · 표현과 문형 / 오늘 대화의 표현 조각과 문형 {g}개예요. 예문을 듣고 소리 내어 따라 읽어 보세요. / 오늘의 표현 {n}개 / 대화에 나온 표현 조각이에요. 문제·응용·말하기에서 다시 써요. / 새 표현 / 문형 {i} / 예문 / (aria) 예문 듣기 · 멈추기 / 지금은 선생님 목소리를 들을 수 없어 예문 듣기를 숨겼어요(자막만). |
+
+ⓕ **제외 사유**(#62a `skipped[].reason`)
+
+| 값 | 문구 |
+|---|---|
+| `IN_WORDBOOK` | 이미 단어장에 있어요 |
+| ★`DUPLICATE` | 같은 단어를 두 번 적었어요 |
+| ★`LIMIT` | 메모 한도를 넘어 제안하지 않았어요 |
+| ★`NOT_JAPANESE` | 일본어 단어가 아니라 제안하지 않았어요 |
+| ★`ENRICH_FAILED` | 뜻을 찾지 못했어요. 잠시 후 다시 눌러 주세요. (이때는 [단어장에 넣을까요?]를 다시 보인다) |
+| (모르는 값) | 줄을 그리지 않는다 |
+
+ⓖ **③ · ④ · ⑤**
+
+| 자리 | 문구 |
+|---|---|
+| ③ | ③ 문제 · {N}문제 / 답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요. / 문제 {i} / {N} / ✓ 정답 / ✗ 내 답 / ✓ 맞았어요 / ✗ 틀렸어요 · 정답은 {k}번 / 다음 문제 / 결과 보기 / ③ 문제 · 결과 / {N}문제 중 {c}문제 맞혔어요 / 내 답 {보기} · 정답 {보기} / 틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요. / (aria) 보기 · {k}번, {보기}, 정답 · 내 답, 틀림 |
+| ④ | ④ 응용 · 문장 만들기 {N}개 / 상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요. / 상황 {i} / {N} / 써 볼 표현 / 문형 / 힌트 · {hintJa} / 내 문장 / 일본어로 써 보세요 / 말로 쓰기 / 글자로 쓰기 / {n} / 200자 / 여기에 알아들은 말이 나와요 / 모범 답안과 비교하기 / 먼저 문장을 써 보세요 / 모르겠어요 · 모범 답안 보기 / (쓰지 않고 봤어요) / 모범 답안 / ▶ 모범 답안 듣기 / 채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요. / 다음 상황 / 상황 {k} |
+| ⑤ | ⑤ 말하기 · 과제 {N}개 / 목표 표현을 넣어 말해 보세요. 아래 버튼을 누른 채로 말하고, 다 말하면 손을 떼요. / 과제 {i} / {N} / 목표 표현 / ✓ 썼어요 / · 아직 / 버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요 / 아래 입력창에 일본어로 써서 답해요 / 이 과제 건너뛰기 / (건너뛰었어요) / 내가 한 말 / 내가 쓴 답 / ▶ 내 목소리 / ✓ 목표 표현을 모두 썼어요 / 모범 답안과 비교해 보세요 · 아직 안 쓴 표현 {…} / 다시 하려면 아래 버튼을 또 누르고 말해요. / 다음 과제 / 수업 마치기 / 기록하는 중… / 수업 기록을 남기지 못했어요. 다시 눌러 주세요. / 여러 번 눌러도 기록은 한 번만 남아요. |
+| ⑤ aria·입력 | 글자로 답하기 · 말로 답하기 · 확인하기 · 소리 멈추기 · 누르고 있는 동안 말하기 · 누르면 소리를 멈추고 말하기 / (입력창) 일본어로 써서 답해 보세요 |
+| ⑤ 토스트 | 일본어로 답을 써 주세요 / ★확인하지 못했어요. 다시 말해 주세요. / 이미 끝낸 수업이에요. 결과를 보여 드릴게요. / 녹음이 없어요. 내 목소리는 30일 동안만 보관해요. |
+| 상태 줄 | §8-8 ⓑ·ⓒ + 다시 하려면 또 누르고 말해요 / 듣는 중 · 누르면 멈추고 말해요 |
+| 음성 인식 오류 | §8-8 ⓐ(`SttAlert`), 버튼만 "글자로 답하기" |
+
+ⓗ **종료 카드 · 없음**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 수업을 마쳤어요 / {주제} · {M월 D일} / (aria) 오늘로 |
+| 본문 | 수업을 마쳤어요 / 문제 정답 · 만든 문장 · 쓴 표현 / 말하기에서 쓴 표현 / 다음엔 이 표현도 써 보세요 / 오늘 배운 표현과 문형은 복습할 항목으로 기록했어요. / 단어장에 넣은 단어 {k}개 · 단어장에서 보기 |
+| 다음 | 다음 시간엔 / 다음 수업 만들기 / 이 주제로 선생님과 이어서 말하기 / 회화 탭에서 ‘{주제}’ 이야기로 새 회화를 시작해요. / 오늘로 |
+| ★붙여넣은 수업 | 다른 문장으로 수업 만들기 / 주제 고르기 (§12-11 ③ 결정 뒤 확정) |
+| 없음·오류 | 이 수업을 찾을 수 없어요. / 주소가 잘못되었거나 삭제된 수업이에요. / 오늘로 / 수업을 불러오는 중… / 수업을 불러오지 못했어요. [다시 시도] |
+
+### 12-9. 360/390/412 · 높이 780/892 · 접근성 체크리스트 (데모 v2 의 "세 폭"·"892" 와 나란히 대조)
+
+폭·높이
+- [ ] 세 폭 모두 가로 스크롤 0 — 제목 40자·대화 줄 80자·긴 보기·모범 답안 120자·메모 칩 5개·제안 카드 5장으로 확인(일본어 블록 `break-keep` 금지, `overflow-wrap:anywhere`).
+- [ ] 오늘 홈 412×780·390×800·360×740: 단어 카드 [시작하기]와 수업 카드 주 버튼이 탭 바 위(첫 화면). 추천 주제 이름이 20자여도 두 줄 이내.
+- [ ] 수업 화면 스크롤은 본문 한 곳, 머리·단계 표시·(⑤)입력 바는 고정. 390×780 에서 ⑤ 결과 카드와 입력 바가 겹치지 않고, 892 에서 입력 바가 safe-area 위에 있다.
+- [ ] 360: 단계 표시 5칸 라벨이 잘리지 않음(칸 ≈68px), 듣기 순서 2칸·BtnRow 두 버튼 라벨이 한 줄("▶ 보통 속도로"·"다시 느리게"), 비교 상자 위아래.
+- [ ] 412 에서도 비교 상자는 위아래(컨테이너 <440px).
+- [ ] 키보드(⑤ 글자 모드·메모 입력·붙여넣기·④ 입력)가 올라와도 입력칸이 가려지지 않는다 — ⑤ 는 회화방 `--kb-inset`, 나머지는 스크롤 안 입력이라 포커스 때 `scrollIntoView({block:'nearest'})`.
+
+소리·음성
+- [ ] 첫 진입·[다음 구간]·단계 이동에서 소리가 저절로 나지 않는다(b=B). 탭 → 첫 소리 ≤2초(캐시 miss).
+- [ ] 재생 중 줄 강조가 소리와 맞고, [■]·다른 재생·푸시투토크 누름에 즉시 멈춘다. 화면을 가려도 멈춘다.
+- [ ] 느리게 들을 땐 글자가 가려지고, 보통 속도 시작·[글자 보기]에서 보이며, 자막만이면 처음부터 보인다(d=B).
+- [ ] 서버 목소리 불가(422) → 표시등 "자막만" + ①②④⑤ 듣기 버튼이 사라지고 [읽었어요]로 진행할 수 있다. 마이크는 그대로 쓴다.
+- [ ] 푸시투토크: 웹(서버 인식)·앱(휴대폰 인식) 둘 다 #62b 판정·내 목소리 재생까지. 마이크 거부 안내(웹/앱 문구).
+
+기록(QA 가 행 수로 확인)
+- [ ] 새로고침·나갔다 오기 → 같은 단계, 들은 구간·메모·문제 답·응용 답·말하기 결과가 복원된다.
+- [ ] 문제는 한 번만 고를 수 있다(다시 눌러도 요청 0). 제안 [단어장에 추가] 전 단어장 행 0.
+- [ ] [수업 마치기]를 두 번 눌러도 기록은 한 번(409 뒤 종료 카드).
+- [ ] 끝낸 단계 다시 보기에서 쓰기 요청(#61·#62a·#62b) 0회.
+
+접근성
+- [ ] 모든 일본어(대화·읽기·칩·보기·모범 답안·메모·입력창)에 `lang="ja"`. 대화 17px·읽기 14px·캡션 ≥11px.
+- [ ] 단계 표시 `aria-current="step"`·`aria-disabled`, 토글 `aria-pressed`, 구간 머리 `aria-expanded`, 시트 `role=dialog`(초점 가두기·Esc·닫을 때 복귀).
+- [ ] 초점 이동: 단계 넘김 → 새 단계 h2 · 문제 답 → [다음 문제] · 다음 문제 → 첫 보기 · 말하기 결과 → 결과 줄 · 생성 완료 → ① h2 · 완료 → 종료 카드 h2.
+- [ ] live 영역: 구간 상태 줄·문제 설명·말하기 결과 `role=status`. 녹음 중 본문 `aria-live="off"`·인식 상자 `aria-hidden`.
+- [ ] 색만으로 구분하지 않는다(✓/✗/△ 글자·테두리·라벨). `accent`·`warn` 배경 위 글자 없음(§1-1).
+- [ ] `prefers-reduced-motion`: 띠·스피너·녹음 링·펄스 정지.
+
+엔진명
+- [ ] 수업 관련 화면의 렌더 텍스트·토스트·DOM 속성에 `claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|sherpa|zipformer|onnx|엔진|모델|trace|Phase|task-` 0건. #62c `runtime`·서명 URL·`lesson.error` 코드 미표시.
+
+### 12-10. 주의사항
+
+- **정답**: 레슨은 자습이라 정답을 화면이 갖고 있다(§5 단어 덱의 "정답 미노출"과 반대 — 헷갈리지 말 것). 대신 점수는 서버 값만 쓴다(종료 카드·오늘 홈).
+- **쓰기 칸**: #61 로 서버 칸(`listen.proposed`·`speaking`)이나 모르는 키를 보내면 400. `quiz.answers` 는 배열 전체를 보내도 서버가 첫 답을 지킨다.
+- **다시 보기**: 끝낸 단계에서는 어떤 쓰기도 보내지 않는다(#61·#62a·#62b 0회). 듣기(#62c)만 된다.
+- **이탈**: 막지 않는다(뒤로가기 가로채기 금지). 모든 행위가 이미 저장돼 있고, 오늘 홈이 [이어서 하기]로 안내한다.
+- **서명 URL·원문**: `clips[].url` 은 보관·로그 금지. 붙여넣은 원문은 `sessionStorage` 에만 두고(`READY` 가 되면 삭제) `localStorage` 에는 두지 않는다.
+- **저장소 차단**: `kaiwa.lesson.*`·`kaiwa.chat.readingDefault` 는 전부 try/catch. 실패하면 기본값(읽기 켬·flash 없음·초안 없음)으로 동작한다.
+- **날짜**: "오늘"·"M월 D일"은 서버 `date`·`completedAt` 을 KST 로 표시한다. 완료 기록은 완료한 날(계약).
+- **동시 생성 1개**: 다른 수업을 만드는 중이면 새로 만들지 않고 그 수업으로 간다(409 처리). 버튼을 미리 막지 않는다.
+- **엔진명**: 오류 문구는 §12-8 표만 쓴다. `error` 코드·`reason` 값을 화면에 그대로 쓰지 않는다.
+
+### 12-11. Leader 확인 요청 (계약 ↔ 승인 데모 v2 — 의미가 달라지는 곳)
+
+| # | 데모 v2 | 계약(구현) | 가이드가 한 것 / 요청 |
+|---|---|---|---|
+| ① | 오늘 홈 "오늘 완료": "문제 4/5 맞힘 · 말하기 표현 4/5" | #58 `todayLessons` 에 `score` 만 있고 표현 수가 없다 | "문제 {c}/5 맞힘"만(점수에서 계산). 표현 수를 살리려면 #58 항목에 `expressions{used,total}` additive 필요 — **결정 요청**(권고: 추가하지 않고 줄 생략) |
+| ② | 주제 시트 "지난 수업 1번 · 9월 26일 「はじめての注文」" | #56 에 마지막 수업 **제목**이 없고, 예고는 #58 추천 주제 하나만 | 제목은 생략, 예고는 그 주제가 추천(CONTINUE)일 때만 보인다. 제목이 꼭 필요하면 #56 에 `lastLessonTitle` additive — **확인 요청** |
+| ③ | 종료 카드 = 다음 시간엔 + [다음 수업 만들기] + [이어서 말하기] | 붙여넣은 수업은 `topic: null` — #59 다음 수업·#28 이어 말하기에 쓸 주제가 없다 | 권고: 붙여넣은 수업은 NextCard 대신 [다른 문장으로 수업 만들기]·[주제 고르기], 이어서 말하기는 숨김(데모에 없던 분기) — **결정 요청** |
+| ④ | ④ "말로 쓰기" | 음성 인식 용도는 `TURN`(원음 저장)·`MIC_TEST`(저장 안 함) 둘뿐 | `MIC_TEST` 로 받는다(응용은 판정·재생이 없어 원음이 필요 없다). 이름만 어색하다 — 별도 용도가 필요하면 알려 달라 |
+| ⑤ | 오늘 홈 카드 7상태 | `READY && stageDone 0`(만들어졌지만 시작 전) 상태가 생긴다 | "수업이 준비됐어요 / [시작하기]" 문구 변형을 추가(레이아웃은 "하던 수업"과 같음). 의미 변화는 없다고 판단 — 이의가 있으면 알려 달라 |
+| ⑥ | 종료 카드 "단어장에 넣은 단어 2개" | #60·#62 에 채택 수가 없다(`listen.proposed` 는 제안 시점 결과) | 이 수업 화면에서 누른 수를 `sessionStorage` 로 세고, 모르면(다른 기기·재방문) 줄을 숨긴다. 늘 보이려면 #62 `result` 에 채택 수 additive |
+| ⑦ | 회화방으로 넘어가며 토스트 "‘카페 주문’ 회화를 시작했어요" | 회화방은 task-007 화면 | 회화방을 고치지 않으려고 **생략**(이동만 한다). 필요하면 회화방 flash 읽기를 별도 승인으로 |
+| ⑧ | 제안 카드 버튼 [단어장에 추가]/[괜찮아요] | 기존 `ProposalCard` 에는 "✎ 뜻 고쳐서 추가"도 있다 | 그대로 둔다(같은 컴포넌트, 기능이 하나 더 있을 뿐) |
+| ⑨ | — | `routes.ts` 전역 목록 | `/study/today/talk/` 를 집중 화면에 추가(탭 바·권장 업데이트 띠 숨김) — 전역 변경 |

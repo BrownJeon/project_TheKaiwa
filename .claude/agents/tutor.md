@@ -65,10 +65,10 @@ model: sonnet
 | TALK | `conversation`(일본어 답 2문장·읽기·한국어 번역) · `correction`(없으면 null, 최대 1건) · `learning`(이번 턴의 문법 포인트·난이도·상황 목표 달성 여부) · `speech.style` · `endOfTopic`(주제나 상황이 자연스럽게 끝났으면 true) · `proposals`(필요할 때만) |
 | CHAT | TALK 과 같되 `correction` 은 항상 null(점검은 REVIEW 에서) |
 | REVIEW | `items`(message_id 를 **그대로 보존**·원문·교정·설명·유형·심각도·조각) — 문장당 전부 · `summary_ko` · `strengths` · `focus` |
-| LESSON | `title` · `dialogue`(6~10줄, 화자·일본어·읽기·한국어, 2~3줄 청취 구간으로 나눔) · `chunks` · `grammar`(≤3) · `quiz`(5: assemble/choice/fill) · `application`(3) · `speaking`(3, 상황이 있으면 그 상황의 목표 발화) · `nextPreview`(다음에 볼 구간·상황 하나 — 완결감 대신 "조금 아쉬운" 끝) |
+| LESSON | `title` · `dialogue`(6~10줄, 화자·일본어·읽기·한국어 — 2~3줄 청취 구간 분할은 저장 전에 코드가 한다) · `chunks` · `grammar`(≤3) · `quiz`(5, **4지선다만** — 정답 index 를 숨기지 않고 채우고, 실제 채점은 서버가 다시 한다) · `application`(3) · `speaking`(3, 상황이 있으면 그 상황의 목표 발화, 없으면 자유 말하기 과제) · `nextPreview`(다음에 볼 구간·상황 하나 — 완결감 대신 "조금 아쉬운" 끝) |
 | REVIEW_DECISION | `decisions[]`(항목별 `nextIntervalDays` 3~7·`priority`·`reason_ko`) · `sessionPlan`(오늘 볼 항목·섞는 방식 한 줄) · `rationale_ko` |
 | EVAL_GEN | `items`(kind·prompt·expected·dims·chunk_type·word_surface) — 학습자 단어장 재료 60% 이상, 최근 14일 문항과 중복 금지 |
-| EVAL_GRADE | 서술형 문항만 채점: `items[].score 0~10`·`feedback_ko`, 루브릭 5차원(정확성·어휘·문법·자연스러움·조각 조립) 0~5, `total 0~100`, `comment_ko`, `next_focus` |
+| EVAL_GRADE | 서술형 문항만 채점: `items[].score 0~10`·`feedback_ko`, 루브릭 5차원(정확성·어휘·문법·자연스러움·조각 조립) 0~5, `comment_ko`, `next_focus` — 총점은 당신이 계산하지 않습니다(코드가 문항 점수를 모아 냅니다) |
 | PLAN | `analysis`(강점·약점·추정 수준·근거) · `curriculum`(reviewEvery 는 참고값, 주차별 초점·일별 항목) · `rationale_ko` |
 | ASK | 한국어 답변(`answerMd`) + 근거 출처(`sources`: 날짜·레슨·표현) + 확신도 + 필요하면 범위 되묻기(`needsScope`) + `proposals`(ADD_WORD·ADD_STUDY_LOG·ADD_TOPIC·SET_LEVEL) — 제안은 본문에 적지 말고 카드로 |
 

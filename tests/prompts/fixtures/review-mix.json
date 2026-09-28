@@ -1,0 +1,11 @@
+{
+  "items": [
+    { "id": "rep-01", "chunkType": "MODIFIER", "textJa": "よろしくお願いします", "reading": "よろしくおねがいします", "meaningKo": "잘 부탁합니다" },
+    { "id": "rep-02", "chunkType": "ACTION", "textJa": "〜てもいいですか", "reading": "〜てもいいですか", "meaningKo": "~해도 되나요?" },
+    { "id": "rep-03", "chunkType": "FEELING", "textJa": "緊張しています", "reading": "きんちょうしています", "meaningKo": "긴장하고 있습니다" },
+    { "id": "rep-04", "chunkType": "NAME", "textJa": "会社員です", "reading": "かいしゃいんです", "meaningKo": "회사원입니다" },
+    { "id": "rep-05", "chunkType": "MODIFIER", "textJa": "韓国から来ました", "reading": "かんこくからきました", "meaningKo": "한국에서 왔습니다" },
+    { "id": "rep-06", "chunkType": "FEELING", "textJa": "楽しみです", "reading": "たのしみです", "meaningKo": "기대됩니다" }
+  ],
+  "mixNoteKo": "최근 자주 틀린 문형(〜てもいいですか)을 먼저 다루고 나머지는 고르게 섞어요."
+}

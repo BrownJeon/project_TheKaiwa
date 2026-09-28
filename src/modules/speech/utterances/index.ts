@@ -24,6 +24,10 @@ export { parseUploadForm, parseGatewayBody } from './validate'
 export type { UploadInput, GatewayUtteranceInput, UtteranceSegment, UtteranceTimings } from './validate'
 export { parseWav, isPcm16Mono16k } from './wav'
 export { checkUtteranceForTurn, linkUtteranceToMessage, readUtteranceAudio, utterancesForMessages, UTTERANCE_TURN_WINDOW_MS } from './turn'
+export { linkUtteranceToLesson, lessonUtteranceProblem } from './lesson'
+export type { LessonUtteranceLink } from './lesson'
+export { linkUtteranceToEvaluationItem, evaluationUtteranceProblem } from './evaluation'
+export type { EvaluationUtteranceLink } from './evaluation'
 export type { TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance } from './turn'
 export type { WavInfo } from './wav'
 
@@ -69,7 +73,7 @@ const ownerGone = () => new ApiError('NOT_FOUND', '사용자나 대화를 찾을
 
 /**
  * #21 — 온디바이스 최종 텍스트 + wav. 길이는 헤더로 계산(클라이언트 값과 20% 넘게 다르면 서버 값). Phase 1 은 분석 큐 없음.
- * `input.chatId` 는 라우트가 소유를 확인한 값이어야 한다.
+ * `input.chatId`·`input.lessonId`(task-010) 는 라우트가 소유를 확인한 값이어야 한다.
  */
 export async function recordUploadedUtterance(userId: string, input: UploadInput): Promise<RecordedUtterance> {
   const wav = parseWav(input.audio)
@@ -92,6 +96,7 @@ export async function recordUploadedUtterance(userId: string, input: UploadInput
       id,
       userId,
       chatId: input.chatId,
+      lessonId: input.lessonId,
       audioPath: segs.join('/'),
       audioBytes: input.audio.length,
       durationMs,

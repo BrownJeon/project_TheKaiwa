@@ -160,3 +160,13 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/** 오늘 홈 "수업을 만들고 있어요" 띠(screens §12-2 A) — 진행률이 아니라 움직임만. reduced-motion 이면 정지(motion-safe 로만 붙인다). */
+@keyframes lesson-indet {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}

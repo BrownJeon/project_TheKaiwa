@@ -1,0 +1,154 @@
+{
+  "cases": [
+    {
+      "id": "g01", "level": "N5", "kind": "LISTEN_RESPOND", "category": "good",
+      "prompt": { "textJa": "すみません、今何時ですか。", "instructionKo": "들은 질문에 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "지금 몇 시인지 시간을 말해 준다", "modelAnswerJa": "今、三時です。", "modelReading": "いま、さんじです。" },
+      "answerText": "今、三時です。",
+      "expectedScoreRange": [8, 10]
+    },
+    {
+      "id": "g02", "level": "N5", "kind": "LISTEN_RESPOND", "category": "partial",
+      "prompt": { "textJa": "すみません、今何時ですか。", "instructionKo": "들은 질문에 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "지금 몇 시인지 시간을 말해 준다", "modelAnswerJa": "今、三時です。", "modelReading": "いま、さんじです。" },
+      "answerText": "三時。",
+      "expectedScoreRange": [4, 7],
+      "note": "정보는 맞지만 문체·조사 없이 단어만"
+    },
+    {
+      "id": "g03", "level": "N5", "kind": "LISTEN_RESPOND", "category": "wrong",
+      "prompt": { "textJa": "すみません、今何時ですか。", "instructionKo": "들은 질문에 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "지금 몇 시인지 시간을 말해 준다", "modelAnswerJa": "今、三時です。", "modelReading": "いま、さんじです。" },
+      "answerText": "はい、元気です。",
+      "expectedScoreRange": [0, 3],
+      "note": "질문(시간)과 무관한 답"
+    },
+    {
+      "id": "g04", "level": "N5", "kind": "LISTEN_RESPOND", "category": "empty",
+      "prompt": { "textJa": "すみません、今何時ですか。", "instructionKo": "들은 질문에 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "지금 몇 시인지 시간을 말해 준다", "modelAnswerJa": "今、三時です。", "modelReading": "いま、さんじです。" },
+      "answerText": "",
+      "expectedScoreRange": [0, 0]
+    },
+    {
+      "id": "g05", "level": "N5", "kind": "LISTEN_RESPOND", "category": "wrong_language",
+      "prompt": { "textJa": "すみません、今何時ですか。", "instructionKo": "들은 질문에 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "지금 몇 시인지 시간을 말해 준다", "modelAnswerJa": "今、三時です。", "modelReading": "いま、さんじです。" },
+      "answerText": "지금 세시입니다.",
+      "expectedScoreRange": [0, 2],
+      "note": "내용은 맞지만 한국어로 답함(일본어 회화 평가이므로 낮게)"
+    },
+    {
+      "id": "g06", "level": "N4", "kind": "LISTEN_RESPOND", "category": "good",
+      "prompt": { "textJa": "週末、何をしましたか。", "instructionKo": "주말에 무엇을 했는지 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "주말에 한 일을 과거형으로 말한다", "modelAnswerJa": "友達と映画を見に行きました。", "modelReading": "ともだちとえいがをみにいきました。" },
+      "answerText": "友達と映画を見に行きました。とても楽しかったです。",
+      "expectedScoreRange": [8, 10]
+    },
+    {
+      "id": "g07", "level": "N4", "kind": "LISTEN_RESPOND", "category": "partial",
+      "prompt": { "textJa": "週末、何をしましたか。", "instructionKo": "주말에 무엇을 했는지 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "주말에 한 일을 과거형으로 말한다", "modelAnswerJa": "友達と映画を見に行きました。", "modelReading": "ともだちとえいがをみにいきました。" },
+      "answerText": "映画、見ました。",
+      "expectedScoreRange": [4, 7],
+      "note": "과거형은 맞으나 助詞·주어 생략, 아주 짧음"
+    },
+    {
+      "id": "g08", "level": "N4", "kind": "LISTEN_RESPOND", "category": "wrong",
+      "prompt": { "textJa": "週末、何をしましたか。", "instructionKo": "주말에 무엇을 했는지 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "주말에 한 일을 과거형으로 말한다", "modelAnswerJa": "友達と映画を見に行きました。", "modelReading": "ともだちとえいがをみにいきました。" },
+      "answerText": "明日、学校に行きます。",
+      "expectedScoreRange": [0, 3],
+      "note": "시제·질문 요지(주말=과거) 모두 어긋남"
+    },
+    {
+      "id": "g09", "level": "N4", "kind": "LISTEN_RESPOND", "category": "empty",
+      "prompt": { "textJa": "週末、何をしましたか。", "instructionKo": "주말에 무엇을 했는지 자연스럽게 답해 보세요" },
+      "expected": { "expectedGistKo": "주말에 한 일을 과거형으로 말한다", "modelAnswerJa": "友達と映画を見に行きました。", "modelReading": "ともだちとえいがをみにいきました。" },
+      "answerText": "",
+      "expectedScoreRange": [0, 0]
+    },
+    {
+      "id": "g10", "level": "N5", "kind": "SITUATION_RESPOND", "category": "good",
+      "prompt": { "situationKo": "편의점 점원이 봉투가 필요한지 물어봤어요. 필요 없다고 답해 보세요." },
+      "expected": { "expectedGistKo": "봉투가 필요 없다고 정중하게 거절한다", "modelAnswerJa": "いいえ、大丈夫です。", "modelReading": "いいえ、だいじょうぶです。" },
+      "answerText": "いいえ、大丈夫です。",
+      "expectedScoreRange": [8, 10]
+    },
+    {
+      "id": "g11", "level": "N5", "kind": "SITUATION_RESPOND", "category": "partial",
+      "prompt": { "situationKo": "편의점 점원이 봉투가 필요한지 물어봤어요. 필요 없다고 답해 보세요." },
+      "expected": { "expectedGistKo": "봉투가 필요 없다고 정중하게 거절한다", "modelAnswerJa": "いいえ、大丈夫です。", "modelReading": "いいえ、だいじょうぶです。" },
+      "answerText": "いらない。",
+      "expectedScoreRange": [4, 7],
+      "note": "의미는 통하나 반말·무뚝뚝, 상황에 맞는 정중함 부족"
+    },
+    {
+      "id": "g12", "level": "N5", "kind": "SITUATION_RESPOND", "category": "wrong",
+      "prompt": { "situationKo": "편의점 점원이 봉투가 필요한지 물어봤어요. 필요 없다고 답해 보세요." },
+      "expected": { "expectedGistKo": "봉투가 필요 없다고 정중하게 거절한다", "modelAnswerJa": "いいえ、大丈夫です。", "modelReading": "いいえ、だいじょうぶです。" },
+      "answerText": "はい、お願いします。",
+      "expectedScoreRange": [0, 3],
+      "note": "의미가 정반대(수락)"
+    },
+    {
+      "id": "g13", "level": "N5", "kind": "SITUATION_RESPOND", "category": "empty",
+      "prompt": { "situationKo": "편의점 점원이 봉투가 필요한지 물어봤어요. 필요 없다고 답해 보세요." },
+      "expected": { "expectedGistKo": "봉투가 필요 없다고 정중하게 거절한다", "modelAnswerJa": "いいえ、大丈夫です。", "modelReading": "いいえ、だいじょうぶです。" },
+      "answerText": "",
+      "expectedScoreRange": [0, 0]
+    },
+    {
+      "id": "g14", "level": "N4", "kind": "SITUATION_RESPOND", "category": "good",
+      "prompt": { "situationKo": "친구가 약속보다 많이 늦게 왔어요. 왜 늦었는지 물어보세요." },
+      "expected": { "expectedGistKo": "왜 늦었는지 자연스럽게 물어본다", "modelAnswerJa": "どうして遅れたの？", "modelReading": "どうしておくれたの？" },
+      "answerText": "どうして遅れたんですか。心配しました。",
+      "expectedScoreRange": [8, 10]
+    },
+    {
+      "id": "g15", "level": "N4", "kind": "SITUATION_RESPOND", "category": "partial",
+      "prompt": { "situationKo": "친구가 약속보다 많이 늦게 왔어요. 왜 늦었는지 물어보세요." },
+      "expected": { "expectedGistKo": "왜 늦었는지 자연스럽게 물어본다", "modelAnswerJa": "どうして遅れたの？", "modelReading": "どうしておくれたの？" },
+      "answerText": "遅い、なぜ。",
+      "expectedScoreRange": [2, 6],
+      "note": "어순이 깨졌지만 핵심 단어(遅い·なぜ)로 의도는 전달됨"
+    },
+    {
+      "id": "g16", "level": "N4", "kind": "SITUATION_RESPOND", "category": "wrong_language",
+      "prompt": { "situationKo": "친구가 약속보다 많이 늦게 왔어요. 왜 늦었는지 물어보세요." },
+      "expected": { "expectedGistKo": "왜 늦었는지 자연스럽게 물어본다", "modelAnswerJa": "どうして遅れたの？", "modelReading": "どうしておくれたの？" },
+      "answerText": "왜 늦었어?",
+      "expectedScoreRange": [0, 2]
+    },
+    {
+      "id": "g17", "level": "N4", "kind": "CORRECTION_SPOT", "category": "good",
+      "prompt": { "sentenceJa": "昨日、友達に会いましたでした。" },
+      "expected": { "wrongSpan": "会いましたでした", "correctedJa": "昨日、友達に会いました。", "explanationKo": "과거형 です・ます 뒤에 でした 를 또 붙이면 중복입니다" },
+      "answerText": "「会いましたでした」がおかしいです。正しくは「会いました」です。でしたは要りません。",
+      "expectedScoreRange": [7, 10]
+    },
+    {
+      "id": "g18", "level": "N4", "kind": "CORRECTION_SPOT", "category": "partial",
+      "prompt": { "sentenceJa": "昨日、友達に会いましたでした。" },
+      "expected": { "wrongSpan": "会いましたでした", "correctedJa": "昨日、友達に会いました。", "explanationKo": "과거형 です・ます 뒤에 でした 를 또 붙이면 중복입니다" },
+      "answerText": "「会いましたでした」がおかしいです。",
+      "expectedScoreRange": [4, 6],
+      "note": "틀린 부분은 정확히 짚었으나 고친 문장을 제시하지 않음"
+    },
+    {
+      "id": "g19", "level": "N5", "kind": "CORRECTION_SPOT", "category": "wrong",
+      "prompt": { "sentenceJa": "わたしはがっこうへ行くません。" },
+      "expected": { "wrongSpan": "行くません", "correctedJa": "わたしはがっこうへ行きません。", "explanationKo": "ない형(ません)은 ます형(行き)에 붙습니다, 사전형(行く)에는 붙지 않습니다" },
+      "answerText": "「がっこう」がおかしいです。",
+      "expectedScoreRange": [0, 3],
+      "note": "틀린 부분을 엉뚱한 단어로 지목"
+    },
+    {
+      "id": "g20", "level": "N5", "kind": "CORRECTION_SPOT", "category": "empty",
+      "prompt": { "sentenceJa": "わたしはがっこうへ行くません。" },
+      "expected": { "wrongSpan": "行くません", "correctedJa": "わたしはがっこうへ行きません。", "explanationKo": "ない형(ません)은 ます형(行き)에 붙습니다, 사전형(行く)에는 붙지 않습니다" },
+      "answerText": "",
+      "expectedScoreRange": [0, 0]
+    }
+  ]
+}

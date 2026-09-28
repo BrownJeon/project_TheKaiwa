@@ -31,6 +31,12 @@ export async function updateProfile(userId: string, patch: ProfilePatch) {
   return serializeProfile(p)
 }
 
+/** 레벨만 바꾼다 — SET_LEVEL 제안 채택(#38, task-011)이 채택 트랜잭션 `tx` 안에서 부른다. */
+export async function setProfileLevel(userId: string, level: ProfilePatch['level'] & string, tx: Prisma.TransactionClient) {
+  const p = await tx.profile.upsert({ where: { userId }, update: { level }, create: { userId, level }, select: PROFILE_SELECT })
+  return serializeProfile(p)
+}
+
 const VOICE_SELECT = { voiceProfileId: true, style: true, styleWeight: true, speed: true, pitch: true, intonation: true, speechProfile: true, updatedAt: true } as const
 
 export async function getVoiceSetting(userId: string, defaultVoiceProfileId: string | null) {

@@ -10,8 +10,8 @@ import { prisma } from './db'
 import { classifyError } from './http'
 import type { Tx } from './tx'
 
-/** 종류별 "이보다 오래 QUEUED/RUNNING 이면 죽은 잡" 기준. CHAT_REVIEW 는 LLM 예산 90s(재시도 포함 한 데드라인) 대비 여유를 둔다. */
-const STALE_AFTER_MS: Partial<Record<JobKind, number>> = { CHAT_REVIEW: 5 * 60_000 }
+/** 종류별 "이보다 오래 QUEUED/RUNNING 이면 죽은 잡" 기준. CHAT_REVIEW(90s)·LESSON_GEN(120s)·EVAL_GEN(60s)·EVAL_GRADE(120s)는 LLM 예산(재시도 포함 한 데드라인) 대비 여유를 둔다. */
+const STALE_AFTER_MS: Partial<Record<JobKind, number>> = { CHAT_REVIEW: 5 * 60_000, LESSON_GEN: 5 * 60_000, EVAL_GEN: 5 * 60_000, EVAL_GRADE: 5 * 60_000 }
 const DEFAULT_STALE_AFTER_MS = 10 * 60_000
 
 export function staleAfterMs(kind: JobKind): number {
@@ -100,6 +100,24 @@ export async function findActiveJob(where: { userId: string; kind: JobKind; refI
   return live ? { id: live.id, status: live.status } : null
 }
 
+/**
+ * 사용자의 같은 종류 진행 중 잡(대상 무관) — "사용자당 동시 1개" 판정용(task-010 L10). 오래된 것은 정리하고 무시한다.
+ * 호출자가 사용자 행을 잠근 트랜잭션 안에서 부르면 "확인 → 생성" 이 프로세스 사이에서도 원자적이다.
+ */
+export async function findActiveJobByKind(where: { userId: string; kind: JobKind }, tx?: Tx): Promise<{ id: string; status: JobStatus; refId: string | null } | null> {
+  const db = tx ?? prisma
+  const rows = await db.aiJob.findMany({
+    where: { userId: where.userId, kind: where.kind, status: { in: ['QUEUED', 'RUNNING'] } },
+    select: SELECT,
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  })
+  const stale = rows.filter((r) => isStaleJob(r))
+  if (stale.length) await db.aiJob.updateMany({ where: { id: { in: stale.map((r) => r.id) }, status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'FAILED', error: 'stale', finishedAt: new Date() } })
+  const live = rows.find((r) => !stale.includes(r))
+  return live ? { id: live.id, status: live.status, refId: live.refId } : null
+}
+
 export async function updateJobProgress(id: string, progress: number, stage: string): Promise<void> {
   try {
     await prisma.aiJob.updateMany({ where: { id, status: { in: ['QUEUED', 'RUNNING'] } }, data: { progress: Math.max(0, Math.min(100, Math.round(progress))), stage: stage.slice(0, 40) } })
@@ -108,14 +126,44 @@ export async function updateJobProgress(id: string, progress: number, stage: str
   }
 }
 
-/** DONE 전이 — 대상 엔티티 저장과 같은 트랜잭션에서 부른다(tx). 이미 끝난 잡은 건드리지 않는다. */
-export async function completeJob(id: string, tx?: Tx): Promise<void> {
-  const db = tx ?? prisma
-  await db.aiJob.updateMany({ where: { id, status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'DONE', progress: 100, stage: 'DONE', finishedAt: new Date(), error: null } })
+/**
+ * 펜싱 — 이 잡이 대상(`kind`+`refId`)의 **현재 세대**인가: 자기 행이 아직 QUEUED/RUNNING(= `FAILED('stale')` 로 닫히지 않음)이고
+ * 같은 대상에 더 새(같은 시각 이후에 만든 다른) 잡이 없다. `AiJob.id` 가 세대 토큰이라 스키마 변경이 필요 없다.
+ * 대상을 되살리는 쪽(옛 잡을 stale 로 닫고 새 잡을 만드는 트랜잭션)과 **같은 잠금**(예: 사용자 행)을 잡은 트랜잭션 안에서 불러야
+ * "확인 → 저장" 이 프로세스 사이에서도 직렬화된다(READ COMMITTED — 잠금을 기다리는 동안 커밋된 행을 본다).
+ */
+export async function isCurrentJob(where: { id: string; userId: string; kind: JobKind; refId: string }, tx: Tx): Promise<boolean> {
+  const own = await tx.aiJob.findFirst({ where: { id: where.id, userId: where.userId, kind: where.kind, refId: where.refId }, select: { status: true, createdAt: true } })
+  if (!own || (own.status !== 'QUEUED' && own.status !== 'RUNNING')) return false
+  const newer = await tx.aiJob.count({ where: { userId: where.userId, kind: where.kind, refId: where.refId, id: { not: where.id }, createdAt: { gte: own.createdAt } } })
+  return newer === 0
 }
 
-/** FAILED 전이 — `error` 에는 오류 코드만 남긴다(대화 본문·엔진 원문 없음). */
-export async function failJob(id: string, errorCode: string): Promise<void> {
+/**
+ * 잡이 아직 진행 중(QUEUED/RUNNING)일 때만 진행률·단계를 바꾼다 — DONE 전이를 트랜잭션 뒤로 미루는 잡(task-011 채점: 레벨 제안 뒤 DONE)이
+ * 대상 저장 트랜잭션 안에서 "아직 살아 있는 내 잡인가" 를 마지막으로 확인할 때 쓴다. 잠금 밖 stale 정리에 졌으면 false(호출자가 되돌린다).
+ */
+export async function markJobStage(id: string, progress: number, stage: string, tx: Tx): Promise<boolean> {
+  const r = await tx.aiJob.updateMany({ where: { id, status: { in: ['QUEUED', 'RUNNING'] } }, data: { progress: Math.max(0, Math.min(100, Math.round(progress))), stage: stage.slice(0, 40) } })
+  return r.count > 0
+}
+
+/** DONE 전이 — 대상 엔티티 저장과 같은 트랜잭션에서 부른다(tx). 이미 끝난 잡은 건드리지 않는다. 전이했으면 true(잠금 밖 stale 정리에 졌으면 false). */
+export async function completeJob(id: string, tx?: Tx): Promise<boolean> {
+  const db = tx ?? prisma
+  const r = await db.aiJob.updateMany({ where: { id, status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'DONE', progress: 100, stage: 'DONE', finishedAt: new Date(), error: null } })
+  return r.count > 0
+}
+
+/**
+ * FAILED 전이 — `error` 에는 오류 코드만 남긴다(대화 본문·엔진 원문 없음).
+ * `tx` 를 주면 대상 엔티티 실패 기록과 같은 트랜잭션에서 전이하고 오류를 그대로 던진다(트랜잭션이 되돌려지게). 없으면 삼키고 로그만.
+ */
+export async function failJob(id: string, errorCode: string, tx?: Tx): Promise<void> {
+  if (tx) {
+    await tx.aiJob.updateMany({ where: { id, status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'FAILED', error: errorCode.slice(0, 500), finishedAt: new Date() } })
+    return
+  }
   try {
     await prisma.aiJob.updateMany({ where: { id, status: { in: ['QUEUED', 'RUNNING'] } }, data: { status: 'FAILED', error: errorCode.slice(0, 500), finishedAt: new Date() } })
   } catch (e) {

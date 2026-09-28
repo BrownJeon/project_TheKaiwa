@@ -1,11 +1,12 @@
 /**
  * 턴 ↔ 발화 연결(task-007 K6, Codex C1-2 판정 · task-018 ①) — `Utterance` 는 speech 소유 테이블이라 #32 라우트가 conversation 과 조합한다.
  *
- *  ① 수락 전 `checkUtteranceForTurn`: 세션 사용자 소유(아니면·없으면 404) + 아직 어느 메시지에도 연결되지 않음(`chatMessageId IS NULL`,
- *     아니면 409 `UTTERANCE_USED`) + 발화에 기록된 대화방이 있으면 턴의 방과 같음(아니면 409 `UTTERANCE_OTHER_CHAT`) + 생성 10분 이내
+ *  ① 수락 전 `checkUtteranceForTurn`: 세션 사용자 소유(아니면·없으면 404) + 아직 어디에도 쓰이지 않음 — 메시지(`chatMessageId`)·레슨 말하기
+ *     (`lessonId`)·평가 문항(`evaluationItemId`) 어느 것에도 연결되지 않음(아니면 409 `UTTERANCE_USED` — 레슨·평가 연결도 클라가 이미 아는
+ *     USED 로 알려 발화 id 없이 글자 턴으로 다시 보내게 한다, Codex C2-2) + 발화에 기록된 대화방이 있으면 턴의 방과 같음(아니면 409 `UTTERANCE_OTHER_CHAT`) + 생성 10분 이내
  *     (아니면 409 `UTTERANCE_EXPIRED`) — 오래된 녹음·다른 방 녹음의 재사용을 막는다. 방이 없는 발화(방 밖 녹음·task-018 전 행)는 방 검사를 건너뛴다.
  *     수락 전 거절(409 턴 진행 중·429·네트워크)로 아직 연결되지 않은 발화는 같은 id 로 다시 보낼 수 있다(designer §9-11 ⑧).
- *  ② 수락 뒤 `linkUtteranceToMessage`: **조건부** `updateMany WHERE id AND userId AND chatMessageId IS NULL` 로 연결하고,
+ *  ② 수락 뒤 `linkUtteranceToMessage`: **조건부** `updateMany WHERE id AND userId AND chatMessageId·lessonId·evaluationItemId IS NULL`(`usage.ts`) 로 연결하고,
  *     보낸 text 가 finalText 와 다르면 `finalText=text, finalSource=USER`(학습자가 글자로 고쳐 보냄). count 0(경합) 이나
  *     `chatMessageId @unique` 위반(P2002 — 한 메시지에 두 발화)이면 연결 없이 턴은 계속하고 Trace 에 경고만 남긴다
  *     (`UTTERANCE_LINK_SKIPPED`·`UTTERANCE_USED` — 사용자당 턴 락과 DB 제약이 이중 방어).
@@ -25,9 +26,14 @@ export interface TurnUtterance {
 
 const notFound = () => new ApiError('NOT_FOUND', '녹음을 찾을 수 없어요.')
 
-/** 수락 전 판정(DB 없음). 문제가 없으면 null. 순서: 이미 보냄 → 다른 방 → 10분 지남. */
-export function turnUtteranceProblem(row: { chatId: string | null; chatMessageId: string | null; createdAt: Date }, chatId: string, now: number): ApiError | null {
+/** 수락 전 판정(DB 없음). 문제가 없으면 null. 순서: 이미 보냄 → 레슨·평가에 씀 → 다른 방 → 10분 지남. */
+export function turnUtteranceProblem(
+  row: { chatId: string | null; chatMessageId: string | null; lessonId: string | null; evaluationItemId: string | null; createdAt: Date },
+  chatId: string,
+  now: number,
+): ApiError | null {
   if (row.chatMessageId) return new ApiError('CONFLICT', '이미 보낸 말이에요.', { reason: 'UTTERANCE_USED' })
+  if (row.lessonId || row.evaluationItemId) return new ApiError('CONFLICT', '이미 다른 곳에 쓴 녹음이에요.', { reason: 'UTTERANCE_USED' })
   if (row.chatId && row.chatId !== chatId) return new ApiError('CONFLICT', '다른 대화에서 녹음한 말이에요.', { reason: 'UTTERANCE_OTHER_CHAT' })
   if (now - row.createdAt.getTime() > UTTERANCE_TURN_WINDOW_MS) return new ApiError('CONFLICT', '녹음한 지 오래됐어요. 다시 말해 주세요.', { reason: 'UTTERANCE_EXPIRED' })
   return null

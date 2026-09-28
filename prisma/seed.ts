@@ -8,34 +8,18 @@
  * `npm run db:seed` 하면 OWNER 전용 단계(설정 기본 행·N5 단어 50)가 채워진다.
  *
  * 실행: 우분투 미러에서 `npm run db:seed`(NFS noexec — 루트에서 npx 금지).
+ * 드라이런: `SEED_DRY_RUN=1 node --env-file=.env --import tsx prisma/seed.ts` — 주제·조각 계획만 출력(쓰기 0).
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PrismaClient, Prisma, type Environment } from '@prisma/client'
 import { seedLexicon } from './seed-lexicon'
+import { seedTopics, type SeedTopicInput } from './seed-topics'
 
 const prisma = new PrismaClient()
 const data = (name: string) => JSON.parse(readFileSync(join(__dirname, 'seed-data', name), 'utf-8'))
 
-type TopicSeed = { key: string; title: string; titleJa: string; level: 'N5' | 'N4'; description: string; tags: string[]; chunks: { chunkType: string; textJa: string; reading: string; meaningKo: string }[] }
 type WordSeed = { surface: string; reading: string; meaning: string; partOfSpeech: string; chunkType: string | null; example: string; exampleKo: string }
-
-async function seedTopics() {
-  const topics: TopicSeed[] = data('topics.json')
-  for (const t of topics) {
-    // 시드 주제는 userId=null·isSeed=true. 자연키가 없으므로 (isSeed, title) 로 찾는다.
-    const existing = await prisma.conversationTopic.findFirst({ where: { isSeed: true, userId: null, title: t.title } })
-    const topic = existing
-      ? await prisma.conversationTopic.update({ where: { id: existing.id }, data: { titleJa: t.titleJa, level: t.level, description: t.description, tags: t.tags } })
-      : await prisma.conversationTopic.create({ data: { title: t.title, titleJa: t.titleJa, level: t.level, description: t.description, tags: t.tags, isSeed: true } })
-    // 조각은 시드가 소유 — 통째로 교체한다(사용자 조각은 사용자 주제에만 생긴다).
-    await prisma.topicChunk.deleteMany({ where: { topicId: topic.id } })
-    await prisma.topicChunk.createMany({
-      data: t.chunks.map((c, i) => ({ topicId: topic.id, chunkType: c.chunkType as never, textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo, order: i })),
-    })
-  }
-  console.log(`[seed] 주제 ${topics.length}개·조각 ${topics.reduce((n, t) => n + t.chunks.length, 0)}개`)
-}
 
 async function seedEngines(envs: Environment[]) {
   const e = data('engines.json')
@@ -150,7 +134,15 @@ async function seedOwner() {
 
 async function main() {
   const envs: Environment[] = ['LOCAL', 'PRODUCTION']
-  await seedTopics()
+  const topics: SeedTopicInput[] = data('topics.json')
+  if (process.env.SEED_DRY_RUN === '1') {
+    // 드라이런 — 주제·조각 계획만 출력하고 **아무것도 쓰지 않는다**(다른 시드 단계는 실행하지 않음).
+    await seedTopics(prisma, topics, { dryRun: true })
+    console.log('[seed:dry-run] 주제·조각 계획만 출력 — 쓰기 0, 엔진·Voice·AppSetting·발음 사전·PromptTemplate·OWNER 단계는 건너뜀')
+    return
+  }
+  // 주제·조각은 안정 id upsert(prisma/seed-topics.ts) — 이미 있는 조각 id 를 바꾸지 않는다(RepetitionItem 이 가리킴).
+  await seedTopics(prisma, topics)
   await seedEngines(envs)
   await seedVoices()
   await seedAppSettings(envs)

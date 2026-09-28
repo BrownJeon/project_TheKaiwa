@@ -22,6 +22,12 @@ export interface TutorCorrection {
   errorType: ErrorType
   severity: Severity
   chunkType: ChunkType | null
+  /**
+   * task-010c(talk@v3) — 코치 모드(`CorrectionMode.COACH`) 전용, additive nullable(기존 TALK 응답과 호환).
+   * 정답(corrected)을 그대로 말하지 않는 한국어 힌트 1문장 — 학습자가 스스로 고쳐 말하도록 유도한다. 유창성
+   * 모드(FLUENCY)에서는 항상 null(`prompts/talk.ts` 지시문). `checks.ts` 가 corrected 그대로 포함 여부를 검사한다.
+   */
+  hintKo: string | null
 }
 
 export interface TutorProposalDraft {
@@ -52,7 +58,7 @@ const conversation = {
 const correctionObject = {
   type: 'object',
   additionalProperties: false,
-  required: ['required', 'original', 'corrected', 'explanationKo', 'errorType', 'severity', 'chunkType'],
+  required: ['required', 'original', 'corrected', 'explanationKo', 'errorType', 'severity', 'chunkType', 'hintKo'],
   properties: {
     required: { type: 'boolean' },
     original: { type: 'string', minLength: 1, maxLength: 1000 },
@@ -61,6 +67,8 @@ const correctionObject = {
     errorType: { type: 'string', enum: [...ERROR_TYPES] },
     severity: { type: 'string', enum: [...SEVERITIES] },
     chunkType: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...CHUNK_TYPES] }] },
+    // task-010c(talk@v3) — 코치 모드 전용 힌트(additive nullable). 유창성 모드는 always null.
+    hintKo: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
   },
 } as const
 
@@ -217,5 +225,229 @@ export const WORD_ENRICH_SCHEMA = {
     jlpt: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...JLPT_LEVELS] }] },
     example: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
     exampleKo: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
+  },
+} as const
+
+/**
+ * A4 레슨 생성(LESSON) — design-spec §7-3·§8 A4, task-010 Leader's Plan L1~L7. 이해(dialogue) → 문법(grammar) →
+ * 문제(quiz, 4지선다만·서버 재채점) → 응용(application) → 말하기(speaking, 상황 없이 자유 과제) 5단계 + `nextPreview`
+ * ("조금 아쉬운 종료 지점", learning-personalization §1-5).
+ *
+ * reading 계열 필드(문장·예문 읽기)는 스키마 단에서 `pattern` 으로 강제한다 — A10 `WORD_ENRICH_READING_RE` 보다
+ * 느슨하다(단어 하나가 아니라 문장·구 전체의 읽기라 문장부호·공백·장음 조합 기호가 필요하다). **LESSON 의 5개 reading
+ * 필드는 아래 `LESSON_READING_PATTERN`(히라가나+가타카나)을 쓴다 — `KANA_READING_PATTERN`(히라가나만) 이 아니다**,
+ * 이유는 그 상수 바로 옆 주석 참고(lesson@v3, 2026-09-28).
+ */
+export const KANA_READING_PATTERN = '^[\\u3040-\\u309Fー・〜…、。！？!?\\s]*$'
+/**
+ * lesson@v3(2026-09-28 Leader 결정) — LESSON 의 reading 계열 5개 필드 전용. 실측(sourceText 8회 중 4회 FAILED)에서
+ * 1차 응답 6/8 이 외래어(コーヒー 등)를 가타카나로 적어(자연스러운 표기) `KANA_READING_PATTERN`(히라가나만)을 위반했다
+ * — 학습자 앞 표기로는 가타카나 외래어가 오히려 맞는 표기라 "히라가나만"이 규칙 자체가 틀렸었다. 그래서 **히라가나+
+ * 가타카나**(`぀-ヿ` 한 범위 — 이 안에 ー·・ 도 이미 포함) + 최소 문장부호만 허용, 한자·로마자·한글은 여전히
+ * 금지한다. **`KANA_READING_PATTERN` 은 바꾸지 않았다** — A6/A7 평가(`evalSchemas.ts`, 다른 prompt-engineer 작업 중)
+ * 가 같은 상수를 쓰고 있어(READING_INPUT 등) 여기서 값을 바꾸면 그쪽 계약이 조용히 달라진다. LESSON 만 별도 상수로
+ * 분리했다 — eval 쪽도 가타카나를 허용해야 한다면 그건 task-011 담당·Leader 판단.
+ */
+export const LESSON_READING_PATTERN = '^[\\u3040-\\u30FF〜…、。！？!?\\s]*$'
+/** `chunks[]` 개수 한도(`LESSON_SCHEMA` 와 `repair.ts`·`checks.ts` 가 공유 — 하드코딩 중복을 피한다, v2 신뢰도 보강). */
+export const LESSON_CHUNKS_MIN = 4
+export const LESSON_CHUNKS_MAX = 8
+
+export interface LessonDialogueLine {
+  speaker: 'A' | 'B'
+  ja: string
+  reading: string
+  ko: string
+}
+
+/** 입력 `topic.chunks` 를 그대로 쓰면 그 `id`, 새로 만든 표현은 `"new-1"`, `"new-2"`… (`checks.ts` 가 검증). */
+export interface LessonChunkOut {
+  id: string
+  textJa: string
+  reading: string
+  meaningKo: string
+  chunkType: ChunkType
+  isNew: boolean
+}
+
+export interface LessonGrammarPoint {
+  id: string
+  pattern: string
+  explanationKo: string
+  exampleJa: string
+  exampleReading: string
+  exampleKo: string
+}
+
+/** 4지선다만(코드 채점) — `promptKo`·`promptJa` 중 최소 하나는 non-null 이어야 한다(`checks.ts`). */
+export interface LessonQuizItem {
+  id: string
+  promptKo: string | null
+  promptJa: string | null
+  choices: string[]
+  answer: number
+  targetIds: string[]
+  explanationKo: string
+}
+
+export interface LessonApplicationItem {
+  id: string
+  promptKo: string
+  hintJa: string | null
+  modelAnswerJa: string
+  modelReading: string
+  modelKo: string
+  targetIds: string[]
+}
+
+/** 상황(Scenario) 없는 자유 말하기 과제(task-010 L1 — 역할극은 task-010d). 채점은 서버가 표현 포함 여부만 느슨하게 본다. */
+export interface LessonSpeakingItem {
+  id: string
+  promptKo: string
+  targetIds: string[]
+  modelAnswerJa: string
+  modelReading: string
+  modelKo: string
+}
+
+export interface LessonNextPreview {
+  titleKo: string
+  teaserKo: string
+}
+
+export interface LessonResponse {
+  title: string
+  titleKo: string
+  rolesKo: { A: string; B: string }
+  dialogue: LessonDialogueLine[]
+  chunks: LessonChunkOut[]
+  grammar: LessonGrammarPoint[]
+  quiz: LessonQuizItem[]
+  application: LessonApplicationItem[]
+  speaking: LessonSpeakingItem[]
+  nextPreview: LessonNextPreview
+}
+
+const lessonRolesKo = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['A', 'B'],
+  properties: {
+    A: { type: 'string', minLength: 1, maxLength: 12 },
+    B: { type: 'string', minLength: 1, maxLength: 12 },
+  },
+} as const
+
+const lessonDialogueLine = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['speaker', 'ja', 'reading', 'ko'],
+  properties: {
+    speaker: { type: 'string', enum: ['A', 'B'] },
+    ja: { type: 'string', minLength: 1, maxLength: 80 },
+    reading: { type: 'string', minLength: 1, maxLength: 160, pattern: LESSON_READING_PATTERN },
+    ko: { type: 'string', minLength: 1, maxLength: 120 },
+  },
+} as const
+
+const lessonChunkOut = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'textJa', 'reading', 'meaningKo', 'chunkType', 'isNew'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 40 },
+    textJa: { type: 'string', minLength: 1, maxLength: 40 },
+    reading: { type: 'string', minLength: 1, maxLength: 80, pattern: LESSON_READING_PATTERN },
+    meaningKo: { type: 'string', minLength: 1, maxLength: 80 },
+    chunkType: { type: 'string', enum: [...CHUNK_TYPES] },
+    isNew: { type: 'boolean' },
+  },
+} as const
+
+const lessonGrammarPoint = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'pattern', 'explanationKo', 'exampleJa', 'exampleReading', 'exampleKo'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 10 },
+    pattern: { type: 'string', minLength: 1, maxLength: 40 },
+    explanationKo: { type: 'string', minLength: 1, maxLength: 200 },
+    exampleJa: { type: 'string', minLength: 1, maxLength: 80 },
+    exampleReading: { type: 'string', minLength: 1, maxLength: 160, pattern: LESSON_READING_PATTERN },
+    exampleKo: { type: 'string', minLength: 1, maxLength: 120 },
+  },
+} as const
+
+const lessonTargetIds = { type: 'array', minItems: 1, maxItems: 6, items: { type: 'string', minLength: 1, maxLength: 40 } } as const
+
+const lessonQuizItem = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'promptKo', 'promptJa', 'choices', 'answer', 'targetIds', 'explanationKo'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 10 },
+    promptKo: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 160 }] },
+    promptJa: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 120 }] },
+    choices: { type: 'array', minItems: 4, maxItems: 4, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 80 } },
+    answer: { type: 'integer', minimum: 0, maximum: 3 },
+    targetIds: lessonTargetIds,
+    explanationKo: { type: 'string', minLength: 1, maxLength: 120 },
+  },
+} as const
+
+const lessonApplicationItem = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'promptKo', 'hintJa', 'modelAnswerJa', 'modelReading', 'modelKo', 'targetIds'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 10 },
+    promptKo: { type: 'string', minLength: 1, maxLength: 200 },
+    hintJa: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 80 }] },
+    modelAnswerJa: { type: 'string', minLength: 1, maxLength: 120 },
+    modelReading: { type: 'string', minLength: 1, maxLength: 240, pattern: LESSON_READING_PATTERN },
+    modelKo: { type: 'string', minLength: 1, maxLength: 160 },
+    targetIds: lessonTargetIds,
+  },
+} as const
+
+const lessonSpeakingItem = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'promptKo', 'targetIds', 'modelAnswerJa', 'modelReading', 'modelKo'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 10 },
+    promptKo: { type: 'string', minLength: 1, maxLength: 200 },
+    targetIds: lessonTargetIds,
+    modelAnswerJa: { type: 'string', minLength: 1, maxLength: 120 },
+    modelReading: { type: 'string', minLength: 1, maxLength: 240, pattern: LESSON_READING_PATTERN },
+    modelKo: { type: 'string', minLength: 1, maxLength: 160 },
+  },
+} as const
+
+const lessonNextPreview = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['titleKo', 'teaserKo'],
+  properties: {
+    titleKo: { type: 'string', minLength: 1, maxLength: 40 },
+    teaserKo: { type: 'string', minLength: 1, maxLength: 60 },
+  },
+} as const
+
+export const LESSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title', 'titleKo', 'rolesKo', 'dialogue', 'chunks', 'grammar', 'quiz', 'application', 'speaking', 'nextPreview'],
+  properties: {
+    title: { type: 'string', minLength: 1, maxLength: 40 },
+    titleKo: { type: 'string', minLength: 1, maxLength: 40 },
+    rolesKo: lessonRolesKo,
+    dialogue: { type: 'array', minItems: 6, maxItems: 10, items: lessonDialogueLine },
+    chunks: { type: 'array', minItems: LESSON_CHUNKS_MIN, maxItems: LESSON_CHUNKS_MAX, items: lessonChunkOut },
+    grammar: { type: 'array', minItems: 1, maxItems: 3, items: lessonGrammarPoint },
+    quiz: { type: 'array', minItems: 5, maxItems: 5, items: lessonQuizItem },
+    application: { type: 'array', minItems: 3, maxItems: 3, items: lessonApplicationItem },
+    speaking: { type: 'array', minItems: 3, maxItems: 3, items: lessonSpeakingItem },
+    nextPreview: lessonNextPreview,
   },
 } as const

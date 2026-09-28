@@ -1,6 +1,7 @@
 /**
  * A1 회화 턴(TALK) 프롬프트 — design-spec §8 A1, tutor.md §3·§6.
- * 예산: 페르소나(절 1·3·4(수준 행)·6(TALK 행))는 `--agents` 시스템 프롬프트, 사용자 프롬프트(오늘·모드·학습자 헤더 ≤300·창·발화)는 ≤3,000자.
+ * 예산: 페르소나(절 1·3·4(수준 행)·6(TALK 행))는 `--agents` 시스템 프롬프트, 사용자 프롬프트(오늘·모드·학습자 헤더 ≤300·교정
+ * 모드·창·발화)는 ≤3,000자.
  *
  * task-007 K4(음성 회화 TTFA): 스키마(`structuredResponse/schemas.ts`)·후검증(`checks.ts`)의 필드·제약은 그대로 두고
  * **출력 순서만 지시문으로 민다**(이 두 파일은 이 task 의 소유 경계 밖).
@@ -11,6 +12,37 @@
  *  ⚠ 순서 준수는 모델의 자연어 지시 해석에 달려 있을 뿐이다 — JSON Schema 는 키 순서를 표현하지 못하고, `engine/json/schemaValidate.withJsonOnly`
  *  가 이 프롬프트 뒤에 덧붙이는 원본 스키마 텍스트는 `schemas.ts` 선언 순서(conversation·correction·learning·speech·…) 그대로라
  *  상충 신호가 될 수 있다 — 실측 결과와 상충 메모는 [[llm-japanese-quality]] §6. 강제(재시도)하지 않는다.
+ *
+ * task-010c(talk@v3, 교정 방식) — learning-personalization §2-7·§2-8, tutor.md §3-4. **교정 강도(strictness, 무엇을
+ * 오류로 볼지)와 교정 방식(correctionMode, 얼마나 자주·어떻게 보여줄지)은 독립 축**이다(design-spec 정합, §2-8). 이
+ * 파일이 다루는 것은 방식뿐 — 모드는 stdin 쪽(`system`)에 `[교정] 유창성|코치` 한 줄로만 얹는다. **persona(→
+ * `--system-prompt`)는 여전히 (model, learner.level, mode) 로만 정해져 바이트 불변**(K4-3 그대로, correctionMode 는
+ * persona 를 만들지 않는 인자다) — CLI 예열 프로세스 재사용에 영향 없다.
+ *  - FLUENCY(기본): 대화 흐름 우선. 교정은 여전히 가장 중요한 1건만 correction 에 넣는다. `hintKo` 는 항상 null —
+ *    즉시 교정문을 보여준다(orchestrator 가 severity 로 즉시 카드(MAJOR)/모아두기(MINOR)를 가른다, task-010c L2) —
+ *    **그래서 severity 정확도가 이 모드의 핵심이다**. 1차 릴리스는 persona §3-6("의미가 안 통하면 MAJOR")만 믿고
+ *    stdin 쪽에 안 넣었는데, 실측(조사·활용 오류 3/3 이 전부 MAJOR)에서 모아두기 게이팅이 사실상 무력화됐다 — 그래서
+ *    Leader 후속 지시(2026-09-28)로 `FLUENCY_SEVERITY_RULE`(아래, "뜻 통하면 MINOR·안 통하면 MAJOR" + 분류 예시)을
+ *    **유창성일 때만** `[교정]` 헤더 줄에 덧붙였다(코치는 매 턴 보여주므로 이 게이팅과 무관, 손대지 않음). 재측정
+ *    결과는 [[llm-japanese-quality]] §9, task-010c 이력서.
+ *  - COACH: `correction.hintKo` 에 정답을 그대로 말하지 않는 힌트를 채운다 — 학습자가 한 번 더 스스로 고쳐 말해
+ *    보도록 유도한다(tutor.md §3-4). 못 고치면 다음 턴에 교정문이 그대로 나온다(카드 [정답 보기] 는 UI 몫). 지시문은
+ *    " hintKo=힌트(정답 제외)."처럼 최소 글자만 쓴다(아래 예산 절 이유) — 2026-09-28 라이브 실측(haiku, e01~e03
+ *    3턴씩) 은 이 짧은 문구만으로도 hintKo 3/3 채움·정답 누출 0/3·위반 0 이었다(`tests/live/talk-correction-mode-
+ *    measure.ts`).
+ *  스키마 변경은 `correctionObject` 에 `hintKo`(nullable) 하나만 additive 로 추가했다 — 기존 필드·CHAT_SCHEMA(항상
+ * `correction:null`이라 영향 없음)는 무변경. 후검증은 `checkTalkResponse` 에 "hintKo 가 corrected 를 그대로 포함하면
+ * 위반" 한 줄만 추가했다(둘 다 `structuredResponse` 소유 파일 — 이 task 의 명시적 요구 사항, "한두 줄만 Edit").
+ *
+ * **예산(2026-09-28 실측·재발 방지 기록, 2차 갱신)**: `[교정] 유창성|코치` 헤더 한 줄만 더해도(instruction 문구는
+ * 최소로 줄인 뒤에도) 특정 조합에서 캡을 넘겼다 — 원인은 새 문구 길이가 아니라 `WINDOW_ROOM_SLACK`(옛 이름 없이
+ * `- 40` 매직 넘버였다) 이 이력 창의 렌더링 오버헤드(메시지당 라벨 접두)를 과소 추정해 **v2 부터 이미** 특정 조합
+ * (무거운 학습자 헤더 + altText **중간 길이** ≈60자, longHistory)의 실마진이 3자뿐이었기 때문이다(극단으로 긴
+ * altText 가 아니라 중간 길이가 최악이었다 — altText·이력 창이 서로 다른 양자화 단위로 예산을 나눠 갖는다).
+ * `WINDOW_ROOM_SLACK` 정의 옆 주석에 근거를 남기고 1차 40→140 으로 올렸다. Leader 후속 지시로 `FLUENCY_SEVERITY_
+ * RULE`(62자)을 더 얹으면서 마진이 24자까지 좁아져 **140→220** 으로 2차 상향했다 — 재측정(light/heavy 학습자 ×
+ * FLUENCY/COACH × 발화 1~1,000자 × altText 60~50,000자) 최소 103자 마진 확인(`prompts.test.ts` 예산 회귀 테스트로
+ * 고정, 현재 최악 조합은 heavy COACH text=1 alt=201).
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -19,7 +51,7 @@ import { TALK_SCHEMA, type TutorResponse } from '../structuredResponse/schemas'
 import { buildWindow, type WindowMessage } from '../window'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const TALK_PROMPT_VERSION = 'talk@v2'
+export const TALK_PROMPT_VERSION = 'talk@v3'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
 /**
@@ -32,8 +64,36 @@ export const TALK_ALT_TEXT_MAX = 200
 const TALK_ALT_TEXT_MIN = 8
 /** `renderTranscript` 가 system·발화 밖에 붙이는 고정 문자(`[입력]` 머리말·블록 구분자) 여유. */
 const TRANSCRIPT_OVERHEAD = 120
+/**
+ * `room`(이력 창 문자 예산) 계산의 안전 여유 — **2026-09-28 task-010c 실측으로 40 → 140 → 220 으로 두 차례 올렸다**.
+ * `room` 은 `buildWindow` 가 각 메시지의 순수 `content.length` 합만 보고 채우는 예산이라, `renderTranscript` 가
+ * 나중에 각 줄 앞에 붙이는 `[학습자] `/`[선생님] ` 접두(메시지당 ~7~9자)와 `[대화] (앞선 맥락)`/`[입력] ` 블록
+ * 머리말은 여기 반영되지 않는다 — 옛 상수(40)는 그 전부를 40자로 잡아 둔 과소 추정이었다. 이력 창은 메시지 단위
+ * (약 240자, 픽스처 기준)로만 줄어드는 "양자화"라 평소엔 여유가 남아 문제가 없었지만, `[교정] 유창성|코치` 헤더
+ * 한 줄(task-010c 1차)을 더하자 특정 조합(무거운 학습자 헤더 + altText ≈60자, `prompts.test.ts` 회귀)에서 실제
+ * v2 마진이 이미 3자뿐이었던 것이 드러났다 — 극단으로 긴 altText 가 아니라 **중간 길이**가 최악이었다(altText·이력
+ * 창이 서로 다른 단위로 예산을 나눠 갖기 때문). 1차 40→140 상향 뒤 Leader 후속 지시로 `FLUENCY_SEVERITY_RULE`
+ * (아래, severity 정확도 보강)을 더 얹으면서 마진이 다시 24자까지 좁아져 **140→220** 으로 한 번 더 올렸다(전 조합
+ * 최소 103자 마진 확보, 2026-09-28). 실제 대화에서는 헤더·발화가 훨씬 짧아 `room` 이 대개 상한(2,000)에 가까워
+ * 이 여유 증가는 체감상 무해하다(위 sanity: 짧은 대화 6개면 slack 값과 무관하게 6개 모두 온전히 실린다).
+ */
+const WINDOW_ROOM_SLACK = 220
 
 const altTextLine = (alt: string) => `[인식 후보] 학습자 말이 「${alt}」로도 들렸습니다. 둘 중 어느 쪽인지 먼저 되묻고 교정하지 마세요.`
+
+/** task-010c — TALK 교정 방식. `strictness`(무엇을 오류로 볼지)와 독립(design-spec §2-8). 기본 FLUENCY. */
+export const CORRECTION_MODES = ['FLUENCY', 'COACH'] as const
+export type CorrectionMode = (typeof CORRECTION_MODES)[number]
+const CORRECTION_MODE_LABEL_KO: Record<CorrectionMode, string> = { FLUENCY: '유창성', COACH: '코치' }
+/**
+ * Leader 후속 지시(2026-09-28, task-010c) — 유창성 모드는 orchestrator 가 `severity`로 즉시 표시(MAJOR)/모아두기
+ * (MINOR)를 가르므로(L2) severity 정확도가 기능의 핵심이다. 실측(첫 릴리스, hintKo 안내만 있고 severity 판정 기준은
+ * persona §3-6 뿐)에서 조사·활용 오류(뜻은 통함) 3/3 이 전부 MAJOR 로 나와 유창성 모드를 사실상 무력화했다 — 그래서
+ * **유창성일 때만** `[교정]` 헤더 줄에 짧은 판정 기준을 더한다(코치는 매 턴 교정을 보여주므로 이 게이팅과 무관, 손대지
+ * 않는다). 확보한 예산 여유(~84자, `WINDOW_ROOM_SLACK` 참고) 안에서 최대한 구체적으로 썼다 — 재측정 결과는
+ * `llm-japanese-quality.md`, task-010c 이력서.
+ */
+const FLUENCY_SEVERITY_RULE = ' — severity: 조사·활용·어순·존댓말 오류는 뜻이 통하니 **항상 MINOR**. 완전히 다른 단어를 써서 말이 안 되거나 뜻이 반대로 바뀔 때만 MAJOR.'
 
 /**
  * altText 정리: 제어문자·연속 공백 정리 → `min(TALK_ALT_TEXT_MAX, budget)` 로 자르기(서러게이트 쌍을 가르지 않게 코드포인트 단위,
@@ -63,14 +123,35 @@ export interface TalkInput {
   text: string
   /** 인식이 불확실할 때의 두 번째 후보(requiresReview) — 있으면 교정 대신 되묻는다(tutor §3-7). */
   altText?: string | null
+  /** task-010c — 교정 방식(설정 `Profile.correctionMode`). 생략하면 FLUENCY(기본, D6 사용자 결정). */
+  correctionMode?: CorrectionMode
 }
 
-export function talkInstruction(): string {
+/**
+ * task-010c — 모드별 correction 지시문. 공통 규칙(원문 전체 복사·1건만)은 v2 와 **바이트까지 그대로** 두고,
+ * `hintKo` 안내만 모드별로 최소 글자로 얹는다. **A1 은 ≤3,000자 예산이 가장 빡빡한 지점**이다 — 2026-09-28 실측
+ * (`prompts.test.ts` 예산 회귀)에서 진짜 최악 조합은 altText 가 가장 긴 값(50,000자 등)이 아니라 **중간 길이
+ * (≈60자, 기존 K4 가 "발화 한 마디" 가정으로 쓰던 값)** 일 때였다 — altText·이력 창이 서로 다른 "양자화 단위"
+ * (240자짜리 이력 메시지)로 자리를 나눠 갖기 때문에, 중간 길이 조합에서 마진이 오히려 더 좁아질 수 있다(극단값이
+ * 항상 최악은 아니다). 이 때문에 severity 리마인더를 한 번 얹었다가(29자) 이 중간 케이스에서 캡을 넘겨 되돌렸다
+ * — `hintKo` 안내만 남긴다(FLUENCY 15자·COACH 28자). severity 기준("의미가 달라지면 MAJOR")은 persona §3-6 에도
+ * 있으니 완전히 사라지는 것은 아니다(다만 stdin 쪽 리마인더 없이는 실측에서 과잉 MAJOR 판정이 있었다 — 아래 실측
+ * 기록·developer 인계 참고, 예산이 이 task 의 최우선 순위라 절충했다). `checks.ts` 의 `checkTalkResponse`(hintKo 가
+ * corrected 를 그대로 포함하면 위반)가 문구가 짧아도 hintKo 계약은 지킨다.
+ */
+function correctionInstructionLine(mode: CorrectionMode): string {
+  const common =
+    '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장.'
+  const hint = mode === 'COACH' ? ' hintKo=힌트(정답 제외).' : ' hintKo 는 null.'
+  return common + hint
+}
+
+export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY'): string {
   return [
     '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다). **JSON 키 순서를 반드시 지킵니다**: speech → conversation(replyJa→replyReading→replyKo) → correction → learning → endOfTopic → proposals.',
     '- speech.style: 답의 분위기.',
     '- conversation.replyJa: 학습자 수준 안의 자연스러운 일본어 **최대 2문장** — ① 「そうですね。」「いいですね！」처럼 아주 짧은 맞장구 한 마디 ② 대화를 잇는 반응·질문 한 문장. 교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 한국어 번역.',
-    '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장.',
+    correctionInstructionLine(correctionMode),
     '- learning.grammarPoint 는 이번 턴의 핵심 문법(없으면 null), difficulty 는 학습자 수준. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 학습자가 모르는 새 단어를 단어장에 넣자고 제안할 때만(최대 2개, 보통 빈 배열).',
     '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyReading":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[]}',
     INJECTION_GUARD,
@@ -79,19 +160,23 @@ export function talkInstruction(): string {
 
 export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse> {
   // task-007 K4-3(예열 CLI 프로세스 확인): `persona`(→ claudeCli `--system-prompt`)는 (model, level, mode) 로만 정해진다 —
-  // 오늘 날짜·학습자 헤더(약점·연속 출석 등 턴마다 바뀔 수 있는 값 포함)·altText·이력 창·이번 발화는 전부 `system`/`messages`
-  // (stdin) 쪽으로만 간다. 같은 학습자·같은 수준이 이어지는 한 `--system-prompt` 는 턴마다 바이트 그대로라 developer 의
-  // K2-1 예열 프로세스가 재사용할 수 있다 — 이미 그런 구조였고 이번에 고친 내용은 없다(확인만). `buildChatRequest` 도 동일.
+  // 오늘 날짜·학습자 헤더(약점·연속 출석 등 턴마다 바뀔 수 있는 값 포함)·교정 방식·altText·이력 창·이번 발화는 전부
+  // `system`/`messages`(stdin) 쪽으로만 간다. 같은 학습자·같은 수준이 이어지는 한 `--system-prompt` 는 턴마다 바이트
+  // 그대로라 developer 의 K2-1 예열 프로세스가 재사용할 수 있다 — 이미 그런 구조였고 이번(task-010c)에 고친 내용은 없다
+  // (확인만). `buildChatRequest` 도 동일.
+  const correctionMode: CorrectionMode = input.correctionMode ?? 'FLUENCY'
   const persona = loadPersona({ sections: [1, 3, 4, 6], level: input.learner.level, mode: 'TALK' })
-  const head = [renderToday(input.todayKst), '[모드] TALK', renderHeader(input.learner, TALK_HEADER_CAP)]
+  const correctionLine = `[교정] ${CORRECTION_MODE_LABEL_KO[correctionMode]}${correctionMode === 'FLUENCY' ? FLUENCY_SEVERITY_RULE : ''}`
+  const head = [renderToday(input.todayKst), '[모드] TALK', renderHeader(input.learner, TALK_HEADER_CAP), correctionLine]
+  const instruction = talkInstruction(correctionMode)
   // altText 는 상한(200)과 남은 예산 둘 다로 자른다 — 지시문·헤더가 나중에 길어져도 캡(3,000)을 넘지 않게(발화 원문은 자르지 않는다).
-  const baseChars = [...head, talkInstruction()].join('\n').length + input.text.length + TRANSCRIPT_OVERHEAD
+  const baseChars = [...head, instruction].join('\n').length + input.text.length + TRANSCRIPT_OVERHEAD
   const altBudget = TALK_USER_PROMPT_CAP - baseChars - altTextLine('').length - 1
   const alt = clampAltText(input.altText, altBudget)
   if (alt) head.push(altTextLine(alt))
-  const system = [...head, talkInstruction()].join('\n')
+  const system = [...head, instruction].join('\n')
   // 사용자 프롬프트 상한에서 헤더·지시·발화를 뺀 나머지를 창에 준다(최대 2,000자·6개).
-  const room = Math.max(0, Math.min(2_000, TALK_USER_PROMPT_CAP - system.length - input.text.length - 40))
+  const room = Math.max(0, Math.min(2_000, TALK_USER_PROMPT_CAP - system.length - input.text.length - WINDOW_ROOM_SLACK))
   const window = buildWindow(input.history, { maxCount: 6, maxChars: room })
   return {
     task: 'talk',

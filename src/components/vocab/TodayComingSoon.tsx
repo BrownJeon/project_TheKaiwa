@@ -3,10 +3,8 @@
  */
 import { Badge, Card, Section, SectionHeader } from '@/components/common/ui'
 
-const ITEMS = [
-  { title: '오늘의 회화', body: '주제와 상황을 골라 선생님과 1:1 수업을 해요.' },
-  { title: 'AI 평가', body: '내 단어와 표현으로 지금 실력을 점검해요.' },
-] as const
+// 오늘의 회화는 task-010 에서 열렸다(오늘 홈 카드) — AI 평가만 남는다(screens §12-2 A).
+const ITEMS = [{ title: 'AI 평가', body: '내 단어와 표현으로 지금 실력을 점검해요.' }] as const
 
 export default function TodayComingSoon() {
   return (

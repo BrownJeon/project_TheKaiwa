@@ -35,9 +35,11 @@ function reasonOf(e: unknown): unknown {
   return e instanceof ApiError ? e.details?.reason : undefined
 }
 
-const row = (p: Partial<{ chatId: string | null; chatMessageId: string | null; createdAt: Date }> = {}) => ({
+const row = (p: Partial<{ chatId: string | null; chatMessageId: string | null; lessonId: string | null; evaluationItemId: string | null; createdAt: Date }> = {}) => ({
   chatId: null,
   chatMessageId: null,
+  lessonId: null,
+  evaluationItemId: null,
   createdAt: new Date(NOW - 1_000),
   ...p,
 })
@@ -60,8 +62,8 @@ test('턴 판정 순서: 이미 보냄(USED) → 다른 방(OTHER_CHAT) → 10�
 
 test('수락 전 검사: 없음·형식 오류 404(형식 오류는 DB 조회 없음), 다른 방 발화 409, 같은 방은 id·finalText 반환', async (t) => {
   t.after(() => mock.restoreAll())
-  const rows: Record<string, { id: string; chatId: string | null; chatMessageId: string | null; createdAt: Date; finalText: string | null }> = {
-    uA: { id: 'uA', chatId: CHAT_A, chatMessageId: null, createdAt: new Date(NOW - 5_000), finalText: '今日は' },
+  const rows: Record<string, { id: string; chatId: string | null; chatMessageId: string | null; lessonId: string | null; evaluationItemId: string | null; createdAt: Date; finalText: string | null }> = {
+    uA: { id: 'uA', chatId: CHAT_A, chatMessageId: null, lessonId: null, evaluationItemId: null, createdAt: new Date(NOW - 5_000), finalText: '今日は' },
   }
   const find = mock.method(utteranceDb, 'findForTurn', async (userId: string, id: string) => (userId === U1 ? (rows[id] ?? null) : null))
   await assert.rejects(checkUtteranceForTurn(U1, '../x', CHAT_A, NOW), (e: unknown) => e instanceof ApiError && e.code === 'NOT_FOUND')

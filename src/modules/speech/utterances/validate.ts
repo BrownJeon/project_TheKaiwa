@@ -17,6 +17,8 @@ export interface UploadInput {
   audio: Buffer
   text: string
   chatId: string | null
+  /** 레슨 말하기·청취 발화(task-010) — 라우트가 소유를 확인한 레슨 id. chatId 와 함께 줄 수 없다. */
+  lessonId: string | null
   realtimeConnectionKey: string
   durationMs: number | null
   segments: UtteranceSegment[] | null
@@ -106,12 +108,10 @@ export function parseTimings(raw: unknown, field = 'timings'): UtteranceTimings 
   return out
 }
 
-/** #21 multipart. lessonId·evaluationItemId 는 Phase 2(레슨·평가) 전이라 받지 않는다(400 FEATURE_NOT_READY). */
+/** #21 multipart. `lessonId` 는 task-010 부터 받는다(소유 확인은 라우트, chatId 와 동시 불가). evaluationItemId 는 평가(task-011) 전이라 400 FEATURE_NOT_READY. */
 export async function parseUploadForm(form: FormData): Promise<UploadInput> {
-  for (const f of ['lessonId', 'evaluationItemId']) {
-    const v = form.get(f)
-    if (v !== null && v !== '') throw new ApiError('FEATURE_NOT_READY', '아직 지원하지 않는 항목이에요.', { field: f })
-  }
+  const ev = form.get('evaluationItemId')
+  if (ev !== null && ev !== '') throw new ApiError('FEATURE_NOT_READY', '아직 지원하지 않는 항목이에요.', { field: 'evaluationItemId' })
   const audio = form.get('audio')
   if (!audio || typeof audio === 'string') bad('audio', '녹음 파일이 필요해요.')
   if (audio.size === 0) bad('audio', '녹음 파일이 비었어요.')
@@ -119,10 +119,14 @@ export async function parseUploadForm(form: FormData): Promise<UploadInput> {
   const key = form.get('realtimeConnectionKey')
   if (typeof key !== 'string' || !CONNECTION_REF.test(key)) bad('realtimeConnectionKey', '인식 경로 값이 올바르지 않아요.')
   const dur = form.get('durationMs')
+  const chatId = optionalId(form.get('chatId'), 'chatId')
+  const lessonId = optionalId(form.get('lessonId'), 'lessonId')
+  if (chatId && lessonId) bad('lessonId', '대화방과 수업을 함께 지정할 수 없어요.', 'ONE_OF')
   return {
     audio: Buffer.from(await audio.arrayBuffer()),
     text: cleanText(form.get('text') ?? '', 'text'),
-    chatId: optionalId(form.get('chatId'), 'chatId'),
+    chatId,
+    lessonId,
     realtimeConnectionKey: key,
     durationMs: dur === null || dur === '' ? null : int(dur, 'durationMs', 0, UTTERANCE_MAX_DURATION_MS * 2),
     segments: parseSegments(form.get('segments')),

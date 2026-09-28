@@ -27,6 +27,7 @@ export default function SttAlert({
   textMode,
   onTextMode,
   onClose,
+  textModeLabel,
 }: {
   code: SttErrorCode
   retryAfterSec?: number
@@ -38,6 +39,8 @@ export default function SttAlert({
   textMode: boolean
   onTextMode: () => void
   onClose: () => void
+  /** [글자로 대화하기] 문구(기본) — 오늘의 회화 말하기는 "글자로 답하기"(screens §12-5). */
+  textModeLabel?: string
 }) {
   const canSettings = useCanOpenAppSettings()
   const copy = sttErrorCopy(code, { native, retryAfterSec, mountCheck, switched, offlineMode, canOpenSettings: canSettings, place: 'talk' })
@@ -59,7 +62,7 @@ export default function SttAlert({
         ) : null}
         {offerText ? (
           <button type="button" onClick={onTextMode} className="inline-flex h-11 items-center font-semibold underline underline-offset-4">
-            {TALK_ROOM.textInstead}
+            {textModeLabel ?? TALK_ROOM.textInstead}
           </button>
         ) : null}
       </div>

@@ -1,0 +1,28 @@
+{
+  "candidates": [
+    { "itemId": "rep-01", "itemType": "EXPRESSION", "textJa": "よろしくお願いします", "meaningKo": "잘 부탁합니다", "studiedCount": 4, "correctCount": 2, "wrongCount": 2, "feedbackCount": 1, "lastStudiedAt": "2026-09-20", "intervalDays": 3, "priority": "NORMAL" },
+    { "itemId": "rep-02", "itemType": "GRAMMAR", "textJa": "〜てもいいですか", "meaningKo": "~해도 되나요?", "studiedCount": 6, "correctCount": 5, "wrongCount": 1, "feedbackCount": 0, "lastStudiedAt": "2026-09-22", "intervalDays": 5, "priority": "NORMAL" },
+    { "itemId": "rep-03", "itemType": "WORD", "textJa": "緊張しています", "meaningKo": "긴장하고 있습니다", "studiedCount": 2, "correctCount": 0, "wrongCount": 2, "feedbackCount": 3, "lastStudiedAt": "2026-09-24", "intervalDays": 3, "priority": "FOCUS" },
+    { "itemId": "rep-04", "itemType": "CHUNK", "textJa": "会社員です", "meaningKo": "회사원입니다", "studiedCount": 8, "correctCount": 8, "wrongCount": 0, "feedbackCount": 0, "lastStudiedAt": "2026-09-18", "intervalDays": 7, "priority": "NORMAL" },
+    { "itemId": "rep-05", "itemType": "EXPRESSION", "textJa": "韓国から来ました", "meaningKo": "한국에서 왔습니다", "studiedCount": 1, "correctCount": 0, "wrongCount": 1, "feedbackCount": 1, "lastStudiedAt": null, "intervalDays": 3, "priority": "NORMAL" },
+    { "itemId": "rep-06", "itemType": "WORD", "textJa": "楽しみです", "meaningKo": "기대됩니다", "studiedCount": 3, "correctCount": 2, "wrongCount": 1, "feedbackCount": 0, "lastStudiedAt": "2026-09-25", "intervalDays": 4, "priority": "NORMAL" },
+    { "itemId": "rep-07", "itemType": "GRAMMAR", "textJa": "〜んですけど", "meaningKo": "~인데요", "studiedCount": 5, "correctCount": 1, "wrongCount": 4, "feedbackCount": 4, "lastStudiedAt": "2026-09-23", "intervalDays": 3, "priority": "FOCUS" },
+    { "itemId": "rep-08", "itemType": "EXPRESSION", "textJa": "少し疲れました", "meaningKo": "조금 피곤했습니다", "studiedCount": 2, "correctCount": 1, "wrongCount": 1, "feedbackCount": 1, "lastStudiedAt": "2026-09-19", "intervalDays": 3, "priority": "NORMAL" },
+    { "itemId": "rep-09", "itemType": "CHUNK", "textJa": "はじめまして", "meaningKo": "처음 뵙겠습니다", "studiedCount": 9, "correctCount": 9, "wrongCount": 0, "feedbackCount": 0, "lastStudiedAt": "2026-09-15", "intervalDays": 7, "priority": "NORMAL" },
+    { "itemId": "rep-10", "itemType": "WORD", "textJa": "嬉しいです", "meaningKo": "기쁩니다", "studiedCount": 3, "correctCount": 3, "wrongCount": 0, "feedbackCount": 0, "lastStudiedAt": "2026-09-21", "intervalDays": 5, "priority": "NORMAL" }
+  ],
+  "observationSummary": [
+    { "skill": "VOCAB_RECALL", "success": 14, "fail": 4 },
+    { "skill": "GRAMMAR_PARTICLE", "success": 6, "fail": 9 },
+    { "skill": "LISTEN_RESPOND", "success": 8, "fail": 2 },
+    { "skill": "SENTENCE_PRODUCTION", "success": 5, "fail": 5 },
+    { "skill": "CONVERSATION_MAINTAIN", "success": 10, "fail": 1 }
+  ],
+  "errorStats": [
+    { "type": "PARTICLE", "count": 7 },
+    { "type": "CONJUGATION", "count": 5 },
+    { "type": "POLITENESS", "count": 3 },
+    { "type": "WORD_ORDER", "count": 2 },
+    { "type": "NATURALNESS", "count": 1 }
+  ]
+}

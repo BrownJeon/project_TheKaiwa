@@ -5,8 +5,9 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/modules/infra'
 import { stt } from '@/modules/engine'
+import { unclaimedUtteranceWhere } from './usage'
 
-const TURN_SELECT = { id: true, chatId: true, chatMessageId: true, createdAt: true, finalText: true } as const
+const TURN_SELECT = { id: true, chatId: true, chatMessageId: true, lessonId: true, evaluationItemId: true, createdAt: true, finalText: true } as const
 
 export interface UtteranceLinkData {
   chatMessageId: string
@@ -19,7 +20,7 @@ export const utteranceDb = {
   create: (data: Prisma.UtteranceUncheckedCreateInput) => prisma.utterance.create({ data, select: { id: true } }),
   remove: (id: string) => prisma.utterance.delete({ where: { id } }),
   findForTurn: (userId: string, id: string) => prisma.utterance.findFirst({ where: { id, userId }, select: TURN_SELECT }),
-  /** 아직 어느 메시지에도 붙지 않은 행만 연결한다(조건부) — 바뀐 행 수. */
+  /** 아직 어디에도(메시지·레슨·평가 문항) 쓰이지 않은 행만 연결한다(조건부, `usage.ts`) — 바뀐 행 수. */
   link: async (userId: string, id: string, data: UtteranceLinkData): Promise<number> =>
-    (await prisma.utterance.updateMany({ where: { id, userId, chatMessageId: null }, data })).count,
+    (await prisma.utterance.updateMany({ where: unclaimedUtteranceWhere(userId, id, 'chatMessage'), data })).count,
 }

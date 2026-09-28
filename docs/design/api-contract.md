@@ -175,20 +175,25 @@
 | 53 | POST | `/api/v1/vocab/sessions/:id/replay` | 보관 세트 다시 풀기 | S | learning/vocab | 1 | — | 새 `VocabSession`+cards |
 | 54 | GET | `/api/v1/vocab/stats` | 개수별 맞춘/틀린(스냅샷) | S | learning/snapshots | 1 | `?days=` | 집계 |
 | 55 | GET | `/api/v1/jobs/:id` | AI 잡 폴링 | S | infra/jobs | 1 | — | `AiJob` |
-| 56 | GET | `/api/v1/topics?level=&mine=` | 주제(시드+사용자, 조각 포함) | S | learning/topics | 2 | query | 목록 |
-| 57 | POST | `/api/v1/topics` | 사용자 주제 생성 | S | learning/topics | 2 | `{title,titleJa?,level,description?,chunks[]}` | `ConversationTopic` |
-| 58 | GET | `/api/v1/lessons/today` | 오늘 레슨 모드(NEW/REVIEW/BOTH) | S | learning/lessons+repetition | 2 | — | `{mode,date,review?,guard?,todayLessons[],cycle}`(정합성 #2, review 에 `itemIds·decidedBy·tutorRationale`) |
-| 59 | POST | `/api/v1/lessons` | 레슨 생성(A4, 잡) | S | learning/lessons | 2 | `{topicId}` 또는 `{sourceText}` | `{lessonId,jobId}` |
-| 60 | GET | `/api/v1/lessons/:id` | 레슨 상세 | S | learning/lessons | 2 | — | `Lesson` |
-| 61 | PATCH | `/api/v1/lessons/:id/progress` | 단계 진행 저장 | S | learning/lessons | 2 | `{stageDone,progress}` | `Lesson` |
-| 62 | POST | `/api/v1/lessons/:id/complete` | 레슨 완료(트랜잭션+RepetitionItem 갱신+A11 잡) | S | learning/lessons+repetition | 2 | `{score?}` | `{lesson,studyLogId,reviewDecisionJobId,nextReview?}` |
+| 56 | GET | `/api/v1/topics?level=&mine=` | 주제(시드+사용자, 조각 포함) | S | learning/topics | 2(task-010) | query | `{items[], level[]}` |
+| 57 | POST | `/api/v1/topics` | 사용자 주제 생성 | S | learning/topics | 2(task-010d) | `{title,titleJa?,level,description?,chunks[]}` | `ConversationTopic` |
+| 58 | GET | `/api/v1/lessons/today` | 오늘 레슨 모드(NEW/REVIEW/BOTH) | S | learning/lessons+repetition | 2(task-010: NEW 만) | — | `{mode,date,review?,guard?,todayLessons[],cycle,resume,recommendation}`(정합성 #2, review 에 `itemIds·decidedBy·tutorRationale` — 010b) |
+| 59 | POST | `/api/v1/lessons` | 레슨 생성(A4, 잡) | S | app(conversation+learning 조합) | 2(task-010) | `{topicId}` 또는 `{sourceText}` | `{lessonId,jobId,status,reused}` |
+| 60 | GET | `/api/v1/lessons/:id` | 레슨 상세 | S | learning/lessons | 2(task-010) | — | `Lesson` |
+| 61 | PATCH | `/api/v1/lessons/:id/progress` | 단계 진행 저장 | S | learning/lessons | 2(task-010) | `{stageDone?,progress?}` | `Lesson` |
+| 62 | POST | `/api/v1/lessons/:id/complete` | 레슨 완료(트랜잭션+RepetitionItem 갱신, A11 잡은 010b) | S | learning/lessons+repetition | 2(task-010) | `{score?}`(무시) | `{lesson,studyLogId,reviewDecisionJobId,nextReview?,result}` |
+| 62a | POST | `/api/v1/lessons/:id/memo` | 들린 단어 메모 → ADD_WORD 제안 | S | app(learning+conversation 조합) | 2(task-010) | `{segments:[{segment,words[≤5]}]}` | `{proposals[],skipped[],memo}` |
+| 62b | POST | `/api/v1/lessons/:id/speaking` | 말하기 확인(목표 표현 포함, LLM 없음) | S | app(learning+speech 조합) | 2(task-010) | `{itemId,text,utteranceId?}` | `{itemId,used,matchedIds,missedIds,unknownIds,modelAnswer,utteranceId,hasAudio}` |
+| 62c | POST | `/api/v1/lessons/:id/audio` | 레슨 문장 음성(느리게/보통) | S | app(learning+speech 조합) | 2(task-010) | `{kind,idx,pace?}` | `{clips[{url,durationMs,pauseBeforeMs,cached}],runtime}` |
 | 63 | POST | `/api/v1/reviews/:id/start` | 복습 레슨 생성(A5, 잡) | S | learning/reviewSchedule | 2 | — | `{lessonId,jobId}` |
 | 64 | POST | `/api/v1/reviews/:id/skip` | 복습 건너뛰기 | S | learning/reviewSchedule | 2 | — | `ReviewSchedule` |
-| 65 | POST | `/api/v1/evaluations` | 평가 출제(A6, 잡) | S | learning/evaluation | 2 | `{kind,topicId?,level?}` | `{evaluationId,jobId}` |
-| 66 | GET | `/api/v1/evaluations/:id` | 평가 상세(문항/결과) | S | learning/evaluation | 2 | — | `Evaluation`+items |
-| 67 | POST | `/api/v1/evaluations/:id/items/:itemId/answer` | 문항 답 저장 | S | learning/evaluation | 2 | `{answerText,inputSource,utteranceId?}` | `EvaluationItem`(코드 채점 즉시) |
-| 68 | POST | `/api/v1/evaluations/:id/submit` | 채점(A7, 잡; DONE 단일 트랜잭션) | S | learning/evaluation | 2 | — | `{jobId}` |
-| 69 | GET | `/api/v1/evaluations?limit=&cursor=` | 평가 이력 | S | learning/evaluation | 2 | query | 목록 |
+| 65 | POST | `/api/v1/evaluations` | 평가 출제(A6, 잡) | S | app(learning+conversation 조합) | 2(task-011) | `{kind,topicId?,level?}` | `{evaluationId,jobId,status}` |
+| 66 | GET | `/api/v1/evaluations/:id` | 평가 상세(문항/결과) | S | learning/evaluation(+conversation 레벨 제안) | 2(task-011) | — | `Evaluation`+items(제출 전 정답 숨김) |
+| 67 | POST | `/api/v1/evaluations/:id/items/:itemId/answer` | 문항 답 저장 | S | app(learning+speech 조합) | 2(task-011) | `{answerText?,inputSource?,utteranceId?,pieceOrder?}` | `{id,answered,graded,expectedShown:false,…}`(점수 없음) |
+| 67a | POST | `/api/v1/evaluations/:id/items/:itemId/audio` | 듣고 답하기 소리 | S | app(learning+speech 조합) | 2(task-011) | `{}` | `{itemId,clips[],runtime}` |
+| 67b | POST | `/api/v1/evaluations/:id/start` | 평가 시작(10분 시계) — 결정 (d) 대기 훅 | S | learning/evaluation | 2(task-011) | — | #66 상세 |
+| 68 | POST | `/api/v1/evaluations/:id/submit` | 채점(A7, 잡; DONE 단일 트랜잭션) | S | app(learning+conversation 조합) | 2(task-011) | `{}` | `{evaluationId,jobId,status,reused,overtime}` |
+| 69 | GET | `/api/v1/evaluations?limit=&cursor=&kind=` | 평가 이력 | S | learning/evaluation | 2(task-011) | query | 목록 |
 | 70 | GET | `/api/v1/plan/calendar?month=` | 달력(출석·학습) | S | learning/studyLog | 2 | query | `{days[]}` |
 | 71 | GET | `/api/v1/plan/day?date=` | 하루 상세 | S | learning/studyLog | 2 | query | `{date,logs[],attended}` |
 | 72 | GET | `/api/v1/study-logs?from=&to=&type=` | 학습 기록 | S | learning/studyLog | 2 | query | 목록 |
@@ -557,8 +562,8 @@ Engine Router 가 `REALTIME_STT` 역할의 `connectionType = ONDEVICE` connectio
 | `durationMs` | int | 플러그인 계측값(서버 값과 20% 이상 차이면 서버 값 채택) |
 | `segments` | JSON string? | `[{ "start": 0, "end": 1840, "text": "…" }]` ≤ 50개 |
 | `timings` | JSON string? | `{ "vadMs", "decodeMs" }` — `toolLog` 계측 원천 |
-| `lessonId` | string? | 레슨 "말하기"·청취 단계 발화(소유 검사). `Utterance.lessonId` 로 저장(정합성 +1) |
-| `evaluationItemId` | string? | AI평가 말하기 문항 발화(소유 검사). `Utterance.evaluationItemId` 로 저장 |
+| `lessonId` | string? | 레슨 "말하기"·청취 단계 발화(소유 검사 — 타인 `404`, `chatId` 와 함께면 `400`). `Utterance.lessonId` 로 저장(정합성 +1). **task-010 부터 받는다**(그 전엔 `400 FEATURE_NOT_READY`). 업로드 때 안 붙였어도 #62b 가 연결한다 |
+| `evaluationItemId` | string? | AI평가 말하기 문항 발화. **task-011 구현: 업로드에서는 계속 `400 FEATURE_NOT_READY`** — 업로드는 이 필드 없이 하고 #67 `utteranceId` 가 소유·미사용·10분을 확인해 `Utterance.evaluationItemId` 로 연결한다(#62b 레슨 연결과 같은 방식) |
 
 ```json
 ← { "utteranceId": "u_01…", "status": "RECORDED", "analysisQueued": true, "expiresAt": "2026-10-26T…" }
@@ -693,7 +698,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 | 필드 | 검증 |
 |---|---|
 | `text` | 1~1,000자, 제어문자 제거 후 공백만이면 `400` |
-| `utteranceId` | 선택(task-007). **수락 전** 검사: 세션 사용자 소유(타인·없음 `404`) · 아직 어느 메시지에도 연결되지 않음(아니면 `409 CONFLICT {reason:"UTTERANCE_USED"}`) · 발화에 대화방이 기록돼 있으면(`Utterance.chatId` — gateway 티켓·#21 `chatId`, task-018) **이 턴의 방과 같음**(아니면 `409 {reason:"UTTERANCE_OTHER_CHAT"}`, 방이 없는 발화는 검사 생략) · 생성 10분 이내(아니면 `409 {reason:"UTTERANCE_EXPIRED"}`). 세 409 모두 클라는 발화 id 없이 글자 턴으로 다시 보낸다(같은 id 재전송은 같은 409). 판정 순서 USED → OTHER_CHAT → EXPIRED. 수락 전 거절(409 턴 진행 중·429·네트워크)로 아직 연결되지 않은 발화는 같은 id 로 재전송 가능. **수락 직후** 조건부 연결(`WHERE chatMessageId IS NULL`)하고 `text ≠ Utterance.finalText` 면 `finalText=text, finalSource=USER`(글자로 고쳐 보냄). 연결 경합으로 count 0 이면 턴은 계속하고 Trace `UTTERANCE_LINK` 경고 `UTTERANCE_LINK_SKIPPED`, `chatMessageId @unique` 위반(한 메시지에 두 발화, P2002)도 턴은 계속하고 경고 `UTTERANCE_USED` |
+| `utteranceId` | 선택(task-007). **수락 전** 검사: 세션 사용자 소유(타인·없음 `404`) · 아직 **어느 용도에도** 연결되지 않음 — 채팅 메시지·레슨(`lessonId`)·평가 문항(`evaluationItemId`) 모두 비어 있음(아니면 `409 CONFLICT {reason:"UTTERANCE_USED"}`, task-010 Codex C2 수정 2026-09-28: 레슨·평가에 쓰인 발화도 USED — 새 reason 을 만들지 않아 회화방 클라 동작 불변) · 발화에 대화방이 기록돼 있으면(`Utterance.chatId` — gateway 티켓·#21 `chatId`, task-018) **이 턴의 방과 같음**(아니면 `409 {reason:"UTTERANCE_OTHER_CHAT"}`, 방이 없는 발화는 검사 생략) · 생성 10분 이내(아니면 `409 {reason:"UTTERANCE_EXPIRED"}`). 세 409 모두 클라는 발화 id 없이 글자 턴으로 다시 보낸다(같은 id 재전송은 같은 409). 판정 순서 USED → OTHER_CHAT → EXPIRED. 수락 전 거절(409 턴 진행 중·429·네트워크)로 아직 연결되지 않은 발화는 같은 id 로 재전송 가능. **수락 직후** 조건부 연결(`WHERE chatMessageId IS NULL AND lessonId IS NULL AND evaluationItemId IS NULL` — `speech/utterances/usage.unclaimedUtteranceWhere`, 레슨·평가 연결과 같은 조건)하고 `text ≠ Utterance.finalText` 면 `finalText=text, finalSource=USER`(글자로 고쳐 보냄). 연결 경합으로 count 0 이면 턴은 계속하고 Trace `UTTERANCE_LINK` 경고 `UTTERANCE_LINK_SKIPPED`, `chatMessageId @unique` 위반(한 메시지에 두 발화, P2002)도 턴은 계속하고 경고 `UTTERANCE_USED` |
 | `inputSource` | `InputSource{REALTIME_STT,SERVER_STT,TEXT}`; `utteranceId` 없이 `REALTIME_STT` 는 `400`, `utteranceId` 와 `TEXT` 를 함께 보내면 `400`, `utteranceId` 만 오면 `REALTIME_STT` |
 | `clientTimings` | 선택 객체(위). 형식·범위 위반 `400` |
 | `resumePending` | true 면 다른 필드 무시. 마지막 강사 메시지가 **180초가 지난** `PENDING`(blue/green 두 인스턴스에서 서로의 메모리 락이 보이지 않으므로 시간 조건만 신뢰) 또는 `FAILED` 면 그 앞 사용자 메시지로 다시 실행한다(강사 행을 `PENDING` 으로 되돌려 재사용, 사용자 행은 새로 만들지 않음 — task-006 D1). 둘 다 아니면 `409` |
@@ -777,7 +782,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 ← { "proposal": { "id": "p_1", "kind": "ADD_WORD", "status": "ACCEPTED", "result": { "wordId": "w_…" } } }
 ```
 
-`kind` 별 결과: `ADD_WORD → WordEntry(source=TUTOR)` · `ADD_STUDY_LOG → StudyLog(origin=ACCEPTED)` + `StatsSnapshot(DAILY)` 증가 · `ADD_TOPIC → ConversationTopic(userId)` · `SET_LEVEL → Profile.level` · `SCHEDULE_REVIEW → ReviewSchedule upsert`. `payloadOverride` 는 화이트리스트 키만 덮어쓴다. 승인 전에는 어떤 테이블에도 행이 생기지 않는다(QA: 채택 전 행 수 0 대조). 재승인 `409`, 30일 지난 제안은 `EXPIRED`(`409`).
+`kind` 별 결과: `ADD_WORD → WordEntry(source=TUTOR, sourceRefId=제안 id)`(레슨 메모 제안 `payload.source="LESSON"` 이면 `source=LESSON, sourceRefId=payload.lessonId` + 실린 `partOfSpeech·jlpt·example·exampleKo` — task-010 #62a) · `ADD_STUDY_LOG → StudyLog(origin=ACCEPTED)` + `StatsSnapshot(DAILY)` 증가 · `ADD_TOPIC → ConversationTopic(userId)` · `SET_LEVEL → Profile.level`(task-011 부터 채택 가능 — `payload.level` 이 N5~N1 이 아니면 400, `result {level}`, override 키 없음) · `SCHEDULE_REVIEW → ReviewSchedule upsert`. `payloadOverride` 는 화이트리스트 키만 덮어쓴다. 승인 전에는 어떤 테이블에도 행이 생기지 않는다(QA: 채택 전 행 수 0 대조). 재승인 `409`, 30일 지난 제안은 `EXPIRED`(`409`).
 
 #### #39 `POST /api/v1/proposals/:id/reject` → `{ "id", "status": "REJECTED" }`.
 
@@ -866,67 +871,158 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 
 ### 2-12. 주제 `/api/v1/topics` (#56~#57, L3 learning/topics · Phase 2)
 
+#### #56 `GET /api/v1/topics?level=&mine=` (task-010 구현)
+
 ```json
-GET → { "items": [ { "id": "t_seed_01", "title": "길 묻기", "titleJa": "道を聞く", "level": "N4", "description": "…", "tags": ["여행"], "isSeed": true,
-                     "chunks": [ { "id": "tc_1", "chunkType": "NAME", "textJa": "駅", "reading": "えき", "meaningKo": "역", "order": 0 } ], "lessonCount": 2, "lastLessonAt": "…" } ] }
-POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4", "description": "…", "chunks": [ { "chunkType": "ACTION", "textJa": "お疲れ様です", "reading": "…", "meaningKo": "수고하셨습니다" } ] }
+{ "items": [ { "id": "t_seed_01", "title": "길 묻기", "titleJa": "道を聞く", "level": "N4", "description": "…", "tags": ["여행"], "isSeed": true,
+               "chunks": [ { "id": "tc_1", "chunkType": "NAME", "textJa": "駅", "reading": "えき", "meaningKo": "역", "order": 0 } ], "lessonCount": 2, "lastLessonAt": "…", "lastLessonTitle": "はじめての注文" } ],
+  "level": ["N5", "N4"] }
 ```
 
-- `level` 필터 없으면 `Profile.level ±1`. `mine=1` 은 사용자 주제만. `chunks` ≤40, `textJa` ≤120, `meaningKo` ≤160. 시드 주제는 수정·삭제 불가(`404`).
+- `level`(N5~N1) 없으면 `Profile.level ±1`(N5 → N5·N4, N3 → N4·N3·N2) — 응답 `level[]` 은 실제로 적용한 수준 목록. `mine=1` 은 내 주제만(기본 0 = 시드 + 내 주제). 모르는 쿼리 키·잘못된 값 `400`.
+- `lessonCount`·`lastLessonAt` = 이 사용자가 **끝낸(DONE)** 이 주제 레슨 수·마지막 완료 시각. `lastLessonTitle` = 마지막으로 끝낸 레슨 제목(일본어, 없으면 null — task-010 화면 §12-11 ② Leader 판정으로 추가, additive). 정렬: 수준(N5→N1) → 시드 먼저 → 만든 순. 최대 100개, 조각은 주제당 ≤40(`order` 순).
 
-### 2-13. 오늘의 회화 `/api/v1/lessons` · 복습 `/api/v1/reviews` (#58~#64, L3 learning/lessons·reviewSchedule · Phase 2)
+#### #57 `POST /api/v1/topics` — 사용자 주제 생성(**task-010d 로 미룸**)
+
+```json
+→ { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4", "description": "…", "chunks": [ { "chunkType": "ACTION", "textJa": "お疲れ様です", "reading": "…", "meaningKo": "수고하셨습니다" } ] }
+```
+
+`chunks` ≤40, `textJa` ≤120, `meaningKo` ≤160. 시드 주제는 수정·삭제 불가(`404`).
+
+### 2-13. 오늘의 회화 `/api/v1/lessons` · 복습 `/api/v1/reviews` (#58~#64, L3 learning/lessons·repetition·reviewSchedule · Phase 2)
+
+task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 task-010b). 공통: 세션 필수(`401`), 레슨·잡·발화는 **소유자만(타인·없음 `404`)**, 응답·오류 어디에도 엔진명·모델명·프롬프트 버전이 없다(`Lesson.model`·`promptVersion` 은 저장만).
+
+**레슨 상태와 쓰기 가능 여부**: `GENERATING` → (A4 잡 DONE) → `READY` → (첫 #61·#62a·#62b) → `IN_PROGRESS` → (#62) → `DONE`. 진행 쓰기(#61·#62a·#62b)와 완료(#62)는 `READY`·`IN_PROGRESS` 만 — `DONE` 이면 `409 {reason:"ALREADY_DONE"}`, `GENERATING`·`FAILED` 면 `409 {reason:"NOT_READY"}`. 오디오(#62c)는 `DONE` 에서도 된다(다시 듣기).
+
+**잠금 순서**(교착 방지, task-006/008 과 같은 "사용자 행 → 대상 행"): 생성 = 사용자 행 → (오늘 같은 주제 레슨·진행 중 생성 잡) → 레슨·잡 / 진행·메모·말하기 = 사용자 행 → 레슨 행(`FOR UPDATE`) → (제안 행 / 발화 행) → `progress` / 완료 = 사용자 행 → 레슨 행 → `RepetitionItem` → `StudyLog` → `StatsSnapshot(LESSON)` → `DAILY`.
 
 #### #58 `GET /api/v1/lessons/today`
 
-§7-4 3일 반복 알고리즘의 결과(코드가 "언제·무엇" 을 정한다).
-
 ```json
-{ "mode": "BOTH", "date": "2026-09-26",
-  "review": { "id": "rv_…", "dueDate": "2026-09-26", "status": "DUE", "sourceLessons": [ { "id": "ls_1", "title": "…", "date": "2026-09-23" } ], "lessonId": null },
-  "guard": null,
-  "todayLessons": [ { "id": "ls_9", "kind": "NEW", "status": "DONE", "title": "…" } ],
-  "cycle": { "reviewEvery": 3, "studyDaysSinceReview": 3, "reason": null } }
+{ "mode": "NEW", "date": "2026-09-28", "review": null, "guard": null, "cycle": null,
+  "todayLessons": [ { "id": "ls_9", "kind": "NEW", "status": "DONE", "title": "カフェで注文する", "titleKo": "카페에서 주문하기", "stageDone": 5,
+                      "topic": { "id": "t_2", "title": "카페 주문" }, "score": 80, "jobId": null, "speaking": { "used": 4, "total": 5 } } ],
+  "resume": { "id": "ls_7", "title": "…", "titleKo": "…", "stageDone": 2, "date": "2026-09-27" },
+  "recommendation": { "topicId": "t_2", "topicTitle": "카페 주문", "level": "N5", "reason": "CONTINUE",
+                      "nextPreview": { "titleKo": "카페에서 자리 찾기와 결제하기", "teaserKo": "다음엔 자리를 묻고 카드로 계산하는 표현도 배워볼까요?" } } }
 ```
 
-`mode ∈ NEW|REVIEW|BOTH`, `guard ∈ null | { reason: "cycle"|"insufficient"|"stale", needed?: 1 }`. 
+- task-010 은 `mode:"NEW"` 만. `review`·`guard`·`cycle` 은 형태만 유지(task-010b 가 채운다 — §7-4, `mode ∈ NEW|REVIEW|BOTH`, `guard ∈ null | { reason: "cycle"|"insufficient"|"stale", needed?: 1 }`).
+- `todayLessons` = 오늘(KST) 날짜 레슨 전부(최신 먼저, ≤20). `GENERATING` 이면 `jobId`(#55 폴링) — 잡이 죽었으면(재시작·stale) 이 자리에서 `FAILED` 로 닫아 보인다. `speaking{used,total}` = 말하기에서 쓴 표현 수·판정 가능한 목표 수(#62 `result.expressions` 와 같은 계산, 본문이 없으면 null — task-010 화면 §12-11 ① Leader 판정으로 추가, additive, 홈 완료 카드 "말하기 표현 {used}/{total}").
+- `resume` = 오늘 이전 날짜의 `READY`·`IN_PROGRESS` 레슨 중 가장 최근 것 1개(없으면 null) — "이어서 하기".
+- `recommendation`(designer 데모 v1 요청, `reason ∈ CONTINUE|NEXT_TOPIC|START`): 가장 최근에 끝낸 **주제** 레슨이 있으면 그 주제 + 그 수업의 `content.nextPreview`(CONTINUE). 그 주제를 이미 3번(`TOPIC_ROTATE_AFTER`) 끝냈으면 학습자 수준에서 끝낸 수가 가장 적은 다른 주제(NEXT_TOPIC, `nextPreview:null`). 끝낸 주제 레슨이 없으면 학습자 수준(없으면 ±1)의 주제 중 가장 적게 한 것(START). 하던 수업이 있으면 화면은 그쪽을 먼저 — 추천은 참고용.
 
 #### #59 `POST /api/v1/lessons`
 
 ```json
 → { "topicId": "t_seed_01" }            또는  → { "sourceText": "자막 문장 3~8줄 …" }
-← { "lessonId": "ls_…", "jobId": "j_…", "status": "GENERATING" }
+← { "lessonId": "ls_…", "jobId": "j_…", "status": "GENERATING", "reused": false }
 ```
 
-`sourceText` 50~2,000자. 같은 날 같은 주제의 `GENERATING/READY` 레슨이 있으면 그것을 반환(`200`, 새 잡 없음). A4 잡 120s, 실패 시 `Lesson.status=FAILED, error` + 클라이언트 "다시 만들기".
+- 정확히 하나(`400 {reason:"one_of"}`). `sourceText` 50~2,000자 + 가나·한자 비율 ≥30%(아니면 `400 {reason:"NOT_JAPANESE"}`). 주제는 시드 또는 내 것(아니면 `404`).
+- 라우트 조합(module-dependency §4-4): learning 재료(주제·조각·같은 주제 이전 제목 ≤5·직전 완료 수업의 `nextPreview`) + conversation 읽기(학습자 헤더·최근 채택 교정 ≤5) → `buildLessonRequest`(A4 `lesson@v1`) → learning 점유 트랜잭션 + 같은 프로세스 백그라운드 잡(`AiJob(LESSON_GEN)`, batch 레인, 120s, JSON 재시도 1회). 잡 `payload` 는 입력 메타만(개수·길이, 본문 없음).
+- **오늘 같은 주제**의 `GENERATING`(살아 있는 잡)·`READY`·`IN_PROGRESS` 레슨이 있으면 그것을 돌려준다(`200`, `reused:true`, 새 잡 없음 — `READY`·`IN_PROGRESS` 면 `jobId:null`). 같은 날 같은 주제의 `FAILED` 행은 새 잡으로 되살린다(domain-model §5-3). `DONE` 이면 새 레슨(다음 수업).
+- **사용자당 동시 생성 1**: 다른 `LESSON_GEN` 잡이 돌고 있으면 `409 {reason:"GENERATING", jobId, lessonId}`. 사용자당 분당 10.
+- 잡이 끝나면 `Lesson READY + content`(대화 줄마다 청취 구간 번호) 와 잡 `DONE` 이 한 트랜잭션. 실패하면 `Lesson FAILED`(`error` = 오류 코드만) + 잡 `FAILED` → 화면 "다시 만들기"(같은 요청을 다시 보내면 된다).
 
 #### #60 `GET /api/v1/lessons/:id`
 
 ```json
-{ "id": "ls_…", "kind": "NEW", "date": "2026-09-26", "title": "新宿で道を聞く", "level": "N4", "status": "READY", "stageDone": 2, "progress": { "quiz": { "answers": [1, 0, 2] } }, "score": null,
-  "topic": { "id": "t_seed_01", "title": "길 묻기" }, "sourceLessonIds": null,
-  "content": { "title": "…", "dialogue": [ { "speaker": "A", "ja": "…", "reading": "…", "ko": "…" } ], "chunks": [ { "type": "NAME", "ja": "駅", "reading": "えき", "ko": "역" } ],
-               "grammar": [ { "point": "〜てください", "explainKo": "…", "examples": ["…"] } ], "quiz": [ { "kind": "assemble", "prompt": "…", "pieces": ["…"], "answer": "…" } ],
-               "application": ["…"], "speaking": ["…"] },
-  "audio": { "dialogue": [ { "idx": 0, "url": "/api/v1/speech/tts/…" } ] }, "reviewScheduleId": null, "createdAt": "…", "completedAt": null }
+{ "id": "ls_…", "kind": "NEW", "date": "2026-09-28", "title": "カフェで注文する", "titleKo": "카페에서 주문하기", "level": "N5", "status": "IN_PROGRESS",
+  "stageDone": 2, "score": null, "source": "TOPIC", "topic": { "id": "t_2", "title": "카페 주문" }, "sourceLessonIds": null,
+  "progress": { "listen": { "segmentsDone": [1], "played": { "slow": [1], "normal": [1] }, "memo": [ { "segment": 1, "ja": "ちゅうもん" } ],
+                            "proposed": [ { "ja": "ちゅうもん", "segment": 1, "result": "PROPOSED", "proposalId": "p_…", "wordId": null } ] },
+                "quiz": { "answers": [0, 2, null, null, null] }, "application": { "answers": ["紅茶をください。", null, null] },
+                "speaking": [ { "itemId": "s1", "text": "…", "matchedIds": ["c1"], "missedIds": [], "utteranceId": "u_…", "at": "…" } ] },
+  "content": { "v": 1, "title": "…", "titleKo": "…", "rolesKo": { "A": "점원", "B": "손님" },
+               "dialogue": [ { "speaker": "A", "ja": "…", "reading": "…", "ko": "…", "segment": 1 } ], "segmentCount": 3,
+               "chunks": [ { "id": "tc_1", "textJa": "注文", "reading": "ちゅうもん", "meaningKo": "주문", "chunkType": "NAME", "isNew": false } ],
+               "grammar": [ { "id": "g1", "pattern": "〜をください", "explanationKo": "…", "exampleJa": "…", "exampleReading": "…", "exampleKo": "…" } ],
+               "quiz": [ { "id": "q1", "promptKo": "…", "promptJa": null, "choices": ["…", "…", "…", "…"], "answer": 0, "targetIds": ["tc_1"], "explanationKo": "…" } ],
+               "application": [ { "id": "a1", "promptKo": "…", "hintJa": null, "modelAnswerJa": "…", "modelReading": "…", "modelKo": "…", "targetIds": ["g1"] } ],
+               "speaking": [ { "id": "s1", "promptKo": "…", "targetIds": ["tc_1", "g1"], "modelAnswerJa": "…", "modelReading": "…", "modelKo": "…" } ],
+               "nextPreview": { "titleKo": "…", "teaserKo": "…" } },
+  "audio": null, "reviewScheduleId": null, "jobId": null, "error": null, "createdAt": "…", "updatedAt": "…", "completedAt": null }
 ```
 
-`content` 는 A4/A5 스키마 JSON 그대로(`quiz[].answer` 는 클라이언트 채점용으로 포함 — 학습용이라 정답 노출이 요구사항). `audio` 는 대화문 TTS 캐시 URL(없으면 클라이언트가 #23 으로 요청).
+- `content` = A4 `LESSON_SCHEMA`(task-010 PE 인계 — 필드명 `targetIds` 는 chunks∪grammar id) + 저장 전에 코드가 붙인 `dialogue[].segment`(청취 구간 번호 1부터, 2~3줄씩 — 6→3·3, 7→3·2·2, 8→3·3·2, 9→3·3·3, 10→3·3·2·2, 1줄 구간 없음)·`segmentCount`·`v:1`. `GENERATING`·`FAILED` 면 `content:null`.
+- `quiz[].answer` 포함(자습 — 정답 노출이 요구사항). 대신 **완료(#62) 때 서버가 `progress.quiz.answers` 를 다시 채점**한다.
+- `audio` 는 늘 `null` — 오디오는 미리 만들지 않고 재생할 때 #62c 로 요청한다(L2). `jobId` 는 `GENERATING` 일 때만(잡이 죽었으면 여기서 `FAILED` 로 닫는다), `error` 는 `FAILED` 일 때 오류 코드만. `source ∈ TOPIC|TEXT`(붙여 넣은 원문 자체는 싣지 않는다).
 
-#### #61 `PATCH /api/v1/lessons/:id/progress` `{ "stageDone": 3, "progress": {...} }`(stageDone 0~5, progress ≤8KB) → `Lesson`. `DONE` 이면 `409`.
+#### #61 `PATCH /api/v1/lessons/:id/progress` `{ "stageDone": 3, "progress": {...} }` → `Lesson`(#60)
 
-#### #62 `POST /api/v1/lessons/:id/complete` `{ "score": 80 }`(0~100 선택)
+- 둘 중 하나 이상. `stageDone` 0~5 정수, **줄이면 `400 {reason:"monotonic", current}`**(끝낸 단계는 되돌리지 않는다, L11).
+- `progress` 는 **클라이언트 칸만**(직렬화 ≤8KB, 넘으면 `400 {reason:"TOO_LARGE"}`): `listen.segmentsDone:int[]`·`listen.played:{slow?:int[], normal?:int[]}`(구간 번호, **합집합** 병합)·`listen.memo:[{segment, ja}]`(들린 단어 초안 — 통째 교체, 구간 ≤5·레슨 ≤15·1~20자 가나/한자, 위반 `400 LIMIT|DUPLICATE|NOT_JAPANESE`)·`quiz.answers:(0~3|null)[]`(**이미 답한 칸은 바뀌지 않는다** — 첫 답 고정)·`application.answers:(string ≤200|null)[]`(보낸 칸만 교체). 서버 칸(`listen.proposed`·`speaking`)이나 모르는 키는 `400 unknown_key`. 보내지 않은 절·서버 칸은 그대로 보존.
+- `READY` 면 `IN_PROGRESS` 로. `DONE` `409 ALREADY_DONE`, 생성 전·실패 `409 NOT_READY`.
 
-트랜잭션(2026-09-26 R-1 반영): `Lesson.status=DONE, completedAt, score` → `StudyLog(LESSON|REVIEW, DIRECT)` → `StatsSnapshot(LESSON)+DAILY` → `RepetitionItem` 등록/갱신(레슨의 chunks·grammar·핵심 표현을 항목으로 upsert, `studiedCount+1`, quiz 오답은 `wrongCount+1`, 강사 교정은 `feedbackCount+1`) → `kind=REVIEW` 면 `ReviewSchedule.status=DONE, resolvedAt` → 트랜잭션 **뒤** `AiJob(REVIEW_DECISION)` enqueue(A11 강사 판단, 3~7일, 코드가 클램프·폴백). 응답의 `nextReview` 는 판단 잡이 끝나기 전엔 `null`(클라이언트는 `jobs/:id` 폴링 후 `lessons/today` 재조회).
+#### #62 `POST /api/v1/lessons/:id/complete` `{ "score": 80 }`(선택 — 형식만 확인하고 **쓰지 않는다**)
+
+**한 트랜잭션**(중간 실패 시 전부 롤백 — 라이브 스모크가 LESSON 스냅샷 선점으로 실패를 일으켜 행 변화 0 을 확인): 서버 재채점(L4 — `score = round(정답 수 / 문항 수 × 100)`, 미답은 틀림으로 세지 않되 분모에 든다) → `RepetitionItem` 등록/갱신(L5, 아래) → `Lesson DONE, completedAt, score, stageDone=5` → `StudyLog(LESSON|REVIEW, DIRECT, refId=레슨)` → `StatsSnapshot(LESSON, periodKey=레슨)` → `DAILY(lessons+1, repetition.studied+n)`. 날짜는 **완료한 날(KST)**.
 
 ```json
-← { "lesson": { "id": "ls_…", "status": "DONE" }, "studyLogId": "sl_…", "reviewDecisionJobId": "j_…", "nextReview": null }
+← { "lesson": { "id": "ls_…", "status": "DONE", "score": 80, "stageDone": 5, "completedAt": "…" }, "studyLogId": "sl_…",
+    "reviewDecisionJobId": null, "nextReview": null,
+    "result": { "score": 80, "quiz": { "correct": 4, "total": 5, "answered": 5 }, "applicationDone": 1,
+                "expressions": { "usedIds": ["tc_1", "g1"], "missedIds": ["g2"] }, "repetition": { "items": 11, "created": 11, "updated": 0 },
+                "nextPreview": { "titleKo": "…", "teaserKo": "…" } } }
 ```
+
+- 완료 조건: `READY`·`IN_PROGRESS` + `stageDone ≥ 4`(말하기 단계에 들어섬, 아니면 `409 {reason:"STAGES_LEFT", stageDone, required:4}`). **두 번째 완료 `409 {reason:"ALREADY_DONE"}`, 행 증가 0**(두 프로세스 동시 완료도 200 하나·409 하나 — 라이브 확인).
+- `RepetitionItem`(L5, 상한 12, 조각 먼저): 이 레슨 주제의 실제 조각 id 면 `refType="TopicChunk", refId=조각 id, itemType=CHUNK`, A4 가 새로 만든 표현(또는 주제 밖 id)은 `refType="Expr", refId=sha1(NFKC·공백·구두점·물결표 제거 표기) 40자, itemType=EXPRESSION`, 문법은 `refType="Grammar", refId=sha1(문형), itemType=GRAMMAR`. `studiedCount+1`·`lastStudiedAt`, quiz 문항의 `targetIds` 마다 정답 `correctCount+1`/오답 `wrongCount+1`(미답 변화 없음), `intervalDays` = 기존 값(없으면 3)을 3~7(FOCUS ≤3)로 자른 값, `nextDueAt = 오늘 + intervalDays`, `decidedBy=FALLBACK`. 강사 판단(A11)·`ReviewSchedule` 은 task-010b — 그때 `reviewDecisionJobId`·`nextReview` 가 채워진다.
+- `StudyLog.result`(LESSON) = `{stageDone, score, quizCorrect, quizTotal, quizAnswered, applicationDone, usedExpressionIds[], missedExpressionIds[], itemIds[], listen:{segmentsDone, memoCount, proposedCount}, speakingDone, topicId, source}` — `itemIds`·`used/missedExpressionIds` 는 **RepetitionItem id**(레슨 밖에서도 뜻이 있는 id). 응답 `result.expressions` 는 화면용 **레슨 안 id**(content 의 chunks/grammar id). `StatsSnapshot(LESSON).data` = `{kind, topicId, score, stageDone, itemCount, quizCorrect, quizTotal, date}`.
+- 쓴 표현·못 쓴 표현 = `progress.speaking[]` 의 matched 합집합 / 말하기 목표 전체 − 쓴 것(판정 불가 제외, 시도하지 않은 과제의 목표는 못 쓴 표현).
+
+#### #62a `POST /api/v1/lessons/:id/memo` — 들린 단어 메모 → 단어 제안(task-010 L3, 신설)
+
+```json
+→ { "segments": [ { "segment": 1, "words": ["ちゅうもん", "ホット"] }, { "segment": 2, "words": ["めしあがり"] } ] }
+← { "proposals": [ { "id": "p_…", "kind": "ADD_WORD", "status": "PROPOSED", "chat": null, "messageId": null, "createdAt": "…", "resolvedAt": null, "result": null,
+                     "payload": { "surface": "注文", "reading": "ちゅうもん", "meaning": "주문", "lessonId": "ls_…", "source": "LESSON", "segment": 1, "lineIdx": 0,
+                                  "via": "CHUNK", "memo": "ちゅうもん", "example": "ご注文はお決まりですか。", "exampleKo": "주문하시겠어요?" } } ],
+    "skipped": [ { "surface": "ケーキ", "reason": "IN_WORDBOOK", "wordId": "w_…" }, { "surface": "coffee", "reason": "NOT_JAPANESE" } ],
+    "memo": { "count": 3, "limit": 15 } }
+```
+
+- 요청: `segments` 1개 이상, 구간마다 `words` 1~5, 요청 전체 ≤15. 구간 번호가 이 레슨 구간 수를 넘으면 `400 {reason:"segment_range"}`. 사용자당 분당 10.
+- 단어마다(요청 순서): 형식 위반(가나·한자 없음·20자 초과) → `skipped NOT_JAPANESE` · 같은 요청 안 중복 → `DUPLICATE` · 이 레슨에서 이미 처리한 단어 → **그때 결과 그대로**(제안 카드는 `proposals` 에 현재 상태로, 단어장 단어는 `IN_WORDBOOK` — 다시 보내도 새 행 없음) · 메모 한도(구간 5·레슨 15, 이미 적어 둔 초안 포함) 초과 → `LIMIT` · 레슨 조각과 표기·읽기가 같으면 조각의 **표기·읽기·뜻**(`via:"CHUNK"`, 표기가 조각 표기로 바뀔 수 있어 `memo` 에 적은 그대로를 싣는다) · 아니면 A10 단어 보강(`via:"ENRICH"`, 저장 안 함 — 보강이 일본어가 아니라고 하면 `NOT_JAPANESE`, 엔진 실패는 `ENRICH_FAILED` 로 알리고 초안에만 남겨 다시 보낼 수 있게) · 단어장에 같은 표현이 있으면(**JS 바이트 일치** — DB 콜레이션은 は/ぱ 를 같게 본다) → `IN_WORDBOOK`. 예문 = 그 단어가 나온 대화 줄(같은 구간 먼저, `lineIdx` 0부터), 없으면 보강 예문.
+- **한 트랜잭션**: 레슨 잠금 → conversation 이 `TutorProposal(ADD_WORD, PROPOSED, chatId:null, payload.source="LESSON")` 생성(같은 표현의 처리 전 `ADD_WORD` 제안이 이미 있으면 — 채팅 제안 포함 — 새로 만들지 않고 그 제안) → learning 이 `progress.listen.memo`(초안 합치기)·`listen.proposed`(처리 결과) 기록. TutorProposal 은 L2 소유라 learning 이 아니라 conversation 이 쓰고 라우트가 조합한다.
+- **채택 전 `WordEntry` 행 0**. 채택은 기존 #38 — `payload.source="LESSON"` 이면 `WordEntry(source=LESSON, sourceRefId=레슨 id)` + 제안에 실린 `partOfSpeech·jlpt·example·exampleKo`. `reason` 은 `IN_WORDBOOK|DUPLICATE|LIMIT|NOT_JAPANESE|ENRICH_FAILED`(클라이언트는 모르는 값 무시).
+- (§6-2 의 "#61 `memoWords` 를 서버가 제안으로 바꿈" 안을 이 별도 엔드포인트로 대체 — #61 은 초안 저장만, 제안은 학습자가 [단어장에 넣을까요?]를 눌렀을 때.)
+
+#### #62b `POST /api/v1/lessons/:id/speaking` — 말하기 확인(task-010 L1, 신설 — **LLM 없음**)
+
+```json
+→ { "itemId": "s1", "text": "冷たいコーヒーを小さいサイズでお願いします。", "utteranceId": "u_…" }
+← { "itemId": "s1", "used": true, "matchedIds": ["c12", "c11"], "missedIds": [], "unknownIds": [],
+    "modelAnswer": { "ja": "…", "reading": "…", "ko": "…" }, "utteranceId": "u_…", "hasAudio": true }
+```
+
+- `text` 1~1,000자(음성이면 인식 결과, 키보드면 입력). 과제 id 가 이 레슨에 없으면 `400 {reason:"unknown_item"}`. 사용자당 분당 30.
+- 판정(코드): NFKC → 가타카나→히라가나 → 공백·구두점·물결표 제거 후, 조각은 **표기 또는 읽기**가 들어 있으면 사용(끝의 です·でした·ます·ました·ください 를 뗀 핵심, 정중형이 아니면 사전형 끝 가나를 뗀 어간 — 2자 이상 — 도 인정). 문법은 문형을 〜·+·/·괄호·로마자 자리표시에서 나눈 조각이 모두 들어 있으면 사용(용어 조각 "ます形" 등·한글은 버림, 한자가 든 조각은 한자를 건너뛴 가나 조각으로도 인정). 남는 조각이 없으면 `unknownIds`(쓴·못 쓴 어느 쪽에도 넣지 않음). `used` = 판정 가능한 목표를 **모두** 썼다.
+- **한 트랜잭션**: 레슨 잠금 → 과제 확인 → `utteranceId` 가 오면 speech 가 소유(`404`)·미사용(채팅 메시지·대화방·평가 문항에 안 쓰임, 아니면 `409 UTTERANCE_USED|UTTERANCE_OTHER_CHAT`)·다른 레슨 아님(`409 UTTERANCE_OTHER_LESSON`)·처음 붙일 때 10분 이내(`409 UTTERANCE_EXPIRED`)를 확인하고 `Utterance.lessonId` 연결(이미 이 레슨에 붙은 발화는 재참조 허용) → `progress.speaking[]` 기록(같은 과제는 마지막 시도로 교체, 말한 내용은 앞 200자만).
+- `hasAudio` = 원음이 아직 보존돼 있는가(30일) — "내 목소리 다시 듣기"는 **기존 #21b** `GET /api/v1/speech/utterances/:id/audio` 를 쓴다(새 오디오 라우트 없음).
+
+#### #62c `POST /api/v1/lessons/:id/audio` — 레슨 오디오(task-010 L2, 신설)
+
+```json
+→ { "kind": "dialogue", "idx": 0, "pace": "slow" }
+← { "kind": "dialogue", "idx": 0, "pace": "slow", "clips": [ { "url": "/api/v1/speech/tts/<token>", "durationMs": 2140, "pauseBeforeMs": 0, "cached": false } ],
+    "runtime": { "executionMode": "SERVER" } }
+```
+
+- `kind ∈ dialogue|grammar|application|speaking`(대화 줄 `ja` · 문법 `exampleJa` · 응용/말하기 `modelAnswerJa`), `idx` 0부터(범위 밖 `400 {reason:"out_of_range"}`), `pace ∈ slow|normal`(기본 normal). 엔진 수치 키는 받지 않는다(`400 unknown_key`). 본문이 있는 레슨만(`READY`·`IN_PROGRESS`·`DONE`, 아니면 `409 NOT_READY`).
+- 합성은 #23 과 같은 파이프라인(정규화·발음 사전 — 이 레슨·주제 범위 포함·Rendering Plan·12요소 캐시·8초 fail-fast). `slow` = `LEARNING_SLOW`(사용자 `learningSpeed` 0.6/0.8/1.0, 기본 0.8), `normal` = `LEARNING_NORMAL`(1.0), Resolver 문맥 `LESSON_READ`. 한 문장이 세그먼트 상한(100자)을 넘으면 문장 단위 조각 여러 개(≤4) — 클라이언트는 `pauseBeforeMs` 간격으로 이어 재생.
+- `clips[].url` = #24 서명 URL(10분, 사용자 결속) — 보관·재사용하지 않고 필요할 때 다시 요청(같은 문장·속도는 캐시 HIT). 서버 TTS 불가면 `422 ENGINE_UNAVAILABLE {reason:"TTS_UNAVAILABLE", runtime:{executionMode:"TEXT_ONLY"}}`(화면은 읽기·후리가나만, L12), `502`·`504`(문장 8초). 사용자당 분당 60(#23 과 같은 한도를 나눠 쓴다).
 
 #### #63 `POST /api/v1/reviews/:id/start` → `{ "lessonId": "ls_…", "jobId": "j_…" }` — A5 복습 혼합 레슨(`mixSpec` = `ReviewSchedule.itemIds` 의 `RepetitionItem` 들 — 코드가 만든다, 후검증 `chunks ⊆ mixSpec` 실패 시 1회 재시도). 이미 `lessonId` 가 있으면 그 레슨 반환. `status≠DUE` 면 `409`.
 
 #### #64 `POST /api/v1/reviews/:id/skip` → `{ "id", "status": "SKIPPED", "resolvedAt" }`. 다음 학습일에 코드가 다시 DUE 를 만든다.
 
-### 2-14. AI평가 `/api/v1/evaluations` (#65~#69, L3 learning/evaluation · Phase 2)
+### 2-14. AI평가 `/api/v1/evaluations` (#65~#69·#67a·#67b, L3 learning/evaluation · Phase 2 — task-011 구현 기준 2026-09-28)
+
+공통: 소유자만(타인·없는 id 는 같은 404). A6·A7 요청은 라우트가 conversation(`buildEvalGenRequest`·`buildEvalGradeRequest`)으로 만들어 learning 에 값(출제)·함수(채점)로 넘긴다(module-dependency §4-4). 응답·잡·Trace 에 엔진명·모델명 없음.
 
 #### #65 `POST /api/v1/evaluations`
 
@@ -935,42 +1031,88 @@ POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4"
 ← { "evaluationId": "ev_…", "jobId": "j_…", "status": "GENERATING" }
 ```
 
-- `kind ∈ EvalKind{WORDS,TALK}`, `level` 기본 `Profile.level`, `topicId` 는 TALK 권장. 진행 중(`GENERATING/READY/IN_PROGRESS/GRADING`) 평가가 있으면 `409 { details: { evaluationId } }`. A6 출제 잡 60s: WORDS 10문항(MEANING_CHOICE 4·READING_INPUT 2·USAGE_CHOICE 2·CHUNK_CLASSIFY 2) / TALK 6문항(LISTEN_RESPOND 2·ASSEMBLE 1·SITUATION_RESPOND 2·CORRECTION_SPOT 1). 재료 = 사용자 단어장 ≥60%(오답 우선) + 강사 생성 ≤40%, 최근 14일 출제 해시 중복 금지.
+- `kind ∈ EvalKind{WORDS,TALK}`, `level` 기본 `Profile.level`, `topicId` 는 TALK 권장(시드 또는 내 주제, 아니면 404). 모르는 키 400. 사용자당 분당 10.
+- 진행 중(`GENERATING/READY/IN_PROGRESS/GRADING`) 평가가 있으면 `409 { details: { reason:"IN_PROGRESS", evaluationId, status } }`. GENERATING 인데 잡이 죽었으면(재시작) 그 행을 FAILED 로 닫고 진행한다. **채점 실패로 GRADING 에 남은 평가도 진행 중**이다(다시 채점해야 새 평가).
+- **단어 부족(계약 공백 6 해소)**: 재료 비율 ≥60% 를 채울 수 없으면 출제 전에 `400 { details: { reason:"NOT_ENOUGH_WORDS", have, need } }` — `need` = WORDS **6**·TALK **4**(60% × 10·6), `have` = 보관하지 않은 단어 수.
+- 재료(코드가 고름): 보관하지 않은 단어장 단어에서 오답 우선 가중 비복원 샘플링 ≤15(오늘의 단어 `weightOf`, 최근 14일 평가에 나온 표기는 가중 ×0.1). 최근 14일 문항은 DB 의 A6 원본으로 `computeEvalItemHash` 를 다시 계산해 A6 후검증에 넘긴다(프롬프트에는 안 싣는다).
+- A6 출제 잡 60s(`EVAL_GEN`): WORDS 10문항(MEANING_CHOICE 4·READING_INPUT 2·USAGE_CHOICE 2·CHUNK_CLASSIFY 2) / TALK 6문항(LISTEN_RESPOND 2·ASSEMBLE 1·SITUATION_RESPOND 2·CORRECTION_SPOT 1). 성공하면 한 트랜잭션 `Evaluation READY + EvaluationItem × n + 잡 DONE`.
+  - 문항 순서 = 종류 표시 순(위 나열 순), 같은 종류 안은 A6 순서. 저장 전 코드가 **보기 4개 순서와 조립 조각 순서를 섞는다**(평가 id·순번 시드, 정답 번호를 따라 옮김 — 모델이 정답을 앞쪽 보기에 두는 버릇 제거). `prompt`·`expected` 는 그 밖에 A6 원본 그대로(14일 해시 재현), `wordSurfaceSnap` = A6 `wordSurface`, `wordId` 는 재료 표기와 글자 그대로 같을 때만.
+- **출제 실패(계약 공백 5 해소)**: A6 실패(재시도 뒤 후검증 위반·시간 초과)면 `Evaluation FAILED`(`error` = 오류 코드) + 잡 FAILED. FAILED 는 진행 중이 아니므로 "다시 만들기" = 새 #65 — 문항 없는 FAILED 행이 있으면 **그 행을 GENERATING 으로 되살린다**(레슨 #59 와 같은 패턴, 기록 목록에 빈 실패 행이 쌓이지 않게). FAILED 행은 #69 에 나오지 않는다.
 
 #### #66 `GET /api/v1/evaluations/:id`
 
 ```json
-{ "id": "ev_…", "kind": "WORDS", "level": "N4", "status": "IN_PROGRESS", "topic": null, "timeLimitSec": 600, "startedAt": "…", "submittedAt": null,
+{ "id": "ev_…", "kind": "TALK", "level": "N4", "status": "IN_PROGRESS", "topic": null, "timeLimitSec": 600,
+  "startedAt": "…", "deadlineAt": "…", "submittedAt": null, "completedAt": null, "overtime": false, "jobId": null, "error": null,
+  "itemCount": 6, "answeredCount": 1,
   "items": [
-    { "id": "ei_1", "order": 0, "kind": "MEANING_CHOICE", "prompt": { "surface": "駅", "reading": "えき", "choices": ["역", "학교", "병원", "공원"] }, "maxScore": 10, "answered": false },
-    { "id": "ei_2", "order": 1, "kind": "LISTEN_RESPOND", "prompt": { "audioUrl": "/api/v1/speech/tts/…", "textHidden": true, "instructionKo": "들은 문장에 답해 보세요" }, "maxScore": 10, "answered": true, "answerText": "…", "inputSource": "REALTIME_STT" }
+    { "id": "ei_1", "order": 0, "kind": "LISTEN_RESPOND", "prompt": { "instructionKo": "들은 말에 답해 보세요", "textHidden": true }, "maxScore": 10,
+      "answered": true, "answerText": "コーヒーをお願いします", "answerOrder": null, "inputSource": "REALTIME_STT", "answeredAt": "…",
+      "expected": null, "score": null, "correct": null, "feedback": null, "dims": null },
+    { "id": "ei_2", "order": 1, "kind": "ASSEMBLE", "prompt": { "promptKo": "…", "pieces": ["を", "コーヒー", "ください"] }, "maxScore": 10,
+      "answered": true, "answerText": "コーヒーをください", "answerOrder": [1, 0, 2], "inputSource": "TEXT", "answeredAt": "…",
+      "expected": null, "score": null, "correct": null, "feedback": null, "dims": null }
   ],
   "result": null }
 ```
 
-- `READY/IN_PROGRESS` 에서는 `expected`(정답)·`score`·`feedback` 을 숨긴다. `DONE` 이면 `result` 와 문항별 `expected/score/feedback/dims` 포함:
+- `READY/IN_PROGRESS/GRADING` 에서는 문항별 `expected`(정답)·`score`·`correct`·`feedback`·`dims` 가 `null` 이다(객관식은 #67 에서 이미 채점해 저장했지만 공개하지 않는다). **듣고 답하기의 들려줄 문장(`prompt.textJa`)은 싣지 않고 `textHidden:true` 만** — 소리는 #67a(종전 예시의 `audioUrl` 은 쓰지 않는다: 레슨 #62c 처럼 재생할 때 받는다). `DONE` 이면 전부 공개(`prompt.textJa`·`textHidden:false` 포함) + `result`:
 
 ```json
 "result": { "totalScore": 82, "grade": "GOOD", "rubric": { "accuracy": 4, "vocabulary": 4, "grammar": 3, "naturalness": 4, "assembly": 5 },
-            "comment": "…", "nextFocus": ["に/で 구분", "て형 연결"], "studyLogId": "sl_…", "completedAt": "…" }
+            "comment": "…", "nextFocus": ["に/で 구분", "て형 연결"], "studyLogId": "sl_…", "completedAt": "…", "overtime": false, "durationSec": 412,
+            "levelProposal": null }
 ```
 
-`grade`: ≥90 `EXCELLENT` / ≥75 `GOOD` / ≥60 `FAIR` / <60 `NEEDS_WORK`. 루브릭 5차원 0~5(발음·유창성 제외).
+- `startedAt`·`deadlineAt`(= startedAt + 600s)은 IN_PROGRESS 이후만(READY 는 `null` — 시계가 아직 안 돌았다). `overtime` = 제출(안 했으면 지금)이 마감을 넘겼는가(표시만). `jobId` = GENERATING·GRADING 의 살아 있는 잡(#55 폴링) — **GRADING 인데 `jobId:null`(+`error`)이면 채점 실패 → 화면 "다시 채점"(= #68 다시)**. GENERATING 인데 잡이 죽었으면 읽는 자리에서 FAILED 로 닫는다.
+- `answerText` = 화면에 보일 내 답(조립은 고른 순서로 이은 문장), `answerOrder` = 조립 문항의 고른 조각 번호(다시 들어왔을 때 되살리기).
+- `grade`: ≥90 `EXCELLENT` / ≥75 `GOOD` / ≥60 `FAIR` / <60 `NEEDS_WORK`(코드 계산, 저장하지 않음). 루브릭 5차원 0~5(발음·유창성 제외).
+- `result.levelProposal` = 이 평가가 만든 `SET_LEVEL` 제안(#37 과 같은 `ProposalDto`, 없으면 `null`) — **payload `{level, fromLevel, source:"EVALUATION", evaluationId, basis:[{evaluationId, kind, totalScore, date}×2]}`**(오래된 것 → 최근, 계약 공백 7 해소: 근거 문구 "9월 26일 92점 · 오늘 90점").
 
 #### #67 `POST /api/v1/evaluations/:id/items/:itemId/answer`
 
 ```json
 → { "answerText": "역", "inputSource": "TEXT", "utteranceId": null }
-← { "id": "ei_1", "answered": true, "graded": true, "score": 10, "expectedShown": false }
+→ { "pieceOrder": [1, 0, 2] }                                   (ASSEMBLE)
+→ { "inputSource": "REALTIME_STT", "utteranceId": "ut_…" }       (서술형 — 음성)
+← { "id": "ei_1", "answered": true, "graded": true, "expectedShown": false, "answerText": "역", "answerOrder": null, "inputSource": "TEXT",
+    "answeredAt": "…", "evaluationStatus": "IN_PROGRESS", "startedAt": "…", "deadlineAt": "…", "utteranceId": null, "hasAudio": false }
 ```
 
-- 객관식(`MEANING_CHOICE·USAGE_CHOICE·CHUNK_CLASSIFY·READING_INPUT·ASSEMBLE`)은 코드가 즉시 채점하되 `score` 만 돌려주고 정답은 제출 후 공개. 서술형은 `graded:false`. `answerText` ≤2,000자. 같은 문항 재답은 제출 전까지 덮어쓴다. TALK 의 `LISTEN_RESPOND/SITUATION_RESPOND` 는 `utteranceId` 로 발화를 연결(분석 텍스트가 있으면 `Utterance.finalText` 사용). 상태 `≠IN_PROGRESS/READY` 면 `409`. 첫 답에서 `status=IN_PROGRESS`.
+- **응답에 `score` 를 싣지 않는다(task-011 데모 v1 의미 우선 — "답해도 '저장했어요'만", 종전 계약의 `score` 삭제)**. `graded` = 코드가 채점을 끝냈는가(객관식 true·서술형 false). 점수·정답은 DONE 뒤 #66.
+- 종류별 답: MEANING_CHOICE·USAGE_CHOICE = 고른 보기 글자 그대로(`answerText`, 보기 밖 400 `not_a_choice`) · READING_INPUT = 입력(≤80자, NFKC·가타카나→히라가나·공백/문장부호 무시하고 `expected.accepted`+`reading` 과 비교) · CHUNK_CLASSIFY = `NAME|ACTION|FEELING|MODIFIER`(400 `not_a_chunk_type`) · **ASSEMBLE = `pieceOrder`(prompt.pieces 번호의 순열 — 같은 조각이 두 번 나와도 순서가 정해지게. 종전 `answerText` 대신, 순열 아니면 400 `not_a_permutation`)** · 서술형(LISTEN_RESPOND·SITUATION_RESPOND·CORRECTION_SPOT) = `answerText`(TEXT) 또는 `utteranceId`. 다른 문항에 `pieceOrder` 400 `not_assemble`, 객관식에 `utteranceId` 400 `not_speaking_item`. `answerText` ≤2,000자. 모르는 키 400.
+- `inputSource` 기본값: `utteranceId` 가 있으면 `REALTIME_STT`, 없으면 `TEXT`. 음성(`REALTIME_STT|SERVER_STT`)인데 발화 id 없음 400 `required`, `TEXT` 인데 발화 id 400 `mismatch`(#32 와 같은 규칙).
+- **한 트랜잭션**: 평가 잠금(사용자 → 평가) → 상태 `READY/IN_PROGRESS` 아니면 409(`ALREADY_DONE`·`SUBMITTED`·`NOT_READY`) → 문항 확인(다른 평가의 문항 404) → `utteranceId` 가 오면 speech 가 소유(404)·미사용(채팅 메시지 409 `UTTERANCE_USED`·대화방 `UTTERANCE_OTHER_CHAT`·레슨 `UTTERANCE_OTHER_LESSON`·다른 문항 `UTTERANCE_USED`)·처음 붙일 때 10분 이내(409 `UTTERANCE_EXPIRED`)를 확인하고 `Utterance.evaluationItemId` 연결(이미 이 문항에 붙은 발화는 재사용 허용) → 채점 재료 = 발화 `finalText`(없으면 실시간 텍스트, L1 — 분석 STT 는 012b) → 답 저장(객관식은 코드 채점 점수도 저장) → 첫 답이면 `READY → IN_PROGRESS`·`startedAt`(10분 시계 시작). 같은 문항 재답은 제출 전까지 덮어쓴다. 사용자당 분당 60.
+- 발화는 #21(`evaluationItemId` 없이) 또는 gateway TURN 티켓(chatId 없이)으로 먼저 만든다 — #21 의 `evaluationItemId` 필드는 계속 400 `FEATURE_NOT_READY`(연결은 #67 이 한다).
+- **"글자로 봤어요"(계약 공백 3) — 보류·Leader 보고**: 듣고 답하기 소리를 못 들을 때 글자를 보여 주고 결과에 표시하려면 (a) 서버가 제출 전에 `textJa` 를 주는 요청과 (b) 그 사실을 남길 칸이 필요하다. 스키마 변경 없이 넣을 곳이 없어(`answerText`·`inputSource` 는 답의 속성이라 공개 여부와 무관, `prompt`·`expected`·`dims` 는 쓰지 않기로 함) 구현하지 않았다. 제안: `POST …/items/:itemId/reveal → {textJa}` + `EvaluationItem.textRevealedAt DateTime?`(다음 db push 묶음) — 결과 `items[].textRevealed`.
 
-#### #68 `POST /api/v1/evaluations/:id/submit` → `{ "jobId": "j_…", "status": "GRADING" }`
+#### #67a `POST /api/v1/evaluations/:id/items/:itemId/audio` — 듣고 답하기 소리(task-011, 신설)
 
-미답 문항은 0점. A7 채점 잡 120s. 잡 마지막 단계는 **단일 트랜잭션** `Evaluation(DONE, totalScore, rubric, comment, nextFocus, studyLogId)` + `StudyLog(EVALUATION, DIRECT)` + `StatsSnapshot(EVALUATION, periodKey=evaluationId)` + `DAILY`. 실패 시 `GRADING` 잔류·재시도(클라이언트 "다시 채점"). 제한 시간 10분 경과 후 submit 도 허용(초과 표시만). 같은 레벨 ≥90 을 2회 연속이면 `TutorProposal(SET_LEVEL)` 생성.
+```json
+→ {}
+← { "itemId": "ei_1", "clips": [ { "url": "/api/v1/speech/tts/<token>", "durationMs": 2140, "pauseBeforeMs": 0, "cached": false } ], "runtime": { "executionMode": "SERVER" } }
+```
 
-#### #69 `GET /api/v1/evaluations?limit=&cursor=&kind=` → `{ items: [ { id, kind, level, status, totalScore, grade, completedAt } ], nextCursor }`.
+- 소유자만(404), 문항이 있는 상태(READY·IN_PROGRESS·GRADING·DONE, 아니면 409 `NOT_READY`), LISTEN_RESPOND 가 아니면 400 `not_listen_item`. 본문에 키가 있으면 400.
+- #62c 와 같은 파이프라인(정규화·발음 사전 — 평가 주제 COURSE 범위·Rendering Plan·12요소 캐시·8초 fail-fast), `LEARNING_NORMAL`(1.0 고정 — 평가는 느린 재생 없음), Resolver 문맥 `EVAL`. `clips[].url` = #24 서명 URL(10분, 사용자 결속). 응답에 들려줄 문장 글자·엔진명 없음. 서버 TTS 불가면 `422 ENGINE_UNAVAILABLE {reason:"TTS_UNAVAILABLE"}`. 사용자당 분당 60(#23 과 공유). 다시 듣기 횟수 제한(데모 결정 (e))은 화면 몫.
+
+#### #67b `POST /api/v1/evaluations/:id/start` — 시작(10분 시계, 사용자 결정 (d) 대기 훅)
+
+- `READY → IN_PROGRESS`·`startedAt = now`, IN_PROGRESS 면 그대로(멱등), 그 밖 409. 응답 = #66 상세(정답 숨김).
+- **결정 전까지 화면은 부르지 않는다** — 현 계약은 #67 첫 답에서 시계가 시작된다. 데모 권고 (d)=B("[시작하기] 누를 때")가 채택되면 화면이 준비 화면의 [시작하기]에서 부른다. 두 경로가 같이 있어도 `startedAt` 은 처음 한 번만 정해진다.
+
+#### #68 `POST /api/v1/evaluations/:id/submit` → `{ "evaluationId": "ev_…", "jobId": "j_…", "status": "GRADING", "reused": false, "overtime": false }`
+
+- 본문 `{}`(키가 있으면 400). 사용자당 분당 10. 10분 경과 후 submit 도 허용(`overtime:true` 표시만).
+- 제출(한 트랜잭션, 사용자 → 평가 잠금): `READY/IN_PROGRESS` → 객관식 재채점(미답 0) → `GRADING`·`submittedAt`(READY 에서 바로 내면 `startedAt` 도 지금) → A7 채점 잡(`EVAL_GRADE`) 생성. **`GRADING` + 살아 있는 채점 잡 → 그 잡(`reused:true`, 새 잡 없음)** · `GRADING` + 잡 없음(앞선 채점 실패) → 새 잡("다시 채점") · `DONE` → 409 `ALREADY_DONE {evaluationId}` · `GENERATING/FAILED` → 409 `NOT_READY`.
+- A7 채점 잡 120s: 제출 시점 문항·답으로 A7 요청(서술형 문항·답 + 객관식 종류별 정답 수 요약 — WORDS 도 루브릭 근거) → 코드 마무리(누락 문항 0점·0~10 클램프·**미답 서술형은 A7 점수와 무관하게 0**·루브릭 0~5) → 총점 `round(Σscore/Σmax×100)`(**LLM total 은 받지 않는다**).
+- 잡 마지막 단계는 **단일 트랜잭션**: 사용자 → 평가 잠금(아직 GRADING 인가) → 서술형 `score·feedback` → `StudyLog(EVALUATION, DIRECT, refId=evaluationId, result {total, grade, rubric, kind, level, itemCount, answered, overtime}, durationSec = 제출 − 시작)` → `Evaluation(DONE, totalScore, rubric, comment, nextFocus, studyLogId, completedAt)` → `StatsSnapshot(EVALUATION, periodKey=evaluationId, {kind, level, total, grade, rubric, itemCount, date})` → `DAILY(evals+1)`. **잡 DONE 은 그 뒤 레벨 제안 단계까지 끝낸 다음**(결과 화면이 잡 DONE 을 보고 #66 을 읽을 때 `levelProposal` 이 이미 있게 — 그 사이 프로세스가 죽으면 잡은 5분 뒤 stale FAILED 지만 평가는 DONE 이므로 화면은 #66 `status` 로 판단한다). 중간 실패는 전부 롤백되고 **`GRADING` 잔류**(`error` = 오류 코드, #66 `jobId:null`) — 클라이언트 "다시 채점" = #68 다시(새 잡, 처음부터). 두 잡이 겹쳐도 GRADING 조건 + 스냅샷 유니크로 DONE 은 한 번(QA: `count(DONE) == count(Snapshot EVALUATION)`). **세대 펜싱**(출제 되살리기·다시 채점 공통, task-010 C2-1 과 같은 방식): 저장·실패 기록은 사용자 행 잠금 뒤 자기 잡이 그 평가의 현재 세대(진행 중·더 새 잡 없음)일 때만 하고, 아니면 결과를 버린다 — stale 로 닫힌 옛 잡의 늦은 성공·실패가 새 잡의 평가를 덮거나 `error` 를 남기지 않는다.
+- **SET_LEVEL(L5)**: 트랜잭션 **뒤**(같은 트랜잭션 X) 가장 최근 DONE 두 건이 같은 레벨·둘 다 ≥90·그 레벨이 지금 `Profile.level`·위 단계가 있으면 `TutorProposal(SET_LEVEL, PROPOSED)`(payload 는 #66 `levelProposal`). 두 근거 중 하나라도 이미 다른 SET_LEVEL 제안의 근거면 만들지 않는다(거절 뒤엔 새로 두 번 ≥90 필요), 같은 목표 레벨의 처리 전 제안이 있으면 그것을 쓴다. 채택(#38)해야 `Profile.level` 이 바뀐다(`result {level}`). 제안 실패는 채점 결과에 영향 없음(로그만).
+- `LearnerErrorStat` 증가(domain-model §5-4)는 A7 이 오류 유형을 내지 않아 이번 구현에서 하지 않는다. 010b `LearningObservation` 연결도 테이블 적용 뒤(훅 없음).
+
+#### #69 `GET /api/v1/evaluations?limit=&cursor=&kind=`
+
+→ `{ items: [ { id, kind, level, status, topic, totalScore, grade, startedAt, deadlineAt, submittedAt, completedAt } ], nextCursor }` — `limit` 1~50(기본 20), 최근 것부터(`startedAt desc, id desc` 키셋 커서). **진행 중 평가도 넣는다**(오늘 홈 카드가 `limit=1` 로 "이어서 풀기·채점 중·결과 보기"를 고른다), **출제 실패(FAILED) 행은 뺀다**. `totalScore`·`grade` 는 DONE 만, `startedAt`·`deadlineAt` 은 IN_PROGRESS 이후만.
 
 ### 2-15. 공부계획표 `/api/v1/plan` (#70~#78, L3 learning/studyLog·studyPlan·snapshots)
 
@@ -981,6 +1123,8 @@ POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4"
   "summary": { "attendedDays": 18, "studyDays": 15, "streak": 4 } }
 ```
 
+**task-012 구현 기준(2026-09-28, additive)**: 응답에 `today`(서버 KST 오늘 — 오늘 표시·미래 달 비활성 판단, §0-6)와 `summary.longestStreak`(그 달 안 최장 연속 출석일)를 더한다. `days` 는 그 달의 **모든 날**(빈 날 포함, 날짜 오름차순). `month` 생략 시 이번 달(KST), 형식 `YYYY-MM`·연도 2000~2100 밖은 `400`. `types` 는 중복 없이 고정 순서(TALK·CHAT·WORDS·LESSON·REVIEW·EVALUATION·ASK), `minutes` = 그날 `durationSec` 합을 분 반올림(값 없는 기록 0 — 추정 안 함), `hasEvaluation` = 그날 EVALUATION 기록 유무, `reviewDue` = 그날이 `ReviewSchedule(status=DUE)` 예정일, `summary.streak` = #25·#26 과 같은 "오늘 기준 연속 출석일", `studyDays` = 기록이 1건 이상인 날 수(출석만 한 날 제외).
+
 #### #71 `GET /api/v1/plan/day?date=2026-09-26` (Phase 2)
 
 ```json
@@ -988,6 +1132,8 @@ POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4"
   "logs": [ { "id": "sl_…", "type": "WORDS", "origin": "DIRECT", "summary": "오늘의 단어 10장 · 7/2/1", "result": { "correct": 7, "wrong": 2, "skipped": 1 }, "correctionsCount": 0, "durationSec": 156, "refId": "vs_…", "createdAt": "…" } ],
   "review": { "id": "rv_…", "status": "DONE" } }
 ```
+
+**task-012 구현 기준(2026-09-28, additive)**: 로그 객체에 `date`(KST — #72 에서 날짜별 묶음에 필요)와 `refExists`(원본이 지금도 이 사용자 소유로 있는가, `refId` 가 없으면 `false` — 화면의 "원본이 삭제됐어요")를 더한다. 원본 = WORDS→`VocabSession` · LESSON/REVIEW→`Lesson` · EVALUATION→`Evaluation` · TALK/CHAT/ASK→`Chat`(L2 소유라 라우트가 `conversation.ownedChatIds` 로 확인해 learning 에 넘긴다). `review` 에 `lessonId`(복습을 시작해 만든 레슨, 없으면 `null`)를 더하고, 그날 예정 복습이 없으면 `review: null`. `logs` 는 작성 순(최대 200). `date` 필수(실재 날짜, 연도 2000~2100), 위반 `400`.
 
 #### #74 `POST /api/v1/plan/analysis` (Phase 3)
 
@@ -1028,6 +1174,7 @@ POST → { "title": "직장 인사", "titleJa": "職場の挨拶", "level": "N4"
 
 - #72 `GET /api/v1/study-logs?from=&to=&type=&limit=&cursor=` → `{ items: StudyLog[], nextCursor }`(#71 의 로그 객체). `from/to` 최대 92일.
 - #73 `DELETE /api/v1/study-logs/:id` → `{ "deleted": true, "snapshotKept": true }`. `Evaluation.studyLogId` 는 `SetNull`. **`StatsSnapshot` 은 건드리지 않는다**(집계 불변). `origin=DIRECT` 기록 삭제도 허용(사용자 데이터).
+- **task-012 구현 기준(2026-09-28)**: #72 `to` 생략 시 오늘(KST), `from` 생략 시 `to` 포함 92일 전부터 — 구간 뒤집힘·92일 초과·없는 날짜·모르는 `type`(StudyType 하나)·`limit`(1~100, 기본 20)·해석 불가 커서는 `400`. 정렬 `(date desc, createdAt desc, id desc)`, 커서는 그 세 키. #73 은 `DELETE … WHERE id AND userId` 한 문장(남의 기록·없는 기록·이미 지운 기록 `404`, 동시 삭제는 하나만 `200`). `Evaluation.studyLogId` 는 DB FK `ON DELETE SET NULL` 이 처리한다(원본 세트·레슨·평가·대화는 그대로).
 
 ### 2-17. 서랍장 교정 `/api/v1/drawer/corrections` (#79, L2 conversation/corrections · Phase 3)
 
@@ -1681,8 +1828,8 @@ sequenceDiagram
 
 | 메서드·경로 | 목적 | 계약 |
 |---|---|---|
-| `#61 PATCH /api/v1/lessons/:id/progress` (변경) | `progress.listen{segmentsDone[], memoWords[{ja, reading?}]}` 허용 | 서버가 `memoWords` 중 단어장 미등록 항목을 `TutorProposal(ADD_WORD)` 로 생성해 응답 `proposals[]` 에 싣는다(채택 후 저장) |
-| `#60 GET /api/v1/lessons/:id` (변경) | `content.dialogue[].segment`, `content.nextPreview{kind, ref, teaser_ko}`, `audio.dialogue[]` 에 구간별 `rate` 변형(0.8/1.0) URL | — |
+| `#61 PATCH /api/v1/lessons/:id/progress` (변경) | `progress.listen{segmentsDone[], played, memo[{segment, ja}]}` 허용 | **task-010 에서 승격·변경**: #61 은 메모 초안 저장만 하고, 제안은 별도 **#62a** 가 만든다(학습자가 [단어장에 넣을까요?]를 누를 때) |
+| `#60 GET /api/v1/lessons/:id` (변경) | `content.dialogue[].segment`, `content.nextPreview{kind, ref, teaser_ko}`, `audio.dialogue[]` 에 구간별 `rate` 변형(0.8/1.0) URL | **task-010 에서 승격·변경**: `segment` 는 코드가 붙인다, `nextPreview` 는 A4 `{titleKo, teaserKo}`, `audio` 는 null — 재생할 때 **#62c**(`pace: slow|normal`) |
 
 ### 6-3. 주제·상황 (사용자 결정 필요 — Scenario 도입 Phase)
 

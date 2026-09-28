@@ -107,3 +107,42 @@ export interface VocabSessionSnapshotData {
 export async function createVocabSessionSnapshot(userId: string, sessionId: string, data: VocabSessionSnapshotData, tx: Tx): Promise<void> {
   await tx.statsSnapshot.create({ data: { userId, kind: 'VOCAB_SESSION', periodKey: sessionId, data: data as unknown as Prisma.InputJsonValue } })
 }
+
+/**
+ * LESSON `data`(domain-model §9-3 `{kind, topicId?, score, stageDone, date}` + learning-personalization §2-9 `itemCount`) — 레슨 1개의 확정 집계.
+ * 완료 트랜잭션 안에서 **한 번만**(`@@unique(userId, kind, periodKey=lessonId)` 이 최종 보증). 이후 레슨 삭제와 무관하게 불변(규칙 2).
+ */
+export interface LessonSnapshotData {
+  kind: 'NEW' | 'REVIEW'
+  topicId: string | null
+  score: number
+  stageDone: number
+  itemCount: number
+  quizCorrect: number
+  quizTotal: number
+  /** 완료한 KST 날짜. */
+  date: string
+}
+
+export async function createLessonSnapshot(userId: string, lessonId: string, data: LessonSnapshotData, tx: Tx): Promise<void> {
+  await tx.statsSnapshot.create({ data: { userId, kind: 'LESSON', periodKey: lessonId, data: data as unknown as Prisma.InputJsonValue } })
+}
+
+/**
+ * EVALUATION `data`(domain-model §9-3 `{kind, level, total, rubric, date}` + `grade`·`itemCount`) — 평가 1개의 확정 집계(task-011).
+ * 채점 완료 트랜잭션 안에서 **한 번만**(`@@unique(userId, kind, periodKey=evaluationId)` 이 최종 보증 — 두 채점 잡이 겹쳐도 한 건).
+ */
+export interface EvaluationSnapshotData {
+  kind: 'WORDS' | 'TALK'
+  level: string
+  total: number
+  grade: string
+  rubric: Record<string, number> | null
+  itemCount: number
+  /** 채점을 끝낸 KST 날짜. */
+  date: string
+}
+
+export async function createEvaluationSnapshot(userId: string, evaluationId: string, data: EvaluationSnapshotData, tx: Tx): Promise<void> {
+  await tx.statsSnapshot.create({ data: { userId, kind: 'EVALUATION', periodKey: evaluationId, data: data as unknown as Prisma.InputJsonValue } })
+}

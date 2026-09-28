@@ -1,0 +1,21 @@
+{
+  "level": "N4",
+  "topic": { "title": "카페에서 주문하기", "titleJa": "カフェで注文する" },
+  "materials": [
+    { "surface": "注文", "reading": "ちゅうもん", "meaning": "주문", "wrongCount": 3 },
+    { "surface": "冷たい", "reading": "つめたい", "meaning": "차갑다", "wrongCount": 2 },
+    { "surface": "持ち帰り", "reading": "もちかえり", "meaning": "포장(테이크아웃)", "wrongCount": 2 },
+    { "surface": "会計", "reading": "かいけい", "meaning": "계산", "wrongCount": 1 },
+    { "surface": "席", "reading": "せき", "meaning": "자리", "wrongCount": 1 },
+    { "surface": "待つ", "reading": "まつ", "meaning": "기다리다", "wrongCount": 1 },
+    { "surface": "混んでいる", "reading": "こんでいる", "meaning": "붐비다", "wrongCount": 0 },
+    { "surface": "サイズ", "reading": "さいず", "meaning": "사이즈", "wrongCount": 0 },
+    { "surface": "おすすめ", "reading": "おすすめ", "meaning": "추천", "wrongCount": 0 },
+    { "surface": "領収書", "reading": "りょうしゅうしょ", "meaning": "영수증", "wrongCount": 0 },
+    { "surface": "店員", "reading": "てんいん", "meaning": "점원", "wrongCount": 0 },
+    { "surface": "並ぶ", "reading": "ならぶ", "meaning": "줄 서다", "wrongCount": 0 },
+    { "surface": "支払う", "reading": "しはらう", "meaning": "지불하다", "wrongCount": 0 },
+    { "surface": "空いている", "reading": "あいている", "meaning": "비어 있다", "wrongCount": 0 },
+    { "surface": "頼む", "reading": "たのむ", "meaning": "부탁하다/주문하다", "wrongCount": 0 }
+  ]
+}

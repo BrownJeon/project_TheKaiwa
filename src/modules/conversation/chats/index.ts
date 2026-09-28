@@ -140,6 +140,17 @@ export async function getOwnedChat(userId: string, chatId: string): Promise<Chat
   return c
 }
 
+/**
+ * 주어진 id 중 이 사용자가 소유한 채팅 id 만(읽기 전용, 한 번 조회). 학습 기록 원본 존재 확인(task-012 #71·#72)에서
+ * 라우트가 learning 에 넘긴다 — L3 는 L2 를 import 하지 않는다.
+ */
+export async function ownedChatIds(userId: string, ids: readonly string[]): Promise<Set<string>> {
+  const valid = [...new Set(ids.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 40))]
+  if (!valid.length) return new Set()
+  const rows = await prisma.chat.findMany({ where: { userId, id: { in: valid } }, select: { id: true } })
+  return new Set(rows.map((r) => r.id))
+}
+
 export interface MessageDto {
   id: string
   role: 'USER' | 'ASSISTANT'

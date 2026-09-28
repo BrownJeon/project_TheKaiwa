@@ -4,6 +4,7 @@
  * task-003e: 실시간 인식 서버 쪽(#19 설정·#20 티켓·gateway 판정) + 발화 기록(#21 업로드·internal 콜백·30일 정리).
  *   클라이언트(브라우저) 코드는 이 index 가 아니라 `@/modules/speech/stt/client` 에서만 export 한다(서버 코드 비포함).
  * task-007: 턴 문장 합성(createTurnSpeaker)·#24 서명 URL(audioUrl)·턴 ↔ 발화 연결·#21b 원음·#29 발화 조합.
+ * task-010: 레슨 오디오 조각(synthesizeLessonClips, #62c)·레슨 말하기 ↔ 발화 연결(linkUtteranceToLesson, #62b)·#21 lessonId.
  * conversation·learning 을 import 하지 않는다(라우트가 조합).
  */
 export { listSelectableVoices, assertSelectableVoice, describeVoice } from './voices/registry'
@@ -37,5 +38,7 @@ export {
   readUtteranceAudio,
   utterancesForMessages,
   UTTERANCE_TURN_WINDOW_MS,
+  linkUtteranceToLesson,
+  linkUtteranceToEvaluationItem,
 } from './utterances'
-export type { RecordedUtterance, RegisteredGatewayUtterance, TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance } from './utterances'
+export type { RecordedUtterance, RegisteredGatewayUtterance, TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance, LessonUtteranceLink, EvaluationUtteranceLink } from './utterances'

@@ -1,0 +1,14 @@
+{
+  "items": [
+    { "id": "b01", "category": "PARTICLE", "input": "昨日友だちを会いました。", "expectedSeverity": "MINOR", "note": "会う 앞 조사는 に — を 로 잘못 써도 '어제 친구를 만났다'는 뜻은 그대로 통한다" },
+    { "id": "b02", "category": "PARTICLE", "input": "今、日本語が勉強しています。", "expectedSeverity": "MINOR", "note": "勉強する 목적어 조사는 を — が 로 잘못 써도 뜻은 통한다" },
+    { "id": "b03", "category": "PARTICLE", "input": "毎朝バスで乗ります。", "expectedSeverity": "MINOR", "note": "乗る 앞 조사는 に — で 로 잘못 써도 '매일 아침 버스를 탄다'는 뜻은 통한다" },
+    { "id": "b04", "category": "CONJUGATION", "input": "昨日映画を見に行くました。", "expectedSeverity": "MINOR", "note": "行くました는 활용 오류(行きました가 맞음) — 형태는 어색해도 뜻은 통한다" },
+    { "id": "b05", "category": "CONJUGATION", "input": "このケーキはおいしいでした。", "expectedSeverity": "MINOR", "note": "い형용사 과거는 おいしかったです — でした 를 붙여도 뜻은 통한다" },
+    { "id": "b06", "category": "CONJUGATION", "input": "昨日はとても寒いでした。", "expectedSeverity": "MINOR", "note": "위와 같은 활용 오류 패턴 — 뜻은 통한다" },
+    { "id": "b07", "category": "VOCABULARY", "input": "今朝から髪が痛くて、病院に行きました。", "expectedSeverity": "MAJOR", "note": "頭(머리) 대신 髪(머리카락)을 써서 '머리카락이 아프다'는 말이 안 되는 문장이 됨 — 뜻이 안 통한다" },
+    { "id": "b08", "category": "VOCABULARY", "input": "テーブルの上のご飯を洗いました。", "expectedSeverity": "MAJOR", "note": "食べました/片付けました 대신 洗いました(씻었다)를 써서 '차려진 밥을 씻었다'는 뜻이 이상해짐" },
+    { "id": "b09", "category": "WORD_ORDER", "input": "映画を見に、昨日、友達と行きました。", "expectedSeverity": "MINOR", "note": "시간·동반자 부사구 순서가 어색하지만(보통 昨日、友達と映画を見に行きました) 뜻은 완전히 통한다" },
+    { "id": "b10", "category": "POLITENESS", "input": "先生、これ食べる？", "expectedSeverity": "MINOR", "note": "선생님께 반말(普通体)을 써서 존댓말이 안 맞지만 '이것 드세요?'라는 뜻 자체는 통한다" }
+  ]
+}

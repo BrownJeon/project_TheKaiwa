@@ -26,6 +26,12 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
+- [[task-010-today-lesson]] — **Phase 2 오늘의 회화(레슨)**: 주제·A4 5단계·청취 구간 반복·들린 단어 메모·말하기 3과제·완료 트랜잭션(+RepetitionItem)·nextPreview. 데모 v2 **사용자 승인**(17:54)·서버 REV-028 PASS_WITH_NOTES·A4 lesson@v2(보정)·seed 안정 id → **화면 구현 중** (2026-09-28)
+- [[task-010b-repetition]] — 반복 학습(RepetitionItem 3경로·LearningObservation·A11·오늘의 복습·A5): 데모 v1(delta) ∥ PE A11·A5 — **스키마 push 사용자 승인 대기 예정**
+- [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) · PE talk@v3(A11 뒤) — **스키마 push 승인 대기 예정**
+- [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): 데모 v1(full) ∥ PE A6·A7·루브릭 20건
+- [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): 데모 v1(full) ∥ developer 서버(3013)
+- [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) — 구현은 010b·010c 뒤, **스키마 push 승인 대기 예정**
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
@@ -40,11 +46,12 @@ tags:
 - `conversation/persona/loader.ts` 동적 `statSync` → 빌드 "프로젝트 전체 추적" 경고(정적 경로 또는 `outputFileTracingExcludes`) · webpack dev 에서 `crypto` 해석 실패(Turbopack 기본은 정상)
 
 ## Phase 2 이후
-- 010 주제·상황(결정 시)·오늘의 회화(청취 구간·단어 메모·nextPreview)·**반복 학습(RepetitionItem·A11 강사 판단 3~7일)** · 011 AI평가 · 012 달력 · 012b 음성 P2(worker·SpeechJob·Comparator) · 012c Console P2(편집·Diff·Version·Rollback·Prompt Registry·Playground) · 013 분석·성장기록 · 014 서랍장 전체 · 015 무엇이든 물어보세요(3a→3b MCP) · 015b 음성 P3(PronunciationAnalyzer) · 016 음성 P4(Voice Package Import·스타일·Preset·Override)
+- 순서(2026-09-28 사용자 결정 반영, design-spec §15): **010 오늘의 회화** → **010b 반복 학습**(RepetitionItem 3경로·`LearningObservation` 기록·A11·오늘의 복습·A5) → **010c 교정 방식 설정**(`Profile.correctionMode` FLUENCY 기본) → **011 AI평가** → **012 달력** → **010d 상황 역할극**(Scenario, Phase 2 후반) → 012b 음성 P2 → 012c Console P2
+- Phase 3: 013 분석·성장기록(+`LearnerSkillState`) · 014 서랍장 전체 · 015 무엇이든 물어보세요(3a→3b MCP, **D2 외부 전송 범위 결정 필요 — 이때 사용자에게**) · 015b 음성 P3 · 016 음성 P4
 
 ## 미결정
 - **TTS 5차 보완**: 발음 사전 적용 방식(플랫폼 치환 vs SBV2 user_dict 병행) / Timing 산출(narabas vs VITS duration) / TTS P1(품질·버전·지표) Phase 2 vs 4 / TEXT_ONLY UX / 온디바이스 TTS research 조건 → [[task-003c-tts-productization-design]]
-- `Scenario`·`LearnerSkillState`·`LearningObservation` 도입 Phase / 개인 기록의 Claude CLI 전송 범위 / 의미 검색 도입 조건 / M4 LoRA 실험 조건 → `learning-personalization-and-llm-data.md` §8
+- ~~`Scenario`·`LearnerSkillState`·`LearningObservation` 도입 Phase~~ ✅ 2026-09-28 결정(D1 010d·D5 관측만 010b·D6 010c) / 개인 기록의 Claude CLI 전송 범위(D2, task-015 때) / 의미 검색 도입 조건 / M4 LoRA 실험 조건 → `learning-personalization-and-llm-data.md` §8
 - Style-Bert-VITS2 기본 모델 화자 id 매핑(Haruka/Sakura/Takumi 표시명 ↔ speaker) — task-003 실측 후
 - `EngineMetricsDaily` 물화 vs 뷰 — Phase 3 진입 시
 - Redis 도입 여부 — SpeechJob 처리량이 문제될 때만

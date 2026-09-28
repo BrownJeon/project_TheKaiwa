@@ -140,7 +140,7 @@ test('internal 콜백 본문: 형식 검증, 경로 필드는 무시', () => {
   assert.throws(() => parseGatewayBody({ ...ok, traceId: 'x' }), /VALIDATION/)
 })
 
-test('#21 multipart: 필수값·상한, 레슨·평가 연결은 아직 400', async () => {
+test('#21 multipart: 필수값·상한, 레슨 연결(task-010)은 받고 평가 연결은 아직 400', async () => {
   const form = new FormData()
   form.set('audio', new File([new Uint8Array(wav({ ms: 500 }))], 'a.wav', { type: 'audio/wav' }))
   form.set('text', 'はい')
@@ -151,9 +151,18 @@ test('#21 multipart: 필수값·상한, 레슨·평가 연결은 아직 400', as
   assert.equal(input.text, 'はい')
   assert.equal(input.durationMs, 500)
   assert.equal(input.segments?.length, 1)
+  assert.equal(input.lessonId, null)
   form.set('lessonId', 'l1')
-  await assert.rejects(() => parseUploadForm(form), /FEATURE_NOT_READY/)
+  assert.equal((await parseUploadForm(form)).lessonId, 'l1')
+  form.set('chatId', 'c1')
+  await assert.rejects(() => parseUploadForm(form), /VALIDATION/, 'chatId 와 lessonId 는 함께 못 준다')
+  form.delete('chatId')
+  form.set('lessonId', '../x')
+  await assert.rejects(() => parseUploadForm(form), /VALIDATION/)
   form.delete('lessonId')
+  form.set('evaluationItemId', 'e1')
+  await assert.rejects(() => parseUploadForm(form), /FEATURE_NOT_READY/)
+  form.delete('evaluationItemId')
   form.set('segments', '{bad')
   await assert.rejects(() => parseUploadForm(form), /VALIDATION/)
   form.delete('segments')

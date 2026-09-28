@@ -1,10 +1,16 @@
 /**
  * StudyLog — 달력·분석의 원천(domain-model §9-3). task-006 은 **제안 채택(ADD_STUDY_LOG → origin=ACCEPTED)** 경로만.
  * StudyLog 와 DAILY 스냅샷 증가는 같은 트랜잭션(호출자 tx)에서 만든다.
+ * task-012: 달력·하루 상세(`calendar.ts`, #70·#71)·목록·삭제(`logs.ts`, #72·#73) — 삭제는 스냅샷을 건드리지 않는다.
  */
 import type { LogOrigin, Prisma, StudyType } from '@prisma/client'
 import { dates, truncateCodePoints, type Tx } from '@/modules/infra'
 import { bumpDailySnapshot } from '../snapshots'
+
+export { getCalendar, getDay, buildCalendar, longestRun, parseCalendarMonth, parseDayDate } from './calendar'
+export type { CalendarDto, CalendarDayDto, CalendarInput, CalendarLogGroup, DayDto } from './calendar'
+export { listStudyLogs, deleteStudyLog, parseStudyLogQuery, STUDY_TYPES, STUDY_LOG_RANGE_MAX_DAYS } from './logs'
+export type { StudyLogDto, StudyLogRefs, StudyLogListQuery } from './logs'
 
 export interface StudyLogEntry {
   /** KST `YYYY-MM-DD`. 생략하면 오늘. */

@@ -7,7 +7,7 @@
  * LLM 호출은 약 17회(턴 p50 10회 포함). DB 는 개발·운영 공유라 QA 계정 행만 만들고 지운다.
  */
 import { readFileSync } from 'node:fs'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, type JlptLevel } from '@prisma/client'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3011'
 if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(BASE)) throw new Error('BASE 는 localhost 만 허용')
@@ -303,9 +303,18 @@ async function main() {
   const pe = await mk('ADD_WORD', { surface: '期限', reading: 'きげん', meaning: '기한' }, new Date(Date.now() - 1000))
   const ae = await api(COOKIE1, 'POST', `/api/v1/proposals/${pe.id}/accept`, {})
   check('8d 만료 제안 409 {status:EXPIRED}', ae.status === 409 && ae.body.data.details?.status === 'EXPIRED')
-  const pl = await mk('SET_LEVEL', { level: 'N4' }, new Date(Date.now() + 86_400_000))
+  // task-011 부터 SET_LEVEL 은 채택 가능(→ Profile.level). 채택 전 레벨을 적어 두고 정리(cleanup)에서 되돌린다.
+  const levelBefore = (await prisma.profile.upsert({ where: { userId: u1 }, update: {}, create: { userId: u1 }, select: { level: true } })).level
+  profileLevelBackup = { userId: u1, level: levelBefore }
+  const target = levelBefore === 'N4' ? 'N3' : 'N4'
+  const pl = await mk('SET_LEVEL', { level: target }, new Date(Date.now() + 86_400_000))
   const al = await api(COOKIE1, 'POST', `/api/v1/proposals/${pl.id}/accept`, {})
-  check('8e 아직 안 여는 kind → 400 FEATURE_NOT_READY', al.status === 400 && al.body.data.code === 'FEATURE_NOT_READY')
+  const levelAfter = (await prisma.profile.findUnique({ where: { userId: u1 }, select: { level: true } }))?.level
+  check('8e SET_LEVEL 채택(task-011) → 200 result.level·Profile.level 변경', al.status === 200 && (al.body.data.proposal as { result?: { level?: string } })?.result?.level === target && levelAfter === target, `status=${al.status} ${levelBefore}→${levelAfter}`)
+  const bad = await mk('SET_LEVEL', { level: 'N9' }, new Date(Date.now() + 86_400_000))
+  const ab = await api(COOKIE1, 'POST', `/api/v1/proposals/${bad.id}/accept`, {})
+  const badRow = await prisma.tutorProposal.findUnique({ where: { id: bad.id }, select: { status: true } })
+  check('8f SET_LEVEL 레벨 값 이상 → 400·제안 PROPOSED 그대로·레벨 그대로', ab.status === 400 && badRow?.status === 'PROPOSED' && (await prisma.profile.findUnique({ where: { userId: u1 }, select: { level: true } }))?.level === target, `status=${ab.status}`)
 
   // ── 9. IDOR(두 번째 계정) ──────────────────────────────────────────
   const anyCorr = items[items.length - 1].correctionId
@@ -383,7 +392,11 @@ async function main() {
   if (failed.length) console.log(`실패: ${failed.map((f) => f.id).join(', ')}`)
 }
 
+let profileLevelBackup: { userId: string; level: JlptLevel } | null = null
+
 async function cleanup() {
+  // 8e SET_LEVEL 채택이 바꾼 QA 계정 레벨을 되돌린다.
+  if (profileLevelBackup) await prisma.profile.update({ where: { userId: profileLevelBackup.userId }, data: { level: profileLevelBackup.level } })
   // QA 계정 두 개가 이 실행 중에 만든 행만 지운다(채팅 cascade → 메시지·교정).
   for (const email of ['qa-bot@thekaiwa.test', 'qa-bot2@thekaiwa.test']) {
     const u = await prisma.user.findUnique({ where: { email } })

@@ -63,8 +63,10 @@ fi
 
 # `set -e` 아래에서 `[ -f x ] && cp` 는 bash 의 && 예외 규칙에 기대는 형태라, 의도가
 # 드러나게 명시적 if 로 쓴다.
+# 내용이 같으면 복사하지 않는다 — 매번 cp 로 mtime 이 바뀌면 떠 있는 `next dev` 가 next.config.ts 변경으로 보고
+# 서버를 재시작해 진행 중인 백그라운드 잡(레슨 생성 등)이 죽었다(2026-09-28 task-010 developer 발견, 여러 에이전트가 동시에 sync).
 for f in tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs next-env.d.ts package.json .npmrc capacitor.config.ts; do
-  if [ -f "$PROJECT_ROOT/$f" ]; then
+  if [ -f "$PROJECT_ROOT/$f" ] && ! cmp -s "$PROJECT_ROOT/$f" "$LOCAL_ROOT/$f"; then
     cp "$PROJECT_ROOT/$f" "$LOCAL_ROOT/$f"
   fi
 done

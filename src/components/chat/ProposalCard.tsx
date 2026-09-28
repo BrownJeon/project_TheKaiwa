@@ -22,10 +22,16 @@ export default function ProposalCard({
   proposal,
   onChange,
   onToast,
+  caption,
+  note,
 }: {
   proposal: ProposalDto
   onChange: (p: ProposalDto) => void
   onToast: (msg: string) => void
+  /** 머리 캡션(기본 "단어 제안") — 오늘의 회화 메모 제안은 출처(대화 몇 번째 줄·선생님이 찾아본 뜻)를 싣는다(screens §12-2 F). */
+  caption?: string
+  /** 뜻 아래 한 줄(메모를 사전 모양으로 바꿨을 때 등). */
+  note?: React.ReactNode
 }) {
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -110,7 +116,7 @@ export default function ProposalCard({
     }
     return (
       <div aria-busy={busy || undefined} className="min-w-0 rounded-[14px] border border-line bg-surface p-3.5">
-        <p className="text-[12px] text-ink2">단어 제안</p>
+        <p className="text-[12px] text-ink2">{caption ?? '단어 제안'}</p>
         <p className="mt-1 min-w-0 [overflow-wrap:anywhere]">
           <span lang="ja" className="text-[18px] font-semibold">
             {surface}
@@ -136,6 +142,7 @@ export default function ProposalCard({
         ) : (
           <p className="mt-0.5 text-[15px] break-keep [overflow-wrap:anywhere]">{str(proposal.payload.meaning)}</p>
         )}
+        {note ? <p className="mt-1 text-[12px] text-ink2 break-keep [overflow-wrap:anywhere]">{note}</p> : null}
         <p className="mt-1.5 text-[12px] text-ink2 break-keep">선생님 제안이에요. 추가를 눌러야 단어장에 저장돼요.</p>
         {inlineError ? (
           <p role="alert" className="mt-1.5 text-[12px] text-bad break-keep">

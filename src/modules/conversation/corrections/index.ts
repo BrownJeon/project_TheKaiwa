@@ -143,3 +143,17 @@ export async function listCorrectionRefsByWord(userId: string, wordId: string, d
   if (!validId(wordId) || !userId) return []
   return db.correction.findMany({ where: { userId, savedWordId: wordId }, select: { id: true, chatId: true }, orderBy: { createdAt: 'desc' }, take: 20 })
 }
+
+/**
+ * 최근 채택한 교정(원문 → 교정문) — A4 레슨 입력 재료(task-010 L6, 최대 5). 읽기 전용, 채택 시각 최신순. 교정은 L2 소유라
+ * 레슨 생성 라우트가 이 함수를 조합해 `buildLessonRequest` 에 넘긴다.
+ */
+export async function recentAcceptedCorrections(userId: string, limit = 5): Promise<{ original: string; corrected: string }[]> {
+  if (!userId) return []
+  return prisma.correction.findMany({
+    where: { userId, status: 'ACCEPTED' },
+    orderBy: [{ resolvedAt: 'desc' }, { id: 'desc' }],
+    take: Math.max(1, Math.min(10, limit)),
+    select: { original: true, corrected: true },
+  })
+}

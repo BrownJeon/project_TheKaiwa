@@ -60,7 +60,11 @@ test('잡 stale 판정: 종류별 기준보다 오래된 QUEUED/RUNNING 만', ()
   assert.equal(isStaleJob({ ...base, status: 'RUNNING' }, now), true)
   assert.equal(isStaleJob({ ...base, status: 'RUNNING', startedAt: new Date(now - 60_000) }, now), false, '시작한 지 1분이면 살아 있다')
   assert.equal(isStaleJob({ ...base, status: 'DONE' }, now), false)
-  assert.equal(isStaleJob({ ...base, kind: 'LESSON_GEN', status: 'QUEUED' }, now), false, '기본 기준 10분')
+  assert.equal(isStaleJob({ ...base, kind: 'PLAN_ANALYSIS', status: 'QUEUED' }, now), false, '기본 기준 10분')
+  assert.equal(staleAfterMs('EVAL_GEN'), 5 * 60_000, 'task-011: A6 60s 예산 대비 5분')
+  assert.equal(staleAfterMs('EVAL_GRADE'), 5 * 60_000, 'task-011: A7 120s 예산 대비 5분')
+  assert.equal(staleAfterMs('LESSON_GEN'), 5 * 60_000, 'task-010: A4 120s 예산 대비 5분')
+  assert.equal(isStaleJob({ ...base, kind: 'LESSON_GEN', status: 'QUEUED' }, now), true)
 })
 
 test('오류 분류: 엔진 오류 이름 → 코드, traceId 는 details 로, 알 수 없는 예외는 INTERNAL', () => {

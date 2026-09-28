@@ -1,0 +1,28 @@
+{
+  "topic": {
+    "title": "자기소개",
+    "titleJa": "自己紹介",
+    "level": "N4",
+    "chunks": [
+      { "id": "chunk-01", "chunkType": "NAME", "textJa": "私", "reading": "わたし", "meaningKo": "저" },
+      { "id": "chunk-02", "chunkType": "NAME", "textJa": "名前", "reading": "なまえ", "meaningKo": "이름" },
+      { "id": "chunk-03", "chunkType": "NAME", "textJa": "会社員", "reading": "かいしゃいん", "meaningKo": "회사원" },
+      { "id": "chunk-04", "chunkType": "ACTION", "textJa": "住んでいます", "reading": "すんでいます", "meaningKo": "살고 있습니다" },
+      { "id": "chunk-05", "chunkType": "ACTION", "textJa": "働いています", "reading": "はたらいています", "meaningKo": "일하고 있습니다" },
+      { "id": "chunk-06", "chunkType": "ACTION", "textJa": "よろしくお願いします", "reading": "よろしくおねがいします", "meaningKo": "잘 부탁합니다" },
+      { "id": "chunk-07", "chunkType": "FEELING", "textJa": "嬉しいです", "reading": "うれしいです", "meaningKo": "기쁩니다" },
+      { "id": "chunk-08", "chunkType": "FEELING", "textJa": "楽しみです", "reading": "たのしみです", "meaningKo": "기대됩니다" },
+      { "id": "chunk-09", "chunkType": "FEELING", "textJa": "緊張しています", "reading": "きんちょうしています", "meaningKo": "긴장하고 있습니다" },
+      { "id": "chunk-10", "chunkType": "MODIFIER", "textJa": "はじめまして", "reading": "はじめまして", "meaningKo": "처음 뵙겠습니다" },
+      { "id": "chunk-11", "chunkType": "MODIFIER", "textJa": "韓国から", "reading": "かんこくから", "meaningKo": "한국에서" },
+      { "id": "chunk-12", "chunkType": "MODIFIER", "textJa": "少し", "reading": "すこし", "meaningKo": "조금" }
+    ]
+  },
+  "sourceText": "田中さんはコンビニでお弁当を買いました。それからレジで店員さんに温めてもらいました。外は雨が降っていたので、傘を持って帰りました。家に着いたら手を洗って、すぐにご飯を食べました。とてもおいしかったので、また今度買いたいと思いました。",
+  "acceptedCorrections": [
+    { "original": "会社に行きました", "corrected": "会社へ行きました" },
+    { "original": "友達に会いました", "corrected": "友達と会いました" }
+  ],
+  "previousTitles": ["첫 만남 인사", "자기소개 기초"],
+  "previousNextPreview": { "titleKo": "취미 이야기하기", "teaserKo": "다음엔 좋아하는 것을 물어보는 표현을 배워요." }
+}

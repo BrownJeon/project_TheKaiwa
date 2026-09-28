@@ -9,7 +9,10 @@
  *  - 앞뒤 공백을 걷어 내고 비교하지 않는다 — 모델이 고친 흔적을 숨기지 않기 위해서다.
  * 저장 시에는 라우트가 모델 값이 아니라 **서버가 가진 원문**을 `Correction.original` 에 넣는다(task-006) — 이 검사는 계약 위반 탐지용이다.
  */
-import type { ChatReviewResponse, TutorResponse, WordEnrichResponse } from './schemas'
+import { llm } from '@/modules/engine'
+import { chunkAppearsIn } from './matching'
+import { LESSON_CHUNKS_MAX } from './schemas'
+import type { ChatReviewResponse, LessonResponse, TutorResponse, WordEnrichResponse } from './schemas'
 
 /** TALK·CHAT: 바이트 일치만. */
 export function isExactOriginal(input: string, original: string): boolean {
@@ -52,6 +55,10 @@ export function checkTalkResponse(input: string, data: TutorResponse, opts: { ma
       v.push('correction.original 은 [입력]의 학습자 말 전체를 한 글자도 바꾸지 않고 그대로 복사해야 한다(일부만 인용하거나 공백·문장부호를 바꾸지 않는다)')
     }
     if (c.corrected === c.original) v.push('correction.corrected 가 original 과 같다 — 오류가 없으면 correction 을 null 로 둔다')
+    // task-010c(talk@v3) — 코치 모드 힌트가 정답을 그대로 흘리면 "스스로 고치기 유도"라는 목적을 잃는다.
+    if (c.hintKo && c.hintKo.includes(c.corrected)) {
+      v.push('correction.hintKo 에 정답(corrected)을 그대로 포함하면 안 된다 — 정답을 직접 말하지 않는 힌트여야 한다')
+    }
   }
   return v
 }
@@ -130,5 +137,113 @@ export function checkWordEnrich(surface: string, data: WordEnrichResponse): stri
   } else if (!data.invalidReason) {
     v.push('valid=false 이면 invalidReason 에 한국어로 이유를 적어야 한다')
   }
+  return v
+}
+
+/**
+ * A4 레슨 생성(LESSON) — 스키마가 표현 못 하는 것만 본다(개수·길이·choices 중복·answer 범위·reading 가나 패턴은
+ * `LESSON_SCHEMA` 가 minItems/maxItems·uniqueItems·enum·pattern 으로 이미 강제한다 — 여기서 다시 세지 않는다):
+ *  ① `chunks[].id` 보존 — 입력 `topic.chunks` 의 id 를 그대로 쓰거나 `new-N` 이어야 하고(없는 id 를 지어내면 위반),
+ *     `isNew` 가 그 판정과 모순되면 안 된다(기존 id 인데 isNew=true, new-N 인데 isNew=false 둘 다 위반).
+ *  ② `targetIds ⊆ chunks∪grammar id` — quiz·application·speaking 이 이번 레슨에 없는 id 를 가리키면 위반.
+ *  ③ 일본어 필드(ja·textJa·exampleJa·modelAnswerJa)에 한글이 섞이지 않았는지, 응답 전체에 엔진·모델 이름이 없는지.
+ *  ④(2026-09-28 Leader 3차 결정) application·speaking 의 `modelAnswerJa` 가 자기 목표 chunk(`textJa`·`reading`)를
+ *     실제로 담고 있는지(`matching.ts` `chunkAppearsIn`) — `repairLessonResponse` 가 못 담은 chunk 를 이미
+ *     `targetIds` 에서 뺐을 것이므로, 여기 남아 있는 것은 "빼면 빈 배열이 돼 보정 못 한" 경우다.
+ *
+ * **의도적으로 안 보는 것**: quiz 는 `promptKo`·`promptJa` 중 최소 하나가 있어야 한다는 규칙만 본다(스키마는 두 필드
+ * 모두 nullable 이라 "둘 다 null 이면 안 됨"을 표현하지 못한다). `sourceText` 레슨이 원문 표현을 실제로 살렸는지는
+ * task-010 Leader's Plan L7 이 "느슨"이라고 명시한 항목이라 — 자동 판정 기준이 모호해 재시도만 늘리므로 여기서 강제하지
+ * 않는다(QA 가 수동으로 본다). ④는 grammar targetId 를 보지 않는다(matching.ts 주석 — 문형 자체가 문장에 그대로
+ * 나타나길 기대할 수 없다).
+ */
+const NEW_CHUNK_ID_RE = /^new-\d+$/
+const HANGUL_RE = /[가-힣]/
+
+function hasHangul(text: string): boolean {
+  return HANGUL_RE.test(text)
+}
+
+export function checkLessonResponse(ctx: { allowedChunkIds: string[] }, data: LessonResponse): string[] {
+  const v: string[] = []
+  const allowed = new Set(ctx.allowedChunkIds)
+  const chunkIds = new Set<string>()
+  data.chunks.forEach((c, i) => {
+    if (chunkIds.has(c.id)) v.push(`chunks[${i}].id '${c.id}' 가 다른 chunks 항목과 중복이다`)
+    chunkIds.add(c.id)
+    const isKnown = allowed.has(c.id)
+    const looksNew = NEW_CHUNK_ID_RE.test(c.id)
+    if (!isKnown && !looksNew) {
+      v.push(`chunks[${i}].id '${c.id}' 는 입력 조각에 없고 "new-N" 형식도 아니다 — 입력 조각을 쓰면 그 id 를 그대로, 새 표현은 new-1, new-2… 로 붙여야 한다`)
+    }
+    if (looksNew && !c.isNew) v.push(`chunks[${i}] id '${c.id}' 는 new- 로 시작하므로 isNew=true 여야 한다`)
+    if (isKnown && c.isNew) v.push(`chunks[${i}] id '${c.id}' 는 입력 조각이므로 isNew=false 여야 한다`)
+    if (hasHangul(c.textJa)) v.push(`chunks[${i}].textJa 에 한글이 섞여 있다`)
+  })
+  const grammarIds = new Set<string>()
+  data.grammar.forEach((g, i) => {
+    if (grammarIds.has(g.id)) v.push(`grammar[${i}].id '${g.id}' 가 다른 grammar 항목과 중복이다`)
+    grammarIds.add(g.id)
+    if (hasHangul(g.exampleJa)) v.push(`grammar[${i}].exampleJa 에 한글이 섞여 있다`)
+  })
+  const refIds = new Set<string>([...chunkIds, ...grammarIds])
+  const checkTargetIds = (targetIds: string[], where: string) => {
+    targetIds.forEach((id) => {
+      if (refIds.has(id)) return
+      // 2026-09-28 v2 재발 방지(실측 topic#2 FAILED): 재시도에서 모델이 "없는 id" 를 chunks 에 새로 추가해 8개 상한을
+      // 넘기는 사고가 실제로 났다(chunks 는 이미 repairLessonResponse 가 채울 수 있는 만큼 채운 뒤라 더 채울 자리가
+      // 없다). chunks 가 이미 상한이면 "추가하지 말라"를 명시하고, 아니면 일반 안내만 준다.
+      const hint =
+        data.chunks.length >= LESSON_CHUNKS_MAX
+          ? `(chunks 가 이미 ${LESSON_CHUNKS_MAX}개(상한)라 새로 추가하지 마세요 — targetIds 에서 이 id 를 빼거나 이미 응답에 있는 다른 chunks·grammar id 로 바꾸세요)`
+          : `(chunks·grammar 에 먼저 넣거나 targetIds 에서 빼세요)`
+      v.push(`${where}.targetIds 의 '${id}' 는 이 레슨의 chunks·grammar id 에 없다 ${hint}`)
+    })
+  }
+  data.dialogue.forEach((d, i) => {
+    if (hasHangul(d.ja)) v.push(`dialogue[${i}].ja 에 한글이 섞여 있다`)
+  })
+  data.quiz.forEach((q, i) => {
+    if (!q.promptKo && !q.promptJa) v.push(`quiz[${i}] promptKo·promptJa 가 둘 다 비어 있다 — 최소 하나는 채워야 한다`)
+    checkTargetIds(q.targetIds, `quiz[${i}]`)
+  })
+  // 2026-09-28 Leader 3차 결정 — application·speaking 의 modelAnswerJa 가 자기 목표 chunk 표현을 실제로 담고 있는지
+  // (문법 id 는 대상 아님, matching.ts 주석 참고). repairLessonResponse 의 ④가 못 담은 chunk 를 이미 뺐을 것이므로,
+  // 여기서 남아 있는 것은 "빼면 targetIds 가 비어서 보정하지 못한" 경우다.
+  const chunkById = new Map(data.chunks.map((c) => [c.id, c]))
+  const checkContentMatch = (targetIds: string[], modelAnswerJa: string, where: string) => {
+    targetIds.forEach((id) => {
+      const c = chunkById.get(id)
+      if (!c) return // grammar id 등은 대상 아님(존재 여부는 위 checkTargetIds 가 본다)
+      if (!chunkAppearsIn(modelAnswerJa, c)) {
+        v.push(`${where}.modelAnswerJa 가 목표 표현 '${c.textJa}'(targetIds 의 '${id}')를 담고 있지 않다`)
+      }
+    })
+  }
+  data.application.forEach((a, i) => {
+    if (hasHangul(a.modelAnswerJa)) v.push(`application[${i}].modelAnswerJa 에 한글이 섞여 있다`)
+    checkTargetIds(a.targetIds, `application[${i}]`)
+    checkContentMatch(a.targetIds, a.modelAnswerJa, `application[${i}]`)
+  })
+  data.speaking.forEach((s, i) => {
+    if (hasHangul(s.modelAnswerJa)) v.push(`speaking[${i}].modelAnswerJa 에 한글이 섞여 있다`)
+    checkTargetIds(s.targetIds, `speaking[${i}]`)
+    checkContentMatch(s.targetIds, s.modelAnswerJa, `speaking[${i}]`)
+  })
+  const allText = [
+    data.title,
+    data.titleKo,
+    data.rolesKo.A,
+    data.rolesKo.B,
+    ...data.dialogue.flatMap((d) => [d.ja, d.ko]),
+    ...data.chunks.flatMap((c) => [c.textJa, c.meaningKo]),
+    ...data.grammar.flatMap((g) => [g.pattern, g.explanationKo, g.exampleJa, g.exampleKo]),
+    ...data.quiz.flatMap((q) => [q.promptKo, q.promptJa, ...q.choices, q.explanationKo].filter((x): x is string => Boolean(x))),
+    ...data.application.flatMap((a) => [a.promptKo, a.hintJa, a.modelAnswerJa, a.modelKo].filter((x): x is string => Boolean(x))),
+    ...data.speaking.flatMap((s) => [s.promptKo, s.modelAnswerJa, s.modelKo]),
+    data.nextPreview.titleKo,
+    data.nextPreview.teaserKo,
+  ]
+  if (allText.some((t) => llm.mentionsEngineIdentity(t))) v.push('응답 어딘가에 엔진·모델 이름이 노출됐다')
   return v
 }

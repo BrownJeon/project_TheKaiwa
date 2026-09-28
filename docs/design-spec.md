@@ -370,7 +370,12 @@ plugins/sherpa-stt/                                                    # Capacit
 | 007 | AI 회화(음성) 실시간 교정 | `RealtimeSttClient` 라우팅·**청크 스트리밍 TTS(SSE `audio{chunkIndex}`·`TtsPlaybackQueue`·TTFA 계측)**·Rendering Plan(LLM `styleHint` 만)·**프로필 옆 실행 상태 표시등**(SERVER/TEXT_ONLY)·5구간 계측, 실기기 30턴 p50 ≤5s·TTFA p50 ≤1.0s, 원문 무수정, 권한 거부 안내, 웹 gateway 동작 | 003, 006 |
 | 008 | 단어장 최소판 + 오늘의 단어 | CRUD·보관·카테고리, 세트 생성(정답 미노출)·CHOICE·finish 트랜잭션, 10장 3분, 삭제 후 집계 불변, 풀<4 FLIP | 002, 005 |
 | 009 | Phase 1 통합 QA·라이브·APK | nginx·Gitea·webhook·첫 blue/green, 운영 e2e(회화·채팅·단어), `RELEASE_RESULT ok`, 롤백 리허설, APK 배포본·배너 | 006, 007, 008 |
-| 010~012 | Phase 2: 주제·상황(`Scenario`, 결정 시)·오늘의 회화(청취 구간 반복·단어 메모·nextPreview)·**반복 학습(RepetitionItem·A11 강사 판단 3~7일·균등 랜덤·FOCUS)** / AI평가 / 달력 | 최소 기록 가드·범위 클램프·폴백, 기록률 100% 트랜잭션, 첫 평가 20건 루브릭 조정 라운드, 복습 카드에 근거 표시 | 009 |
+| 010 | 오늘의 회화(레슨) | 주제 목록(#56)·A4 5단계 생성 잡·단계 진행·청취 구간 반복(0.8×→1.0×)·들린 단어 메모→ADD_WORD 제안·말하기 3과제(표현 사용 확인)·완료 트랜잭션(`StudyLog(LESSON,DIRECT)`+스냅샷+`RepetitionItem` 등록)·`nextPreview` | 009 |
+| 010b | 반복 학습 | `RepetitionItem` 등록 3경로(레슨·교정 채택·단어 세트)·`LearningObservation` 기록(결정 D5)·A11 복습 판단(3~7일 클램프·FOCUS ≤3·폴백)·하루 첫 진입 재판단·균등 랜덤 추출·오늘의 복습 카드(근거 표시)·A5 복습 레슨, 최소 기록 가드 | 010 |
+| 010c | 교정 방식 설정 | `Profile.correctionMode`(FLUENCY 기본·COACH, 결정 D6)·설정 화면·A1/A2 헤더 플래그·유창성 모드의 보류 교정 | 010 |
+| 011 | AI 평가 | A6/A7, 기록률 100% 트랜잭션, 첫 평가 20건 루브릭 조정 라운드 | 010b |
+| 012 | 달력 | `StudyLog`+`Attendance` 파생 달력·일 상세 | 010b |
+| 010d | 상황 역할극 | `Scenario`·`ScenarioTopic`(결정 D1 — Phase 2 후반), 주제→상황 2단 선택, 역할극 목표·종료 판정, 레슨 말하기 단계 연결 | 010b |
 | 012b | 음성 P2 | worker+`SpeechJob`·WhisperEngine·Comparator·requiresReview 카드·발화 로그 · **TTS P1: Observability(Trace 하위 단계·`EngineMetricsDaily` TTS 컬럼)·Timing Metadata(narabas 정렬, 자막 하이라이트·섀도잉)** | 009 |
 | 012c | Console P2 | Form/JSON 편집·Validate/Test/Diff/Apply·Version·History·Rollback·Prompt Registry sync/activate/test·Playground · **TTS Quality(Golden Dataset·회귀·A/B Blind)·Voice Versions(TRAINED→…→PRODUCTION·Canary %)·TTS 대시보드**(사용자 결정 ③) | 005b |
 | 013~015 | Phase 3: 분석·성장기록(+능력 축·관측 제안 도입 시) / 서랍장 전체 / 무엇이든(3a 정형 조회·출처 표시 → 3b MCP → 3c 의미 검색 조건부) | 성장기록=스냅샷만, 분석 hash 캐시, ASK `sources`·`needsScope`, 타 사용자 격리 0건 | 012 |

@@ -6,7 +6,7 @@ import { renderTranscript } from '../../engine/llm'
 import { buildChatRequest } from '../prompts/chat'
 import { buildChatReviewRequest, REVIEW_MAX_CHARS, REVIEW_MAX_MESSAGES, ReviewTooLargeError } from '../prompts/chatReview'
 import { renderHeader, renderToday } from '../prompts/header'
-import { buildTalkRequest, clampAltText, talkInstruction, TALK_ALT_TEXT_MAX, TALK_USER_PROMPT_CAP } from '../prompts/talk'
+import { buildTalkRequest, clampAltText, talkInstruction, CORRECTION_MODES, TALK_ALT_TEXT_MAX, TALK_PROMPT_VERSION, TALK_USER_PROMPT_CAP } from '../prompts/talk'
 
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/talk-corrections.json'), 'utf8')) as {
   items: { id: string; level: string; input: string; hasError: boolean }[]
@@ -87,6 +87,68 @@ test('TALK: altText 상한 — 상한을 한참 넘는 후보를 줘도 사용�
       assert.ok(m[1].length <= TALK_ALT_TEXT_MAX && m[1].endsWith('…'), `잘린 후보는 ≤${TALK_ALT_TEXT_MAX}자 + "…"`)
     }
   }
+})
+
+// ── task-010c: 교정 방식(correctionMode) ────────────────────────────────
+
+test('TALK: talk@v3 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v3')
+  assert.deepEqual(CORRECTION_MODES, ['FLUENCY', 'COACH'])
+  const omitted = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
+  assert.match(omitted.system, /\[교정\] 유창성/)
+  const fluency = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'FLUENCY' })
+  assert.equal(omitted.system, fluency.system, '생략과 명시적 FLUENCY 는 같아야 한다')
+  const coach = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'COACH' })
+  assert.match(coach.system, /\[교정\] 코치/)
+  assert.ok(!coach.system.includes('[교정] 유창성'))
+})
+
+test('TALK: Leader 후속(2026-09-28) — 유창성일 때만 [교정] 줄에 severity 판정 기준이 붙는다(코치는 무관, 예산 때문에 talkInstruction 이 아니라 헤더 줄에)', () => {
+  const fluency = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'FLUENCY' })
+  assert.match(fluency.system, /\[교정\] 유창성 — .*MINOR.*MAJOR/, '뜻이 통하면 MINOR·안 통하면 MAJOR 기준이 [교정] 줄에 있어야 한다')
+  assert.ok(fluency.system.includes('조사') && fluency.system.includes('활용'), '조사·활용처럼 뜻이 통하는 오류 유형 예시가 있어야 한다(과대 MAJOR 판정 방지)')
+  const coach = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'COACH' })
+  assert.ok(!coach.system.includes('MINOR') && !coach.system.includes('MAJOR'), '코치는 이 게이팅과 무관 — severity 기준 문구를 추가하지 않는다')
+})
+
+test('TALK: 지시문 — 코치 모드는 hintKo 힌트 지시, 유창성 모드는 hintKo=null 지시(strictness 와 독립, 예산 때문에 최소 글자 — 실측으로 확정, 아래 예산 테스트 참고)', () => {
+  const coach = talkInstruction('COACH')
+  assert.ok(coach.includes('hintKo') && coach.includes('힌트') && coach.includes('정답 제외'))
+  assert.ok(!coach.includes('hintKo 는 null'))
+  const fluency = talkInstruction('FLUENCY')
+  assert.ok(fluency.includes('hintKo 는 null.'))
+  assert.equal(talkInstruction(), fluency, '기본값은 FLUENCY')
+  // 공통 규칙(원문 전체 복사·1건만)은 두 모드 모두 그대로 — severity 판정 기준은 talkInstruction 이 아니라 buildTalkRequest 의
+  // [교정] 헤더 줄에 있다(FLUENCY 전용, 위 테스트). 여기서는 두 모드가 이 공통 규칙까지는 같다는 것만 본다.
+  for (const instr of [coach, fluency]) {
+    assert.ok(instr.includes('가장 중요한 1건만'))
+    assert.ok(instr.includes('한 글자도 바꾸지 말고 그대로 복사'))
+  }
+})
+
+test('TALK: 예산 — [교정] 헤더가 늘어난 뒤에도 altText·긴 이력 최악 조합은 두 모드 모두 ≤3,000자(불변식 회귀)', () => {
+  // 2026-09-28 실측 교훈: 극단으로 긴 altText(5만자 등)가 항상 최악은 아니다 — altText·이력 창이 각자 다른 "양자화
+  // 단위"(이력은 메시지 240자 단위)로 남은 예산을 나눠 갖기 때문에, **중간 길이(altLen=60, "발화 한 마디" 가정)**
+  // 조합이 오히려 마진이 더 좁았다(v2 기준으로도 이 조합 하나는 마진 3자뿐이었다 — 이 task 이전부터 있던 특성).
+  // 그래서 altLen 스윕에 60 을 반드시 포함한다.
+  const heavy = { ...learner, displayName: '브라운'.repeat(20), weaknesses: Array.from({ length: 10 }, (_, i) => `CONJUGATION(${i})`), goal: 'x'.repeat(400) }
+  for (const correctionMode of CORRECTION_MODES) {
+    for (const textLen of [1, 20, 500, 1_000]) {
+      for (const altLen of [TALK_ALT_TEXT_MAX + 1, 1_000, 5_000, 50_000, 60]) {
+        const req = buildTalkRequest({ todayKst: '2026-09-28', learner: heavy, history: longHistory, text: 'あ'.repeat(textLen), altText: 'い'.repeat(altLen), correctionMode })
+        const prompt = renderTranscript(req.system, req.messages)
+        assert.ok(prompt.length <= TALK_USER_PROMPT_CAP, `mode=${correctionMode} text=${textLen} alt=${altLen}: ${prompt.length}자`)
+        assert.equal(req.messages.at(-1)!.content, 'あ'.repeat(textLen), '발화 원문은 자르지 않는다')
+      }
+    }
+  }
+})
+
+test('TALK: persona(→ --system-prompt)는 correctionMode 가 달라도 바이트 동일 — persona 는 (model,level,mode) 로만 정해진다', () => {
+  const fluency = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'FLUENCY' })
+  const coach = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'COACH' })
+  assert.equal(fluency.persona!.prompt, coach.persona!.prompt)
+  assert.ok(!fluency.persona!.prompt.includes('[교정]'), 'correctionMode 헤더 줄은 persona 가 아니라 system 쪽에만 있어야 한다(persona §3 는 "교정 원칙" 이라 일반 "교정" 문자열은 있을 수 있다)')
 })
 
 test('TALK: clampAltText — 짧은 후보는 그대로·제어문자/공백 정리·서러게이트 쌍 보존·예산 부족이면 생략', () => {

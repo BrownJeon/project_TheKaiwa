@@ -296,7 +296,7 @@ flowchart TD
 | `StudyLog.type` | `result` 형태 |
 |---|---|
 | WORDS | `{correct, wrong, skipped, cardCount, mode}` |
-| LESSON / REVIEW | `{stageDone, score?, scenarioId?, goalAchieved?, communicationSuccess?, hintsUsed?, usedExpressionIds[], missedExpressionIds[], itemIds[]}` |
+| LESSON / REVIEW | 정본은 `domain-model.md` §9-3·api-contract #62(task-010 구현, 2026-09-28): `{stageDone, score, quizCorrect, quizTotal, …, usedExpressionIds[], missedExpressionIds[], itemIds[], listen{…}}` + 역할극 도입 시 `scenario?{scenarioId, goalAchieved, communicationSuccess, hintsUsed}` |
 | TALK / CHAT | `{turns, correctionsProposed, correctionsAccepted, scenarioId?, goalAchieved?, selfCorrections}` |
 | EVALUATION | `{totalScore, grade, rubric{5}}` |
 | ASK | 생성하지 않음(제안 채택 시 ADD_STUDY_LOG 만) |
@@ -305,7 +305,7 @@ flowchart TD
 |---|---|
 | DAILY | `{attended, words{sessions, correct, wrong}, lessons, reviews, talkTurns, chatTurns, correctionsAccepted, observations{bySkill{…}, selfCorrections, reuses}, minutes}` — `talkTurns`·`correctionsAccepted` 는 턴 `done`·교정 accept 가 증가(정합 #7) |
 | VOCAB_SESSION | `{cardCount, correct, wrong, skipped, durationSec}` |
-| LESSON | `{kind, score, scenarioId?, goalAchieved?, itemCount}` |
+| LESSON | `{kind, topicId, score, stageDone, itemCount, quizCorrect, quizTotal, date}`(task-010) + 역할극 도입 시 `scenarioId?·goalAchieved?` |
 | EVALUATION | `{kind, level, totalScore, rubric{5}}` |
 
 ---
@@ -532,12 +532,12 @@ M4 상주: tts-service Style-Bert-VITS2(:8200, ≈1~2GB 추정·미실측) · ho
 
 | # | 결정 항목 | 선택지 | 영향 | 권고 |
 |---|---|---|---|---|
-| D1 | `Scenario`·`ScenarioTopic` 도입 Phase | (a) Phase 2 task-010 에 포함 / (b) Phase 2 후반 별도 task / (c) Phase 3 | (a) 는 레슨·역할극·A11 이 처음부터 item 단위로 맞물림, 시드 작성 부담 ↑ | (a) — 시드는 주제 5 × 상황 2 로 최소 |
+| D1 | `Scenario`·`ScenarioTopic` 도입 Phase | (a) Phase 2 task-010 에 포함 / (b) Phase 2 후반 별도 task / (c) Phase 3 | (a) 는 레슨·역할극·A11 이 처음부터 item 단위로 맞물림, 시드 작성 부담 ↑ | (a) — 시드는 주제 5 × 상황 2 로 최소 → **결정(2026-09-28): (b) Phase 2 후반 별도 task(task-010d)**. task-010 레슨의 "말하기"는 상황 없이 A4 `speaking[3]` 과제로 먼저 연다 |
 | D2 | 개인 학습 기록의 Claude CLI(외부) 전송 범위 | (a) 정형 요약만(횟수·점수·due 목록) / (b) + 채택 교정 원문·레슨 표현 / (c) + 대화 발췌 ≤300자 | 범위가 넓을수록 ASK 답변이 구체적, 외부 전송 데이터 ↑. §3-5 표의 "조회 결과" 행 | (b) 를 기본, (c) 는 `needsScope` 로 사용자가 요청한 질문에만 |
 | D3 | LoRA/QLoRA 실험 착수 조건·시간대 | 조건: §4-4 테스트셋 완성 + 현 qwen2.5:14b 기준 측정 완료 + 검토된 예시 ≥300건 / 시간대: TTS·Ollama 중지 가능한 야간 창(예: 02~05시, 크론 와치독 일시 정지) | 실험 중 TTS 불가 → 회화 사용 불가 시간대 발생 | 조건 3개 충족 전 착수하지 않음. Phase 4 |
 | D4 | RAG(3c 의미 검색) 도입 조건 | 정형 조회로 못 푸는 ASK 질문 비율 실측 ≥20%(4주 관측) / 또는 도입 안 함 | Qdrant 컬렉션·재색인 운영, 삭제 경로 추가(§6) | 실측 후 결정. 3a→3b 먼저 |
-| D5 | 능력 축(`LearnerSkillState`·`LearningObservation`) 도입 Phase | (a) Phase 2 task-013 / (b) Phase 3 분석과 함께 | (a) 면 A11 입력 근거가 초기부터 있음, 관측 기록 코드 ↑ | (a) 관측 기록만 Phase 2, 축 갱신·표시는 Phase 3 |
-| D6 | 교정 모드 기본값·전환 UI | 유창성 기본 + 역할극은 코치 (§2-7) / 사용자 설정 항목 추가(`Profile.correctionMode`) | 설정 항목 추가 시 규칙 6(`Profile` 범위) 갱신 | 설정 항목 추가, 기본 유창성 |
+| D5 | 능력 축(`LearnerSkillState`·`LearningObservation`) 도입 Phase | (a) Phase 2 task-013 / (b) Phase 3 분석과 함께 | (a) 면 A11 입력 근거가 초기부터 있음, 관측 기록 코드 ↑ | (a) 관측 기록만 Phase 2, 축 갱신·표시는 Phase 3 → **결정(2026-09-28): 권고대로** — `LearningObservation` 기록은 task-010b(반복 학습)에서, `LearnerSkillState` 갱신·표시는 Phase 3(task-013) |
+| D6 | 교정 모드 기본값·전환 UI | 유창성 기본 + 역할극은 코치 (§2-7) / 사용자 설정 항목 추가(`Profile.correctionMode`) | 설정 항목 추가 시 규칙 6(`Profile` 범위) 갱신 | 설정 항목 추가, 기본 유창성 → **결정(2026-09-28): 권고대로** — `Profile.correctionMode`(FLUENCY 기본·COACH) 추가, task-010c |
 | D7 | home-m4 보조 LLM 의 ASK/의도 분류 허용 여부 | 현행 금지 유지 / 벤치마크 통과 시 의도 분류만 허용 | `runtime.allowedTasks` 변경·정합 #10 | 현행 유지, §4-4 통과 후 재검토 |
 | D8 | 대조표 #1 — 강사의 개발팀 역할 확장 여부 | 유지(런타임 전용) 로 결정됨. 커리큘럼 설계 검토가 필요하면 Claude Code 세션의 §9 자문으로 | — | 결정 완료, 기록만 |
 

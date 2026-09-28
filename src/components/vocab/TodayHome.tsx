@@ -2,6 +2,7 @@
 
 /**
  * 오늘의 공부 홈 `/study/today`(screens.md §5-2 A·§5-3 B). 마운트·화면 복귀 때 #46 · #48(최근 10) · #48(보관 5) · #54 를 함께 읽는다.
+ * task-010: 단어 카드 바로 아래 "오늘의 회화" 카드(§12-2 A) — #58 을 같은 tick 으로 나란히, 상태는 따로 읽는다.
  * #46·#48(최근) 실패만 카드 오류이고, 보관 세트·통계 실패는 그 섹션을 조용히 숨긴다. 자동 폴링은 없다.
  *
  * 풀던 세트는 사용자당 하나이고 새 세트·다시 풀기를 막으므로 늘 가장 최근에 시작한 세트다 → 최근 10개 안에서 찾는다(F3 `answeredCount`).
@@ -13,6 +14,8 @@ import { apiGet, apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import Toast, { useToast } from '@/components/common/Toast'
 import type { CategoryCount, CreateSessionResult, FinishResult, Paged, SessionDetail, SessionSummary, VocabMode, VocabStats } from '@/types/vocab'
+import type { TodayLessons } from '@/types/lesson'
+import TodayLessonCard from '@/components/lesson/TodayLessonCard'
 import { isAnswered } from './deck'
 import FinishConfirmSheet from './FinishConfirmSheet'
 import { todayKey } from './format'
@@ -54,6 +57,9 @@ export default function TodayHome({ dailyWordCount }: { dailyWordCount: number }
   const [finishError, setFinishError] = useState<string | null>(null)
   const [replayingId, setReplayingId] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+  // 오늘의 회화(#58)는 단어 쪽과 따로 읽는다 — 한쪽 실패가 다른 카드를 막지 않게(screens §12-2 A).
+  const [lessonToday, setLessonToday] = useState<{ state: 'loading' | 'error' | 'ready'; data: TodayLessons | null }>({ state: 'loading', data: null })
+  const [lessonTick, setLessonTick] = useState(0)
   const keptRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const { show } = toast
@@ -97,6 +103,17 @@ export default function TodayHome({ dailyWordCount }: { dailyWordCount: number }
       cancelled = true
     }
   }, [tick])
+
+  useEffect(() => {
+    let cancelled = false
+    apiGet<TodayLessons>('/api/v1/lessons/today').then(
+      (d) => !cancelled && setLessonToday({ state: 'ready', data: d }),
+      () => !cancelled && setLessonToday((prev) => ({ state: 'error', data: prev.data })),
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [tick, lessonTick])
 
   useEffect(() => {
     const onVis = () => {
@@ -267,6 +284,15 @@ export default function TodayHome({ dailyWordCount }: { dailyWordCount: number }
           }}
         />
       </div>
+      <TodayLessonCard
+        state={lessonToday.state}
+        today={lessonToday.data}
+        onToast={show}
+        onReload={() => {
+          setLessonToday((prev) => (prev.state === 'error' ? { state: 'loading', data: prev.data } : prev))
+          setLessonTick((t) => t + 1)
+        }}
+      />
       {data?.stats && data.stats.byCount.length > 0 ? <VocabStatsCard stats={data.stats} today={data.today} /> : null}
       {data?.kept && data.kept.items.length > 0 ? (
         <KeptSets key={loadSeq} initial={data.kept} today={data.today} busyId={replayingId} onReplay={(id) => void replay(id)} anchorRef={keptRef} />

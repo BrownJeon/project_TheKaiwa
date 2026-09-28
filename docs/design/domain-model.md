@@ -2347,8 +2347,8 @@ model DebugSession {
 | 11 | `DebugSession` 이 수집한 원음·텍스트의 저장 위치(테이블 vs 파일) | `DATA_ROOT/debug/<sessionId>/` 파일 + `RequestTrace.steps[].captureRef` 경로만 | Phase 3 |
 | 12 | `AppSetting` 변경을 `ConfigurationVersion(APP_SETTING)` 로 남길 때 `override.production.enabled` 같은 정책 키의 Production 보호 적용 범위 | `environment.policy` capability 전용 키 목록을 코드 상수로 | role-permission.md §6 참조 |
 | 13 | `RepetitionItem.feedbackCount` 임계(FOCUS 자동 지정) 3 의 근거 | 코드 상수, A11 이 재지정 가능 | Phase 2 실측 후 조정 |
-| 14 | `Scenario`·`ScenarioTopic` 도입 Phase(§9 제안) | Phase 2 task-010 에 포함 권고 | **사용자 결정 필요** |
-| 15 | `LearnerSkillState`·`LearningObservation` 도입 여부(§9 제안) | Phase 3 task-013, 기존 테이블 파생으로 시작 가능 | **사용자 결정 필요** |
+| 14 | `Scenario`·`ScenarioTopic` 도입 Phase(§9 제안) | Phase 2 task-010 에 포함 권고 | **결정 2026-09-28: Phase 2 후반 별도 task(task-010d)** |
+| 15 | `LearnerSkillState`·`LearningObservation` 도입 여부(§9 제안) | Phase 3 task-013, 기존 테이블 파생으로 시작 가능 | **결정 2026-09-28: `LearningObservation` 기록만 Phase 2(task-010b), `LearnerSkillState` 는 Phase 3(task-013)** |
 | 16 | `StudyLog.result`·`StatsSnapshot.data` JSON 형태(정합성 #12) | §9-3 에 정의 | 확정(문서화) |
 | 17 | 발화 ↔ 채팅 결속과 1회 연결의 DB 강제(Codex task-007 C1-2 후속) | **해소(task-018, 2026-09-28 사용자 승인)**: `Utterance.chatId String?`(+`@@index`, `Chat` FK SetNull) — gateway 경로는 TURN 티켓 `chatId`, 온디바이스 #21 은 요청 `chatId`, 둘 다 라우트가 소유 확인한 방만 저장. `chatMessageId @unique`(메시지당 발화 ≤1, `ChatMessage.utterance` 1:1). 턴 연결은 위 #5(다른 방 발화 409 `UTTERANCE_OTHER_CHAT`, 방이 없는 발화는 예전 규칙). 공유 DB 의 옛 비고유 인덱스 `Utterance_chatMessageId_idx` 는 `db push` 가 지우지 않아 남는다(FK 보조, 무해) | 확정 |
 
@@ -2453,15 +2453,15 @@ model LearnerSkillState {
 | 컬럼 | 형태 |
 |---|---|
 | `StudyLog.result` (WORDS) | `{correct, wrong, skipped, cardCount, durationSec}` |
-| `StudyLog.result` (LESSON·REVIEW) | `{stageDone, score, quizCorrect, quizTotal, listen:{segmentsDone, memoWords:[...]}, scenario?:{scenarioId, goalAchieved, communicationSuccess, hintsUsed, usedExpressions:[...], missedExpressions:[...]}}` |
+| `StudyLog.result` (LESSON·REVIEW) | **task-010 구현 기준(2026-09-28, api-contract #62 가 정본)**: `{stageDone, score, quizCorrect, quizTotal, quizAnswered, applicationDone, usedExpressionIds[], missedExpressionIds[], itemIds[], listen:{segmentsDone, memoCount, proposedCount}, speakingDone, topicId, source}` — `itemIds`·`used/missedExpressionIds` 는 `RepetitionItem.id`. 역할극(task-010d)은 여기에 `scenario?:{scenarioId, goalAchieved, communicationSuccess, hintsUsed}` 를 additive 로 붙인다. 메모 단어 원문은 넣지 않는다(개수만) |
 | `StudyLog.result` (TALK·CHAT) | `{turns, corrections:{proposed, accepted, ignored}, scenario?:{…위와 동일}, endOfTopic}` |
 | `StudyLog.result` (EVALUATION) | `{total, grade, rubric:{accuracy,vocabulary,grammar,naturalness,assembly}}` |
 | `StatsSnapshot.data` (DAILY) | `{attended, words:{sessions,correct,wrong}, talkTurns, chatTurns, corrections:{proposed,accepted}, lessons, reviews, evals, repetition:{studied, focus}}` — **턴 `done` 은 스냅샷을 바꾸지 않는다**(AI 산출은 채택 시에만 저장 — task-006 완료 기준 6). `chatTurns`/`talkTurns`·`corrections.proposed` 는 대화 종료 `ADD_STUDY_LOG` 제안 채택이, `corrections.accepted` 는 교정 accept 가 증가(정합성 #7, 2026-09-27 task-006 개정) |
 | `StatsSnapshot.data` (VOCAB_SESSION) | `{cardCount, correct, wrong, skipped, durationSec, mode}` |
 | `StatsSnapshot.data` (EVALUATION) | `{kind, level, total, rubric, date}` |
-| `StatsSnapshot.data` (LESSON) | `{kind, topicId?, scenarioId?, score, stageDone, date}` |
+| `StatsSnapshot.data` (LESSON) | `{kind, topicId, score, stageDone, itemCount, quizCorrect, quizTotal, date}` (task-010, api-contract #62) · 역할극 도입 시 `scenarioId?` additive |
 | `Lesson.content.dialogue[].segment` | 청취 구간 번호(2~3줄 단위), `Lesson.content.nextPreview` = `{kind:'segment'|'scenario', ref, teaser_ko}` (피드백 #11) |
-| `Lesson.progress.listen` | `{segmentsDone:[...], memoWords:[{ja, reading?}]}` |
+| `Lesson.progress.listen` | task-010 구현(정본 api-contract #60·#61·#62a): `{segmentsDone:int[], played:{slow?:int[], normal?:int[]}, memo:[{segment, ja}], proposed:[…서버 칸]}` — `quiz.answers`(첫 답 고정)·`application.answers`·`speaking[]`(서버 칸)도 `progress` 아래 |
 | 17 | 발음 사전 적용 방식: 플랫폼 치환(엔진 무관, 기본) vs SBV2 `text/user_dict`(LGPL) push — 둘 다 `dictionaryVersion` 키 | 기본 A(치환), B 는 어댑터 옵션 | task-003 SBV2 래퍼 실측 |
 | 18 | TTS Timing Metadata 산출: A) 합성 wav 를 narabas 로 강제정렬 후 pyopenjtalk 모라 매핑 / B) VITS duration predictor 추출 | A 권고(P1), B 는 research | Phase 2 |
 | 19 | `EngineMetricsDaily` 에 TTS 지표(ttfa p50/p95·rtf·cacheHitRate·byVoice) 컬럼 추가 vs 별도 `TtsMetricsDaily` | 컬럼 추가(§10 제안) | Phase 2 Observability |
