@@ -108,6 +108,16 @@ design-spec §15 task-003 중 남은 **앱·온디바이스** 부분 — 같은 
 - **C1-3 [MEDIUM] manifest 서명 부재 → 부분 채택**: 서명(Ed25519 + APK 핀) 은 **보류** — 이 앱은 WebView 가 같은 서버에서 UI 전체를 받으므로 서버 침해 시 manifest 서명과 무관하게 앱이 장악된다(위협 모델상 이득 작음). 대신 ① manifest·모델 URL 은 **같은 운영 origin 의 https 만**(리다이렉트로 다른 호스트 불가), ② manifest 스키마 엄격 검증(파일 수·이름 패턴·크기 상한·총량 ≤300MB), ③ 파일별 sha256 필수, ④ **다운그레이드 금지**(설치된 버전보다 낮은 manifest 는 거부, 명시적 재설치만), ⑤ `.part` 재개 후 전체 sha256 재검증·원자적 rename. 서명은 후속 강화 항목.
 - **C1-4 [MEDIUM] WebView 외부 탐색 → 채택**: `server.allowNavigation` 을 운영 호스트 하나로 한정(또는 비움), 외부 URL·`target=_blank`·302 외부는 시스템 브라우저/Custom Tabs 로(WebViewClient `shouldOverrideUrlLoading` 확인), 플러그인(SherpaStt·Browser) 호출은 운영 origin 문서에서만 가능함을 검증. QA 기준 추가: 외부 링크가 WebView 에 남지 않음.
 
+### [2026-09-28 01:36] C2 adversarial-review focus=concurrency — done
+- judge 판정: `mode=adversarial-review, focus=concurrency, budget_rule=CX-limit-unknown-r2` (2026-09-28 10:32) / 호출 차수: 2/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=218664e(task_file) snapshot=3efc87f(C2 독립 실행)
+- 지적 2건:
+  - **[HIGH]** 다운로드 갱신 ↔ 활성 세션 `recognizer.ensure` (plugins/sherpa-stt/android/.../ModelGate.kt:37) — beginDownload가 active session을 막지 않아, 세션이 recognizer 로드를 진행 중인 상태에서 다운로드 commit이 기존 버전 파일을 `deleteRecursively`로 삭제 가능 / **impact**: recognizer 로드 MODEL_CORRUPT 또는 중간 실패, 세션 modelVersion vs 실제 사용 모델 버전 어긋남 / **권고**: download commit 및 old-version delete를 세션 점유와 배타적으로 처리(beginDownload 시 active session BUSY 반환, 또는 commit만 session 없을 때 수행, 또는 reference-count 방식)
+  - **[MEDIUM]** manifest 버전 전환 중 Range 재개 404 (src/modules/speech/stt/modelPackage.ts:119) — resolveModelFile이 current manifest version만 서빙하므로, v1 다운로드 진행 중 서버가 v2를 current로 바꾸면 v1 파일 URL이 404 → 재개 보장 못함 / **impact**: 모델 갱신과 다운로드 겹칠 때 대용량 다운로드 실패·일시정지·수용 기준('다운로드→재개') 배포 타이밍 깨짐 / **권고**: manifest 버전 공개 후 최소 TTL 동안 immutable 서빙 또는 구버전 installed.json 도 읽어 서빙하거나, 배포 절차에서 구버전 보존 후 별도 만료 작업 분리
+- 검토하지 못한 범위: 실기기 sherpa-onnx 네이티브 로더의 unlink/rename 중 실패 방식 / 운영 배포 절차의 DATA_ROOT/models 구버전 실제 삭제 타이밍
+- **REV-022 잔여 지적과의 관계**: REV-022가 다루었던 "다운로드 커밋↔활성 세션 VAD 파일 경합"(위 3절, LOW)는 VAD만 사라지는 경우였으나, 이번 HIGH 는 전체 모델 디렉터리(encoder·decoder·joiner·tokens·vad)가 사라지고 recognizer 로드 시점 경합이 더 크다는 점에서 심각도가 다름.
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260928T013441Z-task-003f-C2/
+
 ## Designer 기록
 
 - [09:01] 앱 전용 화면 가이드 완료 → `docs/screens.md` **§11 안드로이드 앱 전용 화면**(11-0~11-11) + 변경 이력 · §2(회화방·설정 행 갱신, 로그인·앱 셸·APK 자산 행 추가, 엔진명 목록에 sherpa·zipformer·onnx) · §8-1·§8-2 B·§8-3 C·§8-8 ⓐ(MIC_DENIED 앱 줄·MODEL_REQUIRED 행)·ⓓ · §9-1·§9-2 G·H 앱/웹 분기 문구 정합. 목업 Artifact 는 만들지 않음(task-006·008 과 같은 방식). 결정 요약:
@@ -386,17 +396,34 @@ Kotlin/Gradle 실행 환경이 이 세션에 없어 JVM 테스트 자체를 재�
 
 **판정: 확인됨 — REV-022 의 신규 발견(Medium, tsc 회귀) 해소.** 스크래치(`git archive` HEAD `7134519`, 검증 후 삭제)에서 `sync-local.sh` 신규 블록만 별도로 재현(실제 `~/.node-local/thekaiwa` 는 건드리지 않음 — `LOCAL_ROOT` 를 스크래치 경로로 대체한 최소 미러를 직접 구성): `models-verify.ts` import 는 확장자 없이 바뀌었고, `tsc --noEmit` 은 **exit 0**(prisma 포함 전체 타입체크, 0 errors). **"옛 import 사본으로 재현" 요청대로** 미러 사본에 `.ts` 확장자를 다시 붙여 재실행하니 **정확히 같은 위치에서 TS5097 재현**(exit 2) → 되돌리면 다시 exit 0 — `sync-local.sh` 의 `scripts/*.ts` 동기화가 실제로 이 회귀를 잡아낼 수 있음을 직접 증명했다. `eslint scripts/models-verify.ts` 도 0. `sync-local.sh` diff 를 직접 읽어 새 블록이 `android/`(별도 rsync, `--filter 'P build/'` 등 보호 그대로)·`plugins/`(별도 rsync) 블록과 소스·타깃이 겹치지 않고 독립적임을 확인 — 기존 동기화에 영향 없음. `models-verify.sh`(스크래치의 스크립트 사본, `node --import tsx`)를 **실제 모델 폴더**(`speech/models`, 읽기 전용)에 대해 직접 실행 — 5개 파일 전부 sha256 일치로 **exit 0**, `manifest.json` 의 `engine` 필드만 변조한 사본으로 재실행하니 `manifest engine invalid` 로 **exit 1**(둘 다 developer 보고와 일치). 잔여 지적 없음.
 
+### Codex C2 지적 판정 (2026-09-28)
+
+원본: `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260928T013441Z-task-003f-C2/`(raw.txt) — task 이력서 393~401행 전사와 대조, 코드 재열람으로 검증(실행·스크래치 없음 — 순수 코드 대조라 삭제할 스크래치 사본도 없음).
+
+#### 지적 1 [HIGH] `ModelGate.kt:37` — 다운로드 commit ↔ 활성 세션 recognizer 로드
+
+**판정: 채택.** 코드로 재확인: `ModelGate.beginDownload()`(37행)는 `deleting`·`download` 만 보고 `session` 은 보지 않는다 — 활성 세션 중에도 다운로드 시작·완료(commit)가 허용된다. `ModelStore.commit()`(ModelStore.kt 103-104행)은 새 버전으로 rename 한 뒤 `root.listFiles { f -> f.name != manifest.version }.forEach { it.deleteRecursively() }` 로 **다른 모든 버전 디렉터리를 무조건 재귀 삭제**한다 — 세션이 그 디렉터리에서 아직 읽고 있는지 확인하지 않는다. `SherpaSttPlugin.openSession()`(219행 이하)의 `recognizer.ensure(current, ...)` 는 **`worker.execute` 블록 안에서 비동기로**(238행) 실행되며 이 시점엔 이미 `ModelGate.openSession` 의 락이 반환된 뒤다 — 즉 세션의 실제 네이티브 로드는 게이트 보호 밖에서 일어난다. 따라서 "세션이 `store.current()` 로 구버전 스냅샷을 얻어 VAD/OfflineRecognizer 를 그 디렉터리에서 읽는 중"과 "다운로드 스레드가 같은 디렉터리를 `deleteRecursively` 하는 중"이 실제로 겹칠 수 있다 — evidence·impact 모두 코드와 정확히 일치한다(REV-022 가 남긴 LOW 는 VAD 파일 하나만의 좁은 창이었는데, 이번 지적은 encoder·decoder·joiner·tokens·vad 전체 디렉터리가 사라지는 문제라 범위가 더 크다 — Codex 요약과 같은 판단).
+
+- **이 배포 환경에서 현실성**: 낮다. 1인 사용자·모델 갱신은 Leader 가 수동으로 배포 절차(§speech/models/README §5)를 밟을 때만 드물게 일어난다. 이 경합이 실제로 터지려면 "그 사용자가 정확히 그 몇 초(recognizer 로드 ≈1~2s) 동안 회화를 시작"하고 "그 순간에 Leader 가 하필 새 모델을 커밋"하는 두 사건이 겹쳐야 한다 — 우연히 일어날 확률은 매우 낮지만, **다음에 실제로 모델판을 올릴 때(§5 절차를 처음 실제로 수행하는 순간) 앱을 계속 쓰고 있으면** 그 자체가 이미 이 조건이라 "드물다"가 "일회성 배포 작업 중엔 사실상 매번 위험 구간을 지난다"는 뜻이기도 하다 — 배포 절차 문서에 "배포 중엔 앱을 쓰지 말라"는 경고가 없다는 점도 지적할 만하다.
+- **심각도**: 코드 결함으로서는 **HIGH 유지**(Codex 판정에 동의) — 실패 시 MODEL_CORRUPT 로 세션이 깨지거나(포착됨, 크래시는 아닐 가능성이 높음 — 아래 근거) 세션이 보고하는 `modelVersion`(세션 생성 시점 버전, `SttSession` 필드에 고정)과 실제 로드된 recognizer 버전(`RecognizerKey`, worker 재조회 시점 버전)이 어긋날 수 있다. 다만 네이티브 완전 크래시(SIGSEGV) 가능성은 낮게 본다 — sherpa-onnx/onnxruntime 의 파일 열기 실패는 통상 C++ 예외/오류코드로 전파되고, 플러그인은 `worker.execute` 블록 전체를 `catch (e: Throwable)` 로 감싸(REV-021 에서 확인한 패턴) JVM 예외로 변환되는 경로가 이미 있다 — 다만 네이티브 계층이 절반만 읽힌 그래프를 가지고 이후 호출에서 미정의 동작을 낼 여지는 완전히 배제 못 한다.
+- **Leader 의 구체적 질문에 대한 답 — "구버전 삭제를 세션 활성 중엔 미뤄야 하는가, 아니면 로드 경로를 게이트 락 안에 두는 것으로 충분한가"**: **로드 경로를 게이트 락 안에 두는 쪽을 권고한다.** 이유: (1) `beginDownload()` 자체를 세션 존재 시 거부하면 "모델 받는 중에도 회화 가능"이라는 기존 의도된 기능이 깨진다(다운로드는 몇 분씩 걸리는데 그동안 세션을 막을 이유가 없다 — 위험한 건 다운로드의 **끝**, 즉 `commit()` 뿐이다). (2) 필요한 건 "recognizer 가 실제로 파일을 읽는 짧은 구간"(≈1~2초)과 "commit 의 rename+구버전 삭제"(파일 5개, 아마 수십~수백 ms) 이 둘만 서로 배타적이면 된다 — 이 둘을 **같은 `gate` 모니터** 아래 두면(예: `worker.execute` 안의 `store.current(); recognizer.ensure(...)` 를 `synchronized(gate) { ... }` 로 감싸고, `ModelDownloader.download()` 내부의 `store.commit(tmp, manifest)` 호출도 `synchronized(gate) { store.commit(...) }` 로 감싸도록 리팩터링) 다운로드의 오래 걸리는 파일 전송 구간은 전혀 잠그지 않으면서 이 레이스만 정확히 닫을 수 있다. 참조 카운트(레퍼런스 카운팅) 방식(Codex 의 대안)도 이론상 가능하지만 프로세스 죽음·예외 경로에서 카운트가 새는 새 버그 클래스를 만들 위험이 있어, 이미 검증된 `ModelGate` 단일 모니터를 확장하는 쪽이 이번 세션에서 더 안전하다고 판단한다.
+- **권고 수정**: ① `ModelDownloader.download()` 가 `store.commit(tmp, manifest)` 를 직접 부르지 않고 검증된 `(tmp, manifest)` 를 반환하도록 바꾸거나, commit 콜백을 주입받게 해 `SherpaSttPlugin` 이 `synchronized(gate) { store.commit(...) }` 로 감쌀 수 있게 한다. ② `openSession()` 의 `worker.execute` 블록 안 `store.current()`+`recognizer.ensure(...)` 를 `synchronized(gate) { ... }` 로 감싼다. ③ 두 변경 다 "짧은 구간만" 잠그므로 기존 다운로드 소요시간에 영향 없음을 확인.
+- **필요 테스트**: `ModelGateTest.deleteAndOpenNeverOverlapUnderContention` 과 같은 패턴으로 "commit 스레드 vs 로드 스레드" 2,000회 경합 스트레스 테스트(overlap 카운터 0 단언) 신규 추가. 세션 `modelVersion` 필드와 실제 로드된 `RecognizerKey.version` 이 항상 같음을 단언하는 테스트 추가. (선택) 로드에 인위적 지연 훅을 넣어 "로드 진행 중 commit 시도 → BUSY/대기 후 성공" 을 확인하는 통합 테스트.
+
+#### 지적 2 [MEDIUM] `modelPackage.ts:119` — manifest 버전 전환 중 Range 재개 404
+
+**판정: 채택.** 코드로 재확인: `resolveModelFile`(120-127행)은 `served.manifest.version !== version` 이면 무조건 `null`(404) 을 돌려준다 — 요청한 `<version>` 이 디스크에 실제로 남아 있는지와 무관하게 **오직 "지금 manifest.json 이 가리키는 버전과 문자열이 같은가"만** 본다. `ModelDownloader.kt` 의 `fetchToPart`(210-224행)에서 404 는 `IOException`으로 던져지고 `fetchVerified`(151-183행)의 `catch (e: IOException)` 경로로 들어가 최대 3회 재시도 후 실패하지만(**콘텐츠 무결성 실패로 집계되지 않아 `.tmp-<version>` 조각 자체는 남는다**), 이후 앱이 새 manifest(`v2`)를 다시 받아 재시도하면 `download()` 시작부의 `store.dropOtherTmp(manifest.version)`(121행)가 `v1` 조각을 통째로 버리므로 **이미 받은 바이트가 낭비된다** — evidence·impact 모두 Codex 설명과 정확히 일치.
+- **현실성**: 낮다. `speech/models/README.md` §5 배포 절차 자체가 "옛 버전 디렉토리는 2주 뒤 삭제"라고 명시해 **디스크 파일은 이미 한동안 보존되는 것이 기존 설계 의도**다 — 문제는 순수하게 **서빙 코드가 그 사실을 활용하지 않는다**는 것뿐이다. 실제로 터지려면 "사용자가 170MB 다운로드를 진행 중인 그 시간대(수 분~수십 분, 특히 느린 회선)"와 "Leader 가 그 사이에 새 모델판을 커밋"하는 사건이 겹쳐야 하는데, 1인 사용자·수동 갱신 환경에서는 이 창이 지적 1보다는 넓지만(다운로드가 몇 분씩 걸리므로) 여전히 "Leader 가 자기 자신의 진행 중인 다운로드를 갱신으로 밟는" 정도의 자기 충돌 시나리오에 가깝다.
+- **심각도**: **MEDIUM 유지**(Codex 판정에 동의) — 실패해도 데이터 손상·보안 문제는 없고, 사용자 경험상 "다운로드 재시작 필요" 수준의 불편에 그친다.
+- **Leader 의 구체적 질문에 대한 답 — "이전 버전 파일을 한동안(예: 24h) 보존하고 manifest 의 버전별 경로만 서빙하면 충분한가"**: **개념적으로는 충분하지만, "파일을 디스크에 남겨 두는 것"만으로는 안 고쳐진다 — 서빙 코드가 그 파일을 승인할 근거(그 버전에 대한 검증된 manifest 스냅샷)를 별도로 들고 있어야 한다**는 점을 덧붙인다. 지금도 §5 절차상 파일은 2주간 남아 있지만 `resolveModelFile` 이 "현재 manifest 버전과 문자열이 같은가"만 보므로 404 가 난다 — 즉 원인은 파일 부재가 아니라 **코드가 "현재가 아닌 버전"을 아예 모른다**는 것이다. 따라서 권고: `loadManifest()`/`currentModelDir()` 가 버전이 바뀔 때(캐시 갱신 시점) **직전에 유효했던 manifest 스냅샷을 TTL(예: Leader 가 제안한 24h)과 함께 별도로 보관**하고, `resolveModelFile` 은 (a) 요청 버전이 지금의 current 와 같으면 지금처럼, (b) 아니면 보관된 "최근 은퇴 버전" 목록에서 그 버전의 검증된 manifest 를 찾아 같은 방식으로 서빙 — **재검증 없이 "디스크에 존재하기만 하면 서빙"으로 바꾸는 것은 권장하지 않는다**(그러면 검증되지 않은/손상된 잔여 디렉터리를 그대로 내보내는 회귀가 생길 수 있다 — REV-021/022 가 공들여 막은 "서버가 뭐든 통과시키는" 문제의 재발). 24h 는 실사용(170MB, 가정 홈 회선)엔 충분한 여유다.
+- **권고 수정**: ① `modelPackage.ts` 에 최근 은퇴 버전 1~2개 분(무한 누적 금지 — 메모리·오탐 방지) 을 `{version, manifest, retiredAt}` 형태로 들고 있는 작은 캐시 추가. ② `resolveModelFile` 이 current 불일치 시 이 캐시를 조회해 TTL 내면 같은 파일 서빙 로직(경로·sha256·크기 그대로) 재사용. ③ 프로세스 재시작 시 캐시가 비는 것은 감수(빈도·영향이 낮아 영속화까지는 과함 — 이 규모 앱엔 불필요한 복잡도로 판단).
+- **필요 테스트**: `resolveModelFile` 단위 테스트 — 버전 전환을 흉내(첫 호출 v1 반환하도록 config 목킹 → 두 번째 호출부터 v2 반환) 낸 뒤 (a) 전환 직후에도 v1 파일 요청이 TTL 내에는 200, (b) TTL 만료 또는 두 번째 전환(v1 캐시 밀려남) 후엔 404 임을 확인. `tests/live/task003f-smoke.ts` §A 에 "매니페스트 전환 중 재개" 시나리오 라이브 케이스 추가 권고.
+
+#### 종합
+두 지적 모두 **채택** — 오탐 아님, 범위 밖도 아님(둘 다 이번 task-003f 의 온디바이스 모델 배포·다운로드 경로 자체의 결함). REV-022 가 이미 남긴 LOW(다운로드 커밋↔활성 세션 VAD 파일 경합)는 지적 1 로 **흡수·상향**된다(같은 근본 원인, 더 넓은 파일 범위) — 그 LOW 항목은 이 판정으로 대체된 것으로 간주하고 별도로 추적하지 않는다. 두 건 다 이번 task-003f 의 QA 통과나 첫 배포를 막을 사유는 아니라고 판단한다(첫 배포엔 모델판 전환이 없다) — 다만 **다음에 실제로 모델판을 올리기 전에** 반드시 고쳐야 한다. Developer 수정 → Reviewer 재순환 필요(신규 REV 차수).
+
+## QA 기록
+
 ## Deployer 기록
 
 ## 최종 요약
-
-### [2026-09-28 01:36] C2 adversarial-review focus=concurrency — done
-- judge 판정: `mode=adversarial-review, focus=concurrency, budget_rule=CX-limit-unknown-r2` (2026-09-28 10:32) / 호출 차수: 2/4
-- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=218664e(task_file) snapshot=3efc87f(C2 독립 실행)
-- 지적 2건:
-  - **[HIGH]** 다운로드 갱신 ↔ 활성 세션 `recognizer.ensure` (plugins/sherpa-stt/android/.../ModelGate.kt:37) — beginDownload가 active session을 막지 않아, 세션이 recognizer 로드를 진행 중인 상태에서 다운로드 commit이 기존 버전 파일을 `deleteRecursively`로 삭제 가능 / **impact**: recognizer 로드 MODEL_CORRUPT 또는 중간 실패, 세션 modelVersion vs 실제 사용 모델 버전 어긋남 / **권고**: download commit 및 old-version delete를 세션 점유와 배타적으로 처리(beginDownload 시 active session BUSY 반환, 또는 commit만 session 없을 때 수행, 또는 reference-count 방식)
-  - **[MEDIUM]** manifest 버전 전환 중 Range 재개 404 (src/modules/speech/stt/modelPackage.ts:119) — resolveModelFile이 current manifest version만 서빙하므로, v1 다운로드 진행 중 서버가 v2를 current로 바꾸면 v1 파일 URL이 404 → 재개 보장 못함 / **impact**: 모델 갱신과 다운로드 겹칠 때 대용량 다운로드 실패·일시정지·수용 기준('다운로드→재개') 배포 타이밍 깨짐 / **권고**: manifest 버전 공개 후 최소 TTL 동안 immutable 서빙 또는 구버전 installed.json 도 읽어 서빙하거나, 배포 절차에서 구버전 보존 후 별도 만료 작업 분리
-- 검토하지 못한 범위: 실기기 sherpa-onnx 네이티브 로더의 unlink/rename 중 실패 방식 / 운영 배포 절차의 DATA_ROOT/models 구버전 실제 삭제 타이밍
-- **REV-022 잔여 지적과의 관계**: REV-022가 다루었던 "다운로드 커밋↔활성 세션 VAD 파일 경합"(위 3절, LOW)는 VAD만 사라지는 경우였으나, 이번 HIGH 는 전체 모델 디렉터리(encoder·decoder·joiner·tokens·vad)가 사라지고 recognizer 로드 시점 경합이 더 크다는 점에서 심각도가 다름.
-- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260928T013441Z-task-003f-C2/
-
