@@ -35,6 +35,10 @@ android/local.properties
 # plugin build
 plugins/**/build/
 plugins/**/node_modules/
+plugins/**/.gradle/
+# sherpa-onnx AAR(50MB)은 scripts/build-apk.sh 가 버전·sha256 고정으로 받는다 — 커밋 금지
+*.aar
+android/.idea/
 # misc
 .DS_Store
 *.log

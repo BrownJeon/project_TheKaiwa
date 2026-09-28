@@ -3,30 +3,59 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>TheMeal</title>
+    <title>TheKaiwa</title>
+    <!--
+      서버 연결 실패 화면 — APK 안에 들어가는 자산(docs/screens.md §11-2 H).
+
+      이 앱은 `server.url` 로 운영 웹을 직접 로드한다(설계안 §12). 이 파일은 Capacitor `webDir` 이자
+      `server.errorPath` 라서 **운영 웹을 불러오지 못했을 때만** 보인다. 빈 흰 화면이나 WebView 기본 오류(영문·주소 노출)
+      대신 무슨 일인지와 할 일을 알린다.
+
+      - 외부 자원 없음(폰트·스크립트·이미지) — 서버에 닿지 못하는 상황에서 뜨는 화면이다.
+      - 색은 src/app/globals.css 토큰의 hex 를 옮겨 적었다(라이트·다크 두 벌).
+      - 바꾸면 **네이티브 변경**이다(APK 재빌드·versionCode 증가).
+    -->
     <style>
-      html, body { margin: 0; height: 100%; background: #f6f7f4; color: #5a6359;
-        font: 14px/1.5 system-ui, -apple-system, sans-serif; }
-      main { height: 100%; display: grid; place-items: center; text-align: center; padding: 24px; }
+      :root {
+        color-scheme: light dark;
+        --ground: #f6f7f4;
+        --ink: #1e2420;
+        --ink2: #5a6359;
+        --accent: #c8471f;
+        --on-accent: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #141816;
+          --ink: #ecefe9;
+          --ink2: #aeb6ac;
+          --accent: #f06a45;
+          --on-accent: #1a0e0a;
+        }
+      }
+      html, body { margin: 0; height: 100%; background: var(--ground); color: var(--ink);
+        font: 14px/1.5 system-ui, -apple-system, 'Noto Sans KR', sans-serif; }
+      main { min-height: 100%; box-sizing: border-box; display: grid; place-items: center; text-align: center;
+        padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+          max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+      .logo { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; margin: 0; color: var(--ink); }
+      .logo span { color: var(--accent); }
+      h1 { font-size: 17px; font-weight: 600; margin: 16px 0 4px; }
+      p { margin: 0; color: var(--ink2); }
+      button { margin-top: 20px; min-height: 48px; width: 200px; border: 0; border-radius: 12px;
+        background: var(--accent); color: var(--on-accent); font: inherit; font-size: 16px; font-weight: 600; }
+      button:active { opacity: 0.85; }
+      .hint { margin-top: 12px; font-size: 12px; }
     </style>
   </head>
   <body>
-    <!--
-      **이 파일은 거의 보이지 않는다.** Capacitor 는 `webDir` 를 요구하지만, 이 앱은
-      `server.url` 로 운영 서버의 최신 웹을 직접 로드한다(설계안 §12) — 그래서 배포는
-      웹 배포 하나뿐이고 APK 를 다시 만들 필요가 없다.
-
-      이 화면이 실제로 보이는 때는 **서버에 닿지 못했을 때**뿐이다. 그때 빈 흰 화면을
-      두면 "앱이 죽었다"로 읽히므로, 무슨 일인지와 무엇을 하면 되는지를 적어 둔다.
-    -->
     <main>
       <div>
-        <div style="font-size: 40px">🍚</div>
-        <h1 style="font-size: 17px; margin: 12px 0 6px; color: #1e2420">TheMeal</h1>
-        <p style="margin: 0">서버에 연결하는 중입니다…</p>
-        <p style="margin: 8px 0 0; font-size: 12px; color: #8b948a">
-          이 화면이 계속 보이면 네트워크를 확인해 주세요.
-        </p>
+        <p class="logo">The<span>Kaiwa</span></p>
+        <h1>서버에 연결하지 못했어요</h1>
+        <p>인터넷 연결을 확인한 뒤 다시 시도해 주세요.</p>
+        <button type="button" onclick="location.replace('https://kaiwa.xn--lh0b87pnudm10a4vd.com/')">다시 시도</button>
+        <p class="hint">계속 안 되면 서버가 점검 중일 수 있어요.</p>
       </div>
     </main>
   </body>

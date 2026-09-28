@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 녹음은 start()~stop() 사이에만(런타임 권한). 안드로이드 기본 STT 는 쓰지 않는다. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 모델 다운로드(같은 origin https 만)와 Wi-Fi(비과금) 판정. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+</manifest>

@@ -1,0 +1,108 @@
+// @thekaiwa/sherpa-stt — Capacitor 7 로컬 플러그인(Kotlin). 앱 `npx cap sync android` 가 이 모듈을 포함한다.
+//
+// sherpa-onnx 는 **GitHub 릴리스의 공식 AAR 을 버전·sha256 으로 고정**해 쓴다(README §3).
+//   - 저장소에 커밋하지 않는다(50MB). `scripts/build-apk.sh` 가 받아 sha256 을 확인한 뒤
+//     `-PsherpaOnnxAar=<경로>` 로 넘긴다. 직접 빌드할 때도 같은 파일·같은 값이어야 한다.
+//   - 버전을 바꾸는 것은 네이티브 변경이다(APK 재설치·versionCode 증가). gateway(`sherpa-onnx==` 핀)와 같은 계열로 맞춘다.
+//   - 로컬 AAR 을 `files(aar)` 로 물리면 AGP 8 이 라이브러리 모듈의 lint/번들 작업(bundleReleaseLocalLintAar)에서
+//     "Direct local .aar file dependencies are not supported" 로 멈춘다(2026-09-28 실측). 그래서 AAR 을 풀어
+//     `classes.jar`(JAR 의존은 허용)와 `jni/arm64-v8a/*.so`(jniLibs)로 쓴다 — AAR 에 리소스·매니페스트 권한·proguard 규칙이
+//     없어(확인: R.txt·proguard.txt 비어 있음, manifest 는 uses-sdk 21 뿐) 푼 것과 AAR 은 같다.
+
+ext {
+    junitVersion = project.hasProperty('junitVersion') ? rootProject.ext.junitVersion : '4.13.2'
+    sherpaOnnxVersion = '1.13.8'
+    sherpaOnnxSha256 = '633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96'
+}
+
+buildscript {
+    ext.kotlin_version = project.hasProperty('kotlin_version') ? rootProject.ext.kotlin_version : '2.1.20'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+def sherpaAar = file(project.findProperty('sherpaOnnxAar') ?: "libs/sherpa-onnx-${sherpaOnnxVersion}.aar")
+if (!sherpaAar.isFile()) {
+    throw new GradleException("sherpa-onnx AAR 없음: ${sherpaAar} — scripts/build-apk.sh 로 빌드하거나 -PsherpaOnnxAar=<경로> 를 넘긴다")
+}
+def actualSha = sherpaAar.withInputStream { is ->
+    def md = java.security.MessageDigest.getInstance('SHA-256')
+    byte[] buf = new byte[1 << 16]
+    int n
+    while ((n = is.read(buf)) > 0) md.update(buf, 0, n)
+    md.digest().encodeHex().toString()
+}
+if (actualSha != sherpaOnnxSha256) {
+    throw new GradleException("sherpa-onnx AAR sha256 불일치: ${actualSha} (기대 ${sherpaOnnxSha256})")
+}
+// 대상 기기(갤럭시 S25+)는 arm64 하나 — 앱도 abiFilters 'arm64-v8a' 다.
+def sherpaAbis = (project.findProperty('sherpaOnnxAbis') ?: 'arm64-v8a').toString().split(',')*.trim()
+def sherpaDir = new File(layout.buildDirectory.get().asFile, "sherpa-onnx-${sherpaOnnxVersion}")
+def sherpaStamp = new File(sherpaDir, '.source')
+def sherpaStampText = "${actualSha} ${sherpaAbis.join(',')}"
+if (!sherpaStamp.isFile() || sherpaStamp.text != sherpaStampText) {
+    project.delete(sherpaDir)
+    project.copy {
+        from(zipTree(sherpaAar)) {
+            include 'classes.jar'
+            sherpaAbis.each { include "jni/${it}/*.so" }
+        }
+        into sherpaDir
+    }
+    sherpaStamp.text = sherpaStampText
+}
+
+android {
+    namespace "com.miraclepenguin.kaiwa.sherpastt"
+    compileSdk project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 35
+    defaultConfig {
+        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 26
+        targetSdkVersion project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 35
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+    lintOptions {
+        abortOnError false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    kotlinOptions {
+        jvmTarget = '21'
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+    sourceSets {
+        main {
+            jniLibs.srcDirs += [new File(sherpaDir, 'jni')]
+        }
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    implementation files(new File(sherpaDir, 'classes.jar'))
+    testImplementation "junit:junit:$junitVersion"
+    // 안드로이드 단위 테스트의 org.json 은 스텁이라(호출 시 예외) 실제 구현을 붙인다.
+    testImplementation 'org.json:json:20240303'
+}

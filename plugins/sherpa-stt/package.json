@@ -1,0 +1,25 @@
+{
+  "name": "@thekaiwa/sherpa-stt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TheKaiwa 온디바이스 실시간 STT Capacitor 플러그인 (Kotlin + sherpa-onnx 1.13.8, silero VAD + zipformer transducer int8). 웹 번들은 import 하지 않는다 — bridge.ts 가 window.Capacitor.Plugins.SherpaStt 로 부른다.",
+  "license": "UNLICENSED",
+  "main": "src/index.ts",
+  "types": "src/definitions.ts",
+  "files": [
+    "src/",
+    "android/build.gradle",
+    "android/consumer-rules.pro",
+    "android/src/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^7.0.0"
+  }
+}

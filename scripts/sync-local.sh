@@ -48,6 +48,13 @@ if [ -d "$PROJECT_ROOT/android" ]; then
     "$PROJECT_ROOT/android/" "$LOCAL_ROOT/android/"
 fi
 
+# 로컬 Capacitor 플러그인(task-003f). 루트 package.json 이 `file:plugins/sherpa-stt` 로 의존하므로 미러에서 `npm install` 이
+# 돌려면 이 경로가 있어야 한다. 앱 번들은 import 하지 않는다(ESLint). 산출물·AAR 은 보내지 않는다.
+if [ -d "$PROJECT_ROOT/plugins" ]; then
+  rsync -a --delete --exclude 'build/' --exclude 'node_modules/' --exclude 'libs/' --exclude '.gradle/' \
+    "$PROJECT_ROOT/plugins/" "$LOCAL_ROOT/plugins/"
+fi
+
 # `set -e` 아래에서 `[ -f x ] && cp` 는 bash 의 && 예외 규칙에 기대는 형태라, 의도가
 # 드러나게 명시적 if 로 쓴다.
 for f in tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs next-env.d.ts package.json .npmrc capacitor.config.ts; do

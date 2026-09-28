@@ -26,6 +26,7 @@
     "@capacitor/splash-screen": "^7.0.5",
     "@capacitor/status-bar": "^7.0.6",
     "@prisma/client": "^6.0.0",
+    "@thekaiwa/sherpa-stt": "file:plugins/sherpa-stt",
     "@workspace/auth-oauth": "file:/home/brownjeon/NFS/homes/brownjeon/project/shared/auth-oauth",
     "ajv": "8.17.1",
     "jose": "^6.2.3",

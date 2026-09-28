@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        allowBackup="false" + dataExtractionRules(전부 제외) — 로그인 자격증명은 30일 httpOnly 세션 쿠키이고
+        WebView 는 그것을 app_webview/ 에 영속한다. 자동 백업(클라우드)·기기 간 이전(Android 12+ 는 allowBackup=false 만으로는
+        기기 이전이 안 막힌다)으로 세션이 기기 밖에 복사되지 않게 한다. 온디바이스 인식 파일(filesDir/models, ≈170MB)도
+        백업할 이유가 없다(서버에서 다시 받는다). 복원할 로컬 상태가 없는 셸 앱이라 잃는 것이 없다(VoiceVault task-039 §8-5).
+
+        usesCleartextTraffic="false" — 운영 서버·모델 다운로드 모두 https 다.
+    -->
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <!--
+            launchMode="singleTask" — 로그인 딥링크(thekaiwa://auth/callback)가 도착하면 이미 떠 있는 이 화면으로
+            돌아온다(새 화면이 쌓이지 않고, 위에 떠 있던 Custom Tab 도 정리된다).
+
+            windowSoftInputMode="adjustResize" — 입력창이 키보드에 가리지 않게. edge-to-edge(targetSdk 35) 아래에서는
+            이것만으로 창이 줄지 않을 수 있어 웹 KeyboardInset 이 함께 맡는다(app-conversion-guide §1-2).
+        -->
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+                OAuth 로그인 복귀 딥링크. Google 은 WebView 안 로그인을 막으므로 Custom Tab 으로 열고, 서버가 끝에
+                thekaiwa://auth/callback?code=… (또는 ?error=…) 로 302 한다. 서버가 실제로 내는 주소(스킴·호스트·경로)만
+                정확히 주장한다 — 다른 딥링크가 로그인 수신부를 깨우지 않게.
+                커스텀 스킴은 다른 앱도 등록할 수 있다 → 코드는 PKCE verifier 에 결속돼 가로채도 교환할 수 없다(task-003f C1-1).
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="thekaiwa" android:host="auth" android:path="/callback" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        온디바이스 인식(@thekaiwa/sherpa-stt). 런타임 권한이라 첫 누름에 묻고, 녹음은 start()~stop() 사이에만 켜진다.
+        안드로이드 기본 STT/TTS 는 쓰지 않는다. required="false" — 마이크가 없어도 채팅·단어장은 쓸 수 있다.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+</manifest>

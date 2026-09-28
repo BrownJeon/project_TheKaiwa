@@ -1,6 +1,6 @@
 # @thekaiwa/sherpa-stt — 온디바이스 실시간 STT Capacitor 플러그인 (골격)
 
-> 상태: 설계 골격(코드 없음). 구현 task-003(b). Capacitor 7 · Kotlin · sherpa-onnx Android AAR. 경계 규칙 정본: [`docs/design/module-dependency.md`](../../docs/design/module-dependency.md) §6. 모델 규약: [`speech/models/README.md`](../../speech/models/README.md).
+> 상태: **구현 v0.1.0 (task-003f, 2026-09-28)** — Kotlin 플러그인·JVM 단위 테스트 51개·데스크톱 점검(stt20 20/20)·`assembleRelease` 까지. 실기기(S25+) 실측은 F6. Capacitor 7 · Kotlin 2.1 · sherpa-onnx **1.13.8**. 경계 규칙 정본: [`docs/design/module-dependency.md`](../../docs/design/module-dependency.md) §6. 모델 규약: [`speech/models/README.md`](../../speech/models/README.md). **JS 계약 정본: agent-vault `task-003f` 이력서 "플러그인 JS 계약 v1·v1.1"** — 아래 §4 는 그 요약이고 `src/definitions.ts` 가 같은 내용의 타입이다.
 
 ## 1. 목적
 
@@ -10,69 +10,86 @@
 
 ```
 plugins/sherpa-stt/
-├── package.json                 # name @thekaiwa/sherpa-stt, "capacitor": { "android": { "src": "android" } }, 로컬 경로 의존(file:plugins/sherpa-stt)
-├── src/
-│   ├── definitions.ts           # SherpaSttPlugin 타입 — 계약 문서 역할. 웹 번들은 이 파일을 import 하지 않는다(bridge.ts 가 손으로 옮겨 적음)
-│   ├── index.ts                 # registerPlugin('SherpaStt') — 네이티브 등록만, web 구현 없음
-│   └── web.ts                   # 모든 메서드가 unavailable 을 던지는 stub(브라우저에서 호출되면 안 됨)
+├── package.json                 # @thekaiwa/sherpa-stt 0.1.0, "capacitor": { "android": { "src": "android" } } — 루트가 file:plugins/sherpa-stt 로 의존
+├── src/{definitions,index,web}.ts   # 계약 타입·registerPlugin·브라우저 stub(전부 reject). 웹 번들은 import 하지 않는다(bridge.ts 가 손으로 옮겨 적음)
 ├── android/
-│   ├── build.gradle             # sherpa-onnx AAR 의존(버전 고정, §3) · minSdk 26 · Kotlin
-│   ├── libs/                    # (선택) sherpa-onnx-<ver>.aar 프리빌드 — Maven 좌표를 쓰면 비움
-│   └── src/main/
-│       ├── AndroidManifest.xml  # <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-│       └── java/com/miraclepenguin/kaiwa/sherpastt/
-│           ├── SherpaSttPlugin.kt      # @CapacitorPlugin(name="SherpaStt", permissions=[RECORD_AUDIO]) — 메서드·이벤트·권한
-│           ├── AudioCapture.kt         # AudioRecord 16kHz mono PCM16, 40ms 프레임, 전용 스레드
-│           ├── VadSegmenter.kt         # sherpa-onnx Vad(silero) 상태기계 → 세그먼트 큐
-│           ├── Recognizer.kt           # OfflineRecognizer(zipformer transducer int8) 로드·디코드(백그라운드 스레드)
-│           ├── ModelStore.kt           # filesDir/models/<version>/ 관리·checkModel
-│           ├── ModelDownloader.kt      # manifest 다운로드·Range 재개·sha256 검증·원자적 전환·진행 이벤트
-│           └── WavWriter.kt            # 세그먼트 wav 저장(final.wavPath) — 앱이 업로드 후 삭제
+│   ├── build.gradle             # AAR sha256 확인 → classes.jar·jni/arm64-v8a/*.so 로 풀어 의존(§3) · minSdk 26 · Kotlin/JVM 21
+│   ├── consumer-rules.pro       # JNI 가 이름으로 찾는 sherpa 클래스 keep(앱 minify 를 켤 날 대비)
+│   └── src/
+│       ├── main/AndroidManifest.xml     # RECORD_AUDIO · INTERNET · ACCESS_NETWORK_STATE
+│       ├── main/java/com/miraclepenguin/kaiwa/sherpastt/
+│       │   ├── SherpaSttPlugin.kt   # @CapacitorPlugin(name="SherpaStt", permissions=[recordAudio]) — 메서드·이벤트·생명주기·스레드
+│       │   ├── SttSession.kt        # 발화 상태기계(순수 — VAD 구간·여유·0 패딩·manual/auto·final 1회·순서 보장)
+│       │   ├── Audio.kt             # 16k PCM 계산·패딩 상수(gateway 와 같은 값)·레벨 미터·발화 버퍼
+│       │   ├── AudioCapture.kt      # AudioRecord 16kHz mono PCM16 40ms, 전용 스레드(URGENT_AUDIO), 해제는 캡처 스레드가
+│       │   ├── Recognizer.kt        # OfflineRecognizer 캐시(버전·스레드·디코딩 방식 키)·워밍업 · SherpaVadEngine(silero)
+│       │   ├── Manifest.kt          # manifest 엄격 검증·버전 자연 정렬·같은 origin 정책·Range 이어받기 판정(순수)
+│       │   ├── ModelStore.kt        # filesDir/models/stt/<version>/ + installed.json, 원자적 commit·검증·정리
+│       │   ├── ModelDownloader.kt   # manifest→파일별 Range(.part)→sha256→commit, 리다이렉트 수동(같은 origin), 취소·Wi-Fi 재확인
+│       │   ├── WavWriter.kt · Opts.kt
+│       └── test/java/…/sherpastt/   # JVM 단위 테스트(가짜 VAD·디코더·HTTP) — scripts/build-apk.sh --test
+├── tools/desktop-check/         # 데스크톱 sherpa-onnx(JVM)로 SttSession 을 실제 모델·stt20 에 돌리는 점검(run.sh)
 ├── README.md
 └── CHANGELOG.md
 ```
 
-- 앱 `capacitor.config.ts` 에 별도 등록은 필요 없다(Capacitor 7 은 `node_modules` 의 플러그인을 `cap sync` 가 자동 수집). 루트 `package.json` 에 `"@thekaiwa/sherpa-stt": "file:plugins/sherpa-stt"`.
+- 앱 `capacitor.config.ts` 에 별도 등록은 필요 없다(`cap sync` 가 `@CapacitorPlugin` 을 찾아 `capacitor.plugins.json` 에 넣는다 — `scripts/build-apk.sh` 가 들어갔는지 확인).
 - 웹 번들 규칙: `src/modules/infra/native/bridge.ts` 만 `window.Capacitor.Plugins.SherpaStt` 를 읽는다. 앱 코드는 `@thekaiwa/sherpa-stt`·`@capacitor/*` 를 import 하지 않는다(ESLint `no-restricted-imports`). 플러그인이 빠진 APK·PC 브라우저에서도 화면이 죽지 않아야 한다.
+- 모델·오디오 경로(`filesDir/models/stt`, `filesDir/utterances`)와 JS 로 가는 값에는 엔진·모델 이름을 쓰지 않는다(task-003e M2 원칙).
 
 ## 3. sherpa-onnx AAR 버전 고정
 
-- 배포면: sherpa-onnx 릴리스의 Android 프리빌드 AAR(`sherpa-onnx-<ver>.aar`, JNI `arm64-v8a`·`armeabi-v7a`) 또는 Maven 좌표. **버전은 task-003 실측 시 확정**해 `android/build.gradle` 과 이 README·`CHANGELOG.md` 에 고정 표기하고, 이후 변경은 네이티브 변경(§8 APK 재설치)으로 다룬다.
-- 확정 시 기록할 것: AAR 버전 · ABI 목록(`abiFilters` 로 `arm64-v8a` 만 포함해 APK 크기 절감 검토) · 모델 manifest `minPluginVersion` · 실측 기기(S25+) · int8 encoder 디코드 시간.
+| 항목 | 값 |
+|---|---|
+| 버전 | **1.13.8** — gateway `speech/gateway/requirements.txt` 의 `sherpa-onnx==1.13.8` 과 같다(같은 모델·같은 결과) |
+| 출처 | GitHub 릴리스 `https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar` (50,129,134 B) |
+| sha256 | `633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96` (릴리스 digest 와 일치, `android/build.gradle`·`scripts/build-apk.sh` 에 고정) |
+| 내용 | `classes.jar`(Kotlin API `com.k2fsa.sherpa.onnx.*`, Kotlin 메타데이터 1.7·Java 8 바이트코드) + `jni/<abi>/{libonnxruntime,libsherpa-onnx-jni,…}.so`, 리소스·권한·proguard 규칙 없음, minSdk 21 |
+| 쓰는 방식 | AGP 8 은 라이브러리 모듈의 로컬 AAR 파일 의존을 lint/번들 단계에서 거부한다 → 빌드 때 AAR 을 풀어 `classes.jar`(파일 JAR 의존)와 `jni/arm64-v8a/*.so`(jniLibs)로 쓴다. 저장소에는 넣지 않는다(`.gitignore *.aar`) |
+| ABI | `arm64-v8a` 만(S25+). APK 35.2MB(그중 libonnxruntime 22MB) |
+| 모델 manifest `minPluginVersion` | `0.1.0` |
+| 실측 기기·디코드 시간 | F6(사용자 폰) 뒤 기록. 데스크톱(x86, 2스레드) 5초 발화 디코드 ≈70ms |
+
+JitPack(`com.github.k2-fsa.sherpa-onnx:sherpa-onnx`)도 있으나 소스에서 따로 빌드한 산출물이라 GitHub 공식 릴리스 파일 + sha256 핀을 택했다. 버전 변경 = 네이티브 변경(APK 재설치·versionCode 증가).
 - 모델은 AAR 에도 APK 에도 넣지 않는다(§5).
 
-## 4. API
+## 4. API (계약 v1.1 요약 — 정본은 task-003f 이력서)
 
 ### 메서드
 
-| 메서드 | 파라미터 | 반환 | 설명 |
-|---|---|---|---|
-| `checkPermissions()` / `requestPermissions()` | — | `{ recordAudio: 'prompt'\|'prompt-with-rationale'\|'granted'\|'denied' }` | Capacitor 표준 권한 API(`@CapacitorPlugin(permissions)` 자동 생성). 거부 시 앱은 텍스트 입력 폴백 안내 |
-| `checkModel(options?)` | `{ name?: 'reazonspeech-int8' }` | `{ installed: boolean, version?: string, bytes?: number, path?: string }` | `filesDir/models/<version>/` 에 manifest 의 파일이 전부 있고 sha256 인덱스가 맞으면 installed |
-| `downloadModel(options)` | `{ manifestUrl: string, wifiOnly?: boolean(기본 true), expectedVersion?: string }` | `{ version: string, bytes: number }` | manifest 조회 → 파일별 다운로드(HTTP Range 재개, `.part`) → sha256 검증 → 임시 디렉토리 → 원자적 rename → 옛 버전 정리. 진행은 `downloadProgress` 이벤트. 셀룰러+`wifiOnly` 면 `NETWORK_NOT_ALLOWED` 거부 |
-| `start(options)` | `{ vad: { silenceMs: number(500), threshold?: number(0.5), minSpeechMs?: number(250), maxSegmentSec?: number(30) }, partial?: boolean(true), numThreads?: number(2), decodingMethod?: 'greedy_search'\|'modified_beam_search', modelVersion?: string, saveWav?: boolean(true), maxUtteranceSec?: number(60) }` | `{ sessionId: string, modelVersion: string }` | 권한·모델 확인 → `Recognizer` 로드(캐시) → `AudioRecord` 시작. 이미 시작돼 있으면 `ALREADY_STARTED`. 옵션 값의 출처는 `GET /api/v1/speech/config` (§6) |
-| `stop()` | — | `{ sessionId, utterance?: FinalPayload }` | 캡처 중단 → 남은 버퍼를 강제 세그먼트로 디코드 → `final` 이벤트 후 반환. 세션이 없으면 no-op |
-| `release()` | — | `void` | `Recognizer`·VAD 모델 메모리 해제(앱 백그라운드 장기 진입·메모리 경고 시). 다음 `start()` 가 다시 로드 |
+| 메서드 | 결과 · 설명 |
+|---|---|
+| `checkPermissions()` / `requestPermissions()` | `{ recordAudio }` — `start` 는 권한을 묻지 않고 `PERMISSION_DENIED` 로 거절 |
+| `checkModel({verify?})` | `{ installed, version?, bytes?, downloading, freeBytes, pendingVersion?, pendingBytes? }` |
+| `downloadModel({manifestUrl, wifiOnly=true, expectedVersion?, allowDowngrade=false})` | `{ version, bytes, alreadyInstalled }` — 같은 origin https `/models/<id>/manifest.json` 만, 파일은 `<manifest 디렉터리>/<version>/<path>`(manifest 의 `url`·`baseUrl` 은 쓰지 않음) |
+| `cancelDownload()` · `deleteModel()` | 받은 조각은 남김 · 설치본 전부 삭제(세션·다운로드 중이면 `BUSY`) |
+| `preload({numThreads?, decodingMethod?})` | `{ modelVersion, loadMs }` |
+| `start({vad?, partial?, endpoint?, numThreads?, decodingMethod?, maxUtteranceSec?, saveWav?, audioSource?})` | `{ sessionId, modelVersion }` — 마이크를 연 즉시 resolve(인식기는 뒤에서 올림) |
+| `stop()` | `{ sessionId?, utterance?: FinalPayload }` — 마지막 `final` 뒤 resolve |
+| `cancel()` · `release()` · `deleteWav({wavPath})` · `getDiagnostics()` · `openAppSettings()` | 발화 폐기 · 인식기 해제 · 업로드한 wav 삭제 · 진단 값 · 앱 정보 화면 |
 
-### 이벤트 (`addListener(name, handler)`)
+### 이벤트
 
-| 이벤트 | payload | 시점 |
-|---|---|---|
-| `vad` | `{ sessionId, state: 'speech'\|'silence', atMs }` | VAD 상태 전이(푸시투토크 버튼의 파형/상태 표시) |
-| `partial` | `{ sessionId, segIdx, text }` | 세그먼트 디코드 완료(자막). `partial:false` 면 송출 안 함 |
-| `final` | `{ sessionId, text, durationMs, wavPath?, segments: [{segIdx, text, startMs, endMs}], timings: { vadMs, decodeMs, loadMs }, modelVersion, engine: 'reazon-ondevice' }` | `stop()` 또는 `maxUtteranceSec` 도달. `wavPath` 는 `filesDir/utterances/<sessionId>.wav`(16k mono) — 앱이 `POST /api/v1/speech/utterances` 업로드 후 `deleteWav` 없이도 다음 `start()` 가 정리 |
-| `error` | `{ sessionId?, code: 'PERMISSION_DENIED'\|'MODEL_MISSING'\|'MODEL_CORRUPT'\|'AUDIO_INIT_FAILED'\|'DECODE_FAILED'\|'OOM'\|'NETWORK_NOT_ALLOWED'\|'DOWNLOAD_FAILED', message }` | 오류. 앱 라우터의 폴백 카운트 입력(§7) |
-| `downloadProgress` | `{ file, received, total, totalReceived, totalBytes }` | 다운로드 중 250ms 간격 |
+| 이벤트 | payload |
+|---|---|
+| `vad` | `{ sessionId, state: 'SPEECH'\|'SILENCE', atMs }` (gateway 와 같은 대문자) |
+| `level` | `{ sessionId, db }` — 웹 `LevelMeter` 와 같은 dBFS·100ms |
+| `partial` | `{ sessionId, segIdx, text, startMs, endMs }` |
+| `final` | `{ sessionId, text, durationMs, wavPath\|null, segments, timings:{vadMs,decodeMs,loadMs,sttMs}, reason, modelVersion }` — 엔진명 없음 |
+| `error` | `{ sessionId\|null, code, message }` — 세션 중 비동기 오류만(메서드 실패는 reject) |
+| `downloadProgress` | `{ version, fileIndex, fileCount, received, total, totalReceived, totalBytes }` — 파일 이름 없음 |
 
-이벤트명·필드는 gateway WS 프로토콜(`speech/gateway/README.md` §2)과 같게 유지한다 — `WebSocketSttClient` 와 `OnDeviceSherpaClient` 가 같은 `SttEvent` 로 정규화하기 위해서다. 차이는 `final.utteranceId` 가 온디바이스에서는 없고(업로드 후 앱이 부여) `wavPath` 가 있다는 점뿐이다.
+정본 초안(이 절의 옛 표)과 달라진 점: `final.engine`·`checkModel().path`·`downloadProgress.file` 제거(엔진·파일명 비노출), `start.modelVersion` 제거(설치된 버전만), `vad.state` 대문자, `level`·`cancel`·`preload`·`cancelDownload`·`deleteModel`·`deleteWav`·`getDiagnostics`·`openAppSettings`·`endpoint`·`audioSource`·`reason`·`sttMs`·`freeBytes` 추가, 오류 코드 확장(계약 표).
 
-## 5. 모델 다운로드·검증·저장
+## 5. 모델 다운로드·검증·저장 (task-003f C1-3 반영)
 
-- 출처: `GET https://kaiwa.<도메인>/models/reazonspeech-int8/manifest.json`(URL 은 `GET /api/v1/speech/config.onDevice.manifestUrl` 로 받음, 앱 상수 아님).
-- 저장: `context.filesDir/models/<version>/`(앱 전용, 사용자 접근 불가, 앱 삭제 시 함께 삭제). 다운로드 중 `filesDir/models/.tmp-<version>/` → 완료·검증 후 rename. 디스크 여유 < `totalBytes × 2.5` 면 시작하지 않음.
-- 검증: 파일별 sha256(스트리밍 계산) + `totalBytes`. 실패 파일만 재다운로드, 3회 실패 시 `.tmp` 폐기 + `DOWNLOAD_FAILED`. 검증에 성공한 버전만 `checkModel().installed=true`.
-- 갱신: `checkModel().version ≠ config.onDevice.modelVersion` 이면 앱이 `downloadModel` 을 다시 부른다(옛 버전은 새 버전 전환 뒤 삭제). **APK 재설치 없이** 모델이 바뀐다.
-- 크기 ≈160MB(encoder int8 ≈148MB). Wi-Fi 안내·재개·진행률 UX 는 `speech/models/README.md` §4.
+- 출처: `GET https://kaiwa.<도메인>/models/<불투명 id>/manifest.json`(URL 은 `GET /api/v1/speech/config` 의 `onDevice.model.manifestUrl`, 앱 상수 아님). **앱 `server.url` 과 같은 origin 의 https** 가 아니면 `ORIGIN_NOT_ALLOWED`, 경로는 `/models/<id>/manifest.json` 형식만, 리다이렉트는 같은 origin 으로만 3번.
+- manifest 검증(`Manifest.kt`): 64KB 이하 JSON 객체, `name`·`version`(첫 글자 영숫자 3~64자) 패턴, `engine=sherpa-onnx`·`modelType=transducer`·`sampleRate=16000`, 파일 5~16개·역할 encoder/decoder/joiner/tokens/vad 각 1개, 파일명 단일 이름(`/`·`..`·`installed.json`·`.part` 금지), sha256 64 hex, bytes 정수·합계 = `totalBytes` ≤ 300MiB, `minPluginVersion` > 플러그인이면 `APP_UPDATE_REQUIRED`. 서명은 두지 않는다(Leader C1-3 판정).
+- 저장: `filesDir/models/stt/<version>/` + `installed.json`(검증을 통과한 manifest 사본 — 읽을 때 같은 검증을 다시 거침). 받는 중에는 `filesDir/models/stt/.tmp-<version>/<file>.part`. 여유 < `totalBytes × 2.5` 면 `INSUFFICIENT_STORAGE`. 앱 데이터는 백업·기기 이전에서 제외(`dataExtractionRules`).
+- 이어받기: 파일마다 `Range: bytes=<가진 크기>-` → 206 의 `Content-Range` 시작·끝·전체를 확인해 이어 쓰고, 200 이면 처음부터, 416 이면 다 받은 것으로 본다. 끊김·404·5xx 는 조각을 남긴 채 1s·2s 뒤 재시도, 끝내 안 되면 조각을 남기고 `DOWNLOAD_FAILED`(다음 호출이 이어받음). 과금 네트워크로 바뀌면(wifiOnly) 파일 경계·8MB 마다 확인해 `NETWORK_NOT_ALLOWED` 로 멈춘다.
+- 검증 실패: 받은 뒤 파일 전체 sha256. 틀린 파일은 지우고 다시 받고, **같은 파일이 3번 모두 내용이 틀리면**(sha256·크기·Range 응답) 그 버전 임시 디렉터리를 통째로 버린다.
+- 전환: 전부 맞으면 인덱스를 쓰고 `.tmp-<version>` → `<version>` rename(같은 파일시스템, 원자적), 그 뒤 다른 버전·임시 디렉터리를 지운다. 같은 버전을 다시 받으면 `alreadyInstalled`, **낮은 버전은 `DOWNGRADE_REFUSED`**(`allowDowngrade:true` 로 명시할 때만). 인식기는 다음 `start`/`preload` 가 버전이 바뀐 것을 보고 다시 올린다.
+- 갱신: `checkModel().version ≠ #19 onDevice.model.version` 이면 앱이 `downloadModel` 을 다시 부른다. **APK 재설치 없이** 모델이 바뀐다. 크기 169.8MB.
 
 ## 6. 런타임 설정은 서버가 준다
 
@@ -99,8 +116,8 @@ plugins/sherpa-stt/
 ## 8. APK 재설치 규칙 (deployer `<apk_release>`)
 
 - 이 디렉토리(`plugins/**`), `android/**`, `capacitor.config.ts`, `AndroidManifest.xml`, AAR 버전이 바뀐 task 는 **네이티브 변경**이다. developer 는 착수 전에 Leader·deployer 에 "APK 재설치 필요"를 고지한다.
-- deployer 는 `scripts/build-apk.sh`(우분투, JDK 21, gradle 출력은 로그 파일로만) 로 빌드 → `versionCode/versionName` 증가 확인 → `DATA_ROOT/releases/thekaiwa-<versionName>.apk` 배치 → `AppRelease` 행 추가(sha256·notes·minSupported) → 배포 기록에 `apk_version`·`apk_sha256`·`reinstall_required=true`.
-- 앱은 `GET /api/app/version` `{latest, minSupported, url, notes}` 와 `App.getInfo().version`(bridge 경유) 을 비교해 배너("새 버전 v1.2 — 다운로드")를 띄운다. 웹만 바뀐 배포는 배너 없음. `minSupported` 미만이면 배너를 닫을 수 없다.
+- deployer 는 `bash scripts/build-apk.sh --test --publish`(우분투, JDK 21, APK 전용 작업 디렉터리 `~/.node-local/thekaiwa-apk`, gradle 출력은 로그 파일로만)로 **release** 를 빌드한다 — 스크립트가 `aapt2` 로 debuggable 없음·versionCode/versionName·ABI, `apksigner` 로 서명 인증서(SHA-256 `a4c23dca…9e47`, `~/.android/debug.keystore`)를 확인하고 `DATA_ROOT/releases/thekaiwa-<versionName>.apk` 로 복사한 뒤 AppRelease 값(`apkPath` 는 파일 이름만)을 출력한다 → deployer 가 `AppRelease` 행 추가(sha256·notes·minSupported) → 배포 기록에 `apk_version`·`apk_sha256`·`reinstall_required=true`. 개발용 debug 빌드는 배포 경로에 올리지 않는다(task-003f C1-2).
+- 앱은 `GET /api/app/version`(`X-App-Build` = versionCode) 의 `latestCode`·`minSupportedCode` 와 비교해 띠를 띄운다(docs/screens.md §11-2 G). 웹만 바뀐 배포는 띠 없음. `minSupportedCode` 미만이면 닫을 수 없다.
 
 ## 9. P0 실측 항목 (task-003, 결과 → `agent-vault/30-Knowledge/decisions/speech-p0-measurements.md`)
 

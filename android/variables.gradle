@@ -1,0 +1,19 @@
+ext {
+    // 26: 온디바이스 STT 플러그인(@thekaiwa/sherpa-stt) 최소. 대상 기기는 갤럭시 S25+(Android 15+) 하나다.
+    minSdkVersion = 26
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+    androidxActivityVersion = '1.9.2'
+    androidxAppCompatVersion = '1.7.0'
+    androidxCoordinatorLayoutVersion = '1.2.0'
+    androidxCoreVersion = '1.15.0'
+    androidxFragmentVersion = '1.8.4'
+    coreSplashScreenVersion = '1.0.1'
+    androidxWebkitVersion = '1.12.1'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.2.1'
+    androidxEspressoCoreVersion = '3.6.1'
+    cordovaAndroidVersion = '10.1.1'
+    // 플러그인(Kotlin) 컴파일러. sherpa-onnx 1.13.8 AAR 은 Kotlin 메타데이터 1.7·Java 8 바이트코드라 2.x 로 읽힌다.
+    kotlin_version = '2.1.20'
+}
