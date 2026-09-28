@@ -93,6 +93,8 @@ internal class ModelDownloader(
     private val transport: HttpTransport = UrlConnectionTransport(),
     private val nowNanos: () -> Long = System::nanoTime,
     private val retryBaseMs: Long = 1000L,
+    /** commit(rename + 옛 버전 삭제)을 세션의 모델 로드와 배타로 — 플러그인은 `ModelGate` 를 넘긴다(Codex C2). */
+    private val files: ModelFilesLock = ModelFilesLock.NONE,
 ) {
     private val cancelled = AtomicBoolean(false)
 
@@ -136,7 +138,8 @@ internal class ModelDownloader(
             done += f.bytes
         }
         val model = try {
-            store.commit(tmp, manifest)
+            // 오래 걸리는 파일 전송은 잠그지 않았다 — 설치본을 바꾸는 이 짧은 구간만 로드와 배타.
+            files.withModelFiles { store.commit(tmp, manifest) }
         } catch (e: IOException) {
             throw SttException("DOWNLOAD_FAILED", "install failed: ${e.message}")
         }

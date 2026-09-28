@@ -4,6 +4,12 @@
 
 ## 0.1.0 — 2026-09-28 (task-003f, APK versionCode 1)
 
+### Codex C2 High 보강 (첫 APK 배포 전이라 같은 0.1.0 / versionCode 1)
+- 다운로드 commit(rename + 옛 버전 삭제) ↔ 세션의 인식기 로드 경합 제거: `ModelGate` 에 **모델 파일 잠금**을 두고 commit·deleteModel 삭제·verify 삭제와 VAD 생성·인식기 로드·preload 를 배타로. 파일 전송은 잠그지 않아 받는 동안 회화는 그대로 된다. 게이트 모니터와 따로 둔 잠금이라 로드 1~2초 동안 `handleOnPause`·`stop` 의 세션 조회가 멈추지 않는다(잠금 순서 게이트 → 파일).
+- 세션 `modelVersion` 은 로드가 실제로 올린 버전으로 고친다(`SessionLoad.kt`) — final 의 `modelVersion` = 인식기 버전. 세션 중 `preload` 는 `BUSY`(인식기를 바꾸지 않음).
+- manifest: 같은 키 두 번(이스케이프를 푼 키 포함)·뒤따르는 내용 거절(org.json 구현마다 다르던 판정을 원문 검사로 고정). 공용 픽스처 +6(중복 키·`16000.0`·`643854.0`·뒤따르는 내용·압축 원문) = 59 사례.
+- 확인: 로드 뒤 모델 파일을 지워도 인식 정상(desktop-check DELETE-AFTER-LOAD, 매핑·핸들 0). JVM 테스트 67.
+
 ### REV-021 보강 (첫 APK 배포 전이라 같은 0.1.0 / versionCode 1)
 - `deleteModel` ↔ `start` TOCTOU 제거: 세션·다운로드·삭제 점유를 `ModelGate` 한 임계구역에서 판정·점유. 삭제가 끝날 때까지 `start`·`downloadModel` 은 `BUSY`(오류 코드 집합은 그대로 — 계약 v1.1 동작 보강). 세션의 인식기 로드는 실행 시점의 설치본을 다시 읽는다.
 - manifest 규칙을 서버와 맞춤: sha256 **소문자만**(대문자 거절), `name` 대문자 허용·`..` 금지, `version` 에 `..` 금지. 공용 픽스처 `test-fixtures/manifest-cases.json`(53 사례)을 JVM 테스트가 읽는다 — 서버 TS 테스트도 같은 파일을 읽는다.

@@ -127,6 +127,18 @@ class ManifestTest {
     }
 
     @Test
+    fun findsDuplicateKeysIncludingEscapedOnes() {
+        assertEquals("a", JsonKeys.firstDuplicateKey("""{"a":1,"b":{"a":2},"a":3}"""))
+        assertEquals(null, JsonKeys.firstDuplicateKey("""{"a":1,"b":{"a":2},"c":["a","a",{"a":1}]}"""))
+        assertEquals("engine", JsonKeys.firstDuplicateKey("""{"engine":"x","\u0065ngine":"y"}"""))
+        assertEquals(null, JsonKeys.firstDuplicateKey("""{"k":"a\"b","j":"\\"}"""))
+        assertEquals("k", JsonKeys.firstDuplicateKey("""{"k":"a\"b","k":1}"""))
+        // 서버 검사기는 아직 이스케이프를 풀지 않는다 — 공용 픽스처에는 넣지 않고 여기서만 확인(B 후속).
+        val escaped = sampleManifest().toString().replace("\"engine\":", "\"\\u0065ngine\":\"sherpa-onnx\",\"engine\":")
+        assertEquals("MANIFEST_INVALID", assertThrows(SttException::class.java) { ManifestValidator.parse(escaped, "0.1.0") }.code)
+    }
+
+    @Test
     fun rejectsNonJsonAndNonObject() {
         assertEquals("MANIFEST_INVALID", assertThrows(SttException::class.java) { ManifestValidator.parse("not json", "0.1.0") }.code)
         assertEquals("MANIFEST_INVALID", assertThrows(SttException::class.java) { ManifestValidator.parse("[1,2]", "0.1.0") }.code)

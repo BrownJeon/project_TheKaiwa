@@ -75,7 +75,7 @@ internal data class SessionOptions(
  */
 internal class SttSession(
     val sessionId: String,
-    val modelVersion: String,
+    initialModelVersion: String,
     private val opts: SessionOptions,
     private val vad: VadEngine,
     private val decoder: () -> Decoder,
@@ -103,6 +103,12 @@ internal class SttSession(
 
     /** 인식기 로드 시간(이번 세션에서 새로 올렸을 때만 > 0). worker 에서 쓰고 읽는다. */
     @Volatile var loadMs = 0
+
+    /**
+     * 이 세션이 디코드에 쓰는 모델 버전. 열 때의 설치본으로 시작하고, worker 의 인식기 로드가 **실제로 올린 버전**으로 고친다
+     * (열기와 로드 사이에 다운로드가 새 버전을 커밋한 드문 경우 — Codex C2). final 의 `modelVersion` 은 이 값이다.
+     */
+    @Volatile var modelVersion: String = initialModelVersion
 
     val isClosed: Boolean get() = synchronized(lock) { closed }
 

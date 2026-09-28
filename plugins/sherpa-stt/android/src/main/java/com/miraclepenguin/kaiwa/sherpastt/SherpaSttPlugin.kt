@@ -92,7 +92,9 @@ class SherpaSttPlugin : Plugin() {
         val verify = call.getBoolean("verify", false) == true
         io.task(call, "UNAVAILABLE") {
             var model = store.current()
-            if (verify && model != null && !store.verify(model)) model = store.current()
+            val found = model
+            // 검증은 틀린 버전을 지운다 — 세션의 모델 로드와 겹치지 않게 파일 잠금 안에서.
+            if (verify && found != null && !gate.withModelFiles { store.verify(found) }) model = store.current()
             val out = JSObject().put("installed", model != null)
             if (model != null) {
                 out.put("version", model.version)
@@ -124,7 +126,10 @@ class SherpaSttPlugin : Plugin() {
         )
         val serverUrl = bridge.config.serverUrl ?: return call.reject("app has no server url", "ORIGIN_NOT_ALLOWED")
         val d = try {
-            ModelDownloader(store, OriginPolicy(serverUrl), NetworkGate { wifiOnly -> networkError(wifiOnly) }, { context.filesDir.usableSpace }, "thekaiwa-sherpa-stt/$VERSION", VERSION)
+            ModelDownloader(
+                store, OriginPolicy(serverUrl), NetworkGate { wifiOnly -> networkError(wifiOnly) }, { context.filesDir.usableSpace },
+                "thekaiwa-sherpa-stt/$VERSION", VERSION, files = gate,
+            )
         } catch (e: IllegalArgumentException) {
             return call.reject("app server url is not https", "ORIGIN_NOT_ALLOWED")
         }
@@ -172,8 +177,10 @@ class SherpaSttPlugin : Plugin() {
         try {
             worker.task(call, "UNAVAILABLE") {
                 try {
-                    recognizer.release()
-                    store.deleteAll()
+                    gate.withModelFiles {
+                        recognizer.release()
+                        store.deleteAll()
+                    }
                     call.resolve()
                 } finally {
                     gate.endDelete()
@@ -198,9 +205,13 @@ class SherpaSttPlugin : Plugin() {
             return call.reject(e.message, e.code)
         }
         worker.task(call, "MODEL_CORRUPT") {
-            val model = store.current() ?: throw SttException("MODEL_MISSING", "model not installed")
-            val ms = recognizer.ensure(model, threads, method)
-            call.resolve(JSObject().put("modelVersion", model.version).put("loadMs", ms))
+            // 세션 중에는 인식기를 바꾸지 않는다 — 세션의 modelVersion·스레드 수가 실제 인식기와 어긋나지 않게(Codex C2).
+            if (gate.session() != null) throw SttException("BUSY", "session active")
+            val (version, ms) = gate.withModelFiles {
+                val model = store.current() ?: throw SttException("MODEL_MISSING", "model not installed")
+                model.version to recognizer.ensure(model, threads, method)
+            }
+            call.resolve(JSObject().put("modelVersion", version).put("loadMs", ms))
         }
     }
 
@@ -225,24 +236,18 @@ class SherpaSttPlugin : Plugin() {
 
     /** gate 락 안에서 불린다. 실패하면 만든 것을 되돌리고 SttException. */
     private fun openSession(o: StartOptions): Active {
-        val model = store.current() ?: throw SttException("MODEL_MISSING", "model not installed")
+        // 설치본 확인과 VAD 파일 읽기는 commit·삭제와 배타(게이트 모니터 → 파일 잠금 순서).
+        val (model, vad) = gate.withModelFiles {
+            val m = store.current() ?: throw SttException("MODEL_MISSING", "model not installed")
+            m to SherpaVadEngine(m.path("vad").absolutePath, o.vad)
+        }
         pruneWavs()
-        val vad = SherpaVadEngine(model.path("vad").absolutePath, o.vad)
         val sessionId = UUID.randomUUID().toString().replace("-", "")
         val session = SttSession(sessionId, model.version, o.session, vad, { recognizer.decoder }, worker, sink, wavStore)
         // worker 는 FIFO — 이 로드가 끝난 뒤에야 이 세션의 디코드가 돈다. 그동안 소리는 버퍼에 쌓인다.
-        // 설치본은 실행 시점에 다시 읽는다(그 사이 다운로드가 새 버전을 올리고 옛 파일을 지웠을 수 있다).
+        // 로드는 파일 잠금 안에서 그 시점의 설치본을 읽고, 세션 modelVersion 을 실제로 올린 버전으로 맞춘다(SessionLoad.kt).
         worker.execute {
-            try {
-                val current = store.current() ?: throw SttException("MODEL_MISSING", "model not installed")
-                session.loadMs = recognizer.ensure(current, o.numThreads, o.decodingMethod)
-            } catch (e: SttException) {
-                session.failOnWorker(e.code, e.message ?: e.code)
-            } catch (e: OutOfMemoryError) {
-                session.failOnWorker("OOM", "out of memory while loading recognizer")
-            } catch (e: Throwable) {
-                session.failOnWorker("MODEL_CORRUPT", "recognizer load failed: ${e.javaClass.simpleName}")
-            }
+            loadRecognizerForSession(gate, { store.current() }, session) { m -> recognizer.ensure(m, o.numThreads, o.decodingMethod) }
         }
         val meter = LevelMeter { db -> notifyListeners("level", JSObject().put("sessionId", sessionId).put("db", db)) }
         val capture = AudioCapture(

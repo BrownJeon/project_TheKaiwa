@@ -68,8 +68,14 @@ internal object ManifestValidator {
     @Throws(SttException::class)
     fun parse(text: String, pluginVersion: String): ModelManifest {
         if (text.length > MAX_MANIFEST_BYTES) invalid("manifest too large")
+        // 같은 키가 두 번이면 org.json 구현마다 판정이 다르다(Maven 판은 예외, 안드로이드 판은 뒤의 값으로 덮어씀) —
+        // 기기와 JVM 테스트가 같게, 그리고 서버(JSON.parse 전 원문 검사)와 같게 먼저 직접 거른다.
+        JsonKeys.firstDuplicateKey(text)?.let { invalid("duplicate key") }
         val root = try {
-            JSONTokener(text).nextValue() as? JSONObject ?: invalid("manifest is not an object")
+            val tok = JSONTokener(text)
+            val v = tok.nextValue() as? JSONObject ?: invalid("manifest is not an object")
+            if (tok.nextClean() != 0.toChar()) invalid("trailing content")
+            v
         } catch (e: JSONException) {
             invalid("manifest is not valid json")
         }
@@ -256,5 +262,72 @@ internal object RangeResume {
             416 -> if (have == expected) RangeDecision.Complete else RangeDecision.Restart
             else -> RangeDecision.Fail("http $status")
         }
+    }
+}
+
+/** JSON 원문에서 객체별 중복 키를 찾는다(문법 검사는 파서 몫 — 여기서는 문자열·중첩만 따라간다). */
+internal object JsonKeys {
+    fun firstDuplicateKey(text: String): String? {
+        val stack = ArrayList<HashSet<String>?>() // 객체면 키 집합, 배열이면 null
+        var expectKey = false
+        var i = 0
+        while (i < text.length) {
+            when (text[i]) {
+                '{' -> {
+                    stack.add(HashSet())
+                    expectKey = true
+                }
+                '[' -> {
+                    stack.add(null)
+                    expectKey = false
+                }
+                '}', ']' -> {
+                    if (stack.isNotEmpty()) stack.removeAt(stack.size - 1)
+                    expectKey = false
+                }
+                ',' -> expectKey = stack.lastOrNull() != null
+                '"' -> {
+                    val sb = StringBuilder()
+                    i = readString(text, i + 1, sb)
+                    if (expectKey) {
+                        if (!stack.last()!!.add(sb.toString())) return sb.toString()
+                        expectKey = false
+                    }
+                    continue
+                }
+            }
+            i++
+        }
+        return null
+    }
+
+    /** 여는 따옴표 다음부터 읽어 이스케이프를 푼 값을 `out` 에 넣고, 닫는 따옴표 다음 위치를 돌려준다. */
+    private fun readString(t: String, start: Int, out: StringBuilder): Int {
+        var i = start
+        while (i < t.length) {
+            val c = t[i]
+            if (c == '"') return i + 1
+            if (c == '\\' && i + 1 < t.length) {
+                when (val e = t[i + 1]) {
+                    'u' -> {
+                        val hex = t.substring(i + 2, minOf(i + 6, t.length))
+                        out.append(hex.toIntOrNull(16)?.toChar() ?: '?')
+                        i += 6
+                        continue
+                    }
+                    'n' -> out.append('\n')
+                    't' -> out.append('\t')
+                    'r' -> out.append('\r')
+                    'b' -> out.append('\b')
+                    'f' -> out.append('\u000c')
+                    else -> out.append(e)
+                }
+                i += 2
+                continue
+            }
+            out.append(c)
+            i++
+        }
+        return i
     }
 }

@@ -25,7 +25,9 @@ plugins/sherpa-stt/
 │       │   ├── Recognizer.kt        # OfflineRecognizer 캐시(버전·스레드·디코딩 방식 키)·워밍업 · SherpaVadEngine(silero)
 │       │   ├── Manifest.kt          # manifest 엄격 검증·버전 자연 정렬·같은 origin 정책·Range 이어받기 판정(순수)
 │       │   ├── ModelStore.kt        # filesDir/models/stt/<version>/ + installed.json, 원자적 commit·검증·정리
-│       │   ├── ModelDownloader.kt   # manifest→파일별 Range(.part)→sha256→commit, 리다이렉트 수동(같은 origin), 취소·Wi-Fi 재확인
+│       │   ├── ModelDownloader.kt   # manifest→파일별 Range(.part)→sha256→commit(모델 파일 잠금 안), 리다이렉트 수동(같은 origin), 취소·Wi-Fi 재확인
+│       │   ├── ModelGate.kt         # 세션·다운로드·삭제 점유(게이트 모니터) + 모델 파일 잠금(로드 ↔ commit·삭제 배타)
+│       │   ├── SessionLoad.kt       # 세션 인식기 로드 — 파일 잠금 안에서 설치본 확인+로드, 세션 modelVersion = 실제로 올린 버전
 │       │   ├── WavWriter.kt · Opts.kt
 │       └── test/java/…/sherpastt/   # JVM 단위 테스트(가짜 VAD·디코더·HTTP) — scripts/build-apk.sh --test
 ├── tools/desktop-check/         # 데스크톱 sherpa-onnx(JVM)로 SttSession 을 실제 모델·stt20 에 돌리는 점검(run.sh)
@@ -88,7 +90,7 @@ JitPack(`com.github.k2-fsa.sherpa-onnx:sherpa-onnx`)도 있으나 소스에서 �
 - 저장: `filesDir/models/stt/<version>/` + `installed.json`(검증을 통과한 manifest 사본 — 읽을 때 같은 검증을 다시 거침). 받는 중에는 `filesDir/models/stt/.tmp-<version>/<file>.part`. 여유 < `totalBytes × 2.5` 면 `INSUFFICIENT_STORAGE`. 앱 데이터는 백업·기기 이전에서 제외(`dataExtractionRules`).
 - 이어받기: 파일마다 `Range: bytes=<가진 크기>-` → 206 의 `Content-Range` 시작·끝·전체를 확인해 이어 쓰고, 200 이면 처음부터, 416 이면 다 받은 것으로 본다. 끊김·404·5xx 는 조각을 남긴 채 1s·2s 뒤 재시도, 끝내 안 되면 조각을 남기고 `DOWNLOAD_FAILED`(다음 호출이 이어받음). 과금 네트워크로 바뀌면(wifiOnly) 파일 경계·8MB 마다 확인해 `NETWORK_NOT_ALLOWED` 로 멈춘다.
 - 검증 실패: 받은 뒤 파일 전체 sha256. 틀린 파일은 지우고 다시 받고, **같은 파일이 3번 모두 내용이 틀리면**(sha256·크기·Range 응답) 그 버전 임시 디렉터리를 통째로 버린다.
-- 전환: 전부 맞으면 인덱스를 쓰고 `.tmp-<version>` → `<version>` rename(같은 파일시스템, 원자적), 그 뒤 다른 버전·임시 디렉터리를 지운다. 같은 버전을 다시 받으면 `alreadyInstalled`, **낮은 버전은 `DOWNGRADE_REFUSED`**(`allowDowngrade:true` 로 명시할 때만). 인식기는 다음 `start`/`preload` 가 버전이 바뀐 것을 보고 다시 올린다.
+- 전환: 전부 맞으면 인덱스를 쓰고 `.tmp-<version>` → `<version>` rename(같은 파일시스템, 원자적), 그 뒤 다른 버전·임시 디렉터리를 지운다. 이 전환(과 `deleteModel`·`checkModel({verify})` 의 삭제)은 **모델 파일 잠금** 안에서만 일어나고, 세션의 VAD 생성·인식기 로드와 `preload` 도 같은 잠금 안에서 파일을 읽는다 — 다운로드는 세션과 동시에 돌 수 있지만(받는 동안 회화 가능) 옛 버전 삭제가 로드 중간에 끼지 않는다(Codex C2). 로드가 끝난 세션은 모델을 메모리에 들고 있어 그 뒤의 삭제에 영향이 없다 — sherpa-onnx 1.13.8 은 모델 파일을 버퍼로 읽어 로드 뒤 파일 매핑·열린 핸들이 0 이다(`tools/desktop-check/run.sh` 의 DELETE-AFTER-LOAD: 사본에서 올리고 사본을 지운 뒤 인식 sim 1.00, mapped=0 open=0). 세션 중 `preload` 는 `BUSY`. 같은 버전을 다시 받으면 `alreadyInstalled`, **낮은 버전은 `DOWNGRADE_REFUSED`**(`allowDowngrade:true` 로 명시할 때만). 인식기는 다음 `start`/`preload` 가 버전이 바뀐 것을 보고 다시 올린다.
 - 갱신: `checkModel().version ≠ #19 onDevice.model.version` 이면 앱이 `downloadModel` 을 다시 부른다. **APK 재설치 없이** 모델이 바뀐다. 크기 169.8MB.
 
 ## 6. 런타임 설정은 서버가 준다

@@ -171,6 +171,7 @@ export interface SherpaSttPlugin {
   cancelDownload(): Promise<void>
   /** 세션·다운로드·다른 삭제 중이면 `BUSY`. 삭제가 끝날 때까지 `start`·`downloadModel` 도 `BUSY`(REV-021). */
   deleteModel(): Promise<void>
+  /** 세션 중에는 인식기를 바꾸지 않는다 — `BUSY`(Codex C2). 모델이 없으면 `MODEL_MISSING`. */
   preload(options?: PreloadOptions): Promise<{ modelVersion: string; loadMs: number }>
   /** 권한 없음 `PERMISSION_DENIED` · 모델 없음 `MODEL_MISSING` · 이미 세션 `ALREADY_STARTED` · 모델 삭제 중 `BUSY`. */
   start(options?: StartOptions): Promise<{ sessionId: string; modelVersion: string }>

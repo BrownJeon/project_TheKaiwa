@@ -264,6 +264,27 @@ class ModelDownloaderTest {
         assertEquals("APP_UPDATE_REQUIRED", failCode())
     }
 
+    /** commit(설치본 교체)만 모델 파일 잠금 안에서 — 오래 걸리는 파일 전송은 잠그지 않는다(Codex C2). */
+    @Test
+    fun onlyCommitRunsInsideModelFilesLock() {
+        server.serve(FakeModel("2024-08-01-int8-v1", 16))
+        var calls = 0
+        var installedInside = false
+        val spy = object : ModelFilesLock {
+            override fun <T> withModelFiles(block: () -> T): T {
+                calls++
+                val before = store.current()
+                val r = block()
+                installedInside = before == null && store.current()?.version == "2024-08-01-int8-v1"
+                return r
+            }
+        }
+        val d = ModelDownloader(store, OriginPolicy(ORIGIN), { net }, { space }, "test", "0.1.0", server, retryBaseMs = 1, files = spy)
+        d.download(DownloadRequest(MANIFEST_URL)) {}
+        assertEquals(1, calls)
+        assertTrue(installedInside)
+    }
+
     @Test
     fun cancelKeepsPartialForLater() {
         val m = FakeModel("2024-08-01-int8-v1", 15)
