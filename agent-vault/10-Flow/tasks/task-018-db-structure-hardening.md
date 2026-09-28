@@ -1,7 +1,7 @@
 ---
 task_id: task-018
 title: "DB 구조 보강 3건 — 발화 1개=메시지 1개 제약·감사 범위 LEXICON·사전 버전 rollbackOf (db push + 코드)"
-status: in-progress
+status: done
 base_ref: 878717f
 risk_level: R2
 roles_involved: [leader, developer, reviewer, qa, deployer]
@@ -144,10 +144,10 @@ demo_gate:
 
 ## 최종 요약
 
-## 데모 검토 (demo gate)
+### 최종 요약 (Leader, 사용자용 — 2026-09-28)
+**무엇이 바뀌었나**: 사용자 승인으로 DB 구조 3건을 보강했습니다(모두 추가만 — 기존 데이터 변화 없음).
+1. **녹음 1개 = 메시지 1개** 를 DB 가 보장합니다(중복 연결 금지 인덱스). 녹음이 어느 대화방에서 만들어졌는지도 저장해, **다른 방에서 한 녹음으로 턴을 보내면 막고**(화면은 "글자로 다시 보내기" 띠로 안내) 남의 방 id 로 저장하려 하면 거절합니다.
+2. 발음 사전 변경 감사 기록에 **"발음 사전" 분류**가 붙습니다(관리자 변경 이력에서 골라 보기 — 이력 화면은 Phase 2).
+3. 사전 되돌리기가 **"어느 버전으로 되돌렸는지"** 를 칸으로 남기고, 버전 목록·상세에 "v{n} 로 되돌림" 이 보입니다.
 
-> 실행 판정 정본은 frontmatter `demo_gate` 이다. 이 표는 check.mjs 가 함께 기록하는 사람용 이력이다(docs/demo-review-gate.md).
-
-| 버전 | 상태 | 저장소 파일 | Artifact | 사용자 결정 | 일시 |
-|---|---|---|---|---|---|
-| - | 해당없음 | - | - | judge: none | 09-28 14:48 |
+**진행**: DB 백업(`files/thekaiwa/backups/thekaiwa-20260928-142959-pre-task018.sql.gz`) → `prisma db push`(중복 0 재확인, 운영 옛 코드 무중단) → 코드·화면(데모 게이트: judge 판정 "데모 불필요") → 개발 서버 라이브 46/46·54/54 → REV-026 PASS → **push = webhook 자동 배포**(첫 코드 배포, `RELEASE_RESULT ok`) → 운영 회화 스모크 **44/44**(K1~K7 포함)·health ok.

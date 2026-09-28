@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-018-db-structure-hardening]] — **DB 구조 보강 3건**(2026-09-28, 사용자 승인): Utterance.chatId·chatMessageId unique / ConfigScope LEXICON / LexiconVersion.rollbackOf — 백업→db push→REV-026→webhook 배포 ok·운영 44/44
 - [[task-009-release-cutover]] — **운영 blue/green 컷오버·APP_ENV=PRODUCTION**(2026-09-28). `/home/brownjeon/apps/thekaiwa` 릴리스 운영(앱+gateway), 첫 배포 ok·롤백 리허설 통과, 운영 E2E 단어 74·채팅 41·회화 37·음성 3/3, health 필수 503 게이트
 - [[task-003h-app-branding]] — **앱 이름 Lingofy Japanese·부제 「일본어가 자연스러워지는 AI 회화」**(2026-09-28). 웹·앱 1.0.1(versionCode 2) 운영 반영, REV-024 PASS
 - [[task-003g-lexicon-admin]] — **발음 사전 관리**(2026-09-28). 콘솔 API 9라우트+화면(검색·추가·수정·끄기·미리듣기 비교·Import dryRun/Export·버전 diff·Rollback), 버전+감사 한 트랜잭션·환경 잠금·스냅샷 무결성. REV-017~020·Codex C2 1 반영·QA-017 PASS·화면 E2E 55/55, 운영 반영
@@ -25,7 +26,6 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- [[task-018-db-structure-hardening]] — DB 구조 보강 3건(발화 chatId·unique / ConfigScope LEXICON / 사전 rollbackOf) — 사용자 승인 db push (2026-09-28)
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
