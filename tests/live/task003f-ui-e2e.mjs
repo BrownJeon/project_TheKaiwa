@@ -88,7 +88,7 @@ try {
       card: document.querySelectorAll('#ondevice-card').length,
       banner: document.querySelectorAll('[data-app-update]').length,
       diag: document.querySelectorAll('[data-ondevice-diagnostics]').length,
-      version: document.body.innerText.includes('앱 버전'),
+      version: document.body.innerText.includes('Lingofy Japanese v'), // 앱 버전 줄 제목(task-003h)
     }))
     check('웹 1 설정: 카드·띠·진단·앱 버전 줄 DOM 0', counts.card === 0 && counts.banner === 0 && counts.diag === 0 && !counts.version, JSON.stringify(counts))
     const text = await visibleText(page)
@@ -245,11 +245,11 @@ try {
     await page.goto(`${BASE}/study/today`)
     const band = page.locator('[data-app-update="recommended"]')
     await band.waitFor({ timeout: 15000 })
-    check(`앱 ${width} 권장 띠: v1.1.0·받기·오늘은 그만 보기`, (await band.innerText()).includes('새 앱 버전이 있어요 · v1.1.0') && (await band.getByRole('button', { name: '오늘은 그만 보기' }).count()) === 1)
+    check(`앱 ${width} 권장 띠: v1.1.0·받기·오늘은 그만 보기`, (await band.innerText()).includes('Lingofy Japanese v1.1.0') && (await band.innerText()).includes('새 버전이 나왔어요') && (await band.getByRole('button', { name: '오늘은 그만 보기' }).count()) === 1)
     check(`앱 ${width} 가로 넘침 0(권장 띠)`, await noOverflow(page))
     await shot(page, `app-banner-recommended-${width}`)
-    await band.getByRole('button', { name: /새 앱 버전이 있어요/ }).click()
-    const sheet = page.getByRole('dialog', { name: '앱 업데이트' })
+    await band.getByRole('button', { name: /Lingofy Japanese v1\.1\.0/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Lingofy Japanese 업데이트' })
     await sheet.waitFor()
     const st = await sheet.innerText()
     check(`앱 ${width} 설치 시트: v1.0.0 → v1.1.0·9월 28일·약 31MB·바뀐 점·4단계`, st.includes('v1.0.0 → v1.1.0') && st.includes('9월 28일 올라온 버전') && st.includes('약 31MB') && st.includes('로그인 안정화') && st.includes('출처를 알 수 없는 앱'))
@@ -263,7 +263,8 @@ try {
     await sleep(200)
     check(`앱 ${width} ✕ → 그날 숨김`, (await page.locator('[data-app-update]').count()) === 0)
     await page.goto(`${BASE}/settings`)
-    await page.getByText('1.0.0 · 새 버전 1.1.0 ›').waitFor({ timeout: 15000 })
+    await page.getByText('Lingofy Japanese v1.0.0').waitFor({ timeout: 15000 })
+    await page.locator('[data-app-version-row]', { hasText: '새 버전 1.1.0 ›' }).waitFor({ timeout: 15000 })
     check(`앱 ${width} 설정 앱 버전 줄(닫은 뒤에도 시트로)`, true)
     await ctx.close()
   }
@@ -274,7 +275,7 @@ try {
     const forced = page.locator('[data-app-update="forced"]')
     await forced.waitFor({ timeout: 15000 })
     const ft = await forced.innerText()
-    check('앱 강제 띠: 닫기 없음·v1.0.0 문구·업데이트', ft.includes('앱을 업데이트해 주세요') && ft.includes('이 버전(v1.0.0)') && (await forced.getByRole('button', { name: '오늘은 그만 보기' }).count()) === 0)
+    check('앱 강제 띠: 닫기 없음·v1.0.0 문구·업데이트', ft.includes('Lingofy Japanese를 업데이트해 주세요') && ft.includes('이 버전(v1.0.0)') && (await forced.getByRole('button', { name: '오늘은 그만 보기' }).count()) === 0)
     await page.getByText('앱을 업데이트하면 휴대폰에서 알아들어요.', { exact: false }).first().waitFor({ timeout: 8000 })
     check('앱 강제 → 휴대폰 경로 끔(UPDATE_REQUIRED 경로 줄)', (await visibleText(page)).includes('지금은 서버에서 알아들어요. 앱을 업데이트하면 휴대폰에서 알아들어요.'))
     await shot(page, 'app-banner-forced-390x780')

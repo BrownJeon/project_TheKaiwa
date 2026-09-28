@@ -194,7 +194,7 @@
   const App = {
     getInfo() {
       record('App.getInfo')
-      return Promise.resolve({ name: 'TheKaiwa', id: 'com.miraclepenguin.kaiwa', version: state.appVersion, build: String(state.appBuild) })
+      return Promise.resolve({ name: 'Lingofy Japanese', id: 'com.miraclepenguin.kaiwa', version: state.appVersion, build: String(state.appBuild) })
     },
     getLaunchUrl() {
       return Promise.resolve(null)
