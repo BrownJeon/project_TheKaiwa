@@ -93,25 +93,29 @@ JitPack(`com.github.k2-fsa.sherpa-onnx:sherpa-onnx`)도 있으나 소스에서 �
 
 ## 6. 런타임 설정은 서버가 준다
 
-앱 기동 시 `GET /api/v1/speech/config` 응답의 `onDevice` 블록을 그대로 `start()` 옵션에 넘긴다:
+앱(웹 계층 `speech/stt/client/onDeviceModel.ts`)은 `GET /api/v1/speech/config`(#19, `platform=app`)의 `onDevice` 블록을 읽어 모델 받기와 `start()` 옵션에 쓴다. 엔진·모델 이름은 들어 있지 않다:
 
 ```json
-{ "onDevice": { "engineConnectionId": "reazon-ondevice", "modelVersion": "2024-08-01-int8-v1",
-                "manifestUrl": "https://kaiwa.…/models/reazonspeech-int8/manifest.json",
-                "numThreads": 2, "decodingMethod": "greedy_search",
-                "vad": { "silenceMs": 500, "threshold": 0.5, "minSpeechMs": 250, "maxSegmentSec": 30 },
-                "maxUtteranceSec": 60 },
-  "fallback": { "toGateway": true, "wsPath": "/ws/speech" },
-  "recognitionMode": "AUTO" }
+{ "recognitionMode": "AUTO",
+  "onDevice": { "enabled": true, "available": true, "connectionKey": "<불투명 connection id>",
+                "runtime": { "numThreads": 2, "decodingMethod": "greedy_search", "provider": "cpu",
+                             "vad": { "silenceMs": 500, "threshold": 0.5 }, "partial": true },
+                "model": { "id": "ondevice-ja-v1", "version": "2024-08-01-int8-v1",
+                           "manifestUrl": "/models/ondevice-ja-v1/manifest.json", "totalBytes": 169824553, "wifiRecommended": true } },
+  "fallback": { "onDeviceFailureThreshold": 2, "toGateway": true, "toTextOnly": true } }
 ```
-값의 출처는 `EngineConnection(reazon-ondevice, connectionType=ONDEVICE).runtime`(설정 해석 6순위)이며 콘솔에서 바꾸면 다음 기동에 반영된다. `numThreads` 는 2~4 사이에서 P0 실측으로 정한다(발열·배터리 대 디코드 시간). 시크릿은 없다.
 
-## 7. 폴백 규칙 (클라이언트 라우터 `speech.createRealtimeSttClient`)
+- `model.manifestUrl` 은 **불투명 경로**(`/models/<id>/manifest.json`)다 — 앱이 `window.location.origin` 을 붙여 절대 https URL 로 `downloadModel` 에 넘기고, 플러그인은 `server.url` 과 같은 origin 인지 다시 본다(§5). 실제 디스크 디렉터리(모델 이름)는 서버 ONDEVICE connection 설정에만 있다.
+- `model.version` 은 **지금 서빙 중인 manifest 의 version** 이다. 새 모델판은 서버 `DATA_ROOT/models/<connection 디렉터리>/` 에 새 `<version>/` 과 `manifest.json` 을 원자적으로 바꿔 놓으면(speech/models/README §5) 그대로 반영된다 — 콘솔에서 따로 Apply 하지 않는다. 앱은 `checkModel().version ≠ model.version` 이면 "새 버전 받기"를 보인다. 서버는 **현재 버전의 파일만** 내보내므로 옛 버전 조각은 이어받을 수 없다(플러그인은 다음 `downloadModel` 에서 새 manifest 로 다시 시작하고 다른 버전 조각을 버린다).
+- `runtime`(스레드 수·디코딩 방식·VAD)은 ONDEVICE connection 의 runtime(설정 해석 6순위)이며 콘솔에서 바꾸면 다음 설정 조회(ETag)부터 반영된다. `numThreads` 는 2~4 사이에서 F6 실측으로 정한다. 시크릿은 없다.
+- 서버 manifest 검증(`parseManifest`)과 플러그인 `ManifestValidator` 는 공용 픽스처 `test-fixtures/manifest-cases.json` 으로 같은 판정을 확인한다(REV-021) — 서버가 내보낸 manifest 를 앱이 거절하면 모든 앱의 받기가 조용히 실패하기 때문이다.
 
-1. `getSherpaStt()` 가 `null`(플러그인 없음·메서드 누락) 또는 `checkModel().installed=false` → `WebSocketSttClient`(gateway). 모델 다운로드는 백그라운드로 계속.
-2. 세션 중 플러그인 `error` 이벤트 또는 `start()` 거부가 **2회 누적** → 그 세션 동안 `WebSocketSttClient` 로 전환, `Utterance.realtimeEngine='reazon-gateway'` 로 기록, 사용자에게 한 줄 안내("서버 인식으로 전환했어요"). 다음 앱 기동 시 다시 온디바이스부터.
-3. `recognitionMode=OFFLINE` 이면 전환하지 않고 텍스트 입력 폴백을 안내한다. `FAST` 는 온디바이스 고정(실패 시 텍스트 폴백), `ACCURATE` 는 gateway 우선.
-4. `PERMISSION_DENIED` 는 폴백 카운트에 넣지 않고 즉시 권한 안내 화면으로.
+## 7. 폴백 규칙 (웹 라우터 `speech/stt/client/router.ts` — 정본 speech-platform/12 §3.5·docs/screens.md §11)
+
+1. 경로는 **누를 때마다**(녹음 중이 아닐 때) 고른다: 플러그인이 없거나(`getSherpaStt()===null`) 모델이 없거나(`checkModel().installed=false`) 방식이 서버 쪽이면 gateway(`WebSocketSttClient`).
+2. 휴대폰 인식의 셀 수 있는 실패(`start()` 거부·세션 `error`)가 **앱 실행 동안 `onDeviceFailureThreshold`(2)회**면 그 실행 동안 서버로 바꾸고 한 번 알린다. 다음 앱 실행에서 다시 휴대폰부터.
+3. 세지 않는 코드: `PERMISSION_DENIED`(권한 안내로)·`INTERRUPTED`·`ALREADY_STARTED`·`INVALID_ARGUMENT`·`UNAVAILABLE`. `MODEL_MISSING` 은 세지 않고 바로 서버.
+4. `recognitionMode=OFFLINE` 이면 서버로 바꾸지 않고 글자 입력을 권한다. `Utterance.realtimeEngine` 은 서버가 connection 으로 기록한다(클라이언트는 엔진명을 모른다).
 
 ## 8. APK 재설치 규칙 (deployer `<apk_release>`)
 
@@ -133,7 +137,7 @@ JitPack(`com.github.k2-fsa.sherpa-onnx:sherpa-onnx`)도 있으나 소스에서 �
 
 ## 10. 금기
 
-- 모델·AAR 을 저장소에 커밋하지 않는다(AAR 은 Maven 좌표 우선, `libs/` 에 두더라도 `.gitignore`).
+- 모델·AAR 을 저장소에 커밋하지 않는다(AAR 은 GitHub 릴리스 파일을 sha256 고정으로 빌드 때 받는다, `.gitignore *.aar`).
 - 플러그인은 서버와 직접 통신하지 않는다(모델 다운로드 URL 제외). 발화 업로드·티켓·설정은 전부 웹 계층이 한다.
 - 원본 오디오를 앱 외부 저장소(`Downloads` 등)에 쓰지 않는다. `wavPath` 는 `filesDir/utterances/` 뿐이며 업로드 뒤 정리한다.
-- 엔진·모델 이름을 화면 문자열에 쓰지 않는다(`engine:'reazon-ondevice'` 는 `Utterance` 기록용 내부 값).
+- 엔진·모델 이름을 화면 문자열에도, 플러그인이 JS 로 돌려주는 값에도 쓰지 않는다(경로는 `filesDir/models/stt`, 이벤트에 engine 필드 없음).

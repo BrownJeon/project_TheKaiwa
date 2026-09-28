@@ -4,6 +4,13 @@
 
 ## 0.1.0 — 2026-09-28 (task-003f, APK versionCode 1)
 
+### REV-021 보강 (첫 APK 배포 전이라 같은 0.1.0 / versionCode 1)
+- `deleteModel` ↔ `start` TOCTOU 제거: 세션·다운로드·삭제 점유를 `ModelGate` 한 임계구역에서 판정·점유. 삭제가 끝날 때까지 `start`·`downloadModel` 은 `BUSY`(오류 코드 집합은 그대로 — 계약 v1.1 동작 보강). 세션의 인식기 로드는 실행 시점의 설치본을 다시 읽는다.
+- manifest 규칙을 서버와 맞춤: sha256 **소문자만**(대문자 거절), `name` 대문자 허용·`..` 금지, `version` 에 `..` 금지. 공용 픽스처 `test-fixtures/manifest-cases.json`(53 사례)을 JVM 테스트가 읽는다 — 서버 TS 테스트도 같은 파일을 읽는다.
+- README §6·§7 을 실제 #19 모양(불투명 `/models/ondevice-ja-v1/*`, 콘솔 Apply 없음)과 웹 라우터 규칙으로 고침.
+
+### 첫 구현
+
 - 첫 구현. Kotlin · Capacitor 7 · sherpa-onnx **1.13.8** GitHub 릴리스 AAR(sha256 `633c2432…bd96`, gateway `sherpa-onnx==1.13.8` 과 같음) · `arm64-v8a` 만.
 - 인식: silero VAD 구간 → 앞 0.2s·뒤 0.3s 여유 → 앞 0.4s·뒤 0.2s 0 패딩 → zipformer transducer int8 오프라인 디코드(gateway `reazon_sherpa.py` 와 같은 값). `manual`(푸시투토크)·`auto`(끝점) 두 방식, final 1회·순서 보장.
 - 모델: 같은 origin https manifest 엄격 검증·파일별 Range 이어받기·sha256·원자적 설치·다운그레이드 거부·Wi-Fi(비과금) 기본.

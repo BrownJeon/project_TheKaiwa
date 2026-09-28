@@ -21,6 +21,7 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * 온디바이스 실시간 STT(silero VAD + ReazonSpeech zipformer int8, sherpa-onnx). 계약: task-003f 이력서
@@ -42,10 +43,9 @@ class SherpaSttPlugin : Plugin() {
     private lateinit var store: ModelStore
     private lateinit var utterDir: File
 
-    private val lock = Any()
-    private var active: Active? = null
+    /** 세션·다운로드·삭제 점유의 단일 임계구역(REV-021). `pendingStops` 도 이 모니터로 묶는다. */
+    private val gate = ModelGate<Active, ModelDownloader>()
     private val pendingStops = ArrayList<PluginCall>()
-    private var downloader: ModelDownloader? = null
 
     /** 진단용 — 이번 프로세스의 마지막 발화(말한 길이, 디코드 ms). 텍스트·소리는 두지 않는다. */
     @Volatile private var lastFinal: Pair<Int, Int>? = null
@@ -98,7 +98,7 @@ class SherpaSttPlugin : Plugin() {
                 out.put("version", model.version)
                 out.put("bytes", model.totalBytes)
             }
-            synchronized(lock) { out.put("downloading", downloader != null) }
+            out.put("downloading", gate.download() != null)
             out.put("freeBytes", context.filesDir.usableSpace)
             store.pending()?.let { (v, bytes) ->
                 if (v != model?.version) {
@@ -128,9 +128,10 @@ class SherpaSttPlugin : Plugin() {
         } catch (e: IllegalArgumentException) {
             return call.reject("app server url is not https", "ORIGIN_NOT_ALLOWED")
         }
-        synchronized(lock) {
-            if (downloader != null) return call.reject("download already running", "DOWNLOAD_IN_PROGRESS")
-            downloader = d
+        try {
+            gate.beginDownload(d) // 삭제 중이면 BUSY, 이미 받는 중이면 DOWNLOAD_IN_PROGRESS
+        } catch (e: SttException) {
+            return call.reject(e.message, e.code)
         }
         download.execute {
             try {
@@ -150,26 +151,37 @@ class SherpaSttPlugin : Plugin() {
             } catch (e: Throwable) {
                 call.reject("download failed: ${e.javaClass.simpleName}", "DOWNLOAD_FAILED")
             } finally {
-                synchronized(lock) { if (downloader === d) downloader = null }
+                gate.endDownload(d)
             }
         }
     }
 
     @PluginMethod
     fun cancelDownload(call: PluginCall) {
-        synchronized(lock) { downloader }?.cancel()
+        gate.download()?.cancel()
         call.resolve()
     }
 
     @PluginMethod
     fun deleteModel(call: PluginCall) {
-        synchronized(lock) {
-            if (active != null || downloader != null) return call.reject("session or download running", "BUSY")
+        try {
+            gate.beginDelete() // 판정과 점유가 한 번에 — 이후 start·downloadModel 은 endDelete 까지 BUSY
+        } catch (e: SttException) {
+            return call.reject(e.message, e.code)
         }
-        worker.task(call, "UNAVAILABLE") {
-            recognizer.release()
-            store.deleteAll()
-            call.resolve()
+        try {
+            worker.task(call, "UNAVAILABLE") {
+                try {
+                    recognizer.release()
+                    store.deleteAll()
+                    call.resolve()
+                } finally {
+                    gate.endDelete()
+                }
+            }
+        } catch (e: RejectedExecutionException) {
+            gate.endDelete()
+            call.reject("plugin is shutting down", "UNAVAILABLE")
         }
     }
 
@@ -202,55 +214,59 @@ class SherpaSttPlugin : Plugin() {
         } catch (e: SttException) {
             return call.reject(e.message, e.code)
         }
-        val model = store.current() ?: return call.reject("model not installed", "MODEL_MISSING")
-        val sessionId: String
-        synchronized(lock) {
-            if (active != null) return call.reject("session already started", "ALREADY_STARTED")
-            pruneWavs()
-            val vad = try {
-                SherpaVadEngine(model.path("vad").absolutePath, o.vad)
-            } catch (e: SttException) {
-                return call.reject(e.message, e.code)
-            }
-            sessionId = UUID.randomUUID().toString().replace("-", "")
-            val session = SttSession(sessionId, model.version, o.session, vad, { recognizer.decoder }, worker, sink, wavStore)
-            // worker 는 FIFO — 이 로드가 끝난 뒤에야 이 세션의 디코드가 돈다. 그동안 소리는 버퍼에 쌓인다.
-            worker.execute {
-                try {
-                    session.loadMs = recognizer.ensure(model, o.numThreads, o.decodingMethod)
-                } catch (e: SttException) {
-                    session.failOnWorker(e.code, e.message ?: e.code)
-                } catch (e: OutOfMemoryError) {
-                    session.failOnWorker("OOM", "out of memory while loading recognizer")
-                } catch (e: Throwable) {
-                    session.failOnWorker("MODEL_CORRUPT", "recognizer load failed: ${e.javaClass.simpleName}")
-                }
-            }
-            val meter = LevelMeter { db -> notifyListeners("level", JSObject().put("sessionId", sessionId).put("db", db)) }
-            val capture = AudioCapture(
-                o.audioSource,
-                onFrame = { frame, n ->
-                    meter.push(frame, n)
-                    session.pushFrame(frame, n)
-                },
-                onFailure = { code, msg -> session.fail(code, msg) },
-            )
-            try {
-                capture.start()
-            } catch (e: SttException) {
-                session.cancel()
-                vad.release()
-                return call.reject(e.message, e.code)
-            }
-            active = Active(session, capture, vad)
+        val a = try {
+            // 설치본 확인·VAD 생성·마이크 열기까지 gate 안에서 — 그 사이 deleteModel 이 끼지 못한다(REV-021).
+            gate.openSession { openSession(o) }
+        } catch (e: SttException) {
+            return call.reject(e.message, e.code)
         }
-        call.resolve(JSObject().put("sessionId", sessionId).put("modelVersion", model.version))
+        call.resolve(JSObject().put("sessionId", a.session.sessionId).put("modelVersion", a.session.modelVersion))
+    }
+
+    /** gate 락 안에서 불린다. 실패하면 만든 것을 되돌리고 SttException. */
+    private fun openSession(o: StartOptions): Active {
+        val model = store.current() ?: throw SttException("MODEL_MISSING", "model not installed")
+        pruneWavs()
+        val vad = SherpaVadEngine(model.path("vad").absolutePath, o.vad)
+        val sessionId = UUID.randomUUID().toString().replace("-", "")
+        val session = SttSession(sessionId, model.version, o.session, vad, { recognizer.decoder }, worker, sink, wavStore)
+        // worker 는 FIFO — 이 로드가 끝난 뒤에야 이 세션의 디코드가 돈다. 그동안 소리는 버퍼에 쌓인다.
+        // 설치본은 실행 시점에 다시 읽는다(그 사이 다운로드가 새 버전을 올리고 옛 파일을 지웠을 수 있다).
+        worker.execute {
+            try {
+                val current = store.current() ?: throw SttException("MODEL_MISSING", "model not installed")
+                session.loadMs = recognizer.ensure(current, o.numThreads, o.decodingMethod)
+            } catch (e: SttException) {
+                session.failOnWorker(e.code, e.message ?: e.code)
+            } catch (e: OutOfMemoryError) {
+                session.failOnWorker("OOM", "out of memory while loading recognizer")
+            } catch (e: Throwable) {
+                session.failOnWorker("MODEL_CORRUPT", "recognizer load failed: ${e.javaClass.simpleName}")
+            }
+        }
+        val meter = LevelMeter { db -> notifyListeners("level", JSObject().put("sessionId", sessionId).put("db", db)) }
+        val capture = AudioCapture(
+            o.audioSource,
+            onFrame = { frame, n ->
+                meter.push(frame, n)
+                session.pushFrame(frame, n)
+            },
+            onFailure = { code, msg -> session.fail(code, msg) },
+        )
+        try {
+            capture.start()
+        } catch (e: SttException) {
+            session.cancel()
+            vad.release()
+            throw e
+        }
+        return Active(session, capture, vad)
     }
 
     @PluginMethod
     fun stop(call: PluginCall) {
-        val a = synchronized(lock) {
-            val a = active ?: return call.resolve(JSObject())
+        val a = synchronized(gate) {
+            val a = gate.session() ?: return call.resolve(JSObject())
             pendingStops.add(call)
             a
         }
@@ -261,7 +277,7 @@ class SherpaSttPlugin : Plugin() {
 
     @PluginMethod
     fun cancel(call: PluginCall) {
-        val a = synchronized(lock) { active }
+        val a = gate.session()
         if (a != null) {
             a.capture.stop()
             a.session.cancel()
@@ -271,7 +287,7 @@ class SherpaSttPlugin : Plugin() {
 
     @PluginMethod
     fun release(call: PluginCall) {
-        val a = synchronized(lock) { active }
+        val a = gate.session()
         if (a != null) {
             a.capture.stop()
             a.session.cancel()
@@ -340,16 +356,15 @@ class SherpaSttPlugin : Plugin() {
      * 그대로 끝낸다. 메인 스레드라 join 하지 않는다.
      */
     override fun handleOnPause() {
-        val a = synchronized(lock) { active } ?: return
+        val a = gate.session() ?: return
         if (a.session.isClosed) return
         a.session.cancel() // 캡처 스레드는 다음 프레임(≤40ms)에 pushFrame=false 로 스스로 멈추고 AudioRecord 를 해제한다
         notifyListeners("error", JSObject().put("sessionId", a.session.sessionId).put("code", "INTERRUPTED").put("message", "app paused"))
     }
 
     override fun handleOnDestroy() {
-        val a = synchronized(lock) { active }
-        a?.session?.cancel()
-        synchronized(lock) { downloader }?.cancel()
+        gate.session()?.session?.cancel()
+        gate.download()?.cancel()
         worker.execute { recognizer.release() }
         worker.shutdown()
         download.shutdown()
@@ -381,9 +396,9 @@ class SherpaSttPlugin : Plugin() {
         }
 
         override fun onClosed(sessionId: String, last: FinalResult?) {
-            val (a, calls) = synchronized(lock) {
-                val mine = active?.takeIf { it.session.sessionId == sessionId }
-                if (mine != null) active = null
+            val (a, calls) = synchronized(gate) {
+                val mine = gate.session()?.takeIf { it.session.sessionId == sessionId }
+                if (mine != null) gate.closeSession(mine)
                 val calls = pendingStops.toList()
                 pendingStops.clear()
                 mine to calls

@@ -68,7 +68,8 @@ class ManifestTest {
         for (bad in listOf("..", ".tmp-x", "a", "v/1", "x".repeat(65))) {
             assertEquals(bad, "MANIFEST_INVALID", code(sampleManifest().put("version", bad)))
         }
-        assertEquals("MANIFEST_INVALID", code(sampleManifest().put("name", "Reazon")))
+        assertEquals("MANIFEST_INVALID", code(sampleManifest().put("name", "a/b")))
+        assertEquals("MANIFEST_INVALID", code(sampleManifest().put("version", "v..1")))
     }
 
     @Test
@@ -89,9 +90,9 @@ class ManifestTest {
     }
 
     @Test
-    fun acceptsUppercaseShaByLowercasing() {
+    fun rejectsUppercaseShaLikeServer() {
         val o = sampleManifest().apply { file(1).put("sha256", file(1).getString("sha256").uppercase()) }
-        assertEquals("58b18211ae06265466bfa17172dab574df94f76c8bcb61a3640c28ba860e4124", parse(o).file("decoder").sha256)
+        assertEquals("MANIFEST_INVALID", code(o))
     }
 
     @Test

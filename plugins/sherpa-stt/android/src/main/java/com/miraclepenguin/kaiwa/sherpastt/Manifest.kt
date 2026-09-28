@@ -53,7 +53,9 @@ internal object ManifestValidator {
     const val INDEX_FILE = "installed.json"
     val ROLES = setOf("encoder", "decoder", "joiner", "tokens", "vad")
 
-    private val NAME_RE = Regex("^[a-z0-9][a-z0-9._-]{0,63}$")
+    // 이름·버전·파일 규칙은 서버 검증기(src/modules/speech/stt/modelPackage.ts)와 같아야 한다 — 공용 픽스처
+    // `plugins/sherpa-stt/test-fixtures/manifest-cases.json` 을 양쪽 단위 테스트가 읽는다(REV-021 High).
+    private val NAME_RE = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
     // 첫 글자를 영숫자로 강제한다 — 임시 디렉터리(`.tmp-*`)·`.`/`..` 와 겹치지 않게.
     private val VERSION_RE = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$")
@@ -61,7 +63,7 @@ internal object ManifestValidator {
     private val SHA_RE = Regex("^[0-9a-f]{64}$")
     private val SEMVER_RE = Regex("^(\\d{1,4})\\.(\\d{1,4})\\.(\\d{1,4})$")
 
-    fun isValidVersion(v: String): Boolean = VERSION_RE.matches(v)
+    fun isValidVersion(v: String): Boolean = VERSION_RE.matches(v) && !v.contains("..")
 
     @Throws(SttException::class)
     fun parse(text: String, pluginVersion: String): ModelManifest {
@@ -73,8 +75,8 @@ internal object ManifestValidator {
         }
         val name = str(root, "name")
         val version = str(root, "version")
-        if (!NAME_RE.matches(name)) invalid("name")
-        if (!VERSION_RE.matches(version)) invalid("version")
+        if (!NAME_RE.matches(name) || name.contains("..")) invalid("name")
+        if (!isValidVersion(version)) invalid("version")
         if (str(root, "engine") != ENGINE) invalid("engine")
         if (str(root, "modelType") != MODEL_TYPE) invalid("modelType")
         if (int(root, "sampleRate") != Audio.SAMPLE_RATE.toLong()) invalid("sampleRate")
@@ -90,7 +92,8 @@ internal object ManifestValidator {
             if (!FILE_RE.matches(path) || path.contains("..") || path == INDEX_FILE || path.endsWith(".part")) {
                 invalid("files[$i].path")
             }
-            val sha = str(o, "sha256").lowercase(Locale.ROOT)
+            // 소문자만 — 서버·fetch_models.py 와 같은 표기(대문자를 받아 주면 두 검증기의 판정이 갈린다).
+            val sha = str(o, "sha256")
             if (!SHA_RE.matches(sha)) invalid("files[$i].sha256")
             val bytes = int(o, "bytes")
             if (bytes <= 0 || bytes > MAX_TOTAL_BYTES) invalid("files[$i].bytes")

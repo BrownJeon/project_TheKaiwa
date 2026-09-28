@@ -169,8 +169,10 @@ export interface SherpaSttPlugin {
   checkModel(options?: { verify?: boolean }): Promise<CheckModelResult>
   downloadModel(options: DownloadModelOptions): Promise<DownloadModelResult>
   cancelDownload(): Promise<void>
+  /** 세션·다운로드·다른 삭제 중이면 `BUSY`. 삭제가 끝날 때까지 `start`·`downloadModel` 도 `BUSY`(REV-021). */
   deleteModel(): Promise<void>
   preload(options?: PreloadOptions): Promise<{ modelVersion: string; loadMs: number }>
+  /** 권한 없음 `PERMISSION_DENIED` · 모델 없음 `MODEL_MISSING` · 이미 세션 `ALREADY_STARTED` · 모델 삭제 중 `BUSY`. */
   start(options?: StartOptions): Promise<{ sessionId: string; modelVersion: string }>
   stop(): Promise<{ sessionId?: string; utterance?: FinalPayload }>
   cancel(): Promise<void>
