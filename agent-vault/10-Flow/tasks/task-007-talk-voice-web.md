@@ -476,6 +476,24 @@ Leader 의 C1-1/C1-2/C1-3 판정문이 실제 구현과 일치하는지 코드�
 
 `native_change`: false.
 
+### REV-027 (2026-09-28, b0f9933 — altText 상한, K4 후속)
+
+**판정: PASS** (Critical 0 · High 0 · Medium 0 · Low 3)
+
+**검증 방법**: `git show b0f9933` 전량 정독(`talk.ts`·`prompts.test.ts`·결정 기록 3파일). 독립 재실행: 미러(`~/.node-local/thekaiwa`)에서 `npm run test`(전체) **507건 중 506 pass·1 skip**(claim 일치) + `npm run typecheck` exit 0. 스크래치 검증(끝나고 삭제): (a) `buildTalkRequest`+`renderTranscript` 를 직접 호출해 학습자(일반·heavy)×이력(없음·20건)×발화(0~5,000자)×altText(0~500,000자) 전 조합에서 `renderTranscript(...).length` 실측 — **발화 ≤1,000자(라우트 계약) 안에서는 전 조합 ≤2,938자**(캡 3,000, 최소 여유 62자), altText 를 5,000,000자까지 줘도 초과 없음. (b) 커밋을 `git show b0f9933^:...talk.ts` 로 되돌려 새 테스트 2건이 실제로 실패하는지 확인 — `clampAltText is not a function`·`후보 줄이 남는다(예산 충분)` 단언 실패로 **갭을 잡는 테스트임을 재확인**, 이후 복구해 507건 재통과.
+
+**1) 캡 불변식**: `TRANSCRIPT_OVERHEAD=120` 은 `renderTranscript` 실제 고정 문자(`[대화]`/`[입력]` 머리말·역할 접두·블록 구분 `\n\n`)에 대해 넉넉한 상한으로 실측 확인됨(위 (a), 최악 조합도 62자 여유). 단, **`input.text` 자체는 이 커밋도 독립적으로 방어하지 않는다** — `room` 계산(`TALK_USER_PROMPT_CAP - system.length - input.text.length - 40`, 이번 커밋에서 안 건드림)이 `text>1,000` 을 가정하지 않으므로 `text=5,000` 을 직접 넣으면 6,366자까지 캡을 넘는다(altText=0 이어도 재현 — **이 커밋이 만든 문제가 아니라 기존(수정 전) 코드와 동일한, 별개의 사전 존재 갭**). 현재는 유일한 호출자 `parseTurnBody`(`chats/validate.ts`, `TURN_TEXT_MAX`)가 1,001자에서 `VALIDATION` 예외를 던져 막는다(`task006.test.ts:21` 로 확인). Low로 기록 — altText 와 같은 패턴(호출자 쪽 길이 제한에 의존)이라 향후 `buildTalkRequest` 를 직접 부르는 새 경로가 생기면 재현 가능.
+**2) altText 없음/짧음 불변**: `clampAltText(undefined|null|'', …)` 은 `!raw` 로 즉시 null 반환 → `head.push` 미실행 → `head`·`room` 계산이 라인 단위로 수정 전과 동일 → `system` 바이트 동일. 스크래치로 직접 비교해 확인. 예열/persona 불변 테스트(K4-3, `TALK: persona(...)…바이트 동일`)는 여전히 통과(persona 는애초 altText 를 안 봄 — 무관).
+**3) 6층 경계·서러게이트**: 자르는 곳이 `conversation/prompts/talk.ts`(프롬프트 예산 소유자)이고 `speech` 는 여전히 후보 텍스트만 넘긴다는 설계 그대로 — `grep altText src/modules/speech` 관련 호출자 없음(디자인 문서 주장과 일치, Phase 2 미착수). `clampAltText` 의 `for (const ch of clean)` 는 코드포인트 단위 순회라 서러게이트 쌍은 안전(테스트 100건 이모지 케이스로 확인). 단, 결합 문자(그림자 발음 기호 등)는 코드포인트 경계일 뿐 그래핌 클러스터 경계가 아니라 이론상 절단면에서 분리될 수 있음 — 일본어 STT 후보라는 입력 도메인 특성상 실질 위험 낮음, Low.
+**4) 테스트가 갭을 실제로 잡는지**: 위 검증 방법 (b) 로 확인 — 되돌리면 실패.
+
+**Low(비차단)**
+1. `input.text` 독립 방어 부재(위 1) — 사전 존재, 이번 커밋 무관. `buildTalkRequest` 새 호출자가 생기면 재확인 권고.
+2. `clampAltText` 결합 문자 그래핌 경계 미보존(위 3) — 일본어 STT 후보 도메인에서 실질 영향 낮음.
+3. (Phase 2 대비) 현재 미도달 코드지만, altText 가 실제 호출자(WS/게이트웨이)에서 연결될 때 정리 정규식 2회(`replace`)가 원문 전체 길이에 비례 — 상한 없는 원문을 그대로 넘기지 않도록 그 연결 지점에서 크기 제한을 권고(이 커밋의 `clampAltText` 는 출력 길이로는 이미 bounded).
+
+`native_change`: false. 화면 변경 없음 — 데모 검토 게이트 해당 없음.
+
 ## QA 기록
 
 ### QA-016 (2026-09-28)
