@@ -1,7 +1,7 @@
 ---
 task_id: task-010
 title: "오늘의 회화(레슨) — 주제·A4 5단계·청취 구간 반복·들린 단어 메모·말하기 3과제·완료 트랜잭션·nextPreview"
-status: doing
+status: done
 base_ref: 98d8cac
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, codex, qa, deployer]
@@ -34,7 +34,7 @@ demo_gate:
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: true
+  active: false
 ---
 
 ## 목표 (Leader)
@@ -703,3 +703,18 @@ reviewer 21:55 판정(두 건 채택)대로 고쳤다. 스키마 변경·db push
 ### 2026-09-28 22:28 reviewer — REV-031(종합)
 
 **[[task-012-calendar]]·[[task-011-ai-evaluation]]·[[task-010b-repetition]]·[[task-010c-correction-mode]] 4건 전부 PASS**(Critical/High/Medium 0, task-011 에 참고용 Low 1). 4건 상세는 각 task 이력서 "REV-031" 절. 핵심: 012(달력 서버)·011(AI 평가 서버+A6/A7)은 `tsc`·`eslint`·단위 706건(705 pass/1 skip)·`next build` 전부 클린이고 삭제-스냅샷 불변·정답 비노출·단일 트랜잭션·세대 펜싱(task-010 Codex C2-1 과 같은 패턴을 선제 적용)·SET_LEVEL 화이트리스트 검증을 코드로 직접 확인했다. 010b(A11/A5 프롬프트)는 아직 서버 미연결(계약 검토만, 재연결 시 재순환 필요). 010c(talk@v3)는 **이번 릴리스로 운영 TALK 경로에 실제 영향**(모든 턴에 `[교정] 유창성 — severity: …` 93자 추가)이 있어 3,000자 불변식·`--system-prompt` 바이트 불변(K4-3)·CHAT 무영향을 코드로 재검증 — 회귀 없음. **화면 코드는 4건 전부 0**(demo_gate 는 여전히 `review_requested`, 사용자 승인 전 — `docs/screens.md`·`src/app`·`src/components` 미접촉 확인). **task-010 과 한 릴리스로 커밋·배포 가능**. QA 전달 high_risk_areas: 평가 제출/재채점 경합(idempotent 재확인)·평가 삭제 스냅샷 불변 스모크·SET_LEVEL 채택 E2E·달력/하루/학습기록 소유자 격리(다계정)·TALK 응답 시간(3,000자 예산 여유 84→103자로 좁아진 상태에서 실제 대화 p50 회귀). native_change: false.
+
+### 2026-09-28 22:55 Leader — 운영 반영·운영 스모크
+- 커밋 `67771a5`(task-010 + 011·012 서버 + 010b/010c/011 프롬프트 통합, REV-031 PASS) → Gitea push → webhook `RELEASE_RESULT ok`(릴리스 `20260928-223807-67771a5d`, migrated:false). `/api/health` ok(degraded 0, gateway 재기동 직후 몇 초 stt_gateway false → 정상).
+- 운영 3010 스모크: **task-012 32/32 · task-010 65/65 · task-011 61/61 · task-007 44/44**(TALK talk@v3 운영 경로 — 손 뗌→첫 소리 1.59s, warm HIT).
+  - task-010 1회차는 58/64 — 7e~7h 5건은 Leader 가 `SMOKE_ENV=PRODUCTION` 을 빠뜨려 LOCAL connection id 로 운영을 친 설정 실수(재실행 PASS). **11b 붙여넣기 레슨은 A4 재시도 2회 뒤에도 FAILED(64s)** — 재실행에서는 attempts=2 로 통과(54s). 붙여넣기 경로 A4 신뢰도 진단을 prompt-engineer 에 배정(실패 검사 코드 재현·보정, 결과는 이 이력서에 추가).
+- `check.mjs deactivate` 완료(active 없음).
+
+## 최종 요약
+
+**오늘의 회화(레슨)가 운영에 반영됐습니다** (2026-09-28, 앱 `https://kaiwa.미라클펭귄.com` → 오늘 탭).
+
+- **무엇이 생겼나**: 주제를 고르거나 일본어 글을 붙여 넣으면 AI 선생님이 5단계 수업을 만들어 줍니다 — ① 대화 듣기(느리게·보통, 들린 단어 메모 → 단어장 제안) ② 표현 익히기 ③ 퀴즈(첫 답 고정) ④ 응용(내 문장 비교·말로 쓰기) ⑤ 말하기 3과제(목표 표현을 썼는지 확인, 내 목소리 다시 듣기). 수업을 마치면 점수·쓴 표현/놓친 표현·다음 시간 예고가 나오고, 배운 조각·문법은 반복 학습 항목(3일 뒤)으로 자동 등록됩니다. 오늘 홈 카드에서 이어서 하기·다시 보기가 됩니다.
+- **지킨 원칙**: 메모한 단어는 제안만 하고 채택해야 단어장에 들어갑니다. 수업 완료(기록·통계·반복 항목)는 한 번에 저장되거나 전부 취소되고, 두 번 눌러도 한 번만 반영됩니다. 같은 녹음은 채팅·레슨·평가 중 한 곳에만 쓰입니다.
+- **검증**: 리뷰 REV-028~031 통과, 외부 검토(Codex) 지적 2건 수정 후 재검토 0건, QA 스모크 65/65·화면 E2E 61/61(360/390/412 폭), 운영 스모크 65/65. 수업 생성은 약 35~75초, 첫 소리는 1초 안쪽입니다.
+- **알아 둘 점**: 붙여넣기 수업은 가끔 생성에 실패할 수 있습니다(화면의 [다시 만들기]로 복구). 원인 진단·보정을 진행 중입니다. 같은 배포로 AI 평가·달력의 **서버**도 올라갔지만 화면은 데모 승인 뒤에 만듭니다.

@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-010-today-lesson]] — **Phase 2 오늘의 회화(레슨)**(2026-09-28). 주제/붙여넣기 → A4 5단계(듣기·메모 제안·퀴즈 첫 답 고정·응용·말하기 3과제+발화 연결) → 완료 한 트랜잭션(StudyLog·스냅샷·RepetitionItem 3일)·nextPreview, 오늘 홈 카드. REV-028~031·Codex C2 2건 수정(2차 0)·QA 65/65·UI E2E 61/61, 운영 반영 `67771a5`·운영 스모크 65/65. 붙여넣기 A4 신뢰도 관찰 중
 - [[task-018-db-structure-hardening]] — **DB 구조 보강 3건**(2026-09-28, 사용자 승인): Utterance.chatId·chatMessageId unique / ConfigScope LEXICON / LexiconVersion.rollbackOf — 백업→db push→REV-026→webhook 배포 ok·운영 44/44
 - [[task-009-release-cutover]] — **운영 blue/green 컷오버·APP_ENV=PRODUCTION**(2026-09-28). `/home/brownjeon/apps/thekaiwa` 릴리스 운영(앱+gateway), 첫 배포 ok·롤백 리허설 통과, 운영 E2E 단어 74·채팅 41·회화 37·음성 3/3, health 필수 503 게이트
 - [[task-003h-app-branding]] — **앱 이름 Lingofy Japanese·부제 「일본어가 자연스러워지는 AI 회화」**(2026-09-28). 웹·앱 1.0.1(versionCode 2) 운영 반영, REV-024 PASS
@@ -26,11 +27,10 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- [[task-010-today-lesson]] — **Phase 2 오늘의 회화(레슨)**: 주제·A4 5단계·청취 구간 반복·들린 단어 메모·말하기 3과제·완료 트랜잭션(+RepetitionItem)·nextPreview. 데모 v2 **사용자 승인**(17:54)·서버 REV-028 PASS_WITH_NOTES·A4 lesson@v2(보정)·seed 안정 id → **화면 구현 중** (2026-09-28)
 - [[task-010b-repetition]] — 반복 학습(RepetitionItem 3경로·LearningObservation·A11·오늘의 복습·A5): 데모 v1(delta) ∥ PE A11·A5 — **스키마 push 사용자 승인 대기 예정**
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) · PE talk@v3(A11 뒤) — **스키마 push 승인 대기 예정**
-- [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): 데모 v1(full) ∥ PE A6·A7·루브릭 20건
-- [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): 데모 v1(full) ∥ developer 서버(3013)
+- [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면은 데모 v1(full) **사용자 승인 대기** · DB `EvaluationItem.textRevealedAt` 승인 대기
+- [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): **서버 운영 반영(67771a5, 운영 32/32)** · 화면은 데모 v1(full) **사용자 승인 대기**
 - [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) — 구현은 010b·010c 뒤, **스키마 push 승인 대기 예정**
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 
