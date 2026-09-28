@@ -389,3 +389,14 @@ Kotlin/Gradle 실행 환경이 이 세션에 없어 JVM 테스트 자체를 재�
 ## Deployer 기록
 
 ## 최종 요약
+
+### [2026-09-28 01:36] C2 adversarial-review focus=concurrency — done
+- judge 판정: `mode=adversarial-review, focus=concurrency, budget_rule=CX-limit-unknown-r2` (2026-09-28 10:32) / 호출 차수: 2/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=218664e(task_file) snapshot=3efc87f(C2 독립 실행)
+- 지적 2건:
+  - **[HIGH]** 다운로드 갱신 ↔ 활성 세션 `recognizer.ensure` (plugins/sherpa-stt/android/.../ModelGate.kt:37) — beginDownload가 active session을 막지 않아, 세션이 recognizer 로드를 진행 중인 상태에서 다운로드 commit이 기존 버전 파일을 `deleteRecursively`로 삭제 가능 / **impact**: recognizer 로드 MODEL_CORRUPT 또는 중간 실패, 세션 modelVersion vs 실제 사용 모델 버전 어긋남 / **권고**: download commit 및 old-version delete를 세션 점유와 배타적으로 처리(beginDownload 시 active session BUSY 반환, 또는 commit만 session 없을 때 수행, 또는 reference-count 방식)
+  - **[MEDIUM]** manifest 버전 전환 중 Range 재개 404 (src/modules/speech/stt/modelPackage.ts:119) — resolveModelFile이 current manifest version만 서빙하므로, v1 다운로드 진행 중 서버가 v2를 current로 바꾸면 v1 파일 URL이 404 → 재개 보장 못함 / **impact**: 모델 갱신과 다운로드 겹칠 때 대용량 다운로드 실패·일시정지·수용 기준('다운로드→재개') 배포 타이밍 깨짐 / **권고**: manifest 버전 공개 후 최소 TTL 동안 immutable 서빙 또는 구버전 installed.json 도 읽어 서빙하거나, 배포 절차에서 구버전 보존 후 별도 만료 작업 분리
+- 검토하지 못한 범위: 실기기 sherpa-onnx 네이티브 로더의 unlink/rename 중 실패 방식 / 운영 배포 절차의 DATA_ROOT/models 구버전 실제 삭제 타이밍
+- **REV-022 잔여 지적과의 관계**: REV-022가 다루었던 "다운로드 커밋↔활성 세션 VAD 파일 경합"(위 3절, LOW)는 VAD만 사라지는 경우였으나, 이번 HIGH 는 전체 모델 디렉터리(encoder·decoder·joiner·tokens·vad)가 사라지고 recognizer 로드 시점 경합이 더 크다는 점에서 심각도가 다름.
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260928T013441Z-task-003f-C2/
+
