@@ -73,6 +73,11 @@ export interface LlmJsonRequest<T> extends LlmRequest {
    * (스키마 위반은 그대로 `JsonSchemaError`). 항목별로 버리는 판단은 호출자 몫이다 — task-006 D11. 기본 false(기존 동작).
    */
   softExtraCheck?: boolean
+  /**
+   * true 면 매 시도의 파싱 직후·ajv 전에 `jsonSchema` 의 `additionalProperties:false` 객체에서 스키마 밖 키만 지운다(필수 필드
+   * 불변, 이름이 바뀐 필수 필드는 그대로 위반 → 재시도, 로그는 키 경로만). 기본 false — 켜는 곳은 A4 LESSON 하나(task-019).
+   */
+  stripAdditionalProperties?: boolean
 }
 
 export interface LlmMeta {
@@ -264,7 +269,7 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
         if (call === 1) first = { warm: out.warm, firstDeltaMs: out.firstDeltaAt === null ? null : out.firstDeltaAt - startedAt }
         return out.text
       },
-      { schema: req.jsonSchema, extraCheck, softExtraCheck: req.softExtraCheck === true },
+      { schema: req.jsonSchema, extraCheck, softExtraCheck: req.softExtraCheck === true, stripAdditionalProperties: req.stripAdditionalProperties === true },
     )
     return result
   })

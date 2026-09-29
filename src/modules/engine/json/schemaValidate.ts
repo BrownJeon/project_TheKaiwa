@@ -166,23 +166,20 @@ function finalizeViolations(list: string[]): string[] {
   return head
 }
 
-// ── 스키마 밖 필드 제거(옵트인, task-010 후속) ─────────────────────────────────
+// ── 스키마 밖 필드 제거(요청 옵트인, task-010 후속 → task-019) ────────────────
 
 /**
- * 이 WeakSet 에 등록된 스키마 객체만 아래 `stripUnknownAdditionalProperties` 대상이 된다(참조 동일성 기준).
- * **등록은 `enableAdditionalPropertiesStrip` 로만 한다** — 이 파일은 어떤 스키마도 스스로 등록하지 않는다. 지금
- * 등록하는 곳은 `conversation/structuredResponse/schemas.ts` 의 `LESSON_SCHEMA` 하나뿐(2026-09-29, task-010 후속:
- * A4 1차 응답의 `quiz[]` 에 스키마 밖 필드 `q`·`conjugationNote` 가 붙어 `additionalProperties` 위반 → 불필요한
- * 재시도(+약 30s, 한 번은 149s 상한 초과로 FAILED) — 실측: task-010 이력서 "2026-09-29 01:50 Leader"). TALK·CHAT·
- * WORD_ENRICH·CHAT_REVIEW·EVAL_GEN·EVAL_GRADE 등 다른 스키마는 등록하지 않으므로 동작이 전혀 바뀌지 않는다.
+ * `stripAdditionalProperties: true` 로 부른 요청만 아래 `stripUnknownAdditionalProperties` 대상이 된다(`RunJsonOptions`·
+ * `LlmJsonRequest` 의 옵션, 기본 false). 지금 켜는 곳은 A4 `conversation/prompts/lesson.ts` `buildLessonRequest` 하나뿐
+ * (2026-09-29, task-010 후속: A4 1차 응답의 `quiz[]` 에 스키마 밖 필드 `q`·`conjugationNote` 가 붙어 `additionalProperties`
+ * 위반 → 불필요한 재시도(+약 30s, 한 번은 149s 상한 초과로 FAILED) — 실측: task-010 이력서 "2026-09-29 01:50 Leader").
+ * TALK·CHAT·WORD_ENRICH·CHAT_REVIEW·EVAL_GEN·EVAL_GRADE 등 다른 요청은 옵션을 켜지 않으므로 동작이 전혀 바뀌지 않는다.
+ * 처음엔 스키마 객체를 모듈 로드 시 전역 WeakSet 에 등록했으나(참조 동일성이 끊기면 조용히 꺼지고, conversation 이 engine 내부
+ * 상태를 원격으로 바꿨다) REV-034 ⑥ 권고대로 요청 옵션으로 옮겼다(task-019).
+ *
+ * 아래 `WalkSchema` 는 `anyOf`(nullable 2분기)만 따라간다 — `oneOf`·`allOf`·`$ref` 노드는 건너뛴다(그 아래는 지우지 않는다,
+ * fail-safe; REV-034 Low). 이 옵션을 새 스키마에 켜려면 그런 구성이 없는지 먼저 본다.
  */
-const additionalPropertiesStripSchemas = new WeakSet<object>()
-
-/** `schema`(참조 동일성)를 스키마 밖 필드 제거 대상으로 등록한다. 등록하지 않은 스키마의 검증 동작은 그대로다. */
-export function enableAdditionalPropertiesStrip(schema: object): void {
-  additionalPropertiesStripSchemas.add(schema)
-}
-
 interface WalkSchema {
   type?: string
   properties?: Record<string, WalkSchema>
@@ -227,9 +224,8 @@ function stripAdditionalPropertiesWalk(data: unknown, schema: WalkSchema, path: 
   }
 }
 
-/** 등록된 스키마면 `data` 를 정리하고 제거한 키 경로 목록을 돌려준다(등록 안 됐으면 항상 `[]`, `data` 도 그대로). */
+/** `data` 를 정리하고 제거한 키 경로 목록을 돌려준다(값은 싣지 않는다). */
 function stripUnknownAdditionalProperties(data: unknown, schema: object): string[] {
-  if (!additionalPropertiesStripSchemas.has(schema)) return []
   const out: string[] = []
   stripAdditionalPropertiesWalk(data, schema as WalkSchema, '', out)
   return out
@@ -260,7 +256,12 @@ export type AnalyzeResult =
  * `extractJson` 관용 추출 + `validateOutput`. 코드펜스·전후 잡담이 있어도 **추출에 성공하면
  * 재시도 없이 성공 처리**한다 — 재시도는 비싸고, 우리가 원하는 건 형식이 아니라 값이다.
  */
-export function extractAndValidate(raw: string, schema: object): AnalyzeResult {
+export interface ExtractOptions {
+  /** true 면 파싱 직후·ajv 전에 스키마 밖 키를 지운다(위 "스키마 밖 필드 제거" 절). 기본 false. */
+  stripAdditionalProperties?: boolean
+}
+
+export function extractAndValidate(raw: string, schema: object, opts: ExtractOptions = {}): AnalyzeResult {
   let parsed: unknown
   try {
     parsed = extractJson(raw)
@@ -271,9 +272,9 @@ export function extractAndValidate(raw: string, schema: object): AnalyzeResult {
     return { ok: false, parseError: true }
   }
 
-  const removed = stripUnknownAdditionalProperties(parsed, schema)
+  const removed = opts.stripAdditionalProperties ? stripUnknownAdditionalProperties(parsed, schema) : []
   if (removed.length > 0) {
-    // 키 이름·개수만(값·원문·학습자 텍스트 없음) — 등록된 스키마(현재 LESSON 하나)에서만 나온다.
+    // 키 이름·개수만(값·원문·학습자 텍스트 없음) — 옵션을 켠 요청(현재 LESSON 하나)에서만 나온다.
     console.info(`[json] 스키마 밖 필드 제거: ${removed.slice(0, 10).join(', ')}${removed.length > 10 ? ` 외 ${removed.length - 10}건` : ''}`)
   }
 
@@ -354,6 +355,8 @@ export interface RunJsonOptions {
    * 재시도 응답이 스키마를 어기면 첫 응답으로 돌아간다(이미 받은 정상 항목을 버리지 않는다).
    */
   softExtraCheck?: boolean
+  /** true 면 매 시도의 파싱 직후·ajv 전에 스키마 밖 키를 지운다(`ExtractOptions`). 기본 false — 켜는 곳은 A4 LESSON 하나. */
+  stripAdditionalProperties?: boolean
 }
 
 export interface RunJsonResult<T> {
@@ -369,8 +372,8 @@ function attemptInfo(attempt: number): JsonAttemptInfo {
   return { attempt, maxAttempts: JSON_MAX_ATTEMPTS }
 }
 
-function evaluateAttempt(raw: string, schema: object, info: JsonAttemptInfo, extraCheck?: RunJsonOptions['extraCheck']): AnalyzeResult {
-  const result = extractAndValidate(raw, schema)
+function evaluateAttempt(raw: string, schema: object, info: JsonAttemptInfo, extraCheck: RunJsonOptions['extraCheck'], extract: ExtractOptions): AnalyzeResult {
+  const result = extractAndValidate(raw, schema, extract)
   if (!result.ok) return result
   if (extraCheck) {
     const extra = extraCheck(result.data, info)
@@ -396,15 +399,16 @@ export async function runJsonWithRetry<T = unknown>(
   opts: RunJsonOptions,
 ): Promise<RunJsonResult<T>> {
   if (opts.softExtraCheck) return runJsonSoft<T>(attempt, opts)
+  const extract: ExtractOptions = { stripAdditionalProperties: opts.stripAdditionalProperties === true }
   const raw1 = await attempt(null)
-  const r1 = evaluateAttempt(raw1, opts.schema, attemptInfo(1), opts.extraCheck)
+  const r1 = evaluateAttempt(raw1, opts.schema, attemptInfo(1), opts.extraCheck, extract)
   if (r1.ok) return { data: r1.data as T, attempts: 1 }
 
   // 재시도 원인을 남긴다 — 위반 문구는 필드 경로·규칙뿐이라 학습자 원문이 들어가지 않는다(extraCheck 문구도 고정 문장).
   console.warn(`[json] 1차 응답 계약 위반 → 재시도: ${r1.parseError ? 'JSON 파싱 실패' : r1.violations.slice(0, 3).join(' / ').slice(0, 300)}`)
   const hint = r1.parseError ? RETRY_PARSE : RETRY_SCHEMA(r1.violations)
   const raw2 = await attempt({ hint, previousRaw: truncate(raw1, 8000) })
-  const r2 = evaluateAttempt(raw2, opts.schema, attemptInfo(2), opts.extraCheck)
+  const r2 = evaluateAttempt(raw2, opts.schema, attemptInfo(2), opts.extraCheck, extract)
   if (r2.ok) return { data: r2.data as T, attempts: 2 }
 
   throw new JsonSchemaError(r2.parseError ? ['JSON 파싱 실패'] : r2.violations, raw2)
@@ -416,8 +420,9 @@ export async function runJsonWithRetry<T = unknown>(
  */
 async function runJsonSoft<T>(attempt: JsonAttemptFn, opts: RunJsonOptions): Promise<RunJsonResult<T>> {
   const extra = (d: unknown, n: number) => (opts.extraCheck ? finalizeViolations(opts.extraCheck(d, attemptInfo(n))) : [])
+  const extract: ExtractOptions = { stripAdditionalProperties: opts.stripAdditionalProperties === true }
   const raw1 = await attempt(null)
-  const s1 = extractAndValidate(raw1, opts.schema)
+  const s1 = extractAndValidate(raw1, opts.schema, extract)
   const v1 = s1.ok ? extra(s1.data, 1) : []
   if (s1.ok && v1.length === 0) return { data: s1.data as T, attempts: 1, residualViolations: [], candidates: [s1.data as T] }
 
@@ -432,7 +437,7 @@ async function runJsonSoft<T>(attempt: JsonAttemptFn, opts: RunJsonOptions): Pro
     if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T] }
     throw e
   }
-  const s2 = extractAndValidate(raw2, opts.schema)
+  const s2 = extractAndValidate(raw2, opts.schema, extract)
   if (s2.ok) {
     const candidates = s1.ok ? [s1.data as T, s2.data as T] : [s2.data as T]
     return { data: s2.data as T, attempts: 2, residualViolations: extra(s2.data, 2), candidates }
@@ -477,6 +482,6 @@ export async function runJsonAnalysis<T = unknown>(opts: RunJsonAnalysisOptions)
         : opts.messages
       return chat(messages, callOptsFor(messages))
     },
-    { schema: opts.schema, extraCheck: opts.extraCheck },
+    { schema: opts.schema, extraCheck: opts.extraCheck, stripAdditionalProperties: opts.stripAdditionalProperties },
   )
 }

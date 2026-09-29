@@ -69,10 +69,10 @@
  * **v7(2026-09-29, task-010 후속 — A4 1차 응답 스키마 밖 필드로 인한 재시도 줄이기)** — 운영 반영 뒤 라이브 재측정
  * (Leader 01:50 절)에서 `checkLessonResponse`④(콘텐츠 매칭) 외의 새 재시도 원인이 드러났다: 1차 응답의 `quiz[]` 에
  * 스키마 밖 필드(`q`·`conjugationNote`)가 붙어 ajv `additionalProperties` 위반 → 재시도(+약 30s, 한 번은 재시도
- * 중 149s 상한 초과로 FAILED). `LESSON_SCHEMA` 를 `engine/json/schemaValidate.ts` 의
- * `enableAdditionalPropertiesStrip` 에 등록해 **필수 필드가 모두 있는 객체의 스키마 밖 키만 ajv 전에 결정적으로
+ * 중 149s 상한 초과로 FAILED). 요청에 `stripAdditionalProperties: true` 를 실어(task-019 — 처음엔 `LESSON_SCHEMA` 를
+ * 엔진 전역 WeakSet 에 등록했으나 REV-034 ⑥ 권고로 요청 옵션으로 옮겼다) **스키마 밖 키만 ajv 전에 결정적으로
  * 지운다**(필드 이름이 통째로 바뀐 경우는 손대지 않는다 — 그 required 자리는 여전히 비어 있어 지금처럼 재시도로
- * 간다, `schemas.ts` `LESSON_SCHEMA` 주석 참고). 아래 지시문에도 "정해진 키만 쓰라"는 한 줄을 추가했다(근본
+ * 간다, `engine/json/schemaValidate.ts` "스키마 밖 필드 제거" 절 참고). 아래 지시문에도 "정해진 키만 쓰라"는 한 줄을 추가했다(근본
  * 발생률을 낮추는 보조 수단 — 핵심 방어는 위 결정적 제거다). 스키마·`repair.ts`·`checks.ts` 의 나머지 로직은
  * 바꾸지 않았다. 재측정 표는 `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`(§12).
  */
@@ -301,6 +301,8 @@ export function buildLessonRequest(input: LessonInput): LessonRequest {
     system,
     messages: [{ role: 'user', content: dataBlock }],
     jsonSchema: LESSON_SCHEMA,
+    // v7 — 1차 응답의 quiz[] 등에 붙는 스키마 밖 참고용 키(q·conjugationNote)로 재시도하지 않게 ajv 전에 지운다(키 경로만 로그).
+    stripAdditionalProperties: true,
     // 보정 먼저(LLM 재호출 없이 결정적으로 고침), 남은 위반만 checkLessonResponse 가 잡아 필요하면 재시도로 보낸다.
     // `data` 는 engine.llm.completeJson 이 최종적으로 돌려주는 것과 같은 참조라 in-place 보정이 그대로 반영된다
     // (repair.ts 상단 주석 — 엔진 코드는 손대지 않았다, 읽기 전용으로 확인).

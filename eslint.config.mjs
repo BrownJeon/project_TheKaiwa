@@ -15,6 +15,32 @@ import nextTs from 'eslint-config-next/typescript'
  */
 const NATIVE_PACKAGES = { regex: '^(@capacitor/|@capacitor-community/|@thekaiwa/sherpa-stt)', message: '웹 번들은 네이티브 패키지를 import 하지 않는다 — @/modules/infra/native 의 bridge 만(module-dependency §6)' }
 
+/**
+ * 모듈 경계를 넘는 **상대 경로** import 금지(task-019, REV-034 ⑤ — `../../engine/json/schemaValidate` 가 아래 `@/modules/…` 별칭
+ * 패턴을 그대로 통과했다). `no-restricted-imports` 는 import 문자열만 보고 파일 위치를 모르므로 **모듈 루트에서의 깊이 d 마다
+ * 블록을 따로** 만든다: 깊이 d 파일에서 `..` 를 d+1 번 오르면 `src/modules`, d+2 번이면 `src` — 거기서 다시 내려가는 경로(다른
+ * 모듈·app·components·types)를 막는다. 같은 모듈 안(≤ d 번)은 허용하고, 모듈 밖 저장소 파일(`package.json`·`prisma/seed-data`,
+ * d+3 번 올라 루트)도 허용하되 루트에서 `src` 로 되돌아오는 경로는 막는다. 셈을 속일 수 있는 정규화되지 않은 경로
+ * (`./x/../../y`·`.././..`)는 통째로 금지. 동적 `import()` 는 이 규칙 대상이 아니다(ESLint 규칙 한계).
+ * 테스트(`__tests__/**`·`*.test.ts`)는 다른 모듈 내부를 화이트박스로 import 하는 기존 관례(24건)라 이 패턴만 뺀다 — 별칭 경계는 그대로.
+ */
+const RELATIVE_MAX_DEPTH = 5
+const TEST_FILES = ['**/__tests__/**', '**/*.test.{ts,tsx}']
+const NON_NORMALIZED = '^\\.(?=.*(?:/\\.(?:/|$)|/(?!\\.\\.?(?:/|$))[^/]+/\\.\\.(?:/|$)))'
+function relativeEscape(depth, message) {
+  const msg = `${message} (모듈 밖 상대 경로 금지 — 다른 모듈은 @/modules/<모듈> 공개 API, 그 밖 src 는 @/…)`
+  if (depth > RELATIVE_MAX_DEPTH) {
+    return [{ regex: '^(?:\\./)?\\.\\.(?:/|$)', message: `${msg} — 모듈 안 ${RELATIVE_MAX_DEPTH}단계보다 깊은 파일은 상위 상대 경로를 쓰지 않는다` }]
+  }
+  return [
+    // 정확히 d+1(→ src/modules/*) 또는 d+2(→ src/*) 번 오른 뒤 끝나거나 내려가는 경로.
+    { regex: `^(?:\\./)?(?:\\.\\./){${depth}}(?:\\.\\./)?\\.\\.(?:$|/(?!\\.\\.(?:/|$)))`, message: msg },
+    // 저장소 루트까지 올랐다가 src 로 되돌아오는 경로.
+    { regex: `^(?:\\./)?(?:\\.\\./){${depth + 3}}src(?:/|$)`, message: msg },
+    { regex: NON_NORMALIZED, message: `${msg} — 정규화되지 않은 상대 경로(./x/../..) 금지` },
+  ]
+}
+
 function boundary(files, banned, indexOnly, message, allowSub = [], banInfraRoot = false, banRoots = []) {
   // 모듈(src/modules/**)은 라우트·화면을 모른다. 라우트는 컴포넌트를 쓰고, 컴포넌트는 라우트를 import 하지 않는다.
   const ui = files.startsWith('src/modules/') ? '^@/(app|components)/' : files.startsWith('src/components/') ? '^@/app/' : null
@@ -26,7 +52,16 @@ function boundary(files, banned, indexOnly, message, allowSub = [], banInfraRoot
   }
   if (banInfraRoot) patterns.push({ regex: '^@/modules/infra$', message: `${message} (infra index 는 Prisma 를 포함)` })
   if (banRoots.length) patterns.push({ regex: `^@/modules/(${banRoots.join('|')})$`, message: `${message} (서버 코드가 든 루트 index — 클라이언트 진입점만)` })
-  return [{ files: [files.endsWith('**') ? `${files}/*.{ts,tsx}` : files], rules: { 'no-restricted-imports': ['error', { patterns }] } }]
+  const blocks = [{ files: [files.endsWith('**') ? `${files}/*.{ts,tsx}` : files], rules: { 'no-restricted-imports': ['error', { patterns }] } }]
+  // 모듈 블록(`src/modules/<m>/**`)만 — 위 블록을 깊이별 블록이 덮어 상대 경로 패턴을 더한다(테스트 파일은 위 블록 그대로).
+  const moduleRoot = /^src\/modules\/[^/]+\/\*\*$/.test(files) ? files.slice(0, -2) : null
+  if (moduleRoot) {
+    for (let d = 0; d <= RELATIVE_MAX_DEPTH + 1; d++) {
+      const glob = d > RELATIVE_MAX_DEPTH ? `${moduleRoot}${'*/'.repeat(d)}**/*.{ts,tsx}` : `${moduleRoot}${'*/'.repeat(d)}*.{ts,tsx}`
+      blocks.push({ files: [glob], ignores: TEST_FILES, rules: { 'no-restricted-imports': ['error', { patterns: [...patterns, ...relativeEscape(d, message)] }] } })
+    }
+  }
+  return blocks
 }
 
 const eslintConfig = defineConfig([
@@ -63,7 +98,7 @@ const eslintConfig = defineConfig([
   // ── 6층 import 경계(module-dependency.md §3-1 행렬) ──────────────────────────────────────────
   // `group` 글롭은 `*` 가 `/` 를 넘지 않아 깊이마다 따로 적어야 하고 한 단계만 빠져도 뚫린다(reviewer 2026-09-26 High-1).
   // 그래서 **정규식**으로 "금지 모듈(모든 깊이)" 과 "허용 모듈의 내부 경로(index 우회)" 를 함께 막는다.
-  // 같은 모듈 안에서는 상대 경로(./x)를 쓰므로 이 규칙에 걸리지 않는다.
+  // 같은 모듈 안에서는 상대 경로(./x)를 쓰므로 이 규칙에 걸리지 않는다 — 모듈 밖으로 나가는 상대 경로는 `relativeEscape` 가 막는다(task-019).
   ...boundary('src/modules/infra/**', ['admin', 'preferences', 'conversation', 'learning', 'speech', 'engine'], [], 'infra(L6) 는 상위 층을 import 하지 않는다'),
   ...boundary('src/modules/engine/**', ['admin', 'preferences', 'conversation', 'learning', 'speech'], ['infra'], 'engine(L5) 는 infra 공개 API 만 import 한다'),
   ...boundary('src/modules/preferences/**', ['admin', 'conversation', 'learning', 'speech', 'engine'], ['infra'], 'preferences(L1) 는 infra 만 import 한다'),
@@ -94,7 +129,8 @@ const eslintConfig = defineConfig([
             NATIVE_PACKAGES,
             { regex: '^@/(app|components)/', message: 'speech 클라이언트는 화면을 import 하지 않는다' },
             { regex: '^@/modules/(?!infra/native(/|$))', message: 'speech 클라이언트는 서버 모듈을 import 하지 않는다(네이티브 브리지만 허용)' },
-            { regex: '^\\.\\.(/|$)', message: 'speech 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다' },
+            { regex: '^(?:\\./)?\\.\\.(/|$)', message: 'speech 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다' },
+            { regex: NON_NORMALIZED, message: 'speech 클라이언트는 정규화되지 않은 상대 경로(./x/../..)를 쓰지 않는다' },
             { regex: '^(node:|@prisma/|next/(server|headers)$|jsonwebtoken$|jose$)', message: 'speech 클라이언트는 서버 전용 패키지를 import 하지 않는다' },
           ],
         },
@@ -112,7 +148,8 @@ const eslintConfig = defineConfig([
             NATIVE_PACKAGES,
             { regex: '^@/(app|components)/', message: 'speech 클라이언트는 화면을 import 하지 않는다(오디오·fetch 는 주입)' },
             { regex: '^@/modules/', message: 'TTS 클라이언트는 다른 모듈을 import 하지 않는다' },
-            { regex: '^\\.\\.(/(?!sentences$)|$)', message: 'TTS 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다 — 순수 ../sentences 만' },
+            { regex: '^(?:\\./)?\\.\\.(/(?!sentences$)|$)', message: 'TTS 클라이언트는 speech 서버 파일(상위 경로)을 import 하지 않는다 — 순수 ../sentences 만' },
+            { regex: NON_NORMALIZED, message: 'TTS 클라이언트는 정규화되지 않은 상대 경로(./x/../..)를 쓰지 않는다' },
             { regex: '^(node:|@prisma/|next/(server|headers)$|jsonwebtoken$|jose$)', message: 'speech 클라이언트는 서버 전용 패키지를 import 하지 않는다' },
           ],
         },

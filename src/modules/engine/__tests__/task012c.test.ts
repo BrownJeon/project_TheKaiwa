@@ -324,11 +324,20 @@ test('buildChildEnv — 허용 목록(fail-closed): 시크릿·세션 주입 변
     NODE_OPTIONS: '--inspect',
     VSCODE_IPC_HOOK_CLI: '/tmp/x',
     npm_config_token: 'npm',
+    // task-019(REV-035 재검 Low) — 프록시 URL 은 userinfo(자격 증명)를 담을 수 있어 허용 목록에서 뺐다.
+    HTTP_PROXY: 'http://u:p@proxy:3128',
+    HTTPS_PROXY: 'http://u:p@proxy:3128',
+    ALL_PROXY: 'socks5://u:p@proxy:1080',
+    NO_PROXY: 'localhost',
+    http_proxy: 'http://u:p@proxy:3128',
+    https_proxy: 'http://u:p@proxy:3128',
+    all_proxy: 'socks5://u:p@proxy:1080',
+    no_proxy: 'localhost',
   }
   const env = buildChildEnv(source, { thinking: false, home: '/home/u', npmGlobalBinExists: true })
   const allowed = new Set([...CHILD_ENV_ALLOW, 'MAX_THINKING_TOKENS'])
   for (const k of Object.keys(env)) assert.ok(allowed.has(k) || /^LC_[A-Z]+$/.test(k), `허용 목록 밖 키: ${k}`)
-  for (const k of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'JWT_SECRET', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_NEW_THING', 'HOME_M4_API_KEY', 'TTS_SERVICE_SECRET', 'SPEECH_INTERNAL_SECRET', 'SIGNUP_INVITE_CODE', 'BRAND_NEW_SECRET', 'PAYMENT_API_TOKEN', 'SOME_PASSWORD', 'NODE_OPTIONS', 'VSCODE_IPC_HOOK_CLI', 'npm_config_token']) {
+  for (const k of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'JWT_SECRET', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_NEW_THING', 'HOME_M4_API_KEY', 'TTS_SERVICE_SECRET', 'SPEECH_INTERNAL_SECRET', 'SIGNUP_INVITE_CODE', 'BRAND_NEW_SECRET', 'PAYMENT_API_TOKEN', 'SOME_PASSWORD', 'NODE_OPTIONS', 'VSCODE_IPC_HOOK_CLI', 'npm_config_token', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy']) {
     assert.equal(k in env, false, k)
   }
   assert.equal(env.PATH, '/home/u/.npm-global/bin:/usr/bin:/bin')
@@ -358,6 +367,7 @@ test('buildChildEnv — 무작위 새 시크릿 이름(*_SECRET·*_TOKEN·*_KEY�
 test('CHILD_ENV_ALLOW — 허용 목록 자체에 시크릿 형태 이름·전역 거부 분류 이름이 없다', () => {
   for (const k of CHILD_ENV_ALLOW) {
     assert.equal(/SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|DATABASE|COOKIE|CREDENTIAL/i.test(k), false, k)
+    assert.equal(/PROXY/i.test(k), false, `프록시 env 는 자격 증명을 담을 수 있어 넘기지 않는다(task-019): ${k}`)
     assert.equal(isDeniedCredentialRef(`env:${k.toUpperCase()}`), false, k)
   }
 })

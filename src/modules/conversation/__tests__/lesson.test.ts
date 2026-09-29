@@ -735,13 +735,18 @@ test('lesson@v7: 프롬프트 버전, "정해진 키만 씁니다" 지시문이 
   assert.match(req.system, /q, note, conjugationNote/, '스키마 밖 참고용 키를 만들지 말라는 지시가 있어야 한다')
 })
 
+test('lesson@v7(task-019): buildLessonRequest 가 요청 옵션 stripAdditionalProperties 를 켠다(주제·sourceText 두 경로 모두)', () => {
+  assert.equal(buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic }).stripAdditionalProperties, true)
+  assert.equal(buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText }).stripAdditionalProperties, true)
+})
+
 test('lesson@v7: quiz[] 에 스키마 밖 필드(q·conjugationNote)가 붙어도 필수 필드가 다 있으면 ajv 전에 지워지고 통과한다(재시도 없이)', () => {
   const ok = validLessonResponse(fixture.topic)
   const raw = JSON.stringify({
     ...ok,
     quiz: ok.quiz.map((q, i) => (i === 0 ? { ...q, q: '이건 중복 필드', conjugationNote: '활용 메모' } : q)),
   })
-  const result = extractAndValidate(raw, LESSON_SCHEMA)
+  const result = extractAndValidate(raw, LESSON_SCHEMA, { stripAdditionalProperties: true })
   assert.equal(result.ok, true, 'additionalProperties 위반이 아니라 통과해야 한다')
   if (!result.ok) return
   const data = result.data as LessonResponse
@@ -759,7 +764,7 @@ test('lesson@v7: 스키마 밖 필드를 지워도 다른 필수 필드가 정�
     return { ...rest, q: '질문 텍스트' }
   })
   const raw = JSON.stringify({ ...ok, quiz: broken })
-  const result = extractAndValidate(raw, LESSON_SCHEMA)
+  const result = extractAndValidate(raw, LESSON_SCHEMA, { stripAdditionalProperties: true })
   assert.equal(result.ok, false, 'promptKo·promptJa 가 없으니 여전히 실패해야 한다(q 를 promptJa 로 추측하지 않는다)')
   if (result.ok || result.parseError) return
   assert.ok(
@@ -768,7 +773,14 @@ test('lesson@v7: 스키마 밖 필드를 지워도 다른 필수 필드가 정�
   )
 })
 
-test('lesson@v7: 등록하지 않은 다른 스키마(TALK)는 스키마 밖 필드를 지우지 않는다 — 동작이 그대로다', () => {
+test('lesson@v7(task-019): 옵션을 켜지 않으면 LESSON_SCHEMA 여도 지우지 않는다 — 스키마가 아니라 요청이 켠다', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const raw = JSON.stringify({ ...ok, quiz: ok.quiz.map((q, i) => (i === 0 ? { ...q, q: '스키마 밖' } : q)) })
+  const result = extractAndValidate(raw, LESSON_SCHEMA)
+  assert.equal(result.ok, false, '옵션 없는 호출(다른 A 지점과 같은 경로)은 지금처럼 additionalProperties 위반이어야 한다')
+})
+
+test('lesson@v7: 옵션을 켜지 않는 다른 스키마(TALK)는 스키마 밖 필드를 지우지 않는다 — 동작이 그대로다', () => {
   const validTalk = {
     speech: { style: 'NEUTRAL' },
     conversation: { replyJa: 'こんにちは。', replyReading: 'こんにちは。', replyKo: '안녕하세요.' },
@@ -779,7 +791,66 @@ test('lesson@v7: 등록하지 않은 다른 스키마(TALK)는 스키마 밖 필
   }
   const raw = JSON.stringify({ ...validTalk, conversation: { ...validTalk.conversation, extraField: '스키마 밖' } })
   const result = extractAndValidate(raw, TALK_SCHEMA)
-  assert.equal(result.ok, false, 'TALK_SCHEMA 는 등록하지 않았으므로 지금처럼 additionalProperties 위반으로 실패해야 한다')
+  assert.equal(result.ok, false, 'TALK 요청은 옵션을 켜지 않으므로 지금처럼 additionalProperties 위반으로 실패해야 한다')
+})
+
+test('lesson@v7(task-019): completeJson 이 요청 옵션을 끝까지 전달한다 — 켜면 1회(키 경로만 로그), 끄면 지금처럼 재시도', async (t) => {
+  const ok = validLessonResponse(fixture.topic)
+  const withExtra = JSON.stringify({ ...ok, quiz: ok.quiz.map((q, i) => (i === 0 ? { ...q, q: '중복 질문', conjugationNote: '활용 메모' } : q)) })
+  const clean = JSON.stringify(ok)
+  // 가짜 LLM(home-m4 형식) — 경로별 응답 순서가 곧 시도 순서다. /on 은 옵션 켠 요청, /off 는 끈 요청.
+  const script: Record<string, string[]> = { '/on/v1/chat': [withExtra], '/off/v1/chat': [withExtra, clean] }
+  const hits: string[] = []
+  const server = createServer((rq, rs) => {
+    rq.resume()
+    rq.on('end', () => {
+      const path = rq.url ?? ''
+      hits.push(path)
+      const next = script[path]?.shift()
+      if (next === undefined) {
+        rs.writeHead(500).end('unexpected call')
+        return
+      }
+      rs.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ message: { content: next } }))
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as AddressInfo).port
+  const keyEnv = 'HOME_M4_API_KEY'
+  const prevKey = process.env[keyEnv]
+  const prevBase = process.env.AI_API_BASE
+  process.env[keyEnv] = 'test-only'
+  process.env.AI_API_BASE = `http://127.0.0.1:${port}`
+  let base = '/on'
+  mock.method(routerDeps, 'loadChain', async () => [
+    { id: 'fake', key: 'fake', engineId: 'home-m4-api', connectionType: 'HTTP', connection: { baseUrl: `http://127.0.0.1:${port}${base}` }, runtime: { model: 'fake-model' }, credentialRef: `env:${keyEnv}` } satisfies ResolvedConnection,
+  ])
+  const infoLines: string[] = []
+  mock.method(console, 'info', (...a: unknown[]) => void infoLines.push(a.map(String).join(' ')))
+  mock.method(console, 'warn', () => {})
+  t.after(() => {
+    mock.restoreAll()
+    server.closeAllConnections()
+    server.close()
+    if (prevKey === undefined) delete process.env[keyEnv]
+    else process.env[keyEnv] = prevKey
+    if (prevBase === undefined) delete process.env.AI_API_BASE
+    else process.env.AI_API_BASE = prevBase
+  })
+
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const on = await completeJson<LessonResponse>(req)
+  assert.equal(on.attempts, 1, '옵션을 켜면 스키마 밖 키 때문에 재시도하지 않는다')
+  assert.ok(!('q' in on.data.quiz[0]) && !('conjugationNote' in on.data.quiz[0]))
+  const stripLog = infoLines.filter((l) => l.startsWith('[json] 스키마 밖 필드 제거'))
+  assert.deepEqual(stripLog, ['[json] 스키마 밖 필드 제거: quiz/0/q, quiz/0/conjugationNote'], '로그는 키 경로만(값 없음)')
+
+  base = '/off'
+  infoLines.length = 0
+  const off = await completeJson<LessonResponse>({ ...req, stripAdditionalProperties: false })
+  assert.equal(off.attempts, 2, '옵션을 끄면 지금처럼 additionalProperties 위반 → 재시도')
+  assert.equal(infoLines.filter((l) => l.startsWith('[json] 스키마 밖 필드 제거')).length, 0)
+  assert.deepEqual(hits, ['/on/v1/chat', '/off/v1/chat', '/off/v1/chat'])
 })
 
 // ── persona §6 LESSON 행 ──────────────────────────────────────────────

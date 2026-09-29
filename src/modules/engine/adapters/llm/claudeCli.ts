@@ -309,6 +309,9 @@ export function buildClaudeArgs(prompt: string, opts: ClaudeCliOptions = {}): st
  * - Claude Code 가 자기 세션에서 주입한 변수(`CLAUDECODE`·`CLAUDE_CODE_ENTRYPOINT`…)는 목록에 없어 자동으로 빠진다 — 남으면 중첩 실행으로 오인.
  * - `NODE_OPTIONS` 는 넘기지 않는다(dev 서버의 inspect·메모리 플래그가 CLI 에 섞이지 않게).
  * - `~/.npm-global/bin` 을 PATH 앞에 붙이는 이유: 시스템 `/usr/bin/claude` 가 구버전일 때 `--json-schema`/`--tools` 동작이 다르다(bjj 실측).
+ * - 프록시 env(`HTTP(S)_PROXY`·`ALL_PROXY`·`NO_PROXY`, 대소문자)는 넘기지 않는다(task-019, REV-035 재검 Low) — 값이
+ *   `http://user:pass@host` 형태면 자격 증명이 그대로 자식에 간다. 2026-09-29 운영(pm2 thekaiwa·shared/.env)·개발(.env·미러) 어디에도
+ *   없음을 확인했다. 필요해지면 `new URL(v)` 로 username/password 를 지운 값만 넘기는 정제를 붙여 다시 넣는다.
  */
 export const CHILD_ENV_ALLOW: readonly string[] = [
   'PATH',
@@ -333,12 +336,6 @@ export const CHILD_ENV_ALLOW: readonly string[] = [
   'NODE_EXTRA_CA_CERTS',
   'SSL_CERT_FILE',
   'SSL_CERT_DIR',
-  'HTTP_PROXY',
-  'HTTPS_PROXY',
-  'NO_PROXY',
-  'http_proxy',
-  'https_proxy',
-  'no_proxy',
   // Claude CLI 가 읽는 비시크릿 설정(설정 디렉터리·자동 업데이트·원격 보고 끄기).
   'CLAUDE_CONFIG_DIR',
   'DISABLE_AUTOUPDATER',

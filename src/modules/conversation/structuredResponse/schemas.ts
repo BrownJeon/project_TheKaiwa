@@ -2,9 +2,6 @@
  * §67 구조화 응답 JSON 스키마(ajv 재검증 + Claude CLI `--json-schema` 공용). 필드명은 api-contract #32 `done` 과 같다.
  * 스키마가 표현하지 못하는 규칙(원문 바이트 일치·2문장 상한)은 `checks.ts` 의 후검증이 맡는다.
  */
-// `LESSON_SCHEMA` 만 스키마 밖 필드 제거를 켠다(아래 `enableAdditionalPropertiesStrip(LESSON_SCHEMA)` 참고).
-import { enableAdditionalPropertiesStrip } from '@/modules/engine'
-
 export const ERROR_TYPES = ['GRAMMAR', 'PARTICLE', 'CONJUGATION', 'VOCABULARY', 'POLITENESS', 'NATURALNESS', 'WORD_ORDER', 'OTHER'] as const
 export const SEVERITIES = ['MINOR', 'MAJOR'] as const
 export const CHUNK_TYPES = ['NAME', 'ACTION', 'FEELING', 'MODIFIER'] as const
@@ -465,18 +462,3 @@ export const LESSON_SCHEMA = {
     nextPreview: lessonNextPreview,
   },
 } as const
-
-/**
- * 2026-09-29(task-010 후속, prompt-engineer) — A4 실측(task-010 이력서 "2026-09-29 01:50 Leader")에서 1차 응답의
- * `quiz[]` 항목에 스키마 밖 필드(`q`·`conjugationNote`)가 붙어 ajv `additionalProperties` 위반 → 불필요한 재시도
- * (+약 30s, 한 번은 재시도 중 149s 상한 초과로 FAILED)가 났다. `enableAdditionalPropertiesStrip`(engine/json/
- * schemaValidate.ts)에 `LESSON_SCHEMA` 를 등록하면 파싱 직후·ajv 검증 직전에 **필수 필드는 그대로 둔 채 스키마
- * 밖 키만** 지운다 — 이름이 통째로 바뀐 경우(예: `promptJa` 대신 `q`)는 그 필수 필드가 여전히 비어 있어 ajv 가
- * 그대로 잡고 지금처럼 재시도한다(추측 매핑 없음, `schemaValidate.ts` 상단 주석 참고). LESSON 하나만 등록하므로
- * TALK·CHAT·WORD_ENRICH·CHAT_REVIEW·EVAL_GEN·EVAL_GRADE 등 다른 A 지점 스키마 동작은 전혀 바뀌지 않는다.
- *
- * 처음엔 `engine/json/schemaValidate` 를 직접 import 했으나(task-012c 와 `engine/index.ts` 동시 수정 회피) REV-034 High
- * (6층 규칙 "index.ts 우회 import")로 `@/modules/engine` 배럴 export 로 바꿨다(두 작업을 한 커밋으로 냄). 요청 옵션
- * 방식(`LlmJsonRequest.stripAdditionalProperties`)으로의 전환은 REV-034 Medium — 후속 백로그.
- */
-enableAdditionalPropertiesStrip(LESSON_SCHEMA)
