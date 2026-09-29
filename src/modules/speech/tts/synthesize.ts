@@ -75,6 +75,11 @@ export interface SynthesizeResult {
 
 const SETTING_CACHE_MS = 30_000
 const settingCache = new Map<string, { at: number; value: unknown }>()
+/** 관리자 설정 적용 직후(task-012c D-C7) — 이 프로세스의 AppSetting 30초 캐시를 비운다. 다른 프로세스는 TTL 로 따라온다. */
+export function clearTtsSettingCache(): void {
+  settingCache.clear()
+}
+
 async function cachedSetting<T>(key: string, fallback: T): Promise<T> {
   const hit = settingCache.get(key)
   if (hit && Date.now() - hit.at < SETTING_CACHE_MS) return hit.value as T

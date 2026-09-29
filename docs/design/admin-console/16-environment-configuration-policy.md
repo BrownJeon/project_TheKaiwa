@@ -13,6 +13,8 @@
 
 ## 3. 환경과 `APP_ENV`
 
+> **교차 환경 쓰기(task-012c, Leader 2026-09-29 12:10 — 정본 `../configuration-resolution.md` §7·§8-1)**: 대상 행이 PRODUCTION 이고 프로세스 `APP_ENV` 와 다르면(LOCAL 콘솔 → 운영 행) 그 프로세스는 대상 환경으로 기능 테스트를 돌릴 수 없다. 그래서 **바뀐 키가 전부 `NOT_NEEDED`(끄기·예비 빼기·순서·표시 전용)일 때만** 허용하고, 아니면 `403 CROSS_ENVIRONMENT_TEST_UNAVAILABLE`. `config/test` 교차 호출은 항상 같은 403. 허용될 때도 SUPER_ADMIN(`environment.policy`)·`confirm:"PRODUCTION"`·이유 10자 이상·감사 `crossEnvironment:true`. 운영 설정은 운영 콘솔(운영 프로세스)에서 바꾸는 것이 기본이다. 또 `VoiceProfile` 처럼 environment 칸이 없는 전역 행은 이 분리가 통하지 않아 012c 편집에서 뺐다(D-C14 → 012c-2).
+
 | Environment | 사용 | 프로세스 | DB |
 |---|---|---|---|
 | `LOCAL` | 개발 미러(`~/.node-local/thekaiwa`, 맥 로컬) | `APP_ENV=LOCAL` | NAS MariaDB 공용, `environment=LOCAL` 행 |

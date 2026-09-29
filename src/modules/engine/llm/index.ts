@@ -186,7 +186,7 @@ async function callOnce(
     // 재시도 힌트는 학습자 입력 블록이 아니라 지시 쪽에 붙인다 — [입력] 뒤에 오면 학습자 말처럼 읽힌다.
     if (retry) system += `\n\n[이전 응답]\n${retry.previousRaw}\n\n[재시도 지시]\n${retry.hint}`
     const prompt = renderTranscript(system, req.messages)
-    const streamDeltas = Boolean(onDelta) && c.runtime.earlySentenceTts !== false
+    const streamDeltas = Boolean(onDelta) && runtimeReaders.earlySentence(c)
     const startedAt = Date.now()
     const r = await callClaudeDetailed(prompt, {
       ...opts,
@@ -209,6 +209,19 @@ async function callOnce(
     return { text, model, promptChars: messages.reduce((n, m) => n + m.content.length, 0), warm: null, firstDeltaAt: null }
   }
   throw new LlmContractError(`LLM 어댑터가 없는 엔진입니다: ${c.engineId}`)
+}
+
+/**
+ * 런타임이 연결 행에서 실제로 읽는 값 — 호출·예열 경로가 이 함수들만 쓴다(task-012c D-C4 "런타임 실사용값 == Effective" 단위 테스트의 대조 대상).
+ */
+export const runtimeReaders = {
+  model: (c: ResolvedConnection, tier: LlmTier) => modelFor(c, tier),
+  jsonSchemaFlag: (c: ResolvedConnection) => claudeShape(c, { task: 'wordEnrich', system: '', messages: [], jsonSchema: {} }, 'fast').useFlag,
+  thinking: (c: ResolvedConnection) => claudeShape(c, { task: 'wordEnrich', system: '', messages: [] }, 'deep').opts.thinking === true,
+  earlySentence: (c: ResolvedConnection) => c.runtime.earlySentenceTts !== false,
+  prewarm: (c: ResolvedConnection) => c.runtime.prewarm !== false,
+  prewarmMaxIdle: (c: ResolvedConnection) => intRuntime(c, 'prewarmMaxIdle', 2, 0, 4),
+  prewarmIdleTtlSec: (c: ResolvedConnection) => intRuntime(c, 'prewarmIdleTtlSec', 600, 60, 3_600),
 }
 
 export async function complete(req: LlmRequest): Promise<LlmTextResult> {
@@ -278,11 +291,11 @@ export async function prewarm(req: LlmRequest): Promise<PrewarmOutcome | 'NOT_AP
     const spec = LLM_TASKS[req.task]
     const tier = req.tier ?? spec.tier
     const [c] = await resolveCandidates('LLM', { task: req.task })
-    if (!c || c.engineId !== 'claude-cli' || c.runtime.prewarm === false) return 'NOT_APPLICABLE'
+    if (!c || c.engineId !== 'claude-cli' || !runtimeReaders.prewarm(c)) return 'NOT_APPLICABLE'
     const { opts } = claudeShape(c, req, tier)
     return prewarmClaude(opts, {
-      maxIdle: intRuntime(c, 'prewarmMaxIdle', 2, 0, 4),
-      idleTtlMs: intRuntime(c, 'prewarmIdleTtlSec', 600, 60, 3_600) * 1_000,
+      maxIdle: runtimeReaders.prewarmMaxIdle(c),
+      idleTtlMs: runtimeReaders.prewarmIdleTtlSec(c) * 1_000,
     })
   } catch {
     return 'FAILED'
@@ -309,13 +322,15 @@ export interface ProbeResult {
   errorName: string | null
   /** 설정 때문에 호출하지 않은 실패만(`LlmMisconfiguredError.code` — TARGET_NOT_ALLOWED 등). 그 밖은 null(기존 errorName 매핑). */
   errorCode: string | null
+  /** `stream` 요청일 때만: 받은 텍스트 조각 수(첫 문장 조기 추출 경로 확인 — task-012c config/test). */
+  deltas?: number
 }
 
 /**
  * **지정한 connection 하나**에 고정 JSON 스키마 요청을 1회 보낸다(재시도·폴백 없음). Router 를 거치지 않으므로 콘솔 Functional Test 전용이다.
  * 프롬프트는 상수이고 응답 본문은 돌려주지 않는다(길이·스키마 통과 여부만).
  */
-export async function probeConnection(c: ResolvedConnection, timeoutMs = 30_000): Promise<ProbeResult> {
+export async function probeConnection(c: ResolvedConnection, timeoutMs = 30_000, opts: { tier?: LlmTier; stream?: boolean } = {}): Promise<ProbeResult> {
   const startedAt = Date.now()
   const req: LlmRequest = {
     task: 'wordEnrich',
@@ -324,11 +339,22 @@ export async function probeConnection(c: ResolvedConnection, timeoutMs = 30_000)
     jsonSchema: PROBE_SCHEMA,
   }
   let model = ''
+  let deltas = 0
+  const onDelta = opts.stream ? () => void deltas++ : undefined
   try {
-    const out = await callOnce(c, req, 'fast', timeoutMs, 'interactive', null)
+    const out = await callOnce(c, req, opts.tier ?? 'fast', timeoutMs, 'interactive', null, onDelta)
     model = out.model
     const v = extractAndValidate(out.text, PROBE_SCHEMA)
-    return { ok: v.ok, schemaValid: v.ok, model, outputChars: out.text.length, elapsedMs: Date.now() - startedAt, errorName: v.ok ? null : 'JsonSchemaError', errorCode: null }
+    return {
+      ok: v.ok,
+      schemaValid: v.ok,
+      model,
+      outputChars: out.text.length,
+      elapsedMs: Date.now() - startedAt,
+      errorName: v.ok ? null : 'JsonSchemaError',
+      errorCode: null,
+      ...(opts.stream ? { deltas } : {}),
+    }
   } catch (e) {
     const name = (e as { name?: string })?.name
     return {

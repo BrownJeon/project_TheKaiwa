@@ -91,6 +91,49 @@ export async function getAppSetting<T>(key: string, fallback: T): Promise<T> {
   return row ? (row.value as T) : fallback
 }
 
+// ── AppSetting 쓰기(task-012c #123b — 호출자(admin)가 연 트랜잭션 안에서만, 버전·감사와 한 트랜잭션) ──────────
+
+export interface AppSettingRow {
+  environment: Environment
+  key: string
+  value: unknown
+  description: string | null
+  editability: string
+  updatedAt: Date
+}
+
+/** 환경·키 행을 잠그고(`SELECT … FOR UPDATE`) 읽는다. 행이 없으면 null(생성 경합은 PK 충돌로 막힌다). */
+export async function lockAppSettingForUpdate(tx: Prisma.TransactionClient, environment: Environment, key: string): Promise<AppSettingRow | null> {
+  const rows = await tx.$queryRaw<{ key: string }[]>`SELECT \`key\` FROM AppSetting WHERE environment = ${environment} AND \`key\` = ${key} FOR UPDATE`
+  if (rows.length === 0) return null
+  return tx.appSetting.findUnique({ where: { environment_key: { environment, key } } })
+}
+
+export async function readAppSettingRow(environment: Environment, key: string): Promise<AppSettingRow | null> {
+  return prisma.appSetting.findUnique({ where: { environment_key: { environment, key } } })
+}
+
+/**
+ * 값 물화. `exists:false` 면 행을 지운다(되돌리기가 "행 없음" 기준선으로 돌아갈 때). editability 칸은 기존 값을 유지하고, 새로 만들 때만 넣는다.
+ */
+export async function writeAppSetting(
+  tx: Prisma.TransactionClient,
+  environment: Environment,
+  key: string,
+  v: { exists: true; value: unknown; description: string | null; editability: 'READ_ONLY' | 'RUNTIME_EDITABLE' | 'RESTART_REQUIRED' | 'REDEPLOY_REQUIRED' | 'SECRET' } | { exists: false },
+): Promise<void> {
+  if (!v.exists) {
+    await tx.appSetting.deleteMany({ where: { environment, key } })
+    return
+  }
+  const value = (v.value === null ? Prisma.JsonNull : (JSON.parse(JSON.stringify(v.value)) as Prisma.InputJsonValue)) as Prisma.InputJsonValue
+  await tx.appSetting.upsert({
+    where: { environment_key: { environment, key } },
+    update: { value },
+    create: { environment, key, value, description: v.description?.slice(0, 300) ?? null, editability: v.editability },
+  })
+}
+
 /** Voice 별 사용자 수(관리자 #82 `usage.users`) — UserVoiceSetting 은 preferences 소유라 여기서 센다. */
 export async function countUsersByVoice(voiceProfileIds: string[]): Promise<Map<string, number>> {
   if (voiceProfileIds.length === 0) return new Map()

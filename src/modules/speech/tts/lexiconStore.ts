@@ -14,7 +14,7 @@
  * `@@unique([environment, version])` 이 마지막 방어선이다(동시 첫 쓰기 중 하나는 P2002 → 409).
  */
 import type { Environment, Prisma } from '@prisma/client'
-import { escapeLike, prisma, type Tx } from '@/modules/infra'
+import { escapeLike, maskText, prisma, type Tx } from '@/modules/infra'
 import type {
   LexiconDiffCountsDto,
   LexiconDiffRowDto,
@@ -497,7 +497,7 @@ export async function writeLexicon(tx: Tx, ctx: LexiconWriteContext, op: Lexicon
     }
 
     const after = applyPlan(rows, items)
-    const changeSummary = op.kind === 'ROLLBACK' ? rollbackSummary(op.targetVersion, ctx.reason) : summarize(label, items, after)
+    const changeSummary = op.kind === 'ROLLBACK' ? rollbackSummary(op.targetVersion, maskText(ctx.reason)) : summarize(label, items, after)
     await tx.pronunciationLexiconVersion.updateMany({ where: { environment, status: 'ACTIVE' }, data: { status: op.kind === 'ROLLBACK' ? 'ROLLED_BACK' : 'SUPERSEDED' } })
     const created = await tx.pronunciationLexiconVersion.create({
       data: {

@@ -80,13 +80,9 @@ function str(v: unknown, re: RegExp): string | null {
 const WS_PATH = /^\/[A-Za-z0-9/_-]{1,60}$/
 const MANIFEST = /^\/models\/[A-Za-z0-9._/-]{1,120}\.json$/
 
-async function loadRuntime(target: SttTarget): Promise<{ runtime: SttPublicRuntime; baseUrl: unknown }> {
-  const hit = runtimeCache.get(target.id)
-  if (hit && hit.updatedAt === target.updatedAt.getTime() && Date.now() - hit.at < RUNTIME_CACHE_MS) return hit
-  const row = await prisma.engineConnection.findUnique({ where: { id: target.id } })
-  if (!row) throw new Error('connection 이 사라졌습니다')
-  const v = (await profileOf(row)).values
-  const runtime: SttPublicRuntime = {
+/** Effective 값 → 클라이언트에 내줄 실행 값(순수 — task-012c 편집 키 "런타임 실사용값 == Effective" 테스트가 같은 함수를 쓴다). */
+export function publicRuntimeFromValues(v: Record<string, unknown>): SttPublicRuntime {
+  return {
     wsPath: str(v['connection.wsPath'], WS_PATH) ?? '/ws/speech',
     numThreads: int(v['runtime.numThreads']),
     decodingMethod: str(v['runtime.decodingMethod'], /^[a-z_]{1,30}$/),
@@ -97,6 +93,15 @@ async function loadRuntime(target: SttTarget): Promise<{ runtime: SttPublicRunti
     modelBytes: int(v['connection.modelBytes']),
     modelVersion: str(v['runtime.modelVersion'], /^[A-Za-z0-9._-]{1,80}$/),
   }
+}
+
+async function loadRuntime(target: SttTarget): Promise<{ runtime: SttPublicRuntime; baseUrl: unknown }> {
+  const hit = runtimeCache.get(target.id)
+  if (hit && hit.updatedAt === target.updatedAt.getTime() && Date.now() - hit.at < RUNTIME_CACHE_MS) return hit
+  const row = await prisma.engineConnection.findUnique({ where: { id: target.id } })
+  if (!row) throw new Error('connection 이 사라졌습니다')
+  const v = (await profileOf(row)).values
+  const runtime = publicRuntimeFromValues(v)
   const entry = { at: Date.now(), updatedAt: target.updatedAt.getTime(), runtime, baseUrl: v['connection.baseUrl'] }
   runtimeCache.set(target.id, entry)
   return entry

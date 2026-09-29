@@ -56,6 +56,28 @@ export {
 
 // Configuration · Diagnostics · Voices
 export { getEffectiveConfig } from './configuration/effective'
+// 설정 편집·버전·Rollback·감사(task-012c)
+export {
+  validateConfig,
+  diffConfig,
+  testConfig,
+  applyConfig,
+  getRawConfig,
+  putRawConfig,
+  updateConnectionForm,
+  setConnectionEnabled,
+  setConnectionCredential,
+  updateFallbackPolicy,
+  getAppSettingDto,
+  putAppSetting,
+  commitEdit,
+  parseScope,
+  parseBaseVersion,
+  parseRawJson,
+  PRODUCTION_CONFIRM,
+  TEST_RESULT_TTL_MS,
+} from './configuration/editor'
+export { listConfigVersions, getConfigVersion, rollbackConfigVersion, listAuditLogs } from './configuration/history'
 export { listTraceDtos, getTraceDto } from './diagnostics/traces'
 export type { TraceQuery } from './diagnostics/traces'
 export { listVoiceDtos, getVoiceDto } from './voices'

@@ -1,7 +1,7 @@
 /**
  * L4 `speech/tts` — TTS 플랫폼 층 공개면(speech-platform/16 §1.1). 라우트는 `@/modules/speech` 를 통해서만 쓴다.
  */
-export { synthesizeSentence, previewSettings, TTS_SEGMENT_MAX_CHARS, TTS_SENTENCE_TIMEOUT_MS } from './synthesize'
+export { synthesizeSentence, previewSettings, clearTtsSettingCache, TTS_SEGMENT_MAX_CHARS, TTS_SENTENCE_TIMEOUT_MS } from './synthesize'
 export { signTtsAudioToken, verifyTtsAudioToken, readSignedTtsAudio, TTS_AUDIO_URL_PATH, TTS_AUDIO_URL_TTL_SEC } from './audioUrl'
 export type { SignedTtsAudio, VerifiedTtsAudio, SignedAudioFile } from './audioUrl'
 export { createTurnSpeaker } from './turnSpeaker'
@@ -48,3 +48,6 @@ export { parseLexiconFile, formatLexiconCsv } from './lexiconCsv'
 export type { ParsedLexiconFile } from './lexiconCsv'
 export { previewLexiconReadings, previewLexiconAudio, PreviewTextTooLongError } from './lexiconPreview'
 export type { LexiconPreviewInput, LexiconPreviewAudio } from './lexiconPreview'
+// 설정 기능 테스트용 합성(task-012c #105 — AppSetting 미리듣기 문장·기본 목소리)
+export { probeTtsSynthesis, currentTtsConnection } from './configProbe'
+export type { TtsProbeInput, TtsProbeResult } from './configProbe'

@@ -102,11 +102,13 @@ test('사용자별 디바운스: 마지막 발화 +20초로 미루되 줄이지 
   assert.equal(debouncedRunAfter({ createdAt: at(-290_000), runAfter: at(10_000) }, NOW), null)
 })
 
-test('재확인 임계: 0.85, ACCURATE 0.90, AppSetting 숫자(0~1)면 그 값 · 판정 = similarity<임계 || flags', () => {
+test('재확인 임계: 0.85, ACCURATE 0.90, AppSetting 숫자(0~1)면 그 값(ACCURATE 는 max(값, 0.90) — task-012c ⑤) · 판정 = similarity<임계 || flags', () => {
   assert.equal(reviewThreshold('AUTO', null), 0.85)
   assert.equal(reviewThreshold('FAST', null), 0.85)
   assert.equal(reviewThreshold('ACCURATE', null), 0.9)
-  assert.equal(reviewThreshold('ACCURATE', 0.7), 0.7)
+  assert.equal(reviewThreshold('ACCURATE', 0.7), 0.9, '정확 모드는 설정을 낮춰도 0.90 아래로 내려가지 않는다')
+  assert.equal(reviewThreshold('ACCURATE', 0.95), 0.95)
+  assert.equal(reviewThreshold('AUTO', 0.7), 0.7)
   assert.equal(reviewThreshold('AUTO', 'x'), 0.85)
   assert.equal(reviewThreshold('AUTO', 1.5), 0.85)
   assert.equal(judgeReview(0.86, [], 0.85), false)

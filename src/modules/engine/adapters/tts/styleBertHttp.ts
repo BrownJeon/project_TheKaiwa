@@ -30,6 +30,11 @@ function numberValue(values: Record<string, unknown>, key: string, fallback: num
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback
 }
 
+/** 합성 요청 한 건의 제한 시간 = min(호출자 예산, 연결 `connection.timeoutMs`) — 콘솔 값은 상한으로만 쓰인다(문장 1건은 8s fail-fast). */
+export function requestTimeoutMs(values: Record<string, unknown>, budgetMs: number): number {
+  return Math.min(budgetMs, numberValue(values, 'connection.timeoutMs', budgetMs))
+}
+
 export function maxCharsOf(values: Record<string, unknown>): number {
   return Math.min(DEFAULT_MAX_CHARS, Math.max(1, Math.trunc(numberValue(values, 'runtime.maxChars', DEFAULT_MAX_CHARS))))
 }
@@ -119,7 +124,7 @@ export async function synthesizeHttp(profile: ConnectionProfile, voice: TtsVoice
     profile: seg.speechProfile,
     traceId: opts.traceId,
   }
-  const timeoutMs = Math.min(opts.timeoutMs, numberValue(profile.values, 'connection.timeoutMs', opts.timeoutMs))
+  const timeoutMs = requestTimeoutMs(profile.values, opts.timeoutMs)
   const startedAt = Date.now()
   let res: Response
   try {

@@ -46,6 +46,23 @@ export function maskString(s: string): string {
   return maskUrl(s)
 }
 
+const ASCII_RUN = /[!-~]+/g
+const EDGE_PUNCT = /^([("'`[{<]*)(.*?)([)"'`\]}>.,;:!?]*)$/
+
+/**
+ * 자유 텍스트(관리자 `reason`·요약 문장) 마스킹 — `maskString` 은 문자열 **전체**가 비밀 모양일 때만 가리므로, 문장 안에 섞인 조각을 따로 본다.
+ * 공백·한글·일본어로 끊긴 ASCII 조각마다(앞뒤 괄호·문장부호는 떼고) 비밀 모양이면 `***`, URL 이면 자격증명·토큰 쿼리를 지운다.
+ * `Bearer <토큰>` 은 두 조각이라 먼저 한 번에 가린다. 다른 글자·공백은 그대로 둔다.
+ */
+export function maskText(s: string): string {
+  return s.replace(/bearer\s+\S+/gi, `Bearer ${MASK}`).replace(ASCII_RUN, (run) => {
+    const m = EDGE_PUNCT.exec(run)
+    const [lead, core, tail] = m ? [m[1], m[2], m[3]] : ['', run, '']
+    if (!core || core === MASK) return run
+    return `${lead}${looksSecret(core) ? MASK : maskUrl(core)}${tail}`
+  })
+}
+
 /** 깊은 복사하며 마스킹(깊이 8·배열 200개 상한 — 콘솔 응답용). 원본은 바꾸지 않는다. */
 export function maskSensitive<T>(value: T, depth = 0): T {
   if (depth > 8) return MASK as unknown as T

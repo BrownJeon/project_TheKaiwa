@@ -74,11 +74,13 @@ export function claimDeferral(job: { createdAt: Date }, lastUtteranceAt: Date | 
 }
 
 /**
- * 재확인 임계(#138) — ACCURATE 0.90, 그 밖 0.85. AppSetting `speech.review.threshold` 가 0~1 숫자면 모든 모드에 그 값(012b 는 읽기만).
+ * 재확인 임계(#138) — ACCURATE 0.90, 그 밖 0.85. AppSetting `speech.review.threshold` 가 0~1 숫자면 그 값을 쓰되
+ * **ACCURATE 는 max(설정값, 0.90)**(task-012b 03:30 판단 ⑤ — 콘솔에서 임계를 낮춰도 정확 모드의 재확인 기준은 내려가지 않는다, task-012c 에서 적용).
  */
 export function reviewThreshold(mode: RecognitionMode, override: unknown): number {
-  if (typeof override === 'number' && Number.isFinite(override) && override >= 0 && override <= 1) return override
-  return mode === 'ACCURATE' ? REVIEW_THRESHOLD_ACCURATE : REVIEW_THRESHOLD_DEFAULT
+  const set = typeof override === 'number' && Number.isFinite(override) && override >= 0 && override <= 1 ? override : null
+  if (mode === 'ACCURATE') return Math.max(set ?? REVIEW_THRESHOLD_ACCURATE, REVIEW_THRESHOLD_ACCURATE)
+  return set ?? REVIEW_THRESHOLD_DEFAULT
 }
 
 /** `requiresReview = similarity < 임계 || flags 가 있음` — 판정은 앱(워커는 similarity·flags 만). */

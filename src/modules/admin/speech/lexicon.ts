@@ -12,7 +12,7 @@
  * PRODUCTION_CONFIRMATION_REQUIRED) · 404 · 409 CONFLICT(VERSION_CONFLICT·E_LEXICON_DUPLICATE·ALREADY_ACTIVE·NO_CHANGE) ·
  * 422 UNPROCESSABLE(E_LEXICON_ENTRY_INVALID·E_IMPORT_*·E_PREVIEW_TEXT_TOO_LONG) · 422 ENGINE_UNAVAILABLE · 429 · 502/504.
  */
-import { ApiError, checkReason, codePointLength, dates, findAuditsByTargets, rateLimit, readFormDataCapped, recordAudit, sanitizeText, userBriefs, userExists, withTransaction, type AuditBrief, type AuditEntry } from '@/modules/infra'
+import { ApiError, checkReason, codePointLength, dates, findAuditsByTargets, maskText, rateLimit, readFormDataCapped, recordAudit, sanitizeText, userBriefs, userExists, withTransaction, type AuditBrief, type AuditEntry } from '@/modules/infra'
 import { lessonExists, topicExists } from '@/modules/learning'
 import {
   afterLexiconCommit,
@@ -305,12 +305,13 @@ async function versionDtos(actor: AdminActor, rows: readonly LexiconVersionRow[]
       status: v.status,
       createdAt: v.createdAt.toISOString(),
       actor: actorDto,
-      changeSummary: v.changeSummary,
+      changeSummary: v.changeSummary ? maskText(v.changeSummary) : v.changeSummary,
       entryCount: v.entryCount,
       enabledCount: v.enabledCount,
       snapshotHash: v.snapshotHash,
       integrity: v.integrity,
-      reason: audit?.reason ?? null,
+      // 저장 때 가린 값이지만 옛 행을 위해 한 번 더(012c Codex C2 ①).
+      reason: audit?.reason ? maskText(audit.reason) : null,
       action: audit?.action ?? null,
       rollbackOf: v.rollbackOf,
       restoredFrom: v.rollbackOf ?? (audit ? restoredFromOf(audit.after) : null),

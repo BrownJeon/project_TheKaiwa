@@ -5,21 +5,31 @@
  * PRODUCTION 대상의 FULL 상세 조회는 민감 읽기라 AuditLog 1행(role-permission §7 `config.raw.read`(PRODUCTION 대상만)) — 메타만, 값 없음(REV-009·Codex C2).
  */
 import { ApiError, describeCredentialRef, recordAudit, type AuditEntry } from '@/modules/infra'
-import { resolveEffective, type EffectiveConfiguration } from '@/modules/engine'
+import { currentVersionNumber, resolveEffective, type EffectiveConfiguration } from '@/modules/engine'
 import type { ConfigScope, Environment } from '@prisma/client'
 import type { EffectiveConfigDto } from '@/types/admin'
 import { mapEngineError } from '../errors'
 import { hasCapability, type AdminActor } from '../permissions/guard'
 import { effectiveDto } from '../present'
+import { keyPolicyDto } from './editor'
+import { loadEditTarget } from './targets'
 
 const SCOPES: readonly ConfigScope[] = ['ENGINE_CONNECTION', 'FALLBACK_POLICY', 'PROMPT', 'APP_SETTING', 'VOICE_PROFILE', 'PRESET']
 
 export interface EffectiveDeps {
   resolve: (input: { environment: Environment; scope: ConfigScope; targetId: string }) => Promise<EffectiveConfiguration>
   audit: (entry: AuditEntry) => Promise<unknown>
+  /** 편집 정책(task-012c) — 없으면 싣지 않는다(단위 테스트). */
+  edit?: (scope: 'ENGINE_CONNECTION' | 'FALLBACK_POLICY', environment: Environment, targetId: string) => Promise<EffectiveConfigDto['edit'] | null>
 }
 
-const DEFAULT_DEPS: EffectiveDeps = { resolve: resolveEffective, audit: recordAudit }
+async function editPolicy(scope: 'ENGINE_CONNECTION' | 'FALLBACK_POLICY', environment: Environment, targetId: string): Promise<EffectiveConfigDto['edit'] | null> {
+  const t = await loadEditTarget(scope, environment, targetId)
+  if (!t) return null
+  return { version: await currentVersionNumber({ environment, scope, targetId: t.targetId }), keys: t.defs.map((d) => keyPolicyDto(t, d)) }
+}
+
+const DEFAULT_DEPS: EffectiveDeps = { resolve: resolveEffective, audit: recordAudit, edit: editPolicy }
 
 /** PRODUCTION 대상 + FULL(sourceRef·layers) 일 때만 감사 항목. 그 외 null. */
 export function rawReadAuditEntry(actor: AdminActor, environment: Environment, eff: Pick<EffectiveConfiguration, 'scope' | 'targetId'>, full: boolean): AuditEntry | null {
@@ -51,5 +61,10 @@ export async function getEffectiveConfig(
   // 응답을 만들기 전에 기록한다 — 감사가 실패하면 상세도 나가지 않는다.
   const entry = rawReadAuditEntry(actor, environment, eff, full)
   if (entry) await deps.audit(entry)
-  return effectiveDto(eff, { full, secretExists: (ref) => describeCredentialRef(ref)?.exists ?? false })
+  const dto = effectiveDto(eff, { full, secretExists: (ref) => describeCredentialRef(ref)?.exists ?? false })
+  if (deps.edit && (eff.scope === 'ENGINE_CONNECTION' || eff.scope === 'FALLBACK_POLICY')) {
+    const edit = await deps.edit(eff.scope, environment, eff.targetId)
+    if (edit) dto.edit = edit
+  }
+  return dto
 }

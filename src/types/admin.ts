@@ -421,6 +421,11 @@ export interface EffectiveConfigDto {
   /** 이번 해석에서 비어 있던 층(Phase 1 미구현 층 포함). */
   emptyLayers: ConfigSourceName[]
   warnings: string[]
+  /**
+   * 편집 정책(task-012c, ENGINE_CONNECTION·FALLBACK_POLICY 만) — Form 이 칸 잠금·실행 검증 표시를 그린다. `version` = 쓰기 요청의 `baseVersion`.
+   * 연결의 `enabled` 처럼 스키마 밖 편집 칸도 `keys` 에 있다.
+   */
+  edit?: { version: number; keys: ConfigKeyPolicyDto[] }
 }
 
 // ── #82 Voices ───────────────────────────────────────────────────────────────
@@ -470,4 +475,284 @@ export interface TraceDetailDto extends Omit<TraceListItemDto, 'stepNames'> {
   steps: TraceStepDto[]
   /** DebugSession 캡처물 링크(Phase 3). Phase 1 은 항상 null. */
   captured: null
+}
+
+// ── task-012c 설정 편집(#93·#93a·#93b·#100·#104~#111·#123b·#137) — DTO 단일 출처(api-contract #106 기준, admin-console/08 은 여기에 맞춘다) ────
+/** 012c 에서 편집하는 scope. VOICE_PROFILE 은 환경 칸 없는 전역 행이라 012c-2 로(D-C14), PROMPT 는 012c-2, PRESET 은 Phase 4. */
+export type ConfigEditScopeName = 'ENGINE_CONNECTION' | 'FALLBACK_POLICY' | 'APP_SETTING'
+/**
+ * 편집 잠금 이유(D-C4 편집 키 표): 읽기 전용 · 재시작 필요(CX-2) · 비밀 참조는 전용 경로(#93b) · 설계 보류 · 서비스 설정 파일에서 관리(Python) ·
+ * 앱이 읽지 않음 · 서버 env 주소 고정 · 자동 · 환경 정책 키.
+ */
+export type ConfigLockReason = 'READ_ONLY' | 'RESTART_REQUIRED' | 'CREDENTIAL_ONLY' | 'DEFERRED' | 'SERVICE_MANAGED' | 'NOT_CONSUMED' | 'ENV_PINNED' | 'AUTO' | 'POLICY'
+/** 실행 검증 가능 여부(CX-2) — DYNAMIC = 값에 따라(켜기면 테스트, 끄기면 불요 · 새로 들어간 예비 연결만 테스트). */
+export type ConfigVerifiable = 'YES' | 'NO' | 'NOT_NEEDED' | 'DYNAMIC'
+export type ConfigRuleName =
+  | 'type'
+  | 'min'
+  | 'max'
+  | 'enum'
+  | 'pattern'
+  | 'maxLength'
+  | 'required'
+  | 'unknownKey'
+  | 'readOnly'
+  | 'secretValue'
+  | 'dependency'
+  | 'reference'
+  | 'serviceManaged'
+  | 'hostNotAllowed'
+  | 'refNotAllowed'
+  | 'restartRequired'
+export type ConfigVersionOrigin = 'BASELINE' | 'APPLY' | 'RAW_JSON' | 'ROLLBACK'
+export type ConfigIntegrity = 'OK' | 'MALFORMED' | 'INVALID_ENTRIES'
+export type ConfigVersionStatusName = 'ACTIVE' | 'SUPERSEDED' | 'ROLLED_BACK'
+
+/** 키 한 개의 편집 정책 + 지금 저장값(시크릿 형태 값은 `***`, credentialRef 는 이름만). */
+export interface ConfigKeyPolicyDto {
+  key: string
+  type: SchemaKeyDto['type']
+  description: string
+  editability: EditabilityName
+  strict: boolean
+  editable: boolean
+  lock: ConfigLockReason | null
+  lockMessage: string | null
+  verifiable: ConfigVerifiable
+  consumer: 'APP' | 'CLIENT' | 'PYTHON' | 'NONE'
+  restartTarget: string | null
+  min?: number
+  max?: number
+  enum?: readonly (string | number)[]
+  pattern?: string
+  maxLength?: number
+  nullable?: boolean
+  allowedRefs?: readonly string[]
+  stored: unknown
+  /** 런타임이 이 값보다 먼저 읽는 env 가 설정돼 있음(저장해도 효력 없음 — 편집 칸 잠금 안내). */
+  shadowedByEnv: boolean
+}
+
+export interface ConfigTargetDto {
+  scope: ConfigEditScopeName
+  targetId: string
+  targetKey: string
+  targetName: string
+  environment: AdminEnvironment
+  /** 지금 ACTIVE 버전 번호(없으면 0 = seed 상태) — 쓰기 요청의 `baseVersion`. */
+  version: number
+  keys: ConfigKeyPolicyDto[]
+}
+
+export interface ConfigIssueDto {
+  key: string
+  rule: ConfigRuleName
+  message: string
+  expected?: unknown
+  actual?: unknown
+  suggestion?: string
+  related?: string[]
+  lock?: ConfigLockReason
+}
+
+export interface ConfigValidateDto {
+  valid: boolean
+  stage: 'JSON_SYNTAX' | 'SCHEMA' | 'DEPENDENCY' | null
+  errors: ConfigIssueDto[]
+  warnings: { key: string; code: string; message: string }[]
+  changedKeys: string[]
+  impact: { runtimeEditable: string[]; restartRequired: string[]; redeployRequired: string[]; strict: string[] }
+}
+
+export type ConfigBlockedCode = 'SHADOWED_BY_ENVIRONMENT' | 'READ_ONLY' | 'SERVICE_MANAGED' | 'RESTART_REQUIRED' | 'SECRET_VALUE_IN_PAYLOAD'
+
+export interface ConfigDiffChangeDto {
+  key: string
+  changeType: 'CHANGED' | 'ADDED'
+  /** Effective 값(적용 전·후). env·Override 가 이기면 after 가 저장값과 다를 수 있다. */
+  before: unknown
+  after: unknown
+  beforeSource: ConfigSourceName
+  afterSource: ConfigSourceName
+  storedBefore: unknown
+  storedAfter: unknown
+  editability: EditabilityName
+  strict: boolean
+  restartTarget: string | null
+  verifiable: 'YES' | 'NO' | 'NOT_NEEDED'
+  /** SHADOWED_BY_ENVIRONMENT 는 경고(저장은 됨), 나머지는 적용 400. */
+  blocked: { code: ConfigBlockedCode; lock: ConfigLockReason | null; message: string } | null
+}
+
+export interface ConfigDiffDto {
+  scope: ConfigEditScopeName
+  targetId: string
+  targetKey: string
+  environment: AdminEnvironment
+  baseVersion: number
+  /** 무상태 — apply·rollback 이 같은 후보로 다시 계산해 대조(D-C1). */
+  summaryHash: string
+  candidateHash: string
+  changes: ConfigDiffChangeDto[]
+  unchanged: number
+  summary: { changed: number; strict: number; blocked: number; shadowed: number; secretTouched: boolean; notNeeded: number; unverifiable: number }
+  productionProtected: boolean
+  requiredConfirm: 'SUPER_ADMIN' | null
+  /** PRODUCTION 적용에 기능 테스트(testResultId)가 필요한가. */
+  testRequired: boolean
+  crossEnvironment: boolean
+}
+
+export interface ConfigTestRunDto {
+  connectionKey: string
+  ok: boolean
+  status: EngineStatusName
+  errorCode: string | null
+  latencyMs: number | null
+  healthId: string
+  traceId: string
+}
+
+/** #105 — `status:"ok"`(바뀐 키 중 실행 검증이 필요한 키 전부를 실제로 검증)일 때만 `testResultId`(CX-2). 전부 NOT_NEEDED 면 ok + id null. */
+export interface ConfigTestDto {
+  status: 'ok' | 'partial' | 'failed'
+  testResultId: string | null
+  traceId: string | null
+  latencyMs: number | null
+  testedKeys: string[]
+  untestedKeys: string[]
+  notNeededKeys: string[]
+  candidateHash: string
+  /** testResultId 유효 기한(발급 + 30분). */
+  expiresAt: string | null
+  runs: ConfigTestRunDto[]
+}
+
+export interface ConfigVersionRefDto {
+  id: string
+  version: number
+  status: ConfigVersionStatusName
+}
+
+export interface ConfigApplyResultDto {
+  /** false = 후보가 지금 저장값과 같음(버전·감사 없음). */
+  changed: boolean
+  scope: ConfigEditScopeName
+  targetId: string
+  environment: AdminEnvironment
+  version: ConfigVersionRefDto | null
+  previousVersion: ConfigVersionRefDto | null
+  /** 첫 적용이면 같은 트랜잭션에서 만든 기준선 v1(D-C5). */
+  baselineVersion: ConfigVersionRefDto | null
+  /** 파생 적용(미리듣기 문장 → textVersion +1, D-C7). */
+  derived: { targetId: string; version: ConfigVersionRefDto }[]
+  applied: { runtimeEditable: string[]; pushedToService: false; restartRequired: string[]; restartTarget: string | null; redeployRequired: string[] }
+  auditIds: string[]
+  warnings: string[]
+}
+
+export interface ConfigRollbackResultDto extends ConfigApplyResultDto {
+  restoredFromVersion: number
+  rolledBack: ConfigVersionRefDto | null
+  droppedKeys: string[]
+}
+
+export interface ConfigVersionItemDto {
+  id: string
+  scope: ConfigEditScopeName
+  targetId: string
+  targetKey: string | null
+  targetName: string | null
+  environment: AdminEnvironment
+  version: number
+  status: ConfigVersionStatusName
+  /** `snapshot._meta.origin`(감사 action 과 같은 뜻). 옛 행·손상이면 null. */
+  origin: ConfigVersionOrigin | null
+  actor: { id: string; email: string } | null
+  reason: string | null
+  diffSummary: string | null
+  restoredFromVersion: number | null
+  testResult: { ok: boolean } | null
+  /** 지금 스키마로 엄격 재검증한 결과 — OK 가 아니면 화면은 "기록 손상" + 되돌리기 숨김. */
+  integrity: ConfigIntegrity
+  createdAt: string
+  supersededAt: string | null
+}
+
+export interface ConfigVersionListDto {
+  items: ConfigVersionItemDto[]
+  nextCursor: string | null
+}
+
+export interface ConfigVersionEntryDto {
+  key: string
+  before: unknown
+  after: unknown
+}
+
+export interface ConfigVersionDetailDto extends ConfigVersionItemDto {
+  snapshot: Record<string, unknown>
+  compare: 'previous' | 'active'
+  /** previous = 바로 앞 버전(없으면 null) · active = 지금 저장값. */
+  against: ConfigVersionRefDto | { kind: 'STORED' } | null
+  entries: ConfigVersionEntryDto[]
+  truncated: number
+  droppedKeys: string[]
+  issues: ConfigIssueDto[]
+}
+
+export interface ConfigRawDto {
+  scope: ConfigEditScopeName
+  targetId: string
+  targetKey: string
+  environment: AdminEnvironment
+  version: number
+  schemaRef: string | null
+  /** 저장값(관리 층). `_meta` 없음. 시크릿 형태 값은 `***`. */
+  json: Record<string, unknown>
+  keys: ConfigKeyPolicyDto[]
+  editability: Record<string, EditabilityName>
+  /** 저장값과 Effective 가 다른 키(env·Override 가 이김). */
+  effectiveDiffers: string[]
+}
+
+export interface AppSettingDto {
+  key: string
+  environment: AdminEnvironment
+  value: unknown
+  /** false = 행이 없어 기본값을 쓰는 중. */
+  exists: boolean
+  description: string
+  type: SchemaKeyDto['type']
+  editability: EditabilityName
+  policy: boolean
+  lock: ConfigLockReason | null
+  lockMessage: string | null
+  verifiable: ConfigVerifiable
+  version: number
+}
+
+export interface AuditItemDto {
+  id: string
+  environment: AdminEnvironment
+  actor: { id: string | null; email: string | null; roleSnap: AdminRole | null }
+  action: string
+  scope: ConfigScopeName | null
+  targetId: string | null
+  before: unknown
+  after: unknown
+  reason: string | null
+  /** /24(IPv6 /48) 로 마스킹. */
+  ip: string | null
+  traceId: string | null
+  createdAt: string
+  /** after 에서 뽑은 한 줄. */
+  summary: string | null
+  /** 설정 버전 링크(after.versionId). */
+  versionId: string | null
+}
+
+export interface AuditListDto {
+  items: AuditItemDto[]
+  nextCursor: string | null
 }

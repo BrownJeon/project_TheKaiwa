@@ -84,7 +84,7 @@ snapshot 은 **Effective 가 아니다.** env·yaml 층은 포함하지 않으�
 | Import | 파일에 포함된 각 대상마다 1행 | 대상 id | IMPORT (+공통 `importId`) |
 | Prompt Activate | PROMPT | promptKey | PROMPT_ACTIVATE (snapshot = `{activeVersionId, promptVersion}`) |
 | Preset 저장 | PRESET | presetId | APPLY (Preset 자체의 이력; 적용은 각 대상 버전으로) |
-| 기동 시 최초 물화(yaml → 연결 identity 생성) | ENGINE_CONNECTION | connectionId | SYSTEM (`version=1`, actor = 시스템 계정) — **task-012c D-C5 로 대체**: 기동 시 일괄 생성 대신 **대상의 첫 적용 때 같은 트랜잭션에서 v1 = 지금 행 값(`_meta.origin=BASELINE`, actor 없음, 감사 `config.baseline`) → 적용 v2**. 모든 scope(ENGINE_CONNECTION·FALLBACK_POLICY·APP_SETTING·VOICE_PROFILE) 공통 |
+| 기동 시 최초 물화(yaml → 연결 identity 생성) | ENGINE_CONNECTION | connectionId | SYSTEM (`version=1`, actor = 시스템 계정) — **task-012c D-C5 로 대체**: 기동 시 일괄 생성 대신 **대상의 첫 적용 때 같은 트랜잭션에서 v1 = 지금 행 값(`_meta.origin=BASELINE`, actor 없음, 감사 `config.baseline`) → 적용 v2**. 012c scope(ENGINE_CONNECTION·FALLBACK_POLICY·APP_SETTING) 공통 — VOICE_PROFILE 은 012c-2(D-C14), 행이 없던 AppSetting 키의 기준선은 `{value, exists:false}`(되돌리면 행 삭제) |
 
 만들지 **않는** 것: `RuntimeOverride` 생성/철회(임시), Health/Functional Test, Playground, Log level 임시 상향(PRODUCTION TTL 부여 시 — `15` §5), 사용자 설정 변경(7층).
 

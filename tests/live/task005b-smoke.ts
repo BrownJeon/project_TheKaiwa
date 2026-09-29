@@ -161,7 +161,9 @@ async function main() {
     const rows = await prisma.engineHealth.count({ where: { connectionId: { in: local.map((c) => c.id) }, kind: 'HEALTH', checkedAt: { gte: startedAt } } })
     check('5b EngineHealth(HEALTH) 행 6개 기록', rows === 6, `${rows}`)
     const gw = d(health['reazon-gateway'])
-    check('5c 떠 있지 않은 gateway → UNAVAILABLE + 사유(errorCode·message), URL 미포함', gw.status === 'UNAVAILABLE' && typeof (gw.detail as Json)?.errorCode === 'string' && !JSON.stringify(gw).includes('8100'), JSON.stringify(gw.detail))
+    // gateway 는 운영 pm2 가 127.0.0.1:8100 에 띄워 둘 수 있다(task-009 이후) — 떠 있으면 HEALTHY, 없으면 UNAVAILABLE+사유. 어느 쪽이든 URL 미포함(R2).
+    const gatewayUp = gw.status === 'HEALTHY'
+    check(`5c gateway Health(${gatewayUp ? '떠 있음' : '없음'}) → ${gatewayUp ? 'HEALTHY' : 'UNAVAILABLE + 사유(errorCode·message)'}, URL 미포함`, (gatewayUp || (gw.status === 'UNAVAILABLE' && typeof (gw.detail as Json)?.errorCode === 'string')) && !JSON.stringify(gw).includes('8100'), `${gw.status} ${JSON.stringify(gw.detail)}`)
     const od = d(health['reazon-ondevice'])
     check('5d ONDEVICE → UNKNOWN + skipped + reason NOT_APPLICABLE(상태 불변)', od.status === 'UNKNOWN' && (od.detail as Json)?.reason === 'NOT_APPLICABLE' && od.connectionStatus === 'UNKNOWN')
     check('5e 요청 본문 URL 은 무시(SSRF) — 결과는 저장된 주소 기준', !JSON.stringify(Object.values(health).map(d)).match(/169\.254|evil\.test/))
@@ -179,7 +181,8 @@ async function main() {
     check('5i 30초 내 재실행 → 429 + retryAfterSec(다른 역할이어도)', again.status === 429 && typeof again.body.data.details?.retryAfterSec === 'number', `${again.status} ${JSON.stringify(again.body.data)}`)
     const sttTest = await api('ADMIN', 'POST', `/api/admin/v1/engine-connections/${ids.whisper}/test`, { body: {} })
     const gwTest = await api('ADMIN', 'POST', `/api/admin/v1/engine-connections/${ids.gateway}/test`, { body: {} })
-    check('5j STT 기능 테스트 미실행 표현: 서비스 있음 → UNKNOWN+NOT_IMPLEMENTED, 없음 → UNAVAILABLE+SERVICE_DOWN', (d(sttTest).detail as Json)?.reason === 'NOT_IMPLEMENTED' && d(sttTest).status === 'UNKNOWN' && (d(gwTest).detail as Json)?.reason === 'SERVICE_DOWN' && d(gwTest).status === 'UNAVAILABLE', `${d(sttTest).status}/${(d(sttTest).detail as Json)?.reason} ${d(gwTest).status}/${(d(gwTest).detail as Json)?.reason}`)
+    const gwExpect = gatewayUp ? { status: 'UNKNOWN', reason: 'NOT_IMPLEMENTED' } : { status: 'UNAVAILABLE', reason: 'SERVICE_DOWN' }
+    check('5j STT 기능 테스트 미실행 표현: 서비스 있음 → UNKNOWN+NOT_IMPLEMENTED, 없음 → UNAVAILABLE+SERVICE_DOWN(gateway 는 실제 상태 기준)', (d(sttTest).detail as Json)?.reason === 'NOT_IMPLEMENTED' && d(sttTest).status === 'UNKNOWN' && (d(gwTest).detail as Json)?.reason === gwExpect.reason && d(gwTest).status === gwExpect.status, `${d(sttTest).status}/${(d(sttTest).detail as Json)?.reason} ${d(gwTest).status}/${(d(gwTest).detail as Json)?.reason}`)
     const ov = await api('ADMIN', 'POST', `/api/admin/v1/engine-connections/${ids.homeM4}/test`, { body: { overrideRuntime: { model: 'x' } } })
     check('5k overrideRuntime(Phase 2) → 400', ov.status === 400)
 
@@ -297,7 +300,8 @@ async function main() {
     ])
     check('7a plugins 5개 loaded(initError 없음)·상세 schema·defaultConfiguration·sourcePath', arr(plugins).length === 5 && arr(plugins).every((p) => p.loaded === true && p.initError === null) && typeof d(plugin).sourcePath === 'string' && !!d(plugin).schema)
     check('7b engines: ADMIN 은 includeSchema 여도 schema:null, DEVELOPER 는 schema', arr(engines).every((e) => e.schema === null) && arr(enginesSchema).every((e) => e.schema !== null))
-    check('7c fallback 4역할 + effectiveOrder(REALTIME_STT: gateway UNAVAILABLE 은 순서에서 빠짐)', arr(fbs).length === 4 && !((d(fb1).effectiveOrder as string[]) ?? []).includes('reazon-gateway'), JSON.stringify(d(fb1).effectiveOrder))
+    const order = (d(fb1).effectiveOrder as string[]) ?? []
+    check(`7c fallback 4역할 + effectiveOrder(REALTIME_STT: gateway ${gatewayUp ? 'HEALTHY → 순서에 포함' : 'UNAVAILABLE → 순서에서 빠짐'})`, arr(fbs).length === 4 && order.includes('reazon-gateway') === gatewayUp, JSON.stringify(order))
     check('7d voices 목록·상세(모델·스타일·usage)', arr(voices).length >= 1 && arr(voices).every((v) => 'usage' in v && 'model' in v) && d(voice1).id === ids.voice)
     check('7e traces 목록(커서)·상세(steps, userId 마스킹)', arr(traces).length === 0 && Array.isArray((d(traces).items as Json[])) && (d(traces).items as Json[]).length === 2 && typeof d(traces).nextCursor === 'string' && Array.isArray(d(trace1).steps) && String(d(trace1).userId).endsWith('…'))
     check('7f connections 목록·상세(effectiveSummary·recentHealth)·#95a 기능 테스트 이력', arr(conns).length === 6 && typeof (d(conn1).effectiveSummary as Json)?.keys === 'number' && Array.isArray(d(conn1).recentHealth) && arr(hist).length >= 1 && arr(hist).every((h) => h.kind === 'FUNCTIONAL'))

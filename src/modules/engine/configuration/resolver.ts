@@ -279,7 +279,8 @@ async function versionLayer(environment: Environment, scope: ConfigScope, target
     if ('credentialRef' in snap) layer.set('connection.credentialRef', { value: snap.credentialRef ?? null, sourceRef: `${ref}.credentialRef` })
     if ('logLevel' in snap) layer.set('logging.level', { value: snap.logLevel, sourceRef: `${ref}.logLevel` })
   } else {
-    for (const [k, val] of Object.entries(snap)) if (SAFE_KEY.test(k)) layer.set(k, { value: val, sourceRef: `${ref}.${k}` })
+    // `_meta` 는 버전 기록 예약 키(task-012c D-C2) — 설정 값이 아니다.
+    for (const [k, val] of Object.entries(snap)) if (k !== '_meta' && SAFE_KEY.test(k)) layer.set(k, { value: val, sourceRef: `${ref}.${k}` })
   }
   return layer
 }
@@ -300,7 +301,15 @@ function finish(
   }
 }
 
-async function resolveConnection(environment: Environment, row: EngineConnection): Promise<EffectiveConfiguration> {
+/**
+ * `candidate` 가 있으면 "그 값을 적용한 뒤" 의 Effective(Diff `after`, task-012c) — 적용하면 DATABASE(새 ACTIVE 스냅샷)와
+ * CONNECTION_PROFILE(물화된 행) 이 둘 다 후보 값이 되므로 두 층을 후보로 바꿔 겹친다. 저장·캐시 없음.
+ */
+async function resolveConnection(
+  environment: Environment,
+  row: EngineConnection,
+  candidate?: ConnectionCandidateValues,
+): Promise<EffectiveConfiguration> {
   const provider = getProvider(row.engineId)
   if (!provider) throw new ConfigTargetNotFoundError()
   const schema = provider.configurationSchema()
@@ -311,8 +320,15 @@ async function resolveConnection(environment: Environment, row: EngineConnection
   for (const k of schema.keys) layers.DEFAULT.set(k.key, { value: k.default, sourceRef: `schema:${schema.engineId}@${schema.schemaVersion}#${k.key}` })
   for (const [k, e] of Object.entries(provider.sourceCodeLayer?.() ?? {})) layers.SOURCE_CODE.set(k, e)
   layers.ENVIRONMENT = environmentLayer(schema.keys, { connectionKey: row.key, role: row.role, isRolePrimary: policy?.primaryConnectionId === row.id }, process.env, pre)
-  layers.DATABASE = await versionLayer(environment, 'ENGINE_CONNECTION', row.id, warnings)
-  layers.CONNECTION_PROFILE = profileLayer(row, warnings, schema.keys.some((k) => k.key === 'connection.credentialRef'))
+  const hasCredentialKey = schema.keys.some((k) => k.key === 'connection.credentialRef')
+  if (candidate) {
+    const c = { id: row.id, ...candidate } as Pick<EngineConnection, 'id' | 'connection' | 'runtime' | 'credentialRef' | 'logLevel'>
+    layers.DATABASE = profileLayer(c, warnings, hasCredentialKey)
+    layers.CONNECTION_PROFILE = profileLayer(c, warnings, hasCredentialKey)
+  } else {
+    layers.DATABASE = await versionLayer(environment, 'ENGINE_CONNECTION', row.id, warnings)
+    layers.CONNECTION_PROFILE = profileLayer(row, warnings, hasCredentialKey)
+  }
   layers.RUNTIME_OVERRIDE = await overrideLayer(environment, 'ENGINE_CONNECTION', row.id, new Date())
   const merged = mergeLayers(schema.keys, row.connectionType, layers, pre)
   return finish(
@@ -369,6 +385,18 @@ export async function resolveEffective(input: { environment: Environment; scope:
     return resolveFallback(environment, p)
   }
   throw new UnsupportedScopeError(scope)
+}
+
+/** ENGINE_CONNECTION 후보(저장 전 관리 값)를 적용한 뒤의 Effective — Diff `after`·config/test 후보 프로필. 행은 호출자가 읽어 넘긴다. */
+export interface ConnectionCandidateValues {
+  connection: Record<string, unknown>
+  runtime: Record<string, unknown>
+  credentialRef: string | null
+  logLevel: string
+}
+
+export async function resolveConnectionCandidate(environment: Environment, row: EngineConnection, candidate: ConnectionCandidateValues): Promise<EffectiveConfiguration> {
+  return resolveConnection(environment, row, candidate)
 }
 
 /** Health·Functional 이 쓰는 평면 값(키 → Effective 값). */

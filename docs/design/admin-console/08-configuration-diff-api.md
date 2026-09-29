@@ -4,6 +4,8 @@
 
 ## 1. 목적
 
+> **task-012c 서버 2단계(2026-09-29) — DTO 정본은 `../api-contract.md` #106 + `src/types/admin.ts`**(03:50 Leader 결정: 이 문서를 거기에 맞춘다). 이 문서와 다른 점: 요청은 `patch`(점 표기 평면 객체) 또는 `versionId`(되돌릴 스냅샷 — Rollback 확인 Diff), `baseHash` 없음(`baseVersion` 잠금 + 무상태 `summaryHash`), `confirmation` 없음(D-C1), 응답 `summary` 에 `notNeeded`·`unverifiable`, 행에 `verifiable`·`restartTarget`, `blocked` 에 `SERVICE_MANAGED`·`RESTART_REQUIRED`.
+
 Apply 전에 "무엇이 어떻게 바뀌고, 그 변경이 실제로 효력이 있는지(env 에 가려지지 않는지), 재기동이 필요한지, Production 확인 대상인지"를 키 단위로 보여준다(§125-9).
 
 ## 2. 범위

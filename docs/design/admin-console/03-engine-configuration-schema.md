@@ -72,6 +72,7 @@ Engine 마다 다른 설정 UI 를 하드코딩하지 않기 위해(§125-6) 모
 | `dependsOn` | 선택 | 조건부 표시·의존성 검증(`10` §4) |
 | `uiHint` | 선택 | 위젯·단계·placeholder |
 | `deprecated` | 선택 | 표시하되 편집 불가, 문서에 표기 |
+| **콘솔 편집 메타**(task-012c 서버 2단계, 2026-09-29 — D-C4 편집 키 표를 **어댑터가 선언**, `engine/configuration` 은 엔진명을 모른 채 이 값으로 판정) | 선택 | `consumer`(`APP` 앱이 행 JSON 을 읽음 · `CLIENT` 앱이 클라이언트(#19)로 넘김 · `PYTHON` 음성 서비스가 자기 설정 파일로 읽음 → 편집 불가 `SERVICE_MANAGED` · 생략/`NONE` 런타임이 읽지 않음 → 편집 불가 `NOT_CONSUMED`) · `consumerBy`(connectionType 별 소비자) · `verify`(#105 실행 검증 방법: `LLM_PROBE_FAST·BALANCED·DEEP·STREAM` · `TTS_SYNTH` · `NOT_NEEDED`(런타임 효과 없음) · 생략/`NONE` = 검증 불가 → PRODUCTION 편집 불가, Codex C1 CX-2) · `envPinned`(주소가 서버 env 로 고정 — DB 값을 바꿔도 다른 origin 은 호출 0 → 편집 불가 `ENV_PINNED`, D-C3(a)) · `runtimeMax`(런타임이 스키마 max 보다 좁게 자르는 상한 — 편집은 이 값까지) · `runtimeEnvWins`(런타임이 행 값보다 먼저 읽는 env 이름 — 설정돼 있으면 Diff `SHADOWED_BY_ENVIRONMENT`·편집 잠금) · `consoleEdit:false`(설계 판단으로 012c 편집 보류 `DEFERRED` — 이유는 `description`). 012c 편집 허용 = `consumer ∈ {APP, CLIENT}` + RUNTIME_EDITABLE + `consoleEdit ≠ false` + 동등성 테스트("런타임 실사용값 == Effective") |
 | `allowedRefs` | SECRET_REF 필수 | 이 키에 넣을 수 있는 ref 의 **정확한 목록**(`env:NAME`·`file:name`, 정확 일치). 목록 밖은 거부(`422 E_REF_NOT_ALLOWED`) — task-012c Codex C1 CX-1(2026-09-29). 전역 거부 분류(부팅·내부 시크릿)는 이 목록보다 먼저 검사하므로 여기 적어도 통과하지 못한다(`../configuration-resolution.md` §10) |
 
 `READ_ONLY` 예: `runtime.modelPath`(manifest 가 정함) · `REDEPLOY_REQUIRED` 예: `connection.serviceVersion`(pm2 배포로만 변경) · `SECRET` 키는 값 대신 ref 이름만 화면에 나온다(§103·§125-12).
@@ -86,6 +87,8 @@ Engine 마다 다른 설정 UI 를 하드코딩하지 않기 위해(§125-6) 모
 `GET /api/admin/v1/config/schema/:engineId` 응답 = 위 JSON + `{engine:{id,displayName,type,connectionTypes,capabilities}, loadedAt}`.
 
 ## 5. Form UI 자동 생성 규칙 (§86·§88·§101)
+
+> **012c 편집 잠금 예(2026-09-29)**: TTS `runtime.maxChars` 는 `consoleEdit:false`(`DEFERRED`) — 런타임 문장 분할이 speech 상수 100자로 고정이고 이 값은 서비스 호출 거부 상한으로만 쓰여, 낮추면 51~100자 문장이 실패하는데 기능 테스트가 잡지 못한다("콘솔 값 ≠ 실제 동작"). **재개 조건 = 문장 분할기가 연결 값을 쓰도록 바뀔 때.** 잠긴 칸은 Form 에서 이유(`lockMessage`)와 함께 읽기 전용으로 보이고, 실행 검증 표시는 #102 `edit.keys[].verifiable`(`YES·NO·NOT_NEEDED·DYNAMIC`)로 그린다.
 
 | `type` | 위젯 | 비고 |
 |---|---|---|

@@ -41,8 +41,8 @@ export const sherpaReazonProvider: EngineProvider = {
     schemaVersion: 1,
     groups: SCHEMA_GROUPS,
     keys: [
-      key('connection.baseUrl', 'URL', 'http://127.0.0.1:8100', { appliesTo: ['HTTP'], strict: true, envAlias: ['SPEECH_GATEWAY_URL'], description: 'speech gateway 주소(폴백 실시간 STT)' }),
-      key('connection.wsPath', 'STRING', '/ws/speech', { appliesTo: ['HTTP'], strict: true, description: 'gateway WebSocket 경로' }),
+      key('connection.baseUrl', 'URL', 'http://127.0.0.1:8100', { appliesTo: ['HTTP'], strict: true, envAlias: ['SPEECH_GATEWAY_URL'], consumer: 'PYTHON', description: 'speech gateway 주소(폴백 실시간 STT) — 운영 클라이언트는 nginx 경로로 붙고 앱은 Health·개발용 주소만 쓴다' }),
+      key('connection.wsPath', 'STRING', '/ws/speech', { appliesTo: ['HTTP'], strict: true, consumer: 'CLIENT', consoleEdit: false, description: 'gateway WebSocket 경로 — nginx 프록시 경로와 묶여 있어 콘솔 편집 보류(배포 절차로만)' }),
       key('connection.timeoutMs', 'INTEGER', 15000, { appliesTo: ['HTTP'], min: 5000, max: 60000, description: '세그먼트 인식 상한' }),
       key('connection.manifestUrl', 'STRING', '/models/reazonspeech-int8/manifest.json', {
         appliesTo: ['ONDEVICE'],
@@ -53,7 +53,7 @@ export const sherpaReazonProvider: EngineProvider = {
       key('connection.modelBytes', 'INTEGER', 160000000, { appliesTo: ['ONDEVICE'], editability: 'REDEPLOY_REQUIRED', description: '모델 다운로드 크기(진행률 표시용)' }),
       key('runtime.provider', 'ENUM', 'cpu', { enum: ['cpu'], editability: 'READ_ONLY', description: 'GPU 없음·모바일 CPU 고정' }),
       key('runtime.numThreads', 'INTEGER', 2, { min: 1, max: 8, editability: 'RESTART_REQUIRED', restartTarget: 'thekaiwa-speech-gateway', description: '디코더 스레드', impact: 'ONDEVICE 는 발열·배터리, HTTP 는 gateway CPU 경합' }),
-      key('runtime.decodingMethod', 'ENUM', 'greedy_search', { enum: ['greedy_search', 'modified_beam_search'], description: '디코딩 방식' }),
+      key('runtime.decodingMethod', 'ENUM', 'greedy_search', { enum: ['greedy_search', 'modified_beam_search'], consumerBy: { ONDEVICE: 'CLIENT', HTTP: 'PYTHON' }, verify: 'NONE', description: '디코딩 방식' }),
       key('runtime.modelVersion', 'STRING', 'zipformer-ja-reazonspeech-2024-08-01-int8', {
         editability: 'RESTART_REQUIRED',
         restartTarget: 'thekaiwa-speech-gateway',
@@ -61,9 +61,9 @@ export const sherpaReazonProvider: EngineProvider = {
         description: 'ONDEVICE 는 다음 앱 기동 시 재다운로드, HTTP 는 gateway 재시작',
       }),
       key('runtime.vad.model', 'ENUM', 'silero', { enum: ['silero'], editability: 'READ_ONLY', description: 'VAD 모델 — 고정' }),
-      key('runtime.vad.endpointSilenceMs', 'INTEGER', 500, { min: 200, max: 2000, description: '발화 종료로 판정하는 무음 길이', impact: 'endpoint 체감 지연(5초 예산의 첫 구간)' }),
-      key('runtime.vad.threshold', 'NUMBER', 0.5, { min: 0.1, max: 0.9, description: 'VAD 확률 임계' }),
-      key('runtime.partial', 'BOOLEAN', true, { description: '세그먼트 partial 이벤트 송출' }),
+      key('runtime.vad.endpointSilenceMs', 'INTEGER', 500, { min: 200, max: 2000, consumerBy: { ONDEVICE: 'CLIENT', HTTP: 'PYTHON' }, verify: 'NONE', description: '발화 종료로 판정하는 무음 길이', impact: 'endpoint 체감 지연(5초 예산의 첫 구간)' }),
+      key('runtime.vad.threshold', 'NUMBER', 0.5, { min: 0.1, max: 0.9, consumerBy: { ONDEVICE: 'CLIENT', HTTP: 'PYTHON' }, verify: 'NONE', description: 'VAD 확률 임계' }),
+      key('runtime.partial', 'BOOLEAN', true, { consumer: 'CLIENT', verify: 'NONE', description: '세그먼트 partial 이벤트 송출(#19 → 플러그인·gateway start 메시지)' }),
       LOG_LEVEL_KEY,
     ],
   }),

@@ -20,7 +20,7 @@
 | Speech › Analysis STT | `speech/analysis` | 역할 `ANALYSIS_STT` 동일 | 동일 | 1 / 2 |
 | Speech › TTS | `speech/tts` | 역할 `TTS` 동일 + Voice 요약 | 동일 | 1 / 2 |
 | LLM | `llm` | 역할 `LLM`: Provider·Connection·모델·temperature 등 Schema 동적 폼(§117) | `engine.read` | 1 / 2 |
-| Voices | `voices`, `voices/[id]` | §114~§116 관리·상세·Preview Playground | `voices.read` / `voices.manage` | 1(목록) / 4(Import·상세 Preview) |
+| Voices | `voices`, `voices/[id]` | §114~§116 관리·상세·Preview Playground | `voices.read` / `voices.manage` | 1(목록) / 2(기본값·표시명·정렬 편집 #84·activate/disable #85·#86 — **task-012c-2**, D-C14: `VoiceProfile` 은 환경 칸 없는 전역 행이라 LOCAL 편집이 운영에 즉시 적용 — 환경 분리·PRODUCTION 보호를 012c-2 에서 함께 설계) / 4(Import·상세 Preview) |
 | Voices › Versions (5차 §152~§154) | `voices/[id]/versions` | `VoiceModelVersion` 목록·TRAINED→VALIDATED→STAGING→CANARY(%)→PRODUCTION→DEPRECATED 전이·Golden 회귀 결과 링크 | `voices.manage` (Promote/Canary PRODUCTION 은 SUPER_ADMIN) | **사용자 결정 대기**(task-012c U-C1 — Phase 4 이관 권고: 새 버전을 들여올 Import 가 Phase 4) |
 | Speech › TTS › Pronunciation Dictionary (5차 §130~§132) | `speech/tts/lexicon`, `speech/tts/lexicon/versions` | 발음 사전 검색·추가·수정·비활성·Import/Export·범위(GLOBAL/COURSE/LESSON/VOICE/USER)·적용 전/후 미리듣기·버전 목록·Rollback | `voices.read` / `voices.manage` (PRODUCTION 변경 확인은 SUPER_ADMIN) | **1(P0)** |
 | Speech › TTS › TTS Quality (5차 §147~§151) | `speech/tts/quality` (탭: Golden · Regression Runs · A/B Compare) | Golden Dataset 관리·회귀 실행·결과표(실패율·지연·TTFA·RTF·길이 편차·수동 점수)·Blind A/B 세션 | `voices.manage` | 2(P1) — **task-012c-3**(DB 추가·U-C1·U-C2 뒤) |

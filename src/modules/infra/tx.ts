@@ -5,6 +5,8 @@
  * - 격리 수준은 READ COMMITTED: 잠금(`FOR UPDATE`) 뒤의 일반 SELECT 가 **잠금을 기다리는 동안 커밋된 행**을 보게 한다
  *   (REPEATABLE READ 의 스냅샷은 첫 일반 SELECT 시점에 고정돼, 잠금 순서가 조금만 어긋나도 옛 행을 본다).
  * - 교착·쓰기 충돌(Prisma P2034)은 트랜잭션 전체를 다시 돈다 — 콜백 안의 쓰기는 전부 롤백되므로 재실행이 안전하다.
+ *   `$queryRaw`(`SELECT … FOR UPDATE`) 안에서 난 교착은 Prisma 가 P2034 가 아니라 P2010(meta.code 1213)으로 올리므로 같이 재시도한다
+ *   (task-012c 실측 — 잠금 순서를 어긴 쓰기와 만나면 여기서 난다).
  */
 import { Prisma } from '@prisma/client'
 import { prisma } from './db'
@@ -18,8 +20,10 @@ export interface TxOptions {
   timeoutMs?: number
 }
 
-function isRetryableTxError(e: unknown): boolean {
-  return (e as { code?: string })?.code === 'P2034'
+export function isRetryableTxError(e: unknown): boolean {
+  const err = e as { code?: string; meta?: { code?: unknown } } | null
+  if (err?.code === 'P2034') return true
+  return err?.code === 'P2010' && String(err.meta?.code ?? '') === '1213'
 }
 
 export async function withTransaction<T>(fn: (tx: Tx) => Promise<T>, opts: TxOptions = {}): Promise<T> {

@@ -7,6 +7,19 @@ import type { ConnectionType, EngineRole, EngineStatus, EngineType } from '@pris
 export type SchemaKeyType = 'STRING' | 'INTEGER' | 'NUMBER' | 'BOOLEAN' | 'ENUM' | 'URL' | 'PATH' | 'SECRET_REF' | 'JSON'
 export type EditabilityValue = 'READ_ONLY' | 'RUNTIME_EDITABLE' | 'RESTART_REQUIRED' | 'REDEPLOY_REQUIRED' | 'SECRET'
 
+/**
+ * 이 키를 **실제로 읽는 쪽**(task-012c D-C4 편집 키 표 — 콘솔 편집 허용의 근거). 생략 = `NONE`(런타임이 읽지 않음 → 편집 불가).
+ * APP = 앱(Node) 런타임이 행 JSON 을 읽는다 · CLIENT = 앱이 클라이언트(#19 등)로 넘긴다 · PYTHON = 음성 서비스가 자기 설정 파일로 읽는다(콘솔 편집 불가, 015c).
+ */
+export type KeyConsumer = 'APP' | 'CLIENT' | 'PYTHON' | 'NONE'
+
+/**
+ * 콘솔 `config/test`(#105)가 후보 값으로 이 키를 **실제로 실행해** 검증하는 방법(Codex C1 CX-2). 생략 = `NONE`(검증 불가 → PRODUCTION 편집 불가).
+ * LLM_PROBE_* = 그 tier 로 고정 스키마 프로브 1회(STREAM = 첫 조각 스트리밍 확인) · TTS_SYNTH = 후보 프로필로 고정 문장 합성 ·
+ * NOT_NEEDED = 런타임 효과가 없어 검증할 것이 없음(표시 전용 등).
+ */
+export type VerifyMethod = 'LLM_PROBE_FAST' | 'LLM_PROBE_BALANCED' | 'LLM_PROBE_DEEP' | 'LLM_PROBE_STREAM' | 'TTS_SYNTH' | 'NOT_NEEDED' | 'NONE'
+
 export interface SchemaKey {
   /** 점 표기 평면 키(`connection.*`·`runtime.*`·`logging.*`). */
   key: string
@@ -36,6 +49,18 @@ export interface SchemaKey {
    * 빈 배열 = 어떤 ref 도 걸 수 없음. 전역 거부 분류(infra `isDeniedCredentialRef`)가 먼저라 여기 적어도 부팅 시크릿은 통과하지 못한다(스키마 자체 검증도 거부).
    */
   allowedRefs?: readonly string[]
+  // ── 콘솔 편집 메타(task-012c D-C4 편집 키 표를 어댑터가 선언 — engine/configuration 은 엔진명을 모른 채 이 값으로 판정) ──
+  consumer?: KeyConsumer
+  consumerBy?: Partial<Record<ConnectionType, KeyConsumer>>
+  verify?: VerifyMethod
+  /** 주소가 서버 env 로 고정됨(시크릿 전송 대상 고정 D-C3(a)) — DB 값을 바꿔도 다른 origin 은 호출 0 이라 편집 무의미. */
+  envPinned?: boolean
+  /** 런타임이 스키마 max 보다 좁게 자르는 상한(예: 서비스 상한 100) — 편집은 이 값까지만. */
+  runtimeMax?: number
+  /** 런타임이 행 값보다 **먼저** 읽는 env 이름 — 설정돼 있으면 콘솔 값은 효력이 없다(Diff `SHADOWED_BY_ENVIRONMENT`). */
+  runtimeEnvWins?: readonly string[]
+  /** false = 012c 콘솔 편집 보류(설계 판단으로 제외 — 캐시 키 미포함·라우팅 정책·배포 경로 묶임 등). 이유는 description 에. */
+  consoleEdit?: boolean
 }
 
 export interface ConfigurationSchema {
@@ -87,6 +112,22 @@ export interface HealthDetail {
   /** FUNCTIONAL(TTS) — 고정 문장 합성 결과 크기·길이(오디오 자체는 저장하지 않는다). */
   audioBytes?: number
   durationMs?: number
+  /**
+   * `config/test`(#105) 결과 행에만 — PRODUCTION Apply 가 `testResultId` 로 이 행을 읽어 같은 대상·같은 후보(`candidateHash`)·
+   * 검증한 키(`testedKeys ⊇ 변경 키`)를 확인한다(D-C1·CX-2). 화면 DTO 에는 싣지 않는다(present.healthDetail 화이트리스트).
+   */
+  config?: ConfigTestMark
+}
+
+export interface ConfigTestMark {
+  scope: string
+  targetId: string
+  environment: string
+  candidateHash: string
+  testedKeys: string[]
+  status: 'ok' | 'partial' | 'failed'
+  /** 같은 테스트에서 함께 돈 다른 연결의 결과 행(Fallback 새 연결 등). */
+  related?: string[]
 }
 
 export interface HealthOutcome {
@@ -112,7 +153,10 @@ export interface EngineProvider {
   modelSummary(values: Record<string, unknown>): string | null
   /** 어댑터 코드 상수(SOURCE_CODE 층). 없으면 빈 층. */
   sourceCodeLayer?(): SourceCodeLayer
-  /** 기능 테스트(고정 입력 1회, 30초 상한). 없으면 functionalTest 모듈이 "미실행" 으로 기록한다. */
+  /**
+   * 기능 테스트(고정 입력 1회, 30초 상한). 없으면 functionalTest 모듈이 "미실행" 으로 기록한다.
+   * `opts.text` = 검증 문장(TTS 상한 길이 확인 — task-012c config/test). 없으면 어댑터 고정 문장.
+   */
   functionalTest?(profile: ConnectionProfile): Promise<HealthOutcome>
   /** TTS 역할 합성 어댑터 — 엔진 파라미터 변환은 이 구현 안에서만 한다(speech-platform/16 §1.1). */
   tts?: TtsAdapter

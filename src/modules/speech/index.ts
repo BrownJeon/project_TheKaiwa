@@ -8,7 +8,7 @@
  * task-012b: 분석 STT(`analysis` — 적재 게이트·claim·실패 백오프·결과 반영·requiresReview 판정·평가 채점 텍스트)·#22 조회·#21a 확정.
  * conversation·learning 을 import 하지 않는다(라우트가 조합).
  */
-export { listSelectableVoices, assertSelectableVoice, describeVoice } from './voices/registry'
+export { listSelectableVoices, assertSelectableVoice, describeVoice, loadTtsVoice } from './voices/registry'
 export type { SelectableVoice } from './voices/registry'
 export { resolveRecognitionMode, platformFrom } from './stt/modeResolver'
 export type { RecognitionMode, ResolvedRecognition } from './stt/modeResolver'
