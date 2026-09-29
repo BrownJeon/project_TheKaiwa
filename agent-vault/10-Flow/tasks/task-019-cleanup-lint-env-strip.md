@@ -1,7 +1,7 @@
 ---
 task_id: task-019
 title: "정리 backlog 3건 — ESLint 상대경로 교차 모듈 import 규칙 · Claude CLI 자식 env 프록시 키 제거 · A4 스키마 밖 필드 제거를 요청 옵션으로"
-status: in_progress
+status: done
 base_ref: e7a2df0
 risk_level: R1
 roles_involved: [leader, developer, reviewer, qa]
@@ -110,3 +110,14 @@ Read 전용 독립 감사. 격리 복제본 `~/.node-local/thekaiwa-t019`(develo
 ### 2026-09-29 17:10 Leader(메인) — judge C2·QA·배포
 - judge C2(Leader 직접 실행, jev): **codex_required=false**(R1, budget_rule CX-limit-unknown-hold, 규칙 덮어쓰기 없음).
 - QA: developer(격리 복제본 3019 — 단위 830/833·eslint 0·006 42/42·010 65/65, CLI 자식 env 키 202회 확인)·REV-037(독립 재실행 830/833·ESLint 21 사례) 결과에 더해 Leader 가 격리 복제본에서 tsc·`next build` 확인 → 커밋·운영 반영, 운영 006·010 스모크.
+
+### 2026-09-29 17:30 Leader(메인) — 운영 반영
+- `8313dc9` push → webhook `RELEASE_RESULT ok`(릴리스 `20260929-120241-8313dc90`). 운영 스모크 `SMOKE_ENV=PRODUCTION` **006 42/42 · 010 65/65**.
+
+## 최종 요약
+
+**정리 작업 3건이 운영에 반영됐습니다** (2026-09-29, 사용자 화면 변화 없음).
+- 코드 규칙 검사(ESLint)가 이제 모듈 경계를 상대경로로 몰래 넘는 import 도 잡습니다 — 리뷰에서 한 번 사람 눈으로만 잡혔던 종류의 실수를 자동으로 막습니다.
+- AI(Claude CLI) 하위 프로세스에 넘기는 환경변수에서 쓰지 않는 프록시 설정을 뺐습니다 — 혹시 들어갈 수 있던 계정 정보 경로를 미리 닫았습니다.
+- 레슨 생성의 "스키마 밖 필드 자동 제거"를 더 안전한 방식(요청마다 켜는 옵션)으로 바꿨습니다. 동작은 같습니다.
+- 검증: 리뷰 REV-037 PASS, 단위 830/833(실패 0), 운영 스모크 회화 42/42·오늘의 회화 65/65.

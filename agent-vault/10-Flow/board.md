@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-019-cleanup-lint-env-strip]] — **정리 backlog 3건**(2026-09-29): ESLint 상대경로 교차 모듈 import 금지 · CLI 자식 env 프록시 키 제거 · A4 스키마 밖 필드 제거 요청 옵션화. REV-037 PASS, 운영 반영 `8313dc9`(006·010 PASS)
 - [[task-012b-speech-p2]] — **음성 P2 1단계: 분석 STT 파이프라인**(2026-09-29). SpeechJob 적재 게이트·사용자별 디바운스(+20s·상한 5분)·claim SKIP LOCKED+재검사·self-reclaim(인스턴스 id)·#138~#140·#22·#21a·health `stt_analysis_worker`·D-B7 평가 텍스트·Python 워커(whisper_http·pyopenjtalk 비교기). REV-033·Codex C2 2건 수정·QA(운영 모드) PASS, 운영 반영 `8af4542`(007 44/44·011 60/60). **워커 운영 등록 U1·U2 사용자 승인 대기**
 - [[task-010-today-lesson]] — **Phase 2 오늘의 회화(레슨)**(2026-09-28). 주제/붙여넣기 → A4 5단계(듣기·메모 제안·퀴즈 첫 답 고정·응용·말하기 3과제+발화 연결) → 완료 한 트랜잭션(StudyLog·스냅샷·RepetitionItem 3일)·nextPreview, 오늘 홈 카드. REV-028~031·Codex C2 2건 수정(2차 0)·QA 65/65·UI E2E 61/61, 운영 반영 `67771a5`·운영 스모크 65/65. 붙여넣기 A4 신뢰도 관찰 중
 - [[task-018-db-structure-hardening]] — **DB 구조 보강 3건**(2026-09-28, 사용자 승인): Utterance.chatId·chatMessageId unique / ConfigScope LEXICON / LexiconVersion.rollbackOf — 백업→db push→REV-026→webhook 배포 ok·운영 44/44
@@ -44,8 +45,6 @@ tags:
 - `/개선작업` 으로 추가·조회. 항목은 `improvements/items/`, 표는 `improvements/improvements.base`, 규칙은 [[improvements/README|README]]. 구현팀은 건드리지 않는다.
 
 ## 정리 backlog (소규모)
-- (REV-035 재검 Low) Claude CLI 자식 env 허용 목록의 프록시 키(`HTTP(S)_PROXY` 등) — 쓰지 않으면 빼거나 userinfo 제거 · 운영 반영 뒤 006/007/008 운영 스모크로 CLI 가용성 재확인
-- (REV-034) ESLint 6층 규칙이 **상대경로 교차 모듈 import**(`../../engine/...`)를 못 잡는다 — 규칙 보강 · A4 스키마 밖 필드 제거를 WeakSet 전역 등록 대신 `LlmJsonRequest.stripAdditionalProperties` 요청 옵션으로 전환
 - (005b) 발음 사전(Pronunciation Dictionary P0) — task-003 이후 · #93b credentialRef 쓰기·functional test 30초 슬롯 원자성 — Phase 2(012c) · 운영 APP_ENV=LOCAL·dev 상태 점검이 운영 connection 행을 바꾸는 문제 — task-009
 - `infra/http.ts` 기본 오류 문구 "AI 엔진…" 사용자 노출 가능 · 공용 `Badge` warn/accent·`ink3` 라이트 명암비 미달 · `ComingSoon` Phase/task 번호 노출
 - `conversation/persona/loader.ts` 동적 `statSync` → 빌드 "프로젝트 전체 추적" 경고(정적 경로 또는 `outputFileTracingExcludes`) · webpack dev 에서 `crypto` 해석 실패(Turbopack 기본은 정상)
