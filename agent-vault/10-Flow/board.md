@@ -33,7 +33,7 @@ tags:
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) · PE talk@v3(A11 뒤) — **스키마 push 승인 대기 예정**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면은 데모 v1(full) **사용자 승인 대기** · DB `EvaluationItem.textRevealedAt` 승인 대기
 - [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): **서버 운영 반영(67771a5, 운영 32/32)** · 화면은 데모 v1(full) **사용자 승인 대기**
-- [[task-012c-console-p2]] — Console P2: 설계·Codex C1 종결·데모 v2 게시(사용자 승인 대기) · **서버 1단계(편집 선결 보안 게이트) 운영 반영 `6abe464`**(REV-035·Codex C2 3건 수정·QA PASS) · **서버 2단계(설정 편집·버전·되돌리기 API) 진행 중**
+- [[task-012c-console-p2]] — Console P2: **서버 1·2단계 운영 반영**(`6abe464` 보안 게이트 · `8c22f01` 설정 편집·버전·Rollback·감사 API, REV-035·036·Codex C2 ×2 수정·QA PASS) · 화면은 **데모 v2 사용자 승인 대기** · 012c-2(Prompt Registry·Playground·Voice)·012c-3(TTS 품질) 후속
 - [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) — 구현은 010b·010c 뒤, **스키마 push 승인 대기 예정**
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 
