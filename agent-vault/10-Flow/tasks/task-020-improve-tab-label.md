@@ -1,7 +1,7 @@
 ---
 task_id: task-020
 title: "개선 — 하단 탭 라벨 '서랍장' → '단어장' (IMP-0006)"
-status: doing
+status: done
 base_ref: 055dbcf
 risk_level: R0
 roles_involved: [leader, judge, developer, reviewer, qa, deployer]
@@ -112,6 +112,13 @@ demo_gate:
 - 설계 정본(design-spec·module-dependency·api-contract)의 '서랍장'은 모듈·개념 이름이라 유지, 과거 데모 6개는 수정 금지라 유지.
 
 ## 최종 요약 (Leader)
+
+하단 탭 이름이 '서랍장'에서 '단어장'으로 바뀌어 운영에 반영됐습니다(커밋 `54199c9`, 릴리스 `20260930-222458-54199c9f`, 상태 확인 HTTP 200).
+
+- 바뀐 것: 탭 라벨 한 곳(`TabBar.tsx`)과 화면 설계서·CLAUDE.md·designer 지침의 탭 이름. 주소(`/drawer/words`)와 내부 이름은 그대로라서 기존 링크·기능에는 영향이 없습니다.
+- 확인한 것: 리뷰 PASS, QA PASS, 운영 빌드에서 '단어장'이 13개 파일에 있고 '서랍장'은 0개입니다.
+- 아직 안 한 것: 실기기에서 360/390/412 폭 3가지로 탭 글자가 잘리지 않는지 보는 확인은 사용자 몫입니다(글자 수·크기가 이전과 같아 문제 가능성은 낮습니다).
+- 후속: `AGENTS.md`는 CLAUDE.md의 자동 생성본인데 이 서버에 PowerShell이 없어 재생성하지 못했습니다(맥·윈도우에서 `sync-agent-bridge.ps1` 실행 필요). 탭 아이콘은 아직 서랍 모양이라 필요하면 별도 개선 항목으로 올릴 수 있습니다.
 
 ## 데모 검토 (demo gate)
 

@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-023-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:22f382529f92">
+<meta name="description" content="단어장 화면 개선(조각 필터 줄, 행의 조각 뱃지, 단어 상세 소리 듣기) delta 데모 v1 — 현재 vs 제안, 결정 필요 5건">
+<title>단어장 조각 필터</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+  --scrim: rgba(30, 36, 32, .42);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+    --scrim: rgba(0, 0, 0, .55);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+  --scrim: rgba(0, 0, 0, .55);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, h4, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; white-space: nowrap; }
+.dlvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; margin-left: 6px; border-radius: 6px; background: var(--surface2); color: var(--ink); font-size: 11.5px; font-weight: 700; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dseg button[aria-disabled="true"] { opacity: .45; cursor: default; }
+.dbtn { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; cursor: pointer; flex: none; white-space: nowrap; }
+.dbtn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.dlay { display: grid; grid-template-columns: 232px minmax(0, 1fr) 340px; gap: 18px; padding: 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav details details { margin-top: 6px; }
+.dnav summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--ink); padding: 6px 4px; list-style: none; }
+.dnav summary::-webkit-details-marker { display: none; }
+.dnav summary::before { content: "▾ "; color: var(--ink2); }
+.dnav details:not([open]) > summary::before { content: "▸ "; }
+.dnav .dnav-all > summary { font-size: 13px; min-height: 36px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }
+.dnav .dnav-all > summary .cur { font-weight: 500; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; }
+.dnav button { display: block; width: 100%; text-align: left; border: 0; background: none; min-height: 34px; padding: 6px 8px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; }
+.dnav button:hover { background: var(--surface2); color: var(--ink); }
+.dnav button[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.dnav .did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; }
+.dstage { --s: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.dstage.row { flex-wrap: nowrap; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw.w360 { width: calc(360px * var(--s)); } .fw.w390 { width: calc(390px * var(--s)); } .fw.w412 { width: calc(412px * var(--s)); }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; }
+.fw figcaption b { color: var(--ink); }
+.fw figcaption .sc { font-weight: 500; }
+.fbox { position: relative; flex: none; }
+.fbox.w360 { width: calc(360px * var(--s)); } .fbox.w390 { width: calc(390px * var(--s)); } .fbox.w412 { width: calc(412px * var(--s)); }
+.fbox.h780 { height: calc(780px * var(--s)); } .fbox.h892 { height: calc(892px * var(--s)); }
+.fbox > .phone { position: absolute; left: 0; top: 0; transform: scale(var(--s)); transform-origin: 0 0; }
+.fdim { font-size: 12px; color: var(--ink2); margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; max-width: 100%; }
+.fdim b { color: var(--ink); font-weight: 700; }
+.fold { position: absolute; left: 0; right: 0; top: 780px; z-index: 70; border-top: 2px dashed var(--accent); pointer-events: none; }
+.fold span { position: absolute; right: 10px; top: -24px; font-size: 11px; font-weight: 600; line-height: 18px; padding: 0 6px; border-radius: 6px; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.dtoast { position: fixed; left: 50%; bottom: 24px; z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard .dk { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; color: var(--ink); display: flex; flex-direction: column; gap: 4px; }
+.dcard ol.dn { list-style: decimal; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.dcard .dsub { font-size: 12px; color: var(--ink2); font-weight: 500; }
+.dcard code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: var(--surface2); padding: 1px 4px; border-radius: 4px; }
+.dacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.ddecs { padding: 0 16px 32px; }
+.ddecs > .dcard > h2 { font-size: 15px; }
+.dec-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; margin-top: 10px; }
+.dec { border: 1px solid var(--line); border-radius: 12px; padding: 12px; container-type: inline-size; min-width: 0; }
+.dec h3 { font-size: 14px; font-weight: 700; }
+.dec .dq { font-size: 12.5px; color: var(--ink2); margin-top: 2px; }
+.dec-g { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px; }
+@container (min-width: 380px) { .dec-g { grid-template-columns: 1fr 1fr; } }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.rec { border-color: var(--good); }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; font-weight: 700; }
+.opt-d { font-size: 12.5px; color: var(--ink); }
+.opt ul { font-size: 12px; color: var(--ink2); display: flex; flex-direction: column; gap: 2px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.dlink { border: 0; background: none; padding: 0; min-height: 32px; color: var(--accent); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+.chg { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 4px 8px; font-size: 13px; }
+.chg i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; display: grid; place-items: center; margin-top: 1px; }
+@media (max-width: 1240px) { .dlay { grid-template-columns: 220px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px 16px; }
+  .dnav { position: static; max-height: none; padding: 4px 10px; }
+  .dside { grid-template-columns: minmax(0, 1fr); }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+}
+
+/* ── 휴대폰 프레임: 폭은 클래스로만 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground);
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--ground); min-width: 0; }
+.scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.page { padding: 0 16px 32px; min-width: 0; }
+
+/* 앱바 · 하단 탭 (현행 AppBar·TabBar) */
+.appbar { position: sticky; top: 0; z-index: 5; height: 52px; display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 0 12px 0 16px; margin-bottom: 10px; }
+.appbar h1 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.addb { height: 44px; flex: none; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.me { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; cursor: pointer; flex: none; }
+.me span { width: 32px; height: 32px; border-radius: 50%; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+.tabbar { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 10px; }
+.tab { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; border: 0; background: none; font-size: 11px; color: var(--ink3); cursor: pointer; }
+.tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+/* 검색 (현행 WordSearchBar) */
+.srch { position: relative; }
+.srch input { display: block; height: 44px; width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); padding: 0 44px 0 40px; font-size: 16px; }
+.srch input::placeholder { color: var(--ink3); }
+.srch input::-webkit-search-cancel-button { display: none; }
+.srch > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink2); pointer-events: none; }
+.srch .clr { position: absolute; right: 0; top: 0; width: 44px; height: 44px; border: 0; background: none; border-radius: 50%; display: grid; place-items: center; color: var(--ink2); cursor: pointer; }
+
+/* 칩 줄 — 분류(현행 CategoryChips) · 조각(제안) */
+.crow { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 6px -16px 0; padding: 4px 16px; }
+.crow::-webkit-scrollbar { display: none; }
+.chip { position: relative; flex: none; display: inline-flex; align-items: center; gap: 4px; height: 36px; min-width: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; white-space: nowrap; }
+.chip::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.chip .n { font-variant-numeric: tabular-nums; }
+.chip[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.chip.tg[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--accent); }
+.chip.tg.all[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); box-shadow: none; }
+.chip .ck { font-size: 12px; }
+.frow { display: flex; align-items: center; gap: 8px; margin: 0 -16px 0 0; min-width: 0; }
+.frow-l { flex: none; width: 30px; font-size: 12px; font-weight: 600; color: var(--ink2); }
+.frow .crow { flex: 1; min-width: 0; margin: 0; padding: 4px 16px 4px 0; }
+
+/* 정렬 · 보관함 (현행) */
+.srow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.srow > .segm { flex: 1; min-width: 0; }
+.segm { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; }
+.segm button { position: relative; flex: 1; min-width: 0; height: 32px; border-radius: 9px; border: 0; background: none; font-size: 12px; color: var(--ink2); font-weight: 500; cursor: pointer; padding: 0 4px; }
+.segm button > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.segm button::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.segm button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.arch { position: relative; flex: none; height: 32px; border: 0; border-radius: 9px; padding: 0 12px; font-size: 13px; font-weight: 500; background: var(--surface2); color: var(--ink2); cursor: pointer; }
+.arch::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.arch[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); box-shadow: 0 0 0 1px var(--accent); }
+.anote { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px; font-size: 13px; color: var(--ink2); }
+
+/* 목록 머리 · 목록 · 행 */
+.lhd { margin: 12px 0 6px; min-height: 18px; font-size: 12px; color: var(--ink2); }
+.lhd .cond { color: var(--ink); font-weight: 600; }
+.wl { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.wl li + li { border-top: 1px solid var(--line); }
+.wr { display: flex; flex-direction: column; justify-content: center; gap: 2px; width: 100%; min-width: 0; min-height: 64px; padding: 10px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+.wr1, .wr2 { display: flex; align-items: baseline; gap: 8px; width: 100%; min-width: 0; }
+.ws { min-width: 0; font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wrd { flex: 1; min-width: 0; font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wm { flex: 1; min-width: 0; font-size: 14px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc { flex: none; font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; flex: none; white-space: nowrap; }
+.badge.neutral { background: var(--surface2); color: var(--ink2); }
+.badge.out { background: transparent; color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); }
+.badge.bad { background: var(--bad-soft); color: var(--bad); }
+.more { margin-top: 12px; }
+.skel { display: block; height: 64px; border-top: 1px solid var(--line); background: var(--surface); }
+.skel:first-child { border-top: 0; }
+.skel i { display: block; height: 14px; width: 40%; margin: 14px 14px 8px; border-radius: 7px; background: var(--surface2); }
+.skel i + i { width: 60%; margin-top: 0; }
+
+/* 공용 */
+.card { min-width: 0; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.center { text-align: center; }
+.et { font-size: 15px; font-weight: 600; }
+.eb { margin-top: 4px; font-size: 13px; color: var(--ink2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; min-width: 0; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.btn.h44 { height: 44px; font-size: 14px; padding: 0 12px; }
+.btn > .t { overflow: hidden; text-overflow: ellipsis; }
+.btnrow { display: flex; gap: 8px; margin-top: 12px; }
+.btnrow > * { flex: 1; min-width: 0; }
+.alink { position: relative; display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0 2px; font-size: 13px; font-weight: 700; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; white-space: nowrap; }
+.alink.acc { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 88px; z-index: 50; background: var(--ink); color: var(--surface); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+
+/* 시트 (현행 Sheet) */
+.scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); display: flex; align-items: flex-end; }
+.sheet { width: 100%; max-height: 85%; display: flex; flex-direction: column; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.12); }
+.sheet-h { flex: none; height: 52px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 0 4px 0 16px; }
+.sheet-h h2 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-x { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink2); cursor: pointer; }
+.sheet-b { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+
+/* 단어 상세 */
+.dh { display: flex; align-items: flex-start; gap: 12px; }
+.dh-m { flex: 1; min-width: 0; }
+.dsurf { font-size: 28px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.drd { margin-top: 4px; font-size: 15px; color: var(--ink2); overflow-wrap: anywhere; }
+.dmean { margin-top: 8px; font-size: 17px; font-weight: 500; }
+.dbadges { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.dex { margin-top: 12px; border-radius: 14px; background: var(--surface2); padding: 14px; }
+.dex .badge.neutral { background: var(--surface); }
+.dex-r { display: flex; align-items: flex-start; gap: 10px; }
+.dex-t { flex: 1; min-width: 0; }
+.dex .ja { font-size: 16px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dex .ko { margin-top: 4px; font-size: 14px; color: var(--ink2); }
+.dsec { margin-top: 16px; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.drec { margin-top: 4px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 12px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.dsrc { margin-top: 4px; font-size: 14px; }
+.dcap { font-size: 12px; color: var(--ink2); }
+.dnote { margin-top: 4px; font-size: 13px; color: var(--ink2); }
+.ddel { display: flex; justify-content: center; margin-top: 4px; }
+.ddel button { min-height: 44px; padding: 0 16px; border: 0; background: none; color: var(--bad); font-size: 14px; font-weight: 500; cursor: pointer; }
+.e9 { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px dashed var(--line); display: grid; place-items: center; font-size: 10px; color: var(--ink2); text-align: center; line-height: 1.15; }
+
+/* 소리 버튼 — 오늘의 회화(task-010 v2 승인본) 예문 듣기 버튼과 같은 모양 */
+.pbtn { position: relative; width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; color: var(--ink); padding: 0; }
+.pbtn.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.pbtn.mute { background: var(--surface2); color: var(--ink2); border-color: transparent; }
+.pbtn.blk { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.pbtn .ring { position: absolute; inset: -5px; border-radius: 50%; box-shadow: 0 0 0 3px var(--accent-soft); opacity: 0; pointer-events: none; }
+.pbtn.on .ring { opacity: 1; animation: pulse 1.2s ease-in-out infinite; }
+.pbtn .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: spin .9s linear infinite; }
+.dex .pbtn:not(.on):not(.mute) { background: var(--surface); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: .35; } }
+.smsg { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; margin-top: 10px; border-radius: 12px; padding: 4px 12px; min-height: 44px; font-size: 13px; }
+.smsg > span { padding: 8px 0; min-width: 0; }
+.smsg.bad { background: var(--bad-soft); color: var(--bad); }
+.smsg.neu { background: var(--surface2); color: var(--ink); }
+.dex .smsg.neu { background: var(--surface); }
+.dex .smsg { margin-top: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pbtn .spin, .pbtn.on .ring { animation: none; }
+  .pbtn .spin { border-right-color: currentColor; opacity: .5; }
+}
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>단어장 — 조각 필터 · 조각 뱃지 · 소리 듣기 <span class="dlvl">delta</span><small>task-023 · 데모 v1 · 합성 샘플 데이터</small></h1>
+  <div class="dctls">
+  <div class="dctl"><span>폭</span><div class="dseg" id="d-w" role="group" aria-label="휴대폰 폭">
+    <button type="button" data-w="360" aria-pressed="false">360</button><button type="button" data-w="390" aria-pressed="true">390</button><button type="button" data-w="412" aria-pressed="false">412</button><button type="button" data-w="all" aria-pressed="false">세 폭</button>
+  </div></div>
+  <div class="dctl"><span>높이</span><div class="dseg" id="d-h" role="group" aria-label="휴대폰 높이">
+    <button type="button" data-h="780" aria-pressed="true">780</button><button type="button" data-h="892" aria-pressed="false">892</button>
+  </div></div>
+  <div class="dctl"><span>배율</span><div class="dseg" id="d-f" role="group" aria-label="틀 축소 기준">
+    <button type="button" data-f="screen" aria-pressed="true">한 화면</button><button type="button" data-f="width" aria-pressed="false">폭 맞춤</button>
+  </div></div>
+  <div class="dctl"><span>테마</span><div class="dseg" id="d-t" role="group" aria-label="테마">
+    <button type="button" data-t="auto" aria-pressed="true">자동</button><button type="button" data-t="light" aria-pressed="false">라이트</button><button type="button" data-t="dark" aria-pressed="false">다크</button>
+  </div></div>
+  <button type="button" class="dbtn" id="d-reset">처음부터</button>
+  </div>
+</header>
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="데모 화면·상태 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside" id="side" aria-label="화면 설명과 시연 조작"></aside>
+</div>
+<section class="ddecs" aria-labelledby="dec-h">
+  <div class="dcard" id="decs"></div>
+</section>
+
+<script>
+(function () {
+'use strict';
+
+/* ════════ 합성 샘플 데이터 (기본 단어 팩 50개 + 교정 5개 + 직접 2개) ════════ */
+function J(t) { return '<span lang="ja">' + t + '</span>'; }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function cpLen(s) { return Array.from(s).length; }
+
+var POS = { N: '명사', V: '동사', AI: 'い형용사', AN: 'な형용사', AD: '부사', EX: '표현', P: '조사', O: '기타' };
+var CH = { NAME: '이름', ACTION: '액션', FEELING: '느낌', MODIFIER: '꾸밈', none: '없음' };
+var CH_ORDER = ['NAME', 'ACTION', 'FEELING', 'MODIFIER'];
+function chunkName(k) { return k === 'none' ? '조각 없음' : CH[k] + ' 조각'; }
+var SRC_BADGE = { MANUAL: null, CORRECTION: '교정', SEED: '기본 단어', TUTOR: '선생님 제안', LESSON: '레슨', EVALUATION: '평가' };
+var SRC_SENT = { MANUAL: '직접 넣은 단어예요', CORRECTION: '채팅 교정에서 채택한 표현이에요', SEED: '기본 단어(N5) 팩에서 넣었어요', TUTOR: '선생님 제안을 채택한 단어예요', LESSON: '레슨에서 넣은 단어예요', EVALUATION: '평가에서 넣은 단어예요' };
+
+var SEED = [
+  '私|わたし|나, 저|N|NAME|私は学生です。|저는 학생입니다.',
+  '学校|がっこう|학교|N|NAME|学校に行きます。|학교에 가요.',
+  '先生|せんせい|선생님|N|NAME|先生はやさしいです。|선생님은 상냥해요.',
+  '友だち|ともだち|친구|N|NAME|友だちと話します。|친구와 이야기해요.',
+  '家|いえ|집|N|NAME|家に帰ります。|집에 돌아가요.',
+  '水|みず|물|N|NAME|水をください。|물 주세요.',
+  'ご飯|ごはん|밥|N|NAME|ご飯を食べます。|밥을 먹어요.',
+  '駅|えき|역|N|NAME|駅はどこですか。|역은 어디예요?',
+  '電車|でんしゃ|전철|N|NAME|電車で行きます。|전철로 가요.',
+  '時間|じかん|시간|N|NAME|時間がありません。|시간이 없어요.',
+  '今日|きょう|오늘|N|MODIFIER|今日は暑いです。|오늘은 더워요.',
+  '明日|あした|내일|N|MODIFIER|明日また会いましょう。|내일 또 만나요.',
+  '昨日|きのう|어제|N|MODIFIER|昨日映画を見ました。|어제 영화를 봤어요.',
+  '天気|てんき|날씨|N|NAME|今日はいい天気ですね。|오늘은 날씨가 좋네요.',
+  '本|ほん|책|N|NAME|本を読みます。|책을 읽어요.',
+  'お金|おかね|돈|N|NAME|お金がありません。|돈이 없어요.',
+  '名前|なまえ|이름|N|NAME|お名前は何ですか。|성함이 뭐예요?',
+  '仕事|しごと|일, 직업|N|NAME|仕事は楽しいです。|일은 즐거워요.',
+  '日本語|にほんご|일본어|N|NAME|日本語を勉強しています。|일본어를 공부하고 있어요.',
+  '食べる|たべる|먹다|V|ACTION|パンを食べます。|빵을 먹어요.',
+  '飲む|のむ|마시다|V|ACTION|お茶を飲みます。|차를 마셔요.',
+  '行く|いく|가다|V|ACTION|会社に行きます。|회사에 가요.',
+  '来る|くる|오다|V|ACTION|友だちが来ます。|친구가 와요.',
+  '見る|みる|보다|V|ACTION|テレビを見ます。|텔레비전을 봐요.',
+  '聞く|きく|듣다, 묻다|V|ACTION|音楽を聞きます。|음악을 들어요.',
+  '話す|はなす|이야기하다|V|ACTION|日本語で話します。|일본어로 이야기해요.',
+  '読む|よむ|읽다|V|ACTION|新聞を読みます。|신문을 읽어요.',
+  '書く|かく|쓰다|V|ACTION|手紙を書きます。|편지를 써요.',
+  '買う|かう|사다|V|ACTION|パンを買います。|빵을 사요.',
+  '待つ|まつ|기다리다|V|ACTION|ちょっと待ってください。|잠깐 기다려 주세요.',
+  '分かる|わかる|알다, 이해하다|V|ACTION|よく分かりません。|잘 모르겠어요.',
+  'する|する|하다|V|ACTION|宿題をします。|숙제를 해요.',
+  '起きる|おきる|일어나다|V|ACTION|七時に起きます。|7시에 일어나요.',
+  '寝る|ねる|자다|V|ACTION|十一時に寝ます。|11시에 자요.',
+  '大きい|おおきい|크다|AI|MODIFIER|大きい家ですね。|큰 집이네요.',
+  '小さい|ちいさい|작다|AI|MODIFIER|小さい犬がいます。|작은 개가 있어요.',
+  '高い|たかい|비싸다, 높다|AI|FEELING|このかばんは高いです。|이 가방은 비싸요.',
+  '安い|やすい|싸다|AI|FEELING|この店は安いです。|이 가게는 싸요.',
+  'おいしい|おいしい|맛있다|AI|FEELING|このケーキはおいしいです。|이 케이크는 맛있어요.',
+  '楽しい|たのしい|즐겁다|AI|FEELING|旅行は楽しかったです。|여행은 즐거웠어요.',
+  '忙しい|いそがしい|바쁘다|AI|FEELING|今週は忙しいです。|이번 주는 바빠요.',
+  '新しい|あたらしい|새롭다|AI|MODIFIER|新しい靴を買いました。|새 신발을 샀어요.',
+  '暑い|あつい|덥다|AI|FEELING|夏は暑いです。|여름은 더워요.',
+  '好き|すき|좋아함|AN|FEELING|猫が好きです。|고양이를 좋아해요.',
+  '元気|げんき|건강함, 활기참|AN|FEELING|お元気ですか。|잘 지내세요?',
+  '静か|しずか|조용함|AN|FEELING|この公園は静かです。|이 공원은 조용해요.',
+  'とても|とても|아주|AD|MODIFIER|とても寒いです。|아주 추워요.',
+  '少し|すこし|조금|AD|MODIFIER|少し待ってください。|조금 기다려 주세요.',
+  'ありがとう|ありがとう|고마워요|EX||手伝ってくれてありがとう。|도와줘서 고마워요.',
+  'すみません|すみません|죄송합니다, 저기요|EX||すみません、駅はどこですか。|저기요, 역은 어디예요?'
+];
+/* 표현|읽기|뜻|품사|조각|예문|예문 뜻|분류|출처|맞힘|틀림|추가한 날 */
+var EXTRA = [
+  '映画|えいが|영화|N|NAME|昨日、友だちと映画を見に行きました。|어제 친구와 영화를 보러 갔어요.|교정|CORRECTION|3|1|9월 24일',
+  '予約する|よやくする|예약하다|V|ACTION|レストランを予約しました。|레스토랑을 예약했어요.|교정|CORRECTION|1|0|9월 25일',
+  '乗り換える|のりかえる|갈아타다|V|ACTION|新宿で電車を乗り換えます。|신주쿠에서 전철을 갈아타요.|교정|CORRECTION|0|2|9월 26일',
+  '懐かしい|なつかしい|그립다|AI|FEELING|この歌はとても懐かしいです。|이 노래는 정말 그리워요.|교정|CORRECTION|0|0|9월 27일',
+  'お疲れさまです|おつかれさまです|수고하셨어요|EX||今日もお疲れさまです。|오늘도 수고하셨어요.|교정|CORRECTION|2|1|9월 28일',
+  '散歩|さんぽ|산책|N||朝、公園を散歩します。|아침에 공원을 산책해요.|일상|MANUAL|0|0|9월 29일',
+  '楽しみ|たのしみ|기대됨, 즐거움|AN||週末が楽しみです。|주말이 기대돼요.|일상|MANUAL|0|0|9월 30일'
+];
+var COUNTS = { '食べる': [3, 1], '飲む': [2, 0], '行く': [1, 2], '高い': [0, 2], '今日': [4, 0], '駅': [2, 1], '分かる': [1, 3], '忙しい': [0, 1], '好き': [2, 0], '電車': [1, 1] };
+var ARCHIVED = { '私': true, 'する': true };
+var WORDS = [];
+SEED.forEach(function (line, i) {
+  var p = line.split('|'), cw = COUNTS[p[0]] || [0, 0];
+  WORDS.push({ id: 'w' + (i + 1), surface: p[0], reading: p[1], meaning: p[2], pos: p[3], chunk: p[4] || null, ex: p[5], exKo: p[6],
+    cat: 'N5 기초', src: 'SEED', jlpt: 'N5', c: cw[0], w: cw[1], archived: !!ARCHIVED[p[0]], t: i, added: '9월 21일' });
+});
+EXTRA.forEach(function (line, i) {
+  var p = line.split('|');
+  WORDS.push({ id: 'x' + (i + 1), surface: p[0], reading: p[1], meaning: p[2], pos: p[3], chunk: p[4] || null, ex: p[5], exKo: p[6],
+    cat: p[7], src: p[8], jlpt: null, c: +p[9], w: +p[10], archived: false, t: 100 + i, added: p[11] });
+});
+function byId(id) { for (var i = 0; i < WORDS.length; i++) if (WORDS[i].id === id) return WORDS[i]; return WORDS[19]; }
+function bySurface(s) { for (var i = 0; i < WORDS.length; i++) if (WORDS[i].surface === s) return WORDS[i]; return WORDS[19]; }
+var CAT_ORDER = ['N5 기초', '교정', '일상'];
+
+/* ════════ 조회 흉내(#40 where 절) ════════ */
+function query(f) {
+  var out = WORDS.filter(function (w) {
+    if (w.archived !== f.archived) return false;
+    if (f.cat && w.cat !== f.cat) return false;
+    if (f.chunk.length && f.chunk.indexOf(w.chunk || 'none') < 0) return false;
+    if (f.q && w.surface.indexOf(f.q) < 0 && w.reading.indexOf(f.q) < 0 && w.meaning.indexOf(f.q) < 0) return false;
+    return true;
+  });
+  if (S.sort === 'wrong') out.sort(function (a, b) { return b.w - a.w || b.t - a.t; });
+  else if (S.sort === 'surface') out.sort(function (a, b) { return a.surface < b.surface ? -1 : a.surface > b.surface ? 1 : 0; });
+  else out.sort(function (a, b) { return b.t - a.t; });
+  return out;
+}
+function cats(archived) {
+  return CAT_ORDER.map(function (c) {
+    return { cat: c, n: WORDS.filter(function (w) { return w.cat === c && w.archived === archived; }).length };
+  }).filter(function (c) { return c.n > 0; });
+}
+
+/* ════════ 상태 ════════ */
+var REC = { a: 'A', b: 'A', c: 'A', d: 'B', e: 'A' };
+function fresh(keep) {
+  return {
+    view: 'list', w: keep.w || 390, h: keep.h || 780, triple: !!keep.triple, fit: keep.fit || 'screen',
+    dec: keep.dec || { a: REC.a, b: REC.b, c: REC.c, d: REC.d, e: REC.e },
+    f: { q: '', cat: null, chunk: [], archived: false }, qInput: '', sort: 'recent', shown: 30, sheet: null,
+    snd: { target: null, phase: 'idle', msg: null, retry: false },
+    sim: { fail: false, slow: false, textOnly: false, rate: false, offline: false, block: false },
+    toast: null, preset: '', _reset: true
+  };
+}
+var S = fresh({});
+var FID = 'f0-';
+var timers = { snd: null, toast: null, q: null };
+
+var IC = {
+  play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  stop: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>',
+  search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+  x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+};
+var TABS = [
+  ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+  ['오늘', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
+  ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'],
+  ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+  ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']
+];
+
+/* ════════ 화면 조각 ════════ */
+function badge(tone, t) { return '<span class="badge ' + tone + '">' + t + '</span>'; }
+function tabbar() {
+  return '<nav class="tabbar" aria-label="주 메뉴">' + TABS.map(function (t) {
+    var on = t[0] === '단어장';
+    return '<button type="button" class="tab" data-act="oos" ' + (on ? 'aria-current="page"' : '') + '><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + t[1] + '"/></svg>' + t[0] + '</button>';
+  }).join('') + '</nav>';
+}
+function appbar() {
+  return '<header class="appbar" data-mtop><h1>단어장</h1><button type="button" class="addb" data-act="oos" aria-label="단어 추가">＋ 추가</button><button type="button" class="me" data-act="oos" aria-label="설정"><span>나</span></button></header>';
+}
+function searchBar() {
+  return '<form class="srch" role="search" onsubmit="return false"><input type="search" enterkeyhint="search" aria-label="단어 검색" placeholder="표현·읽기·뜻으로 검색" data-inp="q" data-k="q" value="' + esc(S.qInput) + '">' + IC.search +
+    (S.qInput ? '<button type="button" class="clr" data-act="q-clear" aria-label="검색어 지우기">' + IC.x + '</button>' : '') + '</form>';
+}
+function catRow() {
+  var cl = cats(S.f.archived);
+  if (!cl.length) return '';
+  var total = cl.reduce(function (a, c) { return a + c.n; }, 0);
+  var chip = function (label, n, v) {
+    var on = (v === '' ? S.f.cat === null : S.f.cat === v);
+    return '<button type="button" class="chip" role="radio" aria-checked="' + on + '" data-act="cat" data-arg="' + esc(v) + '"><span>' + esc(label) + '</span><span class="n">' + n + '</span></button>';
+  };
+  return '<div class="crow" role="radiogroup" aria-label="분류">' + chip('전체', total, '') + cl.map(function (c) { return chip(c.cat, c.n, c.cat); }).join('') + '</div>';
+}
+function chunkKeys() { return CH_ORDER.concat(S.dec.c === 'A' ? ['none'] : []); }
+function chunkRow() {
+  var multi = S.dec.b === 'B', sel = S.f.chunk, lid = FID + 'chl';
+  var inner;
+  if (!multi) {
+    var r = function (label, sr, v, on) {
+      return '<button type="button" class="chip" role="radio" aria-checked="' + on + '" data-act="chunk" data-arg="' + v + '">' + label + '<span class="sr">' + sr + '</span></button>';
+    };
+    inner = '<div class="crow" role="radiogroup" aria-labelledby="' + lid + '">' + r('전체', ' (모든 조각)', '', sel.length === 0) +
+      chunkKeys().map(function (k) { return r(CH[k], k === 'none' ? ' (조각이 정해지지 않은 단어)' : ' 조각', k, sel[0] === k); }).join('') + '</div>';
+  } else {
+    var t = function (label, sr, v, on, all) {
+      return '<button type="button" class="chip tg' + (all ? ' all' : '') + '" aria-pressed="' + on + '" data-act="chunk" data-arg="' + v + '">' + (on && !all ? '<span class="ck" aria-hidden="true">✓</span>' : '') + label + '<span class="sr">' + sr + '</span></button>';
+    };
+    inner = '<div class="crow" role="group" aria-labelledby="' + lid + '">' + t('전체', ' (조각 선택 모두 풀기)', '', sel.length === 0, true) +
+      chunkKeys().map(function (k) { return t(CH[k], k === 'none' ? ' (조각이 정해지지 않은 단어)' : ' 조각', k, sel.indexOf(k) >= 0, false); }).join('') + '</div>';
+  }
+  return '<div class="frow new"><span class="frow-l" id="' + lid + '">조각</span>' + inner + '</div>';
+}
+function sortRow() {
+  var opts = [['recent', '최근 추가'], ['wrong', '많이 틀린'], ['surface', '가나다순']];
+  return '<div class="srow"><div class="segm" role="radiogroup" aria-label="정렬">' + opts.map(function (o) {
+    return '<button type="button" role="radio" aria-checked="' + (S.sort === o[0]) + '" data-act="sort" data-arg="' + o[0] + '"><span>' + o[1] + '</span></button>';
+  }).join('') + '</div><button type="button" class="arch" aria-pressed="' + S.f.archived + '" data-act="arch">보관함</button></div>' +
+    (S.f.archived ? '<p class="anote">보관한 단어는 오늘의 단어에 나오지 않아요.</p>' : '');
+}
+function chunkSumm(arr) {
+  if (arr.length === 1) return chunkName(arr[0]);
+  return '조각 ' + arr.map(function (k) { return CH[k]; }).join('·');
+}
+function headLine(n, cur) {
+  var f = S.f, base;
+  if (f.archived) base = '보관한 단어 ' + n + '개';
+  else if (f.q) base = '‘' + J(esc(f.q)) + '’ 검색 결과 ' + n + '개';
+  else base = '단어 ' + n + '개';
+  if (cur) return base;
+  var cond = [];
+  if (f.cat) cond.push(esc(f.cat));
+  if (f.chunk.length) cond.push(chunkSumm(f.chunk));
+  return base + (cond.length ? ' · <span class="cond">' + cond.join(' · ') + '</span>' : '');
+}
+function rowBadge(w, cur) {
+  if (cur) return SRC_BADGE[w.src] ? badge('neutral', SRC_BADGE[w.src]) : '';
+  if (w.chunk) return badge('neutral', chunkName(w.chunk));
+  return S.dec.a === 'B' ? badge('out', '조각 없음') : '';
+}
+function rowHTML(w, cur) {
+  var played = w.c + w.w > 0;
+  var right = S.sort === 'wrong' && w.w > 0 ? badge('bad', '틀림 ' + w.w) : played ? '<span class="wc">맞힘 ' + w.c + ' · 틀림 ' + w.w + '</span>' : '';
+  return '<li><button type="button" class="wr" data-act="row" data-arg="' + w.id + '">' +
+    '<span class="wr1"><span class="ws" lang="ja">' + w.surface + '</span>' + (w.reading !== w.surface ? '<span class="wrd" lang="ja">' + w.reading + '</span>' : '<span class="wrd"></span>') + rowBadge(w, cur) + '</span>' +
+    '<span class="wr2"><span class="wm">' + esc(w.meaning) + '</span>' + right + '</span></button></li>';
+}
+function emptyHTML(cur) {
+  var f = S.f;
+  var t, b = '', acts = '';
+  var chunkOn = !cur && f.chunk.length > 0;
+  if (f.q) {
+    t = '‘' + J(esc(f.q)) + '’에 맞는 단어가 없어요';
+    if (chunkOn) {
+      b = chunkSumm(f.chunk) + (f.cat ? ' · ' + esc(f.cat) : '') + ' 안에서 찾았어요.';
+      acts = '<div class="btnrow"><button type="button" class="btn ghost h44" data-act="clear-chunk">조각 전체에서 찾기</button></div>';
+    } else acts = '<button type="button" class="btn ghost h44 full" style="margin-top:12px" data-act="oos"><span class="t">‘' + J(esc(f.q)) + '’ 추가하기</span></button>';
+  } else if (chunkOn) {
+    t = f.cat ? '‘' + esc(f.cat) + '’에 ' + chunkSumm(f.chunk) + ' 단어가 없어요' : (f.archived ? '보관한 단어 중 ' + chunkSumm(f.chunk) + ' 단어가 없어요' : chunkSumm(f.chunk) + ' 단어가 없어요');
+    b = f.cat ? '분류와 조각을 함께 고르면 둘 다 맞는 단어만 보여요.' : '';
+    acts = '<div class="btnrow"><button type="button" class="btn ghost h44" data-act="clear-chunk">조각 전체 보기</button>' + (f.cat ? '<button type="button" class="btn ghost h44" data-act="clear-cat">분류 전체 보기</button>' : '') + '</div>';
+  } else if (f.cat) {
+    t = '이 분류에 단어가 없어요';
+    acts = '<button type="button" class="btn ghost h44 full" style="margin-top:12px" data-act="clear-cat">전체 보기</button>';
+  } else if (f.archived) {
+    t = '보관한 단어가 없어요'; b = '오늘의 단어에서 빼고 싶은 단어는 눌러서 보관할 수 있어요.';
+  } else t = '단어장이 비어 있어요';
+  return '<div class="card center" data-mlist><p class="et">' + t + '</p>' + (b ? '<p class="eb">' + b + '</p>' : '') + acts + '</div>';
+}
+function listBody(cur) {
+  var f = cur ? { q: S.f.q, cat: S.f.cat, chunk: [], archived: S.f.archived } : S.f;
+  var items = query(f), n = items.length, shown = items.slice(0, S.shown);
+  var list = n === 0 ? emptyHTML(cur)
+    : '<ul class="wl" data-mlist>' + shown.map(function (w) { return rowHTML(w, cur); }).join('') + '</ul>' +
+      (n > S.shown ? '<button type="button" class="btn ghost full more" data-act="more">단어 더 보기</button>' : '');
+  return searchBar() + catRow() + (cur ? '' : chunkRow()) + sortRow() +
+    '<p class="lhd" aria-live="polite">' + headLine(n, cur) + '</p>' + list;
+}
+
+/* ── 상세 시트 ── */
+var MSG = {
+  fail: { tone: 'bad', text: '목소리를 불러오지 못했어요.', retry: '다시 듣기', role: 'alert' },
+  slow: { tone: 'bad', text: '목소리 응답이 늦어요. 잠시 후 다시 눌러 주세요.', retry: '다시 듣기', role: 'alert' },
+  offline: { tone: 'bad', text: '연결하지 못했어요. 네트워크를 확인해 주세요.', retry: '다시 듣기', role: 'alert' },
+  textonly: { tone: 'neu', text: '지금은 선생님 목소리를 들을 수 없어요(자막만). 목소리가 돌아오면 다시 들을 수 있어요.', retry: '다시 확인', role: 'status' },
+  rate: { tone: 'neu', text: '너무 자주 눌렀어요. 잠시 후 다시 들어 주세요.', retry: '', role: 'status' },
+  blocked: { tone: 'neu', text: '소리를 켜려면 ▶ 를 한 번 더 눌러 주세요.', retry: '', role: 'status' }
+};
+function playBtn(t) {
+  var s = S.snd, act = s.target === t, ph = act ? s.phase : 'idle', msg = s.msg && s.msg.target === t ? s.msg : null;
+  var what = t === 'word' ? '단어' : '예문';
+  var cls = 'pbtn', icon = IC.play, label = what + ' 소리 듣기', extra = '';
+  if (ph === 'loading') { icon = '<span class="spin" aria-hidden="true"></span>'; label = what + ' 소리를 불러오는 중, 누르면 취소'; extra = ' aria-busy="true"'; }
+  else if (ph === 'playing') { cls += ' on'; icon = IC.stop; label = what + ' 소리 멈추기'; }
+  else if (ph === 'blocked') cls += ' blk';
+  if (msg && msg.kind === 'textonly') cls += ' mute';
+  return '<button type="button" class="' + cls + '" data-act="snd" data-arg="' + t + '" data-k="snd-' + t + '" aria-label="' + label + '"' + extra + '>' + icon + '<span class="ring" aria-hidden="true"></span></button>';
+}
+function sndMsg(t) {
+  var s = S.snd;
+  if (s.target === t && s.phase === 'loading' && s.retry) return '<p class="smsg neu" role="status"><span>다시 불러오는 중…</span></p>';
+  var m = s.msg && s.msg.target === t ? s.msg : null;
+  if (!m) return '<p class="sr" role="status">' + (s.target === t && s.phase === 'playing' ? (t === 'word' ? '단어' : '예문') + ' 소리 재생 중' : '') + '</p>';
+  var d = MSG[m.kind];
+  return '<p class="smsg ' + d.tone + '" role="' + d.role + '"><span>' + d.text + '</span>' + (d.retry ? '<button type="button" class="alink" data-act="snd-retry" data-arg="' + t + '">' + d.retry + '</button>' : '') + '</p>';
+}
+function exPlayable(w) { return S.dec.d === 'B' && w.ex && cpLen(w.ex) <= 100; }
+function detailBody(w, cur) {
+  var badges = [badge('neutral', POS[w.pos] || '기타')];
+  if (w.jlpt) badges.push(badge('neutral', w.jlpt));
+  if (w.cat) badges.push(badge('neutral', esc(w.cat)));
+  if (w.chunk) badges.push(badge('neutral', chunkName(w.chunk)));
+  else if (!cur && S.dec.a === 'B') badges.push(badge('out', '조각 없음'));
+  if (w.archived) badges.push(badge('neutral', '보관함'));
+  var played = w.c + w.w > 0;
+  var showSrc = cur || S.dec.e === 'A';
+  var head = '<div class="dh"><div class="dh-m"><p class="dsurf" lang="ja">' + w.surface + '</p>' + (w.reading !== w.surface ? '<p class="drd" lang="ja">' + w.reading + '</p>' : '') + '</div>' +
+    (cur ? '<span class="e9" aria-hidden="true">자리만<br>(E9)</span>' : playBtn('word')) + '</div>' + (cur ? '' : sndMsg('word'));
+  var ex = w.ex ? '<div class="dex"><div class="dex-r"><div class="dex-t"><p class="ja" lang="ja">' + w.ex + '</p>' + (w.exKo ? '<p class="ko">' + esc(w.exKo) + '</p>' : '') + '</div>' +
+    (!cur && exPlayable(w) ? playBtn('ex') : '') + '</div>' + (!cur && exPlayable(w) ? sndMsg('ex') : '') + '</div>' : '';
+  var rec = '<h3 class="dsec">기록</h3><dl class="drec"><div><dt class="sr">전체</dt><dd>맞힘 ' + w.c + ' · 틀림 ' + w.w + '</dd></div>' +
+    (played ? '<div><dt class="sr">최근 7일</dt><dd>최근 7일 맞힘 ' + Math.min(w.c, 2) + ' · 틀림 ' + Math.min(w.w, 1) + '</dd></div><div><dt class="sr">푼 횟수</dt><dd>푼 횟수 ' + (w.c + w.w) + '</dd></div><div><dt class="sr">마지막</dt><dd>마지막 9월 29일(' + (w.w ? '틀림' : '맞힘') + ')</dd></div>' : '') +
+    (!showSrc ? '<div><dt class="sr">추가한 날</dt><dd>추가한 날 ' + w.added + '</dd></div>' : '') + '</dl>' +
+    (!played ? '<p class="dnote">아직 오늘의 단어에서 풀지 않았어요</p>' : '');
+  var src = showSrc ? '<h3 class="dsec">출처</h3><p class="dsrc">' + SRC_SENT[w.src] + '</p>' +
+    (w.src === 'CORRECTION' ? '<button type="button" class="alink acc" data-act="oos">점검 결과 보기 ›</button>' : '') +
+    '<p class="dcap">추가한 날 ' + w.added + '</p>' : '';
+  return head + '<p class="dmean">' + esc(w.meaning) + '</p><div class="dbadges">' + badges.join('') + '</div>' + ex + rec + src +
+    '<div class="btnrow"><button type="button" class="btn ghost" data-act="oos">수정</button><button type="button" class="btn ghost" data-act="oos">' + (w.archived ? '보관 풀기' : '보관하기') + '</button></div>' +
+    '<div class="ddel"><button type="button" data-act="oos">삭제</button></div>';
+}
+function sheetHTML(cur) {
+  var w = byId(S.sheet.id), hid = FID + 'sh';
+  return '<div class="scrim" data-act="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="' + hid + '">' +
+    '<div class="sheet-h"><h2 id="' + hid + '">단어</h2><button type="button" class="sheet-x" data-act="sheet-close" data-k="sh-x" aria-label="닫기">' + IC.x + '</button></div>' +
+    '<div class="sheet-b">' + detailBody(w, cur) + '</div></div></div>';
+}
+function appHTML(cur) {
+  return '<div class="app"><div class="scroll" data-scroll>' + appbar() + '<div class="page">' + listBody(cur) + '</div></div>' + tabbar() +
+    (S.sheet ? sheetHTML(cur) : '') + (S.toast ? '<div class="toast" role="status">' + S.toast + '</div>' : '') + '</div>';
+}
+
+/* ════════ 렌더 · 틀 ════════ */
+var stageEl = document.getElementById('stage');
+var LAST = null, curScale = 1, lastFrame = 0;
+function frames() {
+  if (S.view === 'compare') return { base: [412, 412], list: [
+    { label: '현재 · 운영 중 화면', w: S.w, cur: true },
+    { label: '제안 · v1', w: S.w, cur: false }] };
+  if (S.triple) return { base: [360, 390, 412], list: [360, 390, 412].map(function (w) { return { label: w === 390 ? '대표 폭(앱 WebView)' : '경계 폭', w: w, cur: false }; }) };
+  return { base: [412], list: [{ label: S.w === 390 ? '대표 폭(앱 WebView)' : '경계 폭', w: S.w, cur: false }] };
+}
+function narrow() { return window.innerWidth <= 760; }
+function applyScale() {
+  if (!LAST) return;
+  var n = LAST.list.length, gap = 22;
+  var availW = stageEl.clientWidth;
+  var top = document.querySelector('.dtop');
+  var topH = getComputedStyle(top).position === 'sticky' ? top.offsetHeight : 0;
+  var availH = window.innerHeight - topH - 110;
+  var sW = availW / 412, sH = S.fit === 'screen' ? availH / 892 : 9;
+  var sBase = Math.min(1, sW, sH);
+  var sum = LAST.base.reduce(function (a, b) { return a + b; }, 0);
+  var sRow = (availW - (n - 1) * gap) / sum;
+  var row = n > 1 && sRow >= 0.45;
+  var sc = row ? Math.min(sBase, sRow) : sBase;
+  sc = Math.max(0.3, Math.floor(sc * 1000) / 1000);
+  curScale = sc;
+  stageEl.style.setProperty('--s', String(sc));
+  stageEl.classList.toggle('row', row);
+  var pct = Math.round(sc * 100);
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-scale-cap]'), function (e) {
+    e.textContent = pct >= 100 ? '실제 배치 · 100% 크기' : '실제 배치, 화면에 맞춰 ' + pct + '% 축소';
+  });
+  measure();
+}
+/* 실측: 목록 위 조작 영역(앱바 아래 ~ 목록 시작)과 첫 화면에 다 보이는 행 수 */
+function measure() {
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-frame]'), function (fr) {
+    var cap = fr.parentNode.parentNode.querySelector('[data-meas]');
+    if (!cap) return;
+    var sc = fr.querySelector('[data-scroll]'), bar = fr.querySelector('[data-mtop]'), list = fr.querySelector('[data-mlist]');
+    if (!sc || !bar || !list) { cap.textContent = ''; return; }
+    var r0 = sc.getBoundingClientRect(), k = curScale, st = sc.scrollTop;
+    var yTop = function (el) { return (el.getBoundingClientRect().top - r0.top) / k + st; };
+    var yBot = function (el) { return (el.getBoundingClientRect().bottom - r0.top) / k + st; };
+    var ctrl = Math.round(yTop(list) - bar.offsetHeight); /* 앱바는 스크롤 영역 맨 위(sticky) — 원래 자리 기준 */
+    var rows = list.querySelectorAll('li'), vis = 0;
+    Array.prototype.forEach.call(rows, function (r) { if (yBot(r) <= sc.clientHeight + 0.5) vis++; });
+    cap.innerHTML = '목록 위 조작 영역 <b>' + ctrl + 'px</b>' + (rows.length ? ' · 첫 화면에 다 보이는 행 <b>' + vis + '개</b>' : ' · 빈 상태');
+  });
+}
+function render() {
+  var scrolls = Array.prototype.map.call(stageEl.querySelectorAll('[data-frame]'), function (f) { var sc = f.querySelector('[data-scroll]'); return sc ? sc.scrollTop : 0; });
+  var ae = document.activeElement, fk = ae && ae.getAttribute ? ae.getAttribute('data-k') : null;
+  var caret = fk === 'q' && ae.selectionStart != null ? ae.selectionStart : null;
+  var fr = frames();
+  LAST = fr;
+  stageEl.innerHTML = fr.list.map(function (f, i) {
+    FID = 'f' + i + '-';
+    var fold = S.h === 892 ? '<div class="fold" aria-hidden="true"><span>780 · 주소창이 보이면 여기까지</span></div>' : '';
+    return '<figure class="fw w' + f.w + '"><figcaption><b>' + f.w + 'px</b> · ' + f.label + '<br><span class="sc" data-scale-cap></span></figcaption>' +
+      '<div class="fbox w' + f.w + ' h' + S.h + '"><div class="phone w' + f.w + ' h' + S.h + '" data-frame="' + i + '">' + appHTML(f.cur) + fold + '</div></div>' +
+      '<p class="fdim">' + f.w + ' × ' + S.h + '<br><span data-meas></span></p></figure>';
+  }).join('');
+  FID = 'f0-';
+  var fs = stageEl.querySelectorAll('[data-frame]');
+  Array.prototype.forEach.call(fs, function (f, i) {
+    var sc = f.querySelector('[data-scroll]'); if (!sc) return;
+    if (S._reset) sc.scrollTop = 0; else if (scrolls[i] != null) sc.scrollTop = scrolls[i];
+  });
+  S._reset = false;
+  applyScale();
+  var want = S._focus || fk;
+  S._focus = null;
+  if (want) {
+    var f0 = fs[Math.min(lastFrame, fs.length - 1)] || fs[0];
+    var el2 = f0 && f0.querySelector('[data-k="' + want + '"]');
+    if (el2) {
+      try { el2.focus({ preventScroll: true }); } catch (e) { el2.focus(); }
+      if (want === 'q' && caret != null && el2.setSelectionRange) try { el2.setSelectionRange(caret, caret); } catch (e) { /* 무시 */ }
+    }
+  }
+  renderNav(); renderSide(); renderDecs(); syncTop();
+}
+var dtoastTimer = null;
+function dtoast(msg) {
+  var el = document.getElementById('dtoast');
+  if (!el) { el = document.createElement('div'); el.id = 'dtoast'; el.className = 'dtoast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(dtoastTimer);
+  dtoastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+}
+function toast(msg) {
+  S.toast = msg; render();
+  clearTimeout(timers.toast);
+  timers.toast = setTimeout(function () { S.toast = null; render(); }, 2600);
+}
+
+/* ════════ 소리(#23 흉내) ════════ */
+function stopSnd() { clearTimeout(timers.snd); timers.snd = null; S.snd = { target: null, phase: 'idle', msg: null, retry: false }; }
+function playNow(t) {
+  S.snd = { target: t, phase: 'playing', msg: null, retry: false };
+  render();
+  timers.snd = setTimeout(function () { S.snd = { target: null, phase: 'idle', msg: null, retry: false }; render(); }, t === 'word' ? 1300 : 2600);
+}
+function load(t, retry) {
+  clearTimeout(timers.snd);
+  S.snd = { target: t, phase: 'loading', msg: null, retry: !!retry };
+  render();
+  var sim = S.sim;
+  timers.snd = setTimeout(function () {
+    var fail = function (kind) { S.snd = { target: null, phase: 'idle', msg: { target: t, kind: kind }, retry: false }; render(); };
+    if (sim.offline) return fail('offline');
+    if (sim.textOnly) return fail('textonly');
+    if (sim.rate) return fail('rate');
+    if (sim.fail) { sim.fail = false; return fail('fail'); }
+    if (sim.slow) { sim.slow = false; return fail('slow'); }
+    if (sim.block) { sim.block = false; S.snd = { target: t, phase: 'blocked', msg: { target: t, kind: 'blocked' }, retry: false }; render(); return; }
+    playNow(t);
+  }, sim.slow ? 1600 : retry ? 900 : 650);
+}
+function sndTap(t) {
+  var s = S.snd;
+  if (s.target === t && (s.phase === 'playing' || s.phase === 'loading')) { stopSnd(); render(); return; }
+  if (s.target === t && s.phase === 'blocked') { clearTimeout(timers.snd); playNow(t); return; }
+  stopSnd(); load(t, false);
+}
+
+/* ════════ 동작 ════════ */
+function normChunk() {
+  var keys = chunkKeys();
+  S.f.chunk = S.f.chunk.filter(function (k) { return keys.indexOf(k) >= 0; });
+  if (S.dec.b === 'A' && S.f.chunk.length > 1) S.f.chunk = S.f.chunk.slice(0, 1);
+}
+var ACT = {
+  'oos': function () { toast('이 데모는 단어장 변경분만 보여 드려요'); },
+  'cat': function (a) { S.f.cat = a || null; S.shown = 30; render(); },
+  'chunk': function (a) {
+    if (!a) S.f.chunk = [];
+    else if (S.dec.b === 'A') S.f.chunk = [a];
+    else { var i = S.f.chunk.indexOf(a); if (i >= 0) S.f.chunk.splice(i, 1); else S.f.chunk.push(a); }
+    S.shown = 30; render();
+  },
+  'sort': function (a) { S.sort = a; S.shown = 30; render(); },
+  'arch': function () { S.f.archived = !S.f.archived; S.f.cat = null; S.shown = 30; render(); },
+  'more': function () { S.shown += 30; render(); },
+  'clear-chunk': function () { S.f.chunk = []; render(); },
+  'clear-cat': function () { S.f.cat = null; render(); },
+  'q-clear': function () { S.qInput = ''; S.f.q = ''; S._focus = 'q'; render(); },
+  'row': function (a) { stopSnd(); S.sheet = { id: a }; S._focus = 'sh-x'; render(); },
+  'sheet-close': function () { stopSnd(); S.sheet = null; render(); },
+  'sheet-bg': function (a, el, e) { if (e.target === el) ACT['sheet-close'](); },
+  'snd': function (a) { sndTap(a); },
+  'snd-retry': function (a) { stopSnd(); load(a, true); },
+  'd-sim': function (a) { S.sim[a] = !S.sim[a]; render(); }
+};
+
+/* ════════ 상태 목록(프리셋) ════════ */
+function openWord(s) { S.sheet = { id: bySurface(s).id }; }
+var PRESETS = [
+  ['단어장 목록', [
+    ['list-compare', '현재 vs 제안', function () { S.view = 'compare'; }],
+    ['list-all', '제안 · 전체', function () {}],
+    ['list-chunk', '조각 하나 고름(액션)', function () { S.f.chunk = ['ACTION']; }],
+    ['list-and', '분류 + 조각(N5 기초 · 느낌)', function () { S.f.cat = 'N5 기초'; S.f.chunk = ['FEELING']; }],
+    ['list-none', '“없음” 고름(조각 없는 단어)', function () { S.f.chunk = S.dec.c === 'A' ? ['none'] : []; }],
+    ['list-search', '검색 + 조각(‘た’ · 느낌)', function () { S.qInput = 'た'; S.f.q = 'た'; S.f.chunk = ['FEELING']; }],
+    ['list-archived', '보관함 + 조각(이름)', function () { S.f.archived = true; S.f.chunk = ['NAME']; }],
+    ['list-empty', '조건 결과 0(일상 · 액션)', function () { S.f.cat = '일상'; S.f.chunk = ['ACTION']; }],
+    ['list-search-empty', '검색 + 조각 결과 0', function () { S.qInput = '映'; S.f.q = '映'; S.f.chunk = ['ACTION']; }],
+    ['list-wrong', '많이 틀린 순 + 조각', function () { S.sort = 'wrong'; S.f.chunk = ['ACTION']; }]
+  ]],
+  ['단어 상세 · 소리 듣기', [
+    ['detail-compare', '현재 vs 제안', function () { S.view = 'compare'; openWord('食べる'); }],
+    ['detail-idle', '대기', function () { openWord('食べる'); }],
+    ['detail-loading', '불러오는 중', function () { openWord('食べる'); S.snd = { target: 'word', phase: 'loading', msg: null, retry: false }; }],
+    ['detail-playing', '단어 재생 중', function () { openWord('食べる'); S.snd = { target: 'word', phase: 'playing', msg: null, retry: false }; }],
+    ['detail-ex', '예문 재생 중', function () { openWord('食べる'); if (S.dec.d === 'B') S.snd = { target: 'ex', phase: 'playing', msg: null, retry: false }; }],
+    ['detail-fail', '실패 → 다시 듣기', function () { openWord('食べる'); S.snd = { target: null, phase: 'idle', msg: { target: 'word', kind: 'fail' }, retry: false }; }],
+    ['detail-retry', '다시 듣기 → 다시 불러오는 중', function () { openWord('食べる'); S.snd = { target: 'word', phase: 'loading', msg: null, retry: true }; }],
+    ['detail-slow', '응답 늦음(시간 초과)', function () { openWord('食べる'); S.snd = { target: null, phase: 'idle', msg: { target: 'word', kind: 'slow' }, retry: false }; }],
+    ['detail-offline', '인터넷 끊김', function () { openWord('食べる'); S.sim.offline = true; S.snd = { target: null, phase: 'idle', msg: { target: 'word', kind: 'offline' }, retry: false }; }],
+    ['detail-textonly', '목소리 쓸 수 없음(자막만)', function () { openWord('食べる'); S.sim.textOnly = true; S.snd = { target: null, phase: 'idle', msg: { target: 'word', kind: 'textonly' }, retry: false }; }],
+    ['detail-rate', '너무 자주 누름', function () { openWord('食べる'); S.snd = { target: null, phase: 'idle', msg: { target: 'word', kind: 'rate' }, retry: false }; }],
+    ['detail-blocked', '브라우저가 소리 막음', function () { openWord('食べる'); S.snd = { target: 'word', phase: 'blocked', msg: { target: 'word', kind: 'blocked' }, retry: false }; }],
+    ['detail-nochunk', '조각 없는 단어(직접 넣음)', function () { openWord('散歩'); }],
+    ['detail-correction', '교정에서 온 단어(출처)', function () { openWord('映画'); }]
+  ]]
+];
+function go(id) {
+  clearTimeout(timers.snd); clearTimeout(timers.toast); clearTimeout(timers.q);
+  var keep = { w: S.w, h: S.h, triple: S.triple, dec: S.dec, fit: S.fit };
+  S = fresh(keep);
+  S.preset = id; S._reset = true;
+  PRESETS.forEach(function (g) { g[1].forEach(function (p) { if (p[0] === id) p[2](); }); });
+  if (S.view === 'compare') S.triple = false;
+  render();
+  try { history.replaceState(null, '', '#' + id); } catch (e) { /* 무시 */ }
+}
+
+/* ════════ 옆 패널 · 결정 필요 ════════ */
+var navEl = document.getElementById('dnav'), sideEl = document.getElementById('side'), decsEl = document.getElementById('decs');
+var navOpen = !narrow();
+function renderNav() {
+  var cur = '';
+  PRESETS.forEach(function (g) { g[1].forEach(function (p) { if (p[0] === S.preset) cur = p[1]; }); });
+  navEl.innerHTML = '<details class="dnav-all"' + (navOpen ? ' open' : '') + '><summary>상태 목록<span class="cur">· 지금: ' + (cur || '직접 이동한 화면') + '</span></summary>' +
+    PRESETS.map(function (g) {
+      return '<details open><summary>' + g[0] + '</summary>' + g[1].map(function (p) {
+        return '<button type="button" data-nav="' + p[0] + '"' + (S.preset === p[0] ? ' aria-current="true"' : '') + '>' + p[1] + '<span class="did">#' + p[0] + '</span></button>';
+      }).join('') + '</details>';
+    }).join('') + '</details>';
+}
+navEl.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('dnav-all')) navOpen = e.target.open; }, true);
+
+var NOTES = {
+  'list-compare': ['단어장 목록 · 현재 vs 제안', [
+    '왼쪽이 지금 운영 중인 화면, 오른쪽이 제안이에요. 바뀌는 곳은 두 군데예요 — ① 분류 칩 아래 “조각” 줄 ② 행 오른쪽 뱃지(출처 → 조각).',
+    '틀 아래 숫자는 실제 배치로 잰 값이에요. 조각 줄이 목록 위 조작 영역을 44px 늘리고, 390×780 첫 화면에서 다 보이는 행이 하나 줄어요.',
+    '분류 칩은 그대로예요(사용자 결정 Q1). 두 줄은 겹쳐서(AND) 걸러요 — 왼쪽 목록 “분류 + 조각”에서 확인.',
+    '행을 누르면 양쪽 모두 상세 시트가 열려요(현재 = 소리 버튼 자리만, 제안 = ▶).'
+  ]],
+  'list': ['단어장 목록 · 조각 필터', [
+    '조각 줄 = 왼쪽 고정 라벨 “조각” + 가로로 밀리는 칩(전체·이름·액션·느낌·꾸밈·없음). 분류 줄과 같은 칩이라 새 색이 없어요. 칩 글자는 짧게(“액션”), 화면 읽기에는 “액션 조각”으로 읽혀요.',
+    '칩에 개수는 달지 않아요 — 분류와 겹친 개수를 미리 세려면 새 집계가 필요해서예요. 대신 목록 머리 한 줄이 결과 수와 걸린 조건을 함께 보여요(“단어 9개 · N5 기초 · 느낌 조각”). 이 숫자는 서버 total 그대로예요.',
+    '보관함을 켜면 분류는 지금처럼 “전체”로 돌아가고, 조각 선택은 그대로 둬요(조각 값은 보관 여부와 상관없이 같아서).',
+    '조각 줄은 목록과 함께 스크롤돼요(따라다니지 않음) — 화면의 세로 스크롤은 여전히 한 곳이에요.',
+    '행 뱃지: 출처 뱃지(기본 단어·교정·선생님 제안…)는 목록에서 모두 없앴어요(사용자 결정 Q2). 같은 자리에 조각 뱃지 — 지금 뱃지와 같은 회색 톤. 초록·빨강은 맞힘·틀림 뜻이라 조각 구분에 쓰지 않아요.'
+  ]],
+  'list-empty': ['조건에 맞는 단어가 없을 때', [
+    '분류와 조각을 함께 고르면 0개가 될 수 있어요. 빈 칸 대신 무엇이 겹쳤는지 쓰고, 한쪽씩 푸는 버튼 두 개를 둬요.',
+    '[조각 전체 보기]는 조각만, [분류 전체 보기]는 분류만 풀어요. 조각만 걸려 있으면 버튼은 하나예요.',
+    '검색어가 있으면 지금의 “검색 결과 없음” 문구를 쓰고 조각 조건 한 줄을 덧붙여요. 이때는 [‘검색어’ 추가하기] 대신 [조각 전체에서 찾기]를 둬요 — 조각 안에서만 없는 경우가 많고, 여기서 추가한 단어는 조각이 비어 이 목록에 다시 안 보여서예요. 조각을 풀어도 없으면 지금처럼 [추가하기]가 나와요.'
+  ]],
+  'detail': ['단어 상세 · 소리 듣기', [
+    '표현 오른쪽 44px 자리(E9)에 ▶. 오늘의 회화 예문 듣기 버튼과 같은 모양·동작이에요: 대기 ▶ → 불러오는 중(돌기) → 재생 중 ■(누르면 멈춤).',
+    '소리는 한 번에 하나 — 예문을 누르면 단어 소리가 멈춰요. 시트를 닫거나 [수정]으로 가면 멈춰요. 불러오는 중에 다시 누르면 취소예요.',
+    '실패는 조용히 넘어가지 않아요. 누른 버튼 바로 아래에 한 줄 + [다시 듣기]. 문구에 엔진·서버 이름은 없어요(“선생님 목소리”로만).',
+    '빠르기는 설정의 “들려주는 방식”을 그대로 써요(따로 고르지 않음). 발음은 발음 사전이 그대로 적용돼요.',
+    '시연: 목록의 멈춘 상태도 ▶를 누르면 실제처럼 움직여요. 오른쪽 “시연 조작”으로 실패를 만들 수 있어요.'
+  ]],
+  'detail-compare': ['단어 상세 · 현재 vs 제안', [
+    '현재는 소리 버튼 자리만 비워 둔 상태(E9)예요. 제안은 그 자리에 ▶, 예문 카드에도 ▶(결정 d).',
+    '나머지(뜻·뱃지·기록·출처·버튼)는 그대로예요. 출처 절을 남길지는 결정 (e).'
+  ]],
+  'detail-src': ['상세 · 출처 절', [
+    '목록에서 출처 뱃지를 없앤 대신 상세의 “출처” 절은 지금처럼 둬요(결정 e = A 권고). 교정 단어는 [점검 결과 보기 ›]로 그 채팅 점검 화면에 가요.',
+    '조각이 없는 단어는 뱃지 줄에 조각이 없어요(결정 a 가 B 면 “조각 없음” 테두리 뱃지).'
+  ]]
+};
+function noteKey() {
+  var p = S.preset || '';
+  if (p === 'detail-compare') return 'detail-compare';
+  if (p === 'detail-nochunk' || p === 'detail-correction') return 'detail-src';
+  if (S.sheet) return S.view === 'compare' ? 'detail-compare' : 'detail';
+  if (S.view === 'compare') return 'list-compare';
+  if (p === 'list-empty' || p === 'list-search-empty') return 'list-empty';
+  return 'list';
+}
+var CHANGES = [
+  ['조각 필터 줄', '분류 칩 아래에 한 줄 추가. 분류와 겹쳐(AND) 걸러요.'],
+  ['조각 뱃지', '목록 행의 출처 뱃지를 모두 없애고 조각 뱃지로.'],
+  ['소리 듣기', '단어 상세 시트의 E9 자리에 ▶ (+ 예문 ▶ 제안).']
+];
+function sideDemoActs() {
+  if (!S.sheet) return '';
+  var b = function (k, label, on) { return '<button type="button" class="dbtn" data-act="d-sim" data-arg="' + k + '" aria-pressed="' + !!on + '">' + label + '</button>'; };
+  return '<section class="dcard"><h2>시연 조작 <span class="dsub">(휴대폰 밖 · 실제 화면에는 없어요)</span></h2><div class="dacts">' +
+    b('fail', '다음 재생 1회 실패', S.sim.fail) + b('slow', '다음 재생 1회 시간 초과', S.sim.slow) + b('block', '다음 재생 소리 막힘', S.sim.block) +
+    b('textOnly', '목소리 쓸 수 없음(자막만)', S.sim.textOnly) + b('rate', '1분 한도 넘음', S.sim.rate) + b('offline', '인터넷 끊김', S.sim.offline) +
+    '</div><p class="dsub" style="margin-top:8px">켠 뒤 시트의 ▶ 를 눌러 보세요. “1회” 조작은 한 번 쓰면 저절로 꺼져요.</p></section>';
+}
+function renderSide() {
+  var n = NOTES[noteKey()] || NOTES.list;
+  sideEl.innerHTML =
+    '<section class="dcard"><h2>이번 변경(delta)</h2><div class="chg">' + CHANGES.map(function (c, i) { return '<i>' + (i + 1) + '</i><span><b>' + c[0] + '</b> — ' + c[1] + '</span>'; }).join('') + '</div>' +
+    '<p class="dsub" style="margin-top:8px">검색·정렬·보관함·추가·수정·삭제는 바뀌지 않아요.</p></section>' +
+    '<section class="dcard"><h2>이 화면</h2><p class="dk">' + n[0] + '</p><ul class="dn">' + n[1].map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></section>' +
+    sideDemoActs() +
+    '<section class="dcard"><h2>서버에 필요한 것 <span class="dsub">(Leader 참고 · 새 API 없음)</span></h2><ul class="dn">' +
+    '<li>단어 목록(#40)에 조각 조건: 단일이면 <code>chunkType=ACTION</code>, “없음”은 <code>chunkType=none</code>. 다중(결정 b=B)이면 쉼표 목록. 허용값 밖은 400.</li>' +
+    '<li>목록 응답 행에 조각 값은 이미 있어요(화면이 안 쓰던 값).</li>' +
+    '<li>소리 = 문장 음성(#23) 그대로. 한 번에 100자까지라 긴 예문은 버튼을 숨겨요.</li></ul></section>';
+}
+var DECS = [
+  { k: 'a', t: '(a) 조각이 없는 단어 — 목록 행 표기', q: '기본 단어 50개 중 2개(' + J('ありがとう') + '·' + J('すみません') + ')와, 직접 넣은 단어·일부 교정 단어는 조각이 비어 있어요.', see: 'list-all', rec: 'A',
+    A: ['뱃지 생략', '조각이 없으면 뱃지 자리를 비워요(상세 시트도 같은 규칙).', ['직접 넣은 단어는 조각이 늘 비어 있고 지금은 고칠 수 없어요 — 최근 추가 순 맨 위가 같은 뱃지로 채워지지 않아요', '“기본 단어” 뱃지를 없앤 이유(뜻 없는 반복)와 같은 방향'], ['조각 없는 단어만 모으려면 조각 줄의 “없음”을 눌러야 해요(결정 c)']],
+    B: ['“조각 없음” 테두리 뱃지', '빈 테두리 뱃지로 “조각 없음”을 적어요. 요청의 ‘미분류’는 이 앱에서 “분류”가 카테고리 이름이라 헷갈려서 문구를 바꿨어요.', ['모든 행 모양이 같아 빠진 값이 분명해요'], ['시드 2개뿐 아니라 직접 넣은 단어 전부에 붙어요 — 사용자가 없앨 방법이 없어요']] },
+  { k: 'b', t: '(b) 조각 필터 — 하나만 vs 여러 개', q: '조각 칩을 몇 개까지 동시에 고를 수 있게 할까요?', see: 'list-chunk', rec: 'A',
+    A: ['하나만(단일 선택)', '분류 칩처럼 하나를 고르면 앞의 선택이 풀려요.', ['분류 줄과 같은 동작이라 따로 배울 게 없어요', '머리 줄이 “N5 기초 · 느낌 조각”처럼 짧게 읽혀요', '서버 조건 값이 하나(4종 + 없음)'], ['“이름+액션”처럼 묶어 보려면 두 번 나눠 봐야 해요']],
+    B: ['여러 개(다중 선택)', '누를 때마다 켜고 꺼요(✓ 표시). “전체”를 누르면 모두 풀려요.', ['이름+액션처럼 묶어 볼 수 있어요'], ['분류(하나)와 조각(여럿)의 동작이 달라 헷갈려요', '조각끼리는 “또는”, 분류와는 “그리고”라 결과 수를 읽기 어려워요', '서버 조건이 목록이 돼요']] },
+  { k: 'c', t: '(c) 조각 줄에 “없음” 칩을 둘까요', q: '서버는 “조각 없음” 조건을 받을 수 있게 만들어요. 화면에 칩으로 보일지 정해 주세요.', see: 'list-none', rec: 'A',
+    A: ['보임(맨 끝)', '“없음” = 조각이 정해지지 않은 단어. 대부분 직접 넣은 단어예요.', ['출처 뱃지가 사라진 뒤에도 “내가 직접 넣은 단어”를 모아 볼 길이 남아요', '(a) 뱃지 생략과 짝 — 표시는 안 해도 찾을 수는 있어요'], ['칩이 6개라 360·390 폭에서 끝 칩이 살짝 가로로 밀려요(412는 한 줄)']],
+    B: ['숨김', '조각 네 가지만 두고, 조각 없는 단어는 “전체”에서만 보여요.', ['칩 5개라 360 폭에서도 한 줄에 다 보여요'], ['조각 없는 단어만 따로 볼 방법이 없어요']] },
+  { k: 'd', t: '(d) 예문도 들려줄까요', q: '단어 소리는 확정 범위예요. 예문 재생을 함께 넣을지 제안해요.', see: 'detail-idle', rec: 'B',
+    A: ['단어만', '표현 옆 ▶ 하나만 둬요.', ['버튼 하나라 가장 단순해요'], ['예문은 글자로만 봐요']],
+    B: ['단어 + 예문', '예문 카드 오른쪽에도 ▶. 같은 문장 음성 경로를 써서 새 API 가 없어요.', ['단어가 문장 속에서 어떻게 들리는지 바로 확인해요', '오늘의 단어 개선(IMP-0011: 단어·예문 재생)과 같은 버튼을 나눠 써요'], ['100자 넘는 예문(직접 쓴 긴 예문)은 한 번에 만들 수 없어 버튼을 숨겨요 — 기본 단어 예문은 모두 14자 이하']] },
+  { k: 'e', t: '(e) 상세 시트의 “출처” 절', q: '사용자 결정 Q2 는 “목록 뱃지 교체”예요. 상세 시트의 출처 정보는 어떻게 할까요?', see: 'detail-correction', rec: 'A',
+    A: ['남김(지금 그대로)', '목록 뱃지만 바꾸고, 상세의 “출처” 절(문장·점검 결과 보기·추가한 날)은 유지해요.', ['교정 단어 → 그 채팅 점검 결과로 가는 길이 남아요', '목록에서 사라진 정보를 필요할 때 확인해요'], ['시트 길이가 지금과 같아요']],
+    B: ['상세에서도 뺌', '“출처” 절을 없애고 “추가한 날”만 기록 절 끝으로 옮겨요.', ['시트가 세 줄쯤 짧아져요'], ['[점검 결과 보기] 링크가 사라져 교정 단어의 맥락을 잃어요', 'Q2 요청 범위(목록)를 넘어요']] }
+];
+function renderDecs() {
+  var decs = DECS.map(function (d) {
+    var opt = function (k) {
+      var o = d[k], on = S.dec[d.k] === k, rec = d.rec === k;
+      return '<label class="opt' + (rec ? ' rec' : '') + (on ? ' on' : '') + '"><input type="radio" name="dec-' + d.k + '" value="' + k + '" data-dec="' + d.k + '"' + (on ? ' checked' : '') + '>' +
+        '<span class="opt-h">' + k + ' · ' + o[0] + (rec ? ' ' + badge('neutral', 'designer 권고') : '') + '</span><span class="opt-d">' + o[1] + '</span><ul>' +
+        o[2].map(function (x) { return '<li class="p">' + x + '</li>'; }).join('') + o[3].map(function (x) { return '<li class="m">' + x + '</li>'; }).join('') + '</ul><span class="sel">' + (on ? '● 데모에 적용 중' : '○ 눌러서 데모에 적용') + '</span></label>';
+    };
+    return '<article class="dec"><h3>' + d.t + '</h3><p class="dq">' + d.q + '</p><div class="dec-g">' + opt('A') + opt('B') + '</div><button type="button" class="dlink" data-nav="' + d.see + '">이 결정이 보이는 화면 열기 ›</button></article>';
+  }).join('');
+  decsEl.innerHTML = '<h2 id="dec-h">결정 필요 — 5가지 <span class="dsub">권고(초록 테두리)는 designer 판단이에요. 고르면 위 데모가 바로 바뀌어요(미리 보기용). 결정은 대화로 알려 주세요.</span></h2>' +
+    '<div class="dec-list">' + decs + '</div>';
+}
+function syncTop() {
+  Array.prototype.forEach.call(document.querySelectorAll('#d-w button'), function (b) {
+    var v = b.getAttribute('data-w');
+    b.setAttribute('aria-pressed', v === 'all' ? S.triple : (!S.triple && +v === S.w));
+    if (v === 'all') { if (S.view === 'compare') b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled'); }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#d-f button'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-f') === S.fit); });
+  Array.prototype.forEach.call(document.querySelectorAll('#d-h button'), function (b) { b.setAttribute('aria-pressed', +b.getAttribute('data-h') === S.h); });
+}
+
+/* ════════ 이벤트 ════════ */
+document.addEventListener('click', function (e) {
+  var nv = e.target.closest('[data-nav]');
+  if (nv) { if (narrow()) navOpen = false; go(nv.getAttribute('data-nav')); if (narrow()) stageEl.scrollIntoView({ block: 'start' }); return; }
+  var el = e.target.closest('[data-act]');
+  if (!el) return;
+  var fr = el.closest('[data-frame]'); if (fr) lastFrame = +fr.getAttribute('data-frame');
+  var act = el.getAttribute('data-act');
+  var fn = ACT[act]; if (fn) fn(el.getAttribute('data-arg'), el, e);
+});
+document.addEventListener('change', function (e) {
+  var r = e.target.closest('[data-dec]');
+  if (!r) return;
+  S.dec[r.getAttribute('data-dec')] = r.value;
+  normChunk();
+  if (S.dec.d === 'A' && S.snd.target === 'ex') stopSnd();
+  if (S.snd.msg && S.snd.msg.target === 'ex' && S.dec.d === 'A') S.snd.msg = null;
+  render();
+});
+document.addEventListener('input', function (e) {
+  var t = e.target;
+  if (!t.getAttribute || t.getAttribute('data-inp') !== 'q') return;
+  var fr = t.closest('[data-frame]'); if (fr) lastFrame = +fr.getAttribute('data-frame');
+  S.qInput = t.value;
+  if (e.isComposing) return;
+  clearTimeout(timers.q);
+  timers.q = setTimeout(function () { S.f.q = S.qInput.trim(); S.shown = 30; render(); }, 300);
+});
+document.addEventListener('compositionend', function (e) {
+  var t = e.target;
+  if (!t.getAttribute || t.getAttribute('data-inp') !== 'q') return;
+  S.qInput = t.value;
+  clearTimeout(timers.q);
+  timers.q = setTimeout(function () { S.f.q = S.qInput.trim(); S.shown = 30; render(); }, 300);
+});
+document.addEventListener('keydown', function (e) {
+  var t = e.target;
+  if (e.key === 'Enter' && t.getAttribute && t.getAttribute('data-inp') === 'q' && !e.isComposing) {
+    e.preventDefault(); clearTimeout(timers.q); S.qInput = t.value; S.f.q = t.value.trim(); S.shown = 30; t.blur(); render(); return;
+  }
+  if (e.key === 'Escape' && S.sheet) ACT['sheet-close']();
+});
+document.getElementById('d-w').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  var v = b.getAttribute('data-w');
+  if (v === 'all' && S.view === 'compare') { dtoast('비교 화면은 한 폭으로 보여요'); return; }
+  if (v === 'all') S.triple = !S.triple; else { S.triple = false; S.w = +v; }
+  render();
+});
+document.getElementById('d-f').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; S.fit = b.getAttribute('data-f'); render(); });
+document.getElementById('d-h').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; S.h = +b.getAttribute('data-h'); render(); });
+document.getElementById('d-t').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  var v = b.getAttribute('data-t');
+  if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+  Array.prototype.forEach.call(document.querySelectorAll('#d-t button'), function (x) { x.setAttribute('aria-pressed', x === b); });
+});
+document.getElementById('d-reset').addEventListener('click', function () { S.dec = { a: REC.a, b: REC.b, c: REC.c, d: REC.d, e: REC.e }; go('list-compare'); });
+var rsz = null;
+window.addEventListener('resize', function () { clearTimeout(rsz); rsz = setTimeout(applyScale, 120); });
+stageEl.addEventListener('scroll', function (e) { if (e.target.hasAttribute && e.target.hasAttribute('data-scroll')) { clearTimeout(rsz); rsz = setTimeout(measure, 80); } }, true);
+
+/* 시작: 주소 #<id> 가 있으면 그 상태로(QA·가이드 인용용) */
+var start = (location.hash || '').replace('#', '');
+var known = false; PRESETS.forEach(function (g) { g[1].forEach(function (p) { if (p[0] === start) known = true; }); });
+go(known ? start : 'list-compare');
+window.addEventListener('hashchange', function () {
+  var id = (location.hash || '').replace('#', ''), ok = false;
+  PRESETS.forEach(function (g) { g[1].forEach(function (p) { if (p[0] === id) ok = true; }); });
+  if (ok && id !== S.preset) go(id);
+});
+})();
+</script>
+</body>
+</html>

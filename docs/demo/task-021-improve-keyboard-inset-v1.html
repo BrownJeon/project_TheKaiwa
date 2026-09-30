@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-021-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:22f382529f92">
+<meta name="description" content="키보드가 올라올 때 입력창이 가려지는 문제의 공통 해결 모습 — 입력이 있는 화면 유형별 키보드 없음/있음, 현재/제안 비교(delta 데모 v1)">
+<title>키보드 입력창 가림</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+p, h1, h2, h3, h4, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.dtop h1 small { display: inline-block; font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.meta { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.meta span { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.meta span.lv { background: var(--accent); color: var(--on-accent); }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dwrap { max-width: 1480px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dcard > h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.dcard h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 6px; }
+.dsub { font-size: 12.5px; color: var(--ink2); }
+.intro { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+.rules { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.rules li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px; }
+.rules b.rid { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--accent); padding-top: 1px; }
+.keep { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.keep li::before { content: "• "; color: var(--ink2); }
+.callout { border-radius: 12px; background: var(--surface2); padding: 12px; font-size: 12.5px; margin-top: 12px; }
+.callout b { color: var(--ink); }
+.types { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.types::-webkit-scrollbar { display: none; }
+.types button { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; text-align: left; }
+.types button b { font-size: 13.5px; }
+.types button span { font-size: 11.5px; color: var(--ink2); }
+.types button[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.subbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12.5px; color: var(--ink2); }
+.stagecap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.stagecap h2 { font-size: 15px; font-weight: 700; }
+.dstage { --s: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; margin-top: 12px; }
+.dstage.row { flex-wrap: nowrap; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; }
+.fw figcaption b { color: var(--ink); font-size: 13px; }
+.fw figcaption b.now { color: var(--bad); }
+.fw figcaption b.fix { color: var(--good); }
+.fbox { position: relative; flex: none; }
+.fbox > .phone { position: absolute; left: 0; top: 0; transform: scale(var(--s)); transform-origin: 0 0; }
+.fdim { font-size: 11.5px; color: var(--ink2); margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+.onebar { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 12px; align-items: center; margin-top: 10px; }
+.dbtn { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; cursor: pointer; flex: none; white-space: nowrap; }
+.dbtn.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.note { border-radius: 12px; padding: 12px; background: var(--surface2); font-size: 13px; }
+.note h3 { font-size: 12.5px; }
+.note.now h3 { color: var(--bad); }
+.note.fix h3 { color: var(--good); }
+.tblw { overflow-x: auto; }
+table.inv { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 720px; }
+table.inv th, table.inv td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+table.inv th { font-size: 12px; color: var(--ink2); font-weight: 600; border-top: 0; background: var(--surface2); }
+table.inv td.rule { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+table.inv tr.go { cursor: pointer; }
+table.inv tr.go:hover td { background: var(--surface2); }
+.tg { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.tg.no { background: var(--bad-soft); color: var(--bad); }
+.tg.part { background: var(--surface2); color: var(--ink2); }
+.tg.na { background: var(--surface2); color: var(--ink2); }
+.decs { border: 2px solid var(--accent); }
+.dec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; container-type: inline-size; }
+.dec:first-of-type { border-top: 0; padding-top: 0; margin-top: 4px; }
+.dec > h3 { font-size: 14px; }
+.dec > p.q { font-size: 13px; color: var(--ink); margin-bottom: 4px; }
+.dec-g { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 8px; }
+@container (min-width: 560px) { .dec-g { grid-template-columns: 1fr 1fr; } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; }
+.opt-d { font-size: 13px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 3px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.rec { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--good-soft); color: var(--good); }
+.decsum { margin-top: 14px; font-size: 12.5px; color: var(--ink2); }
+@media (max-width: 900px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .notes { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dwrap { padding: 12px 16px; }
+}
+
+/* ── 휴대폰 프레임 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground);
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); --gb: 16px; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; min-width: 0; background: var(--ground); transition: bottom .22s ease; }
+.phone[data-kb="1"][data-fix="1"] .app { bottom: var(--kh); }
+.phone[data-kb="1"][data-fix="1"] { --gb: 0px; }
+.tabA[data-kb="1"][data-fix="1"] .tabbar { display: none; }
+.gest { position: absolute; left: 50%; bottom: 5px; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; background: var(--ink); opacity: .35; z-index: 45; }
+.kbd { position: absolute; left: 0; right: 0; bottom: 0; height: var(--kh); z-index: 50; display: flex; flex-direction: column; background: var(--surface2); border-top: 1px solid var(--line); transform: translateY(101%); transition: transform .22s ease; }
+.phone[data-kb="1"] .kbd { transform: none; }
+.kb-sug { flex: none; height: 40px; display: flex; align-items: center; gap: 4px; padding: 0 6px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink); min-width: 0; }
+.kb-sug span { flex: 1; min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-sug span + span { border-left: 1px solid var(--line); }
+.kb-sug em { flex: none; font-style: normal; font-size: 10.5px; color: var(--ink2); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.kb-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 4px 4px; }
+.kb-r { flex: 1; min-height: 0; display: flex; gap: 5px; justify-content: center; }
+.kb-r.r2 { padding: 0 16px; }
+.key { flex: 1; min-width: 0; display: grid; place-items: center; border-radius: 6px; background: var(--surface); color: var(--ink2); font-size: 15px; box-shadow: 0 1px 0 var(--line); }
+.key.w15 { flex: 1.5; font-size: 12px; } .key.sp { flex: 5; font-size: 12px; } .key.act { background: var(--accent-soft); color: var(--ink); }
+.kb-nav { flex: none; height: 26px; display: flex; align-items: center; padding: 0 14px; }
+.kb-hide { border: 0; background: none; color: var(--ink2); font-size: 16px; line-height: 1; width: 44px; height: 26px; cursor: pointer; }
+.marks { position: absolute; inset: 0; z-index: 70; pointer-events: none; }
+.mk-box { position: absolute; border: 2px dashed var(--bad); border-radius: 12px; }
+.mk-lab { position: absolute; left: 12px; right: 12px; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.35; padding: 5px 8px; border-radius: 8px; background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); }
+.mk-lab.n { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.mk-ok { position: absolute; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 8px; border-radius: 6px; background: var(--good-soft); color: var(--good); white-space: nowrap; box-shadow: 0 0 0 1px var(--good); }
+.mk-edge { position: absolute; left: 0; right: 0; border-top: 2px solid var(--good); }
+
+/* 화면 조각 */
+.scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.page { padding: 12px 16px 32px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.appbar { flex: none; height: 52px; display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 0 8px 0 16px; border-bottom: 1px solid var(--line); }
+.appbar h1 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.me { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; flex: none; }
+.me span { width: 32px; height: 32px; border-radius: 50%; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+.addb { display: inline-flex; align-items: center; height: 44px; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 12px; font-size: 14px; font-weight: 600; flex: none; }
+.bar { flex: none; height: 52px; display: flex; align-items: center; gap: 4px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 4px; }
+.back, .ic44 { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink2); }
+.back { color: var(--ink); }
+.bar-m { flex: 1; min-width: 0; }
+.bar-m h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-m p { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pillb { height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 10px; font-size: 13px; font-weight: 600; flex: none; }
+.lhead { flex: none; height: 56px; display: flex; align-items: center; gap: 4px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 4px; }
+.av { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: 16px; display: grid; place-items: center; }
+.lh-m { flex: 1; min-width: 0; padding-left: 8px; }
+.lh-m h1 { font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--good); }
+.steps { flex: none; display: flex; gap: 4px; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line); overflow: hidden; }
+.steps span { flex: 1; min-width: 0; height: 32px; display: grid; place-items: center; border-radius: 8px; font-size: 12px; color: var(--ink2); background: var(--surface2); white-space: nowrap; }
+.steps span.done { background: var(--good-soft); color: var(--good); }
+.steps span.cur { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.tabbar { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 max(10px, var(--gb)); }
+.tab { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; font-size: 11px; color: var(--ink3); }
+.tab.on { color: var(--accent); font-weight: 600; }
+.msgs { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.msgs .day { align-self: center; font-size: 12px; color: var(--ink2); }
+.bub { width: max-content; max-width: 84%; border-radius: 16px; padding: 9px 12px; min-width: 0; }
+.bub.ai { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-top-left-radius: 6px; }
+.bub.me { align-self: flex-end; background: var(--accent-soft); border-top-right-radius: 6px; }
+.bub .ja { font-size: 17px; line-height: 1.7; }
+.bub .rd { font-size: 14px; line-height: 1.6; color: var(--ink2); }
+.bub .rep { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12.5px; color: var(--ink2); min-height: 32px; }
+.comp { flex: none; display: flex; align-items: flex-end; gap: 8px; min-width: 0; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 12px calc(8px + var(--gb)); transition: padding .22s ease; }
+.ta { flex: 1; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 9px 12px; font-size: 16px; line-height: 24px; }
+.send { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.send.off { opacity: .4; }
+.ph { display: block; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caret { display: inline-block; width: 2px; height: 1.15em; margin-left: 1px; background: var(--accent); vertical-align: -0.2em; animation: blink 1.05s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.phone:not([data-kb="1"]) .caret, .phone:not([data-kb="1"]) .typed { display: none; }
+.phone[data-kb="1"] .ph { display: none; }
+.phone:not([data-kb="1"]) .when-kb, .phone[data-kb="1"] .when-nokb { display: none; }
+.phone[data-kb="1"] [data-focus] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.phone:not([data-kb="1"]) .send.dyn { opacity: .4; }
+.fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fld > .lb { font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+.inp { display: block; min-height: 44px; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 12px; font-size: 16px; line-height: 22px; white-space: nowrap; overflow: hidden; }
+.inp.srch { padding-left: 40px; position: relative; }
+.inp.srch .mag { position: absolute; left: 12px; top: 11px; color: var(--ink2); }
+.inp.area { white-space: pre-wrap; min-height: 84px; line-height: 26px; }
+.card { min-width: 0; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.card.tight { gap: 8px; }
+.sec-h { font-size: 15px; font-weight: 600; margin-bottom: -8px; }
+.cap { font-size: 12px; color: var(--ink2); }
+.d13 { font-size: 13px; color: var(--ink2); }
+.strong { font-size: 15px; font-weight: 600; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); min-width: 0; }
+.seg span { flex: 1; min-width: 0; height: 40px; display: grid; place-items: center; border-radius: 8px; font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+.seg span.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.seg.sm span { height: 32px; font-size: 12.5px; }
+.btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; white-space: nowrap; min-width: 0; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.dim { opacity: .4; }
+.btns { display: flex; flex-direction: column; gap: 8px; }
+.btnrow { display: flex; gap: 8px; } .btnrow .btn { flex: 1; }
+.tlink { align-self: flex-start; min-height: 44px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 600; color: var(--accent); }
+.ulink { min-height: 44px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 500; text-decoration: underline; text-underline-offset: 4px; }
+.chips { display: flex; gap: 8px; overflow: hidden; margin: 0 -16px; padding: 0 16px; }
+.chips span { flex: none; height: 36px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+.chips span.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.row > .grow { flex: 1; min-width: 0; }
+.arch { flex: none; height: 32px; display: grid; place-items: center; padding: 0 12px; border-radius: 9px; background: var(--surface2); color: var(--ink2); font-size: 13px; }
+.wl { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.wl li { min-height: 64px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.wl li + li { border-top: 1px solid var(--line); }
+.wl .l1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.wl .sf { font-size: 18px; font-weight: 600; white-space: nowrap; }
+.wl .rd { flex: 1; min-width: 0; font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl .mn { font-size: 14px; color: var(--ink2); }
+.bdg { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; flex: none; background: var(--surface2); color: var(--ink2); }
+.corr { margin-top: 4px; border-radius: 12px; background: var(--surface2); padding: 10px; font-size: 17px; line-height: 1.7; }
+.good-t { color: var(--good); }
+hr.hr { border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%; }
+.xp { display: flex; flex-wrap: wrap; gap: 6px; }
+.xp span { display: inline-flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 8px; background: var(--surface2); font-size: 14px; }
+.att { display: flex; gap: 6px; }
+.att i { flex: 1; height: 8px; border-radius: 4px; background: var(--good-soft); }
+.att i.y { background: var(--good); }
+/* 시트 */
+.scrim { position: absolute; inset: 0; z-index: 20; background: color-mix(in srgb, var(--ink) 40%, transparent); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 85%; display: flex; flex-direction: column; min-width: 0; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -6px 20px rgba(0,0,0,.12); }
+.sheet-h { flex: none; height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 16px; border-bottom: 1px solid var(--line); }
+.sheet-h h2 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-b { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 12px 16px calc(12px + var(--gb)); display: flex; flex-direction: column; gap: 12px; }
+.sheet-b::-webkit-scrollbar { display: none; }
+.sfoot { display: none; flex: none; padding: 8px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+.btnB[data-kb="1"][data-fix="1"] .sfoot { display: block; }
+.btnB[data-kb="1"][data-fix="1"] .pin-src { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .app, .kbd, .comp { transition: none; }
+  .caret { animation: none; }
+}
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>키보드가 입력창을 가리는 문제 — 공통 수정 <span class="meta"><span>task-021</span><span>데모 v1</span><span class="lv">수준 delta</span></span><small>IMP-0008 · 바뀌는 곳: 키보드가 떠 있을 때의 화면 아래쪽만</small></h1>
+  <div class="dctls" id="ctls"></div>
+</header>
+
+<main class="dwrap">
+  <section class="dcard intro" aria-labelledby="h-intro">
+    <div>
+      <h2 id="h-intro">제안: 키보드가 올라오면 화면 아래쪽이 키보드 위까지로 줄어든다 (모든 입력 화면 같은 규칙)</h2>
+      <ol class="rules">
+        <li><b class="rid">R1</b><span>키보드 높이는 <b>앱 셸 한 곳</b>에서 재고, 입력이 있는 모든 화면이 같은 값을 쓴다. 화면마다 따로 고치지 않는다.</span></li>
+        <li><b class="rid">R2</b><span>아래에 붙은 입력 바(채팅방·회화방 텍스트·수업 ⑤ 말하기)는 <b>키보드 바로 위</b>에 붙는다. 대화 목록은 맨 아래(최신 말풍선)를 유지한다. 입력 바 아래의 제스처 바 여백은 키보드가 있을 때 없앤다.</span></li>
+        <li><b class="rid">R3</b><span>하단 탭은 키보드가 열려 있는 동안 <b>결정 D1</b>(A 숨김 · B 키보드 위로 따라 올라감). 키보드가 닫히면 원래 자리.</span></li>
+        <li><b class="rid">R4</b><span>바텀시트는 <b>통째로 키보드 위로</b> 올라간다. 최대 높이는 지금처럼 남은 높이의 85%. 입력 중인 칸이 시트 안에서 가려지면 시트 안쪽만 스크롤해 칸 아래에 16px 이상 여유를 둔다. 확인 버튼 자리는 <b>결정 D2</b>.</span></li>
+        <li><b class="rid">R5</b><span>스크롤 화면 안의 입력(설정·수업 응용 답·메모·붙여넣기·초대코드)은 화면 스크롤의 끝이 키보드 위로 올라오고, 입력 중인 칸(여러 줄이면 커서가 있는 줄)이 키보드 위 16px 이상에 오도록 한 번 스크롤한다.</span></li>
+        <li><b class="rid">R6</b><span>위쪽 입력(단어장 검색)은 자리 그대로. 결과 목록의 끝만 키보드 위로 올라온다.</span></li>
+        <li><b class="rid">R7</b><span>토스트·안내 띠도 키보드 위에 뜬다. 키보드가 닫히면 모두 원래 자리, 보던 스크롤 위치는 유지. 두 손가락 확대는 키보드로 착각하지 않는다(지금 규칙 유지).</span></li>
+      </ol>
+    </div>
+    <div>
+      <h3>바뀌지 않는 것</h3>
+      <ul class="keep">
+        <li>키보드가 없을 때의 화면 — 지금과 픽셀 단위로 같다(각 화면 첫 번째 틀).</li>
+        <li>화면 구성·입력창 위치·버튼 순서·문구.</li>
+        <li>음성 입력(푸시투토크) 경로와 🎤 ↔ ⌨ 전환 동작.</li>
+        <li>웹 브라우저와 앱에서 같은 모습 — 키보드 높이를 어느 쪽에서 어떻게 재는지는 개발 원인 조사(범위 1)에서 정한다.</li>
+      </ul>
+      <p class="callout"><b>현재 열에 대해</b> — 사용자가 회화방 텍스트 모드에서 재현한 모습(키보드가 화면 위에 덮이고 화면은 줄지 않음)을 같은 원인으로 다른 화면에 그대로 적용해 그렸다. 웹 Chrome 에서는 일부 화면(채팅방)이 이미 제안처럼 줄어들 수 있고, 어느 환경에서 어디가 틀어지는지는 조사 결과로 확정한다.<br><br><b>키보드 높이</b>는 실제 값이 아니라 데모용 임의 값(위 컨트롤에서 280·320·360px). 앱 설치 파일을 다시 받아야 하는 방식이 필요해지면 그때 따로 알린다.</p>
+    </div>
+  </section>
+
+  <nav class="types" id="types" role="tablist" aria-label="입력 화면 유형"></nav>
+
+  <section class="dcard" aria-labelledby="h-stage">
+    <div class="stagecap"><h2 id="h-stage">화면</h2><span class="dsub" id="stageSub"></span></div>
+    <div class="subbar" id="subbar"></div>
+    <div class="dstage" id="stage"></div>
+    <div class="onebar" id="onebar" hidden></div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-notes">
+    <h2 id="h-notes">이 화면 유형에서 바뀌는 점</h2>
+    <div class="notes" id="notes"></div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-inv">
+    <h2 id="h-inv">입력창이 있는 화면 전체 목록 — 전부 같은 규칙이 적용된다</h2>
+    <p class="dsub" style="margin-bottom:10px">행을 누르면 그 유형의 데모로 이동한다. "지금 보정"은 코드 기준(키보드 높이를 따로 재는 곳이 있는지)이고, 실제로 보이는지는 개발 조사·사용자 폰 확인으로 확정한다.</p>
+    <div class="tblw"><table class="inv" id="inv"></table></div>
+  </section>
+
+  <section class="dcard decs" aria-labelledby="h-dec">
+    <h2 id="h-dec">결정 필요 — 사용자 선택 후 구현 가이드에 반영</h2>
+    <p class="dsub">두 항목 모두 위 화면에 바로 반영된다(위쪽 컨트롤과 같은 값). 고른 결과를 Leader 에게 알려 주시면 된다.</p>
+    <div id="decs"></div>
+    <p class="decsum" id="decsum" aria-live="polite"></p>
+  </section>
+</main>
+
+<script>
+(function () {
+'use strict';
+
+var S = { w: 390, h: 780, k: 320, view: 'compare', type: 'talk', sheet: 'new', tab: 'A', btn: 'A', one: { fix: true, kb: false }, theme: 'auto' };
+var curScale = 1;
+
+function J(t) { return '<span lang="ja">' + t + '</span>'; }
+function caret() { return '<span class="caret" data-caret></span>'; }
+/* typed: 키보드가 있을 때 보이는 입력 중 글자 · 없을 때는 placeholder */
+function typed(txt, ph, ja) { return '<span class="typed"' + (ja ? ' lang="ja"' : '') + '>' + txt + '</span>' + caret() + '<span class="ph">' + ph + '</span>'; }
+
+var IC = {
+  back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+  more: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  up: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  mag: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+  play: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>'
+};
+var TABS = [
+  ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+  ['오늘', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
+  ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'],
+  ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+  ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']
+];
+function tabbar(active) {
+  return '<nav class="tabbar" aria-label="주 메뉴">' + TABS.map(function (t, i) {
+    return '<span class="tab' + (i === active ? ' on' : '') + '"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + t[1] + '"/></svg>' + t[0] + '</span>';
+  }).join('') + '</nav>';
+}
+function appbar(title, extra) { return '<div class="appbar"><h1>' + title + '</h1>' + (extra || '') + '<span class="me"><span>준</span></span></div>'; }
+function bar(title, sub, right) { return '<div class="bar"><span class="back">' + IC.back + '</span><div class="bar-m"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (right || '') + '</div>'; }
+function fld(label, inner, opts) {
+  opts = opts || {};
+  return '<div class="fld"><span class="lb">' + label + '</span><div class="inp' + (opts.cls ? ' ' + opts.cls : '') + '"' + (opts.focus ? ' data-focus' : '') + (opts.ja ? ' lang="ja"' : '') + '>' + inner + '</div></div>';
+}
+function seg(opts, on, sm) { return '<div class="seg' + (sm ? ' sm' : '') + '">' + opts.map(function (o, i) { return '<span' + (i === on ? ' class="on"' : '') + '>' + o + '</span>'; }).join('') + '</div>'; }
+
+/* ── 합성 대화 ── */
+var CHAT = [
+  ['ai', 'いらっしゃいませ。ご注文はお決まりですか。', 'いらっしゃいませ。ごちゅうもんはおきまりですか。'],
+  ['me', 'コーヒーを一つください。'],
+  ['ai', 'ホットとアイス、どちらになさいますか。', 'ホットとアイス、どちらになさいますか。'],
+  ['me', 'アイスでお願いします。'],
+  ['ai', 'かしこまりました。ほかに何かございますか。', 'かしこまりました。ほかになにかございますか。'],
+  ['me', 'いいえ、大丈夫です。']
+];
+var TALK = [
+  ['ai', 'こんばんは。今日はどんな一日でしたか。', 'こんばんは。きょうはどんないちにちでしたか。'],
+  ['me', '仕事がいそがしかったです。'],
+  ['ai', 'お疲れさまでした。週末は何をする予定ですか。', 'おつかれさまでした。しゅうまつはなにをするよていですか。'],
+  ['me', 'まだ決めていません。'],
+  ['ai', 'そうですか。ゆっくり休むのもいいですね。', 'そうですか。ゆっくりやすむのもいいですね。']
+];
+function msgs(list, talk) {
+  return '<div class="scroll msgs" data-scroller data-stick="bottom"><span class="day">오늘</span>' + list.map(function (m) {
+    if (m[0] === 'me') return '<div class="bub me"><p class="ja" lang="ja">' + m[1] + '</p></div>';
+    return '<div class="bub ai"><p class="ja" lang="ja">' + m[1] + '</p><p class="rd" lang="ja">' + m[2] + '</p>' + (talk ? '<span class="rep">' + IC.play + ' 다시 듣기</span>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+function composer(txt, ph, lead) {
+  return '<div class="comp">' + (lead ? '<span class="ic44" aria-label="음성으로">' + IC.mic + '</span>' : '') +
+    '<div class="ta" data-focus role="textbox" aria-label="메시지 입력">' + typed(txt, ph, true) + '</div>' +
+    '<span class="send dyn" aria-label="보내기">' + IC.up + '</span></div>';
+}
+/* 시트 뒤 배경용 — 포커스·커서 없음 */
+function bgComposer(ph) {
+  return '<div class="comp"><div class="ta"><span class="ph" style="display:block">' + ph + '</span></div><span class="send off">' + IC.up + '</span></div>';
+}
+
+/* ── 화면 유형 ── */
+var SCREENS = {
+  talk: function () {
+    return '<div class="lhead"><span class="back">' + IC.back + '</span><span class="av">유</span><div class="lh-m"><h1>유우</h1><span class="ind"><span class="dot"></span>온라인 ›</span></div><span class="ic44">' + IC.more + '</span></div>' +
+      msgs(TALK, true) + composer('週末は家でゆっくりしたいです', '일본어로 써 보세요 — 보내면 선생님이 말로 대답해요', true);
+  },
+  chat: function () {
+    return bar('카페에서 주문하기', '오늘 · 메시지 6', '<span class="pillb">표현 점검</span><span class="ic44">' + IC.more + '</span>') +
+      msgs(CHAT, false) + composer('昨日、友だちと映画を見に行きました', '일본어로 써 보세요', false);
+  },
+  sheet: function () {
+    var bg, body, foot;
+    if (S.sheet === 'accept') {
+      bg = bar('카페에서 주문하기', '오늘 · 메시지 6', '<span class="pillb">표현 점검</span><span class="ic44">' + IC.more + '</span>') + msgs(CHAT, false) + bgComposer('일본어로 써 보세요');
+      body = '<div><p class="cap good-t">이렇게 고쳐요</p><p class="corr" lang="ja">昨日、友だちと映画を見に行きました。</p><p class="d13" style="margin-top:6px">채택하면 선생님이 내가 자주 틀리는 부분으로 기억해요.</p></div><hr class="hr">' +
+        '<p class="strong">단어장에도 넣을까요? (선택)</p>' +
+        fld('표현', '映画を見に行きました', { ja: true }) + fld('읽기', 'えいがをみにいきました', { ja: true }) +
+        fld('뜻', typed('어제 영화를 보러 갔어요', '한국어 뜻 (예: 어제 영화를 보러 갔어요)', false), { focus: true }) +
+        fld('분류', '<span class="ph" style="display:block">&nbsp;</span>') +
+        '<div class="btns"><span class="btn primary pin-src">단어장에 넣고 채택</span><span class="btn ghost">단어장 없이 채택만</span></div>';
+      foot = '단어장에 넣고 채택';
+      return bg + sheet('교정 채택', body, foot);
+    }
+    if (S.sheet === 'add') {
+      bg = appbar('단어장', '<span class="addb">＋ 추가</span>') + '<div class="scroll"><div class="page">' + searchBody(false) + '</div></div>' + tabbar(3);
+      body = fld('표현', typed('映画館', '예: 映画, 食べる, よろしくお願いします', true), { focus: true, ja: true }) +
+        '<span class="btn primary pin-src">뜻 채우기</span>' +
+        '<p class="cap">선생님이 읽기·뜻·예문을 채워 줘요. 확인하고 저장해야 단어장에 들어가요.</p>' +
+        '<span class="btn ghost">직접 입력하기</span><hr class="hr"><span class="tlink">기본 단어 50개(N5) 한 번에 넣기 ›</span>';
+      return bg + sheet('단어 추가', body, '뜻 채우기');
+    }
+    bg = appbar('회화') + '<div class="scroll"><div class="page"><span class="btn primary">＋ 새 채팅</span><div class="wl"><ul>' +
+      ['카페에서 주문하기|오늘 21:10', '주말 계획|어제', '자기소개 연습|9월 26일'].map(function (r) { var p = r.split('|'); return '<li><div class="l1"><span style="font-size:15px;font-weight:600">' + p[0] + '</span></div><span class="mn" style="font-size:12.5px">' + p[1] + '</span></li>'; }).join('') +
+      '</ul></div></div></div>' + tabbar(0);
+    body = fld('제목 (선택)', typed('카페 주문 복습', '비워 두면 자동으로 정해져요', false), { focus: true }) +
+      '<div class="btnrow"><span class="btn primary pin-src">시작하기</span><span class="btn ghost">취소</span></div>';
+    return bg + sheet('새 채팅', body, '시작하기');
+  },
+  search: function () {
+    return appbar('단어장', '<span class="addb">＋ 추가</span>') + '<div class="scroll" data-scroller><div class="page">' + searchBody(true) + '</div></div>' + tabbar(3);
+  },
+  settings: function () {
+    return appbar('설정') + '<div class="scroll" data-scroller data-aim="0.72"><div class="page">' +
+      '<div class="card tight"><div class="row"><span class="grow strong">출석</span><span class="cap">이번 달 18일</span></div><div class="att">' + '<i class="y"></i><i class="y"></i><i class="y"></i><i class="y"></i><i class="y"></i><i></i><i class="y"></i>' + '</div><p class="cap">12일째 이어서 공부하고 있어요</p></div>' +
+      '<div class="card tight"><p class="cap">로그인 계정</p><p class="strong">준</p><p class="d13">jun@example.com</p><span class="ulink" style="align-self:flex-start">로그아웃</span></div>' +
+      '<p class="sec-h">기본정보 · 학습</p><div class="card">' +
+      fld('내 이름(선생님이 부를 이름)', '준') +
+      fld('선생님 이름', '<span>유우</span>' + caret(), { focus: true }) +
+      '<div class="fld"><span class="lb">지금 수준</span>' + seg(['N5', 'N4', 'N3', 'N2', 'N1'], 0) + '</div>' +
+      '<div class="fld"><span class="lb">목표 수준</span>' + seg(['없음', 'N5', 'N4', 'N3', 'N2', 'N1'], 2) + '</div>' +
+      '<div class="fld"><span class="lb">대화 문체</span>' + seg(['존댓말(<span lang="ja">です・ます</span>)', '반말(<span lang="ja">タメ口</span>)'], 0) + '</div>' +
+      '<div class="fld"><span class="lb">교정 강도</span>' + seg(['가볍게', '보통', '꼼꼼하게'], 1) + '</div>' +
+      '<span class="btn primary">학습 설정 저장</span></div>' +
+      '<p class="sec-h">AI 선생님 목소리</p><div class="card"><div class="row"><span class="av">유</span><div class="grow"><p class="strong">유우</p><span class="ind"><span class="dot"></span>온라인 ›</span></div></div></div>' +
+      '</div></div>' + tabbar(-1);
+  },
+  lesson: function () {
+    var lines = [['점원', 'いらっしゃいませ。ご注文はお決まりですか。', 'いらっしゃいませ。ごちゅうもんはおきまりですか。'], ['손님', 'コーヒーを一つください。', 'コーヒーをひとつください。'], ['점원', 'ホットとアイス、どちらになさいますか。', 'ホットとアイス、どちらになさいますか。']];
+    return '<div class="lhead"><span class="back">' + IC.back + '</span><span class="av">유</span><div class="lh-m"><h1 lang="ja">サイズと温度を伝えよう</h1><span class="ind"><span class="dot"></span>온라인 ›</span></div></div>' +
+      '<div class="steps"><span class="cur">① 이해</span><span>② 문법</span><span>③ 문제</span><span>④ 응용</span><span>⑤ 말하기</span></div>' +
+      '<div class="scroll" data-scroller data-aim="0.74"><div class="page">' +
+      '<div><p class="strong">① 이해 · 듣고 이해하기</p><p class="d13" style="margin-top:4px">구간마다 느리게 한 번, 보통 속도로 한 번 들어요. 들린 단어는 메모해 두세요.</p></div>' +
+      '<div class="card tight"><div class="row"><span class="grow strong">구간 1 · 1~3줄</span><span class="cap">메모 2</span></div>' +
+      lines.map(function (l) { return '<div style="padding:4px 0"><p class="cap">' + l[0] + '</p><p lang="ja" style="font-size:17px;line-height:1.7">' + l[1] + '</p><p lang="ja" style="font-size:14px;color:var(--ink2)">' + l[2] + '</p></div>'; }).join('') +
+      '<span class="btn ghost">▶ 보통 속도로</span>' +
+      '<hr class="hr" style="margin-top:6px"><div class="row"><span class="grow" style="font-size:13.5px;font-weight:600">들린 단어 메모</span><span class="cap">2/5</span></div>' +
+      '<p class="cap">들린 단어를 일본어로 적어요. 뜻은 몰라도 괜찮아요.</p><div class="xp"><span lang="ja">注文 ✕</span><span lang="ja">ホット ✕</span></div>' +
+      '<div class="row"><div class="inp grow" data-focus lang="ja">' + typed('アイス', '예) 注文', true) + '</div><span class="btn ghost" style="width:auto;height:44px;font-size:14px">추가</span></div></div>' +
+      '<span class="btn primary">② 문법으로</span>' +
+      '</div></div>';
+  }
+};
+function searchBody(focus) {
+  var inner = '<span class="mag">' + IC.mag + '</span>' + (focus ? typed('えい', '표현·읽기·뜻으로 검색', true) : '<span class="ph" style="display:block">표현·읽기·뜻으로 검색</span>');
+  var all = [['映画', 'えいが', '영화', '교정'], ['食べる', 'たべる', '먹다', '기본 단어'], ['駅', 'えき', '역', '기본 단어'], ['よろしくお願いします', 'よろしくおねがいします', '잘 부탁드립니다', ''], ['温かい', 'あたたかい', '따뜻하다', ''], ['週末', 'しゅうまつ', '주말', '교정']];
+  var hit = [['映画', 'えいが', '영화', '교정'], ['英語', 'えいご', '영어', '기본 단어'], ['映画館', 'えいがかん', '영화관', ''], ['営業', 'えいぎょう', '영업', ''], ['永遠', 'えいえん', '영원', '']];
+  function list(rows) { return '<ul class="wl">' + rows.map(function (r) { return '<li><div class="l1"><span class="sf" lang="ja">' + r[0] + '</span><span class="rd" lang="ja">' + r[1] + '</span>' + (r[3] ? '<span class="bdg">' + r[3] + '</span>' : '') + '</div><span class="mn">' + r[2] + '</span></li>'; }).join('') + '</ul>'; }
+  return '<div class="inp srch"' + (focus ? ' data-focus' : '') + '>' + inner + '</div>' +
+    '<div class="chips" style="margin-top:-8px"><span class="on">전체 57</span><span>N5 기초 50</span><span>교정 5</span><span>일상 2</span></div>' +
+    '<div class="row" style="margin-top:-8px"><div class="grow">' + seg(['최근 추가', '많이 틀린', '가나다순'], 0, true) + '</div><span class="arch">보관함</span></div>' +
+    (focus ? '<p class="cap when-kb" style="margin:-6px 0 -10px">‘<span lang="ja">えい</span>’ 검색 결과 5개</p><div class="when-kb">' + list(hit) + '</div>' : '') +
+    '<p class="cap' + (focus ? ' when-nokb' : '') + '" style="margin:-6px 0 -10px">단어 57개</p><div' + (focus ? ' class="when-nokb"' : '') + '>' + list(all) + '</div>';
+}
+function sheet(title, body, foot) {
+  return '<div class="scrim"></div><div class="sheet" role="dialog" aria-label="' + title + '"><div class="sheet-h"><h2>' + title + '</h2><span class="ic44" aria-label="닫기">' + IC.x + '</span></div>' +
+    '<div class="sheet-b" data-scroller>' + body + '</div><div class="sfoot"><span class="btn primary">' + foot + '</span></div></div>';
+}
+
+var SUG = {
+  talk: ['ゆっくり', 'ゆっくりしたい', 'ゆっくりと'], chat: ['行きました', '行きます', '行って'],
+  sheet: ['갔어요', '갔어', '갔다'], search: ['えい', '映', '英'], settings: ['유우', '유우 선생님', '유'], lesson: ['一つ', 'ひとつ', '1つ']
+};
+function keyboard() {
+  var sug = SUG[S.type === 'sheet' ? (S.sheet === 'add' ? 'lesson' : 'sheet') : S.type];
+  if (S.type === 'sheet' && S.sheet === 'add') sug = ['映画館', '映画', '栄華'];
+  if (S.type === 'sheet' && S.sheet === 'new') sug = ['복습', '복습하기', '복습용'];
+  function row(keys, cls) { return '<div class="kb-r' + (cls ? ' ' + cls : '') + '">' + keys.map(function (k) { return typeof k === 'string' ? '<span class="key">' + k + '</span>' : '<span class="key ' + k[1] + '">' + k[0] + '</span>'; }).join('') + '</div>'; }
+  return '<div class="kbd" role="img" aria-label="데모용 키보드(높이 ' + S.k + 'px, 임의 값)">' +
+    '<div class="kb-sug">' + sug.map(function (s) { return '<span>' + s + '</span>'; }).join('') + '<em>데모 키보드 ' + S.k + 'px</em></div>' +
+    '<div class="kb-rows">' + row('qwertyuiop'.split('')) + row('asdfghjkl'.split(''), 'r2') +
+    row([['⇧', 'w15'], 'z', 'x', 'c', 'v', 'b', 'n', 'm', ['⌫', 'w15']]) + row([['?123', 'w15'], '、', ['空白', 'sp'], '。', ['⏎', 'w15 act']]) + '</div>' +
+    '<div class="kb-nav"><button type="button" class="kb-hide" data-act="kbhide" aria-label="키보드 내리기" tabindex="-1">⌄</button></div></div>';
+}
+
+var TYPES = [
+  { id: 'talk', name: '회화방 · 텍스트', sub: '사용자 재현 화면 · R2' },
+  { id: 'chat', name: '채팅방', sub: '하단 입력 바 · R2' },
+  { id: 'sheet', name: '시트 안 입력', sub: '새 채팅·단어 추가·교정 채택 · R4' },
+  { id: 'search', name: '단어장 검색', sub: '위쪽 입력 + 하단 탭 · R6·R3' },
+  { id: 'settings', name: '설정 폼', sub: '스크롤 폼 + 하단 탭 · R5·R3' },
+  { id: 'lesson', name: '수업 메모 · 긴 글', sub: '스크롤 폼 · R5' }
+];
+var NOTES = {
+  talk: { now: '🎤 → ⌨ 로 바꾸면 입력 바가 키보드 뒤로 숨는다. 무엇을 쓰는지 볼 수 없다(IMP-0008 원문 그대로).', fix: '입력 바가 키보드 바로 위에 붙고, 마지막 말풍선이 입력 바 바로 위에 보이도록 대화 목록이 맨 아래를 유지한다. 🎤 로 돌아가면 키보드가 내려가고 원래 화면.', etc: '규칙 R1·R2. 입력 바 아래 제스처 바 여백(16px)은 키보드가 있을 때 0. 보내기 뒤에도 키보드와 포커스를 유지(지금 동작).' },
+  chat: { now: '같은 원인이면 입력 바가 키보드 뒤로 숨는다. 채팅방은 키보드 높이를 따로 재는 코드가 이미 있지만 앱에서 먹는지는 확인 전이다.', fix: '회화방과 똑같다 — 입력 바는 키보드 바로 위, 목록은 맨 아래 유지. 대화 목록 안의 입력(선생님 제안 카드의 "뜻" 고치기)은 R5 처럼 그 칸이 보이게 목록을 한 번 스크롤한다.', etc: '규칙 R1·R2. 360px 에서도 입력 바 구성(입력 칸 + 보내기 44px)은 그대로.' },
+  sheet: { now: '시트가 화면 맨 아래에 붙어 있어 키보드가 시트를 덮는다. "새 채팅"처럼 짧은 시트는 통째로 안 보이고, "교정 채택"처럼 긴 시트는 아래쪽 칸(뜻·분류)과 버튼이 가려진다.', fix: '시트가 통째로 키보드 위로 올라간다. 남은 높이의 85% 안에서 시트 안쪽만 스크롤해 입력 중인 칸 아래 16px 이상 여유. 확인 버튼 자리는 결정 D2 로 비교해 볼 수 있다(위 컨트롤).', etc: '규칙 R4. 공용 시트 한 곳을 고치면 단어 상세 편집·채팅 메뉴 이름 바꾸기·관리자 콘솔 시트까지 같이 적용된다.' },
+  search: { now: '입력창은 위에 있어서 보이지만, 결과 목록의 끝과 하단 탭이 키보드 뒤에 있다. 목록을 끝까지 내려도 마지막 줄이 키보드에 덮인다.', fix: '입력창은 제자리. 결과 목록이 키보드 위까지로 줄어 끝까지 볼 수 있다. 하단 탭은 결정 D1(A 숨김 · B 키보드 위로).', etc: '규칙 R6·R3. 검색 키(돋보기)를 누르면 키보드가 내려가는 지금 동작은 그대로.' },
+  settings: { now: '화면 아래쪽 칸(선생님 이름)을 누르면 칸이 키보드 뒤로 들어간다. 화면이 줄지 않으니 자동 스크롤도 일어나지 않는다.', fix: '화면 스크롤의 끝이 키보드 위로 올라오고, 누른 칸이 키보드 위 16px 이상에 오도록 한 번 스크롤한다. 저장 버튼 위치는 그대로(카드 끝).', etc: '규칙 R5·R3. 목소리 설정은 슬라이더뿐이라 키보드가 뜨지 않는다(확인만). 초대코드 입력(로그인 전)도 같은 규칙.' },
+  lesson: { now: '① 이해 "들린 단어 메모"처럼 대화문 아래에 있는 칸을 누르면 칸이 키보드 뒤로 들어간다. 지금은 칸을 누를 때 한 번 스크롤하지만 화면이 줄지 않아 여전히 가려진다.', fix: '칸(여러 줄이면 커서가 있는 줄)이 키보드 위 16px 이상에 오도록 한 번 스크롤. 여러 줄 칸(④ 응용 "내 문장"·문장 붙여넣기)은 쓰는 동안 줄이 늘어나면 그 줄을 따라간다. [추가]·[② 문법으로] 버튼은 제자리.', etc: '규칙 R5. ④ 응용 답 쓰기·문장으로 수업 만들기(붙여넣기)도 같은 규칙. ⑤ 말하기의 글자 입력은 R2(하단 입력 바).' }
+};
+var INV = [
+  ['회화방 텍스트 모드', '메시지 입력', 'talk', '하단 입력 바', 'part', '있음(회화방만) · 사용자 재현 가려짐', 'R2'],
+  ['채팅방', '메시지 입력', 'chat', '하단 입력 바', 'part', '있음 · 앱 확인 전', 'R2'],
+  ['채팅방 · 선생님 제안 카드', '뜻 고치기', 'chat', '목록 안 입력', 'no', '없음', 'R5'],
+  ['오늘의 회화 ⑤ 말하기', '글자로 말하기', 'lesson', '하단 입력 바', 'part', '있음 · 앱 확인 전', 'R2'],
+  ['오늘의 회화 ① 이해', '메모 입력', 'lesson', '스크롤 폼', 'no', '없음', 'R5'],
+  ['오늘의 회화 ④ 응용', '내 문장', 'lesson', '스크롤 폼', 'no', '없음(칸 포커스 때 한 번 스크롤만)', 'R5'],
+  ['문장으로 수업 만들기', '붙여넣을 문장', 'lesson', '스크롤 폼', 'no', '없음(칸 포커스 때 한 번 스크롤만)', 'R5'],
+  ['새 채팅 · 새 회화 시트', '제목', 'sheet:new', '시트', 'no', '없음', 'R4'],
+  ['단어 추가 시트', '표현·읽기·뜻·예문·메모', 'sheet:add', '시트', 'no', '없음', 'R4'],
+  ['단어 상세 시트 · 고치기', '같은 단어 폼', 'sheet:add', '시트', 'no', '없음', 'R4'],
+  ['교정 채택 시트', '표현·읽기·뜻·분류', 'sheet:accept', '시트', 'no', '없음', 'R4'],
+  ['채팅 메뉴 시트 · 이름 바꾸기', '제목', 'sheet:new', '시트', 'no', '없음', 'R4'],
+  ['단어장', '검색', 'search', '위쪽 입력 + 탭', 'no', '없음', 'R6·R3'],
+  ['설정 · 기본정보·학습', '내 이름·선생님 이름', 'settings', '스크롤 폼 + 탭', 'no', '없음', 'R5·R3'],
+  ['설정 · AI 선생님 목소리', '슬라이더만', 'settings', '키보드 안 뜸', 'na', '해당 없음', '확인만'],
+  ['초대코드 입력(로그인 전)', '초대코드', 'settings', '스크롤 폼', 'no', '없음', 'R5'],
+  ['관리자 콘솔 · 발음 사전·설정 편집', '필터·항목 시트·가져오기', 'sheet:accept', '시트·폼', 'no', '없음', 'R4·R5']
+];
+
+var DECS = [
+  { id: 'tab', title: 'D1 · 키보드가 열려 있을 때 하단 탭', q: '단어장 검색·설정처럼 하단 탭이 있는 화면에서 입력을 시작하면 탭을 어떻게 할까요? (채팅방·회화방·수업은 원래 탭이 없어 상관없음)',
+    opts: [
+      { v: 'A', h: 'A · 숨김', rec: true, d: '키보드가 열려 있는 동안 하단 탭을 감춘다. 키보드를 내리면 다시 보인다.', p: ['결과·입력을 보는 칸이 탭 높이(66px)만큼 넓다 — 780 높이·키보드 320 기준 남는 460px 중 14%', '안드로이드 앱에서 흔한 방식'], m: ['입력 중에는 다른 탭으로 바로 못 간다(키보드를 내리면 됨)'] },
+      { v: 'B', h: 'B · 키보드 위로 따라 올라감', d: '탭이 키보드 바로 위에 붙어 늘 보인다(웹 Chrome 이 지금 하는 방식에 가깝다).', p: ['탭이 늘 보여 바로 이동 가능'], m: ['남는 칸이 394px 로 줄어 검색 결과가 2~3줄만 보인다', '입력 중 탭을 잘못 눌러 화면을 떠날 수 있다'] }
+    ] },
+  { id: 'btn', title: 'D2 · 시트 안에서 입력 중일 때 확인 버튼', q: '교정 채택·단어 추가·새 채팅 시트에서 칸에 쓰는 동안, 주 버튼(단어장에 넣고 채택·뜻 채우기·시작하기)을 어디에 둘까요?',
+    opts: [
+      { v: 'A', h: 'A · 제자리(시트 내용 끝)', rec: true, d: '지금처럼 버튼은 시트 내용 끝에 있다. 키보드가 열려 있으면 시트를 조금 올리거나 키보드를 내리면 보인다.', p: ['시트 구조가 바뀌지 않는다(이 작업 범위 안)', '짧은 시트(새 채팅)는 이미 버튼이 보인다'], m: ['긴 시트는 쓰고 나서 한 번 더 움직여야 누른다'] },
+      { v: 'B', h: 'B · 키보드 위에 고정', d: '키보드가 열려 있는 동안만 주 버튼 1개를 시트 맨 아래(키보드 바로 위)에 붙인다.', p: ['쓰자마자 바로 누를 수 있다'], m: ['시트에서 칸이 보이는 높이가 64px 줄어든다', '시트 구조가 바뀌어 범위가 늘어난다(이 작업의 비범위 "레이아웃 재설계"에 걸침)'] }
+    ] }
+];
+
+/* ── 컨트롤 ── */
+function segCtl(label, key, opts) {
+  return '<span class="dctl">' + label + '<span class="dseg">' + opts.map(function (o) {
+    var v = o[0], cur = key === 'one.fix' ? String(S.one.fix) : key === 'one.kb' ? String(S.one.kb) : String(S[key]);
+    return '<button type="button" data-k="' + key + '" data-v="' + v + '" aria-pressed="' + (cur === String(v)) + '">' + o[1] + '</button>';
+  }).join('') + '</span></span>';
+}
+function renderCtls() {
+  document.getElementById('ctls').innerHTML =
+    segCtl('폭', 'w', [[360, '360'], [390, '390'], [412, '412']]) +
+    segCtl('높이', 'h', [[780, '780 주소창'], [892, '892 전체']]) +
+    segCtl('키보드', 'k', [[280, '280'], [320, '320'], [360, '360']]) +
+    segCtl('보기', 'view', [['compare', '나란히 비교'], ['one', '직접 눌러 보기']]) +
+    segCtl('D1 탭', 'tab', [['A', 'A 숨김'], ['B', 'B 위로']]) +
+    segCtl('D2 버튼', 'btn', [['A', 'A 제자리'], ['B', 'B 고정']]) +
+    segCtl('테마', 'theme', [['auto', '자동'], ['light', '라이트'], ['dark', '다크']]);
+}
+function renderTypes() {
+  document.getElementById('types').innerHTML = TYPES.map(function (t) {
+    return '<button type="button" role="tab" data-type="' + t.id + '" aria-selected="' + (S.type === t.id) + '"><b>' + t.name + '</b><span>' + t.sub + '</span></button>';
+  }).join('');
+}
+function renderSub() {
+  var sb = document.getElementById('subbar');
+  var h = '';
+  if (S.type === 'sheet') h += segCtl('시트', 'sheet', [['new', '새 채팅 · 짧음'], ['add', '단어 추가 · 중간'], ['accept', '교정 채택 · 긺']]);
+  if (S.type === 'search' || S.type === 'settings') h += '<span>하단 탭이 있는 화면 — 제안 열은 결정 D1 = <b>' + (S.tab === 'A' ? 'A 숨김' : 'B 키보드 위로') + '</b></span>';
+  if (S.type === 'sheet') h += '<span>제안 열은 결정 D2 = <b>' + (S.btn === 'A' ? 'A 제자리' : 'B 키보드 위 고정') + '</b></span>';
+  sb.innerHTML = h;
+  sb.hidden = !h;
+  var t = TYPES.filter(function (x) { return x.id === S.type; })[0];
+  document.getElementById('stageSub').textContent = t.name + ' · ' + (S.view === 'compare' ? '키보드 없음(현재=제안) / 키보드 있음 현재 / 키보드 있음 제안' : '입력 칸을 누르면 키보드가 올라오고 ⌄ 로 내린다');
+}
+
+/* ── 틀 ── */
+function specs() {
+  if (S.view === 'one') return [{ label: S.one.fix ? '제안' : '현재', cls: S.one.fix ? 'fix' : 'now', sub: S.one.kb ? '키보드 있음' : '키보드 없음', kb: S.one.kb, fix: S.one.fix }];
+  var nowSub = S.type === 'talk' ? '사용자 재현' : S.type === 'search' ? '입력은 보이나 목록 끝·탭이 가려짐' : '같은 원인으로 가려짐';
+  return [
+    { label: '키보드 없음', cls: '', sub: '현재 = 제안 · 화면 그대로', kb: false, fix: true },
+    { label: '키보드 있음 · 현재', cls: 'now', sub: nowSub, kb: true, fix: false },
+    { label: '키보드 있음 · 제안', cls: 'fix', sub: '공통 규칙 적용', kb: true, fix: true }
+  ];
+}
+var stageEl = document.getElementById('stage');
+function render() {
+  renderCtls(); renderTypes(); renderSub();
+  var sp = specs();
+  var html = SCREENS[S.type]();
+  stageEl.innerHTML = sp.map(function (f, i) {
+    var cls = 'phone w' + S.w + ' h' + S.h + (S.tab === 'A' ? ' tabA' : '') + (S.btn === 'B' ? ' btnB' : '');
+    var dim = S.w + ' × ' + S.h;
+    if (f.kb && f.fix) dim += ' · 키보드 ' + S.k + ' → 화면 ' + (S.h - S.k) + 'px 로 줄어듦';
+    if (f.kb && !f.fix) dim += ' · 키보드가 덮음(화면은 ' + S.h + 'px 그대로)';
+    return '<figure class="fw"><figcaption><b class="' + f.cls + '">' + f.label + '</b><br><span>' + f.sub + '</span></figcaption>' +
+      '<div class="fbox" data-fbox><div class="' + cls + '" data-frame data-kb="' + (f.kb ? 1 : 0) + '" data-fix="' + (f.fix ? 1 : 0) + '" style="--kh:' + S.k + 'px">' +
+      '<div class="app">' + html + '</div><div class="gest" aria-hidden="true"></div>' + keyboard() + '<div class="marks" aria-hidden="true"></div></div></div>' +
+      '<p class="fdim">' + dim + '</p></figure>';
+  }).join('');
+  var ob = document.getElementById('onebar');
+  ob.hidden = S.view !== 'one';
+  if (S.view === 'one') {
+    ob.innerHTML = segCtl('보기', 'one.fix', [['false', '현재'], ['true', '제안']]) +
+      '<button type="button" class="dbtn pri" data-act="kbtoggle">' + (S.one.kb ? '⌄ 키보드 내리기' : '⌨ 키보드 올리기') + '</button>' +
+      '<span class="dsub">입력 칸을 눌러도 키보드가 올라온다.</span>';
+  }
+  renderNotes();
+  applyScale();
+  layoutAll(false);
+}
+function renderNotes() {
+  var n = NOTES[S.type];
+  document.getElementById('notes').innerHTML =
+    '<div class="note now"><h3>현재 (키보드 있음)</h3><p>' + n.now + '</p></div>' +
+    '<div class="note fix"><h3>제안 (키보드 있음)</h3><p>' + n.fix + '</p></div>' +
+    '<div class="note"><h3>규칙 · 참고</h3><p>' + n.etc + '</p></div>';
+}
+function applyScale() {
+  var figs = stageEl.querySelectorAll('.fw');
+  var n = figs.length, gap = 22;
+  var availW = stageEl.clientWidth;
+  var top = document.querySelector('.dtop');
+  var topH = getComputedStyle(top).position === 'sticky' ? top.offsetHeight : 0;
+  var availH = window.innerHeight - topH - 110;
+  var sH = availH / S.h;
+  var sRow = (availW - (n - 1) * gap) / (S.w * n);
+  var row = n > 1 && sRow >= 0.5;
+  var sc = row ? Math.min(1, sRow, Math.max(sH, 0.5)) : Math.min(1, availW / S.w, Math.max(sH, 0.72));
+  sc = Math.max(0.3, Math.floor(sc * 1000) / 1000);
+  curScale = sc;
+  stageEl.style.setProperty('--s', String(sc));
+  stageEl.classList.toggle('row', row);
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-fbox]'), function (b) {
+    b.style.width = Math.round(S.w * sc) + 'px'; b.style.height = Math.round(S.h * sc) + 'px';
+  });
+}
+
+/* ── 키보드 상태에 따른 스크롤·표시 ── */
+function layoutAll(smooth) { Array.prototype.forEach.call(stageEl.querySelectorAll('[data-frame]'), function (ph) { layoutFrame(ph, smooth); }); }
+function layoutFrame(ph, smooth) {
+  var kb = ph.getAttribute('data-kb') === '1', fix = ph.getAttribute('data-fix') === '1';
+  var s = curScale, H = S.h, K = S.k;
+  var pr = ph.getBoundingClientRect();
+  function loc(el) { var r = el.getBoundingClientRect(); return { t: (r.top - pr.top) / s, b: (r.bottom - pr.top) / s, l: (r.left - pr.left) / s, r: (r.right - pr.left) / s }; }
+  var focus = ph.querySelector('[data-focus]');
+  var car = focus ? focus.querySelector('[data-caret]') : null;
+  Array.prototype.forEach.call(ph.querySelectorAll('[data-scroller]'), function (sc) {
+    if (sc.hasAttribute('data-stick')) { sc.scrollTop = sc.scrollHeight; return; }
+    if (!smooth) {
+      sc.scrollTop = 0;
+      if (sc.hasAttribute('data-aim') && focus && sc.contains(focus)) {
+        var aim = parseFloat(sc.getAttribute('data-aim'));
+        sc.scrollTop = Math.max(0, loc(focus).t - aim * H);
+      }
+    }
+    if (kb && fix && focus && sc.contains(focus)) {
+      var fl = loc(focus), cl = car ? loc(car) : fl;
+      var top = Math.max(fl.t, cl.t - 12), bot = Math.min(fl.b, cl.b + 12);
+      if (fl.b - fl.t < 140) { top = fl.t; bot = fl.b; }
+      var v = loc(sc), pad = 16, want = sc.scrollTop;
+      if (bot + pad > v.b) want += bot + pad - v.b;
+      else if (top - pad < v.t) want -= v.t - (top - pad);
+      if (want !== sc.scrollTop) {
+        if (smooth && !reduced()) sc.scrollTo({ top: want, behavior: 'smooth' }); else sc.scrollTop = want;
+      }
+    }
+  });
+  var mk = ph.querySelector('.marks');
+  mk.innerHTML = '';
+  if (!kb || !focus) return;
+  var draw = function () {
+    pr = ph.getBoundingClientRect();
+    var f = loc(focus), c = car ? loc(car) : f, kbTop = H - K;
+    var out = '';
+    if (!fix) {
+      if (c.b > kbTop + 2) {
+        var bt = Math.max(f.t, 2), bb = Math.min(f.b, H - 2);
+        out += '<div class="mk-box" style="top:' + bt + 'px;left:' + (f.l - 3) + 'px;width:' + (f.r - f.l + 6) + 'px;height:' + Math.max(24, bb - bt) + 'px"></div>';
+        out += '<p class="mk-lab" style="top:' + (kbTop - 40) + 'px">' + (f.t < kbTop - 4 ? '쓰고 있는 줄이 키보드 뒤에 있어요' : '입력 중인 칸이 키보드 뒤에 있어요') + '</p>';
+      } else {
+        out += '<p class="mk-lab n" style="top:' + (kbTop - 40) + 'px">입력창은 보여요 · 목록 끝과 하단 탭이 키보드 뒤</p>';
+      }
+    } else {
+      out += '<div class="mk-edge" style="top:' + kbTop + 'px"></div>';
+      var y = Math.max(f.t, c.t - 10) - 26;
+      if (y < 58) y = Math.min(f.b + 6, kbTop - 26);
+      out += '<span class="mk-ok" style="top:' + y + 'px;right:' + Math.max(8, S.w - f.r) + 'px">입력 중인 줄이 보여요</span>';
+    }
+    mk.innerHTML = out;
+  };
+  if (smooth && !reduced()) setTimeout(draw, 380); else draw();
+}
+function reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+function setOneKb(on) {
+  S.one.kb = on;
+  var ph = stageEl.querySelector('[data-frame]');
+  if (!ph) return;
+  ph.setAttribute('data-kb', on ? '1' : '0');
+  ph.querySelector('.marks').innerHTML = '';
+  var b = document.querySelector('[data-act="kbtoggle"]');
+  if (b) b.textContent = on ? '⌄ 키보드 내리기' : '⌨ 키보드 올리기';
+  document.querySelector('.fw figcaption span').textContent = on ? '키보드 있음' : '키보드 없음';
+  var fd = document.querySelector('.fw .fdim');
+  if (fd) fd.textContent = S.w + ' × ' + S.h + (on ? (S.one.fix ? ' · 키보드 ' + S.k + ' → 화면 ' + (S.h - S.k) + 'px 로 줄어듦' : ' · 키보드가 덮음(화면은 ' + S.h + 'px 그대로)') : '');
+  setTimeout(function () { layoutFrame(ph, true); }, reduced() ? 0 : 240);
+}
+
+/* ── 결정 패널 ── */
+function renderDecs() {
+  document.getElementById('decs').innerHTML = DECS.map(function (d) {
+    return '<div class="dec" role="radiogroup" aria-labelledby="dec-' + d.id + '"><h3 id="dec-' + d.id + '">' + d.title + '</h3><p class="q">' + d.q + '</p><div class="dec-g">' +
+      d.opts.map(function (o) {
+        var on = S[d.id] === o.v;
+        return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="dec-' + d.id + '" value="' + o.v + '" data-dec="' + d.id + '"' + (on ? ' checked' : '') + '>' +
+          '<span class="opt-h">' + o.h + (o.rec ? ' <span class="rec">디자이너 의견</span>' : '') + '</span><span class="opt-d">' + o.d + '</span><ul>' +
+          o.p.map(function (x) { return '<li class="p">' + x + '</li>'; }).join('') + o.m.map(function (x) { return '<li class="m">' + x + '</li>'; }).join('') +
+          '</ul><span class="sel">' + (on ? '● 지금 화면에 반영 중' : '○ 눌러서 화면에 반영') + '</span></label>';
+      }).join('') + '</div></div>';
+  }).join('');
+  document.getElementById('decsum').textContent = '지금 화면: D1 = ' + (S.tab === 'A' ? 'A 숨김' : 'B 키보드 위로') + ' · D2 = ' + (S.btn === 'A' ? 'A 제자리' : 'B 키보드 위 고정') + ' — 결정은 사용자가 한다(데모 기본값은 디자이너 의견).';
+}
+function renderInv() {
+  var head = '<thead><tr><th>화면</th><th>입력</th><th>유형</th><th>지금 보정(코드)</th><th>적용 규칙</th></tr></thead>';
+  document.getElementById('inv').innerHTML = head + '<tbody>' + INV.map(function (r) {
+    return '<tr class="go" data-go="' + r[2] + '" tabindex="0"><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[3] + '</td><td><span class="tg ' + r[4] + '">' + r[5] + '</span></td><td class="rule">' + r[6] + '</td></tr>';
+  }).join('') + '</tbody>';
+}
+
+/* ── 이벤트 ── */
+document.addEventListener('click', function (e) {
+  var t = e.target.closest ? e.target : null;
+  if (!t) return;
+  var b = t.closest('[data-k]');
+  if (b) {
+    var k = b.getAttribute('data-k'), v = b.getAttribute('data-v');
+    if (k === 'one.fix') { S.one.fix = v === 'true'; render(); return; }
+    if (k === 'w' || k === 'h' || k === 'k') S[k] = Number(v); else S[k] = v;
+    if (k === 'theme') { if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v); }
+    if (k === 'tab' || k === 'btn') renderDecs();
+    render(); return;
+  }
+  var ty = t.closest('[data-type]');
+  if (ty) { S.type = ty.getAttribute('data-type'); render(); return; }
+  var go = t.closest('[data-go]');
+  if (go) { goType(go.getAttribute('data-go')); return; }
+  var act = t.closest('[data-act]');
+  if (act) {
+    var a = act.getAttribute('data-act');
+    if (a === 'kbtoggle') setOneKb(!S.one.kb);
+    if (a === 'kbhide' && S.view === 'one') setOneKb(false);
+    return;
+  }
+  if (S.view === 'one' && t.closest('[data-frame] [data-focus]') && !S.one.kb) setOneKb(true);
+});
+document.addEventListener('keydown', function (e) {
+  var go = e.target.closest && e.target.closest('[data-go]');
+  if (go && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); goType(go.getAttribute('data-go')); }
+});
+document.addEventListener('change', function (e) {
+  var r = e.target;
+  if (r && r.getAttribute && r.hasAttribute('data-dec')) { S[r.getAttribute('data-dec')] = r.value; renderDecs(); render(); }
+});
+function goType(v) {
+  var p = v.split(':');
+  S.type = p[0];
+  if (p[1]) S.sheet = p[1];
+  render();
+  document.getElementById('h-stage').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+}
+var rt = 0;
+window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { applyScale(); layoutAll(false); }, 120); });
+
+renderInv();
+renderDecs();
+render();
+})();
+</script>
+</body>
+</html>

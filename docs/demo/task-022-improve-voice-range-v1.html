@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-022-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:22f382529f92">
+<meta name="description" content="설정 > AI 선생님 목소리 슬라이더 범위 확대(속도·높낮이·억양·말투 세기) — 현재 범위 대비 새 범위, 양 끝값에서 생기는 일, 말투 세기 슬라이더 노출 결정(delta 데모 v1)">
+<title>음성 설정 범위 확대</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+p, h1, h2, h3, h4, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── 데모 틀 ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.dtop h1 small { display: inline-block; font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.meta { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.meta span { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.meta span.lv { background: var(--accent); color: var(--on-accent); }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dwrap { max-width: 1480px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dcard > h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.dcard h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 6px; }
+.dsub { font-size: 12.5px; color: var(--ink2); }
+.two { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+.plain { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.plain li::before { content: "• "; color: var(--ink2); }
+.callout { border-radius: 12px; background: var(--surface2); padding: 12px; font-size: 12.5px; }
+/* 범위 비교 */
+.rc { display: flex; flex-direction: column; gap: 18px; }
+.rc-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 6px 16px; align-items: start; }
+.rc-l b { display: block; font-size: 14px; }
+.rc-l span { font-size: 12.5px; color: var(--ink2); }
+.rc-l span b { display: inline; font-size: 12.5px; color: var(--ink); }
+.rc-g { position: relative; height: 74px; margin: 0 12px; }
+.rc-ax { position: absolute; left: 0; right: 0; top: 60px; height: 14px; border-top: 1px solid var(--line); }
+.rc-ax i { position: absolute; top: 0; white-space: nowrap; font-style: normal; font-size: 11px; color: var(--ink2); transform: translateX(-50%); padding-top: 1px; }
+.rc-ax i::before { content: ""; position: absolute; left: 50%; top: -4px; height: 4px; border-left: 1px solid var(--line); }
+.rc-bar { position: absolute; height: 22px; border-radius: 6px; font-size: 11.5px; font-weight: 600; display: flex; align-items: center; padding: 0 8px; white-space: nowrap; overflow: hidden; }
+.rc-bar.old { top: 4px; background: var(--surface2); color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); }
+.rc-bar.neu { top: 32px; background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
+.rc-def { position: absolute; top: 0; bottom: 14px; border-left: 2px dashed var(--ink2); }
+.rc-n { grid-column: 2; font-size: 12.5px; color: var(--ink2); margin: 0 12px; }
+.tblw { overflow-x: auto; }
+table.t { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 640px; }
+table.t th, table.t td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+table.t th { font-size: 12px; color: var(--ink2); font-weight: 600; border-top: 0; background: var(--surface2); }
+table.t td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tg { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; background: var(--surface2); color: var(--ink2); }
+.tg.bad { background: var(--bad-soft); color: var(--bad); }
+.tg.good { background: var(--good-soft); color: var(--good); }
+/* 무대 */
+.stagecap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.stagecap h2 { font-size: 15px; font-weight: 700; }
+.dstage { --s: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; margin-top: 12px; }
+.dstage.row { flex-wrap: nowrap; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; }
+.fw figcaption b { color: var(--ink); font-size: 13px; }
+.fbox { position: relative; flex: none; }
+.fbox > .phone { position: absolute; left: 0; top: 0; transform: scale(var(--s)); transform-origin: 0 0; }
+.fdim { font-size: 11.5px; color: var(--ink2); margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+/* 결정 */
+.decs { border: 2px solid var(--accent); }
+.dec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; container-type: inline-size; }
+.dec:first-of-type { border-top: 0; padding-top: 0; margin-top: 4px; }
+.dec > h3 { font-size: 14px; }
+.dec > p.q { font-size: 13px; margin-bottom: 4px; }
+.dec-g { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 8px; }
+@container (min-width: 560px) { .dec-g { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; }
+.opt-d { font-size: 13px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 3px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.rec { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--good-soft); color: var(--good); }
+.decsum { margin-top: 14px; font-size: 12.5px; color: var(--ink2); }
+@media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } .rc-row { grid-template-columns: minmax(0, 1fr); } .rc-n { grid-column: 1; } }
+@media (max-width: 760px) {
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dwrap { padding: 12px 16px; }
+}
+
+/* ── 휴대폰 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; background: var(--ground); }
+.gest { position: absolute; left: 50%; bottom: 5px; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; background: var(--ink); opacity: .35; z-index: 45; }
+.scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.page { padding: 12px 16px 32px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.appbar { flex: none; height: 52px; display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 0 8px 0 16px; border-bottom: 1px solid var(--line); }
+.appbar h1 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; }
+.me { width: 44px; height: 44px; display: grid; place-items: center; flex: none; }
+.me span { width: 32px; height: 32px; border-radius: 50%; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+.tabbar { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 16px; }
+.tab { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; font-size: 11px; color: var(--ink3); }
+.card { min-width: 0; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.card.tight { gap: 8px; }
+.sec-h { font-size: 15px; font-weight: 600; margin-bottom: -8px; }
+.cap { font-size: 12px; color: var(--ink2); }
+.d13 { font-size: 13px; color: var(--ink2); }
+.strong { font-size: 15px; font-weight: 600; }
+.row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.row > .grow { flex: 1; min-width: 0; }
+.av { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: 16px; display: grid; place-items: center; }
+.ind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--good); }
+hr.hr { border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%; }
+.fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lb { font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+.vr { display: flex; flex-direction: column; gap: 8px; }
+.vr button { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 14px; text-align: left; cursor: pointer; }
+.vr button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.vr b { display: block; font-size: 15px; }
+.vr span { display: block; font-size: 13px; color: var(--ink2); }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); min-width: 0; }
+.seg button { flex: 1; min-width: 0; height: 40px; border: 0; background: none; border-radius: 8px; font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; cursor: pointer; }
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; white-space: nowrap; min-width: 0; cursor: pointer; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.ptoast { position: absolute; left: 16px; right: 16px; bottom: 96px; z-index: 50; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 10px 14px; font-size: 13px; text-align: center; }
+/* 현재 슬라이더(기본 모양 그대로) */
+.rng-old { width: 100%; height: 44px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+/* 제안 슬라이더 */
+.sl { display: flex; flex-direction: column; min-width: 0; }
+.slg { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sl-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.sl-h label { font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+.sl-v { flex: none; font-size: 12.5px; color: var(--ink2); }
+.sl-v b { font-size: 15px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sl-r { position: relative; }
+.rng { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; border-radius: 8px;
+  --a: calc(13px + (100% - 26px) * var(--pa)); --b: calc(13px + (100% - 26px) * var(--pb)); }
+.rng::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--line) 0 var(--a), var(--accent) var(--a) var(--b), var(--line) var(--b) 100%); }
+.rng::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px; margin-top: -10px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+.rng::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--line) 0 var(--a), var(--accent) var(--a) var(--b), var(--line) var(--b) 100%); }
+.rng::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+.rng:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tk { position: absolute; top: 29px; width: 2px; height: 7px; margin-left: -1px; border-radius: 1px; background: var(--ink2); left: calc(13px + (100% - 26px) * var(--pd)); pointer-events: none; }
+.sl-t { position: relative; height: 18px; font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.sl-t span { position: absolute; top: 0; white-space: nowrap; }
+.sl-t .mn { left: 0; } .sl-t .mx { right: 0; }
+.sl-t .df { left: calc(13px + (100% - 26px) * var(--pd)); transform: translateX(-50%); }
+.sl-n { margin-top: 4px; font-size: 12.5px; line-height: 1.45; color: var(--ink2); }
+.sl-n:empty { display: none; }
+.sl-n.w { color: var(--ink); }
+.sl-n.w::before { content: "ⓘ "; color: var(--ink2); }
+.rst { align-self: flex-start; min-height: 44px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; }
+.rst[hidden] { display: none; }
+/* 바뀐 곳 표시 */
+.showchg [data-chg] { position: relative; outline: 2px dashed var(--accent); outline-offset: 5px; border-radius: 6px; }
+.showchg [data-chg]::after { content: attr(data-chg); position: absolute; top: -14px; right: -4px; font-size: 10.5px; font-weight: 700; line-height: 16px; padding: 0 6px; border-radius: 6px; background: var(--accent); color: var(--on-accent); pointer-events: none; }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>AI 선생님 목소리 — 조절 범위 약 2배 <span class="meta"><span>task-022</span><span>데모 v1</span><span class="lv">수준 delta</span></span><small>IMP-0005 · 바뀌는 곳: 설정 &gt; AI 선생님 목소리 카드의 슬라이더</small></h1>
+  <div class="dctls" id="ctls"></div>
+</header>
+
+<main class="dwrap">
+  <section class="dcard two" aria-labelledby="h-intro">
+    <div>
+      <h2 id="h-intro">제안: 슬라이더 범위를 넓히고, 기본값(1.0)에서 얼마나 벗어났는지 보이게 한다</h2>
+      <ul class="plain">
+        <li><b>속도</b> 0.6~1.2 → <b>0.5~1.5</b> · <b>높낮이</b> 0.8~1.2 → <b>0.7~1.4</b> · <b>억양</b> 0.8~1.2 → <b>0.6~1.4</b> · <b>말투 세기</b> 0~2 → <b>0~4</b> (음성 서버 실측 뒤 확정한 값, 한 칸 0.05 그대로)</li>
+        <li>슬라이더마다 <b>최저 · 기본 1.0 · 최고</b> 눈금을 달고, 기본에서 손잡이까지만 색을 채운다. 값 옆에 방향 말(느리게·빠르게 등)을 붙인다.</li>
+        <li><b>말투 세기</b> 슬라이더는 지금 화면에 없다 — 새로 만들지, 어디에 둘지는 <b>결정 D1</b>.</li>
+        <li>화면에는 목소리 이름·설명만 보인다. 음성을 만드는 내부 기술 이름은 어디에도 나오지 않는다(지금 규칙 그대로).</li>
+      </ul>
+    </div>
+    <div>
+      <h3>바뀌지 않는 것</h3>
+      <ul class="plain">
+        <li>카드 구성·순서(목소리 → 말투 → 들려주는 방식 → 속도·높낮이·억양 → 미리듣기 → 저장). 말투 세기를 넣는 경우만 한 줄 늘어난다.</li>
+        <li>미리듣기 버튼 하나로 저장 전 값을 그대로 듣는다. 값을 바꾸면 재생 중인 소리는 멈춘다.</li>
+        <li>이미 저장된 값은 그대로 유효하다 — 막대 위의 위치만 가운데 쪽으로 옮겨 보인다(예: 속도 1.2 → 70% 지점).</li>
+      </ul>
+      <p class="callout" style="margin-top:12px">어색하게 들렸던 곳은 <b>설정 화면 미리듣기</b>였다(사용자 답변). 이번 작업은 범위 확대만 한다. 회화·오늘의 회화에서의 어색함, 말투 종류 추가는 폰에서 들어 본 뒤 따로 판단한다.</p>
+    </div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-rc">
+    <h2 id="h-rc">현재 범위 vs 새 범위</h2>
+    <div class="rc" id="rc"></div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-stage">
+    <div class="stagecap"><h2 id="h-stage">설정 &gt; AI 선생님 목소리</h2><span class="dsub" id="stageSub">슬라이더를 직접 움직여 보세요. 말투를 바꾸면 말투 세기 안내가 바뀐다.</span></div>
+    <div class="dstage" id="stage"></div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-ends">
+    <h2 id="h-ends">양 끝값에서 생기는 일 — 음성 서버 실측(수치) · 듣기 확인은 사용자 폰에서</h2>
+    <div class="tblw"><table class="t" id="ends"></table></div>
+    <p class="dsub" style="margin-top:10px">실측: 예문 2개(짧은 인사·긴 문장), 한 목소리로 47회 합성, 실패 0. 자연스러움은 숫자로 재지 않았다 — 끝값의 어색함 여부는 사용자가 미리듣기로 판단한다.</p>
+  </section>
+
+  <section class="dcard two" aria-labelledby="h-spec">
+    <div>
+      <h2 id="h-spec">슬라이더 규격</h2>
+      <ul class="plain">
+        <li>줄 구성: 이름(12.5px) 왼쪽 · 값 오른쪽(15px 굵게, 고정폭 숫자 + 방향 말 12.5px) → 막대 → 눈금 3개(최저 · 기본 1.0 · 최고, 12px).</li>
+        <li>터치: 입력 높이 44px(막대 6px 위아래로 19px 여유), 손잡이 26px — 흰 바탕 + 강조색 테두리.</li>
+        <li>채움: 기본(1.0)에서 손잡이까지만 강조색. 1.0 이면 채움이 없어 기본인지 한눈에 보인다. 막대 아래 기본 자리에 작은 눈금선.</li>
+        <li>한 칸 0.05(지금과 같음). 화살표 키 한 칸, Home·End 양 끝. 화면 읽기: "1.30배, 기본보다 빠르게".</li>
+        <li>막대 폭은 카드 안쪽 전체(화면 폭 − 60px). 폭별 한 칸 이동 거리는 오른쪽 표.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>한 칸(0.05) 이동 거리 — 손잡이가 움직이는 폭 기준</h3>
+      <div class="tblw"><table class="t" id="spec" style="min-width:0"></table></div>
+      <p class="dsub" style="margin-top:8px">말투 세기는 범위가 넓어 한 칸이 3~4px 로 촘촘하다 — 손가락으로는 대략 맞추고, 값 표시를 보며 조절하게 된다.</p>
+    </div>
+  </section>
+
+  <section class="dcard decs" aria-labelledby="h-dec">
+    <h2 id="h-dec">결정 필요 — 사용자 선택 후 구현 가이드에 반영</h2>
+    <p class="dsub">고르면 위 휴대폰 화면(제안)에 바로 반영된다. 고른 결과를 Leader 에게 알려 주시면 된다.</p>
+    <div id="decs"></div>
+    <p class="decsum" id="decsum" aria-live="polite"></p>
+  </section>
+</main>
+
+<script>
+(function () {
+'use strict';
+
+var S = { w: 390, h: 780, view: 'compare', d1: 'A', d2: 'A', d3: 'A', chg: 'on', theme: 'auto' };
+var curScale = 1;
+var AX = {
+  speed: { label: '속도', old: [0.6, 1.2], neu: [0.5, 1.5], lo: '느리게', hi: '빠르게', vlo: '기본보다 느리게', vhi: '기본보다 빠르게' },
+  pitch: { label: '높낮이', old: [0.8, 1.2], neu: [0.7, 1.4], lo: '낮게', hi: '높게', vlo: '기본보다 낮게', vhi: '기본보다 높게' },
+  inton: { label: '억양', old: [0.8, 1.2], neu: [0.6, 1.4], lo: '평평하게', hi: '크게', vlo: '억양을 평평하게', vhi: '억양을 크게' },
+  weight: { label: '말투 세기', old: [0, 2], neu: [0, 4], lo: '옅게', hi: '진하게', vlo: '말투를 옅게', vhi: '말투를 진하게' }
+};
+var VOICES = [['Haruka', '밝고 친절한 목소리'], ['Sakura', '차분하고 부드러운 목소리'], ['Takumi', '낮고 안정적인 목소리']];
+var STYLES = [['AUTO', '자동'], ['Neutral', '차분'], ['Happy', '밝은']];
+var PROFS = ['자연 속도', '학습 속도', '천천히'];
+var P = [];   /* 틀마다 상태 */
+
+function fresh() { return { voice: 0, style: 'AUTO', prof: 0, speed: 1, pitch: 1, inton: 1, weight: 1 }; }
+function f2(v) { return Number(v).toFixed(2); }
+function word(k, v) { return Math.abs(v - 1) < 0.001 ? '기본' : (v < 1 ? AX[k].lo : AX[k].hi); }
+function vtext(k, v) { return f2(v) + '배, ' + (Math.abs(v - 1) < 0.001 ? '기본' : (v < 1 ? AX[k].vlo : AX[k].vhi)); }
+function outOld(k, v) { return v < AX[k].old[0] - 1e-9 || v > AX[k].old[1] + 1e-9; }
+function note(k, st) {
+  var v = st[k];
+  if (k === 'weight') {
+    if (st.style !== 'Happy') return { t: '지금 말투(' + (st.style === 'AUTO' ? '자동' : '차분') + ')에서는 세기를 바꿔도 거의 달라지지 않아요. ‘밝은’을 고르면 차이가 커져요.', w: true };
+    if (S.d2 === 'A' && v > 2 + 1e-9) return { t: '넓어진 구간이에요. 진하게 할수록 과장되게 들릴 수 있어요 — 미리듣기로 확인해 보세요.', w: true };
+    return { t: '', w: false };
+  }
+  if (S.d2 === 'A' && outOld(k, v)) {
+    if (k === 'pitch' && v < 0.8) return { t: '넓어진 구간이에요. 낮출수록 소리가 조금 거칠어질 수 있어요 — 미리듣기로 확인해 보세요.', w: true };
+    return { t: '넓어진 구간이에요. 어색하면 가운데 쪽으로 옮겨 보세요.', w: true };
+  }
+  return { t: '', w: false };
+}
+
+var TABS = [
+  ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+  ['오늘', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
+  ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'],
+  ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+  ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']
+];
+function tabbar() {
+  return '<nav class="tabbar" aria-label="주 메뉴">' + TABS.map(function (t) {
+    return '<span class="tab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + t[1] + '"/></svg>' + t[0] + '</span>';
+  }).join('') + '</nav>';
+}
+
+/* ── 슬라이더 ── */
+function slOld(i, k, st) {
+  var a = AX[k], id = 'c' + i + '-' + k;
+  return '<div class="fld"><label class="lb" for="' + id + '" data-oldlab="' + k + '">' + a.label + ' ' + f2(st[k]) + '×</label>' +
+    '<input class="rng-old" type="range" id="' + id + '" data-i="' + i + '" data-ax="' + k + '" min="' + a.old[0] + '" max="' + a.old[1] + '" step="0.05" value="' + st[k] + '" aria-valuetext="' + f2(st[k]) + '배"></div>';
+}
+function pct(k, v) { var r = AX[k].neu; return (v - r[0]) / (r[1] - r[0]); }
+function slNew(i, k, st) {
+  var a = AX[k], r = a.neu, id = 'p' + i + '-' + k, v = st[k];
+  var pd = pct(k, 1), pv = pct(k, v), n = note(k, st);
+  return '<div class="sl" data-sl="' + k + '"' + (k === 'weight' ? ' data-chg="새로 · D1"' : '') + '>' +
+    '<div class="sl-h"><label for="' + id + '">' + a.label + '</label><span class="sl-v"><b data-val>' + f2(v) + '×</b> <span data-word>' + word(k, v) + '</span></span></div>' +
+    '<div class="sl-r"><input class="rng" type="range" id="' + id + '" data-i="' + i + '" data-ax="' + k + '" min="' + r[0] + '" max="' + r[1] + '" step="0.05" value="' + v + '" aria-valuetext="' + vtext(k, v) + '" style="--pa:' + Math.min(pd, pv) + ';--pb:' + Math.max(pd, pv) + '"><span class="tk" style="--pd:' + pd + '" aria-hidden="true"></span></div>' +
+    '<div class="sl-t" aria-hidden="true"><span class="mn">' + r[0] + '</span><span class="df" style="--pd:' + pd + '">기본 1.0</span><span class="mx">' + r[1] + '</span></div>' +
+    '<p class="sl-n' + (n.w ? ' w' : '') + '" data-note>' + n.t + '</p></div>';
+}
+function anyOff(st) { return (S.d1 === 'C' ? ['speed', 'pitch', 'inton'] : ['speed', 'pitch', 'inton', 'weight']).some(function (k) { return Math.abs(st[k] - 1) > 1e-9; }); }
+
+/* ── 화면 ── */
+function screen(i, prop) {
+  var st = P[i];
+  var voices = '<div class="vr" role="radiogroup" aria-label="목소리">' + VOICES.map(function (v, j) {
+    return '<button type="button" role="radio" data-i="' + i + '" data-voice="' + j + '" aria-checked="' + (st.voice === j) + '"><b>' + v[0] + '</b><span>' + v[1] + '</span></button>';
+  }).join('') + '</div>';
+  var style = '<div class="fld" data-anchor><span class="lb">말투</span><div class="seg" role="radiogroup" aria-label="말투">' + STYLES.map(function (s) {
+    return '<button type="button" role="radio" data-i="' + i + '" data-style="' + s[0] + '" aria-checked="' + (st.style === s[0]) + '">' + s[1] + '</button>';
+  }).join('') + '</div></div>';
+  var prof = '<div class="fld"><span class="lb">들려주는 방식</span><div class="seg" role="radiogroup" aria-label="들려주는 방식">' + PROFS.map(function (s, j) {
+    return '<button type="button" role="radio" data-i="' + i + '" data-prof="' + j + '" aria-checked="' + (st.prof === j) + '">' + s + '</button>';
+  }).join('') + '</div></div>';
+  var sliders, weightA = '', weightB = '', reset = '';
+  if (prop) {
+    if (S.d1 === 'A') weightA = slNew(i, 'weight', st);
+    if (S.d1 === 'B') weightB = slNew(i, 'weight', st);
+    sliders = '<div class="slg" data-chg="범위 확대 · 눈금 · 채움">' + slNew(i, 'speed', st) + slNew(i, 'pitch', st) + slNew(i, 'inton', st) + '</div>';
+    if (S.d3 === 'A') reset = '<button type="button" class="rst" data-i="' + i + '" data-reset data-chg="새로 · D3"' + (anyOff(st) ? '' : ' hidden') + '>↺ 기본값으로 되돌리기(' + (S.d1 === 'C' ? '속도·높낮이·억양' : '속도·높낮이·억양·세기') + ')</button>';
+  } else {
+    sliders = slOld(i, 'speed', st) + slOld(i, 'pitch', st) + slOld(i, 'inton', st);
+  }
+  return '<div class="appbar"><h1>설정</h1><span class="me"><span>준</span></span></div>' +
+    '<div class="scroll" data-scroller><div class="page">' +
+    '<div class="card tight"><p class="cap">로그인 계정</p><p class="strong">준</p><p class="d13">jun@example.com</p></div>' +
+    '<p class="sec-h">기본정보 · 학습</p><div class="card tight"><p class="d13">내 이름 · 선생님 이름 · 수준 · 문체 …</p></div>' +
+    '<p class="sec-h">AI 선생님 목소리</p><div class="card">' +
+    '<div class="row"><span class="av">유</span><div class="grow"><p class="strong">유우</p><span class="ind"><span class="dot"></span>온라인 ›</span></div></div><hr class="hr">' +
+    voices + style + weightA + prof + sliders + weightB + reset +
+    '<div class="fld" style="gap:6px"><button type="button" class="btn ghost" data-i="' + i + '" data-prev>▶ 현재 설정으로 미리듣기</button><p class="cap" data-hint>' + hint(st) + '</p></div>' +
+    '<button type="button" class="btn primary" data-i="' + i + '" data-save>저장</button></div>' +
+    '<p class="sec-h">음성 인식</p><div class="card tight"><p class="d13">마이크 테스트 · 알아듣는 방식 …</p></div>' +
+    '</div></div>' + tabbar();
+}
+function hint(st) {
+  var sl = STYLES.filter(function (s) { return s[0] === st.style; })[0][1];
+  return VOICES[st.voice][0] + ' · ' + sl + ' · ' + PROFS[st.prof] + ' — 저장하지 않은 설정도 그대로 들려드려요';
+}
+
+/* ── 틀 ── */
+function specs() {
+  if (S.view === 'prop') return [{ label: '제안', sub: 'D1 ' + S.d1 + ' · D2 ' + S.d2 + ' · D3 ' + S.d3, prop: true, w: S.w }];
+  if (S.view === 'widths') return [360, 390, 412].map(function (w) { return { label: '제안 · ' + w + 'px', sub: w === 390 ? '대표 폭(앱)' : '경계 폭', prop: true, w: w }; });
+  return [{ label: '현재', sub: '운영 중 화면', prop: false, w: S.w }, { label: '제안', sub: 'D1 ' + S.d1 + ' · D2 ' + S.d2 + ' · D3 ' + S.d3, prop: true, w: S.w }];
+}
+var stageEl = document.getElementById('stage');
+var LAST = [];
+function render(keepScroll) {
+  renderCtls();
+  var sp = specs();
+  var scrolls = keepScroll ? Array.prototype.map.call(stageEl.querySelectorAll('[data-scroller]'), function (s) { return s.scrollTop; }) : [];
+  if (P.length !== sp.length || !keepScroll) { if (P.length !== sp.length) P = sp.map(fresh); }
+  LAST = sp;
+  stageEl.innerHTML = sp.map(function (f, i) {
+    return '<figure class="fw"><figcaption><b>' + f.label + '</b><br><span>' + f.sub + '</span></figcaption>' +
+      '<div class="fbox" data-fbox data-w="' + f.w + '"><div class="phone w' + f.w + ' h' + S.h + (f.prop && S.chg === 'on' ? ' showchg' : '') + '" data-frame data-i="' + i + '">' +
+      '<div class="app">' + screen(i, f.prop) + '</div><div class="gest" aria-hidden="true"></div></div></div>' +
+      '<p class="fdim">' + f.w + ' × ' + S.h + ' · 막대 폭 ' + (f.w - 60) + 'px</p></figure>';
+  }).join('');
+  applyScale();
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-scroller]'), function (sc, j) {
+    if (keepScroll && scrolls[j] != null) { sc.scrollTop = scrolls[j]; return; }
+    var a = sc.querySelector('[data-anchor]');
+    if (a) sc.scrollTop = Math.max(0, a.offsetTop - 16);
+  });
+}
+function applyScale() {
+  var figs = LAST, n = figs.length, gap = 22;
+  var sum = figs.reduce(function (t, f) { return t + f.w; }, 0), maxW = Math.max.apply(null, figs.map(function (f) { return f.w; }));
+  var availW = stageEl.clientWidth;
+  var top = document.querySelector('.dtop');
+  var topH = getComputedStyle(top).position === 'sticky' ? top.offsetHeight : 0;
+  var sH = (window.innerHeight - topH - 110) / S.h;
+  var sRow = (availW - (n - 1) * gap) / sum;
+  var row = n > 1 && sRow >= 0.5;
+  var sc = row ? Math.min(1, sRow, Math.max(sH, 0.55)) : Math.min(1, availW / maxW, Math.max(sH, 0.75));
+  sc = Math.max(0.3, Math.floor(sc * 1000) / 1000);
+  curScale = sc;
+  stageEl.style.setProperty('--s', String(sc));
+  stageEl.classList.toggle('row', row);
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-fbox]'), function (b) {
+    var w = Number(b.getAttribute('data-w'));
+    b.style.width = Math.round(w * sc) + 'px'; b.style.height = Math.round(S.h * sc) + 'px';
+  });
+}
+
+/* ── 슬라이더 갱신(다시 그리지 않음 — 드래그 유지) ── */
+function updatePhone(i) {
+  var ph = stageEl.querySelector('[data-frame][data-i="' + i + '"]');
+  if (!ph) return;
+  var st = P[i];
+  Array.prototype.forEach.call(ph.querySelectorAll('[data-sl]'), function (el) {
+    var k = el.getAttribute('data-sl'), v = st[k], inp = el.querySelector('input');
+    var pd = pct(k, 1), pv = pct(k, v), n = note(k, st);
+    inp.value = v;
+    inp.style.setProperty('--pa', Math.min(pd, pv)); inp.style.setProperty('--pb', Math.max(pd, pv));
+    inp.setAttribute('aria-valuetext', vtext(k, v));
+    el.querySelector('[data-val]').textContent = f2(v) + '×';
+    el.querySelector('[data-word]').textContent = word(k, v);
+    var ne = el.querySelector('[data-note]'); ne.textContent = n.t; ne.className = 'sl-n' + (n.w ? ' w' : '');
+  });
+  Array.prototype.forEach.call(ph.querySelectorAll('[data-oldlab]'), function (l) {
+    var k = l.getAttribute('data-oldlab'); l.textContent = AX[k].label + ' ' + f2(st[k]) + '×';
+    var inp = ph.querySelector('input[data-ax="' + k + '"]'); inp.value = st[k]; inp.setAttribute('aria-valuetext', f2(st[k]) + '배');
+  });
+  var r = ph.querySelector('[data-reset]'); if (r) r.hidden = !anyOff(st);
+  Array.prototype.forEach.call(ph.querySelectorAll('[data-voice]'), function (b) { b.setAttribute('aria-checked', String(Number(b.getAttribute('data-voice')) === st.voice)); });
+  Array.prototype.forEach.call(ph.querySelectorAll('[data-style]'), function (b) { b.setAttribute('aria-checked', String(b.getAttribute('data-style') === st.style)); });
+  Array.prototype.forEach.call(ph.querySelectorAll('[data-prof]'), function (b) { b.setAttribute('aria-checked', String(Number(b.getAttribute('data-prof')) === st.prof)); });
+  ph.querySelector('[data-hint]').textContent = hint(st);
+  stopPreview(ph);
+}
+var pvTimer = {};
+function stopPreview(ph) {
+  var b = ph.querySelector('[data-prev]'), i = ph.getAttribute('data-i');
+  clearTimeout(pvTimer[i]);
+  b.textContent = '▶ 현재 설정으로 미리듣기'; b.removeAttribute('aria-label');
+}
+function toast(ph, msg) {
+  var old = ph.querySelector('.ptoast'); if (old) old.remove();
+  var t = document.createElement('p'); t.className = 'ptoast'; t.setAttribute('role', 'status'); t.textContent = msg;
+  ph.appendChild(t); setTimeout(function () { t.remove(); }, 2200);
+}
+
+/* ── 설명 표·그림 ── */
+function renderRc() {
+  var rows = [
+    ['speed', 0.4, 1.6, '느린 쪽 −0.4 → −0.5 · 빠른 쪽 +0.2 → +0.5(2.5배). 0.5 는 음성 서버가 받는 최저값이라 더 내리지 않는다.'],
+    ['pitch', 0.4, 1.6, '낮은 쪽 −0.2 → −0.3 · 높은 쪽 +0.2 → +0.4(2배). 낮은 쪽은 0.6 에서 음질이 떨어지는 신호가 있어 0.7 에서 멈춘다 — 들어 보고 더 원하면 다시 검토.'],
+    ['inton', 0.4, 1.6, '양쪽 ±0.2 → ±0.4(2배).'],
+    ['weight', 0, 4.4, '0~2 → 0~4(2배). 지금 화면에는 이 슬라이더가 없다(저장값만 있음) — 결정 D1.']
+  ];
+  document.getElementById('rc').innerHTML = rows.map(function (r) {
+    var k = r[0], a = AX[k], lo = r[1], hi = r[2];
+    function x(v) { return ((v - lo) / (hi - lo) * 100).toFixed(2) + '%'; }
+    function w(p) { return ((p[1] - p[0]) / (hi - lo) * 100).toFixed(2) + '%'; }
+    var ticks = [], step = k === 'weight' ? 1 : 0.2;
+    for (var v = lo; v <= hi + 1e-9; v += step) ticks.push('<i style="left:' + x(v) + '">' + (Math.round(v * 10) / 10) + '</i>');
+    return '<div class="rc-row"><div class="rc-l"><b>' + a.label + '</b><span>' + a.old.join('~') + ' → <b>' + a.neu.join('~') + '</b></span></div>' +
+      '<div class="rc-g" role="img" aria-label="' + a.label + ' 현재 ' + a.old.join('에서 ') + ' , 제안 ' + a.neu.join('에서 ') + '">' +
+      '<div class="rc-bar old" style="left:' + x(a.old[0]) + ';width:' + w(a.old) + '">현재' + (k === 'weight' ? '(화면 없음)' : '') + '</div>' +
+      '<div class="rc-bar neu" style="left:' + x(a.neu[0]) + ';width:' + w(a.neu) + '">제안</div>' +
+      '<div class="rc-def" style="left:' + x(1) + '" title="기본 1.0"></div><div class="rc-ax">' + ticks.join('') + '</div></div>' +
+      '<p class="rc-n">' + r[3] + '</p></div>';
+  }).join('');
+}
+function renderEnds() {
+  var h = '<thead><tr><th>조절</th><th>새 최저에서</th><th>새 최고에서</th><th>첫 소리까지</th><th>화면 안내</th></tr></thead><tbody>';
+  var rows = [
+    ['속도', '<b>0.5</b> · 문장 길이 약 1.8배 — 아주 천천히', '<b>1.5</b> · 약 0.7배 — 빠르게', '거의 같음(+0.1초 이하)', 'D2'],
+    ['높낮이', '<b>0.7</b> · 목소리 높이 약 0.72배. 성대가 울리는 구간이 11~19% 줄어 조금 거칠어질 수 있는 신호 <span class="tg">경계</span>', '<b>1.4</b> · 약 1.35배', '1.0 이 아니면 +0.2~0.5초(지금도 같음)', 'D2 · 낮은 쪽 전용 문구'],
+    ['억양', '<b>0.6</b> · 오르내림 약 0.54배 — 평평하게', '<b>1.4</b> · 약 1.37배 — 크게', '높낮이와 같음', 'D2'],
+    ['말투 세기', '<b>0</b> · 말투 효과 없음', '<b>4</b> · ‘밝은’에서 목소리 높이 +3~6%, 무너지는 신호 없음. 3~4 는 경계 <span class="tg">경계</span>', '거의 같음', '자동·차분 안내(필수) · D2'],
+    ['조합', '들려주는 방식 ‘천천히’ + 속도 0.5 → 0.5 에서 더 느려지지 않는다(범위 끝에서 멈춤)', '높낮이 0.7 + 억양 1.4 는 <b>아직 측정 전</b> — 구현 뒤 한 번 합성해 확인하고, 기준을 넘으면 조합 제한을 다시 정한다 <span class="tg bad">확인 필요</span>', '—', '—']
+  ];
+  document.getElementById('ends').innerHTML = h + rows.map(function (r) { return '<tr><td><b>' + r[0] + '</b></td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td><td>' + r[4] + '</td></tr>'; }).join('') + '</tbody>';
+}
+function renderSpec() {
+  var W = [360, 390, 412];
+  var h = '<thead><tr><th>조절 (칸 수)</th>' + W.map(function (w) { return '<th>' + w + '</th>'; }).join('') + '</tr></thead><tbody>';
+  h += '<tr><td>막대 폭 / 손잡이 이동 폭</td>' + W.map(function (w) { return '<td class="n">' + (w - 60) + ' / ' + (w - 86) + 'px</td>'; }).join('') + '</tr>';
+  ['speed', 'pitch', 'inton', 'weight'].forEach(function (k) {
+    var a = AX[k], steps = Math.round((a.neu[1] - a.neu[0]) / 0.05), os = Math.round((a.old[1] - a.old[0]) / 0.05);
+    h += '<tr><td>' + a.label + ' (' + steps + (k === 'weight' ? '' : ' · 지금 ' + os) + ')</td>' + W.map(function (w) {
+      var t = w - 86;
+      return '<td class="n">' + (t / steps).toFixed(1) + 'px' + (k === 'weight' ? '' : ' <span class="dsub">(지금 ' + (t / os).toFixed(1) + ')</span>') + '</td>';
+    }).join('') + '</tr>';
+  });
+  document.getElementById('spec').innerHTML = h + '</tbody>';
+}
+
+var DECS = [
+  { id: 'd1', title: 'D1 · 말투 세기 슬라이더를 새로 만들까요? 만든다면 어디에?', q: '“말투 변경 차이를 2배로” 요청에 화면으로 답하려면 말투 세기 슬라이더가 필요하다. 다만 지금 말투는 자동·차분·밝은 3가지이고, 자동·차분에서는 세기를 바꿔도 거의 달라지지 않는다(실측) — ‘밝은’에서만 차이가 난다.',
+    opts: [
+      { v: 'A', h: 'A · 만든다 — 말투 바로 아래', rec: true, d: '말투를 고르는 줄 바로 아래에 "말투 세기"(0~4). 자동·차분일 때는 슬라이더 아래에 "거의 달라지지 않아요" 안내가 붙는다.', p: ['고른 말투와 세기가 붙어 있어 무엇을 조절하는지 알기 쉽다', '말투를 ‘밝은’으로 바꾸면 안내가 바로 사라져 원인과 결과가 한곳에 보인다'], m: ['카드가 한 줄(≈90px) 길어진다', '들려주는 방식 줄이 한 칸 아래로 밀린다'] },
+      { v: 'B', h: 'B · 만든다 — 슬라이더 묶음 맨 끝', d: '속도·높낮이·억양 다음에 "말투 세기". 숫자로 조절하는 것끼리 한곳에 모은다.', p: ['슬라이더 4개가 한 묶음 — 위쪽 선택 줄의 순서가 그대로다'], m: ['말투 선택 줄과 떨어져 있어 ‘왜 안 바뀌지’가 생기기 쉽다(안내 문구로 보완)', '카드가 한 줄 길어진다'] },
+      { v: 'C', h: 'C · 만들지 않는다', d: '서버 허용 범위만 0~4 로 넓히고 화면은 지금 그대로. 말투는 선택만 한다.', p: ['화면이 단순하다 — 슬라이더 3개 그대로'], m: ['사용자가 말투 차이를 직접 넓힐 방법이 없다(요청의 “말투” 부분에 화면으로 답하지 못함)', '말투 종류를 늘리는 일은 이 작업 밖'] }
+    ] },
+  { id: 'd2', title: 'D2 · 넓어진 구간으로 옮겼을 때 안내 한 줄', q: '예전 범위를 벗어난 값(예: 속도 1.3, 높낮이 0.75)에 두었을 때 슬라이더 아래에 짧은 안내를 보일까요? (말투 세기의 자동·차분 안내는 D2 와 상관없이 항상 보인다)',
+    opts: [
+      { v: 'A', h: 'A · 보인다', rec: true, d: '"넓어진 구간이에요. 어색하면 가운데 쪽으로 옮겨 보세요." 높낮이를 0.8 아래로 내리면 "조금 거칠어질 수 있어요"로 바뀐다.', p: ['끝값에서 어색해도 설정 탓인 줄 알 수 있다', '실측에서 낮은 높낮이에 음질 신호가 있었다'], m: ['값을 바꿀 때 카드 높이가 한 줄 들썩인다'] },
+      { v: 'B', h: 'B · 보이지 않는다', d: '안내 없이 미리듣기로 스스로 판단한다.', p: ['화면이 조용하다'], m: ['끝값의 어색함을 목소리 자체 문제로 오해할 수 있다'] }
+    ] },
+  { id: 'd3', title: 'D3 · 기본값으로 되돌리기', q: '범위가 넓어져 1.0 으로 정확히 돌아오기가 조금 번거로워진다. 되돌리기 버튼을 둘까요?',
+    opts: [
+      { v: 'A', h: 'A · 둔다(바꾼 값이 있을 때만)', rec: true, d: '슬라이더 아래 "↺ 기본값으로 되돌리기" 한 줄. 모두 1.0 이면 숨는다. 저장은 하지 않는다(저장 버튼은 그대로).', p: ['끝까지 밀어 본 뒤 한 번에 돌아온다'], m: ['버튼이 하나 늘어난다'] },
+      { v: 'B', h: 'B · 두지 않는다', d: '기본 1.0 눈금과 채움 모양만 보고 손으로 맞춘다.', p: ['지금 화면과 가장 가깝다'], m: ['세 개(네 개)를 하나씩 1.00 에 맞춰야 한다'] }
+    ] }
+];
+function renderDecs() {
+  document.getElementById('decs').innerHTML = DECS.map(function (d) {
+    return '<div class="dec" role="radiogroup" aria-labelledby="dec-' + d.id + '"><h3 id="dec-' + d.id + '">' + d.title + '</h3><p class="q">' + d.q + '</p><div class="dec-g">' +
+      d.opts.map(function (o) {
+        var on = S[d.id] === o.v;
+        return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="dec-' + d.id + '" value="' + o.v + '" data-dec="' + d.id + '"' + (on ? ' checked' : '') + '>' +
+          '<span class="opt-h">' + o.h + (o.rec ? ' <span class="rec">디자이너 의견</span>' : '') + '</span><span class="opt-d">' + o.d + '</span><ul>' +
+          o.p.map(function (x) { return '<li class="p">' + x + '</li>'; }).join('') + o.m.map(function (x) { return '<li class="m">' + x + '</li>'; }).join('') +
+          '</ul><span class="sel">' + (on ? '● 지금 화면에 반영 중' : '○ 눌러서 화면에 반영') + '</span></label>';
+      }).join('') + '</div></div>';
+  }).join('');
+  document.getElementById('decsum').textContent = '지금 화면: D1 = ' + S.d1 + ' · D2 = ' + S.d2 + ' · D3 = ' + S.d3 + ' — 결정은 사용자가 한다(데모 기본값은 디자이너 의견).';
+}
+
+/* ── 컨트롤 ── */
+function segCtl(label, key, opts) {
+  return '<span class="dctl">' + label + '<span class="dseg">' + opts.map(function (o) {
+    return '<button type="button" data-k="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (String(S[key]) === String(o[0])) + '">' + o[1] + '</button>';
+  }).join('') + '</span></span>';
+}
+function renderCtls() {
+  document.getElementById('ctls').innerHTML =
+    segCtl('폭', 'w', [[360, '360'], [390, '390'], [412, '412']]) +
+    segCtl('높이', 'h', [[780, '780'], [892, '892']]) +
+    segCtl('보기', 'view', [['compare', '현재 vs 제안'], ['prop', '제안만'], ['widths', '세 폭']]) +
+    segCtl('D1 세기', 'd1', [['A', 'A 말투 아래'], ['B', 'B 맨 끝'], ['C', 'C 없음']]) +
+    segCtl('D2 안내', 'd2', [['A', 'A 보임'], ['B', 'B 없음']]) +
+    segCtl('D3 되돌리기', 'd3', [['A', 'A 둠'], ['B', 'B 없음']]) +
+    segCtl('바뀐 곳', 'chg', [['on', '표시'], ['off', '끔']]) +
+    segCtl('테마', 'theme', [['auto', '자동'], ['light', '라이트'], ['dark', '다크']]);
+}
+
+/* ── 이벤트 ── */
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  var b = t.closest('[data-k]');
+  if (b) {
+    var k = b.getAttribute('data-k'), v = b.getAttribute('data-v');
+    var prevView = S.view;
+    S[k] = (k === 'w' || k === 'h') ? Number(v) : v;
+    if (k === 'theme') { if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v); }
+    if (k === 'view' && v !== prevView) P = [];
+    if (k.charAt(0) === 'd') renderDecs();
+    render(k !== 'view' && k !== 'h');
+    return;
+  }
+  var ph = t.closest('[data-frame]');
+  if (!ph) return;
+  var i = Number(ph.getAttribute('data-i')), st = P[i];
+  var vb = t.closest('[data-voice]'); if (vb) { st.voice = Number(vb.getAttribute('data-voice')); st.style = 'AUTO'; updatePhone(i); return; }
+  var sb = t.closest('[data-style]'); if (sb) { st.style = sb.getAttribute('data-style'); updatePhone(i); return; }
+  var pb = t.closest('[data-prof]'); if (pb) { st.prof = Number(pb.getAttribute('data-prof')); updatePhone(i); return; }
+  if (t.closest('[data-reset]')) { st.speed = st.pitch = st.inton = st.weight = 1; updatePhone(i); toast(ph, '속도·높낮이·억양·세기를 기본값으로 되돌렸어요(아직 저장 전)'); return; }
+  var pv = t.closest('[data-prev]');
+  if (pv) {
+    if (pv.textContent.indexOf('정지') >= 0) { stopPreview(ph); return; }
+    pv.textContent = '■ 정지'; pv.setAttribute('aria-label', '미리듣기 정지');
+    toast(ph, '데모라 소리는 나지 않아요 — 실제 화면에서는 지금 값으로 들려줘요');
+    pvTimer[i] = setTimeout(function () { stopPreview(ph); }, 2600);
+    return;
+  }
+  if (t.closest('[data-save]')) toast(ph, '선생님 목소리 설정을 저장했어요(데모)');
+});
+document.addEventListener('input', function (e) {
+  var inp = e.target;
+  if (!inp || !inp.hasAttribute || !inp.hasAttribute('data-ax')) return;
+  var i = Number(inp.getAttribute('data-i')), k = inp.getAttribute('data-ax');
+  P[i][k] = Math.round(Number(inp.value) * 100) / 100;
+  updatePhone(i);
+});
+document.addEventListener('change', function (e) {
+  var r = e.target;
+  if (r && r.hasAttribute && r.hasAttribute('data-dec')) { S[r.getAttribute('data-dec')] = r.value; renderDecs(); render(true); }
+});
+var rt = 0;
+window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(applyScale, 120); });
+
+renderRc(); renderEnds(); renderSpec(); renderDecs(); render(false);
+})();
+</script>
+</body>
+</html>
