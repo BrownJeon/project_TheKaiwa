@@ -1,0 +1,118 @@
+{
+  "version": "talk-length@v1",
+  "note": "task-024(IMP-0010) — A1 TALK 응답 길이 상황별 회귀 픽스처. 합성 발화·합성 이력만(사용자 실데이터 아님). scene 은 코드가 정할 문장 수 상한(sceneCap)의 대표 장면이다 — 호출 전 신호로 정한 상한 안에서 모델이 길이를 상황에 맞게 정하는지를 본다. 정답 기대는 '결정적 정답'이 아니라 통계 기준(live 실측)이며, 단위 테스트는 픽스처 형태·프롬프트 치환·예산·persona 바이트 불변만 결정적으로 검사한다.",
+  "sceneCaps": { "SHORT": 2, "EXPLAIN": 4, "ASK_BACK": 3, "CORRECTION": 4 },
+  "sceneNote": {
+    "SHORT": "짧은 대꾸·인사·맞장구성 발화 — v3 처럼 짧게(1~2문장). 상한을 채워 늘어지면 실패.",
+    "EXPLAIN": "학습자가 물었거나 설명이 필요한 발화 — 직답(+필요한 설명) 뒤 다음 물음. 2문장 이상이 정상.",
+    "ASK_BACK": "뜻이 애매하거나 이야기를 넓힐 수 있는 발화 — 반응 뒤 되묻기(물음표 있는 문장 1개). 점원 역할극의 다음 물음 포함.",
+    "CORRECTION": "오류가 든 발화 — correction 은 그대로 채워야 하고(original 바이트 일치) replyJa 에는 교정 설명·「〜ではなく」 금지."
+  },
+  "defaultExpect": {
+    "schema": true,
+    "originalUnchanged": true,
+    "forbidden": ["speaker_id", "model_id"]
+  },
+  "items": [
+    {
+      "id": "s01", "scene": "SHORT", "level": "N5", "sceneCap": 2,
+      "input": "こんにちは。",
+      "history": [],
+      "hasError": false,
+      "expect": { "sentences": { "min": 1, "max": 2 } }
+    },
+    {
+      "id": "s02", "scene": "SHORT", "level": "N5", "sceneCap": 2,
+      "input": "はい、好きです。",
+      "history": [
+        { "role": "assistant", "content": "コーヒーは好きですか？" }
+      ],
+      "hasError": false,
+      "expect": { "sentences": { "min": 1, "max": 2 } }
+    },
+    {
+      "id": "s03", "scene": "SHORT", "level": "N4", "sceneCap": 2,
+      "input": "ありがとうございました。",
+      "history": [
+        { "role": "user", "content": "駅までどうやって行きますか？" },
+        { "role": "assistant", "content": "この道をまっすぐ行って、二つ目の角を右です。" }
+      ],
+      "hasError": false,
+      "expect": { "sentences": { "min": 1, "max": 2 } }
+    },
+    {
+      "id": "x01", "scene": "EXPLAIN", "level": "N4", "sceneCap": 4,
+      "input": "これはいくらですか？",
+      "history": [
+        { "role": "assistant", "content": "いらっしゃいませ。何かお探しですか？" },
+        { "role": "user", "content": "Tシャツを探しています。" },
+        { "role": "assistant", "content": "こちらはいかがですか？" }
+      ],
+      "hasError": false,
+      "expect": { "sentences": { "min": 2, "max": 4 }, "hasQuestion": true }
+    },
+    {
+      "id": "x02", "scene": "EXPLAIN", "level": "N5", "sceneCap": 4,
+      "input": "駅はどこですか？",
+      "history": [],
+      "hasError": false,
+      "expect": { "sentences": { "min": 2, "max": 4 } }
+    },
+    {
+      "id": "x03", "scene": "EXPLAIN", "level": "N3", "sceneCap": 4,
+      "input": "「食べられる」と「食べれる」はどう違うんですか？",
+      "history": [],
+      "hasError": false,
+      "expect": { "sentences": { "min": 2, "max": 4 } }
+    },
+    {
+      "id": "a01", "scene": "ASK_BACK", "level": "N4", "sceneCap": 3,
+      "input": "週末、ちょっと出かけました。",
+      "history": [],
+      "hasError": false,
+      "expect": { "sentences": { "min": 2, "max": 3 }, "hasQuestion": true }
+    },
+    {
+      "id": "a02", "scene": "ASK_BACK", "level": "N5", "sceneCap": 3,
+      "input": "私は日本が好きです。",
+      "history": [],
+      "hasError": false,
+      "expect": { "sentences": { "min": 2, "max": 3 }, "hasQuestion": true }
+    },
+    {
+      "id": "a03", "scene": "ASK_BACK", "level": "N4", "sceneCap": 3,
+      "input": "はい、お願いします。",
+      "history": [
+        { "role": "assistant", "content": "いらっしゃいませ。" },
+        { "role": "user", "content": "これをお願いします。" },
+        { "role": "assistant", "content": "全部で3800円です。ビニール袋は必要ですか？" }
+      ],
+      "hasError": false,
+      "expect": { "sentences": { "min": 2, "max": 3 }, "hasQuestion": true }
+    },
+    {
+      "id": "c01", "scene": "CORRECTION", "level": "N5", "sceneCap": 4,
+      "input": "昨日友だちを会いました",
+      "history": [],
+      "hasError": true,
+      "expectedCorrected": "昨日友だちに会いました",
+      "expect": { "sentences": { "min": 2, "max": 4 }, "correctionRequired": true, "noCorrectionExplanationInReplyJa": true }
+    },
+    {
+      "id": "c02", "scene": "CORRECTION", "level": "N4", "sceneCap": 4,
+      "input": "先週、映画を見に行くました。とても面白いでした。",
+      "history": [],
+      "hasError": true,
+      "expectedCorrected": "先週、映画を見に行きました。とても面白かったです。",
+      "expect": { "sentences": { "min": 2, "max": 4 }, "correctionRequired": true, "noCorrectionExplanationInReplyJa": true }
+    },
+    {
+      "id": "c03", "scene": "CORRECTION", "level": "N5", "sceneCap": 4,
+      "input": "毎朝バスで乗ります",
+      "history": [],
+      "hasError": true,
+      "expectedCorrected": "毎朝バスに乗ります",
+      "expect": { "sentences": { "min": 2, "max": 4 }, "correctionRequired": true, "noCorrectionExplanationInReplyJa": true }
+    }
+  ]
+}

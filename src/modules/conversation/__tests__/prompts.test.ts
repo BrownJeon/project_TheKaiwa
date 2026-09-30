@@ -91,8 +91,8 @@ test('TALK: altText 상한 — 상한을 한참 넘는 후보를 줘도 사용�
 
 // ── task-010c: 교정 방식(correctionMode) ────────────────────────────────
 
-test('TALK: talk@v3 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v3')
+test('TALK: talk@v4 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v4') // task-024 — 문장 수 상한 sceneCap 도입(v3 는 고정 2문장). 상세 회귀는 talkLength.test.ts
   assert.deepEqual(CORRECTION_MODES, ['FLUENCY', 'COACH'])
   const omitted = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
   assert.match(omitted.system, /\[교정\] 유창성/)

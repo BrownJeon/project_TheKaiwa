@@ -192,7 +192,7 @@ flowchart TD
 
 ### 6.1 Sentence Detector (`speech/tts/chunkScheduler/sentenceDetector`)
 
-`。！？` 와 `…`·닫는 괄호 뒤에서 분할, 세그먼트 ≤ `runtime.maxChars`(100)를 넘으면 `、` 에서 2차 분할, 4자 미만 조각은 앞 문장에 합침. 입력은 정규화 **전** 원문이며 분할 좌표를 token map 과 함께 유지한다(TALK 는 원래 ≤2문장).
+`。！？` 와 `…`·닫는 괄호 뒤에서 분할, 세그먼트 ≤ `runtime.maxChars`(100)를 넘으면 `、` 에서 2차 분할, 4자 미만 조각은 앞 문장에 합침. 입력은 정규화 **전** 원문이며 분할 좌표를 token map 과 함께 유지한다(TALK 는 상황별 1~4문장 — task-024 talk@v4).
 
 ### 6.2 TtsChunkScheduler (서버, `speech/tts/chunkScheduler`)
 

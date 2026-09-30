@@ -34,6 +34,14 @@
  * `correction:null`이라 영향 없음)는 무변경. 후검증은 `checkTalkResponse` 에 "hintKo 가 corrected 를 그대로 포함하면
  * 위반" 한 줄만 추가했다(둘 다 `structuredResponse` 소유 파일 — 이 task 의 명시적 요구 사항, "한두 줄만 Edit").
  *
+ * task-024(talk@v4, IMP-0010 응답 길이를 상황별로) — 사용자 관찰 "AI 응답이 너무 간단하다". 원인은 2문장 상한 자체보다 **첫 문장이
+ * 통째로 「そうですね。」 같은 맞장구에 소모돼 실질 문장이 1개뿐**이던 구조였다(TTFA 를 위해 넣었던 규칙). v4 는 ① 문장 수 상한을
+ * 하드코딩하지 않고 `sceneCap`(1~4) 인자로 치환하고, ② 첫 문장은 여전히 짧게 하되 맞장구뿐 아니라 **물음에 대한 짧은 직답**도
+ * 허용하며(「1000円です。」 — 점원 응대), ③ 모델이 그 상한 **안에서** 상황(발화 길이·질문 여부·뜻의 애매함)으로 길이를 정하게 한다.
+ * **별도 판단 호출은 두지 않는다**(5초 예산). `sceneCap` 은 호출 전 신호(발화 길이·물음표·altText 등)로 코드(orchestrator)가 고른다 —
+ * 값 표와 신호는 task-024 이력서 "Prompt-Engineer 기록". 생략하면 2(v3 와 같은 상한). `persona`(`--system-prompt`)에는 상한을 넣지 않는다
+ * (턴마다 바뀌는 값이라 넣으면 CLI 예열 프로세스 재사용이 깨진다 — 기존 K4-3 원칙 그대로, 상한은 stdin `[지시]` 줄에만).
+ *
  * **예산(2026-09-28 실측·재발 방지 기록, 2차 갱신)**: `[교정] 유창성|코치` 헤더 한 줄만 더해도(instruction 문구는
  * 최소로 줄인 뒤에도) 특정 조합에서 캡을 넘겼다 — 원인은 새 문구 길이가 아니라 `WINDOW_ROOM_SLACK`(옛 이름 없이
  * `- 40` 매직 넘버였다) 이 이력 창의 렌더링 오버헤드(메시지당 라벨 접두)를 과소 추정해 **v2 부터 이미** 특정 조합
@@ -51,9 +59,27 @@ import { TALK_SCHEMA, type TutorResponse } from '../structuredResponse/schemas'
 import { buildWindow, type WindowMessage } from '../window'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const TALK_PROMPT_VERSION = 'talk@v3'
+export const TALK_PROMPT_VERSION = 'talk@v4'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
+/**
+ * task-024 — replyJa 문장 수 상한(장면 상한)의 허용 범위와 기본값. 기본 2 는 v3 까지의 고정 상한이라 `sceneCap` 을 안 주면 같은 상한이다.
+ * 범위 밖·비정수 값은 `clampSceneCap` 이 조용히 정리한다(프롬프트에 이상한 숫자가 새지 않게 — 결정은 호출부 몫, 여기는 방어만).
+ */
+export const TALK_SCENE_CAP_MIN = 1
+export const TALK_SCENE_CAP_MAX = 4
+export const TALK_SCENE_CAP_DEFAULT = 2
+/**
+ * 후검증(`checkTalkResponse`)이 재시도를 거는 문장 수 = 상한 + 이 값. v3 정책(목표 2·재시도는 3 초과에서만, `checks.ts`
+ * `REPLY_SENTENCE_HARD_CAP` 주석 — 재시도 1회 ≈ +10s 로 12s fail-fast 위협)을 그대로 일반화한 것: 상한을 1 넘는 응답은 TTS·화면에
+ * 무리가 없어 계약 위반으로 보지 않는다. 실측(task-024)으로 조정한다.
+ */
+export const TALK_SCENE_CAP_TOLERANCE = 1
+
+export function clampSceneCap(n: number | null | undefined): number {
+  if (n == null || !Number.isFinite(n)) return TALK_SCENE_CAP_DEFAULT
+  return Math.min(TALK_SCENE_CAP_MAX, Math.max(TALK_SCENE_CAP_MIN, Math.floor(n)))
+}
 /**
  * altText(STT 두 번째 후보) 상한 — 발화 한 턴 분량. 넘으면 앞 199자 + "…". 2026-09-28 실측: 상한이 없던 때 altText 5,000자면
  * 사용자 프롬프트가 7,459자(캡 3,000 초과 — 이력 창을 0으로 줄여도 못 막음). 200자면 최악 조합(발화 1,000자·헤더 300·긴 이력)도 2,920자.
@@ -125,6 +151,11 @@ export interface TalkInput {
   altText?: string | null
   /** task-010c — 교정 방식(설정 `Profile.correctionMode`). 생략하면 FLUENCY(기본, D6 사용자 결정). */
   correctionMode?: CorrectionMode
+  /**
+   * task-024 — 이번 턴의 replyJa 문장 수 상한(1~4, 기본 2). 호출 전 신호(발화 길이·물음표·altText 등)로 코드가 정하는 **상한**이다 —
+   * 실제 길이는 모델이 그 안에서 상황에 맞게 정한다(상한을 채울 필요 없음). persona 가 아니라 `[지시]` 줄에만 들어간다(바이트 불변 유지).
+   */
+  sceneCap?: number
 }
 
 /**
@@ -146,11 +177,43 @@ function correctionInstructionLine(mode: CorrectionMode): string {
   return common + hint
 }
 
-export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY'): string {
+/**
+ * task-024 — replyJa 지시 줄. 상한(`cap`)은 인자로 치환한다. 상한별 3단(실측으로 정함, task-024 이력서 기록):
+ * - cap 1: 짧은 반응·물음 1문장.
+ * - cap 2(기본·v3 호환): **v3 구조 그대로**(첫 문장 짧은 맞장구 또는 직답 → 둘째는 대화를 잇는 질문 한 문장) + 응대 상황 이어 가기 한 절.
+ *   실측: 여기에 "상황별로 늘려도 된다"는 문구를 섞으면 인사·맞장구에서 3문장·질문 2개로 넘쳤다(v4b s01·s02) — 2 는 v3 처럼 좁게 둔다.
+ * - cap 3~4: 상황별 기준(짧은 말 / 물음·설명 필요 / 뜻이 애매) — 모델이 상한 **안에서** 길이를 정한다.
+ * 공통: 첫 문장은 짧게(TTFA), 질문은 한 번에 하나, 교정 설명은 replyJa 에 넣지 않는다(v3 그대로).
+ */
+export function replyJaInstructionLine(cap: number = TALK_SCENE_CAP_DEFAULT): string {
+  const n = clampSceneCap(cap)
+  const tail =
+    '교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 한국어 번역.'
+  const clerk =
+    '가게·식당처럼 응대 상황이면 점원처럼 직답한 뒤 다음 물음(사이즈·봉투·포인트카드·결제 등)으로 이어 가고, 학습자가 대답만 했어도 「かしこまりました。」로 끝내지 말고 다음 물음을 잇습니다. 질문은 한 번에 하나. '
+  const head = '- conversation.replyJa: 학습자 수준 안의 자연스러운 일본어 '
+  if (n <= 1) return `${head}**1문장** — 짧은 반응이나 물음 하나. ${tail}`
+  if (n === 2) {
+    return (
+      `${head}**최대 2문장**(。！？로 끝나는 단위로 셈) — ① 「そうですね。」「いいですね！」처럼 아주 짧은 맞장구 한 마디거나 물음에 대한 짧은 직답(「1000円です。」) ② 대화를 잇는 질문 한 문장. ` +
+      clerk +
+      tail
+    )
+  }
+  return (
+    `${head}**최대 ${n}문장**(。！？로 끝나는 단위로 세며 넘기지 말 것 — 상한을 채우려고 늘리지 말고 상황에 맞게). ` +
+    '첫 문장은 「そうですね。」「いいですね！」처럼 아주 짧은 맞장구 한 마디거나 물음에 대한 짧은 직답(「1000円です。」). ' +
+    '그다음은 상황대로 — 짧은 말·인사면 반응 뒤 대화를 잇는 질문 하나로 끝, 학습자가 물었거나 설명이 필요하면 답을 충분히 하고 이어질 질문 하나, 뜻이 애매하면 되묻기. ' +
+    clerk +
+    tail
+  )
+}
+
+export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY', sceneCap: number = TALK_SCENE_CAP_DEFAULT): string {
   return [
     '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다). **JSON 키 순서를 반드시 지킵니다**: speech → conversation(replyJa→replyReading→replyKo) → correction → learning → endOfTopic → proposals.',
     '- speech.style: 답의 분위기.',
-    '- conversation.replyJa: 학습자 수준 안의 자연스러운 일본어 **최대 2문장** — ① 「そうですね。」「いいですね！」처럼 아주 짧은 맞장구 한 마디 ② 대화를 잇는 반응·질문 한 문장. 교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 한국어 번역.',
+    replyJaInstructionLine(sceneCap),
     correctionInstructionLine(correctionMode),
     '- learning.grammarPoint 는 이번 턴의 핵심 문법(없으면 null), difficulty 는 학습자 수준. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 학습자가 모르는 새 단어를 단어장에 넣자고 제안할 때만(최대 2개, 보통 빈 배열).',
     '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyReading":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[]}',
@@ -168,7 +231,8 @@ export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse
   const persona = loadPersona({ sections: [1, 3, 4, 6], level: input.learner.level, mode: 'TALK' })
   const correctionLine = `[교정] ${CORRECTION_MODE_LABEL_KO[correctionMode]}${correctionMode === 'FLUENCY' ? FLUENCY_SEVERITY_RULE : ''}`
   const head = [renderToday(input.todayKst), '[모드] TALK', renderHeader(input.learner, TALK_HEADER_CAP), correctionLine]
-  const instruction = talkInstruction(correctionMode)
+  const sceneCap = clampSceneCap(input.sceneCap)
+  const instruction = talkInstruction(correctionMode, sceneCap)
   // altText 는 상한(200)과 남은 예산 둘 다로 자른다 — 지시문·헤더가 나중에 길어져도 캡(3,000)을 넘지 않게(발화 원문은 자르지 않는다).
   const baseChars = [...head, instruction].join('\n').length + input.text.length + TRANSCRIPT_OVERHEAD
   const altBudget = TALK_USER_PROMPT_CAP - baseChars - altTextLine('').length - 1
@@ -184,6 +248,6 @@ export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse
     system,
     messages: [...window, { role: 'user', content: input.text }],
     jsonSchema: TALK_SCHEMA,
-    extraCheck: (data) => checkTalkResponse(input.text, data),
+    extraCheck: (data) => checkTalkResponse(input.text, data, { maxSentences: sceneCap + TALK_SCENE_CAP_TOLERANCE }),
   }
 }

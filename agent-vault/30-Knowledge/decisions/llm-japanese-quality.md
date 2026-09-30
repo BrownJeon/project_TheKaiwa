@@ -41,7 +41,7 @@ created: 2026-09-27
 1. Claude CLI 어댑터는 항상 `--setting-sources "" --strict-mcp-config --mcp-config {"mcpServers":{}} --no-session-persistence`, thinking 끔(env + settings 두 겹). thinking 은 `deep` tier 에서 connection `runtime.thinkingForDeep=true` 일 때만.
 2. 페르소나는 `--system-prompt` 로 싣는다(지연 동일, Claude Code 기본 코딩 에이전트 시스템 프롬프트가 섞이지 않음). `--agents` 지원은 어댑터에 남긴다(model 금지 검사 유지).
 3. `--json-schema` 는 **기본 끔**(+1s·실패 30%). 프롬프트 스키마 + extractJson + ajv + 1회 재시도로 계약을 지킨다. connection `runtime.jsonSchemaFlag=true` 또는 `KAIWA_LLM_JSON_SCHEMA_FLAG=1` 로만 켠다.
-4. `replyJa` 는 목표 2문장, 계약 상한 3문장.
+4. `replyJa` 는 목표 2문장, 계약 상한 3문장. (이력 — TALK 는 task-024 로 상황별 상한 1~4 로 대체)
 
 ## 5. 남은 것 · 사용자 결정 필요
 - **A1 p50 5.1s 는 목표(≤4s)를 넘는다.** 하한은 spawn ~1.9s + 생성 ~3s. 후보(task-007 에서 실측): ① **상주 CLI 세션**(`--input-format stream-json`, 채팅당 프로세스 1개 유지 → spawn 제거, 예상 ~3.2s) ② `replyReading`(후리가나)을 LLM 대신 코드(pyopenjtalk/형태소 분석)로 만들어 출력 토큰 절감 ③ 첫 문장 조기 TTS(`--include-partial-messages`). 음성 턴 5초 예산(design-spec §8)은 ①이 없으면 넘는다.

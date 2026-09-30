@@ -1050,7 +1050,7 @@ model Chat {
   @@index([userId, kind, lastMessageAt])
 }
 
-/// 사용자: STT 원문/타이핑 · 강사: 일본어 응답. toolLog 는 {traceId, model, connection(=EngineConnection.key), llmMs, promptChars, attempt, totalMs, sttMs(클라 보고), llmFirstSentenceMs, warm(HIT|MISS|FALLBACK|OFF), ttsStartMs, ttfaMs, audioCount, meta{learning, style, endOfTopic, warning}} 요약만 — 원문·응답 전문 없음(task-006 → task-007 구현 기준 2026-09-28. TTS 값은 합성이 저장과 병렬이라 모든 청크가 끝난 뒤 같은 객체로 한 번 더 쓴다)
+/// 사용자: STT 원문/타이핑 · 강사: 일본어 응답. toolLog 는 {traceId, model, connection(=EngineConnection.key), llmMs, promptChars, attempt, totalMs, sttMs(클라 보고), llmFirstSentenceMs, warm(HIT|MISS|FALLBACK|OFF), sceneCap(TALK만 1~4, 답변 문장 수 상한), sceneCapReason(TALK만, 판정 신호 코드), ttsStartMs, ttfaMs, audioCount, meta{learning, style, endOfTopic, warning}} 요약만 — 원문·응답 전문 없음(task-006 → task-007 구현 기준 2026-09-28. TTS 값은 합성이 저장과 병렬이라 모든 청크가 끝난 뒤 같은 객체로 한 번 더 쓴다)
 model ChatMessage {
   id          String        @id @default(cuid())
   chatId      String

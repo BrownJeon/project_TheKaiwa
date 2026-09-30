@@ -11,6 +11,9 @@
  *  - 계측: Trace `STT`(클라)·`ACCEPT`·`PROMPT`·`LLM`(warm·firstDeltaMs·firstSentenceMs)·`PARSE`·`SAVE`·`TTS[i]`, 직전 턴 Trace 에 `PLAYBACK`.
  *    원문·전사·응답 전문은 Trace·toolLog·로그에 넣지 않는다.
  *
+ * task-024(응답 길이): TALK 는 호출 전에 발화 신호로 문장 수 상한(`sceneCap`, ./sceneCap)을 정해 프롬프트·후검증에 넘긴다. 상한과 신호 코드는
+ *  `toolLog`·Trace PROMPT 단계에 남긴다(발화 원문은 아님). CHAT·예열은 상한을 받지 않는다(예열 = 기본 2).
+ *
  * 사용자당 턴 1(Q1):
  *   ① 메모리 락(이 프로세스) — 같은 사용자의 두 번째 요청은 즉시 409.
  *   ② 수락 트랜잭션에서 **사용자 행 `FOR UPDATE`** 로 직렬화한 뒤(여러 채팅·blue/green 두 프로세스 공통 지점) 채팅 행 `FOR UPDATE`,
@@ -31,6 +34,7 @@ import type { LearnerHeader } from '../prompts/header'
 import { chatPreview, notFoundChat } from '../chats'
 import type { TurnClientTimings, TurnRequest } from '../chats/validate'
 import { TurnAudio, type TurnSpeaker } from './turnAudio'
+import { computeSceneCap, type SceneCapReason } from './sceneCap'
 import { proposalExpiresAt } from '../proposals'
 import { currentTurnLock, isMessageLocallyRunning, isStalePending, releaseTurnLock, tryAcquireTurnLock, type TurnLock } from './locks'
 import { isRetryableTurnError, shapeTurnResponse, turnErrorMessage, type ShapedTurn } from './shape'
@@ -150,6 +154,9 @@ interface ToolLog {
   ttsStartMs?: number | null
   ttfaMs?: number | null
   audioCount?: number
+  /** TALK 만 — 이번 턴 응답 문장 수 상한과 그 신호 코드(task-024). 발화 원문은 싣지 않는다. */
+  sceneCap?: number
+  sceneCapReason?: SceneCapReason
   meta: { learning: ShapedTurn['learning']; style: ShapedTurn['speech']['style']; endOfTopic: boolean; warning: ShapedTurn['warning'] }
 }
 
@@ -264,6 +271,8 @@ interface LlmRun {
   /** 턴 시작 → LLM 시작(ms). */
   startAt: number
   promptMs: number
+  /** TALK 만(CHAT 은 null — A2 는 고정 상한). */
+  scene: { cap: number; reason: SceneCapReason } | null
   abort: () => void
 }
 
@@ -279,7 +288,9 @@ function startLlmRun(o: {
   o.emit({ event: 'status', data: { stage: 'PROMPT', elapsedMs: o.elapsed() } })
   const t = Date.now()
   const input = { todayKst: dates.todayKst(), learner: o.learner, history: o.history, text: o.text }
-  const req = o.kind === 'TALK' ? buildTalkRequest(input) : buildChatRequest(input)
+  // 상한은 TALK 의 [지시] 줄·후검증에만 간다(persona·세션 캐시 키 불변). CHAT(A2)은 그대로 — task-024.
+  const scene = o.kind === 'TALK' ? computeSceneCap({ text: o.text, level: o.learner.level }) : null
+  const req = scene ? buildTalkRequest({ ...input, sceneCap: scene.cap }) : buildChatRequest(input)
   const promptMs = Date.now() - t
   const audio = o.kind === 'TALK' && o.speaker ? new TurnAudio({ speaker: o.speaker, emit: o.emit, elapsed: o.elapsed, early: true }) : null
   const startAt = o.elapsed()
@@ -294,7 +305,7 @@ function startLlmRun(o: {
   })
   // 수락이 끝나기 전에 실패해도 미처리 거부가 되지 않게(뒤에서 await 가 같은 거부를 받는다).
   promise.catch(() => undefined)
-  return { promise, audio, startAt, promptMs, abort: () => ac.abort() }
+  return { promise, audio, startAt, promptMs, scene, abort: () => ac.abort() }
 }
 
 interface ProcessInput {
@@ -337,7 +348,7 @@ async function processTurn(p: ProcessInput): Promise<void> {
       run = startLlmRun({ kind: a.kind, text: a.userMessage.content, learner, history, speaker: p.speaker, emit: (e) => stream.emit(e), elapsed })
       audio = run.audio
     }
-    steps.push({ name: 'PROMPT', ms: run.promptMs })
+    steps.push({ name: 'PROMPT', ms: run.promptMs, ...(run.scene ? { sceneCap: run.scene.cap, sceneCapReason: run.scene.reason } : {}) })
     const r = await run.promise
     const llmMs = elapsed() - run.startAt
     const am = audio?.metrics()
@@ -377,6 +388,7 @@ async function processTurn(p: ProcessInput): Promise<void> {
       sttMs: p.clientTimings?.sttMs ?? null,
       llmFirstSentenceMs: firstSentenceMs,
       warm: r.warm ?? null,
+      ...(run.scene ? { sceneCap: run.scene.cap, sceneCapReason: run.scene.reason } : {}),
       meta: { learning: shaped.learning, style: shaped.speech.style, endOfTopic: shaped.endOfTopic, warning: shaped.warning },
     }
     const saved = await turnDeps.saveTurn(userId, a, shaped, toolLog)
@@ -442,6 +454,7 @@ export const turnDeps = {
   loadRecentHistory,
   buildLearnerHeader,
   completeJson: <T>(req: LlmJsonRequest<T>): Promise<LlmJsonResult<T>> => llm.completeJson<T>(req),
+  prewarm: (req: LlmJsonRequest<TutorResponse>) => llm.prewarm(req),
 }
 
 /**
@@ -516,9 +529,10 @@ export async function startTurn(input: { userId: string; chatId: string; request
 export async function prewarmTalkTurn(userId: string, chat: { kind: ChatKind; level: JlptLevel | null }): Promise<string> {
   if (chat.kind !== 'TALK') return 'NOT_TALK'
   try {
-    const learner = await buildLearnerHeader(userId, chat.level)
+    const learner = await turnDeps.buildLearnerHeader(userId, chat.level)
+    // sceneCap 을 주지 않는다 = 기본 2. 예열은 persona 모양만 맞추면 되고(상한은 [지시] 줄에만 있어 persona 바이트가 같다) 발화 신호가 없다.
     const req = buildTalkRequest({ todayKst: dates.todayKst(), learner, history: [], text: '…' })
-    return await llm.prewarm(req)
+    return await turnDeps.prewarm(req)
   } catch {
     return 'FAILED'
   }

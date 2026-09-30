@@ -186,7 +186,7 @@ plugins/sherpa-stt/                                                    # Capacit
 
 | # | 지점 | 입력 | 출력 | 모델 | 상한 | 방식 |
 |---|---|---|---|---|---|---|
-| A1 | 회화 턴 | 페르소나 절 필터 ≤2,500 + `[모드] TALK` + 헤더 ≤300 + 최근 6개 ≤2,000 + 발화(**총 ≤3,000자**) | §67 전체(`replyJa` ≤2문장) | haiku | 12s fail-fast | SSE |
+| A1 | 회화 턴 | 페르소나 절 필터 ≤2,500 + `[모드] TALK` + 헤더 ≤300 + 최근 6개 ≤2,000 + 발화(**총 ≤3,000자**) | §67 전체(`replyJa` 상황별 상한 1~4문장·기본 2 — 호출 전 코드가 발화 신호로 정하고(`orchestrator/sceneCap`) `[지시]` 줄로만 전달, 후검증 허용 = 상한+1; task-024 talk@v4) | haiku | 12s fail-fast | SSE |
 | A2 | 채팅 턴 | A1 + 교정 금지, 최근 12개 ≤6,000 | `conversation·learning·speech` | haiku | 20s | SSE |
 | A3 | 표현 점검 | 페르소나 전체 + `[모드] REVIEW` + 메시지 전부(id, ≤40건·8,000자) | `items[{message_id,original,corrected,explanation_ko,error_type,severity,chunk_type}], summary_ko, strengths, focus` | sonnet | 90s | ≤20건 동기/잡, 1회 |
 | A4 | 레슨 생성 | `[모드] LESSON` + 주제·조각 + level + 채택 교정 ≤5 + 이전 제목 / `sourceText` | `title, dialogue[6~10], chunks, grammar[≤3], quiz[5], application[3], speaking[3]` | sonnet | 120s | 잡 |
@@ -403,7 +403,7 @@ plugins/sherpa-stt/                                                    # Capacit
 
 | 리스크 | 조치 |
 |---|---|
-| Claude CLI 스폰 지연이 5초 잠식 | task-004 실측 게이트, 프롬프트 3,000자·절 필터·2문장, 6단계 완화 순서 |
+| Claude CLI 스폰 지연이 5초 잠식 | task-004 실측 게이트, 프롬프트 3,000자·절 필터·응답 문장 상한(상황별 1~4, 기본 2 — task-024 talk@v4), 6단계 완화 순서 |
 | ReazonSpeech 인식률·VAD endpoint·SBV2 합성 시간 | task-003 실측 게이트 6항목, 튜닝 순서, 최후 목표 재정의는 사용자 |
 | Claude 구독 공유 rate limit | 회화 haiku 고정, 분석·레슨 batch 레인, 동시 턴 1, `toolLog.model` 집계 |
 | 3일 반복이 기록 부족 시 무의미 | 최소 기록 가드·만료 승계·7일 재진입, 해석을 문서에 고정 |
