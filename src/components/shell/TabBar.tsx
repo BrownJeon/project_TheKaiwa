@@ -7,13 +7,13 @@ import { isFocusRoute } from './routes'
 /**
  * 하단 탭 5개(설계안 §11) — 기획서 메뉴 1·2·3·4·6 에 대응하고, 5(프로필)는 상단 아바타(→ /settings)로 간다.
  * 아이콘은 단색 stroke SVG(TheMeal 데모 v12 원칙). `match` 는 탭이 활성으로 보일 경로 접두사다 —
- * 서랍장은 `/drawer/words` 로 들어가지만 `/drawer/*` 전체에서 활성이어야 한다.
+ * 단어장 탭은 `/drawer/words` 로 들어가지만 `/drawer/*` 전체에서 활성이어야 한다(URL·모듈 이름은 서랍장 개념 그대로 `drawer`).
  */
 const TABS = [
   { href: '/study/ai', match: '/study/ai', label: '회화', path: 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5' },
   { href: '/study/today', match: '/study/today', label: '오늘', path: 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8' },
   { href: '/plan', match: '/plan', label: '계획표', path: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6' },
-  { href: '/drawer/words', match: '/drawer', label: '서랍장', path: 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4' },
+  { href: '/drawer/words', match: '/drawer', label: '단어장', path: 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4' },
   { href: '/ask', match: '/ask', label: '질문', path: 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01' },
 ] as const
 

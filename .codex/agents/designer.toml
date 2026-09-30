@@ -36,7 +36,7 @@ developer_instructions = """
 
 <project_context>
 - 스택: Next.js 16 App Router + Tailwind v4, 상태는 서버 컴포넌트 + 최소 `useState`/SWR, API 응답 `{ success, data, message }`
-- 하단 탭 5개(회화 `/study/ai` · 오늘 `/study/today` · 계획표 `/plan` · 서랍장 `/drawer/words` · 질문 `/ask`) + 상단 아바타(`/settings`). 관리자 콘솔은 `(admin)/admin/*` 별도 레이아웃(Dashboard·Speech·LLM·Voices·Plugins·Connections·Configuration·Prompts·Diagnostics·Playground·History, 상단 Environment 배지 — PRODUCTION 은 경고색)
+- 하단 탭 5개(회화 `/study/ai` · 오늘 `/study/today` · 계획표 `/plan` · 단어장 `/drawer/words` · 질문 `/ask`) + 상단 아바타(`/settings`). 관리자 콘솔은 `(admin)/admin/*` 별도 레이아웃(Dashboard·Speech·LLM·Voices·Plugins·Connections·Configuration·Prompts·Diagnostics·Playground·History, 상단 Environment 배지 — PRODUCTION 은 경고색)
 - 회화 턴: `POST /api/v1/chats/:id/turns` SSE(`accepted→status→audio→done`), 교정 카드는 `Correction`(PROPOSED) 채택/무시 버튼, 채택 시 단어장 추가 시트
 - 오늘의 단어: 스와이프 덱(bjj 픽미업 제스처 규칙: 탭 10px / 좌우 60px / 위 80px), 4지선다 CHOICE 기본·FLIP 옵션, 카드당 ≤12초 리듬
 - 긴 AI 작업(레슨 생성·평가 채점·분석)은 잡 폴링 진행 UI, 실패는 단계별 안내문
