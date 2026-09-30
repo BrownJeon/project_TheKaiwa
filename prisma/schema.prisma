@@ -1,5 +1,6 @@
 // TheKaiwa — Prisma 스키마 실물. 정본은 docs/design/domain-model.md §3 (수정은 정본 → 이 파일 순서, 2026-09-26 재추출: SpeechProfile·TtsCache 확장·발음 사전 P0)
-// 제안 엔티티(§9 Scenario·Observation·SkillState, §10 VoiceModelVersion·Golden·QualityRun·AbCompare)는 사용자 결정 후 승격 시 추가한다.
+// 2026-10-01 승격(사용자 "db추가 승인", 추가만): §9 Scenario·ScenarioTopic·LearningObservation(+enum 3종) · Profile.correctionMode · Lesson/Chat.scenarioId·Chat.lessonId · EvaluationItem.textRevealedAt
+// 남은 제안 엔티티(§9-2 LearnerSkillState — Phase 3, §10 VoiceModelVersion·Golden·QualityRun·AbCompare)는 사용자 결정 후 승격 시 추가한다.
 
 // TheKaiwa — DB 스키마 정본. 원본은 docs/design/domain-model.md §3 이며 실물 prisma/schema.prisma 는 이 블록을 그대로 옮긴다.
 // 규칙: (1) AI 제안은 PROPOSED 로만 존재, 채택 시 저장 (2) StatsSnapshot 은 생성·증가만, *Snap 컬럼으로 이력 보존
@@ -184,6 +185,40 @@ enum RepetitionPriority {
   FOCUS
 }
 
+/// 학습 관측 종류(learning-personalization §2-2). CORRECTION_REUSED = 채택 교정 표현 재사용 · EXPRESSION_REUSE = 레슨 표현 재사용
+enum ObservationKind {
+  VOCAB_RECOGNITION
+  VOCAB_PRODUCTION
+  GRAMMAR_USE
+  LISTEN_RESPOND
+  SENTENCE_PRODUCTION
+  CONVERSATION_MAINTAIN
+  SELF_CORRECTION
+  CORRECTION_PROPOSED
+  CORRECTION_ACCEPTED
+  CORRECTION_IGNORED
+  CORRECTION_REUSED
+  EXPRESSION_REUSE
+  SCENARIO_COMPLETED
+}
+
+/// 실패 = FAIL 또는 goalAchieved=false. ASR 저신뢰(requiresReview)는 실패로 세지 않는다
+enum ObservationOutcome {
+  SUCCESS
+  PARTIAL
+  FAIL
+  SKIPPED
+}
+
+/// 능력 축 5개(learning-personalization §2-3). kind→skill 매핑은 코드 상수
+enum SkillAxis {
+  VOCAB_RECALL
+  GRAMMAR_PARTICLE
+  LISTEN_RESPOND
+  SENTENCE_PRODUCTION
+  CONVERSATION_MAINTAIN
+}
+
 enum EvalKind {
   WORDS
   TALK
@@ -263,6 +298,12 @@ enum Strictness {
   GENTLE
   NORMAL
   STRICT
+}
+
+/// 회화 교정 방식(learning-personalization §2-7, 결정 D6 2026-09-28). FLUENCY = 흐름 우선, MAJOR 만 즉시·나머지 모아 두기 · COACH = 턴마다 힌트 먼저. strictness(무엇을 오류로 볼지)와 독립
+enum CorrectionMode {
+  FLUENCY
+  COACH
 }
 
 enum Politeness {
@@ -464,9 +505,11 @@ model User {
   words            WordEntry[]
   vocabSessions    VocabSession[]
   topics           ConversationTopic[]
+  scenarios        Scenario[]
   lessons          Lesson[]
   reviewSchedules  ReviewSchedule[]
   repetitionItems  RepetitionItem[]
+  observations     LearningObservation[]
   studyLogs        StudyLog[]
   attendances      Attendance[]
   evaluations      Evaluation[]
@@ -567,22 +610,24 @@ model AuditLog {
 
 /// 학습 설정만(규칙 6). 화면 폼 1:1 이라 컬럼으로. 음성·엔진 항목은 절대 넣지 않는다 → UserVoiceSetting / UserSpeechSetting
 model Profile {
-  userId         String       @id
-  displayName    String?      @db.VarChar(40)
-  level          JlptLevel    @default(N5)
-  politeness     Politeness   @default(POLITE)
+  userId         String         @id
+  displayName    String?        @db.VarChar(40)
+  level          JlptLevel      @default(N5)
+  politeness     Politeness     @default(POLITE)
   goalLevel      JlptLevel?
   goalTopics     Json?
-  goalDeadline   DateTime?    @db.Date
-  dailyWordCount Int          @default(10)
-  dailyMinutes   Int          @default(15)
+  goalDeadline   DateTime?      @db.Date
+  dailyWordCount Int            @default(10)
+  dailyMinutes   Int            @default(15)
   /// 선생님 이름(사용자 지정, 2026-09-26 결정). null 이면 화면·프롬프트 헤더에서 '선생님'
-  teacherName    String?      @db.VarChar(30)
-  /// 교정 빈도(tutor.md §3 의 3단계). 기본 STRICT = 사용자 확정 "교정에 철저"(2026-09-26)
-  strictness     Strictness   @default(STRICT)
-  explainLang    String       @default("ko") @db.VarChar(5)
-  explainDepth   ExplainDepth @default(NORMAL)
-  updatedAt      DateTime     @updatedAt
+  teacherName    String?        @db.VarChar(30)
+  /// 교정 범위 — 무엇을 오류로 볼지(tutor.md §3-3 의 3단계, 빈도·표시는 correctionMode). 기본 STRICT = 사용자 확정 "교정에 철저"(2026-09-26)
+  strictness     Strictness     @default(STRICT)
+  /// 교정 빈도·표시 방식(TALK). 기본 FLUENCY(D6). 역할극은 이 값과 무관하게 COACH(task-010d)
+  correctionMode CorrectionMode @default(FLUENCY)
+  explainLang    String         @default("ko") @db.VarChar(5)
+  explainDepth   ExplainDepth   @default(NORMAL)
+  updatedAt      DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -643,6 +688,10 @@ model Chat {
   kind          ChatKind
   title         String    @db.VarChar(100)
   topicId       String?
+  /// 상황 역할극 세션(task-010d, learning-personalization §1-2)
+  scenarioId    String?
+  /// 레슨 "말하기" 단계에서 이어진 역할극(정합성 #11 — getLessonContext 근거)
+  lessonId      String?
   level         JlptLevel?
   lastMessageAt DateTime?
   preview       String?   @db.VarChar(120)
@@ -652,8 +701,10 @@ model Chat {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic    ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  scenario Scenario?          @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+  lesson   Lesson?            @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   messages    ChatMessage[]
   corrections Correction[]
@@ -887,6 +938,7 @@ model ConversationTopic {
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chunks      TopicChunk[]
+  scenarios   ScenarioTopic[]
   lessons     Lesson[]
   chats       Chat[]
   evaluations Evaluation[]
@@ -911,11 +963,61 @@ model TopicChunk {
   @@index([topicId, chunkType, order])
 }
 
+/// 상황(scenario): 역할·목표가 있는 의사소통 과제. 주제(ConversationTopic)와 N:M. userId null = 시드(삭제 불가). task-010d
+model Scenario {
+  id             String    @id @default(cuid())
+  userId         String?
+  title          String    @db.VarChar(100)
+  titleJa        String?   @db.VarChar(100)
+  description    String?   @db.VarChar(300)
+  level          JlptLevel
+  /// 1~5, 과제 선택 사다리
+  difficulty     Int       @default(2)
+  /// {learner:"손님", tutor:"역무원"}
+  roles          Json
+  /// {communicativeGoal_ko, successCriteria:[...]}
+  goal           Json
+  /// {conditions:[...], branches:[{trigger, expectedResponse}]}
+  constraints    Json?
+  /// TopicChunk 참조 우선: [{chunkId}] 또는 자체 [{ja, reading, ko, chunkType}]
+  keyExpressions Json
+  grammarPoints  Json?
+  /// {requiredExpressions:N, requiredBranches:[...], tutorJudgement:true}
+  completionRule Json
+  isSeed         Boolean   @default(false)
+  /// ACTIVE|ARCHIVED
+  status         String    @default("ACTIVE") @db.VarChar(20)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  topics  ScenarioTopic[]
+  lessons Lesson[]
+  chats   Chat[]
+
+  @@index([userId, level])
+  @@index([isSeed, level, difficulty])
+}
+
+model ScenarioTopic {
+  scenarioId String
+  topicId    String
+  weight     Int    @default(1)
+
+  scenario Scenario          @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  topic    ConversationTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([scenarioId, topicId])
+}
+
 /// 오늘의 회화 1:1 수업(이해→문법→문제→응용→말하기). content = A4 스키마 JSON. sourceText = 사용자가 붙여넣은 자막 문장(레퍼런스3)
 model Lesson {
   id              String       @id @default(cuid())
   userId          String
   topicId         String?
+  /// 상황 레슨(A4 입력에 [상황] 블록, task-010d)
+  scenarioId      String?
   date            DateTime     @db.Date
   kind            LessonKind
   title           String       @db.VarChar(120)
@@ -936,11 +1038,13 @@ model Lesson {
   updatedAt       DateTime     @updatedAt
   completedAt     DateTime?
 
-  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic    ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  scenario Scenario?          @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
 
   reviewSchedule ReviewSchedule?
   utterances     Utterance[]
+  chats          Chat[]
 
   @@index([userId, date])
   @@index([userId, kind, status])
@@ -1004,6 +1108,32 @@ model RepetitionItem {
   @@unique([userId, refType, refId])
   @@index([userId, nextDueAt])
   @@index([userId, priority, studiedCount])
+}
+
+/// append-only 학습 관측 이벤트(learning-personalization §2-2, 결정 D5 — 기록만 Phase 2 task-010b). 원문·오디오는 복제하지 않고 refType/refId 만(FK 없음, 원본 삭제 후 dangling 허용).
+/// 해당 학습 트랜잭션 안에서 쓰고 StatsSnapshot(DAILY).observations 를 증가시킨다. 능력 축 추정(LearnerSkillState)은 Phase 3. 삭제 경로 없음(계정 삭제 시에만 Cascade)
+model LearningObservation {
+  id         String             @id @default(cuid())
+  userId     String
+  occurredAt DateTime           @default(now())
+  kind       ObservationKind
+  outcome    ObservationOutcome
+  skill      SkillAxis
+  latencyMs  Int?
+  /// 0~1. 텍스트 1.0 / STT transcriptConfidence / 리뷰 미확정 0.5. 낮으면 갱신 가중치 하향
+  confidence Float              @default(1)
+  /// 원천 행(VocabAttempt·Correction·ChatMessage·EvaluationItem·Lesson·Chat)
+  refType    String             @db.VarChar(30)
+  refId      String             @db.VarChar(40)
+  wordId     String?
+  scenarioId String?
+  /// ≤1KB 요약, 원문 없음
+  meta       Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([userId, skill, occurredAt])
 }
 
 /// 달력·분석·성장기록 원천. 삭제 가능하나 StatsSnapshot 은 남는다(규칙 2). origin=DIRECT 는 사용자가 직접 수행, ACCEPTED 는 제안 채택
@@ -1090,6 +1220,8 @@ model EvaluationItem {
   feedback        String?      @db.Text
   dims            Json?
   answeredAt      DateTime?
+  /// 듣기 문항(textHidden)에서 제출 전 글자를 연 시각 — 결과의 "글자로 봤어요" 표시(task-011). null = 안 봄
+  textRevealedAt  DateTime?
 
   evaluation Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   word       WordEntry? @relation(fields: [wordId], references: [id], onDelete: SetNull)

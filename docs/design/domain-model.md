@@ -21,7 +21,7 @@
 | L0 admin (app 층 조합) | `src/modules/admin` | `ConfigurationPreset` · `DebugSession` | 모든 층 import 가능. 설정 변경 자체는 L5 `engine/configuration` 을 호출해 기록 |
 | L1 preferences | `src/modules/preferences` | `Profile` · `UserVoiceSetting` · `UserSpeechSetting` · `AppSetting` | `Profile` 은 **학습 설정만**. 음성 설정은 `UserVoiceSetting`/`UserSpeechSetting` |
 | L2 conversation | `src/modules/conversation` | `Chat` · `ChatMessage` · `Correction` · `TutorProposal` · `PromptTemplate` · `PromptVersion` | AI 산출은 `PROPOSED` 상태로만 존재 |
-| L3 learning | `src/modules/learning` | `WordEntry` · `VocabSession` · `VocabAttempt` · `ConversationTopic` · `TopicChunk` · `Lesson` · `ReviewSchedule` · `StudyLog` · `Attendance` · `Evaluation` · `EvaluationItem` · `StudyPlan` · `StatsSnapshot` · `LearnerErrorStat` | 집계는 `StatsSnapshot` 에서만 읽는다 |
+| L3 learning | `src/modules/learning` | `WordEntry` · `VocabSession` · `VocabAttempt` · `ConversationTopic` · `TopicChunk` · `Scenario` · `ScenarioTopic` · `Lesson` · `ReviewSchedule` · `RepetitionItem` · `StudyLog` · `Attendance` · `Evaluation` · `EvaluationItem` · `StudyPlan` · `StatsSnapshot` · `LearnerErrorStat` · `LearningObservation` | 집계는 `StatsSnapshot` 에서만 읽는다. `Scenario`·`ScenarioTopic`·`LearningObservation` 은 2026-10-01 §9 에서 승격 |
 | L4 speech | `src/modules/speech` (+ Python `speech/gateway`·`speech/worker` 는 `/api/internal/*` 콜백으로 같은 테이블에 기록) | `Utterance` · `SpeechAnalysis` · `SpeechJob` · `TtsCache` · `VoiceProfile` · `VoiceModel` · `VoiceStyle` · `VoiceImportJob` | 오디오 파일은 `DATA_ROOT`, DB 는 경로만 |
 | L5 engine | `src/modules/engine` | `Engine` · `EngineConnection` · `EngineHealth` · `EngineFallbackPolicy` · `ConfigurationVersion` · `RuntimeOverride` · `RequestTrace` · `EngineMetricsDaily` | 설정 계열은 전부 `environment` 컬럼, 프로세스는 `APP_ENV` 행만 읽는다 |
 | L6 infra | `src/modules/infra` | `User` · `AppAuthCode` · `AiJob` · `AppRelease` · `AuditLog` | `AuditLog` 는 append-only |
@@ -33,7 +33,7 @@
 3. **원문 보존** — `Correction.original` 은 어떤 경로로도 UPDATE 하지 않는다.
 4. **환경 분리** — 설정 엔티티는 `environment Environment` 를 갖고, 프로세스는 자기 `APP_ENV` 행만 읽는다(같은 MariaDB 공존).
 5. **시크릿 미저장** — DB·앱·Export·Trace 어디에도 값이 없다. `EngineConnection.credentialRef`(`env:NAME` | `file:<name>`)만 저장하고 서버 `SecretResolver` 가 해석.
-6. **`Profile` 범위** — `level, politeness, goal*, dailyWordCount, dailyMinutes, strictness, explainLang, explainDepth`(+표시명)만. 음성은 `UserVoiceSetting`/`UserSpeechSetting`.
+6. **`Profile` 범위** — `level, politeness, goal*, dailyWordCount, dailyMinutes, strictness, correctionMode, explainLang, explainDepth`(+표시명·`teacherName`)만. 음성은 `UserVoiceSetting`/`UserSpeechSetting`. `correctionMode` 는 결정 D6(2026-09-28, learning-personalization §8)으로 추가 — `strictness`(무엇을 오류로 볼지)와 독립인 빈도·표시 축(§2-8).
 7. **`RequestTrace` 최소 수집** — 단계명·엔진/connection·모델·지연·상태·오류코드·크기만. 원음·전체 대화 텍스트 없음(§113). 필요 시 `DebugSession` 범위에서만.
 8. 문자열 폭은 앱 검증 상한보다 넓게(TheMeal 실측: 좁으면 400 이 아니라 500). 일본어 본문은 `@db.Text`.
 
@@ -150,6 +150,14 @@ erDiagram
   Lesson o|--o| ReviewSchedule : "review lesson (SetNull)"
   Evaluation ||--o{ EvaluationItem : "items"
   StudyLog o|--o| Evaluation : "studyLogId (SetNull, same txn on DONE)"
+  User o|--o{ Scenario : "user scenarios (null = seed)"
+  Scenario ||--o{ ScenarioTopic : "topics"
+  ConversationTopic ||--o{ ScenarioTopic : "scenarios"
+  Scenario o|--o{ Lesson : "scenario lesson (SetNull)"
+  Scenario o|--o{ Chat : "role-play (SetNull)"
+  Lesson o|--o{ Chat : "speaking-stage role-play (SetNull)"
+  User ||--o{ RepetitionItem : "repetition"
+  User ||--o{ LearningObservation : "append-only observations"
 
   WordEntry {
     string id PK
@@ -211,6 +219,21 @@ erDiagram
     ErrorType type
     string pattern
     int count "increase-only"
+  }
+  Scenario {
+    string id PK
+    JlptLevel level
+    int difficulty
+    json goal
+    json keyExpressions
+    boolean isSeed
+  }
+  LearningObservation {
+    string id PK
+    ObservationKind kind
+    ObservationOutcome outcome
+    SkillAxis skill
+    string refId "no FK"
   }
 ```
 
@@ -392,6 +415,7 @@ erDiagram
 // 규칙: (1) AI 제안은 PROPOSED 로만 존재, 채택 시 저장 (2) StatsSnapshot 은 생성·증가만, *Snap 컬럼으로 이력 보존
 //       (3) Correction.original 은 절대 UPDATE 금지 (4) 설정 엔티티는 environment 컬럼, 프로세스는 APP_ENV 행만 읽음
 //       (5) 시크릿은 credentialRef 만 (6) Profile 은 학습 설정만 (7) RequestTrace 에 원음·전체 대화 텍스트 없음
+// 2026-10-01 승격(사용자 "db추가 승인", 추가만): §9 Scenario·ScenarioTopic·LearningObservation(+enum 3종) · Profile.correctionMode · Lesson/Chat.scenarioId·Chat.lessonId · EvaluationItem.textRevealedAt
 generator client {
   provider = "prisma-client-js"
 }
@@ -571,6 +595,40 @@ enum RepetitionPriority {
   FOCUS
 }
 
+/// 학습 관측 종류(learning-personalization §2-2). CORRECTION_REUSED = 채택 교정 표현 재사용 · EXPRESSION_REUSE = 레슨 표현 재사용
+enum ObservationKind {
+  VOCAB_RECOGNITION
+  VOCAB_PRODUCTION
+  GRAMMAR_USE
+  LISTEN_RESPOND
+  SENTENCE_PRODUCTION
+  CONVERSATION_MAINTAIN
+  SELF_CORRECTION
+  CORRECTION_PROPOSED
+  CORRECTION_ACCEPTED
+  CORRECTION_IGNORED
+  CORRECTION_REUSED
+  EXPRESSION_REUSE
+  SCENARIO_COMPLETED
+}
+
+/// 실패 = FAIL 또는 goalAchieved=false. ASR 저신뢰(requiresReview)는 실패로 세지 않는다
+enum ObservationOutcome {
+  SUCCESS
+  PARTIAL
+  FAIL
+  SKIPPED
+}
+
+/// 능력 축 5개(learning-personalization §2-3). kind→skill 매핑은 코드 상수
+enum SkillAxis {
+  VOCAB_RECALL
+  GRAMMAR_PARTICLE
+  LISTEN_RESPOND
+  SENTENCE_PRODUCTION
+  CONVERSATION_MAINTAIN
+}
+
 enum EvalKind {
   WORDS
   TALK
@@ -650,6 +708,12 @@ enum Strictness {
   GENTLE
   NORMAL
   STRICT
+}
+
+/// 회화 교정 방식(learning-personalization §2-7, 결정 D6 2026-09-28). FLUENCY = 흐름 우선, MAJOR 만 즉시·나머지 모아 두기 · COACH = 턴마다 힌트 먼저. strictness(무엇을 오류로 볼지)와 독립
+enum CorrectionMode {
+  FLUENCY
+  COACH
 }
 
 enum Politeness {
@@ -851,9 +915,11 @@ model User {
   words            WordEntry[]
   vocabSessions    VocabSession[]
   topics           ConversationTopic[]
+  scenarios        Scenario[]
   lessons          Lesson[]
   reviewSchedules  ReviewSchedule[]
   repetitionItems  RepetitionItem[]
+  observations     LearningObservation[]
   studyLogs        StudyLog[]
   attendances      Attendance[]
   evaluations      Evaluation[]
@@ -954,22 +1020,24 @@ model AuditLog {
 
 /// 학습 설정만(규칙 6). 화면 폼 1:1 이라 컬럼으로. 음성·엔진 항목은 절대 넣지 않는다 → UserVoiceSetting / UserSpeechSetting
 model Profile {
-  userId         String       @id
-  displayName    String?      @db.VarChar(40)
-  level          JlptLevel    @default(N5)
-  politeness     Politeness   @default(POLITE)
+  userId         String         @id
+  displayName    String?        @db.VarChar(40)
+  level          JlptLevel      @default(N5)
+  politeness     Politeness     @default(POLITE)
   goalLevel      JlptLevel?
   goalTopics     Json?
-  goalDeadline   DateTime?    @db.Date
-  dailyWordCount Int          @default(10)
-  dailyMinutes   Int          @default(15)
+  goalDeadline   DateTime?      @db.Date
+  dailyWordCount Int            @default(10)
+  dailyMinutes   Int            @default(15)
   /// 선생님 이름(사용자 지정, 2026-09-26 결정). null 이면 화면·프롬프트 헤더에서 '선생님'
-  teacherName    String?      @db.VarChar(30)
-  /// 교정 빈도(tutor.md §3 의 3단계). 기본 STRICT = 사용자 확정 "교정에 철저"(2026-09-26)
-  strictness     Strictness   @default(STRICT)
-  explainLang    String       @default("ko") @db.VarChar(5)
-  explainDepth   ExplainDepth @default(NORMAL)
-  updatedAt      DateTime     @updatedAt
+  teacherName    String?        @db.VarChar(30)
+  /// 교정 범위 — 무엇을 오류로 볼지(tutor.md §3-3 의 3단계, 빈도·표시는 correctionMode). 기본 STRICT = 사용자 확정 "교정에 철저"(2026-09-26)
+  strictness     Strictness     @default(STRICT)
+  /// 교정 빈도·표시 방식(TALK). 기본 FLUENCY(D6). 역할극은 이 값과 무관하게 COACH(task-010d)
+  correctionMode CorrectionMode @default(FLUENCY)
+  explainLang    String         @default("ko") @db.VarChar(5)
+  explainDepth   ExplainDepth   @default(NORMAL)
+  updatedAt      DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -1030,6 +1098,10 @@ model Chat {
   kind          ChatKind
   title         String    @db.VarChar(100)
   topicId       String?
+  /// 상황 역할극 세션(task-010d, learning-personalization §1-2)
+  scenarioId    String?
+  /// 레슨 "말하기" 단계에서 이어진 역할극(정합성 #11 — getLessonContext 근거)
+  lessonId      String?
   level         JlptLevel?
   lastMessageAt DateTime?
   preview       String?   @db.VarChar(120)
@@ -1039,8 +1111,10 @@ model Chat {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic    ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  scenario Scenario?          @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+  lesson   Lesson?            @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   messages    ChatMessage[]
   corrections Correction[]
@@ -1274,6 +1348,7 @@ model ConversationTopic {
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chunks      TopicChunk[]
+  scenarios   ScenarioTopic[]
   lessons     Lesson[]
   chats       Chat[]
   evaluations Evaluation[]
@@ -1298,11 +1373,61 @@ model TopicChunk {
   @@index([topicId, chunkType, order])
 }
 
+/// 상황(scenario): 역할·목표가 있는 의사소통 과제. 주제(ConversationTopic)와 N:M. userId null = 시드(삭제 불가). task-010d
+model Scenario {
+  id             String    @id @default(cuid())
+  userId         String?
+  title          String    @db.VarChar(100)
+  titleJa        String?   @db.VarChar(100)
+  description    String?   @db.VarChar(300)
+  level          JlptLevel
+  /// 1~5, 과제 선택 사다리
+  difficulty     Int       @default(2)
+  /// {learner:"손님", tutor:"역무원"}
+  roles          Json
+  /// {communicativeGoal_ko, successCriteria:[...]}
+  goal           Json
+  /// {conditions:[...], branches:[{trigger, expectedResponse}]}
+  constraints    Json?
+  /// TopicChunk 참조 우선: [{chunkId}] 또는 자체 [{ja, reading, ko, chunkType}]
+  keyExpressions Json
+  grammarPoints  Json?
+  /// {requiredExpressions:N, requiredBranches:[...], tutorJudgement:true}
+  completionRule Json
+  isSeed         Boolean   @default(false)
+  /// ACTIVE|ARCHIVED
+  status         String    @default("ACTIVE") @db.VarChar(20)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  topics  ScenarioTopic[]
+  lessons Lesson[]
+  chats   Chat[]
+
+  @@index([userId, level])
+  @@index([isSeed, level, difficulty])
+}
+
+model ScenarioTopic {
+  scenarioId String
+  topicId    String
+  weight     Int    @default(1)
+
+  scenario Scenario          @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  topic    ConversationTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([scenarioId, topicId])
+}
+
 /// 오늘의 회화 1:1 수업(이해→문법→문제→응용→말하기). content = A4 스키마 JSON. sourceText = 사용자가 붙여넣은 자막 문장(레퍼런스3)
 model Lesson {
   id              String       @id @default(cuid())
   userId          String
   topicId         String?
+  /// 상황 레슨(A4 입력에 [상황] 블록, task-010d)
+  scenarioId      String?
   date            DateTime     @db.Date
   kind            LessonKind
   title           String       @db.VarChar(120)
@@ -1323,11 +1448,13 @@ model Lesson {
   updatedAt       DateTime     @updatedAt
   completedAt     DateTime?
 
-  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic    ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  scenario Scenario?          @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
 
   reviewSchedule ReviewSchedule?
   utterances     Utterance[]
+  chats          Chat[]
 
   @@index([userId, date])
   @@index([userId, kind, status])
@@ -1391,6 +1518,32 @@ model RepetitionItem {
   @@unique([userId, refType, refId])
   @@index([userId, nextDueAt])
   @@index([userId, priority, studiedCount])
+}
+
+/// append-only 학습 관측 이벤트(learning-personalization §2-2, 결정 D5 — 기록만 Phase 2 task-010b). 원문·오디오는 복제하지 않고 refType/refId 만(FK 없음, 원본 삭제 후 dangling 허용).
+/// 해당 학습 트랜잭션 안에서 쓰고 StatsSnapshot(DAILY).observations 를 증가시킨다. 능력 축 추정(LearnerSkillState)은 Phase 3. 삭제 경로 없음(계정 삭제 시에만 Cascade)
+model LearningObservation {
+  id         String             @id @default(cuid())
+  userId     String
+  occurredAt DateTime           @default(now())
+  kind       ObservationKind
+  outcome    ObservationOutcome
+  skill      SkillAxis
+  latencyMs  Int?
+  /// 0~1. 텍스트 1.0 / STT transcriptConfidence / 리뷰 미확정 0.5. 낮으면 갱신 가중치 하향
+  confidence Float              @default(1)
+  /// 원천 행(VocabAttempt·Correction·ChatMessage·EvaluationItem·Lesson·Chat)
+  refType    String             @db.VarChar(30)
+  refId      String             @db.VarChar(40)
+  wordId     String?
+  scenarioId String?
+  /// ≤1KB 요약, 원문 없음
+  meta       Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([userId, skill, occurredAt])
 }
 
 /// 달력·분석·성장기록 원천. 삭제 가능하나 StatsSnapshot 은 남는다(규칙 2). origin=DIRECT 는 사용자가 직접 수행, ACCEPTED 는 제안 채택
@@ -1477,6 +1630,8 @@ model EvaluationItem {
   feedback        String?      @db.Text
   dims            Json?
   answeredAt      DateTime?
+  /// 듣기 문항(textHidden)에서 제출 전 글자를 연 시각 — 결과의 "글자로 봤어요" 표시(task-011). null = 안 봄
+  textRevealedAt  DateTime?
 
   evaluation Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   word       WordEntry? @relation(fields: [wordId], references: [id], onDelete: SetNull)
@@ -2068,7 +2223,7 @@ model DebugSession {
 | `AiJob` | 30초 초과 LLM 작업 폴링 | `kind`, `status`, `refId`, `progress`, `payload`(입력 메타만) | L6 | 점검·레슨·평가·분석 요청 | 기동 시 RUNNING(10분↑)→FAILED, 30일 후 purge | 1 |
 | `AppRelease` | APK 배포본·최소 지원 버전 | `versionCode`, `sha256`, `minSupported` | L6 | deployer 네이티브 변경 배포 | 삭제 없음 | 1 |
 | `AuditLog` | 관리자 행위 감사 | `action`, `scope`(발음 사전 = `LEXICON`, task-018), `targetId`, `before/after`, `actorEmailSnap` | L6 | 모든 admin 쓰기·민감 읽기(role-permission.md §7) | **append-only, 삭제 없음** | 1 |
-| `Profile` | 학습 설정(기본정보·목표·학습) | `level`, `politeness`, `goal*`, `dailyWordCount`, `dailyMinutes`, `strictness`(기본 STRICT), `explainLang`, `explainDepth`, `teacherName` | L1 | 첫 로그인 시 기본값 upsert | User Cascade. `SET_LEVEL` 제안은 채택 시에만 반영 | 1 |
+| `Profile` | 학습 설정(기본정보·목표·학습) | `level`, `politeness`, `goal*`, `dailyWordCount`, `dailyMinutes`, `strictness`(기본 STRICT), `correctionMode`(기본 FLUENCY, task-010c), `explainLang`, `explainDepth`, `teacherName` | L1 | 첫 로그인 시 기본값 upsert | User Cascade. `SET_LEVEL` 제안은 채택 시에만 반영 | 1 |
 | `UserVoiceSetting` | AI 선생님 목소리 설정 | `voiceProfileId`, `style`, `speed`, `pitch`, `intonation`, `speechProfile` | L1 | 설정 화면 첫 저장(없으면 기본값으로 해석) | Voice DISABLED 시 앱이 `voiceProfileId=null`(기본 voice) 전환, hard delete 시 SetNull | 1 |
 | `UserSpeechSetting` | 음성 인식 모드 | `recognitionMode` | L1 | 설정 화면 첫 저장 | User Cascade | 1 |
 | `AppSetting` | 환경별 운영 설정 키-값 | `[environment,key]`, `value`, `editability` | L1 | 시드(§7) / Console 편집(ConfigurationVersion APP_SETTING) | 삭제 없음(키 폐기 시 값만 null) | 1 |
@@ -2077,7 +2232,7 @@ model DebugSession {
 
 | 모델 | 목적 | 핵심 필드 | 소유 층 | 생성 시점 | 삭제/보존 정책 | Phase |
 |---|---|---|---|---|---|---|
-| `Chat` | 회화·채팅·질문 세션 | `kind`, `topicId`, `reviewedAt`, `messageCount` | L2 | `POST /api/v1/chats` | 사용자 삭제 가능 → Message·Correction Cascade, Proposal/Utterance SetNull, StatsSnapshot 불변 | 1 |
+| `Chat` | 회화·채팅·질문 세션 | `kind`, `topicId`, `scenarioId`·`lessonId`(역할극·레슨 말하기 연결, task-010d), `reviewedAt`, `messageCount` | L2 | `POST /api/v1/chats` | 사용자 삭제 가능 → Message·Correction Cascade, Proposal/Utterance SetNull, StatsSnapshot 불변. Scenario·Lesson 삭제 시 `scenarioId`·`lessonId` SetNull | 1 |
 | `ChatMessage` | 턴 메시지 | `role`, `content`, `inputSource`, `toolLog`, `traceId` | L2 | 턴 시작(USER) / 턴 완료(ASSISTANT, PENDING→DONE) | Chat Cascade. 기동·조회 시 PENDING(180초↑, 메모리 락 없음)→FAILED(task-006) | 1 |
 | `Correction` | AI 교정 제안 | `original`(불변), `corrected`, `errorType`, `status`, `savedWordId` | L2 | A1 턴 응답 / A3 점검 결과 (PROPOSED) | Message Cascade. ACCEPTED 시 WordEntry·LearnerErrorStat 생성/증가, 그 뒤 Correction 삭제돼도 유지 | 1 |
 | `TutorProposal` | 강사 제안 카드 | `kind`, `payload`, `status`, `result` | L2 | A1/A9 응답의 `proposals[]` (PROPOSED) | 30일 미처리 EXPIRED, Chat 삭제 시 SetNull 로 남김 | 1 |
@@ -2091,15 +2246,18 @@ model DebugSession {
 | `WordEntry` | 단어장(채택된 단어만) | `surface`, `meaning`, `chunkType`, `source`, `archived`, `correct/wrongCount` | L3 | 직접 추가 / 시드 팩 / Correction·Proposal 채택 | 사용자 삭제·보관 가능. 참조 행은 SetNull + `*Snap`, StatsSnapshot 불변 | 1 |
 | `VocabSession` | 오늘의 단어 1세트 | `date`, `mode`, `cardCount`, 카운터, `status`, `keptAt`, `seed` | L3 | `POST /api/v1/vocab/sessions` | 삭제 시 Attempt Cascade, 스냅샷 불변. 24h 미완료 → ABANDONED | 1 |
 | `VocabAttempt` | 카드 1장 결과 | `order`, `*Snap`, `choices`, `answer`, `flagged` | L3 | 세션 생성 시 일괄 | Session Cascade, Word SetNull | 1 |
-| `ConversationTopic` | 회화·레슨 주제 | `title`, `level`, `isSeed`, `tags` | L3 | 시드 5개 / 사용자 추가 / `ADD_TOPIC` 채택 | 시드는 삭제 불가. 사용자 주제 삭제 시 Lesson/Chat/Evaluation SetNull, Chunk Cascade | 1(시드)/2 |
+| `ConversationTopic` | 회화·레슨 주제 | `title`, `level`, `isSeed`, `tags` | L3 | 시드 5개 / 사용자 추가 / `ADD_TOPIC` 채택 | 시드는 삭제 불가. 사용자 주제 삭제 시 Lesson/Chat/Evaluation SetNull, Chunk·ScenarioTopic Cascade | 1(시드)/2 |
 | `TopicChunk` | 주제 조각 | `chunkType`, `textJa`, `meaningKo`, `order` | L3 | 주제와 함께 | Topic Cascade | 1(시드)/2 |
-| `Lesson` | 오늘의 회화 수업 | `kind`, `status`, `content`, `sourceLessonIds`, `sourceText`, `score` | L3 | `POST /api/v1/lessons`(잡) / 복습 start | 삭제 시 ReviewSchedule·Utterance SetNull, StatsSnapshot 불변 | 2 |
+| `Scenario` | 상황 역할극 과제(역할·목표·핵심 표현·완료 규칙) | `level`, `difficulty`(1~5), `roles`, `goal`, `constraints`, `keyExpressions`(TopicChunk 참조 우선), `completionRule`, `isSeed`, `status` | L3 | 시드(주제 5 × 상황 2, `isSeed`) / 사용자 생성(제안→채택 또는 직접) | 시드 삭제 불가. `status=ARCHIVED` 로 숨김. 사용자 상황 삭제 시 ScenarioTopic Cascade, Lesson·Chat `scenarioId` SetNull. User Cascade(사용자 상황만) | 2(task-010d) |
+| `ScenarioTopic` | 상황↔주제 N:M | `[scenarioId, topicId]`, `weight`(추천 정렬) | L3 | 상황과 함께(시드) | Scenario·Topic 어느 쪽 삭제든 Cascade | 2(task-010d) |
+| `Lesson` | 오늘의 회화 수업 | `kind`, `status`, `content`, `scenarioId`(상황 레슨, task-010d), `sourceLessonIds`, `sourceText`, `score` | L3 | `POST /api/v1/lessons`(잡) / 복습 start | 삭제 시 ReviewSchedule·Utterance·Chat(`lessonId`) SetNull, StatsSnapshot 불변. Scenario 삭제 시 `scenarioId` SetNull | 2 |
 | `ReviewSchedule` | 오늘의 복습 세션(강사 판단 3~7일) | `dueDate`, `itemIds`, `status`, `lessonId`, `decidedBy`, `tutorRationale` | L3 | A11 판단 잡(REVIEW_DECISION) 결과를 코드가 검증 후 upsert / 폴백 코드 | User Cascade, Lesson SetNull | 2 |
 | `RepetitionItem` | 반복 학습 항목·횟수·피드백 기록 | `itemType`, `refType/refId`, `studiedCount`, `wrongCount`, `feedbackCount`, `intervalDays`(3~7), `nextDueAt`, `priority`(FOCUS) | L3 | 레슨 complete·교정 accept·세트 finish 트랜잭션에서 upsert | 원본 삭제 시 `textJa/meaningKo` 스냅샷으로 생존, 카운터 증가만 | 2 |
+| `LearningObservation` | 학습 관측 이벤트(append-only) — A11 복습 판단 근거, Phase 3 능력 축 입력 | `kind`(13종), `outcome`, `skill`(5축), `confidence`(텍스트 1.0 / STT 신뢰도 / 리뷰 미확정 0.5), `refType/refId`(FK 없음), `meta`(≤1KB, 원문 없음) | L3 | 단어 세트 finish·교정 제안/채택/거절·레슨 complete·평가 채점·역할극 종료 트랜잭션 **안에서**(기록률) + `StatsSnapshot(DAILY).observations` 증가 | **삭제 경로 없음**, 원본 삭제 시 `refId` dangling 허용. 계정 삭제 시에만 User Cascade | 2(task-010b 기록만, 결정 D5) |
 | `StudyLog` | 달력·분석 원천 | `date`, `type`, `origin`, `refId`, `summary` | L3 | DIRECT: 세트 finish·레슨 complete·평가 DONE 트랜잭션 / ACCEPTED: `ADD_STUDY_LOG` 채택 | 사용자 삭제 가능(`snapshotKept:true`), Evaluation.studyLogId SetNull | 1 |
 | `Attendance` | 출석 | `[userId,date]`, `source` | L3 | 하루 1회 멱등 check-in | 삭제 없음 | 1 |
 | `Evaluation` | AI평가 | `kind`, `level`, `status`, `totalScore`, `rubric`, `studyLogId` | L3 | `POST /api/v1/evaluations`(잡) | 삭제 시 Item Cascade, StudyLog·Snapshot 유지 | 2 |
-| `EvaluationItem` | 평가 문항 | `kind`, `prompt`, `expected`, `answerText`, `score`, `wordSurfaceSnap` | L3 | 출제 잡 완료 | Evaluation Cascade, Word SetNull | 2 |
+| `EvaluationItem` | 평가 문항 | `kind`, `prompt`, `expected`, `answerText`, `score`, `wordSurfaceSnap`, `textRevealedAt`(듣기 문항 글자 공개 시각 — "글자로 봤어요", task-011) | L3 | 출제 잡 완료 | Evaluation Cascade, Word SetNull | 2 |
 | `StudyPlan` | 분석→공부계획서 | `status`, `period*`, `analysis`, `curriculum`, `sourceRange.hash` | L3 | A8 잡 (PROPOSED) | ACCEPTED 1개 유지, 이전은 ARCHIVED. 삭제 없음 | 3 |
 | `StatsSnapshot` | 집계 원장 | `[userId,kind,periodKey]`, `data` | L3 | finish/complete/DONE 트랜잭션에서 upsert(증가만) | **생성·증가만. 어떤 삭제 경로에서도 쓰지 않음** | 1 |
 | `LearnerErrorStat` | 반복 오류 집계 | `[userId,type,pattern]`, `count`, `lastAt` | L3 | Correction ACCEPTED / SpeechAnalysis 완료 | 증가만. 원본 삭제에 불변 | 1(교정 채택 경로, 정합성 수정 #8) |
@@ -2242,6 +2400,8 @@ model DebugSession {
 | `ReviewStatus` | `DUE` → `DONE`(REVIEW 레슨 complete: 포함 `RepetitionItem.studiedCount+1`, A11 재판단 잡) / `SKIPPED`(당일 skip, 다음 학습일 재DUE) / `EXPIRED`(intervalDays 상한(7일) 이상 지연 — 항목은 `nextDueAt` 유지로 자동 승계) |
 | `RepetitionItem` | 등록(레슨 complete·교정 accept·세트 finish) → 매 세션 `studiedCount/correct/wrong/feedbackCount` 증가 → A11(`REVIEW_DECISION` 잡) 이 `intervalDays 3~7`·`priority`·`decisionReason` 결정, 코드가 클램프(FOCUS ≤3)·`nextDueAt` 산출·`decidedBy` 기록 → LLM 실패 시 FALLBACK(기존 interval 유지, 초기 3) |
 | `VocabSessionStatus` | `IN_PROGRESS` →(finish 트랜잭션)→ `DONE` / →(24h 미완료 배치)→ `ABANDONED`(집계 없음) |
+| `Scenario.status` (task-010d) | `ACTIVE` ↔ `ARCHIVED`(목록·추천에서 숨김, 진행 중 역할극·과거 기록은 그대로). 시드(`isSeed`)는 삭제 없이 이 전이만 |
+| `LearningObservation` (task-010b) | 전이 없음 — append-only(INSERT 만, UPDATE·DELETE 경로 없음) |
 | `MessageStatus` | `PENDING`(ASSISTANT 자리) → `DONE` / `FAILED`(12s fail-fast·기동 정리) |
 | `PronunciationLexiconVersion.status` | 항목 변경·Import 시 새 버전 `ACTIVE`(직전 → `SUPERSEDED`) / Rollback 은 과거 스냅샷을 새 버전으로 복제(`ROLLED_BACK` = 밀려난 직전 ACTIVE, 복원 대상은 상태 그대로 — task-003g) — TtsCache 는 `dictionaryVersion` 불일치로 자연 무효 |
 | `VoiceModelVersion.deployStatus`(§10 제안) | `TRAINED` → `VALIDATED`(Golden 회귀 통과) → `STAGING` → `CANARY`(세션 % 배정) → `PRODUCTION`(SUPER_ADMIN 확인) → `DEPRECATED` |
@@ -2250,16 +2410,17 @@ model DebugSession {
 
 | 삭제/만료 경로 | Cascade(같이 사라짐) | SetNull(참조만 끊김) | 살아남는 것(근거) | 파일 |
 |---|---|---|---|---|
-| 계정 삭제(`User`) | 소유 행 전부(Profile·설정·Chat·Word·Log·Snapshot·Utterance·Job·DebugSession…) | `AuditLog`·`ConfigurationVersion`·`RuntimeOverride`·`ConfigurationPreset`·`PromptVersion`·`VoiceImportJob`·`RequestTrace` 의 actor/user | 감사·버전 이력(`actorEmailSnap`·`actorRoleSnap` 으로 읽힘) | `DATA_ROOT/users/<id>/` 즉시 삭제 |
+| 계정 삭제(`User`) | 소유 행 전부(Profile·설정·Chat·Word·Log·Snapshot·RepetitionItem·LearningObservation·사용자 Scenario·Utterance·Job·DebugSession…) | `AuditLog`·`ConfigurationVersion`·`RuntimeOverride`·`ConfigurationPreset`·`PromptVersion`·`VoiceImportJob`·`RequestTrace` 의 actor/user | 감사·버전 이력(`actorEmailSnap`·`actorRoleSnap` 으로 읽힘) | `DATA_ROOT/users/<id>/` 즉시 삭제 |
 | `WordEntry` 삭제 | — | `VocabAttempt.wordId`, `Correction.savedWordId`, `EvaluationItem.wordId` | `VocabAttempt.*Snap`, `EvaluationItem.wordSurfaceSnap`, `StatsSnapshot`, `LearnerErrorStat` (규칙 2) | — |
 | `WordEntry` 보관(`archived`) | — | — | 전부(세트 풀에서만 제외) | — |
 | `StudyLog` 삭제 | — | `Evaluation.studyLogId` | `StatsSnapshot`(응답 `snapshotKept:true`), `Attendance` | — |
 | `Chat` 삭제 | `ChatMessage`, `Correction` | `TutorProposal.chatId/messageId`, `Utterance.chatId/chatMessageId` | `StatsSnapshot`, `LearnerErrorStat`, 채택으로 생긴 `WordEntry`/`StudyLog(ACCEPTED)`, `RequestTrace`(refId 만 남음) | 오디오는 30일 만료까지 유지 |
 | `VocabSession` 삭제 | `VocabAttempt` | — | `StatsSnapshot(VOCAB_SESSION·DAILY)`, `WordEntry` 카운터 | — |
-| `Lesson` 삭제 | — | `ReviewSchedule.lessonId`, `Utterance.lessonId` | `StatsSnapshot(LESSON)`, `StudyLog`(refId 만), `ReviewSchedule.itemIds`(id 문자열), `RepetitionItem`(`textJa` 스냅샷·카운터) | — |
+| `Lesson` 삭제 | — | `ReviewSchedule.lessonId`, `Utterance.lessonId`, `Chat.lessonId` | `StatsSnapshot(LESSON)`, `StudyLog`(refId 만), `ReviewSchedule.itemIds`(id 문자열), `RepetitionItem`(`textJa` 스냅샷·카운터) | — |
 | `RepetitionItem` | (사용자 삭제 없음 — 단어 보관/삭제·레슨 삭제와 무관하게 유지) | — | 전부(카운터·판단 이력). 계정 삭제 시에만 Cascade | — |
 | `Evaluation` 삭제 | `EvaluationItem` | `Utterance.evaluationItemId` | `StudyLog`(Evaluation→StudyLog 방향은 삭제하지 않음), `StatsSnapshot(EVALUATION)` | — |
-| 사용자 `ConversationTopic` 삭제 | `TopicChunk` | `Lesson.topicId`, `Chat.topicId`, `Evaluation.topicId` | 시드 주제(삭제 API 거부) | — |
+| 사용자 `ConversationTopic` 삭제 | `TopicChunk`, `ScenarioTopic` | `Lesson.topicId`, `Chat.topicId`, `Evaluation.topicId` | 시드 주제(삭제 API 거부), `Scenario` 자체(다른 주제 연결·단독으로 남음) | — |
+| 사용자 `Scenario` 삭제 (task-010d) | `ScenarioTopic` | `Lesson.scenarioId`, `Chat.scenarioId` | 시드 상황(삭제 API 거부 — `status=ARCHIVED` 만), `RepetitionItem(SCENARIO)`(`textJa` 스냅샷), `LearningObservation.scenarioId`(FK 없음, dangling), `StudyLog.result.scenario`, `StatsSnapshot` | — |
 | `Utterance` 오디오 만료(30일, `audioExpiresAt`) | — | — | 행·텍스트·`SpeechAnalysis`·`SpeechJob` 영구. `audioPath=null`, `audioDeletedAt` | wav 삭제 |
 | `Utterance` 사용자 삭제 | `SpeechAnalysis`, `SpeechJob` | (ChatMessage 쪽 참조 없음) | `LearnerErrorStat`, `ChatMessage.content`(STT 텍스트는 메시지에 복제되어 있음) | wav 즉시 삭제 |
 | `Utterance.trainingOptIn` | — | — | 기본 `false`. 운영 데이터 ≠ 학습 데이터(§71). true 라도 **자동 사용 없음** — 별도 허가·익명화·품질검증·Dataset 등록 절차 문서(`docs/design/speech-platform/`)를 거친다 | — |
@@ -2267,7 +2428,7 @@ model DebugSession {
 | `VoiceModel` | Engine Restrict | `VoiceModel.syncedFromConnectionKey` 는 문자열 | ARCHIVED 행 | — |
 | `EngineConnection` 삭제 | `EngineHealth`, `EngineMetricsDaily` | — (FallbackPolicy primary 참조 시 **Restrict**, fallback 배열 포함 시 앱이 거부) | `ConfigurationVersion`·`AuditLog`(targetId 문자열), `Utterance.realtimeEngine`·`TtsCache.engineConnectionKey`·`toolLog.connection` 스냅샷 | — |
 | `Engine` | Connection·Model·Profile 있으면 Restrict | — | 코드에서 제거된 엔진은 `enabled=false` 로 남김 | — |
-| `ConfigurationVersion` · `AuditLog` · `StatsSnapshot` · `LearnerErrorStat` · `RepetitionItem` · `Attendance` · `PromptVersion` · `AppRelease` | **삭제 경로 없음** | — | 전부 | — |
+| `ConfigurationVersion` · `AuditLog` · `StatsSnapshot` · `LearnerErrorStat` · `RepetitionItem` · `LearningObservation` · `Attendance` · `PromptVersion` · `AppRelease` | **삭제 경로 없음** | — | 전부 | — |
 | `RequestTrace` 90일 purge | — | `ChatMessage.traceId` 등은 문자열이라 dangling 허용 | `EngineMetricsDaily`(purge 전 물화) | DebugSession 수집물은 `expiresAt+7일` |
 | `RuntimeOverride` | 만료/revoke 후 30일 purge | — | `AuditLog(override.create/revoke)` | — |
 | `TtsCache` | LRU·용량 상한·Voice ARCHIVED·`dictionaryVersion`/`modelVersion` 구버전 기준 purge | — | — | wav 삭제 |
@@ -2350,16 +2511,21 @@ model DebugSession {
 | 11 | `DebugSession` 이 수집한 원음·텍스트의 저장 위치(테이블 vs 파일) | `DATA_ROOT/debug/<sessionId>/` 파일 + `RequestTrace.steps[].captureRef` 경로만 | Phase 3 |
 | 12 | `AppSetting` 변경을 `ConfigurationVersion(APP_SETTING)` 로 남길 때 `override.production.enabled` 같은 정책 키의 Production 보호 적용 범위 | `environment.policy` capability 전용 키 목록을 코드 상수로 | role-permission.md §6 참조 |
 | 13 | `RepetitionItem.feedbackCount` 임계(FOCUS 자동 지정) 3 의 근거 | 코드 상수, A11 이 재지정 가능 | Phase 2 실측 후 조정 |
-| 14 | `Scenario`·`ScenarioTopic` 도입 Phase(§9 제안) | Phase 2 task-010 에 포함 권고 | **결정 2026-09-28: Phase 2 후반 별도 task(task-010d)** |
-| 15 | `LearnerSkillState`·`LearningObservation` 도입 여부(§9 제안) | Phase 3 task-013, 기존 테이블 파생으로 시작 가능 | **결정 2026-09-28: `LearningObservation` 기록만 Phase 2(task-010b), `LearnerSkillState` 는 Phase 3(task-013)** |
+| 14 | `Scenario`·`ScenarioTopic` 도입 Phase(§9 제안) | Phase 2 task-010 에 포함 권고 | **결정 2026-09-28: Phase 2 후반 별도 task(task-010d)** → **2026-10-01 §3 승격**(사용자 "db추가 승인", `Lesson/Chat.scenarioId`·`Chat.lessonId` 포함) |
+| 15 | `LearnerSkillState`·`LearningObservation` 도입 여부(§9 제안) | Phase 3 task-013, 기존 테이블 파생으로 시작 가능 | **결정 2026-09-28: `LearningObservation` 기록만 Phase 2(task-010b), `LearnerSkillState` 는 Phase 3(task-013)** → `LearningObservation`+enum 3종 **2026-10-01 §3 승격**, `LearnerSkillState` 는 §9-2 제안 그대로 |
 | 16 | `StudyLog.result`·`StatsSnapshot.data` JSON 형태(정합성 #12) | §9-3 에 정의 | 확정(문서화) |
 | 17 | 발화 ↔ 채팅 결속과 1회 연결의 DB 강제(Codex task-007 C1-2 후속) | **해소(task-018, 2026-09-28 사용자 승인)**: `Utterance.chatId String?`(+`@@index`, `Chat` FK SetNull) — gateway 경로는 TURN 티켓 `chatId`, 온디바이스 #21 은 요청 `chatId`, 둘 다 라우트가 소유 확인한 방만 저장. `chatMessageId @unique`(메시지당 발화 ≤1, `ChatMessage.utterance` 1:1). 턴 연결은 위 #5(다른 방 발화 409 `UTTERANCE_OTHER_CHAT`, 방이 없는 발화는 예전 규칙). 공유 DB 의 옛 비고유 인덱스 `Utterance_chatMessageId_idx` 는 `db push` 가 지우지 않아 남는다(FK 보조, 무해) | 확정 |
+| 20 | `Scenario.userId`·`LearningObservation.userId` 의 `User` FK(Cascade) — §9 제안 블록에는 관계 선언이 없었음 | **2026-10-01 승격 시 추가**: 규칙 §6 "계정 삭제 = 소유 행 전부 Cascade" + learning-personalization §2-2 "보존·삭제는 `StudyLog` 와 같다"(StudyLog = User Cascade) + `ConversationTopic.userId` 선례. 컬럼 추가 없음(FK 제약만) | Leader 확인(push 전) |
+| 21 | `ScenarioTopic.weight` 형·키 | §9-1 대로 `Int @default(1)`·`@@id([scenarioId, topicId])` — learning-personalization §1-2 는 "0~1, `@@unique`" 로 적혀 있어 문서 간 불일치. 정본(이 문서)을 따름 | 010d 시드 작성 시 PE·Leader 가 정렬 규칙 확정 후 learning-personalization 정정 |
+| 22 | `Scenario.completionRule`·`goal` JSON 키 이름 | §9-1 주석 `{requiredExpressions, requiredBranches, tutorJudgement}`·`{communicativeGoal_ko, successCriteria}` 유지 — learning-personalization §1-2 는 `{minKeyExpressions, requireBranchHandled, requireGoalAchieved}`·`communicativeGoal`. Json 칸이라 스키마 영향 없음 | 010d `seed-data/scenarios.json`(PE) 확정 때 한쪽으로 통일 |
 
 ## 9. 제안 엔티티 (3차 보완 2026-09-26 — 본문 §3 미변경, 사용자 결정 후 승격)
 
+> **2026-10-01 승격 기록**: 사용자 "db추가 승인"(추가만 하는 변경)으로 §9-1 `Scenario`·`ScenarioTopic`(+`Lesson.scenarioId`·`Chat.scenarioId`·`Chat.lessonId`)과 §9-2 `LearningObservation`·`ObservationKind`(`EXPRESSION_REUSE` 포함 13종)·`ObservationOutcome`·`SkillAxis` 를 §3 본문으로 옮겼다. **정본은 §3** — 아래 블록은 제안 당시 원문으로 남긴다(승격 시 달라진 점: 두 모델에 `User` FK Cascade 추가 §8 #20, `ObservationKind` 에 `EXPRESSION_REUSE` 추가). `LearnerSkillState` 는 Phase 3(결정 D5) 까지 제안 상태.
+
 정본 `learning-personalization-and-llm-data.md` §1·§2 와 짝. 아래는 §3 블록과 같은 규약(cuid·`*Snap`·FK 없는 refId·PROPOSED 규칙)을 따르며, 승격 시 §1 소유 표(L3 learning)·§4·§5·§6 행을 함께 옮긴다. `RepetitionItem`·`ReviewSchedule` 변경은 사용자 결정(R-1)이 끝나 **§3 본문에 이미 반영**했다.
 
-### 9-1. 주제·상황 (§1)
+### 9-1. 주제·상황 (§1) — ✅ 2026-10-01 §3 승격(task-010d)
 
 ```prisma
 /// 상황(scenario): 역할·목표가 있는 의사소통 과제. 주제(ConversationTopic)와 N:M. userId null = 시드
@@ -2406,7 +2572,7 @@ model ScenarioTopic {
 ```
 기존 엔티티 확장(승격 시): `Lesson.scenarioId String?`(SetNull) · `Chat.scenarioId String?` · `Chat.lessonId String?`(정합성 #11 — 레슨 "말하기" 단계 역할극 세션 연결) · `RepetitionItemType.SCENARIO` 는 이미 존재 · `StudyLog.result.scenario` 아래 9-3.
 
-### 9-2. 관측·능력 축 (§2)
+### 9-2. 관측·능력 축 (§2) — `LearningObservation`·enum 3종 ✅ 2026-10-01 §3 승격(task-010b) · `LearnerSkillState` 제안 유지(Phase 3)
 
 ```prisma
 enum ObservationKind { VOCAB_RECOGNITION VOCAB_PRODUCTION GRAMMAR_USE LISTEN_RESPOND SENTENCE_PRODUCTION CONVERSATION_MAINTAIN SELF_CORRECTION CORRECTION_PROPOSED CORRECTION_ACCEPTED CORRECTION_IGNORED CORRECTION_REUSED SCENARIO_COMPLETED }
