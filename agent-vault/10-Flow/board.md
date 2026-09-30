@@ -37,11 +37,20 @@ tags:
 - [[task-012c-console-p2]] — Console P2: **서버 1·2단계 운영 반영**(`6abe464` 보안 게이트 · `8c22f01` 설정 편집·버전·Rollback·감사 API, REV-035·036·Codex C2 ×2 수정·QA PASS) · 화면은 **데모 v2 사용자 승인 대기** · 012c-2(Prompt Registry·Playground·Voice)·012c-3(TTS 품질) 후속
 - [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) — 구현은 010b·010c 뒤, **스키마 push 승인 대기 예정**
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
+- **개선작업 착수(2026-09-30, 사용자 답변 Q1~Q10 반영)** — 권고 순서(잠정, 사용자 변경 가능): 020 → 021 → 022 → 023 → 024 → 025 → 026
+  - [[task-020-improve-tab-label]] — ✅ **완료·운영 반영**(`54199c9`, 리뷰·QA PASS, 운영 빌드 확인 — 실기기 3폭은 사용자) 탭 라벨 '서랍장'→'단어장'(IMP-0006)
+  - [[task-021-improve-keyboard-inset]] — 키보드 입력창 가림 공통 수정(IMP-0008, R1·**데모 delta**)
+  - [[task-022-improve-voice-range]] — 음성 설정 범위 약 2배(IMP-0005, R1·**데모 delta**) — **서버 완료·운영 반영**(`0e1140c`, QA PASS, 릴리스 `da263a6`과 함께) · **화면(슬라이더 범위)은 데모 v2 승인 대기**
+  - [[task-023-improve-vocab-screen]] — 단어장 조각 필터·뱃지·상세 재생(IMP-0001·0002·0003, R1·**데모 delta**)
+  - [[task-024-improve-talk-length]] — ✅ **완료·운영 반영**(`da263a6`, Reviewer·QA PASS, 운영 스모크 45/45 — 폰 체감은 사용자) 회화 응답 길이 상황별 1~4문장(IMP-0010, talk@v4·sceneCap)
+  - [[task-025-improve-today-lesson]] — 오늘의 회화 4건(IMP-0012·0013·0014·0016, R2·**데모 delta**, A4 v8)
+  - [[task-026-improve-hangul-reading]] — 한글 발음 표기+토글(IMP-0009·0015, R2·**데모 delta**)
+  - 보류: IMP-0011(카드 결과 초이스 통일 — Q9 예제 검토 대기) · IMP-0004(카톡 연동 2단계 자동 수집 — 별도 task, 신규도입 검토 필요) · IMP-0007(N5 단어 수 — 단어 출처 결정 대기)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
 
-## 개선 백로그 (사용자 점검분 — task-009 완료 전 착수 금지)
+## 개선 백로그 (사용자 점검분 — 2026-09-30 착수: task-020~026)
 - `/개선작업` 으로 추가·조회. 항목은 `improvements/items/`, 표는 `improvements/improvements.base`, 규칙은 [[improvements/README|README]]. 구현팀은 건드리지 않는다.
 
 ## 정리 backlog (소규모)

@@ -327,6 +327,8 @@ async function main(): Promise<void> {
   const msgRow = await prisma.chatMessage.findUnique({ where: { id: String(dv.assistantMessageId) }, select: { toolLog: true } })
   const tl = (msgRow?.toolLog ?? {}) as Record<string, unknown>
   check('H4 toolLog sttMs·llmMs·llmFirstSentenceMs·ttsStartMs·ttfaMs·totalMs·warm', ['sttMs', 'llmMs', 'llmFirstSentenceMs', 'ttsStartMs', 'ttfaMs', 'totalMs', 'warm'].every((k) => k in tl), JSON.stringify({ stt: tl.sttMs, first: tl.llmFirstSentenceMs, ttfa: tl.ttfaMs, warm: tl.warm }))
+  const promptStep = stepsV.find((s) => s.name === 'PROMPT') ?? {}
+  check('H4b toolLog·PROMPT 단계에 sceneCap(1~4 정수)·sceneCapReason(코드) — task-024', Number.isInteger(tl.sceneCap) && (tl.sceneCap as number) >= 1 && (tl.sceneCap as number) <= 4 && typeof tl.sceneCapReason === 'string' && promptStep.sceneCap === tl.sceneCap, JSON.stringify({ cap: tl.sceneCap, reason: tl.sceneCapReason }))
   const traceText = JSON.stringify([stepsV, steps1, tl])
   const originals = ['昨日映画を見に行くました', '今日は雨ですね', reply].filter((s) => s.length >= 4)
   check('H5 Trace·toolLog 에 원문·응답 전문 0', !originals.some((s) => traceText.includes(s)))

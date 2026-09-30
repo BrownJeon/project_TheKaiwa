@@ -1,6 +1,6 @@
 ---
 project: TheKaiwa
-updated: 2026-09-28
+updated: 2026-09-30
 tags:
   - type/context
 ---
@@ -35,6 +35,14 @@ tags:
 - ⬜ **맥 M4** 에 `~/kaiwa-tts-run` 디렉토리·venv·Style-Bert-VITS2 설치 위치 승인(tts-service)
 - ⏸ `cc-sync-codex/sync-projects.ps1` 실행 — **1차 구현 후로 보류**(사용자 결정 2026-09-26)
 - ✅ 포트 3010·8100 비어 있음(2026-09-26 `ss -ltnp` 실측; 8090 whisper·3009 TheMeal 점유). 우분투 node 20.20.2·npm 10.8.2·Claude CLI 2.1.222(claude.ai 로그인)·JDK 21·pm2 6.0.14·Python 3.10 확인. M4 home-m4-api :8000 응답, :8200 은 미기동(task-003)
+
+## 개선작업 진행 (2026-09-30 착수 — 사용자 점검 개선 백로그)
+
+- 착수 조건(task-009 완료) 충족, `improvements/` 16건 중 13건을 7개 task 로 묶어 착수: [[task-020-improve-tab-label]]·[[task-021-improve-keyboard-inset]]·[[task-022-improve-voice-range]]·[[task-023-improve-vocab-screen]]·[[task-024-improve-talk-length]]·[[task-025-improve-today-lesson]]·[[task-026-improve-hangul-reading]]. 우선순위 미지정이라 Leader 권고 순서(020→021→022→023→024→025→026)를 **잠정** 채택 — 사용자가 바꿀 수 있다.
+- **진행(2026-09-30 23:30)**: [[task-020-improve-tab-label]] ✅ · [[task-024-improve-talk-length]] ✅(`da263a6`) 운영 반영, [[task-022-improve-voice-range]] **서버**만 운영 반영(`0e1140c`, 화면은 데모 v2 승인 뒤). 운영 릴리스 `20260930-231913-da263a65`, 헬스 degraded 사유는 미등록 분석 워커(U1·U2 대기)뿐. 025 는 프롬프트(lesson@v8)·검사 코드가 **미커밋 WIP**(화면·라우트 타입 정리는 데모 승인 뒤).
+- **사용자 지시(IMP-0011)**: 오늘의 단어 **참고 화면을 사용자가 업로드 예정**(미도착) — 데모 때 참고하고, **스와이프는 기존과 동일·버튼 구성만 간소하게**(항목 파일에 기록).
+- 사용자 대기: **데모 승인**(021·022·023·025·026, delta — 021·022 는 구조 불변이라 생략 여부도 사용자만 결정) · Q9(카드 결과 초이스 통일 예제 검토 → IMP-0011) · IMP-0007 단어 출처 결정 · IMP-0004 2단계(자동 수집) 방식 결정.
+- 화면 코드는 데모 승인(또는 사용자 생략) 뒤에만 쓴다. 커밋·푸시(=운영 배포)는 task 별 QA PASS 뒤 사용자 지시 범위 안에서.
 
 ## 1. 읽는 순서
 

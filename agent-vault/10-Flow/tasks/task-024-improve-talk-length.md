@@ -1,7 +1,7 @@
 ---
 task_id: task-024
 title: "개선 — AI 응답 대화형 되묻기: 응답 길이를 상황별로 판단 (IMP-0010)"
-status: doing
+status: done
 base_ref: 055dbcf
 risk_level: R2
 roles_involved: [leader, judge, prompt-engineer, developer, reviewer, qa, deployer]
@@ -324,7 +324,41 @@ engine: jev
 - 미러 측정은 예열 OFF(`warm=OFF`)라 예열 HIT 은 단위 테스트(persona 바이트 동일)로만 확인 — 운영 배포 뒤 첫 턴 지연으로 재확인 대상.
 - 판정: **QA PASS 유지 → 커밋·배포 진행.** 남은 것은 사용자 실기기 체감(인사·물음·설명·교정 각 2~3턴, v3 대비 길이·이음새).
 
+### 2026-09-30 Deployer — 웹훅 배포 완료
+
+**배포 상태**: ✅ 성공
+- **릴리스**: `20260930-231913-da263a65` (커밋 `da263a6`, task-022 서버와 함께)
+- **프로세스**: thekaiwa · thekaiwa-speech-gateway 모두 재등록 완료 (pm2 reload)
+- **헬스체크**: `/api/health` = 200 · `status: degraded`(필수 항목 OK) · `env: PRODUCTION` ✅
+- **인증 경로**: 로그인 화면 200 ✅ · 보호 API 401 UNAUTHENTICATED ✅
+- **이전 릴리스**: `20260930-222458-54199c9f` (task-020, 삭제 예정)
+
+**검증 결과**:
+| 항목 | 상태 | 비고 |
+|---|---|---|
+| TALK sceneCap 기록 | 대기 | toolLog에 `sceneCap`·`sceneCapReason` 코드 추가 확인(회화 1~2턴 후) |
+| 응답 길이 체감 | 대기 | 사용자 폰에서 회화 2~3턴(SHORT/QUESTION/EXPLAIN/CORRECTION 시나리오) |
+| TTFA 지연 변화 | 대기 | 첫 턴 vs 예열 후 턴 비교 |
+
+**남은 작업**:
+1. 운영 배포 후 사용자 폰 회화 테스트(인사·물음·설명·교정 각 2~3턴)
+2. v3 응답 길이 vs v4 체감 비교(이음새·음성 품질)
+3. sceneCapReason 분포 로그 수집(물음 판정·SHORT 초과 튜닝 근거)
+
+### 2026-09-30 Leader — 운영 반영 검증(Deployer 보완)
+- 운영 릴리스 `20260930-231913-da263a65`(커밋 `da263a6`, 022 서버와 같은 릴리스). Deployer 는 배포 성공·헬스·인증 경로만 확인하고 스모크·sceneCap 확인은 "대기"로 남겨, Leader 가 직접 보완했다.
+- `/api/health`: 재기동 직후 한 번 `stt_gateway=false`(모델 로딩 중)였다가 곧 true. 이후 3회 연속 `degraded` 사유는 `stt_analysis_worker` 하나 — 워커 미등록(U1·U2 대기)이라 배포 전과 같은 상태.
+- **운영 스모크 `SMOKE_ENV=PRODUCTION bash tests/live/task007-smoke.sh 3010`: 45/45 PASS**(스크립트가 만든 데이터는 스스로 정리). 이 스모크에 **H4b** 검사(TALK 턴 `toolLog`·Trace PROMPT 단계에 `sceneCap` 1~4 정수·`sceneCapReason` 코드)를 추가해 운영에서 통과 확인 — `cap=2, reason=SHORT`, 예열 `warm=HIT`, `ttfaMs=1371`, 원문·응답 전문 0(H5).
+- 남은 것: 사용자 폰 체감(인사·물음·설명·교정 각 2~3턴, v3 대비 길이·이음새) · 운영 `sceneCapReason` 분포 수집(SHORT 초과 3문장 비율 튜닝 근거) · `prompts:sync`/CONSOLE 버전 충돌은 Registry 구현 뒤(task-012c-2 D-C12).
+
 ## 최종 요약 (Leader)
+
+AI 선생님의 회화 응답 길이를 "항상 2문장"에서 **상황별 1~4문장**으로 바꿨습니다(IMP-0010). 별도 AI 호출 없이, 호출 전에 발화의 성격(인사·짧은 대꾸 / 설명 요청 / 되묻기 / 교정이 필요한 문장)을 코드로 판단해 문장 수 상한을 정하고, 그 상한을 프롬프트 지시 한 줄과 후검증에만 싣습니다. 그래서 선생님 성격(persona)과 예열은 그대로이고, 채팅(CHAT)은 바뀌지 않았습니다.
+
+- **실측(실제 Claude 24회)**: 전부 1회에 통과, 응답 시간 p95 7.3초(12초 제한 안), 교정 원문 일치·교정 설명 혼입 0·오류 없는 발화에 교정 0. 짧은 대꾸 6건 중 2건이 상한 2를 넘어 3문장이 나왔지만 허용 오차(+1) 안입니다.
+- **검증**: 단위 264/264·린트 0, Reviewer PASS, judge C2(Codex 불필요), QA PASS, 운영 스모크 45/45(운영에서 상한 값이 기록되고 예열 HIT 확인, 발화 원문은 기록되지 않음).
+- **운영**: 커밋 `da263a6`, 릴리스 `20260930-231913-da263a65`. 헬스는 `degraded` 이지만 사유는 미등록 분석 워커 하나뿐(배포 전과 동일).
+- **사용자 확인 필요**: 폰에서 인사·물음·설명·교정 각 2~3턴을 이전과 비교해 길이·첫 소리 지연·문장 이음새가 자연스러운지 봐 주세요. 너무 길거나 짧다고 느껴지면 신호별 상한 표(`sceneCap.ts`)만 조정하면 됩니다.
 
 ## 데모 검토 (demo gate)
 
