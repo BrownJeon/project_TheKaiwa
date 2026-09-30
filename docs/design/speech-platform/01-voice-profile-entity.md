@@ -51,12 +51,12 @@ VoiceModel (모델 파일 1개 = SBV2 model_assets/<modelName>/)
 | 키 | 범위 | SBV2 매핑 | 비고 |
 |---|---|---|---|
 | `style` | `VoiceStyle.name` 중 하나 | `style` | 사용자 `style='AUTO'` 일 때의 기본 |
-| `styleWeight` | 0.0 ~ 2.0 | `style_weight` | |
-| `speed` | 0.6 ~ 1.2 | `length = 1 / speed` | Learning 모드 프리셋 0.6·0.8·1.0 |
-| `pitch` | 0.8 ~ 1.2 | `pitch_scale` | |
-| `intonation` | 0.8 ~ 1.2 | `intonation_scale` | |
+| `styleWeight` | 0.0 ~ 4.0 | `style_weight` | 3~4 는 경계(task-022 실측 — Neutral 은 weight 효과가 거의 없음) |
+| `speed` | 0.5 ~ 1.5 | `length = 1 / speed` | Learning 모드 프리셋 0.6·0.8·1.0 |
+| `pitch` | 0.7 ~ 1.4 | `pitch_scale` | 0.6 은 유성 프레임 −22~26%라 하한 0.7(task-022) |
+| `intonation` | 0.6 ~ 1.4 | `intonation_scale` | |
 
-범위는 `UserVoiceSetting`(13) 과 동일하며 `src/modules/speech/voices/profiles.ts` 의 상수 하나를 두 곳이 공유한다. 우선순위(User > Profile defaults > Persona > Context > LLM)는 13 §3.4.
+범위는 `UserVoiceSetting`(13) 과 동일하며 `src/modules/preferences/voiceRanges.ts` 의 `VOICE_PARAM_RANGES` 하나를 설정 검증과 speech Resolver·Rendering Plan 클램프가 공유한다(preferences 는 speech 를 import 할 수 없어 정본을 preferences 에 둔다 — task-022 2026-09-30 범위 확대 때 정리). 우선순위(User > Profile defaults > Persona > Context > LLM)는 13 §3.4.
 
 ### 3.4 상태 수명주기 (`VoiceStatus`)
 

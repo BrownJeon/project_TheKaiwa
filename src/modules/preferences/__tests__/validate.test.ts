@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { classifyError } from '@/modules/infra'
 import { parseProfilePatch, parseSpeechPatch, parseVoiceDraft } from '../validate'
 
 const code = (fn: () => unknown) => {
@@ -25,17 +26,43 @@ test('프로필: 범위·형식 검증과 빈 이름 → null(선생님 기본�
   assert.equal(parseProfilePatch({ goalDeadline: '2026-12-31' }).goalDeadline?.toISOString(), '2026-12-31T00:00:00.000Z')
 })
 
-test('음성 draft: 범위(속도 0.6~1.2·높낮이·억양 0.8~1.2·styleWeight 0~2)와 speechProfile', () => {
+test('음성 draft: 범위(task-022 — 속도 0.5~1.5·높낮이 0.7~1.4·억양 0.6~1.4·styleWeight 0~4)와 speechProfile', () => {
   const base = { voiceProfileId: 'teacher_haruka', style: 'AUTO', speed: 0.9, pitch: 1, intonation: 1.1, speechProfile: 'NATIVE' }
-  assert.equal(parseVoiceDraft(base, { requireSpeechProfile: true }).styleWeight, null)
-  assert.match(code(() => parseVoiceDraft({ ...base, speed: 1.3 }, { requireSpeechProfile: true })), /^VALIDATION/)
-  assert.match(code(() => parseVoiceDraft({ ...base, pitch: 0.7 }, { requireSpeechProfile: true })), /^VALIDATION/)
-  assert.match(code(() => parseVoiceDraft({ ...base, styleWeight: 2.5 }, { requireSpeechProfile: true })), /^VALIDATION/)
-  assert.match(code(() => parseVoiceDraft({ ...base, speechProfile: 'LEARNING' }, { requireSpeechProfile: true })), /^VALIDATION/)
-  assert.match(code(() => parseVoiceDraft({ ...base, model_id: 'x' }, { requireSpeechProfile: true })), /^VALIDATION:unknown_key/)
+  const opts = { requireSpeechProfile: true }
+  assert.equal(parseVoiceDraft(base, opts).styleWeight, null)
+  // 양 끝값은 통과(값 그대로)
+  const lo = parseVoiceDraft({ ...base, speed: 0.5, pitch: 0.7, intonation: 0.6, styleWeight: 0 }, opts)
+  assert.deepEqual([lo.speed, lo.pitch, lo.intonation, lo.styleWeight], [0.5, 0.7, 0.6, 0])
+  const hi = parseVoiceDraft({ ...base, speed: 1.5, pitch: 1.4, intonation: 1.4, styleWeight: 4 }, opts)
+  assert.deepEqual([hi.speed, hi.pitch, hi.intonation, hi.styleWeight], [1.5, 1.4, 1.4, 4])
+  // 끝값 바로 밖은 400 VALIDATION(422 아님), reason 은 정본 범위 문자열
+  const outside: [string, number, string][] = [
+    ['speed', 0.49, '0.5~1.5'], ['speed', 1.51, '0.5~1.5'],
+    ['pitch', 0.69, '0.7~1.4'], ['pitch', 1.41, '0.7~1.4'],
+    ['intonation', 0.59, '0.6~1.4'], ['intonation', 1.41, '0.6~1.4'],
+    ['styleWeight', -0.01, '0~4'], ['styleWeight', 4.01, '0~4'],
+  ]
+  for (const [field, v, reason] of outside) assert.equal(code(() => parseVoiceDraft({ ...base, [field]: v }, opts)), `VALIDATION:${reason}`, `${field}=${v}`)
+  assert.throws(() => parseVoiceDraft({ ...base, speed: 1.6 }, opts), (e: unknown) => classifyError(e).status === 400 && classifyError(e).code === 'VALIDATION')
+  for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, '1.0', null]) assert.match(code(() => parseVoiceDraft({ ...base, speed: bad }, opts)), /^VALIDATION/, `speed=${String(bad)}`)
+  assert.match(code(() => parseVoiceDraft({ ...base, speechProfile: 'LEARNING' }, opts)), /^VALIDATION/)
+  assert.match(code(() => parseVoiceDraft({ ...base, model_id: 'x' }, opts)), /^VALIDATION:unknown_key/)
   const noProfile: Record<string, unknown> = { ...base }
   delete noProfile.speechProfile
   assert.equal(parseVoiceDraft(noProfile, { requireSpeechProfile: false }).speechProfile, 'NATIVE')
+})
+
+test('음성 draft(task-022 회귀): 옛 범위(속도 0.6~1.2·높낮이·억양 0.8~1.2·styleWeight 0~2) 안 저장값은 그대로 유효', () => {
+  const base = { voiceProfileId: 'teacher_haruka', style: 'AUTO', speechProfile: 'NATIVE' }
+  const olds = [
+    { speed: 0.6, pitch: 0.8, intonation: 0.8, styleWeight: 0 },
+    { speed: 1.2, pitch: 1.2, intonation: 1.2, styleWeight: 2 },
+    { speed: 0.85, pitch: 1.05, intonation: 0.95, styleWeight: 1.5 },
+  ]
+  for (const o of olds) {
+    const d = parseVoiceDraft({ ...base, ...o }, { requireSpeechProfile: true })
+    assert.deepEqual({ speed: d.speed, pitch: d.pitch, intonation: d.intonation, styleWeight: d.styleWeight }, o)
+  }
 })
 
 test('음성 draft(task-007 Codex C2-1): 저장·미리듣기 프로필은 설정 화면 3종만 — PRONUNCIATION·SHADOWING 은 화면이 요청 단위로', () => {

@@ -20,14 +20,14 @@
 | `userId @id` | | | `User` Cascade |
 | `voiceProfileId` | `VoiceProfile.id`, `status=AVAILABLE` | `AppSetting voice.defaultProfileId` | 비활성화되면 재배정(03 §3.5) |
 | `style` | `'AUTO'` 또는 그 profile 의 `VoiceStyle.name` | `'AUTO'` | §3.3 |
-| `styleWeight` | `null` 또는 0.0~2.0 | `null`(= profile 기본) | |
-| `speed` | 0.6~1.2, step 0.05 | 1.0 | Learning 프리셋 0.6·0.8·1.0 은 UI 스냅 |
-| `pitch` | 0.8~1.2, step 0.05 | 1.0 | |
-| `intonation` | 0.8~1.2, step 0.05 | 1.0 | |
+| `styleWeight` | `null` 또는 0.0~4.0 | `null`(= profile 기본) | |
+| `speed` | 0.5~1.5, step 0.05 | 1.0 | Learning 프리셋 0.6·0.8·1.0 은 UI 스냅 |
+| `pitch` | 0.7~1.4, step 0.05 | 1.0 | |
+| `intonation` | 0.6~1.4, step 0.05 | 1.0 | |
 | `speechProfile` | `NATIVE|LEARNING_NORMAL|LEARNING_SLOW|PRONUNCIATION|SHADOWING` | `NATIVE` | §3.4 (5차 보완 §138, 종전 `ttsMode NATIVE/LEARNING` 교체) |
 | `updatedAt` | | | |
 
-범위 상수는 `src/modules/speech/voices/profiles.ts` 의 것을 `preferences/voiceSetting` 이 import 한다(01 §3.3 과 단일 출처).
+범위 상수는 `src/modules/preferences/voiceRanges.ts` `VOICE_PARAM_RANGES` 하나이고 speech(`tts/parameterResolver` `RANGES`)가 그것을 import 한다(01 §3.3 과 단일 출처 — L1 은 L4 를 import 할 수 없어 방향을 바꿨다). task-022(2026-09-30)에서 옛 범위(styleWeight 0~2·speed 0.6~1.2·pitch·intonation 0.8~1.2)를 위 값으로 넓혔고 옛 저장값은 그대로 유효하다. 화면 슬라이더 폭은 데모 승인 뒤 따로 맞춘다.
 
 ### 3.2 `UserSpeechSetting`
 

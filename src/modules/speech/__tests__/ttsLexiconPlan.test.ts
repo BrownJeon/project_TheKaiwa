@@ -92,7 +92,9 @@ test('§4.3 배율: ENCOURAGING → styleWeight 0.8·intonation 1.1, 사용자 1
   const u = effectiveParams({ base: { ...BASE, styleWeight: 1.5 }, label: 'ENCOURAGING', speedLabel: null, profile: 'NATIVE', learningSpeed: 0.8, voiceStyles: VOICE })
   assert.equal(u.styleWeight, 1.2)
   const em = effectiveParams({ base: { ...BASE, intonation: 1.1 }, label: 'EMPHASIS', speedLabel: null, profile: 'NATIVE', learningSpeed: 0.8, voiceStyles: VOICE })
-  assert.equal(em.intonation, 1.2) // 1.1×1.15 → clamp 1.2
+  assert.equal(em.intonation, 1.265) // 1.1×1.15 — 범위 확대(task-022) 전에는 1.2 로 잘렸다
+  const emHi = effectiveParams({ base: { ...BASE, intonation: 1.3 }, label: 'EMPHASIS', speedLabel: null, profile: 'NATIVE', learningSpeed: 0.8, voiceStyles: VOICE })
+  assert.equal(emHi.intonation, 1.4) // 1.3×1.15 → clamp 상한 1.4
   assert.equal(effectiveParams({ base: BASE, label: null, speedLabel: 'SLOW', profile: 'NATIVE', learningSpeed: 0.8, voiceStyles: VOICE }).speed, 0.8)
   assert.equal(effectiveParams({ base: BASE, label: null, speedLabel: 'VERY_SLOW', profile: 'NATIVE', learningSpeed: 0.8, voiceStyles: VOICE }).speed, 0.6)
 })

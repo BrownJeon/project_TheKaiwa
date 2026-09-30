@@ -159,10 +159,10 @@ flowchart TD
 | `ENCOURAGING` | `Friendly` | base×0.8 → **0.8**(base 1.0) | base×1.1 → **1.1** | base | §136 예시 재현 |
 | `EXPLANATION` | `Neutral` | base | base×1.0 | speed×0.9 | 또박또박 |
 | `EMPHASIS` | base.style | base×1.1 | base×1.15 | speed×0.9 | `pauseBeforeMs` 최소 150 |
-| `speed=SLOW` | — | — | — | speed×0.8 후 프리셋 스냅(0.6·0.8·1.0) | |
-| `speed=VERY_SLOW` | — | — | — | speed×0.6 → 하한 0.6 | |
+| `speed=SLOW` | — | — | — | speed×0.8 후 프리셋 스냅(0.6·0.8·1.0), base 보다 빠르면 base | |
+| `speed=VERY_SLOW` | — | — | — | speed×0.6 → 하한 0.6(base 가 더 느리면 base) | |
 
-- 배율은 Resolver 의 `base` 에 곱하므로 **사용자 설정이 여전히 이긴다**(사용자가 styleWeight 1.5 를 두면 ENCOURAGING 은 1.2). 결과는 기존 범위(styleWeight 0~2, speed 0.6~1.2, pitch·intonation 0.8~1.2)로 clamp.
+- 배율은 Resolver 의 `base` 에 곱하므로 **사용자 설정이 여전히 이긴다**(사용자가 styleWeight 1.5 를 두면 ENCOURAGING 은 1.2). 결과는 범위(styleWeight 0~4, speed 0.5~1.5, pitch 0.7~1.4, intonation 0.6~1.4 — task-022 2026-09-30 확대, 정본 `preferences` `VOICE_PARAM_RANGES`)로 clamp. 단 **속도를 내리는 배율(프로필·라벨·SLOW·VERY_SLOW)의 하한은 옛 하한 0.6** 이고, base 가 0.6 보다 느릴 때만 base 까지 내려간다 — 기본 속도(1.0)의 학습 프로필 결과(예: LEARNING_SLOW 0.6 × EXPLANATION 0.9 → 0.6)가 범위 확대로 바뀌지 않게 하고, 배율이 사용자가 고른 속도보다 빠르게 만들지 않는다.
 - style 이름 매핑은 `AppSetting tts.styleMap`(`voice.styleMap` 을 라벨 5종으로 확장) + 그 voice 의 `VoiceStyle` 존재 여부로 결정(없으면 base.style). 세그먼트별 **유효값**(style, styleWeight, speed, pitch, intonation)은 L4 가 이 표의 배율(엔진 독립 수치)로 먼저 계산해 캐시 키에 쓰고, 어댑터는 이름 변환·단위 변환(`length`)·엔진 고유 튜닝(`sdp_ratio` 등 connection `runtime`)만 한다.
 
 ### 4.4 다른 엔진 확장 · 요청 경로

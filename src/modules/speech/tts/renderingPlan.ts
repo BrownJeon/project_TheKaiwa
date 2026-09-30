@@ -58,6 +58,13 @@ export function labelFromLlm(s: LlmSpeechStyle | null | undefined): SegmentStyle
 const SPEED_PRESETS = [0.6, 0.8, 1.0]
 const snap = (v: number) => SPEED_PRESETS.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a))
 
+/**
+ * 배율(프로필·라벨·SLOW·VERY_SLOW)이 속도를 내릴 수 있는 하한. 범위 하한(0.5, task-022)이 아니라 옛 하한 0.6 을 유지해
+ * 기본 속도(1.0)의 학습 결과(예: LEARNING_SLOW 0.6 × EXPLANATION 0.9 = 0.54 → 0.6)가 범위 확대로 바뀌지 않게 한다.
+ * base 가 0.6 보다 느리면(사용자·voice 가 고른 값) 그 base 가 하한이다 — 배율이 base 보다 빠르게 만들지 않는다.
+ */
+const DERIVED_SPEED_FLOOR = 0.6
+
 export interface EffectiveInput {
   base: ResolvedBase
   label: SegmentStyle | null
@@ -98,13 +105,15 @@ export function effectiveParams(i: EffectiveInput): VoiceParams {
       speed *= 0.9
       break
   }
-  if (i.speedLabel === 'SLOW') speed = snap(speed * 0.8)
-  else if (i.speedLabel === 'VERY_SLOW') speed = Math.max(0.6, speed * 0.6)
+  // 스냅 프리셋의 최저(0.6)가 base 보다 빠를 수 있어(base 0.5) base 로 누른다 — base ≥ 0.6 이면 스냅 결과가 늘 base 이하라 옛 결과 그대로.
+  if (i.speedLabel === 'SLOW') speed = Math.min(snap(speed * 0.8), i.base.speed)
+  else if (i.speedLabel === 'VERY_SLOW') speed *= 0.6
   if (policy.fixIntonation) intonation = i.base.intonation
+  const speedFloor = Math.max(RANGES.speed[0], Math.min(DERIVED_SPEED_FLOOR, i.base.speed))
   return {
     style,
     styleWeight: round3(clamp(styleWeight, RANGES.styleWeight)),
-    speed: round3(clamp(speed, RANGES.speed)),
+    speed: round3(clamp(speed, [speedFloor, RANGES.speed[1]])),
     pitch: round3(clamp(i.base.pitch, RANGES.pitch)),
     intonation: round3(clamp(intonation, RANGES.intonation)),
   }

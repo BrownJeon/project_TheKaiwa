@@ -181,7 +181,7 @@ Engine Router(`engine/router`)는 역할 → connection 선택만 한다: `Engin
 
 - **LLM 은 `speaker/model(speakerId·modelName)·pitch·styleWeight` 를 절대 정할 수 없다**(§68). 위 표에서 5 순위가 제공하는 키는 `style` 하나뿐이며, 그것도 의미적 스타일 → voice 의 실제 스타일명으로 **매핑만** 된다. 사용자가 Haruka 를 골랐으면 LLM 이 Takumi 로 바꿀 수 없다(§69).
 - 최종 변환: `modelName = VoiceProfile.voiceModelId`, `speakerId = VoiceProfile.speakerId`, `style`, `styleWeight`, `length = 1 / speed`, `pitchScale = pitch`, `intonationScale = intonation`, `sdpRatio/noise/noiseW/language` 는 TTS connection 의 Effective `runtime.*`. `speechProfile`(5차 §138) 은 세그먼트 기본 `speed`/pause 를 정하되 사용자가 고른 `speed` 를 덮어쓰지 않는다(`speech-platform/13` §3.4). **주의(2026-09-26 갱신)**: Resolver 의 직접 출력은 엔진 독립 `RenderingPlan`(`speech-platform/16` §5) 이고, 위 SBV2 변환은 `engine/adapters/tts/styleBertHttp` 가 수행한다. `pitch_scale/intonation_scale` 은 SBV2 `server_fastapi.py` 라우트에 없으므로 M4 자체 래퍼의 `infer()` 인자로 넘긴다.
-- 범위 검증(`speed 0.6~1.2, pitch 0.8~1.2, intonation 0.8~1.2, styleWeight 0~2`)은 1·2 순위 입력 시점에 하고, Resolver 는 범위 밖 값을 만들지 않는다.
+- 범위 검증(`speed 0.5~1.5, pitch 0.7~1.4, intonation 0.6~1.4, styleWeight 0~4` — task-022 2026-09-30 확대, 정본 `preferences` `VOICE_PARAM_RANGES` 하나를 설정 검증·Resolver·Rendering Plan 클램프가 같이 읽는다)은 1·2 순위 입력 시점에 하고, Resolver 는 범위 밖 값을 만들지 않는다.
 - 결과에도 `sourceByKey` 를 남긴다: `{ style: "VOICE_PROFILE", speed: "USER_SETTING", pitch: "VOICE_PROFILE", … }` — 관리자 `config/effective?context=user:<id>` 와 Trace `TTS[i].resolved`(관리자 Playground 헤더 `X-Tts-Resolved`) 에 표시. 사용자 화면에는 노출하지 않는다.
 - 캐시 키(`TtsCache.key`)는 **해석 결과**로 만든다: `sha1(text|voiceProfileId|style|styleWeight|speed|pitch|intonation|engineConnectionKey|textVersion)` — 같은 결과면 원천이 달라도 캐시 히트.
 

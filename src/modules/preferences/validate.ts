@@ -3,6 +3,7 @@
  * 순수 함수라 단위 테스트로 경계를 고정한다. Voice 존재·스타일 이름 검사는 speech 층 소관이라 라우트가 조합한다.
  */
 import { ApiError } from '@/modules/infra'
+import { VOICE_PARAM_RANGES, type VoiceParamRangeKey } from './voiceRanges'
 
 export const PROFILE_KEYS = [
   'displayName', 'teacherName', 'level', 'politeness', 'goalLevel', 'goalTopics', 'goalDeadline',
@@ -51,6 +52,11 @@ function num(v: unknown, field: string, min: number, max: number, opts: { int?: 
     return bad(field, `${min}~${max}`, `${field} 은(는) ${min}~${max} 사이여야 합니다.`)
   }
   return v
+}
+
+function voiceNum(v: unknown, key: VoiceParamRangeKey, opts: { nullable?: boolean } = {}): number | null {
+  const [min, max] = VOICE_PARAM_RANGES[key]
+  return num(v, key, min, max, opts)
 }
 
 export type ProfilePatch = Partial<{
@@ -112,10 +118,10 @@ export function parseVoiceDraft(body: Record<string, unknown>, opts: { requireSp
   return {
     voiceProfileId: str(body.voiceProfileId, 'voiceProfileId', 80, { min: 1 })!,
     style: str(body.style ?? 'AUTO', 'style', 40, { min: 1 })!,
-    styleWeight: num(body.styleWeight ?? null, 'styleWeight', 0, 2, { nullable: true }),
-    speed: num(body.speed, 'speed', 0.6, 1.2)!,
-    pitch: num(body.pitch, 'pitch', 0.8, 1.2)!,
-    intonation: num(body.intonation, 'intonation', 0.8, 1.2)!,
+    styleWeight: voiceNum(body.styleWeight ?? null, 'styleWeight', { nullable: true }),
+    speed: voiceNum(body.speed, 'speed')!,
+    pitch: voiceNum(body.pitch, 'pitch')!,
+    intonation: voiceNum(body.intonation, 'intonation')!,
     speechProfile: opts.requireSpeechProfile || 'speechProfile' in body ? oneOf(body.speechProfile, 'speechProfile', USER_SPEECH_PROFILES)! : 'NATIVE',
   }
 }

@@ -118,7 +118,7 @@ WebSocket `/ws/speech` 는 Next.js 라우트가 아니라 nginx `Upgrade` 프록
 | 책임 | 사용자별 설정의 읽기·쓰기·화이트리스트 검증. **값의 의미 해석(엔진 파라미터 변환)은 하지 않는다**(그건 L4 `speech/tts/parameterResolver`). |
 | 서브디렉토리 | `profile/`(학습 설정: `level·politeness·goal*·daily*·strictness·explainLang·explainDepth`) · `voiceSetting/` · `speechSetting/` · `appSetting/`(운영 설정 KV) |
 | 소유 테이블 | `Profile`, `UserVoiceSetting`, `UserSpeechSetting`, `AppSetting` |
-| 공개 API | `getProfile(userId)` · `updateProfile(userId, patch)` · `getVoiceSetting(userId)`(없으면 기본 voice 로 생성) · `updateVoiceSetting(userId, patch)` · `reassignVoiceSetting(fromVoiceProfileId, toVoiceProfileId, tx?)` · `getSpeechSetting(userId)` · `updateSpeechSetting(userId, patch)` · `getAppSetting<T>(key, fallback)` · `setAppSetting(key, value, tx?)` · 타입 `Profile`, `UserVoiceSetting`, `UserSpeechSetting`, `RecognitionMode`, `SpeechProfile` |
+| 공개 API | `getProfile(userId)` · `updateProfile(userId, patch)` · `getVoiceSetting(userId)`(없으면 기본 voice 로 생성) · `updateVoiceSetting(userId, patch)` · `reassignVoiceSetting(fromVoiceProfileId, toVoiceProfileId, tx?)` · `getSpeechSetting(userId)` · `updateSpeechSetting(userId, patch)` · `getAppSetting<T>(key, fallback)` · `setAppSetting(key, value, tx?)` · 상수 `VOICE_PARAM_RANGES`(엔진 독립 음성 수치 범위 정본 — 설정 검증과 speech Resolver·Rendering Plan 클램프가 공유. speech → preferences 는 허용·역방향 금지라 여기 둔다, task-022) · 타입 `Profile`, `UserVoiceSetting`, `UserSpeechSetting`, `RecognitionMode`, `SpeechProfile` |
 | 허용 import | `infra` |
 | 비고 | `USER_SETTING` 은 설정 해석 규칙의 7순위 소스다. 이 모듈은 값을 **저장·반환만** 하고, Resolver(L5 `engine/configuration`)나 L4 가 요청 시 합성한다. §76 에서 L1 이 "최상층"으로 그려진 것은 사용자 접점이라는 뜻이고, import 순서상으로는 **리프 데이터 모듈**이다(§3). |
 
@@ -370,7 +370,7 @@ export default [
 ```
 [클라 /settings AI 선생님 탭]  저장 전 draft {voiceId, style, styleWeight, speed, pitch, intonation}
 ⇒ POST /api/v1/voices/preview
-  infra.requireUser → infra.parseBody(범위 검증: speed 0.6~1.2, pitch/intonation 0.8~1.2)
+  infra.requireUser → preferences.parseVoiceDraft(범위 검증: speed 0.5~1.5, pitch 0.7~1.4, intonation 0.6~1.4, styleWeight 0~4 — 정본 preferences.VOICE_PARAM_RANGES, task-022)
   → speech.getVoiceProfile(draft.voiceId)   # status AVAILABLE 아니면 404
   → preferences.getAppSetting('voice.preview.defaultText'), getAppSetting('voice.preview.textVersion')
   → speech.resolveTtsParameters({userSetting: draft, voiceDefaults: profile.defaults, personaHint: null, context:{mode:'PREVIEW'}, llmStyle: null})

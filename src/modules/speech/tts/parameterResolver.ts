@@ -7,14 +7,11 @@
  * - 출력은 엔진 독립 `ResolvedBase`(+ `sourceByKey`, 관리자·Trace 용 — 사용자 화면에는 싣지 않는다).
  *   엔진 고유 파라미터 변환은 L5 어댑터 몫이다.
  */
+import { VOICE_PARAM_RANGES } from '@/modules/preferences'
 import type { LlmSpeechStyle, ParamSource, ResolvedBase, VoiceParams } from './types'
 
-export const RANGES = {
-  styleWeight: [0, 2],
-  speed: [0.6, 1.2],
-  pitch: [0.8, 1.2],
-  intonation: [0.8, 1.2],
-} as const
+/** 범위 정본은 preferences(설정 저장 검증과 같은 값 — task-022). 여기서 따로 적지 않는다. */
+export const RANGES = VOICE_PARAM_RANGES
 
 export interface UserVoiceInput {
   style: string

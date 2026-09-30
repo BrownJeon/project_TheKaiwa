@@ -8,6 +8,7 @@ import { Prisma, type Environment } from '@prisma/client'
 import type { ProfilePatch, VoiceDraft } from './validate'
 
 export * from './validate'
+export * from './voiceRanges'
 
 const PROFILE_SELECT = {
   displayName: true, teacherName: true, level: true, politeness: true, goalLevel: true, goalTopics: true, goalDeadline: true,

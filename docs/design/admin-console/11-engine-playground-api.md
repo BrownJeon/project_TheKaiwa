@@ -40,7 +40,7 @@
   "speechProfile": "LEARNING_NORMAL", "renderingPlan": null, "returnAudio": "url" }
 ```
 
-- `text` ≤300자(문장 분할은 사용자 경로와 동일한 `speech/tts/sentenceSplit`), 파라미터 범위는 `UserVoiceSetting` 과 같은 제약(speed 0.6~1.2 등)을 **관리자는 넘을 수 있으나** 스키마 `min/max` 는 넘을 수 없다(§116 "더 상세한 Preview").
+- `text` ≤300자(문장 분할은 사용자 경로와 동일한 `speech/tts/sentenceSplit`), 파라미터 범위는 `UserVoiceSetting` 과 같은 제약(speed 0.5~1.5 등, 정본 `preferences` `VOICE_PARAM_RANGES` — task-022)을 **관리자는 넘을 수 있으나** 스키마 `min/max` 는 넘을 수 없다(§116 "더 상세한 Preview").
 - 파라미터 해석은 TTS Parameter Resolver 를 **우회하지 않고** 요청값을 최상위 입력으로 넣어 실행한다(persona·LLM style 입력 없음). 실제 SBV2 파라미터(`model_id, speaker_id, style, style_weight, length, pitch_scale, intonation_scale`)를 `resolvedParams` 로 응답에 포함한다.
 - 응답: `returnAudio=url` → `{traceId, connection, audioUrl:"/api/admin/v1/playground/audio/<traceId>", durationMs, latencyMs:{firstByteMs,totalMs}, cacheHit, resolvedParams, sentences:[{text, latencyMs}]}`; `returnAudio=inline` → `audio/wav` 바디 + `X-Trace-Id` 헤더.
 

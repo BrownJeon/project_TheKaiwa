@@ -13,7 +13,7 @@ export type SegmentSpeed = (typeof SEGMENT_SPEEDS)[number]
 export const LLM_SPEECH_STYLES = ['NEUTRAL', 'ENCOURAGING', 'CALM', 'CHEERFUL'] as const
 export type LlmSpeechStyle = (typeof LLM_SPEECH_STYLES)[number]
 
-/** 엔진 독립 음성 수치(범위: styleWeight 0~2, speed 0.6~1.2, pitch·intonation 0.8~1.2). style 은 voice 스타일 이름. */
+/** 엔진 독립 음성 수치(범위 정본: preferences `VOICE_PARAM_RANGES` — 여기서 숫자를 되풀이하지 않는다). style 은 voice 스타일 이름. */
 export interface VoiceParams {
   style: string
   styleWeight: number

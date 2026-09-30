@@ -21,7 +21,7 @@
 
 ```json
 { "success": true,  "data": { "...": "..." }, "message": null }
-{ "success": false, "data": { "code": "VALIDATION", "details": { "field": "speed", "reason": "0.6~1.2" } }, "message": "속도는 0.6~1.2 사이여야 합니다" }
+{ "success": false, "data": { "code": "VALIDATION", "details": { "field": "speed", "reason": "0.5~1.5" } }, "message": "속도는 0.5~1.5 사이여야 합니다" }
 ```
 
 - 성공: `data` 는 객체 또는 배열, `message` 는 사용자에게 보여줄 안내가 있을 때만 문자열.
@@ -463,7 +463,7 @@
 { "voiceProfileId": "teacher_haruka", "style": "AUTO", "styleWeight": null, "speed": 0.9, "pitch": 1.0, "intonation": 1.1, "speechProfile": "NATIVE" }
 ```
 
-- 검증: `voiceProfileId` 는 `VoiceProfile.status = AVAILABLE`(아니면 `400`, 상세 `VOICE_NOT_AVAILABLE`), `style` 은 `"AUTO"` 또는 해당 Voice 의 `VoiceStyle.name`, `styleWeight 0~2 | null`, `speed 0.6~1.2`, `pitch 0.8~1.2`, `intonation 0.8~1.2`, `speechProfile NATIVE|LEARNING_NORMAL|LEARNING_SLOW`(5차 §138, 종전 `ttsMode`; 기본 `NATIVE`). **PRONUNCIATION·SHADOWING 은 저장할 수 없다(`400`)** — 그 둘은 화면이 요청 단위로 지정한다(#23 `speechProfile`; task-007 Codex C2-1, 2026-09-28 구현. #18 미리듣기 draft 도 같은 3종). 컬럼 enum 은 5종 그대로이며, 옛 행에 두 값이 남아 있어도 회화(TALK) 턴은 그 저장값을 물려받지 않고 `NATIVE` 로 합성한다(`speech/tts/profiles.resolveSpeechProfile`).
+- 검증: `voiceProfileId` 는 `VoiceProfile.status = AVAILABLE`(아니면 `400`, 상세 `VOICE_NOT_AVAILABLE`), `style` 은 `"AUTO"` 또는 해당 Voice 의 `VoiceStyle.name`, `styleWeight 0~4 | null`, `speed 0.5~1.5`, `pitch 0.7~1.4`, `intonation 0.6~1.4`(task-022 2026-09-30 확대 — 정본 `preferences` `VOICE_PARAM_RANGES`, 밖이면 `400 VALIDATION {field, reason:"<min>~<max>"}`, 옛 범위 저장값은 그대로 유효), `speechProfile NATIVE|LEARNING_NORMAL|LEARNING_SLOW`(5차 §138, 종전 `ttsMode`; 기본 `NATIVE`). **PRONUNCIATION·SHADOWING 은 저장할 수 없다(`400`)** — 그 둘은 화면이 요청 단위로 지정한다(#23 `speechProfile`; task-007 Codex C2-1, 2026-09-28 구현. #18 미리듣기 draft 도 같은 3종). 컬럼 enum 은 5종 그대로이며, 옛 행에 두 값이 남아 있어도 회화(TALK) 턴은 그 저장값을 물려받지 않고 `NATIVE` 로 합성한다(`speech/tts/profiles.resolveSpeechProfile`).
 - 응답은 저장값 + `voice: { id, name }`(엔진·model·speaker 는 **미노출**). 저장 시 `AuditLog` 는 남기지 않는다(사용자 설정).
 - `"AUTO"` 는 TTS Parameter Resolver 에서 "사용자 미지정" 으로 해석되어 하위 우선순위로 넘어간다(`configuration-resolution.md` §4).
 

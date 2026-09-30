@@ -81,7 +81,7 @@ speech:
       native: 1.0
       learning: [0.6, 0.8, 1.0]
     max_sentence_chars: 100                                   # [RO] SBV2 기본 100자 제한 → 문장 분할 기준(sentenceSplit)
-    style_weight_default: 1.0                                 # [RT] 0~2 범위
+    style_weight_default: 1.0                                 # [RT] 0~4 범위(정본 preferences/voiceRanges.ts VOICE_PARAM_RANGES)
     cache:
       dir: tts-cache                                          # [RS] DATA_ROOT 기준 상대경로 → DATA_ROOT/tts-cache/<key[0:2]>/<key>.wav
       max_bytes: 2147483648                                   # [RT] 2GB 넘으면 hits 낮은 순 LRU 제거(별도 정리 잡)

@@ -979,12 +979,13 @@ model UserVoiceSetting {
   userId         String   @id
   voiceProfileId String?  @db.VarChar(80)
   style          String   @default("AUTO") @db.VarChar(40)
+  /// null(= voice 기본) 또는 0~4. 범위 정본 preferences VOICE_PARAM_RANGES(task-022 확대 2026-09-30, 옛 0~2·0.6~1.2·0.8~1.2 값은 그대로 유효)
   styleWeight    Float?
-  /// 0.6~1.2 (앱 검증). TTS Parameter Resolver 1순위
+  /// 0.5~1.5 (앱 검증). TTS Parameter Resolver 1순위
   speed          Float    @default(1.0)
-  /// 0.8~1.2
+  /// 0.7~1.4
   pitch          Float    @default(1.0)
-  /// 0.8~1.2
+  /// 0.6~1.4
   intonation     Float    @default(1.0)
   speechProfile  SpeechProfile @default(NATIVE)   // 종전 ttsMode(5차 보완 §138). 설정 화면 선택지는 NATIVE·LEARNING_NORMAL·LEARNING_SLOW, PRONUNCIATION·SHADOWING 은 화면이 요청 단위로 지정
   /// LEARNING 모드 기본 배속(0.6|0.8|1.0)
