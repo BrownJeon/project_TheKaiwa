@@ -56,6 +56,18 @@ def test_worker_calls_paths_and_bodies() -> None:
     assert json.loads(seen[1].content) == {"workerId": "worker-1", "status": "FAILED", "error": "AUDIO_MISSING", "retryable": False}
 
 
+def test_report_failure_attempt_is_additive() -> None:
+    """claim 세대(`attempt`)는 1 이상일 때만 싣는다 — 없으면 종전 본문 그대로(구버전 앱·호출자 호환)."""
+    seen, t = capture(body={"success": True, "data": {"ok": True, "jobStatus": "QUEUED"}})
+    c = InternalClient("http://app.test", SECRET, "LOCAL", 2000, transport=t, service="worker")
+    asyncio.run(c.report_failure("j1", "w", "X", True, "t", attempt=2))
+    asyncio.run(c.report_failure("j1", "w", "X", True, "t", attempt=0))
+    asyncio.run(c.report_failure("j1", "w", "X", True, "t"))
+    bodies = [json.loads(r.content) for r in seen]
+    assert bodies[0]["attempt"] == 2
+    assert "attempt" not in bodies[1] and "attempt" not in bodies[2]
+
+
 def test_claim_uses_its_own_longer_timeout() -> None:
     seen, t = capture(body={"success": True, "data": {"jobs": []}})
     c = InternalClient("http://app.test", SECRET, "LOCAL", 2000, transport=t, service="worker")

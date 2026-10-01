@@ -7,13 +7,18 @@
  *  S2 발화 트랜잭션이 디바운스 UPDATE 로 옛 잡 행을 잡은 채(커밋 전) → 다른 연결의 claim → SKIP LOCKED 로 건너뜀 → 커밋 뒤 옛 잡 runAfter +20초
  *  S3 claim 이 먼저 잠근 채 → 발화 저장(실제 utteranceDb.create)이 디바운스에서 대기 → claim 커밋(옛 잡 RUNNING — claim 이 먼저였다) → 발화 저장 완료(교착 없음)
  *  S4 무작위 인터리빙 N회(실제 utteranceDb.create ∥ claimAnalysisJobs) — 불변식: 발화 저장이 claim 시작 전에 끝났으면 옛 잡은 RUNNING 이 아니다 · 오류·교착 0
+ *  S5 claim 세대 펜싱 특성(REV-041 CONDITIONAL·REV-044 수용 동작) — A 가 집고(attempts 1) 15분 넘게 응답이 없어 회수되면 B 가 다시 집는다(attempts 2).
+ *     앞 세대 A 의 늦은 #140(attempt=1)은 409 STALE_CLAIM 으로 B 의 RUNNING 을 건드리지 못하고, A 의 늦은 #138 은 **받는다**(#138 은 세대 펜싱 없음 — 먼저 온 결과가 이긴다)
+ *     → 잡 DONE·발화 ANALYZED 1회, 그 뒤 B 의 #138 은 stored:false(ALREADY_ANALYZED)·B 의 #140 은 409 — 발화는 정확히 1회만 저장된다.
  *
  * 실행(미러): `node --env-file=.env --import tsx tests/live/task012b-race.ts [반복=20]`. 만든 발화·잡은 끝에 지운다. 다른 잡이 큐에 있으면 시작하지 않는다.
  */
 import { randomBytes } from 'node:crypto'
 import { prisma, withTransaction } from '../../src/modules/infra'
 import { analysisDb } from '../../src/modules/speech/analysis/db'
-import { claimAnalysisJobs, lockClaimable } from '../../src/modules/speech/analysis/jobs'
+import { applyAnalysisResult } from '../../src/modules/speech/analysis/apply'
+import { claimAnalysisJobs, lockClaimable, reportJobFailure } from '../../src/modules/speech/analysis/jobs'
+import type { AnalysisInput } from '../../src/modules/speech/analysis/validate'
 import { utteranceDb } from '../../src/modules/speech/utterances/store'
 
 if ((process.env.APP_ENV ?? 'LOCAL').toUpperCase() === 'PRODUCTION') throw new Error('PRODUCTION 에서는 돌리지 않는다')
@@ -27,6 +32,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const made = new Set<string>()
 let uid = ''
 let sttKey = ''
+let analysisKey = ''
 const id = () => `c${Date.now().toString(36).slice(-8)}${Array.from(randomBytes(16), (b) => '0123456789abcdefghijklmnopqrstuvwxyz'[b % 36]).join('')}`
 
 /** 앞 시나리오가 만든 발화를 1분 전으로 — 시나리오마다 "대화가 멈춘 상태"에서 시작한다(재검사가 앞 발화를 보고 미루지 않게). */
@@ -166,9 +172,60 @@ async function s4(): Promise<void> {
   check(`S4 무작위 인터리빙 ${N}회 — 발화 저장이 claim 시작 전에 끝났는데 옛 잡을 올린 경우 0 · 오류·교착 0`, violations === 0 && errors === 0, JSON.stringify({ ...outcome, violations, errors }))
 }
 
+const staleClaim = async (p: Promise<unknown>): Promise<boolean> => {
+  try {
+    await p
+    return false
+  } catch (e) {
+    const x = e as { name?: string; code?: string; details?: { reason?: string } }
+    return x.name === 'ApiError' && x.code === 'CONFLICT' && x.details?.reason === 'STALE_CLAIM'
+  }
+}
+
+async function s5(): Promise<void> {
+  const j0 = await oldJob()
+  const utteranceId = (await prisma.speechJob.findUniqueOrThrow({ where: { id: j0 }, select: { utteranceId: true } })).utteranceId
+  const full = (jobId: string, workerId: string): AnalysisInput => ({
+    jobId, workerId, analysisEngine: analysisKey, analysisText: 'ふるい', similarity: 0.97, flags: [], comparatorVersion: 'race-1', engineVersions: { race: 's5' }, latencyMs: 10,
+  })
+  const state = async () => {
+    const j = await prisma.speechJob.findUniqueOrThrow({ where: { id: j0 }, select: { status: true, attempts: true, lockedBy: true } })
+    const u = await prisma.utterance.findUniqueOrThrow({ where: { id: utteranceId }, select: { status: true } })
+    return { ...j, utterance: u.status }
+  }
+  const a = await claimOnce('race-s5-a')
+  const afterA = await state()
+  check('S5-1 A 가 집음 — RUNNING·attempts=1·lockedBy=A·응답 attempts=1', a.jobs.some((j) => j.id === j0 && j.attempts === 1) && afterA.status === 'RUNNING' && afterA.attempts === 1 && afterA.lockedBy === 'race-s5-a', JSON.stringify(afterA))
+
+  await prisma.speechJob.update({ where: { id: j0 }, data: { lockedAt: new Date(Date.now() - 16 * 60_000) } })
+  const b = await claimOnce('race-s5-b')
+  const afterB = await state()
+  check('S5-2 15분 넘게 응답 없음 → 고아 회수 → B 가 다시 집음 — attempts=2(회수는 올리지 않고 claim 만 +1)·lockedBy=B', b.jobs.some((j) => j.id === j0 && j.attempts === 2) && afterB.status === 'RUNNING' && afterB.attempts === 2 && afterB.lockedBy === 'race-s5-b', JSON.stringify(afterB))
+
+  const lateFail = await staleClaim(reportJobFailure(j0, { workerId: 'race-s5-a', error: 'TRANSCRIBE_FAILED', retryable: true, attempt: 1 }))
+  const afterLateFail = await state()
+  check('S5-3 A 의 늦은 #140(attempt=1) → 409 STALE_CLAIM · B 의 RUNNING·attempts·lockedBy 그대로', lateFail && afterLateFail.status === 'RUNNING' && afterLateFail.attempts === 2 && afterLateFail.lockedBy === 'race-s5-b', JSON.stringify(afterLateFail))
+
+  const lateOk = await applyAnalysisResult(utteranceId, full(j0, 'race-s5-a'))
+  const afterLateOk = await state()
+  check('S5-4 A 의 늦은 #138 은 받는다(세대 펜싱 없음 — 수용 동작) → stored:true · 잡 DONE · 발화 ANALYZED', lateOk.stored === true && afterLateOk.status === 'DONE' && afterLateOk.utterance === 'ANALYZED', JSON.stringify({ stored: lateOk.stored, ...afterLateOk }))
+
+  const bOk = await applyAnalysisResult(utteranceId, full(j0, 'race-s5-b'))
+  check('S5-5 B 의 #138 → stored:false · ALREADY_ANALYZED(발화는 1회만 저장)', bOk.stored === false && 'reason' in bOk && bOk.reason === 'ALREADY_ANALYZED', JSON.stringify({ stored: bOk.stored }))
+
+  const bFail = await staleClaim(reportJobFailure(j0, { workerId: 'race-s5-b', error: 'TRANSCRIBE_FAILED', retryable: true, attempt: 2 }))
+  const end = await state()
+  check('S5-6 B 의 #140(attempt=2) → 이미 DONE 이라 409 STALE_CLAIM · 잡 DONE·발화 ANALYZED 불변', bFail && end.status === 'DONE' && end.utterance === 'ANALYZED', JSON.stringify(end))
+
+  const analyzedRows = await prisma.speechAnalysis.count({ where: { utteranceId } })
+  check('S5-7 SpeechAnalysis 행은 정확히 1개(두 세대가 둘 다 저장하지 않음)', analyzedRows === 1, `rows=${analyzedRows}`)
+}
+
 async function main(): Promise<void> {
   uid = (await prisma.user.findUniqueOrThrow({ where: { email: 'qa-bot2@thekaiwa.test' }, select: { id: true } })).id
   sttKey = (await prisma.engineConnection.findFirst({ where: { environment: 'LOCAL', role: 'REALTIME_STT' }, select: { key: true } }))?.key ?? 'race'
+  analysisKey = (await prisma.engineConnection.findFirst({ where: { environment: 'LOCAL', role: 'ANALYSIS_STT' }, select: { key: true } }))?.key ?? ''
+  if (!analysisKey) throw new Error('LOCAL ANALYSIS_STT connection 이 없다 — S5 를 돌릴 수 없다')
   const foreign = await prisma.speechJob.count({ where: { status: { in: ['QUEUED', 'RUNNING'] } } })
   if (foreign) throw new Error(`큐에 다른 잡 ${foreign}건 — 끝난 뒤 다시`)
   try {
@@ -176,6 +233,7 @@ async function main(): Promise<void> {
     await s2()
     await s3()
     await s4()
+    await s5()
   } finally {
     await prisma.utterance.deleteMany({ where: { id: { in: [...made] }, userId: uid } })
     await prisma.$disconnect()

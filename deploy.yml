@@ -46,7 +46,8 @@ runtime:
   apps:
     - thekaiwa
     - thekaiwa-speech-gateway
-  # 헬스체크 대상 포트 하나(Next 앱). gateway 의 상태는 /api/health 의 checks.stt_gateway 로 보인다(degraded — 배포를 막지 않음).
+    - thekaiwa-speech-worker
+  # 헬스체크 대상 포트 하나(Next 앱). gateway 의 상태는 /api/health 의 checks.stt_gateway, 분석 워커는 checks.stt_analysis_worker 로 보인다(degraded — 배포를 막지 않음).
   port: 3010
   ecosystem: ecosystem.config.js
 

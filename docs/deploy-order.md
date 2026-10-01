@@ -121,10 +121,10 @@ cp ~/.node-local/thekaiwa/package-lock.json /home/brownjeon/NFS/homes/brownjeon/
 ```bash
 cd /home/brownjeon/NFS/homes/brownjeon/project
 
-# ① 계획만 확인 — 실행하지 않는다. apps 2개·포트 3010·health·shared(.env,logs)·ref 를 눈으로 본다
+# ① 계획만 확인 — 실행하지 않는다. apps 3개(worker 를 싣는 릴리스부터 — 그 전 릴리스는 2개)·포트 3010·health·shared(.env,logs)·ref 를 눈으로 본다
 scripts/deploy.sh TheKaiwa --dry-run
 #    기대: "대상이 이 서버 자신이다 (125.177.194.26) — SSH 없이 로컬로 실행한다"
-#          --apps thekaiwa,thekaiwa-speech-gateway  --port 3010  --health /api/health  --shared .env,logs
+#          --apps thekaiwa,thekaiwa-speech-gateway,thekaiwa-speech-worker  --port 3010  --health /api/health  --shared .env,logs
 
 # ② 배포
 scripts/deploy.sh TheKaiwa --yes
@@ -135,7 +135,7 @@ scripts/deploy.sh TheKaiwa --yes
 1. `$BASE/repo`(git mirror) fetch → `origin/main` SHA 로 `releases/<YYYYMMDD-HHMMSS>-<sha8>/` 전개
 2. `shared/.env`·`shared/logs` 를 릴리스 안으로 심볼릭 링크(`.env` 가 없으면 **의도적으로 실패**)
 3. `npm ci` → `prisma generate` → `next build` — 여기까지 실패하면 `build_failed`, `current`·pm2 그대로
-4. `current` 전환 → pm2 `startOrReload` 두 앱 → **실제 cwd 확인**(`ensure_current_cwd`) — 릴리스를 안 가리키면 `pm2 delete` 후 재등록
+4. `current` 전환 → pm2 `startOrReload` 앱마다(`thekaiwa` → gateway → worker 순) → **실제 cwd 확인**(`ensure_current_cwd`) — 릴리스를 안 가리키면 `pm2 delete` 후 재등록
    (앱마다 수 초 중단, gateway 는 모델 로드 ≈2초)
 5. `/api/health` 를 30초 동안 2초 간격으로 `curl -fsS` — 통과하면 오래된 릴리스 정리(5개 유지)
 6. ⚠ **`pm2 save --force` 를 스스로 한다**(4단계 뒤마다). 즉 배포할 때마다 그 시점 pm2 프로세스 목록 전체가 dump 에 저장된다(§10).
@@ -157,8 +157,8 @@ scripts/deploy.sh TheKaiwa --yes
 | `rollback_unhealthy` | 🔴 **비정상** | 즉시 에스컬레이션. **추가 배포 시도 금지** |
 
 ```bash
-scripts/deploy.sh TheKaiwa --status      # current·릴리스 목록·두 앱 pm2 상태와 cwd·헬스
-scripts/deploy.sh TheKaiwa --logs 100    # 두 앱 pm2 로그
+scripts/deploy.sh TheKaiwa --status      # current·릴리스 목록·앱별 pm2 상태와 cwd·헬스
+scripts/deploy.sh TheKaiwa --logs 100    # 앱별 pm2 로그
 ```
 
 ### 4-1. `/api/health` 판정 규칙 (배포 게이트)
@@ -239,11 +239,28 @@ scripts/deploy.sh TheKaiwa --rollback      # 직전 릴리스로
 scripts/deploy.sh TheKaiwa --rollback 2    # 두 단계 전으로
 ```
 
-`current` 를 되돌리고 두 앱을 reload 한다(수 초). **수동 롤백은 사용자 지시가 있을 때만** — 자동 롤백은 스크립트가 이미 한다.
+`current` 를 되돌리고 `runtime.apps` 의 앱을 reload 한다(수 초). **수동 롤백은 사용자 지시가 있을 때만** — 자동 롤백은 스크립트가 이미 한다.
 코드만 되돌아간다. DB 스키마·venv·`DATA_ROOT`·M4·`shared/.env` 는 그대로다(§7).
 
 > ⚠️ **컷오버 직후 첫 롤백.** 컷오버 이전 릴리스는 없다(미러 시절엔 릴리스가 없었다). 첫 배포 직후 `--rollback` 은
 > "이전 릴리스가 없다"로 거부된다 — 정상이다. 새 ecosystem 으로 만든 릴리스가 2개 이상 쌓인 뒤에 롤백을 연습한다(§9-4).
+
+> ⚠️ **분석 STT worker 를 처음 싣는 릴리스의 경계 롤백(task-012b).** 이 릴리스 **이전**(worker 가 ecosystem 에 없던) 릴리스로
+> `--rollback` 하면 스크립트가 끝까지 가지 못할 수 있다. 근거(코드 읽기 + pm2 단독 실험, **배포 스크립트 전체로는 미실측 — 경계 롤백을 실제로 돌려 본 적이 없다**):
+> - `pm2 startOrReload|start <eco> --only <ecosystem 에 없는 이름>` 은 **오류 없이(rc=0) 아무것도 하지 않는다**(2026-10-01 격리 PM2_HOME 실측).
+>   옛 ecosystem 에는 worker 가 없으므로 `pm2_reload` 는 worker 를 조용히 건너뛴다.
+> - `deploy.yml runtime.apps` 는 작업 트리의 매니페스트(worker 포함)에서 읽는다. `ensure_current_cwd` 는 worker 의 cwd 가 되돌린 릴리스가 아니라서
+>   `pm2 delete` → 옛 ecosystem 으로 재등록을 시도하는데 no-op 이라 cwd 가 비고, `cmd_rollback` 은 헬스체크·RELEASE_RESULT 없이
+>   `die "롤백 후 pm2 가 릴리스 경로를 잡지 못했다. 수동 확인이 필요하다."` 로 끝난다. 그 시점에 `current` 는 이미 되돌려져 있고 worker 는 delete 된 상태다.
+> - `die` 로 끝나면 `pm2 save` 가 실행되지 않아 **pm2 dump 에 worker 가 남는다** — 재부팅 때 worker 가 옛 릴리스 경로로 되살아날 수 있다.
+>
+> 그래서 이 경계를 넘는 롤백은 (a) **앞으로 고치는 배포**를 기본으로 한다 — worker 커밋을 `git revert` 해 push(웹훅·`scripts/deploy.sh TheKaiwa --yes`). 배포 경로(`ensure_current_cwd || true`)는
+> 이 경우를 허용한다. 급하면 (b) `--rollback` 을 실행하고 **`die` 를 예상**한 뒤 곧바로 `scripts/deploy.sh TheKaiwa --status` · `curl -fsS http://127.0.0.1:3010/api/health` ·
+> `pm2 list`(worker 없음) 를 확인하고 `pm2 save --force` 를 실행한다. worker 가 두 릴리스 이상 연속으로 ecosystem 에 있으면(이후 릴리스 간 롤백) 이 문제는 없다.
+>
+> 그 밖에 알아 둘 것: ① worker 는 `kill_timeout` 75초라 `pm2 delete`·reload 가 최대 75초 걸릴 수 있다(진행 중인 잡을 끝내고 멈추려는 것). ② 멈춘 worker 가
+> 잡고 있던 `RUNNING` 분석 잡은 **다음 worker 의 claim 호출 안에서만** 15분 뒤 회수된다(`ORPHAN_AFTER_MS`) — worker 가 없는 동안에는 회수되지 않고 그대로 남는다(분석은 비동기라
+> 사용자 화면이 막히지는 않는다). ③ `/api/health` 의 `checks.stt_analysis_worker` 는 선택 항목이라 worker 가 없어도 `degraded` 일 뿐 헬스체크는 통과한다.
 
 ### 6-2. 흔할 만한 실패와 원인
 
@@ -273,7 +290,7 @@ scripts/deploy.sh TheKaiwa --rollback 2    # 두 단계 전으로
 | **공용 패키지** | NAS `project/shared/auth-oauth`(git 밖) | 설치 시점 복사본이 릴리스에 들어간다 |
 | **nginx** | `kaiwa.xn--lh0b87pnudm10a4vd.com` → `127.0.0.1:3010`·`/ws/speech` → `127.0.0.1:8100` | 포트가 그대로라 컷오버·배포로 바꿀 것이 없다 |
 
-> 분석 STT worker(`thekaiwa-speech-worker`)는 Phase 2 에서 `ecosystem.config.js`·`deploy.yml runtime.apps` 에 함께 추가한다.
+> 분석 STT worker(`thekaiwa-speech-worker`, task-012b)는 `ecosystem.config.js`·`deploy.yml runtime.apps` 에 함께 들어 있다(세 번째 앱 — 포트를 열지 않고 앱 내부 HTTP 를 폴링, `DATABASE_URL` 없음). 웹훅 스크립트 `~/.local/webhook-deploy/deploy-thekaiwa.sh` 의 `--apps` 에도 같은 목록이 필요하다(사용자 승인 U1 — 이 릴리스를 배포하기 직전에 맞춘다). **worker 를 처음 싣는 릴리스의 경계 롤백은 §6-1 의 경고를 먼저 읽는다.** 이후 릴리스 간 롤백은 세 앱 모두 ecosystem 에 있어 평소와 같다. worker 의존성(pyopenjtalk·tqdm)은 gateway 와 같은 venv 이고 `requirements.txt` 변경은 별도 승인 작업이다.
 
 ---
 

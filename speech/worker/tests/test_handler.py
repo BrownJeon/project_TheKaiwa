@@ -65,7 +65,18 @@ def test_bad_or_missing_audio_is_audio_missing_not_retryable(
     out = run(handle_analysis_stt(job(rel), make_deps(engine)))
     assert out.status == "FAILED" and out.error == "AUDIO_MISSING" and engine.calls == 0
     body = failure_body(recorder)
-    assert body == {"workerId": "worker-test", "status": "FAILED", "error": "AUDIO_MISSING", "retryable": False}
+    assert body == {"workerId": "worker-test", "status": "FAILED", "error": "AUDIO_MISSING", "retryable": False, "attempt": 1}
+
+
+@pytest.mark.parametrize("attempts,expected", [(1, 1), (3, 3), (0, None)])
+def test_failure_report_carries_claim_generation(recorder: Recorder, make_deps: Callable[..., HandlerDeps], attempts: int, expected: int | None) -> None:
+    """#140 에 그 잡을 받은 claim 의 attempts(claim 세대)를 싣는다 — 앱이 앞 세대의 늦은 보고를 409 로 거른다(REV-033 권고 a). 모르면(0) 싣지 않는다."""
+    recorder.routes["/result"] = lambda b: ok({"ok": True, "jobStatus": "FAILED"})
+    j = parse_job({"id": JOB, "kind": "ANALYSIS_STT", "utteranceId": UTT, "audioPath": None, "realtimeText": "x", "attempts": attempts})
+    assert j is not None
+    run(handle_analysis_stt(j, make_deps()))
+    body = failure_body(recorder)
+    assert body.get("attempt") == expected and (expected is not None or "attempt" not in body)
 
 
 def test_symlink_outside_data_root_is_refused(tmp_path: Path, recorder: Recorder, make_deps: Callable[..., HandlerDeps]) -> None:
@@ -149,7 +160,7 @@ def test_analysis_400_is_callback_rejected_and_5xx_retryable(tmp_path: Path, rec
     )
     run(handle_analysis_stt(job(), deps2))
     assert rec2.paths().count(f"/api/internal/speech/utterances/{UTT}/analysis") == 2, "5xx 는 클라이언트가 1회 재시도"
-    assert failure_body(rec2) == {"workerId": "worker-test", "status": "FAILED", "error": "CALLBACK_FAILED", "retryable": True}
+    assert failure_body(rec2) == {"workerId": "worker-test", "status": "FAILED", "error": "CALLBACK_FAILED", "retryable": True, "attempt": 1}
 
 
 def test_stale_failure_report_is_ignored(tmp_path: Path, recorder: Recorder, make_deps: Callable[..., HandlerDeps]) -> None:

@@ -157,6 +157,11 @@ demo_gate:
 - [2026-09-28 23:03] codex_gate/C1 engine=jev → codex_required=false / wanted_before_budget=false / mode=- / focus=- (signal concurrency 0.79) / budget_rule=CX-limit-unknown-r2 / codex_switch=on / calls_used=0 | overrides=- | fallback=- | tokens=1010
 - [2026-09-29 05:20] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=concurrency / budget_rule=CX-limit-unknown-r2 / codex_switch=on | overrides=CX-r2-post-review | fallback=- | tokens=1454
 
+
+### 2026-10-01 C2 판정 (워커 보강)
+- [2026-10-01 12:00] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=concurrency / budget_rule=CX-limit-unknown-r2 / codex_switch=on | overrides=- | fallback=- | tokens=938
+
+**해석**: claim 세대 펜싱 변경의 동시성 안전성 재검토 필요 — Codex adversarial-review 실행(첫 구현 C2와 동일 초점).
 ## 작업 기록
 
 ### 2026-09-28 22:57 Leader — 접수·범위 분할
@@ -379,6 +384,12 @@ demo_gate:
     - api-contract §2-28 #139 ②③ 사이에 추가: "**재검사(Codex C2)**: 잠근 잡마다 같은 트랜잭션에서 그 사용자의 가장 최근 발화 시각(`Utterance.createdAt`, 커밋된 것)을 읽어, 마지막 발화 +20초가 지나지 않았고 잡이 만든 지 5분 전이면 RUNNING 으로 올리지 않고 `runAfter = min(마지막 발화+20초, createdAt+5분)` 으로 미뤄 QUEUED 로 둔다 — 다른 사용자 잡은 같은 claim 에서 계속 본다(최대 3라운드). 발화 저장 트랜잭션은 디바운스 UPDATE 를 발화 INSERT 보다 먼저 해 진행 중인 발화의 옛 잡 행을 잠가 둔다(claim 의 SKIP LOCKED 가 건너뜀). 사용자 행 전역 잠금은 쓰지 않는다 — 남는 경우는 claim 이 발화 저장보다 먼저 잠근 때뿐." · ① 고아 회수·빈 큐 판정에 "요청한 `kinds` 만" 명시. #21 적재 조건 디바운스 문장 끝에 "(claim 재검사가 같은 규칙을 한 번 더 적용한다)".
     - domain-model §5-8 `QUEUED → RUNNING` 행 트리거 끝: "… 단 그 사용자의 마지막 발화 +20초 안(잡 생성 5분 안)이면 올리지 않고 runAfter 를 미룬다(claim 재검사, task-012b Codex C2)". 고아 회수 행: "요청한 종류(kind)의 잡만".
   - 변경 파일(이번 라운드): `src/modules/speech/analysis/policy.ts` · `src/modules/speech/analysis/db.ts` · `src/modules/speech/analysis/jobs.ts` · `src/modules/speech/utterances/store.ts` · `src/modules/speech/__tests__/task012b.test.ts` · `tests/live/task012b-smoke.ts` · `tests/live/task012b-race.ts`(신규).
+- [08:30] **U1 전 self-reclaim 펜싱 보강(REV-033 권고 a·c, 2026-10-01 Leader 지시) — reviewer 인계 대기**
+  - 현황 확인: (c) 분리 로그는 이미 있음(`jobs.ts` 113~116 — `분석 잡 응답 유실 복구 worker=… jobs=N` / `고아 회수(15분) … 합=N`, M1 라운드). 인계문의 "`jobs.ts:69` 한 줄로 합침"은 REV-033 1차 시점 기준. M1(부트 nonce 인스턴스 id)로 "같은 id 두 프로세스·재기동" 교차는 이미 막혀 있음. 남은 틈 = #140 펜싱이 `lockedBy` 문자열뿐이라 id 가 겹치면(nonce 충돌·nonce 없는 호출자·향후 동시 처리) self-reclaim 후 **앞 세대의 늦은 실패 보고가 지금 세대를 FAILED 로 뒤집고 그 세대 #138 결과가 409 로 버려짐**.
+  - **고른 안 = (a) 최소형 "claim 세대 펜싱"**: 새 토큰 칸(스키마) 대신 기존 `SpeechJob.attempts`(claim 때만 +1, 회수·재적재로 줄지 않음 → RUNNING 기간마다 고유, claim 응답에 이미 실림)를 세대로 쓴다. 워커가 #140 에 `attempt`(= 받은 claim 의 attempts)를 싣고, 앱은 `RUNNING·lockedBy=workerId·attempts=attempt` 일 때만 받는다(아니면 409 STALE_CLAIM, 아무것도 안 바꿈). `attempt` 는 선택 칸(additive — 없으면 종전대로 인스턴스 id 만). #138 은 종전대로 세대 펜싱 없음(먼저 온 결과가 이긴다). (b) 유예는 채택 안 함: 정상 워커(직렬)가 다시 claim 하면 쥔 잡이 없다는 뜻이라 "직전에 받은 잡"을 되돌리는 게 맞는 동작(응답 유실·5xx 뒤 즉시 복구) — 유예는 복구만 늦추고, id 가 겹칠 때도 처리 시간(4~60초)이 유예보다 길면 못 막으며 늦은 #140 손실 경로도 그대로.
+  - 변경 파일: `src/modules/speech/analysis/validate.ts`(`FailureInput.attempt?`·1~1000 정수) · `src/modules/speech/analysis/jobs.ts`(`reportJobFailure` 세대 펜싱·주석) · `src/app/api/internal/speech/jobs/[id]/result/route.ts`(주석) · `speech/common/kaiwa_speech_common/internal_client.py`(`report_failure(..., attempt=None)` — 1 이상만 실음) · `speech/worker/kaiwa_worker/handlers/analysis_stt.py`(`attempt=job.attempts`) · 테스트 `src/modules/speech/__tests__/task012b.test.ts`(+3: #140 세대 펜싱·호환 / 권고 a 시나리오 — 같은 인스턴스 id 가 5초 뒤 재claim → self-reclaim → 2세대, 1세대의 늦은 AUDIO_INVALID 409·2세대 불변·2세대 보고 수용·15분 기준 불변·로그 한 줄 / 권고 c — self-reclaim·15분 회수 로그 분리·합 계산 3경우, + 본문 검증에 attempt 범위) · `speech/worker/tests/test_handler.py`(본문 단언 2곳 attempt 반영 + 세대 싣기 3경우) · `speech/common/tests/test_worker_calls.py`(+1 additive) · 정본 `docs/design/api-contract.md`(#140 본문·펜싱·`attempt` 문단, §2-30 의사코드) · `speech/worker/README.md`(§2 실패·§6 표·§7). `domain-model.md` §5-8 `RUNNING→QUEUED`(#140) 행 "lockedBy 가 보고한 워커일 때만" 에 "+ attempts=attempt(claim 세대)" 추가 필요 — 다른 개발자 편집 중이라 **Leader 몫으로 남김**. 스키마 0.
+  - 검증(미러 `sync-local.sh` 후): `tsc --noEmit` 0 · eslint(변경 TS 4파일) 0 · `task012b.test.ts` **35/35** · speech 모듈 전체 **177 중 176 PASS·1 skip** / dev venv(`~/.node-local/thekaiwa-speech-dev`, speech/ 스크래치 복사본에서 — NFS 캐시 0): worker pytest **44** · common **22** · gateway 회귀 **55** · ruff·ruff format·mypy strict(worker·common) 통과. 라이브 미실행(계약 양쪽 단위로 확인, QA 스모크 C 가 실제 워커 #140 경로를 탄다). `lockJob`($queryRaw)의 attempts 는 number(기존 라이브 스모크 C 백오프 29.2·119.0초가 `Math.max(attempts,1)` 경로 통과 — bigint 였으면 TypeError).
+  - **U1 주의**: 새 워커는 #140 에 `attempt` 를 싣는데 **현재 운영 릴리스(8af4542)의 앱은 모르는 키로 400** → U1 은 반드시 이 변경이 들어간 릴리스로(앱·워커가 같은 릴리스 디렉토리에서 뜨므로 커밋·배포 후 기동이면 자동 충족). 반대(새 앱 + 구 워커)는 선택 칸이라 문제없음. `ecosystem.config.js`(worker 항목·`SPEECH_WORKER_ID: 'thekaiwa-worker'` → 인스턴스 id `thekaiwa-worker-<8hex>`)·`deploy.yml runtime.apps` worker 항목은 **작업 트리에 있으나 미커밋**(이 세션 중 다른 작업자가 넣은 변경, HEAD 에는 없음 — 나는 무변경).
 
 ## Reviewer 기록
 
@@ -511,6 +522,11 @@ demo_gate:
 
 ## QA 기록
 - 2026-09-29 06:50 Leader 직접 실행 — 아래 "추가 기록"의 QA 절 참고(PASS).
+- 2026-10-01 10:20 Leader 직접 실행(2단계 — 워커 기동 전 사전 QA, REV-041·REV-044 이후): **PASS(사전 항목)**.
+  - 격리 미러 `~/.node-local/thekaiwa-qa-012b`(운영 모드 `next start` 127.0.0.1:3011, 작업 트리 = 012b 변경 + 타 task 미커밋 포함). tsc 0 · build ok · 단위 **897/897** · Python 워커 **22**(common)+**44**(worker) · `task012b-race.ts` **11/11**(S5 고아 회수·재클레임 교차 포함, #138 은 설계상 수용 특성화) · 스모크 012b ABC **55 + 4 + 2 PASS**.
+  - 회귀(같은 서버, 전부 exit 0): 011 AI평가 · 010 오늘의 회화 · **006 AI 채팅 42/42(턴 p50 4.5s — 워커 없음 기준 불변)** · **008 단어장 74/74** · **007 AI 음성 회화 45/45**.
+  - 운영 DB `SpeechJob` 조회: 행 0건(QUEUED·RUNNING 분석 잡 0) → REV-041 (d) 충족. QA 서버(PID 2938767)는 정확한 PID 로 종료, 3011 해제.
+  - **기동 후 실측(배포 뒤 QA)로 남김**: REV-041 high_risk_areas ① health `stt_analysis_worker` ok ≤10초(60초 캐시 주의) ② 워커 1개 중복 처리 0 ③ 강제 실패 `AUDIO_MISSING`·백오프 ④ 재시작 뒤 RUNNING 고아 회수(15분) ⑥ whisper-service 부하 ⑦ `/proc/<pid>/environ` 에 DATABASE_URL·JWT_SECRET 부재 ⑧ 로그 무유출 ⑨ 롤백 리허설(경계 롤백은 `docs/deploy-order.md` §6-1 경고대로 forward-fix 우선) ⑩ race 재실행.
 
 ## 배포 기록
 - 2026-09-29 06:54 `8af4542` push → webhook `RELEASE_RESULT ok`(릴리스 `20260929-065356-8af4542f`, migrated:false). 운영 health = degraded[`stt_analysis_worker`] 만(워커 미등록 — 정상). 운영 스모크 `SMOKE_ENV=PRODUCTION` **007 44/44 · 011 60/60**.
@@ -573,3 +589,79 @@ demo_gate:
 - **검증**: 리뷰 REV-033(수정 후 재검 PASS)·외부 검토(Codex) 지적 2건 수정·재검 PASS, 운영 모드 QA(스모크·동시성 경합 테스트 4/4·기존 기능 회귀 006/007/010/011 전부 통과), 운영 스모크 007 44/44·011 60/60.
 - **다음**: 012b-2(다시 확인 카드·내 발화 기록 화면 — 데모 승인 필요), 012b-3(TTS 지표 — DB 추가 승인), 012b-4(자막 하이라이트용 타이밍 — M4 설치 승인).
 
+### 2026-10-01 08:41 reviewer — 워커 보강 감사 (REV-041)
+
+**판정: CONDITIONAL_PASS** (Critical 0 · High 0 · Medium 2 · Low 5, native_change=false). 범위 = #140 claim 세대 펜싱(`attempt`)·워커 pm2 등록(`ecosystem.config.js`·`deploy.yml`)·테스트 3건. 코드 수정 없음.
+
+**검증 실행(미러)**: `node --import tsx --test` src/modules/speech 177 중 176 통과·0 실패·1 skip(models-manifest, 미러 한정 무관) · `tsc --noEmit` 0 · worker pytest·common pytest 통과(`speech/` 스크래치 복사). 프로젝트 러너가 vitest 가 아니라 node:test(미러에 vitest 없음).
+
+**관점별 결론**
+1. 펜싱 정확성 — `attempts` 는 `markRunning`(db.ts)만 +1, 회수(orphan·self-reclaim)는 유지 → 세대 단조. #140 은 `lockJob`(행 잠금) 뒤 `status·lockedBy·attempts` 3중 검사, 불일치는 쓰기 전에 409(`jobs.ts:154-155`) → 무변경. `attempt` 미지정 경로는 종전(lockedBy 만)과 동일해 신규 구멍 아님.
+2. #138↔#140 — 잠금 순서가 반대(#138 발화→잡, #140 잡→발화)이나 `withTransaction` P2034 재시도(2회)로 흡수. DONE 은 되돌릴 수 없고 FAILED 잡에 늦은 #138 은 409. 실제 행 잠금 경합은 `tests/live/task012b-race.ts` 몫(이번엔 실행 안 함).
+3. 재시도·백오프 — 30s/2m/10m·`failJob` 이 같은 트랜잭션에서 발화 FAILED. 정본과 일치.
+4. 워커 경계(D-B1) — DB 접속 없음, 시크릿 마스킹, 로그는 id·길이·sha1 지문뿐, `resolve_audio` 의 DATA_ROOT 이탈 차단, 엔진명 누출 없음.
+5. ecosystem·deploy.yml — 환경 화이트리스트(DATABASE_URL·JWT_SECRET 없음)·`kill_timeout 75000`·`max_memory_restart 512M`·PYTHONPATH·로그 경로(`shared/logs`)·venv(pyopenjtalk 0.4.1)·릴리스 내 `speech/worker` 존재 모두 일치. 운영 `shared/.env` 필요 키 존재.
+6. 신규 테스트 3건 — 통과·변별력 있음(펜싱 없으면 `attempt:1` 늦은 보고가 attempts=2 RUNNING 행을 FAILED 로 뒤집는 것을 잡음). (c) 분리 로그는 기존 구현을 고정하는 테스트.
+7. 교착·고아 — 새 경로 없음. 회수는 `attempts` 불변 → 다음 claim +1 이라 펜싱과 충돌 없음.
+
+| # | 심각도 | 위치 | 내용 | 권고 |
+|---|---|---|---|---|
+| 1 | Medium(운영) | `HOME-SERVER_CONFIG/servers/linux/deploy/release.sh` `pm2_reload`·`ensure_current_cwd`·`cmd_rollback` | 워커 포함 첫 릴리스를 워커 없는 옛 릴리스로 롤백하면 옛 `ecosystem.config.js` 에 없는 `--only thekaiwa-speech-worker` 를 부른다. `set -euo pipefail` 이라 health_check·emit 전에 중단될 수 있다(pm2 종료 코드는 미실측). 중단 시 워커가 살아남아 `attempt` 를 옛 앱(validate.ts 미지원 → 400)에 보낸다 | 첫 워커 배포 롤백 전에 `pm2 stop·delete thekaiwa-speech-worker` 절차를 정하고 리허설. 자동 롤백(`|| true`)은 관대함 |
+| 2 | Medium(운영) | `~/.local/webhook-deploy` 매핑 `project_TheKaiwa` | 이 커밋 push = `deploy.yml runtime.apps` 에 따라 **U1 자동 실행**. 작업 트리에 다른 task 변경이 다수 | 승인된 시점에만 push, 커밋은 012b 파일만 pathspec 으로 |
+| 3 | Low | `validate.ts` `attempt?` | 미지정 호환 경로는 불필요 — 워커 전환 후 필수화 가능 | 후속 |
+| 4 | Low | `docs/design/domain-model.md` 전이표 | "수동 재시도 FAILED→QUEUED attempts=0" 을 구현하면 세대 번호가 재사용돼 펜싱이 무력화 | 구현 시 `attempts` 리셋 대신 `maxAttempts` 증가 |
+| 5 | Low | `reportJobFailure` 호출 측 | 앱·워커 버전 불일치로 #140 이 400 이면 잡이 RUNNING 으로 남아 self-reclaim 때까지 attempts 소진(비재시도 코드도) | 배포 순서(앱 먼저·워커 마지막) 유지 — 현 `deploy.yml` 순서 OK |
+| 6 | Low | 워커 로그 | 짧은 일본어 문장 sha1 8hex 지문은 무차별 대입 가능 | 프로젝트 수용 패턴, 조치 불요 |
+| 7 | Low | `task012b.test.ts` | 행 잠금 경합은 단위 테스트가 아닌 live 테스트에만 있음 | U1 후 QA 가 race 재실행 |
+
+**QA high_risk_areas(U1 기동 후 실측)**: ① `/api/health` `checks.stt_analysis_worker` 가 기동 ≤10초 안에 ok(단, health 는 60초 캐시 — 기동 직후 조기 호출 금지) ② 워커 1개에서 중복 처리 0 ③ 강제 실패: 저장 전 삭제한 오디오 → `AUDIO_MISSING` FAILED · 재시도 가능 오류 → QUEUED·`runAfter` 30s/2m/10m ④ 워커 재시작 뒤 RUNNING 잡이 15분 고아 회수로 돌아오고 attempts +1 ⑤ 대화 중 분석 잡 0, 턴 p50 불변 ⑥ whisper-service(VoiceVault 공유) 부하 ⑦ `/proc/<pid>/environ` 에 DATABASE_URL·JWT_SECRET 부재 ⑧ 로그에 원문·시크릿 없이 `thekaiwa-worker-<nonce>` id 와 지문만 ⑨ 워커 롤백 리허설 ⑩ `task012b-race.ts` 4/4.
+
+**U1 전 Leader 확인**: (a) push = 자동 배포 = U1 임을 승인 시점과 맞출 것 (b) 012b 파일만 pathspec 커밋(작업 트리에 타 task 변경 다수) (c) 첫 워커 배포 롤백 절차(결함 1) (d) 기동 전 운영 DB 의 QUEUED·RUNNING 분석 잡 수 확인(게이트상 0 예상) (e) venv·pyopenjtalk 사전(완료)·`SPEECH_INTERNAL_SECRET`(완료) 재확인.
+
+### [2026-10-01 08:50] C2 adversarial-review focus=concurrency — done
+- judge 판정: [2026-10-01 12:00] codex_required=true / mode=adversarial-review / focus=concurrency (위 판단 기록) / 호출 차수: 1/4(C2)
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa base=dd9bd94(task_file) snapshot=ef688f4d
+- **지적 1건**: [HIGH] `src/modules/speech/analysis/apply.ts:34` — #138 경로에서 attempt 펜싱 누락. 세대 1 워커가 15분 이상 처리 후 고아 회수·재클레임되어 세대 2가 처리 중일 때, 세대 1의 늦은 #138 결과가 먼저 도착하면 workerId·attempt 검사 없이 정상 저장된다(lines 34-44). 반면 #140(실패 보고)에만 세대 펜싱이 구현됨 → A claim#1 → 고아 회수 → B claim#2 → A 늦은 결과 순서에서 A의 분석 결과(analysisText, confidence, requiresReview)가 최신 세대 B를 덮어쓴다(세대 2가 아직 RUNNING 중). **권고**: #139 응답의 attempts 를 #138에도 필수 요청 → 결과 적용 트랜잭션에서 SpeechJob 잠금 후 status=RUNNING, lockedBy=workerId, attempts=attempt 3중 확인(#140과 동일) → 잡·발화 잠금 순서 정렬 → A→회수→B→A 늦은 #138이 409 무변경인 라이브 경합 테스트 추가. (세대 펜싱의 핵심 보장이 성공 경로에서는 성립 안 함)
+- 검토하지 못한 범위: 실제 MariaDB #138과 고아 회수·재클레임 교차 실행의 라이브 경합 테스트, 운영 pm2 다중 워커 및 롤백 리허설(별도 Medium 지적 — Reviewer REV-041)
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20260930T234622Z-task-012b-C2/raw.txt
+
+**Codex 판정 요약**: 실패 보고 경로(#140)의 attempt 펜싱은 구현되어 있지만 성공 결과 경로(#138)에는 같은 보호가 없다. 그 결과 고아 회수 후 재클레임된 잡에서 이전 세대의 늦은 성공 결과가 최신 세대를 선점할 수 있으므로, 현 변경은 ABA 및 멀티 워커 중복 처리에 대해 **완전한 세대 펜싱을 제공하지 않는다**.
+
+다음: Codex 지적(HIGH 1) 채택·오탐 판정 및 Developer 수정(필요시) → Reviewer 재순환 → QA → Deployer
+
+## Reviewer 판정 (Codex C2 HIGH)
+
+### 2026-10-01 08:53 reviewer — Codex C2 지적 1(#138 attempt 펜싱 누락) 판정 (REV-044)
+
+**판정: 설계상 수용(알려진 수용 동작) — 사실 관계는 정확하나 오탐도 결함도 아니다. HIGH → Low 하향, U1 전 수정 불필요.** Critical 0 · High 0 · Medium 0 · Low 1, native_change=false. 코드·정본은 읽기만 했고 수정하지 않았다.
+
+**근거(직접 읽은 코드)**
+- `apply.ts:31-46` — #138 은 발화 잠금 → `jobOfUtterance`(id·kind·status 만 select) → `ANALYZED` 면 `ALREADY_ANALYZED` → 잡 `FAILED/DONE` 이면 409 → 저장. `lockedBy`·`attempts`·`RUNNING` 을 보지 않는다(`input.workerId` 는 파싱만). `db.ts:195` `storeAnalysis` 가 `speechJob.update({where:{id}})` 로 무조건 `DONE`. Codex 가 그린 시나리오는 코드상 그대로 성립한다.
+- 그러나 `apply.ts` 머리 주석 9행("회수된 잡의 늦은 결과도 발화가 아직 분석 전이면 받는다")과 api-contract §2-28 #138("먼저 온 결과가 이긴다", "#138 은 종전대로 세대 펜싱을 하지 않는다", workerId 도 펜싱에 쓰지 않음), 단위 테스트(`task012b.test.ts` 588-590 QUEUED 잡의 늦은 결과 수용 · 595-596 · 602-603)가 **의도된 정책**으로 고정하고 있다. #140 에만 `attempt` 펜싱을 둔 이유는 "늦은 실패 보고는 살아 있는 작업을 파괴"하지만 "늦은 성공은 여전히 유효한 전사"이기 때문이다(REV-033 권고 a).
+
+**질문별 답**
+- (a) **정확성 문제가 아니라 자원 낭비.** 세대 2 의 잡이 조기 `DONE` 이 되어도 발화는 `ANALYZED` 로 정확히 1회 저장된다. 세대 2 의 나중 #138 → 200 `ALREADY_ANALYZED`(워커는 STORED/ALREADY 로 처리), 나중 #140 → 잡이 RUNNING 이 아니라 409 STALE_CLAIM(워커는 무시). 이중 저장·상태 꼬임 없음. `attempts`·`lockedBy` 는 그대로 남는 감사 흔적.
+- (b) **결과는 사실상 같고, 달라도 둘 다 유효.** 같은 잡 = 같은 오디오·같은 `realtimeText`·같은 분석 엔진·결정적 비교기. 임계·모드·`requiresReview` 는 **앱이 저장 시점에** `AppSetting`+사용자 모드로 계산하므로 세대와 무관. 저장 필드는 `analysisEngine·analysisText·transcriptConfidence·requiresReview·status` + `SpeechAnalysis.engineVersions`(워커 버전 문자열·임계·flags·모드)뿐이고 `finalText`·`finalSource` 는 불변. 차이가 생길 여지는 Whisper 디코딩의 미세 비결정성과 그 사이 `model_label` 변경 정도. `StatsSnapshot`·StudyLog·14일 해시에는 닿지 않는다(분석 STT 는 학습 기록과 무관).
+- (c) **대칭이 아니다 — 의도된 비대칭.** 앞 세대의 늦은 #140 은 `attempt` 불일치로 409(살아 있는 작업 보호). 앞 세대의 늦은 #138 은 잡이 QUEUED(재시도 대기)·RUNNING 이면 저장·`DONE`, 잡이 `FAILED/DONE` 이면 409. 세대 1 이 먼저 #140 으로 실패를 보고해 잡이 QUEUED 가 된 뒤 세대 2 가 성공하는 순서는 정상 재시도 경로다.
+- (d) **workerId 는 인증 수단이 아니다.** 세 worker 라우트 모두 `rejectUnlessWorker → checkInternalCaller`(`X-Internal-Secret` + `X-Service=worker` + `X-Service-Env` 일치)를 통과해야 하고, 그 비밀을 가진 호출자는 이미 임의 잡을 claim·보고할 수 있다. workerId 대조를 더해도 위조 방지 이득은 없고 세대 정리 효과만 있다. #138 은 추가로 jobId↔utteranceId·kind 일치, 비운영 앱의 QA 계정 범위(D-B11), 알려진 분석 연결 키, 예약 키 거부를 검증한다. nginx `/api/internal/` 외부 차단은 기존 사용자 승인 대기 인프라 항목(별개).
+
+**발생 가능성**: 극히 낮다. 워커는 직렬 1 프로세스, 전사 타임아웃 60s·콜백 상한 수 초 → 한 잡이 15분(`ORPHAN_AFTER_MS`)을 넘기려면 프로세스 정지(SIGSTOP·VM 일시정지)·장기 망 분리가 필요하고, 재기동하면 인스턴스 nonce 가 달라져 앞 프로세스는 이미 죽어 있다.
+
+**권고 — 알려진 수용 동작으로 기록(문서·주석만, 코드 동작 변경 없음)**
+> "#138 은 세대·워커를 펜싱하지 않는다 — 먼저 도착한 유효 전사가 이긴다. 15분 넘게 지연된 앞 세대의 결과가 재클레임된 세대의 잡을 조기 `DONE` 으로 만들 수 있으나 발화는 1회만 `ANALYZED` 로 저장되고, 뒤 세대의 #138 은 `ALREADY_ANALYZED`(200)·#140 은 409 STALE_CLAIM 으로 무해하게 끝난다. 손실은 중복 전사 비용뿐이다."
+
+위치: api-contract #138 구현 현황 절 1줄, `apply.ts` 머리 주석에 위 관계 1줄. Low 이슈 1건으로 등재, 후속.
+
+**선택 강화안(Leader 가 원할 때만 — 권장하지 않음, U1 블로커 아님)**: "현재 세대만 저장"으로 바꾸는 방안. ① `validate.ts` `AnalysisInput.attempt?`(1–1000) + `onlyKeys` 허용 키 추가, 워커 `post_analysis(…, attempt)` 가 `job.attempts` 전달(미지정은 종전대로 수용 — 앱 먼저·워커 나중 배포 호환). ② `apply.ts`: #140 과 같은 순서로 **잡 `FOR UPDATE` → 발화 잠금**(jobId 가 본문에 있어 가능, `db.ts` 잠금 순서 주석의 교착 가능성도 해소), `attempt` 가 있고 `status!=='RUNNING' || lockedBy!==workerId || attempts!==attempt` 이면 409 STALE_CLAIM(워커가 이미 IGNORED 처리). 단 **저장은 하되 잡을 건드리지 않는** 절충은 금물 — 뒤 세대가 ALREADY 를 받은 뒤 잡이 RUNNING 으로 남아 재회수·재전사된다. ③ 트레이드오프: 유효한 앞 세대 전사를 버리고 뒤 세대 재전사를 기다리므로 결과는 같고 낭비만 늘 수 있다 — 정확성 이득 없음. ④ 필수 테스트: 단위(`applyRig` 잡 행에 `lockedBy`·`attempts` 추가 — 일치 저장·불일치 409·`attempt` 생략 호환·QUEUED 재시도 잡 처리 결정), live S5(아래).
+
+**실 DB 경합 테스트 가능 여부: 가능.** `tests/live/task012b-race.ts` 의 `oldJob()`·`claimOnce()`·`retire()`·`job()`·`quiet()`·`newUtteranceData()` 와 `claimAnalysisJobs`·`withTransaction` 을 재사용한다. S5 = QA 계정·`APP_ENV≠PRODUCTION`·큐 비었을 때만(기존 가드): A claim(attempts=1) → `lockedAt` 을 16분 전으로 직접 갱신(고아 회수 유도) → B claim(attempts=2) → A 의 #138 → (현행) 저장·잡 DONE / (강화 시) 409·잡 RUNNING 유지 → B 의 #138 → (현행) 200 ALREADY_ANALYZED / (강화 시) 저장 → B 의 #140 → 409. **현행 정책에서도 "특성화 테스트"로 S5 를 추가해 위 무해 종결을 고정하는 것을 권장**(U1 후 QA 재실행 항목에 합류).
+
+**U1 전 수정 필요 여부: 불필요.** 수정하지 않아도 정확성·보안·학습 원칙 위반이 없고 위 문서·주석 1줄과 S5 특성화는 U1 이후 후속으로 충분하다. 기존 REV-041 의 U1 전 확인 (a)~(d) 는 그대로 유효.
+
+**Codex 지적 처리 요약**: 지적 1 = **범위 내·사실 정확·설계상 수용**(채택 안 함, Developer 재순환 없음). 세부 권고 ① `attempts` 필수화는 기존 호환(미지정 수용) 정책과 충돌해 채택하지 않음, ② 잠금 순서 정렬은 교착이 `withTransaction` P2034 재시도로 이미 흡수돼 **선택(Low)**, ③ 실 DB 경합 테스트는 **채택(후속, S5 특성화)**.
+
+| # | 심각도 | 위치 | 내용 | 권고 |
+|---|---|---|---|---|
+| 1 | Low | `apply.ts:34-46`·api-contract #138 | 앞 세대 늦은 #138 이 재클레임된 세대의 잡을 조기 DONE(발화는 1회만 저장 — 해 없음). 문서화 미흡 | 알려진 수용 동작 1줄 기록 + S5 특성화 테스트 |
+
+**QA high_risk_areas**: 기존 REV-041 목록 유지 + U1 후 race 재실행 시 S5(고아 회수·재클레임 교차) 1건 추가.

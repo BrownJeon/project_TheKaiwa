@@ -53,16 +53,19 @@ export interface FailureInput {
   workerId: string
   error: string
   retryable: boolean
+  /** claim 세대 — 그 claim 응답의 `attempts` 그대로. 있으면 펜싱에 더한다(없으면 인스턴스 id 만 — 구버전 워커 호환). */
+  attempt?: number
 }
 
-/** #140 `{workerId, status:'FAILED', error(코드값), retryable}` — 성공은 #138 이 끝낸다. */
+/** #140 `{workerId, status:'FAILED', error(코드값), retryable, attempt?}` — 성공은 #138 이 끝낸다. */
 export function parseFailureBody(body: Record<string, unknown>): FailureInput {
-  onlyKeys(body, ['workerId', 'status', 'error', 'retryable'])
+  onlyKeys(body, ['workerId', 'status', 'error', 'retryable', 'attempt'])
   const workerId = workerIdOf(body.workerId)
   if (body.status !== 'FAILED') bad('status', 'only FAILED')
   if (typeof body.error !== 'string' || !ERROR_CODE_RE.test(body.error)) bad('error', 'code format')
   if (typeof body.retryable !== 'boolean') bad('retryable', 'boolean')
-  return { workerId, error: body.error, retryable: body.retryable }
+  if (body.attempt !== undefined && (typeof body.attempt !== 'number' || !Number.isInteger(body.attempt) || body.attempt < 1 || body.attempt > 1000)) bad('attempt', 'range 1..1000')
+  return { workerId, error: body.error, retryable: body.retryable, ...(body.attempt !== undefined ? { attempt: body.attempt as number } : {}) }
 }
 
 export interface AnalysisInput {

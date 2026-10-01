@@ -64,9 +64,16 @@ class InternalClient:
             raise CallbackError("invalid body", 200)
         return [j for j in jobs if isinstance(j, dict)]
 
-    async def report_failure(self, job_id: str, worker_id: str, error: str, retryable: bool, trace_id: str) -> Mapping[str, Any]:
-        """#140 — `409`(회수된 잡 STALE_CLAIM)는 CallbackError(status=409) 로 올라간다(호출자가 무시)."""
-        body = {"workerId": worker_id, "status": "FAILED", "error": error, "retryable": retryable}
+    async def report_failure(
+        self, job_id: str, worker_id: str, error: str, retryable: bool, trace_id: str, attempt: int | None = None
+    ) -> Mapping[str, Any]:
+        """#140 — `409`(회수된 잡·앞 claim 세대 STALE_CLAIM)는 CallbackError(status=409) 로 올라간다(호출자가 무시).
+
+        `attempt` = 그 잡을 받은 claim 응답의 `attempts`(claim 세대) — 앱이 펜싱에 더한다. 모르면(0·None) 싣지 않는다.
+        """
+        body: dict[str, Any] = {"workerId": worker_id, "status": "FAILED", "error": error, "retryable": retryable}
+        if attempt is not None and attempt >= 1:
+            body["attempt"] = attempt
         return await self._post(f"/api/internal/speech/jobs/{self._id(job_id)}/result", body, trace_id)
 
     async def post_analysis(self, utterance_id: str, payload: Mapping[str, Any], trace_id: str) -> Mapping[str, Any]:

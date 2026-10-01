@@ -138,5 +138,42 @@ module.exports = {
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
+    {
+      // 분석 STT 워커(task-012b) — 포트를 열지 않고 앱 내부 HTTP(/api/internal/speech/jobs/claim)를 폴링한다(D-B4).
+      // DB 에 접속하지 않으므로 DATABASE_URL 은 넘기지 않는다(D-B1). 운영 워커는 1개(instances: 1) — 전사가 호스트 CPU 를 다 쓴다.
+      // 의존성(pyopenjtalk·tqdm)은 gateway 와 같은 venv 에 설치되어 있어야 한다(requirements.txt 변경 = 별도 승인 작업).
+      // 읽기 변환기가 안 되면 claim 하지 않고 대기한다 — 그 동안 /api/health 의 checks.stt_analysis_worker 가 degraded 다.
+      name: 'thekaiwa-speech-worker',
+      script: `${SPEECH_VENV}/bin/python`,
+      args: 'main.py',
+      interpreter: 'none',
+      cwd: `${HERE}/speech/worker`,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      // 전사는 whisper-service(:8090) 가 하므로 워커 프로세스는 가볍다(wav 읽기·비교·HTTP).
+      max_memory_restart: '512M',
+      // SIGTERM 은 지금 잡을 끝내고 멈춘다 — 분석 STT 타임아웃(60s)+콜백이 들어갈 여유.
+      kill_timeout: 75000,
+      env: {
+        ...pickNonEmpty(dotenv, [
+          'APP_ENV',
+          'DATA_ROOT',
+          'SPEECH_INTERNAL_SECRET',
+          'APP_INTERNAL_URL',
+          'SPEECH_LOG_LEVEL',
+          'WHISPER_SERVICE_URL',
+        ]),
+        SPEECH_CONFIG_PATH: path.resolve(HERE, dotenv.SPEECH_CONFIG_PATH || 'speech/speech.config.yml'),
+        SPEECH_WORKER_ID: 'thekaiwa-worker',
+        PYTHONPATH: `${HERE}/speech/worker:${HERE}/speech/common`,
+        PYTHONDONTWRITEBYTECODE: '1',
+        PYTHONUNBUFFERED: '1',
+      },
+      out_file: `${LOG_DIR}/speech-worker-out.log`,
+      error_file: `${LOG_DIR}/speech-worker-err.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    },
   ],
 }

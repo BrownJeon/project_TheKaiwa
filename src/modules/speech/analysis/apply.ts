@@ -7,6 +7,7 @@
  * 이미 학습자가 직접 고친 발화(`finalSource=USER` — 채팅 턴 "글자로 고치기")는 `requiresReview=false` 로 저장한다(⑫ Leader 2026-09-29) —
  * 재확인 카드가 학습자 텍스트를 덮어쓸 여지를 없앤다(#21a 409). 유사도·임계 스냅샷은 그대로 남겨 분석 품질 지표로 쓴다.
  * 회수된 잡의 늦은 결과도 발화가 아직 분석 전이면 받는다(잡이 QUEUED 여도 DONE 으로). 확정 실패(FAILED)한 잡의 결과는 409 STALE_CLAIM.
+ * 세대 펜싱은 하지 않는다(알려진 수용 동작, REV-044): 앞 세대의 늦은 성공이 뒤 세대 잡을 조기 DONE 으로 만들어도 발화는 1회만 저장되고 뒤 세대는 ALREADY_ANALYZED·409 로 무해하게 끝난다.
  */
 import type { FinalSource, Prisma } from '@prisma/client'
 import { ApiError } from '@/modules/infra'

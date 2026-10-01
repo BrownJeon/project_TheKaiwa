@@ -1625,8 +1625,9 @@ Playground 요청은 사용자 데이터를 만들지 않는다(`Chat/ChatMessag
   - **워커 쪽 claim 요청 타임아웃 30초**(2026-09-29): 앱 트랜잭션(최대 15초)+잠금 대기보다 길게 — 공유 NAS DB 커밋 지연으로 claim 이 5초를 넘은 1회에 앱은 `RUNNING` 을 커밋했지만 워커가 응답을 못 받아 잡이 15분 고착된 실측이 근거. 그래도 끊기면 같은 인스턴스의 다음 claim(self-reclaim)이 되돌린다.
   - **환경 필터(D-B11)**: `APP_ENV ≠ PRODUCTION` 앱은 **QA 계정(provider `test`) 발화의 잡만** 돌려준다 — 개발·운영이 같은 DB·같은 `DATA_ROOT` 를 쓰므로 개발 코드가 실사용자 발화를 갱신하지 않게. 운영 앱은 필터 없음(운영 워커가 개발 QA 잡을 처리하는 것은 QA 데이터라 허용). **한계**: 운영 워커가 떠 있으면 개발 QA 잡을 운영 코드가 먼저 가져갈 수 있다 — 개발 라이브 검증은 결과 계약만 보고, 개발 코드 경로는 단위 테스트·운영 워커가 없는 동안의 라이브로 확인한다. `SpeechJob.environment` 칸은 두지 않는다(필요해지면 별도 스키마 승인).
   - **하트비트(D-B3·D-B4)**: 이 호출을 받은 시각을 프로세스 메모리에 둔다 — #21 적재 게이트(120초)와 `/api/health` `checks.stt_analysis_worker`(마지막 claim 120초 안 = ok, 아니면 degraded·비차단)의 근거. 빈 응답이어도 하트비트는 갱신된다(worker 는 `speech.config.yml worker.poll_interval_ms`(현 1초) 간격, 빈 응답이면 두 배씩 최대 10초 — 게이트 120초 안).
-- #140 `POST /api/internal/speech/jobs/:id/result` `{ "workerId": "worker-1-3f9a0c1e", "status": "FAILED", "error": "ANALYSIS_TIMEOUT"(≤300, 엔진 중립 코드값·원문 없음), "retryable": true }` → `{ "ok": true, "jobStatus": "QUEUED" | "FAILED" }`.
-  - 펜싱: `status=RUNNING AND lockedBy=workerId`(인스턴스 id 정확 일치) 가 아니면 `409 STALE_CLAIM`(회수·재클레임된 잡, 다른 인스턴스의 잡 — worker 는 무시).
+- #140 `POST /api/internal/speech/jobs/:id/result` `{ "workerId": "worker-1-3f9a0c1e", "status": "FAILED", "error": "ANALYSIS_TIMEOUT"(≤300, 엔진 중립 코드값·원문 없음), "retryable": true, "attempt": 1 }` → `{ "ok": true, "jobStatus": "QUEUED" | "FAILED" }`.
+  - 펜싱: `status=RUNNING AND lockedBy=workerId`(인스턴스 id 정확 일치) **AND `attempts=attempt`**(claim 세대) 가 아니면 `409 STALE_CLAIM`(회수·재클레임된 잡, 다른 인스턴스의 잡, 앞 claim 세대 — worker 는 무시).
+  - **`attempt`(claim 세대, 2026-10-01 REV-033 권고 a)** = 그 잡을 받은 #139 응답의 `attempts` 그대로(1~1000 정수). `attempts` 는 claim 때만 +1 되고 회수·재적재로 줄지 않아 RUNNING 기간마다 값이 다르다 → 인스턴스 id 가 겹쳐 self-reclaim 이 쥔 잡을 되돌려 다시 나눠 준 경우에도, 앞 세대의 늦은 실패 보고가 지금 세대를 `FAILED` 로 뒤집어 그 세대의 #138 결과를 `409` 로 버리게 하지 못한다. 선택 칸(additive) — 없으면 인스턴스 id 만으로 펜싱(구버전 워커 호환), 현 워커는 늘 싣는다. 스키마 변경 없음(기존 `SpeechJob.attempts`). #138 은 종전대로 세대 펜싱을 하지 않는다("먼저 온 결과가 이긴다"). **알려진 수용 동작(REV-044, Codex C2 지적을 Low 로 판정)**: 15분 넘게 지연된 앞 세대의 결과가 재클레임된 세대의 잡을 조기 `DONE` 으로 만들 수 있으나 발화는 1회만 `ANALYZED` 로 저장되고, 뒤 세대의 #138 은 `200 ALREADY_ANALYZED`·#140 은 `409 STALE_CLAIM` 으로 무해하게 끝난다 — 손실은 중복 전사 비용뿐이다(늦은 실패 보고는 살아 있는 작업을 파괴하므로 `attempt` 로 막고, 늦은 성공은 유효한 전사라 받는 의도된 비대칭).
   - `retryable && attempts < maxAttempts(3)` → `QUEUED`, `runAfter = now + 30초 · 2분 · 10분`(attempts 1·2·3 순), `lockedBy/lockedAt` 비움. 그 밖 → `FAILED`(`finishedAt`) + `Utterance.status=FAILED`(한 트랜잭션, 재확인 카드 대상 아님).
   - 재시도 대상(D-B10): 분석 서비스 연결 실패·503·타임아웃·앱 콜백 5xx(`ANALYSIS_UNAVAILABLE`·`ANALYSIS_TIMEOUT`·`ANALYSIS_SERVER_ERROR`·`CALLBACK_FAILED` 등 — 워커가 `retryable` 로 알림). 즉시 실패: 분석 서비스 4xx 등 워커가 `retryable:false` 로 보낸 것 + **앱이 코드로 강제하는 4종 `AUDIO_MISSING`·`AUDIO_INVALID`·`EMPTY_TRANSCRIPTS`·`READING_UNAVAILABLE`**(워커가 `retryable:true` 를 보내도 확정 실패 — 재시도해도 결과가 같다, ③). `READING_UNAVAILABLE` = 읽기 변환기 없음(정상 워커는 이 상태로 claim 하지 않는다).
   - 성공은 #140 을 부르지 않는다 — #138 이 같은 트랜잭션에서 `DONE`.
@@ -1720,7 +1721,7 @@ loop:  (2026-09-29 구현) 잡을 처리했으면 바로 다음 claim · 빈 응
     cmp   = comparator(job.realtimeText, text)                # NFKC·구두점 제거·가나 접기·한자 읽기(pyopenjtalk) → 편집거리 유사도 + flags
     pron  = PronunciationAnalyzer(path, text)  if kind == PRONUNCIATION (Phase 3)
     POST /api/internal/speech/utterances/{utteranceId}/analysis {jobId, workerId, …}   (#138 → 앱이 같은 트랜잭션에서 DONE)
-  on error: POST #140 {status:FAILED, error:<코드>, retryable}  → 앱이 백오프(30s·2m·10m) 재적재 또는 확정 실패
+  on error: POST #140 {status:FAILED, error:<코드>, retryable, attempt:job.attempts}  → 앱이 백오프(30s·2m·10m) 재적재 또는 확정 실패
 SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못한 잡은 15분 뒤 고아 회수가 되돌린다(재기동한 워커는 새 부트 nonce = 새 인스턴스 id 라 self-reclaim 대상이 아니다)
 ```
 

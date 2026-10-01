@@ -223,6 +223,11 @@ test('#139·#140 본문 검증', () => {
   assert.deepEqual(parseFailureBody({ workerId: 'w', status: 'FAILED', error: 'ANALYSIS_TIMEOUT', retryable: true }), { workerId: 'w', error: 'ANALYSIS_TIMEOUT', retryable: true })
   assert.throws(() => parseFailureBody({ workerId: 'w', status: 'DONE', error: 'X', retryable: true }), ApiError)
   assert.throws(() => parseFailureBody({ workerId: 'w', status: 'FAILED', error: '昨日の文', retryable: true }), ApiError, '원문 같은 값은 코드가 아니다')
+  // claim 세대(attempt) — 선택 칸(additive), 1 이상 정수만
+  assert.deepEqual(parseFailureBody({ workerId: 'w', status: 'FAILED', error: 'X', retryable: false, attempt: 2 }), { workerId: 'w', error: 'X', retryable: false, attempt: 2 })
+  for (const attempt of [0, -1, 1.5, '1', true, null, 1001]) {
+    assert.throws(() => parseFailureBody({ workerId: 'w', status: 'FAILED', error: 'X', retryable: false, attempt }), ApiError, `attempt=${String(attempt)}`)
+  }
 })
 
 const analysisBody = (p: Record<string, unknown> = {}) => ({
@@ -440,6 +445,83 @@ test('#140: 재시도면 QUEUED(30초 뒤), 한도·재시도 불가면 FAILED(+
   assert.deepEqual(calls.fail, [{ id: 'j1', error: 'ANALYSIS_UNAVAILABLE' }])
   calls = failureRig(lockedJob())
   assert.equal((await reportJobFailure('j1', { workerId: 'w1', error: 'AUDIO_MISSING', retryable: false }, new Date(NOW))).jobStatus, 'FAILED')
+})
+
+test('#140 claim 세대 펜싱: attempt 가 지금 attempts 와 다르면 409(바꾸지 않음) · 같으면 받음 · attempt 없으면 인스턴스 id 만(호환)', async () => {
+  process.env.APP_ENV = 'PRODUCTION'
+  let calls = failureRig(lockedJob({ attempts: 2 }))
+  assert.deepEqual(await rejects(reportJobFailure('j1', { workerId: 'w1', error: 'AUDIO_MISSING', retryable: false, attempt: 1 }, new Date(NOW))), ['CONFLICT', 'STALE_CLAIM'])
+  assert.deepEqual([calls.requeue, calls.fail], [[], []], '앞 세대의 보고는 아무것도 바꾸지 않는다')
+  calls = failureRig(lockedJob({ attempts: 2 }))
+  assert.deepEqual(await reportJobFailure('j1', { workerId: 'w1', error: 'ANALYSIS_UNAVAILABLE', retryable: true, attempt: 2 }, new Date(NOW)), { ok: true, jobStatus: 'QUEUED' })
+  calls = failureRig(lockedJob({ attempts: 2 }))
+  assert.deepEqual(await reportJobFailure('j1', { workerId: 'w1', error: 'ANALYSIS_UNAVAILABLE', retryable: true }, new Date(NOW)), { ok: true, jobStatus: 'QUEUED' })
+  failureRig(lockedJob({ attempts: 2, lockedBy: 'w2' }))
+  assert.deepEqual(await rejects(reportJobFailure('j1', { workerId: 'w1', error: 'X', retryable: true, attempt: 2 })), ['CONFLICT', 'STALE_CLAIM'], '세대가 같아도 다른 인스턴스는 409')
+})
+
+test('REV-033 권고 a: 인스턴스 id 가 겹쳐 self-reclaim 이 5초 전에 나간 잡을 되돌려 다시 나눠 줘도 앞 세대의 늦은 실패 보고는 지금 세대를 바꾸지 못한다', async (t) => {
+  process.env.APP_ENV = 'PRODUCTION'
+  const warn = t.mock.method(console, 'warn', () => {})
+  const X = 'worker-1-aaaa1111'
+  // 잡 1행의 DB 상태 흉내 — 조건부 갱신(WHERE status·lockedBy·lockedAt)을 그대로 따른다.
+  const row: LockedJob & { lockedAt: Date | null; createdAt: Date } = { id: 'j1', userId: QA, utteranceId: 'u1', kind: 'ANALYSIS_STT', status: 'QUEUED', lockedBy: null, lockedAt: null, attempts: 0, maxAttempts: 3, createdAt: new Date(NOW - 60_000) }
+  const orphanRow = (): OrphanRow => ({ id: row.id, utteranceId: row.utteranceId, attempts: row.attempts, maxAttempts: row.maxAttempts })
+  let orphanCutoff: Date | null = null
+  Object.assign(analysisDb, {
+    transaction: async <T>(fn: (tx: Tx) => Promise<T>) => fn(FAKE_TX),
+    hasClaimable: async () => true,
+    recognitionModes: async () => new Map(),
+    orphans: async (_tx: Tx, cutoff: Date) => ((orphanCutoff = cutoff), row.status === 'RUNNING' && row.lockedAt! < cutoff ? [orphanRow()] : []),
+    ownStale: async (_tx: Tx, workerId: string) => (row.status === 'RUNNING' && row.lockedBy === workerId ? [orphanRow()] : []),
+    requeueOrphan: async (_tx: Tx, _id: string, cutoff: Date) => {
+      if (row.status !== 'RUNNING' || !(row.lockedAt! < cutoff)) return 0
+      Object.assign(row, { status: 'QUEUED', lockedBy: null, lockedAt: null })
+      return 1
+    },
+    lockQueued: async () => (row.status === 'QUEUED' ? [{ id: row.id, userId: row.userId, createdAt: row.createdAt }] : []),
+    lastUtteranceAt: async () => new Map(),
+    markRunning: async (_tx: Tx, _ids: string[], workerId: string, now: Date) => {
+      if (row.status !== 'QUEUED') return 0
+      Object.assign(row, { status: 'RUNNING', lockedBy: workerId, lockedAt: now, attempts: row.attempts + 1 })
+      return 1
+    },
+    claimedRows: async (): Promise<ClaimedRow[]> => [{ id: row.id, kind: row.kind, attempts: row.attempts, userId: row.userId, utteranceId: row.utteranceId, audioPath: `users/${QA}/utterances/2026-09/u1.wav`, audioDeletedAt: null, realtimeText: 'x' }],
+    lockJob: async (): Promise<LockedJob> => ({ id: row.id, userId: row.userId, utteranceId: row.utteranceId, kind: row.kind, status: row.status, lockedBy: row.lockedBy, attempts: row.attempts, maxAttempts: row.maxAttempts }),
+    requeueJob: async () => (Object.assign(row, { status: 'QUEUED', lockedBy: null, lockedAt: null }), {}),
+    failJob: async () => void Object.assign(row, { status: 'FAILED' }),
+  })
+  const a = await claimAnalysisJobs({ workerId: X, kinds: ['ANALYSIS_STT'], max: 1 }, new Date(NOW))
+  assert.equal(a.jobs[0]?.attempts, 1, 'A 가 1세대를 받음')
+  const b = await claimAnalysisJobs({ workerId: X, kinds: ['ANALYSIS_STT'], max: 1 }, new Date(NOW + 5_000))
+  assert.equal(b.jobs[0]?.attempts, 2, '같은 인스턴스 id 의 재claim = self-reclaim 후 2세대')
+  assert.equal(orphanCutoff!.getTime(), NOW + 5_000 - 15 * 60_000, '15분 고아 회수 기준은 그대로')
+  assert.deepEqual(warn.mock.calls.map((c) => String(c.arguments[0])), [`[speech] 분석 잡 응답 유실 복구 worker=${X} jobs=1`], 'self-reclaim 만 따로 한 줄')
+  // A 의 늦은 확정 실패(1세대) — 종전(인스턴스 id 만)이면 2세대를 FAILED 로 뒤집어 B 의 #138 을 409 로 버리게 했다
+  assert.deepEqual(await rejects(reportJobFailure('j1', { workerId: X, error: 'AUDIO_INVALID', retryable: false, attempt: 1 }, new Date(NOW + 6_000))), ['CONFLICT', 'STALE_CLAIM'])
+  assert.deepEqual({ status: row.status, lockedBy: row.lockedBy, attempts: row.attempts }, { status: 'RUNNING', lockedBy: X, attempts: 2 }, '2세대 불변')
+  assert.deepEqual(await reportJobFailure('j1', { workerId: X, error: 'ANALYSIS_UNAVAILABLE', retryable: true, attempt: 2 }, new Date(NOW + 7_000)), { ok: true, jobStatus: 'QUEUED' })
+})
+
+test('REV-033 권고 c: self-reclaim(응답 유실 복구)과 15분 고아 회수를 따로 로그 — 15분 줄은 self-reclaim 을 빼고 센다', async (t) => {
+  process.env.APP_ENV = 'PRODUCTION'
+  const warn = t.mock.method(console, 'warn', () => {})
+  const lines = () => warn.mock.calls.map((c) => String(c.arguments[0]))
+  const claim = () => claimAnalysisJobs({ workerId: 'w1', kinds: ['ANALYSIS_STT'], max: 1 }, new Date(NOW))
+  const calls = claimRig([], [{ id: 'old', utteranceId: 'uo', attempts: 1, maxAttempts: 3 }])
+  analysisDb.ownStale = async (_tx, w) => (w === 'w1' ? [{ id: 'mine', utteranceId: 'um', attempts: 1, maxAttempts: 3 }] : [])
+  await claim()
+  assert.deepEqual(calls.requeueOrphan, ['old', 'mine'])
+  assert.deepEqual(lines(), ['[speech] 분석 잡 응답 유실 복구 worker=w1 jobs=1', '[speech] 분석 잡 고아 회수(15분) requeued·failed 합=1 (전체 requeued=2 failed=0)'])
+  warn.mock.resetCalls()
+  claimRig([])
+  analysisDb.ownStale = async () => [{ id: 'mine', utteranceId: 'um', attempts: 1, maxAttempts: 3 }]
+  await claim()
+  assert.deepEqual(lines(), ['[speech] 분석 잡 응답 유실 복구 worker=w1 jobs=1'], '자기 잡만이면 15분 줄 없음')
+  warn.mock.resetCalls()
+  claimRig([], [{ id: 'old', utteranceId: 'uo', attempts: 3, maxAttempts: 3 }])
+  await claim()
+  assert.deepEqual(lines(), ['[speech] 분석 잡 고아 회수(15분) requeued·failed 합=1 (전체 requeued=0 failed=1)'], '15분 회수만이면 self-reclaim 줄 없음')
 })
 
 test('#140 펜싱: 다른 워커·RUNNING 아님 409 STALE_CLAIM · 없음·비운영에서 실사용자 잡 404', async () => {

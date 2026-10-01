@@ -4,8 +4,8 @@
  *  #139 claim(한 트랜잭션): ① 고아 회수(RUNNING·lockedAt 15분↑, 그리고 **같은 워커가 쥔 채 남은 RUNNING** — 응답 유실 복구 → QUEUED,
  *       한도를 다 쓴 잡은 FAILED + 발화 FAILED) ② `FOR UPDATE SKIP LOCKED` 로
  *       QUEUED·runAfter 지난 잡 max 개 잠금 ③ RUNNING·attempts+1·lockedBy/lockedAt/startedAt ④ 발화는 QUEUED 유지. 받은 시각 = 워커 하트비트.
- *  #140 실패 보고(한 트랜잭션): 잡 잠금 → 펜싱(RUNNING·lockedBy=보고한 워커, 아니면 409 STALE_CLAIM) → 재시도면 QUEUED(runAfter 30s·2m·10m),
- *       아니면 FAILED + 발화 FAILED.
+ *  #140 실패 보고(한 트랜잭션): 잡 잠금 → 펜싱(RUNNING·lockedBy=보고한 워커·attempts=보고한 claim 세대, 아니면 409 STALE_CLAIM)
+ *       → 재시도면 QUEUED(runAfter 30s·2m·10m), 아니면 FAILED + 발화 FAILED.
  *  환경 필터(D-B11): APP_ENV ≠ PRODUCTION 프로세스는 QA 계정 발화의 잡만 보고·바꾼다(개발·운영이 같은 DB·DATA_ROOT) — 고아 회수·#140 포함.
  */
 import type { RecognitionMode, SpeechJobKind } from '@prisma/client'
@@ -141,13 +141,18 @@ export interface FailureResult {
 
 const jobNotFound = () => new ApiError('NOT_FOUND', '요청한 항목을 찾을 수 없습니다.')
 
-/** #140 — 성공은 부르지 않는다(#138 이 같은 트랜잭션에서 DONE). */
+/**
+ * #140 — 성공은 부르지 않는다(#138 이 같은 트랜잭션에서 DONE).
+ * claim 세대(`attempts` — claim 때만 +1, 회수해도 그대로라 세대마다 다르다)까지 맞아야 받는다: 인스턴스 id 가 겹쳐 self-reclaim 이 쥔 잡을 되돌리고
+ * 다시 나눠 준 경우에도 앞 세대의 늦은 실패 보고가 지금 세대를 FAILED 로 뒤집어 그 세대의 #138 결과를 409 로 버리게 하지 못한다(REV-033 권고 a).
+ */
 export async function reportJobFailure(jobId: string, input: FailureInput, now = new Date()): Promise<FailureResult> {
   const scope = await jobUserScope()
   return analysisDb.transaction(async (tx) => {
     const job = await analysisDb.lockJob(tx, jobId)
     if (!job || !inScope(scope, job.userId)) throw jobNotFound()
-    if (job.status !== 'RUNNING' || job.lockedBy !== input.workerId) throw new ApiError('CONFLICT', '이미 회수됐거나 다른 워커가 가진 잡입니다.', { reason: 'STALE_CLAIM' })
+    const staleGeneration = input.attempt !== undefined && job.attempts !== input.attempt
+    if (job.status !== 'RUNNING' || job.lockedBy !== input.workerId || staleGeneration) throw new ApiError('CONFLICT', '이미 회수됐거나 다른 워커가 가진 잡입니다.', { reason: 'STALE_CLAIM' })
     const next = nextAfterFailure({ attempts: job.attempts, maxAttempts: job.maxAttempts, retryable: input.retryable, error: input.error }, now.getTime())
     if (next.status === 'QUEUED') {
       await analysisDb.requeueJob(tx, job.id, next.runAfter, input.error)

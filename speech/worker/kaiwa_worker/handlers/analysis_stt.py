@@ -4,7 +4,8 @@
   → 분석 STT(엔진은 레지스트리가 준 것 — 이 파일은 엔진명을 모른다, 실패 → SttRequestError 코드·retryable)
   → 비교기(both_empty → EMPTY_TRANSCRIPTS) → #138(앱이 requiresReview 판정·한 트랜잭션 저장)
   #138 응답: 200 끝 · 404/409(잡이 이 발화 것이 아님·이미 끝남) 무시 · 그 밖 4xx → CALLBACK_REJECTED(재시도 없음) · 5xx·연결·타임아웃 → CALLBACK_FAILED(재시도).
-  실패는 #140 으로 보고(409 STALE_CLAIM 은 무시). 보고마저 실패하면 잡은 RUNNING 으로 남고 15분 뒤 앱의 고아 회수가 되돌린다.
+  실패는 #140 으로 보고(claim 세대 `attempt` 포함 — 409 STALE_CLAIM 은 무시). 보고마저 실패하면 잡은 RUNNING 으로 남고 다음 claim 의 self-reclaim
+  (또는 15분 고아 회수)이 되돌린다.
 로그: 잡 id·시도·길이·지문·similarity·flags·코드값만 — 전사 원문·경로 없음.
 """
 
@@ -93,7 +94,7 @@ def _ctx(deps: HandlerDeps) -> EngineContext:
 
 async def _report(deps: HandlerDeps, job: ClaimedJob, code: str, retryable: bool, trace: str) -> Outcome:
     try:
-        data = await deps.client.report_failure(job.id, deps.worker_id, code, retryable, trace)
+        data = await deps.client.report_failure(job.id, deps.worker_id, code, retryable, trace, attempt=job.attempts)
         status = data.get("jobStatus") if isinstance(data.get("jobStatus"), str) else "?"
         log.warning("job failed job=%s attempts=%d error=%s retryable=%s jobStatus=%s trace=%s", job.id, job.attempts, code, retryable, status, trace)
         return Outcome("FAILED", code, retryable, str(status))
