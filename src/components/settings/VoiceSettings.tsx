@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiGet, apiPut, errorMessage } from '@/components/common/api'
 import Segmented from '@/components/common/Segmented'
 import TeacherAvatar from '@/components/common/TeacherAvatar'
@@ -10,11 +10,24 @@ import TtsRuntimeStatusIndicator from '@/components/speech/TtsRuntimeStatusIndic
 import VoicePreviewButton from '@/components/speech/VoicePreviewButton'
 import { useTtsRuntimeStatus } from '@/components/speech/useTtsRuntimeStatus'
 import { useVoicePreview } from '@/components/speech/useVoicePreview'
+import VoiceSlider, { VoiceNote } from './VoiceSlider'
+import {
+  comboNote,
+  effectiveStyle,
+  hasChangedFromDefault,
+  rangeNote,
+  resetVoiceValues,
+  styleWeightNote,
+  voiceBaseValues,
+  type VoiceBaselines,
+  type VoiceRanges,
+} from './voiceSliderLogic'
 
 interface Voice {
   id: string
   name: string
   description: string | null
+  defaults?: { style?: string; styleWeight?: number; speed?: number; pitch?: number; intonation?: number }
   styles: { name: string; label: string }[]
 }
 type SpeechProfile = 'NATIVE' | 'LEARNING_NORMAL' | 'LEARNING_SLOW'
@@ -34,21 +47,14 @@ const PROFILE_OPTIONS = [
   { value: 'LEARNING_SLOW', label: '천천히' },
 ] as const
 
-function Slider({ id, label, value, min, max, onChange }: { id: string; label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
-  return (
-    <Field label={`${label} ${value.toFixed(2)}×`} htmlFor={id}>
-      {/* 기본 range 의 손잡이는 작다 — 트랙 높이 44px 로 터치 영역을 확보한다. */}
-      <input id={id} type="range" min={min} max={max} step={0.05} value={value} onChange={(e) => onChange(Number(e.target.value))} className="h-11 w-full accent-[var(--accent)]" aria-valuetext={`${value.toFixed(2)}배`} />
-    </Field>
-  )
-}
-
 /**
  * 설정 허브 · AI 선생님(api-contract #13·#14·#17·#18, screens §7). 목소리 이름·설명만 보이고 엔진·모델명은 보이지 않는다.
  * 머리에 선생님 아바타·이름과 **실행 상태 표시등**. 미리듣기는 통합 버튼 1개 — **저장 전 draft**(들려주는 방식 포함)로 합성해 바로 재생하고,
  * 설정을 바꾸면 재생을 멈추고 대기 중 결과를 버린다. 미리듣기 결과는 표시등의 복귀·장애 신호가 된다.
+ * 슬라이더 범위(`ranges`)는 서버 검증과 같은 정본을 라우트가 넘긴다(task-022). 저장된 값은 범위를 넓히기 전 값도 그대로 읽는다.
+ * 슬라이더의 "기본"(눈금·방향 말·되돌리기 판정·되돌리기 값)은 목소리 기본값(`baselines`, 라우트가 넘김 — 없으면 #17 defaults)을 서버 Resolver 순서로 푼 값이다.
  */
-export default function VoiceSettings({ teacherName }: { teacherName: string }) {
+export default function VoiceSettings({ teacherName, ranges, baselines }: { teacherName: string; ranges: VoiceRanges; baselines: VoiceBaselines }) {
   const [voices, setVoices] = useState<Voice[] | null>(null)
   const [s, setS] = useState<VoiceSetting | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +64,7 @@ export default function VoiceSettings({ teacherName }: { teacherName: string }) 
   const status = useTtsRuntimeStatus()
   const preview = useVoicePreview({ onError: showToast, onSignal: status.reportSynthesis })
   const announce = useCallback((msg: string) => showToast(msg, 4000), [showToast])
+  const intonationRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -106,6 +113,19 @@ export default function VoiceSettings({ teacherName }: { teacherName: string }) 
     preview.invalidate()
     setS(next)
   }
+  const baseline = baselines[current.id] ?? current.defaults
+  const voiceDefaultStyle = baseline?.style
+  const base = voiceBaseValues(baseline, effectiveStyle(s.style, current.styles, voiceDefaultStyle), ranges)
+  // 말투 세기 null = 목소리·말투 기본값을 따른다(Resolver 2순위 이하) — 슬라이더는 실제로 들리는 값을 보여 준다.
+  const weight = s.styleWeight ?? base.styleWeight
+  const weightNote = styleWeightNote({ style: s.style, styles: current.styles, voiceDefaultStyle, weight })
+  const combo = comboNote(s.pitch, s.intonation)
+  const resetValues = () => {
+    change({ ...s, ...resetVoiceValues(base) })
+    // 누른 버튼은 바로 사라진다 — 키보드·스크린리더 포커스가 body 로 떨어지지 않게 바로 위 슬라이더로 옮긴다(REV-040).
+    intonationRef.current?.focus()
+    toast.show('속도·높낮이·억양·세기를 기본값으로 되돌렸어요(아직 저장 전)')
+  }
   const online = status.snapshot.networkOnline
   const styleLabel = s.style === 'AUTO' ? '자동' : (current.styles.find((st) => st.name === s.style)?.label ?? s.style)
   const profileLabel = PROFILE_OPTIONS.find((o) => o.value === profileValue)?.label ?? ''
@@ -149,12 +169,21 @@ export default function VoiceSettings({ teacherName }: { teacherName: string }) 
         <Field label="말투">
           <Segmented ariaLabel="말투" options={[{ value: 'AUTO', label: '자동' }, ...current.styles.map((st) => ({ value: st.name, label: st.label }))]} value={s.style} onChange={(v) => change({ ...s, style: v })} />
         </Field>
+        <VoiceSlider id="voice-style-weight" axis="styleWeight" label="말투 세기" value={weight} range={ranges.styleWeight} base={base.styleWeight} note={weightNote} onChange={(v) => change({ ...s, styleWeight: v })} />
         <Field label="들려주는 방식">
           <Segmented ariaLabel="들려주는 방식" options={PROFILE_OPTIONS} value={profileValue} onChange={(v) => change({ ...s, speechProfile: v })} />
         </Field>
-        <Slider id="speed" label="속도" value={s.speed} min={0.6} max={1.2} onChange={(v) => change({ ...s, speed: v })} />
-        <Slider id="pitch" label="높낮이" value={s.pitch} min={0.8} max={1.2} onChange={(v) => change({ ...s, pitch: v })} />
-        <Slider id="intonation" label="억양" value={s.intonation} min={0.8} max={1.2} onChange={(v) => change({ ...s, intonation: v })} />
+        <div className="flex min-w-0 flex-col gap-3.5">
+          <VoiceSlider id="voice-speed" axis="speed" label="속도" value={s.speed} range={ranges.speed} base={base.speed} note={rangeNote('speed', s.speed)} onChange={(v) => change({ ...s, speed: v })} />
+          <VoiceSlider id="voice-pitch" axis="pitch" label="높낮이" value={s.pitch} range={ranges.pitch} base={base.pitch} note={rangeNote('pitch', s.pitch)} onChange={(v) => change({ ...s, pitch: v })} />
+          <VoiceSlider id="voice-intonation" axis="intonation" label="억양" value={s.intonation} range={ranges.intonation} base={base.intonation} note={rangeNote('intonation', s.intonation)} inputRef={intonationRef} onChange={(v) => change({ ...s, intonation: v })} />
+          {combo ? <VoiceNote boxed>{combo}</VoiceNote> : null}
+        </div>
+        {hasChangedFromDefault(s, base) ? (
+          <button type="button" onClick={resetValues} className="min-h-11 self-start text-[13px] font-semibold text-accent">
+            ↺ 기본값으로 되돌리기(속도·높낮이·억양·세기)
+          </button>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <VoicePreviewButton phase={preview.phase} cooldownSec={preview.cooldownSec} disabled={!online || saving} onClick={() => preview.toggle(draft)} describedBy="voice-preview-hint" />
           <p id="voice-preview-hint" className="text-[12px] text-ink2 break-keep">{hint}</p>

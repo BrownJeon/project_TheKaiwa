@@ -1,6 +1,7 @@
 import { userCan } from '@/modules/admin'
 import { auth } from '@/modules/infra'
-import { getProfile } from '@/modules/preferences'
+import { getProfile, VOICE_PARAM_RANGES } from '@/modules/preferences'
+import { listSelectableVoices, loadTtsVoice } from '@/modules/speech'
 import AppBar from '@/components/shell/AppBar'
 import AppVersionRow from '@/components/settings/AppVersionRow'
 import AttendanceCard from '@/components/settings/AttendanceCard'
@@ -8,8 +9,19 @@ import LearningSettings from '@/components/settings/LearningSettings'
 import OnDeviceDiagnosticsCard from '@/components/settings/OnDeviceDiagnosticsCard'
 import SpeechSettings from '@/components/settings/SpeechSettings'
 import VoiceSettings from '@/components/settings/VoiceSettings'
+import { baselineFrom, type VoiceBaselines } from '@/components/settings/voiceSliderLogic'
 import AdminConsoleEntry from './AdminConsoleEntry'
 import LogoutButton from './LogoutButton.client'
+
+/**
+ * 목소리별 "기본" 원자료(task-022 REV-040) — 합성 때 서버 Resolver 가 읽는 목소리 행(`loadTtsVoice`)에서 숫자·말투 이름만 골라 넘긴다.
+ * 모델·화자 식별자는 props 에 싣지 않는다. 합성할 수 없는 목소리는 빠지고, 화면은 #17 응답의 defaults 로 대신한다.
+ */
+async function loadVoiceBaselines(): Promise<VoiceBaselines> {
+  const voices = await listSelectableVoices()
+  const rows = await Promise.all(voices.map((v) => loadTtsVoice(v.id)))
+  return Object.fromEntries(rows.flatMap((r) => (r ? [[r.id, baselineFrom(r.defaults, r.styles)] as const] : [])))
+}
 
 /**
  * 설정 허브(기획서 "5. 프로필" → 설계안 §7-7·§11, task-005): 계정 · 출석 · 기본정보·학습 · AI 선생님 목소리 · 음성 인식.
@@ -22,6 +34,7 @@ export default async function SettingsPage() {
   const showConsole = user ? await userCan('engine.read') : false
   // 목소리 카드 머리의 선생님 이름(설정 #11, 비우면 "선생님") — 채팅방과 같은 규칙(screens §7-2 A).
   const teacherName = user ? (await getProfile(user.id)).teacherName?.trim() || '선생님' : '선생님'
+  const voiceBaselines = user ? await loadVoiceBaselines() : {}
   return (
     <>
       <AppBar title="설정" />
@@ -34,7 +47,8 @@ export default async function SettingsPage() {
           <LogoutButton />
         </section>
         <LearningSettings />
-        <VoiceSettings teacherName={teacherName} />
+        {/* 슬라이더 범위·목소리 기본값은 서버 정본을 그대로 넘긴다 — 컴포넌트는 preferences·speech 를 import 하지 않는다(task-022). */}
+        <VoiceSettings teacherName={teacherName} ranges={VOICE_PARAM_RANGES} baselines={voiceBaselines} />
         <SpeechSettings />
         {/* 앱에서만(웹은 DOM 0): 앱 버전 줄 · 관리자 행 아래 휴대폰 인식 진단(engine.read — task-003f §11-2 G·I). */}
         <AppVersionRow />
