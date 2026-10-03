@@ -529,8 +529,18 @@ engine: jev
 ### 현재 운영 상태
 
 - 웹(360/390/412): ✅ 운영 릴리스 20261003-093130-2209ed2b 에 반영 완료
-- 앱(1.0.1): ❌ 아직 웹 변경만 적용됨 — 네이티브 보정(MainActivity) APK 재설치 필요
-- APK 배포본: ⏳ 사용자 승인 대기 중 (현재 로컬 경로만)
+- 앱(1.0.2): ✅ 배포본 공개(2026-10-03 15:52) — 사용자 재설치 후 S25+ 확인(F6) 대기
+- APK 배포본: ✅ `/app/download/latest.apk` = 1.0.2 (versionCode 3, AppRelease minSupported 2)
 
 ---
 
+
+## Deployer 기록 (Leader 직접 수행 — APK 1.0.2 배포본 공개, 2026-10-03 15:52)
+
+사용자 지시("최신버전에 대한 앱 APK파일을 올려줘")로 공개했다. F6 실기기(S25+) 확인 전 공개이므로 확인 결과는 사용자 몫이다.
+
+- `bash scripts/build-apk.sh --publish` rc=0 — versionCode 3 / "1.0.2" · release(debuggable 없음) · arm64-v8a · 35,216,073 B · sha256 `bdc351f83bbc4c9d62ea8b872c6c51c38990486cf968d4590f577ffd930a066e`(09:54 시험 빌드와 동일 = 재현 가능). 서명 인증서 SHA-256 `a4c23dca…9e47` 이 1.0.1 과 같아 덮어쓰기 설치 가능.
+- 배포본: `DATA_ROOT/releases/thekaiwa-1.0.2.apk`.
+- `AppRelease` INSERT: versionCode 3 · "1.0.2" · `apkPath=thekaiwa-1.0.2.apk` · minSupported **2**(권장 배너, 강제 아님 — 1.0.0 앱만 강제) · notes "키보드를 열었을 때 입력창이 키보드 바로 위에 맞춰 보이도록 고쳤어요. 업데이트 후 앱을 다시 설치해 주세요."
+- 확인: `/api/app/version` latestCode 3·minSupportedCode 2 · `https://kaiwa.미라클펭귄.com/app/download/latest.apk` 200·`LingofyJapanese-1.0.2.apk`·내려받은 파일 sha256 일치.
+- 남은 것: 사용자 재설치 후 S25+ 에서 앱 키보드 입력창 위치(이중 보정 없음) 확인(F6).
