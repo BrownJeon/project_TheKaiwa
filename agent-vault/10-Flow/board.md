@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-010b3-a11-timeout-retry]] — **A11 타임아웃 1회 재시도·공통 타임아웃 로그**(2026-10-03, 사용자 결정): 재시도는 큐 꼬리 재진입(대화 우선 유지). REV-083→084 PASS·QA 7/7·52/52·42/42, 운영 반영 `65f7d0a`·운영 스모크 52/52·42/42
 - [[task-010b2-review-decision-v2]] — **A11 reviewDecision@v2**(2026-10-03): 응답 골격·이 밖의 키 금지 + 관측 신뢰도 가중(0.6). REV-082·QA 52/52, 운영 반영 `717ad99`·운영 스모크 52/52·배포 뒤 계약 위반 0. 남은 것: CLI 무응답 타임아웃(사용자 결정 대기)
 - [[task-010b-repetition]] — **반복 학습 완료**(2026-10-03): 서버 1단계(`cb176cc`) + 2단계 화면(오늘 홈 복습 카드·복습 레슨)·QUEUED 판단 재킥·A5 reviewMix@v3(운영 잠재 결함 수정). REV-079~081·QA 화면 451·스모크 52/52, 운영 반영 `d775aac`·운영 스모크 52/52. 후속 [[task-010b2-review-decision-v2]]
 - [[task-019-cleanup-lint-env-strip]] — **정리 backlog 3건**(2026-09-29): ESLint 상대경로 교차 모듈 import 금지 · CLI 자식 env 프록시 키 제거 · A4 스키마 밖 필드 제거 요청 옵션화. REV-037 PASS, 운영 반영 `8313dc9`(006·010 PASS)

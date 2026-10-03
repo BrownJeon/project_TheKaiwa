@@ -1,7 +1,7 @@
 ---
 task_id: task-010b3
 title: "A11 복습 판단 — CLI 무응답 타임아웃 1회 재시도 + 타임아웃 로그"
-status: doing
+status: done
 base_ref: 0ddd160
 risk_level: R1
 roles_involved: [leader, judge, developer, reviewer, qa, deployer]
@@ -108,7 +108,15 @@ updated: 2026-10-03
 
 **산출물 정리**: 테스트·smoke 로그 3개 삭제 (dev3014-010b3.log, smoke-010b3.log, smoke-talk-010b3.log) — 3개
 
+## Leader 기록 (운영 반영 확인, 2026-10-03 23:12)
+- 커밋 `65f7d0a` → webhook 배포(릴리스 `20261003-230501-65f7d0a2`, pm2 3개 online·restart 0, health ok·degraded 없음).
+- 운영 스모크: 010b **52/52·누출 0**(A11 DAILY 16.6s·REVIEW 13.0s·WORDS 12.9s 전부 DONE, A5 36.6s, A3 15.5s) · 006 채팅 **42/42**(턴 p50 4.2s). 운영 로그 `[claudeCli] 완료 — task=…` 형식 확인, 계약 위반·타임아웃 0.
+
 ## 최종 요약 (Leader)
+**무엇을**: 사용자 결정("복습 판단만 1회 재시도 + 로그")대로, AI 가 가끔 60초 동안 응답하지 않을 때 **복습 판단(A11)만** 한 번 더 시도하게 했습니다. 재시도는 실행 순서를 내려놓고 대기열 맨 뒤로 들어가므로 그 사이 회화·채팅 요청이 먼저 처리됩니다(대화 5초 예산 보호). 다른 AI 지점은 그대로입니다. 또 모든 AI 지점의 시간 초과가 이제 로그에 지점 이름과 함께 한 줄 남습니다(전에는 흔적이 없었음).
+**검증**: REV-083(재시도 중 대화 지연 위험 지적) → 수정 → REV-084 PASS · Judge C2 Codex 불필요 · QA 단위 7/7·복습 52/52·채팅 42/42 · 운영 스모크 52/52·42/42.
+**남은 것**: 없음(선택 Low: 재진입 대기 중 abort 회귀 테스트·함수 위치 정리). 운영에서 `[claudeCli] 타임아웃` 줄 빈도를 관찰.
+**Codex**: C2 판정 불필요(R1·한도 미확인 보류). 실패 내역 없음.
 - [2026-10-03 22:38] intake engine=jev → task_type=feature · risk=R1 · developer_model=sonnet · track=standard · next=demo_first · demo=delta/designer(JV-ui_change) · actions=prepare_demo,request_demo_approval,assign_developer | overrides=- | fallback=- | tokens=1343
 
 ## Leader 기록 (REV-083 수용·소수정, 2026-10-03 22:46)
