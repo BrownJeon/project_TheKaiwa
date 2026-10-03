@@ -187,6 +187,15 @@ export interface ClaudeCliOptions {
   priority?: 'interactive' | 'batch'
   /** 총 시도 횟수(재시도 포함). 기본 interactive 2 / batch 1. */
   maxAttempts?: number
+  /**
+   * 타임아웃도 재시도 대상으로 본다(기본 false — 사용자가 대화 중 두 배로 기다리지 않게). 시도 수는 `maxAttempts` 가 정한다
+   * (배치 기본 1 이라 이 옵션만으로는 재시도되지 않는다). 시도마다 `timeoutMs` 를 새로 쓴다. task 표(engine/router/tasks)가 정한다.
+   * 타임아웃 재시도는 워커 슬롯을 놓고 **큐 꼬리로 다시 들어간다**(pump 가 interactive 레인을 먼저 꺼내므로 그 사이 사용자 요청이 먼저 돈다).
+   * **제약: `onTextDelta` 와 같이 쓸 수 없다**(1차 부분 delta 가 2차에서 다시 방출된다) — 같이 주면 즉시 `ClaudeCliError`.
+   */
+  retryOnTimeout?: boolean
+  /** 로그용 AI 지점 이름(task 키 — 엔진 층 안 문자열). 프롬프트 원문·학습자 데이터를 넣지 않는다. */
+  label?: string
   /** 프롬프트를 argv로 보낸다(디버깅·argv 비교용). 기본 false = stdin. */
   promptInArgv?: boolean
   /**
@@ -693,9 +702,10 @@ function schedule<T>(priority: 'interactive' | 'batch', task: () => Promise<T>):
 }
 
 /** 재시도해도 의미가 있는 실패인가 — 일시적 실행 오류만 해당. 타임아웃·설치 누락·프롬프트
- *  크기 초과는 다시 걸어도 같은 결과라 재시도하지 않는다(사용자만 두 배로 기다린다). */
-function isRetryable(e: unknown): boolean {
-  if (e instanceof ClaudeCliTimeoutError) return false
+ *  크기 초과는 다시 걸어도 같은 결과라 재시도하지 않는다(사용자만 두 배로 기다린다).
+ *  단 호출이 `retryOnTimeout` 을 켰으면(백그라운드 판단 잡 — CLI 무응답은 일시적인 경우가 있다) 타임아웃은 재시도한다. */
+function isRetryable(e: unknown, opts: ClaudeCliOptions): boolean {
+  if (e instanceof ClaudeCliTimeoutError) return opts.retryOnTimeout === true
   if (e instanceof ClaudeCliNotFoundError) return false
   if (e instanceof ClaudeCliExecError) return true
   return false
@@ -703,6 +713,13 @@ function isRetryable(e: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
+}
+
+/** 타임아웃 재시도를 큐 꼬리로 되돌리는 내부 신호(슬롯을 놓기 위해 task 밖으로 던진다) — 호출자에게는 새지 않는다. */
+class RequeueAfterTimeout extends Error {
+  constructor(readonly nextAttempt: number) {
+    super('requeue-after-timeout')
+  }
 }
 
 /** `HIT` 예열 프로세스 사용 · `MISS` 원하던 키인데 대기 프로세스 없음(cold) · `FALLBACK` 예열이 못 쓰게 돼 cold · `OFF` 예열 대상 아님. */
@@ -725,12 +742,16 @@ export async function callClaudeDetailed(prompt: string, opts: ClaudeCliOptions 
   const maxAttempts = opts.maxAttempts ?? (priority === 'batch' ? 1 : 2)
   assertPromptSize(prompt, opts.promptInArgv === true)
   assertTools(opts.tools)
+  if (opts.retryOnTimeout && opts.onTextDelta) {
+    throw new ClaudeCliError('retryOnTimeout 과 onTextDelta 는 같이 쓸 수 없다(재시도 시 delta 중복 방출)', 'AI 요청을 구성하지 못했습니다.')
+  }
+  const taskLabel = opts.label ?? '없음'
   const runOpts: ClaudeCliOptions = opts.onTextDelta ? { ...opts, outputFormat: 'stream-json', includePartialMessages: true } : opts
   const key = warmKeyFor(opts)
 
-  const task = async (): Promise<ClaudeCallResult> => {
+  const task = async (firstAttempt: number): Promise<ClaudeCallResult> => {
     let lastErr: unknown
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    for (let attempt = firstAttempt; attempt <= maxAttempts; attempt++) {
       // 큐에서 기다리는 동안 취소됐으면 프로세스를 쓰지 않는다(예열 프로세스도 꺼내지 않는다).
       if (opts.signal?.aborted) {
         console.info('[claudeCli] 취소 — 시작 전')
@@ -755,15 +776,24 @@ export async function callClaudeDetailed(prompt: string, opts: ClaudeCliOptions 
         }
         if (!r) r = await runCold(prompt, runOpts)
         console.info(
-          `[claudeCli] 완료 — model=${opts.model ?? readDefaultModel()} agent=${opts.agent ?? '없음'} ` +
+          `[claudeCli] 완료 — task=${taskLabel} model=${opts.model ?? readDefaultModel()} agent=${opts.agent ?? '없음'} ` +
             `promptChars=${prompt.length} elapsed=${Date.now() - startedAt}ms attempt=${attempt} warm=${warm}`,
         )
         return { text: r.text, warm, firstDeltaMs: r.firstDeltaAt === null ? null : r.firstDeltaAt - startedAt }
       } catch (e) {
         lastErr = e
         if (e instanceof ClaudeCliAbortedError) console.info(`[claudeCli] 취소 — elapsed=${Date.now() - startedAt}ms warm=${warm}`)
-        if (attempt < maxAttempts && isRetryable(e)) {
-          console.warn(`[claudeCli] 일시적 실패 — ${attempt}/${maxAttempts} 재시도`)
+        if (e instanceof ClaudeCliTimeoutError) {
+          // 프롬프트 원문·학습자 데이터는 남기지 않는다(길이만). 재시도 여부도 이 한 줄에 싣는다(일반 '일시적 실패' 줄은 따로 내지 않는다).
+          const retrying = attempt < maxAttempts && isRetryable(e, opts)
+          console.warn(
+            `[claudeCli] 타임아웃 — task=${taskLabel} model=${opts.model ?? readDefaultModel()} promptChars=${prompt.length} ` +
+              `timeoutMs=${e.timeoutMs} attempt=${attempt} maxAttempts=${maxAttempts} retry=${retrying ? '예' : '아니오'}`,
+          )
+          // 슬롯을 쥔 채 기다리지 않는다 — 큐 꼬리로 다시 들어가 interactive 가 먼저 돈다(바깥 drive 가 sleep 후 재진입).
+          if (retrying) throw new RequeueAfterTimeout(attempt + 1)
+        } else if (attempt < maxAttempts && isRetryable(e, opts)) {
+          console.warn(`[claudeCli] 일시적 실패 — task=${taskLabel} ${attempt}/${maxAttempts} 재시도`)
           await sleep(1000 * attempt)
           continue
         }
@@ -776,7 +806,17 @@ export async function callClaudeDetailed(prompt: string, opts: ClaudeCliOptions 
     throw lastErr ?? new ClaudeCliError('unreachable', 'AI 분석에 실패했습니다.')
   }
 
-  return schedule(priority, task)
+  // 타임아웃 재시도만 슬롯을 놓고 재진입한다. 일시적 실행 오류 재시도(task 안 루프)는 기존대로 슬롯을 유지한다.
+  const drive = async (firstAttempt: number): Promise<ClaudeCallResult> => {
+    try {
+      return await schedule(priority, () => task(firstAttempt))
+    } catch (e) {
+      if (!(e instanceof RequeueAfterTimeout)) throw e
+      await sleep(1000 * (e.nextAttempt - 1))
+      return drive(e.nextAttempt)
+    }
+  }
+  return drive(1)
 }
 
 /** 텍스트만 필요한 호출자용(기존 계약). */

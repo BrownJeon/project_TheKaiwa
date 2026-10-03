@@ -11,8 +11,10 @@ import { classifyError } from './http'
 import type { Tx } from './tx'
 
 /**
- * 종류별 "이보다 오래 QUEUED/RUNNING 이면 죽은 잡" 기준. CHAT_REVIEW(90s)·LESSON_GEN·REVIEW_GEN(120s)·EVAL_GEN(60s)·EVAL_GRADE(120s)·
- * REVIEW_DECISION(60s — 사용자별 한 줄로 돌아 앞 잡 뒤에 잠깐 QUEUED 로 기다릴 수 있다)은 LLM 예산(재시도 포함 한 데드라인) 대비 여유를 둔다.
+ * 종류별 "이보다 오래 QUEUED/RUNNING 이면 죽은 잡" 기준(5분). 시계는 QUEUED 는 `createdAt`, RUNNING 은 `startedAt`(러너가 잡을 집은 시각 —
+ * LLM 큐 대기 포함)이고, **이 프로세스가 돌리는 잡(`localJobs`)은 면제**라 실제 적용 대상은 비정상 종료·blue/green 겹침 구간에 다른 인스턴스가 본 잡이다.
+ * 잡별 LLM 예산(CHAT_REVIEW 90s·LESSON_GEN·REVIEW_GEN 120s·EVAL_GEN 60s·EVAL_GRADE 120s)보다 넉넉하다. REVIEW_DECISION 은 LLM 호출 하나가
+ * 타임아웃 재시도를 켜서(task-010b3) 유효 상한이 ≈121~131s(+배치 큐 대기)이며 사용자별 한 줄로 돌아 앞 잡 뒤에 QUEUED 로 기다릴 수 있다 — 그래도 5분 안.
  */
 const STALE_AFTER_MS: Partial<Record<JobKind, number>> = {
   CHAT_REVIEW: 5 * 60_000,

@@ -13,7 +13,7 @@
 import { callClaudeDetailed, prewarmClaude, type ClaudeCliOptions, type PrewarmOutcome, type WarmUse } from '../adapters/llm/claudeCli'
 import { HomeM4ApiCaller, LlmContractError, LlmMisconfiguredError, LlmTimeoutError, prepareHomeM4Call, type LlmMessage } from '../adapters/llm/homeM4'
 import { extractAndValidate, runJsonWithRetry, withJsonOnly, type JsonAttemptInfo, type RunJsonResult } from '../json/schemaValidate'
-import { LLM_TASKS, resolveCandidates, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
+import { adapterRetryOptions, LLM_TASKS, resolveCandidates, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
 
 export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, LlmMisconfiguredError, toUserMessage } from '../adapters/llm/homeM4'
 export { JsonSchemaError } from '../json/schemaValidate'
@@ -175,6 +175,29 @@ interface CallOutcome {
   firstDeltaAt: number | null
 }
 
+/**
+ * Claude CLI 호출 옵션 조립(순수). 시도 수·타임아웃 재시도는 task 표(`adapterRetryOptions`)가 정한다 — 기본 1시도(재시도는 JSON 계약 쪽
+ * runJsonWithRetry 와 router 폴백이 맡는다), A11 만 타임아웃 1회 재시도(task-010b3). `label` 은 로그용 AI 지점 이름.
+ * 테스트가 "A11 요청이 실제로 2시도 옵션을 받는다" 를 이 함수로 고정한다.
+ */
+export function adapterCallOptions(
+  base: ClaudeCliOptions,
+  req: Pick<LlmRequest, 'task' | 'signal'>,
+  timeoutMs: number,
+  priority: 'interactive' | 'batch',
+  onTextDelta?: (delta: string) => void,
+): ClaudeCliOptions {
+  return {
+    ...base,
+    timeoutMs,
+    priority,
+    label: req.task,
+    ...adapterRetryOptions(req.task),
+    ...(onTextDelta ? { onTextDelta } : {}),
+    ...(req.signal ? { signal: req.signal } : {}),
+  }
+}
+
 async function callOnce(
   c: ResolvedConnection,
   req: LlmRequest,
@@ -193,14 +216,7 @@ async function callOnce(
     const prompt = renderTranscript(system, req.messages)
     const streamDeltas = Boolean(onDelta) && runtimeReaders.earlySentence(c)
     const startedAt = Date.now()
-    const r = await callClaudeDetailed(prompt, {
-      ...opts,
-      timeoutMs,
-      priority,
-      maxAttempts: 1, // 재시도는 JSON 계약 쪽(runJsonWithRetry)과 router 폴백이 맡는다
-      ...(streamDeltas ? { onTextDelta: onDelta } : {}),
-      ...(req.signal ? { signal: req.signal } : {}),
-    })
+    const r = await callClaudeDetailed(prompt, adapterCallOptions(opts, req, timeoutMs, priority, streamDeltas ? onDelta : undefined))
     return { text: r.text, model, promptChars: prompt.length + (req.persona?.prompt.length ?? 0), warm: r.warm, firstDeltaAt: r.firstDeltaMs === null ? null : startedAt + r.firstDeltaMs }
   }
   if (c.engineId === 'home-m4-api') {

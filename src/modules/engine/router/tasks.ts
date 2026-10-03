@@ -9,6 +9,14 @@ export interface TaskSpec {
   tier: LlmTier
   timeoutMs: number
   lane: LlmLane
+  /**
+   * CLI 무응답 타임아웃을 1회 더 건다(총 2시도, 시도당 timeoutMs). 기본 꺼짐 — 사용자가 기다리는 지점(A1~A3·A4·A5 …)은
+   * 두 배로 기다리게 하지 않는다. 백그라운드 판단 잡(A11)만 켠다(task-010b3).
+   * 요청 데드라인(`timeoutMs`)은 **1회차 호출까지만** 적용된다 — 어댑터가 시도마다 `timeoutMs` 를 새로 쓰고 2차는 큐 꼬리로 재진입하므로
+   * 유효 상한은 시도당(timeoutMs + SIGKILL 유예 5s) × 2 + 재시도 전 1s + 2차 큐 대기 ≈ A11 은 121~131s(+배치 큐 대기). 2차 뒤에는 데드라인이
+   * 지나 ajv 계약 재시도·폴백 후보가 시작되지 않는다. `onTextDelta`(스트리밍) 호출과는 같이 쓸 수 없다.
+   */
+  retryOnTimeout?: boolean
 }
 
 export const LLM_TASKS = {
@@ -22,10 +30,16 @@ export const LLM_TASKS = {
   planAnalysis: { tier: 'deep', timeoutMs: 300_000, lane: 'batch' }, // A8
   ask: { tier: 'balanced', timeoutMs: 120_000, lane: 'interactive' }, // A9
   wordEnrich: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' }, // A10
-  reviewDecision: { tier: 'balanced', timeoutMs: 60_000, lane: 'batch' }, // A11
+  reviewDecision: { tier: 'balanced', timeoutMs: 60_000, lane: 'batch', retryOnTimeout: true }, // A11 — 타임아웃 1회 재시도(task-010b3), 유효 상한 ≈121~131s(위 retryOnTimeout 주석)
 } as const satisfies Record<string, TaskSpec>
 
 export type LlmTask = keyof typeof LLM_TASKS
+
+/** task 표 → 어댑터 재시도 옵션. 켠 task 만 `{ maxAttempts: 2, retryOnTimeout: true }`, 나머지는 시도 1회(재시도는 JSON 계약·router 폴백이 맡는다). */
+export function adapterRetryOptions(task: LlmTask): { maxAttempts: number; retryOnTimeout?: true } {
+  const spec: TaskSpec = LLM_TASKS[task]
+  return spec.retryOnTimeout ? { maxAttempts: 2, retryOnTimeout: true } : { maxAttempts: 1 }
+}
 
 export function isLlmTask(task: string): task is LlmTask {
   return Object.prototype.hasOwnProperty.call(LLM_TASKS, task)

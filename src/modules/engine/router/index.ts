@@ -9,7 +9,7 @@ import { prisma } from '@/modules/infra'
 import type { Environment, EngineRole } from '@prisma/client'
 
 export type { LlmTier, LlmTask, LlmLane, TaskSpec } from './tasks'
-export { LLM_TASKS, isLlmTask } from './tasks'
+export { LLM_TASKS, isLlmTask, adapterRetryOptions } from './tasks'
 
 export interface ResolvedConnection {
   id: string
