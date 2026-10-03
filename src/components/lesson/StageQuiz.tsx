@@ -3,8 +3,8 @@
 /**
  * ③ 문제(screens §12-2 H · 데모 v2 `#l3`·`#l3-wrong`·`#l3-sum`) — 4지선다, 고르는 즉시 정답·설명(화면이 `content.quiz[].answer` 로 채점 —
  * 자습이라 정답이 내용에 있다). 한 번만 고를 수 있고(첫 답 고정 — 서버도 바꾸지 않는다) 바로 #61 로 저장한다. 점수는 완료 때 서버가 다시 계산.
- * 문제 머리(task-025 데모 v1 `#l3-new`·`#l3-old`·`#l3-sum`): 한국어 질문(굵게) → 일본어 문장(17px). 옛 레슨에서 promptKo 가 비었으면
- * 공통 안내 줄 + "예전에 만든 수업…"(`quizPromptView`). 보기(답)에는 한국어를 붙이지 않는다(답 노출).
+ * 문제 머리(task-025 데모 v1 `#l3-new`·`#l3-old`·`#l3-sum`, task-025b 데모 v1): 한국어 질문(굵게) → 일본어 문장(17px). promptKo 가 비었거나
+ * 한글 없이 일본어뿐이면 공통 안내 줄 + 안내 노트(`quizPromptView`·`quizSummaryPrompt` 가 한글 인지로 고른다). 보기(답)에는 한국어를 붙이지 않는다(답 노출).
  */
 import { useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/common/ui'

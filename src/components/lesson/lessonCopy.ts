@@ -261,7 +261,7 @@ export const U3 = {
   sumNote: '틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요.',
   // 옛 레슨(lesson@v7 이하)에서 한국어 문제 설명이 비었을 때(task-025 결정 c=A)
   legacyPrompt: '일본어 문장을 읽고 알맞은 답을 고르세요.',
-  legacyNote: '예전에 만든 수업이라 한국어 문제 설명이 없어요.',
+  legacyNote: '이 문제에는 한국어 설명이 없어요.',
   choicesAria: '보기',
   choiceAria: (k: number, text: string, o: { correct: boolean; mine: boolean }) => `${k}번, ${text}${o.correct ? ', 정답' : ''}${o.mine && !o.correct ? ', 내 답, 틀림' : ''}`,
 } as const

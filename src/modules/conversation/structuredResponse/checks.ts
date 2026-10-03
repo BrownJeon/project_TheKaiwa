@@ -186,27 +186,45 @@ export interface LessonCheckContext {
   tolerateContentMismatch?: boolean
 }
 
+/**
+ * 위반 종류 꼬리표(lesson@v8 task-025b) — 마지막 시도 면책 로그가 "④ 매칭 N건·promptKo 한글 M건"을 따로 세려고 쓴다.
+ * 면책(`tolerateContentMismatch`)이 건너뛰는 규칙은 정확히 `content`·`promptKo` 두 종류뿐이다. 나머지는 모두 `other`.
+ */
+export type LessonViolationKind = 'content' | 'promptKo' | 'other'
+export interface LessonViolation {
+  kind: LessonViolationKind
+  message: string
+}
+
+/** 기존 호출부 호환용 — 메시지만 돌려준다. 종류가 필요하면 `checkLessonResponseDetailed`. */
 export function checkLessonResponse(ctx: LessonCheckContext, data: LessonResponse): string[] {
-  const v: string[] = []
+  return checkLessonResponseDetailed(ctx, data).map((x) => x.message)
+}
+
+export function checkLessonResponseDetailed(ctx: LessonCheckContext, data: LessonResponse): LessonViolation[] {
+  const v: LessonViolation[] = []
+  const push = (message: string, kind: LessonViolationKind = 'other') => {
+    v.push({ kind, message })
+  }
   const allowed = new Set(ctx.allowedChunkIds)
   const chunkIds = new Set<string>()
   data.chunks.forEach((c, i) => {
-    if (chunkIds.has(c.id)) v.push(`chunks[${i}].id '${c.id}' 가 다른 chunks 항목과 중복이다`)
+    if (chunkIds.has(c.id)) push(`chunks[${i}].id '${c.id}' 가 다른 chunks 항목과 중복이다`)
     chunkIds.add(c.id)
     const isKnown = allowed.has(c.id)
     const looksNew = NEW_CHUNK_ID_RE.test(c.id)
     if (!isKnown && !looksNew) {
-      v.push(`chunks[${i}].id '${c.id}' 는 입력 조각에 없고 "new-N" 형식도 아니다 — 입력 조각을 쓰면 그 id 를 그대로, 새 표현은 new-1, new-2… 로 붙여야 한다`)
+      push(`chunks[${i}].id '${c.id}' 는 입력 조각에 없고 "new-N" 형식도 아니다 — 입력 조각을 쓰면 그 id 를 그대로, 새 표현은 new-1, new-2… 로 붙여야 한다`)
     }
-    if (looksNew && !c.isNew) v.push(`chunks[${i}] id '${c.id}' 는 new- 로 시작하므로 isNew=true 여야 한다`)
-    if (isKnown && c.isNew) v.push(`chunks[${i}] id '${c.id}' 는 입력 조각이므로 isNew=false 여야 한다`)
-    if (hasHangul(c.textJa)) v.push(`chunks[${i}].textJa 에 한글이 섞여 있다`)
+    if (looksNew && !c.isNew) push(`chunks[${i}] id '${c.id}' 는 new- 로 시작하므로 isNew=true 여야 한다`)
+    if (isKnown && c.isNew) push(`chunks[${i}] id '${c.id}' 는 입력 조각이므로 isNew=false 여야 한다`)
+    if (hasHangul(c.textJa)) push(`chunks[${i}].textJa 에 한글이 섞여 있다`)
   })
   const grammarIds = new Set<string>()
   data.grammar.forEach((g, i) => {
-    if (grammarIds.has(g.id)) v.push(`grammar[${i}].id '${g.id}' 가 다른 grammar 항목과 중복이다`)
+    if (grammarIds.has(g.id)) push(`grammar[${i}].id '${g.id}' 가 다른 grammar 항목과 중복이다`)
     grammarIds.add(g.id)
-    if (hasHangul(g.exampleJa)) v.push(`grammar[${i}].exampleJa 에 한글이 섞여 있다`)
+    if (hasHangul(g.exampleJa)) push(`grammar[${i}].exampleJa 에 한글이 섞여 있다`)
   })
   const refIds = new Set<string>([...chunkIds, ...grammarIds])
   const checkTargetIds = (targetIds: string[], where: string) => {
@@ -219,17 +237,17 @@ export function checkLessonResponse(ctx: LessonCheckContext, data: LessonRespons
         data.chunks.length >= LESSON_CHUNKS_MAX
           ? `(chunks 가 이미 ${LESSON_CHUNKS_MAX}개(상한)라 새로 추가하지 마세요 — targetIds 에서 이 id 를 빼거나 이미 응답에 있는 다른 chunks·grammar id 로 바꾸세요)`
           : `(chunks·grammar 에 먼저 넣거나 targetIds 에서 빼세요)`
-      v.push(`${where}.targetIds 의 '${id}' 는 이 레슨의 chunks·grammar id 에 없다 ${hint}`)
+      push(`${where}.targetIds 의 '${id}' 는 이 레슨의 chunks·grammar id 에 없다 ${hint}`)
     })
   }
   data.dialogue.forEach((d, i) => {
-    if (hasHangul(d.ja)) v.push(`dialogue[${i}].ja 에 한글이 섞여 있다`)
+    if (hasHangul(d.ja)) push(`dialogue[${i}].ja 에 한글이 섞여 있다`)
   })
   data.quiz.forEach((q, i) => {
     // lesson@v8 — 문제 문장의 한국어 뜻은 필수(스키마가 비어 있지 않은 문자열을 강제). 여기서는 한글이 실제로 있는지만 본다.
     if (!ctx.tolerateContentMismatch && !hasHangul(q.promptKo)) {
       // (e)=B(2026-10-01) — 재시도 안내가 "문제 문장의 한국어 뜻"만 말하면 빈칸 문제를 다시 번역으로 쓰게 돼 정답이 노출된다. 빈칸 문제는 할 일만 쓰도록 같이 안내한다(로직 무변경, 문구만).
-      v.push(`quiz[${i}].promptKo 에 한국어(한글)가 없다 — 한국어로 쓰세요: 일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 지시를, 빈칸 문제는 "빈칸에 들어갈 알맞은 말을 고르세요."처럼 할 일만 — 정답의 뜻은 쓰지 않는다`)
+      push(`quiz[${i}].promptKo 에 한국어(한글)가 없다 — 한국어로 쓰세요: 일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 지시를, 빈칸 문제는 "빈칸에 들어갈 알맞은 말을 고르세요."처럼 할 일만 — 정답의 뜻은 쓰지 않는다`, 'promptKo')
     }
     checkTargetIds(q.targetIds, `quiz[${i}]`)
   })
@@ -243,17 +261,17 @@ export function checkLessonResponse(ctx: LessonCheckContext, data: LessonRespons
       const c = chunkById.get(id)
       if (!c) return // grammar id 등은 대상 아님(존재 여부는 위 checkTargetIds 가 본다)
       if (!chunkAppearsIn(modelAnswerJa, c)) {
-        v.push(`${where}.modelAnswerJa 가 목표 표현 '${c.textJa}'(targetIds 의 '${id}')를 담고 있지 않다`)
+        push(`${where}.modelAnswerJa 가 목표 표현 '${c.textJa}'(targetIds 의 '${id}')를 담고 있지 않다`, 'content')
       }
     })
   }
   data.application.forEach((a, i) => {
-    if (hasHangul(a.modelAnswerJa)) v.push(`application[${i}].modelAnswerJa 에 한글이 섞여 있다`)
+    if (hasHangul(a.modelAnswerJa)) push(`application[${i}].modelAnswerJa 에 한글이 섞여 있다`)
     checkTargetIds(a.targetIds, `application[${i}]`)
     checkContentMatch(a.targetIds, a.modelAnswerJa, `application[${i}]`)
   })
   data.speaking.forEach((s, i) => {
-    if (hasHangul(s.modelAnswerJa)) v.push(`speaking[${i}].modelAnswerJa 에 한글이 섞여 있다`)
+    if (hasHangul(s.modelAnswerJa)) push(`speaking[${i}].modelAnswerJa 에 한글이 섞여 있다`)
     checkTargetIds(s.targetIds, `speaking[${i}]`)
     checkContentMatch(s.targetIds, s.modelAnswerJa, `speaking[${i}]`)
   })
@@ -271,6 +289,6 @@ export function checkLessonResponse(ctx: LessonCheckContext, data: LessonRespons
     data.nextPreview.titleKo,
     data.nextPreview.teaserKo,
   ]
-  if (allText.some((t) => llm.mentionsEngineIdentity(t))) v.push('응답 어딘가에 엔진·모델 이름이 노출됐다')
+  if (allText.some((t) => llm.mentionsEngineIdentity(t))) push('응답 어딘가에 엔진·모델 이름이 노출됐다')
   return v
 }

@@ -103,7 +103,7 @@
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
-import { checkLessonResponse } from '../structuredResponse/checks'
+import { checkLessonResponseDetailed } from '../structuredResponse/checks'
 import { repairLessonResponse, type LessonRepairSourceChunk } from '../structuredResponse/repair'
 import { LESSON_SCHEMA, type ChunkType, type JlptLevel, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
@@ -338,17 +338,22 @@ export function buildLessonRequest(input: LessonInput): LessonRequest {
       if (repair.filled || repair.removed || repair.contentMismatchRemoved) {
         console.info(`[lesson] repair — filled=${repair.filled} removed=${repair.removed} contentMismatchRemoved=${repair.contentMismatchRemoved}`)
       }
-      const strict = checkLessonResponse({ allowedChunkIds }, data)
+      const strictDetailed = checkLessonResponseDetailed({ allowedChunkIds }, data)
+      const strict = strictDetailed.map((x) => x.message)
       // 정보가 없으면(직접 호출) 마지막 시도로 보지 않는다 — 완화는 엔진이 "이 connection 의 마지막 시도"라고 알려 줄 때만.
       if (!info || info.attempt < info.maxAttempts) return strict
       // 마지막 시도 — repair 로도 못 지운 콘텐츠 매칭(④) 위반만 남았으면(①~③·한글·엔진명은 여전히 강제) 레슨
       // 전체를 잃지 않기 위해 눈감는다(LessonCheckContext 주석·checks.ts 참고). 데이터는 여전히 실재하는
       // chunk/grammar id 만 가리킨다 — "완벽히 보여주지 못하는 모범 답"이라는 품질 저하만 허용한다.
-      const tolerant = checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, data)
+      const tolerant = checkLessonResponseDetailed({ allowedChunkIds, tolerateContentMismatch: true }, data).map((x) => x.message)
       if (tolerant.length < strict.length) {
-        // 상관 id·시도 번호·건수만 남긴다 — 원문·학습자 텍스트·모범 답 내용은 싣지 않는다.
+        // 면책이 건너뛰는 규칙은 ④ 매칭과 quiz.promptKo 한글 검사 둘뿐이라 두 건수의 합이 곧 `strict - tolerant` 다.
+        // 롤백 기준(② promptKo FAILED·④ 재시도율)을 따로 보려고 종류별로 센다. 상관 id·시도 번호·건수만 남긴다 —
+        // 원문·학습자 텍스트·모범 답 내용은 싣지 않는다.
+        const contentCount = strictDetailed.filter((x) => x.kind === 'content').length
+        const promptKoCount = strictDetailed.filter((x) => x.kind === 'promptKo').length
         console.info(
-          `[lesson] 마지막 시도 — 콘텐츠 매칭(④)·quiz.promptKo 한글 검사 위반 ${strict.length - tolerant.length}건을 눈감고 통과시킴 trace=${safeTraceId(info.traceId)} attempt=${info.attempt}/${info.maxAttempts}`,
+          `[lesson] 마지막 시도 — 눈감고 통과시킨 위반: ④매칭 ${contentCount}건·promptKo한글 ${promptKoCount}건 trace=${safeTraceId(info.traceId)} attempt=${info.attempt}/${info.maxAttempts}`,
         )
       }
       return tolerant

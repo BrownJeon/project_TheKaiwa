@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-025b-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:bf67d6c60da2">
+<meta name="description" content="오늘의 회화 후속 보정 delta 데모 v1 — 퀴즈 질문 한글 인지 폴백(일본어만 든 한국어 칸), 결과 목록 한 줄, 종료 카드 오늘로 링크 높이. 현재 vs 제안, 결정 필요 1건">
+<title>퀴즈 한글 폴백</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, h4, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; background: var(--surface2); border-radius: 4px; padding: 0 4px; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; margin-left: 6px; border-radius: 6px; background: var(--surface2); color: var(--ink); font-size: 11.5px; font-weight: 700; vertical-align: 1px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.lgd { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink2); flex: none; }
+.lgd i { display: inline-block; width: 22px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+.lgd .l-nw { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.lgd .l-bug { outline: 2.5px dotted var(--bad); outline-offset: -2.5px; }
+
+.doc { max-width: 1360px; margin: 0 auto; padding: 18px 16px 56px; display: flex; flex-direction: column; gap: 28px; }
+.blk { display: flex; flex-direction: column; gap: 14px; min-width: 0; scroll-margin-top: 72px; }
+.blk + .blk { border-top: 1px solid var(--line); padding-top: 26px; }
+.eyebrow { font-size: 12px; font-weight: 700; color: var(--ink2); letter-spacing: .02em; }
+.bt { font-size: 20px; font-weight: 700; line-height: 1.35; text-wrap: balance; margin-top: 2px; }
+.lede { font-size: 14px; max-width: 76ch; }
+.lede + .lede { margin-top: 6px; }
+.lede b { font-weight: 700; }
+.ctlrow { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.ctlrow .dseg button { height: 40px; }
+.hint { font-size: 12.5px; color: var(--ink2); }
+
+/* 개요 */
+.ov { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ov a { display: flex; flex-direction: column; gap: 2px; min-height: 64px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; }
+.ov a:hover { border-color: var(--ink3); }
+.ov .k { font-size: 12px; color: var(--ink2); font-weight: 600; }
+.ov .v { font-size: 14px; font-weight: 700; }
+.ov a.dk { border-color: var(--accent); }
+@media (max-width: 900px) { .ov { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 휴대폰 무대: 실제 CSS 폭·높이로 배치하고 자리가 모자라면 같은 배율(--s)로 통째 축소 */
+.stage { --s: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 20px; min-width: 0; }
+.stage.row { flex-wrap: nowrap; }
+.rowlab { font-size: 13px; font-weight: 700; margin-bottom: -4px; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw.w360 { width: calc(360px * var(--s)); } .fw.w390 { width: calc(390px * var(--s)); } .fw.w412 { width: calc(412px * var(--s)); }
+.fw figcaption { font-size: 12.5px; line-height: 1.45; color: var(--ink2); text-align: center; margin-bottom: 8px; }
+.fw figcaption b { color: var(--ink); }
+.tone { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; vertical-align: 1px; }
+.tone.same { background: var(--surface2); color: var(--ink2); }
+.tone.bad { background: var(--bad-soft); color: var(--bad); }
+.tone.fix { background: var(--good-soft); color: var(--good); }
+.fbox { position: relative; flex: none; }
+.fbox.w360 { width: calc(360px * var(--s)); } .fbox.w390 { width: calc(390px * var(--s)); } .fbox.w412 { width: calc(412px * var(--s)); }
+.fbox.h780 { height: calc(780px * var(--s)); } .fbox.h892 { height: calc(892px * var(--s)); }
+.fbox > .phone { position: absolute; left: 0; top: 0; transform: scale(var(--s)); transform-origin: 0 0; }
+.fnote { font-size: 12.5px; color: var(--ink); margin-top: 8px; text-align: center; max-width: 100%; }
+.meas { font-size: 12.5px; color: var(--ink); margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; line-height: 1.6; }
+.meas .badge { margin-left: 4px; }
+.dtoast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+
+/* 설명 카드 · 결정 */
+.cards2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.dcard .dsub { font-size: 12.5px; color: var(--ink2); }
+.dcard .dfoot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink2); }
+.tblw { overflow-x: auto; margin-top: 10px; }
+table.rt { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13px; }
+.rt th, .rt td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+.rt thead th { border-top: 0; font-size: 12px; color: var(--ink2); font-weight: 700; white-space: nowrap; }
+.rt td.case { font-weight: 700; width: 17%; }
+.rt .in { color: var(--ink2); font-size: 12.5px; }
+.rt .bd { font-weight: 700; }
+.rt .bd.x { color: var(--bad); }
+.rt .jl { font-size: 14px; }
+.rt .nt { font-size: 12px; color: var(--ink2); }
+.rt .ch { display: inline-block; margin-top: 2px; font-size: 11.5px; font-weight: 700; color: var(--good); }
+.rt .kx { display: inline-block; margin-top: 2px; font-size: 11.5px; font-weight: 700; color: var(--bad); }
+.rule { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 13px; }
+.rule + .rule { margin-top: 8px; }
+.rule b { font-weight: 700; }
+
+.dec { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--surface); container-type: inline-size; min-width: 0; scroll-margin-top: 72px; }
+.dec h3 { font-size: 15px; font-weight: 700; }
+.dec .dq { font-size: 13px; color: var(--ink2); margin-top: 4px; }
+.dec-g { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
+@container (min-width: 640px) { .dec-g { grid-template-columns: 1fr 1fr; } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.rec { border-color: var(--good); }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; }
+.opt-q { font-size: 13px; border-radius: 8px; background: var(--surface2); padding: 6px 8px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 3px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 12px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+
+.guide ol { list-style: decimal; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; margin-top: 6px; }
+.guide .toks { margin-top: 10px; font-size: 12.5px; color: var(--ink2); }
+.noui { font-size: 13.5px; color: var(--ink2); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 760px) {
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .bt { font-size: 18px; }
+  .ov { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* 바뀐 곳·결함 표시(데모 전용 — 실제 화면에는 없음) */
+body.marks .phone .nw { outline: 2px dashed var(--accent); outline-offset: 2px; }
+body.marks .phone .bug { outline: 2.5px dotted var(--bad); outline-offset: 2px; }
+
+/* ── 휴대폰 프레임: 폭은 클래스로만 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground);
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--ground); min-width: 0; }
+.scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.page { padding: 14px 16px 32px; min-width: 0; }
+
+/* 수업 머리 · 단계 표시 (task-025 승인 데모와 같음) */
+.lhead { height: 56px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 8px 0 4px; }
+.back { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; cursor: pointer; color: var(--ink); }
+.av { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: 16px; display: grid; place-items: center; }
+.lh-m { flex: 1; min-width: 0; padding-left: 6px; }
+.lh-m h1 { font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ind { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 0; background: none; padding: 0; font-size: 12px; line-height: 16px; color: var(--ink2); cursor: pointer; }
+.ind::before { content: ""; position: absolute; left: -8px; right: -8px; top: -14px; bottom: -14px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.dot.on { background: var(--good); }
+.ind .gt { color: var(--ink3); }
+.steps { flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-bottom: 1px solid var(--line); padding: 4px 6px; }
+.step { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; border: 0; background: none; padding: 2px 0; font-size: 11.5px; color: var(--ink2); cursor: pointer; }
+.step .n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; background: var(--surface2); color: var(--ink2); }
+.step.done .n { background: var(--good-soft); color: var(--good); }
+.step.cur { color: var(--ink); font-weight: 700; }
+.step.cur .n { background: var(--accent); color: var(--on-accent); }
+.step.lock .n { background: none; box-shadow: inset 0 0 0 1.5px var(--line); }
+.step.lock { cursor: default; }
+.step:not(:last-child)::after { content: ""; position: absolute; top: 15px; left: calc(50% + 17px); right: calc(-50% + 17px); height: 2px; border-radius: 1px; background: var(--line); }
+.step.done:not(:last-child)::after { background: var(--good); }
+
+/* 공용 조각 */
+.card { min-width: 0; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.cap { font-size: 12px; color: var(--ink2); }
+.d13 { font-size: 13px; color: var(--ink2); }
+.d14 { font-size: 14px; }
+.mt { margin-top: 12px; } .mt8 { margin-top: 8px; } .mt4 { margin-top: 4px; }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; flex: none; white-space: nowrap; }
+.badge.good { background: var(--good-soft); color: var(--good); }
+.badge.bad { background: var(--bad-soft); color: var(--bad); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; min-width: 0; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.sh h2 { font-size: 17px; font-weight: 700; }
+.sh p { margin-top: 4px; }
+
+/* ③ 문제 */
+.qtop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.qn { font-size: 14px; font-weight: 700; }
+.dots { display: flex; gap: 6px; }
+.qd { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface2); color: var(--ink2); flex: none; }
+.qd.ok { background: var(--good-soft); color: var(--good); }
+.qd.ng { background: var(--bad-soft); color: var(--bad); }
+.qd.cur { box-shadow: inset 0 0 0 2px var(--accent); background: var(--surface); color: var(--ink); }
+.qcard { margin-top: 8px; }
+.qp { font-size: 16px; font-weight: 600; line-height: 1.55; }
+.qja { font-size: 17px; line-height: 1.7; margin-top: 4px; overflow-wrap: anywhere; }
+.qold { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--ink2); }
+.qold svg { flex: none; margin-top: 2px; }
+.choice { width: 100%; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; padding: 10px 12px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); text-align: left; cursor: pointer; }
+.choice .no { width: 24px; height: 24px; border-radius: 50%; background: var(--surface2); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.choice .ct { min-width: 0; font-size: 15px; }
+.choice .ct[lang="ja"] { font-size: 17px; }
+.choice.ok { border-color: var(--good); background: var(--good-soft); }
+.choice.ng { border-color: var(--bad); background: var(--bad-soft); }
+.choice.dim { color: var(--ink2); }
+.choice[aria-disabled="true"] { cursor: default; }
+.tag { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tag.g { color: var(--good); } .tag.b { color: var(--bad); }
+.exp { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 12px; }
+.exp-h { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.exp-h.g { color: var(--good); } .exp-h.b { color: var(--bad); }
+.big { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.qsum { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.qsum li { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.qsum li > div { min-width: 0; }
+.qsum .qd { font-size: 11px; }
+
+/* 종료 카드 (LessonEnd.tsx 구조 그대로) */
+.bbar { height: 52px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 4px; }
+.bb-m { flex: 1; min-width: 0; }
+.bb-m h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb-m p { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.endsc { display: flex; flex-direction: column; gap: 18px; padding: 14px 16px 32px; }
+.endhd { display: flex; align-items: flex-start; gap: 12px; }
+.okc { width: 52px; height: 52px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--good-soft); color: var(--good); font-size: 22px; font-weight: 700; }
+.endhd h2 { font-size: 20px; font-weight: 700; }
+.endhd .jt { font-size: 14px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stats > div { display: flex; flex-direction: column; align-items: center; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 0; }
+.stats b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 12px; color: var(--ink2); }
+.card h3 { font-size: 15px; font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0 6px; max-width: 100%; min-width: 0; padding: 6px 10px; border-radius: 10px; background: var(--surface2); }
+.chip.g { background: var(--good-soft); }
+.chip [lang="ja"] { font-size: 16px; }
+.chip .tl { font-size: 12px; font-weight: 700; color: var(--good); }
+.addw { display: flex; align-items: center; min-height: 44px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--accent); }
+.nextp { border-radius: var(--radius); background: var(--accent-soft); padding: 14px; }
+.nextp h3 { font-size: 17px; font-weight: 700; margin-top: 2px; }
+.nextp .tz { font-size: 14px; margin-top: 2px; }
+.center { text-align: center; }
+/* "오늘로" 링크: 현재는 flex-shrink 기본값(1) → 내용이 넘치면 줄어든다. 제안은 shrink-0 */
+.endlink { display: flex; height: 44px; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: var(--ink2); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.endlink.fx { flex-shrink: 0; }
+body.marks .phone .endlink.bug { background: var(--bad-soft); }
+body.marks .phone .endlink.nw { background: var(--good-soft); }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body class="marks">
+<header class="dtop">
+  <h1>퀴즈 한글 폴백 · 종료 카드 링크 <span class="lvl">delta</span> <small>task-025b · 데모 v1 · 판정 delta(judge DM-kw-delta) · 합성 샘플 데이터</small></h1>
+  <div class="dctls">
+    <div class="dctl"><span>폭</span><div class="dseg" id="d-w" role="group" aria-label="휴대폰 폭">
+      <button type="button" data-w="360" aria-pressed="false">360</button><button type="button" data-w="390" aria-pressed="true">390</button><button type="button" data-w="412" aria-pressed="false">412</button>
+    </div></div>
+    <div class="dctl"><span>높이</span><div class="dseg" id="d-h" role="group" aria-label="휴대폰 높이">
+      <button type="button" data-h="780" aria-pressed="true">780</button><button type="button" data-h="892" aria-pressed="false">892</button>
+    </div></div>
+    <div class="dctl"><span>표시</span><div class="dseg" id="d-m" role="group" aria-label="바뀐 곳·결함 점선 표시">
+      <button type="button" data-m="on" aria-pressed="true">켜기</button><button type="button" data-m="off" aria-pressed="false">끄기</button>
+    </div></div>
+    <span class="lgd" aria-hidden="true"><span><i class="l-nw"></i>바뀐 곳</span><span><i class="l-bug"></i>지금 결함</span></span>
+    <div class="dctl"><span>테마</span><div class="dseg" id="d-t" role="group" aria-label="테마">
+      <button type="button" data-t="auto" aria-pressed="true">자동</button><button type="button" data-t="light" aria-pressed="false">라이트</button><button type="button" data-t="dark" aria-pressed="false">다크</button>
+    </div></div>
+  </div>
+</header>
+
+<main class="doc">
+  <section class="blk" aria-labelledby="ov-h">
+    <p class="eyebrow">이 데모에서 볼 것 · 화면 구조는 그대로, 상태 세 곳만 보정</p>
+    <h2 class="bt" id="ov-h">오늘의 회화 수업 — 퀴즈 질문 표기와 종료 카드 링크</h2>
+    <nav class="ov" aria-label="데모 구역">
+      <a href="#quiz"><span class="k">포함 항목 1 · D9</span><span class="v">퀴즈 카드 질문 줄</span></a>
+      <a href="#quiz-sum"><span class="k">포함 항목 1 · 같은 규칙</span><span class="v">결과 목록 한 줄</span></a>
+      <a href="#end"><span class="k">포함 항목 4 · 결함 #1</span><span class="v">종료 카드 “오늘로”</span></a>
+      <a href="#decision" class="dk"><span class="k">결정 필요 1건</span><span class="v">안내 노트 문구 A / B</span></a>
+    </nav>
+  </section>
+
+  <section class="blk" id="quiz" aria-labelledby="quiz-h">
+    <div>
+      <p class="eyebrow">포함 항목 1 · D9 Medium · <code>logic.ts</code> <code>quizPromptView</code></p>
+      <h2 class="bt" id="quiz-h">한국어 칸에 한글이 없으면 비어 있는 것으로 보고, 공통 안내 줄로 바꿔요</h2>
+    </div>
+    <p class="lede">선생님(AI)이 문제를 만들 때 한국어 질문 칸에 <b>일본어만</b> 넣는 일이 있어요. 지금은 그 일본어가 굵은 “한국어 질문” 자리에 그대로 나와서, 퀴즈 문장에 한국어를 함께 보여 준다는 약속(Q10)이 깨져요.</p>
+    <p class="lede">제안: 한국어 칸에 한글이 한 글자도 없으면 비어 있는 것으로 봐요. 그러면 옛 수업과 같은 표시(공통 안내 줄 + 일본어 문장 + 작은 노트)로 바뀌어요. 일본어 칸까지 비어 있으면 한국어 칸의 일본어를 <b>버리지 않고 일본어 줄로 내려요</b>. 버리면 문제 자체가 사라지기 때문이에요(샘플 나).</p>
+    <div class="ctlrow">
+      <div class="dctl"><span>샘플 문제</span><div class="dseg" id="d-s" role="group" aria-label="샘플 문제">
+        <button type="button" data-s="a" aria-pressed="true">가 · 일본어 문장 있음</button><button type="button" data-s="b" aria-pressed="false">나 · 일본어 칸 비어 있음</button><button type="button" data-s="c" aria-pressed="false">다 · 옛 수업</button>
+      </div></div>
+      <p class="hint" id="s-hint"></p>
+    </div>
+    <div class="stage" id="st-quiz" aria-label="퀴즈 카드 — 정상, 현재, 제안"></div>
+    <p class="hint">보기를 누르면 세 화면이 함께 정답·설명 상태로 바뀌어요. 샘플을 바꾸면 처음 상태로 돌아가요.</p>
+    <div class="cards2">
+      <div class="dec" id="decision" role="radiogroup" aria-labelledby="dec-h">
+        <h3 id="dec-h">결정 필요 · 안내 노트 문구</h3>
+        <p class="dq">이제 이 노트는 옛 수업만이 아니라 <b>오늘 새로 만든 수업</b>에서도 보일 수 있어요. 노트를 어떻게 쓸까요? 고르면 위 ③ 제안 화면이 바뀌어요.</p>
+        <div class="dec-g">
+          <label class="opt" for="dn-a" data-opt="A">
+            <input type="radio" name="dn" id="dn-a" value="A">
+            <span class="opt-h">A · 지금 문구 그대로</span>
+            <span class="opt-q">예전에 만든 수업이라 한국어 문제 설명이 없어요.</span>
+            <ul><li class="p">문구를 바꾸지 않아요(이 task 범위 그대로)</li><li class="m">오늘 만든 수업에서도 “예전에 만든 수업”이라고 해서 사실과 달라요</li><li class="m">수업을 다시 만들면 나아진다고 오해할 수 있어요</li></ul>
+            <span class="sel" data-sel="A"></span>
+          </label>
+          <label class="opt rec" for="dn-b" data-opt="B">
+            <input type="radio" name="dn" id="dn-b" value="B">
+            <span class="opt-h">B · 중립 문구 <span class="badge good">권고</span></span>
+            <span class="opt-q">이 문제에는 한국어 설명이 없어요.</span>
+            <ul><li class="p">옛 수업·새 수업 모두 사실 그대로예요</li><li class="p">문자열 한 줄만 바꿔요(<code>U3.legacyNote</code>) — 구조·분기 없음</li><li class="m">옛 수업에서 “왜 없는지”(예전에 만든 수업)는 더 말하지 않아요</li><li class="m">task 비범위 “문구 변경”에 한 줄 예외가 필요해요</li></ul>
+            <span class="sel" data-sel="B"></span>
+          </label>
+        </div>
+        <p class="dfoot">검토하고 뺀 안: 원인별 두 문구(한국어 칸이 비면 지금 문구, 일본어만 있으면 중립 문구). 정확하지만 분기와 문자열이 하나씩 늘고, 학습자가 얻는 정보는 B 와 거의 같아요.</p>
+      </div>
+      <div class="dcard" id="rules">
+        <h3>판정 규칙 — 입력별로 무엇이 보이나</h3>
+        <p class="dsub">아래 표는 이 데모 안의 제안 규칙을 그대로 실행한 결과예요. 한글은 한글 음절·자모·호환 자모 범위로 봐요(<code>learning/lessons/matching.ts:52</code> 와 같은 범위).</p>
+        <div class="tblw"><table class="rt" id="rt"></table></div>
+        <p class="rule"><b>한글이 조금이라도 있으면 한국어로 인정해요.</b> 「持ち帰り」의 뜻… 처럼 한국어 질문 안에 일본어를 인용한 문장은 지금과 똑같이 보여요(위양성 없음).</p>
+        <p class="rule"><b>일본어 줄 순서:</b> 일본어 칸(promptJa)이 있으면 그것, 없으면 한글 없는 한국어 칸에 가나·한자가 있을 때만 그 글을 일본어 줄로 써요. 둘 다 있으면 한국어 칸의 일본어(대개 “다음 문장의 뜻을 고르세요” 같은 지시문)는 공통 안내 줄이 대신해요.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="blk" id="quiz-sum" aria-labelledby="sum-h">
+    <div>
+      <p class="eyebrow">포함 항목 1 · 같은 규칙 · <code>quizSummaryPrompt</code></p>
+      <h2 class="bt" id="sum-h">결과 목록 한 줄도 한국어 자리에 일본어를 두지 않아요</h2>
+    </div>
+    <p class="lede">③ 문제 결과 목록은 문제마다 한 줄이라 공통 안내 줄은 넣지 않아요(모든 줄이 같은 말이 되니까). 한국어 칸이 일본어뿐이면 그 줄은 <b>일본어 줄로 표시</b>(일본어 글꼴·읽기)하고, 일본어 칸이 있으면 그 문장을 써요. 2번 줄이 위에서 고른 샘플 문제예요.</p>
+    <div class="stage" id="st-sum" aria-label="결과 목록 — 현재, 제안"></div>
+  </section>
+
+  <section class="blk" id="end" aria-labelledby="end-h">
+    <div>
+      <p class="eyebrow">포함 항목 4 · 결함 #1 Low · <code>LessonEnd.tsx</code> ~145행</p>
+      <h2 class="bt" id="end-h">종료 카드 “오늘로” 링크가 낮은 화면에서 찌그러지지 않게 해요</h2>
+    </div>
+    <p class="lede">“오늘로” 링크는 스크롤 영역(세로 flex) 안의 마지막 칸이에요. 높이 44px 를 주었지만 줄어들지 말라는 표시(<code>shrink-0</code>)가 없어서, <b>내용이 화면보다 길면</b> 글자 한 줄 높이(약 20px)까지 줄어들어요. QA 실측: 360·390·412 모두 높이 780(주소창이 보일 때)에서 19.5px, 390×892 에서는 44px. 폭이 아니라 화면 높이와 내용 길이의 문제예요.</p>
+    <p class="lede">제안은 링크에 <code>shrink-0</code> 하나만 더해요. 위치는 그대로 맨 아래라 스크롤해야 보이고, 상단 ← 도 같은 곳(오늘)으로 가요. 아래 측정값은 이 데모 화면을 그 자리에서 잰 값이에요.</p>
+    <div class="ctlrow">
+      <div class="dctl"><span>폭</span><div class="dseg" id="d-tri" role="group" aria-label="종료 카드 폭 보기">
+        <button type="button" data-tri="one" aria-pressed="true">위에서 고른 폭</button><button type="button" data-tri="three" aria-pressed="false">세 폭 한꺼번에</button>
+      </div></div>
+      <div class="dctl"><span>스크롤</span><div class="dseg" id="d-pos" role="group" aria-label="종료 카드 스크롤 위치">
+        <button type="button" data-pos="bottom" aria-pressed="true">맨 아래(링크)</button><button type="button" data-pos="top" aria-pressed="false">맨 위</button>
+      </div></div>
+    </div>
+    <div id="st-end-wrap"></div>
+  </section>
+
+  <section class="blk" id="guide" aria-labelledby="guide-h">
+    <div class="dcard guide">
+      <h3 id="guide-h">구현 지점(승인 후 developer 인계)</h3>
+      <ol>
+        <li><code>src/components/lesson/logic.ts</code> — 한글 판정 정규식(<code>matching.ts:52</code> 와 같은 범위)을 두고 <code>quizPromptView</code>·<code>quizSummaryPrompt</code> 가 “한글이 있는 promptKo”만 한국어로 인정. 일본어 줄 = <code>promptJa</code> 우선, 없으면 한글 없고 <code>hasJa</code> 인 promptKo.</li>
+        <li><code>src/components/lesson/StageQuiz.tsx</code> — 표시 경로는 이미 두 함수를 거쳐서 마크업 변경 없음(머리 주석의 “예전에 만든 수업…” 설명만 갱신).</li>
+        <li><code>src/components/lesson/lessonCopy.ts</code> — 결정 B 승인 시 <code>U3.legacyNote</code> 를 “이 문제에는 한국어 설명이 없어요.”로(A 면 그대로).</li>
+        <li><code>src/components/lesson/LessonEnd.tsx</code> — “오늘로” <code>&lt;Link className="flex h-11 …"&gt;</code> 에 <code>shrink-0</code> 추가.</li>
+      </ol>
+      <p class="toks">새 토큰·새 색 없음. 쓰는 토큰: <code>--ink</code> <code>--ink2</code> <code>--surface</code> <code>--surface2</code> <code>--line</code> <code>--accent</code> <code>--good</code> <code>--bad</code>(기존 클래스 그대로).</p>
+    </div>
+  </section>
+
+  <p class="noui" id="no-ui">포함 항목 2(서버 로그 카운터 분리)와 3(④ 응용 활용형 매칭)은 서버 쪽 판정만 바뀌어서 화면 변경이 없어요. 이 데모에는 넣지 않았어요.</p>
+</main>
+
+<script>
+(function () {
+'use strict';
+function qa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function J(t) { return '<span lang="ja">' + esc(t) + '</span>'; }
+
+/* ════════ 판정 규칙 ════════ */
+var HANGUL = /[ᄀ-ᇿ㄰-㆏가-힯]/;   /* matching.ts:52 와 같은 범위 */
+var JA = /[぀-ヿ㐀-鿿]/;                    /* logic.ts JA_RE(hasJa) 와 같은 범위 */
+var LEGACY = '일본어 문장을 읽고 알맞은 답을 고르세요.';
+var NOTE = { A: '예전에 만든 수업이라 한국어 문제 설명이 없어요.', B: '이 문제에는 한국어 설명이 없어요.' };
+function filled(s) { return typeof s === 'string' && s.trim() ? s : null; }
+/* 지금(logic.ts 225~240 그대로) */
+function viewNow(q) { var ko = filled(q.ko), ja = filled(q.ja); return ko ? { ko: ko, ja: ja, legacy: false } : { ko: LEGACY, ja: ja, legacy: true }; }
+function sumNow(q) { var ko = filled(q.ko); if (ko) return { text: ko, ja: false }; var ja = filled(q.ja); return ja ? { text: ja, ja: true } : { text: LEGACY, ja: false }; }
+/* 제안 */
+function koText(s) { var f = filled(s); return f && HANGUL.test(f) ? f : null; }
+function jaFromKo(s) { var f = filled(s); return f && !HANGUL.test(f) && JA.test(f) ? f : null; }
+function viewFix(q) {
+  var ko = koText(q.ko), ja = filled(q.ja);
+  if (ko) return { ko: ko, ja: ja, legacy: false };
+  return { ko: LEGACY, ja: ja || jaFromKo(q.ko), legacy: true };
+}
+function sumFix(q) {
+  var ko = koText(q.ko); if (ko) return { text: ko, ja: false };
+  var ja = filled(q.ja) || jaFromKo(q.ko);
+  return ja ? { text: ja, ja: true } : { text: LEGACY, ja: false };
+}
+
+/* ════════ 합성 샘플 데이터(task-025 승인 데모와 같은 카페 수업) ════════ */
+var SAMPLES = {
+  a: { hint: 'QA 재현형 — 한국어 칸에 일본어 지시문, 일본어 칸에 문장',
+       raw: { ko: '次の文の意味を選んでください。', ja: 'ホットとアイス、どちらになさいますか。' },
+       good: { ko: '다음 문장의 뜻으로 알맞은 것을 고르세요.', ja: 'ホットとアイス、どちらになさいますか。' },
+       c: ['따뜻한 것과 차가운 것 중 어느 쪽으로 하시겠어요?', '어떤 크기로 하시겠어요?', '여기서 드시고 가세요?', '포장해 드릴까요?'], cj: false, a: 0, mine: 1,
+       x: J('ホット') + '는 따뜻한 음료, ' + J('アイス') + '는 차가운 음료예요. ' + J('どちら') + '는 ‘어느 쪽’이에요.' },
+  b: { hint: '질문이 한국어 칸에만 일본어로 들어 있고, 일본어 칸은 비어 있음',
+       raw: { ko: '「持ち帰り」の意味はどれですか。', ja: null },
+       good: { ko: '「持ち帰り」의 뜻으로 알맞은 것은?', ja: null },
+       c: ['여기서 먹기', '가져가기(포장)', '계산하기', '주문 취소'], cj: false, a: 1, mine: 0,
+       x: J('「持ち帰る」') + '는 ‘가지고 돌아가다’ — 카페에서는 포장이라는 뜻이에요.' },
+  c: { hint: '이미 만든 옛 수업(lesson@v7 이하) — 한국어 칸이 비어 있음. 노트 문구만 영향',
+       raw: { ko: null, ja: '店員が「ホットとアイス、どちらになさいますか」と聞きました。何を選びますか。' },
+       good: { ko: '점원이 이렇게 물었어요. 무엇을 고르라는 걸까요?', ja: 'ホットとアイス、どちらになさいますか。' },
+       c: ['크기', '온도(따뜻한 것 / 차가운 것)', '가격', '포장 여부'], cj: false, a: 1, mine: 0,
+       x: J('ホット') + '는 따뜻한 음료, ' + J('アイス') + '는 차가운 음료예요.' }
+};
+var OTHER = [
+  { ko: '“커피 하나 주세요”를 일본어로 하면?', ja: null, c: ['コーヒーを一つください。', 'コーヒーが一つください。', 'コーヒーを一つあげます。', 'コーヒーは一つあります。'], cj: true, a: 0, mine: 0 },
+  null,
+  { ko: '빈칸에 들어갈 알맞은 말을 고르세요.', ja: '冷たい＿をお願いします。', c: ['の', 'が', 'に', 'で'], cj: true, a: 0, mine: 0 },
+  { ko: '“작은 사이즈로요”에 맞는 것은?', ja: null, c: ['小さいサイズを。', '小さいサイズで。', '小さいサイズが。', '小さいサイズと。'], cj: true, a: 1, mine: 1 },
+  { ko: '여기서 드실 건지 물으면 뭐라고 할까요?', ja: 'こちらでお召し上がりですか。', c: ['はい、一つです。', 'いいえ、持ち帰ります。', 'ホットでお願いします。', '小さいサイズで。'], cj: true, a: 1, mine: 1 }
+];
+var RULE_ROWS = [
+  { lab: '한국어 질문', ko: '점원이 이렇게 물었어요. 무엇을 고르라는 걸까요?', ja: 'ホットとアイス、どちらになさいますか。' },
+  { lab: '한국어 질문 속 일본어 인용', ko: '「持ち帰り」의 뜻으로 알맞은 것은?', ja: null },
+  { lab: '일본어만 · 일본어 칸 있음 (QA 재현, 샘플 가)', ko: '次の文の意味を選んでください。', ja: 'ホットとアイス、どちらになさいますか。' },
+  { lab: '일본어만 · 일본어 칸 비어 있음 (샘플 나)', ko: '「持ち帰り」の意味はどれですか。', ja: null },
+  { lab: '옛 수업 · 한국어 칸 비어 있음 (샘플 다)', ko: null, ja: '店員が「ホットとアイス…」と聞きました。何を選びますか。' },
+  { lab: '공백만 · 둘 다 비어 있음', ko: '  ', ja: null }
+];
+
+var ICON = {
+  back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+  info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>'
+};
+var STAGES = ['이해', '문법', '문제', '응용', '말하기'];
+
+/* ════════ 상태 ════════ */
+var S = { w: 390, h: 780, marks: true, sample: 'a', note: 'B', ans: null, tri: false, pos: 'bottom' };
+
+/* ════════ 공용 조각 ════════ */
+function lessonHead() {
+  return '<header class="lhead"><button type="button" class="back" data-act="oos" aria-label="오늘로">' + ICON.back + '</button>' +
+    '<span class="av" aria-hidden="true">유</span><div class="lh-m"><h1><span class="sr">오늘의 회화, 카페 주문: </span>' + J('サイズと温度を伝えよう') + '</h1>' +
+    '<button type="button" class="ind" data-act="oos" aria-label="선생님 목소리 상태: 온라인"><span class="dot on" aria-hidden="true"></span><span>온라인</span><span class="gt" aria-hidden="true">›</span></button></div></header>';
+}
+function stepsBar() {
+  return '<nav class="steps" aria-label="수업 단계, 5단계 중 2단계 끝냄">' + STAGES.map(function (st, i) {
+    var n = i + 1, done = n <= 2, cur = n === 3, lock = n > 3;
+    var lab = n + '단계 ' + st + (done ? ', 끝냄' : '') + (cur ? ', 지금 보는 단계' : '') + (lock ? ', 앞 단계를 마치면 열려요' : '');
+    return '<button type="button" class="step' + (cur ? ' cur' : '') + (done ? ' done' : '') + (lock ? ' lock' : '') + '" data-act="oos" aria-label="' + lab + '"' +
+      (cur ? ' aria-current="step"' : '') + (lock ? ' aria-disabled="true"' : '') + '><span class="n" aria-hidden="true">' + (done ? '✓' : n) + '</span><span aria-hidden="true">' + st + '</span></button>';
+  }).join('') + '</nav>';
+}
+function choiceText(row, j) { return row.cj ? J(row.c[j]) : esc(row.c[j]); }
+
+/* ③ 문제 카드 — kind: ok(정상) | now(현재) | fix(제안) */
+function quizScreen(kind) {
+  var sm = SAMPLES[S.sample];
+  var q = kind === 'ok' ? sm.good : sm.raw;
+  var now = viewNow(q), fix = viewFix(q);
+  var v = kind === 'fix' ? fix : now;
+  var noteText = kind === 'fix' ? NOTE[S.note] : NOTE.A;
+  var mk = function (changed) { return kind === 'fix' && changed ? ' nw' : ''; };
+  var bugKo = kind === 'now' && !now.legacy && !HANGUL.test(now.ko);
+  var head = '<p class="qp' + (bugKo ? ' bug' : '') + mk(fix.ko !== now.ko) + '">' + esc(v.ko) + '</p>';
+  if (v.ja) head += '<p class="qja' + mk(fix.ja !== now.ja) + '" lang="ja">' + esc(v.ja) + '</p>';
+  if (v.legacy) head += '<p class="qold' + mk(!now.legacy || S.note !== 'A') + '">' + ICON.info + '<span>' + esc(noteText) + '</span></p>';
+  var a = S.ans, answered = a !== null;
+  var choices = sm.c.map(function (ch, j) {
+    var ok = j === sm.a, picked = a === j;
+    var cls = answered ? (ok ? ' ok' : (picked ? ' ng' : ' dim')) : '';
+    var tag = answered ? (ok ? '<span class="tag g">✓ 정답</span>' : (picked ? '<span class="tag b">✗ 내 답</span>' : '<span></span>')) : '<span></span>';
+    return '<button type="button" class="choice' + cls + '" data-act="pick" data-arg="' + j + '" data-k="qc' + j + '" aria-label="' + (j + 1) + '번, ' + esc(ch) +
+      (answered ? (ok ? ', 정답' : (picked ? ', 내 답, 틀림' : '')) : '') + '"' + (answered ? ' aria-disabled="true"' : '') + '>' +
+      '<span class="no" aria-hidden="true">' + (j + 1) + '</span><span class="ct"' + (sm.cj ? ' lang="ja"' : '') + '>' + esc(ch) + '</span>' + tag + '</button>';
+  }).join('');
+  var right = a === sm.a;
+  var exp = answered ? '<div class="exp" role="status"><p class="exp-h ' + (right ? 'g' : 'b') + '">' + (right ? '✓ 맞았어요' : '✗ 틀렸어요 · 정답은 ' + (sm.a + 1) + '번') + '</p><p class="d14">' + sm.x + '</p></div>' : '';
+  var dots = '<div class="dots" aria-hidden="true"><span class="qd ok">✓</span><span class="qd ' + (answered ? (right ? 'ok' : 'ng') : 'cur') + '">' + (answered ? (right ? '✓' : '✗') : '2') + '</span><span class="qd">3</span><span class="qd">4</span><span class="qd">5</span></div>';
+  return '<div class="app">' + lessonHead() + stepsBar() + '<div class="scroll"><div class="page">' +
+    '<div class="sh"><h2>③ 문제 · 5문제</h2><p class="d13">답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요.</p></div>' +
+    '<div class="qtop"><span class="qn">문제 2 / 5</span>' + dots + '</div>' +
+    '<section class="card qcard">' + head + '<div role="group" aria-label="보기">' + choices + '</div>' + exp + '</section>' +
+    (answered ? '<button type="button" class="btn primary full mt" data-act="oos" data-k="qnext">다음 문제</button>' : '') +
+    '</div></div></div>';
+}
+
+/* ③ 결과 목록 — kind: now | fix */
+function sumScreen(kind) {
+  var sm = SAMPLES[S.sample];
+  var rows = OTHER.map(function (r) { return r || { ko: sm.raw.ko, ja: sm.raw.ja, c: sm.c, cj: sm.cj, a: sm.a, mine: sm.mine, sample: true }; });
+  var correct = rows.filter(function (r) { return r.mine === r.a; }).length;
+  var dots = '<div class="dots" aria-hidden="true">' + rows.map(function (r) { var ok = r.mine === r.a; return '<span class="qd ' + (ok ? 'ok' : 'ng') + '">' + (ok ? '✓' : '✗') + '</span>'; }).join('') + '</div>';
+  var list = rows.map(function (r) {
+    var ok = r.mine === r.a;
+    var n = sumNow(r), f = sumFix(r), sp = kind === 'fix' ? f : n;
+    var bug = kind === 'now' && r.sample && !sp.ja && sp.text !== LEGACY && !HANGUL.test(sp.text);
+    var nw = kind === 'fix' && r.sample && (f.text !== n.text || f.ja !== n.ja);
+    var line = ok ? '정답 ' + choiceText(r, r.a) : '내 답 ' + choiceText(r, r.mine) + ' · 정답 ' + choiceText(r, r.a);
+    return '<li><span class="qd ' + (ok ? 'ok' : 'ng') + '" aria-hidden="true">' + (ok ? '✓' : '✗') + '</span><div>' +
+      '<p class="d14' + (bug ? ' bug' : '') + (nw ? ' nw' : '') + '"><span class="sr">' + (ok ? '맞음, ' : '틀림, ') + '</span>' + (sp.ja ? J(sp.text) : esc(sp.text)) + '</p>' +
+      '<p class="cap mt4">' + line + '</p></div></li>';
+  }).join('');
+  return '<div class="app">' + lessonHead() + stepsBar() + '<div class="scroll"><div class="page">' +
+    '<div class="sh"><h2>③ 문제 · 결과</h2></div>' +
+    '<section class="card" style="margin-top:10px"><p class="big">5문제 중 ' + correct + '문제 맞혔어요</p><div class="mt8">' + dots + '</div>' +
+    '<ul class="qsum">' + list + '</ul><p class="cap mt">틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요.</p></section>' +
+    '<button type="button" class="btn primary full" style="margin-top:18px" data-act="oos">다음 단계 · ④ 응용</button>' +
+    '</div></div></div>';
+}
+
+/* 종료 카드 — fixed: shrink-0 적용 여부 */
+function endScreen(fixed) {
+  return '<div class="app">' +
+    '<header class="bbar"><button type="button" class="back" data-act="oos" aria-label="오늘로">' + ICON.back + '</button><div class="bb-m"><h1>수업을 마쳤어요</h1><p>카페 주문 · 10월 3일</p></div></header>' +
+    '<div class="scroll endsc" data-scroll>' +
+      '<div class="endhd"><span class="okc" aria-hidden="true">✓</span><div style="min-width:0"><h2>수업을 마쳤어요</h2><p class="jt" lang="ja">サイズと温度を伝えよう</p><p class="cap">크기와 온도를 말해 봐요</p></div></div>' +
+      '<div class="stats"><div><b>4/5</b><span>문제 정답</span></div><div><b>3</b><span>만든 문장</span></div><div><b>2/4</b><span>쓴 표현</span></div></div>' +
+      '<div class="card"><h3>말하기에서 쓴 표현</h3><ul class="chips">' +
+        '<li class="chip g">' + J('冷たい') + '<span class="cap">차가운</span><span class="tl" aria-hidden="true">✓</span></li>' +
+        '<li class="chip g">' + J('小さい') + '<span class="cap">작은</span><span class="tl" aria-hidden="true">✓</span></li></ul>' +
+        '<h3 style="margin-top:12px">다음엔 이 표현도 써 보세요</h3><ul class="chips">' +
+        '<li class="chip">' + J('持ち帰ります') + '<span class="cap">가져가요(포장)</span></li>' +
+        '<li class="chip">' + J('大丈夫です') + '<span class="cap">괜찮아요</span></li></ul>' +
+        '<p class="cap mt">오늘 배운 표현과 문형은 복습할 항목으로 기록했어요.</p>' +
+        '<a class="addw" data-act="oos" role="link" tabindex="0">단어장에 넣은 단어 2개 · 단어장에서 보기 ›</a></div>' +
+      '<section class="nextp"><p class="d13">다음 시간엔</p><h3>포장 주문하기</h3><p class="tz">먹고 갈지 가져갈지 말하고, 필요한 것을 부탁해 봐요.</p>' +
+        '<button type="button" class="btn primary full mt" data-act="oos">다음 수업 만들기</button></section>' +
+      '<div><button type="button" class="btn ghost full" data-act="oos">이 주제로 선생님과 이어서 말하기</button><p class="cap center mt8">회화 탭에서 ‘카페 주문’ 이야기로 새 회화를 시작해요.</p></div>' +
+      '<a class="endlink' + (fixed ? ' fx nw' : ' bug') + '" data-act="oos" role="link" tabindex="0">오늘로</a>' +
+    '</div></div>';
+}
+
+/* ════════ 틀 ════════ */
+function widthLabel(w) { return w === 390 ? '대표 폭(앱 WebView)' : '경계 폭'; }
+function fig(o) {
+  return '<figure class="fw w' + o.w + '" data-w="' + o.w + '"' + (o.fi != null ? ' data-fi="' + o.fi + '"' : '') + '><figcaption><span class="tone ' + o.tone + '">' + o.toneLab + '</span> <b>' + o.title + '</b><br>' +
+    o.w + ' × ' + S.h + ' · ' + widthLabel(o.w) + '</figcaption>' +
+    '<div class="fbox w' + o.w + ' h' + S.h + '"><div class="phone w' + o.w + ' h' + S.h + '"' + (o.end ? ' data-end="' + o.end + '"' : '') + '>' + o.html + '</div></div>' +
+    (o.end ? '<p class="meas" data-meas></p>' : '') + (o.note ? '<p class="fnote">' + o.note + '</p>' : '') + '</figure>';
+}
+function scaleStage(el) {
+  var figs = qa(':scope > .fw', el); if (!figs.length) return;
+  var ws = figs.map(function (f) { return +f.getAttribute('data-w'); });
+  var n = ws.length, gap = 20, availW = el.clientWidth;
+  var sum = ws.reduce(function (x, y) { return x + y; }, 0), max = Math.max.apply(null, ws);
+  var sRow = (availW - (n - 1) * gap) / sum;
+  var row = n > 1 && sRow >= 0.42;
+  var s = row ? Math.min(1, sRow) : Math.min(1, availW / max);
+  s = Math.max(0.3, Math.floor(s * 1000) / 1000);
+  el.style.setProperty('--s', String(s));
+  el.setAttribute('data-s', String(s));
+  el.classList.toggle('row', row);
+}
+function quizNote(kind) {
+  var sm = SAMPLES[S.sample];
+  if (kind === 'ok') return S.sample === 'b' ? '한국어 질문 속 일본어 인용은 한글이 있어 그대로예요.' : '선생님이 한국어로 제대로 쓴 경우 — 지금과 같아요.';
+  var now = viewNow(sm.raw), fix = viewFix(sm.raw);
+  if (kind === 'now') return now.legacy ? '옛 수업 표시 — 노트가 “예전에 만든 수업…”이에요.' : '굵은 한국어 질문 자리에 일본어가 나와요(한국어 글꼴로).';
+  if (S.sample === 'c') return S.note === 'A' ? '결정 A — 지금과 똑같아요.' : '결정 B — 노트 문구만 바뀌어요.';
+  return '공통 안내 줄 + 일본어 문장' + (filled(sm.raw.ja) ? '' : '(한국어 칸에서 내려온 글)') + ' + 노트' + (S.note === 'B' ? '(결정 B)' : '(결정 A)') + '.';
+}
+var elQuiz = document.getElementById('st-quiz'), elSum = document.getElementById('st-sum'), elEndW = document.getElementById('st-end-wrap');
+
+function renderQuiz() {
+  var ae = document.activeElement, fk = ae && ae.getAttribute ? ae.getAttribute('data-k') : null;
+  var host = ae && ae.closest ? ae.closest('[data-fi]') : null;
+  var fiv = host ? host.getAttribute('data-fi') : null;
+  elQuiz.innerHTML =
+    fig({ w: S.w, tone: 'same', toneLab: '변경 없음', title: '① 정상 · 한국어 질문', html: quizScreen('ok'), fi: 0, note: quizNote('ok') }) +
+    fig({ w: S.w, tone: 'bad', toneLab: '현재', title: '② 일본어만 든 한국어 칸', html: quizScreen('now'), fi: 1, note: quizNote('now') }) +
+    fig({ w: S.w, tone: 'fix', toneLab: '제안', title: '③ 한글 인지 폴백', html: quizScreen('fix'), fi: 2, note: quizNote('fix') });
+  document.getElementById('s-hint').textContent = SAMPLES[S.sample].hint;
+  scaleStage(elQuiz);
+  if (fk && fiv != null) {
+    var t = elQuiz.querySelector('[data-fi="' + fiv + '"] [data-k="' + (S.ans !== null && /^qc/.test(fk) ? 'qnext' : fk) + '"]');
+    if (t) t.focus({ preventScroll: true });
+  }
+}
+function renderSum() {
+  elSum.innerHTML =
+    fig({ w: S.w, tone: 'bad', toneLab: '현재', title: '결과 목록', html: sumScreen('now') }) +
+    fig({ w: S.w, tone: 'fix', toneLab: '제안', title: '결과 목록', html: sumScreen('fix') });
+  scaleStage(elSum);
+}
+function renderEnd() {
+  var ws = S.tri ? [360, 390, 412] : [S.w];
+  var before = ws.map(function (w) { return fig({ w: w, tone: 'bad', toneLab: '현재', title: '“오늘로” shrink-0 없음', html: endScreen(false), end: 'before' }); }).join('');
+  var after = ws.map(function (w) { return fig({ w: w, tone: 'fix', toneLab: '제안', title: '“오늘로” + shrink-0', html: endScreen(true), end: 'after' }); }).join('');
+  if (S.tri) {
+    elEndW.innerHTML = '<p class="rowlab">현재</p><div class="stage" id="st-end-a" aria-label="종료 카드 현재 세 폭">' + before + '</div>' +
+      '<p class="rowlab" style="margin-top:18px">제안</p><div class="stage" id="st-end-b" aria-label="종료 카드 제안 세 폭">' + after + '</div>';
+  } else {
+    elEndW.innerHTML = '<div class="stage" id="st-end-a" aria-label="종료 카드 현재와 제안">' + before + after + '</div>';
+  }
+  qa('.stage', elEndW).forEach(scaleStage);
+  measureEnd();
+}
+function fmt(x) { var r = Math.round(x * 2) / 2; return r % 1 ? r.toFixed(1) : String(r); }
+function measureEnd() {
+  qa('[data-end]', elEndW).forEach(function (ph) {
+    var stage = ph.closest('.stage'), s = parseFloat(stage.getAttribute('data-s')) || 1;
+    var sc = ph.querySelector('[data-scroll]'), link = ph.querySelector('.endlink');
+    sc.scrollTop = S.pos === 'bottom' ? sc.scrollHeight : 0;
+    var h = link.getBoundingClientRect().height / s;
+    var ok = h >= 43.5;
+    var over = sc.scrollHeight - sc.clientHeight;
+    var out = ph.closest('.fw').querySelector('[data-meas]');
+    out.innerHTML = '“오늘로” 누르는 영역 높이 <b>' + fmt(h) + 'px</b>' + (ok ? '<span class="badge good">44px 이상</span>' : '<span class="badge bad">44px 미만 · 찌그러짐</span>') +
+      '<br>내용 ' + sc.scrollHeight + ' / 보이는 높이 ' + sc.clientHeight + (over > 0 ? ' · ' + over + 'px 넘침' : ' · 넘치지 않음');
+  });
+}
+function renderRules() {
+  var cell = function (v, note, isNow) {
+    var bad = isNow && !v.legacy && !HANGUL.test(v.ko);
+    return '<span class="bd' + (bad ? ' x' : '') + '">' + esc(v.ko) + '</span>' + (bad ? '<br><span class="kx">한국어 자리에 일본어</span>' : '') +
+      (v.ja ? '<br><span class="jl" lang="ja">' + esc(v.ja) + '</span>' : '') +
+      (v.legacy ? '<br><span class="nt">노트 · ' + esc(note) + '</span>' : '');
+  };
+  var inTxt = function (s) { return s === null ? '없음' : (s.trim() === '' ? '공백만' : '“' + esc(s) + '”'); };
+  var html = '<thead><tr><th scope="col">경우</th><th scope="col">입력</th><th scope="col">지금 카드</th><th scope="col">제안 카드</th><th scope="col">제안 결과 목록 한 줄</th></tr></thead><tbody>' +
+    RULE_ROWS.map(function (r) {
+      var q = { ko: r.ko, ja: r.ja }, n = viewNow(q), f = viewFix(q), sf = sumFix(q), sn = sumNow(q);
+      var changed = n.ko !== f.ko || n.ja !== f.ja || (f.legacy && S.note !== 'A');
+      var sChanged = sn.text !== sf.text || sn.ja !== sf.ja;
+      return '<tr><td class="case">' + r.lab + '</td><td class="in">한국어 칸 ' + inTxt(r.ko) + '<br>일본어 칸 ' + (r.ja === null ? '없음' : J(r.ja)) + '</td>' +
+        '<td>' + cell(n, NOTE.A, true) + '</td><td>' + cell(f, NOTE[S.note], false) + (changed ? '<br><span class="ch">바뀜</span>' : '') + '</td>' +
+        '<td>' + (sf.ja ? '<span lang="ja">' + esc(sf.text) + '</span> <span class="nt">(일본어 표시)</span>' : esc(sf.text)) + (sChanged ? '<br><span class="ch">바뀜</span>' : '') + '</td></tr>';
+    }).join('') + '</tbody>';
+  document.getElementById('rt').innerHTML = html;
+}
+function renderDec() {
+  qa('[data-opt]').forEach(function (l) { var on = l.getAttribute('data-opt') === S.note; l.classList.toggle('on', on); l.querySelector('input').checked = on; });
+  qa('[data-sel]').forEach(function (e) { e.textContent = e.getAttribute('data-sel') === S.note ? '● 지금 보이는 안' : '○ 누르면 이 안으로 보기'; });
+}
+function renderAll() {
+  document.body.classList.toggle('marks', S.marks);
+  renderQuiz(); renderSum(); renderEnd(); renderRules(); renderDec();
+}
+
+/* ════════ 조작 ════════ */
+var tmr = null;
+function dtoast(m) {
+  var old = document.querySelector('.dtoast'); if (old) old.remove();
+  var d = document.createElement('div'); d.className = 'dtoast'; d.setAttribute('role', 'status'); d.textContent = m; document.body.appendChild(d);
+  clearTimeout(tmr); tmr = setTimeout(function () { d.remove(); }, 2200);
+}
+function seg(id, attr, fn) {
+  var g = document.getElementById(id);
+  g.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !g.contains(b)) return;
+    qa('button', g).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    fn(b.getAttribute(attr));
+  });
+}
+seg('d-w', 'data-w', function (v) { S.w = +v; renderQuiz(); renderSum(); renderEnd(); });
+seg('d-h', 'data-h', function (v) { S.h = +v; renderQuiz(); renderSum(); renderEnd(); });
+seg('d-m', 'data-m', function (v) { S.marks = v === 'on'; document.body.classList.toggle('marks', S.marks); });
+seg('d-t', 'data-t', function (v) { if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v); });
+seg('d-s', 'data-s', function (v) { S.sample = v; S.ans = null; renderQuiz(); renderSum(); });
+seg('d-tri', 'data-tri', function (v) { S.tri = v === 'three'; renderEnd(); });
+seg('d-pos', 'data-pos', function (v) { S.pos = v; measureEnd(); });
+qa('input[name="dn"]').forEach(function (i) { i.addEventListener('change', function () { S.note = i.value; renderQuiz(); renderRules(); renderDec(); }); });
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-act]'); if (!b) return;
+  var act = b.getAttribute('data-act');
+  if (act === 'pick') { if (S.ans !== null) return; S.ans = +b.getAttribute('data-arg'); renderQuiz(); return; }
+  if (act === 'oos') { e.preventDefault(); dtoast('이 데모에서는 바뀌는 곳만 움직여요'); }
+});
+document.addEventListener('keydown', function (e) {
+  var t = e.target; if (!t || !t.matches || !t.matches('a[role="link"][data-act]')) return;
+  if (e.key === 'Enter') { e.preventDefault(); t.click(); }
+});
+var rsz = null;
+window.addEventListener('resize', function () { clearTimeout(rsz); rsz = setTimeout(function () { scaleStage(elQuiz); scaleStage(elSum); qa('.stage', elEndW).forEach(scaleStage); measureEnd(); }, 120); });
+
+renderAll();
+})();
+</script>
+</body>
+</html>

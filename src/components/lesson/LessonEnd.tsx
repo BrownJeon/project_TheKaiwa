@@ -141,7 +141,7 @@ export default function LessonEnd({ lesson, result, onToast }: { lesson: LessonD
             </Link>
           </BtnRow>
         )}
-        <Link href="/study/today" className="flex h-11 items-center justify-center text-[13px] font-medium text-ink2 underline underline-offset-4">
+        <Link href="/study/today" className="flex h-11 shrink-0 items-center justify-center text-[13px] font-medium text-ink2 underline underline-offset-4">
           {END.today}
         </Link>
       </div>

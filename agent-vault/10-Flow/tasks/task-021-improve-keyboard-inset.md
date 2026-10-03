@@ -482,3 +482,55 @@ engine: jev
 
 ---
 
+## Deployer 기록 (APK 시험 빌드, 2026-10-03)
+
+### 빌드 결과
+
+| 항목 | 값 |
+|------|-----|
+| APK 경로 | `/home/brownjeon/.node-local/thekaiwa-apk/out/thekaiwa-1.0.2-3.apk` |
+| 크기 | 34 MB (35,216,073 bytes) |
+| versionCode | 3 (이전: 2) |
+| versionName | 1.0.2 (이전: 1.0.1) |
+| applicationId | com.miraclepenguin.kaiwa |
+| ABI | arm64-v8a |
+| sha256 | `bdc351f83bbc4c9d62ea8b872c6c51c38990486cf968d4590f577ffd930a066e` |
+| 서명자 | SHA-256 `a4c23dca02f56db088b93a310913ffc639ced8a915ee4be3588abf07d9da9e47` (디버그 키스토어) |
+| debuggable | no |
+| 플러그인 테스트 | 67개 통과 |
+
+### 빌드 상태
+
+✅ **성공** — gradle assembleRelease 통과. 웹(task-021-improve-keyboard-inset) + 네이티브(MainActivity IME 인셋 보정) 모두 포함.
+
+### 확인 사항
+
+- [x] versionCode 증가 확인: 2→3 (build.gradle L6 `kaiwaVersionCode = 3`)
+- [x] versionName 확인: "1.0.2" (build.gradle L7 `kaiwaVersionName = "1.0.2"`)
+- [x] applicationId 확인: com.miraclepenguin.kaiwa (build.gradle L20)
+- [x] 플러그인 단위 테스트 67/67 통과 (sherpa-stt testDebugUnitTest)
+- [x] sha256 구함: `bdc351f83bbc4c9d62ea8b872c6c51c38990486cf968d4590f577ffd930a066e`
+
+### 사용자 폰에서 설치하는 방법
+
+1. **사용자 승인 후** `scripts/build-apk.sh --publish` 실행 — DATA_ROOT(`/home/brownjeon/NFS/homes/brownjeon/project/files/thekaiwa/releases/`) 에 `thekaiwa-1.0.2.apk` 복사
+2. **앱 다운로드 링크**: `https://kaiwa.미라클펭귀.com/app/download/latest.apk` (시험 중은 아직 비활성)
+3. **시험 설치**: 현재 APK 위치 `~/.node-local/thekaiwa-apk/out/thekaiwa-1.0.2-3.apk` 에서 사용자가 직접 다운로드하거나 `adb install` 로 기기에 설치
+4. **설치 전 확인**: 디버그 키스토어(`~/.android/debug.keystore`) 존재 여부 — 없으면 덮어쓰기 설치 불가능 (사용자 폰에서 앱 제거 후 재설치 필요)
+5. **설치 후**: 앱 실행 → "업데이트 필요"(선택) 또는 바로 회화·채팅·입력 화면에서 키보드 가림 현상 해결 확인
+
+### 다음 단계
+
+- [ ] 사용자 S25+ 폰에서 F6 (웹 + 네이티브 APK 1.0.2 설치 후) — 회화방 글자 모드·채팅방·시트 입력·단어장 검색·설정 폼에서 키보드 열림 동안 입력 칸 가림 없음 확인
+- [ ] `scripts/build-apk.sh --publish` (사용자 승인 후) — `/app/download/latest.apk` 배포, `AppRelease` 행 INSERT(versionCode 3, minSupported 정책 결정)
+- [ ] 앱 배너 "업데이트 필요: Lingofy Japanese 1.0.2, 키보드 입력 보이기 개선" 사용자 공지
+- [ ] task 종료 (QA 폰 F6 실측 통과 후)
+
+### 현재 운영 상태
+
+- 웹(360/390/412): ✅ 운영 릴리스 20261003-093130-2209ed2b 에 반영 완료
+- 앱(1.0.1): ❌ 아직 웹 변경만 적용됨 — 네이티브 보정(MainActivity) APK 재설치 필요
+- APK 배포본: ⏳ 사용자 승인 대기 중 (현재 로컬 경로만)
+
+---
+

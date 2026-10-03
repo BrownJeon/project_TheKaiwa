@@ -6,7 +6,7 @@
  *  - `memoWordProblem`: 들린 단어 메모 한 줄 검사(서버 #61·#62a 규칙과 같음)
  *  - `hasJa`: 가나·한자가 있으면 일본어로 본다(`lang="ja"`)
  *  - 줄 다시 듣기·표현 소리 키(task-025): `lineReplayKey`·`exprKey`·`lineReplayPace`·`activeLineReplay`·`playLineReplay`·`playExpr`
- *  - 문제 문장 표기(task-025): `quizPromptView`·`quizSummaryPrompt`(옛 레슨 promptKo null 대체)
+ *  - 문제 문장 표기(task-025·025b): `quizPromptView`·`quizSummaryPrompt`(promptKo 가 비었거나 한글이 없으면 일본어 문장 폴백)
  */
 import type { PlaybackSnapshot } from '@/modules/speech/tts/client'
 import type { AudioPace, LessonContent, LessonDto, LessonProgress, LessonQuiz, MemoDraft, NextPreview, TodayLessonItem, TodayLessons } from '@/types/lesson'
@@ -218,20 +218,37 @@ export function playExpr(pb: Pick<LessonPlayback, 'playLines'>, idx: number): vo
 
 const filled = (s: string | null | undefined): string | null => (typeof s === 'string' && s.trim() ? s : null)
 
-/**
- * 문제 카드 머리 — 새 레슨(lesson@v8~)은 promptKo 가 늘 있어 한국어 질문(굵게) → 일본어 문장(있으면).
- * 옛 레슨(v7 이하)에서 promptKo 가 비었으면 공통 안내 줄 + 일본어 문장 + "예전에 만든 수업…"(결정 c=A, 서버 요청 없음).
- */
-export function quizPromptView(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { ko: string; ja: string | null; legacy: boolean } {
-  const ko = filled(q.promptKo)
-  const ja = filled(q.promptJa)
-  return ko ? { ko, ja, legacy: false } : { ko: U3.legacyPrompt, ja, legacy: true }
+// 학습자 UI 가 conversation 층을 import 할 수 없어 `learning/lessons/matching.ts` 의 HANGUL 과 같은 범위(자모·호환 자모·음절)를 따로 둔다.
+const HANGUL_RE = /[ᄀ-ᇿ㄰-㆏가-힯]/
+
+/** 한글이 하나라도 있어야 한국어 질문으로 인정한다 — LLM 이 promptKo 에 일본어만 넣는 경우(task-025b D9)를 거른다. */
+const koText = (s: string | null | undefined): string | null => {
+  const f = filled(s)
+  return f && HANGUL_RE.test(f) ? f : null
 }
 
-/** 결과 목록 한 줄 — `promptKo ?? promptJa`(공통 안내 줄은 넣지 않는다 — 모든 줄이 같은 말이 되니까). */
-export function quizSummaryPrompt(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { text: string; ja: boolean } {
-  const ko = filled(q.promptKo)
-  if (ko) return { text: ko, ja: false }
+/** promptJa 가 비었을 때 일본어뿐인 promptKo 를 일본어 줄로 내린다(버리면 문제 문장 자체가 사라진다). 한글이 섞였으면 koText 쪽이다. */
+const jaFromKo = (s: string | null | undefined): string | null => {
+  const f = filled(s)
+  return f && !HANGUL_RE.test(f) && hasJa(f) ? f : null
+}
+
+/**
+ * 문제 카드 머리 — 한글이 있는 promptKo 만 한국어 질문(굵게) → 일본어 문장(있으면).
+ * 옛 레슨(v7 이하)의 빈 promptKo, 새 레슨이라도 일본어만 담긴 promptKo 는 공통 안내 줄 + 일본어 문장 + 안내 노트(서버 요청 없음).
+ * 일본어 문장은 promptJa 가 우선이고, 없으면 일본어뿐인 promptKo 를 쓴다.
+ */
+export function quizPromptView(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { ko: string; ja: string | null; legacy: boolean } {
+  const ko = koText(q.promptKo)
   const ja = filled(q.promptJa)
+  if (ko) return { ko, ja, legacy: false }
+  return { ko: U3.legacyPrompt, ja: ja ?? jaFromKo(q.promptKo), legacy: true }
+}
+
+/** 결과 목록 한 줄 — 한글 promptKo → promptJa → 일본어뿐인 promptKo 순(공통 안내 줄은 마지막 폴백 — 모든 줄이 같은 말이 되니까). */
+export function quizSummaryPrompt(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { text: string; ja: boolean } {
+  const ko = koText(q.promptKo)
+  if (ko) return { text: ko, ja: false }
+  const ja = filled(q.promptJa) ?? jaFromKo(q.promptKo)
   return ja ? { text: ja, ja: true } : { text: U3.legacyPrompt, ja: false }
 }

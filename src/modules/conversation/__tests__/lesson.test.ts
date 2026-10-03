@@ -738,6 +738,49 @@ test('buildLessonRequest 의 extraCheck: 2차에도 id 존재(①) 같은 데이
   assert.ok(second.some((m) => m.includes('totally-made-up-id')), '2차(마지막)에도 존재하지 않는 id 는 여전히 위반이어야 한다(환각은 repair 도 손대지 않는다)')
 })
 
+/** 마지막 시도 면책 로그만 모은다 — 호출 한 번의 로그 줄을 돌려준다. */
+function lastAttemptToleranceLogs(data: LessonResponse): string[] {
+  const lines: string[] = []
+  const m = mock.method(console, 'info', (...a: unknown[]) => void lines.push(a.map(String).join(' ')))
+  try {
+    const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+    req.extraCheck!(structuredClone(data), { attempt: 2, maxAttempts: 2, traceId: 't_task025bLogTest00000' })
+  } finally {
+    m.mock.restore()
+  }
+  return lines.filter((l) => l.startsWith('[lesson] 마지막 시도'))
+}
+
+test('task-025b: 마지막 시도 면책 로그는 ④ 매칭 건수와 promptKo 한글 건수를 따로 센다(원문·일본어 없이 상관 id·시도·건수만)', () => {
+  const base = contentMismatchResponse() // ④ 1건(application[0])
+  const c2 = fixture.topic.chunks[1]
+  const noHangulPromptKo = (q: LessonResponse['quiz'][number]) => ({ ...q, promptKo: 'どれですか。' })
+
+  // ④ 1건 + promptKo 1건
+  const both: LessonResponse = { ...base, quiz: [noHangulPromptKo(base.quiz[0]), ...base.quiz.slice(1)] }
+  const l1 = lastAttemptToleranceLogs(both)
+  assert.equal(l1.length, 1)
+  assert.match(l1[0], /④매칭 1건·promptKo한글 1건 trace=t_task025bLogTest00000 attempt=2\/2$/)
+  assert.ok(!/[぀-ヿ一-鿿]/.test(l1[0]), '로그에 일본어(원문·모범 답)를 싣지 않는다')
+
+  // ④ 2건 + promptKo 0건
+  const twoContent: LessonResponse = {
+    ...base,
+    speaking: [{ ...base.speaking[0], targetIds: [c2.id], modelAnswerJa: '会社員です。', modelReading: 'かいしゃいんです。' }, ...base.speaking.slice(1)],
+  }
+  const l2 = lastAttemptToleranceLogs(twoContent)
+  assert.match(l2[0], /④매칭 2건·promptKo한글 0건 /)
+
+  // ④ 0건 + promptKo 2건
+  const twoPromptKo: LessonResponse = { ...validLessonResponse(fixture.topic) }
+  twoPromptKo.quiz = twoPromptKo.quiz.map((q, i) => (i < 2 ? noHangulPromptKo(q) : q))
+  const l3 = lastAttemptToleranceLogs(twoPromptKo)
+  assert.match(l3[0], /④매칭 0건·promptKo한글 2건 /)
+
+  // 눈감을 위반이 없으면 로그 자체가 없다.
+  assert.equal(lastAttemptToleranceLogs(validLessonResponse(fixture.topic)).length, 0)
+})
+
 test('REV-032 M1: router 폴백 — connection A 가 2회 다 실패한 뒤 B 의 1차에서는 ④ 완화가 꺼지고 2차에서만 켜진다', async (t) => {
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
   // 가짜 LLM(home-m4 형식 `{message:{content}}`) — connection 은 경로(/a·/b)로 가른다. 각 경로의 응답 순서가 곧 시도 순서다.

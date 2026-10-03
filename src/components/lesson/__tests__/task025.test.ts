@@ -84,7 +84,7 @@ test('문제 머리: 새 레슨은 한국어 질문 → 일본어 문장, 옛 �
   assert.deepEqual(quizPromptView({ promptKo: null, promptJa: null }), { ko: U3.legacyPrompt, ja: null, legacy: true }, '둘 다 비어도 깨지지 않는다')
   assert.deepEqual(quizPromptView({ promptKo: '뜻은?', promptJa: '' }), { ko: '뜻은?', ja: null, legacy: false })
   assert.equal(U3.legacyPrompt, '일본어 문장을 읽고 알맞은 답을 고르세요.')
-  assert.equal(U3.legacyNote, '예전에 만든 수업이라 한국어 문제 설명이 없어요.')
+  assert.equal(U3.legacyNote, '이 문제에는 한국어 설명이 없어요.')
 })
 
 test('결과 목록 한 줄: promptKo ?? promptJa — 공통 안내 줄은 넣지 않는다', () => {
