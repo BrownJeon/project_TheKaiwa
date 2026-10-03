@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-010b-repetition]] — **반복 학습 완료**(2026-10-03): 서버 1단계(`cb176cc`) + 2단계 화면(오늘 홈 복습 카드·복습 레슨)·QUEUED 판단 재킥·A5 reviewMix@v3(운영 잠재 결함 수정). REV-079~081·QA 화면 451·스모크 52/52, 운영 반영 `d775aac`·운영 스모크 52/52. 후속 [[task-010b2-review-decision-v2]]
 - [[task-019-cleanup-lint-env-strip]] — **정리 backlog 3건**(2026-09-29): ESLint 상대경로 교차 모듈 import 금지 · CLI 자식 env 프록시 키 제거 · A4 스키마 밖 필드 제거 요청 옵션화. REV-037 PASS, 운영 반영 `8313dc9`(006·010 PASS)
 - [[task-012b-speech-p2]] — **음성 P2 1단계: 분석 STT 파이프라인**(2026-09-29). SpeechJob 적재 게이트·사용자별 디바운스(+20s·상한 5분)·claim SKIP LOCKED+재검사·self-reclaim(인스턴스 id)·#138~#140·#22·#21a·health `stt_analysis_worker`·D-B7 평가 텍스트·Python 워커(whisper_http·pyopenjtalk 비교기). REV-033·Codex C2 2건 수정·QA(운영 모드) PASS, 운영 반영 `8af4542`(007 44/44·011 60/60). **U1·U2 사용자 승인 2026-10-01 → 전부 완료** — pyopenjtalk 운영 venv ✅ · #140 claim 세대 펜싱(attempts=세대)·REV-041·QA PASS · 커밋 `97b31cf` 웹훅 배포(릴리스 `20261001-131341-97b31cf`, `--apps` 에 워커 추가) → pm2 워커 online·restart 0·health `stt_analysis_worker` ok·운영 스모크 007 45/45 (2026-10-01 13:25 Leader 직접 실측)
 - [[task-010-today-lesson]] — **Phase 2 오늘의 회화(레슨)**(2026-09-28). 주제/붙여넣기 → A4 5단계(듣기·메모 제안·퀴즈 첫 답 고정·응용·말하기 3과제+발화 연결) → 완료 한 트랜잭션(StudyLog·스냅샷·RepetitionItem 3일)·nextPreview, 오늘 홈 카드. REV-028~031·Codex C2 2건 수정(2차 0)·QA 65/65·UI E2E 61/61, 운영 반영 `67771a5`·운영 스모크 65/65. 붙여넣기 A4 신뢰도 관찰 중
@@ -29,8 +30,8 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
+- [[task-010b2-review-decision-v2]] — A11 reviewDecision@v2: 응답 계약 위반(reason 추가·mixNote_ko 누락 → 재시도 60s 초과 → FALLBACK) 정합 + 관측 신뢰도 가중(010b ★결정 3) — 착수 2026-10-03
 - task-012b-2·-3·-4 — 음성 P2 후속(재확인 카드·발화 로그 화면=데모 / TTS 지표=DB 추가 / 타이밍=M4 설치) — 승인 뒤 착수
-- [[task-010b-repetition]] — 반복 학습(RepetitionItem 3경로·LearningObservation·A11·오늘의 복습·A5): 데모 v1(delta) **승인 2026-10-01** · PE A11·A5 완료 · **DB 추가 승인·적용 2026-10-01**(커밋 `989f1a3`) · **1단계 서버 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`·릴리스 `20261003-093130-2209ed2b`, 운영 스모크 52/52·누출 0)** — REV-061 PASS_WITH_NOTES → 수정 → REV-064 PASS → Judge C2 → Codex 1/4(Medium 1건→Low) → **QA PASS(2026-10-03 07:35, 결함 0·실 LLM 3회)**. **2단계 착수(2026-10-03 19:19)** — activate·judge(opus)·데모와 다른 점 9건 사용자 "이대로 구현" → 서버 S(QUEUED 고아 킥)·화면 A(홈 카드) 병렬 진행, 화면 B(복습 레슨)는 A 뒤
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) **승인 2026-10-01** · PE talk@v3→v5 · **DB 추가 승인·적용 2026-10-01** · 구현 완료 → ✅ 운영 반영(2026-10-03, 같은 릴리스) — REV-055 PASS·REV-058 PASS·Judge C2 Codex 불필요(0/4) · 2차 QA FAIL(#1 reject 409 UI) → 수정·REV-063 PASS_WITH_NOTES · COACH hintKo 서버 필터(`coachHintOf`) · **제한 QA PASS_WITH_NOTES(2026-10-03 07:46, Medium 2 = 수용 한계 확정·결함 #1 종결) → ✅ 운영 반영(2026-10-03)**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면 데모 v1(full) **승인 2026-10-01** · DB `EvaluationItem.textRevealedAt` 적용 · 화면 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`) — REV-046 PASS · Codex C2 1건 채택(REV-051 수정) → REV-057 PASS → **QA PASS** → ✅ 운영 반영(012 와 한 커밋)
 - [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): **서버 운영 반영(67771a5, 운영 32/32)** · 화면 데모 v1(full) **승인 2026-10-01** → 화면 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`) · REV-048 CONDITIONAL_PASS(Medium: 평가 원본 링크는 011 과 같은 릴리스) → **QA PASS** → ✅ 011 과 함께 운영 반영

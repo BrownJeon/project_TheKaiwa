@@ -1,7 +1,7 @@
 ---
 task_id: task-010b
 title: "반복 학습 — RepetitionItem 3경로·LearningObservation 기록·A11 복습 판단(3~7일)·오늘의 복습·A5 복습 레슨"
-status: doing
+status: done
 base_ref: 98d8cac
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, codex, qa, deployer]
@@ -1366,3 +1366,22 @@ dev 로그에서 1줄 발견: `[json] 1차 응답 계약 위반 → 재시도: /
 - REV-081 PASS 수용(L-1 api-contract 1084행 v3 로 Leader 갱신, L-2 조치 불요). QA 화면 PASS(451 체크) + 스모크 재실행 **52/52**(A5 36.9s DONE·계약 위반 0, A11 17.3s, A3 11.8s) → 데모 게이트 `deactivate`.
 - 운영 관찰 후속(이번 범위 밖): ① A11 DAILY 1차 응답 `mixNote_ko` 누락 → 재시도 복구(QA 관찰, reviewDecision 계약 — PE 확인 후보) ② CLI 무응답 150s 1회(PE 측정) — 운영에서 REVIEW_GEN FAILED 비율 관측.
 - 커밋·push(= webhook 운영 배포) → 운영 스모크 `SMOKE_ENV=PRODUCTION bash tests/live/task010b-smoke.sh 3010`.
+
+## Leader 기록 (운영 반영 확인, 2026-10-03 21:21)
+- 커밋 `d775aac` push → webhook 운영 배포(릴리스 `20261003-211355-d775aaca`, pm2 3개 online·restart 0, health ok·degraded 없음).
+- 운영 스모크 `SMOKE_ENV=PRODUCTION task010b-smoke.sh 3010` **52/52 PASS·누출 0**. 지표: A5 44.6s DONE · A11 REVIEW 16.6s · A11 WORDS 32.6s · A3 15.1s · **A11 DAILY 64.7s FAILED → FALLBACK**(스모크 허용 경로).
+- 운영 로그: A11 1차 응답 계약 위반 `/decisions/N: 허용되지 않은 필드 'reason'`(21:18) — QA 관찰(`mixNote_ko` 누락)과 같은 유형. A5 와 같은 "지시와 스키마 불일치 → 재시도 → 예산(60s) 초과" 패턴 → 후속 [[task-010b2-review-decision-v2]](reviewDecision@v2: 계약 정합 + ★결정 3 관측 신뢰도 가중을 한 번에).
+
+## 최종 요약 (Leader)
+
+**무엇을**: 반복 학습(복습)을 완성했습니다. 서버(1단계)는 오늘 아침 운영에 반영됐고, 이번 2단계로 화면이 붙어 사용자가 실제로 쓸 수 있게 됐습니다.
+- **오늘 홈 "오늘의 복습" 카드** — 기록이 부족하면 "곧 열려요"(남은 조건 막대), 복습이 있으면 항목 수·집중 수·선생님 판단 근거와 [복습 시작]/[오늘은 건너뛰기](5초 되돌리기, 화면을 떠나면 즉시 저장), 판단 대기·만드는 중·완료·건너뜀 상태.
+- **복습 레슨** — 기존 5단계 레슨 화면을 그대로 쓰되 머리 "복습" 뱃지, ① 이번 복습 항목 카드(집중 먼저·"처음 복습해요"), ② 집중 칩, 종료 카드에 "다음 복습"(선생님이 3~7일 중 정한 날짜별 묶음과 근거).
+- **서버 보강** — 대기 상태로 남은 복습 판단 작업을 오늘 홈 조회가 다시 깨움.
+- **복습 수업 프롬프트 v3** — 지시문에 필수 필드가 빠져 가끔 생성이 실패하던 운영 잠재 결함을 QA 중 발견해 고침(스모크 22/27 → 52/52).
+
+**어떻게 검증했나**: 데모 v1(사용자 승인) + 데모와 다른 점 9건 사용자 "이대로 구현". Reviewer 3회(REV-079 조건부 → 소수정 → REV-080·081 PASS), Judge C2 Codex 불필요, QA 화면 451 체크(360/390/412 × 780/892, 건너뛰기 4경로 실화면·NEW 회귀 0·데모 대조) + 라이브 스모크 52/52, 운영 스모크 52/52.
+
+**남은 것(후속)**: [[task-010b2-review-decision-v2]] — 복습 판단(A11) 응답 계약 위반으로 그날 판단이 기본 규칙으로 대체되는 경우가 있음(기능은 동작, 판단 품질만 저하) + 관측 신뢰도 가중. 운영 관찰: 복습 수업 생성 실패 비율(CLI 무응답 1/5 측정).
+
+**Codex**: 1단계 C2 1회(지적 1건 → 이번 2단계 서버 보강으로 해소). 2단계 C2 는 judge 판정으로 호출 안 함(R1·한도 미확인 보류). 실패 내역 없음.
