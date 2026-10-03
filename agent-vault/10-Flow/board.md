@@ -8,7 +8,7 @@ tags:
 
 ## Done
 - [[task-019-cleanup-lint-env-strip]] — **정리 backlog 3건**(2026-09-29): ESLint 상대경로 교차 모듈 import 금지 · CLI 자식 env 프록시 키 제거 · A4 스키마 밖 필드 제거 요청 옵션화. REV-037 PASS, 운영 반영 `8313dc9`(006·010 PASS)
-- [[task-012b-speech-p2]] — **음성 P2 1단계: 분석 STT 파이프라인**(2026-09-29). SpeechJob 적재 게이트·사용자별 디바운스(+20s·상한 5분)·claim SKIP LOCKED+재검사·self-reclaim(인스턴스 id)·#138~#140·#22·#21a·health `stt_analysis_worker`·D-B7 평가 텍스트·Python 워커(whisper_http·pyopenjtalk 비교기). REV-033·Codex C2 2건 수정·QA(운영 모드) PASS, 운영 반영 `8af4542`(007 44/44·011 60/60). **워커 운영 등록 U1·U2 사용자 승인 대기**
+- [[task-012b-speech-p2]] — **음성 P2 1단계: 분석 STT 파이프라인**(2026-09-29). SpeechJob 적재 게이트·사용자별 디바운스(+20s·상한 5분)·claim SKIP LOCKED+재검사·self-reclaim(인스턴스 id)·#138~#140·#22·#21a·health `stt_analysis_worker`·D-B7 평가 텍스트·Python 워커(whisper_http·pyopenjtalk 비교기). REV-033·Codex C2 2건 수정·QA(운영 모드) PASS, 운영 반영 `8af4542`(007 44/44·011 60/60). **U1·U2 사용자 승인 2026-10-01 → 전부 완료** — pyopenjtalk 운영 venv ✅ · #140 claim 세대 펜싱(attempts=세대)·REV-041·QA PASS · 커밋 `97b31cf` 웹훅 배포(릴리스 `20261001-131341-97b31cf`, `--apps` 에 워커 추가) → pm2 워커 online·restart 0·health `stt_analysis_worker` ok·운영 스모크 007 45/45 (2026-10-01 13:25 Leader 직접 실측)
 - [[task-010-today-lesson]] — **Phase 2 오늘의 회화(레슨)**(2026-09-28). 주제/붙여넣기 → A4 5단계(듣기·메모 제안·퀴즈 첫 답 고정·응용·말하기 3과제+발화 연결) → 완료 한 트랜잭션(StudyLog·스냅샷·RepetitionItem 3일)·nextPreview, 오늘 홈 카드. REV-028~031·Codex C2 2건 수정(2차 0)·QA 65/65·UI E2E 61/61, 운영 반영 `67771a5`·운영 스모크 65/65. 붙여넣기 A4 신뢰도 관찰 중
 - [[task-018-db-structure-hardening]] — **DB 구조 보강 3건**(2026-09-28, 사용자 승인): Utterance.chatId·chatMessageId unique / ConfigScope LEXICON / LexiconVersion.rollbackOf — 백업→db push→REV-026→webhook 배포 ok·운영 44/44
 - [[task-009-release-cutover]] — **운영 blue/green 컷오버·APP_ENV=PRODUCTION**(2026-09-28). `/home/brownjeon/apps/thekaiwa` 릴리스 운영(앱+gateway), 첫 배포 ok·롤백 리허설 통과, 운영 E2E 단어 74·채팅 41·회화 37·음성 3/3, health 필수 503 게이트
@@ -30,21 +30,21 @@ tags:
 
 ## Doing
 - task-012b-2·-3·-4 — 음성 P2 후속(재확인 카드·발화 로그 화면=데모 / TTS 지표=DB 추가 / 타이밍=M4 설치) — 승인 뒤 착수
-- [[task-010b-repetition]] — 반복 학습(RepetitionItem 3경로·LearningObservation·A11·오늘의 복습·A5): 데모 v1(delta) ∥ PE A11·A5 — **스키마 push 사용자 승인 대기 예정**
-- [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) · PE talk@v3(A11 뒤) — **스키마 push 승인 대기 예정**
-- [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면은 데모 v1(full) **사용자 승인 대기** · DB `EvaluationItem.textRevealedAt` 승인 대기
-- [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): **서버 운영 반영(67771a5, 운영 32/32)** · 화면은 데모 v1(full) **사용자 승인 대기**
-- [[task-012c-console-p2]] — Console P2: **서버 1·2단계 운영 반영**(`6abe464` 보안 게이트 · `8c22f01` 설정 편집·버전·Rollback·감사 API, REV-035·036·Codex C2 ×2 수정·QA PASS) · 화면은 **데모 v2 사용자 승인 대기** · 012c-2(Prompt Registry·Playground·Voice)·012c-3(TTS 품질) 후속
-- [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) — 구현은 010b·010c 뒤, **스키마 push 승인 대기 예정**
+- [[task-010b-repetition]] — 반복 학습(RepetitionItem 3경로·LearningObservation·A11·오늘의 복습·A5): 데모 v1(delta) **승인 2026-10-01** · PE A11·A5 완료 · **DB 추가 승인·적용 2026-10-01**(커밋 `989f1a3`) · **1단계 서버 구현 완료(미배포)** — REV-061 PASS_WITH_NOTES → 수정 → REV-064 PASS → Judge C2 → Codex 1/4(Medium 1건→Low) → **QA PASS(2026-10-03 07:35, 결함 0·실 LLM 3회)**. 2단계(화면)는 011 커밋 뒤 `check.mjs activate` · 남은 Low(#58 QUEUED 고아 재킥 등)는 2단계 또는 별도 소작업
+- [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) **승인 2026-10-01** · PE talk@v3→v5 · **DB 추가 승인·적용 2026-10-01** · 구현 완료(미배포) — REV-055 PASS·REV-058 PASS·Judge C2 Codex 불필요(0/4) · 2차 QA FAIL(#1 reject 409 UI) → 수정·REV-063 PASS_WITH_NOTES · COACH hintKo 서버 필터(`coachHintOf`) · **제한 QA PASS_WITH_NOTES(2026-10-03 07:46, Medium 2 = 수용 한계 확정·결함 #1 종결) → 배포 대기**
+- [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면 데모 v1(full) **승인 2026-10-01** · DB `EvaluationItem.textRevealedAt` 적용 · 화면 구현 완료(미배포) — REV-046 PASS · Codex C2 1건 채택(REV-051 수정) → REV-057 PASS → **QA PASS** → 배포 대기(012 와 한 커밋, untracked `study/today/eval/[evaluationId]` 포함)
+- [[task-012-calendar]] — 달력(계획표 탭·기록 삭제 스냅샷 불변): **서버 운영 반영(67771a5, 운영 32/32)** · 화면 데모 v1(full) **승인 2026-10-01** → 화면 구현 완료(미배포) · REV-048 CONDITIONAL_PASS(Medium: 평가 원본 링크는 011 과 같은 릴리스) → **QA PASS** → 011 과 함께 배포 대기
+- [[task-012c-console-p2]] — Console P2: **서버 1·2단계 운영 반영**(`6abe464`·`8c22f01`) · 화면 **데모 v2 승인 2026-10-01** → 화면 구현 완료(미배포) — REV-047 CONDITIONAL_PASS(M-1) → REV-054 PASS → Codex C2 High → REV-056 → REV-059 PASS_WITH_NOTES → Codex 재검토 Medium → 수정 → REV-062 PASS_WITH_NOTES → Judge Codex 없음(예산 4/4) → QA CONDITIONAL(Medium: FlowBar 가 모바일 키보드 입력칸을 가림) → FlowBar 수정 → REV-065 PASS_WITH_NOTES → **키보드 재측정 QA PASS(144/144, 2026-10-03 08:00) → 결함 #1 종결·배포 대기**(021 과 같은 웹 배치) · 012c-2(Prompt Registry·Playground·Voice)·012c-3(TTS 품질) 후속
+- [[task-010d-scenario-roleplay]] — 상황 역할극(Scenario 10개·코치·종료 판정): 데모 v1(full) **승인 2026-10-01** · **DB 추가 승인·적용 2026-10-01** — 구현은 010b·010c 뒤
 - [[task-003f-android-ondevice-stt]] — 안드로이드 앱(현 1.0.1 Lingofy Japanese)·온디바이스 STT — 팀 작업·운영 반영 완료, **사용자 폰 F6 실측 대기**(nginx 재적용 ✅ 2026-09-28)
 - **개선작업 착수(2026-09-30, 사용자 답변 Q1~Q10 반영)** — 권고 순서(잠정, 사용자 변경 가능): 020 → 021 → 022 → 023 → 024 → 025 → 026
   - [[task-020-improve-tab-label]] — ✅ **완료·운영 반영**(`54199c9`, 리뷰·QA PASS, 운영 빌드 확인 — 실기기 3폭은 사용자) 탭 라벨 '서랍장'→'단어장'(IMP-0006)
-  - [[task-021-improve-keyboard-inset]] — 키보드 입력창 가림 공통 수정(IMP-0008, R1·**데모 delta**)
-  - [[task-022-improve-voice-range]] — 음성 설정 범위 약 2배(IMP-0005, R1·**데모 delta**) — **서버 완료·운영 반영**(`0e1140c`, QA PASS, 릴리스 `da263a6`과 함께) · **화면(슬라이더 범위)은 데모 v2 승인 대기**
-  - [[task-023-improve-vocab-screen]] — 단어장 조각 필터·뱃지·상세 재생(IMP-0001·0002·0003, R1·**데모 delta**)
+  - [[task-021-improve-keyboard-inset]] — 키보드 입력창 가림 공통 수정(IMP-0008, R1·**데모 delta v1 승인 2026-10-01**) — 웹 구현 완료·Reviewer REV-049 PASS(Medium 0) · **QA 웹 E2E 95/95**(Leader 재확인) · **Judge C2 2026-10-03 07:50 — Codex 불필요(CX-limit-unknown-hold)** → 웹 배포 대기(012c FlowBar 와 같은 배치) · APK 빌드(versionCode 3)·실기기 확인 대기
+  - [[task-022-improve-voice-range]] — 음성 설정 범위 약 2배(IMP-0005, R1·**데모 delta**) — **서버 완료·운영 반영**(`0e1140c`, QA PASS, 릴리스 `da263a6`과 함께) · **화면(슬라이더 범위)은 데모 v2 승인 2026-10-01 → ✅ 구현·운영 반영(`d068ab0`, 릴리스 `20261001-131341-97b31cf`)** · 사용자 목소리 극단값 청취·D4(피치 하한) 결정 대기
+  - [[task-023-improve-vocab-screen]] — 단어장 조각 필터·뱃지·상세 재생(IMP-0001·0002·0003, R1·**데모 delta v1 승인 2026-10-01**) — 구현 완료·REV-050(Medium 1: 필터 전환 시 머리 줄 개수 어긋남) 수정 → REV-053 PASS · Judge C2 Codex 없음 · **QA PASS** → 배포 대기(웹만, 023 파일만 커밋 — 실기기 소리 확인은 사용자)
   - [[task-024-improve-talk-length]] — ✅ **완료·운영 반영**(`da263a6`, Reviewer·QA PASS, 운영 스모크 45/45 — 폰 체감은 사용자) 회화 응답 길이 상황별 1~4문장(IMP-0010, talk@v4·sceneCap)
-  - [[task-025-improve-today-lesson]] — 오늘의 회화 4건(IMP-0012·0013·0014·0016, R2·**데모 delta**, A4 v8)
-  - [[task-026-improve-hangul-reading]] — 한글 발음 표기+토글(IMP-0009·0015, R2·**데모 delta**)
+  - [[task-025-improve-today-lesson]] — 오늘의 회화 4건(IMP-0012·0013·0014·0016, R2·**데모 delta v1 승인 2026-10-01**, A4 v8) — 화면 구현 완료(미배포) · REV-052 → REV-060 수정 확인 · Codex 지적 0건 ×2 · lesson@v8·reviewMix@v2 · **QA PASS_WITH_NOTES(2026-10-03 09:23 — 12/14 PASS·FAIL 0·Low 1 기존 코드) → 배포 대기** · 배포 게이트: v8 롤백 기준 ①~④ · 후속 task-025b(한글 인지 `quizPromptView` 폴백) 등록 예정
+  - [[task-026-improve-hangul-reading]] — 한글 발음 표기+토글(IMP-0009·0015, R2·**데모 delta v1 승인 2026-10-01**)
   - 보류: IMP-0011(카드 결과 초이스 통일 — Q9 예제 검토 대기) · IMP-0004(카톡 연동 2단계 자동 수집 — 별도 task, 신규도입 검토 필요) · IMP-0007(N5 단어 수 — 단어 출처 결정 대기)
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)

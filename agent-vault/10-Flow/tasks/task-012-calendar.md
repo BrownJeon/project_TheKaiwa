@@ -15,24 +15,24 @@ aliases:
   - 공부계획표
   - task-012
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-10-01
 demo_gate:
   required: true
   level: "full"
-  status: "review_requested"
+  status: "approved"
   version: 1
   repo_path: "docs/demo/task-012-calendar-v1.html"
   artifact_url: "https://claude.ai/artifact/Pov9EdqNGL9x4jaFJ2MPoz"
   content_sha256: "eaddf2b69e9366843e4137e367756d79de02bfbaaa01a4e18305e4013b1eb944"
   decided_by: "judge"
   rule_id: "JV-ui_change"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-01T08:17:27+09:00"
+  approval_quote: "대기 중인 데모 전부 권고안대로 승인"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: false
+  active: true
 ---
 
 ## 목표 (Leader)
@@ -65,6 +65,7 @@ demo_gate:
 |---|---|---|---|---|---|
 | - | 작성중 | - | - | judge: full (JV-ui_change) | 09-28 18:07 |
 | v1 | 검토요청 | docs/demo/task-012-calendar-v1.html | https://claude.ai/artifact/Pov9EdqNGL9x4jaFJ2MPoz | 사용자 검토 요청 | 09-28 20:23 |
+| v1 | 승인 | docs/demo/task-012-calendar-v1.html | https://claude.ai/artifact/Pov9EdqNGL9x4jaFJ2MPoz | "대기 중인 데모 전부 권고안대로 승인" | 10-01 08:17 |
 
 ## 작업 기록
 
@@ -126,3 +127,224 @@ demo_gate:
 - `docs/design/api-contract.md` #70·#71·§2-16 의 "task-012 구현 기준" 문단이 실제 응답 모양(`today`·빈 날 포함 `days`·`refExists`·`review.lessonId`·#72 기본 구간)과 정확히 일치. `docs/design/module-dependency.md` L3 공개 API 표도 `getCalendar`/`getDay` 를 `studyLog` 로 옮긴 Leader 판정이 반영됨.
 - 실행 검증(`~/.node-local/thekaiwa`): `tsc --noEmit` 0 · `eslint .`(전체) 0 errors/5 warnings(전부 무관 파일 `SpeechSettings.tsx`/`VoiceSettings.tsx`, 이 task 범위 밖) · 단위 테스트 706건 705 pass/1 skip/0 fail(스코프 파일 `task012.test.ts` 10/10 포함) · `next build` 클린 성공(`/api/v1/plan/calendar`·`/api/v1/plan/day`·`/api/v1/study-logs`·`/api/v1/study-logs/[id]` 라우트 전부 생성 확인).
 - **릴리스 동반 가능**: 예. 화면 미구현 상태로도 서버 코드 자체는 완결적이고 안전 — task-010 과 함께 배포해도 무방.
+
+### 2026-10-01 08:58 developer — 화면 구현
+- **게이트**: `check.mjs check` → `DEMO_GATE_PASSED` / `status: approved` · `approved_version: v1`(데모 파일 미수정). 결정 (a)=A 종류 글자 · (b)=A 바텀 시트(시트 안 ‹ ›) · (c)=B **월요일 시작**(Leader 재확인 반영 — 머리글·앞 빈칸 `(요일+6)%7`, KST 문자열 날짜·`infra/dates`만).
+- **산출 파일**(전부 신규, 공용·셸·탭바·Sheet·타 task 파일 미수정)
+  - `src/app/(app)/plan/page.tsx` 교체 — `auth()`(없으면 로그인), 서버 KST 오늘·세트 장수(빈 달 문구)만 넘김, `Suspense` 로 감쌈.
+  - `src/components/plan/PlanScreen.tsx`(조립·주소 동기화·지우기) · `CalendarSection.tsx`(월 이동·요약 3칸·7열 달력·표시 설명·빈 달·오류) · `DaySheet.tsx`(하루 시트·기록 행) · `LogSheets.tsx`(⋯ 메뉴·지우기 확인) · `parts.tsx`(글자 칩·아이콘) · `usePlanData.ts`(#70·#71 불러오기, 키 단위 상태·늦은 응답 버림·조용한 새로 읽기) · `logic.ts`(순수 로직) · `__tests__/planLogic.test.ts`.
+  - `src/types/plan.ts` — #70~#73 클라이언트 DTO.
+- **동작 요약**: 칸 = 평(반전)→복(점선, 복습할 날)→수·복·단·회·채 최대 3 + "+N", 출석만 = 동그라미, 오늘 = 주황 2px, 미래는 복습할 날만 버튼. 방향키 이동(roving tabindex). 칸이 360 폭에서 43.4px 라 `::before` 로 좌우 2px 넓혀 누를 자리 47.4px(이웃과 겹침 없음). 지우기 성공 → 행 즉시 제거·토스트 "기록을 지웠어요"·달력/하루 조용히 다시 읽기(칸·요약 갱신), 404 → "이미 지워진 기록이에요"+새로 읽기, 실패 → 시트 안 안내+[다시 시도]. 주소 `?month=&day=`(`history.replaceState`)·원본으로 갈 때 `&log=` — 뒤로 오면 같은 시트·같은 행 초점.
+- **검증 수치**
+  - 단위(node:test — 저장소 관례, vitest 미설치) `planLogic.test.ts` **17/17**: 월요일 격자(평년·윤년·월요일 1일)·기기 시간대 3종 무관·월 이동 연도 경계·주소 해석(미래 달·형식 오류·다른 달 날짜)·칩 순서/+N·칸 읽기 문구·요약(이번 달/지난 달/오류)·빈 달·초점 시작점·시트 ‹ › 경계·공부 시간 합·복습 줄 6갈래·KST 시각·걸린 시간·원본 링크/삭제됨/없음·지우기 문구.
+  - eslint(내 파일) 0/0 · tsc(내 파일+의존 그래프 전용 tsconfig) 0.
+  - 헤드리스 Chrome(playwright-core, 기기 시간대 LA 로 일부러 어긋나게, 복제본 dev 127.0.0.1:3022, QA 계정 1 격리 달 2024-05·06 시드 → 끝에 삭제, 출석 체크 요청은 가로채 DB 미접촉) **68/68 PASS**: 360/390/412 × 이번 달·기록 많은 달·하루 시트·기록 9개 날(시트 안 스크롤)·긴 일본어 요약·확인 시트 **가로 넘침 0**, 칸 안 칩 넘침 0, 누를 자리 47.4/51.7/54.9px · [›]/[오늘] 비활성+이유 토스트 · 로딩 뼈대·달력 오류→다시 시도·빈 달 · 칸 글자 `8수복단+2`/`10평단`·읽기 문구 · 시트 제목 초점·‹ ›·원본 삭제됨 배지+토스트·복습 줄 3종·Esc→칸 초점·하루 오류→다시 시도 · 원본 이동→뒤로=같은 시트+그 행 초점 · 확인 시트 초점 [취소]·취소=변화 없음 · 실패→다시 시도→성공(“5월 공부” 1 감소·출석 그대로·칸 동그라미) · **StatsSnapshot 행·값·updatedAt 불변** · 중간 기록 삭제 뒤 다음 행 초점 · 404 · 엔진명/Phase/task 문구 0 · 콘솔·페이지 오류 0. 스크린샷 대조(360 달·390 시트·확인·다크) 데모와 일치.
+  - 정리: 3022 종료·복제본 삭제·QA 쿠키 삭제·시드 잔존 0(기록·출석·복습·레슨·평가·세트·대화).
+- **자가 수정 1건**: `?day=` 로 바로 들어오면 첫 렌더에 시트가 열려 서버(포털 없음)·클라이언트 HTML 이 어긋났다(하이드레이션 오류) → `useSyncExternalStore` 로 하이드레이션 뒤에만 시트를 연다. 재검증 0건.
+- **판단 사항(Leader 확인 요청)**
+  1. 확인 ① 문구: "이 기록만 지워요. 통계와 성장 기록은 그대로예요." 유지 + **그날 마지막 기록일 때만** "이날 남은 기록이 없어서 달력의 ‘{이번 달|N월} 공부’ 일수는 하루 줄어요." 한 문장을 더함(요약 칸 이름과 같은 말).
+  2. 확인 ②: REVIEW 요약은 저장값을 바꾸지 않고 **화면에서만** `오늘의 회화 「` → `복습 「` 로 표시(기존 기록도 적용). 원본 이동/“원본이 삭제됐어요”는 서버 `refExists` 그대로.
+  3. 공용 `Sheet` 머리에는 제목·닫기만 있어 **‹ › 를 본문 맨 위 줄(출석·기록 수 옆, 스크롤해도 붙음)** 에 뒀다 — 데모는 머리 줄. 똑같이 하려면 `Sheet` 에 머리 오른쪽 자리(prop)가 필요(021 수정 중이라 손대지 않음). 같은 이유로 확인 시트가 `role=dialog`(데모 alertdialog)·`aria-describedby` 없음.
+  4. 확인 시트 버튼 순서는 **데모대로 [취소][지우기]**(초점 [취소] 먼저) — 저장소 `BtnRow` 규칙(확정→취소, 단어 삭제 시트는 [삭제][취소])과 다름.
+  5. 원본 화면 안의 ← 는 각자 고정 경로(`/study/today` 등)로 간다 — **시스템/브라우저 뒤로 가기**만 계획표 시트로 돌아온다. 원본 화면 헤더를 바꾸는 건 타 화면 파일이라 하지 않음.
+  6. 평가 원본 링크는 `/study/today/eval/{id}` — 011 화면 라우트가 들어오기 전까지 404. 질문(ASK) 기록은 링크 없음(Phase 3).
+  7. `docs/screens.md` §2 계획표 행·구현 가이드 절은 designer 문서라 미작성(구현 기준 = 승인 데모 v1).
+- **남은 위험**: ① `npm run build`(flock 직렬화) — **컴파일 성공, 타입 단계에서 012c 작업 중 미추적 파일 `src/components/admin/configEditor/flow.ts`(134·136행 구문 오류)로 실패** — 고치지 않음, 012c 가 정리한 뒤 재빌드 필요 ② 실기기(갤럭시 WebView) 미확인 — QA 몫 ③ 운영(3010)·pm2 미접촉, commit/push 없음.
+
+## Reviewer 기록 (012 화면)
+
+### 2026-10-01 09:08 reviewer — REV-045 (012 화면)
+
+- **판정: CONDITIONAL_PASS** — Critical 0 · High 0 · Medium 2 · Low 7. 수치상으로는 PASS 구간이지만, Medium 1건이 승인 데모의 약속과 어긋나는 material 차이(데모 재승인 또는 후속 task 결정 필요)이고 다른 1건은 배포 순서 조건이라 조건부로 둔다. QA 는 진행해도 된다(아래 high_risk_areas). `native_change=false`(웹 파일만 — 플러그인·android·capacitor 설정 미접촉).
+- **범위**: `src/app/(app)/plan/page.tsx` · `src/components/plan/{PlanScreen,CalendarSection,DaySheet,LogSheets,parts}.tsx` · `usePlanData.ts` · `logic.ts` · `__tests__/planLogic.test.ts` · `src/types/plan.ts`. 공용 `Sheet`(021)·타 task 변경은 이 판정의 범위 밖.
+- **실행 검증**(미러 `~/.node-local/thekaiwa` 동기화 후, 임시 파일은 scratchpad 만): 단위 `planLogic.test.ts` 17/17 통과 · 이 task 파일+의존 그래프만 담은 전용 tsconfig 로 `tsc --noEmit` 0 오류(`--listFiles` 로 대상 포함 확인) · eslint 0/0 · 전체 `npm run build` 는 012c `flow.ts` 구문 오류(타 task, 미추적)로 실행하지 않음. 가로 넘침·실기기는 Developer 의 헤드리스 68/68 보고를 신뢰하지 않고 QA 재측정 대상으로 넘김.
+- **데모 게이트**: `check.mjs check --task` → `DEMO_GATE_PASSED`(approved v1). `evidence.jsonl` 5번째 줄(task-012·v1·세션 f3fdf531…, 사용자 발화 "대기 중인 데모 전부 권고안대로 승인" 08:17:13)이 실제 대화 흐름과 일치하고, 에이전트가 `approve`·`waive` 를 실행했거나 `.claude/state/demo-gate/` 를 직접 쓴 흔적 없음.
+
+#### 이슈 (근거 포함)
+
+- **[MEDIUM · material] 원본 화면의 ← 가 계획표 시트로 돌아오지 않는다**
+  - 위치: `PlanScreen.tsx:83-98`(`&log=` 만 적고 이동), 원본 화면 머리 `BackBar`(고정 `backHref`, 타 화면 파일).
+  - 근거: 승인 데모 999행은 "← 로 돌아오면 같은 시트·같은 행"을 약속한다. 구현은 시스템·브라우저 뒤로 가기에서만 같은 시트·행 초점이 복원된다(주소 `?month=&day=&log=` + 하이드레이션 후 열기는 올바름). 화면 안 ← 는 `/study/today`·`/study/ai?tab=chat` 등 고정 경로.
+  - 분류: 데모 표의 "CTA 동작" 변화 → **material**. 구현 결함은 아니고(타 화면 파일을 건드리지 않은 Developer 판단은 합리적) 승인 범위의 문제.
+  - 권고: Leader 가 (a) 데모 v2 로 약속을 "시스템 뒤로 가기" 로 좁혀 재승인하거나, (b) 원본 화면 머리에 `from=plan` 복귀 경로를 주는 후속 개선을 별도 task 로 만든다.
+- **[MEDIUM · 배포 순서] 평가 기록의 원본 링크가 아직 없는 화면을 가리킨다**
+  - 위치: `logic.ts:357` `EVALUATION: '/study/today/eval/'`.
+  - 근거: `src/app/(app)/study/today/eval/[evaluationId]` 는 task-011 의 미추적 파일이고 011 서버는 이미 운영 중이라 평가 기록이 생길 수 있다. 012 만 먼저 나가면 평가 행의 "평가 결과 보기"가 404.
+  - 권고: 012 는 011 화면과 같이 또는 이후에 배포. 먼저 나가야 하면 `linkState` 에서 평가를 `none` 으로 둔다.
+- **[LOW] 확인 시트가 `role=dialog`·`aria-describedby` 없음, ‹ › 가 시트 머리가 아닌 본문 맨 위 줄** — `LogSheets.tsx:78`, `DaySheet.tsx:136`. 공용 `Sheet`(021 수정 중)에 머리 오른쪽 자리·role·describedby prop 이 없어서다. 되돌릴 수 없는 동작이라 데모의 alertdialog 가 더 맞다. 021 머지 뒤 `Sheet` prop 추가 후속.
+- **[LOW] AbortController 없음, 새로 읽기 클로저의 키 고정** — `usePlanData.ts:25-53`. 늦은 응답은 `seq` 로 버려 정상이다. 다만 바쁜 삭제 중 모달 뒤로 Tab(포커스 트랩 없음)해 달을 바꾼 뒤 이전 키로 만든 `refresh` 가 불리면 새 키가 'loading' 에 머물 수 있다(재현 경로가 좁음).
+- **[LOW] "통계와 성장 기록은 그대로예요" 문구의 정밀도** — `logic.ts` `DELETE_MAIN`. 서버(StatsSnapshot 불변)와는 일치. 다만 요약 칸 "공부 N일"은 StudyLog 기반이라 줄 수 있고, 그날 마지막 기록일 때만 붙이는 보충 문장(`deleteDetail`, `logic.ts:383`)이 이를 메운다 → 서버 `studyDays` 계산과 일치 확인, 허용.
+- **[LOW] 복습 요약 접두 치환의 문자열 결합** — `logic.ts:344-348`. 서버 레슨 요약 형식(`오늘의 회화 「`)에 화면이 묶인다. 서버가 형식을 바꾸면 조용히 어긋난다. 공용 상수 또는 서버 필드로 올릴 것.
+- **[LOW] 계획표 탭 재탭 시 상태 미초기화** — `PlanScreen.tsx:31`. `init` 을 한 번만 읽어 URL 에 `?month=` 가 남은 채 탭을 다시 누르면 이번 달로 돌아가지 않는다.
+- **[LOW] `docs/screens.md` 계획표 구현 가이드 미작성** — §2 라우트 표 한 줄뿐(§12 는 오늘의 회화). designer/Leader 문서.
+- **[LOW · 테스트] 컴포넌트·훅 테스트 없음** — 17건은 전부 순수 로직. 월 전환 경합·삭제 이중 제출·하이드레이션은 단위로 못 잡고(Developer 의 헤드리스 수동 확인에만 의존), `reviewLine` 의 SKIPPED·EXPIRED 가 같은 문구를 쓰는 점도 별도 단언이 없다.
+
+#### 9개 관점 결론
+
+1. **데모 v1 일치**: 종류 글자 칸·바텀 시트·월요일 시작·시트 안 ‹ ›·빈 달/로딩/오류 상태 모두 승인안대로. 차이는 위 MEDIUM 1(material), LOW 1(‹ › 위치·role: implementation — 공용 부품 제약, 근거 있음), 확인 시트 버튼 순서(데모대로 [취소][지우기] — 허용).
+2. **6층 경계**: components 는 `infra/dates`·`@/types/plan`·`components/common` 만 import. preferences 는 서버 page 에서 `index` 경유로만. 엔진명 0건, `window.Capacitor`·fetch·spawn 직접 호출 0건(`apiGet`/`apiDelete` 경유). 위반 없음.
+3. **삭제 안전**: 서버 `deleteMany({id,userId})`·0행 404, StatsSnapshot 미접촉(`snapshotKept:true`) 코드 확인. 복사 문구와 서버 동작·`studyDays` 계산 일치. 이중 제출은 `del==='busy'` 가드 + 버튼 `aria-disabled` 로 차단, 404 는 멱등 처리.
+4. **하이드레이션·라우팅**: `?day=` 진입 시 `useSyncExternalStore` 로 하이드레이션 후에만 시트 개방(올바름), `&log=` 행 초점 복원 정상, `refExists=false` 는 비링크 배지+토스트. 미래·형식 오류 주소는 `parsePlanParams` 가 거절. 평가 링크 404 는 MEDIUM 2.
+5. **상태·비동기**: 월 전환 경합은 `seq` 로 방어, 키 단위 상태로 이전 응답 미사용, 취소·실패 재시도 정상. 미세 경로는 LOW(AbortController·stale refresh). 시트 열림 중 월 변경은 `changeMonth` 가 시트·메뉴·확인 상태를 모두 닫음.
+6. **접근성·모바일**: 터치 영역 `::before` 확장으로 47px↑, roving tabindex·aria-label·sr-only 안내 충분, 장식 요소 `aria-hidden`. 360/390/412 가로 넘침은 코드상 위험 요소 없음(`minmax(0,1fr)`·`min-w-0`) — 실측은 QA.
+7. **테스트 품질**: 순수 로직 17건은 경계값(윤년·연도 경계·시간대 3종·미래 달)까지 충실. 컴포넌트·경합 공백은 LOW.
+8. **사용자 문구**: 개발 용어·엔진명·Phase/task 문구 없음(grep 확인).
+9. **Developer 확인 요청 7건 의견**: ① 동의(서버 계산과 일치) · ② 동의하되 문자열 결합 취약, 상수/서버 필드화 권고 · ③ 현재는 동의, 021 머지 후 `Sheet` prop 추가 · ④ 데모 순서 허용, 단어 삭제 시트([삭제][취소])와의 불일치는 Leader/designer 가 정함 · ⑤ material — Leader 결정 필요 · ⑥ 조건 — 011 과 함께/이후 배포 또는 링크 숨김 · ⑦ 미작성 반대 — designer/Leader 가 가이드 절 추가.
+
+#### high_risk_areas (QA 전달)
+
+- 실기기에서 시스템 뒤로 가기 vs 원본 화면 ← 동작, `?day=` 직접 진입, 행 초점 복원
+- 삭제 흐름: 이중 탭, 실패 후 다시 시도, 404(이미 지움), 그날 마지막 기록 문장 vs "공부 N일" 변화, StatsSnapshot 불변
+- 로딩·새로 읽기 중 월 이동, 모달 뒤 Tab 이동
+- 360/390/412 가로 넘침, 6주 달의 칩 줄바꿈, 시트 안 스크롤
+- 평가 기록 원본 링크 404(011 화면 이전)
+- 하이드레이션 경고(콘솔)
+
+```json
+{"reviewId":"REV-045","status":"CONDITIONAL_PASS","summary":{"critical":0,"high":0,"medium":2,"low":7},"native_change":false}
+```
+
+## Developer 기록 (012 복귀 보완)
+
+### 2026-10-01 09:30 developer — REV-045 Medium(원본 ← 계획표 복귀) + Low(요약 접두 상수)
+- [09:30] **게이트**: `check.mjs check` → `DEMO_GATE_PASSED`(approved v1). 데모 999행 "←(계획표로)를 누르면 같은 달·같은 날 시트가 다시 열리고 초점은 방금 누른 기록으로" 에 구현을 맞춤(데모 미수정).
+- **설계(Leader 권고안 그대로 + 2가지 보강)**: 계획표가 원본으로 가기 직전(`PlanScreen.openSource` — 행 링크·⋯ 메뉴 "… 보기" 둘 다 이 함수를 지난다, `DaySheet` 수정 불요) sessionStorage 에 {계획표 주소 `planUrl(month,day,logId)`, 원본 경로 `sourceHref(log)`, 시각} 한 건을 적고, 계획표가 마운트되면 지운다. 원본 머리 ← 는 `usePathname()` 이 적어 둔 원본 경로와 같을 때만 그 주소·"계획표로". 첫 렌더(서버·하이드레이션)는 prop 그대로, `useSyncExternalStore`(서버 스냅샷 null)로 뒤에 바뀜 — 앱 안 이동으로 들어오면 첫 렌더부터 계획표로. 보강 ① **TTL 2시간**(앱 WebView 는 탭 세션이 며칠 가므로, 원본에서 다른 길로 나간 뒤 같은 원본을 한참 뒤에 다시 열 때 계획표로 가지 않게) ② **회화방 머리**(`TalkRoomHeader`)는 `BackBar` 를 쓰지 않는 고정 Link 라 같은 훅을 붙임(AI 회화 기록 = TALK 원본, 안 하면 데모 약속이 회화 기록에서 깨짐 — props·모양 변경 없음, 2줄).
+- **보안**: 읽은 주소는 `/plan` 또는 `/plan?[A-Za-z0-9._~%=&-]*` 만(외부·`//`·백슬래시·`:`·`/planx`·`/plan/../` 거절 — 저장소를 고쳐도 다른 사이트로 안 감), 원본 경로도 앱 내부 경로만, 길이 상한, 저장소 접근은 전부 try/catch(`components/common/storage` 재사용) — 차단돼도 ← 가 원래 자리로 갈 뿐.
+- **변경 파일**: 신규 `src/components/shell/planReturn.ts`(직렬화·파싱·경로 일치·저장소 래퍼) · `src/components/shell/usePlanReturn.ts`(훅) · `src/components/shell/__tests__/planReturn.test.ts`(7) / 수정 `src/components/shell/BackBar.tsx`(`'use client'` + 훅, **props·호출부 그대로**) · `src/components/talk/TalkRoomHeader.tsx`(훅 2줄) · `src/components/plan/PlanScreen.tsx`(적기·지우기) · `src/components/plan/logic.ts`(`LESSON_SUMMARY_PREFIX` 상수 — Low) · `src/components/plan/__tests__/planLogic.test.ts`(상수 사용). TabBar·routes·KeyboardInset·keyboard·eval·admin·데모·스키마 미접촉.
+- **검증**(격리 미러 `~/.node-local/thekaiwa-t012ret` = `git archive HEAD` + 작업 트리 overlay, node_modules 하드링크, 공용 미러 미수정): 단위 planReturn 7 + planLogic 17 = **24/24**(정상·경로 불일치·TTL 경계·깨진 JSON·형식 오류 주소 12종 거절·적기/지우기·저장소 예외 3종), **전체 1025/1025** · eslint(변경 8파일) 0/0 · 전용 tsconfig(변경 파일+BackBar 호출부 16개) tsc 0 · **전체 tsc 0**(지금 트리는 flow.ts 정리됨) · `flock` 아래 `next build` exit 0.
+- **헤드리스 Chrome**(격리 dev 127.0.0.1:3027, QA 계정 1, 격리 달 2024-07 에 채팅·회화 대화 2 + 기록 2 시드, 쓰기 요청은 가로챔 — 실제로 걸린 것 출석 체크 1종) **22/22 PASS**: 행 링크→채팅방 ← "계획표로"·주소=같은 달·날·기록 → 누르면 같은 시트·그 행 초점·저장소 지움 / ⋯ 메뉴→회화방 ← 같은 동작 / 시스템 뒤로 가기 회귀 / 바로 연 원본은 원래 ←("채팅 목록으로") / 기록이 남아도 다른 원본은 원래 ←("회화 목록으로") / 새로 고침 → 하이드레이션 뒤 계획표로·**하이드레이션 경고 0** / 다른 사이트 주소·깨진 값 거절 / sessionStorage 차단 브라우저: 이동·뒤로 가기 복원 그대로·페이지 오류 0 / 콘솔 오류 0.
+- **정리**: dev 3027 종료(`ss` 0) · QA 시드 기록 2·대화 2 삭제(2024-07 잔존 0) · QA 쿠키 삭제 · 격리 미러 삭제. 운영 3010·pm2·DB 스키마·commit/push 미접촉.
+- **남은 위험**: ① 원본 화면 **본문**의 버튼("오늘 탭으로" 등)과 데모의 "원본이 삭제됐어요 + [계획표로]" 본문 버튼은 각 원본 화면 파일이라 그대로(머리 ← 는 계획표로 감) ② 레슨 진행 중 단계 머리(`lesson/parts.tsx`)는 고정 Link — LESSON·REVIEW 기록은 끝난 수업(LessonEnd = BackBar)이라 실제 경로에선 해당 없음 ③ ← 는 Link 이동이라 기록이 하나 쌓임(기존 BackBar 와 같음) — 계획표에서 시스템 뒤로 가기를 누르면 원본으로 다시 감 ④ 평가 원본 링크(Medium 2, 011 화면 선행 배포)는 이번 범위 아님 ⑤ 실기기 WebView 확인은 QA.
+
+## Reviewer 기록 (계획표 복귀 수정)
+
+### 2026-10-01 reviewer — REV-048 (task-012 REV-045 Medium 1 보완 독립 감사, Read 전용)
+- **REV 번호 충돌 주의**: 다른 reviewer 가 동시에 감사 중이다(이번에도 REV-046·047 이 작업 중 선점됨). 기록 직전 `grep` 으로 REV-048 미사용을 확인하고 적었으나, 동시 기록이 있으면 번호가 겹칠 수 있다 — Leader 가 board 에서 중복을 한 번 더 확인할 것.
+- **판정: CONDITIONAL_PASS** — Critical 0 · High 0 · Medium 1(REV-045 Medium 2 승계: 평가 원본 링크 배포 순서) · Low 6(신규). `native_change=false`.
+- **데모 게이트**: `check.mjs check --task …/task-012-calendar.md` → `DEMO_GATE_PASSED`(v1 승인, 해시 일치). `evidence.jsonl` 5행(`kind:approve`·`version:1`·`prompt_ts` 08:17:13·`quote_sha256`)이 승인 인용문 "대기 중인 데모 전부 권고안대로 승인"과 데모 검토 표 승인 행(10-01 08:17)에 일치한다. developer 기록에 approve·waive 실행이나 `.claude/state/demo-gate/` 직접 쓰기 흔적은 없다. 데모 파일(`docs/demo/task-012-calendar-v1.html`) 미수정.
+- **데모 차이 분류**: 데모 999행 "←(계획표로)를 누르면 같은 달·같은 날 시트가 다시 열리고 초점은 방금 누른 기록으로" → 구현 충족(material 0). 데모 742·743·1000행의 `srcgone`(원본 삭제) 본문 "원본이 삭제됐어요 + [계획표로]" 버튼은 각 원본 화면 소관이라 미구현 — implementation 으로 허용하되 developer 가 공개했고 Leader 인지가 필요하다(Low-1).
+
+#### 검증 (격리 사본 — 공용 미러·작업 트리 미접촉)
+- `node --import tsx --test planReturn.test.ts planLogic.test.ts` **24/24 pass**, 변경 8파일 eslint **0 problems**.
+- 서버 렌더 확인(별도 스크립트, `renderToString`): 서버에 `window` 없음, BackBar 는 서버에서 항상 원래 `href`(`/study/ai?tab=chat`)를 낸다. 저장소에 계획표 기록이 있는 것처럼 `window.sessionStorage` 를 심어도 서버 출력은 동일 — `useSyncExternalStore(noopSubscribe, read, onServer=null)` 설계대로 하이드레이션 불일치 없이 클라이언트 하이드레이션 이후에만 "계획표로" 로 바뀐다. jsdom/happy-dom 이 미러에 없어 브라우저 하이드레이션 실행은 못 했다(developer 헤드리스 22/22 로 갈음, QA 가 콘솔 경고 0 확인).
+
+#### 요청 점검 7항 결론
+1. **데모 v1 부합**: 위 분류대로 material 0, 결함 0.
+2. **sessionStorage 안전성**: 통과. 저장소 접근은 전부 `common/storage` 의 try/catch 래퍼(차단·시크릿 모드에서 조용히 폴백) · 깨진 JSON/버전 불일치/형 불일치 → `null`(`planReturn.ts:62-77`) · 탭별 저장이라 다른 탭 간섭 없음 · 오픈 리다이렉트: 저장·읽기 양쪽에서 `PLAN_HREF`(`:21`, `/plan` 또는 `/plan?[A-Za-z0-9._~%=&-]*`)·`APP_PATH`(`:22`, `//`·`:`·백슬래시 거절) 검증 후에만 `Link href` 로 사용(저장소를 조작해도 외부로 안 나감) · 값은 계획표 URL·원본 경로·시각뿐, 토큰·사용자 식별자·본문 없음 · SSR 에서 `window` 접근 없음(`typeof window` 가드+서버 스냅샷 null).
+3. **6층·컴포넌트 경계**: 위반 없음. `shell → plan` 역방향 import 0(`planReturn.ts` 는 문자열 규약만, 계획표 주소 형식은 `PlanScreen` 이 만들어 넘김). components 에서 `preferences`·엔진명 import 0. spawn/fetch/`window.Capacitor` 직접 호출 없음.
+4. **다른 BackBar 호출부 회귀**: 없음. ← 는 현재 경로가 기록된 원본 경로와 `samePath` 일치할 때만 바뀐다. `ChatReview /review`·`eval/new`·`eval/history`·단어 세션 하위 화면은 경로가 달라 불일치 → 기존 `backHref`. 레슨 진행 단계의 고정 Link 머리(`lesson/parts.tsx:168`)는 DONE 일 때만 BackBar 인 `LessonEnd` 를 쓰므로 영향 밖. **평가 원본 링크**: `today/eval/[evaluationId]` 페이지가 작업 트리에 생겼으나 `??`(미추적) — task-011 이 함께 커밋·배포되기 전에는 링크가 404 가 된다 → Medium-1.
+5. **접근성**: `aria-label` 이 "계획표로" 로 바뀌고 버튼 크기 `h-11 w-11`(44px) 유지. 레이블 전환은 하이드레이션 직후 1회라 스크린리더 읽기에는 영향이 작다. 복귀 후 초점은 `PlanScreen` 의 `data-plan-row` 복원 경로(developer 헤드리스에서 확인)가 담당 — 실기기 확인 필요.
+6. **REV-045 Low 승계**: 아래 표.
+7. **QA 인계**: 아래 high_risk_areas.
+
+#### 이슈
+| # | 심각도 | 위치 | 내용 | 권고 |
+|---|---|---|---|---|
+| M-1 | MEDIUM(승계) | `src/app/(app)/study/today/eval/[evaluationId]/` (미추적), `src/components/plan/logic.ts` `SOURCE_PATH.EVALUATION` | REV-045 Medium 2 승계. 계획표가 평가 원본 링크 `/study/today/eval/<id>` 를 만드는데 해당 페이지가 아직 커밋 전(task-011 진행). 이 수정 자체의 결함은 아니고 배포 순서 조건 | task-011·012 를 같은 릴리스로 커밋·배포하거나, 그전에는 평가 기록의 링크를 숨김 |
+| L-1 | LOW | demo v1 742·743·1000행 vs 원본 화면들 | `srcgone` 본문 안내+[계획표로] 버튼 미구현(머리 ← 만 계획표로) | Leader 가 인지 기록. 필요 시 IMP 로 분리(각 원본 화면 소관) |
+| L-2 | LOW | `planReturn.ts:16,74` | TTL 2시간을 **기록 시각**부터 잰다. 원본 화면에 2시간 넘게 머물면 그 안에서 ← 가 기본 경로로 바뀜 | 허용 가능. 문서화 또는 읽을 때 갱신 |
+| L-3 | LOW | `PlanScreen.tsx:52` | 기록 삭제가 계획표 마운트 때만 일어난다 → 같은 원본을 2시간 안에 다른 경로(오늘 탭 등)에서 다시 열면 ← 가 "계획표로" 로 보일 수 있음 | 원본 화면 이탈 시 소각하거나 진입 경로 구분(발생 빈도 낮아 Low) |
+| L-4 | LOW | `DaySheet.tsx:263`·`PlanScreen.tsx:90-108` | 링크 이동이 history 항목을 추가한다 — 계획표에서 시스템 뒤로가기로 원본으로 돌아간 뒤 레이블이 원본 기본 경로로 보일 수 있음 | 실기기 확인 항목으로 두고, 이상하면 IMP |
+| L-5 | LOW | `planReturn.test.ts` | 순수 함수·저장소 래퍼는 7건으로 충분하나 `usePlanReturn`/`BackBar`/`PlanScreen` 의 remember·forget 호출 연결은 단위 테스트 없음(헤드리스 22/22 로만 확인) | 컴포넌트 테스트 도구가 생기면 보강 |
+| L-6 | LOW | `plan/logic.ts:347` vs `modules/learning/lessons/lifecycle.ts:110` | `LESSON_SUMMARY_PREFIX` 상수로 클라이언트 쪽 중복은 정리됐으나 서버 템플릿 리터럴(`오늘의 회화 「${title}」`)과 공유 출처가 없어 서버가 바뀌면 접두 치환이 조용히 깨짐 | 서버 포맷을 바꿀 때 동기 필수 주석 또는 공용 상수 추출(6층상 components→modules 직접 import 는 안 됨 — 계약 테스트로 고정) |
+
+#### REV-045 Low 승계 상태
+| 항목 | 상태 |
+|---|---|
+| 요약 접두 문자열 중복 | 부분 해결 — 상수화됨, 서버 쪽 공유 출처 없음(L-6) |
+| `Sheet` role/describedby·‹ › 위치 | 미해결 — task-021 대기 |
+| 새로고침 중복·`AbortController`/오래된 응답 | 미해결 |
+| 계획표 탭 재탭 시 상태 초기화 안 됨(`useState` 초기값 `parsePlanParams`) | 미해결 |
+| `docs/screens.md` 구현 가이드 절 | 미해결 — 89행 경로 표 한 줄("원본에서 돌아오기")만 있음 |
+
+#### high_risk_areas (QA 인계)
+1. **실기기**: 계획표 → 원본 6종(단어 세션·오늘의 회화·복습·평가·AI 회화방·채팅방) 각각 열고 ← 가 "계획표로" 로 바뀌며 같은 달·같은 날 시트와 방금 누른 행 초점으로 복귀하는지 — 행 탭, ⋯ 메뉴 "… 보기", 시스템 뒤로가기 세 경로 모두.
+2. **회귀**: 원본을 직접(주소·탭에서) 열었을 때 기존 ←(채팅 목록·회화 목록·오늘 탭)이 그대로인지, `/review`·`eval/new`·`eval/history` 하위 화면에서 "계획표로" 가 새어 나오지 않는지.
+3. **새로고침·하이드레이션**: 원본 화면에서 새로고침 시 레이블이 로드 직후 전환되고 콘솔 하이드레이션 경고 0, 저장소 차단(시크릿 모드)에서도 ← 가 기본 경로로 정상 동작.
+4. **오래된 기록**: 같은 원본을 2시간 안에 다른 경로로 다시 열었을 때(L-3)·2시간 초과(L-2)·L-4 시스템 뒤로가기 레이블.
+5. **평가 링크·배포 순서**(M-1)와 360/390/412 폭 머리 레이아웃·44px 터치 대상.
+
+```json
+{"reviewId":"REV-048","status":"CONDITIONAL_PASS","summary":{"critical":0,"high":0,"medium":1,"low":6},"high_risk_areas":["계획표→원본 6종 ← 복귀(행·⋯·시스템 뒤로)","직접 연 원본·하위 화면 BackBar 회귀","새로고침 하이드레이션·저장소 차단","2시간 TTL·다른 경로 재진입","평가 링크 배포 순서(task-011 동반)","360/390/412 머리·44px"],"native_change":false}
+```
+
+## Leader 기록 (운영 스모크 4f 재확인, 2026-10-01 13:50)
+- 012b 배포 직후 운영 스모크를 011→012→010 순서로 연달아 돌렸을 때 012 가 31/32 였고 실패는 `4f 삭제 전후 QA 두 계정 StatsSnapshot 모든 행·값·updatedAt 불변` 1건이었다.
+- 같은 스모크를 012 만 단독으로 다시 돌린 결과 **32/32 PASS**(4f PASS — rows=5, kinds=DAILY/VOCAB_SESSION/EVALUATION/LESSON). 앞서 돈 011 스모크가 같은 QA 계정(qa-bot·qa-bot2)의 DAILY 스냅샷을 정리·복원하면서 `updatedAt` 을 바꾼 부수 효과로 판단한다. "삭제 후 StatsSnapshot 불변" 설계 불변식 위반이 아니다.
+- 후속: 운영 스모크는 같은 QA 계정을 쓰는 스모크끼리 **연달아 돌리지 않는다**(단독 실행·실행 사이 간격).
+
+## Leader 기록 (QA 1차 BLOCKED_ON_ENV 반려, 2026-10-01 16:10)
+
+- 011·012 통합 QA 1차는 dev 서버 기동 실패로 스모크·헤드리스를 실행하지 못했고 예측·developer 결과를 근거로 "배포 가능"을 권고했다 — **QA PASS 로 수용하지 않는다**. 상세는 [[task-011-ai-evaluation]] 의 같은 날 Leader 기록. 재실행(격리 미러 `thekaiwa-qa-011b`, 012 단독 → 011 단독 순서)의 결과는 이 파일의 `## QA 기록 (011·012 통합 재실행)` 에 남는다.
+
+## QA 기록 (011·012 통합 재실행, 2026-10-01 재검증)
+
+### 직접 실행 결과
+
+- **서버 검증**: 
+  - task-012 스모크 (`bash tests/live/task012-smoke.sh 3031`): **32/32 PASS** ✓
+    - #70 달력 API: 월 전체 29일, today(서버 KST), summary(attendedDays/studyDays/streak/longestStreak), reviewDue 분리 정상
+    - #71 하루 상세: 로그 4건(LESSON/EVALUATION/CHAT/REVIEW), 복습 due/done, refExists 타 사용자 격리 정상
+    - #72 로그 목록: 커서 페이징(8건→null), type 필터 작동, 타 사용자 제외 정상
+    - #73 삭제: EVALUATION.studyLogId SetNull 작동, **StatsSnapshot(DAILY/VOCAB_SESSION/LESSON/EVALUATION) 행·값·updatedAt 불변** ✓
+    - 엔진명·모델명 노출: **0 건** ✓
+
+- **UI 검증 (헤드리스 Playwright)**:
+  - 360/390/412 가로 스크롤: **0 건** ✓
+  - 엔진명 노출: **0 건** ✓
+
+### 결함 발견: 0건
+
+### 고위험 항목 (REV-048, 실기기 검증 필요)
+
+1. **계획표 ← 복귀 (6가지 원본 경로)**: 
+   - 행 탭 → 원본 이동: ← "계획표로" 표시 및 뒤로가기 작동 **확인 필요**
+   - ⋯ 메뉴 "원본 보기": 같은 동작 **확인 필요**
+   - 시스템 뒤로가기: 같은 달·날 시트 복귀 **확인 필요**
+
+2. **하이드레이션·새로고침**: 
+   - 원본 화면에서 새로고침 시 ← 레이블이 즉시 "계획표로"로 전환 **확인 필요**
+   - 콘솔 하이드레이션 경고 0 **확인 필요**
+
+3. **평가 원본 링크 `/study/today/eval/[id]`**: 
+   - 011 화면 라우트가 미추적(git untracked)
+   - 011·012 **같은 릴리스 배포 후** 평가 기록에서 링크 작동 확인 필요
+
+4. **터치 대상·레이아웃**: 
+   - 달력 칸 ≥44px, 라벨(선택, 복습) 가시성 **확인 필요**
+
+### JSON 판정
+
+```json
+{
+  "taskId": "task-012",
+  "status": "DONE",
+  "verdict": "PASS",
+  "deliverables": ["tests/live/task012-smoke.sh 32/32"],
+  "blockers": [],
+  "risk_level": "LOW",
+  "metrics": {
+    "calendar_list_ms": 8,
+    "day_detail_ms": 5,
+    "delete_ms": 5
+  },
+  "security": "OK (사용자 격리, Secret 노출 0)",
+  "learning_principle": "OK (스냅샷 불변)",
+  "native_change": false,
+  "mobile_layout": "OK (360/390/412 가로 스크롤 0)",
+  "manual_verification": [
+    "실기기: 계획표 ← 복귀 동작",
+    "실기기: 새로고침 하이드레이션",
+    "평가 원본 링크 (011·012 배포 후)"
+  ]
+}
+```
+
+### 정리
+
+- **프로세스**: dev 서버(포트 3031) 종료 ✓
+- **포트**: 비워짐 ✓
+
+## Leader 기록 (QA 재실행 수용, 2026-10-01 14:20)
+
+- [[task-011-ai-evaluation]] 의 같은 날 Leader 기록 참조 — 통합 재실행 QA PASS(012 스모크 32/32 단독 실행, 3폭 가로 스크롤 0, 엔진명 0, 스냅샷 불변)를 수용한다. 011 과 같은 릴리스로 커밋·배포한다.

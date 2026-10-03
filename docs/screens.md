@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h) · 2026-09-28 **§12 오늘의 회화**(오늘 홈 카드·주제 고르기·붙여넣기·수업 만들기 대기·5단계·종료 카드, 승인 데모 `docs/demo/task-010-today-lesson-v2.html`) 추가, §2 오늘 행·§5-2 A "곧 열려요" 갱신(task-010) · 2026-09-30 하단 탭 이름 "서랍장"→"단어장"(§2 두 행·§4-1 진입, 사용자 결정 — URL `/drawer/*`·모듈 이름은 그대로, task-020)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h) · 2026-09-28 **§12 오늘의 회화**(오늘 홈 카드·주제 고르기·붙여넣기·수업 만들기 대기·5단계·종료 카드, 승인 데모 `docs/demo/task-010-today-lesson-v2.html`) 추가, §2 오늘 행·§5-2 A "곧 열려요" 갱신(task-010) · 2026-09-30 하단 탭 이름 "서랍장"→"단어장"(§2 두 행·§4-1 진입, 사용자 결정 — URL `/drawer/*`·모듈 이름은 그대로, task-020) · 2026-10-01 §12 오늘의 회화 개선 4건(승인 데모 `docs/demo/task-025-improve-today-lesson-v1.html`, 결정 a·b·c·d=A, e=B) — §12-2 F 줄 다시 듣기 ▶ · G 오늘의 표현 칩 소리 · H 문제 한국어 줄·옛 수업 대체 표기 · I 글자 비교 밑줄, §12-3 C 재생 키, §12-5·§12-8 갱신(task-025)
 
 ---
 
@@ -83,8 +83,10 @@
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
 | 오늘 | `/study/today/talk/new` · `/study/today/talk/new/paste` | 오늘의 회화 — 주제 고르기(확인 시트) · 문장 붙여넣기 | 로그인 | **숨김** | **task-010(§12-2 B·C)** |
 | 오늘 | `/study/today/talk/[lessonId]` | 오늘의 회화 — 레슨 상태로 분기: 만드는 중·실패 / 5단계(이해·문법·문제·응용·말하기) / 종료 카드 | 소유자(타인 404) | **숨김** | **task-010(§12-2 D~L)** |
-| 오늘 | `/study/today/eval/[evaluationId]` | AI 평가 | 소유자 | 숨김 | Phase 2 |
-| 계획표 | `/plan` | 달력·분석·성장 | 로그인 | 보임 | Phase 2~3 |
+| 오늘 | `/study/today/eval/new` | AI 평가 시작 — 종류(단어·회화)·주제 고르기, 단어 부족 안내, 진행 중 평가 이어가기 | 로그인 | **숨김** | **task-011**(데모 v1 승인 2026-09-28, 구현 2026-10-01) |
+| 오늘 | `/study/today/eval/[evaluationId]` | AI 평가 — 상태로 분기: 만드는 중·실패 / 준비 화면 [시작하기](10분 시계) / 문항 풀이(듣고 답하기 글자로 보기·틀린 곳 탭·조립) / 채점 중·다시 채점 / 결과(점수·루브릭·문항별 정답·레벨 제안) | 소유자(타인 404) | **숨김** | **task-011**(api-contract §2-14 #65~#69·#67c) |
+| 오늘 | `/study/today/eval/history` | AI 평가 기록 목록(진행 중 포함·실패 제외) | 로그인 | **숨김** | **task-011** |
+| 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 분석·성장은 Phase 3 |
 | 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** |
 | 단어장 | `/drawer/corrections` | 채택 교정 모음 | 로그인 | 보임 | Phase 3 |
 | 질문 | `/ask` | 무엇이든 물어보세요 | 로그인 | 보임 | Phase 3 |
@@ -97,10 +99,11 @@
 | 콘솔 | `/admin/voices` | 목소리 목록(읽기) | `voices.read` | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/connections` · `/admin/connections/[id]` | 연결 목록·상세(Health/기능 테스트·최근 결과·시크릿 참조 시트) | `engine.read`(시크릿 시트 `secrets.read_ref`) | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/plugins` · `/admin/plugins/[id]` | 플러그인 로드 상태·스키마 | `plugins.read`(DEVELOPER+, 없으면 콘솔 403) | 별도 셸 | **task-005b(§6)** |
-| 콘솔 | `/admin/configuration` | 설정값 Effective(키·값·Source 배지) — Effective 탭만 | `config.effective.read` | 별도 셸 | **task-005b(§6)** |
+| 콘솔 | `/admin/configuration` | 설정값 Effective(키·값·Source 배지) — task-005b 시점은 Effective 탭만, 지금은 아래 task-012c 행(Form·Raw JSON·Diff 추가)이 현행 | `config.effective.read` | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/diagnostics` (`?tab=health\|traces`) · `/admin/diagnostics/traces/[traceId]` | Health 기록 · 요청 Trace 목록/상세 | `engine.read` / Trace 는 `trace.read` | 별도 셸 | **task-005b(§6)** |
 | 콘솔 | `/admin/speech/tts/lexicon` (`?q=&scope=&ref=&inactive=1&page=`) · `/admin/speech/tts/lexicon/versions` (`?v=` 버전 상세 시트) | 발음 사전(검색·범위 필터·항목 추가/수정/끄기/다시 켜기 시트·적용 전/후 미리듣기·가져오기 dryRun→적용·내보내기) · 버전 기록(상세 diff·되돌리기) — 메뉴 "엔진 › 발음 사전" · TTS 역할 페이지 링크 카드 | `voices.read`(보기·내보내기·버전 보기) / `voices.manage`(쓰기·미리듣기) · PRODUCTION 쓰기 = SUPER_ADMIN + 확인 문구 | 별도 셸 | **task-003g(§10)** |
-| 콘솔 | `/admin/{prompts,playground,history}` 등 | 편집·버전·Playground·이력 | — | 메뉴 없음 | Phase 2+ |
+| 콘솔 | `/admin/configuration` Form·Raw JSON·Diff 탭(`?scope=&target=&tab=`) · `/admin/history`(`?tab=audit` · `?scope=&target=` · `?v=`) · 연결 상세 [설정 편집]·사용 여부·비밀 참조 연결 · 역할 페이지 [순서 편집] | 설정 편집(검증·기능 테스트·변경 요약·적용, 운영 확인 창) · 설정 버전·되돌리기 · 감사 기록 — 메뉴 "도구 › 이력" | `config.edit`(Raw JSON `config.raw.read`) · `engine.connections.manage` · 비밀 참조 `credentials.manage` · 이력 `audit.read`(되돌리기 `config.rollback`) · 운영 적용 = SUPER_ADMIN | 별도 셸 | **task-012c(§13)** |
+| 콘솔 | `/admin/{prompts,playground}` 등 | 프롬프트 편집·버전·Playground (`/admin/history` 는 위 task-012c 행으로 구현됨) | — | 메뉴 없음 | 012c-2 이후 |
 
 - **하위 화면(대화방·결과 화면)은 하단 탭을 숨기고 `←` 헤더로 돌아간다.** 키보드가 올라온 뒤 대화가 보이는 높이를 확보하기 위해서다(412×892 에서 키보드 ≈330px → 남는 ≈560px 중 탭 바 66px 는 12%).
 - 사용자 화면 전체에서 엔진·모델·호스트 이름(`claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|sherpa|zipformer|onnx`)·`traceId`·"AI 엔진" 같은 구현 용어는 0건이다(온디바이스 모델은 "휴대폰 인식 파일", §11).
@@ -574,7 +577,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 | `AcceptCorrectionSheet` | client | `{ correction \| null; onClose(); onDone(updated) }` | `form{surface,reading,meaning,category}, submitting, fieldError, duplicate` |
 | `ProposalCard` | client | `{ proposal; onChange(updated) }` | `busy, editMeaning, meaning` |
 | `useChatTurn` | hook | `(chatId, { onMessages, onProposals })` | §3-3 턴 |
-| `useKeyboardInset` | hook | `(ref)` | `--kb-inset` 을 방 루트에만 기록 |
+| ~~`useKeyboardInset`~~ → `shell/KeyboardInset` | hook→전역 컴포넌트 | task-021 로 대체 | `html[data-kb]` + `--kb-inset` 을 `<html>` 에 기록(방 루트 한정 아님) |
 | `sse.ts` | 순수 | `readSse(stream, onEvent)` | — |
 | `diff.ts` | 순수 | `diffCodepoints(a, b, max=200)` → `{ a: Seg[], b: Seg[] } \| null` | — |
 | `labels.ts` | 순수 | 오류유형·심각도·조각·상태·단계·오류 문구 표(§3-8) | — |
@@ -609,7 +612,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 3. 홈: `StudyAiHome`·`ChatList(Item)`·`NewChatSheet`·`TalkComingSoon`·`PendingCorrectionsCard`.
 4. 방 골격: `ChatRoom` 로드(#29·#37)·`MessageList`·말풍선(읽기·번역 토글)·`Composer`(IME·포커스 유지·초안).
 5. 턴: `useChatTurn`(SSE → 상태기계 → 폴링 → 재시도)·`TurnNotice`·429 카운트다운.
-6. 키보드: viewport `interactive-widget` + `useKeyboardInset` → 360/390/412 + 실기기 Chrome 확인.
+6. 키보드: viewport `interactive-widget` + `useKeyboardInset`(task-021 에서 전역 `shell/KeyboardInset` 으로 대체 — `html[data-kb]`·`--kb-inset`) → 360/390/412 + 실기기 Chrome 확인.
 7. 메뉴: 제목 바꾸기·읽기 기본값·삭제.
 8. 점검: `ChatReview` 상태기계(동기·잡·409·재방문)·`ReviewSummary`.
 9. `CorrectionCard`(diff 강조·컨테이너 쿼리)·`AcceptCorrectionSheet`·`ProposalCard` 2종·`ReviewDoneBar`·`CorrectionChip`·`ReviewNudge`.
@@ -746,7 +749,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 
 키보드
 - [ ] 루트 viewport 에 `interactive-widget=resizes-content` → 모바일 Chrome 에서 키보드가 열리면 `100dvh` 가 줄어 입력창이 키보드 바로 위에 붙는다.
-- [ ] 2차 보정 `useKeyboardInset(roomRef)`: `visualViewport` 의 `innerHeight - vv.height - vv.offsetTop` 이 1px 넘으면 방 루트에 `--kb-inset` 기록 → Composer `margin-bottom`. `resizes-content` 가 먹는 환경에선 0 이라 이중 보정 없음. `document` 전체가 아니라 **방 루트에만** 쓴다(VoiceVault `KeyboardInset` 의 body 여백 방식은 폼 화면용이라 채팅엔 쓰지 않는다).
+- [ ] 2차 보정 `useKeyboardInset(roomRef)(task-021 에서 전역 `shell/KeyboardInset` 으로 대체)`: `visualViewport` 의 `innerHeight - vv.height - vv.offsetTop` 이 1px 넘으면 방 루트에 `--kb-inset` 기록 → Composer `margin-bottom`. `resizes-content` 가 먹는 환경에선 0 이라 이중 보정 없음. `document` 전체가 아니라 **방 루트에만** 쓴다(VoiceVault `KeyboardInset` 의 body 여백 방식은 폼 화면용이라 채팅엔 쓰지 않는다).
 - [ ] 보내기 후 키보드 유지(포커스 유지), 키보드 열릴 때 바닥 유지.
 - [ ] 일본어 IME(Gboard 일본어) 변환 확정 Enter 로 전송되지 않음.
 - [ ] 앱 WebView(Capacitor, task-003 이후)는 **실기기 확인 항목** — 두 경로 모두 안 먹으면 Capacitor Keyboard 플러그인(네이티브·APK) 판단을 Leader 에 올린다(완료 기준 13 의 NOT_VERIFIED 허용 범위).
@@ -784,7 +787,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 | ④ | ADD_STUDY_LOG `payload` | 키 `messageCount, correctionCount, summaryKo, focus` + **`strengths, skippedMessages` 추가 요청**(재방문 결과 복원용) | 재방문 시 잘한 점·건너뜀 줄을 숨긴다 |
 | ⑤ | #34 `chatId` 정렬 | 메시지 순서 오름차순 | 카드 번호가 메시지 흐름과 어긋남 |
 | ⑥ | 409 구분 정보 | 교정 채택 중복 단어 = `details.existingId`, 제안 만료 = `details.status:'EXPIRED'`, 점검 409 는 화면이 #29 재조회로 구분 | 문구를 "이미 처리됨" 하나로 뭉뚱그린다 |
-| ⑦ | 전역 변경 4건 | 루트 viewport `interactiveWidget:'resizes-content'`(설정 화면도 영향 — 회귀 확인) · `:lang(ja)` 폰트 규칙 · TabBar 하위 화면 숨김 · `api.ts apiStream` 추가 | 대안: 키보드는 `useKeyboardInset` 만, 탭은 유지 |
+| ⑦ | 전역 변경 4건 | 루트 viewport `interactiveWidget:'resizes-content'`(설정 화면도 영향 — 회귀 확인) · `:lang(ja)` 폰트 규칙 · TabBar 하위 화면 숨김 · `api.ts apiStream` 추가 | 대안: 키보드는 `useKeyboardInset`(task-021 에서 전역 `shell/KeyboardInset` 으로 대체 — `html[data-kb]`·`--kb-inset`) 만, 탭은 유지 |
 | ⑧ | **발견 이슈**(이번 task 밖) | `infra/http.ts` 기본 문구 "AI 엔진을 지금 사용할 수 없습니다."가 사용자에게 보일 수 있음 → 채팅은 코드별 문구로 덮지만, 기본 문구 자체를 "지금은 선생님이 답할 수 없어요"류로 바꾸기 권장 · 공용 `Badge` `warn`(2.60)·`accent`(4.08) 톤과 `ink3` 글자(2.91~3.13)가 라이트 모드 4.5:1 미달 · `ComingSoon` 이 사용자에게 "Phase·task" 를 보여 줌 | 별도 task 로 정리 |
 | ⑨ | 빈 채팅 정렬 | 메시지 0 채팅(`lastMessageAt=null`)은 목록 **맨 아래**로 간다(MariaDB DESC 의 NULL) → `COALESCE(lastMessageAt, createdAt) desc` 권장 | 방금 만든 빈 채팅이 목록 끝에 숨는다 |
 | ⑩ | 줄바꿈 | 서버의 "제어문자 제거"가 `\n`(`\r\n`)을 **남긴다**(여러 줄 입력) | 여러 줄 메시지가 한 줄로 붙는다 |
@@ -796,13 +799,13 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 ### 4-0. 한눈에 보는 결정
 
 1. 경로는 `/drawer/words` 하나. 상세·수정·추가는 **바텀시트**로 열고 페이지를 옮기지 않는다. 다른 화면에서 들어올 때는 `?word=<id>`(상세)·`?add=1`(추가)를 쓰고, 시트를 연 뒤 `router.replace` 로 쿼리를 지운다. 하단 탭은 보인다.
-2. 목록 위 조작 3줄: 검색(디바운스 300ms, IME 조합 중엔 보내지 않음, 40자 이하) · 분류 칩(가로 스크롤) · 정렬 3종과 [보관함] 토글. 총개수는 목록 머리 한 줄에 보인다.
+2. 목록 위 조작 4줄: 검색(디바운스 300ms, IME 조합 중엔 보내지 않음, 40자 이하) · 분류 칩(가로 스크롤) · **조각 줄**(task-023, 분류와 AND) · 정렬 3종과 [보관함] 토글. 총개수와 걸린 조건(분류·조각)은 목록 머리 한 줄에 보인다.
 3. 추가는 **표현 한 칸부터** 시작한다. [뜻 채우기]를 누르면 선생님이 채운 초안이 온다(A10 — **저장되지 않음**). 사용자가 확인·수정한 뒤 [저장]한다. [직접 입력하기]는 같은 폼을 빈 채로 연다. 초안 위에는 "저장해야 단어장에 들어가요"를 고정으로 둔다.
 4. 카운터(맞힘·틀림·푼 횟수)와 출처는 **읽기 전용**이라 폼에 없다. 교정에서 온 단어는 상세에서 그 채팅의 점검 결과로 이어 준다.
 5. 삭제는 시트 안 확인 단계를 거친다("지난 기록과 통계는 그대로 남아요"). 보관은 확인 없이 토글하고 토스트로 알린다("오늘의 단어에 나오지 않아요").
 6. 409 중복은 오류로 보이지 않고 **그 단어로 안내**한다. 입력 아래 문구와 [그 단어 보기]를 두고, 누르면 추가 시트를 닫고 상세 시트를 연다.
 7. 빈 단어장에는 [기본 단어 50개 넣기](#46b)와 [직접 추가]를 둔다. 기본 단어 넣기는 추가 시트 맨 아래에서 언제든 할 수 있다(이미 있는 표현은 서버가 건너뜀).
-8. 오류 문구는 §4-8 표를 쓴다(서버 `message` 는 400 에만). "AI"·엔진 용어 없이 "선생님이 채워 줘요"라고 쓴다. 소리 버튼은 두지 않는다(E9 — 자리만 §4-2 C).
+8. 오류 문구는 §4-8 표를 쓴다(서버 `message` 는 400 에만). "AI"·엔진 용어 없이 "선생님이 채워 줘요"라고 쓴다. 소리 버튼은 상세 시트에만 둔다(task-023 — 단어 ▶ + 예문 ▶, §4-2 C·§4-11).
 
 ### 4-1. 화면 개요
 
@@ -813,7 +816,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 | 역할별 가시성 | 로그인 사용자 전원, 자기 단어만. 타인 단어 id → #42 404 → "찾을 수 없어요" |
 | 앱/웹 분기 | 없음 |
 | 하단 탭 | 보임(시트가 열려 있는 동안에도 탭 바는 그대로 — 시트가 위를 덮는다) |
-| 음성 | 소리 버튼 없음(E9). 자리는 상세 시트의 표현 오른쪽(§4-2 C) |
+| 음성 | 상세 시트의 표현 오른쪽 ▶(단어)·예문 카드 ▶(예문) — #23 문장 음성, 사용자 목소리 설정 그대로(task-023, §4-11). 목록에는 없음 |
 
 ### 4-2. UI 구조 (의사코드, 390px 기준)
 
@@ -824,12 +827,13 @@ AppBar title="단어장" right={<AddButton/>}         ← "＋ 추가": h-11 rou
 <div className="px-4 pb-8">
   WordSearchBar                                     ← 44px
   CategoryChips  className="mt-2.5"                  ← #46 실패·0개면 줄을 그리지 않는다
+  ChunkChips                                        ← task-023 조각 줄: 라벨 "조각" + [전체|이름|액션|느낌|꾸밈|없음] 하나만 선택(§4-11). 단어장이 완전히 비면 숨김
   <div className="mt-2.5 flex items-center gap-2">
      <div className="min-w-0 flex-1"><Segmented size="sm" ariaLabel="정렬" [최근 추가 | 많이 틀린 | 가나다순] /></div>
      ArchiveToggle "보관함"  aria-pressed             ← flex-none
   </div>
   archived && <p className="mt-2.5 rounded-xl bg-surface2 p-2.5 text-[13px] text-ink2">보관한 단어는 오늘의 단어에 나오지 않아요.</p>
-  ListHeader  12px ink2 mt-3 mb-1.5  aria-live="polite"  ← "단어 57개" / "보관한 단어 2개" / "‘映画’ 검색 결과 3개"(검색어 span lang=ja)
+  ListHeader  12px ink2 mt-3 mb-1.5  aria-live="polite"  ← "단어 57개" / "보관한 단어 2개" / "‘映画’ 검색 결과 3개"(검색어 span lang=ja) + 조건 " · {분류} · {조각}"(ink semibold, task-023)
   switch
     첫 로드 → LoadingBlock
     오류 → ErrorBlock(§4-8 ⓐ, onRetry)
@@ -847,13 +851,14 @@ WordAddSheet · WordDetailSheet · Toast
 ├──────────────────────────────────────┤
 │ ┌ ⌕ 표현·읽기·뜻으로 검색           ✕ ┐ │ 44px
 │ [전체 57][N5 기초 50][교정 5][일상 2] → │ 칩 36px(히트 44)
+│ 조각 [전체][이름][액션][느낌][꾸밈][없음]→│ task-023 조각 줄(칩 숫자 없음)
 │ [최근 추가|많이 틀린|가나다순]  [보관함] │
-│ 단어 57개                              │ 12px ink2
+│ 단어 57개                              │ 12px ink2 (+ " · N5 기초 · 느낌 조각")
 │ ┌──────────────────────────────────┐ │
-│ │ 映画  えいが               [교정] │ │ WordRow ≥64px
+│ │ 映画  えいが            [이름 조각] │ │ WordRow ≥64px
 │ │ 영화                 맞힘 3 · 틀림 1 │ │
 │ ├──────────────────────────────────┤ │
-│ │ 食べる  たべる          [기본 단어] │ │
+│ │ 食べる  たべる          [액션 조각] │ │
 │ │ 먹다                              │ │
 │ └──────────────────────────────────┘ │
 │ [            단어 더 보기            ] │
@@ -899,7 +904,7 @@ WordAddSheet · WordDetailSheet · Toast
      {reading && reading !== surface
        ? <span lang="ja" className="min-w-0 flex-1 truncate text-[13px] text-ink2">{reading}</span>
        : <span className="flex-1" />}
-     {source !== 'MANUAL' && <Badge tone="neutral">{SOURCE_BADGE[source]}</Badge>}
+     {chunkType && <Badge tone="neutral">{CHUNK_LABEL[chunkType]}</Badge>}   ← task-023: 출처 뱃지 → 조각 뱃지, 조각 없으면 생략
    </span>
    <span className="flex min-w-0 items-baseline gap-2">
      <span className="min-w-0 flex-1 truncate text-[14px] text-ink2">{meaning}</span>
@@ -921,6 +926,8 @@ WordAddSheet · WordDetailSheet · Toast
 | 보관 안 한 단어 0, 보관 단어 있음 | 보관하지 않은 단어가 없어요 / 보관함에서 꺼내거나 새 단어를 넣어 보세요. | [보관함 보기] [단어 추가] |
 | 검색 결과 0 | ‘{q}’에 맞는 단어가 없어요 | [‘{q}’ 추가하기](ghost) → 추가 시트(표현 = q, q 가 80자 이하일 때만 버튼 표시) |
 | 칩 선택 결과 0 | 이 분류에 단어가 없어요 | [전체 보기] |
+| 조각 선택 결과 0(task-023) | ‘{분류}’에 {조각} 단어가 없어요 / 분류와 조각을 함께 고르면 둘 다 맞는 단어만 보여요. · (분류 없음) {조각} 단어가 없어요 · (보관함) 보관한 단어 중 {조각} 단어가 없어요 | [조각 전체 보기] [분류 전체 보기](분류를 골랐을 때만) — h-11 14px ghost |
+| 검색 + 조각 결과 0(task-023) | ‘{q}’에 맞는 단어가 없어요 / {조각}[ · {분류}] 안에서 찾았어요. | [조각 전체에서 찾기] — [‘q’ 추가하기] 대신(여기서 넣은 단어는 조각이 비어 이 목록에 다시 안 보인다) |
 | 보관함 0 | 보관한 단어가 없어요 / 오늘의 단어에서 빼고 싶은 단어는 눌러서 보관할 수 있어요. | — |
 
 #### B. 추가 시트 — `WordAddSheet`
@@ -988,13 +995,15 @@ Sheet title="단어"
       <p lang=ja className="text-[28px] font-semibold leading-tight [overflow-wrap:anywhere]">{surface}</p>
       {reading && reading !== surface && <p lang=ja className="mt-1 text-[15px] text-ink2">{reading}</p>}
     </div>
-    {/* 소리 버튼 자리(44×44) — task-003 이후. 지금은 렌더하지 않는다(E9) */}
+    WordSoundButton target=word   ← task-023: 44px 원형 ▶ (§4-11)
   </div>
+  WordSoundLine target=word        ← 누른 버튼 바로 아래 한 줄(실패·자막만·한도·막힘)
   <p className="mt-2 break-keep text-[17px] font-medium">{meaning}</p>
   <div className="mt-2 flex flex-wrap gap-1.5">   Badge neutral: 품사 · jlpt · category · chunkType 라벨 · (archived) "보관함"
   example && Card flat mt-3:
       <p lang=ja className="whitespace-pre-wrap text-[16px] leading-[1.7] [overflow-wrap:anywhere]">{example}</p>
       exampleKo && <p className="mt-1 break-keep text-[14px] text-ink2">{exampleKo}</p>
+      (오른쪽) WordSoundButton target=ex — 예문이 #23 한도 100자(공백 접은 코드포인트)를 넘으면 숨김 · 아래 WordSoundLine(중립 안내 바탕 surface)
   note && <><p className="mt-3 text-[12px] text-ink2">메모</p><p className="whitespace-pre-wrap text-[14px]">{note}</p></>
   <h3 className="mt-4 text-[13px] font-semibold text-ink2">기록</h3>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[14px]">
@@ -1076,7 +1085,8 @@ loading ; busy ; errors ; dup
 
 | # | 엔드포인트 | 메서드 | 화면 동작 | 파라미터 | 사용 필드 | 오류 처리 |
 |---|---|---|---|---|---|---|
-| 40 | `/api/v1/words` | GET | 목록·검색·칩·정렬·보관함·더 보기 | `q`(≤40 코드포인트, 비면 생략) `category` `archived=0\|1` `sort=recent\|wrong\|surface` `limit=30` `cursor` | `items[].{id,surface,reading,meaning,source,correctCount,wrongCount,archived,category}` · `nextCursor` · `total` | ErrorBlock + 다시 시도 · 400 → 검색창 아래 서버 문구 |
+| 40 | `/api/v1/words` | GET | 목록·검색·칩·조각·정렬·보관함·더 보기 | `q`(≤40 코드포인트, 비면 생략) `category` `chunkType=NAME\|ACTION\|FEELING\|MODIFIER\|none`(고른 때만, task-023) `archived=0\|1` `sort=recent\|wrong\|surface` `limit=30` `cursor` | `items[].{id,surface,reading,meaning,chunkType,correctCount,wrongCount,archived,category}` · `nextCursor` · `total`(머리 줄 숫자) | ErrorBlock + 다시 시도 · 400 → 검색창 아래 서버 문구 |
+| 23 | `/api/v1/speech/tts` | POST | 상세 시트 소리 듣기(task-023) | `{ text }` — 단어 = 표현, 예문 = 예문(≤100). `speechProfile`·`voiceId` 는 보내지 않는다(사용자 설정) | `audio/wav` 본문 → `playWav` | 422 자막만 · 429 너무 자주 · 504/12초 늦음 · 0 오프라인 · 그 밖 실패(§4-11) |
 | 41 | `/api/v1/words` | POST | [뜻 채우기] | `{ surface, enrich: true }` | `draft.{reading,meaning,partOfSpeech,jlpt,example,exampleKo}` · `saved:false` | §4-8 ⓑ(409·400·422·429·502·504·네트워크) |
 | 41 | `/api/v1/words` | POST | [저장] | `{ surface, meaning, partOfSpeech, reading?, jlpt?, example?, exampleKo?, note?, category? }` | `word` · `saved:true` | 409 `details.existingId` → [그 단어 보기] · 400 `details.field` 입력 아래 |
 | 42 | `/api/v1/words/:id` | GET | 상세 시트 | — | `WordEntry` 전부 + `stats.{attempts,last7d,evalAppearances}` + `corrections[].{id,chatId}` | 404 → 시트 닫기 + 토스트 + 목록 다시 읽기 |
@@ -1098,7 +1108,10 @@ loading ; busy ; errors ; dup
 | `CategoryChips` | client | `{ items: CategoryCount[]; value: string \| null; onChange(v); basis: 'active' \| 'archived' }` | — |
 | `ArchiveToggle` | client | `{ pressed; onToggle() }` | — |
 | `WordRow` | client | `{ word: WordEntry; sort; onOpen(word) }` | — |
-| `WordsEmpty` | client | `{ variant: 'noWords'\|'allArchived'\|'noSearch'\|'noCategory'\|'noArchived'; q?; onSeed(); onAdd(preset?); onShowArchive(); onShowAll() ; seeding }` | — |
+| `ChunkChips` | client | `{ value: WordChunkFilter \| null; onChange(v) }`(task-023) | — |
+| `WordSoundButton`·`WordSoundLine` | client | `{ state; target: 'word'\|'ex'; onPress() }` · `{ state; target; onRetry(); inCard? }`(task-023) | — |
+| `useWordSound` · `wordSound.ts` | hook · 순수 | `() → { state, tap(target, text), retry(target, text), stop() }` · `soundText`·`soundFailureKind`·`SOUND_MSG`·`soundButtonView`·`soundLine`(task-023) | 소리 하나 |
+| `WordsEmpty` | client | `{ variant: 'noWords'\|'allArchived'\|'noSearch'\|'noSearchChunk'\|'noChunk'\|'noCategory'\|'noArchived'; q?; category?; chunk?; archived?; onSeed(); onAdd(preset?); onShowArchive(); onShowAll(); onClearChunk() ; seeding }` | — |
 | `WordAddSheet` | client | `{ open; presetSurface?; defaultCategory?; categories: string[]; onClose(); onSaved(word); onOpenWord(id); onToast(msg) }` | §4-3 |
 | `WordForm` | client | `{ values; errors; onChange(field, v); categories: string[]; expandExtras: boolean; idPrefix }` | 더 쓰기 펼침 |
 | `WordDetailSheet` | client | `{ wordId: string \| null; preview?: WordEntry; categories: string[]; onClose(); onChanged(word); onRemoved(id); onArchivedChange(word); onOpenWord(id); onToast(msg) }` | §4-3 |
@@ -1143,6 +1156,8 @@ loading ; busy ; errors ; dup
 | 보관함 | 보관함 / 보관한 단어는 오늘의 단어에 나오지 않아요. |
 | 목록 머리 | 단어 {n}개 / 보관한 단어 {n}개 / ‘{q}’ 검색 결과 {n}개 |
 | 칩 | 전체 {n} / {분류} {n} (aria: 분류) |
+| 조각 줄(task-023) | 조각 / 전체 · 이름 · 액션 · 느낌 · 꾸밈 · 없음 (화면 읽기: "전체 (모든 조각)" · "액션 조각" · "없음 (조각이 정해지지 않은 단어)") |
+| 목록 머리 조건(task-023) | … · {분류} · {이름\|액션\|느낌\|꾸밈} 조각 / 조각 없음 |
 | 행 | 맞힘 {c} · 틀림 {w} / 틀림 {w}(많이 틀린 순 뱃지) |
 | 더 보기 | 단어 더 보기 / 불러오는 중… |
 | 목록 오류 | 단어장을 불러오지 못했어요. [다시 시도] |
@@ -1207,7 +1222,7 @@ loading ; busy ; errors ; dup
 |---|---|
 | PartOfSpeech `NOUN`/`VERB`/`ADJ_I`/`ADJ_NA`/`ADVERB`/`PARTICLE`/`EXPRESSION`/`OTHER` | 명사 / 동사 / い형용사 / な형용사 / 부사 / 조사 / 표현 / 기타 |
 | JlptLevel `N5`~`N1` | N5 ~ N1 |
-| WordSource 뱃지(목록) `MANUAL`/`CORRECTION`/`SEED`/`TUTOR`/`LESSON`/`EVALUATION` | (없음) / 교정 / 기본 단어 / 선생님 제안 / 레슨 / 평가 — neutral 톤 |
+| ~~WordSource 뱃지(목록)~~ | task-023 에서 없앰 — 목록 행은 조각 뱃지(`CHUNK_LABEL`, neutral 톤), 조각 없으면 뱃지 없음. 출처는 상세 "출처" 절에만 |
 | WordSource 문장(상세) | 직접 넣은 단어예요 / 채팅 교정에서 채택한 표현이에요 / 기본 단어(N5) 팩에서 넣었어요 / 선생님 제안을 채택한 단어예요 / 레슨에서 넣은 단어예요 / 평가에서 넣은 단어예요 |
 | ChunkType | §3-8 ⓔ 와 같음(이름 조각 · 액션 조각 · 느낌 조각 · 꾸밈 조각) |
 | lastResult `CORRECT`/`WRONG`/`SKIPPED` | 맞힘 / 틀림 / 건너뜀 |
@@ -1247,6 +1262,37 @@ loading ; busy ; errors ; dup
 - **권한**: 타인 단어 id(`?word=`)는 404 → "찾을 수 없어요" 토스트. 존재 여부를 드러내는 문구를 쓰지 않는다.
 - **엔진명**: 뜻 채우기 실패 문구는 반드시 §4-8 ⓑ(서버 기본 문구에 "AI 엔진"이 있을 수 있다, §3-11 ⑧).
 - **저장소 차단**: `kaiwa.words.sort` 읽기·쓰기는 try/catch, 실패해도 `recent` 로 동작한다.
+
+### 4-11. 조각 필터·조각 뱃지·소리 듣기 (task-023, 승인 데모 `docs/demo/task-023-improve-vocab-screen-v1.html`)
+
+사용자 결정: Q1 조각 필터는 분류 칩과 **병행(AND)** · Q2 목록의 출처 뱃지는 **전부 조각 뱃지로** · 데모 결정 a~e 는 designer 권고안(a 뱃지 생략 · b 하나만 · c "없음" 칩 보임 · d 단어+예문 · e 출처 절 남김).
+
+**조각 줄 `ChunkChips`** — 분류 칩 바로 아래 한 줄(분류 줄이 없으면 `mt-1.5`). 왼쪽 고정 라벨 "조각"(`w-[30px] 12px semibold ink2`, `id` → `radiogroup aria-labelledby`) + 가로 스크롤 칩(`-mr-4`·`pr-4`, 오른쪽 끝까지 밀림). 칩은 `CategoryChips` 와 같은 36px 알약·세로 히트 44px·같은 선택색, **숫자 없음**. 하나만 고른다(`role=radio`). 목록과 함께 스크롤된다(스크롤 1곳). 단어장이 완전히 비었으면(#46 합 0) 줄을 그리지 않는다(고른 조각이 있으면 남김).
+- 조회: 고르면 `chunkType=<값>`(없음 = `none`), 바뀌면 커서를 지우고 첫 쪽. 보관함을 켜고 끄면 분류는 전체로, **조각은 유지**.
+- 목록 머리: 기존 문구 + 조건 `" · " + <span class="font-semibold text-ink">{분류} · {조각 이름}</span>` — 숫자는 #40 `total` 그대로.
+
+**행 뱃지** — `WordRow` 오른쪽 위 뱃지는 `CHUNK_LABEL[chunkType]`(neutral). 조각이 없으면(직접 넣은 단어·기본 단어 2개) 그리지 않는다. 초록·빨강은 맞힘·틀림 뜻이라 조각 구분에 쓰지 않는다.
+
+**소리 듣기 `WordSoundButton`·`useWordSound`** — 표현 오른쪽(E9 자리)과 예문 카드 오른쪽의 44px 원형 버튼.
+- 모양: 대기 ▶(테두리 line·surface) → 불러오는 중(돌기, `aria-busy`, 이름 "{단어|예문} 소리를 불러오는 중, 누르면 취소") → 재생 중 ■(채움 ink + 바깥 고리 accent-soft, 이름 "{…} 소리 멈추기"). 다시 누르면 취소·멈춤. 자막만 안내 중이면 흐린 모양(surface2·ink2), 소리 막힘이면 accent 고리.
+- 소리는 한 번에 하나(다른 버튼을 누르면 앞 소리를 멈춤). [수정]·[삭제]로 넘어가거나 시트를 닫으면(언마운트)·화면이 가려지면 멈춘다.
+- 요청: #23 `{ text }`(단어 = 표현, 예문 = 예문의 공백을 한 칸으로 접은 글). 발음 사전은 서버가 적용하고 빠르기·목소리는 사용자 설정(`speechProfile`·`voiceId` 생략). 예문이 100자(코드포인트)를 넘으면 예문 버튼을 숨긴다. 탭 핸들러에서 동기로 `unlockTtsAudio()` 후 `apiPostAudio` → `playWav`. 12초 안에 못 받으면 끊는다.
+- 안내 한 줄(누른 버튼 바로 아래, `min-h-[44px] rounded-xl px-3 py-1 13px`, 예문 카드 안 중립 바탕은 surface):
+
+| 상황 | 문구 | 톤·역할 | 링크 |
+|---|---|---|---|
+| 그 밖 실패(400·500·502·재생 실패) | 목소리를 불러오지 못했어요. | bad-soft·bad · alert | [다시 듣기] |
+| 504 · 12초 초과 | 목소리 응답이 늦어요. 잠시 후 다시 눌러 주세요. | bad · alert | [다시 듣기] |
+| 네트워크(0) | 연결하지 못했어요. 네트워크를 확인해 주세요. | bad · alert | [다시 듣기] |
+| 422(자막만) | 지금은 선생님 목소리를 들을 수 없어요(자막만). 목소리가 돌아오면 다시 들을 수 있어요. | 중립 · status | [다시 확인] |
+| 429 | 너무 자주 눌렀어요. 잠시 후 다시 들어 주세요. | 중립 · status | — |
+| 브라우저가 막음(NotAllowedError) | 소리를 켜려면 ▶ 를 한 번 더 눌러 주세요. | 중립 · status | — (같은 ▶ 를 누르면 받은 소리를 바로 튼다) |
+| [다시 듣기]·[다시 확인] 뒤 불러오는 중 | 다시 불러오는 중… | 중립 · status | — |
+| 재생 중 | (화면 읽기 전용) {단어·예문} 소리 재생 중 | sr-only status | — |
+
+문구에 엔진·서버 이름은 없다("선생님 목소리"로만). 오디오는 저장·로그하지 않는다.
+
+**상세 출처 절** — 그대로 남긴다(결정 e). 교정 단어의 [점검 결과 보기 ›] 길 유지.
 
 ---
 
@@ -1739,6 +1785,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 | 컴포넌트/모듈 | 종류 | props | 상태 |
 |---|---|---|---|
 | `TodayHome` | client | `{ dailyWordCount: number }` | §5-3 B |
+| `TodayReviewCard`(`lesson/review/`, task-010b) | client | §14-5 | 표시 전용 — 상태는 `TodayHome` 의 `useReviewSkip`·`useDecisionWatch`(§14-3 A), 자리는 `reviewPlacement`(위·아래·곧 열려요) |
 | `TodayWordsCard` | client | `{ state; count; mode; category; categories; todayDone; inProgress; poolEmptyKind; startError; onCount(n); onMode(m); onCategory(c); onStart(); onResume(); onFinish(); onSeed(); onShowKept() }` | — |
 | `VocabStatsCard` | client | `{ stats: VocabStats }` | — |
 | `WeekStrip` | client | `{ daily: VocabStats['daily']; today: string }` | — |
@@ -4228,6 +4275,24 @@ createTtsPlaybackQueue(deps) → {
 | ⑪ | **#24 서명 URL 사용 범위** | 큐는 `audio.url` 이 `/api/v1/speech/tts/` 로 시작할 때만 받고, 다시 듣기는 보관본·#23 으로만(10분 만료 URL 재사용 안 함). URL·토큰을 DOM·로그에 남기지 않는다 | — |
 | ⑫ | **발견 이슈**(이번 task 에서 B 가 고침) | `useRealtimeStt` 가 `final.utteranceId` 를 버린다 · `useChatTurn.send` 가 `busy` 면 조용히 무시한다(음성 자동 전송에선 말이 사라짐 → QUEUED 로 해결) · `PendingCorrectionsCard` 가 CHAT 만 거른다 · `CorrectionCard` 가 늘 "n/m" 카운터를 그린다 | — |
 
+### 9-12. 교정 방식 — 유창성·코치 (task-010c · 승인 데모 `docs/demo/task-010c-correction-mode-v1.html`, 결정 a=A·b=B·c=B)
+
+데모 문구·치수·상태를 그대로 옮겼다(문구 정본 `talkCopy.ts` `CORRECTION_MODE_COPY`·`LATER_COPY`·`COACH_COPY`). 서버 계약은 api-contract #11·#12(`correctionMode`)·#29(`laterPending`·교정 `deliver/hintKo/selfCheck`)·#32(`coachRevealed`·`done.selfCheck`)·#34(`deliver=LATER`).
+
+| 자리 | 구현(컴포넌트) | 데모 상태 |
+|---|---|---|
+| 설정 · 기본정보·학습 | `LearningSettings` 의 `CorrectionModeField` — '교정 강도' 바로 아래. 라벨 + 도움말("교정 강도는 **무엇을** … **언제** …") + 두 줄 선택 카드(네이티브 radio, 카드 전체 ≥56px, 고른 쪽 = 테두리 accent + 채운 동그라미, 유창성에 '기본' 배지) + "말로 하는 회화에만 …" 한 줄. 저장은 기존 [학습 설정 저장] 하나(저장 중 선택 잠금, 실패 토스트 뒤 선택 유지) | `set`·`set-coach`·`set-saving`·`set-saved`·`set-fail` |
+| 회화방 머리 칩(a=A) | `TalkRoomHeader` `LaterChip` — ⋯ 바로 왼쪽, h-8(before 로 히트 44), accent-soft 알약 + accent 숫자 원. 처리하지 않은 모아 둔 교정 ≥1 일 때만. 폭 <375 는 "교정 N". 숫자가 늘면 0.45s 확대(WAAPI, 움직임 줄이기면 없음). aria-label "모아 둔 교정 N개 보기", aria-haspopup=dialog | `fl-flow` |
+| 유창성 대화 중 | `deliver=LATER` 교정은 대화 속에 그리지 않는다(말풍선 표시도 없음). 칩 +1, 스크린리더 전용 한 줄 "작은 실수 1개를 모아 뒀어요. 모아 둔 교정 N개"(녹음 중이면 끝난 뒤). MAJOR(NOW)는 지금 카드 그대로 | `fl-compare`·`fl-flow` |
+| 모아 둔 교정 시트 | `LaterCorrectionsSheet`(공용 `Sheet`) — 열 때마다 #34 `deliver=LATER` 로 불러온다. 불러오는 중(스켈레톤 2)·오류(띠 + [다시 시도])·빈(안내 + [닫기])·목록(안내 + "아직 안 본 교정 N개" + 기존 `CorrectionCard`, 오래된 것 위)·모두 처리(완료 상자 + [대화로 돌아가기]). [채택]은 기존 채택 시트를 위에 열고(그동안 이 시트는 Esc·배경으로 닫히지 않음) 끝나면 목록으로. [채택]·[거절]이 `409`(이미 처리된 교정 — 다른 탭·재시도)이면 토스트 '이미 처리된 교정이에요' 후 대화 목록과 이 시트 목록을 다시 불러온다(그 외 오류는 일반 오류 토스트). 처리할 때마다 초점은 안내 문구(남으면)나 [대화로 돌아가기]로, 닫을 때 칩이 사라졌으면 ⋯ 로 | `fl-sheet`·`fl-accept`·`fl-partial`·`fl-done`·`fl-empty`·`fl-loading`·`fl-error` |
+| 홈에서 들어옴 | `#cr_<id>` 가 모아 둔 교정이면 시트를 그 카드로 스크롤 + 테두리 강조(화면에 없는 오래된 교정이면 #34 로 확인 뒤). NOW 교정은 지금처럼 대화 속 카드 | `fl-deeplink` |
+| 코치 힌트 카드 | `TalkCorrectionCard`(`correctionView.coachCardView`) — 힌트가 있으면 공개 전: 유형 배지 · '힌트' 배지 · 내 문장(원문 그대로) · 힌트 상자(accent-soft) · 마이크 줄 "힌트를 보고 다시 말해 보세요 …" · [정답 보기](ghost h-11, aria-expanded=false). 교정문·틀린 곳·설명·채택 숨김. 상태 줄도 "힌트를 보고 다시 말해 보세요". [정답 보기] → 기존 카드 + "정답을 보고 다시 말해 보세요." 줄, 초점 "이렇게 고쳐요"(상태 줄 "정답을 보고 …") | `co-compare`·`co-hint`·`co-revealed` |
+| 코치 판정 | 다음 말을 보낼 때 그 카드를 열었는지 `coachRevealed` 로 보낸다. `done.selfCheck` SELF → '스스로 고쳤어요 ✓' 배지 + "✓ 다음 말에서 스스로 고쳤어요" / REPEAT → '고쳐 말했어요 ✓' + "✓ 정답을 보고 고쳐 말했어요" / MISSED → 자동 공개(b=B) + "다음 말에서 고치지 못해 정답을 열었어요. …"(이미 열었으면 줄 없음). 판정은 #29 에 남아 새로고침 뒤에도 같다. [정답 보기] 여부는 화면 상태라 다시 들어오면 힌트부터. 힌트 없는 교정은 기존 카드 | `co-self`·`co-auto`·`co-nohint` |
+| 회화 메뉴(c=B) | `CorrectionModeMenu` — '들려주는 방식' 아래, **기존 '들려주는 방식'과 같은 세로 radio 줄(52px)** + 고른 방식 설명 한 줄. 고르면 #12 에 `correctionMode` 만 PUT, 토스트 "다음 말부터 {유창성\|코치} 방식으로 교정해요", 실패면 되돌림 | `menu` |
+
+- **데모와 다른 점**: 회화 메뉴의 교정 방식은 데모의 분절 버튼 대신 지금 구현의 '들려주는 방식'과 같은 세로 radio 줄로 그렸다(한 메뉴 안 두 항목 모양 통일 — 동작·문구·값은 데모 그대로).
+- 검증(2026-10-01 developer, dev 서버·QA 계정): 회화방·시트·메뉴·설정 360/390/412 × 780/892 가로 넘침 0 · 시트 버튼 44px↑ · 선택 카드 88px · 엔진명 DOM 0 · 콘솔 오류 0.
+
 ---
 
 ## 10. 관리자 콘솔 — 발음 사전 (task-003g)
@@ -6195,7 +6260,7 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업 만들기" s
 
 **단계 넘기기**: 각 단계 끝에 [다음 단계 · {② 문법}](primary full 48px). 누르면 대기 중인 progress 쓰기를 먼저 비우고 #61 `{stageDone: 지금 단계}` 를 보낸다. 성공하면 다음 단계로 가서 스크롤을 맨 위로, 초점을 새 단계 h2(`tabIndex=-1`)로 옮긴다. 실패하면 버튼 위 `role=alert` "진행 상황을 저장하지 못했어요. 다시 눌러 주세요."(`#l-savefail`)를 두고 그 자리에 머문다. 400 `monotonic` 은 이미 더 앞서 있다는 뜻이니 #60 을 다시 읽는다.
 
-#### F. ① 이해 — `StageUnderstand` (`#l1` · `#l1-playing` · `#l1-memo` · `#l1-textonly`)
+#### F. ① 이해 — `StageUnderstand` (`#l1` · `#l1-playing` · `#l1-memo` · `#l1-textonly` · task-025 v1 `#l1-line` · `#l1-interrupt` · `#l1-review`)
 
 ```
 <h2 17px bold tabIndex=-1>① 이해 · 듣고 이해하기</h2>  + 13px ink2 설명(ONLINE / TEXT_ONLY 두 벌, §12-8 ⓔ)
@@ -6213,8 +6278,10 @@ MemoSummaryCard (mt-[18px])
   1. (글자 가림 중) "글자를 가리고 먼저 들어요."(12 ink2) + [글자 보기](밑줄 텍스트 버튼 44px).
   2. 줄: `grid grid-cols-[26px_minmax(0,1fr)] gap-2 -mx-2 rounded-[10px] px-2 py-1.5` — 역할 칩 + `<span class="sr-only">{rolesKo}: </span>` + `<p lang=ja 17px/1.7 whitespace-pre-wrap [overflow-wrap:anywhere]>{ja}</p>` + (읽기 켬 && `reading ≠ ja`) `<p lang=ja 14px ink2>{reading}</p>` + (번역 켬) `<p 13 ink2>{ko}</p>`. **재생 중인 줄은 `bg-accent-soft`**.
      글자 가림(d=B): 줄마다 역할 칩 + 높이 14px `bg-surface2` 막대 1~2개(글자 수에 따라, `aria-hidden`) + sr-only "{역할}, 글자 가림". 가림 조건 = `ONLINE && 이 구간을 보통 속도로 끝까지 듣지 않음 && [글자 보기]를 누르지 않음`. 보통 속도 재생을 **시작하면** 바로 보인다. TEXT_ONLY·다시 보기에서는 늘 보인다.
-  3. 듣기 순서 `ol aria-label="듣는 순서"` 2칸(h-7 r8 12px): "① 느리게"·"② 보통 속도" — 끝낸 칸 `bg-good-soft text-good` "✓", 다음 차례 `bg-surface ring-[1.5px] ring-accent`, 나머지 `bg-surface2 text-ink2`.
-  4. 상태 줄 `p role=status 13px ink2 min-h-5`(문구 §12-8 ⓔ): 재생 중 "{느리게|보통 속도로} 듣는 중 · {i}/{n}줄" 등.
+     **줄 다시 듣기 ▶(task-025, IMP-0012)**: ONLINE 이면 줄 그리드가 `grid-cols-[26px_minmax(0,1fr)_44px] items-start` — 마지막 칸에 `LineReplayButton`(누르는 범위 44px `-my-1 -mr-2`, 보이는 원 32px `border border-line bg-surface` / 재생 중 `border-ink bg-ink text-surface` ■ / 받는 중 스피너). `aria-label` "{n}번째 줄[ 느리게] 다시 듣기" / 재생 중 "{n}번째 줄 멈추기". **글자 가림 중에도 보이고 가림을 풀지 않는다**(가림 줄도 같은 3칸). 재생 줄(받는 중 포함) `bg-accent-soft`. 자막만이면 버튼·안내 줄을 숨기고 2칸 그리드로 돌아간다. 다시 보기에서도 보인다(듣기만).
+     속도(결정 a=A): 그 구간을 **보통 속도로 끝까지 듣기 전엔 `slow`, 뒤엔 `normal`**, 다시 보기는 늘 `normal`(`lineReplayPace`). 소리 = #62c `{kind:'dialogue', idx, pace}`, 키 `line:{idx}`, **onComplete 없음 → 진행(#61)·StudyLog 쓰기 0**(`playLineReplay`). 같은 큐라 구간 재생 중에 누르면 구간 재생이 끊기고(`breakPending`) "느리게/보통 ✓"는 채워지지 않는다. 재생 중인 줄 ▶ 를 다시 누르면 멈춘다.
+  3. (ONLINE, task-025) 안내 줄 12 ink2 "줄 옆 ▶ 는 그 줄만 다시 들려줘요. ‘들었어요’는 아래 구간 듣기(느리게 → 보통)로만 채워져요." → 그 아래 듣기 순서 `ol aria-label="듣는 순서"` 2칸(h-7 r8 12px): "① 느리게"·"② 보통 속도" — 끝낸 칸 `bg-good-soft text-good` "✓", 다음 차례 `bg-surface ring-[1.5px] ring-accent`, 나머지 `bg-surface2 text-ink2`.
+  4. 상태 줄 `p role=status 13px ink2 min-h-5`(문구 §12-8 ⓔ): 재생 중 "{느리게|보통 속도로} 듣는 중 · {i}/{n}줄" 등. **줄 다시 듣기가 이 구간에서 소리 나면 그 문구가 먼저**(`pb.lineOf` 가 아니라 큐 스냅샷의 `line:{idx}` 로 — `activeLineReplay`): 받는 중 "{n}번째 줄을 불러오는 중…" / 재생 중 "{n}번째 줄 · {느리게|보통 속도로} 다시 듣는 중". 줄 재생이 막히면(blocked) 아래 버튼 자리가 "▶ 눌러서 듣기".
   5. 버튼(48px): 재생 중 [■ 멈춤](ghost full) / 느리게 전 [▶ 느리게 듣기 · {배율}](primary full) / 느리게 뒤 BtnRow [▶ 보통 속도로](primary) [다시 느리게](ghost) / 둘 다 들음 BtnRow [다음 구간](primary, 마지막 구간엔 없음) [▶ 다시 듣기](ghost, 보통 속도). `{배율}` = 설정 `learningSpeed`(0.6/0.8/1.0 → "0.6배"…, 없으면 0.8 — `page.tsx` 가 넘김). 재생이 막히면(큐 `blocked`) 그 버튼이 "▶ 눌러서 듣기" → `resumeBlocked()`.
      **자동 재생 없음(b=B)**: [다음 구간]은 다음 구간을 열기만 한다.
   6. TEXT_ONLY: 3~5 대신 `note role=status` "지금은 선생님 목소리를 들을 수 없어요(자막만). 목소리가 돌아오면 듣기 버튼이 다시 보여요." + [읽었어요 · 다음 구간](primary full, 마지막 구간은 "읽었어요") → `segmentsDone` 에 넣고 다음 구간을 연다.
@@ -6227,37 +6294,43 @@ MemoSummaryCard (mt-[18px])
   - 결과를 받은 뒤 새로 적은 단어가 있으면 [새로 적은 단어 {k}개도 제안받기](ghost full). 같은 단어를 다시 보내도 서버는 그때 결과를 돌려준다(새 행 없음).
   - 다시 들어왔을 때(`progress.listen.proposed` 가 비어 있지 않음): 제안 카드는 저장돼 있지 않으므로, 이 카드가 처음 보일 때 **메모 초안으로 #62a 를 한 번 다시 불러** 지금 상태의 제안 카드를 복원한다.
 
-#### G. ② 문법 — `StageGrammar` (`#l2`)
+#### G. ② 문법 — `StageGrammar` (`#l2` · task-025 v1 `#l2` · `#l2-playing` · `#l2-fail` · `#l2-textonly`)
 
 ```
-<h2 tabIndex=-1>② 문법 · 표현과 문형</h2> + 13 ink2 "오늘 대화의 표현 조각과 문형 {g}개예요. 예문을 듣고 소리 내어 따라 읽어 보세요."
-(TEXT_ONLY) note "지금은 선생님 목소리를 들을 수 없어 예문 듣기를 숨겼어요(자막만)."
-Card "오늘의 표현 {chunks.length}개"(15 semibold) + 13 ink2 "대화에 나온 표현 조각이에요. 문제·응용·말하기에서 다시 써요."
-   ExprChip(bg-surface2 r10 px-2.5 py-1.5): <span lang=ja 16px>{textJa}</span> <span 12 ink2>{meaningKo}</span> (isNew) Badge neutral(bg-surface) "새 표현"
+<h2 tabIndex=-1>② 문법 · 표현과 문형</h2> + 13 ink2 "오늘 대화의 표현 조각과 문형 {g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요."
+(TEXT_ONLY) note "지금은 선생님 목소리를 들을 수 없어 표현·예문 듣기를 숨겼어요(자막만)."
+Card "오늘의 표현 {chunks.length}개"(15 semibold) + 13 ink2 "대화에 나온 표현 조각이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요."(TEXT_ONLY 는 가운데 문장 없이)
+   ONLINE: ExprPlayChip = 칩 전체가 button(min-h-11 r10 py-1 pl-1.5 pr-3 bg-surface2): ▶ 원 30px(bg-surface) + <span lang=ja 16px>{textJa}</span> <span 12 ink2>{meaningKo}</span> (isNew) Badge "새 표현" + sr-only ", 듣기"
+           재생 중 ring-[1.5px] ring-accent ring-inset + bg-accent-soft, 원 bg-ink ■, sr-only ", 멈추기" / 받는 중 원 안 스피너
+   TEXT_ONLY: ExprChip(bg-surface2 r10 px-2.5 py-1.5, 글자만 — 지금과 같음)
 GrammarCard × grammar (Card): "문형 {i}"(12 ink2) / <h3 lang=ja 20px bold>{pattern}</h3> / <p 14px>{explanationKo}</p> /
    구분선 아래 예문 행(-mx-2 px-2 py-2.5 rounded-[10px], 재생 중 bg-accent-soft): "예문"(12 semibold ink2) + <p lang=ja 17px>{exampleJa}</p>
    + (읽기 켬) <p lang=ja 14 ink2>{exampleReading}</p> + <p 13 ink2>{exampleKo}</p>   오른쪽 PlayButton 44px 원(aria-label "예문 듣기" / 재생 중 "멈추기")
 [다음 단계 · ③ 문제]
 ```
 - 예문 소리 = #62c `{kind:'grammar', idx, pace:'normal'}`.
+- **표현 소리(task-025, IMP-0013, 결정 b=A)** = #62c `{kind:'chunk', idx, pace:'normal'}`, 키 `expr:{idx}`, onComplete 없음(기록 없음). 한 번에 소리 하나(다른 소리를 누르면 앞 소리는 멈춤), 재생 중 칩을 다시 누르면 멈춘다. 실패는 기존 토스트 "목소리를 불러오지 못했어요. 잠시 후 다시 눌러 주세요."만 띄우고 칩은 원래 모양(422 는 자막만 전환). **④ 응용 "써 볼 표현"·⑤ 말하기 "목표 표현" 칩은 바꾸지 않는다**(▶ 표시 없음으로 구분).
+- 서버 경로 선택(developer): #23 범용 합성이 아니라 #62c 에 `chunk` 를 더했다 — 문장은 서버가 소유자 레슨 본문에서 고르고(클라이언트 글자 없음), 이 레슨/주제 발음 사전 범위·`LEARNING_NORMAL`·12요소 캐시·분당 한도를 그대로 쓴다.
 
-#### H. ③ 문제 — `StageQuiz` (`#l3` · `#l3-wrong` · `#l3-sum`)
+#### H. ③ 문제 — `StageQuiz` (`#l3` · `#l3-wrong` · `#l3-sum` · task-025 v1 `#l3-new` · `#l3-blank` · `#l3-old` · `#l3-old-answered`)
 
 ```
 <h2 tabIndex=-1>③ 문제 · {N}문제</h2> + 13 ink2 "답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요."
 QuizTop: "문제 {i} / {N}"(14 bold) · 점 24px × N(aria-hidden — 맞힘 good-soft ✓ / 틀림 bad-soft ✗ / 지금 ring-2 accent / 남음 surface2 번호)
-Card: <p 16 semibold>{promptKo ?? <span lang=ja>{promptJa}</span>}</p>
+Card: (quizPromptView) <p 16 semibold>{한국어 질문}</p> + (promptJa 있으면) <p lang=ja 17px leading-1.7>{promptJa}</p>
+      (옛 수업 — promptKo null·빈 값) 한국어 질문 자리 = "일본어 문장을 읽고 알맞은 답을 고르세요." + 일본어 문장 + 12 ink2 ⓘ "예전에 만든 수업이라 한국어 문제 설명이 없어요."
       <div role=group aria-label="보기"> ChoiceButton × 4 </div>
       (답함) Explain(bg-surface2 r12 p-3 role=status): "✓ 맞았어요"(good) | "✗ 틀렸어요 · 정답은 {k}번"(bad) + 14px explanationKo
 (답함) [다음 문제] | 마지막 [결과 보기](primary full)
 ```
 - `ChoiceButton`: `grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2.5 min-h-[52px] rounded-xl border border-line bg-surface px-3 py-2.5 text-left mt-2` — 번호 원 24px / 본문(가나·한자가 있으면 `lang=ja` 17px, 아니면 15px — `matchLang`) / 꼬리표. 답한 뒤: 정답 `border-good bg-good-soft` + "✓ 정답"(12 bold good) · 내가 고른 오답 `border-bad bg-bad-soft` + "✗ 내 답"(12 bold bad) · 나머지 `text-ink2`(opacity 금지). `aria-label="{k}번, {보기}[, 정답][, 내 답, 틀림]"`, 답한 뒤에는 넷 다 `aria-disabled`.
+- **문제 한국어 표기(task-025, IMP-0014 · Q10)**: 새 수업(A4 `lesson@v8`~)은 `promptKo` 가 늘 있어 한국어 질문(굵게) → 일본어 문장(있을 때). 빈칸형은 정답을 드러내지 않는 지시문("빈칸에 들어갈 알맞은 말을 고르세요."류 — 결정 e=B, 생성 프롬프트 몫). 옛 수업(v7 이하)의 `promptKo` null·빈 값은 다시 만들지 않고 공통 안내 줄로 대체(결정 c=A, 서버 요청 없음). **보기(답)에는 한국어를 붙이지 않는다**(답 노출). 나머지 단계(① 대화 뜻은 [번역] 끈 채 시작 — 결정 d=A, ②④⑤ 는 이미 한국어 필수)는 바꾸지 않는다.
 - 채점은 화면이 `content.quiz[].answer` 로 바로 한다(자습이라 정답이 내용에 들어 있다 — 계약 #60). 고르는 즉시 #61 `{progress:{quiz:{answers}}}`(첫 답 고정 — 서버도 바꾸지 않는다). 점수는 완료 때 서버가 다시 계산한다.
 - 답한 뒤 초점은 [다음 문제]로, 다음 문제로 가면 첫 보기로 옮기고 스크롤은 문제 카드 위로 맞춘다.
-- 결과(모두 답함 또는 다시 보기, `#l3-sum`): Card "{N}문제 중 {c}문제 맞혔어요"(22 bold tabular) + 점 줄 + 문항 목록(✓/✗ 24px 원 + 문제 14px + "내 답 {보기} · 정답 {보기}"(12 ink2, 맞힌 문항은 "정답 {보기}"만)) + 12 ink2 "틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요." + [다음 단계 · ④ 응용].
+- 결과(모두 답함 또는 다시 보기, `#l3-sum`): Card "{N}문제 중 {c}문제 맞혔어요"(22 bold tabular) + 점 줄 + 문항 목록(✓/✗ 24px 원 + 문제 14px(`promptKo ?? promptJa` — `quizSummaryPrompt`, 공통 안내 줄은 넣지 않는다) + "내 답 {보기} · 정답 {보기}"(12 ink2, 맞힌 문항은 "정답 {보기}"만)) + 12 ink2 "틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요." + [다음 단계 · ④ 응용].
 - 다시 들어왔을 때: 답하지 않은 첫 문항부터, 다 답했으면 결과부터.
 
-#### I. ④ 응용 — `StageApply` (`#l4` · `#l4-voice` · `#l4-compare`)
+#### I. ④ 응용 — `StageApply` (`#l4` · `#l4-voice` · `#l4-compare` · task-025 v1 `#l4-diff` · `#l4-kanji` · `#l4-same` · `#l4-mixed` · `#l4-skip`)
 
 ```
 <h2 tabIndex=-1>④ 응용 · 문장 만들기 {N}개</h2> + 13 ink2 "상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요."
@@ -6274,16 +6347,22 @@ Card(@container):
   [모범 답안과 비교하기](primary full, 비었으면 aria-disabled + 토스트 "먼저 문장을 써 보세요")
   [모르겠어요 · 모범 답안 보기](가운데 밑줄 텍스트 버튼 44px)
   ─ 비교 ─ (위아래: 컨테이너 ≥440px 에서만 나란히 → 휴대폰 폭에선 늘 위아래)
-    box(bg-surface2 r12 px-3 py-2.5): "내 문장"(12 semibold ink2) + <p lang=ja 17px>{내 답}</p> | 비었으면 13 ink2 "(쓰지 않고 봤어요)"
-    box: "모범 답안"(12 semibold good) + <p lang=ja 17px>{modelAnswerJa}</p> + (읽기 켬) {modelReading} + 13 ink2 {modelKo}
+    (task-025) 13 semibold ink "글자가 다른 곳에 밑줄을 쳤어요 · 채점이 아니에요" | 같으면 "＝ 모범 답안과 글자가 같아요." | 모르겠어요·200자 초과면 줄 없음
+    box(bg-surface2 r12 px-3 py-2.5): 머리 줄 "내 문장"(12 semibold ink2) ··· (다름) 범례 12 ink2 [점선] 모범 답안에 없는 글자
+         + <p lang=ja 17px leading-1.7>{내 답 — 다른 글자는 <mark> 굵게 + 점선 밑줄}</p> | 비었으면 13 ink2 "(쓰지 않고 봤어요)"
+    box: 머리 줄 "모범 답안"(12 semibold good) ··· (다름) 범례 [실선] 내 문장에 없는 글자
+         + <p lang=ja 17px leading-1.7>{modelAnswerJa — 다른 글자는 <mark> 굵게 + 실선 밑줄}</p> + (읽기 켬) {modelReading} + 13 ink2 {modelKo}
          + [▶ 모범 답안 듣기](h-11 테두리 버튼, 재생 중 "■ 멈춤")
-  12 ink2 "채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요."
+    (다름) sr-only "모범 답안에만 있는 글자: {…}. 내 문장에만 있는 글자: {…|없음}."
+  12 ink2 비교 표시가 있으면 "채점하지 않아요. 밑줄은 글자가 다른 곳일 뿐, 뜻이 통하면 다르게 써도 괜찮아요. 문장부호·띄어쓰기 차이는 표시하지 않아요. 모범 답안을 소리 내어 따라 읽어 보세요."
+          표시 없음(모르겠어요·200자 초과)이면 "채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요."(지금과 같음)
 [다음 상황](primary full) | 마지막 [다음 단계 · ⑤ 말하기]
 ```
 - [비교하기] → #61 `{progress:{application:{answers}}}`(그 칸만 새 글자, 다른 칸은 지금 값) 뒤 비교 모양. [모르겠어요]는 저장하지 않고(칸은 null) 비교 모양만 보인다.
 - 말로 쓰기: `useRealtimeStt({ purpose: 'MIC_TEST', config })`(원음을 저장하지 않는 경로 — §12-11 ④). final 텍스트를 입력칸에 넣고(덮어씀), 고치려면 [글자로 쓰기]. 권한·오류 안내는 ⑤ 와 같은 `SttAlert`.
 - 비교 상자의 `@container` 기준 440px 은 데모 v2 결정이다(일본어 줄이 좁게 꺾이지 않게).
 - 모범 답안 소리 = #62c `{kind:'application', idx}`.
+- **글자 비교(task-025, IMP-0016)** = `compare.ts` `compareAnswer(저장된 내 답, modelAnswerJa)` — 채팅 교정 카드와 같은 `diffCodepoints`(코드포인트 LCS, 200 초과 null)를 쓰고, **문장부호·공백(`\s`·`\p{P}`)만 다른 글자는 글자 하나씩 "같음"으로 돌린다**(이어 붙이면 원문과 같다는 불변식 유지). `<mark>`: `rounded-[3px] bg-surface px-px font-bold text-ink underline decoration-ink` + 내 문장 `decoration-dotted decoration-[2.5px]` / 모범 답안 `decoration-solid decoration-2`, `underline-offset-[5px]`(범례는 3px). **색은 ink·surface 만 — 빨강·초록·취소선·✓ 없음**. 채점이 아니라 비교 표시라 정오 판정·#61 저장·기록은 바뀌지 않는다.
 - 다시 들어왔을 때: 답이 저장된 칸은 비교 모양, 나머지는 쓰기부터(건너뛴 칸은 저장되지 않으니 쓰기로 돌아온다).
 
 #### J. ⑤ 말하기 — `StageSpeak` + `LessonVoiceBar` (`#l5` · `#l5-ok` · `#l5-miss` · `#l5-text` · `#l5-denied` · `#l5-fail` · `#l5-donefail`)
@@ -6364,6 +6443,7 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 - 재생 단위 = `queue.playParts('replay', key, parts)`:
   - 구간 재생: `key = seg:{k}:{pace}`. 구간의 대화 줄마다 part 하나 — part 함수 안에서 #62c `{kind:'dialogue', idx, pace}` 로 `clips` 를 받아 그 오디오를 가져온다(**미리 전부 합성하지 않고 차례로** — 첫 소리 ≤2초). 조각이 2개 이상이면(대화 줄은 ≤80자라 드물다) 이어 붙여 part 하나로 돌려준다. `snapshot.chunkIndex` = 줄 순번 → 줄 강조·"{i}/{n}줄".
   - 예문·모범 답안·내 목소리: part 하나(#62c `grammar|application|speaking` / #21b).
+  - (task-025) 줄 다시 듣기 `key = line:{idx}`(#62c `dialogue`, 구간 듣기 순서를 따라 slow/normal) · 오늘의 표현 `key = expr:{idx}`(#62c `chunk`, normal): part 하나, **onComplete 를 넘기지 않는다** — 진행 쓰기는 구간 키(`seg:{k}:{pace}`)만. 받는 중 표시는 `pb.loading(key)`(큐 `waiting` 또는 재생 손잡이 전).
 - 탭 핸들러 안에서 **동기로 `unlockTtsAudio()`** 를 부른 뒤 재생한다(자동재생 정책, §7-0 ⑧). 막히면(`phase==='blocked'`) 누른 버튼이 "▶ 눌러서 듣기" → `resumeBlocked()`.
 - 중단 없이 마지막 part 까지 끝났을 때만 `played[pace]` 에 그 구간을 넣고, 둘 다 들었으면 `segmentsDone` 에 넣는다.
 - 멈춤: [■] = `interrupt('USER_STOP')` · 단계 이동·화면 가림·언마운트 = `interrupt('HIDDEN')` · 푸시투토크 누름 = `interrupt('BARGE_IN')`.
@@ -6412,7 +6492,8 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 | `StageApply.tsx` | ④ |
 | `StageSpeak.tsx` · `LessonVoiceBar.tsx` · `LessonTextBar.tsx` | ⑤ |
 | `LessonEnd.tsx` · `endResult.ts` | 종료 카드, #60 → 결과 계산 |
-| `ExprChip.tsx` · `PlayButton.tsx` · `Toggle.tsx` · `RoleChip.tsx` | 공용 조각 |
+| `ExprChip.tsx` · `PlayButton.tsx` · `Toggle.tsx` · `RoleChip.tsx` | 공용 조각 (task-025: `parts.tsx` 에 `ExprPlayChip`·`Spinner`·`InfoIcon` 추가) |
+| `compare.ts` · `logic.ts` | (task-025) 응용 글자 비교 `compareAnswer` · 재생 키·속도 `lineReplayKey`/`exprKey`/`lineReplayPace`/`activeLineReplay`/`playLineReplay`/`playExpr` · 문제 표기 `quizPromptView`/`quizSummaryPrompt` — 단위 테스트 `__tests__/task025.test.ts` |
 | `useLesson.ts` · `useLessonPlayback.ts` · `useJobWatch.ts` · `useSpeakCheck.ts` | 상태 |
 | `lessonCopy.ts` · `labels.ts` · `matchLang.ts` | 문구(§12-8) · 단계·조각 라벨 · "가나·한자가 있으면 `lang=ja`" 판정 |
 
@@ -6496,11 +6577,12 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 | 구간 | 구간 {k} · {a}~{b}줄 · 메모 {n} / 들었어요 / 읽었어요 / 느리게 ✓ · 보통 / 글자를 가리고 먼저 들어요. / 글자 보기 / (sr) {역할}, 글자 가림 / ① 느리게 · ② 보통 속도 / (aria) 듣는 순서 |
 | 구간 상태 | 먼저 느리게 들어 봐요. / 이번엔 보통 속도로 들어 봐요. 글자와 함께 확인해요. / {느리게\|보통 속도로} 듣는 중 · {i}/{n}줄 / 이 구간을 다 들었어요. 들린 단어를 적고 다음 구간으로 가요. / 구간을 모두 들었어요. 아래에서 들린 단어를 단어장에 넣을 수 있어요. |
 | 구간 버튼 | ▶ 느리게 듣기 · {0.8}배 / ▶ 보통 속도로 / 다시 느리게 / 다음 구간 / ▶ 다시 듣기 / ■ 멈춤 / ▶ 눌러서 듣기 |
+| 줄 다시 듣기(task-025) | 줄 옆 ▶ 는 그 줄만 다시 들려줘요. ‘들었어요’는 아래 구간 듣기(느리게 → 보통)로만 채워져요. / {n}번째 줄을 불러오는 중… / {n}번째 줄 · {느리게\|보통 속도로} 다시 듣는 중 / (aria) {n}번째 줄[ 느리게] 다시 듣기 · {n}번째 줄 멈추기 |
 | 자막만 | 지금은 선생님 목소리를 들을 수 없어요(자막만). 목소리가 돌아오면 듣기 버튼이 다시 보여요. / 읽었어요 · 다음 구간 / 읽었어요 |
 | 메모 | 들린 단어 메모 / {n}/5 / 들린 단어를 일본어로 적어요. 뜻은 몰라도 괜찮아요. / 예) 注文 / 추가 / (aria) {단어} 지우기 / 이 구간은 5개까지 적을 수 있어요 / 일본어로 적어 주세요. 예) 注文, ちゅうもん / 이미 적은 단어예요. / 수업 전체에서 15개까지 적을 수 있어요. |
 | 메모 모음 | 들린 단어 메모 / 아직 적은 단어가 없어요. 구간을 들으며 들린 단어를 적으면, 단어장에 없는 단어를 골라 제안해 드려요. / 들린 단어 {n}개 / 단어장에 없는 단어만 골라 제안해 드려요. 추가를 눌러야 저장돼요. / 단어장에 넣을까요? / 단어를 찾아보는 중… / 단어 제안 {n}개 · 선생님 제안이에요. 추가를 눌러야 단어장에 저장돼요. / 새로 적은 단어 {k}개도 제안받기 |
 | 제안 카드 | 단어 제안 · 대화 {n}번째 줄 / 단어 제안 · 선생님이 찾아본 뜻 / 메모 {memo} → 사전에 싣는 모양으로 바꿨어요 / (버튼·처리 후 문구는 §3-8 ⓕ `ProposalCard` 그대로) |
-| ② | ② 문법 · 표현과 문형 / 오늘 대화의 표현 조각과 문형 {g}개예요. 예문을 듣고 소리 내어 따라 읽어 보세요. / 오늘의 표현 {n}개 / 대화에 나온 표현 조각이에요. 문제·응용·말하기에서 다시 써요. / 새 표현 / 문형 {i} / 예문 / (aria) 예문 듣기 · 멈추기 / 지금은 선생님 목소리를 들을 수 없어 예문 듣기를 숨겼어요(자막만). |
+| ② | ② 문법 · 표현과 문형 / 오늘 대화의 표현 조각과 문형 {g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요. / 오늘의 표현 {n}개 / 대화에 나온 표현 조각이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요.(자막만: 가운데 문장 없음) / 새 표현 / (sr) , 듣기 · , 멈추기 / 문형 {i} / 예문 / (aria) 예문 듣기 · 멈추기 / 지금은 선생님 목소리를 들을 수 없어 표현·예문 듣기를 숨겼어요(자막만). |
 
 ⓕ **제외 사유**(#62a `skipped[].reason`)
 
@@ -6517,8 +6599,8 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 
 | 자리 | 문구 |
 |---|---|
-| ③ | ③ 문제 · {N}문제 / 답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요. / 문제 {i} / {N} / ✓ 정답 / ✗ 내 답 / ✓ 맞았어요 / ✗ 틀렸어요 · 정답은 {k}번 / 다음 문제 / 결과 보기 / ③ 문제 · 결과 / {N}문제 중 {c}문제 맞혔어요 / 내 답 {보기} · 정답 {보기} / 틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요. / (aria) 보기 · {k}번, {보기}, 정답 · 내 답, 틀림 |
-| ④ | ④ 응용 · 문장 만들기 {N}개 / 상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요. / 상황 {i} / {N} / 써 볼 표현 / 문형 / 힌트 · {hintJa} / 내 문장 / 일본어로 써 보세요 / 말로 쓰기 / 글자로 쓰기 / {n} / 200자 / 여기에 알아들은 말이 나와요 / 모범 답안과 비교하기 / 먼저 문장을 써 보세요 / 모르겠어요 · 모범 답안 보기 / (쓰지 않고 봤어요) / 모범 답안 / ▶ 모범 답안 듣기 / 채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요. / 다음 상황 / 상황 {k} |
+| ③ | (task-025 옛 수업) 일본어 문장을 읽고 알맞은 답을 고르세요. / 예전에 만든 수업이라 한국어 문제 설명이 없어요. / ③ 문제 · {N}문제 / 답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요. / 문제 {i} / {N} / ✓ 정답 / ✗ 내 답 / ✓ 맞았어요 / ✗ 틀렸어요 · 정답은 {k}번 / 다음 문제 / 결과 보기 / ③ 문제 · 결과 / {N}문제 중 {c}문제 맞혔어요 / 내 답 {보기} · 정답 {보기} / 틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요. / (aria) 보기 · {k}번, {보기}, 정답 · 내 답, 틀림 |
+| ④ | ④ 응용 · 문장 만들기 {N}개 / 상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요. / 상황 {i} / {N} / 써 볼 표현 / 문형 / 힌트 · {hintJa} / 내 문장 / 일본어로 써 보세요 / 말로 쓰기 / 글자로 쓰기 / {n} / 200자 / 여기에 알아들은 말이 나와요 / 모범 답안과 비교하기 / 먼저 문장을 써 보세요 / 모르겠어요 · 모범 답안 보기 / (쓰지 않고 봤어요) / 모범 답안 / ▶ 모범 답안 듣기 / 채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요. / 다음 상황 / 상황 {k} / (task-025 글자 비교) 글자가 다른 곳에 밑줄을 쳤어요 · 채점이 아니에요 / ＝ 모범 답안과 글자가 같아요. / 점선 모범 답안에 없는 글자 / 실선 내 문장에 없는 글자 / (sr) 모범 답안에만 있는 글자: {…}. 내 문장에만 있는 글자: {…\|없음}. / 채점하지 않아요. 밑줄은 글자가 다른 곳일 뿐, 뜻이 통하면 다르게 써도 괜찮아요. 문장부호·띄어쓰기 차이는 표시하지 않아요. 모범 답안을 소리 내어 따라 읽어 보세요. |
 | ⑤ | ⑤ 말하기 · 과제 {N}개 / 목표 표현을 넣어 말해 보세요. 아래 버튼을 누른 채로 말하고, 다 말하면 손을 떼요. / 과제 {i} / {N} / 목표 표현 / ✓ 썼어요 / · 아직 / 버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요 / 아래 입력창에 일본어로 써서 답해요 / 이 과제 건너뛰기 / (건너뛰었어요) / 내가 한 말 / 내가 쓴 답 / ▶ 내 목소리 / ✓ 목표 표현을 모두 썼어요 / 모범 답안과 비교해 보세요 · 아직 안 쓴 표현 {…} / 다시 하려면 아래 버튼을 또 누르고 말해요. / 다음 과제 / 수업 마치기 / 기록하는 중… / 수업 기록을 남기지 못했어요. 다시 눌러 주세요. / 여러 번 눌러도 기록은 한 번만 남아요. |
 | ⑤ aria·입력 | 글자로 답하기 · 말로 답하기 · 확인하기 · 소리 멈추기 · 누르고 있는 동안 말하기 · 누르면 소리를 멈추고 말하기 / (입력창) 일본어로 써서 답해 보세요 |
 | ⑤ 토스트 | 일본어로 답을 써 주세요 / ★확인하지 못했어요. 다시 말해 주세요. / 이미 끝낸 수업이에요. 결과를 보여 드릴게요. / 녹음이 없어요. 내 목소리는 30일 동안만 보관해요. |
@@ -6594,3 +6676,1090 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 | ⑦ | 회화방으로 넘어가며 토스트 "‘카페 주문’ 회화를 시작했어요" | 회화방은 task-007 화면 | 회화방을 고치지 않으려고 **생략**(이동만 한다). 필요하면 회화방 flash 읽기를 별도 승인으로 |
 | ⑧ | 제안 카드 버튼 [단어장에 추가]/[괜찮아요] | 기존 `ProposalCard` 에는 "✎ 뜻 고쳐서 추가"도 있다 | 그대로 둔다(같은 컴포넌트, 기능이 하나 더 있을 뿐) |
 | ⑨ | — | `routes.ts` 전역 목록 | `/study/today/talk/` 를 집중 화면에 추가(탭 바·권장 업데이트 띠 숨김) — 전역 변경 |
+
+---
+
+## 13. 관리자 콘솔 P2 — 설정 편집·이력·되돌리기 (task-012c)
+
+승인 데모: docs/demo/task-012c-console-p2-v2.html (v2)
+
+> **`task-012c-v2`, 사용자 승인 2026-10-01 08:17("대기 중인 데모 전부 권고안대로 승인"), sha256 `39b19fc8…5067583e`** — 결정 **d1=B**(Form 은 바꿀 수 있는 칸 먼저, 잠긴 칸은 "바꿀 수 없는 설정 n개"로 접기) · **d2=A**(휴대폰 Raw JSON 편집은 경고 띠만) · **d3=A**(감사 전·후는 키마다 한 줄, DEVELOPER 이상 원문 JSON 펼침) · **d4=A**(연결 상세에서 같은 화면 편집) · **d5=A 이지만 이번 범위 밖**(목소리 기본값 편집은 D-C14 로 012c-2 — 대상 종류에 없다) · **d6=A**(운영 설정은 키 하나 = 대상 하나). 데모 상태는 주소 `#<id>`(예: `…-v2.html#cfg-prod-confirm`)로 바로 열리고, 아래 `#id` 는 그 상태를 가리킨다.
+> **사후 가이드**: 화면은 developer B 가 데모를 직접 따라 먼저 만들었다(2026-10-01 09:20 → REV-047 M-1·L-1 수정 13:26 → REV-056 문구 14:11). 이 절은 **그 구현에 맞춘다** — 컴포넌트·함수·문구는 실제 코드 이름 그대로다. 코드와 이 절이 어긋나면 §13-11 표에 적힌 곳 말고는 코드가 사실이고 이 절을 고친다. 데모와 다른 점 = §13-11, 판단이 필요한 것 = §13-12.
+> 정본: `configuration-resolution.md` §6(Edit→Validate→Test→Diff→Apply·버전 상태 전이)·§7(환경)·§8(8-1 고정 흐름·8-2 엄격 키·8-4 Rollback 도 테스트 필수) · `role-permission.md` §3·§4-2·§6·§7 · `api-contract.md` #91a·#93·#93a·#93b·#99a·#100·#101·#102·#104~#111·#123b·#137 · `admin-console/` 01·03·06~10·16. DTO 단일 출처 `src/types/admin.ts`(화면·서버 공유).
+> 재사용: §6 콘솔 셸·`ConsoleSegmented`·`ChipRadio`·`ConsoleStates`(`ConsoleLoading`·`ConsoleError`·`LoadError`·`EmptyNote`·`BackLink`·`ConsoleForbidden`)·`StatusBadge`·`KeyValueList`·`EngineTestPanel`·`SecretsSheet`·`EffectiveRow`·`SourceBadge`·`useAdminResource`·`useConsoleToast` · §10 발음 사전의 쓰기 확인 칸·버전 행 모양 · 공용 `Sheet`·`Card`·`Badge`. **새 색 없음.**
+> **적용 토큰**(`src/app/globals.css`, 이름만): `ground` · `surface` · `surface2` · `ink` · `ink2` · `ink3`(입력 placeholder 만) · `line` · `accent` · `accent-soft` · `on-accent` · `good` · `good-soft` · `warn-soft`(배경만 — 그 위 글자는 `ink`) · `bad` · `bad-soft` · `--radius`(14px) · `--kb-inset`(공용 `Sheet` 가 씀). `warn` 글자·`accent-soft` 위 `accent` 글자는 쓰지 않는다(§1-1). 데모 토큰 출처 `globals.css@sha256:22f382529f92` ↔ 지금 `bf67d6c60da2` — task-021 키보드 규칙만 늘었고 색 값 15개는 같다(대조함).
+
+### 13-0. 한눈에 보는 결정
+
+1. **바뀌는 곳 4 + 새 화면 1**: 설정 `/admin/configuration`(Effective 탭만 → Effective·Form·Raw JSON·Diff + 대상 종류 + 적용 막대) · 연결 상세(사용 여부 스위치·[설정 편집]·[비밀 참조 연결]) · 역할 페이지([순서 편집]) · 발음 사전 운영 이유 10자 검사(문구만, §13-2 O) · **새 화면 `/admin/history`**(설정 버전·감사 기록·되돌리기 — 메뉴 "도구 › 이력").
+2. **편집기 하나**: 설정 화면·연결 상세 편집·예비 순서 편집이 같은 `useConfigEditor`(초안·흐름·확인 창 상태) + `EditorChrome`(적용 막대·적용 확인 창·초안 버리기)을 쓴다. 다른 것은 쓰기 함수(`Writer`)뿐 — #107/#111 · #93(그 밖 키는 #107) · #100.
+3. **Form·Raw JSON 은 초안 하나**. Raw JSON 편집 중에는 Raw 글이 초안의 원본이라 Form 칸을 바꾸면 그 값을 글에 넣고 다시 읽는다. 적용은 **확인한 변경 요약과 같은 변경**만 보낸다(`applyPayload` — 어긋나면 초안 patch 로 보내고 화면에 알린다, REV-047 M-1).
+4. **흐름 = 검증 → 테스트 → 요약 → 적용**(순수 `flowView`). 개발 환경: 테스트 건너뛰기·`partial` 이어 가기 가능. 운영(PRODUCTION): 테스트 필수·`partial`/`failed` 적용 불가·적용은 최고관리자만 — 비 최고관리자는 **초안·변경 요약까지**(적용 단계 🔒, 버튼 없음).
+5. **운영 확인 창**: 요약 해시 · 기능 테스트(30분) · 이유 10~200자 · `PRODUCTION` 입력. 한 번에 쓰는 창(켜기/끄기·비밀 참조·되돌리기)은 `useWritePrep` 가 같은 후보로 #106 요약 해시와 #105 테스트 결과 id 를 붙인다. 끄기는 테스트 면제(Leader 09-29 03:50 ②).
+6. **권한 없는 버튼은 그리지 않는다**(비활성으로 남기지 않는다). 순수 `configAccess(can, env)` 가 역할×환경 갈래를 정하고 서버가 매 요청 다시 검사한다.
+7. **비밀 값 입력 칸 0**: 비밀 참조는 이름만 고른다(#101 `allowedFor` ∩ 서버에 있음). 이유·설정 값의 비밀 유사 문자열은 서버가 거절하고(422 `E_REASON_SECRET_LIKE` · 400 `secretValue`) 화면은 원문을 되돌려 보이지 않는다.
+8. **이력은 지우지 않는다**: 되돌리기 = 과거 내용으로 새 버전(밀려난 직전은 "되돌려짐"). 첫 적용은 기준선 v1 + 적용 v2. 손상·규칙 위반 스냅샷은 비교·되돌리기 버튼을 그리지 않는다.
+9. 엔진·모델 이름은 서버 DTO 의 표시명만 그린다 — 화면 코드·문구 상수에 하드코딩 0(`configCopy.ts` 머리 주석, REV-054 grep 0).
+10. 폭은 §6 그대로(데스크톱 우선 + 모바일 대응): ≥1024 사이드바 232px + 본문 최대 960px, 360/390/412 가로 스크롤 0, 세로 스크롤은 `main` 하나(시트 안·Raw 편집기 가로 스크롤은 예외).
+
+### 13-1. 화면 개요 · 메뉴 · 권한 갈래
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | 관리자가 엔진 연결·예비 순서·운영 설정을 Form 또는 Raw JSON 으로 고치고 검증·기능 테스트·변경 요약을 거쳐 적용한다. 적용마다 설정 버전(`ConfigurationVersion`)+감사(`AuditLog`)가 한 트랜잭션으로 남고, 이력 화면에서 과거 버전 내용으로 되돌린다(새 버전) |
+| 진입 | 메뉴 "설정·진단 › 설정" · 역할 페이지·연결 상세 "설정값 전체 보기 ›"(`&tab=effective`) · 연결 상세 사용 여부 스위치·[설정 편집]·[비밀 참조 연결] · 역할 페이지 [순서 편집] · 메뉴 "도구 › 이력" · 설정 요약 카드 "버전 기록 ›"(`/admin/history?scope=&target=`) · 감사 행 "버전 보기 ›" |
+| 역할별 가시성 | USER: `/admin/**` 전부 앱 공통 404(§6) · ADMIN: Effective·Form·Diff 탭, 개발 환경 적용·되돌리기, 감사 키별 전·후 · DEVELOPER: + Raw JSON 탭(보기·편집)·감사 원문 JSON·Trace 링크 · SUPER_ADMIN: + 운영 적용·운영 되돌리기·비밀 참조 연결·감사 환경 필터 (아래 매트릭스) |
+| 앱/웹 분기 | 없음(앱 WebView ≈390 에서도 같은 화면) |
+| 하단 탭 | 없음(콘솔 별도 셸, §6) |
+| 주소 상태 | 설정 `?scope=APP_SETTING&target=<연결 key·설정 키>&tab=effective\|form\|raw\|diff`(기본 탭 Form, 옛 `?target=<연결 key>` 그대로 열림) · 이력 `?tab=audit` · `?scope=&target=`(대상 고정) · `?v=<버전 id>`(상세 시트가 열린 채) — 서버 `page.tsx` 가 형식(정규식)을 걸러 넘기고 클라이언트는 `useSearchParams` 를 쓰지 않는다 |
+
+**메뉴** — `src/modules/admin/console/menu.ts`(이 task 의 hunk) · `labels.ts` `MENU_SUB`:
+
+| id | 이번에 바뀐 것 |
+|---|---|
+| `configuration` | 탭 `form`(config.edit)·`raw`(config.raw.read)·`diff`(config.edit) phase 1 · 메뉴 설명 "실제 적용값·편집" |
+| `history` | phase 2 → **1**(그룹 "도구") · 메뉴 설명 "설정 버전·감사 기록·되돌리기" (`#hist-menu`) |
+
+화면의 탭 줄은 `menu.ts` 탭이 아니라 `configTabs(access)` 가 같은 capability 로 정한다. 페이지 가드(`requireConsolePage`): `/admin/configuration` = `config.effective.read` · `/admin/history` = `audit.read` · 연결 상세·역할 페이지는 §6 그대로 `engine.read`.
+
+**권한 갈래** — `configAccess(can, env)`(`configEditor/configAccess.ts`, 순수 — 단위 테스트가 역할×환경 6갈래를 고정):
+
+| 필드 | 규칙 | 쓰는 곳 |
+|---|---|---|
+| `canEdit` | `config.edit` | Form 입력칸·적용 막대(검증·요약까지)·Diff 탭 |
+| `canRaw` / `canRawEdit` | `config.raw.read` / + `config.edit` | Raw JSON 탭 / [JSON 편집] |
+| `canTest` | `functional_test.run` | 막대 [기능 테스트] |
+| `canApply` · `needsConfirm` | `config.edit` && (비 PRODUCTION \|\| `config.apply.production`) · canApply && PRODUCTION | 막대 [적용…] · 확인 창 PRODUCTION 입력 |
+| `canManageConn` · `canApplyConn` | `engine.connections.manage` · + 운영이면 최고관리자 | [설정 편집]·[순서 편집] · 사용 여부 스위치·연결/예비 순서 적용 |
+| `canCredential` | `credentials.manage`(SUPER_ADMIN) | [비밀 참조 연결] |
+| `canSecretsRead` | `secrets.read_ref` | [있는지 확인] |
+| `canRollback` · `rollbackProdOnly` | `config.rollback` && 운영이면 최고관리자 · `config.rollback` 은 있으나 운영 비 최고관리자 | 되돌리기 버튼 · 버튼 대신 안내 한 줄 |
+| `canTrace` · `canAudit` · `canOtherEnv` | `trace.read` · `audit.read` · `environment.policy` | Trace 링크·감사 원문 JSON · "버전 기록 ›" · 감사 환경 필터 |
+
+보이는 것(역할 × 환경) — **표에 없는 버튼은 DOM 에 없다**:
+
+| 요소 | ADMIN·LOCAL | ADMIN·PROD | DEVELOPER·LOCAL | DEVELOPER·PROD | SUPER·LOCAL | SUPER·PROD |
+|---|---|---|---|---|---|---|
+| 탭 | Effective·Form·Diff | 같음 | + Raw JSON | + Raw JSON | + Raw JSON | + Raw JSON |
+| 막대 마지막 단계 | [적용…] | 🔒 + 안내 | [적용…] | 🔒 + 안내 | [적용…] | [PRODUCTION 에 적용…] |
+| Raw [JSON 편집] | — | — | ○ | ○(요약까지) | ○ | ○ |
+| 사용 여부 | 스위치 | 글자 | 스위치 | 글자 | 스위치 | 스위치 |
+| [설정 편집]·[순서 편집] | ○ | ○(요약까지) | ○ | ○(요약까지) | ○ | ○ |
+| [비밀 참조 연결] | — | — | — | — | ○ | ○ |
+| [있는지 확인] | ○ | ○ | ○ | ○ | ○ | ○ |
+| 버전 되돌리기 | 버튼 | 안내 한 줄 | 버튼 | 안내 한 줄 | 버튼 | 버튼 |
+| 감사 원문 JSON·Trace | — | — | ○ | ○ | ○ | ○ |
+| 감사 환경 필터 | — | — | — | — | ○ | ○ |
+
+### 13-2. UI 구조 (의사코드, 390px 기준 — 데모 상태 id 인용)
+
+#### A. 설정 화면 — `ConfigScreen` → `Workspace` (`#cfg-compare` · `#cfg-effective` · `#cfg-loading` · `#cfg-error` · `#cfg-forbidden`)
+
+```
+page.tsx(서버): requireConsolePage('config.effective.read') → 아니면 ConsoleForbidden
+ConfigScreen({ initialScope, initialTarget, initialTab })
+  conns = #91 전체(useAdminResource)            로딩 ConsoleLoading · 실패 LoadError name="연결"
+  TabsBar   ConsoleSegmented "설정 보기" [Effective | Form | Raw JSON | Diff {바뀐 수}]   ← configTabs(access), 2개 미만이면 그리지 않음
+  TargetPicker
+    ConsoleSegmented "대상 종류" [연결 | 운영 설정]                 ← EDIT_SCOPE_OPTIONS. 종류를 바꾸면 그 종류의 첫 대상
+    ChipRadio "대상"   연결 = key(모노) · 운영 설정 = APP_SETTING_KEYS 9개 한국어 이름
+  대상 읽기: 연결 #102(scope=ENGINE_CONNECTION) / 운영 설정 #123b GET    로딩 ConsoleLoading · 404 EmptyNote "대상을 찾을 수 없어요." · 실패 LoadError name="설정값"
+  Workspace key="{scope}:{target}"                                    ← 대상이 바뀌면 초안이 새로 시작
+    Card flat 요약
+      1줄 13px: 연결 "{이름} · {역할} · {엔진 표시명} · 스키마 v{n}" / 운영 설정 "운영 설정 · {키(모노)}[ · 환경 정책 키(읽기만)]"
+      2줄 12px ink2: "지금 v{n} 사용 중 · {env}" | "아직 설정 버전 없음 — 처음 적용할 때 기준선 v1 이 함께 생겨요 · {env}"
+            [버전 기록 ›](audit.read && v{n} 있음, LINK_SM 44px) → /admin/history?scope=&target=
+    AppliedNote(적용 결과 한 줄 — E 절)
+    (rawIgnored) Note warn "Raw JSON 글은 적용하지 않았어요 — 확인한 변경 요약과 달라, 변경 요약(초안) 기준으로 적용했어요. …"
+    (rebased && 바뀐 값) Note warn "최신 값 기준으로 다시 불러왔어요 — 지금 v{n}. 내 초안은 그대로 두었어요(같아진 값은 뺐어요). 다시 검증해 주세요."
+    탭 본문(B~D)
+    EditorChrome(showBar = tab ≠ effective)                            ← 적용 막대·적용 확인 창·초안 버리기(E·F)
+    SecretsSheet(canSecretsRead) · CredentialSheet(canCredential && 연결 대상, I 절)
+    ConfirmDropSheet "다른 대상으로 옮길까요?"                          ← 바뀐 값이 있는데 대상·종류를 바꾸면 (`#cfg-switch`)
+```
+
+- 탭·대상을 바꾸면 `router.replace(configHref(scope, target, tab), {scroll:false})`. **Raw JSON 원문(#110)은 그 탭을 처음 열 때만** 읽는다(운영 대상은 조회마다 감사 1행 — 페이지 진입·대상 칩만으로 남기지 않는다).
+- Raw JSON 문법 오류가 있으면 Form 탭으로 못 간다(토스트 "Raw JSON 문법 오류를 먼저 고쳐 주세요").
+- 바뀐 값이 있으면 새로 고침·창 닫기 전에 브라우저 확인(`beforeunload`).
+- Effective 탭: 연결 = `EffectivePanel`(§6-2 I 본문 그대로 — 출처 8층·키 검색·출처 칩·`EffectiveRow`) · 운영 설정 = 한 행(키 모노 / 값 15px — 미리듣기 문장은 `lang="ja"`, 그 밖 모노 / `SourceBadge` DATABASE\|DEFAULT · editability · 행이 없으면 "저장된 행 없음 — 기본값을 써요").
+
+#### B. Form 탭 — `FieldList`(d1=B) (`#cfg-form` · `#cfg-form-dirty` · `#cfg-form-errors` · `#cfg-form-service` · `#cfg-form-cli` · `#cfg-form-app` · `#cfg-prod-lock`)
+
+```
+(Raw 문법 오류) Note bad role=alert "Raw JSON 에 문법 오류가 있어 Form 을 잠갔어요 / Raw JSON 탭 {줄}행 근처를 고치면 다시 열려요. 초안은 마지막으로 읽힌 값이에요."  + 칸 전부 disabled
+(테스트 결과) ConfigTestCard (F 절)
+(검증 오류) Note bad role=alert "검증에서 {n}개를 고쳐야 해요" + 줄마다 [칸 이름](누르면 Form 탭·그 칸으로 스크롤·포커스) — {message}
+(스키마 밖 키) [스키마 외 키 {n}개](warn-soft 뱃지, 글자 ink) "Raw JSON 에서 넣은 키예요 — 검증에서 걸러져요"
+FieldList (enabled 키는 숨김 — 연결 상세 스위치 #93a 에서)
+  for 묶음 g (키 첫 마디: connection "연결" · runtime "실행 설정" · logging "로그"; 운영 설정은 제목 없음):
+    <h3 15 semibold>{묶음 이름}</h3>  <span 모노 12 ink2>{g}.*</span>
+    입력 칸 카드 (rounded-[14px] border bg-surface px-3.5, @container) — FieldRow × 입력 가능한 키
+    <details> "▸ 바꿀 수 없는 설정 {n}개 ({이유별 개수 — 예: 서비스 관리 3 · 읽기 전용 2})"   ← 입력 칸이 0개면 펼친 채
+       잠긴 FieldRow × n
+(정책 없음) EmptyNote "이 대상은 편집 정책을 불러오지 못해 Form 을 열 수 없어요."
+(연결) 12px ink2 "사용 여부는 연결 상세에서, 예비 순서(기본·예비 연결)는 역할 페이지에서 바꿔요 [연결 상세 ›]"
+```
+
+**FieldRow**(`data-field={key}`, 컨테이너 ≥620px 이면 이름 2 : 값 3 두 칸, 아니면 위아래):
+```
+이름  label 14 semibold {칸 이름} [엄격](StrictBadge — 빨간 테두리) [바뀜](ChangedBadge)  / 키 모노 12 ink2
+값    잠금        → LockedValue: surface2 상자 🔒 {값} · {잠금 이유 한 줄} · (SHADOW) "저장값 {값}" + ENVIRONMENT 배지 · (그 밖) LockBadge  — 입력 DOM 없음
+      비밀 참조   → SecretValue: "{참조 이름} 🔒" | "연결 안 됨" · "값은 화면·저장소 어디에도 없어요. 서버에 넣어 둔 비밀의 이름만 가리켜요."
+                     [있는지 확인](canSecretsRead && 참조 있음) [비밀 참조 연결](canCredential && 연결 대상) — 둘 다 44px 링크, 시트 열기
+      입력        → InputControl
+                     BOOLEAN Switch(켜짐/꺼짐, 44px) · 목소리 키 select(목록에 없는 값은 "{id} (목록에 없음)" 맨 위)
+                     ENUM ≤3 ConsoleSegmented + 아래 모노 값 · ENUM >3 select
+                     여러 줄(미리듣기 문장, lang=ja)·JSON textarea 3줄(JSON 은 모노) · 그 밖 input 16px 모노(inputMode url|numeric|decimal|text)
+      도움 줄 12 ink2: SourceBadge · editability · 범위("{min}~{max}" · "{n} 이상|이하" · "{n}자까지") · "실행 검증 없음"(verifiable NO) · 글자 수(여러 줄)
+      설명이 칸 이름보다 길면 원문 설명 한 줄 더
+      바뀜 → "원래 값 {기준값} [원래대로]"
+오류  FIELD_ERROR "{message}[ · 혹시 {suggestion} 인가요?]"  (입력에 aria-invalid·aria-describedby)
+```
+- 칸 이름 = 서버 설명의 첫 마디(`fieldLabel` — " — "·". "·" → " 앞, 40자), 설명이 없으면 키의 끝 두 마디.
+- 기준값 = 저장값, 저장값이 없으면 Effective 값(바꾸지 않은 칸을 저장값으로 새로 쓰지 않는다). 기준값과 같아지면 초안에서 빠진다.
+- **잠금 순서**(`fieldLock`): 서버 잠금(`lock`) → env 가 덮음(SHADOW) → 운영에서 실행 검증 방법 없음(NOVERIFY). 뱃지 이름은 §13-8 `LOCK_BADGE`, 이유는 서버 `lockMessage` 우선(없으면 `LOCK_WHY_FALLBACK`), 화면 잠금 두 가지는 `CLIENT_LOCK_WHY`.
+
+#### C. Raw JSON 탭 — `RawTab`(DEVELOPER 이상, d2=A) (`#cfg-raw` · `#cfg-raw-edit` · `#cfg-raw-syntax`)
+
+```
+surface2 상자: "저장값 JSON · v{n}|버전 없음(초기값) · 스키마 {schemaRef}(모노)"
+               12 ink2 "콘솔 적용값·연결 프로필 층만(환경 변수·설정 파일 값 없음)[ · 실제 값과 다른 키 {effectiveDiffers}]"
+(canRawEdit && 가림 값 없음) [JSON 편집](aria-pressed, 44px) "읽기 전용으로 보고 있어요."  ↔  [✓ JSON 편집 중] "Form 과 같은 초안이에요. 고친 값은 Form 에 바로 보여요."
+(canRawEdit && 가림 값 *** 있음) Note neu "가려진 값(•••)이 있는 문서라 JSON 편집을 열지 않아요 — Form 탭에서 바꿔 주세요."
+(편집 중 · <1024 만) Note warn "휴대폰에서는 실수하기 쉬워요 — 쉼표 하나로 전체가 깨져요. 가능하면 컴퓨터에서 고쳐 주세요(막지는 않아요)."
+(문법 오류) Note bad role=alert "JSON 문법 오류 — {줄}행 {열}열 근처 / 쉼표나 따옴표가 빠졌는지 확인해 주세요. 고치기 전까지 Form 탭과 [검증]이 잠겨요."
+편집기 grid [줄 번호 | 본문]  (rounded-xl border, 모바일 16px/24px · ≥1024 13px/20px)
+   줄 번호 aria-hidden, 오류 줄 = "●{n}" bad-soft·bad
+   편집 중 textarea aria-label "설정 JSON"(wrap=off, 줄 수만큼 높이 — 세로 스크롤은 main, 가로 스크롤은 편집기 안) / 보기 pre aria-label "설정 JSON(읽기 전용)"
+(오류) role=alert 카드 "검증 실패 · {n}건" — 행: [{줄}행] {키 모노} [{rule 코드}](title = RULE_KO) / {message} / (제안 && 편집 중) [{from 끝 마디} → {to 끝 마디} 로 바꾸기]
+꼬리 12 ink2 "맨 바깥의 x- 로 시작하는 키(예: x-note)는 메모로 둘 수 있지만 저장되지 않아요."
+```
+- 글 → 초안은 300ms 뒤 읽는다(`parseRawText` — 서버 #111 과 같은 문서↔평면 키 대응). 저장값 키를 지우면 그 키에 로컬 오류 "저장값의 키를 지울 수 없어요 — 값을 바꿔 주세요.", `__proto__`·`constructor`·`prototype` 이름은 "쓸 수 없는 키 이름이에요(__proto__·constructor·prototype) — 지워 주세요."(초안에 넣지 않음, REV-047 L-1).
+- 편집을 끄면 글을 버리고 초안(마지막으로 읽힌 값)만 남는다. 제안 바꾸기는 첫 일치 줄의 끝 마디 이름만 바꾼다(REV-047 L-3 — §13-12 ⑧).
+
+#### D. Diff 탭 (`#cfg-diff` · `#cfg-diff-empty` · `#cfg-prod-partial`)
+
+```
+바뀐 값 0 → EmptyNote "바뀐 값이 없어요. / Form [또는 Raw JSON ]에서 값을 바꾸면 여기에 변경 요약이 나와요."
+머리  <h3 15 semibold>변경 요약</h3>  12 ink2 tabular "v{지금|0 (초기값)} → v{다음}"   ← 첫 적용(지금 0)이면 다음 = 2(기준선 v1 이 함께)
+  서버 요약 있음: "서버 변경 요약 · 방금 만듦[ · 요약 해시 {앞 6…뒤 4} (적용할 때 서버가 다시 계산해 대조해요)]"   ← 해시는 운영만
+  없음: "아직 서버 변경 요약을 만들지 않았어요 — 검증[·기능 테스트] 뒤 [변경 요약 보기]를 누르면 확정돼요. 아래는 초안 미리 보기예요."
+SummaryChips(ul aria-label "변경 요약 수"): 바뀜 n · 엄격 n(1↑ 이면 빨간 테두리) · 효력 없음 n(있을 때만, 빨간 테두리) · 비밀 참조 바뀜|그대로 · (운영 + 서버 요약) 기능 테스트 필요|불요
+(운영) Note bad "운영(PRODUCTION) 적용에 필요한 것 / 최고관리자(SUPER_ADMIN) · 바뀐 키를 모두 실행으로 확인한 기능 테스트(30분 안) · 이 변경 요약 · 이유 10자 이상 · PRODUCTION 입력[ · 엄격 키는 최고관리자 본인이 직접]"
+ConfigTestCard(있으면)
+DiffList(서버 changes) | DraftPreviewList(초안 — 전 → 후만)       "바뀌지 않은 키 {n}개"(서버 요약)
+```
+**DiffRow**: [추가|바뀜](글자 뱃지 — 색으로 종류를 말하지 않는다) {키 모노} [엄격] / {전}(취소선 ink2) → {후}(sr-only "에서 다음으로") / 출처 전 → 후 배지 · editability · `VERIFIABLE_KO` / blocked: `SHADOWED_BY_ENVIRONMENT` = warn-soft "효력 없음 — 환경 변수가 이겨요. 저장은 되지만 실제 값은 그대로예요." · 그 밖 = 빨간 테두리 "적용할 수 없는 키 — {서버 message}". 값은 `valueText`(비밀 참조는 이름만, 서버 경로·가림 값은 §6 표시 규칙, 예비 순서는 연결 이름).
+
+#### E. 적용 막대 — `FlowBar` + `flowView` (`#cfg-form-dirty` · `#cfg-testing` · `#cfg-test-fail` · `#cfg-test-partial` · `#cfg-test-429` · `#cfg-prod-viewer` · `#cfg-prod-flow`)
+
+- 나오는 때: 설정 화면은 바뀐 값 ≥1 && 탭 ≠ Effective, 연결·예비 순서 편집은 편집 중 늘(바뀐 값 ≥1).
+- 자리: `fixed` 화면 아래(`z-[8]`, ≥1024 `left-[232px]` = 사이드바 오른쪽), 안쪽 최대 912px. 모바일 = 단계 줄(4칸 26px, 12px) / 안내 한 줄(12px ink2, `aria-live=polite`) / 버튼 줄(h-11, 칸 나눔) 세로 쌓기, ≥1024 = 세 칸 한 줄. 아래 여백 `max(10px, env(safe-area-inset-bottom))`. 본문 끝에 빈 자리 150px(≥1024 84px — 막대 자체 높이는 모바일 119px·1280px 63px 로 실측)를 둬 마지막 칸이 가려지지 않게 한다. 키보드가 열린 동안은 막대(fixed 영역)만 숨기고 빈 자리는 남긴다(하단 탭과 같은 규칙 — `html[data-kb]`, `FlowBar` 의 `[:root[data-kb]_&]:hidden`, 012c QA 결함 #1) — 지금 앱(1.0.1) WebView 는 키보드가 창을 줄이지 않아(`data-kb` 가 켜지지 않음) 대상 밖이다(task-021 네이티브 보정 APK 가 들어오면 같은 규칙으로 숨는다).
+- 단계 4칸 `role=region aria-label="적용 단계"`: 검증 · 테스트(운영 "테스트(필수)") · 요약 · 적용. 톤: done `good-soft`/`good` ✓ · err `bad-soft`/`bad` ✗(partial △) · cur `surface` + `accent` 안쪽 테두리(`aria-current=step`) · lock 🔒(권한 없는 적용) · skip 취소선 · idle `surface2`.
+- 버튼: 늘 [초안 버리기](ghost) + 지금 단계 버튼 하나(primary). busy 중 라벨 "검증 중…"·"만드는 중…"·"테스트 중…"(`aria-busy`).
+
+| `flowView` 조건(위가 우선) | 안내(굵게 = **…**) | 버튼(초안 버리기 외) |
+|---|---|---|
+| Raw 문법 오류 | **JSON 문법 오류**를 고쳐야 검증할 수 있어요 | [검증](비활성) |
+| 검증 전 | 바뀐 값 **{n}개** · 먼저 검증해요(저장하지 않아요) | [검증] |
+| 검증 실패 | **고칠 칸 {n}개** — 칸 아래 안내를 확인해 주세요 (Raw 탭: **오류 {n}건** — 편집기 아래 목록을 확인해 주세요) | [검증] |
+| 운영 + 일부만 확인 | **실행으로 확인 못 한 키**가 있어 운영에 적용할 수 없어요 — 그 키를 원래대로 돌리면 다시 테스트할 수 있어요 | 없음 |
+| 테스트 중 | 기능 테스트 중… **{n}초** (최대 30초) | [테스트 중…](비활성) |
+| 30초 대기(429) | 이 연결은 **30초에 한 번**만 테스트할 수 있어요 | (개발)[요약 보기] · [{n}초 뒤 다시](비활성) |
+| 테스트 실패 | **테스트 실패** — 결과를 확인하고 값을 고쳐 주세요 | (개발)[요약 보기] · [기능 테스트] |
+| 운영 + 테스트 권한 없음 | 운영은 기능 테스트가 필수인데 **기능 테스트 권한**이 없어요 | 없음 |
+| 테스트 전 | 운영: 운영은 **기능 테스트가 필수**예요[ (미리듣기 합성 1회로 확인)] · 개발: 검증 통과 · 기능 테스트는 개발 환경에서 건너뛸 수 있어요[ (…)] | (개발)[요약 보기] · [기능 테스트] |
+| 테스트 통과·건너뜀 | 테스트 통과 · 결과는 30분 동안 유효해요 / 테스트 일부만 확인 · 개발 환경이라 이어서 할 수 있어요 / 테스트를 건너뛰었어요(개발 환경) | [변경 요약 보기] |
+| 요약 + 적용 가능 | 변경 요약을 확인했어요 · 이유를 적고 적용해요 | [적용…] · 운영 [PRODUCTION 에 적용…] |
+| 요약 + 운영 비 최고관리자 | **운영(PRODUCTION) 적용은 최고관리자(SUPER_ADMIN)만** 할 수 있어요 — 초안·변경 요약까지 만들 수 있어요 | 없음(적용 칸 🔒) |
+
+- [요약 보기](개발만) = 테스트를 `skip` 으로 두고 바로 #106. [변경 요약 보기] 성공 → 설정 화면은 Diff 탭으로 넘어간다(`onDiffReady`).
+- 초안이 바뀌면 검증·테스트·요약이 처음부터(`flowAfterEdit` — 30초 대기는 유지). 테스트 실행이 있었으면(`runs` 1↑) 30초 카운트다운, 429 면 `Retry-After` 초.
+- 운영 설정 대상의 테스트 안내 꼬리 = "미리듣기 합성 1회로 확인".
+
+#### F. 적용 확인 창 — `ApplySheet` + `ReasonFields` (`#cfg-apply` · `#cfg-first` · `#cfg-applied` · `#cfg-prod-confirm` · `#cfg-prod-errors` · `#cfg-prod-mismatch` · `#cfg-prod-expired` · `#cfg-prod-secret` · `#cfg-prod-forbid` · `#cfg-conflict` · `#cfg-conflict-after` · `#cfg-discard`)
+
+```
+Sheet 제목: 개발 "설정 적용" / 운영 "운영(PRODUCTION)에 적용"          (적용 중에는 바깥을 눌러도 닫히지 않음)
+(운영) role=note 빨간 테두리 상자 "운영(PRODUCTION) 설정을 바꿔요 / 적용하는 순간 모든 학습자의 요청에 반영돼요(이 서버는 바로, 다른 서버 프로세스는 30초 안에)."
+{대상 이름}(14 semibold) / 12 ink2 "{종류} · v{지금|0 (초기값)} → v{다음} · {env}"
+변경 요약(h3) [(운영) {HH:mm:ss} 만듦] · SummaryChips · DiffList 4줄 + "외 {n}개" · (운영) "요약 해시 {짧게} — 적용할 때 서버가 같은 초안으로 다시 계산해 맞는지 봐요."
+(운영) 기능 테스트(h3) TestLine
+    불요 → "바뀐 키가 모두 실행 확인이 필요 없는 키라 테스트 없이 적용해요."
+    없음·실패 → bad "통과한 기능 테스트가 없어요." · 일부만·id 없음 → bad "일부 키만 확인돼 운영에 적용할 수 없어요."
+    통과 → [통과] {지연} · "{n}분 남음" | bad "만료" · traceId(모노, 말줄임)
+(첫 적용) surface2 상자 "처음 적용이에요 — 지금 값을 기준선 v1 로 먼저 남기고 이번 변경은 v2 가 돼요. 기준선으로 언제든 되돌릴 수 있어요."
+ReasonFields
+SheetNotice(role=alert bad-soft — 실패 갈래, 아래 표) + 동작 버튼(밑줄 44px)
+[적용 | PRODUCTION 에 적용](h-12 accent, "적용하는 중…") [취소](h-12)        ← 알림이 막는 갈래(block)면 확정 버튼을 그리지 않는다
+```
+
+**ReasonFields**(적용·되돌리기·비밀 참조·켜기/끄기 공용):
+```
+<label>변경 이유*</label>   12 tabular "{n}/200"
+textarea 2줄 16px (aria-required, placeholder "예: 응답이 느려서 제한 시간을 늘림")
+오류 FIELD_ERROR | 도움 "{10~200자|1~200자} · 줄바꿈은 띄어쓰기로 저장돼요 · 키·토큰 같은 비밀은 적지 마세요(감사 기록에 남아요)"
+빠른 이유 칩 줄(role=group "빠른 이유", 가로 스크롤·스크롤바 숨김, 칩 h-11 rounded-full) — 누르면 " · " 로 덧붙임
+(needsConfirm) 빨간 테두리 상자 "운영 환경(PRODUCTION) 설정을 바꿔요 / 확인하려면 아래에 PRODUCTION 을 그대로 입력해 주세요."
+   input aria-label "확인 문구" 모노 16px(autoCapitalize characters · autoComplete off · spellCheck false · placeholder PRODUCTION)
+```
+- 글자 수는 서버 저장 규칙과 같은 모양(`normalizeReason` — 줄바꿈·제어문자 → 공백 하나, 앞뒤 공백 제거, 코드포인트)으로 센다. 이유·확인 문구는 상태에만 두고 저장소·로그·URL 에 남기지 않는다.
+
+**[적용] 누름 → 요청 전 검사**(안내용 — 서버가 다시 검사):
+
+| 조건 | 화면 |
+|---|---|
+| 이유 0자 / 운영 10자 미만 / 200자 초과 | 이유 칸 아래 "변경 이유를 적어 주세요." / "운영 변경은 10자 이상 적어 주세요(지금 n자)." / "200자까지 적을 수 있어요(지금 n자)." |
+| 운영 확인 문구 ≠ `PRODUCTION` | 확인 칸 아래 "PRODUCTION 을 대문자로 그대로 입력해 주세요." |
+| Raw 글을 아직 읽기 전(요약 뒤 300ms 안에 고침) | 지금 읽어 초안에 넣고 알림 "Raw JSON 이 변경 요약 뒤에 바뀌었어요. 변경 요약을 다시 만든 뒤 적용해 주세요." [변경 요약 다시 만들기] |
+| 변경 요약 없음(모든 환경) | "변경 요약을 먼저 만들어 주세요." [변경 요약 다시 만들기] |
+| 운영 + 테스트 필요 + 통과 결과 없음 | "통과한 기능 테스트가 없어요. 다시 테스트한 뒤 적용해 주세요." [다시 테스트] |
+
+**쓰기 실패 → 화면**(`writeErrorView`, 서버 `details.reason` 우선 — 적용·되돌리기·비밀 참조·켜기/끄기 공통):
+
+| 응답 | 갈래 · 문구 | 동작 버튼 | 확정 버튼 |
+|---|---|---|---|
+| 네트워크(0) | "연결하지 못했어요. 네트워크를 확인해 주세요." | — | 남김 |
+| `details.field = reason` | 이유 칸 아래: 비밀 유사 → `REASON_SECRET_TEXT` · 짧음 "{min}자 이상 적어 주세요(지금 n자)." · 김 "{max}자까지 적을 수 있어요(지금 n자)." · 그 밖 "변경 이유를 적어 주세요." | — | 남김 |
+| 409 `VERSION_CONFLICT` | "다른 곳에서 먼저 적용됐어요[ — 지금 v{n}]. 내가 바꾼 값 {n}개는 그대로 있어요." | [최신 값 기준으로 다시 비교] [초안 버리기] | 숨김 |
+| 409 `SUMMARY_MISMATCH` | "변경 요약을 만든 뒤 설정이 바뀌었어요(요약 불일치). 변경 요약을 다시 만들어 확인해 주세요." | [변경 요약 다시 만들기] | 숨김 |
+| 409 `PRIMARY_IN_USE` | "이 역할의 기본 연결이라 끌 수 없어요[({역할})]. 역할 페이지에서 기본 연결을 먼저 바꿔 주세요." | [역할 페이지로] | 숨김 |
+| 409 `NO_CHANGE` | "지금 설정과 내용이 같아 되돌릴 것이 없어요." | — | 숨김 |
+| 409 `ALREADY_ACTIVE` | "이미 사용 중인 버전이에요." | [새로 불러오기] | 숨김 |
+| 409 그 밖 | "다른 곳에서 설정이 바뀌었어요. 새로 불러온 뒤 다시 확인해 주세요." | [새로 불러오기] | 숨김 |
+| 403 `PRODUCTION_CONFIRMATION_REQUIRED` | 확인 칸 아래 "PRODUCTION 을 대문자로 그대로 입력해 주세요." | — | 남김 |
+| 403 `PRODUCTION_TEST_REQUIRED` | "기능 테스트 결과가 만료됐거나 지금 초안과 달라요({`TEST_DETAIL_KO` — 테스트 결과 없음·찾을 수 없음·통과하지 못한 테스트·30분이 지남·다른 대상의 테스트·초안이 테스트 뒤에 바뀜·확인 못 한 키가 있음·함께 확인한 연결이 실패}). 다시 테스트한 뒤 적용해 주세요." | [다시 테스트] | 숨김 |
+| 403 `CROSS_ENVIRONMENT_TEST_UNAVAILABLE` | "다른 환경 서버에서는 이 변경을 실행 검증할 수 없어요 — 그 환경의 콘솔에서 적용해 주세요." | — | 숨김 |
+| 403 그 밖 | "이 작업을 할 권한이 없어요[(필요한 권한 …)]. 역할이 바뀌었을 수 있어요 — 콘솔을 다시 불러와 주세요." | — | 숨김 |
+| 422 `E_REASON_SECRET_LIKE` | 이유 칸 아래 `REASON_SECRET_TEXT`(입력 원문은 되돌려 보이지 않음) | — | 남김 |
+| 422 `E_SNAPSHOT_INTEGRITY` | "기록이 손상돼 이 버전으로는 되돌릴 수 없어요. 다시 눌러도 바뀌지 않아요." | — | 숨김 |
+| 422 `E_REF_NOT_ALLOWED` | "이 연결에 허용되지 않은 비밀 참조예요. 목록에 있는 참조만 고를 수 있어요." | — | 남김 |
+| 422 그 밖 | "규칙에 맞지 않아 적용하지 않았어요." | — | 남김 |
+| 400 `errors[]` | 창을 닫고 칸 오류로(검증 실패 상태) — 한 번 쓰기 창은 메시지를 " · " 로 이어 알림 | — | — |
+| 400 `E_CONN_SECRET_VALUE` · `NO_CHANGE` · `CREDENTIAL_ONLY` | "비밀 값은 보낼 수 없어요 — 서버에 둔 참조 이름만 연결해요." · "지금 저장값과 달라지는 값이 없어요." · "비밀 참조는 [비밀 참조 연결]에서만 바꿀 수 있어요." | — | 남김 |
+| 400 `field = baseVersion` · 404 | "기준 버전을 알 수 없어요 — 다시 불러와 주세요." · "대상을 찾을 수 없어요. 다시 불러와 주세요." | [새로 불러오기] | 숨김 |
+| 429 · 그 밖 | "요청이 많아요. 잠시 뒤에 다시 시도해 주세요." · "적용하지 못했어요. 잠시 뒤 다시 시도해 주세요." | — | 남김 |
+
+- 동작 버튼(`noticeAction`): **최신 값 기준으로 다시 비교** = 대상을 다시 읽고 초안은 남김(저장값과 같아진 키만 `liveDraft` 가 뺀다) → 흐름 처음부터 + warn Note(A 절) · **새로 불러오기** = 같지만 안내 없음 · **변경 요약 다시 만들기** = 요약만 지움(요약 단계로) · **다시 테스트** = 테스트·요약 지움 · **초안 버리기** = 초안 비움 · **역할 페이지로** = 그 역할 페이지로 이동.
+- **성공**: 창 닫힘 · 초안·흐름·이유 비움 · 토스트 "적용했어요 · v{n}[ (기준선 v1 함께)]" | "바뀐 값이 없어 적용하지 않았어요" · 대상 다시 읽기 · `AppliedNote`: good "**적용했어요 · v{n}** — 그 전 값은 기준선 v1 로 함께 남겼어요. 이 서버에는 바로, 다른 서버 프로세스에는 30초 안에 반영돼요.[ 미리듣기 버전도 함께 올라갔어요(v{n}).][ 환경 변수가 덮는 키는 실제 값이 그대로예요.]" / 바뀐 것 없음 neu "지금 저장값과 같아 적용하지 않았어요(버전을 만들지 않았어요)." · Raw 글을 버리고 patch 로 보냈으면 A 절 warn Note.
+- **초안 버리기**: `ConfirmDropSheet` "초안을 버릴까요?" / "바꾼 값 {n}개가 사라져요. 저장된 설정은 그대로예요." [버리기](ghost, `bad` 글자) [계속 편집]. 대상 옮기기는 "다른 대상으로 옮길까요?" / "**{이름}**에서 바꾼 값 {n}개는 저장되지 않고 사라져요." [버리고 옮기기].
+
+#### G. 기능 테스트 결과 카드 — `ConfigTestCard` (설정 Form·Diff 탭, 연결·예비 순서 편집)
+
+```
+role=group "기능 테스트 결과"  surface2 rounded-[14px] p-3.5
+머리: ok [통과](StatusBadge PASSED) · partial [일부만 확인](warn-soft 뱃지, 글자 ink) · failed [실패]   "기능 테스트 · 후보 설정"   ··· {지연} · {HH:mm:ss}
+ok      "후보 설정으로 바뀐 키를 모두 실제로 실행해 확인했어요. 저장은 하지 않았어요." (전부 테스트 불요면 "바뀐 키가 모두 실행 확인이 필요 없는 키예요. 저장은 하지 않았어요.")
+        "결과는 {n}분 더 유효해요(운영 적용 때 첨부돼요)." | bad "결과가 만료됐어요 — 운영에 적용하려면 다시 테스트해 주세요."
+partial "일부 키는 실행으로 확인할 방법이 없어요." · "확인 못 한 키 {키들 모노}" · 운영 bad "운영에서는 이 초안을 적용할 수 없어요 — …" / 개발 "개발 환경에서는 그대로 적용할 수 있어요. 운영에서는 이런 초안은 적용할 수 없어요."
+failed  {오류 코드 한국어 | "후보 설정으로 실행하지 못했어요."} · "바꾼 값이 맞는지 확인해 주세요. 서비스가 꺼져 있으면 정상적인 결과예요."
+공통    "실행으로 확인한 키 {키들}" · trace {id 모노 말줄임} [Trace 보기 ›](canTrace, 44px)
+```
+
+#### H. 연결 상세 — `ConnectionDetailScreen` 수정 + `ConnectionEditPanel`(d4=A) (`#conn-compare` · `#conn-view` · `#conn-edit` · `#conn-host` · `#conn-secrets`)
+
+```
+BackLink "연결 목록" · RefreshLine
+Card 머리(§6-2 H 그대로) + <hr>
+  "사용 여부 [엄격]"  ↔  (canApplyConn && 편집 아님) Switch(켜짐/꺼짐 — 누르면 EnabledSheet)  |  글자 "켜짐|꺼짐"(14 semibold)
+  (canManageConn && 편집 아님) [설정 편집](ghost full 44px)
+편집 아님: EngineTestPanel · "연결 정보" KeyValueList (credentialRef 행 = "{이름} 🔒" | "없음" + [있는지 확인](secrets.read_ref) [비밀 참조 연결](canCredential)) · "실행 설정 (runtime)"
+편집 중 → ConnectionEditPanel (EngineTestPanel·연결 정보·실행 설정 자리를 바꾼다):
+  Note neu "편집 중 · 바뀐 값 {n}개 — 아래 막대에서 검증·적용해요"  [편집 끝내기](44px)
+  12 ink2 "편집 중에는 아래 막대의 [기능 테스트]가 저장 전 후보 설정으로 테스트해요."
+  AppliedNote · (요약 뒤) "변경 요약" SummaryChips + DiffList · ConfigTestCard · 오류 Note "검증에서 {n}개를 고쳐야 해요 — 칸 아래 안내를 확인해 주세요."
+  FieldList(enabled 숨김 · 비밀 참조 행의 두 버튼 그대로) · EditorChrome(막대 늘, roleHref = 이 연결의 역할 페이지)
+  [편집 끝내기] + 바뀐 값 → ConfirmDropSheet "편집을 끝낼까요?" / "바꾼 값 {n}개가 사라져요. 저장된 설정은 그대로예요." [버리고 끝내기]
+EffectiveSummaryCard("설정값 전체 보기 ›" → `?target={key}&tab=effective`) · HealthHistoryList
+```
+- 편집 정책은 #102(scope=ENGINE_CONNECTION, targetId = 연결 id) — 로딩 `ConsoleLoading` · 실패 `LoadError name="편집 정책"`.
+- 쓰기(`Writer`): `connectionFormBody(patch)` 가 `connection.*`·`runtime.*` 만이면 #93 PUT `{connection, runtime}`, 그 밖 키가 섞이면 #107. 적용 권한은 `canApplyConn`(운영은 최고관리자) — 비 최고관리자는 요약까지.
+- 주소 허용 목록 밖(`#conn-host`) = 서버 검증 `hostNotAllowed` → 그 칸 아래 서버 문구(화면이 문구를 만들지 않는다). Raw JSON 은 설정 화면에만 있다(d4=A).
+
+#### I. 한 번 쓰기 창 — `EnabledSheet` · `CredentialSheet` · `PrepTestSection` (`#conn-disable` · `#conn-primary` · `#conn-cred` · `#conn-cred-prod`)
+
+**EnabledSheet**(#93a):
+```
+제목 "연결 켜기" | "연결 끄기"
+14px  켜기 "켜면 라우터가 이 연결을 다시 고를 수 있어요. 켜기 전에 기능 테스트로 동작을 확인해요." / 끄기 "끄면 라우터가 이 연결을 고르지 않아요. 예비 순서에 있으면 그 자리를 건너뛰어요."
+12 ink2 "{이름} · {key} · 사용 여부는 [엄격] 키예요[ — 운영은 최고관리자가 직접]"
+켜기: PrepTestSection(운영 필수 · 개발 선택)    끄기: 운영이면 요약만 만든다("변경 요약을 만드는 중…") — 테스트 없음
+ReasonFields(운영 PRODUCTION 입력) 빠른 이유 켜기 [다시 쓰려고|문제가 해결돼서] · 끄기 [서비스 점검 중|오류가 계속 나서|더 이상 안 써서]
+SheetNotice · [켜기|끄기|PRODUCTION 에서 켜기|PRODUCTION 에서 끄기](끄기는 ghost + bad 글자, "처리하는 중…") [취소]
+```
+- 운영인데 준비 안 됨: 켜기 "운영에서 켜려면 기능 테스트를 먼저 통과해야 해요." · 끄기 "변경 요약을 만들지 못했어요. 창을 닫았다 다시 열어 주세요." 409 `PRIMARY_IN_USE` → [역할 페이지로](`#conn-primary`). 성공 토스트 "연결을 켰어요|껐어요 · 설정 v{n}".
+
+**CredentialSheet**(#93b, `canCredential` 만 — 연결 상세와 설정 Form 의 비밀 참조 행에서 연다):
+```
+제목 "비밀 참조 연결"
+13px "값은 여기서 입력하지 않아요. 서버에 넣어 둔 비밀(환경 변수·비밀 파일)의 **이름만** 연결해요."   12 ink2 "지금: {참조|연결 안 됨}"
+#101 을 열 때마다 한 번(감사 1행) — 로딩 ConsoleLoading · 실패 LoadError name="비밀 참조"
+radiogroup "비밀 참조 고르기"
+  "이 연결이 허용한 참조 중 서버에 있는 것" — 라디오 행 56px: {참조 모노} / "{파일|환경 변수}[ · 지금 연결됨]" [있음]   (없으면 점선 "고를 수 있는 참조가 없어요.")
+  (허용됐지만 서버에 없는 것) 12 ink2 "허용됐지만 서버에 없는 참조 {n}개({이름들})는 고를 수 없어요 — 서버에 먼저 넣어 주세요."
+  [연결 해제] 라디오 "비밀 없이 호출해요 — 인증이 필요한 서비스면 실패해요"
+12 ink2 "다른 연결의 참조와 부팅용 비밀(세션 서명·내부 서비스·DB 접속 등)은 목록에 나오지 않고, 넣어도 거부돼요(422)."
+(골랐을 때만) PrepTestSection label "기능 테스트"(운영 필수 · 개발 선택) · ReasonFields 빠른 이유 [키를 교체해서|인증 오류가 나서|시험해 보려고]
+[연결|연결 해제|PRODUCTION 에 연결] [취소]   (안 골랐으면 [닫기] 하나)
+```
+- 선택지 = `credentialChoices(#101, 연결 key)` — `allowedFor` 에 이 연결 key 가 있는 것 중 `exists` 와 아닌 것. **값 입력 칸은 어디에도 없다.** 성공 토스트: 연결 상세 "비밀 참조를 바꿨어요|해제했어요 · 설정 v{n} — 상태는 다음 상태 확인 때 갱신돼요", 설정 화면은 꼬리 없이.
+
+**PrepTestSection**(켜기·비밀 참조·운영 되돌리기 공용): (운영) "변경 요약을 만드는 중…" / 요약 실패 bad 한 줄 / 테스트 불요 "이 변경은 실행으로 확인할 키가 없어 테스트 없이 적용해요." / h3 "{label} (필수)|(선택)" · "테스트 중…"(role=status) · 결과 뱃지 + "통과 · {지연} · 30분 유효" | "일부만 확인 — 운영에는 적용할 수 없어요" | "실패" · 오류 줄 · [이 설정으로 기능 테스트]|[다시 테스트]|[{n}초 뒤 다시](ghost full 44px — 통과하면 사라짐).
+
+**SecretsSheet**(§6 기존) 변경 한 가지: **연결에 걸린 참조만**(`usedBy` 1↑) 보인다 — 허용됐지만 아무도 안 쓰는 참조는 비밀 참조 연결 시트에서만(`#conn-secrets`).
+
+#### J. 역할 페이지 예비 순서 — `RoleScreen` 수정 + `FallbackEditor` (`#role-compare` · `#role-edit` · `#role-guard` · `#role-summary` · `#role-prod`)
+
+```
+"예비 연결 순서" SectionHeader right=[순서 편집](canManageConn && 연결 목록 읽힘, ghost 44px)   ← 누르면 같은 Section 을 FallbackEditor 로 바꾼다
+FallbackEditor (편집 정책 #102 scope=FALLBACK_POLICY, targetId = 정책 id)
+  머리 "예비 연결 순서 · 편집 중"  [편집 끝내기](44px)
+  AppliedNote · (요약 뒤) surface2 상자 "변경 요약" SummaryChips + DiffList(값은 연결 이름, 예비 목록은 "A → B", 빈 목록 "없음") · ConfigTestCard · 오류 Note(메시지 줄마다)
+  <ol aria-label="예비 연결 순서(편집)"> 행 60px:
+     "기본|예비" + 순번(모노 14) / {이름} · {key 모노 12} StatusBadge / [↑][↓][−] 44px 아이콘(aria-label "{이름} 위로|아래로|빼기", 끝에서는 비활성)
+     1개뿐이면 [−] 없음 + "마지막 연결은 뺄 수 없어요 — 빼면 이 기능이 멈춰요."
+  12 ink2 "맨 위가 기본 연결이에요. 예비는 4개까지. 순서를 바꾸면 엄격 키라 운영에서는 최고관리자가 직접 적용해요."
+  "넣을 수 있는 연결"(같은 역할 · 순서 밖) 행 56px: {이름}/{key} · 꺼짐이면 "꺼진 연결은 넣을 수 없어요 · [연결 상세에서 켜기 ›]" · StatusBadge · [넣기](켜짐 && 5개 미만)
+  12 ink2 "{실패하면 다음 연결로 한 번 다시 시도해요 | 실패해도 다른 연결로 넘기지 않아요} (이 설정은 라우터가 읽지 않아 여기서 바꾸지 않아요)"
+  EditorChrome(막대 늘, namer = 연결 이름) · [편집 끝내기] + 바뀐 순서 → ConfirmDropSheet "편집을 끝낼까요?" / "바꾼 순서가 사라져요. …" [버리고 끝내기]
+```
+- 순서는 초안(`primaryConnectionId` + `fallbackConnectionIds`)에서 읽고 `moveItem`·`removeItem`·`addItem`(순수, `MAX_FALLBACKS` = 4)으로 바꾼다. 드래그 없음. 쓰기 #100 `{primaryConnectionId?, fallbackConnectionIds?}`. 성공 토스트 "예비 순서를 적용했어요 · v{n}[ (기준선 v1 함께)]".
+
+#### K. 이력 — `/admin/history` · `HistoryScreen`(새 화면) (`#hist-versions` · `#hist-menu` · `#hist-empty` · `#hist-loading` · `#hist-error`)
+
+```
+page.tsx(서버): requireConsolePage('audit.read') → 아니면 ConsoleForbidden · tab·scope·target·v 를 형식 검사 후 넘김
+ConsoleSegmented "이력 보기" [설정 버전 | 감사 기록]                       ← ?tab=audit (router.replace)
+(voices.read) 링크 카드 52px "발음 사전 버전 기록 ›" / "사전은 자체 버전으로 따로 남아요(기존 화면)" → /admin/speech/tts/lexicon/versions
+설정 버전 탭 VersionsTab
+  13 ink2 "설정을 적용할 때마다 버전이 남아요. 되돌리기는 과거 버전 내용으로 **새 버전**을 만들어요(기록은 지우지 않아요)."
+  <details> "▸ 상태 뜻" — [사용 중] 지금 적용 중 · [이전] 새 버전에 밀려났어요 · [되돌려짐] 되돌리기로 밀려난 버전이에요 · [기준선] 첫 적용 직전 값 — 처음 상태로 되돌릴 때 써요 · [기록 손상] 기록이 깨져 비교·되돌리기를 할 수 없어요
+  ChipRadio "대상" [전체 | 불러온 버전의 대상들(+ 주소로 고정된 대상)]       ← 좁힌 뒤에도 본 대상 칩은 남는다
+  #108(20개씩 커서): ul ConfigVersionRow × n · [더 보기](44px, "불러오는 중…")
+    로딩 role=status "불러오는 중…" · 빈 EmptyNote "아직 설정 버전이 없어요. / 처음 적용하면 그 전 값이 기준선 v1 로, 적용한 값이 v2 로 남아요." · 실패 ConsoleError(다시 시도)
+감사 기록 탭 → AuditTab (M 절)
+```
+**ConfigVersionRow**(버튼 ≥64px, `aria-haspopup=dialog`):
+```
+1줄  v{n}(모노 15 semibold) VersionStatusBadge [기준선] [기록 손상] "v{k} 로 되돌림" ········· {몇 분 전}
+2줄  (대상 칩 = 전체일 때만) {대상 이름} · {종류}
+3줄  기준선 "기준선 — 첫 적용 전 값" | {diffSummary} | "요약 없음"
+4줄  12 ink2 {작업자 email | 시스템} · {Form | Raw JSON | 되돌리기 | 기준선} · {테스트 통과|테스트 실패}   ›
+```
+- `VersionStatusBadge`: 사용 중 = `good-soft`/`good` + 점 · 이전 = `surface2`/`ink2` · 되돌려짐 = 빨간 테두리 `bad` 글자. `DamagedBadge` "기록 손상"(빨간 테두리, `aria-label` 에 손상 종류). 모두 글자로 뜻을 전한다.
+
+#### L. 버전 상세·되돌리기 — `ConfigVersionSheet` (`#hist-detail` · `#hist-detail-active` · `#hist-rollback` · `#hist-rollback-prod` · `#hist-prod-viewer` · `#hist-dropped` · `#hist-nochange` · `#hist-damaged` · `#hist-conflict`)
+
+```
+Sheet 제목 보기 "v{n} · {대상 이름}" / 되돌리기 "v{n} 내용으로 되돌리기"
+보기(Detail):
+  VersionStatusBadge [기준선] [기록 손상] · 13 ink2 "{날짜 시각} · {작업자|시스템}"
+  14px {이유 | "이유 없음"} (기준선은 "첫 적용 전 값을 기준선으로 남김")
+  KeyValueList 출처 "{Form|Raw JSON|되돌리기|기준선|알 수 없음}[ · v{k} 로 되돌림]" · 기능 테스트 통과|실패|— · 대상 "{이름} · {종류}" · 환경
+  (손상 — 목록 integrity ≠ OK 또는 #108a 422) DamagedNote bad "기록이 손상돼 이 버전으로는 비교·되돌리기를 할 수 없어요. / 기록 형식이 깨졌거나 지금 규칙에 맞지 않는 값이 있어요. 다시 불러와도 바뀌지 않는 데이터 문제예요."  — 비교·되돌리기 없음
+  ConsoleSegmented "비교 기준" [직전 버전과 | 지금과]   (#108a ?compare=previous|active)
+    12 ink2 "직전 버전(v{k})과 비교" | "첫 버전(기준선)이에요 — 아래 스냅샷이 그때 값이에요." | "지금 저장값과 비교 — 이 버전으로 되돌리면 바뀌는 값"
+    EntryList: [추가|제거|바뀜] {키 모노} / {전}(취소선) → {후}|(없음)   · "외 {n}개" · 차이 0 점선 "바뀐 값이 없어요."
+    <details> "▸ 스냅샷 전체 보기" pre(모노 12, 줄바꿈) + "비밀은 참조 이름만 담겨요."
+  ACTIVE → "지금 쓰는 버전이에요." | canRollback → [v{n} 내용으로 되돌리기](ghost full 44px) | rollbackProdOnly → "운영(PRODUCTION) 되돌리기는 최고관리자만 할 수 있어요."
+되돌리기(Rollback): #108a ?compare=active + #108(같은 대상 ACTIVE 1개 → baseVersion)
+  14px "지금(v{a}) 설정을 v{n} 내용으로 되돌리면:"
+  (droppedKeys) Note warn "지금 스키마에 없는 키 {n}개는 빠져요 / {키들} — 그 사이 설정 형식이 바뀌어 더는 쓰지 않는 키예요."
+  차이 0 → 점선 "지금 설정과 내용이 같아 되돌릴 것이 없어요." + [돌아가기]  (확정 버튼 없음 — 409 NO_CHANGE 를 미리 막음)
+  EntryList · "외 {n}개" · 13 ink2 "새 버전 v{a+1} 이 만들어지고 v{a} 는 “되돌려짐”으로 표시돼요. 이 서버에는 바로, 다른 서버 프로세스에는 30초 안에 반영돼요."
+  (운영) PrepTestSection label "되돌릴 설정으로 기능 테스트"(필수 — 후보 = {versionId})
+  ReasonFields 빠른 이유 [응답이 느려져서|오류가 나서|적용 전으로 되돌림] (운영 PRODUCTION 입력)
+  SheetNotice · [v{n} 내용으로 되돌리기 | PRODUCTION 에서 되돌리기]("되돌리는 중…") [돌아가기]
+```
+- 요청 전 검사: 이유·확인 문구(F 절) · 지금 버전을 모르면 "지금 쓰는 버전을 알 수 없어요. 새로 불러와 주세요." · 운영 준비 안 됨 "운영 되돌리기는 되돌릴 설정으로 기능 테스트를 먼저 통과해야 해요." · 실패 갈래는 F 절 표(409 `VERSION_CONFLICT`·`NO_CHANGE`·`ALREADY_ACTIVE`·422 `E_SNAPSHOT_INTEGRITY` 등 — `#hist-conflict`·`#hist-damaged`).
+- 성공: 시트 닫힘 · 토스트 "되돌렸어요 · v{k} 내용으로 v{n}" · 버전 목록 처음부터 다시.
+- **버전 id 로 열기**(`?v=` · 감사 "버전 보기 ›"): `VersionById` 가 #108a 를 읽어 같은 시트를 연다. 404 "그 버전을 찾을 수 없어요." · 422 "기록이 손상돼 이 버전을 열 수 없어요." · 그 밖 "버전 정보를 불러오지 못했어요." + [닫기].
+
+#### M. 감사 기록 — `AuditTab`(d3=A) (`#hist-audit` · `#hist-audit-open` · `#hist-audit-lex` · `#hist-audit-empty`)
+
+```
+13 ink2 "관리자가 한 일(적용·되돌리기·비밀 참조 연결·켜기/끄기·민감 조회)이 시간순으로 남아요. 값은 저장할 때 이미 가려져 있고, 비밀은 참조 이름만 있어요."
+ChipRadio "분류" [전체 | 연결 | 예비 순서 | 운영 설정 | 발음 사전]          ← AUDIT_CATEGORIES(→ scope)
+ConsoleSegmented "기간" [오늘 | 7일 | 30일 | 전체]                       ← 기본 7일. "오늘" = 한국 시각 0시부터
+<details> "▸ 필터 더 보기 — 작업 · 사람[ · 환경]"
+   select 작업(ACTION_FILTERS — 끝이 "." 면 접두) · select 사람(불러온 기록의 작업자) · (canOtherEnv) select "환경 (최고관리자만)" [{env} (지금) | 다른 환경] | 12 ink2 "지금 환경({env}) 기록만 보여요."
+(분류 = 발음 사전) surface2 "발음 사전 분류에는 분류가 생기기 전(9월 28일 전) 기록도 함께 나와요 — “옛 기록” 표시."
+#137(30개씩 커서) — 한국 날짜 머리("오늘"·"어제"·"M월 D일")로 묶은 ul
+  AuditRow(버튼 ≥64px, aria-expanded)
+    1줄 {HH:mm} **{작업 이름}** [옛 기록] ······ ˅/˄
+    2줄 {action 코드 모노 11.5}
+    3줄 {summary | 대상 id | —}
+    4줄 12 ink2 {email(역할)|시스템}[ · “{이유}”]
+  펼침(왼쪽 선 border-line):
+    (조회 감사) "조회만 — 값은 기록하지 않아요."
+    키마다 한 줄: {키 모노 12} / {전}(취소선) → **{후}**     ← auditLines(before/after 의 values), 미리듣기 문장·발음 사전은 lang=ja
+    (줄이 없고 원문도 못 봄) "바뀐 값 요약이 없는 기록이에요."
+    (canTrace) <details> "▸ 원문 JSON" before | after pre 두 칸(컨테이너 ≥440 나란히, 아니면 위아래)
+    12 ink2 "환경 {env}[ · IP {/24 가림}][ · 분류 없음(옛 기록)]"
+    [버전 보기 ›](versionId 있음) [Trace {앞 10자} ›](canTrace)
+로딩 role=status "불러오는 중…" · 빈 EmptyNote "조건에 맞는 기록이 없어요." · 실패 ConsoleError · [더 보기]
+```
+- 기간 시작은 화면을 연 시각 기준(분 단위로 자름, 하루에 한 번만 다시 잰다 — 분마다 경로가 바뀌어 [더 보기]로 붙인 목록이 리셋되지 않게).
+- 감사 값은 서버가 저장할 때 이미 가린 값이다 — 화면은 값을 더하거나 풀지 않는다. 작업 이름은 `actionLabel`(모르는 action 은 코드 그대로).
+
+#### N. 공통 상태 — 로딩·오류·권한
+
+| 상태 | 화면 |
+|---|---|
+| 첫 로딩 | `ConsoleLoading`("불러오는 중…") — 설정·연결 편집·예비 순서 편집·시트 / 목록은 가운데 role=status 한 줄 |
+| 불러오기 실패 | `LoadError`(이름 "연결"·"설정값"·"편집 정책"·"비밀 참조") 또는 `ConsoleError`(다시 시도) — `loadErrorText` |
+| 콘솔 안 403(`#cfg-forbidden`) | 페이지 가드 = `ConsoleForbidden`(필요한 권한·내 역할). 쓰기 도중 권한이 바뀌면 F 절 403 알림 |
+| 요청 실패(검증·테스트·요약) | `requestErrorText` 한 줄(`ConsoleError`, 막대 위): 네트워크 · 권한 · 대상 없음 · "지금 저장값과 달라지는 값이 없어요." · 서버 400 message · "{검증|기능 테스트|변경 요약}을(를) 하지 못했어요. 잠시 뒤 다시 시도해 주세요." |
+| 다시 읽는 중 | `main.reloading` → sr-only role=status "다시 불러오는 중…" |
+
+#### O. 발음 사전 운영 이유 10자(R1 — §10 레이아웃 변화 없음)
+
+`lexicon/kana.ts` `validateWriteMeta`: 확인 문구가 필요한(운영) 쓰기는 이유(공백 접은 길이) 10자 미만이면 `TOO_SHORT`(`REASON_MIN_PRODUCTION` = 10, 서버와 같은 값) · `lexicon/lexiconCopy.ts` `fieldErrorText('reason')`: `E_REASON_SECRET_LIKE` → `REASON_SECRET_TEXT` 와 같은 문구 · `TOO_SHORT` → "운영 변경 이유는 10자 이상 적어 주세요(지금 n자)." · `E_REASON` → "이유를 확인해 주세요 — 1~200자(운영은 10자 이상)로 적어요." (§10-8 문구 표에 이 세 줄이 추가된 것으로 본다.)
+
+### 13-3. 상태 관리
+
+- **`useConfigEditor({ target, access, writer, onApplied, onReload, onDiffReady })`**(`configEditor/useConfigEditor.ts`) — 대상 하나의 편집 상태. 대상이 바뀌면 호출자가 `key` 로 다시 마운트한다.
+  - 초안 `Draft = { patch, unknown }`(평면 점 키 → 값 / 스키마 밖 키). 보이는 초안 = `liveDraft(rawDraft, fields)`(다시 읽은 저장값과 같아진 키를 렌더 중에 뺀다 — 409 [최신 값 기준] 용). 바뀐 수 `draftCount`.
+  - 흐름 `FlowState { v, t, d }`(`flow.ts` — `FLOW_START` · `flowAfterEdit` · `testStateOf` · `testPassed`). 초안이 바뀌면(`touched`) 검증·테스트·요약·적용 결과·요청 오류·`rawIgnored` 를 지운다.
+  - 오류 = 서버 칸 오류(#104·#105·#106·적용 400) + 로컬 오류(Raw 지운 키·막힌 키 이름).
+  - Raw: `rawEditing` · `rawText` · `syntax` · 300ms 읽기 타이머(`cancelParse` 로 실행·취소·적용 성공·버리기·제안·켜기/끄기 때 정리). 보기 글 `rawView` = 저장값 문서 + 초안(`docWithDraft`). Form 편집은 Raw 편집 중이면 `editViaRaw`(`rawTextWithField` → 다시 읽기).
+  - 테스트: `AbortController`(언마운트·재실행 때 취소) · 30초 쿨다운(`useCountdown`) · 경과 초(`useNow` 1초, 테스트 중만).
+  - 적용 창: `sheet`·`reason`·`confirm`·오류·`notice`·`applying`·`applied`·`rawIgnored`·`rebased`.
+  - **남은 한계(REV-054 L-1)**: 검증·테스트·요약 응답이 초안이 바뀐 뒤 도착하면 그 응답이 흐름을 덮을 수 있다(요청 시점 후보와 비교하지 않음) — 운영은 서버 `SUMMARY_MISMATCH` 가 막고, 개발 환경만 좁은 시간창. §13-12 ⑧.
+- **`useWritePrep({ open, target, candidate, production })`** — 한 번 쓰기 창. key = `JSON.stringify([target, candidate])`; 운영이고 창이 열리면 #106 을 자동으로 한 번, #105 는 버튼으로. `ready` = 개발이면 늘, 운영이면 요약 있음 && (테스트 불요 || ok + id). `meta()` 가 `writeMeta`(baseVersion·reason·운영 confirm·summaryHash·testResultId)를 만든다. 후보가 바뀌면(참조 다시 고르기) 요약·테스트를 새로.
+- **`usePaged(pathFor)`** — #108·#137 커서 목록. 경로(필터)가 바뀌면 처음부터, 늦게 온 옛 응답은 버린다(abort + key 비교).
+- **URL**: `ConfigScreen` 탭·대상, `HistoryScreen` 탭은 `router.replace(…, {scroll:false})`. 이력 행을 눌러 연 시트는 주소에 `v` 를 쓰지 않는다(`?v=` 는 들어올 때만).
+- **다시 읽기**: 적용·비밀 참조 성공 → 대상(#102|#123b)·#110·#91 다시. 연결 상세는 #91a·편집 정책·Health 기록 다시.
+- 저장소: `localStorage`·`sessionStorage` 사용 0(이유·확인 문구·해시 포함 — REV-047 grep).
+
+### 13-4. API 호출 계획 (정본 api-contract — 요청 함수는 `configEditor/configApi.ts` 한 곳, id 는 `encodeURIComponent`, 이유·확인·해시는 늘 본문)
+
+| 화면 | # | 메서드 · 경로 | 보내는 것 | 쓰는 필드 | 오류 |
+|---|---|---|---|---|---|
+| 설정 | #91 | GET `engine-connections` | — | id·key·name·role·engineName·enabled·status·credentialRef | `LoadError` |
+| 설정(연결)·연결 편집·예비 순서 편집 | #102 | GET `config/effective?scope=ENGINE_CONNECTION\|FALLBACK_POLICY&targetId=` | — | targetId·targetKey·schemaVersion·keys[](값·출처)·`edit{version, keys[ConfigKeyPolicyDto]}` | 404 "대상을 찾을 수 없어요." · `LoadError` |
+| 설정(운영 설정) | #123b | GET `app-settings/{key}` | — | value·exists·type·description·editability·policy·lock·lockMessage·verifiable·version | 같음 |
+| 설정(Raw) | #110 | GET `config/raw/{scope}/{targetId}` | Raw 탭 처음 열 때 | json·version·schemaRef·effectiveDiffers | `ConsoleError` |
+| 설정(목소리 키) | #82 | GET `voices` | 운영 설정 + `voices.read` | id·displayName·enabled·status | 목록 없이 글자 입력 |
+| 편집기 공통 | #104 | POST `config/validate` | `{scope,targetId,patch}` | valid·errors[{key,rule,message,suggestion}] | 400 errors → 칸 |
+| 〃 | #105 | POST `config/test` | `{scope,targetId,patch}` 또는 `{…,versionId}` | status·testResultId·expiresAt·latencyMs·testedKeys·untestedKeys·runs[{ok,errorCode}]·traceId | 429 `Retry-After` · 400 errors · 403 교차 환경 |
+| 〃 | #106 | POST `config/diff` | 같음 | changes[]·summary{changed,strict,shadowed,secretTouched}·unchanged·summaryHash·testRequired | 400 errors |
+| 설정(Form) | #107 | POST `config/apply` | `{scope,targetId,patch,baseVersion,reason[,confirm,summaryHash,testResultId]}` | changed·version·baselineVersion·derived·warnings | `writeErrorView` |
+| 설정(Raw) | #111 | PUT `config/raw/{scope}/{targetId}` | `{json(글 그대로), dryRun:false, baseVersion, reason, …}` | 같음 | 같음 |
+| 연결 상세 | #91a | GET `engine-connections/{id}` | — | §6 + version·credentialRef·effectiveSummary | §6 |
+| 연결 편집 | #93 | PUT `engine-connections/{id}` | `{connection?, runtime?, …meta}` | `ConfigApplyResultDto` | `writeErrorView` |
+| 켜기·끄기 | #93a | PUT `engine-connections/{id}/enabled` | `{enabled, …meta}` | 같음 | + 409 `PRIMARY_IN_USE` |
+| 비밀 참조 | #93b | PUT `engine-connections/{id}/credential` | `{credentialRef: 이름\|null, …meta}` — 값 필드 없음 | 같음 | 422 `E_REF_NOT_ALLOWED` · 400 `E_CONN_SECRET_VALUE` |
+| 비밀 참조 시트·있는지 확인 | #101 | GET `secrets` | 시트를 열 때마다(감사 1행) | ref·source·exists·usedBy·allowedFor | `LoadError` |
+| 역할 페이지 | #99a | GET `fallback-policies/{role}` | — | id·primary·fallbacks·retryOnce·version | §6 |
+| 예비 순서 | #100 | PUT `fallback-policies/{role}` | `{primaryConnectionId?, fallbackConnectionIds?, …meta}` | `ConfigApplyResultDto` | `writeErrorView` |
+| 이력 | #108 | GET `config/versions?scope=&targetId=&status=&cursor=&limit=20` | — | items[ConfigVersionItemDto]·nextCursor | `ConsoleError` |
+| 이력 | #108a | GET `config/versions/{id}?compare=previous\|active` | — | entries·truncated·droppedKeys·against·snapshot | 422 `E_SNAPSHOT_INTEGRITY` → DamagedNote |
+| 이력 | #109 | POST `config/versions/{id}/rollback` | `{baseVersion(지금 ACTIVE), reason[,confirm,summaryHash,testResultId]}` | version·restoredFromVersion | `writeErrorView` |
+| 이력(운영 되돌리기 준비) | #106·#105 | 위와 같음 | `{scope,targetId,versionId}` | summaryHash·testRequired / testResultId | — |
+| 감사 | #137 | GET `audit?scope=&action=&actorUserId=&environment=&from=&cursor=&limit=30` | — | items[AuditItemDto]·nextCursor | `ConsoleError` |
+
+- 운영 쓰기 꼬리 = `writeMeta`: 운영이면 `confirm`(앞뒤 공백 제거)·`summaryHash`, 테스트가 필요하면(또는 개발에서 결과가 있으면) `testResultId`.
+
+### 13-5. 컴포넌트 분해
+
+| 파일 | 역할 |
+|---|---|
+| `configEditor/ConfigScreen.tsx` | 설정 화면(`ConfigScreen` 데이터·주소 · `Workspace` 대상 하나 · `TargetPicker` · `TabsBar` · `configHref`) |
+| `configEditor/useConfigEditor.ts` | 편집 컨트롤러(초안·흐름·Raw·적용 창) · `liveDraft` |
+| `configEditor/draft.ts` | 순수: `FieldModel`·`fieldsFromEffective`·`fieldFromAppSetting`·`fieldLock`·`isLockedRow`·초안 함수·`parseRawText`·`rawTextWithField`·`applyPayload`·`rawLineOf`·`renameRawKey`·`connectionFormBody`·`hasMaskedValue` |
+| `configEditor/flow.ts` | 순수: `flowView`·`checkReasonInput`·`checkConfirmInput`·`normalizeReason`·`writeErrorView`·`requestErrorText`·`testMinutesLeft`·`REASON_SECRET_TEXT` |
+| `configEditor/configAccess.ts` | 순수: `configAccess`·`configTabs`·`pickTab` |
+| `configEditor/configApi.ts` | 요청 경로·본문(#102~#111·#93~#93b·#100·#123b·#108~#109) · `writeMeta` |
+| `configEditor/configCopy.ts` | 문구·라벨 상수(§13-8) · `APP_SETTING_KEYS` · `fieldLabel` · `actionLabel` |
+| `configEditor/FieldList.tsx` | Form 칸 목록(`FieldRow`·`LockedValue`·`SecretValue`·`InputControl`·`lockCounts`) |
+| `configEditor/RawTab.tsx` · `DiffView.tsx` · `ConfigTestCard.tsx` | Raw JSON 탭 · 변경 요약(`DiffList`·`DiffRow`·`DraftPreviewList`·`SummaryChips`·`valueText`) · 테스트 결과 |
+| `configEditor/EditorChrome.tsx` · `FlowBar.tsx` · `ApplySheet.tsx` · `ReasonFields.tsx` · `AppliedNote.tsx` | 적용 막대·확인 창 묶음 · 막대 · 확인 창(`SheetNotice`·`TestLine`·`ConfirmDropSheet`·`shortHash`) · 이유+PRODUCTION · 적용 결과 |
+| `configEditor/ConnectionEditPanel.tsx` · `ConnectionSheets.tsx` · `FallbackEditor.tsx` · `useWritePrep.ts` | 연결 상세 편집 · `EnabledSheet`·`CredentialSheet`·`PrepTestSection`·`credentialChoices` · 예비 순서 편집(`moveItem`·`removeItem`·`addItem`) · 한 번 쓰기 준비 |
+| `configEditor/ui.tsx` | `INPUT`·`TEXTAREA`·`FIELD_*`·`LINK_SM` · `StrictBadge`·`ChangedBadge`·`LockBadge`·`NeutralTag`·`VersionStatusBadge`·`DamagedBadge`·`LockIcon`·`Note`·`Switch` |
+| `configEditor/EffectiveScreen.tsx` | `EffectivePanel`(Effective 본문 — 설정 화면이 씀). 기본 내보내기는 이제 안 쓰임(§13-12 ⑦) |
+| `history/HistoryScreen.tsx` · `ConfigVersionRow.tsx` · `ConfigVersionSheet.tsx` · `AuditTab.tsx` | 이력 화면(`VersionsTab`·`VersionById`·`StatusLegend`) · 버전 행 · 상세·되돌리기(`Detail`·`Rollback`·`EntryList`·`DamagedNote`) · 감사(`AuditRow`) |
+| `history/historyQuery.ts` · `usePaged.ts` | 순수: 주소·필터·`auditPath`·`periodFrom`·`auditLines`·`dayLabel`·`actorText`·`versionTargetOptions`·`historyHref` · 커서 목록 |
+| `console/ConnectionDetailScreen.tsx` · `RoleScreen.tsx` · `EffectiveSummaryCard.tsx` · `SecretsSheet.tsx` · `labels.ts` | 수정(H·J 절, `&tab=effective`, 사용 중 참조만, 메뉴 설명) |
+
+### 13-6. 생성/수정 파일 목록 (developer B, 2026-10-01 — 이미 있음)
+
+- 신규: `src/components/admin/configEditor/{ConfigScreen,FieldList,FlowBar,ApplySheet,EditorChrome,RawTab,DiffView,ConfigTestCard,ReasonFields,ConnectionEditPanel,ConnectionSheets,FallbackEditor,AppliedNote,ui}.tsx` · `{configAccess,configApi,configCopy,draft,flow,useConfigEditor,useWritePrep}.ts` · `src/components/admin/history/{HistoryScreen,ConfigVersionRow,ConfigVersionSheet,AuditTab}.tsx` · `{historyQuery,usePaged}.ts` · `src/app/(admin)/admin/history/page.tsx` · 단위 `configEditor/__tests__/{configEditor,flow,rawSync}.test.ts`·`history/__tests__/history.test.ts`·`lexicon/__tests__/reasonCopy.test.ts` · 화면 E2E `tests/live/task012c-ui-e2e.mjs`.
+- 수정: `src/app/(admin)/admin/configuration/page.tsx` · `src/components/admin/console/{ConnectionDetailScreen,RoleScreen,EffectiveSummaryCard,SecretsSheet}.tsx`·`labels.ts` · `configEditor/EffectiveScreen.tsx`(`EffectivePanel` 추출) · `src/modules/admin/console/menu.ts`(B 의 hunk) · `lexicon/{kana,lexiconCopy}.ts`·`__tests__/kana.test.ts`.
+- 이 가이드로 새로 만들 파일은 없다. 후속 수정은 §13-7.
+
+### 13-7. 구현 순서 (구현 완료 — 후속 수정 순서)
+
+1. (Leader 판단 뒤) §13-12 ① 키보드 열림 때 적용 막대 숨김 — `FlowBar` 에 `data-flowbar` + `globals.css` `:root[data-kb] [data-flowbar]{display:none}`(하단 탭과 같은 규칙) 또는 `KeyboardInset` 드러내기 계산에서 막대 높이 빼기. QA 360·390 실기기.
+2. §13-12 ⑨ 문구 2줄(`flow.ts` 손상 문구 ↔ `DamagedNote`) + 손상 시 `issues[].key` 표시(값 금지).
+3. §13-12 ⑧ REV-054 Low 묶음: 진행 중 응답 버리기(요청 시점 `candidate.patch` 비교) · 409 [최신 값 기준] 뒤 Raw 편집 글 재생성 또는 편집 끄기 · `rawLineOf`·`renameRawKey` 부모 경로 일치 · `APP_SETTING_KEYS` ↔ 서버 목록 비교 단위 1건 · 막대 사이드바 폭을 CSS 변수로.
+4. §13-12 ③ #123b 범위 필드가 생기면 `fieldFromAppSetting` 이 `min`·`max`·`maxLength`·`nullable` 을 옮겨 담는다(지금은 담지 않음 — `rangeText` 는 그대로 동작).
+5. 수정마다 데모 게이트 `check` → 단위(`configEditor`·`flow`·`rawSync`·`history`) → E2E(`task012c-ui-e2e.mjs` — 정리 범위는 REV-047 L-6 대로 응답 id 만) → Reviewer.
+
+### 13-8. 한국어 UI 문구 — 단일 출처 위치 (흐름·실패 문구는 §13-2 E·F 표가 그대로다)
+
+| 상수 · 위치 | 내용 |
+|---|---|
+| `LOCK_BADGE`(configCopy) | 읽기 전용 · 재시작 필요 · 비밀 참조 전용 · 편집 보류 · 서비스 관리 · 앱이 안 씀 · 서버 주소 고정 · 자동 · 환경 정책 · 환경 변수가 덮음(SHADOW) · 운영 잠금(NOVERIFY) |
+| `CLIENT_LOCK_WHY` | SHADOW "환경 변수가 이 값을 덮고 있어 잠갔어요 — 여기서 바꿔도 효력이 없어요." · NOVERIFY "실행으로 확인할 방법이 없는 키라 운영에서는 콘솔로 바꾸지 않아요(개발 환경에서는 바꿀 수 있어요)." |
+| `LOCK_WHY_FALLBACK` | 서버 `lockMessage` 가 빌 때만 — 재시작 필요 "재시작해야 반영되는 키라 이번 단계에서는 콘솔로 바꾸지 않아요(서버 설정·배포로)." 등 9종 |
+| `SCOPE_KO` · `EDIT_SCOPE_OPTIONS` | 연결 · 예비 순서 · 운영 설정 · 목소리 기본값 · 프롬프트 · 프리셋 · 발음 사전 / 대상 종류는 연결·운영 설정 둘 |
+| `ORIGIN_KO` · `VERSION_STATUS_KO` · `VERIFIABLE_KO` | 기준선·Form·Raw JSON·되돌리기 / 사용 중·이전·되돌려짐 / 실행 검증·실행 검증 없음·테스트 불요·값에 따라 검증 |
+| `RULE_KO` | Raw 오류 rule 코드의 title(형식·최솟값·…·비밀 값·허용 안 된 주소·허용 안 된 참조·재시작 필요) |
+| `APP_SETTING_KEYS` | 미리듣기 문장 · 기본 목소리 · 다시 확인할 인식 신뢰도 · 미리듣기 버전 · 운영 임시 덮어쓰기 · 운영 디버그 최대 시간(분) · 운영 로그 레벨 상한 · 녹음 보관 일수 · 요청 기록 보관 일수 (서버 `appSettingSchema` 와 같은 순서·키) |
+| `ACTION_KO` · `ACTION_FILTERS` | 감사 작업 이름(설정 적용·설정 적용(Raw JSON)·설정 되돌리기·기준선 저장·운영 원문 조회·비밀 참조 연결/해제·연결 켜기/끄기·비밀 참조 목록 조회·발음 사전 작업 5종) / 작업 필터 10개 |
+| `QUICK_REASONS_APPLY`(ReasonFields) | 응답이 느려서 · 오류가 나서 · 시험해 보려고 · 원래대로 되돌림 (켜기·끄기·비밀 참조·되돌리기 창은 I·L 절의 자기 목록) |
+| `NOTICE_ACTION_KO`(ApplySheet) | 최신 값 기준으로 다시 비교 · 초안 버리기 · 변경 요약 다시 만들기 · 다시 테스트 · 역할 페이지로 · 새로 불러오기 |
+| `REASON_SECRET_TEXT`(flow) | "이유에 비밀처럼 보이는 글자(키·토큰)가 있어 저장하지 않았어요. 이유에는 비밀 값을 적지 마세요." |
+| 서버 문구(화면은 그대로 보인다) | 설정 값 비밀 유사 400 `secretValue` "비밀처럼 보이는 글자가 있어 저장하지 않았어요."(`validate.ts` `SECRET_VALUE_MESSAGE` — 입력 값·경로를 되돌리지 않음) · 확장 키 경고 "확장 키(x-)는 저장하지 않고 적용하지도 않습니다." · 잠금 이유 `lockMessage` · 주소 허용 목록 등 칸 오류 `message`·`suggestion` |
+
+### 13-9. 360/390/412 · 데스크톱 · 키보드 · 접근성 · QA 체크리스트
+
+폭·배치
+- [ ] 360·390·412·1024·1280 에서 설정(4탭 × 연결·운영 설정)·연결 상세(보기·편집)·역할 페이지(보기·순서 편집)·이력(버전·감사)·모든 시트 가로 스크롤 0. 긴 값: 64자 연결 key·긴 주소·`allowedTasks` 배열·요약 해시·traceId·`effectiveDiffers` 여러 개·감사 원문 JSON·200자 이유·미리듣기 문장 100자(일본어, `lang="ja"`, `break-keep` 없음).
+- [ ] Raw 편집기만 안에서 가로 스크롤(`wrap=off`) — 페이지는 0. 편집기 높이는 줄 수만큼이라 세로 스크롤은 `main` 하나.
+- [ ] 적용 막대: 모바일 세 줄 쌓기 + 버튼 칸 나눔, ≥1024 한 줄·사이드바 오른쪽(232px)부터. 본문 마지막 칸·[더 보기]·"연결 상세 ›" 가 막대에 가리지 않는다(빈 자리 150/84px). 제스처 바 위로 떠 있다(`env(safe-area-inset-bottom)`).
+- [ ] Form 칸: 컨테이너 ≥620px 이면 이름 | 값 두 칸, 아니면 위아래. 감사 원문 JSON 은 컨테이너 ≥440 에서 나란히.
+- [ ] 칩 줄(대상·분류·빠른 이유)은 가로 스크롤만·스크롤바 숨김, 선택 칩이 화면 밖이면 보이게.
+
+키보드(task-021 `KeyboardInset` · `interactive-widget=resizes-content`)
+- [ ] 확인 창·한 번 쓰기 창의 이유 칸·PRODUCTION 칸에 포커스하면 시트가 키보드 위로 올라가고 입력 칸이 보인다(공용 `Sheet` 의 `--kb-inset`).
+- [ ] **Form 의 아래쪽 칸·Raw 편집기 마지막 줄에 포커스했을 때 적용 막대(fixed, 모바일 ≈150px)에 가리지 않는다** — 지금 코드는 막대를 키보드와 함께 위로 올리고 드러내기 계산에 막대 높이를 넣지 않아 가려질 수 있다(코드 추적, 실기기 미확인 → §13-12 ①). 360×(키보드 열림) 에서 본문이 몇 px 남는지 기록.
+- [ ] 입력칸 글자 16px(확대 방지) — Raw 편집기도 모바일 16px.
+
+터치·글자
+- [ ] 누르는 것 ≥44px: 탭·대상 종류(`ConsoleSegmented` min-h-11)·칩·[버전 기록 ›]·[원래대로]·[있는지 확인]·[비밀 참조 연결]·[JSON 편집]·제안 바꾸기·↑↓−·[넣기]·[편집 끝내기]·[더 보기]·"상태 뜻"·"필터 더 보기"·"원문 JSON"·알림 동작 버튼. 목록 행 ≥56px(버전·감사 행 ≥64px, 예비 순서 행 60px). 시트 확정·취소 48px.
+- [ ] 읽어야 하는 글에 `ink3`·`warn` 글자·`accent-soft` 위 `accent` 글자 없음. `warn-soft` 뱃지·상자 글자는 `ink`. 운영 강조는 `bad` 글자 on `surface`/`bad-soft`.
+- [ ] 종류·상태는 글자로 전한다(바뀜·추가·제거 뱃지, 상태 뱃지 `aria-label`, 점·✓·✗·🔒 는 장식).
+
+권한·노출(서버 재검사와 별개로 화면 DOM 확인)
+- [ ] USER: `/admin/configuration`·`/admin/history` 가 없는 주소와 같은 404.
+- [ ] ADMIN: Raw JSON 탭·[JSON 편집]·[비밀 참조 연결]·감사 원문 JSON·Trace 링크·환경 필터 DOM 0. 운영에서 [적용…]·사용 여부 스위치·되돌리기 버튼 DOM 0(대신 🔒·글자·안내 한 줄).
+- [ ] DEVELOPER: 운영에서 Raw 편집·요약까지 되고 적용 버튼 DOM 0. [비밀 참조 연결] DOM 0.
+- [ ] SUPER_ADMIN: 운영 확인 창에 PRODUCTION 칸·요약 해시·기능 테스트 줄.
+- [ ] 비밀 참조: 값 입력 칸 0(`input[type=password]` 포함 0), 허용 밖 참조는 목록에 없음, 허용됐지만 없는 참조는 이름 한 줄만.
+- [ ] 화면 텍스트·DOM 속성·콘솔 로그·`localStorage`·`sessionStorage`·URL 에 비밀 값·이유 원문·확인 문구 0. 비밀 유사 이유·값 거절 응답에 입력 원문 0.
+- [ ] 화면 코드에 엔진·모델 이름 하드코딩 0(`src/components/admin/{configEditor,history}` grep — 표시명은 DTO).
+
+동작(QA 라이브 = 개발 환경 LOCAL 행만, 운영 경로는 단위 + U-C7 리허설)
+- [ ] 첫 적용 = 기준선 v1 + v2(시트 안내·토스트·이력 두 행) · 변경 0 = 버전 0("바뀐 값이 없어 적용하지 않았어요").
+- [ ] Raw 편집 중 Form 변경 → Raw 글에 들어감 → 요약 = 적용 = DB 행 = 감사 `config.raw_apply`. 요약 뒤 300ms 안에 Raw 수정 후 [적용] → 막힘 안내. 어긋난 글은 patch 로 + "Raw JSON 글은 적용하지 않았어요".
+- [ ] `__proto__` 키 → 줄 표시 오류·적용 단계 못 감 · 저장값 키 지움 → required 오류 · 가림 값 문서 → [JSON 편집] 없음.
+- [ ] 409 `VERSION_CONFLICT`(두 탭) → [최신 값 기준으로 다시 비교] 뒤 초안 유지 + 안내. 기본 연결 끄기 → 409 + [역할 페이지로].
+- [ ] 테스트 30초 카운트다운 · 429 `Retry-After` · partial(개발 이어 감 / 운영 막힘).
+- [ ] 예비 순서: 마지막 1개 [−] 없음 · 꺼진 연결 [넣기] 없음 · 요약 뒤 버리기 = 쓰기 0.
+- [ ] 이력: 대상 칩·되돌리기 = 새 버전·직전 "되돌려짐"·"v{k} 로 되돌림" · 같은 내용 = 확정 버튼 없음 · 손상 = 비교·되돌리기 없음 · `?v=` 직접 열기 · 감사 펼침(키마다 한 줄)·옛 발음 사전 기록 "옛 기록".
+- [ ] 미리듣기 문장·모델 칸·예비 순서 JSON 에 비밀 유사 값 → 칸 아래 "비밀처럼 보이는 글자가 있어 저장하지 않았어요." · 버전·감사 증가 0.
+- [ ] Raw 의 맨 바깥 `x-note` → 적용 성공·저장 문서에 없음(안내 문구와 일치) · 중첩 `x-` → 서버 `unknownKey`.
+
+접근성
+- [ ] 시트 `role=dialog`·제목 포커스·Esc·닫으면 연 버튼으로 포커스(공용 `Sheet`). 적용 중에는 바깥 눌러 닫기 막힘.
+- [ ] 막대 안내 `aria-live=polite`, 단계 `aria-current=step`, 실행 중 버튼 `aria-busy`. [JSON 편집] `aria-pressed`, 감사 행 `aria-expanded`, 칩 `role=radio aria-checked`, 비밀 참조 라디오 `role=radiogroup`.
+- [ ] 칸 오류 `aria-invalid` + `aria-describedby`, 알림 `role=alert`, 적용 결과 `role=status`.
+- [ ] 줄 번호 `aria-hidden`, 편집기 `aria-label="설정 JSON"`, 화살표는 sr-only "에서 다음으로".
+
+### 13-10. 주의사항 · developer 가 건드리지 말 것
+
+- **capability 는 서버가 진실**: `configAccess` 는 숨김용이다. 페이지는 `requireConsolePage`, 쓰기는 서버가 매 요청 `config.apply.production`·엄격 키 본인·`baseVersion`·`summaryHash`·`testResultId`·reason 을 다시 검사한다. 화면 검사(이유 길이·PRODUCTION 입력·요약 있음)는 안내용으로만 둔다.
+- **적용 본문 = 확인한 변경 요약**(REV-047 M-1). `applyPayload`·`editViaRaw`·`cancelParse` 경로를 단순화하지 않는다 — 단위 `rawSync.test.ts` 변이 시험이 이 불변식을 지킨다.
+- **비밀**: 값 입력 칸을 만들지 않는다. `credentialRef` 는 설정 patch 로 보내지 않는다(서버 400 `CREDENTIAL_ONLY` — [비밀 참조 연결] 전용). 이유·확인 문구·요약 해시는 본문으로만, 로그·저장소·URL 금지. 거절 응답의 입력 원문을 화면에 다시 그리지 않는다.
+- **Raw 원문 조회 = 감사**: 운영 대상 #110 은 조회마다 감사 1행 — 페이지 진입·대상 칩 변경만으로 읽지 않는다(탭을 볼 때만). #101 도 시트를 열 때만.
+- **운영 화면은 QA 가 라이브로 못 본다**(QA 역할 토큰이 운영에서 인정되지 않음) — 운영 경로는 단위(`flowView`·`configAccess`·`writeErrorView`·`ReasonFields`)와 U-C7 사용자 리허설로만 확인한다. QA·E2E 는 LOCAL 행만 쓰고 자기가 만든 버전 id 만 지운다(감사는 불변이라 남는다).
+- **엔진 이름**: 화면 상수·문구에 엔진·모델 이름을 쓰지 않는다(데모의 가명 엔진 A~E 와 같은 원칙). 연결·모델 표시는 서버 DTO 그대로.
+- **데모와 다르게 바꿀 때**: §13-11 의 implementation 갈래를 넘는 변경(탭·단계·CTA·정보 구조)은 데모 v3 로 사용자 재승인.
+- 목소리 기본값 편집·Voice 관리·프롬프트·Playground 는 012c-2 — 대상 종류·메뉴에 미리 그리지 않는다.
+
+### 13-11. 데모와 다른 점 (구현이 사실 — 정본 권고 포함)
+
+| # | 데모 v2 | 구현 | 분류(REV) | 권고 |
+|---|---|---|---|---|
+| 1 | 대상 종류 3개(연결·운영 설정·목소리 기본값), `#cfg-form-voice`·`#cfg-first` 가 목소리 대상 | 2개(연결·운영 설정) | 범위 이동(D-C14, 사용자 승인 범위) | 구현 정본. 목소리 편집은 012c-2 데모에서 |
+| 2 | 감사 분류 칩 7개(+목소리·조회·권한 거부) · 결과 필터·결과 뱃지·분류별 개수 | 5개(전체·연결·예비 순서·운영 설정·발음 사전) · 결과 필터·뱃지·개수 없음 · "조회"는 [필터 더 보기 › 작업] | implementation(REV-047 ①) | 구현 정본(권한 거부는 서버가 감사로 남기지 않아 칩이 거짓 안내가 됨) |
+| 3 | 예비 순서 편집에 "실패하면 다음 연결로 한 번 다시 시도" 스위치 | 글자 한 줄 + "(이 설정은 라우터가 읽지 않아 여기서 바꾸지 않아요)" | implementation(REV-047 ②) | 구현 정본(서버 NOT_CONSUMED — 동작 없는 스위치 금지) |
+| 4 | Form 에 사용 여부 칸 | Form 에서 숨김 — 연결 상세 스위치(#93a)로만 | implementation(REV-047 ③) | 구현 정본(켜기/끄기 단일 경로·기본 연결 409 보호) |
+| 5 | 운영 설정 칸에 범위 표시 | 범위 없음(서버 검증만), 키 목록은 화면 상수 9개 | implementation(REV-047 ④) | 구현 유지 + §13-12 ③ |
+| 6 | 요약 카드 "마지막 적용 n시간 전" | 없음 | implementation(REV-047 ⑤) | 구현 정본(DTO 에 시각 없음 — 생기면 추가) |
+| 7 | Raw 꼬리 "x- 로 시작하는 키(예: x-note)는 스키마 밖이어도 그대로 보존돼요." | "맨 바깥의 x- 로 시작하는 키(예: x-note)는 메모로 둘 수 있지만 저장되지 않아요." | 문구 정정(REV-054 L-2·REV-056 ④) | **구현 정본** — 서버 사실(맨 바깥 `x-` 는 저장 안 함, 중첩은 400) |
+| 8 | 적용 막대 `position: sticky`(본문 안) | `fixed` + 본문 끝 빈 자리 + ≥1024 `left-[232px]` 상수 | implementation(REV-047 L-4) | 동작 같음. 셸 폭을 CSS 변수로(§13-7 3) |
+| 9 | — | 새 안내 3개: "Raw JSON 글은 적용하지 않았어요 …" · "Raw JSON 이 변경 요약 뒤에 바뀌었어요 …" · 막힌 키 이름 오류 | implementation(REV-054 — 데모의 요약 불일치 흐름과 같은 종류) | 구현 정본 |
+| 10 | 적용 전 "변경 요약 없음" 막기는 운영만 | 모든 환경 | implementation(REV-054 "완화 아님") | 구현 정본 |
+| 11 | 비밀 값 거절은 비밀 참조 칸 평문만 | 일반 설정 값(자유 문장·모델 칸·JSON 잎)도 400 `secretValue` "비밀처럼 보이는 글자가 있어 저장하지 않았어요." | 서버 규칙 확장(REV-056·REV-059, Codex C2 재검토 보강 진행 중) | 화면은 서버 문구 그대로 — 화면 변경 없음 |
+| 12 | 시크릿 참조 시트 = #101 전체 | 연결에 걸린 참조만(`usedBy` 1↑) | implementation(서버 1단계 5번) | 구현 정본(허용·미사용 참조는 비밀 참조 연결 시트) |
+| 13 | 감사 펼침 링크 "버전 v6 보기 ›" | "버전 보기 ›"(감사 `versionId` 로 시트) | 문구 | 구현 정본(번호는 시트 제목에) |
+| 14 | 기본 탭 Form · Effective 링크 | 같음 + 역할 페이지·연결 상세 "설정값 전체 보기 ›" 는 `&tab=effective` | implementation(REV-047 ⑥) | 구현 정본 |
+
+- 위 14건 모두 정보 구조·단계·CTA 는 데모와 같다 — **데모 재승인 필요 없음**(REV-047·REV-054·REV-059 판정과 같음).
+
+### 13-12. Leader 확인 요청
+
+| # | 항목 | 지금 | 권고 |
+|---|---|---|---|
+| ① | **키보드 열림 때 적용 막대**(실기기 미확인, 코드 추적) | `FlowBar` 는 `fixed` 모바일 ≈150px. `resizes-content` 라 키보드와 함께 위로 올라오고, `KeyboardInset` 의 입력 칸 드러내기는 막대 높이를 빼지 않는다 → Form 아래쪽 칸·Raw 편집기 줄이 막대 뒤에 가릴 수 있고, 360px 에서는 본문 높이가 크게 줄어든다 | 하단 탭과 같은 규칙으로 **키보드가 열린 동안 막대 숨김**(`data-flowbar` + `:root[data-kb] [data-flowbar]{display:none}`) — 입력 중에는 막대를 쓸 일이 없다. 데모 변경 아님(implementation). QA 360·390 실측 항목 추가 |
+| ② | developer B 확인 요청 (a) — §13-11 2~6·14 수용 | 구현됨 | **수용 권고**(REV-047 implementation 판정과 같음) |
+| ③ | developer B (c) — #123b 범위 필드 | DTO 에 `min`·`max`·`maxLength`·`nullable` 없음 · 목록 API 없음 | developer A 가 #123b 에 범위 필드를 더하면 화면은 `fieldFromAppSetting` 한 곳만 고친다. 목록 API 는 선택(`APP_SETTING_KEYS` 드리프트 가드 단위 1건으로도 충분) |
+| ④ | developer B (d) — 운영 경로 실화면 | 단위로만 확인 | U-C7 리허설(사용자 본인 SUPER_ADMIN) 순서 제안: 운영 설정 비엄격 키 1건 Form → 검증 → 기능 테스트 → 변경 요약(해시 확인) → 확인 창(이유 10자↑·PRODUCTION) → 이력에서 그 버전 [되돌리기](운영 테스트) → 감사 2행 확인 |
+| ⑤ | 정본 문구 정리 — `configuration-resolution.md` §8-1 끝 "ADMIN/DEVELOPER … 승인 요청(`pendingProductionApprovals`)" | 데모·구현 모두 "초안·변경 요약까지"이고 승인 요청 기록은 없다 | 정본을 "초안·변경 요약까지 — 최고관리자 계정으로 다시 적용(1인 앱)"으로 정리(Leader) |
+| ⑥ | `docs/screens.md` §2 표 | 이번엔 §13 행 한 줄만 더했다. 기존 `/admin/configuration`(Effective 탭만)·`/admin/{prompts,playground,history}`(Phase 2+) 행은 지침대로 건드리지 않았다 | Leader 가 두 행을 정리(history 를 빼고 prompts·playground 만 012c-2 로) |
+| ⑦ | `EffectiveScreen` 기본 내보내기 | 설정 페이지가 `ConfigScreen` 으로 바뀌어 아무도 import 하지 않음(`EffectivePanel` 만 쓰임). `ConfigAccess.note` 도 화면에서 안 씀 | 다음 정리 때 삭제(동작 영향 0) |
+| ⑧ | REV-054 Low 중 화면에 보이는 것 | L-1 진행 중 응답이 낡은 요약을 세움(개발 환경 좁은 시간창) · L-4 409 [최신 값 기준] 뒤 Raw 편집 글이 옛 저장값으로 남음 · REV-047 L-3 제안 바꾸기 첫 줄 일치 | 다음 라운드 묶음(§13-7 3) — 데모 재승인 불필요 |
+| ⑨ | 손상 문구 두 곳 | `flow.ts` 422 `E_SNAPSHOT_INTEGRITY` "기록이 손상돼 …" ↔ 시트 `DamagedNote` "…지금 규칙에 맞지 않는 값이 있어요"(비밀 유사 값으로 막힌 경우는 손상이 아님 — REV-059 L3) | `flow.ts` 문구를 시트와 같은 뜻으로 + `DamagedNote` 에 `issues[].key`(값 금지, REV-059 L5) |
+
+---
+
+## 14. 오늘의 복습 (task-010b)
+
+승인 데모: docs/demo/task-010b-repetition-v1.html (v1)
+
+> **`task-010b-v1`, 사용자 승인 2026-10-01 08:17, sha256 `dcd310bf…`** — 결정 **a=A**(할 일이 있을 때만 오늘의 회화 위) · **b=B**(바로 건너뛰고 5초 되돌리기) · **c=A**([복습 시작]을 누를 때 만든다) · **d=B**('곧 열려요' 안). 데모 상태는 주소 `#<id>`(예: `…-v1.html#rv-due`)로 바로 열리고, 아래 `#id` 는 그 상태를 가리킨다.
+> 정본: `api-contract.md` §2-13 #58·#60·#62·#63·#64 · #55 + **task-010b Leader 기록(2026-10-01) 계약 결정 ①~⑦**(additive — 기존 키 변경 없음). 데모의 합성 데이터와 필드명이 다르면 계약이 정본이다. 계약에 아직 없는 필드는 §14-11 에 모았다(★ 표시).
+> 재사용: §12 오늘의 회화 화면 전부(수업 경로·5단계·대기·종료 카드·`useJobWatch`·`MiniSteps`·`ExprChip`/`ExprPlayChip`·`Spinner`) · §5 오늘 홈·flash 방식 · 공용 `Card`·`Btn`·`BtnRow`·`Badge`·`ErrorBlock`·`TeacherAvatar`·`BackBar`·`Toast`. **새 색 없음.**
+> **적용 토큰**(`src/app/globals.css`, 이름만 쓴다): `ground` · `surface` · `surface2` · `ink` · `ink2` · `ink3`(장식만) · `line` · `accent` · `accent-soft` · `on-accent` · `good` · `good-soft` · `bad` · `bad-soft` · `--radius`(14px) · `--safe-bottom`. `warn` 은 쓰지 않는다. 글자 색은 §1-1 — `accent-soft` 위 글자는 `ink`/`ink2`(집중 뱃지·"복습" 뱃지·다음 복습 상자), `accent` 는 점·테두리(비텍스트)로만.
+
+### 14-0. 한눈에 보는 결정
+
+1. **바뀌는 곳은 4군데**: 오늘 홈 "오늘의 복습" 카드(새) · 복습 수업 머리·① 이번 복습 항목·② 집중 표시·③ 결과 한 줄(오늘의 회화 수업 화면 재사용) · 복습 수업 대기/실패 문구 · 복습 종료 카드의 "다음 복습". **새 경로는 없다** — 복습 수업도 `/study/today/talk/[lessonId]` 하나가 `lesson.kind === 'REVIEW'` 로 갈라 그린다.
+2. 카드 상태는 **#58 한 번**으로 정한다(Leader ②: `review`·`guard`·`decisionPending`·`nextReview`). 순수 함수 `deriveReviewCard`(단위 테스트)가 14상태 중 하나를 고른다.
+3. **카드 위치(a=A)**: 복습 있음·만드는 중·만들기 실패·하던 복습(준비됨 포함)일 때만 **오늘의 회화 위**, 판단 대기·오늘 완료·오늘은 없음·건너뜀은 **오늘의 회화 아래**. 가드는 맨 아래 **"곧 열려요"**(d=B).
+4. **건너뛰기(b=B)**: 누르면 화면만 바로 "건너뛰었어요"로 바꾸고 5초 뒤 #64 를 보낸다. 되돌리면 보내지 않는다. **5초 안에 화면을 떠나면(다른 탭·뒤로·앱 백그라운드) 그 자리에서 바로 보낸다**(§14-2 C).
+5. **복습 수업은 [복습 시작]을 누를 때 만든다(c=A)** → #63 → 수업 경로로 이동 → 기존 대기 화면이 잡을 지켜본다. 판단 직후 미리 만들기 없음(Leader ⑦).
+6. **#58 오류·로딩은 오늘의 회화 카드 한 곳에서만** 보인다(Leader ⑥) — 복습 카드는 그동안 그리지 않는다. 오류 문구는 "오늘의 회화와 복습을 불러오지 못했어요."로 합친다.
+7. ① "이번 복습 항목"에 **읽기 줄은 없다**(Leader ③) · 출처는 3종 라벨만(Leader ④) · 종료 카드의 다음 복습은 #62 `reviewDecisionJobId` → #55 → #60 재조회(Leader ⑤).
+8. 엔진명 0: `decidedBy`·잡 id·일정 id·`refType` 원값은 화면·DOM 속성·콘솔에 싣지 않는다(라벨로만 바꿔 보인다). 근거 문장은 서버가 이미 엔진명을 걸렀지만 화면은 그대로 텍스트로만 그린다(`dangerouslySetInnerHTML` 금지).
+
+### 14-1. 화면 개요
+
+| 항목 | 내용 |
+|---|---|
+| 목적 | 선생님(A11)이 3~7일 간격으로 고른 항목을 오늘 홈에서 근거와 함께 보여 주고, [복습 시작]으로 그 항목만 섞은 5단계 복습 수업(A5)을 한다. 끝나면 항목마다 다음 복습 날짜가 정해진다 |
+| 진입 | 하단 탭 "오늘" → 오늘의 복습 카드 [복습 시작]·[보러 가기]·[이어서 하기]·[시작하기]·[다시 만들기]·[끝낸 복습 결과 보기] |
+| 역할별 가시성 | 로그인 사용자 전원. 타인·없는 일정은 #63·#64 `404` → 카드만 다시 읽음(문구 없음). 타인·없는 레슨은 §12-2 L 그대로. 관리자 전용 요소 없음 |
+| 앱/웹 분기 | 없음(말하기 인식 경로만 §12 그대로) |
+| 하단 탭 | 오늘 홈 보임, 수업 경로 숨김(§12 그대로 — `routes.ts` 변경 없음) |
+| TTS 상태 표시등 | 복습 수업 머리 — §12 `LessonHeader` 그대로 |
+
+### 14-2. UI 구조 (의사코드, 390px 기준 — 데모 상태 id 인용)
+
+#### A. 오늘 홈 — `TodayHome` 에 `TodayReviewCard` 끼우기 (`#home-compare` · `#rv-*`)
+
+현재 `src/components/vocab/TodayHome.tsx`(011 반영 상태) 기준으로 이렇게 끼운다:
+
+```
+<div className="px-4 pb-8">
+  <div ref={cardRef}> TodayWordsCard </div>                     (그대로)
+  {rv.above ? <TodayReviewCard …/> : null}                       ← 새로: 할 일 있는 4상태
+  TodayLessonCard  (+ errorText 를 합친 문구로, deriveLessonCard 는 NEW 만 — 아래)
+  {rv.below ? <TodayReviewCard …/> : null}                       ← 새로: 판단 대기·완료·없음·건너뜀
+  EvalHomeCard                                                   (그대로 — 011)
+  VocabStatsCard?  KeptSets?                                     (그대로)
+  {rv.kind === 'guard' ? <ReviewSoonSection guard=… /> : null}   ← 새로: 맨 아래 "곧 열려요"(d=B)
+  FinishConfirmSheet  Toast                                      (그대로)
+  <UndoToast …/>                                                 ← 새로: 건너뛰기 5초 되돌리기
+</div>
+```
+
+- `TodayHome` 은 지금처럼 #58 을 **한 번** 읽어 `lessonToday` 에 둔다(새 요청 없음). 복습 카드는 그 응답과 로컬 건너뛰기 상태(`useReviewSkip`)로 `deriveReviewCard()` 를 부른다. `TodayReviewCard` 는 **상태를 갖지 않는 표시 컴포넌트**로 만든다 — 위·아래로 자리를 옮겨도 건너뛰기 타이머·되돌리기가 끊기지 않게 상태는 `TodayHome` 의 훅에 둔다([자세히] 펼침만 카드 안 `useState`, 자리가 바뀌면 접혀도 된다).
+- **`deriveLessonCard` 는 `kind === 'NEW'` 만 본다**(`todayLessons` 에 복습 레슨도 들어 있다 — `lessons/today.ts` 실측). 한 줄 필터 + 테스트 1건. 이게 없으면 복습 수업을 만드는 동안 오늘의 회화 카드가 "수업을 만들고 있어요"로 바뀐다. `resume`(지난 날짜 하던 수업)은 `kind` 가 없어 화면이 거를 수 없다 → 서버가 NEW 만 담아야 한다(§14-11 ★①).
+- `TodayLessonCard` 오류 문구: `#58` 실패 시 `HOME.loadError` 대신 "오늘의 회화와 복습을 불러오지 못했어요."(prop `errorText` 추가, 기본값은 기존 문구 — 다른 호출부 없음). [다시 시도]는 지금처럼 #58 을 다시 읽는다(두 카드가 함께 돈다).
+- `page.tsx`(서버)가 `teacherName`(= `profile.teacherName?.trim() || '선생님'`, 레슨 경로와 같은 규칙)을 `TodayHome` 에 넘긴다 — 근거 상자의 "{이름} 선생님 판단" 줄.
+
+**카드 상태** — `deriveReviewCard(state, today, skip)`(순수, `lesson/review/reviewLogic.ts`). 표에서 위 줄이 우선한다.
+
+| # | 상태(데모) | 조건 | 자리 | 내용 |
+|---|---|---|---|---|
+| 1 | `loading` (`#rv-loading`) | `lessonToday.state === 'loading'` | 없음 | **그리지 않는다** — 오늘의 회화 카드의 "불러오는 중…" 하나로 충분(Leader ⑥). |
+| 2 | `error` (`#rv-error`) | `lessonToday.state === 'error'` | 없음 | **그리지 않는다** — 오늘의 회화 카드가 합친 문구 + [다시 시도]. 서버가 복습 계산만 실패한 경우(`review:null, guard:null, decisionPending:false, nextReview:null` 로 degrade)도 결과적으로 15번(숨김)이 된다 — 오류 문구 없음. |
+| 3 | `skipped` (`#rv-skip` · `#rv-skipped`) | 로컬 `skip.phase ∈ {pending, sending}` 이고 `skip.reviewId === review.id` | 아래 | 건너뜀 카드(13번과 같은 모양) + `UndoToast`(pending 동안만). 서버가 아직 `DUE` 를 돌려줘도 로컬이 이긴다. |
+| 4 | `guard` (`#rv-guard`) | `guard?.reason === 'insufficient'` | 맨 아래 "곧 열려요" | B 절 |
+| 5 | `gen` (`#rv-gen`) | `review.status === 'DUE'` && `review.jobId` | **위** | "복습 수업을 만들고 있어요"(15 semibold) · "{n}개 항목 · 보통 1~2분 걸려요. 다 되면 여기서 열 수 있어요."(13 ink2) · 띠(§12 `lesson-indet` 그대로, `aria-hidden`) · [보러 가기](ghost full) → 수업 경로. 화면이 보이는 동안 `useJobWatch(review.jobId, {delays:[5000], onSettled: reload})` |
+| 6 | `genfail` (`#rv-genfail`) | `DUE` && `lessonId` && 그 레슨 상태가 `FAILED`(아래 "레슨 상태 찾기") | **위** | "복습 수업을 만들지 못했어요" · "{n}개 항목 · 다시 만들면 대부분 잘 만들어져요." · [다시 만들기](primary full → #63 다시, §14-11 ★③) · [오늘은 건너뛰기] |
+| 7 | `progress` (`#rv-progress`) | `DUE` && `lessonId` && 레슨 `IN_PROGRESS`(또는 `READY && stageDone ≥ 1`) | **위** | "하던 복습이 있어요" · "{n}개 항목 · 오늘 시작 · 5단계 중 {k}단계 끝냄" · `MiniSteps done={k}`(§12 `TodayLessonCard` 에서 export 된 것) · "다음은 {③ 문제}예요. 단계마다 저장돼요." · [이어서 하기](primary full) |
+| 8 | `ready` (`#rv-progress` 변형) | `DUE` && `lessonId` && 레슨 `READY && stageDone 0` | **위** | "복습 수업이 준비됐어요" · "{n}개 항목 · 5단계 · 약 15분" · `MiniSteps done={0}` · [시작하기] |
+| 9 | `due` (`#rv-due` · `#rv-due-more`) | `DUE` && `lessonId == null` && `decidedBy === 'TUTOR'` | **위** | 아래 "복습 있음 카드" |
+| 10 | `dueFallback` (`#rv-due-fb`) | 9 와 같고 `decidedBy === 'FALLBACK'` | **위** | 근거 상자만 폴백 모양 |
+| 11 | `done` (`#rv-done`) | `review.status === 'DONE'` && `!decisionPending` | 아래 | "✓ 오늘 복습을 끝냈어요"(✓ `good`, `aria-hidden`) · "{n}개 항목 · 문제 {c}/5 맞힘"(점수를 모르면 "{n}개 항목"만) · "다음 복습" 상자(`nextReview` 가 있을 때) · [끝낸 복습 결과 보기](가운데 밑줄 44px → `lessonId` 수업 경로) |
+| 12 | `donePending` (`#rv-done-pending`) | `DONE` && `decisionPending` | 아래 | 11 과 같고 "다음 복습" 상자 안이 `Spinner` + "선생님이 날짜를 정하고 있어요"(`role=status`) |
+| 13 | `skippedServer` (`#rv-skipped`) | `review.status === 'SKIPPED'` | 아래 | "오늘 복습은 건너뛰었어요" · "{n}개 항목은 다음에 공부하는 날 선생님이 다시 골라 드려요." |
+| 14 | `pending` (`#rv-pending`) | `review == null` && `decisionPending` | 아래 | `Spinner` + "선생님이 오늘 복습할 항목을 고르고 있어요"(15 semibold, `role=status`) · "곧 준비돼요. 보통 1분 안에 끝나요. 그동안 다른 공부를 해도 괜찮아요."(13 ink2) — 버튼 없음 |
+| 15 | `rest` (`#rv-rest`) | `review == null` && `nextReview` | 아래 | "오늘은 복습할 항목이 없어요" · "다음 복습 · {10월 3일(토)}, {d}일 뒤 · {k}개 항목" — 버튼 없음 |
+| 16 | `hidden` | 그 밖(가드 `cycle`·`stale`·모르는 값, 아무것도 없음) | 없음 | 그리지 않는다(§14-11 ⑥) |
+
+- 표의 1~16 중 데모 14상태 = 2·1·4·14·9·10(·`#rv-due-more` 펼침)·5·6·7·8·11·12·15·13. 3은 건너뛰기 직후(로컬), 16은 계약상 남는 경우다.
+- **레슨 상태 찾기**: `review` 에는 레슨 상태가 없다. `today.todayLessons.find(l => l.id === review.lessonId)` 의 `status`·`score` 를 쓴다(지금 서버는 오늘 날짜 레슨을 종류 상관없이 담는다 — §14-11 ★⑧ 에서 유지 확인). 못 찾으면 7번(progress)으로 보고, 수업 경로가 실제 상태(대기·실패·5단계)를 그린다.
+- `{n}` = `review.itemCount`, 집중 = `review.focusCount`, `{k}` = `review.stageDone ?? 0`, `{c}` = `correctFromScore(score)`(§12 `logic.ts`).
+- 날짜 `{10월 3일(토)}` = `formatMonthDay(date) + '(' + weekdayOf(date) + ')'`(vocab/format). `{d}` = `nextReview.days`.
+- `#58` 의 `mode`·`cycle` 은 쓰지 않는다(카드는 `review` 로 정한다).
+
+**복습 있음 카드**(9·10, `#rv-due`): `Card` 테두리만 강조(`border-accent` — `Card` 의 `border-line` 과 겹치므로 important `border-accent!`), `aria-labelledby` = 카드 h2.
+
+```
+<div 머리줄 flex justify-between items-baseline> <h2 15 semibold>오늘의 복습</h2> <span 12 ink2>약 15분</span>
+<p rv-sum mt-1 flex-wrap gap-1.5 15 semibold> {n}개 항목  {focusCount>0 && FocusBadge "집중 {f}개"}
+TeacherWhy  (아래)                                         mt-2.5
+(skip.phase==='failed') <p role=alert 오류 상자 mt-2>건너뛰지 못했어요. 다시 눌러 주세요.</p>   (#rv-skip-fail)
+[복습 시작] Btn primary full mt-3   (요청 중 "만드는 중…" + aria-busy, 두 번 눌러도 한 번)
+[오늘은 건너뛰기] 가운데 밑줄 텍스트 버튼 h-11 w-full 13 semibold ink
+```
+
+**TeacherWhy**(근거 상자, `lesson/review/TeacherWhy.tsx`) — `grid grid-cols-[28px_minmax(0,1fr)] gap-2 rounded-xl bg-surface2 px-3 py-2.5`(다음 복습 상자 안에서는 `bg-surface`):
+- TUTOR: `TeacherAvatar sm`(장식) / 본문 `<p id={useId()} 13.5px/1.5 ink>` `<span class="sr-only">선생님 근거: </span>` + `JaQuoted(text)` — 접힘이면 `line-clamp-2`, 펼침이면 전체(≤300자) / 메타줄 `flex flex-wrap justify-between gap-x-2`: "{이름} 선생님 판단 · 오늘 {HH:mm}"(12 ink2, `teacherName === '선생님'` 이면 "선생님 판단 · …") + [자세히]/[접기](12.5px semibold 밑줄, 보이는 높이 32px + `before:` 히트영역으로 44px, `aria-expanded`·`aria-controls`=본문 id) / 펼침에만: "이번 복습 항목 {n}개"(12 ink2 mt-2) + 칩 줄(`flex flex-wrap gap-1.5`, 칩 `h-8 rounded-[10px] bg-surface px-2.5 15px`, 집중이면 앞에 7px `accent` 점(`aria-hidden`) + sr-only "집중, ", `textJa` 는 `lang=ja`). `preview` 는 최대 7개 — `itemCount > preview.length` 면 마지막에 "외 {k}개"(12.5 ink2) 칩.
+- FALLBACK: 아바타 자리에 28px 원 `bg-surface text-ink2` 이탤릭 "i"(`aria-hidden`) / "지난 학습에서 틀리거나 오래된 항목을 골랐어요"(13.5 ink) / "이번엔 기본 규칙으로 골랐어요."(12 ink2). [자세히]·칩 없음(데모 `#rv-due-fb` 그대로). 서버 `tutorRationale` 은 이 경우 쓰지 않는다.
+- 시각 = `decidedAt` → `kstDateKey` 가 오늘이면 "오늘 {formatClock}", 아니면 `formatMonthDay`. 없으면 "· 시각" 부분을 뺀다.
+- **`JaQuoted`**: 문자열을 `/(「[^」]*」)/` 로 나눠 「…」 조각만 `<span lang="ja">` 로 감싼다(React 노드 배열 — HTML 주입 없음). 근거 문장은 한국어 바탕이라 나머지는 그대로.
+
+**카드 버튼 동작**
+
+| 버튼 | 동작 |
+|---|---|
+| [복습 시작](9·10) | #63 `POST /api/v1/reviews/{review.id}/start` → `router.push('/study/today/talk/' + lessonId)`. 409·404 → 토스트 "오늘 복습이 바뀌었어요. 다시 불러올게요." + #58 다시 · 429 → "잠시 후 다시 눌러 주세요." · 0 → "연결하지 못했어요. 네트워크를 확인해 주세요." · 그 밖 → "복습 수업을 만들지 못했어요. 다시 눌러 주세요." |
+| [다시 만들기](6) | 같은 #63(서버가 실패한 레슨을 같은 행으로 되살림 — ★③). 성공하면 수업 경로로 push |
+| [보러 가기]·[이어서 하기]·[시작하기]·[끝낸 복습 결과 보기] | 수업 경로로 push(`review.lessonId`) |
+| [오늘은 건너뛰기](9·10·6) | C 절 |
+
+#### B. 가드 — 맨 아래 "곧 열려요" (`#rv-guard`, d=B)
+
+- 011 이 "곧 열려요" 칸(`TodayComingSoon`)을 지웠다(AI 평가가 실제 카드가 됨). 그래서 **가드일 때만** 맨 아래(보관한 세트 다음)에 같은 모양의 칸을 되살려 가드 카드 하나를 넣는다 — d=B 의 "아직 쓸 수 없는 기능끼리 맨 아래 / 처음 쓰는 날 오늘 홈이 지금과 거의 같음"을 그대로 지킨다(§14-11 데모와 다른 점 ②).
+
+```
+<section mt-[18px]> <h3 15 semibold mb-2>곧 열려요</h3>
+  Card flat:
+    <div flex justify-between items-start gap-2> <p 15 semibold>오늘의 복습</p>  Badge neutral "기록이 더 쌓이면 열려요"(래퍼 [&>span]:bg-surface — flat 카드 위라서) </div>
+    <p 13 ink2 mt-1>선생님이 복습 날짜를 정하려면 기록이 조금 더 필요해요.</p>
+    <div flex-col gap-2 mt-2.5> MeterRow "공부한 날" {studyDays.have}/{need}일 · MeterRow "복습할 재료" {items.have}/{need}개 </div>
+    <p 12 ink2 mt-2>수업이나 단어 세트를 끝내거나 교정을 채택하면 재료가 쌓여요.</p>
+```
+- `MeterRow`: `grid grid-cols-[minmax(0,1fr)_minmax(64px,96px)_52px] items-center gap-2.5 text-[13px]` — 라벨 / 막대(`h-1.5 rounded-full bg-surface`, 채움 `bg-good` 폭 `min(100, have/need×100)%`, `role="img" aria-label="공부한 날, 2일 중 1일[, 채웠어요]"`) / 숫자(12.5 ink2 tabular 오른쪽, `aria-hidden`; 채웠으면 `good` bold "✓ 2/2일").
+- `guard.studyDays`·`guard.items` 가 없으면(옛 응답) 막대 두 줄을 빼고 문장만 둔다.
+
+#### C. 건너뛰기 — 5초 되돌리기 (`#rv-skip` · `#rv-skip-fail` · `#rv-skipped`, b=B) — `useReviewSkip(review, onCommitted)`
+
+상태: `{ phase: 'idle' | 'pending' | 'sending' | 'failed', reviewId, deadline }` — `TodayHome` 에 하나.
+
+| 일 | 화면 | 요청 |
+|---|---|---|
+| [오늘은 건너뛰기] 누름 | `phase=pending` → 카드가 3번(건너뜀, 아래 자리)으로 바뀌고 `UndoToast` "오늘 복습을 건너뛰었어요 [되돌리기]" · 초점을 [되돌리기]로 | **보내지 않는다.** `setTimeout(commit, 5000)` |
+| [되돌리기] (5초 안) | `phase=idle` → 9/10번 카드(위)로 · 토스트 "건너뛰기를 되돌렸어요" · 초점을 [오늘은 건너뛰기]로 | **0회** |
+| 5초 지남 | `phase=sending` → 토스트 닫힘(이미 저장 중이라 되돌리기 없음) | #64 `POST /api/v1/reviews/{id}/skip` 1회 |
+| 성공 | `phase=idle` + #58 다시 → 13번(서버 `SKIPPED`). 초점이 토스트 안에 있었으면 카드 h2(`tabIndex=-1`)로 | — |
+| 실패(0·5xx·429) | `phase=failed` → 9/10번(위) + 카드 안 `role=alert` "건너뛰지 못했어요. 다시 눌러 주세요." · 초점 [오늘은 건너뛰기] | 자동 재시도 없음. 다시 누르면 같은 5초 흐름 |
+| 409·404 | `phase=idle` + #58 다시(이미 처리됐거나 시작된 복습 — 서버 상태대로, 문구 없음) | — |
+| **5초 안에 화면을 떠남** | — | **그 자리에서 바로 보낸다(권고)** — 아래 |
+
+- **떠남 = 즉시 보냄(취소 아님)** — 트리거: `visibilitychange → hidden`(다른 앱·홈 버튼·앱 백그라운드·화면 끄기 — 웹과 앱 WebView 공통, `window.Capacitor` 직접 사용 금지), `pagehide`, `TodayHome` 언마운트(다른 탭·수업 경로로 이동). 보낼 때 `keepalive: true`(§14-5 `api.ts` 선택 옵션)로 페이지가 닫혀도 요청이 끝나게 한다.
+  - 이유 ① **보인 대로 저장**: 사용자는 이미 "건너뛰었어요" 화면을 보고 떠났다. 취소하면 돌아왔을 때 복습 카드가 말없이 되살아나 "건너뛰었는데 왜 또 있지?"가 된다. ② 결정 b 에서 받아들인 대가 그대로다 — "토스트를 놓치면 되돌릴 수 없어요(항목은 다음 학습일에 다시 나와요)". 떠나는 것 = 토스트를 놓치는 것. ③ 건너뛰기는 잃는 것이 없다(항목은 그대로, 다음 학습일에 다시 DUE). 반대로 "건너뛰고 바로 회화 탭으로" 같은 흔한 흐름이 취소로 매번 무효가 되면 의도가 사라진다. ④ 백그라운드에서는 타이머가 늦어지거나 멈춰 5초 타이머를 믿을 수 없다 — 숨김 시점에 확정하는 쪽이 결과가 하나로 정해진다.
+  - 떠나면서 보낸 요청이 실패하면 사용자는 그 자리에 없다 → `sessionStorage kaiwa.review.skipFailed = {reviewId}` 를 남기고, 다음에 홈을 열었을 때 그 일정이 아직 `DUE` 면 9/10번 + 실패 줄(`#rv-skip-fail`)로 보인 뒤 플래그를 지운다(`SKIPPED` 면 그냥 지운다). 저장소가 막히면 조용히 서버 상태만 보인다(try/catch).
+- 보내는 중복 막기: `committedRef` — 타이머·숨김·언마운트가 겹쳐도 #64 는 한 번. 되돌리기는 `phase === 'pending'` 일 때만 받는다.
+- pending 중 #58 이 다시 읽혀도(화면 복귀 tick·판단 대기 재확인) 로컬 `skip` 이 이긴다(표 3번). 응답의 `review.id` 가 바뀌면(날짜가 바뀜) 로컬 상태를 버린다.
+- `UndoToast`(`lesson/review/UndoToast.tsx`, 공용 `Toast` 는 `pointer-events-none` 이라 버튼을 못 단다): `fixed left-4 right-4 z-50 flex items-center justify-between gap-2 rounded-xl bg-ink py-0.5 pl-3.5 pr-1 text-surface shadow-lg`, `bottom: calc(84px + var(--safe-bottom) + var(--kb-inset, 0px))`(공용 Toast 와 같은 자리) · `<p role="status" aria-live="polite" 13.5px>` + `<button min-h-11 px-3 text-[14px] font-bold underline underline-offset-[3px] text-surface focus-visible:outline-surface>되돌리기</button>`. 떠 있는 동안 같은 자리 공용 토스트는 띄우지 않는다(되돌린 뒤의 "건너뛰기를 되돌렸어요"는 UndoToast 가 닫힌 뒤).
+- 카운트다운 숫자는 그리지 않는다(데모 그대로). `prefers-reduced-motion` 이면 나타남 애니메이션 없음.
+
+#### D. 복습 수업 대기·실패 — `LessonGenScreen` 복습 모양 (`#rl-gen` · `#rl-genfail`)
+
+§12-2 D 와 같은 틀에서 `lesson.kind === 'REVIEW'` 일 때만 바꾼다:
+
+| 자리 | 오늘의 회화(그대로) | 복습 |
+|---|---|---|
+| BackBar | "수업 만들기" / {주제} | "복습 수업 만들기" / "오늘의 복습 · {n}개 항목"(`reviewItems` 없으면 "오늘의 복습") |
+| 제목 | 선생님이 수업을 만들고 있어요 | 선생님이 복습 수업을 만들고 있어요 |
+| 경과 문구 | `genPhase` | 15초 전 "이번 복습 항목을 살펴보고 있어요" · 45초 전 "항목을 섞어 대화문을 쓰고 있어요" · 그 뒤는 `genPhase` 와 같음(`reviewGenPhase` 가 앞 두 구간만 바꾸고 위임) |
+| 가운데 카드 | "이런 순서로 공부해요" 5줄 | `ReviewGenItems`: Card flat "이번 복습 항목 {n}개로 만들어요"(15 semibold) + 칩 줄(근거 상자 칩과 같음, 전부 — 7개 제한 없음) + "항목을 섞은 새 대화로 오늘의 회화와 같은 5단계(이해 → 문법 → 문제 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요."(13 ink2 mt-2) |
+| 실패 | [다시 만들기]·[다른 주제 고르기] | "복습 수업을 만들지 못했어요" · [다시 만들기](#63 `{reviewScheduleId}` — 같은 레슨이면 `onSettled`, 다른 `lessonId` 면 `router.replace`) · [오늘로 돌아가기](ghost full → `/study/today`). 건너뛰기는 오늘 홈 카드(6번)에서 |
+| 준비 토스트 | 수업이 준비됐어요 | 복습 수업이 준비됐어요 |
+
+- 폴링·경과 시간·연결 끊김 note·"나가도 계속 만들어져요" 문구는 §12-2 D 그대로.
+
+#### E. 수업 머리 — `LessonHeader` (`#lesson-compare`)
+
+```
+h1 16 semibold truncate:
+  (REVIEW) <span aria-hidden 20px-높이 뱃지 bg-accent-soft text-ink 11.5 semibold rounded-md px-2 mr-1 align-[1px]>복습</span>
+           <span class="sr-only">오늘의 복습: </span>
+  (NEW)    <span class="sr-only">오늘의 회화, {주제}: </span>        ← 그대로
+  <span lang=ja>{title}</span>
+TtsRuntimeStatusIndicator   (그대로)
+```
+- `LessonHeader` 에 선택 prop `review?: boolean` 만 더한다(기본 false → 지금과 같음). 단계 표시·스크롤·입력 바는 그대로.
+- 이름 충돌 주의: 기존 `reviewing`(끝낸 단계 다시 보기)과 섞지 않게 새 값은 **`isReviewLesson`** 으로 부른다.
+
+#### F. ① 이해 — 맨 위 "이번 복습 항목" (`#rl1` · `#rl1-closed`)
+
+- **`StageUnderstand` 는 고치지 않는다.** `LessonStages`(LessonScreen.tsx) 의 스크롤 영역에서 `stage === 1 && isReviewLesson` 일 때 `{reviewNote}` 다음, `<StageUnderstand>` 앞에 `ReviewItemsCard` 를 넣는다(데모 순서: 다시 보기 안내 → 항목 카드 → ① 제목).
+
+```
+Card (mb-2.5)
+  <button 접기 머리 w-full min-h-12 flex items-center gap-2 text-left aria-expanded aria-controls>
+     <span flex-1 min-w-0 15 semibold>이번 복습 항목 {n}개 <span 12 ink2 font-normal>· 집중 {f}개</span></span>   (f=0 이면 뒷부분 없음)
+     <span chev aria-hidden>›</span>
+  </button>
+  <div id hidden={!open}>
+     <p 13 ink2 mt-1>선생님이 고른 항목이에요. 오늘 대화·문제·말하기에 섞여 나와요.</p>
+     <ul mt-2> ReviewItemRow × n </ul>
+     (f>0) <p 12 ink2 mt-2> FocusBadge "집중" + " 자주 틀리거나 교정받은 항목이에요. 다음 복습도 3일 안에 다시 봐요."</p>
+  </div>
+```
+- **ReviewItemRow**(`li grid grid-cols-[minmax(0,1fr)_auto] gap-x-2.5 py-2.5 border-t border-line first:border-t-0 first:pt-0.5`):
+  - 1줄: 종류 칩(`h-5 rounded-md bg-surface2 px-1.5 11.5px semibold ink2`) + `<span lang=ja 17px/1.5 [overflow-wrap:anywhere]>{textJa}</span>`
+  - **읽기 줄 없음**(Leader ③ — `[읽기]` 토글은 이 카드에 영향 없음)
+  - 2줄: `meaningKo`(14px, 없으면 줄 생략)
+  - 3줄(12 ink2): `{횟수}` · 공부 {studiedCount}번 · {출처}에서 — 횟수: `feedbackCount > 0` → "교정 {n}번" / `wrongCount > 0` → "틀림 {n}번"(둘 다 `bad` semibold) / 아니면 "틀린 적 없음". `studiedCount === 0` → ★"처음 복습해요". 출처 라벨을 모르면 "· {출처}에서" 를 뺀다.
+  - 오른쪽: 집중이면 `FocusBadge "집중"`, 아니면 빈 칸.
+- 순서(`sortReviewItems`): FOCUS 먼저 → (`feedbackCount + wrongCount`) 큰 순 → `studiedCount` 작은 순 → 원래 순서.
+- 라벨: 종류 `EXPRESSION`·`CHUNK` → 표현, `GRAMMAR` → 문형, `WORD` → 단어(`SCENARIO` → 상황, `LESSON` → 수업 — Phase 2 에선 안 나옴) / 출처(Leader ④, `refType`) `TopicChunk`·`Expr`·`Grammar` → 수업, `Correction` → 회화 교정, `WordEntry` → 단어 세트.
+- 접힘 상태는 `sessionStorage kaiwa.review.itemsOpen.{lessonId}`(try/catch, 기본 펼침). 다시 보기(끝낸 ①)에서도 같은 카드.
+- 데이터: #60 `reviewItems[]`(★②). 없으면 카드를 그리지 않는다.
+
+#### G. ② 문법 — 집중 표시 (`#rl2`)
+
+- `StageGrammar` 에 선택 prop 두 개만: `focusIds?: ReadonlySet<string>`(REVIEW 의 FOCUS 항목 id) · `variant?: 'NEW' | 'REVIEW'`(기본 NEW).
+- REVIEW 이면: 설명 "복습할 표현과 문형 {g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요." · 표현 카드 제목 "복습 표현 {n}개" · 설명 "이번 복습 항목이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요."(자막만: "이번 복습 항목이에요. 문제·응용·말하기에서 다시 써요.") · 칩의 `badge` 자리에 `focusIds.has(c.id)` 면 `FocusBadge "집중"`(높이 20px), `isNew` 면 기존 "새 표현".
+- A5 는 항목을 전부 `chunks[]` 로 넣고 **id 를 그대로 둔다**(PE reviewMix 설계) — 그래서 문형 항목(예: 〜で)도 "복습 표현" 칩으로 나오고, 집중 표시는 칩에만 붙는다. **문형 카드에는 집중 표시를 달 수 없다**(문형은 A5 가 새 id `g1…` 로 다시 쓴다, §14-11 데모와 다른 점 ⑤).
+
+#### H. ③ 문제 결과 한 줄
+
+- `StageQuiz` 에 선택 prop `variant?: 'NEW' | 'REVIEW'`. REVIEW 결과 카드 아래 문구만 "틀린 문제는 수업을 마친 뒤 선생님이 다음 복습 날짜를 정할 때 참고해요."(NEW 는 `U3.sumNote` 그대로).
+- ④ 응용·⑤ 말하기·메모·제안·소리·말하기 판정·[수업 마치기]는 **바꾸지 않는다**.
+
+#### I. 복습 종료 카드 — `LessonEnd` 복습 모양 (`#end-compare` · `#rend` · `#rend-more` · `#rend-pending` · `#rend-fb`)
+
+`lesson.kind === 'REVIEW'` 이면 아래만 바꾼다(통계 3칸·쓴 표현/못 쓴 표현 카드·단어장 줄은 그대로):
+
+```
+BackBar backHref=/study/today backLabel="오늘로" title="복습을 마쳤어요" subtitle="오늘의 복습 · {M월 D일}"
+Hero: h2 "복습을 마쳤어요" / <p lang=ja 14>{title}</p> / <p 12 ink2>"{n}개 항목 복습 · {titleKo}"
+StatTiles · 쓴 표현 Card   (그대로, 단 기록 문구 = "복습한 항목마다 공부 횟수를 1번씩 더했어요.")
+NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[이어서 말하기]·붙여넣기 분기 대신
+<div> [오늘로] Btn primary full / <p 12 ink2 text-center mt-2>오늘 탭에서 새 수업도 이어서 할 수 있어요.</p> </div>
+(맨 아래 밑줄 [오늘로] 없음 — 주 버튼이 [오늘로])
+```
+- 복습 레슨은 `topic: null` 이라 지금 코드에선 "붙여넣은 문장"·붙여넣기 버튼으로 떨어진다 — **`kind` 분기를 `topic` 분기보다 먼저** 둔다.
+
+**NextReviewCard**(`section rounded-[14px] bg-accent-soft p-3.5 aria-labelledby`, `lesson/review/NextReviewCard.tsx`) — 위에 `<p 13 ink2>다음 복습</p>`:
+
+| 상태 | 조건 | 내용 |
+|---|---|---|
+| 대기 (`#rend-pending`) | `nextReview == null` 이고 (`reviewDecisionJobId` 를 지켜보는 중 또는 다시 들어와 #60 을 다시 읽는 중) | `<h3 17 bold flex gap-2>` `Spinner`(16px accent) + "선생님이 다음 복습 날짜를 정하고 있어요" / `<p 14 role=status>` "보통 1분 안에 끝나요. 이 화면을 나가도 괜찮아요 — 오늘 탭에서도 볼 수 있어요." |
+| 선생님 판단 (`#rend` · `#rend-more`) | `nextReview.decidedBy === 'TUTOR'` | `<h3>` "선생님이 {dmin}일 뒤로 정했어요" / `<p 14>` 묶음이 2개 이상이면 "{가장 이른 날짜(요일)}부터, 항목마다 3~7일 간격이에요.", 1개면 "{날짜(요일)}에 다시 봐요." / 묶음 목록(`flex-col gap-2 mt-2.5`): 행 `rounded-xl bg-surface px-3 py-2.5` — `<p flex justify-between 13>` `<b 15>{d}일 뒤</b>` `<span 12 ink2>{날짜(요일)} · {k}개</span>` + 칩 줄(`ExprChip` bg-surface2, ja 15px, 집중이면 `FocusBadge`) / `TeacherWhy`(bg-surface, 본문 = `rationaleKo`, 칩 없음, [자세히]/[접기] 늘 둠) |
+| 판단 실패 (`#rend-fb`) | `decidedBy === 'FALLBACK'` | `<h3>` "가장 가까운 복습은 {dmin}일 뒤예요" / `<p 14>` "{날짜(요일)}" / `<p 12 ink2>` "이번엔 선생님 판단 없이 지난 간격대로 정했어요. 다음에 공부할 때 다시 판단해요." — 묶음·근거 없음(데모 그대로) |
+| 모름 | 대기를 끝냈는데도 `null`(잡 404 등) | `<p 14>` "다음 복습 날짜는 오늘 탭에서 볼 수 있어요." |
+
+- 묶음 칩: `groups[].itemIds` → `reviewItems` 에서 `textJa`·집중을 찾는다. 못 찾은 id 는 건너뛴다. 묶음은 `days` 오름차순.
+- 값 흐름(`useNextReview`): 방금 끝냈으면 #62 응답 `nextReview` 를 먼저 쓰고, `reviewDecisionJobId` 가 있으면 대기 → `useJobWatch(jobId, {delays:[2000,3000,5000]})` → `DONE`·`FAILED` 어느 쪽이든 #60 을 다시 읽어 `nextReview` 를 쓴다(Leader ⑤ — 실패면 서버가 `FALLBACK` 으로 채운다). 다시 들어왔을 때(#60 `DONE`) `nextReview` 가 `null` 이면 지켜볼 잡 id 가 없으므로 화면이 보이는 동안 #60 을 5·10·20·30초에 다시 읽고 멈춘다(그 뒤는 화면 복귀 때 한 번).
+- 대기에서 채워질 때 초점은 옮기지 않는다(`role=status` 로 알림). 초점은 §12 와 같이 마운트 때 h2.
+
+### 14-3. 상태 관리
+
+#### A. 오늘 홈 — `TodayHome` + `deriveReviewCard` + `useReviewSkip` + `useDecisionWatch`
+- `deriveReviewCard(state, today, skip): ReviewCard`(§14-2 A 표, 순수) · `reviewPlacement(card): 'above' | 'below' | 'soon' | 'none'`(순수). 둘 다 `lesson/review/reviewLogic.ts`, 단위 테스트로 16행 조합을 고정한다.
+- `useReviewSkip(review, { onCommitted: reload, onToast })` — §14-2 C. 타이머·`visibilitychange`·`pagehide`·언마운트 정리를 이 훅 하나에 둔다.
+- `useDecisionWatch(card.kind ∈ {pending, donePending}, reload)` — 화면이 보이는 동안 #58 을 10·20·30초, 이후 30초마다 다시 읽고 **3분**에서 멈춘다(그 뒤는 기존 화면 복귀 tick). A11 잡 id 가 #58 에 없어서 #55 대신 #58 을 다시 읽는다(Leader ②). 기존 `lessonTick` 을 올리는 방식이라 새 요청 경로가 없다.
+- 만드는 중(5번)은 `useJobWatch(review.jobId, { delays:[5000], onSettled: reload })`(오늘의 회화 카드와 같은 방식, 두 감시가 동시에 있어도 된다).
+
+#### B. 수업 — `LessonScreen`
+- `isReviewLesson = lesson.kind === 'REVIEW'`, `reviewItems = lesson.reviewItems ?? []`(★②), `focusIds = new Set(reviewItems.filter(x => x.priority === 'FOCUS').map(x => x.id))`(`useMemo`).
+- 분기는 §12 그대로(`GENERATING|FAILED` → 대기·실패, `DONE` → 종료, 그 밖 → 5단계)이고, 각 화면에 `isReviewLesson`·`reviewItems`·`focusIds` 를 선택 prop 으로 내린다.
+- `complete()` 성공 시 `onEnded` 에 `reviewDecisionJobId`·`nextReview` 도 넘긴다(`EndResult` 에 선택 칸 `review?: { jobId: string | null; nextReview: NextReviewDetail | null }`). `endResultFrom`(다시 들어옴)은 #60 `nextReview` 를 그대로 싣는다.
+
+### 14-4. API 호출 계획 (정본 api-contract §2-13 #58·#60·#62·#63·#64 · #55 + Leader 결정 ①~⑦)
+
+| 화면·동작 | 엔드포인트 | 파라미터 | 쓰는 필드 | 오류 처리 |
+|---|---|---|---|---|
+| 오늘 홈 카드 | #58 `GET /api/v1/lessons/today` (기존 요청 그대로) | — | `review{id,status,itemCount,focusCount,preview[≤7]{textJa,priority},decidedBy,tutorRationale,decidedAt,lessonId,stageDone,jobId}` · `guard{reason,studyDays{have,need},items{have,need}}` · `decisionPending` · `nextReview{date,days,itemCount[,decidedBy★④]}` · `todayLessons[]`(복습 레슨의 `status`·`score` 찾기) | 실패 → 오늘의 회화 카드 한 곳에서 합친 문구(복습 카드 숨김) |
+| 판단 대기 재확인 | #58 (같은 요청) | — | 위와 같음 | 실패 무시(다음 주기) |
+| 홈 만드는 중 | #55 `GET /api/v1/jobs/:id` | `review.jobId` | `status` | 실패 무시 |
+| 복습 시작 | #63 `POST /api/v1/reviews/:id/start` | `:id = review.id` | `lessonId`, `jobId` | 409(`status≠DUE`)·404 → 토스트 + #58 다시 · 429 · 0 · 그 밖 → 토스트(§14-8 ⓐ) |
+| 건너뛰기 | #64 `POST /api/v1/reviews/:id/skip` | `:id = review.id`, `keepalive`(떠날 때) | `status`(`SKIPPED`) | 409·404 → #58 다시(문구 없음) · 0·429·5xx → 카드 실패 줄 |
+| 복습 수업 읽기 | #60 `GET /api/v1/lessons/:id` | — | §12 필드 + `kind` · `reviewScheduleId` · `reviewItems[]`★② · `nextReview{decidedBy,rationaleKo,groups[{days,date,itemIds}]}` | §12-2 L 그대로 |
+| 복습 수업 대기 | #55 | `lesson.jobId` | `status`,`stage` | §12-2 D 그대로 |
+| 다시 만들기(대기 화면 실패) | #63 | `:id = lesson.reviewScheduleId` | `lessonId`,`jobId` | 409 → #60 다시 · 그 밖 → 토스트 |
+| 진행·메모·말하기·소리 | #61 · #62a · #62b · #62c | §12 그대로 | §12 그대로 | §12 그대로 |
+| 복습 마치기 | #62 `POST /api/v1/lessons/:id/complete` | `{}` | §12 `result` + `reviewDecisionJobId` · `nextReview`(#60 과 같은 모양 ★⑤) | §12 그대로(409 `ALREADY_DONE`·`STAGES_LEFT`) |
+| 다음 복습 판단 대기 | #55 → #60 | `reviewDecisionJobId` | `status` → `nextReview` | 잡 실패·404 도 #60 을 다시 읽는다 |
+
+- 새 엔드포인트 없음. 경로의 id 는 #58 `review.id`(= ReviewSchedule id)다 — 레슨 id 와 섞지 않는다.
+
+### 14-5. 컴포넌트 분해 (`src/components/lesson/review/*` 신규 + 기존 lesson·vocab 에 선택 prop)
+
+| 파일 | 역할 | 주요 props |
+|---|---|---|
+| `TodayReviewCard.tsx` | 홈 카드(§14-2 A 의 5~15번, 표시 전용) | `{ card: ReviewCard; teacherName; busy: boolean; skipFailed: boolean; onStart(); onRetry(); onOpen(lessonId); onSkip() }` |
+| `ReviewSoonSection.tsx` · `MeterRow` | "곧 열려요" + 가드 카드 | `{ guard: ReviewGuard }` |
+| `TeacherWhy.tsx` · `JaQuoted` | 근거 상자(TUTOR/FALLBACK, 접기) | `{ mode: 'TUTOR' \| 'FALLBACK'; text: string \| null; who: string; at: string \| null; chips?: ReviewChip[]; more?: number; surface?: boolean }` |
+| `UndoToast.tsx` | 되돌리기 토스트 | `{ open: boolean; message: string; actionLabel: string; onAction(); actionRef }` |
+| `FocusBadge.tsx` · `FocusDot` | ● 집중 뱃지(`bg-accent-soft text-ink ring-1 ring-inset ring-accent` + 6px `accent` 점) · 칩 앞 7px 점 | `{ children }` |
+| `ReviewItemsCard.tsx` | ① 이번 복습 항목(접기) | `{ lessonId; items: ReviewItem[] }` |
+| `ReviewGenItems.tsx` | 대기 화면 가운데 카드 | `{ items: ReviewItem[] }` |
+| `NextReviewCard.tsx` | 종료 카드 다음 복습 | `{ state: 'pending' \| 'ready' \| 'unknown'; next: NextReviewDetail \| null; items: ReviewItem[]; teacherName }` |
+| `reviewLogic.ts` | `deriveReviewCard`·`reviewPlacement`·`sortReviewItems`·`itemTypeLabel`·`sourceLabel`·`countLabel`·`splitJaQuotes`·`formatDue`(날짜+요일)·`reviewGenPhase`·`groupsSorted` — 순수, 테스트 `__tests__/review.test.ts` | — |
+| `useReviewSkip.ts` · `useDecisionWatch.ts` · `useNextReview.ts` | 상태(§14-3) | — |
+| `reviewCopy.ts` | 문구(§14-8) — `lessonCopy.ts` 는 건드리지 않는다 | — |
+
+기존 파일에 끼우는 곳(전부 **선택 prop·한 줄 분기 — NEW 경로 동작 불변**):
+
+| 파일 | 바꾸는 곳 |
+|---|---|
+| `vocab/TodayHome.tsx` | props `teacherName` 추가 · `deriveReviewCard`/`reviewPlacement` 로 카드 위·아래·곧 열려요 배치 · `useReviewSkip`·`useDecisionWatch` · `UndoToast` · 복습 카드 `useJobWatch` · `TodayLessonCard errorText` |
+| `lesson/logic.ts` | `deriveLessonCard`: `todayLessons` 를 `kind === 'NEW'` 로 거름(테스트 추가) |
+| `lesson/TodayLessonCard.tsx` | 선택 prop `errorText?: string`(기본 `HOME.loadError`) |
+| `lesson/LessonScreen.tsx` | `isReviewLesson`·`reviewItems`·`focusIds` 계산 · `LessonHeader review` · ① 앞 `ReviewItemsCard` · `StageGrammar`/`StageQuiz` 에 `variant`·`focusIds` · 준비 토스트 문구 · `complete()` 결과에 복습 칸 |
+| `lesson/parts.tsx` | `LessonHeader` 선택 prop `review?: boolean` |
+| `lesson/StageGrammar.tsx` · `lesson/StageQuiz.tsx` | 선택 prop(§14-2 G·H) |
+| `lesson/LessonGenScreen.tsx` | `kind === 'REVIEW'` 분기(§14-2 D) |
+| `lesson/LessonEnd.tsx` | `kind === 'REVIEW'` 분기를 `topic` 분기 앞에(§14-2 I) |
+| `common/api.ts` | `ApiOptions.keepalive?: boolean` → `fetch(..., { keepalive })`(기본 false, 기존 호출 불변) |
+| `app/(app)/study/today/page.tsx` | `teacherName` 을 넘김 |
+| `types/lesson.ts` | `TodayLessons` 에 `review`·`guard`·`decisionPending`·`nextReview` · `LessonDto` 에 `reviewScheduleId`·`reviewItems?`·`nextReview?` · `CompleteResult` 에 `reviewDecisionJobId`·`nextReview` (전부 additive) |
+| `types/review.ts`(신규) | `TodayReview`·`ReviewGuard`·`NextReviewSummary`·`ReviewItem`·`NextReviewDetail`·`StartReviewResult`·`SkipReviewResult` — 필드명은 계약 그대로 |
+
+- 그대로 재사용(수정 없음): `useJobWatch`·`MiniSteps`·`ExprChip`·`ExprPlayChip`·`Spinner`·`Card`·`Btn`·`Badge`·`ErrorBlock`·`TeacherAvatar`·`BackBar`·`Toast`·`formatMonthDay`·`weekdayOf`·`formatClock`·`kstDateKey`·`correctFromScore`·`genPhase`.
+
+### 14-6. 생성/수정 파일 목록
+
+- 신규: `src/components/lesson/review/{TodayReviewCard,ReviewSoonSection,TeacherWhy,UndoToast,FocusBadge,ReviewItemsCard,ReviewGenItems,NextReviewCard}.tsx` · `src/components/lesson/review/{reviewLogic,reviewCopy,useReviewSkip,useDecisionWatch,useNextReview}.ts` · `src/components/lesson/review/__tests__/review.test.ts` · `src/types/review.ts`.
+- 수정: §14-5 아래 표의 12개 파일(선택 prop·분기만).
+- 서버·계약: 화면 쪽 변경 없음. §14-11 ★ 항목은 Leader 가 서버 1단계와 맞춘다.
+
+### 14-7. 구현 순서
+
+1. 타입(`types/review.ts`·`lesson.ts` additive) + `reviewLogic`(+테스트: 16상태·자리·정렬·라벨·`splitJaQuotes`·`formatDue`) + `deriveLessonCard` NEW 필터(+테스트).
+2. `TodayReviewCard`·`TeacherWhy`·`FocusBadge` → `TodayHome` 배치(위/아래) → 오류 문구 합치기 → 홈만으로 #58 확인(복습 있음·폴백·대기·없음·완료·건너뜀).
+3. `useReviewSkip`·`UndoToast`(+ `api.ts keepalive`) → 5초·되돌리기·떠남·실패 플래그.
+4. `ReviewSoonSection`(가드) · `useDecisionWatch`.
+5. [복습 시작] → #63 → `LessonGenScreen` 복습 모양 → `LessonHeader`·`ReviewItemsCard`·`StageGrammar`/`StageQuiz` 선택 prop.
+6. `LessonEnd` 복습 분기 → `NextReviewCard`·`useNextReview`(#62 → #55 → #60).
+7. 3폭 × 780/892 점검(§14-9) → 데모 v1 상태 목록과 나란히 대조.
+
+### 14-8. 한국어 UI 문구 (`reviewCopy.ts` — 데모 v1 문구 그대로. ★ = 계약 때문에 더한 줄)
+
+ⓐ **오늘 홈 카드**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 오늘의 복습 / 약 15분(복습 있음만) |
+| 복습 있음 | {n}개 항목 / 집중 {f}개 / (sr) 선생님 근거: / {이름} 선생님 판단 · 오늘 {HH:mm} / 자세히 / 접기 / 이번 복습 항목 {n}개 / 외 {k}개 / (sr) 집중, / 복습 시작 / 만드는 중… / 오늘은 건너뛰기 |
+| 기본 규칙 | 지난 학습에서 틀리거나 오래된 항목을 골랐어요 / 이번엔 기본 규칙으로 골랐어요. |
+| 판단 대기 | 선생님이 오늘 복습할 항목을 고르고 있어요 / 곧 준비돼요. 보통 1분 안에 끝나요. 그동안 다른 공부를 해도 괜찮아요. |
+| 오늘은 없음 | 오늘은 복습할 항목이 없어요 / 다음 복습 · {M월 D일(요일)}, {d}일 뒤 · {k}개 항목 |
+| 만드는 중 | 복습 수업을 만들고 있어요 / {n}개 항목 · 보통 1~2분 걸려요. 다 되면 여기서 열 수 있어요. / 보러 가기 |
+| 만들기 실패 | 복습 수업을 만들지 못했어요 / {n}개 항목 · 다시 만들면 대부분 잘 만들어져요. / 다시 만들기 / 오늘은 건너뛰기 |
+| 하던 복습 | 하던 복습이 있어요 / {n}개 항목 · 오늘 시작 · 5단계 중 {k}단계 끝냄 / 다음은 {③ 문제}예요. 단계마다 저장돼요. / 이어서 하기 / (aria) 5단계 중 {k}단계 끝냄 |
+| 준비됨 | 복습 수업이 준비됐어요 / {n}개 항목 · 5단계 · 약 15분 / 시작하기 |
+| 오늘 완료 | ✓ 오늘 복습을 끝냈어요 / {n}개 항목 · 문제 {c}/5 맞힘 / 다음 복습 / {M월 D일(요일)} · 선생님이 {d}일 뒤로 정했어요 / ★(`decidedBy` 모름) {M월 D일(요일)} · {d}일 뒤 / (폴백) {M월 D일(요일)} · {d}일 뒤 + 이번엔 지난 간격대로 정했어요 / 선생님이 날짜를 정하고 있어요 / 끝낸 복습 결과 보기 |
+| 건너뜀 | 오늘 복습은 건너뛰었어요 / {n}개 항목은 다음에 공부하는 날 선생님이 다시 골라 드려요. |
+| 되돌리기 | 오늘 복습을 건너뛰었어요 / 되돌리기 / (토스트) 건너뛰기를 되돌렸어요 / 건너뛰지 못했어요. 다시 눌러 주세요. |
+| ★#58 오류(합침) | 오늘의 회화와 복습을 불러오지 못했어요. [다시 시도] |
+| ★시작 오류 토스트 | 오늘 복습이 바뀌었어요. 다시 불러올게요. / 잠시 후 다시 눌러 주세요. / 연결하지 못했어요. 네트워크를 확인해 주세요. / 복습 수업을 만들지 못했어요. 다시 눌러 주세요. |
+
+ⓑ **곧 열려요(가드)**
+
+| 자리 | 문구 |
+|---|---|
+| 칸 | 곧 열려요 / 오늘의 복습 / 기록이 더 쌓이면 열려요 |
+| 본문 | 선생님이 복습 날짜를 정하려면 기록이 조금 더 필요해요. / 공부한 날 / 복습할 재료 / {have}/{need}일 · {have}/{need}개 · ✓ {have}/{need}일 / 수업이나 단어 세트를 끝내거나 교정을 채택하면 재료가 쌓여요. |
+| aria | 공부한 날, {need}일 중 {have}일[, 채웠어요] · 복습할 재료, {need}개 중 {have}개[, 채웠어요] |
+
+ⓒ **복습 수업 대기·실패**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 복습 수업 만들기 / 오늘의 복습 · {n}개 항목 |
+| 대기 | 선생님이 복습 수업을 만들고 있어요 / 이번 복습 항목을 살펴보고 있어요 · 항목을 섞어 대화문을 쓰고 있어요 · (이후 §12-8 ⓓ 그대로) |
+| 가운데 카드 | 이번 복습 항목 {n}개로 만들어요 / 항목을 섞은 새 대화로 오늘의 회화와 같은 5단계(이해 → 문법 → 문제 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요. |
+| 실패·토스트 | 복습 수업을 만들지 못했어요 / (본문·[다시 만들기] §12-8 ⓓ 그대로) / 오늘로 돌아가기 / (토스트) 복습 수업이 준비됐어요 |
+
+ⓓ **복습 수업**
+
+| 자리 | 문구 |
+|---|---|
+| 머리 | 복습(뱃지) / (sr) 오늘의 복습: |
+| ① 항목 카드 | 이번 복습 항목 {n}개 · 집중 {f}개 / 선생님이 고른 항목이에요. 오늘 대화·문제·말하기에 섞여 나와요. / 표현 · 문형 · 단어 / 교정 {n}번 · 틀림 {n}번 · 틀린 적 없음 / 공부 {n}번 · ★처음 복습해요 / 수업에서 · 회화 교정에서 · 단어 세트에서 / 집중 / 자주 틀리거나 교정받은 항목이에요. 다음 복습도 3일 안에 다시 봐요. |
+| ② | 복습할 표현과 문형 {g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요. / 복습 표현 {n}개 / 이번 복습 항목이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요. / (자막만) 이번 복습 항목이에요. 문제·응용·말하기에서 다시 써요. / 집중 |
+| ③ | 틀린 문제는 수업을 마친 뒤 선생님이 다음 복습 날짜를 정할 때 참고해요. |
+
+ⓔ **복습 종료 카드**
+
+| 자리 | 문구 |
+|---|---|
+| 머리·본문 | 복습을 마쳤어요 / 오늘의 복습 · {M월 D일} / {n}개 항목 복습 · {titleKo} / 복습한 항목마다 공부 횟수를 1번씩 더했어요. |
+| 다음 복습 | 다음 복습 / 선생님이 다음 복습 날짜를 정하고 있어요 / 보통 1분 안에 끝나요. 이 화면을 나가도 괜찮아요 — 오늘 탭에서도 볼 수 있어요. / 선생님이 {d}일 뒤로 정했어요 / {날짜(요일)}부터, 항목마다 3~7일 간격이에요. / ★{날짜(요일)}에 다시 봐요. / {d}일 뒤 / {날짜(요일)} · {k}개 / 가장 가까운 복습은 {d}일 뒤예요 / 이번엔 선생님 판단 없이 지난 간격대로 정했어요. 다음에 공부할 때 다시 판단해요. / ★다음 복습 날짜는 오늘 탭에서 볼 수 있어요. |
+| 버튼 | 오늘로 / 오늘 탭에서 새 수업도 이어서 할 수 있어요. |
+
+### 14-9. 360/390/412 · 높이 780/892 · 접근성 · QA 체크리스트 초안 (데모 v1 "세 폭"·"892" 와 나란히 대조)
+
+상태별 문구(픽스처 #58·#60·#62 로 하나씩 — 데모 상태 id 와 1:1)
+- [ ] 홈 16행 표의 조건마다 해당 카드·문구·자리(위/아래/곧 열려요/없음)가 나온다. 특히 3(로컬 건너뜀이 서버 `DUE` 를 이김)·6(레슨 `FAILED`)·8(준비됨)·12(완료+판단 대기)·16(가드 `cycle`/`stale` → 숨김).
+- [ ] 위치(a=A): 5~10번은 오늘의 회화 **위**, 11~15번은 **아래**(오늘의 회화와 AI 평가 사이), 가드는 보관한 세트 다음 "곧 열려요".
+- [ ] #58 로딩·실패: 복습 카드 0개, 오늘의 회화 카드에만 "불러오는 중…"/합친 오류 문구 1개. [다시 시도]가 두 카드를 함께 채운다.
+- [ ] 복습 레슨이 만들어지는 중·하던 중·끝난 날에도 **오늘의 회화 카드는 자기 상태 그대로**(NEW 필터) · 지난 날짜 하던 복습이 "하던 수업"으로 나오지 않는다(★①).
+- [ ] TUTOR 근거 2줄 말줄임 → [자세히] 전체 + 칩(최대 7 + "외 {k}개") → [접기]. FALLBACK 은 ⓘ + 고정 문구, [자세히]·칩 없음.
+
+건너뛰기 5초(네트워크 기록으로 #64 횟수 확인)
+- [ ] 누름 → 카드가 아래로 "건너뛰었어요" + 토스트, **#64 0회** · 5초 안 [되돌리기] → 카드 위로 복귀, 토스트 "건너뛰기를 되돌렸어요", **#64 0회** · 그대로 5초 → **#64 정확히 1회**, 새로 읽은 #58 `SKIPPED`.
+- [ ] 5초 안에 다른 탭 이동 / 수업 경로 이동 / 앱 홈 버튼(백그라운드) / 화면 끄기 → 그 순간 #64 1회(중복 0), 돌아오면 건너뜀 카드.
+- [ ] 오프라인에서 5초 → 카드 위로 복귀 + "건너뛰지 못했어요. 다시 눌러 주세요."(`role=alert`) · 오프라인에서 떠남 → 다시 열면 같은 실패 줄 1회 · 409 응답 → 문구 없이 서버 상태.
+- [ ] 되돌리기 버튼 44px·키보드로 누를 수 있고, 초점 이동(되돌리기 ↔ 건너뛰기 링크 ↔ 카드 제목)이 끊기지 않는다.
+
+흐름: 복습 시작 → 대기 → 수업 → 종료
+- [ ] [복습 시작] 두 번 눌러도 #63 1회 → "복습 수업 만들기" 대기(제목·부제·항목 칩·경과 문구 복습판) → 준비 토스트 "복습 수업이 준비됐어요" → ① 맨 위 항목 카드(읽기 줄 없음 — [읽기] 토글을 바꿔도 이 카드는 그대로) → ② 복습 표현 칩에 집중 뱃지 → ③ 결과 문구 복습판 → ④⑤ 오늘의 회화와 같음 → [수업 마치기] → 종료 카드 "복습을 마쳤어요" + 다음 복습 대기 → 판단 끝(#55 → #60) 묶음·근거 → [오늘로] → 홈 11번(다음 복습 줄).
+- [ ] 대기 실패 → [다시 만들기]로 새 잡(★③) · [오늘로 돌아가기] · 홈 6번 카드에서 [오늘은 건너뛰기] 가능(★⑦).
+- [ ] 종료 카드에 [다음 수업 만들기]·[이어서 말하기]·붙여넣기 버튼이 **없다**. 다시 들어와도(#60 DONE) 같은 카드.
+
+폭·높이
+- [ ] 세 폭 모두 가로 스크롤 0 — 근거 300자 · `textJa` 40자 칩 7개 · `meaningKo` 60자 · 항목 12개 · 집중 12개 · 묶음 3개로(일본어에 `break-keep` 금지, `[overflow-wrap:anywhere]`).
+- [ ] 390×780: 복습 있는 날 [복습 시작] 하단이 탭 바 위(데모 실측 665, 360×740 은 684 — 경계) · 복습 없는 날(11~15번) 오늘의 회화 주 버튼이 지금처럼 첫 화면(데모 673/693).
+- [ ] 360: 근거 메타줄과 [자세히]가 겹치지 않음(줄바꿈 허용) · 가드 막대 3열(라벨 ≥130px) · 묶음 행 "{d}일 뒤 / 날짜 · {k}개" 한 줄 · 머리 "복습" 뱃지 + 제목 말줄임.
+- [ ] 892: UndoToast·공용 토스트가 탭 바·safe-area 위, 키보드가 열려 있으면 키보드 위(`--kb-inset`).
+
+접근성·엔진명
+- [ ] 모든 `textJa`·칩·근거 속 「…」에 `lang="ja"`. ① 일본어 17px · 칩 15px · 캡션 ≥11px.
+- [ ] 접기 머리·[자세히] `aria-expanded`/`aria-controls`, 판단 대기·다음 복습 대기 `role=status`, 건너뛰기 실패 `role=alert`, 막대 `role=img` + 숫자 `aria-hidden`, 집중은 글자 "집중"/sr "집중, "(색만으로 구분 안 함).
+- [ ] `prefers-reduced-motion`: 스피너·띠 정지.
+- [ ] 렌더 텍스트·토스트·DOM 속성에 `claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|sherpa|zipformer|onnx|엔진|모델|TUTOR|FALLBACK|REVIEW_DECISION|REVIEW_GEN|Phase|task-` 0건, 일정·잡 id 0건.
+- [ ] 타인 `review.id` 로 #63·#64 → 404 → 화면이 깨지지 않고 #58 다시.
+
+### 14-10. 주의사항 · developer 가 건드리지 말 것
+
+주의사항
+- **복습 카드는 기다리지 않는다**: 판단 대기·만드는 중에도 다른 카드와 [복습 시작] 외 동작은 막지 않는다. 재확인은 화면이 보일 때만.
+- **날짜**: "오늘"·"{d}일 뒤"는 서버 `date`·`days` 를 그대로(KST). 화면이 날짜를 다시 계산하지 않는다(요일만 `weekdayOf`).
+- **숫자 출처**: 항목 수·집중 수는 `review.itemCount/focusCount`, 문제 점수는 복습 레슨 `score` — 화면이 항목 목록에서 다시 세지 않는다.
+- **저장소**: `kaiwa.review.skipFailed`·`kaiwa.review.itemsOpen.*` 는 `sessionStorage` + try/catch. `localStorage` 에 복습 상태를 두지 않는다.
+- **동시 생성**: 오늘의 회화를 만드는 중에 [복습 시작]을 눌러도 버튼을 미리 막지 않는다 — 서버 오류(409 등)는 위 표대로 토스트.
+
+건드리지 말 것
+- `docs/demo/task-010b-repetition-v1.html`(승인본) — 고칠 일이 생기면 Leader 에게.
+- 오늘의 회화(NEW) 화면의 동작·문구·DOM — 새 prop 은 전부 선택값이고 기본값이 지금과 같아야 한다(`__tests__/task025.test.ts` 등 기존 테스트 그대로 통과).
+- `TodayLessonCard` 의 모양·상태 표(필터 한 줄과 `errorText` 외), `EvalHomeCard`(011)·`TodayWordsCard`·`VocabStatsCard`·`KeptSets`.
+- 단어 세트 결과 화면·채팅/회화방 교정 카드·`ProposalCard` — 반복 항목 등록·관측 기록은 서버 트랜잭션 안에서만 일어나고 **화면 문구를 더하지 않는다**.
+- 공용 `Toast`·`Badge` 톤 표 — 집중 뱃지·되돌리기 토스트는 `lesson/review/` 안에 새로 만든다.
+- `useJobWatch`·`useLesson`·`useLessonPlayback`·`StageUnderstand`·`StageApply`·`StageSpeak` — 고치지 않는다(① 항목 카드는 `LessonScreen` 이 앞에 끼운다).
+- `routes.ts`(집중 화면 목록) — 수업 경로가 이미 들어 있다.
+- 금지: [복습 시작] 전 #63 미리 부르기(c=A) · ① 읽기 줄·새 DB 칸(Leader ③) · 항목별 `decisionReason` 노출 · `window.Capacitor`·`fetch` 직접 호출(`api.ts` 경유, `keepalive` 옵션) · `dangerouslySetInnerHTML`(근거 문장) · 엔진·판단 주체 원값 표시.
+
+### 14-11. 데모와 다른 점 · Leader 확인 요청
+
+**데모와 다른 점(구현이 데모 v1 과 달라지는 곳 — 재승인 없이 가이드로 처리하자는 판단, 이의가 있으면 Leader 가 사용자에게)**
+
+| # | 데모 v1 | 구현(가이드) | 이유 |
+|---|---|---|---|
+| ① | 복습 카드에 자체 "불러오는 중…"·"불러오지 못했어요 [다시 시도]"(`#rv-loading`·`#rv-error`) | 복습 카드를 그리지 않고 오늘의 회화 카드 한 곳에 "오늘의 회화와 복습을 불러오지 못했어요." | Leader ⑥(#58 한 응답 — 오류가 두 번 나오지 않게) |
+| ② | 가드 = 맨 아래 "곧 열려요" 안, AI 평가 카드와 나란히 | 같은 자리·모양이되 **가드일 때만 "곧 열려요" 칸이 생긴다**(AI 평가는 011 에서 실제 카드가 되어 칸이 사라졌다) | d=B 의 뜻(쓸 수 없는 기능은 맨 아래 한곳) 유지 |
+| ③ | "아래" = 오늘의 회화 바로 아래(그 아래는 통계) | 오늘의 회화와 **AI 평가 카드 사이** | 데모 뒤에 생긴 카드 — 복습 카드를 오늘의 회화 옆에 둔다 |
+| ④ | ① 항목마다 읽기 줄 | 없음 | Leader ③ |
+| ⑤ | ② 문형 카드(〜で)에 ● 집중 | 문형 카드엔 없고, 문형 항목도 "복습 표현" 칩으로 나와 칩에 집중 표시 | A5 가 항목을 전부 chunks(id 보존)로, 문형은 새 id 로 쓴다(PE reviewMix 설계·REV-031 PASS) |
+| ⑥ | "오늘 오전 9:12" | "오늘 09:12"(앱 공통 `formatClock`) · 기본 이름이면 "선생님 판단" | 앱 다른 화면과 시각 표기 통일, "선생님 선생님" 방지 |
+| ⑦ | 오늘 완료 "선생님이 3일 뒤로 정했어요" | #58 `nextReview` 에 `decidedBy` 가 없으면 "{날짜} · {d}일 뒤"(중립) | 계약에 판단 주체가 없음(★④) |
+| ⑧ | 공부 횟수 늘 1번 이상 | 0번이면 "처음 복습해요" | 교정 채택·단어 세트로 막 들어온 항목은 0일 수 있다 |
+| ⑨ | 건너뛰기 실패 뒤 초점 [복습 시작] | 초점 [오늘은 건너뛰기] | 실패 문구가 "다시 눌러 주세요"라서(보이는 화면 차이 없음) |
+| ⑩ | 5초 안에 떠나는 경우 정의 없음 | 떠나면 즉시 #64(§14-2 C) | 이번 지시 — 권고와 이유는 C 절 |
+
+**Leader 확인 요청(서버 1단계와 맞출 것 — ★ = 화면이 이 값 없이는 그 상태를 못 그림)**
+
+| # | 요청 | 왜 | 없으면 |
+|---|---|---|---|
+| ★① | #58 `resume` 에 **NEW 레슨만**(또는 `resume.kind` additive) | 지난 날짜에 하다 만 복습 레슨이 오늘의 회화 카드 "하던 수업이 있어요"로 뜬다 — `resume` 엔 `kind` 가 없어 화면이 거를 수 없다 | 복습 레슨이 오늘의 회화로 섞여 보임 |
+| ★② | #60(REVIEW, **모든 status**)에 `reviewItems[{id, itemType, textJa, meaningKo, priority, wrongCount, feedbackCount, studiedCount, refType}]` additive(이름은 서버와 합의) | ① 항목 카드·대기 화면 칩·② 집중 표시·종료 카드 묶음 칩이 전부 이것을 쓴다. Leader ③④ 가 뜻·출처를 이 데이터로 보이라고 했지만 #60 필드가 정해지지 않았다. `id` 는 A5 `chunks[].id` 와 같은 RepetitionItem id | ①·대기 칩·집중 표시·묶음 칩 전부 빠짐 |
+| ★③ | #63 — 연결된 레슨이 `FAILED` 면 **같은 일정으로 다시 만든다**(#59 의 FAILED 행 되살림과 같은 규칙). 지금 문구는 "이미 lessonId 가 있으면 그 레슨 반환" | 홈 6번·대기 화면 실패의 [다시 만들기] | 실패한 복습을 다시 만들 길이 없음 |
+| ④ | #58 `nextReview.decidedBy` additive(선택) | 완료 카드 "선생님이 {d}일 뒤로 정했어요" vs "지난 간격대로" 구분 | 중립 문구(데모와 다른 점 ⑦) |
+| ⑤ | #62 `nextReview` 모양 = #60 `nextReview`(`decidedBy, rationaleKo, groups[]`)로 확정 | 방금 끝낸 종료 카드가 #60 을 다시 읽지 않고 바로 그리게 | #62 뒤 #60 을 한 번 더 읽음(동작은 됨) |
+| ⑥ | `guard.reason` 의 `cycle`·`stale` 뜻 | 화면은 `insufficient` 만 그리고 나머지는 숨긴다 | 숨김(가드 안내 없음) |
+| ⑦ | #64 를 연결 레슨 `FAILED` 일 때도 허용, `IN_PROGRESS` 면 409 | 홈 6번 카드에 [오늘은 건너뛰기]가 있다(데모) | 6번에서 건너뛰기 실패 줄 |
+| ⑧ | #58 `todayLessons` 에 복습 레슨을 계속 담는다(지금 서버 동작) — 또는 `review.lessonStatus`·`review.score` additive | 홈 6·7·8·11번이 복습 레슨 상태·점수를 여기서 찾는다 | 6번을 못 그림(수업 경로로 넘겨 실패 화면을 보임), 11번 점수 생략 |

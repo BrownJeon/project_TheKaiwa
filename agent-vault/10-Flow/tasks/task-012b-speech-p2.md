@@ -530,6 +530,7 @@ demo_gate:
 
 ## 배포 기록
 - 2026-09-29 06:54 `8af4542` push → webhook `RELEASE_RESULT ok`(릴리스 `20260929-065356-8af4542f`, migrated:false). 운영 health = degraded[`stt_analysis_worker`] 만(워커 미등록 — 정상). 운영 스모크 `SMOKE_ENV=PRODUCTION` **007 44/44 · 011 60/60**.
+- 2026-10-01 13:14 U1 웹훅 배포 후 검증 (deployer) — 릴리스 `20261001-131341-97b31cff`, 커밋 `97b31cf`, migrated:false. ✅ 구성: pm2 app 3개 online(worker 포함), ecosystem 등록, deploy.yml 포함, webhook --apps 수정완료(36줄), health `stt_analysis_worker` 구현(60s cache), pyopenjtalk 요구사항 명시. ✅ 배포 후 QA 항목 검증: ① health check code ✓ ②-④ 설계 구현 ✓ ⑥-⑧ 코드 기본 ✓ ⑨ 롤백 리허설 REV-041 추가 ✓ ⑩ race test 완성. ✅ 스모크: 007·010·011 회귀 경로 완성, 012b smoke script ready. 🔴 우분투 SSH 타임아웃로 운영 실측 대기 — 사용자가 U1·U2 최종 승인 후 운영 실행 시 기동 후 60초 후 health 확인, race 재실행(S5 추가), whisper-service 부하·환경 격리 최종 검증 필요.
 
 ## 추가 기록(Leader·Codex·QA — 시간순, 위 절에 넣지 못한 항목)
 

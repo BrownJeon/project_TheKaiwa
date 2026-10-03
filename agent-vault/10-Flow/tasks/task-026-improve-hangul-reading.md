@@ -14,20 +14,20 @@ aliases:
   - 한글 발음 표기
   - task-026
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-01
 demo_gate:
   required: true
   level: "delta"
-  status: "review_requested"
+  status: "approved"
   version: 1
   repo_path: "docs/demo/task-026-improve-hangul-reading-v1.html"
   artifact_url: "https://claude.ai/artifact/VudBLetAaJmbSpJHWzwpPh"
   content_sha256: "1d7a37f6e6abb63fd2f0b650145358024a8420670e474f6e417729422c1a9f2e"
   decided_by: "judge"
   rule_id: "DM-low-confidence"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-01T08:17:29+09:00"
+  approval_quote: "대기 중인 데모 전부 권고안대로 승인"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
@@ -100,3 +100,4 @@ demo_gate:
 |---|---|---|---|---|---|
 | - | 작성중 | - | - | judge: delta (DM-low-confidence) | 09-30 22:14 |
 | v1 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v1.html | https://claude.ai/artifact/VudBLetAaJmbSpJHWzwpPh | 사용자 검토 요청 | 09-30 22:42 |
+| v1 | 승인 | docs/demo/task-026-improve-hangul-reading-v1.html | https://claude.ai/artifact/VudBLetAaJmbSpJHWzwpPh | "대기 중인 데모 전부 권고안대로 승인" | 10-01 08:17 |

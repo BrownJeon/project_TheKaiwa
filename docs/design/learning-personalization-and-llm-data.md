@@ -303,7 +303,7 @@ flowchart TD
 
 | `StatsSnapshot.kind` | `data` 형태 |
 |---|---|
-| DAILY | `{attended, words{sessions, correct, wrong}, lessons, reviews, talkTurns, chatTurns, correctionsAccepted, observations{bySkill{…}, selfCorrections, reuses}, minutes}` — `talkTurns`·`correctionsAccepted` 는 턴 `done`·교정 accept 가 증가(정합 #7) |
+| DAILY | `{attended, words{sessions, correct, wrong}, lessons, reviews, talkTurns, chatTurns, correctionsAccepted, observations{bySkill{…}, selfCorrections, reuses}, minutes}` — `talkTurns`·`chatTurns` 는 대화 종료 `ADD_STUDY_LOG` 제안 채택이, `correctionsAccepted`(= `corrections.accepted`) 는 교정 accept 가 증가한다 — **턴 `done` 은 스냅샷을 바꾸지 않는다**(task-006 개정, domain-model §9) |
 | VOCAB_SESSION | `{cardCount, correct, wrong, skipped, durationSec}` |
 | LESSON | `{kind, topicId, score, stageDone, itemCount, quizCorrect, quizTotal, date}`(task-010) + 역할극 도입 시 `scenarioId?·goalAchieved?` |
 | EVALUATION | `{kind, level, totalScore, rubric{5}}` |
@@ -515,7 +515,7 @@ M4 상주: tts-service Style-Bert-VITS2(:8200, ≈1~2GB 추정·미실측) · ho
 | 4 | A9 모델 셀 훼손·`profile.tutorModel` 미존재 | A9 = `runtime.tiers.review`(sonnet)로 통일, design-spec §8 표 셀 복구 | design-spec·api-contract 2-18 |
 | 5 | plan/analysis 요청 `{from,to}` vs `{weeks}` | `{weeks}` 로 통일(범위는 코드 산출) | design-spec §7-6 |
 | 6 | 학습자 헤더 300 vs 600 | 충돌 아님: A1(TALK) ≤300 / A9(ASK)·A8(PLAN)·A11 ≤600 — "모드별 상한" 명시 | design-spec §8·module-dependency L3 |
-| 7 | growth 의 `talkTurns`·`correctionsAccepted` 기록 경로 없음 | 턴 `done`·교정 accept 가 `StatsSnapshot(DAILY)` 증가(§2-9 형태) | design-spec §7-6·api #32/#35·domain-model §5 |
+| 7 | growth 의 `talkTurns`·`correctionsAccepted` 기록 경로 없음 | 대화 종료 `ADD_STUDY_LOG` 채택(`talkTurns|chatTurns`)·교정 accept(`corrections.accepted`)가 `StatsSnapshot(DAILY)` 증가(§2-9 형태, task-006 개정 — 턴 `done` 은 불변) | design-spec §7-6·api #32/#35·domain-model §5 |
 | 8 | `LearnerErrorStat` Phase 2 vs task-006 에서 이미 증가 | §4 Phase 를 1 로 수정 | domain-model §4 |
 | 9 | `RequestTrace` 상태·보존(domain 90일/OK·ERROR·PARTIAL vs admin-console/13 30일/FAILED) | domain-model·§18(90일) 정본, admin-console/13 을 맞춤 | admin-console/13 |
 | 10 | home-m4 `allowedTasks`·엔진 id 표기(seed vs configuration-resolution) | domain-model seed 를 정본으로 configuration-resolution 예시 수정 | configuration-resolution |

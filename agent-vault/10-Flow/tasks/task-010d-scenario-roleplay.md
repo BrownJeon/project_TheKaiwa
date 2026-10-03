@@ -18,20 +18,20 @@ aliases:
   - 역할극
   - task-010d
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-10-01
 demo_gate:
   required: true
   level: "full"
-  status: "review_requested"
+  status: "approved"
   version: 1
   repo_path: "docs/demo/task-010d-scenario-roleplay-v1.html"
   artifact_url: "https://claude.ai/artifact/VbLHUXXbMnM4R4ZAv7vxgj"
   content_sha256: "473c0e0c983e34243acd33707ccc37fa84914960035a679cf6ac2242d6590a4d"
   decided_by: "judge"
   rule_id: "JV-ui_change"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-01T08:17:27+09:00"
+  approval_quote: "대기 중인 데모 전부 권고안대로 승인"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
@@ -71,6 +71,7 @@ demo_gate:
 |---|---|---|---|---|---|
 | - | 작성중 | - | - | judge: full (JV-ui_change) | 09-28 18:07 |
 | v1 | 검토요청 | docs/demo/task-010d-scenario-roleplay-v1.html | https://claude.ai/artifact/VbLHUXXbMnM4R4ZAv7vxgj | 사용자 검토 요청 | 09-28 20:23 |
+| v1 | 승인 | docs/demo/task-010d-scenario-roleplay-v1.html | https://claude.ai/artifact/VbLHUXXbMnM4R4ZAv7vxgj | "대기 중인 데모 전부 권고안대로 승인" | 10-01 08:17 |
 
 ## 작업 기록
 
@@ -85,3 +86,6 @@ demo_gate:
 - 코치 카드는 010c 데모 문구에 맞춘 간단판(힌트 → "다시 말해 보세요" → [정답 보기] → [채택]/[무시], "스스로 고쳤어요 ✓"). 상세 동작은 010c 데모가 정본.
 - 검증(헤드리스 Chrome, 창 412×892): 42상태 × 3폭 × 2높이 = 252 경우 **페이지 가로 넘침 0 · 틀 밖으로 나간 요소 0 · JS 오류 0 · 엔진명/모델명/task·Phase 번호 0**. 클릭 흐름 23단계 PASS(주제 → 시트 → 상황 → 시작 → 5턴 → 마무리 띠 → 결과 → 다음 상황, 마치기 확인, 수업 종료 카드 → 역할극, 결정 b·c·d·e 전환). 주 버튼 위치(틀 안 CSS px, 780 기준): [역할극 시작] 768(시트 하단 고정) · 결과 [다음 상황] 727~748 · 결과 아직 [다시 해 보기] ≤638 · 주제 시트 [수업 만들기] 451. 수업 종료 카드의 역할극 추천은 940~960(첫 화면 아래 — 승인본 [이어서 말하기]와 같은 자리, 노트에 명시).
 - 다음: Leader Artifact 게시·검토 요청(010b·010c 등과 한 번에). 승인 전 `docs/screens.md` 가이드·화면 코드 없음.
+
+### 2026-10-01 developer
+- [08:26] DB 스키마 추가(사용자 "db추가 승인") 반영 — 상세는 [[task-010b-repetition]] 스키마 반영(Developer 기록 2026-10-01). push 는 Leader.

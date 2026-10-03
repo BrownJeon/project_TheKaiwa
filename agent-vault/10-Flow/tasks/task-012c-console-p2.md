@@ -17,24 +17,24 @@ aliases:
   - 설정 편집·버전·Rollback
   - task-012c
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-10-01
 demo_gate:
   required: true
   level: "full"
-  status: "review_requested"
+  status: "approved"
   version: 2
   repo_path: "docs/demo/task-012c-console-p2-v2.html"
   artifact_url: "https://claude.ai/artifact/6xHJK9pXzMpWxCfSZaT65o"
   content_sha256: "39b19fc822fdf8993110aac66a1ad652ae37bf757a176e4a3301508b5067583e"
   decided_by: "judge"
   rule_id: "JV-ui_change"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-01T08:17:28+09:00"
+  approval_quote: "대기 중인 데모 전부 권고안대로 승인"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: false
+  active: true
 ---
 
 ## 목표 (Leader)
@@ -213,6 +213,7 @@ demo_gate:
 | v1 | 검토요청 | docs/demo/task-012c-console-p2-v1.html | - | 사용자 검토 요청 | 09-29 03:13 |
 | v2 | 작성중 | docs/demo/task-012c-console-p2-v1.html | - | designer: v1 은 게시 전 — Codex C1(CX-1~3, 03:05 채택) 반영해 v2 로 교체 | 09-29 03:18 |
 | v2 | 검토요청 | docs/demo/task-012c-console-p2-v2.html | - | 사용자 검토 요청 | 09-29 03:18 |
+| v2 | 승인 | docs/demo/task-012c-console-p2-v2.html | https://claude.ai/artifact/6xHJK9pXzMpWxCfSZaT65o | "대기 중인 데모 전부 권고안대로 승인" | 10-01 08:17 |
 
 **designer 데모 범위(v1, full)** — 콘솔 셸(기존 §6 규칙)·데스크톱 우선 + 390px:
 1. 설정(`/admin/configuration`) 탭: Effective(기존) · **Form**(스키마 자동 생성 필드·editability/source 배지·env 가 이긴 키 잠금 안내·`SERVICE_MANAGED` 키 안내) · **Raw JSON**(읽기 기본, DEVELOPER 에게만 편집 토글·라인 오류 마커·suggestion) · **Diff**(변경 행 색·blocked·재기동 필요 배너·변경 요약) — Form·JSON 은 하나의 초안.
@@ -227,6 +228,7 @@ demo_gate:
 - [2026-09-29 02:33] intake engine=jev → task_type=feature · complexity=2.83 · risk=R2 · developer_model=opus · roles=designer,prompt-engineer?,developer,reviewer,qa · next=demo_first · actions=prepare_demo,request_demo_approval,assign_developer · blocking_gate=demo | overrides=- | fallback=- | tokens=1968 | demo=full/designer (ui_change new_screen 0.66 · rule JV-ui_change+DM-new-route)
 - [2026-09-29 02:35] codex_gate/C1 engine=jev → **codex_required=true** / wanted_before_budget=true / mode=adversarial-review / focus=security(0.80) / budget_rule=CX-limit-unknown-r2 / codex_switch=on / calls_used=0 (design_uncertainty 1.81) | overrides=- | fallback=- | tokens=1237
   - Codex 호출은 Leader(메인)가 한다(이 에이전트는 판정·기록만). 초점 제안: D-C1 무상태 summaryHash·testResultId 재사용/교차 대상, D-C3 origin 고정·credentialRef 허용 목록·호스트 허용 목록 우회(리다이렉트·IPv6·DNS 재바인딩·userinfo), D-C5 기준선+적용 한 트랜잭션의 동시성, D-C6 Rollback 재검증 우회, 교차 환경 편집.
+- [2026-10-01 13:44] codex_gate/C2 engine=jev → codex_required=true / wanted_before_budget=true / mode=adversarial-review / focus=security(0.86) / budget_rule=CX-limit-unknown-r2 / codex_switch=on / calls_used=2/4 | overrides=CX-r2-post-review | fallback=- | tokens=1290
 
 ## 작업 기록
 
@@ -326,6 +328,14 @@ demo_gate:
   - 원본: /home/brownjeon/.claude/state/codex-review/runs/20260928T174829Z-task-012c-C1/
   - **요약**: D-C3 credentialRef(file:) 와 Functional Test 검증의 의미를 재정의하기 전에는 D-C3 주소·자격 편집 게이트를 열지 말 것 권장
 - **판정**: Leader(메인) 03:05 — CX-1·CX-2·CX-3 전부 채택(아래 작업 기록). 정본 반영 완료 → **C1 종결**(작업 기록 "Codex C1 반영·C1 종결").
+
+- [2026-10-01 04:47] C2 adversarial-review focus=security(0.86) — done
+  - judge 판정: [2026-10-01 13:44] codex_required=true(adversarial-review · security) / 호출 차수: 2/4
+  - 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa · base=f4a3f32(task_file) · snapshot=09883f4
+  - 지적 1건:
+    - [high] src/modules/engine/configuration/validate.ts:105 — 일반 STRING/JSON 설정값에 평문 비밀(`password=`, `token=` 등) 탐지 없음 → ConfigurationVersion·AuditLog·기능 테스트(TTS 합성)로 평문 비밀 유출 → 모든 쓰기 진입점에서 isSecretLikeText 재귀 검사·저장 직전 강한 마스킹·중첩 JSON·NFKC 우회·제로폭 테스트·SECRET_REF 원칙 보강 (권고: 설정값 검증 강화·로그 필터링·credentialRef 외 비밀 거부)
+  - 검토하지 못한 범위: 실제 DB·운영 서비스 호출 및 동적 침투 테스트는 READ-ONLY 제약에 따라 수행하지 않음
+  - 원본: /home/brownjeon/.claude/state/codex-review/runs/20261001T044706Z-task-012c-C2/
 
 ## Designer 기록
 - [03:13] 데모 v1(full) `docs/demo/task-012c-console-p2-v1.html` 작성·lint PASS·`status review_requested v1` 기록. 게시 전 이력서 재확인에서 Codex C1(CX-1~3, 03:05 채택) 미반영을 발견 → **v1 파일은 그대로 두고(sha 45761f…) v2 로 교체**.
@@ -734,6 +744,207 @@ demo_gate:
 
 **QA 인계(추가)**: ["연결↔Fallback 교차 편집 실사용(두 관리자 탭에서 동시에) — 409/400 안내 문구가 이해 가능한지", "reason 에 hex 식별자(커밋 SHA 등)를 넣었을 때 가려지는 것이 기대와 다르지 않은지(화면 안내 문구 확인)", "maskText 가 적용된 감사·버전 응답이 화면에서 자연스럽게 보이는지(`***` 표시)"] · 기존 인계 목록 유지 · **native_change: false** · **화면 변경 없음**.
 
+### 2026-10-01 09:38 reviewer — REV-047 (012c 화면 · developer B 09:20 산출)
+
+> 번호 안내: Leader 지시는 REV-046 이었으나 09:40 에 task-011 감사가 REV-046 을 먼저 사용해 **REV-047** 로 기록한다(vault 최대 REV = 046 확인).
+
+**판정: CONDITIONAL_PASS**(Critical 0 · High 0 · Medium 1 · Low 6). Read 전용 감사 — 코드·문서·테스트·DB·운영(3010·pm2·PRODUCTION 행) 무접촉, commit·push 없음. 서버 1·2단계(REV-035/036·재검, 8c22f01 운영 반영)는 재감사하지 않고 화면↔서버 계약 정합만 대조했다.
+
+#### 발견 사항
+
+**M-1 (Medium) — Raw JSON 편집을 켠 뒤 Form 에서 값을 바꾸면 "확인한 변경 요약"과 다른 문서가 적용된다 (오래된 `rawText` 전송)**
+- 위치: `src/components/admin/configEditor/useConfigEditor.ts:164-176`(`setField`·`resetField` 는 `setRawDraft`+`touched()` 만 — `rawText` 갱신 없음) · `:232-244`(`toggleRaw(true)` 가 `rawView` 를 `rawText` 로 **한 번만** 복사) · `:399`(`writer({ patch: draft.patch, meta, rawText: rawEditing ? rawText : null })`) · `ConfigScreen.tsx:120`(`rawText !== null ? api.applyRaw(...) : api.apply(...)`) · `:140-147`(`onTab` 은 문법 오류일 때만 Form 탭 차단) · `:251`(`FieldList frozen={syntaxLocked}` — Raw 편집 중이어도 문법 오류가 없으면 Form 칸 편집 가능) · `:470`(Raw 탭은 `rawEditing ? rawText : rawView` 를 보여 줌).
+- 재현 경로(코드 추적): Raw JSON 편집 켬 → Form 탭으로 이동 → 값 1칸 변경/되돌림 → [검증]·[테스트]·[변경 요약] 은 `draft.patch`(Form 변경 포함)로 계산 → [적용] 이 **옛 `rawText`**(Form 변경 없음)를 PUT #111 로 보냄. 서버는 `patchFromRaw` 로 그 텍스트에서 patch 를 다시 만든다.
+- 위험: LOCAL 에서는 `productionGate` 가 `summaryHash` 를 보지 않아(비 PRODUCTION 은 `confirm`·`summaryHash` 무시) 사용자가 본 diff 와 **다른 문서가 오류 없이 적용**된다(Form 변경 조용히 누락, ConfigurationVersion·감사 `config.raw_apply` 도 그 문서 기준으로 남음). PRODUCTION 에서는 `SUMMARY_MISMATCH` 409 로 막혀 안전하지만 사용자가 이유를 알기 어렵다. Raw 탭 본문도 초안과 어긋난다. 대상은 DEVELOPER 이상(Raw 편집 가능자)뿐이라 Critical·High 는 아니다.
+- 근거: 단위(`configEditor.test.ts`·`flow.test.ts`)에 `rawText`/`applyRaw` 경로 0건, 화면 E2E(`tests/live/task012c-ui-e2e.mjs`)에 Raw 적용 경로 0건 — Developer 의 "E2E 78/78"이 이 경로를 덮지 못한다.
+- 권고: ① `setField`/`resetField` 에서 `rawEditing` 이면 `rawText` 를 새 `rawView` 로 갱신하거나 Form 편집 시 Raw 편집 모드를 끈다(또는 Raw 편집 중 FieldList 를 잠근다) ② `submitApply` 는 `rawText` 가 현재 `rawView` 와 일치할 때만 `applyRaw` 로, 아니면 `apply(patch)` 로 보낸다(단일 초안 원칙) ③ 단위 1건(Raw 편집 → Form 편집 → 적용 페이로드 = 현재 초안) + E2E 1건(Raw 편집 후 Form 변경 → 적용 → DB 대조) 추가.
+
+**L-1 (Low) — `__proto__` 키로 클라이언트 프로토타입 오염 (재현 확인, 자기 브라우저 한정)**
+- 위치: `draft.ts:274-275`(`docWithDraft`) · `draft.ts:370-371`(`connectionFormBody`) — `if (!isObj(cur[seg])) cur[seg] = {}; cur = cur[seg]` 에 소유 속성·`__proto__` 가드 없음.
+- 재현: 격리 미러에서 tsx 스크래치 스크립트로 Raw 텍스트 `{"runtime":{"__proto__":{"polluted":1}}}` 를 `parseRawText` → `docWithDraft` 에 통과시키면 `({}).polluted === 1`(출력 `polluted? 1`). 알 수 없는 키가 `draft.unknown` 에 `runtime.__proto__.polluted` 로 보존돼 doc 재구성 때 `Object.prototype` 에 기록된다.
+- 영향: 입력자 본인의 DEVELOPER 브라우저 탭만(자기 유발). 서버는 Raw 문서를 평면 키(`patchFromRaw`·`flattenForm`)로 다루고 정의된 키만 받아 서버 오염 경로는 확인되지 않음.
+- 권고: 세그먼트가 `__proto__`·`constructor`·`prototype` 이면 `parseRawText` 에서 `unknownKey` 로 거절하거나 `Object.hasOwn` 가드/`Object.create(null)` 사용 + 단위 1건.
+
+**L-2 (Low) — 진행 중 요청 응답이 초안 변경 뒤 흐름 상태를 덮을 수 있음**: 검증·테스트·요약 응답이 초안이 바뀐 뒤 도착하면 `flow` 상태가 갱신될 여지(요청 세대 번호 가드 확인 못 함). 서버가 적용 시 재검증(`stableStringify(locked.stored)`·PRODUCTION `summaryHash`)하므로 데이터 손상은 없고 화면 표시만 어긋난다. 권고: 요청 시점 후보 해시와 현재 후보를 비교해 불일치 응답은 버린다.
+
+**L-3 (Low) — `rawLineOf`·`renameRawKey` 가 첫 일치 줄만 사용** (`draft.ts`): 같은 말단 키(`"model":` 등)가 `connection`·`runtime` 양쪽에 있으면 "제안 바꾸기"가 엉뚱한 줄을 바꿀 수 있다(바뀐 텍스트는 다시 파싱·서버 검증을 거치므로 데이터 위험은 낮음). 권고: 경로 문맥(부모 키)을 포함해 일치시키거나 AST 위치 사용.
+
+**L-4 (Low) — 화면 상수 결합**: `FlowBar` 가 콘솔 사이드바 폭을 `lg:left-[232px]`·높이를 `h-[150px] lg:h-[84px]` 로 하드코딩(Developer 남은 위험 ②와 동일). 셸 폭·safe-area(task-021 `--safe-bottom`·`data-kb`) 변경 시 겹침 위험. 권고: 셸 폭을 CSS 변수로 공유.
+
+**L-5 (Low) — `APP_SETTING_KEYS` 클라이언트↔서버 드리프트 가드 없음**: `configCopy.ts` 9키는 서버 `engine/configuration/appSettingSchema.ts` 와 **현재 정확히 일치**(직접 대조)하나 목록 API 가 없어 상수 복제다. 권고: 두 목록을 비교하는 단위 1건(테스트는 양쪽 import 가능).
+
+**L-6 (Low) — 화면 E2E 정리 범위**: `tests/live/task012c-ui-e2e.mjs:424-425` 는 `environment: ENV(LOCAL)` · `createdAt >= startedAt` 인 `ConfigurationVersion` 에서 baseline id 를 뺀 행을 삭제한다. PRODUCTION 은 건드리지 않으나 같은 NAS DB 를 공유하므로 실행 시간 창 안에 다른 task 의 LOCAL 버전이 생기면 함께 지워질 수 있다(AuditLog 는 불변이라 남음). 권고: 응답에서 받은 버전 id 만 추적해 삭제. (참고) `lexicon/kana.ts` 에 고아 JSDoc 중복 1건 — 정리 권고.
+
+**범위 밖 관찰**: 격리 tsc 의 2건(`vocab/WordRow.tsx(7,10)`·`vocab/__tests__/labels.test.ts(13,3)` — `SOURCE_BADGE` 미내보내기)은 task-023 WIP 이고 `brand.test.ts` 1 fail 은 task-021 WIP — 012c 무관(근거: 두 파일 모두 012c 산출 목록 밖).
+
+#### 7영역 검토 결과
+1. **아키텍처**: 6층 방향·`index.ts` 우회 없음. 화면은 `configApi.ts`(`apiGet/apiPut`) 경유 — 직접 fetch·spawn·Capacitor 0. `/api/admin/v1` 경로·`{success,data,message}` 사용 정합. 발견 없음.
+2. **유지보수성**: L-4·L-5·고아 JSDoc. 순수 로직 분리(`configAccess`·`flow`·`draft`·`flowView`·`writeErrorView`)는 양호.
+3. **안정성**: **M-1**·L-2·L-3. 409 `VERSION_CONFLICT` → 초안 유지 + [최신 값 기준으로 다시 비교], `SUMMARY_MISMATCH`·기본 연결 `PRIMARY_IN_USE` 처리 확인.
+4. **운영성**: 이력(버전·감사) 화면이 ConfigurationVersion·AuditLog 를 읽기 전용으로만 표시, 되돌리기 = 새 버전(서버). 화면은 서버 적용 결과(AppliedNote)만 보여 주고 런타임 적용을 시도하지 않음. 발견 없음.
+5. **성능**: 이력·감사는 `usePaged`(limit·cursor), 컴포넌트 N+1 없음. 5초 예산 해당 없음. 발견 없음.
+6. **보안**: 권한 갈래 `configAccess`(canApply = canEdit && (!production || superApply), needsConfirm, canRawEdit, canRollback)가 role-permission 표(`config.raw.read`·`config.edit`·`config.apply.production`·`credentials.manage`·`environment.policy`·`config.rollback`·`audit.read`)와 일치, 권한 없는 조작은 DOM 에서 제거(서버가 최종 강제). 비밀 참조 연결은 값 입력 칸 0·참조 이름만(서버 `VALUE_FIELDS` 400·`allowedRefs` 422 와 대응), 이유·confirm·hash 는 본문 전송(URL·storage 사용 0 — localStorage/sessionStorage/password 입력 grep 0). L-1 외 발견 없음.
+7. **학습 원칙·엔진명**: 엔진명·model_id·speaker_id 하드코딩 grep 0(DTO 표시명만). 관리자 화면이라 사용자 학습 데이터 경로 무관. 발견 없음.
+
+#### 데모와 다르게 한 점 판정 (승인 v2 `docs/demo/task-012c-console-p2-v2.html`, d1=B·d2~d6=A·d5 목소리 기본값 = 012c-2)
+| # | 내용 | 분류 | 근거 |
+|---|---|---|---|
+| ① | 감사 분류 칩 축소(목소리·조회·권한 거부 제외), 분류별 개수·결과 뱃지 생략 | **implementation** | 목소리는 012c-2(D-C14, 사용자 승인 범위), 권한 거부는 서버가 감사로 남기지 않아 칩을 두면 거짓 안내, "조회"는 [필터 더 보기 › 작업](`secrets.read_ref`·`config.raw.read`)으로 도달 가능, 개수·뱃지는 서버 DTO 에 없음 — 정보 구조·내비 의미 유지 |
+| ② | 예비 순서의 "실패하면 다음 연결로 재시도" 스위치 없음 | **implementation** | 서버가 NOT_CONSUMED 로 잠근 값 — 켜 둘 수 있는 스위치는 동작 없는 거짓 컨트롤. 글자 안내로 의미 유지 |
+| ③ | Form 에서 `enabled` 칸 숨김(연결 상세 스위치 #93a) | **implementation** | 켜기/끄기 단일 경로·기본 연결 409 보호 때문. 기능 삭제 아님(상세 화면에 존재) |
+| ④ | 운영 설정 키 화면 상수 9키·범위(min/max/maxLength) 미표시 | **implementation** | 목록 API·DTO 한계. 9키는 서버와 일치(확인). 드리프트 가드 부재는 L-5 |
+| ⑤ | "마지막 적용 n시간 전" 생략 | **implementation** | 편집 정책 DTO 에 시각 없음 — 부가 정보, CTA·흐름 영향 없음 |
+| ⑥ | 기본 탭 Form · "설정값 전체 보기" → `&tab=effective` | **implementation**(데모와 동일 의미) | 승인 데모의 기본 탭과 일치, 기존 Effective 보기 유지 |
+| ⑦ | 발음 사전 R1(운영 이유 ≥10자 사전 검사·문구) | **implementation**(허용 범위 추가) | Leader 08:10 후속 지시. `kana.test.ts` 기대값 갱신 포함, 서버 `E_REASON*` 과 문구 정합 |
+- **material 0 · defect 0** — 데모 재승인 요청 불필요. 단 M-1 은 데모 차이가 아니라 구현 결함(Raw/Form 단일 초안 — 데모·가이드의 "Form↔Raw JSON 같은 초안" 의도 위반)이므로 Developer 수정 대상이다.
+- 프로세스 메모: `docs/screens.md` §13 구현 가이드(designer)는 아직 없어 developer B 가 데모를 직접 따랐다(Leader 확인 요청 (b) — 가이드 작성 시 이 구현에 맞출 것).
+
+#### 데모 게이트 확인
+- `node ../.claude/tools/demo-gate/check.mjs check --task agent-vault/10-Flow/tasks/task-012c-console-p2.md` → **`DEMO_GATE_PASSED`**(task-012c · approved v2 · hash verified).
+- `.claude/state/demo-gate/evidence.jsonl:7` 승인 줄(2026-10-01T08:17:28, kind=approve, version 2, `quote_sha256 89d464af…8ec9`, `content_sha256 39b19fc8…508b5067583e`, session `f3fdf531-9497-4e2f-9c67-7ae00f90c639`)이 `prompts.jsonl:43`(08:17:13, 같은 session, 사용자 원문 "대기 중인 데모 전부 권고안대로 승인")과 시각·세션·인용 해시(재계산 일치)가 맞는다. 승인 직전 사용자 프롬프트가 실제로 존재하고 승인은 그 15초 뒤로, 에이전트가 사용자 몫의 approve/waive 를 대신 실행했거나 state 디렉터리를 직접 쓴 흔적은 **발견 없음**(해당 이력 형식은 `check.mjs approve` 가 사용자 프롬프트 인용에 묶는 출력이며, 이 감사에서는 `.claude/state/demo-gate/` 를 읽기만 했다).
+
+#### 실행한 명령과 결과 (격리 미러 `~/.node-local/thekaiwa-rev-012c` — rsync 복제 + node_modules 심볼릭 링크)
+- `tsc --noEmit`: exit 2 · 오류 2건(모두 task-023 `SOURCE_BADGE`, 012c 무관) — 012c 파일 오류 0.
+- 단위 `node --import tsx --test`(configEditor·flow·history·lexicon kana/reasonCopy/access/integrity/lexiconCopy): **60 pass / 0 fail**.
+- 서버 회귀(`src/modules/{admin,engine}` 012c 관련): **97 pass / 0 fail**.
+- eslint(012c 산출 파일): exit 0.
+- 스크래치 재현 스크립트(L-1): 프로토타입 오염 재현(`polluted? 1`) — 스크래치 디렉터리 안에서만 실행, 저장소 파일 무수정.
+- 빌드·서버 기동·E2E 재실행: 하지 않음(Developer 보고 build exit 0·E2E 78/78 은 신뢰 근거로만 인용, 운영·공유 DB 무접촉).
+
+#### 출력 JSON
+```json
+{
+  "reviewId": "REV-047",
+  "status": "CONDITIONAL_PASS",
+  "issues": [
+    { "issue": "Raw 편집을 켠 뒤 Form 변경 시 오래된 rawText 가 PUT #111 로 전송 — 확인한 diff 와 적용 문서 불일치(LOCAL 은 무오류 적용)", "severity": "MEDIUM", "component": "src/components/admin/configEditor/useConfigEditor.ts:164-176,232-244,399 · ConfigScreen.tsx:120,140-147,251,470", "risk": "사용자가 승인한 변경 요약과 다른 설정이 적용·버전·감사에 기록됨", "evidence": "setField/resetField 가 rawText 미갱신, submitApply 가 rawEditing 이면 rawText 전송, 단위·E2E 에 Raw 적용 경로 0건", "recommendation": "Form 편집 시 rawText 재동기화 또는 Raw 편집 종료/잠금, rawText≠rawView 면 apply(patch) 사용, 단위·E2E 추가" },
+    { "issue": "Raw JSON __proto__ 키로 클라이언트 Object.prototype 오염", "severity": "LOW", "component": "src/components/admin/configEditor/draft.ts:274-275,370-371", "risk": "자기 브라우저 탭 한정 오동작(서버 오염 경로 미확인)", "evidence": "미러 tsx 재현 polluted? 1", "recommendation": "세그먼트 __proto__/constructor/prototype 거절 또는 hasOwn 가드" },
+    { "issue": "진행 중 검증·테스트·요약 응답이 초안 변경 뒤 흐름 상태 덮어쓰기 가능", "severity": "LOW", "component": "src/components/admin/configEditor/useConfigEditor.ts", "risk": "표시 어긋남(서버 재검증으로 데이터 손상 없음)", "evidence": "요청 세대·후보 해시 가드 확인 못 함", "recommendation": "요청 시점 후보와 현재 후보 비교 후 불일치 응답 폐기" },
+    { "issue": "rawLineOf/renameRawKey 첫 일치 줄 사용", "severity": "LOW", "component": "src/components/admin/configEditor/draft.ts", "risk": "같은 말단 키가 여러 곳이면 제안 바꾸기가 엉뚱한 줄 수정", "evidence": "말단 키 첫 부분 문자열 매칭", "recommendation": "부모 경로 문맥 포함 매칭" },
+    { "issue": "FlowBar 가 사이드바 폭·막대 높이 하드코딩", "severity": "LOW", "component": "src/components/admin/configEditor/FlowBar.tsx", "risk": "셸 폭·safe-area 변경 시 겹침", "evidence": "lg:left-[232px], h-[150px] lg:h-[84px]", "recommendation": "CSS 변수로 셸 폭 공유" },
+    { "issue": "APP_SETTING_KEYS 클라이언트↔서버 드리프트 가드 없음", "severity": "LOW", "component": "src/components/admin/configEditor/configCopy.ts ↔ src/modules/engine/configuration/appSettingSchema.ts", "risk": "서버 키 추가 시 화면 누락(현재 9키 일치)", "evidence": "직접 대조 일치, 비교 테스트 부재", "recommendation": "두 목록 비교 단위 1건" },
+    { "issue": "E2E 정리가 createdAt 시간 창으로 LOCAL ConfigurationVersion 삭제", "severity": "LOW", "component": "tests/live/task012c-ui-e2e.mjs:424-425", "risk": "공유 DB 에서 같은 시간대 타 task LOCAL 버전 동반 삭제 가능", "evidence": "environment=LOCAL, createdAt>=startedAt, baseline id 제외", "recommendation": "응답으로 받은 버전 id 만 추적·삭제" }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 1, "low": 6 },
+  "high_risk_areas": [
+    "Raw JSON 편집 ON → Form 탭 값 변경/되돌림 → 적용(M-1 재현·수정 후 Raw 탭 텍스트=Diff=적용 문서 일치, LOCAL·PRODUCTION 양쪽 메시지)",
+    "PRODUCTION 경로 전부(SUPER 확인 창 PRODUCTION 입력·요약 불일치 409·비 SUPER 적용 단계 잠금과 버튼 DOM 0·테스트 필수/partial 적용 불가·운영 되돌리기·켜기/끄기·비밀 참조) — QA 토큰이 운영에서 인정되지 않아 단위 + U-C7 사용자 리허설",
+    "409 VERSION_CONFLICT [최신 값 기준으로 다시 비교](초안 유지)·두 탭 동시 편집·기본 연결 끄기 PRIMARY_IN_USE",
+    "Raw JSON 문법 오류 잠금·unknownKey 제안 바꾸기(같은 말단 키 2곳)·가림 값(***) 문서 편집 불가·__proto__ 입력",
+    "비밀 참조 연결 SUPER 만·값 입력 칸 DOM 0·allowedRefs 밖 ref 이름만 표시",
+    "이력/감사 — audit.read·환경 필터(SUPER)·되돌리기 = 새 버전·기록 손상 표시·옛 발음 사전 감사 행·원문 JSON DEVELOPER+",
+    "예비 순서 편집(FallbackEditor) — 요약 후 버림 시 쓰기 0·주 연결 불변식",
+    "360/390/412/1280 적용 막대 fixed(사이드바 232px 가정)·키보드·safe-area 겹침(task-021 data-kb)",
+    "발음 사전 R1 운영 이유 ≥10자·E_REASON_SECRET_LIKE 문구",
+    "E2E 재실행 시 공유 DB LOCAL ConfigurationVersion 삭제 범위(다른 task QA 동시 실행 금지)"
+  ],
+  "native_change": false
+}
+```
+
+**다음**: Developer 가 M-1 을 수정(Low 는 같은 라운드 권고) → Reviewer 재검(범위 좁음) → QA. Medium 1건·High 0이므로 Leader 에스컬레이션 조건(Critical·High 3건↑) 미해당.
+
+## Developer 기록 (REV-047 수정)
+
+- [13:26] **REV-047 M-1·L-1 수정 완료** — 데모 게이트 `check.mjs check --task task-012c` → `DEMO_GATE_PASSED` · `task: task-012c`(approved v2 · hash verified). commit·push·배포·스키마·운영(3010·PRODUCTION 행) 무접촉, 다른 사람 변경 무접촉.
+- **M-1 방침(Raw 글 = 초안의 원본 + 적용 가드)**: ① Raw JSON 편집 중 Form 칸을 바꾸거나 [원래대로] 하면 그 값을 **Raw 글에 넣고 다시 읽어** 초안으로 삼는다(`draft.ts` `rawTextWithField` — Form 초안 규칙 그대로: 기준값과 같아지면 저장값이 있는 키는 저장값, 없는 키는 문서에서 지움·그 때문에 빈 부모 객체도 지움). Raw 에서 따로 고친 내용(x- 메모·다른 값)은 남고 들여쓰기만 2칸으로 다시 쓴다 — Form 변경으로 조용히 사라지는 경로 없음. 글에 문법 오류가 있으면 Form 변경을 받지 않고 오류 위치를 세워 기존 "Form 잠금" 안내가 뜬다. ② 적용 본문은 `applyPayload` 가 고른다 — Raw 글을 읽은 변경이 `requestPatch(draft)`(= 변경 요약 후보)와 같고 지운 저장 키·막힌 키가 없을 때만 그 글 그대로 #111, 아니면 초안 patch 를 #107 로 보내고 적용 뒤 "Raw JSON 글은 적용하지 않았어요 — 변경 요약(초안) 기준으로 적용했어요" 안내(`ConfigScreen` 경고 Note, 다음 편집 때 사라짐). ③ 적용 직전 300ms 읽기 예약이 남아 있으면(요약 뒤 Raw 를 고침) 지금 읽어 초안에 넣고 요약을 지운 뒤 "변경 요약을 다시 만든 뒤 적용해 주세요"(remakeDiff)로 멈춘다 · 변경 요약 없음 검사를 운영 전용에서 **모든 환경**으로(정상 흐름은 [적용…]이 요약 뒤에만 보여 영향 없음, 예약 읽기가 시트 열린 사이 요약을 지운 경우만 막힘) · 예약 타이머는 실행·취소 때 null 로 비우고 적용 성공·초안 버리기·제안 바꾸기·Raw 켜기/끄기에서 취소(성공 뒤 옛 글이 초안을 되살리는 경로 차단).
+- **L-1**: `draft.ts` 경로 쓰기를 `setPath`(소유 속성만 따라감, `__proto__`·`constructor`·`prototype` 마디면 쓰지 않음)로 통일(`docWithDraft`·`connectionFormBody`·새 `rawTextWithField`) · `flatFromDoc`/`walk` 가 막힌 마디를 건너뜀 · `parseRawText` 가 문서 어디든 막힌 이름의 키 경로를 `blocked` 로 돌려주고 훅이 로컬 오류(`unknownKey`, "쓸 수 없는 키 이름이에요") → 검증 실패 상태·Raw 오류 목록에 줄 표시 · 막힌 키가 든 글은 #111 로 보내지 않음.
+- **변경 파일**: `src/components/admin/configEditor/{draft.ts, useConfigEditor.ts, ConfigScreen.tsx}` · 신규 단위 `src/components/admin/configEditor/__tests__/rawSync.test.ts`(4건: M-1 ① Raw 뒤 Form 변경 → 적용 글 = 요약 후보·옛 글이면 patch+안내 / ① 되돌리기·기준값 복귀·빈 부모 정리·문법 오류 거부 / M-1 ② Raw 만 편집 → 사용자 글 글자 그대로 #111 / L-1 오염 0·blocked 경로·APP_SETTING 맨 위 `__proto__`).
+- **검증**(공유 미러 `~/.node-local/thekaiwa` — sync-local 후): 신규 4/4 · `src/components/admin/**` 단위 **89/89** · 서버 회귀 `src/modules/{admin,engine}` **143/143** · `tsc --noEmit` **0** · eslint(configEditor·history·lexicon) **0** · `next build` exit 0(격리 미러, `flock thekaiwa-build.lock`, 경고 = 기존 claudeCli 추적).
+- **라이브 확인**(격리 미러 `~/.node-local/thekaiwa-dev-012cfix` dev **3024** `env -i APP_ENV=LOCAL`, QA developer 쿠키, 스크래치 스크립트 — `tests/**` 에 추가하지 않음): **11/11 PASS** — M1a Raw 편집 중 Form 변경이 Raw 글에 들어감(Raw 값·x- 메모 유지) · M1b 서버 변경 요약 = threshold 0.55·endpointSilenceMs 650 · M1c DB 행 = 요약 · M1d 감사 `config.raw_apply` · M1e 어긋남 안내 없음 · M2 Raw 만 편집 → 요약 0.65 = DB · 감사 raw_apply · L1a `({}).polluted` undefined · L1b 오류 목록 표시 · L1c 검증 실패(적용 단계 못 감) · 콘솔 오류 0 · Z 원복. 1차 실행은 M2 1건 FAIL — **스크립트 타이밍**(앞 적용의 토스트가 남아 DB 를 두 번째 적용 전에 읽음, 정리 때 버전 3개 확인) → 새 감사 행 폴링으로 고쳐 재실행 PASS. **정리 범위**: LOCAL `reazon-ondevice` 한 행만 쓰고, 끝에 그 대상의 새 ConfigurationVersion 중 **QA developer(또는 actor 없음)가 만든 것만 id 로** 삭제(시간 창 삭제 안 함 — 두 실행 모두 지운 3 · 남은 0/0), 행 관리 칸 바이트 원복 대조 일치. AuditLog(QA developer, LOCAL `config.raw_apply` 등)는 불변이라 남음. 서버 종료·격리 미러·쿠키 삭제 완료.
+- **미처리 Low(지시대로 손대지 않음)**: L-2 진행 중 응답 덮어쓰기 · L-3 `rawLineOf`/`renameRawKey` 첫 일치 줄 · L-4 적용 막대 사이드바 폭 하드코딩 · L-5 `APP_SETTING_KEYS` 일치 테스트 · L-6 E2E 정리 시간창(`tests/live/task012c-ui-e2e.mjs` — QA 소관) · 고아 JSDoc(`lexicon/kana.ts`).
+- **남은 위험**: ① 409 [최신 값 기준으로 다시 비교] 뒤 Raw 편집이 켜져 있으면 Raw 글은 옛 저장값 기준이라 적용 때 `applyPayload` 가 어긋남으로 보고 초안 patch(#107)로 보낸다(요약과는 일치, 안내 표시 — Raw 글 재동기화는 하지 않음) ② 중첩 `x-` 키(예: `runtime.x-memo`)는 클라이언트가 건너뛰고 서버 #111 은 평면 키로 읽어 unknownKey — 이번 변경 전부터 있던 차이(범위 밖, Reviewer 판단 요청) ③ Raw 편집 중 Form 입력은 글자마다 Raw 글을 다시 써 사용자 들여쓰기가 2칸으로 정리된다(내용 손실 없음) ④ 운영(PRODUCTION) 경로 라이브는 여전히 U-C7.
+- **Reviewer 인계**: `{"taskId":"task-012c","status":"DONE","deliverables":["src/components/admin/configEditor/draft.ts","src/components/admin/configEditor/useConfigEditor.ts","src/components/admin/configEditor/ConfigScreen.tsx","src/components/admin/configEditor/__tests__/rawSync.test.ts"],"blockers":[],"risk_level":"LOW","self_check":{"unit_test":true,"lint":true,"type_check":true,"engine_name_leak":false,"native_change":false}}` — 재검 초점: `rawTextWithField`↔`setDraftValue` 규칙 일치, `applyPayload` 비교 기준(요약 후보 = `requestPatch(draft)`), 적용 직전 예약 읽기 처리, 막힌 키 오류 표시.
+
+## Reviewer 기록 (REV-047 수정 재감사)
+
+### 2026-10-01 13:41 reviewer — REV-054 (REV-047 M-1·L-1 수정 재감사 · 범위 좁음)
+
+> 번호 안내: Leader 부여 번호 REV-054 그대로 사용(vault 직전 REV-053 = task-023 재감사).
+
+**판정: PASS**(Critical 0 · High 0 · Medium 0 · Low 4). Read 전용 감사 — 저장소 코드·문서·테스트·DB·운영(3010·pm2·PRODUCTION 행) 무접촉, commit·push·`git checkout/restore/reset/stash/clean` 없음. 단위 실행·변이 시험은 **본인 전용 미러 `~/.node-local/thekaiwa-rev-012c2` 에서만**(src 복사본, `node_modules` 는 공유 미러를 읽기 링크만) 했고 공유 미러(`~/.node-local/thekaiwa`)·다른 에이전트 미러는 쓰지 않았다. 빌드·서버 기동 없음, `tsc`·eslint 는 돌리지 않았다(Developer 기록의 0건을 신뢰하지 않고 재현도 하지 않음 — 이번 범위는 로직 추적).
+
+**데모 게이트**: `node ../.claude/tools/demo-gate/check.mjs check --task agent-vault/10-Flow/tasks/task-012c-console-p2.md` → `DEMO_GATE_PASSED`(approved v2 · hash verified). `evidence.jsonl` 7번째 줄(`kind:approve`, version 2, ts 08:17:28, session `f3fdf531…`) 이 `prompts.jsonl` 의 사용자 발화 08:17:13 "대기 중인 데모 전부 권고안대로 승인" 과 같은 세션·직전 15초로 대응(같은 초에 task-012·010d·021·022·023·025·026 도 일괄 승인 줄 — 사용자 발화 "전부"와 일치). `waived_by` 빈 값, `events.jsonl` 에 `.claude/state/demo-gate/` 직접 쓰기 0건·block 0건 — 에이전트가 `approve`·`waive` 를 대신 실행했거나 상태 파일을 직접 쓴 흔적 **발견 없음**. 승인 데모(v2) 대비 차이 분류: 신규 문구 2개("Raw JSON 글은 적용하지 않았어요" 경고 Note · "Raw JSON 이 변경 요약 뒤에 바뀌었어요…" 차단 안내)는 승인본에 이미 있는 "변경 요약을 만든 뒤 설정이 바뀌었어요 → [변경 요약 다시 만들기]"(데모 1740행) 흐름과 같은 종류의 오류·안내 상태이고 정보구조·CTA·단계 변화가 없어 **implementation**(material·defect 없음).
+
+#### 1. M-1 — 닫힘 (구조적으로, 순서별 추적)
+
+공통 불변식: **적용 본문 = 확인한 변경 요약의 후보(`requestPatch(draft)`)**. 요약(#106)·적용(#107)은 같은 `draft` 를 쓰고, #111 글은 `applyPayload`(`draft.ts:424-436`)가 `parseRawText(text)` 의 요청 patch 와 `sameValue` 로 같을 때만 보낸다. 같지 않으면 글을 버리고 초안 patch 를 #107 로 보내 `rawIgnored` 안내.
+
+| 순서 | 결과 |
+|---|---|
+| 요약 → Raw 편집 | `setRawText` 300ms 뒤 `applyParse` → 성공 시 `touched()` 가 `diff` 지움 → 요약 다시 만들기 요구. 읽기 전(300ms 안) 적용 시도 → `submitApply` 의 `rawEditing && cancelParse()` 가 지금 읽고 `block` 안내로 멈춤(`useConfigEditor.ts:424-428`). 읽기 실패(문법 오류)면 `touched()` 없이 `syntax` 만 서고 `flowView` 가 적용 버튼을 숨김(Form 잠금·[검증] 비활성). 시트가 이미 열린 채 타이머가 문법 오류로 끝난 경우에도 `applyPayload` 가 patch 로 떨어져 **적용 = 요약**(`rawIgnored` 안내) |
+| 요약 → Form 편집(Raw 켠 채) | `editViaRaw` 가 값을 Raw 글에 쓰고(`rawTextWithField`) 다시 읽어(`applyParse` → `touched()`) 요약을 지움. 글과 초안이 같은 변경이 되어 이후 요약·적용이 같은 후보 |
+| 409 [최신 값 기준] | `noticeAction` 이 flow·test·diff 만 지우고 `rawText`·`draft` 는 유지. 요약을 다시 만들어야 적용 가능. 새 저장값과 안 맞는 옛 Raw 글은 `applyPayload` 의 `parseRawText(…, 새 storedFlat)` 에서 달라져 patch 로 떨어짐 → **다른 관리자가 막 바꾼 키를 옛 글이 조용히 되돌리는 경로 없음**(Developer 위험 ① 확인) |
+| 탭 전환 | Workspace `key={scope:target}`·`syntaxLocked` 로 Form 탭 잠금. 훅 상태는 탭과 무관하게 한 초안 |
+| Raw 만 편집 | 사용자 글 글자 그대로 #111(`rawText` 그대로 + `meta`) — 읽은 변경 = 요약 후보일 때만 |
+
+**비교 기준 안전성** — `sameValue` = 키 정렬 `JSON.stringify`(`draft.ts` `stable()`), 서버 `validate.ts:60-75` `sameValue`/`stableStringify`(`sortDeep`)와 **같은 의미**(키 순서 무시). 공백·키 순서·숫자 표기(`1.0`/`1`/`1e3`/`-0`)는 양쪽 모두 `JSON.parse` 뒤 비교라 오탐·미탐 없음. 최상위 `x-` 는 초안에 안 들어가므로 "같은 변경"으로 취급(서버 `patchFromRaw` 도 `RAW_TOP_KEYS` 밖 키를 patch 에 안 넣어 같은 결과). 지운 저장 키(`missing`)·막힌 키(`blocked`)·문법 오류는 글을 보내지 않는 쪽으로(안전한 방향의 미탐만 있음, 오탐 없음). 서버 뒷받침: PRODUCTION 은 `productionGate` 의 `summaryHash` 재계산(409 `SUMMARY_MISMATCH`)이 남은 어긋남을 막는다 — 비 PRODUCTION 은 클라이언트 가드만(수용, 아래 L-1).
+
+#### 2. 유지된 안전장치 — 변경 없음 확인
+
+PRODUCTION 확인창(`checkConfirmInput`+서버 403)·"변경 요약 없이 적용 불가"(이번에 **모든 환경**으로 확대 — 완화 아님)·ConfigurationVersion+AuditLog(서버 `commitEdit` 단일 `withTransaction`, 서버 파일 diff 0 — `src/modules/{admin,engine}/configuration` 무변경 확인)·Secret 은 `credentialRef` 만(`connection.credentialRef` 중첩분은 클라이언트·서버 모두 제거, #111 에 `allowCredential` 없음)·#111 감사 `config.raw_apply`.
+
+#### 3. L-1(프로토타입 오염) — 닫힘, 진입점 전부 덮임
+
+클라이언트: Raw 읽기(`parseRawText` → `blockedPaths` → `blocked`, 초안 미포함, 로컬 `unknownKey` 오류) · Form 경로 쓰기(`rawTextWithField` null) · 초안 병합(`docWithDraft`·`setPath`/`deletePath`/`ownChild` 가 소유 속성만 따라가고 막힌 마디면 쓰지 않음) · `connectionFormBody` null · `flatFromDoc`/`walk` 가 막힌 마디를 건너뜀 · 막힌 키가 든 글은 #111 금지. 서버: 명시 차단은 없지만 **구조적으로 안전**(평면 문자열 키 + `RAW_TOP_KEYS` 허용목록 + `defs` 외 키는 `unknownKey`/`materialize` 전에 400) — 클라이언트 차단과 충돌·중복 없음(서버는 허용목록, 클라이언트는 차단목록, 목적이 다름). **변이 시험**: 미러에서 `BLOCKED_SEGMENTS` 를 비우면 L-1 테스트 FAIL(1건).
+
+#### 4. Developer 남은 위험 3건 판정
+
+- ① 409 뒤 옛 Raw 글: **Low**(수용). 적용 = 요약이 유지되고 안내가 뜸. 화면에 옛 저장값 글이 남아 Form 과 다르게 보이는 불편만(아래 L-4).
+- ② 중첩 `x-`(예 `runtime.x-memo`): **Low**(수용, 이번 변경 이전부터). 클라이언트는 건너뛰어 "같은 변경"으로 보고 #111 로 보내 서버가 400 `unknownKey` — 안전한 실패. 최상위 `x-` 는 서버가 오류 없이 **버리므로 저장되지 않는다**(아래 L-2 — Developer 가 말한 것보다 한 가지 더).
+- ③ 들여쓰기 2칸 정리: 발견 없음(외관). `JSON.parse`→`stringify` 라 키 순서·값 보존, JSON 이라 주석 손실 없음, 중복 키는 서버도 마지막 값 우선이라 동일.
+
+#### 5. 회귀·경계 — 발견 없음
+
+`grep -rniE "reazon|whisper|style-bert|claude" src/components/admin/configEditor` 0건 · `from '@/modules` import 0건(타입은 `@/types/admin` 만 — `preferences` 등 어느 층 직접 import 도 없음) · `spawn`/`child_process`/`window.Capacitor`/`fetch(`/`localStorage` 0건(요청은 `configApi` 경유). 6층·엔진명 비노출·Secret·학습 원칙 영역은 이번 수정이 건드리지 않음. **단위 25/25 통과**(미러 `configEditor.test.ts`·`flow.test.ts`·`rawSync.test.ts`). **변이 시험(결함이 실제로 잡히는가)**: ① `applyPayload` 의 `sameValue` 비교 제거(= 글이 읽히기만 하면 그대로 #111, REV-047 M-1 의 형태) → `rawSync` M-1 ① **FAIL** ② `BLOCKED_SEGMENTS` 비움 → L-1 **FAIL**. 복원 후 4/4·미러 `draft.ts` = 저장소와 `diff -q` 일치. (③ `rawTextWithField` 가 글을 그대로 돌려주는 변이는 돌리지 않았다 — 테스트가 `s1.draft` 를 `setDraftValue` 결과와 `deepEqual` 하고 `parsed(p.text)` 를 요약과 비교하므로 같은 단언에서 잡힐 것으로 판단하나 실측은 아님.)
+
+#### 발견 사항 (모두 Low — 차단 없음)
+
+**L-1 (Low) — 진행 중 검증·테스트·요약 응답이 초안 변경 뒤 도착하면 낡은 요약이 서는 경로가 남음 (REV-047 L-2 이월)**
+- 위치: `useConfigEditor.ts:312-388`(`runValidate`·`runTest`·`runDiff` — 요청 시점 후보와 현재 후보를 비교하지 않음 · `busy` 중에도 Form·Raw 입력은 막히지 않음 `EditorChrome.tsx:59-60` 은 버튼만 막음)
+- 위험: 요약 요청 도중 초안을 바꾸면 `touched()` 가 `diff` 를 지운 **뒤에** 옛 응답이 `setDiff` 해 옛 후보의 요약으로 [적용]이 열린다. PRODUCTION 은 서버 `SUMMARY_MISMATCH` 409 가 막지만 **비 PRODUCTION 은 해시를 보지 않아 적용 본문 ≠ 화면 요약**이 될 수 있다 — 이번 M-1 과 같은 종류의 마지막 남은 경로(좁은 시간창·LOCAL/개발 환경 한정).
+- 권고: 요청 때 `JSON.stringify(candidate.patch)` 를 잡아 두고 응답 때 현재 후보와 다르면 응답을 버린다(AbortController 도 가능). 다음 라운드에 묶어 수정.
+
+**L-2 (Low) — `x-` 키: 화면 안내와 서버 동작이 다름**
+- 위치: `RawTab.tsx:137`("x- 로 시작하는 키(예: x-note)는 스키마 밖이어도 그대로 보존돼요") ↔ `src/modules/admin/configuration/editor.ts:688-724`(`patchFromRaw` 는 최상위 `x-` 를 오류 없이 받되 `flat` 에 넣지 않아 **저장되지 않음**) · 중첩 `x-` 는 서버 400
+- 위험: 사용자가 Raw 에 `x-note` 를 적고 적용하면 성공으로 보이지만 저장 문서에는 없다(데이터 손상 아님 — 요약·적용 일치, 서버 문서 무변화). 문구가 거짓이라 신뢰를 해침. `rawSync.test.ts:78` 도 "x-note 유지"를 **글**에서만 확인.
+- 권고: 문구를 "x- 키는 편집 글에만 남고 저장·적용되지 않아요"로 바꾸거나, 서버 `patchFromRaw` 가 `x-` 를 오류로 돌려 클라이언트와 맞춘다(Leader 결정 — 정본 `api-contract` #111 문구 확인).
+
+**L-3 (Low) — 새 가드의 훅 수준 회귀 테스트 없음**
+- 위치: `__tests__/rawSync.test.ts` 는 순수 함수(`rawTextWithField`·`applyPayload`·`parseRawText`)만 덮는다. `submitApply` 의 ① 예약 읽기 중 적용(`cancelParse()` 분기) ② 모든 환경 `!diff` 차단 ③ 409 reload 뒤 옛 Raw 글 ④ Raw 끄기 시 문법 오류 글 폐기는 단위 0건(라이브 11/11 은 Developer 기록, 이번에 재현하지 않음).
+- 권고: 적용 전 판정(`rawEditing`·`rawText`·`pendingParse`·`diff`)을 순수 함수로 빼 단위로 고정하거나 QA 라이브 시나리오에 ①·②를 넣는다.
+
+**L-4 (Low) — 409 [최신 값 기준] 뒤 Raw 글이 옛 저장값 그대로 남아 Form 과 어긋나 보임 (Developer 위험 ①)**
+- 위치: `useConfigEditor.ts` `noticeAction`(rebase/reload 가 `rawText` 를 갱신하지 않음)
+- 위험: 적용은 `applyPayload` 가 patch 로 보내 요약과 일치하고 안내도 뜨므로 데이터 위험은 없으나, 사용자가 옛 값 글을 보고 헷갈릴 수 있음.
+- 권고: reload 때 Raw 편집이 켜져 있으면 글을 새 `rawView` 로 다시 만들거나 편집을 꺼 준다.
+
+```json
+{
+  "reviewId": "REV-054",
+  "status": "PASS",
+  "issues": [
+    { "issue": "진행 중 응답이 초안 변경 뒤 낡은 요약을 세움(REV-047 L-2 이월) — 비 PRODUCTION 은 해시 미검증", "severity": "LOW", "component": "src/components/admin/configEditor/useConfigEditor.ts:312-388", "risk": "적용 본문 ≠ 화면 요약(LOCAL·좁은 시간창, PRODUCTION 은 SUMMARY_MISMATCH 로 차단)", "evidence": "runValidate/runTest/runDiff 가 요청 후보 대비 현재 후보 비교 없이 setDiff·setFlow, EditorChrome 은 버튼만 busy 로 막음", "recommendation": "요청 시점 candidate.patch 캡처 후 응답 때 불일치면 버림" },
+    { "issue": "x- 키 안내 문구와 서버 동작 불일치(최상위 x- 는 저장 안 됨, 중첩 x- 는 400)", "severity": "LOW", "component": "src/components/admin/configEditor/RawTab.tsx:137 · src/modules/admin/configuration/editor.ts:688-724", "risk": "성공처럼 보이나 저장 문서에 없음(데이터 손상 아님)", "evidence": "patchFromRaw 는 RAW_TOP_KEYS 만 flat 에 담음; 문구는 '그대로 보존돼요'", "recommendation": "문구 정정 또는 서버가 x- 를 오류로 처리해 클라이언트와 일치" },
+    { "issue": "submitApply 가드(예약 읽기·모든 환경 !diff·409 뒤 옛 글) 훅 수준 테스트 없음", "severity": "LOW", "component": "src/components/admin/configEditor/__tests__/rawSync.test.ts", "risk": "후속 수정에서 가드가 조용히 빠져도 단위가 못 잡음(순수 함수 변이 2건은 잡힘)", "evidence": "rawSync 4건은 rawTextWithField·applyPayload·parseRawText 만 호출", "recommendation": "적용 전 판정을 순수 함수로 분리해 단위 고정 또는 QA 라이브에 포함" },
+    { "issue": "409 reload 뒤 Raw 글이 옛 저장값으로 남아 Form 과 어긋나 보임", "severity": "LOW", "component": "src/components/admin/configEditor/useConfigEditor.ts noticeAction", "risk": "사용자 혼동(적용은 요약 일치·안내 표시)", "evidence": "rebase/reload 가 flow·test·diff 만 초기화하고 rawText 유지", "recommendation": "reload 때 Raw 편집 중이면 글 재생성 또는 편집 끄기" }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 0, "low": 4 },
+  "high_risk_areas": [
+    "Raw 편집 후 Form 변경 → 적용 본문 = 변경 요약(M-1 회귀 — LOCAL 에서 요약 값과 DB 행·감사 raw_apply 대조)",
+    "변경 요약 뒤 Raw 를 고친 직후(300ms 이내) [적용] — 차단 안내와 요약 재생성",
+    "Raw 에 __proto__·constructor·prototype 키 → 오류 표시·적용 불가·({}).polluted undefined(L-1 회귀)",
+    "409 [최신 값 기준] 뒤 Raw 켠 채 적용 — 요약 일치·'Raw JSON 글은 적용하지 않았어요' 안내",
+    "요약 요청 진행 중 초안 변경(L-1 이월 — 비 PRODUCTION 에서 낡은 요약으로 적용 가능)",
+    "Raw 의 x- 키(최상위·중첩) 적용 결과와 안내 문구",
+    "PRODUCTION 확인창·SUMMARY_MISMATCH·ConfigurationVersion+AuditLog(운영 경로 라이브는 여전히 U-C7)"
+  ],
+  "native_change": false
+}
+```
+
+**다음**: Critical 0 · High 0 · Medium 0 → QA 진행 가능. Low 4건은 QA 와 병행 또는 다음 라운드 권고(Leader 에스컬레이션 조건 미해당). 수정이 생기면 Reviewer 부터 재순환.
+
 ## QA 기록
 
 ## 배포 기록
@@ -814,3 +1025,732 @@ demo_gate:
 - `8c22f01` push → webhook `RELEASE_RESULT ok`(릴리스 `20260929-112409-8c22f017`, migrated:false). health = degraded[`stt_analysis_worker`] 만(012b 워커 미등록).
 - 운영 스모크 `SMOKE_ENV=PRODUCTION`: **006 42/42 · 007 44/44 · 010 65/65 · 011 60/60 · 012 32/32**(트랜잭션 재시도 확장 영향 없음).
 - **012c 서버(1·2단계) 완료.** 남은 012c: 화면(데모 v2 사용자 승인 대기 → designer 가이드 → developer B) · 012c-2(Prompt Registry·Playground·Voice 관리+VoiceProfile 편집 D-C14 — 데모 필요) · 012c-3(TTS 품질 — DB 추가·U-C1) · U-C7(화면 뒤 사용자 본인 계정 운영 적용 리허설).
+
+### 2026-10-01 09:20 developer B — 화면 구현
+- **데모 게이트**: `check.mjs check --task task-012c` → `DEMO_GATE_PASSED` · approved v2 · hash verified. 기준 = 승인 데모 `docs/demo/task-012c-console-p2-v2.html`(결정 d1 B · d2~d6 A, d5 목소리 기본값은 D-C14 로 012c-2). `docs/screens.md` §13 구현 가이드는 아직 없어 데모를 직접 따랐다. commit·push·스키마·운영(3010·pm2·PRODUCTION 행) 무접촉.
+- **산출(신규)**: `src/components/admin/configEditor/{ConfigScreen,FieldList,FlowBar,ApplySheet,EditorChrome,RawTab,DiffView,ConfigTestCard,ReasonFields,ConnectionEditPanel,ConnectionSheets,FallbackEditor,AppliedNote,ui}.tsx` · `{configAccess,configApi,configCopy,draft,flow,useConfigEditor,useWritePrep}.ts` · `src/components/admin/history/{HistoryScreen,ConfigVersionRow,ConfigVersionSheet,AuditTab}.tsx` · `{historyQuery,usePaged}.ts` · `src/app/(admin)/admin/history/page.tsx` · 단위 `src/components/admin/{configEditor/__tests__/{configEditor,flow},history/__tests__/history,lexicon/__tests__/reasonCopy}.test.ts` · 화면 E2E `tests/live/task012c-ui-e2e.mjs`.
+- **산출(수정)**: `src/app/(admin)/admin/configuration/page.tsx`(ConfigScreen · `?scope=&target=&tab=`, 옛 `?target=` 링크 그대로) · `components/admin/console/{ConnectionDetailScreen(사용 여부 스위치·[설정 편집]·[비밀 참조 연결]·끄기/켜기·비밀 참조 시트),RoleScreen([순서 편집] → FallbackEditor),EffectiveSummaryCard(&tab=effective),SecretsSheet(사용 중 참조만 — A 1단계 5번),labels(메뉴 설명 2)}` · `configEditor/EffectiveScreen.tsx`(`EffectivePanel` 추출 — 동작 동일) · `src/modules/admin/console/menu.ts`(configuration 탭 form·raw·diff + history phase 1 — 내 hunk 만, A 변경 없음 확인) · 발음 사전 R1(`lexicon/{kana,lexiconCopy}.ts` — 운영 이유 10자 요청 전 검사·`E_REASON_SECRET_LIKE`/`E_REASON` 문구, 옛 기대값 2줄 `kana.test.ts`).
+- **구현 요점**: 권한 갈래는 순수 `configAccess`(읽기 전용 / ADMIN Form / DEVELOPER +Raw JSON / 운영 비 SUPER = 초안·요약까지(적용 단계 🔒, 버튼 DOM 없음) / SUPER 운영 = 확인 창 PRODUCTION 입력) · 비밀 참조 연결은 SUPER 만, 값 입력 칸 0(#101 allowedFor ∩ 있음, 없는 허용 ref 는 이름만) · Form↔Raw JSON 단일 초안(`useConfigEditor` — Raw 기준 = 저장값, 저장 문서에 늘 있는 칸은 그대로면 변경 아님, 지운 저장 키 = 화면 required, 가림 값 `***` 문서는 JSON 편집 안 엶) · 적용 막대 = 순수 `flowView`(개발 테스트 건너뛰기·일부만 확인 이어가기, 운영 테스트 필수·partial 적용 불가) · 쓰기 실패 = 순수 `writeErrorView`(409 충돌 → [최신 값 기준으로 다시 비교](초안 유지)·요약 불일치·기본 연결 / 403 확인 문구·테스트(detail 8종)·권한 / 422 이유 비밀 유사·손상) · 운영 한 번 쓰기(켜기/끄기·비밀 참조·되돌리기)는 `useWritePrep` 가 같은 후보로 #106 요약 해시 + (필요 시) #105 테스트 결과 id 를 붙인다 · 이력 = 버전(대상 칩·기준선·기록 손상·되돌림 표시·상세 직전/지금 비교·되돌리기 = 새 버전) + 감사(분류·기간·작업·사람·SUPER 환경, 행 펼침 키마다 전 → 후, DEVELOPER+ 원문 JSON, 옛 발음 사전 기록) · 적용 막대는 `fixed`(본문 폭, ≥1024 사이드바 오른쪽) + 본문 끝 빈 자리. 엔진명 하드코딩 grep 0(DTO 표시명만).
+- **검증**(공유 미러 tsc·단위, 하드링크 복제본 `~/.node-local/thekaiwa-012c` dev 3023 `env -i … APP_ENV=LOCAL`, 끝나고 종료·복제본·QA 쿠키 삭제): tsc 0 · eslint 오류 0(경고 1 = 기존 DiagnosticsScreen) · 신규 단위 26/26(+ 발음 사전 기존 기대값 갱신 1) · 미러 전체 1018: 1016 pass·1 skip·**1 fail = `brand.test.ts`(task-021 WIP android versionCode 3 — 내 변경 밖)** · `flock … npm run build` exit 0(경고 = 기존 claudeCli 추적) · **화면 E2E 78/78**(USER 404·무세션 307 · ADMIN 탭 3개/Raw JSON·비밀 참조 연결 DOM 0 · DEVELOPER Form↔Raw 양방향·문법 오류 잠금·unknownKey 줄 표시·제안 바꾸기 · 적용 v1 기준선+v2 DB 대조·이유 필수 · 409 다시 비교 초안 유지 · 이력 기준선 상세·되돌리기 v4(v1)·v3 되돌려짐 · 감사 펼침 · 예비 순서 요약(버림, 쓰기 0) · 연결 편집 모드 · 기본 연결 끄기 409 · SUPER 비밀 참조 시트 입력 0 · 360/390/412/1280 × 6화면 넘침 0·누를 것 ≥44px·콘솔 오류 0 · Z 원복: LOCAL 대상 행 바이트 대조·설정 버전 0/0). 외부 호출 0(실행 검증 방법 없는 키만 바꿈). AuditLog(QA 역할 계정, LOCAL)는 불변이라 남음.
+- **판단(데모와 다르게 한 점 — 의미 유지, Leader 확인 요청)**: ① 감사 분류 칩 = 전체·연결·예비 순서·운영 설정·발음 사전(데모의 목소리·조회·권한 거부 제외 — 목소리는 012c-2, "조회"는 서버 필터 한 번으로 못 묶어 [필터 더 보기 › 작업]에 `secrets.read_ref`·`config.raw.read` 로, 권한 거부는 서버가 감사로 남기지 않음) · 분류별 개수·결과 뱃지 생략(서버가 주지 않음/모두 성공 행) ② 예비 순서 편집에 "실패하면 다음 연결로 한 번 다시 시도" 스위치 없음(서버 NOT_CONSUMED 잠금 — 글자로만) ③ Form 에서 `enabled` 칸은 숨김(연결 상세 스위치 #93a 로) ④ 운영 설정 키 목록은 화면 상수(`APP_SETTING_KEYS` = api-contract #123b 9키) — 목록 API 가 없다. #123b DTO 에 min·max·maxLength 가 없어 운영 설정 칸은 범위 표시 없이 서버 검증으로만 ⑤ 대상 요약의 "마지막 적용 n시간 전"은 생략(편집 정책 DTO 에 시각 없음) ⑥ 기본 탭 = Form(데모), 설정값 요약 카드의 "설정값 전체 보기"는 `&tab=effective` 로 기존 Effective 보기 유지 ⑦ 발음 사전 R1 은 developer B 후속(08:10 Leader)이라 같이 처리.
+- **Leader 확인 요청**: (a) 위 ①~⑥ 수용 여부 (b) `docs/screens.md` §13 가이드(designer) 작성 시 이 구현과 맞출 것 (c) #123b DTO 에 `min/max/maxLength/nullable` 추가 또는 운영 설정 목록 API(선택, developer A) (d) PRODUCTION 확인 창·운영 잠금·되돌리기 운영 흐름은 QA 역할 토큰이 운영에서 인정되지 않아 **단위(flowView·configAccess·writeErrorView·ReasonFields 렌더)로만** 확인 — U-C7 사용자 리허설에서 실화면 확인 필요.
+- **남은 위험**: ① 화면 E2E 의 PRODUCTION 경로 라이브 미확인(위 d) ② 적용 막대 `fixed` 는 콘솔 셸 사이드바 폭(232px)을 상수로 가정 — 셸 폭이 바뀌면 같이 바꿔야 함 ③ Raw JSON 편집은 가림 값 문서에서 열지 않음(현재 LOCAL 연결 6개 중 해당 0) ④ 감사 기간 기준 시각은 화면을 연 시각(하루에 한 번 갱신) ⑤ 다른 task 의 빌드가 한때 내 `flow.ts` 초기 상태(정규식 이스케이프)로 막혔음(task-012 09:08 기록) — 09:0x 에 고쳤고 지금 build exit 0.
+
+## Reviewer 기록 (Codex C2 판정, REV-056)
+
+대상: `## Codex 검토` `[2026-10-01 04:47] C2`(adversarial-review · security) 지적 1건. 코드 무수정(Read 전용) · 근거는 파일:라인.
+
+### 판정: 부분 채택 — Medium (Codex 의 High 는 과대)
+
+**지적 요지**: `validate.ts:105` 의 일반 STRING/JSON 값에 평문 비밀(`password=…`·`token=…`) 검출이 없고, `commitEdit` 가 그 값을 설정·ConfigurationVersion snapshot/diff·AuditLog before/after 에 평문으로 넘긴다. `voice.preview.defaultText` 는 TTS 합성 입력이기도 하다.
+
+**사실 확인 (사실 맞음 / 일부 틀림)**
+- 맞음 — `checkEditValue`(`validate.ts:105`)는 STRING/PATH/URL/ENUM 에 타입·길이·URL 프로토콜·`def.pattern` 만, JSON 은 `JSON.stringify(v).length > 8_000`(`:145`)만 본다. `isSecretLikeText` 호출은 `infra/reason.ts:65`(`checkReason`) 한 곳뿐이고 그 소비자는 `editor.ts:486`(`requireReason`)·`admin/speech/lexicon.ts:114` 두 곳 — **값 검증 경로 0건**. 비밀 평문 거부(`secretValue`)는 SECRET_REF 키(`validate.ts:152-160`)에만 있다.
+- 맞음 — 저장 경로: `commitEdit`(`editor.ts:479`) → `writeVersion`(`versions.ts:63-64`) 은 `snapshot: json(input.snapshot)`·`diff: jsonOrNull(input.diff)` 를 **마스킹 없이** 저장(롤백 원본이라 의도된 정확 보존). `recordAudit`(`audit.ts:28,44`)는 before/after 를 `maskSensitive`, reason 을 `maskText` 로 가리지만 `mask.ts:21-26` `looksSecret` 는 **문자열 전체**가 `sk-`·`ghp_`·JWT·hex/base64 32자↑ 모양일 때만 잡는다 → `password=hunter2`·`token: abc` 같은 키=값 문장은 AuditLog 에도 남는다.
+- 틀림(과장) — "AuditLog 에 평문 그대로"는 아님(위 부분 마스킹 존재). `x-` 키는 `validatePatch`(`validate.ts:196-199`)가 경고만 내고 `candidateOf`(`editor.ts:156`)가 `defs` 에 있는 키만 후보에 넣어 **snapshot·audit 에 도달하지 않는다** — 저장 경로 아님(문구 "보존만 합니다"가 틀린 것은 별건 Low, REV-054 L-2).
+- 도달면 좁음 — 어댑터 스키마 전수: 편집 가능한 자유 문자열은 **`voice.preview.defaultText`(≤100자, pattern 없음, `appSettingSchema.ts:12,34`)** 하나. 모델명 키(`claudeCli` `runtime.modelByTier.*`·`homeM4` `runtime.model`)는 `^[A-Za-z0-9._:-]{1,60}$` 류 pattern 이라 공백·`=` 불가하나 **`ghp_…`·`sk-…`(≤60자)는 pattern 을 통과**한다. SBV2 `runtime.defaultModel` 은 pattern 없지만 consumer 미지정 → `NOT_CONSUMED` 잠금(편집 불가). JSON 키는 `fallbackConnectionIds`(연결 id 의존 검사)뿐.
+
+**심각도 근거 (High 아님 · Low 아님)**
+- 낮추는 요인: 입력자가 이미 `config.edit` 보유(ADMIN+)이고 본인이 비밀을 직접 쳐야 함 · 대상이 일본어 안내 문장 칸 1개 · 정본에 일반 값 DLP 요구 없음(`configuration-resolution.md` 는 SECRET 키 = ref 만, reason 검사만 규정).
+- 올리는 요인: CLAUDE.md 금기 "ConfigurationVersion·AuditLog 에 Secret 싣기" · snapshot 은 영구 보존·롤백 가능이라 한 번 들어가면 못 지움 · 같은 비밀을 reason 에 쓰면 이미 422 로 막으므로 **같은 사람이 같은 값을 value 에 쓰면 통과하는 비대칭** · 미리듣기 문장은 TTS 서버로도 나간다.
+- 결론: Critical·High 요건(비권한자 악용·실제 유출 경로) 미충족 → **Medium**. 단 채택 전 방치하지 않는다.
+
+### 최소 수정 (Developer 범위)
+1. **`src/modules/engine/configuration/validate.ts` `checkEditValue`** 한 곳에 비밀 유사 검사 추가(`isSecretLikeText` 는 `@/modules/infra` index 에서 import — 6층 위반 아님). 모든 쓰기 진입점(Form #93/#107 · Raw #110/#111 dryRun 포함 · AppSetting PUT #123b · Test/Validate #105/#109 · Rollback 재검증)이 `validatePatch` 를 지나므로 한 곳이면 전부 덮인다.
+   - STRING/PATH(+ pattern 있는 모델명 키): 값에 검사. JSON: 모든 문자열 잎 + **객체 키**를 재귀(깊이 ≤8, 배열 ≤200).
+   - `TOKEN_RUN`(24자↑ 혼합 문자열) 규칙은 **id·모델명 키에는 적용 금지**(`zipformer-ja-reazonspeech-2024-08-01-int8` 류 오탐). pattern 키는 접두(`sk-`·`ghp_` 등)·JWT·KEY_VALUE 부분만, 자유 문장 키(`voice.preview.defaultText`)는 전체 규칙. → `isSecretLikeText` 를 쪼개 쓰려면 `infra/reason.ts` 에 변형을 export 하지 말고 `validate.ts` 쪽에서 감싸되, 불가하면 Leader 판단(범위 확장).
+   - 응답: 기존 `secretValue` 규칙 재사용, `400 VALIDATION {stage:'SCHEMA', errors:[{key, rule:'secretValue', message:'비밀처럼 보이는 글자가 있어 저장하지 않았어요.'}]}`. **값·`actual` 에코 금지**, 로그에도 값 0.
+2. **회귀 테스트(신규, `engine/__tests__`)**: 미리듣기 문장 `password=hunter2`·`token: abc` 거부 · JSON 중첩 잎·객체 키 · 전각(`ｐａｓｓｗｏｒｄ＝x`) · 제로폭 분할(`pass​word=x`) · `sk-`·`ghp_` 접두(모델명 키 포함) · 정상 일본어 문장·기본 문장·정상 모델 id 는 통과 · Raw dryRun·AppSetting PUT 도 거부 · 거부 시 version·audit 행 0 · 응답에 입력 값 0 · `x-` 키가 snapshot/audit 에 안 들어감 단언.
+3. **범위 밖(과잉 수정 금지)**: snapshot/diff 마스킹(롤백 원본 손상) · `recordAudit`·`maskSensitive` 규칙 변경 · `infra/reason.ts` 규칙 수정 · 신규 DLP 라이브러리 · UI 문구 외 화면 변경. 이미 저장된 과거 값이 있는지는 코드로 알 수 없으니 Leader 가 LOCAL 행을 읽기 전용 조회로 1회 확인(운영 DB 접근 금지 준수).
+4. 부수(Low, 같은 수정에 묶어도 됨): `validate.ts:197` 경고 문구 "저장 문서에 보존만 합니다" → 실제 동작(저장 안 됨)에 맞게 정정(REV-054 L-2 와 동일).
+
+### 리뷰 JSON
+```json
+{
+  "reviewId": "REV-056",
+  "status": "CONDITIONAL_PASS",
+  "issues": [
+    { "issue": "일반 STRING/JSON 설정 값에 비밀 평문 검출 없음 — ConfigurationVersion snapshot/diff 영구 저장, AuditLog 는 전체 문자열 모양만 마스킹", "severity": "MEDIUM", "component": "src/modules/engine/configuration/validate.ts:105,145 · src/modules/admin/configuration/editor.ts:479-549 · src/modules/engine/configuration/versions.ts:63-64", "risk": "관리자가 voice.preview.defaultText 등에 password=…/token: … 를 넣으면 롤백 가능한 영구 snapshot 과 AuditLog 에 남고 TTS 로도 전송(reason 은 같은 값 422 라 비대칭)", "evidence": "isSecretLikeText 호출은 infra/reason.ts:65 한 곳뿐(소비자 editor.ts:486, lexicon.ts:114 — 값 검증 0건); checkEditValue 는 길이·pattern 만; mask.ts looksSecret 는 문자열 전체 기준; 자유 문자열 편집 키는 voice.preview.defaultText 1개(모델명 키는 pattern 통과 ghp_/sk- 가능)", "recommendation": "checkEditValue 에 재귀 비밀 유사 검사(자유 문장 키 전체 규칙·pattern 키는 접두/JWT/KEY_VALUE 만), 400 secretValue·값 비에코, 회귀 테스트(NFKC·제로폭·중첩 JSON·Raw dryRun·PUT #123b). snapshot 마스킹·audit 규칙 변경은 하지 않음" },
+    { "issue": "Codex 'x- 키 경로' 부분은 오탐 — x- 키는 candidateOf 에서 탈락해 snapshot/audit 미도달 (문구만 부정확)", "severity": "LOW", "component": "src/modules/engine/configuration/validate.ts:196-199 · src/modules/admin/configuration/editor.ts:156", "risk": "경고 문구 '보존만 합니다'가 실제(저장 안 됨)와 다름", "evidence": "candidateOf 가 defs 키만 후보에 포함", "recommendation": "문구 정정(REV-054 L-2 와 같은 건)" }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 1, "low": 1 },
+  "high_risk_areas": [
+    "(신규) 미리듣기 문장·모델명·JSON 값에 password=/token:/sk-/ghp_ 입력 → 400 secretValue·version/audit 행 0·응답/로그 값 에코 0, 정상 일본어 문장·모델 id 오탐 0",
+    "(신규) 같은 거부가 Form·Raw(dryRun 포함)·PUT #123b·Test 모두에서 동일 동작, 전각/제로폭 변형 우회 불가",
+    "(신규) 이미 저장된 snapshot 에 해당 값이 있을 때 Rollback 응답(E_SNAPSHOT_INTEGRITY) 과 화면 안내",
+    "Raw 편집 후 Form 변경 → 적용 본문 = 변경 요약(M-1 회귀)",
+    "변경 요약 뒤 Raw 를 고친 직후(300ms 이내) [적용] — 차단 안내와 요약 재생성",
+    "Raw 에 __proto__·constructor·prototype 키 → 오류·적용 불가(L-1 회귀)",
+    "409 [최신 값 기준] 뒤 Raw 켠 채 적용 — 요약 일치·안내",
+    "요약 요청 진행 중 초안 변경(비 PRODUCTION 에서 낡은 요약 적용 가능, REV-054 L-1)",
+    "Raw 의 x- 키(최상위·중첩) 적용 결과와 안내 문구",
+    "PRODUCTION 확인창·SUMMARY_MISMATCH·ConfigurationVersion+AuditLog(운영 경로 라이브는 U-C7)"
+  ],
+  "native_change": false
+}
+```
+
+**다음**: Codex 지적 **채택(부분)** → Developer 수정(위 1~2, 파일 `validate.ts` + 신규 단위 테스트) → **Reviewer 부터 재순환**. QA 는 수정 재감사 PASS 뒤 진행(이번 REV-056 자체는 Critical 0 · High 0 — Leader 에스컬레이션 조건 미해당). 화면 변경 없음 — 데모 게이트 재검토 불필요.
+
+## Leader 기록 (REV-056 후속, 2026-10-01 15:40)
+
+- REV-056 이 요청한 "이미 저장된 비밀 의심 값" 확인: 읽기 전용으로 `ConfigurationVersion` 전체를 훑었다(값은 출력하지 않고 개수만) — **전체 0행**(편집 경로로 저장된 버전이 아직 한 건도 없음) → 기존 snapshot·diff 에 평문이 남은 사례 없음. AuditLog 설정 대상 행 조회는 열거값이 달라 실패했으나, 설정 편집 커밋이 0건이라 이 경로로 쌓인 감사 행도 없는 것이 맞다(필요하면 QA 가 감사 행 0 을 다시 확인).
+- 조치: Developer 에게 REV-056 최소 수정(`validate.ts` 재귀 비밀 유사 검사 + 회귀 테스트 + RawTab 의 `x-` 안내 문구 한 줄) 배정 → 완료 후 **Reviewer 부터 재순환**. 나머지 REV-054 Low(응답 세대 가드·409 뒤 Raw 글 잔존·사이드바 폭 등)는 이번 수정 범위 밖.
+
+## Developer 기록 (REV-056 수정)
+- [14:11] REV-056 최소 수정 완료(판정 그대로, 근거 재논의 없음). 데모 게이트 `check` = `DEMO_GATE_PASSED` / `task: task-012c`(approved v2) — 화면 파일은 RawTab 문구 한 줄만.
+  - **바뀐 파일**: `src/modules/engine/configuration/validate.ts`(`checkEditValue` 에 비밀 유사 검사 · `x-` 경고 문구 "저장하지 않고 적용하지도 않습니다"(REV-056 ④) · 머리 주석) · `keys.ts`(`EditKeyDef.freeText?` 선택 칸) · `appSettingSchema.ts`(미리듣기 문장만 `freeText: true`) · `src/components/admin/configEditor/RawTab.tsx:138` 문구 "맨 바깥의 x- 로 시작하는 키(예: x-note)는 메모로 둘 수 있지만 저장되지 않아요."(레이아웃 무변경) · 신규 `src/modules/engine/__tests__/task012c-secret-value.test.ts`. `infra/reason.ts`·`mask.ts`·`audit.ts`·`recordAudit`·snapshot 저장은 무변경.
+  - **규칙**: 판정 함수는 `@/modules/infra` index 의 `isSecretLikeText`·`reasonCheckForm` 재사용(engine→infra 허용 방향, 새 규칙 0). `freeText` 키 = 전체 규칙. 그 밖(pattern 모델명·id, pattern 없는 모델 버전·경로·주소, JSON 잎) = **긴 토큰 규칙만 제외** — reason.ts 를 쪼개지 않고 판정용 형태(NFKC·폭 0 삭제·공백 접기)를 23자 창으로 잘라 넘긴다(긴 토큰은 24자↑에서만 걸리고, 나머지 규칙의 최소 일치는 경계 포함 ≤20자). 창 앞에 숫자 `0` 을 붙여 창 시작을 문자열 시작(`^` 경계)으로 오인하지 않게 함(`mytask-abcdefgh…` 오탐 방지 테스트). JSON = 문자열 잎·객체 키·`키: 문자열 값` 짝(`{"password":"hunter2"}` 대응), 깊이 >8·배열 >200 은 `type` 거부(다 못 본 값 통과 금지). 거부 = `{key, rule:'secretValue', message:'비밀처럼 보이는 글자가 있어 저장하지 않았어요.'}` — expected/actual·JSON 경로 없음.
+  - **호출 경로 확인**: 쓰기 진입점 전부 `validatePatch`→`checkEditValue` — #104 validateConfig·#106 diffConfig·#105 testConfig(합성 전)·#107 applyConfig·#111 putRawConfig(dryRun 은 직접 validatePatch, 적용은 commitEdit)·#93 updateConnectionForm·#93a setConnectionEnabled·#93b(SECRET_REF 경로, 별도)·#100 updateFallbackPolicy·#123b putAppSetting·#108 Rollback(restorePlan→planRestore 의 `snapshotValueIssues` 가 스냅샷 전체 값에 checkEditValue + validatePatch, 이어 commitEdit 재검증). 설정 값을 쓰는 다른 경로는 `materialize`(commitEdit 안)뿐 — 추가로 막을 진입점 없음.
+  - **단위**: 신규 10/10 · engine+admin+configEditor+infra 묶음 224/224 · 전체 1105 중 1102 pass·1 fail = `speech/modelPackage.test.ts` ENOENT(개인 미러에 `plugins/` 픽스처 미동기화) → 동기화 후 그 파일 6 pass/0 fail. tsc 0 · eslint(변경 파일) 0. 변이 검사 3종(검사 끔 → 5 fail, 창 `0` 제거 → 1 fail, 전 키 전체 규칙 → 6 fail)으로 테스트가 실제로 잡는 것 확인.
+  - **오탐 전수**: 어댑터 스키마 기본값 전부(5 엔진 × 연결 종류) · `prisma/seed-data/engines.json` 6 연결의 평면 값 · Fallback·AppSetting 기본값 → secretValue 0, 시드 스냅샷 `snapshotIntegrity` OK. 모델 id(`claude-3-5-sonnet-20241022`·`claude-sonnet-4-5-20250929`·`qwen2.5:14b-instruct-q4_K_M` 등)·`zipformer-ja-reazonspeech-2024-08-01-int8`·긴 경로 통과.
+  - **라이브**(개인 미러 `~/.node-local/thekaiwa-dev-012csec`, `cp -al` node_modules, dev **3045** `-H 127.0.0.1` `APP_ENV=LOCAL`, QA developer 쿠키, 스크래치 스크립트 — tests/** 미추가): **13/13 PASS** — R1 Raw dryRun·R2 Raw 적용·R3 #123b PUT(전각)·R4 #104(폭 0 → valid:false)·R5 #106·R6 #105(TTS 합성 전)·R7 #107·R8 Raw dryRun 모델명 ghp_·R9 #93 Form sk-·R11 #100 JSON 잎 → 전부 400 `secretValue`·응답 에코 0, R10 긴 모델 id dryRun 200 + 최상위 `x-note` 변경 목록·응답에 없음, R12 ConfigurationVersion 0→0 · R13 AuditLog 0→0(추가로 최근 15분 LOCAL 버전(QA dev·actor 없음) 0·감사(QA dev) 0) · dev 로그 입력 값 0건. **DB 쓰기 0** — 삭제할 행 없음. 쿠키 삭제·서버 종료·미러 삭제 완료.
+  - **트러블슈팅**: ① 개인 미러 node_modules 를 심볼릭 링크로 두면 `next dev` 가 Turbopack panic("Symlink [project]/node_modules is invalid, it points out of the filesystem root") → `cp -al ~/.node-local/thekaiwa/node_modules` 로 해결(테스트·tsc 는 링크로도 됨). ② `pkill -f "next dev -p 3045"` 가 자기 셸 명령줄까지 맞아 셸이 죽음(exit 144) — 포트로 PID 를 찾아 끌 것.
+  - **남은 위험·Leader 확인**: (a) 이미 저장된 스냅샷에 비밀 유사 값이 있으면 그 버전 되돌리기는 이제 422 `E_SNAPSHOT_INTEGRITY`(목록 INVALID_ENTRIES) — REV-056 ③ LOCAL 읽기 조회 대기. (b) 비자유 문장 키는 접두 없는 고엔트로피 토큰(40자 난수 등)을 통과시킴 — 판정 지시대로의 의도된 경계. (c) JSON `키: 값` 짝 검사는 잎·키 훑기보다 한 걸음 넓음 — 지금 JSON 키(예비 연결 id 목록·allowedTasks)엔 오탐 0, 나중에 `token`·`secret` 이름 키에 문자열 값을 갖는 JSON 설정이 생기면 거부됨(숫자 값은 제외). (d) 창 크기 23 은 reason.ts 규칙의 최소 일치 ≤20자에 기댄다 — reason.ts 에 더 긴 접두 규칙이 생기면 `NO_LONG_TOKEN_WINDOW` 재검토. (e) 기존 동작(범위 밖): 형식이 틀린 키는 `unknownKey` 오류에 키 이름 앞 40자를, `x-` 경고는 키 이름을 요청자에게 되돌려줌(저장 0). Raw 의 중첩 `x-`(예: `runtime.x-note`)는 서버가 unknownKey 로 거부하는데 클라이언트 초안은 무시 — REV-054 쪽.
+  - **정본 반영 요청(Leader)**: api-contract §2-23 `secretValue` 의미를 "SECRET_REF 평문 + 일반 STRING/PATH/URL/JSON 값의 비밀 유사 문자열"로 · role-permission §7 ③ 판정 규칙의 적용 대상에 설정 값 추가(자유 문장 키 전체 규칙, 그 밖은 긴 토큰 제외) · `EditKeyDef.freeText`. native_change 없음.
+
+## Reviewer 기록 (REV-056 수정 재감사, REV-059)
+
+- [14:25] **REV-059 = PASS_WITH_NOTES** (Critical 0 · High 0 · Medium 0 · Low 6). 범위: REV-056(Codex High → Medium 부분 채택) 수정의 좁은 재감사. 코드 수정 0 · DB 쓰기 0 · 커밋 0(Read 전용 + 개인 미러 `~/.node-local/thekaiwa-rev-059` 실행). Developer 주장(단위 10/10·라이브 13/13·DB 쓰기 0·변이 3종·오탐 0)은 근거로 쓰지 않고 아래 **내가 실행한 것**만 판정 근거로 삼았다.
+
+### 내가 실행한 증거 (개인 미러, 작업 트리 복사본)
+| 항목 | 결과 |
+|---|---|
+| 신규 `engine/__tests__/task012c-secret-value.test.ts` | **10/10 pass** (cwd = 미러 루트 — 시드 훑기 테스트가 `process.cwd()/prisma/seed-data/engines.json` 을 읽음) |
+| engine+admin+infra+components/admin 묶음 | **288/288 pass** |
+| 전체 스위트 | **1111 중 1108 pass · 0 fail · 3 skipped** (1차 93 fail 은 미러에 `.claude/agents/tutor.md` 누락 — 환경 문제, 동기화 후 재실행) |
+| `tsc --noEmit` | **exit 0** · eslint(변경 7파일) **exit 0** |
+| `infra/reason.ts`·`mask.ts`·`audit.ts` | `git diff` 0줄(재사용만, 무수정 확인) |
+| 독립 오탐 전수(내 스크래치 테스트) | 어댑터 기본값·enum·Fallback·AppSetting **176개 값 → `secretValue` 0건** |
+| 라이브 읽기 전용 DB 조회 | 연결 12개·값 122개·AppSetting 12행 → 비밀 유사 0건 · `ConfigurationVersion` 0행 · 쓰기 0 |
+| **변이 검사 8종**(Developer 3종의 상위) | M1 검사 호출 삭제 → 5 fail · M2 창 24(긴 토큰 규칙 재활성) → 6 fail · M3 창 앞 `'0'` 삭제 → 1 fail · M5 `키: 값` 짝 검사 삭제 → 1 fail · M6 객체 키 검사 삭제 → 1 fail · M7 깊이 초과 LIMIT→통과 → 1 fail · M8 `freeText` 무시 → 1 fail · **M4 판정용 형태(NFKC·폭 0 삭제) 생략 → 0 fail(생존)** → 아래 L6. 복원 후 `cmp` 일치·10/10 재확인 |
+| 폭 0 삽입 우회(실제 코드) | `github_pat_…`·`sk-…`·`ghp_…`·`xoxb-…`·`AKIA…`(대문자)·`bearer …`·`password: …` 에 글자마다 U+200B 삽입 → STRING·JSON 모두 `secretValue`. (`AKIA`+소문자는 평문이어도 규칙 밖 — reason.ts 규칙 그대로) |
+| 데모 게이트 `check` | `DEMO_GATE_PASSED`(task-012c, approved v2, hash verified). `evidence.jsonl` 승인 줄 = 08:17:28(사용자 프롬프트 08:17:13 와 대응, 이후 파일 갱신 없음) · 에이전트가 승인·waive 를 대신 실행한 흔적 없음. 이번 수정의 화면 변경 = `RawTab.tsx:137-139` 문구 한 줄(레이아웃·구조 불변) → 분류 **implementation**(material 아님) |
+
+### 6개 항목 판정
+1. **쓰기 진입점 전수 — 우회 없음.** #104·#105·#106·#107·#111(dryRun 은 `validatePatch` 직접, 적용은 `commitEdit`)·#93·#93a·#100·#123b 모두 `commitEdit`(`admin/configuration/editor.ts:487` `validatePatch`) 또는 `validatePatch` 직접 경유. `configurationVersion` 쓰기는 `engine/configuration/versions.ts:41·58-59` 뿐이고 호출자가 `commitEdit` 하나. Rollback 은 `restorePlan`(`editor.ts:269-285`)→`planRestore`(`rollback.ts:70-92`)→`snapshotValueIssues`(`rollback.ts:26-44`)로 한 번, 이어 `commitEdit` 재검증으로 한 번 — 이중. 잠긴 키도 `continue` 하지 않아 값 검사가 돈다(`validate.ts:256·261` 의 `sameValue` 건너뜀은 바뀌지 않은 키만). URL 키는 `vetConnectionUrl`(userinfo·사설망 밖 거부) 추가 경유. `x-` 키는 경고 후 `candidateOf` 가 버려 저장 0(`validate.ts:252-254`).
+2. **우회 시도 — 결함급 없음.** 규칙 경계(자유 문장 = 전체 규칙 `validate.ts:129`·그 밖 = 긴 토큰만 제외)가 의도대로 작동한다. 폭 0·NFKC(전각 `ｓｋ－…`)·대소문자·공백 접기·JSON 키 위치·깊이 9·배열 201·8KB 초과가 모두 거부 또는 `type` 거부(fail-closed)다. `키: 값` 짝 검사 오탐은 시드·어댑터 기본값·AppSetting 에서 0(위 176+122). 남는 틈은 L1(정책상 수용).
+3. **정보 누출 — 없음.** 거부 응답은 `{key, rule:'secretValue', message(고정문)}` 뿐이며 `expected`/`actual`·JSON 경로·입력 조각 없음. `infra/http.ts:83-100` 은 `ApiError.details` 를 로그에 쓰지 않고 INTERNAL 만 `name: message`. 설정 경로에 `console.*` 없음. `parseRawJson`(`editor.ts:672-686`)은 줄·열만. 감사는 `recordAudit` 가 `maskSensitive`/`maskText` 로 before/after/reason 을 한 번 더 가린다(2차 방어 — `mask.ts` 는 `authorization|cookie` 키 이름도 가림).
+4. **Rollback 부작용 — fail-closed 로 안전, 영구 정체는 아님.** 저장된 스냅샷에 비밀 유사 값이 있으면 그 버전 되돌리기는 422 `E_SNAPSHOT_INTEGRITY`(`editor.ts:280`)·쓰기 0. 운영자에게는 보인다: `ConfigVersionSheet.tsx` `DamagedNote`(L69)·`isIntegrityErr`(L33)가 시트에서 "되돌릴 수 없음" 배지·안내를 띄우고, 흐름 알림은 `flow.ts:218`. 새 값을 직접 편집해 저장하는 **앞으로 가는(roll-forward) 편집은 막히지 않는다**(`validatePatch` 는 바뀐 키만 본다). 라이브 조회상 현재 `ConfigurationVersion` 0행이라 **실제 발생 0건(가정 사례)**. 권고는 아래 Leader 절.
+5. **회귀 — 없음.** 위 표(1111/1108/0/3, tsc 0, eslint 0, 오탐 0). Developer 의 "1105 중 1 fail"(`modelPackage` ENOENT)은 개인 미러 픽스처 문제로 같은 환경 아티팩트다 — 코드 결함 아님.
+6. **QA `high_risk_areas`** — 아래 JSON.
+
+### 발견
+| ID | 심각도 | 위치 | 내용 · 근거 | 권고 |
+|---|---|---|---|---|
+| L1 | Low | `validate.ts:129·183`, `scanJsonSecret` L132-150 | 정책상 수용된 틈(reason.ts 규칙과 동일 경계). URL 인코딩(`%73k-…`)·유사 문자(키릴 `ѕ` 등)·분할(두 필드에 나눠 담기)·한국어 "비밀번호:"·`{Authorization:"짧은값"}`(KEY_VALUE 에 `authorization` 없음 — 다만 `mask.ts` 가 감사 쪽에서는 가림)·비밀 이름 JSON 키 아래 **숫자** 잎·16진수/2종 문자 24자↑ 토큰·비자유 키의 접두 없는 고엔트로피 토큰. 사실상 편집 가능한 자유 값 표면이 `voice.preview.defaultText`(maxLength 100)와 `fallbackConnectionIds` JSON 뿐이고 나머지 STRING 은 잠겨 있거나 pattern 으로 묶여 있다 | 조치 불요. 새 자유 STRING/JSON 키를 추가할 때 `freeText` 지정 여부를 리뷰 체크 항목으로 |
+| L2 | Low | `validate.ts:256·261`, `versions.ts` baseline | 바뀌지 않은 키는 `validatePatch` 가 재검증하지 않아, 기준선(v1) 스냅샷이 **이미 저장돼 있던 값**을 그대로 복사한다. 새 쓰기 경로는 아니고 라이브 전수 조회에서 0건 | 조치 불요. 첫 편집 직전 기준선 값 검사(`snapshotValueIssues`)를 한 번 더 두면 방어 심도가 올라가나 필수 아님 |
+| L3 | Low | `flow.ts:218` | "기록이 손상돼 이 버전으로는…" — 비밀 유사 값 때문에 막힌 경우는 손상이 아니라 "지금 규칙에 맞지 않는 값"이다. 시트의 `DamagedNote`(L69)는 "깨졌거나 지금 규칙에 맞지 않는 값이 있어요"로 정확 | `flow.ts:218` 을 시트와 같은 문구로 맞춤(문구 한 줄, 레이아웃 무변경) |
+| L4 | Low | `validate.ts:111`(`NO_LONG_TOKEN_WINDOW = 23`), `reason.ts:39-43` | 창 23자는 "reason.ts 규칙 최소 일치 ≤20자(경계 포함)"에 기댄다. 규칙 길이를 지키는 **가드 테스트가 없어** `reason.ts` 에 더 긴 접두 규칙이 생기면 비자유 키에서 조용히 우회된다. 현재 최장 = `github_pat_`+8 = 19자+경계 1 = 20 | 가드 테스트(알려진 최장 접두 규칙 입력이 창 안에서 잡히는지) 추가 또는 `role-permission §7 ③` 에 "접두 규칙 ≤20자 유지" 한 줄 — Developer 기록 (d) 와 같은 취지 |
+| L5 | Low | `history.ts:147` | 손상된 버전의 상세(비교)가 422 라 운영자가 **무엇이 문제인지 diff 로 못 본다**(`issues` 는 응답 details 에 있으나 시트에서 키 목록으로 보여 주지 않음). fail-safe 이므로 결함은 아님 | 선택: `DamagedNote` 에 `issues[].key` 표시. 값은 절대 표시 금지 |
+| L6 | Low | `task012c-secret-value.test.ts` | **변이 M4 생존** — `secretLikeExceptLongToken` 에서 판정용 형태(NFKC·폭 0 삭제) 생략해도 10/10 통과. 실제 코드는 글자마다 폭 0 를 끼운 `github_pat_…`·`bearer …` 를 거부하지만(내 스크래치 확인), 생략하면 통과로 새는데(`github_pat_`·`bearer` → PASS-THROUGH) 그걸 잡는 테스트가 없다 | 비자유 STRING·JSON 에 "폭 0 삽입 `github_pat_`·`bearer`" 케이스 1~2개 추가(코드 수정 불요) |
+
+### Leader 에게 — Rollback 정책 권고 (항목 4)
+- **fail-closed 유지.** 비밀 유사 값이 든 스냅샷을 자동 복원하면 비밀이 새 버전·감사 행으로 다시 쓰이므로 막는 편이 맞다. 퍼지(삭제) 경로는 **추가하지 않는다**(`ConfigurationVersion` 은 UPDATE/DELETE 금지가 설계 원칙).
+- 막힌 버전은 "기록 열람 전용"으로 두고, 필요하면 **새 편집(roll-forward)** 으로 원하는 값을 직접 입력해 새 버전을 만든다. 라이브 조회상 현재 해당 사례 0건이라 지금 조치가 필요 없다.
+- 선택 개선 2건(필수 아님): L3 문구 정렬, L5 `issues` 키 표시.
+
+### 정본 반영 요청 확인 (Leader 몫)
+Developer 기록 마지막 줄(L1110)에 두 건이 **존재함을 확인**했다 — `api-contract §2-23` `secretValue` 의미 확장, `role-permission §7 ③` 적용 대상에 설정 값 추가(+`EditKeyDef.freeText`). 아직 정본에 반영되지 않았으면 Leader 가 반영한다(내가 정본을 고치지 않았다). L4 의 "접두 규칙 ≤20자" 한 줄도 같은 위치에 넣을 것을 권고.
+
+### QA 인계 `high_risk_areas`
+```json
+{ "reviewId": "REV-059", "status": "PASS_WITH_NOTES", "native_change": false,
+  "high_risk_areas": [
+    "PRODUCTION 경로는 QA 라이브 불가 — 단위 task012c-secret-value 10/10 + 사용자 리허설 U-C7(PRODUCTION 적용·되돌리기)로만 확인",
+    "쓰기 진입점 9종(#104·#105·#106·#107·#111 dryRun/적용·#93·#93a·#100·#123b)에 비밀 유사 값 → 400 secretValue, 응답에 입력 조각 0, ConfigurationVersion·AuditLog 증가 0",
+    "voice.preview.defaultText(자유 문장, 전체 규칙)와 fallbackConnectionIds JSON(키·잎·`키: 값` 짝) 두 경로 — 전각·폭 0 삽입·대소문자·깊이 9·배열 201·8KB 초과",
+    "Rollback 422 E_SNAPSHOT_INTEGRITY 표시 — 시트 DamagedNote·배지·flow.ts:218 문구, 쓰기 0, 다시 눌러도 불변",
+    "기준선 v1 스냅샷이 기존 저장값을 재검증 없이 복사(L2) — 첫 편집 직후 스냅샷에 비밀 유사 값 0 확인",
+    "창 23자가 reason.ts 규칙 길이(최장 20)에 의존(L4) — reason.ts 규칙 변경 시 재검토",
+    "정책 틈(L1): URL 인코딩·유사 문자·`Authorization` 키·비밀 이름 키 아래 숫자 잎은 통과 가능(수용) — 회귀로 오인하지 말 것",
+    "오탐 회귀: 긴 모델 id(claude-sonnet-4-5-20250929·qwen2.5:14b-instruct-q4_K_M·zipformer-ja-reazonspeech-2024-08-01-int8)와 긴 경로가 저장되는지",
+    "x- 최상위 키 경고 문구('저장하지 않고 적용하지도 않습니다')·RawTab.tsx:137-139 안내가 360/390/412px 에서 가로 스크롤 0"
+  ] }
+```
+
+## Judge 기록 (C2 — REV-059 이후, 2026-10-01)
+
+**Codex 개입 판정**: checkpoint C2(Reviewer PASS 직후) — 변경 성격 보안(비밀 유사 검사), Reviewer 재감사 Low 6개 비차단, 라이브 영향 0
+
+```json
+{
+  "schema": "judge-result@2",
+  "engine": "jev",
+  "kind": "codex_gate",
+  "checkpoint": "C2",
+  "task_id": "task-012c",
+  "project": "TheKaiwa",
+  "spec_version": "dev-judge@0.2.0",
+  "rules_version": "dev-rules@0.4.0",
+  "model": "jev-1.13.0",
+  "decision": {
+    "codex_required": true,
+    "wanted_before_budget": true,
+    "mode": "adversarial-review",
+    "focus": "security",
+    "budget_rule": "CX-limit-unknown-r2",
+    "codex_calls_used": 3,
+    "codex_switch": "on"
+  },
+  "signals": {
+    "codex_calls_used": 3,
+    "focus": {
+      "choice": "security",
+      "confidence": 1
+    },
+    "high_risk_change": {
+      "noul": 0.7
+    },
+    "reviewer_doubt": {
+      "noul": 0.68
+    }
+  },
+  "rule_overrides": [],
+  "fallback": null,
+  "input_tokens": 999,
+  "cost_usd": 0.000042,
+  "latency_ms": 283
+}
+```
+
+**요약**:
+- engine: jev
+- 결정: codex_required=true · mode=adversarial-review · focus=security · budget_rule=CX-limit-unknown-r2 · codex_calls_used=3
+- 규칙 덮어쓰기: 없음
+
+**판정 사유**: 
+R2 risk + 보안 경계 변경(비밀 유출 방지) + Reviewer Low 항목(정책 틈, 규칙 길이 의존성 등)으로 Codex 대항적 재검토 권고. 이미 3회 사용 중(초기 C1/C2 1회 + 재검토 2회). 예산 규칙 `CX-limit-unknown-r2` 적용. QA 단계로 진행 가능하나 Codex 외부 검토 강력 권고.
+
+### [2026-10-01 17:15] C2 재검토 adversarial-review focus=security — done
+- judge 판정: 2026-10-01 17:09, C2 checkpoint (adversarial-review · security), budget_rule=CX-limit-unknown-r2, codex_calls_used=3 (C1·C2 2회 사용, 이번 3회) / 호출 차수: 3/4
+- 대상: repo=/home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa, base=f4a3f32(task_file), snapshot=b8c9711
+- **지적 1건**: [medium] `src/modules/engine/configuration/validate.ts:116` — 비자유 STRING 키(`runtime.modelByTier.fast` 등)에서 긴 API 키(24자↑ 대소문자·숫자·기호 섞인 접두 없는 토큰) 우회 → `secretLikeExceptLongToken()` 이 비자유 키에서 긴 토큰 규칙을 제거해 23자 창 검사만 됨 (권고: 비자유 키는 whitelist 또는 알려진 모델 ID 검증으로 예외 처리, validatePatch·commit 테스트 추가)
+- 검토하지 못한 범위: 라이브 DB·네트워크 기능 테스트·실제 쓰기 경로 (READ-ONLY 제약) · 비보안 기능·Android·음성 서비스 변경
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20261001T053357Z-task-012c-C2
+
+---
+
+## 최종 요약
+
+Codex C2 재검토에서 **새로운 보안 우회 1건 적발**: 비자유 STRING 설정값(모델명 키)에서 접두 없는 긴 API 키가 `secretLikeExceptLongToken()`의 정책 예외로 통과하는 경로. 다음: Reviewer가 지적 채택·수정 판단.
+
+## Leader 기록 (Codex C2 재검토 판단, 2026-10-01 17:30)
+
+Codex 재검토(호출 3/4) 지적 1건(Medium, `validate.ts:116`) — **채택(좁은 범위)**.
+- 사실 확인: 비자유 키 `primaryConnectionId` 의 패턴이 `^[A-Za-z0-9_-]{1,80}$` 라 접두 없는 40자 난수 키(`Abcdefghijklmnopqrstuvwxyz0123456789_X`)가 23자 창 검사만 받고 통과한다. 이는 REV-059 L1 이 "정책상 수용된 틈"으로 분류했고 Developer 기록 (b) 가 "판정 지시대로의 의도된 경계"로 남긴 바로 그 자리다. 코드에서 재현 가능한 실제 공백이므로 오탐이 아니다.
+- 채택 이유: 프로젝트 원칙("Secret 은 `credentialRef` 만 저장, ConfigurationVersion·AuditLog 평문 금지")이 우선이고, 수정 비용이 낮다. 다만 Codex 권고(키별 허용 형식·모델 ID 화이트리스트)는 범위가 넓고 오탐 위험이 커서 **채택하지 않는다**.
+- 범위: 비자유 STRING/PATH/URL·JSON 잎에 한해 "접두 없는 긴 토큰" 좁은 보강 규칙 1개(`validate.ts` 안, `reason.ts` 규칙 불변). 구분 기호(`-`·`.`·`:`·`/`·공백) 없이 이어진 영숫자·`_`·`+`·`=` 런이 길고 문자 종류가 많을 때만 거부 — 모델 id(`zipformer-ja-…`)·cuid·uuid·경로·URL 은 통과해야 한다. 같은 파일의 REV-059 L4(창 크기 가드 테스트)·L6(NFKC·폭 0 경로 테스트)도 함께 처리.
+- 재순환: Developer 수정 → **Reviewer(REV-062)** → [Judge] → QA. Codex 잔여 1회(4/4) 는 Judge 판정에 따른다.
+- 참고: 위 `## 최종 요약` 절은 codex 역할이 쓴 임시 문구이며 Leader 최종 요약이 아니다. 012c 완료 시 Leader 가 다시 쓴다(codex 는 기록만 하고 채택·수정 판단은 하지 않는다).
+
+## Developer 기록 (Codex C2 재검토 수정, REV-062 대상)
+- [23:51] Codex C2 재검토 지적(`validate.ts:116`, Medium) 좁은 보강 완료 — Leader 결정대로 화이트리스트 전환은 하지 않음. 화면·DB 스키마·api-contract·`infra/reason.ts` 무변경, DB 접촉 0·LLM 0·운영 0·커밋 0.
+  - **바뀐 파일**: `src/modules/engine/configuration/validate.ts` · `src/modules/engine/__tests__/task012c-secret-value.test.ts`(10 → 21 테스트) · `docs/design/role-permission.md` §7 `reason` 규칙 아래 ⑦ 한 줄(Edit, 해당 줄만).
+  - **함수**: 새 `checkForm`(NFKC·폭 0 삭제 = `reasonCheckForm` + 공백 접기) · `hasLongMixedRun(form)` · `secretLikeNonFreeText(s)` = `hasLongMixedRun(form) || secretLikeExceptLongToken(form)` — **비자유 판정의 단일 입구**. `checkEditValue` STRING/PATH/URL(`secretLikeValue`)·ENUM(목록 검사 통과 뒤)·`scanJsonSecret`(문자열 잎·객체 키·`키: 값` 짝 세 자리) 모두 이 함수만 부른다. `secretLikeExceptLongToken` 은 판정용 형태를 받도록만 바꿈(창 로직 불변). 자유 문장 키는 `isSecretLikeText` 그대로 — 원래 긴 토큰 규칙(`[A-Za-z0-9\-_+/=]{24,}`·3종)이 새 규칙을 포함하므로(새 런 ⊂ 긴 토큰 런, 길이 32 ≥ 24·종류 동일 이상) 따로 걸 필요 없음(경계표에서 자유 문장 = 3종↑ 거부로 확인). `NO_LONG_TOKEN_WINDOW`·`MIXED_RUN_MIN`·`MIXED_RUN_KINDS` 는 가드 테스트용으로 `validate.ts` 에서 export(엔진 `index.ts` 공개 API 는 무변경).
+  - **규칙**: 판정용 형태에서 `/[A-Za-z0-9_+=]+/g` 최대 런 중 길이 ≥ **32** 이고 문자 종류(소문자·대문자·숫자·`_+=`) ≥ **3** 이면 `secretValue`. 구분 기호(`-` `.` `:` `/` 공백)·비ASCII(일본어·한글)는 런을 끊는다. 거부 = 기존과 같은 `{key, rule:'secretValue', message(고정문)}` → API `400 VALIDATION`, 입력 값 비에코(테스트로 단언).
+  - **임계값 근거 — 지시값 32·3종 유지(조정 없음)**: 전수 확인에서 오탐 0. 실제 비밀(무작위 base62 32~40자, `hf_…` 37자, Codex 재현 38자)은 32자↑·3종↑, 정상 값은 구분 기호로 끊기거나(모델 id·경로·URL·uuid) 2종(cuid·16진수 해시·대문자 상수·camelCase 문자열)이다. 24로 낮추면 reason 긴 토큰 규칙과 같아져 REV-056 이 피하려던 오탐 범주(긴 식별자)가 돌아오고, 4종으로 올리면 `_+=` 없는 base62 키(가장 흔한 형태)를 놓친다.
+  - **기존 허용 값 전수(오탐 0)**: 스크래치 집계(테스트 밖, 미러) — 시드 엔진 5종 × 연결 종류 전부의 STRING/PATH/URL/ENUM/JSON 기본값 + **ENUM 목록 값 전부** + 시드 연결 6개 평면 값 + Fallback·AppSetting 기본값 + 목소리 id 6개 = **243개 값(문자열·JSON 163) → secretValue 0**. 단위로도 고정: 기존 "오탐 전수"·"기본값 스냅샷 무결성" 테스트(새 규칙 포함 상태로 통과) + 신규 "오탐 전수(보강 규칙)"(ENUM 목록 값 포함) + "문장·식별자" 표(일본어·한글·영어 문장, URL·manifest·긴 모델 경로·`$CLAUDE_CLI_PATH`·ENUM 값·camelCase 41자·대문자 상수 51자·cuid·uuid·sha1·sha256·HF/ollama 모델 id·claude 모델 id). 시드 Fallback 의 `primaryConnectionId`/`fallbackConnectionIds` 는 런타임 cuid(`@default(cuid())`, 소문자+숫자 2종) → 통과. **DB 저장 행은 조회하지 않았다**(지시: DB·운영 접촉 금지) — REV-059 가 본 라이브 값 122개를 새 규칙으로 다시 볼지는 Reviewer 판단(읽기 전용).
+  - **L4 판단**: 새 규칙은 창과 무관하게 판정용 형태 전체에 한 번 적용되고 창 계산(`NO_LONG_TOKEN_WINDOW = 23`, 창 = `'0'` + 22자)은 그대로 — 의존 관계 불변. 가드 테스트 3개: ① reason.ts 의 최상위 정규식 상수 목록·`SECRET_PREFIX`/`AUTH_SCHEME`/`JWT_LIKE`/`KEY_VALUE`/`TOKEN_RUN` 원문·`isSecretLikeText` 본문을 고정(바뀌면 실패 → 창·표 재검토 뒤 갱신) ② 규칙별 "가장 긴 최소 일치"(경계 포함) 표 10행 — 각각 걸리고 한 글자 빼면 안 걸림(정확히 최소), 최장 = **20**(`␣github_pat_`+8 · JWT 20), `최장 ≤ 창-1(22)`·`창 < 24` 단언 ③ 표의 모든 일치를 앞쪽 0~40자 위치에 두어도(첫 창 밖 포함) STRING·JSON 거부 + 폭 0 삽입도 거부. 실증: 미러 reason.ts 에 `|glpat-[A-Za-z0-9_-]{20,}` 를 넣으면 ① 이 실패(20/21) → 원복 `cmp` 일치.
+  - **L6**: REV-059 L6 그대로 — 글자마다 U+200B 를 끼운 `github_pat_ABCdef12345678`·`bearer abcdefgh12345` 를 비자유 STRING(모델 버전)·PATH·JSON 잎·JSON 키·JSON `키: 값` 에서 거부. 변이 M4(창을 원문으로 자름) 재현 시 이 테스트와 ③ 이 실패 → 생존 변이 해소.
+  - **경계표 결과**(`경계표` 테스트, 66행 × 변형 — 행마다 원형·전각·폭 0·전각+폭 0·구분 기호 5종×3·자유 문장): 길이 31/32/33 × 종류 2(5조합)/3(4조합)/4 × 기타 문자 `_`·`+`·`=` — **거부 ⇔ 길이 ≥32 ∧ 종류 ≥3**, 네 자리(STRING·PATH·JSON 잎·JSON 키) 판정 일치 · 전각·폭 0(U+200B·U+00AD·U+2060·U+FEFF·U+200D 순환)·전각+폭 0 = 원형과 같은 결과 · 가운데에 `-` `.` `:` `/` 공백(전각 포함) → 전부 통과 · `model␣<런>␣v2` 처럼 한쪽 런이 32자↑로 남으면 구분 기호가 있어도 거부 · 자유 문장 키는 3종↑ 전부 거부(31자 포함). 문장 속: 일본어 사이 31자 런 통과·33자 런 거부, 한글 사이 33자(전각 포함) 거부. JSON: 깊이 8 잎·키 거부 / 깊이 9 `type` · 배열 200 거부 / 201 `type` · 8KB 초과는 런 유무와 무관하게 `type`, 8KB 미만이면 거부. Codex 재현값 `Abcdefghijklmnopqrstuvwxyz0123456789_X` → `runtime.modelByTier.fast`·`.deep`·`runtime.model`·`primaryConnectionId`·`voice.default.profileId`·`runtime.modelVersion`·`connection.binPath`·JSON(잎·키·짝) 모두 `secretValue`, `validatePatch` SCHEMA 1건·결과 JSON 에 값 0, 그 값이 든 스냅샷 `INVALID_ENTRIES`.
+  - **실행 명령·결과**(미러 `~/.node-local/thekaiwa-rev-059`, `rsync -a src/ tests/ prisma/` 후):
+    - `node --import tsx --test src/modules/engine/__tests__/task012c-secret-value.test.ts` → `# tests 21 # pass 21 # fail 0`
+    - engine+admin+infra+components/admin+app/api/admin 의 `*.test.ts` 37파일 `--test-concurrency=1` → `# tests 299 # pass 299 # fail 0`(REV-059 의 288 + 신규 11)
+    - `./node_modules/.bin/tsc --noEmit` → exit 0 · `./node_modules/.bin/eslint validate.ts task012c-secret-value.test.ts` → exit 0
+    - 변이 14종(미러 사본에만 적용·원복 `cmp` 일치): 새 규칙 제거 6 fail · 길이 33 → 3 · 종류 4 → 2 · 하이픈을 런에 포함 → 1 · 판정용 형태 생략 → 5 · 창만 원문(M4) → 2 · JSON 잎 보강 빠짐 → 5 · JSON 키 보강 빠짐 → 4 · 창 24 → 11 · 창 20 → 2 · ENUM 판정 빠짐 → 1 · STRING 판정 빠짐 → 11 · 종류에서 `_+=` 제외 → 1 · 창 앞 `0` 제거(M3) → 1 — **생존 0**.
+    - 전체 스위트(`npm test`)는 돌리지 않음(DB 접촉 가능 테스트 배제 — 지시 범위는 관련 모듈 회귀).
+  - **남은 위험**: (a) 정책상 수용 틈(REV-059 L1 계열 유지) — `/`·`-`·`.` 가 섞여 런이 32자 미만으로 쪼개지는 base64·base64url 키(예: 40자 AWS 비밀 키 모양), 16진수·소문자+숫자뿐인 토큰(2종), 31자 이하 무작위 키, URL 인코딩·유사 문자. (b) 이론상 오탐 — 구분 기호 없이 32자↑이고 3종↑인 정상 식별자(예: `zipformer_ja_reazonspeech_2024_08_01_int8` 같은 snake_case+숫자, 숫자 섞인 긴 camelCase). 지금 키·시드·기본값에는 0건, 새 키 추가 때 리뷰 항목. 오탐이면 그 값은 저장 불가·그 값이 든 옛 스냅샷은 되돌리기 422 이므로 Rollback 쪽 영향도 같이 본다. (c) 가드 ① 은 reason.ts 서식 변경(포매터)에도 실패한다 — 의도된 트립와이어. (d) `x-` 확장 키 값은 여전히 검사하지 않는다(저장·스냅샷 미도달, REV-056 판정 그대로).
+  - **Reviewer(REV-062) 인계 포인트**: ① 단일 입구 — `secretLikeNonFreeText` 외 비자유 판정 경로가 없는지(`validate.ts:153-171·190·207`) ② ENUM 분기에 판정을 넣은 것(목록 검사 통과 뒤만, 실제 목록 값 오탐 0)이 과한지 ③ 자유 문장 키에 새 규칙을 따로 걸지 않은 근거(포함 관계) ④ 경계표·L4 가드·L6 가 지시 항목을 다 덮는지 ⑤ 라이브 DB 저장 값 재확인 필요 여부(읽기 전용, 내가 하지 않음) ⑥ role-permission §7 ⑦ 문구. native_change 없음 · 화면 변경 없음(데모 게이트 대상 아님).
+
+## Designer 기록 (§13 구현 가이드, 2026-10-02)
+- [23:57] **`docs/screens.md` §13 "관리자 콘솔 P2 — 설정 편집·이력·되돌리기 (task-012c)" 삽입**(§12 와 §14 사이, 약 627행) + §2 화면 표에 task-012c 한 줄. 첫 줄 `승인 데모: docs/demo/task-012c-console-p2-v2.html (v2)`, 적용 토큰 이름 나열(새 색 0, 데모 토큰 값 15개와 지금 `globals.css` 대조 동일 — 파일 해시는 task-021 키보드 규칙 때문에 다름). 데모 HTML·코드·frontmatter·`## 데모 검토` 절은 손대지 않았고 commit·push 없음. **사후 가이드** — developer B 구현(09:20)·REV-047 수정(13:26)·REV-056 문구(14:11)에 맞췄다(Leader 확인 요청 (b) 이행).
+- 구성: 13-0 결정 10 · 13-1 개요·메뉴(`menu.ts` 바뀐 hunk)·`configAccess` 필드 표·역할×환경 렌더 매트릭스 · 13-2 A~O(설정 화면·Form `FieldList`·Raw `RawTab`·Diff·적용 막대 `flowView` 12갈래 표·확인 창 `ApplySheet`/`ReasonFields`·요청 전 검사·`writeErrorView` 갈래 표·`ConfigTestCard`·연결 상세 `ConnectionEditPanel`·`EnabledSheet`/`CredentialSheet`/`PrepTestSection`·`FallbackEditor`·이력 `HistoryScreen`·`ConfigVersionSheet`·`AuditTab`·공통 상태·발음 사전 R1) · 13-3 상태(`useConfigEditor`·`useWritePrep`·`usePaged`) · 13-4 API 표(#91~#137) · 13-5 컴포넌트 · 13-6 파일 · 13-7 후속 수정 순서 · 13-8 문구 단일 출처 · 13-9 체크리스트(폭·키보드·터치·권한·동작·접근성) · 13-10 주의 · 13-11 데모와 다른 점 · 13-12 Leader 확인.
+- 검증(읽기 전용): §13 백틱 식별자 270개를 `src`·`tests/live`·`docs/design` 에 grep — 없는 이름 0(해시 1·테스트 파일명 1 제외) · 따옴표 한국어 문구 144개 grep — 코드에 그대로 없는 것은 JSX 조각 합성(`<b>`·`<br>` 사이)·데모/사용자 인용·제안 문구뿐 · §13 엔진·모델 이름 grep 0. 헤드리스 캡처는 하지 않음(운영 권한 토큰 제약 — 지시대로).
+
+### 데모 v2 와 달라진 점(구현이 사실 — 모두 정보 구조·단계·CTA 동일, 데모 재승인 불필요)
+| # | 데모 v2 | 구현 | 권고 |
+|---|---|---|---|
+| 1 | 대상 종류 3(목소리 기본값 포함) | 연결·운영 설정 2 | 구현 정본(D-C14 → 012c-2) |
+| 2 | 감사 분류 칩 7·결과 필터·뱃지·개수 | 칩 5, 결과 필터·뱃지·개수 없음 | 구현 정본(REV-047 ①) |
+| 3 | 예비 순서 "다시 시도" 스위치 | 글자 한 줄 | 구현 정본(서버 NOT_CONSUMED, ②) |
+| 4 | Form 사용 여부 칸 | 숨김 — 연결 상세 스위치 | 구현 정본(③) |
+| 5 | 운영 설정 범위 표시 | 없음, 키 목록 화면 상수 9개 | 유지 + DTO 확장 시 `fieldFromAppSetting` 만 고침(④) |
+| 6 | "마지막 적용 n시간 전" | 없음 | 구현 정본(⑤) |
+| 7 | Raw 꼬리 "x- … 그대로 보존돼요" | "맨 바깥의 x- … 메모로 둘 수 있지만 저장되지 않아요." | **구현 정본**(서버 사실, REV-054 L-2·REV-056 ④) |
+| 8 | 적용 막대 sticky(본문 안) | fixed + 빈 자리 + 사이드바 232px 상수 | 동작 같음, 셸 폭 CSS 변수 권고(REV-047 L-4) |
+| 9 | — | Raw/Form 동기화 안내 2개·막힌 키 이름 오류 | 구현 정본(REV-054 implementation) |
+| 10 | 요약 없이 적용 막기 = 운영만 | 모든 환경 | 구현 정본 |
+| 11 | 비밀 값 거절 = 비밀 참조 칸만 | 일반 값도 400 `secretValue`(서버 문구 그대로) | 화면 변경 없음(REV-056/059) |
+| 12 | 시크릿 참조 시트 = 전체 | 사용 중 참조만 | 구현 정본 |
+| 13 | "버전 v6 보기 ›" | "버전 보기 ›" | 구현 정본 |
+| 14 | 기본 탭 Form | 같음 + 요약 카드 링크 `&tab=effective` | 구현 정본(⑥) |
+
+### Leader 확인 요청 (§13-12 와 같은 번호)
+- ① **키보드 열림 때 적용 막대**(코드 추적, 실기기 미확인): `FlowBar` 가 `fixed`(모바일 ≈150px)라 `resizes-content` 에서 키보드와 함께 올라오고, `KeyboardInset` 입력 칸 드러내기가 막대 높이를 빼지 않아 Form 아래쪽 칸·Raw 편집기 줄이 가릴 수 있다. 권고: 하단 탭과 같은 규칙으로 키보드가 열린 동안 막대 숨김(`data-flowbar` + `:root[data-kb] [data-flowbar]{display:none}`) — implementation 수정, 데모 변경 아님. QA 360·390 실측 항목에 추가.
+- ② developer B (a) — 위 표 2~6·14 **수용 권고**. ③ (c) #123b 범위 필드는 developer A 가 더하면 화면은 `fieldFromAppSetting` 한 곳. ④ (d) U-C7 리허설 순서 제안은 §13-12 ④.
+- ⑤ 정본 문구: `configuration-resolution.md` §8-1 끝 "ADMIN/DEVELOPER … 승인 요청(`pendingProductionApprovals`)" 은 데모·구현 모두 없음 → "초안·변경 요약까지(최고관리자 계정으로 다시 적용)"로 정리 권고.
+- ⑥ §2 표: 한 줄만 더했고 기존 `/admin/configuration`(Effective 탭만)·`/admin/{prompts,playground,history}`(Phase 2+) 행은 지침대로 그대로 — Leader 정리 필요. screens.md 머리 변경 이력 줄도 건드리지 않음.
+- ⑦ `EffectiveScreen` 기본 내보내기·`ConfigAccess.note` 는 이제 화면에서 안 쓰임 — 다음 정리 때 삭제(동작 영향 0).
+- ⑧ REV-054 Low 중 화면에 보이는 것(진행 중 응답 덮어쓰기·409 뒤 Raw 글 잔존·제안 바꾸기 첫 줄 일치) — 다음 라운드 묶음. ⑨ 손상 문구 `flow.ts` ↔ `DamagedNote` 맞춤 + `issues[].key` 표시(REV-059 L3·L5).
+- **사용자 승인이 필요해 보이는 실질적 차이: 없음**(위 14건 모두 implementation·범위 이동·문구 정정). 20-Log 줄은 지시 범위(screens.md·task 파일) 밖이라 쓰지 않았다 — Leader 가 기록.
+- 출력: `{"taskId":"task-012c","status":"DONE","deliverables":["docs/screens.md#13-관리자-콘솔-p2--설정-편집이력되돌리기-task-012c","docs/screens.md#2-화면-목록--네비게이션--역할별-가시성"],"blockers":[],"risk_level":"LOW"}`
+
+## Leader 기록 (Designer §13 수용·확인 요청 처리, 2026-10-02 23:58)
+- **§13 가이드 수용**: `docs/screens.md` §13(§12·§14 사이 단일 삽입 — `grep -c '^## 13\.'` = 1)과 §2 표 한 줄. 데모 게이트 `check.mjs check` = DEMO_GATE_PASSED(v2·해시 검증)로 데모·frontmatter·검토 절 무변경 확인. 데모와 달라진 14건은 모두 구현이 정본·정보 구조/단계/CTA 동일 — **사용자 재승인 불필요**(REV-047/055/057 선례, 구현 수준 차이).
+- **확인 요청 처리**: ②(표 2~6·14 수용) 수용. ⑤ `configuration-resolution.md` §8-1 끝 문단을 "초안·변경 요약까지, 적용은 SUPER_ADMIN 으로 다시"로 **정정 완료**(`pendingProductionApprovals` 서술 삭제). ⑥ `docs/screens.md` §2 표 정리 **완료**(`/admin/configuration` 행에 현행 안내·`/admin/history` 를 Phase 2+ 행에서 제외하고 prompts·playground 만 012c-2 이후로). ⑦ `EffectiveScreen` 기본 내보내기·`ConfigAccess.note` 미사용 코드 삭제는 다음 정리 묶음.
+- **① 키보드 열림 때 적용 막대(FlowBar)**: 실기기 미확인·코드 추적 결과라 **보류 판단** — implementation 수준 수정(데모 변경 아님)이지만 `globals.css`·키보드 훅이 021(미커밋·APK 대기)과 같은 파일이라 지금 만지면 task 간 충돌한다. **후속 묶음 `task-012c-ui-fix`(가칭)** 로 등록: ①(FlowBar 키보드 중 숨김 `data-flowbar`) + ⑧(REV-054 Low: 진행 중 응답 덮어쓰기·409 뒤 Raw 글 잔존·제안 바꾸기 첫 줄) + ⑨(손상 문구 `flow.ts`↔`DamagedNote` 맞춤·`issues[].key` 표시, REV-059 L3·L5) + ⑦. 021 처리 후 Developer → Reviewer → QA 로 순환. 이번 012c QA 에서는 360·390 폭에서 FlowBar 가 마지막 입력칸을 가리는지 **측정만** 하고(키보드 에뮬레이션 불가 시 "실기기 필요"로 표기), 가림이 확인되면 Medium 으로 격상해 배포 전에 처리한다.
+- **다음**: REV-062(진행 중) → Judge C2 재판정(Codex 12c 한도 3/4 사용, 1회 남음) → QA(REV-059 high_risk_areas + 위 FlowBar 측정) → Deployer. `## 최종 요약`은 완료 시 Leader 가 다시 쓴다(codex 가 쓴 임시 요약 교체).
+
+
+## Reviewer 기록 (Codex C2 재검토 수정 감사, REV-062)
+
+- [00:10] **REV-062 = PASS_WITH_NOTES** (Critical 0 · High 0 · Medium 0 · Low 4). 범위: Codex C2 재검토 Medium(`validate.ts:116` — 비자유 키에서 구분 기호 없는 긴 혼합 무작위 토큰이 통과)의 좁은 보강 수정. Leader 결정(화이트리스트 전환 거부, `[A-Za-z0-9_+=]` 연속·구분 기호 없음·길이 ≥32·문자 종류 ≥3 → `secretValue`) 대로 구현됐는지, 새 틈·오탐·회귀가 없는지 감사. **코드 수정 0 · DB 쓰기 0 · LLM 0 · 운영 접촉 0 · 커밋 0**(NFS 원본 무수정, Read 전용 + 개인 미러 `~/.node-local/thekaiwa-rev-062` 실행. 공유 059 미러는 Developer 변이용이라 건드리지 않음). 값 자체는 어디에도 적지 않았다(키 이름·규칙·길이만). Developer 주장(21/21·299/299·변이 14종 생존 0·오탐 0)은 근거로 쓰지 않고 아래를 **내가 다시 실행**했다.
+- **Codex 지적 판정: 채택 → 수정 확인(해소).** 재현값(접두 없는 38자 혼합 키)이 모델명·연결 id 키에서 `secretValue` 로 거부된다(STRING·PATH·JSON 잎·JSON 키 네 자리, `validatePatch` Form/Raw 공통 관문 모두).
+
+### 내가 실행한 증거 (개인 미러 = 작업 트리 복사본, `cmp` 로 NFS 원본과 `validate.ts`·테스트·`reason.ts` 바이트 일치 확인)
+| 항목 | 결과 |
+|---|---|
+| `node --import tsx --test src/modules/engine/__tests__/task012c-secret-value.test.ts` (cwd = 미러 루트) | **21/21 pass** |
+| engine+admin+infra+components/admin+app/api/admin 묶음 | **299/299 pass** (REV-059 의 288 + 신규 11, 0 fail) |
+| `tsc --noEmit` / `eslint validate.ts 테스트` | **exit 0 / exit 0** |
+| `infra/reason.ts` | `git diff` 0줄(무수정, 공용 규칙 재사용만) · 엔진명 grep(`reazon\|whisper\|style-bert\|claude`) `validate.ts` 0건 |
+| **독립 변이 12종**(미러 사본에만 적용·원복) | M1 최소 길이 32→33: 3 fail · M2 종류 3→2: 2 fail · M3 `hasLongMixedRun` 제거: 6 fail · M4 창 23→24(긴 토큰 재활성): 11 fail · M5 L4 `github_pat_` 8→12: 3 fail · M6 reason.ts 에 더 긴 접두 추가: 1 fail · M7 판정용 형태 생략(원문): 5 fail · M8 JSON 객체 키 검사 제거: 6 fail · M9 최소 길이 32→31: 3 fail · M10 종류 3→4: 2 fail · M11 런에서 `_` 제외: 3 fail · M12 창 계산 생략(전체에 긴 토큰 규칙): 7 fail — **12/12 검출, 생존 0** (Developer 14종과 겹치는 것 외에 M5·M6·M11 은 내가 추가) |
+| 라이브 읽기 전용 DB 조회(select 만) | `EngineConnection` 12행·`FallbackPolicy` 8행·`AppSetting` 12행·`VoiceProfile` 3행·문자열 82개 → 새 규칙 걸림 **0건**(3종 이상 런 최장 0, 모든 문자열 통틀어 최장 런 25). `ConfigurationVersion`·Preset·Override **0행**(Rollback 라이브 재현 대상 없음 — 단위로 대체). 값 출력 0 |
+| 스키마·시드 오탐 전수(내 스크래치) | 키 정의 583개의 기본값 문자열 700개 + 시드 5파일(engines·lexicon·topics·voices·words-n5) 1,666개 → **0건**, 최장 런 20자 |
+| 성능(선형성) | 1MB 토큰성 입력 41ms · 64KB `-` 24자마다 분할 59ms · JSON 8KB 잎 7ms — 폭주 없음 |
+| 데모 게이트 `check` | `DEMO_GATE_PASSED`(task-012c approved v2, hash verified). 이번 수정은 `validate.ts`·테스트·정본 한 줄 — **화면 변경 0**(분류 implementation 아님, 해당 없음). `.claude/state/demo-gate/` 직접 쓰기·대리 승인 흔적 없음 |
+
+### 8개 관점 판정
+1. **우회 시도 — 의도한 한계 외 실제 구멍 없음.** 내가 쓴 52개 탐침 + 합성 키 모양 9종(스크래치, 값 비출력) 분류:
+   - **걸려야 할 것 전부 걸림(9/9)**: Codex 재현형·32/64/200자 3종·`_`/`=` 포함 32자·base64(`+`·`=`) 44자·공백으로 둘러싼 접두 토큰·`32-32` 쌍.
+   - **정규화 우회 전부 걸림(9/9)**: 전각, 글자마다 ZWSP·ZWJ·WJ·BOM·소프트 하이픈·VS16·태그 문자·bidi LRM/RLM, 수학 볼드·원문자 NFKC. 판정용 형태(`reasonCheckForm` + 공백 접기)가 모든 호출 앞에 있다(M7 로 고정).
+   - **통과(= Leader 가 정한 좁은 범위의 한계, 결함 아님)**: 31자 이하 · `31+구분+31`(구분 = `-` `.` `/` `:` 공백 다섯 종 전부) · 구분 기호가 20자마다 낀 base64/base64url · 16진수·base32 대문자+숫자·소문자+숫자(2종) · 40자 런 한가운데 일본어·한글·키릴 호모글리프·결합 문자 1개 · 글자마다 탭/NBSP/제어문자(→ 공백이 되어 런이 끊김). 모두 "구분 기호 없는 3종↑ 32자" 라는 규칙 정의에서 나오는 것이며, 정상 값(모델 id·경로·URL·uuid·cuid·해시)을 오탐하지 않으려는 의도적 한계다. 합성 키 모양 9종으로 정량화: 구분 기호 없는 Google API 키형(39자)·AWS 비밀키형(40자, `/` 없음)은 **걸림**, `AIza…-` 가 7번째에 낀 모양(7+31)·`/` 가 20번째에 낀 AWS 키형은 **통과**, 16진수 32/64자는 **통과**.
+2. **오탐·회귀.** 라이브 DB·스키마·시드 전수 0건(위 표). 정상 후보 탐침(uuid·cuid·sha256 hex·긴 모델 id·긴 경로·긴 URL·일본어/한국어 문장·CSV·점 경로·하이픈 식별자·소문자만 snake_case 40자) 전부 통과. **실제 오탐 계열 1건 확인(L1)**: 구분 기호 없이 32자↑이면서 3종↑인 식별자(소문자+숫자+`_` snake_case 39자, 대문자+숫자+`_` 35자, 소문자+대문자+숫자 camelCase 37자)는 거부된다. 현재 저장·시드 값에는 해당 0건. 회귀 없음(299/299).
+3. **REV-059 L4 — 창 23 이 reason.ts 접두 규칙(≤20)에 기대는 의존의 가드.** 가드 3종이 있고 변이로 검증됐다: ① reason.ts 정규식 상수 목록·원문 고정(M5 에서 3 fail, M6 에서 1 fail) ② 규칙별 최소 일치 길이 표(경계 포함 ≤20) ③ 모든 최소 일치를 앞쪽 0~40자 어느 위치에 놓아도 창이 잡는지(M4·M7·M12 에서 fail). **기대한 대로 접두 규칙을 늘리면(M5) 테스트가 먼저 깨진다.** 단 ①은 reason.ts 원문을 고정하므로 무해한 수정(공백·주석)에도 깨지는 "경보기" 성격이다(L4 노트).
+4. **REV-059 L6 — 폭 0 삽입 `github_pat_`·`bearer`.** 글자마다 U+200B 를 낀 두 형태가 STRING(모델 버전)·PATH·JSON 잎·JSON 키·JSON `키: 값` 에서 모두 거부. M7(판정용 형태 생략)에서 이 테스트가 fail → **생존 변이 해소 확인**.
+5. **두 경로 동일 함수·진입점 전수.** 비자유 판정은 `secretLikeNonFreeText`(`validate.ts` 148) 하나뿐이고 `secretLikeValue`(STRING/PATH/URL)·ENUM(목록 검사 통과 뒤)·`scanJsonSecret`(문자열 잎·객체 키·`키: 값` 짝)이 모두 이것만 부른다. 자유 문장 키는 전체 규칙(`isSecretLikeText`)이라 새 규칙을 따로 걸 필요가 없다(긴 토큰 규칙이 더 넓음 — 포함 관계 확인). 쓰기 진입점은 REV-059 의 9종(#104·#105·#106·#107·#111 dryRun/적용·#93·#93a·#100·#123b) 그대로 `commitEdit`/`validatePatch` 단일 관문이고 새 경로 없음. Rollback 은 `snapshotValueIssues`/`planRestore` 가 같은 함수로 재검증(422 `E_SNAPSHOT_INTEGRITY`, 쓰기 0).
+6. **비반영.** 거부 응답 = `{key, rule:'secretValue', message(고정문)}`(400 VALIDATION), `expected`/`actual`·JSON 경로·입력 조각 없음(테스트가 단언). `infra/http.ts` 는 `ApiError.details` 를 로그에 쓰지 않음. 거부는 쓰기 앞에서 일어나 `ConfigurationVersion`·`AuditLog` 행이 생기지 않는다. 설정 경로에 `console.*` 없음.
+7. **6층 경계·엔진명·정본.** `validate.ts` import 는 `@/modules/infra`·`../adapters/common/targetPolicy`·`../credentials/policy`·`./keys` 뿐(상위 층 import 0, `index.ts` 우회 0). 엔진명 grep 0건. `docs/design/role-permission.md` §7 ⑦ 의 임계값(≥32·3종·`[A-Za-z0-9_+=]`·구분 기호 5종·ENUM·JSON 잎·객체 키)이 코드(`MIXED_RUN_MIN=32`·`MIXED_RUN_KINDS=3`·`MIXED_RUN`·`secretLikeNonFreeText`)와 일치한다. ⑥ 은 구문이 낡았다(L3).
+8. **독립 변이 재현.** Developer 주장 중 창 24(11 fail)·창 원문(M4, 판정용 형태 생략 5 fail)·최소 길이 33(3 fail)·종류 4(2 fail)·`hasLongMixedRun` 제거(6 fail)를 내 미러에서 같은 방향으로 재현했고, 추가 3종(M5·M6·M11)도 모두 검출됐다. **생존 변이 0**.
+
+### 발견 사항 (전부 Low — 필수 수정 없음)
+| # | 심각도 | 위치 | 내용·재현 | 권고 |
+|---|---|---|---|---|
+| L1 | Low | `validate.ts` 118~127 `hasLongMixedRun` | **구분 기호 없는 정상 식별자 오탐 계열.** 소문자+숫자+`_` snake_case 39자, 대문자+숫자+`_` 35자, camelCase+숫자 37자가 `secretValue` 로 거부된다(탐침 3건, 값 비출력). 현재 DB·스키마·시드에는 0건이라 지금 영향 없음. 운영자가 그런 긴 식별자를 모델 버전·경로 조각에 넣으면 저장 불가이고, 고정 안내문("비밀처럼 보이는 글자가 있어…")만 나와 원인을 짐작하기 어렵다. 이미 저장된 값이 걸리면 그 버전 Rollback 도 422. Developer 가 "이론상 오탐"으로 이미 인지(기록 (b)). | 수용(Leader 의 "좁은 규칙" 결정의 대가). 정본 ⑦ 에 "구분 기호 없는 긴 식별자는 `-`·`.` 로 끊어 쓴다"는 회피 안내 한 줄 추가를 권고. 임계값 변경은 불필요(전수 0건). |
+| L2 | Low | 규칙 정의 | **의도한 한계(정책 틈).** 구분 기호로 31자 이하로 쪼개진 키, 16진수·base32·소문자+숫자 2종 키, 글자 사이 공백·탭·NBSP 삽입, 비ASCII 한 글자 삽입은 통과한다. 사고(복붙 실수) 방어 목적이면 충분하고 악의적 관리자 방어는 목표 밖이다(관리자 capability 보유자는 신뢰 대상, 쓰기는 감사 기록). REV-059 L1 의 연장. | 수용. QA 가 회귀로 오인하지 않게 `high_risk_areas` 에 명시. |
+| L3 | Low | `docs/design/role-permission.md` §7 ⑥ | ⑥ 은 비자유 키에 대해 "긴 토큰 규칙을 제외 — 접두·키=값 패턴만 적용" 이라고만 쓰여 있어, ⑦ 이 더한 혼합 런 규칙이 ⑥ 단독으로 읽으면 빠져 보인다(⑦ 이 바로 아래에 있어 모순은 아님). | ⑥ 끝에 "(보강 규칙은 ⑦)" 교차 참조 한 줄. 문서만 수정, 코드 무관. |
+| L4 | Low | `task012c-secret-value.test.ts` L4 가드 | reason.ts 정규식 **원문**을 고정하므로 의미 없는 수정(공백·주석)에도 실패한다. 의도된 경보기이나 실패 메시지가 "창 23 과 최소 일치 표를 재검토하라"고 안내하는지 Developer 가 확인하면 좋다. M5·M6 에서 1~3 fail 로 동작은 확인. | 선택 개선. |
+
+### 잔여 위험
+- 위 L2 정책 틈(구분 기호로 쪼개진 짧은 조각·2종 키)과 L1 오탐 계열은 의도적으로 남은 위험이다. 비밀 탐지는 "사고 방어선 하나"이고 진짜 방어는 `credentialRef`(Secret 은 DB 에 안 둠)·`maskSensitive`(감사)다.
+- 라이브 DB 에 `ConfigurationVersion` 이 0행이라 "저장된 스냅샷이 새 규칙에 걸려 Rollback 이 막히는" 경로는 라이브로 못 봤다 — 단위(`snapshotValueIssues`·기본값 스냅샷 무결성)로만 확인. 실제 편집이 쌓인 뒤 한 번 더 조회하면 좋다.
+- PRODUCTION 경로는 QA 라이브 불가(REV-059 와 동일) — 단위 + 사용자 리허설 U-C7 로 확인.
+
+### QA 인계 `high_risk_areas`
+```json
+{ "reviewId": "REV-062", "status": "PASS_WITH_NOTES", "native_change": false,
+  "high_risk_areas": [
+    "PRODUCTION 경로는 QA 라이브 불가 — 단위 task012c-secret-value 21/21 + 사용자 리허설 U-C7(PRODUCTION 적용·되돌리기)로만 확인",
+    "쓰기 진입점 9종(#104·#105·#106·#107·#111 dryRun/적용·#93·#93a·#100·#123b)에 접두 없는 32자↑ 혼합 무작위 키(모델명·연결 id·모델 버전·경로·JSON 잎) → 400 secretValue, 응답에 입력 조각 0, ConfigurationVersion·AuditLog 증가 0",
+    "오탐 회귀: 긴 모델 id(claude-sonnet-4-5-20250929·qwen2.5:14b-instruct-q4_K_M·zipformer-ja-reazonspeech-2024-08-01-int8)·긴 경로·긴 URL·uuid·cuid·sha256 hex 가 계속 저장되는지(구분 기호로 끊기거나 2종이라 통과해야 함)",
+    "정책 틈(L2)은 회귀 아님 — 31자 이하 조각·`31-31` 쪼개기·16진수·base32·글자 사이 공백 삽입은 통과가 정상이다. 반대로 구분 기호 없는 snake_case/camelCase 32자↑+숫자는 거부(L1, 오탐 계열)가 현재 동작이다",
+    "voice.preview.defaultText(자유 문장, 전체 규칙)와 fallbackConnectionIds JSON(키·잎·`키: 값` 짝) 경로 — 전각·폭 0 삽입·깊이 9·배열 201·8KB 초과는 계속 거부",
+    "Rollback 422 E_SNAPSHOT_INTEGRITY 표시 — 시트 DamagedNote·배지, 쓰기 0, 다시 눌러도 불변. 라이브 ConfigurationVersion 0행이라 편집이 쌓인 뒤 새 규칙에 걸리는 스냅샷이 없는지 재확인",
+    "창 23자가 reason.ts 규칙 길이(최장 20)에 의존(L4) — reason.ts 규칙 변경 시 task012c-secret-value L4 가드 3종이 먼저 깨져야 하며, 깨지면 창·표를 재검토",
+    "x- 최상위 키 경고 문구·RawTab.tsx 안내가 360/390/412px 에서 가로 스크롤 0(이번 수정은 화면 무변경 — 회귀 확인만)"
+  ] }
+```
+
+### Judge C2 재판정 의견
+- **불필요(Reviewer 의견).** 이번 수정은 Codex C2 재검토의 Medium 1건을 Leader 가 정한 범위 안에서 좁게 해소했고, 새 Critical·High·Medium 이 없다(Low 4, 전부 수용 가능한 정책 한계·문서 교차 참조·경보기 문구). 코드가 건드린 층은 `engine/configuration` 한 파일이며 정본 5종·api-contract·스키마·`infra/reason.ts` 는 불변이라 C2 트리거(경계·보안 계약 변경)를 새로 만들지 않는다. 같은 결함의 재발(C3)도 아니다 — 지적 위치는 같지만 원인은 "규칙을 일부러 뺀 자리"였고 그 자리를 메웠다.
+- **12c 의 Codex 사용은 3/4(C1·C2·C2 재검토), 1회 남음.** 이 수정에 마지막 호출을 쓰지 않고, 12c 마감 직전(Designer §13 구현 포함 최종 묶음)이나 사용자 요청 시를 위해 남기길 권고한다. L1 의 정책 판단(오탐 vs 미탐 균형)은 Codex 가 아니라 사용자·Leader 결정 사항이다.
+- 채택 조건: Developer 는 L3(문서 교차 참조 1줄)를 Leader 의 정본 갱신 때 함께 처리하면 충분하다. 재순환은 필요 없고 QA 로 진행해도 된다.
+
+## Leader 기록 (REV-062 수용, 2026-10-03 00:05)
+- **REV-062 PASS_WITH_NOTES 수용** — Critical·High·Medium 0, Low 4. 감사 근거: Reviewer 가 개인 미러에서 직접 실행(21/21 · 묶음 299/299 · tsc/eslint 0 · 독립 변이 12종 생존 0 · 라이브 DB·스키마·시드 전수 오탐 0 · 성능 선형). Developer 주장은 근거로 쓰지 않았다고 기록돼 있음.
+- **Low 처리**: L1(구분 기호 없는 긴 정상 식별자 오탐 계열)·L2(의도한 정책 틈)는 **수용** — `docs/design/role-permission.md` §7 ⑦ 끝에 회피 안내(`-`·`.` 로 끊어 쓰기)와 "통과는 회귀가 아님" 문구 추가. L3(⑥ 교차 참조) **정본 반영 완료**(⑥ 에 "보강 규칙은 아래 ⑦"). L4(경보기 문구)는 선택 개선 — 다음 정리 묶음(`task-012c-ui-fix` 가칭)에 포함.
+- **Judge C2 재판정**: Reviewer 는 불필요 의견이나 구속력 없음 → Judge 판정 요청함(결과는 별도 `## Judge 기록` 절). Codex 는 12c 3/4 사용(1회 남음) — Judge 가 요구하지 않으면 호출하지 않음.
+- **QA 인계 high_risk_areas**: REV-062 의 8개 항목(PRODUCTION 경로 QA 불가·사용자 U-C7, 쓰기 진입점 9종 거부·비반영, 오탐 회귀 샘플, L1/L2 는 회귀 아님, 자유 문장·JSON 변형, Rollback 422, 창 23 의존, x- 안내 3폭 가로 스크롤 0) + FlowBar 가림 측정(Leader 17 기록).
+- **다음**: Judge → QA. QA 는 025 QA 와 같은 QA 계정을 쓰지 않으므로 병행 가능하나, 동일 DB 공유·LLM 동시 호출 상한(≤2)과 직렬화 원칙에 따라 010c QA 종료 후 순서대로 돌린다.
+
+## Judge 기록 (C2 재판정 — REV-062 이후)
+
+**Codex 개입 판정 재검토**: checkpoint C2(REV-062 Reviewer PASS_WITH_NOTES 직후) — 예산 소진(4/4), Codex 개입 불필요
+
+```json
+{
+  "schema": "judge-result@2",
+  "engine": "jev",
+  "kind": "codex_gate",
+  "checkpoint": "C2",
+  "task_id": "task-012c",
+  "project": "TheKaiwa",
+  "spec_version": "dev-judge@0.2.0",
+  "rules_version": "dev-rules@0.4.0",
+  "model": "jev-1.13.0",
+  "decision": {
+    "codex_required": false,
+    "wanted_before_budget": true,
+    "mode": null,
+    "focus": null,
+    "budget_rule": "CX-budget-exhausted",
+    "codex_calls_used": 4,
+    "codex_switch": "on"
+  },
+  "signals": {
+    "codex_calls_used": 4,
+    "focus": {
+      "choice": "security",
+      "confidence": 0.97
+    },
+    "high_risk_change": {
+      "noul": 0.37
+    },
+    "reviewer_doubt": {
+      "noul": 0.61
+    }
+  },
+  "rule_overrides": [
+    {
+      "field": "codex_required",
+      "value": false,
+      "rule_id": "CX-budget-exhausted"
+    }
+  ],
+  "fallback": null,
+  "input_tokens": 957,
+  "cost_usd": 0.00004,
+  "latency_ms": 263
+}
+```
+
+**요약**:
+- engine: jev
+- 결정: codex_required=false · budget_rule=CX-budget-exhausted · codex_calls_used=4/4 · mode=null · focus=null
+- 규칙 덮어쓰기: CX-budget-exhausted (Codex 예산 소진)
+
+**판정 사유**:
+C2 재판정에서 Codex 개입 불필요 판정. 이유: (1) Codex 호출 상한 4회 도달(C1·C2 초기 판정 1회 → C2 재검토 2회 → C2 재판정 포함 4회 소진). (2) Reviewer PASS_WITH_NOTES(Low 4, 필수 수정 없음) — 새로운 R2 경계·보안 계약 변경 없고, 같은 결함 재발(C3)도 아님. (3) 정본 5종·api-contract·스키마·infra/reason.ts 불변, 화면 변경 0, 네이티브 변경 0. Leader/Reviewer 판단으로 변경 범위가 narrowly scoped 보안 조치이며 추가 외부 검토 불필요. → QA 단계 진행.
+
+## Leader 기록 (Judge C2 재판정 수용·QA 착수, 2026-10-03 00:07)
+- **Judge 재판정(Jev)**: `codex_required=false` · `wanted_before_budget=true` · `budget_rule=CX-budget-exhausted` · `codex_calls_used=4`. **Leader 정정**: 위 Leader 기록(REV-062 수용)에 쓴 "Codex 3/4 사용·1회 남음"은 틀렸다 — 앞선 REV-059 시점 Judge 가 이미 3회로 집계하고 그 판정으로 재검토가 돌았으니 실제 사용은 4회(C1·초기 C2·추가 검토·재검토)이며 **예산 소진**이 맞다.
+- **판단**: Jev 신호상 보안 초점(0.97)에서 Codex 가 "원했으나" 예산 때문에 막힌 상태. 완화 근거 = ① Reviewer REV-062 가 직접 실행한 독립 변이 12종 생존 0·라이브 DB/스키마/시드 오탐 0 ② 이번 수정은 단일 함수 보강이며 정본·계약·`infra/reason.ts` 불변 ③ 방어선은 `credentialRef`·`maskSensitive` 이고 이 규칙은 복붙 사고 방어용 보조선. 예산을 더 늘리지 않고 **QA 진행**(예산 규칙은 이 task 에서 Leader 가 정한 운영 규칙이며 임의 상향하지 않는다). 사용자가 추가 Codex 검토를 원하면 그때 상향한다.
+- **QA 착수**: Sonnet QA 에이전트(미러 `~/.node-local/thekaiwa-qa-021` 재동기·LOCAL 행만·포트 3041/3042·LLM 호출 0 — 010c QA 와 동시 구독 한도 보호·USER 쿠키는 qa-bot2 로 010c 기준선 보호). 점검: REV-062 high_risk_areas 8항목 + 화면 E2E + FlowBar 가림 측정 + x- 안내 3폭 + 로그 비반영.
+
+## QA 기록 (012c 콘솔 P2 — REV-062 이후, 2026-10-03)
+
+> 실행 주체 QA. 수정 0 — `src/**`·`prisma/**`·정본·데모 무수정, 커밋·푸시·배포 없음. Claude CLI·LLM 호출 0회, M4 합성 0회, PRODUCTION 행 읽기·쓰기 0건, 운영 서버(3010)·pm2 무접촉. 쿠키·토큰 값은 어디에도 출력·기록하지 않음. 데모 게이트: `node ../.claude/tools/demo-gate/check.mjs check --task …` → `DEMO_GATE_PASSED`(approved v2, hash verified, `docs/demo/task-012c-console-p2-v2.html`).
+
+### 총평
+
+- **판정: CONDITIONAL — 결함 1건(Medium, 화면: 모바일 키보드 포커스 입력칸이 FlowBar 에 완전히 가려짐), Critical·High 0건.** 서버·보안 축은 전부 통과. Medium 은 화면 축이라 규칙상 "Critical/High 0건에서 Pass" 는 충족하나, 아래 [결함 #1] 처리는 Leader 판단(수정 후 Reviewer 재순환 vs 알려진 제약으로 수용).
+- 환경: 미러 `~/.node-local/thekaiwa-qa-021` dev 3041(주) + 하드링크 복제본 `~/.node-local/thekaiwa-qa-012c-b` dev 3042(두 번째 프로세스 — Next 16 dev 는 디렉터리당 1개라 복제본 필요), `APP_ENV=LOCAL`, 같은 NAS MariaDB 의 LOCAL 행만.
+
+### 항목별 판정
+
+| # | 항목 | 판정 | 근거(관찰값) |
+|---|---|---|---|
+| 1 | 기본 게이트 | **PASS** | `node --import tsx --test`(task012c-secret-value 포함 engine·infra·admin·configEditor 37개 파일 묶음) **299/299 pass · fail 0 · skipped 0**. `tsc --noEmit` exit 0(출력 0). eslint(`src/` 광역) **0 error · 1 warning** — `src/components/admin/trace/DiagnosticsScreen.tsx:137` react-hooks/set-state-in-effect(012c 변경 파일 아님, 기존 경고) |
+| 2 | REV-062 high_risk 8종 | **PASS**(아래 세부) | 쓰기 진입점 9곳 라이브 거부·무증가 확인 |
+| 3 | `tests/live/task012c-ui-e2e.mjs` | **PASS** | **78/78 PASS**, exit 0. 그룹 0 USER 404 · 1 ADMIN 탭 · 2 DEVELOPER Raw · 3 검증→기능 테스트→Diff→적용 창→409 충돌 · 4 이력·되돌리기(새 v4)·감사 · 5 예비 순서 편집·기본 연결 거절 · 6 SUPER 비밀 참조 시트(값 입력 칸 0) · 7 폭 4종 + 폭 360/390/412/1280 × 6화면 가로 넘침 0·누를 것 ≥44px·콘솔 오류 0, Z 원복(대상 행 바이트 대조, LOCAL 설정 버전 수 = 시작 전, 지운 버전 4·남은 0). 스크립트 기대값 불일치 0건 |
+| 4 | FlowBar 가림(360·390) | **PASS(정적) / FAIL(키보드 동반)** | 정적: 막대 높이 119px·viewport 780 에서 막대 윗선 661, 끝 스크롤 시 마지막 내용과 막대 사이 여유 ≥71px, 막대 안 버튼 44px, 가로 넘침 0. **키보드 동반: [결함 #1]** |
+| 5 | RawTab `x-` 안내 | **PASS** | 360/390/412 모두 편집 중(`x-` 키 2개·긴 값 240자) 가로 넘침 `{doc:0, main:0}`, viewport 밖 요소 0, 누를 것 ≥44px 위반 0건, `x-` 안내 아랫선 대비 막대 윗선 여유 71px(412 기준 guideBottom 590·barTop 661). 측정 스크립트 54/54 PASS |
+| 6 | Secret 비반사 | **PASS** | 거부 입력 조각 145종(전각·ZW·깊이 9·배열 201·>8KB 변형 포함)을 needle 로 dev 서버 stdout 두 개(3041 636줄·3042 222줄) grep → **적중 0**, `secretValue`·credential 문자열 0, 요청 외 줄은 기동 배너뿐 |
+| 7 | 비LLM 라이브 스모크 회귀 | **PASS(부분)** | 아래 세부 |
+
+### 항목 2 세부 — 쓰기 진입점 9곳
+
+- 대상: #104(검증 전용) · #105 · #106 · #107 · #111 dryRun/apply · #93 · #93a · #100 · #123b.
+- 거부: prefix 없는 ≥32자 혼합 키 + 전각·ZW 변형 → **400 `secretValue`**(패턴 키는 `pattern`, JSON 은 `type`), 응답에 입력 조각 반사 없음(echo=false), **ConfigurationVersion Δ0·AuditLog Δ0**. 변형: JSON 배열 201개·>8KB → `type`, JSON 키 길이·잎 길이 → `secretValue`(#104 200 `valid:false` 는 설계 — 검증 전용 API). `#123b voice.preview.defaultText` 자유 텍스트 경로 → 400 `secretValue` 4변형 전부.
+- #111 `x-` 키는 Raw 에서 받되 저장 안 함 → 200 `changed:false`(설계, 스크립트 기대를 `x-`=거부로 잘못 잡았던 probe 1차의 FAIL 은 **스크립트 기대 오류**였고 정정 후 재측정).
+- #93a: `secretValue` 도달 경로 없음(문서화된 대체 — 입력 칸이 다른 규칙에서 먼저 닫힘). #105 는 claude 연결만 실행.
+- 오탐 표본 저장 성공(201): 모델명 `claude-sonnet-4-5-20250929`·`qwen2.5:14b-instruct-q4_K_M`·`zipformer-ja-reazonspeech-2024-08-01-int8`·uuid·cuid·sha256 hex64·긴 경로 120자+ — 저장 시 ΔCV·ΔAudit 정상(저장 1건당 감사 1).
+- 관찰(결함 아님, REV-062 (d) 와 일치): **L1/L2 정책 간극** — 31자 단일·구분자 `-`/`.`/공백 분할·2종 40자(hex/base32 류)는 통과(정규식 설계상 ≥32자·≥3종·`[A-Za-z0-9_+=]` 연속). 오탐 참고: 내가 만든 `…&sha=<hex32>&…` 긴 URL 은 `=` 가 세 번째 종류로 세어져 #104 가 `secretValue` — 실제 매니페스트 URL(하이픈 구분·짧은 쿼리)은 통과(probe3). Info.
+- **라이브 미재현·단위 근거 인용**: (a) PRODUCTION confirm 흐름, (f) Rollback `422 E_SNAPSHOT_INTEGRITY`(단위 테스트 근거 — "라이브 미재현"), (g) 23자 창. 
+
+### 항목 7 세부
+
+| 스크립트 | 실행 | 결과 |
+|---|---|---|
+| `task012c-gate-smoke.ts`(A #101 allowedFor · B Health 호스트 허용목록 · C home-m4 대상 고정 · D 기능 시험 30초 슬롯(두 프로세스) · E lexicon reason secret-like 422 · Z 원복) | 3041+3042 두 프로세스 | 1차 24/26 — B2 2532ms·B3 2014ms 가 "<2s" 시간 기준만 초과(상태·코드 정확, dev 서버+NAS 지연, 베이스라인 GET 0.65~2.3s) → **환경 지연 flake 로 분류**. 2차 **26/26 PASS**, Z1(대상 connection 3행 바이트 원복)·Z2(EngineHealth 정리 0) PASS |
+| `task005b-smoke.ts` 사본(LLM·PRODUCTION 무접촉 편집본) | 3042 | **39/39 PASS**. 1차 37/39 의 2f·2g FAIL 은 5g 스텁 때문에 `traces/undefined` 가 404 였던 **스텁 의존 아티팩트** — LOCAL 최신 Trace id(읽기)로 대체 후 재실행 39/39. 4h(응답 148건 .env 비밀값 7종 grep 0)·H1(서버 절대경로 0) PASS |
+| `task003g-smoke.ts` | **미실행(사유: M4 합성 상한 ≤2회 초과 — 스크립트가 합성 약 17회(#23 3 + 미리듣기 2 + 읽기 확인 ~12) 요구)** | validate.ts 영향 지점인 lexicon reason secret-like 422 는 gate-smoke E 단계가 대신 커버 |
+| `task012c-smoke.sh` | **미실행(사유: 계정 1(qa-bot) 쿠키 필요 — 010c QA 기준선 계정 + Claude/M4 호출 동반)** | — |
+
+- 005b 에서 건너뛴 단계(표기): **5g·5h·5i**(LLM 기능 시험·Trace·30초 슬롯 429 — 동시 LLM 상한), **7e·7f**(5g 의존), **2i·2j·4f 부분·10**(PRODUCTION 행·운영 도메인 접촉 — 금지). 4f 는 "다른 환경 id 404" 요청만 제외한 부분 판정. 이 8단계는 PASS 로 세지 않았다(미실행).
+
+### 결함
+
+**[결함 #1] [Medium] `src/components/shell/KeyboardInset.tsx` `reveal()` / `src/components/admin/configEditor/FlowBar.tsx` — 모바일 키보드가 열린 상태에서 포커스된 입력칸이 하단 고정 FlowBar 뒤에 완전히 가려짐**
+- 실행: `/tmp/…/.qa-012c/kbfaithful.mjs`(playwright-core·google-chrome 147, isMobile·hasTouch, DSF 2.625) — 실제 탭 + 키보드 모사(viewport 780→450, `interactiveWidget:'resizes-content'` 과 같은 효과), `KeyboardInset` 작동(`data-kb="open"`) 확인.
+- 재현: DEVELOPER/ADMIN 으로 설정 편집 화면 → `claude-cli-local` 연결(입력칸 5개) 또는 `reazon-ondevice`(2개) 열기 → 값 하나를 바꿔 FlowBar 표시 → 아래쪽 입력칸 탭.
+- 실제: 360·390 모두 포커스 입력칸 top 390·bottom 434 인데 FlowBar 윗선 331(막대 높이 119) → **44px 전부 가려짐**, 그 지점의 `elementFromPoint` = 막대. 눈으로도 입력칸이 막대 뒤에 있음. (단일 `focus()` 호출 모사 A3 는 입력칸 top 245 라 PASS 였음 — 아래쪽 칸에서만 드러남.)
+- 기대: 포커스 칸이 막대 윗선 위에 보여야 함.
+- 원인 추정: `KeyboardInset.reveal()` 이 `visibleBottom`(키보드 위) 만 보고 fixed 막대 높이를 빼지 않음. FlowBar 는 `fixed inset-x-0 bottom-0 z-[8]`·스페이서 150px.
+- 완화: 사용자가 수동 스크롤하면 150px 스페이서로 도달 가능. 앱 WebView(Capacitor)는 키보드로 viewport 가 줄지 않아 `KeyboardInset` 경로 밖 — **실기기 확인 필요**. 모바일 Chrome(`resizes-content`) 에서만 재현 확정.
+- 제안 방향(구현은 Developer): reveal 시 `visibleBottom` 에서 FlowBar 높이를 빼거나 `scroll-padding-bottom` 활용.
+
+### NOT_VERIFIED · 사용자 육안 확인 필요
+
+1. S25+ 실기기 Chrome·APK WebView 소프트 키보드에서 [결함 #1] 재현 여부 및 FlowBar 가림.
+2. APK 설치본 화면(WebView ≈390px)·딥링크·마이크 권한 등 app-conversion-guide §4 실기기 5항목(이번 012c 는 웹 콘솔이라 범위 밖).
+3. Rollback `E_SNAPSHOT_INTEGRITY` 라이브 재현(단위 근거만).
+4. PRODUCTION confirm 라이브(금지 범위), LLM 기능 시험 경로(5g 등, 동시 LLM 상한).
+5. 다크 모드: 390 에서 토큰 반전만 계산값으로 확인(PASS) — 전 화면 다크 시각 대조는 미수행.
+
+### 복원·정리 확인
+
+- LOCAL 설정 행 복원: `restore.mjs`(기준선 `baseline-before.json` 대조) 최종 plan **총 차이 0** — EngineConnection·EngineFallbackPolicy·AppSetting 바이트 일치(`lastHealth*` 는 다른 세션이 갱신하는 필드라 비교 제외), **ConfigurationVersion LOCAL 0건**(기준선 0 · 이 실행이 만든 0). AuditLog 는 불변이라 QA 계정 행 422건이 남음(정상, 지우지 않음). PRODUCTION 행 조회 0.
+- 임시 쿠키 4개(`ck-*`, 600)·needle 파일·로그·E2E 화면 8장·스크린샷 5장·`.qa-012c` 스크립트·복제본 `thekaiwa-qa-012c-b` 삭제 — **산출물 정리: 파일 46개(스크래치패드 23·E2E 화면 8·스크린샷 5·측정 스크립트 10) + 복제본 디렉터리 1개 + 빈 폴더 2개 삭제**.
+- 프로세스: dev 3041(PID 661094/661106)·3042(PID 739895/739909) PID 로만 종료, `ss -ltn` 3041·3042 비움. `ls -d ~/.node-local/thekaiwa*` — 내가 만든 복제본 없음(`thekaiwa-qa-021` 은 사전 존재, 내 `.qa-012c` 만 제거).
+
+### QA 시각 검증 (데모 게이트 재현 조건)
+
+- 기준: 승인 데모 v2 = `docs/demo/task-012c-console-p2-v2.html`(check.mjs `DEMO_GATE_PASSED`, hash verified) / 구현 가이드 = Designer §13(2026-10-02).
+- viewport: **360×780 · 390×780 · 412×780**(모바일 측정·키보드 모사는 780→450), 데스크톱 E2E **1280×900**. DSF: 측정·키보드 스크립트 **2.625**(isMobile·hasTouch), E2E 스크립트 자체는 DSF 1.
+- 브라우저: google-chrome **147.0.7727.101**(playwright-core, `NODE_PATH=/home/brownjeon/node_modules`). 테마: **light 기본**, dark 는 390 에서 토큰 반전 계산값만. locale **ko-KR**, timezone **Asia/Seoul**.
+- 글꼴 로딩: `document.fonts.ready` 대기 후 측정. 애니메이션: 주입 CSS + `reducedMotion` 으로 비활성.
+- 네트워크 fixture: **없음** — 라이브 dev 서버(3041)·LOCAL DB 직접(외부 호출 0).
+- 캡처 범위: 측정값 중심 + 360 상태별 화면(정적 막대·키보드 포커스) 3~5장 — 판정은 px 로 글에 기록.
+- 허용 범위(Reviewer 차이 분류 기준): 기하(px) 판정 — 가로 넘침 0(`right > clientWidth` 요소 0), 누를 것 ≥43.5px, 막대-내용 여유 ≥0, 키보드 모사 시 포커스 칸 가림 0. 픽셀 diff 는 하지 않음(데모 v2 와의 정렬은 구조·치수 기준).
+
+## Developer 기록 (QA 결함 #1 FlowBar 키보드 가림 수정, 2026-10-03 06:57)
+- [06:57] **QA [결함 #1] Medium 수정 완료 — Leader 확정 사양 그대로**(키보드 열림 동안 FlowBar fixed 영역만 숨김, 하단 탭과 같은 규칙). 데모 게이트: `node ../.claude/tools/demo-gate/check.mjs check --task agent-vault/10-Flow/tasks/task-012c-console-p2.md` → `DEMO_GATE_PASSED` / `task: task-012c`(approved v2). 데모 v2 변경 아님(implementation), 커밋·push·git checkout/restore/stash 없음, LLM 0회·M4 합성 0회, PRODUCTION(3010·pm2·운영 DB 행) 무접촉.
+
+### 변경 파일 · hunk
+| 파일 | hunk |
+|---|---|
+| `src/components/admin/configEditor/FlowBar.tsx` | ① 머리 주석 +2줄(WHY: 줄어든 화면에서 막대가 키보드 위로 따라 올라와 아래 칸을 덮는데 `KeyboardInset` 드러내기는 막대 높이를 모름 → 키보드 열림 동안 막대만 숨기고 빈 자리는 남김). ② `role="region" aria-label="적용 단계"` div className 끝에 `[:root[data-kb]_&]:hidden` **한 토큰 추가**. 빈 자리 `h-[150px] lg:h-[84px]`·나머지 마크업 무변경 |
+| `src/components/admin/configEditor/__tests__/flow.test.ts` | 테스트 1개 추가 "막대 렌더: 키보드가 열린 동안(html[data-kb]) fixed 막대만 숨고 빈 자리는 남는다" — `renderToStaticMarkup` 결과의 `<div>` 들을 파싱해 (a) region div 가 `fixed` + `[:root[data-kb]_&]:hidden` 보유 (b) `h-[150px]` 빈 자리는 `aria-hidden="true"`·변형 없음 (c) 변형 보유 div 는 전체 1개 |
+| `docs/screens.md` §13-2 E "자리:" 줄 끝 | 한 문장 추가: 키보드 열린 동안 막대만 숨김·빈 자리 유지(하단 탭과 같은 규칙 — `html[data-kb]`, 클래스명, 결함 #1) — **지금 앱(1.0.1) WebView 는 키보드가 창을 줄이지 않아 대상 밖(task-021 네이티브 보정 APK 가 들어오면 같은 규칙으로 숨는다)**. 괄호 꼬리는 사양 문구에 더한 것: task-021 미커밋 `MainActivity.java` 가 IME margin 으로 WebView 를 줄이게 바꿔(APK 대기) 그 뒤엔 앱에서도 `data-kb` 가 켜지므로 "대상 밖"이 영구 사실이 아니다 |
+- **무변경 확인**: `src/app/globals.css`(mtime 2026-10-01 08:29) · `src/components/shell/KeyboardInset.tsx`(10-01 09:34) · `src/components/shell/keyboard.ts`(10-01 09:34) — 이번 작업에서 열람만, 편집 0. 규칙은 FlowBar 의 Tailwind 임의 변형만으로 생성된다.
+
+### 검증 (미러 `~/.node-local/thekaiwa-dev-010c` — `rsync -a --delete` 로 src/·tests/·prisma/·public/ 동기화, `npm install`·`prisma generate` 미실행)
+| 명령 | exit | 요약 줄(원 출력) |
+|---|---|---|
+| `node --import tsx --test --test-concurrency=1 src/components/admin/configEditor/__tests__/{flow,configEditor,rawSync}.test.ts` | **0** | `# tests 26` `# pass 26` `# fail 0` `# skipped 0` — 신규 `ok 18 - 막대 렌더: 키보드가 열린 동안(html[data-kb]) fixed 막대만 숨고 빈 자리는 남는다(012c QA 결함 \#1)` |
+| 변이: 미러 사본 FlowBar 에서 ` [:root[data-kb]_&]:hidden` 제거 후 `flow.test.ts` | **1**(사망) | `not ok 5 - 막대 렌더: 키보드가 열린 동안 …` `error: '막대에 키보드 열림 숨김 변형이 있어야 한다'` `# pass 8` `# fail 1` → NFS 원본으로 rsync 복원(`cmp` 일치) 후 재실행 exit **0**, `# pass 9` `# fail 0` |
+| `node node_modules/typescript/bin/tsc --noEmit` | **0** | 출력 0줄 |
+| `node node_modules/eslint/bin/eslint.js …/FlowBar.tsx …/__tests__/flow.test.ts` | **0** | 출력 0줄(0 error·0 warning) |
+| `timeout 900 flock ~/.node-local/thekaiwa-build.lock node node_modules/next/dist/bin/next build` | **1** | `Error [TurbopackInternalError]: Symlink [project]/node_modules is invalid, it points out of the filesystem root` — **이 미러는 `node_modules` 가 `~/.node-local/thekaiwa/node_modules` 심볼릭 링크라 Turbopack 이 거부**(코드 무관, `scripts/sync-local.sh` 머리 주석의 알려진 제약 — 재발 가능: 심볼릭 미러에서는 build·dev 불가, tsc·eslint·node:test 만 가능). Next 가 `/tmp/next-panic-2eb4a05edb93ee247e91e8c1b99488fe.log` 를 남김 |
+| **CSS 컴파일 대체**: Next 와 같은 `postcss.config.mjs`(`@tailwindcss/postcss` 4.3.3, tailwindcss 4.3.3) 로 미러 cwd 에서 `src/app/globals.css` 를 postcss 직접 컴파일(스크래치 `twcompile.mjs`) | **0** | `bytes 68936 tailwind 4.3.3` |
+- **컴파일된 CSS 에 선택자 있음** — `@layer utilities` 블록 끝, 1건:
+  ```
+  :root[data-kb] .\[\:root\[data-kb\]_\&\]\:hidden {
+    display: none;
+  }
+  ```
+  (같은 출력에 021 의 `:root[data-kb] [data-tabbar] { display: none; }` 도 그대로 있음 — 같은 규칙 계열.)
+- **헤드리스 확인(실행 — 정적 페이지 방식)**: 위 컴파일 CSS + `renderToStaticMarkup(FlowBar)`(검증 전 상태) + 입력칸 8개로 만든 HTML 을 google-chrome 147.0.7727.101(playwright-core, `isMobile`·`hasTouch`·DSF 2.625, reducedMotion)로 열고 `document.documentElement.dataset.kb='open'` 주입 → 제거 순으로 `getComputedStyle`. 결과 **4/4 PASS**, exit 0:
+  - 360×780 · 390×780 · 412×892: 전 `display:block`·`position:fixed`·막대 119px / data-kb 주입 `display:none`(높이 0)·빈 자리 `block` 150px 유지 / 제거 후 `block`·`fixed`·119px 복귀.
+  - 1280×900(비모바일): 전 `block`·`fixed`·63px, 빈 자리 84px / 주입 `none` / 제거 `block`·`fixed` 복귀. (실사용에선 `KeyboardInset` 이 coarse pointer·텍스트 포커스 조건이라 데스크톱에서 `data-kb` 가 켜지지 않는다 — 규칙 동작만 확인.)
+  - **미실행**: 실제 관리자 화면 + `KeyboardInset` 키보드 모사(QA kbfaithful 재현) — 사유: 이 미러는 위 Turbopack 제약으로 dev 서버 불가, 관리자 세션 필요. → QA 재측정 항목.
+
+### 남은 위험
+1. **실기기 미확인**: S25+ 모바일 Chrome 에서 키보드 열림 → 막대 사라짐 → 닫힘 → 복귀를 사람 눈으로 본 적 없음(헤드리스 정적 페이지까지만).
+2. **앱 WebView**: 지금 1.0.1 은 `data-kb` 가 안 켜져 동작 변화 없음(가림도 없음 — 창이 안 줄어 막대가 키보드 뒤에 있음). task-021 APK(IME margin 으로 창 축소) 이후엔 앱에서도 숨김이 동작해야 함 → 021 APK 실기기 때 함께 확인.
+3. **021 의존**: `data-kb` 는 task-021(미커밋) `KeyboardInset` 이 단다. 012c 가 021 보다 먼저 배포되면 이 클래스는 효과 0(무해) — 그 경우 결함 #1 의 원인(`KeyboardInset.reveal`)도 함께 없는 상태라 같은 가림은 생기지 않지만, 배포 순서는 Leader 판단.
+4. 접근성(관찰): 키보드 열림 동안 막대의 `aria-live="polite"` 안내도 `display:none` 이라 그 사이 상태 변화(예: 테스트 초 카운트)는 읽히지 않음. 입력 중에는 막대 버튼을 누를 수 없고(텍스트 칸이 아님 → 누르면 키보드가 닫혀 막대 복귀) 하단 탭과 같은 수용 범위로 판단.
+5. 문서 잔여: `docs/screens.md` §13-7 1번(약 7193행)·§13-9 체크리스트(약 7227행)·§13-12 ①(약 7297행)은 "가릴 수 있다/후속" 서술이 그대로다 — 지시 범위(한 문장) 밖이라 손대지 않음, Leader/Designer 정리 대상.
+
+### Reviewer 인계 포인트
+- 코드 수정은 **`FlowBar.tsx` 한 곳**(className 토큰 1개 + 주석 2줄). `globals.css`·`KeyboardInset.tsx`·`keyboard.ts` **무변경**(mtime 10-01).
+- 빈 자리(`aria-hidden` `h-[150px] lg:h-[84px]`) **유지** — 단위 테스트 (b)·헤드리스 `spacerH` 150/84 불변으로 확인.
+- 다른 fixed 하단 요소 영향 없음: `src/components/admin` 에서 `fixed`+`bottom-0` 은 FlowBar 하나뿐(grep). 생성 CSS 규칙은 해당 변형 클래스에만 걸리고(`:root[data-kb] .\[…\]\:hidden`), `[data-tabbar]`·`[data-kb-docked]`·`--safe-bottom` 규칙은 그대로.
+- 숨김 기준이 하단 탭과 같은 `:root[data-kb]` — `KeyboardInset` 이 키보드 닫힘 시 `delete root.dataset.kb` 하므로 막대 복귀 경로도 같다.
+- QA 재측정 제안: QA kbfaithful(360·390, 실제 탭 + viewport 780→450)에서 포커스 칸 `elementFromPoint` ≠ 막대, 키보드 닫힘 후 막대 `display:block` 복귀.
+
+- 산출물: 스크래치패드(`twcompile.mjs`·`render.tsx`·`headless.cjs`·`compiled.css`·`flowbar.html`·로그) — 프로젝트 밖. 미러에 만든 임시 파일 `.flowbar-render.tmp.tsx` 는 삭제. 미러 `.next` 는 실패한 build 시도로 손댔을 수 있음(개발 전용 미러).
+- 출력: `{"taskId":"task-012c","status":"DONE","deliverables":["src/components/admin/configEditor/FlowBar.tsx","src/components/admin/configEditor/__tests__/flow.test.ts","docs/screens.md#e-적용-막대--flowbar--flowview"],"blockers":[],"risk_level":"LOW"}` — 결함 수정이므로 **Reviewer 부터 재순환**.
+
+## Reviewer 기록 (REV-065 FlowBar 키보드 숨김 수정, 2026-10-03 07:05)
+
+- [07:05] **REV-065 = PASS_WITH_NOTES** (Critical 0 · High 0 · Medium 0 · Low 5). 범위: QA 결함 #1(모바일 키보드가 열리면 하단 `FlowBar`(fixed ≈119~150px)가 포커스된 입력칸을 가림)에 대한 Developer 수정 — `FlowBar.tsx` 막대 `div` 에 className 토큰 `[:root[data-kb]_&]:hidden` 1개 + 주석 2줄, `flow.test.ts` 테스트 1개, `docs/screens.md` §13-2 E "자리" 한 문장. **의도를 충족한다**(키보드가 열린 동안 fixed 막대만 숨고 빈 자리는 남으며, 닫히면 돌아온다). native_change = false.
+- **실기기 키보드 재현은 이번 감사의 범위 밖이고 Developer 도 하지 않았다 — QA 의 몫**(아래 QA 인계). 내 증거는 컴파일된 CSS 와 헤드리스 Chrome 의 `data-kb` 토글(진짜 키보드·`visualViewport` 가 아님)이다.
+
+### 내가 실행한 증거 (개인 미러 `~/.node-local/thekaiwa-rev-065` = rev-062 사본 + 변경 2파일, `cmp` 로 NFS 원본 일치 확인 · NFS 작업 트리 무수정 · LLM 호출 0)
+| 항목 | 결과 |
+|---|---|
+| `flow.test.ts`+`configEditor.test.ts`+`rawSync.test.ts` (미러 루트, `node --import tsx --test`) | **26/26 pass**, 신규 "막대 렌더: 키보드가 열린 동안…" ok |
+| `tsc --noEmit` (미러) | **exit 0**, 출력 0줄 |
+| **독립 변이 4종**(미러 `FlowBar.tsx` 에만 적용·원복, 원복 후 NFS 와 `cmp` 동일·9/9) | M1 막대에서 변형 토큰 제거 → **fail 1** · M2 빈 자리에도 변형 추가 → **fail 1** · M3 `data-kb`→`data-keyboard` 오타 → **fail 1** · M4 `:hidden`→`:invisible` → **fail 1**. 4/4 사망 |
+| 컴파일된 CSS(스크래치 postcss + `@tailwindcss/postcss` v4.3.3, 미러 `globals.css`=NFS 동일) | `:root[data-kb] .\[\:root\[data-kb\]_\&\]\:hidden { display: none; }` 가 **`@layer utilities` 안에 방출**. 선택자 `&` 치환이 의도대로 `:root[data-kb] <요소>` 후손 결합자(특이도 (0,3,0)). 하단 탭 규칙 `:root[data-kb] [data-tabbar]{display:none}` 은 그대로 |
+| **독립 헤드리스 Chrome**(`renderToStaticMarkup`(FlowBar)+컴파일 CSS 한 페이지, `html.dataset.kb` 설정→삭제, 360·390·412·1280px) | 설정 전 막대 `block`(h 119 · ≥1024 63) → **설정 후 `display:none`·`getClientRects()` 0**, 빈 자리 `block` **150px(≥1024 84px) 불변**, 대조군 `[data-tabbar]` 도 `none` → **삭제 후 막대 `block` 복귀**. 4개 폭 모두 같은 결과. 막대 높이 119 는 QA 측정값과 일치 |
+| 다른 fixed 하단 요소 | `src/app/(admin)`·`src/components/admin`·`src/components/shell` 에서 `bottom-0`/`fixed inset-x` 는 `FlowBar` 하나뿐(grep) |
+| 무변경 확인 | `globals.css`(10-01 08:29)·`KeyboardInset.tsx`·`keyboard.ts`(10-01 09:34) mtime 불변, 이번 수정이 건드린 파일 = `FlowBar.tsx`(10-03 06:53)·`flow.test.ts`(06:53)·`screens.md`(06:56) |
+| 데모 게이트 `check` | `DEMO_GATE_PASSED` (task-012c approved v2, hash verified) |
+
+### 8개 관점 판정
+1. **의도 충족 — 예.** `KeyboardInset.measure()` 가 `textFocused && (insetPx≥120 || shrunk≥120)` 일 때 `<html data-kb="open">` 을 달고, 아니면 `delete root.dataset.kb`(KeyboardInset.tsx 102~103). 리스너는 `visualViewport` resize·scroll, `window` resize, `focusin`/`focusout`, `orientationchange`, `visibilitychange`, 언마운트 정리(145행 `delete root.dataset.kb`)까지 있어 **고착 경로가 하단 탭과 같은 수준으로 막혀 있다**. 빈 자리(`aria-hidden` `h-[150px] lg:h-[84px]`, `FlowBar.tsx:40`)는 변형이 없어 유지 — 키보드가 열려도 마지막 칸 아래 여유가 남는다. 이 수정으로 `reveal()` 이 막대 높이를 모르는 문제는 **원인이 아니라 증상(막대 존재)을 제거**하는 방식이다 — 키보드 열림 동안 막대가 없으니 계산이 맞아진다(하단 탭과 같은 사용자 결정 D1 A 의 연장).
+2. **Tailwind v4 임의 변형 — 정상.** 위 컴파일 결과대로 방출되고 특이도 (0,3,0)·`@layer utilities`. `FlowBar` 막대 `div`(41~46행)에는 `flex`·`block`·`grid` 클래스도 인라인 `display` 도 없어 `display:none` 과 충돌하는 규칙이 없다(`globals.css` 의 `display` 규칙은 `[data-tabbar]`·`.no-scrollbar::-webkit-scrollbar` 두 곳뿐, 막대와 무관). 안쪽 `grid`·`flex` 는 자식이라 부모 `none` 에 가려진다. 하단 탭은 `data-tabbar`+`globals.css`, 막대는 인라인 변형으로 **방식이 다르지만 같은 `:root[data-kb]` 에 걸려** 동작은 동일(L5).
+3. **접근성.** `role="region"`·`aria-label`·`aria-live="polite"`(60행) 안내가 `display:none` 으로 접근성 트리에서 빠진다(헤드리스 `getClientRects()` 0). 키보드 열림 동안 막대 안 안내(예: 칸을 고치면 검증 결과가 지워져 "바뀐 값 N개 · 먼저 검증해요" 로 바뀜)는 낭독되지 않고, 복귀 때 다시 낭독되지도 않는다. 하단 탭과 같은 트레이드오프이고 키보드를 내리면 즉시 돌아와 **의도된 범위 안**으로 판단 — 관찰 L3. 숨김은 `display:none` 이라 포커스 가능한 막대 버튼이 키보드 열림 중 포커스를 받는 일도 없다(텍스트 칸에 포커스가 있어야 `data-kb` 가 켜짐).
+4. **회귀 영향 — 없음.** 막대 한 곳만 바뀜. PRODUCTION 확인(U-C7)은 막대가 아니라 별도 레이어: `EditorChrome.tsx:84` `FlowBar` 와 `ApplySheet`·`ConfirmDropSheet`(`Sheet` 포털, `fixed inset-x-0 top-0 z-40`, `bottom: var(--kb-inset)`) 가 서로 다른 컴포넌트라 막대 숨김과 무관하게 열려 있다. 막대 정보(단계 4칸·안내·버튼)는 키보드를 내리면 모두 복귀. 단 키보드 열림 중에는 [검증]·[테스트]·[적용]·[초안 버리기] 버튼을 누를 수 없다 — 칸을 고친 뒤 키보드를 내려야 한다(하단 탭이 숨는 것과 같은 사용자 동작).
+5. **6층·금기 — 위반 없음.** `FlowBar.tsx` 엔진명·model_id·Secret 0건, 6층 import 변화 없음(`./flow` 타입만), `globals.css`·`KeyboardInset`·`keyboard.ts` 무수정(021 미커밋 변경과 충돌 회피 — 합리적). **데모 v2 와의 차이 분류: implementation** — 데모 v2 `.flow` 는 `position: sticky; bottom: 0; z-index: 8`(모의 화면) 이고 키보드 개념이 없다. 구현은 `fixed`+키보드 열림 숨김이라 정보구조·문구·CTA 동작·단계 수·네비게이션 변화가 **없고** 숨김은 소프트 키보드가 뜨는 환경에서만 생기는 브라우저/기기 상태 대응이다 → 재승인 불필요(material 아님).
+6. **테스트 — 변이에 강하나 CSS 방출은 못 본다.** 구조 불변식 3개(막대=`fixed`+변형 / 빈 자리=`aria-hidden`+변형 없음 / 변형 보유 `div` 정확히 1개)를 파싱으로 확인해 구현 복사만은 아님(M2 가 빈 자리 불변식을 따로 죽임). 다만 **클래스 토큰 존재만** 보므로 Tailwind 가 규칙을 방출하지 않는 회귀(업그레이드로 임의 변형 `&` 의미 변경 등)는 못 잡는다 — 내가 위 컴파일·헤드리스로 별도 확인했고 자동 가드는 없음(L2).
+7. **문서.** §13-2 E 새 문장(6857행)은 사실과 일치(앱 1.0.1 WebView 가 창을 줄이지 않아 `data-kb` 미설정 → 대상 밖, task-021 네이티브 보정 APK 부터 동일 규칙 — `MainActivity.fitAboveKeyboard`·`versionCode 3`/1.0.2 미커밋 diff 와 부합). 그러나 **같은 문서 안에 낡은 서술 3곳이 남음**(L1).
+8. **실제 키보드 시뮬레이션 — QA 책임** (Developer 미수행 명시). 내 검증은 `data-kb` 토글이라 `KeyboardInset` 이 진짜 키보드·`resizes-content` 에서 그 속성을 켜는 것까지는 증명하지 못한다(그 부분은 task-021 QA 가 본 것을 신뢰하되 FlowBar 화면에서 재측정).
+
+### 이슈
+```json
+{ "reviewId": "REV-065", "status": "PASS_WITH_NOTES",
+  "issues": [
+    { "issue": "docs/screens.md 낡은 서술 3곳이 수정 후에도 '가릴 수 있다'·data-flowbar+globals.css 방식을 권고로 남김", "severity": "LOW",
+      "component": "docs/screens.md:7193 · 7227 · 7297",
+      "risk": "다음 구현자·QA 가 §13-12 ① 을 미해결로 읽거나 구현(Tailwind 변형)과 다른 방식(`data-flowbar`+globals.css)을 재도입할 수 있다",
+      "evidence": "7193 '§13-12 ① … FlowBar 에 data-flowbar + globals.css :root[data-kb] [data-flowbar]{display:none}' · 7227 체크리스트 '…가려질 수 있다(코드 추적, 실기기 미확인 → §13-12 ①)' · 7297 확인 요청 표 ① 가 여전히 data-flowbar 권고. 6857 새 문장만 갱신됨. Developer 기록도 '지시 범위 밖이라 손대지 않음' 으로 인지",
+      "recommendation": "Designer/Leader 가 QA 실기기 결과 확인 뒤 §13-7·§13-9·§13-12 ① 을 '해소 — FlowBar 인라인 변형으로 구현(REV-065)' 으로 정리. 7227 체크리스트는 가림 전제 문장만 고치고 검증 항목으로는 유지" },
+    { "issue": "신규 테스트가 클래스 토큰만 보므로 CSS 방출 실패·선택자 의미 변경을 못 잡는다", "severity": "LOW",
+      "component": "src/components/admin/configEditor/__tests__/flow.test.ts:76-91",
+      "risk": "Tailwind 업그레이드·설정 변경으로 임의 변형 규칙이 안 나와도 단위 테스트는 통과하고 막대가 다시 키보드를 가린다",
+      "evidence": "renderToStaticMarkup 문자열 파싱만 사용. 내가 변이 4종은 모두 잡았지만(4/4), 방출 여부는 postcss 컴파일·헤드리스로 별도 확인해야 했음",
+      "recommendation": "자동 가드는 선택(CSS 컴파일 테스트는 무거움). QA 가 배포 직전 빌드 CSS 에서 `:root[data-kb]` 변형 규칙 존재를 grep 하는 1줄 확인으로 대체 가능" },
+    { "issue": "막대가 숨는 동안 role=region·aria-live 안내가 접근성 트리에서 빠진다", "severity": "LOW",
+      "component": "src/components/admin/configEditor/FlowBar.tsx:41-46, 60",
+      "risk": "스크린리더로 키보드 입력 중 검증 결과 초기화 등 안내를 못 듣는다(복귀 때 재낭독 없음)",
+      "evidence": "헤드리스 `data-kb` 설정 시 getClientRects() 0. 하단 탭과 같은 규칙",
+      "recommendation": "조치 불필요(의도된 트레이드오프, 관리자 모바일 콘솔·키보드를 내리면 복귀). 접근성 요구가 생기면 별도 task 에서 시각적 숨김+스크린리더 노출 방식 검토" },
+    { "issue": "수정의 실효가 task-021 의 미커밋 웹·네이티브 변경에 묶여 있다 — 현재 앱 1.0.1 에서는 무효과(해도 회귀 없음)", "severity": "LOW",
+      "component": "src/components/shell/KeyboardInset.tsx(untracked) · android MainActivity.fitAboveKeyboard(미커밋, versionCode 3)",
+      "risk": "FlowBar(`??` 미추적 012c 파일)만 먼저 배포되면 `data-kb` 가 안 켜져 결함 #1 이 계속 보이고, 앱은 새 APK 설치 전까지 동일",
+      "evidence": "`git status`: FlowBar.tsx·KeyboardInset.tsx·keyboard.ts `??`, layout.tsx·globals.css `M`. 앱 1.0.1 WebView 는 키보드가 창을 줄이지 않아 `data-kb` 미설정(screens.md 6857·MainActivity 주석)",
+      "recommendation": "Leader 가 012c UI 와 021 웹(KeyboardInset·globals.css·layout)을 같은 릴리스로 묶을지 결정. 앱은 021 APK(1.0.2) 설치 후 FlowBar 실기기 확인" },
+    { "issue": "같은 `data-kb` 규칙을 두 방식으로 구현(탭=`data-tabbar`+globals.css, 막대=인라인 변형)해 한 곳만 보면 소비처를 놓친다", "severity": "LOW",
+      "component": "src/app/globals.css:145-162 (주석이 하단 탭만 언급) · FlowBar.tsx:44",
+      "risk": "`data-kb` 속성명·의미를 바꿀 때 FlowBar 를 grep 으로만 찾을 수 있다",
+      "evidence": "globals.css 키보드 블록 주석에 FlowBar 언급 0건. FlowBar 주석은 `KeyboardInset` 을 가리킴(단방향)",
+      "recommendation": "다음에 globals.css 를 손댈 때 주석에 'FlowBar 는 인라인 변형으로 같은 규칙을 따른다' 한 줄 추가(지금은 021 미커밋 변경과 충돌 회피 위해 미수정이 합리적)" }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 0, "low": 5 },
+  "high_risk_areas": ["키보드 열림→포커스 칸이 막대 뒤가 아닌 키보드 바로 위에 보이는가(360·390·412, 실제 탭+소프트 키보드)", "키보드를 내린 뒤 막대 복귀(고착 없음) — 뒤로가기·완료 키·바깥 탭·칸 언마운트 각각", "앱 1.0.1 에서는 data-kb 미설정이라 변화 없음 — 앱 1.0.2 APK 에서 재확인", "FlowBar·KeyboardInset 배포 순서 결합(L4)"],
+  "native_change": false }
+```
+
+### QA 인계 (결함 #1 재측정 — 실제 키보드는 QA 의 몫)
+- **측정 방법(웹, 모바일 Chrome 또는 폰 Chrome)**: 콘솔 편집 화면에서 값을 하나 바꿔 막대가 보이게 한 뒤 360·390·412px 에서 ① Form 아래쪽 칸·Raw 편집기 마지막 줄에 포커스 → 소프트 키보드 열림 → `document.documentElement.dataset.kb === 'open'`, 막대 `display:none`(`getComputedStyle(querySelector('[role=region][aria-label="적용 단계"]')).display`), 포커스 칸 `elementFromPoint` 가 칸 자신(막대 아님)·키보드 위 16px 이상, 빈 자리 `height` 150px(≥1024 84px) 불변 ② 키보드 닫기(뒤로가기·완료·바깥 탭 3종) → `dataset.kb` 삭제·막대 `display:block` 복귀(고착 없음) ③ 칸이 조건부로 사라지며 포커스가 풀리는 경우도 복귀 ④ 막대가 숨은 동안 [적용] 시트(PRODUCTION 확인 포함)가 막대와 무관하게 열림.
+- **QA 가 이미 가진 방식**: `kbfaithful`(실제 탭 + viewport 780→450) 재사용 — 원래 결함 측정(포커스 칸 390~434 · 막대 상단 331 · 막대 높이 119, 360·390) 이 어떻게 달라지는지 같은 조건으로 재측정.
+- **앱**: 1.0.1 은 `data-kb` 가 안 켜져 현상이 그대로일 수 있음 → task-021 네이티브 보정 APK(1.0.2) 설치 후 폰에서 확인(사용자 폰 실측 대기 항목과 합쳐도 됨).
+- **빌드 산출 확인(1줄)**: 배포용 빌드 CSS 에 `:root[data-kb] .\[\:root\[data-kb\]_\&\]\:hidden` 규칙이 있는지 grep(L2 대체 가드).
+
+### 데모 게이트·증거 흔적
+- `node ../.claude/tools/demo-gate/check.mjs check --task agent-vault/10-Flow/tasks/task-012c-console-p2.md` → **`DEMO_GATE_PASSED`**(approved v2, 데모 해시 verified).
+- `.claude/state/demo-gate/evidence.jsonl`: 012c 승인 줄 = `approve` v2, `ts 2026-10-01T08:17:28+09:00`, `prompt_ts 08:17:13`, 세션 `f3fdf531`(이 세션). 같은 시각 `prompts.jsonl` 에 사용자 발화 "대기 중인 데모 전부 권고안대로 승인"(08:17:13)이 실재 → 승인-발화 대응 일치. 파일 mtime 10-01 08:17 이후 불변(012c 신규 줄 없음), `events.jsonl` 에서 `check.mjs approve|waive` 호출·`.claude/state/demo-gate/` 쓰기 흔적 0건 → **에이전트 대리 승인·직접 쓰기 흔적 없음**.
+- 데모 v2 vs 구현 차이 분류: 위 5번 — **implementation**(재승인 불필요). material·defect 0건.
+
+### Leader 인계
+- 판정 PASS_WITH_NOTES — QA 로 진행 가능(Critical 0·High 0). Low 5건은 모두 코드 수정 없이 정리/확인(L1 문서 정리·L4 배포 묶음 결정이 Leader 몫, L2·L3·L5 관찰).
+- 이 수정으로 Developer 재순환은 필요 없음. QA 에서 실제 키보드로 막대 가림이 계속되면(예: `data-kb` 미설정 환경) 그때 Medium 으로 격상 후 `reveal()` 이 막대 높이를 빼는 방식(Designer §13-12 ① 의 두 번째 안) 검토.
+
+## QA 기록 (012c 키보드 재측정 — REV-065 이후, 2026-10-03 08:00)
+
+범위: 결함 #1(FlowBar 가 키보드 위로 올라와 아래쪽 입력 칸을 덮음) 수정 — `FlowBar.tsx` 의 `[:root[data-kb]_&]:hidden` — 의 **제한 재측정**. 직접 실행한 증거만 PASS, 못 한 것은 NOT_VERIFIED/미실행으로 적는다. 소스·prisma·정본·데모 수정 0건(리포트만).
+환경: 미러 `~/.node-local/thekaiwa-qa-011b`(미러 FlowBar.tsx·KeyboardInset.tsx 가 NFS 와 `diff` 동일 확인) · dev 서버 127.0.0.1:3043(`APP_ENV=LOCAL`) · 역할 계정(admin·developer)만 · 실 LLM 호출 0 · M4 합성 0 · 설정 저장/적용 0건. 데모 게이트 `check.mjs` → `status: approved · approved_version: v2 · hash: verified`.
+
+### 판정: **PASS** — 결함 0건(Critical 0·High 0·Medium 0). Low 관찰 3건 + NOT_VERIFIED 목록은 Leader 판단용
+이 재측정은 결함 #1 해소 확인에 한정한다 — task 전체 판정은 앞선 `## QA 기록 (012c 콘솔 P2 — REV-062 이후…)` 와 Leader 가 합산한다.
+
+### 항목별 판정표
+
+| # | 항목 | 판정 | 실행 근거(측정값) |
+|---|------|------|--------------------|
+| 1a | configEditor 단위 테스트 | PASS | `node --import tsx --test` 26/26 |
+| 1b | `tsc --noEmit` | PASS | exit 0 |
+| 1c | 넓은 범위 테스트 | PASS | 522건 중 520 pass · 0 fail · **2 skip** — skip 2건은 brand 테스트 "미러에 android/ 없음"(미러 구성 때문, 제품 결함 아님) |
+| 2 | 키보드 동반 가림(핵심) 360·390·412 — ①`data-kb==='open'` ②막대 `display:none` ③포커스 입력칸이 보이는 영역 안 + 칸 중앙 `elementFromPoint`=입력칸 ④스페이서 높이 불변 | **PASS** | claude-cli-local 텍스트 입력 5개(`runtime.modelByTier.fast·balanced·deep`·`runtime.prewarmMaxIdle`·`runtime.prewarmIdleTtlSec`) × 3폭 전부 `kb=open` · `bar=none` · 입력 **389.5~433.5 / vh 450**(키보드 위 여백 16.5) · hit=`input` · 스페이서 **150→150**. 화면 아래쪽(탭 전 입력 519.5~563.5)에서 탭해도 389.5~433.5 로 올라와 보임. 스크롤 끝 맨 아래 칸은 102.5~146.5(여백 303.5) |
+| 2c | 옛 결함 재현(대조군) | PASS(하니스 유효) | 숨김 규칙만 CSS 로 무력화(`:root[data-kb] [role="region"][aria-label="적용 단계"]{display:block!important}`) → 막대 **331~450(h 119)** · 입력 **389.5~433.5** · hit=`div`(막대가 칸을 덮음) — 기존 결함 수치(입력 390/434 · 막대 상단 331 · 높이 119)와 일치. 대조 해제 후 막대 다시 `none` |
+| 2d | 키보드 없이 포커스만 | PASS | `kb=null` · 막대 `block`(터치·포커스만으로는 숨지 않음) |
+| 3 | Raw JSON(DEVELOPER) 마지막 줄 — 같은 4항목 | **PASS** | textarea(`aria-label="설정 JSON"`, rows 21, 높이 524) 3폭 모두 `kb=open` · `bar=none` · 중앙·아래끝 hit=textarea · 스페이서 150→150. 캐럿 이동 측정(키보드 450 + `Control+End`): 막대 숨김 상태에서 hit=`textarea`, **대조(막대 강제 표시)에서는 막대 331~450 이 마지막 줄 line box(429~453)를 통째로 덮고 hit=막대** — 수정 효과 확인. 관찰 O-1 참조 |
+| 4a | 복구 경로 A: 뷰포트 780 복원 | PASS | 3폭 `kb=null` · 막대 `block/fixed` 661~780(h 119) · 버튼 최소 44 · 넘침 0 |
+| 4b | 복구 경로 B: blur | PASS | 3폭 `kb=null` · 막대 `block/fixed` 331~450(뷰포트 450 기준 하단) |
+| 4c | 복구 경로 C: 바깥 탭 | PASS | 3폭 `kb=null` · 막대 복귀 · active=body |
+| 4d | 필드 소멸 복구: ① 탭 전환(Diff) ② 포커스 이동 없는 소멸 | PASS | ① 입력 0개 · `kb=null` · 막대 복귀 ② 소멸 직후(뷰포트 450 유지) `kb=null` · 막대 `block`; 780 복원 후 `block/fixed` |
+| 5 | 적용 흐름 회귀(키보드 닫힘, **적용 안 함**) | PASS | 3폭: [검증] → [기능 테스트]("일부만 확인") → Diff(`runtime.vad.threshold` 줄) → [적용…] 대화창 열림. 이유 입력칸 보임(예: 360px 에서 548.8~618.8/vh 780)·hit=입력칸 · [적용] 버튼 높이 48 · 시트 가로넘침 0 · `data-kb` 없음 · Escape 로 닫음(DOM 0). **저장·적용 0건** |
+| 5b | 온디바이스 연결(reazon-ondevice) 입력 2개 390px | PASS | `runtime.vad.endpointSilenceMs`·`runtime.vad.threshold` 둘 다 `kb=open` · `bar=none` · 입력 390~434/vh 450 · hit=input · 스페이서 150→150 |
+| 6 | 정적(키보드 없음) 360·390·412 | PASS | 문서·본문 가로넘침 0(요소 `right>clientWidth` 0) · 막대 `fixed` **h 119** 661~780 · 스페이서 **150** · 버튼 ≥44(`초안 버리기` 176×44·`검증` 174×44 @390) · 막대 윗선~마지막 본문 여백 **71**(≥0) · 페이지 세로 스크롤 0 |
+| 6b | 정적 1280×800 | PASS | 막대 `fixed` · **left 232**(사이드바 오른쪽)·bottom 800 · 스페이서 **84** · 버튼 44 · 여백 61 · 넘침 0 — 관찰 O-2 참조 |
+| 7 | 콘솔·페이지 오류 | PASS | 전 구간 0건 |
+| — | 실기기 S25+ Chrome 가상 키보드 · APK WebView · 스크린리더 | **NOT_VERIFIED** | 아래 목록 |
+
+실행 체크 합계: core 69/69 · recovery 36/36 · raw 4항목 9/9 · raw 캐럿+온디바이스 5/5 · 적용 흐름+1280 정적 25/25 = **144/144 PASS**. 이 밖에 첫 실행에서 FAIL 로 찍힌 4건은 아래 "첫 실행 FAIL 4건 해명"(제품 결함 아님)에 정직하게 남긴다.
+
+### 전·후 비교(핵심 수치)
+
+| 항목 | 옛 결함(대조군 = 숨김 규칙 무력화) | 수정 후(실측) |
+|---|---|---|
+| 막대 `display` | `block` | **`none`** (`data-kb=open`) |
+| 막대 위치 | 331~450 (h 119) | 없음(레이아웃에서 빠짐) |
+| 아래쪽 입력 칸 위치 | 389.5~433.5 | 389.5~433.5(동일 — 막대만 사라짐) |
+| 입력 칸 중앙 hit | `div`(막대) | **`input`** |
+| Raw JSON 마지막 줄(429~453) hit | 막대가 통째로 덮음 | `textarea` |
+| 스페이서 | 150 | 150 → 150(불변, 본문 끝 여유 유지) |
+| 키보드 닫음 후 | — | `kb=null` · 막대 `fixed` 661~780 · h 119 · 버튼 44 |
+
+### 원문 발췌(실행 출력)
+
+```
+browser 147.0.7727.101
+PASS | K360-1 runtime.modelByTier.fast: ①data-kb=open ②막대 display:none ③입력칸 보임·elementFromPoint=입력칸 ④스페이서 불변 | pre.kb=null kb=open bar=none 입력 389.5~433.5/vh 450 (키보드 위 여백 16.5) hit=input spacer 150→150
+PASS | C360 대조(숨김 규칙 무력화) → 막대가 입력칸을 덮음(하니스 유효성) | bar 331~450(h 119) · 입력 389.5~433.5 · hit=div
+PASS | K360-L runtime.prewarmIdleTtlSec(화면 아래쪽에서 탭, top 519.5): ①②③④ | 탭 전 입력 519.5~563.5 → kb=open bar=none 입력 389.5~433.5/vh 450 hit=input spacer 150→150
+PASS | P390A 뷰포트 450→780 복원 → data-kb 해제 · 막대 fixed 복귀 · 높이 119 · 버튼≥44 · 넘침 0 | kb=null bar=block/fixed rect 661~780 h119 active=input btnMin=44 overflow=0
+PASS | P390D2 포커스 이동 없는 필드 소멸 → … | 소멸 후 450: kb=null bar=block active=body / 뷰포트 780 복원 후: kb=null bar=block/fixed
+RAW JSON CARET 390px [수정 후] {"kb":"open","vh":450,"ta":{"top":-61,"bottom":463,"h":524},"lastLineBottom":453,"bar":{"display":"none"},"hitDesc":"textarea","selEnd":true}
+RAW JSON CARET 390px [대조]    {"kb":"open","vh":450,"bar":{"display":"block","top":331,"bottom":450},"hitDesc":"div(막대)","selEnd":true}
+A360d 적용 창: {"kb":null,"reason":{"top":548.8,"bottom":618.8,"h":70,"inView":true},"reasonHit":true,"applyBtn":{"top":728.8,"bottom":776.8,"h":48,"inView":true},"sheetOverflow":0,"docOverflow":0,"vh":780}
+static[1280] {"kb":null,"docOverflow":0,"overCount":0,"bar":{"display":"block","position":"fixed","top":737,"h":63,"left":232,"bottom":800},"spacerH":84,"margin":61,"btns":["초안 버리기:98x44","검증:54x44"],"minBtn":44}
+```
+
+### 관찰(Low — 결함 아님, Leader 판단용)
+
+- **O-1 (Low) 긴 텍스트영역 마지막 줄은 브라우저 네이티브 캐럿 스크롤 의존** — Raw JSON textarea 는 높이 524 로 키보드 450 보다 커서 `revealDelta` 가 0 을 돌려준다(task-021 설계, `keyboard.ts`: 칸이 보이는 영역보다 크면 브라우저에 맡김). 에뮬레이션에서 탭만 한 직후(캐럿 이동 전)에는 textarea 아래 끝이 544 로 vh 450 밖이다. `Control+End` 로 캐럿을 끝으로 옮기면(Chrome 네이티브 캐럿 스크롤) 마지막 줄 line box 가 429~453 — 아래쪽 3px 가 키보드 경계에 걸친다. 수정(막대 숨김)의 효과는 대조군으로 확인했고(막대가 있으면 그 줄이 통째로 가려짐), 줄 가시성 자체는 **실기기 IME 에서만 확정 가능**하다. 조치 불필요, 실기기 확인 항목에 포함.
+- **O-2 (Low) 문서·task 문구와 실측 차이** — 지시문의 "lg 84" 는 **스페이서** 높이다(실측 84 ✓). 1280px 막대 자체 높이는 **63**(모바일 119 와 다름)이며 여백 61 이라 가림은 없다. 표기만 "막대 63 / 스페이서 84"로 정리하면 된다(Reviewer REV-065 관찰과 같은 종류).
+- **O-3 (Low) 쓰기 흔적 1건 — 설정 아님** — 측정 전·후 LOCAL `ConfigurationVersion` 0→0, `AuditLog` 546→546, EngineConnection·FallbackPolicy·AppSetting 해시 전부 동일(변경 0). 단, `EngineHealth` 가 87→88: 새 행은 `style-bert-m4`(LOCAL) `kind=HEALTH`·`HEALTHY`·latency 6ms·checkedAt 2026-10-02T22:56:22Z(= 07:56:22 KST). 앞선 행(22:06:07Z·15:31Z)도 같은 종류라 주기 점검 또는 다른 dev 서버(3041)의 점검일 가능성이 높으나, 내 [기능 테스트] 클릭이 원인일 가능성은 배제하지 못했다(원인 귀속 불확실). 추가 전용 점검 기록이고 설정이 아니라 삭제하지 않았다.
+
+### 첫 실행 FAIL 4건 해명(투명 공개)
+
+1. `RAW360b·390b·412b`(3건): 내가 task 항목 밖에서 추가한 확장 어설션 "textarea 아래 끝 ≤ vh". 524px textarea 는 정의상 만족 못 하는 기준이고(위 O-1), 제품 결함이 아니다. **어설션을 완화하지 않고** 별도 `RAWC`(캐럿 이동 후 마지막 줄 위치 기록 + 막대 대조)로 대체해 수치를 O-1 에 공개했다.
+2. `ONDEVICE 실행 오류(TimeoutError)`: 하니스가 마지막 칸을 맨 아래 스크롤로 맞췄더니 칸이 고정 막대(661~780) 아래에 가려져 탭을 못 한 것(칸 top 750). 스크롤을 `scrollIntoView({block:'center'})` 로 바꿔 재실행 → 입력 2개 모두 PASS(5b).
+
+### 환경 한계(에뮬레이션 — 숨기지 않는다)
+Playwright 의 `setViewportSize`(780→450, 실제 `touchscreen.tap` 으로 포커스 후)는 Chrome `resizes-content` 의 창 축소 + `data-kb` 경로를 재현하지만, **실제 IME 표시 시 Chrome 이 하는 "편집 칸 스크롤 인 뷰"·추천 단어 띠 높이 변화·`visualViewport` 미세 변화는 재현하지 않는다**. 위 PASS 는 "막대가 키보드 열림 동안 레이아웃에서 빠지고 닫히면 복귀한다"까지의 증거다.
+
+### NOT_VERIFIED(미실행 사유 포함)
+- 실제 S25+ Chrome 가상 키보드(IME 네이티브 스크롤·추천 띠·`visualViewport`) — 실기기 필요, 사용자 육안 확인
+- APK WebView — 앱 1.0.1 은 `data-kb` 가 켜지지 않아(Capacitor 가 키보드 인셋을 WebView 에 넘기지 않음, `KeyboardInset.tsx` 주석) 현상이 그대로일 수 있음. **task-021 네이티브 보정 APK(1.0.2) 설치 후 폰에서 재확인**
+- 스크린리더(TalkBack) 접근성 — 키보드 열림 동안 `role=region` 이 사라지는 점 포함, 미실행
+- 다크 테마 렌더 — 이번 재측정은 light 만(미측정)
+- 배포용 빌드 CSS 의 `[:root[data-kb]_&]:hidden` 규칙 확인(Reviewer 제안 L2) — 이번 범위가 dev 서버 한정(`npm run build` 금지)이라 미실행
+
+### QA 시각 검증 조건(재현 조건)
+- 브라우저: playwright-core + google-chrome **147.0.7727.101** headless, `isMobile`·`hasTouch`(coarse pointer 확인 true)
+- 뷰포트: **360 / 390 / 412 × 780**, 키보드 열림 = 높이 780→**450**(탭으로 포커스한 뒤 `setViewportSize`, 800ms 안정 대기), 데스크톱 **1280×800**
+- DSF: 모바일 **2.625**, 데스크톱 1
+- 테마: **light 만** · locale **ko-KR** · timezone **Asia/Seoul** · `prefers-reduced-motion: reduce`
+- 글꼴·로딩: `goto(..., waitUntil: networkidle)` 후 입력 칸 `waitForSelector` · 각 상태 250~800ms 대기
+- 애니메이션: 비활성(reduced-motion + 주입 CSS `animation/transition-duration:0s`, `nextjs-portal` 숨김)
+- 네트워크 fixture: **없음**(dev 서버 3043 LOCAL·실 DB, LLM·M4 호출 0)
+- 캡처 범위: **DOM 계측만 — 스크린샷 0장**(근거는 측정 px·요소·hit 대상으로 기록)
+- 허용 범위(Reviewer 차이 분류): 좌표·여백 ±0.6px, 터치 대상 ≥43.5px 를 같음으로 본다. 그 밖은 implementation 차이로 기록하고, 데모 v2 승인 범위를 넘는 구조 차이는 material 로 올린다(이번 측정에는 material·defect 0)
+
+### 정리 확인
+- 프로세스 정리: dev 3043 종료(PID 1179160·자식 1179176·1179248, PID 파일 기준 `kill`) · `ss -ltn` 에서 3043 비어 있음. 다른 QA(3041)·운영 3010 은 건드리지 않음
+- 산출물 정리: **20개 삭제**(스크래치패드 `qa-kb` 17개[쿠키 2개 포함] + 미러 `.qa-kb` 3개) · 스크린샷 0장 · `/tmp/qa-artifacts` 에 내가 만든 것 없음(08:01 확인 시 존재하는 `TheKaiwa/task-025` 는 task-025 QA 의 것 — 건드리지 않음)
+- 복제본: 내가 만든 `~/.node-local/thekaiwa*` 복제본 없음(`thekaiwa-qa-011b` 는 지정받은 기존 미러 — 삭제 안 함)
+- DB: LOCAL ConfigurationVersion 0→0 · AuditLog 546→546 · 연결·정책·AppSetting 해시 동일, 쓰기 흔적은 O-3 의 EngineHealth +1 뿐
+
+### 인계
+- 결함 0건 — Developer 반송·Reviewer 재순환 없음. 이 재측정은 REV-065 수정의 PASS 확인이며, task 전체 진행·배포 판단은 Leader(앞선 QA 기록과 합산).
+- 사용자 육안 확인 필요: 위 NOT_VERIFIED 목록(특히 S25+ Chrome IME 에서 Raw JSON 마지막 줄 가시성, APK 1.0.2 이후 앱 WebView)
+
+## Leader 기록 (키보드 재측정 QA PASS 수용, 2026-10-03 08:05)
+
+REV-065 이후 키보드 재측정 QA(2026-10-03 08:00, 144/144 PASS)의 원 기록을 Leader 가 직접 읽고 확인했다 — 대조군(수정 전 동작)이 옛 결함을 재현하고 수정본에서 닫히는 것까지 보았다.
+
+- **결함 #1(FlowBar 가 모바일 키보드 입력칸을 가림) 종결.** Developer 반송·Reviewer 재순환 없음. 서버·보안 축은 앞선 QA(78/78 UI E2E, Secret 비반사, 쓰기 진입점 9곳) PASS 가 그대로 유효하다 — 이번 수정은 FlowBar 의 `data-kb` 숨김 1개와 스페이서 유지뿐이라 서버 코드를 건드리지 않았다.
+- **Low 3건 수용(수정 없음)**
+  - O-1: Raw JSON 마지막 줄이 키보드 가장자리를 3px 넘는다 — 네이티브 캐럿 스크롤에 달린 값이라 헤드리스로 확정할 수 없다. **사용자 폰 확인 항목**으로 둔다(S25+ Chrome IME).
+  - O-2: 문서 표현(바 63px / `lg` 스페이서 84px) — `docs/screens.md` 정리 때 같이 고친다.
+  - O-3: 기능 테스트가 `EngineHealth` 를 +1 했다 — 설정 변경이 아니다(ConfigurationVersion 0→0, AuditLog 546→546).
+- **배포 묶음**: FlowBar 는 task-021 의 `data-kb`(KeyboardInset)에 의존하므로 **021 과 같은 웹 배치**로 나간다. 앱 WebView 는 APK 1.0.2(versionCode 3) 이후에만 키보드에 맞춰 줄어든다.
+- **012c 상태**: QA 전 축 PASS → **배포 대기**. 남은 것은 Low 묶음(`task-012c-ui-fix` 후보: ⑦ 미사용 `EffectiveScreen` default export·`ConfigAccess.note` · ⑧ REV-054 Lows · ⑨ damage 문구·`issues[].key` 표시 · `MicTestCard.tsx:132` sr-only `<p>` 스크롤 · REV-062 L4 · REV-065 Lows 2/3/5), `docs/screens.md` 문구 정리, 빌드 CSS 에서 `[:root[data-kb]_&]:hidden` 규칙 존재 확인(Reviewer L2 — 푸시 전 빌드 때), 사용자 항목 U-C7(SUPER_ADMIN 운영 확인창 리허설)·폰 확인.
+- 위 `## 최종 요약` 절(codex 임시 문구)은 012c 배포 완료 때 Leader 가 다시 쓴다.

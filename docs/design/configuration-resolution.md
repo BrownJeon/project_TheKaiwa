@@ -449,7 +449,7 @@ Validate ──▶ Functional Test(필수) ──▶ Change Summary(Diff + 영�
 
 > **확인 방식 통일(task-012c D-C1, 2026-09-29)**: 이 표가 정본이다. admin-console/16 §6 의 서명 확인 토큰(HMAC, `candidateHash`+actor+10분)은 **폐기**했다 — 같은 보증(확인한 변경 = 적용되는 변경)을 무상태 `summaryHash` 재계산과 DB 의 `testResultId` 로 얻고, blue/green 두 프로세스에서도 그대로 동작한다. 발음 사전(api-contract §7-2a)은 기능 테스트 개념이 없어 `confirm:"PRODUCTION"` + SUPER_ADMIN 만 쓴다.
 
-ADMIN/DEVELOPER 는 PRODUCTION 에서 Validate·Test·Diff 까지 만들고 결과(`summaryHash`·`testResultId`)를 "승인 요청" 으로 남긴다(콘솔 History 의 `pendingProductionApprovals`). 1인 앱에서는 같은 사람이 SUPER_ADMIN 계정으로 확인 단계를 한 번 더 밟는 셈이다.
+ADMIN/DEVELOPER 는 PRODUCTION 에서 초안·변경 요약(Validate·Diff)까지만 만든다 — 적용은 SUPER_ADMIN 계정으로 다시 해야 한다(1인 앱: 같은 사람이 최고관리자 계정으로 확인 단계를 한 번 더 밟는다). 승인 요청 기록(`pendingProductionApprovals`)은 만들지 않는다(task-012c 구현·데모 v2 모두 없음, Designer §13-12 ⑤ 에 따라 2026-10-02 Leader 정정).
 
 ### 8-2. 엄격 키(strict)
 
