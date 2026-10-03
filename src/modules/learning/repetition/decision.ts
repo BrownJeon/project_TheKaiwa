@@ -16,12 +16,12 @@
  *   코드 근거 문구)으로 쓰고 잡은 FAILED(오류 코드만). 화면은 결과를 기다리지 않는다.
  * 잡 payload·Trace 에는 입력 메타(개수·id·트리거)만 — 프롬프트·항목 본문·LLM 근거는 넣지 않는다.
  */
-import type { DecidedBy, JobStatus, Prisma, RepetitionItemType, RepetitionPriority, SkillAxis } from '@prisma/client'
+import type { DecidedBy, JobStatus, Prisma, RepetitionItemType, RepetitionPriority } from '@prisma/client'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type TraceStep } from '@/modules/engine'
 import { classifyError, dates, jobs, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
 import { getErrorStats } from '../learningHistory'
-import { summarizeRecentObservations } from '../observations'
+import { summarizeRecentObservations, type ObservationSkillSummary } from '../observations'
 import { countGuard, ensureTodaySchedule, kstDayStart, REVIEW_RATIONALE_MAX } from '../reviewSchedule/core'
 import { clampInterval, priorityAfterFeedback } from './index'
 import { groupNextReview, nextDueDate, orderCandidates, REVIEW_CANDIDATES_MAX, REVIEW_FALLBACK_RATIONALE_KO, reviewGuardOf, type NextReviewGroup } from './review'
@@ -53,7 +53,7 @@ export interface ReviewDecisionCandidate {
 export interface ReviewDecisionMaterials {
   todayKst: string
   candidates: ReviewDecisionCandidate[]
-  observationSummary: { skill: SkillAxis; success: number; fail: number }[]
+  observationSummary: ObservationSkillSummary[]
   errorStats: { type: string; count: number }[]
 }
 

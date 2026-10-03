@@ -49,7 +49,7 @@ import {
 import { parseProgressPatch } from '../lessons/progress'
 import { completeScheduleForLesson, ensureTodaySchedule, kstDayStart, orderPreview, skipReviewIn } from '../reviewSchedule/core'
 import { claimReviewStart, resolveDecisionJob, type DecisionPathDeps, type ReviewMixMaterials } from '../reviewSchedule'
-import { correctionSkill, observationDailyDelta, observationRow, recordObservations, OBSERVATION_META_MAX } from '../observations'
+import { correctionSkill, observationDailyDelta, observationRow, recordObservations, summarizeRecentObservations, OBSERVATION_META_MAX, OBSERVATION_CONFIDENCE_MIN } from '../observations'
 import { correctionProposedObservation, recordCorrectionIgnored, recordCorrectionsProposed, registerAcceptedCorrection } from '../observations/corrections'
 import { lessonObservations, quizTargetTally } from '../lessons/observations'
 import { vocabObservations, vocabRepetitionInputs } from '../vocab/sessions'
@@ -1212,4 +1212,54 @@ test('M-1 ⑤ 후보가 없으면 LLM 을 부르지 않고 같은 tx 로 잡 DON
   assert.equal(w.ops[0], 'lock')
   assert.ok(!w.ops.includes('items:update'))
   assert.deepEqual([store.job.status, w.ops.at(-1)], ['DONE', 'job:DONE:1'])
+})
+
+// ---- task-010b2 ★결정 3: 관측 신뢰도 가중(confidence < 0.6 → uncertain) ----
+type ObsRow = { userId: string; skill: string; outcome: string; confidence: number; occurredAt: Date }
+/** groupBy 가짜 — where(userId·occurredAt·outcome in·confidence gte/lt)를 그대로 평가해 쿼리 조건이 틀리면 집계가 어긋난다. */
+function fakeObsGroupBy(rows: ObsRow[]) {
+  const groupBy = async (args: { by: string[]; where: { userId: string; occurredAt: { gte: Date }; outcome: { in: string[] }; confidence: { gte?: number; lt?: number } } }) => {
+    const w = args.where
+    const hit = rows.filter(
+      (r) => r.userId === w.userId && r.occurredAt >= w.occurredAt.gte && w.outcome.in.includes(r.outcome) && (w.confidence.gte === undefined || r.confidence >= w.confidence.gte) && (w.confidence.lt === undefined || r.confidence < w.confidence.lt),
+    )
+    const groups = new Map<string, Record<string, unknown>>()
+    for (const r of hit) {
+      const g = Object.fromEntries(args.by.map((k) => [k, (r as unknown as Record<string, unknown>)[k]]))
+      const key = JSON.stringify(g)
+      const cur = groups.get(key) ?? { ...g, _count: { _all: 0 } }
+      ;(cur._count as { _all: number })._all++
+      groups.set(key, cur)
+    }
+    return [...groups.values()]
+  }
+  return { groupBy } as unknown as Parameters<typeof summarizeRecentObservations>[3]
+}
+
+test('관측 신뢰도 가중: 0.59 → uncertain, 0.6(경계) → 집계 포함, 1.0 은 집계, 축별 success+fail+uncertain = SUCCESS·FAIL 관측 전부', async () => {
+  assert.equal(OBSERVATION_CONFIDENCE_MIN, 0.6)
+  const now = new Date('2026-10-03T00:00:00Z')
+  const at = new Date('2026-10-01T00:00:00Z')
+  const o = (skill: string, outcome: string, confidence: number, occurredAt = at, userId = U): ObsRow => ({ userId, skill, outcome, confidence, occurredAt })
+  const rows: ObsRow[] = [
+    o('VOCAB_RECALL', 'SUCCESS', 0.6),
+    o('VOCAB_RECALL', 'FAIL', 0.59),
+    o('VOCAB_RECALL', 'SUCCESS', 1),
+    o('VOCAB_RECALL', 'SUCCESS', 0.5),
+    o('LISTEN_RESPOND', 'FAIL', 0.1),
+    o('GRAMMAR_PARTICLE', 'FAIL', 0.9),
+    o('GRAMMAR_PARTICLE', 'PARTIAL', 0.2), // 세지 않는다(PARTIAL·SKIPPED)
+    o('GRAMMAR_PARTICLE', 'SKIPPED', 0.2),
+    o('VOCAB_RECALL', 'FAIL', 0.3, new Date('2026-09-01T00:00:00Z')), // 14일 밖
+    o('VOCAB_RECALL', 'FAIL', 0.3, at, 'other'), // 다른 사용자
+  ]
+  const out = await summarizeRecentObservations(U, 14, now, fakeObsGroupBy(rows))
+  assert.deepEqual(out, [
+    { skill: 'GRAMMAR_PARTICLE', success: 0, fail: 1, uncertain: 0 },
+    { skill: 'LISTEN_RESPOND', success: 0, fail: 0, uncertain: 1 },
+    { skill: 'VOCAB_RECALL', success: 2, fail: 0, uncertain: 2 },
+  ])
+  const inWindow = rows.filter((r) => r.userId === U && r.occurredAt >= new Date(now.getTime() - 14 * 86_400_000) && (r.outcome === 'SUCCESS' || r.outcome === 'FAIL'))
+  assert.equal(out.reduce((n, s) => n + s.success + s.fail + s.uncertain, 0), inWindow.length, '축별 합 = 전체 SUCCESS·FAIL 관측 수')
+  assert.deepEqual(await summarizeRecentObservations(U, 14, now, fakeObsGroupBy([])), [])
 })

@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Prisma } from '@prisma/client'
 import type { Tx } from '@/modules/infra'
-import type { ReviewDecisionResponse } from '@/modules/conversation'
+import { REVIEW_DECISION_PROMPT_VERSION, type ReviewDecisionResponse } from '@/modules/conversation'
 import type { ReviewDecisionCandidate } from '@/modules/learning'
 import { correctionProposedHook, reviewCorrectionHooks, reviewDecisionDriver } from '../review'
 
@@ -27,7 +27,7 @@ const c = (itemId: string, intervalDays: number, priority: 'NORMAL' | 'FOCUS'): 
 
 test('A11 finalize = normalizeReviewDecision: 후보 1:1·3~7·FOCUS ≤3·입력에 없던 id·중복 폐기·판단 못 받은 항목은 폴백(byTutor false)', () => {
   const driver = reviewDecisionDriver(U)
-  assert.equal(driver.promptVersion, 'reviewDecision@v1')
+  assert.equal(driver.promptVersion, REVIEW_DECISION_PROMPT_VERSION)
   const data: ReviewDecisionResponse = {
     decisions: [
       { itemId: 'a', nextIntervalDays: 9, priority: 'NORMAL', reason_ko: '잘 기억해요' },

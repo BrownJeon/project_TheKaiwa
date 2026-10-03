@@ -108,20 +108,42 @@ export async function recordObservations(userId: string, rows: readonly Observat
   return res.count
 }
 
-/** A11 입력 — 최근 `days`일 축별 성공/실패 수(원문 없음, 코드 집계 — Leader's Plan L2). 실패 = FAIL 만(SKIPPED·PARTIAL 은 세지 않는다). */
-export async function summarizeRecentObservations(userId: string, days = 14, now = new Date()): Promise<{ skill: SkillAxis; success: number; fail: number }[]> {
+/**
+ * 관측 신뢰도 하한(task-010b ★결정 3). 이보다 낮은 관측(STT 저신뢰·리뷰 미확정 0.5 등)은 성공/실패 판단에 쓰지 않고 `uncertain` 으로만 센다 —
+ * 모르는 것을 틀린 것으로 오판해 복습 간격을 줄이지 않게 한다. 컬럼 `confidence` 는 NOT NULL default 1 이라 null 은 없다(기존 행도 1.0).
+ */
+export const OBSERVATION_CONFIDENCE_MIN = 0.6
+
+export interface ObservationSkillSummary {
+  skill: SkillAxis
+  success: number
+  fail: number
+  /** confidence < `OBSERVATION_CONFIDENCE_MIN` 인 SUCCESS·FAIL 관측 수(success/fail 에는 들지 않는다). */
+  uncertain: number
+}
+
+/**
+ * A11 입력 — 최근 `days`일 축별 성공/실패 수(원문 없음, 코드 집계 — Leader's Plan L2). 실패 = FAIL 만(SKIPPED·PARTIAL 은 세지 않는다).
+ * 신뢰도가 낮은 관측은 success/fail 에서 빼고 `uncertain` 으로 센다 — 축별 success+fail+uncertain = 그 축의 SUCCESS·FAIL 관측 전부.
+ */
+export async function summarizeRecentObservations(userId: string, days = 14, now = new Date(), db: Pick<typeof prisma.learningObservation, 'groupBy'> = prisma.learningObservation): Promise<ObservationSkillSummary[]> {
   const since = new Date(now.getTime() - days * 86_400_000)
-  const rows = await prisma.learningObservation.groupBy({
-    by: ['skill', 'outcome'],
-    where: { userId, occurredAt: { gte: since }, outcome: { in: ['SUCCESS', 'FAIL'] } },
-    _count: { _all: true },
-  })
-  const out = new Map<SkillAxis, { skill: SkillAxis; success: number; fail: number }>()
-  for (const r of rows) {
-    const s = out.get(r.skill) ?? { skill: r.skill, success: 0, fail: 0 }
+  const base = { userId, occurredAt: { gte: since }, outcome: { in: ['SUCCESS', 'FAIL'] as ObservationOutcome[] } }
+  const [confident, uncertain] = await Promise.all([
+    db.groupBy({ by: ['skill', 'outcome'], where: { ...base, confidence: { gte: OBSERVATION_CONFIDENCE_MIN } }, _count: { _all: true } }),
+    db.groupBy({ by: ['skill'], where: { ...base, confidence: { lt: OBSERVATION_CONFIDENCE_MIN } }, _count: { _all: true } }),
+  ])
+  const out = new Map<SkillAxis, ObservationSkillSummary>()
+  const row = (skill: SkillAxis) => {
+    let s = out.get(skill)
+    if (!s) out.set(skill, (s = { skill, success: 0, fail: 0, uncertain: 0 }))
+    return s
+  }
+  for (const r of confident) {
+    const s = row(r.skill)
     if (r.outcome === 'SUCCESS') s.success += r._count._all
     else s.fail += r._count._all
-    out.set(r.skill, s)
   }
+  for (const r of uncertain) row(r.skill).uncertain += r._count._all
   return [...out.values()].sort((a, b) => a.skill.localeCompare(b.skill))
 }

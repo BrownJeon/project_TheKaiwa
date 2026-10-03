@@ -7,6 +7,15 @@
  * 범위 강제(3~7일·FOCUS ≤3일)·id 유효성·누락 항목 폴백은 이 파일이 아니라 `structuredResponse/reviewRepair.ts` 의
  * `normalizeReviewDecision`(LLM 응답을 받은 뒤 호출자가 부르는 결정적 보정)이 한다 — 이 파일의 책임은 프롬프트
  * 구성과, 재시도가 필요한 위반(엔진명 노출)만 잡는 `extraCheck` 연결까지다.
+ *
+ * **v2(2026-10-03, task-010b2)** — 운영 21:18 `/decisions/0..2: 허용되지 않은 필드 'reason' 포함`(1차 계약 위반 → ajv 재시도)·개발 QA
+ * `sessionPlan.mixNote_ko` 누락 → 재시도, 재시도가 sonnet 60s 예산을 넘겨 운영 A11 DAILY 64.7s FAILED → FALLBACK. 대조 결과
+ * (`REVIEW_DECISION_SCHEMA`, additionalProperties:false 전 층): 최상위 required = decisions·sessionPlan·rationale_ko /
+ * decisions[] required = itemId·nextIntervalDays·priority·reason_ko / sessionPlan required = itemIds·mixNote_ko — v1 지시문은 이 이름을
+ * 전부 담고 있었지만 **산문 속에 흩어져** 있고 "이 밖의 키 금지"가 없어 모델이 `reason` 으로 줄여 썼다(A5 `reviewMix@v3` 와 같은 유형).
+ * v2: (1) 응답 형태를 한 줄 JSON 골격으로 정확한 키 이름과 함께 보이고 "이 밖의 키 금지(reason·note 등)·모든 키 필수"를 명시,
+ * (2) reason_ko 를 40자 안팎으로 줄여 출력 토큰·지연을 낮춤(스키마 상한 80 은 그대로), (3) 관측 신뢰도: 입력 `uncertain`(신뢰도 낮은 관측
+ * 수, 코드 집계)을 `불확실N` 으로 렌더하고 근거로 약하게만 쓰게 한다(task-010b ★결정 3). 스키마·검사·보정·예산은 무변경.
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -14,7 +23,7 @@ import { checkReviewDecisionResponse } from '../structuredResponse/reviewChecks'
 import { REVIEW_DECISION_MAX_ITEMS, REVIEW_DECISION_SCHEMA, type ReviewDecisionResponse, type ReviewPriority } from '../structuredResponse/reviewSchemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const REVIEW_DECISION_PROMPT_VERSION = 'reviewDecision@v1'
+export const REVIEW_DECISION_PROMPT_VERSION = 'reviewDecision@v2'
 export const REVIEW_DECISION_HEADER_CAP = 600
 /** design-spec §8 A11 "≤40건·≤4,000자" — 후보 블록 전용 상한(헤더·관측 요약과 별개). */
 export const REVIEW_DECISION_CANDIDATES_MAX_CHARS = 4_000
@@ -47,6 +56,8 @@ export interface ReviewDecisionObservationSummary {
   skill: 'VOCAB_RECALL' | 'GRAMMAR_PARTICLE' | 'LISTEN_RESPOND' | 'SENTENCE_PRODUCTION' | 'CONVERSATION_MAINTAIN'
   success: number
   fail: number
+  /** confidence < 0.6 라 success/fail 에서 뺀 관측 수(음성 인식 신뢰도 낮음) — 0·미지정이면 렌더하지 않는다. */
+  uncertain?: number
 }
 
 export interface ReviewDecisionErrorStat {
@@ -107,7 +118,9 @@ function trimCandidates(items: ReviewDecisionCandidateInput[], maxCount: number,
 
 function renderObservationSummary(items: ReviewDecisionObservationSummary[]): string | null {
   if (items.length === 0) return null
-  const parts = items.slice(0, OBSERVATION_LINE_MAX_SKILLS).map((o) => `${o.skill} 성공${o.success}·실패${o.fail}`)
+  const parts = items
+    .slice(0, OBSERVATION_LINE_MAX_SKILLS)
+    .map((o) => `${o.skill} 성공${o.success}·실패${o.fail}${o.uncertain && o.uncertain > 0 ? `·불확실${o.uncertain}` : ''}`)
   return `[최근 관측] ${parts.join(' · ')}`
 }
 
@@ -119,11 +132,12 @@ function renderErrorStats(items: ReviewDecisionErrorStat[]): string | null {
 
 function reviewDecisionInstruction(): string {
   return [
-    '[지시] 아래 [복습 후보] 각 항목을 다음에 언제(3~7일 사이) 다시 볼지 정하고, 오늘 볼 항목을 고르세요. 최상위 키는 decisions, sessionPlan, rationale_ko 입니다.',
-    '- decisions: [복습 후보]의 itemId 를 그대로 써서 판단한 만큼 배열로 담습니다(전부 판단하지 않아도 됩니다 — 애매하면 빼도 됩니다). nextIntervalDays 는 3~7 사이 정수(많이 틀리거나 피드백이 많을수록 3에 가깝게, 잘할수록 7에 가깝게). priority 는 많이 틀리거나 자주 교정한 항목만 FOCUS(그 밖은 NORMAL). reason_ko 는 "4회 학습·오답 3회라 3일" 처럼 근거 한 줄(80자 이내, 한국어).',
-    '- sessionPlan.itemIds: 오늘 학습에 포함하면 좋을 항목 id — 학습 횟수가 적은 것을 우선하고 고르게 섞습니다. mixNote_ko 는 어떻게 섞을지 한 줄(200자 이내, 한국어).',
+    '[지시] 아래 [복습 후보] 각 항목을 다음에 언제(3~7일 사이) 다시 볼지 정하고, 오늘 볼 항목을 고르세요.',
+    '- 응답 형태(키 이름을 글자 그대로, 모든 키 필수, 이 밖의 키 금지 — reason·note 같은 이름이나 추가 키를 쓰면 응답이 거부됩니다): {"decisions":[{"itemId":"…","nextIntervalDays":4,"priority":"NORMAL","reason_ko":"…"}],"sessionPlan":{"itemIds":["…"],"mixNote_ko":"…"},"rationale_ko":"…"}',
+    '- decisions: [복습 후보]의 itemId 를 그대로 써서 판단한 만큼 담습니다(애매하면 빼도 됩니다, 최소 1건). nextIntervalDays 는 3~7 사이 정수(많이 틀리거나 피드백이 많을수록 3에 가깝게, 잘할수록 7에 가깝게). priority 는 많이 틀리거나 자주 교정한 항목만 FOCUS(그 밖은 NORMAL). 근거 키는 reason_ko 하나뿐 — "4회 학습·오답 3회라 3일" 처럼 한 줄(40자 안팎, 한국어).',
+    '- sessionPlan: itemIds 는 오늘 학습에 포함하면 좋을 항목 id(학습 횟수가 적은 것을 우선하고 고르게 섞기), mixNote_ko 는 어떻게 섞을지 한 줄(200자 이내, 한국어). itemIds 를 비워도 mixNote_ko 는 반드시 씁니다.',
     '- rationale_ko: 전체 판단 근거 요약(300자 이내, 한국어).',
-    '- [복습 후보]에 없는 id 를 지어내지 않습니다. 최근 관측 요약이나 반복 오류 통계가 위에 있으면 판단의 참고 근거로 씁니다(직접 인용하지 않아도 됩니다).',
+    '- [복습 후보]에 없는 id 를 지어내지 않습니다. 최근 관측 요약·반복 오류 통계가 위에 있으면 참고 근거로 씁니다(직접 인용하지 않아도 됩니다). 관측의 불확실N 은 음성 인식 신뢰도가 낮은 관측이라 판단 근거로 약하게만 씁니다.',
     INJECTION_GUARD,
   ].join('\n')
 }

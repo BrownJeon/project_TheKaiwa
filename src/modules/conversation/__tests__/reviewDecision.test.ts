@@ -38,7 +38,7 @@ test('buildReviewDecisionRequest: task·persona·jsonSchema·메시지 형태, k
   assert.match(req.system, /\[모드\] REVIEW_DECISION/)
   assert.ok(req.messages[0].content.startsWith('[복습 후보]'))
   assert.ok(req.messages[0].content.includes('id=rep-01'))
-  assert.equal(REVIEW_DECISION_PROMPT_VERSION, 'reviewDecision@v1')
+  assert.equal(REVIEW_DECISION_PROMPT_VERSION, 'reviewDecision@v2')
 })
 
 test('후보가 비어 있으면 ReviewDecisionInputError', () => {
@@ -54,6 +54,41 @@ test('관측 요약·오류 통계가 있으면 system 에 [최근 관측]·[반
   const without = buildReviewDecisionRequest({ todayKst: '2026-09-28', learner, candidates: fixture.candidates })
   assert.ok(!without.system.includes('[최근 관측]'))
   assert.ok(!without.system.includes('[반복 오류]'))
+})
+
+test('v2 지시문: 스키마 required 필드 이름이 전부 나오고(최상위·decisions[]·sessionPlan), 비허용 키 금지 문구가 있다', () => {
+  const sys = buildReviewDecisionRequest({ todayKst: '2026-09-28', learner, candidates: fixture.candidates }).system
+  const schema = REVIEW_DECISION_SCHEMA as unknown as {
+    required: string[]
+    properties: { decisions: { items: { required: string[] } }; sessionPlan: { required: string[] } }
+  }
+  const names = [...schema.required, ...schema.properties.decisions.items.required, ...schema.properties.sessionPlan.required]
+  assert.ok(names.length >= 9)
+  for (const n of names) assert.ok(sys.includes(n), `지시문에 ${n} 가 없다`)
+  assert.match(sys, /이 밖의 키 금지/)
+  assert.match(sys, /reason·note/, '비허용 이름 예시(reason)를 명시')
+  // 응답 형태 골격의 키 집합이 스키마와 정확히 같다(지시-스키마 드리프트 방어).
+  const shape = sys.match(/\{"decisions":.*"rationale_ko":"…"\}/)
+  assert.ok(shape, '응답 형태 골격 줄이 있다')
+  const skeleton = JSON.parse(shape![0].replace(/…/g, 'x'))
+  assert.deepEqual(Object.keys(skeleton).sort(), [...schema.required].sort())
+  assert.deepEqual(Object.keys(skeleton.decisions[0]).sort(), [...schema.properties.decisions.items.required].sort())
+  assert.deepEqual(Object.keys(skeleton.sessionPlan).sort(), [...schema.properties.sessionPlan.required].sort())
+})
+
+test('v2 관측 신뢰도: uncertain>0 이면 불확실N 을 붙이고, 0·미지정이면 생략한다', () => {
+  const sys = buildReviewDecisionRequest({
+    todayKst: '2026-09-28', learner, candidates: fixture.candidates,
+    observationSummary: [
+      { skill: 'SENTENCE_PRODUCTION', success: 3, fail: 1, uncertain: 2 },
+      { skill: 'VOCAB_RECALL', success: 14, fail: 4, uncertain: 0 },
+      { skill: 'GRAMMAR_PARTICLE', success: 5, fail: 2 },
+    ],
+  }).system
+  assert.match(sys, /SENTENCE_PRODUCTION 성공3·실패1·불확실2/)
+  assert.match(sys, /VOCAB_RECALL 성공14·실패4(?!·불확실)/)
+  assert.match(sys, /GRAMMAR_PARTICLE 성공5·실패2(?!·불확실)/)
+  assert.match(sys, /불확실N 은 음성 인식 신뢰도가 낮은 관측이라 판단 근거로 약하게만/)
 })
 
 test('헤더 상한(≤600) 준수', () => {
