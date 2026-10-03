@@ -404,6 +404,13 @@ material 차이 0 · defect 0 → 데모 재승인 불필요.
 
 ## 최종 요약 (Leader)
 
+**상태: 웹 ✅ 운영 반영(2026-10-03, 012c FlowBar 와 같은 배치) · 앱(APK 1.0.2, versionCode 3) 빌드·실기기 확인 대기.**
+
+- **원인과 해법**: 입력창 가림은 화면별 문제가 아니라 공통 문제였다. 앱 셸에서 키보드 높이를 한 번 계산해(`<html data-kb>`·`--kb-inset`) 바텀시트·입력 화면이 같은 값을 쓴다. 앱 WebView 는 네이티브 `MainActivity.fitAboveKeyboard` 가 창을 줄이는 경로가 따로 있어, 이중 보정이 생기지 않도록 웹 쪽 값을 0 으로 둔다.
+- **검증**: Reviewer REV-049 PASS(Medium 0) · QA 웹 E2E 95/95(Leader 가 직접 재실행해 확인, 첫 실행의 listGap 실패 1건은 콜드 컴파일 지연으로 워밍 후 재현 안 됨) · 단위 16/16 · Judge C2 Codex 불필요.
+- **아직 안 된 것**: 네이티브 변경이라 **앱 웹뷰는 APK 1.0.2 를 설치해야** 키보드에 맞춰 줄어든다. 순서는 deployer `scripts/build-apk.sh --test`(JDK 21) → **사용자 S25+ 실기기 확인** → `--publish` + `AppRelease` INSERT(`minSupported` 2 권고, INSERT 시각이 곧 업데이트 배너 노출 시각이라 폰 확인 뒤) → 사용자 재설치.
+- **사용자 확인 필요**: S25+ Chrome 에서 입력창 가림 여부(회화방·단어 추가·설정·붙여넣기) · APK 설치 후 이중 보정 없음(입력 바가 한 번만 올라감) · 분할 화면·회전.
+
 ## 데모 검토 (demo gate)
 
 > 실행 판정 정본은 frontmatter `demo_gate` 이다. 이 표는 check.mjs 가 함께 기록하는 사람용 이력이다(docs/demo-review-gate.md).

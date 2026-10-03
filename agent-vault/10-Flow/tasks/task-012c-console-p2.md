@@ -1231,9 +1231,15 @@ R2 risk + 보안 경계 변경(비밀 유출 방지) + Reviewer Low 항목(정�
 
 ---
 
-## 최종 요약
+## 최종 요약 (Leader)
 
-Codex C2 재검토에서 **새로운 보안 우회 1건 적발**: 비자유 STRING 설정값(모델명 키)에서 접두 없는 긴 API 키가 `secretLikeExceptLongToken()`의 정책 예외로 통과하는 경로. 다음: Reviewer가 지적 채택·수정 판단.
+**상태: ✅ 운영 반영(2026-10-03, 릴리스 `20261003-093130-2209ed2b`, 커밋 `cb176cc`·`2209ed2`).** 서버 1·2단계는 앞서 운영 반영(`6abe464`·`8c22f01`)됐고, 이번에 화면(데모 v2 승인 2026-10-01)이 같은 배치로 나갔다.
+
+- **만든 것**: 관리자 콘솔 P2 — 설정 편집·버전·롤백 흐름과 적용 확인 화면(운영 변경은 SUPER_ADMIN 확인), 비밀 값 거부(`400 VALIDATION {rule:'secretValue'}`)·`credentialRef` 만 저장.
+- **감사 이력**: REV-047 CONDITIONAL_PASS(M-1) → REV-054 PASS → Codex C2 High → REV-056 부분 채택 → REV-059 PASS_WITH_NOTES → Codex 재검토(접두 없는 긴 API 키가 모델명 키 검사를 통과하는 우회) 수정 → REV-062 PASS_WITH_NOTES → Judge: Codex 예산 4/4 소진이라 추가 없음 → QA 결함 #1(모바일 키보드 입력칸을 FlowBar 가 가림) → 수정 → REV-065 PASS_WITH_NOTES → 키보드 재측정 QA PASS 144/144.
+- **알려진 한계**: 접두 없는 긴 토큰은 `validate.ts` 의 좁은 보강 규칙 1개로 막았다. Codex 가 권고한 키별 허용 형식·모델 ID 화이트리스트는 오탐 위험이 커 채택하지 않았고, 오탐 대 미탐 균형은 정책 판단으로 남는다(REV-062 Low). Codex 호출 예산은 4/4 소진. Low 묶음은 후속 `task-012c-ui-fix` 후보(미사용 `EffectiveScreen` default export·`ConfigAccess.note`, REV-054 Low, 손상 문구·`issues[].key` 표시, `MicTestCard.tsx:132`, REV-062 L4, REV-065 Low 2/3/5).
+- **후속**: 012c-2(Prompt Registry·Playground·Voice) · 012c-3(TTS 품질) · `docs/screens.md` 문구 정리.
+- **사용자 확인 필요**: U-C7(SUPER_ADMIN 운영 확인창 리허설) · 모바일 키보드에서 FlowBar 가 입력칸을 가리지 않는지와 Raw JSON 마지막 줄(O-1)을 실제 키보드·앱에서 확인.
 
 ## Leader 기록 (Codex C2 재검토 판단, 2026-10-01 17:30)
 
