@@ -197,8 +197,8 @@ demo_gate:
 ## 사용자 결정·승인 필요 목록
 | # | 항목 | 필요 시점 | 막는 범위 | 기본안 |
 |---|---|---|---|---|
-| U-C1 | **TTS P1 재배치**(012b U6 ①·⑤ 후속): Golden·회귀·A/B·TTS 대시보드 = Phase 2(012c-3) 유지, **Voice Versions·Canary = Phase 4(016, Voice Package Import 와 함께)** — design-spec 결정 ③의 부분 변경 | 012c-3 착수 전 | 012c-3 범위·정본 표 | 권고안(이관) |
-| U-C2 | 합격 기준 수치(speech-platform/16 §9.4) — Versions 가 Phase 4 로 가면 012c-3 에선 **회귀 경보 기준**으로만: 실패 0%·지연 p95 ≤ 기준×1.2·읽기 일치 ≥98%·길이 Δ ±15%(95%)·청취 점수 | 012c-3 착수 전 | 012c-3 판정 | 초안 값 |
+| U-C1 | **TTS P1 재배치**(012b U6 ①·⑤ 후속): Golden·회귀·A/B·TTS 대시보드 = Phase 2(012c-3) 유지, **Voice Versions·Canary = Phase 4(016, Voice Package Import 와 함께)** — design-spec 결정 ③의 부분 변경 | 012c-3 착수 전 | 012c-3 범위·정본 표 | ✅ **권고안(이관) 확정** — 2026-10-03 사용자 결정 |
+| U-C2 | 합격 기준 수치(speech-platform/16 §9.4) — Versions 가 Phase 4 로 가면 012c-3 에선 **회귀 경보 기준**으로만: 실패 0%·지연 p95 ≤ 기준×1.2·읽기 일치 ≥98%·길이 Δ ±15%(95%)·청취 점수 | 012c-3 착수 전 | 012c-3 판정 | ✅ **초안 값 확정** — 2026-10-03 사용자 결정 |
 | U-C3 | 012c-3 **DB 추가**(`TtsQualityRun`·`TtsQualityResult`·`TtsAbCompare` [+`TtsGoldenSentence`]) — 백업 후 db push | 012c-3 착수 | 012c-3 | 추가 |
 | U-C4 | **012c 화면 데모 승인**(설정 Form·Raw JSON·Diff·적용·이력·Rollback·비밀 참조 연결·Fallback 편집·PRODUCTION 확인) | 화면 구현 전 | 012c 화면(서버는 진행) | 데모 후 |
 | U-C5 | (확인, 기본안으로 진행) Prompt Registry 범위 — **콘솔에서 운영 프롬프트를 바꾸는 기능은 강사 페르소나만**, 나머지 프롬프트는 보기·비교·테스트(D-C12 A) | 012c-2 C1 | 012c-2 설계 | A |

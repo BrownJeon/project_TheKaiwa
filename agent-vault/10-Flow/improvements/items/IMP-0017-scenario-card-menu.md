@@ -1,16 +1,16 @@
 ---
 imp_id: IMP-0017
 title: "회화 탭의 '채팅' 항목을 'amiko' 식 '시나리오'(장소·상황 카드 → 기본 시나리오 → AI 회화 스크립트)로 변경"
-status: triaged
+status: planned
 screen: "§3 AI 채팅"
 area: "ux"
 priority: ""
 found_on: ""
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-03
 observed_ref: 0e1140c
 related_task: "[[task-006-chat-correction]]"
-planned_task: ""
+planned_task: "[[task-010d-scenario-roleplay]]"
 tags:
   - type/improvement
 aliases:
@@ -52,3 +52,8 @@ aliases:
 - **저작권·범위 원칙**: amiko 는 **구성·흐름의 참고**로만 쓴다. 일러스트·캐릭터·문구·상표는 복제하지 않고 이 앱의 토큰·문구·엔진명 비노출 원칙(`brand.ts`)으로 다시 그린다.
 - **사용자 결정 필요(착수 때)**: ① 기존 '채팅'을 **대체**할지 **'시나리오'를 추가**할지(요청 글은 "추가"이지만 제목은 "변경") — 채팅 교정 기능(task-006)은 어디에 두는가 ② 3모드 답장 연습·듣기 모드·설정 메뉴 중 **이번 범위에 넣을 것**(전부 넣으면 010d 보다 큰 별도 에픽) ③ 010d 데모 v1 을 v2 로 대체할지.
 - **의존**: 010d 스키마(`Scenario`·`Chat.scenarioId`)는 사용자 DB 승인 대기와 같은 줄에 있다.
+
+## 사용자 결정 (2026-10-03) — 3결정
+
+- ① **'시나리오' 추가** — 기존 '채팅'(자유 대화·표현 점검·교정 채택)은 유지 ② 대화방 범위 = **"탭하여 답장 연습" 3모드(선택·말해보기·따라 읽기)만** — 배경 스토리 카드·듣기 모드·⋮ 대화 설정 메뉴는 제외 ③ 010d 데모 **full v2 로 전면 다시 그리기**(v1 위 delta 아님).
+- → [[task-010d-scenario-roleplay]] 에 병합(`planned`). 남은 선행: **장소·상황 카드 목록 캡처 업로드(사용자)** — 받기 전 데모 설계 금지.

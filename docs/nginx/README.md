@@ -8,7 +8,7 @@ sudo cp /home/brownjeon/NFS/homes/brownjeon/project/TheKaiwa/docs/nginx/kaiwa.xn
  && sudo nginx -t && sudo systemctl reload nginx
 ```
 
-적용 이력: 2026-09-26 23:07 사용자 적용(`nginx -t` 통과, `/`·`/ws/speech` 502 = 업스트림 미기동 정상).
+적용 이력: 2026-09-26 23:07 사용자 적용(`nginx -t` 통과, `/`·`/ws/speech` 502 = 업스트림 미기동 정상). 2026-10-03 `location /api/internal/ { return 404; }` 추가(사용자 승인 — 내부 콜백은 `APP_INTERNAL_URL=http://127.0.0.1:3010` 직통이라 영향 없음) — **2026-10-03 18:40 사용자 재적용 완료**(운영 conf = 저장소 conf diff 0, 외부 POST `/api/internal/*` 404 · 내부 `127.0.0.1:3010` 직통 401(정상 — 시크릿 검사) · `/api/health` 200). 확인: `curl -s -o /dev/null -w '%{http_code}' -X POST https://kaiwa.xn--lh0b87pnudm10a4vd.com/api/internal/speech/jobs/claim -H 'X-Internal-Secret: x'` 가 401 → **404**.
 
 확인(앱 기동 전엔 502 가 정상 — vhost 가 붙었다는 뜻):
 ```bash
