@@ -44,7 +44,7 @@ tags:
   - [[task-023-improve-vocab-screen]] — 단어장 조각 필터·뱃지·상세 재생(IMP-0001·0002·0003, R1·**데모 delta v1 승인 2026-10-01**) — 구현 완료·REV-050(Medium 1: 필터 전환 시 머리 줄 개수 어긋남) 수정 → REV-053 PASS · Judge C2 Codex 없음 · **QA PASS** → ✅ 운영 반영(웹만 — 실기기 소리 확인은 사용자)
   - [[task-024-improve-talk-length]] — ✅ **완료·운영 반영**(`da263a6`, Reviewer·QA PASS, 운영 스모크 45/45 — 폰 체감은 사용자) 회화 응답 길이 상황별 1~4문장(IMP-0010, talk@v4·sceneCap)
   - [[task-025-improve-today-lesson]] — 오늘의 회화 4건(IMP-0012·0013·0014·0016, R2·**데모 delta v1 승인 2026-10-01**, A4 v8) — 화면 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`) · REV-052 → REV-060 수정 확인 · Codex 지적 0건 ×2 · lesson@v8·reviewMix@v2 · **QA PASS_WITH_NOTES(2026-10-03 09:23 — 12/14 PASS·FAIL 0·Low 1 기존 코드) → ✅ 운영 반영(2026-10-03, 운영 스모크 010 65/65·011 61/61·012 32/32·007 45/45)** · v8 롤백 기준 ①~④ 감시 · 후속 [[task-025b-lesson-hangul-fallback]]
-  - [[task-025b-lesson-hangul-fallback]] — 025 후속(퀴즈 질문 한글 폴백 D9 Medium·로그 카운터 분리·④ 활용형 매칭·종료 카드 링크 shrink-0, R1·화면 구조 변경 없음) — **등록 2026-10-03, Judge 접수·Developer 대기**
+  - [[task-025b-lesson-hangul-fallback]] — 025 후속(퀴즈 질문 한글 폴백 D9 Medium·로그 카운터 분리·④ 활용형 매칭·종료 카드 링크 shrink-0, R1·화면 구조 변경 없음) — **완료·운영 반영 2026-10-03 12:46**(커밋 `9070e11`, 릴리스 `20261003-124555-9070e11e`, Reviewer 3차 PASS·QA 화면 실측 PASS·운영 스모크 010 65/65, ④ 부정 오탐 2회 반려로 Opus 승격)
   - [[task-026-improve-hangul-reading]] — 한글 발음 표기+토글(IMP-0009·0015, R2·**데모 delta v1 승인 2026-10-01**)
   - 보류: IMP-0011(카드 결과 초이스 통일 — Q9 예제 검토 대기) · IMP-0004(카톡 연동 2단계 자동 수집 — 별도 task, 신규도입 검토 필요) · IMP-0007(N5 단어 수 — 단어 출처 결정 대기)
 
