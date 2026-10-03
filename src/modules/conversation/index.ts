@@ -11,7 +11,7 @@
 export { loadPersona, PersonaUnavailableError, AGENT_NAME } from './persona/loader'
 export type { LoadedPersona, PersonaOptions } from './persona/loader'
 export * from './structuredResponse/schemas'
-export { isExactOriginal, isVerbatimQuote, splitJaSentences, checkTalkResponse, checkChatResponse, checkChatReview, checkWordEnrich, checkLessonResponse, countJaSentences, REPLY_SENTENCE_HARD_CAP } from './structuredResponse/checks'
+export { isExactOriginal, isVerbatimQuote, splitJaSentences, checkTalkResponse, checkChatResponse, checkChatReview, checkReplyKoNaturalness, checkWordEnrich, checkLessonResponse, countJaSentences, REPLY_SENTENCE_HARD_CAP } from './structuredResponse/checks'
 export { repairLessonResponse, LESSON_REPAIR_CHUNKS_MAX } from './structuredResponse/repair'
 export type { LessonRepairSourceChunk, LessonRepairResult } from './structuredResponse/repair'
 export { normalizeForLessonMatch, chunkAppearsIn } from './structuredResponse/matching'

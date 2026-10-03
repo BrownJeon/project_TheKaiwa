@@ -93,7 +93,7 @@ test('TALK: altText 상한 — 상한을 한참 넘는 후보를 줘도 사용�
 
 test('TALK: talk@v5 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
   // v4 = task-024 문장 수 상한 sceneCap 도입(v3 는 고정 2문장, 상세 회귀는 talkLength.test.ts) · v5 = REV-055 M-1 TALK 학습자 헤더에서 `교정 모드` 칸 제거(아래 테스트)
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v5')
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v6')
   assert.deepEqual(CORRECTION_MODES, ['FLUENCY', 'COACH'])
   const omitted = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
   assert.match(omitted.system, /\[교정\] 유창성/)
@@ -189,7 +189,7 @@ test('TALK: COACH 힌트 지시 — 정답의 한국어 뜻·번역·「X가 아
   // 실제 요청의 system(stdin)에도 COACH 에서만 실린다. 버전 번호는 올리지 않았다(v5 미배포 — 위 버전 테스트가 그대로 통과해야 한다).
   const req = (correctionMode: 'COACH' | 'FLUENCY') => buildTalkRequest({ todayKst: '2026-10-03', learner, history: [], text: '明日学校に行きました', correctionMode }).system
   assert.ok(req('COACH').includes(COACH_HINT_LINE) && !req('FLUENCY').includes('한국어 뜻'))
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v5')
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v6')
 })
 
 test('TALK: 예산 — [교정] 헤더가 늘어난 뒤에도 altText·긴 이력 최악 조합은 두 모드 모두 ≤3,000자(불변식 회귀)', () => {

@@ -60,15 +60,27 @@
  * RULE`(62자)을 더 얹으면서 마진이 24자까지 좁아져 **140→220** 으로 2차 상향했다 — 재측정(light/heavy 학습자 ×
  * FLUENCY/COACH × 발화 1~1,000자 × altText 60~50,000자) 최소 103자 마진 확인(`prompts.test.ts` 예산 회귀 테스트로
  * 고정, 현재 최악 조합은 heavy COACH text=1 alt=201).
+ *
+ * task-028(talk@v6, IMP-0020·IMP-0022) — 재현(2026-10-03, traceId `t_rApoXn51DLgsUlR4OfBD`): 일본어는 정상(「ビニール袋を
+ * お付けします」)인데 번역(`conversation.replyKo`)이 「비닐봉투를 드려드리겠습니다」(겸양 「드리다」가 중첩된 이중 높임 비문)로 나왔다.
+ * ① `replyJaInstructionLine` 의 tail 에 "replyKo 는 자연스러운 존댓말 번역(이중 높임 금지)" 을 더했다(기존 "한국어 번역." 대체,
+ * +16자) — 모델이 직역·이중 높임으로 새는 것을 지시문만으로 완전히 막을 보장은 없어 `checks.ts` 의 `checkReplyKoNaturalness`
+ * (명백한 "드려드리" 패턴만 좁게 잡는 후검증, **TALK 전용** — `checkTalkResponse` 에 넣지 않고 `buildTalkRequest` 의
+ * `extraCheck` 에서만 합성해 CHAT(A2)에 영향 없음, 비범위이기 때문)로 받친다. ② `correction.explanationKo` 를 학습자의
+ * 기존 `level`(새 설정 없음)에 맞춰 N5·N4 는 "쉬운 말로, 문법 용어는 쓰지 않습니다"를 덧붙이고(`SIMPLE_EXPLANATION_LEVELS`),
+ * 레벨과 무관하게 "일본어 인용은 고친 조각만"을 공통으로 더했다(`correctionInstructionLine`, +약 30~46자 — 레벨에 따라 다름).
+ * 두 변경 다 `[지시]` 줄(stdin)에만 있고 persona(`--system-prompt`)는 손대지 않았다 — persona 는 이미 (model, **level**, mode)
+ * 로 정해지므로 레벨별 난이도 표 트리밍은 기존 `loadPersona` 가 한다(바이트 불변 범위는 "같은 학습자" 기준 그대로). 예산 실측은
+ * task-028 이력서 "Prompt-Engineer 기록"(기존 최악 조합 마진 52자 → 변경 후 실측치 기록).
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
-import { checkTalkResponse } from '../structuredResponse/checks'
+import { checkReplyKoNaturalness, checkTalkResponse } from '../structuredResponse/checks'
 import { TALK_SCHEMA, type TutorResponse } from '../structuredResponse/schemas'
 import { buildWindow, type WindowMessage } from '../window'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const TALK_PROMPT_VERSION = 'talk@v5'
+export const TALK_PROMPT_VERSION = 'talk@v6'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
 /**
@@ -194,9 +206,21 @@ export interface TalkInput {
 export const COACH_HINT_LINE =
   ' hintKo=힌트(정답 제외) — 한 문장, 학습자가 쓴 말의 어느 부분을 품사·시제·상황 단서·글자 수 중 어떤 방향에서 다시 볼지만(예: "동사 시제를 다시 봐요."). 고칠 단어·구는 일본어·한국어 뜻·번역·뜻풀이·빈칸·초성으로도, 「X가 아니라 Y」·두 말 대조로도 꺼내지 않습니다.'
 
-function correctionInstructionLine(mode: CorrectionMode): string {
+/**
+ * task-028(IMP-0022) — `explanationKo` 수준별 쉬운 한국어. 사용자 원문: "교정에 대한 설명은 되도록 사용자의 수준을
+ * 고려하여 최대한 한글로 표기해줘". 학습자 헤더에 이미 들어가는 기존 `level`(새 설정 없음, Leader 보완 §2)을 그대로
+ * 쓴다 — N5·N4 는 문법 용어(조사·활용·접속조사 등) 대신 쉬운 말로, 그 밖은 기존 설명 그대로(용어 사용 허용).
+ * "일본어 인용은 고친 조각만"은 레벨과 무관하게 공통(explanationKo 가 교정문 전체를 다시 일본어로 길게 인용하는
+ * 것을 막는다 — 예산·가독성 둘 다 이유). 예산은 A1 이 가장 빡빡해(WINDOW_ROOM_SLACK 주석 참고) 문구를 최소로 줄였다
+ * — 재측정 결과는 task-028 이력서.
+ */
+const SIMPLE_EXPLANATION_LEVELS = new Set(['N5', 'N4'])
+
+function correctionInstructionLine(mode: CorrectionMode, level: string): string {
+  const simple = SIMPLE_EXPLANATION_LEVELS.has(level) ? ' 쉬운 말로, 문법 용어는 쓰지 않습니다.' : ''
   const common =
-    '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장.'
+    '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장(일본어 인용은 고친 조각만).' +
+    simple
   const hint = mode === 'COACH' ? COACH_HINT_LINE : ' hintKo 는 null.'
   return common + hint
 }
@@ -212,7 +236,7 @@ function correctionInstructionLine(mode: CorrectionMode): string {
 export function replyJaInstructionLine(cap: number = TALK_SCENE_CAP_DEFAULT): string {
   const n = clampSceneCap(cap)
   const tail =
-    '교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 한국어 번역.'
+    '교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 자연스러운 존댓말 번역(이중 높임 금지).'
   const clerk =
     '가게·식당처럼 응대 상황이면 점원처럼 직답한 뒤 다음 물음(사이즈·봉투·포인트카드·결제 등)으로 이어 가고, 학습자가 대답만 했어도 「かしこまりました。」로 끝내지 말고 다음 물음을 잇습니다. 질문은 한 번에 하나. '
   const head = '- conversation.replyJa: 학습자 수준 안의 자연스러운 일본어 '
@@ -233,12 +257,12 @@ export function replyJaInstructionLine(cap: number = TALK_SCENE_CAP_DEFAULT): st
   )
 }
 
-export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY', sceneCap: number = TALK_SCENE_CAP_DEFAULT): string {
+export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY', sceneCap: number = TALK_SCENE_CAP_DEFAULT, level: string = 'N5'): string {
   return [
     '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다). **JSON 키 순서를 반드시 지킵니다**: speech → conversation(replyJa→replyReading→replyKo) → correction → learning → endOfTopic → proposals.',
     '- speech.style: 답의 분위기.',
     replyJaInstructionLine(sceneCap),
-    correctionInstructionLine(correctionMode),
+    correctionInstructionLine(correctionMode, level),
     '- learning.grammarPoint 는 이번 턴의 핵심 문법(없으면 null), difficulty 는 학습자 수준. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 학습자가 모르는 새 단어를 단어장에 넣자고 제안할 때만(최대 2개, 보통 빈 배열).',
     '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyReading":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[]}',
     INJECTION_GUARD,
@@ -263,7 +287,7 @@ export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse
     correctionLine,
   ]
   const sceneCap = clampSceneCap(input.sceneCap)
-  const instruction = talkInstruction(correctionMode, sceneCap)
+  const instruction = talkInstruction(correctionMode, sceneCap, input.learner.level)
   // altText 는 상한(200)과 남은 예산 둘 다로 자른다 — 지시문·헤더가 나중에 길어져도 캡(3,000)을 넘지 않게(발화 원문은 자르지 않는다).
   const baseChars = [...head, instruction].join('\n').length + input.text.length + TRANSCRIPT_OVERHEAD
   const altBudget = TALK_USER_PROMPT_CAP - baseChars - altTextLine('').length - 1
@@ -279,6 +303,10 @@ export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse
     system,
     messages: [...window, { role: 'user', content: input.text }],
     jsonSchema: TALK_SCHEMA,
-    extraCheck: (data) => checkTalkResponse(input.text, data, { maxSentences: sceneCap + TALK_SCENE_CAP_TOLERANCE }),
+    // task-028 — checkTalkResponse(원문 무수정·문장 수)에 checkReplyKoNaturalness(이중 높임 후검증, TALK 전용)를 더한다.
+    extraCheck: (data) => [
+      ...checkTalkResponse(input.text, data, { maxSentences: sceneCap + TALK_SCENE_CAP_TOLERANCE }),
+      ...checkReplyKoNaturalness(data.conversation.replyKo),
+    ],
   }
 }

@@ -65,6 +65,24 @@ export function checkTalkResponse(input: string, data: TutorResponse, opts: { ma
   return v
 }
 
+/**
+ * task-028(IMP-0020) — `conversation.replyKo`(한국어 번역) 이중 높임 후검증. 재현(2026-10-03, traceId
+ * `t_rApoXn51DLgsUlR4OfBD`): 일본어는 정상(「ビニール袋をお付けします」)이었는데 번역이 「비닐봉투를 드려드리겠습니다」
+ * (겸양 「드리다」가 "드려"로 한 번 더 겹친 이중 높임 비문)로 나왔다. 지시문(`prompts/talk.ts` tail)만으로 모든 모델·조합을
+ * 막는다는 보장이 없어 **명백한 패턴 하나만** 좁게 잡는다 — "드려드리"가 붙어 나오면 걸고, "드려요"·"말씀드립니다"처럼
+ * 정상적으로 "드리"가 한 번만 쓰이는 표현은 걸리지 않는다. 뒤의 "드리" 활용(드릴게요처럼 ㄹ 로 축약되는 형태 포함 — 드리/드릴/
+ * 드린/드립/드렸)까지 본다(픽스처 t05 "안내해드려드릴게요"). **TALK(A1) 전용** — `checkTalkResponse`(CHAT 도 이것을
+ * 호출한다)가 아니라 `buildTalkRequest` 의 `extraCheck` 에서만 이 함수를 추가로 합성한다(task-028 범위: 채팅(A2) 번역은
+ * 비범위 — 같은 문제가 보이면 보고만 한다는 Leader 결정).
+ */
+const DOUBLE_HONORIFIC_KO_RE = /드려\s*(드리|드릴|드린|드립|드렸)/
+
+export function checkReplyKoNaturalness(replyKo: string): string[] {
+  return DOUBLE_HONORIFIC_KO_RE.test(replyKo)
+    ? ['conversation.replyKo 에 이중 높임("드려드리"처럼 겸양을 두 번 겹친 표현)이 있다 — 한 번만 자연스럽게 높인다(예: "드리겠습니다"·"넣어 드리겠습니다")']
+    : []
+}
+
 export function checkChatResponse(input: string, data: TutorResponse): string[] {
   const v = checkTalkResponse(input, { ...data, correction: null })
   if (data.correction !== null) v.push('CHAT 모드에서 correction 은 항상 null 이다')
