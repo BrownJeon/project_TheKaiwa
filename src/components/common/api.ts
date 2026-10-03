@@ -71,6 +71,11 @@ function handleUnauthorized(): never {
 export interface ApiOptions {
   signal?: AbortSignal
   onMessage?: (message: string | null) => void
+  /**
+   * 페이지가 닫히거나 백그라운드로 가도 요청을 끝까지 보낸다(task-010b 복습 건너뛰기 — 5초 안에 화면을 떠나면 그 자리에서 보낸다).
+   * 기본 false(기존 호출 불변). 브라우저 상한(본문 64KB)이 있어 작은 POST 에만 쓴다.
+   */
+  keepalive?: boolean
 }
 
 function parseRetryAfter(res: Response): number | null {
@@ -116,6 +121,7 @@ async function send<T>(
       ...init,
       headers,
       signal: opts?.signal,
+      ...(opts?.keepalive ? { keepalive: true } : {}),
     })
   } catch (e) {
     // **취소는 오류가 아니다** — 화면이 "연결하지 못했습니다"를 띄우면 사용자는 자기가

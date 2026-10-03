@@ -3,6 +3,7 @@
  * 서버 모듈을 import 하지 않는다(컴포넌트는 서버 코드를 끌어오지 않는다 — module-dependency §3 규칙 5).
  */
 import type { ChunkType, ProposalDto } from './chat'
+import type { NextReviewDetail, ReviewItem, TodayReviewFields } from './review'
 
 export type JlptLevel = 'N5' | 'N4' | 'N3' | 'N2' | 'N1'
 export type LessonStatus = 'GENERATING' | 'READY' | 'IN_PROGRESS' | 'DONE' | 'FAILED'
@@ -66,7 +67,8 @@ export interface LessonRecommendation {
   nextPreview: NextPreview | null
 }
 
-export interface TodayLessons {
+/** #58 — 복습 칸(`review`·`guard`·`decisionPending`·`nextReview`, task-010b)은 `TodayReviewFields`(전부 선택). */
+export interface TodayLessons extends TodayReviewFields {
   mode: 'NEW' | 'REVIEW' | 'BOTH'
   date: string
   todayLessons: TodayLessonItem[]
@@ -203,6 +205,12 @@ export interface LessonDto {
   createdAt: string
   updatedAt: string
   completedAt: string | null
+  /** 복습 레슨이면 그 일정 id(#63 다시 만들기) — task-010b additive. */
+  reviewScheduleId?: string | null
+  /** 복습 레슨의 이번 항목(#60, 모든 status — ★②). 새 수업·#61 응답이면 없음/null. */
+  reviewItems?: ReviewItem[] | null
+  /** 끝낸 복습 레슨의 다음 복습(#60, Leader ⑤). 판단 대기면 null. */
+  nextReview?: NextReviewDetail | null
 }
 
 /** #61 본문의 progress — 클라이언트 칸만. */
@@ -217,6 +225,10 @@ export interface ProgressPatch {
 export interface CompleteResult {
   lesson: { id: string; status: 'DONE'; score: number; stageDone: number; completedAt: string }
   studyLogId: string
+  /** 강사 복습 판단 잡(#55) — 복습 레슨일 때만(task-010b additive). */
+  reviewDecisionJobId?: string | null
+  /** #60 `nextReview` 와 같은 모양(★⑤). 판단 대기면 null. */
+  nextReview?: NextReviewDetail | null
   result: {
     score: number
     quiz: { correct: number; total: number; answered: number }

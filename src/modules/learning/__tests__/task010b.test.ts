@@ -48,7 +48,7 @@ import {
 } from '../repetition/decision'
 import { parseProgressPatch } from '../lessons/progress'
 import { completeScheduleForLesson, ensureTodaySchedule, kstDayStart, orderPreview, skipReviewIn } from '../reviewSchedule/core'
-import { claimReviewStart, type ReviewMixMaterials } from '../reviewSchedule'
+import { claimReviewStart, resolveDecisionJob, type DecisionPathDeps, type ReviewMixMaterials } from '../reviewSchedule'
 import { correctionSkill, observationDailyDelta, observationRow, recordObservations, OBSERVATION_META_MAX } from '../observations'
 import { correctionProposedObservation, recordCorrectionIgnored, recordCorrectionsProposed, registerAcceptedCorrection } from '../observations/corrections'
 import { lessonObservations, quizTargetTally } from '../lessons/observations'
@@ -455,6 +455,60 @@ test('A11 적재(DAILY): 하루 첫 진입만 새 잡, 같은 날 진행 중이�
   assert.equal(await claimDecisionJob(w.tx, U, { trigger: 'DAILY' }, 'reviewDecision@v1', TODAY), null)
   const none = decisionWorld({ studyDays: 2, items: 4, needing: 0 })
   assert.equal(await claimDecisionJob(none.tx, U, { trigger: 'DAILY' }, 'reviewDecision@v1', TODAY), null, '판단할 항목 없음')
+})
+
+/** #58 판단 경로 가짜 deps — 진행 중 잡·오늘 잡을 정하고 킥·DAILY 적재 호출을 센다. */
+function decisionPath(active: { id: string; status: 'QUEUED' | 'RUNNING' } | null, todayJob: { id: string; status: 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED' } | null = null) {
+  const kicks: string[] = []
+  const scheduled: string[] = []
+  const deps: DecisionPathDeps = {
+    activeDecisionJob: async () => active,
+    decisionJobToday: async () => todayJob,
+    scheduleReviewDecision: async (userId, input) => {
+      scheduled.push(`${userId}:${input.trigger}`)
+      return { jobId: 'jobNew', merged: false }
+    },
+    kickDecisionQueue: (userId) => {
+      kicks.push(userId)
+    },
+  }
+  return { deps, kicks, scheduled }
+}
+const PATH_DRIVER = { promptVersion: 'reviewDecision@v1', build: async () => ({ request: {} as never, keptItemIds: [] }), finalize: () => ({ decisions: [], rationaleKo: '' }) } as ReviewDecisionDriver<unknown>
+
+test('#58 판단 경로(REV-064-F1): 진행 중 잡이 대기(QUEUED)면 실행 줄을 다시 깨운다(고아 구제) — 세션이 있어도, 새 DAILY 는 안 건다', async () => {
+  for (const hasSchedule of [false, true]) {
+    const p = decisionPath({ id: 'jobQ', status: 'QUEUED' }, { id: 'jobQ', status: 'QUEUED' })
+    const job = await resolveDecisionJob(U, hasSchedule, PATH_DRIVER, TODAY, p.deps)
+    assert.deepEqual(job, { id: 'jobQ', status: 'QUEUED' })
+    assert.deepEqual(p.kicks, [U], `hasSchedule=${hasSchedule}`)
+    assert.deepEqual(p.scheduled, [])
+  }
+  const noDriver = decisionPath({ id: 'jobQ', status: 'QUEUED' })
+  assert.deepEqual(await resolveDecisionJob(U, false, null, TODAY, noDriver.deps), { id: 'jobQ', status: 'QUEUED' })
+  assert.deepEqual(noDriver.kicks, [], 'driver 없으면 깨울 수 없다(잡은 그대로 돌려줌)')
+})
+
+test('#58 판단 경로(REV-064-F1): 실행 중(RUNNING) 잡은 깨우지 않는다 — 5분 stale 뒤 폴백', async () => {
+  const p = decisionPath({ id: 'jobR', status: 'RUNNING' }, { id: 'jobR', status: 'RUNNING' })
+  assert.deepEqual(await resolveDecisionJob(U, false, PATH_DRIVER, TODAY, p.deps), { id: 'jobR', status: 'RUNNING' })
+  assert.deepEqual([p.kicks, p.scheduled], [[], []])
+})
+
+test('#58 판단 경로(REV-064-F1): 진행 중 잡 없음 — 오늘 잡이 DONE·FAILED 면 깨우지도 새로 걸지도 않고(하루 한 번), 없으면 DAILY 적재만', async () => {
+  for (const status of ['DONE', 'FAILED'] as const) {
+    const p = decisionPath(null, { id: 'jobT', status })
+    assert.equal(await resolveDecisionJob(U, false, PATH_DRIVER, TODAY, p.deps), null)
+    assert.deepEqual([p.kicks, p.scheduled], [[], []], status)
+  }
+  const fresh = decisionPath(null, null)
+  assert.deepEqual(await resolveDecisionJob(U, false, PATH_DRIVER, TODAY, fresh.deps), { id: 'jobNew', status: 'QUEUED' })
+  assert.deepEqual([fresh.kicks, fresh.scheduled], [[], [`${U}:DAILY`]], '새 잡의 실행은 scheduleReviewDecision 이 깨운다(고아 킥 아님)')
+  const withSchedule = decisionPath(null, null)
+  assert.equal(await resolveDecisionJob(U, true, PATH_DRIVER, TODAY, withSchedule.deps), null)
+  const noDriver = decisionPath(null, null)
+  assert.equal(await resolveDecisionJob(U, false, null, TODAY, noDriver.deps), null)
+  assert.deepEqual([withSchedule.kicks, withSchedule.scheduled, noDriver.kicks, noDriver.scheduled], [[], [], [], []])
 })
 
 test('A11 적재(완료 뒤): 대기 중 잡에 합치기(레슨 id·트리거 추가), 실행 중이면 새 잡, 오래된 대기 잡은 버리고 새 잡', async () => {

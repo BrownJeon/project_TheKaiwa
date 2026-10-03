@@ -48,11 +48,14 @@ export default function TodayLessonCard({
   today,
   onReload,
   onToast,
+  errorText = HOME.loadError,
 }: {
   state: 'loading' | 'error' | 'ready'
   today: TodayLessons | null
   onReload: () => void
   onToast: (msg: string) => void
+  /** #58 실패 문구 — 오늘 홈은 복습 카드와 합친 문구를 넘긴다(task-010b, Leader ⑥). */
+  errorText?: string
 }) {
   const router = useRouter()
   const { create, busy } = useLessonCreate(onToast)
@@ -83,7 +86,7 @@ export default function TodayLessonCard({
         <>
           <Head />
           <div className="mt-2">
-            <ErrorBlock message={HOME.loadError} onRetry={onReload} />
+            <ErrorBlock message={errorText} onRetry={onReload} />
           </div>
         </>
       )

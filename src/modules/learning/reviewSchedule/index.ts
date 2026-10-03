@@ -10,11 +10,11 @@
  *   GENERATING)면 그 레슨 행을 GENERATING 으로 되살리고 새 잡을 건다**(Leader 결정 ★③ — #59 의 FAILED 행 되살림과 같은 규칙, 세션 연결 그대로).
  *   세션이 DUE 가 아니면 409 `{reason:'NOT_DUE', status}`. 사용자당 복습 수업 생성 동시 1(409 `GENERATING`).
  */
-import { Prisma, type ChunkType, type JlptLevel, type LessonKind, type LessonStatus, type RepetitionItemType } from '@prisma/client'
+import { Prisma, type ChunkType, type JlptLevel, type JobStatus, type LessonKind, type LessonStatus, type RepetitionItemType } from '@prisma/client'
 import { ApiError, dates, jobs, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
 import { newTraceId } from '@/modules/engine'
-import { activeDecisionJob, decisionJobToday, scheduleReviewDecision, type ReviewDecisionDriver, type ReviewDecisionTrigger, type StoredReviewDecision } from '../repetition/decision'
+import { activeDecisionJob, decisionJobToday, kickDecisionQueue, scheduleReviewDecision, type ReviewDecisionDriver, type ReviewDecisionTrigger, type StoredReviewDecision } from '../repetition/decision'
 import { REVIEW_FALLBACK_RATIONALE_KO, reviewGuardOf, type ReviewGuard } from '../repetition/review'
 import { runLessonGeneration, settleGenerating, type LessonGeneration } from '../lessons/generate'
 import {
@@ -66,6 +66,35 @@ async function readCycle(userId: string): Promise<{ reviewEvery: number }> {
   return { reviewEvery: Math.min(REVIEW_EVERY_MAX, Math.max(REVIEW_EVERY_MIN, n)) }
 }
 
+export interface DecisionPathDeps {
+  activeDecisionJob: typeof activeDecisionJob
+  decisionJobToday: typeof decisionJobToday
+  scheduleReviewDecision: typeof scheduleReviewDecision
+  kickDecisionQueue: typeof kickDecisionQueue
+}
+const DECISION_PATH_DEPS: DecisionPathDeps = { activeDecisionJob, decisionJobToday, scheduleReviewDecision, kickDecisionQueue }
+
+/**
+ * #58 판단 경로 — 진행 중 판단 잡(QUEUED·RUNNING, 오래된 것은 정리됨)을 돌려준다. 그 잡이 **대기(QUEUED)** 면 실행 줄을 다시 깨운다(고아 구제,
+ * REV-064-F1 — RUNNING 고아는 깨우지 않고 5분 stale → 폴백 세션). 진행 중 잡이 없고 오늘 세션·오늘 판단 잡(FAILED 포함)이 없으면 DAILY 를 건다.
+ */
+export async function resolveDecisionJob<T>(
+  userId: string,
+  hasSchedule: boolean,
+  driver: ReviewDecisionDriver<T> | null,
+  today: string,
+  deps: DecisionPathDeps = DECISION_PATH_DEPS,
+): Promise<{ id: string; status: JobStatus } | null> {
+  const job = await deps.activeDecisionJob(userId)
+  if (job) {
+    if (job.status === 'QUEUED' && driver) deps.kickDecisionQueue(userId, driver)
+    return job
+  }
+  if (hasSchedule || !driver || (await deps.decisionJobToday(userId, today))) return null
+  const r = await deps.scheduleReviewDecision(userId, { trigger: 'DAILY' }, driver)
+  return r ? { id: r.jobId, status: 'QUEUED' } : null
+}
+
 /**
  * #58 복습 칸. 가드에 걸리면 `guard` 만. 아니면 오늘 세션(있으면) + 판단 대기 여부 + 다음 복습. 오늘 판단 잡이 하나도 없고 세션도 없으면
  * 여기서 판단 잡을 건다(`driver` 가 있을 때 — 하루 한 번). 판단 경로가 없는데 due 가 남았으면(잡이 죽음) 폴백 세션을 바로 만든다.
@@ -78,11 +107,7 @@ export async function getTodayReviewState<T>(userId: string, driver: ReviewDecis
   if (guard) return { ...EMPTY_REVIEW_STATE, guard, cycle }
   const dueDate = dates.toDbDate(today)
   let schedule = await prisma.reviewSchedule.findUnique({ where: { userId_dueDate: { userId, dueDate } }, select: SCHEDULE_SELECT })
-  let job = await activeDecisionJob(userId)
-  if (!schedule && !job && driver && !(await decisionJobToday(userId, today))) {
-    const r = await scheduleReviewDecision(userId, { trigger: 'DAILY' }, driver)
-    if (r) job = { id: r.jobId, status: 'QUEUED' }
-  }
+  const job = await resolveDecisionJob(userId, !!schedule, driver, today)
   // 판단 경로가 없을 때(잡이 죽음·driver 없음)만 폴백 세션 — due 가 없으면 잠금 트랜잭션을 열지 않는다(#58 은 홈마다 읽힌다).
   if (!schedule && !job && (await prisma.repetitionItem.findFirst({ where: { userId, nextDueAt: { lte: dueDate } }, select: { id: true } }))) {
     const id = await ensureFallbackSchedule(userId, today)

@@ -33,7 +33,8 @@ export type LessonCard =
 export function deriveLessonCard(state: 'loading' | 'error' | 'ready', today: TodayLessons | null): LessonCard {
   if (state === 'loading') return { kind: 'loading' }
   if (state === 'error' || !today) return { kind: 'error' }
-  const list = today.todayLessons ?? []
+  // 복습 레슨(task-010b)도 오늘 날짜라 함께 온다 — 오늘의 회화 카드는 새 수업만 본다(screens §14-2 A).
+  const list = (today.todayLessons ?? []).filter((l) => l.kind === 'NEW')
   const gen = list.find((l) => l.status === 'GENERATING')
   if (gen) return { kind: 'gen', lesson: gen }
   const open = list.find((l) => l.status === 'READY' || l.status === 'IN_PROGRESS')

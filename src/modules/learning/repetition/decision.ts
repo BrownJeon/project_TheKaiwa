@@ -205,6 +205,14 @@ function kickDecisionChain<T>(userId: string, driver: ReviewDecisionDriver<T>): 
   })
 }
 
+/**
+ * 대기(QUEUED) 잡이 있으면 실행 줄을 다시 깨운다 — 멱등. 커밋 뒤·실행 전에 프로세스가 죽었거나 줄이 DB 오류로 끊겨 남은 고아를 #58 이
+ * 구제한다(REV-064-F1). 점유가 조건부 `updateMany`(QUEUED → RUNNING)이고 줄이 사용자별 직렬이라 여러 번 불려도 한 잡은 한 번만 돈다.
+ */
+export function kickDecisionQueue<T>(userId: string, driver: ReviewDecisionDriver<T>): void {
+  kickDecisionChain(userId, driver)
+}
+
 /** 테스트·스모크용 — 이 사용자의 실행 줄이 빌 때까지 기다린다. */
 export async function waitDecisionChain(userId: string): Promise<void> {
   while (chains.get(userId)) await chains.get(userId)

@@ -8,6 +8,7 @@ import TeacherAvatar from '@/components/common/TeacherAvatar'
 import TtsRuntimeStatusIndicator from '@/components/speech/TtsRuntimeStatusIndicator'
 import type { LessonContent } from '@/types/lesson'
 import { LESSON, STAGE_NAMES, U2, U4 } from './lessonCopy'
+import { RV_LESSON } from './review/reviewCopy'
 
 export function PlayIcon({ size = 14 }: { size?: number }) {
   return (
@@ -162,7 +163,20 @@ export function RoleChip({ who, small = false }: { who: 'A' | 'B'; small?: boole
   )
 }
 
-export function LessonHeader({ teacherName, topic, title, onAnnounce }: { teacherName: string; topic: string; title: string; onAnnounce: (m: string) => void }) {
+export function LessonHeader({
+  teacherName,
+  topic,
+  title,
+  onAnnounce,
+  review = false,
+}: {
+  teacherName: string
+  topic: string
+  title: string
+  onAnnounce: (m: string) => void
+  /** 복습 수업(task-010b) — "복습" 뱃지 + sr "오늘의 복습: ". 기본 false 면 지금과 같다. */
+  review?: boolean
+}) {
   return (
     <header className="flex h-14 min-w-0 flex-none items-center gap-1 border-b border-line bg-surface px-1">
       <Link href="/study/today" aria-label={LESSON.back} className="grid h-11 w-11 flex-none place-items-center text-ink">
@@ -173,7 +187,16 @@ export function LessonHeader({ teacherName, topic, title, onAnnounce }: { teache
       <TeacherAvatar name={teacherName} size="md" />
       <div className="flex min-w-0 flex-1 flex-col items-start pl-1.5">
         <h1 className="max-w-full truncate text-[16px] font-semibold leading-5">
-          <span className="sr-only">{LESSON.srPrefix(topic)}</span>
+          {review ? (
+            <>
+              <span aria-hidden="true" className="mr-1 inline-block h-5 rounded-md bg-accent-soft px-2 align-[1px] text-[11.5px] leading-5 font-semibold text-ink">
+                {RV_LESSON.badge}
+              </span>
+              <span className="sr-only">{RV_LESSON.headerSr}</span>
+            </>
+          ) : (
+            <span className="sr-only">{LESSON.srPrefix(topic)}</span>
+          )}
           <span lang="ja">{title}</span>
         </h1>
         <TtsRuntimeStatusIndicator onAnnounce={onAnnounce} />

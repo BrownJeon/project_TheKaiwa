@@ -9,15 +9,34 @@ import type { LessonContent } from '@/types/lesson'
 import { U2 } from './lessonCopy'
 import { exprKey, playExpr } from './logic'
 import { ExprChip, ExprPlayChip, PlayButton } from './parts'
+import { FocusBadge } from './review/FocusBadge'
+import { RV_LESSON } from './review/reviewCopy'
 import type { LessonPlayback } from './useLessonPlayback'
 
-export default function StageGrammar({ content, pb, reading, footer }: { content: LessonContent; pb: LessonPlayback; reading: boolean; footer: React.ReactNode }) {
+export default function StageGrammar({
+  content,
+  pb,
+  reading,
+  footer,
+  variant = 'NEW',
+  focusIds,
+}: {
+  content: LessonContent
+  pb: LessonPlayback
+  reading: boolean
+  footer: React.ReactNode
+  /** 복습 수업(task-010b) — 설명·표현 카드 문구만 바뀐다. 기본 NEW 면 지금과 같다. */
+  variant?: 'NEW' | 'REVIEW'
+  /** 복습의 FOCUS 항목 id — 표현 칩에 집중 뱃지(문형 카드에는 없다, §14-11 ⑤). */
+  focusIds?: ReadonlySet<string>
+}) {
+  const review = variant === 'REVIEW'
   return (
     <div>
       <h2 tabIndex={-1} data-stage-title className="text-[17px] font-bold outline-none">
         {U2.title}
       </h2>
-      <p className="mt-1 text-[13px] text-ink2 break-keep">{U2.desc(content.grammar.length)}</p>
+      <p className="mt-1 text-[13px] text-ink2 break-keep">{review ? RV_LESSON.grammarIntro(content.grammar.length) : U2.desc(content.grammar.length)}</p>
       {pb.textOnly ? (
         <p role="status" className="mt-2.5 rounded-xl bg-surface2 px-3.5 py-2.5 text-[13px] break-keep">
           {U2.textOnly}
@@ -25,11 +44,13 @@ export default function StageGrammar({ content, pb, reading, footer }: { content
       ) : null}
       <div className="mt-2.5 flex flex-col gap-2.5">
         <Card>
-          <h3 className="text-[15px] font-semibold">{U2.exprTitle(content.chunks.length)}</h3>
-          <p className="mt-1 text-[13px] text-ink2 break-keep">{pb.textOnly ? U2.exprDesc : U2.exprDescPlay}</p>
+          <h3 className="text-[15px] font-semibold">{review ? RV_LESSON.exprTitle(content.chunks.length) : U2.exprTitle(content.chunks.length)}</h3>
+          <p className="mt-1 text-[13px] text-ink2 break-keep">{review ? (pb.textOnly ? RV_LESSON.exprNoteNoAudio : RV_LESSON.exprNote) : pb.textOnly ? U2.exprDesc : U2.exprDescPlay}</p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {content.chunks.map((c, i) => {
-              const badge = c.isNew ? <span className="inline-flex h-5 items-center rounded-md bg-surface px-1.5 text-[11px] font-semibold text-ink2">{U2.newExpr}</span> : undefined
+              const badge = focusIds?.has(c.id) ? (
+                <FocusBadge small>{RV_LESSON.focus}</FocusBadge>
+              ) : c.isNew ? <span className="inline-flex h-5 items-center rounded-md bg-surface px-1.5 text-[11px] font-semibold text-ink2">{U2.newExpr}</span> : undefined
               if (pb.textOnly) return <ExprChip key={c.id} ja={c.textJa} ko={c.meaningKo} badge={badge} />
               const key = exprKey(i)
               const on = pb.active(key)

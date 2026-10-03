@@ -4,13 +4,15 @@
  * 오늘의 공부 홈 `/study/today`(screens.md §5-2 A·§5-3 B). 마운트·화면 복귀 때 #46 · #48(최근 10) · #48(보관 5) · #54 를 함께 읽는다.
  * task-010: 단어 카드 바로 아래 "오늘의 회화" 카드(§12-2 A) — #58 을 같은 tick 으로 나란히, 상태는 따로 읽는다.
  * task-011: 그 아래 "AI 평가" 카드(`EvalHomeCard`) — #69·#66 을 카드가 직접 읽고 같은 tick 으로 다시 읽는다.
+ * task-010b: "오늘의 복습" 카드(§14-2 A) — 같은 #58 응답으로 `deriveReviewCard` 가 상태를 정하고, 할 일이 있으면 오늘의 회화 위·아니면 아래,
+ * 가드면 맨 아래 "곧 열려요". 건너뛰기 5초 되돌리기·판단 대기 재확인·만드는 중 잡 감시는 여기 훅에 둔다(카드는 표시 전용).
  * #46·#48(최근) 실패만 카드 오류이고, 보관 세트·통계 실패는 그 섹션을 조용히 숨긴다. 자동 폴링은 없다.
  *
  * 풀던 세트는 사용자당 하나이고 새 세트·다시 풀기를 막으므로 늘 가장 최근에 시작한 세트다 → 최근 10개 안에서 찾는다(F3 `answeredCount`).
  * 장수는 저장하지 않고 늘 설정(`dailyWordCount`)에서 시작한다. 방식·분류는 마지막 선택을 기억한다(저장소가 막혀도 기본값으로 동작).
  */
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import Toast, { useToast } from '@/components/common/Toast'
@@ -18,6 +20,16 @@ import type { CategoryCount, CreateSessionResult, FinishResult, Paged, SessionDe
 import type { TodayLessons } from '@/types/lesson'
 import TodayLessonCard from '@/components/lesson/TodayLessonCard'
 import EvalHomeCard from '@/components/eval/EvalHomeCard'
+import { useJobWatch } from '@/components/lesson/useJobWatch'
+import { lessonPath } from '@/components/lesson/useLessonCreate'
+import { RV_HOME } from '@/components/lesson/review/reviewCopy'
+import { deriveReviewCard, reviewPlacement, startReviewErrorText, watchesDecision } from '@/components/lesson/review/reviewLogic'
+import ReviewSoonSection from '@/components/lesson/review/ReviewSoonSection'
+import TodayReviewCard from '@/components/lesson/review/TodayReviewCard'
+import UndoToast from '@/components/lesson/review/UndoToast'
+import { useDecisionWatch } from '@/components/lesson/review/useDecisionWatch'
+import { useReviewSkip } from '@/components/lesson/review/useReviewSkip'
+import type { StartReviewResult } from '@/types/review'
 import type { JlptLevel } from '@/types/lesson'
 import { isAnswered } from './deck'
 import FinishConfirmSheet from './FinishConfirmSheet'
@@ -40,7 +52,7 @@ interface HomeData {
   inProgress: { session: SessionSummary; answered: number | null } | null
 }
 
-export default function TodayHome({ dailyWordCount, myLevel }: { dailyWordCount: number; myLevel: JlptLevel }) {
+export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선생님' }: { dailyWordCount: number; myLevel: JlptLevel; teacherName?: string }) {
   const router = useRouter()
   const toast = useToast()
   const { seed, seeding } = useSeedPack()
@@ -62,9 +74,18 @@ export default function TodayHome({ dailyWordCount, myLevel }: { dailyWordCount:
   // 오늘의 회화(#58)는 단어 쪽과 따로 읽는다 — 한쪽 실패가 다른 카드를 막지 않게(screens §12-2 A).
   const [lessonToday, setLessonToday] = useState<{ state: 'loading' | 'error' | 'ready'; data: TodayLessons | null }>({ state: 'loading', data: null })
   const [lessonTick, setLessonTick] = useState(0)
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const reviewBusyRef = useRef(false)
   const keptRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const { show } = toast
+  const reloadLessons = useCallback(() => setLessonTick((t) => t + 1), [])
+  const review = lessonToday.state === 'ready' ? (lessonToday.data?.review ?? null) : null
+  const rvSkip = useReviewSkip(review, { onCommitted: reloadLessons, onToast: show })
+  const rvCard = deriveReviewCard(lessonToday.state, lessonToday.data, rvSkip.skip)
+  const rvPlace = reviewPlacement(rvCard)
+  useDecisionWatch(watchesDecision(rvCard), reloadLessons)
+  useJobWatch(rvCard.kind === 'gen' ? rvCard.jobId : null, { delays: [5000], onSettled: reloadLessons })
 
   useEffect(() => {
     let cancelled = false
@@ -240,6 +261,39 @@ export default function TodayHome({ dailyWordCount, myLevel }: { dailyWordCount:
     }
   }
 
+  /** [복습 시작]·[다시 만들기](#63) — 두 번 눌러도 한 번. 성공하면 수업 경로(대기 화면이 잡을 지켜본다). */
+  const startReview = async () => {
+    if (!review || reviewBusyRef.current) return
+    reviewBusyRef.current = true
+    setReviewBusy(true)
+    try {
+      const r = await apiPost<StartReviewResult>(`/api/v1/reviews/${encodeURIComponent(review.id)}/start`)
+      router.push(lessonPath(r.lessonId))
+    } catch (e) {
+      reviewBusyRef.current = false
+      setReviewBusy(false)
+      const { text, reload } = startReviewErrorText(toErr(e))
+      show(text)
+      if (reload) reloadLessons()
+    }
+  }
+
+  const reviewCard = (
+    <TodayReviewCard
+      card={rvCard}
+      teacherName={teacherName}
+      todayKey={lessonToday.data?.date ?? ''}
+      busy={reviewBusy}
+      skipFailed={rvSkip.skipFailed}
+      onStart={() => void startReview()}
+      onRetry={() => void startReview()}
+      onOpen={(id) => router.push(lessonPath(id))}
+      onSkip={rvSkip.start}
+      titleRef={rvSkip.titleRef}
+      skipBtnRef={rvSkip.skipBtnRef}
+    />
+  )
+
   const ip = data?.inProgress ?? null
   const answeredNow = ip?.answered ?? null
 
@@ -286,21 +340,25 @@ export default function TodayHome({ dailyWordCount, myLevel }: { dailyWordCount:
           }}
         />
       </div>
+      {rvPlace === 'above' ? reviewCard : null}
       <TodayLessonCard
         state={lessonToday.state}
         today={lessonToday.data}
         onToast={show}
+        errorText={RV_HOME.loadError}
         onReload={() => {
           setLessonToday((prev) => (prev.state === 'error' ? { state: 'loading', data: prev.data } : prev))
           setLessonTick((t) => t + 1)
         }}
       />
+      {rvPlace === 'below' ? reviewCard : null}
       {/* task-011: AI 평가 카드(데모 v1 — 오늘의 회화 카드 바로 아래, "곧 열려요" 칸은 없어진다). 자기 요청·오류를 따로 갖는다. */}
       <EvalHomeCard myLevel={myLevel} reloadKey={tick} onToast={show} />
       {data?.stats && data.stats.byCount.length > 0 ? <VocabStatsCard stats={data.stats} today={data.today} /> : null}
       {data?.kept && data.kept.items.length > 0 ? (
         <KeptSets key={loadSeq} initial={data.kept} today={data.today} busyId={replayingId} onReplay={(id) => void replay(id)} anchorRef={keptRef} />
       ) : null}
+      {rvCard.kind === 'guard' ? <ReviewSoonSection guard={rvCard.guard} /> : null}
       <FinishConfirmSheet
         open={finishOpen}
         answered={answeredNow}
@@ -310,7 +368,9 @@ export default function TodayHome({ dailyWordCount, myLevel }: { dailyWordCount:
         onConfirm={() => void finishInProgress()}
         onClose={() => setFinishOpen(false)}
       />
-      <Toast message={toast.message} />
+      {/* 되돌리기 토스트가 떠 있는 동안 같은 자리 공용 토스트는 띄우지 않는다(§14-2 C). */}
+      <Toast message={rvSkip.undoOpen ? null : toast.message} />
+      <UndoToast open={rvSkip.undoOpen} message={RV_HOME.undoMessage} actionLabel={RV_HOME.undo} onAction={rvSkip.undo} actionRef={rvSkip.undoRef} />
     </div>
   )
 }

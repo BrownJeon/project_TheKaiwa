@@ -29,7 +29,7 @@ test('buildReviewMixRequest: task·persona·jsonSchema(A4 재사용)·메시지 
   assert.match(req.system, /\[복습\]/)
   assert.ok(req.messages[0].content.startsWith('[복습 재료]'))
   assert.ok(req.messages[0].content.includes('id=rep-01'))
-  assert.equal(REVIEW_MIX_PROMPT_VERSION, 'reviewMix@v2')
+  assert.equal(REVIEW_MIX_PROMPT_VERSION, 'reviewMix@v3')
 })
 
 test('reviewMix@v2(task-025 IMP-0014): quiz 지시에 promptKo 필수(null·빈 값 금지)가 실리고 "최소 하나" 문구는 없다', () => {
@@ -55,6 +55,21 @@ test('reviewMix@v2 (e)=B: 빈칸 문제는 promptKo 에 할 일만(번역·정�
   assert.ok(quizLine!.includes('일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 한국어 지시를 쓰며'), '한국어 지시 + promptJa 분리')
   // 일반 규칙(어떤 문제에서도 정답이 되는 뜻은 promptKo 에 미리 쓰지 않는다) — A4 lesson.test.ts 의 같은 단언과 짝(REV-060 변이 M6: 이 구절 삭제가 단위 테스트에서 살아남았다).
   assert.ok(quizLine!.includes('정답이 되는 뜻은 미리 쓰지 않습니다'), '정답 뜻 일반 금지 문장 유지')
+})
+
+test('reviewMix@v3(task-010b): quiz·application·speaking 필드 나열 줄마다 targetIds 필수(빈 배열 금지)가 실린다 — 누락 시 1차 계약 위반→재시도→120s 초과 회귀', () => {
+  const req = buildReviewMixRequest({ todayKst: '2026-10-03', learner, level: 'N4', items: fixture.items })
+  const lines = req.system.split('\n')
+  for (const key of ['quiz', 'application', 'speaking']) {
+    const line = lines.find((l) => l.startsWith(`- ${key}:`))
+    assert.ok(line, `${key} 지시 줄이 있어야 한다`)
+    assert.ok(line!.includes('targetIds 필수'), `${key} 줄에 targetIds 필수 명시`)
+    assert.ok(line!.includes('빈 배열 금지'), `${key} 줄에 빈 배열 금지`)
+    assert.ok(line!.includes('chunks·grammar id'), `${key} 줄에 허용 id 범위(chunks·grammar)`)
+  }
+  // 스키마 필수와 1:1 — 세 항목 스키마의 required 에 targetIds 가 있다(이 규칙의 근거).
+  const props = (LESSON_SCHEMA as unknown as { properties: Record<string, { items: { required: string[] } }> }).properties
+  for (const key of ['quiz', 'application', 'speaking']) assert.ok(props[key].items.required.includes('targetIds'), `${key} 스키마 required`)
 })
 
 test('mixNoteKo 가 있으면 지시문에 [참고] 줄로 실리고, 없으면 생략된다', () => {

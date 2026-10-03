@@ -12,6 +12,7 @@ import type { LessonContent, LessonDto } from '@/types/lesson'
 import { U3 } from './lessonCopy'
 import { hasJa, quizPromptView, quizSummaryPrompt } from './logic'
 import { InfoIcon } from './parts'
+import { RV_LESSON } from './review/reviewCopy'
 import type { UseLesson } from './useLesson'
 
 function Dots({ quiz, answers, current }: { quiz: LessonContent['quiz']; answers: (number | null)[]; current: number | null }) {
@@ -47,7 +48,20 @@ function Choice({ text, className = '' }: { text: string; className?: string }) 
   )
 }
 
-export default function StageQuiz({ lesson, st, reviewing, footer }: { lesson: LessonDto & { content: LessonContent }; st: UseLesson; reviewing: boolean; footer: React.ReactNode }) {
+export default function StageQuiz({
+  lesson,
+  st,
+  reviewing,
+  footer,
+  variant = 'NEW',
+}: {
+  lesson: LessonDto & { content: LessonContent }
+  st: UseLesson
+  reviewing: boolean
+  footer: React.ReactNode
+  /** 복습 수업(task-010b)이면 결과 카드 아래 문구만 바뀐다. */
+  variant?: 'NEW' | 'REVIEW'
+}) {
   const quiz = lesson.content.quiz
   const answers = quiz.map((_, i) => {
     const a = lesson.progress.quiz?.answers?.[i]
@@ -110,7 +124,7 @@ export default function StageQuiz({ lesson, st, reviewing, footer }: { lesson: L
               )
             })}
           </ul>
-          <p className="mt-3 text-[12px] text-ink2 break-keep">{U3.sumNote}</p>
+          <p className="mt-3 text-[12px] text-ink2 break-keep">{variant === 'REVIEW' ? RV_LESSON.quizNote : U3.sumNote}</p>
         </Card>
         <div className="mt-[18px]">{footer}</div>
       </div>

@@ -4,9 +4,10 @@
  * 수업 경로 `/study/today/talk/[lessonId]` 루트(screens §12-0 ① · §12-2 D~L) — #60 을 읽고 `status` 로 가른다:
  * GENERATING·FAILED → 대기·실패 / READY·IN_PROGRESS → 5단계 / DONE → 종료 카드 / 404 → 없음.
  * 5단계 틀: 머리(56) · 단계 표시 · 본문(유일한 스크롤) · (⑤만) 입력 바. 단계는 순서대로(a=B) — 끝낸 단계는 읽기 전용 다시 보기.
+ * 복습 수업(`kind === 'REVIEW'`, task-010b screens §14-3 B)도 같은 경로·분기 — 머리 뱃지·① 앞 항목 카드·② 집중·③ 문구·종료 카드만 선택 prop 으로 바뀐다.
  */
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { detailString, toErr } from '@/components/common/errors'
 import { KEYS as CHAT_KEYS } from '@/components/chat/storageKeys'
@@ -20,6 +21,10 @@ import LessonGenScreen from './LessonGenScreen'
 import { GEN, LESSON, PASTED_TOPIC } from './lessonCopy'
 import { endResultFrom, firstStage, type EndResult } from './logic'
 import { LessonHeader, StageSteps } from './parts'
+import ReviewItemsCard from './review/ReviewItemsCard'
+import { RV_GEN } from './review/reviewCopy'
+import { focusIdsOf } from './review/reviewLogic'
+import type { FreshReviewEnd } from './review/useNextReview'
 import StageApply from './StageApply'
 import StageGrammar from './StageGrammar'
 import StageQuiz from './StageQuiz'
@@ -37,6 +42,7 @@ export default function LessonScreen({ lessonId, teacherName, learningSpeed }: {
   const toast = useToast()
   const { show } = toast
   const [end, setEnd] = useState<EndResult | null>(null)
+  const [endReview, setEndReview] = useState<FreshReviewEnd | null>(null)
   const wasGenerating = useRef(false)
   const [justReady, setJustReady] = useState(false)
 
@@ -58,7 +64,7 @@ export default function LessonScreen({ lessonId, teacherName, learningSpeed }: {
   const onSettled = useCallback(async () => {
     const l = await st.reload()
     if (l && (l.status === 'READY' || l.status === 'IN_PROGRESS') && wasGenerating.current) {
-      show(GEN.ready)
+      show(l.kind === 'REVIEW' ? RV_GEN.readyToast : GEN.ready)
       setJustReady(true)
     }
   }, [st, show])
@@ -112,7 +118,7 @@ export default function LessonScreen({ lessonId, teacherName, learningSpeed }: {
     const result = end ?? endResultFrom(ready)
     return (
       <>
-        {result ? <LessonEnd lesson={ready} result={result} onToast={show} /> : null}
+        {result ? <LessonEnd lesson={ready} result={result} onToast={show} review={end ? endReview : null} teacherName={teacherName} /> : null}
         <Toast message={toast.message} bottomPx={24} />
       </>
     )
@@ -126,7 +132,10 @@ export default function LessonScreen({ lessonId, teacherName, learningSpeed }: {
       learningSpeed={learningSpeed}
       justReady={justReady}
       toast={toast}
-      onEnded={(r) => setEnd(r)}
+      onEnded={(r, rv) => {
+        setEnd(r)
+        setEndReview(rv ?? null)
+      }}
     />
   )
 }
@@ -146,7 +155,7 @@ function LessonStages({
   learningSpeed: number | null
   justReady: boolean
   toast: ReturnType<typeof useToast>
-  onEnded: (r: EndResult) => void
+  onEnded: (r: EndResult, review?: FreshReviewEnd) => void
 }) {
   const { show } = toast
   const [stage, setStage] = useState(() => firstStage(lesson.stageDone))
@@ -159,6 +168,10 @@ function LessonStages({
   const scrollRef = useRef<HTMLDivElement>(null)
   const topic = lesson.topic?.title ?? PASTED_TOPIC
   const reviewing = stage <= lesson.stageDone
+  const isReviewLesson = lesson.kind === 'REVIEW'
+  const reviewItems = useMemo(() => lesson.reviewItems ?? [], [lesson.reviewItems])
+  const focusIds = useMemo(() => focusIdsOf(reviewItems), [reviewItems])
+  const variant = isReviewLesson ? 'REVIEW' : 'NEW'
 
   // 처음 열 때: 생성 직후가 아니고 진행이 있으면 "이어서" 토스트 1회.
   const greeted = useRef(false)
@@ -220,7 +233,10 @@ function LessonStages({
     const path = `/api/v1/lessons/${encodeURIComponent(lesson.id)}/complete`
     await st.flush()
     const done = (r: CompleteResult) => {
-      onEnded({ correct: r.result.quiz.correct, total: r.result.quiz.total, applicationDone: r.result.applicationDone, usedIds: r.result.expressions.usedIds, missedIds: r.result.expressions.missedIds, nextPreview: r.result.nextPreview })
+      onEnded(
+        { correct: r.result.quiz.correct, total: r.result.quiz.total, applicationDone: r.result.applicationDone, usedIds: r.result.expressions.usedIds, missedIds: r.result.expressions.missedIds, nextPreview: r.result.nextPreview },
+        isReviewLesson ? { jobId: r.reviewDecisionJobId ?? null, nextReview: r.nextReview ?? null } : undefined,
+      )
       st.replace({ ...lesson, status: 'DONE', stageDone: 5, score: r.lesson.score, completedAt: r.lesson.completedAt })
     }
     try {
@@ -256,7 +272,7 @@ function LessonStages({
 
   return (
     <div ref={rootRef} className="mx-auto flex h-full min-h-0 w-full max-w-[520px] min-w-0 flex-col bg-ground">
-      <LessonHeader teacherName={teacherName} topic={topic} title={lesson.content.title} onAnnounce={show} />
+      <LessonHeader teacherName={teacherName} topic={topic} title={lesson.content.title} onAnnounce={show} review={isReviewLesson} />
       <StageSteps stageDone={lesson.stageDone} current={stage} onPick={go} />
       {stage === 5 ? (
         <StageSpeak
@@ -275,12 +291,13 @@ function LessonStages({
       ) : (
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-8 pt-3.5">
           {reviewNote}
+          {stage === 1 && isReviewLesson && reviewItems.length > 0 ? <ReviewItemsCard lessonId={lesson.id} items={reviewItems} /> : null}
           {stage === 1 ? (
             <StageUnderstand lesson={lesson} st={st} pb={pb} reviewing={reviewing} reading={reading} onReading={onReading} learningSpeed={learningSpeed} onToast={show} footer={footer} />
           ) : stage === 2 ? (
-            <StageGrammar content={lesson.content} pb={pb} reading={reading} footer={footer} />
+            <StageGrammar content={lesson.content} pb={pb} reading={reading} footer={footer} variant={variant} focusIds={isReviewLesson ? focusIds : undefined} />
           ) : stage === 3 ? (
-            <StageQuiz lesson={lesson} st={st} reviewing={reviewing} footer={footer} />
+            <StageQuiz lesson={lesson} st={st} reviewing={reviewing} footer={footer} variant={variant} />
           ) : (
             <StageApply lesson={lesson} st={st} pb={pb} reviewing={reviewing} reading={reading} config={config} onToast={show} footer={footer} />
           )}
