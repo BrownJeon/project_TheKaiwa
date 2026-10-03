@@ -44,5 +44,6 @@ tags:
 4. **검증 순환** — 프로젝트 성격에 따라:
    - **화면이 있는 프로젝트(`has_ui: true`)**: **Designer → Developer → Reviewer → QA** (→ 배포 역할이 있으면 Deployer). 화면 개선 task 는 먼저 judge intake 로 데모 수준을 판정받고, full·delta 면 **데모 검토 게이트**(designer 데모 → 사용자 승인 → 구현, 워크스페이스 `docs/demo-review-gate.md`)를 거친다. 현재 화면은 current 로 캡처해 개선안 데모의 "현재 vs 제안" 비교에 쓴다. Designer 가 화면 설계 문서를 먼저 갱신하고 Developer 는 승인된 데모·설계대로 구현한다.
    - **화면이 없는 프로젝트**: Developer → Reviewer → QA.
+   - **light 트랙(TheKaiwa, ADP-001 D-10)**: judge intake 입력에 `origin: "improvement"` + 예상 변경 경로를 넣어 `decision.track: light` 가 나오면 **Leader → Developer → Reviewer** 로 간소화한다(Designer·QA 생략, 데모 게이트 면제). 조건·완료 기준(실행 증빙·reviewer 재실행)·승격은 Leader 지침 `.claude/agents/leader.md` `<agent_dispatch>`. light 가 아니면(`track_blockers` 참고) 위 순환 그대로.
    - 프로젝트에 judge·codex 체크포인트가 있으면 그대로 적용한다. QA 결함 → Developer 수정 → Reviewer 부터 재순환(워크스페이스 규칙).
 5. **마감** — task 완료 시 포함 항목을 `done` 으로 바꾸고 Leader 가 task 최종 요약에 항목별 결과를 적는다.

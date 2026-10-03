@@ -31,7 +31,7 @@ model: opus
 
 | 시점 | Leader 행동 |
 |---|---|
-| 접수 | task 이력서 생성 직후 frontmatter 에 `base_ref: <git rev-parse HEAD>` 를 적는다(codex 검토 범위의 기준). judge 에 `intake` 요청(300자 요약 + 예상 변경 경로). 결과의 `next: ask_user` 면 사용자에게 부족한 정보를 묻는다. `developer_model`(sonnet/opus)로 developer 를 호출한다 — 판정 실패면 도구가 이미 opus 로 낸다(Q-A8). `risk` 를 task 이력서 frontmatter `risk_level` 에 적는다 |
+| 접수 | task 이력서 생성 직후 frontmatter 에 `base_ref: <git rev-parse HEAD>` 를 적는다(codex 검토 범위의 기준). judge 에 `intake` 요청(300자 요약 + 예상 변경 경로. `/개선작업 착수` 로 만든 task 는 `origin: "improvement"` 와 예상 변경 경로를 반드시 넣는다 — light 트랙 판정 입력, `<agent_dispatch>`). 결과의 `next: ask_user` 면 사용자에게 부족한 정보를 묻는다. `developer_model`(sonnet/opus)을 Agent 호출의 **`model` 파라미터로 반드시 넘겨** developer 를 호출한다(생략하면 frontmatter 기본값 opus 로 간다) — 판정 실패면 도구가 이미 opus 로 낸다(Q-A8). `risk` 를 task 이력서 frontmatter `risk_level` 에 적는다 |
 | C1 설계 확정 직후 | judge `codex_gate`(C1, 설계 요약). `codex_required: true` → codex 호출(설계 전제 검토) → 채택 지적은 설계에 반영 |
 | C2 reviewer PASS 직후 | judge `codex_gate`(C2, 변경 요약 + reviewer 의견). `codex_required: true` → codex 호출 → **reviewer 가 지적의 채택·오탐 판정** → 채택분은 developer 수정 → reviewer 부터 재순환 → 재검토가 필요하면 C2 를 다시 판정(총 4회 한도) |
 | C3 같은 결함 2회 재발 | judge `codex_gate`(C3, 결함 요약, recurrence_count) → codex 호출(원인 가설 반증) |
@@ -43,6 +43,35 @@ model: opus
 - **R2 보강**: capability·Role 매트릭스, ConfigurationVersion·Secret, `Correction.original`·`StatsSnapshot` 트랜잭션을 건드리는 task 는 judge 결과와 무관하게 R2 로 다루고 override 사유를 남긴다.
 - judge·codex 에게 넘기는 요약에는 코드·diff 원문·비밀·학습자 데이터를 넣지 않는다.
 </judge_codex>
+
+<agent_dispatch>
+## 서브에이전트 호출·재개 규율 + light 트랙 — 2026-10-03 편입 (ADP-001 D-10 토큰 절감 1차)
+
+배경: 서브에이전트가 비용의 84% 이고, developer 는 한 번 소환되면 컨텍스트가 75k→450k+ 로 커져(턴 수에 대해 비용이 제곱) 오래 쓸수록 비싸다. 서브에이전트 프롬프트 캐시 TTL 은 5분이다. 훅 `resume-guard`(안내 → 이후 차단)가 아래 2·1번 규칙을 확인한다.
+
+- **교훈 조회**: 새 task 이력서를 만들 때 `/이슈기록 관련 <도메인>` 으로 승인된 교훈(최대 5개)을 확인해 "관련 과거 이력 요약"에 넣고 사용한 교훈 ID 를 적는다(없으면 생략). 이슈 레지스트리 = 워크스페이스 `issues/`.
+
+### 1. 소환 (Agent 호출)
+- developer 는 judge `developer_model` 을 Agent 호출의 **`model` 파라미터로 반드시 넘긴다**(생략하면 frontmatter 기본값 opus). 실제로 넘긴 모델을 task 이력서 `## 판단 기록 (judge)` 줄에 `실호출모델=<값>` 으로 적는다(Opus 사용 추이 관찰용).
+- `run_in_background: true` 와 `name: <역할>-<task>[-<영역>]`(예: `dev-012c-server`)를 쓴다.
+- **한 번에 하나의 서브태스크**: developer 지시는 수정 파일 약 15개 이하·예상 60턴 이하로 쪼갠다. 큰 task 는 영역(서버 / 화면 / Android·플러그인 / Python 음성) 단위로 나눠 A·B 로 병렬 소환한다. 각 지시에 서브태스크 경계·완료 기준·체크포인트 기록 의무(developer.md `<checkpoint>`)를 적는다.
+- developer 는 `maxTurns: 80`, prompt-engineer 는 100 에서 끊긴다(부분 결과로 반환).
+
+### 2. 재개 (SendMessage) — 5분 규칙
+- 마지막 활동 후 5분 이하: 재개해도 된다. 5분 넘었어도 컨텍스트 150k 이하: 재개해도 된다. **5분 넘고 컨텍스트 150k 초과: 재개하지 말고 신규 소환**한다 — 새 에이전트 + task 이력서 경로 + 마지막 체크포인트 + `git status`·`git diff --stat`.
+- `maxTurns` 로 끊긴 에이전트도 SendMessage 로 이어받지 않고 같은 방식으로 신규 소환한다(이어받으면 컨텍스트가 리셋되지 않아 효과가 없다). 도구의 부분 결과 안내문("SendMessage 로 이어가라")은 이 프로젝트에서는 따르지 않는다. 끊긴 기록에는 중단 표식이 남지 않으므로 훅이 에이전트 정의의 `maxTurns` 와 기록의 턴 수를 비교해 안내한다.
+- 정말 재개해야 하면 SendMessage 본문에 `[resume-ok] <사유>` 를 적는다.
+- 에이전트에게 도구 1건을 5분 넘게 기다리게 하지 않는다(4분 이하로 나눠 확인).
+
+### 3. 승격 (Sonnet → Opus)
+- Sonnet developer 가 같은 결함 클래스로 reviewer 반려 2회, 또는 `maxTurns` 부분 종료 2회 연속이면 Opus 로 신규 소환(인수인계 포함)하고 판단 기록에 `승격: <사유>` 를 남긴다.
+
+### 4. light 트랙 (작은 개선 간소화)
+- judge 가 `decision.track: "light"` 를 내면 역할은 **leader → developer → reviewer** 뿐이다(designer·prompt-engineer·qa 호출 없음). 데모 게이트는 면제된다(`demo.rule_id=DM-light-waive`, 사용자 결정 2026-10-03 — `check.mjs init --judge` 가 `not_required` 로 기록). deployer 는 배포 시점에만 쓴다(기존 단일 경로 `scripts/deploy.sh`·사용자 승인 규칙 유지).
+- QA 를 대신하는 완료 조건: ① developer 가 lint·typecheck·단위 테스트·관련 스모크 1개를 실행해 증빙을 이력서 `Developer 기록` 의 `실행 증빙` 에 남김 ② reviewer PASS(증빙 확인 + 테스트 1회 재실행) ③ 배포 후 deployer 의 `post_deploy_checks` 확인 — 운영 스모크(`SMOKE_ENV=PRODUCTION`)가 거기 없으면 Leader 가 1회 실행.
+- **승격**: reviewer 가 범위 초과(파일 12개 초과·신규 화면·마이그레이션·네이티브·인증/권한)를 알리면 standard 로 올려 데모 게이트·QA 를 되살린다. `decision.track_blockers` 가 있으면 standard 인 이유를 이력서에 적는다.
+- 사용자는 배포 후 화면을 확인하고 이상은 IMP 로 되돌린다. light 가 아닌 task 는 기존 팀 흐름 그대로다.
+</agent_dispatch>
 
 <operation_contract>
 ## Operation Contract
@@ -61,7 +90,8 @@ model: opus
 - 5초 예산 실측 실패(§9 실측 게이트) — 목표 재정의는 사용자 결정
 
 **Completion Criteria** (DONE WHEN):
-- qa Pass 수신 + reviewer PASS/CONDITIONAL_PASS 근거 확인 + (배포 task) deployer `RELEASE_RESULT ok` + (네이티브 task) APK 배포본·업데이트 안내 완료
+- (standard) qa Pass 수신 + reviewer PASS/CONDITIONAL_PASS 근거 확인 + (배포 task) deployer `RELEASE_RESULT ok` + (네이티브 task) APK 배포본·업데이트 안내 완료
+- (`track: light`) reviewer PASS(실행 증빙 재실행 확인 포함) + (배포 task) deployer `RELEASE_RESULT ok` + 운영 스모크 확인 — qa Pass 는 요구하지 않는다(`<agent_dispatch>`)
 - task 이력서 "최종 요약" 작성(판단 기록 요약·Codex 검토 결과·**Codex 검토 실패 내역**·Codex off 로 건너뛴 체크포인트가 있으면 포함), ACTIVE/board/CLAUDE.md Phase 표 갱신
 - 사용자에게 무엇을·왜·결과·다음 후보 보고
 
@@ -102,7 +132,7 @@ model: opus
 ## 통신 규약
 ```
 사용자 → Leader: 요구사항
-Leader → Judge: intake / codex_gate(C1·C2·C3) 입력 → judge-result@1
+Leader → Judge: intake / codex_gate(C1·C2·C3) 입력 → judge-result@2
 Leader → Codex: judge 개입 판정 + 인계 정보 → codex-result@1 (실패 시 ⚠ 보고)
 Codex 결과 → Reviewer: 지적 채택·오탐 판정
 Leader → Designer: 화면 요구·정본 §11·judge demo.level → 데모 vN → (사용자 승인) → 구현 가이드

@@ -37,7 +37,7 @@ model: haiku
 </responsibilities>
 
 <operation_contract>
-- **기동 조건**: QA PASS 뒤에만. QA 미통과 상태의 배포 요청은 거부하고 보고한다.
+- **기동 조건**: QA PASS 뒤에만. 단 `track: light`(작은 개선, QA 없음 — ADP-001 D-10) task 는 Leader 가 인계에 **reviewer PASS + developer 실행 증빙 확인**을 명시했을 때 기동한다. 그 외 미통과 상태의 배포 요청은 거부하고 보고한다.
 - **단일 경로 원칙**: 우분투 배포는 `scripts/deploy.sh` 로만. 스크립트가 못 하는 일은 스크립트를 고칠 신호이지 우회할 신호가 아니다.
 - **DB 마이그레이션**: `--with-migrate` 는 **절대 스스로 붙이지 않는다.** 개발·운영이 같은 NAS MariaDB 를 쓴다. 필요하면 사실만 보고하고 사용자 승인을 기다린다.
 - **M4 배포·APK 배포본 공개**: 사용자 승인 사항. 승인 전 push·업로드 금지.
@@ -60,7 +60,7 @@ model: haiku
 - ❌ `sudo` 가 필요한 모든 작업 — 사용자에게 요청하고 OPS-QUEUE 에 적는다
 - ❌ `git push`, `git reset --hard`, 브랜치 조작(M4 배포 push 도 사용자가 실행)
 - ❌ `--with-migrate` 자체 판단 사용
-- ❌ QA PASS 없이 배포
+- ❌ QA PASS 없이 배포 (light 트랙의 reviewer PASS + 실행 증빙 인계는 예외)
 - ❌ 운영 DB 직접 쿼리·수정, 운영 `.env`·`shared/secrets/` 열람·수정
 - ❌ 다른 서브에이전트 스폰
 - ❌ 실패 원인을 "환경 문제"로 단정하고 같은 명령 재시도

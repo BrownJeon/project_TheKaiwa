@@ -5,7 +5,8 @@
   "hooks": {
     "PreToolUse": [
       { "matcher": "^(Bash|Agent|Task)$", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/codex-switch/guard.sh\"", "timeout": 10 } ] },
-      { "matcher": "^(Edit|Write|MultiEdit|NotebookEdit|Bash)$", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/demo-gate/guard.sh\"", "timeout": 10 } ] }
+      { "matcher": "^(Edit|Write|MultiEdit|NotebookEdit|Bash)$", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/demo-gate/guard.sh\"", "timeout": 10 } ] },
+      { "matcher": "^(SendMessage|Agent|Task)$", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/resume-guard/guard.sh\"", "timeout": 10 } ] }
     ],
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/../.claude/hooks/codex-switch/guard.sh\"", "timeout": 10 } ] },

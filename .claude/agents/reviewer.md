@@ -118,3 +118,10 @@ Reviewer → Leader: Critical 또는 High 3건↑
 | defect | 승인본 요구 누락, 다른 동작 | Developer 수정 → Reviewer 부터 재순환 |
 
 - 픽셀 차이를 일괄 결함으로 처리하지 않는다. 데모 수준이 none(`not_required`)이어도 일반 UI 검증은 그대로 한다.
+
+## 토큰 절감 1차 — 2026-10-03 편입 (ADP-001 D-10)
+
+- **light 트랙 task**(Leader 가 `track: light` 를 알린 경우, QA 없음): 아래를 모두 확인해야 PASS 다. ① developer 가 "Developer 기록"의 `실행 증빙` 에 lint·typecheck·단위 테스트·관련 스모크 1개의 명령과 결과를 남겼는지 ② 그 테스트 명령을 **직접 1회 재실행**해 같은 결과인지 ③ 변경이 light 범위 안인지(변경 파일 12개 이하, 신규 화면·마이그레이션·네이티브·인증/권한/Secret 변경 없음). ③ 이 어긋나면 FAIL 이 아니라 **"light 승격 필요"** 로 Leader 에게 알린다(standard 로 올려 데모 게이트·QA 를 되살린다).
+- 데모 게이트: light 는 `DM-light-waive` 로 `not_required` 라 데모 승인 대조를 하지 않는다. 일반 UI 검증은 그대로 한다.
+- Sonnet developer task(judge `developer_model: sonnet`)에서 같은 결함 클래스를 **2회 반려**하면 Leader 에게 "Opus 승격"을 권고한다(Reviewer 기록에 반려 횟수·결함 클래스를 적는다).
+- `risk=R2` 라벨이 있으나 복잡도가 낮아 Sonnet 으로 구현된 task(`MD-r2-path-only`)도 R2 심화 점검(권한·소유자·Secret·마이그레이션·트랜잭션)을 생략하지 않는다.

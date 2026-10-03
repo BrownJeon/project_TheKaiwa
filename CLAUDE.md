@@ -106,7 +106,7 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 |------|------|------|
 | leader | **Opus** | 요구사항→사양(정본 인용), task 이력서 큐레이션, 6층·제안→채택·Secret 원칙 수호, 인프라·문서, 최종 보고 |
 | designer | **Opus** | 412/390px 화면·관리자 콘솔 IA·목업·구현 가이드(`docs/screens.md`), 음성 우선 입력, 엔진명 비노출 |
-| developer | **Opus** | Next.js·Prisma·6층 모듈·Python 음성 서비스·Kotlin 플러그인 구현(adapter 경유), 네이티브 변경 고지 |
+| developer | **Opus**(기본) · Sonnet(judge 판정) | Next.js·Prisma·6층 모듈·Python 음성 서비스·Kotlin 플러그인 구현(adapter 경유), 네이티브 변경 고지 |
 | prompt-engineer | **Sonnet** | 강사 페르소나 `tutor.md`·프롬프트 모듈(A1~A10)·JSON 계약·회귀 픽스처·Prompt Registry sync |
 | reviewer | **Sonnet** | 6층 경계·보안·LLM 계약·학습 원칙·ConfigurationVersion·엔진명 누출·네이티브 고지 독립 감사 |
 | qa | **Haiku** | 인증·capability·제안→채택 행 수·스냅샷·복습 판단 범위(3~7일·FOCUS ≤3) 가드·기록률·5초/3분 지표·양 경로 STT·3폭·실기기·APK 배너 검증 |
@@ -114,6 +114,8 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | judge | **Haiku** | Jev 판정 도구 실행 — 작업 접수 분류(유형·복잡도·developer 모델)·Codex 개입 판정(C1·C2·C3). 직접 추론·코드 수정 금지 (2026-09-27 개발환경 개선 선도입, ADP-001-C02) |
 | codex | **Haiku** | judge 개입 판정 시에만 Codex CLI 읽기 전용 검토 실행·기록. 실패해도 작업 진행 후 실패 내역 보고 |
 | tutor (런타임) | Sonnet | `.claude/agents/tutor.md` v1 = 일본인 원어민·교정 철저·한국어 설명+일본어 대화·이름 사용자 지정·복습 주기 3~7일 판단(key `teacher-persona`). 개발팀 아님, 앱 런타임이 `--agents` 로 로드 |
+
+**토큰 절감 1차 (2026-10-03, ADP-001 D-10)**: developer 모델은 judge `developer_model` 로 정한다(복잡도 2.0 이상 또는 경로 R2 → Opus, 그 밖 → Sonnet; 임계는 매주 Opus 사용 추이를 보고 단계 조정). developer `maxTurns: 80`·prompt-engineer 100 — 끊기면 **신규 소환**(이어받기 금지), 5분 넘게 쉰 큰 컨텍스트(150k 초과) 에이전트는 SendMessage 로 깨우지 않고 신규 소환한다(훅 `resume-guard`). 작은 개선은 judge 가 `track: light` 로 판정하면 Leader → Developer → Reviewer 로 간소화(데모 게이트·QA 면제, 사용자 결정). 규칙 정본: `.claude/agents/leader.md` `<agent_dispatch>`. **측정·후속 작업·롤백**: `agent-vault/10-Flow/tasks/task-027-token-saving-r1.md` · 체크리스트 `../adoption/ADP-001-typesafe-jev/cases/C02-dev-request-judge/토큰절감-1차.md`.
 
 화면 신규·구조 변경 작업은 데모 검토 게이트(워크스페이스 [`docs/demo-review-gate.md`](../docs/demo-review-gate.md))를 거친다 — designer 버전별 데모(`docs/demo/<task-id>-<slug>-v<N>.html`) → 사용자 승인 → 구현 (2026-09-28, ADP-001 D-09).
 
@@ -178,6 +180,7 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
   · tutor           (런타임 페르소나, 개발팀 아님) — .claude/agents/tutor.md
 
 워크플로우: Leader(→Judge 접수) → Designer → Prompt-Engineer → [Judge C1 → Codex?] → Developer → Reviewer → [Judge C2 → Codex? → Reviewer 판정] → QA → Deployer → Leader
+작은 개선(judge `track: light`): Leader(→Judge 접수) → Developer → Reviewer (→ 배포 시 Deployer) → Leader — 데모 게이트·QA 면제, 범위 초과 시 standard 로 승격
 작업 지시 방법:
   → leader에게 직접 요청하면 팀이 역할별로 분담해서 처리합니다.
   → 팀 정리 시: "팀 정리해줘" 또는 "Clean up the team"
