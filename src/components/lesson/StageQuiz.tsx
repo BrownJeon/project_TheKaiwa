@@ -3,12 +3,15 @@
 /**
  * ③ 문제(screens §12-2 H · 데모 v2 `#l3`·`#l3-wrong`·`#l3-sum`) — 4지선다, 고르는 즉시 정답·설명(화면이 `content.quiz[].answer` 로 채점 —
  * 자습이라 정답이 내용에 있다). 한 번만 고를 수 있고(첫 답 고정 — 서버도 바꾸지 않는다) 바로 #61 로 저장한다. 점수는 완료 때 서버가 다시 계산.
+ * 문제 머리(task-025 데모 v1 `#l3-new`·`#l3-old`·`#l3-sum`): 한국어 질문(굵게) → 일본어 문장(17px). 옛 레슨에서 promptKo 가 비었으면
+ * 공통 안내 줄 + "예전에 만든 수업…"(`quizPromptView`). 보기(답)에는 한국어를 붙이지 않는다(답 노출).
  */
 import { useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/common/ui'
 import type { LessonContent, LessonDto } from '@/types/lesson'
 import { U3 } from './lessonCopy'
-import { hasJa } from './logic'
+import { hasJa, quizPromptView, quizSummaryPrompt } from './logic'
+import { InfoIcon } from './parts'
 import type { UseLesson } from './useLesson'
 
 function Dots({ quiz, answers, current }: { quiz: LessonContent['quiz']; answers: (number | null)[]; current: number | null }) {
@@ -81,6 +84,7 @@ export default function StageQuiz({ lesson, st, reviewing, footer }: { lesson: L
             {quiz.map((q, i) => {
               const ok = answers[i] === q.answer
               const mine = answers[i]
+              const sp = quizSummaryPrompt(q)
               return (
                 <li key={q.id} className="flex min-w-0 items-start gap-2">
                   <span aria-hidden="true" className={`grid h-6 w-6 flex-none place-items-center rounded-full text-[11px] font-semibold ${ok ? 'bg-good-soft text-good' : 'bg-bad-soft text-bad'}`}>
@@ -89,7 +93,7 @@ export default function StageQuiz({ lesson, st, reviewing, footer }: { lesson: L
                   <div className="min-w-0">
                     <p className="text-[14px] break-keep [overflow-wrap:anywhere]">
                       <span className="sr-only">{ok ? '맞음, ' : '틀림, '}</span>
-                      {q.promptKo ?? <span lang="ja">{q.promptJa}</span>}
+                      {sp.ja ? <span lang="ja">{sp.text}</span> : sp.text}
                     </p>
                     <p className="mt-0.5 text-[12px] text-ink2 [overflow-wrap:anywhere]">
                       {ok || mine === null ? '정답 ' : `내 답 `}
@@ -114,6 +118,7 @@ export default function StageQuiz({ lesson, st, reviewing, footer }: { lesson: L
   }
 
   const q = quiz[idx]
+  const qp = quizPromptView(q)
   const a = answers[idx]
   const answered = a !== null
   const pick = (j: number) => {
@@ -142,10 +147,16 @@ export default function StageQuiz({ lesson, st, reviewing, footer }: { lesson: L
       </div>
       <div ref={cardRef}>
         <Card className="mt-2">
-          <p className="text-[16px] font-semibold break-keep [overflow-wrap:anywhere]">{q.promptKo ?? <span lang="ja">{q.promptJa}</span>}</p>
-          {q.promptKo && q.promptJa ? (
-            <p lang="ja" className="mt-1 text-[17px] [overflow-wrap:anywhere]">
-              {q.promptJa}
+          <p className="text-[16px] font-semibold break-keep [overflow-wrap:anywhere]">{qp.ko}</p>
+          {qp.ja ? (
+            <p lang="ja" className="mt-1 text-[17px] leading-[1.7] [overflow-wrap:anywhere]">
+              {qp.ja}
+            </p>
+          ) : null}
+          {qp.legacy ? (
+            <p className="mt-2 flex items-start gap-1.5 text-[12px] text-ink2 break-keep">
+              <InfoIcon />
+              <span>{U3.legacyNote}</span>
             </p>
           ) : null}
           <div role="group" aria-label={U3.choicesAria}>

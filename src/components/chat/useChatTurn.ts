@@ -58,6 +58,8 @@ export interface SendOptions {
   inputSource?: InputSource
   utteranceId?: string | null
   clientTimings?: ClientTimings
+  /** 회화방(task-010c) — 직전 코치 힌트 카드의 정답을 열고 말했다. */
+  coachRevealed?: boolean
 }
 
 /** 보내지 못한 이유(회화방 UnsentBar 가 문구·버튼을 고른다). status 0 = 네트워크, -1 = 스트림이 accepted 전에 끊김. */
@@ -195,6 +197,7 @@ class TurnController {
     const body: Record<string, unknown> = { text, inputSource }
     if (opts.utteranceId) body.utteranceId = opts.utteranceId
     if (opts.clientTimings) body.clientTimings = opts.clientTimings
+    if (opts.coachRevealed) body.coachRevealed = true
     await this.run(body, ctx)
   }
 

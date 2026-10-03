@@ -51,6 +51,49 @@ export function ExprChip({
   )
 }
 
+/** 소리를 받는 중 — 14px 도는 원(글자 색을 따른다). 움직임 줄이기 설정이면 멈춘다. */
+export function Spinner() {
+  return <span aria-hidden="true" className="inline-block h-3.5 w-3.5 flex-none rounded-full border-2 border-current border-r-transparent motion-safe:animate-spin" />
+}
+
+export function InfoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-px flex-none">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </svg>
+  )
+}
+
+/**
+ * ② 오늘의 표현 — 칩 전체가 듣기 버튼(task-025 결정 b=A, 데모 v1 `#l2`·`#l2-playing`). 칩 앞 ▶ 원 30px, 높이 44px.
+ * 재생 중 ■ + 테두리 + `accent-soft`, 받는 중 스피너. ④⑤ 의 같은 모양 칩(`ExprChip`)은 소리가 없다(▶ 표시로 구분).
+ */
+export function ExprPlayChip({ ja, ko, badge, state, onClick }: { ja: string; ko: string; badge?: React.ReactNode; state: 'idle' | 'loading' | 'playing'; onClick: () => void }) {
+  const on = state !== 'idle'
+  return (
+    <li className="max-w-full min-w-0">
+      <button
+        type="button"
+        onClick={onClick}
+        className={`inline-flex min-h-11 max-w-full min-w-0 items-center gap-2 rounded-[10px] py-1 pl-1.5 pr-3 text-left text-ink ${on ? 'bg-accent-soft ring-[1.5px] ring-accent ring-inset' : 'bg-surface2'}`}
+      >
+        <span aria-hidden="true" className={`grid h-[30px] w-[30px] flex-none place-items-center rounded-full ${on ? 'bg-ink text-surface' : 'bg-surface'}`}>
+          {state === 'loading' ? <Spinner /> : on ? <StopIcon /> : <PlayIcon size={12} />}
+        </span>
+        <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+          <span lang="ja" className="text-[16px] [overflow-wrap:anywhere]">
+            {ja}
+          </span>
+          <span className="text-[12px] text-ink2">{ko}</span>
+          {badge}
+        </span>
+        <span className="sr-only">{on ? U2.exprStopSr : U2.exprListenSr}</span>
+      </button>
+    </li>
+  )
+}
+
 /** targetIds → 칩 재료(content.chunks 는 표기·뜻, content.grammar 는 문형·"문형"). 모르는 id 는 뺀다. */
 export function targetsOf(content: Pick<LessonContent, 'chunks' | 'grammar'>, ids: readonly string[]): { id: string; ja: string; ko: string }[] {
   const out: { id: string; ja: string; ko: string }[] = []

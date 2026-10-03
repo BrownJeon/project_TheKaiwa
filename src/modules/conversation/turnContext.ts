@@ -6,7 +6,9 @@ import type { JlptLevel } from '@prisma/client'
 import { prisma } from '@/modules/infra'
 import { getErrorStats, type ErrorStat } from '@/modules/learning'
 import { getProfile } from '@/modules/preferences'
+import { isAwaitingSelfCheck, readCorrectionMeta, type TalkCorrectionMeta } from './corrections/talkDelivery'
 import type { LearnerHeader } from './prompts/header'
+import type { CorrectionMode } from './prompts/talk'
 import type { WindowMessage } from './window'
 
 /** 최근 약점 top3 — 유형별 합계 내림차순(`CONJUGATION(3)`). */
@@ -19,7 +21,11 @@ export function topWeaknesses(stats: ErrorStat[], n = 3): string[] {
     .map(([t, c]) => `${t}(${c})`)
 }
 
-type LearnerBase = Omit<LearnerHeader, 'level'> & { profileLevel: string }
+/**
+ * `talkCorrectionMode`(task-010c)는 헤더에 넣지 않는다 — A1 은 `[교정]` 줄로만 받는다(talk@v5 부터 TALK 헤더에는 `교정 모드` 칸 자체가 없다 —
+ * `renderHeader` 의 `omitCorrectionMode`, REV-055 M-1). 같은 60초 캐시를 함께 써서 턴마다 DB 왕복을 늘리지 않는다.
+ */
+type LearnerBase = Omit<LearnerHeader, 'level'> & { profileLevel: string; talkCorrectionMode: CorrectionMode }
 
 /**
  * 학습자 헤더 재료(학습 설정 + 약점 top3) 60초 메모리 캐시(task-007 K2-3). 설정을 바꾼 직후 최대 60초는 이전 값으로
@@ -44,6 +50,7 @@ async function readLearnerBase(userId: string): Promise<LearnerBase> {
     explainLang: profile.explainLang,
     goal: profile.goalLevel ? `JLPT ${profile.goalLevel}` : null,
     weaknesses: topWeaknesses(stats),
+    talkCorrectionMode: profile.correctionMode === 'COACH' ? 'COACH' : 'FLUENCY',
   }
 }
 
@@ -72,8 +79,14 @@ export function forgetLearnerBase(userId?: string): void {
 }
 
 export async function buildLearnerHeader(userId: string, chatLevel: JlptLevel | null): Promise<LearnerHeader> {
-  const { profileLevel, ...base } = await loadLearnerBase(userId)
+  const { profileLevel, talkCorrectionMode: _mode, ...base } = await loadLearnerBase(userId)
+  void _mode
   return { ...base, level: chatLevel ?? profileLevel }
+}
+
+/** 설정의 교정 방식(task-010c) — 헤더와 같은 캐시. 설정 저장(#12)이 `forgetLearnerBase` 로 비우므로 다음 말부터 바로 적용된다. */
+export async function loadTalkCorrectionMode(userId: string): Promise<CorrectionMode> {
+  return (await loadLearnerBase(userId)).talkCorrectionMode
 }
 
 /**
@@ -113,4 +126,30 @@ export async function loadHistoryBefore(chatId: string, before: { id: string; cr
     .reverse()
     .filter((m) => m.content.length > 0)
     .map((m) => ({ role: m.role === 'USER' ? ('user' as const) : ('assistant' as const), content: m.content }))
+}
+
+/** 코치 자기수정 판정 재료(task-010c L3) — 직전 사용자 말에 달린, 힌트를 받고 아직 판정 전인 PROPOSED 교정. */
+export interface CoachPending {
+  userMessageId: string
+  toolLog: unknown
+  meta: TalkCorrectionMeta & { hintKo: string }
+  correction: { id: string; original: string; corrected: string }
+}
+
+/**
+ * 이번 사용자 말 **바로 앞** 사용자 말(같은 채팅)의 교정 메타를 본다 — 직전 턴만 판정한다(더 오래된 힌트는 지나간 것). 수락 뒤 LLM 과
+ * 병렬로 부른다(첫 음성 경로 밖). 판정 대상이 아니면 null.
+ */
+export async function loadCoachPending(userId: string, chatId: string, before: { id: string; createdAt: Date }): Promise<CoachPending | null> {
+  const prev = await prisma.chatMessage.findFirst({
+    where: { chatId, userId, role: 'USER', OR: [{ createdAt: { lt: before.createdAt } }, { createdAt: before.createdAt, id: { lt: before.id } }] },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, toolLog: true, corrections: { where: { userId, status: 'PROPOSED' }, select: { id: true, original: true, corrected: true } } },
+  })
+  if (!prev) return null
+  const meta = readCorrectionMeta(prev.toolLog)
+  if (!isAwaitingSelfCheck(meta)) return null
+  const correction = prev.corrections.find((c) => c.id === meta.id)
+  if (!correction) return null
+  return { userMessageId: prev.id, toolLog: prev.toolLog, meta, correction }
 }

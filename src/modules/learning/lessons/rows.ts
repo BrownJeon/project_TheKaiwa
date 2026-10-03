@@ -16,7 +16,7 @@ export const LESSON_SELECT = {
   id: true, userId: true, topicId: true, date: true, kind: true, title: true, level: true, content: true, status: true, stageDone: true,
   progress: true, score: true, sourceLessonIds: true, sourceText: true, error: true, createdAt: true, updatedAt: true, completedAt: true,
   topic: { select: { id: true, title: true } },
-  reviewSchedule: { select: { id: true } },
+  reviewSchedule: { select: { id: true, itemIds: true } },
 } as const
 export type LessonRow = Prisma.LessonGetPayload<{ select: typeof LESSON_SELECT }>
 
@@ -56,6 +56,14 @@ function idList(v: unknown): string[] | null {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null
 }
 
+/** 진행 기록 중 서버 전용 칸(`reviewDecision` — 강사 복습 판단 결과, task-010b)은 응답 `progress` 에 싣지 않는다(#60 `nextReview` 로만). */
+function publicProgress(p: LessonProgress): LessonProgress {
+  if (!('reviewDecision' in p)) return p
+  const { reviewDecision: _hidden, ...rest } = p
+  void _hidden
+  return rest
+}
+
 /** `model`·`promptVersion`·`sourceText` 는 싣지 않는다(엔진 식별 정보 비노출 — 모델은 저장만). */
 export function toLessonDto(row: LessonRow, jobId: string | null = null): LessonDto {
   const content = readStoredContent(row.content)
@@ -68,7 +76,7 @@ export function toLessonDto(row: LessonRow, jobId: string | null = null): Lesson
     level: row.level,
     status: row.status,
     stageDone: row.stageDone,
-    progress: readProgress(row.progress),
+    progress: publicProgress(readProgress(row.progress)),
     score: row.score,
     source: row.sourceText ? 'TEXT' : 'TOPIC',
     topic: row.topic ? { id: row.topic.id, title: row.topic.title } : null,

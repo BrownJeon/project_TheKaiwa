@@ -29,7 +29,7 @@
  *    보도록 유도한다(tutor.md §3-4). 못 고치면 다음 턴에 교정문이 그대로 나온다(카드 [정답 보기] 는 UI 몫). 지시문은
  *    " hintKo=힌트(정답 제외)."처럼 최소 글자만 쓴다(아래 예산 절 이유) — 2026-09-28 라이브 실측(haiku, e01~e03
  *    3턴씩) 은 이 짧은 문구만으로도 hintKo 3/3 채움·정답 누출 0/3·위반 0 이었다(`tests/live/talk-correction-mode-
- *    measure.ts`).
+ *    measure.ts`). 단 그 누출 판정은 일본어 정답 문자열 기준이라 한국어 뜻 노출은 못 잡았다 — QA 2차 결함 #3 으로 `COACH_HINT_LINE` 을 보강(아래).
  *  스키마 변경은 `correctionObject` 에 `hintKo`(nullable) 하나만 additive 로 추가했다 — 기존 필드·CHAT_SCHEMA(항상
  * `correction:null`이라 영향 없음)는 무변경. 후검증은 `checkTalkResponse` 에 "hintKo 가 corrected 를 그대로 포함하면
  * 위반" 한 줄만 추가했다(둘 다 `structuredResponse` 소유 파일 — 이 task 의 명시적 요구 사항, "한두 줄만 Edit").
@@ -41,6 +41,15 @@
  * **별도 판단 호출은 두지 않는다**(5초 예산). `sceneCap` 은 호출 전 신호(발화 길이·물음표·altText 등)로 코드(orchestrator)가 고른다 —
  * 값 표와 신호는 task-024 이력서 "Prompt-Engineer 기록". 생략하면 2(v3 와 같은 상한). `persona`(`--system-prompt`)에는 상한을 넣지 않는다
  * (턴마다 바뀌는 값이라 넣으면 CLI 예열 프로세스 재사용이 깨진다 — 기존 K4-3 원칙 그대로, 상한은 stdin `[지시]` 줄에만).
+ *
+ * task-010c REV-055 M-1(talk@v5, 헤더 모순 제거) — v3·v4 는 학습자 헤더에 `교정 모드 COACH`(기본값 고정 — 헤더 재료가 교정 방식을 안 싣는다)와
+ * `[교정] 유창성|코치` 줄이 **동시에** 들어갔다. 기본(유창성) 턴 전부가 서로 모순된 두 줄을 받은 셈이고, 실측 28/28 통과는 `[교정]` 줄이 이긴다는
+ * 것만 보였다(모델 교체·문구 변화에 안전하다는 보장이 아님). v5 는 TALK 헤더에서 그 칸을 뺀다(`renderHeader` 의 `omitCorrectionMode`) —
+ * `[교정]` 줄이 단일 출처, 헤더 14자 절감(예산 마진 +14). persona §3-4 의 "(모드는 헤더)" 는 "(모드는 `[교정]` 줄)" 로 맞췄다(persona 바이트는
+ * (model, level, mode) 로만 정해지는 불변 조건 그대로 — 턴마다 바뀌지 않는다).
+ * 같은 v5(미배포) 안에서 제자리 보강 1건 더(버전 번호 유지, Leader 결정) — task-010c QA 2차 결함 #3: COACH 힌트가 정답을 한국어 뜻으로 노출
+ * (`내일이 아니라 어제였나요?`, 정답 `昨日`). 서버 누출 필터는 일본어 문자열만 보고 한국어 뜻 필터는 만들지 않으므로 `COACH_HINT_LINE` 이 정답의
+ * 일본어 표기뿐 아니라 한국어 뜻·번역·「X가 아니라 Y」의 Y 도 금하고 힌트를 방향(품사·시제·상황 단서·글자 수)으로 한정한다. COACH 한정(FLUENCY 바이트 불변).
  *
  * **예산(2026-09-28 실측·재발 방지 기록, 2차 갱신)**: `[교정] 유창성|코치` 헤더 한 줄만 더해도(instruction 문구는
  * 최소로 줄인 뒤에도) 특정 조합에서 캡을 넘겼다 — 원인은 새 문구 길이가 아니라 `WINDOW_ROOM_SLACK`(옛 이름 없이
@@ -59,7 +68,7 @@ import { TALK_SCHEMA, type TutorResponse } from '../structuredResponse/schemas'
 import { buildWindow, type WindowMessage } from '../window'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const TALK_PROMPT_VERSION = 'talk@v4'
+export const TALK_PROMPT_VERSION = 'talk@v5'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
 /**
@@ -165,15 +174,30 @@ export interface TalkInput {
  * (≈60자, 기존 K4 가 "발화 한 마디" 가정으로 쓰던 값)** 일 때였다 — altText·이력 창이 서로 다른 "양자화 단위"
  * (240자짜리 이력 메시지)로 자리를 나눠 갖기 때문에, 중간 길이 조합에서 마진이 오히려 더 좁아질 수 있다(극단값이
  * 항상 최악은 아니다). 이 때문에 severity 리마인더를 한 번 얹었다가(29자) 이 중간 케이스에서 캡을 넘겨 되돌렸다
- * — `hintKo` 안내만 남긴다(FLUENCY 15자·COACH 28자). severity 기준("의미가 달라지면 MAJOR")은 persona §3-6 에도
+ * — `hintKo` 안내만 남긴다(당시 FLUENCY 15자·COACH 28자; COACH 는 결함 #3 으로 `COACH_HINT_LINE` 이 더 길어졌다 — 마진은 위 `WINDOW_ROOM_SLACK`·`a1sweep` 실측 참고). severity 기준("의미가 달라지면 MAJOR")은 persona §3-6 에도
  * 있으니 완전히 사라지는 것은 아니다(다만 stdin 쪽 리마인더 없이는 실측에서 과잉 MAJOR 판정이 있었다 — 아래 실측
  * 기록·developer 인계 참고, 예산이 이 task 의 최우선 순위라 절충했다). `checks.ts` 의 `checkTalkResponse`(hintKo 가
  * corrected 를 그대로 포함하면 위반)가 문구가 짧아도 hintKo 계약은 지킨다.
  */
+/**
+ * COACH `hintKo` 지시 — talk@v5 제자리 보강(task-010c QA 2차 결함 #3). 기존 "정답 제외" 한 마디는 **일본어 정답 문자열**만 막아, 힌트가
+ * "내일이 아니라 어제였나요?"(정답 `昨日` 을 한국어 뜻 "어제"와 「X가 아니라 Y」 대비로 노출)처럼 정답을 뜻으로 드러냈다(표본 3건 중 1건).
+ * 서버 누출 필터는 일본어만 비교하고 한국어 뜻 매칭은 오탐·정확도 한계로 만들지 않기로 했으므로(Leader 결정) **이 지시문이 유일한 방어**다.
+ * 앞머리 `hintKo=힌트(정답 제외)` 는 그대로 두고(기존 회귀·QA 스윕이 그 문구를 본다) 뒤에 금지 대상을 구체적으로 이름 붙인다 — 일본어 표기·
+ * 한국어 뜻·번역·「X가 아니라 Y」 의 Y. 대신 줄 수 있는 것(품사·시제·상황 단서·글자 수 = 방향)도 함께 적어 빈 힌트로 도망가지 않게 한다.
+ * 실 LLM(haiku) 표본으로 두 번 조정했다(`task-010c-correction-mode.md` "Prompt-Engineer 기록"): 1차 문구(한국어 뜻·번역·「X가 아니라 Y」 금지)는 6건 중 「'귀로 들다'가 아니라
+ * '눈으로 ___다'」(빈칸으로 정답 뜻 암시)를 냈고, 금지 대상만 늘린 2차 문구는 6건 중 5건이 「ㅁ으로 시작」(초성)·「듣다와 보다의 차이」·「'물'이라는 뜻의 단어」·
+ * 「います와 あります의 차이」처럼 금지 목록을 우회하거나 새 단어를 꺼냈다 — 금지 목록은 길수록 모델이 그 형태를 따라 쓴다. 그래서 3차(현행)는 **허용 범위를 앞에 두고**
+ * ("학습자가 쓴 말의 어느 부분을 어떤 방향에서 다시 볼지만" + 예시 한 줄) 금지 대상은 뒤로 돌렸다.
+ * **COACH 에만** 붙는다(FLUENCY 는 hintKo=null 이라 바이트 불변).
+ */
+export const COACH_HINT_LINE =
+  ' hintKo=힌트(정답 제외) — 한 문장, 학습자가 쓴 말의 어느 부분을 품사·시제·상황 단서·글자 수 중 어떤 방향에서 다시 볼지만(예: "동사 시제를 다시 봐요."). 고칠 단어·구는 일본어·한국어 뜻·번역·뜻풀이·빈칸·초성으로도, 「X가 아니라 Y」·두 말 대조로도 꺼내지 않습니다.'
+
 function correctionInstructionLine(mode: CorrectionMode): string {
   const common =
     '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장.'
-  const hint = mode === 'COACH' ? ' hintKo=힌트(정답 제외).' : ' hintKo 는 null.'
+  const hint = mode === 'COACH' ? COACH_HINT_LINE : ' hintKo 는 null.'
   return common + hint
 }
 
@@ -230,7 +254,14 @@ export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse
   const correctionMode: CorrectionMode = input.correctionMode ?? 'FLUENCY'
   const persona = loadPersona({ sections: [1, 3, 4, 6], level: input.learner.level, mode: 'TALK' })
   const correctionLine = `[교정] ${CORRECTION_MODE_LABEL_KO[correctionMode]}${correctionMode === 'FLUENCY' ? FLUENCY_SEVERITY_RULE : ''}`
-  const head = [renderToday(input.todayKst), '[모드] TALK', renderHeader(input.learner, TALK_HEADER_CAP), correctionLine]
+  // 교정 방식은 `[교정]` 줄이 **단일 출처**다 — 학습자 헤더의 `교정 모드` 칸은 뺀다(talk@v5, REV-055 M-1: 헤더는 이 값을 못 받아 늘 `COACH` 로
+  // 찍혀 유창성 턴에서 `[교정] 유창성` 과 모순이었다). 다른 프롬프트의 헤더는 그대로다(`renderHeader` 옵션이 TALK 전용).
+  const head = [
+    renderToday(input.todayKst),
+    '[모드] TALK',
+    renderHeader(input.learner, TALK_HEADER_CAP, { omitCorrectionMode: true }),
+    correctionLine,
+  ]
   const sceneCap = clampSceneCap(input.sceneCap)
   const instruction = talkInstruction(correctionMode, sceneCap)
   // altText 는 상한(200)과 남은 예산 둘 다로 자른다 — 지시문·헤더가 나중에 길어져도 캡(3,000)을 넘지 않게(발화 원문은 자르지 않는다).

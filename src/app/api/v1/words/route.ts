@@ -6,7 +6,7 @@ import { getProfile } from '@/modules/preferences'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** #40 단어 목록 — 검색·카테고리·보관함·정렬 3종, `{items, nextCursor, total}`. */
+/** #40 단어 목록 — 검색·카테고리·조각(`chunkType`, task-023)·보관함·정렬 3종을 AND 로, `{items, nextCursor, total}`. 잘못된 쿼리 값은 400. */
 export const GET = withApi(async (req) => {
   const s = await requireSession()
   const q = req.nextUrl.searchParams

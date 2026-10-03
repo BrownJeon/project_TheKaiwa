@@ -10,7 +10,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { detailString, toErr } from '@/components/common/errors'
 import { KEYS as CHAT_KEYS } from '@/components/chat/storageKeys'
-import { useKeyboardInset } from '@/components/chat/useKeyboardInset'
 import { readStore, writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Btn, ErrorBlock } from '@/components/common/ui'
@@ -160,7 +159,6 @@ function LessonStages({
   const scrollRef = useRef<HTMLDivElement>(null)
   const topic = lesson.topic?.title ?? PASTED_TOPIC
   const reviewing = stage <= lesson.stageDone
-  useKeyboardInset(rootRef, stage === 5)
 
   // 처음 열 때: 생성 직후가 아니고 진행이 있으면 "이어서" 토스트 1회.
   const greeted = useRef(false)

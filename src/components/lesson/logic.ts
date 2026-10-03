@@ -5,8 +5,13 @@
  *  - `endResultFrom`: #60 DONE 레슨 → 종료 카드 값(#62 `result` 와 같은 계산)
  *  - `memoWordProblem`: 들린 단어 메모 한 줄 검사(서버 #61·#62a 규칙과 같음)
  *  - `hasJa`: 가나·한자가 있으면 일본어로 본다(`lang="ja"`)
+ *  - 줄 다시 듣기·표현 소리 키(task-025): `lineReplayKey`·`exprKey`·`lineReplayPace`·`activeLineReplay`·`playLineReplay`·`playExpr`
+ *  - 문제 문장 표기(task-025): `quizPromptView`·`quizSummaryPrompt`(옛 레슨 promptKo null 대체)
  */
-import type { LessonContent, LessonDto, LessonProgress, MemoDraft, NextPreview, TodayLessonItem, TodayLessons } from '@/types/lesson'
+import type { PlaybackSnapshot } from '@/modules/speech/tts/client'
+import type { AudioPace, LessonContent, LessonDto, LessonProgress, LessonQuiz, MemoDraft, NextPreview, TodayLessonItem, TodayLessons } from '@/types/lesson'
+import { U3 } from './lessonCopy'
+import type { LessonPlayback } from './useLessonPlayback'
 
 const JA_RE = /[぀-ヿ㐀-鿿]/
 
@@ -167,4 +172,66 @@ export function segmentLines(content: Pick<LessonContent, 'dialogue'>): Map<numb
 export function rateLabel(speed: number | null | undefined): string {
   const v = speed === 0.6 || speed === 0.8 || speed === 1 ? speed : 0.8
   return v === 1 ? '1.0' : String(v)
+}
+
+/* ── 다시 듣기·표현 소리(task-025) ─────────────────────────────────── */
+
+/*
+ * 진행 기록(`listen.played`·`segmentsDone` → #61, 완료 때 StudyLog)은 **구간 재생(`seg:{k}:{pace}`)의 onComplete 만** 쓴다.
+ * 줄 다시 듣기(`line:{idx}`)·표현 소리(`expr:{idx}`)는 onComplete 를 넘기지 않아 기록을 만들지 않는다.
+ * 같은 재생 큐를 쓰므로 구간 재생 중에 누르면 그 구간 재생은 끊기고(breakPending) "느리게/보통 ✓"도 채워지지 않는다.
+ */
+export const lineReplayKey = (idx: number) => `line:${idx}`
+export const exprKey = (idx: number) => `expr:${idx}`
+
+/** 줄 다시 듣기 속도(결정 a=A) — 그 구간을 보통 속도로 끝까지 듣기 전엔 느리게, 들은 뒤엔 보통. 다시 보기는 늘 보통. */
+export function lineReplayPace(normalDone: boolean, reviewing: boolean): AudioPace {
+  return normalDone || reviewing ? 'normal' : 'slow'
+}
+
+/** 이 key 소리를 아직 받는 중(첫 소리 전)인가 — 큐가 `waiting` 이거나, 받았지만 재생 손잡이가 아직 없을 때. */
+export function isLoadingSnapshot(s: Pick<PlaybackSnapshot, 'phase' | 'messageId' | 'chunkIndex'>, key: string): boolean {
+  return s.messageId === key && (s.phase === 'waiting' || (s.phase === 'playing' && s.chunkIndex === null))
+}
+
+const LINE_KEY = /^line:(\d+)$/
+
+/** 지금 소리 나는(받는·막힌) 줄 다시 듣기 — 상태 줄은 `lineOf` 가 아니라 이 값으로 그린다. 다른 재생이면 null. */
+export function activeLineReplay(s: Pick<PlaybackSnapshot, 'phase' | 'messageId' | 'chunkIndex'>): { idx: number; loading: boolean; blocked: boolean } | null {
+  if (s.phase === 'idle' || !s.messageId) return null
+  const m = LINE_KEY.exec(s.messageId)
+  if (!m) return null
+  return { idx: Number(m[1]), loading: isLoadingSnapshot(s, s.messageId), blocked: s.phase === 'blocked' }
+}
+
+/** 대화 줄 하나 다시 듣기(#62c dialogue) — onComplete 없음 = 진행·StudyLog 쓰기 0. */
+export function playLineReplay(pb: Pick<LessonPlayback, 'playLines'>, idx: number, pace: AudioPace): void {
+  pb.playLines(lineReplayKey(idx), [{ kind: 'dialogue', idx, pace }])
+}
+
+/** 오늘의 표현 소리(#62c chunk, 보통 속도 한 번) — onComplete 없음. */
+export function playExpr(pb: Pick<LessonPlayback, 'playLines'>, idx: number): void {
+  pb.playLines(exprKey(idx), [{ kind: 'chunk', idx, pace: 'normal' }])
+}
+
+/* ── 문제 문장 표기(task-025, Q10) ──────────────────────────────────── */
+
+const filled = (s: string | null | undefined): string | null => (typeof s === 'string' && s.trim() ? s : null)
+
+/**
+ * 문제 카드 머리 — 새 레슨(lesson@v8~)은 promptKo 가 늘 있어 한국어 질문(굵게) → 일본어 문장(있으면).
+ * 옛 레슨(v7 이하)에서 promptKo 가 비었으면 공통 안내 줄 + 일본어 문장 + "예전에 만든 수업…"(결정 c=A, 서버 요청 없음).
+ */
+export function quizPromptView(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { ko: string; ja: string | null; legacy: boolean } {
+  const ko = filled(q.promptKo)
+  const ja = filled(q.promptJa)
+  return ko ? { ko, ja, legacy: false } : { ko: U3.legacyPrompt, ja, legacy: true }
+}
+
+/** 결과 목록 한 줄 — `promptKo ?? promptJa`(공통 안내 줄은 넣지 않는다 — 모든 줄이 같은 말이 되니까). */
+export function quizSummaryPrompt(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { text: string; ja: boolean } {
+  const ko = filled(q.promptKo)
+  if (ko) return { text: ko, ja: false }
+  const ja = filled(q.promptJa)
+  return ja ? { text: ja, ja: true } : { text: U3.legacyPrompt, ja: false }
 }

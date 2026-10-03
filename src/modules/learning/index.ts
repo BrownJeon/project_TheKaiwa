@@ -17,7 +17,7 @@ export { enrichWord } from './vocab/enrich'
 export type { WordEnrichOutput, WordDraft } from './vocab/enrich'
 export {
   parseCreateSessionBody, createVocabSession, parseSessionListQuery, listVocabSessions, getVocabSession, parseAttemptBody, recordAttempt,
-  finishVocabSession, parseKeepBody, keepVocabSession, replayVocabSession, SET_COUNT_MIN, SET_COUNT_MAX,
+  finishVocabSession, finishVocabSessionDetailed, parseKeepBody, keepVocabSession, replayVocabSession, SET_COUNT_MIN, SET_COUNT_MAX,
 } from './vocab/sessions'
 export type {
   VocabSessionDto, VocabCardDto, CreateSessionResult, SessionSummaryDto, AttemptInput, AttemptResultDto, FinishResultDto, EmptyReason,
@@ -38,7 +38,20 @@ export type { TopicDto, TopicChunkDto, TopicQuery } from './topics'
 export { topicExists, lessonExists } from './refs'
 // ── task-010 오늘의 회화 · 반복 학습 항목 ──
 export * from './lessons'
-export { registerRepetitionItems, repetitionRefId, normalizeRefText, clampInterval, REPETITION_LESSON_ITEM_CAP } from './repetition'
-export type { RepetitionItemInput, RegisteredItem, RepetitionRefType } from './repetition'
+export { registerRepetitionItems, repetitionRefId, normalizeRefText, clampInterval, REPETITION_LESSON_ITEM_CAP, REPETITION_FOCUS_FEEDBACK, repetitionSourceOf } from './repetition'
+export type { RepetitionItemInput, RegisteredItem, RepetitionRefType, RepetitionSource } from './repetition'
+// ── task-010b 반복 학습 — A11 판단 잡(라우트가 conversation 으로 만든 함수 묶음을 넘긴다)·오늘의 복습(#58·#63·#64)·완료 뒤 판단 ──
+export { scheduleReviewDecision, REVIEW_FALLBACK_REASON_KO } from './repetition/decision'
+export type { ReviewDecisionDriver, ReviewDecisionMaterials, ReviewDecisionCandidate, ReviewDecisionPlan, ReviewDecisionPlanItem, ReviewDecisionTrigger } from './repetition/decision'
+export { REVIEW_FALLBACK_RATIONALE_KO, reviewSessionSize } from './repetition/review'
+export type { ReviewGuard, NextReviewGroup } from './repetition/review'
+export { skipReview, startReview, loadReviewMixMaterials, afterStudyCompleted, isReviewId } from './reviewSchedule'
+export type { TodayReviewState, TodayReviewDto, ReviewItemDto, LessonNextReview, TodayNextReview, ReviewMixMaterials, ReviewMixMaterialItem, StartReviewResult } from './reviewSchedule'
 // ── task-011 AI 평가(#65~#69·#67a·#67b) — A6·A7 요청은 라우트가 conversation 으로 만들어 넘긴다 ──
 export * from './evaluation'
+// ── task-010c 학습 관측(append-only, 호출자 tx) — 코치 자기수정이 첫 사용처, 010b 가 단어·교정·레슨 관측을 더한다 ──
+export { recordObservations, observationRow, OBSERVATION_SKILL, OBSERVATION_META_MAX, correctionSkill } from './observations'
+export type { ObservationInput } from './observations'
+// ── task-010b 교정 사건 관측(제안·채택·거절) — Correction 은 L2 라 라우트·훅이 값으로 넘겨 같은 tx 에 쓴다 ──
+export { recordCorrectionsProposed, registerAcceptedCorrection, recordCorrectionIgnored } from './observations/corrections'
+export type { CorrectionEventInput, AcceptedCorrectionInput } from './observations/corrections'

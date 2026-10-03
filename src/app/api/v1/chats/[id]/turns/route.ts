@@ -1,6 +1,8 @@
 import { rateLimit, readJsonObject, requireSession, sseResponse, withApi } from '@/modules/infra'
 import { parseTurnBody, startTurn, type TurnHooks } from '@/modules/conversation'
+import { recordObservations } from '@/modules/learning'
 import { checkUtteranceForTurn, createTurnSpeaker, linkUtteranceToMessage, type TurnUtterance } from '@/modules/speech'
+import { correctionProposedHook } from '../../../_lib/review'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +17,8 @@ type Ctx = { params: Promise<{ id: string }> }
  *  - `utteranceId`: 수락 전 speech 가 소유자·미연결·같은 방(발화에 방이 기록돼 있으면, task-018)·10분을 검사(404·409), 수락 직후 조건부 연결
  *    + 고친 글자면 finalText=text(USER).
  *  - TALK 문장 음성: speech 의 턴 합성기(서명 URL·캐시·8초)를 conversation 의 speaker 자리에 넣는다.
+ *  - 코치 자기수정(task-010c): conversation 이 판정하고 저장 트랜잭션 안에서 이 훅을 부르면, 관측(learning 소유)을 같은 tx 에 쓴다.
+ *    정답을 열지 않고 고침 = SUCCESS, 연 뒤 고침 = PARTIAL. 신뢰도는 1.0(실시간 인식 신뢰도는 턴 경로에 없다 — 입력 경로만 meta 에).
  */
 export const POST = withApi<Ctx>(async (req, ctx) => {
   const s = await requireSession()
@@ -22,7 +26,27 @@ export const POST = withApi<Ctx>(async (req, ctx) => {
   const { id } = await ctx.params
   rateLimit(`turn:${userId}`, 12)
   const request = parseTurnBody(await readJsonObject(req, 16 * 1024))
-  const hooks: TurnHooks = { speaker: (a) => createTurnSpeaker({ userId, messageId: a.assistantMessageId }) }
+  const hooks: TurnHooks = {
+    speaker: (a) => createTurnSpeaker({ userId, messageId: a.assistantMessageId }),
+    // task-010b L3 — 이번 턴이 만든 교정(PROPOSED) 관측을 저장 트랜잭션에(learning 소유). 신뢰도 1.0, 입력 경로는 meta.
+    recordCorrectionProposed: correctionProposedHook(userId),
+    recordSelfCorrection: async (tx, r) => {
+      await recordObservations(
+        userId,
+        [
+          {
+            kind: 'SELF_CORRECTION',
+            outcome: r.result === 'SELF' ? 'SUCCESS' : 'PARTIAL',
+            refType: 'Correction',
+            refId: r.correctionId,
+            confidence: 1,
+            meta: { revealed: r.revealed, input: r.inputSource === 'TEXT' ? 'TEXT' : r.inputSource ? 'VOICE' : null },
+          },
+        ],
+        tx,
+      )
+    },
+  }
   if (!request.resume && request.utteranceId) {
     const utteranceId = request.utteranceId
     const text = request.text

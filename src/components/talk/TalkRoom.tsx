@@ -10,6 +10,10 @@
  * 앞 턴이 아직 스트리밍 중이면 보내기 대기(QUEUED) 후 done 에 보낸다(서버 409 를 맞지 않게). 거절된 말은 UnsentBar 에 남는다.
  *
  * 비밀·엔진 값: 서명 URL·cacheKey·connectionKey·traceId 는 state·DOM·콘솔 어디에도 두지 않는다(URL 은 큐 안에서만 fetch).
+ *
+ * 교정 방식(task-010c, 데모 v1): 유창성의 작은 실수(`deliver=LATER`)는 대화 속에 그리지 않고 머리의 "모아 둔 교정 N" 칩 → 시트로,
+ * 코치 힌트 교정은 힌트 먼저(정답은 [정답 보기] 또는 다음 말에서 못 고쳤을 때). 다음 말을 보낼 때 그 카드의 정답을 열었는지(`coachRevealed`)를
+ * 함께 보내 서버가 "스스로 고침/정답 보고 고침"을 가른다. 회화 메뉴에서도 교정 방식을 바꾼다(결정 c=B).
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -23,17 +27,15 @@ import { ErrorBlock, LoadingBlock } from '@/components/common/ui'
 import AcceptCorrectionSheet from '@/components/chat/AcceptCorrectionSheet'
 import ChatMenuSheet from '@/components/chat/ChatMenuSheet'
 import Composer, { type ComposerHandle } from '@/components/chat/Composer'
-import CorrectionCard from '@/components/chat/CorrectionCard'
 import { actionErrorText } from '@/components/chat/labels'
 import { PendingBubble, UserBubble } from '@/components/chat/MessageBubble'
 import MessageList, { type MessageListHandle, type RowContext } from '@/components/chat/MessageList'
-import { endsWithUnfinishedReply, mergeMessages, prependMessages, turnBaseOf } from '@/components/chat/messages'
+import { correctionFromDone, endsWithUnfinishedReply, mergeMessages, prependMessages, turnBaseOf } from '@/components/chat/messages'
 import NewChatSheet from '@/components/chat/NewChatSheet'
 import ProposalCard from '@/components/chat/ProposalCard'
 import { KEYS } from '@/components/chat/storageKeys'
 import TurnNotice from '@/components/chat/TurnNotice'
 import { useChatTurn, type RestoreInfo, type SettledKind } from '@/components/chat/useChatTurn'
-import { useKeyboardInset } from '@/components/chat/useKeyboardInset'
 import { STT_HINT_COPY, STT_STATUS_COPY, STT_SWITCH_TOAST } from '@/components/speech/sttCopy'
 import { elapsedSec, showAskPermission, transcriptParts, type SttUiError } from '@/components/speech/sttUiState'
 import { unlockTtsAudio } from '@/components/speech/ttsAudio'
@@ -54,6 +56,10 @@ import type {
   TurnDoneEvent,
 } from '@/types/chat'
 import AutoplayBar from './AutoplayBar'
+import CorrectionModeMenu from './CorrectionModeMenu'
+import { applySelfCheck, isInlineCorrection, waitingCoach } from './correctionView'
+import LaterCorrectionsSheet, { type LaterListState } from './LaterCorrectionsSheet'
+import TalkCorrectionCard from './TalkCorrectionCard'
 import LiveUtteranceBubble from './LiveUtteranceBubble'
 import type { ReplayState } from './ReplayButton'
 import { completeChunkTexts, hasMoreAfter, sentenceSpans, visiblePrefix, type AudioChunkView } from './revealChunks'
@@ -64,7 +70,7 @@ import TalkIntro from './TalkIntro'
 import TalkRoomHeader from './TalkRoomHeader'
 import TalkTutorBubble from './TalkTutorBubble'
 import TalkUserActions from './TalkUserActions'
-import { TALK_HINT, TALK_ROOM, TALK_TOAST, replayErrorText, type UnsentReason } from './talkCopy'
+import { COACH_COPY, LATER_COPY, TALK_HINT, TALK_ROOM, TALK_TOAST, replayErrorText, type UnsentReason } from './talkCopy'
 import { deriveTalkState } from './talkState'
 import { buildClientTimings, type PrevTurn, type TurnOrigin } from './timings'
 import TopicEndNudge from './TopicEndNudge'
@@ -178,11 +184,19 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const [acceptTarget, setAcceptTarget] = useState<CorrectionDto | null>(null)
   const [busyCorrectionId, setBusyCorrectionId] = useState<string | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  // task-010c — 모아 둔 교정(칩 수·시트)·코치 [정답 보기]·스크린리더 한 줄
+  const [laterCount, setLaterCount] = useState(0)
+  const [laterBump, setLaterBump] = useState(0)
+  const [laterOpen, setLaterOpen] = useState(false)
+  const [laterState, setLaterState] = useState<LaterListState>({ status: 'loading' })
+  const [laterHighlight, setLaterHighlight] = useState<string | null>(null)
+  const [laterFocusKey, setLaterFocusKey] = useState(0)
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set())
+  const [srMsg, setSrMsg] = useState('')
   const toast = useToast()
   const status = useTtsRuntimeStatus()
   const { reportSynthesis, pause: pauseStatus } = status
 
-  const roomRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ComposerHandle | null>(null)
   const listRef = useRef<MessageListHandle | null>(null)
   const messagesRef = useRef<ChatMessageView[]>(messages)
@@ -197,6 +211,10 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const deferredToastRef = useRef<{ msg: string; ms?: number } | null>(null)
   const focusTextRef = useRef(false)
   const turnPhaseRef = useRef<string>('idle')
+  const laterCountRef = useRef(0)
+  const revealedRef = useRef<ReadonlySet<string>>(revealed)
+  const deferredSrRef = useRef<string | null>(null)
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     messagesRef.current = messages
@@ -204,6 +222,12 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   useEffect(() => {
     queuedRef.current = queued
   }, [queued])
+  useEffect(() => {
+    laterCountRef.current = laterCount
+  }, [laterCount])
+  useEffect(() => {
+    revealedRef.current = revealed
+  }, [revealed])
 
   const showToast = toast.show
   /** 녹음 중에는 토스트를 미룬다(스크린리더 음성이 마이크로 들어가지 않게, §9-0 ⑨). */
@@ -215,6 +239,11 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     [showToast],
   )
   const announce = useCallback((msg: string) => notify(msg, 4000), [notify])
+  /** 화면에 띄우지 않고 스크린리더에만 한 번 — 녹음 중이면 끝난 뒤(데모 fl-flow). */
+  const srAnnounce = useCallback((msg: string) => {
+    if (recordingRef.current) deferredSrRef.current = msg
+    else setSrMsg(msg)
+  }, [])
 
   const onReplayError = useCallback(
     (e: ReplayErrorInfo) => {
@@ -331,6 +360,18 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
       const aid = dn.assistantMessageId
       queue.endTurn(aid)
       if ((audioCountRef.current.get(aid) ?? 0) === 0 || dn.audioCount === 0) signalTextOnly(aid)
+      const sc = dn.selfCheck
+      if (sc?.correctionId) setMessages((ms) => applySelfCheck(ms, sc))
+      const cr = dn.correction
+      if (cr?.id && cr.deliver === 'LATER') {
+        // 작은 실수는 카드 없이 칩 숫자만 +1(데모 fl-flow). 시트 목록을 이미 불러왔으면 끝에 붙인다.
+        const next = laterCountRef.current + 1
+        laterCountRef.current = next
+        setLaterCount(next)
+        setLaterBump((k) => k + 1)
+        setLaterState((st) => (st.status === 'ok' && !st.items.some((x) => x.id === cr.id) ? { status: 'ok', items: [...st.items, correctionFromDone(cr)] } : st))
+        srAnnounce(LATER_COPY.collected(next))
+      }
     },
     onSettled: (kind: SettledKind, aid: string | null) => {
       pauseStatus(false)
@@ -364,7 +405,10 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     sendingRef.current = { via, origin: o.origin }
     setLastVia(via)
     listRef.current?.scrollToBottom()
-    void turn.send(o.text, { inputSource: o.utteranceId ? 'REALTIME_STT' : 'TEXT', utteranceId: o.utteranceId, clientTimings })
+    // 다시 말해 보기를 기다리는 코치 카드의 정답을 열고 말했는가(서버가 "스스로 고침/정답 보고 고침"을 가른다).
+    const w = waitingCoach(messagesRef.current)
+    const coachRevealed = !!w && revealedRef.current.has(w.id)
+    void turn.send(o.text, { inputSource: o.utteranceId ? 'REALTIME_STT' : 'TEXT', utteranceId: o.utteranceId, clientTimings, ...(coachRevealed ? { coachRevealed } : {}) })
   }
 
   /* ── STT ────────────────────────────────────────────────────────── */
@@ -404,13 +448,18 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const recording = sttPhase === 'starting' || sttPhase === 'recording'
   const listening = recording || sttPhase === 'finishing'
 
-  // 녹음이 끝나면 미뤄 둔 토스트를 띄운다.
+  // 녹음이 끝나면 미뤄 둔 토스트·스크린리더 한 줄을 낸다.
   useEffect(() => {
     recordingRef.current = recording
     if (!recording && deferredToastRef.current) {
       const d = deferredToastRef.current
       deferredToastRef.current = null
       showToast(d.msg, d.ms)
+    }
+    if (!recording && deferredSrRef.current) {
+      const m = deferredSrRef.current
+      deferredSrRef.current = null
+      setSrMsg(m)
     }
   }, [recording, showToast])
 
@@ -429,7 +478,39 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
 
   /* ── 방 데이터 ───────────────────────────────────────────────────── */
 
-  useKeyboardInset(roomRef, load === 'ready' && mode === 'text')
+  /** 모아 둔 교정 시트 목록(task-010c) — 열 때마다 새로 읽는다(예전에 한 말까지). 성공하면 칩 수도 이 목록에 맞춘다. */
+  const loadLater = useCallback(async (): Promise<CorrectionDto[] | null> => {
+    setLaterState({ status: 'loading' })
+    try {
+      const r = await apiGet<Paged<CorrectionDto>>(`/api/v1/corrections?chatId=${encodeURIComponent(chatId)}&deliver=LATER`)
+      const pending = r.items.filter((c) => c.status === 'PROPOSED').length
+      setLaterState({ status: 'ok', items: r.items })
+      laterCountRef.current = pending
+      setLaterCount(pending)
+      return r.items
+    } catch {
+      setLaterState({ status: 'error' })
+      return null
+    }
+  }, [chatId])
+
+  /** 홈 "채택을 기다리는 교정"에서 들어옴 — 모아 둔 교정이면 시트를 그 카드에 맞춰 연다. 목록에 없으면 지금처럼 대화에서 찾는다. */
+  const openLaterAt = useCallback(
+    async (id: string, known: boolean) => {
+      if (known) {
+        setLaterHighlight(id)
+        setLaterOpen(true)
+        void loadLater()
+        return
+      }
+      const items = await loadLater()
+      if (items?.some((c) => c.id === id)) {
+        setLaterHighlight(id)
+        setLaterOpen(true)
+      } else setHighlightId(id)
+    },
+    [loadLater],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -450,6 +531,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         setMessages(detail.messages)
         messagesRef.current = detail.messages
         setOlderCursor(detail.nextCursor)
+        setLaterCount(detail.laterPending ?? 0)
+        laterCountRef.current = detail.laterPending ?? 0
         if (props) setProposals(props.items)
         const picked = cfg ? pickConfig(cfg) : null
         setConfig(picked)
@@ -462,7 +545,13 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         if (detail.chat.running) attach(turnBaseOf(detail.messages))
         else if (endsWithUnfinishedReply(detail.messages)) markFailed()
         const hash = typeof window !== 'undefined' ? window.location.hash : ''
-        if (hash.startsWith('#cr_')) setHighlightId(hash.slice(4))
+        if (hash.startsWith('#cr_')) {
+          const id = decodeURIComponent(hash.slice(4))
+          const loaded = detail.messages.flatMap((m) => m.corrections ?? []).find((c) => c.id === id)
+          // 모아 둔 교정은 대화 속에 카드가 없다 — 시트를 그 카드에 맞춰 연다(데모 fl-deeplink). 화면에 없는 오래된 교정이면 목록에서 찾는다.
+          if (loaded ? !isInlineCorrection(loaded) : (detail.laterPending ?? 0) > 0) void openLaterAt(id, !!loaded)
+          else setHighlightId(id)
+        }
       } catch (e) {
         if (cancelled) return
         setLoad(toErr(e).status === 404 ? 'notFound' : 'error')
@@ -471,7 +560,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     return () => {
       cancelled = true
     }
-  }, [chatId, attempt, attach, markFailed, router])
+  }, [chatId, attempt, attach, markFailed, router, openLaterAt])
 
   // 해시로 들어온 교정 카드로 스크롤 + 2초 강조(로드한 50개 안에 없으면 맨 아래 그대로).
   useEffect(() => {
@@ -511,13 +600,48 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     try {
       const r = await apiGet<ChatDetail>(`/api/v1/chats/${encodeURIComponent(chatId)}?limit=50`)
       setMessages((ms) => mergeMessages(ms, r.messages))
+      if (typeof r.laterPending === 'number') setLaterCount(r.laterPending)
     } catch {
       /* 다음 동기화 때 맞춰진다 */
     }
   }
 
-  const updateCorrection = (u: CorrectionDto) =>
+  /* ── 모아 둔 교정(task-010c) ─────────────────────────────────────── */
+
+
+  const openLater = () => {
+    setLaterHighlight(null)
+    setLaterFocusKey(0)
+    setLaterOpen(true)
+    void loadLater()
+  }
+
+
+  const closeLater = () => {
+    setLaterOpen(false)
+    setLaterHighlight(null)
+    // 칩이 사라졌으면(모두 처리) 시트가 돌려줄 곳이 없다 — ⋯ 로(데모 sheet-close).
+    setTimeout(() => {
+      if (laterCountRef.current === 0) menuBtnRef.current?.focus()
+    }, 0)
+  }
+
+  const updateCorrection = (u: CorrectionDto) => {
     setMessages((ms) => ms.map((m) => (m.corrections?.some((c) => c.id === u.id) ? { ...m, corrections: m.corrections.map((c) => (c.id === u.id ? { ...c, ...u } : c)) } : m)))
+    setLaterState((st) => (st.status === 'ok' && st.items.some((c) => c.id === u.id) ? { status: 'ok', items: st.items.map((c) => (c.id === u.id ? { ...c, ...u } : c)) } : st))
+    if (u.deliver === 'LATER' && u.status !== 'PROPOSED') {
+      const next = Math.max(0, laterCountRef.current - 1)
+      laterCountRef.current = next
+      setLaterCount(next)
+      setLaterFocusKey((k) => k + 1)
+    }
+  }
+
+  const revealAnswer = (c: CorrectionDto) => {
+    setRevealed((s) => new Set(s).add(c.id))
+    // 펼친 카드의 "이렇게 고쳐요"로 초점(데모 co-revealed).
+    setTimeout(() => document.getElementById(`cr_${c.id}_ans`)?.focus(), 0)
+  }
 
   const rejectCorrection = async (c: CorrectionDto) => {
     if (busyCorrectionId) return
@@ -531,6 +655,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
       if (err.status === 409) {
         notify('이미 처리된 교정이에요')
         void refreshMessages()
+        if (laterOpen) void loadLater()
       } else notify(actionErrorText(err))
     } finally {
       setBusyCorrectionId(null)
@@ -540,6 +665,9 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   /* ── 파생 값 ─────────────────────────────────────────────────────── */
 
   const rateLeft = useCountdown(turn.blockedUntil)
+  // 코치: 다시 말해 보기를 기다리는 카드가 있으면 상태 줄도 말로 이어 가게(데모 co-hint).
+  const coachWaiting = waitingCoach(messages)
+  const coachStatus = coachWaiting ? (revealed.has(coachWaiting.id) ? COACH_COPY.statusAnswer : COACH_COPY.statusHint) : null
   const { committed, partial } = transcriptParts(stt.ui)
   const view = deriveTalkState({
     sttPhase,
@@ -560,7 +688,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
           ? STT_HINT_COPY[stt.ui.hint]
           : stt.ui.rationale && !stt.ui.error
             ? STT_STATUS_COPY.rationale
-            : null),
+            : coachStatus),
   })
   const turnBusy = turn.phase === 'sending' || turn.phase === 'streaming' || turn.phase === 'detached'
 
@@ -612,7 +740,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
 
   const renderUser = (m: ChatMessageView, ctx: RowContext) => {
     const canMine = m.inputSource === 'REALTIME_STT' && !!m.utteranceId && m.audioAvailable !== false && !gone.has(m.id) && m.localStatus !== 'SENDING'
-    const list = m.corrections ?? []
+    // 모아 둔 교정(LATER)은 대화 속에 그리지 않는다 — 칩·시트로(데모 fl-flow, 내 말풍선에도 표시를 남기지 않는다).
+    const list = (m.corrections ?? []).filter(isInlineCorrection)
     return (
       <>
         <UserBubble
@@ -629,12 +758,11 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         {list.length > 0 ? (
           <ul className="mt-1.5 flex w-full min-w-0 flex-col gap-2">
             {list.map((c) => (
-              <CorrectionCard
+              <TalkCorrectionCard
                 key={c.id}
                 correction={c}
-                index={1}
-                total={list.length}
-                showCounter={false}
+                revealed={revealed.has(c.id)}
+                onReveal={revealAnswer}
                 busy={busyCorrectionId === c.id}
                 highlighted={highlightId === c.id}
                 onAccept={setAcceptTarget}
@@ -765,7 +893,16 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
 
   /* ── 렌더 ───────────────────────────────────────────────────────── */
 
-  const header = <TalkRoomHeader teacherName={teacherName} title={chat?.title ?? null} onMenu={chat ? () => setMenuOpen(true) : undefined} onAnnounce={announce} />
+  const header = (
+    <TalkRoomHeader
+      teacherName={teacherName}
+      title={chat?.title ?? null}
+      onMenu={chat ? () => setMenuOpen(true) : undefined}
+      onAnnounce={announce}
+      later={{ count: laterCount, bumpKey: laterBump, onOpen: openLater }}
+      menuRef={menuBtnRef}
+    />
+  )
 
   if (load === 'loading') {
     return (
@@ -854,7 +991,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const stripIsNotice = strip !== null && !showSttAlert && !unsent && snapshot.phase !== 'blocked' && !!turn.notice && mode === 'text' && lastVia === 'text'
 
   return (
-    <div ref={roomRef} data-talk-state={view.state} className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
+    <div data-talk-state={view.state} className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
       {header}
       <MessageList
         chatId={chatId}
@@ -926,12 +1063,25 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         extra={
           <>
             <SpeechProfileMenu labels={config?.tts?.speechProfiles ?? null} onToast={notify} />
+            <CorrectionModeMenu onToast={notify} />
             {/* 앱에서만 "알아듣는 곳" 읽기 전용 한 줄(§11-2 D). 웹·플러그인 없는 셸은 WEB 이라 그리지 않는다. */}
             {native && stt.route.reason !== 'WEB' ? <SttRouteRow route={stt.route} /> : null}
           </>
         }
       />
       <NewChatSheet open={newOpen} kind="TALK" onClose={() => setNewOpen(false)} />
+      <LaterCorrectionsSheet
+        open={laterOpen}
+        state={laterState}
+        highlightId={laterHighlight}
+        busyId={busyCorrectionId}
+        dismissible={acceptTarget === null}
+        focusKey={laterFocusKey}
+        onClose={closeLater}
+        onRetry={() => void loadLater()}
+        onAccept={setAcceptTarget}
+        onReject={(x) => void rejectCorrection(x)}
+      />
       <AcceptCorrectionSheet
         key={acceptTarget?.id ?? 'none'}
         correction={acceptTarget}
@@ -945,8 +1095,12 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
           setAcceptTarget(null)
           notify('이미 처리된 교정이에요')
           void refreshMessages()
+          if (laterOpen) void loadLater()
         }}
       />
+      <p role="status" className="sr-only">
+        {srMsg}
+      </p>
       <Toast message={toast.message} bottomPx={mode === 'voice' ? VOICE_TOAST_BOTTOM : TEXT_TOAST_BOTTOM} />
     </div>
   )

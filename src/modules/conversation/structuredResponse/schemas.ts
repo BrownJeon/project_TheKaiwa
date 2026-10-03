@@ -1,6 +1,6 @@
 /**
  * §67 구조화 응답 JSON 스키마(ajv 재검증 + Claude CLI `--json-schema` 공용). 필드명은 api-contract #32 `done` 과 같다.
- * 스키마가 표현하지 못하는 규칙(원문 바이트 일치·2문장 상한)은 `checks.ts` 의 후검증이 맡는다.
+ * 스키마가 표현하지 못하는 규칙(원문 바이트 일치·replyJa 문장 수 상한 — TALK 는 sceneCap 기반, 그 밖은 기본 3)은 `checks.ts` 의 후검증이 맡는다.
  */
 export const ERROR_TYPES = ['GRAMMAR', 'PARTICLE', 'CONJUGATION', 'VOCABULARY', 'POLITENESS', 'NATURALNESS', 'WORD_ORDER', 'OTHER'] as const
 export const SEVERITIES = ['MINOR', 'MAJOR'] as const
@@ -290,10 +290,15 @@ export interface LessonGrammarPoint {
   exampleKo: string
 }
 
-/** 4지선다만(코드 채점) — `promptKo`·`promptJa` 중 최소 하나는 non-null 이어야 한다(`checks.ts`). */
+/**
+ * 4지선다만(코드 채점). **lesson@v8(2026-09-30, task-025 IMP-0014)부터 `promptKo` 는 필수·비어 있지 않은 한국어**다 — 문제
+ * 문장에 한국어 뜻(또는 무엇을 고르라는 지시)을 항상 붙여 화면이 일본어 원문으로 폴백하지 않게 한다. `promptJa` 는 일본어
+ * 문장을 보여 줄 때만 채우고 아니면 null. **이미 저장된 v7 이하 레슨의 `promptKo` 는 null 일 수 있으므로**(저장 JSON 은 재생성하지
+ * 않는다) 읽는 쪽(`learning/lessons/content.ts`·`types/lesson.ts`)의 타입은 `string | null` 로 두고 폴백을 유지한다.
+ */
 export interface LessonQuizItem {
   id: string
-  promptKo: string | null
+  promptKo: string
   promptJa: string | null
   choices: string[]
   answer: number
@@ -397,7 +402,8 @@ const lessonQuizItem = {
   required: ['id', 'promptKo', 'promptJa', 'choices', 'answer', 'targetIds', 'explanationKo'],
   properties: {
     id: { type: 'string', minLength: 1, maxLength: 10 },
-    promptKo: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 160 }] },
+    // lesson@v8 — promptKo 필수(null 불가). 한글이 실제로 들어 있는지는 checks.ts 가 본다(스키마 pattern 은 재시도 문구가 불친절하다).
+    promptKo: { type: 'string', minLength: 1, maxLength: 160 },
     promptJa: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 120 }] },
     choices: { type: 'array', minItems: 4, maxItems: 4, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 80 } },
     answer: { type: 'integer', minimum: 0, maximum: 3 },

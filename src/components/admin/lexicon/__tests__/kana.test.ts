@@ -151,6 +151,7 @@ test('validateWriteMeta: 이유 필수·200자, 확인 문구는 대소문자까
   assert.deepEqual(validateWriteMeta('', '', false), { reason: { code: 'REQUIRED' } })
   assert.deepEqual(validateWriteMeta(long('가', 201), '', false), { reason: { code: 'TOO_LONG', n: 201 } })
   assert.deepEqual(validateWriteMeta('오독 수정', '', false), {})
-  assert.deepEqual(validateWriteMeta('오독 수정', 'production', true), { confirm: { code: 'MISMATCH' } })
-  assert.deepEqual(validateWriteMeta('오독 수정', ' PRODUCTION ', true), {})
+  // 운영 쓰기(needsConfirm)는 이유 10자 이상(task-012c CX-3 — 서버도 같은 규칙)이라 10자가 넘는 이유로 확인 문구만 본다.
+  assert.deepEqual(validateWriteMeta('日本橋 오독 수정 — 신고', 'production', true), { confirm: { code: 'MISMATCH' } })
+  assert.deepEqual(validateWriteMeta('日本橋 오독 수정 — 신고', ' PRODUCTION ', true), {})
 })

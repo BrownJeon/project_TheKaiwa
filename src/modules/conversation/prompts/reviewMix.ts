@@ -17,6 +17,13 @@
  * 동의하지 않으면(예: 강사 판단 GRAMMAR 항목을 grammar[] 에 id 보존해 그대로 실어야 한다) Leader·developer 판단으로
  * `structuredResponse` 에 A5 전용 검사를 추가해야 한다 — 이번 범위에서는 하지 않았다(회귀 픽스처·실측으로 커버된
  * A4 코드를 무변경으로 재사용하는 쪽이 신뢰도가 높다고 판단했다).
+ *
+ * **v2(2026-09-30, task-025 IMP-0014)** — A4 lesson@v8 이 `LESSON_SCHEMA` 의 `quiz[].promptKo` 를 필수 한국어로 올렸고 이 모듈이 그
+ * 스키마를 그대로 쓰므로 quiz 한 줄 지시문만 맞췄다("promptKo·promptJa 중 최소 하나" → "promptKo 필수"). 다른 로직은 그대로다.
+ *
+ * **v2 + (e)=B(2026-10-01, 같은 v2 — 아직 운영·커밋 전)** — A4 lesson@v8 과 같은 규칙: 빈칸 문제의 promptKo 는 할 일만(문장 번역·정답의 뜻 금지),
+ * 빈 문장은 promptJa 에 ＿＿ 로 비워 채운다. 근거·검사를 코드로 만들지 않은 이유는 `lesson.ts` v8 (e)=B 이력 참고. 같은 날 A4 재측정 결과에 맞춰
+ * "일본어 문장이 나오면 그 한국어 뜻을 함께 적되 …" 절도 "일본어 문장은 promptJa 에만, promptKo 는 고르라는 한국어 지시"로 바꿨다(뜻 고르기 문항 정답 번역 방지).
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -25,7 +32,7 @@ import { repairLessonResponse, type LessonRepairSourceChunk } from '../structure
 import { LESSON_SCHEMA, type ChunkType, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const REVIEW_MIX_PROMPT_VERSION = 'reviewMix@v1'
+export const REVIEW_MIX_PROMPT_VERSION = 'reviewMix@v2'
 export const REVIEW_MIX_HEADER_CAP = 600
 /** `LESSON_MAX_TOPIC_CHUNKS`(lesson.ts)와 같은 값 — 세션 크기(다음 §7-4, 15분→6~8건)는 보통 훨씬 작지만 방어적으로 같은 상한을 둔다. */
 export const REVIEW_MIX_MAX_ITEMS = 20
@@ -91,7 +98,7 @@ function reviewMixInstruction(hint: string | null): string {
     '- **id 규칙(가장 먼저 지킵니다)**: chunks 에서 [복습 재료] 항목을 쓸 때는 그 id 를 **절대 바꾸지 말고 그대로** 쓰고 isNew=false 로 둡니다. 이 레슨은 새 표현을 추가하지 않으므로 원칙적으로 모든 chunks 를 [복습 재료]에서만 고릅니다 — 대화를 자연스럽게 잇기 위해 꼭 필요한 아주 짧은 연결 표현(조사·인사말 등)만 예외로 "new-1","new-2"… 로 붙이고 isNew=true 로 합니다(가능하면 쓰지 않습니다). quiz·application·speaking 의 targetIds 는 이렇게 만든 chunks·아래 grammar 의 id 만 씁니다 — 그 밖의 id 는 쓰지 않습니다.',
     '- chunks: 4~8개, 이름(NAME)·액션(ACTION)·느낌(FEELING)·꾸밈(MODIFIER) 중 하나로 분류합니다.',
     '- grammar: 1~3개, [복습 재료]에 담긴 문형을 다시 짚어 설명합니다(새 문형을 만들지 않습니다). id 는 "g1","g2","g3" 순서로. pattern(문형 표기)·explanationKo(200자 이내)·exampleJa/exampleReading/exampleKo(예문 1개, [복습 재료] 표현을 살립니다).',
-    '- quiz: 정확히 5개("q1"~"q5"), 전부 4지선다(choices 4개, answer 는 정답 인덱스 0~3, 숨기지 않고 채웁니다). promptKo·promptJa 중 최소 하나. explanationKo 120자 이내.',
+    '- quiz: 정확히 5개("q1"~"q5"), 전부 4지선다(choices 4개, answer 는 정답 인덱스 0~3, 숨기지 않고 채웁니다). **promptKo 는 q1~q5 모든 문제에 한국어로 반드시 채웁니다**(null·빈 값 금지, 160자 이내 — 일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 한국어 지시를 쓰며, 정답이 되는 뜻은 미리 쓰지 않습니다). **단 빈칸 문제는 promptKo 에 "빈칸에 들어갈 알맞은 말을 고르세요."처럼 할 일만 쓰고(문장 번역·정답의 뜻 금지) 빈 문장은 promptJa 에 ＿＿ 로 비워 반드시 채웁니다.** promptJa 는 화면에 일본어 문장을 보여 줄 때만 채우고 아니면 null. explanationKo 120자 이내.',
     '- application: 정확히 3개("a1"~"a3"), promptKo(200자 이내)·hintJa(없으면 null)·modelAnswerJa/modelReading/modelKo.',
     '- speaking: 정확히 3개("s1"~"s3"), promptKo(200자 이내)·modelAnswerJa/modelReading/modelKo. 상황(역할극)은 없습니다.',
     '- nextPreview: titleKo(40자 이내)·teaserKo(60자 이내) — 다음 레슨 예고 대신 오늘 복습을 잘 마쳤다는 짧은 격려 한 줄로 채웁니다.',

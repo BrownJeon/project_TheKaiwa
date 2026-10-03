@@ -114,7 +114,7 @@ const claim = (jobId: string): EvalJobClaim => ({ evaluationId: E, jobId, traceI
 const rows: EvalItemCreateRow[] = [{ order: 0, kind: 'SITUATION_RESPOND', prompt: { situationKo: 's' }, expected: {}, wordId: null, wordSurfaceSnap: null, chunkType: null, dims: [], maxScore: 10 }]
 const gen = { rows, model: 'm', promptVersion: 'evalGen@v2' }
 
-const item: EvaluationItemRow = { id: 'i0', order: 0, kind: 'SITUATION_RESPOND', prompt: {}, expected: {}, wordId: null, wordSurfaceSnap: null, chunkType: null, answerText: 'x', inputSource: 'TEXT', score: null, maxScore: 10, feedback: null, dims: [], answeredAt: null }
+const item: EvaluationItemRow = { id: 'i0', order: 0, kind: 'SITUATION_RESPOND', prompt: {}, expected: {}, wordId: null, wordSurfaceSnap: null, chunkType: null, answerText: 'x', inputSource: 'TEXT', score: null, maxScore: 10, feedback: null, dims: [], answeredAt: null, textRevealedAt: null }
 const graded = (fb: string): GradedEvaluation => ({
   items: [item],
   scores: new Map([['i0', { score: 8, feedback: fb }]]),

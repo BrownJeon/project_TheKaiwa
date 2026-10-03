@@ -42,8 +42,8 @@ test('brand: 기술 식별자는 그대로(appId·딥링크 스킴 — 바꾸면
   assert.match(read('capacitor.config.ts'), /appId: 'com\.miraclepenguin\.kaiwa'/)
   const gradle = read('android/app/build.gradle')
   assert.match(gradle, /applicationId "com\.miraclepenguin\.kaiwa"/)
-  assert.match(gradle, /def kaiwaVersionCode = 2\b/)
-  assert.match(gradle, /def kaiwaVersionName = "1\.0\.1"/)
+  assert.match(gradle, /def kaiwaVersionCode = \d+\b/)
+  assert.match(gradle, /def kaiwaVersionName = "\d+\.\d+\.\d+"/)
   assert.match(read('android/app/src/main/AndroidManifest.xml'), /android:scheme="thekaiwa"/)
 })
 

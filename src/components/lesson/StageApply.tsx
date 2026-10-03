@@ -3,8 +3,11 @@
 /**
  * ④ 응용(screens §12-2 I · 데모 v2 `#l4`·`#l4-voice`·`#l4-compare`) — 상황마다 문장을 쓰고(또는 말로 쓰기 — MIC_TEST, 원음 저장 안 함) 모범 답안과
  * 비교한다. 채점하지 않는다. [비교하기]는 그 칸의 글자를 #61 로 저장하고, [모르겠어요]는 저장하지 않는다(다시 들어오면 쓰기부터).
+ * 글자 비교(task-025 데모 v1 `#l4-diff`·`#l4-kanji`·`#l4-same`·`#l4-mixed`·`#l4-skip`): 다른 글자 = 굵게 + 밑줄(내 문장에만 점선, 모범 답안에만 실선),
+ * 색은 ink·surface 만(빨강·초록·취소선 없음). 정오 판정·저장은 바꾸지 않는 표시일 뿐이다(`compareAnswer`).
  */
 import { useState } from 'react'
+import type { DiffSeg } from '@/components/chat/diff'
 import { Btn, Card } from '@/components/common/ui'
 import MicLevelMeter from '@/components/speech/MicLevelMeter'
 import PushToTalkButton from '@/components/speech/PushToTalkButton'
@@ -13,6 +16,7 @@ import SttAlert from '@/components/talk/SttAlert'
 import type { SttClientConfig } from '@/modules/speech/stt/client'
 import { isNativeApp } from '@/modules/infra/native'
 import type { LessonContent, LessonDto } from '@/types/lesson'
+import { compareAnswer } from './compare'
 import { U4 } from './lessonCopy'
 import { ExprChip, PlayWide, targetsOf } from './parts'
 import type { LessonPlayback } from './useLessonPlayback'
@@ -34,6 +38,50 @@ function KeyboardIcon() {
       <rect x="2.5" y="6" width="19" height="12" rx="2" />
       <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" />
     </svg>
+  )
+}
+
+const MARK_BASE = 'rounded-[3px] bg-surface px-px font-bold text-ink underline decoration-ink'
+const MARK_MINE = 'decoration-dotted decoration-[2.5px]'
+const MARK_MODEL = 'decoration-solid decoration-2'
+const markClass = (style: string, legend = false) => `${MARK_BASE} ${style} ${legend ? 'underline-offset-[3px]' : 'underline-offset-[5px]'}`
+
+function Marked({ segs, mark }: { segs: DiffSeg[]; mark: string }) {
+  return (
+    <>
+      {segs.map((s, i) =>
+        s.changed ? (
+          <mark key={i} className={markClass(mark)}>
+            {s.text}
+          </mark>
+        ) : (
+          <span key={i}>{s.text}</span>
+        ),
+      )}
+    </>
+  )
+}
+
+function Legend({ mark, word, text }: { mark: string; word: string; text: string }) {
+  return (
+    <span className="text-[12px] text-ink2">
+      <mark className={markClass(mark, true)}>{word}</mark>
+      {text}
+    </span>
+  )
+}
+
+function SrList({ items }: { items: string[] }) {
+  if (!items.length) return <>{U4.cmpSrNone}</>
+  return (
+    <>
+      {items.map((t, i) => (
+        <span key={i}>
+          {i ? ', ' : ''}
+          <span lang="ja">{t}</span>
+        </span>
+      ))}
+    </>
   )
 }
 
@@ -82,6 +130,8 @@ export default function StageApply({
   })
   const ap = items[idx]
   const shown = shownOf(idx)
+  const cmp = shown ? compareAnswer(saved[idx], ap.modelAnswerJa) : ({ kind: 'none' } as const)
+  const diff = cmp.kind === 'diff' ? cmp : null
   const draft = drafts[idx]
   const n = Array.from(draft).length
   const key = `a:${idx}`
@@ -149,21 +199,28 @@ export default function StageApply({
           ) : null}
           {shown ? (
             <>
-              <div className="mt-3 grid gap-2 @min-[440px]:grid-cols-2">
+              {cmp.kind !== 'none' ? <p className="mt-3 text-[13px] font-semibold text-ink break-keep">{cmp.kind === 'same' ? U4.cmpSame : U4.cmpDiff}</p> : null}
+              <div className={`${cmp.kind !== 'none' ? 'mt-2' : 'mt-3'} grid gap-2 @min-[440px]:grid-cols-2`}>
                 <div className="min-w-0 rounded-xl bg-surface2 px-3 py-2.5">
-                  <p className="text-[12px] font-semibold text-ink2">{U4.mine}</p>
+                  <p className="mb-0.5 flex flex-wrap items-baseline justify-between gap-x-2.5 gap-y-0.5">
+                    <span className="text-[12px] font-semibold text-ink2">{U4.mine}</span>
+                    {diff ? <Legend mark={MARK_MINE} word={U4.cmpLegendMine} text={U4.cmpLegendMineText} /> : null}
+                  </p>
                   {saved[idx] ? (
-                    <p lang="ja" className="text-[17px] [overflow-wrap:anywhere]">
-                      {saved[idx]}
+                    <p lang="ja" className="text-[17px] leading-[1.7] [overflow-wrap:anywhere]">
+                      {diff ? <Marked segs={diff.mine} mark={MARK_MINE} /> : saved[idx]}
                     </p>
                   ) : (
                     <p className="text-[13px] text-ink2">{U4.skipped}</p>
                   )}
                 </div>
                 <div className="min-w-0 rounded-xl bg-surface2 px-3 py-2.5">
-                  <p className="text-[12px] font-semibold text-good">{U4.model}</p>
-                  <p lang="ja" className="text-[17px] [overflow-wrap:anywhere]">
-                    {ap.modelAnswerJa}
+                  <p className="mb-0.5 flex flex-wrap items-baseline justify-between gap-x-2.5 gap-y-0.5">
+                    <span className="text-[12px] font-semibold text-good">{U4.model}</span>
+                    {diff ? <Legend mark={MARK_MODEL} word={U4.cmpLegendModel} text={U4.cmpLegendModelText} /> : null}
+                  </p>
+                  <p lang="ja" className="text-[17px] leading-[1.7] [overflow-wrap:anywhere]">
+                    {diff ? <Marked segs={diff.model} mark={MARK_MODEL} /> : ap.modelAnswerJa}
                   </p>
                   {reading ? (
                     <p lang="ja" className="text-[14px] text-ink2 [overflow-wrap:anywhere]">
@@ -176,7 +233,14 @@ export default function StageApply({
                   ) : null}
                 </div>
               </div>
-              <p className="mt-2 text-[12px] text-ink2 break-keep">{U4.note}</p>
+              {diff ? (
+                <p className="sr-only">
+                  {U4.cmpSrModel}
+                  <SrList items={diff.onlyModel} />. {U4.cmpSrMine}
+                  <SrList items={diff.onlyMine} />.
+                </p>
+              ) : null}
+              <p className="mt-2 text-[12px] text-ink2 break-keep">{cmp.kind === 'none' ? U4.note : U4.noteCompare}</p>
             </>
           ) : (
             <>

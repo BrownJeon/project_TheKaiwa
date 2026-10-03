@@ -40,6 +40,7 @@ export {
   utterancesForMessages,
   UTTERANCE_TURN_WINDOW_MS,
   linkUtteranceToLesson,
+  utteranceConfidences,
   linkUtteranceToEvaluationItem,
   getUtteranceView,
   resolveFinalText,

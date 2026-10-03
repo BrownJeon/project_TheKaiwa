@@ -16,7 +16,7 @@ export interface LessonGenOutput {
   dialogue: { speaker: 'A' | 'B'; ja: string; reading: string; ko: string }[]
   chunks: { id: string; textJa: string; reading: string; meaningKo: string; chunkType: ChunkType; isNew: boolean }[]
   grammar: { id: string; pattern: string; explanationKo: string; exampleJa: string; exampleReading: string; exampleKo: string }[]
-  quiz: { id: string; promptKo: string | null; promptJa: string | null; choices: string[]; answer: number; targetIds: string[]; explanationKo: string }[]
+  quiz: { id: string; promptKo: string; promptJa: string | null; choices: string[]; answer: number; targetIds: string[]; explanationKo: string }[]
   application: { id: string; promptKo: string; hintJa: string | null; modelAnswerJa: string; modelReading: string; modelKo: string; targetIds: string[] }[]
   speaking: { id: string; promptKo: string; targetIds: string[]; modelAnswerJa: string; modelReading: string; modelKo: string }[]
   nextPreview: { titleKo: string; teaserKo: string }
@@ -24,10 +24,17 @@ export interface LessonGenOutput {
 
 export type StoredDialogueLine = LessonGenOutput['dialogue'][number] & { segment: number }
 
+/**
+ * 저장된 quiz 문항 — 생성 출력(lesson@v8~)은 `promptKo` 가 항상 문자열이지만, lesson@v7 이하로 저장된 레슨은 null 일 수 있다.
+ * 저장 JSON 은 다시 만들지 않으므로 읽는 쪽은 null 을 계속 받아들인다(`types/lesson.ts` `LessonQuiz` 와 같은 모양).
+ */
+export type StoredQuizItem = Omit<LessonGenOutput['quiz'][number], 'promptKo'> & { promptKo: string | null }
+
 /** 저장 모양 v1 — A4 출력 + 대화 줄마다 청취 구간 번호(1부터) + 구간 수. */
-export interface StoredLessonContent extends Omit<LessonGenOutput, 'dialogue'> {
+export interface StoredLessonContent extends Omit<LessonGenOutput, 'dialogue' | 'quiz'> {
   v: 1
   dialogue: StoredDialogueLine[]
+  quiz: StoredQuizItem[]
   segmentCount: number
 }
 
@@ -189,14 +196,18 @@ export function lessonRepetitionItems(
 
 // ── 오디오 대상 문장 ──────────────────────────────────────────────────────
 
-export const AUDIO_KINDS = ['dialogue', 'grammar', 'application', 'speaking'] as const
+export const AUDIO_KINDS = ['dialogue', 'grammar', 'application', 'speaking', 'chunk'] as const
 export type AudioKind = (typeof AUDIO_KINDS)[number]
 
-/** 재생할 일본어 문장 — 대화 줄·문법 예문·응용/말하기 모범 답. 범위 밖이면 null. */
+/**
+ * 재생할 일본어 문장 — 대화 줄·문법 예문·응용/말하기 모범 답·오늘의 표현(chunk, task-025). 범위 밖이면 null.
+ * 문장은 늘 소유자 레슨 본문에서 고른다(클라이언트가 글자를 보내지 않는다 — 임의 문장 합성 경로를 만들지 않기 위해).
+ */
 export function audioText(content: StoredLessonContent, kind: AudioKind, idx: number): string | null {
   const pick = <T>(arr: readonly T[], f: (x: T) => string) => (idx >= 0 && idx < arr.length ? f(arr[idx]) : null)
   if (kind === 'dialogue') return pick(content.dialogue, (d) => d.ja)
   if (kind === 'grammar') return pick(content.grammar, (g) => g.exampleJa)
   if (kind === 'application') return pick(content.application, (a) => a.modelAnswerJa)
+  if (kind === 'chunk') return pick(content.chunks, (c) => c.textJa)
   return pick(content.speaking, (s) => s.modelAnswerJa)
 }

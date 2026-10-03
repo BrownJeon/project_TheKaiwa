@@ -2,7 +2,9 @@
  * StatsSnapshot — 집계 원장(domain-model 규칙 2: **생성·증가만**, 삭제 경로에서 쓰지 않는다). task-006 은 DAILY 증가만.
  *
  * DAILY `data` 형태(domain-model §9-3):
- *   {attended, words:{sessions,correct,wrong}, talkTurns, chatTurns, corrections:{proposed,accepted}, lessons, reviews, evals, repetition:{studied, focus}}
+ *   {attended, words:{sessions,correct,wrong}, talkTurns, chatTurns, corrections:{proposed,accepted}, lessons, reviews, evals, repetition:{studied, focus}
+ *    , observations?:{total, bySkill:{<SkillAxis>:{success,partial,fail,skipped}}, selfCorrections, reuses}}
+ *   `observations` 는 task-010b(학습 관측)가 더한 **선택 칸**이다 — 관측이 한 건도 없는 날의 행에는 생기지 않는다(기존 행·소비자 불변).
  *
  * 동시성: 행이 없을 때 두 트랜잭션이 동시에 만들면 유니크(userId,kind,periodKey) 충돌, 있을 때 동시에 읽고 쓰면 증가 유실이다.
  * 그래서 `INSERT … ON DUPLICATE KEY UPDATE id=id`(행 보장 + 행 잠금) → `SELECT … FOR UPDATE` → 병합 → UPDATE 를 **호출자 트랜잭션 안**에서 한다.
@@ -23,6 +25,28 @@ export interface DailyData {
   repetition: { studied: number; focus: number }
 }
 
+export interface ObservationOutcomeCounts {
+  success: number
+  partial: number
+  fail: number
+  skipped: number
+}
+
+/** DAILY `observations`(learning-personalization §2-9) — 축별 결과 수 · 자기수정 · 재사용. */
+export interface DailyObservations {
+  total: number
+  bySkill: Record<string, ObservationOutcomeCounts>
+  selfCorrections: number
+  reuses: number
+}
+
+export interface DailyObservationsDelta {
+  total?: number
+  bySkill?: Record<string, Partial<ObservationOutcomeCounts>>
+  selfCorrections?: number
+  reuses?: number
+}
+
 export interface DailyDelta {
   attended?: boolean
   words?: Partial<DailyData['words']>
@@ -33,6 +57,7 @@ export interface DailyDelta {
   reviews?: number
   evals?: number
   repetition?: Partial<DailyData['repetition']>
+  observations?: DailyObservationsDelta
 }
 
 export function emptyDaily(): DailyData {
@@ -62,7 +87,7 @@ export function mergeDaily(current: unknown, delta: DailyDelta): DailyData & Rec
   const w = obj(c.words)
   const cr = obj(c.corrections)
   const rp = obj(c.repetition)
-  return {
+  const merged: DailyData & Record<string, unknown> = {
     ...c,
     attended: c.attended === true || delta.attended === true,
     words: { ...w, sessions: add(w.sessions, delta.words?.sessions), correct: add(w.correct, delta.words?.correct), wrong: add(w.wrong, delta.words?.wrong) },
@@ -73,6 +98,28 @@ export function mergeDaily(current: unknown, delta: DailyDelta): DailyData & Rec
     reviews: add(c.reviews, delta.reviews),
     evals: add(c.evals, delta.evals),
     repetition: { ...rp, studied: add(rp.studied, delta.repetition?.studied), focus: add(rp.focus, delta.repetition?.focus) },
+  }
+  if (c.observations !== undefined || delta.observations) merged.observations = mergeObservations(c.observations, delta.observations ?? {})
+  return merged
+}
+
+/** `observations` 병합 — 증가만, 모르는 키 보존(축 이름은 문자열 그대로). */
+export function mergeObservations(current: unknown, delta: DailyObservationsDelta): DailyObservations & Record<string, unknown> {
+  const c = obj(current)
+  const add = (a: unknown, d: number | undefined) => num(a) + (d && d > 0 ? d : 0)
+  const curSkills = obj(c.bySkill)
+  const bySkill: Record<string, ObservationOutcomeCounts> = {}
+  for (const skill of new Set([...Object.keys(curSkills), ...Object.keys(delta.bySkill ?? {})])) {
+    const cs = obj(curSkills[skill])
+    const ds = delta.bySkill?.[skill] ?? {}
+    bySkill[skill] = { ...cs, success: add(cs.success, ds.success), partial: add(cs.partial, ds.partial), fail: add(cs.fail, ds.fail), skipped: add(cs.skipped, ds.skipped) }
+  }
+  return {
+    ...c,
+    total: add(c.total, delta.total),
+    bySkill,
+    selfCorrections: add(c.selfCorrections, delta.selfCorrections),
+    reuses: add(c.reuses, delta.reuses),
   }
 }
 

@@ -19,6 +19,10 @@ export type ErrorType =
   | 'PRONUNCIATION'
   | 'OTHER'
 export type Severity = 'MINOR' | 'MAJOR'
+/** task-010c — 회화 교정을 보여 주는 때(유창성의 MINOR = LATER "모아 둔 교정", 그 밖 NOW). */
+export type CorrectionDeliver = 'NOW' | 'LATER'
+/** task-010c — 코치 힌트 교정의 다음 말 판정(SELF 스스로 고침 · REPEAT 정답 보고 고침 · MISSED 못 고침). */
+export type SelfCheckResult = 'SELF' | 'REPEAT' | 'MISSED'
 export type ChunkType = 'NAME' | 'ACTION' | 'FEELING' | 'MODIFIER'
 export type ProposalKind = 'ADD_WORD' | 'ADD_STUDY_LOG' | 'ADD_TOPIC' | 'SET_LEVEL' | 'SCHEDULE_REVIEW'
 export type ProposalStatus = 'PROPOSED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
@@ -86,6 +90,11 @@ export interface CorrectionDto {
   chat?: { id: string; title: string; kind: ChatKind }
   createdAt?: string
   resolvedAt?: string | null
+  /** TALK 만(task-010c). 없으면 NOW. */
+  deliver?: CorrectionDeliver
+  /** TALK·코치 — 정답을 말하지 않는 힌트. 있으면 카드가 힌트부터 보인다. */
+  hintKo?: string | null
+  selfCheck?: SelfCheckResult | null
 }
 
 /** #29 메시지 */
@@ -118,6 +127,8 @@ export interface ChatDetail {
   chat: ChatInfo
   messages: ChatMessage[]
   pendingProposals: number
+  /** TALK 만 — 회화 전체의 처리하지 않은 모아 둔 교정 수(task-010c). */
+  laterPending?: number
   nextCursor: string | null
 }
 
@@ -181,6 +192,8 @@ export interface TurnCorrection {
   severity: Severity
   chunkType?: ChunkType | null
   status?: ProposalStatus
+  deliver?: CorrectionDeliver
+  hintKo?: string | null
 }
 
 export interface TurnDoneEvent {
@@ -188,6 +201,8 @@ export interface TurnDoneEvent {
   assistantMessageId: string
   conversation: { replyJa: string; replyReading?: string | null; replyKo?: string | null }
   correction?: TurnCorrection | null
+  /** 직전 코치 힌트 교정의 판정(task-010c). */
+  selfCheck?: { correctionId: string; result: SelfCheckResult } | null
   learning?: LearningInfo | null
   speech?: { style?: string } | null
   endOfTopic?: boolean

@@ -10,8 +10,18 @@ import { prisma } from './db'
 import { classifyError } from './http'
 import type { Tx } from './tx'
 
-/** 종류별 "이보다 오래 QUEUED/RUNNING 이면 죽은 잡" 기준. CHAT_REVIEW(90s)·LESSON_GEN(120s)·EVAL_GEN(60s)·EVAL_GRADE(120s)는 LLM 예산(재시도 포함 한 데드라인) 대비 여유를 둔다. */
-const STALE_AFTER_MS: Partial<Record<JobKind, number>> = { CHAT_REVIEW: 5 * 60_000, LESSON_GEN: 5 * 60_000, EVAL_GEN: 5 * 60_000, EVAL_GRADE: 5 * 60_000 }
+/**
+ * 종류별 "이보다 오래 QUEUED/RUNNING 이면 죽은 잡" 기준. CHAT_REVIEW(90s)·LESSON_GEN·REVIEW_GEN(120s)·EVAL_GEN(60s)·EVAL_GRADE(120s)·
+ * REVIEW_DECISION(60s — 사용자별 한 줄로 돌아 앞 잡 뒤에 잠깐 QUEUED 로 기다릴 수 있다)은 LLM 예산(재시도 포함 한 데드라인) 대비 여유를 둔다.
+ */
+const STALE_AFTER_MS: Partial<Record<JobKind, number>> = {
+  CHAT_REVIEW: 5 * 60_000,
+  LESSON_GEN: 5 * 60_000,
+  REVIEW_GEN: 5 * 60_000,
+  EVAL_GEN: 5 * 60_000,
+  EVAL_GRADE: 5 * 60_000,
+  REVIEW_DECISION: 5 * 60_000,
+}
 const DEFAULT_STALE_AFTER_MS = 10 * 60_000
 
 export function staleAfterMs(kind: JobKind): number {

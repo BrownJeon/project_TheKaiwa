@@ -16,7 +16,8 @@ export default function SecretsSheet({ open, highlightRef, onClose }: { open: bo
   // 열릴 때마다 path 가 null → 주소로 바뀌어 한 번 읽는다(열 때마다 감사 1행).
   const res = useAdminResource<SecretRefDto[]>(open ? '/api/admin/v1/secrets' : null)
   const now = useNow(open, 30_000)
-  const rows = res.data ?? []
+  // 연결에 걸린 참조만(#101 은 허용됐지만 아무도 안 쓰는 참조도 싣는다 — 그 목록은 [비밀 참조 연결] 시트가 보여 준다, task-012c).
+  const rows = (res.data ?? []).filter((s) => s.usedBy.length > 0)
   return (
     <Sheet open={open} title="시크릿 참조" onClose={onClose}>
       <p className="text-[13px] text-ink2 break-keep">값은 보이지 않아요. 참조 이름·있는지·마지막 사용만 보여 줘요. 열 때마다 조회 기록(감사 로그)이 남아요.</p>

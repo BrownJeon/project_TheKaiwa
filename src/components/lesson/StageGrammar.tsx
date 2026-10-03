@@ -1,12 +1,14 @@
 'use client'
 
 /**
- * ② 문법(screens §12-2 G · 데모 v2 `#l2`) — 오늘의 표현(조각) + 문형 카드(예문 듣기 #62c `grammar`, 보통 속도).
+ * ② 문법(screens §12-2 G · 데모 v2 `#l2` · task-025 데모 v1 `#l2`·`#l2-playing`·`#l2-fail`·`#l2-textonly`) — 오늘의 표현(조각, 칩을 누르면
+ * #62c `chunk` 소리 — 보통 속도 한 번, 기록 없음) + 문형 카드(예문 듣기 #62c `grammar`, 보통 속도). 자막만이면 표현은 글자 칩으로 돌아간다.
  */
 import { Card } from '@/components/common/ui'
 import type { LessonContent } from '@/types/lesson'
 import { U2 } from './lessonCopy'
-import { ExprChip, PlayButton } from './parts'
+import { exprKey, playExpr } from './logic'
+import { ExprChip, ExprPlayChip, PlayButton } from './parts'
 import type { LessonPlayback } from './useLessonPlayback'
 
 export default function StageGrammar({ content, pb, reading, footer }: { content: LessonContent; pb: LessonPlayback; reading: boolean; footer: React.ReactNode }) {
@@ -24,16 +26,24 @@ export default function StageGrammar({ content, pb, reading, footer }: { content
       <div className="mt-2.5 flex flex-col gap-2.5">
         <Card>
           <h3 className="text-[15px] font-semibold">{U2.exprTitle(content.chunks.length)}</h3>
-          <p className="mt-1 text-[13px] text-ink2 break-keep">{U2.exprDesc}</p>
+          <p className="mt-1 text-[13px] text-ink2 break-keep">{pb.textOnly ? U2.exprDesc : U2.exprDescPlay}</p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
-            {content.chunks.map((c) => (
-              <ExprChip
-                key={c.id}
-                ja={c.textJa}
-                ko={c.meaningKo}
-                badge={c.isNew ? <span className="inline-flex h-5 items-center rounded-md bg-surface px-1.5 text-[11px] font-semibold text-ink2">{U2.newExpr}</span> : undefined}
-              />
-            ))}
+            {content.chunks.map((c, i) => {
+              const badge = c.isNew ? <span className="inline-flex h-5 items-center rounded-md bg-surface px-1.5 text-[11px] font-semibold text-ink2">{U2.newExpr}</span> : undefined
+              if (pb.textOnly) return <ExprChip key={c.id} ja={c.textJa} ko={c.meaningKo} badge={badge} />
+              const key = exprKey(i)
+              const on = pb.active(key)
+              return (
+                <ExprPlayChip
+                  key={c.id}
+                  ja={c.textJa}
+                  ko={c.meaningKo}
+                  badge={badge}
+                  state={!on ? 'idle' : pb.loading(key) ? 'loading' : 'playing'}
+                  onClick={() => (on ? pb.stop() : playExpr(pb, i))}
+                />
+              )
+            })}
           </ul>
         </Card>
         {content.grammar.map((g, i) => {

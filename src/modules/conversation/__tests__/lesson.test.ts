@@ -78,7 +78,7 @@ function validLessonResponse(topic: LessonTopicInput): LessonResponse {
     ],
     quiz: [
       { id: 'q1', promptKo: '「はじめまして」의 뜻은?', promptJa: null, choices: ['처음 뵙겠습니다', '안녕히 가세요', '감사합니다', '미안합니다'], answer: 0, targetIds: [c1.id], explanationKo: '첫 인사 표현이에요.' },
-      { id: 'q2', promptKo: null, promptJa: '「＿＿から来ました」의 빈칸에 알맞은 것은?', choices: ['韓国', '会社', '名前', '嬉しい'], answer: 0, targetIds: ['g1'], explanationKo: '출신 국가를 넣어요.' },
+      { id: 'q2', promptKo: '빈칸에 들어갈 알맞은 말을 고르세요.', promptJa: '「＿＿から来ました」', choices: ['韓国', '会社', '名前', '嬉しい'], answer: 0, targetIds: ['g1'], explanationKo: '출신 국가를 넣어요.' },
       { id: 'q3', promptKo: '올바른 문형은?', promptJa: null, choices: ['会社員です', '会社員だ', '会社員でした', '会社員だった'], answer: 0, targetIds: [c3.id], explanationKo: '정중체 です 를 씁니다.' },
       { id: 'q4', promptKo: '「名前」의 뜻은?', promptJa: null, choices: ['이름', '기쁘다', '살다', '일하다'], answer: 0, targetIds: [c2.id], explanationKo: '이번 수업에서 배운 표현이에요.' },
       { id: 'q5', promptKo: '来ました 의 읽기는?', promptJa: null, choices: ['きました', 'いきました', 'かきました', 'みました'], answer: 0, targetIds: ['new-1'], explanationKo: '来る의 과거형이에요.' },
@@ -189,9 +189,12 @@ test('헤더 상한(≤600) 준수', () => {
   assert.ok(headerLine.length <= LESSON_HEADER_CAP)
 })
 
-// ── 프롬프트 예산 회귀(최악 입력 조합 ≤ 상한) ────────────────────────────────
+// ── 프롬프트 예산 회귀 ────────────────────────────────────────────────────────
+// 두 겹이다. (a) 정상~준최악(조각·교정·이전 제목·직전 예고는 상한까지, 학습자 이름·헤더는 실제 한도보다 작게) ≤ LESSON_USER_PROMPT_CAP,
+// (b) 실제 DB 한도 최대 학습자(displayName 40·teacherName 30·헤더 600)의 진짜 최악은 CAP 을 넘으므로(REV-060: 9,523 = CAP+23, CAP 은
+// 런타임 강제 없는 설계 예산) 현재 측정값 + 작은 여유 천장으로 걸어 지시문이 더 길어지면 깨지게 한다.
 
-test('예산: 주제 경로 — 조각·교정·이전 제목·직전 예고를 전부 상한까지 채운 최악 조합도 ≤ LESSON_USER_PROMPT_CAP', () => {
+test('예산 (a): 주제 경로 — 정상~준최악 조합(조각·교정·이전 제목·직전 예고 상한 + 이름 30·헤더 567)은 ≤ LESSON_USER_PROMPT_CAP', () => {
   const heavyLearner = {
     displayName: '브라운'.repeat(10), teacherName: '유우'.repeat(5), level: 'N3',
     strictness: 'STRICT' as const, correctionMode: 'COACH' as const, explainDepth: 'DETAILED' as const,
@@ -215,10 +218,10 @@ test('예산: 주제 경로 — 조각·교정·이전 제목·직전 예고를 
     previousNextPreview: { titleKo: '가'.repeat(40), teaserKo: '가'.repeat(60) },
   })
   const prompt = renderTranscript(req.system, req.messages)
-  assert.ok(prompt.length <= LESSON_USER_PROMPT_CAP, `주제 경로 최악 조합 ${prompt.length}자 > ${LESSON_USER_PROMPT_CAP}`)
+  assert.ok(prompt.length <= LESSON_USER_PROMPT_CAP, `주제 경로 정상~준최악 조합 ${prompt.length}자 > ${LESSON_USER_PROMPT_CAP}`)
 })
 
-test('예산: sourceText 경로 — 2,000자 원문 + 교정·이전 제목·직전 예고 최악 조합도 ≤ LESSON_USER_PROMPT_CAP', () => {
+test('예산 (a): sourceText 경로 — 2,000자 원문 + 교정·이전 제목·직전 예고 준최악 조합은 ≤ LESSON_USER_PROMPT_CAP', () => {
   const heavyLearner = { ...learner, displayName: '브라운'.repeat(10), weaknesses: Array.from({ length: 10 }, (_, i) => `CONJUGATION(${i})`), goal: 'x'.repeat(400) }
   const corrections = Array.from({ length: 20 }, () => ({ original: 'あ'.repeat(1_000), corrected: 'あ'.repeat(1_000) }))
   const previousTitles = Array.from({ length: 20 }, () => 'あ'.repeat(120))
@@ -231,7 +234,69 @@ test('예산: sourceText 경로 — 2,000자 원문 + 교정·이전 제목·직
     previousNextPreview: { titleKo: '가'.repeat(40), teaserKo: '가'.repeat(60) },
   })
   const prompt = renderTranscript(req.system, req.messages)
-  assert.ok(prompt.length <= LESSON_USER_PROMPT_CAP, `sourceText 경로 최악 조합 ${prompt.length}자 > ${LESSON_USER_PROMPT_CAP}`)
+  assert.ok(prompt.length <= LESSON_USER_PROMPT_CAP, `sourceText 경로 준최악 조합 ${prompt.length}자 > ${LESSON_USER_PROMPT_CAP}`)
+})
+
+/**
+ * 실제 DB 한도 최대 학습자(`Profile.displayName` VarChar(40)·`teacherName` VarChar(30))의 주제 경로 최악 길이 — 2026-10-01 측정 9,523자.
+ * ※ 이 값은 LESSON_USER_PROMPT_CAP(9,500)을 23자 넘는다(CAP 은 런타임 강제 없는 설계 예산, 120s 배치 잡이라 5초 예산과 무관 — REV-060).
+ * CAP 으로 걸지 않고 현재 측정값 + 작은 여유를 천장으로 둔다: lesson@v8 지시문(또는 헤더·조각 렌더)이 이보다 길어지면 이 테스트가
+ * 깨져 의도된 증가인지 판단하게 한다(회귀 감지 목적). 지시문을 줄이면 이 천장도 함께 낮춘다.
+ */
+const LESSON_REAL_LIMIT_WORST_CEILING = 9_540
+
+test('예산 (b): 실제 DB 한도 최대 학습자(이름 40·선생님 30·헤더 600) 주제 경로 최악 길이 ≤ 현재 측정값 + 여유(9,540) — CAP 초과 사실 명시', (t) => {
+  const baseLearner = {
+    displayName: '브'.repeat(40), teacherName: '유'.repeat(30), level: 'N3',
+    strictness: 'STRICT' as const, correctionMode: 'COACH' as const, explainDepth: 'DETAILED' as const,
+    streakDays: 999, weaknesses: Array.from({ length: 10 }, (_, i) => `CONJUGATION(${i})`), dueReviews: 99,
+  }
+  const chunks: LessonTopicChunkInput[] = Array.from({ length: 40 }, (_, i) => ({
+    id: `clx${'a'.repeat(22)}${i}`,
+    chunkType: (['NAME', 'ACTION', 'FEELING', 'MODIFIER'] as const)[i % 4],
+    textJa: 'あ'.repeat(120),
+    reading: 'あ'.repeat(160),
+    meaningKo: '가'.repeat(160),
+  }))
+  const corrections = Array.from({ length: 20 }, () => ({ original: 'あ'.repeat(1_000), corrected: 'あ'.repeat(1_000) }))
+  const previousTitles = Array.from({ length: 20 }, () => 'あ'.repeat(120))
+  const previousNextPreview = { titleKo: '가'.repeat(40), teaserKo: '가'.repeat(60) }
+  const headerOf = (goalLen: number) => {
+    const req = buildLessonRequest({
+      todayKst: '2026-09-28',
+      learner: { ...baseLearner, goal: 'x'.repeat(goalLen) },
+      topic: { title: 'あ'.repeat(80), titleJa: 'あ'.repeat(80), level: 'N3', chunks },
+      acceptedCorrections: corrections,
+      previousTitles,
+      previousNextPreview,
+    })
+    return { req, header: req.system.split('\n').find((l) => l.startsWith('[학습자]'))! }
+  }
+  // goal 길이를 늘려 헤더가 상한(600)에 정확히 닿는 학습자를 찾는다 — 헤더는 상한을 넘으면 약점·복습·연속 출석·목표 순으로 덜어 내므로
+  // "헤더 600" 이 이 학습자 입력이 프롬프트를 가장 길게 만드는 지점이다.
+  let worst: ReturnType<typeof headerOf> | null = null
+  let worstGoalLen = 0
+  for (let goalLen = 0; goalLen <= 600; goalLen++) {
+    const cur = headerOf(goalLen)
+    if (cur.header.length === LESSON_HEADER_CAP) { worst = cur; worstGoalLen = goalLen; break }
+  }
+  assert.ok(worst, `goal 길이를 바꿔도 헤더가 ${LESSON_HEADER_CAP}자에 닿지 않는다 — 헤더 렌더가 바뀌었다면 이 보정 루프를 갱신`)
+  const length = renderTranscript(worst.req.system, worst.req.messages).length
+  t.diagnostic(`실제 DB 한도 최대 학습자 주제 경로 최악 길이 ${length}자 (CAP ${LESSON_USER_PROMPT_CAP}, 천장 ${LESSON_REAL_LIMIT_WORST_CEILING})`)
+  assert.ok(length <= LESSON_REAL_LIMIT_WORST_CEILING, `실제 한도 최악 ${length}자 > 천장 ${LESSON_REAL_LIMIT_WORST_CEILING} — 지시문·헤더가 길어졌다(의도된 증가면 천장과 lesson.ts CAP 주석을 함께 갱신)`)
+
+  // sourceText 경로도 같은 학습자로 — 원문 2,000자로 채워도 CAP 안(여유가 커 천장은 CAP 그대로).
+  const src = buildLessonRequest({
+    todayKst: '2026-09-28',
+    learner: { ...baseLearner, goal: 'x'.repeat(worstGoalLen) },
+    sourceText: 'あ'.repeat(LESSON_SOURCE_TEXT_MAX),
+    acceptedCorrections: corrections,
+    previousTitles,
+    previousNextPreview,
+  })
+  const srcLength = renderTranscript(src.system, src.messages).length
+  t.diagnostic(`실제 DB 한도 최대 학습자 sourceText 경로 최악 길이 ${srcLength}자`)
+  assert.ok(srcLength <= LESSON_USER_PROMPT_CAP, `sourceText 경로 실제 한도 최악 ${srcLength}자 > ${LESSON_USER_PROMPT_CAP}`)
 })
 
 test('예산: 시드 주제 수준의 정상 입력은 캡의 절반에도 못 미친다(여유 확인용 sanity)', () => {
@@ -359,12 +424,90 @@ test('checkLessonResponse: targetIds 가 이 레슨의 chunks·grammar id 밖이
   assert.ok(checkLessonResponse({ allowedChunkIds }, badSpeaking).some((m) => m.includes('speaking[0]')))
 })
 
-test('checkLessonResponse: quiz.promptKo·promptJa 가 둘 다 null 이면 위반', () => {
+// ── lesson@v8(2026-09-30, task-025 IMP-0014) — quiz.promptKo 필수·비어 있지 않은 한국어 ──
+
+test('lesson@v8: 스키마 — quiz.promptKo 가 null·빈 문자열·누락이면 실패, 한국어 문자열이면 통과한다(promptJa 는 여전히 null 허용)', () => {
+  const ok = validLessonResponse(fixture.topic)
+  assert.deepEqual(validateOutput(ok, LESSON_SCHEMA), { ok: true })
+  const withKo = (promptKo: unknown) => ({ ...ok, quiz: [{ ...ok.quiz[0], promptKo }, ...ok.quiz.slice(1)] })
+  assert.equal(validateOutput(withKo(null), LESSON_SCHEMA).ok, false, 'v7 에서 허용하던 null 은 이제 위반')
+  assert.equal(validateOutput(withKo(''), LESSON_SCHEMA).ok, false, '빈 문자열은 minLength 위반')
+  assert.equal(validateOutput(withKo('가'.repeat(161)), LESSON_SCHEMA).ok, false, '160자 초과는 maxLength 위반')
+  const missing = { ...ok, quiz: [Object.fromEntries(Object.entries(ok.quiz[0]).filter(([k]) => k !== 'promptKo')), ...ok.quiz.slice(1)] }
+  assert.equal(validateOutput(missing, LESSON_SCHEMA).ok, false, '누락도 위반')
+  assert.deepEqual(validateOutput(withKo('「はじめまして」의 뜻은?'), LESSON_SCHEMA), { ok: true })
+  const jaNull = { ...ok, quiz: ok.quiz.map((q) => ({ ...q, promptJa: null })) }
+  assert.deepEqual(validateOutput(jaNull, LESSON_SCHEMA), { ok: true }, 'promptJa 는 일본어 문장을 보여 줄 때만 채우므로 전부 null 이어도 통과')
+})
+
+test('lesson@v8: 스키마 위반 사유에 quiz.promptKo 경로가 남는다(재시도 지시가 필드를 짚을 수 있다)', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const raw = JSON.stringify({ ...ok, quiz: [{ ...ok.quiz[0], promptKo: null }, ...ok.quiz.slice(1)] })
+  const result = extractAndValidate(raw, LESSON_SCHEMA, { stripAdditionalProperties: true })
+  assert.equal(result.ok, false)
+  if (result.ok || result.parseError) return
+  assert.ok(result.violations.some((m) => m.includes('promptKo')), JSON.stringify(result.violations))
+})
+
+test('checkLessonResponse(v8): quiz.promptKo 에 한글이 없으면(일본어 문장만 넣은 자리 바뀜) 위반 — promptJa 가 있어도 소용없다', () => {
   const ok = validLessonResponse(fixture.topic)
   const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
-  const bothNull = { ...ok, quiz: [{ ...ok.quiz[0], promptKo: null, promptJa: null }, ...ok.quiz.slice(1)] }
-  const v = checkLessonResponse({ allowedChunkIds }, bothNull)
-  assert.ok(v.some((m) => m.includes('promptKo') && m.includes('promptJa')))
+  const noHangul = { ...ok, quiz: [{ ...ok.quiz[0], promptKo: '「はじめまして」', promptJa: '「はじめまして」' }, ...ok.quiz.slice(1)] }
+  const v = checkLessonResponse({ allowedChunkIds }, noHangul)
+  assert.ok(v.some((m) => m.includes('quiz[0].promptKo') && m.includes('한글')), JSON.stringify(v))
+  // (e)=B — 재시도 안내가 문제를 번역·정답 뜻으로 되돌리지 않도록 "일본어 문장은 promptJa 에만, promptKo 는 고르라는 지시(빈칸은 할 일만), 정답의 뜻은 쓰지 않는다"를 말한다.
+  const hint = v.find((m) => m.includes('quiz[0].promptKo')) ?? ''
+  assert.match(hint, /일본어 문장은 promptJa 에만 두고/)
+  assert.match(hint, /정답의 뜻은 쓰지 않는다/)
+  assert.match(hint, /빈칸에 들어갈 알맞은 말을 고르세요/)
+  assert.deepEqual(checkLessonResponse({ allowedChunkIds }, ok), [], '정상 응답은 위반 없음')
+})
+
+test('checkLessonResponse(v8): 한글 없는 promptKo 는 마지막 시도(tolerateContentMismatch)에서만 눈감는다 — 다른 위반은 그대로 잡는다', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
+  const noHangul = { ...ok, quiz: [{ ...ok.quiz[0], promptKo: 'はじめまして' }, ...ok.quiz.slice(1)] }
+  assert.deepEqual(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, noHangul), [])
+  const badId = { ...noHangul, quiz: [{ ...noHangul.quiz[0], targetIds: ['no-such-id'] }, ...noHangul.quiz.slice(1)] }
+  assert.ok(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, badId).some((m) => m.includes('quiz[0]') && m.includes('no-such-id')))
+})
+
+test('lesson@v8: 프롬프트에 "모든 문제에 한국어 뜻을 반드시 채운다" 지시가 실리고, promptKo·promptJa "최소 하나" 문구는 없다(주제·sourceText 두 경로)', () => {
+  for (const req of [
+    buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic }),
+    buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText }),
+  ]) {
+    const quizLine = req.system.split('\n').find((l) => l.startsWith('- quiz:'))
+    assert.ok(quizLine, 'quiz 지시 줄이 있어야 한다')
+    assert.match(quizLine!, /promptKo/)
+    assert.match(quizLine!, /반드시/, 'promptKo 필수 강조')
+    assert.match(quizLine!, /null/, 'null·빈 값 금지 문구')
+    assert.ok(!quizLine!.includes('중 최소 하나'), 'v7 의 "최소 하나" 문구가 남아 있으면 안 된다')
+  }
+})
+
+test('lesson@v8 (e)=B: 빈칸 문제는 promptKo 에 할 일만 쓰고 빈 문장은 promptJa 로 — 번역형·뜻/형태형 지시와 옛 번역 예시 부재(주제·sourceText 두 경로)', () => {
+  for (const req of [
+    buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic }),
+    buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText }),
+  ]) {
+    const quizLine = req.system.split('\n').find((l) => l.startsWith('- quiz:'))
+    assert.ok(quizLine, 'quiz 지시 줄이 있어야 한다')
+    assert.match(quizLine!, /빈칸 문제는 promptKo 에 할 일만/, '빈칸형 분리 지시')
+    assert.ok(quizLine!.includes('빈칸에 들어갈 알맞은 말을 고르세요.'), '할 일만 쓰는 예시 문구')
+    assert.match(quizLine!, /번역하지 않고, 빈 문장은 promptJa/, '빈칸형 번역 금지')
+    // 일반 규칙(v8 원문): 어떤 문제에서도 정답의 뜻·표현을 promptKo 에 미리 쓰지 않는다 — (e)=B 첫 초안이 이 문장을 빈칸 절에 흡수해 지웠다가
+    // 뜻 고르기 문항에서 promptKo 가 일본어 문장 그대로(한글 없음)·정답 번역으로 나오는 회귀가 재측정(2026-10-01)에서 드러나 되살렸다.
+    assert.ok(quizLine!.includes('정답이 되는 뜻·표현은 promptKo 에 미리 쓰지 않습니다.'), '정답 뜻 일반 금지 문장 유지')
+    assert.match(quizLine!, /promptJa 에 ＿＿ 로 비워 반드시 채웁니다/, '빈 문장은 promptJa 로(화면에 보여야 한다)')
+    // 재측정(2026-10-01) 3차: "일본어 문장이 나오는 문제는 그 한국어 뜻을" 절이 뜻 고르기 문항에서 정답 번역·일본어 문장 복사(한글 없음)를 부추겨 제거했다.
+    // 일본어 문장은 promptJa 에만, promptKo 는 "무엇을 고르라는 한국어 지시"로 통일한다.
+    assert.ok(!quizLine!.includes('그 한국어 뜻을'), '정답 뜻을 쓰게 하던 번역형 절이 남아 있으면 안 된다')
+    assert.ok(quizLine!.includes('일본어 문장은 promptJa 에만 두고, promptKo 에는 무엇을 고르라는 한국어 지시(예: "문장의 뜻을 고르세요.")를 씁니다.'), '한국어 지시 + promptJa 분리')
+    // 문장 번역을 부추기던 v8 초안 예시는 없어야 한다
+    assert.ok(!quizLine!.includes('(커피를 ＿＿.)'), '옛 번역 예시가 남아 있으면 안 된다')
+    assert.ok(!quizLine!.includes('빈칸에 알맞은 말은?'), '옛 번역 예시 문구가 남아 있으면 안 된다')
+  }
 })
 
 test('checkLessonResponse: 일본어 필드(ja·textJa·exampleJa·modelAnswerJa)에 한글이 섞이면 위반', () => {
@@ -729,8 +872,8 @@ test('lesson@v5: sourceText 경로에도 모범 답 내용 규칙이 실린다(�
 
 // ── lesson@v7(2026-09-29, task-010 후속) — 스키마 밖 필드(quiz[] 의 q·conjugationNote 등)로 인한 재시도 줄이기 ──
 
-test('lesson@v7: 프롬프트 버전, "정해진 키만 씁니다" 지시문이 있다', () => {
-  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v7')
+test('lesson@v7: 프롬프트 버전(현재 v8), "정해진 키만 씁니다" 지시문이 있다', () => {
+  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v8')
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
   assert.match(req.system, /q, note, conjugationNote/, '스키마 밖 참고용 키를 만들지 말라는 지시가 있어야 한다')
 })

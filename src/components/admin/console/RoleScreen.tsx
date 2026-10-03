@@ -3,14 +3,15 @@
 /**
  * 역할 페이지(screens.md §6-2 E) — `/admin/speech/{realtime,analysis,tts}` · `/admin/llm`.
  * 정책(#99a) → 지금 쓰는 연결(#91a, 정책의 primary) · 예비 순서 · 정책 밖 연결(#91?role=) · 설정값 요약 · (TTS) 목소리 · (LLM) 모델 단계.
- * Engine 선택·Fallback 편집·연결 설정 폼은 Phase 2 — 그리지 않는다.
+ * task-012c: 예비 순서 옆 [순서 편집](engine.connections.manage — 없으면 버튼 자체가 없다) → `FallbackEditor`(#100). 연결 설정 폼은 연결 상세에서.
  */
 import Link from 'next/link'
+import { useState } from 'react'
 import { Card, Section, SectionHeader } from '@/components/common/ui'
 import { useNow } from '@/components/common/useNow'
 import type { AdminVoiceDto, ConnectionRefDto, EngineConnectionDetailDto, EngineConnectionDto, EngineRoleName, FallbackPolicyDto } from '@/types/admin'
 import { StatusBadge } from './Badges'
-import { useCan } from './ConsoleProvider'
+import { useCan, useConsoleEnv } from './ConsoleProvider'
 import { ConsoleError, ConsoleLoading, LoadError, loadErrorText } from './ConsoleStates'
 import EffectiveSummaryCard from './EffectiveSummaryCard'
 import EngineTestPanel from './EngineTestPanel'
@@ -20,6 +21,8 @@ import { CONN_TYPE_KO, ROLE_DESC, voiceFilterOf } from './labels'
 import MonoId from './MonoId'
 import RefreshLine from './RefreshLine'
 import { useAdminResource } from './useAdminResource'
+import { configAccess } from '../configEditor/configAccess'
+import FallbackEditor from '../configEditor/FallbackEditor'
 
 const ROW_LINK = 'flex min-h-[56px] min-w-0 items-center gap-3 px-3.5 py-2'
 
@@ -53,6 +56,9 @@ function allowedTasksText(c: EngineConnectionDto): string {
 
 export default function RoleScreen({ role }: { role: EngineRoleName }) {
   const can = useCan()
+  const env = useConsoleEnv()
+  const access = configAccess(can, env)
+  const [editing, setEditing] = useState(false)
   const now = useNow(true, 30_000)
   const policy = useAdminResource<FallbackPolicyDto>(`/api/admin/v1/fallback-policies/${role}`)
   const primaryId = policy.data?.primary?.id ?? null
@@ -159,9 +165,23 @@ export default function RoleScreen({ role }: { role: EngineRoleName }) {
         </Section>
       ) : null}
 
-      {p ? (
+      {p && editing ? (
         <Section>
-          <SectionHeader title="예비 연결 순서" />
+          <FallbackEditor role={role} policy={p} conns={conns.data ?? []} access={access} reloadPolicy={reloadAll} onEnd={() => setEditing(false)} />
+        </Section>
+      ) : null}
+      {p && !editing ? (
+        <Section>
+          <SectionHeader
+            title="예비 연결 순서"
+            right={
+              access.canManageConn && conns.data ? (
+                <button type="button" onClick={() => setEditing(true)} className="-my-2 inline-flex h-11 flex-none items-center rounded-xl border border-line bg-surface px-3.5 text-[14px] font-semibold text-ink">
+                  순서 편집
+                </button>
+              ) : null
+            }
+          />
           <ol className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
             {p.primary ? <ConnRow index={1} conn={p.primary} note=" (기본)" /> : null}
             {p.fallbacks.map((f, i) => (

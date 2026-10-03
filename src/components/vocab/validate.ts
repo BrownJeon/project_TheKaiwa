@@ -14,6 +14,7 @@ import type {
   WordDraft,
   WordEntry,
   WordPatchBody,
+  WordChunkFilter,
   WordStats,
 } from '@/types/vocab'
 
@@ -215,11 +216,18 @@ export function visibleCategories(items: readonly CategoryCount[] | null, basis:
   return out
 }
 
-export type WordsEmptyVariant = 'noWords' | 'allArchived' | 'noSearch' | 'noCategory' | 'noArchived'
+export type WordsEmptyVariant = 'noWords' | 'allArchived' | 'noSearch' | 'noSearchChunk' | 'noChunk' | 'noCategory' | 'noArchived'
 
-/** 목록이 비었을 때 어떤 안내를 보일지(§4-2 A 표·§4-3). */
-export function emptyVariant(q: { q: string; category: string | null; archived: boolean }, totals: CategoryTotals | null): WordsEmptyVariant {
-  if (q.q) return 'noSearch'
+/**
+ * 목록이 비었을 때 어떤 안내를 보일지(§4-2 A 표·§4-3). 조각을 고른 채 0이면(task-023) 조각 쪽 안내가 분류보다 먼저다 —
+ * 조각·분류를 한쪽씩 푸는 버튼을 함께 주기 때문이다. 검색 중이면 검색 안내에 조각 조건 한 줄을 붙인다.
+ */
+export function emptyVariant(
+  q: { q: string; category: string | null; archived: boolean; chunk?: WordChunkFilter | null },
+  totals: CategoryTotals | null,
+): WordsEmptyVariant {
+  if (q.q) return q.chunk ? 'noSearchChunk' : 'noSearch'
+  if (q.chunk) return 'noChunk'
   if (q.category !== null) return 'noCategory'
   if (q.archived) return 'noArchived'
   if (totals && totals.active === 0 && totals.archived > 0) return 'allArchived'

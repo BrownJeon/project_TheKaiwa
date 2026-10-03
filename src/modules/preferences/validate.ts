@@ -7,7 +7,7 @@ import { VOICE_PARAM_RANGES, type VoiceParamRangeKey } from './voiceRanges'
 
 export const PROFILE_KEYS = [
   'displayName', 'teacherName', 'level', 'politeness', 'goalLevel', 'goalTopics', 'goalDeadline',
-  'dailyWordCount', 'dailyMinutes', 'strictness', 'explainLang', 'explainDepth',
+  'dailyWordCount', 'dailyMinutes', 'strictness', 'correctionMode', 'explainLang', 'explainDepth',
 ] as const
 export const VOICE_KEYS = ['voiceProfileId', 'style', 'styleWeight', 'speed', 'pitch', 'intonation', 'speechProfile'] as const
 export const SPEECH_KEYS = ['recognitionMode', 'explainLang'] as const
@@ -21,6 +21,11 @@ export const SPEECH_PROFILES = ['NATIVE', 'LEARNING_NORMAL', 'LEARNING_SLOW', 'P
  */
 export const USER_SPEECH_PROFILES = ['NATIVE', 'LEARNING_NORMAL', 'LEARNING_SLOW'] as const
 export const RECOGNITION_MODES = ['AUTO', 'FAST', 'ACCURATE', 'OFFLINE'] as const
+/**
+ * 교정 방식(task-010c, learning-personalization §2-7·§2-8) — 회화(TALK)에서 교정을 **언제** 보여 줄지. 무엇을 오류로 볼지는
+ * `strictness` 라 서로 독립이다. 기본 FLUENCY(결정 D6). 역할극은 이 값과 무관하게 코치(conversation `resolveTalkCorrectionMode`).
+ */
+export const CORRECTION_MODE_VALUES = ['FLUENCY', 'COACH'] as const
 
 const bad = (field: string, reason: string, message: string): never => {
   throw new ApiError('VALIDATION', message, { field, reason })
@@ -70,6 +75,7 @@ export type ProfilePatch = Partial<{
   dailyWordCount: number
   dailyMinutes: number
   strictness: 'GENTLE' | 'NORMAL' | 'STRICT'
+  correctionMode: (typeof CORRECTION_MODE_VALUES)[number]
   explainLang: 'ko' | 'ja' | 'en'
   explainDepth: 'BRIEF' | 'NORMAL' | 'DETAILED'
 }>
@@ -97,6 +103,7 @@ export function parseProfilePatch(body: Record<string, unknown>): ProfilePatch {
   if ('dailyWordCount' in body) out.dailyWordCount = num(body.dailyWordCount, 'dailyWordCount', 5, 30, { int: true })!
   if ('dailyMinutes' in body) out.dailyMinutes = num(body.dailyMinutes, 'dailyMinutes', 5, 120, { int: true })!
   if ('strictness' in body) out.strictness = oneOf(body.strictness, 'strictness', ['GENTLE', 'NORMAL', 'STRICT'] as const)!
+  if ('correctionMode' in body) out.correctionMode = oneOf(body.correctionMode, 'correctionMode', CORRECTION_MODE_VALUES)!
   if ('explainLang' in body) out.explainLang = oneOf(body.explainLang, 'explainLang', ['ko', 'ja', 'en'] as const)!
   if ('explainDepth' in body) out.explainDepth = oneOf(body.explainDepth, 'explainDepth', ['BRIEF', 'NORMAL', 'DETAILED'] as const)!
   return out

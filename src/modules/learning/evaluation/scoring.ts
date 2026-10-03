@@ -59,9 +59,11 @@ export function normalizeReading(s: string): string {
  *   보기 문항 = 고른 보기 글자 그대로 · 읽기 = 입력 글자 · 조각 분류 = NAME|ACTION|FEELING|MODIFIER ·
  *   조립 = 조각 번호 배열 JSON(`[2,0,1]` — 같은 조각이 두 번 나와도 순서를 되살릴 수 있게) · 서술형 = 답 글자(말하기면 발화 최종 텍스트).
  */
-export function normalizeAnswer(item: ScorableItem, input: { answerText: string | null; pieceOrder: number[] | null }): string {
+export function normalizeAnswer(item: ScorableItem, input: { answerText: string | null; pieceOrder: number[] | null; spotIndex?: number | null }): string {
   const prompt = jsonObj(item.prompt)
+  const spotIndex = input.spotIndex ?? null
   if (item.kind !== 'ASSEMBLE' && input.pieceOrder) bad('pieceOrder', '조각 순서는 문장 조립 문항에서만 보낼 수 있어요.', 'not_assemble')
+  if (item.kind !== 'CORRECTION_SPOT' && spotIndex !== null) bad('spotIndex', '틀린 곳 번호는 틀린 곳 찾기 문항에서만 보낼 수 있어요.', 'not_correction_spot')
   switch (item.kind) {
     case 'MEANING_CHOICE':
     case 'USAGE_CHOICE': {
@@ -89,11 +91,49 @@ export function normalizeAnswer(item: ScorableItem, input: { answerText: string 
       if (!isPermutation) bad('pieceOrder', '조각을 하나씩 모두 써서 늘어놓아 주세요.', 'not_a_permutation')
       return JSON.stringify(order)
     }
+    case 'CORRECTION_SPOT': {
+      if (!input.answerText) bad('answerText', '고친 말을 적어 주세요.', 'required')
+      if (spotIndex === null) return input.answerText
+      const segments = jsonStrArr(prompt.segments)
+      if (segments.length === 0) bad('spotIndex', '이 문항은 조각을 골라 답할 수 없어요. 고친 문장을 적어 주세요.', 'no_segments')
+      if (spotIndex >= segments.length) bad('spotIndex', '문장 조각 안에서 골라 주세요.', 'not_a_segment')
+      return JSON.stringify({ spot: spotIndex, text: input.answerText } satisfies SpotAnswer)
+    }
     default: {
       if (!input.answerText) bad('answerText', '답을 말하거나 적어 주세요.', 'required')
       return input.answerText
     }
   }
+}
+
+/** 틀린 곳 찾기 저장 답(데모 결정 f=A) — 고른 조각 번호 + 고친 말·이유. 조각 없이 적은 답(옛 문항·음성)은 저장 글자 그대로라 null. */
+export interface SpotAnswer {
+  spot: number
+  text: string
+}
+
+export function spotAnswer(stored: string | null): SpotAnswer | null {
+  if (!stored || stored[0] !== '{') return null
+  try {
+    const v: unknown = JSON.parse(stored)
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null
+    const o = v as Record<string, unknown>
+    return Number.isInteger(o.spot) && typeof o.text === 'string' ? { spot: o.spot as number, text: o.text } : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A7 에 넘길 답 글자 — 틀린 곳 찾기에서 조각을 골랐으면 `고른 곳 「…」 / 고친 말·이유: …` 한 줄(A7 입력 모양 `answerText: string` 그대로,
+ * PE 가 evalGrade 지시문에서 이 형식을 읽는다). 그 밖은 저장 글자 그대로(미답은 빈 문자열 — 프롬프트가 "(미답)" 으로 렌더).
+ */
+export function gradingAnswerText(item: ScorableItem & { answerText: string | null }): string {
+  if (item.kind !== 'CORRECTION_SPOT') return item.answerText ?? ''
+  const s = spotAnswer(item.answerText)
+  if (!s) return item.answerText ?? ''
+  const seg = jsonStrArr(jsonObj(item.prompt).segments)[s.spot]
+  return seg === undefined ? s.text : `고른 곳 「${seg}」 / 고친 말·이유: ${s.text}`
 }
 
 /** ASSEMBLE 저장 답(번호 배열 JSON) → 번호 배열. 형식이 어긋나면 null. */
@@ -107,9 +147,10 @@ export function assembleOrder(stored: string | null): number[] | null {
   }
 }
 
-/** 화면에 보일 "내 답" — 조립은 고른 순서로 이은 문장, 그 밖은 저장 글자 그대로. */
+/** 화면에 보일 "내 답" — 조립은 고른 순서로 이은 문장, 조각을 고른 틀린 곳 찾기는 고친 말·이유(고른 조각은 `answerSpot`), 그 밖은 저장 글자 그대로. */
 export function displayAnswer(item: ScorableItem, stored: string | null): string | null {
   if (stored === null) return null
+  if (item.kind === 'CORRECTION_SPOT') return spotAnswer(stored)?.text ?? stored
   if (item.kind !== 'ASSEMBLE') return stored
   const pieces = jsonStrArr(jsonObj(item.prompt).pieces)
   const order = assembleOrder(stored)

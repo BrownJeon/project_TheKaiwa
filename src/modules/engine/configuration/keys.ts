@@ -44,6 +44,11 @@ export interface EditKeyDef {
   enum?: readonly (string | number)[]
   pattern?: string
   maxLength?: number
+  /**
+   * 사람이 읽는 자유 문장(미리듣기 문장 등) — 비밀 유사 검사에 "긴 토큰" 규칙까지 적용한다(REV-056). 없으면 id·모델명·경로·주소처럼
+   * 24자 넘는 영숫자 연속이 정상인 값으로 보고 그 규칙만 뺀다.
+   */
+  freeText?: boolean
   /** null 을 값으로 받는다(SECRET_REF 해제·AppSetting 미설정). */
   nullable?: boolean
   description: string

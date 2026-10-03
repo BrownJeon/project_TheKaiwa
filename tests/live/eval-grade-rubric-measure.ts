@@ -57,12 +57,18 @@ async function runCase(c: FixtureCase): Promise<RunRow> {
 }
 
 async function main() {
-  console.log(`eval-grade(A7) 루브릭 조정 라운드 — ${fixture.cases.length}건`)
+  // ONLY=g21,g22 (쉼표 구분 id 또는 id 앞부분 g2) · REPEAT=3 (같은 케이스 반복 — 점수 편차 확인). 기본은 전체 1회.
+  const only = (process.env.ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const repeat = Math.max(1, Number(process.env.REPEAT ?? '1') || 1)
+  const cases = only.length ? fixture.cases.filter((c) => only.some((o) => c.id === o || c.id.startsWith(o))) : fixture.cases
+  console.log(`eval-grade(A7) 루브릭 조정 라운드 — ${cases.length}건${repeat > 1 ? ` × ${repeat}회` : ''}`)
   const rows: RunRow[] = []
-  for (const c of fixture.cases) {
-    const row = await runCase(c)
-    rows.push(row)
-    console.log(JSON.stringify(row))
+  for (const c of cases) {
+    for (let k = 0; k < repeat; k++) {
+      const row = await runCase(c)
+      rows.push(row)
+      console.log(JSON.stringify(row))
+    }
   }
   const succeeded = rows.filter((r) => r.ok)
   const inRange = rows.filter((r) => r.ok && r.inRange)
@@ -75,6 +81,13 @@ async function main() {
       continue
     }
     console.log(`| ${r.id} | ${r.category} | ${r.score} | [${r.expectedRange![0]},${r.expectedRange![1]}] | ${r.inRange ? 'O' : 'X'} | ${r.ms} | ${r.attempts} |`)
+  }
+  if (repeat > 1) {
+    console.log('\n## 케이스별 반복 요약 (점수 목록 · 범위내 횟수)')
+    for (const c of cases) {
+      const rs = rows.filter((r) => r.id === c.id && r.ok)
+      console.log(`- ${c.id} ${c.category ?? ''} [${c.expectedScoreRange[0]},${c.expectedScoreRange[1]}]: ${rs.map((r) => r.score).join(',')} → 범위내 ${rs.filter((r) => r.inRange).length}/${rs.length}`)
+    }
   }
   writeFileSync('/tmp/kaiwa-eval-grade-rubric-measure.json', JSON.stringify({ at: new Date().toISOString(), rows }, null, 1))
 }

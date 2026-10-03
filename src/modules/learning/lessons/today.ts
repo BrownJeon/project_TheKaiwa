@@ -1,8 +1,10 @@
 /**
- * #58 오늘 — task-010 은 새 수업(NEW) 모드만. 복습 칸(`review`·`guard`·`cycle`)은 task-010b 가 채운다(계약 형태만 유지, 지금은 null).
+ * #58 오늘 — 새 수업(task-010) + 오늘의 복습(task-010b: `mode`·`review`·`guard`·`cycle`·`decisionPending`·`decisionJobId`·`nextReview`,
+ * `../reviewSchedule`). 복습 칸 계산이 실패해도 레슨 칸은 내려주고 복습 칸은 비운다(Leader 결정 ⑥ — 오류는 로그만).
  *
- *  - `todayLessons`: 오늘(KST) 날짜 레슨 전부(만든 순 최신부터). 만드는 중이면 `jobId`(잡이 죽었으면 여기서 FAILED 로 닫는다).
- *  - `resume`: 오늘 이전 날짜의 READY·IN_PROGRESS 레슨 중 가장 최근 것 1개(이어서 하기).
+ *  - `todayLessons`: 오늘(KST) 날짜 레슨 전부(만든 순 최신부터, 복습 레슨 포함 — 항목마다 `kind`). 만드는 중이면 `jobId`(잡이 죽었으면
+ *    여기서 FAILED 로 닫는다 — 복습 레슨은 REVIEW_GEN 잡으로 판정).
+ *  - `resume`: 오늘 이전 날짜의 READY·IN_PROGRESS **새 수업(kind=NEW)** 중 가장 최근 것 1개(이어서 하기 — 지난 복습 레슨은 넣지 않는다, ★①).
  *  - `recommendation`(Leader 추가 사양, designer 데모 v1): 가장 최근에 끝낸 주제 레슨이 있으면 그 주제 + 그 수업의 `nextPreview`
  *    (CONTINUE). 그 주제를 이미 `TOPIC_ROTATE_AFTER`번 끝냈으면 학습자 수준에서 가장 적게 한 다른 주제(NEXT_TOPIC). 끝낸 주제 수업이
  *    없으면 학습자 수준의 주제 중 가장 적게 한 것(START). 하던 수업(READY·IN_PROGRESS)이 있으면 화면은 그쪽을 먼저 보인다 — 추천은 참고용.
@@ -10,9 +12,11 @@
 import type { JlptLevel, LessonKind, LessonStatus } from '@prisma/client'
 import { dates, prisma } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
+import type { ReviewDecisionDriver } from '../repetition/decision'
+import { EMPTY_REVIEW_STATE, getTodayReviewState, type TodayReviewState } from '../reviewSchedule'
 import { doneLessonStats, levelWindow, pickFewestLessonTopic } from '../topics'
 import { readStoredContent, summarizeExpressions } from './content'
-import { settleGenerating } from './generate'
+import { lessonGenKindOf, settleGenerating } from './generate'
 import { readProgress, speakingRecords } from './progress'
 
 /** 같은 주제를 이만큼 끝냈으면 다른 주제를 권한다. */
@@ -40,12 +44,8 @@ export interface LessonRecommendation {
   nextPreview: { titleKo: string; teaserKo: string } | null
 }
 
-export interface TodayLessonsDto {
-  mode: 'NEW'
+export interface TodayLessonsDto extends TodayReviewState {
   date: string
-  review: null
-  guard: null
-  cycle: null
   todayLessons: TodayLessonItem[]
   resume: { id: string; title: string; titleKo: string | null; stageDone: number; date: string } | null
   recommendation: LessonRecommendation | null
@@ -77,7 +77,17 @@ async function recommend(userId: string, level: JlptLevel): Promise<LessonRecomm
   return start ? { topicId: start.id, topicTitle: start.title, level: start.level, reason: 'START', nextPreview: null } : null
 }
 
-export async function getTodayLessons(userId: string): Promise<TodayLessonsDto> {
+async function reviewStateSafely<T>(userId: string, driver: ReviewDecisionDriver<T> | null, today: string): Promise<TodayReviewState> {
+  try {
+    return await getTodayReviewState(userId, driver, today)
+  } catch (e) {
+    console.error('[today] 복습 칸 계산 실패:', e instanceof Error ? e.name : 'unknown')
+    return EMPTY_REVIEW_STATE
+  }
+}
+
+/** `opts.reviewDecision` = 강사 판단 잡 함수 묶음(라우트가 conversation 으로 만든다). 없으면 판단 잡을 걸지 않는다(폴백 세션만). */
+export async function getTodayLessons<T = unknown>(userId: string, opts: { reviewDecision?: ReviewDecisionDriver<T> | null } = {}): Promise<TodayLessonsDto> {
   const today = dates.todayKst()
   const rows = await prisma.lesson.findMany({
     where: { userId, date: dates.toDbDate(today) },
@@ -90,7 +100,7 @@ export async function getTodayLessons(userId: string): Promise<TodayLessonsDto> 
     let status = r.status
     let jobId: string | null = null
     if (status === 'GENERATING') {
-      jobId = await settleGenerating(userId, r.id)
+      jobId = await settleGenerating(userId, r.id, undefined, lessonGenKindOf(r.kind))
       if (!jobId) status = (await prisma.lesson.findFirst({ where: { id: r.id, userId }, select: { status: true } }))?.status ?? status
     }
     const content = readStoredContent(r.content)
@@ -109,17 +119,15 @@ export async function getTodayLessons(userId: string): Promise<TodayLessonsDto> 
     })
   }
   const older = await prisma.lesson.findFirst({
-    where: { userId, date: { lt: dates.toDbDate(today) }, status: { in: ['READY', 'IN_PROGRESS'] } },
+    where: { userId, kind: 'NEW', date: { lt: dates.toDbDate(today) }, status: { in: ['READY', 'IN_PROGRESS'] } },
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     select: ITEM_SELECT,
   })
   const profile = await getProfile(userId)
+  const review = await reviewStateSafely(userId, opts.reviewDecision ?? null, today)
   return {
-    mode: 'NEW',
+    ...review,
     date: today,
-    review: null,
-    guard: null,
-    cycle: null,
     todayLessons,
     resume: older ? { id: older.id, title: older.title, titleKo: readStoredContent(older.content)?.titleKo ?? null, stageDone: older.stageDone, date: dates.fromDbDate(older.date) } : null,
     recommendation: await recommend(userId, profile.level as JlptLevel),

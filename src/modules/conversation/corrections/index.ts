@@ -5,9 +5,10 @@
  * 원문 보존(domain-model 규칙 3): 모든 UPDATE 는 `updateCorrections()` 한 곳을 지나고, 그 데이터 타입에서 `original` 을 뺐다 —
  * 누가 `original` 을 넣으면 **컴파일 오류**가 난다. 상태 전이는 `status=PROPOSED` 조건부 `updateMany` 라 동시 채택은 한 건만 이긴다.
  */
-import type { ErrorType, ChunkType, Prisma, ProposalStatus } from '@prisma/client'
+import type { ErrorType, ChunkType, Prisma, ProposalStatus, Severity } from '@prisma/client'
 import { ApiError, decodeCursor, encodeCursor, isOffsetCursor, isTimeIdCursor, lockUserRow, prisma, type Tx } from '@/modules/infra'
 import { CORRECTION_SELECT, serializeCorrection, type CorrectionDto } from './serialize'
+import { readCorrectionMeta, talkCorrectionFields, type CorrectionDeliver } from './talkDelivery'
 
 export const CORRECTION_STATUSES = ['PROPOSED', 'ACCEPTED', 'REJECTED', 'EXPIRED'] as const
 
@@ -41,6 +42,9 @@ export interface AcceptedCorrection {
   errorType: ErrorType
   chunkType: ChunkType | null
   corrected: string
+  /** 반복 항목 뜻 스냅샷 재료(task-010b L8 — learning 이 첫 문장 앞부분만 쓴다). */
+  explanation: string
+  severity: Severity
   resolvedAt: string
 }
 
@@ -52,7 +56,7 @@ export async function acceptCorrection(userId: string, id: string, tx: Tx): Prom
   const now = new Date()
   const n = await updateCorrections(tx, { id, userId, status: 'PROPOSED' }, { status: 'ACCEPTED', resolvedAt: now })
   if (n === 0) await explainNoop(tx, userId, id)
-  const c = await tx.correction.findFirstOrThrow({ where: { id, userId }, select: { id: true, chatId: true, messageId: true, errorType: true, chunkType: true, corrected: true } })
+  const c = await tx.correction.findFirstOrThrow({ where: { id, userId }, select: { id: true, chatId: true, messageId: true, errorType: true, chunkType: true, corrected: true, explanation: true, severity: true } })
   return { ...c, resolvedAt: now.toISOString() }
 }
 
@@ -70,11 +74,59 @@ export async function rejectCorrection(userId: string, id: string): Promise<{ id
   return { id, status: 'REJECTED', resolvedAt: now.toISOString() }
 }
 
+export interface RejectedCorrection {
+  result: { id: string; status: 'REJECTED'; resolvedAt: string }
+  /** 관측 재료(task-010b — 거절 관측 `CORRECTION_IGNORED` 의 축). */
+  errorType: ErrorType
+  severity: Severity
+}
+
+/**
+ * #36 거절을 라우트 트랜잭션 `tx` 안에서(task-010b — 같은 tx 에 learning 관측을 쓰려고). 잠금 순서는 채택과 같다(사용자 행 → 교정 행).
+ * 교정·다른 테이블에는 아무 행도 만들지 않는다. 0행 전이는 404/409(채택과 같은 규칙).
+ */
+export async function rejectCorrectionIn(tx: Tx, userId: string, id: string): Promise<RejectedCorrection> {
+  if (!validId(id)) throw notFound()
+  await lockUserRow(tx, userId)
+  const now = new Date()
+  const n = await updateCorrections(tx, { id, userId, status: 'PROPOSED' }, { status: 'REJECTED', resolvedAt: now })
+  if (n === 0) await explainNoop(tx, userId, id)
+  const c = await tx.correction.findFirstOrThrow({ where: { id, userId }, select: { errorType: true, severity: true } })
+  return { result: { id, status: 'REJECTED', resolvedAt: now.toISOString() }, errorType: c.errorType, severity: c.severity }
+}
+
 export interface CorrectionListQuery {
   status?: ProposalStatus
   chatId?: string | null
+  /** task-010c — `LATER` 면 그 회화의 "모아 둔 교정"만(`chatId` 필수). 표시 필드(deliver·hintKo·selfCheck)를 함께 싣는다. */
+  deliver?: CorrectionDeliver | null
   limit: number
   cursor?: string | null
+}
+
+/** 한 회화의 모아 둔 교정 상한 — 시트는 한 번에 다 불러온다(회화 하나의 교정은 말 수를 넘지 않는다). */
+export const LATER_LIST_MAX = 200
+
+/**
+ * 모아 둔 교정(deliver=LATER)은 유창성 모드의 MINOR 만이라 `severity=MINOR` 로 먼저 좁히고, 교정이 달린 사용자 메시지의 `toolLog.correction`
+ * 으로 가른다(task-010c — 표시 메타는 그 메시지에 있다). 메시지 순서 오름차순.
+ */
+async function laterRows(userId: string, chatId: string, status?: ProposalStatus) {
+  const rows = await prisma.correction.findMany({
+    where: { userId, chatId, severity: 'MINOR', ...(status ? { status } : {}) },
+    orderBy: [{ message: { createdAt: 'asc' } }, { createdAt: 'asc' }, { id: 'asc' }],
+    take: LATER_LIST_MAX * 2,
+    select: { ...CORRECTION_SELECT, chat: { select: { id: true, title: true, kind: true } }, message: { select: { toolLog: true } } },
+  })
+  return rows.flatMap((r) => {
+    const meta = readCorrectionMeta(r.message.toolLog, r.id)
+    return meta?.deliver === 'LATER' ? [{ row: r, meta }] : []
+  })
+}
+
+/** #29 `laterPending` — 아직 처리하지 않은 모아 둔 교정 수(회화 전체). */
+export async function countLaterPending(userId: string, chatId: string): Promise<number> {
+  return (await laterRows(userId, chatId, 'PROPOSED')).length
 }
 
 /**
@@ -83,6 +135,14 @@ export interface CorrectionListQuery {
  */
 export async function listCorrections(userId: string, q: CorrectionListQuery): Promise<{ items: CorrectionDto[]; nextCursor: string | null }> {
   const include = { chat: { select: { id: true, title: true, kind: true } } } as const
+  if (q.deliver) {
+    if (q.deliver !== 'LATER') throw new ApiError('VALIDATION', 'deliver 는 LATER 만 거를 수 있어요.', { field: 'deliver' })
+    if (!q.chatId) throw new ApiError('VALIDATION', 'deliver 로 거를 때는 chatId 가 필요합니다.', { field: 'chatId' })
+    const chat = await prisma.chat.findFirst({ where: { id: q.chatId, userId }, select: { id: true } })
+    if (!chat) throw new ApiError('NOT_FOUND', '채팅을 찾을 수 없어요.')
+    const rows = (await laterRows(userId, q.chatId, q.status)).slice(0, LATER_LIST_MAX)
+    return { items: rows.map(({ row, meta }) => ({ ...serializeCorrection(row, row.chat), ...talkCorrectionFields(meta) })), nextCursor: null }
+  }
   if (q.chatId) {
     const chat = await prisma.chat.findFirst({ where: { id: q.chatId, userId }, select: { id: true } })
     if (!chat) throw new ApiError('NOT_FOUND', '채팅을 찾을 수 없어요.')

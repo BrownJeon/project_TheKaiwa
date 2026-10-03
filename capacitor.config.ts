@@ -48,6 +48,7 @@ const config: CapacitorConfig = {
     // Android 15(targetSdk 35) edge-to-edge 강제로 WebView 가 상태바·내비게이션바 밑까지 그려지는데, 이 WebView 는
     // CSS `env(safe-area-inset-*)` 를 0 으로 준다 → 'auto' 가 API 35+ 에서 시스템 바·컷아웃만큼 네이티브 margin 을 준다
     // (app-conversion-guide §1-3, VoiceVault·bjj 실기기).
+    // ⚠ MainActivity.fitAboveKeyboard(task-021)가 이 'auto'(+ styles.xml opt-out 없음·adjustResize)에 의존해 Capacitor 의 margin 리스너를 교체한다 — 바꾸면 거기도 같이 고친다.
     adjustMarginsForEdgeToEdge: 'auto',
     webContentsDebuggingEnabled: false,
     allowMixedContent: false,

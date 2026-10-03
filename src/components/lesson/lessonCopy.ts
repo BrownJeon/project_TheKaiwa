@@ -180,6 +180,12 @@ export const U1 = {
   statusFirst: '먼저 느리게 들어 봐요.',
   statusThenNormal: '이번엔 보통 속도로 들어 봐요. 글자와 함께 확인해요.',
   statusPlaying: (slow: boolean, i: number, n: number) => `${slow ? '느리게' : '보통 속도로'} 듣는 중 · ${i}/${n}줄`,
+  // 줄 다시 듣기(task-025, 데모 v1 #l1-line) — 진행 기록과 무관
+  lineCaption: '줄 옆 ▶ 는 그 줄만 다시 들려줘요. ‘들었어요’는 아래 구간 듣기(느리게 → 보통)로만 채워져요.',
+  lineAria: (n: number, slow: boolean) => `${n}번째 줄${slow ? ' 느리게' : ''} 다시 듣기`,
+  lineStopAria: (n: number) => `${n}번째 줄 멈추기`,
+  lineLoading: (n: number) => `${n}번째 줄을 불러오는 중…`,
+  linePlaying: (n: number, slow: boolean) => `${n}번째 줄 · ${slow ? '느리게' : '보통 속도로'} 다시 듣는 중`,
   statusDone: '이 구간을 다 들었어요. 들린 단어를 적고 다음 구간으로 가요.',
   statusAllDone: '구간을 모두 들었어요. 아래에서 들린 단어를 단어장에 넣을 수 있어요.',
   playSlow: (rate: string) => `▶ 느리게 듣기 · ${rate}배`,
@@ -225,10 +231,13 @@ export const SKIP_REASON: Record<string, string> = {
 
 export const U2 = {
   title: '② 문법 · 표현과 문형',
-  desc: (g: number) => `오늘 대화의 표현 조각과 문형 ${g}개예요. 예문을 듣고 소리 내어 따라 읽어 보세요.`,
-  textOnly: '지금은 선생님 목소리를 들을 수 없어 예문 듣기를 숨겼어요(자막만).',
+  desc: (g: number) => `오늘 대화의 표현 조각과 문형 ${g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요.`,
+  textOnly: '지금은 선생님 목소리를 들을 수 없어 표현·예문 듣기를 숨겼어요(자막만).',
   exprTitle: (n: number) => `오늘의 표현 ${n}개`,
   exprDesc: '대화에 나온 표현 조각이에요. 문제·응용·말하기에서 다시 써요.',
+  exprDescPlay: '대화에 나온 표현 조각이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요.',
+  exprListenSr: ', 듣기',
+  exprStopSr: ', 멈추기',
   newExpr: '새 표현',
   pattern: (i: number) => `문형 ${i}`,
   example: '예문',
@@ -250,6 +259,9 @@ export const U3 = {
   sumHead: (n: number, c: number) => `${n}문제 중 ${c}문제 맞혔어요`,
   sumLine: (mine: string | null, answer: string, correct: boolean) => (correct || mine === null ? `정답 ${answer}` : `내 답 ${mine} · 정답 ${answer}`),
   sumNote: '틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요.',
+  // 옛 레슨(lesson@v7 이하)에서 한국어 문제 설명이 비었을 때(task-025 결정 c=A)
+  legacyPrompt: '일본어 문장을 읽고 알맞은 답을 고르세요.',
+  legacyNote: '예전에 만든 수업이라 한국어 문제 설명이 없어요.',
   choicesAria: '보기',
   choiceAria: (k: number, text: string, o: { correct: boolean; mine: boolean }) => `${k}번, ${text}${o.correct ? ', 정답' : ''}${o.mine && !o.correct ? ', 내 답, 틀림' : ''}`,
 } as const
@@ -275,6 +287,17 @@ export const U4 = {
   playModel: '▶ 모범 답안 듣기',
   stop: '■ 멈춤',
   note: '채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요.',
+  // 글자 비교(task-025, IMP-0016) — 채점이 아니라 비교 표시
+  cmpDiff: '글자가 다른 곳에 밑줄을 쳤어요 · 채점이 아니에요',
+  cmpSame: '＝ 모범 답안과 글자가 같아요.',
+  cmpLegendMine: '점선',
+  cmpLegendMineText: ' 모범 답안에 없는 글자',
+  cmpLegendModel: '실선',
+  cmpLegendModelText: ' 내 문장에 없는 글자',
+  cmpSrModel: '모범 답안에만 있는 글자: ',
+  cmpSrMine: '내 문장에만 있는 글자: ',
+  cmpSrNone: '없음',
+  noteCompare: '채점하지 않아요. 밑줄은 글자가 다른 곳일 뿐, 뜻이 통하면 다르게 써도 괜찮아요. 문장부호·띄어쓰기 차이는 표시하지 않아요. 모범 답안을 소리 내어 따라 읽어 보세요.',
   next: '다음 상황',
   situation: (k: number) => `상황 ${k}`,
 } as const

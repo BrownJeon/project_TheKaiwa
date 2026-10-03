@@ -11,6 +11,8 @@ import { getTopicRef } from '@/modules/learning'
 import { getProfile } from '@/modules/preferences'
 import { isStalePending, locallyRunningMessageIds, STALE_PENDING_MS } from '../orchestrator/locks'
 import { serializeCorrection, CORRECTION_SELECT } from '../corrections/serialize'
+import { countLaterPending } from '../corrections'
+import { readCorrectionMeta, talkCorrectionFields, type CorrectionDeliver, type SelfCheckResult } from '../corrections/talkDelivery'
 import { SPEECH_STYLES } from '../structuredResponse/schemas'
 import type { CreateChatInput } from './validate'
 
@@ -164,7 +166,14 @@ export interface MessageDto {
   learning?: { grammarPoint: string | null; difficulty: string | null } | null
   /** ASSISTANT: 저장된 LLM `speech.style`(다시 듣기 #23 의 styleHint — 같은 캐시 키로 HIT). task-007. */
   speechStyle?: string | null
-  corrections?: ReturnType<typeof serializeCorrection>[]
+  corrections?: (ReturnType<typeof serializeCorrection> & TalkCorrectionView)[]
+}
+
+/** TALK 교정의 표시 필드(task-010c) — 표시 시점·코치 힌트·자기수정 판정. CHAT 교정에는 싣지 않는다. */
+export interface TalkCorrectionView {
+  deliver?: CorrectionDeliver
+  hintKo?: string | null
+  selfCheck?: SelfCheckResult | null
 }
 
 const MESSAGE_SELECT = { id: true, role: true, content: true, reading: true, translation: true, inputSource: true, status: true, createdAt: true, traceId: true, toolLog: true } as const
@@ -188,7 +197,7 @@ function styleFrom(toolLog: Prisma.JsonValue | null): string | null {
   return typeof st === 'string' && STYLES.has(st) ? st : null
 }
 
-function serializeMessage(m: MessageRow, corrections: ReturnType<typeof serializeCorrection>[] | undefined): MessageDto {
+function serializeMessage(m: MessageRow, corrections: MessageDto['corrections'] | undefined): MessageDto {
   const base: MessageDto = {
     id: m.id,
     role: m.role,
@@ -207,6 +216,8 @@ export interface ChatDetailDto {
   chat: { id: string; kind: ChatKind; title: string; level: JlptLevel | null; running: boolean; reviewedAt: string | null; messageCount: number }
   messages: MessageDto[]
   pendingProposals: number
+  /** TALK 만 — 이 회화 전체(페이지와 무관)의 아직 처리하지 않은 "모아 둔 교정"(deliver=LATER·PROPOSED) 수(task-010c). */
+  laterPending?: number
   nextCursor: string | null
 }
 
@@ -245,10 +256,12 @@ export async function getChatDetail(userId: string, chatId: string, q: { after?:
   const corrections = userIds.length
     ? await prisma.correction.findMany({ where: { messageId: { in: userIds }, userId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: CORRECTION_SELECT })
     : []
-  const byMessage = new Map<string, ReturnType<typeof serializeCorrection>[]>()
+  const talk = chat.kind === 'TALK'
+  const toolLogOf = new Map(rows.map((m) => [m.id, m.toolLog]))
+  const byMessage = new Map<string, NonNullable<MessageDto['corrections']>>()
   for (const c of corrections) {
     const list = byMessage.get(c.messageId) ?? []
-    list.push(serializeCorrection(c))
+    list.push(talk ? { ...serializeCorrection(c), ...talkCorrectionFields(readCorrectionMeta(toolLogOf.get(c.messageId), c.id)) } : serializeCorrection(c))
     byMessage.set(c.messageId, list)
   }
   const now = new Date()
@@ -259,6 +272,7 @@ export async function getChatDetail(userId: string, chatId: string, q: { after?:
     chat: { id: chat.id, kind: chat.kind, title: chat.title, level: chat.level, running, reviewedAt: chat.reviewedAt ? chat.reviewedAt.toISOString() : null, messageCount: chat.messageCount },
     messages: rows.map((m) => serializeMessage(m, byMessage.get(m.id))),
     pendingProposals,
+    ...(talk ? { laterPending: await countLaterPending(userId, chatId) } : {}),
     nextCursor,
   }
 }

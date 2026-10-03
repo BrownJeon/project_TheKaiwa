@@ -87,7 +87,15 @@ const TIMING_FIELDS = ['sttMs', 'releaseToFirstAudioEventMs', 'firstAudioAtMs', 
 
 export type TurnRequest =
   | { resume: true }
-  | { resume: false; text: string; inputSource: InputSource; utteranceId: string | null; clientTimings: TurnClientTimings | null }
+  | {
+      resume: false
+      text: string
+      inputSource: InputSource
+      utteranceId: string | null
+      clientTimings: TurnClientTimings | null
+      /** task-010c — 직전 코치 힌트 카드의 정답을 열고 말했는가(TALK 자기수정 판정 SELF/REPEAT 구분). 생략 = false. */
+      coachRevealed?: boolean
+    }
 
 function parseClientTimings(v: unknown): TurnClientTimings | null {
   if (v === undefined || v === null) return null
@@ -124,5 +132,6 @@ export function parseTurnBody(body: Record<string, unknown>): TurnRequest {
   }
   if (inputSource === 'REALTIME_STT' && !utteranceId) bad('utteranceId', 'required', '음성 인식 입력에는 utteranceId 가 필요합니다.')
   if (utteranceId && inputSource === 'TEXT') bad('inputSource', 'REALTIME_STT|SERVER_STT', '음성 발화는 inputSource 가 REALTIME_STT 여야 합니다.')
-  return { resume: false, text, inputSource, utteranceId, clientTimings: parseClientTimings(body.clientTimings) }
+  if (body.coachRevealed !== undefined && body.coachRevealed !== null && typeof body.coachRevealed !== 'boolean') bad('coachRevealed', 'boolean', 'coachRevealed 형식이 올바르지 않습니다.')
+  return { resume: false, text, inputSource, utteranceId, clientTimings: parseClientTimings(body.clientTimings), coachRevealed: body.coachRevealed === true }
 }

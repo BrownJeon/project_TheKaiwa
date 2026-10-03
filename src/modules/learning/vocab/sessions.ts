@@ -17,6 +17,8 @@ import type { PartOfSpeech, Prisma, VocabAnswer, VocabMode, VocabSessionStatus }
 import { ApiError, codePointLength, dates, decodeCursor, encodeCursor, isTimeIdCursor, lockUserRow, prisma, sanitizeText, withTransaction, type Tx } from '@/modules/infra'
 import { recordStudyLog } from '../studyLog'
 import { bumpDailySnapshot, createVocabSessionSnapshot } from '../snapshots'
+import { registerRepetitionItems, type RepetitionItemInput } from '../repetition'
+import { recordObservations, type ObservationInput } from '../observations'
 import { distinctMeaningCount, pickChoices, CHOICE_COUNT, type MeaningSource } from './distractors'
 import { createRng, generateWordSet, newSeed, requestedModeOf, shuffle } from './setGenerator'
 import { isValidId } from './words'
@@ -464,24 +466,58 @@ export function durationSecOf(startedAt: Date, finishedAt: Date): number {
   return Math.min(DURATION_CAP_SEC, Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000)))
 }
 
+/** 카드 1장의 반복 항목 입력(task-010b) — 답한 카드(맞힘·틀림)이고 단어가 남아 있을 때만. 건너뜀은 공부로 세지 않는다. */
+export function vocabRepetitionInputs(cards: readonly { wordId: string | null; answer: VocabAnswer; surfaceSnap: string; meaningSnap: string }[]): RepetitionItemInput[] {
+  return cards.flatMap((c) =>
+    c.wordId && (c.answer === 'CORRECT' || c.answer === 'WRONG')
+      ? [{ itemType: 'WORD' as const, refType: 'WordEntry', refId: c.wordId, textJa: c.surfaceSnap, meaningKo: c.meaningSnap, correct: c.answer === 'CORRECT' ? 1 : 0, wrong: c.answer === 'WRONG' ? 1 : 0 }]
+      : [],
+  )
+}
+
+/** 카드마다 `VOCAB_RECOGNITION` 관측(task-010b L3) — 맞힘 SUCCESS·틀림 FAIL·건너뜀 SKIPPED. 탭·자기 채점이라 신뢰도 1.0. */
+export function vocabObservations(mode: VocabMode, cards: readonly { id: string; order: number; wordId: string | null; answer: VocabAnswer; responseMs: number | null }[]): ObservationInput[] {
+  return cards.map((c) => ({
+    kind: 'VOCAB_RECOGNITION' as const,
+    outcome: c.answer === 'CORRECT' ? ('SUCCESS' as const) : c.answer === 'WRONG' ? ('FAIL' as const) : ('SKIPPED' as const),
+    refType: 'VocabAttempt' as const,
+    refId: c.id,
+    wordId: c.wordId,
+    latencyMs: c.answer === 'SKIPPED' ? null : c.responseMs,
+    confidence: 1,
+    meta: { mode, order: c.order },
+  }))
+}
+
 /**
  * #51 — 단일 트랜잭션. 이미 끝난 세트면 같은 응답(멱등). 답한 카드 0장이면 ABANDONED(기록·스냅샷·카운터 변화 0, F2).
  * 그 외: 미답 → SKIPPED · 세션 카운터·durationSec · 단어 카운터(맞힘/틀림 증가, 건너뜀은 lastSeenAt·lastResult 만 — E5)
- * · StudyLog(WORDS, DIRECT, refId) · StatsSnapshot(VOCAB_SESSION) · DAILY `words` 증가. 기록 날짜는 세션 `date`(E3).
+ * · 반복 항목(WORD, 답한 카드 — task-010b) · StudyLog(WORDS, DIRECT, refId) · StatsSnapshot(VOCAB_SESSION) · DAILY `words`·`repetition.studied`
+ * · 카드별 관측(`VOCAB_RECOGNITION`) + DAILY `observations`. 기록 날짜는 세션 `date`(E3).
  */
 export async function finishVocabSession(userId: string, id: string): Promise<FinishResultDto> {
+  return (await finishVocabSessionDetailed(userId, id)).result
+}
+
+/** #51 + 이번 호출이 세트를 실제로 끝냈는가(`finishedNow` — 라우트가 그때만 복습 판단 잡을 건다, 멱등 재호출·ABANDONED 는 false). */
+export async function finishVocabSessionDetailed(userId: string, id: string): Promise<{ result: FinishResultDto; finishedNow: boolean; repetitionItems: number }> {
   return withTransaction(async (tx) => {
     await lockUserRow(tx, userId)
     const s = await lockSession(tx, userId, id)
-    if (s.status !== 'IN_PROGRESS') return finishResult(tx, userId, s)
-    const attempts = await tx.vocabAttempt.findMany({ where: { sessionId: id }, select: { wordId: true, answer: true } })
+    if (s.status !== 'IN_PROGRESS') return { result: await finishResult(tx, userId, s), finishedNow: false, repetitionItems: 0 }
+    const attempts = await tx.vocabAttempt.findMany({
+      where: { sessionId: id },
+      orderBy: { order: 'asc' },
+      select: { id: true, order: true, wordId: true, answer: true, responseMs: true, surfaceSnap: true, meaningSnap: true },
+    })
     const now = new Date()
     if (!attempts.some((a) => a.answer != null)) {
       const closed = await tx.vocabSession.update({ where: { id }, data: { status: 'ABANDONED', finishedAt: now }, select: SESSION_SELECT })
-      return finishResult(tx, userId, closed)
+      return { result: await finishResult(tx, userId, closed), finishedNow: false, repetitionItems: 0 }
     }
     await tx.vocabAttempt.updateMany({ where: { sessionId: id, answer: null }, data: { answer: 'SKIPPED' } })
-    const final = attempts.map((a) => ({ wordId: a.wordId, answer: a.answer ?? ('SKIPPED' as const) }))
+    const cards = attempts.map((a) => ({ ...a, answer: a.answer ?? ('SKIPPED' as const) }))
+    const final = cards.map((a) => ({ wordId: a.wordId, answer: a.answer }))
     const tally = (x: VocabAnswer) => final.filter((a) => a.answer === x)
     const correct = tally('CORRECT').length
     const wrong = tally('WRONG').length
@@ -500,6 +536,7 @@ export async function finishVocabSession(userId: string, id: string): Promise<Fi
     if (wrongIds.length) await tx.wordEntry.updateMany({ where: { userId, id: { in: wrongIds } }, data: { wrongCount: { increment: 1 }, lastSeenAt: now, lastResult: 'WRONG' } })
     if (skippedIds.length) await tx.wordEntry.updateMany({ where: { userId, id: { in: skippedIds } }, data: { lastSeenAt: now, lastResult: 'SKIPPED' } })
     const date = dates.fromDbDate(s.date)
+    const registered = await registerRepetitionItems(userId, vocabRepetitionInputs(cards), tx, { now })
     const cardCount = final.length
     await recordStudyLog(
       userId,
@@ -515,8 +552,9 @@ export async function finishVocabSession(userId: string, id: string): Promise<Fi
       tx,
     )
     await createVocabSessionSnapshot(userId, id, { cardCount, correct, wrong, skipped, durationSec, mode: s.mode, date }, tx)
-    await bumpDailySnapshot(userId, date, { words: { sessions: 1, correct, wrong } }, tx)
-    return finishResult(tx, userId, done)
+    await bumpDailySnapshot(userId, date, { words: { sessions: 1, correct, wrong }, repetition: { studied: registered.length } }, tx)
+    await recordObservations(userId, vocabObservations(s.mode, cards), tx, { date })
+    return { result: await finishResult(tx, userId, done), finishedNow: true, repetitionItems: registered.length }
   })
 }
 

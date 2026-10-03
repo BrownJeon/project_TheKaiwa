@@ -12,7 +12,7 @@
  * 채택 전에는 WordEntry·StudyLog·StatsSnapshot·LearnerErrorStat 에 행이 생기지 않는다.
  */
 import type { JlptLevel } from '@prisma/client'
-import { ApiError, classifyError, dates, jobs, lockUserRow, withTransaction } from '@/modules/infra'
+import { ApiError, classifyError, dates, isRetryableTxError, jobs, lockUserRow, withTransaction, type Tx } from '@/modules/infra'
 import { llm, newTraceId, recordTrace } from '@/modules/engine'
 import { buildChatReviewRequest, CHAT_REVIEW_PROMPT_VERSION } from '../prompts/chatReview'
 import type { ChatReviewResponse } from '../structuredResponse/schemas'
@@ -46,6 +46,14 @@ export interface ReviewSyncDto {
 }
 
 export type ReviewOutcome = { mode: 'sync'; result: ReviewSyncDto } | { mode: 'job'; jobId: string }
+
+/**
+ * 라우트가 넘기는 훅(task-010b L3) — 점검이 만든 교정(PROPOSED)의 관측을 **저장 트랜잭션 안에서** 쓴다(관측은 learning 소유).
+ * 교착은 다시 던져 트랜잭션 전체가 재시도되게 하고, 그 밖의 오류는 경고만 남기고 점검 결과는 저장한다(턴 훅과 같은 규칙).
+ */
+export interface ReviewHooks {
+  recordCorrectionsProposed?: (tx: Tx, rows: { correctionId: string; errorType: string; severity: string }[]) => Promise<void>
+}
 
 interface Claim {
   jobId: string
@@ -104,7 +112,7 @@ async function claimReview(userId: string, chatId: string): Promise<Claim> {
   })
 }
 
-async function executeReview(userId: string, chatId: string, c: Claim, priority: 'interactive' | 'batch'): Promise<ReviewSyncDto> {
+async function executeReview(userId: string, chatId: string, c: Claim, priority: 'interactive' | 'batch', hooks: ReviewHooks = {}): Promise<ReviewSyncDto> {
   const startedAt = Date.now()
   let status: 'OK' | 'ERROR' = 'OK'
   let errorCode: string | null = null
@@ -142,6 +150,14 @@ async function executeReview(userId: string, chatId: string, c: Claim, priority:
         })
         out.push({ correctionId: row.id, messageId: d.messageId, original: d.original, corrected: d.corrected, explanation: d.explanation, errorType: d.errorType, severity: d.severity, chunkType: d.chunkType, status: 'PROPOSED' })
       }
+      if (out.length && hooks.recordCorrectionsProposed) {
+        try {
+          await hooks.recordCorrectionsProposed(tx, out.map((o) => ({ correctionId: o.correctionId, errorType: o.errorType, severity: o.severity })))
+        } catch (e) {
+          if (isRetryableTxError(e)) throw e
+          console.warn('[review] 교정 제안 관측 기록 실패:', e instanceof Error ? e.name : 'unknown')
+        }
+      }
       // D4: 총평을 잡·재방문 경로에서도 잃지 않게 ADD_STUDY_LOG 제안 payload 에 둔다(코드가 만든다, LLM 아님 — 범위결정 3).
       await tx.tutorProposal.create({
         data: {
@@ -178,13 +194,13 @@ async function executeReview(userId: string, chatId: string, c: Claim, priority:
 }
 
 /** #33 — 동기면 결과, 잡이면 jobId. 수락 전 실패(404·400·409·ALREADY_REVIEWED)는 던진다. */
-export async function reviewChat(userId: string, chatId: string): Promise<ReviewOutcome> {
+export async function reviewChat(userId: string, chatId: string, hooks: ReviewHooks = {}): Promise<ReviewOutcome> {
   if (typeof chatId !== 'string' || !chatId || chatId.length > 40) throw notFoundChat()
   const claim = await claimReview(userId, chatId)
   if (claim.sync) {
     jobs.markLocalJob(claim.jobId, true)
     try {
-      return { mode: 'sync', result: await executeReview(userId, chatId, claim, 'interactive') }
+      return { mode: 'sync', result: await executeReview(userId, chatId, claim, 'interactive', hooks) }
     } catch (e) {
       await jobs.failJob(claim.jobId, classifyError(e).code)
       throw e
@@ -194,7 +210,7 @@ export async function reviewChat(userId: string, chatId: string): Promise<Review
   }
   // 잡 경로는 batch 레인 — 같은 프로세스의 CLI 큐에서 대화 턴이 먼저 돈다.
   jobs.runJobInBackground(claim.jobId, async () => {
-    await executeReview(userId, chatId, claim, 'batch')
+    await executeReview(userId, chatId, claim, 'batch', hooks)
   })
   return { mode: 'job', jobId: claim.jobId }
 }

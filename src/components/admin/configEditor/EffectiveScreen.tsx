@@ -19,6 +19,28 @@ import { SourceLegend } from './SourceBadge'
 
 type SourceFilter = 'ALL' | ConfigSourceName
 
+/** Effective 본문(출처 설명·키 검색·출처 칩·키 목록) — 설정 화면 Effective 탭(task-012c)도 이것을 그대로 쓴다. */
+export function EffectivePanel({ eff }: { eff: EffectiveConfigDto }) {
+  const [q, setQ] = useState('')
+  return (
+    <>
+      <details className="mt-2">
+        <summary className="flex h-11 cursor-pointer items-center text-[13px] font-medium">출처 8층이란?</summary>
+        <SourceLegend />
+      </details>
+      <input
+        type="search"
+        aria-label="설정 키 검색"
+        placeholder="키 검색 (예: timeout)"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        className="mt-1 h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3.5 text-[16px] text-ink placeholder:text-ink3"
+      />
+      <EffectiveBody key={eff.targetId} eff={eff} q={q} />
+    </>
+  )
+}
+
 function EffectiveBody({ eff, q }: { eff: EffectiveConfigDto; q: string }) {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('ALL')
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
@@ -73,7 +95,6 @@ export default function EffectiveScreen({ initialTarget }: { initialTarget: stri
   const router = useRouter()
   const targets = useAdminResource<EngineConnectionDto[]>('/api/admin/v1/engine-connections')
   const [picked, setPicked] = useState<string | null>(initialTarget)
-  const [q, setQ] = useState('')
   const list = sortConnections(targets.data ?? [])
   const target = picked ?? list[0]?.key ?? null
   const eff = useAdminResource<EffectiveConfigDto>(
@@ -129,19 +150,7 @@ export default function EffectiveScreen({ initialTarget }: { initialTarget: stri
                   <ConsoleError message={loadErrorText(eff.err, '설정값')} onRetry={eff.reload} />
                 </div>
               ) : null}
-              <details className="mt-2">
-                <summary className="flex h-11 cursor-pointer items-center text-[13px] font-medium">출처 8층이란?</summary>
-                <SourceLegend />
-              </details>
-              <input
-                type="search"
-                aria-label="설정 키 검색"
-                placeholder="키 검색 (예: timeout)"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                className="mt-1 h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3.5 text-[16px] text-ink placeholder:text-ink3"
-              />
-              <EffectiveBody key={d.targetId} eff={d} q={q} />
+              <EffectivePanel eff={d} />
             </>
           ) : null}
         </>

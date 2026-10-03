@@ -14,10 +14,25 @@
  * 있으면 위반이 났다 — `evalSchemas.ts` 의 `EVAL_SENTENCE_READING_PATTERN`(히라가나+가타카나, `lesson@v3` 와 동일
  * 원인·해법)으로 그 두 필드만 넓혔다. `READING_INPUT` 의 단어 읽기는 그대로 히라가나만(판단 근거는 그 상수 옆
  * 주석) — 대신 지시문에 "가타카나 외래어도 히라가나로" 문구를 A10 과 같은 톤으로 보강했다.
+ *
+ * **v4(2026-10-01, task-011 사용자 결정 (f)=A — 틀린 곳 찾기를 "문장 조각 탭 선택"으로)**: `CORRECTION_SPOT` 의
+ * `prompt` 에 `segments: string[]`(문장을 어절 3~12개로 끊은 조각)이 더해졌다 — 학습자는 이 칩 **하나**를 탭하고
+ * (learning 의 `spotIndex`) 고친 말·이유를 적는다. 계약은 `checkCorrectionSpotSegments`(이어 붙이면 sentenceJa 와
+ * 글자 하나까지 동일·3~12개·조사/구두점/빈 조각 금지·wrongSpan 이 ≤2조각). **조각 만들기는 하이브리드**:
+ * 모델이 내되(히라가나 위주 N5 문장은 코드보다 잘 끊는다) 계약을 못 지키면 코드가 sentenceJa 에서 결정적으로 다시
+ * 만든다(`repairEvalGenCorrectionSegments` — lesson `promptKo` 보정과 같은 원칙, [[llm-japanese-quality]] §14). 둘 다
+ * 안 되면(너무 짧거나 히라가나뿐) 위반으로 1회 재시도. 14일 해시(`computeEvalItemHash`)는 `prompt.sentenceJa`
+ * 만 쓰므로 segments 는 영향이 없고, CORRECTION_SPOT 은 선택지 셔플 대상이 아니다(저장 구조 불변).
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
-import { checkEvalGenResponse, computeEvalItemHash, repairEvalGenChunkTypeSync, repairEvalGenWordLinks } from '../structuredResponse/evalChecks'
+import {
+  checkEvalGenResponse,
+  computeEvalItemHash,
+  repairEvalGenChunkTypeSync,
+  repairEvalGenCorrectionSegments,
+  repairEvalGenWordLinks,
+} from '../structuredResponse/evalChecks'
 import {
   buildEvalGenSchema,
   EVAL_GEN_ITEM_COUNTS,
@@ -29,7 +44,7 @@ import {
 import type { JlptLevel } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderToday } from './header'
 
-export const EVAL_GEN_PROMPT_VERSION = 'evalGen@v3'
+export const EVAL_GEN_PROMPT_VERSION = 'evalGen@v4'
 /** Leader's Plan L2 — 코드가 오답 우선 가중으로 고른 재료 상한. */
 export const EVAL_GEN_MATERIALS_MAX = 15
 /** 배치(60s) 잡이라 A1(3,000)만큼 타이트하지 않지만 무한정 두지 않는다 — `__tests__/evalGen.test.ts` 예산 회귀. */
@@ -94,7 +109,7 @@ function kindRules(kind: EvalKind): string {
     '- LISTEN_RESPOND: prompt.textJa(학습자가 듣게 될 자연스러운 일본어 문장 — 학습자에게는 글자로 보이지 않고 음성으로만 재생됩니다)·prompt.instructionKo(무엇을 하라는 한국어 지시, 예: "들은 말에 자연스럽게 답해 보세요"). expected.expectedGistKo(좋은 응답이 담아야 할 내용, 한국어 요지)·expected.modelAnswerJa/modelReading(모범 응답 예시 1개 — modelReading 은 히라가나로 쓰되 외래어는 자연스러운 가타카나 표기 그대로 써도 됩니다, 한자·로마자·한글은 쓰지 않습니다).',
     '- ASSEMBLE: prompt.promptKo(무엇을 조립하라는 한국어 지시)·prompt.pieces(3~7개 조각, 순서를 섞어서 나열). expected.order 는 pieces 와 **정확히 같은 조각들**을 올바른 순서로 나열한 배열(새 조각을 더하거나 빼면 안 됩니다).',
     '- SITUATION_RESPOND: prompt.situationKo(상황을 한국어로 설명 — 학습자는 이 상황에 일본어로 답합니다). expected.expectedGistKo·expected.modelAnswerJa/modelReading(LISTEN_RESPOND 와 같은 규칙 — 외래어는 가타카나 표기 허용).',
-    '- CORRECTION_SPOT: prompt.sentenceJa(오류가 하나 있는 일본어 문장). expected.wrongSpan(그 문장 안의 틀린 부분을 글자 그대로 인용 — 새로 만들지 않음)·expected.correctedJa(고친 문장 전체)·expected.explanationKo(왜 틀렸는지 한국어 한 줄).',
+    '- CORRECTION_SPOT: prompt.sentenceJa(오류가 하나 있는 일본어 문장 — 어절이 3개 이상 나오도록 8자 이상으로, 히라가나뿐인 짧은 문장은 피합니다)·prompt.segments(학습자가 틀린 곳을 탭해 고르는 조각 배열 — sentenceJa 를 앞에서부터 그대로 어절 3~12개로 끊은 것. **이어 붙이면 sentenceJa 와 글자 하나까지 같아야 하며** 공백을 넣거나 글자를 더하고 빼고 고치지 않습니다. 조사(は·が·を·に·で 등)와 구두점(、。)은 앞 단어에 붙이고, 조사 한 글자짜리·한 글자짜리 조각을 만들지 않습니다. 예: sentenceJa 「私は毎日学校に行くます。」 → segments [「私は」,「毎日」,「学校に」,「行くます。」] — 예시일 뿐 그대로 쓰지 않습니다). expected.wrongSpan(그 문장 안의 틀린 부분을 글자 그대로 인용 — 새로 만들지 않음. 조각 1~2개 안에 들어오고, 틀리지 않은 조각이 남아야 합니다)·expected.correctedJa(고친 문장 전체)·expected.explanationKo(왜 틀렸는지 한국어 한 줄).',
   ].join('\n')
 }
 
@@ -131,6 +146,7 @@ export function buildEvalGenRequest(input: EvalGenInput): LlmJsonRequest<EvalGen
     extraCheck: (data) => {
       repairEvalGenWordLinks({ candidateSurfaces }, data)
       repairEvalGenChunkTypeSync(data)
+      repairEvalGenCorrectionSegments(data)
       return checkEvalGenResponse({ kind: input.kind, candidateSurfaces, recentHashes }, data)
     },
   }

@@ -35,6 +35,7 @@ export const APP_SETTING_SCHEMA: Readonly<Record<string, SettingDef>> = {
     type: 'STRING',
     default: 'こんにちは。今日も一緒に楽しく日本語を勉強しましょう。',
     maxLength: PREVIEW_TEXT_MAX,
+    freeText: true,
     description: '통합 미리듣기 문장(§43) — 바꾸면 미리듣기 캐시 키(textVersion)가 자동으로 올라간다',
     editability: 'RUNTIME_EDITABLE',
     strict: false,

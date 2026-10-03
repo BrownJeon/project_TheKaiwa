@@ -194,11 +194,16 @@ export function draftKey(parts: readonly (string | number | null | undefined)[])
 }
 
 /** 이유·확인 문구 공통 검사(요청 전). 확인 문구는 대소문자까지 정확히, 앞뒤 공백만 무시. */
+/** 운영 쓰기 이유 최소 글자 수(서버 infra/reason REASON_MIN_PRODUCTION 과 같은 값). */
+export const REASON_MIN_PRODUCTION = 10
+
 export function validateWriteMeta(reason: string, confirm: string, needsConfirm: boolean): { reason?: FieldError; confirm?: FieldError } {
   const out: { reason?: FieldError; confirm?: FieldError } = {}
   const r = reason.trim()
   if (!r) out.reason = { code: 'REQUIRED' }
   else if (cp(r) > LEXICON_LIMITS.reasonMax) out.reason = { code: 'TOO_LONG', n: cp(r) }
+  // 운영(확인 문구가 필요한 쓰기)은 이유 10자 이상(task-012c CX-3 · role-permission §7 ② — 서버도 같은 규칙으로 422 E_REASON).
+  else if (needsConfirm && cp(r.replace(/\s+/g, ' ')) < REASON_MIN_PRODUCTION) out.reason = { code: 'TOO_SHORT', n: cp(r.replace(/\s+/g, ' ')) }
   if (needsConfirm && confirm.trim() !== LEXICON_PRODUCTION_CONFIRM) out.confirm = { code: 'MISMATCH' }
   return out
 }

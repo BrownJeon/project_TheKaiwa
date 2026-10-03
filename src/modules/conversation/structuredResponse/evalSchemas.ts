@@ -14,7 +14,7 @@
  * | LISTEN_RESPOND | `{textJa, instructionKo}` | `{expectedGistKo, modelAnswerJa, modelReading}` | `textJa` 는 TTS 로만 들려주고 학습자에게 숨김(서버가 `audioUrl`·`textHidden:true` 로 치환). `modelReading` 은 **히라가나+가타카나**(`EVAL_SENTENCE_READING_PATTERN`, evalGen@v3). A7 서술형 |
  * | ASSEMBLE | `{promptKo, pieces[3~7]}` | `{order[3~7]}` | `order` 는 `pieces` 와 같은 조각을 올바른 순서로. 코드 채점(전부 일치해야 정답) |
  * | SITUATION_RESPOND | `{situationKo}` | `{expectedGistKo, modelAnswerJa, modelReading}` | `modelReading` 은 **히라가나+가타카나**(`EVAL_SENTENCE_READING_PATTERN`, evalGen@v3). A7 서술형 |
- * | CORRECTION_SPOT | `{sentenceJa}` | `{wrongSpan, correctedJa, explanationKo}` | `wrongSpan` 은 `sentenceJa` 안의 리터럴 부분 문자열이어야 함. A7 서술형 |
+ * | CORRECTION_SPOT | `{sentenceJa, segments[3~12]}` | `{wrongSpan, correctedJa, explanationKo}` | `wrongSpan` 은 `sentenceJa` 안의 리터럴 부분 문자열이어야 함. `segments`(evalGen@v4)는 학습자가 탭해 고르는 어절 조각 — `segments.join('')===sentenceJa`·조각 3~12개·빈 조각/구두점만/조사만 조각 금지·`wrongSpan` 이 걸친 조각 ≤2개. 새 출제물에만 있고(구 문항은 없음 → 화면이 자유 입력으로 폴백) 14일 해시에는 들어가지 않음. A7 서술형 |
  *
  * `wordSurface`(재료 단어장 링크, 없으면 null)·`chunkType`(CHUNK_CLASSIFY 정답, 그 밖은 null)·`dims`(이 문항이 주로
  * 재는 루브릭 차원 1~3개, `EVAL_DIMS`)는 8종 공통 top-level 필드다(Prisma `EvaluationItem.wordSurfaceSnap`·`chunkType`
@@ -84,6 +84,12 @@ export const EVAL_GEN_ITEM_COUNTS: Record<EvalKind, Partial<Record<EvalItemKind,
 }
 export const EVAL_GEN_TOTAL_ITEMS: Record<EvalKind, number> = { WORDS: 10, TALK: 6 }
 
+/** CORRECTION_SPOT `prompt.segments` 조각 수 범위(evalGen@v4) — 화면이 한 줄에 칩으로 늘어놓을 수 있는 현실적인 범위. */
+export const EVAL_SEGMENTS_MIN = 3
+export const EVAL_SEGMENTS_MAX = 12
+/** `wrongSpan` 이 걸칠 수 있는 조각 수 상한 — 학습자는 조각 하나만 탭하므로 정답 조각이 많을수록 "아무거나 찍어도 맞는" 문항이 된다. */
+export const EVAL_SEGMENT_RUN_MAX = 2
+
 // ── 문항별 TS 타입(EVAL_GEN 출력) ──────────────────────────────────────────
 
 interface EvalGenItemBase {
@@ -132,7 +138,12 @@ export interface EvalSituationRespondItem extends EvalGenItemBase {
 }
 export interface EvalCorrectionSpotItem extends EvalGenItemBase {
   kind: 'CORRECTION_SPOT'
-  prompt: { sentenceJa: string }
+  /**
+   * `segments`(evalGen@v4, task-011 (f)=A "틀린 곳 탭 선택"): 문장을 어절·구 단위로 끊은 조각 — **스키마에서는 선택 필드**다
+   * (구 문항·폴백 호환: 없으면 화면이 자유 입력). 새 출제물은 `repairEvalGenCorrectionSegments`(extraCheck 안)가 모델이 낸
+   * 조각을 검증하고, 계약을 못 지키면 코드가 `sentenceJa` 에서 결정적으로 다시 만들어 채우므로 **저장 시점에는 항상 있다**.
+   */
+  prompt: { sentenceJa: string; segments?: string[] }
   expected: { wrongSpan: string; correctedJa: string; explanationKo: string }
 }
 
@@ -250,7 +261,17 @@ function evalGenItemSchema(): object {
       ),
       branch(
         'CORRECTION_SPOT',
-        { type: 'object', additionalProperties: false, required: ['sentenceJa'], properties: { sentenceJa: { type: 'string', minLength: 1, maxLength: 120 } } },
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['sentenceJa'],
+          properties: {
+            sentenceJa: { type: 'string', minLength: 1, maxLength: 120 },
+            // 선택 필드(구 문항 호환) — 스키마는 모양(문자열 배열)만 본다. 조각 수·join·정렬 계약은 evalChecks 가 보고, 못 지키면
+            // repairEvalGenCorrectionSegments 가 코드로 다시 만든다(개수를 여기서 막으면 고칠 수 있는 응답을 재시도로 보낸다).
+            segments: { type: 'array', maxItems: 40, items: { type: 'string', maxLength: 120 } },
+          },
+        },
         {
           type: 'object',
           additionalProperties: false,

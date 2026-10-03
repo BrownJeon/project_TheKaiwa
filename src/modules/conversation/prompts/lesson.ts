@@ -75,6 +75,31 @@
  * 간다, `engine/json/schemaValidate.ts` "스키마 밖 필드 제거" 절 참고). 아래 지시문에도 "정해진 키만 쓰라"는 한 줄을 추가했다(근본
  * 발생률을 낮추는 보조 수단 — 핵심 방어는 위 결정적 제거다). 스키마·`repair.ts`·`checks.ts` 의 나머지 로직은
  * 바꾸지 않았다. 재측정 표는 `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`(§12).
+ *
+ * **v8(2026-09-30, task-025 IMP-0014 문제 한국어 표기 — 사용자 결정 Q10 "모든 단계")** — 화면(`StageQuiz.tsx`)이 `q.promptKo ?? ja`
+ * 로 일본어 원문에 기대던 폴백을 없애도록 **`quiz[].promptKo` 를 필수·비어 있지 않은 한국어 문자열로 올렸다**(스키마 `lessonQuizItem`:
+ * anyOf[null,string] → string). 문제 문장 필드 목록: quiz.promptKo(v7 nullable → v8 필수) · quiz.promptJa(일본어 문장을 보여 줄 때만,
+ * nullable 유지) · application.promptKo·speaking.promptKo(이미 필수) — 그 밖에 한국어 대응이 없는 문제 문장은 없다(`application.hintJa`
+ * 는 힌트 문구라 문제 문장이 아니다). 아래 지시문에 "모든 문제에 promptKo 를 채운다·정답이 되는 뜻은 미리 쓰지 않는다"를 넣었고,
+ * `checks.ts` 는 옛 "promptKo·promptJa 중 최소 하나" 규칙을 "promptKo 에 한글이 있는가"로 바꿨다(마지막 시도는 완화). A5 `reviewMix`
+ * 도 같은 스키마·검사를 쓰므로 한 줄 지시문을 맞췄다. **이미 저장된 v7 이하 레슨의 promptKo null 은 그대로 둔다**(재생성 없음 —
+ * 읽는 쪽 타입은 `string | null`). 통과율 측정·롤백 기준: task-025 이력서 "Prompt-Engineer 기록"·`llm-japanese-quality.md` §13.
+ *
+ * **v8 + (e)=B(2026-10-01, 같은 v8 — 아직 운영·커밋 전이라 버전을 올리지 않았다)** — 첫 실측에서 빈칸 문제의 promptKo 가 문장 전체 번역이라
+ * **빈칸 자리의 뜻(정답)이 노출**됐다(5문항 중 1건: "비가 내리고 있어서 …" ↔ 정답 「雨が降っていたので」, 옛 예시 "(커피를 ＿＿.)" 가
+ * 번역 패턴을 부추긴 것으로 본다). 사용자가 데모 결정 (e)=B 를 승인해 **빈칸 문제는 promptKo 에 "빈칸에 들어갈 알맞은 말을 고르세요." 같은
+ * 할 일만 쓰고 번역·정답의 뜻은 쓰지 않는다**로 지시를 분리했다. 이 규칙이 성립하려면
+ * 빈 문장이 화면에 보여야 하므로 "빈 문장은 promptJa 에 ＿＿ 로 비워 반드시 채운다"도 함께 지시한다. 코드(checks.ts)로는 "정답의 뜻이
+ * promptKo 에 드러났는가"를 판정할 수 없고(choices 에 한국어 뜻이 없다) 억지 규칙은 오탐으로 생성 실패율만 올리므로 **검사는 추가하지
+ * 않았다** — 지시문 문구 회귀 테스트와 실측(`tests/live/lesson-promptko-measure.ts`, 빈칸 문항 노출 건수 육안 집계)으로만 다룬다.
+ *
+ * **재측정 교훈(2026-10-01, 같은 v8)** — 첫 (e)=B 초안은 예산(`LESSON_USER_PROMPT_CAP` 9,500 — 올리지 않는다) 때문에 v8 의 일반 문장
+ * "정답이 되는 뜻·표현은 promptKo 에 미리 쓰지 않습니다."를 빈칸 절에 흡수해 지웠는데, 그러자 **뜻 고르기 문항**(일본어 문장 → 한국어 뜻
+ * 선택지)에서 promptKo 가 일본어 문장 복사(한글 없음 → 재시도·마지막 시도에선 일본어만 저장)이거나 정답 번역으로 나왔다. 그 일반 문장을
+ * 되살리고(다른 군더더기를 줄여 예산 유지), 번역을 부추기던 절 "일본어 문장이 나오는 문제는 그 한국어 뜻을 쓴다"를 "일본어 문장은 promptJa
+ * 에만 두고 promptKo 에는 무엇을 고르라는 한국어 지시(예: "문장의 뜻을 고르세요.")를 쓴다"로 바꿨다 — **번역형·뜻 고르기형의 promptKo 도
+ * 이제 "고르라는 지시"** 이므로 (e)=B 의 "번역형 지시는 그대로" 는 이 한 줄에 한해 바뀐 것이다. 되돌리려면 옛 절(task-025 PE 기록의 e2 문구)로 복원한다.
+ * checks.ts 의 재시도 안내 문구도 같은 방향으로 맞췄다(로직 무변경).
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -83,14 +108,16 @@ import { repairLessonResponse, type LessonRepairSourceChunk } from '../structure
 import { LESSON_SCHEMA, type ChunkType, type JlptLevel, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const LESSON_PROMPT_VERSION = 'lesson@v7'
+export const LESSON_PROMPT_VERSION = 'lesson@v8'
 
 /**
- * `renderTranscript(req.system, req.messages)` 상한(persona 는 별도 `--system-prompt` 라 여기 안 든다, talk.ts 와 같은
- * 관례). TALK(3,000)보다 훨씬 크다 — LESSON 은 5초 예산이 아니라 120s 잡이고, 스키마 자체가 10개 절(대화 10줄·조각
- * 8개·quiz 5·응용 3·말하기 3)을 요구해 출력이 크다. 실측(조각·교정·이전 제목·직전 예고를 전부 상한까지 채운 최악
- * 조합, `__tests__/lesson.test.ts` 의 예산 회귀 테스트, 2026-09-28): 주제 경로 8,418자 · sourceText 경로 6,087자 ·
- * 시드 주제 수준의 정상 입력 2,836자. 8,418자에 여유를 둔 값이 9,500이다.
+ * `renderTranscript(req.system, req.messages)` 설계 예산(persona 는 별도 `--system-prompt` 라 여기 안 든다, talk.ts 와 같은
+ * 관례). **런타임 강제는 없다** — 넘어도 요청은 그대로 나간다. TALK(3,000)보다 훨씬 크다 — LESSON 은 5초 예산이 아니라
+ * 120s 배치 잡이고, 스키마 자체가 10개 절(대화 10줄·조각 8개·quiz 5·응용 3·말하기 3)을 요구해 출력이 크다. 실측(조각·교정·
+ * 이전 제목·직전 예고를 전부 상한까지 채운 조합, `__tests__/lesson.test.ts` 의 예산 회귀 테스트, 2026-10-01, lesson@v8):
+ * 정상~준최악(이름 30·헤더 567) 주제 경로 9,490자는 이 값 안, 실제 DB 한도 최대 학습자(displayName 40·teacherName 30·헤더 600)
+ * 주제 경로 9,523자는 이 값을 23자 넘는다(그래서 그 경우는 CAP 이 아니라 9,540 천장으로 지킨다). 같은 학습자의 sourceText
+ * 경로 7,192자 · 시드 주제 수준의 정상 입력 4,055자.
  */
 export const LESSON_USER_PROMPT_CAP = 9_500
 export const LESSON_HEADER_CAP = 600
@@ -227,7 +254,7 @@ function lessonInstruction(hasTopic: boolean): string {
     '- **id 규칙(가장 중요, 먼저 지킵니다)**: quiz·application·speaking 의 targetIds 에 쓰는 id 는 **먼저 위 chunks 배열이나 아래 grammar 배열에 넣은 id 만** 씁니다. 그 두 배열 밖의 id 는 어디에도(특히 targetIds 에) 쓰지 않습니다 — [조각] 목록에 있어도 이번 chunks 에 넣지 않았으면 targetIds 에도 쓸 수 없습니다.',
     '- **모범 답 내용 규칙(application·speaking 공통, id 규칙 다음으로 중요)**: modelAnswerJa 가 가리키는 targetIds 중 chunks id 는 그 chunk 의 textJa(또는 자연스러운 활용형)를 **modelAnswerJa 문장 안에 실제로 써서** 보여줘야 합니다 — targetIds 에 넣기만 하고 다른 말로 바꿔 쓰면 안 됩니다. grammar id 를 가리킬 때는 그 문형을 살린 자연스러운 문장이면 충분합니다(pattern 표기 자체가 문장에 그대로 나타날 필요는 없습니다).',
     '- grammar: 1~3개, 이번 수업의 핵심 문형. id 는 "g1","g2","g3" 순서로 붙입니다. pattern(문형 표기)·explanationKo(한국어 설명, 200자 이내)·exampleJa/exampleReading/exampleKo(예문 1개).',
-    '- quiz: 정확히 5개, id "q1"~"q5". **전부 4지선다입니다**(다른 형식 금지) — choices 는 서로 다른 4개(80자 이내), answer 는 정답의 인덱스(0~3, choices 순서 기준, 숨기지 말고 그대로 채웁니다). promptKo·promptJa 중 최소 하나는 채우고(문제 성격에 맞는 언어로) 안 쓰는 쪽은 null 로 둡니다. targetIds 는 위 id 규칙을 따릅니다. explanationKo 는 정답 풀이 한 줄(120자 이내).',
+    '- quiz: 정확히 5개, id "q1"~"q5". **전부 4지선다입니다** — choices 는 서로 다른 4개(80자 이내), answer 는 정답의 인덱스(0~3, 숨기지 말고 채웁니다). **모든 문제(q1~q5)의 promptKo 에 한국어를 반드시 채웁니다**(null·빈 값 금지, 160자 이내) — 일본어 문장은 promptJa 에만 두고, promptKo 에는 무엇을 고르라는 한국어 지시(예: "문장의 뜻을 고르세요.")를 씁니다. 정답이 되는 뜻·표현은 promptKo 에 미리 쓰지 않습니다. **빈칸 문제는 promptKo 에 할 일만 씁니다**(예: "빈칸에 들어갈 알맞은 말을 고르세요.") — 번역하지 않고, 빈 문장은 promptJa 에 ＿＿ 로 비워 반드시 채웁니다. promptJa 는 일본어 문장을 보여 줄 때만(120자 이내) 채우고 아니면 null. targetIds 는 위 id 규칙을 따릅니다. explanationKo 는 정답 풀이 한 줄(120자 이내).',
     '- application: 정확히 3개, id "a1"~"a3". promptKo(한국어로 과제 상황 설명, 200자 이내)·hintJa(힌트, 없으면 null)·modelAnswerJa/modelReading/modelKo(모범 답 하나)·targetIds(위 id 규칙).',
     '- speaking: 정확히 3개, id "s1"~"s3". promptKo(무엇을 말해야 하는지 한국어 지시, 200자 이내)·targetIds(위 id 규칙)·modelAnswerJa/modelReading/modelKo. 학습자는 음성 또는 텍스트로 답하며 정답 여부는 서버가 표현 사용 여부만 느슨하게 확인합니다 — 자연스러운 모범 답 하나만 주면 됩니다. 상황(역할극)은 없습니다.',
     '- nextPreview: titleKo(다음 수업 제목, 40자 이내)·teaserKo(예고 한 줄, 60자 이내) — 완결감을 주지 말고 "조금 아쉬운" 정도로 다음 진입 동기를 주세요.' +
@@ -321,7 +348,7 @@ export function buildLessonRequest(input: LessonInput): LessonRequest {
       if (tolerant.length < strict.length) {
         // 상관 id·시도 번호·건수만 남긴다 — 원문·학습자 텍스트·모범 답 내용은 싣지 않는다.
         console.info(
-          `[lesson] 마지막 시도 — 콘텐츠 매칭(④) 위반 ${strict.length - tolerant.length}건을 눈감고 통과시킴 trace=${safeTraceId(info.traceId)} attempt=${info.attempt}/${info.maxAttempts}`,
+          `[lesson] 마지막 시도 — 콘텐츠 매칭(④)·quiz.promptKo 한글 검사 위반 ${strict.length - tolerant.length}건을 눈감고 통과시킴 trace=${safeTraceId(info.traceId)} attempt=${info.attempt}/${info.maxAttempts}`,
         )
       }
       return tolerant

@@ -4,6 +4,8 @@
  * ① 이해(screens §12-2 F · 데모 v2 `#l1`·`#l1-playing`·`#l1-memo`·`#l1-textonly`) — 구간 아코디언(한 번에 하나), 느리게 → 보통 순서로
  * **누를 때만** 재생(b=B), 느리게 들을 땐 글자를 가린다(d=B), 구간마다 들린 단어 메모 → 모아서 #62a 제안.
  * 다시 보기(끝낸 단계)에서는 쓰기 요청을 보내지 않는다(듣기만).
+ * 줄 다시 듣기(task-025 데모 v1 `#l1`·`#l1-line`·`#l1-interrupt`·`#l1-review`): 줄마다 오른쪽 ▶ — 그 줄 하나만, 진행 기록 없음(`playLineReplay`).
+ * 글자 가림 중에도 보이고 가림은 풀지 않는다. 자막만이면 숨긴다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
@@ -12,15 +14,27 @@ import { readStore, writeStore } from '@/components/common/storage'
 import ProposalCard from '@/components/chat/ProposalCard'
 import { Badge, Btn, BtnRow, Card } from '@/components/common/ui'
 import type { ProposalDto } from '@/types/chat'
-import type { LessonContent, LessonDto, LessonProgress, MemoResult } from '@/types/lesson'
+import type { AudioPace, LessonContent, LessonDto, LessonProgress, MemoResult } from '@/types/lesson'
 import { SKIP_REASON, U1 } from './lessonCopy'
-import { cleanMemo, memoRequest, memoWordProblem, rateLabel, segmentLines } from './logic'
-import { RoleChip, StopIcon, PlayIcon, Toggle } from './parts'
+import { activeLineReplay, cleanMemo, lineReplayKey, lineReplayPace, memoRequest, memoWordProblem, playLineReplay, rateLabel, segmentLines } from './logic'
+import { RoleChip, Spinner, StopIcon, PlayIcon, Toggle } from './parts'
 import type { LessonPlayback } from './useLessonPlayback'
 import type { UseLesson } from './useLesson'
 import { LESSON_KEYS } from './useLessonCreate'
 
 const uniq = (xs: number[]) => [...new Set(xs)].sort((a, b) => a - b)
+
+/** 줄 오른쪽 다시 듣기 — 보이는 원 32px, 누르는 범위 44px(줄 그리드 마지막 칸). */
+function LineReplayButton({ n, slow, state, onClick }: { n: number; slow: boolean; state: 'idle' | 'loading' | 'playing'; onClick: () => void }) {
+  const on = state !== 'idle'
+  return (
+    <button type="button" onClick={onClick} aria-label={on ? U1.lineStopAria(n) : U1.lineAria(n, slow)} className="-my-1 -mr-2 grid h-11 w-11 place-items-center rounded-full text-ink">
+      <span aria-hidden="true" className={`grid h-8 w-8 place-items-center rounded-full border ${on ? 'border-ink bg-ink text-surface' : 'border-line bg-surface'}`}>
+        {state === 'loading' ? <Spinner /> : on ? <StopIcon /> : <PlayIcon />}
+      </span>
+    </button>
+  )
+}
 
 function withPlayed(p: LessonProgress, seg: number, pace: 'slow' | 'normal'): LessonProgress {
   const l = p.listen ?? {}
@@ -72,6 +86,8 @@ export default function StageUnderstand({
     pb.playLines(key, lines, reviewing ? undefined : () => st.update((prev) => withPlayed(prev, k, pace), ['listen']))
   }
   const playingKey = (k: number) => (pb.active(`seg:${k}:slow`) ? `seg:${k}:slow` : pb.active(`seg:${k}:normal`) ? `seg:${k}:normal` : null)
+  const lineNow = activeLineReplay(pb.snapshot)
+  const playLine = (idx: number, pace: AudioPace) => (pb.active(lineReplayKey(idx)) ? pb.stop() : playLineReplay(pb, idx, pace))
 
   return (
     <div>
@@ -106,17 +122,30 @@ export default function StageUnderstand({
           const pk = playingKey(k)
           const line = pk ? pb.lineOf(pk) : null
           const hidden = !textOnly && !reviewing && !norm && !shown.has(k) && !done
+          const lineHere = lineNow && lines.includes(lineNow.idx) ? lineNow : null
+          const linePace = lineReplayPace(norm, reviewing)
+          const lineBtn = (idx: number) =>
+            textOnly ? null : (
+              <LineReplayButton
+                n={idx + 1}
+                slow={linePace === 'slow'}
+                state={lineNow?.idx !== idx ? 'idle' : lineNow.loading ? 'loading' : 'playing'}
+                onClick={() => playLine(idx, linePace)}
+              />
+            )
           const last = si === segNums.length - 1
           const nextSeg = () => setOpen(segNums[si + 1] ?? null)
           let mark: React.ReactNode = null
           if (done) mark = <Badge tone="good">{textOnly ? U1.read : U1.heard}</Badge>
           else if (!textOnly && (slow || norm)) mark = <span className="text-[12px] text-ink2">{slow ? '느리게 ✓' : '느리게'} · {norm ? '보통 ✓' : '보통'}</span>
           let status: string
-          if (pk && line !== null) status = U1.statusPlaying(pk.endsWith(':slow'), line + 1, lines.length)
+          if (lineHere) status = lineHere.loading ? U1.lineLoading(lineHere.idx + 1) : U1.linePlaying(lineHere.idx + 1, linePace === 'slow')
+          else if (pk && line !== null) status = U1.statusPlaying(pk.endsWith(':slow'), line + 1, lines.length)
           else if (slow && norm) status = last ? U1.statusAllDone : U1.statusDone
           else if (slow) status = U1.statusThenNormal
           else status = U1.statusFirst
-          const unblock = pb.blocked && pk
+          const unblock = pb.blocked && (pk || lineHere)
+          const rowCols = textOnly ? 'grid-cols-[26px_minmax(0,1fr)]' : 'grid-cols-[26px_minmax(0,1fr)_44px] items-start'
           return (
             <section key={k} className={`min-w-0 rounded-[14px] border bg-surface ${isOpen ? 'border-accent' : 'border-line'}`}>
               <button
@@ -151,20 +180,21 @@ export default function StageUnderstand({
                   <div className="flex flex-col gap-0.5">
                     {lines.map((idx, li) => {
                       const d = c.dialogue[idx]
-                      const now = line === li
+                      const now = line === li || lineNow?.idx === idx
                       if (hidden)
                         return (
-                          <div key={idx} className="-mx-2 grid grid-cols-[26px_minmax(0,1fr)] gap-2 rounded-[10px] px-2 py-1.5">
+                          <div key={idx} className={`-mx-2 grid ${rowCols} gap-2 rounded-[10px] px-2 py-1.5 ${now ? 'bg-accent-soft' : ''}`}>
                             <RoleChip who={d.speaker} />
-                            <div className="flex flex-col gap-1.5 pt-1">
+                            <div className="flex min-w-0 flex-col gap-1.5 pt-1">
                               <span className="sr-only">{U1.hiddenSr(c.rolesKo[d.speaker])}</span>
                               <span aria-hidden="true" className="block h-3.5 w-4/5 rounded bg-surface2" />
                               {Array.from(d.ja).length > 14 ? <span aria-hidden="true" className="block h-3.5 w-1/2 rounded bg-surface2" /> : null}
                             </div>
+                            {lineBtn(idx)}
                           </div>
                         )
                       return (
-                        <div key={idx} className={`-mx-2 grid grid-cols-[26px_minmax(0,1fr)] gap-2 rounded-[10px] px-2 py-1.5 ${now ? 'bg-accent-soft' : ''}`}>
+                        <div key={idx} className={`-mx-2 grid ${rowCols} gap-2 rounded-[10px] px-2 py-1.5 ${now ? 'bg-accent-soft' : ''}`}>
                           <RoleChip who={d.speaker} />
                           <div className="min-w-0">
                             <span className="sr-only">{c.rolesKo[d.speaker]}: </span>
@@ -178,6 +208,7 @@ export default function StageUnderstand({
                             ) : null}
                             {trans ? <p className="text-[13px] text-ink2 break-keep">{d.ko}</p> : null}
                           </div>
+                          {lineBtn(idx)}
                         </div>
                       )
                     })}
@@ -209,7 +240,8 @@ export default function StageUnderstand({
                     </>
                   ) : (
                     <>
-                      <ol aria-label={U1.ladderAria} className="mt-2.5 grid grid-cols-2 gap-1.5">
+                      <p className="mt-2.5 text-[12px] text-ink2 break-keep">{U1.lineCaption}</p>
+                      <ol aria-label={U1.ladderAria} className="mt-2 grid grid-cols-2 gap-1.5">
                         <li className={`grid h-7 place-items-center rounded-lg text-[12px] ${slow ? 'bg-good-soft font-semibold text-good' : 'bg-surface font-semibold ring-[1.5px] ring-accent ring-inset'}`}>
                           {U1.ladderSlow}
                           {slow ? ' ✓' : ''}

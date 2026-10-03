@@ -13,6 +13,9 @@ import {
   EVAL_DIMS,
   EVAL_GEN_ITEM_COUNTS,
   EVAL_GEN_TOTAL_ITEMS,
+  EVAL_SEGMENT_RUN_MAX,
+  EVAL_SEGMENTS_MAX,
+  EVAL_SEGMENTS_MIN,
   type EvalGenItem,
   type EvalGenResponse,
   type EvalGradeItemOut,
@@ -82,10 +85,10 @@ export interface CheckEvalGenInput {
 }
 
 /**
- * 스키마가 표현 못 하는 다섯 가지: ① kind 별 정확한 개수(draft-07 이라 `minContains` 불가, evalSchemas.ts 주석)
+ * 스키마가 표현 못 하는 여섯 가지: ① kind 별 정확한 개수(draft-07 이라 `minContains` 불가, evalSchemas.ts 주석)
  * ② READING_INPUT `accepted ⊇ {reading}` ③ USAGE_CHOICE 빈칸 표시(`___`) ④ ASSEMBLE `order` 가 `pieces` 의 순서만
- * 바꾼 것인지(다중집합 동일) ⑤ CORRECTION_SPOT `wrongSpan` 이 `sentenceJa` 의 리터럴 부분 문자열인지. 그 위에 재료
- * 비율(60%)·14일 중복·엔진명 누출도 여기서 본다.
+ * 바꾼 것인지(다중집합 동일) ⑤ CORRECTION_SPOT `wrongSpan` 이 `sentenceJa` 의 리터럴 부분 문자열인지 ⑥ CORRECTION_SPOT
+ * `prompt.segments` 계약(evalGen@v4 — `checkCorrectionSpotSegments`). 그 위에 재료 비율(60%)·14일 중복·엔진명 누출도 여기서 본다.
  */
 export function checkEvalGenResponse(input: CheckEvalGenInput, data: EvalGenResponse): string[] {
   const v: string[] = []
@@ -131,6 +134,8 @@ export function checkEvalGenResponse(input: CheckEvalGenInput, data: EvalGenResp
           v.push(`${where}.expected.wrongSpan 은 prompt.sentenceJa 안에 글자 그대로 들어 있는 부분 문자열이어야 한다`)
         }
         if (it.expected.correctedJa === it.prompt.sentenceJa) v.push(`${where}.expected.correctedJa 가 prompt.sentenceJa 와 같다 — 실제로 고친 문장을 써야 한다`)
+        // evalGen@v4 — 새 출제물은 segments 가 반드시 있어야 한다(extraCheck 가 먼저 repairEvalGenCorrectionSegments 로 채운다)
+        for (const msg of checkCorrectionSpotSegments(it.prompt.sentenceJa, it.prompt.segments, it.expected.wrongSpan)) v.push(`${where}.prompt.segments ${msg}`)
         break
       default:
         break
@@ -204,6 +209,359 @@ export function repairEvalGenChunkTypeSync(data: EvalGenResponse): { synced: num
     }
   }
   return { synced }
+}
+
+// ── CORRECTION_SPOT `prompt.segments`(evalGen@v4, task-011 (f)=A "틀린 곳 탭 선택") ─────────────────
+//
+// 학습자는 문장을 어절 조각으로 끊어 놓은 칩 중 **하나**를 탭한다(learning 의 `spotIndex` = `prompt.segments` 인덱스). 그래서
+// 조각이 ① 원문을 글자 하나 안 바꾸고 이어 붙이면 그대로 되고 ② 칩으로 쓸 만한 크기(3~12개, 조사·구두점 혼자 조각 금지)이고
+// ③ 정답(`wrongSpan`)이 너무 많은 조각에 걸쳐 있지 않아야 한다. 모델이 이걸 못 지키면 재시도가 아니라 **코드가 `sentenceJa`
+// 에서 결정적으로 다시 만든다**(`repairEvalGenCorrectionSegments`) — lesson `promptKo`/읽기 보정과 같은 원칙([[llm-japanese-quality]]
+// §8·§14). 14일 해시(`computeEvalItemHash`)는 `prompt.sentenceJa` 만 쓰므로 segments 는 해시에 영향이 없다.
+
+/** 혼자 조각이 되면 안 되는 조사·접속 조각(구두점을 떼고 비교). */
+const SEGMENT_PARTICLES: ReadonlySet<string> = new Set([
+  'は', 'が', 'を', 'に', 'へ', 'で', 'と', 'も', 'の', 'や', 'か', 'ね', 'よ', 'から', 'まで', 'より', 'って', 'など', 'でも', 'しか', 'だけ', 'ほど', 'には', 'では', 'とは', 'へは',
+])
+const SEGMENT_PUNCT_CHARS = '、。，．,.!！?？「」『』（）()・…〜~'
+const SEGMENT_PUNCT_RE = new RegExp(`[${SEGMENT_PUNCT_CHARS.replace(/[\]\\^-]/g, '\\$&')}\\s]`, 'g')
+const SEGMENT_PUNCT_ONLY_RE = new RegExp(`^[${SEGMENT_PUNCT_CHARS.replace(/[\]\\^-]/g, '\\$&')}\\s]+$`)
+
+function stripSegmentPunct(piece: string): string {
+  return piece.replace(SEGMENT_PUNCT_RE, '')
+}
+
+export interface CorrectionSegmentStats {
+  /** 조각 수(배열이 아니면 0). */
+  count: number
+  /** `segments.join('') === sentenceJa`. */
+  joinEqual: boolean
+  /** 빈 문자열·공백 포함 조각 수. */
+  emptyOrSpaced: number
+  /** 구두점(「」 포함)만으로 된 조각 수. */
+  punctOnly: number
+  /** 조사(は·が·を·に…)만으로 된 조각 수 — 칩 하나가 조사 한 글자면 정답을 그대로 드러내거나 탭하기 어렵다. */
+  particleOnly: number
+  /** 구두점을 뗀 글자 수가 1인 조각 수(조사 제외) — 품질 지표(하드 위반 아님). */
+  singleChar: number
+  /** `wrongSpan` 이 걸친 연속 조각 범위(양끝 포함 인덱스). join 이 다르거나 wrongSpan 이 문장에 없으면 null. */
+  range: { from: number; to: number } | null
+  /** `wrongSpan` 이 걸친 조각 수(range 없으면 0). */
+  runLength: number
+}
+
+/**
+ * `wrongSpan` 이 걸친 조각 범위 — 문장에서 `wrongSpan` 이 **처음** 나오는 위치 기준(같은 말이 문장에 두 번 있으면 앞쪽).
+ * 끝 구두점(「行きます。」의 「。」)은 조각에 붙어 있어도 된다(글자 겹침으로 본다). `segments.join('') !== sentenceJa`
+ * 이거나 `wrongSpan` 이 문장에 없으면 null. 화면이 "정답 칩"을 강조하거나 A7 입력의 고른 곳이 정답 범위와 겹치는지 볼 때 쓴다.
+ */
+export function findWrongSegmentRange(segments: readonly string[], sentenceJa: string, wrongSpan: string): { from: number; to: number } | null {
+  if (wrongSpan.length === 0 || segments.join('') !== sentenceJa) return null
+  const start = sentenceJa.indexOf(wrongSpan)
+  if (start < 0) return null
+  const end = start + wrongSpan.length
+  let from = -1
+  let to = -1
+  let pos = 0
+  segments.forEach((seg, i) => {
+    const a = pos
+    const b = pos + seg.length
+    pos = b
+    if (a < end && b > start) {
+      if (from < 0) from = i
+      to = i
+    }
+  })
+  return from < 0 ? null : { from, to }
+}
+
+export function analyzeCorrectionSegments(sentenceJa: string, segments: readonly string[] | undefined, wrongSpan: string): CorrectionSegmentStats {
+  if (!Array.isArray(segments)) return { count: 0, joinEqual: false, emptyOrSpaced: 0, punctOnly: 0, particleOnly: 0, singleChar: 0, range: null, runLength: 0 }
+  let emptyOrSpaced = 0
+  let punctOnly = 0
+  let particleOnly = 0
+  let singleChar = 0
+  for (const seg of segments) {
+    if (typeof seg !== 'string' || seg.length === 0 || /\s/.test(seg)) {
+      emptyOrSpaced++
+      continue
+    }
+    if (SEGMENT_PUNCT_ONLY_RE.test(seg)) {
+      punctOnly++
+      continue
+    }
+    const core = stripSegmentPunct(seg)
+    if (SEGMENT_PARTICLES.has(core)) particleOnly++
+    else if (core.length === 1) singleChar++
+  }
+  const range = findWrongSegmentRange(segments, sentenceJa, wrongSpan)
+  return {
+    count: segments.length,
+    joinEqual: segments.join('') === sentenceJa,
+    emptyOrSpaced,
+    punctOnly,
+    particleOnly,
+    singleChar,
+    range,
+    runLength: range ? range.to - range.from + 1 : 0,
+  }
+}
+
+/**
+ * CORRECTION_SPOT `prompt.segments` 하드 계약 위반 문구(없으면 빈 배열). `checkEvalGenResponse` 가 문항마다 부른다 —
+ * 문구 앞에는 호출부가 `items[i].prompt.segments ` 를 붙이므로 여기서는 술어부터 쓴다(재시도 프롬프트에 그대로 실린다).
+ */
+export function checkCorrectionSpotSegments(sentenceJa: string, segments: readonly string[] | undefined, wrongSpan: string): string[] {
+  if (segments === undefined) {
+    return ['가 없다 — sentenceJa 를 어절 3~12개로 끊은 배열을 넣어라(문장이 너무 짧거나 히라가나뿐이라 끊기 어려우면 한자·가타카나가 섞인 더 긴 문장으로 바꿔라)']
+  }
+  const st = analyzeCorrectionSegments(sentenceJa, segments, wrongSpan)
+  const v: string[] = []
+  if (st.count < EVAL_SEGMENTS_MIN || st.count > EVAL_SEGMENTS_MAX) v.push(`는 ${EVAL_SEGMENTS_MIN}~${EVAL_SEGMENTS_MAX}개여야 한다(현재 ${st.count}개)`)
+  if (st.emptyOrSpaced > 0) v.push('에 빈 조각이나 공백이 든 조각이 있다')
+  if (!st.joinEqual) v.push('를 이어 붙인 결과가 sentenceJa 와 글자 하나까지 같아야 한다 — 글자를 더하거나 빼거나 바꾸지 말고 문장을 앞에서부터 그대로 끊어라')
+  if (st.punctOnly > 0) v.push('에 구두점만 있는 조각이 있다 — 구두점(、。「」)은 앞 조각에 붙여라')
+  if (st.particleOnly > 0) v.push('에 조사(は·が·を·に…) 한 글자만 있는 조각이 있다 — 조사는 앞 단어에 붙여 한 조각으로 만들어라')
+  if (st.joinEqual && wrongSpan.length > 0 && sentenceJa.includes(wrongSpan)) {
+    if (st.range === null) v.push('에서 wrongSpan 이 걸친 조각을 찾지 못했다')
+    else {
+      if (st.runLength > EVAL_SEGMENT_RUN_MAX) v.push(`에서 wrongSpan 이 조각 ${st.runLength}개에 걸쳐 있다(최대 ${EVAL_SEGMENT_RUN_MAX}개) — 틀린 부분이 한두 조각 안에 들어오게 끊어라`)
+      if (st.count - st.runLength < 1) v.push('에서 wrongSpan 이 모든 조각에 걸쳐 있다 — 틀리지 않은 조각이 남게 더 잘게 끊거나 문장을 늘려라')
+    }
+  }
+  return v
+}
+
+const SEG_IS_KANJI = /[㐀-䶿一-鿿々〆ヶ]/
+const SEG_IS_KATA = /[ァ-ヿㇰ-ㇿ]/
+const SEG_IS_LATIN = /[A-Za-z0-9０-９Ａ-Ｚａ-ｚ]/
+const SEG_IS_HIRA = /[ぁ-ゟ]/
+const SEG_CLOSE_STRONG = /[、。，．！？!?,.]/
+const SEG_CLOSE_QUOTE = /[」』）)]/
+const SEG_OPEN_QUOTE = /[「『（(]/
+const SEG_KANJI_RUN = /[一-鿿々〆]{4,}/
+
+function isContentChar(c: string): boolean {
+  return SEG_IS_KANJI.test(c) || SEG_IS_KATA.test(c) || SEG_IS_LATIN.test(c)
+}
+
+/** 한자만 4자 이상 이어진 덩어리(毎日学校)를 단어 경계로 쪼갠다 — `Intl.Segmenter` 가 있을 때만, 한 글자 토큰은 다음 토큰에 붙인다. */
+function splitKanjiRun(run: string): string[] {
+  if (typeof Intl === 'undefined' || !('Segmenter' in Intl)) return [run]
+  const toks = [...new Intl.Segmenter('ja', { granularity: 'word' }).segment(run)].map((t) => t.segment)
+  const merged: string[] = []
+  let carry = ''
+  for (const t of toks) {
+    const cur = carry + t
+    if (t.length === 1 && carry === '') {
+      carry = cur
+      continue
+    }
+    merged.push(cur)
+    carry = ''
+  }
+  if (carry) {
+    if (merged.length > 0) merged[merged.length - 1] += carry
+    else merged.push(carry)
+  }
+  return merged.length >= 2 ? merged : [run]
+}
+
+/** 글자 종류(문자 스크립트) 기반 1차 분할 — 「한자·가타카나·알파벳 덩어리 + 뒤따르는 히라가나」 하나가 한 조각(어절). */
+function scriptRunPieces(sentence: string): string[] {
+  const pieces: string[] = []
+  let cur = ''
+  let phase: 'none' | 'lead' | 'content' | 'tail' = 'none'
+  let leadLen = 0
+  const flush = () => {
+    if (cur) pieces.push(cur)
+    cur = ''
+    phase = 'none'
+    leadLen = 0
+  }
+  for (const c of sentence) {
+    if (SEG_OPEN_QUOTE.test(c)) {
+      flush()
+      cur = c
+      phase = 'content'
+      continue
+    }
+    if (SEG_CLOSE_STRONG.test(c)) {
+      if (cur) {
+        cur += c
+        flush()
+      } else if (pieces.length > 0) pieces[pieces.length - 1] += c
+      else cur = c
+      continue
+    }
+    if (SEG_CLOSE_QUOTE.test(c)) {
+      if (cur) {
+        cur += c
+        phase = 'tail'
+      } else if (pieces.length > 0) pieces[pieces.length - 1] += c
+      continue
+    }
+    if (isContentChar(c)) {
+      if (phase === 'tail') {
+        flush()
+      } else if (phase === 'lead' && leadLen > 2) {
+        flush()
+      }
+      cur += c
+      phase = 'content'
+      continue
+    }
+    if (SEG_IS_HIRA.test(c)) {
+      if (phase === 'content' || phase === 'tail') {
+        cur += c
+        phase = 'tail'
+      } else if (phase === 'lead') {
+        cur += c
+        leadLen++
+      } else {
+        cur += c
+        phase = 'lead'
+        leadLen = 1
+      }
+      // 목적격 「を」는 히라가나 단어 안에 거의 나오지 않아 안전하게 어절 끝으로 본다(りんごを|たべます) — 뒤 구두점은 앞 조각에 붙는다
+      if (c === 'を') flush()
+      continue
+    }
+    cur += c // 그 밖의 문자(공백 등)는 현재 조각에 그대로 — join 동일성을 해치지 않는다
+  }
+  flush()
+  return pieces
+}
+
+function splitLongKanjiRuns(pieces: string[]): string[] {
+  const out: string[] = []
+  for (const p of pieces) {
+    const m = SEG_KANJI_RUN.exec(p)
+    if (!m) {
+      out.push(p)
+      continue
+    }
+    const parts = splitKanjiRun(m[0])
+    if (parts.length < 2) {
+      out.push(p)
+      continue
+    }
+    const head = p.slice(0, m.index)
+    const tail = p.slice(m.index + m[0].length)
+    parts.forEach((part, i) => out.push(`${i === 0 ? head : ''}${part}${i === parts.length - 1 ? tail : ''}`))
+  }
+  return out
+}
+
+/** 조각 수가 상한을 넘으면 붙은 글자 수가 가장 적은 이웃 둘을 합친다. */
+function mergeToMax(pieces: string[]): string[] {
+  const out = [...pieces]
+  while (out.length > EVAL_SEGMENTS_MAX) {
+    let best = 0
+    let bestLen = Infinity
+    for (let i = 0; i < out.length - 1; i++) {
+      const len = out[i].length + out[i + 1].length
+      if (len < bestLen) {
+        bestLen = len
+        best = i
+      }
+    }
+    out.splice(best, 2, out[best] + out[best + 1])
+  }
+  return out
+}
+
+const SEG_SIMPLE_PARTICLE = /[はがをにへでともの]/
+
+/**
+ * 한 조각 안에서 「한자 덩어리 | 히라가나 꼬리」 경계를 찾아 나눌 자리(앞 조각의 길이)를 돌려준다(없으면 -1).
+ * ① 꼬리가 조사 한 글자(は·が·に…)로 시작하면 그 조사까지 앞 조각에 붙인다(先生が|です) — 단 「学生です」의 で 처럼 뒤가 す 면 조사가 아니다.
+ * ② 아니면 경계에서 그대로 나누되 앞 조각이 2자 이상(飲|む 같은 한 글자 어간 분리 금지)이고 꼬리가 조사 하나가 아닐 때만.
+ */
+function minSplitPoint(p: string): number {
+  let k = -1
+  for (let i = 1; i < p.length; i++) {
+    if (isContentChar(p[i - 1]) && SEG_IS_HIRA.test(p[i])) {
+      k = i
+      break
+    }
+  }
+  if (k < 0) return -1
+  const next = p[k + 1]
+  if (SEG_SIMPLE_PARTICLE.test(p[k]) && next !== undefined && next !== 'す' && !SEG_CLOSE_STRONG.test(next) && !SEG_CLOSE_QUOTE.test(next)) return k + 1
+  if (k < 2) return -1
+  const core = stripSegmentPunct(p.slice(k))
+  if (core.length < 2 || SEGMENT_PARTICLES.has(core)) return -1
+  return k
+}
+
+/** 조각 수가 하한보다 적으면 가장 긴 조각부터 `minSplitPoint` 에서 나눈다(나눌 곳이 없으면 멈춘다). */
+function splitToMin(pieces: string[]): string[] {
+  const out = [...pieces]
+  while (out.length < EVAL_SEGMENTS_MIN) {
+    let bestIdx = -1
+    let bestAt = -1
+    let bestLen = 0
+    out.forEach((p, i) => {
+      const at = minSplitPoint(p)
+      if (at > 0 && at < p.length && p.length > bestLen) {
+        bestLen = p.length
+        bestIdx = i
+        bestAt = at
+      }
+    })
+    if (bestIdx < 0) break
+    const p = out[bestIdx]
+    out.splice(bestIdx, 1, p.slice(0, bestAt), p.slice(bestAt))
+  }
+  return out
+}
+
+/**
+ * `sentenceJa` 를 어절 조각으로 **결정적으로** 끊는다(LLM 없음). 항상 `join('') === sentenceJa` 이고 3~12개를 맞추려 노력하지만,
+ * 히라가나뿐이거나 너무 짧은 문장은 3개에 못 미칠 수 있다(호출부가 `checkCorrectionSpotSegments` 로 다시 확인한다).
+ */
+export function splitSentenceIntoSegments(sentenceJa: string): string[] {
+  if (sentenceJa.length === 0) return []
+  return mergeToMax(splitToMin(splitLongKanjiRuns(scriptRunPieces(sentenceJa))))
+}
+
+export interface EvalGenSegmentsRepairResult {
+  /** 모델이 낸 조각이 계약을 지켜 그대로 둔 문항 수. */
+  kept: number
+  /** 조각이 없거나 계약을 못 지켜 코드가 `sentenceJa` 에서 다시 만든 문항 수. */
+  derived: number
+  /** 다시 만들어도 계약을 못 채워 `segments` 를 지우고 위반으로 남긴(재시도로 넘긴) 문항 수. */
+  unresolved: number
+}
+
+/**
+ * CORRECTION_SPOT 문항마다 `prompt.segments` 를 계약에 맞게 만든다(in-place, `extraCheck` 가 `checkEvalGenResponse` 앞에서 부른다).
+ * ① 모델이 낸 조각이 `checkCorrectionSpotSegments` 를 통과하면 **그대로 둔다**(모델이 어절을 더 잘 나눈다 — 히라가나 위주 N5 문장 등).
+ * ② 없거나 위반이면 `splitSentenceIntoSegments(sentenceJa)` 로 채운다(새 글자를 지어내지 않고 원문을 끊기만 하므로 안전).
+ * ③ 그래도 계약을 못 채우면(문장이 너무 짧거나 히라가나뿐) `segments` 를 지워 `checkEvalGenResponse` 가 재시도를 요구하게 한다.
+ * `wrongSpan`·`sentenceJa`·`correctedJa` 는 건드리지 않는다(정답·원문 무수정).
+ */
+export function repairEvalGenCorrectionSegments(data: EvalGenResponse): EvalGenSegmentsRepairResult {
+  const r: EvalGenSegmentsRepairResult = { kept: 0, derived: 0, unresolved: 0 }
+  for (const it of data.items) {
+    if (it.kind !== 'CORRECTION_SPOT') continue
+    const { sentenceJa } = it.prompt
+    const { wrongSpan } = it.expected
+    if (it.prompt.segments !== undefined && checkCorrectionSpotSegments(sentenceJa, it.prompt.segments, wrongSpan).length === 0) {
+      r.kept++
+      continue
+    }
+    const derived = splitSentenceIntoSegments(sentenceJa)
+    if (checkCorrectionSpotSegments(sentenceJa, derived, wrongSpan).length === 0) {
+      it.prompt.segments = derived
+      r.derived++
+    } else {
+      delete it.prompt.segments
+      r.unresolved++
+    }
+  }
+  return r
 }
 
 // ── EVAL_GRADE(A7) 후검증 + 마무리(클램프·누락 0점) ─────────────────────────

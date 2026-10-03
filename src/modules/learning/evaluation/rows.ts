@@ -9,11 +9,12 @@
  *
  * **정답 숨김(task-008 과 같은 원칙)**: READY·IN_PROGRESS·GRADING 에서는 `expected`·`score`·`feedback`·`dims` 를 싣지 않고,
  * 듣고 답하기의 들려줄 문장(`prompt.textJa`)도 빼고 `textHidden:true` 만 준다(소리는 #67a 로 받는다). DONE 이면 전부 공개.
+ * 예외: 푸는 도중 "글자로 보기"(#67c)를 한 듣기 문항은 `textRevealedAt` 이 남아 다시 들어와도 글자를 준다(`textRevealed:true`).
  * DB 의 `prompt`·`expected` 는 A6 원본(보기·조각 순서만 섞음) 그대로다 — 14일 중복 해시를 다시 계산해야 해서 저장 칸을 고치지 않는다.
  */
 import type { EvalItemKind, EvalKind, EvalStatus, InputSource, JlptLevel, Prisma } from '@prisma/client'
 import { ApiError, lockUserRow, type Tx } from '@/modules/infra'
-import { assembleOrder, deadlineOf, displayAnswer, EVAL_TIME_LIMIT_SEC, gradeOf, jsonObj, jsonStrArr, OBJECTIVE_ITEM_KINDS, readRubric, type EvalGrade, type EvalRubricScores } from './scoring'
+import { assembleOrder, deadlineOf, displayAnswer, EVAL_TIME_LIMIT_SEC, gradeOf, jsonObj, jsonStrArr, OBJECTIVE_ITEM_KINDS, readRubric, spotAnswer, type EvalGrade, type EvalRubricScores } from './scoring'
 import { isEvaluationId } from './validate'
 
 export const EVAL_SELECT = {
@@ -25,7 +26,7 @@ export type EvaluationRow = Prisma.EvaluationGetPayload<{ select: typeof EVAL_SE
 
 export const ITEM_SELECT = {
   id: true, order: true, kind: true, prompt: true, expected: true, wordId: true, wordSurfaceSnap: true, chunkType: true, answerText: true,
-  inputSource: true, score: true, maxScore: true, feedback: true, dims: true, answeredAt: true,
+  inputSource: true, score: true, maxScore: true, feedback: true, dims: true, answeredAt: true, textRevealedAt: true,
 } as const
 export type EvaluationItemRow = Prisma.EvaluationItemGetPayload<{ select: typeof ITEM_SELECT }>
 
@@ -51,7 +52,7 @@ export interface EvaluationItemDto {
   id: string
   order: number
   kind: EvalItemKind
-  /** 화면용 문항 — 듣고 답하기는 제출 전 `{instructionKo, textHidden:true}`(글자 없음). */
+  /** 화면용 문항 — 듣고 답하기는 제출 전 `{instructionKo, textHidden:true}`(글자 없음, 단 "글자로 보기"를 한 문항은 `textJa` 포함). */
   prompt: Record<string, unknown>
   maxScore: number
   answered: boolean
@@ -59,8 +60,12 @@ export interface EvaluationItemDto {
   answerText: string | null
   /** 조립 문항 — 고른 조각 번호 순서(다시 들어왔을 때 되살리기). */
   answerOrder: number[] | null
+  /** 틀린 곳 찾기 — 고른 `prompt.segments` 번호(조각 없이 적은 답은 null). */
+  answerSpot: number | null
   inputSource: InputSource | null
   answeredAt: string | null
+  /** 듣고 답하기 — 제출 전에 "글자로 보기"로 들려줄 문장을 봤는가(#67c, 결과의 "글자로 봤어요"). 다른 문항은 false. */
+  textRevealed: boolean
   /** 이하 DONE 에서만(그 전엔 null). */
   expected: Record<string, unknown> | null
   score: number | null
@@ -111,7 +116,7 @@ export interface EvaluationDto {
 function publicPrompt(item: EvaluationItemRow, reveal: boolean): Record<string, unknown> {
   const p = jsonObj(item.prompt)
   if (item.kind !== 'LISTEN_RESPOND') return p
-  if (reveal) return { textJa: p.textJa, instructionKo: p.instructionKo, textHidden: false }
+  if (reveal || item.textRevealedAt) return { textJa: p.textJa, instructionKo: p.instructionKo, textHidden: false }
   return { instructionKo: p.instructionKo, textHidden: true }
 }
 
@@ -126,8 +131,10 @@ export function toItemDto(item: EvaluationItemRow, reveal: boolean): EvaluationI
     answered: item.answerText !== null,
     answerText: displayAnswer(item, item.answerText),
     answerOrder: item.kind === 'ASSEMBLE' ? assembleOrder(item.answerText) : null,
+    answerSpot: item.kind === 'CORRECTION_SPOT' ? (spotAnswer(item.answerText)?.spot ?? null) : null,
     inputSource: item.inputSource,
     answeredAt: item.answeredAt ? item.answeredAt.toISOString() : null,
+    textRevealed: item.kind === 'LISTEN_RESPOND' && !!item.textRevealedAt,
     expected: reveal ? jsonObj(item.expected) : null,
     score: reveal ? (item.score ?? 0) : null,
     correct: reveal && objective ? (item.score ?? 0) >= item.maxScore : null,

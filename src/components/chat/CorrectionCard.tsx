@@ -44,6 +44,8 @@ export default function CorrectionCard({
   onAccept,
   onReject,
   showCounter = true,
+  statusBadge,
+  note,
 }: {
   correction: CorrectionDto
   index: number
@@ -54,6 +56,10 @@ export default function CorrectionCard({
   onReject: (c: CorrectionDto) => void
   /** "n/m" — 회화는 말마다 1건이라 "1/1" 을 숨긴다(task-007 §9-11 ⑫). `<li>` 라 목록 밖에서는 `<ul>` 로 감싼다. */
   showCounter?: boolean
+  /** 회화 코치(task-010c) — 아직 제안 상태일 때 오른쪽 배지(예: "스스로 고쳤어요 ✓"). 채택·무시 배지가 이긴다. */
+  statusBadge?: React.ReactNode
+  /** 회화 코치(task-010c) — 원문|교정 아래·설명 위 한 줄(예: "정답을 보고 다시 말해 보세요"). */
+  note?: React.ReactNode
 }) {
   const c = correction
   const diff = diffCodepoints(c.original, c.corrected)
@@ -79,6 +85,7 @@ export default function CorrectionCard({
           {c.status === 'ACCEPTED' ? <Badge tone="good">{STATUS_LABEL.ACCEPTED}</Badge> : null}
           {c.status === 'REJECTED' ? <Badge>{STATUS_LABEL.REJECTED}</Badge> : null}
           {c.status === 'EXPIRED' ? <Badge>{STATUS_LABEL.EXPIRED}</Badge> : null}
+          {c.status === 'PROPOSED' && statusBadge ? statusBadge : null}
         </span>
       </div>
 
@@ -90,13 +97,17 @@ export default function CorrectionCard({
           </p>
         </div>
         <div className="min-w-0 rounded-xl bg-surface2 p-2.5">
-          <p className="text-[12px] text-good">이렇게 고쳐요</p>
+          {/* 코치 [정답 보기] 뒤 초점이 여기로 온다(task-010c) — 탭 순서에는 들지 않는다. */}
+          <p id={`cr_${c.id}_ans`} tabIndex={-1} className="text-[12px] text-good outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            이렇게 고쳐요
+          </p>
           <p lang="ja" className={`mt-0.5 ${JA_TEXT}`}>
             {diff ? <Segments segs={diff.b} kind="added" /> : c.corrected}
           </p>
         </div>
       </div>
 
+      {note}
       {c.explanation ? <p className="mt-2.5 text-[15px] leading-normal text-ink2 break-keep [overflow-wrap:anywhere]">{c.explanation}</p> : null}
 
       {c.status === 'PROPOSED' ? (

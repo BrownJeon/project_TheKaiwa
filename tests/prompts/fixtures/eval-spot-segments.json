@@ -1,0 +1,28 @@
+{
+  "_doc": "task-011 evalGen@v4 CORRECTION_SPOT prompt.segments 회귀 세트 — splitSentenceIntoSegments(코드 분절기)·checkCorrectionSpotSegments(계약)·findWrongSegmentRange 검증용. splitOk=true 는 코드 분절기만으로 계약을 통과해야 하고, false 는 (히라가나 위주·문장 짧음 등) 코드가 못 끊어 모델 분절이 필요한 경우라 분절기 결과가 계약 위반이어야 한다(위반이면 evalGen 재시도가 걸리는 경계 사례 기록). modelSegments 는 모델이 내야 할 이상적 분절(계약 통과), null 은 문장 자체가 너무 짧아 어떤 분절로도 계약을 못 채우는 사례.",
+  "cases": [
+    { "name": "n5-kanji-verb", "level": "N5", "sentenceJa": "私は毎日学校に行くます。", "wrongSpan": "行くます", "splitOk": true, "modelSegments": ["私は", "毎日", "学校に", "行くます。"] },
+    { "name": "n5-hiragana-heavy", "level": "N5", "sentenceJa": "わたしはがっこうへ行くません。", "wrongSpan": "行くません", "splitOk": false, "modelSegments": ["わたしは", "がっこうへ", "行くません。"] },
+    { "name": "n5-comma-topic", "level": "N5", "sentenceJa": "あした友達と映画を見るました。", "wrongSpan": "見るました", "splitOk": true, "modelSegments": ["あした", "友達と", "映画を", "見るました。"] },
+    { "name": "n5-place", "level": "N5", "sentenceJa": "日曜日に公園で遊ぶました。", "wrongSpan": "遊ぶました", "splitOk": true, "modelSegments": ["日曜日に", "公園で", "遊ぶました。"] },
+    { "name": "n5-copula-ga", "level": "N5", "sentenceJa": "私の母は先生がです。", "wrongSpan": "先生が", "splitOk": true, "modelSegments": ["私の", "母は", "先生がです。"] },
+    { "name": "n5-tai-katakana", "level": "N5", "sentenceJa": "コーヒーを飲むたいです。", "wrongSpan": "飲むたい", "splitOk": false, "modelSegments": ["コーヒーを", "飲む", "たいです。"] },
+    { "name": "n5-initial-comma", "level": "N5", "sentenceJa": "昨日、友達と映画を見に行くました。", "wrongSpan": "行くました", "splitOk": true, "modelSegments": ["昨日、", "友達と", "映画を", "見に", "行くました。"] },
+    { "name": "n5-te-form", "level": "N5", "sentenceJa": "駅まで歩いて行くたいです。", "wrongSpan": "行くたい", "splitOk": true, "modelSegments": ["駅まで", "歩いて", "行くたいです。"] },
+    { "name": "n5-quote", "level": "N5", "sentenceJa": "先生に「ありがとう」と言うました。", "wrongSpan": "言うました", "splitOk": true, "modelSegments": ["先生に", "「ありがとう」と", "言うました。"] },
+    { "name": "n4-double-particle", "level": "N4", "sentenceJa": "雨が降るので、傘をを持って行きます。", "wrongSpan": "傘をを", "splitOk": false, "modelSegments": ["雨が", "降るので、", "傘をを", "持って", "行きます。"] },
+    { "name": "n5-i-adj-deshita", "level": "N5", "sentenceJa": "昨日はとても寒いでした。", "wrongSpan": "寒いでした", "splitOk": true, "modelSegments": ["昨日は", "とても", "寒いでした。"] },
+    { "name": "n5-name-san", "level": "N5", "sentenceJa": "田中さんは先生がです。", "wrongSpan": "先生が", "splitOk": true, "modelSegments": ["田中さんは", "先生が", "です。"] },
+    { "name": "n4-progressive", "level": "N4", "sentenceJa": "私は日本語を勉強しているの学生です。", "wrongSpan": "勉強しているの", "splitOk": true, "modelSegments": ["私は", "日本語を", "勉強しているの", "学生です。"] },
+    { "name": "n3-purpose", "level": "N3", "sentenceJa": "試験に合格するために、毎日一生懸命勉強しています。", "wrongSpan": "合格するために", "splitOk": true, "modelSegments": ["試験に", "合格するために、", "毎日", "一生懸命", "勉強しています。"] },
+    { "name": "n4-yasui", "level": "N4", "sentenceJa": "この本は子供にも読むやすいです。", "wrongSpan": "読むやすい", "splitOk": true, "modelSegments": ["この本は", "子供にも", "読むやすいです。"] },
+    { "name": "n3-nimokakawarazu", "level": "N3", "sentenceJa": "彼は忙しいにもかかわらず、手伝ってくれるました。", "wrongSpan": "くれるました", "splitOk": true, "modelSegments": ["彼は", "忙しいにもかかわらず、", "手伝ってくれるました。"] },
+    { "name": "n2-beki", "level": "N2", "sentenceJa": "会議の資料を準備しておくべきのに、忘れてしまいました。", "wrongSpan": "おくべきのに", "splitOk": true, "modelSegments": ["会議の", "資料を", "準備しておくべきのに、", "忘れてしまいました。"] },
+    { "name": "n2-long-kanji", "level": "N2", "sentenceJa": "新しい政策の導入に伴い、経済への影響が懸念されてあります。", "wrongSpan": "懸念されてあります", "splitOk": true, "modelSegments": ["新しい", "政策の", "導入に伴い、", "経済への", "影響が", "懸念されてあります。"] },
+    { "name": "n5-katakana-noun", "level": "N5", "sentenceJa": "レストランでハンバーガーを食べるました。", "wrongSpan": "食べるました", "splitOk": true, "modelSegments": ["レストランで", "ハンバーガーを", "食べるました。"] },
+    { "name": "n4-latin-word", "level": "N4", "sentenceJa": "私はABC会社で働くます。", "wrongSpan": "働くます", "splitOk": true, "modelSegments": ["私は", "ABC会社で", "働くます。"] },
+    { "name": "too-short-verb", "level": "N5", "sentenceJa": "食べるました。", "wrongSpan": "食べるました", "splitOk": false, "modelSegments": null },
+    { "name": "too-short-adj", "level": "N5", "sentenceJa": "おいしいでした。", "wrongSpan": "おいしいでした", "splitOk": false, "modelSegments": null },
+    { "name": "n5-3piece", "level": "N5", "sentenceJa": "毎日学校に行くます。", "wrongSpan": "行くます", "splitOk": true, "modelSegments": ["毎日", "学校に", "行くます。"] }
+  ]
+}

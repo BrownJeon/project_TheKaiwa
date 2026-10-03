@@ -30,7 +30,7 @@ export default function EffectiveSummaryCard({ summary, targetKey }: { summary: 
           </div>
         ) : null}
         <Link
-          href={`/admin/configuration?target=${encodeURIComponent(targetKey)}`}
+          href={`/admin/configuration?target=${encodeURIComponent(targetKey)}&tab=effective`}
           className="mt-2 flex h-11 items-center justify-end text-[14px] font-medium text-accent"
         >
           설정값 전체 보기 ›

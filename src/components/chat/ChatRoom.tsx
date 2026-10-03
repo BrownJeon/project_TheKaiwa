@@ -28,7 +28,6 @@ import ReviewNudge from './ReviewNudge'
 import { KEYS } from './storageKeys'
 import TurnNotice from './TurnNotice'
 import { useChatTurn } from './useChatTurn'
-import { useKeyboardInset } from './useKeyboardInset'
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'error'
 
@@ -56,7 +55,6 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
   const toast = useToast()
   const router = useRouter()
 
-  const roomRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ComposerHandle | null>(null)
   const listRef = useRef<MessageListHandle | null>(null)
   const messagesRef = useRef<ChatMessageView[]>(messages)
@@ -83,8 +81,6 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
     onNotFound: () => setLoad('notFound'),
   })
   const { attach, markFailed } = turn
-
-  useKeyboardInset(roomRef, load === 'ready')
 
   useEffect(() => {
     let cancelled = false
@@ -179,7 +175,7 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
   const placeholder = chat.reviewedAt ? '계속 대화할 수 있어요 (새 메시지는 점검되지 않아요)' : '일본어로 써 보세요'
 
   return (
-    <div ref={roomRef} className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
       <ChatRoomHeader
         chatId={chatId}
         title={chat.title}

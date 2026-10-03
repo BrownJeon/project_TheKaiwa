@@ -13,8 +13,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-app-shell
-      className="grid h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-surface"
+      className="grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-surface"
       style={{
+        // 키보드가 화면을 덮기만 하는 브라우저에서는 셸 전체가 덮인 높이만큼 줄어 입력 바·목록 끝이 키보드 위에 온다
+        // (task-021 R2·R6 — `KeyboardInset` 이 `<html>` 에 쓴다). 화면 자체가 줄어드는 환경에선 0 이라 `100dvh` 그대로.
+        height: 'calc(100dvh - var(--kb-inset, 0px))',
         // ── 상태바(시계·배터리) 아래로 화면이 파고드는 것을 여기서 막는다 ──────────
         //
         // 증상(2026-09-13 실기기 APK): 홈 화면의 `오늘 9월 13일 일` 이 `SKT 5:18` 위에
@@ -28,7 +31,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         // 스크롤 영역 자체가 상태바 아래에서 시작하므로 **각 화면이 아무것도 안 해도 된다.**
         // 헤더를 8곳 각각 고치는 방식은 새 화면이 생길 때마다 또 빠뜨린다.
         //
-        // `box-sizing: border-box`(Tailwind preflight)라 `h-[100dvh]` 는 그대로 유지되고
+        // `box-sizing: border-box`(Tailwind preflight)라 셸 높이(`height`)는 그대로 유지되고
         // 안쪽 높이만 인셋만큼 줄어든다 — 하단 탭이 화면 밖으로 밀리지 않는다.
         //
         // `bg-surface` 는 그렇게 비워진 상태바 자리를 **앱바와 같은 색**으로 채운다.

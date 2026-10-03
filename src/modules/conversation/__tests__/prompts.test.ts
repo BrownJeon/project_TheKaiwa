@@ -6,7 +6,7 @@ import { renderTranscript } from '../../engine/llm'
 import { buildChatRequest } from '../prompts/chat'
 import { buildChatReviewRequest, REVIEW_MAX_CHARS, REVIEW_MAX_MESSAGES, ReviewTooLargeError } from '../prompts/chatReview'
 import { renderHeader, renderToday } from '../prompts/header'
-import { buildTalkRequest, clampAltText, talkInstruction, CORRECTION_MODES, TALK_ALT_TEXT_MAX, TALK_PROMPT_VERSION, TALK_USER_PROMPT_CAP } from '../prompts/talk'
+import { buildTalkRequest, clampAltText, talkInstruction, COACH_HINT_LINE, CORRECTION_MODES, TALK_ALT_TEXT_MAX, TALK_PROMPT_VERSION, TALK_USER_PROMPT_CAP } from '../prompts/talk'
 
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/talk-corrections.json'), 'utf8')) as {
   items: { id: string; level: string; input: string; hasError: boolean }[]
@@ -91,8 +91,9 @@ test('TALK: altText 상한 — 상한을 한참 넘는 후보를 줘도 사용�
 
 // ── task-010c: 교정 방식(correctionMode) ────────────────────────────────
 
-test('TALK: talk@v4 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v4') // task-024 — 문장 수 상한 sceneCap 도입(v3 는 고정 2문장). 상세 회귀는 talkLength.test.ts
+test('TALK: talk@v5 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
+  // v4 = task-024 문장 수 상한 sceneCap 도입(v3 는 고정 2문장, 상세 회귀는 talkLength.test.ts) · v5 = REV-055 M-1 TALK 학습자 헤더에서 `교정 모드` 칸 제거(아래 테스트)
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v5')
   assert.deepEqual(CORRECTION_MODES, ['FLUENCY', 'COACH'])
   const omitted = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
   assert.match(omitted.system, /\[교정\] 유창성/)
@@ -101,6 +102,54 @@ test('TALK: talk@v4 — [교정] 헤더 줄이 실리고, 생략하면 기본 FL
   const coach = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'COACH' })
   assert.match(coach.system, /\[교정\] 코치/)
   assert.ok(!coach.system.includes('[교정] 유창성'))
+})
+
+test('TALK: 교정 방식은 [교정] 줄이 단일 출처 — 학습자 헤더에 `교정 모드` 칸이 없고 FLUENCY 입력에 COACH 가 없다(REV-055 M-1 회귀)', () => {
+  // v3·v4 는 헤더에 `교정 모드 COACH`(기본값 고정)가 늘 실려, 기본(유창성) 턴이 `[교정] 유창성` 과 모순된 두 줄을 받았다.
+  const learners = [
+    learner,
+    { ...learner, correctionMode: 'COACH' as const }, // 호출부가 헤더 재료에 모드를 실어 보내도(예: 이후 turnContext 변경) TALK 는 칸을 만들지 않는다
+    { ...learner, correctionMode: 'FLUENCY' as const },
+  ]
+  for (const l of learners) {
+    for (const correctionMode of [undefined, ...CORRECTION_MODES]) {
+      const req = buildTalkRequest({ todayKst: '2026-09-27', learner: l, history: [], text: 'おはよう', correctionMode })
+      const headerLine = req.system.split('\n').find((x) => x.startsWith('[학습자]'))
+      assert.ok(headerLine, '학습자 헤더 줄')
+      assert.ok(!headerLine.includes('교정 모드'), `mode=${correctionMode}: 헤더에 교정 모드 칸이 없어야 한다 — ${headerLine}`)
+      assert.match(headerLine, /교정 강도 /, '교정 강도(strictness)는 그대로 — 방식과 독립 축')
+      // 이번 턴의 방식은 [교정] 줄 하나뿐 — 반대 모드 토큰이 입력 어디에도 없어야 모순이 없다.
+      const want = correctionMode === 'COACH' ? 'COACH' : 'FLUENCY'
+      const other = want === 'COACH' ? 'FLUENCY' : 'COACH'
+      assert.ok(!req.system.includes(other), `mode=${want}: system 에 ${other} 가 있으면 안 된다`)
+      assert.equal(req.system.split('\n').filter((x) => x.startsWith('[교정]')).length, 1)
+      assert.ok(!req.system.includes('교정 모드'), `mode=${want}: system 어디에도 '교정 모드' 칸이 없어야 한다`)
+    }
+  }
+})
+
+test('헤더: `omitCorrectionMode` 는 그 칸만 뺀다 — 옵션 없이 쓰는 다른 프롬프트(CHAT 등)의 헤더·기본값 COACH 는 바이트 불변', () => {
+  const withCell = renderHeader({ ...learner, strictness: 'NORMAL' }, 300)
+  assert.ok(withCell.includes(' · 교정 모드 COACH · '), '옵션이 없으면 기존 칸(기본 COACH)을 그대로 둔다')
+  assert.ok(renderHeader({ ...learner, correctionMode: 'FLUENCY' }, 300).includes(' · 교정 모드 FLUENCY · '), '값을 주면 그 값')
+  const without = renderHeader({ ...learner, strictness: 'NORMAL' }, 300, { omitCorrectionMode: true })
+  assert.equal(without, withCell.replace(' · 교정 모드 COACH', ''), '칸 하나만 다르다(나머지 칸·순서·약점 등은 그대로)')
+  assert.equal(renderHeader(learner, 300, {}), renderHeader(learner, 300), '빈 옵션 = 옵션 없음')
+  // CHAT 은 이번 변경 범위 밖 — 헤더를 그대로 쓴다(talk@v5 가 TALK 한정이라는 것의 고정, 바꾸려면 chat 버전·실측을 함께 올릴 것).
+  assert.ok(buildChatRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' }).system.includes('교정 모드 COACH'))
+  // 상한 처리는 칸이 빠져도 같다.
+  assert.ok(renderHeader({ ...learner, goal: 'x'.repeat(400) }, 300, { omitCorrectionMode: true }).length <= 300)
+})
+
+test('persona: §3-4 는 교정 방식의 출처를 `[교정]` 줄로 가리키고(헤더 아님) 그 줄의 라벨(코치·유창성)과 같은 말을 쓴다(REV-055 M-1)', () => {
+  const persona = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' }).persona!.prompt
+  assert.ok(persona.includes('(모드는 `[교정]` 줄)'), 'tutor.md §3-4 가 [교정] 줄을 가리켜야 한다')
+  assert.ok(!persona.includes('(모드는 헤더)'), '헤더에는 이제 교정 모드 칸이 없다')
+  assert.ok(persona.includes('코치 모드') && persona.includes('유창성 모드'))
+  const coach = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'COACH' })
+  const fluency = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'FLUENCY' })
+  assert.match(coach.system, /\[교정\] 코치/)
+  assert.match(fluency.system, /\[교정\] 유창성/)
 })
 
 test('TALK: Leader 후속(2026-09-28) — 유창성일 때만 [교정] 줄에 severity 판정 기준이 붙는다(코치는 무관, 예산 때문에 talkInstruction 이 아니라 헤더 줄에)', () => {
@@ -126,6 +175,23 @@ test('TALK: 지시문 — 코치 모드는 hintKo 힌트 지시, 유창성 모�
   }
 })
 
+test('TALK: COACH 힌트 지시 — 정답의 한국어 뜻·번역·「X가 아니라 Y」 노출도 금하고 학습자가 쓴 말의 점검 방향만 허용한다(task-010c QA 2차 결함 #3 회귀, talk@v5 제자리 보강)', () => {
+  // 실 LLM 이 낸 `내일이 아니라 어제였나요?`(정답 昨日 을 한국어 뜻 "어제"로 노출)가 서버 필터(일본어 문자열만 비교)를 통과했다 — 방어는 이 지시문뿐이다.
+  const coach = talkInstruction('COACH')
+  assert.ok(coach.includes(COACH_HINT_LINE), 'COACH 지시문에 COACH_HINT_LINE 이 그대로 들어 있어야 한다')
+  assert.ok(COACH_HINT_LINE.includes('hintKo=힌트(정답 제외)'), '기존 앞머리 문구는 유지(기존 회귀·QA 스윕이 본다)')
+  for (const must of ['한국어 뜻', '번역', '뜻풀이', '빈칸', '초성', '「X가 아니라 Y」', '품사', '시제', '상황 단서', '글자 수', '두 말 대조', '학습자가 쓴 말']) {
+    assert.ok(coach.includes(must), `COACH 힌트 지시에 "${must}" 가 있어야 한다`)
+  }
+  // 보강은 COACH 한정 — FLUENCY 는 hintKo=null 이라 힌트 문구가 없고 바이트도 그대로.
+  const fluency = talkInstruction('FLUENCY')
+  assert.ok(!fluency.includes('한국어 뜻') && !fluency.includes('학습자가 쓴 말') && !fluency.includes('hintKo=힌트'))
+  // 실제 요청의 system(stdin)에도 COACH 에서만 실린다. 버전 번호는 올리지 않았다(v5 미배포 — 위 버전 테스트가 그대로 통과해야 한다).
+  const req = (correctionMode: 'COACH' | 'FLUENCY') => buildTalkRequest({ todayKst: '2026-10-03', learner, history: [], text: '明日学校に行きました', correctionMode }).system
+  assert.ok(req('COACH').includes(COACH_HINT_LINE) && !req('FLUENCY').includes('한국어 뜻'))
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v5')
+})
+
 test('TALK: 예산 — [교정] 헤더가 늘어난 뒤에도 altText·긴 이력 최악 조합은 두 모드 모두 ≤3,000자(불변식 회귀)', () => {
   // 2026-09-28 실측 교훈: 극단으로 긴 altText(5만자 등)가 항상 최악은 아니다 — altText·이력 창이 각자 다른 "양자화
   // 단위"(이력은 메시지 240자 단위)로 남은 예산을 나눠 갖기 때문에, **중간 길이(altLen=60, "발화 한 마디" 가정)**
@@ -148,7 +214,9 @@ test('TALK: persona(→ --system-prompt)는 correctionMode 가 달라도 바이�
   const fluency = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'FLUENCY' })
   const coach = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう', correctionMode: 'COACH' })
   assert.equal(fluency.persona!.prompt, coach.persona!.prompt)
-  assert.ok(!fluency.persona!.prompt.includes('[교정]'), 'correctionMode 헤더 줄은 persona 가 아니라 system 쪽에만 있어야 한다(persona §3 는 "교정 원칙" 이라 일반 "교정" 문자열은 있을 수 있다)')
+  // `[교정]` 줄(모드별 내용)은 persona 가 아니라 system 쪽에만 있어야 한다. persona §3-4 가 "(모드는 `[교정]` 줄)" 로 그 줄을 **가리키는** 문구는 있다(M-1) —
+  // 그래서 문자열 포함이 아니라 "줄이 `[교정]` 으로 시작하는가"로 본다(persona §3 는 "교정 원칙" 이라 일반 "교정" 문자열도 있을 수 있다).
+  assert.ok(!/^\[교정\]/m.test(fluency.persona!.prompt), 'correctionMode 헤더 줄은 persona 가 아니라 system 쪽에만 있어야 한다')
 })
 
 test('TALK: clampAltText — 짧은 후보는 그대로·제어문자/공백 정리·서러게이트 쌍 보존·예산 부족이면 생략', () => {

@@ -31,6 +31,8 @@ export default function TabBar() {
   return (
     <nav
       aria-label="주 메뉴"
+      // 키보드가 열려 있는 동안 숨는다(task-021 D1 A) — globals.css `:root[data-kb] [data-tabbar]`.
+      data-tabbar
       className="flex flex-none border-t border-line bg-surface pt-1.5"
       // 제스처 바가 있는 기기에서 탭이 가려지지 않게 safe-area 를 패딩으로 흡수한다.
       style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}

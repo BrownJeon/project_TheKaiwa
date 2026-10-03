@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { APP_NAME, APP_TAGLINE } from '@/components/common/brand'
+import KeyboardInset from '@/components/shell/KeyboardInset'
 
 export const metadata: Metadata = {
   title: APP_NAME,
@@ -13,7 +14,8 @@ export const metadata: Metadata = {
 // `maximumScale`을 막지 않는다 — 확대를 금지하면 접근성이 깨진다.
 // `interactiveWidget: 'resizes-content'`(task-006 D7): 모바일 Chrome 에서 키보드가 열리면 `100dvh` 자체가 줄어
 // 채팅 입력창이 키보드 바로 위에 붙는다. 기본값(resizes-visual)은 키보드가 화면을 덮기만 해서 입력창이 가려진다.
-// 지원하지 않는 브라우저·WebView 는 채팅방의 `useKeyboardInset`(visualViewport) 보정이 받는다. 전 화면에 걸리므로 설정 화면 키보드도 QA 확인 대상.
+// 지원하지 않는 브라우저는 `KeyboardInset`(task-021)이 visualViewport 로 덮인 높이를 재어 `--kb-inset` 으로 받는다 —
+// 하단 탭 숨김·시트·입력 칸 여유 스크롤도 모든 화면이 그 한 곳을 따른다(로그인 전·관리자 콘솔 포함이라 여기 둔다).
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -28,7 +30,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <KeyboardInset />
+        {children}
+      </body>
     </html>
   )
 }

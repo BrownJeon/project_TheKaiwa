@@ -216,6 +216,9 @@ function setupTurnMocks(opts: { accept: () => Promise<never>; gateThrows?: boole
   mock.method(turnDeps, 'precheckChat', async () => ({ kind: 'TALK', level: 'N5' }))
   mock.method(turnDeps, 'buildLearnerHeader', async () => ({ level: 'N5' }))
   mock.method(turnDeps, 'loadRecentHistory', async () => [])
+  // task-010c — 교정 방식·코치 판정 재료도 DB 대신(공유 DB 를 건드리지 않게)
+  mock.method(turnDeps, 'loadCorrectionMode', async () => 'FLUENCY' as const)
+  mock.method(turnDeps, 'loadCoachPending', async () => null)
   const accept = mock.method(turnDeps, 'acceptTurn', opts.accept)
   mock.method(turnDeps, 'completeJson', (req: { signal?: AbortSignal; onTextDelta?: (d: string, call: number) => void }) => {
     llm.calls++
@@ -361,6 +364,9 @@ test('턴 전체(Codex C2-2): 조기 문장 뒤 재시도로 답이 바뀌면 �
   mock.method(turnDeps, 'precheckChat', async () => ({ kind: 'TALK', level: 'N5' }))
   mock.method(turnDeps, 'buildLearnerHeader', async () => ({ level: 'N5' }))
   mock.method(turnDeps, 'loadRecentHistory', async () => [])
+  // task-010c — 교정 방식·코치 판정 재료도 DB 대신(공유 DB 를 건드리지 않게)
+  mock.method(turnDeps, 'loadCorrectionMode', async () => 'FLUENCY' as const)
+  mock.method(turnDeps, 'loadCoachPending', async () => null)
   mock.method(turnDeps, 'acceptTurn', async () => ({
     chatId: 'c-c22',
     kind: 'TALK',

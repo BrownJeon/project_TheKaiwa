@@ -3,8 +3,8 @@ apply plugin: 'com.android.application'
 // ── 버전 ─────────────────────────────────────────────────────────────────────
 // 네이티브 변경(android/**·plugins/**·capacitor.config.ts·Manifest·AAR 버전)이 있을 때마다 versionCode 를 올린다
 // (CLAUDE.md 금기 — 고지·versionCode 증가 없이 배포 금지). 서버 `AppRelease.versionCode`·`/api/app/version` 과 같은 수.
-def kaiwaVersionCode = 2 // 1.0.1 — task-003h 앱 이름 Lingofy Japanese(strings.xml·capacitor appName·오프라인 화면)
-def kaiwaVersionName = "1.0.1"
+def kaiwaVersionCode = 3 // 1.0.2 — task-021 키보드(IME)만큼 WebView 를 줄이는 인셋 보정(MainActivity)
+def kaiwaVersionName = "1.0.2"
 
 // ── 서명 ─────────────────────────────────────────────────────────────────────
 // Play 스토어 없이 사이드로드한다(설계안 §12). 새 릴리스 키를 만들지 않고 **이 빌드 머신의 디버그 키스토어**로

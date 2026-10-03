@@ -40,7 +40,9 @@ export function countJaSentences(text: string): number {
 }
 
 /**
- * replyJa 문장 수: 프롬프트 목표는 2문장이지만 **재시도는 3문장 초과에서만** 건다. 실측(2026-09-27)에서 haiku 가 짧은 3문장을
+ * replyJa 문장 수 **기본** 상한(`opts.maxSentences` 를 안 줄 때 — CHAT(`checkChatResponse`, 프롬프트 목표 최대 2문장)과 sceneCap 없는
+ * 호출). TALK 는 talk@v4(task-024)부터 `sceneCap`(1~4) + `TALK_SCENE_CAP_TOLERANCE` 를 `maxSentences` 로 넘긴다(`prompts/talk.ts`).
+ * 기본값의 근거: 프롬프트 목표는 2문장이지만 **재시도는 3문장 초과에서만** 건다. 실측(2026-09-27)에서 haiku 가 짧은 3문장을
  * 종종 써서 재시도가 붙으면 턴이 ~10s 로 늘었다(12s fail-fast 위협). 3문장은 TTS·화면에 무리가 없어 계약 위반으로 보지 않는다.
  */
 export const REPLY_SENTENCE_HARD_CAP = 3
@@ -151,8 +153,12 @@ export function checkWordEnrich(surface: string, data: WordEnrichResponse): stri
  *     실제로 담고 있는지(`matching.ts` `chunkAppearsIn`) — `repairLessonResponse` 가 못 담은 chunk 를 이미
  *     `targetIds` 에서 뺐을 것이므로, 여기 남아 있는 것은 "빼면 빈 배열이 돼 보정 못 한" 경우다.
  *
- * **의도적으로 안 보는 것**: quiz 는 `promptKo`·`promptJa` 중 최소 하나가 있어야 한다는 규칙만 본다(스키마는 두 필드
- * 모두 nullable 이라 "둘 다 null 이면 안 됨"을 표현하지 못한다). `sourceText` 레슨이 원문 표현을 실제로 살렸는지는
+ * **quiz.promptKo(lesson@v8, 2026-09-30 task-025 IMP-0014)**: 스키마가 필수·비어 있지 않은 문자열로 강제하므로(옛 v7 의
+ * "promptKo·promptJa 중 최소 하나" 규칙은 없어졌다) 여기서는 그 안에 **한글이 실제로 있는지**만 본다 — 일본어 문장을 promptKo 에
+ * 넣는 자리 바뀜을 잡는다. 마지막 시도(`tolerateContentMismatch`)에서는 이 검사도 건너뛴다(한국어 뜻이 부실한 채 레슨이 나가는 편이
+ * 레슨 전체를 잃는 것보다 낫다).
+ *
+ * **의도적으로 안 보는 것**: `sourceText` 레슨이 원문 표현을 실제로 살렸는지는
  * task-010 Leader's Plan L7 이 "느슨"이라고 명시한 항목이라 — 자동 판정 기준이 모호해 재시도만 늘리므로 여기서 강제하지
  * 않는다(QA 가 수동으로 본다). ④는 grammar targetId 를 보지 않는다(matching.ts 주석 — 문형 자체가 문장에 그대로
  * 나타나길 기대할 수 없다).
@@ -175,6 +181,7 @@ export interface LessonCheckContext {
    * (그 존재는 여전히 강제) 데이터 무결성은 깨지지 않고, "모범 답이 그 표현을 완벽히 보여주지 못한다"는 콘텐츠
    * 품질 저하만 허용하는 것이다 — 레슨 전체를 잃는 것보다 낫다는 Leader 판단(재시도까지 실패한 극히 드문
    * 잔여 사례 한정). 상세: `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`§11.
+   * lesson@v8 부터 `quiz[].promptKo` 의 한글 유무 검사도 같은 이유로 이 옵션이 켜지면 건너뛴다(위 함수 주석).
    */
   tolerateContentMismatch?: boolean
 }
@@ -219,7 +226,11 @@ export function checkLessonResponse(ctx: LessonCheckContext, data: LessonRespons
     if (hasHangul(d.ja)) v.push(`dialogue[${i}].ja 에 한글이 섞여 있다`)
   })
   data.quiz.forEach((q, i) => {
-    if (!q.promptKo && !q.promptJa) v.push(`quiz[${i}] promptKo·promptJa 가 둘 다 비어 있다 — 최소 하나는 채워야 한다`)
+    // lesson@v8 — 문제 문장의 한국어 뜻은 필수(스키마가 비어 있지 않은 문자열을 강제). 여기서는 한글이 실제로 있는지만 본다.
+    if (!ctx.tolerateContentMismatch && !hasHangul(q.promptKo)) {
+      // (e)=B(2026-10-01) — 재시도 안내가 "문제 문장의 한국어 뜻"만 말하면 빈칸 문제를 다시 번역으로 쓰게 돼 정답이 노출된다. 빈칸 문제는 할 일만 쓰도록 같이 안내한다(로직 무변경, 문구만).
+      v.push(`quiz[${i}].promptKo 에 한국어(한글)가 없다 — 한국어로 쓰세요: 일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 지시를, 빈칸 문제는 "빈칸에 들어갈 알맞은 말을 고르세요."처럼 할 일만 — 정답의 뜻은 쓰지 않는다`)
+    }
     checkTargetIds(q.targetIds, `quiz[${i}]`)
   })
   // 2026-09-28 Leader 3차 결정 — application·speaking 의 modelAnswerJa 가 자기 목표 chunk 표현을 실제로 담고 있는지

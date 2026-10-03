@@ -1,13 +1,16 @@
 'use client'
 
-/** 단어 목록 한 줄(screens.md §4-2 A) — 행 전체가 버튼, 누르면 상세 시트. 버튼 안 글이 곧 접근 가능한 이름이다. */
+/**
+ * 단어 목록 한 줄(screens.md §4-2 A) — 행 전체가 버튼, 누르면 상세 시트. 버튼 안 글이 곧 접근 가능한 이름이다.
+ * 오른쪽 뱃지는 조각(task-023 — 출처 뱃지를 모두 바꿨다). 조각이 없으면 뱃지를 그리지 않는다(결정 a).
+ */
 import { memo } from 'react'
 import { Badge } from '@/components/common/ui'
 import type { WordEntry, WordSort } from '@/types/vocab'
-import { SOURCE_BADGE } from './labels'
+import { CHUNK_LABEL } from './labels'
 
 function WordRow({ word, sort, onOpen }: { word: WordEntry; sort: WordSort; onOpen: (w: WordEntry) => void }) {
-  const badge = SOURCE_BADGE[word.source] ?? null
+  const badge = word.chunkType ? (CHUNK_LABEL[word.chunkType] ?? null) : null
   const played = word.correctCount + word.wrongCount > 0
   return (
     <li>

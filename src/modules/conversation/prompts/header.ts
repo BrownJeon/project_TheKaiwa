@@ -18,14 +18,24 @@ export interface LearnerHeader {
   dueReviews?: number
 }
 
-export function renderHeader(h: LearnerHeader, maxChars: number): string {
+/**
+ * `omitCorrectionMode` — `교정 모드 …` 칸을 뺀다. **TALK(A1) 전용**: A1 은 이번 턴의 교정 방식을 별도 `[교정]` 줄(`prompts/talk.ts`)로
+ * 받는데, 학습자 헤더(`turnContext.buildLearnerHeader`)는 그 값을 싣지 않아 이 칸이 늘 기본값 `COACH` 로 찍혔다 — 유창성(기본) 턴에
+ * `교정 모드 COACH` 와 `[교정] 유창성` 이 한 입력에 함께 들어가 서로 모순이었다(task-010c REV-055 M-1). 칸을 없애 `[교정]` 줄을 단일 출처로
+ * 둔다. 옵션을 안 주면 칸·기본값(`COACH`)이 그대로라 CHAT·REVIEW·LESSON 등 다른 프롬프트의 출력은 바이트까지 불변이다.
+ */
+export interface RenderHeaderOptions {
+  omitCorrectionMode?: boolean
+}
+
+export function renderHeader(h: LearnerHeader, maxChars: number, opts: RenderHeaderOptions = {}): string {
   const core = [
     h.displayName ? `이름 ${h.displayName}` : null,
     `선생님 이름 ${h.teacherName?.trim() || '선생님'}`,
     `수준 ${h.level}`,
     `문체 ${h.politeness ?? 'POLITE'}`,
     `교정 강도 ${h.strictness ?? 'STRICT'}`,
-    `교정 모드 ${h.correctionMode ?? 'COACH'}`,
+    opts.omitCorrectionMode ? null : `교정 모드 ${h.correctionMode ?? 'COACH'}`,
     `설명 깊이 ${h.explainDepth ?? 'NORMAL'}`,
     `설명 언어 ${h.explainLang ?? 'ko'}`,
   ].filter((x): x is string => Boolean(x))

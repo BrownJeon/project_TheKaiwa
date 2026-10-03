@@ -102,8 +102,11 @@ export default function Composer({
 
   return (
     <div
+      // 키보드 위에 붙는 것은 앱 셸이 맡는다(task-021 `KeyboardInset` R2) — `data-kb-docked` 라 입력 칸 여유 스크롤 대상이 아니다.
+      // 키보드가 열리면 `--safe-bottom` 이 0 이 돼 제스처 바 여백이 빠진다.
+      data-kb-docked
       className="flex-none border-t border-line bg-surface"
-      style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))', marginBottom: 'var(--kb-inset, 0px)' }}
+      style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}
     >
       {count >= WARN_CP ? (
         <p className={`px-4 pt-1.5 text-right text-[12px] ${tooLong ? 'text-bad' : 'text-ink2'}`} aria-live="polite">

@@ -28,6 +28,7 @@ export type { UploadInput, GatewayUtteranceInput, UtteranceSegment, UtteranceTim
 export { parseWav, isPcm16Mono16k } from './wav'
 export { checkUtteranceForTurn, linkUtteranceToMessage, readUtteranceAudio, utterancesForMessages, UTTERANCE_TURN_WINDOW_MS } from './turn'
 export { linkUtteranceToLesson, lessonUtteranceProblem } from './lesson'
+export { utteranceConfidences, utteranceConfidenceOf } from './confidence'
 export type { LessonUtteranceLink } from './lesson'
 export { linkUtteranceToEvaluationItem, evaluationUtteranceProblem } from './evaluation'
 export type { EvaluationUtteranceLink } from './evaluation'

@@ -73,5 +73,7 @@ export function correctionFromDone(c: TurnCorrection): CorrectionDto {
     errorType: c.errorType,
     severity: c.severity,
     chunkType: c.chunkType ?? null,
+    ...(c.deliver ? { deliver: c.deliver } : {}),
+    ...(c.hintKo !== undefined ? { hintKo: c.hintKo ?? null } : {}),
   }
 }

@@ -37,7 +37,7 @@ test('#65 본문: kind 필수·level·topicId 형식·모르는 키 400', () => 
 })
 
 test('#67 본문: 입력 방식 기본값·음성인데 발화 없음 400·키보드인데 발화 400·조각 번호·길이', () => {
-  assert.deepEqual(parseAnswerBody({ answerText: ' 역 ' }), { answerText: '역', inputSource: 'TEXT', utteranceId: null, pieceOrder: null })
+  assert.deepEqual(parseAnswerBody({ answerText: ' 역 ' }), { answerText: '역', inputSource: 'TEXT', utteranceId: null, pieceOrder: null, spotIndex: null })
   assert.equal(parseAnswerBody({ utteranceId: 'ut_1' }).inputSource, 'REALTIME_STT')
   assert.equal(parseAnswerBody({ answerText: '  ' }).answerText, null)
   assert.throws(() => parseAnswerBody({ inputSource: 'REALTIME_STT', answerText: 'x' }), code('VALIDATION', 'required'))
@@ -220,6 +220,7 @@ const item = (over: Partial<EvaluationItemRow> & Pick<EvaluationItemRow, 'id' | 
   feedback: null,
   dims: ['accuracy'],
   answeredAt: null,
+  textRevealedAt: null,
   ...over,
 })
 

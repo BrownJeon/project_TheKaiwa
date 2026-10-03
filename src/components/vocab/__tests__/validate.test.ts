@@ -116,3 +116,14 @@ test('분류: 칩·합계·빈 상태 변형', () => {
   assert.equal(emptyVariant(q, { active: 0, archived: 0 }), 'noWords')
   assert.equal(emptyVariant(q, null), 'noWords')
 })
+
+test('emptyVariant 조각(task-023): 검색+조각 → noSearchChunk, 조각(분류·보관함과 겹쳐도) → noChunk, 조각 없으면 그대로', () => {
+  const q = { q: '', category: null, archived: false, chunk: null }
+  assert.equal(emptyVariant({ ...q, q: '映', chunk: 'ACTION' }, null), 'noSearchChunk')
+  assert.equal(emptyVariant({ ...q, q: '映', chunk: 'ACTION', category: '일상' }, null), 'noSearchChunk')
+  assert.equal(emptyVariant({ ...q, chunk: 'ACTION' }, { active: 0, archived: 0 }), 'noChunk')
+  assert.equal(emptyVariant({ ...q, chunk: 'ACTION', category: '일상' }, null), 'noChunk')
+  assert.equal(emptyVariant({ ...q, chunk: 'none', archived: true }, null), 'noChunk')
+  assert.equal(emptyVariant({ ...q, q: '映' }, null), 'noSearch')
+  assert.equal(emptyVariant({ ...q, category: '일상' }, null), 'noCategory')
+})

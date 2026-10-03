@@ -224,8 +224,9 @@ const MENU_SUB: Record<string, string> = {
   voices: '목소리 목록',
   connections: '연결·Health·기능 테스트',
   plugins: '엔진 플러그인 로드 상태',
-  configuration: '실제 적용값과 출처',
+  configuration: '실제 적용값·편집',
   diagnostics: 'Health 기록·요청 Trace',
+  history: '설정 버전·감사 기록·되돌리기',
 }
 
 export function menuSub(id: string): string | null {

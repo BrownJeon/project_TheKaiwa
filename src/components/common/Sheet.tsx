@@ -51,8 +51,11 @@ export default function Sheet({
   // `open` 은 늘 클라이언트 상태로 시작(false)하므로 서버 렌더와 어긋나지 않는다.
   if (!open || typeof document === 'undefined') return null
 
+  // 키보드(task-021 R4): 시트는 통째로 키보드 위 — 바깥 상자의 아래 끝이 키보드 위로 올라가고(`--kb-inset`, 화면이 줄어드는
+  // 환경에선 0 이고 상자 자체가 줄어든다), 최대 높이는 남은 높이의 85%. 입력 칸 여유 스크롤은 `KeyboardInset` 이 시트 본문만 옮긴다.
+  // 주 버튼은 내용 끝 제자리(사용자 결정 D2 A).
   return createPortal(
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-x-0 top-0 z-40" style={{ bottom: 'var(--kb-inset, 0px)' }}>
       <div
         aria-hidden="true"
         className="absolute inset-0 bg-ink/40"
@@ -64,7 +67,7 @@ export default function Sheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] min-w-0 flex-col rounded-t-2xl bg-surface shadow-xl min-[900px]:left-1/2 min-[900px]:w-[480px] min-[900px]:-translate-x-1/2"
+        className="absolute inset-x-0 bottom-0 flex max-h-[85%] min-w-0 flex-col rounded-t-2xl bg-surface shadow-xl min-[900px]:left-1/2 min-[900px]:w-[480px] min-[900px]:-translate-x-1/2"
       >
         <div className="flex h-[52px] flex-none items-center gap-2 border-b border-line pl-4 pr-1">
           <h2 id={titleId} ref={titleRef} tabIndex={-1} className="min-w-0 flex-1 truncate text-[17px] font-semibold outline-none">
@@ -86,7 +89,7 @@ export default function Sheet({
         </div>
         <div
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3"
-          style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+          style={{ paddingBottom: 'max(16px, var(--safe-bottom))' }}
         >
           {children}
         </div>

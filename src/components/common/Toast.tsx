@@ -4,7 +4,8 @@
  * 동작 결과 알림(데모의 `.toast`). 저장·토글처럼 **화면이 조금만 바뀌는 동작**이
  * 실제로 일어났는지 알려 준다.
  *
- * 하단 탭 위로 띄우되 safe-area 를 더해 제스처 바에 가리지 않게 한다.
+ * 하단 탭 위로 띄우되 safe-area 를 더해 제스처 바에 가리지 않게 한다. 키보드가 열려 있으면 키보드 위에 뜬다(task-021 R7 —
+ * 화면이 줄어드는 환경은 저절로, 덮기만 하는 환경은 `--kb-inset` 만큼 더 올린다).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -33,7 +34,7 @@ export default function Toast({ message, bottomPx = 84 }: { message: string | nu
       className={`pointer-events-none fixed left-4 right-4 z-50 rounded-xl bg-ink px-3.5 py-3 text-[13px] text-surface shadow-lg transition-opacity ${
         message ? 'opacity-100' : 'opacity-0'
       }`}
-      style={{ bottom: `calc(${bottomPx}px + env(safe-area-inset-bottom))` }}
+      style={{ bottom: `calc(${bottomPx}px + var(--safe-bottom) + var(--kb-inset, 0px))` }}
     >
       {message}
     </div>

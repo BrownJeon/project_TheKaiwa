@@ -4,7 +4,7 @@ import { ApiError, escapeLike } from '@/modules/infra'
 import { createRng, generateWordSet, newSeed, recencyFactor, requestedModeOf, sampleWeighted, shuffle, weightOf, type SetCandidate } from '../vocab/setGenerator'
 import { distinctMeaningCount, pickChoices, type MeaningSource } from '../vocab/distractors'
 import { durationSecOf, parseAttemptBody, parseCreateSessionBody, parseKeepBody, parseSessionListQuery, toCardDto } from '../vocab/sessions'
-import { parseWordInput, parseWordListQuery, parseWordPatch, parseEnrichSurface, isBlankMeaning } from '../vocab/words'
+import { parseWordInput, parseWordListQuery, parseWordPatch, parseEnrichSurface, isBlankMeaning, wordListFilter } from '../vocab/words'
 import { parseSeedPackBody, seedPackWords } from '../vocab/seedPack'
 import { aggregateVocabStats, parseStatsDays, readSnapshot } from '../vocab/stats'
 import { cachedDraft, enrichCacheSize, rememberDraft, toDraft } from '../vocab/enrich'
@@ -197,6 +197,38 @@ test('#40 쿼리: q ≤40·category ≤40·archived 0|1·sort 3종', () => {
   for (const bad of [`q=${'あ'.repeat(41)}`, `category=${'c'.repeat(41)}`, 'archived=2', 'sort=random']) {
     assert.throws(() => parseWordListQuery(new URLSearchParams(bad), 20), code('VALIDATION'), bad)
   }
+})
+
+test('#40 조각 조건(task-023): 4종 + none 하나만, 빈 값은 조건 없음, 그 밖(소문자·쉼표 목록·None)은 400', () => {
+  for (const k of ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'none'] as const) {
+    assert.equal(parseWordListQuery(new URLSearchParams(`chunkType=${k}`), 20).chunkType, k)
+  }
+  assert.equal(parseWordListQuery(new URLSearchParams(''), 20).chunkType, null)
+  assert.equal(parseWordListQuery(new URLSearchParams('chunkType='), 20).chunkType, null, '빈 값 = 조건 없음')
+  for (const bad of ['name', 'NAME,ACTION', 'None', 'NULL', ' NAME', 'chunk', 'OTHER']) {
+    assert.throws(
+      () => parseWordListQuery(new URLSearchParams({ chunkType: bad }), 20),
+      (e: unknown) => code('VALIDATION')(e) && (e as ApiError).details?.field === 'chunkType',
+      bad,
+    )
+  }
+})
+
+test('#40 where(task-023): 검색·분류·조각·보관 여부 AND, none = chunkType IS NULL', () => {
+  const base = { q: null, category: null, chunkType: null, archived: false } as const
+  assert.deepEqual(wordListFilter('u1', base), { userId: 'u1', archived: false })
+  assert.deepEqual(wordListFilter('u1', { ...base, chunkType: 'FEELING', category: 'N5 기초' }), {
+    userId: 'u1',
+    archived: false,
+    category: 'N5 기초',
+    chunkType: 'FEELING',
+  })
+  assert.deepEqual(wordListFilter('u1', { ...base, chunkType: 'none', archived: true }), { userId: 'u1', archived: true, chunkType: null })
+  const all = wordListFilter('u1', { q: '50%', category: '일상', chunkType: 'ACTION', archived: false })
+  assert.equal(all.userId, 'u1')
+  assert.equal(all.category, '일상')
+  assert.equal(all.chunkType, 'ACTION')
+  assert.deepEqual(all.OR, [{ surface: { contains: '50\\%' } }, { reading: { contains: '50\\%' } }, { meaning: { contains: '50\\%' } }])
 })
 
 test('LIKE 이스케이프: % _ \\ 는 글자 그대로', () => {

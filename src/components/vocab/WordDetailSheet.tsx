@@ -3,7 +3,9 @@
 /**
  * 단어 상세 시트(screens.md §4-2 C) — view · edit · confirmDelete. 목록 행 값(`preview`)으로 바로 그리고 #42 로 기록·출처를 채운다.
  * 부모가 단어마다 `key` 로 다시 마운트한다. 서버 응답을 받은 뒤에만 반영한다(보관·삭제·수정).
- * 카운터·출처는 읽기 전용(§4-10). 소리 버튼 자리는 두되 그리지 않는다(E9).
+ * 카운터·출처는 읽기 전용(§4-10). 출처 절은 목록 뱃지가 조각으로 바뀐 뒤에도 남긴다(task-023 결정 e).
+ * 소리 듣기(task-023): 표현 오른쪽 ▶(단어) + 예문 카드 ▶(예문, #23 한도 100자 넘으면 숨김). 소리는 한 번에 하나이고
+ * [수정]·[삭제]로 넘어가거나 시트를 닫으면(언마운트) 멈춘다.
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -18,6 +20,9 @@ import { actionErrorText, CHUNK_LABEL, POS_LABEL, RESULT_LABEL, SOURCE_SENTENCE 
 import { diffPatch, EXTRA_FIELDS, fieldOf, firstErrorField, formFromWord, normalizeWordDetail, validateWord, type WordField, type WordFormValues } from './validate'
 import { DuplicateNote } from './WordAddSheet'
 import WordForm from './WordForm'
+import { WordSoundButton, WordSoundLine } from './WordSoundButton'
+import { useWordSound } from './useWordSound'
+import { soundText } from './wordSound'
 
 type Mode = 'view' | 'edit' | 'confirmDelete'
 
@@ -65,6 +70,7 @@ export default function WordDetailSheet({
   useEffect(() => {
     onNotFoundRef.current = onNotFound
   }, [onNotFound])
+  const sound = useWordSound()
 
   useEffect(() => {
     let cancelled = false
@@ -114,6 +120,7 @@ export default function WordDetailSheet({
   }
 
   const startEdit = () => {
+    sound.stop()
     const f = formFromWord(w)
     setForm(f)
     setErrors({})
@@ -257,6 +264,8 @@ export default function WordDetailSheet({
   } else {
     const played = w.correctCount + w.wrongCount > 0 || !!w.lastSeenAt
     const correction = w.source === 'CORRECTION' ? corrections[0] : undefined
+    const wordText = soundText(w.surface)
+    const exText = soundText(w.example)
     content = (
       <div aria-busy={busy || undefined}>
         <div className="flex items-start gap-3">
@@ -270,8 +279,9 @@ export default function WordDetailSheet({
               </p>
             ) : null}
           </div>
-          {/* 소리 버튼 자리(44×44) — 목소리 연결 이후. 지금은 그리지 않는다(E9). */}
+          {wordText ? <WordSoundButton state={sound.state} target="word" onPress={() => sound.tap('word', wordText)} /> : null}
         </div>
+        {wordText ? <WordSoundLine state={sound.state} target="word" onRetry={() => sound.retry('word', wordText)} /> : null}
         <p className="mt-2 text-[17px] font-medium break-keep [overflow-wrap:anywhere]">{w.meaning}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Badge tone="neutral">{POS_LABEL[w.partOfSpeech] ?? '기타'}</Badge>
@@ -286,10 +296,16 @@ export default function WordDetailSheet({
         </div>
         {w.example ? (
           <div className="mt-3 rounded-[14px] bg-surface2 p-3.5">
-            <p lang="ja" className="whitespace-pre-wrap text-[16px] leading-[1.7] [overflow-wrap:anywhere]">
-              {w.example}
-            </p>
-            {w.exampleKo ? <p className="mt-1 whitespace-pre-wrap text-[14px] text-ink2 break-keep [overflow-wrap:anywhere]">{w.exampleKo}</p> : null}
+            <div className="flex items-start gap-2.5">
+              <div className="min-w-0 flex-1">
+                <p lang="ja" className="whitespace-pre-wrap text-[16px] leading-[1.7] [overflow-wrap:anywhere]">
+                  {w.example}
+                </p>
+                {w.exampleKo ? <p className="mt-1 whitespace-pre-wrap text-[14px] text-ink2 break-keep [overflow-wrap:anywhere]">{w.exampleKo}</p> : null}
+              </div>
+              {exText ? <WordSoundButton state={sound.state} target="ex" onPress={() => sound.tap('ex', exText)} /> : null}
+            </div>
+            {exText ? <WordSoundLine state={sound.state} target="ex" inCard onRetry={() => sound.retry('ex', exText)} /> : null}
           </div>
         ) : null}
         {w.note ? (
@@ -365,7 +381,15 @@ export default function WordDetailSheet({
           </Btn>
         </BtnRow>
         <div className="mt-1 flex justify-center">
-          <button type="button" onClick={() => setMode('confirmDelete')} aria-disabled={busy || undefined} className="min-h-[44px] px-4 text-[14px] font-medium text-bad">
+          <button
+            type="button"
+            onClick={() => {
+              sound.stop()
+              setMode('confirmDelete')
+            }}
+            aria-disabled={busy || undefined}
+            className="min-h-[44px] px-4 text-[14px] font-medium text-bad"
+          >
             삭제
           </button>
         </div>

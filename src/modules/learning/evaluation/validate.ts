@@ -7,6 +7,8 @@ import { ApiError, decodeCursor, isTimeIdCursor, parseLimit, sanitizeText } from
 
 export const EVAL_ANSWER_TEXT_MAX = 2_000
 export const EVAL_PIECES_MAX = 7
+/** 틀린 곳 찾기 조각 번호 상한(형식 검사용) — 실제 범위는 문항의 `prompt.segments` 길이로 `normalizeAnswer` 가 본다. */
+export const EVAL_SEGMENTS_MAX = 20
 export const EVAL_LIST_LIMIT_MAX = 50
 
 const JLPT: readonly JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
@@ -58,15 +60,18 @@ export interface AnswerInput {
   utteranceId: string | null
   /** ASSEMBLE 전용 — `prompt.pieces` 의 번호를 고른 순서대로(순열). */
   pieceOrder: number[] | null
+  /** CORRECTION_SPOT 전용(데모 결정 f=A) — 틀렸다고 고른 `prompt.segments` 번호. `answerText` 는 고친 말과 이유. */
+  spotIndex: number | null
 }
 
 /**
- * #67 — `{answerText?, inputSource?, utteranceId?, pieceOrder?}`.
+ * #67 — `{answerText?, inputSource?, utteranceId?, pieceOrder?, spotIndex?}`.
  * inputSource 기본값: utteranceId 가 있으면 REALTIME_STT, 없으면 TEXT. 음성 입력인데 발화 id 가 없거나(#32 와 같은 규칙),
- * 키보드 입력인데 발화 id 가 있으면 400.
+ * 키보드 입력인데 발화 id 가 있으면 400. `spotIndex` 는 글자 답에만(발화와 함께 오면 400 — 발화 텍스트를 다시 고르는 채점 경로가
+ * 조각 선택을 덮어쓰지 않게).
  */
 export function parseAnswerBody(body: Record<string, unknown>): AnswerInput {
-  onlyKeys(body, ['answerText', 'inputSource', 'utteranceId', 'pieceOrder'])
+  onlyKeys(body, ['answerText', 'inputSource', 'utteranceId', 'pieceOrder', 'spotIndex'])
   let answerText: string | null = null
   if (body.answerText !== undefined && body.answerText !== null) {
     if (typeof body.answerText !== 'string') bad('answerText', '답은 문자열이어야 합니다.')
@@ -94,7 +99,14 @@ export function parseAnswerBody(body: Record<string, unknown>): AnswerInput {
     }
     pieceOrder = p as number[]
   }
-  return { answerText, inputSource, utteranceId, pieceOrder }
+  let spotIndex: number | null = null
+  if (body.spotIndex !== undefined && body.spotIndex !== null) {
+    const n = body.spotIndex
+    if (!Number.isInteger(n) || (n as number) < 0 || (n as number) >= EVAL_SEGMENTS_MAX) bad('spotIndex', `틀린 곳 번호는 0~${EVAL_SEGMENTS_MAX - 1} 사이 정수여야 합니다.`)
+    if (utteranceId) bad('spotIndex', '틀린 곳 고르기는 글자 답에만 붙일 수 있어요.', 'mismatch')
+    spotIndex = n as number
+  }
+  return { answerText, inputSource, utteranceId, pieceOrder, spotIndex }
 }
 
 export interface EvaluationListQuery {

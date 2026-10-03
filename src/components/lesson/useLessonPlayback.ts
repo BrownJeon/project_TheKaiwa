@@ -18,6 +18,7 @@ import { createTtsPlaybackQueue, IDLE_SNAPSHOT, type InterruptReason, type Playb
 import { fetchChunkAudio } from '@/components/talk/chunkFetch'
 import type { AudioKind, AudioPace, LessonAudioResult } from '@/types/lesson'
 import { LESSON } from './lessonCopy'
+import { isLoadingSnapshot } from './logic'
 import { concatWav } from './wav'
 
 const perfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
@@ -28,6 +29,8 @@ export interface LessonPlayback {
   textOnly: boolean
   /** 이 key 가 소리 나는 중(또는 받는 중)인가 */
   active: (key: string) => boolean
+  /** 이 key 소리를 아직 받는 중인가(첫 소리 전 — 스피너) */
+  loading: (key: string) => boolean
   /** 이 key 재생 중 지금 줄 번호(없으면 null) */
   lineOf: (key: string) => number | null
   blocked: boolean
@@ -166,6 +169,7 @@ export function useLessonPlayback(lessonId: string, onToast: (msg: string) => vo
   )
 
   const active = useCallback((key: string) => snapshot.messageId === key && snapshot.phase !== 'idle', [snapshot])
+  const loading = useCallback((key: string) => isLoadingSnapshot(snapshot, key), [snapshot])
   const lineOf = useCallback((key: string) => (snapshot.messageId === key && snapshot.phase === 'playing' ? snapshot.chunkIndex : null), [snapshot])
 
   return {
@@ -173,6 +177,7 @@ export function useLessonPlayback(lessonId: string, onToast: (msg: string) => vo
     queue,
     textOnly: tts.snapshot.state === 'TEXT_ONLY',
     active,
+    loading,
     lineOf,
     blocked: snapshot.phase === 'blocked',
     playLines,

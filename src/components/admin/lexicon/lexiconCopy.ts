@@ -183,6 +183,10 @@ export function fieldErrorText(field: DraftField | 'reason' | 'confirm' | 'text'
       return `메모는 ${LEXICON_LIMITS.noteMax}자까지예요.`
     case 'reason':
       if (code === 'TOO_LONG') return n ? `이유는 ${LEXICON_LIMITS.reasonMax}자까지예요(${n}자).` : `이유는 ${LEXICON_LIMITS.reasonMax}자까지예요.`
+      // task-012c CX-3: 비밀 유사 이유는 서버가 422 E_REASON_SECRET_LIKE(원문 미반환) · 운영 이유 10자 미만은 TOO_SHORT(화면)·E_REASON(서버 — 길이 갈래를 싣지 않음).
+      if (code === 'E_REASON_SECRET_LIKE') return '이유에 비밀처럼 보이는 글자(키·토큰)가 있어 저장하지 않았어요. 이유에는 비밀 값을 적지 마세요.'
+      if (code === 'TOO_SHORT') return n !== undefined ? `운영 변경 이유는 10자 이상 적어 주세요(지금 ${n}자).` : '운영 변경 이유는 10자 이상 적어 주세요.'
+      if (code === 'E_REASON') return `이유를 확인해 주세요 — 1~${LEXICON_LIMITS.reasonMax}자(운영은 10자 이상)로 적어요.`
       return '변경 이유를 입력해 주세요.'
     case 'confirm':
       return 'PRODUCTION 을 그대로 입력해야 바꿀 수 있어요.'

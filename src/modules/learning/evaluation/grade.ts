@@ -31,6 +31,7 @@ import {
   deadlineOf,
   gradeObjective,
   gradeOf,
+  gradingAnswerText,
   jsonObj,
   levelUpBasis,
   objectiveSummary,
@@ -98,7 +99,7 @@ export interface SubmitEvaluationResult {
 
 const NO_ANSWER_FEEDBACK = '답하지 않은 문항이라 0점이에요.'
 
-/** 서술형 문항 → A7 재료(미답은 빈 문자열 — 프롬프트가 "(미답)" 으로 렌더). */
+/** 서술형 문항 → A7 재료(미답은 빈 문자열 — 프롬프트가 "(미답)" 으로 렌더). 틀린 곳 찾기에서 조각을 골랐으면 `gradingAnswerText` 한 줄 형식. */
 export function gradingMaterials(ev: { kind: EvalKind; level: JlptLevel }, items: readonly EvaluationItemRow[]): EvalGradeMaterials {
   const sorted = [...items].sort((a, b) => a.order - b.order)
   return {
@@ -107,7 +108,7 @@ export function gradingMaterials(ev: { kind: EvalKind; level: JlptLevel }, items
     objectiveSummary: objectiveSummary(sorted),
     subjectiveItems: sorted
       .filter((i) => SUBJECTIVE_ITEM_KINDS.has(i.kind))
-      .map((i) => ({ order: i.order, kind: i.kind as EvalSubjectiveKind, prompt: jsonObj(i.prompt), expected: jsonObj(i.expected), answerText: i.answerText ?? '' })),
+      .map((i) => ({ order: i.order, kind: i.kind as EvalSubjectiveKind, prompt: jsonObj(i.prompt), expected: jsonObj(i.expected), answerText: gradingAnswerText(i) })),
   }
 }
 
@@ -178,7 +179,10 @@ export interface GradedEvaluation {
 }
 
 /** (D-B7) 음성 답 서술형 문항만 골라 주입 함수에 묻고, 저장된 답과 다른 것만 돌려준다. 주입 실패는 저장된 답으로 채점(로그만). */
-export async function speechAnswerOverrides(items: readonly EvaluationItemRow[], pick: EvaluationGrading<EvalGradeOutputLike>['speechAnswers']): Promise<SpeechAnswerOverrides> {
+export async function speechAnswerOverrides(
+  items: readonly Pick<EvaluationItemRow, 'id' | 'kind' | 'answerText' | 'inputSource'>[],
+  pick: EvaluationGrading<EvalGradeOutputLike>['speechAnswers'],
+): Promise<SpeechAnswerOverrides> {
   const out: SpeechAnswerOverrides = new Map()
   if (!pick) return out
   const voiced = items.filter((it) => SUBJECTIVE_ITEM_KINDS.has(it.kind) && it.answerText !== null && it.inputSource !== null && it.inputSource !== 'TEXT')

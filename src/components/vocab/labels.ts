@@ -4,7 +4,7 @@
  * **오류 문구는 서버 `message` 가 아니라 이 표에서 고른다**(400 VALIDATION 만 예외) — 서버 기본 문구에는 구현 용어가
  * 섞일 수 있다(task-006 D8). 엔진·모델명·traceId 는 어디에도 없다. "AI"·엔진 대신 "선생님"으로 쓴다.
  */
-import type { ChunkType, JlptLevel, PartOfSpeech, SeedPackResult, VocabAnswer, VocabMode, WordSource } from '@/types/vocab'
+import type { ChunkType, JlptLevel, PartOfSpeech, SeedPackResult, VocabAnswer, VocabMode, WordChunkFilter, WordSource } from '@/types/vocab'
 
 export interface ErrorLike {
   status: number
@@ -31,16 +31,6 @@ export const POS_LABEL: Record<PartOfSpeech, string> = Object.fromEntries(POS_OP
 
 export const JLPT_LEVELS: readonly JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
 
-/** 목록 뱃지 — MANUAL 은 뱃지 없음(null) */
-export const SOURCE_BADGE: Record<WordSource, string | null> = {
-  MANUAL: null,
-  CORRECTION: '교정',
-  SEED: '기본 단어',
-  TUTOR: '선생님 제안',
-  LESSON: '레슨',
-  EVALUATION: '평가',
-}
-
 export const SOURCE_SENTENCE: Record<WordSource, string> = {
   MANUAL: '직접 넣은 단어예요',
   CORRECTION: '채팅 교정에서 채택한 표현이에요',
@@ -50,11 +40,30 @@ export const SOURCE_SENTENCE: Record<WordSource, string> = {
   EVALUATION: '평가에서 넣은 단어예요',
 }
 
+/** 조각 라벨 — 상세 뱃지·목록 행 뱃지(task-023: 목록의 출처 뱃지를 이 뱃지로 바꿨다, 조각이 없으면 뱃지 없음). */
 export const CHUNK_LABEL: Record<ChunkType, string> = {
   NAME: '이름 조각',
   ACTION: '액션 조각',
   FEELING: '느낌 조각',
   MODIFIER: '꾸밈 조각',
+}
+
+/**
+ * 단어장 조각 줄 칩(task-023). 칩 글자는 짧게 두고, 화면 읽기는 `sr` 를 이어 읽어 "액션 조각"처럼 들린다.
+ * 순서는 이름·액션·느낌·꾸밈·없음(없음 = 조각이 정해지지 않은 단어, #40 `chunkType=none`).
+ */
+export const CHUNK_FILTER_ALL = { label: '전체', sr: ' (모든 조각)' } as const
+export const CHUNK_FILTER_CHIPS: readonly { value: WordChunkFilter; label: string; sr: string }[] = [
+  { value: 'NAME', label: '이름', sr: ' 조각' },
+  { value: 'ACTION', label: '액션', sr: ' 조각' },
+  { value: 'FEELING', label: '느낌', sr: ' 조각' },
+  { value: 'MODIFIER', label: '꾸밈', sr: ' 조각' },
+  { value: 'none', label: '없음', sr: ' (조각이 정해지지 않은 단어)' },
+]
+
+/** 조건 문구에 쓰는 조각 이름 — "액션 조각" / "조각 없음". */
+export function chunkFilterName(v: WordChunkFilter): string {
+  return v === 'none' ? '조각 없음' : CHUNK_LABEL[v]
 }
 
 export const RESULT_LABEL: Record<VocabAnswer, string> = { CORRECT: '맞힘', WRONG: '틀림', SKIPPED: '건너뜀' }
@@ -80,6 +89,22 @@ export function actionErrorText(e: ErrorLike): string {
 
 export function listErrorText(e: ErrorLike): string {
   return e.status === 0 ? NETWORK_ERROR : '단어장을 불러오지 못했어요.'
+}
+
+/** 목록 머리의 걸린 조건(task-023) — "N5 기초 · 느낌 조각". 분류·조각 모두 없으면 null. */
+export function listConditionText(f: { category: string | null; chunk?: WordChunkFilter | null }): string | null {
+  const parts: string[] = []
+  if (f.category !== null) parts.push(f.category)
+  if (f.chunk) parts.push(chunkFilterName(f.chunk))
+  return parts.length ? parts.join(' · ') : null
+}
+
+/** 조각을 고른 채 결과가 0일 때의 제목·본문(task-023 데모 `list-empty`·`list-search-empty`). 검색 제목은 화면이 그린다(lang 표시). */
+export function chunkEmptyText(f: { q: string; category: string | null; chunk: WordChunkFilter; archived: boolean }): { title: string | null; body: string | null } {
+  const name = chunkFilterName(f.chunk)
+  if (f.q) return { title: null, body: `${name}${f.category !== null ? ` · ${f.category}` : ''} 안에서 찾았어요.` }
+  if (f.category !== null) return { title: `‘${f.category}’에 ${name} 단어가 없어요`, body: '분류와 조각을 함께 고르면 둘 다 맞는 단어만 보여요.' }
+  return { title: f.archived ? `보관한 단어 중 ${name} 단어가 없어요` : `${name} 단어가 없어요`, body: null }
 }
 
 export const DRAFT_INVALID = '일본어 단어로 보기 어려워요. 표현을 확인해 주세요.'

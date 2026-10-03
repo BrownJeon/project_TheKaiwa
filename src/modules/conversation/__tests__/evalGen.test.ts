@@ -4,8 +4,27 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderTranscript } from '../../engine/llm'
 import { validateOutput } from '../../engine/json/schemaValidate'
-import { checkEvalGenResponse, computeEvalItemHash, EVAL_GEN_MATERIAL_RATIO_MIN, repairEvalGenChunkTypeSync, repairEvalGenWordLinks } from '../structuredResponse/evalChecks'
-import { buildEvalGenSchema, EVAL_SENTENCE_READING_PATTERN, type EvalGenItem, type EvalGenResponse } from '../structuredResponse/evalSchemas'
+import {
+  analyzeCorrectionSegments,
+  checkCorrectionSpotSegments,
+  checkEvalGenResponse,
+  computeEvalItemHash,
+  EVAL_GEN_MATERIAL_RATIO_MIN,
+  findWrongSegmentRange,
+  repairEvalGenChunkTypeSync,
+  repairEvalGenCorrectionSegments,
+  repairEvalGenWordLinks,
+  splitSentenceIntoSegments,
+} from '../structuredResponse/evalChecks'
+import {
+  buildEvalGenSchema,
+  EVAL_SEGMENT_RUN_MAX,
+  EVAL_SEGMENTS_MAX,
+  EVAL_SEGMENTS_MIN,
+  EVAL_SENTENCE_READING_PATTERN,
+  type EvalGenItem,
+  type EvalGenResponse,
+} from '../structuredResponse/evalSchemas'
 import {
   buildEvalGenRequest,
   EVAL_GEN_MATERIALS_MAX,
@@ -21,6 +40,16 @@ interface Fixture {
   materials: EvalGenWordCandidate[]
 }
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/evalGen.json'), 'utf8')) as Fixture
+
+interface SegmentCase {
+  name: string
+  level: string
+  sentenceJa: string
+  wrongSpan: string
+  splitOk: boolean
+  modelSegments: string[] | null
+}
+const segmentFixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/eval-spot-segments.json'), 'utf8')) as { cases: SegmentCase[] }
 
 function cloneData<T>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T
@@ -73,7 +102,7 @@ function validTalkResponse(): EvalGenResponse {
     },
     {
       kind: 'CORRECTION_SPOT', dims: ['grammar'], wordSurface: null, chunkType: null,
-      prompt: { sentenceJa: 'コーヒーを飲むたいです。' },
+      prompt: { sentenceJa: 'コーヒーを飲むたいです。', segments: ['コーヒーを', '飲む', 'たいです。'] },
       expected: { wrongSpan: '飲むたい', correctedJa: 'コーヒーを飲みたいです。', explanationKo: '희망 표현 たい는 ます형(飲み)에 붙습니다, 사전형(飲む)에는 붙지 않습니다' },
     },
   ]
@@ -81,7 +110,7 @@ function validTalkResponse(): EvalGenResponse {
 }
 
 test('버전·상수', () => {
-  assert.equal(EVAL_GEN_PROMPT_VERSION, 'evalGen@v3')
+  assert.equal(EVAL_GEN_PROMPT_VERSION, 'evalGen@v4')
   assert.equal(EVAL_GEN_MATERIALS_MAX, 15)
 })
 
@@ -310,4 +339,229 @@ test('computeEvalItemHash: 같은 핵심(공백·문장부호만 다름)은 같�
 
 test('EVAL_GEN_MATERIAL_RATIO_MIN 은 0.6', () => {
   assert.equal(EVAL_GEN_MATERIAL_RATIO_MIN, 0.6)
+})
+
+// ── evalGen@v4: CORRECTION_SPOT prompt.segments(틀린 곳 찾기 탭 조각) ─────────────────────────────
+
+function spotItem(data: EvalGenResponse): Extract<EvalGenItem, { kind: 'CORRECTION_SPOT' }> {
+  return data.items[5] as Extract<EvalGenItem, { kind: 'CORRECTION_SPOT' }>
+}
+const TALK_CHECK = { kind: 'TALK' as const, candidateSurfaces: [] as string[], recentHashes: new Set<string>() }
+
+test('evalGen@v4: 상수 — 조각 3~12개, wrongSpan 이 걸치는 조각 ≤2', () => {
+  assert.equal(EVAL_SEGMENTS_MIN, 3)
+  assert.equal(EVAL_SEGMENTS_MAX, 12)
+  assert.equal(EVAL_SEGMENT_RUN_MAX, 2)
+})
+
+test('evalGen@v4: 스키마 — segments 는 선택(없어도 통과)이고 문자열 배열이 아니면 거절', () => {
+  const noSeg = cloneData(validTalkResponse())
+  delete spotItem(noSeg).prompt.segments
+  assert.deepEqual(validateOutput(noSeg, buildEvalGenSchema('TALK')), { ok: true }, 'segments 가 없어도 ajv 는 통과 — 코드 복구 후 후검증이 재시도를 결정한다')
+  const bad = cloneData(validTalkResponse()) as unknown as { items: Array<{ prompt: { segments?: unknown } }> }
+  bad.items[5].prompt.segments = [1, 2, 3]
+  assert.equal(validateOutput(bad, buildEvalGenSchema('TALK')).ok, false)
+})
+
+test('evalGen@v4: TALK 프롬프트 규칙 — segments 를 이어 붙인 결과·조사 분리 금지·3~12개를 요구한다', () => {
+  const req = buildEvalGenRequest({ todayKst: '2026-10-01', kind: 'TALK', level: 'N4' as EvalGenInput['level'], topic: fixture.topic, materials: fixture.materials, recentHashes: [] })
+  const text = renderTranscript(req.system, req.messages)
+  assert.ok(text.includes('segments'), '프롬프트에 segments 지시가 있어야 한다')
+  assert.ok(text.includes('3~12'))
+  assert.ok(text.includes('조사'))
+  assert.ok(!/model_id|speaker_id|claude|qwen/i.test(req.system), '엔진 식별 정보 없음')
+})
+
+test('evalGen@v4: WORDS 프롬프트에는 CORRECTION_SPOT segments 규칙이 없다', () => {
+  const req = buildEvalGenRequest({ todayKst: '2026-10-01', kind: 'WORDS', level: 'N4' as EvalGenInput['level'], topic: null, materials: fixture.materials, recentHashes: [] })
+  assert.ok(!renderTranscript(req.system, req.messages).includes('prompt.segments'))
+})
+
+test('checkCorrectionSpotSegments: 정상 조각은 위반 없음', () => {
+  assert.deepEqual(checkCorrectionSpotSegments('コーヒーを飲むたいです。', ['コーヒーを', '飲む', 'たいです。'], '飲むたい'), [])
+})
+
+test('checkCorrectionSpotSegments: segments 가 없으면 위반(신규 생성분은 필수)', () => {
+  const v = checkCorrectionSpotSegments('コーヒーを飲むたいです。', undefined, '飲むたい')
+  assert.equal(v.length, 1)
+  assert.ok(v[0].includes('없다'))
+})
+
+test('checkCorrectionSpotSegments: 이어 붙인 결과가 sentenceJa 와 다르면 위반(글자 변조·누락·공백)', () => {
+  const s = 'コーヒーを飲むたいです。'
+  assert.ok(checkCorrectionSpotSegments(s, ['コーヒーを', '飲み', 'たいです。'], '飲むたい').some((x) => x.includes('글자 하나까지')))
+  assert.ok(checkCorrectionSpotSegments(s, ['コーヒーを', '飲む', 'たいです'], '飲むたい').some((x) => x.includes('글자 하나까지')))
+  assert.ok(checkCorrectionSpotSegments(s, ['コーヒーを ', '飲む', 'たいです。'], '飲むたい').some((x) => x.includes('공백')))
+  assert.ok(checkCorrectionSpotSegments(s, ['コーヒーを', '', '飲む', 'たいです。'], '飲むたい').some((x) => x.includes('빈 조각')))
+})
+
+test('checkCorrectionSpotSegments: 조각 수 3 미만·12 초과 위반', () => {
+  const s = '私は毎日学校に行くます。'
+  assert.ok(checkCorrectionSpotSegments(s, ['私は毎日学校に', '行くます。'], '行くます').some((x) => x.includes('3~12')))
+  const long = '私は毎日学校に行くますと先生に言いました。'
+  const tooMany = long.split('') // 글자마다 1조각 — 12개를 넘는다
+  assert.ok(tooMany.length > EVAL_SEGMENTS_MAX)
+  assert.equal(tooMany.join(''), long)
+  assert.ok(checkCorrectionSpotSegments(long, tooMany, '行くます').some((x) => x.includes('3~12')))
+})
+
+test('checkCorrectionSpotSegments: 조사 한 글자·구두점만 조각은 위반', () => {
+  assert.ok(checkCorrectionSpotSegments('私は毎日学校に行くます。', ['私', 'は', '毎日', '学校に', '行くます。'], '行くます').some((x) => x.includes('조사')))
+  assert.ok(checkCorrectionSpotSegments('私は毎日学校に行くます。', ['私は', '毎日', '学校に', '行くます', '。'], '行くます').some((x) => x.includes('구두점')))
+  // 조사가 붙은 조각·끝 구두점이 붙은 조각은 통과
+  assert.deepEqual(checkCorrectionSpotSegments('私は毎日学校に行くます。', ['私は', '毎日', '学校に', '行くます。'], '行くます'), [])
+})
+
+test('checkCorrectionSpotSegments: wrongSpan 이 3조각 이상에 걸치면 위반, 2조각은 허용', () => {
+  const s = '私は毎日学校に行くますね。'
+  assert.ok(checkCorrectionSpotSegments(s, ['私は', '毎日', '学校に', '行く', 'ます', 'ね。'], '毎日学校に行く').some((x) => x.includes('조각 3개')))
+  assert.deepEqual(checkCorrectionSpotSegments('私は毎日学校に行くます。', ['私は', '毎日', '学校に', '行くます。'], '学校に行く'), [])
+})
+
+test('checkCorrectionSpotSegments: wrongSpan 이 모든 조각에 걸치면 위반(틀리지 않은 조각이 남아야 한다)', () => {
+  const v = checkCorrectionSpotSegments('毎日学校に行くます。', ['毎日', '学校に', '行くます。'], '毎日学校')
+  // 2조각에 걸치고 1조각이 남으므로 통과해야 한다 — 전부에 걸치면 위반
+  assert.deepEqual(v, [])
+  const all = checkCorrectionSpotSegments('毎日学校に行くます。', ['毎日', '学校に', '行くます。'], '毎日学校に行くます')
+  assert.ok(all.some((x) => x.includes('조각 3개') || x.includes('모든 조각')))
+})
+
+test('findWrongSegmentRange: 끝 구두점이 붙은 조각도 겹침으로 본다, 조각 이음이 다르면 null', () => {
+  const s = 'コーヒーを飲むたいです。'
+  assert.deepEqual(findWrongSegmentRange(['コーヒーを', '飲む', 'たいです。'], s, '飲むたい'), { from: 1, to: 2 })
+  assert.deepEqual(findWrongSegmentRange(['コーヒーを', '飲む', 'たいです。'], s, 'コーヒー'), { from: 0, to: 0 })
+  assert.equal(findWrongSegmentRange(['コーヒーを', '飲み', 'たいです。'], s, '飲むたい'), null)
+  assert.equal(findWrongSegmentRange(['コーヒーを', '飲む', 'たいです。'], s, '없는말'), null)
+  assert.equal(findWrongSegmentRange(['コーヒーを', '飲む', 'たいです。'], s, ''), null)
+})
+
+test('analyzeCorrectionSegments: 측정 지표(조사만·한 글자 조각 수)', () => {
+  const st = analyzeCorrectionSegments('私は毎日学校に行くます。', ['私', 'は', '毎日', '学校に', '行くます。'], '行くます')
+  assert.equal(st.count, 5)
+  assert.equal(st.joinEqual, true)
+  assert.equal(st.particleOnly, 1)
+  assert.equal(st.singleChar, 1)
+  assert.deepEqual(st.range, { from: 4, to: 4 })
+  assert.equal(st.runLength, 1)
+  assert.equal(analyzeCorrectionSegments('あ', undefined, 'あ').count, 0)
+})
+
+test('splitSentenceIntoSegments: 항상 원문을 글자 하나까지 보존한다(픽스처 전체)', () => {
+  for (const c of segmentFixture.cases) {
+    assert.equal(splitSentenceIntoSegments(c.sentenceJa).join(''), c.sentenceJa, `${c.name}: join 불일치`)
+  }
+  assert.deepEqual(splitSentenceIntoSegments(''), [])
+})
+
+test('splitSentenceIntoSegments: 픽스처 기대(splitOk) — 끊을 수 있는 문장은 계약 통과, 히라가나 위주·너무 짧은 문장은 계약 위반(=모델 분절·재시도 필요)', () => {
+  for (const c of segmentFixture.cases) {
+    const seg = splitSentenceIntoSegments(c.sentenceJa)
+    const v = checkCorrectionSpotSegments(c.sentenceJa, seg, c.wrongSpan)
+    if (c.splitOk) assert.deepEqual(v, [], `${c.name}: 코드 분절 ${JSON.stringify(seg)} 가 계약을 못 지켰다`)
+    else assert.ok(v.length > 0, `${c.name}: 코드가 끊지 못할 문장이어야 하는데 통과했다 ${JSON.stringify(seg)}`)
+  }
+})
+
+test('splitSentenceIntoSegments: 조사 한 글자 조각을 만들지 않는다(splitOk 문장 전체)', () => {
+  for (const c of segmentFixture.cases.filter((x) => x.splitOk)) {
+    const st = analyzeCorrectionSegments(c.sentenceJa, splitSentenceIntoSegments(c.sentenceJa), c.wrongSpan)
+    assert.equal(st.particleOnly, 0, `${c.name}: 조사만 조각`)
+    assert.equal(st.punctOnly, 0, `${c.name}: 구두점만 조각`)
+  }
+})
+
+test('픽스처의 모델 기대 분절(modelSegments)은 전부 계약을 통과한다 — 모델이 이렇게 끊으면 그대로 보존', () => {
+  for (const c of segmentFixture.cases.filter((x) => x.modelSegments)) {
+    assert.deepEqual(checkCorrectionSpotSegments(c.sentenceJa, c.modelSegments as string[], c.wrongSpan), [], `${c.name}: 이상적 분절이 계약 위반`)
+  }
+})
+
+test('repairEvalGenCorrectionSegments: 모델 조각이 계약을 지키면 그대로 둔다(kept)', () => {
+  const data = cloneData(validTalkResponse())
+  spotItem(data).prompt.segments = ['コーヒーを', '飲む', 'たいです。']
+  const r = repairEvalGenCorrectionSegments(data)
+  assert.deepEqual(r, { kept: 1, derived: 0, unresolved: 0 })
+  assert.deepEqual(spotItem(data).prompt.segments, ['コーヒーを', '飲む', 'たいです。'])
+})
+
+test('repairEvalGenCorrectionSegments: 모델 조각이 이음 불일치면 코드가 원문에서 다시 끊는다(derived) — 글자를 지어내지 않는다', () => {
+  const data = cloneData(validTalkResponse())
+  const item = spotItem(data)
+  item.prompt.sentenceJa = '私は毎日学校に行くます。'
+  item.expected = { wrongSpan: '行くます', correctedJa: '私は毎日学校に行きます。', explanationKo: 'ます 앞은 ます형(行き)입니다' }
+  item.prompt.segments = ['私は', '毎日', '学校へ', '行くます。'] // 「に」→「へ」 변조
+  const r = repairEvalGenCorrectionSegments(data)
+  assert.deepEqual(r, { kept: 0, derived: 1, unresolved: 0 })
+  assert.equal(item.prompt.segments!.join(''), item.prompt.sentenceJa)
+  assert.deepEqual(item.prompt.segments, ['私は', '毎日', '学校に', '行くます。'])
+  assert.equal(item.prompt.sentenceJa, '私は毎日学校に行くます。', 'sentenceJa 무수정')
+  assert.equal(item.expected.wrongSpan, '行くます', 'wrongSpan 무수정')
+})
+
+test('repairEvalGenCorrectionSegments: segments 가 없으면 코드가 채운다(derived)', () => {
+  const data = cloneData(validTalkResponse())
+  const item = spotItem(data)
+  item.prompt.sentenceJa = '昨日、友達と映画を見に行くました。'
+  item.expected = { wrongSpan: '行くました', correctedJa: '昨日、友達と映画を見に行きました。', explanationKo: 'ました 앞은 ます형(行き)입니다' }
+  delete item.prompt.segments
+  const r = repairEvalGenCorrectionSegments(data)
+  assert.equal(r.derived, 1)
+  assert.deepEqual(item.prompt.segments, ['昨日、', '友達と', '映画を', '見に', '行くました。'])
+})
+
+test('repairEvalGenCorrectionSegments: 코드도 못 끊으면(히라가나 위주) segments 를 지워 후검증이 재시도를 요구한다(unresolved)', () => {
+  const data = cloneData(validTalkResponse())
+  const item = spotItem(data)
+  item.prompt.sentenceJa = 'わたしはがっこうへ行くません。'
+  item.expected = { wrongSpan: '行くません', correctedJa: 'わたしはがっこうへ行きません。', explanationKo: 'ません 앞은 ます형(行き)입니다' }
+  item.prompt.segments = ['わたしはがっこうへ', '行くません。'] // 2개 — 위반
+  const r = repairEvalGenCorrectionSegments(data)
+  assert.deepEqual(r, { kept: 0, derived: 0, unresolved: 1 })
+  assert.equal(item.prompt.segments, undefined)
+  const v = checkEvalGenResponse(TALK_CHECK, data)
+  assert.ok(v.some((x) => x.includes('prompt.segments') && x.includes('없다')), `재시도 위반이 나와야 한다: ${v.join(' / ')}`)
+})
+
+test('repairEvalGenCorrectionSegments: 같은 문장을 모델이 히라가나 위주로 바르게 끊으면 코드가 못 끊는 문장도 보존된다(kept)', () => {
+  const data = cloneData(validTalkResponse())
+  const item = spotItem(data)
+  item.prompt.sentenceJa = 'わたしはがっこうへ行くません。'
+  item.expected = { wrongSpan: '行くません', correctedJa: 'わたしはがっこうへ行きません。', explanationKo: 'ません 앞은 ます형(行き)입니다' }
+  item.prompt.segments = ['わたしは', 'がっこうへ', '行くません。']
+  assert.deepEqual(repairEvalGenCorrectionSegments(data), { kept: 1, derived: 0, unresolved: 0 })
+  assert.deepEqual(checkEvalGenResponse({ ...TALK_CHECK, candidateSurfaces: fixture.materials.map((m) => m.surface) }, data), [])
+})
+
+test('repairEvalGenCorrectionSegments: CORRECTION_SPOT 가 아닌 문항은 건드리지 않는다', () => {
+  const data = cloneData(validWordsResponse())
+  assert.deepEqual(repairEvalGenCorrectionSegments(data), { kept: 0, derived: 0, unresolved: 0 })
+})
+
+test('checkEvalGenResponse(TALK): CORRECTION_SPOT segments 위반이 문항 위치와 함께 보고된다', () => {
+  const data = cloneData(validTalkResponse())
+  spotItem(data).prompt.segments = ['コーヒーを', '飲み', 'たいです。']
+  const v = checkEvalGenResponse(TALK_CHECK, data)
+  assert.ok(v.some((x) => x.includes('items[5].prompt.segments') && x.includes('글자 하나까지')), v.join(' / '))
+})
+
+test('computeEvalItemHash: CORRECTION_SPOT 해시는 segments 와 무관하다(14일 dedup 불변, Leader 결정 2)', () => {
+  const a = cloneData(validTalkResponse())
+  const b = cloneData(validTalkResponse())
+  delete spotItem(b).prompt.segments
+  assert.equal(computeEvalItemHash(spotItem(a)), computeEvalItemHash(spotItem(b)), 'segments 유무가 해시를 바꾸면 기존 출제 이력과 dedup 이 깨진다')
+  spotItem(b).prompt.segments = ['コーヒー', 'を飲む', 'たいです。']
+  assert.equal(computeEvalItemHash(spotItem(a)), computeEvalItemHash(spotItem(b)))
+})
+
+test('evalGen@v4 예산: 최악 조합(TALK·N1·재료 15·긴 주제)도 segments 규칙 추가 후 ≤ EVAL_GEN_USER_PROMPT_CAP', () => {
+  const worstMaterials: EvalGenWordCandidate[] = Array.from({ length: EVAL_GEN_MATERIALS_MAX }, (_, i) => ({
+    surface: `非常に長い単語表記${i}`.slice(0, 40), reading: 'ひじょうにながいたんごひょうき'.slice(0, 40), meaning: '아주 길게 늘려 쓴 뜻 설명입니다 '.repeat(3).slice(0, 60), wrongCount: 5,
+  }))
+  const req = buildEvalGenRequest({
+    todayKst: '2026-10-01', kind: 'TALK', level: 'N1' as EvalGenInput['level'],
+    topic: { title: '아주 긴 주제 제목을 넣어 최악의 경우를 만듭니다 '.repeat(2), titleJa: '非常に長いトピックタイトルを入れて最悪のケースを作ります' },
+    materials: worstMaterials, recentHashes: Array.from({ length: 60 }, (_, i) => `h${i}`.padEnd(16, 'a')),
+  })
+  const len = renderTranscript(req.system, req.messages).length
+  assert.ok(len <= EVAL_GEN_USER_PROMPT_CAP, `${len}자 > ${EVAL_GEN_USER_PROMPT_CAP}`)
 })

@@ -86,7 +86,10 @@ export interface LessonGenClaim {
   lessonId: string
   jobId: string
   traceId: string
+  /** 생성 잡 종류 — 새 수업 `LESSON_GEN`(기본), 복습 수업 `REVIEW_GEN`(task-010b #63). 세대 펜싱·지연 정리가 같은 종류만 본다. */
+  kind?: LessonGenKind
 }
+export type LessonGenKind = 'LESSON_GEN' | 'REVIEW_GEN'
 type Claim = LessonGenClaim
 
 async function claimLesson(userId: string, m: LessonMaterials, gen: LessonGeneration): Promise<CreateLessonResult & { claim: Claim | null }> {
@@ -151,7 +154,7 @@ export class LessonGenerationSuperseded extends Error {
 async function assertCurrentGeneration(tx: Tx, userId: string, c: Claim): Promise<void> {
   // 점유(claimLesson)와 같은 사용자 행 잠금 — 되살리기(옛 잡 stale + 새 잡)와 저장·실패가 어느 순서로 끼어들어도 한쪽만 레슨을 쓴다.
   await lockUserRow(tx, userId)
-  if (!(await jobs.isCurrentJob({ id: c.jobId, userId, kind: 'LESSON_GEN', refId: c.lessonId }, tx))) throw new LessonGenerationSuperseded()
+  if (!(await jobs.isCurrentJob({ id: c.jobId, userId, kind: c.kind ?? 'LESSON_GEN', refId: c.lessonId }, tx))) throw new LessonGenerationSuperseded()
 }
 
 /** 생성 결과 저장(펜싱) — 레슨 READY + 잡 DONE 을 호출자 트랜잭션에서. 세대가 바뀌었으면 `LessonGenerationSuperseded`(트랜잭션 되돌림). */
@@ -191,7 +194,8 @@ async function markLessonFailed(userId: string, c: Claim, code: string): Promise
   }
 }
 
-async function runGeneration(userId: string, c: Claim, gen: LessonGeneration): Promise<void> {
+/** 생성 잡 본체 — 새 수업(A4)·복습 수업(A5, task-010b #63) 공용. 요청 객체는 라우트가 conversation 으로 만들어 값으로 넘긴다. */
+export async function runLessonGeneration(userId: string, c: Claim, gen: LessonGeneration): Promise<void> {
   const startedAt = Date.now()
   const steps: TraceStep[] = []
   let status: 'OK' | 'ERROR' = 'OK'
@@ -221,14 +225,14 @@ async function runGeneration(userId: string, c: Claim, gen: LessonGeneration): P
     await markLessonFailed(userId, c, errorCode)
     throw e
   } finally {
-    void recordTrace({ traceId: c.traceId, kind: 'TURN', userId, status, steps, totalMs: Date.now() - startedAt, errorCode, refType: 'lessonGen', refId: c.lessonId })
+    void recordTrace({ traceId: c.traceId, kind: 'TURN', userId, status, steps, totalMs: Date.now() - startedAt, errorCode, refType: c.kind === 'REVIEW_GEN' ? 'reviewGen' : 'lessonGen', refId: c.lessonId })
   }
 }
 
 /** #59 — 점유 후(새 잡이면) 백그라운드 실행을 걸고 바로 돌려준다. */
 export async function createLesson(userId: string, m: LessonMaterials, gen: LessonGeneration): Promise<CreateLessonResult> {
   const { claim, ...result } = await claimLesson(userId, m, gen)
-  if (claim) jobs.runJobInBackground(claim.jobId, () => runGeneration(userId, claim, gen))
+  if (claim) jobs.runJobInBackground(claim.jobId, () => runLessonGeneration(userId, claim, gen))
   return result
 }
 
@@ -237,11 +241,16 @@ export async function createLesson(userId: string, m: LessonMaterials, gen: Less
  * 닫기는 "진행 중 잡이 **지금도** 없을 때만" 한 문장으로 한다 — 확인과 닫기 사이에 다시 만들기(#59 가 같은 행을 새 잡으로
  * 되살림)가 끼어들어도 새 잡의 레슨을 닫지 않는다. 저장(READY)과 겹쳐도 status 조건 때문에 READY 를 덮지 않는다.
  */
-export async function settleGenerating(userId: string, lessonId: string, tx?: Tx): Promise<string | null> {
-  const active = await jobs.findActiveJob({ userId, kind: 'LESSON_GEN', refId: lessonId }, tx)
+export async function settleGenerating(userId: string, lessonId: string, tx?: Tx, kind: LessonGenKind = 'LESSON_GEN'): Promise<string | null> {
+  const active = await jobs.findActiveJob({ userId, kind, refId: lessonId }, tx)
   if (active) return active.id
   await (tx ?? prisma).$executeRaw`UPDATE Lesson SET status = 'FAILED', error = 'stale', updatedAt = NOW(3)
     WHERE id = ${lessonId} AND userId = ${userId} AND status = 'GENERATING'
-      AND NOT EXISTS (SELECT 1 FROM AiJob j WHERE j.refId = ${lessonId} AND j.kind = 'LESSON_GEN' AND j.status IN ('QUEUED', 'RUNNING'))`
+      AND NOT EXISTS (SELECT 1 FROM AiJob j WHERE j.refId = ${lessonId} AND j.kind = ${kind} AND j.status IN ('QUEUED', 'RUNNING'))`
   return null
+}
+
+/** 레슨 종류 → 생성 잡 종류(복습 수업은 A5 `REVIEW_GEN`). */
+export function lessonGenKindOf(kind: 'NEW' | 'REVIEW'): LessonGenKind {
+  return kind === 'REVIEW' ? 'REVIEW_GEN' : 'LESSON_GEN'
 }

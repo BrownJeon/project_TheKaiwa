@@ -157,3 +157,60 @@ export const SPEECH_PROFILE_DEFAULTS = [
   { id: 'LEARNING_NORMAL', label: '학습 속도' },
   { id: 'LEARNING_SLOW', label: '천천히' },
 ] as const
+
+/* ── task-010c 교정 방식(유창성·코치) — 데모 task-010c v1 문구 그대로 ── */
+
+export type CorrectionModeValue = 'FLUENCY' | 'COACH'
+
+export const CORRECTION_MODE_COPY = {
+  label: '교정 방식',
+  name: { FLUENCY: '유창성', COACH: '코치' } as Record<CorrectionModeValue, string>,
+  desc: {
+    FLUENCY: '대화 흐름을 먼저 — 큰 실수만 바로 알려 주고 나머지는 모아 둬요',
+    COACH: '하나하나 짚어요 — 힌트를 먼저 주고 다시 말해 보게 해요',
+  } as Record<CorrectionModeValue, string>,
+  defaultBadge: '기본',
+  /** 설정 도움말 — 홀수 번째 조각(무엇을·언제)은 굵게. */
+  helpParts: ['교정 강도는 ', '무엇을', ' 고칠지, 교정 방식은 회화에서 ', '언제', ' 보여 줄지 정해요.'] as const,
+  scope: '말로 하는 회화에만 적용돼요. 글 채팅은 지금처럼 대화를 마친 뒤 한꺼번에 점검해요.',
+  saved: (name: string) => `다음 말부터 ${name} 방식으로 교정해요`,
+  failed: '저장하지 못했어요. 다시 골라 주세요.',
+} as const
+
+export const LATER_COPY = {
+  chip: '모아 둔 교정',
+  chipShort: '교정',
+  chipAria: (n: number) => `모아 둔 교정 ${n}개 보기`,
+  title: '모아 둔 교정',
+  intro: '대화를 끊지 않으려고 작은 실수를 여기에 모았어요. 채택한 것만 저장돼요.',
+  remainingLead: '아직 안 본 교정 ',
+  remainingTail: '개',
+  doneTitle: '모아 둔 교정을 모두 확인했어요',
+  doneSub: '닫으면 대화 화면의 칩이 사라져요.',
+  back: '대화로 돌아가기',
+  emptyTitle: '모아 둔 교정이 없어요',
+  emptySub: '유창성 방식에서는 작은 실수를 대화 중에 알리지 않고 여기에 모아 둬요.',
+  close: '닫기',
+  loading: '모아 둔 교정을 불러오는 중…',
+  error: '모아 둔 교정을 불러오지 못했어요.',
+  retry: '다시 시도',
+  /** 스크린리더 한 번(녹음이 끝난 뒤). */
+  collected: (n: number) => `작은 실수 1개를 모아 뒀어요. 모아 둔 교정 ${n}개`,
+} as const
+
+export const COACH_COPY = {
+  hintBadge: '힌트',
+  mine: '내 문장',
+  hint: '힌트',
+  waiting: '힌트를 보고 다시 말해 보세요. 아래 버튼을 누른 채로 고친 문장을 말하면 돼요.',
+  reveal: '정답 보기',
+  afterReveal: '정답을 보고 다시 말해 보세요.',
+  missed: '다음 말에서 고치지 못해 정답을 열었어요. 이렇게 다시 말해 보세요.',
+  selfBadge: '스스로 고쳤어요 ✓',
+  repeatBadge: '고쳐 말했어요 ✓',
+  selfLine: '✓ 다음 말에서 스스로 고쳤어요',
+  repeatLine: '✓ 정답을 보고 고쳐 말했어요',
+  /** 입력 바 상태 줄 */
+  statusHint: '힌트를 보고 다시 말해 보세요',
+  statusAnswer: '정답을 보고 다시 말해 보세요',
+} as const

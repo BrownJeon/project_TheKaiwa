@@ -13,6 +13,8 @@ export type VocabAnswer = 'CORRECT' | 'WRONG' | 'SKIPPED'
 export type VocabMode = 'CHOICE' | 'FLIP'
 export type VocabSessionStatus = 'IN_PROGRESS' | 'DONE' | 'ABANDONED'
 export type WordSort = 'recent' | 'wrong' | 'surface'
+/** #40 `chunkType` 조건(task-023) — 조각 4종 + `none`(조각이 정해지지 않은 단어). 하나만 고른다. */
+export type WordChunkFilter = ChunkType | 'none'
 
 /** 공통 `WordEntry`(§2-9) */
 export interface WordEntry {

@@ -2,13 +2,14 @@
  * 설정 후보 검증(api-contract §2-23·#104, admin-console/10 §4~§5) — 저장하지 않는다. 단계: JSON_SYNTAX → SCHEMA → DEPENDENCY.
  *
  * - 대상은 **바뀐 키만**이다(저장값과 같은 값은 통과 — Raw JSON 전체 문서에 잠긴 키가 그대로 들어 있어도 된다).
- * - SCHEMA: 모르는 키(`unknownKey` + 가장 가까운 키 `suggestion`, `x-` 접두는 보존·경고) · 잠금(`readOnly`·`restartRequired`·`serviceManaged`) ·
+ * - SCHEMA: 모르는 키(`unknownKey` + 가장 가까운 키 `suggestion`, `x-` 접두는 저장하지 않고 경고만) · 잠금(`readOnly`·`restartRequired`·`serviceManaged`) ·
  *   타입·범위·enum·pattern·maxLength · SECRET_REF 평문(`secretValue`, 값은 되돌려주지 않는다) · ref 허용 목록(`refNotAllowed`·`pattern`·`reference`) ·
- *   URL 주소 허용 목록(`hostNotAllowed`, D-C3(c)).
+ *   URL 주소 허용 목록(`hostNotAllowed`, D-C3(c)) · 일반 문자열·목록 값·JSON 값 안의 비밀 유사 문자열(`secretValue`, REV-056 — 값은 되돌려주지 않는다.
+ *   비자유 키는 긴 토큰 규칙 대신 구분 기호 없는 긴 혼합 런 규칙, Codex C2 재검토).
  * - DEPENDENCY: 대상 종류별 교차 규칙은 호출자가 넘긴다(Fallback 연결 존재·역할·환경 · 기본 목소리 존재 등).
  * - 오류 항목 `{key, rule, message, expected?, actual?, suggestion?, related?}` 최대 50건.
  */
-import { codePointLength, type OutboundVet } from '@/modules/infra'
+import { codePointLength, isSecretLikeText, reasonCheckForm, type OutboundVet } from '@/modules/infra'
 import { vetConnectionUrl } from '../adapters/common/targetPolicy'
 import { checkCredentialRef } from '../credentials/policy'
 import { lockMessage, lockRule, type EditKeyDef, type LockReason, type ValidationRuleName } from './keys'
@@ -101,6 +102,80 @@ export function suggestKey(key: string, candidates: readonly string[]): string |
 
 const TYPE_LABEL: Record<string, string> = { STRING: '문자열', PATH: '문자열', URL: 'http(s) 주소', INTEGER: '정수', NUMBER: '숫자', BOOLEAN: 'true/false', ENUM: '목록 값', JSON: 'JSON', SECRET_REF: 'env:/file: 참조' }
 
+// ── 비밀 유사 값(REV-056) ── 판정 규칙은 reason 과 같은 `isSecretLikeText`(role-permission §7 ③)이고, 여기서 더하는 규칙은 비자유 키 전용
+// "긴 혼합 런" 하나뿐이다(task-012c Codex C2 재검토 — 긴 토큰 규칙을 뺀 자리를 좁게 메운다).
+
+const SECRET_VALUE_MESSAGE = '비밀처럼 보이는 글자가 있어 저장하지 않았어요.'
+/**
+ * "긴 토큰"(24자↑ 영숫자 연속) 규칙만 빼는 창 크기. 그 규칙은 24자 연속에서만 걸리므로 23자 창 안에서는 걸릴 수 없고, 나머지 규칙
+ * (접두·인증 스킴·JWT·키=값)의 최소 일치는 왼쪽 경계 1자를 넣어도 20자 이하라 창 하나에 통째로 들어간다. reason.ts 규칙이 길어지면
+ * 조용히 우회되므로 단위 테스트(task012c-secret-value "L4 가드")가 규칙 원문과 최소 일치 길이를 고정한다.
+ */
+export const NO_LONG_TOKEN_WINDOW = 23
+/**
+ * 비자유 키 보강 규칙 — 구분 기호(`-` `.` `:` `/` 공백)가 없는 `[A-Za-z0-9_+=]` 연속이 이 길이 이상이고 문자 종류(소문자·대문자·숫자·`_+=`)가
+ * {@link MIXED_RUN_KINDS} 가지 이상이면 비밀로 본다. 모델 id·경로·URL·uuid 는 구분 기호로 끊기고, cuid·16진수는 2종이라 걸리지 않는다.
+ */
+export const MIXED_RUN_MIN = 32
+export const MIXED_RUN_KINDS = 3
+const JSON_SCAN_DEPTH = 8
+const JSON_SCAN_ARRAY = 200
+const MIXED_RUN = /[A-Za-z0-9_+=]+/g
+
+/** 판정용 형태 — NFKC·폭 0 문자 삭제(reason 과 같은 형태) 뒤 공백 접기. 원문으로 보면 폭 0 문자로 패턴을 끊어 우회할 수 있다. */
+const checkForm = (s: string): string => reasonCheckForm(s).replace(/\s+/g, ' ')
+
+function hasLongMixedRun(form: string): boolean {
+  for (const m of form.matchAll(MIXED_RUN)) {
+    const run = m[0]
+    if (run.length >= MIXED_RUN_MIN && [/[a-z]/, /[A-Z]/, /[0-9]/, /[_+=]/].filter((re) => re.test(run)).length >= MIXED_RUN_KINDS) return true
+  }
+  return false
+}
+
+/** 모델 id·경로가 긴 토큰 규칙에 걸리지 않게 그 규칙만 뺀 판정(입력 = 판정용 형태) — 규칙 함수는 그대로 두고 입력을 창으로 잘라 넘긴다. */
+function secretLikeExceptLongToken(form: string): boolean {
+  if (!isSecretLikeText(form)) return false
+  const cps = Array.from(form)
+  for (let i = 0; i < cps.length; i++) {
+    // 창 첫 글자를 문자열 시작(접두 규칙의 왼쪽 경계)으로 오인하지 않게 숫자를 앞에 붙인다 — 어느 규칙도 숫자로 시작하지 않는다.
+    const w = i === 0 ? cps.slice(0, NO_LONG_TOKEN_WINDOW).join('') : '0' + cps.slice(i, i + NO_LONG_TOKEN_WINDOW - 1).join('')
+    if (isSecretLikeText(w)) return true
+  }
+  return false
+}
+
+/** 비자유 값(모델명·id·경로·주소·목록 값·JSON 잎/키) 판정 — `checkEditValue` 와 `scanJsonSecret` 이 이 함수 하나만 쓴다. */
+function secretLikeNonFreeText(s: string): boolean {
+  const form = checkForm(s)
+  return hasLongMixedRun(form) || secretLikeExceptLongToken(form)
+}
+
+const secretLikeValue = (def: EditKeyDef, s: string): boolean => (def.freeText ? isSecretLikeText(s) : secretLikeNonFreeText(s))
+
+/** JSON 의 문자열 잎·객체 키·`키: 문자열 값` 짝을 본다. `LIMIT` = 깊이·배열 한도를 넘어 다 보지 못했다(통과시키지 않는다). */
+function scanJsonSecret(v: unknown, depth: number): 'SECRET' | 'LIMIT' | null {
+  if (typeof v === 'string') return secretLikeNonFreeText(v) ? 'SECRET' : null
+  if (v === null || typeof v !== 'object') return null
+  if (depth > JSON_SCAN_DEPTH) return 'LIMIT'
+  if (Array.isArray(v)) {
+    if (v.length > JSON_SCAN_ARRAY) return 'LIMIT'
+    for (const x of v) {
+      const r = scanJsonSecret(x, depth + 1)
+      if (r) return r
+    }
+    return null
+  }
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (secretLikeNonFreeText(k)) return 'SECRET'
+    // `{"password":"hunter2"}` 는 키도 잎도 따로는 평범하다 — 문자열 값은 키와 이어 같은 규칙에 한 번 더 넣는다.
+    if (typeof x === 'string' && secretLikeNonFreeText(`${k}: ${x}`)) return 'SECRET'
+    const r = scanJsonSecret(x, depth + 1)
+    if (r) return r
+  }
+  return null
+}
+
 /** 값 한 개의 타입·범위 검사(SECRET_REF·URL 허용 목록은 호출자). */
 export function checkEditValue(def: EditKeyDef, v: unknown): ValidationIssue[] {
   const issue = (rule: ValidationRuleName, message: string, extra: Partial<ValidationIssue> = {}): ValidationIssue[] => [{ key: def.key, rule, message, ...extra }]
@@ -113,7 +188,7 @@ export function checkEditValue(def: EditKeyDef, v: unknown): ValidationIssue[] {
     case 'ENUM': {
       if (def.type === 'ENUM') {
         if (!def.enum?.includes(v as string | number)) return issue('enum', `${def.key} 는 정해진 값 중 하나여야 합니다.`, { expected: def.enum })
-        return []
+        return typeof v === 'string' && secretLikeValue(def, v) ? issue('secretValue', SECRET_VALUE_MESSAGE) : []
       }
       if (typeof v !== 'string') return issue('type', `${def.key} 는 ${TYPE_LABEL[def.type]}이어야 합니다.`, { expected: TYPE_LABEL[def.type] })
       const len = codePointLength(v)
@@ -130,6 +205,7 @@ export function checkEditValue(def: EditKeyDef, v: unknown): ValidationIssue[] {
       if (def.pattern && !new RegExp(def.pattern).test(v)) return issue('pattern', `${def.key} 형식이 올바르지 않습니다.`, { expected: def.pattern })
       // 기본값이 빈 문자열인 키(예: 허용 도구 목록)는 빈 값이 정상이다 — 저장값·스냅샷 재검증에서 오탐하지 않게.
       if (def.type === 'STRING' && len === 0 && def.pattern === undefined && def.default !== '') return issue('required', `${def.key} 값이 필요합니다.`)
+      if (secretLikeValue(def, v)) return issue('secretValue', SECRET_VALUE_MESSAGE)
       return []
     }
     case 'INTEGER':
@@ -141,8 +217,13 @@ export function checkEditValue(def: EditKeyDef, v: unknown): ValidationIssue[] {
     }
     case 'BOOLEAN':
       return typeof v === 'boolean' ? [] : issue('type', `${def.key} 는 true/false 여야 합니다.`, { expected: TYPE_LABEL.BOOLEAN })
-    case 'JSON':
-      return JSON.stringify(v) === undefined || JSON.stringify(v).length > 8_000 ? issue('type', `${def.key} 는 8KB 이하 JSON 이어야 합니다.`) : []
+    case 'JSON': {
+      if (JSON.stringify(v) === undefined || JSON.stringify(v).length > 8_000) return issue('type', `${def.key} 는 8KB 이하 JSON 이어야 합니다.`)
+      const scan = scanJsonSecret(v, 1)
+      if (scan === 'LIMIT') return issue('type', `${def.key} 는 ${JSON_SCAN_DEPTH}단·배열 ${JSON_SCAN_ARRAY}개 이하 JSON 이어야 합니다.`)
+      if (scan === 'SECRET') return issue('secretValue', SECRET_VALUE_MESSAGE)
+      return []
+    }
     case 'SECRET_REF':
       return []
   }
@@ -194,7 +275,7 @@ export async function validatePatch(defs: readonly EditKeyDef[], stored: Readonl
     const def = byKey.get(key)
     if (!def) {
       if (key.startsWith('x-')) {
-        warnings.push({ key, code: 'W_EXTENSION_KEY', message: '확장 키(x-)는 저장 문서에 보존만 하고 적용하지 않습니다.' })
+        warnings.push({ key, code: 'W_EXTENSION_KEY', message: '확장 키(x-)는 저장하지 않고 적용하지도 않습니다.' })
         continue
       }
       if (Object.prototype.hasOwnProperty.call(stored, key) && sameValue(stored[key], value)) continue

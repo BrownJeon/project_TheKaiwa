@@ -247,7 +247,7 @@ export interface SpeakingResult {
   hasAudio: boolean
 }
 
-export type AudioKind = 'dialogue' | 'grammar' | 'application' | 'speaking'
+export type AudioKind = 'dialogue' | 'grammar' | 'application' | 'speaking' | 'chunk'
 export type AudioPace = 'slow' | 'normal'
 
 export interface LessonAudioResult {

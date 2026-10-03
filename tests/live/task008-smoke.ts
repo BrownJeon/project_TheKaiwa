@@ -159,6 +159,21 @@ async function main() {
   check('2g′ q 41자 400·sort 잘못 400', q41.status === 400 && (await api(COOKIE1, 'GET', '/api/v1/words?sort=x')).status === 400)
   const cat = await api(COOKIE1, 'GET', `/api/v1/words?category=${encodeURIComponent('N5 기초')}&limit=100`)
   check('2h 카테고리 필터', d(cat).total === 50 && (d(cat).items as Json[]).every((w) => w.category === 'N5 기초'))
+  // task-023 — 조각 조건(#40 chunkType): 4종 + none 의 total 이 DB 집계와 같고, 분류와 AND, 그 밖 값은 400. QA 계정 행만 읽는다.
+  const chunkRes = await Promise.all(
+    (['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'none'] as const).map(async (k) => {
+      const r = await api(COOKIE1, 'GET', `/api/v1/words?chunkType=${k}&limit=100`)
+      const dbN = await prisma.wordEntry.count({ where: { userId: u1, archived: false, chunkType: k === 'none' ? null : k } })
+      const ok = r.status === 200 && d(r).total === dbN && (d(r).items as Json[]).every((w) => w.chunkType === (k === 'none' ? null : k))
+      return { k, ok, note: `${k}=${d(r).total}/${dbN}` }
+    }),
+  )
+  check('2h″ 조각 필터 4종+none: total = DB 집계, 행 chunkType 일치(task-023)', chunkRes.every((x) => x.ok), chunkRes.map((x) => x.note).join(' '))
+  const andRes = await api(COOKIE1, 'GET', `/api/v1/words?category=${encodeURIComponent('N5 기초')}&chunkType=FEELING&limit=100`)
+  const andDb = await prisma.wordEntry.count({ where: { userId: u1, archived: false, category: 'N5 기초', chunkType: 'FEELING' } })
+  check('2h‴ 분류 + 조각 AND(task-023)', andRes.status === 200 && d(andRes).total === andDb && andDb > 0 && (d(andRes).items as Json[]).every((w) => w.category === 'N5 기초' && w.chunkType === 'FEELING'), `${d(andRes).total}/${andDb}`)
+  const badChunk = await Promise.all(['name', 'NAME,ACTION', 'None', 'OTHER'].map((v) => api(COOKIE1, 'GET', `/api/v1/words?chunkType=${encodeURIComponent(v)}`)))
+  check('2h⁗ 잘못된 chunkType → 400 VALIDATION(field=chunkType)(task-023)', badChunk.every((r) => r.status === 400 && r.body.data.code === 'VALIDATION' && r.body.data.details?.field === 'chunkType'), badChunk.map((r) => r.status).join(','))
   const bySurface = await api(COOKIE1, 'GET', '/api/v1/words?sort=surface&limit=100')
   const byWrong = await api(COOKIE1, 'GET', '/api/v1/words?sort=wrong&limit=100')
   check('2i 정렬 surface·wrong 200, 전체 52', bySurface.status === 200 && (d(bySurface).items as Json[]).length === 52 && byWrong.status === 200 && (d(byWrong).items as Json[]).length === 52)

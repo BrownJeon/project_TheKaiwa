@@ -44,7 +44,7 @@ model: haiku
 - [ ] WS 티켓 만료·재사용 거부, `/api/internal/*` 시크릿 없음 401
 ### 회화·채팅·교정(mock LLM)
 - [ ] 동시 턴 409, SSE `accepted→status→audio→done` 순서, 끊김 후 폴링으로 `done` 회수
-- [ ] 교정 `original` 이 DB 원문과 바이트 일치, 채택 전 `WordEntry`/`StudyLog` 행 0, accept 후 각 1행, reject 후 0행, 재승인 409
+- [ ] 교정 `original` 이 DB 원문과 바이트 일치, 채택 전 `WordEntry`/`StudyLog` 행 0, accept 후 `WordEntry` 1행(단어 추가 선택 시만)·`StudyLog` 는 교정 accept 가 만들지 않음(api-contract #35 정본 — 대화 종료 `ADD_STUDY_LOG` 채택이 만든다), reject 후 0행, 재승인 409
 - [ ] 12s fail-fast 시 `FAILED` + 안내문, 원문 보존
 ### 오늘의 단어
 - [ ] 세트 생성 응답에 정답 미포함, 풀<4 → FLIP 강등, attempts order 멱등, finish 트랜잭션(카운터·StudyLog DIRECT·StatsSnapshot) 원자성(실패 주입 시 전부 롤백)

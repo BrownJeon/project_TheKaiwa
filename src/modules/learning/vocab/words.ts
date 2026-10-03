@@ -179,16 +179,24 @@ export function isValidId(id: unknown): id is string {
   return typeof id === 'string' && id.length > 0 && id.length <= 40
 }
 
+/** #40 조각 조건 — 조각 4종 + `none`(조각이 정해지지 않은 단어, `chunkType IS NULL`). 하나만 받는다(task-023 결정 b). */
+export const WORD_CHUNK_FILTERS = [...WORD_CHUNK_TYPES, 'none'] as const
+export type WordChunkFilter = (typeof WORD_CHUNK_FILTERS)[number]
+
 export interface WordListQuery {
   q: string | null
   category: string | null
+  chunkType: WordChunkFilter | null
   archived: boolean
   sort: WordSort
   limit: number
   cursor: string | null
 }
 
-/** #40 쿼리 — `q` ≤40·`category` ≤40(코드포인트), `archived=0|1`, `sort=recent|wrong|surface`, `limit` 1~100(기본 20). */
+/**
+ * #40 쿼리 — `q` ≤40·`category` ≤40(코드포인트), `chunkType=NAME|ACTION|FEELING|MODIFIER|none`, `archived=0|1`,
+ * `sort=recent|wrong|surface`, `limit` 1~100(기본 20). 열거값은 글자 그대로 비교한다(대소문자·쉼표 목록은 400).
+ */
 export function parseWordListQuery(params: URLSearchParams, limit: number): WordListQuery {
   const one = (name: string, max: number): string | null => {
     const raw = params.get(name)
@@ -202,7 +210,29 @@ export function parseWordListQuery(params: URLSearchParams, limit: number): Word
   if (archived != null && archived !== '' && archived !== '0' && archived !== '1') bad('archived', '0|1', 'archived 는 0 또는 1 이어야 합니다.')
   const sort = params.get('sort') || 'recent'
   if (!(WORD_SORTS as readonly string[]).includes(sort)) bad('sort', WORD_SORTS.join('|'), 'sort 값이 올바르지 않습니다.')
-  return { q: one('q', 40), category: one('category', 40), archived: archived === '1', sort: sort as WordSort, limit, cursor: params.get('cursor') }
+  const chunk = params.get('chunkType') || null
+  if (chunk !== null && !(WORD_CHUNK_FILTERS as readonly string[]).includes(chunk)) bad('chunkType', WORD_CHUNK_FILTERS.join('|'), 'chunkType 값이 올바르지 않습니다.')
+  return {
+    q: one('q', 40),
+    category: one('category', 40),
+    chunkType: chunk as WordChunkFilter | null,
+    archived: archived === '1',
+    sort: sort as WordSort,
+    limit,
+    cursor: params.get('cursor'),
+  }
+}
+
+/** #40 where — 검색·분류·조각·보관 여부는 모두 AND. 조각 `none` 은 `chunkType IS NULL`. */
+export function wordListFilter(userId: string, q: Pick<WordListQuery, 'q' | 'category' | 'chunkType' | 'archived'>): Prisma.WordEntryWhereInput {
+  const like = q.q ? escapeLike(q.q) : null
+  return {
+    userId,
+    archived: q.archived,
+    ...(q.category ? { category: q.category } : {}),
+    ...(q.chunkType ? { chunkType: q.chunkType === 'none' ? null : q.chunkType } : {}),
+    ...(like ? { OR: [{ surface: { contains: like } }, { reading: { contains: like } }, { meaning: { contains: like } }] } : {}),
+  }
 }
 
 type WordCursor = { k: 'recent'; t: string; id: string } | { k: 'wrong'; w: number; id: string } | { k: 'surface'; s: string; id: string }
@@ -237,13 +267,7 @@ function cursorOf(sort: WordSort, w: { id: string; wrongCount: number; surface: 
 /** #40 — 부분 일치(`surface/reading/meaning`, LIKE 와일드카드는 글자 그대로), 보관 여부 분리, 정렬 3종, `total` 은 커서와 무관한 전체 수. */
 export async function listWords(userId: string, q: WordListQuery): Promise<{ items: WordDto[]; nextCursor: string | null; total: number }> {
   const cur = decodeCursor(q.cursor, cursorCheck(q.sort))
-  const like = q.q ? escapeLike(q.q) : null
-  const filter: Prisma.WordEntryWhereInput = {
-    userId,
-    archived: q.archived,
-    ...(q.category ? { category: q.category } : {}),
-    ...(like ? { OR: [{ surface: { contains: like } }, { reading: { contains: like } }, { meaning: { contains: like } }] } : {}),
-  }
+  const filter = wordListFilter(userId, q)
   const [rows, total] = await Promise.all([
     prisma.wordEntry.findMany({ where: cur ? { AND: [filter, afterCursor(cur)] } : filter, orderBy: orderFor(q.sort), take: q.limit + 1, select: WORD_SELECT }),
     prisma.wordEntry.count({ where: filter }),

@@ -41,7 +41,7 @@ function gen(over: Partial<LessonGenOutput> = {}): LessonGenOutput {
     quiz: [
       { id: 'q1', promptKo: '커피', promptJa: null, choices: ['コーヒー', 'お茶', '水', 'ケーキ'], answer: 0, targetIds: ['c1'], explanationKo: '.' },
       { id: 'q2', promptKo: '가져가다', promptJa: null, choices: ['食べます', '持ち帰ります', '飲みます', '見ます'], answer: 1, targetIds: ['c2'], explanationKo: '.' },
-      { id: 'q3', promptKo: null, promptJa: '水を＿＿', choices: ['ください', 'です', 'ます', 'だ'], answer: 0, targetIds: ['g1', 'c1'], explanationKo: '.' },
+      { id: 'q3', promptKo: '빈칸에 알맞은 말은? (물 ＿＿)', promptJa: '水を＿＿', choices: ['ください', 'です', 'ます', 'だ'], answer: 0, targetIds: ['g1', 'c1'], explanationKo: '.' },
       { id: 'q4', promptKo: '주문', promptJa: null, choices: ['注文', '会計', '予約', '席'], answer: 0, targetIds: ['new-1'], explanationKo: '.' },
       { id: 'q5', promptKo: '작다', promptJa: null, choices: ['大きい', '小さい', '高い', '安い'], answer: 1, targetIds: ['new-2', 'g2'], explanationKo: '.' },
     ],
@@ -90,6 +90,16 @@ test('L2 저장 모양: 대화 줄마다 segment(1부터)·segmentCount, 원래 
   assert.equal(readStoredContent({ ...c, v: 2 }), null)
   assert.equal(readStoredContent(null), null)
   assert.equal(readStoredContent({ v: 1, title: 'x' }), null, '배열 칸 없으면 손상')
+})
+
+test('L2 옛 레슨 읽기(lesson@v7 이하): 저장된 quiz.promptKo 가 null 이어도 그대로 읽히고 채점된다', () => {
+  const c = toStoredContent(gen())
+  const legacy = JSON.parse(JSON.stringify({ ...c, quiz: c.quiz.map((q, i) => (i === 2 ? { ...q, promptKo: null } : q)) }))
+  const read = readStoredContent(legacy)
+  assert.ok(read, '옛 저장 JSON 도 손상으로 보지 않는다')
+  assert.equal(read.quiz[2].promptKo, null)
+  assert.equal(read.quiz[2].promptJa, '水を＿＿')
+  assert.equal(scoreQuiz(read.quiz, [0, 1, 0, 0, 1]).correct, 5)
 })
 
 // ── L4 서버 재채점 ─────────────────────────────────────────────────────────

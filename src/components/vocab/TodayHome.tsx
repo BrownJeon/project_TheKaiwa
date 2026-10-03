@@ -3,6 +3,7 @@
 /**
  * 오늘의 공부 홈 `/study/today`(screens.md §5-2 A·§5-3 B). 마운트·화면 복귀 때 #46 · #48(최근 10) · #48(보관 5) · #54 를 함께 읽는다.
  * task-010: 단어 카드 바로 아래 "오늘의 회화" 카드(§12-2 A) — #58 을 같은 tick 으로 나란히, 상태는 따로 읽는다.
+ * task-011: 그 아래 "AI 평가" 카드(`EvalHomeCard`) — #69·#66 을 카드가 직접 읽고 같은 tick 으로 다시 읽는다.
  * #46·#48(최근) 실패만 카드 오류이고, 보관 세트·통계 실패는 그 섹션을 조용히 숨긴다. 자동 폴링은 없다.
  *
  * 풀던 세트는 사용자당 하나이고 새 세트·다시 풀기를 막으므로 늘 가장 최근에 시작한 세트다 → 최근 10개 안에서 찾는다(F3 `answeredCount`).
@@ -16,13 +17,14 @@ import Toast, { useToast } from '@/components/common/Toast'
 import type { CategoryCount, CreateSessionResult, FinishResult, Paged, SessionDetail, SessionSummary, VocabMode, VocabStats } from '@/types/vocab'
 import type { TodayLessons } from '@/types/lesson'
 import TodayLessonCard from '@/components/lesson/TodayLessonCard'
+import EvalHomeCard from '@/components/eval/EvalHomeCard'
+import type { JlptLevel } from '@/types/lesson'
 import { isAnswered } from './deck'
 import FinishConfirmSheet from './FinishConfirmSheet'
 import { todayKey } from './format'
 import { putSession, takeSession, useSeedPack, useStoredPref, useStoredString, VOCAB_KEYS } from './hooks'
 import KeptSets from './KeptSets'
 import { actionErrorText, FLASH, HINT, homeLoadErrorText, seedResultText, startErrorText } from './labels'
-import TodayComingSoon from './TodayComingSoon'
 import TodayWordsCard, { type PoolEmptyKind, type WordsCardState } from './TodayWordsCard'
 import { categoryTotals, normalizeCategories, visibleCategories } from './validate'
 import VocabStatsCard from './VocabStatsCard'
@@ -38,7 +40,7 @@ interface HomeData {
   inProgress: { session: SessionSummary; answered: number | null } | null
 }
 
-export default function TodayHome({ dailyWordCount }: { dailyWordCount: number }) {
+export default function TodayHome({ dailyWordCount, myLevel }: { dailyWordCount: number; myLevel: JlptLevel }) {
   const router = useRouter()
   const toast = useToast()
   const { seed, seeding } = useSeedPack()
@@ -293,11 +295,12 @@ export default function TodayHome({ dailyWordCount }: { dailyWordCount: number }
           setLessonTick((t) => t + 1)
         }}
       />
+      {/* task-011: AI 평가 카드(데모 v1 — 오늘의 회화 카드 바로 아래, "곧 열려요" 칸은 없어진다). 자기 요청·오류를 따로 갖는다. */}
+      <EvalHomeCard myLevel={myLevel} reloadKey={tick} onToast={show} />
       {data?.stats && data.stats.byCount.length > 0 ? <VocabStatsCard stats={data.stats} today={data.today} /> : null}
       {data?.kept && data.kept.items.length > 0 ? (
         <KeptSets key={loadSeq} initial={data.kept} today={data.today} busyId={replayingId} onReplay={(id) => void replay(id)} anchorRef={keptRef} />
       ) : null}
-      <TodayComingSoon />
       <FinishConfirmSheet
         open={finishOpen}
         answered={answeredNow}

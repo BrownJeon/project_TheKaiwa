@@ -29,7 +29,32 @@ test('buildReviewMixRequest: task·persona·jsonSchema(A4 재사용)·메시지 
   assert.match(req.system, /\[복습\]/)
   assert.ok(req.messages[0].content.startsWith('[복습 재료]'))
   assert.ok(req.messages[0].content.includes('id=rep-01'))
-  assert.equal(REVIEW_MIX_PROMPT_VERSION, 'reviewMix@v1')
+  assert.equal(REVIEW_MIX_PROMPT_VERSION, 'reviewMix@v2')
+})
+
+test('reviewMix@v2(task-025 IMP-0014): quiz 지시에 promptKo 필수(null·빈 값 금지)가 실리고 "최소 하나" 문구는 없다', () => {
+  const req = buildReviewMixRequest({ todayKst: '2026-09-28', learner, level: 'N4', items: fixture.items })
+  const quizLine = req.system.split('\n').find((l) => l.startsWith('- quiz:'))
+  assert.ok(quizLine, 'quiz 지시 줄이 있어야 한다')
+  assert.match(quizLine!, /promptKo/)
+  assert.match(quizLine!, /반드시/)
+  assert.match(quizLine!, /null/)
+  assert.ok(!quizLine!.includes('중 최소 하나'))
+})
+
+test('reviewMix@v2 (e)=B: 빈칸 문제는 promptKo 에 할 일만(번역·정답 뜻 금지), 빈 문장은 promptJa 로 — A4 lesson@v8 과 같은 규칙', () => {
+  const req = buildReviewMixRequest({ todayKst: '2026-09-28', learner, level: 'N4', items: fixture.items })
+  const quizLine = req.system.split('\n').find((l) => l.startsWith('- quiz:'))
+  assert.ok(quizLine, 'quiz 지시 줄이 있어야 한다')
+  assert.match(quizLine!, /빈칸 문제는 promptKo 에 .*할 일만 쓰고/, '빈칸형 분리 지시')
+  assert.ok(quizLine!.includes('빈칸에 들어갈 알맞은 말을 고르세요.'), '할 일만 쓰는 예시 문구')
+  assert.match(quizLine!, /문장 번역·정답의 뜻 금지/)
+  assert.match(quizLine!, /promptJa 에 ＿＿ 로 비워 반드시 채웁니다/)
+  // A4 재측정(2026-10-01) 3차와 같은 정렬: "일본어 문장이 나오면 그 한국어 뜻을 함께 적되 …" 는 뜻 고르기 문항에서 정답 번역을 부추겨 제거했다.
+  assert.ok(!quizLine!.includes('그 한국어 뜻을 함께 적되'), '정답 뜻을 쓰게 하는 옛 절이 남아 있으면 안 된다')
+  assert.ok(quizLine!.includes('일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 한국어 지시를 쓰며'), '한국어 지시 + promptJa 분리')
+  // 일반 규칙(어떤 문제에서도 정답이 되는 뜻은 promptKo 에 미리 쓰지 않는다) — A4 lesson.test.ts 의 같은 단언과 짝(REV-060 변이 M6: 이 구절 삭제가 단위 테스트에서 살아남았다).
+  assert.ok(quizLine!.includes('정답이 되는 뜻은 미리 쓰지 않습니다'), '정답 뜻 일반 금지 문장 유지')
 })
 
 test('mixNoteKo 가 있으면 지시문에 [참고] 줄로 실리고, 없으면 생략된다', () => {
@@ -113,7 +138,7 @@ function validReviewMixResponse(items: ReviewMixItemInput[]): LessonResponse {
     ],
     quiz: [
       { id: 'q1', promptKo: '「会社員です」의 뜻은?', promptJa: null, choices: ['회사원입니다', '학생입니다', '선생님입니다', '의사입니다'], answer: 0, targetIds: [i4.id], explanationKo: '재료 표현이에요.' },
-      { id: 'q2', promptKo: null, promptJa: '「＿＿してもいいですか」의 빈칸에 알맞은 것은?', choices: ['座って', '会社', '緊張', '嬉しい'], answer: 0, targetIds: ['g1'], explanationKo: '동사 て형을 씁니다.' },
+      { id: 'q2', promptKo: '빈칸에 들어갈 알맞은 말을 고르세요.', promptJa: '「＿＿してもいいですか」', choices: ['座って', '会社', '緊張', '嬉しい'], answer: 0, targetIds: ['g1'], explanationKo: '동사 て형을 씁니다.' },
       { id: 'q3', promptKo: '올바른 문형은?', promptJa: null, choices: ['緊張しています', '緊張します', '緊張した', '緊張しない'], answer: 0, targetIds: [i3.id], explanationKo: '진행형이에요.' },
       { id: 'q4', promptKo: '「よろしくお願いします」의 뜻은?', promptJa: null, choices: ['잘 부탁합니다', '감사합니다', '미안합니다', '괜찮습니다'], answer: 0, targetIds: [i1.id], explanationKo: '복습 재료 표현이에요.' },
       { id: 'q5', promptKo: '인사 표현으로 알맞은 것은?', promptJa: null, choices: ['はい', 'いいえ', 'さようなら', 'すみません'], answer: 0, targetIds: ['new-1'], explanationKo: '대답 표현이에요.' },

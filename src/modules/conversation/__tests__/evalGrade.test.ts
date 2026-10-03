@@ -10,6 +10,7 @@ import {
   EVAL_GRADE_PROMPT_VERSION,
   EVAL_GRADE_USER_PROMPT_CAP,
   EvalGradeInputError,
+  judgeSpotPick,
   type EvalGradeInput,
   type EvalGradeSubjectiveItem,
 } from '../prompts/evalGrade'
@@ -40,7 +41,7 @@ const talkSubjectiveItems: EvalGradeSubjectiveItem[] = [
 ]
 
 test('버전·상수', () => {
-  assert.equal(EVAL_GRADE_PROMPT_VERSION, 'evalGrade@v2')
+  assert.equal(EVAL_GRADE_PROMPT_VERSION, 'evalGrade@v3')
   assert.equal(EVAL_GRADE_ANSWER_RENDER_MAX, 600)
 })
 
@@ -171,4 +172,86 @@ test('clampRubric: 범위 밖·소수·누락 차원을 클램프', () => {
 test('clampRubric: null/undefined 입력도 전부 0', () => {
   assert.deepEqual(clampRubric(null), fullRubric(0))
   assert.deepEqual(clampRubric(undefined), fullRubric(0))
+})
+
+// ── evalGrade@v3: CORRECTION_SPOT 고른 조각 답(`고른 곳 「…」 / 고친 말·이유: …`) ─────────────────────
+
+const spotWithSegments: EvalGradeSubjectiveItem = {
+  order: 2, kind: 'CORRECTION_SPOT',
+  prompt: { sentenceJa: 'コーヒーを飲むたいです。', segments: ['コーヒーを', '飲む', 'たいです。'] },
+  expected: { wrongSpan: '飲むたい', correctedJa: 'コーヒーを飲みたいです。', explanationKo: 'たい는 ます형에 붙습니다' },
+  answerText: '고른 곳 「飲む」 / 고친 말·이유: 飲み',
+}
+
+function buildSpotRequest(item: EvalGradeSubjectiveItem) {
+  return buildEvalGradeRequest({ evalKind: 'TALK', level: 'N4' as EvalGradeInput['level'], objectiveSummary: [], subjectiveItems: [item] })
+}
+
+test('evalGrade@v3: 문항 줄에 정답 조각(wrongSpan 과 겹치는 조각)을 코드가 미리 계산해 싣는다', () => {
+  const content = buildSpotRequest(spotWithSegments).messages[0].content as string
+  assert.ok(content.includes('정답 조각 「飲む」「たいです。」'), content)
+  assert.ok(content.includes('학습자 답: 고른 곳 「飲む」 / 고친 말·이유: 飲み'))
+})
+
+test('evalGrade@v3: segments 가 없는 옛 문항은 정답 조각 없이 기존 줄 그대로(자유 입력 폴백)', () => {
+  const old: EvalGradeSubjectiveItem = { ...spotWithSegments, prompt: { sentenceJa: 'コーヒーを飲むたいです。' }, answerText: '「飲むたい」がおかしいです。「飲みたい」が正しいです。' }
+  const content = buildSpotRequest(old).messages[0].content as string
+  assert.ok(!content.includes('정답 조각'))
+  assert.ok(content.includes('틀린 곳("飲むたい")'))
+})
+
+test('evalGrade@v3: segments 이음이 sentenceJa 와 다르면 정답 조각을 싣지 않는다(잘못된 힌트 방지)', () => {
+  const broken: EvalGradeSubjectiveItem = { ...spotWithSegments, prompt: { sentenceJa: 'コーヒーを飲むたいです。', segments: ['コーヒーを', '飲み', 'たいです。'] } }
+  assert.ok(!(buildSpotRequest(broken).messages[0].content as string).includes('정답 조각'))
+})
+
+test('evalGrade@v3: 지시문에 고른 곳 답 형식·겹침 채점·한국어 이유 예외가 있다', () => {
+  const sys = buildSpotRequest(spotWithSegments).system
+  assert.ok(sys.includes('고른 곳 「…」 / 고친 말·이유: …'))
+  assert.ok(sys.includes('정답 조각'))
+  assert.ok(sys.includes('겹치'))
+  assert.ok(sys.includes('예외'), '한국어 이유는 「일본어가 아니면 0~2」 규칙 예외')
+  assert.ok(!/model_id|speaker_id|claude|qwen/i.test(sys), '엔진 식별 정보 없음')
+})
+
+test('evalGrade@v3: judgeSpotPick — 정답 조각이 둘이면 앞·뒤 어느 쪽을 골라도 MATCH, 그 밖의 조각은 MISS', () => {
+  const pick = (seg: string) => judgeSpotPick({ ...spotWithSegments, answerText: `고른 곳 「${seg}」 / 고친 말·이유: 飲みたいです` })
+  assert.equal(pick('飲む'), 'MATCH')
+  assert.equal(pick('たいです。'), 'MATCH', '실측 g26 — 뒤 조각을 골라도 정답(LLM 이 5점으로 깎았던 사례)')
+  assert.equal(pick('コーヒーを'), 'MISS')
+})
+
+test('evalGrade@v3: judgeSpotPick — 판정 불가(null): 조각 없는 옛 문항·자유 글 답·문항에 없는 조각·다른 종류', () => {
+  assert.equal(judgeSpotPick({ ...spotWithSegments, prompt: { sentenceJa: 'コーヒーを飲むたいです。' } }), null)
+  assert.equal(judgeSpotPick({ ...spotWithSegments, answerText: '「飲むたい」がおかしいです' }), null)
+  assert.equal(judgeSpotPick({ ...spotWithSegments, answerText: '고른 곳 「紅茶を」 / 고친 말·이유: 飲みたい' }), null, '조각 목록에 없는 글자는 판정하지 않는다')
+  assert.equal(judgeSpotPick({ ...spotWithSegments, kind: 'SITUATION_RESPOND' }), null)
+  const broken: EvalGradeSubjectiveItem = { ...spotWithSegments, prompt: { sentenceJa: 'コーヒーを飲むたいです。', segments: ['コーヒーを', '飲み', 'たいです。'] } }
+  assert.equal(judgeSpotPick(broken), null, '이음이 어긋난 조각은 판정하지 않는다')
+})
+
+test('evalGrade@v3: 사용자 프롬프트에 고른 곳 판정(코드 확인) 줄 — MATCH·MISS 만, 판정 불가는 줄 없음', () => {
+  const match = buildSpotRequest({ ...spotWithSegments, answerText: '고른 곳 「たいです。」 / 고친 말·이유: 飲みたいです' }).messages[0].content as string
+  assert.ok(match.includes('고른 곳 판정(코드 확인): 정답 조각입니다'), match)
+  const miss = buildSpotRequest({ ...spotWithSegments, answerText: '고른 곳 「コーヒーを」 / 고친 말·이유: 紅茶を' }).messages[0].content as string
+  assert.ok(miss.includes('고른 곳 판정(코드 확인): 정답 조각이 아닙니다'), miss)
+  const free = buildSpotRequest({ ...spotWithSegments, answerText: '飲むたいがおかしい' }).messages[0].content as string
+  assert.ok(!free.includes('고른 곳 판정'))
+  assert.ok(buildSpotRequest(spotWithSegments).system.includes('고른 곳 판정(코드 확인)'), '지시문이 판정 줄을 따르라고 안내')
+  assert.ok(buildSpotRequest(spotWithSegments).system.includes('어느 하나만 골라도'))
+})
+
+test('evalGrade@v3: 예산 — 조각 12개·긴 조각 40자 + 고른 곳 답 최대 길이 최악 조합도 ≤ EVAL_GRADE_USER_PROMPT_CAP', () => {
+  const longSeg = 'あ'.repeat(10)
+  const segments = Array.from({ length: 12 }, () => longSeg)
+  const sentence = segments.join('')
+  const worst: EvalGradeSubjectiveItem[] = Array.from({ length: 5 }, (_, i) => ({
+    order: i, kind: 'CORRECTION_SPOT' as const,
+    prompt: { sentenceJa: sentence, segments },
+    expected: { wrongSpan: 'あ'.repeat(15), correctedJa: 'あ'.repeat(120), explanationKo: 'あ'.repeat(160) },
+    answerText: `고른 곳 「${longSeg}」 / 고친 말·이유: ${'あ'.repeat(2_000)}`,
+  }))
+  const req = buildEvalGradeRequest({ evalKind: 'TALK', level: 'N1' as EvalGradeInput['level'], objectiveSummary: [{ kind: 'ASSEMBLE', correct: 1, total: 1 }], subjectiveItems: worst })
+  const len = renderTranscript(req.system, req.messages).length
+  assert.ok(len <= EVAL_GRADE_USER_PROMPT_CAP, `${len}자 > ${EVAL_GRADE_USER_PROMPT_CAP}`)
 })

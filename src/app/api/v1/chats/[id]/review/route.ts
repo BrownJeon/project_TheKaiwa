@@ -1,5 +1,6 @@
 import { ok, requireSession, withApi } from '@/modules/infra'
 import { reviewChat } from '@/modules/conversation'
+import { reviewCorrectionHooks } from '../../../_lib/review'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,10 +12,11 @@ type Ctx = { params: Promise<{ id: string }> }
 /**
  * #33 표현 점검(A3). 사용자 메시지 ≤20건은 동기(결과), 초과는 `{ jobId }`(#55 로 폴링 후 #34·#37 조회).
  * 이미 점검 `409 ALREADY_REVIEWED`, 진행 중 `409 CONFLICT {jobId}`, 사용자 메시지 0건 400. 클라이언트가 떠나도 끝까지 저장한다(D3).
+ * 점검이 만든 교정(PROPOSED)마다 관측 `CORRECTION_PROPOSED` 를 같은 저장 트랜잭션에 쓴다(task-010b L3 — 관측은 learning 소유라 훅으로).
  */
 export const POST = withApi<Ctx>(async (_req, ctx) => {
   const s = await requireSession()
   const { id } = await ctx.params
-  const r = await reviewChat(s.user.id, id)
+  const r = await reviewChat(s.user.id, id, reviewCorrectionHooks(s.user.id))
   return ok(r.mode === 'sync' ? r.result : { jobId: r.jobId })
 })

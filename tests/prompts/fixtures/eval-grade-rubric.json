@@ -149,6 +149,70 @@
       "expected": { "wrongSpan": "行くません", "correctedJa": "わたしはがっこうへ行きません。", "explanationKo": "ない형(ません)은 ます형(行き)에 붙습니다, 사전형(行く)에는 붙지 않습니다" },
       "answerText": "",
       "expectedScoreRange": [0, 0]
+    },
+    {
+      "id": "g21", "level": "N4", "kind": "CORRECTION_SPOT", "category": "spot-good",
+      "prompt": { "sentenceJa": "昨日、友達に会いましたでした。", "segments": ["昨日、", "友達に", "会いましたでした。"] },
+      "expected": { "wrongSpan": "会いましたでした", "correctedJa": "昨日、友達に会いました。", "explanationKo": "과거형 です・ます 뒤에 でした 를 또 붙이면 중복입니다" },
+      "answerText": "고른 곳 「会いましたでした。」 / 고친 말·이유: 会いました",
+      "expectedScoreRange": [8, 10],
+      "note": "evalGen@v4 조각 탭 형식(task-011 (f)=A) — 정답 조각을 짚고 고친 형태도 맞음"
+    },
+    {
+      "id": "g22", "level": "N4", "kind": "CORRECTION_SPOT", "category": "spot-reason-only",
+      "prompt": { "sentenceJa": "昨日、友達に会いましたでした。", "segments": ["昨日、", "友達に", "会いましたでした。"] },
+      "expected": { "wrongSpan": "会いましたでした", "correctedJa": "昨日、友達に会いました。", "explanationKo": "과거형 です・ます 뒤에 でした 를 또 붙이면 중복입니다" },
+      "answerText": "고른 곳 「会いましたでした。」 / 고친 말·이유: 과거형 뒤에 でした를 또 붙여서 중복이에요",
+      "expectedScoreRange": [4, 6],
+      "note": "정답 조각을 짚었고 한국어 이유는 맞지만 고친 일본어 형태는 없음 — 한국어라고 0~2 로 깎으면 안 됨"
+    },
+    {
+      "id": "g23", "level": "N4", "kind": "CORRECTION_SPOT", "category": "spot-wrong-fix",
+      "prompt": { "sentenceJa": "昨日、友達に会いましたでした。", "segments": ["昨日、", "友達に", "会いましたでした。"] },
+      "expected": { "wrongSpan": "会いましたでした", "correctedJa": "昨日、友達に会いました。", "explanationKo": "과거형 です・ます 뒤에 でした 를 또 붙이면 중복입니다" },
+      "answerText": "고른 곳 「会いましたでした。」 / 고친 말·이유: 会いませんでした",
+      "expectedScoreRange": [3, 5],
+      "note": "정답 조각은 짚었으나 고친 형태가 틀림(부정형으로 바꿈)"
+    },
+    {
+      "id": "g24", "level": "N4", "kind": "CORRECTION_SPOT", "category": "spot-miss",
+      "prompt": { "sentenceJa": "昨日、友達に会いましたでした。", "segments": ["昨日、", "友達に", "会いましたでした。"] },
+      "expected": { "wrongSpan": "会いましたでした", "correctedJa": "昨日、友達に会いました。", "explanationKo": "과거형 です・ます 뒤에 でした 를 또 붙이면 중복입니다" },
+      "answerText": "고른 곳 「友達に」 / 고친 말·이유: 友達を",
+      "expectedScoreRange": [0, 3],
+      "note": "틀리지 않은 조각을 골랐다(짚기 실패)"
+    },
+    {
+      "id": "g25", "level": "N4", "kind": "CORRECTION_SPOT", "category": "spot-overlap-a",
+      "prompt": { "sentenceJa": "コーヒーを飲むたいです。", "segments": ["コーヒーを", "飲む", "たいです。"] },
+      "expected": { "wrongSpan": "飲むたい", "correctedJa": "コーヒーを飲みたいです。", "explanationKo": "たい는 ます형에 붙습니다, 사전형(飲む)에는 붙지 않습니다" },
+      "answerText": "고른 곳 「飲む」 / 고친 말·이유: 飲みたい",
+      "expectedScoreRange": [8, 10],
+      "note": "wrongSpan 이 조각 둘(飲む·たいです。)에 걸쳐 있다 — 앞쪽 조각을 골라도 정답"
+    },
+    {
+      "id": "g26", "level": "N4", "kind": "CORRECTION_SPOT", "category": "spot-overlap-b",
+      "prompt": { "sentenceJa": "コーヒーを飲むたいです。", "segments": ["コーヒーを", "飲む", "たいです。"] },
+      "expected": { "wrongSpan": "飲むたい", "correctedJa": "コーヒーを飲みたいです。", "explanationKo": "たい는 ます형에 붙습니다, 사전형(飲む)에는 붙지 않습니다" },
+      "answerText": "고른 곳 「たいです。」 / 고친 말·이유: 飲みたいです",
+      "expectedScoreRange": [8, 10],
+      "note": "wrongSpan 이 걸친 두 조각 중 뒤쪽 조각을 골라도 정답"
+    },
+    {
+      "id": "g27", "level": "N4", "kind": "CORRECTION_SPOT", "category": "spot-gibberish",
+      "prompt": { "sentenceJa": "昨日、友達に会いましたでした。", "segments": ["昨日、", "友達に", "会いましたでした。"] },
+      "expected": { "wrongSpan": "会いましたでした", "correctedJa": "昨日、友達に会いました。", "explanationKo": "과거형 です・ます 뒤에 でした 를 또 붙이면 중복입니다" },
+      "answerText": "고른 곳 「会いましたでした。」 / 고친 말·이유: 모르겠어요",
+      "expectedScoreRange": [2, 5],
+      "note": "정답 조각은 찍었으나 고친 말·이유가 없음(찍기)"
+    },
+    {
+      "id": "g28", "level": "N5", "kind": "CORRECTION_SPOT", "category": "spot-good-n5",
+      "prompt": { "sentenceJa": "わたしはがっこうへ行くません。", "segments": ["わたしは", "がっこうへ", "行くません。"] },
+      "expected": { "wrongSpan": "行くません", "correctedJa": "わたしはがっこうへ行きません。", "explanationKo": "ない형(ません)은 ます형(行き)에 붙습니다, 사전형(行く)에는 붙지 않습니다" },
+      "answerText": "고른 곳 「行くません。」 / 고친 말·이유: 行きません",
+      "expectedScoreRange": [8, 10],
+      "note": "히라가나 위주 N5 문장의 조각 탭 형식"
     }
   ]
 }

@@ -255,7 +255,9 @@ export default function MessageList({
         aria-label="대화 내용"
         aria-live={liveOff ? 'off' : 'polite'}
         aria-relevant="additions"
-        className="h-full overflow-y-auto overscroll-contain px-4 py-3 [overflow-anchor:none]"
+        // `relative`: 말풍선의 `sr-only`(absolute)가 바깥 상자를 기준으로 잡혀 이 스크롤 밖으로 새면 앱 셸 `main` 이
+        // 대화 길이만큼 스크롤돼 방 전체(헤더·입력 바)가 밀린다(task-021 키보드 확인 중 발견).
+        className="relative h-full overflow-y-auto overscroll-contain px-4 py-3 [overflow-anchor:none]"
       >
         <div ref={contentRef} className="min-w-0">
         {hasOlder ? (

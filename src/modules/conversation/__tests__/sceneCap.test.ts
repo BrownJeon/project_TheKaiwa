@@ -129,6 +129,9 @@ async function runTurn(kind: 'TALK' | 'CHAT', text: string, level: string): Prom
   mock.method(turnDeps, 'precheckChat', async () => ({ kind, level }))
   mock.method(turnDeps, 'buildLearnerHeader', async () => ({ level }))
   mock.method(turnDeps, 'loadRecentHistory', async () => [])
+  // task-010c — 교정 방식·코치 판정 재료도 DB 대신(공유 DB 를 건드리지 않게)
+  mock.method(turnDeps, 'loadCorrectionMode', async () => 'FLUENCY' as const)
+  mock.method(turnDeps, 'loadCoachPending', async () => null)
   mock.method(turnDeps, 'acceptTurn', async () => ({
     chatId: 'c-scenecap',
     kind,

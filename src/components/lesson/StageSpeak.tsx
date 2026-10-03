@@ -363,7 +363,7 @@ export default function StageSpeak({
       </div>
       {!reviewing ? (
         textMode ? (
-          <div className="flex-none border-t border-line bg-surface px-2 pt-2" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))', marginBottom: 'var(--kb-inset, 0px)' }}>
+          <div data-kb-docked className="flex-none border-t border-line bg-surface px-2 pt-2" style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}>
             <div className="flex items-end gap-1">
               <button type="button" aria-label={U5.voiceMode} onClick={() => setTextMode(false)} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink2">
                 <MicIcon />

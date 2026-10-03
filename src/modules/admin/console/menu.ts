@@ -1,7 +1,8 @@
 /**
  * 콘솔 메뉴 단일 상수(admin-console/01 §3·§9) — 사이드바·드로어·breadcrumb 이 이것만 읽는다.
  * 표시 여부는 capability 로만 거른다(없는 메뉴는 렌더하지 않는다, §6). 서버가 매 요청 다시 검사하므로 메뉴는 UX 일 뿐이다.
- * Phase 1 에 화면이 있는 항목만 `phase: 1`. 발음 사전(01 표 "1(P0)")은 task-005b G1 결정으로 이월됐다가 task-003g 에서 열렸다(음성 합성 바로 아래).
+ * 화면이 있는 항목만 `phase: 1`(= 메뉴에 보임). 발음 사전(01 표 "1(P0)")은 task-005b G1 결정으로 이월됐다가 task-003g 에서 열렸다(음성 합성 바로 아래).
+ * 설정 Form·Raw JSON·Diff 탭과 이력 메뉴는 task-012c 화면과 함께 열렸다.
  */
 import type { AdminMenuItem, Capability } from '@/types/admin'
 import { can } from '../permissions/can'
@@ -23,10 +24,12 @@ export const ADMIN_MENU: readonly AdminMenuItem[] = [
     capability: 'config.effective.read',
     phase: 1,
     group: 'configuration',
+    // task-012c: Form·Raw JSON·Diff 탭 열림(승인 데모 v2) — 화면은 이 탭을 capability 로 거른다(ADMIN 에게 Raw JSON 없음).
     tabs: [
       { id: 'effective', label: 'Effective', capability: 'config.effective.read', phase: 1 },
-      { id: 'raw', label: 'Raw JSON', capability: 'config.raw.read', phase: 2 },
-      { id: 'diff', label: 'Diff', capability: 'config.edit', phase: 2 },
+      { id: 'form', label: 'Form', capability: 'config.edit', phase: 1 },
+      { id: 'raw', label: 'Raw JSON', capability: 'config.raw.read', phase: 1 },
+      { id: 'diff', label: 'Diff', capability: 'config.edit', phase: 1 },
       { id: 'overrides', label: 'Overrides', capability: 'override.create', phase: 4 },
     ],
   },
@@ -44,7 +47,8 @@ export const ADMIN_MENU: readonly AdminMenuItem[] = [
   },
   { id: 'prompts', path: '/admin/prompts', label: '프롬프트', capability: 'prompts.read', phase: 2, group: 'tools' },
   { id: 'playground', path: '/admin/playground', label: 'Playground', capability: 'playground.use', phase: 2, group: 'tools' },
-  { id: 'history', path: '/admin/history', label: '이력', capability: 'audit.read', phase: 2, group: 'tools' },
+  // task-012c: 이력(설정 버전·감사·되돌리기) 화면이 생겨 메뉴를 연다(Prompts·Playground 는 012c-2).
+  { id: 'history', path: '/admin/history', label: '이력', capability: 'audit.read', phase: 1, group: 'tools' },
 ]
 
 /** actor(또는 역할)가 볼 수 있는 메뉴·탭만 — `maxPhase` 이하(기본 1: 화면이 있는 것)만 남긴다. */
