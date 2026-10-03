@@ -1,7 +1,7 @@
 ---
 task_id: task-028
 title: "개선 — 회화 번역 줄 한국어 자연스럽게(이중 높임 금지)·교정 설명 수준별 쉬운 한국어 (IMP-0020·0022)"
-status: doing
+status: done
 base_ref: bcf0df2
 risk_level: R1
 roles_involved: [leader, judge, prompt-engineer, reviewer, deployer]
@@ -195,3 +195,8 @@ $ node --import tsx --test --test-concurrency=1 $(find src -name '*.test.ts' | s
 - REV-061 PASS · judge C2 Codex 불필요(CX-limit-unknown-hold) · QA PASS(결함 0) → 커밋·push(webhook 운영 배포).
 - REV-061 Low ③ 정정: `prompts:sync` 단계는 이 저장소에 **없다**(PE 기록의 "배포 전 필요" 문구는 착오). 프롬프트 버전 기록은 코드 상수 `talk@v6` 가 정본이며 배포 전 별도 동기화 절차 없음.
 - 운영 관찰: N5 교정 설명의 문법 용어 노출률(표본 ≥10) · CHAT(A2) 번역 이중 높임 가벼운 샘플링 — 결함 아님, 후속 관찰.
+
+## 최종 요약 (Leader, 2026-10-03 18:53)
+회화(AI 음성 회화) 답변 아래 한국어 번역 줄이 「비닐봉투를 드려드리겠습니다」처럼 높임을 두 번 겹쳐 쓰던 문제를 고쳤습니다. 이제 번역은 자연스러운 존댓말로 나오고, 혹시 겹친 높임이 나오면 응답 검사가 잡아냅니다. 교정 설명은 고친 부분만 일본어로 짚고, N5·N4 학습자에게는 문법 용어 대신 쉬운 한국어로 설명합니다(음성 설명은 하지 않기로 결정).
+- 검증: Reviewer REV-061 PASS · judge C2 Codex 불필요 · QA PASS(결함 0, 실 AI 표본 이중 높임 0/3·오탐 0, 평균 4.4초) · 운영 배포 `90f4404`(릴리스 `20261003-184917-90f4404e`, health 전부 ok, pm2 3개 restart 0) · **운영 스모크 007 45/45**.
+- 남은 관찰(결함 아님): N5 설명에 '조사' 같은 용어가 가끔 남음(표본 ≥10 추적) · 채팅(A2) 번역은 이번 범위 밖.
