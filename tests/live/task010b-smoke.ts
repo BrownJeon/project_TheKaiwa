@@ -32,7 +32,7 @@ if (!c1file || !c2file) throw new Error('사용: task010b-smoke.ts <cookie1> <co
 const COOKIE1 = readFileSync(c1file, 'utf8').trim()
 const COOKIE2 = readFileSync(c2file, 'utf8').trim()
 const prisma = new PrismaClient()
-const LEAK = /claude|haiku|sonnet|opus|qwen|toolLog|home-m4|reazon|whisper|style-?bert|sbv2|promptVersion|"model"|REVIEW_DECISION|reviewMix@|reviewDecision@/i
+const LEAK = /claude|haiku|sonnet|opus|qwen|toolLog|home-m4|reazon|whisper|style-?bert|sbv2|promptVersion|"model"|(?<!"kind":")REVIEW_DECISION|reviewMix@|reviewDecision@/i
 const MARK = 'smk010b'
 const WORD_CATEGORY = 't010b스모크'
 const RUN = Date.now().toString(36)
@@ -116,10 +116,13 @@ const TRACKED = [
   'learnerErrorStat',
 ] as const
 type Tracked = (typeof TRACKED)[number]
-type IdModel = { findMany: (a: { where: { userId: string }; select: { id: true } }) => Promise<{ id: string }[]>; deleteMany: (a: { where: { id: { in: string[] } } }) => Promise<unknown> }
+type IdModel = { findMany: (a: { where: { userId: string }; select: Record<string, true> }) => Promise<Record<string, string>[]>; deleteMany: (a: { where: Record<string, { in: string[] }> }) => Promise<unknown> }
 const model = (t: Tracked) => (prisma as unknown as Record<Tracked, IdModel>)[t]
+// RequestTrace 의 기본 키는 id 가 아니라 traceId 다.
+const pkOf = (t: Tracked) => (t === 'requestTrace' ? 'traceId' : 'id')
 async function idsOf(t: Tracked, userId: string): Promise<Set<string>> {
-  return new Set((await model(t).findMany({ where: { userId }, select: { id: true } })).map((r) => r.id))
+  const k = pkOf(t)
+  return new Set((await model(t).findMany({ where: { userId }, select: { [k]: true } })).map((r) => r[k]))
 }
 
 interface Baseline {
@@ -156,7 +159,7 @@ async function restore(userId: string, b: Baseline): Promise<Record<string, numb
   const order: Tracked[] = ['learningObservation', 'correction', 'tutorProposal', 'chatMessage', 'chat', 'studyLog', 'reviewSchedule', 'lesson', 'aiJob', 'requestTrace', 'repetitionItem', 'learnerErrorStat']
   for (const t of order) {
     const ids = await created(t)
-    if (ids.length) await model(t).deleteMany({ where: { id: { in: ids } } })
+    if (ids.length) await model(t).deleteMany({ where: { [pkOf(t)]: { in: ids } } })
     removed[t] = ids.length
   }
   const sessions = await created('vocabSession')
@@ -492,7 +495,7 @@ async function run(u1: string, u2: string, today: string): Promise<void> {
 
   // ── 8. 단어 세트 ─────────────────────────────────────────────────
   for (const [s, m] of [['見学', '견학'], ['散歩', '산책'], ['料理', '요리']] as const) await api(COOKIE1, 'POST', '/api/v1/words', { surface: `${s}${RUN.slice(-2)}`, meaning: m, category: WORD_CATEGORY })
-  const set = await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { category: WORD_CATEGORY, mode: 'FLIP', count: 4 })
+  const set = await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { category: WORD_CATEGORY, mode: 'FLIP', count: 5 })
   const sess = d(set).session as Json | null
   const cards = ((d(set).cards as Json[]) ?? []).map((c) => ({ order: Number(c.order), wordId: c.wordId as string | null }))
   if (!sess || cards.length < 3) {
