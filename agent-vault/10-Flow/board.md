@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-010b2-review-decision-v2]] — **A11 reviewDecision@v2**(2026-10-03): 응답 골격·이 밖의 키 금지 + 관측 신뢰도 가중(0.6). REV-082·QA 52/52, 운영 반영 `717ad99`·운영 스모크 52/52·배포 뒤 계약 위반 0. 남은 것: CLI 무응답 타임아웃(사용자 결정 대기)
 - [[task-010b-repetition]] — **반복 학습 완료**(2026-10-03): 서버 1단계(`cb176cc`) + 2단계 화면(오늘 홈 복습 카드·복습 레슨)·QUEUED 판단 재킥·A5 reviewMix@v3(운영 잠재 결함 수정). REV-079~081·QA 화면 451·스모크 52/52, 운영 반영 `d775aac`·운영 스모크 52/52. 후속 [[task-010b2-review-decision-v2]]
 - [[task-019-cleanup-lint-env-strip]] — **정리 backlog 3건**(2026-09-29): ESLint 상대경로 교차 모듈 import 금지 · CLI 자식 env 프록시 키 제거 · A4 스키마 밖 필드 제거 요청 옵션화. REV-037 PASS, 운영 반영 `8313dc9`(006·010 PASS)
 - [[task-012b-speech-p2]] — **음성 P2 1단계: 분석 STT 파이프라인**(2026-09-29). SpeechJob 적재 게이트·사용자별 디바운스(+20s·상한 5분)·claim SKIP LOCKED+재검사·self-reclaim(인스턴스 id)·#138~#140·#22·#21a·health `stt_analysis_worker`·D-B7 평가 텍스트·Python 워커(whisper_http·pyopenjtalk 비교기). REV-033·Codex C2 2건 수정·QA(운영 모드) PASS, 운영 반영 `8af4542`(007 44/44·011 60/60). **U1·U2 사용자 승인 2026-10-01 → 전부 완료** — pyopenjtalk 운영 venv ✅ · #140 claim 세대 펜싱(attempts=세대)·REV-041·QA PASS · 커밋 `97b31cf` 웹훅 배포(릴리스 `20261001-131341-97b31cf`, `--apps` 에 워커 추가) → pm2 워커 online·restart 0·health `stt_analysis_worker` ok·운영 스모크 007 45/45 (2026-10-01 13:25 Leader 직접 실측)
@@ -30,7 +31,6 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- [[task-010b2-review-decision-v2]] — A11 reviewDecision@v2: 응답 계약 위반(reason 추가·mixNote_ko 누락 → 재시도 60s 초과 → FALLBACK) 정합 + 관측 신뢰도 가중(010b ★결정 3) — 착수 2026-10-03
 - task-012b-2·-3·-4 — 음성 P2 후속(재확인 카드·발화 로그 화면=데모 / TTS 지표=DB 추가 / 타이밍=M4 설치) — 승인 뒤 착수
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) **승인 2026-10-01** · PE talk@v3→v5 · **DB 추가 승인·적용 2026-10-01** · 구현 완료 → ✅ 운영 반영(2026-10-03, 같은 릴리스) — REV-055 PASS·REV-058 PASS·Judge C2 Codex 불필요(0/4) · 2차 QA FAIL(#1 reject 409 UI) → 수정·REV-063 PASS_WITH_NOTES · COACH hintKo 서버 필터(`coachHintOf`) · **제한 QA PASS_WITH_NOTES(2026-10-03 07:46, Medium 2 = 수용 한계 확정·결함 #1 종결) → ✅ 운영 반영(2026-10-03)**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면 데모 v1(full) **승인 2026-10-01** · DB `EvaluationItem.textRevealedAt` 적용 · 화면 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`) — REV-046 PASS · Codex C2 1건 채택(REV-051 수정) → REV-057 PASS → **QA PASS** → ✅ 운영 반영(012 와 한 커밋)

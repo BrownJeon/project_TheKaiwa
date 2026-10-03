@@ -1,7 +1,7 @@
 ---
 task_id: task-010b2
 title: "A11 reviewDecision@v2 — 응답 계약 정합(reason 추가·mixNote_ko 누락) + 관측 신뢰도 가중"
-status: doing
+status: done
 base_ref: d775aac
 risk_level: R1
 roles_involved: [leader, judge, prompt-engineer, developer, reviewer, qa, deployer]
@@ -123,5 +123,15 @@ A11 복습 판단(`reviewDecision@v1`, sonnet 60s)이 응답 계약을 자주 �
 - 미러 테스트 행 삭제 (생성 3 → 정리 완료)
 - 운영 접근 없음
 
+## Leader 기록 (운영 반영 확인, 2026-10-03 21:49)
+- 커밋 `717ad99` → webhook 배포(릴리스 `20261003-214317-717ad990`, pm2 3개 online·restart 0, health ok). 운영 스모크 **52/52·누출 0**.
+- 지표: A11 DAILY 16.6s · A11 WORDS 16.6s · A5 36.6s · A3 13.0s · **A11 REVIEW 64.7s FAILED**.
+- A11 REVIEW 실패 진단: 해당 시각(21:45~21:46) **계약 위반 로그 0·CLI 완료 로그 없음** → CLI 무응답 60s 타임아웃(64.66s = 60s + 스모크 폴링 간격, 직전 배포 DAILY 실패도 같은 64.66s). PE 측정의 150s 무응답 1회와 같은 유형. **계약 위반은 배포 뒤 운영 호출 7건 중 0건** — 이 task 의 목표는 달성.
+- 발견: 타임아웃 실패가 **로그에 한 줄도 남지 않음**(관측 공백). 후속 후보 — ① 배치 레인(A4·A5·A11) 타임아웃 시 1회 재시도 또는 A11 예산 60→90s(구독 사용량 영향 → 사용자 결정) ② 타임아웃 로그 한 줄(소수정).
+
 ## 최종 요약 (Leader)
+**무엇을**: 복습 판단 AI(A11)가 응답 형식을 자주 어겨(허용 안 된 필드 추가·필수 필드 누락) 재시도하다 60초를 넘기고, 그날 선생님 판단이 기본 규칙으로 대체되던 문제를 고쳤습니다. 프롬프트 첫머리에 정확한 응답 틀을 두고 다른 키를 금지했으며(틀과 스키마가 어긋나면 테스트가 잡음), 같은 버전에 음성 인식 신뢰도가 낮은 관측(0.6 미만)을 성공·실패에서 빼고 "불확실"로 따로 넘기도록 했습니다.
+**검증**: PE 실측 6회 1차 통과 · REV-082 PASS · Judge C2 Codex 불필요 · QA 스모크 52/52·1차 위반 0·실 DB 경계 확인 · 운영 스모크 52/52, 배포 뒤 계약 위반 0건.
+**남은 것**: 계약과 무관한 **AI 무응답 타임아웃**이 가끔(측정·스모크에서 3회 관측) 생겨 그 판단만 기본 규칙으로 대체됨 — 재시도/예산 조정은 구독 사용량에 영향이 있어 사용자 결정 대기. 타임아웃 로그 공백 보완 후보.
+**Codex**: C2 판정 불필요(R1·한도 미확인 보류). 실패 내역 없음.
 - [2026-10-03 21:37] codex_gate/C2 engine=jev → codex_required=false, budget_rule=CX-limit-unknown-hold | overrides=CX-limit-unknown-hold | fallback=- | tokens=909
