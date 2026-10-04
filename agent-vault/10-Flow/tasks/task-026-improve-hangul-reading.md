@@ -872,3 +872,9 @@ TALK done "그녀는 책을 읽고 있어요." db 동일 MATCH true · toolLog.c
 ```json
 { "taskId": "task-026", "status": "DONE", "deliverables": ["agent-vault/10-Flow/tasks/task-026-improve-hangul-reading.md (QA 기록 S2)"], "blockers": [], "risk_level": "LOW", "metrics": { "talk_p50_ms": null, "talk_p95_ms": null, "vocab_set_sec": null, "note": "S2 서버 묶음 — 30턴·단어 세트 지표는 범위 밖 NOT_VERIFIED. 참고: 턴 3건 4.8~6.6s, 재시도 번역 3건 2.3~3.0s" } }
 ```
+
+## Leader 기록 (서버 묶음 운영 반영, 2026-10-04 15:55)
+- 커밋 `f67bf70`(S1·userKo·burst 상한·S2) → webhook 배포(릴리스 `20261004-154727-f67bf709`, gateway 포함 pm2 3개 online·restart 0, health ok).
+- 운영 스모크: 006 채팅 **42/42**(턴 p50 4.7s) · 007 회화 **45/45**. 운영 `/api/v1/text/annotate`(QA 세션) → `この町は静か` = `町{まち}`·`静{しず}か`·pron シズカ, available true — gateway 분석기 운영 동작 확인.
+- 사용자 체감 변화 없음(화면 미적용) — 회화·채팅 응답에 내 말 번역 저장이 시작됨.
+- **남은 것**: 화면 A(회화·채팅)·B(오늘의 회화·단어장·오늘의 단어·표현 점검·설정) — **데모 v2 approve(사용자 입력 문장) 대기**. 화면 인계: 한글 줄은 반드시 `hangulLine()`(O-1 を 보정은 이 경로에만), 단어장 한글은 표제어 annotate 의 `hangulLine`, 설정 3칸·내 말 번역·재시도 API(Developer S2 인계), localStorage readingDefault 이관, O-3 "참고 번역" 표기 검토.

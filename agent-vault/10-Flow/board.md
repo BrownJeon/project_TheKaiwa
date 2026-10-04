@@ -33,7 +33,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
-- [[task-026-improve-hangul-reading]] — 후리가나·한글·번역 표시(IMP-0009·0015·0018·0019): **데모 v2 게시·사용자 결정(E1~E6 권고안·스위치 앱 전체 하나·'까')** — 게이트 approve 는 사용자 입력 문장 대기 · 서버 사양 조사(읽기 출처·내 말 번역) 진행 중
+- [[task-026-improve-hangul-reading]] — 후리가나·한글·번역 표시(IMP-0009·0015·0018·0019): 데모 v2 결정 완료 · **서버 묶음 운영 반영 `f67bf70`**(gateway 형태소 분석·annotate API·내 말 번역 저장·재시도 API·Profile 표시 3칸 db push) · 화면 A·B 는 **데모 v2 approve(사용자 입력 문장) 대기**
 - task-012b-2·-3·-4 — 음성 P2 후속(재확인 카드·발화 로그 화면=데모 / TTS 지표=DB 추가 / 타이밍=M4 설치) — 승인 뒤 착수
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) **승인 2026-10-01** · PE talk@v3→v5 · **DB 추가 승인·적용 2026-10-01** · 구현 완료 → ✅ 운영 반영(2026-10-03, 같은 릴리스) — REV-055 PASS·REV-058 PASS·Judge C2 Codex 불필요(0/4) · 2차 QA FAIL(#1 reject 409 UI) → 수정·REV-063 PASS_WITH_NOTES · COACH hintKo 서버 필터(`coachHintOf`) · **제한 QA PASS_WITH_NOTES(2026-10-03 07:46, Medium 2 = 수용 한계 확정·결함 #1 종결) → ✅ 운영 반영(2026-10-03)**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면 데모 v1(full) **승인 2026-10-01** · DB `EvaluationItem.textRevealedAt` 적용 · 화면 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`) — REV-046 PASS · Codex C2 1건 채택(REV-051 수정) → REV-057 PASS → **QA PASS** → ✅ 운영 반영(012 와 한 커밋)
