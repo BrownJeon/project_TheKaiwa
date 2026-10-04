@@ -19,10 +19,10 @@ demo_gate:
   required: true
   level: "delta"
   status: "review_requested"
-  version: 2
-  repo_path: "docs/demo/task-026-improve-hangul-reading-v2.html"
+  version: 3
+  repo_path: "docs/demo/task-026-improve-hangul-reading-v3.html"
   artifact_url: "https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY"
-  content_sha256: "37dc7ac6ea7135003393b147ba7f5b420ce30a04449f6361c3ef50ab1682cb5f"
+  content_sha256: "19b8ee5e554d40f04ad925dade0201f2604710815f58b223390badef72ded638"
   decided_by: "judge"
   rule_id: "DM-low-confidence"
   approved_by: ""
@@ -101,6 +101,8 @@ demo_gate:
   - **배치(결정 아님)**: 층 = 후리가나(한자 위, 11px ink2, 送り仮名 제외) → 일본어 17px → [한글] 13px(v1 그대로) → 번역 15px(말풍선 안 구분선 아래, 선생님·내 말 같음). 루비가 있는 블록만 줄간격 1.7 → 2.1, 준비 중에도 미리 넓혀 채워질 때 세로로 밀리지 않게. `ruby-align:center`(읽기가 한자보다 길면 그 한자 양옆만 살짝 빔 — 기본값 space-around 는 한자 사이를 벌려 `面 白`처럼 보여 바꿈). rt 는 선택·복사 제외·`aria-hidden`(스크린리더는 본문만). 말풍선마다 [읽기 ▾] 없앰. v1 의 머리 [한글] 버튼 → 일괄 제어로. 오늘의 회화 도구 줄 [후리가나][한글][번역](③ 문제에도 추가), 단어장 도구 줄 [후리가나][한글], 단어 표제어 옆 읽기 칸 → 표제어 위 후리가나. 오늘의 단어 카드는 예외(카드 [읽기] 켰을 때만 후리가나 16px + [한글]). 달지 않는 곳 v1 그대로(입력칸·메모 칩·인식 중 자막·제목·한국어 속 인용·관리자 콘솔). 내 말 번역 실패는 번역 칸 안 문구 + [다시 가져오기] 44px(토스트·빨강 없음), 후리가나·한글 실패는 빈칸(v1 원칙).
   - **결정 필요 A/B(새로 생긴 것만, 권고안 = 기본 선택)**: E1 읽기 방식 **A 후리가나가 히라가나 줄을 대신(권고)** / B 둘 다·설정에서 "한자 위|문장 아래" · E2 기본 표시 **A 후리가나 켬 + 한글 켬(권고)** / B 한글만 · E3 일괄 제어 위치 **A 머리 아래 44px 표시 바 [후리가나][한글][번역] 늘 보임(권고)** / B 머리 [あ가] 아이콘 → 스위치 3개 패널 · E4 말풍선별 조작 A 일괄만 / **B 일괄 + 말풍선별 [번역 ▾](권고 — 바에서 바꾸면 개별 연 것 초기화)** · E5 내 말 번역 **A 번역 스위치에 같이 묶음(권고)** / B 내 말은 말풍선별 [번역 ▾]만 · E6 내 말 번역 시점 **A 보낼 때마다 뒤에서 미리(권고)** / B 번역을 켤 때만 요청(그동안 "번역 중…"). 번역 기본값은 지금처럼 끔.
   - **Leader 확인 필요**: ① **후리가나 데이터 출처** — 지금 `reading`(문장 전체 히라가나 한 줄)으로는 한자별 정렬이 안 된다. 서버가 형태소 단위 `[{surface, reading(히라가나 — 루비용), pron(발음 가나 — 한글용, は→ワ·장음 ー)}]` 를 내야 한다(데모의 `今日{きょう}は` 표기는 이걸 줄인 모양). D2-B 의 서버 읽기와 **같은 분석 한 번**으로 두 용도를 채우는 사양 권고 — 우분투 분석 워커의 pyopenjtalk(형태소별 read·pron) 또는 M4 `tts.g2p`(지금은 문장 단위 reading 만 반환 → 형태소별 확장 필요) 중 developer 조사. 送り仮名 분리(面白い → 面白 위에만)는 surface·reading 의 앞뒤 가나 맞춤으로 앱/서버 한 곳에서. 단어장 단어(`WordEntry.reading` 단어 단위)는 같은 맞춤으로 서버 없이도 루비 가능할 수 있음. 응답 필드·저장(메시지 행에 둘지, 오래된 메시지 소급 여부 — 없으면 기존 `reading` 이 있을 때 히라가나 줄로 대체 표시 권고)은 Leader 사양. ② **내 말 번역 서버 작업** — USER 메시지 `translation` 생성(LLM 호출 추가, 5초 예산 밖 비동기, E6 에 따라 보낼 때/켤 때), 상태 전달(준비 중·실패 — 폴링 또는 SSE 추가 이벤트), 재시도 API. 채팅방·회화방 공통. ③ **번역 스위치 범위** — 데모는 후리가나·한글·번역 세 값 모두 앱 전체 하나(사용자 설정)로 그렸다. 지금 오늘의 회화 번역 토글은 화면 안 값이라, 앱 전체로 묶으면 회화방에서 켠 번역이 수업에도 켜진다 — 이 범위로 확정할지 Leader 판단. ④ 설정 저장 위치: 지금 `localStorage kaiwa.chat.readingDefault` → `preferences` 사용자 설정 3개(기기 간 동일)로 옮기는 것을 전제로 그림. ⑤ `docs/screens.md` §1-3(“ruby 대신 본문 아래 한 줄”)은 승인 뒤 구현 가이드에서 뒤집어 고친다.
+- [17:16] 데모 v2 표시 문구 '후리가나' → '히라가나'(사용자 지시 17:14, v2 파일 그대로 수정 — 승인 전·해시 재기록은 Leader). 71곳 전부 바꿈(`grep -c 후리가나` 0, 코드 주석 2곳은 '루비'로). 동작·레이아웃·식별자(`fu`·`fuLabel`) 변경 없음. 다듬은 문장(히라가나 중복·혼동 방지): 설정 스위치 설명 "한자 위에 작은 히라가나로 읽기를 적어요" → "한자 위에 작게 읽는 법을 적어요" · E3-B 패널 스위치 설명 "한자 위 작은 히라가나" → "한자 위에 작게 읽는 법" · E1 문장 "한자 위 히라가나는…", E1-A 제목 "한자 위 히라가나로 대신"·설명 "문장 아래 히라가나 줄은 없애요"·E1-B 장점 "문장 아래 히라가나 줄이…"·결정 요약 칩 "한자 위 히라가나로 대신" · v1→v2 "(E1-A: 문장 아래 히라가나 줄 없앰)" · 단어 제안/단어장 "표제어 옆 읽기(칸)는 표제어 위로 옮겨요" · 한자 없는 예 4곳 "한자가 없어 위 히라가나 없음"(가나 보기 포함) · 배치 규칙 "(이미 가나·가타카나인 글자 위에는 없음)". 토스트 "히라가나를 보여 줘요/숨겼어요"·미리 보기 "히라가나와 한글을 모두 숨겼어요"·aria "표시 설정 — 히라가나·한글·번역"·`<title>` "히라가나·한글·번역 표시"(조사 그대로 자연스러움). `[읽기]`(E1-B·deck) 그대로. 검증: `check.mjs lint` DEMO_LINT_PASSED · 브라우저 360px 표시 바 [✓히라가나][✓한글][번역] 한 줄(top 동일, scrollW=clientW=360) · 화면 텍스트 '후리가나' 0 · 콘솔 오류 0(favicon 404 만). 구현 가이드·화면 서브태스크도 이 용어로.
+- [17:22] (Leader 지시 — 게이트가 같은 버전 재검토 거부) 위 문구 수정을 **데모 v3** `docs/demo/task-026-improve-hangul-reading-v3.html` 로 옮김: `demo-version` task-026-v3 · h1 small "데모 v3 · v2 결정 그대로 + 한자 위 읽기 표시 이름을 ‘히라가나’로 통일(사용자 지시 10-04)"(문구 안에 '후리가나'를 쓰면 grep 0 이 깨져 이렇게 씀; v2 는 아직 승인 전이라 "승인 결정" 대신 "결정") · 비교 라벨 "제안 · v3". "결정 필요 — v2 에서 새로 생긴 것만"·"v1 → v2 바뀐 점"은 v2 에서 생긴 내용을 가리키는 이력이라 그대로 뒀음. v2 는 `git checkout` 으로 검토본 원본 복원(HEAD 와 diff 0). 검증: v3 `grep -c 후리가나` 0 · v3 lint DEMO_LINT_PASSED(--expect task-026-v3) · v2 lint PASS. 게시·게이트 기록은 Leader.
 
 ## Developer 기록
 
@@ -214,6 +216,8 @@ demo_gate:
 | v1 | 승인 | docs/demo/task-026-improve-hangul-reading-v1.html | https://claude.ai/artifact/VudBLetAaJmbSpJHWzwpPh | "대기 중인 데모 전부 권고안대로 승인" | 10-01 08:17 |
 | v2 | 작성중 | docs/demo/task-026-improve-hangul-reading-v1.html | - | v1 승인 무효화 → v2 작성 | 10-04 09:30 |
 | v2 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v2.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | 사용자 검토 요청 | 10-04 09:44 |
+| v2 | 수정요청 | docs/demo/task-026-improve-hangul-reading-v2.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | "'후리가나' -> '히라가나' 로 문구 변경해줘" | 10-04 17:16 |
+| v3 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v3.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | 사용자 검토 요청 | 10-04 17:18 |
 
 ## Leader 기록 (서버 사양 조사 수용·결정, 2026-10-04 10:55)
 - 조사 수용: 읽기 출처 = **pyopenjtalk**(표기 8/8, 지연 <1ms/문장), M4 `/g2p`·Intl.Segmenter·기존 reading 정렬은 기각(근거는 Developer 기록).
@@ -878,3 +882,9 @@ TALK done "그녀는 책을 읽고 있어요." db 동일 MATCH true · toolLog.c
 - 운영 스모크: 006 채팅 **42/42**(턴 p50 4.7s) · 007 회화 **45/45**. 운영 `/api/v1/text/annotate`(QA 세션) → `この町は静か` = `町{まち}`·`静{しず}か`·pron シズカ, available true — gateway 분석기 운영 동작 확인.
 - 사용자 체감 변화 없음(화면 미적용) — 회화·채팅 응답에 내 말 번역 저장이 시작됨.
 - **남은 것**: 화면 A(회화·채팅)·B(오늘의 회화·단어장·오늘의 단어·표현 점검·설정) — **데모 v2 approve(사용자 입력 문장) 대기**. 화면 인계: 한글 줄은 반드시 `hangulLine()`(O-1 を 보정은 이 경로에만), 단어장 한글은 표제어 annotate 의 `hangulLine`, 설정 3칸·내 말 번역·재시도 API(Developer S2 인계), localStorage readingDefault 이관, O-3 "참고 번역" 표기 검토.
+
+## 사용자 지시 (2026-10-04 17:14) — 표시 문구
+> "'후리가나' -> '히라가나' 로 문구 변경해줘"
+- 적용: **사용자에게 보이는 모든 문구**에서 '후리가나' → '히라가나'(표시 바·도구 줄 버튼, 설정 스위치 "히라가나 보기", 토스트, 접근성 이름, 데모 설명). 기술 용어(코드 주석·설계 문서의 루비/furigana 설명)는 그대로.
+- 운영 화면에는 현재 해당 문구 0건(화면 A·B 미구현) → 데모 v2 문구 수정·재게시(같은 URL, 승인 전이라 v2 유지·해시 재기록) + 구현 가이드·화면 서브태스크에 반영.
+- [17:18] Leader: 문구 변경을 **데모 v3** 로(게이트가 같은 버전 재검토 거부) — v2 는 검토 원본으로 복원, v3 = v2 결정 그대로 + '히라가나' 문구. 같은 URL 에 v3 게시(Artifact Version 3), 게이트 changes_requested(사용자 원문) → review_requested v3(sha256 19b8ee5e…). 사용자 승인 문장은 "task-026 데모 v3 승인" 으로 받는다.
