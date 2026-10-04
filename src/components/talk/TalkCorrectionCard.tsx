@@ -8,6 +8,8 @@ import { Badge, Btn } from '@/components/common/ui'
 import CorrectionCard from '@/components/chat/CorrectionCard'
 import { CHUNK_LABEL, ERROR_TYPE_LABEL } from '@/components/chat/labels'
 import type { CorrectionDto } from '@/types/chat'
+import { useAnnotation } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { coachCardView, type CoachLine } from './correctionView'
 import { COACH_COPY } from './talkCopy'
 
@@ -19,6 +21,17 @@ function MicIcon() {
       <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" />
       <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
     </svg>
+  )
+}
+
+/** 코치 힌트 상태의 "내 문장" — 정답을 보기 전이라 교정문은 없다. 히라가나·한글만(task-026 §15-4-1). */
+function MineText({ text }: { text: string }) {
+  const ann = useAnnotation(text)
+  return (
+    <>
+      <JaText text={text} state={ann} className={`mt-0.5 ${JA_TEXT}`} />
+      <HangulLine state={ann} onTint />
+    </>
   )
 }
 
@@ -104,9 +117,7 @@ export default function TalkCorrectionCard({
       </div>
       <div className="mt-2 min-w-0 rounded-xl bg-surface2 p-2.5">
         <p className="text-[12px] text-ink2">{COACH_COPY.mine}</p>
-        <p lang="ja" className={`mt-0.5 ${JA_TEXT}`}>
-          {c.original}
-        </p>
+        <MineText text={c.original} />
       </div>
       <div className="mt-2.5 min-w-0 rounded-xl bg-accent-soft px-3 py-2.5">
         <p className="text-[12px] font-bold text-ink">{COACH_COPY.hint}</p>

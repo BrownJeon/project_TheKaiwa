@@ -120,6 +120,11 @@ export interface ChatMessage {
 /** 화면 전용: 서버 응답 전 임시 사용자 말풍선(`tmp_…`). 서버 값이 오면 교체된다. */
 export interface ChatMessageView extends ChatMessage {
   localStatus?: 'SENDING'
+  /**
+   * 화면 전용(task-026 E6-A): 이번 세션에 보낸 내 말의 번역 상태 — `pending` 턴이 끝나기 전 · `failed` `done.userTranslation === null`.
+   * 서버 값이 아니다(#29 로 다시 읽으면 사라지고 `translation` 이 그 자리를 채운다).
+   */
+  translationState?: 'pending' | 'failed'
 }
 
 /** #29 응답 */
@@ -207,6 +212,8 @@ export interface TurnDoneEvent {
   speech?: { style?: string } | null
   endOfTopic?: boolean
   proposals?: Array<Pick<ProposalDto, 'id' | 'kind' | 'payload' | 'status'> & { messageId?: string | null }>
+  /** 내 말 번역(task-026 T1 — 같은 LLM 호출). null = 이번 턴에 못 만듦(화면은 [다시 가져오기]). ASK 는 늘 null. */
+  userTranslation?: string | null
   audioCount?: number
   traceId?: string
 }

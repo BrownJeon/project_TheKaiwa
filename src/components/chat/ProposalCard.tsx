@@ -3,10 +3,13 @@
 /**
  * 강사 제안 카드(screens.md §3-2 G) — `ADD_WORD`(채팅방, 해당 강사 말풍선 아래) · `ADD_STUDY_LOG`(점검 결과 상단).
  * **AI 는 제안만 한다**: 채택·거절은 응답을 받은 뒤에만 반영하고(낙관적 갱신 없음), 채택 전엔 "저장됨" 류 문구를 보이지 않는다.
+ * task-026(screens §15-4-2 MOV ②): 단어 표제어는 옆 읽기 대신 위 히라가나(저장 읽기 정렬) + 아래 `[한글]`. 처리된 줄은 머리줄이라 달지 않는다.
  */
 import { useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { Btn, BtnRow } from '@/components/common/ui'
+import { OFF, useWordLayers } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import type { ProposalAcceptResponse, ProposalDto, ProposalRejectResponse, ProposalStatus, StudyLogPayload } from '@/types/chat'
 import { detailString, toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
@@ -38,6 +41,8 @@ export default function ProposalCard({
   const [meaning, setMeaning] = useState(() => str(proposal.payload.meaning))
   const [inlineError, setInlineError] = useState<string | null>(null)
   const isWord = proposal.kind === 'ADD_WORD'
+  const wordOpen = isWord && proposal.status === 'PROPOSED'
+  const word = useWordLayers(wordOpen ? str(proposal.payload.surface) : '', wordOpen ? str(proposal.payload.reading) || null : null)
 
   const handleConflict = (e: unknown) => {
     const err = toErr(e)
@@ -99,7 +104,6 @@ export default function ProposalCard({
 
   if (isWord) {
     const surface = str(proposal.payload.surface)
-    const reading = str(proposal.payload.reading)
     if (proposal.status !== 'PROPOSED') {
       const line =
         proposal.status === 'ACCEPTED'
@@ -117,16 +121,8 @@ export default function ProposalCard({
     return (
       <div aria-busy={busy || undefined} className="min-w-0 rounded-[14px] border border-line bg-surface p-3.5">
         <p className="text-[12px] text-ink2">{caption ?? '단어 제안'}</p>
-        <p className="mt-1 min-w-0 [overflow-wrap:anywhere]">
-          <span lang="ja" className="text-[18px] font-semibold">
-            {surface}
-          </span>
-          {reading ? (
-            <span lang="ja" className="ml-2 text-[14px] text-ink2">
-              {reading}
-            </span>
-          ) : null}
-        </p>
+        <JaText text={surface} state={OFF} ruby={word.ruby} leading={2} className="mt-1 min-w-0 text-[18px] font-semibold [overflow-wrap:anywhere]" />
+        <HangulLine state={word.hangul} />
         {editing ? (
           <div className="mt-2 flex min-w-0 flex-col gap-1.5">
             <label htmlFor={`pm_${proposal.id}`} className="text-[12.5px] font-medium text-ink2">

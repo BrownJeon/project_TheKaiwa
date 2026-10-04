@@ -18,6 +18,9 @@ import { cpLength } from '@/components/common/format'
 import Segmented from '@/components/common/Segmented'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Btn, ErrorBlock, LoadingBlock } from '@/components/common/ui'
+import { useWordLayersList } from '@/components/common/japanese/annotations'
+import { DISPLAY_COPY } from '@/components/common/japanese/displayPrefs'
+import { DisplayToggles } from '@/components/common/japanese/JapaneseText'
 import AppBar from '@/components/shell/AppBar'
 import type { CategoryCount, WordEntry, WordListPage, WordSort } from '@/types/vocab'
 import ArchiveToggle from './ArchiveToggle'
@@ -188,6 +191,8 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
   const showCategoryRow = visibleCategories(categories, filter.archived ? 'archived' : 'active').length > 0
   // 단어가 하나도 없는 단어장(#46 합 0)에서는 거를 것이 없어 조각 줄을 그리지 않는다. 고른 조각이 있으면 풀 수 있게 남긴다.
   const showChunkRow = filter.chunk !== null || !(totals && totals.active + totals.archived === 0)
+  // 그린 행 표제어를 한 번에(한 쪽 = 1요청, [단어 더 보기] 때는 새 행만 — 캐시 적중). 루비는 저장 읽기로, 한글은 한글 켬일 때만 요청한다.
+  const layers = useWordLayersList(list.items)
 
   let body: React.ReactNode
   if (list.status === 'loading') body = <LoadingBlock />
@@ -214,8 +219,8 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
       <>
         {list.status === 'error' ? <ErrorBlock message={list.error ?? ''} onRetry={() => setReloadTick((t) => t + 1)} /> : null}
         <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
-          {list.items.map((w) => (
-            <WordRow key={w.id} word={w} sort={sort} onOpen={openDetail} />
+          {list.items.map((w, i) => (
+            <WordRow key={w.id} word={w} sort={sort} onOpen={openDetail} ruby={layers[i].ruby} hangul={layers[i].hangul} />
           ))}
         </ul>
         {moreError ? (
@@ -277,27 +282,32 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         {filter.archived ? (
           <p className="mt-2.5 rounded-xl bg-surface2 p-2.5 text-[13px] text-ink2 break-keep">보관한 단어는 오늘의 단어에 나오지 않아요.</p>
         ) : null}
-        <p aria-live="polite" className="mb-1.5 mt-3 min-h-[18px] text-[12px] text-ink2 [overflow-wrap:anywhere]">
-          {head ? (
-            <>
-              {head.lead === 'search' ? (
-                <>
-                  ‘<span lang="ja">{head.q}</span>’ 검색 결과 {head.n}개
-                </>
-              ) : head.lead === 'archived' ? (
-                `보관한 단어 ${head.n}개`
-              ) : (
-                `단어 ${head.n}개`
-              )}
-              {head.condition ? (
-                <>
-                  {' · '}
-                  <span className="font-semibold text-ink">{head.condition}</span>
-                </>
-              ) : null}
-            </>
-          ) : null}
-        </p>
+        <div className="mb-1.5 mt-2 flex min-h-8 items-center justify-between gap-2">
+          <p aria-live="polite" className="min-w-0 flex-1 text-[12px] text-ink2 [overflow-wrap:anywhere]">
+            {head ? (
+              <>
+                {head.lead === 'search' ? (
+                  <>
+                    ‘<span lang="ja">{head.q}</span>’ 검색 결과 {head.n}개
+                  </>
+                ) : head.lead === 'archived' ? (
+                  `보관한 단어 ${head.n}개`
+                ) : (
+                  `단어 ${head.n}개`
+                )}
+                {head.condition ? (
+                  <>
+                    {' · '}
+                    <span className="font-semibold text-ink">{head.condition}</span>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+          </p>
+          <div role="group" aria-label={DISPLAY_COPY.toolGroup} className="flex flex-none items-center gap-1.5">
+            <DisplayToggles keys={['fu', 'hg']} onToast={toast.show} />
+          </div>
+        </div>
         {body}
       </div>
 

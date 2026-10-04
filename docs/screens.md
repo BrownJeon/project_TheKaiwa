@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h) · 2026-09-28 **§12 오늘의 회화**(오늘 홈 카드·주제 고르기·붙여넣기·수업 만들기 대기·5단계·종료 카드, 승인 데모 `docs/demo/task-010-today-lesson-v2.html`) 추가, §2 오늘 행·§5-2 A "곧 열려요" 갱신(task-010) · 2026-09-30 하단 탭 이름 "서랍장"→"단어장"(§2 두 행·§4-1 진입, 사용자 결정 — URL `/drawer/*`·모듈 이름은 그대로, task-020) · 2026-10-01 §12 오늘의 회화 개선 4건(승인 데모 `docs/demo/task-025-improve-today-lesson-v1.html`, 결정 a·b·c·d=A, e=B) — §12-2 F 줄 다시 듣기 ▶ · G 오늘의 표현 칩 소리 · H 문제 한국어 줄·옛 수업 대체 표기 · I 글자 비교 밑줄, §12-3 C 재생 키, §12-5·§12-8 갱신(task-025)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h) · 2026-09-28 **§12 오늘의 회화**(오늘 홈 카드·주제 고르기·붙여넣기·수업 만들기 대기·5단계·종료 카드, 승인 데모 `docs/demo/task-010-today-lesson-v2.html`) 추가, §2 오늘 행·§5-2 A "곧 열려요" 갱신(task-010) · 2026-09-30 하단 탭 이름 "서랍장"→"단어장"(§2 두 행·§4-1 진입, 사용자 결정 — URL `/drawer/*`·모듈 이름은 그대로, task-020) · 2026-10-01 §12 오늘의 회화 개선 4건(승인 데모 `docs/demo/task-025-improve-today-lesson-v1.html`, 결정 a·b·c·d=A, e=B) — §12-2 F 줄 다시 듣기 ▶ · G 오늘의 표현 칩 소리 · H 문제 한국어 줄·옛 수업 대체 표기 · I 글자 비교 밑줄, §12-3 C 재생 키, §12-5·§12-8 갱신(task-025) · 2026-10-04 **§15 일본어 표시 — 히라가나·한글·번역**(승인 데모 `docs/demo/task-026-improve-hangul-reading-v4.html`, F1-A) 추가, §1-3 첫 줄을 §15 로 반전(task-026)
 
 ---
 
@@ -56,7 +56,7 @@
 
 ### 1-3. 읽기(후리가나) 표시 규칙
 
-- 서버가 주는 읽기(`reading`, A2 `replyReading`)는 **문장 전체의 히라가나 한 줄**이다(한자별 ruby 정렬 정보 없음). 그래서 `<ruby>` 대신 **본문 바로 아래 한 줄**로 보여 준다.
+- **task-026 으로 반전(승인 데모 v4) — 한자 위 `<ruby>` 히라가나 + `[한글]` 줄 + 번역, 앱 전체 스위치 3개: §15 가 정본이다.** 아래 줄들(본문 아래 히라가나 한 줄·말풍선 [읽기] 토글·`localStorage kaiwa.chat.readingDefault`)은 화면 A·B 배포 전까지의 옛 동작이다.
 - 말풍선마다 `읽기` 토글(펼침/접힘). 기본값은 사용자 선호(`localStorage kaiwa.chat.readingDefault`, 없으면 **펼침**)를 따르고, 채팅방 ⋯ 메뉴의 "읽기 항상 펼치기"로 바꾼다.
 - 한국어 번역(`translation`)은 **기본 접힘** — 일본어를 먼저 읽게 한다.
 - 읽기 값이 없거나 본문과 같으면(히라가나만의 문장) 토글을 숨긴다.
@@ -7763,3 +7763,324 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 | ⑥ | `guard.reason` 의 `cycle`·`stale` 뜻 | 화면은 `insufficient` 만 그리고 나머지는 숨긴다 | 숨김(가드 안내 없음) |
 | ⑦ | #64 를 연결 레슨 `FAILED` 일 때도 허용, `IN_PROGRESS` 면 409 | 홈 6번 카드에 [오늘은 건너뛰기]가 있다(데모) | 6번에서 건너뛰기 실패 줄 |
 | ⑧ | #58 `todayLessons` 에 복습 레슨을 계속 담는다(지금 서버 동작) — 또는 `review.lessonStatus`·`review.score` additive | 홈 6·7·8·11번이 복습 레슨 상태·점수를 여기서 찾는다 | 6번을 못 그림(수업 경로로 넘겨 실패 화면을 보임), 11번 점수 생략 |
+
+---
+
+## 15. 일본어 표시 — 히라가나·한글·번역 (task-026)
+
+승인 데모: docs/demo/task-026-improve-hangul-reading-v4.html (v4)
+
+- 승인: 사용자 2026-10-04 18:26 "task-026 데모 v4 승인, F1은 A"(content sha256 `ddda03ff…`, task frontmatter `demo_gate`). 데모 상태 id = `#talk`·`#talk-pend`·`#talk-fail`·`#chat`·`#review`·`#words`·`#wsheet`·`#deck`·`#l1`·`#l2`·`#l3`·`#l3b`·`#l4`·`#l5`·`#settings`(주소 `#<id>` 로 바로 열림). 데모의 "현재"는 HEAD 소스 대조본이라 **구현은 지금 컴포넌트 위에 층만 얹는다**(지우거나 옮기는 요소 없음 — §15-4 MOV 9건만 예외).
+- 적용 토큰(이름만, 새 색 없음): `--ink`·`--ink2`·`--ink3`·`--surface`·`--surface2`·`--line`·`--accent`·`--accent-soft`·`--bad`(Tailwind `text-ink2`·`bg-surface2`·`border-line` …). 크기: 일본어 본문 17px·한글 13px·루비 11px(최소) — §15-1 표.
+- 이 절이 **대체하는 옛 규칙**(구현 배포 뒤 무효): §1-2 "일본어 읽기(히라가나 줄) 14px" 행 · §1-3 전체 · §3-2 C 말풍선 [읽기 ▾]·⋯ "읽기 항상 펼치기" · §3-8 해당 문구 · §4-2 A 단어 행 "옆 읽기" · §5-2 B 카드 앞면 읽기 줄(카드 [읽기] 켰을 때 → 루비) · §9-2 E 선생님 말풍선 읽기 · §12-2 ① [읽기][번역] 알약(→ [히라가나][한글][번역]). 그 밖의 §3·§4·§5·§9·§12 내용은 그대로 유효하다.
+- 서버는 끝났다(커밋 `f67bf70`, 운영 반영 10-04 15:55): #24r 읽기 분석 · #11~#12 표시 스위치 3칸 · #29 USER `translation` · #32 `done.userTranslation` · #32t 내 말 번역 다시 가져오기. 이 절은 **화면만** 다룬다.
+
+### 15-0. 결정 요약 (확정 — 바꾸지 않음)
+
+| 결정 | 내용 | 구현에서 뜻하는 것 |
+|---|---|---|
+| D1-A | 한글 표기 ‘까’ 계열(구절 첫 글자만 거센소리, 장음 ‘-’, 촉음·ん 받침, 조사 は·を·へ 소리대로) | 변환은 `@/modules/speech/reading/client` 의 `hangulLine()` 하나뿐. 화면이 규칙을 만들지 않는다 |
+| D2-B | 읽기 없는 한자 문장도 서버가 소리를 구한다(형태소별 표기·읽기) | 모든 일본어는 #24r 로 분석. 문장의 `reading`(LLM 히라가나 줄)은 화면에 더 쓰지 않는다 |
+| D4-A | 히라가나·한글·번역은 서로 다른 스위치 | 세 값 독립(하나가 꺼져도 다른 층은 그대로) |
+| E1-A | 한자 위 히라가나가 문장 아래 읽기 줄을 대신(목록·제안 카드의 옆 읽기 칸도) | `<p>{reading}</p>` 줄·옆 읽기 `<span>` 을 없애고 `<ruby>` 로 |
+| E2-A | 처음 값: 히라가나 켬 · 한글 켬 · 번역 끔 | 서버 기본값 그대로(Profile `true·true·false`) |
+| E3-A | 회화방·채팅방 머리 바로 아래 44px 표시 바 [히라가나][한글][번역] | `DisplayBar`(§15-2 G) |
+| E4-B | 일괄 + 말풍선별 [번역 ▾] (말풍선 [읽기 ▾] 없앰) | 바에서 번역을 바꾸면 말풍선별로 연 것 초기화(§15-3 D) |
+| E5-A · E6-A | 내 말 번역도 번역 스위치를 따름 · 보낼 때마다 미리 만듦(준비 중 “번역 중…”, 실패 [다시 가져오기]) | 사용자 승인 T1(10-04 13:11): 턴 응답에 같이 옴(`done.userTranslation`), 없으면 #32t |
+| 범위 | 세 스위치 모두 앱 전체 하나(사용자 설정) — 오늘의 회화 번역 토글도 통합 | 화면별 값 없음. `localStorage kaiwa.chat.readingDefault` 는 1회 이관 후 삭제 |
+| 문구 | 한자 위 읽기 표시 이름은 ‘히라가나’(사용자 지시 10-04) | 화면 글자에 ‘후리가나’ 0건(코드 식별자 `furigana` 는 무방) |
+| **F1-A** | 회화·채팅 ⋯ 메뉴의 “읽기 항상 펼치기” 줄 제거 | `ChatMenuSheet` 의 그 `role="switch"` 줄·props 삭제 |
+| T1 | 내 말 번역은 같은 LLM 호출(추가 호출 0) | 화면은 번역을 "요청"하지 않는다 — 턴 결과를 받거나, 사용자가 누를 때만 #32t |
+
+### 15-1. 공통 규칙
+
+**A. 층 순서(한 블록 안, 위 → 아래)**: 히라가나(한자 위 `<rt>`) → 일본어 본문 → `[한글]` 한 줄 → 번역(말풍선은 안쪽 구분선 아래). 선생님 말·내 말·교정 칸·수업 줄이 모두 같다.
+
+**B. 크기·줄간격(데모 CSS 값 그대로)**
+
+| 자리 | 일본어 | 히라가나(rt) | 루비 블록 줄간격 | `[한글]` |
+|---|---|---|---|---|
+| 말풍선(선생님·내 말) · 교정 카드 두 칸 · 수업 대화 줄·예문·모범 답안·내 문장·문제 일본어 줄 · ⑤ 내가 한 말 · 설정 미리 보기 | 17 (`JA_BODY`/`JA_TEXT`) | 11 | 1.7 → **2.1** | 13 |
+| 단어 상세 예문 | 16 | 11 | 1.7 → **2.15** | 13 |
+| 단어 제안 카드 표제어 | 18 semibold | 11 | **2** | 13 |
+| 단어장 행 표제어 | 18 semibold | 11 | **1.95** | 12.5 |
+| 문제 보기 | 17 | 11 | **2.1** | 12.5 |
+| 표현 칩(② 오늘의 표현 · ④ 써 볼 표현 · ⑤ 목표 표현) | 16 | 11 | **2.1** | 12 (칩 안, 일본어 뒤 같은 흐름) |
+| 단어 상세 표제어 | 28 semibold | **13** | **1.8** | 14 |
+| 오늘의 단어 카드 앞면 | `surfaceSize()` 그대로 | **16** | **1.7** | 15 (위 여백 4px) |
+
+- 루비 줄간격은 **그 블록에 한자가 있고 히라가나 켬일 때만** 넓힌다(`hasKanji(text) && showFurigana`). **분석을 기다리는 동안에도 미리 넓혀** 둔다 — 루비가 채워질 때 세로로 밀리지 않게(데모 `fuCls`). 히라가나 끔이면 원래 줄간격.
+- `[한글]` 줄: `lang="ko"` · `text-ink2` · 줄간격 1.5 · 위 여백 2px · `word-break:normal` + `overflow-wrap:anywhere`(**`break-keep` 금지** — 띄어쓰기 없는 긴 소리 줄이 넘친다).
+- 번역: 말풍선은 `mt-2 border-t border-line pt-2 text-[15px] text-ink2`(지금 선생님 번역과 같음, 내 말 말풍선은 테두리 `color-mix(ink 18%)` — `accent-soft` 위라서). 수업 ① 번역 13px 은 지금 그대로.
+
+**C. 루비 마크업**: `<ruby>漢字<rt aria-hidden="true">かんじ</rt></ruby>`(`<rp>` 없음). 스타일은 `globals.css` 를 건드리지 않고 공용 컴포넌트 안 클래스로: ruby `[ruby-position:over] [ruby-align:center]`, rt `text-[11px] leading-none font-normal text-ink2 tracking-normal select-none`. 한자 묶음 위에만 얹고 送り仮名·가나·가타카나·숫자 위에는 없다(`rubyPieces()` 가 이미 그렇게 나눈다 — `reading:null` 조각은 그냥 글자). `ruby-align:center` 는 일부러다(기본 space-around 는 `面 白` 처럼 한자 사이를 벌린다).
+
+**D. `[한글]` 마크업**: `<p lang="ko" class="… select-none"><span class="sr-only">한글 발음: </span><span aria-hidden="true" class="text-ink3">[</span>{hangul}<span aria-hidden="true" class="text-ink3">]</span></p>`. 대괄호는 장식(`ink3` 는 장식 전용 — §1-1)이라 읽지 않고, 스크린리더는 "한글 발음: 쿄-와 나니오 따베마시따까"로 읽는다.
+
+**E. 접근성·복사**
+- 스크린리더 순서 = 일본어 본문(rt 는 `aria-hidden`) → "한글 발음: …" → 번역. 히라가나를 읽히지 않는 이유: 본문과 겹쳐 두 번 읽힘.
+- **복사·저장·음성에 쓰지 않는다**: rt·`[한글]` 줄은 `select-none`(길게 눌러 전체 선택해도 섞이지 않게). 단어장 추가·TTS·"다시 말하기 채우기"(`onPick`)는 지금처럼 `message.content`·원문 문자열을 쓴다(DOM 글자를 읽지 않는다).
+- 토글은 `aria-pressed` + 켬일 때 `✓`(aria-hidden) + 굵게 — 색만으로 구분하지 않는다. 설정 스위치는 `role="switch"` `aria-checked`.
+
+**F. 달지 않는 자리(데모 "적용 범위" 표)** — 입력칸 전부(Composer·수업 메모 입력·④ 문장 입력·단어 추가/수정 폼·교정 채택 시트 입력) · 수업 ① 메모 칩·"들린 단어 n개" 칩 · 인식 중 자막(`LiveUtteranceBubble` 3종·`UnsentBar`) · 스트리밍 중 선생님 말풍선(줄간격만 미리 — §15-4-1) · 제목·머리줄(채팅 제목·수업 머리 일본어 제목·목록 미리보기) · 문법 칩(`learning.grammarPoint`) · 한국어 문장 속 「」 인용(설명·총평·문제 한국어 줄의 `J()`) · 관리자 콘솔 · §15-7 의 범위 밖 화면.
+
+**G. "애매하면 숨김"(task 핵심 원칙)** — 분석 칸이 `null`·`available:false`·요청 실패·400자 초과 분할 불가면 히라가나 없이 본문만, `[한글]` 줄은 통째로 없앤다. **대체 표시 금지**: 옛 `message.reading`/`d.reading` 히라가나 줄로 되돌리지 않고, `kanaToHangul(저장된 읽기)` 로 한글을 만들지 않는다(장음이 글자대로 나와 `토우꾜우` 가 된다 — S1 인계).
+
+### 15-2. 데이터 흐름
+
+**A. 공용 파일(화면 A 가 먼저 만든다 — `src/components/common/japanese/`)**
+
+| 파일 | 내보내는 것 | 역할 |
+|---|---|---|
+| `displayPrefs.ts` | `useDisplayPrefs()` → `{ loaded, showFurigana, showHangul, showTranslation, trEpoch, set(key, on) }` · `DISPLAY_COPY` | 앱 전체 표시 스위치 저장소(§15-3) |
+| `annotations.ts` | `useAnnotations(texts)` · `useWordLayers(surface, reading)` · `cutRubyByRanges()` · `segmentsHiragana()` | #24r 묶음 요청·캐시·상태(아래 B~E) |
+| `JapaneseText.tsx` | `JaText` · `HangulLine` · `DisplayToggles` · `DisplayBar` | 루비·한글 줄·토글 렌더(아래 F·G) |
+| `__tests__/japaneseDisplay.test.ts` | — | 분할·범위 자르기·읽기 대조·이관 순서·캐시 규칙 |
+
+컴포넌트는 `@/modules/speech/reading/client` 만 import 한다(eslint 허용 경로 — `rubyPieces`·`hangulLine`·`alignWordRuby`·`hasKanji`·`READING_MAX_TEXTS/CHARS`·`ReadingSegment` 타입). `speech/reading` 루트·`engine` import 금지(eslint error).
+
+**B. #24r 요청 묶기(`annotations.ts`, 모듈 전역 하나)**
+1. 화면의 모든 `useAnnotations(texts)` 가 넘긴 문장을 한 대기열에 모은다 → 같은 tick 끝(`setTimeout(0)`)에 **최대 64개씩** `POST /api/v1/text/annotate {texts}` 한 번(사용자당 60/분 — 채팅방 첫 로드 50개 + 교정·제안이 1~2 요청이 되게).
+2. 같은 문장은 한 번만 보낸다(대기 중·요청 중 중복 제거). 결과는 문장 문자열 → `segments|null` 메모리 캐시(LRU 2,000, 앱 세션 동안 — 화면을 옮겨도 다시 요청하지 않음).
+3. 응답 `items[i] === null` 이고 `available:true` = 이 문장은 분석 불가 → **null 로 캐시**(다시 묻지 않음). `available:false` 응답의 null 칸·HTTP 실패(429·5xx·네트워크·12초 시간 초과) = **캐시하지 않음**, 그동안은 숨김. 실패 문장은 **같은 화면에서 35초 간격·최대 2회** 다시 묻는다(재시도 기록은 문장 단위로 `AnnotationClient` 가 소유) — 확인 계기는 새 말 도착·앱 복귀(`visibilitychange`)·온라인 복귀(`online`)·표시 OFF→ON 때뿐이고 **타이머 폴링은 없다**(아무 일도 없는 화면은 숨김 그대로). 그 뒤엔 다음 진입(마운트) 때.
+4. **보내지 않는 경우**: 히라가나·한글 둘 다 끔(요청 0) · 빈 문자열·공백뿐 · 한자 없는 문장인데 한글 끔(히라가나만 켬 — 루비 할 것이 없다) · 스트리밍 중 문장.
+5. **400자 초과**(채팅 말은 1,000자까지): 400자 안의 마지막 `。！？!?\n` 뒤에서 잘라 여러 문장으로 보내고 결과 세그먼트를 순서대로 잇는다. 400자 안에 끊을 곳이 없으면 그 문장은 숨김(중간을 자르면 단어가 잘려 읽기가 틀린다).
+6. 로그아웃(401)은 기존 `api.ts` 동작 그대로.
+
+**C. 상태 — `useAnnotations(texts: string[]): AnnotationState[]`(입력 순서)**: `{ s:'off' }`(두 층 다 끔) · `{ s:'loading' }` · `{ s:'ready', segments }` · `{ s:'none' }`. 렌더 규칙: loading = 본문 그대로 + 루비 줄간격 예약 + `[한글]` 자리에 **옅은 막대**(높이 12px·폭 62%·`bg-surface2`, 내 말 말풍선 안은 `bg-surface`, 위 6·아래 4px — 실제 한글 줄 높이와 같아 채워질 때 밀리지 않음, `motion-safe:animate-pulse`, aria-hidden) · ready = `rubyPieces(segments)` 로 루비, `hangulLine(segments)` 가 null 이 아니면 `[한글]` · none = 루비·한글 없음(막대 지움).
+
+**D. 한글 줄은 `hangulLine(segments)` 만(QA O-1)** — `kanaToHangul(pronLine(…))` 처럼 우회하면 조사 を 보정(`ピアノを` → `피아노오`)이 빠진다. 화면 코드에 `kanaToHangul`·`pronLine` 호출 0건이어야 한다(Reviewer grep 대상).
+
+**E. 단어(단어장 행·단어 상세·단어 제안 카드·오늘의 단어 카드) — `useWordLayers(surface, reading)`**
+- 루비 = `alignWordRuby(surface, reading)`(저장된 `WordEntry.reading`·제안 `payload.reading`, 서버 없이). null(한자 없음·정렬 실패·상한 초과)이면 루비 없이 표제어만. REV-086 M1 로 다항 시간·상한(표제어 80·읽기 120자) 처리돼 있다.
+- 한글 = **표제어를 #24r 로 분석한 `hangulLine`** — 단, 저장된 읽기와 분석기 읽기가 다르면 숨긴다: `segmentsHiragana(segments)`(조각마다 `ruby` 가 있으면 `[표기, 읽기]` 의 읽기(없으면 표기), 없으면 `surface` → 가타카나를 히라가나로) 와 저장 읽기(가타카나→히라가나, 공백 제거)가 **같을 때만** 한글을 보인다. 저장 읽기가 없으면 대조 없이 보인다. 이유: 사용자가 `明日=あす` 로 저장했는데 분석기는 `あした` 일 때 루비 「あす」 아래 한글 「아시따」가 나오면 서로 어긋난 발음이다(★ Leader 확인 ①).
+- 단어장 목록은 화면에 그려진 행의 표제어를 한 번에(페이지 50개 = 1요청), [단어 더 보기] 때 새 행만.
+
+**F. `JaText` — 루비 렌더 + 범위 겹치기**
+```tsx
+<JaText text={string} state={AnnotationState} className={JA_BODY}            // 루비 줄간격은 내부에서 붙인다
+        ranges?={[{ start, end, className, as?: 'span'|'mark' }]} />       // 문장 강조·교정 diff·비교 밑줄
+```
+- `ranges` 는 지금 컴포넌트가 따로 그리던 것을 그대로 받는다: 회화 다시 듣기 문장 강조(`TalkTutorBubble` spans → `bg-accent-soft`), 교정 diff(`CorrectionCard` `Segments` 제거·추가), ④ 비교 밑줄(`compare.ts` 점선·실선 `mark`). 오프셋은 **코드포인트 기준**(diff·compare 가 이미 코드포인트).
+- `cutRubyByRanges(pieces, ranges)`: 루비 조각을 범위 경계에서 자른다. **경계가 한자 묶음 한가운데를 자르면 그 묶음만 히라가나를 뺀다**(글자는 그대로 · 범위 표시 유지) — 반쪽 읽기를 보이지 않기 위해. 밑줄 `mark` 는 글자 아래, 루비는 위라 둘 다 보인다(MOV ⑦).
+- `lang="ja"` 는 바깥 요소에 한 번.
+
+**G. `HangulLine` · `DisplayToggles` · `DisplayBar`**
+- `HangulLine({ state, size: 13|12.5|12|14|15, inline?, tone?: 'onAccent' })` — §15-1 D 마크업 + loading 막대. `inline` = 칩 안 같은 흐름(`<span>` 12px).
+- `DisplayToggles({ keys: ('fu'|'hg'|'tr')[], onToast })` — 32px 알약(지금 수업 `parts.Toggle` 과 같은 모양: 켬 `bg-ink text-surface border-ink` + `✓` + semibold, 끔 `bg-surface border-line`), 세로 히트 44px(`before:-inset-y-1.5`), `flex-none` + 줄바꿈 없음. `loaded` 전에는 `aria-disabled` + 흐리게(누르면 무시).
+- `DisplayBar({ onToast })` — 회화·채팅 머리 바로 아래 `h-11 flex-none items-center gap-1.5 px-3 bg-surface border-b border-line overflow-x-auto`(스크롤바 숨김, 360 에서도 한 줄이라 실제로는 스크롤되지 않음), 맨 앞 "표시" 12px `text-ink2`(aria-hidden), `role="group" aria-label="이 방 전체 표시"` + `DisplayToggles(['fu','hg','tr'])`. 화면당 스크롤 1곳 규칙 — 바는 고정 머리의 일부(목록 스크롤 밖).
+
+**H. 내 말 번역(E5·E6, T1)**
+
+| 상태 | 언제 | 번역 칸(번역이 펼쳐져 있을 때만 보임) |
+|---|---|---|
+| `ok` | `message.translation` 있음 | 번역 글 15px |
+| `pending` | 이번 세션에 보낸 말이고 턴이 아직 안 끝남(임시 말풍선·`accepted` 뒤 `done` 전) | 막대 72px + "번역 중…"(13px `text-ink2`) |
+| `failed` | `done.userTranslation === null` 을 이번 세션에 받음 · #32t 가 다시 시도 가능한 오류 | "번역을 가져오지 못했어요" + [다시 가져오기] |
+| `none` | 서버에서 읽어 온 말인데 `translation` 이 null(옛 말·턴 실패한 말) | [번역 가져오기] 하나(★ 데모와 다른 점 ⓐ) |
+| `retrying` | [다시 가져오기]/[번역 가져오기] 누른 뒤 | 막대 + "번역 중…" |
+| `blocked` | #32t 409·429·400·404 | 아래 표 문구 |
+
+- 데이터: 새 턴 = SSE `done.userTranslation`(`useChatTurn.onDone` 이 `dn.userMessageId` 말풍선에 `translation` 을 넣는다), 새로고침·지난 말 = #29 USER `translation`. 화면 전용 칸 `ChatMessageView.translationState?: 'pending'|'failed'`(서버 값 아님 — #29 로 다시 읽으면 사라진다).
+- [다시 가져오기]·[번역 가져오기] → `POST /api/v1/chats/:id/messages/:messageId/translation`(본문 없음, id 는 `encodeURIComponent`) — **사용자가 누를 때만**(자동 호출 금지 — 분당 20회 상한·LLM 비용). 버튼 44px 히트(보이는 글자 13px 밑줄, 데모 `.trf .fb`). 누른 뒤 응답 전 다시 누르면 무시.
+
+| #32t 응답 | 화면 |
+|---|---|
+| `200 {translation, cached}` | `ok` — 번역 표시(같은 말풍선 `translation` 갱신) |
+| `409 {reason:"TURN_RUNNING"}` | "선생님 답이 끝나면 다시 눌러 주세요" + 버튼 유지 |
+| `409 {reason:"TRANSLATION_BUSY"}` | "다른 번역을 가져오는 중이에요. 잠시 뒤 다시 눌러 주세요" + 버튼 유지 |
+| `429` | "잠시 뒤 다시 눌러 주세요" + 버튼 유지 |
+| `502`(`TRANSLATION_REJECTED` 포함)·`504`·`422`·네트워크 | `failed` — "번역을 가져오지 못했어요" + [다시 가져오기] |
+| `400`·`404` | "이 말은 번역할 수 없어요" — 버튼 없음 |
+
+- 오류 문구는 **번역 칸 안에서만**(토스트·빨간색 없음 — 데모 `#talk-fail`). 대화·히라가나·한글·선생님 답은 막지 않는다.
+- 선생님 말 번역은 지금처럼 `message.translation`(ASSISTANT) — 없으면 [번역 ▾] 를 숨긴다(지금 동작).
+
+### 15-3. 설정 — 표시 스위치 3개(앱 전체 하나)
+
+**A. 서버 값**: Profile `showFurigana`(기본 true) · `showHangul`(true) · `showTranslation`(false) — 읽기 `GET /api/v1/settings/profile`, 쓰기 **`PUT /api/v1/settings/profile`**(PATCH 아님 — 405), **바꾼 키 하나만** 보낸다(`{ "showHangul": false }`), 불리언만(그 밖 400). api-contract #11~#12. 학습 설정 폼(`LearningSettings` [학습 설정 저장])의 보내는 키 목록에는 넣지 않는다(지금 그대로 — 두 저장이 서로 덮지 않게).
+
+**B. 저장소(`displayPrefs.ts`)** — React 컨텍스트 대신 모듈 전역 저장소 + `useSyncExternalStore`(레이아웃 파일을 건드리지 않고 회화·채팅·수업·단어장·설정이 같은 값을 본다).
+- 첫 구독 때 GET 1회(앱 세션 동안 유지 — 화면을 옮겨도 다시 읽지 않음, 설정 화면은 마운트 때 한 번 더 읽어 다른 기기 변경을 반영). 로드 전 `loaded:false` → 층을 그리지 않고 토글은 흐림(값이 오면 한 번에 켜짐 — 끈 사용자에게 잠깐 보였다 사라지는 깜박임 방지). GET 실패 → 기본값(E2-A)으로 `loaded:true`(층이 학습 기능의 일부라 막지 않음), 설정 화면만 오류 블록.
+- `set(key, on)`: **바로 화면에 반영(낙관)** → PUT. 요청은 한 줄로(연타 시 마지막 값만 보냄). 실패하면 이전 값으로 되돌리고 저장소가 `failEpoch` 를 1 올린다(사용자가 누른 PUT 이 되돌려졌을 때만 — 더 새 값이 이어받은 경우·이관 PUT 실패는 올리지 않음). **실패 토스트 "표시 설정을 저장하지 못했어요. 다시 눌러 주세요"는 앱 셸 한 곳(`components/shell/DisplaySaveNotice.tsx`, `(app)/layout.tsx`)이 띄운다** — 화면을 떠난 뒤 늦게 실패해도 보인다. 호스트 화면(설정·표시 바·도구 줄)은 실패 토스트를 띄우지 않는다(이중 방지). 성공 토스트는 §15-5(누른 곳에서, 탭 즉시).
+- 같은 저장소라 **표시 바·수업 도구 줄·단어장 도구 줄·설정 스위치가 즉시 함께 바뀐다**(새로고침 불필요).
+
+**C. 옛 값 1회 이관(첫 GET 성공 직후, 한 번)**: `readStore('local', 'kaiwa.chat.readingDefault')` 가 `'off'` 이고 서버 `showFurigana === true` 면 `PUT { "showFurigana": false }` → 성공하면 키 삭제(실패면 키를 남겨 다음 로드에 다시). 값이 `'on'` 이거나 서버가 이미 false 면 PUT 없이 키 삭제. `chat/storageKeys.ts` 의 키 이름은 이관용으로만 남기고, 이 키를 읽던 `ChatRoom`·`TalkRoom`·`LessonScreen` 코드는 지운다. `kaiwa.vocab.readingDefault`(오늘의 단어 카드 [읽기])는 **다른 값이라 그대로**.
+
+**D. 말풍선별 [번역 ▾](E4-B)**: 저장소가 `trEpoch`(번역 스위치를 바꿀 때마다 +1)를 준다. 말풍선 상태 = `{ epoch, open }` — `epoch !== trEpoch` 면 무시하고 `showTranslation` 을 따른다. 그래서 바에서 번역을 바꾸면 개별로 열고 닫은 것이 전부 초기화된다. 히라가나·한글은 말풍선별 조작이 없다.
+
+### 15-4. 화면별 변경 (컴포넌트 파일 · 바꿀 곳)
+
+#### 15-4-1. 회화방 — `#talk` · `#talk-pend` · `#talk-fail` (화면 A)
+
+| 파일 | 바꿀 곳 |
+|---|---|
+| `talk/TalkRoom.tsx` | `readingDefault` 상태·`readStore/writeStore(KEYS.readingDefault)`(168·1060행 부근) 삭제 · `TalkRoomHeader` 바로 아래(첫 줄 `room` 안, 목록 스크롤 밖)에 `<DisplayBar onToast={toast.show} />` · `MessageList`·`TalkTutorBubble`·`ChatMenuSheet` 에 넘기던 `readingDefault`/`onReadingDefault` 삭제 · 대화 속 `UserBubble`(747행 부근)은 §15-2 H 번역 칸을 쓰도록 `chatId` 그대로 넘김 |
+| `talk/TalkTutorBubble.tsx` | `streaming`: 본문은 지금처럼 문장 `<span>` 이어 붙이기(루비 없음), 단 `showFurigana && hasKanji(content)` 면 줄간격 2.1 미리 · `done`: `spans` 를 `JaText ranges`(재생 중 문장 = `rounded-sm bg-accent-soft text-ink`)로 넘김 — 강조·▶ 다시 듣기·"말하는 중" 그대로 |
+| `talk/TalkCorrectionCard.tsx` | 코치 힌트 상태의 "내 문장" 칸(107행)에 `JaText`+`HangulLine`(정답을 보기 전 칸이라 교정문은 없음) |
+| (공용) `chat/MessageBubble.tsx`·`chat/CorrectionCard.tsx` | 15-4-2 와 같다 — 회화방도 이 둘을 쓴다 |
+
+- 상태별: `#talk` 선생님 말 = 히라가나 → 일본어 → `[한글]` → (번역) · 아래 줄 [▶ 다시 듣기][번역 ▾][문법 칩][시각] — **[읽기 ▾] 삭제**. 내 말 = 같은 층 · 아래 줄 [▶ 내 목소리][번역 ▾][시각]. 대화 속 교정 카드(유창성 큰 실수) 두 칸에 히라가나·`[한글]`.
+- `#talk-pend`: 방금 보낸 내 말 = 본문 그대로 + 루비 줄간격 예약 + `[한글]` 자리 막대 + (번역 켬이면) "번역 중…" · sr-only "발음과 번역을 준비하고 있어요." 한 번 · 그 아래 선생님 준비 말풍선·상태 줄 "선생님이 생각하고 있어요"·마이크 흐림은 지금 그대로. 내 말 분석은 **보낸 직후 바로** 요청한다(턴과 독립 — 1ms 대 분석이라 대개 선생님 답보다 먼저 채워짐).
+- `#talk-fail`: 선생님 답(t4)까지 온 뒤 내 말 번역 칸만 `failed`. 대화는 그대로 이어진다.
+- 인식 중 자막(`LiveUtteranceBubble`)·보내지 못한 말(`UnsentBar`)·`TalkIntro`·머리(표시등·"모아 둔 교정 N"·⋯)는 그대로. "모아 둔 교정" 시트(`LaterCorrectionsSheet`)는 `CorrectionCard` 를 쓰므로 자동으로 층이 붙는다(파일 수정 없음).
+
+#### 15-4-2. 채팅방 — `#chat` (화면 A)
+
+| 파일 | 바꿀 곳 |
+|---|---|
+| `chat/ChatRoom.tsx` | `readingDefault` 상태·이관 전 localStorage 읽기/쓰기(52·236행) 삭제 · `ChatRoomHeader` 바로 아래 `<DisplayBar onToast={toast.show} />`, **그 아래** `ReviewDoneBar`(점검을 마친 채팅 띠 — MOV ③) · `MessageList`·`ChatMenuSheet` props 정리 |
+| `chat/MessageList.tsx` | `readingDefault` prop 삭제(207행 `TutorBubble`) · 화면에 그린 말(선생님·내 말)의 본문을 모아 `useAnnotations` 한 번(말풍선마다 따로 부르지 말고 목록이 모아서 넘긴다 — 요청 묶기·스크롤 계산을 한 곳에) · [이전 메시지] 로 앞에 붙인 말은 다음 묶음 |
+| `chat/MessageBubble.tsx` | `TutorBubble`: `readingOpen`·`showReading`·[읽기 ▾] 삭제, 본문 `JaText` + `HangulLine` + 번역(전역 + 말풍선별, §15-3 D). `UserBubble`: 같은 층 + 아래 줄에 [번역 ▾](말풍선 상태) 추가 + 번역 칸(§15-2 H). `JA_BODY` 그대로. `PendingBubble`·`FailedBubble` 그대로 |
+| `chat/useChatTurn.ts` · `types/chat.ts` | `TurnDoneEvent.userTranslation?: string \| null` 추가 · 보낼 때 임시 내 말 `translationState:'pending'` · `onDone` 에서 `dn.userMessageId` 말풍선에 `translation = dn.userTranslation ?? null`, null 이면 `translationState:'failed'` · 턴 `error`/실패면 `translationState` 를 지움(→ `none`) · `ChatMessageView.translationState?` 추가 |
+| `chat/ProposalCard.tsx` | ADD_WORD(118~130행): 표제어 옆 읽기 `<span>` 삭제 → 표제어 위 히라가나(`useWordLayers`) + 아래 `[한글]` 13. 뜻·버튼·"✎ 뜻 고쳐서 추가"·처리된 줄(`✓ 단어장에 추가했어요 · 表記`)은 그대로(처리된 줄은 머리줄 취급 — 달지 않음) |
+| `chat/ChatMenuSheet.tsx` | **F1-A**: "읽기 항상 펼치기" `role="switch"` 줄(116~123행)과 `readingDefault`·`onReadingDefault` props 삭제. [제목 바꾸기]·`extra`(회화: 들려주는 방식·교정 방식)·삭제는 그대로 |
+
+- `あしたはやすみです。` 처럼 한자 없는 말 = 위 히라가나 없음 · `[한글]` 만. 입력창은 달지 않는다.
+- 스크롤: 첫 로드 바닥 붙이기는 지금 로직 그대로 — 루비 줄간격 예약 + 같은 높이 막대 덕에 분석 결과가 와도 높이가 거의 그대로라 바닥이 유지된다(QA 확인 ⑧).
+
+#### 15-4-3. 표현 점검 — `#review` (화면 A)
+
+- `chat/CorrectionCard.tsx`: 두 칸(컨테이너 320px 이상 나란히, 360 폭 화면은 위아래 — 지금 `@min-[320px]:grid-cols-2` 그대로) 각각 `JaText`(diff `Segments` 를 `ranges` 로 — 지운 글자·넣은 글자 위에도 히라가나) + `HangulLine`(문장 전체 소리 — diff 표시 없음). 칸 폭은 늘리지 않는다.
+- `ChatReview.tsx` 는 수정 없음 — 총평·잘한 점·집중할 점·"공부 기록 남기기" 카드·[남은 교정 n | 전체 n]·[대화로 돌아가기] 그대로, 설명 속 「」 인용은 달지 않는다. 점검 화면에는 표시 바가 없다(값은 앱 설정 그대로 따름).
+- 점검 카드 전부(최대 수십 개)를 화면 마운트 때 한 묶음으로(`CorrectionCard` 가 각자 부르면 tick 묶기로 자동 합쳐진다 — §15-2 B 1).
+
+#### 15-4-4. 단어장 목록 — `#words` (화면 B)
+
+| 파일 | 바꿀 곳 |
+|---|---|
+| `vocab/WordsScreen.tsx` | "단어 50개" 줄(280행 `<p aria-live>`)을 `flex items-center justify-between gap-2` 줄로: 왼쪽 개수 글(`min-w-0 flex-1`, **`aria-live` 는 이 글에만**, 검색어·조건이 길면 줄바꿈) · 오른쪽 `DisplayToggles(['fu','hg'])`(`flex-none`, 줄 높이 18 → 32px) — **MOV ①**(정렬 세그먼트+보관함 줄은 이미 가득) · 그린 행 표제어 묶음 요청(한글 켬일 때만) |
+| `vocab/WordRow.tsx` | 표제어 옆 읽기 `<span>`(23~28행) 삭제 → 빈 칸(`flex-1`) 유지 · 표제어에 루비(줄간격 1.95) · 둘째 줄로 `[한글]` 12.5 · 셋째 줄 뜻·맞힘/틀림(지금 둘째 줄). 조각 뱃지 자리 그대로. `truncate` 는 유지하되 **줄간격 1.95 로 rt 가 잘리지 않게**(QA ⑤) |
+
+- 행 높이(데모 실측): 둘 다 켬 약 102 · 히라가나만 80 · 한글만 92 · 둘 다 끔 71px(지금 64 → 최소 높이 64 는 유지). 검색·분류 칩·조각 줄·정렬·보관함·[＋ 추가]·[단어 더 보기]·빈 상태(`WordsEmpty`)는 그대로.
+- `すみません`·`コーヒー` 같은 한자 없는 단어 = 히라가나 없음 · `[한글]` 만.
+
+#### 15-4-5. 단어 상세 시트 — `#wsheet` (화면 B)
+
+- `vocab/WordDetailSheet.tsx`: 표제어 28(273행)에 루비(rt 13·줄간격 1.8) → 읽기 15px 줄(277행) **삭제** → `[한글]` 14 → 뜻 17. 오른쪽 ▶ 소리 버튼(44) 자리 그대로.
+- 예문 카드(301행): 예문 16 에 루비(줄간격 2.15) + `[한글]` 13 + 번역(지금처럼 늘 보임) · ▶ 그대로. 예문은 저장 읽기가 없으니 #24r(`useAnnotations`).
+- 뱃지 줄·기록 4칸·출처·[수정][보관하기]·삭제·삭제 확인 문구(252행 ‘表記’ 인용은 달지 않음)·수정 폼(입력칸)은 그대로. 시트에는 토글이 없다(앱 설정을 따름).
+
+#### 15-4-6. 오늘의 단어 카드 — `#deck` (화면 B, 예외 규칙)
+
+- 외우기 카드라 **카드 [あ 읽기](`DeckToolbar`, `kaiwa.vocab.readingDefault` 그대로)를 켰을 때만** 표제어 위 히라가나(rt **16**·줄간격 1.7) + (앱 설정 한글 켬일 때) `[한글]` **15**(위 4px). 앱 설정 `showFurigana` 는 카드에 영향이 없다. [읽기] 끔 = 표제어만(지금과 같음).
+- `vocab/VocabCardFace.tsx` 앞면(56~64행): 읽기 17px 줄 삭제 → 루비·한글로. `memo` 를 지키기 위해 **루비·한글 값은 `vocab/VocabDeck.tsx`(153행에서 카드 면을 그림)가 덱의 카드 표제어 전부를 처음 한 번에 `useWordLayers` 로 받아 props(`ruby`, `hangul` — 문자열·배열이라 얕은 비교로 memo 유지)로 넘긴다** — 카드 면 안에서 훅을 부르지 않는다(드래그 중 다시 그리지 않음). `line-clamp-3` 과 루비가 겹쳐 첫 줄 rt 가 잘리지 않는지 확인(QA ⑤).
+- 뒷면(FLIP·답한 뒤, 80~98행)은 **이번 범위 밖 — 그대로**(데모에 없음).
+- 진행·보기·도구 칸 4개·제스처 안내·12초 리듬은 그대로. 분석이 늦어도 카드 넘김을 막지 않는다(막대 → 채워짐).
+
+#### 15-4-7. 오늘의 회화 ①~⑤ — `#l1`~`#l5` (화면 B)
+
+| 파일 | 바꿀 곳 |
+|---|---|
+| `lesson/LessonScreen.tsx` | `reading` 상태·`CHAT_KEYS.readingDefault` 읽기/쓰기(164·270행)·`onReading` 삭제 · 단계 컴포넌트에 넘기던 `reading` props 삭제(각 단계가 `useDisplayPrefs` 를 직접 읽는다) |
+| `lesson/StageUnderstand.tsx` (`#l1`) | 도구 줄(99~104행) `Toggle 읽기`·`Toggle 번역`(화면 상태 `trans`) → `DisplayToggles(['fu','hg','tr'])` + 역할 범례 그대로(같은 `role="group" aria-label="보기 설정"` 줄) · 대화 줄(201~209행): 일본어에 루비 · 읽기 줄 삭제 · `[한글]` 13 · 번역 13(`showTranslation`) · 줄 ▶ 그대로 · **글자 가림 중(124·184행 `hidden`)에는 지금처럼 막대만** — 히라가나·한글도 그리지 않는다 · 메모 칩·메모 입력·"들린 단어" 카드는 달지 않음 |
+| `lesson/StageGrammar.tsx` (`#l2`) | 도구 줄 신설 `DisplayToggles(['fu','hg'])`(설명 문단 아래 — **MOV ④**: 예문 번역이 늘 보여 [번역] 없음) · 예문 읽기 줄(87행) 삭제 → 루비 + `[한글]` · 문형(〜をください) `[한글]`(한자 있으면 루비도) |
+| `lesson/parts.tsx` | `ExprPlayChip`: 칩 일본어 16 에 루비(줄간격 2.1) + `HangulLine inline size=12` · ▶ 듣기·"새 표현"·뜻 그대로 · 수업 `Toggle` 은 이 절 이후 쓰는 곳이 없으면 지워도 된다(다른 사용처 grep 후) |
+| `lesson/StageQuiz.tsx` (`#l3`·`#l3b`) | 도구 줄 신설 `DisplayToggles(['fu','hg'])` — **MOV ⑤**(보기에 번역 없음) · 문제 카드의 **따로 있는 일본어 문장 줄**(`promptJa`)에 루비 + `[한글]` 13 — **MOV ⑥** · 보기 일본어 17 에 루비 + `[한글]` 12.5(보기 높이 52 → 약 80px) · 한국어 문제 줄은 달지 않음 · **★ 읽기 문제 보호**(§15-9 ②) |
+| `lesson/StageApply.tsx` (`#l4`) | 써 볼 표현 칩 = 히라가나·`[한글]` 12 · 내 문장·모범 답안: 비교 밑줄을 `JaText ranges` 로(점선·실선 `mark` 그대로) + 루비 위 + `[한글]` 13 — **MOV ⑦** · 모범 답안 읽기 줄(225행) 삭제 · 뜻·[▶ 모범 답안 듣기]·범례·안내 그대로 · 입력칸 달지 않음 |
+| `lesson/StageSpeak.tsx` (`#l5`) | 목표 표현 칩 = 히라가나·`[한글]` 12("✓ 썼어요" 그대로) · "내가 한 말" 말풍선 안에 루비 + `[한글]`(말풍선 안, 위 여백 0 — **MOV ⑨**) · 모범 답안 읽기 줄(306행) 삭제 → 루비·`[한글]` · 녹음 중 자막은 달지 않음 |
+| (`lesson/lessonCopy.ts`) | 수정하지 않는다 — `U1.reading`·`U1.translation`(옛 알약 이름)은 쓰는 곳만 없어진다(정리는 후속). 새 이름은 `DISPLAY_COPY` |
+
+- 한 단계에 나오는 일본어(대화 10줄·칩 8개·예문·문제 5개 보기 등)는 단계 화면 마운트 때 한 묶음(64개 이하 — 넘으면 자동으로 2요청).
+- 수업 머리 일본어 제목(`LessonHeader`)·단계 칸·복습 레슨 카드(`review/*`)·종료 카드는 달지 않는다(§15-7).
+
+#### 15-4-8. 설정 › 일본어 표시 — `#settings` (화면 B)
+
+- `app/(app)/settings/page.tsx`: `<LearningSettings />` 와 `<VoiceSettings …/>` 사이에 `<DisplaySettings />`(새 클라이언트 컴포넌트 `components/settings/DisplaySettings.tsx`).
+- 모양: `Section` + `SectionHeader` "일본어 표시" → 카드 하나: 스위치 줄 3개(행 전체 `role="switch"` 버튼, 최소 56px, 제목 15 semibold + 설명 13 `text-ink2`, 오른쪽 48×28 스위치 — `ChatMenuSheet` 에 있던 스위치 모양 재사용, 줄 사이 `border-t border-line`) → 안내 2줄 12.5 `text-ink2 break-keep` → 미리 보기 상자(`rounded-xl bg-surface2 px-3 py-2.5`, 캡션 "미리 보기" + 예문 `今日は何を食べましたか？` 를 `JaText`·`HangulLine`·(번역 켬) "오늘은 뭘 먹었어요?" 13 — 실제 #24r 결과로 그림, 둘 다 끄면 캡션 "히라가나와 한글을 모두 숨겼어요").
+- 누르면 **바로 저장**(학습 설정 [저장]과 별개) — `useDisplayPrefs().set`, 성공 토스트(이 화면, 탭 즉시)·실패 되돌림(실패 토스트는 앱 셸)은 §15-3 B. 로딩 = 스위치 3개 자리 `LoadingBlock`, 저장소 GET 실패 = `ErrorBlock`([다시 시도] → 다시 GET).
+- 다른 절(출석·로그인 계정·기본정보 · 학습·AI 선생님 목소리·음성 인식·앱 버전)은 그대로.
+
+#### 15-4-9. 데모 v4 "제안 배치가 달라진 곳"(MOV 9건) → 구현 위치
+
+| # | 무엇 | 구현 |
+|---|---|---|
+| ① | 단어장 [히라가나][한글] | `WordsScreen` "단어 N개" 줄 오른쪽(§15-4-4) |
+| ② | 단어 제안 카드 | 채팅·회화방 선생님 말풍선 아래(지금 위치) `ProposalCard` — 표제어 위 히라가나·아래 `[한글]`·옆 읽기 없앰 |
+| ③ | 채팅방 표시 바 | 머리 바로 아래, `ReviewDoneBar` 는 그 아래 |
+| ④ | ② 문법 도구 줄 | [히라가나][한글]만 |
+| ⑤ | ③ 문제 도구 줄 | [히라가나][한글]만 |
+| ⑥ | ③ 문제 문장 | 따로 있는 `promptJa` 줄에 히라가나·`[한글]` |
+| ⑦ | ④ 응용 비교 | 밑줄(아래)과 히라가나(위) 둘 다 — `JaText ranges` |
+| ⑧ | 문법 칩 | 달지 않음 |
+| ⑨ | ⋯ 메뉴 "읽기 항상 펼치기" | F1-A — 삭제 |
+
+### 15-5. 한국어 문구 (단일 출처 `components/common/japanese/displayPrefs.ts` `DISPLAY_COPY` — ★ = 데모에 없던 문구)
+
+| 키 | 문구 |
+|---|---|
+| 토글 이름 | 히라가나 · 한글 · 번역 (켬이면 앞에 `✓`, aria-hidden) |
+| 표시 바 | 머리 글자 "표시"(aria-hidden) · 그룹 이름 "이 방 전체 표시" · 수업·단어장 도구 줄 그룹 이름 "보기 설정" |
+| 토스트(누른 곳에서, 2.2초) | "히라가나를 보여 줘요 · 모든 화면에 적용돼요" / "히라가나를 숨겼어요 · 모든 화면에 적용돼요" / "한글 발음을 보여 줘요 · 모든 화면에 적용돼요" / "한글 발음을 숨겼어요 · 모든 화면에 적용돼요" / "번역을 모두 펼쳤어요 · 모든 화면에 적용돼요" / "번역을 모두 접었어요 · 모든 화면에 적용돼요" |
+| ★ 저장 실패 토스트(앱 셸 `DisplaySaveNotice` 한 곳 — 어느 화면에서든 같은 문구, 호스트 화면은 띄우지 않음) | "표시 설정을 저장하지 못했어요. 다시 눌러 주세요" |
+| 설정 절 | 제목 "일본어 표시" · "히라가나 보기" / "한자 위에 작게 읽는 법을 적어요." · "한글 발음 보기" / "일본어 아래에 한글로 소리를 적어요." · "번역 펼쳐 두기" / "선생님 말과 내 말의 뜻을 처음부터 펼쳐요." · 안내 "회화방·채팅방 위 표시 바, 오늘의 회화·단어장 도구 줄에서도 바꿀 수 있어요. 어디서 바꾸든 같은 값이에요." · "한글은 소리를 짐작하는 도움말이에요. 정확한 소리는 선생님 목소리로 들어 보세요." · "미리 보기" · "히라가나와 한글을 모두 숨겼어요" |
+| 말풍선 | "번역 ▾" / "번역 ▴"(`aria-expanded`) — "읽기 ▾" 문구는 삭제 |
+| 내 말 번역 | "번역 중…" · "번역을 가져오지 못했어요" · [다시 가져오기] · ★[번역 가져오기] · ★"선생님 답이 끝나면 다시 눌러 주세요" · ★"다른 번역을 가져오는 중이에요. 잠시 뒤 다시 눌러 주세요" · ★"잠시 뒤 다시 눌러 주세요" · ★"이 말은 번역할 수 없어요" |
+| 스크린리더 | "한글 발음: " (한글 줄 머리) · "발음과 번역을 준비하고 있어요."(보낸 직후 내 말, 한 번) |
+| 오늘의 단어 | [あ 읽기] 그대로 |
+
+### 15-6. 360 / 390 / 412 · 높이 780 / 892 · 접근성 QA 체크리스트
+
+데모 v4 와 나란히 대조한다(데모 상단 "폭"·"보기 › 현재 vs 제안"·"표시" 토글). 모든 항목을 히라가나·한글 켬/끔 4조합 중 최소 (켬·켬)·(끔·끔) + 번역 켬에서.
+
+1. **표시 바**(`#talk`·`#chat`): 360 에서 [✓히라가나][✓한글][번역] 한 줄·가로 스크롤 0, 높이 44, 머리 56 바로 아래, 목록만 스크롤(화면당 스크롤 1곳). 390×780 회화방 대화 영역 ≈563px(데모 실측).
+2. **층 순서·크기**: 히라가나 11(단어 상세 13·카드 16) `ink2` 한자 위에만(送り仮名 위 없음 — `面白い`·`持ち帰る`) · `[한글]` 대괄호·크기 §15-1 B · 번역 구분선 아래.
+3. **줄간격 예약**: 분석 응답을 늦춘 상태(네트워크 느리게)에서 루비·한글이 채워질 때 말풍선 높이 변화 ≤4px · 채팅 첫 로드 바닥 유지.
+4. **애매하면 숨김**: 분석기 다운(gateway 정지 또는 #24r `available:false`) → 히라가나·한글 자리 없음, 옛 히라가나 줄이 **나오지 않음**, 오류 토스트 없음 · 400자 넘는 말(끊을 곳 없음) 숨김 · `静か`·`3時`·`2026年10月4日` 등 S1 표본이 서버 결과대로.
+5. **잘림**: 단어장 행 `truncate` 표제어·카드 `line-clamp-3`·칩·문제 보기에서 rt 윗부분 잘림 0(360/412), 긴 표제어 말줄임 정상, 보기 높이 ≈80px.
+6. **교정 카드**: 컨테이너 320↑ 두 칸·360 화면 위아래, diff 지운/넣은 글자 위 루비, 한자 묶음 가운데가 diff 경계면 그 묶음만 히라가나 없음.
+7. **단어**: 행 높이(둘 다 켬 ≈102·히라가나만 80·한글만 92·둘 다 끔 71) · 저장 읽기 ≠ 분석 읽기(`明日=あす`)면 한글 숨김 · 악성 단어(한자·가나 교차 80자)로 화면 멈춤 없음(REV-086 M1).
+8. **스위치 동기화**: 표시 바에서 끄면 → 수업·단어장 도구 줄·설정 스위치가 같은 값 · 다른 기기에서 바꾼 값은 설정 화면 진입 때 반영 · PUT 실패(오프라인)면 되돌림 + 셸 토스트 1개(호스트 토스트와 이중 없음) · 연타 시 마지막 값 저장.
+9. **이관**: `localStorage kaiwa.chat.readingDefault='off'` + 서버 기본 → 첫 로드 뒤 서버 `showFurigana:false`·키 삭제 · `'on'` → PUT 없이 키 삭제 · `kaiwa.vocab.readingDefault` 는 남음.
+10. **E4-B**: 말풍선 [번역 ▾] 로 연 뒤 바에서 번역 켬→끔 → 모든 말풍선 닫힘(개별 상태 초기화).
+11. **내 말 번역**: 새 턴 `done.userTranslation` 즉시 표시 · null → "번역을 가져오지 못했어요"+[다시 가져오기] → 성공 · 옛 말 [번역 가져오기] · 턴 진행 중 누르기 → 409 문구 · 21번째(분당) → 429 문구 · 자동 호출 0건(네트워크 탭에서 #32t 는 누를 때만).
+12. **F1-A**: 회화·채팅 ⋯ 메뉴에 "읽기 항상 펼치기" 없음.
+13. **오늘의 단어**: [읽기] 끔이면 앱 설정과 무관하게 히라가나·한글 없음 · 켬 + 한글 끔이면 히라가나만 · 드래그 중 프레임 저하 없음.
+14. **수업**: ① 가림 중 층 없음 · ① [번역] = 회화방 번역과 같은 값 · ③ 읽기 문제 보호(§15-9 ②).
+15. **접근성**: TalkBack/스크린리더가 rt 를 읽지 않고 "한글 발음: …"을 읽음 · 토글 `aria-pressed`·설정 `role=switch aria-checked` · 포커스 링 · 터치 44px(토글·[다시 가져오기]) · 명암비(`ink2` on `surface`·`accent-soft`·`surface2`) ≥4.5 · 다크 테마 · `prefers-reduced-motion` 막대 깜박임 없음.
+16. **복사**: 말풍선 길게 눌러 전체 선택 → 복사 결과에 히라가나·한글 없음.
+17. **엔진명**: 화면·응답·콘솔 로그에 분석기 이름 0건 · 화면 글자 '후리가나' 0건.
+18. **요청량**: 채팅방(50말) 첫 진입 #24r ≤2회 · 화면 이동 후 돌아와도 캐시 적중(재요청 0) · 두 층 끔이면 #24r 0회.
+19. **분석 장애 복구(같은 화면)**: 분석기를 막은 상태(gateway 정지 또는 429 유도)로 회화·채팅방 입장 → 기존 말풍선 히라가나·한글 없음 → 분석기 복구 후 새 말 도착·앱 백그라운드 복귀·온라인 복귀·한글(또는 히라가나) OFF→ON 중 하나 → **35초가 지난 뒤** 기존 말풍선 읽기가 돌아옴 · 35초 안에는 다시 묻지 않음 · 같은 문장 재시도 최대 2회(최초 포함 3회)에서 멈춤 · 아무 조작 없는 방에서는 요청 0(타이머 폴링 없음) · 장애 중 요청 폭주 0.
+20. **느린 저장 실패 + 화면 이동**: 표시 스위치 PUT 을 지연(최대 10초)·500 으로 만든 뒤 누르고 곧바로 다른 탭·화면으로 이동 → 실패 시 값 되돌림 + **앱 셸 토스트 정확히 1개**("표시 설정을 저장하지 못했어요. 다시 눌러 주세요") · 같은 화면에 머문 실패도 1개(이중 없음) · 성공 때는 누른 곳 성공 토스트만 · 회화 음성 모드에서 셸 토스트가 마이크 바와 겹쳐도 조작 가능.
+
+### 15-7. 건드리지 말 것
+
+- 서버·모듈: `src/modules/**`(특히 `speech/reading/client.ts` 변환 규칙 — 새 변환 함수를 화면에 만들지 않는다)·`src/app/api/**`·`prisma`·api-contract. 필요한 게 생기면 Leader 에게.
+- `message.reading`·`replyReading` 데이터 경로(`useChatTurn` 이 받아 두는 것)는 **그대로 둔다** — 화면에서 안 쓸 뿐. 제거는 화면 A 배포 뒤 별도 PE+developer task(PE 기록 talk@v8·chat@v3).
+- `LearningSettings` 저장 키 목록 · `CorrectionModeMenu` · `kaiwa.vocab.readingDefault` · TTS·다시 듣기·`onPick`(원문 문자열 사용).
+- 지금 화면 요소(조각 필터·뱃지·▶ 소리·줄 ▶·▶ 듣기 칩·비교 밑줄·모아 둔 교정 칩·문법 칩·[표현 점검]·표시등) — 지우거나 옮기지 않는다(MOV 9건만).
+- **이번 범위 밖(층을 달지 않음 — 데모에 없음, 후속 개선 후보)**: AI 평가(`components/eval/*`) · 단어 세트 결과 목록(`vocab/WordResultList`)·카드 뒷면 · 복습 레슨 카드(`lesson/review/*`)·`LessonEnd`·`LessonTopicsScreen`·`LessonPasteScreen` · `PendingCorrectionsCard`·`ChatListItem`·`RoomIntro`·`TalkIntro` · `MicTestCard` · 관리자 콘솔 전부.
+
+### 15-8. 서브태스크 분할 (각 15파일 이하 · 공용 부품은 A 가 먼저)
+
+**화면 A — 공용 + 회화·채팅·표현 점검(15파일)**
+1. `components/common/japanese/displayPrefs.ts`(신규) 2. `…/annotations.ts`(신규) 3. `…/JapaneseText.tsx`(신규) 4. `components/common/__tests__/japaneseDisplay.test.ts`(신규) 5. `chat/MessageBubble.tsx` 6. `chat/MessageList.tsx` 7. `chat/ChatRoom.tsx` 8. `chat/ChatMenuSheet.tsx` 9. `chat/CorrectionCard.tsx` 10. `chat/ProposalCard.tsx` 11. `chat/useChatTurn.ts` 12. `types/chat.ts` 13. `talk/TalkRoom.tsx` 14. `talk/TalkTutorBubble.tsx` 15. `talk/TalkCorrectionCard.tsx`
+- 순서: ① 공용 1~4(테스트: 400자 분할·`cutRubyByRanges` 경계·`segmentsHiragana` 대조·이관 순서·캐시 규칙 null/available) → **여기서 커밋 지점 — B 착수 가능** ② 채팅(5~12) ③ 회화(13~15) ④ 360/390/412 확인.
+
+**화면 B — 오늘의 회화·단어장·단어 상세·오늘의 단어·설정(15파일)**
+1. `lesson/LessonScreen.tsx` 2. `lesson/StageUnderstand.tsx` 3. `lesson/StageGrammar.tsx` 4. `lesson/StageQuiz.tsx` 5. `lesson/StageApply.tsx` 6. `lesson/StageSpeak.tsx` 7. `lesson/parts.tsx` 8. `vocab/VocabDeck.tsx` 9. `vocab/WordsScreen.tsx` 10. `vocab/WordRow.tsx` 11. `vocab/WordDetailSheet.tsx` 12. `vocab/VocabCardFace.tsx` 13. `settings/DisplaySettings.tsx`(신규) 14. `app/(app)/settings/page.tsx` 15. `components/lesson/__tests__/display.test.ts`(③ 읽기 문제 보호 판정·도구 줄 키)
+- 순서: 설정(13·14 — 스위치가 먼저 있어야 나머지를 확인하기 쉽다) → 단어장·오늘의 단어(8~12) → 수업(1~7).
+- 둘 다 화면 파일이라 데모 게이트 `approved`(v4) 상태에서 시작. 서버·DB·네이티브 변경 0 → 웹 배포만(APK 재빌드 없음).
+
+### 15-9. 데모와 다른 점 · Leader 확인 요청
+
+**데모에 없던 상태 — 가이드로 정함(이의가 있으면 Leader 가 사용자에게)**
+
+| # | 데모 v4 | 가이드 | 이유 |
+|---|---|---|---|
+| ⓐ | 내 말 번역 칸은 "번역 중…"·실패 두 상태만 | 서버에서 읽어 온 옛 말(번역 null)은 실패 문구 없이 **[번역 가져오기]** 하나 | 번역 켬으로 옛 채팅을 열면 모든 내 말에 "가져오지 못했어요"가 늘어서 실패처럼 보인다. 자동으로 가져오면 분당 20회·LLM 비용 |
+| ⓑ | #32t 오류는 "가져오지 못했어요" 하나 | 409(턴 진행·다른 번역)·429·400/404 별도 문구(§15-2 H) | 계약에 있는 응답 — 같은 문구면 눌러도 계속 안 되는 이유를 모름 |
+| ⓒ | 분석 대기 막대는 "보낸 직후 내 말"에만 | 분석을 기다리는 모든 자리(첫 로드 포함) | 채워질 때 높이가 튀지 않게(채팅 바닥 유지) |
+| ⓓ | 표시 설정 저장 실패 상태 없음 | 되돌림 + 앱 셸 토스트 한 곳(`DisplaySaveNotice`) | 낙관 반영이라 실패를 알려야 함 — 화면을 떠난 뒤 실패해도 보이게(REV-096) |
+| ⓔ | 카드 뒷면·평가 화면 등 | 범위 밖(그대로) | 데모 "적용 범위" 표에 없음 — 후속 IMP 후보 |
+
+**Leader 확인 요청**
+
+| # | 요청 | 권고 |
+|---|---|---|
+| ★① | 단어 루비(저장 읽기)와 한글(분석기)이 서로 다른 읽기면 한글을 숨긴다(§15-2 E) — 사용자가 고친 읽기가 있는 단어에서 한글이 안 보일 수 있음 | 이대로(숨김). 대안은 "저장 읽기를 #24r 에 힌트로" = 서버 변경이라 비범위 |
+| ★② | ③ 문제가 **읽기 문제**(예: promptJa 「注文」 + 가나 보기 4개)면 루비·한글이 정답을 알려 준다. A4 프롬프트는 읽기 문제를 막지 않는다 | 고르기 전에는, **promptJa 루비 읽기 중 하나가 보기와 같으면** promptJa 의 히라가나·한글을 숨기고(보기 쪽은 그대로) 답한 뒤 보인다 — 평소 문제에는 영향 없음. 데모 "정답 힌트가 되지 않아요" 전제를 지키는 보호 장치 |
+| ③ | O-3 "참고 번역" 표기(내 말 번역 오역 1/8 — 京都→경주) | **말풍선마다 붙이지 않는다(권고)** — 선생님 말 번역도 같은 LLM 이라 내 말에만 붙이면 일관성이 깨지고, 매 말풍선 꼬리표는 소음이다. 필요하면 설정 "번역 펼쳐 두기" 설명 끝에 "(AI 번역이라 가끔 틀릴 수 있어요)" 한 구절 — 사용자 확인 후에만(승인 문구 변경) |
+| ④ | `message.reading`·`replyReading` 제거 task(PE talk@v8·chat@v3)는 화면 A 배포 뒤 | 화면 A 운영 반영 후 Leader 가 별도 task 로 |
+| ⑤ | 범위 밖 화면(§15-7 끝 목록) | 사용자 원 요청("모든 일본어 부분")과의 차이 — `/개선작업` IMP 로 남길지 Leader 판단 |

@@ -1,9 +1,12 @@
 'use client'
 
 /**
- * 수업 화면 공용 조각(screens §12-5) — 표현 칩·재생 버튼·보기 토글·역할 칩·수업 머리·단계 표시.
+ * 수업 화면 공용 조각(screens §12-5) — 표현 칩·재생 버튼·표시 도구 줄·역할 칩·수업 머리·단계 표시.
  */
 import Link from 'next/link'
+import type { AnnotationState } from '@/components/common/japanese/annotations'
+import { DISPLAY_COPY, type ToggleKey } from '@/components/common/japanese/displayPrefs'
+import { DisplayToggles, HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import TeacherAvatar from '@/components/common/TeacherAvatar'
 import TtsRuntimeStatusIndicator from '@/components/speech/TtsRuntimeStatusIndicator'
 import type { LessonContent } from '@/types/lesson'
@@ -26,6 +29,24 @@ export function StopIcon({ size = 12 }: { size?: number }) {
   )
 }
 
+/**
+ * 칩 안 일본어(16) — `ann` 이 있으면 한자 위 히라가나 + 같은 흐름의 `[한글]` 12(task-026 §15-4-7). 없으면(범위 밖 화면) 글자만.
+ */
+function ExprJa({ ja, ann }: { ja: string; ann?: AnnotationState }) {
+  if (!ann)
+    return (
+      <span lang="ja" className="text-[16px] [overflow-wrap:anywhere]">
+        {ja}
+      </span>
+    )
+  return (
+    <>
+      <JaText as="span" text={ja} state={ann} leading={2.1} className="text-[16px] [overflow-wrap:anywhere]" />
+      <HangulLine state={ann} size={12} inline />
+    </>
+  )
+}
+
 /** 표현 칩 — 조각이면 표기·뜻, 문형이면 문형·"문형". `tone` 으로 결과(썼어요/아직)를 칠한다. */
 export function ExprChip({
   ja,
@@ -33,18 +54,18 @@ export function ExprChip({
   tone = 'plain',
   tail,
   badge,
+  ann,
 }: {
   ja: string
   ko: string
   tone?: 'plain' | 'good'
   tail?: React.ReactNode
   badge?: React.ReactNode
+  ann?: AnnotationState
 }) {
   return (
     <li className={`inline-flex max-w-full min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-[10px] px-2.5 py-1.5 ${tone === 'good' ? 'bg-good-soft' : 'bg-surface2'}`}>
-      <span lang="ja" className="text-[16px] [overflow-wrap:anywhere]">
-        {ja}
-      </span>
+      <ExprJa ja={ja} ann={ann} />
       <span className="text-[12px] text-ink2">{ko}</span>
       {badge}
       {tail}
@@ -70,7 +91,21 @@ export function InfoIcon() {
  * ② 오늘의 표현 — 칩 전체가 듣기 버튼(task-025 결정 b=A, 데모 v1 `#l2`·`#l2-playing`). 칩 앞 ▶ 원 30px, 높이 44px.
  * 재생 중 ■ + 테두리 + `accent-soft`, 받는 중 스피너. ④⑤ 의 같은 모양 칩(`ExprChip`)은 소리가 없다(▶ 표시로 구분).
  */
-export function ExprPlayChip({ ja, ko, badge, state, onClick }: { ja: string; ko: string; badge?: React.ReactNode; state: 'idle' | 'loading' | 'playing'; onClick: () => void }) {
+export function ExprPlayChip({
+  ja,
+  ko,
+  badge,
+  state,
+  onClick,
+  ann,
+}: {
+  ja: string
+  ko: string
+  badge?: React.ReactNode
+  state: 'idle' | 'loading' | 'playing'
+  onClick: () => void
+  ann?: AnnotationState
+}) {
   const on = state !== 'idle'
   return (
     <li className="max-w-full min-w-0">
@@ -83,9 +118,7 @@ export function ExprPlayChip({ ja, ko, badge, state, onClick }: { ja: string; ko
           {state === 'loading' ? <Spinner /> : on ? <StopIcon /> : <PlayIcon size={12} />}
         </span>
         <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-          <span lang="ja" className="text-[16px] [overflow-wrap:anywhere]">
-            {ja}
-          </span>
+          <ExprJa ja={ja} ann={ann} />
           <span className="text-[12px] text-ink2">{ko}</span>
           {badge}
         </span>
@@ -137,17 +170,23 @@ export function PlayWide({ playing, onClick, label, stopLabel = '■ 멈춤' }: 
   )
 }
 
-/** 보기 토글(읽기·번역) — 32px 알약 + 세로 히트 44px. */
-export function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+/** 수업 도구 줄(task-026 §15-4-7) — 앱 전체 표시 스위치. ① 은 [히라가나][한글][번역], ②·③ 은 [히라가나][한글]. */
+export function LessonDisplayTools({
+  keys,
+  onToast,
+  children,
+  className = 'mt-2.5',
+}: {
+  keys: ToggleKey[]
+  onToast: (msg: string, ms?: number) => void
+  children?: React.ReactNode
+  className?: string
+}) {
   return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onClick}
-      className={`relative h-8 rounded-full border px-3 text-[13px] before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[''] ${on ? 'border-ink bg-ink text-surface' : 'border-line bg-surface text-ink'}`}
-    >
+    <div role="group" aria-label={DISPLAY_COPY.toolGroup} className={`flex min-w-0 flex-wrap items-center gap-2 ${className}`}>
+      <DisplayToggles keys={keys} onToast={onToast} />
       {children}
-    </button>
+    </div>
   )
 }
 

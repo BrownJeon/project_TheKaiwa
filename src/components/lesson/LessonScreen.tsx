@@ -10,8 +10,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { detailString, toErr } from '@/components/common/errors'
-import { KEYS as CHAT_KEYS } from '@/components/chat/storageKeys'
-import { readStore, writeStore } from '@/components/common/storage'
+import { writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Btn, ErrorBlock } from '@/components/common/ui'
 import BackBar from '@/components/shell/BackBar'
@@ -161,7 +160,6 @@ function LessonStages({
   const [stage, setStage] = useState(() => firstStage(lesson.stageDone))
   const [saveFail, setSaveFail] = useState(false)
   const [advancing, setAdvancing] = useState(false)
-  const [reading, setReading] = useState(() => readStore('local', CHAT_KEYS.readingDefault) !== 'off')
   const pb = useLessonPlayback(lesson.id, show)
   const { config, textFirst } = useSpeechConfig()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -265,11 +263,6 @@ function LessonStages({
     </p>
   ) : null
 
-  const onReading = (on: boolean) => {
-    setReading(on)
-    writeStore('local', CHAT_KEYS.readingDefault, on ? 'on' : 'off')
-  }
-
   return (
     <div ref={rootRef} className="mx-auto flex h-full min-h-0 w-full max-w-[520px] min-w-0 flex-col bg-ground">
       <LessonHeader teacherName={teacherName} topic={topic} title={lesson.content.title} onAnnounce={show} review={isReviewLesson} />
@@ -280,7 +273,6 @@ function LessonStages({
           st={st}
           pb={pb}
           reviewing={reviewing}
-          reading={reading}
           config={config}
           textFirst={textFirst}
           onToast={show}
@@ -293,13 +285,13 @@ function LessonStages({
           {reviewNote}
           {stage === 1 && isReviewLesson && reviewItems.length > 0 ? <ReviewItemsCard lessonId={lesson.id} items={reviewItems} /> : null}
           {stage === 1 ? (
-            <StageUnderstand lesson={lesson} st={st} pb={pb} reviewing={reviewing} reading={reading} onReading={onReading} learningSpeed={learningSpeed} onToast={show} footer={footer} />
+            <StageUnderstand lesson={lesson} st={st} pb={pb} reviewing={reviewing} learningSpeed={learningSpeed} onToast={show} footer={footer} />
           ) : stage === 2 ? (
-            <StageGrammar content={lesson.content} pb={pb} reading={reading} footer={footer} variant={variant} focusIds={isReviewLesson ? focusIds : undefined} />
+            <StageGrammar content={lesson.content} pb={pb} onToast={show} footer={footer} variant={variant} focusIds={isReviewLesson ? focusIds : undefined} />
           ) : stage === 3 ? (
-            <StageQuiz lesson={lesson} st={st} reviewing={reviewing} footer={footer} variant={variant} />
+            <StageQuiz lesson={lesson} st={st} reviewing={reviewing} onToast={show} footer={footer} variant={variant} />
           ) : (
-            <StageApply lesson={lesson} st={st} pb={pb} reviewing={reviewing} reading={reading} config={config} onToast={show} footer={footer} />
+            <StageApply lesson={lesson} st={st} pb={pb} reviewing={reviewing} config={config} onToast={show} footer={footer} />
           )}
         </div>
       )}

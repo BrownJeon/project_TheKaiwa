@@ -6,11 +6,13 @@
  * 붙이면 보던 자리 유지 / 목록 높이가 줄면(키보드) 바닥에 붙어 있던 경우 계속 바닥.
  *
  * 회화방(task-007 §9-2 E)은 선택 슬롯으로 말풍선을 바꿔 그린다(`renderUser`·`renderTutor`·`renderPending`·`intro`·`tail`·`liveOff`).
- * `followContent` 면 내용 높이가 늘 때(문장이 드러남·교정 카드·부분 인식) 바닥에 붙어 있던 경우 계속 바닥. 채팅은 넘기지 않는다.
+ * `followContent` 면 내용 높이가 늘 때(문장이 드러남·교정 카드·부분 인식·히라가나/한글/번역 층이 채워짐) 바닥에 붙어 있던 경우 계속 바닥.
+ * 회화방과 채팅방(task-026 — 분석이 늦게 채워져도 바닥 유지) 모두 넘긴다.
  */
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { ChatMessageView, ProposalDto } from '@/types/chat'
 import { formatDateDivider, kstDateKey } from '@/components/common/format'
+import { OFF, useAnnotations, type AnnotationState } from '@/components/common/japanese/annotations'
 import { withinGroupGap } from './format'
 import { LOST_FAILURE } from './labels'
 import { FailedBubble, FailedLine, PendingBubble, TutorBubble, UserBubble } from './MessageBubble'
@@ -22,12 +24,16 @@ export interface MessageListHandle {
   scrollToBottom: () => void
 }
 
-/** 슬롯이 받는 말풍선 문맥(묶음·시각) */
+/** 슬롯이 받는 말풍선 문맥(묶음·시각·본문 분석 상태 — task-026 목록이 한 번에 받는다) */
 export interface RowContext {
   groupStart: boolean
   groupEnd: boolean
   isLast: boolean
+  ann: AnnotationState
 }
+
+/** 히라가나·한글을 다는 말 — 내 말(보낸 직후 포함)과 끝난 선생님 말. 스트리밍·실패 말은 달지 않는다. */
+const annotatable = (m: ChatMessageView) => m.role === 'USER' || m.status === 'DONE'
 
 const BOTTOM_SLACK_PX = 120
 
@@ -36,7 +42,6 @@ export default function MessageList({
   messages,
   proposals,
   teacherName,
-  readingDefault,
   turn,
   hasOlder,
   loadingOlder,
@@ -52,12 +57,12 @@ export default function MessageList({
   tail,
   liveOff,
   followContent,
+  onUserTranslated,
 }: {
   chatId: string
   messages: ChatMessageView[]
   proposals: ProposalDto[]
   teacherName: string
-  readingDefault: boolean
   turn: ChatTurn
   hasOlder: boolean
   loadingOlder: boolean
@@ -78,6 +83,8 @@ export default function MessageList({
   /** 녹음 중 — 스크린리더 음성이 마이크로 들어가지 않게 낭독을 끈다 */
   liveOff?: boolean
   followContent?: boolean
+  /** 기본 내 말풍선이 손으로 가져온 번역(#32t)을 방 목록에 올린다(REV-094 M-1). `renderUser` 를 넘기는 방은 직접 `UserBubble` 에 준다 */
+  onUserTranslated?: (messageId: string, text: string) => void
 }) {
   const contentRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -91,6 +98,15 @@ export default function MessageList({
     count: 0,
     scrollHeight: 0,
   })
+
+  // 화면에 그린 말의 본문을 한 번에(요청 묶기 — §15-2 B). [이전 메시지]로 앞에 붙인 말은 다음 묶음으로 간다.
+  const annTexts = messages.filter(annotatable).map((m) => m.content)
+  const annStates = useAnnotations(annTexts)
+  const annById = new Map<string, AnnotationState>()
+  {
+    let k = 0
+    for (const m of messages) if (annotatable(m)) annById.set(m.id, annStates[k++])
+  }
 
   const lastId = messages.length ? messages[messages.length - 1].id : null
   const firstId = messages.length ? messages[0].id : null
@@ -194,17 +210,18 @@ export default function MessageList({
       !after || after.role !== m.role || !withinGroupGap(m.createdAt, after.createdAt) || kstDateKey(after.createdAt) !== key
     const isLast = i === messages.length - 1
 
-    const ctx: RowContext = { groupStart, groupEnd, isLast }
+    const ann = annById.get(m.id) ?? OFF
+    const ctx: RowContext = { groupStart, groupEnd, isLast, ann }
     const pendingSlot = m.role === 'ASSISTANT' && m.status === 'PENDING' && pendingVisible && isLast && renderPending ? renderPending(m, ctx) : null
     let node: React.ReactNode
     if (m.role === 'USER') {
-      node = renderUser ? renderUser(m, ctx) : <UserBubble chatId={chatId} message={m} showTime={groupEnd} />
+      node = renderUser ? renderUser(m, ctx) : <UserBubble chatId={chatId} message={m} showTime={groupEnd} ann={ann} onTranslated={onUserTranslated} />
     } else if (m.status === 'DONE' && renderTutor) {
       node = renderTutor(m, ctx)
     } else if (m.status === 'DONE') {
       node = (
         <>
-          <TutorBubble message={m} teacherName={teacherName} showHeader={groupStart} showTime={groupEnd} readingDefault={readingDefault} />
+          <TutorBubble message={m} teacherName={teacherName} showHeader={groupStart} showTime={groupEnd} ann={ann} />
           {proposals
             .filter((p) => p.kind === 'ADD_WORD' && p.messageId === m.id)
             .map((p) => (

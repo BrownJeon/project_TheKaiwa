@@ -178,7 +178,8 @@ export const apiUpload = <T>(path: string, form: FormData, method = 'POST', opts
 export const apiGet = <T>(path: string, opts?: ApiOptions) => request<T>('GET', path, undefined, opts)
 export const apiPost = <T>(path: string, body?: unknown, opts?: ApiOptions) =>
   request<T>('POST', path, body ?? {}, opts)
-export const apiPut = <T>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {})
+/** `opts` 는 선택(task-026 표시 설정 PUT 시간 상한) — 기존 호출(인자 2개)은 그대로. */
+export const apiPut = <T>(path: string, body?: unknown, opts?: ApiOptions) => request<T>('PUT', path, body ?? {}, opts)
 export const apiPatch = <T>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {})
 /** 본문은 선택 — 발음 사전 끄기처럼 이유를 URL(접근 로그)에 싣지 않아야 하는 삭제만 넘긴다. 기존 호출(인자 1개)은 그대로. */
 export const apiDelete = <T>(path: string, body?: unknown) => request<T>('DELETE', path, body)

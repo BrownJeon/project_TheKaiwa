@@ -3,13 +3,22 @@
 /**
  * 말풍선 6종(screens.md §3-2 C 표). 일본어 본문은 전부 `lang="ja"` 17px, `pre-wrap` + `overflow-wrap:anywhere`
  * (줄바꿈 보존·공백 없는 긴 일본어·이모지·URL 이 가로로 넘치지 않게). 일본어 블록에는 `break-keep` 을 쓰지 않는다.
- * 회화방(task-007 §9-5)은 선택 슬롯(`body`·`actions`·`headerExtra`·`correctionChip`)만 더 넘긴다 — 넘기지 않으면 채팅 그대로.
+ * 회화방(task-007 §9-5)은 선택 슬롯(`ranges`·`actions`·`headerExtra`·`correctionChip`)만 더 넘긴다 — 넘기지 않으면 채팅 그대로.
+ *
+ * task-026(screens §15-4-2): 선생님 말·내 말 모두 히라가나(한자 위) → 본문 → `[한글]` → 번역(안쪽 구분선 아래). 분석 상태(`ann`)는 목록이 한 번에
+ * 받아 넘긴다. 번역은 앱 전체 스위치 + 말풍선별 [번역 ▾](스위치를 바꾸면 초기화, §15-3 D). [읽기 ▾] 는 없앴다(E1-A).
  */
 import Link from 'next/link'
 import { useState } from 'react'
 import type { ChatMessageView, TurnStage } from '@/types/chat'
+import { apiPost } from '@/components/common/api'
+import { toErr } from '@/components/common/errors'
 import { formatClock } from '@/components/common/format'
+import { type AnnotationState, type TextRange } from '@/components/common/japanese/annotations'
+import { DISPLAY_COPY, useDisplayPrefs, userTrFailure } from '@/components/common/japanese/displayPrefs'
+import { HangulLine, HangulPlaceholder, JaText } from '@/components/common/japanese/JapaneseText'
 import { DETACHED_TEXT, SLOW_TEXT, stageText, type FailureView } from './labels'
+import { fetchUserTranslation } from './messages'
 import { elapsedSec, useNow } from '@/components/common/useNow'
 import TeacherAvatar from '@/components/common/TeacherAvatar'
 
@@ -60,38 +69,138 @@ export function CorrectionChip({ chatId, message }: { chatId: string; message: C
   )
 }
 
+/** 말풍선별 [번역 ▾] — 앱 전체 스위치를 따르다가 누르면 이 말풍선만 바뀐다. 스위치를 바꾸면(trEpoch) 초기화. */
+function useBubbleTranslation(): [boolean, () => void] {
+  const prefs = useDisplayPrefs()
+  const [own, setOwn] = useState<{ epoch: number; open: boolean } | null>(null)
+  const open = own && own.epoch === prefs.trEpoch ? own.open : prefs.loaded && prefs.showTranslation
+  return [open, () => setOwn({ epoch: prefs.trEpoch, open: !open })]
+}
+
+function TranslationToggle({ open, onClick }: { open: boolean; onClick: () => void }) {
+  return (
+    <button type="button" aria-expanded={open} onClick={onClick} className="inline-flex h-11 items-center px-1.5 text-[13px] font-medium text-ink2">
+      {open ? DISPLAY_COPY.translationOpen : DISPLAY_COPY.translationClosed}
+    </button>
+  )
+}
+
+type UserTrLocal =
+  | { s: 'retrying'; label: string }
+  | { s: 'ok'; text: string }
+  | { s: 'failed' }
+  | { s: 'blocked'; text: string; label: string | null }
+
+const TR_LINE = 'mt-2 border-t border-ink/18'
+
+/**
+ * 내 말 번역 칸(E5-A·E6-A, screens §15-2 H). 새 턴은 `done.userTranslation`, 지난 말은 #29 `translation`. 못 받았으면 사용자가 누를 때만 #32t
+ * (자동 호출 없음 — 분당 20회·LLM 비용). 오류 문구는 이 칸 안에서만(토스트·빨간색 없음). 받은 번역은 `onTranslated` 로 목록에 올린다 —
+ * 칸이 접혔다 펴져(언마운트) 다시 묻지 않게(REV-094 M-1). `local.ok` 는 목록 갱신이 오기 전 한 렌더를 메운다.
+ */
+function UserTranslation({
+  chatId,
+  message,
+  onTranslated,
+}: {
+  chatId: string
+  message: ChatMessageView
+  onTranslated?: (messageId: string, text: string) => void
+}) {
+  const [local, setLocal] = useState<UserTrLocal | null>(null)
+  const server = message.translation?.trim() ? message.translation : null
+
+  const fetchTr = async (label: string) => {
+    if (local?.s === 'retrying') return
+    setLocal({ s: 'retrying', label })
+    try {
+      const text = await fetchUserTranslation((url) => apiPost<{ translation: string | null }>(url), chatId, message.id, onTranslated)
+      setLocal(text ? { s: 'ok', text } : { s: 'failed' })
+    } catch (e) {
+      setLocal(userTrFailure(toErr(e), label))
+    }
+  }
+
+  const button = (label: string) => (
+    <button
+      type="button"
+      onClick={() => void fetchTr(label)}
+      className="-my-[7px] -ml-1.5 inline-flex h-11 flex-none items-center px-1.5 text-[13px] text-ink underline underline-offset-[3px]"
+    >
+      {label}
+    </button>
+  )
+  const row = (children: React.ReactNode) => (
+    <div className={`${TR_LINE} flex min-h-[30px] flex-wrap items-center gap-x-2 pt-1.5 text-[13px] text-ink2`}>{children}</div>
+  )
+  const preparing = (
+    <>
+      <HangulPlaceholder onTint className="!m-0 !w-[72px] flex-none" />
+      <span>{DISPLAY_COPY.userTr.pending}</span>
+    </>
+  )
+
+  const text = server ?? (local?.s === 'ok' ? local.text : null)
+  if (text) return <p className={`${TR_LINE} pt-2 text-[15px] leading-normal text-ink2 break-keep [overflow-wrap:anywhere]`}>{text}</p>
+  if (local?.s === 'retrying') return row(preparing)
+  if (local?.s === 'blocked')
+    return row(
+      <>
+        <span className="break-keep">{local.text}</span>
+        {local.label ? button(local.label) : null}
+      </>,
+    )
+  if (local?.s === 'failed' || message.translationState === 'failed')
+    return row(
+      <>
+        <span className="break-keep">{DISPLAY_COPY.userTr.failed}</span>
+        {button(DISPLAY_COPY.userTr.retry)}
+      </>,
+    )
+  if (message.translationState === 'pending' || message.localStatus === 'SENDING') return row(preparing)
+  return row(button(DISPLAY_COPY.userTr.fetch))
+}
+
 export function UserBubble({
   chatId,
   message,
   showTime,
+  ann,
   actions,
   correctionChip = true,
+  onTranslated,
 }: {
   chatId: string
   message: ChatMessageView
   showTime: boolean
+  /** 본문 분석 상태(목록이 모아서 받는다) */
+  ann: AnnotationState
   /** 시각 줄 맨 앞(회화: ▶ 내 목소리) */
   actions?: React.ReactNode
   /** 점검 결과로 가는 교정 칩 — 회화는 결과 화면이 없어 끈다 */
   correctionChip?: boolean
+  /** 손으로 가져온 번역(#32t)을 목록 상태에 반영 — 방이 `setMessages` 로 그 말의 `translation` 을 채운다 */
+  onTranslated?: (messageId: string, text: string) => void
 }) {
   const sending = message.localStatus === 'SENDING'
   const chip = correctionChip && (message.corrections?.length ?? 0) > 0
+  const [trOpen, toggleTr] = useBubbleTranslation()
+  const preparing = message.translationState === 'pending'
   return (
     <div className="flex min-w-0 flex-col items-end">
       <div className="min-w-0 max-w-[80%] rounded-2xl rounded-br-md bg-accent-soft px-3.5 py-2.5 text-ink">
         <span className="sr-only">나:</span>
-        <p lang="ja" className={JA_BODY}>
-          {message.content}
-        </p>
+        {preparing ? <span className="sr-only">{DISPLAY_COPY.preparingSr}</span> : null}
+        <JaText text={message.content} state={ann} className={JA_BODY} />
+        <HangulLine state={ann} onTint />
+        {trOpen ? <UserTranslation chatId={chatId} message={message} onTranslated={onTranslated} /> : null}
       </div>
-      {sending || showTime || chip || actions ? (
-        <div className="flex min-h-6 min-w-0 max-w-full flex-wrap items-center justify-end gap-x-2 text-[12px] text-ink2">
-          {actions}
-          {sending ? <span>보내는 중…</span> : showTime ? <time dateTime={message.createdAt}>{formatClock(message.createdAt)}</time> : null}
-          {chip && !sending ? <CorrectionChip chatId={chatId} message={message} /> : null}
-        </div>
-      ) : null}
+      <div className="flex min-h-6 min-w-0 max-w-full flex-wrap items-center justify-end gap-x-2 text-[12px] text-ink2">
+        {actions}
+        <TranslationToggle open={trOpen} onClick={toggleTr} />
+        {sending ? <span>보내는 중…</span> : showTime ? <time dateTime={message.createdAt}>{formatClock(message.createdAt)}</time> : null}
+        {chip && !sending ? <CorrectionChip chatId={chatId} message={message} /> : null}
+      </div>
     </div>
   )
 }
@@ -101,8 +210,8 @@ export function TutorBubble({
   teacherName,
   showHeader,
   showTime,
-  readingDefault,
-  body,
+  ann,
+  ranges,
   actions,
   headerExtra,
 }: {
@@ -110,62 +219,33 @@ export function TutorBubble({
   teacherName: string
   showHeader: boolean
   showTime: boolean
-  readingDefault: boolean
-  /** 본문 대신 그릴 것(회화: 문장 `<span>` 분할 — 다시 듣기 강조). 없으면 `content` 그대로 */
-  body?: React.ReactNode
+  /** 본문 분석 상태(목록이 모아서 받는다) */
+  ann: AnnotationState
+  /** 본문 위 범위(회화: 재생 중 문장 강조 — 다시 듣기) */
+  ranges?: TextRange[]
   /** 아래 줄 맨 앞(회화: ▶ 다시 듣기) */
   actions?: React.ReactNode
   headerExtra?: React.ReactNode
 }) {
-  // null = 사용자 기본값을 따른다(메뉴의 "읽기 항상 펼치기"가 바뀌면 손대지 않은 말풍선도 같이 바뀐다).
-  const [readingOpen, setReadingOpen] = useState<boolean | null>(null)
-  const [translationOpen, setTranslationOpen] = useState(false)
-  const reading = message.reading?.trim() ? message.reading : null
-  const hasReading = !!reading && reading !== message.content
-  const showReading = hasReading && (readingOpen ?? readingDefault)
+  const [trOpen, toggleTr] = useBubbleTranslation()
   const translation = message.translation?.trim() ? message.translation : null
   const grammar = message.learning?.grammarPoint?.trim() || null
-  const hasFooter = hasReading || !!translation || !!grammar || showTime || !!actions
+  const hasFooter = !!translation || !!grammar || showTime || !!actions
 
   return (
     <TutorRow teacherName={teacherName} showHeader={showHeader} headerExtra={headerExtra}>
       <div className="min-w-0 max-w-full rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-2.5">
         <span className="sr-only">{teacherName}:</span>
-        <p lang="ja" className={JA_BODY}>
-          {body ?? message.content}
-        </p>
-        {showReading ? (
-          <p lang="ja" className="mt-1 whitespace-pre-wrap text-[14px] leading-[1.6] text-ink2 [overflow-wrap:anywhere]">
-            {reading}
-          </p>
-        ) : null}
-        {translationOpen && translation ? (
+        <JaText text={message.content} state={ann} className={JA_BODY} ranges={ranges} />
+        <HangulLine state={ann} />
+        {trOpen && translation ? (
           <p className="mt-2 border-t border-line pt-2 text-[15px] leading-normal text-ink2 break-keep [overflow-wrap:anywhere]">{translation}</p>
         ) : null}
       </div>
       {hasFooter ? (
         <div className="flex min-w-0 flex-wrap items-center gap-x-1 text-[12px] text-ink2">
           {actions}
-          {hasReading ? (
-            <button
-              type="button"
-              aria-expanded={showReading}
-              onClick={() => setReadingOpen(!showReading)}
-              className="inline-flex h-11 items-center px-1.5 text-[13px] font-medium text-ink2"
-            >
-              읽기 {showReading ? '▴' : '▾'}
-            </button>
-          ) : null}
-          {translation ? (
-            <button
-              type="button"
-              aria-expanded={translationOpen}
-              onClick={() => setTranslationOpen((v) => !v)}
-              className="inline-flex h-11 items-center px-1.5 text-[13px] font-medium text-ink2"
-            >
-              번역 {translationOpen ? '▴' : '▾'}
-            </button>
-          ) : null}
+          {translation ? <TranslationToggle open={trOpen} onClick={toggleTr} /> : null}
           {grammar ? (
             <span lang="ja" className="inline-flex min-h-[22px] min-w-0 items-center rounded-md bg-surface2 px-2 text-[12px] text-ink2 [overflow-wrap:anywhere]">
               {grammar}

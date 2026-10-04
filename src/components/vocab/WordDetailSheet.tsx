@@ -13,6 +13,8 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/components/common/api'
 import { detailString, toErr } from '@/components/common/errors'
 import { kstDateKey } from '@/components/common/format'
 import Sheet from '@/components/common/Sheet'
+import { useAnnotation, useWordLayers } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Badge, Btn, BtnRow, LoadingBlock } from '@/components/common/ui'
 import type { WordArchiveResponse, WordEntry, WordStats } from '@/types/vocab'
 import { formatMonthDay } from './format'
@@ -71,6 +73,9 @@ export default function WordDetailSheet({
     onNotFoundRef.current = onNotFound
   }, [onNotFound])
   const sound = useWordSound()
+  // 표제어 = 저장 읽기 루비 + 분석 한글(읽기가 다르면 숨김), 예문 = 저장 읽기가 없어 분석(task-026 §15-4-5). 수정 폼에서는 쓰지 않는다.
+  const head = useWordLayers(word?.surface ?? '', word?.reading)
+  const exAnn = useAnnotation(word?.example ?? '')
 
   useEffect(() => {
     let cancelled = false
@@ -270,14 +275,15 @@ export default function WordDetailSheet({
       <div aria-busy={busy || undefined}>
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p lang="ja" className="text-[28px] font-semibold leading-tight [overflow-wrap:anywhere]">
-              {w.surface}
-            </p>
-            {w.reading && w.reading !== w.surface ? (
-              <p lang="ja" className="mt-1 text-[15px] text-ink2 [overflow-wrap:anywhere]">
-                {w.reading}
-              </p>
-            ) : null}
+            <JaText
+              text={w.surface}
+              state={head.hangul}
+              ruby={head.ruby}
+              leading={1.8}
+              rt={13}
+              className="text-[28px] font-semibold leading-tight [overflow-wrap:anywhere]"
+            />
+            <HangulLine state={head.hangul} size={14} />
           </div>
           {wordText ? <WordSoundButton state={sound.state} target="word" onPress={() => sound.tap('word', wordText)} /> : null}
         </div>
@@ -298,9 +304,8 @@ export default function WordDetailSheet({
           <div className="mt-3 rounded-[14px] bg-surface2 p-3.5">
             <div className="flex items-start gap-2.5">
               <div className="min-w-0 flex-1">
-                <p lang="ja" className="whitespace-pre-wrap text-[16px] leading-[1.7] [overflow-wrap:anywhere]">
-                  {w.example}
-                </p>
+                <JaText text={w.example} state={exAnn} leading={2.15} className="whitespace-pre-wrap text-[16px] leading-[1.7] [overflow-wrap:anywhere]" />
+                <HangulLine state={exAnn} size={13} />
                 {w.exampleKo ? <p className="mt-1 whitespace-pre-wrap text-[14px] text-ink2 break-keep [overflow-wrap:anywhere]">{w.exampleKo}</p> : null}
               </div>
               {exText ? <WordSoundButton state={sound.state} target="ex" onPress={() => sound.tap('ex', exText)} /> : null}

@@ -7,7 +7,10 @@
  *  - `hasJa`: 가나·한자가 있으면 일본어로 본다(`lang="ja"`)
  *  - 줄 다시 듣기·표현 소리 키(task-025): `lineReplayKey`·`exprKey`·`lineReplayPace`·`activeLineReplay`·`playLineReplay`·`playExpr`
  *  - 문제 문장 표기(task-025·025b): `quizPromptView`·`quizSummaryPrompt`(promptKo 가 비었거나 한글이 없으면 일본어 문장 폴백)
+ *  - ③ 읽기 문제 보호(task-026): `quizReadingLeak`·`quizPromptLayerState`(화면이 문제 문장 층을 정하는 유일한 경로)
  */
+import type { AnnotationState } from '@/components/common/japanese/annotations'
+import type { ReadingSegment } from '@/modules/speech/reading/client'
 import type { PlaybackSnapshot } from '@/modules/speech/tts/client'
 import type { AudioPace, LessonContent, LessonDto, LessonProgress, LessonQuiz, MemoDraft, NextPreview, TodayLessonItem, TodayLessons } from '@/types/lesson'
 import { U3 } from './lessonCopy'
@@ -252,4 +255,51 @@ export function quizSummaryPrompt(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>):
   if (ko) return { text: ko, ja: false }
   const ja = filled(q.promptJa) ?? jaFromKo(q.promptKo)
   return ja ? { text: ja, ja: true } : { text: U3.legacyPrompt, ja: false }
+}
+
+/* ── ③ 읽기 문제 보호(task-026 §15-9 ②) ─────────────────────────────────── */
+
+const KANA_WORD = /^[ぁ-ゖー]+$/
+/** 읽기 비교에서 무시하는 공백·괄호·문장부호. */
+const READING_NOISE = /[\s　「」『』（）()［］[\]〈〉《》【】、。，．,.・…？！?!〜~]/g
+/** 이어 붙여 비교할 연속 조각 수 상한(복합어가 여러 조각으로 나뉘는 경우 — 日本|語). */
+const LEAK_WINDOW = 4
+
+function normalizeKana(s: string): string {
+  return s.replace(READING_NOISE, '').replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+}
+
+/** 조각 하나의 히라가나(한자 묶음은 읽기로, 나머지는 표기 그대로). */
+function segmentKana(s: Pick<ReadingSegment, 'surface' | 'ruby'>): string {
+  return s.ruby ? s.ruby.map(([t, r]) => r ?? t).join('') : s.surface
+}
+
+/**
+ * 문제 문장(promptJa)의 히라가나·한글이 정답을 알려 주는가 — 문장 속 한자 읽기(한자 묶음 하나·조각 하나·연속 조각 최대 4개)가 가나뿐인 보기
+ * 하나와 같으면 true. 화면은 고르기 전까지 문제 문장의 층을 숨긴다(보기 쪽은 그대로). 평소 문제(보기가 한자 섞인 말·한국어)는 영향 없다.
+ */
+export function quizReadingLeak(segments: readonly Pick<ReadingSegment, 'surface' | 'ruby'>[], choices: readonly string[]): boolean {
+  const kanaChoices = choices.map(normalizeKana).filter((c) => c.length > 0 && KANA_WORD.test(c))
+  if (kanaChoices.length === 0) return false
+  const readings = new Set<string>()
+  segments.forEach((s, i) => {
+    if (!s.ruby?.some(([, r]) => r)) return
+    for (const [, r] of s.ruby) if (r) readings.add(normalizeKana(r))
+    for (let from = Math.max(0, i - LEAK_WINDOW + 1); from <= i; from++) {
+      for (let to = i; to < Math.min(segments.length, from + LEAK_WINDOW); to++) {
+        readings.add(normalizeKana(segments.slice(from, to + 1).map(segmentKana).join('')))
+      }
+    }
+  })
+  return kanaChoices.some((c) => readings.has(c))
+}
+
+const PROMPT_HIDDEN: AnnotationState = { s: 'off' }
+
+/**
+ * 문제 문장의 히라가나·한글 층 — 답하기 전이고 분석이 끝났고 그 읽기가 가나 보기 하나와 같으면 숨김(`off`, §15-9 ②), 그 밖은 분석 상태 그대로.
+ * 분석 전(막대)·답한 뒤·평소 문제는 그대로 보인다. `StageQuiz` 는 이 함수로만 정한다(REV-095 M-1).
+ */
+export function quizPromptLayerState(answered: boolean, ann: AnnotationState, choices: readonly string[]): AnnotationState {
+  return !answered && ann.s === 'ready' && quizReadingLeak(ann.segments, choices) ? PROMPT_HIDDEN : ann
 }

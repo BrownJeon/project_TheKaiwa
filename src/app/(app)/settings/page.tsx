@@ -5,6 +5,7 @@ import { listSelectableVoices, loadTtsVoice } from '@/modules/speech'
 import AppBar from '@/components/shell/AppBar'
 import AppVersionRow from '@/components/settings/AppVersionRow'
 import AttendanceCard from '@/components/settings/AttendanceCard'
+import DisplaySettings from '@/components/settings/DisplaySettings'
 import LearningSettings from '@/components/settings/LearningSettings'
 import OnDeviceDiagnosticsCard from '@/components/settings/OnDeviceDiagnosticsCard'
 import SpeechSettings from '@/components/settings/SpeechSettings'
@@ -24,7 +25,7 @@ async function loadVoiceBaselines(): Promise<VoiceBaselines> {
 }
 
 /**
- * 설정 허브(기획서 "5. 프로필" → 설계안 §7-7·§11, task-005): 계정 · 출석 · 기본정보·학습 · AI 선생님 목소리 · 음성 인식.
+ * 설정 허브(기획서 "5. 프로필" → 설계안 §7-7·§11, task-005): 계정 · 출석 · 기본정보·학습 · 일본어 표시 · AI 선생님 목소리 · 음성 인식.
  * 사용자 화면에는 엔진·모델명이 없다. Advanced·Voice 관리·콘솔 진입은 capability 가 있는 계정에만(task-005b).
  */
 export default async function SettingsPage() {
@@ -47,6 +48,7 @@ export default async function SettingsPage() {
           <LogoutButton />
         </section>
         <LearningSettings />
+        <DisplaySettings />
         {/* 슬라이더 범위·목소리 기본값은 서버 정본을 그대로 넘긴다 — 컴포넌트는 preferences·speech 를 import 하지 않는다(task-022). */}
         <VoiceSettings teacherName={teacherName} ranges={VOICE_PARAM_RANGES} baselines={voiceBaselines} />
         <SpeechSettings />

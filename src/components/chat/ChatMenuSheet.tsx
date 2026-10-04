@@ -1,7 +1,8 @@
 'use client'
 
 /**
- * 채팅방 ⋯ 메뉴(screens.md §3-2 C ChatMenuSheet): 제목 바꾸기(#30) · 읽기 항상 펼치기 · 채팅 삭제(#31, 확인 단계).
+ * 채팅방 ⋯ 메뉴(screens.md §3-2 C ChatMenuSheet): 제목 바꾸기(#30) · 채팅 삭제(#31, 확인 단계).
+ * "읽기 항상 펼치기" 줄은 없앴다(task-026 F1-A — 히라가나·한글·번역은 앱 전체 표시 설정: 방의 표시 바·설정 › 일본어 표시).
  * 회화방(task-007 §9-2 H)은 `chat.kind` 로 문구·삭제 뒤 경로만 바뀌고, `extra` 슬롯에 "들려주는 방식"을 넣는다.
  */
 import { useRouter } from 'next/navigation'
@@ -22,20 +23,16 @@ export default function ChatMenuSheet({
   open,
   chat,
   turnBusy,
-  readingDefault,
   onClose,
   onRenamed,
-  onReadingDefault,
   onToast,
   extra,
 }: {
   open: boolean
   chat: ChatInfo
   turnBusy: boolean
-  readingDefault: boolean
   onClose: () => void
   onRenamed: (title: string) => void
-  onReadingDefault: (on: boolean) => void
   onToast: (msg: string) => void
   extra?: React.ReactNode
 }) {
@@ -112,14 +109,6 @@ export default function ChatMenuSheet({
             }}
           >
             제목 바꾸기 <span aria-hidden="true" className="text-ink2">›</span>
-          </button>
-          <button type="button" role="switch" aria-checked={readingDefault} className={ROW} onClick={() => onReadingDefault(!readingDefault)}>
-            <span className="min-w-0">읽기 항상 펼치기</span>
-            <span aria-hidden="true" className={`relative h-7 w-12 flex-none rounded-full transition-colors ${readingDefault ? 'bg-accent' : 'bg-surface2 ring-1 ring-line'}`}>
-              <span
-                className={`absolute top-1 h-5 w-5 rounded-full bg-surface shadow transition-[left] ${readingDefault ? 'left-6' : 'left-1'}`}
-              />
-            </span>
           </button>
           {extra}
           <button

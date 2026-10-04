@@ -189,6 +189,7 @@ class TurnController {
         ...(opts.utteranceId ? { utteranceId: opts.utteranceId } : {}),
         status: 'DONE',
         localStatus: 'SENDING',
+        translationState: 'pending',
         createdAt: new Date(now).toISOString(),
         corrections: [],
       },
@@ -366,11 +367,22 @@ class TurnController {
       let out = ms.some((m) => m.id === aid)
         ? ms.map((m) => (m.id === aid ? { ...m, ...reply } : m))
         : [...ms, { id: aid, role: 'ASSISTANT', createdAt: new Date().toISOString(), ...reply } as ChatMessageView]
-      if (corr && uid) {
+      if (uid) {
+        // 내 말 번역(task-026 E6-A): 턴 결과에 같이 온다. 값이 없으면 실패 상태로 [다시 가져오기].
+        const hasTr = 'userTranslation' in dn
+        const userTr = typeof dn.userTranslation === 'string' && dn.userTranslation.trim() ? dn.userTranslation : null
         out = out.map((m) => {
           if (m.id !== uid) return m
           const list = m.corrections ?? []
-          return { ...m, corrections: list.some((c) => c.id === corr.id) ? list : [...list, corr] }
+          const next: ChatMessageView = corr ? { ...m, corrections: list.some((c) => c.id === corr.id) ? list : [...list, corr] } : { ...m }
+          if (userTr) {
+            next.translation = userTr
+            delete next.translationState
+          } else if (!next.translation?.trim()) {
+            if (hasTr) next.translationState = 'failed'
+            else delete next.translationState
+          }
+          return next
         })
       }
       return out
@@ -389,7 +401,19 @@ class TurnController {
     const failure = turnFailure(er.code, er.retryable)
     if (accepted) {
       const aid = accepted.assistantMessageId
-      this.d.setMessages((ms) => ms.map((m) => (m.id === aid ? { ...m, status: 'FAILED' } : m)))
+      const uid = accepted.userMessageId
+      // 턴이 실패하면 내 말 번역은 "준비 중"이 아니다 — 상태를 지워 [번역 가져오기] 로(task-026 §15-2 H).
+      this.d.setMessages((ms) =>
+        ms.map((m) => {
+          if (m.id === aid) return { ...m, status: 'FAILED' }
+          if (m.id === uid && m.translationState) {
+            const { translationState: _drop, ...rest } = m
+            void _drop
+            return rest
+          }
+          return m
+        }),
+      )
       this.d.patchChat((c) => ({ ...c, running: false }))
       this.set({ phase: 'failed', stage: null, failure })
       this.d.onSettled?.('error', aid)
@@ -478,6 +502,7 @@ class TurnController {
     if (Date.now() - p.startedAt > POLL_MAX_MS) {
       const aid = this.pollingFor
       this.stopPolling()
+      this.clearPendingTranslations()
       this.set({ phase: 'failed', stage: null, failure: LOST_FAILURE })
       this.d.onSettled?.('error', aid)
       return
@@ -498,6 +523,7 @@ class TurnController {
           this.d.reloadProposals()
           this.d.onSettled?.('done', aid ?? last.id)
         } else {
+          this.clearPendingTranslations()
           this.set({ phase: 'failed', stage: null, failure: LOST_FAILURE })
           this.d.onSettled?.('error', aid)
         }
@@ -518,6 +544,20 @@ class TurnController {
       p.inFlight = false
     }
     this.schedule(p)
+  }
+
+  /** 턴이 끝났는데 아직 "번역 중"인 내 말(서버 값으로 바뀌지 않은 것) — 상태를 지워 [번역 가져오기] 로. */
+  private clearPendingTranslations() {
+    this.d.setMessages((ms) =>
+      ms.some((m) => m.translationState === 'pending')
+        ? ms.map((m) => {
+            if (m.translationState !== 'pending') return m
+            const { translationState: _drop, ...rest } = m
+            void _drop
+            return rest
+          })
+        : ms,
+    )
   }
 
   private applyServer(r: ChatDetail) {

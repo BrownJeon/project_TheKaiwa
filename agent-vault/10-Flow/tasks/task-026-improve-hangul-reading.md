@@ -18,20 +18,20 @@ updated: 2026-10-04
 demo_gate:
   required: true
   level: "delta"
-  status: "review_requested"
+  status: "approved"
   version: 4
   repo_path: "docs/demo/task-026-improve-hangul-reading-v4.html"
   artifact_url: "https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY"
   content_sha256: "ddda03ffc0c2fc96c84c4fab533fddb60fab84d27ec12f0faecf97205d793eb4"
   decided_by: "judge"
   rule_id: "DM-low-confidence"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-04T18:26:05+09:00"
+  approval_quote: "task-026 데모 v4 승인, F1은 A"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: false
+  active: true
 ---
 
 ## 목표 (Leader)
@@ -131,6 +131,8 @@ demo_gate:
   - **새 결정 F1**(데모 하단 "결정 필요", 회화·채팅 ⋯ 누르면 메뉴 미리보기): 회화·채팅 ⋯ 메뉴 "읽기 항상 펼치기" 줄 — **A 메뉴에서 뺌(권고 — 표시 바·설정과 같은 값이라 겹침)** / B "히라가나 보기" 스위치로 남김(같은 앱 설정 값). 그 밖의 새 결정 없음.
   - **검증**: `check.mjs lint --expect task-026-v4` → DEMO_LINT_PASSED · `grep -c 후리가나` 0 · 브라우저(playwright-core + Chrome) 15상태 × 360/390/412 × 현재·제안 × (기본·번역 켬·히라가나/한글 끔·⋯ 메뉴 열림) + 현재 vs 제안 15 = 프레임 324개에서 프레임 밖 넘침·가로 스크롤·[한글] 줄 잘림 0, 데모 페이지 390 폭 가로 스크롤 0, 콘솔 오류 0. 라이트·다크 스크린샷 육안 확인(단어장 다크 = 첨부 운영 캡처와 일치). 작성 중 발견해 고친 것: 클래스 이름 충돌 2건(`stk`·`bk` — 점검 화면 머리·단어 카드가 깨졌던 것).
   - **Leader 확인 필요**: F1 사용자 결정 · 게시·게이트(v3 review_requested → v4). 구현 가이드는 v4 승인 뒤 이 대조표 기준으로 작성(현재 컴포넌트 위에 층만 얹는 방식).
+- [18:40] **구현 가이드 완료 — `docs/screens.md` §15 일본어 표시 — 히라가나·한글·번역**(첫 줄 `승인 데모: docs/demo/task-026-improve-hangul-reading-v4.html (v4)`). 15-0 결정 표(D1-A·D2-B·D4-A·E1~E6·범위·문구·F1-A·T1) · 15-1 층 순서·자리별 크기/루비 줄간격 표·루비/`[한글]` 마크업·접근성·복사 제외(rt·한글 줄 select-none)·달지 않는 자리·"애매하면 숨김"(옛 reading 줄·`kanaToHangul(저장 읽기)` 대체 금지) · 15-2 공용 3파일(`common/japanese/{displayPrefs.ts,annotations.ts,JapaneseText.tsx}`) — #24r tick 묶기·64개·LRU·`available:false` 비캐시·400자 문장 분할·상태 4종·막대, 한글은 `hangulLine()` 만(O-1), 단어는 `alignWordRuby`+표제어 annotate `hangulLine`(저장 읽기≠분석 읽기면 숨김), `JaText ranges`(회화 문장 강조·교정 diff·④ 밑줄 — 한자 묶음 가운데 경계면 그 묶음만 읽기 뺌), 내 말 번역 상태 6종·#32t 응답별 문구(누를 때만 호출) · 15-3 Profile 3칸 `PUT`(바꾼 키만)·모듈 저장소(useSyncExternalStore)·낙관 반영/되돌림·readingDefault 1회 이관·`trEpoch` 로 말풍선별 번역 초기화 · 15-4 화면별 파일·행(회화 3상태·채팅·표현 점검·단어장·단어 상세·오늘의 단어 예외·①~⑤·설정 새 절) + MOV 9건 + F1-A · 15-5 문구 표(★ 새 문구 7) · 15-6 QA 18항 · 15-7 건드리지 말 것·범위 밖 목록 · 15-8 A(공용+회화·채팅·점검 15파일, 공용 커밋 뒤 B 착수 가능)/B(수업·단어장·덱·설정 15파일) · 15-9 데모와 다른 점 ⓐ~ⓔ + Leader 확인 ★①단어 읽기 불일치 한글 숨김 ★②③ 읽기 문제 정답 노출 보호 ③O-3 "참고 번역" 말풍선 표기 안 함 권고 ④reading 제거 task ⑤범위 밖 화면 IMP 여부. §1-3 첫 줄 §15 로 반전·변경 이력 1줄. src/**·데모 파일 수정 0.
+- [19:42] **가이드 문구 갱신(REV-096·Leader 승인, 데모·src 무변경)** — `docs/screens.md` §15-2 B-3 실패 문장 같은 화면 35초 간격·최대 2회 재요청(새 말·앱 복귀·온라인 복귀·표시 OFF→ON 계기, 타이머 폴링 없음, 그 뒤 다음 진입) · §15-3 B·§15-4-8·§15-5·§15-9 ⓓ 저장 실패 토스트 = 앱 셸 `DisplaySaveNotice` 한 곳(호스트 실패 토스트 없음, 성공 토스트는 탭 즉시 그대로) · §15-6 8번 문구 + QA 19(분석 장애 복구)·20(느린 저장 실패 후 이동 → 셸 토스트 1개) 추가.
 
 ## Developer 기록
 
@@ -248,6 +250,7 @@ demo_gate:
 | v3 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v3.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | 사용자 검토 요청 | 10-04 17:18 |
 | v3 | 수정요청 | docs/demo/task-026-improve-hangul-reading-v3.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | "지금 데모화면의 '단어장'메뉴에서 현재와 제안화면을 봤을때 지금 앱에서의 현재화면과 데모화면의 현재화면이 다른데 왜 다르게 표현했어?" | 10-04 17:50 |
 | v4 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v4.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | 사용자 검토 요청 | 10-04 17:50 |
+| v4 | 승인 | docs/demo/task-026-improve-hangul-reading-v4.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | "task-026 데모 v4 승인, F1은 A" | 10-04 18:26 |
 
 ## Leader 기록 (서버 사양 조사 수용·결정, 2026-10-04 10:55)
 - 조사 수용: 읽기 출처 = **pyopenjtalk**(표기 8/8, 지연 <1ms/문장), M4 `/g2p`·Intl.Segmenter·기존 reading 정렬은 기각(근거는 Developer 기록).
@@ -924,3 +927,501 @@ TALK done "그녀는 책을 읽고 있어요." db 동일 MATCH true · toolLog.c
 - 원인(Leader 확인): 데모 v1(09-30)의 단어장 "현재"가 실제 코드가 아닌 간략 모형(검색 "표현·뜻으로 찾기", 출처 칩)이었고, task-023(조각 필터·뱃지, 10-03 운영 반영)도 반영 안 된 채 v2·v3 로 복사됨. "현재" 를 실제 화면과 대조하는 검수 단계가 없었다(Leader·Reviewer·QA 모두 미확인).
 - 조치: designer 가 15상태 전부의 "현재" 를 **현재 HEAD 코드(운영 반영본)** 기준으로 다시 그리고, "제안" 도 그 위에 얹어 **데모 v4**. 대조 근거(컴포넌트 파일·문구)를 상태별 표로 기록.
 - [17:50] Leader: **데모 v4 게시**(같은 URL, Artifact Version 4) — 15상태 "현재" 를 HEAD 소스대로(상태별 근거 파일 표), "제안" 은 그 위에 확정 결정만. 새 결정 **F1**(회화·채팅 ⋯ "읽기 항상 펼치기" — A 메뉴에서 뺌 권고 / B "히라가나 보기"로 남김). 게이트 v3 changes_requested(사용자 지적 원문) → review_requested v4(sha256 ddda03ff…). 승인 문장은 "task-026 데모 v4 승인" + F1 선택.
+
+## 사용자 결정 (2026-10-04 18:26) — 데모 v4 승인
+> "task-026 데모 v4 승인, F1은 A"
+- check.mjs approve v4(sha256 ddda03ff…) → activate. **F1-A**: 회화·채팅 ⋯ 메뉴의 "읽기 항상 펼치기" 줄 제거(값은 앱 전체 설정·표시 바·도구 줄·설정 › 일본어 표시에서만).
+- 다음: designer 구현 가이드(`docs/screens.md` 새 절 — v4 기준, §1-3 "루비 없음" 규칙 반전, 화면 인계 핵심 포함) → 화면 A(회화·채팅·표현 점검) / B(오늘의 회화·단어장·단어 상세·오늘의 단어·설정) developer.
+
+## Leader 기록 (구현 가이드 수용·§15-9 결정, 2026-10-04 18:38)
+- designer 가이드 `docs/screens.md` §15 수용. §15-9 판단: ① 저장 reading 과 분석 읽기가 다르면 한글 줄 숨김(권고 수용) ② **③ 문제 읽기 정답 누출 — 문제 문장의 히라가나·한글을 답하기 전까지 숨김(보기 중 하나가 그 읽기와 일치할 때만)**, 승인 배치 불변·가림 규칙만 추가 ③ "참고 번역" 말풍선별 표기 안 함 ④ reading/replyReading 제거는 화면 A 배포 뒤 별도 task ⑤ 범위 밖 일본어(AI 평가·카드 뒷면·복습 카드 등)는 후속 개선 항목으로 등록(사용자 원 요청 "모든 일본어 부분").
+- 화면 A 착수: developer(opus — intake 판정 유지) = §15-8 A(공용 부품 `components/common/japanese/` + 회화·채팅·표현 점검), 공용 부품 먼저 커밋 가능 상태로.
+
+## Developer 기록 (화면 A, 2026-10-04 실측)
+- [18:44] **체크포인트 1 — 공용 부품 완료(B 착수 가능 지점).** 데모 게이트 `DEMO_GATE_PASSED`(task-026 · approved v4). 완료: `src/components/common/japanese/{displayPrefs.ts,annotations.ts,JapaneseText.tsx}`(신규) · `src/components/common/__tests__/japaneseDisplay.test.ts`(신규 15건). 미러 `~/.node-local/thekaiwa-dev-010b-ui`(NFS src/tests rsync) tsc 0 · eslint(common) 0 · 새 테스트 15/15. 남은 일: 채팅(MessageBubble·MessageList·ChatRoom·ChatMenuSheet·CorrectionCard·ProposalCard·useChatTurn·types/chat) → 회화(TalkRoom·TalkTutorBubble·TalkCorrectionCard) → 전체 검증·3폭 스크린샷. 다음 첫 행동: `types/chat.ts` 에 `TurnDoneEvent.userTranslation`·`ChatMessageView.translationState`. 주의: 저장소는 모듈 전역(`displayPrefsStore`·`annotationClient`), 훅은 `useDisplayPrefs()`·`useAnnotations(texts)`·`useWordLayersList/useWordLayers` · 범위는 `TextRange`(코드포인트). 미커밋: 위 4파일.
+- [18:49] **체크포인트 2 — 채팅·회화·표현 점검 코드 완료(실측 전).** 완료: `types/chat.ts`(`TurnDoneEvent.userTranslation`·`ChatMessageView.translationState`) · `chat/useChatTurn.ts`(임시 내 말 `pending` · done 에서 번역/`failed` · 턴 실패·폴링 실패 시 상태 지움) · `chat/MessageBubble.tsx`(Tutor/User 층·말풍선별 [번역 ▾]·내 말 번역 칸 6상태·#32t) · `chat/MessageList.tsx`(목록이 `useAnnotations` 한 번, `RowContext.ann`) · `chat/ChatRoom.tsx`(DisplayBar·readingDefault 삭제·followContent·설정 미리 읽기) · `chat/ChatMenuSheet.tsx`(F1-A 줄·props 삭제) · `chat/CorrectionCard.tsx`(두 칸 JaText ranges+HangulLine) · `chat/ProposalCard.tsx`(useWordLayers) · `talk/TalkRoom.tsx`·`talk/TalkTutorBubble.tsx`·`talk/TalkCorrectionCard.tsx`. tsc 0 · eslint 0 errors. 남은 일: 전체 회귀·dev gateway 8197 + dev 앱 3020 화면 실측(3폭×2높이)·스크린샷·QA 행 정리·기록. 미커밋: 공용 4 + 위 11 = 15파일.
+- [18:58] **완료 — 화면 A(공용 + 회화·채팅·표현 점검), Reviewer 인계.** commit·push·npm install·db push 없음. 서버·DB·네이티브 변경 0(APK 재빌드 불필요).
+  - **변경 파일 16**(가이드 §15-8 A 15 + 1): 신규 `src/components/common/japanese/{displayPrefs.ts,annotations.ts,JapaneseText.tsx}` · `src/components/common/__tests__/japaneseDisplay.test.ts` / 수정 `src/components/chat/{MessageBubble,MessageList,ChatRoom,ChatMenuSheet,CorrectionCard,ProposalCard}.tsx` · `chat/useChatTurn.ts` · `src/types/chat.ts` · `src/components/talk/{TalkRoom,TalkTutorBubble,TalkCorrectionCard}.tsx` · **+ `src/modules/speech/__tests__/sttClientBoundary.test.ts`**(아래 ①).
+  - **가이드와 다른 점**: ① 모듈 경계 테스트 `sttClientBoundary` 가 컴포넌트의 `@/modules/speech/reading/client` import 를 위반으로 잡았다(S1 이 eslint 허용 목록엔 넣었지만 이 테스트엔 안 넣음) → 허용 정규식에 `reading` 추가 + 단언 2개(§15-7 "모듈 건드리지 말 것"의 예외 — 테스트 1줄, Leader 확인 요청). ② 채팅방도 `MessageList followContent` 를 켰다 — 분석이 채워질 때 바닥에 붙어 있던 경우 바닥 유지(QA ⑧). ③ 회화·채팅 방이 열릴 때 `useDisplayPrefs()` 를 먼저 불러 GET 을 대화 로드와 같이 시작(층 자리가 늦게 생겨 밀리는 것 방지). ④ `HangulLine` 은 상태를 받아 `hangulLine()` 을 직접 부른다(화면 코드 `kanaToHangul`·`pronLine` 0건 — 테스트로 고정). ⑤ 내 말 번역 #32t 결과는 그 말풍선 안 상태로만 갖는다(부모 목록 갱신 없음 — 다시 읽으면 서버 `translation` 이 채움). ⑥ `ProposalCard` 는 오늘의 회화 메모 제안에서도 같은 층이 붙는다(같은 컴포넌트).
+  - **실측에서 본 것(Leader 판단)**: QA ③ "높이 변화 ≤4px" 는 한 줄 한글·줄바꿈 변화 없는 말풍선만 지켜진다 — 한글 줄이 두 줄로 채워지면 +21px(막대는 한 줄 높이), 루비(rt 가 한자보다 넓음 — `ruby-align:center` 로 글자 사이가 벌어짐, 데모 v4 도 같은 모양)로 본문 줄이 하나 늘면 +37px. 바닥 유지는 확인(분석 2.5초 지연에서 바닥까지 거리 0). 막대를 글자 수로 여러 줄 예약하는 개선은 범위 밖으로 남김.
+  - **B 인계(공용 부품 API)**: `useDisplayPrefs()` → `{loaded,error,showFurigana,showHangul,showTranslation,trEpoch,set(key,on,onError?),reload()}` · `DISPLAY_COPY`(문구 전부 — 설정 절 문구는 B 가 추가) · `DISPLAY_TOAST_MS` · `useAnnotations(texts)`/`useAnnotation(text)` → `AnnotationState`(off·loading·ready·none) · `useWordLayersList(words)`/`useWordLayers(surface, reading)` → `{ruby, hangul}`(저장 읽기≠분석 읽기면 hangul none) · `<JaText text state className ranges? as? leading?(1.7|1.8|1.95|2|2.1|2.15) rt?(11|13|16) ruby?/>` · `<HangulLine state size?(12|12.5|13|14|15) inline? onTint?/>` · `<DisplayToggles keys onToast/>` · `TextRange{start,end,className,as?}`·`changedRanges`·`spanRange`·`cutRubyByRanges`. **주의**: `LessonScreen` 이 아직 `kaiwa.chat.readingDefault` 를 읽고 쓴다(164·270행 — B 범위) — A 만 먼저 배포하면 수업 [읽기] 를 끈 사용자는 다음 로드 때 앱 전체 히라가나가 꺼진다(이관 로직이 'off' 를 다시 읽음). **A·B 를 같이 배포하거나 B 를 바로 뒤에** 권고.
+  - **실행 증빙**(미러 `~/.node-local/thekaiwa-dev-010b-ui`, NFS src/tests rsync 후 `diff -rq` 일치): `tsc --noEmit --incremental false` **0** · `eslint .` **0 errors**(경고 7 = 기존 set-state-in-effect 5 + 미러 전용 scratch 2) · `japaneseDisplay.test.ts` **15/15** · `sttClientBoundary.test.ts` 2/2 · 전체 회귀 **1,340 / pass 1,337 / fail 0 / skip 3** · 엔진명 grep(변경 파일) 0 · 화면 글자 '후리가나' 0.
+  - **화면 실측**(dev gateway = dev venv uvicorn 127.0.0.1:8197, dev 앱 = 미러 `SPEECH_GATEWAY_URL=http://127.0.0.1:8197 next dev -H 127.0.0.1 -p 3020`, QA_ACCOUNT=1 쿠키, Playwright + /usr/bin/google-chrome): 채팅·회화·표현 점검 × 360/390/412 × 780/892 = 18장 전부 가로 넘침 0 · 표시 바 높이 44·한 줄·바 스크롤 0 · 토글 히트 44 · rt 11px·전부 aria-hidden · [읽기 ▾] 0 · ⋯ 메뉴 "읽기 항상 펼치기" 0(F1-A) · 채팅방 첫 진입 #24r **1회** · 번역 켬 토스트 "번역을 모두 펼쳤어요 · 모든 화면에 적용돼요" · 말풍선 하나 닫기 → 바 끔/켬 → 전부 펼침(E4-B 초기화) · 옛 말 [번역 가져오기] → (가로챈) 409 "선생님 답이 끝나면 다시 눌러 주세요" · 502 "번역을 가져오지 못했어요"+[다시 가져오기] · 200 번역 표시 · 보낸 직후 "번역 중…"+막대 → `done.userTranslation:null` 실패 칸(턴 SSE 가로채기, LLM 호출 0) · 히라가나 끔 루비 0 · 둘 다 끔 한글·루비 0 · 분석 불가(`available:false`)·HTTP 500 → 층 0·막대 0·토스트 없음(단어 제안 루비 2개는 저장 읽기라 남음 — 의도) · 복사(전체 선택)에 히라가나·한글 없음 · PUT 은 누른 키 하나씩. 데모 v4 `#talk-fail`·`#review` 와 나란히 대조 — 층 순서·번역 칸·실패 문구·교정 칸 루비 일치.
+  - 스크린샷: `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/a026/shots/`(chat|talk|review-{360,390,412}x{780,892}.png · chat-tr-on/trfail/off/menu/pend/pend-filled/fail · talk-slow-loading · demo-{talk,talk-pend,talk-fail,chat,review}.png · results.json). 스크립트 사본 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/a026/a026-*.mjs`(미러 scratch 에서는 지움).
+  - **정리**: QA 계정 표시 설정 기본값(켬·켬·끔) 복원 확인 · 시드 행 정확한 id 로 삭제(제안 2·교정 2·메시지 12·채팅 2, userId 조건) · dev 서버·gateway 종료·3020/8197 비어 있음 확인 · 쿠키 파일 삭제.
+  - 미커밋: 위 16파일.
+
+## Leader 기록 (화면 A 수용 → B 착수·A 감사 병렬, 2026-10-04 18:58)
+- 화면 A 수용. 판단: ① `sttClientBoundary.test.ts` 허용 목록에 reading 추가 — 테스트를 이미 있던 eslint 허용과 맞춘 것이라 수용 ② 두 줄 한글·넓은 루비의 높이 증가(21~37px)는 바닥 고정 유지·데모 동일 간격이라 수용 ③ **A·B 함께 배포**(LessonScreen 이 옛 readingDefault 키를 써서 A 단독 배포 시 이관이 재발).
+- 병렬: Reviewer(A) + developer(B). B 는 공용 `components/common/japanese/*` 를 가져다 쓰기만(필요 시 additive, 이유 기록).
+
+## Developer 기록 (화면 B, 2026-10-04 실측)
+- [19:04] **체크포인트 1** — 데모 게이트 `DEMO_GATE_PASSED`(task-026 · approved v4). 완료(코드, 실측 전): 설정 `settings/DisplaySettings.tsx`(신규)·`app/(app)/settings/page.tsx` · 단어장 `vocab/{WordsScreen,WordRow,WordDetailSheet,VocabDeck,VocabCardFace}.tsx` · 수업 `lesson/LessonScreen.tsx`(옛 `kaiwa.chat.readingDefault` 읽기/쓰기·`reading` props 삭제)·`lesson/parts.tsx`(`Toggle` 삭제 → `LessonDisplayTools`, `ExprChip`·`ExprPlayChip` 에 선택 `ann`)·`lesson/StageUnderstand.tsx`. 공용 additive: `displayPrefs.ts` `DISPLAY_COPY.settings`(설정 절 문구 단일 출처) · `JapaneseText.tsx` `HangulLine as='span'`(버튼 안 `<p>` 금지 — 단어장 행) · `JaText rubyAlways`(오늘의 단어 카드는 카드 [읽기]가 정함, 앱 히라가나 무관). 남은 일: StageGrammar·StageQuiz(③ 읽기 문제 가림)·StageApply·StageSpeak · 테스트 `lesson/__tests__/display.test.ts` · 검증·화면 실측. 다음 첫 행동: StageGrammar 도구 줄+예문 층. 미커밋: 위 파일 전부.
+- [19:40] **체크포인트 2**(새 developer — 이어받기 아님, 이력서·diff 로 재파악). 확인: ①~⑤ 층·도구 줄(① fu·hg·tr / ②③ fu·hg / ④⑤ 도구 줄 없음 — 가이드대로) · ③ 읽기 문제 가림(`logic.quizReadingLeak` + StageQuiz `promptState`) · ① 가림 중(느리게 듣기 전 `hidden`) 막대만·층 없음 · 단어장·상세·덱·설정 절 · `LessonScreen` 옛 readingDefault 제거 — 코드상 빠진 것 없음. 수정: `WordsScreen` 개수 줄 들여쓰기 정리 · `lesson/__tests__/display.test.ts` 옛 읽기 줄 정규식이 `card.reading`(단어 카드 저장 읽기 — 루비 원천)을 잘못 잡아 `\bd\.reading` 으로 좁힘. 실행: 미러 tsc 0 · eslint 0 errors(경고 7 = 기존 5 + scratch 2) · 전체 회귀 1,350 / pass 1,347 / fail 0 / skip 3 · `grep readingDefault src/components` = 공용 이관(displayPrefs)·키 정의(storageKeys)·`kaiwa.vocab.readingDefault`(다른 값) 뿐. 남은 일: dev 8197+3021 화면 실측(①~⑤·단어장·상세·덱·설정 3폭×2높이)·정리·완료 기록. 미커밋: B 15파일 + logic.ts + reviewRegression.test.ts.
+- [20:05] **체크포인트 3 — 화면 실측(360×780 1회전 완료, 3폭×2높이 재실행 중).** 환경: dev gateway = dev venv uvicorn 127.0.0.1:8197(스크래치 `run_gw_dev.py`, 운영 8100 미접촉) · dev 앱 = 미러 `SPEECH_GATEWAY_URL=http://127.0.0.1:8197 next dev -H 127.0.0.1 -p 3021` · QA_ACCOUNT=1 쿠키(600) · 수업은 `page.route` 픽스처(#60 `/api/v1/lessons/FIX*` 가로채기 — DB 행·LLM 0) · 단어 8행 시드(id 파일 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/ids.json`)·덱 세션 1개(#vocab sessions POST, id 기록). 결과(360×780): 가로 넘침 0 전 화면 · 도구 줄 ① [✓히라가나][✓한글][번역] / ②③ [✓히라가나][✓한글] / ④⑤ 없음 · 토글 히트 44 · rt 11px·전부 aria-hidden · '후리가나' 0 · ① 가림 중 구간 루비 0·한글 0 → [글자 보기] 뒤 루비 4·한글 줄 · **③ 읽기 문제(注文 + 가나 보기 4) 답하기 전 문장 루비 0·한글 없음 → 답한 뒤 루비 1·`[코-히-오 츄-몽 시마시따.]`**, 평소 문제(q2)는 처음부터 루비·한글 · 보기 높이 한자 보기 80 / 가나 보기 68 · ④ 비교 밑줄(점선·실선)+루비 함께(MOV ⑦) · ⑤ 내가 한 말 말풍선 안 한글 · 단어장 행 106(둘 다 켬)·明日(あす) 행 82 = **루비 あす 만, 한글 숨김(분석 あした 불일치)** · 개수 글만 aria-live(버튼 없음). 메모: rt 잘림 수치 판정은 truncate 상자 기준 거짓 양성(7) — 스크린샷 육안으론 rt 전체 보임. 데모 v4 `#l1`·`#l3` 나란히 — 층 순서·도구 줄 일치. 스크린샷 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/shots/`, 스크립트 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/b026-shots.mjs`·`b026-demo.mjs`. 남은 일: 재실행 결과·정리(설정 원복·행 삭제·PID·쿠키)·완료 기록.
+- [20:20] **완료(부분 실측) — 화면 B, Reviewer 인계.** commit·push·npm install·db push 없음. 서버·DB·네이티브 변경 0(APK 불필요). maxTurns 80 직전이라 실측을 여기서 끊음.
+  - **변경 파일 17**(§15-8 B 15 + 2): 신규 `src/components/settings/DisplaySettings.tsx`·`src/components/lesson/__tests__/display.test.ts` / 수정 `src/app/(app)/settings/page.tsx` · `src/components/vocab/{WordsScreen,WordRow,WordDetailSheet,VocabDeck,VocabCardFace}.tsx` · `src/components/lesson/{LessonScreen,StageUnderstand,StageGrammar,StageQuiz,StageApply,StageSpeak,parts}.tsx` · **+ `lesson/logic.ts`**(`quizReadingLeak` — ③ 가림 판정 순수 함수) · **+ `lesson/review/__tests__/reviewRegression.test.ts`**(StageGrammar·StageQuiz props `reading`→`onToast`). 공용 additive(체크포인트 1 — 앞 developer): `displayPrefs.ts` `DISPLAY_COPY.settings` · `JapaneseText.tsx` `HangulLine as`·`JaText rubyAlways` — **REV-094 수정 developer 가 이 세 가지를 지우지 않아야 B 가 컴파일됨**.
+  - **가이드와 다른 점**: ① ④⑤ 는 도구 줄 없음(가이드대로, 값은 앱 설정) ② 덱 루비는 `useWordLayersList` 의 루비(앱 히라가나 설정을 따름) 대신 `alignWordRuby` 로 덱이 직접 만든다 — 카드는 카드 [읽기] 만 따르므로(§15-4-6) ③ ③ 결과 요약 목록(답한 뒤 요약 카드)은 층 없음(가이드에 없음) ④ display.test 옛 읽기 정규식을 `\bd\.reading` 으로 좁힘(`card.reading` 거짓 양성).
+  - **실행 증빙**(미러 `~/.node-local/thekaiwa-dev-010b-ui`, NFS src/tests rsync 후 `diff -rq` 일치): `tsc --noEmit --incremental false` **0** · `eslint .` **0 errors**(경고 7 = 기존 5 + scratch 2) · `display.test.ts` 등 B·공용 4파일 41/41 · 전체 회귀 **1,350 / pass 1,347 / fail 0 / skip 3** · `grep -rn readingDefault src/components` = 공용 이관 코드(displayPrefs 3줄)·키 정의(chat/storageKeys)·`kaiwa.vocab.readingDefault`(다른 값, 유지) 뿐 → **배포 게이트 충족**.
+  - **화면 실측**: 360×780 전 화면 + 360×892·390×780 일부(①~⑤·단어장·상세·덱·설정 22측정, 세 번째 실행은 390×780 ③ 다음 문제 버튼에서 30초 대기 초과로 중단). 측정 22건 전부 가로 넘침 0. 추가: 상세 표제어 rt 13·예문 rt 11·`[타베루]`·`[마이아사 팡오 타베마스.]` · 덱 rt 16·`[타베루]`(카드 [읽기] 켬) · 설정 스위치 3줄 56px·`role=switch`·미리 보기 `[쿄-와 나니오 타베마시따까?]`. **미확인(Reviewer/QA 몫)**: 412 폭·892 높이 나머지, 토글 4조합 행 높이·동기화(단어장→수업→설정), 분석 지연 중 높이 변화, 덱 line-clamp 루비 잘림(수치 판정 1건 — 단어장 행처럼 거짓 양성인지 육안 확인 필요).
+  - 스크린샷·결과: `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/shots/`(l1-hidden·l1·l2·l3-q1-before/after·l3-q2·l4·l5·words·wsheet·deck·settings-*.png · demo-l1~l5·l3b·words·wsheet·deck·settings.png) · 로그 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/run1~3.log` · 스크립트 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/b026-shots.mjs`(수업 #60 page.route 픽스처 포함 — QA 재사용 가능).
+  - **정리**: QA 계정 표시 설정 켬·켬·끔 확인(PUT 200×3, DB 확인) · 시드 단어 8행·덱 세션 1(시도 8) 정확한 id·userId 로 삭제(남은 단어 0) · dev 앱 3021·gateway 8197 종료(포트 비어 있음) · 쿠키 삭제 · 미러 scratch 스크립트 삭제.
+  - 미커밋: 위 17파일(+ 화면 A 16파일·공용 — A 수정 developer 진행 중).
+
+- [19:40] **완료 — 화면 B 실측 보완(새 developer, REV-094 반영 NFS 기준), Reviewer 인계.** 코드 수정 0(실측에서 명백한 결함 없음). commit·push·npm install·db push 없음. 서버·DB·네이티브 변경 0(APK 불필요). 데모 게이트 `DEMO_GATE_PASSED`(approved v4, 이 작업은 화면 파일 무수정).
+  - **환경**: 미러 `~/.node-local/thekaiwa-dev-010b-ui` 에 NFS `src/`·`tests/` rsync --delete 후 `diff -rq` 일치 → dev 앱 `next dev -H 127.0.0.1 -p 3021`(`SPEECH_GATEWAY_URL=http://127.0.0.1:8197`) + dev gateway 8197(`run_gw_dev.py`, 운영 8100 미접촉) · QA_ACCOUNT=1 쿠키 재발급 · 수업은 #60 `page.route` 픽스처. 앞선 실측 중 dev 서버·시드가 다른 쪽 정리로 사라져(19:25) 서버를 다시 띄우고 단어 8행·덱 세션 1(시도 1, 食べる)을 **다시 시드**해 끝까지 재측정했다. 시드는 `FLIP` 세션이라 덱 카드가 1장(이전 실측은 시도 8).
+  - **실행 증빙**(미러): `tsc --noEmit --incremental false` **0** · `eslint .` **0 errors**(경고 7 = 기존 set-state-in-effect 계열) · 전체 회귀 **1,357 / pass 1,354 / fail 0 / skip 3**(`lesson/__tests__/display.test.ts`·`japaneseDisplay.test.ts` 22/22 포함) · `grep readingDefault src/components` = 이관 코드(displayPrefs)·키 정의(chat/storageKeys)·`kaiwa.vocab.readingDefault`(다른 값) 뿐(배포 게이트 유지).
+  - **실측 표**(360/390/412 × 780/892 = 6조합, 측정 68건): 전부 **가로 넘침 0 · overflow 요소 0 · rt aria-hidden 100% · 화면 글자 '후리가나' 0 · 토글 히트 44** (불합격 0).
+
+| 화면 | 확인값(6조합 모두 동일) |
+|---|---|
+| ① 이해 | 도구 줄 [✓히라가나][✓한글][번역] · 가림 중 루비 0·한글 0 → [글자 보기] 뒤 루비 4·한글 줄 2 · rt 11px |
+| ② 문법 | 도구 줄 [✓히라가나][✓한글] · 루비 6·한글 4 |
+| ③ 문제 | 도구 줄 2개 · **읽기 문제 답하기 전 문장 루비 0·한글 없음 → 답한 뒤 루비 1·`[코-히-오 츄-몽 시마시따.]`** · 보기 가나 높이 68×4(한글 4) · 평소 문제 보기 80×4 · 처음부터 루비 6·한글 5 |
+| ④ 응용 / ⑤ 말하기 | 도구 줄 없음 · 루비 9·한글 4 / 루비 4·한글 3·막대 1(내가 한 말 분석) |
+| 단어장 행(둘 다 켬) | 83(明日, 한글 숨김 — 분석 あした≠저장 あす) · 94(読みなし) · 105~106(루비+한글) · 개수 줄 `단어 8개` 버튼 없음 |
+| 행 4조합(390×892) | 둘 다 [83,106,106,106,94,94,106,105] · 히라가나만 끔 [71,94,94,94,94,94,94,93] · 둘 다 끔 [71…70] · 한글만 끔 [83,83,83,83,71,71,83,82] |
+| 상세 시트 | 표제어 rt 13·예문 rt 11 · `[타베루]`·`[마이아사 팡오 타베마스.]` |
+| 덱 | 카드 루비 た(rt 16px)·`[타베루]`(카드 [읽기] 켬) · **line-clamp 잘림 수치 1건은 거짓 양성 — 육안 확인: 「た」 전부 보임**(`deck-390x892.png`) |
+| 설정 | 스위치 3줄 56px·`role=switch`·미리 보기 `[쿄-와 나니오 타베마시따까?]` |
+
+  - **동기화(390×892)**: 단어장 도구 줄에서 한글 끔 → 수업 ① 도구 줄 [✓히라가나][한글 끔][번역 끔] 와 같은 값 → 수업에서 번역 켬(한국어 번역 3줄 표시) → 설정 스위치 [히라가나 켬·한글 끔·번역 켬] 일치 → 설정에서 켬·켬·끔으로 원복(PUT 6회, 키 하나씩).
+  - **분석 지연 2.5초**(수업 ②, 390×892): 로딩 중 막대 2·루비 0 → 채워진 뒤 문서 높이 변화 **0**(바닥 고정은 수업 화면 구조상 스크롤 높이 불변).
+  - **데모 v4 대비 차이**(`shots/demo-*.png` 와 나란히, 3장 이내): ① 덱 — 데모는 4지선다 카드, 실측은 FLIP 시드라 선택지 없음(시드 차이, 화면 차이 아님) ② 단어장 행 ruby 가 긴 표제어에서 한자 폭보다 넓어 글자 사이가 벌어짐(데모와 같은 모양) ③ 하단에 보이는 N 표시는 next dev 개발 오버레이(운영 빌드엔 없음). 층 순서·도구 줄·가림·실패 문구는 데모와 일치.
+  - 스크린샷 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/shots3/`(l1-hidden·l1·l2·l3-q1-before/after·l3-q2·l4·l5·words·wsheet·deck·settings × 6조합, words-hgonly·none, l1-tr-on, settings-restored, l2-loading, results.json) · 로그 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/b026/run5.log`.
+  - **정리(전부 재확인)**: 시드 단어 8행·덱 세션 1(시도 1) 정확한 id + userId 조건으로 삭제 → **재조회 0**(QA 계정 단어 0·덱 세션 0) · QA 계정 표시 설정 DB 값 **켬·켬·끔** 확인 · dev 앱 3021·dev gateway 8197 종료(`ss -ltn` 비어 있음) · 쿠키·`ids.json`·미러 scratch 임시 스크립트 삭제. 미러 `.env` 는 NFS `.env` 와 동일한 기존 복사본(14:36, 다른 dev task 도 공유)이라 그대로 둠.
+  - **Reviewer 확인 요청**: 화면 B 는 가이드 §15-8 B 15 + 2(`lesson/logic.ts`·`reviewRegression.test.ts`) 변경, 실측 불합격 0. 변경 파일 전체 목록은 위 20:20 항목 + git status(미커밋 32 수정 + 신규 4: `common/japanese/`·`common/__tests__/japaneseDisplay.test.ts`·`lesson/__tests__/display.test.ts`·`settings/DisplaySettings.tsx`).
+## Reviewer 기록 (REV-094 — 화면 A, 2026-10-04 19:06 실측)
+- **판정 CONDITIONAL_PASS** (Critical 0 · High 0 · Medium 2 · Low 4 · Info 2). QA 진행 가능 — Medium 2건은 B 와 함께 배포하기 전에 수정 권고(아래).
+- **데모 게이트**: `check.mjs check` → `DEMO_GATE_PASSED`(approved v4, hash verified, v4 파일 sha256 = frontmatter `ddda03ff…`). evidence.jsonl 14번째 줄 = `approve v4`, `prompt_ts 18:25:55` 가 prompts.jsonl 의 사용자 원문 "task-026 데모 v4 승인, F1은 A" 와 같고 quote_sha256 재계산 일치 → 에이전트 대리 `approve`/`waive` 없음. events.jsonl 은 `allow` 만(워크스페이스 `.claude/state/demo-gate/` 직접 쓰기 없음). 승인 v4·가이드 §15 대비 분류: **material 없음 · defect 0**(표시 바 [히라가나][한글][번역] 44px·층 순서·[읽기 ▾] 제거·[번역 ▾]·F1-A 줄 제거·내 말 번역 6상태·'히라가나' 문구·교정 두 칸 diff 위 루비 모두 일치, 개발자 스크린샷 `chat-tr-on`·`review-390x892` 를 `demo-chat`·`demo-review` 와 대조). implementation 허용: 루비 폭 때문에 글자 사이가 벌어짐·두 줄 한글 +21px·루비 줄 +37px(데모 v4 도 같은 모양, 바닥 고정 유지 — **높이 증가 수용 의견: 수용 가능**, 막대 다줄 예약은 후속).
+- **재실행(별도 미러 `~/.node-local/thekaiwa-rev-026a` = `git archive HEAD` + A 16파일만 덮어씀, node_modules 하드링크 — B 의 진행 중 파일과 분리, 공유 미러·NFS 소스 무변경)**: `tsc --noEmit` **0** · eslint(A 범위 common·chat·talk·types·speech/__tests__) **0** · 전체 `eslint .` = 에러 2(`ecosystem.config.js` — git archive 로 미러에 들어간 파일, 기존·A 무관)+경고 5(기존 settings·admin set-state-in-effect, A 파일 0) · `japaneseDisplay.test.ts` 15/15 · `sttClientBoundary.test.ts` 2/2 · **전체 회귀 1,340 / pass 1,340 / fail 0**. 변이 3건 전부 검출(미러에서만 하고 원복·`diff -q` 일치 확인 — 워크스페이스 훅 로그에 `CorrectionCard.tsx` 편집이 `reviewer` 로 남는 것은 이 M3 변이): M1 `annotations.flush` 의 `available===true` 조건 제거 → test 9 실패 · M2 `displayPrefs.pump` 실패 되돌림 제거 → test 12 실패 · M3 `CorrectionCard` 에 `kanaToHangul` import 추가 → test 15(O-1) 실패.
+- **7영역**: ① 아키텍처 — 컴포넌트는 `@/modules/speech/reading/client` 하나만 import(서버 모듈·`engine` 0), `sttClientBoundary.test` 허용 정규식은 eslint 233행 허용 목록(S1 커밋, `stt/tts/reading client`)과 일치 + 루트·`reading` 직접은 여전히 금지 단언(수용). 라우트·화면에서 `fetch`/`window.Capacitor` 직접 호출 0(전부 `api.ts`). ② 유지보수 — 한글 줄은 `hangulLine()` 만, `kanaToHangul|pronLine` 화면 코드 0(테스트로 고정), 문구 단일 출처 `DISPLAY_COPY`. ③ 안정성 — 실패·`available:false` 층 없이 숨김(`stateOf`→none, 막대 지움), 400자 분할·원문 불일치 시 숨김, 번역 오류는 칸 안 문구(토스트 없음). ④ 운영성 — 클라이언트 로그·`console` 0. ⑤ 성능 — #24r 는 같은 tick 모아 64개씩·캐시 LRU 2,000·두 층 끔이면 0, 사용자당 60/분은 요청 단위(문장 단위 아님)라 회화 1턴 ≤3요청으로 여유. ⑥ 보안 — `dangerouslySetInnerHTML`·`innerHTML` 0(전부 React 텍스트 노드: 루비 rt·한글·번역·서버 문자열), 엔진명 grep(`reazon|whisper|style-bert|claude|sherpa`) 변경 범위 0, 번역 재시도는 `onClick` 에서만(자동 호출·effect 호출 0), 오류 코드별 문구(`409 reason` TURN_RUNNING/TRANSLATION_BUSY → 서버 `ApiError('CONFLICT', …, {reason})` 형태와 일치 확인 · 429 · 400/404 · 그 밖 failed), id `encodeURIComponent`, 로그아웃은 전체 새로고침이라 모듈 전역 저장소가 사용자 간 새지 않음, localStorage 는 `kaiwa.chat.readingDefault` 읽기·삭제뿐(다른 값 저장 0). ⑦ 학습 원칙 — `Correction.original` 은 `JaText text={c.original}` 로 그대로(변형·trim 0, diff 는 `ranges` 만), 서버·DB·네이티브 변경 0(`native_change:false`, APK 재빌드 불필요), `message.reading`·`replyReading` 경로 그대로 둠(지시 준수).
+- **설정 store**: `PUT /api/v1/settings/profile`(PATCH 아님) 바꾼 키 하나·불리언만, 낙관 반영·실패 시 서버 확인값으로 되돌림+토스트, 같은 키 연타는 마지막 값만, 모듈 전역 + `useSyncExternalStore` 로 여러 화면 동기화(서버 스냅샷 `loaded:false` 라 하이드레이션 안전), GET 실패 = 기본값+`error` — 가이드와 일치, 변이 M2 로 확인. 이관은 `legacy==='off' && server.showFurigana` 일 때만 PUT, 그 밖은 키만 삭제.
+- **발견(JSON)**
+```json
+{
+  "reviewId": "REV-094",
+  "status": "CONDITIONAL_PASS",
+  "issues": [
+    {
+      "issue": "손으로 가져온 내 말 번역(#32t 200)이 말풍선 상태에만 있어 [번역 ▾] 접기·펼치기 또는 표시 바 번역 토글(trEpoch)로 칸이 다시 만들어지면 사라지고 [번역 가져오기] 로 돌아간다",
+      "severity": "MEDIUM",
+      "component": "src/components/chat/MessageBubble.tsx:107-170 (UserTranslation `local` state), 부모 UserBubble 은 `trOpen ? <UserTranslation/> : null`",
+      "risk": "가이드 §15-2 H 표는 200 에서 '같은 말풍선 translation 갱신'. 실제는 부모 messages 를 갱신하지 않아(개발자 ⑤ 이탈) 사용자가 번역을 접었다 펴거나 바에서 번역을 껐다 켜면 이미 받은 번역이 사라지고, 다시 누르면 서버 캐시(LLM 0)이긴 하나 라우트 분당 20회 상한(rateLimit 은 캐시 확인 전)을 소모하며 429 문구까지 볼 수 있다. 옛 채팅을 번역 켬으로 열고 여러 말을 가져오는 주 사용 흐름에서 체감된다.",
+      "evidence": "UserTranslation 의 `const [local, setLocal] = useState<UserTrLocal|null>(null)` 은 칸 컴포넌트 안에만 있고 `setLocal({s:'ok'…})` 외에 message 갱신 없음(MessageBubble.tsx:112·124). UserBubble 은 trOpen 이 false 가 되면 UserTranslation 을 언마운트(MessageBubble.tsx 'trOpen ? <UserTranslation …/> : null'). translation 라우트는 rateLimit(`user-translation:${userId}`, 20) 을 retryUserTranslation 앞에서 호출(translation/route.ts).",
+      "recommendation": "ok 결과를 목록 상태에 올린다(예: UserBubble 이 받는 `onTranslated(messageId, text)` → ChatRoom/TalkRoom `setMessages` 로 `translation` 채움 — useChatTurn.onDone 과 같은 방식) 또는 최소로 `local` 상태를 UserBubble 로 끌어올려 칸이 언마운트돼도 유지. 수정 후 QA ⑩·⑪ 에 '번역 접었다 펴기·바 번역 끔→켬 뒤 가져온 번역 유지' 추가."
+    },
+    {
+      "issue": "표시 설정 GET·PUT 과 #24r 요청에 타임아웃이 없다 — 응답이 오지 않으면 `loaded:false` 가 풀리지 않거나(층이 영영 안 나오고 토글 흐림) 한글 자리 막대가 계속 돌고 PUT 줄(pump)이 멈춘다",
+      "severity": "MEDIUM",
+      "component": "src/components/common/japanese/displayPrefs.ts:231-236(deps.get/put), annotations.ts:211-215(post) → api.ts send() 에 signal 없음",
+      "risk": "가이드 §15-3 B 는 'GET 실패 → 기본값으로 loaded:true' 인데, '응답 지연'은 실패가 아니라 무한 대기로 남는다. 모바일에서 서버·네트워크가 멈추면(앱 백그라운드 복귀 직후 등) 이 화면 한정으로 층이 사라진 채 토글이 흐려져 눌러도 무시된다. PUT 이 매달리면 `sending=true` 라 이후 set 이 영영 전송되지 않는다(낙관 UI 만 바뀌고 서버 미반영). 대화·학습 기능은 막지 않지만 '애매하면 숨김'이 아니라 '애매하게 대기'.",
+      "evidence": "apiGet/apiPut/apiPost 호출에 AbortSignal 인자 없음(displayPrefs.ts:231-232, annotations.ts:212). `AnnotationClient.flush` 는 `await this.deps.post` 가 끝나야 status 를 지움(inflight → stateOf=LOADING). `DisplayPrefsStore.pump` 는 `await this.deps.put` 동안 sending 유지.",
+      "recommendation": "세 호출에 `AbortSignal.timeout(10000)`(GET·PUT) / 12000(annotate) 을 주고 시간 초과를 실패 경로(기본값 loaded·failed·되돌림)로 합친다. `apiGet(path,{signal})` 이 이미 지원된다. 단위 테스트(가짜 deps 가 영영 resolve 안 함 → 타임아웃 후 loaded:true) 1건."
+    },
+    {
+      "issue": "reload() 가 보내는 중인 PUT 을 덮을 수 있다 — pump 가 PUT 전에 `pending.delete(key)` 하므로 그 사이 도착한 GET 응답이 낙관 값을 옛 값으로 되돌리고 `confirmed` 도 옛 값이 된 채 PUT 은 성공한다",
+      "severity": "LOW",
+      "component": "src/components/common/japanese/displayPrefs.ts:150-155(reload shown 계산), 190-197(pump)",
+      "risk": "설정 화면 진입(마운트 때 reload — B)과 같은 순간 스위치를 누르면 화면은 옛 값, 서버는 새 값으로 갈린다. 창이 수백 ms 라 드물다.",
+      "evidence": "`for (const k of KEYS) if (!this.pending.has(k)) shown[k] = server[k]` 인데 pump 는 `this.pending.delete(key)` 를 `await put` 앞에서 한다.",
+      "recommendation": "보내는 중인 키를 `inflight` 집합으로 따로 두고 reload 의 shown·confirmed 갱신에서 제외."
+    },
+    {
+      "issue": "UserTranslation 의 오류 코드 → 문구 분기(409 reason·429·400/404·그 밖)가 컴포넌트 안에 있어 단위 테스트가 없다(검증은 Playwright 가로채기 수동)",
+      "severity": "LOW",
+      "component": "src/components/chat/MessageBubble.tsx:98-120",
+      "risk": "계약(#32t)의 reason 문자열이 바뀌면 조용히 'turnRunning' 문구로 떨어진다(기본 분기).",
+      "evidence": "japaneseDisplay.test.ts 에 UserTranslation·#32t 분기 테스트 없음(15건은 저장소·분할·캐시·읽기 대조).",
+      "recommendation": "`userTrOutcome(err): {kind, text, label}` 순수 함수로 빼 `DISPLAY_COPY.userTr` 와 함께 테스트."
+    },
+    {
+      "issue": "A·B 결합 배포 전제 — 현재 HEAD 의 LessonScreen 이 `kaiwa.chat.readingDefault` 를 읽고 쓴다(164·270행). A 만 나가면 수업 [읽기] 를 끈 사용자가 다음 로드 때 앱 전체 히라가나가 꺼진다(이관이 'off' 를 PUT)",
+      "severity": "LOW",
+      "component": "src/components/lesson/LessonScreen.tsx:164,270 (B 범위) × displayPrefs.ts migrateLegacy",
+      "risk": "Leader 가 'A·B 함께 배포' 로 결정해 완화됨. B 가 아직 쓰는 중이라 확인 필요.",
+      "evidence": "`grep -rn readingDefault src/components` → LessonScreen.tsx 2곳(+ vocab 키는 별개).",
+      "recommendation": "QA·deployer 게이트: B 완료 후 `grep -rn \"CHAT_KEYS.readingDefault\\|readingDefault\" src/components` 가 displayPrefs.ts(이관)·storageKeys.ts(정의)·vocab 키만 남는지 확인한 뒤 함께 배포. A 단독 배포 금지."
+    },
+    {
+      "issue": "이관 PUT 이 pump 를 거치지 않고 직접 나간다 — 이관 중 사용자가 히라가나를 누르면 pump 가 `confirmed(켬)===값` 으로 PUT 을 건너뛰고 이관 PUT 이 뒤에 도착해 서버가 false 로 남을 수 있다",
+      "severity": "LOW",
+      "component": "src/components/common/japanese/displayPrefs.ts:172-190",
+      "risk": "첫 GET 직후 수백 ms 창 + 옛 값 'off' 사용자 한정 — 사실상 1회.",
+      "evidence": "migrateLegacy 는 `this.deps.put({showFurigana:false})` 를 직접 호출하고 pending 을 확인하지 않는다.",
+      "recommendation": "이관도 `set('showFurigana', false)` 경로로(성공 시 키 삭제는 onSuccess 훅) — 필수는 아님."
+    },
+    {
+      "issue": "문서·구조 잔재",
+      "severity": "INFO",
+      "component": "src/components/chat/MessageList.tsx:9 · src/components/common/japanese/displayPrefs.ts:15",
+      "risk": "MessageList 머리 주석이 '채팅은 followContent 를 넘기지 않는다'로 남아 있으나 ChatRoom 이 넘긴다(가이드 외 개발자 ②). common 이 chat/storageKeys 를 import(방향 반대, 순환은 아님 — storageKeys 는 리프).",
+      "evidence": "ChatRoom.tsx:207 `followContent`.",
+      "recommendation": "주석 한 줄 수정, 이관 키 상수는 B 가 LessonScreen 을 정리할 때 common 으로 옮겨도 됨."
+    },
+    {
+      "issue": "렌더마다 hangulLine() 재계산(메모 없음)",
+      "severity": "INFO",
+      "component": "src/components/common/japanese/JapaneseText.tsx HangulLine",
+      "risk": "스트리밍 중 MessageList 가 청크마다 다시 그려 50말 × 정규식 변환이 매번 돈다. 실측 문제 보고는 없고 비용은 작다.",
+      "evidence": "HangulLine 이 render 안에서 `hangulLine(state.segments)` 호출.",
+      "recommendation": "필요해지면 `useMemo([state.segments])`."
+    }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 2, "low": 4, "info": 2 },
+  "high_risk_areas": [
+    "QA ⑪: 내 말 번역 — 새 턴 done.userTranslation / null → [다시 가져오기] / 옛 말 [번역 가져오기] / 409(TURN_RUNNING·TRANSLATION_BUSY)·429·400·404 문구 / 가져온 뒤 [번역 ▾] 접었다 펴기·바 번역 끔→켬에서 번역 유지(M1 수정 후)",
+    "QA ①⑧: 설정 store — PUT 바꾼 키 하나·실패 되돌림+토스트·연타 마지막 값·표시 바↔(B)수업·단어장·설정 동기화·응답을 느리게/멈추게 했을 때 loaded·막대 동작(M2 수정 후)",
+    "QA ⑨ 이관: localStorage kaiwa.chat.readingDefault 'off'/'on'/없음 × 서버 true/false, B 의 LessonScreen 이 옛 키를 더 이상 쓰지 않는지(A·B 함께 배포 게이트)",
+    "QA ③⑧: 분석 응답 지연 시 말풍선 높이 변화·바닥 고정(followContent 는 채팅에도 켜짐), 두 줄 한글(+21px)·넓은 루비 줄(+37px) 허용 범위, [이전 메시지] 로 앞에 붙일 때 보던 자리 유지",
+    "QA ④: 분석기 다운(available:false)·HTTP 429/500·400자 초과(끊을 곳 없음)에서 층·막대 사라짐 + 토스트 없음 + 옛 reading 줄 미표시, 단어 제안 카드 루비(저장 읽기)는 남음",
+    "QA 요청량: 채팅방(50말) 첫 진입 #24r ≤2회·화면 이동 후 캐시 적중·두 층 끔 0회·턴당 ≤3요청(분당 60 한도), 번역 #32t 는 누를 때만(네트워크 탭)",
+    "QA ⑥: 교정 카드 두 칸 diff 경계가 한자 묶음 한가운데일 때 그 묶음만 히라가나 없음, 복사(전체 선택)에 rt·한글 없음, 엔진명·'후리가나' 화면 글자 0"
+  ],
+  "native_change": false
+}
+```
+- **Codex**: 이 건은 Codex 검토 미호출(judge 판정 없음) — 해당 없음.
+- **Leader 판단 요청**: (1) M1·M2 는 B 와 함께 배포하기 전에 같은 developer(화면 A)에게 수정 지시 권고(10~30줄, 서버·계약 변경 없음) → 수정 시 Reviewer 부터 재순환, B 감사와 합쳐 한 번에 재확인 가능. (2) 두 줄 한글·루비 높이 증가 = 수용 의견. (3) `kaiwa.chat.readingDefault` 정리 확인 게이트를 deployer 체크리스트에 추가.
+
+## Leader 기록 (REV-094 수용, 2026-10-04 19:07)
+- REV-094 CONDITIONAL_PASS(M2·L4·I2) 수용. **고칠 것**: M-1 손으로 가져온 내 말 번역을 말풍선 `translation` 에 반영(접었다 펴도 유지, 재요청 0) · M-2 설정 GET/PUT·#24r 에 `AbortSignal.timeout` + 실패 경로 · L-1 reload 가 전송 중 PUT 낙관 값을 덮음 · L-4 이관 PUT 을 pump 경유 · I-1 MessageList 주석 정정. L-2(#32t 문구 분기 테스트)는 수정 때 순수 함수로 빼면 함께. 높이 증가 수용(REV-094 동의).
+- 순서: 화면 B developer 완료 후(공용 파일 충돌 회피) A 수정 → Reviewer 가 A 수정·B 를 한 번에. **배포 게이트**: `grep -rn readingDefault src/components` 가 이관 코드 외 0 이어야 A·B 함께 배포.
+- 기록 정정: REV-094 의 "eslint 233행" → `eslint.config.mjs` 120행.
+
+## Developer 기록 (REV-094 반영, 2026-10-04 실측)
+- [19:18] **완료 — REV-094 M-1·M-2·L-1·L-2·L-4·I-1 반영, Reviewer 재인계.** commit·push·npm install·db push 없음. 서버·DB·계약·네이티브 변경 0(APK 불필요). 화면 B 파일(lesson·vocab·settings) 미수정 — 공용 파일의 B 추가분(`DISPLAY_COPY.settings`·`HangulLine as='span'`·`JaText rubyAlways`) 보존.
+  - **변경 파일 9**: `src/components/common/japanese/{displayPrefs,annotations}.ts` · `src/components/common/api.ts`(`apiPut` 에 선택 `opts` — additive, 기존 호출 불변) · `src/components/chat/{MessageBubble,MessageList,ChatRoom}.tsx` · `src/components/talk/TalkRoom.tsx` · `src/components/common/__tests__/japaneseDisplay.test.ts` · **+ `src/components/chat/messages.ts`**(지시 목록 밖 — 목록 갱신 순수 함수 `withUserTranslation` 을 기존 메시지 계산 모듈에 둠. 컴포넌트(.tsx)에 두면 테스트가 next/link 등을 끌어와서. 15줄 추가만).
+  - **M-1** `UserBubble`/`UserTranslation` 에 `onTranslated(messageId, text)` → #32t 200 이면 호출. `MessageList` 에 `onUserTranslated` 를 받아 기본 `UserBubble` 에 전달, `ChatRoom` 은 그 prop 으로, `TalkRoom` 은 `renderUser` 의 `UserBubble` 에 직접 → 둘 다 `setMessages(ms => withUserTranslation(ms, id, text))`(`translation` 채우고 `translationState` 지움 — useChatTurn.onDone 과 같은 자리). 서버는 #32t 결과를 `translation IS NULL` 조건부로 저장하므로 폴링 merge 가 덮어도 같은 값.
+  - **M-2** `withTimeout(fn(signal), ms)`(displayPrefs.ts export) — 시간이 되면 신호를 끊고(fetch 중단) 거절. GET·PUT 10s(`DISPLAY_REQUEST_TIMEOUT_MS`), #24r 12s(`ANNOTATE_TIMEOUT_MS`). 시간 초과는 기존 catch 로 → GET: 기본값 `loaded:true`+`error` / PUT: 되돌림+`onError`, 줄(pump) 풀림 / #24r: `failed`(none, 캐시 안 함). deps 시그니처에 선택 `signal`·`timeoutMs`(테스트용) 추가. **`AbortSignal.timeout` 대신 직접 타이머**: 끝나면 `clearTimeout`(64개 묶음마다 타이머가 남지 않음) + Node 의 `AbortSignal.timeout` 은 unref 타이머라 가짜 deps 가 영영 안 끝나는 테스트에서 이벤트 루프가 먼저 끝난다. 신호를 무시하는 deps 도 `Promise.race` 로 반드시 거절. 사유 DOMException 이름은 `TimeoutError`(사용자 취소 `isAbort` 와 구분).
+  - **L-1** `inflight: Set<DisplayKey>` — pump 가 PUT 직전 넣고 finally 에서 뺌. `reload()` 는 pending·inflight 키의 화면 값을 덮지 않고, inflight 키의 `confirmed` 는 이전 확인 값을 유지(PUT 결과가 정함).
+  - **L-4** 이관을 `enqueue('showFurigana', {value:false, onSuccess: removeLegacy})` 로 pump 경유. `Pending.onSuccess` 추가(PUT 성공 또는 이미 서버 값과 같아 건너뛸 때 호출). 사용자 `set('showFurigana')` 는 옛 키를 즉시 지운다(직접 고른 값이 이김 — 이관 PUT 이 대기 중이면 같은 키라 사용자 값으로 바뀌고, 전송 중이면 그 뒤에 사용자 값이 나간다). **동작 차이(판단 기록)**: 이관 PUT 실패 시 예전엔 화면을 '끔'으로 두었으나 이제 pump 규칙대로 서버 값(켬)으로 되돌린다 — 키는 남아 다음 로드에 재시도(서버와 화면을 맞추는 쪽으로 통일).
+  - **L-2** `userTrFailure(err, label)`(displayPrefs.ts, `DISPLAY_COPY.userTr` 옆) — 409 `TRANSLATION_BUSY`→busy / 그 밖 409(`TURN_RUNNING`·reason 없음)→turnRunning(기존 동작 유지) / 429 rate / 400·404 blocked(버튼 없음) / 그 밖(0·-1·5xx·422·시간 초과) failed. `MessageBubble` 분기를 이 함수 호출 한 줄로.
+  - **I-1** `MessageList` 머리 주석: "회화방과 채팅방 모두 followContent 를 넘긴다(층이 늦게 채워져도 바닥 유지)" 로 정정. (I-2 HangulLine 메모·common→chat/storageKeys 방향은 범위 밖, 손대지 않음.)
+  - **실행 증빙**(미러 `~/.node-local/thekaiwa-rev-026a`, NFS `src/`·`tests/` rsync --delete 후 `diff -rq src` 일치 — B 진행 중 파일 포함): `tsc --noEmit --incremental false` **0**(B 파일 포함해도 0 — A/B 분리 불필요) · eslint(변경 9파일) **0 errors 0 warnings** · `japaneseDisplay.test.ts` **22/22**(기존 15 + 신규 7: GET 시간 상한·PUT 시간 상한+줄 풀림·#24r 시간 상한+재요청·L-1 reload 보호·L-4 이관 순서+실패·userTrFailure 표·withUserTranslation) · **전체 회귀 1,357 / pass 1,357 / fail 0 / skip 0**(B 의 새 테스트 포함) · 엔진명 grep(변경 파일) 0 · `dangerouslySetInnerHTML`·`console.` 0.
+  - **변이 3건 전부 검출**(미러에서만, 원복 후 NFS 와 `diff -q` 일치): V1 reload 의 inflight 보호 제거 → L-1 테스트 실패 · V2 #24r `withTimeout` 제거 → 시간 상한 테스트 실패 · V3 이관을 직접 `put` 으로 되돌림 → L-4 테스트 실패.
+  - **화면 확인**(미러 `next dev -H 127.0.0.1 -p 3022`, `SPEECH_GATEWAY_URL=http://127.0.0.1:8197`(기존 dev gateway 재사용), QA_ACCOUNT=1 쿠키, Playwright 390×892 — 데이터는 전부 `page.route` 픽스처: #29·제안·표시 설정 GET/PUT·#24r·#32t → **DB·QA 계정 설정 무변경**): 채팅·회화 각각 — 번역 끔 → 말풍선 [번역 ▾] → [번역 가져오기] → 번역 표시 → [번역 ▴] 접기(숨김) → 펴기 **유지** → 바 번역 켬→끔(숨김)→켬 **유지**, [번역 가져오기] 버튼 사라짐, 다른 내 말은 여전히 [번역 가져오기], **#32t 호출 1회**, 설정 PUT 은 `showTranslation` 한 키씩. **대조**: 미러에서만 `onTranslated` 호출을 지우면 접기·펴기 후 `hasTr2:false`·바 토글 후 `hasTr3:false` — 수정이 원인임을 확인(원복·diff 일치). 스크린샷 `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/3b58d83f-1a41-4480-bb52-2e93fdcea5ef/scratchpad/rev094/shots/{chat,talk}-tr-{fetched,kept}.png`(한글 줄 모양은 픽스처 pron=표기라 의미 없음). 스크립트 `.../scratchpad/rev094/rev094-tr.mjs`.
+  - **정리**: dev 서버(3022) 종료·포트 비어 있음 확인, 쿠키 파일·미러에 복사한 `.env`·미러 scratch 스크립트 삭제. 8197 gateway·3021 은 다른 developer 것이라 그대로 둠.
+  - **Reviewer 확인 요청**: ① `messages.ts` 추가(지시 목록 밖) ② L-4 이관 실패 시 화면이 서버 값으로 돌아가는 동작 차이 ③ `AbortSignal.timeout` 대신 `withTimeout` 직접 타이머.
+  - 미커밋: 위 9파일(화면 A 기존 16파일과 함께).
+```json
+{ "taskId": "task-026", "status": "DONE", "deliverables": ["src/components/common/japanese/displayPrefs.ts", "src/components/common/japanese/annotations.ts", "src/components/common/api.ts", "src/components/chat/MessageBubble.tsx", "src/components/chat/MessageList.tsx", "src/components/chat/ChatRoom.tsx", "src/components/chat/messages.ts", "src/components/talk/TalkRoom.tsx", "src/components/common/__tests__/japaneseDisplay.test.ts"], "blockers": [], "risk_level": "LOW", "self_check": { "unit_test": true, "lint": true, "type_check": true, "engine_name_leak": false, "native_change": false } }
+```
+
+## Reviewer 기록 (REV-095 — 화면 A 수정(REV-094 반영) + 화면 B, 2026-10-04 19:32 실측)
+- **판정 PASS** (Critical 0 · High 0 · Medium 1 · Low 3 · Info 3 — 규칙상 PASS, Medium 은 QA 와 병행 보강 권고). QA 진행 가능.
+- **데모 게이트**: `check.mjs check` → `DEMO_GATE_PASSED`(approved v4, hash verified). evidence.jsonl 최신 줄 = `approve v4`(18:26:05, prompt_ts 18:25:55 = prompts.jsonl 사용자 원문), `waive` 0건, 18시 이후 events.jsonl 은 `allow`(developer 84·reviewer 1 — 지난 REV-094 변이)뿐이고 `demo-gate/` 직접 쓰기 흔적 0 → 대리 승인 없음. v4·§15 대비: 도구 줄 ①[히라가나][한글][번역] / ②③[히라가나][한글] / ④⑤ 없음(`grep LessonDisplayTools|DisplayToggles` 로 확인), 단어장 개수 줄 오른쪽 [히라가나][한글], 표제어 위 루비·옆 읽기 칸 제거(`<span className="flex-1"/>` 만 남김), 상세 표제어 rt13·예문 rt11·`[한글]`, 덱 = 카드 [읽기] 켰을 때만 rt16·`[한글]`15, 설정 새 절(스위치 3·안내 2·미리 보기) — 개발자 스크린샷(`words-360x892`·`l3-q1-before-360x892`)을 `demo-words` 와 대조해 **material 0·defect 0**. implementation 허용: 긴 표제어에서 루비가 본문보다 넓어 본문이 들여써 보임(데모와 같은 `ruby-align:center` 모양).
+- **재실행(별도 미러 `~/.node-local/thekaiwa-rev-026b` = `git archive HEAD` + NFS `src/`·`tests/` rsync `--delete`, `diff -rq src` 일치, node_modules 하드링크 — `thekaiwa-dev-010b-ui`·`rev-026a` 미접촉)**: `tsc --noEmit --incremental false` **0** · `eslint .` = 에러 2(`ecosystem.config.js` — git archive 로 미러에 들어온 파일, 기존·무관)+경고 5(기존 admin·settings set-state-in-effect, 이번 변경 파일 0) · 관련 3파일(display·japaneseDisplay·reading) **47/47** · **전체 회귀 1,357 / pass 1,357 / fail 0 / skip 0**. 변이(미러에서만, 원복·`diff -q` 일치): **검출 4** — M1 GET 시간 상한 제거 → 시간 상한 3건+연쇄 실패 · M2 `quizReadingLeak` 항상 false → 3건 실패 · M3 `readingMatches` 항상 true → 2건 실패 · M4 `alignWordRuby` 상한 제거 → 2건 실패. **생존 3**(아래 M-1): X1 `onTranslated` 호출 제거 · X2 `useWordLayersList` 의 읽기 불일치 숨김 제거 · X3 `StageQuiz` 가림 배선(`quizReadingLeak` → 항상 표시) — 단위 테스트가 순수 함수만 잡고 화면 배선은 못 잡는다.
+- **REV-094 해소 확인**: M-1(번역 유지) `UserTranslation` 200 → `onTranslated` → `ChatRoom`/`TalkRoom` `setMessages(withUserTranslation)` 배선 확인(코드)+순수 함수 테스트, 개발자 Playwright 대조 변이(호출 제거 시 접었다 펴면 사라짐) 신뢰 · M-2 `withTimeout`(GET·PUT 10s·#24r 12s) — 시간 상한 테스트 3건, 내 M1 로 재확인 · L-1 `inflight` 집합 + reload 보호 테스트 · L-2 `userTrFailure` 순수 함수 + 표 테스트(`toErr` → `{status,details}` 형태 일치) · L-4 이관을 `enqueue`(pump) 경유 + 순서·실패 테스트 · I-1 주석 정정 · L-3(A·B 결합 배포 게이트) `grep -rn readingDefault src/components` = displayPrefs(이관 3줄)·`chat/storageKeys.ts`(정의)·`vocab/{hooks,useVocabDeck}.ts`(`kaiwa.vocab.readingDefault` — 다른 값) 뿐, `LessonScreen` 의 옛 읽기/쓰기·`CHAT_KEYS` import 삭제 확인(`display.test` 가 B 13파일 정적 검사로 고정) → **게이트 충족**.
+- **Developer 판단 3건 수용**: ① `chat/messages.ts` 추가 — 컴포넌트 밖 순수 함수(15줄 추가만), 테스트가 next/link 를 끌어오지 않게 한 합리적 위치. 수용 ② L-4 이관 PUT 실패 시 화면이 서버 값(켬)으로 돌아가고 키를 남겨 다음 로드에 재시도 — "서버와 화면을 맞춘다"는 pump 규칙과 일관, 수용 ③ `AbortSignal.timeout` 대신 `withTimeout` 직접 타이머 — `clearTimeout` 가능·테스트 결정성·신호 무시 deps 도 `Promise.race` 로 거절, 수용(Info I-3 한 줄만).
+- **B 정확성**: ③ `quizReadingLeak` — 가나뿐인 보기(`KANA_WORD` + 가타카나→히라가나·괄호·공백 정규화)와 문장 한자 읽기(묶음 1·조각 1·연속 최대 4)가 같을 때만 true, `StageQuiz` 는 `!answered && ready && leak` 일 때만 `OFF`(분석 전 = 막대·평소 문제 = 처음부터 표시·답한 뒤 표시, 복습 `reviewing` 은 전부 답한 상태라 표시). 한자 섞인 보기·한국어 보기·조사 고르기는 영향 없음(테스트 5건). 개발자 스크린샷으로 注文+가나 보기에서 문장 층 0·보기 층 유지 확인 · 단어 한글은 `useWordLayersList` 에서 `readingMatches` 불일치 시 `NONE`(明日=あす 행 루비만) · `alignWordRuby` 는 길이 상한(80/읽기 상한)·DP `failed` 표로 다항, 호출은 훅 `useMemo` 안·`VocabDeck` `useMemo` 안뿐(렌더 중 직접 호출 0) · 한글 줄은 `JapaneseText.tsx` 의 `hangulLine()` 한 곳(`kanaToHangul|pronLine` 화면 코드 0, 정적 테스트) · ① 가림(`hidden`)은 막대 행만 그려 층 없음(코드 확인) · 단어장·덱은 한글 끔·카드 [읽기] 끔일 때 요청 0(`surfaces` 빈 문자열·`[]`).
+- **보안·경계**: `dangerouslySetInnerHTML`·`innerHTML` 0(루비 rt·한글·번역 모두 React 텍스트 노드), 엔진명 grep(`reazon|whisper|style-bert|claude|sherpa|speaker_id|model_id`) 변경 범위 0, 화면 글자 '후리가나' 0(API 주석 1곳뿐), 변경 컴포넌트의 `fetch`/`spawn`/`window.Capacitor` 직접 호출 0(전부 `api.ts` — `apiPut` 에 선택 `opts` additive, 기존 호출 불변), 컴포넌트가 import 하는 서버 모듈 = `@/modules/speech/reading/client`·`stt/client`·`infra/native` 뿐(eslint 경계 120행 허용 목록과 `sttClientBoundary.test` 정규식 일치). 공용 additive 3건(`DISPLAY_COPY.settings` — 설정 절 문구 단일 출처 §15-5 · `HangulLine as='span'` — 버튼 안 `<p>` 금지, 단어장 행·보기 · `JaText rubyAlways` — 오늘의 단어 카드는 카드 [읽기]만 따름 §15-4-6) **타당**하며 A 기존 사용처(`as` 없음 → 기존 동작, `rubyAlways` 기본 false)를 바꾸지 않는다. 서버·DB·계약·네이티브 변경 0(`native_change:false`, APK 재빌드 불필요).
+- **설정 절**: 스위치 3개 `role="switch"`·`aria-checked`·행 전체 버튼(`min-h-14`), 누르면 `useDisplayPrefs().set`(바꾼 키 하나·낙관·실패 되돌림+토스트)·같은 모듈 전역 store 라 표시 바·수업·단어장 도구 줄과 동기화, 학습 설정은 `[저장]` 이 보내는 키 10개(표시 3키 없음 — 키 집합 서로소)라 서로 덮지 않음, 진입 시 `reload()`(첫 구독 `ensureLoaded` 와 `loading` 공유라 GET 1회), 미리 보기는 `useAnnotation` 실분석 + 둘 다 끄면 안내 줄, 로딩/GET 실패 = `LoadingBlock`/`ErrorBlock`.
+- **발견(JSON)**
+```json
+{
+  "reviewId": "REV-095",
+  "status": "PASS",
+  "issues": [
+    {
+      "issue": "화면 배선 3곳을 지키는 자동 테스트가 없다 — ③ 읽기 문제 가림 연결, 단어 한글의 읽기 불일치 숨김(훅), 손으로 가져온 번역을 목록에 올리는 호출은 변이를 가해도 전체 테스트가 통과한다",
+      "severity": "MEDIUM",
+      "component": "src/components/lesson/StageQuiz.tsx:~163(promptState), src/components/common/japanese/annotations.ts:~308(useWordLayersList hangul), src/components/chat/MessageBubble.tsx:~121(onTranslated)",
+      "risk": "이번 승인 데모의 핵심 보호 규칙(정답 힌트 금지·어긋난 발음 숨김·번역 유지)이 이후 리팩터링(`StageQuiz`·`useWordLayersList` 정리)에서 조용히 사라져도 CI 가 알리지 못한다. 순수 함수(`quizReadingLeak`·`readingMatches`·`withUserTranslation`)는 잠겨 있으나 그것을 부르는 한 줄이 비어 있다.",
+      "evidence": "미러 변이 X1(`if (text) onTranslated?.(…)` → `void onTranslated`)·X2(`st.s==='ready' && !readingMatches(…) ? NONE : st` → `st`)·X3(`quizReadingLeak(…) ? OFF : promptAnn` → `false ? OFF : promptAnn`) 각각 display·japaneseDisplay·reviewRegression 47건 pass 0 fail. 반면 순수 함수 변이 M2·M3 는 검출.",
+      "recommendation": "배선을 순수 함수로 끌어내 테스트한다: `quizPromptLayerState(answered, ann, q): AnnotationState`(logic.ts), `wordHangulState(st, storedReading): AnnotationState`(annotations.ts) — 훅·컴포넌트는 그 함수만 부른다. onTranslated 는 정적 검사(`MessageBubble` 소스에 `onTranslated?.(message.id` 존재)로 충분. 배포 전 필수는 아님(개발자 Playwright 대조 있음) — QA 와 병행 보강, 다음 터치 때 필수."
+    },
+    {
+      "issue": "③ 읽기 문제 보호가 '문장 한자 → 가나 보기' 한 방향만 막는다 — 반대 방향(문장이 가나, 보기가 한자)이면 보기 위 루비가 정답을 알려 준다",
+      "severity": "LOW",
+      "component": "src/components/lesson/logic.ts:quizReadingLeak, StageQuiz.tsx:Choice(ann)",
+      "risk": "예: promptJa 「ちゅうもん」·보기 注文/住文…이면 보기마다 루비가 붙어 같은 소리인 보기를 고를 수 있다. A4 는 읽기 문제를 막지 않으므로 (표기 고르기 문제가 나오면) 데모의 '정답 힌트가 되지 않아요' 전제가 깨진다. Leader §15-9 ② 결정 범위(한 방향)와 일치해 결함은 아님.",
+      "evidence": "`quizReadingLeak(segments, choices)` 는 문장 분석 조각과 가나 보기만 비교, 보기 쪽 루비는 항상 표시(`Choice ann`).",
+      "recommendation": "Leader 확인: 현재 범위 유지(권고 — 문제 유형이 드묾) 또는 문장이 가나뿐이고 보기에 한자가 섞이면 답하기 전 보기 루비·한글을 숨기는 대칭 규칙을 후속 항목으로."
+    },
+    {
+      "issue": "표시 설정 PUT 이 서버에는 반영됐는데 시간 초과로 클라이언트가 실패 처리하면 화면이 옛 값으로 돌아가고 `confirmed` 도 옛 값으로 남는다",
+      "severity": "LOW",
+      "component": "src/components/common/japanese/displayPrefs.ts:pump catch",
+      "risk": "화면과 서버가 잠시 다르다(다음 설정 진입 reload 나 같은 키를 다시 누르면 맞춰짐 — PUT 은 멱등). 실제 영향은 한 번 더 누르는 정도.",
+      "evidence": "withTimeout 거절 = 서버 수락 여부를 모름 → pump 는 실패로 간주해 되돌림.",
+      "recommendation": "수정 불필요. QA 시간 초과 시나리오에서 '다시 누르면 정상' 만 확인."
+    },
+    {
+      "issue": "수업·단어장 층 요청이 화면이 가린 줄(① `hidden` 구간)·최초 렌더 전체에 대해 마운트 때 한꺼번에 나간다",
+      "severity": "LOW",
+      "component": "src/components/lesson/StageUnderstand.tsx(useAnnotations(dialogue 전체))",
+      "risk": "가린 줄의 분석도 미리 받는다(표시는 안 함). 요청량은 단계당 1요청(≤64)이라 한도(분당 60)에 여유, 사용자 영향 없음. 정답 노출 없음(표시 안 함).",
+      "evidence": "`anns = useAnnotations(c.dialogue.map(d=>d.ja))` 를 구간 열림 여부와 무관하게 호출.",
+      "recommendation": "수정 불필요(캐시로 [글자 보기] 때 즉시 표시되는 장점). QA 요청량 항목에 단계 진입 1~2요청으로 기록."
+    },
+    {
+      "issue": "구조·잔재(Info)",
+      "severity": "INFO",
+      "component": "displayPrefs.ts:15(common→chat/storageKeys import) · displayPrefs.ts:withTimeout · annotations.ts:useWordLayersList",
+      "risk": "① common 이 chat 의 저장 키 상수를 import(방향 반대, 순환은 아님 — REV-094 I-2 그대로). ② `withTimeout` 은 `fn(signal)` 이 동기 예외를 던지면 타이머가 남아 10초 뒤 처리되지 않은 거절이 될 수 있다(현재 호출은 전부 async 함수라 해당 없음). ③ `useWordLayersList` 는 분석 버전이 오를 때마다 모든 행의 루비 배열을 새로 만들어 `WordRow` memo 를 무력화(행 수십 개 규모라 체감 없음).",
+      "evidence": "코드 확인(재현 시도 없음).",
+      "recommendation": "다음 터치 때: 이관 키 상수를 common 으로 옮기고, withTimeout 에서 fn 호출을 try 로 감싸고, 행 루비를 단어 키로 캐시."
+    }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 1, "low": 3, "info": 1 },
+  "high_risk_areas": [
+    "QA ③(수업 문제): 읽기 문제(문장 注文 + 가나 보기 4) 답하기 전 문장 히라가나·한글 없음·보기 층 유지 → 답한 뒤 표시 / 평소 문제는 처음부터 표시 / 분석 지연 중 막대→(가림이면 사라짐) 높이 변화 허용 범위 / 복습 모드 / 한자 섞인 보기 문제 영향 없음",
+    "QA 토글 4조합(히라가나×한글) × 번역: ① [히라가나][한글][번역] ②③ [히라가나][한글] ④⑤ 도구 줄 없음, 단어장 행 높이(켬·켬≈102 / 히라가나만 80 / 한글만 92 / 끔·끔 71), 표시 바 ↔ 수업 ↔ 단어장 ↔ 설정 동기화(어디서 바꿔도 같은 값), 360/390/412 × 780/892 가로 넘침 0(B 미측정분: 412 전부·892 일부·390 일부)",
+    "QA 설정 절: 스위치 3개 즉시 저장·토스트·PUT 바꾼 키 하나·실패(오프라인) 되돌림+토스트·연타 마지막 값·학습 설정 [저장]과 서로 덮지 않음·GET 실패 ErrorBlock→[다시 시도]·둘 다 끄면 미리 보기 안내 줄·응답 지연/무응답 시 10초 뒤 동작(M-2)",
+    "QA 오늘의 단어 덱: 카드 [읽기] 켬에서만 rt16 루비·`[한글]`15, 끔이면 앱 설정과 무관하게 없음, `line-clamp-3` 첫 줄 루비 윗부분 잘림 육안 확인(개발자 수치 판정 1건이 단어장 행처럼 거짓 양성인지 미확인), 드래그 중 프레임 저하 없음·분석 지연이 카드 넘김을 막지 않음",
+    "QA 단어: 저장 읽기 ≠ 분석 읽기(明日=あす)면 한글 숨김·루비는 저장 읽기, 악성 단어(한자·가나 교차 80자) 화면 정지 없음, 상세 시트 표제어 rt13·예문 rt11·번역·▶ 소리 그대로",
+    "QA A 수정 회귀: 내 말 번역 가져온 뒤 [번역 ▾] 접었다 펴기·표시 바 번역 끔→켬에서 번역 유지·#32t 1회(채팅·회화 둘 다) / 이관 localStorage `kaiwa.chat.readingDefault` off·on·없음 × 서버 true·false, 이관 중 히라가나 연타 / 표시 설정 GET·PUT·#24r 지연·무응답에서 loaded·막대·토글 동작",
+    "QA 요청량: 수업 단계 진입당 #24r 1~2회(가린 줄 포함 요청), 단어장 한 쪽 1회·[단어 더 보기] 새 행만, 두 층 끔·카드 [읽기] 끔 = 0회, #32t 는 누를 때만",
+    "배포 게이트(deployer): A·B 함께 배포 — 배포 직전 `grep -rn readingDefault src/components` 가 displayPrefs·chat/storageKeys·vocab 키 외 0 인지 재확인, 서버·DB·네이티브 변경 0(웹 배포만, `scripts/deploy.sh TheKaiwa --yes`)"
+  ],
+  "native_change": false
+}
+```
+- **Codex**: judge Codex 개입 판정 없음 — 해당 없음.
+- **Leader 판단 요청**: (1) PASS — QA 진행 가능, M-1(배선 테스트)은 QA 와 병행 또는 다음 터치 때 보강(필수 아님, 개발자 Playwright 증거 있음). (2) LOW-1 ③ 보호의 반대 방향 범위 — 현재 유지 권고. (3) B 미측정분(412·892·토글 4조합·동기화·덱 line-clamp)은 다른 developer 실측 결과를 받아 QA 가 재확인. (4) Sonnet developer 반려 누적 해당 없음(이번 A 수정·B 모두 Opus).
+
+## 판단 기록 (judge)
+- [2026-10-04 19:34] codex_gate/C2 engine=jev → codex_required | mode=adversarial-review | focus=error_handling | budget_rule=CX-limit-unknown-r2 | overrides=- | fallback=- | tokens=1006
+
+## Codex 검토 (C2-화면, adversarial-review, focus=error_handling)
+
+### [2026-10-04 19:35] C2 adversarial-review focus=error_handling — done
+- judge 판정: 1184 라인 codex_gate/C2 engine=jev / 호출 차수: 1/4
+- 대상: repo=TheKaiwa base=055dbcf(task_file) snapshot=ee6682e
+- 지적 2건:
+  1. [medium] src/components/common/japanese/annotations.ts:242 — 일시적 네트워크 오류·available:false 발생 뒤 같은 화면에 머물거나 한글 표시 껐다 켤 때 → 실패 상태는 캐시하지 않지만 asked 집합에 요청 문장 남아 있고 fresh 필터가 다시 요청하지 않음(훅 언마운트까지 초기화 없음) → 일시 장애 복구되어도 해당 화면 한글·후리가나 사라진 상태 유지·다른 화면 이동 후 재마운트해야 복구 (권고: 실패 항목에 백오프 재시도 또는 표시 설정 OFF→ON 전환·재시도 시 asked 제거)
+  2. [medium] src/components/settings/DisplaySettings.tsx:42 — 토글 PUT이 느리게 실패하거나 사용자가 낙관적 성공 토스트 본 직후 다른 화면 이동 → prefs.set 직후 저장 완료처럼 읽히는 토스트 표시하지만 실제 PUT 성공 콜백은 받지 않음·실패 알림은 컴포넌트 토스트뿐이라 화면 언마운트 시 보이지 않음·저장소 최대 10초 뒤 값 조용히 되돌림 (권고: 성공 안내는 서버 확인 뒤 onSuccess에서·전송 중 상태 노출·실패 알림은 전역 알림·여러 변경은 원자적 PUT)
+- 검토하지 못한 범위: 실제 네트워크 지연·타임아웃 주입 동작 / 360/390/412px 실기기 레이아웃·APK WebView
+- 원본: /home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20261004T103546Z-task-026-C2/raw.txt
+
+---
+
+다음: Reviewer가 지적 2건 채택·오탐 판정
+
+## Reviewer 기록 (Codex C2-화면 지적 판정, 2026-10-04 19:41 실측) — REV-096
+- 대상: Codex C2-화면(adversarial-review·error_handling) 지적 2건. 코드 수정 없음(Read 전용). REV-095 PASS 판정은 그대로, 아래 채택분은 Developer 수정 후 Reviewer 부터 재순환.
+- **판정 표**
+
+| # | Codex 지적 | 판정 | 심각도 | 요지 |
+|---|---|---|---|---|
+| 1 | `annotations.ts:242` 일시 실패 뒤 같은 화면에서 재요청 안 함(`asked`) | **채택(부분 — 정책 완화 필요, 자동 폴링은 반대)** | **MEDIUM** | 코드대로(아래) 사실이고 승인 가이드 §15-2·§15-B-3 이 의도한 동작이지만, 그 전제("다음 진입 때 다시 묻는다")가 오래 머무는 회화·채팅방에서는 성립하지 않는다 |
+| 2 | `DisplaySettings.tsx:42` 서버 확인 전 성공 토스트·느린 실패 시 조용한 되돌림 | **부분 채택** — 실패 알림 전달만 채택 / 성공 토스트 이동·전송 중 표시·원자적 PUT 은 **오탐(승인 데모·설계와 충돌)** | **LOW** | 되돌림이 호스트 화면의 토스트에만 묶여 화면을 떠나면 알림 없이 값만 바뀐다 — 실제이나 발생 조건이 좁다 |
+
+- **#1 근거(코드)**: `useAnnotations` 의 `asked`(useRef Set)는 요청한 문장을 한 번 넣으면 훅 인스턴스가 살아 있는 동안 빼지 않는다(`annotations.ts:243-246`). `AnnotationClient.flush` 는 `available:false`·HTTP 실패·12초 시간 초과를 `status='failed'` 로만 남기고(`:178-180`) `stateOf` 는 failed → `NONE`(`:204`)이라 루비·한글 둘 다 사라진다. `request()` 는 failed 를 다시 큐에 넣게 짜여 있으나(`:140-141`) 훅이 `asked` 로 막아 다시 부르지 않는다. 같은 문장을 다른 훅이 부르는 경우 말고는 복구 경로가 없다. 표시 설정 OFF→ON 도 `want` 만 바뀔 뿐 `asked` 가 남아 복구되지 않는다(`:236-247`). 재마운트(화면 이동)로만 초기화.
+  - 실제 영향: `MessageList`(채팅·회화방, 한 번 들어오면 수십 분 머무름)가 방 전체 말을 한 훅으로 부른다 → 입장 직후 서버가 30초 쉼(gateway 재기동·시간 초과 — S1 실측 `t=10s·20s available=false`, 33초 뒤 복구)이나 429·동시 2건 상한에 걸리면 **이미 있는 말풍선 전부가 방을 나갔다 오기 전까지 한글·히라가나 없음**. 새 말풍선은 새 문장이라 다시 요청되므로 대화가 이어지면 새 말만 나온다 → 같은 방에서 앞 말은 없고 뒤 말은 있는 불균일. 핵심 기능(회화·교정)은 영향 없음(읽기 degrade = 숨김 설계) — Critical·High 아님. 가이드의 "숨김으로 끝" 은 수업·단어장처럼 짧게 머무는 화면 전제였고, 오래 머무는 방은 §15-2 설계 때 따로 따지지 않았다(설계 공백 — 구현 결함은 아님, **구현이 승인 가이드와 일치**).
+  - **Codex 권고 중 "백오프 자동 재시도·폴링" 은 채택하지 않는다**: 가이드 §15-B-3 이 "자동 재시도·폴링 없음"을 명시했고, 서버가 분당 60·전역 30초 쉼·동시 상한(REV-089/090)으로 방어 중이라 타이머 재시도는 장애 중 요청을 늘리는 쪽이다. **이벤트 기반 1~2회 재시도**만 채택한다(아래).
+  - 판정 근거(요청 한도): 실패한 방에서 재시도 1회 = 묶음 요청 1개(≤64문장) — 분당 60 대비 무시 가능. 시도 횟수·간격 상한이 있으면 루프 없음.
+- **#1 채택분 수정안(최소, UI 변화 없음 = implementation, 데모 재승인 불필요)** — 재시도 정책을 훅이 아니라 `AnnotationClient` 로 옮긴다.
+  1. `AnnotationClient` 에 조각별 실패 기록 `failures: Map<string,{at:number; n:number}>` 추가(flush 의 failed 분기에서 `n+1`·`at=now`, 성공·null 캐시 때 삭제, 크기 `ANNOTATION_CACHE_MAX` 넘으면 가장 오래된 것부터 삭제). 상수 `ANNOTATE_RETRY_AFTER_MS = 35_000`(서버 쉼 30초 + 여유 — 쉼 안에서 다시 묻지 않는다)·`ANNOTATE_RETRY_MAX = 2`. deps 에 `now?: () => number`(테스트 주입).
+  2. `request()` 의 failed 분기: 기록이 `n < ANNOTATE_RETRY_MAX && now-at >= ANNOTATE_RETRY_AFTER_MS` 일 때만 다시 큐에 넣고, 아니면 건너뛴다(지금은 즉시 재큐 — 다른 훅이 같은 문장을 부르면 곧바로 재요청하는 현재 동작도 이 상한을 받게 된다). 처음 보는 문장은 그대로 즉시.
+  3. `useAnnotations`: `asked` 집합을 없애고 효과에서 `annotationClient.request(want)` 를 부른다 — 이미 캐시·대기·요청 중이면 `request` 안에서 걸러지므로 중복 요청 0. 효과 deps `[want, ver, wake]`(`ver` = 마지막 flush·변경 때 한 번 더 점검, 상한이 있어 루프 없음 — failed 재큐는 시간 상한에 걸려 `added=false` → `emit` 없음). `wake` = 로컬 `useState` 카운터, `document.visibilitychange`(visible)·`window` `online` 이벤트에서 +1(앱을 백그라운드에서 돌아올 때·네트워크 복구 때 점검). 타이머 폴링 없음.
+  4. 효과를 이벤트에만 묶으므로 "아무 일도 안 일어나는 방" 은 그대로 숨김으로 남는다(가이드의 '폴링 없음' 유지) — 대화가 이어지거나(`want` 변경) 앱으로 돌아오거나 표시 설정을 껐다 켜면(`want` 변경 → 효과) 최대 2회까지 복구한다. 이 3개 경로가 실제로 쓰는 복구 계기이고 가이드 문구("다음 진입 때")는 보존(진입 = 재마운트는 지금처럼 가장 확실한 복구).
+  5. 문서: `docs/screens.md` §15-B-3 문장을 "…자동 폴링 없음 — 같은 화면에서는 새 말 도착·앱 복귀·표시 설정 켜기 때 최대 2회, 35초 간격으로만 다시 묻는다. 다음 진입 때도 다시 묻는다" 로 갱신, `annotations.ts` 머리 주석(7~8행)·`useAnnotations` 주석 동기화.
+- **#1 테스트 기준**(`japaneseDisplay.test.ts`, 가짜 `post`·가짜 `now`):
+  - 실패 직후(0초)·34초 `request` → `post` 호출 증가 0 / 35초 → 정확히 1회 재요청, 성공하면 `ready`·실패 기록 삭제.
+  - 연속 실패 3회째 → 더 묻지 않음(`ANNOTATE_RETRY_MAX=2`, 총 3회 = 최초 1 + 재시도 2) / 재마운트 상당(`new AnnotationClient` 아닌 훅 새 인스턴스 = 같은 전역 클라이언트에서 `n` 유지 → 이 경우도 상한 적용 — 의도: 상한은 문장 단위 전역).
+  - `available:true` null 칸은 재요청 0(기존 테스트 `:152-175` 의 "실패만 다시" 는 시간 조건을 넣어 갱신).
+  - 429·시간 초과·`available:false` 3종 모두 같은 재시도 규칙. 동시 `request` 100회 반복 → 큐 중복 0·`emit` 루프 0.
+  - 정적 검사: 훅 소스에 `asked` 없음·타이머(`setInterval`/재귀 `setTimeout`) 없음, `visibilitychange` 리스너가 cleanup 됨.
+  - 변이 검증 2종: ① `ANNOTATE_RETRY_AFTER_MS` 조건 제거 → 간격 테스트 실패 ② `ANNOTATE_RETRY_MAX` 상한 제거 → 상한 테스트 실패.
+- **#2 근거(코드)**: `DisplaySettings.tsx:42-45` 는 `prefs.set(key, !on, onError)` 직후 같은 클릭에서 성공 토스트를 띄운다. `onError` 는 컴포넌트의 `useToast().show` 라 화면이 언마운트되면 `setMessage` 가 렌더되지 않는 컴포넌트에 걸려 아무것도 보이지 않는다(`useToast` 는 언마운트 시 타이머를 지운다). 저장소 쪽(`displayPrefs.ts:251-286`)은 PUT 시간 초과·실패 때 화면과 별개로 `emit` 해서 값을 서버 확인 값으로 되돌리므로, 느린 실패(10초 상한 `DISPLAY_REQUEST_TIMEOUT_MS`) 뒤 화면을 떠났다면 **다른 화면의 도구 줄·표시 바가 알림 없이 되돌아간다**. 같은 구조가 `JapaneseText.tsx:164`(`DisplayToggles` 의 `onToast`)에도 있다 — 설정 화면 한 곳이 아니라 6개 호스트 공통.
+  - 오탐으로 판정하는 부분: **(a) 성공 토스트를 서버 확인 뒤로 옮기라는 권고** — 승인 데모 v4·가이드 §15-5 가 "누르면 바로 저장·토스트 2.2초"를 정했고(낙관 패턴), 문구 "모든 화면에 적용돼요" 는 공용 저장소가 즉시 모든 화면에 반영되므로 사실이다. 서버 응답 뒤로 미루면 평소 수백 ms 지연된 토스트·10초 무응답 시 무반응이 되어 오히려 나쁘다. 크기·타이밍 변경은 material(데모 재승인)이라 범위 밖. **(b) 전송 중 상태 노출** — 새 UI 요소(material). **(c) 여러 변경 원자적 PUT** — 스위치는 서로 독립 키 하나씩 보내도록 설계(서버 부분 갱신), 키별 되돌림이 정확하고 학습 설정 `[저장]` 과 서로 덮지 않는 근거이므로 합치면 오히려 연타·부분 실패 처리가 복잡해진다.
+  - 실제 영향이 작은 이유: 느린 실패(≥ 수 초) 직후 화면을 떠나는 경로여야 하고, 빠른 실패(오프라인·5xx)는 같은 화면에 머무는 동안 토스트가 뜬다. 되돌림 자체는 정확하다(서버와 화면 일치). 그래서 LOW.
+- **#2 채택분 수정안(최소)** — 실패 알림을 호스트 화면이 아니라 저장소가 소유한다.
+  1. `DisplaySnapshot` 에 `failEpoch: number`(0 시작) 추가. `pump` 의 catch 에서 "되돌림이 실제로 일어났을 때만"(= `this.pending.has(key)` 로 `continue` 하지 않고 `p.onError?.()` 를 부르는 그 자리) `emit({ failEpoch: this.snap.failEpoch + 1 })`. 성공·더 새로 누른 값으로 대체되는 경우·이관 PUT 성공은 올리지 않는다. 이관 PUT(L-4)의 실패는 사용자가 누른 것이 아니므로 알림을 올리지 않는 쪽 권고(키 유지 재시도 규칙 불변) — 구분은 `Pending` 에 `silent?: boolean`.
+  2. `app/(app)/layout.tsx` 에 `<DisplaySaveNotice />`(신규 `components/shell/DisplaySaveNotice.tsx`, 클라이언트): `useSyncExternalStore` 로 `failEpoch` 만 구독하다 올라가면 자체 `useToast`+`Toast`(`bottomPx` 기본 84) 로 `DISPLAY_COPY.saveFailed` 를 `DISPLAY_TOAST_MS` 동안 표시. 첫 렌더의 epoch 는 기준값(마운트 때 토스트 금지). 셸은 화면 이동에도 유지되므로 화면을 떠나도 전달된다. 토스트 위치가 화면별 `bottomPx`(회화 음성 바 등)와 다르면 2.2초 겹칠 수 있으나 `pointer-events:none` 이라 조작은 막지 않는다(implementation).
+  3. 호스트의 `onError` 인자 제거(`DisplaySettings:43`·`JapaneseText:164` 등 6곳) — 한 경로로만 알려 이중 토스트를 막는다. `set(key,on)` 시그니처에서 `onError` 는 선택으로 남겨 두어도 되나(호환) 화면 코드는 쓰지 않는다. 성공 토스트는 호스트가 그대로(오탐 (a)).
+  4. 문서: `docs/screens.md` §15-5 "저장 실패 토스트" 를 "앱 셸이 띄운다(어느 화면에서도 같은 문구)" 로 갱신.
+- **#2 테스트 기준**: 저장소 단위 — ① PUT 실패 → `failEpoch` 정확히 +1(스위치는 되돌림) ② 시간 초과도 +1(`timeoutMs` 짧게) ③ 성공 → 변화 0 ④ 같은 키 연타 중 앞 PUT 실패·뒤 값이 이어받는 경우 → +1 아님(되돌리지 않으므로) ⑤ 이관 PUT 실패 → +1 아님 ⑥ 서로 다른 키 2개 연속 실패 → +2. 정적 — `(app)/layout.tsx` 가 `DisplaySaveNotice` 를 포함, `grep -rn "prefs.set(" src/components` 의 호출이 3번째 인자를 넘기지 않음. 변이 — catch 의 `emit` 제거 → ①②⑥ 실패 / `silent` 무시 → ⑤ 실패.
+- **발견(JSON, REV-095 PASS 판정 유지 + Codex 판정)**
+```json
+{
+  "reviewId": "REV-096",
+  "status": "PASS",
+  "issues": [
+    {
+      "issue": "표시 분석 요청이 일시 실패(30초 쉼·429·시간 초과·available:false)하면 같은 화면에서는 영영 다시 묻지 않아, 오래 머무는 회화·채팅방의 기존 말풍선 한글·히라가나가 방을 나갈 때까지 사라진다 (Codex 지적 1 채택)",
+      "severity": "MEDIUM",
+      "component": "src/components/common/japanese/annotations.ts:232-247(useAnnotations asked), :140-141·:178-180(AnnotationClient request/flush)",
+      "risk": "장애 직후에 방에 들어온 사용자는 앞선 말 전부의 읽기 층이 없고 뒤따르는 새 말만 나오는 불균일 화면을 본다. 핵심 기능은 영향 없음(읽기는 숨김 degrade).",
+      "evidence": "코드: asked(useRef Set)에 한 번 들어간 문장은 훅 생존 동안 재요청되지 않음, failed → stateOf NONE. 가이드 §15-B-3 이 '자동 재시도·폴링 없음, 다음 진입 때 다시' 로 명시(구현은 가이드와 일치 — 가이드의 짧은 화면 전제가 방에는 맞지 않음). S1 실측: 쉼 30초, 33초 뒤 복구. 재현 시도 없음(코드·기존 실측 근거).",
+      "recommendation": "재시도 정책을 AnnotationClient 로 이동: 조각별 실패 기록 {at,n}, 35초 간격·최대 2회 재시도, 훅은 asked 제거 후 request(want) 를 [want, ver, wake] 로 호출하고 wake 는 visibilitychange·online 이벤트로 올린다. 타이머 폴링 금지. 테스트·변이는 위 기준."
+    },
+    {
+      "issue": "표시 설정 저장 실패 알림이 호출한 화면의 토스트에만 묶여, 느린 실패(최대 10초) 뒤 화면을 떠났다면 값만 알림 없이 되돌아간다 (Codex 지적 2 부분 채택)",
+      "severity": "LOW",
+      "component": "src/components/settings/DisplaySettings.tsx:43, src/components/common/japanese/JapaneseText.tsx:164, src/components/common/japanese/displayPrefs.ts:269-279",
+      "risk": "사용자가 바꾼 표시가 설명 없이 이전 값이 된다. 서버·화면 값은 서로 일치(되돌림 자체는 정확)하고 다시 누르면 정상.",
+      "evidence": "코드: onError 는 호스트의 useToast.show, 언마운트되면 보이지 않음. 저장소는 호스트와 무관하게 emit 으로 되돌림. 재현 시도 없음.",
+      "recommendation": "저장소가 failEpoch 를 소유하고 앱 셸 DisplaySaveNotice 가 한 곳에서 토스트를 띄운다(호스트 onError 제거, 성공 토스트는 호스트 유지). 성공 토스트 지연·전송 중 표시·원자적 PUT 권고는 승인 데모·설계와 충돌하는 오탐으로 기각."
+    }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 1, "low": 1 },
+  "high_risk_areas": [
+    "QA #1: 읽기 분석 서버를 막은 상태(gateway 중지 또는 429 유도)로 회화·채팅방 입장 → 읽기 없음 확인 → 복구 후 새 말 도착·앱 백그라운드 복귀·한글 토글 OFF→ON 시 35초 뒤 복구, 재시도 총 2회에서 멈추는지, 장애 중 요청 폭주 0(분당 한도 여유)",
+    "QA #2: 표시 스위치 PUT 을 오프라인·지연(10초)·500 으로 만들어 실패 → 설정 화면에서 되돌림+토스트 1개(이중 토스트 없음) / 느린 실패 직후 다른 탭·화면으로 이동해도 셸 토스트가 뜨는지 / 성공 때는 토스트 추가 없음 / 회화 음성 모드에서 셸 토스트가 마이크 바와 겹쳐도 조작 가능",
+    "Reviewer 재순환: AnnotationClient 재시도 상태가 캐시 LRU 와 함께 정리되는지(실패 기록 맵 무한 증가 없음), flush 중 request 재진입, visibilitychange 리스너 cleanup",
+    "회귀: 수업·단어장·덱의 요청량(진입당 1~2회)이 재시도 정책 변경 뒤에도 그대로, 두 층 끔·덱 [읽기] 끔 = 요청 0"
+  ],
+  "native_change": false
+}
+```
+- **Codex 판정 요약**: 채택 1(부분 — 정책은 이벤트 기반 제한 재시도, 자동 폴링 기각)·부분 채택 1(알림 전달만)·오탐 해당 부분 3(성공 토스트 이동·전송 중 표시·원자적 PUT — 승인 데모 v4·§15-5 와 충돌, material)·범위 밖 0. 검토하지 못한 범위(Codex 명시): 실제 지연·시간 초과 주입 동작, 360/390/412 레이아웃·APK — QA 몫.
+- **Leader 판단 요청**: (1) 채택 2건을 한 번에 Developer 에게(둘 다 화면 레이아웃 변화 없음, 변경 ≈ annotations.ts·displayPrefs.ts·shell 1파일 신규·layout·호스트 호출 6곳·테스트·screens.md) — QA 를 두 번 돌리지 않도록 QA 전에 반영 권고, REV-095 M-1(배선 테스트 3곳)도 같은 터치로 묶으면 재순환 1회. (2) §15-B-3·§15-5 문구 갱신은 정본(가이드) 변경이므로 Leader 승인. (3) Sonnet developer 반려 누적 해당 없음.
+
+## Leader 기록 (Codex C2-화면·REV-096 수용, 2026-10-04 19:41)
+- Codex C2-화면(error_handling) 2건 → REV-096 부분 채택 수용: **#1** 실패 문장 재요청을 AnnotationClient 로(35초 간격·최대 2회, wake=visibilitychange·online, 타이머 폴링 금지) **#2** 저장 실패 알림을 저장소 failEpoch + 앱 셸 `DisplaySaveNotice` 로 일원화(호스트 onError 제거, 성공 토스트 그대로). 기각분(성공 토스트 지연·전송 중 표시·원자적 PUT)은 승인 데모와 충돌 — 기각 수용. UI 변화 없음 → 데모 재승인 불필요.
+- 같은 터치에 **REV-095 M-1**(화면 배선 3곳 테스트: ③ 가림 연결·단어 한글 불일치 숨김 훅·onTranslated 호출) 포함 → Reviewer 재순환 1회.
+- 가이드 정본 `docs/screens.md` §15-B-3·§15-5 문구 갱신은 Leader 승인으로 designer 에게.
+
+## Developer 기록 (REV-096·REV-095 M-1, 2026-10-04 실측)
+- [체크포인트 1] 완료: annotations.ts(재시도 정책 AnnotationClient 이동·listenWake·wordHangulState) · displayPrefs.ts(failEpoch·silent 이관·watchSaveFailures·useDisplaySaveFailure) · shell/DisplaySaveNotice.tsx 신규 + (app)/layout.tsx · JapaneseText.tsx·DisplaySettings.tsx onError 제거 · lesson/logic.ts quizPromptLayerState + StageQuiz · chat/messages.ts fetchUserTranslation + MessageBubble · 테스트 2파일. 미러 tsc 0·eslint 기존 2E/5W·관련 55/55. 남은 일: 전체 회귀·변이·화면 확인·기록. 미커밋 파일 = 위 전부.
+- [19:55] **완료 — REV-096 #1·#2 + REV-095 M-1, Reviewer 재인계.** commit·push·npm install·db push 없음. 서버·DB·계약·네이티브 변경 0(APK 불필요). `docs/screens.md` 미수정(designer 몫). 데모 게이트 `check.mjs check` → `DEMO_GATE_PASSED`(approved) — UI 레이아웃 변화 없음.
+  - **변경 파일 12**(신규 1): `src/components/common/japanese/{annotations,displayPrefs}.ts` · `common/japanese/JapaneseText.tsx` · `settings/DisplaySettings.tsx` · **신규 `shell/DisplaySaveNotice.tsx`** · `app/(app)/layout.tsx` · `lesson/{logic.ts,StageQuiz.tsx}` · `chat/{messages.ts,MessageBubble.tsx}` · 테스트 `common/__tests__/japaneseDisplay.test.ts`·`lesson/__tests__/display.test.ts`.
+  - **#1 재시도 정책 → `AnnotationClient`**: 상태 맵에서 `failed` 를 빼고 조각별 실패 기록 `failures: Map<text,{at,n}>`(성공·null 캐시 때 삭제, 크기 `ANNOTATION_CACHE_MAX` 넘으면 오래된 것부터 삭제 → 상태 맵은 queued/inflight 만 남아 flush 끝에 비워짐 — 무한 증가 없음). `canRetryAnnotate(f, now)` = `f.n - 1 < ANNOTATE_RETRY_MAX(2) && now - f.at >= ANNOTATE_RETRY_AFTER_MS(35_000)`, deps `now?`. 429·HTTP·시간 초과·`available:false` 는 전부 flush 의 같은 분기(같은 규칙), `available:true` null 칸은 null 캐시라 다시 묻지 않음. 훅: `asked` 삭제 → `useEffect(() => { if (want.length) request(want) }, [want, ver, wake])`, `wake` = `useState` + `listenWake(document, window, …)`(visibilitychange→visible·online, 해제 함수 반환 = cleanup). 타이머 폴링 0. 재진입: 새로 넣은 조각이 없으면 `request` 는 emit 하지 않음 → ver 효과 루프 없음, 실패 직후 emit 으로 다시 불려도 간격 상한에 걸림. 파일 머리·훅 주석 갱신.
+    - **판단 1(Reviewer 확인 요청)**: 재시도 중에도 `stateOf` 는 `none`(막대 아님) — 실패 기록이 있는 조각은 성공할 때까지 숨김 유지. 오래 머무는 방의 앞 말풍선이 재시도마다 막대↔숨김으로 높이가 흔들리지 않게. 처음 묻는 문장의 막대는 그대로.
+  - **#2 failEpoch**: `DisplaySnapshot.failEpoch`, pump catch 의 `pending.has(key)→continue` 뒤(= 기존 `onError` 자리)에서 `silent` 가 아니면 +1(되돌림과 같은 emit). 이관 PUT 은 `silent:true`. `watchSaveFailures(store, cb)`(구독 시점 값이 기준 — 마운트 때 토스트 금지)·`useDisplaySaveFailure(cb)`. 셸 `DisplaySaveNotice`(자체 `useToast`+`Toast` bottom 84, `DISPLAY_COPY.saveFailed`·`DISPLAY_TOAST_MS`) 를 `(app)/layout.tsx` TabBar 뒤에(fixed 라 그리드 행 차지 없음, 구독만이라 GET 유발 없음). `DisplayToggles`·`DisplaySettings` 의 `prefs.set` 3번째 인자 제거(성공 토스트 유지).
+    - **판단 2(Reviewer 확인 요청)**: 빠른 실패(오프라인)에서 호스트 성공 토스트와 셸 실패 토스트가 동시에 떠 겹치는 것(화면마다 bottomPx 가 달라 일부만 가려짐)을 막으려고 `useClearSuccessOnSaveFail(onToast)`(JapaneseText.tsx export) 추가 — 이 화면이 2.2초 안에 띄운 성공 토스트가 있으면 실패 순간 `onToast('', 0)`(빈 문구 = 숨김, 기존 Toast 는 falsy 면 opacity 0)으로 지운다. 결과는 예전과 같은 "성공 → 실패로 바뀜" 1개. Toast API 는 바꾸지 않음.
+  - **M-1 배선 3곳**: ③ `quizPromptLayerState(answered, ann, choices)`(logic.ts, 타입만 import — 런타임 의존 없음) ← `StageQuiz` 한 줄 · 단어 `wordHangulState(on, st, stored)`(annotations.ts) ← `useWordLayersList` 한 줄 · 번역 `fetchUserTranslation(post, chatId, messageId, onTranslated)`(messages.ts — #32t 호출·빈 번역 처리·`onTranslated` 를 한 함수로) ← `UserTranslation`. 각각 순수 함수 테스트 + 호출부 정적 검사(StageQuiz `promptState` 가 JaText·HangulLine 에 감·`quizReadingLeak` 직접 호출 0 / 훅 한 줄 / MessageBubble→MessageList→ChatRoom·TalkRoom `withUserTranslation`).
+  - **실행 증빙**(미러 `~/.node-local/thekaiwa-rev-026a`, NFS `src/`·`tests/` rsync --delete 후 `diff -rq src` 일치): `tsc --noEmit --incremental false` **0** · `eslint .` = **에러 2(ecosystem.config.js — 기존·무관)+경고 5(기존 admin·settings set-state-in-effect, 변경 파일 0)** · 관련 2파일 **55/55**(신규 23: 재시도 3유형×2·canRetry·null 재요청 0·재진입 100회·실패 기록 상한·listenWake·훅 정적·wordHangulState·훅 정적·failEpoch 3·watchSaveFailures·셸/호출 정적·fetchUserTranslation·번역 배선 정적·quizPromptLayerState·StageQuiz 정적 + 기존 2건 시간 조건 갱신) · **전체 회귀 1,380 / pass 1,380 / fail 0 / skip 0 / cancelled 0** · 엔진명·`dangerouslySetInnerHTML`·`console.` grep(변경 파일) 0.
+  - **변이 14건 전부 검출**(별도 사본 `thekaiwa-rev-026a-mut` 에서만, 원복 후 삭제 — 미러 src 와 NFS `diff -rq` 일치): V1 간격 조건 제거 → 5 FAIL · V2 횟수 상한 제거 → 4 · V3 failEpoch `silent` 조건 제거 → 1(이관) · V3b failEpoch 증가 제거 → 2 · V3c 연타 이어받기에도 +1 → 1 · X3a StageQuiz 배선 끊기 → 1 · X3b `quizPromptLayerState` 항상 ann → 1 · X2a 훅 배선 끊기 → 1 · X2b 불일치 숨김 제거 → 1 · X1a `onTranslated` 호출 제거 → 1 · X1b 말풍선이 안 넘김 → 1 · W1 `wake` deps 제거 → 1 · W2 리스너 해제 누락 → 1 · N1 셸 알림 제거 → 1.
+  - **화면 확인**(미러 `next dev -H 127.0.0.1 -p 3022`, QA_ACCOUNT=1 쿠키, Playwright 390×892, 데이터 전부 `page.route` 픽스처 → DB·QA 계정 설정 무변경, `Date.now` 오프셋 주입): 회화방 #24r 429 → 한글 0줄 → 앱 복귀(visibilitychange) 0초·30초 재요청 0(실제 경과 2.5초 포함 — 정확한 34/35 경계는 가짜 시계 단위 테스트) → 35초 1회 → 3줄 복구 · 채팅방 `available:false` → 36초 뒤 새 말(보내는 중 말풍선) 도착 → 1회 재요청·4줄 복구 · 계속 429 + 앱 복귀 36초 간격 6번 + online → **총 3회** · 회화방(음성 모드) PUT 500 → 토스트 **1개**(셸 문구)·`aria-pressed` 되돌림·토스트 `pointer-events:none`(중앙 hit = 아래 요소) — 셸 토스트(bottom 84)가 마이크 바 위쪽과 겹치지만 조작 가능 · 설정 빠른 실패 → 토스트 1개(셸)·스위치 되돌림 · 설정 느린 실패(3초) 직후 탭 이동(`/study/today`) → 이동한 화면에서 셸 토스트 1개 · 성공 시 성공 토스트만 1개. 스크린샷 `scratchpad/rev096/shots/{talk-recovered,chat-new-message,talk-save-failed,settings-save-failed,navigated-save-failed}.png`, 스크립트 `scratchpad/rev096/rev096.mjs`·`rev096-a.mjs`.
+  - **정리**: dev 3022 종료(포트 비어 있음) · 쿠키 shred · 미러에 복사한 `.env` shred · 임시 Playwright 폴더·변이 사본은 scratchpad 로 이동. 미러 `thekaiwa-rev-026a` 는 보존(`.next` 캐시 생김).
+  - **남은 일(designer·Leader)**: `docs/screens.md` §15-B-3·§15-5 문구 갱신(Leader 승인 → designer).
+  - 미커밋: 위 12파일(화면 A·B 기존 미커밋 파일과 함께).
+```json
+{ "taskId": "task-026", "status": "DONE", "deliverables": ["src/components/common/japanese/annotations.ts", "src/components/common/japanese/displayPrefs.ts", "src/components/common/japanese/JapaneseText.tsx", "src/components/settings/DisplaySettings.tsx", "src/components/shell/DisplaySaveNotice.tsx", "src/app/(app)/layout.tsx", "src/components/lesson/logic.ts", "src/components/lesson/StageQuiz.tsx", "src/components/chat/messages.ts", "src/components/chat/MessageBubble.tsx", "src/components/common/__tests__/japaneseDisplay.test.ts", "src/components/lesson/__tests__/display.test.ts"], "blockers": [], "risk_level": "LOW", "self_check": { "unit_test": true, "lint": true, "type_check": true, "engine_name_leak": false, "native_change": false } }
+```
+
+## Reviewer 기록 (REV-097 — REV-096 채택 2건 + REV-095 M-1 수정분 재검증, 2026-10-04 20:10 실측)
+- **판정 PASS** (Critical 0 · High 0 · Medium 0 · Low 3 · Info 3). REV-096 #1·#2 와 REV-095 M-1 모두 해소 확인. QA 진행 가능.
+- **데모 게이트**: `check.mjs check` → `DEMO_GATE_PASSED`(approved v4, hash verified). evidence.jsonl 최신 줄은 18:26 `approve v4` 그대로(이후 approve·waive 추가 0), `.claude/state/demo-gate/` 직접 쓰기 흔적 0. 이번 변경은 레이아웃·문구 변화 없음(셸 실패 토스트는 §15-5 ★ 문구 그대로) → material 0·defect 0, implementation 2건(아래 판단 b·토스트 위치).
+- **재실행(미러 `~/.node-local/thekaiwa-rev-026b`, NFS `src/`·`tests/` rsync --delete 후 `diff -rq src` 일치)**: `tsc --noEmit --incremental false` **0** · `eslint .` 에러 2(`ecosystem.config.js` 기존·무관)+경고 5(기존 admin·settings, 변경 파일 0) · 관련 4파일 **71/71** · **전체 회귀 1,380 / pass 1,380 / fail 0 / skip 0 / cancelled 0**(Developer 수치와 일치). 독립 변이 7건(미러만, 원복 후 `diff -rq` 일치): 성공 시 실패 기록 미삭제 → 3 FAIL · 실패 기록 LRU 제거 → 1 · failEpoch 이어받기 예외 제거 → 1 · `available:true` null 칸 재요청 → 2 · 셸 `DisplaySaveNotice` 제거 → 1 · StageQuiz 한글 줄이 `promptAnn` 직접 사용 → 1 검출 / **`useClearSuccessOnSaveFail` 의 `onToast('',0)` 제거 → 0 FAIL(생존, L-1)**.
+- **1. 재요청 규칙(코드)**: `canRetryAnnotate` = `n-1 < 2 && now-at >= 35s` → 실패 3번째에서 정지(최초+재시도 2), 처음 보는 문장은 즉시. 429·HTTP·12초 시간 초과·`available:false` 는 flush 의 같은 else 분기(`fail`), `available:true`+null 칸은 null 캐시(재요청 0, M4 변이로 검출). 실패 기록 `failures` 는 `fail()` 이 delete→set(LRU)·`ANNOTATION_CACHE_MAX` 초과 시 오래된 것 삭제, 성공·null 캐시·표기 불일치 null 모두 `failures.delete`(M1 검출). `status` 맵은 queued/inflight 만 → flush 끝에 비워져 무한 증가 없음. `request` 는 새로 넣은 조각이 없으면 `emit` 안 함 → `[want, ver, wake]` 효과가 루프하지 않음(실패 직후 emit 으로 다시 불려도 간격 상한에 걸림, 100회 재진입 테스트). `setInterval`·재귀 `setTimeout` 0(묶음 예약 `setTimeout(fn,0)` 1곳 + `withTimeout` 단발만, 정적 테스트가 고정). `listenWake` 가 visibilitychange→visible·online 두 리스너를 달고 해제 함수를 돌려주며 훅 효과가 그대로 cleanup 반환. 요청량: 레이어 OFF·로드 전 `want=[]` → `request` 호출 0, wake 는 `setWake` 뿐, 실패가 없으면 wake·ver 갱신도 캐시 적중 = 네트워크 0. 장애 중 요청은 문장당 최대 3회·방 하나에 묶음(≤64)이라 분당 60 한도에 무시 가능.
+- **2. failEpoch·셸 토스트**: pump catch 가 `pending.has(key)` 이면 `continue`(이어받기 — +1 없음), 아니면 `silent`(이관 PUT) 가 아닐 때만 +1 — 이 시점 `snap[key]` 는 항상 마지막 누른 값이고 `confirmed` 와 다르므로(reload 는 보내는 중·대기 키를 안 덮음) 되돌림이 실제로 일어난 경우와 같다. 시간 초과도 같은 catch. `watchSaveFailures` 기준값 = 구독 시점 → 마운트 때 토스트 없음. `DisplaySaveNotice` 는 `(app)/layout.tsx` 에 1곳(`fixed` 라 그리드 행 미차지), 구독만이라 GET 유발 0, 실패 문구(`DISPLAY_COPY.saveFailed`)는 이 파일에만(정적 테스트가 전 컴포넌트 검사). **호스트 `onError` 제거 완전성**: `prefs.set(` 호출은 `JapaneseText.tsx:180`(DisplayToggles)·`DisplaySettings.tsx:45` 두 곳뿐이고 둘 다 2인자 — 6개 호스트(설정·회화 바·채팅 바·단어장·수업 ①~③ 도구 줄)는 모두 이 둘을 거친다(정적 테스트가 `prefs.set(` 인자 수 검사). `set(key,on,onError?)` 시그니처의 선택 인자만 남음(L-3 정리 권고).
+- **3. M-1 배선 3곳**: ③ `quizPromptLayerState`(logic.ts, 타입 import 만)·단어 `wordHangulState`(annotations.ts)·번역 `fetchUserTranslation`(messages.ts)이 순수 함수로 빠졌고, 호출 지점은 정적 테스트가 정규식으로 고정(StageQuiz 가 `quizReadingLeak` 직접 호출 0·`promptState` 를 JaText·HangulLine 에, 훅 한 줄, 말풍선→목록→ChatRoom·TalkRoom `withUserTranslation`). 내 변이 M6(StageQuiz 한글 줄 우회)·X 계열 검출로 **REV-095 의 생존 3건 모두 잠김 확인**.
+- **4. Developer 판단 평가**: (a) 재시도 중 실패 문장은 막대 대신 숨김 유지 — **수용**. 막대로 바꾸면 none↔loading 을 최대 3번 오가며 오래 머무는 방의 앞 말풍선 높이가 매번 흔들리고, 숨김 유지는 성공 시 1번만 커진다(처음 묻는 문장의 막대는 그대로). §15-2 C 는 failed 상태를 '숨김'으로만 정의해 충돌 없음. (b) `useClearSuccessOnSaveFail` — **수용(구현 판단 타당)**. 이 화면이 2.2초 안에 띄운 성공 토스트만 `onToast('',0)`(Toast 는 falsy 면 opacity 0, `useToast.show` 가 이전 타이머를 교체)으로 지워 "성공→실패로 바뀜 1개"를 만든다 — §15-6 #20 "셸 토스트 정확히 1개·이중 없음"과 같은 목적이고 데모 v4 에는 저장 실패 상태가 없어(§15-9 ⓓ) 충돌 대상 없음, 레이아웃·Toast API 변경 0. 경쟁 상태: ① 같은 키 후속 값이 이어받으면 failEpoch 가 안 올라 지우지 않음 ② 구독 순서 무관(호스트 지움/셸 표시는 별개 Toast 인스턴스) ③ 2.2초 경계는 지움이 해롭지 않은 쪽(이미 사라졌거나 곧 사라짐) ④ 다른 키 실패가 방금 누른 다른 키의 성공 토스트를 지우는 경우는 있으나 셸 실패 토스트가 곧바로 뜨므로 허용 ⑤ TalkRoom `notify` 는 녹음 중이면 지움 요청이 `deferredToastRef` 로 가 덮어쓰기만 됨(무해). 다만 테스트 없음(L-1) · 가이드 §15-3 B 에 이 정리 동작이 적혀 있지 않음(L-1).
+- **5. 셸 토스트 × 회화 음성 바**: 셸 토스트는 `bottom:84+safe`·1줄(≈44px, 360 폭 2줄 ≈64px)이라 y 84~128 을 덮는다. `VoiceBar` = pt8 + 상태 줄 24 + mt4 + 버튼 줄 64 + pb8 ≈108 → **마이크(PTT)·좌우 44px 버튼 줄(8~72)은 덮지 않고** 상태 줄(76~100)의 위 16px 와 바 위 경계만 가린다. `pointer-events:none` 이라 어차피 탭은 통과 → §15-3·§15-6 #20 "겹쳐도 조작 가능" 충족, 개발자 Playwright(hit 가 아래 요소) 와 일치. 읽기 문제는 2.2초 동안 상태 줄 글자("듣고 있어요" 등)가 가려지는 것(L-2, 회화방 자체 토스트는 이를 피하려 136 을 쓴다).
+- **6. 경계·보안 회귀**: 6층 — 신규 import 는 `@/components/common/*`·`reading/client`(eslint 허용 목록)·타입 import 뿐, 엔진명(`reazon|whisper|style-bert|claude|sherpa|speaker_id|model_id`) 변경 범위 0, `dangerouslySetInnerHTML`·`innerHTML`·`console.`·`fetch(`·`spawn`·`window.Capacitor` 0, 화면 글자 '후리가나' 0, 서버·DB·계약·네이티브·인증 변경 0. **`grep -rn readingDefault src/components`** = `displayPrefs.ts`(주석 2·이관 2줄)·`chat/storageKeys.ts`(정의)·`vocab/{hooks,useVocabDeck}.ts`(`kaiwa.vocab.readingDefault`)·테스트 1 → 게이트 유지.
+- **발견(JSON)**
+```json
+{
+  "reviewId": "REV-097",
+  "status": "PASS",
+  "issues": [
+    {
+      "issue": "`useClearSuccessOnSaveFail`(저장 실패 때 방금 띄운 성공 토스트 지우기)에 테스트가 없고 가이드에도 적혀 있지 않다",
+      "severity": "LOW",
+      "component": "src/components/common/japanese/JapaneseText.tsx:153-161",
+      "risk": "정리 호출이 사라지면 빠른 실패 때 성공 토스트와 셸 실패 토스트가 같은 자리에서 겹쳐 보인다(§15-6 #20 '정확히 1개' 위반). 지켜 주는 자동 테스트가 없다.",
+      "evidence": "미러 변이 `onToast('', 0)` → `void 0`: japaneseDisplay·display 테스트 fail 0(생존). 가이드 §15-3 B 에는 실패 토스트 일원화만 있고 이 정리 동작 언급 없음.",
+      "recommendation": "다음 터치 때 정적 테스트(`DisplayToggles`·`DisplaySettings` 가 `useClearSuccessOnSaveFail` 을 부르고 `markShown()` 이 `prefs.set` 뒤에 있음)와 §15-3 B 한 줄 추가. QA 는 빠른 실패에서 토스트 1개만 보이는지 육안 확인."
+    },
+    {
+      "issue": "셸 실패 토스트(bottom 84)가 회화 음성 모드에서 방 자체 토스트 위치(136)보다 낮아 음성 바 상태 줄 글자를 2.2초 가리고, 녹음 중에도 방의 `notify` 지연 규칙(§9-0 ⑨ 스크린리더 음성이 마이크로 들어가지 않게)을 받지 않는다",
+      "severity": "LOW",
+      "component": "src/components/shell/DisplaySaveNotice.tsx, src/components/talk/TalkRoom.tsx:118(VOICE_TOAST_BOTTOM)·:236(notify)",
+      "risk": "상태 줄(듣고 있어요 등) 일시 가림. 표시 스위치를 누른 직후 PTT 를 잡고 PUT 이 10초 안에 실패하는 드문 경우, 셸 토스트의 `aria-live` 낭독이 녹음에 섞일 수 있다. 마이크·버튼 조작은 영향 없음(pointer-events:none, PTT 줄 비겹침).",
+      "evidence": "코드 계산(VoiceBar 높이 ≈108 vs 토스트 84~128) + 개발자 hit 테스트. 실기기 재현 시도 없음.",
+      "recommendation": "수정 불필요(가이드 허용 범위). QA 가 회화 음성 모드에서 실패 토스트가 PTT·마이크 버튼 탭을 막지 않는지 확인. 후속: 셸 토스트가 녹음 중에는 낭독을 미루거나 음성 모드에서 위치를 올리는 규칙을 다음 터치 때 검토."
+    },
+    {
+      "issue": "재시도(wake)로 시작한 flush 가 진행 중 flush 와 겹쳐 서버 동시 2건 상한(429)에 닿으면 그 429 도 문장의 재시도 횟수(최대 3회)를 소모한다",
+      "severity": "LOW",
+      "component": "src/components/common/japanese/annotations.ts:flush(scheduled=false 를 flush 시작 때 내림)",
+      "risk": "세 flush 가 동시에 도는 경우(큰 방 로드 중 새 말·앱 복귀·온라인 복귀가 연달아)에 한해 일부 문장이 의도보다 일찍 재시도 한도에 닿아 이번 세션에서 숨김으로 남을 수 있다. 핵심 기능 영향 없음, 다음 진입 때 복구.",
+      "evidence": "코드: flush 는 시작 즉시 `scheduled=false` 로 내려 새 flush 를 허용하고 묶음은 flush 안에서만 순차. 3중 겹침은 희귀(wake 가 새로 넣을 조각은 간격 상한 때문에 거의 없음). 재현 시도 없음.",
+      "recommendation": "수정 불필요. 다음 터치 때 flush 를 클라이언트당 1개(진행 중이면 큐만 쌓고 끝에서 이어 처리)로 직렬화하면 서버 동시 상한과 재시도 횟수 계산이 모두 단순해진다."
+    },
+    {
+      "issue": "구조·잔재(Info)",
+      "severity": "INFO",
+      "component": "displayPrefs.ts:set(key,on,onError?)·:15(common→chat/storageKeys) / DisplaySaveNotice 의 상시 role=status",
+      "risk": "① 화면이 안 쓰는 선택 인자 `onError` 가 시그니처에 남음(이중 토스트를 다시 만들 여지) ② common 이 chat 저장 키 상수를 import(REV-094 I-2 그대로) ③ 셸 토스트가 모든 화면에 투명한 `role=status` 하나를 더 둬, 자체 Toast 가 있는 화면은 live region 이 2개 — QA·E2E 가 `getByRole('status')` 를 쓰면 strict 모드에서 2건으로 잡힘",
+      "evidence": "코드 확인, 재현 시도 없음.",
+      "recommendation": "다음 터치 때 `set` 의 `onError` 제거·이관 키 상수를 common 으로 이동. QA 는 토스트 선택자를 문구·`aria-live` 위치로 좁힌다."
+    }
+  ],
+  "summary": { "critical": 0, "high": 0, "medium": 0, "low": 3, "info": 1 },
+  "high_risk_areas": [
+    "QA 분석 장애 복구(§15-6 #19): gateway 정지 또는 429 유도 상태로 회화·채팅방 입장 → 읽기 없음 → 복구 후 새 말 도착·앱 백그라운드 복귀·온라인 복귀·한글 OFF→ON 중 하나로 **35초 경과 뒤** 복구 / 35초 안 재요청 0 / 같은 문장 총 3회에서 정지 / 아무 조작 없는 방 요청 0 / 재시도 중 앞 말풍선 높이가 막대로 흔들리지 않음(숨김 유지 → 성공 시 1회 커짐)",
+    "QA 저장 실패(§15-6 #20): 표시 스위치 PUT 을 오프라인·500·지연(10초)으로 → 값 되돌림 + 셸 토스트 정확히 1개(성공 토스트가 같은 자리에 남지 않음) · 느린 실패 직후 다른 탭 이동해도 셸 토스트 · 성공 때는 성공 토스트만 · 같은 키 연타 이어받기·이관 PUT 실패는 토스트 없음 · 마운트·화면 이동만으로 토스트 0",
+    "QA 회화 음성 모드: 셸 토스트가 마이크 바 위(상태 줄)와 겹쳐도 PTT·키보드·정지 버튼 탭이 되는지, 360 폭 2줄 토스트에서도 PTT 줄 비겹침, 녹음 중 실패 때 낭독이 섞이지 않는지(TalkBack)",
+    "QA ③ 수업 문제 가림·단어 한글 불일치 숨김·내 말 번역 접었다 펴기 회귀(REV-095 배선 3곳 — 이제 테스트로 잠김)",
+    "QA 요청량: 수업 단계 진입 1~2회·단어장 한 쪽 1회·두 층 끔·덱 [읽기] 끔 = 0회·재시도는 문장당 최대 3회(장애 중 폭주 0)",
+    "배포 게이트(deployer): A·B·REV-096 함께 웹 배포(서버·DB·네이티브 0), 배포 직전 `grep -rn readingDefault src/components` 가 displayPrefs·chat/storageKeys·vocab 키 외 0 인지 재확인, designer 의 §15-B-3·§15-5 문구 갱신(Leader 승인분)은 이미 screens.md 에 반영돼 있어 별도 조치 없음"
+  ],
+  "native_change": false
+}
+```
+- **Codex**: C2-화면 지적은 REV-096 에서 판정 완료 — 이번 수정분이 채택안과 일치함을 확인(채택 #1 이벤트 기반 제한 재시도·#2 저장소 failEpoch+셸 토스트, 기각분 3건은 구현에 없음). 추가 Codex 개입 판정 없음.
+- **Leader 판단 요청**: (1) PASS — QA 진행 가능(Low 3 은 QA 와 병행 또는 다음 터치). (2) L-1 의 §15-3 B 한 줄 보강은 가이드 정본 변경이라 Leader 승인 후 designer. (3) Sonnet developer 반려 누적 해당 없음(이번 수정 Opus).
+
+## Leader 기록 (REV-097 PASS 수용, 2026-10-04 20:02)
+- REV-097 PASS 수용. 이번 수정은 Codex C2-화면 지적의 반영분이고 Reviewer 가 재검증했으므로 C2 재호출 없음(예산 보존).
+- 비차단 L-1(`onToast('',0)` 변이 생존·가이드 미기재)·L-2(셸 토스트가 회화 상태 줄 16px 2.2초 가림, 녹음 중 지연 미적용)·L-3(겹친 flush 429 횟수 소모)는 배포 후 후속 IMP 로 등록 — 이번 배포 차단 아님.
+- 다음: QA(Sonnet, 실화면 360/390/412 × 780/892 + REV-097 high_risk_areas) → readingDefault grep → A+B 함께 커밋·배포.
+
+## QA 기록 (화면 A·B, 2026-10-04 20:03~20:50 실측)
+- **판정: PASS (Critical 0 · High 0 · Medium 0 · Low 결함 3 · 관찰 5)** — Low 3건은 아래 결함 #1~#3. 코드·prisma·speech 수정 0. **결함 0건이 아니므로 deployer 직접 인계는 하지 않고 Leader 판단**(Low 후속 IMP 처리 여부). 이전 QA·Reviewer 수치는 인용하지 않고 전 항목을 이번에 직접 실행했다. 데모 게이트 `check.mjs check` → `status: approved · approved_version: v4 · hash: verified`.
+- **환경(재현 조건)**: 미러 `~/.node-local/thekaiwa-rev-026a` 에 NFS `src/ tests/ prisma/ public/` rsync(`diff -rq` src·tests 동일) · `next dev -H 127.0.0.1 -p 3022`(APP_ENV=LOCAL, 접속 `http://localhost:3022`, `SPEECH_GATEWAY_URL=http://127.0.0.1:8197` 환경변수로 덮음 — 운영 8100·pm2 미접촉) · dev gateway = dev venv `~/.node-local/thekaiwa-speech-dev` uvicorn 127.0.0.1:8197 · 쿠키 `QA_ACCOUNT=1`(qa-bot, 600 파일 → shred) · 실 Claude CLI·M4 TTS 사용(턴 2회, 순차).
+- **QA 시각 검증 재현 조건**: 브라우저 Google Chrome 147.0.7727.101(headless, playwright-core 1.58.2) · viewport 360×780/892 · 390×780/892 · 412×780/892, deviceScaleFactor 2.625, isMobile+hasTouch · locale ko-KR · timezone Asia/Seoul · 라이트(명암비만 라이트/다크 둘 다) · 일반 모션(reducedMotion 은 15번에서만 reduce) · 시스템 글꼴, `networkidle`+2.5~3.5초 대기 후 측정 · 네트워크 fixture: 기본은 실 dev 서버, 장애·실패 시험만 `page.route` · 캡처 = 상태별(viewport 단위) · Next dev 오버레이(N 배지)는 `nextjs-portal{display:none}` 로 숨김(하단 탭·입력창과 겹치는 dev 전용 요소) · 허용 범위: 레이아웃 변화는 px 측정치로 판정(스크린샷 픽셀 비교 아님). 스크린샷은 `…/scratchpad/qa026/shots/` 81장(프로젝트 밖, Leader 요청 경로).
+- **시드(QA 계정 전용, 종료 시 정확한 id 로 삭제)**: 채팅 7방(채팅·긴 채팅 50말·회화·점검 후·읽기없음장문·신규 턴 2) · 단어 10(明日=あす 불일치·악성 80자 포함) · 수업 1(읽기 문제 q1 포함) · 오늘의 단어 세트 1. 표시 설정은 QA1 의 것만 바꾸고 **원래 값 true/true/false 로 복구**(DB 직접 확인).
+
+### 체크리스트 §15-6 (1~20) — 항목별 판정과 근거
+| # | 판정 | 근거(측정·원 출력) |
+|---|---|---|
+| 1 표시 바 | **PASS** | `t1.mjs`: 360/390/412 모두 그룹 `aria-label="이 방 전체 표시"` 높이 44 · 한 줄(`oneRow true`, `scrollWidth==clientWidth`) · 회화 머리 56 바로 아래(top 56)·채팅 머리 52 아래(top 52, 채팅 머리는 기존 52). 스크롤러 1개. **390×780 회화방 목록 높이 563px**(데모 실측과 일치), 채팅 578, 360×892 회화 675. 가로 스크롤 0·넘침 요소 0. |
+| 2 층 순서·크기 | **PASS** | `t2/t3`: rt 11px·`rgb(90,99,89)`(=`--ink2 #5a6359`)·`aria-hidden`·`user-select:none`·`ruby-position:over`·`ruby-align:center`·`<rp>` 0 · 한자 묶음에만(비한자 base 0건/146) · `面白い映画`→`面白|おもしろ`(い 위 없음) · `持ち帰り`→`持|も 帰|かえ` · `あしたはやすみ` 루비 0+한글만 · 한글 13px·`lang=ko`·mt 2px·lh 19.5·`word-break normal/overflow-wrap anywhere`·`[` `]` 장식 `aria-hidden`·sr-only "한글 발음: ". 순서: 루비→본문→한글→번역(구분선 1px color-mix 18%·15px). |
+| 3 줄간격 예약 | **PASS(결함 #3)** | `t4.mjs`(annotate 3.5초 지연): 번역 끔 = 말풍선 높이 변화 +1.5px(한 문장 기준 전 말풍선), 한글 줄이 2줄로 감기는 문장(`3時に…`)은 +21px(예약 막대 1줄 대비 — 불가피), **번역 켬 = 내 말 +5.5px(>4px, 결함 #3)**. 채팅 첫 로드 바닥 거리 `dist` 0 → 0 유지(scrollHeight 3539→4324). |
+| 4 애매하면 숨김 | **PASS** | `t5.mjs`: annotate `available:false`·429·503 모두 **ruby 0·한글 0·옛 `reading` 줄(`きょうはなにを`) 0·토스트 0·`role=alert` 0**. 450자 구두점 없는 말(분할 불가) 루비·한글 없음 + 높이 932 불변. 실 gateway: `この町は静か`→`町|まち 静|しず`·`[코노 마찌와 시즈까…]`, `3時に`→`時|じ 会|あ`, `2026年10月4日…`→`年|ねん 日曜日|にちようび`(月·日 없음) · 요청 1회(문장 3). |
+| 5 잘림 | **PASS** | `t12`+육안 확대: 단어장 행 표제어 `truncate` 박스가 rt 상단 2px(빈 박스)와 겹치지만 **글자 픽셀 잘림 0**(확대 캡처 2장 육안 `rt-clip-row1/2.png`) · 덱 카드 `line-clamp-3` rt(`えき`) 전체 보임 · 문제 보기 높이 `[80,80,68,80]`(≈80, 가나만 68) · 360/412 가로 넘침 0. |
+| 6 교정 카드 | **PASS** | `t11`: 컨테이너 **298px(360)=위아래 1열 · 328(390)·350(412)=두 칸**(159/170px). diff 지운 `を`(빨강 배경)·넣은 `に`(초록 밑줄) 위 루비 없음(가나)·`学校へ`↔`学生へ` 한자 묶음 가운데가 diff 경계 → **그 묶음만 히라가나 없음**(`行|い` 만). 대화 속 카드·모아 둔 교정 시트·점검 화면 3곳 모두 루비+한글. |
+| 7 단어 | **PASS(관찰)** | `t12`(3폭×4조합): 행 높이 둘 다 켬 **105**(≈102)·히라가나만 **82**(80)·한글만 **93**(92)·둘 다 끔 **70**(71) — ±3 이내. `明日`(저장 `あす`)=루비 あす·**한글 숨김**(목록·상세 시트 모두). 악성 80자: 렌더 뒤 클릭 응답 36~65ms(멈춤 없음), 한글 3줄 줄바꿈. 상세 시트 표제어 28·rt 13·한글 14, 예문 16·rt 11·한글 13. |
+| 8 스위치 동기화 | **PASS** | `t8/t9/t10`: 단어장에서 끄기→SPA 이동 설정 스위치 즉시 같은 값·회화방 표시 바(새로고침 없음) 같은 값 · 다른 기기(API)에서 바꾼 값은 설정 재진입 때 반영 · PUT 500·abort·3초 지연+500 모두 **값 되돌림+셸 토스트 정확히 1개**(`maxFail 1, appearances 1`) · 같은 키 연타 5회 → PUT 1회 `{"showHangul":false}`·최종 값 저장. |
+| 9 이관 | **PASS** | `t9`: `readingDefault='off'`+서버 true → `PUT {"showFurigana":false}` 1회·키 삭제·서버 false · `'on'` → PUT 0·키 삭제 · **`kaiwa.vocab.readingDefault` 유지** · 이관 PUT 500 → **토스트 0·키 `off` 유지**. |
+| 10 E4-B | **PASS** | `t13`: 말풍선 [번역 ▾] 로 연 뒤 바 번역 켬(3개 펼침)→끔 → **0개, `aria-expanded=false`**. |
+| 11 내 말 번역 | **PASS** | `t14~t17`: 로드 직후 #32t 호출 **0** · 옛 말 `[번역 가져오기]`(높이 44) · mock(`data:{code,details}` 봉투) 409 TURN_RUNNING→"선생님 답이 끝나면 다시 눌러 주세요" · 409 TRANSLATION_BUSY→"다른 번역을 가져오는 중이에요. 잠시 뒤 다시 눌러 주세요" · 429→"잠시 뒤 다시 눌러 주세요" · 404/400→"이 말은 번역할 수 없어요"(버튼 없음) · 5xx→"번역을 가져오지 못했어요"+[다시 가져오기] · **실호출 1회** 2.4s → "재미있는 영화를 봤어요."(자동 호출 없음). 새 턴(실 LLM) `done` 직후 "번역 중…"→**5.1s 에 "오늘은 친구랑 영화를 보러 갔어요."**(채팅), 회화도 동일("어제 제 친구와 공원에 갔어요."). |
+| 12 F1-A | **PASS** | `t13`: 채팅 ⋯ 메뉴 = 제목 바꾸기·채팅 삭제, 회화 ⋯ = 제목·들려주는 방식·교정 방식·회화 삭제 — "읽기 항상 펼치기" 없음. |
+| 13 오늘의 단어 | **PASS** | `t20`: [읽기] 끔 → 루비·한글 0(앱 설정 켬이어도) · 앱 끔·끔+카드 켬 → 루비만 · 켬+한글 끔 → 루비만 · 앱 끔+한글 켬+카드 켬 → 루비+한글. 합성 드래그(60px, 30이동) 프레임 **p50 16.7ms·p95 16.8ms**(층 켬/끔 동일). 실기기 프레임은 육안. |
+| 14 수업 | **PASS** | `t21~t27`: ① 글자 가림 중 루비 0·한글 0·본문 미노출, [글자 보기] 후 층 · ① [번역]=회화방 번역과 같은 서버 값(true, 13px) · ② 도구줄 [히라가나][한글]만 · ③ **읽기 문제(promptJa 注文·보기 가나) 고르기 전 promptJa 루비·한글 0 → 고른 뒤 `注文ちゅうもん`·`[츄-몽]`**, 일반 문제 q2 는 처음부터 층 · ④ 응용 비교(밑줄+루비 `下` 위 `くだ`) · ⑤ 목표 표현 칩·"내가 쓴 답" 말풍선·모범 답안 루비+한글. 360/390/412 전 단계 가로 넘침 0. |
+| 15 접근성 | **부분 PASS / TalkBack NOT_VERIFIED** | rt `aria-hidden`·접근성 텍스트 "나:今日は…한글 발음: 쿄-와…"(rt 제외) · 토글 `aria-pressed`+`✓`(색 단독 아님) · 설정 `role=switch aria-checked`(3행 높이 56) · 포커스 링 `outline auto 1px rgb(229,151,0)`·`:focus-visible`·Space 로 토글 · 명암비 rt/한글: **라이트 6.24(선생님)·5.31(내 말, accent-soft)**, **다크 7.68·6.95**, 본문 ≥12.4 · **다크 토큰 반전 확인**(`--ink #1e2420→#ecefe9`, `--surface #fff→#1d2320`, `--accent-soft #fbe9e3→#3a241e`) · `prefers-reduced-motion: reduce` 시 막대 `pulse` 애니메이션 0(일반은 `pulse 2s`). **실제 TalkBack 낭독·스크린리더 음성은 육안 필요**. |
+| 16 복사 | **PASS(프로그램 선택)** | `selectAllChildren(말풍선).toString()` = "유우:\n3時に会いましょう。2026年10月4日は日曜日です。"(루비·한글 제외). 실기기 길게 누르기 복사는 육안. |
+| 17 엔진명 | **PASS** | `t30`: 8개 화면 HTML·화면 글자·console 에서 `reazon|whisper|style-bert|sherpa|model_id|speaker_id|claude|gateway|127.0.0.1|openjtalk|후리가나` **0건**, API 응답 16건 본문도 0건. 화면 글자 '후리가나' 0(소스 주석에만 존재). console 오류 0. |
+| 18 요청량 | **PASS** | `t18/t19/t31`: 채팅 50말 첫 진입 annotate **1회(40문장)** · 12말 1회 · SPA 이동 후 재입장 **0회**(캐시) · 두 층 끔: 채팅·회화·단어장·수업 **0회** · 단어장 히라가나만 0회·한글 켬 1회 · 덱 [읽기] 끔 0회 · 수업 ① 1회(6문장)·③ 1회(13)·② 1회(4). |
+| 19 분석 장애 복구 | **PASS** | `t6`(타임스탬프 원 출력): 최초 0.5s 실패 → wake(visible·online) 즉시 <35s **증가 0** → 36s **조작 없이 대기: 증가 0(폴링 없음)** → 41.5s 에 visibilitychange → **2번째** → 직후 online 중복 **0** → 82.0s online → **3번째** → 123s 4번째 기회 **증가 0(총 3회 정지)**, 소진 뒤 한글 OFF→ON 도 0. 장애 내내 말풍선 높이 51 불변(막대로 흔들림 없음). 복구: 첫 실패 후 <35s 한글 OFF→ON 증가 0, **>35s 후 OFF→ON → 정상 복귀(rt 9·한글 3)**. |
+| 20 느린 저장 실패 | **PASS** | `t8/t31`: 같은 화면 500·abort → 셸 토스트 1(성공 토스트와 동시 0, **빠른 실패 동시 최대 1**) · 5초 지연 500 뒤 탭 이동(단어장→오늘) → **이동한 화면에서 5.1s 에 1개** · 성공 시 성공 토스트만(`maxFail 0`) · 연타 3클릭 이어받기(PUT 2회, 2번째도 실패) → **토스트 정확히 1** · 마운트·탭 이동만 → 토스트 0 · **회화 음성 모드**: 토스트 `top 765~808`·`pointer-events:none`, PTT(72×72, top 812)·키보드(44×44)·번역▾ 버튼 중심 hit-test **전부 자기 자신**, 토스트 중 키보드 버튼 → 입력창 열림. |
+
+### REV-097 high_risk_areas 대응
+- **분석 장애 복구**=#19 · **저장 실패**=#20 · **회화 음성 모드 토스트**=#20(PTT·키보드 PASS, **녹음 중 정지 버튼·TalkBack 낭독 혼입 NOT_VERIFIED** — headless 에 마이크·음성 인식 경로 없음, 육안) · **③ 수업 가림·단어 한글 불일치·번역 접기/펴기**=#14·#7·#10 · **요청량**=#18 · REV-097 L-2(상태 줄 가림): 토스트 765~808 이 상태 줄을 2.2초 가림을 육안 확인(`talk-shell-toast-360.png`) — 예상 범위, 결함 아님.
+- 실데이터(실 dev gateway 8197, 앱 경유): 채팅·회화 모두 말풍선 한자 위 히라가나(`今日|きょう`)·한글 줄 붙음 · 내 말 `userTranslation` 즉시 표시 · 요청 순서 `turns@4.3s → annotate(내 말)@4.3s → annotate(선생님 답)@11.4s`(채팅), 회화도 동일 흐름.
+
+### 결함 (재현·기대·실제)
+- **[결함 #1] [Low]** `src/modules/speech/reading/client.ts`(`hangulLine`, S1) / 입력 `先生へ手紙を書きます。` · `学生へ行きます。` · `家へ帰ります。`(화면 교정 카드·말풍선에 그대로 노출) / 실제: pron `センセーエ|…` → **`센세-- 테가미오 카끼마스.`**, `가꾸세-- 이끼마스.`, `家へ`→`이에- 카에리마스.` / 기대: 장음 뒤 조사 へ(エ)는 소리대로 따로 → `센세-에`, `가꾸세-에`, `이에에` / 원인 추정: O-1(조사 を)에서 ヲ 표식으로 푼 "같은 모음 반복 → 장음 `-`" 규칙이 조사 へ(エ)가 え단·장음 e 뒤에 올 때는 적용되지 않아 합쳐짐. 화면 A·B 가 아니라 S1 변환 규칙 — 후속 IMP 후보(교정 카드·점검에서 `学生へ` 류에 노출). 재현: 시드 스크립트 `he.mts`(seed-scripts/).
+- **[결함 #2] [Low]** `src/components/common/japanese/JapaneseText.tsx:184`(`DisplayToggles`) / 360·390·412 전 폭, 표시 바·수업/단어장 도구 줄 / 실제: 토글 눈에 보이는 높이 **32px**, `before:-inset-y-1.5` 가 이어 줘도 부모 그룹이 `overflow-x-auto`(y 도 잘림)+`border-b 1px` 라 **유효 터치 높이 41px**(`elementFromPoint` 탐색: `eh 41`, 폭 50~86) / 기대: §15-6 #15 "터치 44px(토글)" / 원인 추정: 44px 바(52→96, 하단선 포함)가 확장 영역을 잘라냄 — 단어장 도구 줄의 같은 토글은 `eh 43`. 영향 작음.
+- **[결함 #3] [Low]** `src/components/chat/MessageBubble.tsx` 사용자 말풍선(번역 켬) / `t4.mjs` annotate 3.5초 지연, 번역 켬(서버 `showTranslation=true`) / 실제: 분석 결과가 오면 **내 말풍선 +5.5px**(113.2→118.7, 118.7→124.2, 148.9→154.4 3종) / 기대: §15-6 #3 "말풍선 높이 변화 ≤4px"(번역 끔에서는 +1.5px 로 충족) / 원인 추정: 번역 칸이 있는 말풍선에서 한글 막대(예약)와 실제 한글 줄 사이 약 4px 여백 차이. 채팅 바닥 유지(`dist 0`)에는 영향 없음.
+- (결함 아님·관찰) **O-1** 한글 줄이 2줄로 감기는 긴 문장은 예약 막대(1줄) 대비 +19.5px(`3時に会いましょう。2026年…` 말풍선 +21px) — 줄 수 예측이 불가능해 구조적 한계. **O-2** 칩·필터·설정 칩 36px 높이 요소들은 유효 43px(기존 화면, 이번 변경 아님). **O-3** `selectAllChildren` 으로 복사 제외를 확인했고 실제 길게 누르기는 실기기. **O-4** 번역 칸이 없는 선생님 말풍선(저장 번역 null)에는 번역 켬이어도 칸 없음(기존 동작). **O-5** 회화 음성 바 위 셸 토스트가 상태 줄을 가림(REV-097 L-2 그대로).
+
+### 자동 검증(미러 `thekaiwa-rev-026a`, NFS 와 src·tests `diff -rq` 동일)
+- `node node_modules/typescript/bin/tsc --noEmit --incremental false` → **`tsc exit 0`**
+- `node node_modules/eslint/bin/eslint.js src tests` → **`✖ 5 problems (0 errors, 5 warnings)`** exit 0(기존 `react-hooks/set-state-in-effect` 5건, 변경 파일 아님)
+- `node --import tsx --test --test-concurrency=1 $(find src -name '*.test.ts' | sort)` → **`# tests 1380 · # pass 1380 · # fail 0 · # cancelled 0 · # skipped 0`**
+- `grep -rn readingDefault src/components`(테스트 제외) = `displayPrefs.ts`(주석 2·이관 2)·`chat/storageKeys.ts`(정의)·`vocab/{hooks,useVocabDeck}.ts`(`kaiwa.vocab.readingDefault`) — 게이트 유지.
+
+### NOT_VERIFIED(육안·실기기 필요)
+TalkBack/스크린리더 낭독(rt 미낭독·"한글 발음:" 낭독) · 녹음 중 정지 버튼 탭과 셸 토스트 낭독이 마이크로 섞이는지(REV-097 L-2) · 길게 눌러 복사 실기기 · S25+/앱 WebView ≈390 실화면 프레임·글꼴 렌더 · 5초 예산·30턴 p50/p95·단어 세트 소요(이번 묶음은 화면 — 측정 대상 아님; 참고 실턴 2건: 채팅 내 말 번역 5.1s·회화 7.6s 완료) · APK 설치·딥링크(네이티브 변경 0, `native_change:false`).
+
+### 정리
+- 프로세스 정리: dev 앱(next-server 3160841·부모 3160830·자식 claude --print 1)·dev gateway(uvicorn 3160829) 종료 → `ss -ltn` 3022·8197 listener 0, `ps` 에 rev-026a·claude --print 잔존 0(운영 3010·8100 은 내 것이 아니며 그대로).
+- 쿠키 `c1`·`c2` shred, 미러의 `.env` 복사본·`scratch/qa026ab` 삭제(시드·정리 스크립트는 `…/scratchpad/qa026/seed-scripts/` 로 보존). 미러 `thekaiwa-rev-026a` 는 보존.
+- DB(QA 계정, 정확한 id): 삭제 전 `chats 7 · messages 83 · corrections 6 · proposals 3 · traces 2 · words 10 · lessons 1 · sessions 1` → 삭제 후 전부 `0`(재조회), QA1 의 기존 채팅 3개·표시 설정 `true/true/false`·`FLUENCY`·`dailyWordCount 10` 불변 확인. 남은 것: QA1 의 오늘 출석 체크인 행(앱이 페이지 진입 시 자동 생성)·회화 턴이 만든 TTS 캐시 wav(내용 해시, 만료 정리 대상).
+- 산출물 정리: 스크린샷 81장은 Leader 요청 경로(scratchpad, 프로젝트 밖)에 남겨 둠 — 필요 없으면 shots 폴더를 지우면 된다.
+
+```json
+{ "taskId": "task-026", "status": "DONE", "deliverables": ["agent-vault/10-Flow/tasks/task-026-improve-hangul-reading.md (QA 기록 화면 A·B)"], "blockers": [], "risk_level": "LOW", "metrics": { "talk_p50_ms": null, "talk_p95_ms": null, "vocab_set_sec": null, "note": "화면 묶음 — 30턴·단어 세트 지표 범위 밖 NOT_VERIFIED. 참고: 채팅 실턴 내 말 번역 5.1s, 회화 실턴 완료 7.6s, annotate 재시도 번역 2.4s" } }
+```
+
+## Leader 기록 (QA PASS 수용·배포 결정, 2026-10-04 20:52)
+- QA(화면 A·B) PASS 수용. Low 3건(QA-L1 장음 뒤 조사 へ 한글 합쳐짐 `先生へ→센세--` · QA-L2 표시 토글 유효 터치 41px · QA-L3 번역 켬 내 말풍선 +5.5px)은 배포 차단 아님 — REV-097 L-1~3 과 함께 후속 개선 task 로 묶어 처리(QA-L1 우선). 실기기 육안 항목(TalkBack·녹음 중 정지·길게 눌러 복사·S25+ 렌더)은 사용자 폰 확인으로 넘김.
+- readingDefault grep 게이트 통과(이관 코드·storageKeys 정의·`kaiwa.vocab.readingDefault`·부재 단언 테스트만). 화면 A+B 한 커밋으로 배포.

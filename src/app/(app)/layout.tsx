@@ -1,5 +1,6 @@
 import AppUpdateBanner from '@/components/shell/AppUpdateBanner'
 import AttendancePing from '@/components/shell/AttendancePing'
+import DisplaySaveNotice from '@/components/shell/DisplaySaveNotice'
 import NativeFlag from '@/components/shell/NativeFlag'
 import TabBar from '@/components/shell/TabBar'
 
@@ -50,6 +51,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           하단 탭이 화면 위로 밀린다(task-029 IMP-0023 — 설정 2992px·오늘 999px). 셸이 아니라 main 에 두어 숨은 입력의 focus() 가 셸을 스크롤시키지도 않게 한다. */}
       <main className="relative min-h-0 min-w-0 overflow-y-auto bg-ground">{children}</main>
       <TabBar />
+      {/* 표시 설정 저장 실패 토스트(REV-096 #2) — fixed 라 그리드 행을 차지하지 않는다. 화면 토스트보다 뒤에 두어 겹치면 위에 그린다. */}
+      <DisplaySaveNotice />
     </div>
   )
 }

@@ -17,7 +17,10 @@ import type { ProposalDto } from '@/types/chat'
 import type { AudioPace, LessonContent, LessonDto, LessonProgress, MemoResult } from '@/types/lesson'
 import { SKIP_REASON, U1 } from './lessonCopy'
 import { activeLineReplay, cleanMemo, lineReplayKey, lineReplayPace, memoRequest, memoWordProblem, playLineReplay, rateLabel, segmentLines } from './logic'
-import { RoleChip, Spinner, StopIcon, PlayIcon, Toggle } from './parts'
+import { useAnnotations } from '@/components/common/japanese/annotations'
+import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
+import { LessonDisplayTools, RoleChip, Spinner, StopIcon, PlayIcon } from './parts'
 import type { LessonPlayback } from './useLessonPlayback'
 import type { UseLesson } from './useLesson'
 import { LESSON_KEYS } from './useLessonCreate'
@@ -49,8 +52,6 @@ export default function StageUnderstand({
   st,
   pb,
   reviewing,
-  reading,
-  onReading,
   learningSpeed,
   onToast,
   footer,
@@ -59,8 +60,6 @@ export default function StageUnderstand({
   st: UseLesson
   pb: LessonPlayback
   reviewing: boolean
-  reading: boolean
-  onReading: (on: boolean) => void
   learningSpeed: number | null
   onToast: (m: string) => void
   footer: React.ReactNode
@@ -74,7 +73,9 @@ export default function StageUnderstand({
   const normalDone = p.listen?.played?.normal ?? []
   const segDone = (k: number) => (p.listen?.segmentsDone ?? []).includes(k) || (slowDone.includes(k) && normalDone.includes(k))
   const [open, setOpen] = useState<number | null>(() => segNums.find((k) => !((p.listen?.segmentsDone ?? []).includes(k))) ?? segNums[0] ?? null)
-  const [trans, setTrans] = useState(false)
+  // 표시 층은 앱 전체 설정(task-026 §15-4-7) — 대화 전부를 단계 마운트 때 한 묶음으로. 글자 가림 중인 줄은 층도 그리지 않는다.
+  const prefs = useDisplayPrefs()
+  const anns = useAnnotations(useMemo(() => c.dialogue.map((d) => d.ja), [c]))
   const [shown, setShown] = useState<Set<number>>(() => new Set())
   const memo = p.listen?.memo ?? []
 
@@ -95,13 +96,7 @@ export default function StageUnderstand({
         {U1.title}
       </h2>
       <p className="mt-1 text-[13px] text-ink2 break-keep">{textOnly ? U1.descTextOnly : U1.desc}</p>
-      <div role="group" aria-label={U1.toolsAria} className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
-        <Toggle on={reading} onClick={() => onReading(!reading)}>
-          {U1.reading}
-        </Toggle>
-        <Toggle on={trans} onClick={() => setTrans(!trans)}>
-          {U1.translation}
-        </Toggle>
+      <LessonDisplayTools keys={['fu', 'hg', 'tr']} onToast={onToast}>
         <span className="ml-auto flex items-center gap-1 text-[12px] text-ink2">
           <RoleChip who="A" small />
           {c.rolesKo.A}
@@ -109,7 +104,7 @@ export default function StageUnderstand({
           <RoleChip who="B" small />
           {c.rolesKo.B}
         </span>
-      </div>
+      </LessonDisplayTools>
       <div className="mt-2.5 flex flex-col gap-2">
         {segNums.map((k, si) => {
           const lines = segs.get(k) ?? []
@@ -198,15 +193,9 @@ export default function StageUnderstand({
                           <RoleChip who={d.speaker} />
                           <div className="min-w-0">
                             <span className="sr-only">{c.rolesKo[d.speaker]}: </span>
-                            <p lang="ja" className="whitespace-pre-wrap text-[17px] leading-[1.7] [overflow-wrap:anywhere]">
-                              {d.ja}
-                            </p>
-                            {reading && d.reading !== d.ja ? (
-                              <p lang="ja" className="text-[14px] text-ink2 [overflow-wrap:anywhere]">
-                                {d.reading}
-                              </p>
-                            ) : null}
-                            {trans ? <p className="text-[13px] text-ink2 break-keep">{d.ko}</p> : null}
+                            <JaText text={d.ja} state={anns[idx]} className="whitespace-pre-wrap text-[17px] leading-[1.7] [overflow-wrap:anywhere]" />
+                            <HangulLine state={anns[idx]} size={13} />
+                            {prefs.loaded && prefs.showTranslation ? <p className="text-[13px] text-ink2 break-keep">{d.ko}</p> : null}
                           </div>
                           {lineBtn(idx)}
                         </div>

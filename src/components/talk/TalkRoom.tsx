@@ -22,6 +22,8 @@ import { apiGet, apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { readStore, writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
+import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
+import { DisplayBar } from '@/components/common/japanese/JapaneseText'
 import { useCountdown } from '@/components/common/useNow'
 import { ErrorBlock, LoadingBlock } from '@/components/common/ui'
 import AcceptCorrectionSheet from '@/components/chat/AcceptCorrectionSheet'
@@ -30,10 +32,9 @@ import Composer, { type ComposerHandle } from '@/components/chat/Composer'
 import { actionErrorText } from '@/components/chat/labels'
 import { PendingBubble, UserBubble } from '@/components/chat/MessageBubble'
 import MessageList, { type MessageListHandle, type RowContext } from '@/components/chat/MessageList'
-import { correctionFromDone, endsWithUnfinishedReply, mergeMessages, prependMessages, turnBaseOf } from '@/components/chat/messages'
+import { correctionFromDone, endsWithUnfinishedReply, mergeMessages, prependMessages, turnBaseOf, withUserTranslation } from '@/components/chat/messages'
 import NewChatSheet from '@/components/chat/NewChatSheet'
 import ProposalCard from '@/components/chat/ProposalCard'
-import { KEYS } from '@/components/chat/storageKeys'
 import TurnNotice from '@/components/chat/TurnNotice'
 import { useChatTurn, type RestoreInfo, type SettledKind } from '@/components/chat/useChatTurn'
 import { STT_HINT_COPY, STT_STATUS_COPY, STT_SWITCH_TOAST } from '@/components/speech/sttCopy'
@@ -165,7 +166,6 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const [proposals, setProposals] = useState<ProposalDto[] | null>(null)
   const [config, setConfig] = useState<SpeechConfigView | null>(null)
   // 첫 렌더는 늘 'loading' 이라 저장소 값을 초기값으로 읽어도 서버 렌더와 어긋나지 않는다.
-  const [readingDefault, setReadingDefault] = useState(() => readStore('local', KEYS.readingDefault) !== 'off')
   const [mode, setMode] = useState<InputMode>(() => (readStore('session', TALK_KEYS.inputMode) === 'text' ? 'text' : 'voice'))
   const [native] = useState(() => typeof window !== 'undefined' && isNativeApp())
   const [chunks, setChunks] = useState<Record<string, AudioChunkView[]>>({})
@@ -194,6 +194,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set())
   const [srMsg, setSrMsg] = useState('')
   const toast = useToast()
+  // 표시 설정(task-026)을 대화와 같이 읽기 시작한다 — 말풍선이 그려진 뒤 층 자리가 늦게 생겨 바닥이 밀리지 않게.
+  useDisplayPrefs()
   const status = useTtsRuntimeStatus()
   const { reportSynthesis, pause: pauseStatus } = status
 
@@ -738,6 +740,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         </div>
       ))
 
+  const onUserTranslated = (id: string, text: string) => setMessages((ms) => withUserTranslation(ms, id, text))
+
   const renderUser = (m: ChatMessageView, ctx: RowContext) => {
     const canMine = m.inputSource === 'REALTIME_STT' && !!m.utteranceId && m.audioAvailable !== false && !gone.has(m.id) && m.localStatus !== 'SENDING'
     // 모아 둔 교정(LATER)은 대화 속에 그리지 않는다 — 칩·시트로(데모 fl-flow, 내 말풍선에도 표시를 남기지 않는다).
@@ -748,7 +752,9 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
           chatId={chatId}
           message={m}
           showTime={ctx.groupEnd}
+          ann={ctx.ann}
           correctionChip={false}
+          onTranslated={onUserTranslated}
           actions={
             canMine ? (
               <TalkUserActions replay={replayStateOf(m, 'mine')} disabled={listening} onPlay={() => replayMine(m)} onStop={playback.stop} />
@@ -793,7 +799,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
           teacherName={teacherName}
           showHeader={ctx.groupStart}
           showTime={ctx.groupEnd}
-          readingDefault={readingDefault}
+          ann={ctx.ann}
           playingIndex={speaking && spans ? snapshot.chunkIndex : null}
           speaking={speaking}
           replay={replayStateOf(m, 'replay')}
@@ -821,7 +827,6 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         teacherName={teacherName}
         showHeader={ctx.groupStart}
         showTime={false}
-        readingDefault={readingDefault}
         playingIndex={speaking ? snapshot.chunkIndex : null}
         speaking={speaking}
         replay="idle"
@@ -993,12 +998,12 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   return (
     <div data-talk-state={view.state} className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
       {header}
+      <DisplayBar onToast={notify} />
       <MessageList
         chatId={chatId}
         messages={messages}
         proposals={proposals ?? []}
         teacherName={teacherName}
-        readingDefault={readingDefault}
         turn={turn}
         hasOlder={!!olderCursor}
         loadingOlder={loadingOlder}
@@ -1052,13 +1057,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         open={menuOpen}
         chat={chat}
         turnBusy={turnBusy}
-        readingDefault={readingDefault}
         onClose={() => setMenuOpen(false)}
         onRenamed={(title) => setChat((c) => (c ? { ...c, title } : c))}
-        onReadingDefault={(on) => {
-          setReadingDefault(on)
-          writeStore('local', KEYS.readingDefault, on ? 'on' : 'off')
-        }}
         onToast={notify}
         extra={
           <>

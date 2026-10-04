@@ -6,12 +6,14 @@
  * 문제 머리(task-025 데모 v1 `#l3-new`·`#l3-old`·`#l3-sum`, task-025b 데모 v1): 한국어 질문(굵게) → 일본어 문장(17px). promptKo 가 비었거나
  * 한글 없이 일본어뿐이면 공통 안내 줄 + 안내 노트(`quizPromptView`·`quizSummaryPrompt` 가 한글 인지로 고른다). 보기(답)에는 한국어를 붙이지 않는다(답 노출).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useAnnotations, type AnnotationState } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Card } from '@/components/common/ui'
 import type { LessonContent, LessonDto } from '@/types/lesson'
 import { U3 } from './lessonCopy'
-import { hasJa, quizPromptView, quizSummaryPrompt } from './logic'
-import { InfoIcon } from './parts'
+import { hasJa, quizPromptLayerState, quizPromptView, quizSummaryPrompt } from './logic'
+import { InfoIcon, LessonDisplayTools } from './parts'
 import { RV_LESSON } from './review/reviewCopy'
 import type { UseLesson } from './useLesson'
 
@@ -38,7 +40,14 @@ function Dots({ quiz, answers, current }: { quiz: LessonContent['quiz']; answers
   )
 }
 
-function Choice({ text, className = '' }: { text: string; className?: string }) {
+function Choice({ text, className = '', ann }: { text: string; className?: string; ann?: AnnotationState }) {
+  if (ann && hasJa(text))
+    return (
+      <span className="min-w-0">
+        <JaText as="span" text={text} state={ann} className="block text-[17px] [overflow-wrap:anywhere]" />
+        <HangulLine as="span" state={ann} size={12.5} />
+      </span>
+    )
   return hasJa(text) ? (
     <span lang="ja" className={`min-w-0 text-[17px] [overflow-wrap:anywhere] ${className}`}>
       {text}
@@ -52,12 +61,14 @@ export default function StageQuiz({
   lesson,
   st,
   reviewing,
+  onToast,
   footer,
   variant = 'NEW',
 }: {
   lesson: LessonDto & { content: LessonContent }
   st: UseLesson
   reviewing: boolean
+  onToast: (m: string) => void
   footer: React.ReactNode
   /** 복습 수업(task-010b)이면 결과 카드 아래 문구만 바뀐다. */
   variant?: 'NEW' | 'REVIEW'
@@ -74,6 +85,18 @@ export default function StageQuiz({
   const firstChoiceRef = useRef<HTMLButtonElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const [focusNext, setFocusNext] = useState<'next' | 'choice' | null>(null)
+  // 문제 일본어 문장·일본어 보기를 단계 마운트 때 한 묶음으로(task-026 §15-4-7). 문제마다 [문장, 보기…] 순서, 한국어 보기는 빈 칸(요청 없음).
+  const layout = useMemo(() => {
+    const texts: string[] = []
+    const at = quiz.map((q) => {
+      const start = texts.length
+      texts.push(quizPromptView(q).ja ?? '')
+      for (const c of q.choices) texts.push(hasJa(c) ? c : '')
+      return start
+    })
+    return { texts, at }
+  }, [quiz])
+  const anns = useAnnotations(layout.texts)
   useEffect(() => {
     if (focusNext === 'next') nextRef.current?.focus()
     if (focusNext === 'choice') {
@@ -135,6 +158,10 @@ export default function StageQuiz({
   const qp = quizPromptView(q)
   const a = answers[idx]
   const answered = a !== null
+  const base = layout.at[idx]
+  const promptAnn = anns[base]
+  // 읽기를 묻는 문제(문장 속 한자 읽기 = 가나 보기 하나)는 답하기 전까지 문장의 히라가나·한글을 가린다(§15-9 ②). 분석 전에는 아직 아무것도 보이지 않는다.
+  const promptState = quizPromptLayerState(answered, promptAnn, q.choices)
   const pick = (j: number) => {
     if (answered) return
     st.update(
@@ -155,6 +182,8 @@ export default function StageQuiz({
         {U3.title(quiz.length)}
       </h2>
       <p className="mt-1 text-[13px] text-ink2 break-keep">{U3.desc}</p>
+      {/* 보기에는 번역이 없어 [번역] 은 두지 않는다(MOV ⑤). */}
+      <LessonDisplayTools keys={['fu', 'hg']} onToast={onToast} />
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <span className="text-[14px] font-bold">{U3.counter(idx + 1, quiz.length)}</span>
         <Dots quiz={quiz} answers={answers} current={idx} />
@@ -163,9 +192,10 @@ export default function StageQuiz({
         <Card className="mt-2">
           <p className="text-[16px] font-semibold break-keep [overflow-wrap:anywhere]">{qp.ko}</p>
           {qp.ja ? (
-            <p lang="ja" className="mt-1 text-[17px] leading-[1.7] [overflow-wrap:anywhere]">
-              {qp.ja}
-            </p>
+            <>
+              <JaText text={qp.ja} state={promptState} className="mt-1 text-[17px] leading-[1.7] [overflow-wrap:anywhere]" />
+              <HangulLine state={promptState} size={13} />
+            </>
           ) : null}
           {qp.legacy ? (
             <p className="mt-2 flex items-start gap-1.5 text-[12px] text-ink2 break-keep">
@@ -191,7 +221,7 @@ export default function StageQuiz({
                   <span aria-hidden="true" className="grid h-6 w-6 place-items-center rounded-full bg-surface2 text-[12px] font-semibold text-ink">
                     {j + 1}
                   </span>
-                  <Choice text={c} />
+                  <Choice text={c} ann={anns[base + 1 + j]} />
                   {answered && correct ? <span className="text-[12px] font-bold text-good">{U3.correctTag}</span> : answered && mine ? <span className="text-[12px] font-bold text-bad">{U3.mineTag}</span> : <span />}
                 </button>
               )

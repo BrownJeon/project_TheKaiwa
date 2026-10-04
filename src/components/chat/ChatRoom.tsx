@@ -14,6 +14,8 @@ import { apiGet } from '@/components/common/api'
 import { readStore, writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import { ErrorBlock, LoadingBlock } from '@/components/common/ui'
+import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
+import { DisplayBar } from '@/components/common/japanese/JapaneseText'
 import BackBar from '@/components/shell/BackBar'
 import type { ChatDetail, ChatInfo, ChatMessageView, Paged, ProposalDto } from '@/types/chat'
 import ChatMenuSheet from './ChatMenuSheet'
@@ -22,7 +24,7 @@ import Composer, { type ComposerHandle } from './Composer'
 import { toErr } from '@/components/common/errors'
 import { actionErrorText } from './labels'
 import MessageList, { type MessageListHandle } from './MessageList'
-import { endsWithUnfinishedReply, pendingCorrectionCount, prependMessages, turnBaseOf, userMessageCount } from './messages'
+import { endsWithUnfinishedReply, pendingCorrectionCount, prependMessages, turnBaseOf, userMessageCount, withUserTranslation } from './messages'
 import ReviewDoneBar from './ReviewDoneBar'
 import ReviewNudge from './ReviewNudge'
 import { KEYS } from './storageKeys'
@@ -49,11 +51,12 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
   const [proposals, setProposals] = useState<ProposalDto[] | null>(null)
   const [serverPendingProposals, setServerPendingProposals] = useState(0)
   // 첫 렌더는 늘 'loading'(말풍선 없음)이라 저장소 값을 초기값으로 읽어도 서버 렌더와 어긋나지 않는다.
-  const [readingDefault, setReadingDefault] = useState(() => readStore('local', KEYS.readingDefault) !== 'off')
   const [nudgeDismissed, setNudgeDismissed] = useState(() => readStore('session', KEYS.nudge(chatId)) === '1')
   const [menuOpen, setMenuOpen] = useState(false)
   const toast = useToast()
   const router = useRouter()
+  // 표시 설정(task-026)을 대화와 같이 읽기 시작한다 — 말풍선이 그려진 뒤 층 자리가 늦게 생겨 바닥이 밀리지 않게.
+  useDisplayPrefs()
 
   const composerRef = useRef<ComposerHandle | null>(null)
   const listRef = useRef<MessageListHandle | null>(null)
@@ -186,13 +189,13 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
         onMenu={() => setMenuOpen(true)}
         onToast={toast.show}
       />
+      <DisplayBar onToast={toast.show} />
       {chat.reviewedAt ? <ReviewDoneBar chatId={chatId} remaining={remaining} pendingProposals={pendingProposals} /> : null}
       <MessageList
         chatId={chatId}
         messages={messages}
         proposals={proposals ?? []}
         teacherName={teacherName}
-        readingDefault={readingDefault}
         turn={turn}
         hasOlder={!!olderCursor}
         loadingOlder={loadingOlder}
@@ -201,6 +204,8 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
         onProposalChange={(p) => setProposals((prev) => upsertProposals(prev ?? [], [p]))}
         onToast={toast.show}
         handleRef={listRef}
+        followContent
+        onUserTranslated={(id, text) => setMessages((ms) => withUserTranslation(ms, id, text))}
       />
       {showNudge ? (
         <ReviewNudge
@@ -228,13 +233,8 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
         open={menuOpen}
         chat={chat}
         turnBusy={turnBusy}
-        readingDefault={readingDefault}
         onClose={() => setMenuOpen(false)}
         onRenamed={(title) => setChat((c) => (c ? { ...c, title } : c))}
-        onReadingDefault={(on) => {
-          setReadingDefault(on)
-          writeStore('local', KEYS.readingDefault, on ? 'on' : 'off')
-        }}
         onToast={toast.show}
       />
       <Toast message={toast.message} />

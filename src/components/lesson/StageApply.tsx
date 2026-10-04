@@ -6,8 +6,10 @@
  * 글자 비교(task-025 데모 v1 `#l4-diff`·`#l4-kanji`·`#l4-same`·`#l4-mixed`·`#l4-skip`): 다른 글자 = 굵게 + 밑줄(내 문장에만 점선, 모범 답안에만 실선),
  * 색은 ink·surface 만(빨강·초록·취소선 없음). 정오 판정·저장은 바꾸지 않는 표시일 뿐이다(`compareAnswer`).
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { DiffSeg } from '@/components/chat/diff'
+import { changedRanges, OFF, useAnnotations, type AnnotationState } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Btn, Card } from '@/components/common/ui'
 import MicLevelMeter from '@/components/speech/MicLevelMeter'
 import PushToTalkButton from '@/components/speech/PushToTalkButton'
@@ -46,18 +48,17 @@ const MARK_MINE = 'decoration-dotted decoration-[2.5px]'
 const MARK_MODEL = 'decoration-solid decoration-2'
 const markClass = (style: string, legend = false) => `${MARK_BASE} ${style} ${legend ? 'underline-offset-[3px]' : 'underline-offset-[5px]'}`
 
-function Marked({ segs, mark }: { segs: DiffSeg[]; mark: string }) {
+/**
+ * 내 문장·모범 답안 — 비교 밑줄(글자 아래 `mark`)과 히라가나(위)를 함께(MOV ⑦) + `[한글]` 13. 비교 조각을 이은 글이 원문과 다르면(오프셋을
+ * 믿을 수 없음) 밑줄 없이 층만 그린다.
+ */
+function CompareText({ text, segs, mark, state }: { text: string; segs?: DiffSeg[]; mark: string; state: AnnotationState }) {
+  const ranges =
+    segs && segs.map((s) => s.text).join('') === text ? changedRanges(segs, markClass(mark)).map((r) => ({ ...r, as: 'mark' as const })) : undefined
   return (
     <>
-      {segs.map((s, i) =>
-        s.changed ? (
-          <mark key={i} className={markClass(mark)}>
-            {s.text}
-          </mark>
-        ) : (
-          <span key={i}>{s.text}</span>
-        ),
-      )}
+      <JaText text={text} state={state} ranges={ranges} className="text-[17px] leading-[1.7] [overflow-wrap:anywhere]" />
+      <HangulLine state={state} size={13} />
     </>
   )
 }
@@ -90,7 +91,6 @@ export default function StageApply({
   st,
   pb,
   reviewing,
-  reading,
   config,
   onToast,
   footer,
@@ -99,7 +99,6 @@ export default function StageApply({
   st: UseLesson
   pb: LessonPlayback
   reviewing: boolean
-  reading: boolean
   config: SttClientConfig | null
   onToast: (m: string) => void
   footer: React.ReactNode
@@ -109,6 +108,11 @@ export default function StageApply({
     const a = lesson.progress.application?.answers?.[i]
     return typeof a === 'string' && a.trim() ? a : null
   })
+  // 써 볼 표현·모범 답안·내 문장을 단계 마운트 때 한 묶음으로(task-026 §15-4-7). 상태는 문장마다 하나라 문장으로 찾는다.
+  const targetsPer = useMemo(() => items.map((ap) => targetsOf(lesson.content, ap.targetIds)), [items, lesson.content])
+  const annTexts = [...targetsPer.flat().map((t) => t.ja), ...items.map((ap) => ap.modelAnswerJa), ...saved.map((s) => s ?? '')]
+  const annList = useAnnotations(annTexts)
+  const annOf = (text: string): AnnotationState => annList[annTexts.indexOf(text)] ?? OFF
   const [peeked, setPeeked] = useState<Set<number>>(() => new Set())
   const shownOf = (i: number) => reviewing || saved[i] !== null || peeked.has(i)
   const firstOpen = items.findIndex((_, i) => saved[i] === null)
@@ -187,8 +191,8 @@ export default function StageApply({
           <p className="text-[16px] font-semibold break-keep [overflow-wrap:anywhere]">{ap.promptKo}</p>
           <p className="mt-2 text-[12px] text-ink2">{U4.tryExpr}</p>
           <ul className="mt-1 flex flex-wrap gap-1.5">
-            {targetsOf(lesson.content, ap.targetIds).map((t) => (
-              <ExprChip key={t.id} ja={t.ja} ko={t.ko} />
+            {targetsPer[idx].map((t) => (
+              <ExprChip key={t.id} ja={t.ja} ko={t.ko} ann={annOf(t.ja)} />
             ))}
           </ul>
           {ap.hintJa ? (
@@ -207,9 +211,7 @@ export default function StageApply({
                     {diff ? <Legend mark={MARK_MINE} word={U4.cmpLegendMine} text={U4.cmpLegendMineText} /> : null}
                   </p>
                   {saved[idx] ? (
-                    <p lang="ja" className="text-[17px] leading-[1.7] [overflow-wrap:anywhere]">
-                      {diff ? <Marked segs={diff.mine} mark={MARK_MINE} /> : saved[idx]}
-                    </p>
+                    <CompareText text={saved[idx]} segs={diff?.mine} mark={MARK_MINE} state={annOf(saved[idx])} />
                   ) : (
                     <p className="text-[13px] text-ink2">{U4.skipped}</p>
                   )}
@@ -219,14 +221,7 @@ export default function StageApply({
                     <span className="text-[12px] font-semibold text-good">{U4.model}</span>
                     {diff ? <Legend mark={MARK_MODEL} word={U4.cmpLegendModel} text={U4.cmpLegendModelText} /> : null}
                   </p>
-                  <p lang="ja" className="text-[17px] leading-[1.7] [overflow-wrap:anywhere]">
-                    {diff ? <Marked segs={diff.model} mark={MARK_MODEL} /> : ap.modelAnswerJa}
-                  </p>
-                  {reading ? (
-                    <p lang="ja" className="text-[14px] text-ink2 [overflow-wrap:anywhere]">
-                      {ap.modelReading}
-                    </p>
-                  ) : null}
+                  <CompareText text={ap.modelAnswerJa} segs={diff?.model} mark={MARK_MODEL} state={annOf(ap.modelAnswerJa)} />
                   <p className="text-[13px] text-ink2 break-keep">{ap.modelKo}</p>
                   {!pb.textOnly ? (
                     <PlayWide playing={playing} label={U4.playModel} stopLabel={U4.stop} onClick={() => (playing ? pb.stop() : pb.playLines(key, [{ kind: 'application', idx, pace: 'normal' }]))} />

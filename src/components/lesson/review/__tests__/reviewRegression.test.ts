@@ -98,20 +98,20 @@ const assertNoReview = (html: string, where: string) => {
 /* ── M-1 ① NEW 기본값 회귀(선택 prop 없이) ─────────────────────────── */
 
 test('StageGrammar — variant 를 안 주면 NEW 문구·뱃지 그대로, REVIEW 만 복습 문구', () => {
-  const plain = renderToStaticMarkup(createElement(StageGrammar, { content: CONTENT, pb: PB, reading: false, footer: null }))
+  const plain = renderToStaticMarkup(createElement(StageGrammar, { content: CONTENT, pb: PB, onToast: () => {}, footer: null }))
   assertNoReview(plain, 'StageGrammar')
   assert.ok(plain.includes(U2.desc(1)) && plain.includes(U2.exprTitle(2)) && plain.includes(U2.exprDescPlay))
   assert.ok(plain.includes(`>${U2.newExpr}<`))
-  const rv = renderToStaticMarkup(createElement(StageGrammar, { content: CONTENT, pb: PB, reading: false, footer: null, variant: 'REVIEW', focusIds: new Set(['c1']) }))
+  const rv = renderToStaticMarkup(createElement(StageGrammar, { content: CONTENT, pb: PB, onToast: () => {}, footer: null, variant: 'REVIEW', focusIds: new Set(['c1']) }))
   assert.ok(rv.includes(RV_LESSON.grammarIntro(1)) && rv.includes(RV_LESSON.exprTitle(2)) && rv.includes(`>${RV_LESSON.focus}<`))
 })
 
 test('StageQuiz — variant 를 안 주면 결과 카드 문구가 NEW 그대로', () => {
   const lesson = lessonOf()
-  const plain = renderToStaticMarkup(createElement(StageQuiz, { lesson, st: ST, reviewing: true, footer: null }))
+  const plain = renderToStaticMarkup(createElement(StageQuiz, { lesson, st: ST, reviewing: true, onToast: () => {}, footer: null }))
   assertNoReview(plain, 'StageQuiz')
   assert.ok(plain.includes(U3.sumNote))
-  const rv = renderToStaticMarkup(createElement(StageQuiz, { lesson, st: ST, reviewing: true, footer: null, variant: 'REVIEW' }))
+  const rv = renderToStaticMarkup(createElement(StageQuiz, { lesson, st: ST, reviewing: true, onToast: () => {}, footer: null, variant: 'REVIEW' }))
   assert.ok(rv.includes(RV_LESSON.quizNote) && !rv.includes(U3.sumNote))
 })
 

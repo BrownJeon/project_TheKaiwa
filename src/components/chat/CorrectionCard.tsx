@@ -4,36 +4,18 @@
  * 교정 카드(screens.md §3-2 E). **원문은 한 글자도 바꾸지 않는다** — trim·정규화·자르기 없이 그대로 그리고,
  * 바뀐 글자 강조는 `<span>` 분할만 한다(`diff.ts` 가 조각을 이으면 원문과 같음을 테스트로 보증).
  * 원문 | 교정은 카드 폭 기준 컨테이너 쿼리로 나란히(≥320px) ↔ 위아래(<320px, 뷰포트 360)를 바꾼다.
+ * task-026(screens §15-4-3): 두 칸 모두 히라가나(지운·넣은 글자 위에도) + 문장 전체 `[한글]`(diff 표시 없음). 강조는 루비 위에 범위로 겹친다.
  */
 import { Badge, Btn, BtnRow } from '@/components/common/ui'
+import { changedRanges, useAnnotations } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import type { CorrectionDto } from '@/types/chat'
-import { diffCodepoints, type DiffSeg } from './diff'
+import { diffCodepoints } from './diff'
 import { CHUNK_LABEL, ERROR_TYPE_LABEL, STATUS_LABEL } from './labels'
 
 const JA_TEXT = 'whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] leading-[1.7]'
-
-function Segments({ segs, kind }: { segs: DiffSeg[]; kind: 'removed' | 'added' }) {
-  return (
-    <>
-      {segs.map((s, i) =>
-        s.changed ? (
-          <span
-            key={i}
-            className={
-              kind === 'removed'
-                ? 'rounded-sm bg-bad-soft text-bad line-through decoration-1'
-                : 'rounded-sm bg-good-soft text-good underline decoration-2 underline-offset-4'
-            }
-          >
-            {s.text}
-          </span>
-        ) : (
-          <span key={i}>{s.text}</span>
-        ),
-      )}
-    </>
-  )
-}
+const REMOVED = 'rounded-sm bg-bad-soft text-bad line-through decoration-1'
+const ADDED = 'rounded-sm bg-good-soft text-good underline decoration-2 underline-offset-4'
 
 export default function CorrectionCard({
   correction,
@@ -63,6 +45,7 @@ export default function CorrectionCard({
 }) {
   const c = correction
   const diff = diffCodepoints(c.original, c.corrected)
+  const [annOriginal, annCorrected] = useAnnotations([c.original, c.corrected])
   const chunk = c.chunkType ? CHUNK_LABEL[c.chunkType] : null
 
   return (
@@ -92,18 +75,16 @@ export default function CorrectionCard({
       <div className="mt-2.5 grid grid-cols-1 gap-2.5 @min-[320px]:grid-cols-2">
         <div className="min-w-0 rounded-xl bg-surface2 p-2.5">
           <p className="text-[12px] text-ink2">내 문장</p>
-          <p lang="ja" className={`mt-0.5 ${JA_TEXT}`}>
-            {diff ? <Segments segs={diff.a} kind="removed" /> : c.original}
-          </p>
+          <JaText text={c.original} state={annOriginal} className={`mt-0.5 ${JA_TEXT}`} ranges={diff ? changedRanges(diff.a, REMOVED) : undefined} />
+          <HangulLine state={annOriginal} onTint />
         </div>
         <div className="min-w-0 rounded-xl bg-surface2 p-2.5">
           {/* 코치 [정답 보기] 뒤 초점이 여기로 온다(task-010c) — 탭 순서에는 들지 않는다. */}
           <p id={`cr_${c.id}_ans`} tabIndex={-1} className="text-[12px] text-good outline-none focus-visible:ring-2 focus-visible:ring-accent">
             이렇게 고쳐요
           </p>
-          <p lang="ja" className={`mt-0.5 ${JA_TEXT}`}>
-            {diff ? <Segments segs={diff.b} kind="added" /> : c.corrected}
-          </p>
+          <JaText text={c.corrected} state={annCorrected} className={`mt-0.5 ${JA_TEXT}`} ranges={diff ? changedRanges(diff.b, ADDED) : undefined} />
+          <HangulLine state={annCorrected} onTint />
         </div>
       </div>
 

@@ -9,6 +9,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { detailString, toErr } from '@/components/common/errors'
+import { OFF, useAnnotations, type AnnotationState } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { readStore, writeStore } from '@/components/common/storage'
 import { Btn, Card } from '@/components/common/ui'
 import MicLevelMeter from '@/components/speech/MicLevelMeter'
@@ -60,7 +62,6 @@ export default function StageSpeak({
   st,
   pb,
   reviewing,
-  reading,
   config,
   textFirst,
   onToast,
@@ -72,7 +73,6 @@ export default function StageSpeak({
   st: UseLesson
   pb: LessonPlayback
   reviewing: boolean
-  reading: boolean
   config: SttClientConfig | null
   textFirst: boolean
   onToast: (m: string) => void
@@ -104,6 +104,14 @@ export default function StageSpeak({
   const item = items[idx]
   const res = results[item.id]
   const draftKey = LESSON_KEYS.speakDraft(lesson.id, item.id)
+  // 목표 표현·모범 답안·내가 한 말을 한 묶음으로(task-026 §15-4-7). 녹음 중 자막은 달지 않는다.
+  const annTexts = [
+    ...items.flatMap((s) => targetsOf(content, s.targetIds).map((t) => t.ja)),
+    ...items.map((s) => s.modelAnswerJa),
+    ...items.map((s) => (results[s.id] && !results[s.id].skipped ? results[s.id].text : '')),
+  ]
+  const annList = useAnnotations(annTexts)
+  const annOf = (text: string): AnnotationState => annList[annTexts.indexOf(text)] ?? OFF
 
   useEffect(() => {
     if (textFirst) queueMicrotask(() => setTextMode(true))
@@ -233,6 +241,7 @@ export default function StageSpeak({
                     key={t.id}
                     ja={t.ja}
                     ko={t.ko}
+                    ann={annOf(t.ja)}
                     tone={hit ? 'good' : 'plain'}
                     tail={hit ? <span className="text-[12px] font-bold text-good">{U5.used}</span> : miss ? <span className="text-[12px] text-ink2">{U5.notYet}</span> : null}
                   />
@@ -264,9 +273,11 @@ export default function StageSpeak({
                 {res.skipped ? (
                   <p className="text-[13px] text-ink2">{U5.skipped}</p>
                 ) : (
-                  <p lang="ja" className="mt-1 inline-block max-w-full rounded-[14px] bg-accent-soft px-3 py-2 text-[17px] text-ink [overflow-wrap:anywhere]">
-                    {res.text}
-                  </p>
+                  <div className="mt-1 inline-block max-w-full rounded-[14px] bg-accent-soft px-3 py-2">
+                    <JaText text={res.text} state={annOf(res.text)} className="text-[17px] text-ink [overflow-wrap:anywhere]" />
+                    {/* 말풍선 안, 위 여백 0(MOV ⑨) */}
+                    <HangulLine state={annOf(res.text)} size={13} onTint className="!mt-0" />
+                  </div>
                 )}
                 {res.utteranceId && res.hasAudio && !pb.textOnly ? (
                   <div>
@@ -300,14 +311,8 @@ export default function StageSpeak({
                 ) : null}
                 <div className="mt-2 rounded-xl bg-surface2 px-3 py-2.5">
                   <p className="text-[12px] font-semibold text-good">{U4.model}</p>
-                  <p lang="ja" className="text-[17px] [overflow-wrap:anywhere]">
-                    {item.modelAnswerJa}
-                  </p>
-                  {reading ? (
-                    <p lang="ja" className="text-[14px] text-ink2 [overflow-wrap:anywhere]">
-                      {item.modelReading}
-                    </p>
-                  ) : null}
+                  <JaText text={item.modelAnswerJa} state={annOf(item.modelAnswerJa)} className="text-[17px] [overflow-wrap:anywhere]" />
+                  <HangulLine state={annOf(item.modelAnswerJa)} size={13} />
                   <p className="text-[13px] text-ink2 break-keep">{item.modelKo}</p>
                   {!pb.textOnly ? (
                     <PlayWide playing={pb.active(modelKey)} label={U4.playModel} stopLabel={U4.stop} onClick={() => (pb.active(modelKey) ? pb.stop() : pb.playLines(modelKey, [{ kind: 'speaking', idx, pace: 'normal' }]))} />

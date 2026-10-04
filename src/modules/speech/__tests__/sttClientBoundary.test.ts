@@ -36,15 +36,18 @@ function walk(dir: string): string[] {
 
 function speechImportViolations(src: string): string[] {
   const specs = [...src.matchAll(/(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]/g), ...src.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1])
-  return specs.filter((s) => /^@\/modules\/speech(\/|$)/.test(s) && !/^@\/modules\/speech\/(stt|tts)\/client(\/|$)/.test(s))
+  // reading/client = 히라가나·한글 줄 변환기(task-026 — eslint 컴포넌트 경계와 같은 허용 목록).
+  return specs.filter((s) => /^@\/modules\/speech(\/|$)/.test(s) && !/^@\/modules\/speech\/(stt|tts|reading)\/client(\/|$)/.test(s))
 }
 
-test('컴포넌트는 speech 루트 index 를 import 하지 않는다(stt/client 만)', () => {
+test('컴포넌트는 speech 루트 index 를 import 하지 않는다(stt/tts/reading client 만)', () => {
   assert.deepEqual(speechImportViolations(`import { x } from '@/modules/speech'`), ['@/modules/speech'], '루트 금지를 잡는다')
   assert.deepEqual(speechImportViolations(`import type { Y } from '@/modules/speech/tts'`), ['@/modules/speech/tts'])
   assert.deepEqual(speechImportViolations(`import { z } from '@/modules/speech/stt/client'`), [])
   assert.deepEqual(speechImportViolations(`import { q } from '@/modules/speech/tts/client'`), [])
   assert.deepEqual(speechImportViolations(`import { q } from '@/modules/speech/tts/cache'`), ['@/modules/speech/tts/cache'])
+  assert.deepEqual(speechImportViolations(`import { h } from '@/modules/speech/reading/client'`), [])
+  assert.deepEqual(speechImportViolations(`import { r } from '@/modules/speech/reading'`), ['@/modules/speech/reading'])
   const files = walk(COMPONENTS)
   assert.ok(files.length > 10)
   for (const f of files) assert.deepEqual(speechImportViolations(readFileSync(f, 'utf8')), [], f)
