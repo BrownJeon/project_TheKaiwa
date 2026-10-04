@@ -34,6 +34,7 @@ tags:
 
 ## Doing
 - [[task-026-improve-hangul-reading]] — 히라가나·한글·번역 표시 ✅ **완료·운영 반영**(서버 `f67bf70` + 화면 A·B `726daf7`, QA PASS, 운영 스모크 42/42·45/45) — 후속 Low 6건·범위 밖 화면은 최종 요약 참고
+- [[task-030-japanese-display-followup]] — 일본어 표시 후속 Low 6건 ✅ **완료·운영 반영** `4ce98e4`(데모 v1 승인, REV-098~101, Codex C2, QA PASS, 운영 스모크 42/42·45/45)
 - task-012b-2·-3·-4 — 음성 P2 후속(재확인 카드·발화 로그 화면=데모 / TTS 지표=DB 추가 / 타이밍=M4 설치) — 승인 뒤 착수
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) **승인 2026-10-01** · PE talk@v3→v5 · **DB 추가 승인·적용 2026-10-01** · 구현 완료 → ✅ 운영 반영(2026-10-03, 같은 릴리스) — REV-055 PASS·REV-058 PASS·Judge C2 Codex 불필요(0/4) · 2차 QA FAIL(#1 reject 409 UI) → 수정·REV-063 PASS_WITH_NOTES · COACH hintKo 서버 필터(`coachHintOf`) · **제한 QA PASS_WITH_NOTES(2026-10-03 07:46, Medium 2 = 수용 한계 확정·결함 #1 종결) → ✅ 운영 반영(2026-10-03)**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면 데모 v1(full) **승인 2026-10-01** · DB `EvaluationItem.textRevealedAt` 적용 · 화면 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`) — REV-046 PASS · Codex C2 1건 채택(REV-051 수정) → REV-057 PASS → **QA PASS** → ✅ 운영 반영(012 와 한 커밋)
