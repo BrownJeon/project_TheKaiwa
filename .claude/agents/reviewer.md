@@ -125,3 +125,10 @@ Reviewer → Leader: Critical 또는 High 3건↑
 - 데모 게이트: light 는 `DM-light-waive` 로 `not_required` 라 데모 승인 대조를 하지 않는다. 일반 UI 검증은 그대로 한다.
 - Sonnet developer task(judge `developer_model: sonnet`)에서 같은 결함 클래스를 **2회 반려**하면 Leader 에게 "Opus 승격"을 권고한다(Reviewer 기록에 반려 횟수·결함 클래스를 적는다).
 - `risk=R2` 라벨이 있으나 복잡도가 낮아 Sonnet 으로 구현된 task(`MD-r2-path-only`)도 R2 심화 점검(권한·소유자·Secret·마이그레이션·트랜잭션)을 생략하지 않는다.
+
+## 디자인 책임 경계 — 2026-10-04
+
+디자인 품질 판단(위계·간격·밀도·톤·접근성 설계)은 **designer 담당**이다(정본: 워크스페이스 `docs/design-skills.md` §6).
+
+- 워크스페이스 디자인 스킬을 읽거나 적용하지 않는다. 화면 task 에서 reviewer 는 승인 데모·구현 가이드 대비 차이 분류(데모 검토 게이트 §7)와 코드 감사만 한다.
+- 디자인 자체의 문제로 보이는 것은 결함으로 판정하지 않고 Leader 를 통해 designer 에게 넘긴다.
