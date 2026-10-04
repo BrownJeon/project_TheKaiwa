@@ -9,7 +9,8 @@
  *
  * 가나 → 한글 규칙(데모 v2 `HG.convert(p, 'A', 'B')`, 사용자 결정 D1-A '까' 계열 · D2-B 구절 띄어쓰기):
  *   - 거센소리는 구절 첫 글자만(か=카 … 구절 안 か=까, た=따, ぱ=빠, ち·つ=쯔 계열), 탁음·나머지 행은 그대로.
- *   - 장음 ー·같은 모음 반복(いい·ええ) → '-'(조사 を=ヲ·へ=ヱ 는 합치지 않음 — `hangulLine` 이 조사 を·へ 를 ヲ·ヱ 로 넘긴다, QA O-1·QA-L1), 촉음 っ → 앞 글자 받침(다음 자음에 따라 ㄱ/ㅂ/ㅅ), ん → 받침(ㅁ/ㅇ/ㄴ, 끝·모음 앞은 ㅇ).
+ *   - 장음 ー·같은 모음 반복(いい·ええ) → '-'(조사 を=ヲ·へ=ヱ 는 합치지 않음 — `hangulLine` 이 조사 を·へ 를 ヲ·ヱ 로 넘긴다, QA O-1·QA-L1).
+ *     장음 ー 바로 뒤의 같은 모음은 접지 않는다 — 장음은 이미 '-' 하나로 적었다(経営 ケーエー → 케-에-, task-031 REV-098 L-2). 촉음 っ → 앞 글자 받침(다음 자음에 따라 ㄱ/ㅂ/ㅅ), ん → 받침(ㅁ/ㅇ/ㄴ, 끝·모음 앞은 ㅇ).
  *   - 요음(きゃ·しゅ·ちょ…)·외래음(ファ·ティ·ウィ…), 문장부호는 。→. 、→, 「」→“ ”.
  *   - 발음 줄의 ' '(구절)·'|'(조사 は·を·へ 뒤)는 띄어쓰기 + 다음 글자를 구절 첫 글자로.
  */
@@ -312,6 +313,8 @@ export function kanaToHangul(kana: string): string {
   let lastSyl = -1
   let initial = true
   let prevV: string | null = null
+  /** 바로 앞이 '-' 로 적은 장음 ー 인가 — 그 뒤 같은 모음은 새 음절로 적는다. */
+  let afterLong = false
   const vowelOf = (v: Vowel) => (v === 'eu' ? 'u' : v.slice(-1))
   const nextMora = (j: number): Extract<Mora, { k: 'm' }> | null => {
     for (let q = j + 1; q < ms.length; q++) {
@@ -330,6 +333,8 @@ export function kanaToHangul(kana: string): string {
   }
   for (let j = 0; j < ms.length; j++) {
     const m = ms[j]
+    const longBefore = afterLong
+    afterLong = false
     if (m.k === 'sp') {
       lastSyl = -1
       prevV = null
@@ -354,7 +359,10 @@ export function kanaToHangul(kana: string): string {
       continue
     }
     if (m.k === 'long') {
-      if (prevV) out.push('-')
+      if (prevV) {
+        out.push('-')
+        afterLong = true
+      }
       continue
     }
     if (m.k === 'gem') {
@@ -382,7 +390,7 @@ export function kanaToHangul(kana: string): string {
       initial = false
       continue
     }
-    if (m.cls === 'X' && !m.part && /^[aiueo]$/.test(m.v) && prevV && prevV === m.v) {
+    if (m.cls === 'X' && !m.part && !longBefore && /^[aiueo]$/.test(m.v) && prevV && prevV === m.v) {
       out.push('-')
       prevV = null
       initial = false

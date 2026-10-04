@@ -234,9 +234,17 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   }, [revealed])
 
   const showToast = toast.show
-  /** 녹음 중에는 토스트를 미룬다(스크린리더 음성이 마이크로 들어가지 않게, §9-0 ⑨). */
+  /**
+   * 녹음 중에는 토스트를 미룬다(스크린리더 음성이 마이크로 들어가지 않게, §9-0 ⑨). 빈 문구(= 방금 안내 지우기, 표시 설정 저장 실패 때
+   * `clearFreshSuccessToast`)는 소리가 없어 미루지 않는다 — 미뤄 둔 안내가 있으면 그것이 가장 최근 안내라 그것을 버리고, 없으면 떠 있는 안내를 지운다(task-031).
+   */
   const notify = useCallback(
     (msg: string, ms?: number) => {
+      if (!msg && recordingRef.current) {
+        if (deferredToastRef.current) deferredToastRef.current = null
+        else showToast('', 0)
+        return
+      }
       if (recordingRef.current) deferredToastRef.current = { msg, ms }
       else showToast(msg, ms)
     },
@@ -246,6 +254,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   // 방 본 화면(<Toast> 가 그려지는 때)에서만 표시 설정 저장 실패 알림을 맡는다 — 방 토스트 자리(음성 136·글자 84)와 녹음 중 미룸 규칙을 그대로 쓴다.
   // 로드 중·오류·없음 화면은 Toast 가 없어 맡지 않고 셸이 띄운다(task-030 REV-097 L-2 · REV-099 M-1).
   // 녹음 중에는 화면·스크린리더 모두 미루고(§15-10 C) 놓은 뒤 1회. 미룬 채 방을 떠나면 셸이 1회 이어받는다(takeLeftover 는 읽고 비운다).
+  // 미루는 동안(deferring)은 표시 바가 방금 띄운 성공 안내를 바로 지운다 — 덮어 줄 실패 문구가 없어 거짓 "적용돼요"가 남지 않게(task-031).
   useClaimDisplaySaveFailure(
     () => {
       if (recordingRef.current) saveFailDeferredRef.current = true
@@ -257,6 +266,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
       saveFailDeferredRef.current = false
       return left
     },
+    () => recordingRef.current,
   )
   /** 화면에 띄우지 않고 스크린리더에만 한 번 — 녹음 중이면 끝난 뒤(데모 fl-flow). */
   const srAnnounce = useCallback((msg: string) => {

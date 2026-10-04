@@ -10,7 +10,8 @@
  *   이벤트뿐 — 화면에 새 문장이 오거나(캐시 버전 변화)·앱으로 돌아오거나(visibilitychange)·네트워크가 돌아오거나(online)·표시 설정을 켤 때.
  *   타이머 폴링은 하지 않는다(장애 중 요청을 늘리지 않는다). 재시도 중에도 숨김을 유지한다(오래 머무는 방의 앞 말풍선이 막대로 흔들리지 않게).
  * - 400자 넘는 말은 400자 안의 마지막 `。！？!?\n` 뒤에서 잘라 보내고 결과를 잇는다. 끊을 곳이 없으면 숨김.
- * - "애매하면 숨김": 세그먼트 표기를 이은 것이 원문과 다르면 쓰지 않는다(옛 읽기 줄·다른 변환으로 대체하지 않는다).
+ * - "애매하면 숨김": 세그먼트 표기를 이은 것이 원문과 다르면 쓰지 않는다(옛 읽기 줄·다른 변환으로 대체하지 않는다). 세그먼트 모양이 어긋난 칸
+ *   (`segments:[null]`·필드 누락 등)도 분석 불가로 null 캐시한다 — 예전에는 처리 중 throw 로 그 조각이 영구 loading 이었다(task-031 REV-099 L-3).
  */
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { apiPost } from '@/components/common/api'
@@ -72,6 +73,20 @@ const isBlank = (s: string) => s.trim().length === 0
 /** 공백뿐인 조각(나눈 뒤 남은 줄바꿈 등)은 분석하지 않고 그대로 이어 붙인다. */
 function plainSegment(text: string): ReadingSegment {
   return { surface: text, ruby: null, pron: text, boundary: null }
+}
+
+/** 서버 세그먼트 모양 검사(#24r 계약) — 하나라도 어긋나면 그 칸은 분석 불가로 본다. */
+export function isReadingSegment(v: unknown): v is ReadingSegment {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+  const o = v as Record<string, unknown>
+  if (typeof o.surface !== 'string') return false
+  if (o.pron !== null && typeof o.pron !== 'string') return false
+  if (o.boundary !== null && o.boundary !== 'phrase' && o.boundary !== 'particle') return false
+  if (o.ruby === null) return true
+  return (
+    Array.isArray(o.ruby) &&
+    o.ruby.every((p: unknown) => Array.isArray(p) && p.length === 2 && typeof p[0] === 'string' && (p[1] === null || typeof p[1] === 'string'))
+  )
 }
 
 export interface AnnotateItem {
@@ -225,19 +240,25 @@ export class AnnotationClient {
           res = null
         }
         batch.forEach((t, k) => {
-          const item = res && Array.isArray(res.items) ? res.items[k] : undefined
-          if (item && Array.isArray(item.segments)) {
-            const segs = item.segments
-            // 표기를 이은 것이 원문과 다르면 범위·루비가 어긋난다 — 분석 불가로 본다.
-            this.put(t, segs.length > 0 && segs.map((s) => s.surface).join('') === t ? segs : null)
-            this.failures.delete(t)
-          } else if (res && res.available === true && item === null) {
-            this.put(t, null)
-            this.failures.delete(t)
-          } else {
+          try {
+            const item: unknown = res && Array.isArray(res.items) ? res.items[k] : undefined
+            const segs: unknown = item && typeof item === 'object' ? (item as { segments?: unknown }).segments : undefined
+            if (Array.isArray(segs)) {
+              // 모양이 어긋났거나 표기를 이은 것이 원문과 다르면 범위·루비가 어긋난다 — 분석 불가로 본다.
+              const ok = segs.length > 0 && segs.every(isReadingSegment) && segs.map((s) => s.surface).join('') === t
+              this.put(t, ok ? segs : null)
+              this.failures.delete(t)
+            } else if (res && res.available === true && item === null) {
+              this.put(t, null)
+              this.failures.delete(t)
+            } else {
+              this.fail(t, this.now())
+            }
+          } catch {
             this.fail(t, this.now())
+          } finally {
+            this.status.delete(t)
           }
-          this.status.delete(t)
         })
         this.emit()
       }

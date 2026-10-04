@@ -10,6 +10,7 @@ import {
   ANNOTATION_CACHE_MAX,
   canRetryAnnotate,
   changedRanges,
+  isReadingSegment,
   listenWake,
   NONE,
   OFF,
@@ -898,14 +899,17 @@ test('REV-099 M-1·L-2: 맡기는 방 본 화면(enabled)일 때만 · enabled �
   const room = readFileSync(join(process.cwd(), 'src/components/talk/TalkRoom.tsx'), 'utf8')
   assert.match(room, /load === 'ready' && !!chat,/)
   const prefs = readFileSync(join(process.cwd(), 'src/components/common/japanese/displayPrefs.ts'), 'utf8')
-  assert.match(prefs, /useLayoutEffect\(\(\) => claimWhile\(enabled, \(\) => ref\.current\(\), saveFailureClaims, \(\) => leftRef\.current\?\.\(\) \?\? false\), \[enabled\]\)/)
-  assert.match(prefs, /return enabled \? claims\.claim\(fn, takeLeftover\) : undefined/)
+  assert.match(
+    prefs,
+    /useLayoutEffect\(\s*\(\) => claimWhile\(enabled, \(\) => ref\.current\(\), saveFailureClaims, \(\) => leftRef\.current\?\.\(\) \?\? false, \(\) => deferRef\.current\?\.\(\) \?\? false\),\s*\[enabled\],?\s*\)/,
+  )
+  assert.match(prefs, /return enabled \? claims\.claim\(fn, takeLeftover, deferring\) : undefined/)
 })
 
 test('REV-100 T1: 맡기·해제는 layout effect(커밋 안 동기) — passive effect 로 맡지 않는다', () => {
   const prefs = readFileSync(join(process.cwd(), 'src/components/common/japanese/displayPrefs.ts'), 'utf8')
-  assert.match(prefs, /useLayoutEffect\(\(\) => claimWhile\(enabled, /)
-  assert.ok(!/useEffect\(\(\) => claimWhile\(/.test(prefs), 'useEffect 로 맡으면 커밋~cleanup 사이 실패가 죽은 방으로 간다')
+  assert.match(prefs, /useLayoutEffect\(\s*\(\) => claimWhile\(enabled, /)
+  assert.ok(!/useEffect\(\s*\(\) => claimWhile\(/.test(prefs), 'useEffect 로 맡으면 커밋~cleanup 사이 실패가 죽은 방으로 간다')
   assert.match(prefs, /import \{ useEffect, useLayoutEffect, useRef, useSyncExternalStore \} from 'react'/)
 })
 
@@ -1086,6 +1090,223 @@ test('REV-097 L-3: 겹쳐 부른 flush 도 한 번에 하나만 보낸다 — �
   bad.request(['失'])
   await Promise.all([bad.flush(), bad.flush(), bad.flush()])
   assert.equal(bad.failure('失')?.n, 1)
+})
+
+// ── task-031: 녹음 중 저장 실패 → 성공 안내 즉시 지움 · 이상 응답 → 숨김 ─────────────────
+
+test('task-031 (030 QA-#1): 회화방 녹음 중 저장 실패 — 방금 띄운 성공 안내는 실패 확정 때 바로 지우고, 실패 알림은 손 뗀 뒤 1번', async () => {
+  // 실제 저장소(PUT 실패)·맡기·clearFreshSuccessToast + TalkRoom notify/맡기 배선을 그대로 옮긴 방 모델.
+  const s = makeStore()
+  await s.store.ensureLoaded()
+  const claims = new SaveFailureClaims()
+  const shell: string[] = []
+  claims.setShell(() => shell.push('shell'))
+  const st = { recording: false, saveFailDeferred: false, deferred: null as { msg: string; ms?: number } | null, shown: null as string | null }
+  const log: string[] = []
+  const showToast = (m: string, ms?: number) => {
+    st.shown = m || null
+    log.push(m === '' ? `clear:${ms}` : m)
+  }
+  const notify = (msg: string, ms?: number) => {
+    if (!msg && st.recording) {
+      if (st.deferred) st.deferred = null
+      else showToast('', 0)
+      return
+    }
+    if (st.recording) st.deferred = { msg, ms }
+    else showToast(msg, ms)
+  }
+  const release = claims.claim(
+    () => {
+      if (st.recording) st.saveFailDeferred = true
+      else showToast('saveFailed', DISPLAY_TOAST_MS)
+    },
+    () => {
+      const v = st.saveFailDeferred
+      st.saveFailDeferred = false
+      return v
+    },
+    () => st.recording,
+  )
+  const endRecording = () => {
+    st.recording = false
+    if (st.deferred) {
+      const d = st.deferred
+      st.deferred = null
+      showToast(d.msg, d.ms)
+    }
+    if (st.saveFailDeferred) {
+      st.saveFailDeferred = false
+      showToast('saveFailed', DISPLAY_TOAST_MS)
+    }
+  }
+  // 표시 바(DisplayToggles) — 성공 안내 + 시각 기록, 실패 때 clearFreshSuccessToast(셸 route 와 함께 같은 failEpoch 를 듣는다).
+  let shownAt = 0
+  let clock = 10_000
+  const offClear = watchSaveFailures(s.store, () => clearFreshSuccessToast(shownAt, clock, notify, claims))
+  const offShell = watchSaveFailures(s.store, () => claims.route(() => shell.push('shell-route')))
+  const tap = (key: 'showHangul' | 'showFurigana', v: boolean) => {
+    s.store.set(key, v)
+    notify('success', DISPLAY_TOAST_MS)
+    shownAt = clock
+  }
+
+  // ① QA-#1 재현: 녹음 전 스위치(성공 안내 즉시) → 바로 녹음 → 1.2초 뒤 PUT 실패.
+  s.gate(true)
+  s.setFailPut(true)
+  tap('showHangul', false)
+  assert.equal(st.shown, 'success')
+  st.recording = true
+  clock += 1200
+  s.release()
+  await s.tick()
+  await s.tick()
+  assert.equal(s.store.getSnapshot().showHangul, true, '값은 서버 값으로 되돌아간다')
+  assert.equal(st.shown, null, '성공 안내는 실패 확정 순간 지워진다(예전: ~1.4초 잔류)')
+  assert.deepEqual(log, ['success', 'clear:0'])
+  assert.equal(st.saveFailDeferred, true, '실패 알림은 녹음 중 미룬다')
+  endRecording()
+  assert.deepEqual(log, ['success', 'clear:0', 'saveFailed'], '손 뗀 뒤 실패 알림 정확히 1번')
+  assert.deepEqual(shell, [], '셸 알림 0(방이 맡음)')
+
+  // ② 녹음 중 스위치(성공 안내도 미뤄짐) → 실패: 미뤄 둔 성공 안내를 버리고, 놓은 뒤 실패 1번만.
+  log.length = 0
+  clock += 5000
+  st.recording = true
+  tap('showFurigana', false)
+  assert.deepEqual(st.deferred, { msg: 'success', ms: DISPLAY_TOAST_MS })
+  s.release()
+  await s.tick()
+  await s.tick()
+  assert.equal(st.deferred, null, '미뤄 둔 성공 안내는 버린다')
+  assert.deepEqual(log, [], '떠 있는 다른 안내는 건드리지 않는다')
+  endRecording()
+  assert.deepEqual(log, ['saveFailed'])
+
+  // ③ 녹음 중이 아니면 예전 그대로: 지우지 않고 실패 문구가 바로 덮는다(빈 문구가 실패 알림을 지우는 순서 문제 없음).
+  log.length = 0
+  clock += 5000
+  tap('showHangul', false)
+  s.release()
+  await s.tick()
+  await s.tick()
+  assert.deepEqual(log, ['success', 'saveFailed'])
+
+  // ④ 성공 안내가 이미 지난 뒤(2.2초 밖) 녹음 중 실패면 떠 있는 다른 안내를 지우지 않는다.
+  log.length = 0
+  clock += 5000
+  tap('showHangul', false)
+  notify('other')
+  st.recording = true
+  clock += DISPLAY_TOAST_MS
+  s.release()
+  await s.tick()
+  await s.tick()
+  assert.deepEqual(log, ['success', 'other'])
+  assert.equal(st.shown, 'other')
+  endRecording()
+  assert.deepEqual(log, ['success', 'other', 'saveFailed'])
+  assert.deepEqual(shell, [])
+
+  offClear()
+  offShell()
+  release()
+  s.gate(false)
+})
+
+test('task-031: SaveFailureClaims.isDeferring — 맡은 화면의 deferring 값 · 맡기 없음·deferring 없음 = false · clearFreshSuccessToast 분기', () => {
+  const claims = new SaveFailureClaims()
+  assert.equal(claims.isDeferring(), false)
+  let rec = false
+  const release = claims.claim(() => {}, undefined, () => rec)
+  assert.equal(claims.isDeferring(), false)
+  rec = true
+  assert.equal(claims.isDeferring(), true)
+  const calls: Array<[string, number | undefined]> = []
+  const onToast = (m: string, ms?: number) => calls.push([m, ms])
+  clearFreshSuccessToast(1000, 1001, onToast, claims)
+  assert.deepEqual(calls, [['', 0]], '맡은 화면이 미루는 중이면 지운다')
+  clearFreshSuccessToast(1000, 1000 + DISPLAY_TOAST_MS, onToast, claims)
+  assert.equal(calls.length, 1, '오래된 성공 안내는 미루는 중이어도 지우지 않는다')
+  rec = false
+  clearFreshSuccessToast(1000, 1001, onToast, claims)
+  assert.equal(calls.length, 1, '맡은 화면이 바로 띄우면 지우지 않는다')
+  release()
+  claims.claim(() => {})
+  assert.equal(claims.isDeferring(), false, 'deferring 을 안 넘긴 맡기는 미루지 않는 것으로 본다')
+  // 배선(정적): 회화방은 recordingRef 로 미룸을 알리고, notify 는 빈 문구를 녹음 중에도 미루지 않는다.
+  const room = readFileSync(join(process.cwd(), 'src/components/talk/TalkRoom.tsx'), 'utf8')
+  assert.match(room, /return left\s*\},\s*\(\) => recordingRef\.current,\s*\)/)
+  assert.match(room, /if \(!msg && recordingRef\.current\) \{\s*if \(deferredToastRef\.current\) deferredToastRef\.current = null\s*else showToast\('', 0\)\s*return\s*\}/)
+})
+
+test('task-031 (REV-099 L-3): 이상 응답(segments:[null]·필드 누락·모양 불일치)은 그 조각만 "모름"(none) — loading 0, 다른 조각·뒤 묶음은 정상', async () => {
+  const bad: Record<string, unknown> = {
+    널조각: { segments: [null] },
+    표기없음: { segments: [{ ruby: null, pron: 'ア', boundary: null }] },
+    읽기숫자: { segments: [{ surface: '읽기숫자', ruby: null, pron: 3, boundary: null }] },
+    경계이상: { segments: [{ surface: '경계이상', ruby: null, pron: null, boundary: 'word' }] },
+    루비이상: { segments: [{ surface: '루비이상', ruby: [['루비이상']], pron: null, boundary: null }] },
+    루비문자열: { segments: [{ surface: '루비문자열', ruby: '루비', pron: null, boundary: null }] },
+    배열칸: [1, 2],
+    숫자칸: 7,
+  }
+  const { client, calls, flush } = makeClient(async (texts) => ({
+    items: texts.map((t) => (t in bad ? bad[t] : { segments: [seg(t)] })) as AnnotateResponse['items'],
+    available: true,
+  }))
+  const texts = [...Object.keys(bad), '正常']
+  client.request(texts)
+  await flush()
+  for (const t of Object.keys(bad)) {
+    assert.equal(client.stateOf(t).s, 'none', `${t}: 숨김`)
+  }
+  assert.equal(client.stateOf('正常').s, 'ready', '같은 묶음의 정상 조각은 그대로')
+  assert.ok(texts.every((t) => client.stateOf(t).s !== 'loading'), 'loading 으로 남은 조각 0')
+  // 세그먼트 모양 이상은 분석 불가로 null 캐시(다시 묻지 않음) — 시간이 지나도 같은 문장으로 요청하지 않는다.
+  for (const t of ['널조각', '표기없음', '읽기숫자', '경계이상', '루비이상', '루비문자열']) assert.equal(client.cached(t), null, t)
+  const n = calls.length
+  client.request(['널조각', '正常'])
+  await flush()
+  assert.equal(calls.length, n, '이상 칸·정상 칸 모두 다시 묻지 않는다')
+  // 뒤에 온 새 문장도 막히지 않는다(예전: throw 로 drain 이 끊겨 뒤 조각까지 영구 loading).
+  client.request(['다음'])
+  assert.equal(client.stateOf('다음').s, 'loading')
+  await flush()
+  assert.equal(client.stateOf('다음').s, 'ready')
+})
+
+test('task-031: 정상·429 재시도 경로는 그대로 — 429 는 실패 기록(none) 뒤 35초 지나 다시 묻고 성공하면 ready', async () => {
+  const clock = { t: 1_000 }
+  let fail = true
+  const { client, calls, flush } = makeClient(async (texts) => {
+    if (fail) throw new Error('429')
+    return okAll(texts)
+  }, clock)
+  client.request(['再'])
+  await flush()
+  assert.equal(client.stateOf('再').s, 'none')
+  assert.equal(client.failure('再')?.n, 1)
+  assert.equal(client.cached('再'), undefined, '429 는 캐시하지 않는다')
+  fail = false
+  clock.t += ANNOTATE_RETRY_AFTER_MS
+  client.request(['再'])
+  await flush()
+  assert.equal(calls.length, 2)
+  assert.equal(client.stateOf('再').s, 'ready')
+  assert.equal(client.failure('再'), undefined)
+})
+
+test('isReadingSegment: #24r 세그먼트 계약 모양만 통과', () => {
+  assert.equal(isReadingSegment({ surface: '今日', ruby: [['今日', 'きょう']], pron: 'キョー', boundary: null }), true)
+  assert.equal(isReadingSegment({ surface: 'は', ruby: null, pron: 'ワ', boundary: 'particle' }), true)
+  assert.equal(isReadingSegment({ surface: '。', ruby: null, pron: null, boundary: 'phrase' }), true)
+  assert.equal(isReadingSegment(null), false)
+  assert.equal(isReadingSegment([]), false)
+  assert.equal(isReadingSegment({ surface: 'あ', pron: 'ア', boundary: null }), false, 'ruby 누락')
+  assert.equal(isReadingSegment({ surface: 'あ', ruby: null, boundary: null }), false, 'pron 누락')
+  assert.equal(isReadingSegment({ surface: 'あ', ruby: null, pron: 'ア' }), false, 'boundary 누락')
+  assert.equal(isReadingSegment({ surface: '今', ruby: [['今', 1]], pron: null, boundary: null }), false)
 })
 
 // ── REV-094 L-2·M-1: 내 말 번역 ───────────────────────────────────────────────

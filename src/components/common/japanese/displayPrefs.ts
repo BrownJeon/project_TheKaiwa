@@ -319,15 +319,16 @@ export function watchSaveFailures(store: Pick<DisplayPrefsStore, 'subscribe' | '
  * 셸이 띄운다(REV-096 #2). 한 번에 하나 — 나중에 맡은 쪽이 이기고, 해제는 자기 것일 때만 효과가 있다.
  */
 export class SaveFailureClaims {
-  private current: { fn: () => void; takeLeftover?: () => boolean } | null = null
+  private current: { fn: () => void; takeLeftover?: () => boolean; deferring?: () => boolean } | null = null
   private shell: (() => void) | null = null
 
   /**
    * 맡는다. 돌려준 함수로 해제 — 자기 것일 때만 효과가 있고, 그때 `takeLeftover()` 가 true(맡은 화면이 아직 못 띄운 알림이 남음)면
    * 셸이 그 알림을 1번 대신 띄운다(녹음 중 미룬 알림이 화면 이탈로 사라지지 않게, REV-100 #2).
+   * `deferring()` 이 true 면 맡은 화면이 지금 실패 알림을 바로 띄우지 않고 미룬다(회화방 녹음 중) — `clearFreshSuccessToast` 가 이때는 성공 안내를 지운다.
    */
-  claim(fn: () => void, takeLeftover?: () => boolean): () => void {
-    const mine = { fn, takeLeftover }
+  claim(fn: () => void, takeLeftover?: () => boolean, deferring?: () => boolean): () => void {
+    const mine = { fn, takeLeftover, deferring }
     this.current = mine
     return () => {
       if (this.current !== mine) return
@@ -348,6 +349,11 @@ export class SaveFailureClaims {
     return this.current !== null
   }
 
+  /** 맡은 화면이 지금 실패 알림을 미루는 중인가(맡은 화면이 없으면 false). */
+  isDeferring(): boolean {
+    return this.current?.deferring?.() ?? false
+  }
+
   /** 맡은 화면이 있으면 그 화면에, 없으면 `fallback`(셸)에 알린다. */
   route(fallback: () => void): void {
     if (this.current) this.current.fn()
@@ -359,16 +365,17 @@ export const saveFailureClaims = new SaveFailureClaims()
 
 /**
  * 저장 실패가 났을 때, 방금(토스트 시간 안에) 이 화면이 띄운 성공 토스트가 아직 떠 있으면 지운다 — 빈 문구·0ms = 숨김. 성공 안내("…적용돼요")가
- * 되돌아간 값 위에 남아 실패 알림과 겹치거나 거짓이 되지 않게(REV-097 L-1). 실패를 맡은 화면이 있으면 지우지 않는다 — 실패 문구가 같은 토스트 칸을
- * 덮어 성공 토스트가 저절로 사라지고, 빈 문구가 미뤄 둔·막 띄운 실패 알림을 지우는 순서 문제도 없다.
+ * 되돌아간 값 위에 남아 실패 알림과 겹치거나 거짓이 되지 않게(REV-097 L-1). 실패를 맡은 화면이 바로 띄우면 지우지 않는다 — 실패 문구가 같은 토스트 칸을
+ * 덮어 성공 토스트가 저절로 사라지고, 빈 문구가 막 띄운 실패 알림을 지우는 순서 문제도 없다. 맡은 화면이 미루는 중(회화방 녹음 중)이면 덮어 줄 문구가
+ * 없어 거짓 성공 안내가 남으므로 지운다(task-031, task-030 QA-#1) — 실패 알림은 미룬 그대로 손 뗀 뒤 1번.
  */
 export function clearFreshSuccessToast(
   shownAt: number,
   now: number,
   onToast: (msg: string, ms?: number) => void,
-  claims: Pick<SaveFailureClaims, 'isClaimed'> = saveFailureClaims,
+  claims: Pick<SaveFailureClaims, 'isClaimed' | 'isDeferring'> = saveFailureClaims,
 ): void {
-  if (claims.isClaimed()) return
+  if (claims.isClaimed() && !claims.isDeferring()) return
   if (now - shownAt < DISPLAY_TOAST_MS) onToast('', 0)
 }
 
@@ -378,23 +385,29 @@ export function claimWhile(
   fn: () => void,
   claims: Pick<SaveFailureClaims, 'claim'> = saveFailureClaims,
   takeLeftover?: () => boolean,
+  deferring?: () => boolean,
 ): (() => void) | undefined {
-  return enabled ? claims.claim(fn, takeLeftover) : undefined
+  return enabled ? claims.claim(fn, takeLeftover, deferring) : undefined
 }
 
 /**
  * 이 화면이 `<Toast>` 를 그리는 동안(`enabled`)만 표시 설정 저장 실패 알림을 맡는다(회화방). 로드 중·오류·없음 화면처럼 토스트가 없는 상태에서는
- * 맡지 않아 셸이 띄운다 — 알림이 0개가 되지 않게(task-030 REV-099 M-1). `onFail`·`takeLeftover` 는 최신 값을 쓴다.
+ * 맡지 않아 셸이 띄운다 — 알림이 0개가 되지 않게(task-030 REV-099 M-1). `onFail`·`takeLeftover`·`deferring` 은 최신 값을 쓴다.
  * 맡기·해제는 layout effect — 커밋과 해제 사이(passive cleanup 이 밀리는 동안) 온 실패가 이미 없는 화면으로 가지 않게 커밋 안에서 동기로 끝낸다(REV-100 #1).
  */
-export function useClaimDisplaySaveFailure(onFail: () => void, enabled = true, takeLeftover?: () => boolean): void {
+export function useClaimDisplaySaveFailure(onFail: () => void, enabled = true, takeLeftover?: () => boolean, deferring?: () => boolean): void {
   const ref = useRef(onFail)
   const leftRef = useRef(takeLeftover)
+  const deferRef = useRef(deferring)
   useEffect(() => {
     ref.current = onFail
     leftRef.current = takeLeftover
+    deferRef.current = deferring
   })
-  useLayoutEffect(() => claimWhile(enabled, () => ref.current(), saveFailureClaims, () => leftRef.current?.() ?? false), [enabled])
+  useLayoutEffect(
+    () => claimWhile(enabled, () => ref.current(), saveFailureClaims, () => leftRef.current?.() ?? false, () => deferRef.current?.() ?? false),
+    [enabled],
+  )
 }
 
 /** 표시 설정 저장 실패를 듣는다(앱 셸 알림·호스트의 성공 토스트 정리). `onFail` 은 최신 값을 쓴다. */
