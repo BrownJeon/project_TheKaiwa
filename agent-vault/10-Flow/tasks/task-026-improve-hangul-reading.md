@@ -19,10 +19,10 @@ demo_gate:
   required: true
   level: "delta"
   status: "review_requested"
-  version: 3
-  repo_path: "docs/demo/task-026-improve-hangul-reading-v3.html"
+  version: 4
+  repo_path: "docs/demo/task-026-improve-hangul-reading-v4.html"
   artifact_url: "https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY"
-  content_sha256: "19b8ee5e554d40f04ad925dade0201f2604710815f58b223390badef72ded638"
+  content_sha256: "ddda03ffc0c2fc96c84c4fab533fddb60fab84d27ec12f0faecf97205d793eb4"
   decided_by: "judge"
   rule_id: "DM-low-confidence"
   approved_by: ""
@@ -103,6 +103,34 @@ demo_gate:
   - **Leader 확인 필요**: ① **후리가나 데이터 출처** — 지금 `reading`(문장 전체 히라가나 한 줄)으로는 한자별 정렬이 안 된다. 서버가 형태소 단위 `[{surface, reading(히라가나 — 루비용), pron(발음 가나 — 한글용, は→ワ·장음 ー)}]` 를 내야 한다(데모의 `今日{きょう}は` 표기는 이걸 줄인 모양). D2-B 의 서버 읽기와 **같은 분석 한 번**으로 두 용도를 채우는 사양 권고 — 우분투 분석 워커의 pyopenjtalk(형태소별 read·pron) 또는 M4 `tts.g2p`(지금은 문장 단위 reading 만 반환 → 형태소별 확장 필요) 중 developer 조사. 送り仮名 분리(面白い → 面白 위에만)는 surface·reading 의 앞뒤 가나 맞춤으로 앱/서버 한 곳에서. 단어장 단어(`WordEntry.reading` 단어 단위)는 같은 맞춤으로 서버 없이도 루비 가능할 수 있음. 응답 필드·저장(메시지 행에 둘지, 오래된 메시지 소급 여부 — 없으면 기존 `reading` 이 있을 때 히라가나 줄로 대체 표시 권고)은 Leader 사양. ② **내 말 번역 서버 작업** — USER 메시지 `translation` 생성(LLM 호출 추가, 5초 예산 밖 비동기, E6 에 따라 보낼 때/켤 때), 상태 전달(준비 중·실패 — 폴링 또는 SSE 추가 이벤트), 재시도 API. 채팅방·회화방 공통. ③ **번역 스위치 범위** — 데모는 후리가나·한글·번역 세 값 모두 앱 전체 하나(사용자 설정)로 그렸다. 지금 오늘의 회화 번역 토글은 화면 안 값이라, 앱 전체로 묶으면 회화방에서 켠 번역이 수업에도 켜진다 — 이 범위로 확정할지 Leader 판단. ④ 설정 저장 위치: 지금 `localStorage kaiwa.chat.readingDefault` → `preferences` 사용자 설정 3개(기기 간 동일)로 옮기는 것을 전제로 그림. ⑤ `docs/screens.md` §1-3(“ruby 대신 본문 아래 한 줄”)은 승인 뒤 구현 가이드에서 뒤집어 고친다.
 - [17:16] 데모 v2 표시 문구 '후리가나' → '히라가나'(사용자 지시 17:14, v2 파일 그대로 수정 — 승인 전·해시 재기록은 Leader). 71곳 전부 바꿈(`grep -c 후리가나` 0, 코드 주석 2곳은 '루비'로). 동작·레이아웃·식별자(`fu`·`fuLabel`) 변경 없음. 다듬은 문장(히라가나 중복·혼동 방지): 설정 스위치 설명 "한자 위에 작은 히라가나로 읽기를 적어요" → "한자 위에 작게 읽는 법을 적어요" · E3-B 패널 스위치 설명 "한자 위 작은 히라가나" → "한자 위에 작게 읽는 법" · E1 문장 "한자 위 히라가나는…", E1-A 제목 "한자 위 히라가나로 대신"·설명 "문장 아래 히라가나 줄은 없애요"·E1-B 장점 "문장 아래 히라가나 줄이…"·결정 요약 칩 "한자 위 히라가나로 대신" · v1→v2 "(E1-A: 문장 아래 히라가나 줄 없앰)" · 단어 제안/단어장 "표제어 옆 읽기(칸)는 표제어 위로 옮겨요" · 한자 없는 예 4곳 "한자가 없어 위 히라가나 없음"(가나 보기 포함) · 배치 규칙 "(이미 가나·가타카나인 글자 위에는 없음)". 토스트 "히라가나를 보여 줘요/숨겼어요"·미리 보기 "히라가나와 한글을 모두 숨겼어요"·aria "표시 설정 — 히라가나·한글·번역"·`<title>` "히라가나·한글·번역 표시"(조사 그대로 자연스러움). `[읽기]`(E1-B·deck) 그대로. 검증: `check.mjs lint` DEMO_LINT_PASSED · 브라우저 360px 표시 바 [✓히라가나][✓한글][번역] 한 줄(top 동일, scrollW=clientW=360) · 화면 텍스트 '후리가나' 0 · 콘솔 오류 0(favicon 404 만). 구현 가이드·화면 서브태스크도 이 용어로.
 - [17:22] (Leader 지시 — 게이트가 같은 버전 재검토 거부) 위 문구 수정을 **데모 v3** `docs/demo/task-026-improve-hangul-reading-v3.html` 로 옮김: `demo-version` task-026-v3 · h1 small "데모 v3 · v2 결정 그대로 + 한자 위 읽기 표시 이름을 ‘히라가나’로 통일(사용자 지시 10-04)"(문구 안에 '후리가나'를 쓰면 grep 0 이 깨져 이렇게 씀; v2 는 아직 승인 전이라 "승인 결정" 대신 "결정") · 비교 라벨 "제안 · v3". "결정 필요 — v2 에서 새로 생긴 것만"·"v1 → v2 바뀐 점"은 v2 에서 생긴 내용을 가리키는 이력이라 그대로 뒀음. v2 는 `git checkout` 으로 검토본 원본 복원(HEAD 와 diff 0). 검증: v3 `grep -c 후리가나` 0 · v3 lint DEMO_LINT_PASSED(--expect task-026-v3) · v2 lint PASS. 게시·게이트 기록은 Leader.
+- [17:48] **delta 데모 v4 작성** — `docs/demo/task-026-improve-hangul-reading-v4.html`(`task-026-v4`, 토큰 `src/app/globals.css@sha256:bf67d6c60da2` — 해시·색 값 v3 와 같음, 새 색 없음). 상단 표기 "데모 v4 · v3 결정·문구 그대로 + 현재 화면을 운영 앱과 일치(HEAD 6e32984 소스 대조)". v1~v3 파일 수정 없음, src/** 수정 없음. 게시·게이트 기록은 Leader.
+  - **원인 정리**: v1(09-30)이 "현재"를 실제 컴포넌트를 읽지 않고 그린 간략 모형이었고 v2·v3 가 그대로 복사함(task-021~025·023 반영 이후 화면과 어긋남). v4 는 15상태 "현재"를 HEAD 소스를 읽어 다시 그렸고, 데모 옆 칸 "“현재” 화면 근거 — HEAD 소스"에 상태별 근거 파일·실제 문구·v3 차이를 표시(아래 표와 같은 내용).
+  - **상태별 "현재" 대조표**(근거 파일 → 실제 구조·문구 / v3 에서 고친 차이)
+
+    | 상태 | 근거 파일 | 실제(v4 "현재") | v3 에서 틀렸던 곳 |
+    |---|---|---|---|
+    | 회화방 `#talk` | `talk/TalkRoomHeader.tsx`·`TalkTutorBubble.tsx`·`TalkUserActions.tsx`·`TalkCorrectionCard.tsx`→`chat/CorrectionCard.tsx`·`VoiceBar.tsx`·`talkCopy.ts`·`chat/MessageList.tsx` | 56px 머리 ←·아바타 40·이름·표시등 "● 온라인 ›"·"모아 둔 교정 1"(360 "교정 1")·⋯ / 선생님 말 [▶ 다시 듣기][읽기 ▴][번역 ▾][문법 칩][시각] / 내 말 [▶ 내 목소리] 시각 / 유창성: 큰 실수만 말풍선 아래 카드(1/1 숨김·유형·"중요"·조각) / 구분선 "10월 4일 (토)" / 상태 줄 "누르고 있는 동안 말해요" | 상태 문구("누른 채로…")·"›"·모아 둔 교정 칩·중요/조각·구분선("오늘 · 14:02")·문법 칩 없음 |
+    | 회화방 준비 중 `#talk-pend` | `chat/MessageBubble.PendingBubble`·`chat/labels.stageText`·`talk/talkState.ts` THINKING | 내 말 아래 점 3개 "선생님이 답을 쓰는 중이에요" · 상태 "선생님이 생각하고 있어요" · 마이크 40% | 상태 문구("답을 준비하고 있어요")·준비 말풍선 없음 |
+    | 회화방 실패 `#talk-fail` | `chat/messages.endsWithUnfinishedReply`·`MessageList` | 대기 상태면 선생님 답(t4)까지 온 뒤 — 내 말이 마지막이면 실제론 "다시 받기" 말풍선이 뜸 | 내 말이 마지막인 채 대기(실제와 모순) |
+    | 채팅방 `#chat` | `chat/ChatRoomHeader.tsx`·`MessageBubble.tsx`·`ProposalCard.tsx`(ADD_WORD)·`Composer.tsx` | ←·"주말 이야기"·"채팅 · 유우"·[표현 점검]·⋯ / 선생님 말 [읽기 ▴][번역 ▾][문법 칩] / 단어 제안 카드는 선생님 말풍선 아래(36px 들여, 표제어 18+옆 읽기 14, [단어장에 추가][괜찮아요], ✎ 뜻 고쳐서 추가) / "일본어로 써 보세요" | [표현 점검] 버튼 없음·단어 제안을 점검 화면에 그림 |
+    | 표현 점검 `#review` | `chat/ChatReview.tsx`·`ReviewParts.ReviewSummary`·`ProposalCard`(ADD_STUDY_LOG)·`common/Segmented` | 안내 "선생님의 교정은 제안이에요. 채택한 것만…" / 총평·잘한 점·집중할 점·"교정 2건 · 채택 0 · 무시 0 · 남음 2" / "공부 기록 남기기" 카드 / [남은 교정 2·전체 2] / 카드 "1/2" / [대화로 돌아가기] | "선생님 총평" 회색 카드·"교정 2개" 제목·"단어 제안 1개" 절(실제 없음) |
+    | 단어장 `#words` | `vocab/WordsScreen.tsx`·`WordSearchBar.tsx`·`CategoryChips.tsx`·`ChunkChips.tsx`·`common/Segmented`(sm)·`ArchiveToggle.tsx`·`WordRow.tsx`·`shell/AppBar.tsx` | 머리 "단어장"+[＋ 추가]+아바타 "나" / "표현·읽기·뜻으로 검색" / "전체 50"·"N5 기초 50"(선택 주황) / "조각" 전체·이름·액션·느낌·꾸밈·없음 / [최근 추가·많이 틀린·가나다순]+[보관함] / "단어 50개" / 행 표제어 18·옆 읽기 13·"꾸밈 조각" 등 뱃지·뜻·"맞힘 n · 틀림 m" / [단어 더 보기] | 사용자 지적 전부(검색 문구·출처 칩·정렬·뱃지·+ 추가) + 아바타 "브" |
+    | 단어 상세 `#wsheet` | `vocab/WordDetailSheet.tsx`·`WordSoundButton.tsx`·`common/Sheet.tsx` | 시트 "단어"+✕ / 표제어 28+읽기 15+오른쪽 ▶(44) / 뜻 17 / 뱃지 줄(품사·N5·분류·조각) / 예문 카드(회색+▶) / 기록 4칸 / 출처 문장·추가한 날 / [수정][보관하기] / 빨간 삭제 | ▶ 없음·"품사/넣은 곳/기록" 표·[고치기][지우기] |
+    | 오늘의 단어 `#deck` | `vocab/VocabDeck.tsx`·`DeckProgress.tsx`·`SwipeCardStack.tsx`·`VocabCardFace.tsx`·`GestureHint.tsx`·`ChoiceList.tsx`·`DeckToolbar.tsx` | "오늘의 단어 · 4지선다 · 10장"+[끝내기] / "3 / 10"·"남은 8장"·칸 막대 / 3장 겹침(80%·최대 340)·표제어 40·읽기 17 / "← 밀어 다음 · → 밀어 이전 · ↑ 밀어 표시" / 번호 원 보기 / 52px 칸 [이전][あ 읽기][☆ 표시][건너뛰기](눌림 모양 차이 없음) | 부제 "3 / 10 · 뜻 고르기"·얇은 막대·알약 도구 줄 |
+    | ① 이해 `#l1` | `lesson/parts.tsx`(LessonHeader·StageSteps)·`StageUnderstand.tsx`·`lessonCopy.ts` U1 | 설명 "…들린 단어는 메모해 두세요." / [읽기][번역]+역할 범례 / 구간 카드 "느리게 ✓ · 보통" › / 줄마다 ▶(task-025)+안내 / 사다리·상태·[■ 멈춤] / 메모(칩 ✕·"예) 注文"·[추가]) / "들린 단어 2개" [단어장에 넣을까요?] / [다음 단계 · ② 문법] | 설명 한 글자·줄 ▶·메모 입력·들린 단어 카드·다음 단계 없음 |
+    | ② 문법 `#l2` | `lesson/StageGrammar.tsx`·`parts.ExprPlayChip` | 도구 줄 없음(읽기는 ① 값) / 표현 칩 = ▶ 듣기 칩(task-025)·"새 표현" / 설명 "…누르면 소리를 들을 수 있어요…" / 예문 번역 늘 보임 | 도구 줄을 그림·칩 ▶ 없음·예문 번역을 [번역]에 묶음 |
+    | ③ 문제 `#l3`·`#l3b` | `lesson/StageQuiz.tsx`·`logic.quizPromptView` | 도구 줄 없음 / "문제 n / 5"+점 24px(✓·✗) / 한국어 문제 16 + 일본어 문장 줄 17(따로) / 번호 원 보기 17 / 고르기 전엔 버튼 없음 | 도구 줄·한국어 문장 속 「」 인용으로 그림 |
+    | ④ 응용 `#l4` | `lesson/StageApply.tsx` | "상황 1 / 3"+점 / 써 볼 표현 칩 / "글자가 다른 곳에 밑줄을 쳤어요 · 채점이 아니에요" / 내 문장(점선 범례)·모범 답안(실선 범례·다른 글자 굵게 밑줄·읽기·뜻·[▶ 모범 답안 듣기]) / 긴 안내 / [다음 상황] | 글자 비교(task-025) 전부 없음 |
+    | ⑤ 말하기 `#l5` | `lesson/StageSpeak.tsx`·`useLessonVoice.ts` | "과제 1 / 3" / 목표 표현 "✓ 썼어요" / "내가 한 말" 말풍선 / [▶ 내 목소리](밑줄 글자) / "✓ 목표 표현을 모두 썼어요" / 모범 답안 / "다시 하려면 아래 버튼을 또 누르고 말해요." / [다음 과제] / 음성 바 "다시 하려면 또 누르고 말해요" | ▶ 내 목소리 모양·안내 문구 |
+    | 설정 `#settings` | `app/(app)/settings/page.tsx`·`LearningSettings.tsx`·`VoiceSettings.tsx`·`SpeechSettings.tsx`·`speech/modelCopy.modeDescription` | "설정" / 출석 카드 / 로그인 계정+[로그아웃] / "기본정보 · 학습" 입력 폼(이름·선생님 이름·수준·목표·문체·교정 강도·교정 방식·설명·단어 개수·공부 시간·[학습 설정 저장]) / "AI 선생님 목소리" / "음성 인식" — 지금 "일본어 표시" 절 없음(읽기는 ⋯ "읽기 항상 펼치기"·수업 ① [읽기]가 같은 localStorage 값) | 요약 줄("지금 수준 N5" 등) |
+    | 공통 | `shell/TabBar.tsx`·`AppBar.tsx`·`common/Sheet.tsx`·`globals.css` | 탭 아이콘(오늘·계획표·질문 실제 path) · 아바타 "나" · 시트 배경 bg-ink/40(다크에선 밝은 막) · 다크 토큰 = 첨부 캡처와 같음(검증: 단어장 다크 스크린샷이 캡처와 배치·색 일치) | — |
+
+    목소리 절은 위치 확인용으로 슬라이더 5개를 줄여 그렸고 화면 안에 그렇게 적어 둠(이 절은 바뀌지 않음). 목소리 이름(하루카·소라)·단어·문장은 합성 데이터.
+  - **"제안" = 실제 "현재" + 승인 결정만**(E1-A·E2-A·E3-A·E4-B·E5-A·E6-A·앱 전체 하나·D1-A '까'·'히라가나' 문구). 결정 A/B 패널은 없애고 하단에 "확정된 결정" 표로 고정. 실제에 있는 조각 필터·뱃지·▶ 소리·줄 ▶·▶ 듣기 칩·비교 밑줄·모아 둔 교정 칩·문법 칩·[표현 점검]은 그대로 둠.
+  - **v3 대비 제안 배치가 달라진 곳**(A/B 없이 자연스러운 자리, 데모 하단 표에도 있음): ① 단어장 [히라가나][한글] → 목록 머리 "단어 50개" 줄 오른쪽(실제 정렬 세그먼트+보관함 줄이 가득 — 360 에서 넘침, 머리 줄 18 → 32px) ② 단어 제안 카드 → 채팅방 선생님 말풍선 아래(실제 위치, 규칙 동일) ③ 채팅방 표시 바 → 머리 바로 아래, 점검 후 "점검을 마친 채팅" 띠는 그 아래 ④ ② 문법 도구 줄 [히라가나][한글]만(예문 번역은 실제로 늘 보임) ⑤ ③ 문제 도구 줄 [히라가나][한글]만(보기에 번역 없음) ⑥ ③ 문제의 따로 있는 일본어 문장 줄에도 히라가나·[한글](v3 는 한국어 속 인용이라 "달지 않음") ⑦ ④ 비교 밑줄 위 히라가나(밑줄은 아래라 겹치지 않음) ⑧ 문법 칩은 달지 않음(태그·제목 취급) ⑨ ⑤ "내가 한 말"의 [한글]은 말풍선 안.
+  - **새 결정 F1**(데모 하단 "결정 필요", 회화·채팅 ⋯ 누르면 메뉴 미리보기): 회화·채팅 ⋯ 메뉴 "읽기 항상 펼치기" 줄 — **A 메뉴에서 뺌(권고 — 표시 바·설정과 같은 값이라 겹침)** / B "히라가나 보기" 스위치로 남김(같은 앱 설정 값). 그 밖의 새 결정 없음.
+  - **검증**: `check.mjs lint --expect task-026-v4` → DEMO_LINT_PASSED · `grep -c 후리가나` 0 · 브라우저(playwright-core + Chrome) 15상태 × 360/390/412 × 현재·제안 × (기본·번역 켬·히라가나/한글 끔·⋯ 메뉴 열림) + 현재 vs 제안 15 = 프레임 324개에서 프레임 밖 넘침·가로 스크롤·[한글] 줄 잘림 0, 데모 페이지 390 폭 가로 스크롤 0, 콘솔 오류 0. 라이트·다크 스크린샷 육안 확인(단어장 다크 = 첨부 운영 캡처와 일치). 작성 중 발견해 고친 것: 클래스 이름 충돌 2건(`stk`·`bk` — 점검 화면 머리·단어 카드가 깨졌던 것).
+  - **Leader 확인 필요**: F1 사용자 결정 · 게시·게이트(v3 review_requested → v4). 구현 가이드는 v4 승인 뒤 이 대조표 기준으로 작성(현재 컴포넌트 위에 층만 얹는 방식).
 
 ## Developer 기록
 
@@ -218,6 +246,8 @@ demo_gate:
 | v2 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v2.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | 사용자 검토 요청 | 10-04 09:44 |
 | v2 | 수정요청 | docs/demo/task-026-improve-hangul-reading-v2.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | "'후리가나' -> '히라가나' 로 문구 변경해줘" | 10-04 17:16 |
 | v3 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v3.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | 사용자 검토 요청 | 10-04 17:18 |
+| v3 | 수정요청 | docs/demo/task-026-improve-hangul-reading-v3.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | "지금 데모화면의 '단어장'메뉴에서 현재와 제안화면을 봤을때 지금 앱에서의 현재화면과 데모화면의 현재화면이 다른데 왜 다르게 표현했어?" | 10-04 17:50 |
+| v4 | 검토요청 | docs/demo/task-026-improve-hangul-reading-v4.html | https://claude.ai/artifact/5h7KYVQKdQh8WkfVHSmpWY | 사용자 검토 요청 | 10-04 17:50 |
 
 ## Leader 기록 (서버 사양 조사 수용·결정, 2026-10-04 10:55)
 - 조사 수용: 읽기 출처 = **pyopenjtalk**(표기 8/8, 지연 <1ms/문장), M4 `/g2p`·Intl.Segmenter·기존 reading 정렬은 기각(근거는 Developer 기록).
@@ -888,3 +918,9 @@ TALK done "그녀는 책을 읽고 있어요." db 동일 MATCH true · toolLog.c
 - 적용: **사용자에게 보이는 모든 문구**에서 '후리가나' → '히라가나'(표시 바·도구 줄 버튼, 설정 스위치 "히라가나 보기", 토스트, 접근성 이름, 데모 설명). 기술 용어(코드 주석·설계 문서의 루비/furigana 설명)는 그대로.
 - 운영 화면에는 현재 해당 문구 0건(화면 A·B 미구현) → 데모 v2 문구 수정·재게시(같은 URL, 승인 전이라 v2 유지·해시 재기록) + 구현 가이드·화면 서브태스크에 반영.
 - [17:18] Leader: 문구 변경을 **데모 v3** 로(게이트가 같은 버전 재검토 거부) — v2 는 검토 원본으로 복원, v3 = v2 결정 그대로 + '히라가나' 문구. 같은 URL 에 v3 게시(Artifact Version 3), 게이트 changes_requested(사용자 원문) → review_requested v3(sha256 19b8ee5e…). 사용자 승인 문장은 "task-026 데모 v3 승인" 으로 받는다.
+
+## 사용자 지적 (2026-10-04 17:25) — 데모 "현재" 화면이 실제 앱과 다름
+> "지금 데모화면의 '단어장'메뉴에서 현재와 제안화면을 봤을때 지금 앱에서의 현재화면과 데모화면의 현재화면이 다른데 왜 다르게 표현했어?" (첨부: 운영 앱 단어장 — 검색 "표현·읽기·뜻으로 검색", 전체 50/N5 기초 50, 조각 필터, 최근 추가·많이 틀린·가나다순·보관함, 조각 뱃지, + 추가)
+- 원인(Leader 확인): 데모 v1(09-30)의 단어장 "현재"가 실제 코드가 아닌 간략 모형(검색 "표현·뜻으로 찾기", 출처 칩)이었고, task-023(조각 필터·뱃지, 10-03 운영 반영)도 반영 안 된 채 v2·v3 로 복사됨. "현재" 를 실제 화면과 대조하는 검수 단계가 없었다(Leader·Reviewer·QA 모두 미확인).
+- 조치: designer 가 15상태 전부의 "현재" 를 **현재 HEAD 코드(운영 반영본)** 기준으로 다시 그리고, "제안" 도 그 위에 얹어 **데모 v4**. 대조 근거(컴포넌트 파일·문구)를 상태별 표로 기록.
+- [17:50] Leader: **데모 v4 게시**(같은 URL, Artifact Version 4) — 15상태 "현재" 를 HEAD 소스대로(상태별 근거 파일 표), "제안" 은 그 위에 확정 결정만. 새 결정 **F1**(회화·채팅 ⋯ "읽기 항상 펼치기" — A 메뉴에서 뺌 권고 / B "히라가나 보기"로 남김). 게이트 v3 changes_requested(사용자 지적 원문) → review_requested v4(sha256 ddda03ff…). 승인 문장은 "task-026 데모 v4 승인" + F1 선택.
