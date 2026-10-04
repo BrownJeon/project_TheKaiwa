@@ -1,7 +1,7 @@
 ---
 task_id: task-031
 title: "일본어 표시 마무리 — 経営 장음 한글·녹음 중 저장됨 안내 잔류·조각 영구 loading"
-status: doing
+status: done
 base_ref: 26b6322
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -90,8 +90,35 @@ demo_gate:
 - **7영역 점검**: 이번 변경은 웹 프론트(순수 UI 로직·텍스트 변환) 한정 — 인증·소유자·capability·Secret·DB·라우트·6층 import(`speech/reading/client` 는 기존 위치, 신규 import 0)·LLM 계약·학습 데이터(Correction·StatsSnapshot)·엔진명 노출 접점 변경 0, "발견 없음". 정본 필드명·하드코딩(엔진명·키) 추가 0. 360/390/412 레이아웃 변경 0.
 - **판정**: Critical 0·High 0 → **PASS_WITH_NOTES**(LOW 2 비차단). QA 단계 없음(light) — 배포 가능. 회귀 위험 구간(배포 후 스모크 권고): 채팅 42/42·회화 45/45 운영 스모크(완료 기준) · 회화방에서 표시 토글 직후 녹음 시작 + 저장 실패 시나리오는 실기기 확인 대상이나 단위 테스트(순서 ①~④)로 잠겨 있음. 반려 0회(Sonnet 승격 권고 해당 없음).
 
-## 최종 요약
+## Deployer 기록
 
+**배포 완료 (2026-10-05 00:54 UTC+9)**
+- RELEASE_RESULT: `{"status":"ok","release":"20261004-235353-02082bd8","sha":"02082bd833f42b64760fd385f340de86b4bf259a","migrated":false}`
+- 웹 배포만(서버·DB·네이티브·M4 변경 없음) ✅
+- health: `200 ok` (env=PRODUCTION, degraded=[]) ✅
+- 3개 앱 pm2 cwd: `/home/brownjeon/apps/thekaiwa/releases/20261004-235353-02082bd8` ✅
+- gateway health: true ✅
+- 이전 릴리스: 20261004-225727-4ce98e44 (롤백 가능)
+- APK: 불필요 (네이티브 변경 없음)
+- M4 TTS: 불필요 (M4 변경 없음)
+- DB 마이그레이션: 불필요 (스키마 변경 없음)
+
+**판정**: ✅ 배포 성공 · 운영 반영 완료
+
+## 최종 요약 (Leader, 2026-10-05 00:05)
+
+**무엇이 바뀌었나** — task-026·030 일본어 표시 뒤에 남은 작은 문제 3건을 고쳤습니다(화면 배치·문구는 그대로).
+- 한글 발음: 장음 뒤 같은 모음을 더 이상 접지 않습니다 — `経営` 케-- → **케-에-**. 通り 토-리·先生へ 센세-에·家へ 이에에 등 기존 결과는 그대로입니다.
+- 회화방에서 녹음 중 표시 설정 저장이 실패하면 "저장됨" 안내가 1.4초 남던 문제를 없앴습니다(실패 알림은 손 뗀 뒤 1번 — 기존 규칙).
+- 읽기 분석 응답이 이상하면 그 줄이 계속 로딩으로 남던 문제를 없앴습니다(그 줄은 숨김 — "틀린 것보다 없음").
+
+**범위 조정** — 4번(대화 저장 순서)은 교정 트랜잭션 순서라 R2 보강 대상이어서 사용자 결정으로 분리(board 정리 backlog).
+
+**검증 경로** — judge(local_fix·R1·light·opus·데모 면제) → developer(opus, 실행 증빙: tsc 0·eslint 오류 0·단위 1,398/1,401 pass·0 fail·실 gateway 스모크 6/6·변이 검사) → **REV-102 PASS_WITH_NOTES**(재실행 동일, Low 2 비차단) → 배포. Codex: light 트랙이라 C2 판정 없음.
+
+**배포** — 코드 `32da7d2`·문서 `02082bd`, 릴리스 `20261004-235353-02082bd8`(`RELEASE_RESULT ok`, health 200 PRODUCTION). 운영 스모크(Leader 실행, `SMOKE_ENV=PRODUCTION`·3010): **채팅 42/42**(턴 p50 5,340ms) · **회화 45/45**. 웹 배포만 — 앱 재설치 불필요.
+
+**남은 것(비차단)** — REV-102 LOW-1 녹음 중 보류 안내 2건 겹침 시 함께 폐기(극히 드묾) · LOW-2 클라이언트 모양 검사가 서버보다 느슨(서버가 이미 거름). 폰 확인: 회화방 표시 토글 직후 녹음 + 저장 실패 경로(실기기).
 
 ## 데모 검토 (demo gate)
 

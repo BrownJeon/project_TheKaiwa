@@ -54,8 +54,8 @@ tags:
   - 보류: IMP-0011(카드 결과 초이스 통일 — Q9 예제 검토 대기) · IMP-0004(카톡 연동 2단계 자동 수집 — 별도 task, 신규도입 검토 필요) · IMP-0007(N5 단어 수 — 단어 출처 결정 대기)
 
 ## Todo (2026-10-05 접수 — 026·030 후속)
-- [[task-031-japanese-display-polish]] — 일본어 표시 마무리 3건(経営 장음 한글·녹음 중 저장됨 잔류·조각 영구 loading) — **light·opus, developer 진행 중**(1순위)
-- [[task-032-lexicon-to-reading]] — 관리자 발음 사전 → 읽기 분석기 반영(青か·愚か·密か) — standard·R1·opus·데모 없음(2순위)
+- [[task-031-japanese-display-polish]] — 일본어 표시 마무리 3건(経営 장음 한글·녹음 중 저장됨 잔류·조각 영구 loading) — ✅ **완료·운영 반영** `32da7d2`(REV-102 PASS_WITH_NOTES, 운영 스모크 42/42·45/45)
+- [[task-032-lexicon-to-reading]] — 관리자 발음 사전 → 읽기 분석기 반영(青か·愚か·密か) — standard·R1·opus·데모 없음 — **진행 중**(2순위)
 - [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — judge light → **사용자 결정 standard·delta 데모**(3순위)
 - (후보) 구 `reading`/`replyReading` 필드 제거 — PE+developer(talk@v8·chat@v3), 026 화면 A 배포로 이제 가능
 
