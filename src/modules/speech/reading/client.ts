@@ -9,7 +9,7 @@
  *
  * 가나 → 한글 규칙(데모 v2 `HG.convert(p, 'A', 'B')`, 사용자 결정 D1-A '까' 계열 · D2-B 구절 띄어쓰기):
  *   - 거센소리는 구절 첫 글자만(か=카 … 구절 안 か=까, た=따, ぱ=빠, ち·つ=쯔 계열), 탁음·나머지 행은 그대로.
- *   - 장음 ー·같은 모음 반복(いい·ええ) → '-'(조사 を=ヲ 는 합치지 않음 — `hangulLine` 이 조사 を 를 ヲ 로 넘긴다, QA O-1), 촉음 っ → 앞 글자 받침(다음 자음에 따라 ㄱ/ㅂ/ㅅ), ん → 받침(ㅁ/ㅇ/ㄴ, 끝·모음 앞은 ㅇ).
+ *   - 장음 ー·같은 모음 반복(いい·ええ) → '-'(조사 を=ヲ·へ=ヱ 는 합치지 않음 — `hangulLine` 이 조사 を·へ 를 ヲ·ヱ 로 넘긴다, QA O-1·QA-L1), 촉음 っ → 앞 글자 받침(다음 자음에 따라 ㄱ/ㅂ/ㅅ), ん → 받침(ㅁ/ㅇ/ㄴ, 끝·모음 앞은 ㅇ).
  *   - 요음(きゃ·しゅ·ちょ…)·외래음(ファ·ティ·ウィ…), 문장부호는 。→. 、→, 「」→“ ”.
  *   - 발음 줄의 ' '(구절)·'|'(조사 は·を·へ 뒤)는 띄어쓰기 + 다음 글자를 구절 첫 글자로.
  */
@@ -75,21 +75,28 @@ export function pronLine(segments: readonly ReadingSegment[]): string | null {
   return buildPronLine(segments, false)
 }
 
-/** 조사 を 조각(서버가 발음을 オ 로 바꿔 준다). 표기가 を 하나뿐인 조각은 늘 조사다. */
-function isParticleWo(s: ReadingSegment): boolean {
-  return (s.surface === 'を' || s.surface === 'ヲ') && s.pron === 'オ'
+/**
+ * 모음만으로 된 발음의 조사 조각 — 조사 を(서버가 발음을 オ 로 바꿔 준다)·へ(エ). 표기가 を·へ 하나뿐인 조각은 늘 조사다.
+ * 앞 단어 끝 모음과 같아도 장음으로 합치면 안 되므로 한글 변환기에 표식(を→ヲ·へ→ヱ)으로 넘긴다. は(ワ)·に·で·が·と·の 는 모음 단독이
+ * 아니라 원래 합쳐지지 않는다.
+ */
+function particleMark(s: ReadingSegment): 'ヲ' | 'ヱ' | null {
+  if ((s.surface === 'を' || s.surface === 'ヲ') && s.pron === 'オ') return 'ヲ'
+  if ((s.surface === 'へ' || s.surface === 'ヘ') && s.pron === 'エ') return 'ヱ'
+  return null
 }
 
 /**
- * `markWo` 면 조사 を 의 발음을 ヲ 로 남긴다 — 발음 줄 문자열만으로는 「ノオ」가 장음인지 「ノ+を」인지 모르므로 한글 변환기에
- * 조사 위치를 넘기는 표식이다(QA O-1: `ピアノを`→`피아노-` 가 아니라 `피아노오`). 공개 `pronLine` 은 데모 모양(オ) 그대로.
+ * `markParticles` 면 조사 を·へ 의 발음을 ヲ·ヱ 로 남긴다 — 발음 줄 문자열만으로는 「ノオ」가 장음인지 「ノ+を」인지 모르므로 한글 변환기에
+ * 조사 위치를 넘기는 표식이다(QA O-1: `ピアノを`→`피아노-` 가 아니라 `피아노오`, QA-L1: `先生へ`→`센세--` 가 아니라 `센세-에`).
+ * 공개 `pronLine` 은 데모 모양(オ·エ) 그대로.
  */
-function buildPronLine(segments: readonly ReadingSegment[], markWo: boolean): string | null {
+function buildPronLine(segments: readonly ReadingSegment[], markParticles: boolean): string | null {
   if (segments.length === 0) return null
   let out = ''
   for (const s of segments) {
     if (s.pron === null) return null
-    const pron = markWo && isParticleWo(s) ? 'ヲ' : s.pron
+    const pron = (markParticles && particleMark(s)) || s.pron
     out += (s.boundary === 'phrase' ? ' ' : s.boundary === 'particle' ? '|' : '') + pron
   }
   const line = out.trim()
@@ -195,8 +202,8 @@ const SMALL_V: Record<string, Vowel> = { ァ: 'a', ィ: 'i', ゥ: 'u', ェ: 'e',
 const PUNCT: Record<string, string> = { '。': '.', '、': ',', '？': '?', '！': '!', '?': '?', '!': '!', '.': '.', ',': ',', '「': '“', '」': '”', '『': '“', '』': '”', '〜': '~', '～': '~', '…': '…', '・': ' ' }
 const FU_V: Partial<Record<Vowel, Vowel>> = { a: 'wa', i: 'wi', e: 'we', o: 'wo', u: 'u', wa: 'wa' }
 
-/** `wo` = 조사 を(ヲ) — 앞 모음과 같아도 장음으로 합치지 않는다(「ピアノを」 piano o). */
-type Mora = { k: 'sp'; hard: boolean } | { k: 'long' } | { k: 'gem' } | { k: 'nn' } | { k: 'p'; t: string } | { k: 'raw'; t: string } | { k: 'm'; cls: Cls; v: Vowel; wo?: true }
+/** `part` = 조사 を(ヲ)·へ(ヱ) — 앞 모음과 같아도 장음으로 합치지 않는다(「ピアノを」 piano o · 「先生へ」 센세-에). */
+type Mora = { k: 'sp'; hard: boolean } | { k: 'long' } | { k: 'gem' } | { k: 'nn' } | { k: 'p'; t: string } | { k: 'raw'; t: string } | { k: 'm'; cls: Cls; v: Vowel; part?: true }
 
 function lead(cls: Cls, initial: boolean): Lead {
   switch (cls) {
@@ -282,7 +289,7 @@ function tokenize(src: string): Mora[] {
         else used = false
         if (used) i++
       }
-      ms.push(c === 'ヲ' ? { k: 'm', cls: b[0], v, wo: true } : { k: 'm', cls: b[0], v })
+      ms.push(c === 'ヲ' || c === 'ヱ' ? { k: 'm', cls: b[0], v, part: true } : { k: 'm', cls: b[0], v })
       continue
     }
     if (SMALL_V[c]) {
@@ -375,7 +382,7 @@ export function kanaToHangul(kana: string): string {
       initial = false
       continue
     }
-    if (m.cls === 'X' && !m.wo && /^[aiueo]$/.test(m.v) && prevV && prevV === m.v) {
+    if (m.cls === 'X' && !m.part && /^[aiueo]$/.test(m.v) && prevV && prevV === m.v) {
       out.push('-')
       prevV = null
       initial = false

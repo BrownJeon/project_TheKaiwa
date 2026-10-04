@@ -22,7 +22,7 @@ import { apiGet, apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { readStore, writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
-import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
+import { DISPLAY_COPY, DISPLAY_TOAST_MS, useClaimDisplaySaveFailure, useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
 import { DisplayBar } from '@/components/common/japanese/JapaneseText'
 import { useCountdown } from '@/components/common/useNow'
 import { ErrorBlock, LoadingBlock } from '@/components/common/ui'
@@ -211,6 +211,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const prevTurnRef = useRef<Omit<PrevTurn, 'queue'> | null>(null)
   const recordingRef = useRef(false)
   const deferredToastRef = useRef<{ msg: string; ms?: number } | null>(null)
+  /** 녹음 중 난 표시 설정 저장 실패 알림 — 다른 안내가 덮어쓰지 않게 `deferredToastRef` 와 따로 둔다(REV-100 #2). */
+  const saveFailDeferredRef = useRef(false)
   const focusTextRef = useRef(false)
   const turnPhaseRef = useRef<string>('idle')
   const laterCountRef = useRef(0)
@@ -241,6 +243,21 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     [showToast],
   )
   const announce = useCallback((msg: string) => notify(msg, 4000), [notify])
+  // 방 본 화면(<Toast> 가 그려지는 때)에서만 표시 설정 저장 실패 알림을 맡는다 — 방 토스트 자리(음성 136·글자 84)와 녹음 중 미룸 규칙을 그대로 쓴다.
+  // 로드 중·오류·없음 화면은 Toast 가 없어 맡지 않고 셸이 띄운다(task-030 REV-097 L-2 · REV-099 M-1).
+  // 녹음 중에는 화면·스크린리더 모두 미루고(§15-10 C) 놓은 뒤 1회. 미룬 채 방을 떠나면 셸이 1회 이어받는다(takeLeftover 는 읽고 비운다).
+  useClaimDisplaySaveFailure(
+    () => {
+      if (recordingRef.current) saveFailDeferredRef.current = true
+      else showToast(DISPLAY_COPY.saveFailed, DISPLAY_TOAST_MS)
+    },
+    load === 'ready' && !!chat,
+    () => {
+      const left = saveFailDeferredRef.current
+      saveFailDeferredRef.current = false
+      return left
+    },
+  )
   /** 화면에 띄우지 않고 스크린리더에만 한 번 — 녹음 중이면 끝난 뒤(데모 fl-flow). */
   const srAnnounce = useCallback((msg: string) => {
     if (recordingRef.current) deferredSrRef.current = msg
@@ -457,6 +474,11 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
       const d = deferredToastRef.current
       deferredToastRef.current = null
       showToast(d.msg, d.ms)
+    }
+    // 토스트는 한 칸이라 마지막에 낸 저장 실패 알림이 남는다. 녹음 중 여러 번 실패해도 1회.
+    if (!recording && saveFailDeferredRef.current) {
+      saveFailDeferredRef.current = false
+      showToast(DISPLAY_COPY.saveFailed, DISPLAY_TOAST_MS)
     }
     if (!recording && deferredSrRef.current) {
       const m = deferredSrRef.current

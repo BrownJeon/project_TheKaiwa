@@ -1,0 +1,886 @@
+{
+ "_note": "task-030 QA-L1 — dev gateway(127.0.0.1:8197, pyopenjtalk 0.4.1) /text/annotate 실측 출력(2026-10-04) + 손으로 정한 기대 한글. 조사 へ·を·は·に·で × (장음 뒤·같은 모음 뒤·자음 뒤).",
+ "cases": [
+  {
+   "text": "先生へ行く。",
+   "hangul": "센세-에 이꾸.",
+   "segments": [
+    {
+     "surface": "先生",
+     "ruby": [
+      [
+       "先生",
+       "せんせい"
+      ]
+     ],
+     "pron": "センセー",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    },
+    {
+     "surface": "行く",
+     "ruby": [
+      [
+       "行",
+       "い"
+      ],
+      [
+       "く",
+       null
+      ]
+     ],
+     "pron": "イク",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "家へ帰る。",
+   "hangul": "이에에 카에루.",
+   "segments": [
+    {
+     "surface": "家",
+     "ruby": [
+      [
+       "家",
+       "いえ"
+      ]
+     ],
+     "pron": "イエ",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    },
+    {
+     "surface": "帰る",
+     "ruby": [
+      [
+       "帰",
+       "かえ"
+      ],
+      [
+       "る",
+       null
+      ]
+     ],
+     "pron": "カエル",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "絵へ行く。",
+   "hangul": "에에 이꾸.",
+   "segments": [
+    {
+     "surface": "絵",
+     "ruby": [
+      [
+       "絵",
+       "え"
+      ]
+     ],
+     "pron": "エ",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    },
+    {
+     "surface": "行く",
+     "ruby": [
+      [
+       "行",
+       "い"
+      ],
+      [
+       "く",
+       null
+      ]
+     ],
+     "pron": "イク",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "本へ書く。",
+   "hangul": "홍에 카꾸.",
+   "segments": [
+    {
+     "surface": "本",
+     "ruby": [
+      [
+       "本",
+       "ほん"
+      ]
+     ],
+     "pron": "ホン",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    },
+    {
+     "surface": "書く",
+     "ruby": [
+      [
+       "書",
+       "か"
+      ],
+      [
+       "く",
+       null
+      ]
+     ],
+     "pron": "カク",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "ここへ来て。",
+   "hangul": "코꼬에 키떼.",
+   "segments": [
+    {
+     "surface": "ここ",
+     "ruby": null,
+     "pron": "ココ",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    },
+    {
+     "surface": "来",
+     "ruby": [
+      [
+       "来",
+       "き"
+      ]
+     ],
+     "pron": "キ",
+     "boundary": "particle"
+    },
+    {
+     "surface": "て",
+     "ruby": null,
+     "pron": "テ",
+     "boundary": null
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "コーヒーを飲む。",
+   "hangul": "코-히-오 노무.",
+   "segments": [
+    {
+     "surface": "コーヒー",
+     "ruby": null,
+     "pron": "コーヒー",
+     "boundary": null
+    },
+    {
+     "surface": "を",
+     "ruby": null,
+     "pron": "オ",
+     "boundary": null
+    },
+    {
+     "surface": "飲む",
+     "ruby": [
+      [
+       "飲",
+       "の"
+      ],
+      [
+       "む",
+       null
+      ]
+     ],
+     "pron": "ノム",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "ピアノを弾く。",
+   "hangul": "피아노오 히꾸.",
+   "segments": [
+    {
+     "surface": "ピアノ",
+     "ruby": null,
+     "pron": "ピアノ",
+     "boundary": null
+    },
+    {
+     "surface": "を",
+     "ruby": null,
+     "pron": "オ",
+     "boundary": null
+    },
+    {
+     "surface": "弾く",
+     "ruby": [
+      [
+       "弾",
+       "ひ"
+      ],
+      [
+       "く",
+       null
+      ]
+     ],
+     "pron": "ヒク",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "本を読む。",
+   "hangul": "홍오 요무.",
+   "segments": [
+    {
+     "surface": "本",
+     "ruby": [
+      [
+       "本",
+       "ほん"
+      ]
+     ],
+     "pron": "ホン",
+     "boundary": null
+    },
+    {
+     "surface": "を",
+     "ruby": null,
+     "pron": "オ",
+     "boundary": null
+    },
+    {
+     "surface": "読む",
+     "ruby": [
+      [
+       "読",
+       "よ"
+      ],
+      [
+       "む",
+       null
+      ]
+     ],
+     "pron": "ヨム",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "先生は来た。",
+   "hangul": "센세-와 키따.",
+   "segments": [
+    {
+     "surface": "先生",
+     "ruby": [
+      [
+       "先生",
+       "せんせい"
+      ]
+     ],
+     "pron": "センセー",
+     "boundary": null
+    },
+    {
+     "surface": "は",
+     "ruby": null,
+     "pron": "ワ",
+     "boundary": null
+    },
+    {
+     "surface": "来",
+     "ruby": [
+      [
+       "来",
+       "き"
+      ]
+     ],
+     "pron": "キ",
+     "boundary": "particle"
+    },
+    {
+     "surface": "た",
+     "ruby": null,
+     "pron": "タ",
+     "boundary": null
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "母は来た。",
+   "hangul": "하하와 키따.",
+   "segments": [
+    {
+     "surface": "母",
+     "ruby": [
+      [
+       "母",
+       "はは"
+      ]
+     ],
+     "pron": "ハハ",
+     "boundary": null
+    },
+    {
+     "surface": "は",
+     "ruby": null,
+     "pron": "ワ",
+     "boundary": null
+    },
+    {
+     "surface": "来",
+     "ruby": [
+      [
+       "来",
+       "き"
+      ]
+     ],
+     "pron": "キ",
+     "boundary": "particle"
+    },
+    {
+     "surface": "た",
+     "ruby": null,
+     "pron": "タ",
+     "boundary": null
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "本は面白い。",
+   "hangul": "홍와 오모시로이.",
+   "segments": [
+    {
+     "surface": "本",
+     "ruby": [
+      [
+       "本",
+       "ほん"
+      ]
+     ],
+     "pron": "ホン",
+     "boundary": null
+    },
+    {
+     "surface": "は",
+     "ruby": null,
+     "pron": "ワ",
+     "boundary": null
+    },
+    {
+     "surface": "面白い",
+     "ruby": [
+      [
+       "面白",
+       "おもしろ"
+      ],
+      [
+       "い",
+       null
+      ]
+     ],
+     "pron": "オモシロイ",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "ここは広い。",
+   "hangul": "코꼬와 히로이.",
+   "segments": [
+    {
+     "surface": "ここ",
+     "ruby": null,
+     "pron": "ココ",
+     "boundary": null
+    },
+    {
+     "surface": "は",
+     "ruby": null,
+     "pron": "ワ",
+     "boundary": null
+    },
+    {
+     "surface": "広い",
+     "ruby": [
+      [
+       "広",
+       "ひろ"
+      ],
+      [
+       "い",
+       null
+      ]
+     ],
+     "pron": "ヒロイ",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "先生に会う。",
+   "hangul": "센세-니 아우.",
+   "segments": [
+    {
+     "surface": "先生",
+     "ruby": [
+      [
+       "先生",
+       "せんせい"
+      ]
+     ],
+     "pron": "センセー",
+     "boundary": null
+    },
+    {
+     "surface": "に",
+     "ruby": null,
+     "pron": "ニ",
+     "boundary": null
+    },
+    {
+     "surface": "会う",
+     "ruby": [
+      [
+       "会",
+       "あ"
+      ],
+      [
+       "う",
+       null
+      ]
+     ],
+     "pron": "アウ",
+     "boundary": "phrase"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "家に帰る。",
+   "hangul": "이에니 카에루.",
+   "segments": [
+    {
+     "surface": "家",
+     "ruby": [
+      [
+       "家",
+       "いえ"
+      ]
+     ],
+     "pron": "イエ",
+     "boundary": null
+    },
+    {
+     "surface": "に",
+     "ruby": null,
+     "pron": "ニ",
+     "boundary": null
+    },
+    {
+     "surface": "帰る",
+     "ruby": [
+      [
+       "帰",
+       "かえ"
+      ],
+      [
+       "る",
+       null
+      ]
+     ],
+     "pron": "カエル",
+     "boundary": "phrase"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "本に書く。",
+   "hangul": "혼니 카꾸.",
+   "segments": [
+    {
+     "surface": "本",
+     "ruby": [
+      [
+       "本",
+       "ほん"
+      ]
+     ],
+     "pron": "ホン",
+     "boundary": null
+    },
+    {
+     "surface": "に",
+     "ruby": null,
+     "pron": "ニ",
+     "boundary": null
+    },
+    {
+     "surface": "書く",
+     "ruby": [
+      [
+       "書",
+       "か"
+      ],
+      [
+       "く",
+       null
+      ]
+     ],
+     "pron": "カク",
+     "boundary": "phrase"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "先生で良い。",
+   "hangul": "센세-데 요이.",
+   "segments": [
+    {
+     "surface": "先生",
+     "ruby": [
+      [
+       "先生",
+       "せんせい"
+      ]
+     ],
+     "pron": "センセー",
+     "boundary": null
+    },
+    {
+     "surface": "で",
+     "ruby": null,
+     "pron": "デ",
+     "boundary": null
+    },
+    {
+     "surface": "良い",
+     "ruby": [
+      [
+       "良",
+       "よ"
+      ],
+      [
+       "い",
+       null
+      ]
+     ],
+     "pron": "ヨイ",
+     "boundary": "phrase"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "家で寝る。",
+   "hangul": "이에데 네루.",
+   "segments": [
+    {
+     "surface": "家",
+     "ruby": [
+      [
+       "家",
+       "いえ"
+      ]
+     ],
+     "pron": "イエ",
+     "boundary": null
+    },
+    {
+     "surface": "で",
+     "ruby": null,
+     "pron": "デ",
+     "boundary": null
+    },
+    {
+     "surface": "寝る",
+     "ruby": [
+      [
+       "寝",
+       "ね"
+      ],
+      [
+       "る",
+       null
+      ]
+     ],
+     "pron": "ネル",
+     "boundary": "phrase"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "本で学ぶ。",
+   "hangul": "혼데 마나부.",
+   "segments": [
+    {
+     "surface": "本",
+     "ruby": [
+      [
+       "本",
+       "ほん"
+      ]
+     ],
+     "pron": "ホン",
+     "boundary": null
+    },
+    {
+     "surface": "で",
+     "ruby": null,
+     "pron": "デ",
+     "boundary": null
+    },
+    {
+     "surface": "学ぶ",
+     "ruby": [
+      [
+       "学",
+       "まな"
+      ],
+      [
+       "ぶ",
+       null
+      ]
+     ],
+     "pron": "マナブ",
+     "boundary": "phrase"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "ビーへ行く。",
+   "hangul": "비-에 이꾸.",
+   "segments": [
+    {
+     "surface": "ビー",
+     "ruby": null,
+     "pron": "ビー",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    },
+    {
+     "surface": "行く",
+     "ruby": [
+      [
+       "行",
+       "い"
+      ],
+      [
+       "く",
+       null
+      ]
+     ],
+     "pron": "イク",
+     "boundary": "particle"
+    },
+    {
+     "surface": "。",
+     "ruby": null,
+     "pron": "。",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "先生へ",
+   "hangul": "센세-에",
+   "segments": [
+    {
+     "surface": "先生",
+     "ruby": [
+      [
+       "先生",
+       "せんせい"
+      ]
+     ],
+     "pron": "センセー",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "ピアノへ",
+   "hangul": "피아노에",
+   "segments": [
+    {
+     "surface": "ピアノ",
+     "ruby": null,
+     "pron": "ピアノ",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    }
+   ]
+  },
+  {
+   "text": "家へ",
+   "hangul": "이에에",
+   "segments": [
+    {
+     "surface": "家",
+     "ruby": [
+      [
+       "家",
+       "いえ"
+      ]
+     ],
+     "pron": "イエ",
+     "boundary": null
+    },
+    {
+     "surface": "へ",
+     "ruby": null,
+     "pron": "エ",
+     "boundary": null
+    }
+   ]
+  }
+ ]
+}

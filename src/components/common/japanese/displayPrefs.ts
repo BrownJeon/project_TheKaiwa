@@ -12,7 +12,7 @@
  *   PUT 줄이 멈춰 이후 토글이 서버에 가지 않는다.
  * - 옛 `localStorage kaiwa.chat.readingDefault` 는 첫 GET 성공 직후 한 번 이관한다(§15-3 C) — PUT 은 같은 줄(pump)로 보낸다.
  */
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { apiGet, apiPut } from '@/components/common/api'
 import { readStore, writeStore } from '@/components/common/storage'
 import { KEYS as CHAT_KEYS } from '@/components/chat/storageKeys'
@@ -311,6 +311,90 @@ export function watchSaveFailures(store: Pick<DisplayPrefsStore, 'subscribe' | '
     seen = now
     onFail()
   })
+}
+
+/**
+ * 저장 실패 알림을 "맡는" 화면 — 회화방은 자기 토스트 자리(음성 모드 136)와 녹음 중 미룸 규칙이 있어 앱 셸(84, 즉시)보다 알맞다(task-030 REV-097 L-2).
+ * 맡은 화면이 있는 동안 실패는 그 화면 한 곳에서만 알리고(셸은 띄우지 않는다 → 알림 정확히 1개), 맡은 화면이 사라진 뒤 늦게 온 실패는
+ * 셸이 띄운다(REV-096 #2). 한 번에 하나 — 나중에 맡은 쪽이 이기고, 해제는 자기 것일 때만 효과가 있다.
+ */
+export class SaveFailureClaims {
+  private current: { fn: () => void; takeLeftover?: () => boolean } | null = null
+  private shell: (() => void) | null = null
+
+  /**
+   * 맡는다. 돌려준 함수로 해제 — 자기 것일 때만 효과가 있고, 그때 `takeLeftover()` 가 true(맡은 화면이 아직 못 띄운 알림이 남음)면
+   * 셸이 그 알림을 1번 대신 띄운다(녹음 중 미룬 알림이 화면 이탈로 사라지지 않게, REV-100 #2).
+   */
+  claim(fn: () => void, takeLeftover?: () => boolean): () => void {
+    const mine = { fn, takeLeftover }
+    this.current = mine
+    return () => {
+      if (this.current !== mine) return
+      this.current = null
+      if (mine.takeLeftover?.()) this.shell?.()
+    }
+  }
+
+  /** 해제 때 넘길 셸 알림을 등록한다. 돌려준 함수로 해제(자기 것일 때만). */
+  setShell(fn: () => void): () => void {
+    this.shell = fn
+    return () => {
+      if (this.shell === fn) this.shell = null
+    }
+  }
+
+  isClaimed(): boolean {
+    return this.current !== null
+  }
+
+  /** 맡은 화면이 있으면 그 화면에, 없으면 `fallback`(셸)에 알린다. */
+  route(fallback: () => void): void {
+    if (this.current) this.current.fn()
+    else fallback()
+  }
+}
+
+export const saveFailureClaims = new SaveFailureClaims()
+
+/**
+ * 저장 실패가 났을 때, 방금(토스트 시간 안에) 이 화면이 띄운 성공 토스트가 아직 떠 있으면 지운다 — 빈 문구·0ms = 숨김. 성공 안내("…적용돼요")가
+ * 되돌아간 값 위에 남아 실패 알림과 겹치거나 거짓이 되지 않게(REV-097 L-1). 실패를 맡은 화면이 있으면 지우지 않는다 — 실패 문구가 같은 토스트 칸을
+ * 덮어 성공 토스트가 저절로 사라지고, 빈 문구가 미뤄 둔·막 띄운 실패 알림을 지우는 순서 문제도 없다.
+ */
+export function clearFreshSuccessToast(
+  shownAt: number,
+  now: number,
+  onToast: (msg: string, ms?: number) => void,
+  claims: Pick<SaveFailureClaims, 'isClaimed'> = saveFailureClaims,
+): void {
+  if (claims.isClaimed()) return
+  if (now - shownAt < DISPLAY_TOAST_MS) onToast('', 0)
+}
+
+/** `enabled` 인 동안만 맡고, 해제 함수를 돌려준다(effect cleanup 이 그대로 부른다). enabled 가 false 면 맡지 않는다. */
+export function claimWhile(
+  enabled: boolean,
+  fn: () => void,
+  claims: Pick<SaveFailureClaims, 'claim'> = saveFailureClaims,
+  takeLeftover?: () => boolean,
+): (() => void) | undefined {
+  return enabled ? claims.claim(fn, takeLeftover) : undefined
+}
+
+/**
+ * 이 화면이 `<Toast>` 를 그리는 동안(`enabled`)만 표시 설정 저장 실패 알림을 맡는다(회화방). 로드 중·오류·없음 화면처럼 토스트가 없는 상태에서는
+ * 맡지 않아 셸이 띄운다 — 알림이 0개가 되지 않게(task-030 REV-099 M-1). `onFail`·`takeLeftover` 는 최신 값을 쓴다.
+ * 맡기·해제는 layout effect — 커밋과 해제 사이(passive cleanup 이 밀리는 동안) 온 실패가 이미 없는 화면으로 가지 않게 커밋 안에서 동기로 끝낸다(REV-100 #1).
+ */
+export function useClaimDisplaySaveFailure(onFail: () => void, enabled = true, takeLeftover?: () => boolean): void {
+  const ref = useRef(onFail)
+  const leftRef = useRef(takeLeftover)
+  useEffect(() => {
+    ref.current = onFail
+    leftRef.current = takeLeftover
+  })
+  useLayoutEffect(() => claimWhile(enabled, () => ref.current(), saveFailureClaims, () => leftRef.current?.() ?? false), [enabled])
 }
 
 /** 표시 설정 저장 실패를 듣는다(앱 셸 알림·호스트의 성공 토스트 정리). `onFail` 은 최신 값을 쓴다. */

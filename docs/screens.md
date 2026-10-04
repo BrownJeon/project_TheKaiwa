@@ -7847,7 +7847,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 5. **400자 초과**(채팅 말은 1,000자까지): 400자 안의 마지막 `。！？!?\n` 뒤에서 잘라 여러 문장으로 보내고 결과 세그먼트를 순서대로 잇는다. 400자 안에 끊을 곳이 없으면 그 문장은 숨김(중간을 자르면 단어가 잘려 읽기가 틀린다).
 6. 로그아웃(401)은 기존 `api.ts` 동작 그대로.
 
-**C. 상태 — `useAnnotations(texts: string[]): AnnotationState[]`(입력 순서)**: `{ s:'off' }`(두 층 다 끔) · `{ s:'loading' }` · `{ s:'ready', segments }` · `{ s:'none' }`. 렌더 규칙: loading = 본문 그대로 + 루비 줄간격 예약 + `[한글]` 자리에 **옅은 막대**(높이 12px·폭 62%·`bg-surface2`, 내 말 말풍선 안은 `bg-surface`, 위 6·아래 4px — 실제 한글 줄 높이와 같아 채워질 때 밀리지 않음, `motion-safe:animate-pulse`, aria-hidden) · ready = `rubyPieces(segments)` 로 루비, `hangulLine(segments)` 가 null 이 아니면 `[한글]` · none = 루비·한글 없음(막대 지움).
+**C. 상태 — `useAnnotations(texts: string[]): AnnotationState[]`(입력 순서)**: `{ s:'off' }`(두 층 다 끔) · `{ s:'loading' }` · `{ s:'ready', segments }` · `{ s:'none' }`. 렌더 규칙: loading = 본문 그대로 + 루비 줄간격 예약 + `[한글]` 자리에 **옅은 막대**(높이 12px·폭 62%·`bg-surface2`, 내 말 말풍선 안은 `bg-surface`, 위 6·아래 4px — 실제 한글 줄 높이와 같아 채워질 때 밀리지 않음, `motion-safe:animate-pulse`, aria-hidden — **내 말풍선만 task-030 에서 자리 = 한글 줄 높이로 보정, §15-10 B**) · ready = `rubyPieces(segments)` 로 루비, `hangulLine(segments)` 가 null 이 아니면 `[한글]` · none = 루비·한글 없음(막대 지움).
 
 **D. 한글 줄은 `hangulLine(segments)` 만(QA O-1)** — `kanaToHangul(pronLine(…))` 처럼 우회하면 조사 を 보정(`ピアノを` → `피아노오`)이 빠진다. 화면 코드에 `kanaToHangul`·`pronLine` 호출 0건이어야 한다(Reviewer grep 대상).
 
@@ -7867,8 +7867,8 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 
 **G. `HangulLine` · `DisplayToggles` · `DisplayBar`**
 - `HangulLine({ state, size: 13|12.5|12|14|15, inline?, tone?: 'onAccent' })` — §15-1 D 마크업 + loading 막대. `inline` = 칩 안 같은 흐름(`<span>` 12px).
-- `DisplayToggles({ keys: ('fu'|'hg'|'tr')[], onToast })` — 32px 알약(지금 수업 `parts.Toggle` 과 같은 모양: 켬 `bg-ink text-surface border-ink` + `✓` + semibold, 끔 `bg-surface border-line`), 세로 히트 44px(`before:-inset-y-1.5`), `flex-none` + 줄바꿈 없음. `loaded` 전에는 `aria-disabled` + 흐리게(누르면 무시).
-- `DisplayBar({ onToast })` — 회화·채팅 머리 바로 아래 `h-11 flex-none items-center gap-1.5 px-3 bg-surface border-b border-line overflow-x-auto`(스크롤바 숨김, 360 에서도 한 줄이라 실제로는 스크롤되지 않음), 맨 앞 "표시" 12px `text-ink2`(aria-hidden), `role="group" aria-label="이 방 전체 표시"` + `DisplayToggles(['fu','hg','tr'])`. 화면당 스크롤 1곳 규칙 — 바는 고정 머리의 일부(목록 스크롤 밖).
+- `DisplayToggles({ keys: ('fu'|'hg'|'tr')[], onToast })` — 32px 알약(지금 수업 `parts.Toggle` 과 같은 모양: 켬 `bg-ink text-surface border-ink` + `✓` + semibold, 끔 `bg-surface border-line`), 세로 히트 46px(`before:-inset-y-[7px]` — task-030 §15-10 A, 표시 바 안에서는 44 로 잘림), `flex-none` + 줄바꿈 없음. `loaded` 전에는 `aria-disabled` + 흐리게(누르면 무시).
+- `DisplayBar({ onToast })` — 회화·채팅 머리 바로 아래 `h-11 flex-none items-center gap-1.5 px-3 bg-surface shadow-[inset_0_-1px_0_var(--color-line)] overflow-x-auto`(아래 선은 `border-b` 가 아니라 안쪽 1px 선 — task-030 §15-10 A)(스크롤바 숨김, 360 에서도 한 줄이라 실제로는 스크롤되지 않음), 맨 앞 "표시" 12px `text-ink2`(aria-hidden), `role="group" aria-label="이 방 전체 표시"` + `DisplayToggles(['fu','hg','tr'])`. 화면당 스크롤 1곳 규칙 — 바는 고정 머리의 일부(목록 스크롤 밖).
 
 **H. 내 말 번역(E5·E6, T1)**
 
@@ -7902,7 +7902,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 
 **B. 저장소(`displayPrefs.ts`)** — React 컨텍스트 대신 모듈 전역 저장소 + `useSyncExternalStore`(레이아웃 파일을 건드리지 않고 회화·채팅·수업·단어장·설정이 같은 값을 본다).
 - 첫 구독 때 GET 1회(앱 세션 동안 유지 — 화면을 옮겨도 다시 읽지 않음, 설정 화면은 마운트 때 한 번 더 읽어 다른 기기 변경을 반영). 로드 전 `loaded:false` → 층을 그리지 않고 토글은 흐림(값이 오면 한 번에 켜짐 — 끈 사용자에게 잠깐 보였다 사라지는 깜박임 방지). GET 실패 → 기본값(E2-A)으로 `loaded:true`(층이 학습 기능의 일부라 막지 않음), 설정 화면만 오류 블록.
-- `set(key, on)`: **바로 화면에 반영(낙관)** → PUT. 요청은 한 줄로(연타 시 마지막 값만 보냄). 실패하면 이전 값으로 되돌리고 저장소가 `failEpoch` 를 1 올린다(사용자가 누른 PUT 이 되돌려졌을 때만 — 더 새 값이 이어받은 경우·이관 PUT 실패는 올리지 않음). **실패 토스트 "표시 설정을 저장하지 못했어요. 다시 눌러 주세요"는 앱 셸 한 곳(`components/shell/DisplaySaveNotice.tsx`, `(app)/layout.tsx`)이 띄운다** — 화면을 떠난 뒤 늦게 실패해도 보인다. 호스트 화면(설정·표시 바·도구 줄)은 실패 토스트를 띄우지 않는다(이중 방지). 성공 토스트는 §15-5(누른 곳에서, 탭 즉시).
+- `set(key, on)`: **바로 화면에 반영(낙관)** → PUT. 요청은 한 줄로(연타 시 마지막 값만 보냄). 실패하면 이전 값으로 되돌리고 저장소가 `failEpoch` 를 1 올린다(사용자가 누른 PUT 이 되돌려졌을 때만 — 더 새 값이 이어받은 경우·이관 PUT 실패는 올리지 않음). **실패 토스트 "표시 설정을 저장하지 못했어요. 다시 눌러 주세요"는 앱 셸 한 곳(`components/shell/DisplaySaveNotice.tsx`, `(app)/layout.tsx`)이 띄운다** — 화면을 떠난 뒤 늦게 실패해도 보인다. 호스트 화면(설정·표시 바·도구 줄)은 실패 토스트를 띄우지 않는다(이중 방지). 성공 토스트는 §15-5(누른 곳에서, 탭 즉시). 실패 때 호스트가 방금(2.2초 안) 띄운 성공 토스트는 `useClearSuccessOnSaveFail` 이 `onToast('', 0)`(빈 문구 = 숨김)로 지운다 — 테스트로 잠근다(task-030 REV-097 L-1). **예외: 회화방은 셸 대신 방이 실패 알림을 띄운다(§15-10 C).**
 - 같은 저장소라 **표시 바·수업 도구 줄·단어장 도구 줄·설정 스위치가 즉시 함께 바뀐다**(새로고침 불필요).
 
 **C. 옛 값 1회 이관(첫 GET 성공 직후, 한 번)**: `readStore('local', 'kaiwa.chat.readingDefault')` 가 `'off'` 이고 서버 `showFurigana === true` 면 `PUT { "showFurigana": false }` → 성공하면 키 삭제(실패면 키를 남겨 다음 로드에 다시). 값이 `'on'` 이거나 서버가 이미 false 면 PUT 없이 키 삭제. `chat/storageKeys.ts` 의 키 이름은 이관용으로만 남기고, 이 키를 읽던 `ChatRoom`·`TalkRoom`·`LessonScreen` 코드는 지운다. `kaiwa.vocab.readingDefault`(오늘의 단어 카드 [읽기])는 **다른 값이라 그대로**.
@@ -8021,11 +8021,11 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 
 ### 15-6. 360 / 390 / 412 · 높이 780 / 892 · 접근성 QA 체크리스트
 
-데모 v4 와 나란히 대조한다(데모 상단 "폭"·"보기 › 현재 vs 제안"·"표시" 토글). 모든 항목을 히라가나·한글 켬/끔 4조합 중 최소 (켬·켬)·(끔·끔) + 번역 켬에서.
+데모 v4 와 나란히 대조한다(데모 상단 "폭"·"보기 › 현재 vs 제안"·"표시" 토글). 1·3·20·21·22 는 task-030 데모 v1(`#toggle`·`#bubble`·`#toast`)과도 대조한다. 모든 항목을 히라가나·한글 켬/끔 4조합 중 최소 (켬·켬)·(끔·끔) + 번역 켬에서.
 
-1. **표시 바**(`#talk`·`#chat`): 360 에서 [✓히라가나][✓한글][번역] 한 줄·가로 스크롤 0, 높이 44, 머리 56 바로 아래, 목록만 스크롤(화면당 스크롤 1곳). 390×780 회화방 대화 영역 ≈563px(데모 실측).
+1. **표시 바**(`#talk`·`#chat`): 360 에서 [✓히라가나][✓한글][번역] 한 줄·가로 스크롤 0, 높이 44, 머리 56 바로 아래, 목록만 스크롤(화면당 스크롤 1곳). 390×780 회화방 대화 영역 ≈563px(데모 실측). **토글 유효 터치 높이 ≥44px**(360/390/412, task-030 이전 41) — 바 아래 선은 같은 색·같은 자리로 보이고 알약 32px 그대로(겉모양 변화 0). 단어장·수업 도구 줄 토글 유효 터치 46px.
 2. **층 순서·크기**: 히라가나 11(단어 상세 13·카드 16) `ink2` 한자 위에만(送り仮名 위 없음 — `面白い`·`持ち帰る`) · `[한글]` 대괄호·크기 §15-1 B · 번역 구분선 아래.
-3. **줄간격 예약**: 분석 응답을 늦춘 상태(네트워크 느리게)에서 루비·한글이 채워질 때 말풍선 높이 변화 ≤4px · 채팅 첫 로드 바닥 유지.
+3. **줄간격 예약**: 분석 응답을 늦춘 상태(네트워크 느리게)에서 루비·한글이 채워질 때 말풍선 높이 변화 ≤4px · 채팅 첫 로드 바닥 유지. **내 말풍선은 번역 켬·끔 둘 다 ≤4px**(task-030 이전 번역 켬 +5.5 · 데모 v1 제안 +2 — 남는 몫은 루비 본문 1~2px, 기기 글꼴에 따라 다름) · 막대 모양(12px·폭 62%·`bg-surface`·깜박임) 그대로 · 선생님 말풍선·교정·제안 카드 높이 변화는 지금 값 그대로(회귀 없음).
 4. **애매하면 숨김**: 분석기 다운(gateway 정지 또는 #24r `available:false`) → 히라가나·한글 자리 없음, 옛 히라가나 줄이 **나오지 않음**, 오류 토스트 없음 · 400자 넘는 말(끊을 곳 없음) 숨김 · `静か`·`3時`·`2026年10月4日` 등 S1 표본이 서버 결과대로.
 5. **잘림**: 단어장 행 `truncate` 표제어·카드 `line-clamp-3`·칩·문제 보기에서 rt 윗부분 잘림 0(360/412), 긴 표제어 말줄임 정상, 보기 높이 ≈80px.
 6. **교정 카드**: 컨테이너 320↑ 두 칸·360 화면 위아래, diff 지운/넣은 글자 위 루비, 한자 묶음 가운데가 diff 경계면 그 묶음만 히라가나 없음.
@@ -8042,7 +8042,9 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 17. **엔진명**: 화면·응답·콘솔 로그에 분석기 이름 0건 · 화면 글자 '후리가나' 0건.
 18. **요청량**: 채팅방(50말) 첫 진입 #24r ≤2회 · 화면 이동 후 돌아와도 캐시 적중(재요청 0) · 두 층 끔이면 #24r 0회.
 19. **분석 장애 복구(같은 화면)**: 분석기를 막은 상태(gateway 정지 또는 429 유도)로 회화·채팅방 입장 → 기존 말풍선 히라가나·한글 없음 → 분석기 복구 후 새 말 도착·앱 백그라운드 복귀·온라인 복귀·한글(또는 히라가나) OFF→ON 중 하나 → **35초가 지난 뒤** 기존 말풍선 읽기가 돌아옴 · 35초 안에는 다시 묻지 않음 · 같은 문장 재시도 최대 2회(최초 포함 3회)에서 멈춤 · 아무 조작 없는 방에서는 요청 0(타이머 폴링 없음) · 장애 중 요청 폭주 0.
-20. **느린 저장 실패 + 화면 이동**: 표시 스위치 PUT 을 지연(최대 10초)·500 으로 만든 뒤 누르고 곧바로 다른 탭·화면으로 이동 → 실패 시 값 되돌림 + **앱 셸 토스트 정확히 1개**("표시 설정을 저장하지 못했어요. 다시 눌러 주세요") · 같은 화면에 머문 실패도 1개(이중 없음) · 성공 때는 누른 곳 성공 토스트만 · 회화 음성 모드에서 셸 토스트가 마이크 바와 겹쳐도 조작 가능.
+20. **느린 저장 실패 + 화면 이동**: 표시 스위치 PUT 을 지연(최대 10초)·500 으로 만든 뒤 누르고 곧바로 다른 탭·화면으로 이동 → 실패 시 값 되돌림 + **앱 셸 토스트 정확히 1개**("표시 설정을 저장하지 못했어요. 다시 눌러 주세요") · 같은 화면에 머문 실패도 1개(이중 없음) · 성공 때는 누른 곳 성공 토스트만 · 실패 때 방금 뜬 성공 토스트는 지워짐(두 토스트 겹침 0).
+21. **회화방 저장 실패 알림(task-030 §15-10 C, 데모 v1 `#toast`)**: 회화방 음성 모드에서 표시 바 스위치 PUT 실패 → 알림이 **아래에서 136px**(방 토스트와 같은 자리)·음성 입력 바(116)와 겹침 0·상태 줄 보임 · **녹음 중 실패** → 스위치는 즉시 되돌아가고 알림은 화면·스크린리더 모두 미룸 → 손을 뗀 순간 **1회** 표시(녹음 중 실패가 여러 번이어도 1회) · 회화방 글자 입력 모드 = 84 · 다른 화면(설정·단어장·오늘의 회화·채팅방) = 84 그대로 · 회화방에서 실패 알림 정확히 1개(셸 알림과 이중 0) · 회화방을 떠난 뒤 늦게 온 실패는 셸 알림(84)으로 1개 · 문구·2.2초 그대로 · 알림이 탭을 막지 않음.
+22. **한글 줄·재시도(task-030 화면 밖 보정)**: `先生へ` → `[센세-에]` · `家へ` → `[이에에]` · `コーヒーを` → `[코-히-오]` 그대로 · 단어 내부 장음(`센세-`·`토-꾜-`) 그대로 · 분석기 429 상태에서 같은 문장이 겹친 요청을 받아도 재시도 기록은 요청 1회당 1번만 늘어 항목 19 의 "최초 포함 3회"가 그대로 지켜짐.
 
 ### 15-7. 건드리지 말 것
 
@@ -8084,3 +8086,47 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 | ③ | O-3 "참고 번역" 표기(내 말 번역 오역 1/8 — 京都→경주) | **말풍선마다 붙이지 않는다(권고)** — 선생님 말 번역도 같은 LLM 이라 내 말에만 붙이면 일관성이 깨지고, 매 말풍선 꼬리표는 소음이다. 필요하면 설정 "번역 펼쳐 두기" 설명 끝에 "(AI 번역이라 가끔 틀릴 수 있어요)" 한 구절 — 사용자 확인 후에만(승인 문구 변경) |
 | ④ | `message.reading`·`replyReading` 제거 task(PE talk@v8·chat@v3)는 화면 A 배포 뒤 | 화면 A 운영 반영 후 Leader 가 별도 task 로 |
 | ⑤ | 범위 밖 화면(§15-7 끝 목록) | 사용자 원 요청("모든 일본어 부분")과의 차이 — `/개선작업` IMP 로 남길지 Leader 판단 |
+
+### 15-10. task-030 후속 보정 — 토글 터치·내 말풍선 대기 자리·회화방 저장 실패 알림
+
+승인 데모: docs/demo/task-030-japanese-display-followup-v1.html (v1)
+
+- 승인: 사용자 2026-10-04 21:52 "task-030 데모 v1 승인"(sha256 `2383be5b…`, task frontmatter `demo_gate`). 데모 상태 id = `#toggle`·`#bubble`·`#toast`·`#decision`(결정 사항 없음). 데모의 "현재"는 HEAD `a130443` 클래스 값 그대로.
+- **화면 구조·문구·색은 바꾸지 않는다** — 수치·규칙 보정만. 적용 토큰(이름만, 새 색 없음): `--color-line`(`--line`)·`--surface`·`--surface2`·`--ink2`. 새 수치 없음(136·84 는 `TalkRoom` 의 `VOICE_TOAST_BOTTOM`·`TEXT_TOAST_BOTTOM` 기존 값).
+- 이 절이 위 §15-2 C·G·§15-3 B·§15-6 1·3·20 의 해당 값을 대신한다(그 줄에 표시해 둠).
+
+**A. 표시 바 토글 터치 41 → 44px (`#toggle`, QA-L2) — `components/common/japanese/JapaneseText.tsx`**
+- 원인: `DisplayBar` `h-11 border-b overflow-x-auto` → 안쪽 43px, 가로 스크롤 상자가 위아래로 넘친 토글 터치 영역(`before:-inset-y-1.5` = 44)을 잘라 41.
+- `DisplayBar`: `border-b border-line` → `shadow-[inset_0_-1px_0_var(--color-line)]`(같은 색·같은 자리의 안쪽 1px 선) — 안쪽 44px. `overflow-x-auto`·높이 `h-11`·나머지 클래스 그대로.
+- `DisplayToggles`: `before:-inset-y-1.5` → `before:-inset-y-[7px]`(46px). 바 안에서는 바 높이 44 로 잘려 44, 단어장·수업 도구 줄에서는 46. 알약 `h-8`(32)·글자·색·`✓` 그대로 — 알약이 0.5px 아래로 갈 뿐 겉모양 변화 0.
+- 다른 `border-b` 위 가로 스크롤 줄에는 손대지 않는다(이번 범위는 표시 바 하나).
+
+**B. 번역 켬 내 말풍선 높이 변화 +5.5 → ≤4px (`#bubble`, QA-L3) — `JapaneseText.tsx` · `components/chat/MessageBubble.tsx`**
+- 원인: `HangulPlaceholder` `mt-1.5 h-3 mb-1`(6+12+4) 의 아래 4px 가 바로 아래 번역 칸 `mt-2` 와 겹쳐 사라짐 → 대기 자리 18 vs 한글 줄 21.5(위 2 + 13px×1.5) = +3.5, 루비 붙은 본문 +2 → +5.5.
+- 제안: **내 말풍선(`UserBubble`, `MessageBubble.tsx` 195행 `<HangulLine state={ann} onTint />`)만** 대기 자리를 한글 줄과 같은 높이로 — 바깥 `mt-0.5 flex h-[19.5px] items-center`(aria-hidden) 안에 막대 `h-3 w-[62%] rounded-md bg-surface motion-safe:animate-pulse`, **막대 위아래 여백 0**(하단 margin 0 이라 번역 칸 `mt-2` 와 겹칠 것이 없다). 번역 켬·끔 모두 데모 실측 +2.
+- 구현 형태: `HangulLine`(→`HangulPlaceholder`)에 선택 prop 하나(예: `slot="line"`)를 두고 내 말풍선에서만 넘긴다. 기본값 = 지금 막대(`mb-1 mt-1.5`) 그대로 — 선생님 말풍선·`TalkCorrectionCard`(onTint)·교정·제안 카드·수업 줄은 바꾸지 않는다(Leader 범위, 이미 ≤4px). `size` 13 기준(내 말풍선은 13 만 씀).
+- 막대 모양(12px·폭 62%·내 말 말풍선 `bg-surface`·깜박임·`prefers-reduced-motion` 정지)·"번역 중…" 막대(138행 `!w-[72px]`)는 그대로.
+
+**C. 회화방 저장 실패 알림 자리·녹음 중 미루기 (`#toast`, REV-097 L-2) — `displayPrefs.ts` · `shell/DisplaySaveNotice.tsx` · `JapaneseText.tsx` · `talk/TalkRoom.tsx`**
+
+| 상황(데모 `#toast` 4종) | 지금 | 바꾼 뒤 |
+|---|---|---|
+| 회화방 음성 모드 · 말하지 않을 때 | 셸 알림 bottom 84 → 음성 입력 바(116)와 겹쳐 상태 줄 가림 | **bottom 136**(방 토스트 자리) · 겹침 0 |
+| 녹음 중에 실패 | 즉시 표시(상태 줄 가림·스크린리더 음성이 마이크로) | 스위치 값은 즉시 되돌림, **알림은 화면·스크린리더 모두 미룸** |
+| 손을 뗀 직후 | (녹음 중 이미 사라져 못 봄) | 미뤄 둔 알림 **1회** 표시(136) |
+| 회화방 글자 입력 모드 | 84 | 84(`TEXT_TOAST_BOTTOM`) — 같음 |
+| 다른 화면(설정·단어장·오늘의 회화·채팅방) | 84 | 84 그대로(셸) |
+
+- 방식: 회화방이 마운트된 동안 **방이 실패 알림을 "맡는다"** — `displayPrefs.ts` 에 맡기 훅(예: `useClaimDisplaySaveFailure(onFail)`, 마운트 때 등록·언마운트 때 해제, 한 번에 하나)을 두고, `TalkRoom` 이 `() => notify(DISPLAY_COPY.saveFailed, DISPLAY_TOAST_MS)` 로 맡는다. `notify` 는 지금 규칙 그대로(녹음 중 `deferredToastRef` 에 넣었다가 녹음이 끝나면 `showToast` 1회, 마지막 값만 남음 → 녹음 중 여러 번 실패해도 1회) — 토스트 자리는 `<Toast bottomPx={mode === 'voice' ? 136 : 84}>` 그대로라 새 수치가 없다.
+- 맡은 동안 `DisplaySaveNotice`(셸)는 띄우지 않는다 → **알림 정확히 1개**. 방을 떠난 뒤 늦게 온 실패(PUT 상한 10초)는 해제됐으니 셸이 84 로 띄운다(REV-096 #2 유지).
+- 성공 토스트 지우기와 순서: 맡은 호스트가 있으면 `useClearSuccessOnSaveFail` 의 `onToast('', 0)` 를 **부르지 않는다** — 실패 문구가 같은 방 토스트 칸을 덮어 성공 토스트가 자연히 사라지고, 빈 문구가 `notify` 를 거쳐 미룬 실패 알림이나 막 띄운 실패 알림을 지우는 순서 문제가 생기지 않는다. 맡은 호스트가 없으면 지금 동작 그대로(§15-3 B — 테스트로 잠금, REV-097 L-1).
+- 문구("표시 설정을 저장하지 못했어요. 다시 눌러 주세요")·2.2초(`DISPLAY_TOAST_MS`)·되돌림·`failEpoch` 규칙 그대로. 알림은 탭을 막지 않는다(지금 `Toast` 그대로).
+
+**D. 화면 밖 보정(데모에 없음 — 화면 배치 변화 0, 같은 작업)**
+- 한글 줄 장음 뒤 조사 へ(1단계 완료, REV-098 PASS) — 2단계에서 REV-098 L-1 단언 1건 추가(`[ケ][絵 エ]` → `케-` 유지, 조사 아닌 エ 는 합침).
+- REV-097 L-3 `annotations.ts`: 겹친 flush 가 같은 조각으로 429 를 받아도 그 조각의 실패 기록은 **요청 1회당 1번만** 늘린다(§15-2 B 3 "35초 간격·최대 2회" 불변).
+
+**E. 생성/수정 파일(화면 6파일 `src/components/**` + 테스트 2)**
+1. `common/japanese/JapaneseText.tsx`(A 바·토글 · B 대기 자리 prop · C 지우기 생략) 2. `chat/MessageBubble.tsx`(B 내 말풍선 prop) 3. `common/japanese/displayPrefs.ts`(C 맡기 훅) 4. `shell/DisplaySaveNotice.tsx`(C 맡은 동안 숨김) 5. `talk/TalkRoom.tsx`(C 맡기) 6. `common/japanese/annotations.ts`(D L-3) 7. `common/__tests__/japaneseDisplay.test.ts`(L-1 `onToast('',0)` 잠금 · 맡은 동안 셸 0·지우기 0 · 해제 뒤 셸 1 · L-3 재시도 1회 증가) — `speech/__tests__/reading.test.ts` 는 REV-098 L-1 단언 1건.
+- 순서: A → B(390 에서 번역 켬·끔 측정) → C(맡기·해제·녹음 중 미루기) → D → 테스트 → 360/390/412 확인(§15-6 1·3·20·21·22).
+- 서버·DB·API·네이티브 변경 0 → 웹 배포만(APK 재빌드 없음). 엔진명·'후리가나' 신규 0건.

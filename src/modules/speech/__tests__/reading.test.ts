@@ -158,6 +158,67 @@ test('한글 줄 — 조사 を 의 オ 는 앞 お단 모음과 장음으로 �
   assert.equal(kanaToHangul('ピアノオ|ヒキマス。'), '피아노- 히끼마스.')
 })
 
+// QA-L1(task-030): 조사 へ(pron エ)도 を 와 같다 — 앞 단어 끝 모음이 같거나 장음이어도 합치지 않는다(`先生へ` 센세-에 · `家へ` 이에에).
+// 픽스처 = dev gateway 실 출력(조사 へ·を·は·に·で × 장음 뒤·같은 모음 뒤·자음 뒤) + 손으로 정한 기대 한글. 조사 는/에/에서는 원래 모음 단독 발음이 아니라 합쳐지지 않는다.
+interface ParticleCase {
+  text: string
+  hangul: string
+  segments: ReadingSegment[]
+}
+const PARTICLE_CASES = (
+  JSON.parse(readFileSync(join(__dirname, 'fixtures', 'particleBoundary.json'), 'utf8')) as { cases: ParticleCase[] }
+).cases
+
+test('한글 줄 — 조사 へ·を·は·に·で 는 장음·같은 모음 뒤에서도 합치지 않는다(QA-L1, gateway 실 출력 픽스처)', () => {
+  assert.ok(PARTICLE_CASES.length >= 20)
+  for (const c of PARTICLE_CASES) {
+    assert.equal(c.segments.map((x) => x.surface).join(''), c.text, `원문 ${c.text}`)
+    assert.equal(hangulLine(c.segments), c.hangul, c.text)
+  }
+  // 핵심 두 건(QA 재현값)을 문장 끝 へ 형태로 한 번 더 고정.
+  const byText = (t: string) => PARTICLE_CASES.find((c) => c.text === t)!.segments
+  assert.equal(hangulLine(byText('先生へ')), '센세-에')
+  assert.equal(hangulLine(byText('家へ')), '이에에')
+  // 공개 발음 줄은 데모 모양(エ) 그대로 — ヱ 표식은 한글 변환 안에서만 쓴다.
+  assert.equal(pronLine(byText('先生へ行く。')), 'センセーエ|イク。')
+})
+
+test('한글 줄 — 조사 へ 표식은 조사 조각에만(단어 안 エ·ええ·いい 장음 합침은 그대로)', () => {
+  const he = (head: string, pron: string): ReadingSegment[] => [
+    { surface: head, ruby: null, pron, boundary: null },
+    { surface: 'へ', ruby: null, pron: 'エ', boundary: null },
+  ]
+  assert.equal(hangulLine(he('先生', 'センセー')), '센세-에')
+  assert.equal(hangulLine(he('家', 'イエ')), '이에에')
+  assert.equal(hangulLine(he('絵', 'エ')), '에에')
+  assert.equal(hangulLine(he('ここ', 'ココ')), '코꼬에')
+  assert.equal(hangulLine(he('本', 'ホン')), '홍에')
+  // へ 가 조사가 아닌 조각(발음 ヘ — 동사 어간 등)은 표식 없이 하→헤 그대로.
+  assert.equal(hangulLine([{ surface: 'へ', ruby: null, pron: 'ヘ', boundary: null }]), '헤')
+  // 조사 아닌 エ(표기가 へ 가 아님)는 예전 규칙 그대로 앞 같은 모음과 합친다.
+  assert.equal(hangulLine([{ surface: '先生絵', ruby: null, pron: 'センセーエ', boundary: null }]), '센세--')
+  assert.equal(hangulLine([{ surface: 'ええ', ruby: null, pron: 'エエ', boundary: null }]), '에-')
+  // 별도 조각이어도 표기가 へ 가 아닌 단독 エ 는 조사가 아니다 — e단 뒤에서 합친다(REV-098 L-1: 표식 조건에서 표기 검사를 빼면 '케에').
+  assert.equal(
+    hangulLine([
+      { surface: 'ケ', ruby: null, pron: 'ケ', boundary: null },
+      { surface: '絵', ruby: null, pron: 'エ', boundary: null },
+    ]),
+    '케-',
+  )
+  assert.equal(
+    hangulLine([
+      { surface: 'ケ', ruby: null, pron: 'ケ', boundary: null },
+      { surface: 'へ', ruby: null, pron: 'エ', boundary: null },
+    ]),
+    '케에',
+  )
+  assert.equal(hangulLine([{ surface: 'いい', ruby: null, pron: 'イイ', boundary: null }]), '이-')
+  // 직접 변환기: 표식(ヱ)은 조사 へ 와 같은 취급, 표식 없는 발음 줄 문자열은 데모 규칙 그대로.
+  assert.equal(kanaToHangul('センセーヱ'), '센세-에')
+  assert.equal(kanaToHangul('センセーエ'), '센세--')
+})
+
 test('단어 표제어 루비 — 저장된 읽기로 送り仮名 분리, 애매하면 null', () => {
   assert.deepEqual(alignWordRuby('面白い', 'おもしろい'), [
     { text: '面白', reading: 'おもしろ' },

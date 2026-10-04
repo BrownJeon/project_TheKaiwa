@@ -192,7 +192,7 @@ export function UserBubble({
         <span className="sr-only">나:</span>
         {preparing ? <span className="sr-only">{DISPLAY_COPY.preparingSr}</span> : null}
         <JaText text={message.content} state={ann} className={JA_BODY} />
-        <HangulLine state={ann} onTint />
+        <HangulLine state={ann} onTint waitAsLine />
         {trOpen ? <UserTranslation chatId={chatId} message={message} onTranslated={onTranslated} /> : null}
       </div>
       <div className="flex min-h-6 min-w-0 max-w-full flex-wrap items-center justify-end gap-x-2 text-[12px] text-ink2">

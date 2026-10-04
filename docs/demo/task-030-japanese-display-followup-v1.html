@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-030-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:bf67d6c60da2">
+<meta name="description" content="일본어 표시 후속 보정 3곳 — 표시 바 토글 터치 높이, 번역 켬 내 말풍선 높이 변화, 회화방 저장 실패 알림 자리(현재 HEAD a130443 vs 제안, delta 데모 v1, 합성 샘플 데이터)">
+<title>일본어 표시 후속 보정</title>
+<style>
+/* 레이아웃: 위 고정 조작 줄 → 보정 3곳을 차례로(왼쪽 휴대폰 현재·제안, 오른쪽 측정·설명) → 결정 사항 */
+/* 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음). 새 색 없음 */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dnavl { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
+.dnavl a { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 12.5px; text-decoration: none; }
+.dnavl a b { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--ink2); margin-right: 6px; font-weight: 600; }
+
+.sec { margin: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; scroll-margin-top: 120px; }
+.sec > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.sec > h2 .sid { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink2); font-weight: 600; margin-right: 8px; }
+.sec > .lead { margin-top: 4px; font-size: 13px; color: var(--ink2); max-width: 72ch; }
+.sgrid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; margin-top: 14px; align-items: start; }
+@media (max-width: 1180px) { .sgrid { grid-template-columns: minmax(0, 1fr); } }
+.stage { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; min-width: 0; overflow-x: auto; padding-bottom: 4px; }
+.fig { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fig > figcaption { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.fig > figcaption .tagc, .fig > figcaption .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.fig > figcaption small { font-weight: 500; color: var(--ink2); margin-left: 4px; }
+.pair { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.pairc { display: flex; flex-direction: column; gap: 6px; }
+.pairc > span { font-size: 12px; color: var(--ink2); font-weight: 600; }
+.meas { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.meas b { color: var(--ink); }
+.meas .up { color: var(--bad); font-weight: 700; }
+.meas .ok { color: var(--good); font-weight: 700; }
+.subctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
+.subctl .dctl { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; }
+.subctl .dseg { flex-wrap: wrap; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.side .card { background: var(--ground); }
+.card h3 { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.card ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.card .dsub { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+.tw { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.tbl th, .tbl td { text-align: left; vertical-align: top; padding: 6px 4px; border-top: 1px solid var(--line); }
+.tbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.tbl td.num { text-align: right; white-space: nowrap; }
+.tbl .up { color: var(--bad); font-weight: 700; }
+.tbl .ok { color: var(--good); font-weight: 700; }
+.calc { font-size: 12.5px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; font-variant-numeric: tabular-nums; }
+.calc dt { color: var(--ink2); white-space: nowrap; }
+.calc dd { margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink2); margin-top: 8px; }
+.legend i { display: inline-block; width: 18px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+.legend .lh1 { background: color-mix(in srgb, var(--accent) 22%, transparent); outline: 1.5px dashed var(--accent); outline-offset: -1.5px; }
+.legend .lh2 { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--bad) 55%, transparent) 0 3px, transparent 3px 6px); outline: 1px solid var(--bad); outline-offset: -1px; }
+
+.dpanel { margin: 16px 16px 40px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; scroll-margin-top: 120px; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; }
+.dpanel .nodec { margin-top: 10px; display: flex; align-items: center; gap: 10px; border-radius: 12px; background: var(--good-soft); color: var(--ink); padding: 12px 14px; font-size: 14px; font-weight: 600; }
+.dpanel .nodec span.b { display: inline-flex; height: 24px; align-items: center; padding: 0 9px; border-radius: 6px; background: var(--good); color: var(--surface); font-size: 12px; font-weight: 700; flex: none; }
+.dpanel h3 { font-size: 15px; font-weight: 700; margin-top: 18px; }
+.dpanel p { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 80ch; }
+
+@media (max-width: 760px) {
+  .dtop { position: static; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { margin-right: 0; min-width: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .sec, .dpanel { margin: 12px; padding: 14px; }
+}
+
+/* ── 휴대폰 프레임(앱 셸 · 회화방) ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h300 { height: 300px; } .h780 { height: 780px; }
+.room { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--ground); min-width: 0; }
+.room.static { position: static; }
+.cut { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font-size: 11px; color: var(--ink2); background: linear-gradient(to bottom, transparent, var(--ground) 70%); pointer-events: none; z-index: 5; }
+
+/* TalkRoomHeader h-14 */
+.lh { height: 56px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 4px; }
+.back, .icb { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink); }
+.av { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: 16px; display: grid; place-items: center; }
+.av.sm { width: 28px; height: 28px; font-size: 13px; }
+.lh-m { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; padding-left: 6px; }
+.lh-m h1 { max-width: 100%; font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ind { display: inline-flex; max-width: 100%; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.ind .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--good); }
+.ind .chev { color: var(--ink3); }
+.later { position: relative; margin-left: 2px; display: inline-flex; height: 32px; flex: none; align-items: center; gap: 6px; white-space: nowrap; border: 0; border-radius: 999px; background: var(--accent-soft); padding: 0 5px 0 12px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.later b { display: grid; height: 22px; min-width: 22px; place-items: center; border-radius: 11px; background: var(--accent); padding: 0 6px; font-size: 12px; font-weight: 600; color: var(--on-accent); }
+.later .s { display: none; }
+.w360 .later .l { display: none; } .w360 .later .s { display: inline; }
+/* 채팅방 머리(BackBar 52) */
+.bb { height: 52px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 4px; }
+.bb-m { flex: 1; min-width: 0; }
+.bb-m h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 표시 바(DisplayBar) · 토글(DisplayToggles) — HEAD: h-11 · border-b · overflow-x-auto / 토글 h-8 · before:-inset-y-1.5 */
+.dispbar { flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; height: 44px; padding: 0 12px; background: var(--surface); overflow-x: auto; scrollbar-width: none; }
+.dispbar::-webkit-scrollbar { display: none; }
+.dispbar.cur { border-bottom: 1px solid var(--line); }
+.dispbar.prop { box-shadow: inset 0 -1px 0 var(--line); }
+.db-l { flex: none; font-size: 12px; color: var(--ink2); margin-right: 2px; }
+.tg { position: relative; height: 32px; flex: none; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13px; color: var(--ink); }
+.tg::before { content: ""; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+.prop .tg::before { top: -7px; bottom: -7px; }
+.tg[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 600; }
+.tg .ck { margin-right: 3px; }
+
+/* 대화 목록(MessageList px-4 py-3) · 말풍선(MessageBubble) */
+.lst { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 16px; }
+.lst.auto { flex: none; }
+.lst > ul > li + li { margin-top: 12px; }
+.ddv { margin-bottom: 12px; display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--ink2); }
+.ddv::before, .ddv::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+.trw { display: flex; gap: 8px; min-width: 0; }
+.tav { width: 28px; flex: none; padding-top: 20px; }
+.tcol { display: flex; min-width: 0; max-width: 85%; flex-direction: column; align-items: flex-start; }
+.tname { margin-bottom: 4px; font-size: 12px; color: var(--ink2); }
+.bt { min-width: 0; max-width: 100%; border-radius: 16px 16px 16px 6px; border: 1px solid var(--line); background: var(--surface); padding: 10px 14px; }
+.tfoot { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0 4px; font-size: 12px; color: var(--ink2); }
+.fb { display: inline-flex; height: 44px; flex: none; align-items: center; border: 0; background: none; padding: 0 6px; font-size: 13px; font-weight: 500; color: var(--ink2); white-space: nowrap; }
+.tm { padding: 0 4px; }
+.ubw { display: flex; min-width: 0; flex-direction: column; align-items: flex-end; }
+.ub { min-width: 0; max-width: 80%; border-radius: 16px 16px 6px 16px; background: var(--accent-soft); padding: 10px 14px; color: var(--ink); }
+.ufoot { display: flex; min-height: 24px; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 8px; font-size: 12px; color: var(--ink2); }
+.jb { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 17px; line-height: 1.7; min-width: 0; }
+.jb.fu { line-height: 2.1; }
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: 11px; line-height: 1; color: var(--ink2); font-weight: 400; letter-spacing: 0; -webkit-user-select: none; user-select: none; }
+/* HangulLine: mt-0.5 block 13px leading-1.5 */
+.hg { display: block; margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; -webkit-user-select: none; user-select: none; }
+.hg .bk { color: var(--ink3); }
+/* HangulPlaceholder — HEAD: mb-1 mt-1.5 block h-3 w-[62%] */
+.hgp { display: block; height: 12px; width: 62%; border-radius: 6px; background: var(--surface2); margin: 6px 0 4px; animation: hgp 2s ease-in-out infinite; }
+.ub .hgp { background: var(--surface); }
+/* 제안: 자리 = 한글 줄과 같은 높이(위 2px + 19.5px), 아래 여백 없음. 막대 12px 은 가운데 */
+.hgslot { display: flex; align-items: center; height: 19.5px; margin-top: 2px; }
+.hgslot > .hgp { margin: 0; }
+@keyframes hgp { 50% { opacity: .45; } }
+/* 내 말 번역(UserTranslation: mt-2 border-t border-ink/18 pt-2 15px) */
+.trl { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 15px; line-height: 1.5; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.ub .trl { border-top-color: color-mix(in srgb, var(--ink) 18%, transparent); }
+
+/* 입력(VoiceBar 116 · Composer) */
+.vb { flex: none; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 16px; }
+.vs { display: flex; height: 24px; min-width: 0; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.vs .t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: keep-all; }
+.mm { display: flex; height: 16px; align-items: flex-end; gap: 3px; }
+.mm i { width: 4px; border-radius: 2px; background: var(--accent); }
+.vr { margin-top: 4px; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; }
+.kbb { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink2); flex: none; }
+.vc { display: flex; justify-content: center; }
+.ptt { width: 72px; height: 72px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.ptt.rec { transform: scale(1.05); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); }
+.sp44 { width: 44px; height: 44px; }
+.cmp { flex: none; border-top: 1px solid var(--line); background: var(--surface); padding-bottom: 8px; }
+.cmpf { display: flex; min-width: 0; align-items: flex-end; gap: 8px; padding: 8px 12px 0; }
+.ta { display: block; height: 44px; flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 12px; font-size: 16px; line-height: 24px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snd { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); opacity: .4; }
+
+/* Toast(common/Toast): fixed left-4 right-4 · rounded-xl · bg-ink · px-3.5 py-3 · 13px · pointer-events:none */
+.ptoast { position: absolute; left: 16px; right: 16px; z-index: 50; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 12px 14px; font-size: 13px; line-height: 1.5; box-shadow: 0 6px 18px rgba(0,0,0,.2); pointer-events: none; }
+
+/* 측정 표시(데모 전용 — 앱에는 없음) */
+.ov { position: absolute; z-index: 70; pointer-events: none; }
+.ov.hit { background: color-mix(in srgb, var(--accent) 22%, transparent); outline: 1.5px dashed var(--accent); outline-offset: -1.5px; }
+.ov.clip { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--bad) 55%, transparent) 0 3px, transparent 3px 6px); outline: 1px solid var(--bad); outline-offset: -1px; }
+.ov.gap { border-left: 1.5px solid var(--good); }
+.ov.tagx { z-index: 71; font-size: 11px; font-weight: 700; line-height: 1; padding: 4px 6px; border-radius: 6px; white-space: nowrap; background: var(--bad); color: var(--surface); }
+.ov.tagx.good { background: var(--good); }
+.ov.defer { z-index: 71; left: 16px; right: 16px; border: 1.5px dashed var(--ink3); border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--ink2); background: color-mix(in srgb, var(--surface) 88%, transparent); }
+body.noguide .ov { display: none; }
+
+@media (prefers-reduced-motion: reduce) { .hgp { animation: none; } }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>일본어 표시 후속 보정 <span class="lvl">delta</span><small>task-030 · 데모 v1 · 현재 = 운영 소스 HEAD a130443 그대로 · 합성 샘플 데이터</small></h1>
+  <div class="dctls">
+    <div class="dctl"><span>폭</span><div class="dseg" id="d-w" role="group" aria-label="휴대폰 폭">
+      <button type="button" data-w="360" aria-pressed="false">360</button><button type="button" data-w="390" aria-pressed="true">390</button><button type="button" data-w="412" aria-pressed="false">412</button>
+    </div></div>
+    <div class="dctl"><span>보기</span><div class="dseg" id="d-v" role="group" aria-label="현재와 제안">
+      <button type="button" data-v="cmp" aria-pressed="true">현재 vs 제안</button><button type="button" data-v="cur" aria-pressed="false">현재</button><button type="button" data-v="prop" aria-pressed="false">제안</button>
+    </div></div>
+    <div class="dctl"><span>측정 표시</span><div class="dseg" id="d-g" role="group" aria-label="측정 표시">
+      <button type="button" data-g="on" aria-pressed="true">켬</button><button type="button" data-g="off" aria-pressed="false">끔</button>
+    </div></div>
+    <div class="dctl"><span>테마</span><div class="dseg" id="d-t" role="group" aria-label="테마">
+      <button type="button" data-t="auto" aria-pressed="true">자동</button><button type="button" data-t="light" aria-pressed="false">라이트</button><button type="button" data-t="dark" aria-pressed="false">다크</button>
+    </div></div>
+  </div>
+</header>
+<nav class="dnavl" aria-label="보정 목록">
+  <a href="#toggle"><b>1</b>표시 바 토글 터치 높이</a>
+  <a href="#bubble"><b>2</b>번역 켬 내 말풍선 높이</a>
+  <a href="#toast"><b>3</b>회화방 저장 실패 알림</a>
+  <a href="#decision"><b>결정</b>결정 사항 없음</a>
+</nav>
+
+<section class="sec" id="toggle" aria-labelledby="h-toggle">
+  <h2 id="h-toggle"><span class="sid">1</span>표시 바 토글 — 손가락이 닿는 높이 41px → 44px</h2>
+  <p class="lead">회화방·채팅방 머리 아래 표시 바의 [히라가나][한글][번역]. 눈에 보이는 알약(32px)은 그대로 두고, 손가락이 닿는 영역만 바 전체 높이(44px)까지 넓혀요. 겉모양은 바뀌지 않아요.</p>
+  <div class="sgrid">
+    <div class="stage" id="st-toggle" aria-label="표시 바 휴대폰 화면"></div>
+    <aside class="side">
+      <div class="card">
+        <h3>측정(이 화면에서 계산)</h3>
+        <div class="tw"><table class="tbl" id="tb-toggle" aria-label="토글별 손가락이 닿는 높이"></table></div>
+        <p class="dsub">운영 화면 QA 실측(10-04, 360·390·412 모두): 현재 <b>41px</b>. 계산은 토글의 터치 영역과 바가 잘라 내는 범위를 겹쳐서 구했어요.</p>
+        <div class="legend"><span><i class="lh1"></i>손가락이 닿는 영역</span><span><i class="lh2"></i>바에 잘려 닿지 않는 부분</span></div>
+      </div>
+      <div class="card">
+        <h3>무엇이 다른가</h3>
+        <ul class="dn">
+          <li><b>현재</b>: 바 높이 44px 중 아래 1px 가 테두리라 안쪽은 43px. 바는 가로로 밀리는 상자라 위아래로 넘친 터치 영역이 잘려요.</li>
+          <li><b>제안</b>: 아래 선을 바 안쪽에 그리는 1px 선으로 바꿔(같은 색·같은 자리) 안쪽을 44px 로. 토글 터치 영역은 알약 위아래로 7px 씩(46px) 넓혀, 바 안에서는 바 전체 44px 를 써요.</li>
+          <li><b>겉모양</b>: 바뀌지 않아요. 바 높이 44 · 선 색과 두께 · 알약 크기 그대로(알약이 0.5px 아래로, 눈으로는 구분되지 않음).</li>
+          <li>단어장·오늘의 회화 도구 줄의 같은 토글도 겉모양 그대로, 터치 영역만 46px.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="sec" id="bubble" aria-labelledby="h-bubble">
+  <h2 id="h-bubble"><span class="sid">2</span>번역 켬 · 내 말풍선 — 읽기 분석이 도착할 때 높이 변화 +5.5px → 4px 이하</h2>
+  <p class="lead">채팅방에서 번역을 켠 채 내 말을 보낸 직후. 한글 줄 자리에 막대가 보이다가, 분석이 오면 한자 위 히라가나와 한글 줄로 바뀌어요. 이때 말풍선이 커지는 양을 줄여요. 막대 모양은 그대로예요.</p>
+  <div class="subctl">
+    <div class="dctl"><span>번역(앱 설정)</span><div class="dseg" id="d-tr" role="group" aria-label="번역 켬 끔">
+      <button type="button" data-tr="on" aria-pressed="true">켬</button><button type="button" data-tr="off" aria-pressed="false">끔</button>
+    </div></div>
+  </div>
+  <div class="sgrid">
+    <div class="stage" id="st-bubble" aria-label="말풍선 휴대폰 화면"></div>
+    <aside class="side">
+      <div class="card">
+        <h3>내 말풍선 높이(이 화면에서 잰 값)</h3>
+        <div class="tw"><table class="tbl" id="tb-bubble" aria-label="분석 도착 전후 높이"></table></div>
+        <p class="dsub">운영 화면 QA 실측(10-04): 번역 켬 <b>+5.5px</b>(3종 말풍선 모두) · 번역 끔 +1.5px. 기준은 4px 이하. 글꼴에 따라 루비가 붙을 때 본문이 1~2px 커지는 양은 기기마다 조금 달라요.</p>
+      </div>
+      <div class="card">
+        <h3>왜 5.5px 인가</h3>
+        <dl class="calc">
+          <dt>현재 · 도착 전</dt><dd>막대 위 여백 6 + 막대 12 + 아래 여백 4. 바로 아래 번역 칸의 위 여백 8 과 겹쳐 아래 4 가 사라짐 → <b>18px</b></dd>
+          <dt>현재 · 도착 후</dt><dd>한글 줄 위 여백 2 + 줄 19.5 = <b>21.5px</b> → +3.5, 루비가 붙으며 본문 +2 → <b>+5.5</b></dd>
+          <dt>제안 · 도착 전</dt><dd>막대 자리를 한글 줄과 같은 21.5px(위 2 + 19.5, 막대 12 는 가운데)로, 아래 여백 없음 → 번역 칸이 있어도 그대로</dd>
+          <dt>제안 · 도착 후</dt><dd>자리 차이 0, 루비 몫 약 +2 만 남음</dd>
+        </dl>
+        <p class="dsub">적용은 내 말풍선(번역 켬)만이에요. 선생님 말풍선·교정 카드·제안 카드는 지금 그대로(이미 4px 이하).</p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="sec" id="toast" aria-labelledby="h-toast">
+  <h2 id="h-toast"><span class="sid">3</span>회화방 · 표시 설정 저장 실패 알림 — 음성 입력 바를 가리지 않게</h2>
+  <p class="lead">표시 바에서 스위치를 눌렀는데 저장이 실패하면 값이 되돌아가고 “표시 설정을 저장하지 못했어요. 다시 눌러 주세요”가 2.2초 떠요. 회화방에서는 이 알림을 방의 다른 알림과 같은 자리·같은 규칙으로 띄워요. 문구와 시간은 그대로예요.</p>
+  <div class="subctl">
+    <div class="dctl"><span>상황</span><div class="dseg" id="d-st" role="group" aria-label="상황">
+      <button type="button" data-st="idle" aria-pressed="true">말하지 않을 때</button><button type="button" data-st="rec" aria-pressed="false">녹음 중에 실패</button><button type="button" data-st="after" aria-pressed="false">손을 뗀 직후</button><button type="button" data-st="text" aria-pressed="false">글자 입력 모드</button>
+    </div></div>
+  </div>
+  <div class="sgrid">
+    <div class="stage" id="st-toast" aria-label="회화방 휴대폰 화면"></div>
+    <aside class="side">
+      <div class="card">
+        <h3>겹침(이 화면에서 계산)</h3>
+        <div class="tw"><table class="tbl" id="tb-toast" aria-label="알림과 음성 입력 바 겹침"></table></div>
+        <p class="dsub">음성 입력 바 = 상태 줄 24 + 말하기 버튼 줄 72 + 위아래 여백 = 116px. 알림은 탭을 막지 않아요(지금도 제안도 손가락이 그대로 아래 버튼에 닿음).</p>
+        <div class="legend"><span><i class="lh2"></i>알림이 입력 바를 가리는 부분</span></div>
+      </div>
+      <div class="card">
+        <h3>무엇이 다른가</h3>
+        <ul class="dn" id="toast-notes"></ul>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="dpanel" id="decision" aria-labelledby="h-dec">
+  <h2 id="h-dec">결정 사항</h2>
+  <div class="nodec"><span class="b">없음</span>이번 데모에는 고르실 것이 없어요. 세 곳이 이렇게 보이는지만 확인해 주세요.</div>
+  <p>세 곳 모두 이미 정해 둔 기준(토글 터치 44px · 분석 도착 때 말풍선 높이 변화 4px 이하 · 회화방 알림 자리와 녹음 중 미루기)에 맞추는 보정이에요. 회화방 알림 자리(아래에서 136px)와 녹음 중 미루기는 회화방이 지금 쓰는 값을 그대로 따르고, 새 수치는 없어요.</p>
+  <h3>겉모양이 바뀌는 곳</h3>
+  <p>1·2: 없음(손가락 영역과 기다리는 동안의 자리만). 3: 회화방 음성 모드에서 저장 실패 알림이 뜨는 높이만 바뀌어요. 회화방 글자 입력 모드와 다른 화면(설정·단어장·오늘의 회화 등)의 알림 자리는 지금과 같아요.</p>
+  <h3>이 데모에 없는 것(같은 작업, 화면 구조 변화 없음)</h3>
+  <p>한글 줄 글자 보정: 장음 뒤 조사 へ 가 앞 장음에 붙던 것(先生へ 센세-- → 센세-에, 家へ 이에- → 이에에) · 저장 실패 때 방금 띄운 성공 알림을 지우는 동작의 테스트 · 겹친 재요청이 재시도 횟수를 두 번 쓰던 것. 모두 글자나 내부 동작만 바뀌어 화면 배치는 그대로예요.</p>
+</section>
+
+<script>
+(function () {
+  var S = { w: 390, view: 'cmp', guide: true, tr: true, st: 'idle' };
+  var TEACHER = '유우';
+  var SAVE_FAIL = '표시 설정을 저장하지 못했어요. 다시 눌러 주세요';
+
+  function sv(inner, o) {
+    o = o || {};
+    var w = o.w || 20;
+    return '<svg width="' + w + '" height="' + w + '" viewBox="0 0 24 24" fill="' + (o.fill ? 'currentColor' : 'none') + '" stroke="' + (o.fill ? 'none' : 'currentColor') + '" stroke-width="' + (o.sw || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  }
+  var IC = {
+    back: sv('<path d="M15 18l-6-6 6-6"/>', { w: 22 }),
+    back2: sv('<path d="M15 5l-7 7 7 7"/>', { w: 22 }),
+    dots: sv('<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>', { fill: 1 }),
+    mic: sv('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', { w: 28 }),
+    mic22: sv('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', { w: 22 }),
+    kb: sv('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>', { w: 22, sw: 1.8 }),
+    up: sv('<path d="M12 19V5M5 12l7-7 7 7"/>', { sw: 2.2 })
+  };
+
+  /* 합성 샘플 — 루비는 한자 묶음 위에만 */
+  var M = {
+    t1: { ja: '<ruby>今日<rt aria-hidden="true">きょう</rt></ruby>は<ruby>何<rt aria-hidden="true">なに</rt></ruby>をしましたか。', plain: '今日は何をしましたか。', hg: '쿄-와 나니오 시마시따까', ko: '오늘은 뭐 했어요?' },
+    u1: { ja: '<ruby>昨日<rt aria-hidden="true">きのう</rt></ruby>、<ruby>映画<rt aria-hidden="true">えいが</rt></ruby>を<ruby>見<rt aria-hidden="true">み</rt></ruby>ました。', plain: '昨日、映画を見ました。', hg: '키노- 에-가오 미마시따', ko: '어제 영화를 봤어요.' },
+    t2: { ja: 'いいですね！<ruby>何<rt aria-hidden="true">なん</rt></ruby>の<ruby>映画<rt aria-hidden="true">えいが</rt></ruby>ですか。', plain: 'いいですね！何の映画ですか。', hg: '이-데스네 난노 에-가데스까', ko: '좋네요! 무슨 영화예요?' }
+  };
+
+  function tg(label, on) {
+    return '<button type="button" class="tg" aria-pressed="' + on + '">' + (on ? '<span class="ck" aria-hidden="true">✓</span>' : '') + label + '</button>';
+  }
+  function dispBar(kind, tr) {
+    return '<div class="dispbar ' + kind + '" role="group" aria-label="이 방 전체 표시"><span class="db-l" aria-hidden="true">표시</span>' + tg('히라가나', true) + tg('한글', true) + tg('번역', !!tr) + '</div>';
+  }
+  function talkHeader() {
+    return '<header class="lh"><button type="button" class="back" aria-label="회화 목록으로">' + IC.back + '</button><span class="av" aria-hidden="true">유</span>' +
+      '<div class="lh-m"><h1>' + TEACHER + '<span class="sr">, 회화: 오늘 한 일</span></h1><button type="button" class="ind" aria-label="선생님 목소리 상태: 온라인. 눌러서 자세히 보기"><span class="dot" aria-hidden="true"></span><span>온라인</span><span class="chev" aria-hidden="true">›</span></button></div>' +
+      '<button type="button" class="later" aria-label="모아 둔 교정 1개 보기"><span class="l">모아 둔 교정</span><span class="s">교정</span><b>1</b></button>' +
+      '<button type="button" class="icb" aria-label="회화 메뉴">' + IC.dots + '</button></header>';
+  }
+  function hgLine(t) { return '<span class="hg" lang="ko"><span class="sr">한글 발음: </span><span class="bk" aria-hidden="true">[</span>' + t + '<span class="bk" aria-hidden="true">]</span></span>'; }
+  function tutorBubble(m, head, time, tr) {
+    return '<div class="trw"><div class="tav">' + (head ? '<span class="av sm" aria-hidden="true">유</span>' : '') + '</div><div class="tcol">' +
+      (head ? '<p class="tname">' + TEACHER + '</p>' : '') +
+      '<div class="bt"><span class="sr">' + TEACHER + ': </span><p class="jb fu" lang="ja">' + m.ja + '</p>' + hgLine(m.hg) + (tr ? '<p class="trl">' + m.ko + '</p>' : '') + '</div>' +
+      '<div class="tfoot"><button type="button" class="fb" aria-label="선생님 말 다시 듣기">▶ 다시 듣기</button><button type="button" class="fb" aria-expanded="' + !!tr + '">번역 ' + (tr ? '▴' : '▾') + '</button><time class="tm">' + time + '</time></div></div></div>';
+  }
+  /* state: ready | wait ; kind: cur | prop */
+  function userBubble(m, o) {
+    var body;
+    if (o.state === 'wait') {
+      var bar = '<span class="hgp" aria-hidden="true"></span>';
+      body = '<p class="jb fu" lang="ja">' + m.plain + '</p>' + (o.kind === 'prop' ? '<span class="hgslot" aria-hidden="true">' + bar + '</span>' : bar);
+    } else {
+      body = '<p class="jb fu" lang="ja">' + m.ja + '</p>' + hgLine(m.hg);
+    }
+    if (o.tr) body += '<p class="trl">' + m.ko + '</p>';
+    return '<div class="ubw"><div class="ub" data-mb="' + (o.mb || '') + '"><span class="sr">나: </span>' + body + '</div>' +
+      '<div class="ufoot">' + (o.voice ? '<button type="button" class="fb" aria-label="내 목소리 다시 듣기">▶ 내 목소리</button>' : '') +
+      '<button type="button" class="fb" aria-expanded="' + !!o.tr + '">번역 ' + (o.tr ? '▴' : '▾') + '</button><time>' + o.time + '</time></div></div>';
+  }
+  function talkList(kind) {
+    return '<div class="lst"><ul><li class="ddv" role="separator">10월 4일 (토)</li>' +
+      '<li>' + tutorBubble(M.t1, true, '14:02', false) + '</li>' +
+      '<li>' + userBubble(M.u1, { state: 'ready', kind: kind, tr: false, voice: true, time: '14:03' }) + '</li>' +
+      '<li>' + tutorBubble(M.t2, true, '14:03', false) + '</li></ul></div>';
+  }
+  function voiceBar(st) {
+    var rec = st === 'rec';
+    var txt = rec ? '듣고 있어요 · 0:03 — 손을 떼면 보내요' : st === 'after' ? '알아듣는 중…' : '누르고 있는 동안 말해요';
+    var meter = rec ? '<span class="mm" aria-hidden="true"><i style="height:6px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:10px"></i><i style="height:5px"></i></span>' : '';
+    return '<div class="vb"><div class="vs">' + meter + '<span class="t">' + txt + '</span></div>' +
+      '<div class="vr"><button type="button" class="kbb" aria-label="글자로 입력하기">' + IC.kb + '</button><div class="vc"><button type="button" class="ptt' + (rec ? ' rec' : '') + '" aria-label="누르고 있는 동안 말하기">' + IC.mic + '</button></div><span class="sp44" aria-hidden="true"></span></div></div>';
+  }
+  function composer() {
+    return '<div class="cmp"><div class="cmpf"><button type="button" class="kbb" aria-label="말로 입력하기">' + IC.mic22 + '</button><div class="ta" lang="ja">일본어로 써 보세요 — 보내면 선생님이 말로 대답해요</div><button type="button" class="snd" aria-label="보내기" aria-disabled="true">' + IC.up + '</button></div></div>';
+  }
+  function views() { return S.view === 'cmp' ? ['cur', 'prop'] : [S.view]; }
+  function capOf(kind, extra) {
+    return kind === 'cur' ? '<span class="tagc">현재</span>HEAD a130443' + (extra ? '<small>' + extra + '</small>' : '')
+      : '<span class="tagp">제안</span>v1' + (extra ? '<small>' + extra + '</small>' : '');
+  }
+
+  /* ── 1. 표시 바 ── */
+  function renderToggle() {
+    document.getElementById('st-toggle').innerHTML = views().map(function (k) {
+      return '<figure class="fig"><figcaption>' + capOf(k, '회화방 위쪽') + '</figcaption>' +
+        '<div class="phone w' + S.w + ' h300" data-k="' + k + '" data-sec="toggle"><div class="room">' + talkHeader() + dispBar(k, false) + talkList(k) + '</div><div class="cut">… 아래 생략</div></div>' +
+        '<p class="meas" id="mt-' + k + '"></p></figure>';
+    }).join('');
+  }
+  function px(n) { return Math.round(n * 10) / 10; }
+  function measureToggle() {
+    var rows = {};
+    var phones = document.querySelectorAll('[data-sec="toggle"]');
+    Array.prototype.forEach.call(phones, function (ph) {
+      var k = ph.getAttribute('data-k');
+      var pr = ph.getBoundingClientRect();
+      var bar = ph.querySelector('.dispbar');
+      var br = bar.getBoundingClientRect();
+      var bcs = getComputedStyle(bar);
+      var clipTop = br.top + parseFloat(bcs.borderTopWidth);
+      var clipBot = br.bottom - parseFloat(bcs.borderBottomWidth);
+      var mins = [];
+      Array.prototype.forEach.call(bar.querySelectorAll('.tg'), function (b, i) {
+        var r = b.getBoundingClientRect();
+        var ps = getComputedStyle(b, '::before');
+        var top = r.top + (parseFloat(ps.top) || 0);
+        var bot = r.bottom - (parseFloat(ps.bottom) || 0);
+        var eTop = Math.max(top, clipTop), eBot = Math.min(bot, clipBot);
+        var eff = Math.max(0, eBot - eTop);
+        mins.push(eff);
+        var name = b.textContent.replace('✓', '');
+        rows[name] = rows[name] || {};
+        rows[name][k] = { eff: eff, vis: r.height };
+        var hit = document.createElement('div');
+        hit.className = 'ov hit';
+        hit.style.cssText = 'left:' + (r.left - pr.left) + 'px;width:' + r.width + 'px;top:' + (eTop - pr.top) + 'px;height:' + eff + 'px';
+        ph.appendChild(hit);
+        if (top < clipTop - 0.05) addClip(ph, r.left - pr.left, r.width, top - pr.top, clipTop - top);
+        if (bot > clipBot + 0.05) addClip(ph, r.left - pr.left, r.width, clipBot - pr.top, bot - clipBot);
+      });
+      var mn = Math.min.apply(null, mins);
+      document.getElementById('mt-' + k).innerHTML = '바 안쪽 높이 <b>' + px(clipBot - clipTop) + 'px</b> · 알약 <b>32px</b> · 손가락이 닿는 높이 <b class="' + (mn >= 44 ? 'ok' : 'up') + '">' + px(mn) + 'px</b>' + (k === 'cur' ? ' (QA 실측 41px)' : '');
+    });
+    var names = Object.keys(rows);
+    var html = '<thead><tr><th>토글</th><th class="num">보이는 알약</th><th class="num">현재</th><th class="num">제안</th></tr></thead><tbody>';
+    names.forEach(function (n) {
+      var c = rows[n].cur, p = rows[n].prop;
+      html += '<tr><td>' + n + '</td><td class="num">' + px((c || p).vis) + 'px</td>' +
+        '<td class="num">' + (c ? '<span class="' + (c.eff >= 44 ? 'ok' : 'up') + '">' + px(c.eff) + 'px</span>' : '—') + '</td>' +
+        '<td class="num">' + (p ? '<span class="' + (p.eff >= 44 ? 'ok' : 'up') + '">' + px(p.eff) + 'px</span>' : '—') + '</td></tr>';
+    });
+    html += '</tbody>';
+    document.getElementById('tb-toggle').innerHTML = html;
+  }
+  function addClip(ph, left, width, top, h) {
+    var d = document.createElement('div');
+    d.className = 'ov clip';
+    d.style.cssText = 'left:' + left + 'px;width:' + width + 'px;top:' + top + 'px;height:' + Math.max(h, 1.5) + 'px';
+    ph.appendChild(d);
+  }
+
+  /* ── 2. 내 말풍선 ── */
+  function chatFrame(kind, state, tr, mb) {
+    return '<div class="phone w' + S.w + '"><div class="room static"><header class="bb"><button type="button" class="back" aria-label="채팅 목록으로">' + IC.back2 + '</button><div class="bb-m"><h1>주말 이야기</h1></div><button type="button" class="back" aria-label="채팅 메뉴">' + IC.dots + '</button></header>' +
+      dispBar(kind, tr) +
+      '<div class="lst auto"><ul><li>' + tutorBubble(M.t1, true, '14:02', tr) + '</li><li>' +
+      userBubble(M.u1, { state: state, kind: kind, tr: tr, time: '14:03', mb: mb }) + '</li></ul></div></div></div>';
+  }
+  function renderBubble() {
+    document.getElementById('st-bubble').innerHTML = views().map(function (k) {
+      return '<figure class="fig"><figcaption>' + capOf(k, '채팅방 · 번역 ' + (S.tr ? '켬' : '끔')) + '</figcaption><div class="pair">' +
+        '<div class="pairc"><span>분석 도착 전(막대)</span>' + chatFrame(k, 'wait', S.tr, k + '-wait') + '</div>' +
+        '<div class="pairc"><span>분석 도착 후(히라가나·한글)</span>' + chatFrame(k, 'ready', S.tr, k + '-ready') + '</div>' +
+        '</div><p class="meas" id="mb-' + k + '"></p></figure>';
+    }).join('');
+  }
+  var probe = null;
+  function bubbleH(kind, state, tr) {
+    if (!probe) {
+      probe = document.createElement('div');
+      probe.setAttribute('aria-hidden', 'true');
+      probe.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden';
+      document.body.appendChild(probe);
+    }
+    probe.innerHTML = '<div class="w' + S.w + '" style="padding:0 16px">' + userBubble(M.u1, { state: state, kind: kind, tr: tr, time: '14:03' }) + '</div>';
+    return probe.querySelector('.ub').getBoundingClientRect().height;
+  }
+  function measureBubble() {
+    views().forEach(function (k) {
+      var a = document.querySelector('[data-mb="' + k + '-wait"]'), b = document.querySelector('[data-mb="' + k + '-ready"]');
+      if (!a || !b) return;
+      var ha = a.getBoundingClientRect().height, hb = b.getBoundingClientRect().height, d = hb - ha;
+      document.getElementById('mb-' + k).innerHTML = '내 말풍선 <b>' + px(ha) + ' → ' + px(hb) + 'px</b> · 변화 <span class="' + (Math.abs(d) <= 4 ? 'ok' : 'up') + '">' + (d >= 0 ? '+' : '') + px(d) + 'px</span>';
+    });
+    var html = '<thead><tr><th>번역</th><th class="num">현재 전 → 후</th><th class="num">제안 전 → 후</th><th class="num">QA 운영</th></tr></thead><tbody>';
+    [[true, '켬', '+5.5'], [false, '끔', '+1.5']].forEach(function (r) {
+      var cw = bubbleH('cur', 'wait', r[0]), cr = bubbleH('cur', 'ready', r[0]);
+      var pw = bubbleH('prop', 'wait', r[0]), pr = bubbleH('prop', 'ready', r[0]);
+      function cell(a, b) { var d = b - a; return px(a) + ' → ' + px(b) + ' <span class="' + (Math.abs(d) <= 4 ? 'ok' : 'up') + '">(' + (d >= 0 ? '+' : '') + px(d) + ')</span>'; }
+      html += '<tr><td>' + r[1] + '</td><td class="num">' + cell(cw, cr) + '</td><td class="num">' + cell(pw, pr) + '</td><td class="num">' + r[2] + '</td></tr>';
+    });
+    document.getElementById('tb-bubble').innerHTML = html + '</tbody>';
+  }
+
+  /* ── 3. 회화방 알림 ── */
+  /* 현재: 셸 알림 bottom 84(음성·글자 모드 모두, 녹음 중에도 즉시). 제안: 회화방 알림과 같은 자리(음성 136 · 글자 84), 녹음 중이면 미뤘다가 손을 떼면 1번. */
+  function toastFor(kind, st) {
+    if (kind === 'cur') {
+      if (st === 'after') return { none: '녹음 중에 이미 떴다가 2.2초 뒤 사라져, 손을 뗀 뒤에는 못 볼 수 있어요' };
+      return { bottom: 84 };
+    }
+    if (st === 'rec') return { none: '녹음 중 — 알림을 미뤄 둠(화면·스크린리더 모두). 손을 떼면 한 번 띄워요' };
+    return { bottom: st === 'text' ? 84 : 136 };
+  }
+  function renderToast() {
+    document.getElementById('st-toast').innerHTML = views().map(function (k) {
+      var t = toastFor(k, S.st);
+      var input = S.st === 'text' ? composer() : voiceBar(S.st);
+      var toast = t.bottom != null ? '<div class="ptoast" role="status" aria-live="polite" style="bottom:' + t.bottom + 'px">' + SAVE_FAIL + '</div>' : '';
+      return '<figure class="fig"><figcaption>' + capOf(k, S.st === 'text' ? '회화방 글자 입력' : '회화방 음성 입력') + '</figcaption>' +
+        '<div class="phone w' + S.w + ' h780" data-k="' + k + '" data-sec="toast"><div class="room">' + talkHeader() + dispBar(k, false) + talkList(k) + input + '</div>' + toast +
+        (t.none ? '<div class="ov defer" style="bottom:136px">' + t.none + '</div>' : '') + '</div>' +
+        '<p class="meas" id="mtt-' + k + '"></p></figure>';
+    }).join('');
+    var notes = {
+      idle: ['<b>현재</b>: 앱 공통 자리(아래에서 84px)라 음성 입력 바 위쪽, 상태 줄 “누르고 있는 동안 말해요”를 2.2초 동안 가려요.', '<b>제안</b>: 회화방 알림과 같은 자리(아래에서 136px). 입력 바 위로 떠서 상태 줄이 보여요.'],
+      rec: ['<b>현재</b>: 녹음 중에도 바로 떠서 “듣고 있어요 · 0:03 — 손을 떼면 보내요”를 가리고, 스크린리더가 알림을 읽으면 그 소리가 마이크에 섞일 수 있어요.', '<b>제안</b>: 회화방의 다른 알림처럼 녹음 중에는 띄우지 않고 기다려요(화면·스크린리더 모두). 스위치 값은 바로 되돌아가요.'],
+      after: ['<b>현재</b>: 녹음 중에 이미 떴다가 사라져 못 볼 수 있어요.', '<b>제안</b>: 손을 떼는 순간 미뤄 둔 알림을 한 번 띄워요(아래에서 136px).'],
+      text: ['<b>현재·제안 같음</b>: 글자 입력 모드에서는 회화방 알림도 아래에서 84px 라 지금 자리 그대로예요. 입력창과 겹치지 않아요.', '다른 화면(설정·단어장·오늘의 회화·채팅방)의 저장 실패 알림도 지금 자리(84px) 그대로예요.']
+    };
+    document.getElementById('toast-notes').innerHTML = notes[S.st].map(function (n) { return '<li>' + n + '</li>'; }).join('') +
+      '<li>문구·2.2초·탭을 막지 않는 점은 그대로예요.</li>';
+  }
+  function inter(a, b) {
+    var top = Math.max(a.top, b.top), bot = Math.min(a.bottom, b.bottom);
+    return { top: top, h: Math.max(0, bot - top) };
+  }
+  function measureToast() {
+    var rows = [];
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sec="toast"]'), function (ph) {
+      var k = ph.getAttribute('data-k');
+      var pr = ph.getBoundingClientRect();
+      var t = ph.querySelector('.ptoast');
+      var bar = ph.querySelector('.vb') || ph.querySelector('.cmp');
+      var st = ph.querySelector('.vs');
+      var out = document.getElementById('mtt-' + k);
+      var barName = ph.querySelector('.vb') ? '음성 입력 바와' : '입력창과';
+      if (!t) { out.innerHTML = '알림 <b>없음</b>(이 순간에는 띄우지 않음)'; rows.push([k, '—', '—', '—']); return; }
+      var tr = t.getBoundingClientRect(), br = bar.getBoundingClientRect();
+      var o = inter(tr, br);
+      var so = st ? inter(tr, st.getBoundingClientRect()).h : 0;
+      if (o.h > 0) {
+        var d = document.createElement('div');
+        d.className = 'ov clip';
+        d.style.cssText = 'left:16px;right:16px;top:' + (o.top - pr.top) + 'px;height:' + o.h + 'px';
+        ph.appendChild(d);
+        var tag = document.createElement('div');
+        tag.className = 'ov tagx';
+        tag.textContent = '겹침 ' + px(o.h) + 'px' + (so > 0 ? ' · 상태 줄 가림' : '');
+        tag.style.cssText = 'right:20px;top:' + (tr.top - pr.top - 22) + 'px';
+        ph.appendChild(tag);
+        out.innerHTML = '알림 아래에서 <b>' + px(pr.bottom - tr.bottom) + 'px</b> · ' + barName + ' 겹침 <span class="up">' + px(o.h) + 'px</span>' + (so > 0 ? ' (상태 줄 ' + px(so) + 'px 가림)' : '');
+      } else {
+        var gap = br.top - tr.bottom;
+        var g = document.createElement('div');
+        g.className = 'ov gap';
+        g.style.cssText = 'left:50%;top:' + (tr.bottom - pr.top) + 'px;height:' + Math.max(gap, 0) + 'px';
+        ph.appendChild(g);
+        var tag2 = document.createElement('div');
+        tag2.className = 'ov tagx good';
+        tag2.textContent = '겹침 0 · 간격 ' + px(gap) + 'px';
+        tag2.style.cssText = 'left:calc(50% + 6px);top:' + (tr.bottom - pr.top + gap / 2 - 9) + 'px';
+        ph.appendChild(tag2);
+        out.innerHTML = '알림 아래에서 <b>' + px(pr.bottom - tr.bottom) + 'px</b> · ' + barName + ' 겹침 <span class="ok">0</span> · 간격 ' + px(gap) + 'px';
+      }
+      rows.push([k, px(pr.bottom - tr.bottom) + 'px', px(tr.height) + 'px', o.h > 0 ? '<span class="up">' + px(o.h) + 'px</span>' : '<span class="ok">0</span>']);
+    });
+    var html = '<thead><tr><th>보기</th><th class="num">아래에서</th><th class="num">알림 높이</th><th class="num">겹침</th></tr></thead><tbody>';
+    rows.forEach(function (r) { html += '<tr><td>' + (r[0] === 'cur' ? '현재' : '제안') + '</td><td class="num">' + r[1] + '</td><td class="num">' + r[2] + '</td><td class="num">' + r[3] + '</td></tr>'; });
+    document.getElementById('tb-toast').innerHTML = html + '</tbody>';
+  }
+
+  function render() {
+    renderToggle(); renderBubble(); renderToast();
+    requestAnimationFrame(function () { measureToggle(); measureBubble(); measureToast(); });
+  }
+  function seg(id, attr, key, conv) {
+    var box = document.getElementById(id);
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('button[' + attr + ']');
+      if (!b) return;
+      Array.prototype.forEach.call(box.querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      S[key] = conv ? conv(b.getAttribute(attr)) : b.getAttribute(attr);
+      if (key === 'guide') { document.body.classList.toggle('noguide', !S.guide); return; }
+      render();
+    });
+  }
+  seg('d-w', 'data-w', 'w', Number);
+  seg('d-v', 'data-v', 'view');
+  seg('d-g', 'data-g', 'guide', function (v) { return v === 'on'; });
+  seg('d-tr', 'data-tr', 'tr', function (v) { return v === 'on'; });
+  seg('d-st', 'data-st', 'st');
+  document.getElementById('d-t').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-t]');
+    if (!b) return;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    var t = b.getAttribute('data-t');
+    if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  });
+  var rz = null;
+  window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(render, 150); });
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+})();
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ import { hangulLine, hasKanji, rubyPieces } from '@/modules/speech/reading/clien
 import { cutRubyByRanges, plainPieces, type AnnotationState, type TextRange } from './annotations'
 import type { RubyPiece } from '@/modules/speech/reading/client'
 import { useRef } from 'react'
-import { DISPLAY_COPY, DISPLAY_TOAST_MS, TOGGLE_KEY, useDisplayPrefs, useDisplaySaveFailure, type ToggleKey } from './displayPrefs'
+import { clearFreshSuccessToast, DISPLAY_COPY, DISPLAY_TOAST_MS, TOGGLE_KEY, useDisplayPrefs, useDisplaySaveFailure, type ToggleKey } from './displayPrefs'
 
 const RT_CLASS: Record<11 | 13 | 16, string> = {
   11: 'text-[11px]',
@@ -94,14 +94,22 @@ const HANGUL_SIZE: Record<12 | 12.5 | 13 | 14 | 15, string> = {
   15: 'text-[15px]',
 }
 
-/** 분석을 기다리는 동안 한글 줄 자리(실제 줄 높이와 같아 채워질 때 밀리지 않는다). */
-export function HangulPlaceholder({ onTint = false, className = '' }: { onTint?: boolean; className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`mb-1 mt-1.5 block h-3 w-[62%] rounded-md motion-safe:animate-pulse ${onTint ? 'bg-surface' : 'bg-surface2'} ${className}`}
-    />
-  )
+/**
+ * 분석을 기다리는 동안 한글 줄 자리. 기본은 막대 + 위아래 여백(18px — 바로 아래 번역 칸의 위 여백과 겹쳐 더 줄어든다).
+ * `asLine` 이면 자리를 실제 한글 줄과 같은 높이(위 2 + 줄 19.5)로 잡고 막대를 가운데에 둔다 — 아래 번역 칸이 있어도 분석이 도착할 때
+ * 말풍선이 거의 안 밀린다(내 말풍선, task-030 QA-L3). 막대 모양은 같다.
+ */
+export const HANGUL_LINE_SLOT_CLASS = 'mt-0.5 flex h-[19.5px] items-center'
+
+export function HangulPlaceholder({ onTint = false, className = '', asLine = false }: { onTint?: boolean; className?: string; asLine?: boolean }) {
+  const bar = `block h-3 w-[62%] rounded-md motion-safe:animate-pulse ${onTint ? 'bg-surface' : 'bg-surface2'}`
+  if (asLine)
+    return (
+      <span aria-hidden="true" className={`${HANGUL_LINE_SLOT_CLASS} ${className}`}>
+        <span className={bar} />
+      </span>
+    )
+  return <span aria-hidden="true" className={`mb-1 mt-1.5 ${bar} ${className}`} />
 }
 
 export function HangulLine({
@@ -111,9 +119,12 @@ export function HangulLine({
   onTint = false,
   as,
   className = '',
+  waitAsLine = false,
 }: {
   state: AnnotationState
   size?: 12 | 12.5 | 13 | 14 | 15
+  /** 기다리는 동안 자리를 한글 줄 높이로 잡는다(내 말풍선) — `HangulPlaceholder` 의 `asLine`. */
+  waitAsLine?: boolean
   /** 버튼 안처럼 `<p>` 를 둘 수 없는 자리는 'span'(블록으로 그린다). 기본은 inline 이면 span, 아니면 p. */
   as?: 'p' | 'span'
   /** 칩 안 같은 흐름(일본어 뒤 `<span>`) */
@@ -124,7 +135,7 @@ export function HangulLine({
 }) {
   const prefs = useDisplayPrefs()
   if (!prefs.loaded || !prefs.showHangul) return null
-  if (state.s === 'loading') return inline ? null : <HangulPlaceholder onTint={onTint} />
+  if (state.s === 'loading') return inline ? null : <HangulPlaceholder onTint={onTint} asLine={waitAsLine} />
   if (state.s !== 'ready') return null
   const h = hangulLine(state.segments)
   if (!h) return null
@@ -152,9 +163,7 @@ export function HangulLine({
  */
 export function useClearSuccessOnSaveFail(onToast: (msg: string, ms?: number) => void): () => void {
   const shownAt = useRef(0)
-  useDisplaySaveFailure(() => {
-    if (Date.now() - shownAt.current < DISPLAY_TOAST_MS) onToast('', 0)
-  })
+  useDisplaySaveFailure(() => clearFreshSuccessToast(shownAt.current, Date.now(), onToast))
   return () => {
     shownAt.current = Date.now()
   }
@@ -181,7 +190,7 @@ export function DisplayToggles({ keys, onToast }: { keys: ToggleKey[]; onToast: 
               onToast(DISPLAY_COPY.toast[k][next ? 1 : 0], DISPLAY_TOAST_MS)
               markShown()
             }}
-            className={`relative h-8 flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] ${
+            className={`relative h-8 flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:-inset-y-[7px] before:content-[''] ${
               on ? 'border-ink bg-ink font-semibold text-surface' : 'border-line bg-surface text-ink'
             } ${prefs.loaded ? '' : 'opacity-50'}`}
           >
@@ -198,13 +207,16 @@ export function DisplayToggles({ keys, onToast }: { keys: ToggleKey[]; onToast: 
   )
 }
 
-/** 회화방·채팅방 머리 바로 아래 표시 바(E3-A) — 고정 머리의 일부(목록 스크롤 밖). */
+/**
+ * 회화방·채팅방 머리 바로 아래 표시 바(E3-A) — 고정 머리의 일부(목록 스크롤 밖). 바 아래 선은 border 가 아니라 안쪽 1px 그림자 —
+ * border 면 안쪽 높이가 43px 라 토글 터치 영역(`overflow-x-auto` 가 위아래를 자른다)이 41px 가 된다(task-030 QA-L2). 선의 색·자리는 같다.
+ */
 export function DisplayBar({ onToast }: { onToast: (msg: string, ms?: number) => void }) {
   return (
     <div
       role="group"
       aria-label={DISPLAY_COPY.barGroup}
-      className="flex h-11 min-w-0 flex-none items-center gap-1.5 overflow-x-auto border-b border-line bg-surface px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex h-11 min-w-0 flex-none items-center gap-1.5 overflow-x-auto bg-surface px-3 shadow-[inset_0_-1px_0_var(--color-line)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <span aria-hidden="true" className="mr-0.5 flex-none text-[12px] text-ink2">
         {DISPLAY_COPY.barCaption}

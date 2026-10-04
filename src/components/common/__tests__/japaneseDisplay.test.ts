@@ -22,7 +22,20 @@ import {
   splitForAnnotate,
   type AnnotateResponse,
 } from '../japanese/annotations'
-import { DISPLAY_COPY, DisplayPrefsStore, userTrFailure, watchSaveFailures, type DisplayValues } from '../japanese/displayPrefs'
+import {
+  claimWhile,
+  clearFreshSuccessToast,
+  DISPLAY_COPY,
+  DISPLAY_TOAST_MS,
+  DisplayPrefsStore,
+  SaveFailureClaims,
+  userTrFailure,
+  watchSaveFailures,
+  type DisplayValues,
+} from '../japanese/displayPrefs'
+import { HANGUL_LINE_SLOT_CLASS, HangulPlaceholder } from '../japanese/JapaneseText'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { createElement } from 'react'
 import { fetchUserTranslation, withUserTranslation } from '@/components/chat/messages'
 import type { ChatMessageView } from '@/types/chat'
 
@@ -726,7 +739,7 @@ test('저장 실패 알림 정적: 앱 셸이 DisplaySaveNotice 를 그리고, �
   assert.match(layout, /import DisplaySaveNotice from '@\/components\/shell\/DisplaySaveNotice'/)
   assert.match(layout, /<DisplaySaveNotice \/>/)
   const notice = readFileSync(join(root, 'components/shell/DisplaySaveNotice.tsx'), 'utf8')
-  assert.match(notice, /useDisplaySaveFailure\(\(\) => toast\.show\(DISPLAY_COPY\.saveFailed, DISPLAY_TOAST_MS\)\)/)
+  assert.match(notice, /useDisplaySaveFailure\(\(\) => saveFailureClaims\.route\(\(\) => toast\.show\(DISPLAY_COPY\.saveFailed, DISPLAY_TOAST_MS\)\)\)/)
   const files: string[] = []
   const walk = (dir: string) => {
     for (const name of readdirSync(dir)) {
@@ -741,10 +754,338 @@ test('저장 실패 알림 정적: 앱 셸이 DisplaySaveNotice 를 그리고, �
   for (const f of files) {
     const src = readFileSync(f, 'utf8')
     for (const m of src.matchAll(/prefs\.set\(([^)]*)\)/g)) calls.push(`${f}: ${m[1]}`)
-    if (!f.endsWith('DisplaySaveNotice.tsx')) assert.ok(!/DISPLAY_COPY\.saveFailed/.test(src), `${f}: 실패 토스트는 셸만`)
+    // 실패 알림 문구는 셸과(회화방이 맡는 동안) 회화방만 안다.
+    if (!/(DisplaySaveNotice|TalkRoom)\.tsx$/.test(f)) assert.ok(!/DISPLAY_COPY\.saveFailed/.test(src), `${f}: 실패 토스트는 셸·회화방만`)
   }
   assert.ok(calls.length >= 2, calls.join('\n'))
   for (const c of calls) assert.equal(c.split(':').pop()!.split(',').length, 2, `3번째 인자 없음 — ${c}`)
+})
+
+// ── task-030 2단계 ────────────────────────────────────────────────────────────
+
+/** Tailwind 정수 클래스 → px (`h-11`=44 · `h-8`=32). */
+const twPx = (cls: string, prefix: string): number => {
+  const m = new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`).exec(cls)
+  assert.ok(m, `${prefix}-N 없음`)
+  return Number(m[1]) * 4
+}
+
+test('QA-L2: 표시 바 토글의 유효 터치 높이 ≥ 44px — 바 아래 선은 border 가 아니라 안쪽 그림자, 터치 확장은 바 안에서 44 로 잘린다', () => {
+  const src = readFileSync(join(process.cwd(), 'src/components/common/japanese/JapaneseText.tsx'), 'utf8')
+  const bar = /<div\s+role="group"[^>]*?className="([^"]+)"/.exec(src)?.[1]
+  assert.ok(bar, 'DisplayBar className')
+  const toggle = /className=\{`(relative h-8[^`]*?)\$\{/.exec(src)?.[1]
+  assert.ok(toggle, 'DisplayToggles className')
+  assert.ok(!/(^|\s)border-b(\s|$)/.test(bar), 'border-b 가 있으면 안쪽 높이가 43px')
+  assert.match(bar, /shadow-\[inset_0_-1px_0_var\(--color-line\)\]/, '같은 색·같은 자리의 안쪽 1px 선')
+  assert.match(bar, /overflow-x-auto/)
+  const inner = twPx(bar, 'h') - 0 // border 없음 → 안쪽 = 바 높이
+  const pill = twPx(toggle, 'h')
+  const ext = Number(/before:-inset-y-\[(\d+)px\]/.exec(toggle)?.[1])
+  assert.equal(inner, 44)
+  assert.equal(pill, 32)
+  const effective = Math.min(inner, pill + 2 * ext) // 가로 스크롤 상자가 위아래로 넘친 영역을 자른다
+  assert.ok(effective >= 44, `유효 터치 높이 ${effective}`)
+  assert.ok(pill + 2 * ext >= 44)
+})
+
+test('QA-L3: 내 말풍선 대기 자리 = 한글 줄과 같은 높이(위 2 + 19.5), 막대 아래 여백 0 — 기본 막대와 다른 말풍선은 그대로', () => {
+  const src = readFileSync(join(process.cwd(), 'src/components/common/japanese/JapaneseText.tsx'), 'utf8')
+  // 실제 한글 줄: mt-0.5(2px) + 13px × leading 1.5.
+  const lineH = 13 * Number(/leading-\[(\d+(?:\.\d+)?)\]/.exec(src.slice(src.indexOf('export function HangulLine')))?.[1])
+  const slotH = Number(/h-\[(\d+(?:\.\d+)?)px\]/.exec(HANGUL_LINE_SLOT_CLASS)?.[1])
+  assert.equal(lineH, 19.5)
+  assert.equal(slotH, lineH)
+  assert.match(HANGUL_LINE_SLOT_CLASS, /(^|\s)mt-0\.5(\s|$)/, '위 2px = 한글 줄과 같다')
+  const slot = renderToStaticMarkup(createElement(HangulPlaceholder, { onTint: true, asLine: true }))
+  assert.match(slot, /h-\[19\.5px\]/)
+  assert.match(slot, /items-center/)
+  assert.match(slot, /bg-surface"|bg-surface /, '내 말 말풍선 막대 색')
+  assert.ok(!/mb-1|mt-1\.5/.test(slot), '막대 위아래 여백 0')
+  assert.match(slot, /w-\[62%\]/)
+  // 기본(선생님 말풍선·교정·수업 줄)은 지금 막대 그대로.
+  const dflt = renderToStaticMarkup(createElement(HangulPlaceholder, {}))
+  assert.match(dflt, /mb-1 mt-1\.5/)
+  assert.ok(!/19\.5/.test(dflt))
+  // 내 말풍선만 넘긴다.
+  const bubble = readFileSync(join(process.cwd(), 'src/components/chat/MessageBubble.tsx'), 'utf8')
+  assert.equal(bubble.match(/waitAsLine/g)?.length, 1)
+  assert.match(bubble, /<HangulLine state=\{ann\} onTint waitAsLine \/>/)
+  const hl = /<HangulLine[^>]*waitAsLine/g
+  for (const f of ['talk/TalkCorrectionCard.tsx', 'chat/CorrectionCard.tsx', 'chat/ProposalCard.tsx']) {
+    assert.ok(!hl.test(readFileSync(join(process.cwd(), 'src/components', f), 'utf8')), f)
+  }
+})
+
+test('REV-097 L-1: 저장 실패 때 방금 띄운 성공 토스트를 빈 문구·0ms 로 지운다 — 오래된 것·맡은 화면이 있으면 지우지 않는다', () => {
+  const calls: Array<[string, number | undefined]> = []
+  const onToast = (m: string, ms?: number) => calls.push([m, ms])
+  const none = new SaveFailureClaims()
+  clearFreshSuccessToast(1000, 1000 + DISPLAY_TOAST_MS - 1, onToast, none)
+  assert.deepEqual(calls, [['', 0]], '토스트 시간 안 = 지운다')
+  clearFreshSuccessToast(1000, 1000 + DISPLAY_TOAST_MS, onToast, none)
+  assert.equal(calls.length, 1, '이미 사라질 때가 지났으면 부르지 않는다')
+  const claimed = new SaveFailureClaims()
+  claimed.claim(() => {})
+  clearFreshSuccessToast(1000, 1001, onToast, claimed)
+  assert.equal(calls.length, 1, '방이 맡은 동안은 지우지 않는다(실패 문구가 같은 칸을 덮는다)')
+  const src = readFileSync(join(process.cwd(), 'src/components/common/japanese/JapaneseText.tsx'), 'utf8')
+  assert.match(src, /useDisplaySaveFailure\(\(\) => clearFreshSuccessToast\(shownAt\.current, Date\.now\(\), onToast\)\)/)
+})
+
+test('REV-097 L-2: 회화방이 맡은 동안 실패 알림은 방 한 곳 · 해제 뒤 늦은 실패는 셸 · 한 번에 하나 · 방은 자기 notify 규칙을 쓴다', async () => {
+  const s = makeStore()
+  await s.store.ensureLoaded()
+  const claims = new SaveFailureClaims()
+  const log: string[] = []
+  const off = watchSaveFailures(s.store, () => claims.route(() => log.push('shell')))
+  const fail = async (key: 'showHangul' | 'showTranslation' | 'showFurigana', v: boolean) => {
+    s.setFailPut(true)
+    s.store.set(key, v)
+    await s.tick()
+    await s.tick()
+  }
+  await fail('showHangul', false)
+  assert.deepEqual(log, ['shell'], '맡은 화면이 없으면 셸')
+  const release = claims.claim(() => log.push('room'))
+  await fail('showTranslation', true)
+  assert.deepEqual(log, ['shell', 'room'], '맡은 동안은 방 한 곳(셸 0)')
+  const release2 = claims.claim(() => log.push('room2'))
+  release() // 먼저 맡았던 쪽의 해제는 지금 맡은 쪽을 풀지 않는다
+  await fail('showFurigana', false)
+  assert.deepEqual(log, ['shell', 'room', 'room2'])
+  release2()
+  await fail('showHangul', false)
+  assert.deepEqual(log, ['shell', 'room', 'room2', 'shell'], '방을 떠난 뒤 늦게 온 실패는 셸이 띄운다')
+  off()
+  // 배선(정적): 방이 notify 로 맡고, 셸은 route 로만 띄운다. 자리·미룸은 방의 기존 값·규칙 그대로.
+  const root = join(process.cwd(), 'src/components')
+  const room = readFileSync(join(root, 'talk/TalkRoom.tsx'), 'utf8')
+  assert.match(room, /useClaimDisplaySaveFailure\(\s*\(\) => \{\s*if \(recordingRef\.current\) saveFailDeferredRef\.current = true\s*else showToast\(DISPLAY_COPY\.saveFailed, DISPLAY_TOAST_MS\)\s*\},\s*load === 'ready' && !!chat,/)
+  assert.match(room, /const VOICE_TOAST_BOTTOM = 136/)
+  assert.match(room, /const TEXT_TOAST_BOTTOM = 84/)
+  assert.match(room, /if \(recordingRef\.current\) deferredToastRef\.current = \{ msg, ms \}/)
+  assert.match(room, /bottomPx=\{mode === 'voice' \? VOICE_TOAST_BOTTOM : TEXT_TOAST_BOTTOM\}/)
+  const notice = readFileSync(join(root, 'shell/DisplaySaveNotice.tsx'), 'utf8')
+  assert.match(notice, /saveFailureClaims\.route\(\(\) => toast\.show\(DISPLAY_COPY\.saveFailed, DISPLAY_TOAST_MS\)\)/)
+  assert.ok(!/bottomPx/.test(notice), '셸은 기본 자리(84)')
+})
+
+test('REV-099 M-1·L-2: 맡기는 방 본 화면(enabled)일 때만 · enabled 가 꺼지거나 언마운트하면 해제 → 셸', () => {
+  const claims = new SaveFailureClaims()
+  const log: string[] = []
+  const fire = () => claims.route(() => log.push('shell'))
+  // effect 수명 흉내: 훅은 `useLayoutEffect(() => claimWhile(enabled, fn, …), [enabled])` — 반환값이 곧 cleanup.
+  let cleanup: (() => void) | undefined
+  const run = (enabled: boolean) => {
+    cleanup?.()
+    cleanup = claimWhile(enabled, () => log.push('room'), claims)
+  }
+  run(false) // 로드 중·오류·없음 화면
+  fire()
+  assert.deepEqual(log, ['shell'], 'enabled false 동안은 셸')
+  run(true) // 방 본 화면
+  fire()
+  assert.deepEqual(log, ['shell', 'room'], 'enabled true 면 방')
+  run(false) // 다시 오류·재시도 화면
+  fire()
+  assert.deepEqual(log, ['shell', 'room', 'shell'], 'enabled 가 꺼지면 해제 → 셸')
+  run(true)
+  cleanup?.() // 언마운트
+  fire()
+  assert.deepEqual(log, ['shell', 'room', 'shell', 'shell'], '언마운트하면 해제 → 셸')
+  // 배선(정적): 방은 본 화면 조건을 넘기고, 훅은 enabled 로 다시 맡으며 해제 함수를 effect 로 그대로 돌려준다.
+  const room = readFileSync(join(process.cwd(), 'src/components/talk/TalkRoom.tsx'), 'utf8')
+  assert.match(room, /load === 'ready' && !!chat,/)
+  const prefs = readFileSync(join(process.cwd(), 'src/components/common/japanese/displayPrefs.ts'), 'utf8')
+  assert.match(prefs, /useLayoutEffect\(\(\) => claimWhile\(enabled, \(\) => ref\.current\(\), saveFailureClaims, \(\) => leftRef\.current\?\.\(\) \?\? false\), \[enabled\]\)/)
+  assert.match(prefs, /return enabled \? claims\.claim\(fn, takeLeftover\) : undefined/)
+})
+
+test('REV-100 T1: 맡기·해제는 layout effect(커밋 안 동기) — passive effect 로 맡지 않는다', () => {
+  const prefs = readFileSync(join(process.cwd(), 'src/components/common/japanese/displayPrefs.ts'), 'utf8')
+  assert.match(prefs, /useLayoutEffect\(\(\) => claimWhile\(enabled, /)
+  assert.ok(!/useEffect\(\(\) => claimWhile\(/.test(prefs), 'useEffect 로 맡으면 커밋~cleanup 사이 실패가 죽은 방으로 간다')
+  assert.match(prefs, /import \{ useEffect, useLayoutEffect, useRef, useSyncExternalStore \} from 'react'/)
+})
+
+test('REV-100 T2a: 해제 때 남은 알림이 있으면(takeLeftover true) 셸 정확히 1회 · 없으면 0회', () => {
+  const claims = new SaveFailureClaims()
+  const sink: string[] = []
+  claims.setShell(() => sink.push('shell'))
+  claims.claim(() => {}, () => true)()
+  assert.deepEqual(sink, ['shell'])
+  claims.claim(() => {}, () => false)()
+  claims.claim(() => {})() // takeLeftover 없음
+  assert.deepEqual(sink, ['shell'], '남은 것이 없으면 이관 0')
+})
+
+test('REV-100 T2b: 이미 새 claim 에 밀린(stale) 토큰의 해제는 이관하지 않는다(이중 알림 금지)', () => {
+  const claims = new SaveFailureClaims()
+  const sink: string[] = []
+  claims.setShell(() => sink.push('shell'))
+  const old = claims.claim(() => {}, () => true)
+  const fresh = claims.claim(() => {}, () => false)
+  old()
+  assert.deepEqual(sink, [], '밀린 토큰 해제 = 0')
+  assert.ok(claims.isClaimed(), '새 claim 은 그대로')
+  fresh()
+  assert.deepEqual(sink, [])
+})
+
+test('REV-100 T2c: takeLeftover 가 읽고 비우므로 같은 해제를 두 번 불러도 1회', () => {
+  const claims = new SaveFailureClaims()
+  const sink: string[] = []
+  claims.setShell(() => sink.push('shell'))
+  let left = true
+  const release = claims.claim(() => {}, () => {
+    const v = left
+    left = false
+    return v
+  })
+  release()
+  release()
+  claims.claim(() => {}, () => {
+    const v = left
+    left = false
+    return v
+  })()
+  assert.deepEqual(sink, ['shell'])
+})
+
+test('REV-100 T2d: 셸 미등록에서도 throw 0 · setShell 해제 함수를 부른 뒤엔 이관 0 · 다른 셸이 등록돼 있으면 옛 해제는 건드리지 않는다', () => {
+  const claims = new SaveFailureClaims()
+  assert.doesNotThrow(() => claims.claim(() => {}, () => true)())
+  const sink: string[] = []
+  const off = claims.setShell(() => sink.push('a'))
+  off()
+  claims.claim(() => {}, () => true)()
+  assert.equal(sink.length, 0, '셸 해제 뒤 이관 0')
+  const offA = claims.setShell(() => sink.push('a'))
+  claims.setShell(() => sink.push('b'))
+  offA() // 밀린 셸의 해제는 지금 셸을 풀지 않는다
+  claims.claim(() => {}, () => true)()
+  assert.deepEqual(sink, ['b'])
+})
+
+test('REV-100 T2e: 녹음 중 모사 — 알림은 미루고 놓은 뒤 1회 · 다른 안내가 덮어쓰지 않음 · 방 해제 때 남았으면 셸 1회, 이미 냈으면 0', () => {
+  // TalkRoom 의 배선을 그대로 옮긴 모델: recording·saveFailDeferred(저장 실패 전용)·deferredToast(일반 안내, 한 칸).
+  const makeRoom = () => {
+    const claims = new SaveFailureClaims()
+    const log: string[] = []
+    const shell = () => log.push('shell')
+    claims.setShell(shell)
+    const st = { recording: false, saveFailDeferred: false, deferredToast: null as string | null }
+    const showToast = (m: string) => log.push(m)
+    const notify = (m: string) => {
+      if (st.recording) st.deferredToast = m
+      else showToast(m)
+    }
+    const release = claims.claim(
+      () => {
+        if (st.recording) st.saveFailDeferred = true
+        else showToast('saveFailed')
+      },
+      () => {
+        const v = st.saveFailDeferred
+        st.saveFailDeferred = false
+        return v
+      },
+    )
+    const endRecording = () => {
+      st.recording = false
+      if (st.deferredToast) {
+        const d = st.deferredToast
+        st.deferredToast = null
+        showToast(d)
+      }
+      if (st.saveFailDeferred) {
+        st.saveFailDeferred = false
+        showToast('saveFailed')
+      }
+    }
+    return { claims, log, st, notify, release, endRecording }
+  }
+  const a = makeRoom()
+  a.st.recording = true
+  a.claims.route(shellFallback(a.log))
+  a.claims.route(shellFallback(a.log)) // 녹음 중 두 번 실패해도
+  assert.deepEqual(a.log, [], '녹음 중엔 셸·방 모두 0(화면·스크린리더 미룸)')
+  a.notify('mode') // 덮어쓰기 시도
+  a.endRecording()
+  assert.deepEqual(a.log, ['mode', 'saveFailed'], '놓은 뒤 저장 실패 1회(마지막 칸에 남음)')
+  const b = makeRoom()
+  b.st.recording = true
+  b.claims.route(shellFallback(b.log))
+  b.release() // 녹음 중 방 이탈(언마운트)
+  assert.deepEqual(b.log, ['shell'], '미룬 채 해제 → 셸 1회')
+  b.release()
+  assert.deepEqual(b.log, ['shell'], '다시 해제해도 중복 0')
+  const c = makeRoom()
+  c.st.recording = true
+  c.claims.route(shellFallback(c.log))
+  c.endRecording()
+  c.release()
+  assert.deepEqual(c.log, ['saveFailed'], '이미 낸 뒤 해제 → 셸 0')
+})
+
+function shellFallback(log: string[]): () => void {
+  return () => log.push('SHELL-FALLBACK')
+}
+
+test('REV-100 T2f: 배선(정적) — TalkRoom 은 저장 실패 전용 ref·takeLeftover 를 넘기고 일반 deferredToastRef 를 안 쓴다 · 셸은 setShell 등록 · 문구·자리·시간 불변', () => {
+  const root = join(process.cwd(), 'src/components')
+  const room = readFileSync(join(root, 'talk/TalkRoom.tsx'), 'utf8')
+  assert.match(room, /const saveFailDeferredRef = useRef\(false\)/)
+  const hook = room.slice(room.indexOf('useClaimDisplaySaveFailure('), room.indexOf("load === 'ready' && !!chat,"))
+  assert.ok(!/deferredToastRef|notify\(/.test(hook), '맡은 콜백은 notify·deferredToastRef 를 거치지 않는다')
+  assert.match(room, /const left = saveFailDeferredRef\.current\s*saveFailDeferredRef\.current = false\s*return left/)
+  assert.match(room, /if \(!recording && saveFailDeferredRef\.current\) \{\s*saveFailDeferredRef\.current = false\s*showToast\(DISPLAY_COPY\.saveFailed, DISPLAY_TOAST_MS\)/)
+  assert.match(room, /const VOICE_TOAST_BOTTOM = 136/)
+  assert.match(room, /const TEXT_TOAST_BOTTOM = 84/)
+  const notice = readFileSync(join(root, 'shell/DisplaySaveNotice.tsx'), 'utf8')
+  assert.match(notice, /saveFailureClaims\.setShell\(\(\) => show\(DISPLAY_COPY\.saveFailed, DISPLAY_TOAST_MS\)\)/)
+  assert.match(notice, /saveFailureClaims\.route\(\(\) => toast\.show\(DISPLAY_COPY\.saveFailed, DISPLAY_TOAST_MS\)\)/)
+  assert.equal(DISPLAY_TOAST_MS, 2200)
+})
+
+test('REV-097 L-3: 겹쳐 부른 flush 도 한 번에 하나만 보낸다 — 서버 동시 상한 429 가 같은 조각의 실패 횟수를 중복으로 올리지 않는다', async () => {
+  let inflight = 0
+  let maxInflight = 0
+  const calls: string[][] = []
+  const clock = { t: 0 }
+  const client = new AnnotationClient({
+    post: async (texts) => {
+      calls.push(texts)
+      inflight++
+      maxInflight = Math.max(maxInflight, inflight)
+      await new Promise((r) => setTimeout(r, 5))
+      inflight--
+      // 서버 사용자별 동시 상한(2건)을 흉내 — 한 번에 둘을 넘게 받으면 429. 우리는 하나씩만 보내야 한다.
+      if (maxInflight > 1) throw new Error('429')
+      return okAll(texts)
+    },
+    schedule: () => {},
+    now: () => clock.t,
+  })
+  client.request(['一'])
+  const f1 = client.flush()
+  client.request(['二']) // 첫 flush 가 도는 중 새 조각 + 새 flush(앱 복귀·새 말 도착)
+  const f2 = client.flush()
+  client.request(['三'])
+  const f3 = client.flush()
+  await Promise.all([f1, f2, f3])
+  assert.equal(maxInflight, 1, '동시에 둘 이상 보내지 않는다')
+  assert.deepEqual(calls.flat().sort(), ['一', '三', '二'].sort(), '쌓인 조각은 빠짐없이 한 번씩')
+  for (const t of ['一', '二', '三']) {
+    assert.equal(client.failure(t), undefined, `${t} 실패 기록 없음`)
+    assert.deepEqual(client.cached(t), [seg(t)])
+  }
+  // 요청 1회 실패는 그 조각의 실패 횟수를 정확히 1 올린다.
+  const bad = new AnnotationClient({ post: async () => { throw new Error('429') }, schedule: () => {}, now: () => 0 })
+  bad.request(['失'])
+  await Promise.all([bad.flush(), bad.flush(), bad.flush()])
+  assert.equal(bad.failure('失')?.n, 1)
 })
 
 // ── REV-094 L-2·M-1: 내 말 번역 ───────────────────────────────────────────────

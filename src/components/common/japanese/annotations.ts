@@ -113,6 +113,7 @@ export class AnnotationClient {
   private failures = new Map<string, AnnotateFailure>()
   private queue: string[] = []
   private scheduled = false
+  private draining: Promise<void> | null = null
   private listeners = new Set<() => void>()
   private ver = 0
 
@@ -196,34 +197,50 @@ export class AnnotationClient {
     }
   }
 
-  async flush(): Promise<void> {
+  /**
+   * 큐를 묶음 단위로 보낸다. 클라이언트당 **한 번에 하나**만 돈다 — 진행 중이면 그 흐름이 끝에서 새로 쌓인 큐까지 이어 처리하므로 서버의
+   * 사용자별 동시 요청 상한(429)에 우리 자신이 겹쳐 닿지 않고, 그 429 로 같은 조각의 실패 기록(재시도 횟수)이 요청 1회당 두 번 이상 늘지도 않는다
+   * (task-030 REV-097 L-3).
+   */
+  flush(): Promise<void> {
     this.scheduled = false
-    const all = this.queue.splice(0)
-    for (let i = 0; i < all.length; i += READING_MAX_TEXTS) {
-      const batch = all.slice(i, i + READING_MAX_TEXTS)
-      for (const t of batch) this.status.set(t, 'inflight')
-      let res: AnnotateResponse | null = null
-      try {
-        res = await withTimeout((signal) => this.deps.post(batch, signal), this.deps.timeoutMs ?? ANNOTATE_TIMEOUT_MS)
-      } catch {
-        res = null
-      }
-      batch.forEach((t, k) => {
-        const item = res && Array.isArray(res.items) ? res.items[k] : undefined
-        if (item && Array.isArray(item.segments)) {
-          const segs = item.segments
-          // 표기를 이은 것이 원문과 다르면 범위·루비가 어긋난다 — 분석 불가로 본다.
-          this.put(t, segs.length > 0 && segs.map((s) => s.surface).join('') === t ? segs : null)
-          this.failures.delete(t)
-        } else if (res && res.available === true && item === null) {
-          this.put(t, null)
-          this.failures.delete(t)
-        } else {
-          this.fail(t, this.now())
-        }
-        this.status.delete(t)
+    if (!this.draining) {
+      this.draining = this.drain().finally(() => {
+        this.draining = null
       })
-      this.emit()
+    }
+    return this.draining
+  }
+
+  private async drain(): Promise<void> {
+    while (this.queue.length > 0) {
+      const all = this.queue.splice(0)
+      for (let i = 0; i < all.length; i += READING_MAX_TEXTS) {
+        const batch = all.slice(i, i + READING_MAX_TEXTS)
+        for (const t of batch) this.status.set(t, 'inflight')
+        let res: AnnotateResponse | null = null
+        try {
+          res = await withTimeout((signal) => this.deps.post(batch, signal), this.deps.timeoutMs ?? ANNOTATE_TIMEOUT_MS)
+        } catch {
+          res = null
+        }
+        batch.forEach((t, k) => {
+          const item = res && Array.isArray(res.items) ? res.items[k] : undefined
+          if (item && Array.isArray(item.segments)) {
+            const segs = item.segments
+            // 표기를 이은 것이 원문과 다르면 범위·루비가 어긋난다 — 분석 불가로 본다.
+            this.put(t, segs.length > 0 && segs.map((s) => s.surface).join('') === t ? segs : null)
+            this.failures.delete(t)
+          } else if (res && res.available === true && item === null) {
+            this.put(t, null)
+            this.failures.delete(t)
+          } else {
+            this.fail(t, this.now())
+          }
+          this.status.delete(t)
+        })
+        this.emit()
+      }
     }
   }
 
