@@ -6,7 +6,10 @@
  *   `CORRECTION_ORIGINAL_MISMATCH` 경고(#32). `corrected === original` 은 오류 없음으로 보고 조용히 버린다.
  *   저장하는 `original` 은 모델 문자열이 아니라 서버 `text` 다(Leader 계획 — 모델 값을 그대로 쓰지 않는다).
  * - proposals: ADD_WORD 만, 같은 표현 중복 제거, 최대 2개.
+ * - userTranslation(task-026): 모델 `userKo` 를 그대로 쓰지 않고 `sanitizeUserKo` 를 거친 값만(null = 번역 없음 → 화면 [다시 가져오기]).
+ *   ASK 는 학습자 말 번역 대상이 아니다(null).
  */
+import { sanitizeUserKo } from '../structuredResponse/checks'
 import type { TutorCorrection, TutorProposalDraft, TutorResponse } from '../structuredResponse/schemas'
 
 export interface ShapedTurn {
@@ -17,6 +20,8 @@ export interface ShapedTurn {
   learning: TutorResponse['learning']
   speech: TutorResponse['speech']
   endOfTopic: boolean
+  /** 이번 사용자 말의 한국어 번역(정리 통과분) — USER `ChatMessage.translation` 에 같은 저장 트랜잭션으로. */
+  userTranslation: string | null
 }
 
 export function shapeTurnResponse(kind: 'TALK' | 'CHAT' | 'ASK', text: string, data: TutorResponse): ShapedTurn {
@@ -35,7 +40,8 @@ export function shapeTurnResponse(kind: 'TALK' | 'CHAT' | 'ASK', text: string, d
     proposals.push(p)
     if (proposals.length === 2) break
   }
-  return { reply: data.conversation, correction, warning, proposals, learning: data.learning, speech: data.speech, endOfTopic: data.endOfTopic === true }
+  const userTranslation = kind === 'ASK' ? null : sanitizeUserKo(text, data.userKo)
+  return { reply: data.conversation, correction, warning, proposals, learning: data.learning, speech: data.speech, endOfTopic: data.endOfTopic === true, userTranslation }
 }
 
 /** SSE `error` 이벤트 문구 — 코드별 고정 문구(엔진·모델 이름이 섞일 수 없게 오류 원문을 쓰지 않는다). */

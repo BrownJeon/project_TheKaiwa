@@ -77,10 +77,50 @@ export function checkTalkResponse(input: string, data: TutorResponse, opts: { ma
  */
 const DOUBLE_HONORIFIC_KO_RE = /드려\s*(드리|드릴|드린|드립|드렸)/
 
-export function checkReplyKoNaturalness(replyKo: string): string[] {
+export function checkReplyKoNaturalness(replyKo: string, field: string = 'conversation.replyKo'): string[] {
   return DOUBLE_HONORIFIC_KO_RE.test(replyKo)
-    ? ['conversation.replyKo 에 이중 높임("드려드리"처럼 겸양을 두 번 겹친 표현)이 있다 — 한 번만 자연스럽게 높인다(예: "드리겠습니다"·"넣어 드리겠습니다")']
+    ? [`${field} 에 이중 높임("드려드리"처럼 겸양을 두 번 겹친 표현)이 있다 — 한 번만 자연스럽게 높인다(예: "드리겠습니다"·"넣어 드리겠습니다")`]
     : []
+}
+
+/**
+ * task-026(talk@v7·chat@v2) — 학습자 말 번역 `userKo` 의 이중 높임 검사. **재시도 대상이 아니다**(REV-086 M3) — 번역은 부가 정보라
+ * 이 때문에 ajv 재시도(≈+10s, 12s fail-fast 위협)나 턴 실패를 만들지 않는다. `sanitizeUserKo` 가 걸리면 null 로 버린다
+ * (replyKo 후검증과 달리 TALK·CHAT extraCheck 에 합성하지 않는다). 공개 함수는 정리 함수·테스트가 쓴다.
+ */
+export function checkUserKoNaturalness(userKo: string | null | undefined): string[] {
+  return typeof userKo === 'string' ? checkReplyKoNaturalness(userKo, 'userKo') : []
+}
+
+const USER_KO_HANGUL_RE = /[\u1100-\u11ff\u3131-\u318e\uac00-\ud7a3]/
+const USER_KO_JAPANESE_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/
+
+/**
+ * `userKo` 저장 상한(UTF-16 길이). 입력은 최대 1,000자(`TURN_TEXT_MAX`)이고 번역은 같은 자릿수라 2,000 이면 정상 번역을 막지 않으면서 폭주 출력만
+ * 거른다. 입력이 짧은데 번역이 폭주한 경우는 입력의 4배(최소 200)로 더 조인다. 넘으면 **자르지 않고 null** — 문장 중간에서 잘린 번역은
+ * 틀린 뜻을 보이게 하므로 [다시 가져오기] 가 낫다.
+ */
+export const USER_KO_STORE_MAX = 2_000
+export function userKoStoreLimit(input: string): number {
+  return Math.min(USER_KO_STORE_MAX, Math.max(200, input.trim().length * 4))
+}
+
+/**
+ * `userKo` 저장 전 정리(순수) — 저장할 값을 돌려주고, 못 쓰면 null(내 발화 `translation` 을 비워 두고 화면이 [다시 가져오기] 를 보인다).
+ * **어떤 입력에도 던지지 않고 재시도도 없다**(스키마는 `userKo` 를 선택·null 허용·길이 무제한으로 둔다 — REV-086 M3).
+ * null 이 되는 경우: ① 누락·null·문자열 아님·공백뿐 ② 저장 상한(`userKoStoreLimit`) 초과 — 자르지 않음 ③ 입력과 같은 문자열(베끼기)
+ * ④ 일본어가 든 입력인데 한글이 하나도 없음(원문 베끼기·번역 거부) ⑤ 이중 높임(`checkUserKoNaturalness`).
+ * 입력에 일본어가 없으면(숫자·영어 한 마디 등) 한글 유무를 따지지 않는다.
+ */
+export function sanitizeUserKo(input: string, userKo: unknown): string | null {
+  if (typeof userKo !== 'string') return null
+  const t = userKo.trim()
+  if (!t) return null
+  if (t.length > userKoStoreLimit(input)) return null
+  if (t === input.trim()) return null
+  if (USER_KO_JAPANESE_RE.test(input) && !USER_KO_HANGUL_RE.test(t)) return null
+  if (checkUserKoNaturalness(t).length > 0) return null
+  return t
 }
 
 export function checkChatResponse(input: string, data: TutorResponse): string[] {

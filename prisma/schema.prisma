@@ -627,6 +627,10 @@ model Profile {
   correctionMode CorrectionMode @default(FLUENCY)
   explainLang    String         @default("ko") @db.VarChar(5)
   explainDepth   ExplainDepth   @default(NORMAL)
+  /// 일본어 표시 스위치(task-026, 앱 전체 하나 — 회화·채팅·오늘의 회화·단어장 공통). 후리가나(한자 위 읽기)·한글 발음 줄 기본 켬, 번역 기본 끔
+  showFurigana    Boolean       @default(true)
+  showHangul      Boolean       @default(true)
+  showTranslation Boolean       @default(false)
   updatedAt      DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

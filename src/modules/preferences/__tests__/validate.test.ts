@@ -26,6 +26,20 @@ test('프로필: 범위·형식 검증과 빈 이름 → null(선생님 기본�
   assert.equal(parseProfilePatch({ goalDeadline: '2026-12-31' }).goalDeadline?.toISOString(), '2026-12-31T00:00:00.000Z')
 })
 
+test('프로필 표시 스위치(task-026): 3칸 불리언만, 보낸 키만 바뀐다', () => {
+  assert.deepEqual(parseProfilePatch({ showFurigana: false }), { showFurigana: false })
+  assert.deepEqual(parseProfilePatch({ showFurigana: true, showHangul: false, showTranslation: true }), { showFurigana: true, showHangul: false, showTranslation: true })
+  assert.deepEqual(parseProfilePatch({ level: 'N3', showTranslation: false }), { level: 'N3', showTranslation: false })
+  for (const k of ['showFurigana', 'showHangul', 'showTranslation']) {
+    for (const v of ['true', 'false', 1, 0, null, undefined, {}, []]) {
+      assert.equal(code(() => parseProfilePatch({ [k]: v })), 'VALIDATION:boolean', `${k}=${JSON.stringify(v)}`)
+    }
+  }
+  // 화이트리스트 밖 표시 키(옛 localStorage 이름·화면별 값)는 받지 않는다 — 스위치는 앱 전체 하나.
+  assert.match(code(() => parseProfilePatch({ readingDefault: 'off' })), /^VALIDATION:unknown_key/)
+  assert.match(code(() => parseProfilePatch({ showReading: false })), /^VALIDATION:unknown_key/)
+})
+
 test('음성 draft: 범위(task-022 — 속도 0.5~1.5·높낮이 0.7~1.4·억양 0.6~1.4·styleWeight 0~4)와 speechProfile', () => {
   const base = { voiceProfileId: 'teacher_haruka', style: 'AUTO', speed: 0.9, pitch: 1, intonation: 1.1, speechProfile: 'NATIVE' }
   const opts = { requireSpeechProfile: true }

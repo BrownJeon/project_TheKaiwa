@@ -29,9 +29,9 @@ test('턴 본문(task-007): utteranceId 만 오면 REALTIME_STT, TEXT 와 함께
   assert.throws(() => parseTurnBody({ text: 'はい', clientTimings: [] }), code('VALIDATION', 'clientTimings'))
 })
 
-test('TALK 스키마 선언 순서 = 출력 지시 순서(speech 먼저, talk@v2)', () => {
-  assert.deepEqual(Object.keys(TALK_SCHEMA.properties), ['speech', 'conversation', 'correction', 'learning', 'endOfTopic', 'proposals'])
-  assert.deepEqual([...TALK_SCHEMA.required], ['speech', 'conversation', 'correction', 'learning', 'endOfTopic', 'proposals'])
+test('TALK 스키마 선언 순서 = 출력 지시 순서(speech 먼저, talk@v2, talk@v7 userKo 맨 끝)', () => {
+  assert.deepEqual(Object.keys(TALK_SCHEMA.properties), ['speech', 'conversation', 'correction', 'learning', 'endOfTopic', 'proposals', 'userKo'])
+  assert.deepEqual([...TALK_SCHEMA.required], ['speech', 'conversation', 'correction', 'learning', 'endOfTopic', 'proposals'], 'userKo 는 선언만 하고 required 는 아니다(REV-086 M3)')
 })
 
 // ── 문장 나누기 ───────────────────────────────────────────────────────

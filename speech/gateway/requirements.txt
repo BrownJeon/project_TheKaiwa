@@ -12,3 +12,5 @@ websockets==16.1.1
 PyJWT==2.15.0
 httpx==0.28.1
 PyYAML==6.0.3
+# 형태소별 표기·읽기(task-026 S1 `POST /text/annotate`) — 운영·dev venv 에 이미 설치된 버전(사전 open_jtalk_dic_utf_8-1.11 포함). worker 와 같은 판.
+pyopenjtalk==0.4.1

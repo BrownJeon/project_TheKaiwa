@@ -211,6 +211,8 @@ export function readCredentialFor(ref: string | null, target: URL, originEnv: st
  */
 const SERVICE_SECRETS = {
   TTS_SERVICE_SECRET: { targetEnv: 'TTS_SERVICE_URL' },
+  // 앱 → speech gateway 내부 라우트(task-026 S1 `/text/annotate`). gateway → 앱 콜백(`/api/internal/*`)과 같은 값, 방향만 반대.
+  SPEECH_INTERNAL_SECRET: { targetEnv: 'SPEECH_GATEWAY_URL' },
 } as const
 export type ServiceSecretName = keyof typeof SERVICE_SECRETS
 

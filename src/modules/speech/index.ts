@@ -8,6 +8,9 @@
  * task-012b: 분석 STT(`analysis` — 적재 게이트·claim·실패 백오프·결과 반영·requiresReview 판정·평가 채점 텍스트)·#22 조회·#21a 확정.
  * conversation·learning 을 import 하지 않는다(라우트가 조합).
  */
+// task-026 S1: 읽기 분석(후리가나·한글 줄의 서버 데이터). 화면이 쓰는 변환기는 `@/modules/speech/reading/client`.
+export { annotateReadings, READING_MAX_TEXTS, READING_MAX_CHARS } from './reading'
+export type { ReadingResult, ReadingSegment } from './reading'
 export { listSelectableVoices, assertSelectableVoice, describeVoice, loadTtsVoice } from './voices/registry'
 export type { SelectableVoice } from './voices/registry'
 export { resolveRecognitionMode, platformFrom } from './stt/modeResolver'

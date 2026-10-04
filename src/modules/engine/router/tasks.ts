@@ -30,6 +30,8 @@ export const LLM_TASKS = {
   planAnalysis: { tier: 'deep', timeoutMs: 300_000, lane: 'batch' }, // A8
   ask: { tier: 'balanced', timeoutMs: 120_000, lane: 'interactive' }, // A9
   wordEnrich: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' }, // A10
+  // 내 말 번역 다시 가져오기(task-026 S2, userTranslation@v1) — 사용자가 기다리는 단건이라 interactive·짧은 상한. 회화 턴과 같은 큐라 상한을 길게 두지 않는다.
+  userTranslation: { tier: 'fast', timeoutMs: 15_000, lane: 'interactive' },
   reviewDecision: { tier: 'balanced', timeoutMs: 60_000, lane: 'batch', retryOnTimeout: true }, // A11 — 타임아웃 1회 재시도(task-010b3), 유효 상한 ≈121~131s(위 retryOnTimeout 주석)
 } as const satisfies Record<string, TaskSpec>
 

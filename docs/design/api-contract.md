@@ -143,6 +143,7 @@
 | 22 | GET | `/api/v1/speech/utterances/:id` | 발화·분석 결과 | S | speech/utterances | 2 | — | `Utterance`+`SpeechAnalysis` |
 | 23 | POST | `/api/v1/speech/tts` | 문장 → 음성(정규화·사전·Rendering Plan·캐시) | S | speech/tts | 1 | `{text,voiceId?,speechProfile?,renderingPlan?,context?}` | `audio/wav` 또는 `{url,cacheKey,durationMs,ttfaMs,timing?,runtime}` (5차 §133·§146) |
 | 24 | GET | `/api/v1/speech/tts/:token` | 캐시 오디오 조회(**서명 URL**, 사용자 결속·10분) | S | speech/tts | 1 | — | `audio/wav` 또는 `{audioUrl,durationMs,timing}` |
+| 24r | POST | `/api/v1/text/annotate` | 일본어 읽기 분석 — 형태소별 표기·후리가나·발음 가나·구절 경계(task-026 S1, 저장 없음) | S | speech/reading | 2 | `{texts: string[≤64, 각 ≤400자]}` | `{items:[{segments}\|null], available}` |
 | 25 | POST | `/api/v1/attendance/check-in` | 출석(멱등) | S | learning/attendance | 1 | — | `{date,isNew,streak}` |
 | 26 | GET | `/api/v1/attendance?month=` | 월 출석 | S | learning/attendance | 1 | query | `{month,days[]}` |
 | 27 | GET | `/api/v1/chats?kind=&limit=&cursor=` | 대화 목록 | S | conversation/chats | 1 | query | 목록 |
@@ -151,6 +152,7 @@
 | 30 | PATCH | `/api/v1/chats/:id` | 제목 변경 | S | conversation/chats | 1 | `{title}` | `Chat` |
 | 31 | DELETE | `/api/v1/chats/:id` | 대화 삭제 | S | conversation/chats | 1 | — | `{deleted:true}` |
 | 32 | POST | `/api/v1/chats/:id/turns` | **턴 실행(SSE)** | S | app(conversation+speech 조합) | 1 | `{text,utteranceId?,inputSource?,clientTimings?}` 또는 `{resumePending:true}` | SSE |
+| 32t | POST | `/api/v1/chats/:id/messages/:messageId/translation` | 내 말 번역 다시 가져오기(task-026) | S | conversation/chats | 2 | — | `{messageId,translation,cached}` |
 | 33 | POST | `/api/v1/chats/:id/review` | 채팅 표현 점검(A3) | S | conversation/corrections | 1 | — | `{items[]}` 또는 `{jobId}` |
 | 34 | GET | `/api/v1/corrections?status=&chatId=` | 교정 목록 | S | conversation/corrections | 1 | query | 목록 |
 | 35 | POST | `/api/v1/corrections/:id/accept` | 교정 채택(+단어 추가) | S | conversation/corrections | 1 | `{addWord?}` | `Correction`(+`wordId`) |
@@ -450,12 +452,13 @@
 
 #### #11~#12 `GET/PUT /api/v1/settings/profile`
 
-화이트리스트 필드만: `displayName(≤40)`, `teacherName?(≤30, null="선생님" — 2026-09-26 결정)`, `level(JlptLevel)`, `politeness(POLITE|CASUAL)`, `goalLevel?`, `goalTopics?(string[] ≤10, 각 ≤40)`, `goalDeadline?(YYYY-MM-DD)`, `dailyWordCount(5~30)`, `dailyMinutes(5~120)`, `strictness(GENTLE|NORMAL|STRICT)`, `correctionMode(FLUENCY|COACH, 기본 FLUENCY — task-010c)`, `explainLang(ko|ja|en)`, `explainDepth(BRIEF|NORMAL|DETAILED)`. 음성·엔진 관련 키는 여기서 받지 않는다(있으면 `400`). PUT 은 **보낸 키만** 바꾼다(회화 메뉴의 교정 방식은 `{ "correctionMode": "COACH" }` 하나만 보낸다). 저장 뒤 턴 프롬프트용 학습자 캐시(60초)를 비워 **다음 말부터** 적용된다.
+화이트리스트 필드만: `showFurigana`·`showHangul`·`showTranslation`(불리언만 — 문자열·0/1·null 은 `400`, task-026 일본어 표시 스위치 · 앱 전체 하나 · 기본 true·true·false), `displayName(≤40)`, `teacherName?(≤30, null="선생님" — 2026-09-26 결정)`, `level(JlptLevel)`, `politeness(POLITE|CASUAL)`, `goalLevel?`, `goalTopics?(string[] ≤10, 각 ≤40)`, `goalDeadline?(YYYY-MM-DD)`, `dailyWordCount(5~30)`, `dailyMinutes(5~120)`, `strictness(GENTLE|NORMAL|STRICT)`, `correctionMode(FLUENCY|COACH, 기본 FLUENCY — task-010c)`, `explainLang(ko|ja|en)`, `explainDepth(BRIEF|NORMAL|DETAILED)`. 음성·엔진 관련 키는 여기서 받지 않는다(있으면 `400`). PUT 은 **보낸 키만** 바꾼다(회화 메뉴의 교정 방식은 `{ "correctionMode": "COACH" }` 하나만 보낸다). 저장 뒤 턴 프롬프트용 학습자 캐시(60초)를 비워 **다음 말부터** 적용된다.
 
+- **표시 스위치(task-026)**: 후리가나(한자 위 읽기)·한글 발음 줄·번역을 회화·채팅·오늘의 회화·단어장에서 한꺼번에 켜고 끈다(화면별 값 없음 — 말풍선별 [번역 ▾] 은 화면 상태). 옛 `localStorage kaiwa.chat.readingDefault='off'` 는 화면이 첫 로드 때 서버 값이 기본이면 `{ "showFurigana": false }` 를 1회 PUT 하고 키를 지운다(서버는 PUT 만 받는다). 프롬프트에 쓰지 않는 값이라 학습자 캐시와 무관하다.
 - **`correctionMode`(task-010c, learning-personalization §2-7·§2-8)**: 회화(TALK)에서 교정을 **언제** 보여 줄지. `strictness`(무엇을 오류로 볼지)와 독립. FLUENCY = 의미 전달을 막는 큰 오류(`severity=MAJOR`)만 그 자리 카드, 나머지는 "모아 둔 교정"(#29 `laterPending`·#34 `deliver=LATER`) / COACH = 말마다 교정 + 힌트 먼저. 역할극(상황 대화 `Chat.scenarioId`)은 값과 무관하게 코치(task-010d). 글 채팅(CHAT)에는 적용하지 않는다.
 
 ```json
-{ "success": true, "data": { "displayName": "준", "teacherName": "유우", "level": "N4", "politeness": "POLITE", "goalLevel": "N3", "goalTopics": ["여행", "직장"], "goalDeadline": "2026-12-31", "dailyWordCount": 10, "dailyMinutes": 15, "strictness": "NORMAL", "explainLang": "ko", "explainDepth": "NORMAL", "updatedAt": "…" }, "message": null }
+{ "success": true, "data": { "displayName": "준", "teacherName": "유우", "level": "N4", "politeness": "POLITE", "goalLevel": "N3", "goalTopics": ["여행", "직장"], "goalDeadline": "2026-12-31", "dailyWordCount": 10, "dailyMinutes": 15, "strictness": "NORMAL", "explainLang": "ko", "explainDepth": "NORMAL", "showFurigana": true, "showHangul": true, "showTranslation": false, "updatedAt": "…" }, "message": null }
 ```
 
 #### #13~#14 `GET/PUT /api/v1/settings/voice`
@@ -653,6 +656,23 @@ K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio
 - 클라이언트는 이 URL 을 보관·재사용하지 않는다(재생 큐가 받은 턴 안에서만 쓴다). 지난 메시지 다시 듣기는 #23.
 - **발급 직후 곧바로 200**(task-007 수정): 캐시 저장(파일 + `TtsCache` 행 커밋)은 합성 응답 뒤에 이어지므로, 방금 합성한 오디오는 서버 프로세스 메모리(60초·64개·16MB)에서 먼저 준다 — 서명 검증을 통과한 뒤에만 본다. blue/green 전환 순간 다른 인스턴스로 간 요청은 저장이 끝나기 전(≈1s) 404 일 수 있어 클라는 404 에 한해 짧게 재시도한다(`components/talk/chunkFetch`).
 
+#### #24r `POST /api/v1/text/annotate` — 일본어 읽기 분석(task-026 S1, 2026-10-04)
+
+화면의 **후리가나(한자 위)·한글 발음 줄** 데이터. 서버가 문장별 형태소를 계산해 돌려주고 **DB 에 저장하지 않는다**(표시 시점 계산 + 앱 메모리 LRU — 옛 메시지·레슨에도 그대로 적용).
+계산은 speech gateway 내부 라우트 `POST /text/annotate`(127.0.0.1, `X-Internal-Secret`, nginx 비노출) — 앱은 엔진 파사드 `text.annotate` 만 거친다.
+
+- 요청: `{ "texts": ["今日は何を食べましたか？", …] }` — 1~64개, 각 ≤400자(빈 문자열 허용 → 빈 배열). 그 밖 `400 VALIDATION`. 본문 ≤256KB.
+- 응답 `200`: `{ "items": [ { "segments": Segment[] } | null ], "available": true }` — 입력 순서 그대로.
+  - `Segment = { surface, ruby, pron, boundary }`
+    - `surface`: 원문 조각. **이어 붙이면 원문과 정확히 같다**(정규화로 바뀐 반각·숫자도 원문 위치로 되돌린 값).
+    - `ruby`: 한자 묶음별 `[[표기, 히라가나|null], …]`(送り仮名는 null — `持ち帰る` → `[["持","も"],["ち",null],["帰","かえ"],["る",null]]`). 한자 없음·정렬 실패 = `null`.
+    - `pron`: 발음 가타카나(조사 は→ワ·へ→エ·を→オ, 장음 ー). 기호·공백은 원문 그대로. 대응 못 한 조각(소수점 일부·사전 밖 글자 등) = `null`.
+    - `boundary`: 이 조각 **앞** 구분 — `"phrase"`(악센트구·문장부호 뒤) · `"particle"`(조사 は·を·へ 뒤) · `null`.
+  - 칸이 `null` = 그 문장을 분석하지 못함. `available:false` = 분석기를 쓸 수 없어 비운 칸이 있음(연결 실패 뒤 30초는 재시도 안 함) — **오류 코드가 아니다**. 화면은 후리가나·한글 자리를 비운다("애매하면 숨김").
+- 화면은 세그먼트를 직접 해석하지 않고 클라이언트 순수 모듈 `@/modules/speech/reading/client` 만 쓴다: `rubyPieces()`(루비 렌더) · `hangulLine()`(한글 줄, `pron` 이 하나라도 null 이면 null) · `kanaToHangul()`(가나→한글 '까' 계열, D1-A) · `alignWordRuby(surface, reading)`(단어장 표제어 — 저장된 읽기로 서버 없이).
+- 과부하(REV-089): 앱 전역 동시 4건·사용자당 동시 2건을 넘거나 gateway 가 `503 {error:{code:"BUSY"}}`(대기+실행 6건 초과, 입력 미포함)를 주면 분석기를 기다리지 않고 `available:false` — 실패가 아니라 쉼(30초)을 걸지 않는다(쉼은 연결 실패·시간 초과 등에만).
+- 로그인 필요(`401`), 소유권 무관(받은 문장만 분석). 사용자당 60/분(`429`). 응답에 엔진명·버전 없음. 서버 로그는 건수·글자 수·실패 종류만(문장 본문 없음).
+
 ### 2-5. 출석 (L3 learning/attendance)
 
 #### #25 `POST /api/v1/attendance/check-in` — 멱등
@@ -692,7 +712,7 @@ K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio
 { "success": true, "data": {
   "chat": { "id": "c_01…", "kind": "TALK", "title": "…", "level": "N4", "running": false, "reviewedAt": null, "messageCount": 6 },
   "messages": [
-    { "id": "m_1", "role": "USER", "content": "昨日映画を見に行くました", "inputSource": "REALTIME_STT", "utteranceId": "u_01…", "status": "DONE", "createdAt": "…",
+    { "id": "m_1", "role": "USER", "content": "昨日映画を見に行くました", "translation": "어제 영화를 보러 갔어요.", "inputSource": "REALTIME_STT", "utteranceId": "u_01…", "status": "DONE", "createdAt": "…",
       "corrections": [ { "id": "cr_1", "status": "PROPOSED", "original": "…", "corrected": "…", "explanation": "…", "errorType": "CONJUGATION", "severity": "MINOR", "chunkType": "ACTION" } ] },
     { "id": "m_2", "role": "ASSISTANT", "content": "そうですね。昨日は何をしましたか？", "reading": "そうですね。きのうは なにを しましたか？", "translation": "그렇군요. 어제는 무엇을 했나요?",
       "status": "DONE", "audio": [ { "idx": 0, "text": "そうですね。", "url": "/api/v1/speech/tts/…" }, { "idx": 1, "text": "昨日は何をしましたか？", "url": "/api/v1/speech/tts/…" } ],
@@ -705,6 +725,7 @@ K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio
 
 - **task-007 구현 차이**: USER 메시지에 `utteranceId`(연결된 발화, 없으면 `null`)·`audioAvailable`(원음이 보존 기간 안이고 지워지지 않음 = #21b 재생 가능) — `Utterance` 는 speech 테이블이라 **#29 라우트가 conversation 결과에 speech 조회를 조합**한다. ASSISTANT 메시지에 `speechStyle`(저장된 LLM `speech.style` — 다시 듣기 #23 의 `styleHint` 로 쓰면 같은 캐시 키 HIT). 예시의 `audio[]` 는 **채우지 않는다**(task-007 후속 — 다시 듣기는 #23 문장별 요청). TALK 방 첫 조회(`after` 없음)는 LLM 예열 트리거다(응답과 무관).
 - **task-010c(TALK 만)**: 교정 객체에 `deliver`(`NOW`\|`LATER` — 메타가 없는 옛 교정은 `NOW`)·`hintKo`(코치 힌트, 정답 미포함 ≤200자, 없으면 `null`)·`selfCheck`(`SELF`\|`REPEAT`\|`MISSED`\|`null` — 다음 말 판정, 아래 #32) 를 더한다. 최상위에 `laterPending`(이 회화 **전체**(페이지와 무관)의 `deliver=LATER`·`PROPOSED` 수 — 칩 숫자). 값의 원천은 교정이 달린 USER 메시지의 `toolLog.correction = {id, mode, deliver, hintKo, selfCheck}`(같은 저장 트랜잭션에서 쓰고, toolLog 자체는 응답에 싣지 않는다). CHAT 응답은 그대로(필드 없음).
+- **task-026**: USER 메시지 `translation` = 내 말의 한국어 번역(턴 응답 `userKo` 를 정리해 저장, 또는 #32t). `null` = 아직 없음·가져오기 실패 → 화면은 [다시 가져오기](#32t). 이전 메시지에도 같은 칸(옛 USER 행은 `null`).
 - `after` 는 폴링 재개용(그 id 이후만, 오름차순). `after` 가 없으면 **최근 `limit`(기본 50)건을 오름차순**으로 주고 `nextCursor` 는 그보다 **오래된** 메시지 쪽 커서다(`?cursor=` 로 이전 메시지 로드, task-006 D2). `toolLog` 는 사용자 응답에 싣지 않는다(개발자는 `traceId` 로 `/api/admin/v1/traces/:id`).
 - 메시지 `status: PENDING` 이 남아 있고 `running=false` 면 클라이언트는 `{resumePending:true}` 턴을 호출해 정리한다.
 
@@ -755,12 +776,15 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
   "learning": { "grammarPoint": "動詞の過去形", "difficulty": "N5" },
   "speech": { "style": "ENCOURAGING" },
   "endOfTopic": false,
+  "userTranslation": "어제 영화를 보러 가요.",
   "proposals": [ { "id": "p_1", "kind": "ADD_WORD", "payload": { "surface": "映画", "reading": "えいが", "meaning": "영화" }, "status": "PROPOSED" } ],
   "audioCount": 2,
   "traceId": "t_…"
 }
 ```
 (`audioCount` = 이 턴에서 보낸 `audio{status:"OK"}` 수. `FAILED`·TEXT_ONLY·불일치 뒤 버린 청크는 세지 않는다.)
+
+- **내 말 번역(task-026, talk@v7·chat@v2)**: LLM 응답 최상위 `userKo`(학습자 말의 한국어 번역 — **선택·null 가능**, 스키마 required 아님·길이 규칙 없음, 지시문·골격에서는 맨 끝 키로 요구)를 서버가 `sanitizeUserKo`(누락·공백·비문자열·입력 베끼기·일본어 입력인데 한글 0·이중 높임·저장 상한 초과 → `null`, 자르지 않음)로 거른 값만 이번 **USER** `ChatMessage.translation` 에 **같은 저장 트랜잭션**으로 쓰고(교정 표시 메타와 같은 갱신 1회), `done.userTranslation` 으로 내린다(`null` = 번역 없음 → 화면 [다시 가져오기] #32t). 모델 값을 그대로 저장하지 않는다. 번역 문제로 턴이 재시도·실패하지 않는다(부가 정보). ASK 는 늘 `null`. 강사 말 번역(`conversation.replyKo`)은 그대로 ASSISTANT 행 `translation`.
 
 - **교정 방식(task-010c, TALK 만)**: 서버가 설정 `correctionMode`(역할극은 코치)를 A1 `[교정] 유창성|코치` 줄로 넘긴다. **교정 행 생성 규칙은 그대로**(모드와 무관하게 `Correction(PROPOSED)`). `done.correction` 에 `deliver`(유창성: `severity=MAJOR` → `NOW`, `MINOR` → `LATER` / 코치: 늘 `NOW`)·`hintKo`(코치만, 정답을 그대로 담거나(교정문 전체, 또는 원문 대비 바뀐 조각 정규화 길이 2자 이상 — 문자열 비교, 한국어 뜻은 보지 않음) 비었거나 200자를 넘으면 `null` — 그 카드는 바로 정답)·`selfCheck: null` 을 더하고, 최상위 `selfCheck: { correctionId, result: "SELF"|"REPEAT"|"MISSED" } | null` 은 **직전 사용자 말의 코치 힌트 교정**(힌트 있음·미판정·PROPOSED) 판정이다 — LLM 없이 코드가 교정문(NFKC·공백·문장부호 제거)이 이번 말에 들어 있는지 본다(원문을 그대로 다시 말한 "지우기" 교정은 MISSED, 교정문 2자 미만·원문과 같으면 판정 불가 = MISSED). `SELF`·`REPEAT` 면 같은 저장 트랜잭션에서 `LearningObservation(SELF_CORRECTION, SUCCESS|PARTIAL, skill=CONVERSATION_MAINTAIN, refType=Correction)` 1행(라우트가 learning 으로 조합, 관측 기록 실패는 턴을 막지 않음 — 교착만 트랜잭션 재시도). 판정은 그 교정이 달린 USER 메시지 `toolLog.correction.selfCheck` 에 남는다(채택은 여전히 사용자 몫 — 상태 불변). CHAT/ASK 의 `done` 에는 `selfCheck` 키가 없다. 판정 재료 읽기는 수락 뒤 LLM 과 병렬(첫 음성 경로 밖), 모드 읽기는 학습자 헤더와 같은 60초 캐시라 5초 예산에 더하는 DB 왕복이 없다. `toolLog`(ASSISTANT)에 `correctionMode`·`deliver`·`selfCheck`(코드만), Trace `PROMPT` 단계에 `correctionMode`.
 - `correction` 은 CHAT/ASK 에서 항상 `null`(A2·A9 는 교정 금지). `correction.original` 은 사용자 `text` 와 **바이트 일치**해야 하며 불일치는 서버가 교정을 버리고 `status` 이벤트 `{ "stage": "PARSE", "warning": "CORRECTION_ORIGINAL_MISMATCH" }` 를 낸다.
@@ -771,6 +795,13 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 - **수락과 LLM 병렬(task-007 K2-3)**: 잠금 없는 확인(채팅 소유·모드·수준, `utteranceId` 검사)을 끝낸 뒤 LLM 을 띄우고 수락 트랜잭션(커밋 100~500ms — NAS MariaDB fsync)을 병렬로 기다린다. 수락이 거절되면(404·409·400) LLM 을 abort 하고 그 오류를 봉투로 돌려준다(행 0·SSE 0). 수락 전 이벤트는 모았다가 `accepted` 바로 뒤에 순서대로 보낸다. 음성 합성은 수락 뒤에만. 끊김 복구(`resumePending`)는 수락 뒤에 LLM 을 띄운다. 사용자당 턴 락은 **저장 직후** 풀린다(남은 합성은 락과 무관 — `done` 은 그 뒤).
 - **예열(K2-1)**: TALK 방 첫 조회(#29, `after` 없음)·TALK 방 TURN 티켓(#20)에서 LLM CLI 를 미리 띄운다(명시적 warm 라우트 없음, 응답과 무관). connection `runtime.prewarm`(기본 true)·`prewarmMaxIdle`(기본 2, 0 = 끔)·`prewarmIdleTtlSec`(기본 600).
 - 계측: `RequestTrace{kind:TURN}` 에 `STT`(clientTimings.sttMs)·`ACCEPT`(parallelWithLlm)·`PROMPT`·`LLM`(startMs·warm·firstDeltaMs·firstSentenceMs·earlyStop)·`PARSE`·`SAVE`·`TTS[i]`(chunkIndex·early·cacheHit·status·errorCode, 0번 ttfaServerMs)·speech 하위 단계(`TTS_SYNTH[i]` 등, 관리자 전용)·`UTTERANCE_LINK`, 다음 턴이 보고하면 이 Trace 에 `PLAYBACK` 을 덧붙인다. `toolLog` 키는 domain-model ChatMessage 주석. 원문·전사·응답 전문은 Trace·toolLog·로그에 저장하지 않는다(DebugSession 헤더가 있을 때만 `captureText`).
+
+#### #32t `POST /api/v1/chats/:id/messages/:messageId/translation` — 내 말 번역 다시 가져오기(task-026 S2)
+
+본문 없음 → `{ "messageId": "m_1", "translation": "어제 영화를 보러 갔어요.", "cached": false }`(`cached:true` = 이미 저장돼 있던 값, LLM 호출 없음). 턴이 번역을 못 남긴 말(`translation=null`)·`userKo` 도입 전 메시지에 쓴다.
+- 소유: 메시지를 `(id, chatId, 세션 userId)` 로만 찾는다 — 남의 것·없음·id 형식 이상 `404`. **USER 메시지만**(강사 말 `400 {reason:"not_user_message"}`), 본문 비었거나 1,000자 초과 `400 {reason:"text_length"}`.
+- 그 방에 턴 진행 중 `409 {reason:"TURN_RUNNING"}` · 같은 사용자의 번역 요청이 이미 진행 중 `409 {reason:"TRANSLATION_BUSY"}`(프로세스 메모리) · 사용자당 분당 20회 초과 `429`.
+- LLM 1회(`userTranslation@v1`, 태스크 `userTranslation` = tier fast·15s·interactive, 타임아웃 재시도 없음, home-m4 `allowedTasks` 밖) → 턴과 같은 정리 규칙(`sanitizeUserKo`) → **비어 있을 때만** 저장(`translation IS NULL` 조건부 — 그사이 다른 경로가 저장했으면 그 값을 `cached:true` 로). 정리에서 버려지면 저장 없이 `502 ENGINE_ERROR {reason:"TRANSLATION_REJECTED"}`, 엔진 실패는 `504 ENGINE_TIMEOUT`·`422 ENGINE_UNAVAILABLE`·`502 ENGINE_ERROR` — 모두 다시 시도 가능(실패 상태는 저장하지 않는다). 원문·번역은 로그·Trace 에 남기지 않는다. `Cache-Control: private, no-store`.
 
 #### #33 `POST /api/v1/chats/:id/review` — 채팅 표현 점검(A3)
 

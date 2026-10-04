@@ -11,7 +11,7 @@
 export { loadPersona, PersonaUnavailableError, AGENT_NAME } from './persona/loader'
 export type { LoadedPersona, PersonaOptions } from './persona/loader'
 export * from './structuredResponse/schemas'
-export { isExactOriginal, isVerbatimQuote, splitJaSentences, checkTalkResponse, checkChatResponse, checkChatReview, checkReplyKoNaturalness, checkWordEnrich, checkLessonResponse, countJaSentences, REPLY_SENTENCE_HARD_CAP } from './structuredResponse/checks'
+export { isExactOriginal, isVerbatimQuote, splitJaSentences, checkTalkResponse, checkChatResponse, checkChatReview, checkReplyKoNaturalness, checkUserKoNaturalness, sanitizeUserKo, checkWordEnrich, checkLessonResponse, countJaSentences, REPLY_SENTENCE_HARD_CAP } from './structuredResponse/checks'
 export { repairLessonResponse, LESSON_REPAIR_CHUNKS_MAX } from './structuredResponse/repair'
 export type { LessonRepairSourceChunk, LessonRepairResult } from './structuredResponse/repair'
 export { normalizeForLessonMatch, chunkAppearsIn } from './structuredResponse/matching'
@@ -26,6 +26,8 @@ export { buildChatReviewRequest, CHAT_REVIEW_PROMPT_VERSION, ReviewTooLargeError
 export type { ChatReviewInput, ChatReviewMessage, ChatReviewRequest } from './prompts/chatReview'
 export { buildWordEnrichRequest, WORD_ENRICH_PROMPT_VERSION, WordEnrichInputError } from './prompts/wordEnrich'
 export type { WordEnrichInput } from './prompts/wordEnrich'
+export { buildUserTranslationRequest, sanitizeUserTranslation, USER_TRANSLATION_PROMPT_VERSION, USER_TRANSLATION_TASK, USER_TRANSLATION_SCHEMA, USER_TRANSLATION_TEXT_MAX, UserTranslationInputError } from './prompts/userTranslation'
+export type { UserTranslationInput, UserTranslationResponse } from './prompts/userTranslation'
 export { buildLessonRequest, LESSON_PROMPT_VERSION, LessonInputError } from './prompts/lesson'
 export type { LessonInput, LessonTopicInput, LessonTopicChunkInput, LessonAcceptedCorrection, LessonPreviousPreview, LessonRequest } from './prompts/lesson'
 
@@ -44,6 +46,8 @@ export { parseCreateChat, parseTitle, parseKind, parseTurnBody, CHAT_KINDS, TURN
 export type { CreateChatInput, TurnRequest, TurnClientTimings } from './chats/validate'
 export { createChat, listChats, getChatDetail, getOwnedChat, ownedChatIds, updateChatTitle, deleteChat, sweepStalePending } from './chats'
 export type { ChatDto, ChatDetailDto, MessageDto } from './chats'
+export { retryUserTranslation } from './chats/translation'
+export type { UserTranslationResult } from './chats/translation'
 export { startTurn, prewarmTalkTurn } from './orchestrator'
 export type { TurnHandle, TurnAccepted, TurnHooks, SelfCorrectionRecord, CorrectionProposedRecord } from './orchestrator'
 // task-010c 교정 방식(유창성·코치) — 표시 시점·코치 힌트·자기수정 판정(순수 함수)

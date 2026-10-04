@@ -72,15 +72,24 @@
  * 두 변경 다 `[지시]` 줄(stdin)에만 있고 persona(`--system-prompt`)는 손대지 않았다 — persona 는 이미 (model, **level**, mode)
  * 로 정해지므로 레벨별 난이도 표 트리밍은 기존 `loadPersona` 가 한다(바이트 불변 범위는 "같은 학습자" 기준 그대로). 예산 실측은
  * task-028 이력서 "Prompt-Engineer 기록"(기존 최악 조합 마진 52자 → 변경 후 실측치 기록).
+ *
+ * task-026(talk@v7, 내 말 번역 `userKo`) — 사용자 결정 E5·E6-A(내 말 번역도 보낼 때마다 생성)를 **추가 LLM 호출 없이** 구현하려고(Developer 조사 T1:
+ * Claude CLI 가 동시성 1 의 2레인 큐라 별도 번역 호출은 다음 회화 턴을 막아 5초 예산을 깬다) 응답 계약에 학습자 말의 한국어 번역 `userKo` 를
+ * 더했다. ① 최상위 키, 출력 순서상 **맨 끝**(… → endOfTopic → proposals → userKo) — 첫 음성(speech.style → replyJa 조기 추출)과 문장 단위
+ * 합성은 영향이 없고 `done` 만 출력 토큰만큼(실측 task-026 기록) 늦는다. ② 같은 A5·A11 교훈 — 지시문 필드 나열과 응답 골격(`[순서 예]`)에 **정확한
+ * 이름 `userKo` 를 넣고** 스키마 properties·테스트로 맞췄다(required 는 아니다 — REV-086 M3, ⑤). ③ 번역 문체는 `replyKo` 줄과 같은 규칙(자연스러운 한국어·이중 높임 금지)에 "교정·보충 없이
+ * 말한 그대로(말투·높임 수준 포함)"를 더했다(1차 실측에서 반말 「ごめん」이 「죄송합니다」로 올라가 추가) — 저장 전 정리는 전부 `sanitizeUserKo`(누락·빈 값·과길이·베끼기·한글 없음·이중 높임 → null, 재시도 없음)가 맡는다(저장·화면은 developer 몫).
+ * ⑤ REV-086 M3: 번역은 부가 정보라 **스키마 선택(required 아님)·null 허용·길이 무제한**이고 extraCheck 에도 합성하지 않는다 — 이 필드 때문에 ajv 재시도나 턴 실패(`JsonSchemaError`)가 나지 않는다. ④ `replyReading` 은 **유지** — 말풍선 히라가나 줄(`MessageBubble`)·`ChatMessage.reading` 이 지금도 쓴다. 후리가나
+ * 서버 분석(S1)·화면 A 가 배포돼 그 줄이 사라진 뒤에 뺄 수 있다(task-026 이력서 Prompt-Engineer 기록 — 변경 목록).
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
 import { checkReplyKoNaturalness, checkTalkResponse } from '../structuredResponse/checks'
-import { TALK_SCHEMA, type TutorResponse } from '../structuredResponse/schemas'
+import { TALK_SCHEMA, USER_KO_PROMPT_MAX, type TutorResponse } from '../structuredResponse/schemas'
 import { buildWindow, type WindowMessage } from '../window'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const TALK_PROMPT_VERSION = 'talk@v6'
+export const TALK_PROMPT_VERSION = 'talk@v7'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
 /**
@@ -257,14 +266,22 @@ export function replyJaInstructionLine(cap: number = TALK_SCENE_CAP_DEFAULT): st
   )
 }
 
+/**
+ * task-026 — `userKo` 지시 줄(TALK·CHAT 공통 문구, chat.ts 가 import). 필드 이름을 정확히 쓰고 필수임을 밝힌다(A5·A11 교훈).
+ * 번역 문체는 replyKo 줄(자연스러운 한국어·이중 높임 금지)과 같고, 교정·보충 없이 학습자가 말한 뜻 그대로 옮기게 한다 —
+ * [입력]만 번역하고 [인식 후보]·[대화]는 번역하지 않는다.
+ */
+export const USER_KO_INSTRUCTION_LINE = `- userKo(필수): [입력] 학습자 말의 한국어 번역 — 교정하지 말고 말한 그대로(말투·높임 수준 포함), 자연스러운 한국어로(이중 높임 금지), ${USER_KO_PROMPT_MAX}자 이내.`
+
 export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY', sceneCap: number = TALK_SCENE_CAP_DEFAULT, level: string = 'N5'): string {
   return [
-    '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다). **JSON 키 순서를 반드시 지킵니다**: speech → conversation(replyJa→replyReading→replyKo) → correction → learning → endOfTopic → proposals.',
+    '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다). **JSON 키 순서를 반드시 지킵니다**: speech → conversation(replyJa→replyReading→replyKo) → correction → learning → endOfTopic → proposals → userKo.',
     '- speech.style: 답의 분위기.',
     replyJaInstructionLine(sceneCap),
     correctionInstructionLine(correctionMode, level),
     '- learning.grammarPoint 는 이번 턴의 핵심 문법(없으면 null), difficulty 는 학습자 수준. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 학습자가 모르는 새 단어를 단어장에 넣자고 제안할 때만(최대 2개, 보통 빈 배열).',
-    '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyReading":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[]}',
+    USER_KO_INSTRUCTION_LINE,
+    '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyReading":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[],"userKo":"<...>"}',
     INJECTION_GUARD,
   ].join('\n')
 }

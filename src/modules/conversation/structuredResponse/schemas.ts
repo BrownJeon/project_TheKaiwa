@@ -42,6 +42,13 @@ export interface TutorResponse {
   speech: { style: SpeechStyle }
   endOfTopic: boolean
   proposals: TutorProposalDraft[]
+  /**
+   * task-026(talk@v7·chat@v2) — **학습자가 방금 한 말**의 한국어 번역(교정 없이 말한 그대로). 서버가 내 발화 말풍선의 `translation` 에
+   * 저장한다(추가 LLM 호출 0). 출력 순서상 맨 끝(proposals 뒤)이라 첫 음성·문장 단위 합성에는 영향이 없다.
+   * **부가 정보라 스키마가 막지 않는다**(REV-086 M3) — 응답 타입은 선택(`?`)이다. 누락·빈 값·너무 긴 값·원문 베끼기·이중 높임은 전부
+   * `checks.sanitizeUserKo` 가 null 로 정리한다(재시도 없음 — 화면은 [다시 가져오기]). 반드시 `sanitizeUserKo` 를 거쳐 저장한다.
+   */
+  userKo?: string | null
 }
 
 const conversation = {
@@ -113,14 +120,21 @@ const proposals = {
 } as const
 
 /**
+ * task-026 — `userKo`(학습자 말 번역) 지시문 권고 상한. 스키마에는 길이 규칙이 없다(REV-086 M3: 입력은 최대 1,000자라 번역이 지시문 상한을
+ * 넘을 수 있고, 부가 필드 때문에 ajv 재시도·턴 실패가 나면 안 된다). 저장 상한은 `checks.USER_KO_STORE_MAX` 이고 넘으면 null 이다.
+ */
+export const USER_KO_PROMPT_MAX = 200
+
+/**
  * A1 회화 턴(TALK) — 교정 0~1건.
- * 선언 순서 = 출력 순서 지시(talk@v2: speech → conversation → correction → learning → endOfTopic → proposals). `withJsonOnly` 가
+ * 선언 순서 = 출력 순서 지시(talk@v2: speech → conversation → correction → learning → endOfTopic → proposals, talk@v7: → userKo). `withJsonOnly` 가
  * 이 스키마를 프롬프트에 그대로 싣기 때문에 선언 순서가 지시와 어긋나면 모델이 헷갈린다. `speech.style` 이 먼저 와야 첫 문장
  * 조기 합성(task-007 K2-2)이 말투를 알고 시작한다. 검증 의미는 순서와 무관하다.
  */
 export const TALK_SCHEMA = {
   type: 'object',
   additionalProperties: false,
+  // userKo 는 일부러 required 에서 뺐다(REV-086 M3) — 지시 줄·응답 골격·properties 에는 그대로 있어 모델은 계속 낸다(A5·A11 교훈: 이름 일치).
   required: ['speech', 'conversation', 'correction', 'learning', 'endOfTopic', 'proposals'],
   properties: {
     speech,
@@ -129,6 +143,9 @@ export const TALK_SCHEMA = {
     learning,
     endOfTopic: { type: 'boolean' },
     proposals,
+    // task-026 — 학습자 말의 한국어 번역. 맨 끝에 선언(= 출력 순서 지시와 같다, 첫 음성 영향 없음). 선택·null 허용·길이 무제한: 이 필드 하나 때문에
+    // ajv 재시도(≈+10s)나 `JsonSchemaError`(= 선생님 답 전체 실패)가 나지 않게 한다. 걸러내기는 `sanitizeUserKo` 몫.
+    userKo: { type: ['string', 'null'] },
   },
 } as const
 

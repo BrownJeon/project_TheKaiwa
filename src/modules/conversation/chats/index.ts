@@ -79,7 +79,7 @@ export async function sweepStalePending(scope: { userId?: string; chatId?: strin
   return res.count
 }
 
-async function runningChatIds(chatIds: string[]): Promise<Set<string>> {
+export async function runningChatIds(chatIds: string[]): Promise<Set<string>> {
   if (!chatIds.length) return new Set()
   const rows = await prisma.chatMessage.findMany({
     where: { chatId: { in: chatIds }, role: 'ASSISTANT', status: 'PENDING' },

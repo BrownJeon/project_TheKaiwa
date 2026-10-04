@@ -191,6 +191,7 @@ function reply(severity: 'MINOR' | 'MAJOR', hintKo: string | null, text = ORIG):
     learning: { grammarPoint: null, difficulty: 'N5' },
     endOfTopic: false,
     proposals: [],
+    userKo: '어제 영화를 보러 갔어요.',
   } as TutorResponse
 }
 

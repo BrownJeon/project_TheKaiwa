@@ -33,7 +33,7 @@
 3. **원문 보존** — `Correction.original` 은 어떤 경로로도 UPDATE 하지 않는다.
 4. **환경 분리** — 설정 엔티티는 `environment Environment` 를 갖고, 프로세스는 자기 `APP_ENV` 행만 읽는다(같은 MariaDB 공존).
 5. **시크릿 미저장** — DB·앱·Export·Trace 어디에도 값이 없다. `EngineConnection.credentialRef`(`env:NAME` | `file:<name>`)만 저장하고 서버 `SecretResolver` 가 해석.
-6. **`Profile` 범위** — `level, politeness, goal*, dailyWordCount, dailyMinutes, strictness, correctionMode, explainLang, explainDepth`(+표시명·`teacherName`)만. 음성은 `UserVoiceSetting`/`UserSpeechSetting`. `correctionMode` 는 결정 D6(2026-09-28, learning-personalization §8)으로 추가 — `strictness`(무엇을 오류로 볼지)와 독립인 빈도·표시 축(§2-8).
+6. **`Profile` 범위** — `level, politeness, goal*, dailyWordCount, dailyMinutes, strictness, correctionMode, explainLang, explainDepth`(+표시명·`teacherName`) + 일본어 표시 스위치 `showFurigana·showHangul·showTranslation`만. 음성은 `UserVoiceSetting`/`UserSpeechSetting`. `correctionMode` 는 결정 D6(2026-09-28, learning-personalization §8)으로 추가 — `strictness`(무엇을 오류로 볼지)와 독립인 빈도·표시 축(§2-8). 표시 스위치 3칸은 task-026(2026-10-04 사용자 승인 "백업 후 추가", 추가형·기본값 있음)으로 추가 — 앱 전체 하나(화면별 값 없음), 기본 후리가나·한글 켬·번역 끔. 옛 `localStorage kaiwa.chat.readingDefault` 는 화면이 첫 로드 때 1회 PUT 으로 옮긴다.
 7. **`RequestTrace` 최소 수집** — 단계명·엔진/connection·모델·지연·상태·오류코드·크기만. 원음·전체 대화 텍스트 없음(§113). 필요 시 `DebugSession` 범위에서만.
 8. 문자열 폭은 앱 검증 상한보다 넓게(TheMeal 실측: 좁으면 400 이 아니라 500). 일본어 본문은 `@db.Text`.
 
@@ -75,6 +75,9 @@ erDiagram
     Politeness politeness
     Strictness strictness
     ExplainDepth explainDepth
+    boolean showFurigana
+    boolean showHangul
+    boolean showTranslation
   }
   UserVoiceSetting {
     string userId PK
@@ -1037,6 +1040,10 @@ model Profile {
   correctionMode CorrectionMode @default(FLUENCY)
   explainLang    String         @default("ko") @db.VarChar(5)
   explainDepth   ExplainDepth   @default(NORMAL)
+  /// 일본어 표시 스위치(task-026, 앱 전체 하나 — 회화·채팅·오늘의 회화·단어장 공통). 후리가나(한자 위 읽기)·한글 발음 줄 기본 켬, 번역 기본 끔
+  showFurigana    Boolean       @default(true)
+  showHangul      Boolean       @default(true)
+  showTranslation Boolean       @default(false)
   updatedAt      DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -2224,7 +2231,7 @@ model DebugSession {
 | `AiJob` | 30초 초과 LLM 작업 폴링 | `kind`, `status`, `refId`, `progress`, `payload`(입력 메타만) | L6 | 점검·레슨·평가·분석 요청 | 기동 시 RUNNING(10분↑)→FAILED, 30일 후 purge | 1 |
 | `AppRelease` | APK 배포본·최소 지원 버전 | `versionCode`, `sha256`, `minSupported` | L6 | deployer 네이티브 변경 배포 | 삭제 없음 | 1 |
 | `AuditLog` | 관리자 행위 감사 | `action`, `scope`(발음 사전 = `LEXICON`, task-018), `targetId`, `before/after`, `actorEmailSnap` | L6 | 모든 admin 쓰기·민감 읽기(role-permission.md §7) | **append-only, 삭제 없음** | 1 |
-| `Profile` | 학습 설정(기본정보·목표·학습) | `level`, `politeness`, `goal*`, `dailyWordCount`, `dailyMinutes`, `strictness`(기본 STRICT), `correctionMode`(기본 FLUENCY, task-010c), `explainLang`, `explainDepth`, `teacherName` | L1 | 첫 로그인 시 기본값 upsert | User Cascade. `SET_LEVEL` 제안은 채택 시에만 반영 | 1 |
+| `Profile` | 학습 설정(기본정보·목표·학습) | `level`, `politeness`, `goal*`, `dailyWordCount`, `dailyMinutes`, `strictness`(기본 STRICT), `correctionMode`(기본 FLUENCY, task-010c), `explainLang`, `explainDepth`, `teacherName`, 표시 `showFurigana`·`showHangul`(기본 true)·`showTranslation`(기본 false, task-026) | L1 | 첫 로그인 시 기본값 upsert | User Cascade. `SET_LEVEL` 제안은 채택 시에만 반영 | 1 |
 | `UserVoiceSetting` | AI 선생님 목소리 설정 | `voiceProfileId`, `style`, `speed`, `pitch`, `intonation`, `speechProfile` | L1 | 설정 화면 첫 저장(없으면 기본값으로 해석) | Voice DISABLED 시 앱이 `voiceProfileId=null`(기본 voice) 전환, hard delete 시 SetNull | 1 |
 | `UserSpeechSetting` | 음성 인식 모드 | `recognitionMode` | L1 | 설정 화면 첫 저장 | User Cascade | 1 |
 | `AppSetting` | 환경별 운영 설정 키-값 | `[environment,key]`, `value`, `editability` | L1 | 시드(§7) / Console 편집(ConfigurationVersion APP_SETTING) | 삭제 없음(키 폐기 시 값만 null) | 1 |

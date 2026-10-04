@@ -265,58 +265,88 @@ async function saveTurn(
   extras: TurnSaveExtras | null = null,
   observe: Pick<TurnHooks, 'recordCorrectionProposed'> = {},
 ) {
-  return withTransaction(async (tx) => {
-    // 잠금 순서 통일(사용자 → 채팅 → 행): 다른 인스턴스의 수락 트랜잭션과 교착하지 않게 사용자 행부터 잡는다.
-    await lockUserRow(tx, userId)
-    const res = await tx.chatMessage.updateMany({
-      where: { id: a.assistantMessageId, status: 'PENDING', createdAt: a.pendingSince },
-      data: { status: 'DONE', content: shaped.reply.replyJa, reading: shaped.reply.replyReading || null, translation: shaped.reply.replyKo || null, toolLog: toolLog as unknown as Prisma.InputJsonValue, traceId: a.traceId },
-    })
-    if (res.count === 0) throw new ApiError('CONFLICT', '대화가 바뀌어 답을 저장하지 못했어요.')
+  return withTransaction((tx) => saveTurnTx(tx, userId, a, shaped, toolLog, extras, observe))
+}
 
-    let correction: SavedCorrection | null = null
-    if (shaped.correction) {
-      const c = shaped.correction
-      const row = await tx.correction.create({
-        data: { userId, chatId: a.chatId, messageId: a.userMessage.id, original: c.original, corrected: c.corrected, explanation: c.explanationKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType },
-        select: { id: true },
-      })
-      const m = extras?.correction ?? null
-      if (m) {
-        // 교정 행은 그대로(PROPOSED) — 표시 메타만 그 교정이 달린 사용자 메시지에(새로고침·시트·칩 수가 같은 값을 본다).
-        const meta = { id: row.id, mode: m.mode, deliver: m.deliver, hintKo: m.hintKo, selfCheck: null }
-        await tx.chatMessage.update({ where: { id: a.userMessage.id }, data: { toolLog: writeCorrectionMeta(null, meta) as unknown as Prisma.InputJsonValue } })
-      }
-      correction = {
-        id: row.id, required: c.required, original: c.original, corrected: c.corrected, explanationKo: c.explanationKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType, status: 'PROPOSED',
-        deliver: m?.deliver ?? 'NOW', hintKo: m?.hintKo ?? null, selfCheck: null,
-      }
-      if (observe.recordCorrectionProposed) {
-        await recordCorrectionProposedSafely(tx, observe.recordCorrectionProposed, { correctionId: row.id, errorType: c.errorType, severity: c.severity, inputSource: a.userMessage.inputSource })
-      }
-    }
-    let selfCheck: { correctionId: string; result: SelfCheckResult } | null = null
-    const j = extras?.selfCheck ?? null
-    if (j) {
-      const { pending, result } = j
-      await tx.chatMessage.update({ where: { id: pending.userMessageId }, data: { toolLog: writeCorrectionMeta(pending.toolLog, { ...pending.meta, selfCheck: result }) as unknown as Prisma.InputJsonValue } })
-      selfCheck = { correctionId: pending.correction.id, result }
-      if (result !== 'MISSED' && extras?.recordSelfCorrection) {
-        await recordSelfCorrectionSafely(tx, extras.recordSelfCorrection, { correctionId: pending.correction.id, result, revealed: j.revealed, inputSource: a.userMessage.inputSource })
-      }
-    }
-    const expiresAt = proposalExpiresAt()
-    const proposals: { id: string; kind: 'ADD_WORD'; payload: TutorResponse['proposals'][number]['payload']; status: 'PROPOSED'; messageId: string }[] = []
-    for (const p of shaped.proposals) {
-      const row = await tx.tutorProposal.create({
-        data: { userId, chatId: a.chatId, messageId: a.assistantMessageId, kind: 'ADD_WORD', payload: p.payload, expiresAt },
-        select: { id: true },
-      })
-      proposals.push({ id: row.id, kind: 'ADD_WORD', payload: p.payload, status: 'PROPOSED', messageId: a.assistantMessageId })
-    }
-    await tx.chat.updateMany({ where: { id: a.chatId, userId }, data: { lastMessageAt: new Date(), preview: chatPreview(shaped.reply.replyJa) } })
-    return { correction, proposals, selfCheck }
+/** saveTurn 의 트랜잭션 본문 — 단위 테스트가 가짜 tx 로 쓰기 순서·행을 확인한다(task-026 S2). */
+export async function saveTurnTx(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  a: AcceptedTurn,
+  shaped: ShapedTurn,
+  toolLog: ToolLog,
+  extras: TurnSaveExtras | null = null,
+  observe: Pick<TurnHooks, 'recordCorrectionProposed'> = {},
+) {
+  // 잠금 순서 통일(사용자 → 채팅 → 행): 다른 인스턴스의 수락 트랜잭션과 교착하지 않게 사용자 행부터 잡는다.
+  await lockUserRow(tx, userId)
+  const res = await tx.chatMessage.updateMany({
+    where: { id: a.assistantMessageId, status: 'PENDING', createdAt: a.pendingSince },
+    data: { status: 'DONE', content: shaped.reply.replyJa, reading: shaped.reply.replyReading || null, translation: shaped.reply.replyKo || null, toolLog: toolLog as unknown as Prisma.InputJsonValue, traceId: a.traceId },
   })
+  if (res.count === 0) throw new ApiError('CONFLICT', '대화가 바뀌어 답을 저장하지 못했어요.')
+
+  // 이번 사용자 행 갱신(task-026 REV-092). 번역은 비어 있을 때만 — 재시도 API(#32t)가 먼저 저장한 번역을 끊김 복구(resume) 턴이
+  // 덮지 않게 하고, `done` 은 실제 저장값을 낸다. 교정 표시 메타는 번역 조건과 무관하게 따로 쓴다(한 UPDATE 에 묶으면 같이 건너뛴다).
+  let userTranslation: string | null = null
+  let correctionToolLog: Prisma.InputJsonValue | null = null
+  let userRowDone = false
+  const flushUserRow = async () => {
+    if (userRowDone) return
+    userRowDone = true
+    if (shaped.userTranslation) {
+      const r = await tx.chatMessage.updateMany({ where: { id: a.userMessage.id, translation: null }, data: { translation: shaped.userTranslation } })
+      userTranslation =
+        r.count === 1
+          ? shaped.userTranslation
+          : ((await tx.chatMessage.findUnique({ where: { id: a.userMessage.id }, select: { translation: true } }))?.translation ?? null)
+    }
+    if (correctionToolLog) await tx.chatMessage.update({ where: { id: a.userMessage.id }, data: { toolLog: correctionToolLog } })
+  }
+  let correction: SavedCorrection | null = null
+  if (shaped.correction) {
+    const c = shaped.correction
+    const row = await tx.correction.create({
+      data: { userId, chatId: a.chatId, messageId: a.userMessage.id, original: c.original, corrected: c.corrected, explanation: c.explanationKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType },
+      select: { id: true },
+    })
+    const m = extras?.correction ?? null
+    if (m) {
+      // 교정 행은 그대로(PROPOSED) — 표시 메타만 그 교정이 달린 사용자 메시지에(새로고침·시트·칩 수가 같은 값을 본다).
+      const meta = { id: row.id, mode: m.mode, deliver: m.deliver, hintKo: m.hintKo, selfCheck: null }
+      correctionToolLog = writeCorrectionMeta(null, meta) as unknown as Prisma.InputJsonValue
+    }
+    await flushUserRow()
+    correction = {
+      id: row.id, required: c.required, original: c.original, corrected: c.corrected, explanationKo: c.explanationKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType, status: 'PROPOSED',
+      deliver: m?.deliver ?? 'NOW', hintKo: m?.hintKo ?? null, selfCheck: null,
+    }
+    if (observe.recordCorrectionProposed) {
+      await recordCorrectionProposedSafely(tx, observe.recordCorrectionProposed, { correctionId: row.id, errorType: c.errorType, severity: c.severity, inputSource: a.userMessage.inputSource })
+    }
+  }
+  await flushUserRow()
+  let selfCheck: { correctionId: string; result: SelfCheckResult } | null = null
+  const j = extras?.selfCheck ?? null
+  if (j) {
+    const { pending, result } = j
+    await tx.chatMessage.update({ where: { id: pending.userMessageId }, data: { toolLog: writeCorrectionMeta(pending.toolLog, { ...pending.meta, selfCheck: result }) as unknown as Prisma.InputJsonValue } })
+    selfCheck = { correctionId: pending.correction.id, result }
+    if (result !== 'MISSED' && extras?.recordSelfCorrection) {
+      await recordSelfCorrectionSafely(tx, extras.recordSelfCorrection, { correctionId: pending.correction.id, result, revealed: j.revealed, inputSource: a.userMessage.inputSource })
+    }
+  }
+  const expiresAt = proposalExpiresAt()
+  const proposals: { id: string; kind: 'ADD_WORD'; payload: TutorResponse['proposals'][number]['payload']; status: 'PROPOSED'; messageId: string }[] = []
+  for (const p of shaped.proposals) {
+    const row = await tx.tutorProposal.create({
+      data: { userId, chatId: a.chatId, messageId: a.assistantMessageId, kind: 'ADD_WORD', payload: p.payload, expiresAt },
+      select: { id: true },
+    })
+    proposals.push({ id: row.id, kind: 'ADD_WORD', payload: p.payload, status: 'PROPOSED', messageId: a.assistantMessageId })
+  }
+  await tx.chat.updateMany({ where: { id: a.chatId, userId }, data: { lastMessageAt: new Date(), preview: chatPreview(shaped.reply.replyJa) } })
+  return { correction, proposals, selfCheck, userTranslation }
 }
 
 async function markAssistantFailed(a: AcceptedTurn, errorCode: string): Promise<void> {
@@ -569,6 +599,8 @@ async function processTurn(p: ProcessInput): Promise<void> {
         learning: shaped.learning,
         speech: shaped.speech,
         endOfTopic: shaped.endOfTopic,
+        // 이번 사용자 말의 번역(task-026) — DB 에 남은 값(재시도가 먼저 저장했으면 그 값). null = 번역 없음, 화면은 #32t 로 다시 가져오기.
+        userTranslation: saved.userTranslation ?? null,
         proposals: saved.proposals,
         audioCount: audio?.metrics().audioCount ?? 0,
         traceId: a.traceId,

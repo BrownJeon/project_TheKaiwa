@@ -8,7 +8,10 @@ import { VOICE_PARAM_RANGES, type VoiceParamRangeKey } from './voiceRanges'
 export const PROFILE_KEYS = [
   'displayName', 'teacherName', 'level', 'politeness', 'goalLevel', 'goalTopics', 'goalDeadline',
   'dailyWordCount', 'dailyMinutes', 'strictness', 'correctionMode', 'explainLang', 'explainDepth',
+  'showFurigana', 'showHangul', 'showTranslation',
 ] as const
+/** 일본어 표시 스위치(task-026) — 앱 전체 하나. 불리언만 받는다(문자열 'true'·0/1·null 은 400). */
+export const DISPLAY_KEYS = ['showFurigana', 'showHangul', 'showTranslation'] as const
 export const VOICE_KEYS = ['voiceProfileId', 'style', 'styleWeight', 'speed', 'pitch', 'intonation', 'speechProfile'] as const
 export const SPEECH_KEYS = ['recognitionMode', 'explainLang'] as const
 
@@ -59,6 +62,11 @@ function num(v: unknown, field: string, min: number, max: number, opts: { int?: 
   return v
 }
 
+function bool(v: unknown, field: string): boolean {
+  if (typeof v !== 'boolean') return bad(field, 'boolean', `${field} 은(는) true/false 여야 합니다.`)
+  return v
+}
+
 function voiceNum(v: unknown, key: VoiceParamRangeKey, opts: { nullable?: boolean } = {}): number | null {
   const [min, max] = VOICE_PARAM_RANGES[key]
   return num(v, key, min, max, opts)
@@ -78,6 +86,9 @@ export type ProfilePatch = Partial<{
   correctionMode: (typeof CORRECTION_MODE_VALUES)[number]
   explainLang: 'ko' | 'ja' | 'en'
   explainDepth: 'BRIEF' | 'NORMAL' | 'DETAILED'
+  showFurigana: boolean
+  showHangul: boolean
+  showTranslation: boolean
 }>
 
 export function parseProfilePatch(body: Record<string, unknown>): ProfilePatch {
@@ -106,6 +117,7 @@ export function parseProfilePatch(body: Record<string, unknown>): ProfilePatch {
   if ('correctionMode' in body) out.correctionMode = oneOf(body.correctionMode, 'correctionMode', CORRECTION_MODE_VALUES)!
   if ('explainLang' in body) out.explainLang = oneOf(body.explainLang, 'explainLang', ['ko', 'ja', 'en'] as const)!
   if ('explainDepth' in body) out.explainDepth = oneOf(body.explainDepth, 'explainDepth', ['BRIEF', 'NORMAL', 'DETAILED'] as const)!
+  for (const k of DISPLAY_KEYS) if (k in body) out[k] = bool(body[k], k)
   return out
 }
 

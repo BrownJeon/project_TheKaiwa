@@ -12,7 +12,8 @@ export * from './voiceRanges'
 
 const PROFILE_SELECT = {
   displayName: true, teacherName: true, level: true, politeness: true, goalLevel: true, goalTopics: true, goalDeadline: true,
-  dailyWordCount: true, dailyMinutes: true, strictness: true, correctionMode: true, explainLang: true, explainDepth: true, updatedAt: true,
+  dailyWordCount: true, dailyMinutes: true, strictness: true, correctionMode: true, explainLang: true, explainDepth: true,
+  showFurigana: true, showHangul: true, showTranslation: true, updatedAt: true,
 } as const
 
 function serializeProfile<T extends { goalDeadline: Date | null }>(p: T): Omit<T, 'goalDeadline'> & { goalDeadline: string | null } {

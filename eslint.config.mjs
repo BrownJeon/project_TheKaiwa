@@ -116,7 +116,8 @@ const eslintConfig = defineConfig([
   // `stt/client` = speech 의 클라이언트 안전 진입점(task-003e M4, Leader 승인 2026-09-28 — module-dependency §3 규칙 5).
   // speech 루트 index(Prisma·engine 포함)는 컴포넌트에서 금지 — 컴포넌트가 쓰는 speech 는 `@/modules/speech/stt/client` 뿐(REV-013).
   // `tts/client` = 클라 재생 큐(TtsPlaybackQueue)·문장 분할 진입점(task-007 B, 같은 규칙 5 — Leader 지시로 stt/client 와 같은 방식).
-  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates', 'stt/client', 'tts/client'], true, ['speech']),
+  // `reading/client` = 후리가나·한글 줄 변환기(task-026 S1 — 화면의 유일한 가나→한글 변환기, 같은 규칙 5).
+  ...boundary('src/components/**', ['engine', 'admin', 'conversation', 'learning', 'preferences'], ['speech', 'infra'], '컴포넌트는 서버 모듈을 import 하지 않는다 — 데이터는 라우트가 props 로', ['native', 'dates', 'stt/client', 'tts/client', 'reading/client'], true, ['speech']),
   // speech 클라이언트 진입점은 브라우저 번들에 들어간다 — 서버 코드(다른 모듈·speech 서버 파일·Node/Prisma/Next 서버 API)를 끌어오지 않는다.
   // 허용: 네이티브 브리지(`@/modules/infra/native`)·`@/types/*`·같은 디렉터리 상대 경로. 위 speech 경계 블록을 이 파일들에 한해 대체한다.
   {
@@ -154,6 +155,13 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+    },
+  },
+  // 읽기 표시 변환기(task-026 S1)는 순수 모듈 — 아무것도 import 하지 않는다(타입 `@/types/*` 만). 서버 index 가 이 파일을 쓰는 방향만 있다.
+  {
+    files: ['src/modules/speech/reading/client.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [NATIVE_PACKAGES, { regex: '^(?!@/types/)', message: '읽기 클라이언트는 순수 모듈 — import 하지 않는다(@/types/* 만)' }] }],
     },
   },
 ])

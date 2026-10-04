@@ -12,6 +12,7 @@ const ok: TutorResponse = {
   speech: { style: 'ENCOURAGING' },
   endOfTopic: false,
   proposals: [],
+  userKo: '어제 영화를 보러 갔습니다.',
 }
 
 test('TALK 스키마: 정상 응답 통과, CHAT 스키마는 correction 이 있으면 위반', () => {
