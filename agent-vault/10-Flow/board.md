@@ -7,6 +7,7 @@ tags:
 > 현재 상태·인수인계는 [[ACTIVE]] 참조. 설계 과정 전체 기록은 [[task-001-initial-planning]].
 
 ## Done
+- [[task-029-settings-scroll]] — **설정 화면 스크롤(IMP-0023)**(2026-10-04): 셸 `<main>` relative 한 줄. REV-085·QA 36/36, 운영 반영 `0bd8275`. 폰 확인 대기
 - [[task-010b3-a11-timeout-retry]] — **A11 타임아웃 1회 재시도·공통 타임아웃 로그**(2026-10-03, 사용자 결정): 재시도는 큐 꼬리 재진입(대화 우선 유지). REV-083→084 PASS·QA 7/7·52/52·42/42, 운영 반영 `65f7d0a`·운영 스모크 52/52·42/42
 - [[task-010b2-review-decision-v2]] — **A11 reviewDecision@v2**(2026-10-03): 응답 골격·이 밖의 키 금지 + 관측 신뢰도 가중(0.6). REV-082·QA 52/52, 운영 반영 `717ad99`·운영 스모크 52/52·배포 뒤 계약 위반 0. 남은 것: CLI 무응답 타임아웃(사용자 결정 대기)
 - [[task-010b-repetition]] — **반복 학습 완료**(2026-10-03): 서버 1단계(`cb176cc`) + 2단계 화면(오늘 홈 복습 카드·복습 레슨)·QUEUED 판단 재킥·A5 reviewMix@v3(운영 잠재 결함 수정). REV-079~081·QA 화면 451·스모크 52/52, 운영 반영 `d775aac`·운영 스모크 52/52. 후속 [[task-010b2-review-decision-v2]]
@@ -32,6 +33,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
+- [[task-026-improve-hangul-reading]] — 후리가나·한글·번역 표시(IMP-0009·0015·0018·0019): **데모 v2 게시·사용자 결정(E1~E6 권고안·스위치 앱 전체 하나·'까')** — 게이트 approve 는 사용자 입력 문장 대기 · 서버 사양 조사(읽기 출처·내 말 번역) 진행 중
 - task-012b-2·-3·-4 — 음성 P2 후속(재확인 카드·발화 로그 화면=데모 / TTS 지표=DB 추가 / 타이밍=M4 설치) — 승인 뒤 착수
 - [[task-010c-correction-mode]] — 교정 방식(유창성 기본·코치 힌트): 데모 v1(delta) **승인 2026-10-01** · PE talk@v3→v5 · **DB 추가 승인·적용 2026-10-01** · 구현 완료 → ✅ 운영 반영(2026-10-03, 같은 릴리스) — REV-055 PASS·REV-058 PASS·Judge C2 Codex 불필요(0/4) · 2차 QA FAIL(#1 reject 409 UI) → 수정·REV-063 PASS_WITH_NOTES · COACH hintKo 서버 필터(`coachHintOf`) · **제한 QA PASS_WITH_NOTES(2026-10-03 07:46, Medium 2 = 수용 한계 확정·결함 #1 종결) → ✅ 운영 반영(2026-10-03)**
 - [[task-011-ai-evaluation]] — AI 평가(A6·A7·기록률 100%): **서버·프롬프트 운영 반영(67771a5, 운영 61/61)** · 화면 데모 v1(full) **승인 2026-10-01** · DB `EvaluationItem.textRevealedAt` 적용 · 화면 구현 완료 → ✅ 운영 반영(2026-10-03 `cb176cc`) — REV-046 PASS · Codex C2 1건 채택(REV-051 수정) → REV-057 PASS → **QA PASS** → ✅ 운영 반영(012 와 한 커밋)

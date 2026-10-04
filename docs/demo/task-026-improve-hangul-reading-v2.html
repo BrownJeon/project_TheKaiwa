@@ -1,0 +1,1410 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-026-v2">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:bf67d6c60da2">
+<meta name="description" content="한자 위 후리가나(루비) · 아래 한글 발음 · 번역 세 층을 회화방 머리 아래 표시 바에서 한 번에 켜고 끄는 모습(내 말 포함), 채팅·교정 카드·단어장·오늘의 단어·오늘의 회화 5단계·설정 적용(delta 데모 v2, 합성 샘플 데이터)">
+<title>후리가나·한글·번역 표시</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음). 새 색 없음 ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+  --scrim: rgba(30, 36, 32, .42);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+    --scrim: rgba(0, 0, 0, .55);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+  --scrim: rgba(0, 0, 0, .55);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, h4, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.dtop .lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dbtn { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; cursor: pointer; flex: none; white-space: nowrap; }
+.dlay { display: grid; grid-template-columns: 232px minmax(0, 1fr) 360px; gap: 18px; padding: 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; color: var(--ink); padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.dnav button { display: block; width: 100%; text-align: left; border: 0; background: none; min-height: 34px; padding: 6px 8px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; }
+.dnav button:hover { background: var(--surface2); color: var(--ink); }
+.dnav button[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.dnav .did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; }
+.dstage { --s: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.dstage.row { flex-wrap: nowrap; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw.w360 { width: calc(360px * var(--s)); } .fw.w390 { width: calc(390px * var(--s)); } .fw.w412 { width: calc(412px * var(--s)); }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; }
+.fw figcaption b { color: var(--ink); }
+.fw figcaption .sc { font-weight: 500; }
+.fbox { position: relative; flex: none; }
+.fbox.w360 { width: calc(360px * var(--s)); } .fbox.w390 { width: calc(390px * var(--s)); } .fbox.w412 { width: calc(412px * var(--s)); }
+.fbox.h780 { height: calc(780px * var(--s)); }
+.fbox > .phone { position: absolute; left: 0; top: 0; transform: scale(var(--s)); transform-origin: 0 0; }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard .dk { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; color: var(--ink); display: flex; flex-direction: column; gap: 4px; }
+.dcard .dsub { font-size: 12px; color: var(--ink2); }
+.dtbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 6px 4px; border-top: 1px solid var(--line); }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtoast { position: fixed; left: 50%; bottom: 24px; z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+
+/* 결정 필요 패널(하단) */
+.dpanel { margin: 4px 16px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; }
+.dpanel > .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; }
+.dsum { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 13px; }
+.dsum b { font-weight: 700; }
+.dq { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; container-type: inline-size; }
+.dq > h3 { font-size: 15px; font-weight: 700; }
+.dq > h3 .did { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink2); margin-right: 6px; }
+.dq > p { font-size: 13px; color: var(--ink2); margin-top: 4px; }
+.dq-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+@container (min-width: 640px) { .dq-g { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; font-weight: 700; }
+.opt-d { font-size: 13px; color: var(--ink); }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 2px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 12px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.stw { overflow-x: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; }
+.stbl { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 13px; }
+.stbl th, .stbl td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+.stbl thead th { border-top: 0; background: var(--surface2); font-size: 12px; font-weight: 600; color: var(--ink2); }
+.stbl td.jp { font-size: 16px; white-space: nowrap; }
+.stbl td.pt { font-size: 12px; color: var(--ink2); }
+.stbl td.hgc { font-size: 14px; word-break: normal; }
+.stbl .onc { background: var(--accent-soft); }
+.stbl tr.user td { font-weight: 600; }
+.dnote { font-size: 12.5px; color: var(--ink2); margin-top: 8px; }
+.dnote b { color: var(--ink); }
+@media (max-width: 1240px) { .dlay { grid-template-columns: 220px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px 16px; }
+  .dnav { position: static; max-height: none; }
+  .dside { grid-template-columns: minmax(0, 1fr); }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { margin: 4px 12px 24px; padding: 14px; }
+}
+/* 데모 표시: 새로 생기는 조작부(점선). 앱에는 없음 */
+.dnew { outline: 2px dashed var(--accent); outline-offset: 3px; }
+
+/* ── 휴대폰 프레임 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground);
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--ground); min-width: 0; }
+.scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.page { padding: 0 16px 32px; min-width: 0; }
+.pt { padding-top: 14px; }
+.page > * + * { margin-top: 18px; }
+.page > .tight { margin-top: 10px; }
+
+.appbar { position: sticky; top: 0; z-index: 5; height: 52px; display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 0 12px 0 16px; }
+.appbar h1 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.me { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; cursor: pointer; flex: none; }
+.me span { width: 32px; height: 32px; border-radius: 50%; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+.bar { height: 52px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 4px; }
+.back { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.bar-m { flex: 1; min-width: 0; }
+.bar-m h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-m p { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lhead { height: 56px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 4px; }
+.av { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: 16px; display: grid; place-items: center; }
+.av.sm { width: 28px; height: 28px; font-size: 13px; }
+.lh-m { flex: 1; min-width: 0; padding-left: 6px; }
+.lh-m h1 { font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ind { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--good); }
+.icb { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; cursor: pointer; color: var(--ink); }
+.tabbar { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 10px; }
+.tab { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; border: 0; background: none; font-size: 11px; color: var(--ink3); cursor: pointer; }
+.tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+/* 빠른 토글(D3-B) */
+.qt { position: relative; flex: none; display: inline-flex; align-items: center; height: 32px; padding: 0 11px; margin: 0 2px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--ink); cursor: pointer; white-space: nowrap; }
+.qt::before { content: ""; position: absolute; left: -2px; right: -2px; top: -6px; bottom: -6px; }
+.qt[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+
+/* ★ 한글 발음 줄 */
+.hg { display: block; font-size: 13px; line-height: 1.5; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; margin-top: 2px; }
+.hg .bk { color: var(--ink3); }
+.hg.s12 { font-size: 12.5px; }
+.hg.s14 { font-size: 14px; }
+.hg.s15 { font-size: 15px; margin-top: 4px; }
+.hgi { font-size: 12px; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; }
+.hgi .bk { color: var(--ink3); }
+.hgp { display: block; height: 12px; width: 62%; border-radius: 6px; background: var(--surface2); margin: 6px 0 4px; animation: hgp 1.2s ease-in-out infinite; }
+.bu .hgp, .cc-b .hgp, .box .hgp { background: var(--surface); }
+@keyframes hgp { 50% { opacity: .45; } }
+
+/* 공용 */
+.card { min-width: 0; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.card.flat { border-color: transparent; background: var(--surface2); }
+.cap { font-size: 12px; color: var(--ink2); }
+.d13 { font-size: 13px; color: var(--ink2); }
+.mt8 { margin-top: 8px; } .mt4 { margin-top: 4px; } .mt12 { margin-top: 12px; }
+.num { font-variant-numeric: tabular-nums; }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; flex: none; white-space: nowrap; }
+.badge.neutral { background: var(--surface2); color: var(--ink2); }
+.badge.good { background: var(--good-soft); color: var(--good); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; min-width: 0; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.btnrow { display: flex; gap: 8px; margin-top: 12px; }
+.btnrow > * { flex: 1; min-width: 0; }
+.note { border-radius: 12px; background: var(--surface2); color: var(--ink); padding: 12px 14px; font-size: 13px; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 120px; z-index: 30; background: var(--ink); color: var(--surface); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.ja { font-size: 17px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.rd { font-size: 14px; line-height: 1.6; color: var(--ink2); overflow-wrap: anywhere; }
+.ko { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+
+/* 말풍선 */
+.msgs { display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 20px; min-width: 0; }
+.divider { text-align: center; font-size: 12px; color: var(--ink2); }
+.tut { display: flex; gap: 8px; min-width: 0; }
+.tut .avc { width: 28px; flex: none; padding-top: 20px; }
+.tut .col { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 85%; }
+.tname { font-size: 12px; color: var(--ink2); margin-bottom: 4px; }
+.bt { min-width: 0; max-width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 16px 16px 16px 6px; padding: 10px 14px; }
+.bt .tr { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.5; color: var(--ink2); }
+.bfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; font-size: 12px; color: var(--ink2); min-width: 0; }
+.fbtn { display: inline-flex; align-items: center; height: 44px; padding: 0 6px; border: 0; background: none; font-size: 13px; font-weight: 500; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.tm { padding: 0 4px; }
+.umine { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
+.bu { min-width: 0; max-width: 80%; background: var(--accent-soft); color: var(--ink); border-radius: 16px 16px 6px 16px; padding: 10px 14px; }
+.ufoot { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0 8px; min-height: 24px; font-size: 12px; color: var(--ink2); }
+.crchip { display: inline-flex; align-items: center; height: 44px; }
+.crchip span { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-weight: 600; }
+
+/* 교정 카드 */
+.cc { container-type: inline-size; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 14px; }
+.cc-h { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cc-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+@container (min-width: 320px) { .cc-g { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.cc-b { min-width: 0; border-radius: 12px; background: var(--surface2); padding: 10px; }
+.lb { font-size: 12px; color: var(--ink2); }
+.lb.g { color: var(--good); }
+.del { background: var(--bad-soft); color: var(--bad); text-decoration: line-through; border-radius: 3px; }
+.ins { background: var(--good-soft); color: var(--good); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; border-radius: 3px; }
+.cc-x { margin-top: 10px; font-size: 15px; color: var(--ink2); }
+.prop { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 12px 14px; }
+.pw { margin-top: 2px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pw .pws { font-size: 18px; font-weight: 600; }
+.pw .pr { font-size: 14px; color: var(--ink2); }
+.pm { font-size: 15px; margin-top: 2px; }
+.sec-h { font-size: 15px; font-weight: 600; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+
+/* 입력 바 */
+.composer { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; align-items: end; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 12px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.cin { min-height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 12px; font-size: 16px; color: var(--ink3); }
+.ib { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; border: 0; background: none; cursor: pointer; color: var(--ink); }
+.ib.send { background: var(--accent); color: var(--on-accent); border-radius: 50%; }
+.vbar { flex: none; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 16px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.vstat { min-height: 24px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--ink2); text-align: center; }
+.vrow { margin-top: 4px; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; }
+.vc { display: flex; justify-content: center; }
+.ptt { width: 72px; height: 72px; flex: none; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; cursor: pointer; }
+
+/* 단어장 */
+.search { display: flex; align-items: center; gap: 8px; height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 0 12px; color: var(--ink3); font-size: 15px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+.chip.on { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+.wtool { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.wl { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.wl li + li { border-top: 1px solid var(--line); }
+.wr { width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 64px; padding: 10px 14px; border: 0; background: none; text-align: left; cursor: pointer; min-width: 0; }
+.wr-1, .wr-2 { display: flex; align-items: baseline; gap: 8px; min-width: 0; width: 100%; }
+.wr-s { font-size: 18px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-r { font-size: 13px; color: var(--ink2); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-m { font-size: 14px; color: var(--ink2); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); display: flex; align-items: flex-end; }
+.sheet { width: 100%; max-height: 88%; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border-radius: 16px 16px 0 0; padding: 0 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.sheet-h { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 56px; background: var(--surface); }
+.sheet-h h2 { font-size: 17px; font-weight: 600; }
+.wsurf { font-size: 28px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.wread { font-size: 15px; color: var(--ink2); margin-top: 4px; }
+.wmean { font-size: 17px; margin-top: 10px; }
+.dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; margin-top: 14px; }
+.dl dt { font-size: 13px; color: var(--ink2); }
+.dl dd { font-size: 14px; }
+.exh { font-size: 13px; font-weight: 600; color: var(--ink2); margin-top: 16px; }
+.ja16 { font-size: 16px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
+
+/* 오늘의 단어 */
+.prog { height: 4px; border-radius: 2px; background: var(--surface2); overflow: hidden; flex: none; }
+.prog i { display: block; height: 100%; width: 30%; background: var(--accent); }
+.dk-card { height: 290px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.dk-mid { flex: 1; min-height: 0; display: grid; place-items: center; text-align: center; }
+.dk-s { font-size: 40px; font-weight: 600; line-height: 1.2; }
+.dk-r { font-size: 17px; color: var(--ink2); margin-top: 8px; }
+.opts4 { display: flex; flex-direction: column; gap: 8px; }
+.opt4 { min-height: 52px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 15px; text-align: left; padding: 0 14px; cursor: pointer; }
+.dtl { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); background: var(--surface); padding: 4px 4px max(6px, env(safe-area-inset-bottom)); }
+.dtl button { min-height: 52px; border: 0; background: none; font-size: 12px; color: var(--ink2); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.dtl button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
+.dtl button[aria-pressed="true"] .pill { background: var(--ink); color: var(--surface); }
+.pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--surface2); font-size: 12px; }
+
+/* 오늘의 회화 */
+.steps { flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-bottom: 1px solid var(--line); padding: 4px 6px; }
+.step { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; border: 0; background: none; padding: 2px 0; font-size: 11.5px; color: var(--ink2); cursor: default; }
+.step .n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; background: var(--surface2); color: var(--ink2); }
+.step.done .n { background: var(--good-soft); color: var(--good); }
+.step.cur { color: var(--ink); font-weight: 700; }
+.step.cur .n { background: var(--accent); color: var(--on-accent); }
+.step.lock .n { background: none; box-shadow: inset 0 0 0 1.5px var(--line); }
+.step:not(:last-child)::after { content: ""; position: absolute; top: 15px; left: calc(50% + 17px); right: calc(-50% + 17px); height: 2px; border-radius: 1px; background: var(--line); }
+.step.done:not(:last-child)::after { background: var(--good); }
+.sh h2 { font-size: 17px; font-weight: 700; }
+.sh p { margin-top: 4px; }
+.tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tog { position: relative; display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; cursor: pointer; white-space: nowrap; }
+.tog::before { content: ""; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+.tog[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+.legend { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink2); }
+.legend .role { width: 20px; height: 20px; margin: 0 0 0 4px; font-size: 11px; }
+.segc { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.segc + .segc { margin-top: 10px; }
+.segc.open { border-color: var(--accent); }
+.segc-h { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 12px 0 14px; border: 0; background: none; text-align: left; }
+.segc-t { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; }
+.segc-t .cap { font-weight: 400; }
+.segc-b { padding: 0 14px 14px; }
+.ln { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; padding: 6px 8px; margin: 0 -8px; border-radius: 10px; }
+.ln + .ln { margin-top: 2px; }
+.ln.now { background: var(--accent-soft); }
+.role { width: 24px; height: 24px; margin-top: 4px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.role.ra { background: var(--surface2); color: var(--ink); }
+.role.rb { background: var(--ink); color: var(--surface); }
+.lt { min-width: 0; }
+.ladder { display: flex; gap: 6px; margin-top: 12px; }
+.ladder li { flex: 1; min-width: 0; height: 28px; border-radius: 8px; background: var(--surface2); font-size: 12px; color: var(--ink2); display: grid; place-items: center; white-space: nowrap; }
+.ladder li.ok { background: var(--good-soft); color: var(--good); font-weight: 600; }
+.ladder li.nx { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--ink); font-weight: 600; }
+.lstat { font-size: 13px; color: var(--ink2); min-height: 20px; margin-top: 8px; }
+.memo { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.memo-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13.5px; font-weight: 600; }
+.mchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mchip { display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 999px; background: var(--surface2); font-size: 15px; }
+.gp { font-size: 20px; font-weight: 700; margin-top: 2px; }
+.gx { font-size: 14px; margin-top: 6px; }
+.exs { margin-top: 10px; border-top: 1px solid var(--line); }
+.ex { display: flex; align-items: flex-start; gap: 8px; padding: 10px 8px; margin: 0 -8px; border-radius: 10px; }
+.ex-t { flex: 1; min-width: 0; }
+.pbtn { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; color: var(--ink); }
+.pwide { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px; white-space: nowrap; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; }
+.bl { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 2px; }
+.bl.g { color: var(--good); }
+.qtop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.qn { font-size: 14px; font-weight: 700; }
+.dots { display: flex; gap: 6px; }
+.qd { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface2); color: var(--ink2); flex: none; }
+.qd.ok { background: var(--good-soft); color: var(--good); }
+.qd.cur { box-shadow: inset 0 0 0 2px var(--accent); background: var(--surface); color: var(--ink); }
+.qp { font-size: 16px; font-weight: 600; line-height: 1.55; }
+.choice { width: 100%; display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 52px; padding: 10px 12px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); text-align: left; cursor: pointer; }
+.choice .no { width: 24px; height: 24px; border-radius: 50%; background: var(--surface2); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.choice .ct { min-width: 0; display: block; }
+.choice .cj { display: block; font-size: 17px; line-height: 1.5; }
+.sit { font-size: 16px; font-weight: 600; line-height: 1.55; }
+.hchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hchip { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; padding: 6px 10px; border-radius: 10px; background: var(--surface2); min-width: 0; max-width: 100%; }
+.hchip > [lang="ja"] { font-size: 16px; }
+.hchip.hit { background: var(--good-soft); }
+.hchip .badge.neutral { background: var(--surface); height: 20px; }
+.hchip .tgk { color: var(--good); font-weight: 700; font-size: 12px; }
+.cmp-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+.box { min-width: 0; border-radius: 12px; background: var(--surface2); padding: 10px 12px; }
+.said { margin-top: 12px; }
+.said .bub { display: inline-block; max-width: 100%; border-radius: 14px; background: var(--accent-soft); padding: 8px 12px; }
+.res { margin-top: 10px; font-size: 14px; font-weight: 600; color: var(--good); }
+.alink { display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* 설정 */
+.swrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; border: 0; background: none; padding: 6px 0; text-align: left; cursor: pointer; color: var(--ink); }
+.swrow .t { flex: 1; min-width: 0; }
+.swrow .t b { display: block; font-size: 15px; font-weight: 600; }
+.swrow .t span { display: block; font-size: 13px; color: var(--ink2); }
+.sw { position: relative; width: 48px; height: 28px; flex: none; border-radius: 999px; background: var(--surface2); box-shadow: inset 0 0 0 1px var(--line); }
+.sw::after { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }
+.swrow[aria-checked="true"] .sw { background: var(--accent); box-shadow: none; }
+.swrow[aria-checked="true"] .sw::after { left: 24px; }
+.sdesc { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.pv { margin-top: 12px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; }
+.shdr { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.srow { display: flex; justify-content: space-between; gap: 8px; min-height: 44px; align-items: center; font-size: 14px; }
+.srow + .srow { border-top: 1px solid var(--line); }
+.srow span:last-child { color: var(--ink2); }
+.dim { opacity: .55; }
+
+
+/* ════════ v2 추가 ════════ */
+/* ★ 후리가나(루비) — 한자 위에만. rt 11px(최소) ink2. 루비가 있는 일본어 블록만 줄간격을 넓혀 위 글자 자리를 확보 */
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: 11px; line-height: 1; color: var(--ink2); font-weight: 400; letter-spacing: 0; -webkit-user-select: none; user-select: none; }
+.ja.fu { line-height: 2.1; }
+.ja16.fu { line-height: 2.15; }
+.cj.fu { line-height: 2.1; }
+.wr-s.fu { line-height: 1.95; }
+.pws.fu { line-height: 2; }
+.hchip > [lang="ja"].fu { line-height: 2.1; }
+.wsurf.fu { line-height: 1.8; }
+.wsurf rt { font-size: 13px; }
+.dk-s.fu { line-height: 1.7; }
+.dk-s rt { font-size: 16px; }
+.bu rt, .said rt { color: var(--ink2); }
+
+/* ★ 표시 바(E3-A) — 회화방·채팅방 머리 바로 아래, 방 전체 일괄 */
+.dispbar { flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; height: 44px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.dispbar::-webkit-scrollbar { display: none; }
+.dispbar .db-l { flex: none; font-size: 12px; color: var(--ink2); margin-right: 2px; }
+.dispbar .tog { flex: none; }
+.tog .ck { margin-right: 3px; }
+
+/* ★ 표시 패널(E3-B) — 머리 아이콘 → 작은 패널 */
+.gl { display: inline-flex; align-items: baseline; gap: 1px; font-size: 15px; font-weight: 700; line-height: 1; }
+.gl [lang="ja"] { font-size: 16px; }
+.icb[aria-expanded="true"] { background: var(--surface2); }
+.dpop { position: absolute; right: 8px; z-index: 20; width: min(268px, calc(100% - 16px)); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 28px rgba(0,0,0,.18); padding: 4px 14px 10px; }
+.dpop .swrow { min-height: 52px; }
+.dpop .cap { margin-top: 2px; }
+
+/* ★ 번역 — 말풍선 안 구분선 아래. 내 말 번역 준비 중·실패 */
+.bu .tr { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.5; color: var(--ink2); }
+.trp, .trf { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink2); min-height: 30px; }
+.trp .hgp { margin: 0; width: 72px; flex: none; }
+.trf .fbtn { height: 44px; margin: -7px 0 -7px -6px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.ufoot .fbtn { padding: 0 4px; }
+
+/* 설정 — 읽기 위치(E1-B) */
+.rseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); flex: none; }
+.rseg button { border: 0; background: none; height: 40px; min-width: 64px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--ink2); cursor: pointer; }
+.rseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.srow .rseg { color: var(--ink); }
+
+/* 데모 틀 보조 */
+.dtbl td.k { white-space: nowrap; font-weight: 600; }
+.layers { margin-top: 8px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; }
+.layers .lv { font-size: 12px; color: var(--ink2); text-align: right; white-space: nowrap; }
+.layers .ja { font-size: 17px; }
+.keep { margin-top: 10px; }
+.keep .dtbl td { font-size: 12.5px; }
+@media (prefers-reduced-motion: reduce) { .trp .hgp { animation: none; } }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>후리가나·한글·번역 표시 <span class="lvl">delta</span><small>task-026 · 데모 v2 · v1 승인 결정 유지 + IMP-0018·0019 합침 · 합성 샘플 데이터</small></h1>
+  <div class="dctls">
+    <div class="dctl"><span>폭</span><div class="dseg" id="d-w" role="group" aria-label="휴대폰 폭">
+      <button type="button" data-w="360" aria-pressed="false">360</button><button type="button" data-w="390" aria-pressed="true">390</button><button type="button" data-w="412" aria-pressed="false">412</button><button type="button" data-w="all" aria-pressed="false">세 폭</button>
+    </div></div>
+    <div class="dctl"><span>보기</span><div class="dseg" id="d-v" role="group" aria-label="현재와 제안">
+      <button type="button" data-v="prop" aria-pressed="true">제안</button><button type="button" data-v="cur" aria-pressed="false">현재</button><button type="button" data-v="cmp" aria-pressed="false">현재 vs 제안</button>
+    </div></div>
+    <div class="dctl"><span>표시(사용자 설정)</span><div class="dseg" id="d-lay" role="group" aria-label="표시 층 켜고 끄기">
+      <button type="button" data-lay="fu" aria-pressed="true">후리가나</button><button type="button" data-lay="hg" aria-pressed="true">한글</button><button type="button" data-lay="tr" aria-pressed="false">번역</button>
+    </div></div>
+    <div class="dctl"><span>바뀐 조작부</span><div class="dseg" id="d-m" role="group" aria-label="바뀐 조작부 점선 표시">
+      <button type="button" data-m="on" aria-pressed="true">점선</button><button type="button" data-m="off" aria-pressed="false">없음</button>
+    </div></div>
+    <div class="dctl"><span>테마</span><div class="dseg" id="d-t" role="group" aria-label="테마">
+      <button type="button" data-t="auto" aria-pressed="true">자동</button><button type="button" data-t="light" aria-pressed="false">라이트</button><button type="button" data-t="dark" aria-pressed="false">다크</button>
+    </div></div>
+    <button type="button" class="dbtn" id="d-reset">처음부터</button>
+  </div>
+</header>
+
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="데모 화면 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside" id="side" aria-label="화면 설명"></aside>
+</div>
+
+<section class="dpanel" id="dpanel" aria-labelledby="dp-h">
+  <h2 id="dp-h">결정 필요 — v2 에서 새로 생긴 것만 (A/B 를 고르면 위 화면이 바로 바뀌어요)</h2>
+  <p class="dsub">사용자 결정(10-03 18:05): 회화방 AI 프로필 아래에서 읽기·번역을 한 번에 제어하고, 내 말에도 읽기·번역(IMP-0018) · 한자 위에 작은 히라가나(IMP-0019) — v1 배치를 루비 기준으로 다시 그렸어요. 각 결정의 <b>권고</b> 표시가 디자이너 권고안이에요.</p>
+  <div class="dsum" id="dsum" role="status"></div>
+
+  <div class="keep">
+    <table class="dtbl" aria-label="v1 에서 정한 것">
+      <thead><tr><th>v1 결정(승인 10-01 “권고안대로”)</th><th>v2 에서</th></tr></thead>
+      <tbody>
+        <tr><td>D1 표기 관례 A ‘까’ 계열</td><td>그대로 — 화면의 한글은 모두 이 규칙(장음 ‘-’, 촉음·ん 받침, 조사 は·を·へ 소리대로)</td></tr>
+        <tr><td>D2 읽기 없는 한자 문장 B 서버가 소리를 구함</td><td>그대로 — 이제 루비(한자별 읽기)도 같은 서버 분석에서 받아요. 내 말은 잠깐 뒤 채워짐</td></tr>
+        <tr><td>D3 설정 + 화면 안 빠른 토글</td><td>회화방·채팅방은 머리의 [한글] 버튼 대신 아래 E3 의 일괄 제어로 옮겨요. 오늘의 회화·단어장 도구 줄은 그대로(이름만 바뀜)</td></tr>
+        <tr><td>D4 읽기와 한글 따로</td><td>그대로 — 후리가나·한글·번역이 서로 다른 스위치</td></tr>
+        <tr><td>D5 delta 로 결정</td><td>v2 도 delta(같은 12종 화면 + 회화방 상태 3개)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dq" id="q-e1">
+    <h3><span class="did">E1</span>읽기 표시 방식 — 한자 위 후리가나가 문장 아래 히라가나 줄을 대신할까</h3>
+    <p>지금 앱과 v1 은 문장 전체를 히라가나로 다시 쓴 한 줄을 일본어 아래에 둬요. 후리가나는 한자 위에만 작게 얹어서 같은 정보를 덜 차지해요.</p>
+    <div class="dq-g" role="radiogroup" aria-label="E1 읽기 표시 방식">
+      <label class="opt" data-dec="e1" data-v="A"><input type="radio" name="e1" value="A"><span class="opt-h">A · 후리가나로 대신 <span class="badge good">권고</span></span>
+        <span class="opt-d">읽기 = 한자 위 후리가나 하나. 히라가나 줄은 없애요. 층이 위(후리가나) · 본문 · 아래(한글) · 번역 네 개로 정리돼요.</span>
+        <ul><li class="p">어느 한자가 어떤 소리인지 바로 보여요(IMP-0019)</li><li class="p">말풍선이 v1 보다 낮아요(히라가나 줄 한 줄이 빠짐)</li><li class="m">줄간격이 조금 넓어져요(17px 본문 기준 줄마다 약 +7px)</li></ul>
+        <span class="sel">선택 안 함</span></label>
+      <label class="opt" data-dec="e1" data-v="B"><input type="radio" name="e1" value="B"><span class="opt-h">B · 둘 다 두고 설정에서 고름</span>
+        <span class="opt-d">설정 › 일본어 표시에 “읽기 위치: 한자 위 | 문장 아래”. 표시 바 버튼 이름은 [읽기].</span>
+        <ul><li class="p">히라가나 줄이 익숙한 사람도 고를 수 있어요</li><li class="m">스위치가 하나 더 늘고, 화면마다 두 모양을 다 검증해야 해요</li></ul>
+        <span class="sel">선택 안 함</span></label>
+    </div>
+  </div>
+
+  <div class="dq" id="q-e2">
+    <h3><span class="did">E2</span>기본 표시 — 처음 켰을 때 후리가나와 [한글]을 같이 보여 줄까</h3>
+    <p>둘 다 사용자가 요청한 것이에요. 한글은 v1 결정(Q7)대로 기본 켬이에요. 이 결정은 후리가나의 처음 값만 정해요 — 어느 쪽이든 표시 바에서 바로 바꿔요.</p>
+    <div class="dq-g" role="radiogroup" aria-label="E2 기본 표시">
+      <label class="opt" data-dec="e2" data-v="A"><input type="radio" name="e2" value="A"><span class="opt-h">A · 후리가나 켬 + 한글 켬 <span class="badge good">권고</span></span>
+        <span class="opt-d">한자 소리(히라가나)와 우리말 소리(한글)가 처음부터 모두 보여요.</span>
+        <ul><li class="p">두 요청(IMP-0009·0019)을 처음 화면에서 바로 확인</li><li class="p">한자를 모르는 초급(N5)에 맞아요</li><li class="m">말풍선이 가장 높아요(본문 위아래 두 층)</li></ul>
+        <span class="sel">선택 안 함</span></label>
+      <label class="opt" data-dec="e2" data-v="B"><input type="radio" name="e2" value="B"><span class="opt-h">B · 한글만 켬(후리가나 끔)</span>
+        <span class="opt-d">한자 위는 비워 두고, 소리는 아래 [한글]로만 보여요. 필요하면 [후리가나]를 눌러요.</span>
+        <ul><li class="p">화면이 가벼워요</li><li class="m">한자 하나하나의 읽기를 익히기 어려워요</li></ul>
+        <span class="sel">선택 안 함</span></label>
+    </div>
+  </div>
+
+  <div class="dq" id="q-e3">
+    <h3><span class="did">E3</span>일괄 제어 위치 — 회화방 AI 프로필 아래</h3>
+    <p>어느 쪽이든 값은 앱 전체에 하나(사용자 설정)이고, 바꾸면 방 안 모든 말풍선(선생님·내 말)에 바로 적용돼요. 채팅방도 같은 모양이에요.</p>
+    <div class="dq-g" role="radiogroup" aria-label="E3 일괄 제어 위치">
+      <label class="opt" data-dec="e3" data-v="A"><input type="radio" name="e3" value="A"><span class="opt-h">A · 머리 아래 표시 바(늘 보임) <span class="badge good">권고</span></span>
+        <span class="opt-d">프로필 머리 바로 아래 44px 줄에 [후리가나] [한글] [번역]. 누른 상태는 진한 바탕 + ✓.</span>
+        <ul><li class="p">요청 문장(“AI 프로필 영역 아래에 한 번에”) 그대로</li><li class="p">지금 무엇이 켜져 있는지 늘 보여요</li><li class="m">대화가 보이는 높이가 44px 줄어요(390×780 에서 약 564px 남음)</li></ul>
+        <span class="sel">선택 안 함</span></label>
+      <label class="opt" data-dec="e3" data-v="B"><input type="radio" name="e3" value="B"><span class="opt-h">B · 머리 아이콘 → 작은 표시 패널</span>
+        <span class="opt-d">⋯ 왼쪽에 [あ가] 아이콘, 누르면 스위치 3개 패널(참고 앱의 번역 아이콘·메뉴와 비슷).</span>
+        <ul><li class="p">대화 높이를 지금처럼 유지</li><li class="m">한 번 더 눌러야 하고, 켜진 상태가 머리에서 안 보여요</li><li class="m">머리에 버튼이 늘어 360 에서 이름 칸이 좁아져요</li></ul>
+        <span class="sel">선택 안 함</span></label>
+    </div>
+  </div>
+
+  <div class="dq" id="q-e4">
+    <h3><span class="did">E4</span>말풍선마다 [번역 ▾]를 남길까</h3>
+    <p>후리가나·한글은 일괄로만 바꿔요(말풍선마다 [읽기 ▾]는 없앰). 번역만 “한 문장만 살짝 보기”를 남길지 정해요.</p>
+    <div class="dq-g" role="radiogroup" aria-label="E4 말풍선별 번역">
+      <label class="opt" data-dec="e4" data-v="A"><input type="radio" name="e4" value="A"><span class="opt-h">A · 일괄만</span>
+        <span class="opt-d">말풍선 아래 조작은 ▶ 다시 듣기·시각만. 번역도 표시 바로만 켜고 꺼요.</span>
+        <ul><li class="p">가장 단순해요</li><li class="m">한 문장만 뜻을 보고 싶어도 방 전체가 펼쳐져요</li></ul>
+        <span class="sel">선택 안 함</span></label>
+      <label class="opt" data-dec="e4" data-v="B"><input type="radio" name="e4" value="B"><span class="opt-h">B · 일괄 + 말풍선별 [번역 ▾] <span class="badge good">권고</span></span>
+        <span class="opt-d">평소엔 번역을 접어 두고 막힌 문장만 [번역 ▾]로 펼쳐요. 표시 바에서 번역을 바꾸면 모든 말풍선이 그 값으로 맞춰져요(개별로 연 것도 초기화).</span>
+        <ul><li class="p">일본어를 먼저 읽고 필요한 곳만 뜻 보기 — 지금 습관 유지</li><li class="m">말풍선 아래 버튼 하나(44px)</li></ul>
+        <span class="sel">선택 안 함</span></label>
+    </div>
+  </div>
+
+  <div class="dq" id="q-e5">
+    <h3><span class="did">E5</span>내 말 번역 — 번역 스위치에 같이 묶을까</h3>
+    <p>내 말의 번역은 “내가 하려던 말이 이렇게 전해졌다”를 보여 줘요. 번역 기본값은 지금처럼 <b>끔</b>(일본어를 먼저 읽게)이에요.</p>
+    <div class="dq-g" role="radiogroup" aria-label="E5 내 말 번역">
+      <label class="opt" data-dec="e5" data-v="A"><input type="radio" name="e5" value="A"><span class="opt-h">A · 같이 묶음 <span class="badge good">권고</span></span>
+        <span class="opt-d">번역을 켜면 선생님 말·내 말 모두 번역이 펼쳐져요. 후리가나·한글과 같은 규칙.</span>
+        <ul><li class="p">요청(“사용자가 말한 내용도 동일하게”) 그대로</li><li class="p">스위치 하나로 이해 쉬움</li><li class="m">번역을 켜면 화면이 길어져요</li></ul>
+        <span class="sel">선택 안 함</span></label>
+      <label class="opt" data-dec="e5" data-v="B"><input type="radio" name="e5" value="B"><span class="opt-h">B · 내 말은 따로(말풍선별 [번역 ▾]만)</span>
+        <span class="opt-d">번역 스위치는 선생님 말에만. 내 말 번역은 말풍선 아래 [번역 ▾]로 하나씩 열어요(기본 접힘).</span>
+        <ul><li class="p">대화 흐름이 덜 길어져요</li><li class="m">“동일하게” 요청과 조금 달라요</li></ul>
+        <span class="sel">선택 안 함</span></label>
+    </div>
+  </div>
+
+  <div class="dq" id="q-e6">
+    <h3><span class="did">E6</span>내 말 번역을 언제 만들까 — 화면에 보이는 기다림이 달라요</h3>
+    <p>내 말 번역은 선생님 답(5초 안)과 따로, 뒤에서 만들어요. 만드는 시점만 정해요(실패해도 대화는 그대로, 그 칸만 [다시 가져오기]).</p>
+    <div class="dq-g" role="radiogroup" aria-label="E6 내 말 번역 시점">
+      <label class="opt" data-dec="e6" data-v="A"><input type="radio" name="e6" value="A"><span class="opt-h">A · 보낼 때마다 미리 <span class="badge good">권고</span></span>
+        <span class="opt-d">말을 보내면 뒤에서 번역을 만들어 둬요. 번역을 켜 두었으면 보낸 직후 잠깐 “번역 중…”, 껐다 켜면 바로 보여요.</span>
+        <ul><li class="p">켜는 순간 기다림이 없어요</li><li class="m">번역을 안 보는 날에도 매번 만들어요(서버 호출 증가)</li></ul>
+        <span class="sel">선택 안 함</span></label>
+      <label class="opt" data-dec="e6" data-v="B"><input type="radio" name="e6" value="B"><span class="opt-h">B · 번역을 켰을 때만</span>
+        <span class="opt-d">번역을 켜는 순간(또는 [번역 ▾]를 여는 순간) 아직 없는 내 말 번역을 요청해요. 그동안 각 말풍선에 “번역 중…”.</span>
+        <ul><li class="p">안 보는 번역은 만들지 않아요</li><li class="m">켤 때마다 1~2초 기다림(오래된 방은 여러 개가 한꺼번에)</li></ul>
+        <span class="sel">선택 안 함</span></label>
+    </div>
+  </div>
+</section>
+
+<div class="dtoast" id="dtoast" hidden></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ════════ 가나 → 한글 (데모 표시용 규칙) ════════
+   입력 = 읽는 소리 가나. ' ' = 구절 경계(D2-B 에서만 띄움), '|' = 조사 は·を·へ 뒤(두 안 모두 띄움).
+   conv: 'A' = '까' 계열(구절 첫 글자만 거센소리) / 'B' = '카' 계열(늘 거센소리). spacing: D2 값. */
+var HG = (function () {
+  var LI = { g: 0, kk: 1, n: 2, d: 3, tt: 4, r: 5, m: 6, b: 7, pp: 8, s: 9, x: 11, j: 12, jj: 13, ch: 14, k: 15, t: 16, p: 17, h: 18 };
+  var VI = { a: 0, ya: 2, e: 5, ye: 7, o: 8, wa: 9, yo: 12, u: 13, wo: 14, we: 15, wi: 16, yu: 17, eu: 18, i: 20 };
+  var TI = { k: 1, n: 4, m: 16, p: 17, t: 19, ng: 21 };
+  var BASE = {};
+  function row(chars, cls, vs) { for (var i = 0; i < chars.length; i++) if (chars[i] !== '_') BASE[chars[i]] = [cls, vs[i]]; }
+  var AIUEO = ['a', 'i', 'u', 'e', 'o'];
+  row('アイウエオ', 'X', AIUEO);
+  row('カキクケコ', 'K', AIUEO); row('ガギグゲゴ', 'G', AIUEO);
+  row('サシスセソ', 'S', ['a', 'i', 'eu', 'e', 'o']); row('ザジズゼゾ', 'Z', ['a', 'i', 'eu', 'e', 'o']);
+  row('タ__テト', 'T', ['a', '', '', 'e', 'o']); BASE['チ'] = ['CH', 'i']; BASE['ツ'] = ['TS', 'eu'];
+  row('ダ__デド', 'D', ['a', '', '', 'e', 'o']); BASE['ヂ'] = ['Z', 'i']; BASE['ヅ'] = ['Z', 'eu'];
+  row('ナニヌネノ', 'N', AIUEO); row('ハヒフヘホ', 'H', AIUEO);
+  row('バビブベボ', 'B', AIUEO); row('パピプペポ', 'P', AIUEO); row('マミムメモ', 'M', AIUEO);
+  row('ヤユヨ', 'X', ['ya', 'yu', 'yo']); row('ラリルレロ', 'R', AIUEO);
+  row('ワヲヰヱ', 'X', ['wa', 'o', 'i', 'e']); BASE['ヴ'] = ['B', 'u'];
+  var SMALL_Y = { 'ャ': 'ya', 'ュ': 'yu', 'ョ': 'yo' };
+  var SMALL_V = { 'ァ': 'a', 'ィ': 'i', 'ゥ': 'u', 'ェ': 'e', 'ォ': 'o', 'ヮ': 'wa' };
+  var PUNCT = { '。': '.', '、': ',', '？': '?', '！': '!', '?': '?', '!': '!', '.': '.', ',': ',', '「': '“', '」': '”', '『': '“', '』': '”', '〜': '~', '～': '~', '…': '…', '・': ' ' };
+  function toKata(s) { return s.replace(/[ぁ-ゖ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); }); }
+  function cons(cls, initial, conv) {
+    var soft = conv === 'B' || initial;
+    switch (cls) {
+      case 'K': return soft ? 'k' : 'kk';
+      case 'T': return soft ? 't' : 'tt';
+      case 'P': return soft ? 'p' : 'pp';
+      case 'CH': case 'TS': return soft ? 'ch' : 'jj';
+      case 'G': return 'g'; case 'S': return 's'; case 'Z': return 'j'; case 'D': return 'd';
+      case 'N': return 'n'; case 'H': return 'h'; case 'B': return 'b'; case 'M': return 'm'; case 'R': return 'r';
+      default: return 'x';
+    }
+  }
+  function syl(l, v, t) { return String.fromCharCode(0xAC00 + (LI[l] * 21 + VI[v]) * 28 + (t ? TI[t] : 0)); }
+  function convert(src, conv, spacing) {
+    var s = toKata(src.replace(/\|/g, '| ').replace(/\s+/g, ' ').trim());
+    var ms = [];
+    for (var i = 0; i < s.length; i++) {
+      var c = s[i];
+      if (c === '|') { ms.push({ k: 'sp', hard: true }); i++; continue; }
+      if (c === ' ') { ms.push({ k: 'sp', hard: false }); continue; }
+      if (c === 'ー') { ms.push({ k: 'long' }); continue; }
+      if (c === 'ッ') { ms.push({ k: 'gem' }); continue; }
+      if (c === 'ン') { ms.push({ k: 'nn' }); continue; }
+      if (PUNCT[c] !== undefined) { ms.push({ k: 'p', t: PUNCT[c] }); continue; }
+      var b = BASE[c];
+      if (b) {
+        var m = { k: 'm', cls: b[0], v: b[1] };
+        var nx = s[i + 1];
+        if (nx && SMALL_Y[nx] && m.v === 'i') { m.v = SMALL_Y[nx]; i++; }
+        else if (nx && SMALL_V[nx]) {
+          var sv = SMALL_V[nx], used = true;
+          if (c === 'フ') m.v = { a: 'wa', i: 'wi', e: 'we', o: 'wo', u: 'u', wa: 'wa' }[sv];
+          else if (c === 'ウ') m.v = { i: 'wi', e: 'we', o: 'wo', a: 'wa', u: 'u', wa: 'wa' }[sv];
+          else if (c === 'ヴ' || c === 'テ' || c === 'デ' || c === 'ト' || c === 'ド') m.v = sv;
+          else if (c === 'シ' || c === 'ジ' || c === 'チ' || c === 'イ') m.v = sv === 'e' ? 'ye' : sv;
+          else if (c === 'ツ') m.v = sv;
+          else used = false;
+          if (used) i++;
+        }
+        ms.push(m); continue;
+      }
+      if (SMALL_V[c]) { ms.push({ k: 'm', cls: 'X', v: SMALL_V[c] }); continue; }
+      if (SMALL_Y[c]) { ms.push({ k: 'm', cls: 'X', v: SMALL_Y[c] }); continue; }
+      ms.push({ k: 'raw', t: c });
+    }
+    var out = [], lastSyl = -1, initial = true, afterP = false, prevV = null;
+    function vowelOf(v) { var e = v.slice(-1); return v === 'eu' ? 'u' : e; }
+    function nextMora(j) { for (var q = j + 1; q < ms.length; q++) { if (ms[q].k === 'm') return ms[q]; if (ms[q].k !== 'long') return null; } return null; }
+    function addFinal(t) {
+      if (lastSyl < 0) return false;
+      var code = out[lastSyl].charCodeAt(0) - 0xAC00;
+      if (code % 28 !== 0) return false;
+      out[lastSyl] = String.fromCharCode(0xAC00 + code + TI[t]);
+      return true;
+    }
+    for (var j = 0; j < ms.length; j++) {
+      var m2 = ms[j];
+      if (m2.k === 'sp') {
+        lastSyl = -1; prevV = null;
+        if (m2.hard || spacing === 'B' || afterP) { if (out.length && out[out.length - 1] !== ' ') out.push(' '); initial = true; }
+        continue;
+      }
+      afterP = false;
+      if (m2.k === 'p') {
+        out.push(m2.t); lastSyl = -1; prevV = null;
+        if (/[.,?!]/.test(m2.t) && j + 1 < ms.length && ms[j + 1].k !== 'sp' && ms[j + 1].k !== 'p') out.push(' ');
+        afterP = /[.,?!]/.test(m2.t);
+        initial = true; continue;
+      }
+      if (m2.k === 'raw') { out.push(m2.t); lastSyl = -1; prevV = null; initial = true; continue; }
+      if (m2.k === 'long') { if (prevV) out.push('-'); continue; }
+      if (m2.k === 'gem') {
+        var n1 = nextMora(j), t1 = 't';
+        if (n1 && (n1.cls === 'K' || n1.cls === 'G')) t1 = 'k';
+        else if (n1 && (n1.cls === 'P' || n1.cls === 'B')) t1 = 'p';
+        addFinal(t1); initial = false; continue;
+      }
+      if (m2.k === 'nn') {
+        var n2 = nextMora(j), t2 = 'ng';
+        if (n2) {
+          if (n2.cls === 'M' || n2.cls === 'B' || n2.cls === 'P') t2 = 'm';
+          else if (n2.cls === 'K' || n2.cls === 'G') t2 = 'ng';
+          else if (/^(S|Z|T|D|N|R|CH|TS)$/.test(n2.cls)) t2 = 'n';
+        }
+        if (!addFinal(t2)) { out.push('응'); lastSyl = -1; }
+        prevV = null; initial = false; continue;
+      }
+      if (m2.cls === 'X' && /^[aiueo]$/.test(m2.v) && prevV && prevV === m2.v) { out.push('-'); prevV = null; initial = false; continue; }
+      out.push(syl(cons(m2.cls, initial, conv), m2.v)); lastSyl = out.length - 1; prevV = vowelOf(m2.v); initial = false;
+    }
+    return out.join('').replace(/\s+([.,?!”])/g, '$1').replace(/ +/g, ' ').trim();
+  }
+  return { convert: convert };
+})();
+
+
+/* ════════ 루비 표기 ════════
+   ja 는 '今日{きょう}は' 처럼 한자 묶음 바로 뒤 {읽기}. = 서버가 줄 "형태소별 표기·읽기"를 데모용으로 줄인 모양(한자 부분만 읽기, 送り仮名 제외).
+   p = 읽는 소리(가타카나, '|' 조사 뒤 · ' ' 구절 경계) — 한글 줄의 바탕. 둘 다 D2-B 서버 분석에서 온다고 가정. */
+var KJ = '[㐀-䶿一-鿿々〆ヶ]';
+var RE_RUBY = new RegExp('(' + KJ + '+)\\{([^}]+)\\}', 'g');
+function plainOf(s) { return s.replace(/\{[^}]*\}/g, ''); }
+function readOf(s) { return s.replace(RE_RUBY, '$2'); }
+function hasKanji(s) { return new RegExp(KJ).test(plainOf(s)); }
+function rubyOf(s) { return s.replace(RE_RUBY, '<ruby>$1<rt aria-hidden="true">$2</rt></ruby>'); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function J(t) { return '<span lang="ja">' + t + '</span>'; }
+
+/* ════════ 합성 샘플 데이터 ════════ */
+var TEACHER = '유우';
+var D = {
+  sample: { id: 'pv', ja: '今日{きょう}は何{なに}を食{た}べましたか？', p: 'キョーワ|ナニオ|タベマシタカ？', ko: '오늘은 뭘 먹었어요?' },
+  talk: {
+    t1: { id: 't1', ja: 'こんにちは！今日{きょう}は何{なに}をしましたか？', p: 'コンニチワ！ キョーワ|ナニオ|シマシタカ？', ko: '안녕하세요! 오늘은 뭐 했어요?' },
+    u1: { id: 'u1', mine: true, ja: '友達{ともだち}と映画{えいが}を見{み}ました。とても面白{おもしろ}いでした。', p: 'トモダチト エーガオ|ミマシタ。 トテモ オモシロイデシタ。', ko: '친구와 영화를 봤어요. 아주 재미있었어요.' },
+    cr: { type: '활용', o: [['とても面白{おもしろ}', 0], ['いでした', 1], ['。', 0]], c: [['とても面白{おもしろ}', 0], ['かったです', 1], ['。', 0]], po: 'トテモ オモシロイデシタ。', pc: 'トテモ オモシロカッタデス。',
+      x: 'い형용사의 과거는 ' + J('「〜かったです」') + '예요. ' + J('「〜いでした」') + '라고 하지 않아요.' },
+    t2: { id: 't2', ja: 'そうですか。どんな映画{えいが}でしたか？', p: 'ソーデスカ。 ドンナ エーガデシタカ？', ko: '그렇군요. 어떤 영화였어요?' },
+    u2: { id: 'u2', mine: true, ja: 'アクション映画{えいが}です。主人公{しゅじんこう}がかっこよかったです。', p: 'アクション エーガデス。 シュジンコーガ カッコヨカッタデス。', ko: '액션 영화예요. 주인공이 멋있었어요.' },
+    t3: { id: 't3', ja: 'いいですね。また見{み}に行{い}きたいですか？', p: 'イーデスネ。 マタ ミニ イキタイデスカ？', ko: '좋네요. 또 보러 가고 싶어요?' },
+    u3: { id: 'u3', mine: true, ja: '来週{らいしゅう}、続編{ぞくへん}を見{み}に行{い}きます。', p: 'ライシュー、 ゾクヘンオ|ミニ イキマス。', ko: '다음 주에 속편을 보러 갈 거예요.' }
+  },
+  chat: {
+    c1: { id: 'c1', mine: true, ja: 'はじめまして！ブラウンです。', p: 'ハジメマシテ！ ブラウンデス。', ko: '처음 뵙겠습니다! 브라운이에요.' },
+    c2: { id: 'c2', ja: 'はじめまして、ブラウンさん。週末{しゅうまつ}は何{なに}をしましたか？', p: 'ハジメマシテ、 ブラウンサン。 シューマツワ|ナニオ|シマシタカ？', ko: '처음 뵙겠습니다, 브라운 씨. 주말에는 뭐 했어요?' },
+    c3: { id: 'c3', mine: true, ja: 'ともだちとカフェをいきました。', p: 'トモダチト カフェオ|イキマシタ。', ko: '친구와 카페를 갔어요.' },
+    c4: { id: 'c4', ja: 'カフェに行{い}ったんですね。明日{あした}は何{なに}をしますか？', p: 'カフェニ イッタンデスネ。 アシタワ|ナニオ|シマスカ？', ko: '카페에 갔군요. 내일은 뭐 해요?' },
+    c5: { id: 'c5', mine: true, ja: 'あしたはやすみです。', p: 'アシタワ|ヤスミデス。', ko: '내일은 쉬는 날이에요.' }
+  },
+  review: [
+    { type: '조사', o: [['ともだちとカフェ', 0], ['を', 1], ['いきました。', 0]], c: [['ともだちとカフェ', 0], ['に', 1], ['いきました。', 0]], po: 'トモダチト カフェオ|イキマシタ。', pc: 'トモダチト カフェニ イキマシタ。',
+      x: J('「行く」') + '의 도착지는 ' + J('「に」') + '로 나타내요. ' + J('「を」') + '는 지나가는 곳에 써요.' },
+    { type: '활용', o: [['週末{しゅうまつ}は映画{えいが}を見{み}', 0], ['る', 1], ['ました。', 0]], c: [['週末{しゅうまつ}は映画{えいが}を見{み}ました。', 0]], po: 'シューマツワ|エーガオ|ミルマシタ。', pc: 'シューマツワ|エーガオ|ミマシタ。',
+      x: J('「見る」') + '의 ます형은 ' + J('「見ます」') + '예요. 사전형에 ' + J('「ました」') + '를 붙이지 않아요.' }
+  ],
+  prop: { id: 'pp', ja: '映画{えいが}', p: 'エーガ', ko: '영화' },
+  words: [
+    { ja: '持{も}ち帰{かえ}る', p: 'モチカエル', ko: '가져가다(포장)', badge: '수업', stat: '맞힘 3 · 틀림 1' },
+    { ja: '注文{ちゅうもん}', p: 'チューモン', ko: '주문', badge: '수업', stat: '맞힘 2 · 틀림 0' },
+    { ja: '面白{おもしろ}い', p: 'オモシロイ', ko: '재미있다', badge: '교정' },
+    { ja: 'いらっしゃいませ', p: 'イラッシャイマセ', ko: '어서 오세요(가게에서)' },
+    { ja: '大丈夫{だいじょうぶ}', p: 'ダイジョーブ', ko: '괜찮다', badge: '수업' },
+    { ja: 'コーヒー', p: 'コーヒー', ko: '커피' },
+    { ja: '冷{つめ}たい', p: 'ツメタイ', ko: '차갑다', stat: '맞힘 1 · 틀림 2' }
+  ],
+  wex: { ja: 'ケーキを持{も}ち帰{かえ}ります。', p: 'ケーキオ|モチカエリマス。', ko: '케이크를 포장해 갈게요.' },
+  deck: { ja: '冷{つめ}たい', p: 'ツメタイ', ch: ['따뜻하다', '차갑다', '작다', '달다'] },
+  dlg: [
+    { s: 'A', ja: 'いらっしゃいませ。ご注文{ちゅうもん}はお決{き}まりですか。', p: 'イラッシャイマセ。 ゴチューモンワ|オキマリデスカ。', ko: '어서 오세요. 주문하시겠어요?' },
+    { s: 'B', ja: 'コーヒーを一{ひと}つください。', p: 'コーヒーオ|ヒトツ クダサイ。', ko: '커피 하나 주세요.' },
+    { s: 'A', ja: 'ホットとアイス、どちらになさいますか。', p: 'ホットト アイス、 ドチラニ ナサイマスカ。', ko: '따뜻한 것과 아이스 중 어느 쪽으로 하시겠어요?' }
+  ],
+  chunks: [
+    { ja: '一{ひと}つ', p: 'ヒトツ', ko: '하나' },
+    { ja: '小{ちい}さい', p: 'チーサイ', ko: '작은' },
+    { ja: '冷{つめ}たい', p: 'ツメタイ', ko: '차가운' },
+    { ja: 'お願{ねが}いします', p: 'オネガイシマス', ko: '부탁해요', isNew: true }
+  ],
+  gram: { pat: { ja: '〜をください', p: '〜オ|クダサイ' }, ex: { ja: 'ケーキを一{ひと}つください。', p: 'ケーキオ|ヒトツ クダサイ。', ko: '케이크 하나 주세요.' } },
+  q1: [
+    { ja: 'コーヒーを一{ひと}つください。', p: 'コーヒーオ|ヒトツ クダサイ。' },
+    { ja: 'コーヒーが一{ひと}つください。', p: 'コーヒーガ ヒトツ クダサイ。' },
+    { ja: 'コーヒーを一{ひと}つあげます。', p: 'コーヒーオ|ヒトツ アゲマス。' },
+    { ja: 'コーヒーは一{ひと}つあります。', p: 'コーヒーワ|ヒトツ アリマス。' }
+  ],
+  q4: [{ ja: 'の', p: 'ノ' }, { ja: 'が', p: 'ガ' }, { ja: 'に', p: 'ニ' }, { ja: 'で', p: 'デ' }],
+  app: {
+    tg: [{ ja: '温{あたた}かい', p: 'アタタカイ', ko: '따뜻한' }, { ja: '一{ひと}つ', p: 'ヒトツ', ko: '하나' }, { ja: 'ください', p: 'クダサイ', ko: '주세요' }],
+    mine: { mine: true, ja: '温{あたた}かい紅茶{こうちゃ}をください。', p: 'アタタカイ コーチャオ|クダサイ。' },
+    model: { ja: '温{あたた}かい紅茶{こうちゃ}を一{ひと}つください。', p: 'アタタカイ コーチャオ|ヒトツ クダサイ。', ko: '따뜻한 홍차 하나 주세요.' }
+  },
+  spk: {
+    tg: [{ ja: '冷{つめ}たい', p: 'ツメタイ', ko: '차가운' }, { ja: '小{ちい}さい', p: 'チーサイ', ko: '작은' }],
+    said: { mine: true, ja: '冷{つめ}たいコーヒーを、小{ちい}さいサイズでお願{ねが}いします。', p: 'ツメタイ コーヒーオ、 チーサイ サイズデ オネガイシマス。' },
+    model: { ja: '冷{つめ}たいコーヒーを小{ちい}さいサイズでお願{ねが}いします。', p: 'ツメタイ コーヒーオ|チーサイ サイズデ オネガイシマス。', ko: '차가운 커피를 작은 사이즈로 부탁해요.' }
+  }
+};
+var ROLES = { A: '점원', B: '손님' };
+var ITEMS = {};
+[D.talk, D.chat].forEach(function (g) { Object.keys(g).forEach(function (k) { if (g[k].id) ITEMS[g[k].id] = g[k]; }); });
+
+var ICON = {
+  back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+  dots: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  mic: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  kb: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg>',
+  play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  up: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+};
+var TABS = [
+  ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+  ['오늘', 'M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8M12 3v2M12 19v2M3 12h2M19 12h2'],
+  ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4'],
+  ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+  ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21z']
+];
+
+var NAV = [
+  ['회화 · 채팅', [['talk', '회화방 — 일괄 제어 · 말풍선 · 교정'], ['talk-pend', '회화방 — 내 말 준비 중 · 번역 중'], ['talk-fail', '회화방 — 내 말 번역 실패'], ['chat', '채팅방'], ['review', '표현 점검 — 교정 카드 · 단어 제안']]],
+  ['단어', [['words', '단어장 목록'], ['wsheet', '단어 상세 시트'], ['deck', '오늘의 단어 카드']]],
+  ['오늘의 회화', [['l1', '① 이해 — 대화 구간'], ['l2', '② 문법 — 표현 칩 · 문형'], ['l3', '③ 문제 — 한자 보기'], ['l3b', '③ 문제 — 가나 보기'], ['l4', '④ 응용 — 비교'], ['l5', '⑤ 말하기 — 결과']]],
+  ['설정', [['settings', '설정 › 일본어 표시']]]
+];
+var IDS = []; NAV.forEach(function (g) { g[1].forEach(function (x) { IDS.push(x[0]); }); });
+
+/* ════════ 상태 ════════ */
+var S;
+function fresh() {
+  return { w: 390, triple: false, view: 'prop', theme: 'auto', mark: true, scr: 'talk',
+    fu: true, hg: true, tr: false, rstyle: 'ruby',
+    dec: { e1: 'A', e2: 'A', e3: 'A', e4: 'B', e5: 'A', e6: 'A' },
+    to: {}, fetched: {}, loading: {}, failState: 'fail', pop: false, deckRead: true,
+    ro: {}, cto: {}, lread: true, ltrans: false, toast: '' };
+}
+S = fresh();
+var CUR = false, NEED = [], toastTimer = 0;
+
+/* ════════ 층 그리기 ════════ */
+function fuMode() { if (!S.fu) return 'off'; return (S.dec.e1 === 'B' && S.rstyle === 'line') ? 'line' : 'ruby'; }
+function isPend(it) { return !!it.mine && S.scr === 'talk-pend' && it.id === 'u3'; }
+function rt(str, it) { return (CUR || fuMode() !== 'ruby' || isPend(it)) ? plainOf(str) : rubyOf(str); }
+/* 루비 자리 확보: 한자가 있는 블록은 후리가나가 켜져 있으면(준비 중 포함) 줄간격을 넓혀 둔다 → 채워질 때 세로로 밀리지 않음 */
+function fuCls(it) { return (!CUR && fuMode() === 'ruby' && hasKanji(it.ja)) ? ' fu' : ''; }
+function jaEl(it, cls, o) {
+  o = o || {};
+  var tag = o.tag || 'p';
+  var inner = o.segs ? o.segs.map(function (s) { var h = rt(s[0], it); return s[1] ? '<span class="' + o.sc + '">' + h + '</span>' : h; }).join('') : rt(it.ja, it);
+  return '<' + tag + ' class="' + cls + fuCls(it) + '" lang="ja">' + inner + '</' + tag + '>';
+}
+function lineRd(it, cls) {
+  if (CUR || fuMode() !== 'line' || !hasKanji(it.ja) || isPend(it)) return '';
+  return '<p class="' + (cls || 'rd') + '" lang="ja">' + readOf(it.ja) + '</p>';
+}
+function brk(t) { return '<span class="sr">한글 발음: </span><span class="bk" aria-hidden="true">[</span>' + esc(t) + '<span class="bk" aria-hidden="true">]</span>'; }
+function hgText(it) { return HG.convert(it.p, 'A', 'B'); }
+function hgLine(it, o) {
+  o = o || {};
+  if (CUR || !S.hg) return '';
+  if (isPend(it)) return '<span class="hgp" aria-hidden="true"></span>';
+  var tag = o.tag || 'p';
+  return '<' + tag + ' class="hg' + (o.cls ? ' ' + o.cls : '') + '" lang="ko">' + brk(hgText(it)) + '</' + tag + '>';
+}
+function hgInline(it) {
+  if (CUR || !S.hg) return '';
+  return '<span class="hgi" lang="ko">' + brk(hgText(it)) + '</span>';
+}
+function trShown(it) {
+  if (it.mine && S.dec.e5 === 'B') return !!S.to[it.id];
+  if (S.dec.e4 === 'B' && S.to[it.id] != null) return S.to[it.id];
+  return S.tr;
+}
+function trState(it) {
+  if (!it.mine) return 'ok';
+  if (S.scr === 'talk-fail' && it.id === 'u3') return S.failState;
+  if (S.scr === 'talk-pend' && it.id === 'u3') return 'pend';
+  if (S.dec.e6 === 'B' && !S.fetched[it.id]) { NEED.push(it.id); return 'pend'; }
+  return 'ok';
+}
+function trBlock(it) {
+  if (CUR || !trShown(it)) return '';
+  var st = trState(it);
+  if (st === 'pend') return '<div class="trp"><span class="hgp" aria-hidden="true"></span><span>번역 중…</span></div>';
+  if (st === 'fail') return '<div class="trf"><span>번역을 가져오지 못했어요</span><button type="button" class="fbtn" data-act="retry">다시 가져오기</button></div>';
+  return '<p class="tr">' + it.ko + '</p>';
+}
+function trBtn(it) {
+  if (CUR) return '';
+  if (!((it.mine && S.dec.e5 === 'B') || S.dec.e4 === 'B')) return '';
+  var on = trShown(it);
+  return '<button type="button" class="fbtn" aria-expanded="' + on + '" data-act="tr1" data-id="' + it.id + '">번역 ' + (on ? '▴' : '▾') + '</button>';
+}
+function mk() { return S.mark && !CUR ? ' dnew' : ''; }
+function fuLabel() { return S.dec.e1 === 'B' ? '읽기' : '후리가나'; }
+function togB(act, on, label, extra) {
+  return '<button type="button" class="tog' + (extra || '') + '" aria-pressed="' + on + '" data-act="' + act + '">' + (on ? '<span class="ck" aria-hidden="true">✓</span>' : '') + label + '</button>';
+}
+
+/* ════════ 공용 조각 ════════ */
+function backBtn(label) { return '<button type="button" class="back" aria-label="' + label + '" data-act="noop">' + ICON.back + '</button>'; }
+function dotsBtn() { return '<button type="button" class="icb" aria-label="메뉴" data-act="noop">' + ICON.dots + '</button>'; }
+function indicator() { return '<span class="ind"><span class="dot" aria-hidden="true"></span>온라인</span>'; }
+function appbar(t) { return '<header class="appbar"><h1>' + t + '</h1><button type="button" class="me" aria-label="설정" data-act="noop"><span>브</span></button></header>'; }
+function tabbar(cur) {
+  return '<nav class="tabbar" aria-label="하단 탭">' + TABS.map(function (t, i) {
+    return '<button type="button" class="tab"' + (i === cur ? ' aria-current="page"' : '') + ' data-act="noop"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + t[1] + '"/></svg>' + t[0] + '</button>';
+  }).join('') + '</nav>';
+}
+function popBtn() {
+  if (CUR || S.dec.e3 !== 'B') return '';
+  return '<button type="button" class="icb' + mk() + '" aria-label="표시 설정 — 후리가나·한글·번역" aria-expanded="' + S.pop + '" data-act="pop"><span class="gl" aria-hidden="true"><span lang="ja">あ</span>가</span></button>';
+}
+function swrow(act, on, title, desc) {
+  return '<button type="button" class="swrow" role="switch" aria-checked="' + on + '" data-act="' + act + '"><span class="t"><b>' + title + '</b>' + (desc ? '<span>' + desc + '</span>' : '') + '</span><span class="sw" aria-hidden="true"></span></button>';
+}
+function popPanel(top) {
+  if (CUR || S.dec.e3 !== 'B' || !S.pop) return '';
+  return '<div class="dpop" style="top:' + top + 'px" role="group" aria-label="표시 설정">' +
+    swrow('fu', S.fu, fuLabel(), '한자 위 작은 히라가나') + swrow('hg', S.hg, '한글 발음', '일본어 아래 [한글]') + swrow('tr', S.tr, '번역', S.dec.e5 === 'A' ? '선생님 말·내 말 모두' : '선생님 말') +
+    '<p class="cap">이 방의 모든 말풍선과 앱 전체에 적용돼요.</p></div>';
+}
+function dispBar() {
+  if (CUR || S.dec.e3 !== 'A') return '';
+  return '<div class="dispbar' + mk() + '" role="group" aria-label="이 방 전체 표시"><span class="db-l" aria-hidden="true">표시</span>' +
+    togB('fu', S.fu, fuLabel()) + togB('hg', S.hg, '한글') + togB('tr', S.tr, '번역') + '</div>';
+}
+
+function tutorBubble(it, o) {
+  var body, foot;
+  if (CUR) {
+    var hasR = hasKanji(it.ja);
+    var rdOn = S.ro[it.id] != null ? S.ro[it.id] : true;
+    var trOn = !!S.cto[it.id];
+    body = '<p class="ja" lang="ja">' + plainOf(it.ja) + '</p>' + (hasR && rdOn ? '<p class="rd" lang="ja">' + readOf(it.ja) + '</p>' : '') + (trOn ? '<p class="tr">' + it.ko + '</p>' : '');
+    foot = (hasR ? '<button type="button" class="fbtn" aria-expanded="' + rdOn + '" data-act="crd" data-id="' + it.id + '">읽기 ' + (rdOn ? '▴' : '▾') + '</button>' : '') +
+      '<button type="button" class="fbtn" aria-expanded="' + trOn + '" data-act="ctr" data-id="' + it.id + '">번역 ' + (trOn ? '▴' : '▾') + '</button>';
+  } else {
+    body = jaEl(it, 'ja') + lineRd(it) + hgLine(it) + trBlock(it);
+    foot = trBtn(it);
+  }
+  return '<div class="tut"><div class="avc">' + (o.head ? '<span class="av sm" aria-hidden="true">유</span>' : '') + '</div><div class="col">' +
+    (o.head ? '<p class="tname">' + TEACHER + '</p>' : '') +
+    '<div class="bt"><span class="sr">' + TEACHER + ': </span>' + body + '</div>' +
+    '<div class="bfoot">' + (o.replay ? '<button type="button" class="fbtn" data-act="noop">' + ICON.play + '&nbsp;다시 듣기</button>' : '') + foot +
+    '<time class="tm">' + o.time + '</time></div></div></div>';
+}
+function userBubble(it, o) {
+  var body = CUR ? '<p class="ja" lang="ja">' + plainOf(it.ja) + '</p>' : jaEl(it, 'ja') + lineRd(it) + hgLine(it) + trBlock(it);
+  var pendSr = (!CUR && isPend(it)) ? '<span class="sr">발음과 번역을 준비하고 있어요. </span>' : '';
+  return '<div class="umine"><div class="bu"><span class="sr">나: </span>' + pendSr + body + '</div>' +
+    '<div class="ufoot">' + (o.voice ? '<button type="button" class="fbtn" data-act="noop">' + ICON.play + '&nbsp;내 목소리</button>' : '') + trBtn(it) +
+    '<time>' + o.time + '</time>' + (o.cr ? '<span class="crchip"><span>교정 1 ›</span></span>' : '') + '</div></div>';
+}
+function corrCard(c, counter) {
+  var io = { ja: c.o.map(function (s) { return s[0]; }).join(''), p: c.po, mine: true }, ic = { ja: c.c.map(function (s) { return s[0]; }).join(''), p: c.pc, mine: true };
+  return '<article class="cc" aria-label="교정">' +
+    '<div class="cc-h">' + (counter ? '<span class="cap">' + counter + '</span>' : '') + '<span class="badge neutral">' + c.type + '</span></div>' +
+    '<div class="cc-g"><div class="cc-b"><p class="lb">내 문장</p>' + jaEl(io, 'ja', { segs: c.o, sc: 'del' }) + lineRd(io) + hgLine(io) + '</div>' +
+    '<div class="cc-b"><p class="lb g">이렇게 고쳐요</p>' + jaEl(ic, 'ja', { segs: c.c, sc: 'ins' }) + lineRd(ic) + hgLine(ic) + '</div></div>' +
+    '<p class="cc-x">' + c.x + '</p><p class="cap mt8">선생님 제안이에요. 채택해야 저장돼요.</p>' +
+    '<div class="btnrow"><button type="button" class="btn primary" data-act="noop">채택</button><button type="button" class="btn ghost" data-act="noop">무시</button></div></article>';
+}
+function exprChip(c, hit) {
+  var ja = CUR ? '<span lang="ja">' + plainOf(c.ja) + '</span>' : '<span lang="ja" class="' + fuCls(c).trim() + '">' + rt(c.ja, c) + '</span>';
+  return '<span class="hchip' + (hit ? ' hit' : '') + '">' + ja + hgInline(c) + '<span class="cap">' + c.ko + '</span>' +
+    (c.isNew ? '<span class="badge neutral">새 표현</span>' : '') + (hit ? '<span class="tgk">✓ 썼어요</span>' : '') + '</span>';
+}
+
+/* ════════ 화면 ════════ */
+function talkScreen(variant) {
+  var T = D.talk;
+  var extra = variant ? userBubble(T.u3, { voice: true, time: '14:05' }) : '';
+  var stat = variant === 'pend' ? '선생님이 답을 준비하고 있어요' : '누른 채로 말하고, 다 말하면 손을 떼요';
+  return '<header class="lhead">' + backBtn('회화 목록으로') + '<span class="av" aria-hidden="true">유</span>' +
+    '<div class="lh-m"><h1>' + TEACHER + '<span class="sr">, 회화: 오늘 한 일</span></h1>' + indicator() + '</div>' + popBtn() + dotsBtn() + '</header>' +
+    dispBar() + popPanel(56) +
+    '<div class="scroll" data-scroll><div class="msgs">' +
+    '<p class="divider">오늘 · 14:02</p>' +
+    tutorBubble(T.t1, { head: true, replay: true, time: '14:02' }) +
+    userBubble(T.u1, { voice: true, time: '14:03' }) +
+    corrCard(T.cr, '') +
+    tutorBubble(T.t2, { head: true, replay: true, time: '14:03' }) +
+    userBubble(T.u2, { voice: true, time: '14:04' }) +
+    tutorBubble(T.t3, { head: true, replay: true, time: '14:04' }) +
+    extra +
+    '</div></div>' +
+    '<div class="vbar"><p class="vstat">' + stat + '</p><div class="vrow"><button type="button" class="ib" aria-label="글자로 말하기" data-act="noop">' + ICON.kb + '</button><div class="vc"><button type="button" class="ptt" aria-label="누르고 말하기" data-act="noop"' + (variant === 'pend' ? ' aria-disabled="true" style="opacity:.45"' : '') + '>' + ICON.mic + '</button></div><span></span></div></div>';
+}
+function chatScreen() {
+  var C = D.chat;
+  return '<header class="bar">' + backBtn('채팅 목록으로') + '<div class="bar-m"><h1>주말 이야기</h1><p>채팅 · ' + TEACHER + ' 선생님</p></div>' + popBtn() + dotsBtn() + '</header>' +
+    dispBar() + popPanel(52) +
+    '<div class="scroll" data-scroll><div class="msgs">' +
+    '<p class="divider">오늘 · 09:40</p>' +
+    userBubble(C.c1, { time: '09:40' }) +
+    tutorBubble(C.c2, { head: true, time: '09:40' }) +
+    userBubble(C.c3, { time: '09:41', cr: true }) +
+    tutorBubble(C.c4, { head: true, time: '09:41' }) +
+    userBubble(C.c5, { time: '09:42' }) +
+    '</div></div>' +
+    '<div class="composer"><div class="cin" lang="ja">일본어로 써 보세요</div><button type="button" class="ib send" aria-label="보내기" data-act="noop">' + ICON.up + '</button></div>';
+}
+function reviewScreen() {
+  var P = D.prop;
+  var head = CUR ? '<p class="pw"><span class="pws" lang="ja">' + plainOf(P.ja) + '</span><span class="pr" lang="ja">' + readOf(P.ja) + '</span></p>'
+    : '<p class="pw">' + jaEl(P, 'pws', { tag: 'span' }) + (fuMode() === 'line' ? '<span class="pr" lang="ja">' + readOf(P.ja) + '</span>' : '') + '</p>' + hgLine(P);
+  return '<header class="bar">' + backBtn('채팅방으로') + '<div class="bar-m"><h1>표현 점검</h1><p>주말 이야기</p></div></header>' +
+    '<div class="scroll" data-scroll><div class="page pt">' +
+    '<div class="card flat"><p class="cap">선생님 총평</p><p class="mt4" style="font-size:15px">조사 하나와 동사 활용 하나를 고쳤어요. 짧은 문장으로 주말 이야기를 잘 전했어요.</p></div>' +
+    '<section><h2 class="sec-h">교정 2개</h2><div class="stack mt8">' + corrCard(D.review[0], '1/2') + corrCard(D.review[1], '2/2') + '</div></section>' +
+    '<section><h2 class="sec-h">단어 제안 1개</h2><article class="prop mt8" aria-label="단어 제안"><p class="cap">단어 제안 · 교정 2에서</p>' + head +
+    '<p class="pm">' + P.ko + '</p><div class="btnrow"><button type="button" class="btn primary" data-act="noop">단어장에 추가</button><button type="button" class="btn ghost" data-act="noop">괜찮아요</button></div></article></section>' +
+    '</div></div>';
+}
+function wordRow(w, i) {
+  var hasR = hasKanji(w.ja), s1;
+  if (CUR) s1 = '<span class="wr-s" lang="ja">' + plainOf(w.ja) + '</span>' + (hasR ? '<span class="wr-r" lang="ja">' + readOf(w.ja) + '</span>' : '<span class="wr-r"></span>');
+  else s1 = jaEl(w, 'wr-s', { tag: 'span' }) + (fuMode() === 'line' && hasR ? '<span class="wr-r" lang="ja">' + readOf(w.ja) + '</span>' : '<span class="wr-r"></span>');
+  return '<li><button type="button" class="wr" data-act="sheet" data-i="' + i + '"><span class="wr-1">' + s1 + (w.badge ? '<span class="badge neutral">' + w.badge + '</span>' : '') + '</span>' +
+    hgLine(w, { cls: 's12', tag: 'span' }) +
+    '<span class="wr-2"><span class="wr-m">' + w.ko + '</span>' + (w.stat ? '<span class="cap num">' + w.stat + '</span>' : '') + '</span></button></li>';
+}
+function wordsScreen() {
+  var tools = CUR ? '' : '<span class="tools">' + togB('fu', S.fu, fuLabel(), mk()) + togB('hg', S.hg, '한글', mk()) + '</span>';
+  return appbar('단어장') + '<div class="scroll" data-scroll><div class="page pt">' +
+    '<div class="search" role="search">' + ICON.search + '<span>표현·뜻으로 찾기</span></div>' +
+    '<div class="chips tight"><span class="chip on">전체 7</span><span class="chip">수업</span><span class="chip">교정</span><span class="chip">직접 넣음</span><span class="chip">자주 틀림</span></div>' +
+    '<div class="wtool tight"><span class="cap">최근 넣은 순 · 7개</span>' + tools + '</div>' +
+    '<ul class="wl tight">' + D.words.map(wordRow).join('') + '</ul>' +
+    '</div></div>' + tabbar(3);
+}
+function wsheetScreen() {
+  var w = D.words[0], ex = D.wex;
+  var surf = CUR ? '<p class="wsurf" lang="ja">' + plainOf(w.ja) + '</p><p class="wread" lang="ja">' + readOf(w.ja) + '</p>'
+    : jaEl(w, 'wsurf') + lineRd(w, 'wread') + hgLine(w, { cls: 's14' });
+  var exh = CUR ? '<p class="ja16" lang="ja">' + plainOf(ex.ja) + '</p>' : jaEl(ex, 'ja16') + lineRd(ex) + hgLine(ex);
+  return wordsScreen() + '<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ws-h">' +
+    '<div class="sheet-h"><h2 id="ws-h">단어</h2><button type="button" class="icb" aria-label="닫기" data-act="noop">' + ICON.x + '</button></div>' +
+    surf + '<p class="wmean">' + w.ko + '</p>' +
+    '<dl class="dl"><dt>품사</dt><dd>동사</dd><dt>넣은 곳</dt><dd>오늘의 회화 · 카페 주문</dd><dt>기록</dt><dd class="num">맞힘 3 · 틀림 1</dd></dl>' +
+    '<p class="exh">예문</p>' + exh + '<p class="ko">' + ex.ko + '</p>' +
+    '<div class="btnrow"><button type="button" class="btn ghost" data-act="noop">고치기</button><button type="button" class="btn ghost" data-act="noop">지우기</button></div>' +
+    '</div></div>';
+}
+function deckScreen() {
+  var c = D.deck, on = S.deckRead, mid;
+  if (CUR) mid = '<p class="dk-s" lang="ja">' + plainOf(c.ja) + '</p>' + (on ? '<p class="dk-r" lang="ja">' + readOf(c.ja) + '</p>' : '');
+  else if (!on) mid = '<p class="dk-s" lang="ja">' + plainOf(c.ja) + '</p>';
+  else if (S.dec.e1 === 'B' && S.rstyle === 'line') mid = '<p class="dk-s" lang="ja">' + plainOf(c.ja) + '</p><p class="dk-r" lang="ja">' + readOf(c.ja) + '</p>' + hgLine(c, { cls: 's15' });
+  else mid = '<p class="dk-s fu" lang="ja">' + rubyOf(c.ja) + '</p>' + hgLine(c, { cls: 's15' });
+  return '<header class="bar">' + backBtn('오늘로') + '<div class="bar-m"><h1>오늘의 단어</h1><p class="num">3 / 10 · 뜻 고르기</p></div></header>' +
+    '<div class="prog" aria-hidden="true"><i></i></div>' +
+    '<div class="scroll" data-scroll><div class="page pt">' +
+    '<div class="dk-card"><div class="dk-mid"><div>' + mid + '</div></div></div>' +
+    '<div class="opts4 tight" role="group" aria-label="뜻 고르기">' + c.ch.map(function (t, i) { return '<button type="button" class="opt4" data-act="noop">' + (i + 1) + '. ' + t + '</button>'; }).join('') + '</div>' +
+    '</div></div>' +
+    '<div class="dtl"><button type="button" data-act="noop"><span class="pill">이전</span></button><button type="button" aria-pressed="' + on + '" data-act="deckread"><span class="pill">읽기</span></button><button type="button" data-act="noop"><span class="pill">건너뛰기</span></button><button type="button" data-act="noop"><span class="pill">다음</span></button></div>';
+}
+function steps(cur) {
+  var N = ['이해', '문법', '문제', '응용', '말하기'];
+  return '<nav class="steps" aria-label="수업 단계">' + N.map(function (n, i) {
+    var k = i + 1, cls = k < cur ? 'done' : k === cur ? 'cur' : 'lock';
+    return '<button type="button" class="step ' + cls + '"' + (k === cur ? ' aria-current="step"' : '') + ' data-act="noop"><span class="n">' + (k < cur ? '✓' : k) + '</span>' + n + '</button>';
+  }).join('') + '</nav>';
+}
+function lessonFrame(stage, body, bottom) {
+  return '<header class="lhead">' + backBtn('오늘로') + '<span class="av" aria-hidden="true">유</span><div class="lh-m"><h1><span class="sr">오늘의 회화, 카페 주문: </span><span lang="ja">サイズと温度を伝えよう</span></h1>' + indicator() + '</div></header>' +
+    steps(stage) + '<div class="scroll" data-scroll><div class="page pt">' + body + '</div></div>' + (bottom || '');
+}
+function toolsRow(legend) {
+  var lg = legend ? '<span class="legend"><span class="role ra" aria-hidden="true">A</span>점원 <span class="role rb" aria-hidden="true">B</span>손님</span>' : '';
+  if (CUR) return '<div class="tools tight"><button type="button" class="tog" aria-pressed="' + S.lread + '" data-act="lread">읽기</button><button type="button" class="tog" aria-pressed="' + S.ltrans + '" data-act="ltrans">번역</button>' + lg + '</div>';
+  return '<div class="tools tight">' + togB('fu', S.fu, fuLabel(), mk()) + togB('hg', S.hg, '한글', mk()) + togB('tr', S.tr, '번역') + lg + '</div>';
+}
+function lessonLayers(it, koAlways) {
+  if (CUR) return '<p class="ja" lang="ja">' + plainOf(it.ja) + '</p>' + (S.lread && hasKanji(it.ja) ? '<p class="rd" lang="ja">' + readOf(it.ja) + '</p>' : '') + (it.ko && (koAlways || S.ltrans) ? '<p class="ko">' + it.ko + '</p>' : '');
+  return jaEl(it, 'ja') + lineRd(it) + hgLine(it) + (it.ko && (koAlways || S.tr) ? '<p class="ko">' + it.ko + '</p>' : '');
+}
+function l1Screen() {
+  var lines = D.dlg.map(function (d, i) {
+    return '<div class="ln' + (i === 1 ? ' now' : '') + '"><span class="role r' + d.s.toLowerCase() + '" aria-hidden="true">' + d.s + '</span><div class="lt"><span class="sr">' + ROLES[d.s] + ': </span>' + lessonLayers(d) + '</div></div>';
+  }).join('');
+  var body = '<div class="sh"><h2>① 이해 · 듣고 이해하기</h2><p class="d13">구간마다 느리게 한 번, 보통 속도로 한 번 들어요. 들린 단어를 메모해 두세요.</p></div>' +
+    toolsRow(true) +
+    '<div class="tight"><section class="segc open"><div class="segc-h"><span class="segc-t">구간 1 <span class="cap">· 1~3줄</span></span><span class="cap">느리게 ✓ · 보통</span></div><div class="segc-b">' + lines +
+    '<ol class="ladder" aria-label="듣는 순서"><li class="ok">① 느리게 ✓</li><li class="nx">② 보통 속도</li></ol>' +
+    '<p class="lstat" role="status">보통 속도로 듣는 중 · 2/3줄</p>' +
+    '<div class="memo"><div class="memo-h"><span>들린 단어 메모</span><span class="cap num">2/5</span></div><div class="mchips"><span class="mchip" lang="ja">注文</span><span class="mchip" lang="ja">ホット</span></div></div>' +
+    '</div></section><section class="segc"><div class="segc-h"><span class="segc-t">구간 2 <span class="cap">· 4~6줄</span></span><span class="cap">›</span></div></section></div>';
+  return lessonFrame(1, body);
+}
+function l2Screen() {
+  var g = D.gram;
+  var body = '<div class="sh"><h2>② 문법 · 표현과 문형</h2><p class="d13">오늘 대화의 표현 조각과 문형 1개예요. 예문을 듣고 소리 내어 따라 읽어 보세요.</p></div>' +
+    toolsRow(false) +
+    '<div class="card tight"><h3 class="sec-h">오늘의 표현 4개</h3><p class="d13 mt4">대화에 나온 표현 조각이에요.</p><div class="hchips mt8">' + D.chunks.map(function (c) { return exprChip(c, false); }).join('') + '</div></div>' +
+    '<article class="card"><p class="cap">문형 1</p><h3 class="gp" lang="ja">' + g.pat.ja + '</h3>' + hgLine(g.pat) +
+    '<p class="gx">물건을 달라고 할 때 써요. 갖고 싶은 것 뒤에 ' + J('「を」') + ', 개수는 ' + J('「を」') + ' 뒤에 넣어요.</p>' +
+    '<ul class="exs"><li class="ex"><div class="ex-t"><p class="bl">예문</p>' + lessonLayers(g.ex) + '</div>' +
+    '<button type="button" class="pbtn" aria-label="예문 듣기" data-act="noop">' + ICON.play + '</button></li></ul></article>';
+  return lessonFrame(2, body);
+}
+function l3Screen(kana) {
+  var list = kana ? D.q4 : D.q1, n = kana ? 4 : 1;
+  var prompt = kana ? '빈칸에 알맞은 말은? ' + J('「冷たい＿をお願いします。」') : '“커피 하나 주세요”를 일본어로 하면?';
+  var dots = [1, 2, 3, 4, 5].map(function (k) { return '<span class="qd' + (k < n ? ' ok' : k === n ? ' cur' : '') + '">' + (k < n ? '✓' : k) + '</span>'; }).join('');
+  var body = '<div class="sh"><h2>③ 문제 · 5문제</h2><p class="d13">답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요.</p></div>' +
+    ((kana || CUR) ? '' : toolsRow(false)) +
+    '<div class="qtop tight"><span class="qn">문제 ' + n + ' / 5</span><span class="dots" aria-hidden="true">' + dots + '</span></div>' +
+    '<div class="card tight"><p class="qp">' + prompt + '</p><div role="group" aria-label="보기">' + list.map(function (c, i) {
+      var cj = CUR ? '<span class="cj" lang="ja">' + plainOf(c.ja) + '</span>' : jaEl(c, 'cj', { tag: 'span' }) + lineRd(c);
+      return '<button type="button" class="choice" data-act="noop"><span class="no">' + (i + 1) + '</span><span class="ct">' + cj + hgLine(c, { cls: 's12', tag: 'span' }) + '</span></button>';
+    }).join('') + '</div></div>';
+  return lessonFrame(3, body);
+}
+function l4Screen() {
+  var A = D.app, m = A.model;
+  var mine = CUR ? '<p class="ja" lang="ja">' + plainOf(A.mine.ja) + '</p>' : jaEl(A.mine, 'ja') + lineRd(A.mine) + hgLine(A.mine);
+  var body = '<div class="sh"><h2>④ 응용 · 문장 만들기 3개</h2><p class="d13">상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요.</p></div>' +
+    '<div class="qtop tight"><span class="qn">상황 1 / 3</span><span class="dots" aria-hidden="true"><span class="qd cur">1</span><span class="qd">2</span><span class="qd">3</span></span></div>' +
+    '<div class="card tight"><p class="sit">추운 날이에요. 따뜻한 홍차를 하나 주문해 보세요.</p><p class="cap mt8">써 볼 표현</p><div class="hchips">' + A.tg.map(function (c) { return exprChip(c, false); }).join('') + '</div>' +
+    '<div class="cmp-g"><div class="box"><p class="bl">내 문장</p>' + mine + '</div>' +
+    '<div class="box"><p class="bl g">모범 답안</p>' + lessonLayers(m, true) +
+    '<button type="button" class="pwide" data-act="noop">' + ICON.play + ' 모범 답안 듣기</button></div></div>' +
+    '<p class="cap mt8">채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요.</p></div>' +
+    '<button type="button" class="btn primary full" data-act="noop">다음 상황</button>';
+  return lessonFrame(4, body);
+}
+function l5Screen() {
+  var K = D.spk, m = K.model;
+  var said = CUR ? '<p class="ja" lang="ja">' + plainOf(K.said.ja) + '</p>' : jaEl(K.said, 'ja') + lineRd(K.said) + hgLine(K.said);
+  var body = '<div class="sh"><h2>⑤ 말하기 · 과제 3개</h2><p class="d13">목표 표현을 넣어 말해 보세요. 아래 버튼을 누른 채로 말해요.</p></div>' +
+    '<div class="qtop tight"><span class="qn">과제 1 / 3</span><span class="dots" aria-hidden="true"><span class="qd cur">1</span><span class="qd">2</span><span class="qd">3</span></span></div>' +
+    '<div class="card tight"><p class="sit">더운 날이에요. 차가운 커피를 작은 사이즈로 주문해 보세요.</p><p class="cap mt8">목표 표현</p><div class="hchips">' + K.tg.map(function (c) { return exprChip(c, true); }).join('') + '</div>' +
+    '<div class="said"><p class="bl">내가 한 말</p><div class="bub">' + said + '</div><br><button type="button" class="alink" data-act="noop">' + ICON.play + '&nbsp;내 목소리</button></div>' +
+    '<p class="res" role="status">✓ 목표 표현을 모두 썼어요</p>' +
+    '<div class="box mt8"><p class="bl g">모범 답안</p>' + lessonLayers(m, true) +
+    '<button type="button" class="pwide" data-act="noop">' + ICON.play + ' 모범 답안 듣기</button></div></div>' +
+    '<button type="button" class="btn primary full" data-act="noop">다음 과제</button>';
+  var bar = '<div class="vbar"><p class="vstat">다시 하려면 또 누르고 말해요</p><div class="vrow"><button type="button" class="ib" aria-label="글자로 답하기" data-act="noop">' + ICON.kb + '</button><div class="vc"><button type="button" class="ptt" aria-label="누르고 말하기" data-act="noop">' + ICON.mic + '</button></div><span></span></div></div>';
+  return lessonFrame(5, body, bar);
+}
+function settingsScreen() {
+  var s = D.sample, sec = '';
+  if (!CUR) {
+    var pv = jaEl(s, 'ja') + lineRd(s) + hgLine(s) + (S.tr ? '<p class="ko">' + s.ko + '</p>' : '');
+    var pos = S.dec.e1 === 'B' ? '<div class="srow"><span>읽기 위치</span><span class="rseg" role="group" aria-label="읽기 위치"><button type="button" aria-pressed="' + (S.rstyle === 'ruby') + '" data-act="rs" data-v="ruby">한자 위</button><button type="button" aria-pressed="' + (S.rstyle === 'line') + '" data-act="rs" data-v="line">문장 아래</button></span></div>' : '';
+    sec = '<section><h2 class="shdr">일본어 표시</h2><div class="card' + mk() + '">' +
+      swrow('fu', S.fu, S.dec.e1 === 'B' ? '읽기(히라가나) 보기' : '후리가나 보기', '한자 위에 작은 히라가나로 읽기를 적어요.') + pos +
+      swrow('hg', S.hg, '한글 발음 보기', '일본어 아래에 한글로 소리를 적어요.') +
+      swrow('tr', S.tr, '번역 펼쳐 두기', S.dec.e5 === 'A' ? '선생님 말과 내 말의 뜻을 처음부터 펼쳐요.' : '선생님 말의 뜻을 처음부터 펼쳐요.') +
+      '<div class="sdesc"><span>회화방·채팅방 위 표시 바' + (S.dec.e3 === 'B' ? '(머리 [あ가])' : '') + ', 오늘의 회화·단어장 도구 줄에서도 바꿀 수 있어요. 어디서 바꾸든 같은 값이에요.</span>' +
+      '<span>한글은 소리를 짐작하는 도움말이에요. 정확한 소리는 선생님 목소리로 들어 보세요.</span></div>' +
+      '<div class="pv"><p class="cap">미리 보기</p>' + pv + (!S.fu && !S.hg ? '<p class="cap mt4">후리가나와 한글을 모두 숨겼어요</p>' : '') + '</div>' +
+      '</div></section>';
+  }
+  return appbar('설정') + '<div class="scroll" data-scroll><div class="page pt">' +
+    '<section class="dim"><h2 class="shdr">기본정보 · 학습</h2><div class="card"><div class="srow"><span>내 이름</span><span>브라운</span></div><div class="srow"><span>지금 수준</span><span>N5</span></div><div class="srow"><span>교정 강도</span><span>보통</span></div></div></section>' +
+    sec +
+    '<section class="dim"><h2 class="shdr">목소리</h2><div class="card"><div class="srow"><span>선생님 목소리</span><span>유우 · 차분하게</span></div><div class="srow"><span>학습 속도</span><span>0.8배</span></div></div></section>' +
+    '</div></div>' + tabbar(-1);
+}
+function screen(id) {
+  switch (id) {
+    case 'talk': return talkScreen('');
+    case 'talk-pend': return talkScreen('pend');
+    case 'talk-fail': return talkScreen('fail');
+    case 'chat': return chatScreen();
+    case 'review': return reviewScreen();
+    case 'words': return wordsScreen();
+    case 'wsheet': return wsheetScreen();
+    case 'deck': return deckScreen();
+    case 'l1': return l1Screen();
+    case 'l2': return l2Screen();
+    case 'l3': return l3Screen(false);
+    case 'l3b': return l3Screen(true);
+    case 'l4': return l4Screen();
+    case 'l5': return l5Screen();
+    default: return settingsScreen();
+  }
+}
+
+/* ════════ 옆 설명 ════════ */
+function notes(id) {
+  var bar = S.dec.e3 === 'A' ? '머리 아래 표시 바 [' + fuLabel() + '][한글][번역] = 앱 전체 설정 3개(E3-A). 누르면 방 안 모든 말풍선이 바로 바뀌고 토스트로 알려요.' : '머리 [あ가] → 스위치 3개 패널(E3-B). 패널은 대화를 가리지 않게 오른쪽 위에 작게.';
+  var tr1 = S.dec.e4 === 'B' ? '말풍선 아래 [번역 ▾] = 이 말풍선만(E4-B). 표시 바에서 번역을 바꾸면 개별로 연 것도 그 값으로 맞춰져요.' : '말풍선별 조작 없음(E4-A) — 번역도 표시 바로만.';
+  var mine = S.dec.e5 === 'A' ? '내 말 번역은 번역 스위치를 따라요(E5-A).' : '내 말 번역은 말풍선 아래 [번역 ▾]로 하나씩(E5-B).';
+  var N = {
+    talk: ['회화방', ['층 순서: 후리가나(한자 위) → 일본어 → [한글] → 번역. 선생님 말과 내 말이 같은 규칙.', bar, tr1, mine, '말풍선마다 있던 [읽기 ▾]는 없어요 — 후리가나는 일괄로만.', '교정 카드 두 칸에도 후리가나·한글. 지운 글자(빨강 취소선)·넣은 글자(초록 밑줄) 위에도 후리가나가 얹혀요.', '말하는 동안 보이는 인식 자막에는 달지 않아요(글자가 계속 바뀌어서).']],
+    'talk-pend': ['회화방 · 내 말 준비 중', ['방금 보낸 내 말(맨 아래): 서버가 읽기를 구하는 동안 후리가나 자리는 비워 두고(줄간격은 미리 넓혀 둬서 채워질 때 세로로 밀리지 않음) [한글] 자리엔 옅은 막대.', '번역이 켜져 있으면 “번역 중…” — 선생님 답(5초 안)과 따로 뒤에서 만들어요. 이 상태를 보여 주려고 번역을 켰어요.', '스크린리더는 “발음과 번역을 준비하고 있어요” 한 번(말풍선 안 숨김 글자). 막대는 움직임 줄이기 설정이면 멈춰요.', '읽기를 못 구하면 막대를 지우고 그 줄은 비워요(틀린 발음 대신 빈칸 — v1 원칙).']],
+    'talk-fail': ['회화방 · 내 말 번역 실패', ['번역만 실패: 맨 아래 내 말에 “번역을 가져오지 못했어요 · [다시 가져오기]”(44px). 누르면 “번역 중…” → 번역. 눌러 보세요.', '대화·후리가나·한글은 그대로 — 실패가 대화를 막지 않아요.', '오류 문구는 번역 칸 안에서만, 토스트·빨간색 없이(학습 흐름을 끊지 않음).']],
+    chat: ['채팅방', ['회화방과 같은 표시 바(같은 말풍선 부품). 가나로만 쓴 내 말도 서버 분석으로 は → 와, 띄어쓰기 소리대로.', 'あしたはやすみです。: 한자가 없어 후리가나 없음, 줄간격도 그대로.', mine, '입력창에 쓰는 동안에는 달지 않아요(보낸 뒤 말풍선에).']],
+    review: ['표현 점검', ['교정 카드: 카드 폭 320px 이상이면 두 칸, 아니면 위아래(360). 칸이 좁아도 후리가나는 한자 위에만 얹혀 칸 폭을 늘리지 않아요(읽기가 한자보다 길면 그 한자 사이만 살짝 벌어짐).', '단어 제안: 표제어 위 후리가나 · 아래 [한글]. 표제어 옆 히라가나(えいが)는 후리가나가 대신해요.', '설명·총평(한국어) 속 일본어 인용 「…」에는 달지 않아요.']],
+    words: ['단어장 목록', ['행 = 표제어(위 후리가나) · 뱃지 / [한글] / 뜻. 표제어 옆 읽기 칸은 후리가나가 대신해요.', '행 높이(한자 단어): 둘 다 켬 약 102px · 후리가나만 약 80 · 한글만 약 92 · 둘 다 끔 지금과 같음(약 71).', '도구 줄 [' + fuLabel() + '][한글] = 같은 앱 설정. 번역(뜻)은 단어장에선 늘 보여서 버튼 없음.', '가타카나 단어(コーヒー)는 한자가 없어 후리가나 없음 · 한글은 붙어요.']],
+    wsheet: ['단어 상세 시트', ['표제어 28px 위 후리가나 13px → [한글] 14 → 뜻.', '예문도 후리가나·한글(서버 분석).', '고치기 폼(입력칸)에는 달지 않아요.']],
+    deck: ['오늘의 단어 카드', ['외우기 카드라 예외: 앱 설정과 상관없이 카드의 [읽기]를 켰을 때만 후리가나(16px) + [한글].', '[읽기] 끔 = 한자만(지금과 같음). 아래 도구 줄 [읽기]를 눌러 보세요.', '한글 발음 설정이 꺼져 있으면 [읽기]를 켜도 [한글]은 없어요(v1 그대로).']],
+    l1: ['① 이해', ['도구 줄 [' + fuLabel() + '][한글][번역] — 이름만 바뀌고 자리는 그대로(v1 [읽기] → [' + fuLabel() + ']).', '세 값은 회화방 표시 바와 같은 앱 설정이에요(번역도 함께 — Leader 확인 대상).', '재생 중 줄(옅은 주황) 안에서도 후리가나 명암비 충분(ink2).', '느리게 들을 때 글자를 가리는 동안에는 후리가나·한글도 가려요.', '들린 단어 메모 칩·입력칸에는 달지 않아요.']],
+    l2: ['② 문법', ['표현 칩: 일본어(위 후리가나) · [한글] · 뜻 — 좁으면 칩 안에서 줄바꿈, 후리가나가 있는 칩은 약 10px 높아져요.', '문형(〜をください)은 한자가 없어 후리가나 없음.', '예문: 후리가나 · [한글] · 번역(번역 스위치).']],
+    l3: ['③ 문제 — 한자 보기', ['보기 안 일본어 위 후리가나 · 아래 [한글] 12.5px — 보기 높이 52 → 약 80px(둘 다 켬).', '후리가나·한글은 소리만 보여 줘서 정답 힌트가 되지 않아요.', '이 화면에도 도구 줄을 둬서 문제 중에 끌 수 있어요(v1 엔 없었음).']],
+    l3b: ['③ 문제 — 가나 보기', ['가나 보기(の·が·に·で)는 후리가나 없음 · 한글만.', '빈칸 문제의 문제 문장(한국어 + 일본어 인용)에는 달지 않아요.']],
+    l4: ['④ 응용 — 비교', ['내 문장: 제출 뒤 서버 분석으로 후리가나·한글(회화방 내 말과 같은 경로).', '모범 답안: 후리가나·한글·뜻(뜻은 지금처럼 늘 보임).', '쓰는 동안(입력칸)에는 달지 않아요.']],
+    l5: ['⑤ 말하기 — 결과', ['내가 한 말 말풍선: 후리가나·[한글].', '목표 표현 칩·모범 답안에도 후리가나·한글.', '녹음 중 인식 자막에는 달지 않아요.']],
+    settings: ['설정 › 일본어 표시', ['스위치 3개(후리가나·한글 발음·번역) — 바로 저장, 기기가 달라도 같은 값(사용자 설정).', '기본: 후리가나 ' + (S.dec.e2 === 'A' ? '켬' : '끔') + '(E2) · 한글 켬(Q7) · 번역 끔(지금과 같음).', S.dec.e1 === 'B' ? '읽기 위치 “한자 위 | 문장 아래”(E1-B) — 눌러 보세요.' : '읽기 위치 선택 없음(E1-A, 후리가나 하나).', '미리 보기가 지금 값으로 바로 바뀌어요.']]
+  };
+  return N[id] || N.talk;
+}
+function renderSide() {
+  var n = notes(S.scr);
+  var lay = '<div class="layers" aria-label="말풍선 한 개의 층"><p class="ja fu" lang="ja">' + rubyOf('今日{きょう}は') + '</p><span class="lv">후리가나 11 · 본문 17</span>' +
+    '<p class="hg" lang="ko">' + brk(HG.convert('キョーワ', 'A', 'B')) + '</p><span class="lv">한글 13 · ink2</span>' +
+    '<p class="ko" style="font-size:15px;margin:0">오늘은</p><span class="lv">번역 15 · ink2</span></div>';
+  var html = '<div class="dcard"><h2>이 화면에서 바뀌는 곳</h2><p class="dk">' + n[0] + '</p><ul class="dn">' + n[1].map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>' +
+    '<p class="dsub mt8">보기 › “현재”는 운영 중 화면, “현재 vs 제안”은 나란히. 위쪽 “표시”는 앱의 세 스위치와 같은 값이에요.</p></div>' +
+    '<div class="dcard"><h2>공통 배치 규칙</h2>' + lay + '<ul class="dn mt8">' +
+    '<li>후리가나는 <b>한자 위에만</b>(가나·가타카나 위에는 없음), 送り仮名 위에는 얹지 않아요(面白<b>い</b>).</li>' +
+    '<li>후리가나 11px(최소) ink2 · 루비가 있는 블록만 줄간격 1.7 → 2.1(17px 기준 줄마다 약 +7px).</li>' +
+    '<li>[한글]은 v1 그대로 — 대괄호, 13px(목록·보기 12.5 · 칩 12 · 단어 상세 14 · 단어 카드 15), 줄바꿈 허용.</li>' +
+    '<li>번역은 말풍선 안 구분선 아래 15px(선생님·내 말 같음).</li>' +
+    '<li>후리가나·한글은 표시만 — 복사·단어장 저장·음성에 쓰지 않아요(후리가나는 선택·복사 제외, 스크린리더는 본문만 읽음).</li></ul></div>' +
+    '<div class="dcard"><h2>v1 → v2 바뀐 점</h2><ul class="dn">' +
+    '<li>읽기: 문장 아래 히라가나 줄 → <b>한자 위 후리가나</b>' + (S.dec.e1 === 'B' ? '(E1-B: 설정에서 문장 아래도 고를 수 있음)' : '(E1-A: 히라가나 줄 없앰)') + '.</li>' +
+    '<li>말풍선마다 [읽기 ▾] 없앰 → 방 전체 일괄 ' + (S.dec.e3 === 'A' ? '표시 바' : '표시 패널') + '(IMP-0018). v1 의 머리 [한글] 버튼도 여기로.</li>' +
+    '<li><b>내 말</b>도 후리가나·한글·번역(서버 읽기 + 서버 번역, 잠깐 뒤 채워짐·실패 상태 추가).</li>' +
+    '<li>오늘의 회화 도구 줄 [읽기][번역][한글 발음] → [' + fuLabel() + '][한글][번역] — 셋 다 앱 설정과 같은 값. ③ 문제에도 도구 줄.</li>' +
+    '<li>단어장·단어 제안: 표제어 옆 읽기 칸 → 표제어 위 후리가나. 도구 줄 [' + fuLabel() + '][한글].</li>' +
+    '<li>설정 › 일본어 표시: 스위치 1개 → 3개 + 미리 보기 4층.</li></ul></div>' +
+    '<div class="dcard"><h2>적용 범위</h2><table class="dtbl"><thead><tr><th>자리</th><th>후리가나 · 한글 · 번역</th></tr></thead><tbody>' +
+    [['선생님 말(회화·채팅)', '셋 다(일괄)'], ['내 말(회화·채팅)', '셋 다 — 잠깐 뒤 채워짐' + (S.dec.e5 === 'B' ? ', 번역은 말풍선별' : '')], ['교정 카드 두 칸', '후리가나·한글'], ['수업 대화·예문·모범 답안', '셋 다(모범 답안 뜻은 늘)'], ['표현 칩·문제 보기', '후리가나·한글(칩 뜻은 늘)'], ['단어장·단어 제안·상세', '후리가나·한글(뜻은 늘)'], ['오늘의 단어 카드', '카드 [읽기] 켰을 때만'], ['입력칸·메모 칩·인식 중 자막·제목·한국어 속 인용·관리자 콘솔', '달지 않음']]
+      .map(function (r) { return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  document.getElementById('side').innerHTML = html;
+}
+
+/* ════════ 결정 패널 ════════ */
+function renderPanel() {
+  var L = { e1: { A: '후리가나로 대신', B: '둘 다·설정에서' }, e2: { A: '후리가나+한글 켬', B: '한글만 켬' }, e3: { A: '머리 아래 표시 바', B: '아이콘 → 패널' }, e4: { A: '일괄만', B: '일괄 + 말풍선별 번역' }, e5: { A: '내 말도 같이', B: '내 말은 따로' }, e6: { A: '보낼 때 미리', B: '켰을 때만' } };
+  var R = { e1: 'A', e2: 'A', e3: 'A', e4: 'B', e5: 'A', e6: 'A' };
+  var allRec = Object.keys(R).every(function (k) { return S.dec[k] === R[k]; });
+  document.getElementById('dsum').innerHTML = '<b>지금 선택</b> — ' + Object.keys(L).map(function (k) { return k.toUpperCase() + ' ' + S.dec[k] + '(' + L[k][S.dec[k]] + ')'; }).join(' · ') +
+    (allRec ? ' <span class="badge good">모두 권고안</span>' : '') +
+    '<br>서버 작업(Leader 사양): 형태소별 읽기(루비·한글 바탕) · 내 말 번역 ' + (S.dec.e6 === 'A' ? '보낼 때마다 비동기 생성' : '켤 때 요청해 생성') + ' · 두 값의 응답 필드·저장.';
+  Array.prototype.forEach.call(document.querySelectorAll('.opt[data-dec]'), function (el) {
+    var on = S.dec[el.getAttribute('data-dec')] === el.getAttribute('data-v');
+    el.classList.toggle('on', on);
+    el.querySelector('input').checked = on;
+    el.querySelector('.sel').textContent = on ? '✓ 선택됨' : '선택 안 함';
+  });
+}
+
+/* ════════ 틀 · 배율 ════════ */
+var stageEl = document.getElementById('stage');
+var LAST = null;
+function frames() {
+  if (S.triple) return { base: [360, 390, 412], list: [360, 390, 412].map(function (w) { return { label: w === 390 ? '대표 폭(앱 WebView)' : '경계 폭', w: w, cur: S.view === 'cur' }; }) };
+  if (S.view === 'cmp') return { base: [S.w, S.w], list: [{ label: '현재 · 운영 중', w: S.w, cur: true }, { label: '제안 · v2', w: S.w, cur: false }] };
+  return { base: [S.w], list: [{ label: (S.view === 'cur' ? '현재 · 운영 중' : '제안 · v2') + ' · ' + (S.w === 390 ? '대표 폭(앱 WebView)' : '경계 폭'), w: S.w, cur: S.view === 'cur' }] };
+}
+function applyScale() {
+  if (!LAST) return;
+  var n = LAST.list.length, gap = 22;
+  var availW = stageEl.clientWidth;
+  var top = document.querySelector('.dtop');
+  var topH = getComputedStyle(top).position === 'sticky' ? top.offsetHeight : 0;
+  var availH = window.innerHeight - topH - 92;
+  var sBase = Math.min(1, availW / 412, availH / 780);
+  var sum = LAST.base.reduce(function (a, b) { return a + b; }, 0);
+  var sRow = (availW - (n - 1) * gap) / sum;
+  var row = n > 1 && sRow >= 0.45;
+  var sc = row ? Math.min(sBase, sRow) : sBase;
+  sc = Math.max(0.3, Math.floor(sc * 1000) / 1000);
+  stageEl.style.setProperty('--s', String(sc));
+  stageEl.classList.toggle('row', row);
+  var pct = Math.round(sc * 100);
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-scale-cap]'), function (e) { e.textContent = pct >= 100 ? '실제 크기' : '화면에 맞춰 ' + pct + '% 축소'; });
+}
+function render() {
+  var scrolls = Array.prototype.map.call(stageEl.querySelectorAll('[data-frame]'), function (f) { var sc = f.querySelector('[data-scroll]'); return sc ? sc.scrollTop : 0; });
+  var fr = frames();
+  LAST = fr;
+  NEED = [];
+  stageEl.innerHTML = fr.list.map(function (f) {
+    CUR = f.cur;
+    var inner = screen(S.scr);
+    CUR = false;
+    return '<figure class="fw w' + f.w + '"><figcaption><b>' + f.w + 'px</b> · ' + f.label + '<br><span class="sc" data-scale-cap></span></figcaption>' +
+      '<div class="fbox w' + f.w + ' h780"><div class="phone w' + f.w + ' h780" data-frame><div class="app">' + inner +
+      (S.toast ? '<div class="toast" role="status">' + S.toast + '</div>' : '') + '</div></div></div></figure>';
+  }).join('');
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-frame]'), function (f, i) { var sc = f.querySelector('[data-scroll]'); if (sc && scrolls[i]) sc.scrollTop = scrolls[i]; });
+  applyScale();
+  renderNav();
+  renderSide();
+  renderPanel();
+  syncTop();
+  /* E6-B: 아직 없는 내 말 번역을 이때 요청 → 1.5초 뒤 채워짐(데모 흉내) */
+  NEED.forEach(function (id) {
+    if (S.loading[id]) return;
+    S.loading[id] = true;
+    setTimeout(function () { S.fetched[id] = true; delete S.loading[id]; render(); }, 1500);
+  });
+}
+function renderNav() {
+  document.getElementById('dnav').innerHTML = NAV.map(function (g) {
+    return '<h2>' + g[0] + '</h2>' + g[1].map(function (x) {
+      return '<button type="button" data-scr="' + x[0] + '"' + (S.scr === x[0] ? ' aria-current="true"' : '') + '>' + x[1] + '<span class="did">#' + x[0] + '</span></button>';
+    }).join('');
+  }).join('');
+}
+function syncTop() {
+  function set(id, attr, val) { Array.prototype.forEach.call(document.querySelectorAll('#' + id + ' button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute(attr) === val)); }); }
+  set('d-w', 'data-w', S.triple ? 'all' : String(S.w));
+  set('d-v', 'data-v', S.view);
+  set('d-m', 'data-m', S.mark ? 'on' : 'off');
+  set('d-t', 'data-t', S.theme);
+  Array.prototype.forEach.call(document.querySelectorAll('#d-lay button'), function (b) { var k = b.getAttribute('data-lay'); b.setAttribute('aria-pressed', String(!!S[k])); if (k === 'fu') b.textContent = fuLabel(); });
+  Array.prototype.forEach.call(document.querySelectorAll('#d-v button'), function (b) { b.setAttribute('aria-disabled', String(S.triple && b.getAttribute('data-v') === 'cmp')); });
+}
+function showToast(t) {
+  S.toast = t;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { S.toast = ''; render(); }, 2200);
+}
+function pageToast(t) {
+  var el = document.getElementById('dtoast');
+  el.textContent = t; el.hidden = false;
+  clearTimeout(pageToast.t);
+  pageToast.t = setTimeout(function () { el.hidden = true; }, 2000);
+}
+var TOAST = {
+  fu: function () { return (S.fu ? fuLabel() + '를 보여 줘요' : fuLabel() + '를 숨겼어요') + ' · 모든 화면에 적용돼요'; },
+  hg: function () { return (S.hg ? '한글 발음을 보여 줘요' : '한글 발음을 숨겼어요') + ' · 모든 화면에 적용돼요'; },
+  tr: function () { return (S.tr ? '번역을 모두 펼쳤어요' : '번역을 모두 접었어요') + ' · 모든 화면에 적용돼요'; }
+};
+function flip(k) { S[k] = !S[k]; if (k === 'tr') S.to = {}; }
+
+/* ════════ 이벤트 ════════ */
+stageEl.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-act]');
+  if (!b) return;
+  var a = b.getAttribute('data-act'), id = b.getAttribute('data-id');
+  if (a === 'fu' || a === 'hg' || a === 'tr') { flip(a); showToast(TOAST[a]()); }
+  else if (a === 'pop') { S.pop = !S.pop; }
+  else if (a === 'tr1') { S.to[id] = !trShown(ITEMS[id]); }
+  else if (a === 'crd') { S.ro[id] = !(S.ro[id] != null ? S.ro[id] : true); }
+  else if (a === 'ctr') { S.cto[id] = !S.cto[id]; }
+  else if (a === 'lread') { S.lread = !S.lread; }
+  else if (a === 'ltrans') { S.ltrans = !S.ltrans; }
+  else if (a === 'deckread') { S.deckRead = !S.deckRead; }
+  else if (a === 'rs') { S.rstyle = b.getAttribute('data-v'); }
+  else if (a === 'retry') { S.failState = 'pend'; setTimeout(function () { S.failState = 'ok'; render(); }, 1200); }
+  else if (a === 'sheet') { go('wsheet'); return; }
+  else { pageToast('데모에서는 이 버튼이 동작하지 않아요'); return; }
+  render();
+});
+document.getElementById('dnav').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-scr]');
+  if (b) go(b.getAttribute('data-scr'));
+});
+function prepState(id) {
+  S.failState = 'fail'; S.pop = false;
+  if (id === 'talk-pend' || id === 'talk-fail') {
+    if (S.dec.e5 === 'B') S.to.u3 = true; else if (!S.tr) S.tr = true;
+  }
+}
+function go(id) {
+  S.scr = id;
+  prepState(id);
+  try { history.replaceState(null, '', '#' + id); } catch (err) { /* 무시 */ }
+  render();
+  Array.prototype.forEach.call(stageEl.querySelectorAll('[data-scroll]'), function (s) { s.scrollTop = /^talk-/.test(id) ? s.scrollHeight : 0; });
+}
+document.querySelector('.dtop').addEventListener('click', function (e) {
+  var b = e.target.closest('button');
+  if (!b) return;
+  if (b.id === 'd-reset') { var keep = S.theme; S = fresh(); S.theme = keep; go('talk'); return; }
+  if (b.hasAttribute('data-w')) { var w = b.getAttribute('data-w'); if (w === 'all') { S.triple = true; if (S.view === 'cmp') S.view = 'prop'; } else { S.triple = false; S.w = +w; } }
+  else if (b.hasAttribute('data-v')) { if (b.getAttribute('aria-disabled') === 'true') return; S.view = b.getAttribute('data-v'); }
+  else if (b.hasAttribute('data-lay')) { flip(b.getAttribute('data-lay')); }
+  else if (b.hasAttribute('data-m')) { S.mark = b.getAttribute('data-m') === 'on'; }
+  else if (b.hasAttribute('data-t')) { S.theme = b.getAttribute('data-t'); if (S.theme === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', S.theme); }
+  else return;
+  render();
+});
+document.getElementById('dpanel').addEventListener('change', function (e) {
+  var t = e.target;
+  if (!t || !t.name || !/^e[1-6]$/.test(t.name)) return;
+  S.dec[t.name] = t.value;
+  if (t.name === 'e1' && t.value === 'A') S.rstyle = 'ruby';
+  if (t.name === 'e2') S.fu = t.value === 'A';
+  if (t.name === 'e3') S.pop = t.value === 'B';
+  if (t.name === 'e4' || t.name === 'e5') { S.to = {}; prepState(S.scr); }
+  if (t.name === 'e6') { S.fetched = {}; S.loading = {}; }
+  render();
+});
+window.addEventListener('resize', applyScale);
+window.addEventListener('hashchange', function () { var h = location.hash.slice(1); if (IDS.indexOf(h) >= 0 && h !== S.scr) go(h); });
+
+var h0 = location.hash.slice(1);
+if (IDS.indexOf(h0) >= 0) { S.scr = h0; prepState(h0); }
+render();
+})();
+</script>
+</body>
+</html>

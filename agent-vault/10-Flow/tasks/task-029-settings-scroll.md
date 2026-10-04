@@ -1,7 +1,7 @@
 ---
 task_id: task-029
 title: "개선 — 설정 화면 끝에서 페이지 전체가 밀려 하단 탭이 위로 올라오는 스크롤 (IMP-0023)"
-status: doing
+status: done
 base_ref: 0f8e54f
 risk_level: R1
 origin: improvement
@@ -153,7 +153,14 @@ demo_gate:
 
 **결론:** Reviewer 의 high_risk_areas ①②③④⑤⑦ 모두 **PASS**. ⑥ 콘솔 에러는 task-029 범위 밖. ⑧⑨ 상호작용은 테스트 데이터 부족으로 Playwright 검증 불가 → 사용자 육안 확인. ⑩ 실기기는 사용자 몫.
 
+## Leader 기록 (운영 반영, 2026-10-04 10:52)
+- 커밋 `0bd8275` → webhook 배포(릴리스 `20261004-105127-0bd82757`, pm2 3개 online·restart 0, health ok). 웹 배포만으로 앱에도 반영(네이티브 변경 없음).
+- 판단 기록: intake standard(bug_investigation)·sonnet·데모 not_required(judge 결과로 init — 개발자가 게이트 미초기화로 1회 멈춤) · C2 Codex 불필요.
+
 ## 최종 요약 (Leader)
+**무엇을**: 설정 화면을 끝까지 내리면 하단 탭까지 밀려 올라가던 문제(IMP-0023)를 고쳤습니다. 원인은 화면에 안 보이는 스크린리더용 안내 요소가 본문 스크롤 영역 대신 페이지 전체를 기준으로 놓여 페이지를 길게 만든 것이었고, 앱 화면 틀의 본문 영역에 CSS 한 줄(`relative`)을 넣어 해결했습니다. 오늘 탭에 숨어 있던 같은 결함(107px 넘침)도 함께 사라졌습니다.
+**검증**: REV-085 PASS · QA 6화면×3폭×2높이 36/36·키보드 열림 3/3 · 운영 배포 health ok.
+**남은 것**: 사용자 폰(S25+) 확인 — 설정 끝까지 스크롤·회화/채팅 스크롤. QA 미확인(데이터 없음): 메시지 목록 "맨 아래로"·단어 카드 스와이프(Reviewer 는 영향 없음 판정).
 
 ## 데모 검토 (demo gate)
 
