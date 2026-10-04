@@ -46,7 +46,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="min-w-0">
         <AppUpdateBanner />
       </div>
-      <main className="min-h-0 min-w-0 overflow-y-auto bg-ground">{children}</main>
+      {/* `relative`: `sr-only`(absolute) 등이 초기 블록을 기준으로 잡히면 이 `overflow-y-auto` 클립을 벗어나 문서가 콘텐츠 길이만큼 스크롤되고
+          하단 탭이 화면 위로 밀린다(task-029 IMP-0023 — 설정 2992px·오늘 999px). 셸이 아니라 main 에 두어 숨은 입력의 focus() 가 셸을 스크롤시키지도 않게 한다. */}
+      <main className="relative min-h-0 min-w-0 overflow-y-auto bg-ground">{children}</main>
       <TabBar />
     </div>
   )
