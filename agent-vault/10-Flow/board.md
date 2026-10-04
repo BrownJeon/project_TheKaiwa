@@ -53,6 +53,12 @@ tags:
   - [[task-026-improve-hangul-reading]] — 한글 발음 표기+토글(IMP-0009·0015, R2·**데모 delta v1 승인 2026-10-01**)
   - 보류: IMP-0011(카드 결과 초이스 통일 — Q9 예제 검토 대기) · IMP-0004(카톡 연동 2단계 자동 수집 — 별도 task, 신규도입 검토 필요) · IMP-0007(N5 단어 수 — 단어 출처 결정 대기)
 
+## Todo (2026-10-05 접수 — 026·030 후속)
+- [[task-031-japanese-display-polish]] — 일본어 표시 마무리 3건(経営 장음 한글·녹음 중 저장됨 잔류·조각 영구 loading) — **light·opus, developer 진행 중**(1순위)
+- [[task-032-lexicon-to-reading]] — 관리자 발음 사전 → 읽기 분석기 반영(青か·愚か·密か) — standard·R1·opus·데모 없음(2순위)
+- [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — judge light → **사용자 결정 standard·delta 데모**(3순위)
+- (후보) 구 `reading`/`replyReading` 필드 제거 — PE+developer(talk@v8·chat@v3), 026 화면 A 배포로 이제 가능
+
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
 
@@ -60,6 +66,7 @@ tags:
 - `/개선작업` 으로 추가·조회. 항목은 `improvements/items/`, 표는 `improvements/improvements.base`, 규칙은 [[improvements/README|README]]. 구현팀은 건드리지 않는다.
 
 ## 정리 backlog (소규모)
+- (031 분리, 2026-10-05) REV-093 LOW — `orchestrator/index.ts` flushUserRow 번역 updateMany 를 `correction.create` 앞으로(S→X 승격 대기 축소). 교정 트랜잭션 순서라 R2 보강 대상 → standard+QA 로 별도 처리
 - (005b) 발음 사전(Pronunciation Dictionary P0) — task-003 이후 · #93b credentialRef 쓰기·functional test 30초 슬롯 원자성 — Phase 2(012c) · 운영 APP_ENV=LOCAL·dev 상태 점검이 운영 connection 행을 바꾸는 문제 — task-009
 - `infra/http.ts` 기본 오류 문구 "AI 엔진…" 사용자 노출 가능 · 공용 `Badge` warn/accent·`ink3` 라이트 명암비 미달 · `ComingSoon` Phase/task 번호 노출
 - `conversation/persona/loader.ts` 동적 `statSync` → 빌드 "프로젝트 전체 추적" 경고(정적 경로 또는 `outputFileTracingExcludes`) · webpack dev 에서 `crypto` 해석 실패(Turbopack 기본은 정상)

@@ -15,7 +15,7 @@ aliases:
   - AI 평가
   - task-011
 created: 2026-09-28
-updated: 2026-10-01
+updated: 2026-10-04
 demo_gate:
   required: true
   level: "full"
@@ -32,7 +32,7 @@ demo_gate:
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: true
+  active: false
 ---
 
 ## 목표 (Leader)

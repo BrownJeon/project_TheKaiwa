@@ -17,7 +17,7 @@ aliases:
   - 설정 편집·버전·Rollback
   - task-012c
 created: 2026-09-29
-updated: 2026-10-01
+updated: 2026-10-04
 demo_gate:
   required: true
   level: "full"
@@ -34,7 +34,7 @@ demo_gate:
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: true
+  active: false
 ---
 
 ## 목표 (Leader)

@@ -14,7 +14,7 @@ aliases:
   - 음성 설정 범위 확대
   - task-022
 created: 2026-09-30
-updated: 2026-10-01
+updated: 2026-10-04
 demo_gate:
   required: true
   level: "delta"
@@ -31,7 +31,7 @@ demo_gate:
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: true
+  active: false
 ---
 
 ## 목표 (Leader)
