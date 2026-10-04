@@ -92,6 +92,10 @@ flowchart TD
 | 채택 조건 | 기본. task-003 에서 "SBV2 내부 g2p 가 전역 pyopenjtalk user-dict 를 실제로 따르는지" 실측 | A 가 SBV2 내부 g2p 경로와 충돌할 때만 |
 | Trace | `matches`(건수)·`dictionaryVersion` 만 기록, 표기·읽기 본문 없음(§113) | 동일 |
 
+### 2.4a 화면 읽기 줄 반영 (task-032, 2026-10-05)
+
+같은 사전이 화면의 후리가나·한글 줄(api-contract #24r)에도 적용된다. 위치는 gateway user-dict 가 아니라 **앱 L4 후처리**(`speech/reading/lexiconOverlay` — 분석기 결과 위 최장 일치, 5분기: 같음 유지·교체·복합어 유지·일치 유지·활용형 충돌 숨김). 범위는 **GLOBAL + 본인 USER** 만(VOICE 는 목소리별 소리 보정, LESSON·COURSE 는 요청에 맥락 없음 — 사용자 결정). 조회는 `tts/lexicon.loadLexiconForDisplay(environment)`(쓰기 0, 환경별 30초 캐시·1초 제한·직전 사전 사용). gateway user-dict 안(B)은 비용값에 따라 `明日香`→明日+香 오독·青か 미교정이 갈려 기각. 알려진 한계: 진행 중 조회가 저장 직후 옛 사전으로 캐시를 다시 채울 수 있음(최대 30초, REV-103 L-1).
+
 ### 2.5 Import / Export · Preview · 화면(§131)
 
 - **형식**: CSV(UTF-8, 헤더 `surface,reading,accentType,priority,scope,scopeRefId,wordType,note,enabled`) 와 같은 키의 JSON 배열. Export 머리에 `dictionaryVersion`·`environment`·`exportedAt`. Import 는 `mode=MERGE|REPLACE_SCOPE` + `dryRun=true` 로 diff(추가·수정·삭제 건수, 오류 행)를 먼저 보여 준 뒤 게시 → 새 버전.

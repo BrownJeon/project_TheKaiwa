@@ -10,10 +10,15 @@
  * - 동시 실행 상한(REV-089): 프로세스 전역 `MAX_INFLIGHT`·사용자별 `OWNER_MAX_INFLIGHT` — 넘으면 분석기를 부르지 않고 degrade.
  *   상한 초과와 분석기 `BUSY` 는 실패가 아니라 "바쁨"이라 **쉬지 않는다** — 쉼은 전역이라, 한 사용자의 몰아치기가 모든 사용자의 읽기를 30초씩 숨기게 된다.
  * - 로그는 건수·글자 수·실패 종류만(문장 본문 없음).
+ * - 발음 사전(task-032): 캐시에는 사전과 무관한 분석기 원본만 담고, 요청마다 그 위에 현재 환경 ACTIVE 사전(GLOBAL + 본인 USER)을
+ *   덮어쓴다(`lexiconOverlay`, 문장당 µs). 그래서 캐시 키에 사전 버전이 없어도 사전 수정·끄기·Rollback 이 다음 요청에 바로 반영된다
+ *   (다른 프로세스는 사전 30초 캐시 뒤). 사전 조회는 분석기 호출과 병렬, 늦거나 실패하면 직전 사전·없으면 원본 그대로.
  */
 import { createHash } from 'node:crypto'
-import { text as textEngine } from '@/modules/engine'
+import { currentEnvironment, text as textEngine } from '@/modules/engine'
+import { loadLexiconForDisplay, type LexiconEntryData } from '../tts/lexicon'
 import { READING_MAX_CHARS, READING_MAX_TEXTS, type ReadingSegment } from './client'
+import { applyLexiconOverlay, selectDisplayEntries } from './lexiconOverlay'
 
 export type { ReadingSegment, ReadingBoundary, RubyPiece } from './client'
 export { READING_MAX_CHARS, READING_MAX_TEXTS } from './client'
@@ -100,16 +105,38 @@ export function readingCacheStats(): { entries: number; units: number } {
   return { entries: cache.size, units: cacheUnits }
 }
 
+export interface ReadingDeps {
+  annotate?: typeof textEngine.annotate
+  now?: () => number
+  /** 사전 항목(테스트 주입). null = 쓸 수 있는 사전 없음(덮어쓰기 생략). 기본 = 현재 환경 ACTIVE 사전. */
+  loadLexicon?: () => Promise<readonly LexiconEntryData[] | null>
+}
+
+async function defaultLexicon(): Promise<readonly LexiconEntryData[] | null> {
+  return (await loadLexiconForDisplay(currentEnvironment()))?.entries ?? null
+}
+
 /**
  * 문장 배열(≤64, 각 ≤400자 — 라우트가 먼저 검사)의 읽기. 빈 문장은 빈 배열.
- * `annotate` 를 주입할 수 있다(테스트). `ownerKey` = 사용자별 동시 상한 키(라우트가 세션 사용자 id 를 넘긴다).
+ * `annotate`·`loadLexicon` 을 주입할 수 있다(테스트). `ownerKey` = 사용자별 동시 상한 키(라우트가 세션 사용자 id 를 넘긴다).
+ * `lexicon.userId` = 그 사용자의 USER 범위 사전 항목을 함께 적용(없으면 GLOBAL 만).
  */
 export async function annotateReadings(
   texts: readonly string[],
-  deps: { annotate?: typeof textEngine.annotate; now?: () => number } = {},
+  deps: ReadingDeps = {},
   ownerKey?: string,
+  lexicon: { userId?: string | null } = {},
 ): Promise<ReadingResult> {
   if (texts.length > READING_MAX_TEXTS || texts.some((t) => t.length > READING_MAX_CHARS)) throw new RangeError('READING_LIMIT')
+  const entriesP = (deps.loadLexicon ?? defaultLexicon)().catch(() => null)
+  const raw = await analyze(texts, deps, ownerKey)
+  const entries = await entriesP
+  const selected = entries ? selectDisplayEntries(entries, lexicon.userId) : null
+  if (!selected || selected.size === 0) return raw
+  return { items: raw.items.map((segs, i) => (segs ? applyLexiconOverlay(texts[i], segs, selected) : null)), available: raw.available }
+}
+
+async function analyze(texts: readonly string[], deps: ReadingDeps, ownerKey: string | undefined): Promise<ReadingResult> {
   const annotate = deps.annotate ?? textEngine.annotate
   const now = (deps.now ?? Date.now)()
   const items: Array<ReadingSegment[] | null> = texts.map(() => null)

@@ -672,6 +672,7 @@ K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio
 - 화면은 세그먼트를 직접 해석하지 않고 클라이언트 순수 모듈 `@/modules/speech/reading/client` 만 쓴다: `rubyPieces()`(루비 렌더) · `hangulLine()`(한글 줄, `pron` 이 하나라도 null 이면 null) · `kanaToHangul()`(가나→한글 '까' 계열, D1-A) · `alignWordRuby(surface, reading)`(단어장 표제어 — 저장된 읽기로 서버 없이).
 - 과부하(REV-089): 앱 전역 동시 4건·사용자당 동시 2건을 넘거나 gateway 가 `503 {error:{code:"BUSY"}}`(대기+실행 6건 초과, 입력 미포함)를 주면 분석기를 기다리지 않고 `available:false` — 실패가 아니라 쉼(30초)을 걸지 않는다(쉼은 연결 실패·시간 초과 등에만).
 - 로그인 필요(`401`), 소유권 무관(받은 문장만 분석). 사용자당 60/분(`429`). 응답에 엔진명·버전 없음. 서버 로그는 건수·글자 수·실패 종류만(문장 본문 없음).
+- **발음 사전 반영(task-032, 2026-10-05)**: 분석 결과(캐시 원본은 불변, 복사본) 위에 그 환경의 활성 발음 사전 중 **GLOBAL + 세션 사용자 USER** 범위만(VOICE·LESSON·COURSE 제외) 최장 일치로 덮어쓴다 — 같은 소리면 유지 · 다르면 `ruby`·`pron` 교체(분절이 틀린 `青か`·`愚か`·`密か` 교정) · 복합어 안이면 분석기 유지 · 더 긴 가나 활용형과 읽기가 충돌하면(`上手`=ジョウズ vs `上手い`) 그 조각 `ruby`·`pron` = `null`(숨김). 사전 조회는 분석과 병렬·1초 제한, 실패하면 직전 사전 또는 덮어쓰기 생략. 사전 변경·끄기·Rollback 은 다음 요청부터(프로세스별 캐시 최대 30초). 응답 모양 불변.
 
 ### 2-5. 출석 (L3 learning/attendance)
 

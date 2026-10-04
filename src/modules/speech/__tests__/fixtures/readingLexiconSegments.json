@@ -1,0 +1,756 @@
+{
+ "_note": "task-032 — 개발 venv(~/.node-local/thekaiwa-speech-dev, pyopenjtalk 0.4.1)로 gateway kaiwa_gateway/text.py annotate_one 실측 출력(2026-10-05). 사전 덮어쓰기 규칙 테스트용 — gateway 없이 결정적.",
+ "segments": {
+  "赤か青か": [
+   {
+    "surface": "赤",
+    "ruby": [
+     [
+      "赤",
+      "あか"
+     ]
+    ],
+    "pron": "アカ",
+    "boundary": null
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   },
+   {
+    "surface": "青か",
+    "ruby": [
+     [
+      "青",
+      "せい"
+     ],
+     [
+      "か",
+      null
+     ]
+    ],
+    "pron": "セーカ",
+    "boundary": "phrase"
+   }
+  ],
+  "この赤か青か決めて": [
+   {
+    "surface": "この",
+    "ruby": null,
+    "pron": "コノ",
+    "boundary": null
+   },
+   {
+    "surface": "赤",
+    "ruby": [
+     [
+      "赤",
+      "あか"
+     ]
+    ],
+    "pron": "アカ",
+    "boundary": "phrase"
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   },
+   {
+    "surface": "青か",
+    "ruby": [
+     [
+      "青",
+      "せい"
+     ],
+     [
+      "か",
+      null
+     ]
+    ],
+    "pron": "セーカ",
+    "boundary": "phrase"
+   },
+   {
+    "surface": "決め",
+    "ruby": [
+     [
+      "決",
+      "き"
+     ],
+     [
+      "め",
+      null
+     ]
+    ],
+    "pron": "キメ",
+    "boundary": "phrase"
+   },
+   {
+    "surface": "て",
+    "ruby": null,
+    "pron": "テ",
+    "boundary": null
+   }
+  ],
+  "愚か。": [
+   {
+    "surface": "愚",
+    "ruby": [
+     [
+      "愚",
+      "ぐ"
+     ]
+    ],
+    "pron": "グ",
+    "boundary": null
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   },
+   {
+    "surface": "。",
+    "ruby": null,
+    "pron": "。",
+    "boundary": null
+   }
+  ],
+  "愚か": [
+   {
+    "surface": "愚",
+    "ruby": [
+     [
+      "愚",
+      "ぐ"
+     ]
+    ],
+    "pron": "グ",
+    "boundary": null
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   }
+  ],
+  "それは密か": [
+   {
+    "surface": "それ",
+    "ruby": null,
+    "pron": "ソレ",
+    "boundary": null
+   },
+   {
+    "surface": "は",
+    "ruby": null,
+    "pron": "ワ",
+    "boundary": null
+   },
+   {
+    "surface": "密",
+    "ruby": [
+     [
+      "密",
+      "みつ"
+     ]
+    ],
+    "pron": "ミツ",
+    "boundary": "particle"
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   }
+  ],
+  "密か。": [
+   {
+    "surface": "密",
+    "ruby": [
+     [
+      "密",
+      "みつ"
+     ]
+    ],
+    "pron": "ミツ",
+    "boundary": null
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   },
+   {
+    "surface": "。",
+    "ruby": null,
+    "pron": "。",
+    "boundary": null
+   }
+  ],
+  "彼は愚かだ": [
+   {
+    "surface": "彼",
+    "ruby": [
+     [
+      "彼",
+      "かれ"
+     ]
+    ],
+    "pron": "カレ",
+    "boundary": null
+   },
+   {
+    "surface": "は",
+    "ruby": null,
+    "pron": "ワ",
+    "boundary": null
+   },
+   {
+    "surface": "愚か",
+    "ruby": [
+     [
+      "愚",
+      "おろ"
+     ],
+     [
+      "か",
+      null
+     ]
+    ],
+    "pron": "オロカ",
+    "boundary": "particle"
+   },
+   {
+    "surface": "だ",
+    "ruby": null,
+    "pron": "ダ",
+    "boundary": null
+   }
+  ],
+  "愚かな人": [
+   {
+    "surface": "愚か",
+    "ruby": [
+     [
+      "愚",
+      "おろ"
+     ],
+     [
+      "か",
+      null
+     ]
+    ],
+    "pron": "オロカ",
+    "boundary": null
+   },
+   {
+    "surface": "な",
+    "ruby": null,
+    "pron": "ナ",
+    "boundary": null
+   },
+   {
+    "surface": "人",
+    "ruby": [
+     [
+      "人",
+      "ひと"
+     ]
+    ],
+    "pron": "ヒト",
+    "boundary": "phrase"
+   }
+  ],
+  "密かに練習する": [
+   {
+    "surface": "密か",
+    "ruby": [
+     [
+      "密",
+      "ひそ"
+     ],
+     [
+      "か",
+      null
+     ]
+    ],
+    "pron": "ヒソカ",
+    "boundary": null
+   },
+   {
+    "surface": "に",
+    "ruby": null,
+    "pron": "ニ",
+    "boundary": null
+   },
+   {
+    "surface": "練習",
+    "ruby": [
+     [
+      "練習",
+      "れんしゅう"
+     ]
+    ],
+    "pron": "レンシュー",
+    "boundary": "phrase"
+   },
+   {
+    "surface": "する",
+    "ruby": null,
+    "pron": "スル",
+    "boundary": "phrase"
+   }
+  ],
+  "神保町": [
+   {
+    "surface": "神保町",
+    "ruby": [
+     [
+      "神保町",
+      "じんぼうちょう"
+     ]
+    ],
+    "pron": "ジンボーチョー",
+    "boundary": null
+   }
+  ],
+  "神保町へ行く": [
+   {
+    "surface": "神保町",
+    "ruby": [
+     [
+      "神保町",
+      "じんぼうちょう"
+     ]
+    ],
+    "pron": "ジンボーチョー",
+    "boundary": null
+   },
+   {
+    "surface": "へ",
+    "ruby": null,
+    "pron": "エ",
+    "boundary": null
+   },
+   {
+    "surface": "行く",
+    "ruby": [
+     [
+      "行",
+      "い"
+     ],
+     [
+      "く",
+      null
+     ]
+    ],
+    "pron": "イク",
+    "boundary": "particle"
+   }
+  ],
+  "御徒町で降りる": [
+   {
+    "surface": "御徒",
+    "ruby": [
+     [
+      "御徒",
+      "おかち"
+     ]
+    ],
+    "pron": "オカチ",
+    "boundary": null
+   },
+   {
+    "surface": "町",
+    "ruby": [
+     [
+      "町",
+      "まち"
+     ]
+    ],
+    "pron": "マチ",
+    "boundary": null
+   },
+   {
+    "surface": "で",
+    "ruby": null,
+    "pron": "デ",
+    "boundary": null
+   },
+   {
+    "surface": "降りる",
+    "ruby": [
+     [
+      "降",
+      "お"
+     ],
+     [
+      "りる",
+      null
+     ]
+    ],
+    "pron": "オリル",
+    "boundary": "phrase"
+   }
+  ],
+  "明日は雨": [
+   {
+    "surface": "明日",
+    "ruby": [
+     [
+      "明日",
+      "あした"
+     ]
+    ],
+    "pron": "アシタ",
+    "boundary": null
+   },
+   {
+    "surface": "は",
+    "ruby": null,
+    "pron": "ワ",
+    "boundary": null
+   },
+   {
+    "surface": "雨",
+    "ruby": [
+     [
+      "雨",
+      "あめ"
+     ]
+    ],
+    "pron": "アメ",
+    "boundary": "particle"
+   }
+  ],
+  "明日香さん": [
+   {
+    "surface": "明日香",
+    "ruby": [
+     [
+      "明日香",
+      "あすか"
+     ]
+    ],
+    "pron": "アスカ",
+    "boundary": null
+   },
+   {
+    "surface": "さん",
+    "ruby": null,
+    "pron": "サン",
+    "boundary": null
+   }
+  ],
+  "日本橋へ行く": [
+   {
+    "surface": "日本橋",
+    "ruby": [
+     [
+      "日本橋",
+      "にほんばし"
+     ]
+    ],
+    "pron": "ニホンバシ",
+    "boundary": null
+   },
+   {
+    "surface": "へ",
+    "ruby": null,
+    "pron": "エ",
+    "boundary": null
+   },
+   {
+    "surface": "行く",
+    "ruby": [
+     [
+      "行",
+      "い"
+     ],
+     [
+      "く",
+      null
+     ]
+    ],
+    "pron": "イク",
+    "boundary": "particle"
+   }
+  ],
+  "秋葉原": [
+   {
+    "surface": "秋葉原",
+    "ruby": [
+     [
+      "秋葉原",
+      "あきはばら"
+     ]
+    ],
+    "pron": "アキハバラ",
+    "boundary": null
+   }
+  ],
+  "青から始める": [
+   {
+    "surface": "青",
+    "ruby": [
+     [
+      "青",
+      "あお"
+     ]
+    ],
+    "pron": "アオ",
+    "boundary": null
+   },
+   {
+    "surface": "から",
+    "ruby": null,
+    "pron": "カラ",
+    "boundary": null
+   },
+   {
+    "surface": "始める",
+    "ruby": [
+     [
+      "始",
+      "はじ"
+     ],
+     [
+      "める",
+      null
+     ]
+    ],
+    "pron": "ハジメル",
+    "boundary": "phrase"
+   }
+  ],
+  "青かった": [
+   {
+    "surface": "青かっ",
+    "ruby": [
+     [
+      "青",
+      "あお"
+     ],
+     [
+      "かっ",
+      null
+     ]
+    ],
+    "pron": "アオカッ",
+    "boundary": null
+   },
+   {
+    "surface": "た",
+    "ruby": null,
+    "pron": "タ",
+    "boundary": null
+   }
+  ],
+  "青かな": [
+   {
+    "surface": "青",
+    "ruby": [
+     [
+      "青",
+      "あお"
+     ]
+    ],
+    "pron": "アオ",
+    "boundary": null
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   },
+   {
+    "surface": "な",
+    "ruby": null,
+    "pron": "ナ",
+    "boundary": null
+   }
+  ],
+  "青い空": [
+   {
+    "surface": "青い",
+    "ruby": [
+     [
+      "青",
+      "あお"
+     ],
+     [
+      "い",
+      null
+     ]
+    ],
+    "pron": "アオイ",
+    "boundary": null
+   },
+   {
+    "surface": "空",
+    "ruby": [
+     [
+      "空",
+      "そら"
+     ]
+    ],
+    "pron": "ソラ",
+    "boundary": "phrase"
+   }
+  ],
+  "上手い": [
+   {
+    "surface": "上手い",
+    "ruby": [
+     [
+      "上手",
+      "うま"
+     ],
+     [
+      "い",
+      null
+     ]
+    ],
+    "pron": "ウマイ",
+    "boundary": null
+   }
+  ],
+  "上手な人": [
+   {
+    "surface": "上手",
+    "ruby": [
+     [
+      "上手",
+      "じょうず"
+     ]
+    ],
+    "pron": "ジョーズ",
+    "boundary": null
+   },
+   {
+    "surface": "な",
+    "ruby": null,
+    "pron": "ナ",
+    "boundary": null
+   },
+   {
+    "surface": "人",
+    "ruby": [
+     [
+      "人",
+      "ひと"
+     ]
+    ],
+    "pron": "ヒト",
+    "boundary": "phrase"
+   }
+  ],
+  "今日は良い天気": [
+   {
+    "surface": "今日",
+    "ruby": [
+     [
+      "今日",
+      "きょう"
+     ]
+    ],
+    "pron": "キョー",
+    "boundary": null
+   },
+   {
+    "surface": "は",
+    "ruby": null,
+    "pron": "ワ",
+    "boundary": null
+   },
+   {
+    "surface": "良い",
+    "ruby": [
+     [
+      "良",
+      "よ"
+     ],
+     [
+      "い",
+      null
+     ]
+    ],
+    "pron": "ヨイ",
+    "boundary": "particle"
+   },
+   {
+    "surface": "天気",
+    "ruby": [
+     [
+      "天気",
+      "てんき"
+     ]
+    ],
+    "pron": "テンキ",
+    "boundary": "phrase"
+   }
+  ],
+  "赤か青か、どっち？": [
+   {
+    "surface": "赤",
+    "ruby": [
+     [
+      "赤",
+      "あか"
+     ]
+    ],
+    "pron": "アカ",
+    "boundary": null
+   },
+   {
+    "surface": "か",
+    "ruby": null,
+    "pron": "カ",
+    "boundary": null
+   },
+   {
+    "surface": "青か",
+    "ruby": [
+     [
+      "青",
+      "せい"
+     ],
+     [
+      "か",
+      null
+     ]
+    ],
+    "pron": "セーカ",
+    "boundary": "phrase"
+   },
+   {
+    "surface": "、",
+    "ruby": null,
+    "pron": "、",
+    "boundary": null
+   },
+   {
+    "surface": "どっち",
+    "ruby": null,
+    "pron": "ドッチ",
+    "boundary": "phrase"
+   },
+   {
+    "surface": "？",
+    "ruby": null,
+    "pron": "？",
+    "boundary": null
+   }
+  ]
+ }
+}

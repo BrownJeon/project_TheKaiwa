@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
  * #24r 일본어 읽기 분석(task-026 S1) — 문장별 형태소 `{surface, ruby, pron, boundary}`. 화면의 후리가나(한자 위)·한글 줄 데이터.
  * 로그인 필요, 소유권 무관(받은 문장만 분석 — 저장·로그 없음). 요청당 문장 ≤64·각 ≤400자, 사용자당 60/분·동시 2건(넘으면 `available:false`).
  * 분석기를 쓸 수 없으면 오류가 아니라 칸이 null + `available:false`(화면은 숨김). 응답에 엔진 정보 없음.
+ * 관리자 발음 사전(GLOBAL + 본인 USER, task-032)을 읽기에 덮어쓴다 — 다른 사용자의 USER 항목은 쓰지 않는다.
  */
 export const POST = withApi(async (req) => {
   const s = await requireSession()
@@ -18,7 +19,7 @@ export const POST = withApi(async (req) => {
     throw new ApiError('VALIDATION', `문장은 1~${READING_MAX_TEXTS}개 배열이어야 합니다.`)
   }
   if (texts.some((t: string) => t.length > READING_MAX_CHARS)) throw new ApiError('VALIDATION', `문장은 ${READING_MAX_CHARS}자 이하여야 합니다.`)
-  const result = await annotateReadings(texts as string[], {}, s.user.id)
+  const result = await annotateReadings(texts as string[], {}, s.user.id, { userId: s.user.id })
   return ok(
     { items: result.items.map((segments) => (segments ? { segments } : null)), available: result.available },
     null,

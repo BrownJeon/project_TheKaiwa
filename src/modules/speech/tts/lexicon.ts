@@ -186,3 +186,48 @@ export async function loadActiveLexicon(environment: Environment): Promise<Activ
 export function clearLexiconCache(): void {
   cache.clear()
 }
+
+const DISPLAY_TIMEOUT_MS = 1_000
+const displayInflight = new Map<Environment, Promise<ActiveLexicon>>()
+
+/**
+ * 화면 읽기 줄용 사전(task-032) — `loadActiveLexicon` 과 같은 30초 캐시를 쓰되, 읽기 응답을 사전 DB 에 묶지 않는다:
+ * 캐시가 지났는데 조회가 실패하거나 `timeoutMs` 를 넘기면 그 환경의 **직전 성공 사전**(없으면 null = 덮어쓰기 생략)을 돌려준다.
+ * 늦은 조회는 끝나는 대로 캐시를 채운다(환경별 동시 조회 1건). 쓰기 0.
+ */
+export async function loadLexiconForDisplay(
+  environment: Environment,
+  opts: { timeoutMs?: number; now?: () => number; fetch?: (environment: Environment) => Promise<ActiveLexicon> } = {},
+): Promise<ActiveLexicon | null> {
+  const now = opts.now ?? Date.now
+  const hit = cache.get(environment)
+  if (hit && now() - hit.at < CACHE_MS) return hit.value
+  const stale = hit?.value ?? null
+  let pending = displayInflight.get(environment)
+  if (!pending) {
+    const fetch = opts.fetch ?? loadActiveLexicon
+    pending = fetch(environment)
+      .then((value) => {
+        cache.set(environment, { at: now(), value })
+        return value
+      })
+      .finally(() => displayInflight.delete(environment))
+    pending.catch(() => undefined)
+    displayInflight.set(environment, pending)
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), opts.timeoutMs ?? DISPLAY_TIMEOUT_MS)
+  })
+  try {
+    const got = await Promise.race([pending, timeout])
+    if (got !== 'timeout') return got
+    console.warn('[reading] 발음 사전 조회 지연 —', stale ? '직전 사전 사용' : '덮어쓰기 생략')
+    return stale
+  } catch (e) {
+    console.warn('[reading] 발음 사전 조회 실패 —', stale ? '직전 사전 사용' : '덮어쓰기 생략', e instanceof Error ? e.name : 'unknown')
+    return stale
+  } finally {
+    clearTimeout(timer)
+  }
+}

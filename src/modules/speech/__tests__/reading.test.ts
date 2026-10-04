@@ -16,6 +16,9 @@ import {
 import { annotateReadings, READING_CACHE_LIMITS, readingCacheStats, readingInflightStats, resetReadingCache } from '../reading'
 import { text } from '@/modules/engine'
 
+// 발음 사전 덮어쓰기(task-032)는 readingLexicon.test.ts — 여기서는 DB 를 부르지 않게 빈 사전.
+const noLexicon = async () => null
+
 const { TextAnalyzerError } = text
 const annotateHttp = text.annotate
 
@@ -339,18 +342,18 @@ test('annotateReadings — 중복 제거·캐시·빈 문장', async () => {
     calls.push([...texts])
     return texts.map((t) => (t === 'だめ' ? null : [{ surface: t, ruby: null, pron: 'テスト', boundary: null } as ReadingSegment]))
   }
-  const r1 = await annotateReadings(['テスト', 'テスト', '', 'だめ'], { annotate })
+  const r1 = await annotateReadings(['テスト', 'テスト', '', 'だめ'], { loadLexicon: noLexicon, annotate })
   assert.equal(r1.available, true)
   assert.deepEqual(calls, [['テスト', 'だめ']])
   assert.equal(r1.items[0], r1.items[1])
   assert.deepEqual(r1.items[2], [])
   assert.equal(r1.items[3], null)
-  const r2 = await annotateReadings(['テスト'], { annotate })
+  const r2 = await annotateReadings(['テスト'], { loadLexicon: noLexicon, annotate })
   assert.equal(calls.length, 1, '두 번째는 캐시')
   assert.equal(r2.items[0]?.[0].pron, 'テスト')
-  await annotateReadings(['だめ'], { annotate })
+  await annotateReadings(['だめ'], { loadLexicon: noLexicon, annotate })
   assert.equal(calls.length, 2, '분석 실패 칸은 캐시하지 않는다')
-  await assert.rejects(annotateReadings(Array(65).fill('a'), { annotate }), /READING_LIMIT/)
+  await assert.rejects(annotateReadings(Array(65).fill('a'), { loadLexicon: noLexicon, annotate }), /READING_LIMIT/)
 })
 
 test('annotateReadings — 캐시는 건수 외에 총량(조각+루비 조각) 상한, 넘으면 오래 안 쓴 것부터 뺀다', async () => {
@@ -369,16 +372,16 @@ test('annotateReadings — 캐시는 건수 외에 총량(조각+루비 조각) 
   for (let b = 0; b < 400; b += 64) {
     await annotateReadings(
       Array.from({ length: Math.min(64, 400 - b) }, (_, j) => `t${b + j}`),
-      { annotate },
+      { loadLexicon: noLexicon, annotate },
     )
   }
   const st = readingCacheStats()
   assert.ok(st.units <= READING_CACHE_LIMITS.units, `units ${st.units}`)
   assert.equal(st.entries, fit)
   const before = calls
-  await annotateReadings(['t399'], { annotate })
+  await annotateReadings(['t399'], { loadLexicon: noLexicon, annotate })
   assert.equal(calls, before, '가장 최근 것은 캐시에 있다')
-  await annotateReadings(['t1'], { annotate })
+  await annotateReadings(['t1'], { loadLexicon: noLexicon, annotate })
   assert.equal(calls, before + 1, '오래된 것은 빠졌다')
   resetReadingCache()
   assert.deepEqual(readingCacheStats(), { entries: 0, units: 0 })
@@ -392,13 +395,13 @@ test('annotateReadings — 분석기 불가면 빈 결과로 degrade 하고 30�
     calls++
     throw new TextAnalyzerError('UNAVAILABLE', 'ECONNREFUSED')
   }
-  const r = await annotateReadings(['今日'], { annotate: down, now: () => now })
+  const r = await annotateReadings(['今日'], { loadLexicon: noLexicon, annotate: down, now: () => now })
   assert.deepEqual(r, { items: [null], available: false })
   now += 10_000
-  assert.equal((await annotateReadings(['今日'], { annotate: down, now: () => now })).available, false)
+  assert.equal((await annotateReadings(['今日'], { loadLexicon: noLexicon, annotate: down, now: () => now })).available, false)
   assert.equal(calls, 1, '쉬는 동안은 부르지 않는다')
   now += 30_000
-  await annotateReadings(['今日'], { annotate: down, now: () => now })
+  await annotateReadings(['今日'], { loadLexicon: noLexicon, annotate: down, now: () => now })
   assert.equal(calls, 2)
   resetReadingCache()
 })
@@ -413,21 +416,21 @@ function gatedAnnotate() {
     await gate
     return texts.map((t) => [{ surface: t, ruby: null, pron: 'テスト', boundary: null } as ReadingSegment])
   }
-  return { annotate, calls, release }
+  return { loadLexicon: noLexicon, annotate, calls, release }
 }
 
 test('annotateReadings — 전역 동시 4건 상한: 5번째는 분석기를 부르지 않고 degrade, 쉬지 않는다', async () => {
   resetReadingCache()
   const g = gatedAnnotate()
-  const running = [1, 2, 3, 4].map((i) => annotateReadings([`g${i}`], { annotate: g.annotate }))
-  const fifth = await annotateReadings(['g5'], { annotate: g.annotate })
+  const running = [1, 2, 3, 4].map((i) => annotateReadings([`g${i}`], { loadLexicon: noLexicon, annotate: g.annotate }))
+  const fifth = await annotateReadings(['g5'], { loadLexicon: noLexicon, annotate: g.annotate })
   assert.deepEqual(fifth, { items: [null], available: false })
   assert.equal(g.calls.length, 4)
   assert.equal(readingInflightStats().global, 4)
   g.release()
   for (const r of await Promise.all(running)) assert.equal(r.available, true)
   assert.deepEqual(readingInflightStats(), { global: 0, owners: 0 })
-  const again = await annotateReadings(['g5'], { annotate: g.annotate })
+  const again = await annotateReadings(['g5'], { loadLexicon: noLexicon, annotate: g.annotate })
   assert.equal(again.available, true)
   assert.equal(g.calls.length, 5, '상한 초과 뒤에도 쉬지 않고 바로 부른다')
   resetReadingCache()
@@ -436,18 +439,18 @@ test('annotateReadings — 전역 동시 4건 상한: 5번째는 분석기를 �
 test('annotateReadings — 사용자별 동시 2건 상한: 같은 사용자 3번째만 degrade, 다른 사용자는 영향 없음', async () => {
   resetReadingCache()
   const g = gatedAnnotate()
-  const a1 = annotateReadings(['o1'], { annotate: g.annotate }, 'user-a')
-  const a2 = annotateReadings(['o2'], { annotate: g.annotate }, 'user-a')
-  const a3 = await annotateReadings(['o3'], { annotate: g.annotate }, 'user-a')
+  const a1 = annotateReadings(['o1'], { loadLexicon: noLexicon, annotate: g.annotate }, 'user-a')
+  const a2 = annotateReadings(['o2'], { loadLexicon: noLexicon, annotate: g.annotate }, 'user-a')
+  const a3 = await annotateReadings(['o3'], { loadLexicon: noLexicon, annotate: g.annotate }, 'user-a')
   assert.deepEqual(a3, { items: [null], available: false })
   assert.equal(g.calls.length, 2)
-  const b1 = annotateReadings(['o4'], { annotate: g.annotate }, 'user-b')
+  const b1 = annotateReadings(['o4'], { loadLexicon: noLexicon, annotate: g.annotate }, 'user-b')
   assert.equal(g.calls.length, 3, '다른 사용자는 부른다')
   assert.deepEqual(readingInflightStats(), { global: 3, owners: 2 })
   g.release()
   for (const r of await Promise.all([a1, a2, b1])) assert.equal(r.available, true)
   assert.deepEqual(readingInflightStats(), { global: 0, owners: 0 })
-  assert.equal((await annotateReadings(['o3'], { annotate: g.annotate }, 'user-a')).available, true)
+  assert.equal((await annotateReadings(['o3'], { loadLexicon: noLexicon, annotate: g.annotate }, 'user-a')).available, true)
   resetReadingCache()
 })
 
@@ -460,15 +463,15 @@ test('annotateReadings — 분석기 BUSY 는 쉬지 않고, TIMEOUT 은 30초 �
     calls++
     throw fail
   }
-  assert.deepEqual(await annotateReadings(['今日'], { annotate, now: () => now }, 'user-a'), { items: [null], available: false })
+  assert.deepEqual(await annotateReadings(['今日'], { loadLexicon: noLexicon, annotate, now: () => now }, 'user-a'), { items: [null], available: false })
   assert.deepEqual(readingInflightStats(), { global: 0, owners: 0 })
-  await annotateReadings(['今日'], { annotate, now: () => now }, 'user-b')
+  await annotateReadings(['今日'], { loadLexicon: noLexicon, annotate, now: () => now }, 'user-b')
   assert.equal(calls, 2, 'BUSY 뒤 바로 다음 호출은 분석기를 부른다(다른 사용자도)')
   fail = new TextAnalyzerError('TIMEOUT', 'ETIMEDOUT')
-  await annotateReadings(['今日'], { annotate, now: () => now }, 'user-a')
+  await annotateReadings(['今日'], { loadLexicon: noLexicon, annotate, now: () => now }, 'user-a')
   assert.equal(calls, 3)
   now += 1_000
-  assert.equal((await annotateReadings(['今日'], { annotate, now: () => now }, 'user-b')).available, false)
+  assert.equal((await annotateReadings(['今日'], { loadLexicon: noLexicon, annotate, now: () => now }, 'user-b')).available, false)
   assert.equal(calls, 3, 'TIMEOUT 뒤에는 쉰다(기존 동작 유지)')
   assert.deepEqual(readingInflightStats(), { global: 0, owners: 0 })
   resetReadingCache()
