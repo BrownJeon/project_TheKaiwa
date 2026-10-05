@@ -111,7 +111,7 @@ test('sceneCap 은 pe-024 실측 범위를 넘지 않는다: 픽스처 발화마
 
 const FINAL = {
   speech: { style: 'CALM' },
-  conversation: { replyJa: 'いいですね。映画は好きですか？', replyReading: 'x', replyKo: 'y' },
+  conversation: { replyJa: 'いいですね。映画は好きですか？', replyKo: 'y' },
   correction: null,
   learning: { grammarPoint: null, difficulty: 'N5' },
   endOfTopic: false,

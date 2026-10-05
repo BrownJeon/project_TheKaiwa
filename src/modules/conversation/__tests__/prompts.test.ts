@@ -3,10 +3,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderTranscript } from '../../engine/llm'
-import { buildChatRequest } from '../prompts/chat'
+import { extractAndValidate } from '../../engine/json/schemaValidate'
+import { buildChatRequest, CHAT_PROMPT_VERSION } from '../prompts/chat'
 import { buildChatReviewRequest, REVIEW_MAX_CHARS, REVIEW_MAX_MESSAGES, ReviewTooLargeError } from '../prompts/chatReview'
 import { renderHeader, renderToday } from '../prompts/header'
 import { buildTalkRequest, clampAltText, talkInstruction, COACH_HINT_LINE, CORRECTION_MODES, TALK_ALT_TEXT_MAX, TALK_PROMPT_VERSION, TALK_USER_PROMPT_CAP } from '../prompts/talk'
+import { CHAT_SCHEMA, TALK_SCHEMA } from '../structuredResponse/schemas'
 
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/talk-corrections.json'), 'utf8')) as {
   items: { id: string; level: string; input: string; hasError: boolean }[]
@@ -48,10 +50,71 @@ test('TALK: 출력 JSON 키 순서 지시문 — 최상위 speech 가 conversati
   const conversationIdx = instr.indexOf('"conversation"')
   assert.ok(speechIdx !== -1 && conversationIdx !== -1 && speechIdx < conversationIdx, '[순서 예]의 speech 가 conversation 보다 앞이어야 한다')
   const replyJaIdx = instr.indexOf('"replyJa"')
-  const replyReadingIdx = instr.indexOf('"replyReading"')
   const replyKoIdx = instr.indexOf('"replyKo"')
-  assert.ok(replyJaIdx !== -1 && replyReadingIdx !== -1 && replyKoIdx !== -1)
-  assert.ok(replyJaIdx < replyReadingIdx && replyReadingIdx < replyKoIdx, 'conversation 안은 replyJa→replyReading→replyKo 순서여야 한다')
+  assert.ok(replyJaIdx !== -1 && replyKoIdx !== -1)
+  assert.ok(replyJaIdx < replyKoIdx, 'conversation 안은 replyJa→replyKo 순서여야 한다(task-036 — 사이의 읽기 줄 필드는 제거됨)')
+  assert.ok(instr.includes('conversation(replyJa→replyKo)'), '키 순서 문구도 같은 순서')
+})
+
+// ── task-036(talk@v8·chat@v3): 구 읽기 줄 필드 제거 ───────────────────────────────────────────────
+// 이 상수는 `src` 에서 그 이름이 남는 **유일한 곳**(부정 단언 전용)이다 — 지시 줄·골격·스키마 required·타입·테스트 어디에도 없어야 한다(A5·A11 교훈).
+const REMOVED_READING_KEY = 'replyReading'
+
+test('task-036: talk@v8·chat@v3 — 구 읽기 줄 필드가 지시 줄·키 순서 문구·골격·스키마(required·properties)·실 요청 어디에도 없다', () => {
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
+  assert.equal(CHAT_PROMPT_VERSION, 'chat@v3')
+  for (const mode of CORRECTION_MODES) for (const cap of [1, 2, 3, 4]) for (const level of ['N5', 'N3']) assert.ok(!talkInstruction(mode, cap, level).includes(REMOVED_READING_KEY), `${mode}/${cap}/${level}`)
+  const skeleton = talkInstruction().split('\n').find((l) => l.startsWith('[순서 예]'))!
+  assert.ok(skeleton.includes('"conversation":{"replyJa":"<...>","replyKo":"<...>"}'), '골격: conversation 안은 replyJa·replyKo 둘뿐')
+  // 지시 줄(replyJa 줄)은 번역 문구는 그대로 두고 읽기 문구만 빠졌다
+  assert.ok(talkInstruction('FLUENCY', 2, 'N5').includes('replyKo 는 자연스러운 존댓말 번역(이중 높임 금지)'))
+  assert.ok(talkInstruction('FLUENCY', 2, 'N5').includes('교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다'))
+  for (const [name, schema] of [['TALK', TALK_SCHEMA], ['CHAT', CHAT_SCHEMA]] as const) {
+    const conv = schema.properties.conversation
+    assert.deepEqual(conv.required, ['replyJa', 'replyKo'], `${name} required`)
+    assert.deepEqual(Object.keys(conv.properties), ['replyJa', 'replyKo'], `${name} properties(선언 순서 = 출력 순서)`)
+    assert.ok(!JSON.stringify(schema).includes(REMOVED_READING_KEY), `${name} 스키마 전체(프롬프트에 그대로 실리는 텍스트)`)
+  }
+  const talk = buildTalkRequest({ todayKst: '2026-10-05', learner, history: longHistory, text: 'おはよう' })
+  const chat = buildChatRequest({ todayKst: '2026-10-05', learner, history: longHistory, text: 'おはよう' })
+  for (const r of [talk, chat]) {
+    assert.ok(!r.system.includes(REMOVED_READING_KEY), `${r.task} system`)
+    assert.ok(!JSON.stringify(r.jsonSchema).includes(REMOVED_READING_KEY), `${r.task} jsonSchema`)
+    assert.ok(!(r.persona?.prompt ?? '').includes(REMOVED_READING_KEY), `${r.task} persona(무변경 — 원래 없었다)`)
+  }
+  assert.ok(chat.system.includes('conversation.replyJa') && chat.system.includes('replyKo 는 한국어 번역'), 'CHAT 지시 줄: replyJa·replyKo 는 그대로')
+  // replyJa 앞 순서는 그대로 — speech(TTS 톤)가 conversation 보다, replyJa 가 replyKo 보다 먼저(조기 추출·문장 단위 합성 불변)
+  const order = (instr: string) => [instr.indexOf('"speech"'), instr.indexOf('"conversation"'), instr.indexOf('"replyJa"'), instr.indexOf('"replyKo"'), instr.indexOf('"correction"'), instr.indexOf('"userKo"')]
+  const idx = order(talkInstruction())
+  assert.deepEqual([...idx].sort((a, b) => a - b), idx, '[순서 예] 키 순서: speech → conversation(replyJa → replyKo) → correction → … → userKo')
+})
+
+test('task-036: 모델이 옛 습관으로 읽기 줄 키를 내면 — 기본 경로는 additionalProperties 위반(1회 재시도), stripAdditionalProperties 를 켠 경로는 키만 지우고 통과(현 동작 문서화)', () => {
+  const doc = {
+    speech: { style: 'CALM' },
+    conversation: { replyJa: 'いいですね。', [REMOVED_READING_KEY]: 'いいですね。', replyKo: '좋네요.' },
+    correction: null,
+    learning: { grammarPoint: null, difficulty: 'N5' },
+    endOfTopic: false,
+    proposals: [],
+  }
+  const raw = JSON.stringify(doc)
+  for (const schema of [TALK_SCHEMA, CHAT_SCHEMA]) {
+    const strict = extractAndValidate(raw, schema)
+    assert.equal(strict.ok, false, '현재 TALK·CHAT 요청은 strip 옵션을 켜지 않는다 — 모르는 필드는 거부(재시도 대상)')
+    if (!strict.ok && !strict.parseError) assert.ok(strict.violations.some((v) => v.includes(REMOVED_READING_KEY) && v.includes('허용되지 않은 필드')), JSON.stringify(strict.violations))
+    const stripped = extractAndValidate(raw, schema, { stripAdditionalProperties: true })
+    assert.equal(stripped.ok, true, '옵션을 켜면 그 키만 지우고 통과')
+    if (stripped.ok) assert.deepEqual(Object.keys((stripped.data as { conversation: object }).conversation), ['replyJa', 'replyKo'])
+  }
+})
+
+test('task-036(REV-108 L-1): buildTalkRequest·buildChatRequest 는 stripAdditionalProperties 를 켜지 않는다 — 옛 키 방출은 거부(1회 재시도)로 다룬다', () => {
+  // 옛 키 `replyReading` 방출은 거부(1회 재시도)로 다룬다 — PE 실측 방출 0/160, 지우는 옵션은 계약 드리프트를 가릴 수 있어 의도적으로 끔(task-036, 켜려면 사유와 함께 이 단언을 같이 바꾼다)
+  const talk = buildTalkRequest({ todayKst: '2026-10-05', learner, history: longHistory, text: 'おはよう' })
+  const chat = buildChatRequest({ todayKst: '2026-10-05', learner, history: longHistory, text: 'おはよう' })
+  assert.ok(!talk.stripAdditionalProperties, 'TALK 요청은 strip 을 켜지 않는다(undefined/false)')
+  assert.ok(!chat.stripAdditionalProperties, 'CHAT 요청은 strip 을 켜지 않는다(undefined/false)')
 })
 
 test('TALK: replyJa 첫 문장을 짧은 맞장구로 유도하는 지시·예시가 있다(TTFA, task-007 K4-2) — 교정 설명은 여전히 correction 에만', () => {
@@ -93,7 +156,7 @@ test('TALK: altText 상한 — 상한을 한참 넘는 후보를 줘도 사용�
 
 test('TALK: talk@v5 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
   // v4 = task-024 문장 수 상한 sceneCap 도입(v3 는 고정 2문장, 상세 회귀는 talkLength.test.ts) · v5 = REV-055 M-1 TALK 학습자 헤더에서 `교정 모드` 칸 제거(아래 테스트)
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v7')
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
   assert.deepEqual(CORRECTION_MODES, ['FLUENCY', 'COACH'])
   const omitted = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
   assert.match(omitted.system, /\[교정\] 유창성/)
@@ -189,7 +252,7 @@ test('TALK: COACH 힌트 지시 — 정답의 한국어 뜻·번역·「X가 아
   // 실제 요청의 system(stdin)에도 COACH 에서만 실린다. 버전 번호는 올리지 않았다(v5 미배포 — 위 버전 테스트가 그대로 통과해야 한다).
   const req = (correctionMode: 'COACH' | 'FLUENCY') => buildTalkRequest({ todayKst: '2026-10-03', learner, history: [], text: '明日学校に行きました', correctionMode }).system
   assert.ok(req('COACH').includes(COACH_HINT_LINE) && !req('FLUENCY').includes('한국어 뜻'))
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v7')
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
 })
 
 test('TALK: 예산 — [교정] 헤더가 늘어난 뒤에도 altText·긴 이력 최악 조합은 두 모드 모두 ≤3,000자(불변식 회귀)', () => {

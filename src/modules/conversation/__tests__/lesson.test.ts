@@ -969,7 +969,7 @@ test('lesson@v7(task-019): 옵션을 켜지 않으면 LESSON_SCHEMA 여도 지�
 test('lesson@v7: 옵션을 켜지 않는 다른 스키마(TALK)는 스키마 밖 필드를 지우지 않는다 — 동작이 그대로다', () => {
   const validTalk = {
     speech: { style: 'NEUTRAL' },
-    conversation: { replyJa: 'こんにちは。', replyReading: 'こんにちは。', replyKo: '안녕하세요.' },
+    conversation: { replyJa: 'こんにちは。', replyKo: '안녕하세요.' },
     correction: null,
     learning: { grammarPoint: null, difficulty: 'N5' },
     endOfTopic: false,

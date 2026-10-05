@@ -44,7 +44,7 @@ const longHistory = Array.from({ length: 20 }, (_, i) => ({ role: (i % 2 ? 'assi
 const resp = (replyJa: string, correction: TutorResponse['correction'] = null): TutorResponse =>
   ({
     speech: { style: 'NEUTRAL' },
-    conversation: { replyJa, replyReading: 'x', replyKo: 'x' },
+    conversation: { replyJa, replyKo: 'x' },
     correction,
     learning: { grammarPoint: null, difficulty: 'N5' },
     endOfTopic: false,

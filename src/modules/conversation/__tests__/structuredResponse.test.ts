@@ -6,7 +6,7 @@ import { CHAT_SCHEMA, TALK_SCHEMA, type TutorResponse } from '../structuredRespo
 
 const input = '昨日映画を見に行くました'
 const ok: TutorResponse = {
-  conversation: { replyJa: 'そうですか。何の映画を見ましたか？', replyReading: 'そうですか。なんの えいがを みましたか？', replyKo: '그래요? 무슨 영화를 봤어요?' },
+  conversation: { replyJa: 'そうですか。何の映画を見ましたか？', replyKo: '그래요? 무슨 영화를 봤어요?' },
   correction: { required: true, original: input, corrected: '昨日映画を見に行きました', explanationKo: '액션 조각 「行くました」는 「行きました」예요.', errorType: 'CONJUGATION', severity: 'MINOR', chunkType: 'ACTION', hintKo: null },
   learning: { grammarPoint: '動詞の過去形', difficulty: 'N5' },
   speech: { style: 'ENCOURAGING' },

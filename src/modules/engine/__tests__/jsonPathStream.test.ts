@@ -15,7 +15,7 @@ function run(doc: string, chunkSize: number) {
 }
 
 const speechFirst =
-  '```json\n{"speech":{"style":"CALM"},"conversation":{"replyJa":"そうですね。どんな映画を見ましたか？","replyReading":"そうですね。","replyKo":"그렇군요."},"correction":null,"learning":{"grammarPoint":null,"difficulty":"N5"},"endOfTopic":false,"proposals":[]}\n```'
+  '```json\n{"speech":{"style":"CALM"},"conversation":{"replyJa":"そうですね。どんな映画を見ましたか？","replyKo":"그렇군요."},"correction":null,"learning":{"grammarPoint":null,"difficulty":"N5"},"endOfTopic":false,"proposals":[]}\n```'
 
 test('JSON 경로 리더: 코드펜스 앞 글자를 건너뛰고 conversation.replyJa 만 조각으로 흘린다(조각 크기 무관)', () => {
   for (const size of [1, 2, 3, 7, 50, 1000]) {
@@ -25,6 +25,17 @@ test('JSON 경로 리더: 코드펜스 앞 글자를 건너뛰고 conversation.r
     assert.equal(r.style, 'CALM')
     assert.equal(r.failed, false)
     assert.equal(r.finished, true)
+  }
+})
+
+test('JSON 경로 리더: replyJa 와 replyKo 사이에 계약 밖 키가 끼어도(옛 응답 습관) replyJa 조각·speech.style 추출은 그대로다(task-036)', () => {
+  const doc = '{"speech":{"style":"CALM"},"conversation":{"replyJa":"そうですね。","extra":"ずっと長い文字列でも関係ない","replyKo":"그렇군요."},"correction":null}'
+  for (const size of [1, 4, 1000]) {
+    const r = run(doc, size)
+    assert.equal(r.text, 'そうですね。', `size=${size}`)
+    assert.deepEqual(r.done, ['そうですね。'])
+    assert.equal(r.style, 'CALM')
+    assert.equal(r.failed, false)
   }
 })
 

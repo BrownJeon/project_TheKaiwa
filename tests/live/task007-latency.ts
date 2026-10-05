@@ -47,7 +47,10 @@ interface Stt {
 async function speak(chatId: string, audio: Buffer): Promise<Stt | null> {
   const t = await api('POST', '/api/v1/speech/ticket', { chatId, purpose: 'TURN' })
   if (t.status !== 200) return null
-  const url = String(t.data.wsUrl ?? `ws://127.0.0.1:8100${String(t.data.wsPath)}`)
+  const url0 = String(t.data.wsUrl ?? `ws://127.0.0.1:8100${String(t.data.wsPath)}`)
+  // 개발 gateway 로 돌릴 때(운영 8100 무접촉) — `WS_REWRITE='ws://127.0.0.1:8100=>ws://127.0.0.1:8197'`. 티켓의 wsUrl 은 DB connection 값이라 이 스크립트 안에서만 바꾼다.
+  const [rwFrom, rwTo] = (process.env.WS_REWRITE ?? '').split('=>')
+  const url = rwFrom && rwTo && url0.startsWith(rwFrom) ? rwTo + url0.slice(rwFrom.length) : url0
   return new Promise((resolve) => {
     // 운영 gateway 는 Origin 허용 목록(SPEECH_GATEWAY_ALLOWED_ORIGINS)을 본다 — 브라우저처럼 앱 도메인 Origin 을 싣는다(undici WebSocketInit.headers).
     const origin = (process.env.SPEECH_GATEWAY_ALLOWED_ORIGINS ?? '').split(',')[0]?.trim()

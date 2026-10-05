@@ -21,7 +21,7 @@ const fx = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/t
 const learner = { displayName: '브라운', teacherName: '유우', level: 'N5', weaknesses: ['CONJUGATION(3)', 'PARTICLE(2)'], streakDays: 4 }
 const okResp = (over: Partial<TutorResponse> = {}): TutorResponse => ({
   speech: { style: 'NEUTRAL' },
-  conversation: { replyJa: 'いいですね。何を見ましたか？', replyReading: 'いいですね。なにをみましたか？', replyKo: '좋네요. 무엇을 봤어요?' },
+  conversation: { replyJa: 'いいですね。何を見ましたか？', replyKo: '좋네요. 무엇을 봤어요?' },
   correction: null,
   learning: { grammarPoint: null, difficulty: 'N5' },
   endOfTopic: false,
@@ -30,9 +30,9 @@ const okResp = (over: Partial<TutorResponse> = {}): TutorResponse => ({
   ...over,
 })
 
-test('버전: talk@v7·chat@v2', () => {
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v7')
-  assert.equal(CHAT_PROMPT_VERSION, 'chat@v2')
+test('버전: talk@v8·chat@v3 (v7·v2 = userKo 추가, v8·v3 = task-036 읽기 줄 필드 제거)', () => {
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
+  assert.equal(CHAT_PROMPT_VERSION, 'chat@v3')
 })
 
 test('스키마(REV-086 M3): userKo 는 선택·맨 끝 선언·길이 무제한 — 누락·빈 값·null·초장문이어도 TALK·CHAT 응답이 스키마를 통과한다(턴 실패 없음)', () => {
@@ -55,7 +55,7 @@ test('스키마(REV-086 M3): userKo 는 선택·맨 끝 선언·길이 무제한
     assert.deepEqual(validateOutput(okResp({ userKo: '어제 영화를 봐 드려드렸어요.' }), s), { ok: true }, '이중 높임도 스키마는 통과(정리가 버림)')
   }
   assert.equal(validateOutput(okResp({ userKo: 123 as unknown as string }), TALK_SCHEMA).ok, false, '문자열·null 이 아닌 타입은 여전히 위반')
-  assert.equal(validateOutput({ ...okResp(), conversation: { replyJa: '', replyReading: '', replyKo: '' } }, TALK_SCHEMA).ok, false, '본 응답 필드 검증은 그대로')
+  assert.equal(validateOutput({ ...okResp(), conversation: { replyJa: '', replyKo: '' } }, TALK_SCHEMA).ok, false, '본 응답 필드 검증은 그대로')
   assert.ok(USER_KO_PROMPT_MAX > 0)
 })
 

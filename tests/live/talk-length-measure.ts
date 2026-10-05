@@ -10,6 +10,10 @@
  * 실행(우분투 미러): cd ~/.node-local/thekaiwa && node --env-file=.env --import tsx tests/live/talk-length-measure.ts
  * 환경변수: RUNS=3  ITEMS=s01,x01(부분 실행)  ARMS=v3,v4  KAIWA_SRC_REPO=<v3 persona 를 꺼낼 git 저장소, 기본 NFS 원본>
  * 결과: /tmp/kaiwa-talk-length-measure.json (실행 중 계속 덮어써서 중단돼도 부분 결과가 남는다)
+ *
+ * ⚠ task-036(talk@v8) 이후 **재실행 비권장(재현 불가)**: 아래 `V3_REPLYJA_LINE`(v3 원문 상수)은 당시 응답 계약의 히라가나 읽기 줄 필드 문구를 포함하지만, 그 필드는
+ *   talk@v8·chat@v3 에서 스키마·지시 줄에서 빠졌다 — v3 팔이 스키마에 없는 필드를 지시하게 돼 기준선이 오염된다. 이 파일은 task-024 측정의 기록으로 남긴다
+ *   (읽기 줄 제거의 A/B 는 `task036-reading-ab.ts`).
  */
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'

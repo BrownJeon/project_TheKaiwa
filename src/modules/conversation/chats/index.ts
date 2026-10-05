@@ -157,6 +157,7 @@ export interface MessageDto {
   id: string
   role: 'USER' | 'ASSISTANT'
   content: string
+  /** task-036 이전 메시지의 히라가나 읽기(옛 값 호환용으로 응답에 둔다). 화면이 쓰지 않고 새 메시지는 늘 null. */
   reading: string | null
   translation: string | null
   inputSource: string | null

@@ -15,7 +15,7 @@ import { buildUserTranslationRequest } from '../prompts/userTranslation'
 import type { TutorResponse } from '../structuredResponse/schemas'
 
 const TEXT = '昨日映画を見に行きました。'
-const reply = { replyJa: 'いいですね。', replyReading: 'いいですね。', replyKo: '좋네요.' }
+const reply = { replyJa: 'いいですね。', replyKo: '좋네요.' }
 const base: TutorResponse = { conversation: reply, correction: null, learning: { grammarPoint: null, difficulty: 'N5' }, speech: { style: 'NEUTRAL' }, endOfTopic: false, proposals: [], userKo: '어제 영화를 보러 갔어요.' }
 
 const codeOf = (code: string) => (e: unknown) => classifyError(e).code === code
@@ -78,6 +78,16 @@ test('saveTurnTx: 번역은 USER 행 translation 이 비었을 때만(updateMany
   assert.equal(assistant.data.translation, '좋네요.')
   assert.deepEqual(calls[2].args, { where: { id: 'mu', translation: null }, data: { translation: KO } })
   assert.equal(saved.userTranslation, KO)
+})
+
+test('saveTurnTx(task-036, REV-108 L-2): 강사 행 DONE 갱신은 reading 을 null 로 명시해 쓴다 — LLM 이 읽기 줄을 안 만들므로 새 메시지의 ChatMessage.reading 은 null(옛 메시지 값은 안 건드림)', async () => {
+  const calls: Call[] = []
+  await saveTurnTx(fakeTx(calls), 'u1', accepted, shapeTurnResponse('TALK', TEXT, base), toolLog)
+  const assistant = calls[1].args as { where: { id: string }; data: { status: string; content: string; reading: unknown } }
+  assert.equal(assistant.where.id, 'ma', '강사 행(DONE 갱신) 호출을 본다')
+  assert.equal(assistant.data.status, 'DONE')
+  assert.equal(assistant.data.content, 'いいですね。')
+  assert.equal(assistant.data.reading, null, 'undefined(키 누락)도 아닌 명시적 null')
 })
 
 test('saveTurnTx: 번역이 null 이면 USER 행 번역에 무접촉(조건부 갱신·재조회 0) — 반환 번역 null', async () => {

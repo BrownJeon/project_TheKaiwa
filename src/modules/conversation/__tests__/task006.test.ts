@@ -49,7 +49,7 @@ test('대화 생성: ASK·레슨·시나리오는 FEATURE_NOT_READY, 제목은 1
   assert.equal(parseTitle('여행\n계획', { required: true }), '여행계획', '제목은 한 줄')
 })
 
-const reply = { replyJa: 'そうですね。何を見ましたか？', replyReading: 'そうですね。なにをみましたか？', replyKo: '그렇군요. 무엇을 봤나요?' }
+const reply = { replyJa: 'そうですね。何を見ましたか？', replyKo: '그렇군요. 무엇을 봤나요?' }
 const base: TutorResponse = { conversation: reply, correction: null, learning: { grammarPoint: null, difficulty: 'N5' }, speech: { style: 'NEUTRAL' }, endOfTopic: false, proposals: [], userKo: '어제 영화를 봤어요.' }
 const corr = (original: string, corrected = '昨日映画を見に行きました') => ({ required: true, original, corrected, explanationKo: '설명', errorType: 'CONJUGATION' as const, severity: 'MINOR' as const, chunkType: 'ACTION' as const, hintKo: null })
 

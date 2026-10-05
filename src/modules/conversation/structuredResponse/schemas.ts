@@ -36,7 +36,7 @@ export interface TutorProposalDraft {
 }
 
 export interface TutorResponse {
-  conversation: { replyJa: string; replyReading: string; replyKo: string }
+  conversation: { replyJa: string; replyKo: string }
   correction: TutorCorrection | null
   learning: { grammarPoint: string | null; difficulty: JlptLevel }
   speech: { style: SpeechStyle }
@@ -51,13 +51,14 @@ export interface TutorResponse {
   userKo?: string | null
 }
 
+// task-036(talk@v8·chat@v3) — 구 히라가나 읽기 한 줄 필드(`conversation` 안의 reading 칸)는 제거됐다: 화면 A(한자 위 후리가나·아래 한글)와 서버 분석(#24r)이
+// 읽기 줄을 대신해 새 메시지의 `ChatMessage.reading` 은 쓰기 전용이었다. `additionalProperties:false` 라 모델이 옛 습관으로 그 키를 내면 ajv 위반(1회 재시도)이다.
 const conversation = {
   type: 'object',
   additionalProperties: false,
-  required: ['replyJa', 'replyReading', 'replyKo'],
+  required: ['replyJa', 'replyKo'],
   properties: {
     replyJa: { type: 'string', minLength: 1, maxLength: 200 },
-    replyReading: { type: 'string', maxLength: 400 },
     replyKo: { type: 'string', minLength: 1, maxLength: 400 },
   },
 } as const

@@ -282,7 +282,8 @@ export async function saveTurnTx(
   await lockUserRow(tx, userId)
   const res = await tx.chatMessage.updateMany({
     where: { id: a.assistantMessageId, status: 'PENDING', createdAt: a.pendingSince },
-    data: { status: 'DONE', content: shaped.reply.replyJa, reading: shaped.reply.replyReading || null, translation: shaped.reply.replyKo || null, toolLog: toolLog as unknown as Prisma.InputJsonValue, traceId: a.traceId },
+    // task-036: LLM 이 읽기 줄을 더는 만들지 않는다 — `reading` 컬럼은 남기되(옛 메시지 값 유지·스키마 불변) 새 메시지는 null. 읽기는 서버 분석(#24r)이 한다.
+    data: { status: 'DONE', content: shaped.reply.replyJa, reading: null, translation: shaped.reply.replyKo || null, toolLog: toolLog as unknown as Prisma.InputJsonValue, traceId: a.traceId },
   })
   if (res.count === 0) throw new ApiError('CONFLICT', '대화가 바뀌어 답을 저장하지 못했어요.')
 

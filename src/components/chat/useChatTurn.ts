@@ -354,7 +354,6 @@ class TurnController {
     const aid = dn.assistantMessageId
     const reply: Partial<ChatMessageView> = {
       content: dn.conversation.replyJa,
-      reading: dn.conversation.replyReading ?? null,
       translation: dn.conversation.replyKo ?? null,
       learning: dn.learning ?? null,
       ...(dn.speech?.style ? { speechStyle: dn.speech.style } : {}),

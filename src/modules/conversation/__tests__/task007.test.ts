@@ -97,7 +97,7 @@ function harness(speak: (req: TurnSpeechRequest) => Promise<TurnSpeechResult>, o
   return { audio, events, calls, feed, audios, warnings }
 }
 
-const doc = (reply: string, style = 'CALM') => `{"speech":{"style":"${style}"},"conversation":{"replyJa":"${reply}","replyReading":"x","replyKo":"y"},"correction":null}`
+const doc = (reply: string, style = 'CALM') => `{"speech":{"style":"${style}"},"conversation":{"replyJa":"${reply}","replyKo":"y"},"correction":null}`
 
 test('조기 경로: 스트림에서 첫 문장을 검증 전에 합성하고, 최종 답에서 나머지만 이어서 — chunkIndex 순서·말투·last·ttfa', async () => {
   const h = harness(async (req) => okResult(req, req.chunkIndex === 1))
@@ -378,7 +378,7 @@ test('턴 전체(Codex C2-2): 조기 문장 뒤 재시도로 답이 바뀌면 �
     resumed: false,
   }))
   mock.method(turnDeps, 'saveTurn', async () => ({ correction: null, proposals: [] }))
-  const final = { speech: { style: 'CALM' }, conversation: { replyJa: 'いいですね。映画は好きですか？', replyReading: 'x', replyKo: 'y' }, correction: null, learning: { grammarPoint: null, difficulty: 'N5' }, endOfTopic: false, proposals: [] }
+  const final = { speech: { style: 'CALM' }, conversation: { replyJa: 'いいですね。映画は好きですか？', replyKo: 'y' }, correction: null, learning: { grammarPoint: null, difficulty: 'N5' }, endOfTopic: false, proposals: [] }
   mock.method(turnDeps, 'completeJson', async (req: { onTextDelta?: (d: string, call: number) => void }) => {
     req.onTextDelta?.('{"speech":{"style":"CALM"},"conversation":{"replyJa":"そうですね。映画', 1)
     await sleep(30)
@@ -409,4 +409,90 @@ test('턴 전체(Codex C2-2): 조기 문장 뒤 재시도로 답이 바뀌면 �
   await sleep(50)
   assert.equal(events.length, n, 'done 뒤 이벤트 0')
   assert.equal(currentTurnLock('u-c22'), null)
+})
+
+// ── 구문 슬립 → 재시도: 이미 나간 조기 음성과 최종 답(task-036 / REV-109 T-A·T-B) ──────────────
+// 슬립 = 모델이 루트 객체를 일찍 닫는 `…"proposals":[]},"userKo":"…"}`(코드펜스 포함) 꼴. `replyJa` 는 그보다 앞에서 이미 닫혀 있어
+// 조기 경로가 문장을 **검증 전에** 합성하지만 최종 파싱은 실패해 재시도(call 2)가 돈다. 문장은 PE 측정 입력에서 따온 합성 문장이다(실사용자 대화 아님).
+// 기존 불일치 테스트(:137·:303·:360)는 합성을 gate 로 막아 "이미 나간 청크 0" 인 경우만 본다 — 여기서는 합성이 흘러가게 둔다.
+
+const slipRaw = (replyJa: string) =>
+  '```json\n' +
+  `{"speech":{"style":"ENCOURAGING"},"conversation":{"replyJa":"${replyJa}","replyKo":"그렇군요."},"correction":null,"learning":{"grammarPoint":"〜に行きました","difficulty":"N5"},"endOfTopic":false,"proposals":[]},"userKo":"어제 영화를 봤어요."}` +
+  '\n```'
+const stripFence = (raw: string) => raw.replace(/```(?:json)?/g, '').trim()
+
+test('task-036 / REV-109 T-A: 구문 슬립 → 재시도 replyJa 가 1차와 같으면 조기 음성은 finalize 전에 이미 나가 있고, 경고 0·추가 합성 0', async () => {
+  const REPLY = 'そうですか！どんな映画でしたか？'
+  const h = harness(async (req) => okResult(req)) // gate 없음 — 조기 경로가 실제로 켜졌다는 증거가 audio 이벤트다
+  const raw1 = slipRaw(REPLY)
+  assert.throws(() => JSON.parse(stripFence(raw1)), SyntaxError, '입력이 실제 구문 슬립(루트가 일찍 닫힘) — 최종 파싱 실패 → 재시도 대상')
+
+  h.feed(raw1, 1, 7)
+  await sleep(10)
+  // 조기 경로가 켜져 있었다: 검증 전(= finalize 전)에 문장 2개가 합성·이벤트로 나갔다
+  assert.equal(h.audio.metrics().earlyStop, null, '슬립 꼬리(userKo)는 replyJa 감시를 끄지 않는다(최상위 객체가 닫힌 뒤 입력은 무시)')
+  assert.deepEqual(h.calls.map((c) => c.text), ['そうですか！', 'どんな映画でしたか？'])
+  assert.equal(h.audios().length, 2, '조기 오디오가 최소 1개는 나간 상태에서 시작해야 이 테스트가 의미가 있다')
+
+  // 재시도 호출(call 2) — 같은 replyJa. 조기 경로는 call 2 첫 조각에서 닫히고 합성은 늘지 않는다
+  h.feed(doc(REPLY), 2)
+  await sleep(10)
+  assert.equal(h.audio.metrics().earlyStop, 'RETRY')
+  assert.equal(h.calls.length, 2)
+
+  const mark = h.events.length
+  assert.equal(h.events.slice(0, mark).filter((e) => e.event === 'audio').length, 2, 'audio 이벤트 2개가 finalize 보다 먼저 나갔다')
+  h.audio.finalize(REPLY, 'ENCOURAGING')
+  await h.audio.settled()
+  assert.deepEqual(h.warnings(), [], '최종 replyJa 가 이미 나간 문장과 앞부분 일치 → 경고 0')
+  assert.equal(h.calls.length, 2, '추가 합성 0')
+  assert.equal(h.events.length, mark, 'finalize 뒤 새 이벤트 0 — 이미 나간 오디오가 그대로 최종 답의 음성')
+  const m = h.audio.metrics()
+  assert.ok(!m.mismatch && m.audioCount === 2 && m.earlyChunks === 2 && m.chunks === 2)
+})
+
+test('task-036 / REV-109 T-B: 구문 슬립 → 재시도 replyJa 가 1차와 다르면 이미 나간 음성은 남고(회수 불가), 불일치 확정 뒤 대기·진행 중 청크는 합성도 이벤트도 0', async () => {
+  // 동시 2 슬롯을 채운 뒤에도 큐에 청크가 남도록 4문장 — 청크 0 만 즉시 나가고, 청크 1·2 는 합성 중(gate), 청크 3 은 큐 대기
+  const FIRST = 'そうですか！どんな映画でしたか？友達と一緒に見ましたか？面白かったですか？'
+  const FINAL = 'そうなんですね！どんな映画でしたか？友達と一緒に見ましたか？面白かったですか？'
+  let release: () => void = () => {}
+  const gate = new Promise<void>((r) => (release = r))
+  const h = harness(async (req) => {
+    if (req.chunkIndex > 0) await gate
+    return okResult(req)
+  })
+  const raw1 = slipRaw(FIRST)
+  assert.throws(() => JSON.parse(stripFence(raw1)), SyntaxError, '입력이 실제 구문 슬립')
+
+  h.feed(raw1, 1, 7)
+  await sleep(10)
+  assert.equal(h.audio.metrics().earlyStop, null)
+  assert.equal(h.audios().length, 1, '조기 오디오(청크 0)가 finalize 전에 이미 이벤트로 나갔다')
+  assert.deepEqual(h.calls.map((c) => c.chunkIndex), [0, 1, 2], '청크 1·2 는 합성 중, 청크 3 은 큐 대기')
+  const sent = [...h.audios()]
+
+  h.feed(doc(FINAL), 2)
+  await sleep(10)
+  assert.equal(h.audio.metrics().earlyStop, 'RETRY')
+  assert.equal(h.calls.length, 3)
+
+  const mark = h.events.length
+  h.audio.finalize(FINAL, 'ENCOURAGING')
+  // 큐를 비웠으므로 진행 중 합성(gate 로 붙잡힘)을 기다리지 않고 settled — 큐가 남아 있으면 이 경주는 TIMEOUT
+  const r = await Promise.race([h.audio.settled().then(() => 'SETTLED'), sleep(50).then(() => 'TIMEOUT')])
+  assert.equal(r, 'SETTLED', '남은 청크 큐를 비우고 진행 중 합성을 기다리지 않는다')
+  assert.deepEqual(h.warnings(), ['AUDIO_TEXT_MISMATCH'])
+  assert.equal(h.events.length, mark + 1, 'finalize 가 만든 이벤트는 경고 1개뿐')
+  assert.deepEqual(h.events[mark].data, { stage: 'TTS', elapsedMs: 100, warning: 'AUDIO_TEXT_MISMATCH' }, '경고는 이미 나간 audio 이벤트들 뒤에 나간다')
+  assert.deepEqual(h.audios(), sent, '이미 나간 오디오는 회수되지 않고 그대로 남는다(클라가 재생을 끊고 최종 텍스트로 정정)')
+  assert.equal(h.audio.metrics().mismatch, true)
+  assert.equal(h.calls.length, 3, 'finalize 뒤 추가 합성 0 — 큐에 있던 청크 3 도, 최종 답 문장도')
+
+  const n = h.events.length
+  release()
+  await sleep(30)
+  assert.equal(h.events.length, n, '합성 중이던 청크 1·2 가 뒤에 끝나도 이벤트 0')
+  assert.equal(h.calls.length, 3, '그 뒤에도 청크 3 은 합성되지 않는다')
+  assert.equal(h.audio.metrics().audioCount, 1)
 })

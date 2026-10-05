@@ -6,7 +6,7 @@
  * task-007 K4(음성 회화 TTFA): 스키마(`structuredResponse/schemas.ts`)·후검증(`checks.ts`)의 필드·제약은 그대로 두고
  * **출력 순서만 지시문으로 민다**(이 두 파일은 이 task 의 소유 경계 밖).
  *  1. JSON 최상위 키 순서 speech → conversation → correction → learning → endOfTopic → proposals, conversation 안은
- *     replyJa → replyReading → replyKo. developer 가 `--include-partial-messages` 스트림에서 `speech.style`(TTS 톤) →
+ *     replyJa → replyKo(talk@v8 부터 — v7 까지는 replyJa 와 replyKo 사이에 읽기 줄 필드가 있었다). developer 가 `--include-partial-messages` 스트림에서 `speech.style`(TTS 톤) →
  *     `replyJa`(문장 단위 조기 합성) 순으로 증분 추출하므로 이 둘이 최대한 먼저 나와야 한다.
  *  2. replyJa 첫 문장은 「そうですね。」처럼 아주 짧은 맞장구 — 문장 경계(。！？)가 빨리 나올수록 TTS 첫 청크(TTFA)가 빨라진다.
  *  ⚠ 순서 준수는 모델의 자연어 지시 해석에 달려 있을 뿐이다 — JSON Schema 는 키 순서를 표현하지 못하고, `engine/json/schemaValidate.withJsonOnly`
@@ -79,8 +79,13 @@
  * 합성은 영향이 없고 `done` 만 출력 토큰만큼(실측 task-026 기록) 늦는다. ② 같은 A5·A11 교훈 — 지시문 필드 나열과 응답 골격(`[순서 예]`)에 **정확한
  * 이름 `userKo` 를 넣고** 스키마 properties·테스트로 맞췄다(required 는 아니다 — REV-086 M3, ⑤). ③ 번역 문체는 `replyKo` 줄과 같은 규칙(자연스러운 한국어·이중 높임 금지)에 "교정·보충 없이
  * 말한 그대로(말투·높임 수준 포함)"를 더했다(1차 실측에서 반말 「ごめん」이 「죄송합니다」로 올라가 추가) — 저장 전 정리는 전부 `sanitizeUserKo`(누락·빈 값·과길이·베끼기·한글 없음·이중 높임 → null, 재시도 없음)가 맡는다(저장·화면은 developer 몫).
- * ⑤ REV-086 M3: 번역은 부가 정보라 **스키마 선택(required 아님)·null 허용·길이 무제한**이고 extraCheck 에도 합성하지 않는다 — 이 필드 때문에 ajv 재시도나 턴 실패(`JsonSchemaError`)가 나지 않는다. ④ `replyReading` 은 **유지** — 말풍선 히라가나 줄(`MessageBubble`)·`ChatMessage.reading` 이 지금도 쓴다. 후리가나
- * 서버 분석(S1)·화면 A 가 배포돼 그 줄이 사라진 뒤에 뺄 수 있다(task-026 이력서 Prompt-Engineer 기록 — 변경 목록).
+ * ⑤ REV-086 M3: 번역은 부가 정보라 **스키마 선택(required 아님)·null 허용·길이 무제한**이고 extraCheck 에도 합성하지 않는다 — 이 필드 때문에 ajv 재시도나 턴 실패(`JsonSchemaError`)가 나지 않는다. ④ (v7 당시) 히라가나 읽기 줄 필드는 말풍선·`ChatMessage.reading` 이 쓰고 있어 유지했다 — 서버 분석(S1)·화면 A 가 배포된 뒤 task-036 에서 뺐다(아래).
+ *
+ * task-036(talk@v8, 구 읽기 줄 필드 제거) — 화면 A(한자 위 후리가나·아래 한글 줄)와 서버 분석(#24r, pyopenjtalk)이 운영 반영돼 `conversation` 안의 히라가나 읽기 한 줄을
+ * LLM 이 매 턴 만들어도 새 메시지에서 읽는 화면이 없어졌다(`ChatMessage.reading` 은 쓰기 전용). 그 필드를 지시 줄·`[순서 예]` 골격·키 순서 문구·스키마(required·properties)·
+ * `TutorResponse` 타입·테스트에서 한꺼번에 뺐다(정확한 이름을 4곳에 일치시킨다는 A5·A11 교훈 — 한 곳이라도 남으면 재시도·FAILED). 키 순서는 `speech → conversation(replyJa → replyKo) → …`
+ * 로 **`replyJa` 앞은 그대로**다 — `speech.style` → `replyJa` 조기 추출(`jsonPathStream`)·문장 단위 합성은 불변. persona(`tutor.md`·`--system-prompt`)는 무변경(바이트 불변).
+ * DB `ChatMessage.reading` 컬럼은 남기고 새 메시지는 null(서버 `saveTurn`), 옛 메시지 값은 그대로다. 기대 이득: 턴당 출력 −30~45 토큰(히라가나 한 줄) → `done` 단축.
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -89,7 +94,7 @@ import { TALK_SCHEMA, USER_KO_PROMPT_MAX, type TutorResponse } from '../structur
 import { buildWindow, type WindowMessage } from '../window'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const TALK_PROMPT_VERSION = 'talk@v7'
+export const TALK_PROMPT_VERSION = 'talk@v8'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
 /**
@@ -245,7 +250,7 @@ function correctionInstructionLine(mode: CorrectionMode, level: string): string 
 export function replyJaInstructionLine(cap: number = TALK_SCENE_CAP_DEFAULT): string {
   const n = clampSceneCap(cap)
   const tail =
-    '교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyReading 은 replyJa 전체의 히라가나 읽기, replyKo 는 자연스러운 존댓말 번역(이중 높임 금지).'
+    '교정 설명·「〜ではなく」 같은 고쳐 말하기는 replyJa 에 넣지 않습니다(그건 correction 에만). replyKo 는 자연스러운 존댓말 번역(이중 높임 금지).'
   const clerk =
     '가게·식당처럼 응대 상황이면 점원처럼 직답한 뒤 다음 물음(사이즈·봉투·포인트카드·결제 등)으로 이어 가고, 학습자가 대답만 했어도 「かしこまりました。」로 끝내지 말고 다음 물음을 잇습니다. 질문은 한 번에 하나. '
   const head = '- conversation.replyJa: 학습자 수준 안의 자연스러운 일본어 '
@@ -275,13 +280,13 @@ export const USER_KO_INSTRUCTION_LINE = `- userKo(필수): [입력] 학습자 �
 
 export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY', sceneCap: number = TALK_SCENE_CAP_DEFAULT, level: string = 'N5'): string {
   return [
-    '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다). **JSON 키 순서를 반드시 지킵니다**: speech → conversation(replyJa→replyReading→replyKo) → correction → learning → endOfTopic → proposals → userKo.',
+    '[지시] [입력]의 학습자 말에 선생님으로서 답하세요([대화]는 앞선 맥락입니다). **JSON 키 순서를 반드시 지킵니다**: speech → conversation(replyJa→replyKo) → correction → learning → endOfTopic → proposals → userKo.',
     '- speech.style: 답의 분위기.',
     replyJaInstructionLine(sceneCap),
     correctionInstructionLine(correctionMode, level),
     '- learning.grammarPoint 는 이번 턴의 핵심 문법(없으면 null), difficulty 는 학습자 수준. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 학습자가 모르는 새 단어를 단어장에 넣자고 제안할 때만(최대 2개, 보통 빈 배열).',
     USER_KO_INSTRUCTION_LINE,
-    '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyReading":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[],"userKo":"<...>"}',
+    '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[],"userKo":"<...>"}',
     INJECTION_GUARD,
   ].join('\n')
 }

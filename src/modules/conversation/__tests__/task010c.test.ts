@@ -186,7 +186,7 @@ test('#32 coachRevealed: 생략·null = false, true 만 true, 불리언이 아�
 function reply(severity: 'MINOR' | 'MAJOR', hintKo: string | null, text = ORIG): TutorResponse {
   return {
     speech: { style: 'CALM' },
-    conversation: { replyJa: 'いいですね！何の映画を見ましたか。', replyReading: 'x', replyKo: 'y' },
+    conversation: { replyJa: 'いいですね！何の映画を見ましたか。', replyKo: 'y' },
     correction: { required: true, original: text, corrected: FIXED, explanationKo: '「行く」는 ました 앞에서 「行き」.', errorType: 'CONJUGATION', severity, chunkType: 'ACTION', hintKo },
     learning: { grammarPoint: null, difficulty: 'N5' },
     endOfTopic: false,

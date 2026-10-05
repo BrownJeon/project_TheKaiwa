@@ -24,7 +24,7 @@ const learner = { displayName: '브라운', teacherName: '유우', level: 'N5', 
 const resp = (replyKo: string): TutorResponse =>
   ({
     speech: { style: 'NEUTRAL' },
-    conversation: { replyJa: 'x', replyReading: 'x', replyKo },
+    conversation: { replyJa: 'x', replyKo },
     correction: null,
     learning: { grammarPoint: null, difficulty: 'N5' },
     endOfTopic: false,

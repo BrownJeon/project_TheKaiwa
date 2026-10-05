@@ -102,6 +102,7 @@ export interface ChatMessage {
   id: string
   role: MessageRole
   content: string
+  /** 옛 메시지(task-036 이전)에만 값이 있는 히라가나 읽기 — 화면이 쓰지 않는다(읽기 줄은 후리가나·한글 분석이 대신). 새 메시지는 늘 null. */
   reading?: string | null
   translation?: string | null
   inputSource?: InputSource | null
@@ -204,7 +205,7 @@ export interface TurnCorrection {
 export interface TurnDoneEvent {
   userMessageId: string
   assistantMessageId: string
-  conversation: { replyJa: string; replyReading?: string | null; replyKo?: string | null }
+  conversation: { replyJa: string; replyKo?: string | null }
   correction?: TurnCorrection | null
   /** 직전 코치 힌트 교정의 판정(task-010c). */
   selfCheck?: { correctionId: string; result: SelfCheckResult } | null
