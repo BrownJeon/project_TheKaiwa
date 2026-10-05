@@ -58,6 +58,7 @@ tags:
 - [[task-032-lexicon-to-reading]] — 관리자 발음 사전 → 읽기 분석기 반영(青か·愚か·密か) — ✅ **완료·운영 반영** `afde949`(REV-103·QA PASS, 운영 스모크 42/42·45/45)
 - [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — ✅ **완료·운영 반영** `077654f`(데모 v1 승인·REV-105·QA PASS, 운영 스모크 45/45·42/42)
 - [[task-034-tts-lexicon-compound-guard]] — ✅ **완료·운영 반영(2026-10-05 15:47, `7d68b1d`·릴리스 `20261005-154632-fc19593e`, 운영 스모크 007 45/45·006 42/42)**: TTS 발음 사전 복합어 경계 가드(`明日香`→アシタ香) + 사전 캐시 경쟁(REV-103 L-1) · judge: local_fix·R1·opus·standard·데모 none · REV-106 PASS_WITH_NOTES · Codex 한도 미기록 보류 · QA PASS(결함 0, 옛 코드는 `アシタガサン`→새 코드 `アスカサン` 실 M4 대조)
+- [[task-035-tts-rescan-contract-test]] — ✅ **완료(2026-10-05, 로컬 커밋 — push·운영 배포는 사용자 확인 대기)**: 034 후속 — 어댑터 `substituteReadings` ↔ L4 `rescanHintSurfaces` 계약 테스트(JSON 픽스처 18사례 공유, M-1) + `lexiconOverlay` 주석 정정, `lead` 는 제거하지 않고 주석만(L-2 전제가 공백 시작 표기에서 깨짐) · judge 분류 실패→안전값 opus·standard · REV-107 PASS_WITH_NOTES(반영) · QA PASS(결함 0, 동작 불변 24만 건·변이 8/8). **동작 변경 없음** — push 는 운영 재배포(pm2 재시작)만 일으킴
 - (후보) 구 `reading`/`replyReading` 필드 제거 — PE+developer(talk@v8·chat@v3), 026 화면 A 배포로 이제 가능
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
@@ -69,7 +70,8 @@ tags:
 ## 정리 backlog (소규모)
 - (033 후속) 교차 보호 대상 문장 읽기를 서버 응답에서 비우기(QA I-1) · 복합어·조각 경계 교차 보호(REV-104 L-1) · 극단 카드 숨긴 예문 줄 루비 비침(L-2) · 평가 "내가 한 말" 스크린리더 비노출
 - ~~(032 후속) TTS `明日香`→アシタ香 · REV-103 L-1 사전 캐시 재충전~~ → [[task-034-tts-lexicon-compound-guard]] 로 처리
-- (034 후속, REV-106) M-1 어댑터 `substituteReadings` ↔ L4 `rescanHintSurfaces` 규칙 복사본 결합 — 공유 JSON 픽스처 테스트 또는 hint 에 정규화 좌표를 실어 위치 기반 치환(엔진 계약 변경, Leader 판단) · M-2 한자 전용 사용자 표기가 한자 이웃(様·先生·駅)에서 꺼짐 — PERSON·PLACE 접미어 허용 또는 위치 기반 치환 · 관리자 미리듣기 `notHitText` 에 "더 긴 한자 단어의 일부" 사유 문구(designer 경로) · `reading/lexiconOverlay.ts:5` 주석("표시와 소리가 같은 항목") 정정 · `renderingPlan.ts:60` 죽은 코드 `lead` · `ヶ` 한자 클래스 정의(`三ヶ月間` 꺼짐)
+- (035 후속) `validateLexiconEntry` 가 공백으로 시작하는 표기를 거부하도록(`lexicon.ts` — 손상 스냅샷 방어, 별도 task) · 계약 테스트 사례 수 하한 `>= 10` → 정확 수 단언(REV-107 I-1·QA O-2) · 개발 미러의 다른 세션 임시 파일(`tmp-pe/t49.ts`·`.scratch-021/`) 정리 — `npm run lint` 노이즈
+- (034 후속, REV-106) ~~M-1 어댑터↔L4 결합~~ → [[task-035-tts-rescan-contract-test]] 로 처리(공유 픽스처, 위치 기반 치환은 하지 않음 — 엔진 계약 변경이라 별도 판단) · M-2 한자 전용 사용자 표기가 한자 이웃(様·先生·駅)에서 꺼짐 — PERSON·PLACE 접미어 허용 또는 위치 기반 치환 · 관리자 미리듣기 `notHitText` 에 "더 긴 한자 단어의 일부" 사유 문구(designer 경로) · `reading/lexiconOverlay.ts:5` 주석("표시와 소리가 같은 항목") 정정 · `renderingPlan.ts:60` 죽은 코드 `lead` · `ヶ` 한자 클래스 정의(`三ヶ月間` 꺼짐)
 - (031 분리, 2026-10-05) REV-093 LOW — `orchestrator/index.ts` flushUserRow 번역 updateMany 를 `correction.create` 앞으로(S→X 승격 대기 축소). 교정 트랜잭션 순서라 R2 보강 대상 → standard+QA 로 별도 처리
 - (005b) 발음 사전(Pronunciation Dictionary P0) — task-003 이후 · #93b credentialRef 쓰기·functional test 30초 슬롯 원자성 — Phase 2(012c) · 운영 APP_ENV=LOCAL·dev 상태 점검이 운영 connection 행을 바꾸는 문제 — task-009
 - `infra/http.ts` 기본 오류 문구 "AI 엔진…" 사용자 노출 가능 · 공용 `Badge` warn/accent·`ink3` 라이트 명암비 미달 · `ComingSoon` Phase/task 번호 노출
