@@ -1,7 +1,7 @@
 ---
 task_id: task-036
 title: "LLM 응답의 구 reading/replyReading 필드 제거 (talk·chat 프롬프트 계약 슬림화)"
-status: in_progress
+status: done
 base_ref: d26e70b
 risk_level: "R2"
 roles_involved: [leader, judge, developer, prompt-engineer, reviewer, qa]
@@ -689,6 +689,70 @@ Fisher: QA talk 파싱 실패 3/52(검정 시점 표본; 최종 72턴 기준 비
 ```json
 {"taskId":"task-036","status":"DONE","deliverables":["tests/live/task036-qa-turns.ts","tests/live/task036-ui.mjs","tests/live/task007-latency.ts"],"blockers":[],"risk_level":"LOW","metrics":{"talk_p50_ms":5147,"talk_p95_ms":null,"vocab_set_sec":null,"first_audio_stop_p50_ms":{"work":2680,"head":3026},"req_to_first_audio_p50_ms":{"work":1800,"head":2084},"w1_retry_rate":{"work_talk":0.069,"head_talk":0.075,"work_json_parse_fail":0.042,"head_json_parse_fail":0.025}}}
 ```
+
+## Deployer 기록 (2026-10-05 20:53)
+
+배포 상태: **완료 ✅**
+
+| 항목 | 값 |
+|---|---|
+| 배포 방식 | webhook(CI/CD) — 21:46 완료 |
+| 릴리스 | `20261005-204558-e1c5f296` |
+| 커밋 | code: `7aeba66` (feat: replyReading 제거), vault: `e1c5f29` |
+| 이전 릴리스 | `20261005-154632-fc19593e` (task-034) |
+| RELEASE_RESULT | status: **ok** |
+| 마이그레이션 | 불필요 (`migration_required: false`) |
+| APK 재빌드 | 불필요 (`reinstall_required: false`, 네이티브 변경 0) |
+
+### post_deploy_checks 결과
+
+✅ **1. /api/health 본문 확인**
+```json
+{
+  "data": {
+    "app": "thekaiwa",
+    "env": "PRODUCTION",
+    "status": "ok",
+    "degraded": [],
+    "checks": {
+      "db": true, "llm": true, "stt_gateway": true,
+      "stt_analysis": true, "stt_analysis_worker": true, "tts": true
+    }
+  }
+}
+```
+
+✅ **2. pm2 상태 확인**
+- thekaiwa(ID 220): online, 2m 전 시작 (restart 0)
+- thekaiwa-speech-gateway(ID 221): online, 2m 전 시작 (restart 0)
+- thekaiwa-speech-worker(ID 222): online, 2m 전 시작 (restart 0)
+
+✅ **3. 코드 검증**
+- `replyReading` 필드 제거: src 의 talk.ts/chat.ts/schemas.ts 에서 **0건** (의도적 부정 단언만 제외)
+- 버전 상수: `TALK_PROMPT_VERSION = 'talk@v8'`, `CHAT_PROMPT_VERSION = 'chat@v3'` ✅
+- 화면 변경: useChatTurn.ts 1줄 삭제뿐, 다른 컴포넌트 무변경
+
+✅ **4. 운영 HTTP 상태** (201-OK-CONNECT)
+- 로그인: 307(Google OAuth 콜백)
+- 회화 진입: 200 ok
+
+### 배포 후 사용자 대기 사항
+
+| # | 항목 | 상태 | 담당 |
+|---|---|---|---|
+| 1 | SMOKE_ENV=PRODUCTION task006 42/42·task007 45/45 검증 | **사용자(Leader)** | Leader 가 운영 환경에서 직접 실행 |
+| 2 | 새 TALK/CHAT 턴 계약 검증 (done.conversation 키, ChatMessage.reading NULL) | **배포 후 감시** | QA 기준선(배포 전 TALK 100턴) 대비 배포 후 100턴 |
+| 3 | W1 감시(attempt=2 >8% 또는 ENGINE_ERROR ≥1) | **배포 후 감시** | 임계 초과 시 Leader 에 (B) extractJson 복구 task 제안 |
+| 4 | 롤백 기준 | 준비 완료 | `scripts/deploy.sh TheKaiwa --rollback` (DB·스키마 변경 없음) |
+
+### 배포 영향 분석
+
+- **코드**: 이전 task-034 `20261005-154632-fc19593e` 대비 task-036·035 추가 (diff 24파일)
+- **DB**: 스키마 변경 0, 마이그레이션 0, 옛 `ChatMessage.reading` 값 유지
+- **운영**: 새 메시지는 `reading: null`, 말풍선은 분석 경로(`#24r`) 사용(화면 A), 조기 추출 불변
+- **음성**: gateway/worker 재시작 확인, TTS(M4) 별도 배포 불필요
+
+**배포 완료. 모든 체크 통과. ✅**
 (`talk_p50_ms` = 턴 요청→done p50 5147ms 작업본. p95·단어 세트 소요는 이 task 범위 밖/표본 부족으로 미측정.)
 
 ## 최종 요약 (Leader, 2026-10-05)
@@ -703,4 +767,4 @@ Fisher: QA talk 파싱 실패 3/52(검정 시점 표본; 최종 72턴 기준 비
 
 **알려진 한계·후속** — ⚠ **W1 신호**: QA 풀링(PE 표본 포함) 구문 슬립 신규 8/176 vs HEAD 1/164(Fisher p=0.038) — 두 표본이 같은 방향이라 "우연"으로만 보기 어렵다. 다만 QA 표본의 TALK 총 재시도율은 신규 6.9% vs HEAD 7.5% 로 **같고**(슬립이 다른 재시도 사유를 대체), 5/5 재시도로 회복·FAILED 0·평균 지연은 여전히 단축 → 순이득이라 수용하되 **`extractJson` 좁은 복구(REV-108 B)를 후속 task(037 후보)로 우선 진행**해 슬립 범주 자체를 없애는 것을 권고. 감시·롤백 기준은 위 "Leader 결정" 절. 그 밖: O-1 불일치 건수 서버 미기록(task-007 C1-3 ③ 미구현) · `docs/screens.md:488·8052·8087`·`.codex/agents/prompt-engineer.toml`(생성본)·persona `tutor.md:65` "읽기" 문구 잔재 · T-C 단언 · QA 가 수정한 `tests/live/task007-latency.ts`(`WS_REWRITE` 4줄)·신규 `task036-*` 스크립트 3개 커밋 포함. NOT_VERIFIED: 운영 스모크(배포 직후 Leader 실행)·실기기.
 
-**배포 상태** — 운영 배포 전(로컬 커밋·push 대기 — 이번 push 에는 task-035 로컬 커밋 2개(`3a0945c`·`d26e70b`)도 함께 나간다). 배포 뒤: `SMOKE_ENV=PRODUCTION` 006 42/42·007 45/45, 운영 새 메시지 `ChatMessage.reading` NULL, **W1 감시(첫 TALK 100턴)** 를 확인한다.
+**배포 상태** — ✅ **운영 반영 완료**(2026-10-05 20:46, 사용자 승인 — AskUserQuestion "배포 진행"). push `e695d32..e1c5f29`(코드 `7aeba66`·`3a0945c`, vault `e1c5f29`·`d26e70b` — task-035 보류 커밋 포함) → webhook 배포 성공, 릴리스 `20261005-204558-e1c5f296`(직전 `20261005-154632-fc19593e`), migrated:false, APK 불필요. Leader 직접 확인: 배포 소스 `talk.ts`·`chat.ts`·`schemas.ts`·`orchestrator/index.ts`·`useChatTurn.ts` 가 커밋과 `cmp` 동일 · `TALK_PROMPT_VERSION=talk@v8`·`CHAT_PROMPT_VERSION=chat@v3` · `/api/health` status=ok·env=PRODUCTION·degraded=[]·checks 전부 true · pm2 `thekaiwa`·`thekaiwa-speech-gateway`·`thekaiwa-speech-worker` online·restart 0·cwd 새 릴리스 · **운영 스모크(`SMOKE_ENV=PRODUCTION`, 포트 3010): 007 PASS 45/45 · 006 PASS 42/42(턴 p50 4,700ms) · QA 턴 계약 스크립트(`tests/live/task036-qa-turns.ts`, 운영 QA 계정, TALK·CHAT 각 2턴) PASS 48/48** — `done.conversation` 키 = `replyJa`·`replyKo` 뿐, 새 강사 행 DB `reading` NULL·`content`=`replyJa`·`translation`=`replyKo`, 옛 행 `reading` 값 #29 그대로, 경고 0, audio 문장 이음=`replyJa`(들리는 것=보이는 것). **W1 초기 관찰**: 운영 4턴(TALK 2·CHAT 2) `toolLog.attempt≥2` 0·`earlyStop='RETRY'` 0 · 운영 `pm2-err.log` 배포 전후 `JSON 파싱 실패` 2줄 → 2줄(변화 없음, 117줄 동일) — 표본이 작아 판정용 아님. **감시는 계속**(첫 TALK 100턴 — `attempt=2` 8% 초과·`ENGINE_ERROR` 1건 이상이면 후속 037 착수·지속 시 롤백 검토). 롤백 = `bash scripts/deploy.sh TheKaiwa --rollback`.
