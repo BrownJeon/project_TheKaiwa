@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { kstDateKey } from '@/components/common/format'
+import { useAnnotations } from '@/components/common/japanese/annotations'
 import { readStore } from '@/components/common/storage'
 import { Btn, BtnRow, Card } from '@/components/common/ui'
 import BackBar from '@/components/shell/BackBar'
@@ -59,6 +60,8 @@ export default function LessonEnd({
   const used = targetsOf(lesson.content, result.usedIds)
   const missed = targetsOf(lesson.content, result.missedIds)
   const total = used.length + missed.length
+  // 쓴 표현·써 볼 표현 칩의 히라가나·한글 층(task-033 S1-A) — 한 묶음으로 분석. 일반 수업 종료 화면도 같은 칩이라 함께 적용된다.
+  const exprAnns = useAnnotations([...used, ...missed].map((t) => t.ja))
   const isReview = lesson.kind === 'REVIEW'
   const reviewItems = lesson.reviewItems ?? []
 
@@ -109,8 +112,8 @@ export default function LessonEnd({
           <h3 className="text-[15px] font-semibold">{END.usedTitle}</h3>
           {used.length ? (
             <ul className="mt-2 flex flex-wrap gap-1.5">
-              {used.map((t) => (
-                <ExprChip key={t.id} ja={t.ja} ko={t.ko} tone="good" tail={<span aria-hidden="true" className="text-[12px] font-bold text-good">✓</span>} />
+              {used.map((t, i) => (
+                <ExprChip key={t.id} ja={t.ja} ko={t.ko} ann={exprAnns[i]} tone="good" tail={<span aria-hidden="true" className="text-[12px] font-bold text-good">✓</span>} />
               ))}
             </ul>
           ) : null}
@@ -118,8 +121,8 @@ export default function LessonEnd({
             <>
               <h3 className="mt-3 text-[15px] font-semibold">{END.missedTitle}</h3>
               <ul className="mt-2 flex flex-wrap gap-1.5">
-                {missed.map((t) => (
-                  <ExprChip key={t.id} ja={t.ja} ko={t.ko} />
+                {missed.map((t, i) => (
+                  <ExprChip key={t.id} ja={t.ja} ko={t.ko} ann={exprAnns[used.length + i]} />
                 ))}
               </ul>
             </>

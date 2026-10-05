@@ -4,10 +4,15 @@
  * 평가 결과(데모 v1 `#result-*`) — 총점·등급(결정 c=B 레벨 기준형, 색+모양+글자)·등급 범위 · 레벨 올리기 제안(SET_LEVEL, 채택해야 바뀜) ·
  * 선생님 한마디·다음에 집중할 것 · 영역별 5차원(0~5 막대+숫자) · 문항별 결과(누르면 내 답·정답·피드백, 들려준 문장도 이제 글자로).
  * 정답 색(초록·빨강)은 이 화면에서만 쓴다. 들려준 문장 다시 듣기는 #67a(횟수 제한 없음).
+ *
+ * 일본어 층(task-033 A, screens §15-11-5): 제출·채점 뒤라 정답 보호가 없다 — 내 답·정답·모범 답·들려준 말·문장에 히라가나 + `[한글]` 13(앱 설정을 따름).
+ * 번역 층은 없다. 틀린 곳 찾기 "내 답"(한국어 이유가 섞임)·문항 줄 제목·선생님 말·피드백은 달지 않는다. 마운트 때 결과 문장을 한 묶음으로 미리 분석한다.
  */
 import Link from 'next/link'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { apiPost } from '@/components/common/api'
+import { useAnnotations, type TextRange } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { toErr } from '@/components/common/errors'
 import TeacherAvatar from '@/components/common/TeacherAvatar'
 import Toast, { useToast } from '@/components/common/Toast'
@@ -16,8 +21,9 @@ import { kstDateKey } from '@/components/common/format'
 import BackBar from '@/components/shell/BackBar'
 import type { EvalDim, EvaluationDetail, EvaluationItem } from '@/types/evaluation'
 import { CHUNK_CHOICES, DIM_NAME, DIM_ORDER, GRADE_RANGE, GRADE_SUB, ITEM_KIND, KIND_NAME, LEVEL, RESULT } from './evalCopy'
+import { assembleMineText, assembleRightText, collectEvalTexts, filledRange, fixLineRanges, usageRightFill } from './displayGuard'
 import { BlankSentence } from './EvalItems'
-import { clockText, itemTone, koDuration, levelProposalView, levelRo, promptArr, promptStr, resultMeta, spotFix, type LevelProposalView } from './logic'
+import { clockText, itemTone, koDuration, levelProposalView, levelRo, promptArr, promptStr, resultMeta, type LevelProposalView } from './logic'
 import { GradeChip, PlayIcon } from './parts'
 import { EVAL_HISTORY_PATH } from './paths'
 import { useEvalListen } from './useEvalListen'
@@ -25,6 +31,46 @@ import { useEvalListen } from './useEvalListen'
 const SUBJECTIVE = new Set(['LISTEN_RESPOND', 'SITUATION_RESPOND', 'CORRECTION_SPOT'])
 const BOX = 'min-w-0 rounded-xl px-3 py-2.5'
 const JA = 'whitespace-pre-wrap text-[17px] leading-[1.7] [overflow-wrap:anywhere]'
+
+const USAGE_MINE = 'font-semibold underline decoration-2 underline-offset-[5px]'
+const USAGE_RIGHT = 'font-semibold underline decoration-good decoration-2 underline-offset-[5px]'
+const FIX_CLS = { wrong: 'line-through decoration-bad decoration-2', fix: 'underline decoration-good decoration-2 underline-offset-[5px]' }
+
+/** 일본어 블록 + 바로 아래 `[한글]` 13. `tint` = 색 바탕(내 답·정답 상자) 위라 기다리는 막대를 `surface` 로. */
+function JaBlock({ text, ranges, className = JA, tint = false }: { text: string; ranges?: TextRange[]; className?: string; tint?: boolean }) {
+  const [st] = useAnnotations([text])
+  return (
+    <>
+      <JaText text={text} state={st} ranges={ranges} className={className} />
+      <HangulLine state={st} size={13} onTint={tint} />
+    </>
+  )
+}
+
+/**
+ * 정답 — 고친 곳: 앞 + 틀린 말(취소선) + 고친 말(밑줄) + 뒤 한 줄(보이는 글을 한 번 분석 + 범위 겹치기). `[한글]` 은 고친 문장(`correctedJa`) 한 블록의
+ * 분석 — 취소선 글자 소리를 섞지 않는다. 고친 말을 못 뽑았거나 틀린 말을 못 찾으면 고친 문장을 따로 한 줄 보인다.
+ */
+function FixedLine({ sentence, wrongSpan, corrected }: { sentence: string; wrongSpan: string; corrected: string }) {
+  const line = fixLineRanges(sentence, wrongSpan, corrected, FIX_CLS)
+  const [lineState, correctedState] = useAnnotations([line?.text ?? '', corrected])
+  return (
+    <>
+      {line ? (
+        <>
+          <JaText text={line.text} state={lineState} ranges={line.ranges} className={JA} />
+          {line.hasFix ? <HangulLine state={correctedState} size={13} onTint /> : null}
+        </>
+      ) : null}
+      {!line || !line.hasFix ? (
+        <div className={line ? 'mt-1' : undefined}>
+          <JaText text={corrected} state={correctedState} className={JA} />
+          <HangulLine state={correctedState} size={13} onTint />
+        </div>
+      ) : null}
+    </>
+  )
+}
 
 function Label({ good, children }: { good?: boolean; children: React.ReactNode }) {
   return <p className={`mb-0.5 text-[12px] font-semibold ${good ? 'text-good' : 'text-ink2'}`}>{children}</p>
@@ -42,26 +88,19 @@ function MyAnswer({ it }: { it: EvaluationItem }) {
       return <p className="text-[15px] break-keep">{it.answerText}</p>
     case 'CHUNK_CLASSIFY':
       return <p className="text-[15px]">{chunkLabel(it.answerText)}</p>
-    case 'USAGE_CHOICE':
+    case 'USAGE_CHOICE': {
+      const filled = filledRange(promptStr(p, 'sentenceJa'), it.answerText, USAGE_MINE)
+      if (filled) return <JaBlock text={filled.text} ranges={filled.ranges} tint />
       return (
         <p lang="ja" className={JA}>
-          <BlankSentence text={promptStr(p, 'sentenceJa')} fill={it.answerText} fillClass="font-semibold underline decoration-2 underline-offset-[5px]" />
-        </p>
-      )
-    case 'READING_INPUT':
-      return (
-        <p lang="ja" className={JA}>
-          {it.answerText}
-        </p>
-      )
-    case 'ASSEMBLE': {
-      const pieces = promptArr(p, 'pieces')
-      return (
-        <p lang="ja" className={JA}>
-          {it.answerOrder ? it.answerOrder.map((k) => pieces[k] ?? '').join(' ') : it.answerText}
+          <BlankSentence text={promptStr(p, 'sentenceJa')} fill={it.answerText} fillClass={USAGE_MINE} />
         </p>
       )
     }
+    case 'READING_INPUT':
+      return <JaBlock text={it.answerText} tint />
+    case 'ASSEMBLE':
+      return <JaBlock text={assembleMineText(it)} tint />
     case 'CORRECTION_SPOT': {
       const seg = it.answerSpot != null ? promptArr(p, 'segments')[it.answerSpot] : undefined
       if (seg !== undefined)
@@ -83,9 +122,7 @@ function MyAnswer({ it }: { it: EvaluationItem }) {
     default:
       return (
         <>
-          <p lang="ja" className={JA}>
-            {it.answerText}
-          </p>
+          <JaBlock text={it.answerText} tint />
           <p className="text-[12px] text-ink2">{it.inputSource === 'TEXT' ? RESULT.byText : RESULT.byVoice}</p>
         </>
       )
@@ -100,63 +137,30 @@ function RightAnswer({ it }: { it: EvaluationItem }) {
       return <p className="text-[15px] break-keep">{promptArr(p, 'choices')[Number(e.answer)] ?? ''}</p>
     case 'CHUNK_CLASSIFY':
       return <p className="text-[15px]">{chunkLabel(e.chunkType)}</p>
-    case 'USAGE_CHOICE':
+    case 'USAGE_CHOICE': {
+      const filled = filledRange(promptStr(p, 'sentenceJa'), usageRightFill(it), USAGE_RIGHT)
+      if (filled) return <JaBlock text={filled.text} ranges={filled.ranges} tint />
       return (
         <p lang="ja" className={JA}>
-          <BlankSentence text={promptStr(p, 'sentenceJa')} fill={promptArr(p, 'choices')[Number(e.answer)] ?? ''} fillClass="font-semibold underline decoration-good decoration-2 underline-offset-[5px]" />
+          <BlankSentence text={promptStr(p, 'sentenceJa')} fill={usageRightFill(it)} fillClass={USAGE_RIGHT} />
         </p>
       )
+    }
     case 'READING_INPUT':
-      return (
-        <p lang="ja" className={JA}>
-          {typeof e.reading === 'string' ? e.reading : ''}
-        </p>
-      )
+      return <JaBlock text={typeof e.reading === 'string' ? e.reading : ''} tint />
     case 'ASSEMBLE':
-      return (
-        <p lang="ja" className={JA}>
-          {Array.isArray(e.order) ? e.order.filter((x): x is string => typeof x === 'string').join(' ') : ''}
-        </p>
-      )
-    case 'CORRECTION_SPOT': {
-      const sentence = promptStr(p, 'sentenceJa')
-      const corrected = typeof e.correctedJa === 'string' ? e.correctedJa : ''
-      const f = spotFix(sentence, typeof e.wrongSpan === 'string' ? e.wrongSpan : '', corrected)
+      return <JaBlock text={assembleRightText(it)} tint />
+    case 'CORRECTION_SPOT':
       return (
         <>
-          {f ? (
-            <p lang="ja" className={JA}>
-              {f.before}
-              <span className="line-through decoration-bad decoration-2">{f.wrong}</span>
-              {f.fix ? (
-                <>
-                  {' '}
-                  <span className="underline decoration-good decoration-2 underline-offset-[5px]">{f.fix}</span>
-                </>
-              ) : null}
-              {f.after}
-            </p>
-          ) : null}
-          {!f || !f.fix ? (
-            <p lang="ja" className={`${JA} mt-1`}>
-              {corrected}
-            </p>
-          ) : null}
+          <FixedLine sentence={promptStr(p, 'sentenceJa')} wrongSpan={typeof e.wrongSpan === 'string' ? e.wrongSpan : ''} corrected={typeof e.correctedJa === 'string' ? e.correctedJa : ''} />
           {typeof e.explanationKo === 'string' ? <p className="mt-1 text-[14px] break-keep">{e.explanationKo}</p> : null}
         </>
       )
-    }
     default:
       return (
         <>
-          <p lang="ja" className={JA}>
-            {typeof e.modelAnswerJa === 'string' ? e.modelAnswerJa : ''}
-          </p>
-          {typeof e.modelReading === 'string' ? (
-            <p lang="ja" className="text-[14px] leading-[1.6] text-ink2 [overflow-wrap:anywhere]">
-              {e.modelReading}
-            </p>
-          ) : null}
+          <JaBlock text={typeof e.modelAnswerJa === 'string' ? e.modelAnswerJa : ''} tint />
           {typeof e.expectedGistKo === 'string' ? <p className="mt-1 text-[12px] text-ink2 break-keep">{RESULT.gist(e.expectedGistKo)}</p> : null}
         </>
       )
@@ -176,9 +180,7 @@ function ItemDetail({ it, textOnly, playing, onReplay }: { it: EvaluationItem; t
             {RESULT.heard}
             {it.textRevealed ? RESULT.heardRevealed : ''}
           </Label>
-          <p lang="ja" className={JA}>
-            {promptStr(p, 'textJa')}
-          </p>
+          <JaBlock text={promptStr(p, 'textJa')} />
           {!textOnly ? (
             <button type="button" onClick={onReplay} className="mt-2 inline-flex h-11 items-center gap-2 rounded-xl bg-surface2 px-3.5 text-[14px] font-semibold">
               <PlayIcon size={14} />
@@ -194,9 +196,7 @@ function ItemDetail({ it, textOnly, playing, onReplay }: { it: EvaluationItem; t
       ) : it.kind === 'CORRECTION_SPOT' ? (
         <div>
           <Label>{RESULT.sentence}</Label>
-          <p lang="ja" className={JA}>
-            {promptStr(p, 'sentenceJa')}
-          </p>
+          <JaBlock text={promptStr(p, 'sentenceJa')} />
         </div>
       ) : it.kind === 'ASSEMBLE' ? (
         <div>
@@ -360,6 +360,8 @@ export default function EvalResult({ detail, teacherName }: { detail: Evaluation
   const toast = useToast()
   const listen = useEvalListen(detail.id, toast.show)
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  const warm = useMemo(() => collectEvalTexts(detail.items, { done: true }), [detail.items])
+  useAnnotations(warm)
   const r = detail.result
   if (!r) return null
   const meta = resultMeta(detail)

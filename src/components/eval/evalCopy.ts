@@ -179,6 +179,8 @@ export const ITEM = {
   readingLabel: '읽기',
   readingPh: 'ひらがなで',
   readingEmpty: '쓰고 [저장]을 누르거나 다른 문항으로 가면 저장돼요',
+  /** 읽기를 묻는 문항은 제출 전 히라가나·`[한글]` 을 그리지 않는다(정답 보호, task-033 P1) — 히라가나나 한글이 켜져 있을 때만 보인다. */
+  readingGuardNote: '읽기를 묻는 문항이라 히라가나·한글은 제출한 뒤에 보여 줘요.',
   save: '저장',
   usageQ: '빈칸에 알맞은 말을 고르세요',
   blank: '빈칸',

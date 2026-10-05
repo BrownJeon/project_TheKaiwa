@@ -10,11 +10,16 @@
  *  - 제출은 확인 시트(안 푼 문항 0점 안내·번호로 가기) → #68 → 채점 화면.
  *  - 저장하지 못한 답(이미 답한 문항의 수정 실패 포함)은 따로 모아 두고, 제출 전에 한 번 다시 보낸다. 그래도 남으면 #68 을 보내지 않고
  *    시트에 그 문항 번호를 보인다(REV-051 — 서버 `answered` 만 보면 옛 답이 그대로 채점된다).
+ *  - 일본어 층(task-033 A): 스크롤 영역 맨 위 [히라가나][한글] 도구 줄(E2-A) · 읽기 쓰기 단어 어간 키(`guard`, P2)를 문항에 넘긴다 ·
+ *    마운트 때 푸는 화면의 문장을 한 묶음으로 미리 분석해 캐시를 데운다(문항을 넘길 때 막대가 다시 뜨지 않게).
  */
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
 import { detailString, toErr } from '@/components/common/errors'
+import { useAnnotations } from '@/components/common/japanese/annotations'
+import { DISPLAY_COPY } from '@/components/common/japanese/displayPrefs'
+import { DisplayToggles } from '@/components/common/japanese/JapaneseText'
 import Sheet from '@/components/common/Sheet'
 import Toast, { useToast } from '@/components/common/Toast'
 import { useNow } from '@/components/common/useNow'
@@ -24,6 +29,7 @@ import { STT_STATUS_COPY } from '@/components/speech/sttCopy'
 import TtsRuntimeStatusIndicator from '@/components/speech/TtsRuntimeStatusIndicator'
 import type { SttFinal } from '@/components/speech/useRealtimeStt'
 import type { AnswerBody, AnswerResult, EvaluationDetail, EvaluationItem, RevealResult, SubmitResult } from '@/types/evaluation'
+import { collectEvalTexts, readingGuardKeys } from './displayGuard'
 import { ITEM, ITEM_KIND, KIND_NAME, LEAVE, LISTEN, RUN, SUBMIT } from './evalCopy'
 import { AssembleItem, ChoiceItem, ItemHead, ReadingItem, SpeakItem, SpotItem, type ListenView, type SaveState, type VoiceView } from './EvalItems'
 import {
@@ -132,6 +138,10 @@ export default function EvalRunner({ detail, onSubmitted, onConflict }: { detail
   const missing = missingIndexes(items)
   const unsavedIdx = unsavedIndexes(items, unsaved)
   const isTalk = detail.kind === 'TALK'
+  // 문항 목록은 평가 동안 바뀌지 않는다(prompt 불변) — `detail.items` 로 한 번만 계산한다.
+  const guard = useMemo(() => readingGuardKeys(detail.items), [detail.items])
+  const warmTexts = useMemo(() => collectEvalTexts(detail.items), [detail.items])
+  useAnnotations(warmTexts)
 
   const prevRemain = useRef<number | null>(null)
   useEffect(() => {
@@ -361,7 +371,7 @@ export default function EvalRunner({ detail, onSubmitted, onConflict }: { detail
     case 'MEANING_CHOICE':
     case 'USAGE_CHOICE':
     case 'CHUNK_CLASSIFY':
-      body = <ChoiceItem item={item} s={s} onSave={(b) => void save(item.id, b)} />
+      body = <ChoiceItem item={item} s={s} onSave={(b) => void save(item.id, b)} guard={guard} />
       break
     case 'READING_INPUT':
       body = (
@@ -421,7 +431,7 @@ export default function EvalRunner({ detail, onSubmitted, onConflict }: { detail
         saving,
         textareaId: `eval-ta-${item.id}`,
       }
-      body = <SpeakItem item={item} s={s} listen={lv} v={vv} />
+      body = <SpeakItem item={item} s={s} listen={lv} v={vv} guard={guard} />
       break
     }
     case 'ASSEMBLE':
@@ -432,6 +442,7 @@ export default function EvalRunner({ detail, onSubmitted, onConflict }: { detail
           draft={asm[item.id] ?? []}
           onDraft={(d) => setAsm((prev) => ({ ...prev, [item.id]: d }))}
           onComplete={(d) => void save(item.id, { pieceOrder: d })}
+          guard={guard}
         />
       )
       break
@@ -447,6 +458,7 @@ export default function EvalRunner({ detail, onSubmitted, onConflict }: { detail
           onSave={() => void save(item.id, spotBody(segMode, sp))}
           onBlocked={(why) => show(why)}
           ids={{ text: `eval-spt-${item.id}`, fix: `eval-spf-${item.id}`, why: `eval-spw-${item.id}` }}
+          guard={guard}
         />
       )
       break
@@ -515,6 +527,9 @@ export default function EvalRunner({ detail, onSubmitted, onConflict }: { detail
             </TextLink>
           </div>
         ) : null}
+        <div role="group" aria-label={DISPLAY_COPY.toolGroup} className="mb-2.5 flex min-w-0 flex-wrap items-center gap-2">
+          <DisplayToggles keys={['fu', 'hg']} onToast={show} />
+        </div>
         <section aria-labelledby={`eval-qh-${item.id}`} className="min-w-0 rounded-[14px] border border-line bg-surface p-3.5">
           <h2 id={`eval-qh-${item.id}`} className="sr-only">
             {idx + 1}번 문항, {ITEM_KIND[item.kind]}

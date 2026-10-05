@@ -6,6 +6,8 @@
  * 판단 주체 원값은 화면에 싣지 않고 문구 분기에만 쓴다. 근거 문장은 `TeacherWhy` 가 텍스트로만 그린다.
  */
 import { useId } from 'react'
+import { OFF, useAnnotations } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import type { NextReviewDetail, ReviewItem } from '@/types/review'
 import { Spinner } from '../parts'
 import { FocusBadge } from './FocusBadge'
@@ -19,6 +21,15 @@ export default function NextReviewCard({ state, next, items, teacherName }: { st
   const groups = next ? groupsSorted(next.groups) : []
   const first = groups[0] ?? null
   const shown: NextReviewState = state === 'ready' && !first ? 'unknown' : state
+
+  // 모든 묶음의 칩 문장을 한 번에 분석한다(요청은 묶어 보낸다). 칩이 안 그려지는 상태에서는 목록이 비어 요청 0.
+  const byId = new Map(items.map((x) => [x.id, x]))
+  const chipTexts =
+    shown === 'ready' && next && next.decidedBy !== 'FALLBACK'
+      ? [...new Set(groups.flatMap((g) => g.itemIds.map((id) => byId.get(id)?.textJa).filter((t): t is string => !!t)))]
+      : []
+  const chipAnns = useAnnotations(chipTexts)
+  const annOf = new Map(chipTexts.map((t, i) => [t, chipAnns[i]]))
 
   let body: React.ReactNode
   if (shown === 'pending') {
@@ -48,7 +59,6 @@ export default function NextReviewCard({ state, next, items, teacherName }: { st
         </>
       )
     } else {
-      const byId = new Map(items.map((x) => [x.id, x]))
       body = (
         <>
           <h3 id={titleId} className="mt-0.5 text-[17px] font-bold text-ink break-keep">
@@ -70,9 +80,8 @@ export default function NextReviewCard({ state, next, items, teacherName }: { st
                     <ul aria-label={RV_HOME.chipsAria} className="mt-1.5 flex min-w-0 flex-wrap gap-1.5">
                       {found.map((x) => (
                         <li key={x.id} className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-[10px] bg-surface2 px-2.5 py-1.5">
-                          <span lang="ja" className="min-w-0 text-[15px] [overflow-wrap:anywhere]">
-                            {x.textJa}
-                          </span>
+                          <JaText as="span" text={x.textJa} state={annOf.get(x.textJa) ?? OFF} leading={2.1} className="min-w-0 text-[15px] [overflow-wrap:anywhere]" />
+                          <HangulLine state={annOf.get(x.textJa) ?? OFF} size={12} inline />
                           {x.priority === 'FOCUS' ? <FocusBadge small>{RV_LESSON.focus}</FocusBadge> : null}
                         </li>
                       ))}

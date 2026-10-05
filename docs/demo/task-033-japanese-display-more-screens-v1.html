@@ -1,0 +1,1431 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-033-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:bf67d6c60da2">
+<meta name="description" content="일본어 표시(히라가나·한글) 확장 — AI 평가·단어 카드 뒷면·복습 카드. 현재(HEAD 소스 대조) vs 제안, 정답 노출 검토, 결정 필요 6건(delta 데모 v1, 합성 샘플 데이터)">
+<title>일본어 표시 확장</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 왼쪽 화면 목록 · 가운데 휴대폰(현재·제안) · 오른쪽 설명(근거·바뀌는 곳·정답 노출 검토) → 적용 범위 → 결정 필요 */
+/* 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음). 새 색 없음 */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dlay { display: grid; grid-template-columns: 236px minmax(0, 1fr) 380px; gap: 18px; padding: 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.dnav a { display: block; min-height: 34px; padding: 7px 8px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); text-decoration: none; }
+.dnav a:hover { background: var(--surface2); color: var(--ink); }
+.dnav a[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.dnav .did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+.dnav .lk { display: inline-block; margin-left: 4px; font-size: 10.5px; font-weight: 700; color: var(--bad); }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; }
+.fw figcaption .tagc, .fw figcaption .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard .dk { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.dcard .dsub { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+.dcard.leak { border-color: var(--bad); }
+.dcard.leak > h2 { color: var(--bad); }
+.dtw { overflow-x: auto; }
+.dtbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 6px 4px; border-top: 1px solid var(--line); }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtbl td.k { white-space: nowrap; font-weight: 600; }
+.dtbl .yes { color: var(--good); font-weight: 700; white-space: nowrap; }
+.dtbl .no { color: var(--ink2); font-weight: 700; white-space: nowrap; }
+.dtbl .warn { color: var(--bad); font-weight: 700; white-space: nowrap; }
+.dsrc { font-size: 12.5px; }
+.dsrc li { padding: 6px 0; border-top: 1px solid var(--line); }
+.dsrc li:first-child { border-top: 0; padding-top: 0; }
+.dsrc .fx { display: block; color: var(--ink2); font-size: 12px; margin-top: 2px; }
+.dmeas { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.dmeas b { color: var(--ink); }
+.dmeas .up { color: var(--bad); font-weight: 700; }
+.dmeas .ok { color: var(--good); font-weight: 700; }
+.dlegend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink2); margin-top: 8px; }
+.dlegend i { display: inline-block; width: 18px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+.dlegend .l1 { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.dlegend .l2 { outline: 2px dotted var(--bad); outline-offset: -2px; }
+.dtoast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.dpanel { margin: 4px 16px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; scroll-margin-top: 120px; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel h3 { font-size: 15px; font-weight: 700; margin-top: 18px; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 86ch; }
+.dq { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 18px; container-type: inline-size; scroll-margin-top: 120px; }
+.dq > h3 { margin-top: 0; }
+.dq > h3 .did { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink2); margin-right: 6px; }
+.dq > p { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 86ch; }
+.dq-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+@container (min-width: 640px) { .dq-g { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; font-weight: 700; }
+.opt-h .rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 13px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 2px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 12px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.opt .see { font-size: 12px; }
+.opt .see a { color: var(--ink); }
+.dsum { margin-top: 12px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 13px; }
+@media (max-width: 1280px) { .dlay { grid-template-columns: 220px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px 16px; }
+  .dnav { position: static; max-height: none; }
+  .dside { grid-template-columns: minmax(0, 1fr); }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { margin: 4px 12px 24px; padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+body.mark .dnew { outline: 2px dashed var(--accent); outline-offset: 2px; }
+body.mark .dprot { outline: 2px dotted var(--bad); outline-offset: 2px; }
+
+/* ── 휴대폰 프레임 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--surface); min-width: 0; }
+.main { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--ground); }
+.room { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--ground); }
+.scr { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; min-width: 0; }
+.omit { margin: 0 0 10px; border: 1.5px dashed var(--line); border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--ink2); text-align: center; background: transparent; }
+
+/* AppBar · BackBar · TabBar */
+.appbar { position: sticky; top: 0; z-index: 10; margin-bottom: 10px; height: 52px; display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 0 12px 0 16px; }
+.appbar h1 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.me { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; flex: none; }
+.me span { width: 32px; height: 32px; border-radius: 50%; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+.bb { height: 52px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 4px; }
+.back, .icb { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink); }
+.bb-m { flex: 1; min-width: 0; }
+.bb-m h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb-m p { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.endb { height: 44px; flex: none; border: 0; background: none; border-radius: 12px; padding: 0 12px; font-size: 14px; font-weight: 500; color: var(--ink2); }
+.tabbar { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 10px; }
+.tab { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; border: 0; background: none; border-radius: 12px; font-size: 11px; color: var(--ink3); }
+.tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+/* 공용(common/ui.tsx) */
+.card { min-width: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.card.flat { border-color: transparent; background: var(--surface2); }
+.card.acc { border-color: var(--accent); }
+.bdg { display: inline-flex; align-items: center; height: 22px; flex: none; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: var(--surface2); color: var(--ink2); }
+.bdg.good { background: var(--good-soft); color: var(--good); }
+.bdg.bad { background: var(--bad-soft); color: var(--bad); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; white-space: nowrap; min-width: 0; color: var(--ink); text-decoration: none; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.btnrow { display: flex; gap: 8px; margin-top: 12px; }
+.btnrow > * { flex: 1; min-width: 0; }
+.ulink { display: flex; height: 44px; width: 100%; align-items: center; justify-content: center; border: 0; background: none; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.mt2 { margin-top: 2px; } .mt4 { margin-top: 4px; } .mt6 { margin-top: 6px; } .mt8 { margin-top: 8px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; } .mt18 { margin-top: 18px; }
+.c12 { font-size: 12px; color: var(--ink2); }
+.c13 { font-size: 13px; color: var(--ink2); }
+.kk { word-break: keep-all; overflow-wrap: anywhere; }
+
+/* 일본어 표시 층(공용 JapaneseText) — 데모 v4 · §15-1 값 그대로 */
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: 11px; line-height: 1; color: var(--ink2); font-weight: 400; letter-spacing: 0; -webkit-user-select: none; user-select: none; }
+.rt13 rt { font-size: 13px; }
+.hg { display: block; margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; -webkit-user-select: none; user-select: none; }
+.hg .bk, .hgi .bk { color: var(--ink3); }
+.hg.s125 { font-size: 12.5px; }
+.hg.s14 { font-size: 14px; }
+.hgi { font-size: 12px; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; -webkit-user-select: none; user-select: none; }
+.hgp { display: block; height: 12px; width: 62%; border-radius: 6px; background: var(--surface2); margin: 6px 0 4px; animation: hgp 1.2s ease-in-out infinite; }
+.on-tint .hgp, .hgp.tint { background: var(--surface); }
+@keyframes hgp { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .hgp { animation: none; } }
+.tg { position: relative; height: 32px; flex: none; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13px; color: var(--ink); white-space: nowrap; }
+.tg::before { content: ""; position: absolute; left: 0; right: 0; top: -7px; bottom: -7px; }
+.tg[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 600; }
+.tg .ck { margin-right: 3px; }
+.trow { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* ── AI 평가(eval/EvalRunner · EvalItems · parts) ── */
+.ehd { height: 56px; flex: none; display: flex; min-width: 0; align-items: center; gap: 4px; background: var(--surface); padding: 0 10px 0 4px; }
+.ehd-m { flex: 1; min-width: 0; padding-left: 2px; }
+.ehd-m h1 { font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ehd-m p { display: flex; min-width: 0; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.ind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.ind .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--good); }
+.etm { display: flex; height: 44px; min-width: 68px; flex: none; flex-direction: column; align-items: flex-end; justify-content: center; border-radius: 12px; padding: 0 10px; background: var(--surface2); font-variant-numeric: tabular-nums; }
+.etm span { font-size: 11px; line-height: 14px; color: var(--ink2); white-space: nowrap; }
+.etm b { font-size: 17px; font-weight: 700; line-height: 22px; }
+.enav { flex: none; border-bottom: 1px solid var(--line); background: var(--surface); }
+.enav > div { display: flex; gap: 6px; overflow-x: auto; padding: 6px 12px 10px; scrollbar-width: none; }
+.enav > div::-webkit-scrollbar { display: none; }
+.enb { width: 44px; height: 44px; flex: none; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink2); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.enb.ans { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.enb.cur { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.enb.cur:not(.ans) { color: var(--ink); }
+.ensub { height: 44px; flex: none; white-space: nowrap; border-radius: 12px; border: 1px solid var(--accent); background: var(--surface); padding: 0 14px; font-size: 14px; font-weight: 700; color: var(--accent); }
+.esc { padding: 14px 16px 32px; }
+.esec { min-width: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.eih { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.eih .k { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink2); }
+.eih .n { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 6px; background: var(--surface2); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.eih .pt { font-size: 12px; color: var(--ink2); }
+.eqq { margin-top: 8px; font-size: 16px; font-weight: 600; line-height: 1.55; word-break: keep-all; }
+.ewb { margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; border-radius: 12px; background: var(--surface2); padding: 16px 8px; text-align: center; }
+.ewb .w { font-size: 32px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.ewb .w.fu { line-height: 1.8; }
+.ewb .r { font-size: 15px; color: var(--ink2); }
+.ewb .hg { margin-top: 0; }
+.ech { margin-top: 8px; display: grid; min-height: 52px; width: 100%; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; text-align: left; color: var(--ink); }
+.ech.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.ech .no { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: var(--surface2); font-size: 12px; font-weight: 700; }
+.ech.on .no { background: var(--accent); color: var(--on-accent); }
+.ech .ct { min-width: 0; overflow-wrap: anywhere; }
+.ech .ct.ko { font-size: 15px; word-break: keep-all; }
+.ech .ct.ja > [lang="ja"] { font-size: 17px; }
+.ech .ct.ja > .fu { line-height: 2.1; }
+.ech .ct .hint { font-size: 12px; color: var(--ink2); }
+.ech .mine { white-space: nowrap; font-size: 12px; font-weight: 700; }
+.esl { margin-top: 10px; display: flex; min-height: 24px; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink2); word-break: keep-all; }
+.esl i { width: 8px; height: 8px; flex: none; border-radius: 50%; border: 1.5px solid var(--ink3); }
+.esl i.sv { border-color: var(--ink2); background: var(--ink2); }
+.eio { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+.ein { display: flex; align-items: center; height: 48px; width: 100%; min-width: 0; flex: 1; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 18px; color: var(--ink3); }
+.ein.v { color: var(--ink); }
+.esv { height: 48px; flex: none; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 16px; font-size: 15px; font-weight: 600; }
+.ebx { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 16px 12px; text-align: center; }
+.ej17 { font-size: 17px; line-height: 1.7; overflow-wrap: anywhere; }
+.ej17.fu { line-height: 2.1; }
+.blank { display: inline-block; min-width: 3em; border-bottom: 2px solid var(--ink); color: transparent; }
+.elst { margin-top: 12px; display: flex; align-items: center; gap: 12px; border-radius: 12px; background: var(--surface2); padding: 12px; }
+.eplay { display: grid; width: 56px; height: 56px; flex: none; place-items: center; border: 0; border-radius: 50%; background: var(--ink); color: var(--surface); }
+.elst .t { min-width: 0; flex: 1; }
+.elst .t b { display: block; font-size: 14px; font-weight: 600; }
+.ebars { margin-top: 10px; }
+.ebars span { display: block; height: 14px; margin: 7px 0; border-radius: 7px; background: var(--surface2); }
+.erev { margin-top: 10px; border-radius: 12px; border: 1px dashed var(--line); padding: 10px 12px; }
+.elab { margin-top: 12px; font-size: 12px; font-weight: 600; color: var(--ink2); }
+.ebox { margin-top: 2px; display: flex; min-height: 64px; width: 100%; align-items: center; border-radius: 12px; border: 1px dashed var(--line); background: var(--surface); padding: 10px 12px; }
+.ebox > div { min-width: 0; }
+.eptt { margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ptt { width: 72px; height: 72px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.eptt .st { display: flex; min-height: 24px; align-items: center; justify-content: center; text-align: center; font-size: 13px; line-height: 1.4; color: var(--ink2); word-break: keep-all; }
+.tlink { position: relative; display: inline-flex; min-height: 44px; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.tlink.c { display: flex; width: 100%; justify-content: center; }
+.easm { margin-top: 12px; display: flex; min-height: 64px; flex-wrap: wrap; align-items: center; gap: 6px; border-radius: 12px; border: 1px dashed var(--ink3); background: var(--surface); padding: 8px; }
+.epc { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-soft); padding: 0 10px; font-size: 17px; color: var(--ink); }
+.epc .o { font-size: 11px; font-weight: 700; color: var(--ink2); }
+.epool { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+.epp { display: inline-flex; min-height: 44px; align-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); padding: 0 14px; font-size: 17px; color: var(--ink); }
+.epc .fu, .epp .fu { line-height: 2.1; }
+.espg { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 4px; border-radius: 12px; background: var(--surface2); padding: 8px; }
+.esg { min-height: 44px; border: 0; border-radius: 8px; background: var(--surface); padding: 0 8px; font-size: 18px; color: var(--ink); }
+.esg.fu { line-height: 2.1; }
+.esg.on { background: var(--accent-soft); text-decoration: underline wavy var(--accent); text-underline-offset: 6px; box-shadow: inset 0 0 0 2px var(--accent); }
+.elbl { display: block; margin: 12px 0 6px; font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+.eta { display: block; min-height: 96px; width: 100%; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 12px; font-size: 16px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; }
+.emeta { margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.esv2 { height: 44px; flex: none; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 14px; font-size: 14px; font-weight: 600; }
+.ebot { flex: none; display: flex; gap: 8px; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 16px max(10px, env(safe-area-inset-bottom, 0px)); }
+.ebot > * { flex: 1; min-width: 0; }
+.etools { margin-bottom: 10px; }
+.enote { margin-top: 6px; font-size: 12px; color: var(--ink2); word-break: keep-all; }
+/* 평가 결과(EvalResult) */
+.rtot { border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 18px 14px 16px; text-align: center; }
+.rtot .s { font-size: 48px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rtot .s small { margin-left: 2px; font-size: 16px; font-weight: 500; color: var(--ink2); }
+.grade { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; border-radius: 999px; padding: 0 14px; font-size: 15px; font-weight: 700; }
+.grade.good { background: var(--good-soft); color: var(--good); }
+.grade.fair { background: var(--warn-soft); color: var(--ink); }
+.rsec { margin-top: 18px; }
+.rsh { margin-bottom: 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rsh h3 { font-size: 15px; font-weight: 600; }
+.rul { overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.rul > li + li { border-top: 1px solid var(--line); }
+.rrow { display: grid; min-height: 60px; width: 100%; grid-template-columns: 28px minmax(0, 1fr) auto 18px; align-items: center; gap: 10px; border: 0; background: none; padding: 8px 12px; text-align: left; color: var(--ink); }
+.rrow .ic { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; font-size: 13px; font-weight: 700; }
+.ic.full { background: var(--good-soft); color: var(--good); }
+.ic.zero { background: var(--bad-soft); color: var(--bad); }
+.ic.part { background: var(--warn-soft); color: var(--ink); }
+.rrow .tt { min-width: 0; }
+.rrow .tt b { display: block; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rrow .tt span { font-size: 12px; color: var(--ink2); }
+.rrow .sc { white-space: nowrap; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rrow .ch { font-size: 18px; color: var(--ink3); }
+.rrow[aria-expanded="true"] .ch { transform: rotate(90deg); }
+.rdet { display: flex; flex-direction: column; gap: 10px; padding: 0 14px 14px 50px; }
+.rlb { margin-bottom: 2px; font-size: 12px; font-weight: 600; color: var(--ink2); }
+.rlb.g { color: var(--good); }
+.rbox { min-width: 0; border-radius: 12px; padding: 10px 12px; }
+.rbox.mine { background: var(--accent-soft); }
+.rbox.right { background: var(--surface2); }
+.rja { white-space: pre-wrap; font-size: 17px; line-height: 1.7; overflow-wrap: anywhere; }
+.rja.fu { line-height: 2.1; }
+.rrd { font-size: 14px; line-height: 1.6; color: var(--ink2); overflow-wrap: anywhere; }
+.fillu { font-weight: 600; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.fillg { font-weight: 600; text-decoration: underline; text-decoration-color: var(--good); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.strk { text-decoration: line-through; text-decoration-color: var(--bad); text-decoration-thickness: 2px; }
+.ugood { text-decoration: underline; text-decoration-color: var(--good); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.rplay { margin-top: 8px; display: inline-flex; height: 44px; align-items: center; gap: 8px; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 14px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.dimc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.dimc span { border-radius: 8px; background: var(--surface2); padding: 3px 8px; font-size: 12px; }
+
+/* ── 오늘의 단어(VocabDeck · VocabCardFace · ChoiceList · FlipControls · DeckToolbar) ── */
+.dprog { flex: none; padding: 12px 16px 0; }
+.dprog .r { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.dprog .n { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dbar { margin-top: 6px; display: flex; gap: 2px; }
+.dbar i { height: 6px; min-width: 0; flex: 1; border-radius: 999px; background: var(--surface2); }
+.dbar i.ok { background: var(--good); } .dbar i.ng { background: var(--bad); } .dbar i.cur { background: var(--accent); }
+.dstk { display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; padding: 12px 16px; }
+.stk { position: relative; height: 100%; max-height: 340px; min-height: 200px; width: 80%; max-width: 340px; }
+.stk .bkc { position: absolute; inset: 0; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.kface { position: absolute; inset: 0; display: flex; min-width: 0; flex-direction: column; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.khd { display: flex; min-width: 0; flex: none; align-items: baseline; gap: 8px; }
+.khd .s { min-width: 0; font-size: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.khd .r { min-width: 0; flex: 1; font-size: 14px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.khd2 { display: flex; min-width: 0; flex: none; align-items: flex-start; gap: 8px; }
+.khd2 .l { min-width: 0; flex: 1; }
+.khd2 .s { font-size: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.khd2 .s.fu { line-height: 2; }
+.kstar { flex: none; color: var(--accent); }
+.kband { margin-top: 8px; align-self: flex-start; border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 600; }
+.kband.good { background: var(--good-soft); color: var(--good); }
+.kbody { margin-top: 8px; min-height: 0; flex: 1; }
+.kmean { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 19px; font-weight: 600; word-break: keep-all; overflow-wrap: anywhere; }
+.kex { margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
+.kex.fu { line-height: 2.15; }
+.kexh { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.kexko { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.ghint { display: flex; height: 18px; flex: none; align-items: center; justify-content: center; padding: 0 16px; font-size: 12px; line-height: 18px; color: var(--ink2); white-space: nowrap; overflow: hidden; }
+.chl { display: grid; gap: 8px; flex: none; padding: 8px 16px 0; }
+.cho { display: flex; min-height: 52px; width: 100%; min-width: 0; align-items: center; gap: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 8px 12px; text-align: left; font-size: 16px; line-height: 1.375; color: var(--ink); }
+.cho .no { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 50%; background: var(--surface2); font-size: 12px; color: var(--ink2); }
+.cho .t { min-width: 0; flex: 1; }
+.cho .m { flex: none; font-size: 13px; font-weight: 600; }
+.cho.correct { border-color: var(--good); background: var(--good-soft); color: var(--good); }
+.cho.other { color: var(--ink2); }
+.fctl { display: flex; gap: 8px; flex: none; padding: 8px 16px 0; }
+.fctl > * { flex: 1; min-width: 0; height: 52px; }
+.dtb { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px 16px 12px; }
+.tool { display: flex; height: 52px; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 12px; color: var(--ink); }
+.tool .a { display: grid; height: 20px; place-items: center; font-size: 16px; font-weight: 600; line-height: 1; }
+.tnext { grid-column: span 2; display: flex; height: 52px; min-width: 0; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 12px; background: var(--accent); padding: 0 12px; font-size: 15px; font-weight: 600; color: var(--on-accent); }
+.dmeasb { position: absolute; z-index: 6; left: 50%; transform: translateX(-50%); bottom: 4px; border-radius: 6px; padding: 1px 6px; font-size: 10.5px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+.dmeasb.ok { background: var(--good-soft); color: var(--good); }
+.dmeasb.up { background: var(--bad-soft); color: var(--bad); }
+/* 세트 결과(VocabResult · WordResultList) */
+.vstat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.vstat > div { min-width: 0; border-radius: 12px; border: 1px solid var(--line); border-top-width: 4px; background: var(--surface); padding: 8px 10px; }
+.vstat b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.vstat .g { border-top-color: var(--good); } .vstat .b { border-top-color: var(--bad); }
+.wrl { overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.wrl > li + li { border-top: 1px solid var(--line); }
+.wrr { display: flex; min-height: 56px; width: 100%; min-width: 0; align-items: center; gap: 8px; padding: 8px 14px; color: var(--ink); text-decoration: none; }
+.wrr .l { min-width: 0; flex: 1; }
+.wrr .h { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.wrr .s { min-width: 0; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wrr .s.fu { line-height: 1.95; }
+.wrr .r { min-width: 0; font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wrr .a { margin-top: 2px; display: block; font-size: 14px; word-break: keep-all; overflow-wrap: anywhere; }
+.wrr .rt { display: flex; flex: none; align-items: center; gap: 6px; color: var(--ink2); }
+
+/* ── 오늘의 회화·복습(lesson/* · lesson/review/*) ── */
+.lh { height: 56px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 4px; }
+.av { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: 16px; display: grid; place-items: center; }
+.av.sm { width: 28px; height: 28px; font-size: 13px; }
+.lh-m { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; padding-left: 6px; }
+.lh-m h1 { display: flex; max-width: 100%; align-items: center; gap: 6px; font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; }
+.lh-m h1 .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rvb2 { display: inline-flex; height: 20px; flex: none; align-items: center; border-radius: 6px; background: var(--accent-soft); padding: 0 6px; font-size: 11.5px; font-weight: 600; color: var(--ink); }
+.stp { flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--line); background: var(--surface); padding: 4px 6px; }
+.st { position: relative; display: flex; min-height: 52px; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none; font-size: 11.5px; color: var(--ink2); }
+.st .c { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 600; background: var(--surface2); color: var(--ink); }
+.st.cur { font-weight: 700; color: var(--ink); }
+.st.cur .c { background: var(--accent); color: var(--on-accent); }
+.st.lock .c { background: none; color: var(--ink2); box-shadow: inset 0 0 0 1.5px var(--line); }
+.lsc { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 32px; }
+.ric { margin-bottom: 10px; }
+.rih { display: flex; min-height: 48px; width: 100%; align-items: center; gap: 8px; border: 0; background: none; padding: 0; text-align: left; color: var(--ink); }
+.rih .t { min-width: 0; flex: 1; font-size: 15px; font-weight: 600; word-break: keep-all; }
+.rih .t small { font-size: 12px; font-weight: 400; color: var(--ink2); }
+.rih .ar { flex: none; font-size: 20px; line-height: 1; color: var(--ink2); transform: rotate(90deg); }
+.rir { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; border-top: 1px solid var(--line); padding: 10px 0; }
+.rir:first-child { border-top: 0; padding-top: 2px; }
+.rir .h { display: flex; min-width: 0; align-items: flex-start; gap: 6px; }
+.rir .ty { margin-top: 5px; display: inline-flex; height: 20px; flex: none; align-items: center; border-radius: 6px; background: var(--surface2); padding: 0 6px; font-size: 11.5px; font-weight: 600; color: var(--ink2); }
+.rir .j { min-width: 0; font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.rir .j.fu { line-height: 2.1; }
+.rir .jw { min-width: 0; }
+.rir .h.fuh .ty { margin-top: 8px; }
+.rir .ko { font-size: 14px; word-break: keep-all; }
+.rir .m { margin-top: 2px; font-size: 12px; color: var(--ink2); word-break: keep-all; }
+.rir .m .bad { font-weight: 600; color: var(--bad); }
+.fbd { display: inline-flex; height: 22px; flex: none; align-items: center; gap: 4px; border-radius: 6px; background: var(--accent-soft); padding: 0 8px; font-size: 11.5px; font-weight: 600; color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
+.fbd.sm { height: 20px; }
+.fbd i { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--accent); }
+.fdot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--accent); }
+.h2l { font-size: 17px; font-weight: 700; }
+.legend { margin-left: auto; display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink2); }
+.rc { display: grid; width: 20px; height: 20px; flex: none; place-items: center; border-radius: 6px; font-size: 11px; font-weight: 700; background: var(--surface2); color: var(--ink); }
+.rc.b { background: var(--ink); color: var(--surface); }
+.why { margin-top: 10px; display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: start; gap: 8px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; }
+.why.sf { background: var(--surface); }
+.why .tx { font-size: 13.5px; line-height: 1.5; color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
+.why .mt { margin-top: 2px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
+.why .mt span { min-width: 0; font-size: 12px; color: var(--ink2); }
+.why .mt button { position: relative; display: inline-flex; min-height: 32px; align-items: center; border: 0; background: none; padding: 0; font-size: 12.5px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.rchips { margin-top: 6px; display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; }
+.rchip { display: inline-flex; height: 32px; max-width: 100%; min-width: 0; align-items: center; gap: 6px; border-radius: 10px; background: var(--surface); padding: 0 10px; font-size: 15px; }
+.rchip.s2 { background: var(--surface2); }
+.rchip > span[lang="ja"] { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rchip.p { height: auto; min-height: 32px; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 4px 10px; }
+.rchip.p > .fdot { align-self: center; }
+.rchip.p > span[lang="ja"] { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.rchip.p > span[lang="ja"].fu { line-height: 2.1; }
+.nrc { min-width: 0; border-radius: 14px; background: var(--accent-soft); padding: 14px; }
+.nrg { min-width: 0; border-radius: 12px; background: var(--surface); padding: 10px 12px; }
+.nrg + .nrg { margin-top: 8px; }
+.nrg .gh { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 8px; font-size: 13px; }
+.nrg .gh b { font-size: 15px; }
+.nchip { display: inline-flex; max-width: 100%; min-width: 0; flex-wrap: wrap; align-items: center; gap: 2px 6px; border-radius: 10px; background: var(--surface2); padding: 6px 10px; }
+.nchip > span[lang="ja"] { min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+.nchip > span[lang="ja"].fu { line-height: 2.1; }
+.xchip { display: inline-flex; max-width: 100%; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; border-radius: 10px; background: var(--surface2); padding: 6px 10px; }
+.xchip.good { background: var(--good-soft); }
+.xchip > span[lang="ja"] { font-size: 16px; overflow-wrap: anywhere; }
+.xchip > span[lang="ja"].fu { line-height: 2.1; }
+.endhero { display: flex; align-items: flex-start; gap: 12px; }
+.endhero .ok { display: grid; width: 52px; height: 52px; flex: none; place-items: center; border-radius: 50%; background: var(--good-soft); color: var(--good); font-size: 22px; font-weight: 700; }
+.endst { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.endst > div { display: flex; min-width: 0; flex-direction: column; align-items: center; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 0; }
+.endst b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.gap18 { display: flex; flex-direction: column; gap: 18px; }
+</style>
+</head>
+<body class="mark">
+<header class="dtop">
+  <h1>일본어 표시 확장 <span class="lvl">delta</span><small>데모 v1 · AI 평가 · 단어 카드 뒷면 · 복습 카드 · 현재 = HEAD 소스 대조 · 합성 샘플 데이터</small></h1>
+  <div class="dctls">
+    <div class="dctl"><span>폭</span><div class="dseg" id="d-w" role="group" aria-label="휴대폰 폭"><button type="button" data-v="360" aria-pressed="false">360</button><button type="button" data-v="390" aria-pressed="true">390</button><button type="button" data-v="412" aria-pressed="false">412</button></div></div>
+    <div class="dctl"><span>높이</span><div class="dseg" id="d-h" role="group" aria-label="휴대폰 높이"><button type="button" data-v="780" aria-pressed="true">780</button><button type="button" data-v="892" aria-pressed="false">892</button></div></div>
+    <div class="dctl"><span>보기</span><div class="dseg" id="d-view" role="group" aria-label="현재와 제안"><button type="button" data-v="pair" aria-pressed="true">나란히</button><button type="button" data-v="cur" aria-pressed="false">현재</button><button type="button" data-v="prop" aria-pressed="false">제안</button></div></div>
+    <div class="dctl"><span>앱 설정 표시</span><div class="dseg" id="d-lay" role="group" aria-label="일본어 표시 설정 3칸"><button type="button" data-k="fu" aria-pressed="true">히라가나</button><button type="button" data-k="hg" aria-pressed="true">한글</button><button type="button" data-k="tr" aria-pressed="false">번역</button></div></div>
+    <div class="dctl"><span>읽기 분석</span><div class="dseg" id="d-an" role="group" aria-label="읽기 분석 상태"><button type="button" data-v="ready" aria-pressed="true">완료</button><button type="button" data-v="loading" aria-pressed="false">기다리는 중</button><button type="button" data-v="fail" aria-pressed="false">실패</button></div></div>
+    <div class="dctl"><span>바뀐 곳 표시</span><div class="dseg" id="d-mark" role="group" aria-label="바뀐 곳과 보호한 곳 테두리"><button type="button" data-v="on" aria-pressed="true">켬</button><button type="button" data-v="off" aria-pressed="false">끔</button></div></div>
+    <div class="dctl"><span>테마</span><div class="dseg" id="d-t" role="group" aria-label="테마"><button type="button" data-v="auto" aria-pressed="true">기기</button><button type="button" data-v="light" aria-pressed="false">밝게</button><button type="button" data-v="dark" aria-pressed="false">어둡게</button></div></div>
+  </div>
+</header>
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="데모 화면 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside" id="side" aria-label="화면 설명"></aside>
+</div>
+<section class="dpanel" id="scope" aria-labelledby="sc-h"></section>
+<section class="dpanel" id="decide" aria-labelledby="dc-h"></section>
+<div class="dtoast" id="dtoast" role="status" hidden></div>
+<script>
+(function () {
+'use strict';
+/* ════════ 가나 → 한글 (데모 표시용 규칙) ════════
+   입력 = 읽는 소리 가나. ' ' = 구절 경계(D2-B 에서만 띄움), '|' = 조사 は·を·へ 뒤(두 안 모두 띄움).
+   conv: 'A' = '까' 계열(구절 첫 글자만 거센소리) / 'B' = '카' 계열(늘 거센소리). spacing: D2 값. */
+var HG = (function () {
+  var LI = { g: 0, kk: 1, n: 2, d: 3, tt: 4, r: 5, m: 6, b: 7, pp: 8, s: 9, x: 11, j: 12, jj: 13, ch: 14, k: 15, t: 16, p: 17, h: 18 };
+  var VI = { a: 0, ya: 2, e: 5, ye: 7, o: 8, wa: 9, yo: 12, u: 13, wo: 14, we: 15, wi: 16, yu: 17, eu: 18, i: 20 };
+  var TI = { k: 1, n: 4, m: 16, p: 17, t: 19, ng: 21 };
+  var BASE = {};
+  function row(chars, cls, vs) { for (var i = 0; i < chars.length; i++) if (chars[i] !== '_') BASE[chars[i]] = [cls, vs[i]]; }
+  var AIUEO = ['a', 'i', 'u', 'e', 'o'];
+  row('アイウエオ', 'X', AIUEO);
+  row('カキクケコ', 'K', AIUEO); row('ガギグゲゴ', 'G', AIUEO);
+  row('サシスセソ', 'S', ['a', 'i', 'eu', 'e', 'o']); row('ザジズゼゾ', 'Z', ['a', 'i', 'eu', 'e', 'o']);
+  row('タ__テト', 'T', ['a', '', '', 'e', 'o']); BASE['チ'] = ['CH', 'i']; BASE['ツ'] = ['TS', 'eu'];
+  row('ダ__デド', 'D', ['a', '', '', 'e', 'o']); BASE['ヂ'] = ['Z', 'i']; BASE['ヅ'] = ['Z', 'eu'];
+  row('ナニヌネノ', 'N', AIUEO); row('ハヒフヘホ', 'H', AIUEO);
+  row('バビブベボ', 'B', AIUEO); row('パピプペポ', 'P', AIUEO); row('マミムメモ', 'M', AIUEO);
+  row('ヤユヨ', 'X', ['ya', 'yu', 'yo']); row('ラリルレロ', 'R', AIUEO);
+  row('ワヲヰヱ', 'X', ['wa', 'o', 'i', 'e']); BASE['ヴ'] = ['B', 'u'];
+  var SMALL_Y = { 'ャ': 'ya', 'ュ': 'yu', 'ョ': 'yo' };
+  var SMALL_V = { 'ァ': 'a', 'ィ': 'i', 'ゥ': 'u', 'ェ': 'e', 'ォ': 'o', 'ヮ': 'wa' };
+  var PUNCT = { '。': '.', '、': ',', '？': '?', '！': '!', '?': '?', '!': '!', '.': '.', ',': ',', '「': '“', '」': '”', '『': '“', '』': '”', '〜': '~', '～': '~', '…': '…', '・': ' ' };
+  function toKata(s) { return s.replace(/[ぁ-ゖ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); }); }
+  function cons(cls, initial, conv) {
+    var soft = conv === 'B' || initial;
+    switch (cls) {
+      case 'K': return soft ? 'k' : 'kk';
+      case 'T': return soft ? 't' : 'tt';
+      case 'P': return soft ? 'p' : 'pp';
+      case 'CH': case 'TS': return soft ? 'ch' : 'jj';
+      case 'G': return 'g'; case 'S': return 's'; case 'Z': return 'j'; case 'D': return 'd';
+      case 'N': return 'n'; case 'H': return 'h'; case 'B': return 'b'; case 'M': return 'm'; case 'R': return 'r';
+      default: return 'x';
+    }
+  }
+  function syl(l, v, t) { return String.fromCharCode(0xAC00 + (LI[l] * 21 + VI[v]) * 28 + (t ? TI[t] : 0)); }
+  function convert(src, conv, spacing) {
+    var s = toKata(src.replace(/\|/g, '| ').replace(/\s+/g, ' ').trim());
+    var ms = [];
+    for (var i = 0; i < s.length; i++) {
+      var c = s[i];
+      if (c === '|') { ms.push({ k: 'sp', hard: true }); i++; continue; }
+      if (c === ' ') { ms.push({ k: 'sp', hard: false }); continue; }
+      if (c === 'ー') { ms.push({ k: 'long' }); continue; }
+      if (c === 'ッ') { ms.push({ k: 'gem' }); continue; }
+      if (c === 'ン') { ms.push({ k: 'nn' }); continue; }
+      if (PUNCT[c] !== undefined) { ms.push({ k: 'p', t: PUNCT[c] }); continue; }
+      var b = BASE[c];
+      if (b) {
+        var m = { k: 'm', cls: b[0], v: b[1] };
+        var nx = s[i + 1];
+        if (nx && SMALL_Y[nx] && m.v === 'i') { m.v = SMALL_Y[nx]; i++; }
+        else if (nx && SMALL_V[nx]) {
+          var sv = SMALL_V[nx], used = true;
+          if (c === 'フ') m.v = { a: 'wa', i: 'wi', e: 'we', o: 'wo', u: 'u', wa: 'wa' }[sv];
+          else if (c === 'ウ') m.v = { i: 'wi', e: 'we', o: 'wo', a: 'wa', u: 'u', wa: 'wa' }[sv];
+          else if (c === 'ヴ' || c === 'テ' || c === 'デ' || c === 'ト' || c === 'ド') m.v = sv;
+          else if (c === 'シ' || c === 'ジ' || c === 'チ' || c === 'イ') m.v = sv === 'e' ? 'ye' : sv;
+          else if (c === 'ツ') m.v = sv;
+          else used = false;
+          if (used) i++;
+        }
+        ms.push(m); continue;
+      }
+      if (SMALL_V[c]) { ms.push({ k: 'm', cls: 'X', v: SMALL_V[c] }); continue; }
+      if (SMALL_Y[c]) { ms.push({ k: 'm', cls: 'X', v: SMALL_Y[c] }); continue; }
+      ms.push({ k: 'raw', t: c });
+    }
+    var out = [], lastSyl = -1, initial = true, afterP = false, prevV = null;
+    function vowelOf(v) { var e = v.slice(-1); return v === 'eu' ? 'u' : e; }
+    function nextMora(j) { for (var q = j + 1; q < ms.length; q++) { if (ms[q].k === 'm') return ms[q]; if (ms[q].k !== 'long') return null; } return null; }
+    function addFinal(t) {
+      if (lastSyl < 0) return false;
+      var code = out[lastSyl].charCodeAt(0) - 0xAC00;
+      if (code % 28 !== 0) return false;
+      out[lastSyl] = String.fromCharCode(0xAC00 + code + TI[t]);
+      return true;
+    }
+    for (var j = 0; j < ms.length; j++) {
+      var m2 = ms[j];
+      if (m2.k === 'sp') {
+        lastSyl = -1; prevV = null;
+        if (m2.hard || spacing === 'B' || afterP) { if (out.length && out[out.length - 1] !== ' ') out.push(' '); initial = true; }
+        continue;
+      }
+      afterP = false;
+      if (m2.k === 'p') {
+        out.push(m2.t); lastSyl = -1; prevV = null;
+        if (/[.,?!]/.test(m2.t) && j + 1 < ms.length && ms[j + 1].k !== 'sp' && ms[j + 1].k !== 'p') out.push(' ');
+        afterP = /[.,?!]/.test(m2.t);
+        initial = true; continue;
+      }
+      if (m2.k === 'raw') { out.push(m2.t); lastSyl = -1; prevV = null; initial = true; continue; }
+      if (m2.k === 'long') { if (prevV) out.push('-'); continue; }
+      if (m2.k === 'gem') {
+        var n1 = nextMora(j), t1 = 't';
+        if (n1 && (n1.cls === 'K' || n1.cls === 'G')) t1 = 'k';
+        else if (n1 && (n1.cls === 'P' || n1.cls === 'B')) t1 = 'p';
+        addFinal(t1); initial = false; continue;
+      }
+      if (m2.k === 'nn') {
+        var n2 = nextMora(j), t2 = 'ng';
+        if (n2) {
+          if (n2.cls === 'M' || n2.cls === 'B' || n2.cls === 'P') t2 = 'm';
+          else if (n2.cls === 'K' || n2.cls === 'G') t2 = 'ng';
+          else if (/^(S|Z|T|D|N|R|CH|TS)$/.test(n2.cls)) t2 = 'n';
+        }
+        if (!addFinal(t2)) { out.push('응'); lastSyl = -1; }
+        prevV = null; initial = false; continue;
+      }
+      if (m2.cls === 'X' && /^[aiueo]$/.test(m2.v) && prevV && prevV === m2.v) { out.push('-'); prevV = null; initial = false; continue; }
+      out.push(syl(cons(m2.cls, initial, conv), m2.v)); lastSyl = out.length - 1; prevV = vowelOf(m2.v); initial = false;
+    }
+    return out.join('').replace(/\s+([.,?!”])/g, '$1').replace(/ +/g, ' ').trim();
+  }
+  return { convert: convert };
+})();
+
+/* ════════ 루비 표기 ════════
+   ja 는 '今日{きょう}は' 처럼 한자 묶음 바로 뒤 {읽기}(= 서버 형태소별 표기·읽기를 줄인 모양, 送り仮名 제외).
+   p = 읽는 소리(가타카나, '|' 조사 뒤 · ' ' 구절 경계) — 한글 줄의 바탕. 둘 다 D2-B 서버 분석에서 온다고 가정. */
+var KJ = '[㐀-䶿一-鿿々〆ヶ]';
+var RE_RUBY = new RegExp('(' + KJ + '+)\\{([^}]+)\\}', 'g');
+function plainOf(s) { return s.replace(/\{[^}]*\}/g, ''); }
+function readOf(s) { return s.replace(RE_RUBY, '$2'); }
+function hira(s) { return s.replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); }); }
+/* 지금 서버 reading(문장 전체 히라가나 한 줄)을 흉내 */
+function fullRead(s) { return hira(readOf(s)); }
+function hasKanji(s) { return new RegExp(KJ).test(plainOf(s)); }
+function rubyOf(s) { return s.replace(RE_RUBY, '<ruby>$1<rt aria-hidden="true">$2</rt></ruby>'); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function J(t) { return '<span lang="ja">' + t + '</span>'; }
+
+/* ════════ 아이콘(앱 컴포넌트의 path 그대로) ════════ */
+function sv(d, o) {
+  o = o || {};
+  return '<svg width="' + (o.w || 20) + '" height="' + (o.w || 20) + '" viewBox="0 0 24 24" fill="' + (o.fill ? 'currentColor' : 'none') + '"' + (o.fill ? '' : ' stroke="currentColor" stroke-width="' + (o.sw || 2) + '" stroke-linecap="round" stroke-linejoin="round"') + ' aria-hidden="true">' + d + '</svg>';
+}
+var IC = {
+  back: sv('<path d="M15 18l-6-6 6-6"/>', { w: 22 }),
+  play: sv('<path d="M7 4.5v15l13-7.5z"/>', { w: 22, fill: 1 }),
+  play14: sv('<path d="M7 4.5v15l13-7.5z"/>', { w: 14, fill: 1 }),
+  mic: sv('<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', { w: 28 }),
+  kb: sv('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>', { w: 20, sw: 1.8 }),
+  prev: sv('<path d="M15 5l-7 7 7 7"/>', { sw: 1.8 }),
+  star: sv('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', { sw: 1.8 }),
+  starF: sv('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', { fill: 1 }),
+  skip: sv('<path d="M5 5l7 7-7 7M13 5l7 7-7 7"/>', { sw: 1.8 }),
+  good: sv('<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>', { w: 16, sw: 2.4 }),
+  fair: '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>'
+};
+var TABS = [
+  ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+  ['오늘', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
+  ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'],
+  ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+  ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']
+];
+
+/* ════════ 합성 샘플 데이터 ════════
+   ja = '漢字{よみ}' 표기(서버 형태소 분석의 표기·읽기를 줄인 모양) · p = 읽는 소리(한글 줄의 바탕, '|' = 조사 は·を·へ 뒤) */
+var TEACHER = '유우';
+var D = {
+  m1: { ja: '片付{かたづ}ける', p: 'カタヅケル', r: 'かたづける', ch: ['정리하다', '준비하다', '기다리다', '빌리다'] },
+  r2: { ja: '注文{ちゅうもん}', p: 'チューモン' },
+  u3: {
+    pre: { ja: '駅{えき}で友達{ともだち}を', p: 'エキデ トモダチオ|' }, post: '。',
+    ch: [{ ja: '待{ま}ちました', p: 'マチマシタ' }, { ja: '注文{ちゅうもん}しました', p: 'チューモンシマシタ' }, { ja: '始{はじ}まりました', p: 'ハジマリマシタ' }, { ja: '片付{かたづ}けました', p: 'カタヅケマシタ' }],
+    filled: { ja: '駅{えき}で友達{ともだち}を待{ま}ちました。', p: 'エキデ トモダチオ|マチマシタ。' }
+  },
+  c7: { ja: 'たまに', p: 'タマニ' },
+  chunk: [['이름 조각', '사람·물건·장소의 이름'], ['액션 조각', '하는 일(동사)'], ['느낌 조각', '상태·느낌(형용사)'], ['꾸밈 조각', '때·정도·방식']],
+  l1: {
+    q: { ja: '週末{しゅうまつ}は何{なに}をしましたか？', p: 'シューマツワ|ナニオ|シマシタカ？' },
+    a: { ja: '家{いえ}で映画{えいが}を見{み}ました。', p: 'イエデ エーガオ|ミマシタ。' },
+    model: { ja: '週末{しゅうまつ}は家{いえ}で映画{えいが}を見{み}ました。', p: 'シューマツワ|イエデ エーガオ|ミマシタ。', read: 'しゅうまつはいえでえいがをみました。' }
+  },
+  a3: { ko: '다음 주에 친구와 여행을 가요.', pieces: [{ ja: '旅行{りょこう}に', p: 'リョコーニ' }, { ja: '来週{らいしゅう}', p: 'ライシュー' }, { ja: '行{い}きます', p: 'イキマス' }, { ja: '友達{ともだち}と', p: 'トモダチト' }], draft: [1, 3] },
+  s6: {
+    segs: ['昨日{きのう}は', '雨{あめ}が', '降{ふ}ってから', '、家{いえ}に', 'いました。'], p: 'キノーワ|アメガ フッテカラ、 イエニ イマシタ。', pick: 2,
+    pre: '昨日{きのう}は雨{あめ}が', wrong: '降{ふ}ってから', fix: '降{ふ}ったので', post: '、家{いえ}にいました。', fixedP: 'キノーワ|アメガ フッタノデ、 イエニ イマシタ。'
+  },
+  card: { ja: '忘{わす}れる', r: 'わすれる', p: 'ワスレル', mean: '잊다; 두고 오다', ex: { ja: '傘{かさ}を電車{でんしゃ}に忘{わす}れてしまいました。', p: 'カサオ|デンシャニ ワスレテシマイマシタ。' }, exKo: '우산을 전철에 두고 내렸어요.', ch: ['잊다; 두고 오다', '기억하다', '잃어버리다', '빌려주다'] },
+  cardL: { ja: '引{ひ}き受{う}ける', r: 'ひきうける', p: 'ヒキウケル', mean: '(일·책임을) 맡다, 떠맡다; 보증하다', ex: { ja: '難{むずか}しい仕事{しごと}でしたが、最後{さいご}まで責任{せきにん}を持{も}って引{ひ}き受{う}けました。', p: 'ムズカシイ シゴトデシタガ、 サイゴマデ セキニンオ|モッテ ヒキウケマシタ。' }, exKo: '어려운 일이었지만 끝까지 책임지고 맡았어요.', ch: ['(일·책임을) 맡다, 떠맡다; 보증하다', '거절하다', '물려받다', '끌어당기다'] },
+  wrong: [
+    { ja: '約束{やくそく}', r: 'やくそく', p: 'ヤクソク', right: '약속', mine: '예약' },
+    { ja: '片付{かたづ}ける', r: 'かたづける', p: 'カタヅケル', right: '정리하다', mine: '준비하다' }
+  ],
+  flag: [{ ja: '引{ひ}き受{う}ける', r: 'ひきうける', p: 'ヒキウケル', right: '(일·책임을) 맡다, 떠맡다; 보증하다', mine: '' }],
+  rv: [
+    { ty: '표현', ja: 'お会計{かいけい}お願{ねが}いします', p: 'オカイケー オネガイシマス', ko: '계산 부탁해요', cnt: '교정 2번', bad: true, st: '공부 3번', src: '회화 교정', focus: true },
+    { ty: '단어', ja: '予約{よやく}', p: 'ヨヤク', ko: '예약', cnt: '틀림 1번', bad: true, st: '공부 2번', src: '단어 세트', focus: false },
+    { ty: '문형', ja: '〜てもいいですか', p: 'テモ イーデスカ', ko: '~해도 될까요?', cnt: '틀린 적 없음', bad: false, st: '공부 1번', src: '수업', focus: false },
+    { ty: '표현', ja: 'テイクアウトで', p: 'テイクアウトデ', ko: '포장으로', cnt: '틀린 적 없음', bad: false, st: '처음 복습해요', src: '수업', focus: false }
+  ],
+  used: [{ ja: 'お会計{かいけい}お願{ねが}いします', p: 'オカイケー オネガイシマス', ko: '계산 부탁해요' }, { ja: 'テイクアウトで', p: 'テイクアウトデ', ko: '포장으로' }],
+  missed: [{ ja: '〜てもいいですか', p: 'テモ イーデスカ', ko: '~해도 될까요?' }]
+};
+/* 이 평가(단어 평가)의 읽기 쓰기 문항 단어 — 제출 전 다른 문항에서도 그 단어의 히라가나·그 문장의 한글을 숨긴다 */
+var PROT = ['注文'];
+
+/* ════════ 상태 ════════ */
+var S = { w: 390, h: 780, view: 'pair', fu: true, hg: true, tr: false, an: 'ready', scr: 'e-meaning', dec: { e1: 'A', e2: 'A', c1: 'A', c2: 'A', r1: 'A', s1: 'A' } };
+var CUR = false;
+var REC = { e1: 'A', e2: 'A', c1: 'A', c2: 'A', r1: 'A', s1: 'A' };
+
+/* ════════ 층 그리기(공용 JaText · HangulLine 흉내) ════════ */
+function stripHide(ja, o) {
+  var s = ja;
+  (o.hide || []).forEach(function (k) { s = s.replace(new RegExp(k + '\\{[^}]*\\}', 'g'), k); });
+  return s;
+}
+/* 루비: 분석 결과(#24r)로 그리면 '완료' 때만, 저장 읽기(단어)로 그리면 분석과 무관. always = 앱 히라가나 설정과 무관(카드 뒷면 C1=A) */
+function rubyOn(o) { if (CUR || o.off) return false; if (o.stored) return !!(o.always || S.fu); return S.fu && S.an === 'ready'; }
+function reserveFu(ja, o) { if (CUR || o.off || !hasKanji(ja)) return false; if (o.stored) return !!(o.always || S.fu); return S.fu && S.an !== 'fail'; }
+function jaHtml(ja, o) { o = o || {}; return rubyOn(o) ? rubyOf(stripHide(ja, o)) : esc(plainOf(ja)); }
+function JA(it, base, o) {
+  o = o || {};
+  var tag = o.tag || 'p';
+  var c = [base || '', reserveFu(it.ja, o) ? 'fu' : '', o.rt13 ? 'rt13' : '', o.x || ''].filter(Boolean).join(' ');
+  return '<' + tag + (c ? ' class="' + c + '"' : '') + ' lang="ja">' + jaHtml(it.ja, o) + '</' + tag + '>';
+}
+function brk(t) { return '<span class="sr">한글 발음: </span><span class="bk" aria-hidden="true">[</span>' + esc(t) + '<span class="bk" aria-hidden="true">]</span>'; }
+function HGL(it, o) {
+  o = o || {};
+  if (CUR || o.off || o.noHg || !S.hg) return '';
+  if (S.an === 'loading') return o.inline ? '' : '<span class="hgp' + (o.tint ? ' tint' : '') + '" aria-hidden="true"></span>';
+  if (S.an === 'fail') return '';
+  var b = brk(HG.convert(it.p, 'A', 'B'));
+  if (o.inline) return '<span class="hgi" lang="ko">' + b + '</span>';
+  var tag = o.tag || 'p';
+  return '<' + tag + ' class="hg' + (o.size ? ' ' + o.size : '') + (o.x ? ' ' + o.x : '') + '" lang="ko">' + b + '</' + tag + '>';
+}
+/* 평가 푸는 중: E1=B 면 층 없음. 읽기 쓰기 단어가 든 일본어는 그 단어 히라가나·그 문장 한글을 숨김(교차 보호) */
+function EO(it, o) {
+  o = o || {};
+  if (S.dec.e1 === 'B') o.off = true;
+  PROT.forEach(function (k) { if (plainOf(it.ja).indexOf(k) >= 0) { o.hide = (o.hide || []).concat(k); o.noHg = true; o.prot = true; } });
+  return o;
+}
+function nw(x) { return CUR ? '' : ' ' + (x || 'dnew'); }
+function tg(k) {
+  var L = { fu: '히라가나', hg: '한글', tr: '번역' };
+  var on = S[k];
+  return '<button type="button" class="tg" aria-pressed="' + on + '" data-act="tg" data-k="' + k + '">' + (on ? '<span class="ck" aria-hidden="true">✓</span>' : '') + L[k] + '</button>';
+}
+function omit(t) { return '<div class="omit" aria-hidden="true">' + t + '</div>'; }
+
+/* ════════ 공용 틀 ════════ */
+function backBar(title, sub, right) {
+  return '<header class="bb"><button type="button" class="back" aria-label="뒤로" data-act="noop">' + IC.back + '</button><div class="bb-m"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (right || '') + '</header>';
+}
+function tabbar(cur) {
+  return '<nav class="tabbar" aria-label="주 메뉴">' + TABS.map(function (t, i) {
+    return '<button type="button" class="tab"' + (i === cur ? ' aria-current="page"' : '') + ' data-act="noop">' + sv('<path d="' + t[1] + '"/>', { w: 24, sw: 1.8 }) + '<span>' + t[0] + '</span></button>';
+  }).join('') + '</nav>';
+}
+function saveLine(state, txt) {
+  return '<p class="esl" role="status"><i class="' + (state === 'saved' ? 'sv' : '') + '" aria-hidden="true"></i>' + (state === 'saved' ? '저장했어요 · 제출 전까지 바꿀 수 있어요' : (txt || '아직 답하지 않았어요')) + '</p>';
+}
+
+/* ════════ AI 평가 — 푸는 중(EvalRunner · EvalItems) ════════ */
+var KIND = { MEANING_CHOICE: '뜻 고르기', READING_INPUT: '읽기 쓰기', USAGE_CHOICE: '용법 고르기', CHUNK_CLASSIFY: '조각 분류', LISTEN_RESPOND: '듣고 답하기', ASSEMBLE: '문장 조립', SITUATION_RESPOND: '상황 응답', CORRECTION_SPOT: '틀린 곳 찾기' };
+function evalFrame(o) {
+  var talk = o.kind === 'TALK', n = talk ? 6 : 10;
+  var hdr = '<header class="ehd"><button type="button" class="back" aria-label="평가 나가기" data-act="noop">' + IC.back + '</button><div class="ehd-m"><h1>' + (talk ? '회화 평가' : '단어 평가') + ' · N4</h1><p><span>답함 ' + o.ans.length + ' / ' + n + '</span>' +
+    (talk ? '<span aria-hidden="true" style="color:var(--ink3)">·</span><span class="ind"><span class="dot" aria-hidden="true"></span><span>온라인</span><span aria-hidden="true" style="color:var(--ink3)">›</span></span>' : '') +
+    '</p></div><div class="etm" role="timer" aria-label="남은 시간 6분 12초"><span>남은 시간</span><b>06:12</b></div></header>';
+  var nb = '';
+  for (var k = 0; k < n; k++) {
+    var a = o.ans.indexOf(k) >= 0, c = k === o.idx;
+    nb += '<button type="button" class="enb' + (a ? ' ans' : '') + (c ? ' cur' : '') + '"' + (c ? ' aria-current="step"' : '') + ' aria-label="' + (k + 1) + '번' + (a ? ', 답함' : ', 아직 안 답함') + '" data-act="noop">' + (k + 1) + '</button>';
+  }
+  var nav = '<nav class="enav" aria-label="문항 이동"><div>' + nb + '<button type="button" class="ensub" data-act="noop">제출</button></div></nav>';
+  var tools = (!CUR && S.dec.e1 === 'A' && S.dec.e2 === 'A') ? '<div class="trow etools dnew" role="group" aria-label="보기 설정">' + tg('fu') + tg('hg') + '</div>' : '';
+  var head = '<div class="eih"><span class="k"><span class="n">' + (o.idx + 1) + '</span>' + KIND[o.item] + '</span><span class="pt">' + (talk ? '15점' : '10점') + '</span></div>';
+  var sec = '<section class="esec" aria-labelledby="eqh-' + o.idx + (CUR ? 'c' : 'p') + '"><h2 class="sr" id="eqh-' + o.idx + (CUR ? 'c' : 'p') + '">' + (o.idx + 1) + '번 문항, ' + KIND[o.item] + '</h2>' + head + o.body + '</section>';
+  var last = o.idx === n - 1;
+  var bot = '<div class="ebot"><button type="button" class="btn ghost" data-act="noop">‹ 이전</button><button type="button" class="btn primary" data-act="noop">' + (last ? '제출하기' : '다음 ›') + '</button></div>';
+  return '<div class="room">' + hdr + nav + '<div class="scr esc">' + tools + sec + '</div>' + bot + '</div>';
+}
+function q(t) { return '<p class="eqq">' + t + '</p>'; }
+function wordBox(it, o) {
+  o = o || {};
+  if (CUR) return '<div class="ewb"><span lang="ja" class="w">' + plainOf(it.ja) + '</span>' + (o.reading ? '<span lang="ja" class="r">' + o.reading + '</span>' : '') + '</div>';
+  if (o.protect) return '<div class="ewb dprot"><span lang="ja" class="w">' + plainOf(it.ja) + '</span></div>';
+  var eo = EO(it, { tag: 'span', stored: true, rt13: true });
+  if (S.dec.e1 === 'B') return '<div class="ewb"><span lang="ja" class="w">' + plainOf(it.ja) + '</span>' + (o.reading ? '<span lang="ja" class="r">' + o.reading + '</span>' : '') + '</div>';
+  return '<div class="ewb dnew">' + JA(it, 'w', eo) + HGL(it, { tag: 'span', size: 's14' }) + '</div>';
+}
+function choiceRows(list, sel, opt) {
+  opt = opt || {};
+  return '<div role="radiogroup" aria-label="보기">' + list.map(function (c, j) {
+    var on = sel === j, inner;
+    if (opt.ko) inner = '<span class="ct ko">' + c[0] + (c[1] ? '<br><span class="hint">' + c[1] + '</span>' : '') + '</span>';
+    else {
+      var eo = EO(c, { tag: 'span' });
+      inner = '<span class="ct ja' + (eo.prot && !CUR && S.dec.e1 === 'A' ? ' dprot' : '') + '">' + JA(c, '', eo) + (CUR ? '' : HGL(c, { tag: 'span', size: 's125', off: eo.off, noHg: eo.noHg })) + '</span>';
+    }
+    return '<button type="button" class="ech' + (on ? ' on' : '') + '" role="radio" aria-checked="' + on + '" data-act="noop"><span class="no" aria-hidden="true">' + (j + 1) + '</span>' + inner + (on ? '<span class="mine">내 답</span>' : '<span></span>') + '</button>';
+  }).join('') + '</div>';
+}
+function eMeaning() {
+  var body = q('이 단어의 뜻은?') + wordBox(D.m1, { reading: D.m1.r }) + choiceRows(D.m1.ch.map(function (t) { return [t]; }), 0, { ko: true }) + saveLine('saved');
+  return evalFrame({ kind: 'WORDS', idx: 0, ans: [0], item: 'MEANING_CHOICE', body: body });
+}
+function eReading() {
+  var showNote = !CUR && S.dec.e1 === 'A' && (S.fu || S.hg);
+  var body = q('이 단어를 어떻게 읽을까요? 히라가나로 써 보세요.') + wordBox(D.r2, { protect: true }) +
+    (showNote ? '<p class="enote dnew">읽기를 묻는 문항이라 히라가나·한글은 제출한 뒤에 보여 줘요.</p>' : '') +
+    '<div class="eio"><label class="sr" for="rin-' + (CUR ? 'c' : 'p') + '">읽기</label><span class="ein v" id="rin-' + (CUR ? 'c' : 'p') + '" lang="ja">ちゅうも</span><button type="button" class="esv" data-act="noop">저장</button></div>' +
+    saveLine('empty', '쓰고 [저장]을 누르거나 다른 문항으로 가면 저장돼요');
+  return evalFrame({ kind: 'WORDS', idx: 1, ans: [0], item: 'READING_INPUT', body: body });
+}
+function eUsage() {
+  var u = D.u3, sent;
+  var blank = '<span class="blank" aria-label="빈칸">＿＿＿</span>';
+  if (CUR) sent = '<p lang="ja" class="ej17">' + plainOf(u.pre.ja) + blank + u.post + '</p>';
+  else { var eo = EO(u.pre, {}); sent = '<p lang="ja" class="ej17' + (reserveFu(u.pre.ja, eo) ? ' fu' : '') + (eo.off ? '' : ' dnew') + '">' + jaHtml(u.pre.ja, eo) + blank + u.post + '</p>'; }
+  var body = q('빈칸에 알맞은 말을 고르세요') + '<div class="ebx">' + sent + '</div>' + choiceRows(u.ch, null) + saveLine('empty');
+  return evalFrame({ kind: 'WORDS', idx: 2, ans: [0], item: 'USAGE_CHOICE', body: body });
+}
+function eChunk() {
+  var body = q('이 표현은 어떤 조각일까요?') + wordBox(D.c7, {}) + choiceRows(D.chunk, 3, { ko: true }) + saveLine('saved');
+  return evalFrame({ kind: 'WORDS', idx: 6, ans: [0, 2, 3, 4, 5, 6], item: 'CHUNK_CLASSIFY', body: body });
+}
+function voiceAnswer(it) {
+  var said = CUR ? '<p lang="ja" class="ej17" style="white-space:pre-wrap">' + plainOf(it.ja) + '</p>' : '<div>' + JA(it, 'ej17', EO(it, {})) + HGL(it, EO(it, {})) + '</div>';
+  return '<p class="elab">내가 한 말</p><div class="ebox' + nw() + '" aria-hidden="true">' + said + '</div>' +
+    '<div class="eptt"><button type="button" class="ptt" aria-label="누르고 있는 동안 말하기" data-act="noop">' + IC.mic + '</button><p class="st">다시 말하려면 또 누르고 말해요 — 새 답으로 바뀌어요</p></div>' +
+    '<button type="button" class="tlink c" data-act="noop">' + IC.kb + '글자로 답하기</button>' + saveLine('saved');
+}
+function eListen(revealed) {
+  var L = D.l1, blk;
+  if (revealed) {
+    var t = CUR ? '<p lang="ja" class="ej17" style="white-space:pre-wrap">' + plainOf(L.q.ja) + '</p>' : JA(L.q, 'ej17', EO(L.q, {})) + HGL(L.q, EO(L.q, {}));
+    blk = '<div class="erev' + nw() + '">' + t + '</div><p class="c12" style="margin-top:4px">글자로 봤어요 · 결과에 표시돼요</p>';
+  } else {
+    blk = '<div class="elst"><button type="button" class="eplay" aria-label="다시 듣기" data-act="noop">' + IC.play + '</button><div class="t"><b role="status">다시 듣기</b><span class="c12">한 번 더 들을 수 있어요</span></div></div>' +
+      '<div class="ebars' + (CUR ? '' : ' dprot') + '" aria-hidden="true"><span style="width:84%"></span><span style="width:58%"></span></div><p class="c12 kk">들려주는 문장은 제출한 뒤에 글자로 보여 줘요.</p>';
+  }
+  var body = q('선생님 질문을 듣고 일본어로 대답해 보세요.') + blk + voiceAnswer(L.a);
+  return evalFrame({ kind: 'TALK', idx: 0, ans: [0], item: 'LISTEN_RESPOND', body: body });
+}
+function eAssemble() {
+  var A = D.a3;
+  function pj(it) { return CUR ? '<span lang="ja">' + plainOf(it.ja) + '</span>' : JA(it, '', EO(it, { tag: 'span' })); }
+  var placed = A.draft.map(function (k, pos) { return '<button type="button" class="epc' + nw() + '" aria-label="' + (pos + 1) + '번째 조각 ' + plainOf(A.pieces[k].ja) + ', 눌러서 빼기" data-act="noop"><span class="o" aria-hidden="true">' + (pos + 1) + '</span>' + pj(A.pieces[k]) + '</button>'; }).join('');
+  var pool = A.pieces.map(function (p, k) { return A.draft.indexOf(k) >= 0 ? '' : '<button type="button" class="epp' + nw() + '" lang="ja" aria-label="조각 ' + plainOf(p.ja) + ' 넣기" data-act="noop">' + (CUR ? plainOf(p.ja) : jaHtml(p.ja, EO(p, {}))) + '</button>'; }).join('');
+  var body = q('조각을 순서대로 눌러 문장을 만들어 보세요') + '<p class="kk" style="margin-top:4px;font-size:14px">뜻 · ' + A.ko + '</p>' +
+    '<div class="easm" role="group" aria-label="만든 문장">' + placed + '</div>' +
+    '<div class="epool" role="group" aria-label="남은 조각">' + pool + '</div>' +
+    '<button type="button" class="tlink" data-act="noop">처음부터 다시</button>' + saveLine('empty', '조각을 모두 넣으면 저장돼요');
+  return evalFrame({ kind: 'TALK', idx: 2, ans: [0, 1], item: 'ASSEMBLE', body: body });
+}
+function eSpot() {
+  var s6 = D.s6, whole = { ja: s6.segs.join(''), p: s6.p };
+  var eo = EO(whole, {});
+  var segs = s6.segs.map(function (sg, k) {
+    var on = k === s6.pick, it = { ja: sg };
+    var fu = !CUR && reserveFu(sg, eo) ? ' fu' : '';
+    return '<button type="button" class="esg' + (on ? ' on' : '') + fu + '" lang="ja" aria-pressed="' + on + '" data-act="noop">' + (CUR ? plainOf(sg) : jaHtml(sg, eo)) + '</button>';
+  }).join('');
+  var hg = CUR ? '' : HGL(whole, { off: eo.off }).replace('class="hg"', 'class="hg" style="margin-top:6px"');
+  var body = q('틀린 곳을 눌러 고르고, 어떻게 고칠지 써 보세요') +
+    '<div class="espg' + (CUR || eo.off ? '' : ' dnew') + '" role="group" aria-label="문장 조각, 틀린 곳 하나 고르기">' + segs + '</div>' + hg +
+    '<p class="c12" style="margin-top:8px">고른 곳 · <span lang="ja">降ってから</span></p>' +
+    '<label class="elbl" for="spt-' + (CUR ? 'c' : 'p') + '">고친 말과 이유</label><div class="eta" id="spt-' + (CUR ? 'c' : 'p') + '">降ったので\n이유를 말할 때는 ので</div>' +
+    '<div class="emeta"><span class="c12 kk">고른 곳과 글이 한 답으로 저장돼요</span><button type="button" class="esv2" data-act="noop">답 저장</button></div>' + saveLine('saved');
+  return evalFrame({ kind: 'TALK', idx: 5, ans: [0, 1, 2, 3, 4, 5], item: 'CORRECTION_SPOT', body: body });
+}
+
+/* ════════ AI 평가 — 결과(EvalResult) ════════ */
+function rja(it, o) { return CUR ? '<p lang="ja" class="rja">' + plainOf(it.ja) + '</p>' : JA(it, 'rja', o || {}) + HGL(it, o || {}); }
+function rrow(n, kind, tag, tone, st, sc, open, det) {
+  var sym = tone === 'full' ? '✓' : tone === 'zero' ? '✗' : '△';
+  return '<li><button type="button" class="rrow" aria-expanded="' + !!open + '" data-act="noop"><span class="ic ' + tone + '" aria-hidden="true">' + sym + '</span><span class="tt"><b>' + n + '. ' + kind + (tag ? ' · <span lang="ja">' + tag + '</span>' : '') + '</b><span>' + st + '</span></span><span class="sc">' + sc + '</span><span class="ch" aria-hidden="true">›</span></button>' +
+    (open ? '<div class="rdet">' + det + '</div>' : '') + '</li>';
+}
+function resultFrame(o) {
+  var top = '<section class="rtot" aria-label="총점"><p class="s">' + o.score + '<small>점 / 100</small></p><p class="mt8"><span class="grade ' + o.gcls + '">' + o.gicon + o.glabel + '</span></p><p class="c12 kk mt8">' + o.grange + '</p></section>';
+  return '<div class="room">' + backBar('평가 결과', o.sub) + '<div class="scr esc">' + top +
+    omit('선생님 한마디 · 다음에 집중할 것 · 영역별 점수 — 바뀌지 않음(한국어 속 「」 인용은 달지 않음)') +
+    '<section class="rsec" data-anchor><div class="rsh"><h3>문항별 결과</h3><span class="c12">누르면 정답·피드백</span></div><ul class="rul">' + o.rows + '</ul></section>' +
+    omit('[평가 기록] [오늘로] — 바뀌지 않음') + '</div></div>';
+}
+function eResultW() {
+  var mine2 = { ja: 'ちゅうもう', p: 'チューモー' }, right2 = { ja: 'ちゅうもん', p: 'チューモン' };
+  var det2 = '<div class="rbox mine' + nw() + '"><p class="rlb">내 답</p>' + rja(mine2) + '</div><div class="rbox right' + nw() + '"><p class="rlb g">정답</p>' + rja(right2) + '</div>';
+  var u = D.u3;
+  var filled = CUR ? '<p lang="ja" class="rja">' + plainOf(u.pre.ja) + '<b class="fillu">待ちました</b>。</p>'
+    : '<p lang="ja" class="rja' + (reserveFu(u.filled.ja, {}) ? ' fu' : '') + '">' + jaHtml(u.pre.ja, {}) + '<b class="fillu">' + jaHtml(u.ch[0].ja, {}) + '</b>。</p>' + HGL(u.filled, {});
+  var det3 = '<div class="rbox mine' + nw() + '"><p class="rlb">내 답</p>' + filled + '</div><p class="c13">정답이에요.</p>';
+  var rows = rrow(1, '뜻 고르기', '片付ける', 'full', '맞음', '10 / 10') +
+    rrow(2, '읽기 쓰기', '注文', 'zero', '틀림', '0 / 10', true, det2) +
+    rrow(3, '용법 고르기', '', 'full', '맞음', '10 / 10', true, det3) +
+    rrow(4, '뜻 고르기', '予約', 'full', '맞음', '10 / 10') +
+    rrow(5, '읽기 쓰기', '天気', 'full', '맞음', '10 / 10') +
+    rrow(6, '용법 고르기', '', 'zero', '틀림', '0 / 10');
+  return resultFrame({ score: 80, gcls: 'good', gicon: IC.good, glabel: '거의 다 왔어요', grange: '75~89점 · 90점을 넘으면 이 레벨은 충분해요', sub: '단어 평가 · N4 · 10월 5일', rows: rows });
+}
+function eResultT() {
+  var L = D.l1, s6 = D.s6;
+  var model = CUR ? '<p lang="ja" class="rja">' + plainOf(L.model.ja) + '</p><p lang="ja" class="rrd">' + L.model.read + '</p>' : rja(L.model);
+  var det1 = '<div class="' + nw('dnew').trim() + '"><p class="rlb">들려준 말</p>' + rja(L.q) + '<button type="button" class="rplay" data-act="noop">' + IC.play14 + '다시 듣기</button></div>' +
+    '<div class="rbox mine' + nw() + '"><p class="rlb">내 답</p>' + rja(L.a) + '<p class="c12">말로 답함</p></div>' +
+    '<div class="rbox right' + nw() + '"><p class="rlb g">모범 답</p>' + model + '<p class="c12 kk mt4">이런 뜻이면 돼요 · 주말에 한 일을 말하면 돼요</p></div>' +
+    '<div><p class="rlb">선생님 피드백</p><p class="kk" style="font-size:14px">질문에 맞게 잘 대답했어요. 앞에 <span lang="ja">「週末は」</span>를 붙이면 더 자연스러워요.</p><div class="dimc"><span>이 문항이 재는 것</span><span>정확성</span><span>자연스러움</span></div></div>';
+  var sent = { ja: s6.segs.join(''), p: s6.p };
+  var fixLine;
+  if (CUR) fixLine = '<p lang="ja" class="rja">' + plainOf(s6.pre) + '<span class="strk">' + plainOf(s6.wrong) + '</span> <span class="ugood">' + plainOf(s6.fix) + '</span>' + plainOf(s6.post) + '</p>';
+  else fixLine = '<p lang="ja" class="rja' + (reserveFu(s6.pre, {}) ? ' fu' : '') + '">' + jaHtml(s6.pre, {}) + '<span class="strk">' + jaHtml(s6.wrong, {}) + '</span> <span class="ugood">' + jaHtml(s6.fix, {}) + '</span>' + jaHtml(s6.post, {}) + '</p>' + HGL({ p: s6.fixedP }, {});
+  var det6 = '<div class="' + nw('dnew').trim() + '"><p class="rlb">문장</p>' + rja(sent) + '</div>' +
+    '<div class="rbox mine"><p class="rlb">내 답</p><p style="font-size:14px">고른 곳 · <span lang="ja">降ってから</span></p><p class="mt4" style="font-size:14px;white-space:pre-wrap">降ったので\n이유를 말할 때는 ので</p></div>' +
+    '<div class="rbox right' + nw() + '"><p class="rlb g">고친 곳</p>' + fixLine + '<p class="mt4 kk" style="font-size:14px">이유를 말할 때는 <span lang="ja">「〜てから」</span>가 아니라 <span lang="ja">「〜ので」</span>를 써요.</p></div>';
+  var rows = rrow(1, '듣고 답하기', '', 'part', '부분 점수', '10 / 15', true, det1) +
+    rrow(2, '듣고 답하기', '', 'full', '맞음', '15 / 15') +
+    rrow(3, '문장 조립', '', 'full', '맞음', '20 / 20') +
+    rrow(4, '상황 응답', '', 'part', '부분 점수', '10 / 15') +
+    rrow(5, '상황 응답', '', 'part', '부분 점수', '9 / 15') +
+    rrow(6, '틀린 곳 찾기', '', 'part', '부분 점수', '8 / 20', true, det6);
+  return resultFrame({ score: 72, gcls: 'fair', gicon: IC.fair, glabel: '기본은 잡혔어요', grange: '60~74점 · 틀린 문항만 다시 보면 금방 올라가요', sub: '회화 평가 · N4 · 10월 5일', rows: rows });
+}
+
+/* ════════ 오늘의 단어 — 카드 뒷면(VocabCardFace back) ════════ */
+function backFace(c, band) {
+  var head, ex;
+  if (CUR) {
+    head = '<div class="khd"><span lang="ja" class="s">' + plainOf(c.ja) + '</span><span lang="ja" class="r">' + c.r + '</span></div>';
+    ex = '<p lang="ja" class="kex">' + plainOf(c.ex.ja) + '</p>';
+  } else {
+    var ho = { stored: true, always: S.dec.c1 === 'A' };
+    head = '<div class="khd2 dnew"><div class="l">' + JA(c, 's', ho) + HGL(c, {}) + '</div></div>';
+    ex = '<div class="dnew">' + JA(c.ex, 'kex', {}) + (S.dec.c2 === 'A' ? HGL(c.ex, { x: 'kexh' }) : '') + '</div>';
+  }
+  return '<div class="kface" data-face>' + head + (band ? '<p class="kband good">' + band + '</p>' : '') +
+    '<div class="kbody"><p class="kmean">' + c.mean + '</p>' + ex + '<p class="kexko">' + c.exKo + '</p></div></div>';
+}
+function deckFrame(c, mode, answered) {
+  var bar = '';
+  for (var i = 0; i < 10; i++) bar += '<i class="' + (i < 2 ? 'ok' : i === 2 ? 'ng' : i === 3 ? (answered ? 'ok' : 'cur') : '') + '"></i>';
+  var face = backFace(c, answered ? (mode === 'FLIP' ? '✓ 알았어요' : '✓ 맞았어요') : null);
+  var ctl;
+  if (mode === 'CHOICE') {
+    ctl = '<ol class="chl" aria-label="보기">' + c.ch.map(function (t, i) {
+      var cor = i === 0;
+      return '<li><button type="button" class="cho ' + (cor ? 'correct' : 'other') + '" aria-disabled="true" aria-label="' + (i + 1) + '번, ' + t + (cor ? ', 정답' : '') + '" data-act="noop"><span class="no" aria-hidden="true">' + (i + 1) + '</span><span class="t">' + t + '</span>' + (cor ? '<span class="m" aria-hidden="true">✓ 정답</span>' : '') + '</button></li>';
+    }).join('') + '</ol>';
+  } else {
+    ctl = '<div class="fctl"><button type="button" class="btn primary" data-act="noop">알았어요</button><button type="button" class="btn ghost" data-act="noop">몰랐어요</button></div>';
+  }
+  var tb = answered
+    ? '<div class="dtb"><button type="button" class="tool" data-act="noop">' + IC.prev + '이전</button><button type="button" class="tool" aria-pressed="false" data-act="noop">' + IC.star + '표시</button><button type="button" class="tnext" data-act="noop"><span>다음 카드</span><span aria-hidden="true">›</span></button></div>'
+    : '<div class="dtb"><button type="button" class="tool" data-act="noop">' + IC.prev + '이전</button><button type="button" class="tool" aria-pressed="false" data-act="noop"><span class="a" lang="ja" aria-hidden="true">あ</span>읽기</button><button type="button" class="tool" aria-pressed="false" data-act="noop">' + IC.star + '표시</button><button type="button" class="tool" data-act="noop">' + IC.skip + '건너뛰기</button></div>';
+  return '<div class="room">' + backBar('오늘의 단어', (mode === 'FLIP' ? '뒤집기 카드' : '4지선다') + ' · 10장', '<button type="button" class="endb" data-act="noop">끝내기</button>') +
+    '<div class="dprog"><div class="r"><p class="n">4 / 10</p><p class="c12">남은 ' + (answered ? 6 : 7) + '장</p></div><div class="dbar" role="progressbar" aria-valuemin="0" aria-valuemax="10" aria-valuenow="' + (answered ? 4 : 3) + '">' + bar + '</div></div>' +
+    '<div class="dstk"><div class="stk"><div class="bkc" style="transform:scale(.92) translateY(16px)"></div><div class="bkc" style="transform:scale(.96) translateY(8px)"></div>' + face + '</div></div>' +
+    '<div class="ghint" aria-hidden="true">← 밀어 다음 · → 밀어 이전 · ↑ 밀어 표시</div>' + ctl + tb + '</div>';
+}
+
+/* ════════ 오늘의 단어 — 세트 결과 목록(VocabResult · WordResultList) ════════ */
+function wrRow(c, showMine) {
+  var inScope = !CUR && S.dec.s1 === 'A';
+  var head = inScope
+    ? '<span class="h dnew" style="display:block">' + JA(c, 's', { tag: 'span', stored: true, x: '' }).replace('<span class="s', '<span style="display:block" class="s') + HGL(c, { tag: 'span', size: 's125' }) + '</span>'
+    : '<span class="h"><span lang="ja" class="s">' + plainOf(c.ja) + '</span>' + (c.r ? '<span lang="ja" class="r">' + c.r + '</span>' : '') + '</span>';
+  return '<li><a href="#c-result" class="wrr" data-act="noop"><span class="l">' + head + '<span class="a">정답 ' + c.right + (showMine && c.mine ? ' · 내 답 ' + c.mine : '') + '</span></span><span class="rt">' + (c.fl ? '<span style="color:var(--accent)"><span aria-hidden="true">★</span><span class="sr">다시 볼 카드</span></span>' : '') + '<span aria-hidden="true">›</span></span></a></li>';
+}
+function cResult() {
+  var top = '<div class="card"><p class="kk" style="font-size:22px;font-weight:600">10장 중 8장 맞혔어요</p><div class="vstat"><div class="g"><b>8</b><span class="c12">맞힘</span></div><div class="b"><b>2</b><span class="c12">틀림</span></div><div><b>0</b><span class="c12">건너뜀</span></div></div><p class="c13 mt8 kk">걸린 시간 2분 40초 · 다시 볼 카드 1장</p></div>';
+  var keep = '<div class="card flat mt12"><button type="button" class="btn ghost full" data-act="noop">☆ 이 세트 보관</button><p class="c12 kk" style="margin-top:6px">보관하면 오늘 탭에서 같은 단어로 다시 풀 수 있어요.</p></div>';
+  var l1 = '<section class="mt18" data-anchor><h3 style="font-size:15px;font-weight:600;margin-bottom:8px">틀린 단어 2</h3><ul class="wrl">' + D.wrong.map(function (c) { return wrRow(c, true); }).join('') + '</ul></section>';
+  var l2 = '<section class="mt18"><h3 style="font-size:15px;font-weight:600;margin-bottom:8px">다시 볼 카드 1</h3><ul class="wrl">' + D.flag.map(function (c) { return wrRow({ ja: c.ja, r: c.r, p: c.p, right: c.right, fl: true }, false); }).join('') + '</ul></section>';
+  var more = '<p style="margin-top:16px;min-height:44px;display:flex;align-items:center;font-size:14px;font-weight:500">▸ 전체 카드 10장 보기</p>';
+  return '<div class="room">' + backBar('세트 결과', '오늘 · 4지선다 · 10장') + '<div class="scr" style="padding:12px 16px 32px">' + top + keep + l1 + l2 + more + '</div></div>';
+}
+
+/* ════════ 복습 — 오늘 홈 카드(TodayReviewCard · TeacherWhy · ReviewChips) ════════ */
+function chipJa(it, cls) {
+  var mode = CUR ? 'cur' : S.dec.r1;
+  if (mode === 'cur') return '<span lang="ja">' + plainOf(it.ja) + '</span>';
+  return JA(it, '', { tag: 'span' }) + (mode === 'A' ? HGL(it, { inline: true }) : '');
+}
+function rvChips(list, s2) {
+  return '<ul class="rchips" aria-label="이번 복습 항목">' + list.map(function (x) {
+    return '<li class="rchip' + (s2 ? ' s2' : '') + (CUR ? '' : ' p dnew') + '">' + (x.focus ? '<span class="fdot" aria-hidden="true"></span><span class="sr">집중, </span>' : '') + chipJa(x) + '</li>';
+  }).join('') + '</ul>';
+}
+function rHome() {
+  var why = '<div class="why"><span class="av sm" aria-hidden="true" style="margin-top:1px">유</span><div style="min-width:0"><p class="tx"><span class="sr">선생님 근거: </span>지난 회화에서 <span lang="ja">「お会計お願いします」</span>를 두 번 교정받았고, 단어 세트에서 <span lang="ja">「予約」</span>를 한 번 틀렸어요. 이 둘을 먼저 다시 봐요.</p>' +
+    '<div class="mt"><span>' + TEACHER + ' 선생님 판단 · 오늘 08:12</span><button type="button" aria-expanded="true" data-act="noop">접기</button></div>' +
+    '<p class="c12 mt8">이번 복습 항목 4개</p>' + rvChips(D.rv) + '</div></div>';
+  var card = '<section class="mt18" aria-labelledby="rvh"><div class="card acc"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><h2 id="rvh" style="font-size:15px;font-weight:600">오늘의 복습</h2><span class="c12">약 15분</span></div>' +
+    '<p class="mt4" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:15px;font-weight:600"><span>4개 항목</span><span class="fbd"><i aria-hidden="true"></i>집중 1개</span></p>' + why +
+    '<button type="button" class="btn primary full mt12" data-act="noop">복습 시작</button><button type="button" class="ulink" data-act="noop">오늘은 건너뛰기</button></div></section>';
+  return '<div class="app"><div class="main" data-scroll><header class="appbar"><h1>오늘</h1><button type="button" class="me" aria-label="설정" data-act="noop"><span>나</span></button></header>' +
+    '<div style="padding:0 16px 32px">' + omit('오늘의 단어 카드 — 바뀌지 않음') + card + '<div class="mt18"></div>' + omit('오늘의 회화 카드 · AI 평가 카드 — 바뀌지 않음') + '</div></div>' + tabbar(1) + '</div>';
+}
+
+/* ════════ 복습 — 복습 수업 ① 맨 위 "이번 복습 항목"(ReviewItemsCard) ════════ */
+function lessonFrame(body) {
+  var hdr = '<header class="lh"><button type="button" class="back" aria-label="오늘로" data-act="noop">' + IC.back + '</button><span class="av" aria-hidden="true">유</span>' +
+    '<div class="lh-m"><h1><span class="sr">오늘의 복습: </span><span class="rvb2">복습</span><span class="t" lang="ja">カフェで注文しよう</span></h1><span class="ind"><span class="dot" aria-hidden="true"></span>온라인<span aria-hidden="true" style="color:var(--ink3)">›</span></span></div></header>';
+  var N = ['이해', '문법', '문제', '응용', '말하기'];
+  var steps = '<nav class="stp" aria-label="수업 단계, 5단계 중 0단계 끝냄">' + N.map(function (n, i) {
+    return '<button type="button" class="st ' + (i === 0 ? 'cur' : 'lock') + '"' + (i === 0 ? ' aria-current="step"' : '') + ' data-act="noop"><span class="c" aria-hidden="true">' + (i + 1) + '</span><span aria-hidden="true">' + n + '</span></button>';
+  }).join('') + '</nav>';
+  return '<div class="room">' + hdr + steps + '<div class="lsc" data-scroll>' + body + '</div></div>';
+}
+function rItems() {
+  var rows = D.rv.map(function (it) {
+    var j = CUR ? '<span lang="ja" class="j">' + plainOf(it.ja) + '</span>' : '<span class="jw dnew">' + JA(it, 'j', { tag: 'span', x: '' }).replace('class="j', 'style="display:block" class="j') + HGL(it, { tag: 'span' }) + '</span>';
+    return '<li class="rir"><div style="min-width:0"><p class="h' + (!CUR && reserveFu(it.ja, {}) ? ' fuh' : '') + '"><span class="ty">' + it.ty + '</span>' + j + '</p><p class="ko">' + it.ko + '</p><p class="m"><span class="' + (it.bad ? 'bad' : '') + '">' + it.cnt + '</span> · ' + it.st + ' · ' + it.src + '에서</p></div><div style="padding-top:4px">' + (it.focus ? '<span class="fbd"><i aria-hidden="true"></i>집중</span>' : '') + '</div></li>';
+  }).join('');
+  var card = '<div class="card ric"><button type="button" class="rih" aria-expanded="true" data-act="noop"><span class="t">이번 복습 항목 4개<small> · 집중 1개</small></span><span class="ar" aria-hidden="true">›</span></button>' +
+    '<p class="c13 kk mt4">선생님이 고른 항목이에요. 오늘 대화·문제·말하기에 섞여 나와요.</p><ul class="mt8">' + rows + '</ul>' +
+    '<p class="c12 kk mt8"><span class="fbd"><i aria-hidden="true"></i>집중</span> 자주 틀리거나 교정받은 항목이에요. 다음 복습도 3일 안에 다시 봐요.</p></div>';
+  var stage = '<h2 class="h2l">① 이해 · 듣고 이해하기</h2><p class="c13 kk mt4">구간마다 느리게 한 번, 보통 속도로 한 번 들어요. 들린 단어는 메모해 두세요.</p>' +
+    '<div class="trow mt10" role="group" aria-label="보기 설정">' + tg('fu') + tg('hg') + tg('tr') + '<span class="legend"><span class="rc" aria-hidden="true">A</span>점원<span style="margin-left:4px"></span><span class="rc b" aria-hidden="true">B</span>손님</span></div>' +
+    '<div class="mt10"></div>' + omit('구간 카드(대화 줄) — 이미 히라가나·한글 적용됨, 바뀌지 않음');
+  return lessonFrame(card + stage);
+}
+
+/* ════════ 복습 — 복습 종료 "다음 복습"(LessonEnd · NextReviewCard) ════════ */
+function exprChip(it, good) {
+  var inScope = !CUR && S.dec.s1 === 'A';
+  var ja = inScope ? JA(it, '', { tag: 'span' }) + HGL(it, { inline: true }) : '<span lang="ja">' + plainOf(it.ja) + '</span>';
+  return '<li class="xchip' + (good ? ' good' : '') + (inScope ? ' dnew' : '') + '">' + ja + '<span class="c12">' + it.ko + '</span>' + (good ? '<span aria-hidden="true" style="font-size:12px;font-weight:700;color:var(--good)">✓</span>' : '') + '</li>';
+}
+function rEnd() {
+  var byIdx = D.rv;
+  function grp(days, due, list) {
+    var chips = list.map(function (x) {
+      var j = (CUR ? '<span lang="ja">' + plainOf(x.ja) + '</span>' : chipJa(x));
+      return '<li class="nchip' + nw() + '">' + j + (x.focus ? '<span class="fbd sm"><i aria-hidden="true"></i>집중</span>' : '') + '</li>';
+    }).join('');
+    return '<div class="nrg"><p class="gh"><b>' + days + '일 뒤</b><span class="c12">' + due + ' · ' + list.length + '개</span></p><ul class="rchips" aria-label="이번 복습 항목">' + chips + '</ul></div>';
+  }
+  var next = '<section class="nrc" aria-labelledby="nrh"><p class="c13">다음 복습</p><div aria-live="polite"><h3 id="nrh" class="mt2" style="font-size:17px;font-weight:700">선생님이 3일 뒤로 정했어요</h3><p class="mt2 kk" style="font-size:14px">10월 8일 (수)부터, 항목마다 3~7일 간격이에요.</p>' +
+    '<div class="mt10">' + grp(3, '10월 8일 (수)', [byIdx[0], byIdx[1]]) + grp(6, '10월 11일 (토)', [byIdx[2], byIdx[3]]) + '</div>' +
+    '<div class="why sf"><span class="av sm" aria-hidden="true" style="margin-top:1px">유</span><div style="min-width:0"><p class="tx" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden"><span class="sr">선생님 근거: </span><span lang="ja">「お会計お願いします」</span>는 이번에도 한 번 머뭇거려서 3일 뒤에 다시 봐요. 나머지는 잘 썼어요.</p><div class="mt"><span>' + TEACHER + ' 선생님 판단</span><button type="button" aria-expanded="false" data-act="noop">자세히</button></div></div></div></div></section>';
+  var used = '<div class="card"><h3 style="font-size:15px;font-weight:600">말하기에서 쓴 표현</h3><ul class="mt8" style="display:flex;flex-wrap:wrap;gap:6px">' + D.used.map(function (x) { return exprChip(x, true); }).join('') + '</ul>' +
+    '<h3 class="mt12" style="font-size:15px;font-weight:600">다음엔 이 표현도 써 보세요</h3><ul class="mt8" style="display:flex;flex-wrap:wrap;gap:6px">' + D.missed.map(function (x) { return exprChip(x, false); }).join('') + '</ul>' +
+    '<p class="c12 kk mt12">복습한 항목마다 공부 횟수를 1번씩 더했어요.</p></div>';
+  var hero = '<div class="endhero"><span class="ok" aria-hidden="true">✓</span><div style="min-width:0"><h2 style="font-size:20px;font-weight:700">복습을 마쳤어요</h2><p lang="ja" style="font-size:14px">カフェで注文しよう</p><p class="c12 kk">4개 항목 복습 · 카페에서 주문하기</p></div></div>';
+  var st = '<div class="endst"><div><b>4/5</b><span class="c12">문제 정답</span></div><div><b>2</b><span class="c12">만든 문장</span></div><div><b>2/3</b><span class="c12">쓴 표현</span></div></div>';
+  return '<div class="room">' + backBar('복습을 마쳤어요', '오늘의 복습 · 10월 5일') + '<div class="scr" style="padding:14px 16px 32px"><div class="gap18">' + hero + st + '<div data-anchor>' + used + '</div>' + next +
+    '<div><a class="btn primary full" href="#r-end" data-act="noop">오늘로</a><p class="c12 kk mt8" style="text-align:center">오늘 탭에서 새 수업도 이어서 할 수 있어요.</p></div></div></div></div>';
+}
+function rGen() {
+  var card = '<div class="card flat"><h3 class="kk" style="font-size:15px;font-weight:600">이번 복습 항목 4개로 만들어요</h3>' + rvChips(D.rv) + '<p class="c13 kk mt8">항목을 섞은 새 대화로 오늘의 회화와 같은 5단계(이해 → 문법 → 문제 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요.</p></div>';
+  return '<div class="room">' + backBar('복습 수업 만들기', '오늘의 복습 · 4개 항목') + '<div class="scr" style="padding:14px 16px 32px">' + omit('대기 안내 · 진행 띠 · 걸린 시간 — 바뀌지 않음') + card + '<div class="mt12"></div>' + omit('[오늘로 돌아가기] — 바뀌지 않음') + '</div></div>';
+}
+
+/* ════════ 화면 목록 ════════ */
+var NAV = [
+  ['AI 평가 · 푸는 중', [['e-meaning', '뜻 고르기 — 단어 상자'], ['e-reading', '읽기 쓰기 — 정답 보호', 1], ['e-usage', '용법 고르기 — 교차 보호', 1], ['e-chunk', '조각 분류 — 한자 없는 말'], ['e-listen', '듣고 답하기 — 문장 숨김 · 내가 한 말', 1], ['e-listen-rv', '듣고 답하기 — 글자로 본 뒤'], ['e-assemble', '문장 조립 — 조각', 1], ['e-spot', '틀린 곳 찾기 — 문장 조각']]],
+  ['AI 평가 · 결과', [['e-result-w', '단어 평가 결과 — 내 답·정답'], ['e-result-t', '회화 평가 결과 — 모범 답·고친 곳']]],
+  ['오늘의 단어', [['c-back', '카드 뒷면 — 4지선다 답한 뒤'], ['c-flip', '카드 뒷면 — 뒤집기 [뜻 보기]'], ['c-long', '카드 뒷면 — 긴 뜻·긴 예문'], ['c-result', '세트 결과 — 단어 목록']]],
+  ['복습', [['r-home', '오늘 홈 — 복습 카드 [자세히]'], ['r-gen', '복습 수업 만들기 — 항목 칩'], ['r-items', '복습 수업 ① — 이번 복습 항목'], ['r-end', '복습 종료 — 다음 복습 · 쓴 표현']]]
+];
+var IDS = []; NAV.forEach(function (g) { g[1].forEach(function (x) { IDS.push(x[0]); }); });
+function screen(id) {
+  switch (id) {
+    case 'e-meaning': return eMeaning();
+    case 'e-reading': return eReading();
+    case 'e-usage': return eUsage();
+    case 'e-chunk': return eChunk();
+    case 'e-listen': return eListen(false);
+    case 'e-listen-rv': return eListen(true);
+    case 'e-assemble': return eAssemble();
+    case 'e-spot': return eSpot();
+    case 'e-result-w': return eResultW();
+    case 'e-result-t': return eResultT();
+    case 'c-back': return deckFrame(D.card, 'CHOICE', true);
+    case 'c-flip': return deckFrame(D.card, 'FLIP', false);
+    case 'c-long': return deckFrame(D.cardL, 'CHOICE', true);
+    case 'c-result': return cResult();
+    case 'r-home': return rHome();
+    case 'r-gen': return rGen();
+    case 'r-items': return rItems();
+    case 'r-end': return rEnd();
+  }
+  return '';
+}
+
+/* ════════ 화면 설명(오른쪽) ════════
+   src = "현재" 근거(HEAD 소스) · chg = 제안에서 바뀌는 곳 · leak = 정답 노출 검토 [숨길 답, 읽기 층이 흘리나, 처리] */
+var NOTE = {
+  'e-meaning': {
+    src: [['eval/EvalItems.tsx', '<code>WordBox</code> 단어 32px + 그 아래 읽기 15px 줄(<code>prompt.reading</code>) · 보기는 한국어 15px']],
+    chg: ['단어 위 히라가나(rt 13 · 줄간격 1.8 — 단어 상세 표제어와 같은 값) + 아래 <b>[한글] 14</b>. 따로 있던 읽기 15px 줄은 없앰(026 E1-A — 옆·아래 읽기 줄 → 한자 위 히라가나)', '히라가나는 저장 읽기(<code>prompt.reading</code>)로 그리고 한글은 읽기 분석 — 단어장 행과 같은 길(<code>useWordLayers</code>), 둘이 다르면 한글을 숨김', '보기(한국어 뜻)에는 달지 않음', '문항 카드 위 [히라가나][한글] 도구 줄(E2-A) — 수업 ③ 문제와 같은 자리·모양'],
+    leak: [['뜻(보기 중 하나)', '히라가나: 아니요 · 한글: 가타카나 외래어는 소리로 뜻을 짐작할 수 있음', '그대로 — 가타카나를 읽을 줄 알면 같은 정보이고, 단어 카드 앞면 [읽기]도 같은 한글을 이미 보여 줌'], ['번역', '번역 층은 평가에 없음', '번역 스위치를 켜도 평가 화면에는 번역을 그리지 않음']],
+    st: '분석 기다리는 중 = 히라가나는 저장 읽기라 바로, 한글 자리만 막대 · 분석 실패 = 히라가나만, 한글 줄 없음'
+  },
+  'e-reading': {
+    src: [['eval/EvalItems.tsx', '<code>ReadingItem</code> — 단어만(읽기 줄 없음) + 입력칸 + [저장]']],
+    chg: ['<b>보호</b>: 이 문항의 단어에는 설정과 무관하게 히라가나·한글을 그리지 않음(점선 빨강 = 보호한 곳)', '설정이 켜져 있을 때만 단어 아래 한 줄 안내 ★ “읽기를 묻는 문항이라 히라가나·한글은 제출한 뒤에 보여 줘요.” (12px · <code>ink2</code>)', '입력칸·[저장]은 그대로(입력칸에는 층을 달지 않음)'],
+    leak: [['읽기(히라가나)', '<b>예</b> — 히라가나·한글 모두 정답 그 자체', '제출 전 숨김(설정 무관) · 결과 화면 “정답” 칸에서 보임'], ['같은 단어가 다른 문항에', '<b>예</b> — 용법 고르기 보기·문장 속 같은 한자 위 히라가나', '교차 보호: 제출 전 그 한자 위 히라가나를 빼고 그 문장의 [한글] 줄을 숨김(<a href="#e-usage">용법 고르기</a>)']],
+    st: '안내 줄은 히라가나·한글이 둘 다 꺼져 있으면 보이지 않음(숨길 것이 없음)'
+  },
+  'e-usage': {
+    src: [['eval/EvalItems.tsx', '<code>ChoiceItem</code>(USAGE) — 빈칸 문장 17px(<code>BlankSentence</code>) + 일본어 보기 17px']],
+    chg: ['빈칸 문장 = 한자 위 히라가나만, [한글] 줄 없음 — 빈칸 앞뒤가 끊겨 소리 줄이 어색하고 빈칸 자리 소리를 어떻게 적을지 규칙이 없음(“애매하면 숨김”)', '보기 = 히라가나 + [한글] 12.5 (수업 ③ 보기와 같은 값, 보기 높이 52 → 약 80px)', '2번 보기 <span lang="ja">注文しました</span> — 이 평가 2번 읽기 쓰기 단어(<span lang="ja">注文</span>)가 들어 있어 <b>그 한자 위 히라가나를 빼고 [한글]을 숨김</b>(교차 보호, 점선 빨강)'],
+    leak: [['들어갈 말', '아니요 — 읽기는 어느 말이 맞는지 알려 주지 않음', '그대로'], ['다른 문항의 읽기 정답', '<b>예</b> — 보기·문장에 읽기 쓰기 단어가 나오면', '그 한자만 히라가나 빼고 그 문장 [한글] 숨김(제출 뒤 결과에서는 보임)']],
+    st: '교차 보호는 평가 안 문항 목록을 화면이 이미 갖고 있어 서버 변경 없이 판단(읽기 쓰기 문항의 <code>prompt.surface</code>)'
+  },
+  'e-chunk': {
+    src: [['eval/EvalItems.tsx', '<code>WordBox</code> — 한자 없는 말은 읽기 줄 없음 · 보기 한국어 + 설명']],
+    chg: ['한자 없는 말 = 히라가나 없음 · [한글] 14만 (026 “한자 없는 말” 규칙 그대로)'],
+    leak: [['조각 종류(보기)', '아니요', '그대로']],
+    st: ''
+  },
+  'e-listen': {
+    src: [['eval/EvalItems.tsx', '<code>ListenBlock</code> — 문장 자리는 막대 2줄(aria-hidden) · <code>VoiceAnswer</code> “내가 한 말” 17px 상자']],
+    chg: ['들려주는 문장은 글자가 없으니 층도 없음(막대 그대로 — 점선 빨강 = 보호)', '“내가 한 말” 상자 = 히라가나 + [한글] 13 (수업 ⑤ “내가 한 말”과 같음)', '녹음 중 자막(…)·글자 입력칸에는 달지 않음'],
+    leak: [['알아듣기(들려준 문장)', '<b>예</b> — 글자가 보이면 듣기 문제가 아님', '제출 전 문장·히라가나·한글 모두 없음(지금 그대로)'], ['내가 한 말', '아니요 — 내가 말한 것', '그대로']],
+    st: ''
+  },
+  'e-listen-rv': {
+    src: [['eval/EvalItems.tsx', '<code>ListenBlock</code> revealed — 점선 상자 안 문장 17px + “글자로 봤어요 · 결과에 표시돼요”']],
+    chg: ['[글자로 보기]로 연 문장 = 히라가나 + [한글] 13 — 이미 결과에 “글자로 봤어요”로 남는 상태라 층을 숨길 이유가 없음'],
+    leak: [['알아듣기', '이미 글자로 공개됨(감점 표시)', '층 표시']],
+    st: ''
+  },
+  'e-assemble': {
+    src: [['eval/EvalItems.tsx', '<code>AssembleItem</code> — 넣은 조각(accent 테두리)·남은 조각 17px 버튼']],
+    chg: ['조각 버튼 = <b>히라가나만</b>(조각 높이 44 그대로 — 17px·줄간격 2.1 = 36px)', '[한글]은 달지 않음 — 조각 하나만 읽으면 조사 소리(は→와)가 앞뒤에 따라 달라 틀린 소리가 나올 수 있음(“애매하면 숨김”)', '“만든 문장” 칸 전체 소리 줄도 없음 — 순서를 다 맞추기 전 소리 줄은 의미가 없고, 계속 다시 요청하게 됨'],
+    leak: [['조각 순서', '전체 문장 소리를 보이면 순서를 짐작할 수 있음', '조각별 히라가나만, 문장 소리 없음'], ['뜻', '한국어로 이미 보임', '해당 없음']],
+    st: '조각은 각각 짧은 말로 분석(한 묶음 요청)'
+  },
+  'e-spot': {
+    src: [['eval/EvalItems.tsx', '<code>SpotItem</code> 조각 모드 — 문장 조각 18px 버튼(고르면 물결 밑줄) + 입력칸']],
+    chg: ['문장 전체를 한 번 분석하고, 조각 버튼마다 그 범위의 히라가나를 얹음(026 <code>JaText ranges</code> 규칙 — 경계가 한자 묶음을 자르면 그 묶음만 빼기)', '조각 묶음 아래 문장 전체 [한글] 13 한 줄(틀린 문장 그대로의 소리)', '고른 곳 줄·입력칸은 그대로'],
+    leak: [['틀린 곳·고친 말', '아니요 — 보이는 문장 그대로의 소리라 고친 말을 알려 주지 않음', '그대로'], ['', '드물게 틀린 곳이 “읽기”에 관한 실수(送り仮名 등)면 분석 소리가 어색할 수 있음', '분석이 못 읽으면 그 부분 숨김(애매하면 숨김)']],
+    st: '옛 문항(조각 없음, 문장 상자 + 고쳐 쓰기 칸)은 문장 상자에 히라가나·[한글], 고쳐 쓰기 칸은 입력칸이라 달지 않음'
+  },
+  'e-result-w': {
+    src: [['eval/EvalResult.tsx', '<code>ItemDetail</code> — “내 답”(accent-soft)·“정답”(surface2) 칸 17px · 문항 줄 제목 “2. 읽기 쓰기 · 注文”']],
+    chg: ['제출 뒤라 모든 일본어 칸에 층: 내 답·정답 = 히라가나 + [한글] 13', '가나만인 답(<span lang="ja">ちゅうもう</span>·<span lang="ja">ちゅうもん</span>) = [한글]만 — 내가 쓴 읽기와 정답 읽기의 소리 차이가 보임', '용법 문장은 채워진 문장 전체 소리(빈칸 없음)', '문항 줄 제목의 단어(<span lang="ja">注文</span>)는 요약 줄이라 달지 않음', '결과 화면에는 도구 줄 없음 — 앱 설정을 따름(표현 점검 화면과 같음)'],
+    leak: [['—', '제출·채점 뒤라 숨길 답 없음', '전부 표시']],
+    st: '선생님 한마디·피드백·다음에 집중할 것의 한국어 문장 속 「」 일본어는 달지 않음(026 규칙 F)'
+  },
+  'e-result-t': {
+    src: [['eval/EvalResult.tsx', '모범 답 17px + 그 아래 <b>읽기 줄 14px(<code>modelReading</code>)</b> · 고친 곳 = 취소선·밑줄 한 줄']],
+    chg: ['들려준 말·내 답·모범 답·문장 = 히라가나 + [한글] 13', '모범 답 아래 읽기 14px 줄은 없앰 — 히라가나가 대신(026 D2-B: LLM 읽기 줄은 쓰지 않음)', '고친 곳: 취소선·밑줄은 그대로 두고 그 위에 히라가나, [한글]은 <b>고친 문장</b>의 소리(취소선 글자 소리 섞지 않음 — 교정 카드와 같은 원칙)', '내 답 글(한국어 섞인 이유 글)·설명 속 「」에는 달지 않음'],
+    leak: [['—', '제출 뒤', '전부 표시']],
+    st: ''
+  },
+  'c-back': {
+    src: [['vocab/VocabCardFace.tsx', '뒷면 — 표제어 22px 옆에 읽기 14px(<code>truncate</code>) · 결과 띠 · 뜻 19px(3줄) · 예문 16px(2줄) · 번역 14px(1줄)']],
+    chg: ['표제어 위 히라가나(저장 읽기 — 지금 옆 읽기와 같은 값) · 아래 [한글] 13. 옆 읽기 칸 없앰', 'C1-A: 뒷면 표제어 히라가나는 <b>늘 보임</b>(지금도 뒷면 읽기는 늘 보임 — 앱 히라가나를 꺼도 정답 면에서 읽기가 사라지지 않게)', '예문 = 히라가나(줄간격 2.15, 2줄) + [한글] 13 <b>1줄 말줄임</b>(C2-A) · 번역 1줄 그대로', '카드 영역은 스크롤이 없어 넘치면 잘림 — C2-A 는 자리가 없으면 예문 [한글] 줄만 빼서 번역을 지킴(그림 위 “카드 안 잘림” 측정)'],
+    leak: [['뜻', '아니요 — 뒷면은 답한 뒤(4지선다)·[뜻 보기] 뒤(뒤집기)에만 보이는 면', '그대로'], ['다음 카드', '뒤 카드 2장은 빈 판(글자 없음)', '해당 없음'], ['4지선다 보기', '한국어 뜻 — 층 없음', '해당 없음']],
+    st: '앞면은 026 그대로(카드 [あ 읽기] 켰을 때만 히라가나·한글)'
+  },
+  'c-flip': {
+    src: [['vocab/VocabCardFace.tsx · FlipControls.tsx', '[뜻 보기] 뒤 뒷면 · 아래 [알았어요][몰랐어요]']],
+    chg: ['뒷면 층은 4지선다와 같음', '뒤집기는 버튼이 1줄이라 카드가 더 커서(최대 340px) 여유가 있음'],
+    leak: [['뜻', '[뜻 보기]를 누른 뒤에만 뒷면', '그대로']],
+    st: ''
+  },
+  'c-long': {
+    src: [['vocab/VocabCardFace.tsx', '뜻 3줄·예문 2줄·번역 1줄에서 자름(<code>line-clamp</code>) — 전체는 결과 화면·단어 상세']],
+    chg: ['긴 뜻·긴 예문 최악 조건 — 카드 안 잘림 측정으로 C2 결정 근거'],
+    leak: [['—', '', '']],
+    st: ''
+  },
+  'c-result': {
+    src: [['vocab/WordResultList.tsx', '표제어 17px 옆 읽기 13px + “정답 … · 내 답 …” 14px']],
+    chg: ['S1-A(범위 넓게)일 때: 표제어 위 히라가나(줄간격 1.95) · 옆 읽기 없앰 · 아래 [한글] 12.5 — 단어장 행(026 §15-4-4)과 같은 규칙', '“정답 약속 · 내 답 예약” 한국어 줄은 그대로', 'S1-B 이면 이 목록은 그대로(다음 개선)'],
+    leak: [['—', '세트를 끝낸 뒤', '전부 표시']],
+    st: '행 높이 56 → 약 80px'
+  },
+  'r-home': {
+    src: [['lesson/review/TeacherWhy.tsx', '[자세히]를 펼쳤을 때만 항목 칩(높이 32px · 15px · 한 줄 <code>truncate</code>)']],
+    chg: ['R1-A: 칩 = 수업 표현 칩과 같은 규칙 — 히라가나(줄간격 2.1) + 일본어 뒤 [한글] 12 인라인, 칩 높이는 내용에 맞게(32 → 약 40, 길면 2줄)', 'R1-B: 히라가나만(칩 한 줄 유지, 높이 약 40)', '근거 문장 속 「」 일본어는 달지 않음(026 규칙 F) · “4개 항목 · 집중 1개”·버튼 그대로', '오늘 홈에는 도구 줄이 없음 — 앱 설정을 따름'],
+    leak: [['—', '문제 화면이 아님(복습 시작 전 미리 보기)', '해당 없음']],
+    st: '[자세히]를 닫으면 칩이 없어 분석 요청도 없음(펼칠 때 한 묶음)'
+  },
+  'r-gen': {
+    src: [['lesson/review/ReviewGenItems.tsx', '복습 수업 만드는 동안 가운데 카드 — 같은 <code>ReviewChips</code>']],
+    chg: ['홈 카드 칩과 같은 규칙(R1)'],
+    leak: [['—', '문제 화면이 아님', '해당 없음']],
+    st: ''
+  },
+  'r-items': {
+    src: [['lesson/review/ReviewItemsCard.tsx', '① 맨 위 접기 카드 — 종류 뱃지 + 일본어 17px + 뜻 14px + 기록 줄. 주석: “읽기 줄은 없다(Leader ③)”']],
+    chg: ['항목 일본어 = 히라가나(줄간격 2.1) + [한글] 13 — 회화방·수업 문장과 같은 값', '뜻·기록 줄·집중 뱃지·접기 그대로', '바로 아래 ① 도구 줄 [히라가나][한글][번역]이 이 카드에도 적용됨(같은 앱 설정)', '①~⑤ 문항 본문은 026 에서 이미 적용(같은 단계 컴포넌트) — 바뀌지 않음, ③ 읽기 문제 보호도 그대로'],
+    leak: [['③ 문제의 답(뜻·읽기)', '이 카드는 문제 전에 항목을 뜻과 함께 미리 보여 주는 학습 카드(지금도 뜻이 보임) — 읽기를 더해도 새로 흘리는 것 없음', '그대로 표시 · ③ 화면의 읽기 문제 보호(026 §15-9 ②)는 문제 문장에서 그대로 동작']],
+    st: ''
+  },
+  'r-end': {
+    src: [['lesson/LessonEnd.tsx · review/NextReviewCard.tsx', '“말하기에서 쓴 표현” 칩(<code>ExprChip</code>, 층 없음) · 다음 복습 묶음 칩 15px']],
+    chg: ['다음 복습 묶음 칩 = R1 규칙(홈 칩과 같음)', 'S1-A 이면 같은 화면의 “쓴 표현·써 볼 표현” 칩도 함께 — 수업 표현 칩 규칙(히라가나 + [한글] 12 인라인). <code>ExprChip</code> 은 이미 층을 받을 수 있어 화면에서 넘겨 주기만 하면 됨', 'S1-B 이면 표현 칩은 그대로라 한 화면에 층 있는 칩·없는 칩이 섞임', '근거 상자 「」·제목 일본어(<span lang="ja">カフェで注文しよう</span>)는 머리줄이라 달지 않음'],
+    leak: [['—', '수업을 마친 뒤', '전부 표시']],
+    st: ''
+  }
+};
+
+function navHtml() {
+  return NAV.map(function (g) {
+    return '<h2>' + g[0] + '</h2>' + g[1].map(function (x) {
+      return '<a href="#' + x[0] + '"' + (S.scr === x[0] ? ' aria-current="true"' : '') + '>' + x[1] + (x[2] ? '<span class="lk" title="정답 노출 검토 대상">정답 보호</span>' : '') + '<span class="did">#' + x[0] + '</span></a>';
+    }).join('');
+  }).join('') + '<h2>아래 패널</h2><a href="#scope">적용 범위 · 정답 노출 요약</a><a href="#decide">결정 필요 6건</a>';
+}
+function sideHtml() {
+  var n = NOTE[S.scr] || { src: [], chg: [], leak: [], st: '' };
+  var src = '<div class="dcard"><h2>“현재” 화면 근거 — HEAD 소스</h2><ul class="dsrc">' + n.src.map(function (r) { return '<li><code>' + r[0] + '</code><span class="fx">' + r[1] + '</span></li>'; }).join('') + '</ul></div>';
+  var chg = '<div class="dcard"><h2>제안 — 이 화면에서 바뀌는 곳</h2><ul class="dn">' + n.chg.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>' + (n.st ? '<p class="dsub">' + n.st + '</p>' : '') +
+    '<div class="dlegend"><span><i class="l1"></i>바뀐 곳</span><span><i class="l2"></i>정답 보호로 숨긴 곳</span></div></div>';
+  var lk = n.leak.filter(function (r) { return r[0] || r[1]; });
+  var leak = lk.length ? '<div class="dcard' + (lk.some(function (r) { return /<b>예<\/b>/.test(r[1]); }) ? ' leak' : '') + '"><h2>정답 노출 검토</h2><div class="dtw"><table class="dtbl"><thead><tr><th>숨길 답</th><th>읽기 층이 흘리나</th><th>처리</th></tr></thead><tbody>' +
+    lk.map(function (r) { return '<tr><td class="k">' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>'; }).join('') + '</tbody></table></div></div>' : '';
+  var stx = '<div class="dcard"><h2>지금 보는 조건</h2><p class="dmeas">폭 <b>' + S.w + '</b> · 높이 <b>' + S.h + '</b> · 히라가나 <b>' + (S.fu ? '켬' : '끔') + '</b> · 한글 <b>' + (S.hg ? '켬' : '끔') + '</b> · 번역 <b>' + (S.tr ? '켬' : '끔') + '</b> · 분석 <b>' + { ready: '완료', loading: '기다리는 중', fail: '실패' }[S.an] + '</b></p>' +
+    '<p class="dsub">번역 스위치는 이 화면들에 영향이 없어요 — 평가에는 번역 층이 없고(뜻 고르기·용법의 답을 흘림), 카드 뒷면 예문 번역·복습 항목 뜻은 지금처럼 늘 보여요.</p>' +
+    '<p class="dsub">결정: ' + Object.keys(S.dec).map(function (k) { return '<a href="#dq-' + k + '">' + k.toUpperCase() + '=' + S.dec[k] + '</a>'; }).join(' · ') + '</p><p class="dmeas" id="dmeas"></p></div>';
+  return src + chg + leak + stx;
+}
+
+/* ════════ 적용 범위 · 정답 노출 요약 ════════ */
+var SCOPE = [
+  ['AI 평가 · 푸는 중', '뜻 고르기·조각 분류 단어 상자', '히라가나(rt 13) + [한글] 14 · 읽기 15px 줄 없앰', 'E1'],
+  ['', '읽기 쓰기 단어', '<b class="warn">제출 전 없음(설정 무관)</b> + 안내 한 줄 ★', '보호'],
+  ['', '용법 고르기 빈칸 문장', '히라가나만 · [한글] 없음', '애매하면 숨김'],
+  ['', '용법 고르기 일본어 보기', '히라가나 + [한글] 12.5', 'E1'],
+  ['', '다른 문항 속 읽기 쓰기 단어', '<b class="warn">제출 전 그 한자 히라가나·그 문장 [한글] 없음</b>', '교차 보호'],
+  ['', '듣고 답하기 들려준 문장', '<b class="warn">제출 전 없음</b>(지금도 글자 없음) · [글자로 보기] 뒤 표시', '보호'],
+  ['', '내가 한 말(말하기 답 상자)', '히라가나 + [한글] 13', 'E1'],
+  ['', '문장 조립 조각', '히라가나만 · 문장 소리 없음', '조각 소리는 애매'],
+  ['', '틀린 곳 찾기 문장 조각', '조각별 히라가나 + 문장 [한글] 한 줄', 'E1'],
+  ['', '입력칸·녹음 중 자막·한국어 지시문·상황', '<span class="no">달지 않음</span>', '026 규칙 F'],
+  ['', '문항 카드 위 도구 줄', '[히라가나][한글]', 'E2'],
+  ['AI 평가 · 결과', '들려준 말·문장·내 답·정답·모범 답·고친 곳', '히라가나 + [한글] 13 · 모범 답 읽기 줄 없앰', '—'],
+  ['', '문항 줄 제목(“2. 읽기 쓰기 · 注文”)', '<span class="no">달지 않음</span>', '요약 줄'],
+  ['', '선생님 한마디·피드백·설명 속 「」', '<span class="no">달지 않음</span>', '026 규칙 F'],
+  ['', '평가 기록 목록 · 오늘 홈 평가 카드 · 시작 화면', '<span class="no">바뀌지 않음</span>', '일본어 없음(주제 이름·날짜·점수)'],
+  ['오늘의 단어', '카드 뒷면 표제어', '히라가나(늘 보임) + [한글] 13 · 옆 읽기 없앰', 'C1'],
+  ['', '카드 뒷면 예문', '히라가나 + [한글] 1줄', 'C2'],
+  ['', '카드 앞면 · 4지선다 보기(한국어)', '<span class="no">바뀌지 않음</span>', '026 그대로'],
+  ['', '세트 결과 단어 목록', '히라가나 + [한글] 12.5 · 옆 읽기 없앰', 'S1'],
+  ['복습', '오늘 홈 카드 칩([자세히]) · 복습 만들기 칩 · 다음 복습 칩', '히라가나 + [한글] 12 인라인', 'R1'],
+  ['', '복습 수업 ① “이번 복습 항목” 행', '히라가나 + [한글] 13', '—'],
+  ['', '복습 종료 “쓴 표현·써 볼 표현” 칩', '히라가나 + [한글] 12 인라인', 'S1'],
+  ['', '복습 수업 ①~⑤ 문항 본문', '<span class="no">바뀌지 않음</span>', '026 에서 적용됨'],
+  ['', '근거 문장 속 「」 · 수업 제목 일본어', '<span class="no">달지 않음</span>', '026 규칙 F · 머리줄'],
+  ['범위 밖(그대로)', '오늘의 회화 종료 카드(일반 수업) 머리 · 주제 고르기 · 문장으로 수업 만들기 · 미뤄 둔 교정 카드 · 채팅 목록 · 방 소개 · 마이크 테스트 · 관리자 콘솔', '<span class="no">달지 않음</span>', '이번 후보 아님 — 다음 개선 후보']
+];
+var LEAKSUM = [
+  ['읽기 쓰기 단어', '히라가나·한글 = 정답', '제출 전 숨김(설정 무관) + 안내 한 줄', 'e-reading'],
+  ['같은 평가 다른 문항 속 그 단어', '히라가나·문장 한글이 정답을 알려 줌', '그 한자만 히라가나 빼고 그 문장 한글 숨김(제출 전)', 'e-usage'],
+  ['듣고 답하기 문장', '글자 자체가 정답 힌트', '제출 전 글자·층 없음, [글자로 보기] 뒤에만', 'e-listen'],
+  ['문장 조립', '문장 전체 소리 = 순서 힌트', '조각별 히라가나만', 'e-assemble'],
+  ['뜻 고르기 [한글]', '가타카나 외래어는 소리로 뜻 짐작', '그대로(가타카나 글자와 같은 정보 · 카드 앞면과 같음)', 'e-meaning'],
+  ['번역', '뜻 고르기·용법 답을 알려 줌', '평가에는 번역 층 없음', 'e-meaning'],
+  ['단어 카드 뒷면', '답한 뒤·[뜻 보기] 뒤에만 보이는 면', '흘릴 것 없음', 'c-back'],
+  ['복습 ① 항목 카드', '문제 전 학습 카드(지금도 뜻이 보임)', '새로 흘리는 것 없음 · ③ 읽기 문제 보호 그대로', 'r-items']
+];
+function scopeHtml() {
+  var t1 = '<div class="dtw"><table class="dtbl" aria-label="적용 범위"><thead><tr><th>화면</th><th>요소</th><th>제안</th><th>근거·결정</th></tr></thead><tbody>' +
+    SCOPE.map(function (r) { return '<tr><td class="k">' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  var t2 = '<div class="dtw"><table class="dtbl" aria-label="정답 노출 요약"><thead><tr><th>자리</th><th>흘리는 것</th><th>처리</th><th>데모</th></tr></thead><tbody>' +
+    LEAKSUM.map(function (r) { return '<tr><td class="k">' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td><a href="#' + r[3] + '">#' + r[3] + '</a></td></tr>'; }).join('') + '</tbody></table></div>';
+  return '<h2 id="sc-h">적용 범위 · 정답 노출 요약</h2><p class="dsub">표시 규칙은 새로 만들지 않아요 — 크기·줄간격·대괄호·“애매하면 숨김”·입력칸 제외는 승인된 task-026 데모 v4(F1=A)와 task-030 데모 v1 그대로. 층 순서도 같아요: 히라가나(한자 위) → 일본어 → [한글] → (번역).</p>' +
+    '<h3>어디에 넣고 어디는 넣지 않나</h3>' + t1 + '<h3>정답 노출 검토 요약</h3>' + t2 +
+    '<p class="dsub">★ = 새 문구 1개(“읽기를 묻는 문항이라 히라가나·한글은 제출한 뒤에 보여 줘요.”). 그 밖의 문구·색·버튼은 바뀌지 않아요. 서버·API 변경 없음(읽기 분석 #24r·표시 설정 #11~#12 그대로).</p>';
+}
+
+/* ════════ 결정 필요 ════════ */
+var DQ = [
+  { id: 'e1', t: 'AI 평가를 푸는 동안 히라가나·한글을 보일까요?', d: '평가는 실력을 재는 시험이라 읽기 도움을 줄지가 갈려요. 어느 쪽이든 결과 화면에서는 모두 보여요.',
+    A: ['앱 설정을 따르고, 정답을 흘리는 자리만 숨김', '수업 ③ 문제와 같은 방식 — 켜 둔 사람은 평가에서도 보여요.', ['p:학습 화면 전체가 같은 규칙(수업 ③ 문제와 같음)', 'p:읽기 쓰기 단어·같은 단어가 나온 다른 문항·듣기 문장은 보호(정답 노출 0)', 'm:히라가나를 끈 사람은 뜻 고르기에서 지금 보이던 읽기 15px 줄이 사라져요(설정대로)', 'm:읽기 도움을 받은 점수가 될 수 있어요 — 끄고 싶으면 도구 줄(E2)에서']],
+    B: ['제출 전에는 새 층을 넣지 않음', '푸는 동안은 지금 화면 그대로(뜻 고르기 읽기 줄 포함), 결과에서만 히라가나·한글.', ['p:시험 조건이 설정과 무관하게 같아요', 'p:보호 규칙이 필요 없어 구현이 단순해요', 'm:회화방·수업에서 늘 보던 층이 평가에서만 사라져요', 'm:E2(도구 줄)는 의미가 없어져요']],
+    see: ['e-meaning', 'e-usage'] },
+  { id: 'e2', t: '평가 푸는 화면에 [히라가나][한글] 도구 줄을 둘까요?', d: 'E1=A 일 때만 의미가 있어요. 평가 중 화면을 나가면 시간이 계속 흐르니, 설정을 바꾸려면 화면 안에 있어야 해요.',
+    A: ['문항 카드 바로 위에 둠', '수업 ③ 문제의 도구 줄과 같은 모양·자리(알약 32px, 터치 46px). 번역은 평가에 없으니 두 개만.', ['p:평가 중에 스스로 끄고 도전할 수 있어요', 'p:수업 ③ 과 같은 익숙한 위치', 'm:문항 카드가 42px 아래로 내려가요(780 높이에서 보기 4개는 그대로 첫 화면 안)']],
+    B: ['두지 않음', '앱 설정(설정 › 일본어 표시)·다른 화면의 값을 그대로 따름.', ['p:푸는 화면이 지금과 같은 높이', 'm:평가 중에는 바꿀 수 없어요(나가면 시간이 흐름)']],
+    see: ['e-meaning'] },
+  { id: 'c1', t: '단어 카드 뒷면 표제어의 히라가나 — 앱 설정과 무관하게 늘 보일까요?', d: '지금 뒷면은 옆 읽기(14px)를 늘 보여요. 히라가나로 바꾸면서 앱 히라가나 설정을 따를지 정해야 해요.',
+    A: ['늘 보임(지금 뒷면과 같음)', '뒷면은 정답을 보는 면이라 읽기도 정답의 일부. 한글은 앱 한글 설정을 따름.', ['p:히라가나를 끈 사람도 뒷면에서 읽기를 확인할 수 있어요(지금과 같음)', 'p:앞면은 카드 [あ 읽기]가 정하는 026 예외 규칙과 짝이 맞아요', 'm:“히라가나 끔”인데 카드 뒷면에서만 보여요']],
+    B: ['앱 히라가나 설정을 따름', '히라가나를 끄면 뒷면에서도 읽기가 사라짐.', ['p:모든 화면이 한 스위치로 같은 동작', 'm:끈 사람은 단어를 외우는 카드에서 읽기를 볼 곳이 없어져요(단어 상세를 열어야 함)']],
+    see: ['c-back'] },
+  { id: 'c2', t: '카드 뒷면 예문의 [한글] 줄을 넣을까요?', d: '카드는 스크롤이 없어 넘치면 아래(번역)가 잘려요. 측정은 화면 목록 “긴 뜻·긴 예문”에서 폭·높이를 바꿔 보세요(그림 위 “카드 안 잘림”).',
+    A: ['예문 히라가나 + [한글] 1줄 — 자리가 없으면 [한글]만 뺌', '예문 2줄·[한글] 1줄(말줄임)·번역 1줄. 카드 면을 그릴 때 한 번 재서 넘치면 예문 [한글] 줄만 빼요(번역을 지킴). 전체 소리는 단어 상세·결과 화면에서.', ['p:예문도 회화방·단어 상세와 같은 층', 'p:번역 줄이 잘리지 않아요(360×780 긴 뜻·긴 예문에서 실제로 빠지는 것 확인)', 'm:카드마다 예문 [한글]이 있다 없다 할 수 있어요', 'm:카드 면에서 높이를 한 번 재는 코드가 들어가요(드래그 중에는 재지 않음)']],
+    B: ['예문 히라가나만', '[한글]은 표제어에만. 예문 소리는 단어 상세에서.', ['p:카드 높이 여유', 'm:예문만 한글이 없어 규칙이 섞여 보여요']],
+    see: ['c-back', 'c-long'] },
+  { id: 'r1', t: '복습 칩(오늘 홈 [자세히]·복습 만들기·다음 복습)에 무엇을 달까요?', d: '칩은 지금 높이 32px·한 줄 말줄임이에요. 같은 복습 종료 화면에 수업 표현 칩(히라가나 + [한글] 인라인)이 함께 있어요.',
+    A: ['수업 표현 칩과 같게 — 히라가나 + [한글] 12 인라인', '026 의 표현 칩 규칙(16→칩은 15px, rt 11, 줄간격 2.1, 한글 12) 그대로. 칩이 내용에 맞게 늘어남.', ['p:복습 종료 화면에서 두 종류 칩이 같은 모양', 'p:새 규칙 없음', 'm:칩이 길어져 2줄이 될 수 있어요([자세히] 펼친 상태에서만)']],
+    B: ['히라가나만(한 줄 유지)', '칩 높이 약 40px, 말줄임 그대로.', ['p:미리 보기 칩이 간결해요', 'm:같은 화면의 표현 칩과 모양이 달라요(S1-A 일 때)', 'm:“표현 칩” 규칙에 예외가 하나 생겨요']],
+    see: ['r-home', 'r-end'] },
+  { id: 's1', t: '범위 경계 — 같은 흐름의 두 목록도 함께 넣을까요?', d: '세트 결과 단어 목록(카드 뒷면 바로 다음 화면)과 복습 종료 화면의 “쓴 표현” 칩은 026 에서 범위 밖으로 남은 곳이에요. 둘 다 이미 있는 규칙(단어장 행·표현 칩)을 그대로 쓰면 돼요.',
+    A: ['넓게 — 두 곳도 이번에 함께', '세트 결과 = 단어장 행 규칙(히라가나 + [한글] 12.5), 종료 표현 칩 = 표현 칩 규칙. 파일 2개 추가(<code>WordResultList</code>·<code>LessonEnd</code>).', ['p:카드 → 결과, 복습 → 종료가 끊김 없이 같은 표시', 'p:<code>ExprChip</code> 은 이미 층을 받을 수 있어 바꿀 곳이 적어요', 'm:일반 수업 종료 화면의 표현 칩도 같이 바뀌어요(같은 컴포넌트)']],
+    B: ['좁게 — 이번 후보 3화면만', '두 곳은 다음 개선으로.', ['p:변경 파일이 가장 적어요', 'm:카드 뒷면엔 히라가나가 있는데 바로 다음 결과 목록엔 옆 읽기 — 한 흐름에 두 방식', 'm:복습 종료 화면에 층 있는 칩·없는 칩이 섞여요']],
+    see: ['c-result', 'r-end'] }
+];
+function decideHtml() {
+  return '<h2 id="dc-h">결정 필요 6건 — 권고안이 처음에 선택돼 있어요</h2><p class="dsub">고르면 위 데모 “제안”이 그 안으로 다시 그려져요. 권고대로면 그대로 두세요.</p>' +
+    DQ.map(function (q) {
+      function opt(k) {
+        var o = q[k], on = S.dec[q.id] === k;
+        return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="dq-' + q.id + '" value="' + k + '"' + (on ? ' checked' : '') + ' data-dq="' + q.id + '"><span class="opt-h">' + q.id.toUpperCase() + '-' + k + ' · ' + o[0] + (REC[q.id] === k ? '<span class="rec">권고</span>' : '') + '</span><span class="opt-d">' + o[1] + '</span><ul>' +
+          o[2].map(function (x) { return '<li class="' + x.slice(0, 1) + '">' + x.slice(2) + '</li>'; }).join('') + '</ul><span class="sel">' + (on ? '● 데모에 반영 중' : '○ 누르면 데모에 반영') + '</span></label>';
+      }
+      return '<div class="dq" id="dq-' + q.id + '"><h3><span class="did">' + q.id.toUpperCase() + '</span>' + q.t + '</h3><p>' + q.d + '</p><p class="see" style="font-size:12px">데모에서 보기: ' + q.see.map(function (s) { return '<a href="#' + s + '">#' + s + '</a>'; }).join(' · ') + '</p><div class="dq-g">' + opt('A') + opt('B') + '</div></div>';
+    }).join('') +
+    '<div class="dsum"><b>권고 요약</b> — E1-A(설정 따름 + 정답 보호) · E2-A(도구 줄) · C1-A(뒷면 히라가나 늘) · C2-A(예문 한글 1줄) · R1-A(표현 칩과 같게) · S1-A(세트 결과·종료 표현 칩까지)</div>';
+}
+
+/* ════════ 그리기 ════════ */
+function figure(cur) {
+  CUR = cur;
+  var html = screen(S.scr);
+  CUR = false;
+  var cap = cur ? '<span class="tagc">현재</span>HEAD 화면' : '<span class="tagp">제안</span>' + S.w + '×' + S.h;
+  return '<figure class="fw"><figcaption>' + cap + ' <span class="dmeas" data-meas></span></figcaption><div class="phone w' + S.w + ' h' + S.h + '" data-phone="' + (cur ? 'cur' : 'prop') + '">' + html + '</div></figure>';
+}
+function render() {
+  if (IDS.indexOf(S.scr) < 0) S.scr = IDS[0];
+  document.getElementById('dnav').innerHTML = navHtml();
+  var st = '';
+  if (S.view !== 'prop') st += figure(true);
+  if (S.view !== 'cur') st += figure(false);
+  document.getElementById('stage').innerHTML = st;
+  document.getElementById('side').innerHTML = sideHtml();
+  document.getElementById('scope').innerHTML = scopeHtml();
+  document.getElementById('decide').innerHTML = decideHtml();
+  requestAnimationFrame(function () { anchor(); measure(); });
+}
+function anchor() {
+  Array.prototype.forEach.call(document.querySelectorAll('#stage [data-anchor]'), function (a) {
+    var sc = a.closest('.scr, .main, .lsc');
+    if (sc) sc.scrollTop = Math.max(0, a.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 8);
+  });
+}
+/* 카드 안 잘림(뒷면 내용 아래 끝 − 카드 안쪽 아래 끝) · 가로 넘침 */
+function measure() {
+  var out = [];
+  Array.prototype.forEach.call(document.querySelectorAll('#stage .fw'), function (fw) {
+    var ph = fw.querySelector('.phone'), m = fw.querySelector('[data-meas]'), txt = [];
+    var face = ph.querySelector('[data-face]');
+    if (face) {
+      var fr = face.getBoundingClientRect(), inner = fr.bottom - 16, last = 0, dropped = false;
+      /* C2-A: 카드에 자리가 없으면 예문 [한글] 줄만 뺀다(번역 우선) — 구현은 카드 면을 그릴 때 한 번 잰다 */
+      var kx = face.querySelector('.kexh');
+      if (kx) {
+        var lb = 0;
+        Array.prototype.forEach.call(face.querySelectorAll('.kbody > *, .kbody > div > *'), function (el) { lb = Math.max(lb, el.getBoundingClientRect().bottom); });
+        if (lb > inner + 0.5) kx.hidden = true;
+        dropped = kx.hidden;
+      }
+      Array.prototype.forEach.call(face.querySelectorAll('.kbody > *, .kbody > div > *'), function (el) { last = Math.max(last, el.getBoundingClientRect().bottom); });
+      var cut = Math.round(last - inner);
+      txt.push('카드 안 잘림 ' + (cut > 0 ? '<span class="up">' + cut + 'px</span>' : '<span class="ok">0</span>') + (dropped ? '(예문 [한글] 뺌)' : '') + ' · 카드 ' + Math.round(fr.width) + '×' + Math.round(fr.height));
+    }
+    var pw = ph.getBoundingClientRect(), over = 0;
+    Array.prototype.forEach.call(ph.querySelectorAll('*'), function (el) {
+      var r = el.getBoundingClientRect();
+      if (r.width && (r.right > pw.right + 0.5 || r.left < pw.left - 0.5) && !el.closest('.enav > div, .stk')) over++;
+    });
+    txt.push('가로 넘침 ' + (over ? '<span class="up">' + over + '</span>' : '<span class="ok">0</span>'));
+    m.innerHTML = '· ' + txt.join(' · ');
+    out.push(ph.getAttribute('data-phone') + ':' + txt.join(','));
+  });
+  window.__demoMeasure = out;
+}
+var TOASTS = {
+  fu: ['히라가나를 숨겼어요 · 모든 화면에 적용돼요', '히라가나를 보여 줘요 · 모든 화면에 적용돼요'],
+  hg: ['한글 발음을 숨겼어요 · 모든 화면에 적용돼요', '한글 발음을 보여 줘요 · 모든 화면에 적용돼요'],
+  tr: ['번역을 모두 접었어요 · 모든 화면에 적용돼요', '번역을 모두 펼쳤어요 · 모든 화면에 적용돼요']
+};
+var tt = null;
+function toast(msg) {
+  var el = document.getElementById('dtoast');
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(tt); tt = setTimeout(function () { el.hidden = true; }, 2200);
+}
+function syncSeg(id, attr, val) {
+  Array.prototype.forEach.call(document.querySelectorAll('#' + id + ' button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute(attr) === String(val))); });
+}
+function syncLay() { Array.prototype.forEach.call(document.querySelectorAll('#d-lay button'), function (b) { b.setAttribute('aria-pressed', String(!!S[b.getAttribute('data-k')])); }); }
+function seg(id, key, conv) {
+  document.getElementById(id).addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-v]');
+    if (!b) return;
+    var v = b.getAttribute('data-v');
+    syncSeg(id, 'data-v', v);
+    if (key === 'theme') { if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v); return; }
+    if (key === 'mark') { document.body.classList.toggle('mark', v === 'on'); return; }
+    S[key] = conv ? conv(v) : v;
+    render();
+  });
+}
+seg('d-w', 'w', Number); seg('d-h', 'h', Number); seg('d-view', 'view'); seg('d-an', 'an'); seg('d-mark', 'mark'); seg('d-t', 'theme');
+document.getElementById('d-lay').addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-k]');
+  if (!b) return;
+  var k = b.getAttribute('data-k');
+  S[k] = !S[k]; syncLay(); toast(TOASTS[k][S[k] ? 1 : 0]); render();
+});
+document.getElementById('stage').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-act]');
+  if (!b) return;
+  e.preventDefault();
+  if (b.getAttribute('data-act') === 'tg') {
+    var k = b.getAttribute('data-k');
+    S[k] = !S[k]; syncLay(); toast(TOASTS[k][S[k] ? 1 : 0]); render();
+  }
+});
+document.getElementById('decide').addEventListener('change', function (e) {
+  var r = e.target.closest('input[data-dq]');
+  if (!r) return;
+  S.dec[r.getAttribute('data-dq')] = r.value;
+  render();
+  var box = document.getElementById('dq-' + r.getAttribute('data-dq'));
+  var inp = box && box.querySelector('input[value="' + r.value + '"]');
+  if (inp) inp.focus({ preventScroll: true });
+});
+function fromHash() {
+  var h = location.hash.replace('#', '');
+  if (IDS.indexOf(h) >= 0) { S.scr = h; render(); window.scrollTo(0, 0); }
+}
+window.addEventListener('hashchange', fromHash);
+var rz = null;
+window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(measure, 150); });
+var h0 = location.hash.replace('#', '');
+if (IDS.indexOf(h0) >= 0) S.scr = h0;
+render();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { measure(); });
+})();
+</script>
+</body>
+</html>

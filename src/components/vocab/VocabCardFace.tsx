@@ -1,12 +1,15 @@
 'use client'
 
 /**
- * 카드 한 장의 면(screens.md §5-2 B VocabCardFace). 앞면 = 표현(+카드 [읽기] 켬이면 히라가나 루비·`[한글]` — task-026 §15-4-6), 뒷면 = 표현·읽기 + 결과 띠 + 뜻 + 예문(+번역).
+ * 카드 한 장의 면(screens.md §5-2 B VocabCardFace). 앞면 = 표현(+카드 [읽기] 켬이면 히라가나 루비·`[한글]` — task-026 §15-4-6),
+ * 뒷면 = 표현(저장 읽기 루비는 앱 히라가나 설정과 무관하게 늘 — task-033 C1-A)·`[한글]` + 결과 띠 + 뜻 + 예문(히라가나·`[한글]` 1줄)·번역.
  * 카드 영역은 스크롤할 수 없어(`touch-action:none`) 예문은 2줄·번역 1줄에서 자르고 전체는 결과 화면·단어 상세에서 본다.
+ * `[한글]` 줄은 카드에 자리가 없을 때만 뺀다(C2-A, 번역 우선 — 예문 줄 → 그래도 넘치면 표제어 줄, 되돌림 없음) — 면을 그릴 때 재고, 드래그 중에는 재지 않는다.
  * **안에 버튼을 두지 않는다**(제스처 영역). `memo` — 드래그 중에는 transform 만 바뀌고 이 면은 다시 그리지 않는다.
  */
-import { memo } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AnnotationState } from '@/components/common/japanese/annotations'
+import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import type { RubyPiece } from '@/modules/speech/reading/client'
 import type { VocabMode } from '@/types/vocab'
@@ -32,6 +35,30 @@ function Star({ on }: { on: boolean }) {
   )
 }
 
+/** 본문 상자 안 내용이 상자 아래로 넘쳤는가(C2-A, 데모 `measure()` 와 같은 판정 — 0.5px 넘으면 넘침). */
+export function overflowsBody(bodyBottom: number, childBottoms: readonly number[]): boolean {
+  return childBottoms.some((b) => b > bodyBottom + 0.5)
+}
+
+/** 뒷면에서 뺀 `[한글]` 줄 단계 — 0 = 다 보임, 1 = 예문 `[한글]` 뺌, 2 = 표제어 `[한글]` 도 뺌(§15-11-3 B6). */
+export type DropLevel = 0 | 1 | 2
+
+/** 한 번 잰 결과 → 다음 단계. 넘치면 한 단계만 올리고 2단계 뒤에는 더 빼지 않으며 내리지 않는다(되돌림 없음). */
+export function nextDropLevel(level: DropLevel, overflow: boolean): DropLevel {
+  return overflow && level < 2 ? ((level + 1) as DropLevel) : level
+}
+
+/** 단계별 넘침 측정값(`overflowAt[i]` = i 단계로 그렸을 때 넘쳤는가) 열에서 최종 단계를 고른다 — 컴포넌트의 재측정 루프와 같은 규칙. */
+export function pickDropLevel(overflowAt: readonly boolean[]): DropLevel {
+  let level: DropLevel = 0
+  while (level < 2) {
+    const next = nextDropLevel(level, overflowAt[level] ?? false)
+    if (next === level) break
+    level = next
+  }
+  return level
+}
+
 function VocabCardFace({
   card,
   side,
@@ -40,23 +67,90 @@ function VocabCardFace({
   peekable,
   ruby,
   hangul,
+  backHangul,
+  exampleAnn,
 }: {
   card: DeckCard
   side: CardSide
   mode: VocabMode
   showReading: boolean
   peekable: boolean
-  /** 앞면 표제어 루비(저장 읽기 정렬) — 카드 [읽기] 켰을 때만 그린다. 덱이 한 번에 만들어 넘긴다(memo 유지). */
+  /** 표제어 루비(저장 읽기 정렬) — 앞면은 카드 [읽기] 켰을 때만, 뒷면은 늘 그린다. 덱이 한 번에 만들어 넘긴다(memo 유지). */
   ruby: RubyPiece[] | null
   /** 앞면 `[한글]`(표제어 분석, 앱 한글 설정) — 카드 [읽기] 켰을 때만. */
   hangul: AnnotationState
+  /** 뒷면 표제어 `[한글]`(앱 한글 설정, 카드 [읽기]와 무관). */
+  backHangul: AnnotationState
+  /** 뒷면 예문 분석(히라가나·`[한글]`). 카드 면 안에서 훅을 부르지 않으려 덱이 한 번에 받아 넘긴다. */
+  exampleAnn: AnnotationState
 }) {
-  const hasReading = !!card.reading && card.reading !== card.surface
+  const prefs = useDisplayPrefs()
+  const shellRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const [box, setBox] = useState('')
+  const [fontsTick, setFontsTick] = useState(0)
+  const [drop, setDrop] = useState<{ key: string; level: DropLevel }>({ key: '', level: 0 })
+
+  // 카드 상자 크기만 본다(ResizeObserver) — 드래그는 바깥 래퍼의 transform 만 바꿔 이 상자 크기는 변하지 않는다.
+  useLayoutEffect(() => {
+    const el = shellRef.current
+    if (!el) return
+    const read = () => `${el.offsetWidth}x${el.offsetHeight}`
+    setBox(read())
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setBox(read()))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // 글꼴이 늦게 로드되면 줄 높이가 달라지므로 한 번 더 잰다(이미 로드됐으면 건너뜀).
+  useEffect(() => {
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined
+    if (!fonts || fonts.status === 'loaded') return
+    let alive = true
+    void fonts.ready.then(() => {
+      if (alive) setFontsTick((t) => t + 1)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 측정 키 — 이 값이 바뀔 때만 한 번 잰다. 예문이 없거나 한글 끔이거나 뒷면이 아니면 재지 않는다.
+  const wantMeasure = side === 'back' && !!card.example && prefs.loaded && prefs.showHangul
+  const measureKey = wantMeasure
+    ? [
+        card.order,
+        side,
+        card.example,
+        exampleAnn.s,
+        backHangul.s,
+        card.answer ?? '',
+        card.correctText ?? card.meaning ?? '',
+        card.exampleKo ?? '',
+        prefs.showFurigana,
+        box,
+        fontsTick,
+      ].join('\u0001')
+    : ''
+  // 키가 바뀌면 0 단계로 돌아가 줄을 다시 넣은 채 그린다. 같은 키 안에서는 단계가 올라가기만 한다.
+  const dropLevel: DropLevel = wantMeasure && drop.key === measureKey ? drop.level : 0
+
+  // 같은 레이아웃 단계에서 재고(0 → 1 → 2, 단계가 바뀌면 이 효과가 다시 돈다) 페인트 전에 끝나 깜박임이 없다. 키가 그대로면 다시 재지 않는다.
+  useLayoutEffect(() => {
+    if (!measureKey) return
+    const body = bodyRef.current
+    if (!body) return
+    const bottoms = Array.from(body.children, (c) => c.getBoundingClientRect().bottom)
+    const next = nextDropLevel(dropLevel, overflowsBody(body.getBoundingClientRect().bottom, bottoms))
+    if (next !== dropLevel) setDrop({ key: measureKey, level: next })
+  }, [measureKey, dropLevel])
+
   const shell = 'flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-line bg-surface p-4 shadow-sm'
 
   if (side === 'front') {
     return (
-      <div className={shell}>
+      <div ref={shellRef} className={shell}>
         <div className="flex h-6 flex-none justify-end">
           <Star on={card.flagged} />
         </div>
@@ -86,27 +180,31 @@ function VocabCardFace({
   const band = card.answer ? resultBand(card.answer, mode) : null
   const meaning = card.correctText ?? card.meaning ?? ''
   return (
-    <div className={shell}>
-      <div className="flex min-w-0 flex-none items-baseline gap-2">
-        <span lang="ja" className="min-w-0 truncate text-[22px] font-semibold">
-          {card.surface}
-        </span>
-        {hasReading ? (
-          <span lang="ja" className="min-w-0 flex-1 truncate text-[14px] text-ink2">
-            {card.reading}
-          </span>
-        ) : (
-          <span className="flex-1" />
-        )}
+    <div ref={shellRef} className={shell}>
+      <div className="flex min-w-0 flex-none items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <JaText
+            as="span"
+            text={card.surface}
+            state={backHangul}
+            ruby={ruby}
+            rubyAlways
+            leading={2}
+            rt={11}
+            className="block truncate text-[22px] font-semibold"
+          />
+          {dropLevel >= 2 ? null : <HangulLine state={backHangul} size={13} />}
+        </div>
         <Star on={card.flagged} />
       </div>
       {band ? <p className={`mt-2 self-start rounded-lg px-2.5 py-1 text-[13px] font-semibold ${BAND_TONE[band.tone]}`}>{band.text}</p> : null}
-      <div className="mt-2 min-h-0 flex-1">
+      <div ref={bodyRef} className="mt-2 min-h-0 flex-1">
         <p className="line-clamp-3 text-[19px] font-semibold break-keep [overflow-wrap:anywhere]">{meaning}</p>
         {card.example ? (
-          <p lang="ja" className="mt-2 line-clamp-2 text-[16px] leading-[1.6] [overflow-wrap:anywhere]">
-            {card.example}
-          </p>
+          <div>
+            <JaText text={card.example} state={exampleAnn} leading={2.15} className="mt-2 line-clamp-2 text-[16px] leading-[1.6] [overflow-wrap:anywhere]" />
+            {dropLevel >= 1 ? null : <HangulLine state={exampleAnn} size={13} className="line-clamp-1!" />}
+          </div>
         ) : null}
         {card.exampleKo ? <p className="line-clamp-1 text-[14px] text-ink2 break-keep [overflow-wrap:anywhere]">{card.exampleKo}</p> : null}
       </div>

@@ -8,7 +8,7 @@
  * 덱에서는 하단 Toast 를 쓰지 않는다 — 보기·도구 줄을 가린다. 알림은 힌트 줄과 DeckNotice 로만 한다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { OFF, useWordLayersList } from '@/components/common/japanese/annotations'
+import { OFF, useAnnotations, useWordLayersList } from '@/components/common/japanese/annotations'
 import BackBar from '@/components/shell/BackBar'
 import { alignWordRuby } from '@/modules/speech/reading/client'
 import ChoiceList from './ChoiceList'
@@ -34,13 +34,17 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const n = cards.length
   const finishing = deck.phase === 'finishing'
   const locked = deck.exiting || finishing || !!card?.pending
-  // 카드 앞면 층(task-026 §15-4-6): 덱 표제어 전부의 한글을 처음 한 번에 받고, 루비는 저장 읽기로 여기서 만든다 — 카드 면 안에서 훅을 부르지 않아
-  // 드래그 중 memo 가 유지된다. 카드 [읽기] 끔이면 요청도 하지 않는다. 앱 히라가나 설정은 카드에 영향이 없다.
-  const layers = useWordLayersList(deck.showReading ? cards.map((c) => ({ surface: c.surface, reading: c.reading })) : [])
+  // 카드 면 층(task-026 §15-4-6 · task-033 §15-11-3): 덱 표제어 전부의 한글·예문 분석을 처음 한 번에 받고, 루비는 저장 읽기로 여기서 만든다 —
+  // 카드 면 안에서 훅을 부르지 않아 드래그 중 memo 가 유지된다. 앞면은 카드 [읽기] 켰을 때만 그리고, 뒷면은 앱 한글 설정만 따른다(한글 끔이면 요청 없음).
+  // 앱 히라가나 설정은 표제어 루비에 영향이 없다(뒷면 C1-A: 늘 보임).
+  const layers = useWordLayersList(cards.map((c) => ({ surface: c.surface, reading: c.reading })))
+  const exampleAnns = useAnnotations(cards.map((c) => c.example ?? ''))
   const surface = card?.surface ?? ''
   const reading = card?.reading ?? null
   const ruby = useMemo(() => (reading ? alignWordRuby(surface, reading) : null), [surface, reading])
   const faceHangul = (deck.showReading && layers[view]?.hangul) || OFF
+  const backHangul = layers[view]?.hangul ?? OFF
+  const exampleAnn = exampleAnns[view] ?? OFF
 
   // 답 응답 뒤에는 [다음 카드]로, 새 카드가 되면 첫 보기·[뜻 보기]로 초점을 옮긴다(스크롤은 건드리지 않는다).
   useEffect(() => {
@@ -160,7 +164,17 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           onLeft={deck.next}
           onRight={deck.prev}
           renderTop={() => (
-            <VocabCardFace card={card} side={side} mode={mode} showReading={deck.showReading} peekable={peekable} ruby={ruby} hangul={faceHangul} />
+            <VocabCardFace
+              card={card}
+              side={side}
+              mode={mode}
+              showReading={deck.showReading}
+              peekable={peekable}
+              ruby={ruby}
+              hangul={faceHangul}
+              backHangul={backHangul}
+              exampleAnn={exampleAnn}
+            />
           )}
         />
       </div>

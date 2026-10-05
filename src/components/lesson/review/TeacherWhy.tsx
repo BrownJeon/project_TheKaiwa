@@ -7,6 +7,8 @@
  * 근거 문장은 텍스트로만 그린다(`dangerouslySetInnerHTML` 금지) — 「…」 조각만 `lang="ja"`.
  */
 import { useId, useState } from 'react'
+import { useAnnotations } from '@/components/common/japanese/annotations'
+import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import TeacherAvatar from '@/components/common/TeacherAvatar'
 import { FocusDot } from './FocusBadge'
 import { RV_HOME } from './reviewCopy'
@@ -35,14 +37,19 @@ export function JaQuoted({ text }: { text: string }) {
 
 export function ReviewChips({ chips, more = 0, onSurface = false }: { chips: readonly ReviewChip[]; more?: number; onSurface?: boolean }) {
   const bg = onSurface ? 'bg-surface2' : 'bg-surface'
+  const anns = useAnnotations(chips.map((c) => c.textJa))
   return (
     <ul aria-label={RV_HOME.chipsAria} className="mt-1.5 flex min-w-0 flex-wrap gap-1.5">
       {chips.map((c, i) => (
-        <li key={i} className={`inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-[10px] px-2.5 text-[15px] ${bg}`}>
-          {c.focus ? <FocusDot srLabel={RV_HOME.focusSr} /> : null}
-          <span lang="ja" className="min-w-0 truncate">
-            {c.textJa}
-          </span>
+        // 수업 표현 칩과 같은 규칙(task-033 R1-A) — 두 층을 꺼도 말줄임 없이 칩 안에서 줄바꿈한다.
+        <li key={i} className={`inline-flex min-h-8 max-w-full min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-[10px] px-2.5 py-1 text-[15px] ${bg}`}>
+          {c.focus ? (
+            <span className="flex self-center">
+              <FocusDot srLabel={RV_HOME.focusSr} />
+            </span>
+          ) : null}
+          <JaText as="span" text={c.textJa} state={anns[i]} leading={2.1} className="min-w-0 [overflow-wrap:anywhere]" />
+          <HangulLine state={anns[i]} size={12} inline />
         </li>
       ))}
       {more > 0 ? <li className={`inline-flex h-8 items-center rounded-[10px] px-2.5 text-[12.5px] text-ink2 ${bg}`}>{RV_HOME.chipsMore(more)}</li> : null}

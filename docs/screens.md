@@ -7965,7 +7965,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 
 - 외우기 카드라 **카드 [あ 읽기](`DeckToolbar`, `kaiwa.vocab.readingDefault` 그대로)를 켰을 때만** 표제어 위 히라가나(rt **16**·줄간격 1.7) + (앱 설정 한글 켬일 때) `[한글]` **15**(위 4px). 앱 설정 `showFurigana` 는 카드에 영향이 없다. [읽기] 끔 = 표제어만(지금과 같음).
 - `vocab/VocabCardFace.tsx` 앞면(56~64행): 읽기 17px 줄 삭제 → 루비·한글로. `memo` 를 지키기 위해 **루비·한글 값은 `vocab/VocabDeck.tsx`(153행에서 카드 면을 그림)가 덱의 카드 표제어 전부를 처음 한 번에 `useWordLayers` 로 받아 props(`ruby`, `hangul` — 문자열·배열이라 얕은 비교로 memo 유지)로 넘긴다** — 카드 면 안에서 훅을 부르지 않는다(드래그 중 다시 그리지 않음). `line-clamp-3` 과 루비가 겹쳐 첫 줄 rt 가 잘리지 않는지 확인(QA ⑤).
-- 뒷면(FLIP·답한 뒤, 80~98행)은 **이번 범위 밖 — 그대로**(데모에 없음).
+- 뒷면(FLIP·답한 뒤, 80~98행)은 **이번 범위 밖 — 그대로**(데모에 없음). → **task-033 에서 적용: §15-11-3**.
 - 진행·보기·도구 칸 4개·제스처 안내·12초 리듬은 그대로. 분석이 늦어도 카드 넘김을 막지 않는다(막대 → 채워짐).
 
 #### 15-4-7. 오늘의 회화 ①~⑤ — `#l1`~`#l5` (화면 B)
@@ -8052,7 +8052,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 - `message.reading`·`replyReading` 데이터 경로(`useChatTurn` 이 받아 두는 것)는 **그대로 둔다** — 화면에서 안 쓸 뿐. 제거는 화면 A 배포 뒤 별도 PE+developer task(PE 기록 talk@v8·chat@v3).
 - `LearningSettings` 저장 키 목록 · `CorrectionModeMenu` · `kaiwa.vocab.readingDefault` · TTS·다시 듣기·`onPick`(원문 문자열 사용).
 - 지금 화면 요소(조각 필터·뱃지·▶ 소리·줄 ▶·▶ 듣기 칩·비교 밑줄·모아 둔 교정 칩·문법 칩·[표현 점검]·표시등) — 지우거나 옮기지 않는다(MOV 9건만).
-- **이번 범위 밖(층을 달지 않음 — 데모에 없음, 후속 개선 후보)**: AI 평가(`components/eval/*`) · 단어 세트 결과 목록(`vocab/WordResultList`)·카드 뒷면 · 복습 레슨 카드(`lesson/review/*`)·`LessonEnd`·`LessonTopicsScreen`·`LessonPasteScreen` · `PendingCorrectionsCard`·`ChatListItem`·`RoomIntro`·`TalkIntro` · `MicTestCard` · 관리자 콘솔 전부.
+- **이번 범위 밖(층을 달지 않음 — 데모에 없음, 후속 개선 후보)** — *task-033(§15-11)이 AI 평가·카드 뒷면·세트 결과 목록·`lesson/review/*` 칩·항목 카드·`LessonEnd` 표현 칩을 가져갔다. 남은 범위 밖은 §15-11-0 끝 줄*: AI 평가(`components/eval/*`) · 단어 세트 결과 목록(`vocab/WordResultList`)·카드 뒷면 · 복습 레슨 카드(`lesson/review/*`)·`LessonEnd`·`LessonTopicsScreen`·`LessonPasteScreen` · `PendingCorrectionsCard`·`ChatListItem`·`RoomIntro`·`TalkIntro` · `MicTestCard` · 관리자 콘솔 전부.
 
 ### 15-8. 서브태스크 분할 (각 15파일 이하 · 공용 부품은 A 가 먼저)
 
@@ -8130,3 +8130,231 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 1. `common/japanese/JapaneseText.tsx`(A 바·토글 · B 대기 자리 prop · C 지우기 생략) 2. `chat/MessageBubble.tsx`(B 내 말풍선 prop) 3. `common/japanese/displayPrefs.ts`(C 맡기 훅) 4. `shell/DisplaySaveNotice.tsx`(C 맡은 동안 숨김) 5. `talk/TalkRoom.tsx`(C 맡기) 6. `common/japanese/annotations.ts`(D L-3) 7. `common/__tests__/japaneseDisplay.test.ts`(L-1 `onToast('',0)` 잠금 · 맡은 동안 셸 0·지우기 0 · 해제 뒤 셸 1 · L-3 재시도 1회 증가) — `speech/__tests__/reading.test.ts` 는 REV-098 L-1 단언 1건.
 - 순서: A → B(390 에서 번역 켬·끔 측정) → C(맡기·해제·녹음 중 미루기) → D → 테스트 → 360/390/412 확인(§15-6 1·3·20·21·22).
 - 서버·DB·API·네이티브 변경 0 → 웹 배포만(APK 재빌드 없음). 엔진명·'후리가나' 신규 0건.
+
+### 15-11. task-033 일본어 표시 확장 — AI 평가 · 단어 카드 뒷면 · 세트 결과 · 복습 칩
+
+승인 데모: docs/demo/task-033-japanese-display-more-screens-v1.html (v1)
+
+- 승인: 사용자 2026-10-05 08:37 "task-033 데모 v1 승인"(content sha256 `d84e9574…`, task frontmatter `demo_gate`). 결정 6건 = **권고 A 전부**: E1-A · E2-A · C1-A · C2-A · R1-A · S1-A(아래 §15-11-1). 데모 상태 id = `#e-meaning`·`#e-reading`·`#e-usage`·`#e-chunk`·`#e-listen`·`#e-listen-rv`·`#e-assemble`·`#e-spot`·`#e-result-w`·`#e-result-t`·`#c-back`·`#c-flip`·`#c-long`·`#c-result`·`#r-home`·`#r-gen`·`#r-items`·`#r-end`(주소 `#<id>`). 데모의 "현재"는 HEAD `26b6322` 소스 대조본.
+- **표시 규칙은 새로 만들지 않는다** — 층 순서·크기·줄간격·대괄호·"애매하면 숨김"·입력칸 제외는 §15-1·§15-2 그대로, 공용 부품(`JaText`·`HangulLine`·`DisplayToggles`·`useAnnotations`·`useWordLayersList`·`cutRubyByRanges`·`plainPieces`)을 **수정 없이** 쓴다. `src/components/common/**` 변경 0.
+- 적용 토큰(이름만, 새 색 없음): `--ink`·`--ink2`·`--ink3`·`--surface`·`--surface2`·`--line`·`--accent`·`--accent-soft`·`--good`·`--bad`(Tailwind `text-ink2`·`bg-surface2`·`decoration-good`·`decoration-bad` …). 새 수치 없음 — 아래 표의 값은 전부 데모 CSS 값이며 §15-1 B 표에 이미 있는 조합이다.
+- 서버·DB·API·네이티브 변경 0(#24r 읽기 분석·#11~#12 표시 설정·#66 평가 상세 그대로) → 웹 배포만, APK 재빌드 없음. 새 문구 1개(★ §15-11-2 D).
+
+#### 15-11-0. 레이아웃 설계(delta — 바뀌는 위계만)
+
+| 항목 | 내용 |
+|---|---|
+| 목표 | 회화방·수업에서 쓰던 히라가나·`[한글]` 층을 평가·카드 뒷면·복습 칩에도 같은 모양으로 — **단, 정답을 흘리지 않는다** |
+| 주요 위계 | 바뀌지 않음. 층은 본문 바로 위(히라가나)·바로 아래(`[한글]`)에만 붙고 카드·행·칩 순서는 그대로. 새 영역은 평가 푸는 화면의 도구 줄 하나(E2-A, 문항 카드 위 42px = 알약 32 + 아래 여백 10) |
+| 영역 | 평가 푸는 중(헤더 56·문항 번호 줄 고정 → **스크롤 영역 맨 위에 도구 줄** → 문항 카드 → 아래 [이전][다음] 고정) · 평가 결과(층만) · 카드 뒷면(층만, 카드 안 자리 측정) · 세트 결과 목록(행 높이 56 → 약 96, 실측 96~97 — REV-104 L-3) · 복습 칩(높이 32 → 내용 맞춤) |
+| 컴포넌트 | 공용 `JaText`·`HangulLine`·`DisplayToggles` + 평가 전용 순수 함수 파일 `eval/displayGuard.ts`(신규, 정답 보호·조각 루비·빈칸 나누기) |
+| 상태 | 표시 설정 로드 전(층 없음) · 분석 기다리는 중(줄간격 예약 + 막대) · 분석 완료 · 분석 실패/분석 불가(본문만) · 히라가나/한글 켬·끔 4조합 · 정답 보호(제출 전) · 카드 자리 부족(예문 `[한글]` 뺌) |
+| 행동 | 평가 도구 줄 [히라가나][한글] 누르기(앱 전체 값, 토스트 2.2초) — 그 밖의 조작은 지금 그대로 |
+| 반응형 | 360/390/412 모두 같은 구조. 줄어드는 곳은 줄바꿈(칩·보기·결과 문장)만, 가로 스크롤 0. 카드 뒷면만 높이 780 에서 예문 `[한글]` 이 빠질 수 있음(C2-A) |
+
+**넣지 않는 곳(데모 "적용 범위" 표 끝)**: 평가 문항 줄 제목 태그("2. 읽기 쓰기 · 注文") · 평가 기록 목록·오늘 홈 평가 카드·평가 시작 화면(일본어 없음) · 한국어 지시문·상황 설명·선생님 한마디·피드백·설명 속 「」(`J()`·`JaQuoted`) · 입력칸(읽기 입력·글자 답·고쳐 쓰기·이유) · 녹음 중 자막(`voice.partial`) · 수업·복습 제목 일본어(`LessonHeader`·`LessonEnd` 머리 `content.title`) · 카드 앞면(§15-4-6 그대로) · 4지선다 보기(한국어 뜻) · 복습 수업 ①~⑤ 문항 본문(026 에서 적용됨). **아직 범위 밖(다음 개선 후보)**: 일반 수업 `LessonEnd` 머리 · `LessonTopicsScreen` · `LessonPasteScreen` · `PendingCorrectionsCard` · `ChatListItem` · `RoomIntro` · `TalkIntro` · `MicTestCard` · 관리자 콘솔.
+
+#### 15-11-1. 결정(확정 — 바꾸지 않음)
+
+| 결정 | 내용 | 구현에서 뜻하는 것 |
+|---|---|---|
+| **E1-A** | 평가 푸는 동안 앱 설정(히라가나·한글)을 따르고, 정답을 흘리는 자리만 숨김 | §15-11-2 정답 보호 규칙 4개. 평가에는 **번역 층 없음**(번역 스위치는 평가 화면에 영향 0) |
+| **E2-A** | 평가 푸는 화면 문항 카드 바로 위 [히라가나][한글] 도구 줄 | `EvalRunner` 스크롤 영역 맨 위(§15-11-2 C). 결과 화면에는 없음 |
+| **C1-A** | 카드 뒷면 표제어 히라가나는 앱 히라가나 설정과 무관하게 **늘 보임** | 뒷면 `JaText ruby={저장 읽기 루비} rubyAlways`. `[한글]` 은 앱 한글 설정을 따름(카드 [あ 읽기]와도 무관) |
+| **C2-A** | 카드 뒷면 예문 = 히라가나 + `[한글]` 1줄 말줄임, 카드에 자리가 없으면 **예문 `[한글]` 줄만 뺌**(번역 우선) | 카드 면을 그릴 때 한 번 잰다 — 드래그 중에는 재지 않는다(§15-11-3 B) |
+| **R1-A** | 복습 칩 = 수업 표현 칩 규칙(히라가나 + 일본어 뒤 `[한글]` 12 인라인), 칩 높이는 내용 맞춤 | `ReviewChips`·`NextReviewCard` 칩(§15-11-4) |
+| **S1-A** | 범위를 넓게 — 세트 결과 단어 목록(`WordResultList`)·복습 종료 "쓴 표현·써 볼 표현" 칩(`LessonEnd` `ExprChip`)까지 | 일반 수업 종료 화면의 표현 칩도 같이 바뀐다(같은 컴포넌트 — 승인 데모 S1-A 단점 항목에 적힌 그대로) |
+
+#### 15-11-2. AI 평가 — 푸는 중 (`#e-*`, 서브태스크 A)
+
+**A. 정답 보호 규칙(구현 정의 — 화면이 정하는 유일한 경로는 `eval/displayGuard.ts`)**
+
+평가 상세(#66)는 제출 전 `expected` 를 주지 않으므로 화면이 가진 것은 각 문항의 `prompt` 뿐이다. 아래 4개는 **설정과 무관하게** 지킨다(E1-A 의 "보호").
+
+| # | 자리 | 규칙 | 근거 데모 |
+|---|---|---|---|
+| P1 | 읽기 쓰기(`READING_INPUT`) 문항의 단어 상자 | 히라가나·`[한글]` **둘 다 그리지 않는다**(지금처럼 단어만, `JaText` 쓰지 않음 — 분석 요청도 하지 않음). 앱 설정에서 히라가나나 한글이 하나라도 켜져 있으면(`prefs.loaded && (showFurigana \|\| showHangul)`) 단어 상자 바로 아래 안내 1줄 ★ | `#e-reading` |
+| P2 | **같은 평가 다른 문항** 속 읽기 쓰기 단어(교차 보호) | 그 단어가 들어간 일본어 블록은 ① 그 단어 범위에 걸친 히라가나만 빼고(다른 한자 히라가나는 그대로) ② 그 블록의 `[한글]` 줄을 통째로 숨긴다 | `#e-usage` 2번 보기 |
+| P3 | 듣고 답하기 들려주는 문장 | 제출 전에는 글자 자체가 없다(#66 `textHidden:true`) — 막대 2줄 그대로, 층 없음. [글자로 보기](#67c) 뒤 `revealedText` 에만 층 | `#e-listen`·`#e-listen-rv` |
+| P4 | 문장 조립 조각 | 조각마다 **히라가나만**. 조각 `[한글]`·"만든 문장" 전체 소리 줄 없음(문장 소리 = 순서 힌트, 조각 단독 소리는 조사 소리가 틀릴 수 있음) | `#e-assemble` |
+| — | 평가 전체 | **번역 층 없음**(어느 문항·결과에도 번역을 그리지 않음 — 뜻 고르기·용법의 답을 알려 줌) | 오른쪽 "지금 보는 조건" |
+| — | 용법 고르기 빈칸 문장 | 히라가나만, `[한글]` 없음(빈칸 자리 소리 규칙 없음 — "애매하면 숨김") | `#e-usage` |
+
+**P2 판정 방법(서버 변경 0 — `prompt.surface` 기준)**
+1. `readingGuardKeys(items)`: 이 평가의 `READING_INPUT` 문항마다 `promptStr(prompt, 'surface')` 에서 **마지막 한자까지 자른 어간**을 키로 쓴다(`注文`→`注文`, `片付ける`→`片付`, `食べる`→`食`, `引き受ける`→`引き受`). 한자가 하나도 없는 표기(가나 단어)는 키를 만들지 않는다(소리가 글자 그대로라 흘릴 것이 없음). 중복 제거. 한자 판정 = `@/modules/speech/reading/client` 의 `hasKanji` 와 같은 문자 범위. ★ 데모는 표기 전체 포함 검사 — 활용형(`食べました`)에서 새지 않게 어간으로 넓혔다(§15-11-7 ⓐ).
+2. 키는 `EvalRunner` 가 `items` 로 한 번 계산해(`useMemo`) 문항 컴포넌트에 `guard` prop 으로 넘긴다. 결과 화면(`DONE`)은 키를 쓰지 않는다.
+3. `guardHits(text, keys): TextRange[]` — 블록 글자에서 각 키가 나오는 **모든** 자리(코드포인트 기준 `[start,end)`). 히트가 0개면 그 블록은 보호 대상이 아니다 → 평소 경로(`JaText state={ann}` + `HangulLine`).
+4. 히트가 있으면: 루비 = `guardedRuby(text, state, hits, showFurigana)` — `state.s==='ready'` 면 `rubyPieces(state.segments)` 에서 **히트 범위와 한 글자라도 겹치는 조각의 `reading` 을 null**(조각 전체가 보호 — 반쪽 읽기 없음), `loading` 이고 한자가 있으면 `plainPieces(text)`(줄간격만 예약, 읽기 없음), 그 밖 null. `JaText` 에는 `ruby={guardedRuby(…)}` 로 넘긴다(공용 `ruby` 경로 — `JaText` 수정 없음). `[한글]` = 그리지 않는다(`HangulLine` 생략).
+5. 단어 상자(뜻 고르기·조각 분류)처럼 저장 읽기 루비(`alignWordRuby`)를 쓰는 블록도 같다 — 루비 조각에서 히트 겹친 조각의 읽기를 null, `[한글]` 생략.
+6. 분석 요청은 보호 블록도 그대로 보낸다(화면에 그리지 않을 뿐 — 결과 화면에서 캐시 적중).
+
+**B. 문항별 적용 표(`eval/EvalItems.tsx`)**
+
+| 문항(데모) | 자리(현재 행) | 제안 — 일본어 · 히라가나 rt · 루비 줄간격 · `[한글]` | 보호 |
+|---|---|---|---|
+| 뜻 고르기 `#e-meaning` · 조각 분류 `#e-chunk` | `WordBox`(58~71행) 단어 32 semibold leading 1.3 + **읽기 15px 줄(64~68행)** | 단어 32 semibold · **rt 13 · 루비 줄간격 1.8** · `[한글]` **14**(`className="mt-0"` — 상자 `gap-0.5` 만) · **읽기 15px 줄 삭제**. 루비 = `useWordLayers(word, reading)` 의 `ruby`(저장 읽기 `prompt.reading`, 앱 히라가나 설정 따름), 한글 = 같은 훅의 `hangul`(저장 읽기 ≠ 분석 읽기면 숨김 — §15-2 E). 한자 없는 말(`たまに`) = `[한글]`만 | P2 |
+| 뜻 고르기 보기 | `ChoiceRows`(92행) 한국어 15 | 그대로(층 없음) | — |
+| 읽기 쓰기 `#e-reading` | `ReadingItem` `WordBox`(171행) | 단어만(지금 그대로) + ★ 안내 1줄(§D) — 입력칸·[저장] 그대로 | **P1** |
+| 용법 고르기 `#e-usage` 빈칸 문장 | 152~156행 `<p>` 17 leading 1.7 + `BlankSentence` | `sentenceJa` 를 `___` 에서 둘로 나눠(`blankParts`) 앞·뒤를 각각 `JaText as="span"`(같은 `<p>` 안) + 가운데 빈칸 밑줄 그대로. 한자 있고 히라가나 켬이면 `<p>` 줄간격 **2.1**(기다리는 중에도). `[한글]` **없음** | P2 |
+| 용법 고르기 일본어 보기 | `ChoiceRows ja`(111행) 17 | 일본어 17 · rt 11 · 줄간격 **2.1** + `[한글]` **12.5**(`HangulLine as="span"` — 버튼 안이라 `<p>` 금지). 보기 높이 52 → 약 80px. 번호 원·"내 답"·선택 테두리 그대로 | P2 |
+| 듣고 답하기 `#e-listen` 들려주는 문장 | `ListenBlock` 막대(283~287행) | 그대로 | **P3** |
+| 듣고 답하기 `#e-listen-rv` [글자로 보기] 뒤 | 220~224행 점선 상자 17 leading 1.7 | `JaText`(17, `whitespace-pre-wrap` 유지, 줄간격 2.1) + `[한글]` **13**. "글자로 봤어요 · 결과에 표시돼요" 그대로 | P2 |
+| 듣고 답하기·상황 응답 "내가 한 말" | `VoiceAnswer` 367~370행 `item.answerText` 17 | `JaText`(17, 2.1) + `[한글]` **13** — 상자 `aria-hidden` 은 지금처럼 유지(층 추가와 무관, 현행). 녹음 중 자막(360~363행)·빈 상자 안내·글자 입력 모드(textarea)는 달지 않음 | P2 |
+| 문장 조립 `#e-assemble` | 넣은 조각(440행)·남은 조각(449~451행) 17, 높이 44 | 조각 글자를 `JaText as="span"`(17, 줄간격 2.1, 높이 44 그대로 — 17×2.1=36). **`[한글]` 없음**. 조각 문자열마다 따로 분석(`useAnnotations(pieces)` 한 번). `aria-label`(`assembleDel`·`assembleAdd`)은 원문 문자열 그대로 | **P4** · P2 |
+| 틀린 곳 찾기 `#e-spot`(조각 모드) | 508~524행 조각 버튼 18 | `sentenceJa` **전체를 한 번 분석** → `spotSegmentRuby(state, segments, showFurigana)` 가 조각 경계(코드포인트, `segments.join('')===sentenceJa`)로 `cutRubyByRanges` 해 조각별 루비 배열을 만든다(경계가 한자 묶음을 자르면 그 묶음만 히라가나 없음). 각 버튼 = `JaText as="span" text={seg} ruby={조각 루비}`(줄간격 2.1, 18px, 높이 44 그대로). 조각 묶음(`role="group"`) **아래** 문장 전체 `[한글]` **13**(위 여백 6px = `mt-1.5`). "고른 곳 · …" 줄·입력칸 그대로 | P2 |
+| 틀린 곳 찾기(옛 문항, 조각 없음) | 558~562행 문장 상자 17 | `JaText`(17, 2.1) + `[한글]` 13. 고쳐 쓰기 칸·이유 칸은 달지 않음 | P2 |
+| 상황 응답 상황 설명 | 404~406행 한국어 | 그대로 | — |
+
+- 분석 상태(`#e-*` 데모 "읽기 분석" 조작): **기다리는 중** = 본문 그대로 + 루비 줄간격 예약 + `[한글]` 자리 막대(§15-2 C, `HangulLine` 기본) — 단어 상자는 저장 읽기라 히라가나가 바로 나오고 한글 자리만 막대. **실패/분석 불가** = 히라가나 없이 본문만(단어 상자는 저장 읽기 히라가나는 보임), `[한글]` 줄 없음, 오류 문구·토스트 없음(§15-1 G).
+- 요청 묶기: `EvalRunner` 가 마운트 때 `collectEvalTexts(items)`(아래 E) 로 `useAnnotations` 한 번 — 결과는 버리고 캐시만 데운다(문항을 넘길 때 막대가 다시 뜨지 않게, WORDS 10문항 ≈ 50문장 = 1요청). 각 문항 컴포넌트는 자기 문장을 `useAnnotations` 로 다시 받는다(캐시 적중).
+
+**C. E2-A 도구 줄 — 위치·모양(`eval/EvalRunner.tsx` 505~523행)**
+- 위치: 스크롤 영역(`ref={scrollRef}` div) 안, 시간 초과 띠(`over`, 506행) **다음**, 문항 카드 `<section>`(518행) **바로 위**. 스크롤 영역 안이라 스크롤과 함께 움직인다(고정 아님 — 화면당 스크롤 1곳·고정은 헤더·번호 줄·아래 버튼만).
+- 모양: `<div role="group" aria-label={DISPLAY_COPY.toolGroup} className="mb-2.5 flex min-w-0 flex-wrap items-center gap-2"><DisplayToggles keys={['fu','hg']} onToast={show} /></div>` — 수업 ③ 문제 도구 줄(`LessonDisplayTools`)과 같은 모양·같은 그룹 이름("보기 설정"). 번역 토글 없음. 알약 32px · 터치 46px(`DisplayToggles` 그대로). `lesson/parts` 를 import 하지 않고 `DisplayToggles` 를 직접 쓴다(평가→수업 의존 금지).
+- 문항 종류와 무관하게 늘 보인다(읽기 쓰기 문항에서도 — 다른 문항을 위해 끄고 켤 수 있음). 결과 화면·평가 시작 화면에는 없다.
+- 토스트: `EvalRunner` 의 `useToast().show`(지금 `<Toast bottomPx={84}>` 그대로) — 성공 문구 §15-5, 2.2초(`DISPLAY_TOAST_MS`). 저장 실패 알림은 앱 셸(§15-3 B) — 평가는 맡지 않는다.
+
+**D. ★ 새 문구(단일 출처 `eval/evalCopy.ts` `ITEM.readingGuardNote`)**
+- `"읽기를 묻는 문항이라 히라가나·한글은 제출한 뒤에 보여 줘요."` — 원문 그대로(마침표 포함).
+- 자리: 읽기 쓰기 단어 상자 바로 아래, 입력 줄 위. `<p className="mt-1.5 text-[12px] text-ink2 break-keep">`. 둘 다 끔이면 그리지 않음(숨길 것이 없음). `role`·`aria-live` 없음(정적 안내).
+
+**E. `eval/displayGuard.ts`(신규, 순수 함수 — 테스트 대상)**
+
+| 함수 | 하는 일 |
+|---|---|
+| `readingGuardKeys(items)` | P2 키 목록(위 A 1) |
+| `guardHits(text, keys)` | 키 출현 범위들(코드포인트) |
+| `guardedRuby(text, state, hits, showFurigana)` · `guardWordRuby(pieces, hits)` | 히트 겹친 조각 읽기 null(위 A 4·5) |
+| `blankParts(sentenceJa)` | `{ before, after } \| null`(`___` 없으면 null → 문장 전체 한 블록) |
+| `spotSegmentRuby(state, segments, showFurigana)` | 조각별 `RubyPiece[] \| null`(기다리는 중·한자 있음 = `plainPieces(seg)` 로 줄간격만 예약) |
+| `filledRange(sentenceJa, fill)` · `fixLineRanges(sentence, wrongSpan, correctedJa)` | 결과 화면 채운 문장·고친 곳 줄의 `{ text, ranges }`(§15-11-5) — 기존 `logic.ts` `spotFix` 재사용 |
+| `collectEvalTexts(items, { done })` | 분석할 일본어 문장 목록(제출 전: 단어 상자·빈칸 앞뒤·일본어 보기·글자로 본 문장·내 답·조각·틀린 곳 문장 / 결과: + 정답·모범 답·들려준 말·채운 문장·고친 줄·`correctedJa`). 읽기 쓰기 단어(P1)·숨긴 듣기 문장은 넣지 않는다 |
+
+`import` 는 `@/modules/speech/reading/client`(`rubyPieces`·`hasKanji` 등)·`@/components/common/japanese/annotations`(`cutRubyByRanges`·`plainPieces`·타입)만.
+
+#### 15-11-3. 오늘의 단어 — 카드 뒷면 · 세트 결과 목록 (`#c-*`, 서브태스크 B)
+
+**A. 카드 뒷면 `vocab/VocabCardFace.tsx`(85~114행) — `#c-back`·`#c-flip`·`#c-long`**
+
+| 자리 | 현재 | 제안 |
+|---|---|---|
+| 머리 줄(89~98행) | 표제어 22 semibold `truncate` + **옆 읽기 14px `truncate`(92~96행)** + ★ | `flex min-w-0 items-start gap-2`: 왼쪽 `min-w-0 flex-1` 안에 표제어 `JaText as="span" className="block truncate text-[22px] font-semibold" ruby={ruby} rubyAlways leading={2} rt={11}`(**C1-A — 앱 히라가나 끔이어도 보임**) + 그 아래 `HangulLine state={hangul} size={13}`(앱 한글 설정 따름) · 오른쪽 ★ 그대로 · **옆 읽기 칸 삭제** |
+| 결과 띠·뜻(19, 3줄) | — | 그대로 |
+| 예문(103~107행) 16 leading 1.6 `line-clamp-2` | — | `JaText` 16 `line-clamp-2`, 루비 줄간격 **2.15**(예문 #24r 분석) + `HangulLine size={13} className="line-clamp-1"`(**C2-A 1줄 말줄임** — `display:-webkit-box` 가 `block` 을 이기는지 확인, 지면 `[display:-webkit-box]`) |
+| 번역(108행) 14 `line-clamp-1` | — | 그대로(늘 보임 — 번역 스위치와 무관) |
+
+- 데이터(memo 유지 — §15-4-6 과 같은 방식): `VocabDeck.tsx` 가 덱 전체를 처음 한 번에 받아 props 로 넘긴다. 카드 면 안에서 `useAnnotations` 를 부르지 않는다.
+  - 표제어 루비: 지금 42행 `ruby`(저장 읽기 `alignWordRuby`, 설정 무관)를 뒷면에도 넘김.
+  - 표제어 한글: 39행 `useWordLayersList` 를 **카드 [읽기]와 무관하게** 늘 부른다(한글 끔이면 훅이 요청하지 않음) → 앞면은 지금처럼 `showReading` 일 때만 `faceHangul`, 뒷면은 `layers[view].hangul`(`backHangul` 새 prop).
+  - 예문: `useAnnotations(cards.map(c => c.example ?? ''))` 한 번 → `exampleAnn={exAnns[view]}` 새 prop. 빈 예문은 `NONE`.
+- 앞면·4지선다 보기·뒤집기 버튼·도구 칸·제스처 안내·12초 리듬 그대로. 분석이 늦어도 카드 넘김을 막지 않는다.
+
+**B. C2-A 자리 측정 — "넘치면 예문 `[한글]` 줄만 뺀다"(드래그 중 측정 금지)**
+1. 뒷면 본문 상자(`mt-2 min-h-0 flex-1`, 102행)에 `ref`. 상태 `dropExHangul`(기본 false).
+2. **측정 키** = `card.order`·면(`side`)·예문 문자열·`exampleAnn.s`·`prefs.showHangul`·`prefs.showFurigana`·카드 상자 크기. 키가 바뀌면 `dropExHangul=false` 로 줄을 다시 넣고 `useLayoutEffect` 에서 **한 번** 잰다: 본문 상자 안 마지막 자식의 `getBoundingClientRect().bottom` 이 상자 `bottom` 보다 0.5px 넘게 크면 `dropExHangul=true`(같은 레이아웃 단계라 깜박임 없음). 데모 `measure()` 와 같은 판정.
+3. 카드 상자 크기 = `ResizeObserver`(카드 면 바깥 상자) — 드래그는 `transform` 만 바꿔 크기가 변하지 않으므로 **드래그 중에는 불리지 않는다**. 스크롤·`pointermove`·`transform` 변화에는 측정을 걸지 않는다. 글꼴 로드 뒤 1회(`document.fonts.ready`) 다시 잰다.
+4. 뺐을 때 표시(1단계): 예문 `[한글]` 줄만 없음(막대 포함). 표제어 `[한글]`·예문 히라가나·번역은 그대로. 예문이 없거나 한글 끔이면 재지 않음.
+5. 데모 실측: `#c-long`(긴 뜻 — 데모 값은 실제로 **2줄**(57px) + 긴 예문) **360×780 에서만 4px 넘침 → 뺌**, 그 밖 조합 넘침 0(뺄 일 없음).
+6. **2단계(task-033 B 구현 중 추가, 2026-10-05 — C2-A "번역을 지킨다" 안의 측정 대체 규칙)**: 1단계로 예문 `[한글]` 을 뺀 뒤 **다시 한 번** 재서 아직 넘치면 **표제어 `[한글]` 줄**(머리 칸 `HangulLine 13`)도 뺀다.
+   - 근거 사례: 뜻 3줄 꽉(`line-clamp-3`) + 예문 2줄(루비 2.15) + 번역 1줄 + 결과 띠 = 모든 칸이 상한까지 찬 최악 카드. 780 높이(카드 ≈315px)에서 1단계 뒤에도 번역이 11.8px 잘림(360/390/412 같음), 892 는 1단계만으로 여유 −10.7px.
+   - 왜 표제어 `[한글]` 인가: 뒷면 표제어 히라가나는 C1-A 로 **늘 보여** 읽기 정보가 사라지지 않는다. 줄은 21.5px(위 2 + 19.5)로 남은 11.8px 를 덮고 ≈9.7px 여유가 남는다. 예문 1줄로 줄이기(문장 절반이 잘려 번역과 어긋남)·예문 히라가나 빼기(예문 한자를 읽을 길이 없어지고 앱 히라가나 설정과 어긋남)·줄간격 축소(2.15 미만은 둘째 줄 루비가 첫 줄에 닿음)는 쓰지 않는다.
+   - 순서 고정·되돌림 없음: 0 → 1(예문 `[한글]`) → 2(+표제어 `[한글]`). 2단계에서 예문 `[한글]` 을 다시 넣어 보지 않는다(두 줄 높이가 같아 다시 넘친다). 상태는 `dropLevel: 0|1|2` 하나를 측정 키에 묶고, 키가 바뀌면 0 으로 돌아가 다시 잰다. 두 번째 측정도 `useLayoutEffect` 안(같은 페인트 전)이라 깜박임 없음. 드래그 중 측정 0 규칙은 그대로.
+   - 2단계 뒤에도 넘치면(780 미만 높이 — `VocabDeck` `min-h-[600px]` 쪽) 더 빼지 않는다. 운영 HEAD 구조도 카드 ≈276px 아래에서는 번역이 잘리는 같은 한계(아래 비교).
+   - 회귀 판정(코드 값 계산, 같은 최악 내용): HEAD(26b6322 이전 구조 — 머리 22px×1.5=33 · 띠 8+27.5 · 본문 8+뜻 85.5+예문 8+51.2+번역 21) 합 242.2px → 780 카드 안쪽 ≈280px 에서 **≈38px 여유, 잘림 없음**. 이번 층(표제어 루비 44 + `[한글]` 21.5, 예문 루비 68.8 + `[한글]` 21.5)이 +71.6px 를 더해 생긴 **회귀**이며, 1단계(−21.5) + 2단계(−21.5) 뒤 ≈9.7px 여유.
+   - 테스트: `overflowsBody` 와 같은 순수 함수로 "단계 선택"(측정값 열 → 0/1/2)을 분리해 단위 테스트. 실화면 QA 는 아래 15-11-8 에 "뜻 3줄 꽉 + 예문 2줄 + 번역" 카드(CHOICE·FLIP 두 모드) × 360/390/412 × 780: 번역 줄 잘림 0 · 2단계일 때 표제어 히라가나 보임 · 892 에서는 2단계 0.
+
+**C. 세트 결과 단어 목록 `vocab/WordResultList.tsx`(S1-A) — `#c-result`**
+- 목록(`WordResultList`)이 `useWordLayersList(cards.map(c => ({ surface: c.surface, reading: c.reading })))` 를 한 번 부르고 `Row` 에 `ruby`·`hangul` 을 넘긴다(단어장 `WordRow` 와 같은 방식 — §15-4-4).
+- `Row`(18~27행): 표제어 줄을 `JaText as="span" className="block min-w-0 truncate text-[17px] font-semibold" ruby={ruby} leading={1.95}`(**앱 히라가나 설정 따름** — C1 예외는 카드 뒷면만) + `HangulLine as="span" state={hangul} size={12.5}` → **옆 읽기 13px `<span>`(22~26행) 삭제** → "정답 … · 내 답 …" 14 줄 그대로. 오른쪽 뱃지·★·› 그대로.
+- 행 높이 56 → 약 96px(둘 다 켬, 실측 96~97px — REV-104 L-3 정정). `min-h-[56px]` 유지. 지운 단어(링크 없는 행)도 같은 층.
+- 같은 화면의 세 목록(틀린 단어·다시 볼 카드·전체)이 각자 훅을 불러도 같은 표기는 캐시로 1번만 요청된다.
+
+#### 15-11-4. 복습 — 칩 · 항목 카드 · 종료 표현 칩 (`#r-*`, 서브태스크 C)
+
+| 화면(데모) | 파일 · 현재 | 제안 |
+|---|---|---|
+| 오늘 홈 복습 카드 [자세히] `#r-home` · 복습 수업 만들기 `#r-gen` | `review/TeacherWhy.tsx` `ReviewChips`(36~50행) — 칩 `h-8` 15px 한 줄 `truncate` | **R1-A**: `ReviewChips` 가 `useAnnotations(chips.map(c => c.textJa))` 한 번. 칩 `li` = `inline-flex min-h-8 max-w-full min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-[10px] px-2.5 py-1 text-[15px] {bg}` · 집중 점(`FocusDot`)은 `self-center` 감싸기 · 일본어 `JaText as="span" className="min-w-0 [overflow-wrap:anywhere]" leading={2.1}`(15px, **`truncate` 없앰** — 길면 칩 안에서 줄바꿈) + `HangulLine state inline size={12}`. "외 N개" 칩은 `h-8` 그대로. `ReviewGenItems.tsx` 는 `ReviewChips` 를 쓰므로 수정 없음 |
+| 홈 카드 근거 문장 「」 | `JaQuoted` | 그대로(달지 않음) — `[자세히]` 닫힘이면 칩이 없어 요청도 0(펼칠 때 한 묶음) |
+| 복습 종료 "다음 복습" 묶음 칩 `#r-end` | `review/NextReviewCard.tsx` 70~79행 — 15px `<span lang="ja">` | **R1-A**: 카드가 모든 묶음의 `found` 문장을 모아 `useAnnotations` 한 번 → `<span lang="ja">` 를 `JaText as="span" className="min-w-0 text-[15px] [overflow-wrap:anywhere]" leading={2.1}` + `HangulLine inline size={12}` 로. `li` 클래스·`FocusBadge small`·"외 N개" 그대로 |
+| 복습 수업 ① "이번 복습 항목" `#r-items` | `review/ReviewItemsCard.tsx` `ReviewItemRow`(22~29행) — 17px leading 1.5 | 카드가 `useAnnotations(sorted.map(x => x.textJa))` 한 번(접힘이어도 요청 — 목록이 `hidden` 으로 DOM 에 있음). 일본어 자리 = `<span className="min-w-0">` 안에 `JaText as="span" className="block text-[17px] leading-[1.5] [overflow-wrap:anywhere]" leading={2.1}` + `HangulLine as="span" size={13}`. 종류 뱃지 위 여백 `mt-[5px]` → 루비 줄간격을 예약할 때(`showFurigana && hasKanji(textJa)` 이고 분석 loading·ready) **`mt-2`(8px)**. 뜻 14·기록 줄 12·집중 뱃지·접기 그대로. 파일 머리 주석의 "읽기 줄은 없다(Leader ③)"는 "읽기 줄 대신 히라가나·한글 층(task-033)"으로 고친다 |
+| 복습 종료 "말하기에서 쓴 표현"·"다음엔 이 표현도" `#r-end` (S1-A) | `lesson/LessonEnd.tsx` 110~125행 `ExprChip`(층 없음) | `LessonEnd` 가 `useAnnotations([...used, ...missed].map(t => t.ja))` 한 번 → `<ExprChip … ann={…} />`(`ExprChip` 은 이미 `ann` 을 받는다 — 16px·줄간격 2.1·`[한글]` 12 인라인, §15-1 B 표현 칩). ✓ 꼬리·`tone="good"` 그대로. **일반 수업 종료 화면에도 같이 적용된다** |
+| 복습 종료 머리 일본어 제목(`content.title`, 90행)·근거 상자 「」 | — | 달지 않음(머리줄·026 규칙 F) |
+
+- 오늘 홈·복습 만들기·종료 화면에는 도구 줄이 없다 — 앱 설정을 따른다(표현 점검 화면과 같음). ① 이해 도구 줄 [히라가나][한글][번역](026 `StageUnderstand`)이 바로 아래에 있어 항목 카드도 그 값으로 바뀐다(파일 수정 없음).
+- 복습 수업 ①~⑤ 문항 본문은 026 에서 이미 적용(같은 단계 컴포넌트) — 바뀌지 않음, ③ 읽기 문제 보호(§15-9 ②)도 그대로.
+- 칩 높이 데모 실측: 히라가나 켬 약 40px, 길면 2줄(`[자세히]` 펼친 상태에서만).
+
+#### 15-11-5. AI 평가 — 결과 (`#e-result-w`·`#e-result-t`, 서브태스크 A)
+
+`eval/EvalResult.tsx` — 제출·채점 뒤라 **보호 없음**(키를 쓰지 않음), 앱 설정을 그대로 따른다. 도구 줄 없음. **번역 층 없음**. 공통 일본어 클래스 `JA`(27행, 17 · leading 1.7 · `whitespace-pre-wrap`)를 쓰는 블록은 `JaText`(클래스 그대로, 루비 줄간격 **2.1**) + `HangulLine size={13}`.
+
+| 자리(현재 행) | 제안 |
+|---|---|
+| 들려준 말(179~181행 `textJa`) | `JaText` + `[한글]` 13 · [다시 듣기] 그대로 |
+| 틀린 곳 찾기 "문장"(197~199행) | `JaText` + `[한글]` 13 |
+| 내 답 — 용법(46~50행 `BlankSentence fill`) | `filledRange(sentenceJa, answerText)` → 채운 문장 한 블록 `JaText ranges=[{ 채운 말 범위, className: 'font-semibold underline decoration-2 underline-offset-[5px]' }]` + 채운 문장 전체 `[한글]` 13(빈칸 없음) |
+| 내 답 — 읽기 쓰기(52~56행) · 정답 — 읽기(110~114행 `expected.reading`) | 가나만이라 히라가나 없음 · `[한글]` 13만 — 내가 쓴 읽기와 정답 소리 차이가 보임 |
+| 내 답 — 조립(58~63행, 조각을 띄어 이은 문장) · 정답 — 조립(116~119행 `expected.order`) | 화면에 보이는 띄어 쓴 문자열 그대로 `JaText` + `[한글]` 13 |
+| 내 답 — 듣고 답하기·상황 응답(84~91행) | `JaText` + `[한글]` 13 · "말로 답함/글로 답함" 줄 그대로 |
+| 내 답 — 틀린 곳 찾기(조각 모드 66~76행 "고른 곳 · …" + 이유 글) | **달지 않음**(한국어 섞인 답 — 데모 `#e-result-t` 6번 "내 답" 상자) · 옛 문항(77~81행 자유 입력)도 한국어 이유가 섞일 수 있어 달지 않음(★ §15-11-7 ⓓ) |
+| 정답 — 용법(103~108행) | 내 답과 같은 방식, 밑줄 `decoration-good` |
+| 정답 — 고친 곳(127~139행 취소선·밑줄 한 줄) | `fixLineRanges(sentence, wrongSpan, correctedJa)` → 보이는 한 줄(앞 + 틀린 말 + `' '` + 고친 말 + 뒤)을 한 블록으로 분석해 `JaText ranges=[{틀린 말, 'line-through decoration-bad decoration-2'}, {고친 말, 'underline decoration-good decoration-2 underline-offset-[5px]'}]`(경계가 한자 묶음을 자르면 그 묶음만 히라가나 없음) · `[한글]` = **고친 문장(`expected.correctedJa`) 한 블록의 분석**(취소선 글자 소리 섞지 않음 — 교정 카드와 같은 원칙). 고친 말을 못 찾은 경우(140~144행 `correctedJa` 따로 한 줄)는 그 줄에 `JaText` + `[한글]` 13 · 설명(`explanationKo`) 그대로 |
+| 정답 — 모범 답(152~154행) | `JaText` + `[한글]` 13 · **모범 답 아래 읽기 14px 줄(155~159행 `modelReading`) 삭제**(026 D2-B) · "이런 뜻이면 돼요" 그대로 |
+| 정답 — 뜻 고르기·조각 분류(한국어) | 그대로 |
+| 문항 줄 제목(244~260행 `· 注文`) · 선생님 한마디·피드백·다음에 집중할 것·영역별 점수 | 달지 않음(요약 줄·한국어 문장 속 「」) |
+
+- 요청: `EvalResult` 마운트 때 `collectEvalTexts(items, { done: true })` 로 `useAnnotations` 한 번(캐시 데우기) — 문항을 펼칠 때 막대 없이 바로. 각 상세는 자기 문장을 다시 받는다(캐시 적중).
+- 문항 펼침·접힘·[평가 기록][오늘로]·레벨 제안 카드 그대로.
+
+#### 15-11-6. 생성/수정 파일 · 서브태스크 경계 · 구현 순서
+
+공용 부품(`common/japanese/**`)·서버·`modules/**`·`api/**`·prisma 수정 0. 세 서브태스크는 서로 파일이 겹치지 않아 순서 무관(병렬 가능). 각 서브태스크 끝에 `npm run lint`·typecheck·관련 테스트.
+
+| 서브태스크 | 파일(≤15) | 순서 |
+|---|---|---|
+| **A 평가**(6) | 1 `eval/displayGuard.ts`(신규) · 2 `eval/__tests__/displayGuard.test.ts`(신규) · 3 `eval/EvalItems.tsx` · 4 `eval/EvalRunner.tsx` · 5 `eval/EvalResult.tsx` · 6 `eval/evalCopy.ts`(★ 문구 1개) | ① 1·2(키 어간·히트 여러 개·겹친 조각 읽기 null·loading 예약·`blankParts` 없음/있음·조각 경계가 한자 묶음 가를 때·`fixLineRanges` 고친 말 없음·`collectEvalTexts` 가 P1 단어·숨긴 듣기 문장을 넣지 않음) → ② 4(키·도구 줄·캐시 데우기) → ③ 3(문항별 표 §15-11-2 B) → ④ 5(결과) → ⑤ 360/390/412 |
+| **B 카드·결과**(3) | 1 `vocab/VocabDeck.tsx` · 2 `vocab/VocabCardFace.tsx` · 3 `vocab/WordResultList.tsx` | ① 1(덱 훅·props) → ② 2(뒷면 층 → C2 측정) → ③ 3 → ④ `#c-long` 360×780 뺌 확인 |
+| **C 복습**(4) | 1 `lesson/review/TeacherWhy.tsx`(`ReviewChips`) · 2 `lesson/review/NextReviewCard.tsx` · 3 `lesson/review/ReviewItemsCard.tsx` · 4 `lesson/LessonEnd.tsx` | ① 1 → ② 2·4(같은 종료 화면 — 함께 확인) → ③ 3 |
+
+- 데모 게이트 `approved`(v1) — 화면 파일 수정 가능. 기존 테스트(`lesson/__tests__/display.test.ts`·`common/__tests__/japaneseDisplay.test.ts`·`eval/__tests__/evalLogic.test.ts`) 회귀 0.
+- 화면 코드에 `kanaToHangul`·`pronLine` 호출 0(§15-2 D, Reviewer grep) · `modelReading`·`prompt.reading` 을 **화면 글자로 그리는 곳 0**(루비 정렬 입력으로만).
+
+#### 15-11-7. 데모와 다른 점 · Leader 확인 요청
+
+| # | 데모 v1 | 가이드 | 이유 |
+|---|---|---|---|
+| ⓐ | 교차 보호 = 읽기 쓰기 **표기 전체**가 들어 있으면 | 표기의 **마지막 한자까지(어간)** 가 들어 있으면 · 가나 단어는 키 없음 | 활용형(`食べる` 문항 + `食べました` 보기)에서 `食` 위 히라가나가 정답 일부를 흘린다. 더 숨기는 쪽이라 정답 노출 0 원칙 강화 — 평소 문항엔 영향 없음 |
+| ⓑ | 문항 넘길 때 요청 시점 미정 | 푸는 화면·결과 화면 마운트 때 한 묶음으로 캐시 데우기 | 문항마다 막대가 다시 뜨지 않게(§15-2 B 묶기) |
+| ⓒ | 조립 결과 내 답·정답 미표시(접힌 행) | 띄어 쓴 조각 문장 그대로 층 | 결과 화면 "내 답·정답 = 히라가나 + [한글]" 규칙을 같은 문자열에 |
+| ⓓ | 옛 틀린 곳 찾기(조각 없음) 결과 미표시 | 내 답은 층 없음 · 문장·고친 줄은 층 | 내 답에 한국어 이유가 섞여 분석 소리가 어색함("애매하면 숨김") |
+| ⓔ | 고친 곳 줄 = 조각별 그림 | 보이는 한 줄을 한 번 분석 + 범위 겹치기 | 공용 `JaText ranges` 경로 하나로(026 교정 diff 와 같은 방식) |
+| ⓕ | 칩(R1-A)이 두 층 끔일 때 모양 미표시 | 두 층 끔이어도 `truncate` 없이 줄바꿈(높이 32 유지 — `min-h-8`) | 같은 칩이 설정에 따라 말줄임/줄바꿈으로 바뀌지 않게 |
+
+**Leader 확인 요청**: ① ⓐ 어간 키(권고: 이대로 — 사용자 승인 원칙 "정답 노출 0" 안의 구현 정밀화) · ② 평가 "내가 한 말" 상자 `aria-hidden` 은 현행 유지(데모 a11y Minor 1 — 층과 무관, 바꾸려면 별도 IMP).
+
+#### 15-11-8. QA 체크리스트 — 360 / 390 / 412 × 높이 780 / 892 (데모 v1 "폭"·"높이"·"보기 › 현재 vs 제안"과 나란히)
+
+모든 항목을 표시 (히라가나·한글) = (켬·켬)·(끔·끔)·(켬·끔)·(끔·켬) 중 최소 (켬·켬)·(끔·끔) + 번역 켬에서. 분석 지연(네트워크 느리게)·분석 장애(#24r `available:false` 또는 429) 각 1회.
+
+1. **정답 노출 0(제출 전)** — 화면·스크린리더 모두, 네트워크는 아래 예외 1건 외 모두:
+   - ★ 알려진 한계(QA I-1, Leader 수용 2026-10-05): 교차 보호 대상 문장(읽기 쓰기 단어가 든 다른 문항의 블록)은 그 블록의 다른 한자 층을 위해 읽기 분석 요청에 포함되고, 응답에 그 단어 읽기가 들어 있다(화면 층 0). 서버가 보호 키를 받아 응답에서 비우는 방식은 후속 후보.
+   - 읽기 쓰기 문항 단어 위·아래 히라가나·`[한글]` 0(설정 4조합 전부), 안내 ★ 문구 원문 일치 · 둘 다 끔이면 안내 없음.
+   - 같은 평가에 읽기 쓰기 단어(예 `注文`·`片付ける`)가 다른 문항(뜻 고르기 단어 상자·용법 빈칸 문장·용법 보기·조각 분류)에 나오면: 그 한자 위 히라가나 0 · 그 블록 `[한글]` 0 · 같은 블록의 다른 한자 히라가나는 보임. 활용형(`片付けました`)도 보호.
+   - 듣고 답하기: [글자로 보기] 전 문장·히라가나·한글 0(막대만) · 누른 뒤 층 보임.
+   - 문장 조립: 조각 `[한글]` 0 · 만든 문장 전체 소리 줄 0 · 조각 히라가나만.
+   - 용법 빈칸 문장 `[한글]` 0.
+   - 평가 화면(푸는 중·결과) 어디에도 번역 0(번역 켬이어도).
+   - 결과 화면에서는 위 보호가 모두 풀려 내 답·정답·모범 답·들려준 말·문장에 층 보임.
+2. **도구 줄(E2-A)**: 문항 카드 바로 위·시간 초과 띠 아래 · [히라가나][한글] 2개(번역 없음) · 알약 32 · **유효 터치 ≥44px**(실측 44 — QA L-1 정정) · 누르면 즉시 층 반영 + 토스트 문구(§15-5) · 회화방·수업·단어장 도구 줄·설정 스위치와 같은 값 · 780 높이 뜻 고르기에서 보기 4개가 첫 화면 안.
+3. **층 크기**: 단어 상자 rt 13·루비 줄간격 1.8·`[한글]` 14 · 일본어 보기 17/2.1/12.5(보기 높이 ≈80) · 내가 한 말·글자로 본 문장·결과 칸 17/2.1/13 · 조립 조각 17/2.1 높이 44 그대로 · 틀린 곳 조각 18/2.1 높이 44 + 아래 문장 `[한글]` 13 · 카드 뒷면 표제어 22/rt 11/줄간격 2 + `[한글]` 13 · 예문 16/2.15 + `[한글]` 13 1줄 · 결과 목록 17/1.95 + 12.5(행 ≈80) · 복습 칩 15/2.1 + 12 인라인 · 항목 카드 17/2.1 + 13 · 표현 칩 16/2.1 + 12.
+4. **지운 요소**: 평가 단어 상자 읽기 15px 줄 0 · 모범 답 아래 읽기 14px 줄 0 · 카드 뒷면 옆 읽기 칸 0 · 세트 결과 목록 옆 읽기 0.
+5. **C1-A**: 앱 히라가나 끔 → 카드 뒷면 표제어 히라가나 **보임**(앞면은 카드 [あ 읽기] 규칙 그대로) · 앱 한글 끔 → 뒷면 `[한글]` 0 · 카드 [읽기] 끔이어도 뒷면 `[한글]`(한글 켬이면) 보임.
+6. **C2-A**: `#c-long` 조건(데모 값 = 뜻 2줄·긴 예문) 360×780 에서 예문 `[한글]` 만 빠지고 번역 줄 잘림 0 · 그 밖 폭·높이에서 예문 `[한글]` 1줄 말줄임 보임 · 모든 조합 카드 안 잘림 0 · **카드를 끄는 동안(드래그) 측정 호출 0**(Performance 기록에서 레이아웃 강제 0 · 프레임 저하 없음) · 다음 카드로 넘어가면 다시 판정 · **2단계(§15-11-3 B6)**: 뜻 3줄 꽉 + 예문 2줄 + 번역 카드(CHOICE·FLIP) × 360/390/412 × 780 → 예문·표제어 `[한글]` 둘 다 빠지고 번역 잘림 0 · 표제어 히라가나 보임 · 같은 카드 892 에서는 예문 `[한글]` 만 빠지거나 안 빠짐(표제어 `[한글]` 보임).
+7. **분석 상태**: 기다리는 중 = 줄간격 예약 + 막대(단어 상자·카드 표제어는 히라가나 먼저) · 채워질 때 높이 변화 ≤4px · 장애 = 히라가나 없이 본문(저장 읽기 루비는 보임)·`[한글]` 0·오류 문구 0·옛 읽기 줄 되살아남 0 · 장애 중 요청 폭주 0(§15-6 19).
+8. **요청량**: 평가 푸는 화면 입장 #24r ≤2회, 문항 이동 재요청 0 · 결과 화면 입장 ≤2회 · 홈 복습 카드 `[자세히]` 닫힘이면 0 · 세트 결과 세 목록 같은 표기 중복 요청 0 · 두 층 끔이면 0.
+9. **잘림·넘침**: 18화면 × 3폭 × 2높이 가로 넘침 0 · `truncate` 표제어(카드 뒷면·결과 목록) rt 윗부분 잘림 0 · 긴 칩 줄바꿈 정상 · 보기 버튼·조각 버튼 글자 잘림 0.
+10. **터치 44px**: 도구 줄 토글 · 조립 조각 · 틀린 곳 조각 · 일본어 보기 · 결과 행 · 결과 목록 행(≥56) · [다시 듣기] — 층이 붙어도 히트 영역 줄지 않음.
+11. **접근성**: 스크린리더가 rt 를 읽지 않고 "한글 발음: …" 을 읽음 · 보기 버튼 이름 = 일본어 + "한글 발음: …"(순서 유지) · 조각 버튼 `aria-label` 은 원문 그대로 · 토글 `aria-pressed` + ✓ · 포커스 링 · 다크 테마 명암비(`ink2` on `surface`·`surface2`·`accent-soft`·`good-soft`) ≥4.5 · `prefers-reduced-motion` 막대 멈춤.
+12. **복사·저장**: 결과·카드·칩 길게 눌러 복사 → 히라가나·한글 섞이지 않음 · 평가 답 저장(#67) 본문에 층 글자 0(`answerText` 는 입력·원문 그대로).
+13. **회귀**: 카드 앞면·회화방·채팅·수업 ①~⑤·단어장·설정 화면 변화 0 · 일반 수업 종료 표현 칩에 층(S1-A — 의도된 변경) · 평가 타이머·저장·제출 흐름 변화 0.
+14. **엔진명 0**: 화면·응답·콘솔에 분석기·엔진 이름 0 · 화면 글자 '후리가나' 0.
