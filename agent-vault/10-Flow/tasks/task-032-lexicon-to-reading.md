@@ -1,7 +1,7 @@
 ---
 task_id: task-032
 title: "관리자 발음 사전을 읽기 분석기(히라가나·한글 표시)에도 반영 — 青か·愚か·密か 오분절"
-status: doing
+status: done
 base_ref: 26b6322
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -301,7 +301,34 @@ gateway·어댑터·서버 읽기 캐시·응답 모양은 그대로 두고, `an
 - **육안 확인 필요(실기기)**: 해당 없음(화면 무변경·네이티브 무변경, 웹 배포만). 배포 인계 시 `post_deploy_checks`: `/api/health` status=ok, 360/390/412 채팅방 후리가나·한글 줄 확인, 관리자 사전에 青か 추가→읽기 반영은 PRODUCTION 은 SUPER_ADMIN confirm 후 사용자 몫.
 - **산출물 정리**: /tmp/qa-artifacts/TheKaiwa/task-032 삭제(스크린샷·로그·쿠키 4개 shred). **프로세스 정리**: dev 3024·gateway 8198 종료·포트 비움(`ss -ltn` 확인), 미러 `.env` 사본 shred, 운영 3010·8100 은 그대로 리슨. 추가 파일: `tests/live/task032-qa.ts`·`task032-qa2.ts`·`task032-ui.mjs`(미커밋).
 
-## 최종 요약
+## Deployer 기록
+
+- **배포 실행 (2026-10-05 00:50~05:39, 표준 배포 경로)**: `scripts/deploy.sh TheKaiwa --yes`
+  - Pre-deploy: git status 청결(ahead 0) ✅ · branch main ✅ · sync-local ✅ · dry-run 계획 확인 ✅
+  - 배포 결과: RELEASE_RESULT `{"status":"ok","release":"20261005-005038-2a90f567","sha":"2a90f567dcb13ffd6cb5dec44b3ad1e16893e93d","previous":"…20261005-005001-2a90f567","migrated":false}` ✅
+  - 앱 3개 reload 완료 (thekaiwa·thekaiwa-speech-gateway·thekaiwa-speech-worker) ✅
+  
+- **Post-deploy checks**:
+  1. `/api/health` (운영 127.0.0.1:3010): **env=PRODUCTION · status=ok · degraded=[] · checks.db/env_*/llm/stt_gateway/stt_analysis*/tts 모두 true** ✅
+  2. Task006 스모크 (단어·채팅·회화): **42/42 PASS** ✅ (p50=4743ms)
+  3. Task007 스모크 (AI평가·음성·발화): **45/45 PASS** ✅
+  
+- **배포 영향**: 웹(app 서버) 변경만. DB 스키마·음성 gateway·M4 tts·네이티브 변경 없음. `--with-migrate` 미사용 · APK 불필요 ✅
+
+## 최종 요약 (Leader, 2026-10-05 01:00)
+
+**무엇이 바뀌었나** — 관리자 발음 사전(지금까지 TTS 전용)이 화면의 히라가나·한글 읽기 줄에도 적용됩니다.
+- 분석기가 잘못 나누던 `青か`·`愚か`·`密か` 같은 표현을 사전 항목으로 고칠 수 있습니다(`赤か青か` → 아까까 아오까).
+- 적용 범위는 전체(GLOBAL) + 본인(USER) 사전(사용자 결정). 다른 사람 사전은 섞이지 않습니다.
+- 사전과 읽기가 충돌하는 활용형(`上手`=じょうず vs `上手い`)은 그 부분 읽기 줄을 숨깁니다(사용자 결정, "틀린 것보다 없음").
+- 사전을 끄거나 롤백하면 다음 요청부터 원래 읽기로 돌아옵니다(다른 서버 프로세스는 최대 30초).
+- 음성 gateway·DB·화면 코드는 바꾸지 않았습니다.
+
+**검증 경로** — judge intake(feature·R1·standard·opus·데모 없음) → 설계(developer, 안 (a) 앱 후처리, 2,389문장 실험) → 사용자 결정 2건 → judge C1(Codex 불필요) → 구현(opus) → **REV-103 PASS_WITH_NOTES**(Low 5) → judge C2(Codex 원했으나 한도 값 미갱신으로 보류 `CX-limit-unknown-hold`) → **QA PASS(결함 0, 8항목 실행·3폭 화면 확인)** → 배포. 정본 3곳(api-contract #24r · speech-platform/16 §2.4a · module-dependency) Leader 갱신.
+
+**배포** — 코드 `afde949`·문서 `2a90f56`, 릴리스 `20261005-005038-2a90f567`(웹훅·수동 같은 sha 2회, `RELEASE_RESULT ok`), health ok·PRODUCTION, 운영 스모크 **채팅 42/42 · 회화 45/45**. 웹 배포만 — 앱 재설치 불필요.
+
+**남은 것(비차단)** — REV-103 L-1 사전 저장 직후 진행 중 조회가 옛 사전으로 캐시를 다시 채울 수 있음(최대 30초)·DB 장애 시 직전 사전 무기한 유지 / L-2 조사 문자 그대로 적은 항목(それは=ソレハ) 관례 / L-3 긴 항목 루비 분할 첫 후보 / L-4 사전 수천 항목 시 색인 재구성 비용 / QA O-1·O-2 사전 DB 지연 시 1.001초 경계. LOCAL 사전에 QA 비활성 항목 5개·버전 v20 남음(읽기 영향 없음). 범위 밖: TTS 가 `明日` 항목 때문에 `明日香` → アシタ香 로 읽음(후속 후보). Codex 한도 값(`/status`) 미갱신 — 사용자가 알려 주면 `set-limit` 기록.
 
 ## 데모 검토 (demo gate)
 
