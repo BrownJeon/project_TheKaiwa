@@ -1,12 +1,13 @@
 import { mock, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ApiError } from '@/modules/infra'
+import { runJsonWithRetry } from '../../engine/json/schemaValidate'
 import { parseTurnBody } from '../chats/validate'
 import { earlySentenceProblem } from '../orchestrator/earlyFilter'
 import { splitForSpeech, StreamingSentenceSplitter } from '../orchestrator/sentences'
 import { TurnAudio, type TurnSpeaker, type TurnSpeechRequest, type TurnSpeechResult } from '../orchestrator/turnAudio'
 import type { TurnEvent } from '../orchestrator/stream'
-import { TALK_SCHEMA } from '../structuredResponse/schemas'
+import { TALK_SCHEMA, type SpeechStyle } from '../structuredResponse/schemas'
 import { startTurn, turnDeps } from '../orchestrator'
 import { currentTurnLock } from '../orchestrator/locks'
 
@@ -495,4 +496,58 @@ test('task-036 / REV-109 T-B: 구문 슬립 → 재시도 replyJa 가 1차와 �
   assert.equal(h.events.length, n, '합성 중이던 청크 1·2 가 뒤에 끝나도 이벤트 0')
   assert.equal(h.calls.length, 3, '그 뒤에도 청크 3 은 합성되지 않는다')
   assert.equal(h.audio.metrics().audioCount, 1)
+})
+
+// ── task-037: 구문 슬립을 요청 옵트인(repairRootClose)으로 고치면 재시도가 없다 ─────────────────────────────
+// 위 T-A·T-B 는 슬립 → 재시도(call 2)를 본다. 여기서는 같은 슬립을 **실제 `runJsonWithRetry`(TALK 이 타는 soft 경로)** 에 흘려
+// 옵션 on 이면 LLM 호출 1회로 끝나고 조기 음성이 그대로 최종 답의 음성이 됨(earlyStop 이 RETRY 가 아님)을, off 면 지금처럼 재시도(RETRY)임을 대조한다.
+
+test('task-037: 구문 슬립 + repairRootClose → LLM 1회·earlyStop 이 RETRY 가 아니고 조기 음성이 최종 답의 음성 / 옵션 off 는 재시도(RETRY)', async (t) => {
+  t.after(() => mock.restoreAll())
+  mock.method(console, 'warn', () => {})
+  const REPLY = 'そうですか！どんな映画でしたか？'
+  type Out = { conversation: { replyJa: string }; speech: { style: SpeechStyle } }
+  // 재시도 응답은 스키마를 통과하는 완전한 문서여야 한다(위 `doc()` 은 조기 경로용 부분 문서).
+  const fullDoc = (replyJa: string) =>
+    JSON.stringify({ speech: { style: 'ENCOURAGING' }, conversation: { replyJa, replyKo: '그렇군요.' }, correction: null, learning: { grammarPoint: null, difficulty: 'N5' }, endOfTopic: false, proposals: [], userKo: '어제 영화를 봤어요.' })
+
+  const run = async (repairRootClose: boolean) => {
+    const h = harness(async (req) => okResult(req))
+    let llmCalls = 0
+    const r = await runJsonWithRetry<Out>(
+      async () => {
+        const call = ++llmCalls // 스트림으로 흘린 조각 = 그 호출의 응답(첫 호출은 슬립, 재시도는 정상 문서)
+        const raw = call === 1 ? slipRaw(REPLY) : fullDoc(REPLY)
+        h.feed(raw, call, 7)
+        return raw
+      },
+      { schema: TALK_SCHEMA, softExtraCheck: true, repairRootClose },
+    )
+    await sleep(10)
+    return { h, r, llmCalls }
+  }
+
+  // 옵션 on(TALK·CHAT 요청이 켜는 값)
+  const on = await run(true)
+  assert.equal(on.llmCalls, 1, 'LLM 호출은 1회뿐 — 재시도 없음')
+  assert.equal(on.r.attempts, 1)
+  assert.equal(on.r.repaired, 'ROOT_CLOSE')
+  assert.equal(on.r.data.conversation.replyJa, REPLY)
+  assert.equal(on.h.audio.metrics().earlyStop, null, '첫 호출의 조기 경로가 닫히지 않는다(call 2 가 오지 않으므로 RETRY 가 아님)')
+  assert.equal(on.h.audios().length, 2, '조기 오디오 2개가 finalize 전에 나가 있다')
+  const mark = on.h.events.length
+  on.h.audio.finalize(on.r.data.conversation.replyJa, on.r.data.speech.style)
+  await on.h.audio.settled()
+  assert.deepEqual(on.h.warnings(), [], '최종 replyJa 가 이미 나간 문장과 같다 → AUDIO_TEXT_MISMATCH 없음')
+  assert.equal(on.h.events.length, mark, 'finalize 뒤 새 이벤트 0 — 이미 나간 오디오가 그대로 최종 답의 음성')
+  assert.equal(on.h.calls.length, 2, '추가 합성 0')
+  const m = on.h.audio.metrics()
+  assert.ok(!m.mismatch && m.audioCount === 2 && m.earlyStop === null, JSON.stringify(m))
+
+  // 옵션 off(기본) — 지금 동작: 파싱 실패 → 재시도, 조기 경로는 call 2 에서 RETRY 로 닫힌다
+  const off = await run(false)
+  assert.equal(off.llmCalls, 2)
+  assert.equal(off.r.attempts, 2)
+  assert.ok(!('repaired' in off.r), '옵션 off 결과에는 repaired 키가 없다')
+  assert.equal(off.h.audio.metrics().earlyStop, 'RETRY')
 })

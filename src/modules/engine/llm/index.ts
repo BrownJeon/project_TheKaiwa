@@ -12,7 +12,7 @@
  */
 import { callClaudeDetailed, prewarmClaude, type ClaudeCliOptions, type PrewarmOutcome, type WarmUse } from '../adapters/llm/claudeCli'
 import { HomeM4ApiCaller, LlmContractError, LlmMisconfiguredError, LlmTimeoutError, prepareHomeM4Call, type LlmMessage } from '../adapters/llm/homeM4'
-import { extractAndValidate, runJsonWithRetry, withJsonOnly, type JsonAttemptInfo, type RunJsonResult } from '../json/schemaValidate'
+import { extractAndValidate, runJsonWithRetry, withJsonOnly, type JsonAttemptInfo, type JsonRepair, type RunJsonResult } from '../json/schemaValidate'
 import { adapterRetryOptions, LLM_TASKS, resolveCandidates, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
 
 export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, LlmMisconfiguredError, toUserMessage } from '../adapters/llm/homeM4'
@@ -78,6 +78,12 @@ export interface LlmJsonRequest<T> extends LlmRequest {
    * 불변, 이름이 바뀐 필수 필드는 그대로 위반 → 재시도, 로그는 키 경로만). 기본 false — 켜는 곳은 A4 LESSON 하나(task-019).
    */
   stripAdditionalProperties?: boolean
+  /**
+   * true 면 응답이 루트 객체를 한 칸 일찍 닫는 구문 슬립(`…"proposals":[]},"userKo":"…"}`)일 때 `extractJson` 이 실패한 **그 응답에 한해** 닫는 `}`
+   * 하나를 지워 읽는다(`json/repairRootClose` — 좁고 결정적). 고친 객체도 ajv·`extraCheck` 를 그대로 통과해야 하고, 통과하면 재시도 없이 끝난다.
+   * 기본 false — 켜는 곳은 TALK·CHAT 요청 둘뿐(task-037). 복구가 쓰이면 결과의 `repaired` 에 `'ROOT_CLOSE'` 가 실린다.
+   */
+  repairRootClose?: boolean
 }
 
 export interface LlmMeta {
@@ -102,6 +108,8 @@ export interface LlmJsonResult<T> extends LlmMeta {
   residualViolations?: string[]
   /** softExtraCheck 요청에서만: 스키마를 통과한 시도들의 데이터(시도 순서). */
   candidates?: T[]
+  /** `data` 가 구문 슬립 복구를 거친 응답에서 나왔을 때만(없으면 키 자체가 없다) — 호출자가 Trace 에 남겨 슬립 빈도를 센다. */
+  repaired?: JsonRepair
 }
 
 function modelFor(c: ResolvedConnection, tier: LlmTier): string {
@@ -285,13 +293,14 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
         if (call === 1) first = { warm: out.warm, firstDeltaMs: out.firstDeltaAt === null ? null : out.firstDeltaAt - startedAt }
         return out.text
       },
-      { schema: req.jsonSchema, extraCheck, softExtraCheck: req.softExtraCheck === true, stripAdditionalProperties: req.stripAdditionalProperties === true },
+      { schema: req.jsonSchema, extraCheck, softExtraCheck: req.softExtraCheck === true, stripAdditionalProperties: req.stripAdditionalProperties === true, repairRootClose: req.repairRootClose === true },
     )
     return result
   })
   return {
     data: value.data,
     attempts: value.attempts,
+    ...(value.repaired ? { repaired: value.repaired } : {}),
     ...(req.softExtraCheck ? { residualViolations: value.residualViolations ?? [], candidates: value.candidates ?? [value.data] } : {}),
     ...meta,
     warm: (first as { warm: WarmUse | null } | null)?.warm ?? null,

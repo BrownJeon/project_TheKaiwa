@@ -544,6 +544,8 @@ async function processTurn(p: ProcessInput): Promise<void> {
       connection: r.connectionKey,
       model: r.model,
       attempts: r.attempts ?? 1,
+      // task-037 — 구문 슬립을 복구해 받은 턴만 표식(`ROOT_CLOSE`)이 붙는다. 재시도율로는 슬립 빈도를 못 보므로 W1 이 이 키로 센다.
+      ...(r.repaired ? { repaired: r.repaired } : {}),
       promptChars: r.promptChars,
       residualViolations: r.residualViolations?.length ?? 0,
       warm: r.warm ?? null,

@@ -45,6 +45,8 @@ export function buildChatRequest(input: ChatInput): LlmJsonRequest<TutorResponse
     system,
     messages: [...window, { role: 'user', content: input.text }],
     jsonSchema: CHAT_SCHEMA,
+    // task-037 — TALK 과 같은 루트 조기 닫힘 구문 슬립 복구(요청 단위 옵트인, 설명은 `buildTalkRequest`).
+    repairRootClose: true,
     extraCheck: (data) => checkChatResponse(input.text, data),
   }
 }

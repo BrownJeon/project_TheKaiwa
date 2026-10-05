@@ -12,6 +12,7 @@
 import Ajv, { type ErrorObject } from 'ajv'
 
 import { extractJson } from './extractJson'
+import { repairRootClose } from './repairRootClose'
 import { chatMessages, LlmError, type LlmCallOptions, type LlmMessage } from '../adapters/llm/homeM4'
 
 const ajv = new Ajv({ allErrors: true, strict: false })
@@ -247,8 +248,11 @@ export function validateOutput(data: unknown, schema: object): ValidateResult {
   return { ok: true }
 }
 
+/** `repaired` — 이 결과가 `repairRootClose` 로 구문 슬립을 고친 응답에서 나왔다(옵트인 요청에서만, 정상 응답에는 키 자체가 없다). */
+export type JsonRepair = 'ROOT_CLOSE'
+
 export type AnalyzeResult =
-  | { ok: true; data: unknown }
+  | { ok: true; data: unknown; repaired?: JsonRepair }
   | { ok: false; parseError: true }
   | { ok: false; parseError: false; violations: string[] }
 
@@ -259,14 +263,36 @@ export type AnalyzeResult =
 export interface ExtractOptions {
   /** true 면 파싱 직후·ajv 전에 스키마 밖 키를 지운다(위 "스키마 밖 필드 제거" 절). 기본 false. */
   stripAdditionalProperties?: boolean
+  /**
+   * true 면 `extractJson` 이 **실패했을 때만** `repairRootClose`(루트를 한 칸 일찍 닫는 구문 슬립의 좁은 복구 — task-037)를 시도하고,
+   * 복구한 객체도 같은 ajv·extraCheck 를 통과해야 한다. `extractJson` 이 성공하는 응답은 이 옵션과 무관하게 결과가 같다.
+   * 기본 false — 켜는 곳은 TALK·CHAT 요청 둘뿐(`buildTalkRequest`·`buildChatRequest`).
+   */
+  repairRootClose?: boolean
+}
+
+/** 복구 문자열을 객체로 읽는다. 읽히지 않으면(또는 객체가 아니면) undefined — 호출자는 원래의 parseError 경로를 그대로 탄다. */
+function parseRepaired(raw: string): Record<string, unknown> | undefined {
+  const fixed = repairRootClose(raw)
+  if (fixed === null) return undefined
+  try {
+    const parsed: unknown = JSON.parse(fixed)
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function extractAndValidate(raw: string, schema: object, opts: ExtractOptions = {}): AnalyzeResult {
   let parsed: unknown
+  let repaired: JsonRepair | undefined
   try {
     parsed = extractJson(raw)
   } catch {
-    return { ok: false, parseError: true }
+    const fixed = opts.repairRootClose ? parseRepaired(raw) : undefined
+    if (!fixed) return { ok: false, parseError: true }
+    parsed = fixed
+    repaired = 'ROOT_CLOSE'
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { ok: false, parseError: true }
@@ -279,7 +305,7 @@ export function extractAndValidate(raw: string, schema: object, opts: ExtractOpt
   }
 
   const result = validateOutput(parsed, schema)
-  if (result.ok) return { ok: true, data: parsed }
+  if (result.ok) return repaired ? { ok: true, data: parsed, repaired } : { ok: true, data: parsed }
   return { ok: false, parseError: false, violations: result.violations }
 }
 
@@ -357,6 +383,11 @@ export interface RunJsonOptions {
   softExtraCheck?: boolean
   /** true 면 매 시도의 파싱 직후·ajv 전에 스키마 밖 키를 지운다(`ExtractOptions`). 기본 false — 켜는 곳은 A4 LESSON 하나. */
   stripAdditionalProperties?: boolean
+  /**
+   * true 면 `extractJson` 이 실패한 시도에 한해 루트 조기 닫힘 구문 슬립을 고쳐 읽는다(`ExtractOptions.repairRootClose`, task-037). 고친 객체도
+   * ajv·`extraCheck` 를 그대로 통과해야 하고, 통과하면 재시도 없이 `attempts: 1` 로 끝난다. 기본 false — 켜는 곳은 TALK·CHAT 둘뿐.
+   */
+  repairRootClose?: boolean
 }
 
 export interface RunJsonResult<T> {
@@ -366,10 +397,25 @@ export interface RunJsonResult<T> {
   residualViolations?: string[]
   /** softExtraCheck 일 때만: 스키마를 통과한 시도의 데이터(시도 순서, 마지막이 `data` 와 같지 않을 수 있다). */
   candidates?: T[]
+  /** `data` 가 구문 슬립 복구(`repairRootClose`)를 거친 응답에서 나왔을 때만(없으면 키 자체가 없다) — Trace 가 슬립 빈도를 세는 표식. */
+  repaired?: JsonRepair
 }
 
 function attemptInfo(attempt: number): JsonAttemptInfo {
   return { attempt, maxAttempts: JSON_MAX_ATTEMPTS }
+}
+
+function extractOptionsOf(opts: RunJsonOptions): ExtractOptions {
+  return { stripAdditionalProperties: opts.stripAdditionalProperties === true, repairRootClose: opts.repairRootClose === true }
+}
+
+/**
+ * `repaired` 가 있는 시도를 데이터로 **받아들였을 때** 한 줄(응답·문장 내용 없음) — 복구 횟수를 로그로 센다. `savedRetry` 는 이 복구 덕에
+ * 재시도를 하지 않았는가(1차 응답을 그대로 받았을 때만 true). 줄 앞부분 `구문 슬립 복구(ROOT_CLOSE)` 는 두 경우 모두 같다.
+ */
+function noteRepair(r: { repaired?: JsonRepair }, savedRetry: boolean): void {
+  if (!r.repaired) return
+  console.warn(`[json] 구문 슬립 복구(${r.repaired}) — ${savedRetry ? '재시도 생략' : '재시도 경로에서 복구본 사용'}`)
 }
 
 function evaluateAttempt(raw: string, schema: object, info: JsonAttemptInfo, extraCheck: RunJsonOptions['extraCheck'], extract: ExtractOptions): AnalyzeResult {
@@ -399,17 +445,23 @@ export async function runJsonWithRetry<T = unknown>(
   opts: RunJsonOptions,
 ): Promise<RunJsonResult<T>> {
   if (opts.softExtraCheck) return runJsonSoft<T>(attempt, opts)
-  const extract: ExtractOptions = { stripAdditionalProperties: opts.stripAdditionalProperties === true }
+  const extract = extractOptionsOf(opts)
   const raw1 = await attempt(null)
   const r1 = evaluateAttempt(raw1, opts.schema, attemptInfo(1), opts.extraCheck, extract)
-  if (r1.ok) return { data: r1.data as T, attempts: 1 }
+  if (r1.ok) {
+    noteRepair(r1, true)
+    return { data: r1.data as T, attempts: 1, ...(r1.repaired ? { repaired: r1.repaired } : {}) }
+  }
 
   // 재시도 원인을 남긴다 — 위반 문구는 필드 경로·규칙뿐이라 학습자 원문이 들어가지 않는다(extraCheck 문구도 고정 문장).
   console.warn(`[json] 1차 응답 계약 위반 → 재시도: ${r1.parseError ? 'JSON 파싱 실패' : r1.violations.slice(0, 3).join(' / ').slice(0, 300)}`)
   const hint = r1.parseError ? RETRY_PARSE : RETRY_SCHEMA(r1.violations)
   const raw2 = await attempt({ hint, previousRaw: truncate(raw1, 8000) })
   const r2 = evaluateAttempt(raw2, opts.schema, attemptInfo(2), opts.extraCheck, extract)
-  if (r2.ok) return { data: r2.data as T, attempts: 2 }
+  if (r2.ok) {
+    noteRepair(r2, false)
+    return { data: r2.data as T, attempts: 2, ...(r2.repaired ? { repaired: r2.repaired } : {}) }
+  }
 
   throw new JsonSchemaError(r2.parseError ? ['JSON 파싱 실패'] : r2.violations, raw2)
 }
@@ -420,11 +472,16 @@ export async function runJsonWithRetry<T = unknown>(
  */
 async function runJsonSoft<T>(attempt: JsonAttemptFn, opts: RunJsonOptions): Promise<RunJsonResult<T>> {
   const extra = (d: unknown, n: number) => (opts.extraCheck ? finalizeViolations(opts.extraCheck(d, attemptInfo(n))) : [])
-  const extract: ExtractOptions = { stripAdditionalProperties: opts.stripAdditionalProperties === true }
+  const extract = extractOptionsOf(opts)
   const raw1 = await attempt(null)
   const s1 = extractAndValidate(raw1, opts.schema, extract)
   const v1 = s1.ok ? extra(s1.data, 1) : []
-  if (s1.ok && v1.length === 0) return { data: s1.data as T, attempts: 1, residualViolations: [], candidates: [s1.data as T] }
+  // 돌려주는 `data` 가 복구한 응답에서 나왔을 때만 표식을 단다(`data` 의 출처를 따라간다).
+  const from = (r: AnalyzeResult & { ok: true }, savedRetry: boolean) => {
+    noteRepair(r, savedRetry)
+    return r.repaired ? ({ repaired: r.repaired } as const) : {}
+  }
+  if (s1.ok && v1.length === 0) return { data: s1.data as T, attempts: 1, residualViolations: [], candidates: [s1.data as T], ...from(s1, true) }
 
   const violations = s1.ok ? v1 : s1.parseError ? null : s1.violations
   console.warn(`[json] 1차 응답 계약 위반 → 재시도(soft): ${violations ? violations.slice(0, 3).join(' / ').slice(0, 300) : 'JSON 파싱 실패'}`)
@@ -434,15 +491,15 @@ async function runJsonSoft<T>(attempt: JsonAttemptFn, opts: RunJsonOptions): Pro
     raw2 = await attempt({ hint, previousRaw: truncate(raw1, 8000) })
   } catch (e) {
     // 재시도 호출이 실패(시간 초과 등)해도 스키마를 통과한 첫 응답이 있으면 그것을 쓴다.
-    if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T] }
+    if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T], ...from(s1, false) }
     throw e
   }
   const s2 = extractAndValidate(raw2, opts.schema, extract)
   if (s2.ok) {
     const candidates = s1.ok ? [s1.data as T, s2.data as T] : [s2.data as T]
-    return { data: s2.data as T, attempts: 2, residualViolations: extra(s2.data, 2), candidates }
+    return { data: s2.data as T, attempts: 2, residualViolations: extra(s2.data, 2), candidates, ...from(s2, false) }
   }
-  if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T] }
+  if (s1.ok) return { data: s1.data as T, attempts: 2, residualViolations: v1, candidates: [s1.data as T], ...from(s1, false) }
   throw new JsonSchemaError(s2.parseError ? ['JSON 파싱 실패'] : s2.violations, raw2)
 }
 
@@ -482,6 +539,6 @@ export async function runJsonAnalysis<T = unknown>(opts: RunJsonAnalysisOptions)
         : opts.messages
       return chat(messages, callOptsFor(messages))
     },
-    { schema: opts.schema, extraCheck: opts.extraCheck, stripAdditionalProperties: opts.stripAdditionalProperties },
+    { schema: opts.schema, extraCheck: opts.extraCheck, stripAdditionalProperties: opts.stripAdditionalProperties, repairRootClose: opts.repairRootClose },
   )
 }

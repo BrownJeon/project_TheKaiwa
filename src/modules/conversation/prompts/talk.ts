@@ -325,6 +325,8 @@ export function buildTalkRequest(input: TalkInput): LlmJsonRequest<TutorResponse
     system,
     messages: [...window, { role: 'user', content: input.text }],
     jsonSchema: TALK_SCHEMA,
+    // task-037 — 루트를 한 칸 일찍 닫는 구문 슬립(`…"proposals":[]},"userKo":…}`)을 `}` 하나만 지워 읽는다(재시도 ≈1.5s·호출 1회 절약). 요청 단위 옵트인 — 고친 객체도 스키마·extraCheck 를 그대로 통과해야 한다.
+    repairRootClose: true,
     // task-028 — checkTalkResponse(원문 무수정·문장 수)에 checkReplyKoNaturalness(이중 높임 후검증, TALK 전용)를 더한다.
     extraCheck: (data) => [
       ...checkTalkResponse(input.text, data, { maxSentences: sceneCap + TALK_SCENE_CAP_TOLERANCE }),

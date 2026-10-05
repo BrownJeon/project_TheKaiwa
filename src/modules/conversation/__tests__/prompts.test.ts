@@ -1,13 +1,20 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 import { renderTranscript } from '../../engine/llm'
 import { extractAndValidate } from '../../engine/json/schemaValidate'
 import { buildChatRequest, CHAT_PROMPT_VERSION } from '../prompts/chat'
 import { buildChatReviewRequest, REVIEW_MAX_CHARS, REVIEW_MAX_MESSAGES, ReviewTooLargeError } from '../prompts/chatReview'
 import { renderHeader, renderToday } from '../prompts/header'
 import { buildTalkRequest, clampAltText, talkInstruction, COACH_HINT_LINE, CORRECTION_MODES, TALK_ALT_TEXT_MAX, TALK_PROMPT_VERSION, TALK_USER_PROMPT_CAP } from '../prompts/talk'
+import { buildEvalGenRequest } from '../prompts/evalGen'
+import { buildEvalGradeRequest } from '../prompts/evalGrade'
+import { buildLessonRequest, type LessonTopicInput } from '../prompts/lesson'
+import { buildReviewDecisionRequest, type ReviewDecisionCandidateInput } from '../prompts/reviewDecision'
+import { buildReviewMixRequest, type ReviewMixItemInput } from '../prompts/reviewMix'
+import { buildUserTranslationRequest } from '../prompts/userTranslation'
+import { buildWordEnrichRequest } from '../prompts/wordEnrich'
 import { CHAT_SCHEMA, TALK_SCHEMA } from '../structuredResponse/schemas'
 
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/talk-corrections.json'), 'utf8')) as {
@@ -383,4 +390,95 @@ test('입력 경계: 학습자 말은 [입력] 블록에만, 앞선 대화는 [�
     { role: 'user', content: 'c' },
   ])
   assert.match(many, /\[대화\] \(앞선 맥락\)\n\[학습자\] a\n\[선생님\] b\n\n\[입력\] [^\n]*\nc$/)
+})
+
+// ── task-037: 루트 조기 닫힘 구문 슬립 복구(`repairRootClose`)는 TALK·CHAT 요청만 켠다 ─────────────────────────────
+
+const readFixture = <T>(name: string): T => JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures', name), 'utf8')) as T
+
+test('task-037: repairRootClose 는 buildTalkRequest·buildChatRequest 만 true — 나머지 build*Request(레슨·표현 점검·평가·단어 보강·반복 판단 등)는 켜지 않는다(기본 false 불변)', () => {
+  const todayKst = '2026-10-05'
+  const talk = buildTalkRequest({ todayKst, learner, history: longHistory, text: 'おはよう' })
+  const chat = buildChatRequest({ todayKst, learner, history: longHistory, text: 'おはよう' })
+  assert.equal(talk.repairRootClose, true, 'TALK')
+  assert.equal(chat.repairRootClose, true, 'CHAT')
+
+  const lessonFx = readFixture<{ topic: LessonTopicInput }>('lesson.json')
+  const decisionFx = readFixture<{ candidates: ReviewDecisionCandidateInput[] }>('review-decision.json')
+  const mixFx = readFixture<{ items: ReviewMixItemInput[] }>('review-mix.json')
+  const others: [string, { repairRootClose?: boolean }][] = [
+    ['lesson(A4)', buildLessonRequest({ todayKst, learner, topic: lessonFx.topic })],
+    ['reviewMix(A5)', buildReviewMixRequest({ todayKst, learner, level: 'N4', items: mixFx.items })],
+    ['chatReview(A3)', buildChatReviewRequest({ todayKst, learner, messages: chatReviewFixture.messages })],
+    ['evalGen(A6)', buildEvalGenRequest({ todayKst, kind: 'WORDS', level: 'N4', topic: null, materials: [{ surface: '映画', reading: 'えいが', meaning: '영화', wrongCount: 0 }], recentHashes: [] })],
+    ['evalGrade(A7)', buildEvalGradeRequest({ evalKind: 'WORDS', level: 'N3', objectiveSummary: [{ kind: 'MEANING_CHOICE', correct: 3, total: 4 }], subjectiveItems: [] })],
+    ['wordEnrich', buildWordEnrichRequest({ surface: '映画', level: 'N5' })],
+    ['userTranslation', buildUserTranslationRequest({ text: 'こんにちは。', level: 'N5' })],
+    ['reviewDecision(A11)', buildReviewDecisionRequest({ todayKst, learner, candidates: decisionFx.candidates })],
+  ]
+  for (const [name, req] of others) assert.ok(!req.repairRootClose, `${name} 요청은 repairRootClose 를 켜지 않는다(undefined/false)`)
+  // 빌더가 늘면 이 목록에 추가해야 한다 — prompts/ 의 build*Request 전부가 위 표에 있다.
+  const exported = readdirSync(join(process.cwd(), 'src/modules/conversation/prompts'))
+    .filter((f) => f.endsWith('.ts'))
+    .flatMap((f) => [...readFileSync(join(process.cwd(), 'src/modules/conversation/prompts', f), 'utf8').matchAll(/^export function (build\w+Request)\(/gm)].map((m) => m[1]))
+  assert.deepEqual([...exported].sort(), ['buildChatRequest', 'buildChatReviewRequest', 'buildEvalGenRequest', 'buildEvalGradeRequest', 'buildLessonRequest', 'buildReviewDecisionRequest', 'buildReviewMixRequest', 'buildTalkRequest', 'buildUserTranslationRequest', 'buildWordEnrichRequest'])
+  // task-036 pin 은 그대로: TALK·CHAT 은 stripAdditionalProperties 를 켜지 않는다(옛 키는 거부 → 재시도).
+  assert.ok(!talk.stripAdditionalProperties && !chat.stripAdditionalProperties, 'task-036 pin: TALK·CHAT 은 strip 을 켜지 않는다')
+})
+
+test('task-037 L-4: src 전체(테스트 제외)에서 `repairRootClose: true` 리터럴로 옵션을 켜는 파일은 TALK·CHAT 빌더(talk.ts·chat.ts)뿐이다 — 빌더 밖 호출부가 켜면 FAIL', () => {
+  // build*Request 전수 pin(위 test)은 prompts/ 의 빌더만 본다. 이 스캔은 빌더 밖(예: 단어 보강·레슨 호출부가 `{...request, repairRootClose: true}` 로 덮어쓰는 경우)
+  // 까지 막는다. 옵션 정의·전달 줄(`repairRootClose?: boolean`·`repairRootClose: opts.repairRootClose`)은 `true` 리터럴이 아니라 여기 걸리지 않고,
+  // 테스트(`__tests__`·`*.test.ts`)는 옵션을 켜 보는 곳이라 스캔에서 뺀다.
+  const root = join(process.cwd(), 'src')
+  const hits: string[] = []
+  let scanned = 0
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name)
+      if (e.isDirectory()) {
+        if (e.name !== '__tests__' && e.name !== 'node_modules') walk(full)
+        continue
+      }
+      if (!/\.(ts|tsx|mts|js|mjs)$/.test(e.name) || /\.test\.(ts|tsx|mts|js|mjs)$/.test(e.name)) continue
+      scanned++
+      if (/repairRootClose\s*[:=]\s*true\b/.test(readFileSync(full, 'utf8'))) hits.push(relative(root, full).split(sep).join('/'))
+    }
+  }
+  walk(root)
+  assert.ok(scanned > 100, `src 스캔이 비어 있다(${scanned}개) — 빈 증명 방지`)
+  const allowed = ['modules/conversation/prompts/chat.ts', 'modules/conversation/prompts/talk.ts']
+  assert.deepEqual(
+    hits.sort(),
+    allowed,
+    `repairRootClose: true 는 TALK·CHAT 빌더(talk.ts·chat.ts)에서만 켠다(task-037 옵트인 경계, 레슨·평가·단어 보강 등은 켜지 않는다). 허용 목록 밖에서 켠 파일: ${hits.filter((h) => !allowed.includes(h)).join(', ') || '(없음)'}`,
+  )
+})
+
+test('task-037: TALK·CHAT 슬립(루트 조기 닫힘) — 실제 스키마·extraCheck 로 복구가 통과하고, 옵션 없이는 파싱 실패(재시도 대상)', () => {
+  const talkBody = {
+    speech: { style: 'ENCOURAGING' },
+    conversation: { replyJa: 'そうですか！どんな映画でしたか？', replyKo: '그렇군요! 어떤 영화였어요?' },
+    correction: null,
+    learning: { grammarPoint: '〜に行きました', difficulty: 'N5' },
+    endOfTopic: false,
+    proposals: [],
+  }
+  const slip = (body: object) => '```json\n' + JSON.stringify(body) + ',"userKo":"어제 영화를 봤어요."}\n```'
+  const talkReq = buildTalkRequest({ todayKst: '2026-10-05', learner, history: [], text: '昨日、映画を見ました。' })
+  const chatReq = buildChatRequest({ todayKst: '2026-10-05', learner, history: [], text: '昨日、映画を見ました。' })
+  for (const [name, req, schema] of [['TALK', talkReq, TALK_SCHEMA], ['CHAT', chatReq, CHAT_SCHEMA]] as const) {
+    const raw = slip(talkBody)
+    assert.deepEqual(extractAndValidate(raw, schema), { ok: false, parseError: true }, `${name}: 옵션이 없으면 지금처럼 파싱 실패`)
+    const r = extractAndValidate(raw, schema, { repairRootClose: req.repairRootClose })
+    assert.ok(r.ok && r.repaired === 'ROOT_CLOSE', `${name}: ${JSON.stringify(r)}`)
+    if (!r.ok) continue
+    assert.equal((r.data as { userKo?: string }).userKo, '어제 영화를 봤어요.', `${name}: userKo 는 루트 키`)
+    assert.deepEqual(req.extraCheck!(r.data as never), [], `${name}: 복구한 객체도 후검증(extraCheck)을 그대로 통과한다`)
+  }
+
+  // 복구해도 계약은 그대로 엄격하다 — 옛 키(task-036 에서 뺀 읽기 줄 필드)가 끼면 복구 후에도 거부(재시도 경로).
+  const withOldKey = { ...talkBody, conversation: { ...talkBody.conversation, [REMOVED_READING_KEY]: 'そうですか' } }
+  const bad = extractAndValidate(slip(withOldKey), TALK_SCHEMA, { repairRootClose: true })
+  assert.ok(!bad.ok && !bad.parseError && bad.violations.some((v) => v.includes(REMOVED_READING_KEY) && v.includes('허용되지 않은 필드')), JSON.stringify(bad))
 })
