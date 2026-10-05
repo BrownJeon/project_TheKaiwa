@@ -57,6 +57,7 @@ tags:
 - [[task-031-japanese-display-polish]] — 일본어 표시 마무리 3건(経営 장음 한글·녹음 중 저장됨 잔류·조각 영구 loading) — ✅ **완료·운영 반영** `32da7d2`(REV-102 PASS_WITH_NOTES, 운영 스모크 42/42·45/45)
 - [[task-032-lexicon-to-reading]] — 관리자 발음 사전 → 읽기 분석기 반영(青か·愚か·密か) — ✅ **완료·운영 반영** `afde949`(REV-103·QA PASS, 운영 스모크 42/42·45/45)
 - [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — ✅ **완료·운영 반영** `077654f`(데모 v1 승인·REV-105·QA PASS, 운영 스모크 45/45·42/42)
+- [[task-034-tts-lexicon-compound-guard]] — **구현·검증 완료, 운영 배포 대기(2026-10-05)**: TTS 발음 사전 복합어 경계 가드(`明日香`→アシタ香) + 사전 캐시 경쟁(REV-103 L-1) · judge: local_fix·R1·opus·standard·데모 none · REV-106 PASS_WITH_NOTES · Codex 한도 미기록 보류 · QA PASS(결함 0, 옛 코드는 `アシタガサン`→새 코드 `アスカサン` 실 M4 대조)
 - (후보) 구 `reading`/`replyReading` 필드 제거 — PE+developer(talk@v8·chat@v3), 026 화면 A 배포로 이제 가능
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
@@ -67,7 +68,8 @@ tags:
 
 ## 정리 backlog (소규모)
 - (033 후속) 교차 보호 대상 문장 읽기를 서버 응답에서 비우기(QA I-1) · 복합어·조각 경계 교차 보호(REV-104 L-1) · 극단 카드 숨긴 예문 줄 루비 비침(L-2) · 평가 "내가 한 말" 스크린리더 비노출
-- (032 후속) TTS 가 사전 `明日` 때문에 `明日香` → アシタ香(복합어 경계) · REV-103 L-1 사전 저장 직후 옛 조회 캐시 재충전(최대 30초)
+- ~~(032 후속) TTS `明日香`→アシタ香 · REV-103 L-1 사전 캐시 재충전~~ → [[task-034-tts-lexicon-compound-guard]] 로 처리
+- (034 후속, REV-106) M-1 어댑터 `substituteReadings` ↔ L4 `rescanHintSurfaces` 규칙 복사본 결합 — 공유 JSON 픽스처 테스트 또는 hint 에 정규화 좌표를 실어 위치 기반 치환(엔진 계약 변경, Leader 판단) · M-2 한자 전용 사용자 표기가 한자 이웃(様·先生·駅)에서 꺼짐 — PERSON·PLACE 접미어 허용 또는 위치 기반 치환 · 관리자 미리듣기 `notHitText` 에 "더 긴 한자 단어의 일부" 사유 문구(designer 경로) · `reading/lexiconOverlay.ts:5` 주석("표시와 소리가 같은 항목") 정정 · `renderingPlan.ts:60` 죽은 코드 `lead` · `ヶ` 한자 클래스 정의(`三ヶ月間` 꺼짐)
 - (031 분리, 2026-10-05) REV-093 LOW — `orchestrator/index.ts` flushUserRow 번역 updateMany 를 `correction.create` 앞으로(S→X 승격 대기 축소). 교정 트랜잭션 순서라 R2 보강 대상 → standard+QA 로 별도 처리
 - (005b) 발음 사전(Pronunciation Dictionary P0) — task-003 이후 · #93b credentialRef 쓰기·functional test 30초 슬롯 원자성 — Phase 2(012c) · 운영 APP_ENV=LOCAL·dev 상태 점검이 운영 connection 행을 바꾸는 문제 — task-009
 - `infra/http.ts` 기본 오류 문구 "AI 엔진…" 사용자 노출 가능 · 공용 `Badge` warn/accent·`ink3` 라이트 명암비 미달 · `ComingSoon` Phase/task 번호 노출
