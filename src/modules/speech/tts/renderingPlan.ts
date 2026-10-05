@@ -57,6 +57,8 @@ function surfacesRescannedElsewhere(text: string, n: NormalizationResult, matche
     pos = t.srcEnd
   }
   raw += text.slice(pos)
+  // 방어 코드: 정규화기 WHITESPACE 규칙이 원문 앞 공백을 이미 지워 보통 raw 는 공백으로 시작하지 않고 lead=0 이지만, 공백으로 시작하는 표기가
+  // 손상 스냅샷으로 들어오면(validateLexiconEntry 는 trim 후 빈 값만 거른다) 보호 구간이 앞 공백을 차지해 0 이 아니다 — 빼면 그 입력에서 hint 가 더 빠진다(task-035, REV-106 L-2).
   const lead = raw.length - raw.trimStart().length
   const expected = new Set<string>()
   for (const m of matches) {

@@ -1,5 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { styleBertVits2Provider } from '../adapters/tts/styleBertVits2.provider'
 import { substituteReadings, synthesizeHttp } from '../adapters/tts/styleBertHttp'
 import type { ConnectionProfile, TtsSegmentInput } from '../registry/types'
@@ -61,9 +63,19 @@ const kindOf = async (p: Promise<unknown>) => {
   }
 }
 
-test('플랫폼 치환(방식 A 강등): 표기 → 가타카나 읽기, 최장 일치', () => {
-  assert.equal(substituteReadings('日本橋駅と日本橋', [{ surface: '日本橋', reading: 'ニホンバシ', accentType: 0, wordType: null }, { surface: '日本橋駅', reading: 'ニホンバシエキ', accentType: 0, wordType: null }]), 'ニホンバシエキとニホンバシ')
-  assert.equal(substituteReadings('そのまま', []), 'そのまま')
+// L4 rescanHintSurfaces 가 이 치환 규칙을 복사해 쓴다 — 같은 계약표를 L4 테스트(speech/tts/__tests__/lexiconCompoundGuard)도 읽는다.
+// 층 경계 때문에 import 하지 않고 파일로 읽는다. 이 규칙을 바꾸면 계약표와 rescanHintSurfaces 를 함께 고친다.
+const HINT_RESCAN_CASES = (
+  JSON.parse(readFileSync(join(__dirname, '..', '..', 'speech', 'tts', '__tests__', 'fixtures', 'hintRescanCases.json'), 'utf8')) as {
+    cases: { id: string; text: string; hints: { surface: string; reading: string }[]; expected: string }[]
+  }
+).cases
+
+test('플랫폼 치환(방식 A 강등): 계약표(hintRescanCases.json) — 표기 → 가타카나 읽기, 최장 일치·건너뛰기·중복 제거', () => {
+  assert.ok(HINT_RESCAN_CASES.length >= 10)
+  for (const c of HINT_RESCAN_CASES) {
+    assert.equal(substituteReadings(c.text, c.hints.map((h) => ({ ...h, accentType: 0, wordType: null }))), c.expected, c.id)
+  }
 })
 
 test('합성 요청: 시크릿 헤더·엔진 중립 본문·리다이렉트 미추종, 헤더 계측값을 읽는다', async () => {

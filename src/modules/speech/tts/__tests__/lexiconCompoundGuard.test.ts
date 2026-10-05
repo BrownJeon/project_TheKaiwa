@@ -1,5 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Environment } from '@prisma/client'
 import { prisma } from '@/modules/infra'
 import { ttsCacheKey, type CacheKeyParts } from '../cache'
@@ -23,18 +25,28 @@ const lexicon = (...entries: LexiconEntryData[]) => selectEntries(entries, {})
 const SEED_ASHITA = lexicon(E('明日', 'アシタ'))
 
 /**
- * 어댑터 강등 치환(표기 재검색)과 같은 결과 — `rescanHintSurfaces` 자리에 읽기를 넣는다. 엔진 어댑터 파일은 L4 테스트에서 import 하지 않으므로
- * 어댑터 테스트(engine/__tests__/ttsAdapter)가 고정한 출력과 같은 예시로 아래에서 맞춰 둔다.
+ * 어댑터 강등 치환(표기 재검색)과 같은 결과 — `rescanHintSurfaces` 자리에 읽기를 넣는다(같은 표기는 어댑터처럼 마지막 hint 의 읽기).
+ * 엔진 어댑터 파일은 L4 테스트에서 import 하지 않으므로, 어댑터 테스트(engine/__tests__/ttsAdapter)와 같은 계약표
+ * `fixtures/hintRescanCases.json` 을 둘 다 읽어 맞춘다.
  */
-function substituted(text: string, hints: readonly LexiconHint[]): string {
+function substituted(text: string, hints: readonly Pick<LexiconHint, 'surface' | 'reading'>[]): string {
+  const reading = new Map(hints.map((h) => [h.surface, h.reading]))
   let out = ''
   let pos = 0
   for (const r of rescanHintSurfaces(text, hints.map((h) => h.surface))) {
-    out += text.slice(pos, r.start) + (hints.find((h) => h.surface === r.surface)?.reading ?? r.surface)
+    out += text.slice(pos, r.start) + (reading.get(r.surface) ?? r.surface)
     pos = r.start + r.surface.length
   }
   return out + text.slice(pos)
 }
+
+interface HintRescanCase {
+  id: string
+  text: string
+  hints: { surface: string; reading: string }[]
+  expected: string
+}
+const HINT_RESCAN_CASES = (JSON.parse(readFileSync(join(__dirname, 'fixtures', 'hintRescanCases.json'), 'utf8')) as { cases: HintRescanCase[] }).cases
 
 /** prepareSegments(합성·사전 미리듣기 공용 경로) 한 문장 → [hint 표기들, 어댑터가 엔진에 보낼 문장]. */
 function tts(text: string, lex: ReadonlyMap<string, LexiconEntryData>) {
@@ -113,11 +125,45 @@ test('어댑터 재검색 일관성: 정규화가 숫자를 한자로 바꿔도(
   assert.equal(lead.sent, 'アシタ、十時')
 })
 
+test('앞 공백·지워지는 기호로 시작하는 문장: prepareSegments 결과 고정(task-035 L-2)', () => {
+  const lex = lexicon(E('明日', 'アシタ'), E('京都', 'キョート'), E('東京都', 'トーキョート'))
+  const hint = (surface: string, reading: string) => ({ surface, reading, accentType: 0, wordType: null })
+  const cases: [string, string, ReturnType<typeof hint>[], number][] = [
+    [' 明日、10時', '明日、十時', [hint('明日', 'アシタ')], 2],
+    ['　明日は京都', '明日は京都', [hint('明日', 'アシタ'), hint('京都', 'キョート')], 1],
+    ['\n明日は京都', '明日は京都', [hint('明日', 'アシタ'), hint('京都', 'キョート')], 1],
+    ['\t 明日香さんは明日来ます', '明日香さんは明日来ます', [], 1],
+    ['😀 明日は', '明日は', [hint('明日', 'アシタ')], 2],
+    ['" 明日は東京都と京都', '明日は東京都と京都', [hint('明日', 'アシタ'), hint('東京都', 'トーキョート'), hint('京都', 'キョート')], 2],
+    ['〜 明日', '明日', [hint('明日', 'アシタ')], 2],
+    [' 東京都庁と京都 ', '東京都庁と京都', [], 2],
+  ]
+  for (const [text, normalizedText, hints, rulesApplied] of cases) {
+    assert.deepEqual(prepareSegments(text, { lexicon: lex, maxChars: 100, single: true }), [{ text, normalizedText, hints, rulesApplied }], JSON.stringify(text))
+  }
+})
+
+test('방어(lead): 공백으로 시작하는 표기가 손상 스냅샷으로 들어와도 뒤 hint 좌표가 어긋나지 않는다(task-035 L-2)', () => {
+  // 관리 입력은 공백 표기를 막지만 스냅샷 읽기 필터(validateLexiconEntry)는 trim 후 빈 값만 거른다 — selectEntries 를 거치지 않고 직접 만든 사전
+  const lex = new Map([
+    [' 明日', E(' 明日', 'アシタ')],
+    ['京都', E('京都', 'キョート')],
+  ])
+  const kyoto = { surface: '京都', reading: 'キョート', accentType: 0, wordType: null }
+  for (const [text, normalizedText] of [
+    [' 明日京都', '明日京都'],
+    [' 明日は京都', '明日は京都'],
+  ]) {
+    assert.deepEqual(prepareSegments(text, { lexicon: lex, maxChars: 100, single: true }), [{ text, normalizedText, hints: [kyoto], rulesApplied: 1 }], JSON.stringify(text))
+  }
+})
+
+test('계약표(hintRescanCases.json): rescanHintSurfaces 재구성이 어댑터 substituteReadings 와 같은 문장을 낸다', () => {
+  assert.ok(HINT_RESCAN_CASES.length >= 10)
+  for (const c of HINT_RESCAN_CASES) assert.equal(substituted(c.text, c.hints), c.expected, c.id)
+})
+
 test('rescanHintSurfaces 는 어댑터 강등 치환 규칙(중복 제거 → 긴 표기 먼저 → 왼쪽부터 건너뛰기)과 같은 자리를 잡는다', () => {
-  const h = (surface: string, reading: string): LexiconHint => ({ surface, reading, accentType: 0, wordType: null })
-  // engine/__tests__/ttsAdapter 의 substituteReadings 고정 예시와 같은 입력·출력
-  assert.equal(substituted('日本橋駅と日本橋', [h('日本橋', 'ニホンバシ'), h('日本橋駅', 'ニホンバシエキ')]), 'ニホンバシエキとニホンバシ')
-  assert.equal(substituted('そのまま', []), 'そのまま')
   // 위치 정보가 없어 긴 표기 안의 짧은 표기·같은 표기의 모든 자리를 잡는다 — prepareSegments 가 이것을 막아야 하는 이유
   assert.deepEqual(rescanHintSurfaces('東京都庁と京都', ['京都']), [
     { start: 1, surface: '京都' },

@@ -1,0 +1,165 @@
+{
+  "_note": "task-035 — 어댑터 강등 치환 계약표. 엔진 어댑터 substituteReadings(engine/adapters/tts)는 hint 표기를 위치 없이 다시 찾아 읽기로 바꾸고(표기 중복 제거 → 긴 표기 먼저 → 왼쪽부터 첫 일치, 그 뒤로 건너뛰기), L4 rescanHintSurfaces(speech/tts/lexicon.ts)는 그 규칙을 손으로 복사해 prepareSegments 가 어댑터가 다시 잡을 자리를 예측하게 한다. 두 테스트(engine/__tests__/ttsAdapter.test.ts · speech/tts/__tests__/lexiconCompoundGuard.test.ts)가 이 파일 하나를 읽어 같은 기대값을 검증한다. expected 는 2026-10-05 현재 어댑터가 실제로 내는 값이다. 어댑터 규칙을 바꾸면 이 표와 rescanHintSurfaces 를 함께 고친다 — 한쪽만 고치면 다른 쪽 테스트가 실패해야 정상이다.",
+  "cases": [
+    {
+      "id": "longest-match",
+      "text": "日本橋駅と日本橋",
+      "hints": [
+        { "surface": "日本橋", "reading": "ニホンバシ" },
+        { "surface": "日本橋駅", "reading": "ニホンバシエキ" }
+      ],
+      "expected": "ニホンバシエキとニホンバシ",
+      "why": "같은 자리에서는 긴 표기가 이긴다. hint 목록에 짧은 표기를 먼저 두어 정렬이 빠지면 ニホンバシ駅 이 되어 실패한다."
+    },
+    {
+      "id": "no-hints",
+      "text": "そのまま",
+      "hints": [],
+      "expected": "そのまま",
+      "why": "hint 가 없으면 문장을 그대로 보낸다."
+    },
+    {
+      "id": "empty-text",
+      "text": "",
+      "hints": [{ "surface": "明日", "reading": "アシタ" }],
+      "expected": "",
+      "why": "빈 문장은 빈 문장."
+    },
+    {
+      "id": "surface-absent",
+      "text": "こんにちは",
+      "hints": [{ "surface": "明日", "reading": "アシタ" }],
+      "expected": "こんにちは",
+      "why": "문장에 없는 표기는 아무것도 바꾸지 않는다."
+    },
+    {
+      "id": "duplicate-surface-same-reading",
+      "text": "明日と明日",
+      "hints": [
+        { "surface": "明日", "reading": "アシタ" },
+        { "surface": "明日", "reading": "アシタ" }
+      ],
+      "expected": "アシタとアシタ",
+      "why": "같은 표기가 hint 에 두 번 와도(같은 표기가 문장에 두 번 있으면 prepareSegments 가 그렇게 보낸다) 결과는 한 번 온 것과 같고, 위치가 없으니 모든 자리를 바꾼다."
+    },
+    {
+      "id": "duplicate-surface-different-reading",
+      "text": "明日と明日",
+      "hints": [
+        { "surface": "明日", "reading": "アシタ" },
+        { "surface": "明日", "reading": "アス" }
+      ],
+      "expected": "アスとアス",
+      "why": "어댑터 중복 제거는 표기 키 Map 이라 같은 표기의 읽기는 마지막 hint 것이 쓰인다. L4 는 사전이 표기 키 Map 이라 한 표기에 다른 읽기를 보내지 않지만, 어댑터 규칙 기록으로 고정한다."
+    },
+    {
+      "id": "skip-after-match-overlap",
+      "text": "東京都",
+      "hints": [
+        { "surface": "京都", "reading": "キョート" },
+        { "surface": "東京", "reading": "トーキョー" }
+      ],
+      "expected": "トーキョー都",
+      "why": "왼쪽부터 첫 일치(東京)를 잡고 그 뒤로 건너뛰므로 겹치는 京都 는 잡지 않는다. 건너뛰기가 빠지면 キョート 가 끼어든다."
+    },
+    {
+      "id": "skip-after-match-repeat",
+      "text": "ああああ",
+      "hints": [{ "surface": "ああ", "reading": "アア" }],
+      "expected": "アアアア",
+      "why": "같은 표기가 이어지면 겹치지 않게 두 번만 바꾼다(한 글자씩 밀며 다시 찾지 않는다)."
+    },
+    {
+      "id": "asuka-rescan",
+      "text": "明日香さんは明日来ます",
+      "hints": [{ "surface": "明日", "reading": "アシタ" }],
+      "expected": "アシタ香さんはアシタ来ます",
+      "why": "hint 가 단독 明日 하나여도 어댑터는 위치 없이 다시 찾아 明日香 안의 明日 까지 바꾼다(アシタ香). 그래서 L4 prepareSegments 가 rescanHintSurfaces 로 이 재검색을 예측해, 가드로 버린 자리를 다시 잡는 표기는 hint 에서 통째로 뺀다(task-034)."
+    },
+    {
+      "id": "tokyoto-inner-surface",
+      "text": "東京都庁と京都",
+      "hints": [{ "surface": "京都", "reading": "キョート" }],
+      "expected": "東キョート庁とキョート",
+      "why": "東京都 hint 없이 京都 hint 만 있으면 어댑터는 東京都 안의 京都 도 바꾼다(현재 동작 그대로 고정). L4 는 버린 東京都 후보 안의 京都 를 예측해 京都 hint 를 뺀다."
+    },
+    {
+      "id": "prefix-surfaces",
+      "text": "今日明日と今日",
+      "hints": [
+        { "surface": "今日", "reading": "キョー" },
+        { "surface": "今日明日", "reading": "キョーアシタ" }
+      ],
+      "expected": "キョーアシタとキョー",
+      "why": "서로 접두 관계인 표기는 긴 쪽이 먼저, 긴 표기가 없는 자리에서는 짧은 표기."
+    },
+    {
+      "id": "adjacent-surfaces",
+      "text": "今日明日",
+      "hints": [
+        { "surface": "今日", "reading": "キョー" },
+        { "surface": "明日", "reading": "アシタ" }
+      ],
+      "expected": "キョーアシタ",
+      "why": "붙어 있는 두 표기는 각각 바뀐다."
+    },
+    {
+      "id": "same-start-different-length",
+      "text": "日本橋駅と日本橋と日本人",
+      "hints": [
+        { "surface": "日本", "reading": "ニホン" },
+        { "surface": "日本橋", "reading": "ニホンバシ" },
+        { "surface": "日本橋駅", "reading": "ニホンバシエキ" }
+      ],
+      "expected": "ニホンバシエキとニホンバシとニホン人",
+      "why": "같은 시작 위치의 세 길이 중 그 자리에서 일치하는 가장 긴 것."
+    },
+    {
+      "id": "surrogate-pair-surface",
+      "text": "𠮷野家と𠮷田",
+      "hints": [
+        { "surface": "𠮷", "reading": "ヨシ" },
+        { "surface": "𠮷野家", "reading": "ヨシノヤ" }
+      ],
+      "expected": "ヨシノヤとヨシ田",
+      "why": "서러게이트 쌍 한자(𠮷, UTF-16 2칸)도 표기 일부로 온전히 비교·치환된다. 길이는 UTF-16 기준이지만 같은 자리에서 맞는 표기끼리는 접두 관계라 순서가 같다."
+    },
+    {
+      "id": "surrogate-pair-neighbor",
+      "text": "𠮷田",
+      "hints": [{ "surface": "田", "reading": "タ" }],
+      "expected": "𠮷タ",
+      "why": "서러게이트 쌍 바로 뒤 표기도 잡고, 쌍은 쪼개지지 않고 그대로 남는다(어댑터는 복합어 가드를 하지 않는다 — 가드는 L4)."
+    },
+    {
+      "id": "surrogate-pair-inner-surface",
+      "text": "𠮷田と田",
+      "hints": [
+        { "surface": "𠮷田", "reading": "ヨシダ" },
+        { "surface": "田", "reading": "タ" }
+      ],
+      "expected": "ヨシダとタ",
+      "why": "서러게이트 쌍으로 시작하는 표기(𠮷田, UTF-16 3칸·코드포인트 2자)를 잡은 뒤에는 UTF-16 길이만큼 건너뛴다. 코드포인트 수(2)로 건너뛰면 田 자리에서 다시 시작해 田 를 한 번 더 잡아 ヨシダタとタ 가 된다 — 전진 폭 단위가 바뀌면 이 사례가 실패한다."
+    },
+    {
+      "id": "empty-surface-ignored",
+      "text": "あいう",
+      "hints": [
+        { "surface": "", "reading": "エックス" },
+        { "surface": "あ", "reading": "ア" }
+      ],
+      "expected": "アいう",
+      "why": "빈 표기는 무시한다(빼면 모든 자리에 일치해 끝나지 않는다)."
+    },
+    {
+      "id": "no-rescan-of-output",
+      "text": "明日とアシタ",
+      "hints": [
+        { "surface": "明日", "reading": "アシタ" },
+        { "surface": "アシタ", "reading": "アスタ" }
+      ],
+      "expected": "アシタとアスタ",
+      "why": "치환은 원문을 한 번 훑을 뿐 바꾼 읽기를 다시 훑지 않는다(표기별 replaceAll 을 차례로 하면 アスタとアスタ 가 된다)."
+    }
+  ]
+}
