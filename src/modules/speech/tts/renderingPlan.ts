@@ -5,9 +5,9 @@
  * 세그먼트 유효값(style·styleWeight·speed·pitch·intonation)은 여기서 **엔진 독립 수치**로 계산해 캐시 키에 쓰고,
  * 어댑터는 이름·단위 변환(예: 속도→길이)과 엔진 고유 튜닝만 한다. 클라이언트가 보낸 수치는 쓰지 않는다(§4.4).
  */
-import type { LexiconEntryData, LexiconHint } from './lexicon'
-import { findLexiconMatches } from './lexicon'
-import { normalizeJapanese } from './normalizer'
+import type { LexiconEntryData, LexiconHint, LexiconMatch } from './lexicon'
+import { findLexiconMatches, guardCompoundMatches, rescanHintSurfaces } from './lexicon'
+import { normalizeJapanese, type NormalizationResult } from './normalizer'
 import { clamp, RANGES, round3 } from './parameterResolver'
 import { learningSpeedFactor, PROFILE_POLICIES, type SpeechProfileName } from './profiles'
 import { splitSentences } from './sentences'
@@ -26,10 +26,48 @@ export function prepareSegments(
 ): PreparedSegment[] {
   const pieces = opts.single ? [{ start: 0, end: text.length, text }] : splitSentences(text, { maxChars: opts.maxChars, splitAtComma: opts.splitAtComma })
   return pieces.map((p) => {
-    const matches = findLexiconMatches(p.text, opts.lexicon)
-    const n = normalizeJapanese(p.text, { protect: matches })
-    return { text: p.text, normalizedText: n.normalizedText, hints: matches.map(({ surface, reading, accentType, wordType }) => ({ surface, reading, accentType, wordType })), rulesApplied: n.rulesApplied }
+    let matches = guardCompoundMatches(p.text, findLexiconMatches(p.text, opts.lexicon))
+    for (;;) {
+      const n = normalizeJapanese(p.text, { protect: matches })
+      const ambiguous = surfacesRescannedElsewhere(p.text, n, matches)
+      if (ambiguous.size === 0) {
+        return { text: p.text, normalizedText: n.normalizedText, hints: matches.map(({ surface, reading, accentType, wordType }) => ({ surface, reading, accentType, wordType })), rulesApplied: n.rulesApplied }
+      }
+      matches = matches.filter((m) => !ambiguous.has(m.surface))
+    }
   })
+}
+
+/**
+ * 어댑터 강등 치환은 hint 표기를 정규화 문장에서 위치 없이 다시 찾는다. 그 재검색이 남긴 일치(보호 구간)와 다른 자리를 잡는 표기 —
+ * 가드로 버린 `明日香` 옆의 단독 `明日`, 버린 `東京都` 안의 `京都` 등 — 는 이 세그먼트 hint 에서 통째로 빼야 가드가 어댑터에서 다시 뚫리지 않는다
+ * (그 표기는 모든 자리에서 엔진 기본 읽기). 빼면 보호 구간·정규화가 바뀌므로 호출부가 빈 집합이 될 때까지 반복한다(표기 수만큼으로 끝난다).
+ */
+function surfacesRescannedElsewhere(text: string, n: NormalizationResult, matches: readonly LexiconMatch[]): Set<string> {
+  const out = new Set<string>()
+  if (matches.length === 0) return out
+  // 보호 구간의 정규화 문장 좌표 — normalizeJapanese 의 출력 조립(구간 사이 원문 + 치환값, 끝에서 trim)과 같은 순서로 센다.
+  const protectedAt = new Map<number, number>()
+  let raw = ''
+  let pos = 0
+  for (const t of n.tokens) {
+    raw += text.slice(pos, t.srcStart)
+    if (t.rule === 'PROTECTED') protectedAt.set(t.srcStart, raw.length)
+    raw += t.replaced
+    pos = t.srcEnd
+  }
+  raw += text.slice(pos)
+  const lead = raw.length - raw.trimStart().length
+  const expected = new Set<string>()
+  for (const m of matches) {
+    const at = protectedAt.get(m.start)
+    if (at === undefined || !n.normalizedText.startsWith(m.surface, at - lead)) out.add(m.surface)
+    else expected.add(`${at - lead}\u0001${m.surface}`)
+  }
+  const found = new Set(rescanHintSurfaces(n.normalizedText, matches.map((m) => m.surface)).map((r) => `${r.start}\u0001${r.surface}`))
+  for (const k of found) if (!expected.has(k)) out.add(k.slice(k.indexOf('\u0001') + 1))
+  for (const k of expected) if (!found.has(k)) out.add(k.slice(k.indexOf('\u0001') + 1))
+  return out
 }
 
 /** 라벨 → voice 스타일 후보(앞에서부터 그 voice 가 가진 첫 이름). AppSetting `tts.styleMap` 이 덮는다(§4.3). */

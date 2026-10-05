@@ -121,6 +121,62 @@ export function findLexiconMatches(text: string, selected: ReadonlyMap<string, L
   return out
 }
 
+// 〆·ヶ(霞ヶ関·八ヶ岳)는 Script=Han 이 아니지만 복합어 안에서 한자처럼 이어 쓰인다.
+const KANJI_CHAR = /^[\p{Script=Han}〆ヶ]$/u
+
+function isKanjiChar(ch: string | undefined): boolean {
+  return ch !== undefined && KANJI_CHAR.test(ch)
+}
+
+/** `i` 바로 앞 글자(서로게이트 쌍이면 한 글자로). */
+function charBefore(s: string, i: number): string | undefined {
+  if (i <= 0) return undefined
+  const cp = s.codePointAt(i >= 2 && /[\uDC00-\uDFFF]/.test(s[i - 1]) && /[\uD800-\uDBFF]/.test(s[i - 2]) ? i - 2 : i - 1)
+  return cp === undefined ? undefined : String.fromCodePoint(cp)
+}
+
+function charAtCp(s: string, i: number): string | undefined {
+  const cp = i < s.length ? s.codePointAt(i) : undefined
+  return cp === undefined ? undefined : String.fromCodePoint(cp)
+}
+
+/**
+ * 복합어 경계 가드(TTS 경로, task-034): **한자만으로 된** 표기의 일치가 더 긴 한자 연속열의 일부이면(바로 앞이나 뒤 글자가 한자)
+ * 버린다 — `明日香`(あすか) 안의 `明日`=アシタ 처럼. 건너뛴 구간은 엔진 기본 읽기가 맡는다(틀린 읽기를 만드는 것보다 안전).
+ * 이웃 한자가 **다른 후보 일치**에 속하면(`今日明日` 의 `今日`·`明日`) 경계로 본다. 후보 전체를 받아 한 번에 판정하므로 순서에 의존하지 않는다.
+ * 가나·영숫자가 섞인 표기(`愚か`·`JR1番線`)는 대상이 아니다. 화면 읽기 줄은 분석기 판정(reading/lexiconOverlay)을 쓰므로 이 함수를 쓰지 않는다.
+ */
+export function guardCompoundMatches(text: string, matches: readonly LexiconMatch[]): LexiconMatch[] {
+  const starts = new Set(matches.map((m) => m.start))
+  const ends = new Set(matches.map((m) => m.end))
+  return matches.filter((m) => {
+    if (![...m.surface].every(isKanjiChar)) return true
+    const joinedLeft = isKanjiChar(charBefore(text, m.start)) && !ends.has(m.start)
+    const joinedRight = isKanjiChar(charAtCp(text, m.end)) && !starts.has(m.end)
+    return !joinedLeft && !joinedRight
+  })
+}
+
+/**
+ * 어댑터 강등 치환(표기 → 읽기, 위치 정보 없이 hint 표기를 **다시 찾는다** — engine/adapters/tts)의 재검색 규칙을 그대로 흉내 낸 위치 목록:
+ * 표기 중복 제거 → 긴 표기 먼저 → 왼쪽부터 첫 일치를 잡고 그 뒤로 건너뛴다. `prepareSegments` 가 남긴 일치와 같은 위치를 잡는지 확인할 때 쓴다.
+ */
+export function rescanHintSurfaces(text: string, surfaces: readonly string[]): { start: number; surface: string }[] {
+  const sorted = [...new Set(surfaces)].filter((s) => s.length > 0).sort((a, b) => b.length - a.length)
+  const out: { start: number; surface: string }[] = []
+  if (sorted.length === 0) return out
+  for (let i = 0; i < text.length; ) {
+    const s = sorted.find((x) => text.startsWith(x, i))
+    if (!s) {
+      i++
+      continue
+    }
+    out.push({ start: i, surface: s })
+    i += s.length
+  }
+  return out
+}
+
 /** 적용된 힌트의 요약 해시 — 캐시 키 사전 요소에 덧붙여 범위(USER·LESSON…)가 다른 요청끼리 오디오가 섞이지 않게 한다. */
 export function lexiconDigest(hints: readonly LexiconHint[]): string | null {
   if (hints.length === 0) return null
@@ -168,32 +224,40 @@ export interface ActiveLexicon {
 
 const CACHE_MS = 30_000
 const cache = new Map<Environment, { at: number; value: ActiveLexicon }>()
+/**
+ * 캐시 세대(REV-103 L-1): `clearLexiconCache()`(사전 커밋 직후)가 올린다. 그 전에 시작한 조회는 끝나도 캐시를 채우지 않는다 —
+ * 게시 순간 진행 중이던 옛 조회가 옛 사전을 30초 동안 다시 심는 것을 막는다. 그 조회를 기다리던 요청 자신은 받은 값을 그대로 쓴다.
+ */
+let cacheGeneration = 0
+const displayInflight = new Map<Environment, Promise<ActiveLexicon>>()
 
 /** 환경의 ACTIVE 사전(30초 메모리 캐시 — 게시 후 최대 30초 뒤 반영, 캐시 키는 버전으로 갈리므로 섞이지 않는다). */
 export async function loadActiveLexicon(environment: Environment): Promise<ActiveLexicon> {
   const hit = cache.get(environment)
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.value
+  const generation = cacheGeneration
   const row = await prisma.pronunciationLexiconVersion.findFirst({
     where: { environment, status: 'ACTIVE' },
     orderBy: { version: 'desc' },
     select: { version: true, snapshot: true },
   })
   const value: ActiveLexicon = row ? { dictionaryVersion: row.version, entries: parseSnapshot(row.snapshot) } : { dictionaryVersion: 0, entries: [] }
-  cache.set(environment, { at: Date.now(), value })
+  if (generation === cacheGeneration) cache.set(environment, { at: Date.now(), value })
   return value
 }
 
 export function clearLexiconCache(): void {
+  cacheGeneration++
   cache.clear()
+  displayInflight.clear()
 }
 
 const DISPLAY_TIMEOUT_MS = 1_000
-const displayInflight = new Map<Environment, Promise<ActiveLexicon>>()
 
 /**
  * 화면 읽기 줄용 사전(task-032) — `loadActiveLexicon` 과 같은 30초 캐시를 쓰되, 읽기 응답을 사전 DB 에 묶지 않는다:
  * 캐시가 지났는데 조회가 실패하거나 `timeoutMs` 를 넘기면 그 환경의 **직전 성공 사전**(없으면 null = 덮어쓰기 생략)을 돌려준다.
- * 늦은 조회는 끝나는 대로 캐시를 채운다(환경별 동시 조회 1건). 쓰기 0.
+ * 늦은 조회는 끝나는 대로 캐시를 채운다(환경별 동시 조회 1건, `clearLexiconCache()` 뒤에는 새 조회 — 옛 조회는 캐시를 채우지 않는다). 쓰기 0.
  */
 export async function loadLexiconForDisplay(
   environment: Environment,
@@ -206,14 +270,19 @@ export async function loadLexiconForDisplay(
   let pending = displayInflight.get(environment)
   if (!pending) {
     const fetch = opts.fetch ?? loadActiveLexicon
-    pending = fetch(environment)
+    const generation = cacheGeneration
+    const started: Promise<ActiveLexicon> = fetch(environment)
       .then((value) => {
-        cache.set(environment, { at: now(), value })
+        if (generation === cacheGeneration) cache.set(environment, { at: now(), value })
         return value
       })
-      .finally(() => displayInflight.delete(environment))
-    pending.catch(() => undefined)
-    displayInflight.set(environment, pending)
+      .finally(() => {
+        // 세대가 바뀐 뒤 시작된 새 조회 자리를 옛 조회가 지우지 않게 자기 자신일 때만 지운다.
+        if (displayInflight.get(environment) === started) displayInflight.delete(environment)
+      })
+    started.catch(() => undefined)
+    displayInflight.set(environment, started)
+    pending = started
   }
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<'timeout'>((resolve) => {

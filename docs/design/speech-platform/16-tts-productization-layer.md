@@ -72,7 +72,7 @@ flowchart TD
 | 규칙 | 내용 |
 |---|---|
 | L-1 | 같은 `surface` 가 여러 scope 에 있으면 가장 좁은 scope 1건만 적용. 같은 scope 안에서는 unique 라 충돌 없음(문맥은 ref 를 하나씩만 가진다) |
-| L-2 | 문장 안에서는 **최장 일치 우선**(`日本橋駅` 항목이 있으면 `日本橋` 보다 먼저), 같은 길이면 `priority` 큰 쪽 |
+| L-2 | 문장 안에서는 **최장 일치 우선**(`日本橋駅` 항목이 있으면 `日本橋` 보다 먼저), 같은 길이면 `priority` 큰 쪽. **복합어 경계 가드(task-034, 2026-10-05)**: 한자만으로 된 표기가 더 긴 한자열의 일부(바로 앞·뒤 글자가 한자이고 다른 사전 일치에 속하지 않음 — 예: `明日` 항목이 `明日香` 안)에 걸리면 그 일치를 버려 엔진 기본 읽기에 맡긴다(`tts/lexicon.guardCompoundMatches`, 어댑터가 표기를 위치 없이 다시 찾는 점은 `prepareSegments` 가 반복 정규화로 같이 막는다). 가나·영숫자가 섞인 표기는 대상 아님 |
 | L-3 | `enabled=false` 는 매칭에서 제외되지만 스냅샷·Export 에는 남는다 |
 | L-4 | `reading` 은 가타카나·長音符 만(≤60), `accentType ≤ 모라 수`, `priority` 0~1000; 위반 시 422 `UNPROCESSABLE` + `details.reason=E_LEXICON_ENTRY_INVALID`(칸 코드 `E_READING`·`E_ACCENT`… — api-contract §7-2a). 표기는 가나·한자 1자 이상·공백/제어 문자 없음(`E_SURFACE_NOT_JA`·`E_SURFACE_CHARS`, task-003g) |
 | L-5 | USER scope 는 학습자 이름·선생님 이름(`Profile.teacherName`) 등 개인 고유명사 전용. Phase 2 설정 화면에서 학습자가 자기 읽기를 등록(관리자 API 와 같은 검증) |
@@ -94,7 +94,7 @@ flowchart TD
 
 ### 2.4a 화면 읽기 줄 반영 (task-032, 2026-10-05)
 
-같은 사전이 화면의 후리가나·한글 줄(api-contract #24r)에도 적용된다. 위치는 gateway user-dict 가 아니라 **앱 L4 후처리**(`speech/reading/lexiconOverlay` — 분석기 결과 위 최장 일치, 5분기: 같음 유지·교체·복합어 유지·일치 유지·활용형 충돌 숨김). 범위는 **GLOBAL + 본인 USER** 만(VOICE 는 목소리별 소리 보정, LESSON·COURSE 는 요청에 맥락 없음 — 사용자 결정). 조회는 `tts/lexicon.loadLexiconForDisplay(environment)`(쓰기 0, 환경별 30초 캐시·1초 제한·직전 사전 사용). gateway user-dict 안(B)은 비용값에 따라 `明日香`→明日+香 오독·青か 미교정이 갈려 기각. 알려진 한계: 진행 중 조회가 저장 직후 옛 사전으로 캐시를 다시 채울 수 있음(최대 30초, REV-103 L-1).
+같은 사전이 화면의 후리가나·한글 줄(api-contract #24r)에도 적용된다. 위치는 gateway user-dict 가 아니라 **앱 L4 후처리**(`speech/reading/lexiconOverlay` — 분석기 결과 위 최장 일치, 5분기: 같음 유지·교체·복합어 유지·일치 유지·활용형 충돌 숨김). 범위는 **GLOBAL + 본인 USER** 만(VOICE 는 목소리별 소리 보정, LESSON·COURSE 는 요청에 맥락 없음 — 사용자 결정). 조회는 `tts/lexicon.loadLexiconForDisplay(environment)`(쓰기 0, 환경별 30초 캐시·1초 제한·직전 사전 사용). gateway user-dict 안(B)은 비용값에 따라 `明日香`→明日+香 오독·青か 미교정이 갈려 기각. 사전 캐시는 세대 번호로 보호한다 — 저장 직후 `clearLexiconCache()` 가 세대를 올리고 진행 중 조회를 버려, 옛 조회가 늦게 끝나도 캐시를 다시 채우지 못한다(REV-103 L-1 해소, task-034). 화면(분석기 판정)과 TTS(한자 이웃 규칙)의 복합어 판정식은 달라 경계 사례에서 표시와 소리가 갈릴 수 있다(수용).
 
 ### 2.5 Import / Export · Preview · 화면(§131)
 
