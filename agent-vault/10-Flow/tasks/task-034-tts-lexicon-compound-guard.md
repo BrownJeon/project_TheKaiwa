@@ -1,7 +1,7 @@
 ---
 task_id: task-034
 title: "TTS 발음 사전 복합어 경계 가드 + 사전 캐시 경쟁 정리 (032 후속)"
-status: in_progress
+status: done
 base_ref: 3ed4425
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -597,4 +597,35 @@ AuditLog(LOCAL lexicon.*, 최근 2시간): 33 {"lexicon.create":18,"lexicon.disa
 
 **알려진 한계·후속(정리 backlog 에 기록)** — M-1 어댑터 재검색 규칙을 L4 가 손으로 복사해 둠(공유 픽스처 테스트 또는 위치 기반 치환) · M-2 사용자가 등록한 한자 전용 이름은 `様·先生·駅` 같은 한자 이웃이 붙으면 꺼짐(`山田先生と山田さん` → 둘 다 꺼짐; 시드 6건은 엔진 기본 읽기와 같아 영향 0) · 관리자 미리듣기 "걸리지 않았어요" 문구에 한자 이웃 사유 없음(designer 경로) · 화면(분석기)과 소리(한자 이웃)의 복합어 판정식 차이로 경계 사례에서 표시·소리가 갈릴 수 있음(수용) · 미실행: 3폭·실기기(화면 무변경이라 N/A). 남은 데이터: LOCAL 사전 버전 20→53행(불변 이력·AuditLog 1:1, 삭제 불가)·꺼진 항목 2행(`明日香` GLOBAL·`山田` USER qa-bot).
 
-**배포 상태** — 운영 배포 전(커밋·push 대기). 배포 뒤 운영 합성에서 `明日香さん` 이 `アスカ` 로 읽히는지와 `/api/health` ok·운영 스모크를 확인한다.
+**배포 상태** — ✅ **운영 반영 완료**(2026-10-05 15:47, 사용자 승인 — AskUserQuestion "배포 진행"). push `3ed4425..fc19593`(코드 `7d68b1d`·vault `fc19593`) → webhook 배포 성공, 릴리스 `20261005-154632-fc19593e`(직전 `20261005-102357-c99e0144`), migrated:false, APK 불필요. Leader 직접 확인: 배포 소스 `lexicon.ts`·`renderingPlan.ts` 가 커밋과 `cmp` 동일 · `/api/health` status=ok·env=PRODUCTION·degraded=[]·checks 전부 true · pm2 `thekaiwa`·`thekaiwa-speech-gateway`·`thekaiwa-speech-worker` online·restart 0·cwd 새 릴리스 · **운영 스모크(`SMOKE_ENV=PRODUCTION`, 포트 3010) 007 PASS 45/45(SKIP 2 = DEV_PID 없음·M4 TEXT_ONLY 단위 갈음, 이전과 동일) · 006 PASS 42/42(턴 p50 4788ms)**. 운영 사전은 시드 6건뿐이라 `明日香さん` 합성은 운영에서 별도 호출하지 않았다 — 같은 코드가 QA(실 M4)에서 `アスカサン` 확인됨(릴리스 소스 = 커밋 소스).
+
+## Deployer 기록 (2026-10-05 15:47)
+
+**배포 결과**: ✅ PASS · Webhook 배포 성공
+- **릴리스**: `20261005-154632-fc19593e` (2026-10-05 15:47 UTC+9)
+- **커밋**: `fc19593e7bf6f369e93e616941d2169ea3c288c2` (vault commit fc19593)
+- **코드 커밋**: `7d68b1d` (포함됨)
+- **이전 릴리스**: `20261005-102357-c99e0144`
+- **배포 방식**: Webhook (origin/main push 감지, 2026-10-05 06:47 UTC+0 완료)
+- **마이그레이션**: false (DB 변경 없음)
+- **APK**: 불필요 (네이티브 변경 0)
+
+**Post-Deploy Checks**:
+1. ✅ `/api/health` 본문
+   - `status`: ok
+   - `env`: PRODUCTION  
+   - `degraded`: []
+   - `checks`: env_database/jwt/oauth/data_root/internal_secret/db/llm/stt_gateway/stt_analysis/stt_analysis_worker/tts 전부 true
+
+2. ✅ pm2 세 프로세스 상태 (16초 전 재부팅)
+   - id 217: `thekaiwa` (cluster, 75569, online, restart 0) → 운영 relese 경로 반영
+   - id 218: `thekaiwa-speech-gateway` (fork, 75973, online, restart 0)
+   - id 219: `thekaiwa-speech-worker` (fork, 76197, online, restart 0)
+
+3. ✅ 배포된 코드 확인
+   - `src/modules/speech/tts/lexicon.ts` line 149: `export function guardCompoundMatches` 존재
+
+4. ✅ 운영 도메인 응답
+   - HTTPS 상태: 리다이렉트 307 정상 (로그인 페이지로)
+
+**Note**: Webhook 배포 로그에서 3개 프로세스가 옛 경로(`20261005-102357-c99e0144`)를 잡고 있던 것을 감지, delete 후 재등록해 새 경로(`20261005-154632-fc19593e`)로 정상 전환. 오래된 릴리스 `20261004-235353-02082bd8` 자동 삭제.

@@ -57,7 +57,7 @@ tags:
 - [[task-031-japanese-display-polish]] — 일본어 표시 마무리 3건(経営 장음 한글·녹음 중 저장됨 잔류·조각 영구 loading) — ✅ **완료·운영 반영** `32da7d2`(REV-102 PASS_WITH_NOTES, 운영 스모크 42/42·45/45)
 - [[task-032-lexicon-to-reading]] — 관리자 발음 사전 → 읽기 분석기 반영(青か·愚か·密か) — ✅ **완료·운영 반영** `afde949`(REV-103·QA PASS, 운영 스모크 42/42·45/45)
 - [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — ✅ **완료·운영 반영** `077654f`(데모 v1 승인·REV-105·QA PASS, 운영 스모크 45/45·42/42)
-- [[task-034-tts-lexicon-compound-guard]] — **구현·검증 완료, 운영 배포 대기(2026-10-05)**: TTS 발음 사전 복합어 경계 가드(`明日香`→アシタ香) + 사전 캐시 경쟁(REV-103 L-1) · judge: local_fix·R1·opus·standard·데모 none · REV-106 PASS_WITH_NOTES · Codex 한도 미기록 보류 · QA PASS(결함 0, 옛 코드는 `アシタガサン`→새 코드 `アスカサン` 실 M4 대조)
+- [[task-034-tts-lexicon-compound-guard]] — ✅ **완료·운영 반영(2026-10-05 15:47, `7d68b1d`·릴리스 `20261005-154632-fc19593e`, 운영 스모크 007 45/45·006 42/42)**: TTS 발음 사전 복합어 경계 가드(`明日香`→アシタ香) + 사전 캐시 경쟁(REV-103 L-1) · judge: local_fix·R1·opus·standard·데모 none · REV-106 PASS_WITH_NOTES · Codex 한도 미기록 보류 · QA PASS(결함 0, 옛 코드는 `アシタガサン`→새 코드 `アスカサン` 실 M4 대조)
 - (후보) 구 `reading`/`replyReading` 필드 제거 — PE+developer(talk@v8·chat@v3), 026 화면 A 배포로 이제 가능
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
