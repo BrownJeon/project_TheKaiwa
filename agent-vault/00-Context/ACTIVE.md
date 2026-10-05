@@ -1,6 +1,6 @@
 ---
 project: TheKaiwa
-updated: 2026-10-04
+updated: 2026-10-05
 tags:
   - type/context
 ---
@@ -13,7 +13,8 @@ tags:
 > **개선 백로그(사용자 점검분)** — `10-Flow/improvements/`([[improvements/README|규칙]]). 사용자가 `/개선작업` 으로 계속 추가한다. **task-009 완료 전에는 추가만 하고 착수 금지** — 구현 task 에 끼워 넣지 않는다. 착수는 `/개선작업 착수`(Designer → Developer → Reviewer → QA).
 
 ### 재개 시 먼저 볼 것
-- **2026-10-05 00:54 최신** — [[task-031-japanese-display-polish]] **완료·운영 반영**(`02082bd8`, 릴리스 `20261004-235353-02082bd8`) — light 트랙, REV-102 PASS_WITH_NOTES · 경营 장음 한글(케-에-) · 녹음 중 저장 실패(성공 안내 즉시 지움) · 이상 응답(영구 loading 해소). 다음 후보: 번역 UPDATE 순서(범위 분리, standard 대상) · 사용자 폰 F6 대기(실측 항목 17/이미지 업로드 3/nginx sudo) · 데모 승인 대기 없음(light waive) · 사용자 결정 9건 모두 기록됨.
+- **2026-10-05 10:45 최신** — 026·030 후속 3건 종결: [[task-031-japanese-display-polish]](経営 장음 한글·녹음 중 저장됨 잔류·이상 응답 숨김, `32da7d2`) · [[task-032-lexicon-to-reading]](관리자 발음 사전 → 화면 읽기 줄, GLOBAL+본인 USER, `afde949` — **운영 사전에 青か·愚か·密か 항목은 사용자가 추가해야 화면에 반영**) · [[task-033-japanese-display-more-screens]](AI 평가·카드 뒷면·세트 결과·복습 칩 일본어 표시 + 평가 정답 보호, 데모 v1 승인, `077654f`, 릴리스 `20261005-102357-c99e0144`). 운영 스모크 45/45·42/42. 다음 후보: board Todo·정리 backlog(033·032 후속, REV-093 쓰기 순서), task-010d(사용자 캡처 대기), `reading`/`replyReading` 필드 제거. Codex 한도 값 미갱신(C2 보류 원인) — 사용자 `/status` 값 필요.
+- **2026-10-05 00:54** — [[task-031-japanese-display-polish]] **완료·운영 반영**(`02082bd8`, 릴리스 `20261004-235353-02082bd8`) — light 트랙, REV-102 PASS_WITH_NOTES · 경营 장음 한글(케-에-) · 녹음 중 저장 실패(성공 안내 즉시 지움) · 이상 응답(영구 loading 해소). 다음 후보: 번역 UPDATE 순서(범위 분리, standard 대상) · 사용자 폰 F6 대기(실측 항목 17/이미지 업로드 3/nginx sudo) · 데모 승인 대기 없음(light waive) · 사용자 결정 9건 모두 기록됨.
 - **2026-10-04 23:10 이전** — [[task-030-japanese-display-followup]] **완료·운영 반영**(`4ce98e4`, 장음 뒤 へ 한글·토글 44px·말풍선 높이·저장 실패 알림). task-026·029 사용자 폰 확인 종결. 다음 후보: 일본어 표시 범위 밖 화면(AI 평가·카드 뒷면·복습 카드, 데모 필요) · 발음 사전→분석기 · 자료 대기 IMP-0011·IMP-0017.
 - **2026-10-04 21:05 최신** — [[task-026-improve-hangul-reading]] **완료·운영 반영**(화면 A·B `726daf7`, 릴리스 `20261004-205301-726daf71`, 운영 스모크 006 42/42·007 45/45). 다음 후보: 026 후속(QA-L1 장음 뒤 へ 한글 우선, Low 6건, 범위 밖 일본어 화면·발음 사전 반영) · 사용자 폰 확인(026 육안 항목·029 설정 스크롤) · 자료 대기 IMP-0011·IMP-0017.
 - **2026-10-04 16:00 최신** — [[task-026-improve-hangul-reading]] **서버 묶음 운영 반영**(`f67bf70`, 운영 스모크 006 42/42·007 45/45, Profile 표시 3칸 db push·백업 pre-task026) — 화면 A·B 는 **데모 v4 approve 대기(현재 화면 = 운영, F1 결정 1건): 사용자가 "task-026 데모 v4 승인" 을 직접 입력해야 check.mjs approve 가능**(AskUserQuestion 답은 증거 불인정). [[task-029-settings-scroll]] 운영 반영(`0bd8275`, 폰 확인 대기). F6 종결. 사용자 자료 대기: IMP-0011 오늘의 단어 참고 화면·IMP-0017 시나리오 카드 목록 캡처. 운영 관찰: `[claudeCli] 타임아웃 — task=…` 빈도·A5 생성 시간. 알려진 한계: 「青か」·「愚か」 등 분석기 사전 오독(후속: 발음 사전 반영).

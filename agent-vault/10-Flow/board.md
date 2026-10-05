@@ -56,7 +56,7 @@ tags:
 ## Todo (2026-10-05 접수 — 026·030 후속)
 - [[task-031-japanese-display-polish]] — 일본어 표시 마무리 3건(経営 장음 한글·녹음 중 저장됨 잔류·조각 영구 loading) — ✅ **완료·운영 반영** `32da7d2`(REV-102 PASS_WITH_NOTES, 운영 스모크 42/42·45/45)
 - [[task-032-lexicon-to-reading]] — 관리자 발음 사전 → 읽기 분석기 반영(青か·愚か·密か) — ✅ **완료·운영 반영** `afde949`(REV-103·QA PASS, 운영 스모크 42/42·45/45)
-- [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — standard·delta — **데모 v1 승인(10-05, 권고 A 전부)** → 가이드·구현 진행
+- [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — ✅ **완료·운영 반영** `077654f`(데모 v1 승인·REV-105·QA PASS, 운영 스모크 45/45·42/42)
 - (후보) 구 `reading`/`replyReading` 필드 제거 — PE+developer(talk@v8·chat@v3), 026 화면 A 배포로 이제 가능
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
@@ -66,6 +66,7 @@ tags:
 - `/개선작업` 으로 추가·조회. 항목은 `improvements/items/`, 표는 `improvements/improvements.base`, 규칙은 [[improvements/README|README]]. 구현팀은 건드리지 않는다.
 
 ## 정리 backlog (소규모)
+- (033 후속) 교차 보호 대상 문장 읽기를 서버 응답에서 비우기(QA I-1) · 복합어·조각 경계 교차 보호(REV-104 L-1) · 극단 카드 숨긴 예문 줄 루비 비침(L-2) · 평가 "내가 한 말" 스크린리더 비노출
 - (032 후속) TTS 가 사전 `明日` 때문에 `明日香` → アシタ香(복합어 경계) · REV-103 L-1 사전 저장 직후 옛 조회 캐시 재충전(최대 30초)
 - (031 분리, 2026-10-05) REV-093 LOW — `orchestrator/index.ts` flushUserRow 번역 updateMany 를 `correction.create` 앞으로(S→X 승격 대기 축소). 교정 트랜잭션 순서라 R2 보강 대상 → standard+QA 로 별도 처리
 - (005b) 발음 사전(Pronunciation Dictionary P0) — task-003 이후 · #93b credentialRef 쓰기·functional test 30초 슬롯 원자성 — Phase 2(012c) · 운영 APP_ENV=LOCAL·dev 상태 점검이 운영 connection 행을 바꾸는 문제 — task-009

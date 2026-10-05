@@ -1,7 +1,7 @@
 ---
 task_id: task-033
 title: "일본어 표시(히라가나·한글) 확장 — AI 평가·단어 카드 뒷면·복습 카드"
-status: doing
+status: done
 base_ref: 26b6322
 risk_level: "R1"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -31,7 +31,7 @@ demo_gate:
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: true
+  active: false
 ---
 
 ## 목표 (Leader)
@@ -351,8 +351,20 @@ fixture(홈 #58 복습 카드·GENERATING·① 항목·복습 종료(다음 복�
 | v1 | 검토요청 | docs/demo/task-033-japanese-display-more-screens-v1.html | https://claude.ai/artifact/5JrrcmCY9u7N4QepQLoj1u | 사용자 검토 요청 | 10-05 01:15 |
 | v1 | 승인 | docs/demo/task-033-japanese-display-more-screens-v1.html | https://claude.ai/artifact/5JrrcmCY9u7N4QepQLoj1u | "task-033 데모 v1 승인" | 10-05 08:37 |
 
-## 최종 요약
+## 최종 요약 (Leader, 2026-10-05 10:45)
 
+**무엇이 바뀌었나** — 회화방·채팅·오늘의 회화에만 있던 일본어 표시(한자 위 히라가나·아래 [한글])를 나머지 학습 화면으로 넓혔습니다.
+- **AI 평가**: 푸는 화면과 결과 화면에 히라가나·한글. 푸는 화면 위에 [히라가나][한글] 켜고 끄는 줄. 정답 보호 — 읽기 쓰기 문항 단어는 제출 전 숨김(안내 문구), 같은 평가의 다른 문항에 나온 그 단어(활용형 포함)도 숨김, 듣기 문장은 제출 전 글자 없음, 문장 조립은 조각 히라가나만, 평가에는 번역 없음. 결과 화면은 전부 표시하고 모범 답 아래 읽기 줄은 없앰.
+- **단어 카드 뒷면**: 표제어 히라가나(앱 설정과 무관하게 늘)·[한글], 예문 히라가나 + [한글] 1줄. 카드에 자리가 없으면 예문 [한글] → 그래도 넘치면 표제어 [한글] 순으로 빼서 번역 줄을 지킵니다(데모에 없던 극단 카드 대응, 승인 범위 안).
+- **세트 결과 단어 목록·복습 칩·복습 항목 카드·복습/수업 종료 표현 칩**: 같은 규칙.
+
+**사용자 결정** — 데모 v1 승인(결정 6건 권고 A). Leader 판단: 교차 보호 어간 일치(더 숨기는 방향), B6 2단계 대체 규칙, QA I-1 수용(아래).
+
+**검증 경로** — judge(feature·R1·light·sonnet → 사용자 결정으로 standard+delta 데모) → designer 데모 v1 → 사용자 승인 → 가이드 §15-11 → developer 3명 병렬(A 평가·B 카드·C 복습, sonnet) + B6 → **REV-104 CONDITIONAL_PASS**(M-1 정답 보호 테스트 공백) → 테스트 보강 → **REV-105 PASS**(변이 6건 검출) → judge C2(Codex 불필요) → **QA PASS**(결함 0, 실 A6 평가로 정답 노출 0 확인, 3폭×2높이) → 배포.
+
+**배포** — 코드 `077654f`·문서 `c99e014`, 릴리스 `20261005-102357-c99e0144`(health ok·PRODUCTION). 운영 스모크(Leader): **회화 45/45 · 채팅 42/42**(첫 실행 41/42 는 연속 실행으로 QA 계정이 429 요청 한도에 걸린 것 — 2분 뒤 재실행 통과, 코드 무관). 웹 배포만, 앱 재설치 불필요.
+
+**알려진 한계·후속** — QA I-1: 교차 보호 대상 문장도 읽기 분석 요청으로 나가 응답에 그 단어 읽기가 들어 있음(화면 0, 개발자 도구로만 보임) — 가이드에 명시, 서버 쪽 비우기는 후속 후보. REV-104 L-1 복합어·조각 경계 교차 보호 한계 · L-2 360×780 극단 카드에서 숨긴 예문 줄 루비 윗조각 비침(거슬림 낮음) · 평가 "내가 한 말" 상자 스크린리더 비노출(기존). NOT_VERIFIED: 평가 실제 제출→채점 흐름(fixture 로만), 실기기 스크린리더·길게 눌러 복사 — 사용자 폰 확인.
 
 ## 판단 기록 (judge) — C2
 
