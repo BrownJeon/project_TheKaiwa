@@ -59,7 +59,7 @@ tags:
 - [[task-033-japanese-display-more-screens]] — 일본어 표시 확장(AI 평가·카드 뒷면·복습 카드) — ✅ **완료·운영 반영** `077654f`(데모 v1 승인·REV-105·QA PASS, 운영 스모크 45/45·42/42)
 - [[task-034-tts-lexicon-compound-guard]] — ✅ **완료·운영 반영(2026-10-05 15:47, `7d68b1d`·릴리스 `20261005-154632-fc19593e`, 운영 스모크 007 45/45·006 42/42)**: TTS 발음 사전 복합어 경계 가드(`明日香`→アシタ香) + 사전 캐시 경쟁(REV-103 L-1) · judge: local_fix·R1·opus·standard·데모 none · REV-106 PASS_WITH_NOTES · Codex 한도 미기록 보류 · QA PASS(결함 0, 옛 코드는 `アシタガサン`→새 코드 `アスカサン` 실 M4 대조)
 - [[task-035-tts-rescan-contract-test]] — ✅ **완료(2026-10-05, 로컬 커밋 — push·운영 배포는 사용자 확인 대기)**: 034 후속 — 어댑터 `substituteReadings` ↔ L4 `rescanHintSurfaces` 계약 테스트(JSON 픽스처 18사례 공유, M-1) + `lexiconOverlay` 주석 정정, `lead` 는 제거하지 않고 주석만(L-2 전제가 공백 시작 표기에서 깨짐) · judge 분류 실패→안전값 opus·standard · REV-107 PASS_WITH_NOTES(반영) · QA PASS(결함 0, 동작 불변 24만 건·변이 8/8). **동작 변경 없음** — push 는 운영 재배포(pm2 재시작)만 일으킴
-- (후보) 구 `reading`/`replyReading` 필드 제거 — PE+developer(talk@v8·chat@v3), 026 화면 A 배포로 이제 가능
+- [[task-036-remove-llm-reading-fields]] — **구현·검증 완료, 운영 배포 대기(2026-10-05)**: 구 `reading`/`replyReading` 제거(talk@v7→v8·chat@v2→v3) · 지연 p50 TALK −337ms·CHAT −546ms·출력 −9.4%/−18.9%(PE 324회), 첫 음성 악화 없음(QA n=40 교차) · judge structural·R2·sonnet·standard · REV-108·REV-109(Codex C2 1건 부분 채택)·QA PASS(결함 0) · ⚠ W1 JSON 구문 슬립 풀링 8/176 vs 1/164(p=0.038) — 수용 + 배포 후 감시·롤백 기준, 후속 037 후보 `extractJson` 좁은 복구. DB 컬럼·마이그레이션 변경 없음
 
 ## Backlog (Phase 1, 순서·의존은 design-spec §15)
 - task-003 — 온디바이스 STT 플러그인(Kotlin+sherpa-onnx) + gateway 폴백 + **M4 tts-service 자체 FastAPI(정규화·발음 사전 P0·SpeechProfile·RenderingPlan·캐시 키 12요소)** + Capacitor 셸 + **§9 실측 게이트 6항목 + TTFA** (002 후, 003·004·005 병렬)
@@ -70,6 +70,7 @@ tags:
 ## 정리 backlog (소규모)
 - (033 후속) 교차 보호 대상 문장 읽기를 서버 응답에서 비우기(QA I-1) · 복합어·조각 경계 교차 보호(REV-104 L-1) · 극단 카드 숨긴 예문 줄 루비 비침(L-2) · 평가 "내가 한 말" 스크린리더 비노출
 - ~~(032 후속) TTS `明日香`→アシタ香 · REV-103 L-1 사전 캐시 재충전~~ → [[task-034-tts-lexicon-compound-guard]] 로 처리
+- (036 후속) **037 후보 `extractJson` 좁은 복구** — 루트가 닫힌 뒤 `,"키":…}` 가 이어지면 직전 `}` 를 지우고 재파싱(REV-108 B, W1 JSON 구문 슬립 범주 제거 — 공용 파싱 경로라 R2 + 슬립 원문 회귀 테스트 필수) · O-1 `TurnAudio.metrics().mismatch` 서버 미기록(Trace `TTS_ALIGN` 단계·`console.warn(traceId)` — task-007 C1-3 ③ 미구현) · `docs/screens.md:488·8052·8087`·`.codex/agents/prompt-engineer.toml`(생성본 재생성)·persona `tutor.md:65` "읽기" 문구(다음 persona 수정 때 그 행만) · T-C 슬립→`runJsonWithRetry` `attempts===2` 단언
 - (035 후속) `validateLexiconEntry` 가 공백으로 시작하는 표기를 거부하도록(`lexicon.ts` — 손상 스냅샷 방어, 별도 task) · 계약 테스트 사례 수 하한 `>= 10` → 정확 수 단언(REV-107 I-1·QA O-2) · 개발 미러의 다른 세션 임시 파일(`tmp-pe/t49.ts`·`.scratch-021/`) 정리 — `npm run lint` 노이즈
 - (034 후속, REV-106) ~~M-1 어댑터↔L4 결합~~ → [[task-035-tts-rescan-contract-test]] 로 처리(공유 픽스처, 위치 기반 치환은 하지 않음 — 엔진 계약 변경이라 별도 판단) · M-2 한자 전용 사용자 표기가 한자 이웃(様·先生·駅)에서 꺼짐 — PERSON·PLACE 접미어 허용 또는 위치 기반 치환 · 관리자 미리듣기 `notHitText` 에 "더 긴 한자 단어의 일부" 사유 문구(designer 경로) · `reading/lexiconOverlay.ts:5` 주석("표시와 소리가 같은 항목") 정정 · `renderingPlan.ts:60` 죽은 코드 `lead` · `ヶ` 한자 클래스 정의(`三ヶ月間` 꺼짐)
 - (031 분리, 2026-10-05) REV-093 LOW — `orchestrator/index.ts` flushUserRow 번역 updateMany 를 `correction.create` 앞으로(S→X 승격 대기 축소). 교정 트랜잭션 순서라 R2 보강 대상 → standard+QA 로 별도 처리
