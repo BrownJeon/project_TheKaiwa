@@ -357,3 +357,27 @@ fixture(홈 #58 복습 카드·GENERATING·① 항목·복습 종료(다음 복�
 ## 판단 기록 (judge) — C2
 
 - [2026-10-05 09:35] codex_gate/C2 engine=jev → codex_required=false · focus=security · reviewer_doubt=0.51 | overrides=- | fallback=- | tokens=1068
+
+## Deployer 기록 (2026-10-05 10:23:57)
+
+배포 상태: ✅ **완료**
+
+| 항목 | 값 |
+|------|------|
+| **릴리스** | `20261005-102357-c99e0144` |
+| **커밋** | `c99e0144852b47b2ef633f7b574cb52d58248a70` (task-033 코드+문서) |
+| **이전 릴리스** | `20261005-102315-c99e0144` (웹훅 시작, 미완료) → `20261005-102315-c99e0144` 롤백 불필요 |
+| **마이그레이션** | 없음 (`--with-migrate` 미사용, DB 변경 0) |
+
+**Post-Deploy Checks**:
+- ✅ `/api/health` → HTTP 200, `data.env="PRODUCTION"`, `status="ok"`, `degraded=[]`
+- ✅ pm2 상태: `thekaiwa` / `thekaiwa-speech-gateway` / `thekaiwa-speech-worker` 모두 online, cwd 정상
+- ✅ 운영 화면 상태: HTTP 307 (로그인 리다이렉트) 정상
+- ⏳ Smoke test: task006-smoke.sh 실행 중 (백그라운드)
+
+**비고**:
+- 웹훅이 c99e014 push 에서 배포를 시작했으나 미완료(TypeScript 단계에서 로그 중단)
+- 배포자가 수동으로 `scripts/deploy.sh TheKaiwa --yes` 실행해 완료
+- 변경 파일: `src/components/{eval,vocab,lesson}/**` + `docs/screens.md` + vault 문서
+- 서버/DB/음성 gateway/M4/네이티브 변경 0
+- APK 배포 불필요 (네이티브 변경 0)
