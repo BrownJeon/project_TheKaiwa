@@ -1,7 +1,7 @@
 ---
 task_id: task-037
 title: "LLM JSON 구문 슬립 좁은 복구 (루트 조기 닫힘 — TALK·CHAT 한정 옵트인)"
-status: in_progress
+status: done
 base_ref: 5a5c25c
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -328,8 +328,36 @@ $ bash tests/live/task011-smoke.sh 3011      (23:30:01~23:32:10)  → 결과: 60
 
 **사용자 결정** — 없음(후속 정리). Leader 판단: ① judge 값(local_fix·R1·sonnet·standard) 그대로, 단 공용 파싱 경로 근처라 옵트인+차분 퍼즈로 보수적 설계 ② 복구는 extractJson 본문이 아니라 별도 함수·요청 옵션(blast radius 최소) ③ `dev-037` 이 `maxTurns 80` 으로 끊겨 신규 소환(`dev-037b` 마무리·`dev-037c` 지적 반영) ④ REV-110 후속(코드 변경이 가드 1줄·주석뿐)은 reviewer 전면 재감사 대신 **Leader 가 reviewer 권고 독립 퍼즈 재실행**(660,000건 `FAILURES 0`·비문자열 on/off 동일)으로 좁게 재검증.
 
+## Deployer 기록 (2026-10-06 00:00)
+
+**배포 상태**: ✅ 완료 (RELEASE_RESULT `status=ok`)
+
+| 항목 | 값 |
+|------|-----|
+| **릴리스 ID** | 20261005-234748-fb6af05a |
+| **커밋** | fb6af05a54744cc484f0b2e5adf103c57ca97bc6 (vault) |
+| **배포 방식** | 수동 (`scripts/deploy.sh TheKaiwa --yes`) — webhook 은 새 릴리스를 생성했으나 current 업데이트 미완료 |
+| **이전 릴리스** | 20261005-234705-fb6af05a |
+| **마이그레이션** | false (DB 변경 없음) ✅ |
+
+**Post-Deploy Checks**
+
+| 항목 | 결과 |
+|------|------|
+| **① Health** | ✅ `/api/health` 200 · `status=ok` · `env=PRODUCTION` · `degraded=[]` |
+| **② pm2** | ✅ thekaiwa (id=226, restart=0, uptime=8s) · thekaiwa-speech-gateway (id=227, restart=0, uptime=7s) · thekaiwa-speech-worker (id=228, restart=0, uptime=7s) 모두 online |
+| **③ 릴리스** | ✅ `current` 심볼릭 링크: `20261005-234748-fb6af05a` (배포 직후 업데이트) |
+| **④ 코드 검증** | ✅ `repairRootClose.ts` 존재 · `talk.ts` repairRootClose:true 1줄 · `chat.ts` repairRootClose:true 1줄 · `TALK_PROMPT_VERSION='talk@v8'` · `CHAT_PROMPT_VERSION='chat@v3'` 유지 · `extractJson.ts` 바이트 동일(설계 원칙 1 준수) |
+| **⑤ HTTP** | ✅ 로그인 리다이렉트 307 정상 |
+
+**운영 스모크**: Leader 실행 대기 (`SMOKE_ENV=PRODUCTION`, deployer 는 실행하지 않음) — task-006 / task-007 포트 3010
+
 **검증** — judge intake(R1·standard)·C2(Codex 불필요) → Developer(Sonnet) 구현·마무리·반영 → **REV-110 PASS_WITH_NOTES**(Medium 1 = 테스트 Prisma 원복 결함·Low 4 — 모두 반영: M-1 복원 단언·L-1 서술 정정·L-3 비문자열 가드·L-4 `src` 전체 옵트인 pin; 독립 퍼즈 1,200,000건 위반 0·변이 27건 중 23 killed(생존 4 = 관찰 동치·보강 대상)) → **QA PASS(결함 0)**: **실제 Claude CLI(haiku) TALK 128호출 중 자연 슬립 3건(2.34%) — 3건 모두 복구되어 `attempts=1`·재시도 0·FAILED 0**, 슬립 모양이 `…"proposals":[]},"userKo":"…"}` 와 같고 복구 후 `userKo` 가 루트 키, 스크립트 독립 재복구도 ajv·extraCheck 3/3 통과. dev 서버 경로에서도 자연 슬립 1건이 Trace `repaired=ROOT_CLOSE` 1건·로그 1줄과 일치(로그는 고정 문구뿐). 스모크 007 47/47·006 42/42·턴 계약 299/299(정상 29턴은 `repaired` 표식 없음)·008 77/77·011 60/60(옵트인 밖 로그 `구문 슬립 복구` 0건), `AUDIO_TEXT_MISMATCH` 0·`earlyStop=RETRY` 0·스트림 첫 문장 prefix 일치 126/126, 전체 테스트 1500건 중 1499 통과·1 skip(기존). 화면 변경 없음(3폭·실기기 N/A).
 
 **알려진 한계·후속** — ① 슬립 응답의 **문자열 값 안 원본 개행**이 섞이면 복구하지 못하고(독립 퍼즈상 해당 슬립의 19%만 복구) 옛 재시도로 폴백(안전·테스트로 고정) ② 슬립이 다른 모양(서문 섞임·내부 객체만 조기 닫힘·두 번 닫힘)이면 복구하지 않고 재시도 — 오복구 안전망은 `additionalProperties:false`·required(독립 퍼즈: 구조만 파싱되는 오복구 39,466건 중 실제 TALK·CHAT 스키마 통과 0) ③ 복구 로그 문구가 두 가지(`재시도 생략`/`재시도 경로에서 복구본 사용`) — W1 감시는 접두 `구문 슬립 복구(ROOT_CLOSE)` 로 센다 ④ 서버에서 `learning.grammarPoint` 80자 초과 소프트 재시도 2회(QA O-2)는 스키마·프롬프트 diff 0 이라 이번 변경과 무관해 보이나 로그만으로는 "복구 후 스키마 위반으로 버려진 슬립"과 구분이 안 됨 — 감시 때 확인 ⑤ `lexiconCompoundGuard.test.ts:273` Prisma `findFirst` 복원이 프록시 get 을 가림(동작 동등·범위 밖 — 별도 정리). **W1 감시 지표 갱신**: 슬립은 이제 `JSON 파싱 실패` 재시도로 보이지 않고 **`구문 슬립 복구(ROOT_CLOSE)` 로그 건수 = Trace LLM 단계 `repaired` 턴 수**로 센다. `JSON 파싱 실패` 는 "슬립이 아닌 파싱 실패"(기준선 2줄 — 10-01~10-05 전 프롬프트·QA 트래픽 포함)로 재해석. 임계(`attempt=2` 8% 초과·`ENGINE_ERROR` 1건)는 그대로, 복구율 자체의 상한은 두지 않되 **복구 건수 급증(예: 100턴 중 15건 이상)** 이 보이면 모델이 다른 습관으로 바뀐 신호이므로 확인.
 
-**배포 상태** — 운영 배포 전(로컬 커밋·push 대기). 배포 뒤: `SMOKE_ENV=PRODUCTION` 006 42/42·007 45/45, health, 소스 `cmp`, 그리고 위 감시.
+**배포 상태** — ✅ **운영 반영 완료**(2026-10-05 23:47, 사용자 승인 — AskUserQuestion "배포 진행"). push `5a5c25c..fb6af05`(코드 `8304379`·vault `fb6af05`) → 릴리스 `20261005-234748-fb6af05a`(webhook `20261005-234705-fb6af05a` 가 먼저, deployer 수동 deploy 가 같은 sha 로 한 번 더 — 무해, 직전 `20261005-204558-e1c5f296`), migrated:false, APK 불필요. Leader 직접 확인: 배포 소스 7개(`repairRootClose.ts`·`schemaValidate.ts`·`llm/index.ts`·`orchestrator/index.ts`·`talk.ts`·`chat.ts`·`extractJson.ts`)가 커밋과 `cmp` 동일 · `repairRootClose: true` 는 `talk.ts`·`chat.ts` 뿐 · `talk@v8`·`chat@v3` 유지 · `extractJson.ts` 직전 릴리스와 동일 · `/api/health` status=ok·env=PRODUCTION·degraded=[]·checks 전부 true · pm2 3개 online·restart 0·cwd 새 릴리스. **운영 스모크(`SMOKE_ENV=PRODUCTION`, 3010)**: **007 PASS 45/45 · QA 턴 계약 스크립트(TALK·CHAT 각 2턴) PASS 48/48**(`done` 키 = `replyJa`·`replyKo`, 새 행 `reading` NULL, 경고 0, `attempt≥2` 0·`earlyStop=RETRY` 0) · **011 PASS 60/60** · **006 은 41/42(3회 반복 모두 1건 실패 — 아래)**.
+
+**006 스모크 실패 조사(결과: task-037 과 무관)** — ① 1회차(23:54~23:58 KST): `TALK 턴 교정 PROPOSED…` 1건 — TALK 턴이 `error` 로 끝남, 같은 시각 운영 `pm2-err.log` 에 `[claudeCli] 타임아웃 — task=talk model=haiku … timeoutMs=12000`(12초 fail-fast, 운영 관찰 항목 — 슬립·복구와 무관: `구문 슬립 복구` 0줄·`JSON 파싱 실패` 2줄 그대로) ② 2·3회차(자정 KST 이후 00:0x~00:1x): `6b 점검 전후 행 수 변화 0 — {"w":0,"s":0,"snap":3,"err":2}`(6a 는 `snap:2`→`snap:2` 통과) — 점검(review)이 오늘(KST 새 날짜) DAILY 스냅샷 행을 만들어 QA 계정 `StatsSnapshot` 수가 2→3 이 된다(`observations/index.ts:107` `bumpDailySnapshot(todayKst)`·qa-bot 의 DAILY 행은 10-03·10-05 뿐, 스모크 cleanup 이 `createdAt ≥ 시작` 행을 지움). ③ **대조 실험**: 037 이전 코드(커밋 `5a5c25c` — 소스 5개를 되돌리고 `repairRootClose.ts` 제거한 복제본)를 dev 서버 3012 로 띄워 같은 006 스모크를 같은 시각에 돌리면 **동일하게 `6b … {"w":0,"s":0,"snap":3,"err":2}` 로 실패(41/42)** — 037 의 복구 경로는 A3 점검(옵션 false)과 무관하고 복구 로그도 0건. 결론: **자정(KST) 날짜 경계에서 새 날의 DAILY 행이 점검 중 생성되는 스모크 6b 의 날짜 의존 취약점**(코드 결함 아님·미확정 부분: 왜 과거 날들엔 안 걸렸는지 — 그날그날 QA 계정의 DAILY 행이 먼저 만들어져 남아 있었던 것으로 추정). 후속: `task006-smoke.ts` 6b 를 DAILY 행 생성에 강하게(예: 시작 전 오늘 DAILY 행 보장·6b 에서 DAILY 제외) — 정리 backlog. 대조 서버 종료 확인(dev 3011·3012·8197·8198 리스너 0, 운영 3010·8100 유지). 임시 복제본 `~/.node-local/thekaiwa-pre037/` 은 삭제 명령이 환경 안전 훅에 막혀 남아 있다(하드링크·개발 전용, 사용자가 `rm -rf` 로 정리 가능).
+
+**W1 감시 시작선**: 배포 직전 운영 `pm2-err.log` 117줄 — `1차 응답 계약 위반` 26·`JSON 파싱 실패` 2·`구문 슬립 복구` 0(`/tmp/w1-baseline-037.txt`). 배포 후 006 스모크 3회 뒤 `1차 위반` 28·`JSON 파싱 실패` 2·`구문 슬립 복구` 0·`claudeCli 타임아웃` 1(스모크 트래픽 포함 — 첫 TALK 100턴 감시는 계속: 로그 접두 `구문 슬립 복구(ROOT_CLOSE)` 건수 = Trace LLM `repaired` 턴 수, `attempt=2` 8% 초과·`ENGINE_ERROR` 1건 이상이면 확인).
