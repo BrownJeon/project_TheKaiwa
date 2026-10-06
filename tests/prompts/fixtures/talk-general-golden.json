@@ -1,0 +1,53 @@
+{
+ "capturedFrom": "talk@v9 · HEAD c69e0af · 2026-10-07 (task-010d 변경 전)",
+ "cases": {
+  "plain_n5_fluency": {
+   "request": "161c876d313986c1210a0c03bca3f73d891f9399b4c943f7ccee1b339e959a27",
+   "persona": "2b65d3046cab2b11b6d76a150d5084e7bc608c04a7a19dcdeaab13ec005da2cb",
+   "systemChars": 1742,
+   "totalChars": 1819
+  },
+  "coach_with_history": {
+   "request": "8dc890a2013aabcabc6b95ae82e76c5ab25f7618729b898299d383b019ba1981",
+   "persona": "2b65d3046cab2b11b6d76a150d5084e7bc608c04a7a19dcdeaab13ec005da2cb",
+   "systemChars": 1796,
+   "totalChars": 1954
+  },
+  "alt_candidate": {
+   "request": "7c9c8c9c0a65da1694cc4e090913f2aec54394c02624bbe06c083752568c16fe",
+   "persona": "2b65d3046cab2b11b6d76a150d5084e7bc608c04a7a19dcdeaab13ec005da2cb",
+   "systemChars": 1807,
+   "totalChars": 1967
+  },
+  "heavy_long_500_coach_cap3": {
+   "request": "f75bcbf8164a0ad2502f1ae192f80703428dbfd5a4dc900140344fd17b42bef4",
+   "persona": "2b65d3046cab2b11b6d76a150d5084e7bc608c04a7a19dcdeaab13ec005da2cb",
+   "systemChars": 1923,
+   "totalChars": 2752
+  },
+  "n3_cap4": {
+   "request": "5d79a2a99a11ceaffe06922f8ff54b290549fd2748817ac25c6fcca0d7c33bf6",
+   "persona": "d934814e8a29353c84a6e25ea4155d08a38814531423ed90164da95c6d828195",
+   "systemChars": 1851,
+   "totalChars": 2016
+  },
+  "n5_cap1_coach": {
+   "request": "d4c117cee9dd53f15ee5100b4420e0582dd5fcb9a24a816b4c4230af778035d7",
+   "persona": "2b65d3046cab2b11b6d76a150d5084e7bc608c04a7a19dcdeaab13ec005da2cb",
+   "systemChars": 1591,
+   "totalChars": 1743
+  },
+  "heavy_alt60_fluency": {
+   "request": "37ed25c241e990c06be009f3e0cf6f0c54ea0d345fca2b16730757bdb1272dc6",
+   "persona": "2b65d3046cab2b11b6d76a150d5084e7bc608c04a7a19dcdeaab13ec005da2cb",
+   "systemChars": 1868,
+   "totalChars": 2692
+  },
+  "n1_text1000": {
+   "request": "5bc4f901c93ea39f958c37f4ba8a749b65468430d832fa34e16c4ffdc404b19e",
+   "persona": "c22580c46fe0a6e1eabcbb865bdc3dec9ac8947919dbec306d5fa4f13706e0be",
+   "systemChars": 1789,
+   "totalChars": 2857
+  }
+ }
+}
