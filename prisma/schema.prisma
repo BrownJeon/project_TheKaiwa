@@ -1,6 +1,8 @@
 // TheKaiwa — Prisma 스키마 실물. 정본은 docs/design/domain-model.md §3 (수정은 정본 → 이 파일 순서, 2026-09-26 재추출: SpeechProfile·TtsCache 확장·발음 사전 P0)
 // 2026-10-01 승격(사용자 "db추가 승인", 추가만): §9 Scenario·ScenarioTopic·LearningObservation(+enum 3종) · Profile.correctionMode · Lesson/Chat.scenarioId·Chat.lessonId · EvaluationItem.textRevealedAt
 // 남은 제안 엔티티(§9-2 LearnerSkillState — Phase 3, §10 VoiceModelVersion·Golden·QualityRun·AbCompare)는 사용자 결정 후 승격 시 추가한다.
+// 2026-10-06 승격(사용자 "전부 승인", 추가만 — Phase 2 일괄 DB0): Correction.extraNoteKo(039) · enum ChallengeStatus·Challenge(041) ·
+//   VocabSession.topicId·VocabAttempt.refType/refId(042) · EngineMetricsDaily TTS 6칸(012b-3)
 
 // TheKaiwa — DB 스키마 정본. 원본은 docs/design/domain-model.md §3 이며 실물 prisma/schema.prisma 는 이 블록을 그대로 옮긴다.
 // 규칙: (1) AI 제안은 PROPOSED 로만 존재, 채택 시 저장 (2) StatsSnapshot 은 생성·증가만, *Snap 컬럼으로 이력 보존
@@ -268,6 +270,13 @@ enum PlanStatus {
   ARCHIVED
 }
 
+/// 챌린지 상태(task-040·041, Challenge 전용). ACTIVE → COMPLETED(기간 끝 — 읽거나 만들 때 지연 전이) | ENDED(사용자가 그만둠). 끝난 상태는 되돌리지 않는다
+enum ChallengeStatus {
+  ACTIVE
+  COMPLETED
+  ENDED
+}
+
 enum SnapshotKind {
   DAILY
   VOCAB_SESSION
@@ -514,6 +523,7 @@ model User {
   attendances      Attendance[]
   evaluations      Evaluation[]
   studyPlans       StudyPlan[]
+  challenges       Challenge[]
   snapshots        StatsSnapshot[]
   errorStats       LearnerErrorStat[]
   utterances       Utterance[]
@@ -756,6 +766,8 @@ model Correction {
   original    String         @db.Text
   corrected   String         @db.Text
   explanation String         @db.Text
+  /// task-039 — JLPT·교과서식 추가 설명(정리 통과분 ≤200자, 생성 시에만 기록). 옛 행·없음 = NULL
+  extraNoteKo String?        @db.VarChar(400)
   errorType   ErrorType
   severity    Severity       @default(MINOR)
   chunkType   ChunkType?
@@ -894,12 +906,17 @@ model VocabSession {
   startedAt      DateTime           @default(now())
   finishedAt     DateTime?
   durationSec    Int?
+  /// 주제 단어 세트(task-040·042). null = 기존 "내 단어장" 세트
+  topicId        String?
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts VocabAttempt[]
 
+  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
   @@index([userId, date])
   @@index([userId, keptAt])
+  @@index([userId, topicId, date])
 }
 
 /// 카드 1장. surfaceSnap/readingSnap/meaningSnap = 삭제 정책 스냅샷(규칙 2). choices 는 보기 스냅샷, 정답은 응답에 미포함
@@ -918,6 +935,10 @@ model VocabAttempt {
   /// 위 스와이프 = 다시 보기 표시
   flagged     Boolean      @default(false)
   answeredAt  DateTime?
+  /// 주제 카드의 출처(task-040·042, FK 없음 — RepetitionItem 과 같은 규약): 'TopicChunk'(조각 id) | 'Expr'(sha1 정규화 표기 — 수업 표현) |
+  /// 'AiWord'(A12 새 단어, refId = 같은 sha1 정규화 표기. 반복 항목 등록·오늘 제외 비교 때는 ('Expr', refId) 로 바꿔 쓴다). 단어장 카드는 null(wordId 로 충분)
+  refType     String?      @db.VarChar(30)
+  refId       String?      @db.VarChar(40)
 
   session VocabSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   word    WordEntry?   @relation(fields: [wordId], references: [id], onDelete: SetNull)
@@ -946,6 +967,9 @@ model ConversationTopic {
   lessons     Lesson[]
   chats       Chat[]
   evaluations Evaluation[]
+
+  challenges    Challenge[]
+  vocabSessions VocabSession[]
 
   @@index([userId, level])
   @@index([isSeed, level])
@@ -1255,6 +1279,43 @@ model StudyPlan {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, createdAt])
+}
+
+/// 챌린지(task-040 설계 challenge.md §3-2, 구현 task-041) — 사용자가 직접 만든다(규칙 1 의 DIRECT 행위, AI 산출 아님). L3 learning/challenges 소유.
+/// 하루별 결과는 저장하지 않는다 — 기간 안 StatsSnapshot(LESSON·VOCAB_SESSION)을 읽을 때 계산하고(§6-4), 끝날 때 result 에 한 번 얼린다.
+/// activeKey = ACTIVE 일 때 userId, 끝나면 null → @unique 가 "사용자당 진행 중 1개"를 DB 에서 보증(InnoDB 유니크는 NULL 여러 개 허용).
+/// 사용자 삭제 경로 없음(계정 삭제 시에만 Cascade). 진행 중 챌린지의 주제는 지울 수 없다(#57 이 409 — §3-3)
+model Challenge {
+  id             String          @id @default(cuid())
+  userId         String
+  /// 자동 "<주제 제목 ≤60자> N일 챌린지" 또는 사용자 입력 ≤40자
+  title          String          @db.VarChar(80)
+  topicId        String?
+  topicTitleSnap String          @db.VarChar(80)
+  level          JlptLevel
+  lengthDays     Int
+  startDate      DateTime        @db.Date
+  endDate        DateTime        @db.Date
+  /// {lesson:boolean, words:boolean, wordCount:5|10|15|null, wordsMinAnswered:4|8|12|null, countSkipped:false, ruleVersion:1} — 만들 때 얼림(1단계 수정 없음).
+  /// wordsMinAnswered = ceil(4×wordCount/5) — 그날 주제 세트들의 (맞힘+틀림) 합계가 이 값 이상이면 단어 과제 인정(§6-0). words:false 면 wordCount·wordsMinAnswered = null.
+  /// 판정 파라미터를 여기 얼려 코드 규칙이 바뀌어도 진행 중 챌린지 수치가 바뀌지 않게 한다. 2단계 scenario 슬롯은 additive 키
+  dailyGoal      Json
+  status         ChallengeStatus @default(ACTIVE)
+  activeKey      String?         @unique @db.VarChar(40)
+  /// 끝날 때 한 번만 쓰는 요약(§5-5) — {ruleVersion, endReason, metDays, partialDays, missedDays, stoppedDays, elapsedDays, rate, longestStreak,
+  /// lessonsDone, wordSets, wordsCorrect, days:[{date, state, quiz:[c,t]|null, words:[c,w,s,n,sets]|null}] ≤30} — 이후 불변.
+  /// endReason = COMPLETED 면 null · ENDED 면 'USER' | 'TOPIC_REMOVED'. JSON 모양은 정본 domain-model §9-3
+  result         Json?
+  /// COMPLETED = endDate 다음 날 00:00 KST(마감 시각 — 전이를 실행한 시각이 아님) · ENDED = 그만둔 시각
+  endedAt        DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, startDate])
+  @@index([userId, endedAt])
 }
 
 /// 삭제 정책 구현체(규칙 2). 생성·증가만. 삭제 경로(단어·기록·세션·채팅 삭제)에서 절대 쓰지 않는다. 성장기록·분석은 여기서만 읽는다
@@ -1757,6 +1818,14 @@ model EngineMetricsDaily {
   avgMs        Int?
   p50Ms        Int?
   p95Ms        Int?
+  /// task-012b-3 TTS 관측(speech-platform/16 §7.3) — 아래 6칸은 TTS connection 행만 채우고 나머지·표본 0 은 null
+  p99Ms        Int?
+  ttfaP50Ms    Int?
+  ttfaP95Ms    Int?
+  rtfAvg       Float?
+  cacheHitRate Float?
+  /// {voiceId:{requests, errors, p50Ms}}
+  byVoice      Json?
   computedAt   DateTime @default(now())
 
   connection EngineConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
