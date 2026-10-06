@@ -8,31 +8,15 @@
  */
 import { useId, useState } from 'react'
 import { useAnnotations } from '@/components/common/japanese/annotations'
+import { JaQuoted } from '@/components/common/japanese/JaQuoted'
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import TeacherAvatar from '@/components/common/TeacherAvatar'
 import { FocusDot } from './FocusBadge'
 import { RV_HOME } from './reviewCopy'
-import { splitJaQuotes } from './reviewLogic'
 
 export interface ReviewChip {
   textJa: string
   focus: boolean
-}
-
-export function JaQuoted({ text }: { text: string }) {
-  return (
-    <>
-      {splitJaQuotes(text).map((p, i) =>
-        p.ja ? (
-          <span key={i} lang="ja">
-            {p.text}
-          </span>
-        ) : (
-          <span key={i}>{p.text}</span>
-        ),
-      )}
-    </>
-  )
 }
 
 export function ReviewChips({ chips, more = 0, onSurface = false }: { chips: readonly ReviewChip[]; more?: number; onSurface?: boolean }) {

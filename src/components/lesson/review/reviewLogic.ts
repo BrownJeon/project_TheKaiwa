@@ -170,18 +170,8 @@ export function nextReviewLine(next: NextReviewSummary): { text: string; note: s
 
 /* ── 근거 문장 ───────────────────────────────────────────────────── */
 
-export interface QuotePart {
-  text: string
-  ja: boolean
-}
-
-/** 「…」 조각만 일본어로 표시한다(React 노드로 감싸기 위해 — HTML 주입 없음). 빈 조각은 버린다. */
-export function splitJaQuotes(s: string): QuotePart[] {
-  return s
-    .split(/(「[^」]*」)/)
-    .filter((t) => t.length > 0)
-    .map((t) => ({ text: t, ja: t.startsWith('「') && t.endsWith('」') }))
-}
+/** 교정 카드 추가 설명 줄(task-039)과 같이 쓰려고 공용 위치로 옮겼다 — 기존 import 경로는 그대로 둔다. */
+export { splitJaQuotes, type QuotePart } from '@/components/common/japanese/jaQuotes'
 
 /* ── ① 이번 복습 항목 ─────────────────────────────────────────────── */
 
