@@ -11,7 +11,7 @@
  * - Trace 에는 수치·코드만(문장·보기·힌트·학습자 말 원문 0). 사용자당 동시 1건(프로세스 메모리) — 연타가 단일 슬롯을 두 번 잡지 않게.
  */
 import type { ChatKind, JlptLevel } from '@prisma/client'
-import { ApiError, classifyError, prisma } from '@/modules/infra'
+import { ApiError, classifyError, prisma, type Tx } from '@/modules/infra'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceRecord, type TraceStep } from '@/modules/engine'
 import { detectScenarioExpressions, isScenarioRolePlayEnded, readScenarioRolePlayMaterial, type ScenarioRolePlayMaterial } from '@/modules/learning'
 import { getProfile } from '@/modules/preferences'
@@ -58,15 +58,24 @@ export interface ReplyPracticeDeps {
   trace(t: TraceRecord): Promise<void>
 }
 
+/** 대화는 `(id, userId)` 로만 읽는다(남의 대화 = null → 404). `db` 는 시험이 소유 조건을 가짜 db 로 고정하려고 받는다(REV-142 L-1). */
+export function readPracticeChat(userId: string, chatId: string, db: Pick<Tx, 'chat'> = prisma): Promise<PracticeChatRow | null> {
+  return db.chat.findFirst({ where: { id: chatId, userId }, select: { id: true, kind: true, level: true, scenarioId: true, createdAt: true } })
+}
+
+/** 그 대화의 최근 메시지 — 본인 행만(`userId`), 새것부터. */
+export function readPracticeMessages(userId: string, chatId: string, db: Pick<Tx, 'chatMessage'> = prisma): Promise<PracticeMessageRow[]> {
+  return db.chatMessage.findMany({
+    where: { chatId, userId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: REPLY_PRACTICE_WINDOW,
+    select: { id: true, role: true, status: true, content: true, createdAt: true },
+  })
+}
+
 export const replyPracticeDeps: ReplyPracticeDeps = {
-  readChat: (userId, chatId) => prisma.chat.findFirst({ where: { id: chatId, userId }, select: { id: true, kind: true, level: true, scenarioId: true, createdAt: true } }),
-  recentMessages: (userId, chatId) =>
-    prisma.chatMessage.findMany({
-      where: { chatId, userId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: REPLY_PRACTICE_WINDOW,
-      select: { id: true, role: true, status: true, content: true, createdAt: true },
-    }),
+  readChat: (userId, chatId) => readPracticeChat(userId, chatId),
+  recentMessages: (userId, chatId) => readPracticeMessages(userId, chatId),
   turnLocked: (userId, chatId) => currentTurnLock(userId)?.chatId === chatId,
   isEnded: (userId, chat) => isScenarioRolePlayEnded(userId, chat),
   readMaterial: (userId, scenarioId) => readScenarioRolePlayMaterial(userId, scenarioId),

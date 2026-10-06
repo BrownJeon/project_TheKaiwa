@@ -1,6 +1,7 @@
 /**
  * task-010d A3b-2 — #166 AI 상황 초안 · #169 대답 연습 · #27 목록 역할극 칸 · 태스크 등록. (#29 예열 생략은 `app/api/v1/chats/_lib/__tests__/chatDetail.test.ts` — speech 를 import 하는 라우트 조합이라 conversation 시험에 둘 수 없다.)
  * DB·엔진 0: 서비스는 가짜 deps, 모델 응답은 PE 픽스처(`tests/prompts/fixtures/{scenario-draft,reply-practice}.json`).
+ * REV-142 보완(파일 끝): 기본 어댑터의 소유 조건(where)·`practiceRecent`·#166 `DRAFT_BUSY`. 라우트의 한도 순서는 `app/api/v1/__tests__/task010dRateLimitOrder.test.ts`.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -8,12 +9,29 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ApiError } from '@/modules/infra'
 import { isLlmTask, LLM_TASKS, type LlmJsonRequest, type LlmJsonResult, type TraceRecord } from '@/modules/engine'
-import { endedScenarioRolePlayChatIds, normalizeScenarioInput, readScenarioRolePlayMaterial, SCENARIO_END_LOOKUP_MARGIN_MS, type ScenarioMaterialDb, type ScenarioRolePlayMaterial } from '@/modules/learning'
-import { REPLY_PRACTICE_TASK } from '../prompts/replyPractice'
+import {
+  endedScenarioRolePlayChatIds,
+  normalizeScenarioInput,
+  readScenarioDraftTopic,
+  readScenarioRolePlayMaterial,
+  SCENARIO_END_LOOKUP_MARGIN_MS,
+  type ScenarioMaterialDb,
+  type ScenarioRolePlayMaterial,
+} from '@/modules/learning'
+import { REPLY_PRACTICE_LIMITS, REPLY_PRACTICE_TASK } from '../prompts/replyPractice'
 import { SCENARIO_DRAFT_TASK } from '../prompts/scenarioDraft'
 import type { ReplyPracticeModel } from '../structuredResponse/replyPractice'
 import type { ScenarioDraftResponse } from '../structuredResponse/scenarioDraft'
-import { parseReplyPracticeBody, suggestReply, type PracticeMessageRow, type ReplyPracticeDeps } from '../chats/replyPractice'
+import {
+  parseReplyPracticeBody,
+  practiceRecent,
+  readPracticeChat,
+  readPracticeMessages,
+  REPLY_PRACTICE_WINDOW,
+  suggestReply,
+  type PracticeMessageRow,
+  type ReplyPracticeDeps,
+} from '../chats/replyPractice'
 import { draftScenario, parseScenarioDraftBody, type ScenarioDraftDeps } from '../chats/scenarioDraft'
 import { rolePlayListBadges } from '../chats/rolePlay'
 
@@ -356,4 +374,129 @@ test('#27·#161 끝낸 표식 배치 조회(learning): findMany 1회 · 창 하�
   assert.deepEqual(seen[0].where, { userId: U, occurredAt: { gte: new Date(at(-3600).getTime() - SCENARIO_END_LOOKUP_MARGIN_MS) }, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: { in: ['c1', 'c2'] } })
   assert.equal((await endedScenarioRolePlayChatIds(U, [{ id: 'c3', createdAt: new Date('nope') }], db as never)).size, 0)
   assert.equal(seen.length, 1, '확인할 대화가 없으면 조회 0')
+})
+
+// ── REV-142 보완: 기본(실제 DB) 어댑터의 소유 조건 · practiceRecent · #166 DRAFT_BUSY ─────────────
+// 가짜 db 는 받은 where 를 **실제 의미대로** 적용한다 — 소유 조건이 빠지면 남의 행이 걸려 시험이 깨진다(REV-142 변이 M11·M12).
+
+const OTHER = 'cuser00000000000000other0'
+const pickSelected = (row: Record<string, unknown>, select: Record<string, boolean>) => Object.fromEntries(Object.keys(select).map((k) => [k, row[k]]))
+
+test('#166 장소 읽기(readScenarioDraftTopic 기본 어댑터): where = {id, OR[시드, 본인]} — 시드·내 주제는 찾고 남의·없는 주제는 null · 형식 틀린 id 는 쿼리 0', async () => {
+  const topics = [
+    { id: 'top_seed', userId: null, title: '카페', titleJa: 'カフェ' },
+    { id: 'top_mine', userId: U, title: '단골 카페', titleJa: null },
+    { id: 'top_other', userId: OTHER, title: '남의 장소', titleJa: null },
+  ]
+  type W = { id: string; OR?: { userId: string | null }[] }
+  const wheres: W[] = []
+  const db = {
+    conversationTopic: {
+      findFirst: async (a: { where: W; select: Record<string, boolean> }) => {
+        wheres.push(a.where)
+        const r = topics.find((t) => t.id === a.where.id && (!a.where.OR || a.where.OR.some((c) => c.userId === t.userId)))
+        return r ? pickSelected(r, a.select) : null
+      },
+    },
+  }
+  assert.deepEqual(await readScenarioDraftTopic(U, 'top_seed', db as never), { id: 'top_seed', title: '카페', titleJa: 'カフェ' })
+  assert.deepEqual(await readScenarioDraftTopic(U, 'top_mine', db as never), { id: 'top_mine', title: '단골 카페', titleJa: null })
+  assert.equal(await readScenarioDraftTopic(U, 'top_other', db as never), null, '남의 주제')
+  assert.equal(await readScenarioDraftTopic(U, 'top_none', db as never), null, '없는 주제')
+  assert.equal(await readScenarioDraftTopic(OTHER, 'top_mine', db as never), null, '내 주제는 남에게 안 보인다')
+  assert.deepEqual(wheres[2], { id: 'top_other', OR: [{ userId: null }, { userId: U }] }, '소유 조건(#163 visibleTopicIds 와 같은 조건)이 where 에 있다')
+  const n = wheres.length
+  assert.equal(await readScenarioDraftTopic(U, 'x'.repeat(41), db as never), null)
+  assert.equal(wheres.length, n, '형식 틀린 id 는 쿼리 전 null')
+})
+
+test('#169 기본 어댑터(readPracticeChat·readPracticeMessages): where 에 소유 조건 userId — 남의 대화·남의 행은 안 읽힌다 · 새것부터 · 창 REPLY_PRACTICE_WINDOW · 고른 칸만', async () => {
+  const chats = [
+    { id: 'chat_rp', userId: U, kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT },
+    { id: 'chat_x', userId: OTHER, kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT },
+  ]
+  const msgs = [
+    { id: 'm1', chatId: 'chat_rp', userId: U, role: 'USER', status: 'DONE', content: 'a', createdAt: at(1) },
+    { id: 'm2', chatId: 'chat_rp', userId: OTHER, role: 'USER', status: 'DONE', content: 'b', createdAt: at(2) },
+    { id: 'm3', chatId: 'chat_x', userId: U, role: 'USER', status: 'DONE', content: 'c', createdAt: at(3) },
+  ]
+  type ChatW = { id: string; userId?: string }
+  type MsgW = { chatId: string; userId?: string }
+  const chatWheres: ChatW[] = []
+  const msgArgs: { where: MsgW; orderBy: unknown; take: number; select: Record<string, boolean> }[] = []
+  const db = {
+    chat: {
+      findFirst: async (a: { where: ChatW; select: Record<string, boolean> }) => {
+        chatWheres.push(a.where)
+        const r = chats.find((c) => c.id === a.where.id && (a.where.userId === undefined || c.userId === a.where.userId))
+        return r ? pickSelected(r, a.select) : null
+      },
+    },
+    chatMessage: {
+      findMany: async (a: { where: MsgW; orderBy: unknown; take: number; select: Record<string, boolean> }) => {
+        msgArgs.push(a)
+        return msgs.filter((m) => m.chatId === a.where.chatId && (a.where.userId === undefined || m.userId === a.where.userId)).map((m) => pickSelected(m, a.select))
+      },
+    },
+  }
+  assert.deepEqual(await readPracticeChat(U, 'chat_rp', db as never), { id: 'chat_rp', kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT })
+  assert.deepEqual(chatWheres[0], { id: 'chat_rp', userId: U }, '소유 조건이 where 에 있다')
+  assert.equal(await readPracticeChat(U, 'chat_x', db as never), null, '남의 대화')
+  assert.equal(await readPracticeChat(OTHER, 'chat_rp', db as never), null, '내 대화는 남에게 안 보인다')
+
+  const rows = await readPracticeMessages(U, 'chat_rp', db as never)
+  assert.deepEqual(rows.map((r) => r.id), ['m1'], '그 대화의 본인 행만')
+  assert.deepEqual(msgArgs[0].where, { chatId: 'chat_rp', userId: U })
+  assert.deepEqual(msgArgs[0].orderBy, [{ createdAt: 'desc' }, { id: 'desc' }], '새것부터(latestTutorMessage 가 rows[0] 을 본다)')
+  assert.equal(msgArgs[0].take, REPLY_PRACTICE_WINDOW)
+  assert.deepEqual(Object.keys(msgArgs[0].select).sort(), ['content', 'createdAt', 'id', 'role', 'status'])
+})
+
+test('#169 practiceRecent: 대답할 선생님 말(맨 앞 행) 자신은 빼고 · 끝난(DONE)·내용 있는 말만 · 최근 4개 · 시간순(옛것 → 새것) · 역할 learner/tutor', () => {
+  assert.equal(REPLY_PRACTICE_LIMITS.recentTurns, 4, '전제: 프롬프트가 싣는 이전 대화 4턴')
+  const rows: PracticeMessageRow[] = [
+    { id: 't9', role: 'ASSISTANT', status: 'DONE', content: '大きさはどうしますか？', createdAt: at(90) },
+    { id: 'u8', role: 'USER', status: 'DONE', content: 'アイスコーヒーを', createdAt: at(80) },
+    { id: 'a7', role: 'ASSISTANT', status: 'FAILED', content: '途中', createdAt: at(70) },
+    { id: 'u6', role: 'USER', status: 'DONE', content: '   ', createdAt: at(60) },
+    { id: 'a5', role: 'ASSISTANT', status: 'DONE', content: 'ご注文は？', createdAt: at(50) },
+    { id: 'u4', role: 'USER', status: 'PENDING', content: '送信中', createdAt: at(40) },
+    { id: 'u3', role: 'USER', status: 'DONE', content: 'こんにちは', createdAt: at(30) },
+    { id: 'a2', role: 'ASSISTANT', status: 'DONE', content: 'いらっしゃいませ', createdAt: at(20) },
+    { id: 'u1', role: 'USER', status: 'DONE', content: 'いちばん古い', createdAt: at(10) },
+  ]
+  const recent = practiceRecent(rows)
+  assert.deepEqual(recent, [
+    { role: 'tutor', text: 'いらっしゃいませ' },
+    { role: 'learner', text: 'こんにちは' },
+    { role: 'tutor', text: 'ご注文は？' },
+    { role: 'learner', text: 'アイスコーヒーを' },
+  ])
+  assert.ok(!recent.some((t) => t.text === rows[0].content), '대답할 말은 이전 대화에 중복되지 않는다(lastTutorJa 로 따로 간다)')
+  assert.deepEqual(practiceRecent(rows.slice(0, 1)), [], '대답할 말뿐이면 이전 대화 없음')
+})
+
+test('#166 같은 사용자 동시 2건 → 두 번째 409 DRAFT_BUSY(LLM 1회) · 다른 사용자는 막지 않음 · 끝나면 다시 가능', async () => {
+  let release!: () => void
+  const gate = new Promise<void>((r) => (release = r))
+  let n = 0
+  // 첫 호출만 문을 기다린다 — 가드가 사라지면 두 번째가 곧바로 성공해 `rejects` 가 깨진다(멈춤 없이 검출).
+  const w = draftWorld({
+    complete: async (req) => {
+      w.reqs.push(req)
+      if (n++ === 0) await gate
+      return llmResult(DRAFT_FIX.modelResponses['d01-cafe'])
+    },
+  })
+  const body = { description: DESC, level: 'N5' as const, topicId: null }
+  const first = draftScenario(U, body, w.deps)
+  await new Promise((r) => setTimeout(r, 5))
+  await rejects(draftScenario(U, body, w.deps), 'CONFLICT', 'DRAFT_BUSY')
+  assert.equal(w.reqs.length, 1, '두 번째는 LLM 을 부르지 않는다')
+  const other = draftWorld()
+  assert.ok((await draftScenario(OTHER, body, other.deps)).draft, '동시 1건은 사용자 단위')
+  release()
+  await first
+  await draftScenario(U, body, w.deps)
+  assert.equal(w.reqs.length, 2, '끝나면 다시 가능')
 })

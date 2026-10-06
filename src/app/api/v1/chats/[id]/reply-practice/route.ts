@@ -18,8 +18,9 @@ const REPLY_PRACTICE_PER_DAY = 300
 export const POST = withApi<Ctx>(async (req, ctx) => {
   const s = await requireSession()
   const { id } = await ctx.params
+  const { messageId } = parseReplyPracticeBody(await readJsonObject(req, 1024))
+  // 본문 형태 400 은 DB 를 읽지 않으니 한도를 쓰지 않는다. 404·409 는 DB 를 읽는 거절이라 한도 안에 둔다(REV-142 L-4).
   rateLimit(`reply-practice:${s.user.id}`, REPLY_PRACTICE_PER_MINUTE)
   rateLimit(`reply-practice-day:${s.user.id}`, REPLY_PRACTICE_PER_DAY, 86_400_000)
-  const { messageId } = parseReplyPracticeBody(await readJsonObject(req, 1024))
   return ok(await suggestReply(s.user.id, id, messageId), null, { headers: { 'Cache-Control': 'private, no-store' } })
 })
