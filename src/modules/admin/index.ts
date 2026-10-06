@@ -80,6 +80,8 @@ export {
 export { listConfigVersions, getConfigVersion, rollbackConfigVersion, listAuditLogs } from './configuration/history'
 export { listTraceDtos, getTraceDto } from './diagnostics/traces'
 export type { TraceQuery } from './diagnostics/traces'
+export { getTtsMetricsDto, parseTtsMetricsRange, parseTtsVoiceId, TTS_METRICS_RANGES } from './diagnostics/tts'
+export type { TtsMetricsQuery } from './diagnostics/tts'
 export { listVoiceDtos, getVoiceDto } from './voices'
 
 // 발음 사전(task-003g, api-contract §7-2)
