@@ -27,8 +27,6 @@ export const RESULT = {
   exprValue: (used: number, total: number, required: number, ok: boolean) => `${used}/${total} · ${required}개 이상 ${ok ? '✓' : '필요'}`,
   rowSteps: '대화 순서',
   stepsProgress: (reached: number, total: number) => `${reached}/${total}단계`,
-  /** 서버 진행 값(`stepIndex`)이 없을 때 — 단계 수만(✓ 없음). */
-  stepsCount: (total: number) => `${total}단계`,
   almostNote: (more: number) => `선생님은 목표를 이뤘다고 봤어요. 핵심 표현을 ${more}개만 더 쓰면 달성이에요.`,
   unjudgedNote: '선생님이 마무리하기 전에 마쳐서 표현으로만 판단했어요. 다음엔 선생님이 마무리할 때까지 이어 가 보세요.',
   usedTitle: '쓴 표현',

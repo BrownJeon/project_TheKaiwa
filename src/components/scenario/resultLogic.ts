@@ -56,12 +56,12 @@ export interface OutcomeView {
 }
 
 /**
- * 대화 순서 줄 값. 진행 값이 있으면 `s/S단계`(s = 0부터 센 지금 단계 + 1, 상한 S), 없으면(`stepIndex` null — 지금 서버는 늘 null) 단계 수만.
- * 단계가 없는 상황이면 줄 없음.
+ * 대화 순서 줄 값. 가이드 §3-G "진행값이 있을 때만"(REV-141 M-2) — 진행 값이 있으면 `s/S단계`(s = 0부터 센 지금 단계 + 1, 상한 S),
+ * 없으면(`stepIndex` null — 지금 서버는 늘 null) 줄 없음. 전체 단계 수만 보이면 "그 단계까지 갔다"로 읽혀서다. 단계가 없는 상황도 줄 없음.
  */
 export function resultSteps(stepCount: number, stepIndex: number | null | undefined): { value: string; ok: boolean } | null {
   if (!Number.isInteger(stepCount) || stepCount <= 0) return null
-  if (typeof stepIndex !== 'number' || !Number.isInteger(stepIndex) || stepIndex < 0) return { value: RESULT.stepsCount(stepCount), ok: false }
+  if (typeof stepIndex !== 'number' || !Number.isInteger(stepIndex) || stepIndex < 0) return null
   const reached = Math.min(stepIndex + 1, stepCount)
   return { value: RESULT.stepsProgress(reached, stepCount), ok: reached >= stepCount }
 }
@@ -163,6 +163,15 @@ export function jaSubjectJosa(ja: string): string {
   if (code === HIRA_N || code === KATA_N) return '이'
   if ((code >= HIRA_FIRST && code <= HIRA_LAST) || (code >= KATA_FIRST && code <= KATA_LAST)) return '가'
   return '이(가)'
+}
+
+/**
+ * 수업 카드가 읽을 상황(§3-I) — 상황 수업(`lesson.scenarioId`, A2 — `le-scenario-lesson`)이면 그 상황(추천 요청 없음),
+ * 아니면 주제 추천 1개(`le-card`). 둘 다 없으면 null(카드 없음).
+ */
+export function lessonCardSourceOf(lesson: { scenarioId?: unknown; topic?: { id: string } | null }): { kind: 'scenario'; id: string } | { kind: 'topic'; topicId: string } | null {
+  if (typeof lesson.scenarioId === 'string' && lesson.scenarioId) return { kind: 'scenario', id: lesson.scenarioId }
+  return lesson.topic?.id ? { kind: 'topic', topicId: lesson.topic.id } : null
 }
 
 /** 수업 카드 대상 고르기 — 추천 1개(`recommended=1&limit=1`)의 첫 항목. 없으면 카드 없음. */

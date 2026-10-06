@@ -4,9 +4,9 @@
  * 표현 id·진행 값은 서버(`learning/scenarios/expressions.ts`) 규약 그대로 받는다 — 글자 비교로 ✓ 를 만들지 않는다.
  */
 import { cpLength, kstDateKey } from '@/components/common/format'
-import type { Err } from '@/components/common/errors'
+import { toErr, type Err } from '@/components/common/errors'
 import { formatMonthDay } from '@/components/vocab/format'
-import type { ChatMessageView, RolePlayChatView, RolePlayProgress } from '@/types/chat'
+import type { ChatDetail, ChatMessageView, RolePlayChatView, RolePlayProgress, TurnDoneEvent } from '@/types/chat'
 import type { JlptLevel } from '@/types/lesson'
 import {
   SCENARIO_LIMITS as L,
@@ -18,7 +18,7 @@ import {
   type ScenarioRecommendReason,
   type ScenarioTopicRef,
 } from '@/types/scenario'
-import { CARD, CHECK, HOME, RECOMMEND_REASON_KO, ROOM } from './scenarioCopy'
+import { CARD, CHECK, END, HOME, RECOMMEND_REASON_KO, ROOM } from './scenarioCopy'
 
 /* ── 조사 ─────────────────────────────────────────────────────────────── */
 
@@ -728,4 +728,113 @@ export function finishFailureOf(err: Err): FinishFailure {
 /** 턴 거절이 "마친 역할극"(#32 409 ROLEPLAY_ENDED)인가. */
 export function isRolePlayEndedRejection(status: number, details: Record<string, unknown> | null | undefined): boolean {
   return status === 409 && details?.reason === 'ROLEPLAY_ENDED'
+}
+
+/* ── 방 동작 흐름(REV-141 L-6) — 훅(`useRolePlay`)은 부수 효과(요청·상태·이동)만 넘기고 판단은 여기서 한다. 단위 시험이 훅 없이 배선을 본다. ── */
+
+export type SingleFlight = ReturnType<typeof createSingleFlight>
+export type EndSheetPhase = 'confirm' | 'empty' | 'busy' | 'fail' | 'quitting'
+export interface EndSheetState {
+  open: boolean
+  phase: EndSheetPhase
+}
+
+/** [마치기] 를 눌렀을 때 시트 단계 — 내 말이 없으면 빈 대화 시트(그만두기), 있으면 확인. */
+export function endSheetPhaseFor(turns: number): 'confirm' | 'empty' {
+  return turns > 0 ? 'confirm' : 'empty'
+}
+
+/** 시트 닫기 — 기록·삭제 요청이 도는 중에는 닫지 않는다(서버 결과를 받아 다음 상태로 간다). */
+export function closedEndSheet(s: EndSheetState, busy: boolean): EndSheetState {
+  return busy ? s : { open: false, phase: s.phase }
+}
+
+/** 시트가 실제로 보이는가·닫을 수 있는가. 마친 역할극에서는 열리지 않는다(마친 바가 대신 선다). 정리·삭제 중에는 닫기 막음. */
+export function endSheetFlags(s: EndSheetState, o: { active: boolean; ended: boolean }): { open: boolean; dismissible: boolean; empty: boolean; working: boolean } {
+  const working = s.phase === 'busy' || s.phase === 'quitting'
+  return { open: s.open && o.active && !o.ended, dismissible: !working, empty: s.phase === 'empty' || s.phase === 'quitting', working }
+}
+
+/**
+ * 마치기(#167) 흐름. 성공하면 잠근 채 결과 화면으로 간다(넘어가는 동안 "정리 중" 유지·두 번째 요청 없음 — 서버도 멱등).
+ * 409 NO_TURNS = 빈 대화 시트 · 그 밖 409(TURN_RUNNING) = 시트 닫고 토스트 · 그 밖 = 시트 안 [다시 시도].
+ */
+export async function runFinish(fx: { flight: SingleFlight; post: () => Promise<unknown>; setSheet: (s: EndSheetState) => void; toResult: () => void; notify: (msg: string) => void }): Promise<void> {
+  const r = await fx.flight.run(() => {
+    fx.setSheet({ open: true, phase: 'busy' })
+    return fx.post()
+  }, true)
+  if (!r.ran) return
+  if (r.ok) {
+    fx.toResult()
+    return
+  }
+  const f = finishFailureOf(toErr(r.error))
+  if (f === 'noTurns') fx.setSheet({ open: true, phase: 'empty' })
+  else if (f === 'busy') {
+    fx.setSheet({ open: false, phase: 'confirm' })
+    fx.notify(ROOM.endWhileTurn)
+  } else fx.setSheet({ open: true, phase: 'fail' })
+}
+
+/**
+ * 0턴 [그만두기](D-7) 흐름 — 빈 대화를 #31 로 지우고 시나리오로. 지웠으면 `leave(true)`(홈이 "그만뒀어요"를 한 번 보인다),
+ * 이미 없으면(404) `leave(false)`. 그 밖 실패는 빈 시트로 돌아가 토스트(연결 실패는 `connText`, 나머지 `END.quitFail`).
+ */
+export async function runQuit(fx: { flight: SingleFlight; del: () => Promise<unknown>; setSheet: (s: EndSheetState) => void; leave: (quitNotice: boolean) => void; notify: (msg: string) => void; connText: (err: Err) => string }): Promise<void> {
+  const r = await fx.flight.run(() => {
+    fx.setSheet({ open: true, phase: 'quitting' })
+    return fx.del()
+  }, true)
+  if (!r.ran) return
+  if (r.ok) {
+    fx.leave(true)
+    return
+  }
+  const err = toErr(r.error)
+  if (err.status === 404) {
+    fx.leave(false)
+    return
+  }
+  fx.setSheet({ open: true, phase: 'empty' })
+  fx.notify(err.status === 0 ? fx.connText(err) : END.quitFail)
+}
+
+/** 시나리오 홈이 받는 그만두기 안내 — 방이 남긴 한 번짜리 값이 '1' 일 때만 문구. */
+export function quitNoticeOf(raw: string | null): string | null {
+  return raw === '1' ? END.quitDone : null
+}
+
+/** #29 다시 읽기(409 ROLEPLAY_ENDED·연습 ENDED 뒤) — 역할극 칸이 있으면 방 값을 바꾼다. 실패는 조용히(다음 조회 때 맞춰짐). */
+export async function reloadRolePlay(get: () => Promise<Pick<ChatDetail, 'chat'>>, set: (v: RolePlayChatView) => void): Promise<void> {
+  try {
+    const r = await get()
+    if (r.chat.scenario) set(r.chat.scenario)
+  } catch {
+    /* 다음 조회 때 맞춰진다 */
+  }
+}
+
+/** #32 done 하나 반영 — 진행 값을 최댓값 규칙으로 합치고, 새 ✓·단계 이동이 있으면 스크린리더 한 줄(여러 소식은 한 번에 — 방의 칸이 한 줄이다). */
+export function applyDone(v: Pick<RolePlayChatView, 'keyExpressions' | 'steps'> | null, prev: RolePlayProgress, dn: Pick<TurnDoneEvent, 'scenario'>, fx: { set: (p: RolePlayProgress) => void; announce: (msg: string) => void }): RolePlayProgress {
+  if (!v || !dn.scenario) return prev
+  const next = mergeProgress(prev, dn.scenario, v.keyExpressions)
+  fx.set(next)
+  const news = progressNews(prev, next, v)
+  if (news.length) fx.announce(news.join(' '))
+  return next
+}
+
+/**
+ * 폴링·동기는 `chat.scenario` 를 통째로 바꾸는데 그 응답(`after` 있음)에는 `lesson` 칸이 없다(REV-141 L-2) — 같은 역할극이면 처음 받은 수업 연결을
+ * 그대로 둔다("오늘 수업에서 이어져요"가 사라지지 않게). 바꿀 것이 없으면 받은 값을 그대로 돌려준다(같은 객체).
+ */
+export function withKeptLesson(v: RolePlayChatView | null, kept: { id: string; lesson: NonNullable<RolePlayChatView['lesson']> } | null): RolePlayChatView | null {
+  if (!v || v.lesson || !kept || kept.id !== v.id) return v
+  return { ...v, lesson: kept.lesson }
+}
+
+/** 키보드가 막 열렸을 때 펼친 목표 카드를 접는가(REV-141 M-1) — 카드 안에 초점이 있으면 접지 않는다(자동 접힘과 같은 규칙). */
+export function keyboardCollapse(o: { kbOpen: boolean; goalOpen: boolean; focusInside: boolean }): boolean {
+  return o.kbOpen && o.goalOpen && !o.focusInside
 }

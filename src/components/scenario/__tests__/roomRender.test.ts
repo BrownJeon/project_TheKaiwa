@@ -110,12 +110,31 @@ test('일반 회화(`chat.scenario` 없음): 얹은 부품은 빈 출력, 머리
   assert.ok(plain.includes('href="/study/ai?tab=talk"'))
 })
 
+test('일반 회화: 훅 값 — 입력창 안내는 정확히 null(방의 기존 문구가 그대로 — P1)·머리 prop 빈 묶음·역할극 아님', () => {
+  const seen: RolePlay[] = []
+  function Probe({ chat }: { chat: ChatInfo | null }) {
+    seen.push(useRolePlay({ chatId: 'c1', chat, messages: MID, talkState: 'IDLE', turnBusy: false, listening: false, notify: () => {}, srAnnounce: () => {}, roomSounding: false, stopRoom: () => {} }))
+    return null
+  }
+  render(createElement(Probe, { chat: chatOf() }))
+  render(createElement(Probe, { chat: null }))
+  assert.equal(seen.length, 2)
+  for (const rp of seen) {
+    assert.equal(rp.placeholder, null)
+    assert.deepEqual(rp.header, {})
+    assert.equal(rp.active, false)
+    assert.equal(rp.view, null)
+  }
+})
+
 /* ── 역할극 ─────────────────────────────────────────────────────────── */
 
 test('rp-open-first: 첫마디 방 — 목표 카드 펼침·시스템 줄·대답 연습 접힌 줄·머리 역할 태그·[마치기]·← 시나리오로', () => {
   const html = room({ chat: chatOf(SC), messages: OPENING })
   assert.match(html, /aria-expanded="true" aria-controls="rp-goal"/)
   assert.ok(html.includes('id="rp-goal"'))
+  // 펼친 카드는 높이 상한 안에서 스크롤(REV-141 M-1)
+  assert.match(html, /<div id="rp-goal" class="[^"]*max-h-\[40dvh\] overflow-y-auto/)
   assert.ok(html.includes(ROOM.roleTag('점원')))
   assert.ok(html.includes(ROOM.srTitle(SC.title)))
   assert.match(html, /aria-haspopup="dialog"[^>]*>마치기</)

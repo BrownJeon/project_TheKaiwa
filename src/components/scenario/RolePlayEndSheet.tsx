@@ -9,7 +9,7 @@
  */
 import Sheet from '@/components/common/Sheet'
 import { Badge } from '@/components/common/ui'
-import { stepPosition } from './logic'
+import { endSheetFlags, stepPosition } from './logic'
 import { END } from './scenarioCopy'
 import type { RolePlay } from './useRolePlay'
 
@@ -18,15 +18,14 @@ const GHOST = 'h-11 truncate rounded-xl border border-line bg-surface px-3 text-
 
 export default function RolePlayEndSheet({ rp }: { rp: RolePlay }) {
   const v = rp.view
-  const { open, phase } = rp.sheet
+  const { phase } = rp.sheet
   if (!v) return null
-  const empty = phase === 'empty' || phase === 'quitting'
+  const { open, dismissible, empty, working } = endSheetFlags(rp.sheet, { active: rp.active, ended: rp.ended })
   const total = v.keyExpressions.length
   const used = v.keyExpressions.filter((e) => rp.progress.usedIds.includes(e.id)).length
   const at = stepPosition(rp.progress.stepIndex, v.steps.length)
-  const working = phase === 'busy' || phase === 'quitting'
   return (
-    <Sheet open={open && !!v && !rp.ended} title={empty ? END.emptyTitle : END.confirmTitle} onClose={rp.closeEnd} dismissible={!working}>
+    <Sheet open={open} title={empty ? END.emptyTitle : END.confirmTitle} onClose={rp.closeEnd} dismissible={dismissible}>
       <div className="flex min-w-0 flex-col gap-3">
         <p className="text-[14px] text-ink break-keep">{empty ? END.emptyBody : END.confirmBody}</p>
         {!empty ? (

@@ -4,12 +4,11 @@
  * 대답 연습 제안(S10 = #169 `POST /api/v1/chats/:id/reply-practice {messageId}`, 저장 없음) — 펼칠 때만, 선생님 말마다 한 번.
  * 받은 제안은 메시지 id 별로 메모리에 두고(접었다 펼쳐도 다시 부르지 않는다) 다른 말이 오면 버린다.
  * 판 닫음·새 말·언마운트에서 요청을 취소하고, 12초가 지나면 끊고 다시 시도로 보인다(5초부터 "조금만 기다려 주세요").
- * 이 API 가 아직 없는 서버(404·405)·네트워크 실패도 판 안 오류(`pr-error`)로 처리한다.
+ * 이 API 가 아직 없는 서버(404·405)·네트워크 실패도 판 안 오류(`pr-error`)로 처리한다. 결말 판단(늦은 응답 버림 등)은 `practiceLogic.settlePractice`.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiPost } from '@/components/common/api'
-import { toErr } from '@/components/common/errors'
-import { practiceFailureOf, readPractice, type PracticeFailure, type PracticeView } from './practiceLogic'
+import { settlePractice, type PracticeFailure, type PracticeView } from './practiceLogic'
 
 export const PRACTICE_TIMEOUT_MS = 12_000
 export const PRACTICE_SLOW_MS = 5_000
@@ -70,18 +69,22 @@ export function usePractice(chatId: string, messageId: string | null, onFailure:
       setEntry({ id, state: { phase: 'loading', slow: false } })
       void (async () => {
         try {
-          const raw = await apiPost<unknown>(`/api/v1/chats/${encodeURIComponent(chatId)}/reply-practice`, { messageId: id }, { signal: ac.signal })
-          if (live.current !== l) return
-          const view = readPractice(raw, id)
-          if (view) cache.current.set(id, view)
-          setEntry({ id, state: view ? { phase: 'ready', view } : { phase: 'failed', failure: { kind: 'error' }, until: null } })
-        } catch (e) {
-          if (live.current !== l) return
-          // 판 닫음·새 말로 취소된 것은 오류가 아니다(시간 초과로 끊은 것만 오류).
-          if (e instanceof DOMException && e.name === 'AbortError' && !l.timedOut) return
-          const failure = practiceFailureOf(toErr(e), l.timedOut)
-          setEntry({ id, state: { phase: 'failed', failure, until: failure.kind === 'rate' ? Date.now() + failure.sec * 1000 : null } })
-          failRef.current(failure)
+          await settlePractice({
+            request: () => apiPost<unknown>(`/api/v1/chats/${encodeURIComponent(chatId)}/reply-practice`, { messageId: id }, { signal: ac.signal }),
+            messageId: id,
+            live: () => live.current === l,
+            timedOut: () => l.timedOut,
+            settle: (r) => {
+              if (r.kind === 'ready') {
+                cache.current.set(id, r.view)
+                setEntry({ id, state: { phase: 'ready', view: r.view } })
+                return
+              }
+              const { failure } = r
+              setEntry({ id, state: { phase: 'failed', failure, until: failure.kind === 'rate' ? Date.now() + failure.sec * 1000 : null } })
+              if (r.report) failRef.current(failure)
+            },
+          })
         } finally {
           if (live.current === l) {
             if (l.timeout) clearTimeout(l.timeout)

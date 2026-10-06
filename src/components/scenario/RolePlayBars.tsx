@@ -4,7 +4,8 @@
  * 역할극 방의 띠 두 개(가이드 §3-D).
  *  - `RolePlayFinishNudge`(v1 결정 c=B, `rp-teacher-end`): 직전 턴이 `done.endOfTopic` 이면 띠 자리 5순위에 — [마치고 결과 보기]는 확인 없이 바로 기록,
  *    [조금 더 하기]는 띠를 닫고 토스트. 닫음 규칙은 일반 회화의 `TopicEndNudge` 와 같다(방이 넘겨 준다).
- *  - `RolePlayEndedBar`(`rp-ended`): 마친 역할극의 입력 바 자리 — [결과 보기]·[다시 하기](같은 상황으로 새 역할극, #28).
+ *  - `RolePlayEndedBar`(`rp-ended`): 마친 역할극의 입력 바 자리 — [결과 보기]·[다시 하기](같은 상황으로 새 역할극, #28). 다시 하기는 결과 화면
+ *    [다시 해 보기]와 같게 `lessonId` 를 싣지 않는다 — 수업의 연장으로 기록되지 않게(REV-141 L-1).
  */
 import { ErrorBox } from '@/components/challenge/parts'
 import type { StartFailure } from './logic'
@@ -59,7 +60,7 @@ export function RolePlayEndedBar({ rp }: { rp: RolePlay }) {
           aria-disabled={starting || !v || undefined}
           aria-busy={starting || undefined}
           onClick={() => {
-            if (!starting && v) void start.start(v.id, v.lesson?.id ? { lessonId: v.lesson.id } : undefined)
+            if (!starting && v) void start.start(v.id)
           }}
           className={`h-11 truncate rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold text-ink ${starting ? 'opacity-60' : ''}`}
         >
@@ -69,4 +70,3 @@ export function RolePlayEndedBar({ rp }: { rp: RolePlay }) {
     </div>
   )
 }
-

@@ -4,17 +4,19 @@
  * 회화 탭 '시나리오'(가이드 §3-B, D-2 A 한 화면): [＋ 내 상황 만들기] → 추천(≤3, 서버 순서) → 장소 칩 → 장소별 카드 묶음.
  * 칩 값은 화면 상태(주소에 넣지 않음). `?sc=<id>` 면 목록과 함께 그 상황 시트를 열고, 닫으면 `sc`·`saved` 를 `replace` 로 지운다.
  * 바깥 여백·스크롤은 `StudyAiHome` 래퍼 그대로(이 화면은 스크롤 영역을 만들지 않는다 — 장소 칩 가로 스크롤만).
+ * 역할극 방에서 [그만두기]로 나왔으면 방이 남긴 한 번짜리 값을 읽고 바로 지운 뒤 "그만뒀어요" 토스트를 한 번 보인다(REV-141 L-4).
  */
 import { useRouter } from 'next/navigation'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { readStore, writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Btn, Section, SectionHeader } from '@/components/common/ui'
 import { ErrorBox, Skeleton } from '@/components/challenge/parts'
-import { effectiveFilter, groupByPlace, pickRecommended, placeOptions, type PlaceFilter } from './logic'
+import { effectiveFilter, groupByPlace, pickRecommended, placeOptions, quitNoticeOf, type PlaceFilter } from './logic'
 import PlaceChips from './PlaceChips'
 import ScenarioCard from './ScenarioCard'
 import ScenarioSheet from './ScenarioSheet'
-import { HOME, SCENARIO_HOME_HREF, SCENARIO_NEW_HREF } from './scenarioCopy'
+import { HOME, ROOM_STORE, SCENARIO_HOME_HREF, SCENARIO_NEW_HREF } from './scenarioCopy'
 import { useScenarioList } from './useScenarioList'
 
 export default function ScenarioHome({ initialSheetId = null, saved = false }: { initialSheetId?: string | null; saved?: boolean }) {
@@ -25,6 +27,13 @@ export default function ScenarioHome({ initialSheetId = null, saved = false }: {
   const [showSaved, setShowSaved] = useState(saved && !!initialSheetId)
   const urlHasSheet = useRef(!!initialSheetId)
   const { message, show } = useToast()
+
+  useEffect(() => {
+    const notice = quitNoticeOf(readStore('session', ROOM_STORE.quitDone))
+    if (!notice) return
+    writeStore('session', ROOM_STORE.quitDone, null)
+    show(notice)
+  }, [show])
 
   const data = list.data
   const items = useMemo(() => data?.items ?? [], [data])

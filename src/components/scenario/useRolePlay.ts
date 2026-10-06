@@ -8,25 +8,42 @@
  *    대답 연습 판은 펼칠 때의 선생님 말에 묶인다 — 말을 보내거나 새 말이 오면 저절로 닫힌다(다음 말에는 접힌 줄로).
  *  - 마치기(S8 = #167)는 이 방의 시트에서만 요청한다(D-9) — 성공하면 결과 화면으로 바꿔 간다. 요청은 동시에 하나(서버도 멱등).
  *  - 마친 역할극에 말이 거절되면(409 ROLEPLAY_ENDED) #29 를 다시 읽어 마친 뒤 바로 바꾼다.
+ *  - 판단은 `logic.ts` 의 흐름 함수(`runFinish`·`runQuit`·`applyDone`·`reloadRolePlay`·`keyboardCollapse` …)가 하고 이 훅은 요청·상태·이동만 넘긴다(REV-141 L-6).
  * 엔진·모델 이름은 다루지 않는다.
  */
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiDelete, apiGet, apiPost } from '@/components/common/api'
-import { toErr } from '@/components/common/errors'
 import { readStore, writeStore } from '@/components/common/storage'
 import { actionErrorText } from '@/components/chat/labels'
 import type { ChatDetail, ChatInfo, ChatMessageView, RolePlayChatView, RolePlayProgress, RolePlayResultView, TurnDoneEvent } from '@/types/chat'
-import { autoCollapseStep, createSingleFlight, endBlockedReason, finishFailureOf, learnerTurns, mergeProgress, practiceTargetOf, progressNews, withRo } from './logic'
+import {
+  applyDone,
+  autoCollapseStep,
+  closedEndSheet,
+  createSingleFlight,
+  endBlockedReason,
+  endSheetPhaseFor,
+  keyboardCollapse,
+  learnerTurns,
+  mergeProgress,
+  practiceTargetOf,
+  reloadRolePlay,
+  runFinish,
+  runQuit,
+  withKeptLesson,
+  withRo,
+  type EndSheetState,
+} from './logic'
 import { practiceModeOf, PRACTICE_MODES, type PracticeFailure, type PracticeMode } from './practiceLogic'
-import { END, PRACTICE, ROOM, ROOM_STORE, rolePlayResultHref, rolePlayResultStoreKey, SCENARIO_HOME_HREF } from './scenarioCopy'
+import { PRACTICE, ROOM, ROOM_STORE, rolePlayResultHref, SCENARIO_HOME_HREF } from './scenarioCopy'
 import { useKeyedSound } from './useKeyedSound'
 import { usePractice } from './usePractice'
 
 /** 목표 카드 바깥 상자 id — 자동 접힘 때 카드 안에 초점이 있는지 본다(방 하나에 카드 하나). */
 export const GOAL_CARD_ID = 'rp-goal-card'
 
-export type EndSheetPhase = 'confirm' | 'empty' | 'busy' | 'fail' | 'quitting'
+export type { EndSheetPhase } from './logic'
 type Panel = { k: 'goal' } | { k: 'practice'; id: string } | null
 
 export interface RolePlayDeps {
@@ -55,7 +72,10 @@ export function useRolePlay(d: RolePlayDeps) {
   const { chatId, chat, messages, notify, srAnnounce, stopRoom } = d
   const router = useRouter()
   const [fresh, setFresh] = useState<RolePlayChatView | null>(null)
-  const view: RolePlayChatView | null = fresh ?? chat?.scenario ?? null
+  const raw: RolePlayChatView | null = fresh ?? chat?.scenario ?? null
+  const [keptLesson, setKeptLesson] = useState<{ id: string; lesson: NonNullable<RolePlayChatView['lesson']> } | null>(null)
+  if (raw?.lesson && (keptLesson?.id !== raw.id || keptLesson.lesson.id !== raw.lesson.id)) setKeptLesson({ id: raw.id, lesson: raw.lesson })
+  const view = useMemo(() => withKeptLesson(raw, keptLesson), [raw, keptLesson])
   const active = !!view
   const ended = !!view?.ended
 
@@ -71,28 +91,13 @@ export function useRolePlay(d: RolePlayDeps) {
 
   const onDone = useCallback(
     (dn: TurnDoneEvent) => {
-      const v = viewRef.current
-      if (!v || !dn.scenario) return
-      const prev = progressRef.current
-      const next = mergeProgress(prev, dn.scenario, v.keyExpressions)
-      progressRef.current = next
-      setExtra(next)
-      // 방의 스크린리더 칸은 한 줄이라 여러 소식은 한 번에 붙여 낸다(따로 내면 마지막 줄만 남는다).
-      const news = progressNews(prev, next, v)
-      if (news.length) srAnnounce(news.join(' '))
+      progressRef.current = applyDone(viewRef.current, progressRef.current, dn, { set: setExtra, announce: srAnnounce })
     },
     [srAnnounce],
   )
 
   /* ── 다시 읽기(409 ROLEPLAY_ENDED·연습 ENDED) ── */
-  const reload = useCallback(async () => {
-    try {
-      const r = await apiGet<ChatDetail>(`/api/v1/chats/${encodeURIComponent(chatId)}?limit=1`)
-      if (r.chat.scenario) setFresh(r.chat.scenario)
-    } catch {
-      /* 다음 조회 때 맞춰진다 */
-    }
-  }, [chatId])
+  const reload = useCallback(() => reloadRolePlay(() => apiGet<ChatDetail>(`/api/v1/chats/${encodeURIComponent(chatId)}?limit=1`), setFresh), [chatId])
 
   /* ── 펼침(목표 카드 ↔ 대답 연습) ── */
   const turns = learnerTurns(messages)
@@ -114,6 +119,17 @@ export function useRolePlay(d: RolePlayDeps) {
     autoDoneRef.current = step.done
     if (step.collapse) setPanel(null)
   }, [active, turns])
+  // 키보드가 막 열리면(`KeyboardInset` 이 <html data-kb> 를 단다) 펼친 카드를 접는다 — 첫 입장 카드가 글자 모드 입력 바를 밀지 않게(REV-141 M-1).
+  useEffect(() => {
+    if (!active) return
+    const root = document.documentElement
+    const mo = new MutationObserver(() => {
+      const focusInside = !!document.getElementById(GOAL_CARD_ID)?.contains(document.activeElement)
+      if (keyboardCollapse({ kbOpen: root.dataset.kb === 'open', goalOpen: panelRef.current?.k === 'goal', focusInside })) setPanel(null)
+    })
+    mo.observe(root, { attributes: true, attributeFilter: ['data-kb'] })
+    return () => mo.disconnect()
+  }, [active])
 
   const toggleGoal = useCallback(() => {
     if (panelRef.current?.k === 'goal') setPanel(null)
@@ -176,7 +192,7 @@ export function useRolePlay(d: RolePlayDeps) {
   )
 
   /* ── 마치기 ── */
-  const [sheet, setSheet] = useState<{ open: boolean; phase: EndSheetPhase }>({ open: false, phase: 'confirm' })
+  const [sheet, setSheet] = useState<EndSheetState>({ open: false, phase: 'confirm' })
   const [flight] = useState(createSingleFlight)
   const blocked = endBlockedReason({ ready: !!chat, listening: d.listening, turnBusy: d.turnBusy })
 
@@ -186,28 +202,20 @@ export function useRolePlay(d: RolePlayDeps) {
       return
     }
     setPanel((p) => (p?.k === 'practice' ? null : p))
-    setSheet({ open: true, phase: turns > 0 ? 'confirm' : 'empty' })
+    setSheet({ open: true, phase: endSheetPhaseFor(turns) })
   }, [blocked, notify, turns])
 
-  const finish = useCallback(async () => {
-    // 성공하면 잠근 채 이동한다 — 결과 화면으로 넘어가는 동안 "정리 중"을 유지하고 두 번째 요청을 내지 않는다(서버도 멱등).
-    const r = await flight.run(() => {
-      setSheet({ open: true, phase: 'busy' })
-      return apiPost<RolePlayResultView>(`/api/v1/chats/${encodeURIComponent(chatId)}/scenario/finish`)
-    }, true)
-    if (!r.ran) return
-    if (r.ok) {
-      writeStore('session', rolePlayResultStoreKey(chatId), JSON.stringify(r.value))
-      router.replace(rolePlayResultHref(chatId))
-      return
-    }
-    const f = finishFailureOf(toErr(r.error))
-    if (f === 'noTurns') setSheet({ open: true, phase: 'empty' })
-    else if (f === 'busy') {
-      setSheet({ open: false, phase: 'confirm' })
-      notify(ROOM.endWhileTurn)
-    } else setSheet({ open: true, phase: 'fail' })
-  }, [chatId, flight, notify, router])
+  const finish = useCallback(
+    () =>
+      runFinish({
+        flight,
+        post: () => apiPost<RolePlayResultView>(`/api/v1/chats/${encodeURIComponent(chatId)}/scenario/finish`),
+        setSheet,
+        toResult: () => router.replace(rolePlayResultHref(chatId)),
+        notify,
+      }),
+    [chatId, flight, notify, router],
+  )
 
   /** 마무리 띠 [마치고 결과 보기] — 확인 단계를 건너뛰고 바로 기록. */
   const finishNow = useCallback(() => {
@@ -215,37 +223,27 @@ export function useRolePlay(d: RolePlayDeps) {
     else void finish()
   }, [blocked, finish, notify])
 
-  const closeEnd = useCallback(() => {
-    if (flight.isBusy()) return
-    setSheet((s) => ({ open: false, phase: s.phase }))
-  }, [flight])
+  const closeEnd = useCallback(() => setSheet((s) => closedEndSheet(s, flight.isBusy())), [flight])
 
-  /** 0턴 [그만두기](D-7) — 빈 대화를 #31 로 지우고 시나리오로. 이미 없으면(404) 그대로 나간다. */
-  const quit = useCallback(async () => {
-    const r = await flight.run(() => {
-      setSheet({ open: true, phase: 'quitting' })
-      return apiDelete(`/api/v1/chats/${encodeURIComponent(chatId)}`)
-    }, true)
-    if (!r.ran) return
-    if (r.ok) {
-      notify(END.quitDone)
-      router.replace(SCENARIO_HOME_HREF)
-      return
-    }
-    const err = toErr(r.error)
-    if (err.status === 404) {
-      router.replace(SCENARIO_HOME_HREF)
-      return
-    }
-    setSheet({ open: true, phase: 'empty' })
-    notify(err.status === 0 ? actionErrorText(err) : END.quitFail)
-  }, [chatId, flight, notify, router])
+  /** 0턴 [그만두기](D-7) — 빈 대화를 #31 로 지우고 시나리오로(지웠으면 홈이 안내를 한 번 보인다). 이미 없으면(404) 그대로 나간다. */
+  const quit = useCallback(
+    () =>
+      runQuit({
+        flight,
+        del: () => apiDelete(`/api/v1/chats/${encodeURIComponent(chatId)}`),
+        setSheet,
+        leave: (quitNotice) => {
+          if (quitNotice) writeStore('session', ROOM_STORE.quitDone, '1')
+          router.replace(SCENARIO_HOME_HREF)
+        },
+        notify,
+        connText: actionErrorText,
+      }),
+    [chatId, flight, notify, router],
+  )
 
-  /** 마친 뒤 [결과 보기] — 이미 받은 결과를 첫 그림용으로 넣어 두고 이동. */
-  const openResult = useCallback(() => {
-    if (view?.ended) writeStore('session', rolePlayResultStoreKey(chatId), JSON.stringify(view.ended))
-    router.push(rolePlayResultHref(chatId))
-  }, [chatId, router, view])
+  /** 마친 뒤 [결과 보기] — 결과 화면은 #29 로 읽는다(첫 그림 보관 없음 — REV-141 L-3). */
+  const openResult = useCallback(() => router.push(rolePlayResultHref(chatId)), [chatId, router])
 
   return {
     active,

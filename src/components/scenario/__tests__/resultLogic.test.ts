@@ -119,17 +119,19 @@ test('outcomeView: 판단 없음(judged:false) — "판단 전에 마쳤어요"�
   assert.equal(rowValue(outcomeView(result({ communicationSuccess: null })), 'comm'), '—')
 })
 
-test('대화 순서 줄: 진행 값 있으면 s/S, 없으면 단계 수만, 단계 없으면 줄 없음', () => {
+test('대화 순서 줄(REV-141 M-2): 진행 값이 있을 때만 s/S — 진행 값 없음·단계 없음이면 줄 없음', () => {
   assert.deepEqual(resultSteps(4, 1), { value: '2/4단계', ok: false })
   assert.deepEqual(resultSteps(4, 0), { value: '1/4단계', ok: false })
   assert.deepEqual(resultSteps(4, 3), { value: '4/4단계', ok: true })
   assert.deepEqual(resultSteps(4, 9), { value: '4/4단계', ok: true })
-  assert.deepEqual(resultSteps(3, null), { value: '3단계', ok: false })
-  assert.deepEqual(resultSteps(3, -1), { value: '3단계', ok: false })
+  for (const idx of [null, undefined, -1, 1.5, Number.NaN]) assert.equal(resultSteps(3, idx), null, String(idx))
   assert.equal(resultSteps(0, 2), null)
+  // 지금 서버(stepIndex 늘 null): 판정 줄 셋뿐, "N단계" 글자 없음
   const v = outcomeView(result(), { count: 3, stepIndex: null })
-  assert.deepEqual(v.rows.map((r) => r.key), ['tutor', 'comm', 'expr', 'steps'])
-  assert.equal(rowValue(v, 'steps'), '3단계')
+  assert.deepEqual(v.rows.map((r) => r.key), ['tutor', 'comm', 'expr'])
+  assert.ok(!v.rows.some((r) => r.label === RESULT.rowSteps || /단계/.test(r.value)))
+  assert.deepEqual(outcomeView(result(), { count: 3, stepIndex: 2 }).rows.map((r) => r.key), ['tutor', 'comm', 'expr', 'steps'])
+  assert.equal(rowValue(outcomeView(result(), { count: 3, stepIndex: 2 }), 'steps'), '3/3단계')
   assert.deepEqual(outcomeView(result(), { count: 0, stepIndex: null }).rows.map((r) => r.key), ['tutor', 'comm', 'expr'])
 })
 

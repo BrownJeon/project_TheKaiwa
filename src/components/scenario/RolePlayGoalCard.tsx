@@ -4,6 +4,8 @@
  * 역할극 목표 카드(가이드 §3-D, v1 `goalCard` + 대화 순서). 머리 바로 아래 한 줄로 접혀 있다가 펼치면 역할·대화 순서·핵심 표현 칩을 보인다.
  * 쓴 표현은 서버가 준 id 로만 칠한다(글자 비교 없음). 색만으로 알리지 않는다 — ✓ 글자와 스크린리더 ", 썼어요".
  * 단계 진행값이 없으면(`rp-nostep` — 지금 서버) 대화 순서는 번호만, ✓·● 없이. 마친 역할극이면 요약은 "마침".
+ * 펼친 영역은 높이 상한(`GOAL_REGION_MAX`) 안에서 스크롤한다 — 첫 입장(펼친 채 시작)에 단계·표현이 많아도 대화·입력 바를 밀지 않게.
+ * 키보드가 열리면 훅이 카드를 접는다(REV-141 M-1, 대답 연습 판과 같은 "판 안 스크롤" 예외 — 가이드 "max-h 없음"과 다름, designer 확인).
  */
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { OFF, useAnnotations } from '@/components/common/japanese/annotations'
@@ -12,6 +14,8 @@ import { ROOM } from './scenarioCopy'
 import { GOAL_CARD_ID, type RolePlay } from './useRolePlay'
 
 const REGION_ID = 'rp-goal'
+/** 펼친 카드 높이 상한(보수적 기본값 — designer 확인 대기). */
+const GOAL_REGION_MAX = 'max-h-[40dvh] overflow-y-auto overscroll-contain'
 
 export default function RolePlayGoalCard({ rp }: { rp: RolePlay }) {
   const v = rp.view
@@ -41,7 +45,7 @@ export default function RolePlayGoalCard({ rp }: { rp: RolePlay }) {
         </span>
       </button>
       {rp.goalOpen ? (
-        <div id={REGION_ID} className="min-w-0 px-4 pb-3">
+        <div id={REGION_ID} className={`min-w-0 px-4 pb-3 ${GOAL_REGION_MAX}`}>
           <p className="text-[13px] text-ink2 break-keep">
             {ROOM.me} <b className="font-semibold text-ink">{v.roles.learner}</b> · {ROOM.tutor} <b className="font-semibold text-ink">{v.roles.tutor}</b>
           </p>
@@ -123,4 +127,3 @@ export default function RolePlayGoalCard({ rp }: { rp: RolePlay }) {
     </div>
   )
 }
-

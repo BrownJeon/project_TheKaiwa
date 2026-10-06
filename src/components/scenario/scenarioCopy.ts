@@ -11,15 +11,16 @@ export const SCENARIO_NEW_HREF = '/study/ai/scenario/new'
 export const scenarioEditHref = (id: string) => `/study/ai/scenario/${encodeURIComponent(id)}/edit`
 export const scenarioSheetHref = (id: string, saved = false) => `${SCENARIO_HOME_HREF}&sc=${encodeURIComponent(id)}${saved ? '&saved=1' : ''}`
 export const talkRoomHref = (chatId: string) => `/study/ai/talk/${encodeURIComponent(chatId)}`
-/** 역할극 결과 화면(B3 가 페이지를 만든다 — 경로·첫 그림 보관 키는 여기 한 곳). */
+/** 역할극 결과 화면(B3 가 페이지를 만든다 — 결과는 #29 로 읽는다, 첫 그림 보관 없음 — REV-141 L-3). */
 export const rolePlayResultHref = (chatId: string) => `${talkRoomHref(chatId)}/result`
-/** 마치기 응답(ResultView)을 결과 화면 첫 그림용으로 잠깐 넣어 두는 곳(sessionStorage). 없으면 결과 화면이 읽기 요청. */
-export const rolePlayResultStoreKey = (chatId: string) => `kaiwa.rp.result.${chatId}`
 
 /** AI 초안 자동 보관(이 탭에서만 — sessionStorage). */
 export const DRAFT_STORE_KEY = 'kaiwa.scenario.draft'
-/** 역할극 방 — 표현 체크 숨김(이 탭 동안)·대답 연습 마지막 방식. */
-export const ROOM_STORE = { checksHidden: 'kaiwa.rp.checksHidden', practiceMode: 'kaiwa.rp.practiceMode' } as const
+/**
+ * 역할극 방 — 표현 체크 숨김(이 탭 동안)·대답 연습 마지막 방식 · 그만두기 안내 한 번(`quitDone` — 방이 쓰고 나가면 시나리오 홈이 읽고 바로 지운다,
+ * 방 토스트는 방과 함께 사라지므로 — REV-141 L-4).
+ */
+export const ROOM_STORE = { checksHidden: 'kaiwa.rp.checksHidden', practiceMode: 'kaiwa.rp.practiceMode', quitDone: 'kaiwa.rp.quitDone' } as const
 
 /** 결과 문구(서버 `OUTCOME_KO` 와 같은 말). */
 export const OUTCOME_KO: Record<ScenarioOutcome, string> = {

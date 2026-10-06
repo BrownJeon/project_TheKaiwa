@@ -4,7 +4,7 @@
  * 빈칸 구간은 서버 규약 그대로 **코드포인트 `[start, end)`** — `Array.from(ja).slice(start, end).join('')` 이 정답이다.
  * 고르기 세트(빈칸·보기 3개·정답 위치)는 통째로 맞거나 버린다 — 하나라도 어긋나면 [고르기]를 끄고 다른 방식으로 연다(`pr-noblank`).
  */
-import type { Err } from '@/components/common/errors'
+import { toErr, type Err } from '@/components/common/errors'
 
 export type PracticeMode = 'choose' | 'say' | 'repeat'
 export const PRACTICE_MODES: readonly PracticeMode[] = ['choose', 'say', 'repeat']
@@ -98,4 +98,25 @@ export function practiceFailureOf(err: Err, timedOut: boolean): PracticeFailure 
     if (why === 'ENDED' || why === 'ROLEPLAY_ENDED') return { kind: 'ended' }
   }
   return { kind: 'error' }
+}
+
+/** 요청 하나가 끝났을 때 판에 낼 것 — 제안 · 판 안 실패(`report` 면 방에도 알림: 다른 말·마친 역할극 처리). */
+export type PracticeSettle = { kind: 'ready'; view: PracticeView } | { kind: 'failed'; failure: PracticeFailure; report: boolean }
+
+/**
+ * #169 요청 하나의 결말(REV-141 L-6 — `usePractice` 의 판단을 뺀 것). 판 닫음·새 말·언마운트로 취소돼 이제 살아 있지 않은 요청(`live()` 거짓)의
+ * 늦은 응답·오류는 버린다(닫힌 판이 되살아나지 않게). 취소로 끊긴 것(AbortError, 시간 초과 아님)도 오류가 아니다. 12초 시간 초과만 오류.
+ * 응답 모양이 틀리면 판 안 오류(방에는 알리지 않음).
+ */
+export async function settlePractice(fx: { request: () => Promise<unknown>; messageId: string; live: () => boolean; timedOut: () => boolean; settle: (r: PracticeSettle) => void }): Promise<void> {
+  try {
+    const raw = await fx.request()
+    if (!fx.live()) return
+    const view = readPractice(raw, fx.messageId)
+    fx.settle(view ? { kind: 'ready', view } : { kind: 'failed', failure: { kind: 'error' }, report: false })
+  } catch (e) {
+    if (!fx.live()) return
+    if (e instanceof DOMException && e.name === 'AbortError' && !fx.timedOut()) return
+    fx.settle({ kind: 'failed', failure: practiceFailureOf(toErr(e), fx.timedOut()), report: true })
+  }
 }
