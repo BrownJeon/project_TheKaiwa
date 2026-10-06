@@ -2,11 +2,14 @@ import Link from 'next/link'
 import { Badge } from '@/components/common/ui'
 import type { ChatSummary } from '@/types/chat'
 import { formatListTime } from '@/components/common/format'
+import { rolePlayRowOf } from '@/components/scenario/resultLogic'
+import { LIST } from '@/components/scenario/scenarioCopyResult'
 
 /** 채팅 목록 한 줄(행 전체가 링크, ≥64px). 뱃지는 둘 다면 "답하는 중"만. */
 export default function ChatListItem({ chat, href, now }: { chat: ChatSummary; href: string; now: Date | null }) {
   const time = now ? formatListTime(chat.lastMessageAt, now) : ''
-  const status = chat.running ? '답하는 중' : chat.reviewedAt ? '점검 완료' : ''
+  const rp = rolePlayRowOf(chat)
+  const status = chat.running ? '답하는 중' : rp ? (rp.ended ? `${LIST.rolePlay} ${LIST.ended}` : LIST.rolePlay) : chat.reviewedAt ? '점검 완료' : ''
   const label = [chat.title, time, status].filter(Boolean).join(', ')
   return (
     <li>
@@ -28,6 +31,8 @@ export default function ChatListItem({ chat, href, now }: { chat: ChatSummary; h
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent" />
               <Badge>답하는 중</Badge>
             </span>
+          ) : rp ? (
+            <span className="flex flex-none items-center gap-1"><Badge>{LIST.rolePlay}</Badge>{rp.ended ? <Badge tone="good">{LIST.ended}</Badge> : null}</span>
           ) : chat.reviewedAt ? (
             <Badge tone="good">점검 완료</Badge>
           ) : null}

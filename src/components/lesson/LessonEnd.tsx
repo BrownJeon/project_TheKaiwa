@@ -17,6 +17,7 @@ import { readStore } from '@/components/common/storage'
 import { Btn, BtnRow, Card } from '@/components/common/ui'
 import BackBar from '@/components/shell/BackBar'
 import { formatMonthDay } from '@/components/vocab/format'
+import LessonScenarioCard from '@/components/scenario/LessonScenarioCard'
 import type { ChallengeProgress } from '@/types/challenge'
 import type { LessonContent, LessonDto } from '@/types/lesson'
 import ChallengeEndLine from './ChallengeEndLine'
@@ -168,6 +169,7 @@ export default function LessonEnd({
                 {busy ? HOME.creating : END.nextLesson}
               </Btn>
             )}
+            <LessonScenarioCard lesson={lesson} />
             <div>
               <Btn variant="ghost" className="w-full" aria-busy={talking || undefined} onClick={() => void talk()}>
                 {END.talk}
