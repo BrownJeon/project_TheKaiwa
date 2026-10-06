@@ -13,6 +13,9 @@ import { buildEvalGradeRequest } from '../prompts/evalGrade'
 import { buildLessonRequest, type LessonTopicInput } from '../prompts/lesson'
 import { buildReviewDecisionRequest, type ReviewDecisionCandidateInput } from '../prompts/reviewDecision'
 import { buildReviewMixRequest, type ReviewMixItemInput } from '../prompts/reviewMix'
+import { buildReplyPracticeRequest } from '../prompts/replyPractice'
+import { buildScenarioDraftRequest } from '../prompts/scenarioDraft'
+import { buildScenarioVerdictRequest } from '../prompts/scenarioVerdict'
 import { buildTopicWordsRequest } from '../prompts/topicWords'
 import { buildUserTranslationRequest } from '../prompts/userTranslation'
 import { buildWordEnrichRequest } from '../prompts/wordEnrich'
@@ -418,13 +421,18 @@ test('task-037: repairRootClose 는 buildTalkRequest·buildChatRequest 만 true 
     ['reviewDecision(A11)', buildReviewDecisionRequest({ todayKst, learner, candidates: decisionFx.candidates })],
     // task-042 A12 — 구문 슬립 복구는 TALK·CHAT 전용이다(주제 단어 생성은 JSON 이 짧고 항목 단위로 버려 복구 경로가 필요 없다). strip 은 켠다(별도 pin: engine additionalPropertiesStrip.test).
     ['topicWords(A12)', buildTopicWordsRequest({ topic: { title: '카페 주문', level: 'N5' }, targetCount: 10, exclude: ['コーヒー'] })],
+    // task-010d A1-PE — 역할극 종료 판정(별도 호출, 대화 턴이 아니다). 구문 슬립 복구는 TALK·CHAT 전용.
+    ['scenarioVerdict(010d)', buildScenarioVerdictRequest({ roles: { learner: '손님', tutor: '점원' }, goalKo: '주문해요', expressions: [{ id: 'e1', ja: 'ください' }], requiredExpressions: 1, turns: [{ role: 'learner', text: 'コーヒーをください' }] })],
+    // task-010d PE-2b — AI 시나리오 초안(S3)·대답 연습(S10): 둘 다 대화 턴이 아닌 별도 호출이라 구문 슬립 복구(repairRootClose)·strip 모두 켜지 않는다.
+    ['scenarioDraft(010d)', buildScenarioDraftRequest({ description: '카페에서 음료를 주문하고 사이즈를 정해요', level: 'N5' })],
+    ['replyPractice(010d)', buildReplyPracticeRequest({ level: 'N5', scenario: { roles: { learner: '손님', tutor: '점원' }, goalKo: '주문해요' }, lastTutorJa: 'ご注文はお決まりですか。' })],
   ]
   for (const [name, req] of others) assert.ok(!req.repairRootClose, `${name} 요청은 repairRootClose 를 켜지 않는다(undefined/false)`)
   // 빌더가 늘면 이 목록에 추가해야 한다 — prompts/ 의 build*Request 전부가 위 표에 있다.
   const exported = readdirSync(join(process.cwd(), 'src/modules/conversation/prompts'))
     .filter((f) => f.endsWith('.ts'))
     .flatMap((f) => [...readFileSync(join(process.cwd(), 'src/modules/conversation/prompts', f), 'utf8').matchAll(/^export function (build\w+Request)\(/gm)].map((m) => m[1]))
-  assert.deepEqual([...exported].sort(), ['buildChatRequest', 'buildChatReviewRequest', 'buildEvalGenRequest', 'buildEvalGradeRequest', 'buildLessonRequest', 'buildReviewDecisionRequest', 'buildReviewMixRequest', 'buildTalkRequest', 'buildTopicWordsRequest', 'buildUserTranslationRequest', 'buildWordEnrichRequest'])
+  assert.deepEqual([...exported].sort(), ['buildChatRequest', 'buildChatReviewRequest', 'buildEvalGenRequest', 'buildEvalGradeRequest', 'buildLessonRequest', 'buildReplyPracticeRequest', 'buildReviewDecisionRequest', 'buildReviewMixRequest', 'buildScenarioDraftRequest', 'buildScenarioVerdictRequest', 'buildTalkRequest', 'buildTopicWordsRequest', 'buildUserTranslationRequest', 'buildWordEnrichRequest'])
   // task-036 pin 은 그대로: TALK·CHAT 은 stripAdditionalProperties 를 켜지 않는다(옛 키는 거부 → 재시도).
   assert.ok(!talk.stripAdditionalProperties && !chat.stripAdditionalProperties, 'task-036 pin: TALK·CHAT 은 strip 을 켜지 않는다')
 })

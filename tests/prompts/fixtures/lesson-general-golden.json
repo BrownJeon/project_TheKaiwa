@@ -1,0 +1,82 @@
+{
+ "capturedFrom": "lesson@v9 · HEAD bcc04e2 · 2026-10-07 (task-010d PE-2b 변경 전)",
+ "cases": {
+  "topic_plain": {
+   "request": "8cf5b898126ac36012e6528e7528f494b474adc4f6076074ff94804b929fa79d",
+   "persona": "3dea85fd03dcc04c50f2dc01efbebe1823b57a6c6545765ead69aa4ce99c535b",
+   "schema": "3247b48db6a67f83e0c590fe5bf8a4eb27a555b3f4a5180a4c0ebed420fb0aa2",
+   "allowedChunkIds": "8836990eb107fe8be1f8822523ce820d4340a46517378edb9be9ca5dfa7dda25",
+   "skippedChunks": 0,
+   "strip": true,
+   "hasExtraCheck": true,
+   "systemChars": 3291,
+   "totalChars": 3930
+  },
+  "topic_full": {
+   "request": "83a49f2ced0fd4c5061bc8614e6a57f60ab8e78a54294bf3f05f418fa833a42c",
+   "persona": "3dea85fd03dcc04c50f2dc01efbebe1823b57a6c6545765ead69aa4ce99c535b",
+   "schema": "3247b48db6a67f83e0c590fe5bf8a4eb27a555b3f4a5180a4c0ebed420fb0aa2",
+   "allowedChunkIds": "8836990eb107fe8be1f8822523ce820d4340a46517378edb9be9ca5dfa7dda25",
+   "skippedChunks": 0,
+   "strip": true,
+   "hasExtraCheck": true,
+   "systemChars": 3291,
+   "totalChars": 4065
+  },
+  "topic_heavy_learner": {
+   "request": "bb2d3123c75ab1743cc44747c868fc9f2d8f57b30f0da5877d18662e2c6aef4b",
+   "persona": "3dea85fd03dcc04c50f2dc01efbebe1823b57a6c6545765ead69aa4ce99c535b",
+   "schema": "3247b48db6a67f83e0c590fe5bf8a4eb27a555b3f4a5180a4c0ebed420fb0aa2",
+   "allowedChunkIds": "8836990eb107fe8be1f8822523ce820d4340a46517378edb9be9ca5dfa7dda25",
+   "skippedChunks": 0,
+   "strip": true,
+   "hasExtraCheck": true,
+   "systemChars": 3727,
+   "totalChars": 4501
+  },
+  "topic_n3_titleja": {
+   "request": "6f7ae4057774cbbc12170cf384069559772e6af09857e847beeaa45904aff145",
+   "persona": "abe7f426d5d20bd91dcbc014c233965a5c8e257085fe7f64b3cd182b3d0b9ec7",
+   "schema": "3247b48db6a67f83e0c590fe5bf8a4eb27a555b3f4a5180a4c0ebed420fb0aa2",
+   "allowedChunkIds": "8836990eb107fe8be1f8822523ce820d4340a46517378edb9be9ca5dfa7dda25",
+   "skippedChunks": 0,
+   "strip": true,
+   "hasExtraCheck": true,
+   "systemChars": 3291,
+   "totalChars": 3930
+  },
+  "topic_23_chunks": {
+   "request": "573cc7a51188d5fc5e006ecea6a66931209374aacda0d88570ac5950ace66a71",
+   "persona": "0ffd434b85954e5a127d0c7929d9239fc1d1f1094c81c40adc8051b6f3af3438",
+   "schema": "3247b48db6a67f83e0c590fe5bf8a4eb27a555b3f4a5180a4c0ebed420fb0aa2",
+   "allowedChunkIds": "8855476882dea2b9f6a2c7f9d69f9489822ba67faefa3a9687722af3ecb7111c",
+   "skippedChunks": 3,
+   "strip": true,
+   "hasExtraCheck": true,
+   "systemChars": 3291,
+   "totalChars": 4326
+  },
+  "source_plain": {
+   "request": "73d908ba6aced6fb015592cb7769f5affd3605534489087544e0b2b6de01a9d7",
+   "persona": "3dea85fd03dcc04c50f2dc01efbebe1823b57a6c6545765ead69aa4ce99c535b",
+   "schema": "3247b48db6a67f83e0c590fe5bf8a4eb27a555b3f4a5180a4c0ebed420fb0aa2",
+   "allowedChunkIds": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "skippedChunks": 0,
+   "strip": true,
+   "hasExtraCheck": true,
+   "systemChars": 3244,
+   "totalChars": 3480
+  },
+  "source_full": {
+   "request": "4a5371981272b90306c5d63b3f3a6111af156d0f54518ebeeb2517fbd56fbbad",
+   "persona": "3dea85fd03dcc04c50f2dc01efbebe1823b57a6c6545765ead69aa4ce99c535b",
+   "schema": "3247b48db6a67f83e0c590fe5bf8a4eb27a555b3f4a5180a4c0ebed420fb0aa2",
+   "allowedChunkIds": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "skippedChunks": 0,
+   "strip": true,
+   "hasExtraCheck": true,
+   "systemChars": 3680,
+   "totalChars": 4051
+  }
+ }
+}
