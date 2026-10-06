@@ -12,7 +12,9 @@ const ALLOWED: Record<string, readonly string[]> = {
   TTS_LEXICON: ['dictionaryVersion', 'matches'],
   TTS_PLAN: ['segments', 'styleSource', 'speechProfile'],
   TTS_QUEUE: ['waitMs', 'position'],
-  TTS_SYNTH: ['chunkIndex', 'synthMs', 'audioMs', 'rtf', 'modelLoaded', 'modelVersion', 'cacheHit', 'connectionKey', 'status', 'errorCode'],
+  // `voiceId`(task-012b-3, Leader 승인 2026-10-06): 관리자 TTS 지표의 목소리별 집계(EngineMetricsDaily.byVoice, 16 §7.1 "Voice 별 요청 수")
+  // 원천. 값은 엔진 독립 Voice Profile id(예: teacher_haruka)뿐 — 엔진 speaker id·모델 id·모델 파일명은 싣지 않는다.
+  TTS_SYNTH: ['chunkIndex', 'synthMs', 'audioMs', 'rtf', 'modelLoaded', 'modelVersion', 'cacheHit', 'connectionKey', 'voiceId', 'status', 'errorCode'],
   TTS_ENCODE: ['bytes', 'format'],
 }
 
@@ -42,7 +44,7 @@ export function stopwatch(): () => number {
 /** MISS 합성 결과 → TTS_QUEUE·TTS_SYNTH[0]·TTS_ENCODE 단계(엔진이 준 헤더 계측값, 없으면 생략). */
 export function synthSteps(
   out: { audio: Buffer; metrics: { httpMs: number; synthMs: number | null; queueMs: number | null; encodeMs: number | null; audioMs: number | null; modelLoaded: 'hit' | 'cold' | null } },
-  m: { connectionKey: string; modelVersion: string; ms: number; durationMs: number; chunkIndex?: number },
+  m: { connectionKey: string; modelVersion: string; ms: number; durationMs: number; chunkIndex?: number; voiceId?: string },
 ): TraceStep[] {
   const idx = m.chunkIndex ?? 0
   const steps: TraceStep[] = []
@@ -59,6 +61,7 @@ export function synthSteps(
       modelVersion: m.modelVersion,
       cacheHit: false,
       connectionKey: m.connectionKey,
+      ...(m.voiceId ? { voiceId: m.voiceId } : {}),
       status: 'OK',
     }),
   )

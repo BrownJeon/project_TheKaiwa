@@ -268,7 +268,7 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
   const base = { traceId, normalizedText: seg.normalizedText, dictionaryVersion: lex.dictionaryVersion, modelVersion: voice.modelVersion, cacheKey: key, pauseBeforeMs: p.pauseBeforeMs, steps }
   const fromCache = (hit: CachedAudio, ms: number): SynthesizeResult => {
     const ttfaMs = Math.round(total())
-    steps.push(ttsStep(synthName, ms, { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: hit.durationMs, status: 'OK' }))
+    steps.push(ttsStep(synthName, ms, { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, voiceId: voice.id, audioMs: hit.durationMs, status: 'OK' }))
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
     return { ...base, audio: hit.audio, cached: true, durationMs: hit.durationMs ?? wavInfo(hit.audio)?.durationMs ?? null, ttfaMs }
   }
@@ -285,7 +285,7 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
     if (target.status === 'UNAVAILABLE' || target.status === 'MISCONFIGURED' || breakerOpen()) {
       const a = await assessAvailability({ allowProbe: true })
       if (a.health === 'UNAVAILABLE') {
-        steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: false, connectionKey: target.key, status: 'SKIPPED', errorCode: 'TTS_UNAVAILABLE' }))
+        steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: false, connectionKey: target.key, voiceId: voice.id, status: 'SKIPPED', errorCode: 'TTS_UNAVAILABLE' }))
         void finishTrace(traceId, steps, total(), 'ERROR', 'TTS_UNAVAILABLE', input, { ...meta, cacheHits: 0 })
         throw new TtsUnavailableError(a.reason ?? 'SERVER_ERROR', traceId)
       }
@@ -301,12 +301,12 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
     const { out, durationMs } = await run.promise
     const ttfaMs = Math.round(total())
     if (shared) {
-      steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, audioMs: durationMs, status: 'OK' }))
+      steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, voiceId: voice.id, audioMs: durationMs, status: 'OK' }))
       void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
       return { ...base, audio: out.audio, cached: true, durationMs, ttfaMs }
     }
     recordSynthSuccess()
-    steps.push(...synthSteps(out, { connectionKey: target.key, modelVersion: voice.modelVersion, ms: t(), durationMs, chunkIndex: idx }))
+    steps.push(...synthSteps(out, { connectionKey: target.key, modelVersion: voice.modelVersion, ms: t(), durationMs, chunkIndex: idx, voiceId: voice.id }))
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 0, ttfaMs })
     return { ...base, audio: out.audio, cached: false, durationMs, ttfaMs }
   } catch (e) {
@@ -314,7 +314,7 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
     if (!tts.isTtsEngineError(e)) throw e
     const kind: TtsFailureKind = e.kind
     if (!shared) recordSynthFailure(kind, e.code)
-    steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: false, connectionKey: target.key, status: kind === 'TIMEOUT' ? 'TIMEOUT' : 'FAILED', errorCode: e.code }))
+    steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: false, connectionKey: target.key, voiceId: voice.id, status: kind === 'TIMEOUT' ? 'TIMEOUT' : 'FAILED', errorCode: e.code }))
     void finishTrace(traceId, steps, total(), 'ERROR', `TTS_${kind}`, input, { ...meta, cacheHits: 0 })
     if (kind === 'TEXT_TOO_LONG') throw new TtsRequestError('TEXT_TOO_LONG')
     // 같은 오류 객체를 합류 요청들이 나눠 받는다 — traceId 는 복사본에 붙인다(TtsEngineError 에는 kind·code 만, 문장·주소·시크릿 없음).

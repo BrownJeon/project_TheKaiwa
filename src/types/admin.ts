@@ -756,3 +756,66 @@ export interface AuditListDto {
   items: AuditItemDto[]
   nextCursor: string | null
 }
+
+// ── task-012b-3 GET tts/metrics — TTS 일별 지표(speech-platform/16 §7.3). 집계 숫자·연결·목소리 id 만(사용자 id·문장·오디오·시크릿 없음) ────
+export type TtsMetricsRangeKey = 'today' | '7d' | '30d' | '90d'
+/** MATERIALIZED = 저장된 일별 행 · LIVE = 즉석 집계(오늘·자정 직후 유예 중인 어제, 60초 캐시) · NONE = 값 없음(연결이 없던 날). */
+export type TtsMetricsSourceName = 'MATERIALIZED' | 'LIVE' | 'NONE'
+
+export interface TtsVoiceMetricsDto {
+  requests: number
+  errors: number
+  p50Ms: number | null
+}
+
+/**
+ * 하루 한 연결. 정의는 `src/modules/engine/metrics/ttsAggregate.ts` 머리 주석 — 요청 = 청크 단위(캐시 HIT 포함),
+ * 지연 백분위 = 성공한 MISS 만(nearest-rank, p95 는 표본 20개·p99 는 100개 미만이면 null), TTFA = Trace 1건당 1개, 표본 0 은 null.
+ */
+export interface TtsMetricsDayDto {
+  /** KST `YYYY-MM-DD`. */
+  date: string
+  source: TtsMetricsSourceName
+  requests: number
+  errors: number
+  /** errors / requests, 소수 4자리. requests 0 이면 null. */
+  errorRate: number | null
+  avgMs: number | null
+  p50Ms: number | null
+  p95Ms: number | null
+  p99Ms: number | null
+  ttfaP50Ms: number | null
+  ttfaP95Ms: number | null
+  rtfAvg: number | null
+  cacheHitRate: number | null
+  /** `voiceId` 가 Trace 에 실린 표본만(task-012b-3 이전 Trace 는 빠진다). `?voiceId=` 면 그 목소리만 남긴다. 표본 0 이면 null. */
+  byVoice: Record<string, TtsVoiceMetricsDto> | null
+  /** ISO. 물화 행은 계산 시각, LIVE 는 즉석 집계 시각, NONE 은 null. */
+  computedAt: string | null
+}
+
+/** 기간 합계 — 날짜별 행으로 정확히 합칠 수 있는 값만(백분위·평균은 합칠 수 없어 싣지 않는다). */
+export interface TtsMetricsSummaryDto {
+  requests: number
+  errors: number
+  errorRate: number | null
+  cacheHitRate: number | null
+  /** `?voiceId=` 일 때 그 목소리의 합계, 아니면 null. */
+  voice: { voiceId: string; requests: number; errors: number } | null
+}
+
+export interface TtsMetricsConnectionDto {
+  connection: ConnectionRefDto
+  summary: TtsMetricsSummaryDto
+  /** 날짜 오름차순, 기간의 모든 날. */
+  days: TtsMetricsDayDto[]
+}
+
+export interface TtsMetricsDto {
+  environment: AdminEnvironment
+  range: { key: TtsMetricsRangeKey; from: string; to: string }
+  /** 서버 KST 오늘. */
+  today: string
+  voiceId: string | null
+  connections: TtsMetricsConnectionDto[]
+}
