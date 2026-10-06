@@ -10,11 +10,12 @@
  * 실행: 우분투 미러에서 `npm run db:seed`(NFS noexec — 루트에서 npx 금지).
  * 드라이런: `SEED_DRY_RUN=1 node --env-file=.env --import tsx prisma/seed.ts` — 주제·조각 계획만 출력(쓰기 0).
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PrismaClient, Prisma, type Environment } from '@prisma/client'
 import { seedLexicon } from './seed-lexicon'
 import { seedTopics, type SeedTopicInput } from './seed-topics'
+import { seedScenarios } from './seed-scenarios'
 
 const prisma = new PrismaClient()
 const data = (name: string) => JSON.parse(readFileSync(join(__dirname, 'seed-data', name), 'utf-8'))
@@ -132,17 +133,26 @@ async function seedOwner() {
   console.log(`[seed] OWNER(SUPER_ADMIN) 설정 기본 행 + N5 단어 ${added}개 추가(기존 ${words.length - added})`)
 }
 
+async function seedScenarioStep(topics: SeedTopicInput[], dryRun: boolean) {
+  const file = join(__dirname, 'seed-data', 'scenarios.json')
+  if (!existsSync(file)) return console.log('[seed] seed-data/scenarios.json 이 없어 상황 단계를 건너뜁니다.')
+  await seedScenarios(prisma, data('scenarios.json'), topics, { dryRun })
+}
+
 async function main() {
   const envs: Environment[] = ['LOCAL', 'PRODUCTION']
   const topics: SeedTopicInput[] = data('topics.json')
   if (process.env.SEED_DRY_RUN === '1') {
     // 드라이런 — 주제·조각 계획만 출력하고 **아무것도 쓰지 않는다**(다른 시드 단계는 실행하지 않음).
     await seedTopics(prisma, topics, { dryRun: true })
-    console.log('[seed:dry-run] 주제·조각 계획만 출력 — 쓰기 0, 엔진·Voice·AppSetting·발음 사전·PromptTemplate·OWNER 단계는 건너뜀')
+    await seedScenarioStep(topics, true)
+    console.log('[seed:dry-run] 주제·조각·상황 계획만 출력 — 쓰기 0, 엔진·Voice·AppSetting·발음 사전·PromptTemplate·OWNER 단계는 건너뜀')
     return
   }
   // 주제·조각은 안정 id upsert(prisma/seed-topics.ts) — 이미 있는 조각 id 를 바꾸지 않는다(RepetitionItem 이 가리킴).
   await seedTopics(prisma, topics)
+  // 상황은 주제 다음(주제 연결 — prisma/seed-scenarios.ts, 안정 id `scn_<key>`). 파일이 없으면 건너뛴다(시드 JSON 은 PE 작성).
+  await seedScenarioStep(topics, false)
   await seedEngines(envs)
   await seedVoices()
   await seedAppSettings(envs)

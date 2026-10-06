@@ -22,12 +22,12 @@ export function notFoundChat(): ApiError {
   return new ApiError('NOT_FOUND', '채팅을 찾을 수 없어요.')
 }
 
-const CHAT_SELECT = {
+export const CHAT_SELECT = {
   id: true, kind: true, title: true, level: true, lastMessageAt: true, preview: true, messageCount: true, reviewedAt: true, createdAt: true,
   topic: { select: { id: true, title: true } },
 } as const
 
-type ChatRow = Prisma.ChatGetPayload<{ select: typeof CHAT_SELECT }>
+export type ChatRow = Prisma.ChatGetPayload<{ select: typeof CHAT_SELECT }>
 
 export interface ChatDto {
   id: string
