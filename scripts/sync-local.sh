@@ -15,7 +15,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOCAL_ROOT="$HOME/.node-local/thekaiwa"
+LOCAL_ROOT="${KAIWA_LOCAL_ROOT:-$HOME/.node-local/thekaiwa}"  # 병렬 developer 는 전용 미러(cp -al)를 KAIWA_LOCAL_ROOT 로 지정한다
 
 mkdir -p "$LOCAL_ROOT"
 # src/ 는 Phase 0 스캐폴딩 전(DB 준비 단계)에는 없을 수 있다.
