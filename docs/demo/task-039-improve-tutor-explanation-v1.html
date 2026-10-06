@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-039-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:bf67d6c60da2">
+<meta name="description" content="강사 교정 설명 — 일상회화 설명이 메인, 시험(JLPT)식 문법은 접이식 추가 설명. 교정 카드(채팅 표현 점검·회화방·모아 둔 교정)와 말풍선 문법 칩, 현재 vs 제안, 사용자 결정 4건(delta 데모 v1, 합성 샘플 데이터)">
+<title>시험 문법 추가 설명</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 사용자 결정 4건(맨 위) → 왼쪽 화면 목록 · 가운데 휴대폰(현재·제안) · 오른쪽 설명 → 적용 범위 → 개발 메모 */
+/* 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음). 새 색 없음 */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dlay { display: grid; grid-template-columns: 228px minmax(0, 1fr) 360px; gap: 18px; padding: 4px 16px 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.dnav a { display: block; min-height: 34px; padding: 7px 8px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); text-decoration: none; }
+.dnav a:hover { background: var(--surface2); color: var(--ink); }
+.dnav a[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.dnav .did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; scroll-margin-top: 80px; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; min-height: 34px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 0 4px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.dcard .dsub { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+.dsrc { font-size: 12.5px; }
+.dsrc li { padding: 6px 0; border-top: 1px solid var(--line); }
+.dsrc li:first-child { border-top: 0; padding-top: 0; }
+.dsrc .fx { display: block; color: var(--ink2); font-size: 12px; margin-top: 2px; }
+.dmeas { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.dmeas b { color: var(--ink); }
+.dmeas .up { color: var(--bad); font-weight: 700; }
+.dmeas .ok { color: var(--good); font-weight: 700; }
+.dlegend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink2); margin-top: 8px; }
+.dlegend i { display: inline-block; width: 18px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; outline: 2px dashed var(--accent); outline-offset: -2px; }
+.dtoast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.dpanel { margin: 12px 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; scroll-margin-top: 80px; min-width: 0; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 90ch; }
+.dctx { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12.5px; }
+.dctx span { display: inline-block; min-height: 24px; padding: 2px 8px; border-radius: 6px; background: var(--surface2); word-break: keep-all; overflow-wrap: anywhere; }
+.dctx b { margin-right: 4px; white-space: nowrap; }
+.dqs { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+fieldset.dq { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; scroll-margin-top: 80px; }
+fieldset.dq legend { padding: 0 4px; font-size: 14px; font-weight: 700; }
+fieldset.dq legend .did { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-right: 6px; color: var(--ink2); }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; }
+.rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 12.5px; }
+.opt ul { font-size: 12px; color: var(--ink2); display: flex; flex-direction: column; gap: 2px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.dwhy { font-size: 12.5px; color: var(--ink2); }
+.dwhy b { color: var(--ink); }
+.dsee { font-size: 12px; }
+.dsee a { color: var(--ink); }
+.dsum { margin-top: 12px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 13px; }
+.dinfo { margin-top: 12px; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; color: var(--ink2); }
+.dinfo b { color: var(--ink); }
+.dtw { overflow-x: auto; margin-top: 10px; }
+.dtbl { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 6px 6px; border-top: 1px solid var(--line); }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtbl td.k { white-space: nowrap; font-weight: 600; }
+.dtbl .no { color: var(--ink2); font-weight: 600; }
+details.dev { margin: 0 16px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 16px; }
+details.dev > summary { min-height: 48px; display: flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer; }
+details.dev[open] { padding-bottom: 16px; }
+details.dev ol { list-style: decimal; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+@media (max-width: 1320px) { .dlay { grid-template-columns: 212px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 16px 12px; }
+  .dnav { position: static; max-height: none; }
+  .dside { grid-template-columns: minmax(0, 1fr); }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+body.mark .dnew { outline: 2px dashed var(--accent); outline-offset: 2px; }
+
+/* ── 휴대폰 프레임 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--surface); min-width: 0; }
+.main { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--ground); }
+.room { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--ground); }
+.omit { margin: 0 0 10px; border: 1.5px dashed var(--line); border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--ink2); text-align: center; background: transparent; word-break: keep-all; }
+
+/* BackBar · 회화방 머리 · 표시 바 */
+.bb { height: 52px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 4px; }
+.bb.bbs { position: sticky; top: 0; z-index: 10; }
+.back, .icb { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink); }
+.bb-m { flex: 1; min-width: 0; }
+.bb-m h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb-m p { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvb { position: relative; display: inline-flex; height: 34px; flex: none; align-items: center; border: 0; border-radius: 12px; padding: 0 12px; font-size: 13px; font-weight: 600; background: var(--surface2); color: var(--ink); }
+.rvb::before { content: ""; position: absolute; left: 0; right: 0; top: -5px; bottom: -5px; }
+.lh { height: 56px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 4px; }
+.av { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: 16px; display: grid; place-items: center; }
+.av.sm { width: 28px; height: 28px; font-size: 13px; }
+.lh-m { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; padding-left: 6px; }
+.lh-m h1 { max-width: 100%; font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ind { position: relative; display: inline-flex; max-width: 100%; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font-size: 12px; line-height: 16px; color: var(--ink2); }
+.ind::before { content: ""; position: absolute; left: -4px; right: -4px; top: -14px; bottom: -14px; }
+.ind .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--good); }
+.later { position: relative; margin-left: 2px; display: inline-flex; height: 32px; flex: none; align-items: center; gap: 6px; white-space: nowrap; border: 0; border-radius: 999px; background: var(--accent-soft); padding: 0 5px 0 12px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.later::before { content: ""; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+.later b { display: grid; height: 22px; min-width: 22px; place-items: center; border-radius: 11px; background: var(--accent); padding: 0 6px; font-size: 12px; font-weight: 600; color: var(--on-accent); }
+.later .s { display: none; }
+.w360 .later .l { display: none; } .w360 .later .s { display: inline; }
+.dispbar { flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; height: 44px; padding: 0 12px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--line); overflow-x: auto; scrollbar-width: none; }
+.dispbar::-webkit-scrollbar { display: none; }
+.dispbar .db-l { flex: none; font-size: 12px; color: var(--ink2); margin-right: 2px; }
+.tg { position: relative; height: 32px; flex: none; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13px; color: var(--ink); white-space: nowrap; }
+.tg::before { content: ""; position: absolute; left: 0; right: 0; top: -7px; bottom: -7px; }
+.tg[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 600; }
+.tg .ck { margin-right: 3px; }
+
+/* 공용(common/ui.tsx) */
+.card { min-width: 0; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.bdg { display: inline-flex; align-items: center; height: 22px; flex: none; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: var(--surface2); color: var(--ink2); }
+.bdg.good { background: var(--good-soft); color: var(--good); }
+.bdg.bad { background: var(--bad-soft); color: var(--bad); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; white-space: nowrap; min-width: 0; color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.btn.h44 { height: 44px; font-size: 14px; }
+.btn[aria-disabled="true"] { opacity: .6; }
+.btnrow { display: flex; gap: 8px; margin-top: 12px; }
+.btnrow > * { flex: 1; min-width: 0; }
+.cap { font-size: 12px; color: var(--ink2); }
+.d13 { font-size: 13px; color: var(--ink2); }
+.kk { word-break: keep-all; overflow-wrap: anywhere; }
+.mt2 { margin-top: 2px; } .mt4 { margin-top: 4px; } .mt6 { margin-top: 6px; } .mt8 { margin-top: 8px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; } .mt14 { margin-top: 14px; }
+.seg { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; min-width: 0; }
+.seg button { flex: 1; min-width: 0; border: 0; background: none; border-radius: 9px; padding: 0 4px; height: 38px; font-size: 13.5px; font-weight: 500; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg button[aria-checked="true"] { background: var(--surface); font-weight: 600; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+
+/* 일본어 표시 층(공용 JapaneseText) — 승인 데모 task-026 v4 · screens §15-1 값 그대로 */
+.jb { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 17px; line-height: 1.7; min-width: 0; }
+.jb.fu { line-height: 2.1; }
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: 11px; line-height: 1; color: var(--ink2); font-weight: 400; letter-spacing: 0; -webkit-user-select: none; user-select: none; }
+.hg { display: block; margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; -webkit-user-select: none; user-select: none; }
+.hg .bk { color: var(--ink3); }
+.trl { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 15px; line-height: 1.5; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.ub .trl { border-top-color: color-mix(in srgb, var(--ink) 18%, transparent); }
+.hl { border-radius: 2px; background: var(--accent-soft); color: var(--ink); }
+
+/* 대화 목록(MessageList) · 말풍선(MessageBubble) */
+.lst { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; }
+.lst > ul > li.gs { margin-top: 12px; } .lst > ul > li:first-child { margin-top: 0; }
+.ddv { margin: 12px 0; display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--ink2); }
+.ddv::before, .ddv::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+.trw { display: flex; gap: 8px; min-width: 0; }
+.tav { width: 28px; flex: none; padding-top: 20px; }
+.tcol { display: flex; min-width: 0; max-width: 85%; flex-direction: column; align-items: flex-start; }
+.tname { margin-bottom: 4px; display: flex; min-width: 0; max-width: 100%; align-items: center; gap: 4px; font-size: 12px; color: var(--ink2); }
+.spk { display: inline-flex; flex: none; align-items: center; gap: 4px; }
+.bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.bars i { width: 3px; height: 6px; border-radius: 2px; background: var(--accent); animation: bars .9s ease-in-out infinite; }
+.bars i:nth-child(2) { animation-delay: .15s; } .bars i:nth-child(3) { animation-delay: .3s; }
+@keyframes bars { 50% { height: 12px; } }
+.bt { min-width: 0; max-width: 100%; border-radius: 16px 16px 16px 6px; border: 1px solid var(--line); background: var(--surface); padding: 10px 14px; }
+.tfoot { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0 4px; font-size: 12px; color: var(--ink2); }
+.fb { display: inline-flex; height: 44px; flex: none; align-items: center; border: 0; background: none; padding: 0 6px; font-size: 13px; font-weight: 500; color: var(--ink2); white-space: nowrap; }
+.gchip { display: inline-flex; min-height: 22px; min-width: 0; align-items: center; gap: 3px; border-radius: 6px; background: var(--surface2); padding: 0 8px; font-size: 12px; color: var(--ink2); overflow-wrap: anywhere; }
+.gbtn { display: inline-flex; height: 44px; min-width: 0; align-items: center; border: 0; background: none; padding: 0 2px; border-radius: 8px; }
+.gbtn .gchip { color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--line); }
+.gbtn .gch { font-family: system-ui, sans-serif; color: var(--ink2); }
+.tm { padding: 0 4px; }
+.ubw { display: flex; min-width: 0; flex-direction: column; align-items: flex-end; }
+.ub { min-width: 0; max-width: 80%; border-radius: 16px 16px 6px 16px; background: var(--accent-soft); padding: 10px 14px; color: var(--ink); }
+.ufoot { display: flex; min-height: 24px; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 8px; font-size: 12px; color: var(--ink2); }
+.cchipw { display: inline-flex; height: 44px; flex: none; align-items: center; text-decoration: none; }
+.cchip { display: inline-flex; height: 24px; align-items: center; border-radius: 6px; padding: 0 8px; font-size: 12px; font-weight: 600; background: var(--surface2); color: var(--ink2); }
+
+/* 교정 카드(chat/CorrectionCard) — HEAD 그대로 + 제안 접이식 줄(.xn) */
+.ccl { display: flex; min-width: 0; width: 100%; flex-direction: column; gap: 8px; }
+.ccl.g12 { gap: 12px; }
+.cc { container-type: inline-size; min-width: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 14px; scroll-margin-top: 64px; }
+.cch { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.ccn { flex: none; font-size: 12px; color: var(--ink2); }
+.cck { min-width: 0; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccs { margin-left: auto; flex: none; }
+.ccg { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+@container (min-width: 320px) { .ccg { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.ccb { min-width: 0; border-radius: 12px; background: var(--surface2); padding: 10px; }
+.lb { font-size: 12px; color: var(--ink2); }
+.lb.g { color: var(--good); }
+.del { border-radius: 2px; background: var(--bad-soft); color: var(--bad); text-decoration: line-through; text-decoration-thickness: 1px; }
+.ins { border-radius: 2px; background: var(--good-soft); color: var(--good); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.ccx { margin-top: 10px; font-size: 15px; line-height: 1.5; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.ccnote { margin-top: 8px; font-size: 12px; color: var(--ink2); word-break: keep-all; }
+.ccdone { margin-top: 10px; font-size: 13px; color: var(--ink2); }
+.ccdone.good { color: var(--good); }
+/* ★ 제안: 추가 설명 줄 — 설명 바로 아래, 채택·무시 위. 닫힌 모양은 말풍선 [번역 ▾] 와 같은 글자 버튼, 터치는 카드 폭 전체 × 44px */
+.xn { margin-top: 2px; min-width: 0; }
+.xn-t { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 4px; border: 0; background: none; padding: 0 2px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--ink2); text-align: left; }
+.xn-t:hover { color: var(--ink); }
+.xn-c { font-size: 12px; }
+.xn-b { margin: 0 0 6px 2px; border-left: 2px solid var(--line); padding: 2px 0 2px 12px; font-size: 14px; line-height: 1.6; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.xn-b [lang="ja"] { word-break: normal; }
+@media (prefers-reduced-motion: no-preference) { .xn-b:not([hidden]) { animation: xnIn .16s ease-out; } }
+@keyframes xnIn { from { opacity: 0; transform: translateY(-2px); } }
+/* 회화 코치 힌트 카드(talk/TalkCorrectionCard) */
+.hintb { margin-top: 10px; min-width: 0; border-radius: 12px; background: var(--accent-soft); padding: 10px 12px; }
+.hint-l { font-size: 12px; font-weight: 700; color: var(--ink); }
+.hint-t { margin-top: 2px; font-size: 15px; color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
+.retry { margin-top: 10px; display: flex; min-width: 0; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--ink); word-break: keep-all; }
+.retry svg { flex: none; margin-top: 1px; color: var(--accent); }
+
+/* 회화 입력 바(talk/VoiceBar) · 채팅 입력(Composer) */
+.vb { flex: none; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 16px; }
+.vs { display: flex; height: 24px; min-width: 0; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.vs .t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vr { margin-top: 4px; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; }
+.kbb { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink2); }
+.vc { display: flex; justify-content: center; }
+.ptt { width: 72px; height: 72px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.sp44 { width: 44px; height: 44px; }
+.cmp { flex: none; border-top: 1px solid var(--line); background: var(--surface); padding-bottom: 8px; }
+.cmpf { display: flex; min-width: 0; align-items: flex-end; gap: 8px; padding: 8px 12px 0; }
+.ta { display: block; min-height: 44px; flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 12px; font-size: 16px; line-height: 24px; color: var(--ink3); }
+.snd { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); opacity: .4; }
+
+/* 표현 점검(ChatReview) */
+.rvp { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 32px; min-width: 0; }
+.slab { font-size: 12px; font-weight: 600; color: var(--ink2); }
+
+/* 바텀시트(common/Sheet) */
+.scrim { position: absolute; inset: 0; z-index: 40; }
+.scrim > .bg { position: absolute; inset: 0; background: color-mix(in srgb, var(--ink) 40%, transparent); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; display: flex; max-height: 85%; min-width: 0; flex-direction: column; border-radius: 16px 16px 0 0; background: var(--surface); box-shadow: 0 -10px 30px rgba(0,0,0,.18); }
+.shd { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 0 4px 0 16px; }
+.shd h2 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sbody { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+.gpt { margin-top: 4px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 17px; line-height: 1.7; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .bars i { animation: none; height: 9px; } }
+</style>
+</head>
+<body class="mark">
+<header class="dtop">
+  <h1>시험 문법 추가 설명 <span class="lvl">delta</span><small>데모 v1 · 교정 카드 · 회화방 · 말풍선 문법 칩 · 현재 = HEAD 소스 대조 · 합성 샘플 데이터</small></h1>
+  <div class="dctls">
+    <div class="dctl"><span>폭</span><div class="dseg" id="d-w" role="group" aria-label="휴대폰 폭"><button type="button" data-v="360" aria-pressed="false">360</button><button type="button" data-v="390" aria-pressed="true">390</button><button type="button" data-v="412" aria-pressed="false">412</button></div></div>
+    <div class="dctl"><span>높이</span><div class="dseg" id="d-h" role="group" aria-label="휴대폰 높이"><button type="button" data-v="780" aria-pressed="true">780</button><button type="button" data-v="892" aria-pressed="false">892</button></div></div>
+    <div class="dctl"><span>보기</span><div class="dseg" id="d-view" role="group" aria-label="현재와 제안"><button type="button" data-v="pair" aria-pressed="true">나란히</button><button type="button" data-v="cur" aria-pressed="false">현재</button><button type="button" data-v="prop" aria-pressed="false">제안</button></div></div>
+    <div class="dctl"><span>앱 설정 표시</span><div class="dseg" id="d-lay" role="group" aria-label="일본어 표시 설정 3칸"><button type="button" data-k="fu" aria-pressed="true">히라가나</button><button type="button" data-k="hg" aria-pressed="true">한글</button><button type="button" data-k="tr" aria-pressed="false">번역</button></div></div>
+    <div class="dctl"><span>바뀐 곳 표시</span><div class="dseg" id="d-mark" role="group" aria-label="바뀐 곳 테두리"><button type="button" data-v="on" aria-pressed="true">켬</button><button type="button" data-v="off" aria-pressed="false">끔</button></div></div>
+    <div class="dctl"><span>테마</span><div class="dseg" id="d-t" role="group" aria-label="테마"><button type="button" data-v="auto" aria-pressed="true">기기</button><button type="button" data-v="light" aria-pressed="false">밝게</button><button type="button" data-v="dark" aria-pressed="false">어둡게</button></div></div>
+    <div class="dctl"><div class="dseg" role="group" aria-label="데모 상태"><button type="button" id="d-reset" aria-pressed="false">처음 상태로</button></div></div>
+  </div>
+</header>
+<section class="dpanel" id="decide" aria-labelledby="dc-h"></section>
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="데모 화면 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside" id="side" aria-label="화면 설명"></aside>
+</div>
+<section class="dpanel" id="scope" aria-labelledby="sc-h"></section>
+<details class="dev" id="devmemo">
+  <summary>개발 메모 — 개발자용(앱 화면에는 나오지 않는 이름·규칙)</summary>
+  <div id="devbody"></div>
+</details>
+<div class="dtoast" id="dtoast" role="status" hidden></div>
+<script>
+(function () {
+'use strict';
+
+/* ════════ 상태 ════════ */
+var S = {
+  w: 390, h: 780, view: 'pair', fu: true, hg: true, tr: false, mark: true, theme: 'auto',
+  scr: 'rv', dec: { d1: 'A', d2: 'A', d3: 'A', d4: 'A' },
+  open: {}, st: {}, to: {}, reveal: false
+};
+var REC = { d1: 'A', d2: 'A', d3: 'A', d4: 'A' };
+var CUR = false;
+var TEACHER = '유우';
+var NOTE_MAX = 160;
+
+/* ════════ 합성 샘플 데이터 ════════
+   일본어 루비 표기: [漢字|かな]. 한글 줄(h)은 앱 규칙(구절 첫 소리 거센소리·안 소리 된소리·は/を/へ 뒤 띄움·장음 '-')으로 손으로 옮긴 값.
+   설명 문구는 예시 — 실제 문구는 프롬프트가 정하고 라이브 측정으로 확인한다. */
+var EX = {
+  e1: {
+    id: 'e1', type: '활용', major: false, chunk: '느낌 조각',
+    o: [['[友達|ともだち]とカラオケに[行|い]きました。とても[楽|たの]し', 0], ['いでし', 1], ['た。', 0]],
+    c: [['[友達|ともだち]とカラオケに[行|い]きました。とても[楽|たの]し', 0], ['かっ', 1], ['た', 0], ['です', 1], ['。', 0]],
+    ho: '토모다찌또까라오께니이끼마시따. 토떼모따노시-데시따.',
+    hc: '토모다찌또까라오께니이끼마시따. 토떼모따노시깟따데스.',
+    xc: '「楽しい」의 과거는 「楽しかった」예요. 정중하게는 「楽しかったです」라고 하고, 「楽しいでした」라고 하지 않아요.',
+    x: '‘즐거웠어요’는 「楽しかったです」라고 해요. 친구끼리는 「楽しかった！」 한마디면 충분해요.',
+    e: 'N5 문법 · い형용사 과거형 — 끝의 「い」를 빼고 「かった」를 붙여요(「楽しい」→「楽しかった」). 「楽しいでした」는 시험에 자주 나오는 틀린 보기예요.'
+  },
+  e2: {
+    id: 'e2', type: '문법', major: true, chunk: '액션 조각',
+    o: [['[日本語|にほんご]が[少|すこ]し[話|はな]せるように', 0], ['し', 1], ['ました。', 0]],
+    c: [['[日本語|にほんご]が[少|すこ]し[話|はな]せるように', 0], ['なり', 1], ['ました。', 0]],
+    ho: '니홍고가스꼬시하나세루요-니시마시따.',
+    hc: '니홍고가스꼬시하나세루요-니나리마시따.',
+    xc: 'N3 문형 「〜ようになる」는 변화, 「〜ようにする」는 노력을 나타내요. 시험에서도 자주 비교돼요. 여기서는 말할 수 있게 된 변화라서 「話せるようになりました」가 맞아요.',
+    x: '‘말할 수 있게 됐어요’처럼 저절로 생긴 변화는 「話せるようになりました」라고 해요. 「ようにしました」는 ‘그러려고 애썼어요’라는 말이라 여기선 어색해요.',
+    e: 'N3 문형 비교 · 「〜ようになる」는 능력이나 습관이 저절로 바뀐 것(「話せるようになる」), 「〜ようにする」는 일부러 노력하는 것(「毎日話すようにする」)이에요. 시험에서는 앞말이 가능형이면 「なる」를 고르는 문제로 자주 나와요. 비슷한 N4 문형 「〜ことになる」(정해짐)와 「〜ことにする」(내가 정함)도 같이 외워 두면 좋아요.',
+    hint: '‘저절로 그렇게 됐다’는 뜻이 되게 문장 끝을 바꿔 보세요.'
+  },
+  e3: {
+    id: 'e3', type: '어휘', major: false, chunk: '액션 조각',
+    o: [['エアコンを', 0], ['[開|あ]け', 1], ['ました。', 0]],
+    c: [['エアコンを', 0], ['つけ', 1], ['ました。', 0]],
+    ho: '에아콩오 아께마시따.', hc: '에아콩오 츠께마시따.',
+    xc: '에어컨·TV·불을 켤 때는 「つける」를 써요. 「開ける」는 문이나 창문을 열 때 써요.',
+    x: '에어컨·TV·불을 켤 때는 「つける」를 써요. 「開ける」는 문이나 창문을 열 때 써요.',
+    e: null
+  },
+  e4: {
+    id: 'e4', type: '조사', major: false, chunk: null,
+    o: [['[駅|えき]', 0], ['で', 1], ['[行|い]きます。', 0]],
+    c: [['[駅|えき]', 0], ['に', 1], ['[行|い]きます。', 0]],
+    ho: '에끼데이끼마스.', hc: '에끼니이끼마스.',
+    xc: '가는 곳 뒤에는 「に」를 써요. 「で」는 무엇을 하는 장소 뒤에 써요.',
+    x: '가는 곳 뒤에는 「に」를 써요. 「で」는 무엇을 하는 장소 뒤에 써요.',
+    e: null
+  },
+  e5: {
+    id: 'e5', type: '조사', major: false, chunk: null,
+    o: [['ともだちとカフェ', 0], ['を', 1], ['いきました。', 0]],
+    c: [['ともだちとカフェ', 0], ['に', 1], ['いきました。', 0]],
+    ho: '토모다찌또까훼오 이끼마시따.', hc: '토모다찌또까훼니이끼마시따.',
+    xc: '가는 곳 뒤에는 「を」가 아니라 「に」를 써요.',
+    x: '가는 곳 뒤에는 「を」가 아니라 「に」를 써요.',
+    e: null
+  }
+};
+var M = {
+  t1: { id: 't1', ja: '[週末|しゅうまつ]は[何|なに]をしましたか？', h: '슈-마쯔와 나니오 시마시따까?', ko: '주말에는 뭐 했어요?' },
+  u1: { id: 'u1', ja: '[友達|ともだち]とカラオケに[行|い]きました。とても[楽|たの]しいでした。', h: EX.e1.ho, ko: '친구와 노래방에 갔어요. 아주 즐거웠어요.' },
+  t2: { id: 't2', ja: '[楽|たの]しかったんですね！[何|なに]を[歌|うた]いましたか？', h: '타노시깟딴데스네! 나니오 우따이마시따까?', ko: '즐거웠군요! 무슨 노래 불렀어요?', g: '〜んですね',
+    gx: 'N4 문법 · 「〜んです」는 「〜のです」의 회화체예요. 「〜んですね」는 상대 말에 공감하며 확인할 때 써요. 시험에서는 「〜のです」 꼴로도 나와요.' },
+  t3: { id: 't3', ja: '[最近|さいきん]、[日本語|にほんご]の[勉強|べんきょう]はどうですか？', h: '사이낑, 니홍고노벵꾜-와 도-데스까?', ko: '요즘 일본어 공부는 어때요?' },
+  u2: { id: 'u2', ja: '[日本語|にほんご]が[少|すこ]し[話|はな]せるようにしました。', h: EX.e2.ho, ko: '일본어를 조금 말할 수 있게 했어요.' },
+  t4: { id: 't4', ja: 'すごいですね！どうやって[勉強|べんきょう]しましたか？', h: '스고이데스네! 도-얏떼벵꾜-시마시따까?', ko: '대단하네요! 어떻게 공부했어요?',
+    segs: [['すごいですね！', 1], ['どうやって[勉強|べんきょう]しましたか？', 0]] },
+  c1: { id: 'c1', ja: '[週末|しゅうまつ]は[友達|ともだち]とカラオケに[行|い]きました。', h: '슈-마쯔와 토모다찌또까라오께니이끼마시따.', ko: '주말에는 친구와 노래방에 갔어요.' },
+  c2: { id: 'c2', ja: '[楽|たの]しそうですね！よく[行|い]くんですか？', h: '타노시소-데스네! 요꾸이꾼데스까?', ko: '즐거웠겠네요! 자주 가요?', g: '〜んですか',
+    gx: 'N4 문법 · 「〜んです」는 「〜のです」의 회화체예요. 사정을 묻거나 설명할 때 써요(「よく行くんですか」). 시험에서는 「〜のです」 꼴로도 나와요.' },
+  c3: { id: 'c3', ja: '[月|つき]に[二回|にかい]ぐらい[行|い]きます。', h: '츠끼니니까이구라이이끼마스.', ko: '한 달에 두 번 정도 가요.' },
+  c4: { id: 'c4', ja: '[二回|にかい]も！[歌|うた]うのが[好|す]きなんですね。', h: '니까이모! 우따우노가스끼난데스네.', ko: '두 번이나요! 노래 부르는 걸 좋아하는군요.', g: '〜のが好き' }
+};
+
+var LABEL = { A: ['시험 문법 더 보기', '시험 문법 접기'], B: ['JLPT 참고', 'JLPT 참고'], C: ['더 알아보기', '접기'] };
+var FORCE_OPEN = { 'rv-open-e1': true, 'rv-open-e2': true, 'talk-open-e2': true };
+
+/* ════════ 작은 도구 ════════ */
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function hasRuby(s) { return /\[[^|\]]+\|[^\]]+\]/.test(s); }
+function rb(s) {
+  return esc(s).replace(/\[([^|\]]+)\|([^\]]+)\]/g, function (_, k, r) { return S.fu ? '<ruby>' + k + '<rt aria-hidden="true">' + r + '</rt></ruby>' : k; });
+}
+function plain(s) { return String(s).replace(/\[([^|\]]+)\|[^\]]+\]/g, '$1'); }
+function J(s) { return esc(s).replace(/「([^」]*)」/g, '<span lang="ja">「$1」</span>'); }
+function cps(s) { return Array.from(s).length; }
+/* 서버 단계 길이 상한(초안 160자) 흉내 — 화면은 받은 글을 자르지 않는다 */
+function capNote(s) { var a = Array.from(s); return a.length > NOTE_MAX ? a.slice(0, NOTE_MAX - 1).join('') + '…' : s; }
+function ja(src, cls, o) {
+  o = o || {};
+  var tag = o.tag || 'p';
+  var segs = typeof src === 'string' ? [[src, 0]] : src;
+  var full = segs.map(function (x) { return x[0]; }).join('');
+  var inner = segs.map(function (x) {
+    var h = rb(x[0]);
+    if (x[1] && o.sc) return '<span class="' + o.sc + '">' + h + '</span>';
+    if (x[1] && o.hl) return '<span class="hl">' + h + '</span>';
+    return h;
+  }).join('');
+  return '<' + tag + ' class="' + cls + (S.fu && hasRuby(full) ? ' fu' : '') + '" lang="ja">' + inner + '</' + tag + '>';
+}
+function hg(text) {
+  if (!S.hg || !text) return '';
+  return '<p class="hg" lang="ko"><span class="sr">한글 발음: </span><span class="bk" aria-hidden="true">[</span>' + esc(text) + '<span class="bk" aria-hidden="true">]</span></p>';
+}
+function mk() { return S.mark && !CUR ? ' dnew' : ''; }
+function sv(d, o) {
+  o = o || {};
+  return '<svg width="' + (o.w || 20) + '" height="' + (o.w || 20) + '" viewBox="0 0 24 24" fill="' + (o.fill ? 'currentColor' : 'none') + '"' + (o.fill ? '' : ' stroke="currentColor" stroke-width="' + (o.sw || 2) + '" stroke-linecap="round" stroke-linejoin="round"') + ' aria-hidden="true">' + d + '</svg>';
+}
+var IC = {
+  back: sv('<path d="M15 18l-6-6 6-6"/>', { w: 22 }),
+  back2: sv('<path d="M15 5l-7 7 7 7"/>', { w: 22 }),
+  dots: sv('<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>', { fill: 1 }),
+  mic: sv('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', { w: 28 }),
+  mic18: sv('<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', { w: 18 }),
+  kb: sv('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>', { w: 22, sw: 1.8 }),
+  up: sv('<path d="M12 19V5M5 12l7-7 7 7"/>', { sw: 2.2 }),
+  x: sv('<path d="M6 6l12 12M18 6L6 18"/>')
+};
+
+/* ════════ 공용 조각(실제 컴포넌트 모양) ════════ */
+function bdg(t, tone) { return '<span class="bdg' + (tone ? ' ' + tone : '') + '">' + t + '</span>'; }
+function backBar(o) {
+  return '<header class="bb' + (o.sticky ? ' bbs' : '') + '"><button type="button" class="back" aria-label="' + o.back + '" data-act="noop">' + IC.back2 + '</button><div class="bb-m"><h1>' + o.title + '</h1>' + (o.sub ? '<p>' + o.sub + '</p>' : '') + '</div>' + (o.right || '') + '</header>';
+}
+function togB(k, label) {
+  var on = S[k];
+  return '<button type="button" class="tg" aria-pressed="' + on + '" data-act="tg" data-k="' + k + '" data-fid="tg:' + k + '">' + (on ? '<span class="ck" aria-hidden="true">✓</span>' : '') + label + '</button>';
+}
+function dispBar() {
+  return '<div class="dispbar" role="group" aria-label="이 방 전체 표시"><span class="db-l" aria-hidden="true">표시</span>' + togB('fu', '히라가나') + togB('hg', '한글') + togB('tr', '번역') + '</div>';
+}
+function trShown(m) { return S.to[m.id] != null ? S.to[m.id] : S.tr; }
+function trBtn(m) {
+  var on = trShown(m);
+  return '<button type="button" class="fb" aria-expanded="' + on + '" data-act="tr1" data-id="' + m.id + '" data-fid="tr:' + m.id + '">번역 ' + (on ? '▴' : '▾') + '</button>';
+}
+function trBlock(m) { return trShown(m) ? '<p class="trl">' + esc(m.ko) + '</p>' : ''; }
+function divider(t) { return '<li class="ddv" role="separator">' + t + '</li>'; }
+function li(html) { return '<li class="gs">' + html + '</li>'; }
+function tutorRow(head, inner, extra) {
+  return '<div class="trw"><div class="tav">' + (head ? '<span class="av sm" aria-hidden="true">유</span>' : '') + '</div><div class="tcol">' +
+    (head ? '<p class="tname"><span>' + TEACHER + '</span>' + (extra || '') + '</p>' : '') + inner + '</div></div>';
+}
+/* 말풍선 문법 칩(MessageBubble.tsx:249) — D1-B 에서 추가 설명이 있는 칩만 버튼 */
+function chipHtml(m) {
+  if (!m.g) return '';
+  if (!CUR && S.dec.d1 === 'B' && m.gx) {
+    return '<button type="button" class="gbtn' + mk() + '" aria-haspopup="dialog" aria-label="문법 ' + esc(m.g) + ' — 시험 문법 보기" data-act="gsheet" data-fid="g:' + m.id + '"><span class="gchip" lang="ja">' + esc(m.g) + '<span class="gch" aria-hidden="true">›</span></span></button>';
+  }
+  return '<span class="gchip" lang="ja">' + esc(m.g) + '</span>';
+}
+function tutorBubble(m, o) {
+  o = o || {};
+  var body = ja(o.speaking && m.segs ? m.segs : m.ja, 'jb', { hl: true }) + hg(m.h) + trBlock(m);
+  var replay = o.speaking ? '<button type="button" class="fb" aria-label="멈추기" data-act="noop">■ 멈춤</button>' : '<button type="button" class="fb" aria-label="선생님 말 다시 듣기" data-act="noop">▶ 다시 듣기</button>';
+  var extra = o.speaking ? '<span class="spk"><span aria-hidden="true">·</span><span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>말하는 중</span>' : '';
+  return tutorRow(o.head !== false, '<div class="bt"><span class="sr">' + TEACHER + ': </span>' + body + '</div>' +
+    '<div class="tfoot">' + (o.talk ? replay : '') + trBtn(m) + chipHtml(m) + '<time class="tm">' + o.time + '</time></div>', extra);
+}
+function userBubble(m, o) {
+  o = o || {};
+  return '<div class="ubw"><div class="ub"><span class="sr">나: </span>' + ja(m.ja, 'jb') + hg(m.h) + trBlock(m) + '</div>' +
+    '<div class="ufoot">' + (o.voice ? '<button type="button" class="fb" aria-label="내 목소리 다시 듣기" data-act="noop">▶ 내 목소리</button>' : '') + trBtn(m) + '<time>' + o.time + '</time>' +
+    (o.chip ? '<a class="cchipw" href="#rv"><span class="cchip">교정 1 ›</span></a>' : '') + '</div></div>';
+}
+
+/* ── 추가 설명 줄(제안) ── */
+function isOpen(key) {
+  if (S.open[key] != null) return S.open[key];
+  if (FORCE_OPEN[key]) return true;
+  return S.dec.d2 === 'B';
+}
+function lineAllowed(ctx) {
+  if (CUR) return false;
+  if (ctx === 'talk' && S.dec.d4 === 'B') return false;
+  return true;
+}
+function xnBlock(ex, key, anc) {
+  var open = isOpen(key), id = 'xn_' + key.replace(/[^a-z0-9]/gi, '');
+  var L = LABEL[S.dec.d3];
+  return '<div class="xn' + mk() + '"' + (anc ? ' data-anchor' : '') + '><button type="button" class="xn-t" aria-expanded="' + open + '" aria-controls="' + id + '" data-act="xn" data-k="' + key + '" data-fid="xn:' + key + '">' +
+    '<span>' + (open ? L[1] : L[0]) + '</span><span class="xn-c" aria-hidden="true">' + (open ? '▴' : '▾') + '</span></button>' +
+    '<div class="xn-b" id="' + id + '"' + (open ? '' : ' hidden') + '><p>' + J(capNote(ex.e)) + '</p></div></div>';
+}
+/* chat/CorrectionCard — o: { key, counter, ctx, note } */
+function corrCard(ex, o) {
+  var st = S.st[o.key] || o.status || 'PROPOSED';
+  var right = st === 'ACCEPTED' ? bdg('채택함', 'good') : st === 'REJECTED' ? bdg('무시함') : (o.badge || '');
+  var head = '<div class="cch">' + (o.counter ? '<span class="ccn">' + o.counter + '</span>' : '') + bdg(ex.type) + (ex.major ? bdg('중요', 'bad') : '') +
+    (ex.chunk ? '<span class="cck">' + ex.chunk + '</span>' : '') + (right ? '<span class="ccs">' + right + '</span>' : '') + '</div>';
+  var grid = '<div class="ccg"><div class="ccb"><p class="lb">내 문장</p>' + ja(ex.o, 'jb mt2', { sc: 'del' }) + hg(ex.ho) + '</div>' +
+    '<div class="ccb"><p class="lb g">이렇게 고쳐요</p>' + ja(ex.c, 'jb mt2', { sc: 'ins' }) + hg(ex.hc) + '</div></div>';
+  var expl = '<p class="ccx">' + J(CUR ? ex.xc : ex.x) + '</p>';
+  var extra = ex.e && lineAllowed(o.ctx) ? xnBlock(ex, o.key, o.anchorXn) : '';
+  var foot;
+  if (st === 'PROPOSED') foot = '<p class="ccnote">선생님 제안이에요. 채택해야 저장돼요.</p><div class="btnrow"><button type="button" class="btn primary" data-act="acc" data-k="' + o.key + '" data-fid="acc:' + o.key + '">채택</button><button type="button" class="btn ghost" data-act="rej" data-k="' + o.key + '" data-fid="rej:' + o.key + '">무시</button></div>';
+  else if (st === 'ACCEPTED') foot = '<p class="ccdone good">채택했어요 · 단어장에 저장했어요</p>';
+  else foot = '<p class="ccdone">무시했어요 · 기록에 남지 않았어요</p>';
+  return '<li class="cc" id="' + (CUR ? 'c_' : 'p_') + o.key + '"' + (o.anchor ? ' data-anchor' : '') + '>' + head + grid + (o.note || '') + expl + extra + foot + '</li>';
+}
+/* talk/TalkCorrectionCard — 코치 힌트(정답 보기 전): 교정문·설명·추가 설명·채택 모두 숨김 */
+function coachCard(ex, key) {
+  return '<li class="cc" data-anchor><div class="cch">' + bdg(ex.type) + (ex.major ? bdg('중요', 'bad') : '') + (ex.chunk ? '<span class="cck">' + ex.chunk + '</span>' : '') + '<span class="ccs">' + bdg('힌트') + '</span></div>' +
+    '<div class="ccb mt8"><p class="lb">내 문장</p>' + ja(ex.o.map(function (x) { return [x[0], 0]; }), 'jb mt2') + hg(ex.ho) + '</div>' +
+    '<div class="hintb"><p class="hint-l">힌트</p><p class="hint-t">' + esc(ex.hint) + '</p></div>' +
+    '<p class="retry">' + IC.mic18 + '<span>힌트를 보고 다시 말해 보세요. 아래 버튼을 누른 채로 고친 문장을 말하면 돼요.</span></p>' +
+    '<button type="button" class="btn ghost full h44 mt12" aria-expanded="false" data-act="reveal" data-fid="reveal">정답 보기</button></li>';
+}
+function retryLine(t) { return '<p class="retry">' + IC.mic18 + '<span>' + t + '</span></p>'; }
+
+/* 회화방 머리·입력 바 */
+function talkHeader() {
+  return '<header class="lh"><button type="button" class="back" aria-label="회화 목록으로" data-act="noop">' + IC.back + '</button><span class="av" aria-hidden="true">유</span>' +
+    '<div class="lh-m"><h1>' + TEACHER + '<span class="sr">, 회화: 주말 이야기</span></h1><button type="button" class="ind" aria-label="선생님 목소리 상태: 온라인. 눌러서 자세히 보기" data-act="noop"><span class="dot" aria-hidden="true"></span><span>온라인</span><span aria-hidden="true">›</span></button></div>' +
+    '<button type="button" class="later" aria-label="모아 둔 교정 2개 보기" data-act="later"><span class="l">모아 둔 교정</span><span class="s">교정</span><b>2</b></button>' +
+    '<button type="button" class="icb" aria-label="회화 메뉴" data-act="noop">' + IC.dots + '</button></header>';
+}
+function voiceBar(stat, barge) {
+  return '<div class="vb"><div class="vs"><span class="t">' + stat + '</span></div>' +
+    '<div class="vr"><button type="button" class="kbb" aria-label="글자로 입력하기" data-act="noop">' + IC.kb + '</button><div class="vc"><button type="button" class="ptt" aria-label="' + (barge ? '누르면 선생님 말을 멈추고 말하기' : '누르고 있는 동안 말하기') + '" data-act="noop">' + IC.mic + '</button></div><span class="sp44" aria-hidden="true"></span></div></div>';
+}
+function sheet(title, body) {
+  return '<div class="scrim"><div class="bg" aria-hidden="true"></div><div class="sheet" role="dialog" aria-label="' + title + '"><div class="shd"><h2>' + title + '</h2><button type="button" class="icb" aria-label="닫기" data-act="close">' + IC.x + '</button></div><div class="sbody">' + body + '</div></div></div>';
+}
+
+/* ════════ 화면 ════════ */
+function reviewScreen(mode) {
+  var cards = ['e1', 'e2', 'e3'].map(function (k, i) {
+    return corrCard(EX[k], { key: mode + '-' + k, counter: (i + 1) + '/3', ctx: 'review', anchor: (mode === 'rv' && k === 'e1') || (mode === 'rv-open' && k === 'e1') });
+  }).join('');
+  return '<div class="app"><div class="main" data-scroll>' + backBar({ sticky: 1, back: '대화로 돌아가기', title: '표현 점검', sub: '노래방 이야기' }) +
+    '<div class="rvp"><p class="d13 kk">선생님의 교정은 제안이에요. 채택한 것만 내 기록과 단어장에 남아요.</p>' +
+    '<div class="card"><p class="slab">총평</p><p class="mt2 kk" style="font-size:15px">주말 이야기를 자연스럽게 이어 갔어요. 말끝 바꾸기 둘과 단어 하나를 고쳤어요.</p><p class="cap mt8">교정 3건 · 채택 0 · 무시 0 · 남음 3</p></div>' +
+    '<p class="omit">공부 기록 남기기 카드 — 바뀌지 않아 생략</p>' +
+    '<div class="seg" role="radiogroup" aria-label="교정 보기"><button type="button" role="radio" aria-checked="true" data-act="noop">남은 교정 3</button><button type="button" role="radio" aria-checked="false" data-act="noop">전체 3</button></div>' +
+    '<ul class="ccl g12">' + cards + '</ul>' +
+    '<button type="button" class="btn ghost full" data-act="noop">대화로 돌아가기</button></div></div></div>';
+}
+function reviewDone() {
+  var defs = [['e1', 'ACCEPTED'], ['e2', 'REJECTED'], ['e3', 'PROPOSED']];
+  var cards = defs.map(function (d, i) { return corrCard(EX[d[0]], { key: 'rv-done-' + d[0], status: d[1], counter: (i + 1) + '/3', ctx: 'review', anchor: i === 0 }); }).join('');
+  return '<div class="app"><div class="main" data-scroll>' + backBar({ sticky: 1, back: '대화로 돌아가기', title: '표현 점검', sub: '노래방 이야기' }) +
+    '<div class="rvp"><div class="card"><p class="slab">총평</p><p class="mt2 kk" style="font-size:15px">주말 이야기를 자연스럽게 이어 갔어요. 말끝 바꾸기 둘과 단어 하나를 고쳤어요.</p><p class="cap mt8">교정 3건 · 채택 1 · 무시 1 · 남음 1</p></div>' +
+    '<div class="seg" role="radiogroup" aria-label="교정 보기"><button type="button" role="radio" aria-checked="false" data-act="noop">남은 교정 1</button><button type="button" role="radio" aria-checked="true" data-act="noop">전체 3</button></div>' +
+    '<ul class="ccl g12">' + cards + '</ul>' +
+    '<button type="button" class="btn ghost full" data-act="noop">대화로 돌아가기</button></div></div></div>';
+}
+function reviewOld() {
+  var cards = [['e5', 'ACCEPTED'], ['e4', 'PROPOSED']].map(function (d, i) { return corrCard(EX[d[0]], { key: 'rv-old-' + d[0], status: d[1], counter: (i + 1) + '/2', ctx: 'review', anchor: i === 0 }); }).join('');
+  return '<div class="app"><div class="main" data-scroll>' + backBar({ sticky: 1, back: '대화로 돌아가기', title: '표현 점검', sub: '카페 이야기 · 9월 30일' }) +
+    '<div class="rvp"><div class="card"><p class="slab">총평</p><p class="mt2 kk" style="font-size:15px">처음 만난 사람과 짧게 인사를 나눴어요. 조사 둘을 고쳤어요.</p><p class="cap mt8">교정 2건 · 채택 1 · 무시 0 · 남음 1</p></div>' +
+    '<div class="seg" role="radiogroup" aria-label="교정 보기"><button type="button" role="radio" aria-checked="false" data-act="noop">남은 교정 1</button><button type="button" role="radio" aria-checked="true" data-act="noop">전체 2</button></div>' +
+    '<ul class="ccl g12">' + cards + '</ul></div></div></div>';
+}
+function talkRoom(rows, stat, barge) {
+  return '<div class="room">' + talkHeader() + dispBar() + '<div class="lst" data-scroll role="log" aria-label="대화 내용"><ul>' + rows.join('') + '</ul></div>' + voiceBar(stat, barge) + '</div>';
+}
+function talkScreen(noInline) {
+  var rows = [divider('10월 6일 (월)'),
+    li(tutorBubble(M.t1, { talk: 1, time: '20:01' })),
+    li(userBubble(M.u1, { voice: 1, time: '20:02' }) + (noInline ? '' : '<ul class="ccl mt6">' + corrCard(EX.e1, { key: 'talk-e1', ctx: 'talk', anchor: 1 }) + '</ul>')),
+    li(tutorBubble(M.t2, { talk: 1, time: '20:02' }))];
+  return talkRoom(rows, '누르고 있는 동안 말해요', false);
+}
+function talkOpen() {
+  var rows = [divider('10월 6일 (월)'),
+    li(tutorBubble(M.t3, { talk: 1, time: '20:10' })),
+    li(userBubble(M.u2, { voice: 1, time: '20:11' }) + '<ul class="ccl mt6">' + corrCard(EX.e2, { key: 'talk-open-e2', ctx: 'talk', anchor: !lineAllowed('talk'), anchorXn: 1 }) + '</ul>'),
+    li(tutorBubble(M.t4, { talk: 1, speaking: 1, time: '20:11' }))];
+  return talkRoom(rows, '선생님이 말하는 중 · 누르면 멈추고 말해요', true);
+}
+function talkCoach() {
+  var card = S.reveal
+    ? corrCard(EX.e2, { key: 'talk-coach-e2', ctx: 'talk', anchor: 1, note: retryLine('정답을 보고 다시 말해 보세요.') })
+    : coachCard(EX.e2, 'talk-coach-e2');
+  var rows = [divider('10월 6일 (월)'),
+    li(tutorBubble(M.t3, { talk: 1, time: '20:10' })),
+    li(userBubble(M.u2, { voice: 1, time: '20:11' }) + '<ul class="ccl mt6">' + card + '</ul>'),
+    li(tutorBubble(M.t4, { talk: 1, time: '20:11' }))];
+  return talkRoom(rows, S.reveal ? '정답을 보고 다시 말해 보세요' : '힌트를 보고 다시 말해 보세요', false);
+}
+function talkLater() {
+  var body = '<p class="d13 kk">대화를 끊지 않으려고 작은 실수를 여기에 모았어요. 채택한 것만 저장돼요.</p>' +
+    '<p class="cap mt4" role="status">아직 안 본 교정 <b style="color:var(--ink)">2</b>개</p>' +
+    '<ul class="ccl mt12">' + corrCard(EX.e1, { key: 'later-e1', ctx: 'talk' }) + corrCard(EX.e3, { key: 'later-e3', ctx: 'talk' }) + '</ul>';
+  return talkScreen(true) + sheet('모아 둔 교정', body);
+}
+function chatScreen(withSheet) {
+  var right = '<button type="button" class="rvb" data-act="noop">표현 점검</button><button type="button" class="icb" aria-label="채팅 메뉴" data-act="noop">' + IC.dots + '</button>';
+  var note = (withSheet && !CUR && S.dec.d1 === 'A') ? '<li><p class="omit">D1-A: 칩은 지금처럼 글자만이에요 — 누를 수 없고 시트도 없어요. 위 결정에서 B 를 고르면 시트가 보여요.</p></li>' : '';
+  var rows = [note, divider('10월 6일 (월)'),
+    li(userBubble(M.c1, { time: '19:40', chip: 1 })),
+    li(tutorBubble(M.c2, { time: '19:40' })),
+    li(userBubble(M.c3, { time: '19:41' })),
+    li(tutorBubble(M.c4, { time: '19:41' }))];
+  var html = '<div class="room">' + backBar({ back: '채팅 목록으로', title: '노래방 이야기', sub: '채팅 · ' + TEACHER, right: right }) + dispBar() +
+    '<div class="lst" data-scroll role="log" aria-label="대화 내용"><ul>' + rows.join('') + '</ul></div>' +
+    '<div class="cmp"><div class="cmpf"><div class="ta" lang="ja">일본어로 써 보세요</div><button type="button" class="snd" aria-label="보내기" aria-disabled="true" data-act="noop">' + IC.up + '</button></div></div></div>';
+  if (withSheet && !CUR && S.dec.d1 === 'B') {
+    html += sheet('이 말의 문법', '<p class="lb">선생님 말에 쓴 문법</p><p class="gpt" lang="ja">' + esc(M.c2.g) + '</p>' +
+      '<p class="lb mt12">시험 문법</p><div class="xn-b' + mk() + '" style="margin:4px 0 0 2px"><p>' + J(capNote(M.c2.gx)) + '</p></div>' +
+      '<button type="button" class="btn ghost full mt14" data-act="close">닫기</button>');
+  }
+  return html;
+}
+function screen(id) {
+  switch (id) {
+    case 'rv': return reviewScreen('rv');
+    case 'rv-open': return reviewScreen('rv-open');
+    case 'rv-done': return reviewDone();
+    case 'rv-old': return reviewOld();
+    case 'talk': return talkScreen(false);
+    case 'talk-open': return talkOpen();
+    case 'talk-coach': return talkCoach();
+    case 'talk-later': return talkLater();
+    case 'chip': return chatScreen(false);
+    case 'chip-sheet': return chatScreen(true);
+  }
+  return '';
+}
+
+/* ════════ 화면 목록 · 오른쪽 설명 ════════ */
+var NAV = [
+  ['교정 카드 — 채팅 표현 점검', [['rv', '교정 3건 — 처음 모습(①②③)'], ['rv-open', '펼친 모습 — ① 짧은 · ② 긴 설명'], ['rv-done', '채택·무시한 뒤'], ['rv-old', '옛 교정 — 추가 설명 없음']]],
+  ['회화방(음성)', [['talk', '내 말 아래 교정 카드'], ['talk-open', '선생님이 말하는 중에 펼치기'], ['talk-coach', '코치 힌트 → 정답 보기'], ['talk-later', '모아 둔 교정 시트']]],
+  ['말풍선 문법 칩 (D1)', [['chip', '선생님 말풍선 문법 칩'], ['chip-sheet', '칩을 눌렀을 때']]]
+];
+var IDS = [];
+NAV.forEach(function (g) { g[1].forEach(function (x) { IDS.push(x[0]); }); });
+var SRC_CARD = ['src/components/chat/CorrectionCard.tsx:92', '설명 한 단락(15px ink2) — 추가 설명 자리 없음. 그 아래 안내 1줄 + [채택][무시]'];
+var NOTE = {
+  rv: { src: [SRC_CARD, ['src/components/chat/ChatReview.tsx:487', '표현 점검 목록이 같은 카드를 씀(1/3 카운터)'], ['src/types/chat.ts:79', '교정 DTO 의 설명 칸은 하나(explanation)']],
+    chg: ['설명 바로 아래 접이식 줄 「' + LABEL.A[0] + ' ▾」 — 추가 설명이 있는 교정에만(①②)', '줄은 카드 폭 전체 × 44px 버튼, 모양은 말풍선 [번역 ▾] 와 같은 글자 버튼(13px)', '③처럼 추가 설명이 없으면 줄이 아예 없어요 — 지금 카드와 같아요', '[채택][무시]는 줄 아래 그대로, 사이에 안내 문구 한 줄이 있어 잘못 누르기 어려워요', '설명 문구는 일상회화 기준으로 바뀌어요(예시 — 현재 ②는 시험식 문형이 한 단락에 섞인 예)'],
+    st: '처음 들어오면 카드 3개 모두 접혀 있어요(D2-A). 줄을 눌러 보세요 — Enter·Space 로도 펼쳐져요.' },
+  'rv-open': { src: [SRC_CARD],
+    chg: ['펼치면 줄 이름이 「' + LABEL.A[1] + ' ▴」로 바뀌고, 바로 아래 왼쪽 선 상자(14px ink2)에 급수·문형·시험 대비 설명', '② 긴 설명은 서버가 160자(초안) 안으로 자른 글 — 화면은 줄 수를 자르지 않고 다 보여요(두 번째 ‘더 보기’ 없음)', '추가 설명 속 「」 일본어는 일본어 글꼴만 — 히라가나·한글을 달지 않아요(설명 속 인용 규칙과 같음)', '펼친 상태는 카드마다 따로, 저장하지 않아요(다시 들어오면 접힘)'],
+    st: '② 원문 ' + cps(EX.e2.e) + '자 → 160자(… 포함)로 줄여 보여요. 360 폭에서 펼친 상자는 약 7줄(약 170px)이에요.' },
+  'rv-done': { src: [['src/components/chat/CorrectionCard.tsx:106', '채택·무시 뒤에는 버튼 대신 한 줄 문구']],
+    chg: ['채택한 뒤(①)·무시한 뒤(②)에도 줄이 그대로 남아요 — 공부 내용이라 언제든 펼쳐 볼 수 있어요', '줄을 펼치고 접어도 채택·무시 상태는 바뀌지 않아요(서로 다른 동작)'],
+    st: '‘처음 모습’ 화면에서 [채택]·[무시]를 눌러도 이 모습이 돼요(데모는 채택 시트를 건너뛰어요 — 시트는 지금과 같아요).' },
+  'rv-old': { src: [SRC_CARD],
+    chg: ['이 기능 전에 만든 교정은 추가 설명이 없어 줄이 없어요 — 지금 화면과 똑같아요', '옛 교정에 추가 설명을 다시 만들어 넣지 않아요(교정 원문은 바꾸지 않는다는 원칙 그대로)'],
+    st: '현재·제안이 같은 것이 정상이에요.' },
+  talk: { src: [['src/components/talk/TalkCorrectionCard.tsx:89', '회화방 교정 카드도 같은 CorrectionCard(카운터 숨김)'], ['src/components/talk/TalkTutorBubble.tsx:104', '선생님 말풍선 = 채팅 TutorBubble 재사용(문법 칩 포함)']],
+    chg: ['D4-A: 회화방 카드에도 같은 줄(접힘) — 카드 높이 +44px 만', '줄은 카드 안에 있고 말하기 버튼(입력 바)과 멀어요 — 말하기 흐름을 끊지 않아요', 'D4-B 를 고르면 회화방 카드에서 줄이 사라져요(회화 교정은 따로 볼 화면이 없어 추가 설명을 볼 곳이 없어짐)'],
+    st: '회화방은 보통 마지막 교정 카드가 화면 아래쪽에 와요. 카드가 보이도록 목록을 내려 둔 모습이에요.' },
+  'talk-open': { src: [['src/components/talk/TalkTutorBubble.tsx:21', '말하는 중 = 이름 줄 막대 + [■ 멈춤] + 문장 강조']],
+    chg: ['선생님이 말하는 중에 줄을 펼쳐도 소리는 계속 나와요 — 펼치기는 재생·녹음과 무관', '입력 바 상태 문구·말하기 버튼(누르면 멈추고 말하기)은 지금 그대로', '펼친 줄 때문에 목록이 바닥으로 따라 내려가 누른 줄이 위로 밀리지 않게 해야 해요(개발 메모 ⑧)'],
+    st: '② 긴 설명을 펼친 최악의 높이예요. 360×780 에서 카드가 대화 목록 높이보다 길어져요 — 그래서 처음에는 접어 두는 것(D2-A)을 권해요. 목록은 펼친 줄이 보이게 내려 둔 모습이에요.' },
+  'talk-coach': { src: [['src/components/talk/TalkCorrectionCard.tsx:103', '코치 힌트 상태는 내 문장·힌트·[정답 보기]만(교정문·설명·채택 숨김)']],
+    chg: ['정답 보기 전에는 추가 설명 줄도 없어요 — 시험 문형(「〜ようになる」)이 곧 정답이라서', '[정답 보기]를 누르면 보통 카드로 열리고, 그때 줄이 나타나요(접힘)'],
+    st: '카드 안 [정답 보기]를 눌러 보세요. 이 데모에서는 한 번 열면 ‘처음 상태로’ 전까지 열린 채예요.' },
+  'talk-later': { src: [['src/components/talk/LaterCorrectionsSheet.tsx:128', '모아 둔 교정 시트도 같은 CorrectionCard']],
+    chg: ['시트 안 카드에도 같은 줄(D4-A) — ①은 줄이 있고 ③은 없어요', '시트 안 스크롤은 시트에만(바깥 목록과 따로) — 지금 그대로'],
+    st: '머리의 ‘모아 둔 교정’ 칩에서 열리는 시트예요. 뒤 회화방은 흐리게 보여요.' },
+  chip: { src: [['src/components/chat/MessageBubble.tsx:249', '문법 칩 = 누를 수 없는 글자 상자(12px, 22px 높이)'], ['src/components/chat/MessageBubble.tsx:55', '내 말 아래 ‘교정 1 ›’ 칩은 표현 점검으로 가는 링크(44px)']],
+    chg: ['D1-A(권고): 칩은 그대로 — 바뀌지 않아요', 'D1-B: 시험 문법이 있는 칩만 버튼(‘〜んですか ›’, 44px)으로 바뀌고, 없는 칩(‘〜のが好き’)은 지금처럼 글자 — 칩마다 동작이 달라요', '칩 글자는 일상회화에서 쓰는 꼴이 메인(프롬프트 규칙) — 화면 모양과는 별개'],
+    st: '‘교정 1 ›’을 누르면 표현 점검 화면(#rv)으로 가요.' },
+  'chip-sheet': { src: [['src/components/common/Sheet.tsx:70', '공용 바텀시트(머리 52px · ✕ 44px)']],
+    chg: ['D1-B 일 때만: 칩을 누르면 ‘이 말의 문법’ 시트 — 칩 글자 + 시험 문법', '이 시트의 시험 문법은 선생님 말 쪽 새 칸이 필요해요(교정의 추가 설명과 다른 칸) — 응답이 턴마다 길어져요', 'D1-A 에서는 이 화면이 없어요'],
+    st: '오른쪽 결정 D1 을 B 로 바꾸면 시트가 그려져요.' }
+};
+function navHtml() {
+  return NAV.map(function (g) {
+    return '<h2>' + g[0] + '</h2>' + g[1].map(function (x) {
+      return '<a href="#' + x[0] + '"' + (S.scr === x[0] ? ' aria-current="true"' : '') + '>' + x[1] + '<span class="did">#' + x[0] + '</span></a>';
+    }).join('');
+  }).join('') + '<h2>패널</h2><a href="#decide">사용자 결정 4건(맨 위)</a><a href="#scope">적용 범위</a><a href="#devmemo">개발 메모</a>';
+}
+function sideHtml() {
+  var n = NOTE[S.scr] || { src: [], chg: [], st: '' };
+  var src = '<div class="dcard"><h2>“현재” 화면 근거 — HEAD 소스</h2><ul class="dsrc">' + n.src.map(function (r) { return '<li><code>' + r[0] + '</code><span class="fx">' + r[1] + '</span></li>'; }).join('') + '</ul></div>';
+  var chg = '<div class="dcard"><h2>제안 — 이 화면에서 바뀌는 곳</h2><ul class="dn">' + n.chg.map(function (t) { return '<li>' + J(t) + '</li>'; }).join('') + '</ul>' +
+    (n.st ? '<p class="dsub">' + J(n.st) + '</p>' : '') + '<div class="dlegend"><span><i></i>바뀐 곳(제안)</span></div></div>';
+  var stx = '<div class="dcard"><h2>지금 보는 조건</h2><p class="dmeas">폭 <b>' + S.w + '</b> · 높이 <b>' + S.h + '</b> · 히라가나 <b>' + (S.fu ? '켬' : '끔') + '</b> · 한글 <b>' + (S.hg ? '켬' : '끔') + '</b> · 번역 <b>' + (S.tr ? '켬' : '끔') + '</b></p>' +
+    '<p class="dsub">결정: ' + ['d1', 'd2', 'd3', 'd4'].map(function (k) { return '<a href="#dq-' + k + '">' + k.toUpperCase() + '-' + S.dec[k] + '</a>'; }).join(' · ') + '</p>' +
+    '<p class="dsub">일본어 표시 3칸은 내 문장·고친 문장·말풍선에만 적용돼요. 추가 설명 속 「」 일본어는 설정과 상관없이 그대로예요.</p>' +
+    '<p class="dmeas mt6" id="dmeas"></p></div>';
+  return src + chg + stx;
+}
+
+/* ════════ 사용자 결정 4건(맨 위) ════════ */
+var DQ = [
+  { id: 'd1', t: '추가 설명을 어디에 둘까', see: ['rv', 'chip', 'chip-sheet'],
+    o: {
+      A: ['교정 카드 안 접이식 줄만', '말풍선 문법 칩은 지금처럼 글자만 — 누를 수 없어요.', ['p 교정·이유·시험 문법이 한 카드에 모여요', 'p 응답에 늘어나는 칸이 교정 쪽 1개뿐이에요', 'p 말풍선 아래 줄이 지금 그대로예요', 'm 선생님 말에 쓴 문법(칩)의 시험 정보는 볼 수 없어요']],
+      B: ['교정 카드 줄 + 문법 칩 시트', '시험 문법이 있는 칩을 누르면 시트에 함께 나와요.', ['p 선생님 말의 문법도 시험 정보를 볼 수 있어요', 'm 선생님 말 쪽에도 새 칸이 필요 — 턴마다 응답이 길어져 5초 안 답하기가 빠듯해요', 'm 설명이 없는 칩은 누를 수 없어 칩마다 동작이 달라요', 'm 회화방 말풍선 아래 누르는 곳이 ▶ 다시 듣기·번역·칩 셋으로 늘어요(한 줄에 붙어 있어 잘못 누르기 쉬움)']]
+    },
+    why: '요청의 핵심은 <b>교정</b>할 때 일상 표현이 먼저 오는 것 — 카드 하나로 충분하고 응답 길이·속도 위험이 가장 작아요.' },
+  { id: 'd2', t: '처음에 접어 둘까 펼쳐 둘까', see: ['rv', 'talk', 'talk-open'],
+    o: {
+      A: ['늘 접힘', '눌러야 펼쳐져요. 다시 들어오면 다시 접혀 있어요.', ['p 일상회화 설명이 먼저, 시험 문법은 원할 때만 — 요청 그대로', 'p 회화방 카드가 44px 만 늘어요', 'm 시험 준비 중이면 카드마다 한 번씩 눌러야 해요']],
+      B: ['늘 펼침', '처음부터 펼친 채로, 접을 수 있어요.', ['p 누르지 않아도 다 보여요', 'm 카드가 길어져(② 긴 설명은 360 에서 지금 카드보다 약 +210px) 회화방에서 선생님 다음 말이 밀려요', 'm 메인과 추가 설명의 무게가 비슷해져요']]
+    },
+    why: '추가 설명은 ‘덤’이라는 요청과 회화 흐름(음성 우선) 둘 다에 맞아요.' },
+  { id: 'd3', t: '줄 이름', see: ['rv', 'rv-open'],
+    o: {
+      A: ['‘시험 문법 더 보기’', '펼치면 ‘시험 문법 접기’', ['p 안에 무엇이 있는지와 누르면 무엇이 되는지가 함께 보여요', 'm 셋 중 가장 길어요(9자) — 360 에서도 한 줄']],
+      B: ['‘JLPT 참고’', '펼쳐도 같은 이름, 화살표만 ▾/▴', ['p 짧고 시험 준비생에게 익숙해요', 'm 시험을 안 보는 사람에겐 낯설고, 누르는 줄인지 덜 드러나요']],
+      C: ['‘더 알아보기’', '펼치면 ‘접기’', ['p 부드러운 말', 'm 무엇이 나오는지 몰라 펼칠지 정하기 어려워요']]
+    },
+    why: '사용자가 말한 ‘JLPT 같은 문법적인 표현’을 쉬운 말로 — 내용과 동작을 함께 알려 주는 이름이에요.' },
+  { id: 'd4', t: '회화방 교정 카드에도 둘까', see: ['talk', 'talk-open', 'talk-later'],
+    o: {
+      A: ['회화방에도 같은 줄(접힘)', '채팅 표현 점검·회화방·모아 둔 교정 모두 같은 카드', ['p 회화방은 따로 점검 화면이 없어 여기서만 볼 수 있어요', 'p 접혀 있으면 44px — 말하기 버튼과 떨어져 있어 흐름을 끊지 않아요', 'm 회화 중에 눈길이 한 번 더 갈 수 있어요']],
+      B: ['회화방에서는 숨김', '채팅 표현 점검에서만 보여요', ['p 회화 화면이 지금과 똑같아요', 'm 회화에서 생긴 교정의 시험 문법은 어디서도 볼 수 없어요', 'm 같은 교정 카드가 화면마다 달라 헷갈려요']]
+    },
+    why: '회화 교정을 다시 볼 곳이 회화방(와 모아 둔 교정 시트)뿐이라, 숨기면 회화 쪽 추가 설명이 사라져요.' }
+];
+function decideHtml() {
+  return '<h2 id="dc-h">사용자 결정 4건 — 권고안이 처음에 선택돼 있어요</h2>' +
+    '<p class="dsub">고르면 아래 데모 ‘제안’이 그 안으로 다시 그려져요. 권고대로면 그대로 두셔도 돼요.</p>' +
+    '<div class="dctx"><span><b>이미 정한 것</b>방안 B — 일상회화 설명이 메인, 시험(JLPT)식 문법은 추가 설명 칸(사용자 결정 10-06)</span><span><b>이 데모로 정할 것</b>D1~D4(화면 모양)</span></div>' +
+    '<div class="dqs">' + DQ.map(function (q) {
+      var opts = Object.keys(q.o).map(function (k) {
+        var o = q.o[k], on = S.dec[q.id] === k;
+        return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="dq-' + q.id + '" value="' + k + '"' + (on ? ' checked' : '') + ' data-dq="' + q.id + '">' +
+          '<span class="opt-h">' + q.id.toUpperCase() + '-' + k + ' · ' + o[0] + (REC[q.id] === k ? '<span class="rec">권고</span>' : '') + '</span>' +
+          '<span class="opt-d">' + o[1] + '</span><ul>' + o[2].map(function (x) { return '<li class="' + x.slice(0, 1) + '">' + x.slice(2) + '</li>'; }).join('') + '</ul>' +
+          '<span class="sel">' + (on ? '● 데모에 반영 중' : '○ 누르면 데모에 반영') + '</span></label>';
+      }).join('');
+      return '<fieldset class="dq" id="dq-' + q.id + '"><legend><span class="did">' + q.id.toUpperCase() + '</span>' + q.t + '</legend>' + opts +
+        '<p class="dwhy"><b>권고 ' + q.id.toUpperCase() + '-' + REC[q.id] + '</b> — ' + q.why + '</p>' +
+        '<p class="dsee">데모에서 보기: ' + q.see.map(function (s) { return '<a href="#' + s + '">#' + s + '</a>'; }).join(' · ') + '</p></fieldset>';
+    }).join('') + '</div>' +
+    '<div class="dsum"><b>권고 요약</b> — D1-A(교정 카드 안만) · D2-A(늘 접힘) · D3-A(‘시험 문법 더 보기’) · D4-A(회화방에도 같은 줄)</div>' +
+    '<div class="dinfo"><b>참고 — 저장 방식(이 데모 승인 뒤 따로 여쭤봐요, 결정 칸 아님)</b><br>' +
+    '① 교정에 <b>새 칸</b>을 더해 저장(권고): 이 데모 그대로 — 다시 열어도 접이식 줄이 있어요. 기존 데이터베이스에 빈 칸 하나를 더하는 작업이라 승인·백업 뒤 적용해요.<br>' +
+    '② 기존 설명에 <b>이어 붙여</b> 저장: 데이터베이스는 그대로지만 다시 열면 한 단락으로 합쳐져 줄을 나눌 수 없어요(‘현재’ 모습처럼 섞여 보여요).</div>';
+}
+
+/* ════════ 적용 범위 · 개발 메모 ════════ */
+var SCOPE = [
+  ['채팅 · 표현 점검', '교정 카드(1/3…)', '접이식 줄 — 추가 설명이 있을 때만', '—'],
+  ['회화방', '내 말 아래 교정 카드', 'D4-A 같은 줄(접힘) / D4-B 없음', 'D4'],
+  ['회화방', '코치 힌트 카드 — 정답 보기 전', '<span class="no">없음</span> — 시험 문형이 곧 정답', '보호'],
+  ['회화방', '코치 힌트 카드 — 정답 보기 뒤', '같은 줄(접힘)', 'D4'],
+  ['회화방', '모아 둔 교정 시트', '같은 줄(접힘)', 'D4'],
+  ['채팅방 · 회화방', '선생님 말풍선 문법 칩', 'D1-A 그대로 / D1-B 시험 문법이 있는 칩만 눌러서 시트', 'D1'],
+  ['교정 채택 시트', '단어장 넣기 칸', '<span class="no">바뀌지 않음</span> — 추가 설명은 단어장에 넣지 않아요', '—'],
+  ['오늘 홈', '채택을 기다리는 교정', '<span class="no">바뀌지 않음</span> — 설명을 보여 주지 않는 요약 카드', '—'],
+  ['일본어 표시', '추가 설명 속 「」 일본어', '<span class="no">히라가나·한글 없음</span> — 설명 속 인용 규칙(§15-1 F)과 같음', '—'],
+  ['오늘의 회화 ② 문법 · AI 평가 결과', '설명 문구', '<span class="no">화면 바뀌지 않음</span> — 문구만 일상회화 우선(범위는 프롬프트 담당이 제안)', '—']
+];
+function scopeHtml() {
+  return '<h2 id="sc-h">적용 범위 — 어디에 줄이 생기고 어디는 그대로인가</h2>' +
+    '<div class="dtw"><table class="dtbl"><thead><tr><th scope="col">화면</th><th scope="col">자리</th><th scope="col">제안</th><th scope="col">결정</th></tr></thead><tbody>' +
+    SCOPE.map(function (r) { return '<tr><td class="k">' + r[0] + '</td><td>' + J(r[1]) + '</td><td>' + r[2].replace(/「([^」]*)」/g, '<span lang="ja">「$1」</span>') + '</td><td>' + r[3] + '</td></tr>'; }).join('') +
+    '</tbody></table></div><p class="dsub">엔진·모델 이름은 어느 화면에도 나오지 않아요. 새 색·새 글꼴 없음 — 기존 토큰(ink2·line·surface·accent 포커스)만 써요.</p>';
+}
+var DEV = [
+  '<b>데이터</b>: 교정 DTO 에 nullable 문자열 하나 — 계약 이름 <code>correction.extraNoteKo</code>(Leader 정본, 이력서 설계 방침). 채팅 매핑 <code>chat/messages.ts:103</code>·<code>ChatReview.tsx:66</code> 에서 <code>explanation</code> 옆에 같이 옮긴다. 값이 없음·빈 문자열·공백뿐이면 null 로 보고 줄을 그리지 않는다.',
+  '<b>자리</b>: <code>CorrectionCard.tsx</code> 설명(<code>:92</code>) 바로 다음, PROPOSED 안내(<code>:96</code>) 앞. 설명이 비어 있어도 추가 설명이 있으면 줄은 그린다. 채택·무시·기한 지남 상태에서도 그린다.',
+  '<b>마크업</b>: <code>&lt;button type="button" aria-expanded aria-controls="cr_{id}_xn"&gt;</code> + <code>&lt;div id="cr_{id}_xn" hidden&gt;</code>. 버튼 = <code>flex w-full min-h-11 items-center gap-1 rounded-[10px] px-0.5 text-left text-[13px] font-semibold text-ink2</code>, 펼친 상자 = <code>mb-1.5 ml-0.5 border-l-2 border-line pl-3 text-[14px] leading-[1.6] text-ink2 break-keep [overflow-wrap:anywhere]</code>, 안의 「」 은 <code>JaQuoted</code>(<code>lesson/review/TeacherWhy.tsx:22</code> — 공용 위치로 옮겨 재사용)로 <code>lang="ja"</code> 만(히라가나·한글 없음, §15-1 F). 일본어 조각은 <code>word-break:normal</code>. 표현 점검처럼 같은 이름 버튼이 여러 개면 <code>aria-describedby</code> 로 그 카드의 머리줄(유형 뱃지)을 이어 주면 좋다(선택).',
+  '<b>문구</b>: 줄 이름은 <code>chat/labels.ts</code> 한 곳(D3 결과 — A 면 ‘시험 문법 더 보기’/‘시험 문법 접기’ + ▾/▴, 화살표는 <code>aria-hidden</code>).',
+  '<b>상태</b>: 카드 로컬 <code>useState</code>(D2-A 면 false 로 시작). 서버·로컬 저장소에 남기지 않는다. 목록 갱신으로 카드가 다시 그려져도 key(교정 id)가 같으면 유지.',
+  '<b>코치 힌트</b>: <code>TalkCorrectionCard</code> 의 정답 보기 전 모양(<code>:103-131</code>)은 <code>CorrectionCard</code> 를 쓰지 않으므로 손대지 않으면 줄이 없다 — 이 동작을 테스트로 고정한다. D4-B 를 고르면 <code>CorrectionCard</code> 에 <code>showExtra</code> 류 prop 을 더해 회화방(인라인·모아 둔 교정)에서 끈다.',
+  '<b>길이</b>: 추가 설명은 서버 단계에서 160자(초안 — 프롬프트 측정으로 확정) 안으로 맞춘다. 넘으면 160자 안 마지막 문장 끝에서 자르고, 문장 끝이 없으면 159자 + ‘…’. 화면은 줄 수를 자르지 않는다(두 번째 ‘더 보기’ 없음). 스키마 최대 길이로 막아 ajv 재시도가 나지 않게 하는 쪽은 프롬프트·개발 담당이 정한다.',
+  '<b>스크롤</b>: 회화방 목록은 바닥 근처면 높이 변화에 바닥을 따라간다(<code>MessageList</code> ResizeObserver). 사용자가 펼쳐 생긴 높이 변화로 누른 줄이 위로 밀리지 않게 — 펼침 때는 따라가기를 건너뛰거나, 펼친 상자가 화면 밖이면 <code>scrollIntoView({ block: \'nearest\' })</code>. 재생·녹음 상태는 건드리지 않는다.',
+  '<b>움직임·접근성</b>: 펼침 160ms 페이드는 <code>motion-safe:</code> 에서만. 라이브 영역 없음(펼친 내용은 버튼 바로 다음이라 읽기 순서로 닿음). Enter·Space 는 기본 버튼 동작. 포커스 링은 기존 <code>focus-visible</code>.',
+  '<b>D1-B 를 고르면</b>: 선생님 말 쪽(<code>learning</code>) 새 칸이 필요 — 계약·토큰 범위가 늘어 Leader 재판정. 칩은 <code>h-11</code> 버튼으로 감싸고(교정 칩 <code>MessageBubble.tsx:60</code> 방식) 공용 <code>Sheet</code> 를 연다. 칸이 null 인 칩은 지금처럼 글자.',
+  '<b>테스트 후보</b>: 줄 있음/없음(null·빈 문자열·옛 행) · <code>aria-expanded</code> 토글 · 코치 힌트에서 없음 · 360(위아래 배치)·390·412 가로 넘침 0 · reduced-motion 에서 애니메이션 없음 · 채택·무시 뒤 줄 유지.',
+  '<b>토큰 이름</b>: <code>--ink2</code>(줄·상자 글자) · <code>--line</code>(왼쪽 선) · <code>--surface</code>(카드) · <code>--accent</code>(포커스 링). 새 색 없음.'
+];
+function devHtml() { return '<ol>' + DEV.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>'; }
+
+/* ════════ 그리기 ════════ */
+function figure(cur) {
+  CUR = cur;
+  var html = screen(S.scr);
+  CUR = false;
+  var cap = cur ? '<span class="tagc">현재</span>HEAD 화면' : '<span class="tagp">제안</span>' + S.w + '×' + S.h + ' · ' + ['d1', 'd2', 'd3', 'd4'].map(function (k) { return k.toUpperCase() + '-' + S.dec[k]; }).join(' ');
+  return '<figure class="fw"><figcaption>' + cap + ' <span class="dmeas" data-meas></span></figcaption><div class="phone w' + S.w + ' h' + S.h + '" data-phone="' + (cur ? 'cur' : 'prop') + '">' + html + '</div></figure>';
+}
+var lastKey = '';
+function snapshot() {
+  var st = {};
+  Array.prototype.forEach.call(document.querySelectorAll('#stage [data-scroll]'), function (el, i) { st[el.closest('.phone').getAttribute('data-phone') + i] = el.scrollTop; });
+  var a = document.activeElement, fid = a && a.getAttribute ? a.getAttribute('data-fid') : null;
+  var ph = a && a.closest ? a.closest('.phone') : null;
+  return { st: st, fid: fid, ph: ph ? ph.getAttribute('data-phone') : null };
+}
+function render(keepFocusFallback) {
+  if (IDS.indexOf(S.scr) < 0) S.scr = IDS[0];
+  var key = S.scr + '|' + S.w + '|' + S.h + '|' + S.view;
+  var same = key === lastKey;
+  var snap = same ? snapshot() : null;
+  document.body.classList.toggle('mark', S.mark);
+  document.getElementById('decide').innerHTML = decideHtml();
+  document.getElementById('dnav').innerHTML = navHtml();
+  var st = '';
+  if (S.view !== 'prop') st += figure(true);
+  if (S.view !== 'cur') st += figure(false);
+  document.getElementById('stage').innerHTML = st;
+  document.getElementById('side').innerHTML = sideHtml();
+  document.getElementById('scope').innerHTML = scopeHtml();
+  lastKey = key;
+  if (snap) {
+    Array.prototype.forEach.call(document.querySelectorAll('#stage [data-scroll]'), function (el, i) {
+      var k = el.closest('.phone').getAttribute('data-phone') + i;
+      if (snap.st[k] != null) el.scrollTop = snap.st[k];
+    });
+    if (snap.fid && snap.ph) {
+      var t = document.querySelector('[data-phone="' + snap.ph + '"] [data-fid="' + snap.fid + '"]') || (keepFocusFallback && document.querySelector('[data-phone="' + snap.ph + '"] [data-fid="' + keepFocusFallback + '"]'));
+      if (t) t.focus({ preventScroll: true });
+    }
+    requestAnimationFrame(measure);
+  } else {
+    requestAnimationFrame(function () { anchor(); measure(); });
+  }
+}
+function anchor() {
+  Array.prototype.forEach.call(document.querySelectorAll('#stage [data-anchor]'), function (a) {
+    var sc = a.closest('[data-scroll]');
+    if (sc) sc.scrollTop = Math.max(0, a.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 64);
+  });
+}
+/* 가로 넘침(가로 스크롤 띠 안 제외) · 접이식 줄 터치 높이 · 카드 높이 */
+function measure() {
+  var out = [];
+  Array.prototype.forEach.call(document.querySelectorAll('#stage .fw'), function (fw) {
+    var ph = fw.querySelector('.phone'), m = fw.querySelector('[data-meas]'), txt = [];
+    var pw = ph.getBoundingClientRect(), over = 0;
+    Array.prototype.forEach.call(ph.querySelectorAll('*'), function (el) {
+      var r = el.getBoundingClientRect();
+      if (r.width && (r.right > pw.right + 0.5 || r.left < pw.left - 0.5) && !el.closest('.dispbar')) over++;
+    });
+    txt.push('가로 넘침 ' + (over ? '<span class="up">' + over + '</span>' : '<span class="ok">0</span>'));
+    var xs = ph.querySelectorAll('.xn-t, .gbtn');
+    if (xs.length) {
+      var minH = Infinity;
+      Array.prototype.forEach.call(xs, function (b) { minH = Math.min(minH, b.getBoundingClientRect().height); });
+      txt.push('줄 터치 ' + (minH >= 44 ? '<span class="ok">' + Math.round(minH) + 'px</span>' : '<span class="up">' + Math.round(minH) + 'px</span>'));
+    }
+    var a = ph.querySelector('[data-anchor].cc') || ph.querySelector('.cc');
+    if (a) txt.push('카드 높이 ' + Math.round(a.getBoundingClientRect().height));
+    m.innerHTML = '· ' + txt.join(' · ');
+    out.push(ph.getAttribute('data-phone') + ':' + txt.join(',').replace(/<[^>]+>/g, ''));
+  });
+  window.__demoMeasure = out;
+  var dm = document.getElementById('dmeas');
+  if (dm) dm.innerHTML = out.map(esc).join('<br>');
+}
+
+/* ════════ 조작 ════════ */
+var tt = null;
+function toast(msg) {
+  var el = document.getElementById('dtoast');
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(tt); tt = setTimeout(function () { el.hidden = true; }, 2200);
+}
+var TOASTS = {
+  fu: ['히라가나를 숨겼어요 · 모든 화면에 적용돼요', '히라가나를 보여 줘요 · 모든 화면에 적용돼요'],
+  hg: ['한글 발음을 숨겼어요 · 모든 화면에 적용돼요', '한글 발음을 보여 줘요 · 모든 화면에 적용돼요'],
+  tr: ['번역을 모두 접었어요 · 모든 화면에 적용돼요', '번역을 모두 펼쳤어요 · 모든 화면에 적용돼요']
+};
+function syncSeg(id, attr, val) {
+  Array.prototype.forEach.call(document.querySelectorAll('#' + id + ' button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute(attr) === String(val))); });
+}
+function syncLay() { Array.prototype.forEach.call(document.querySelectorAll('#d-lay button'), function (b) { b.setAttribute('aria-pressed', String(!!S[b.getAttribute('data-k')])); }); }
+function setLayer(k, v) {
+  S[k] = v;
+  if (k === 'tr') S.to = {};
+  syncLay();
+  toast(TOASTS[k][v ? 1 : 0]);
+  render();
+}
+function seg(id, fn) {
+  document.getElementById(id).addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) fn(b);
+  });
+}
+seg('d-w', function (b) { S.w = +b.getAttribute('data-v'); syncSeg('d-w', 'data-v', S.w); render(); });
+seg('d-h', function (b) { S.h = +b.getAttribute('data-v'); syncSeg('d-h', 'data-v', S.h); render(); });
+seg('d-view', function (b) { S.view = b.getAttribute('data-v'); syncSeg('d-view', 'data-v', S.view); render(); });
+seg('d-lay', function (b) { var k = b.getAttribute('data-k'); setLayer(k, !S[k]); });
+seg('d-mark', function (b) { S.mark = b.getAttribute('data-v') === 'on'; syncSeg('d-mark', 'data-v', S.mark ? 'on' : 'off'); render(); });
+seg('d-t', function (b) {
+  S.theme = b.getAttribute('data-v'); syncSeg('d-t', 'data-v', S.theme);
+  if (S.theme === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', S.theme);
+  render();
+});
+document.getElementById('d-reset').addEventListener('click', function () { S.open = {}; S.st = {}; S.to = {}; S.reveal = false; lastKey = ''; toast('데모를 처음 상태로 되돌렸어요'); render(); });
+
+document.getElementById('decide').addEventListener('change', function (e) {
+  var t = e.target;
+  if (!t || !t.getAttribute('data-dq')) return;
+  var id = t.getAttribute('data-dq');
+  S.dec[id] = t.value;
+  if (id === 'd2') S.open = {};
+  render();
+  var back = document.querySelector('#decide input[data-dq="' + id + '"][value="' + t.value + '"]');
+  if (back) back.focus({ preventScroll: true });
+});
+
+document.getElementById('stage').addEventListener('click', function (e) {
+  var el = e.target.closest('[data-act]');
+  if (!el) return;
+  var act = el.getAttribute('data-act'), k = el.getAttribute('data-k');
+  switch (act) {
+    case 'xn': S.open[k] = !isOpen(k); render(); break;
+    case 'tg': setLayer(k, !S[k]); break;
+    case 'tr1': { var id = el.getAttribute('data-id'), m = M[id]; S.to[id] = !trShown(m); render(); break; }
+    case 'acc': S.st[k] = 'ACCEPTED'; toast('채택했어요 · 단어장에 넣는 시트는 지금과 같아 데모에선 건너뛰어요'); render('xn:' + k); break;
+    case 'rej': S.st[k] = 'REJECTED'; toast('무시했어요 · 기록에 남지 않아요'); render('xn:' + k); break;
+    case 'reveal': S.reveal = true; render('xn:talk-coach-e2'); break;
+    case 'gsheet': location.hash = '#chip-sheet'; break;
+    case 'later': location.hash = '#talk-later'; break;
+    case 'close':
+      if (S.scr === 'talk-later') location.hash = '#talk';
+      else if (S.scr === 'chip-sheet') location.hash = '#chip';
+      break;
+    default: break;
+  }
+});
+function onHash() {
+  var h = (location.hash || '').slice(1);
+  if (IDS.indexOf(h) >= 0) {
+    S.scr = h;
+    render();
+    var stg = document.getElementById('stage'), r = stg.getBoundingClientRect();
+    if (r.top < 0 || r.top > window.innerHeight * 0.6) stg.scrollIntoView({ block: 'start' });
+  }
+}
+window.addEventListener('hashchange', onHash);
+
+document.getElementById('devbody').innerHTML = devHtml();
+if (IDS.indexOf((location.hash || '').slice(1)) >= 0) S.scr = location.hash.slice(1);
+render();
+})();
+</script>
+</body>
+</html>

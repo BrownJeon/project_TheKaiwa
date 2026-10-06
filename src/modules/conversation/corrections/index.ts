@@ -12,8 +12,8 @@ import { readCorrectionMeta, talkCorrectionFields, type CorrectionDeliver } from
 
 export const CORRECTION_STATUSES = ['PROPOSED', 'ACCEPTED', 'REJECTED', 'EXPIRED'] as const
 
-/** `original` 이 빠진 갱신 데이터 — 원문은 어떤 경로로도 바꾸지 않는다. */
-export type CorrectionUpdate = Omit<Prisma.CorrectionUncheckedUpdateManyInput, 'original' | 'id' | 'userId' | 'chatId' | 'messageId'>
+/** `original` 이 빠진 갱신 데이터 — 원문은 어떤 경로로도 바꾸지 않는다. 추가 설명 `extraNoteKo`(task-039)도 생성 시에만 쓰므로 뺐다. */
+export type CorrectionUpdate = Omit<Prisma.CorrectionUncheckedUpdateManyInput, 'original' | 'extraNoteKo' | 'id' | 'userId' | 'chatId' | 'messageId'>
 
 async function updateCorrections(db: Tx, where: { id: string; userId: string; status?: ProposalStatus }, data: CorrectionUpdate): Promise<number> {
   const res = await db.correction.updateMany({ where, data })

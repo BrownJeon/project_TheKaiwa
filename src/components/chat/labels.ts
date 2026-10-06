@@ -31,6 +31,9 @@ export const STATUS_LABEL: Record<Exclude<ProposalStatus, 'PROPOSED'>, string> =
   EXPIRED: '기한 지남',
 }
 
+/** 교정 카드의 접이식 추가 설명 줄(task-039 데모 v1 D3-A) — 접힘/펼침 이름. 화살표는 컴포넌트가 따로(aria-hidden) 붙인다. */
+export const EXTRA_NOTE_LABEL = { more: '시험 문법 더 보기', less: '시험 문법 접기' } as const
+
 /** PendingBubble 단계 문구(ⓑ). */
 export function stageText(stage: TurnStage | null): string {
   switch (stage) {

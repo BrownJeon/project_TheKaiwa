@@ -100,6 +100,10 @@
  * 에만 두고 promptKo 에는 무엇을 고르라는 한국어 지시(예: "문장의 뜻을 고르세요.")를 쓴다"로 바꿨다 — **번역형·뜻 고르기형의 promptKo 도
  * 이제 "고르라는 지시"** 이므로 (e)=B 의 "번역형 지시는 그대로" 는 이 한 줄에 한해 바뀐 것이다. 되돌리려면 옛 절(task-025 PE 기록의 e2 문구)로 복원한다.
  * checks.ts 의 재시도 안내 문구도 같은 방향으로 맞췄다(로직 무변경).
+ *
+ * **v9(2026-10-06, task-039 IMP-0025)** — 사용자 요청 "응답·교정은 일상 회화 문법·단어를 메인으로, JLPT 식 문형 설명은 추가로". 레슨은 기준선 실측(task-039 이력서)에서 문법 설명이 이미 장면·쓰임 중심이었고(JLPT 식 강한 용어·급수
+ * 18%) 이 프롬프트는 5초 예산이 아니라 120s 배치라 새 응답 칸(`extraNoteKo` 류)은 더하지 않는다 — **문구만** `grammar` 줄에 "(일상 회화 위주)" 9자를 더했다(예산 천장 `LESSON_USER_PROMPT_CAP`·9,540 안에 들어가는 최대치 —
+ * 더 늘리려면 이 상수와 `lesson.test.ts` 예산 테스트를 함께 바꿔야 해서 Leader 결정). 계약·스키마·persona(레슨은 §3 을 싣지 않는다) 불변.
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
@@ -108,7 +112,7 @@ import { repairLessonResponse, type LessonRepairSourceChunk } from '../structure
 import { LESSON_SCHEMA, type ChunkType, type JlptLevel, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const LESSON_PROMPT_VERSION = 'lesson@v8'
+export const LESSON_PROMPT_VERSION = 'lesson@v9'
 
 /**
  * `renderTranscript(req.system, req.messages)` 설계 예산(persona 는 별도 `--system-prompt` 라 여기 안 든다, talk.ts 와 같은
@@ -253,7 +257,7 @@ function lessonInstruction(hasTopic: boolean): string {
         : ' [원문]에는 미리 정해진 조각이 없으므로 모든 chunks 의 id 를 "new-1","new-2"… 순서로 붙이고 isNew=true 로 합니다.'),
     '- **id 규칙(가장 중요, 먼저 지킵니다)**: quiz·application·speaking 의 targetIds 에 쓰는 id 는 **먼저 위 chunks 배열이나 아래 grammar 배열에 넣은 id 만** 씁니다. 그 두 배열 밖의 id 는 어디에도(특히 targetIds 에) 쓰지 않습니다 — [조각] 목록에 있어도 이번 chunks 에 넣지 않았으면 targetIds 에도 쓸 수 없습니다.',
     '- **모범 답 내용 규칙(application·speaking 공통, id 규칙 다음으로 중요)**: modelAnswerJa 가 가리키는 targetIds 중 chunks id 는 그 chunk 의 textJa(또는 자연스러운 활용형)를 **modelAnswerJa 문장 안에 실제로 써서** 보여줘야 합니다 — targetIds 에 넣기만 하고 다른 말로 바꿔 쓰면 안 됩니다. grammar id 를 가리킬 때는 그 문형을 살린 자연스러운 문장이면 충분합니다(pattern 표기 자체가 문장에 그대로 나타날 필요는 없습니다).',
-    '- grammar: 1~3개, 이번 수업의 핵심 문형. id 는 "g1","g2","g3" 순서로 붙입니다. pattern(문형 표기)·explanationKo(한국어 설명, 200자 이내)·exampleJa/exampleReading/exampleKo(예문 1개).',
+    '- grammar: 1~3개, 이번 수업의 핵심 문형(일상 회화 위주). id 는 "g1","g2","g3" 순서로 붙입니다. pattern(문형 표기)·explanationKo(한국어 설명, 200자 이내)·exampleJa/exampleReading/exampleKo(예문 1개).',
     '- quiz: 정확히 5개, id "q1"~"q5". **전부 4지선다입니다** — choices 는 서로 다른 4개(80자 이내), answer 는 정답의 인덱스(0~3, 숨기지 말고 채웁니다). **모든 문제(q1~q5)의 promptKo 에 한국어를 반드시 채웁니다**(null·빈 값 금지, 160자 이내) — 일본어 문장은 promptJa 에만 두고, promptKo 에는 무엇을 고르라는 한국어 지시(예: "문장의 뜻을 고르세요.")를 씁니다. 정답이 되는 뜻·표현은 promptKo 에 미리 쓰지 않습니다. **빈칸 문제는 promptKo 에 할 일만 씁니다**(예: "빈칸에 들어갈 알맞은 말을 고르세요.") — 번역하지 않고, 빈 문장은 promptJa 에 ＿＿ 로 비워 반드시 채웁니다. promptJa 는 일본어 문장을 보여 줄 때만(120자 이내) 채우고 아니면 null. targetIds 는 위 id 규칙을 따릅니다. explanationKo 는 정답 풀이 한 줄(120자 이내).',
     '- application: 정확히 3개, id "a1"~"a3". promptKo(한국어로 과제 상황 설명, 200자 이내)·hintJa(힌트, 없으면 null)·modelAnswerJa/modelReading/modelKo(모범 답 하나)·targetIds(위 id 규칙).',
     '- speaking: 정확히 3개, id "s1"~"s3". promptKo(무엇을 말해야 하는지 한국어 지시, 200자 이내)·targetIds(위 id 규칙)·modelAnswerJa/modelReading/modelKo. 학습자는 음성 또는 텍스트로 답하며 정답 여부는 서버가 표현 사용 여부만 느슨하게 확인합니다 — 자연스러운 모범 답 하나만 주면 됩니다. 상황(역할극)은 없습니다.',

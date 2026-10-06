@@ -68,6 +68,7 @@ test('턴 done.correction → #29 교정 모양(required 버림·explanationKo �
     errorType: 'CONJUGATION',
     severity: 'MINOR',
     chunkType: 'ACTION',
+    extraNoteKo: null,
   })
   assert.ok(!('required' in c))
   assert.equal(correctionFromDone({ id: 'x', original: 'a', corrected: 'b', errorType: 'OTHER', severity: 'MAJOR' }).chunkType, null)

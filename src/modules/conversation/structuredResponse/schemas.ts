@@ -28,6 +28,12 @@ export interface TutorCorrection {
    * 모드(FLUENCY)에서는 항상 null(`prompts/talk.ts` 지시문). `checks.ts` 가 corrected 그대로 포함 여부를 검사한다.
    */
   hintKo: string | null
+  /**
+   * task-039(talk@v9, IMP-0025) — **JLPT·교과서식 추가 설명** 한 줄(문형 이름·접속 형태·급수·시험 대비). 메인 `explanationKo`·`learning.grammarPoint` 는 일상 대화에서 실제로
+   * 쓰는 말 기준으로 쓰고 이 칸이 "추가 설명"이다. 시험 문형과 무관하거나 필요 없으면 null(대부분 null — 출력 토큰 억제). **부가 정보라 스키마가 막지 않는다**(선택·null 허용·길이 무제한 —
+   * `userKo` 와 같은 원칙, REV-086 M3): 이 필드 하나 때문에 ajv 재시도(≈+6s)나 턴 실패가 나면 안 된다. 서버가 저장·표시하기 전에는 반드시 `checks.sanitizeExtraNoteKo` 를 거친다.
+   */
+  extraNoteKo?: string | null
 }
 
 export interface TutorProposalDraft {
@@ -77,6 +83,8 @@ const correctionObject = {
     chunkType: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...CHUNK_TYPES] }] },
     // task-010c(talk@v3) — 코치 모드 전용 힌트(additive nullable). 유창성 모드는 always null.
     hintKo: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] },
+    // task-039(talk@v9) — JLPT·교과서식 추가 설명(선택·null 허용·길이 무제한 — required 에도 넣지 않는다). 걸러내기·길이 처리는 `checks.sanitizeExtraNoteKo` 몫.
+    extraNoteKo: { type: ['string', 'null'] },
   },
 } as const
 
@@ -127,6 +135,12 @@ const proposals = {
 export const USER_KO_PROMPT_MAX = 200
 
 /**
+ * task-039 — `correction.extraNoteKo`(TALK)·`items[].extra_note_ko`(A3 chatReview@v3) (JLPT·교과서식 추가 설명) 지시문 권고 상한. 스키마에는 길이 규칙이 없다(위 `userKo` 와 같은 이유 — 부가 필드가 재시도·턴 실패를 만들면 안 된다).
+ * 저장 상한은 `checks.EXTRA_NOTE_STORE_MAX` 이고 넘으면 null 이다.
+ */
+export const EXTRA_NOTE_PROMPT_MAX = 40
+
+/**
  * A1 회화 턴(TALK) — 교정 0~1건.
  * 선언 순서 = 출력 순서 지시(talk@v2: speech → conversation → correction → learning → endOfTopic → proposals, talk@v7: → userKo). `withJsonOnly` 가
  * 이 스키마를 프롬프트에 그대로 싣기 때문에 선언 순서가 지시와 어긋나면 모델이 헷갈린다. `speech.style` 이 먼저 와야 첫 문장
@@ -164,6 +178,11 @@ export interface ReviewItem {
   error_type: ErrorType
   severity: Severity
   chunk_type: ChunkType | null
+  /**
+   * task-039(chatReview@v3, IMP-0025) — A3 의 **JLPT·교과서식 추가 설명** 한 줄. TALK `correction.extraNoteKo` 와 같은 칸·같은 원칙(선택·null 허용·길이 무제한 — 부가 정보가 ajv 재시도나 실패를
+   * 만들면 안 된다, `required` 에 넣지 않음). 키는 A3 항목이 snake_case 라 `extra_note_ko`. 서버가 저장·표시하기 전에는 반드시 `checks.sanitizeExtraNoteKo(explanation_ko, extra_note_ko)` 를 거친다.
+   */
+  extra_note_ko?: string | null
 }
 
 export interface ChatReviewResponse {
@@ -194,6 +213,8 @@ export const CHAT_REVIEW_SCHEMA = {
           error_type: { type: 'string', enum: [...ERROR_TYPES] },
           severity: { type: 'string', enum: [...SEVERITIES] },
           chunk_type: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...CHUNK_TYPES] }] },
+          // task-039(chatReview@v3) — JLPT·교과서식 추가 설명(선택·null 허용·길이 무제한 — required 에도 넣지 않는다, TALK `extraNoteKo` 와 같은 원칙). 걸러내기·길이 처리는 `checks.sanitizeExtraNoteKo` 몫.
+          extra_note_ko: { type: ['string', 'null'] },
         },
       },
     },

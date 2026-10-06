@@ -86,15 +86,22 @@
  * `TutorResponse` 타입·테스트에서 한꺼번에 뺐다(정확한 이름을 4곳에 일치시킨다는 A5·A11 교훈 — 한 곳이라도 남으면 재시도·FAILED). 키 순서는 `speech → conversation(replyJa → replyKo) → …`
  * 로 **`replyJa` 앞은 그대로**다 — `speech.style` → `replyJa` 조기 추출(`jsonPathStream`)·문장 단위 합성은 불변. persona(`tutor.md`·`--system-prompt`)는 무변경(바이트 불변).
  * DB `ChatMessage.reading` 컬럼은 남기고 새 메시지는 null(서버 `saveTurn`), 옛 메시지 값은 그대로다. 기대 이득: 턴당 출력 −30~45 토큰(히라가나 한 줄) → `done` 단축.
+ *
+ * task-039(talk@v9, IMP-0025 방안 B) — 사용자 요청 "응답·교정은 일상 회화에서 주로 쓰는 문법·단어를 메인으로, JLPT 같은 문법 표현은 추가 설명으로". ① 규칙: 페르소나 §3-9(TALK·A3 가 싣는 절)에 원칙 한 줄 —
+ * persona 는 (model, level, mode) 로만 정해지는 불변 조건 그대로(턴마다 바뀌는 값 없음), 그 한 줄은 `extraNoteKo` 라는 이름을 쓰지 않는다(추가 설명 칸이 없는 A3·EVAL_GRADE 가 같은 절을 싣기 때문 — 이름을 쓰면
+ * 그 응답이 없는 키를 만들어 낸다). ② `[지시]`: `explanationKo`(메인)는 일상 대화에서 쓰는 말·쓰임 중심·급수·문형 이름·활용 용어 금지, `learning.grammarPoint` 는 쓰임 이름(활용·시제 같은 용어 대신), 새 칸
+ * `correction.extraNoteKo`(선택·null 허용·≤`EXTRA_NOTE_PROMPT_MAX`자, 시험 문형일 때만 — 대부분 null)에 JLPT·교과서식 정보(문형 이름·접속 형태·급수)를 한 줄로. ③ 계약: `correctionObject.properties.extraNoteKo`
+ * additive(선택·null 허용·길이 무제한 — `userKo` 와 같은 원칙으로 이 칸 때문에 재시도·턴 실패가 없다), 저장 전 정리는 `checks.sanitizeExtraNoteKo`(저장·표시는 developer — 이 task 는 계약만). 키 순서는 그대로다
+ * (`extraNoteKo` 는 `correction` 객체 안 맨 끝이라 speech → replyJa 조기 추출·`repairRootClose` 불변). 측정·근거는 task-039 이력서 "Prompt-Engineer 기록".
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
 import { checkReplyKoNaturalness, checkTalkResponse } from '../structuredResponse/checks'
-import { TALK_SCHEMA, USER_KO_PROMPT_MAX, type TutorResponse } from '../structuredResponse/schemas'
+import { EXTRA_NOTE_PROMPT_MAX, TALK_SCHEMA, USER_KO_PROMPT_MAX, type TutorResponse } from '../structuredResponse/schemas'
 import { buildWindow, type WindowMessage } from '../window'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const TALK_PROMPT_VERSION = 'talk@v8'
+export const TALK_PROMPT_VERSION = 'talk@v9'
 export const TALK_USER_PROMPT_CAP = 3_000
 export const TALK_HEADER_CAP = 300
 /**
@@ -230,13 +237,19 @@ export const COACH_HINT_LINE =
  */
 const SIMPLE_EXPLANATION_LEVELS = new Set(['N5', 'N4'])
 
+/**
+ * task-039 — `extraNoteKo`(JLPT·교과서식 추가 설명) 지시. **필드 이름을 정확히 쓰고**(A5·A11 교훈 — 스키마·타입·테스트와 일치) 선택임을 밝힌다. 메인 설명과 나누는 기준: 메인 = 일상 대화에서 이렇게 말한다는 쓰임,
+ * 추가 = 시험에 나오는 문형 이름·접속 형태·급수. 시험 문형이 아니면 null(대부분 null) — 출력 토큰을 필요할 때만 쓴다.
+ */
+export const EXTRA_NOTE_LINE = ` extraNoteKo=JLPT 문형 한 줄(${EXTRA_NOTE_PROMPT_MAX}자 이내), 대부분 null.`
+
 function correctionInstructionLine(mode: CorrectionMode, level: string): string {
-  const simple = SIMPLE_EXPLANATION_LEVELS.has(level) ? ' 쉬운 말로, 문법 용어는 쓰지 않습니다.' : ''
+  const simple = SIMPLE_EXPLANATION_LEVELS.has(level) ? ' 쉬운 말로.' : ''
   const common =
-    '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어로 어느 조각이 왜 틀렸는지 1~2문장(일본어 인용은 고친 조각만).' +
+    '- correction: [입력]의 학습자 말에 오류가 있으면 가장 중요한 1건만, 없으면 null. original 에는 [입력]의 학습자 말 **전체**를 한 글자도 바꾸지 말고 그대로 복사하고(일부만 잘라 쓰지 않음), corrected 에 고친 문장을 둡니다. explanationKo 는 한국어 1~2문장(80자 이내) — 어느 조각이 틀렸는지(일본어 인용은 고친 조각만)와 고친 말을 일상에서 어떻게 쓰는지만, 문법 용어(て형 등)·급수·문형 이름은 쓰지 않습니다.' +
     simple
   const hint = mode === 'COACH' ? COACH_HINT_LINE : ' hintKo 는 null.'
-  return common + hint
+  return common + hint + EXTRA_NOTE_LINE
 }
 
 /**
@@ -284,7 +297,7 @@ export function talkInstruction(correctionMode: CorrectionMode = 'FLUENCY', scen
     '- speech.style: 답의 분위기.',
     replyJaInstructionLine(sceneCap),
     correctionInstructionLine(correctionMode, level),
-    '- learning.grammarPoint 는 이번 턴의 핵심 문법(없으면 null), difficulty 는 학습자 수준. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 학습자가 모르는 새 단어를 단어장에 넣자고 제안할 때만(최대 2개, 보통 빈 배열).',
+    '- learning.grammarPoint 는 이번 턴 표현의 쓰임 이름(없으면 null, 예: 〜たい(희망)), difficulty 는 학습자 수준. 주제가 자연스럽게 끝났으면 endOfTopic=true. proposals 는 새 단어를 단어장에 제안할 때만(최대 2개, 보통 빈 배열).',
     USER_KO_INSTRUCTION_LINE,
     '[순서 예] {"speech":{"style":"<...>"},"conversation":{"replyJa":"<...>","replyKo":"<...>"},"correction":null,"learning":{"grammarPoint":null,"difficulty":"<...>"},"endOfTopic":false,"proposals":[],"userKo":"<...>"}',
     INJECTION_GUARD,

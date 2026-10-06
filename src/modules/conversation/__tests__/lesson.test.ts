@@ -915,8 +915,8 @@ test('lesson@v5: sourceText 경로에도 모범 답 내용 규칙이 실린다(�
 
 // ── lesson@v7(2026-09-29, task-010 후속) — 스키마 밖 필드(quiz[] 의 q·conjugationNote 등)로 인한 재시도 줄이기 ──
 
-test('lesson@v7: 프롬프트 버전(현재 v8), "정해진 키만 씁니다" 지시문이 있다', () => {
-  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v8')
+test('lesson@v7: 프롬프트 버전(현재 v9 — task-039 grammar 줄 "(일상 회화 위주)" 9자), "정해진 키만 씁니다" 지시문이 있다', () => {
+  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v9')
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
   assert.match(req.system, /q, note, conjugationNote/, '스키마 밖 참고용 키를 만들지 말라는 지시가 있어야 한다')
 })

@@ -29,6 +29,8 @@ export interface ReviewItemDto {
   original: string
   corrected: string
   explanation: string
+  /** task-039(chatReview@v3) — 추가 설명(정리 통과분, 저장 행과 같은 값). null = 줄 없음. */
+  extraNoteKo: string | null
   errorType: string
   severity: string
   chunkType: string | null
@@ -144,11 +146,15 @@ async function executeReview(userId: string, chatId: string, c: Claim, priority:
       }
       const out: ReviewItemDto[] = []
       for (const d of items) {
+        // extraNoteKo 는 생성 시에만 쓴다(수정 경로 없음). 값은 mergeReviewCandidates(toDraft) 에서 정리를 마친 것이다.
         const row = await tx.correction.create({
-          data: { userId, chatId, messageId: d.messageId, original: d.original, corrected: d.corrected, explanation: d.explanation, errorType: d.errorType, severity: d.severity, chunkType: d.chunkType },
+          data: { userId, chatId, messageId: d.messageId, original: d.original, corrected: d.corrected, explanation: d.explanation, extraNoteKo: d.extraNoteKo, errorType: d.errorType, severity: d.severity, chunkType: d.chunkType },
           select: { id: true },
         })
-        out.push({ correctionId: row.id, messageId: d.messageId, original: d.original, corrected: d.corrected, explanation: d.explanation, errorType: d.errorType, severity: d.severity, chunkType: d.chunkType, status: 'PROPOSED' })
+        out.push({
+          correctionId: row.id, messageId: d.messageId, original: d.original, corrected: d.corrected, explanation: d.explanation, extraNoteKo: d.extraNoteKo,
+          errorType: d.errorType, severity: d.severity, chunkType: d.chunkType, status: 'PROPOSED',
+        })
       }
       if (out.length && hooks.recordCorrectionsProposed) {
         try {

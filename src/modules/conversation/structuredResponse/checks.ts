@@ -123,6 +123,76 @@ export function sanitizeUserKo(input: string, userKo: unknown): string | null {
   return t
 }
 
+/**
+ * task-039(talk@v9, IMP-0025) — `correction.extraNoteKo`(JLPT·교과서식 추가 설명) 저장 상한(UTF-16 길이). 지시문 권고는 `EXTRA_NOTE_PROMPT_MAX`(40자)이고 실측(task-039 이력서: 채움 39건 중앙값 19자·p90 34자·최대 43자)에서 모델이 넘기는 길이를 본 뒤
+ * 정했다. 넘으면 **자르지 않고 null** — 문장 중간에서 잘린 문형 설명은 틀린 정보를 보이게 한다(`userKo` 와 같은 방침).
+ */
+export const EXTRA_NOTE_STORE_MAX = 200
+const EXTRA_NOTE_HANGUL_RE = /[\u1100-\u11ff\u3131-\u318e\uac00-\ud7a3]/
+/** 학습자 원문 통째 복사 검사를 거는 최소 길이(비교용 정규화 — NFKC·공백·구두점 제거 — 뒤 글자 수). 「はい」 같은 짧은 말은 설명 속 짧은 인용과 우연히 겹쳐 정상 값을 버리게 된다. */
+export const EXTRA_NOTE_LEARNER_MIN = 4
+/**
+ * 추가 설명의 보이지 않는 문자 처리(REV-115 L-1 · Codex C2 low). 접기 = 공백 하나로 바꿔 저장, 거부 = 값 전체를 null.
+ *
+ * | 문자 | 처리 |
+ * |---|---|
+ * | JS `\s` 공백류(U+0009–000D·U+0020·U+00A0·U+1680·U+2000–200A·U+202F·U+205F·U+3000)·줄바꿈류 U+0085(NEL)·U+2028·U+2029 | 접기 |
+ * | 서식 문자 `\p{Cf}` 전부 — U+200B–200F(ZWSP·ZWNJ·ZWJ·LRM·RLM)·U+202A–202E(BiDi 임베딩·덮어쓰기)·U+2060–2064·U+2066–2069(isolate)·U+FEFF·U+00AD·U+061C·U+E0001·U+E0020–E007F(태그) 등 | 거부(접기 **전**에 검사) |
+ * | 기본 무시 코드 포인트 `\p{Default_Ignorable_Code_Point}` — U+034F(CGJ)·U+115F·U+1160·U+3164·U+FFA0(한글 채움)·U+FE00–FE0F·U+E0100–E01EF(변이 선택자)·U+17B4·U+17B5·U+180B–180F 등 | 거부(접기 전) |
+ * | U+2800(점자 빈 칸 — 기본 무시 문자가 아니지만 빈 칸으로 보인다)·짝 없는 서로게이트(`\p{Cs}`) | 거부(접기 전) |
+ * | 접은 뒤 남은 C0·DEL·C1(U+0000–001F·U+007F·U+0080–009F) | 거부 |
+ *
+ * 서식·제어 문자는 화면에 보이지 않으면서 글자 순서(BiDi)·경계를 바꿔 저장된 문자열과 보이는 설명을 다르게 만든다. 한·일 문형 설명 한 줄에 나올 이유가 없으니
+ * 지워서 살리지 않고 값이 오염됐다는 신호로 보고 버린다(부가 정보라 버려도 줄이 안 보일 뿐이다). U+FEFF 는 JS `\s` 에 들어 있어 접기 전에 봐야 거부된다.
+ * 한글 채움(U+3164 등)은 한글 검사까지 만족시키므로 한글 검사보다 먼저 걸러야 빈 줄이 저장되지 않는다(REV-116 L-7 · Codex C2 3차).
+ * 줄바꿈류는 개행과 같은 뜻이라 거부하지 않고 접는다(한 줄 계약 — Codex C1 low).
+ */
+// 변이 선택자 U+FE0F 가 붙는 이모지(U+2764 U+FE0F 류)·ZWJ 이모지 시퀀스도 함께 거부된다 — 일본어 문형 설명 칸에 이모지를 쓸 이유가 없고 실데이터(TALK·A3)에 U+FE0F·ZWJ 가 든 값이 0건이라 오탐 비용이 없다.
+const INVISIBLE_CHAR_RE = /[\p{Cf}\p{Default_Ignorable_Code_Point}\p{Cs}\u{2800}]/u
+const oneLine = (s: string) => s.replace(/[\s\u0085]+/g, ' ').trim()
+const hasControlChar = (s: string) => {
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i)
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return true
+  }
+  return false
+}
+/**
+ * 원문·메인 설명 복제 비교 전용(REV-115 L-1 ⓐ · REV-116 L-7) — NFKC(반각·전각 통일) 뒤 공백·구두점(`\p{P}`: 。、．，.,!?！？「」『』()（）…〜・ 등)과
+ * `INVISIBLE_CHAR_RE` 의 보이지 않는 문자를 지운다. 추가 설명 쪽은 이미 거부됐으니, 비교 **상대**(학습자 원문·메인 설명)에 낀 보이지 않는 문자 때문에
+ * 화면상 같은 글의 복제를 놓치지 않게 하려는 것이다. 저장값은 바꾸지 않는다.
+ */
+const comparable = (s: string) => s.normalize('NFKC').replace(/[\s\p{P}\p{Cf}\p{Default_Ignorable_Code_Point}\p{Cs}\u{2800}]/gu, '')
+
+/**
+ * `extraNoteKo` 저장 전 정리(순수) — 저장·표시할 값을 돌려주고, 못 쓰면 null(화면은 추가 설명 줄을 그리지 않는다). **어떤 입력에도 던지지 않고 재시도도 없다**(스키마는 이 필드를 선택·null 허용·길이 무제한으로
+ * 둔다 — 부가 정보가 ajv 재시도(≈+6s)나 턴 실패를 만들면 안 된다, `sanitizeUserKo` 와 같은 구조).
+ * 저장값은 **한 줄**이다(Codex C1 low): 개행·탭·NEL 등 공백류는 공백 하나로 접는다 — 여러 줄 값이 카드·텍스트 출력의 줄 경계를 깨지 않게(접기·거부 문자 표는 `INVISIBLE_CHAR_RE` 위 주석).
+ * null 이 되는 경우: ① 누락·null·문자열 아님·공백뿐 ② 보이지 않는 문자(`\p{Cf}`·기본 무시 코드 포인트·U+2800·짝 없는 서로게이트) 포함 — 접기 전 원값으로 판단
+ * ③ 접은 뒤 저장 상한(`EXTRA_NOTE_STORE_MAX`) 초과 — 자르지 않음 ④ 접은 뒤에도 제어문자(U+0000–001F·U+007F·U+0080–009F) 잔존 ⑤ 한글이 하나도 없음(한국어 추가 설명이어야 한다)
+ * ⑥ `explanationKo` 와 같거나 `explanationKo` 를 통째로 포함(메인 설명 베끼기 — 추가 정보가 없다). 양쪽을 `comparable` 로 맞춘 뒤 비교하고(REV-116 L-7 — 공백·구두점·보이지 않는 문자
+ *    삽입으로 빠져나가지 않게), 정규화한 메인 설명이 빈 문자열이면 검사하지 않는다(빈 문자열은 무엇에나 포함된다)
+ * ⑦ `learnerText`(서버가 가진 학습자 원문)를 통째로 포함(Codex C1 medium — 「참고: <학습자 발화>」 처럼 원문이 새 칸으로 복제·반출되지 않게). 양쪽을 `comparable`(NFKC·공백·구두점·보이지 않는 문자 제거)로
+ *    맞춘 뒤 비교하고(REV-115 L-1 — 끝 구두점·반각/전각 차이로 빠져나가지 않게), 정규화한 원문이 `EXTRA_NOTE_LEARNER_MIN` 자 미만이면 검사하지 않는다. 인자를 안 주면 검사 없음(옛 두 인자 호출 호환)
+ * ⑧ 엔진·모델 이름 노출(엔진명은 화면·저장에 새지 않는다).
+ */
+export function sanitizeExtraNoteKo(explanationKo: string, extraNoteKo: unknown, learnerText?: string): string | null {
+  if (typeof extraNoteKo !== 'string') return null
+  if (INVISIBLE_CHAR_RE.test(extraNoteKo)) return null
+  const t = oneLine(extraNoteKo)
+  if (!t) return null
+  if (t.length > EXTRA_NOTE_STORE_MAX) return null
+  if (hasControlChar(t)) return null
+  if (!EXTRA_NOTE_HANGUL_RE.test(t)) return null
+  const tc = comparable(t)
+  const main = typeof explanationKo === 'string' ? comparable(explanationKo) : ''
+  if (main && tc.includes(main)) return null
+  const learner = typeof learnerText === 'string' ? comparable(learnerText) : ''
+  if (learner.length >= EXTRA_NOTE_LEARNER_MIN && tc.includes(learner)) return null
+  if (llm.mentionsEngineIdentity(t)) return null
+  return t
+}
+
 export function checkChatResponse(input: string, data: TutorResponse): string[] {
   const v = checkTalkResponse(input, { ...data, correction: null })
   if (data.correction !== null) v.push('CHAT 모드에서 correction 은 항상 null 이다')

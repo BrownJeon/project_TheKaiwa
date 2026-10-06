@@ -11,6 +11,7 @@ import { changedRanges, useAnnotations } from '@/components/common/japanese/anno
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import type { CorrectionDto } from '@/types/chat'
 import { diffCodepoints } from './diff'
+import ExtraNoteLine, { hasExtraNote } from './ExtraNoteLine'
 import { CHUNK_LABEL, ERROR_TYPE_LABEL, STATUS_LABEL } from './labels'
 
 const JA_TEXT = 'whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] leading-[1.7]'
@@ -47,6 +48,7 @@ export default function CorrectionCard({
   const diff = diffCodepoints(c.original, c.corrected)
   const [annOriginal, annCorrected] = useAnnotations([c.original, c.corrected])
   const chunk = c.chunkType ? CHUNK_LABEL[c.chunkType] : null
+  const withExtra = hasExtraNote(c.extraNoteKo)
 
   return (
     <li
@@ -55,7 +57,7 @@ export default function CorrectionCard({
         highlighted ? 'border-accent ring-2 ring-accent' : 'border-line'
       }`}
     >
-      <div className="flex min-w-0 items-center gap-1.5">
+      <div id={withExtra ? `cr_${c.id}_head` : undefined} className="flex min-w-0 items-center gap-1.5">
         {showCounter ? (
           <span className="flex-none text-[12px] text-ink2">
             {index}/{total}
@@ -90,6 +92,8 @@ export default function CorrectionCard({
 
       {note}
       {c.explanation ? <p className="mt-2.5 text-[15px] leading-normal text-ink2 break-keep [overflow-wrap:anywhere]">{c.explanation}</p> : null}
+      {/* task-039: 채택·무시·기한 지남 뒤에도 그린다. 값이 없으면(옛 교정) 아무것도 그리지 않아 지금 카드와 같다. */}
+      <ExtraNoteLine correctionId={c.id} text={c.extraNoteKo} describedBy={`cr_${c.id}_head`} />
 
       {c.status === 'PROPOSED' ? (
         <>

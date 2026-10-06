@@ -95,6 +95,11 @@ export interface CorrectionDto {
   /** TALK·코치 — 정답을 말하지 않는 힌트. 있으면 카드가 힌트부터 보인다. */
   hintKo?: string | null
   selfCheck?: SelfCheckResult | null
+  /**
+   * task-039 — 시험 문법 추가 설명(서버가 한 줄·≤200자로 정리해 보낸다 — 화면은 자르거나 다시 거르지 않는다).
+   * null 이면 줄을 그리지 않는다. 옛 행·옛 응답은 필드가 없을 수 있어 선택이고, 매핑 함수가 null 로 맞춘다.
+   */
+  extraNoteKo?: string | null
 }
 
 /** #29 메시지 */
@@ -200,6 +205,8 @@ export interface TurnCorrection {
   status?: ProposalStatus
   deliver?: CorrectionDeliver
   hintKo?: string | null
+  /** task-039 — `CorrectionDto.extraNoteKo` 와 같은 값. */
+  extraNoteKo?: string | null
 }
 
 export interface TurnDoneEvent {
@@ -239,6 +246,8 @@ export interface ReviewItemDto {
   severity: Severity
   chunkType: ChunkType | null
   status: ProposalStatus
+  /** task-039 — `CorrectionDto.extraNoteKo` 와 같은 이름·값(A3 원응답의 snake_case 는 서버에서 끝난다). */
+  extraNoteKo?: string | null
 }
 
 export interface ReviewSyncResponse {

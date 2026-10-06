@@ -2,7 +2,7 @@
  * 채팅방 메시지 목록 계산(순수). 턴 훅·방 화면·단위 테스트가 같이 쓴다.
  * 서버 값이 오면 **id 기준으로 덮어쓴다**(폴링·재방문 동기화) — 화면이 가진 사본은 늘 서버의 부분집합 + 임시 말풍선이다.
  */
-import type { ChatMessage, ChatMessageView, CorrectionDto, TurnCorrection } from '@/types/chat'
+import type { ChatMessage, ChatMessageView, CorrectionDto, ReviewItemDto, TurnCorrection } from '@/types/chat'
 
 export const TEMP_PREFIX = 'tmp_'
 
@@ -106,5 +106,23 @@ export function correctionFromDone(c: TurnCorrection): CorrectionDto {
     chunkType: c.chunkType ?? null,
     ...(c.deliver ? { deliver: c.deliver } : {}),
     ...(c.hintKo !== undefined ? { hintKo: c.hintKo ?? null } : {}),
+    extraNoteKo: c.extraNoteKo ?? null,
+  }
+}
+
+/** #33 동기 점검 항목 → #34 교정 모양(재방문 때 #34 로 다시 읽어도 같은 카드). 옛 응답의 빠진 `extraNoteKo` 는 null. */
+export function correctionFromReviewItem(it: ReviewItemDto): CorrectionDto {
+  return {
+    id: it.correctionId,
+    messageId: it.messageId,
+    status: it.status,
+    original: it.original,
+    corrected: it.corrected,
+    explanation: it.explanation ?? it.explanationKo ?? '',
+    errorType: it.errorType,
+    severity: it.severity,
+    chunkType: it.chunkType ?? null,
+    savedWordId: null,
+    extraNoteKo: it.extraNoteKo ?? null,
   }
 }

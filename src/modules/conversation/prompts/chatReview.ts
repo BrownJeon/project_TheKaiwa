@@ -2,6 +2,16 @@
  * A3 채팅 표현 점검(REVIEW) — 학습자 메시지 전부(≤40건·8,000자)를 받아 **문장당 오류 전부**를 짚는다(tutor §3-2).
  * message_id 는 입력에서 받은 값을 그대로 돌려줘야 하고, original 은 그 메시지의 원문 인용이어야 한다(후검증).
  *
+ * task-039(chatReview@v2, IMP-0025) — `explanation_ko` 를 "일상 대화에서 쓰는 말 기준"으로(급수·문형 이름·활용 용어 금지). persona §3-9 가 같은 원칙을 싣는다(A3 persona 는 §3 을 싣는다 — §3-9 는
+ * 필드 이름을 쓰지 않는다: 칸 이름은 이 지시문에만 둔다).
+ * 부작용과 보정(실측): 처음 문구(「어느 조각이 왜 틀렸는지 — 일상 쓰임 중심으로…」)는 설명에서 조각 언급을 16/19(84%) → 0/29(0%) 로 지웠다(persona §3-5 위반). 그래서 "먼저 어느 조각이 틀렸는지 짚고(예: 액션 조각 …),
+ * 이어서 쓰임 중심으로" 로 바꿨고 27/27(100%) 로 돌아왔다(JLPT 식 판정 42% → 7%, 설명 평균 81 → 118자). 이 `explanation_ko` 지시는 v3 에서도 **그대로** 둔다(조각 언급 유지가 보정의 목적).
+ * 같은 부작용이 TALK 에도 작게 있다(62 → 44%) — A1 3,000자 천장 때문에 TALK 는 고치지 못했다(이력서).
+ *
+ * task-039(chatReview@v3, IMP-0025 후속) — 항목에 **추가 설명 칸 `extra_note_ko`**(선택·null 허용·길이 무제한·`required` 아님 — TALK `correction.extraNoteKo` 와 같은 원칙)를 더했다. 승인된 데모의
+ * 표현 점검 카드(`#rv`)가 '시험 문법 더 보기' 줄을 그리는데 v2 응답에는 그 칸이 없어 새 점검 결과에 줄이 뜨지 않는 갭이 있었다. 지시는 TALK 와 같은 의미(시험 문형이 확실할 때만 한 줄, 아니면 null — 대부분 null)이고
+ * 길이 권고 `EXTRA_NOTE_PROMPT_MAX`(40자)·서버 정리 `checks.sanitizeExtraNoteKo`(저장 ≤200자 — 호출은 developer)를 TALK 과 **그대로 재사용**한다. 이 줄은 새 `[지시]` 줄로 따로 두어 `explanation_ko` 줄을 건드리지 않는다.
+ *
  * 입력 상한 처리(2026-09-27 task-006 Leader 결정 §5): 예외를 던지는 대신 **오래된 메시지부터 빼서 최근 것만**
  * 40건·8,000자 안에 담는다(`window.buildWindow` 와 같은 방향 — 최근부터 채우고 넘치면 오래된 쪽을 버린다). 몇 건을
  * 뺐는지는 반환값의 `skippedMessages` 로 호출자(라우트)에게 알린다 — 화면에 안내를 붙이거나 로그로 남기는 판단은
@@ -12,10 +22,10 @@
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
 import { checkChatReview } from '../structuredResponse/checks'
-import { CHAT_REVIEW_SCHEMA, type ChatReviewResponse } from '../structuredResponse/schemas'
+import { CHAT_REVIEW_SCHEMA, EXTRA_NOTE_PROMPT_MAX, type ChatReviewResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
 
-export const CHAT_REVIEW_PROMPT_VERSION = 'chatReview@v1'
+export const CHAT_REVIEW_PROMPT_VERSION = 'chatReview@v3'
 export const REVIEW_MAX_MESSAGES = 40
 export const REVIEW_MAX_CHARS = 8_000
 
@@ -80,7 +90,8 @@ export function buildChatReviewRequest(input: ChatReviewInput): ChatReviewReques
     renderHeader(input.learner, 600),
     `[지시] 아래는 이번 채팅에서 학습자가 쓴 메시지 ${scopeNote}. 각 메시지의 틀린 표현을 **빠짐없이** 찾아 items 에 한 건씩 적으세요.`,
     '- message_id 는 아래 id 를 그대로 씁니다. original 은 그 메시지 전체 또는 틀린 문장 하나 **전체**를 한 글자도 바꾸지 않고 인용합니다(문장 안의 일부만 잘라 쓰지 않음). 오류가 없는 메시지는 items 에 넣지 않습니다.',
-    '- explanation_ko 는 한국어로 어느 조각(이름·액션·느낌·꾸밈)이 왜 틀렸는지. summary_ko 는 전체 총평 2~3문장, strengths·focus 는 각각 최대 3개.',
+    '- explanation_ko 는 한국어로 먼저 어느 조각(이름·액션·느낌·꾸밈)이 틀렸는지 짚고(예: "액션 조각 …"), 이어서 일상 대화에서 이렇게 말한다는 쓰임 중심으로 — 급수·문형 이름·활용 용어는 쓰지 않습니다. summary_ko 는 전체 총평 2~3문장, strengths·focus 는 각각 최대 3개.',
+    `- extra_note_ko 는 JLPT 식 정보(문형 이름·접속 형태·급수)를 한국어 한 줄(${EXTRA_NOTE_PROMPT_MAX}자 이내)로 적는 선택 칸입니다. 시험에 나오는 문형이 확실할 때만 쓰고, 단순 활용·조사 실수이거나 확실하지 않으면 null(대부분 null).`,
     INJECTION_GUARD,
   ].join('\n')
   return {

@@ -30,9 +30,9 @@ const okResp = (over: Partial<TutorResponse> = {}): TutorResponse => ({
   ...over,
 })
 
-test('버전: talk@v8·chat@v3 (v7·v2 = userKo 추가, v8·v3 = task-036 읽기 줄 필드 제거)', () => {
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
-  assert.equal(CHAT_PROMPT_VERSION, 'chat@v3')
+test('버전: talk@v9·chat@v4 (v7·v2 = userKo 추가, v8·v3 = task-036 읽기 줄 필드 제거, talk@v9·chat@v4 = task-039 일상 회화 우선 설명·extraNoteKo)', () => {
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v9')
+  assert.equal(CHAT_PROMPT_VERSION, 'chat@v4')
 })
 
 test('스키마(REV-086 M3): userKo 는 선택·맨 끝 선언·길이 무제한 — 누락·빈 값·null·초장문이어도 TALK·CHAT 응답이 스키마를 통과한다(턴 실패 없음)', () => {

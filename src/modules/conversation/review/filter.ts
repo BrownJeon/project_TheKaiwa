@@ -8,15 +8,18 @@
  *   2. 앞선 시도의 정상 항목 중 마지막 시도가 다루지 않은 (메시지, 원문) 은 살린다 — 재시도가 정상 항목을 빠뜨려도 잃지 않는다
  *      ("정상 항목은 반드시 남긴다").
  *   3. 저장할 `original` 은 모델 문자열이 아니라 **서버가 가진 원문**(메시지 전체 또는 `splitJaSentences` 로 찾은 서버 쪽 문장)이다.
+ *   4. 추가 설명 `extra_note_ko`(task-039, chatReview@v3)는 `toDraft` 에서 한 번 정리해 draft 와 함께 운반한다 — 병합이 고른 항목의 값이 그대로 저장된다.
  */
 import type { ChatReviewResponse, ReviewItem } from '../structuredResponse/schemas'
-import { splitJaSentences } from '../structuredResponse/checks'
+import { sanitizeExtraNoteKo, splitJaSentences } from '../structuredResponse/checks'
 
 export interface ReviewCorrectionDraft {
   messageId: string
   original: string
   corrected: string
   explanation: string
+  /** task-039 — 정리(`sanitizeExtraNoteKo`)를 거친 추가 설명. 모델이 칸을 안 냈거나 정리에서 걸리면 null. */
+  extraNoteKo: string | null
   errorType: ReviewItem['error_type']
   severity: ReviewItem['severity']
   chunkType: ReviewItem['chunk_type']
@@ -26,6 +29,15 @@ export interface ReviewCorrectionDraft {
 export function serverOriginal(messageText: string, quoted: string): string | null {
   if (quoted === messageText) return messageText
   return splitJaSentences(messageText).find((s) => s === quoted) ?? null
+}
+
+/**
+ * 표현 점검 항목의 추가 설명 정리 — 학습자 원문 복사 검사(Codex C1)를 **메시지 전체**와 **짚은 문장**(`original`) 양쪽으로 건다.
+ * 긴 메시지는 통째로 복사될 수 없어(저장 상한 200자) 문장 쪽 검사가 실제로 막고, 짧은 문장(4자 미만)이 든 짧은 메시지는 메시지 쪽 검사가 막는다.
+ */
+export function reviewExtraNote(it: Pick<ReviewItem, 'explanation_ko' | 'extra_note_ko'>, messageText: string, original: string): string | null {
+  const note = sanitizeExtraNoteKo(it.explanation_ko, it.extra_note_ko, messageText)
+  return note !== null && original !== messageText ? sanitizeExtraNoteKo(it.explanation_ko, note, original) : note
 }
 
 export function mergeReviewCandidates(
@@ -44,7 +56,10 @@ export function mergeReviewCandidates(
     if (text === undefined || it.corrected === it.original) return null
     const original = serverOriginal(text, it.original)
     if (original === null) return null
-    return { messageId: it.message_id, original, corrected: it.corrected, explanation: it.explanation_ko, errorType: it.error_type, severity: it.severity, chunkType: it.chunk_type }
+    return {
+      messageId: it.message_id, original, corrected: it.corrected, explanation: it.explanation_ko, extraNoteKo: reviewExtraNote(it, text, original),
+      errorType: it.error_type, severity: it.severity, chunkType: it.chunk_type,
+    }
   }
   const coverKey = (d: ReviewCorrectionDraft) => `${d.messageId}\u0000${d.original}`
   const exactKey = (d: ReviewCorrectionDraft) => `${coverKey(d)}\u0000${d.corrected}`

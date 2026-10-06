@@ -9,10 +9,11 @@
  * `followContent` 면 내용 높이가 늘 때(문장이 드러남·교정 카드·부분 인식·히라가나/한글/번역 층이 채워짐) 바닥에 붙어 있던 경우 계속 바닥.
  * 회화방과 채팅방(task-026 — 분석이 늦게 채워져도 바닥 유지) 모두 넘긴다.
  */
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { ChatMessageView, ProposalDto } from '@/types/chat'
 import { formatDateDivider, kstDateKey } from '@/components/common/format'
 import { OFF, useAnnotations, type AnnotationState } from '@/components/common/japanese/annotations'
+import { contentGrowthAction, FOLLOW_HOLD_MS, FollowHoldContext } from './followHold'
 import { withinGroupGap } from './format'
 import { LOST_FAILURE } from './labels'
 import { FailedBubble, FailedLine, PendingBubble, TutorBubble, UserBubble } from './MessageBubble'
@@ -110,6 +111,15 @@ export default function MessageList({
 
   const lastId = messages.length ? messages[messages.length - 1].id : null
   const firstId = messages.length ? messages[0].id : null
+  /** 카드 안 접이식 줄을 펼친 시각 + 여유(task-039 ⑧) — 그 안의 첫 높이 증가는 따라가지 않는다. */
+  const holdUntilRef = useRef(0)
+  const lastIdRef = useRef<string | null>(lastId)
+  useEffect(() => {
+    lastIdRef.current = lastId
+  }, [lastId])
+  const holdFollow = useCallback(() => {
+    holdUntilRef.current = performance.now() + FOLLOW_HOLD_MS
+  }, [])
 
   const scrollToBottom = () => {
     const el = scrollRef.current
@@ -174,7 +184,21 @@ export default function MessageList({
     let lastHeight = inner.offsetHeight
     const ro = new ResizeObserver(() => {
       const h = inner.offsetHeight
-      if (h > lastHeight && atBottomRef.current) el.scrollTop = el.scrollHeight
+      if (h > lastHeight) {
+        const action = contentGrowthAction(performance.now(), holdUntilRef.current, atBottomRef.current)
+        if (action === 'hold') {
+          // 사용자가 펼쳐 늘어난 높이 — 바닥으로 따라가면 누른 줄이 밀린다. 대신 실제 위치로 "바닥 근처"를 다시 잰다.
+          holdUntilRef.current = 0
+          const near = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK_PX
+          if (near !== atBottomRef.current) {
+            atBottomRef.current = near
+            setAtBottom(near)
+            if (!near) setLeftAtLastId(lastIdRef.current)
+          }
+        } else if (action === 'follow') {
+          el.scrollTop = el.scrollHeight
+        }
+      }
       lastHeight = h
     })
     ro.observe(inner)
@@ -264,6 +288,7 @@ export default function MessageList({
   }
 
   return (
+    <FollowHoldContext.Provider value={holdFollow}>
     <div className="relative min-h-0 flex-1">
       <div
         ref={scrollRef}
@@ -307,5 +332,6 @@ export default function MessageList({
         </button>
       ) : null}
     </div>
+    </FollowHoldContext.Provider>
   )
 }

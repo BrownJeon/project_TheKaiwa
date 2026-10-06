@@ -1,0 +1,546 @@
+{
+ "version": 1,
+ "note": "task-039(IMP-0025) — 교정 설명이 일상회화 중심인지/JLPT 식인지 재는 합성 학습자 발화 60문장. 수준 N5·N4·N3 × 종류 DAILY(일상 표현 오류: 가게·길·인사·약속·친구 대화에서 흔한 실수) · EXAM(시험식 문형이 걸린 오류: ように/ことにする/ようになる/受身/ば/たら/つもり/すぎる/ながら/授受/はず/に違いない/ことになっている/せい·おかげ/によると 등) 각 10. 전부 오류 1건(정답 문장 없음 — 오탐은 talk-corrections.json 이 잰다). 실제 학습자 대화가 아니라 합성 입력이다. chat 세트는 id 끝자리 01~04 만 쓴다.",
+ "items": [
+  {
+   "id": "n5d01",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "ありがとうございますでした",
+   "expectedCorrected": "ありがとうございました",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5d02",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "コーヒーを二つをください",
+   "expectedCorrected": "コーヒーを二つください",
+   "errorType": "PARTICLE",
+   "hasError": true
+  },
+  {
+   "id": "n5d03",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "友だちと会うに行きます",
+   "expectedCorrected": "友だちに会いに行きます",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n5d04",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "すみません、駅はどこにありますです",
+   "expectedCorrected": "すみません、駅はどこにありますか",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n5d05",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "昨日、スーパーで野菜が買いました",
+   "expectedCorrected": "昨日、スーパーで野菜を買いました",
+   "errorType": "PARTICLE",
+   "hasError": true
+  },
+  {
+   "id": "n5d06",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "電車で会社に行くます",
+   "expectedCorrected": "電車で会社に行きます",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5d07",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "今日は天気がいいくないです",
+   "expectedCorrected": "今日は天気がよくないです",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5d08",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "私は毎日七時を起きます",
+   "expectedCorrected": "私は毎日七時に起きます",
+   "errorType": "PARTICLE",
+   "hasError": true
+  },
+  {
+   "id": "n5d09",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "このラーメンはとてもおいしいだ",
+   "expectedCorrected": "このラーメンはとてもおいしいです",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n5d10",
+   "level": "N5",
+   "kind": "DAILY",
+   "input": "先生、トイレに行ってもいいです",
+   "expectedCorrected": "先生、トイレに行ってもいいですか",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n5x01",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "私は日本語が話すことができます",
+   "expectedCorrected": "私は日本語を話すことができます",
+   "errorType": "PARTICLE",
+   "hasError": true
+  },
+  {
+   "id": "n5x02",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "ここで写真を撮るはいけません",
+   "expectedCorrected": "ここで写真を撮ってはいけません",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5x03",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "ごはんを食べるまえで、手を洗います",
+   "expectedCorrected": "ごはんを食べる前に、手を洗います",
+   "errorType": "PARTICLE",
+   "hasError": true
+  },
+  {
+   "id": "n5x04",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "私は日本へ行くことがあります",
+   "expectedCorrected": "私は日本へ行ったことがあります",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n5x05",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "もう少しゆっくり話すください",
+   "expectedCorrected": "もう少しゆっくり話してください",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5x06",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "いっしょに映画を見るましょう",
+   "expectedCorrected": "いっしょに映画を見ましょう",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5x07",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "ここで走るないでください",
+   "expectedCorrected": "ここで走らないでください",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5x08",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "彼は今、新聞を読むています",
+   "expectedCorrected": "彼は今、新聞を読んでいます",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n5x09",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "時間がないだから、タクシーで行きました",
+   "expectedCorrected": "時間がないから、タクシーで行きました",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n5x10",
+   "level": "N5",
+   "kind": "EXAM",
+   "input": "私は日本で働くたいです",
+   "expectedCorrected": "私は日本で働きたいです",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4d01",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "すみません、ここに座るてもいいですか",
+   "expectedCorrected": "すみません、ここに座ってもいいですか",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4d02",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "電車が遅れたから、約束に遅れるしまいました",
+   "expectedCorrected": "電車が遅れたから、約束に遅れてしまいました",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4d03",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "友だちが日本語を教えてもらいました",
+   "expectedCorrected": "友だちに日本語を教えてもらいました",
+   "errorType": "PARTICLE",
+   "hasError": true
+  },
+  {
+   "id": "n4d04",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "昨日の夜は映画を見ながらご飯を食べました。とても楽しいでした",
+   "expectedCorrected": "昨日の夜は映画を見ながらご飯を食べました。とても楽しかったです",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4d05",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "先生、昨日の宿題はもう出したか",
+   "expectedCorrected": "先生、昨日の宿題はもう出しましたか",
+   "errorType": "POLITENESS",
+   "hasError": true
+  },
+  {
+   "id": "n4d06",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "新宿駅までの行き方を教えてくださいですか",
+   "expectedCorrected": "新宿駅までの行き方を教えてくださいませんか",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n4d07",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "このシャツを試着するもいいですか",
+   "expectedCorrected": "このシャツを試着してもいいですか",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4d08",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "週末は家族と公園でバーベキューを食べました",
+   "expectedCorrected": "週末は家族と公園でバーベキューをしました",
+   "errorType": "VOCABULARY",
+   "hasError": true
+  },
+  {
+   "id": "n4d09",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "私は日本の食べ物の中で、ラーメンが一番好きなです",
+   "expectedCorrected": "私は日本の食べ物の中で、ラーメンが一番好きです",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n4d10",
+   "level": "N4",
+   "kind": "DAILY",
+   "input": "財布を忘れたので、お金を貸せてくれませんか",
+   "expectedCorrected": "財布を忘れたので、お金を貸してくれませんか",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4x01",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "日本語が話せるために、毎日練習しています",
+   "expectedCorrected": "日本語が話せるように、毎日練習しています",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n4x02",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "毎朝ジョギングをするにしました",
+   "expectedCorrected": "毎朝ジョギングをすることにしました",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n4x03",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "日本語がだんだん話せるなりました",
+   "expectedCorrected": "日本語がだんだん話せるようになりました",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n4x04",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "先生に褒めさせました",
+   "expectedCorrected": "先生に褒められました",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n4x05",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "時間があるば、行きます",
+   "expectedCorrected": "時間があれば、行きます",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4x06",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "家に帰るたら、電話します",
+   "expectedCorrected": "家に帰ったら、電話します",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4x07",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "夏休みに京都へ行くのつもりです",
+   "expectedCorrected": "夏休みに京都へ行くつもりです",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n4x08",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "昨日は食べるすぎて、お腹が痛いです",
+   "expectedCorrected": "昨日は食べすぎて、お腹が痛いです",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4x09",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "歩くながらスマホを見ないでください",
+   "expectedCorrected": "歩きながらスマホを見ないでください",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n4x10",
+   "level": "N4",
+   "kind": "EXAM",
+   "input": "友だちが私に本をあげました",
+   "expectedCorrected": "友だちが私に本をくれました",
+   "errorType": "VOCABULARY",
+   "hasError": true
+  },
+  {
+   "id": "n3d01",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "すみません、今ちょっと忙しいなので、あとで電話します",
+   "expectedCorrected": "すみません、今ちょっと忙しいので、あとで電話します",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3d02",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "昨日は友だちとしゃべるすぎちゃった",
+   "expectedCorrected": "昨日は友だちとしゃべりすぎちゃった",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n3d03",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "遅れてしまってごめんなさいです",
+   "expectedCorrected": "遅れてしまってごめんなさい",
+   "errorType": "POLITENESS",
+   "hasError": true
+  },
+  {
+   "id": "n3d04",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "頭が痛いんですから、今日は休みます",
+   "expectedCorrected": "頭が痛いので、今日は休みます",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3d05",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "このお店、安くて美味しいくて人気がありますよ",
+   "expectedCorrected": "このお店、安くて美味しくて人気がありますよ",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n3d06",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "部長、今日の会議、何時から？",
+   "expectedCorrected": "部長、今日の会議は何時からですか",
+   "errorType": "POLITENESS",
+   "hasError": true
+  },
+  {
+   "id": "n3d07",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "週末はどこにも行かないで、家でごろごろするました",
+   "expectedCorrected": "週末はどこにも行かないで、家でごろごろしました",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n3d08",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "最近、仕事が忙しくて、友だちを会う時間がありません",
+   "expectedCorrected": "最近、仕事が忙しくて、友だちに会う時間がありません",
+   "errorType": "PARTICLE",
+   "hasError": true
+  },
+  {
+   "id": "n3d09",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "さっきまで会議に出ているたんです",
+   "expectedCorrected": "さっきまで会議に出ていたんです",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n3d10",
+   "level": "N3",
+   "kind": "DAILY",
+   "input": "この店のカレーは、辛いすぎて食べられませんでした",
+   "expectedCorrected": "この店のカレーは、辛すぎて食べられませんでした",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n3x01",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "約束したから、彼は来るはずがありますよ",
+   "expectedCorrected": "約束したから、彼は来るはずですよ",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3x02",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "ご飯を食べたばかりのに、もうお腹が空きました",
+   "expectedCorrected": "ご飯を食べたばかりなのに、もうお腹が空きました",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3x03",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "あの人はきっと先生に違いありますよ",
+   "expectedCorrected": "あの人はきっと先生に違いありませんよ",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3x04",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "毎日日本語で日記を書くようにしてあります",
+   "expectedCorrected": "毎日日本語で日記を書くようにしています",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3x05",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "田中さんは部長に残業されました",
+   "expectedCorrected": "田中さんは部長に残業させられました",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3x06",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "この会社では、毎朝ミーティングをするになっています",
+   "expectedCorrected": "この会社では、毎朝ミーティングをすることになっています",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  },
+  {
+   "id": "n3x07",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "電車が遅れたおかげで、約束に遅れました",
+   "expectedCorrected": "電車が遅れたせいで、約束に遅れました",
+   "errorType": "VOCABULARY",
+   "hasError": true
+  },
+  {
+   "id": "n3x08",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "日本語は勉強すればするほど、おもしろいなります",
+   "expectedCorrected": "日本語は勉強すればするほど、おもしろくなります",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n3x09",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "先生に聞いたところ、先生は知らないでした",
+   "expectedCorrected": "先生に聞いたところ、先生は知りませんでした",
+   "errorType": "CONJUGATION",
+   "hasError": true
+  },
+  {
+   "id": "n3x10",
+   "level": "N3",
+   "kind": "EXAM",
+   "input": "彼女の話によって、彼は来ないらしいです",
+   "expectedCorrected": "彼女の話によると、彼は来ないらしいです",
+   "errorType": "GRAMMAR",
+   "hasError": true
+  }
+ ]
+}

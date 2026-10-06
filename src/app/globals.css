@@ -189,3 +189,11 @@ body {
     transform: translateX(250%);
   }
 }
+
+/** 교정 카드 추가 설명 줄을 펼칠 때 160ms 페이드(task-039 데모 v1). reduced-motion 이면 없음(motion-safe 로만 붙인다). */
+@keyframes extra-note-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}

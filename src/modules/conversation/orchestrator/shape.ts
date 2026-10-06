@@ -8,13 +8,15 @@
  * - proposals: ADD_WORD 만, 같은 표현 중복 제거, 최대 2개.
  * - userTranslation(task-026): 모델 `userKo` 를 그대로 쓰지 않고 `sanitizeUserKo` 를 거친 값만(null = 번역 없음 → 화면 [다시 가져오기]).
  *   ASK 는 학습자 말 번역 대상이 아니다(null).
+ * - correction.extraNoteKo(task-039): 모델 값을 그대로 쓰지 않고 `sanitizeExtraNoteKo`(학습자 원문 `text` 포함)를 거친 값만(null = 추가 설명 줄 없음).
+ *   저장 행과 SSE `done.correction` 이 같은 값을 보도록 여기서 한 번만 정리한다.
  */
-import { sanitizeUserKo } from '../structuredResponse/checks'
+import { sanitizeExtraNoteKo, sanitizeUserKo } from '../structuredResponse/checks'
 import type { TutorCorrection, TutorProposalDraft, TutorResponse } from '../structuredResponse/schemas'
 
 export interface ShapedTurn {
   reply: TutorResponse['conversation']
-  correction: (Omit<TutorCorrection, 'original'> & { original: string }) | null
+  correction: (Omit<TutorCorrection, 'original' | 'extraNoteKo'> & { original: string; extraNoteKo: string | null }) | null
   warning: 'CORRECTION_ORIGINAL_MISMATCH' | null
   proposals: TutorProposalDraft[]
   learning: TutorResponse['learning']
@@ -30,7 +32,7 @@ export function shapeTurnResponse(kind: 'TALK' | 'CHAT' | 'ASK', text: string, d
   const c = data.correction
   if (kind === 'TALK' && c) {
     if (c.original !== text) warning = 'CORRECTION_ORIGINAL_MISMATCH'
-    else if (c.corrected !== c.original) correction = { ...c, original: text }
+    else if (c.corrected !== c.original) correction = { ...c, original: text, extraNoteKo: sanitizeExtraNoteKo(c.explanationKo, c.extraNoteKo, text) }
   }
   const seen = new Set<string>()
   const proposals: TutorProposalDraft[] = []

@@ -221,6 +221,8 @@ type SavedCorrection = {
   original: string
   corrected: string
   explanationKo: string
+  /** task-039 — JLPT·교과서식 추가 설명(`shape` 에서 `sanitizeExtraNoteKo` 를 거친 값, 저장 행과 같다). null = 줄 없음. */
+  extraNoteKo: string | null
   errorType: string
   severity: string
   chunkType: string | null
@@ -307,8 +309,9 @@ export async function saveTurnTx(
   let correction: SavedCorrection | null = null
   if (shaped.correction) {
     const c = shaped.correction
+    // extraNoteKo 는 생성 시에만 쓴다(수정 경로 없음 — original 불변과 같은 원칙). 값은 shape 에서 정리를 마친 것이다.
     const row = await tx.correction.create({
-      data: { userId, chatId: a.chatId, messageId: a.userMessage.id, original: c.original, corrected: c.corrected, explanation: c.explanationKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType },
+      data: { userId, chatId: a.chatId, messageId: a.userMessage.id, original: c.original, corrected: c.corrected, explanation: c.explanationKo, extraNoteKo: c.extraNoteKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType },
       select: { id: true },
     })
     const m = extras?.correction ?? null
@@ -319,7 +322,7 @@ export async function saveTurnTx(
     }
     await flushUserRow()
     correction = {
-      id: row.id, required: c.required, original: c.original, corrected: c.corrected, explanationKo: c.explanationKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType, status: 'PROPOSED',
+      id: row.id, required: c.required, original: c.original, corrected: c.corrected, explanationKo: c.explanationKo, extraNoteKo: c.extraNoteKo, errorType: c.errorType, severity: c.severity, chunkType: c.chunkType, status: 'PROPOSED',
       deliver: m?.deliver ?? 'NOW', hintKo: m?.hintKo ?? null, selfCheck: null,
     }
     if (observe.recordCorrectionProposed) {

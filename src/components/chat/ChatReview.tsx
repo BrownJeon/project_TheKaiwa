@@ -25,7 +25,6 @@ import type {
   JobDto,
   Paged,
   ProposalDto,
-  ReviewItemDto,
   ReviewJobResponse,
   ReviewSyncResponse,
   StudyLogPayload,
@@ -34,6 +33,7 @@ import AcceptCorrectionSheet from './AcceptCorrectionSheet'
 import CorrectionCard from './CorrectionCard'
 import { toErr } from '@/components/common/errors'
 import { actionErrorText } from './labels'
+import { correctionFromReviewItem } from './messages'
 import ProposalCard from './ProposalCard'
 import { ReviewIntro, ReviewProgress, ReviewSummary, type ReviewSummaryData } from './ReviewParts'
 import { KEYS } from './storageKeys'
@@ -55,21 +55,6 @@ const WAIT_NETWORK_MS = 120_000
 const MAX_CORRECTION_PAGES = 3
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
-
-function normalizeItem(it: ReviewItemDto): CorrectionDto {
-  return {
-    id: it.correctionId,
-    messageId: it.messageId,
-    status: it.status,
-    original: it.original,
-    corrected: it.corrected,
-    explanation: it.explanation ?? it.explanationKo ?? '',
-    errorType: it.errorType,
-    severity: it.severity,
-    chunkType: it.chunkType ?? null,
-    savedWordId: null,
-  }
-}
 
 function summaryFromPayload(p: ProposalDto | null): ReviewSummaryData | null {
   if (!p) return null
@@ -349,7 +334,7 @@ export default function ChatReview({ chatId }: { chatId: string }) {
         focus: sync.focus ?? null,
         skippedMessages: sync.skippedMessages ?? null,
       })
-      showResult((sync.items ?? []).map(normalizeItem))
+      showResult((sync.items ?? []).map(correctionFromReviewItem))
       const sl = await fetchStudyLog()
       if (alive.current) setStudyLog(sl)
     } catch (e) {

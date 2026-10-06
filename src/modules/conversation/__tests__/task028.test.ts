@@ -81,16 +81,17 @@ test('buildTalkRequest.extraCheck: 픽스처 bad replyKo 는 TALK 응답 전체 
 
 // ── ③ explanationKo 수준별 쉬운 한국어 ────────────────────────────────
 
-test('지시문: explanationKo — N5·N4 는 "문법 용어는 쓰지 않습니다" 지시가 붙고, N3 이상은 붙지 않는다', () => {
+test('지시문: explanationKo — N5·N4 는 "쉬운 말로." 가 붙고, N3 이상은 붙지 않는다(task-039: 문법 용어·급수·문형 이름 금지는 이제 전 수준 공통 — talk@v9)', () => {
   for (const level of ['N5', 'N4']) {
     const instr = talkInstruction('FLUENCY', 2, level)
-    assert.ok(instr.includes('문법 용어는 쓰지 않습니다'), `level=${level}: 쉬운 말 지시가 있어야 한다`)
-    assert.ok(instr.includes('쉬운 말로'))
+    assert.ok(instr.includes('쉬운 말로.'), `level=${level}: 쉬운 말 지시가 있어야 한다`)
   }
   for (const level of ['N3', 'N2', 'N1']) {
     const instr = talkInstruction('FLUENCY', 2, level)
-    assert.ok(!instr.includes('문법 용어는 쓰지 않습니다'), `level=${level}: 쉬운 말 지시가 없어야 한다`)
+    assert.ok(!instr.includes('쉬운 말로.'), `level=${level}: 쉬운 말 지시가 없어야 한다`)
   }
+  // task-039(talk@v9) — 문법 용어(て형 등)·급수·문형 이름은 메인 설명에서 전 수준이 쓰지 않는다(JLPT 식은 correction.extraNoteKo 로). 옛(v8 이하) N5·N4 만의 "문법 용어는 쓰지 않습니다" 문장은 이 공통 지시로 대체됐다.
+  for (const level of ['N5', 'N4', 'N3', 'N2', 'N1']) assert.ok(talkInstruction('FLUENCY', 2, level).includes('문법 용어(て형 등)·급수·문형 이름은 쓰지 않습니다'), `level=${level}`)
   // 레벨을 생략하면 기본값 N5(쉬운 말 지시 있음) — 호환을 위해 보수적으로 쉬운 쪽을 기본으로 한다.
   assert.equal(talkInstruction('FLUENCY', 2), talkInstruction('FLUENCY', 2, 'N5'))
 })
@@ -107,8 +108,8 @@ test('지시문: explanationKo — 일본어 인용은 고친 조각만(레벨�
 test('buildTalkRequest: 학습자 level 이 explanationKo 지시에 그대로 치환된다(헤더의 level 과 같은 값, 새 설정 없음)', () => {
   const n5 = buildTalkRequest({ todayKst: '2026-10-03', learner: { ...learner, level: 'N5' }, history: [], text: 'おはよう' })
   const n1 = buildTalkRequest({ todayKst: '2026-10-03', learner: { ...learner, level: 'N1' }, history: [], text: 'おはよう' })
-  assert.ok(n5.system.includes('문법 용어는 쓰지 않습니다'))
-  assert.ok(!n1.system.includes('문법 용어는 쓰지 않습니다'))
+  assert.ok(n5.system.includes('쉬운 말로.'))
+  assert.ok(!n1.system.includes('쉬운 말로.'))
 })
 
 // ── ④ 예산·불변식 회귀 ─────────────────────────────────────────────────
