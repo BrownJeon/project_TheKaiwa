@@ -55,6 +55,8 @@ export interface TodayLessonItem {
   titleKo: string | null
   stageDone: number
   topic: { id: string; title: string } | null
+  /** 상황 수업(task-010d A2)이면 그 상황 id — additive(옛 응답에는 없다). */
+  scenarioId?: string | null
   score: number | null
   jobId: string | null
   speaking?: { used: number; total: number } | null
@@ -201,6 +203,8 @@ export interface LessonDto {
   score: number | null
   source: 'TOPIC' | 'TEXT'
   topic: { id: string; title: string } | null
+  /** 상황 수업(task-010d A2 — #59 `{scenarioId}`)이면 그 상황 id, 아니면 null — additive(옛 응답에는 없다). 수업 종료 카드 `le-scenario-lesson` 이 읽는다. */
+  scenarioId?: string | null
   content: LessonContent | null
   jobId: string | null
   error: string | null

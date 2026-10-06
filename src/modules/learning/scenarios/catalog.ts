@@ -25,7 +25,7 @@ import {
   type ScenarioTopicRef,
 } from '@/types/scenario'
 import { readScenarioExpressions, scenarioChunkIds, scenarioRequiredExpressions, type ScenarioChunkRef, type ScenarioExpression } from './expressions'
-import { SCENARIO_REPETITION_REF_TYPE, scenarioEndLookupSince } from './end'
+import { endedScenarioRolePlayChatIds, SCENARIO_REPETITION_REF_TYPE, scenarioEndLookupSince } from './end'
 import { recommendScenarios, type RecommendCandidate } from './recommend'
 import {
   assignExpressionIds,
@@ -224,15 +224,11 @@ async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, o
   if (opts.openChats) {
     // 생성 시각을 모르는 후보는 끝냈는지 범위로 확인할 수 없어 뺀다(진행 중으로 잘못 보이는 것보다 새로 시작하게 하는 쪽이 안전).
     const open = (await opts.openChats(userId, ids)).filter((c) => ids.includes(c.scenarioId) && isScenarioId(c.chatId) && scenarioEndLookupSince(c.createdAt) !== null)
-    const since = open.length ? scenarioEndLookupSince(new Date(Math.min(...open.map((c) => c.createdAt.getTime())))) : null
-    const ended =
-      open.length && since
-        ? new Set(
-            (await db.learningObservation.findMany({ where: { userId, occurredAt: { gte: since }, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: { in: open.map((c) => c.chatId) } }, select: { refId: true } })).map(
-              (o) => o.refId,
-            ),
-          )
-        : new Set<string>()
+    const ended = await endedScenarioRolePlayChatIds(
+      userId,
+      open.map((c) => ({ id: c.chatId, createdAt: c.createdAt })),
+      db,
+    )
     const latest = new Map<string, { chatId: string; at: Date }>()
     for (const c of open) {
       if (ended.has(c.chatId)) continue

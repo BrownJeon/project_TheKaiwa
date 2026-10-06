@@ -16,6 +16,7 @@ import { ApiError, classifyError, lockUserRow, prisma, truncateCodePoints, withT
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceRecord, type TraceStep } from '@/modules/engine'
 import {
   detectScenarioExpressions,
+  endedScenarioRolePlayChatIds,
   endScenarioRolePlay,
   isScenarioRolePlayEnded,
   readScenarioRolePlayMaterial,
@@ -518,9 +519,35 @@ export async function finishRolePlay(userId: string, chatId: string, deps: RoleP
   } finally {
     // 판정을 부른 종료만 Trace 를 남긴다(재생·거절은 LLM 0 — 행만 늘리지 않게).
     if (steps.some((s) => s.name === 'SCENARIO_VERDICT')) {
-      await deps.trace({ traceId, kind: 'TURN', userId, status, steps, totalMs: Date.now() - started, errorCode, refType: 'scenarioFinish', refId: chatId }).catch(() => undefined)
+      // 응답을 Trace insert 에 묶지 않는다(REV-140 L-7 — 다른 LLM 흐름과 같이 기다리지 않음).
+      void deps.trace({ traceId, kind: 'TURN', userId, status, steps, totalMs: Date.now() - started, errorCode, refType: 'scenarioFinish', refId: chatId }).catch(() => undefined)
     }
   }
+}
+
+// ── #27 목록 행의 역할극 칸(D-5 뱃지) ─────────────────────────────────────────────
+
+/** 목록 행의 역할극 칸 `scenario?: {id, ended}`(additive). 일반 대화 행은 칸 없음. */
+export interface RolePlayListBadge {
+  id: string
+  ended: boolean
+}
+
+export type EndedRolePlayLookup = (userId: string, chats: { id: string; createdAt: Date }[]) => Promise<Set<string>>
+
+/**
+ * #27 한 쪽(≤ limit 행)의 역할극 칸 — 역할극 행(TALK·`scenarioId` 있음)만 모아 끝낸 표식을 **한 번의 배치 조회**로 확인한다
+ * (learning `endedScenarioRolePlayChatIds` — 창 하한 = 그 행들의 `Chat.createdAt` 최솟값 − 여유). 역할극 행이 없으면 조회 0. 행마다 조회하지 않는다.
+ */
+export async function rolePlayListBadges(
+  userId: string,
+  rows: readonly { id: string; kind: ChatKind; scenarioId: string | null; createdAt: Date }[],
+  endedChats: EndedRolePlayLookup = (u, chats) => endedScenarioRolePlayChatIds(u, chats),
+): Promise<Map<string, RolePlayListBadge>> {
+  const rp = rows.filter((r): r is typeof r & { scenarioId: string } => r.kind === 'TALK' && !!r.scenarioId)
+  if (!rp.length) return new Map()
+  const ended = await endedChats(userId, rp.map((r) => ({ id: r.id, createdAt: r.createdAt })))
+  return new Map(rp.map((r) => [r.id, { id: r.scenarioId, ended: ended.has(r.id) }]))
 }
 
 // ── 진행 중 칸(#161·#162 `inProgressChatId`) ────────────────────────────────────
@@ -529,17 +556,27 @@ export async function finishRolePlay(userId: string, chatId: string, deps: RoleP
 export const OPEN_ROLE_PLAY_PER_SCENARIO = 3
 /** 후보 전체 상한(사용자 TALK 대화를 `lastMessageAt` 인덱스 순으로 읽다 이만큼 차면 멈춘다). */
 export const OPEN_ROLE_PLAY_MAX = 300
+/**
+ * 이보다 오래 말이 없던 역할극은 "이어 하기" 후보로 보지 않는다(REV-140 L-4) — 방치한 옛 대화 하나가 카탈로그의 끝낸 표식 조회 창(가장 오래된 후보 생성 − 여유)을
+ * 몇 달로 늘리지 않게. 대화 자체는 #27 목록에 그대로 있고, 이 상황을 다시 고르면 새 역할극이 열린다.
+ */
+export const OPEN_ROLE_PLAY_MAX_AGE_DAYS = 30
 
 /**
  * 진행 중 역할극 후보 — 상황마다 최근 TALK 대화 ≤3개(`lastMessageAt` 내림차순). `Chat(userId, kind, lastMessageAt)` 인덱스 순서로 읽고 `scenarioId in (…)` 로 거른다.
  * 라우트가 `listScenarios(…, { openChats: listOpenRolePlayChats })` 로 넘긴다(learning 은 Chat 을 읽지 않는다 — 6층).
  * 읽는 행 수는 `OPEN_ROLE_PLAY_MAX` 고정이다 — `상황 수 × 3` 으로 자르면 자주 한 상황의 최근 대화가 창을 다 채워 다른 상황의 진행 중 대화가 빠진다(상황마다 ≤3 은 아래에서 센다).
  */
-export async function listOpenRolePlayChats(userId: string, scenarioIds: string[], db: Pick<Tx, 'chat'> = prisma): Promise<{ scenarioId: string; chatId: string; at: Date; createdAt: Date }[]> {
+export async function listOpenRolePlayChats(
+  userId: string,
+  scenarioIds: string[],
+  db: Pick<Tx, 'chat'> = prisma,
+  now: Date = new Date(),
+): Promise<{ scenarioId: string; chatId: string; at: Date; createdAt: Date }[]> {
   const ids = [...new Set(scenarioIds.filter(validChatId))]
   if (!ids.length) return []
   const rows = await db.chat.findMany({
-    where: { userId, kind: 'TALK', scenarioId: { in: ids } },
+    where: { userId, kind: 'TALK', scenarioId: { in: ids }, lastMessageAt: { gte: new Date(now.getTime() - OPEN_ROLE_PLAY_MAX_AGE_DAYS * 86_400_000) } },
     orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
     take: OPEN_ROLE_PLAY_MAX,
     select: { id: true, scenarioId: true, lastMessageAt: true, createdAt: true },

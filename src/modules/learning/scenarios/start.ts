@@ -152,6 +152,19 @@ export interface ScenarioMaterialDb {
   }
 }
 
+/**
+ * AI 상황 초안(#166)의 장소(주제) — 시드(`userId null`) 또는 본인 주제만(#163 `visibleTopicIds` 와 같은 조건), 아니면 null(라우트가 400 `not_found`).
+ * 초안 모듈은 받은 id 를 검증 없이 `topicIds` 로 되돌려 주므로 권한 확인은 여기 한 곳이다(task-010d A3b-2). 읽기 전용·쿼리 1.
+ */
+export async function readScenarioDraftTopic(
+  userId: string,
+  topicId: string,
+  db: { conversationTopic: { findFirst(args: { where: { id: string; OR: ({ userId: null } | { userId: string })[] }; select: { id: true; title: true; titleJa: true } }): Promise<{ id: string; title: string; titleJa: string | null } | null> } } = prisma as never,
+): Promise<{ id: string; title: string; titleJa: string | null } | null> {
+  if (!validId(topicId)) return null
+  return db.conversationTopic.findFirst({ where: { id: topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, titleJa: true } })
+}
+
 export async function readScenarioRolePlayMaterial(userId: string, scenarioId: string, db: ScenarioMaterialDb = prisma as unknown as ScenarioMaterialDb): Promise<ScenarioRolePlayMaterial | null> {
   if (!validId(scenarioId)) return null
   const r = await db.scenario.findFirst({ where: scenarioAccessWhere(userId, scenarioId), select: MATERIAL_SELECT })

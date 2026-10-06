@@ -32,6 +32,9 @@ export { buildTopicWordsRequest, assembleTopicWords, classifyTopicWordsResult, t
 export type { TopicWordsInput, TopicWordsTopicInput, TopicWordsRequest, TopicWordsResponse, TopicWordItem, TopicWord, TopicWordsAssembled, TopicWordsAssembleContext, TopicWordsOutcome, TopicWordDropReason } from './prompts/topicWords'
 export { buildLessonRequest, LESSON_PROMPT_VERSION, LessonInputError } from './prompts/lesson'
 export type { LessonInput, LessonTopicInput, LessonTopicChunkInput, LessonAcceptedCorrection, LessonPreviousPreview, LessonRequest } from './prompts/lesson'
+// task-010d PE-2b 수업 A2 `[상황]` 블록(상황 수업 — 라우트 연결은 A2 developer)
+export { lessonPromptVersion, LESSON_SCENARIO_PROMPT_VERSION } from './prompts/lesson'
+export type { LessonScenarioInput } from './prompts/lesson'
 
 // ── task-010b: A11 복습 판단 · A5 복습 혼합 ──
 export * from './structuredResponse/reviewSchemas'
@@ -67,6 +70,18 @@ export type { RolePlayChatDto, RolePlayChatInput, RolePlayEndFacts, RolePlayChat
 export { buildScenarioVerdictRequest, finalizeScenarioVerdictFor, ScenarioVerdictInputError, SCENARIO_VERDICT_TASK, SCENARIO_VERDICT_PROMPT_VERSION } from './prompts/scenarioVerdict'
 export type { ScenarioVerdictInput, ScenarioVerdictTurn } from './prompts/scenarioVerdict'
 export { scenarioPromptParts } from './prompts/scenarioInput'
+// task-010d PE-2b — AI 상황 초안(#166 scenarioDraft@v1)·대답 연습(#169 replyPractice@v1) + A3b-2 실행 서비스
+export { buildScenarioDraftRequest, finalizeScenarioDraft, ScenarioDraftInputError, SCENARIO_DRAFT_TASK, SCENARIO_DRAFT_PROMPT_VERSION } from './prompts/scenarioDraft'
+export type { ScenarioDraftInput } from './prompts/scenarioDraft'
+export type { ScenarioDraftResponse, ScenarioDraftFinal } from './structuredResponse/scenarioDraft'
+export { buildReplyPracticeRequest, finalizeReplyPracticeResponse, ReplyPracticeInputError, REPLY_PRACTICE_TASK, REPLY_PRACTICE_PROMPT_VERSION } from './prompts/replyPractice'
+export type { ReplyPracticeInput } from './prompts/replyPractice'
+export { checkReplyPracticeShape, dropChoiceSet } from './structuredResponse/replyPractice'
+export type { ReplyPracticeModel, ReplyPracticeSuggestion } from './structuredResponse/replyPractice'
+export { draftScenario, parseScenarioDraftBody, SCENARIO_DRAFT_DESCRIPTION_MIN } from './chats/scenarioDraft'
+export type { ScenarioDraftResult, ScenarioDraftBody } from './chats/scenarioDraft'
+export { suggestReply, parseReplyPracticeBody, REPLY_PRACTICE_WINDOW } from './chats/replyPractice'
+export type { ReplyPracticeResult } from './chats/replyPractice'
 export type { UserTranslationResult } from './chats/translation'
 export { startTurn, prewarmTalkTurn } from './orchestrator'
 export type { TurnHandle, TurnAccepted, TurnHooks, SelfCorrectionRecord, CorrectionProposedRecord } from './orchestrator'

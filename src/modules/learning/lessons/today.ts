@@ -33,6 +33,8 @@ export interface TodayLessonItem {
   titleKo: string | null
   stageDone: number
   topic: { id: string; title: string } | null
+  /** 상황 수업(task-010d A2)이면 그 상황 id, 아니면 null. */
+  scenarioId: string | null
   score: number | null
   jobId: string | null
   /** 말하기에서 쓴 표현 수·판정 가능한 목표 수(§12-11 ① — 홈 완료 카드). 본문이 없으면 null. */
@@ -55,7 +57,7 @@ export interface TodayLessonsDto extends TodayReviewState {
 }
 
 const ITEM_SELECT = {
-  id: true, kind: true, status: true, title: true, stageDone: true, score: true, content: true, progress: true, date: true,
+  id: true, kind: true, status: true, title: true, stageDone: true, score: true, content: true, progress: true, date: true, scenarioId: true,
   topic: { select: { id: true, title: true } },
 } as const
 
@@ -153,6 +155,7 @@ export async function getTodayLessons<T = unknown>(userId: string, opts: { revie
       titleKo: content?.titleKo ?? null,
       stageDone: r.stageDone,
       topic: r.topic ? { id: r.topic.id, title: r.topic.title } : null,
+      scenarioId: r.scenarioId ?? null,
       score: r.score,
       jobId,
       speaking: expr ? { used: expr.usedIds.length, total: expr.usedIds.length + expr.missedIds.length } : null,

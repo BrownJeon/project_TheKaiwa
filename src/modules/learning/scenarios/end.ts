@@ -13,7 +13,7 @@
 import type { ObservationOutcome, Prisma } from '@prisma/client'
 import { ApiError, dates, lockUserRow, prisma, truncateCodePoints, type Tx } from '@/modules/infra'
 import { registerRepetitionItems } from '../repetition'
-import { recordObservations } from '../observations'
+import { observationDailyDelta, observationRow } from '../observations'
 import { bumpDailySnapshot } from '../snapshots'
 import { recordStudyLog } from '../studyLog'
 import {
@@ -36,9 +36,11 @@ export const SCENARIO_DURATION_MAX_SEC = 3 * 3600
 /**
  * 끝낸 표식(관측) 조회 하한의 여유. `LearningObservation` 인덱스가 `(userId, occurredAt)` 뿐이라(종류·참조 칸 인덱스는 스키마 변경 — DB 승인 필요, 보류)
  * 시간 하한 없이 `refType·refId` 로 찾으면 그 사용자 관측 전체를 훑는다(REV-134 M-2). 표식은 대화가 생긴 뒤에만 생기므로 `occurredAt >= Chat.createdAt`
- * 으로 범위를 좁힌다. `Chat.createdAt` 은 앱 시계, `occurredAt` 은 DB 기본값일 수 있어 시계·시간대 차이를 하루 여유로 덮는다(비용 = 그 하루치 행).
+ * 으로 범위를 좁힌다. 표식의 `occurredAt` 은 기록 때 앱 시계(`opts.now`)로 **명시해 쓴다** — `Chat.createdAt` 과 같은 시계라 시계 *차이* 위험은 없고(A3b-2),
+ * 남는 위험(앱 호스트 시계 되돌림·두 호스트 blue/green 의 시계 어긋남)을 7일 여유로 덮는다(REV-140 Codex C2 — 비용 = 그 7일치 관측 행을 더 훑음).
+ * 시계와 무관한 근본 해결은 `Chat.endedAt` 칼럼(DB 승인 대기).
  */
-export const SCENARIO_END_LOOKUP_MARGIN_MS = 86_400_000
+export const SCENARIO_END_LOOKUP_MARGIN_MS = 7 * 86_400_000
 
 /** 대화 생성 시각 → 끝낸 표식 조회 하한. 시각이 올바르지 않으면 null(하한 없음 — 느리지만 결과는 맞다). */
 export function scenarioEndLookupSince(chatCreatedAt: Date | null | undefined): Date | null {
@@ -48,6 +50,25 @@ export function scenarioEndLookupSince(chatCreatedAt: Date | null | undefined): 
 const endedWhere = (userId: string, chatId: string, chatCreatedAt: Date | null | undefined) => {
   const since = scenarioEndLookupSince(chatCreatedAt)
   return { userId, ...(since ? { occurredAt: { gte: since } } : {}), kind: 'SCENARIO_COMPLETED' as const, refType: 'Chat', refId: chatId }
+}
+
+/**
+ * 여러 역할극 대화 중 끝낸 대화 id(#27 목록 뱃지·#161 진행 중 칸) — **한 번의 조회**. 창 하한 = 그 대화들의 생성 시각 최솟값 − 여유(`scenarioEndLookupSince`).
+ * 생성 시각이 올바르지 않은 대화는 범위로 확인할 수 없어 빼고 본다(끝낸 것으로 세지 않음 — 호출자가 처리). 읽기 전용.
+ */
+export async function endedScenarioRolePlayChatIds(
+  userId: string,
+  chats: readonly { id: string; createdAt: Date }[],
+  db: Pick<Tx, 'learningObservation'> = prisma,
+): Promise<Set<string>> {
+  const ok = chats.filter((c) => validId(c.id) && scenarioEndLookupSince(c.createdAt) !== null)
+  if (!ok.length) return new Set()
+  const since = scenarioEndLookupSince(new Date(Math.min(...ok.map((c) => c.createdAt.getTime()))))!
+  const rows = await db.learningObservation.findMany({
+    where: { userId, occurredAt: { gte: since }, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: { in: [...new Set(ok.map((c) => c.id))] } },
+    select: { refId: true },
+  })
+  return new Set(rows.map((r) => r.refId))
 }
 
 export interface ScenarioEndInput {
@@ -218,37 +239,37 @@ export async function endScenarioRolePlay(userId: string, input: ScenarioEndInpu
     tx,
   )
   await bumpDailySnapshot(userId, today, { talkTurns: turns, corrections: { proposed: corrections.proposed }, repetition: { studied: rep ? 1 : 0 } }, tx)
-  await recordObservations(
-    userId,
-    [
-      {
-        kind: 'SCENARIO_COMPLETED',
-        outcome: OUTCOME_OBS[j.outcome],
-        refType: 'Chat',
-        refId: input.chatId,
-        scenarioId: scenario.id,
-        confidence: j.judged ? 1 : SCENARIO_UNJUDGED_CONFIDENCE,
-        meta: {
-          outcome: j.outcome,
-          goal: j.goalAchieved,
-          tutor: j.tutorGoalAchieved,
-          rule: j.codeRulePassed,
-          comm: j.communicationSuccess,
-          judged: j.judged,
-          used: j.usedIds.length,
-          req: j.required,
-          total: j.total,
-          turns,
-          hints: hintsUsed,
-          self: selfCorrections,
-          logId: log.id,
-          repId: rep?.id ?? null,
-        },
+  // 끝낸 표식 — `occurredAt` 을 앱 시계(`now`)로 명시한다(위 여유 주석·REV-140 L-2: 첫 응답 `endedAt`(=now)과 이후 #29·재종료가 읽는 저장 값이 같다).
+  // recordObservations 와 같은 두 걸음(createMany + DAILY observations)을 시각 칸 하나만 더해 여기서 한다.
+  const endObservation = {
+    ...observationRow(userId, {
+      kind: 'SCENARIO_COMPLETED',
+      outcome: OUTCOME_OBS[j.outcome],
+      refType: 'Chat',
+      refId: input.chatId,
+      scenarioId: scenario.id,
+      confidence: j.judged ? 1 : SCENARIO_UNJUDGED_CONFIDENCE,
+      meta: {
+        outcome: j.outcome,
+        goal: j.goalAchieved,
+        tutor: j.tutorGoalAchieved,
+        rule: j.codeRulePassed,
+        comm: j.communicationSuccess,
+        judged: j.judged,
+        used: j.usedIds.length,
+        req: j.required,
+        total: j.total,
+        turns,
+        hints: hintsUsed,
+        self: selfCorrections,
+        logId: log.id,
+        repId: rep?.id ?? null,
       },
-    ],
-    tx,
-    { date: today },
-  )
+    }),
+    occurredAt: now,
+  }
+  await tx.learningObservation.createMany({ data: [endObservation] })
+  await bumpDailySnapshot(userId, today, { observations: observationDailyDelta([endObservation]) }, tx)
   return {
     replayed: false,
     chatId: input.chatId,

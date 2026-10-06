@@ -18,6 +18,7 @@ import { Prisma, type JlptLevel, type LessonStatus } from '@prisma/client'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type TraceStep } from '@/modules/engine'
 import { ApiError, classifyError, dates, jobs, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
+import { readScenarioRolePlayMaterial, resolveScenarioChatStart, scenarioNotFound, type ScenarioChatStart, type ScenarioChatStartInput, type ScenarioRolePlayMaterial } from '../scenarios/start'
 import { getTopicForLesson, type LessonTopicMaterial } from '../topics'
 import { readStoredContent, toStoredContent, type LessonGenOutput } from './content'
 import type { CreateLessonInput } from './validate'
@@ -26,42 +27,84 @@ export const LESSON_PREVIOUS_TITLES_MAX = 5
 
 export interface LessonMaterials {
   input: CreateLessonInput
+  /** 주제 수업의 주제 · 상황 수업의 대표 주제(없으면 null). `Lesson.topicId` 가 된다. */
   topic: LessonTopicMaterial | null
-  /** 레슨 수준 — 주제 수준, 붙여넣기면 학습자 수준. */
+  /** 상황 수업(task-010d A2) 재료 — 라우트가 conversation `scenarioPromptParts` 로 A4 `[상황]` 입력을 만든다. 그 밖 수업은 null. */
+  scenario: ScenarioRolePlayMaterial | null
+  /** 레슨 수준 — 주제 수준(상황 수업도 대표 주제가 있으면 주제 수준), 주제 없는 상황 수업은 상황 수준, 붙여넣기면 학습자 수준. */
   level: JlptLevel
-  /** 같은 주제의 이전 수업 제목(최근 것부터 ≤5, L6). */
+  /** 같은 주제의 이전 수업 제목(최근 것부터 ≤5, L6). 주제 없는 상황 수업은 같은 상황의 이전 수업. */
   previousTitles: string[]
   /** 같은 주제 직전 완료 수업의 예고(L6). */
   previousNextPreview: { titleKo: string; teaserKo: string } | null
+}
+
+type LessonHistory = Pick<LessonMaterials, 'previousTitles' | 'previousNextPreview'>
+type LessonHistoryKey = { topicId: string } | { scenarioId: string }
+
+async function loadLessonHistory(userId: string, key: LessonHistoryKey): Promise<LessonHistory> {
+  const prev = await prisma.lesson.findMany({
+    where: { userId, ...key, status: { in: ['READY', 'IN_PROGRESS', 'DONE'] } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: LESSON_PREVIOUS_TITLES_MAX,
+    select: { title: true },
+  })
+  const lastDone = await prisma.lesson.findFirst({
+    where: { userId, ...key, status: 'DONE' },
+    orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
+    select: { content: true },
+  })
+  const np = readStoredContent(lastDone?.content)?.nextPreview ?? null
+  return {
+    previousTitles: prev.map((p) => p.title),
+    previousNextPreview: np && typeof np.titleKo === 'string' && typeof np.teaserKo === 'string' ? { titleKo: np.titleKo, teaserKo: np.teaserKo } : null,
+  }
+}
+
+/** 상황 수업 재료 읽기의 바깥 의존 — 시험이 가짜를 넣는다(기본 = 실제 DB 읽기). */
+export interface ScenarioLessonDeps {
+  start: (userId: string, input: ScenarioChatStartInput) => Promise<ScenarioChatStart>
+  material: (userId: string, scenarioId: string) => Promise<ScenarioRolePlayMaterial | null>
+  topic: (userId: string, topicId: string) => Promise<LessonTopicMaterial | null>
+  history: (userId: string, key: LessonHistoryKey) => Promise<LessonHistory>
+}
+
+const SCENARIO_LESSON_DEPS: ScenarioLessonDeps = {
+  start: (userId, input) => resolveScenarioChatStart(userId, input),
+  material: (userId, scenarioId) => readScenarioRolePlayMaterial(userId, scenarioId),
+  topic: getTopicForLesson,
+  history: loadLessonHistory,
+}
+
+/**
+ * 상황 수업 재료(#59 `{scenarioId, topicId?}`). 접근·상태·주제 규칙은 역할극 대화 시작(#28)과 **같은 함수**(`resolveScenarioChatStart`)로 판정한다 —
+ * 시드(`userId null`+`isSeed`) 또는 본인 상황만(아니면 404), 숨긴(`ARCHIVED`) 상황은 새 수업도 409 `ARCHIVED`, 요청 `topicId` 는 그 상황과 이어진 주제여야
+ * 한다(아니면 400 `not_linked`). **대표 주제**(`Lesson.topicId`) = 요청 주제, 없으면 이어진 주제 중 `weight` 가 가장 큰 것(같으면 topicId 오름차순 첫 번째 —
+ * 역할극 대화의 기본 주제와 같은 순서), 이어진 주제가 없으면 null(상황 단독 수업 — 챌린지 주제 수업으로 세지 않는다).
+ */
+export async function loadScenarioLessonMaterials(
+  userId: string,
+  input: Extract<CreateLessonInput, { kind: 'scenario' }>,
+  deps: ScenarioLessonDeps = SCENARIO_LESSON_DEPS,
+): Promise<LessonMaterials> {
+  const start = await deps.start(userId, { scenarioId: input.scenarioId, lessonId: null, topicId: input.topicId })
+  const scenario = await deps.material(userId, start.scenario.id)
+  if (!scenario) throw scenarioNotFound()
+  const topic = start.topic ? await deps.topic(userId, start.topic.id) : null
+  const history = await deps.history(userId, topic ? { topicId: topic.id } : { scenarioId: scenario.id })
+  return { input, topic, scenario, level: topic ? topic.level : scenario.level, ...history }
 }
 
 /** #59 재료 — 주제는 시드 또는 내 것(아니면 404). 읽기 전용(점유 전). */
 export async function loadLessonMaterials(userId: string, input: CreateLessonInput): Promise<LessonMaterials> {
   if (input.kind === 'text') {
     const profile = await getProfile(userId)
-    return { input, topic: null, level: profile.level as JlptLevel, previousTitles: [], previousNextPreview: null }
+    return { input, topic: null, scenario: null, level: profile.level as JlptLevel, previousTitles: [], previousNextPreview: null }
   }
+  if (input.kind === 'scenario') return loadScenarioLessonMaterials(userId, input)
   const topic = await getTopicForLesson(userId, input.topicId)
   if (!topic) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
-  const prev = await prisma.lesson.findMany({
-    where: { userId, topicId: topic.id, status: { in: ['READY', 'IN_PROGRESS', 'DONE'] } },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: LESSON_PREVIOUS_TITLES_MAX,
-    select: { title: true },
-  })
-  const lastDone = await prisma.lesson.findFirst({
-    where: { userId, topicId: topic.id, status: 'DONE' },
-    orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
-    select: { content: true },
-  })
-  const np = readStoredContent(lastDone?.content)?.nextPreview ?? null
-  return {
-    input,
-    topic,
-    level: topic.level,
-    previousTitles: prev.map((p) => p.title),
-    previousNextPreview: np && typeof np.titleKo === 'string' && typeof np.teaserKo === 'string' ? { titleKo: np.titleKo, teaserKo: np.teaserKo } : null,
-  }
+  return { input, topic, scenario: null, level: topic.level, ...(await loadLessonHistory(userId, { topicId: topic.id })) }
 }
 
 export interface CreateLessonResult {
@@ -92,55 +135,80 @@ export interface LessonGenClaim {
 export type LessonGenKind = 'LESSON_GEN' | 'REVIEW_GEN'
 type Claim = LessonGenClaim
 
+/**
+ * 오늘 "같은 수업"(재사용·되살리기 후보)을 찾는 조건 — 키 = (사용자, 주제, **상황**, 오늘, NEW). 상황을 키에 넣지 않으면 같은 날 같은 주제의 일반 수업과
+ * 상황 수업(또는 서로 다른 상황 수업)이 서로를 재사용한다(task-010d A2). 일반 수업은 `scenarioId IS NULL`, 주제 없는 상황 수업은 `topicId IS NULL`.
+ * 붙여넣기 수업(주제·상황 없음)은 null — 재사용하지 않는다(이전과 같다).
+ */
+export function sameLessonWhere(userId: string, m: Pick<LessonMaterials, 'topic' | 'scenario'>, todayDb: Date) {
+  if (!m.topic && !m.scenario) return null
+  return {
+    userId,
+    topicId: m.topic?.id ?? null,
+    scenarioId: m.scenario?.id ?? null,
+    kind: 'NEW' as const,
+    date: todayDb,
+    status: { in: ['GENERATING', 'READY', 'IN_PROGRESS', 'FAILED'] as LessonStatus[] },
+  }
+}
+
+/** 점유 본체(호출자 트랜잭션) — 시험이 가짜 tx 로 재사용 판정·생성 행을 본다. */
+export async function claimLessonTx(tx: Tx, userId: string, m: LessonMaterials, gen: LessonGeneration, today: string, traceId: string): Promise<CreateLessonResult & { claim: Claim | null }> {
+  await lockUserRow(tx, userId)
+  let revive: string | null = null
+  const sameWhere = sameLessonWhere(userId, m, dates.toDbDate(today))
+  if (sameWhere) {
+    const same = await tx.lesson.findMany({ where: sameWhere, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, status: true } })
+    for (const l of same) {
+      if (l.status === 'READY' || l.status === 'IN_PROGRESS') return { lessonId: l.id, jobId: null, status: l.status, reused: true, claim: null }
+      if (l.status === 'GENERATING') {
+        const active = await jobs.findActiveJob({ userId, kind: 'LESSON_GEN', refId: l.id }, tx)
+        if (active) return { lessonId: l.id, jobId: active.id, status: 'GENERATING', reused: true, claim: null }
+        await tx.lesson.updateMany({ where: { id: l.id, status: 'GENERATING' }, data: { status: 'FAILED', error: 'stale' } })
+      }
+      revive ??= l.id
+    }
+  }
+  const busy = await jobs.findActiveJobByKind({ userId, kind: 'LESSON_GEN' }, tx)
+  if (busy) throw new ApiError('CONFLICT', '다른 수업을 만들고 있어요. 다 되면 새로 만들 수 있어요.', { reason: 'GENERATING', jobId: busy.id, lessonId: busy.refId })
+  const base = {
+    status: 'GENERATING' as const,
+    title: truncateCodePoints(m.scenario ? m.scenario.title : m.topic ? m.topic.title : TEXT_LESSON_TITLE, 120),
+    level: m.level,
+    stageDone: 0,
+    score: null,
+    error: null,
+  }
+  let lessonId: string
+  if (revive) {
+    await tx.lesson.update({ where: { id: revive }, data: { ...base, content: Prisma.DbNull, progress: Prisma.DbNull } })
+    lessonId = revive
+  } else {
+    const row = await tx.lesson.create({
+      data: {
+        ...base,
+        userId,
+        topicId: m.topic?.id ?? null,
+        scenarioId: m.scenario?.id ?? null,
+        date: dates.toDbDate(today),
+        kind: 'NEW',
+        sourceText: m.input.kind === 'text' ? m.input.sourceText : null,
+      },
+      select: { id: true },
+    })
+    lessonId = row.id
+  }
+  const job = await jobs.createJob(
+    { userId, kind: 'LESSON_GEN', refId: lessonId, traceId, payload: { promptKey: 'lesson', promptVersion: gen.promptVersion, inputMeta: gen.inputMeta } as Prisma.InputJsonValue },
+    tx,
+  )
+  return { lessonId, jobId: job.id, status: 'GENERATING', reused: false, claim: { lessonId, jobId: job.id, traceId } }
+}
+
 async function claimLesson(userId: string, m: LessonMaterials, gen: LessonGeneration): Promise<CreateLessonResult & { claim: Claim | null }> {
   const today = dates.todayKst()
   const traceId = newTraceId()
-  return withTransaction(async (tx) => {
-    await lockUserRow(tx, userId)
-    let revive: string | null = null
-    if (m.topic) {
-      const same = await tx.lesson.findMany({
-        where: { userId, topicId: m.topic.id, kind: 'NEW', date: dates.toDbDate(today), status: { in: ['GENERATING', 'READY', 'IN_PROGRESS', 'FAILED'] } },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: { id: true, status: true },
-      })
-      for (const l of same) {
-        if (l.status === 'READY' || l.status === 'IN_PROGRESS') return { lessonId: l.id, jobId: null, status: l.status, reused: true, claim: null }
-        if (l.status === 'GENERATING') {
-          const active = await jobs.findActiveJob({ userId, kind: 'LESSON_GEN', refId: l.id }, tx)
-          if (active) return { lessonId: l.id, jobId: active.id, status: 'GENERATING', reused: true, claim: null }
-          await tx.lesson.updateMany({ where: { id: l.id, status: 'GENERATING' }, data: { status: 'FAILED', error: 'stale' } })
-        }
-        revive ??= l.id
-      }
-    }
-    const busy = await jobs.findActiveJobByKind({ userId, kind: 'LESSON_GEN' }, tx)
-    if (busy) throw new ApiError('CONFLICT', '다른 수업을 만들고 있어요. 다 되면 새로 만들 수 있어요.', { reason: 'GENERATING', jobId: busy.id, lessonId: busy.refId })
-    const base = {
-      status: 'GENERATING' as const,
-      title: truncateCodePoints(m.topic ? m.topic.title : TEXT_LESSON_TITLE, 120),
-      level: m.level,
-      stageDone: 0,
-      score: null,
-      error: null,
-    }
-    let lessonId: string
-    if (revive) {
-      await tx.lesson.update({ where: { id: revive }, data: { ...base, content: Prisma.DbNull, progress: Prisma.DbNull } })
-      lessonId = revive
-    } else {
-      const row = await tx.lesson.create({
-        data: { ...base, userId, topicId: m.topic?.id ?? null, date: dates.toDbDate(today), kind: 'NEW', sourceText: m.input.kind === 'text' ? m.input.sourceText : null },
-        select: { id: true },
-      })
-      lessonId = row.id
-    }
-    const job = await jobs.createJob(
-      { userId, kind: 'LESSON_GEN', refId: lessonId, traceId, payload: { promptKey: 'lesson', promptVersion: gen.promptVersion, inputMeta: gen.inputMeta } as Prisma.InputJsonValue },
-      tx,
-    )
-    return { lessonId, jobId: job.id, status: 'GENERATING', reused: false, claim: { lessonId, jobId: job.id, traceId } }
-  })
+  return withTransaction((tx) => claimLessonTx(tx, userId, m, gen, today, traceId))
 }
 
 /** 이 잡이 더는 레슨의 현재 세대가 아니다(되살린 새 잡이 있거나 stale 로 닫힘) — 결과를 버린다. */

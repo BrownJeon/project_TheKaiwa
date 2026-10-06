@@ -15,6 +15,7 @@ import { countLaterPending } from '../corrections'
 import { readCorrectionMeta, talkCorrectionFields, type CorrectionDeliver, type SelfCheckResult } from '../corrections/talkDelivery'
 import { SPEECH_STYLES } from '../structuredResponse/schemas'
 import type { CreateChatInput } from './validate'
+import { rolePlayListBadges } from './rolePlay'
 
 export const PREVIEW_MAX = 120
 
@@ -41,6 +42,8 @@ export interface ChatDto {
   reviewedAt: string | null
   running: boolean
   createdAt: string
+  /** #27 목록의 상황 역할극 행만(task-010d A3b-2, additive) — 상황 id·끝냈는가. 일반 대화 행에는 칸이 없다. */
+  scenario?: { id: string; ended: boolean }
 }
 
 export function serializeChat(c: ChatRow, running: boolean): ChatDto {
@@ -117,7 +120,9 @@ export async function createChat(userId: string, input: CreateChatInput): Promis
   return serializeChat(c, false)
 }
 
-/** #27 — `lastMessageAt desc, id desc`, 키셋 커서. */
+const LIST_SELECT = { ...CHAT_SELECT, scenarioId: true } as const
+
+/** #27 — `lastMessageAt desc, id desc`, 키셋 커서. 역할극 행은 `scenario{id, ended}`(한 쪽당 끝낸 표식 배치 조회 1회 — `rolePlayListBadges`). */
 export async function listChats(userId: string, q: { kind?: ChatKind; limit: number; cursor?: string | null }): Promise<{ items: ChatDto[]; nextCursor: string | null }> {
   const cur = decodeCursor(q.cursor, isTimeIdCursor)
   await sweepStalePending({ userId })
@@ -126,12 +131,18 @@ export async function listChats(userId: string, q: { kind?: ChatKind; limit: num
     ...(q.kind ? { kind: q.kind } : {}),
     ...(cur ? { OR: [{ lastMessageAt: { lt: new Date(cur.t) } }, { lastMessageAt: new Date(cur.t), id: { lt: cur.id } }] } : {}),
   }
-  const rows = await prisma.chat.findMany({ where, orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }], take: q.limit + 1, select: CHAT_SELECT })
+  const rows = await prisma.chat.findMany({ where, orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }], take: q.limit + 1, select: LIST_SELECT })
   const page = rows.slice(0, q.limit)
-  const running = await runningChatIds(page.map((c) => c.id))
+  const [running, badges] = await Promise.all([runningChatIds(page.map((c) => c.id)), rolePlayListBadges(userId, page)])
   const last = page.at(-1)
   const nextCursor = rows.length > q.limit && last?.lastMessageAt ? encodeCursor({ t: last.lastMessageAt.toISOString(), id: last.id }) : null
-  return { items: page.map((c) => serializeChat(c, running.has(c.id))), nextCursor }
+  return {
+    items: page.map((c) => {
+      const badge = badges.get(c.id)
+      return { ...serializeChat(c, running.has(c.id)), ...(badge ? { scenario: badge } : {}) }
+    }),
+    nextCursor,
+  }
 }
 
 /** 소유자 확인용 최소 조회 — 없으면 404. */

@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ApiError, prisma, type Tx } from '@/modules/infra'
 import type { LlmJsonRequest, LlmJsonResult, TraceRecord } from '@/modules/engine'
-import { readScenarioRolePlayMaterial, type ScenarioEndInput, type ScenarioEndResult, type ScenarioMaterialDb, type ScenarioRolePlayMaterial } from '@/modules/learning'
+import { readScenarioRolePlayMaterial, SCENARIO_END_LOOKUP_MARGIN_MS, type ScenarioEndInput, type ScenarioEndResult, type ScenarioMaterialDb, type ScenarioRolePlayMaterial } from '@/modules/learning'
 import { reviewChat } from '../review'
 import {
   chatRolePlayView,
@@ -19,6 +19,7 @@ import {
   listOpenRolePlayChats,
   openingToolLog,
   OPEN_ROLE_PLAY_MAX,
+  OPEN_ROLE_PLAY_MAX_AGE_DAYS,
   rolePlayChatView,
   rolePlayProgress,
   ROLE_PLAY_OPENING_SOURCE,
@@ -255,7 +256,7 @@ test('턴 수락: 끝낸 역할극이면 잠금(사용자 → 대화) 뒤 409 RO
   assert.ok(String(calls[1].args).includes('createdAt'))
   const where = (calls[2].args as { where: { occurredAt: { gte: Date }; refId: string; kind: string } }).where
   assert.deepEqual([where.refId, where.kind], ['chat_rp', 'SCENARIO_COMPLETED'])
-  assert.equal(where.occurredAt.gte.getTime(), CHAT_AT.getTime() - 86_400_000)
+  assert.equal(where.occurredAt.gte.getTime(), CHAT_AT.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS)
 
   const open = acceptTx(chat, false)
   const a = await acceptTurnTx(open.tx, U, 'chat_rp', TURN)
@@ -545,9 +546,11 @@ test('진행 중 후보: 사용자·TALK·상황 in 조건, lastMessageAt 순, �
     { id: 'cb0', scenarioId: 'scn_b', lastMessageAt: null, createdAt: CHAT_AT },
   ]
   const db = { chat: { findMany: async (a: { take: number }) => (seen.push(a), rows.slice(0, a.take)) } } as unknown as Pick<Tx, 'chat'>
-  const out = await listOpenRolePlayChats(U, ['scn_a', 'scn_b', 'scn_a', ''], db)
+  const now = new Date('2026-10-07T12:00:00Z')
+  const out = await listOpenRolePlayChats(U, ['scn_a', 'scn_b', 'scn_a', ''], db, now)
   const args = seen[0] as { where: unknown; take: number; orderBy: unknown }
-  assert.deepEqual(args.where, { userId: U, kind: 'TALK', scenarioId: { in: ['scn_a', 'scn_b'] } })
+  // 30일 넘게 말이 없던 역할극은 후보 아님(REV-140 L-4 — 카탈로그 끝낸 표식 창이 방치 대화로 늘지 않게).
+  assert.deepEqual(args.where, { userId: U, kind: 'TALK', scenarioId: { in: ['scn_a', 'scn_b'] }, lastMessageAt: { gte: new Date(now.getTime() - OPEN_ROLE_PLAY_MAX_AGE_DAYS * 86_400_000) } })
   assert.equal(args.take, OPEN_ROLE_PLAY_MAX)
   assert.deepEqual(out.map((o) => o.chatId), ['ca0', 'ca1', 'ca2', 'cb0'])
   assert.equal(out[3].at.getTime(), CHAT_AT.getTime(), 'lastMessageAt 이 없으면 생성 시각')
@@ -606,4 +609,17 @@ test('L-7②(행동): 역할극 대화(TALK)로 표현 점검 #33(reviewChat)을
     return true
   })
   assert.deepEqual(calls, ['lockUser', 'lockChat'], '점검 잡·메시지를 읽기 전에 거절')
+})
+
+// ── A3b-2 하드닝(REV-140 L-3) ───────────────────────────────────────────────
+
+test('종료(L-3): 기록 tx 는 tx2 에서 다시 읽은 재료(교정 수)로 기록한다 — 판정 사이 교정이 채택·추가돼도 tx1 의 낡은 값이 아니다', async () => {
+  const w = finishWorld()
+  const base = w.deps.transaction
+  const fresh = { groupBy: async () => [{ status: 'PROPOSED', _count: { _all: 1 } }, { status: 'ACCEPTED', _count: { _all: 2 } }, { status: 'REJECTED', _count: { _all: 1 } }] }
+  w.deps.transaction = <T,>(fn: (tx: Tx) => Promise<T>) => base<T>((tx) => fn(w.state.txCount >= 2 ? ({ ...(tx as object), correction: fresh } as unknown as Tx) : tx))
+  const r = await finishRolePlay(U, 'chat_rp', w.deps)
+  assert.equal(r.replayed, false)
+  assert.equal(w.ends.length, 1)
+  assert.deepEqual(w.ends[0].corrections, { proposed: 4, accepted: 2, ignored: 1 }, 'tx1 값은 proposed 1 · accepted 0')
 })

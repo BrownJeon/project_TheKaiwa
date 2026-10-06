@@ -47,6 +47,8 @@ export interface ChatSummary {
   messageCount: number
   reviewedAt: string | null
   running: boolean
+  /** 상황 역할극 행만(task-010d A3b-2, additive) — 상황 id · 마친 역할극인가(D-5 뱃지). 일반 대화 행에는 없다. */
+  scenario?: { id: string; ended: boolean }
 }
 
 /** #28 응답 */

@@ -33,13 +33,26 @@ export function japaneseRatio(text: string): number {
   return chars.filter((c) => /[぀-ヿ一-鿿]/.test(c)).length / chars.length
 }
 
-export type CreateLessonInput = { kind: 'topic'; topicId: string } | { kind: 'text'; sourceText: string }
+export type CreateLessonInput =
+  | { kind: 'topic'; topicId: string }
+  | { kind: 'text'; sourceText: string }
+  /** 상황 수업(task-010d A2) — `topicId` 는 선택(그 상황과 이어진 주제여야 한다 — 확인은 재료 읽기에서). */
+  | { kind: 'scenario'; scenarioId: string; topicId: string | null }
 
-/** #59 — `{topicId}` 또는 `{sourceText}`(50~2,000자, 가나·한자 ≥30%) 중 정확히 하나. */
+/**
+ * #59 — `{topicId}` 또는 `{sourceText}`(50~2,000자, 가나·한자 ≥30%) 중 정확히 하나, 또는 상황 수업 `{scenarioId, topicId?}`.
+ * 상황 수업은 붙여 넣은 문장과 함께 만들 수 없다(A4 `[상황]` 블록이 `sourceText` 와 같이 쓰이지 않는다 — 400 `not_with_scenario`).
+ */
 export function parseCreateLessonBody(body: Record<string, unknown>): CreateLessonInput {
-  onlyKeys(body, ['topicId', 'sourceText'])
+  onlyKeys(body, ['topicId', 'sourceText', 'scenarioId'])
   const hasTopic = body.topicId !== undefined && body.topicId !== null
   const hasText = body.sourceText !== undefined && body.sourceText !== null
+  if (body.scenarioId !== undefined && body.scenarioId !== null) {
+    if (hasText) bad('sourceText', '상황 수업에는 문장을 붙여 넣을 수 없어요.', 'not_with_scenario')
+    if (!isLessonId(body.scenarioId)) bad('scenarioId', '상황 id 형식이 올바르지 않습니다.')
+    if (hasTopic && !isLessonId(body.topicId)) bad('topicId', '주제 id 형식이 올바르지 않습니다.')
+    return { kind: 'scenario', scenarioId: body.scenarioId, topicId: hasTopic ? (body.topicId as string) : null }
+  }
   if (hasTopic === hasText) bad(hasTopic ? 'sourceText' : 'topicId', '주제를 고르거나 문장을 붙여 넣어 주세요(둘 중 하나).', 'one_of')
   if (hasTopic) {
     if (!isLessonId(body.topicId)) bad('topicId', '주제 id 형식이 올바르지 않습니다.')

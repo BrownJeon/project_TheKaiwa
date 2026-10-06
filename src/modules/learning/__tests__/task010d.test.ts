@@ -374,7 +374,7 @@ test('종료 한 트랜잭션: 사용자 잠금 먼저 → RepetitionItem(SCENAR
   assert.equal(await isScenarioRolePlayEnded(OTHER, { id: 'chat_rp_1', createdAt: CHAT_AT }, f.tx), false)
 })
 
-test('끝낸 표식 조회 = 대화 생성 시각 하한(REV-134 M-2): 멱등 확인·isScenarioRolePlayEnded 둘 다 occurredAt ≥ Chat.createdAt − 하루 · 경계 안은 끝냄 · 밖은 아님', async () => {
+test('끝낸 표식 조회 = 대화 생성 시각 하한(REV-134 M-2): 멱등 확인·isScenarioRolePlayEnded 둘 다 occurredAt ≥ Chat.createdAt − 여유(7일, A3b-2) · 경계 안은 끝냄 · 밖은 아님', async () => {
   const since = new Date(CHAT_AT.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS)
   assert.deepEqual(scenarioEndLookupSince(CHAT_AT), since)
   assert.equal(scenarioEndLookupSince(new Date('nope')), null)
@@ -389,13 +389,14 @@ test('끝낸 표식 조회 = 대화 생성 시각 하한(REV-134 M-2): 멱등 �
   const turnProbe = f.calls.filter((c) => c.op === 'obs.findFirst')[ended].args as { where: Row }
   assert.deepEqual(turnProbe.where, probe.where, '턴 경로 확인도 같은 하한')
 
-  // 경계: 표식이 하한과 같으면 끝낸 대화(gte), 1ms 앞이면 이 대화의 표식이 아니다(대화보다 하루 넘게 먼저 생긴 표식은 없다).
-  const edge = endTx({ obsAt: since })
-  await endScenarioRolePlay(U, endInput(), edge.tx, { now: NOW })
+  assert.equal(SCENARIO_END_LOOKUP_MARGIN_MS, 7 * 86_400_000, '여유 7일(Codex C2 완화 — 시계 되돌림·호스트 어긋남)')
+  // 경계: 표식이 하한과 같으면 끝낸 대화(gte), 1ms 앞이면 이 대화의 표식이 아니다. 표식 시각 = 기록 때의 앱 시계(`now`, A3b-2 명시) — 시계가 되돌려진 호스트를 모의한다.
+  const edge = endTx()
+  await endScenarioRolePlay(U, endInput(), edge.tx, { now: since })
   assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: CHAT_AT }, edge.tx), true)
   assert.equal((await endScenarioRolePlay(U, endInput(), edge.tx, { now: NOW })).replayed, true)
-  const before = endTx({ obsAt: new Date(since.getTime() - 1) })
-  await endScenarioRolePlay(U, endInput(), before.tx, { now: NOW })
+  const before = endTx()
+  await endScenarioRolePlay(U, endInput(), before.tx, { now: new Date(since.getTime() - 1) })
   assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: CHAT_AT }, before.tx), false)
 
   // 생성 시각이 이상하면 하한 없이 찾는다(느리지만 결과는 같다).
@@ -454,4 +455,30 @@ test('종료 재도전: 이미 있는 RepetitionItem(SCENARIO) 은 update(증가
   const up = f.calls.find((c) => c.op === 'rep.update')!.args as { where: Row; data: Row }
   assert.deepEqual([up.where.id, up.data.studiedCount, up.data.correctCount, up.data.wrongCount, up.data.intervalDays], ['rep_old', { increment: 1 }, { increment: 1 }, { increment: 0 }, 5])
   assert.equal(r.repetitionItemId, 'rep_old')
+})
+
+// ── A3b-2: 끝낸 표식 시각 명시 · 시계 어긋남 ─────────────────────────────────
+
+test('A3b-2 끝낸 표식 occurredAt = 기록 때 앱 시계(opts.now) 명시 — 첫 종료 응답 endedAt(=now)과 #29·재종료가 읽는 저장 값이 같다(REV-140 L-2)', async () => {
+  const f = endTx()
+  await endScenarioRolePlay(U, endInput(), f.tx, { now: NOW })
+  const create = f.calls.find((c) => c.op === 'obs.createMany')!.args as { data: { occurredAt?: Date; kind: string; refId: string }[] }
+  assert.equal(create.data.length, 1)
+  assert.equal(create.data[0].kind, 'SCENARIO_COMPLETED')
+  assert.ok(create.data[0].occurredAt instanceof Date, '기본값(DB/엔진 시계)에 맡기지 않는다')
+  assert.equal(create.data[0].occurredAt!.getTime(), NOW.getTime())
+})
+
+test('A3b-2 시계 어긋남 모의: 대화 생성 시각이 표식보다 2일 늦어도(앱 호스트 시계가 앞섰다 되돌아옴) 7일 여유 안 → 끝낸 대화·재종료 replayed(1일 여유면 중복 기록) · 8일이면 못 찾는다(한계 — Chat.endedAt 필요)', async () => {
+  const day = 86_400_000
+  const skewed = new Date(NOW.getTime() + 2 * day)
+  const f = endTx()
+  await endScenarioRolePlay(U, endInput({ chatCreatedAt: skewed }), f.tx, { now: NOW })
+  assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: skewed }, f.tx), true)
+  assert.equal((await endScenarioRolePlay(U, endInput({ chatCreatedAt: skewed }), f.tx, { now: new Date(NOW.getTime() + 3 * day) })).replayed, true, '두 번째 종료는 쓰기 0')
+  assert.equal(f.calls.filter((c) => c.op === 'obs.createMany').length, 1)
+  const far = new Date(NOW.getTime() + 8 * day)
+  const g = endTx()
+  await endScenarioRolePlay(U, endInput({ chatCreatedAt: far }), g.tx, { now: NOW })
+  assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: far }, g.tx), false, '여유 밖 어긋남은 못 덮는다(문서화된 한계)')
 })

@@ -37,6 +37,10 @@ export const LLM_TASKS = {
   topicWords: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' },
   // 상황 역할극 종료 판정(task-010d, scenarioVerdict@v1) — 학습자가 [마치기] 뒤 결과를 기다리는 단건. 재시도 없음(실패·시간 초과면 판정 없이 코드 규칙만으로 기록).
   scenarioVerdict: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' },
+  // AI 상황 초안(task-010d #166, scenarioDraft@v1) — 학습자가 대기 화면에서 기다리는 단건. 1차(≤14s)+JSON 재시도(≤14s)가 한 상한 안, 화면 벽시계 45s 보다 짧게. 재시도 없음(사용자가 [다시 시도]).
+  scenarioDraft: { tier: 'balanced', timeoutMs: 40_000, lane: 'interactive' },
+  // 역할극 대답 연습(task-010d #169, replyPractice@v1) — 12s fail-fast, 재시도 없음.
+  replyPractice: { tier: 'fast', timeoutMs: 12_000, lane: 'interactive' },
 } as const satisfies Record<string, TaskSpec>
 
 export type LlmTask = keyof typeof LLM_TASKS

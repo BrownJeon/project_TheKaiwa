@@ -13,7 +13,7 @@ import { readProgress, type LessonProgress } from './progress'
 import { isLessonId } from './validate'
 
 export const LESSON_SELECT = {
-  id: true, userId: true, topicId: true, date: true, kind: true, title: true, level: true, content: true, status: true, stageDone: true,
+  id: true, userId: true, topicId: true, scenarioId: true, date: true, kind: true, title: true, level: true, content: true, status: true, stageDone: true,
   progress: true, score: true, sourceLessonIds: true, sourceText: true, error: true, createdAt: true, updatedAt: true, completedAt: true,
   topic: { select: { id: true, title: true } },
   reviewSchedule: { select: { id: true, itemIds: true } },
@@ -37,6 +37,8 @@ export interface LessonDto {
   score: number | null
   source: 'TOPIC' | 'TEXT'
   topic: { id: string; title: string } | null
+  /** 상황 수업(task-010d A2)이면 그 상황 id — 일반·붙여넣기·복습 수업은 null. 상황이 지워지면 null(SetNull). */
+  scenarioId: string | null
   sourceLessonIds: string[] | null
   /** READY 이후만. A4 스키마 JSON + 대화 줄 `segment`(청취 구간 번호) + `segmentCount`. */
   content: StoredLessonContent | null
@@ -80,6 +82,7 @@ export function toLessonDto(row: LessonRow, jobId: string | null = null): Lesson
     score: row.score,
     source: row.sourceText ? 'TEXT' : 'TOPIC',
     topic: row.topic ? { id: row.topic.id, title: row.topic.title } : null,
+    scenarioId: row.scenarioId ?? null,
     sourceLessonIds: idList(row.sourceLessonIds),
     content,
     audio: null,
