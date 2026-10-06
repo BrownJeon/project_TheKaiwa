@@ -156,6 +156,7 @@ export const DRAFT = {
   fCriteria: '이렇게 되면 성공이에요',
   fExpressions: '핵심 표현',
   fOpening: '선생님 첫마디',
+  fOpeningKo: '첫마디 뜻',
   openingNote: '선생님이 이 말로 역할극을 시작해요.',
   stepAdd: '＋ 단계 더하기',
   stepMax: `${L.stepsMax}단계까지 넣을 수 있어요`,

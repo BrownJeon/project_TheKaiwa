@@ -4,15 +4,29 @@
  * 핵심 표현 편집(가이드 §3-H). 행 = 일본어(`JaText`+`HangulLine`, 앱 표시 설정 그대로) + 뜻 + ⋯ 44(고치기·지우기).
  * [＋ 표현 더하기]·[고치기] 는 행 자리에 입력 2칸 [일본어][뜻] + [넣기|바꾸기][취소]. 일본어를 바꾸면 저장된 읽기는 버린다(어긋난 읽기를 남기지 않게).
  * 필수 표현 수는 서버 규칙이라 화면에서 바꾸지 않고 문구로만 보인다. 개수 한도는 서버 값. 초점 id: 행 `dr-expr-<i>`, 목록 `dr-expr`.
+ * 폼·메뉴는 행 순번이 아니라 행 키(`logic.withRowKeys`)를 가리킨다 — 폼을 연 채 다른 행을 지워도 고치던 행이 바뀌지 않고, 그 행이 사라지면 폼을 닫는다.
  */
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Sheet from '@/components/common/Sheet'
 import { Btn } from '@/components/common/ui'
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { useAnnotations } from '@/components/common/japanese/annotations'
 import { IconDots } from '@/components/plan/parts'
 import { SCENARIO_LIMITS as L } from '@/types/scenario'
-import { oneLine, requiredOf, type DraftExpression } from './logic'
+import {
+  addExpression,
+  editExpression,
+  editingAfterRemove,
+  editingTarget,
+  newRowKey,
+  NEW_EXPRESSION,
+  oneLine,
+  removeExpression,
+  requiredOf,
+  withRowKeys,
+  type DraftExpression,
+  type ExpressionEditing,
+} from './logic'
 import { DRAFT } from './scenarioCopy'
 
 const inputCls = 'h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3 text-[16px] text-ink'
@@ -50,44 +64,50 @@ export default function ExpressionEditor({
   storedRequired: number | null
   disabled?: boolean
 }) {
-  const [editing, setEditing] = useState<number | 'new' | null>(null)
-  const [menuAt, setMenuAt] = useState<number | null>(null)
-  const ann = useAnnotations(items.map((e) => e.ja))
-  const full = items.length >= L.expressionsMax
+  const rows = useMemo(() => withRowKeys(items), [items])
+  const [editingState, setEditing] = useState<ExpressionEditing>(null)
+  const [menuKey, setMenuKey] = useState<string | null>(null)
+  // 이 편집기가 준 새 행 키의 다음 수 — 지운 행의 키를 다시 쓰지 않아 닫힌 폼이 새 행에 되살아나지 않는다.
+  const seq = useRef(0)
+  const editing = editingTarget(rows, editingState)
+  // 행이 밖에서 사라진 폼 상태는 바로 비운다(같은 키가 다시 나타나도 폼이 되살아나지 않게).
+  if (editingState !== null && editing === null) setEditing(null)
+  const ann = useAnnotations(rows.map((e) => e.ja))
+  const full = rows.length >= L.expressionsMax
   const listErr = errors.expr
-  const at = menuAt !== null && menuAt < items.length ? menuAt : null
-  const m = requiredOf(items.length, storedRequired)
+  const atIndex = menuKey === null ? -1 : rows.findIndex((e) => e.rowKey === menuKey)
+  const at = atIndex >= 0 ? rows[atIndex] : null
+  const m = requiredOf(rows.length, storedRequired)
 
-  const apply = (i: number | 'new', v: { ja: string; ko: string }) => {
-    if (i === 'new') onChange([...items, { ja: v.ja, ko: v.ko }])
-    else
-      onChange(
-        items.map((e, k) => {
-          if (k !== i) return e
-          const sameJa = oneLine(e.ja) === oneLine(v.ja)
-          const next: DraftExpression = { ...(e.id ? { id: e.id } : {}), ja: v.ja, ko: v.ko }
-          if (sameJa && e.reading) next.reading = e.reading
-          return next
-        }),
-      )
+  const apply = (target: string, v: { ja: string; ko: string }) => {
+    if (target === NEW_EXPRESSION) {
+      const key = newRowKey(rows, seq.current)
+      seq.current = Number(key.slice(1)) + 1
+      onChange(addExpression(rows, v, key))
+    } else {
+      const next = editExpression(rows, target, v)
+      if (next !== rows) onChange(next)
+    }
     setEditing(null)
   }
-  const remove = (i: number) => {
-    if (items.length <= L.expressionsMin) return
-    onChange(items.filter((_, k) => k !== i))
-    setMenuAt(null)
+  const remove = (key: string) => {
+    const next = removeExpression(rows, key)
+    if (next === rows) return
+    onChange(next)
+    setEditing((cur) => editingAfterRemove(cur, key))
+    setMenuKey(null)
   }
 
   return (
     <fieldset className="min-w-0" disabled={disabled}>
       <legend className="text-[12.5px] font-medium text-ink2">{DRAFT.fExpressions}</legend>
       <ul id="dr-expr" tabIndex={-1} aria-describedby={listErr ? 'dr-expr-err' : undefined} className="mt-1 outline-none">
-        {items.map((e, i) => {
+        {rows.map((e, i) => {
           const err = errors[`expr[${i}]`]
           return (
-            <li key={i} id={`dr-expr-${i}`} tabIndex={-1} className="min-w-0 border-t border-line py-2 outline-none first:border-t-0" aria-describedby={err ? `dr-expr-${i}-err` : undefined}>
-              {editing === i ? (
-                <ExprForm init={{ ja: e.ja, ko: e.ko }} applyLabel={DRAFT.exprApply} onApply={(v) => apply(i, v)} onCancel={() => setEditing(null)} />
+            <li key={e.rowKey} id={`dr-expr-${i}`} tabIndex={-1} className="min-w-0 border-t border-line py-2 outline-none first:border-t-0" aria-describedby={err ? `dr-expr-${i}-err` : undefined}>
+              {editing === e.rowKey ? (
+                <ExprForm init={{ ja: e.ja, ko: e.ko }} applyLabel={DRAFT.exprApply} onApply={(v) => apply(e.rowKey, v)} onCancel={() => setEditing(null)} />
               ) : (
                 <div className="flex min-w-0 items-start gap-2">
                   <div className="min-w-0 flex-1">
@@ -95,7 +115,7 @@ export default function ExpressionEditor({
                     <HangulLine state={ann[i]} size={12} />
                     <p className="text-[13px] text-ink2 break-keep">{e.ko}</p>
                   </div>
-                  <button type="button" aria-label={DRAFT.exprMenu(i + 1)} aria-haspopup="dialog" onClick={() => setMenuAt(i)} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink2">
+                  <button type="button" aria-label={DRAFT.exprMenu(i + 1)} aria-haspopup="dialog" onClick={() => setMenuKey(e.rowKey)} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink2">
                     <IconDots />
                   </button>
                 </div>
@@ -114,16 +134,16 @@ export default function ExpressionEditor({
           {listErr}
         </p>
       ) : null}
-      {editing === 'new' ? (
+      {editing === NEW_EXPRESSION ? (
         <div className="mt-2">
-          <ExprForm init={{ ja: '', ko: '' }} applyLabel={DRAFT.exprInsert} onApply={(v) => apply('new', v)} onCancel={() => setEditing(null)} />
+          <ExprForm init={{ ja: '', ko: '' }} applyLabel={DRAFT.exprInsert} onApply={(v) => apply(NEW_EXPRESSION, v)} onCancel={() => setEditing(null)} />
         </div>
       ) : (
         <button
           type="button"
           aria-disabled={full || undefined}
           aria-describedby={full ? 'dr-expr-full' : undefined}
-          onClick={() => !full && setEditing('new')}
+          onClick={() => !full && setEditing(NEW_EXPRESSION)}
           className="mt-2 inline-flex h-11 items-center rounded-xl border border-line bg-surface px-3.5 text-[14px] font-semibold aria-disabled:opacity-40"
         >
           {DRAFT.exprAdd}
@@ -134,17 +154,17 @@ export default function ExpressionEditor({
           {DRAFT.exprMax}
         </p>
       ) : null}
-      {items.length ? <p className="mt-1 text-[12px] text-ink2 break-keep">{DRAFT.exprNote(m)}</p> : null}
+      {rows.length ? <p className="mt-1 text-[12px] text-ink2 break-keep">{DRAFT.exprNote(m)}</p> : null}
 
-      <Sheet open={at !== null} title={at !== null ? DRAFT.menuTitle(DRAFT.fExpressions, at + 1) : DRAFT.fExpressions} onClose={() => setMenuAt(null)}>
+      <Sheet open={at !== null} title={at !== null ? DRAFT.menuTitle(DRAFT.fExpressions, atIndex + 1) : DRAFT.fExpressions} onClose={() => setMenuKey(null)}>
         {at !== null ? (
           <div className="flex flex-col gap-2 pb-2">
             <Btn
               variant="ghost"
               className="w-full"
               onClick={() => {
-                setEditing(at)
-                setMenuAt(null)
+                setEditing(at.rowKey)
+                setMenuKey(null)
               }}
             >
               {DRAFT.exprEdit}
@@ -152,13 +172,13 @@ export default function ExpressionEditor({
             <Btn
               variant="danger"
               className="w-full aria-disabled:opacity-40"
-              aria-disabled={items.length <= L.expressionsMin || undefined}
-              aria-describedby={items.length <= L.expressionsMin ? 'dr-expr-min' : undefined}
-              onClick={() => remove(at)}
+              aria-disabled={rows.length <= L.expressionsMin || undefined}
+              aria-describedby={rows.length <= L.expressionsMin ? 'dr-expr-min' : undefined}
+              onClick={() => remove(at.rowKey)}
             >
               {DRAFT.remove}
             </Btn>
-            {items.length <= L.expressionsMin ? (
+            {rows.length <= L.expressionsMin ? (
               <p id="dr-expr-min" className="text-[12px] text-ink2 break-keep">
                 {DRAFT.exprMin}
               </p>

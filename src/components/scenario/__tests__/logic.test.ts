@@ -28,6 +28,7 @@ import {
   serializeStoredDraft,
   serverProblems,
   startFailureOf,
+  stepPosition,
   stepView,
   validateDraft,
   withRo,
@@ -246,7 +247,10 @@ test('서버 400 문제 → 화면 칸 · 초점 id', () => {
   )
   assert.deepEqual(p.map((x) => x.key), ['steps[2]', 'expr[1]', 'criteria[0]', 'tutor', 'place', 'expr'])
   assert.deepEqual(serverProblems({ field: 'title', reason: 'required' }, '제목을 적어 주세요.'), [{ key: 'title', message: '제목을 적어 주세요.' }])
-  assert.equal(problemKey('opening.ko'), 'opening')
+  assert.equal(problemKey('opening.ko'), 'openingKo')
+  assert.equal(problemKey('opening.ja'), 'opening')
+  assert.equal(problemKey('opening'), 'opening')
+  assert.equal(problemDomId('openingKo'), 'dr-openingKo')
   assert.equal(problemKey('constraints'), 'other')
   assert.equal(problemDomId('steps[2]'), 'dr-steps-2')
   assert.equal(problemDomId('expr'), 'dr-expr')
@@ -284,4 +288,59 @@ test('초안 보관: 왕복 · 깨진 값 · 빈 보관', () => {
   assert.equal(parseStoredDraft(JSON.stringify({ v: 1, ask: { desc: 'x' }, draft: { title: 1 } }))?.draft, null)
   assert.ok(isBlankStore({ ask: { desc: '  ', topicId: null, level: 'N5' }, draft: null }))
   assert.ok(!isBlankStore({ ask: { desc: 'a', topicId: null, level: 'N5' }, draft: null }))
+})
+
+/* ── REV-139 M-4: 한도 정확값·0번 단계·장소 패치·보관 상한·ARCHIVED 코드 ─────────── */
+
+test('저장 전 검사 경계: 정확히 한도인 값은 저장 가능, 한도+1 은 불가', () => {
+  const L = SCENARIO_LIMITS
+  const keys = (d: EditableDraft) => validateDraft(d).map((p) => p.key)
+  assert.deepEqual(keys(draft({ steps: Array.from({ length: L.stepsMax }, (_, i) => `단계${i}`) })), [])
+  assert.deepEqual(keys(draft({ steps: Array.from({ length: L.stepsMax + 1 }, (_, i) => `단계${i}`) })), ['steps'])
+  assert.deepEqual(keys(draft({ expressions: Array.from({ length: L.expressionsMax }, (_, i) => ({ ja: `j${i}`, ko: 'k' })) })), [])
+  assert.deepEqual(keys(draft({ expressions: Array.from({ length: L.expressionsMax + 1 }, (_, i) => ({ ja: `j${i}`, ko: 'k' })) })), ['expr'])
+  assert.deepEqual(keys(draft({ criteria: Array.from({ length: L.successCriteriaMax }, (_, i) => `조건${i}`) })), [])
+  assert.deepEqual(keys(draft({ criteria: Array.from({ length: L.successCriteriaMax + 1 }, (_, i) => `조건${i}`) })), ['criteria'])
+  assert.deepEqual(keys(draft({ title: 'あ'.repeat(L.titleMax) })), [])
+  assert.deepEqual(keys(draft({ title: 'あ'.repeat(L.titleMax + 1) })), ['title'])
+  assert.deepEqual(keys(draft({ goalKo: '가'.repeat(L.goalMax) })), [])
+  assert.deepEqual(keys(draft({ goalKo: '가'.repeat(L.goalMax + 1) })), ['goal'])
+})
+
+test('0번 단계(시작 값): 첫 단계가 지금 단계', () => {
+  assert.equal(stepPosition(0, 3), 0)
+  assert.equal(stepPosition(0, 0), null)
+  assert.deepEqual(stepView([{ ko: 'a' }, { ko: 'b' }, { ko: 'c' }], 0).map((s) => s.state), ['current', 'next', 'next'])
+  assert.equal(goalSummary({ stepIndex: 0, stepCount: 4, usedCount: 0, total: 4, checksHidden: false }), '1/4단계 · 표현 0/4')
+})
+
+test('고치기 본문: 장소만 바꾸면 topicIds 만 · 장소를 비우면 빈 배열', () => {
+  const orig = detail()
+  const d = draftFromDetail(orig)
+  assert.deepEqual(draftPatch({ ...d, topicIds: ['t_hotel'] }, orig), { topicIds: ['t_hotel'] })
+  assert.deepEqual(draftPatch({ ...d, topicIds: [] }, orig), { topicIds: [] })
+})
+
+test('초안 보관: 상황 설명은 상한(설명 한도의 2배)까지만 읽는다', () => {
+  const cap = SCENARIO_LIMITS.descriptionMax * 2
+  const read = (desc: string) => parseStoredDraft(JSON.stringify({ v: 1, ask: { desc }, draft: null }))?.ask.desc ?? null
+  assert.equal(read('가'.repeat(cap + 50))?.length, cap)
+  assert.equal(read('가'.repeat(cap))?.length, cap)
+})
+
+test('역할극 시작 409: details.reason 이 없어도 오류 코드 ARCHIVED 면 archived', () => {
+  assert.equal(startFailureOf(err(409, {}, '지운 상황', 'ARCHIVED')), 'archived')
+  assert.equal(startFailureOf(err(409, {}, '다른 충돌', 'CONFLICT')), 'fail')
+})
+
+test('첫마디(M-3): 일본어·뜻을 따로 검사 · 뜻 한도 정확값 통과', () => {
+  const keys = (d: EditableDraft) => validateDraft(d).map((p) => p.key)
+  const ko = (s: string) => draft({ opening: { ja: 'いらっしゃいませ', ko: s } })
+  assert.deepEqual(keys(ko('')), ['openingKo'])
+  assert.equal(validateDraft(ko(''))[0].message, '첫마디 뜻을(를) 적어 주세요.')
+  assert.deepEqual(keys(ko('가'.repeat(SCENARIO_LIMITS.openingKoMax))), [])
+  assert.deepEqual(keys(ko('가'.repeat(SCENARIO_LIMITS.openingKoMax + 1))), ['openingKo'])
+  assert.deepEqual(keys(draft({ opening: { ja: '', ko: '' } })), ['opening', 'openingKo'])
+  const body = draftInput(ko(' 어서\n오세요 '), { desc: '' })
+  assert.deepEqual(body.opening, { ja: 'いらっしゃいませ', ko: '어서 오세요' })
 })

@@ -3,7 +3,8 @@
 /**
  * 초안 편집기(가이드 §3-H `dr-edit`·`dr-edit-existing`) — 제목 → 일본어 제목 → 장소 → 수준 → 역할 → 목표 → 대화 순서 → 성공 조건 → 핵심 표현 → (있으면) 첫마디.
  * 입력칸은 16px(확대 방지), 제목·입력칸에는 루비를 달지 않는다(§15-1 F). 칸 문제는 칸 아래 + `aria-invalid`. 초점 id 는 `logic.problemDomId` 규칙.
- * 첫마디 뜻(`opening.ko`)은 가이드에 편집칸이 없어 받은 값을 그대로 둔다.
+ * 첫마디는 일본어(`opening.ja`)와 뜻(`opening.ko`, ≤`SCENARIO_LIMITS.openingKoMax`·카운터)을 함께 고친다 — 일본어만 고쳐 옛 뜻이 남지 않게(REV-139 M-3).
+ * 서버는 둘 다 있어야 받으므로 뜻을 비우면 저장 전 검사(`openingKo`)가 그 칸을 가리킨다. 칸 위치·문구는 designer 확인 대기.
  */
 import Segmented from '@/components/common/Segmented'
 import { Field } from '@/components/common/ui'
@@ -52,6 +53,7 @@ export default function DraftEditor({
   const set = (patch: Partial<EditableDraft>) => setDraft((d) => ({ ...d, ...patch }))
   const placeOpts = [{ value: '', label: DRAFT.placeNone }, ...places.map((p) => ({ value: p.id, label: p.title }))]
   const goalLen = cpLength(draft.goalKo.trim())
+  const openingKoLen = draft.opening ? cpLength(draft.opening.ko.trim()) : 0
 
   return (
     <div className="flex min-w-0 flex-col gap-[18px]">
@@ -197,10 +199,28 @@ export default function DraftEditor({
             }}
             className={areaCls(!!errors.opening)}
           />
+          <FieldError id="dr-opening-err" text={errors.opening} />
+          <input
+            id="dr-openingKo"
+            aria-label={DRAFT.fOpeningKo}
+            placeholder={DRAFT.fOpeningKo}
+            value={draft.opening.ko}
+            disabled={disabled}
+            aria-invalid={errors.openingKo ? true : undefined}
+            aria-describedby={errors.openingKo ? 'dr-openingKo-err dr-openingKo-count' : 'dr-openingKo-count'}
+            onChange={(e) => {
+              const ko = e.target.value
+              setDraft((d) => (d.opening ? { ...d, opening: { ...d.opening, ko } } : d))
+            }}
+            className={inputCls(!!errors.openingKo)}
+          />
+          <p id="dr-openingKo-count" className={`text-right text-[12px] tabular-nums ${openingKoLen > L.openingKoMax ? 'text-bad' : 'text-ink2'}`}>
+            {openingKoLen}/{L.openingKoMax}
+          </p>
+          <FieldError id="dr-openingKo-err" text={errors.openingKo} />
           <p id="dr-opening-note" className="text-[12px] text-ink2">
             {DRAFT.openingNote}
           </p>
-          <FieldError id="dr-opening-err" text={errors.opening} />
         </Field>
       ) : null}
     </div>

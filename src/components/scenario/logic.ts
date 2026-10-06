@@ -210,6 +210,8 @@ export function draftLevelOf(level: unknown): DraftLevel {
 export interface DraftExpression {
   /** 저장된 표현 id(고칠 때만 — 서버가 그대로 둔다). 새 표현은 없음. */
   id?: string
+  /** 화면 안에서만 쓰는 행 키(`withRowKeys`) — 서버로 보내지 않는다. 편집 폼이 순번이 아니라 이 키로 행을 가리킨다. */
+  rowKey?: string
   ja: string
   reading?: string
   ko: string
@@ -347,9 +349,88 @@ export function draftPatch(d: EditableDraft, original: ScenarioDetail): Scenario
   return out
 }
 
+/* ── 표현 행 키(핵심 표현 편집기) ─────────────────────────────────────── */
+
+export type KeyedExpression = DraftExpression & { rowKey: string }
+
+/** 편집 폼 상태: 행 키 · 새 표현 넣기 · 닫힘. 행 키는 `id:`·`c` 로 시작해 이 값과 겹치지 않는다. */
+export const NEW_EXPRESSION = 'new' as const
+export type ExpressionEditing = string | null
+
+const CLIENT_KEY = /^c(\d+)$/
+
+function nextClientSeq(items: readonly DraftExpression[]): number {
+  let n = 0
+  for (const e of items) {
+    const m = e.rowKey ? CLIENT_KEY.exec(e.rowKey) : null
+    if (m) n = Math.max(n, Number(m[1]) + 1)
+  }
+  return n
+}
+
+/** 키 없는 행에 키를 붙인다 — 저장된 표현은 `id:<id>`, 그 밖은 `c<n>`. 겹치는 키는 새로 준다. 모두 맞으면 같은 배열. */
+export function withRowKeys(items: DraftExpression[]): KeyedExpression[] {
+  const taken = new Set<string>()
+  const keep = items.map((e) => (e.rowKey && !taken.has(e.rowKey) ? (taken.add(e.rowKey), true) : false))
+  if (keep.every(Boolean)) return items as KeyedExpression[]
+  let n = nextClientSeq(items)
+  const fresh = () => {
+    while (taken.has(`c${n}`)) n++
+    const k = `c${n++}`
+    taken.add(k)
+    return k
+  }
+  return items.map((e, i) => {
+    if (keep[i]) return e as KeyedExpression
+    const byId = e.id ? `id:${e.id}` : null
+    const rowKey = byId && !taken.has(byId) ? (taken.add(byId), byId) : fresh()
+    return { ...e, rowKey }
+  })
+}
+
+/** 새 표현 행 키 — 지금 행의 `c<n>` 다음, 그리고 이 편집기가 이미 준 수(`floor`)보다 작지 않게(지운 행 키를 다시 쓰지 않는다). */
+export function newRowKey(items: readonly DraftExpression[], floor = 0): string {
+  return `c${Math.max(nextClientSeq(items), floor)}`
+}
+
+/** 열린 폼이 가리키는 행이 아직 있으면 그대로, 사라졌으면(지움·다시 만들기·복구) 닫는다. */
+export function editingTarget(items: readonly DraftExpression[], editing: ExpressionEditing): ExpressionEditing {
+  if (editing === null || editing === NEW_EXPRESSION) return editing
+  return items.some((e) => e.rowKey === editing) ? editing : null
+}
+
+/** 행을 지운 뒤의 폼 상태 — 지운 행의 폼이면 닫고, 다른 행·새 표현 폼은 그대로 둔다. */
+export function editingAfterRemove(editing: ExpressionEditing, removedKey: string): ExpressionEditing {
+  return editing === removedKey ? null : editing
+}
+
+/** 키로 찾은 행 지우기. 최소 개수 아래로는 지우지 않는다(같은 배열). */
+export function removeExpression(items: KeyedExpression[], key: string): KeyedExpression[] {
+  if (items.length <= L.expressionsMin) return items
+  const next = items.filter((e) => e.rowKey !== key)
+  return next.length === items.length ? items : next
+}
+
+/** 키로 찾은 행만 바꾼다(없는 키면 같은 배열). 일본어가 바뀌면 저장된 읽기는 버린다(어긋난 읽기를 남기지 않게). 표현 id·행 키는 유지. */
+export function editExpression(items: KeyedExpression[], key: string, v: { ja: string; ko: string }): KeyedExpression[] {
+  let hit = false
+  const next = items.map((e) => {
+    if (e.rowKey !== key) return e
+    hit = true
+    const out: KeyedExpression = { ...(e.id ? { id: e.id } : {}), rowKey: e.rowKey, ja: v.ja, ko: v.ko }
+    if (oneLine(e.ja) === oneLine(v.ja) && e.reading) out.reading = e.reading
+    return out
+  })
+  return hit ? next : items
+}
+
+export function addExpression(items: KeyedExpression[], v: { ja: string; ko: string }, rowKey: string): KeyedExpression[] {
+  return [...items, { rowKey, ja: v.ja, ko: v.ko }]
+}
+
 /* ── 검사 ─────────────────────────────────────────────────────────────── */
 
-/** 화면 칸 열쇠: title·titleJa·place·level·learner·tutor·goal·criteria·criteria[i]·steps·steps[i]·expr·expr[i]·opening·description·other. */
+/** 화면 칸 열쇠: title·titleJa·place·level·learner·tutor·goal·criteria·criteria[i]·steps·steps[i]·expr·expr[i]·opening·openingKo·description·other. */
 export interface DraftProblem {
   key: string
   message: string
@@ -367,6 +448,7 @@ export function problemKey(field: string): string {
   if (field === 'keyExpressions' || field === 'requiredExpressions') return 'expr'
   if (field === 'roles.tutor') return 'tutor'
   if (field === 'roles' || field.startsWith('roles.')) return 'learner'
+  if (field === 'opening.ko') return 'openingKo'
   if (field === 'opening' || field.startsWith('opening.')) return 'opening'
   if (field === 'topicIds' || field.startsWith('topicIds[')) return 'place'
   if (field === 'title' || field === 'titleJa' || field === 'level' || field === 'description') return field
@@ -415,9 +497,8 @@ export function validateDraft(d: EditableDraft): DraftProblem[] {
     if (ja) seen.add(ja)
   })
   if (d.opening) {
-    const before = p.length
     checkText(p, 'opening', d.opening.ja, L.openingJaMax, C.openingJa, true)
-    if (p.length === before) checkText(p, 'opening', d.opening.ko, L.openingKoMax, C.openingKo, true)
+    checkText(p, 'openingKo', d.opening.ko, L.openingKoMax, C.openingKo, true)
   }
   return dedupe(p)
 }

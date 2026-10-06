@@ -399,7 +399,8 @@ function StartBar({
   const blocked = starting || disabled
   const resumeId = s.inProgressChatId ?? null
   return (
-    <div className="sticky bottom-0 -mx-4 mt-4 border-t border-line bg-surface px-4 pb-1 pt-2">
+    // 긴 시트에서는 스크롤 영역 맨 아래에 붙어 시트 본문의 아래 여백이 사라진다 — 하단 고정 줄 공통 규칙(Composer·StageSpeak)으로 제스처 바를 비킨다.
+    <div className="sticky bottom-0 -mx-4 mt-4 border-t border-line bg-surface px-4 pt-2" style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}>
       {failure && failure !== 'gone' ? (
         <p role="alert" className="mb-2 rounded-xl bg-bad-soft px-3 py-2 text-[13px] text-bad break-keep">
           {failure === 'archived' ? SHEET.archived : failure === 'rate' ? SHEET.startRate : SHEET.startFail}

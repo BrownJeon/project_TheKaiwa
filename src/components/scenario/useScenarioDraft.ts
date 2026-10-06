@@ -97,6 +97,9 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
   const [goneOnSave, setGoneOnSave] = useState(false)
   const req = useRef<{ ac: AbortController | null; timers: ReturnType<typeof setTimeout>[]; timedOut: boolean }>({ ac: null, timers: [], timedOut: false })
   const saving = useRef(false)
+  // 자동 보관 타이머와 "보관 끝"(저장 성공·버리기) 표시 — 끝난 뒤 남은 타이머가 지운 초안을 되살리지 않게 한다.
+  const storeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const storeClosed = useRef(false)
   // 다시 만들기 중 실패·취소하면 고치던 초안으로 돌아간다(묻기 단계로 떨어뜨리지 않는다).
   const newDraftRef = useRef<EditableDraft | null>(null)
   useEffect(() => {
@@ -124,15 +127,29 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
     [],
   )
 
-  // 자동 보관 — 이어 고칠지 묻는 동안(restore)에는 남은 초안을 덮어쓰지 않는다.
+  // 자동 보관 — 이어 고칠지 묻는 동안(restore)에는 남은 초안을 덮어쓰지 않는다. 보관을 끝낸 뒤에는 다시 쓰지 않는다.
   useEffect(() => {
-    if (mode !== 'new' || restore) return
+    if (mode !== 'new' || restore || storeClosed.current) return
     const t = setTimeout(() => {
+      storeTimer.current = null
+      if (storeClosed.current) return
       const snap = { ask, draft: newDraft, edited, savedAt: Date.now() }
       writeStore('session', DRAFT_STORE_KEY, isBlankStore(snap) ? null : serializeStoredDraft(snap))
     }, SAVE_DEBOUNCE_MS)
-    return () => clearTimeout(t)
+    storeTimer.current = t
+    return () => {
+      clearTimeout(t)
+      if (storeTimer.current === t) storeTimer.current = null
+    }
   }, [mode, restore, ask, newDraft, edited])
+
+  /** 저장 성공·버리기 — 예약된 보관을 먼저 취소하고 이 탭의 초안을 지운다. */
+  const closeStore = useCallback(() => {
+    storeClosed.current = true
+    if (storeTimer.current) clearTimeout(storeTimer.current)
+    storeTimer.current = null
+    writeStore('session', DRAFT_STORE_KEY, null)
+  }, [])
 
   const setAsk = useCallback((patch: Partial<DraftAsk>) => {
     setAskState((a) => ({ ...a, ...patch }))
@@ -186,6 +203,8 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
           setStage('ask')
           return
         }
+        // 새 초안을 받았으니 남아 있던 초안 대신 이것을 보관한다(복구 상자를 닫고 자동 보관을 다시 켠다).
+        setRestore(null)
         setNewDraft(d)
         setEdited(false)
         setTried(false)
@@ -219,7 +238,7 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
   }, [])
 
   const acceptRestore = useCallback(() => {
-    if (!restore?.draft) return
+    if (!restore?.draft || req.current.ac) return
     setAskState(restore.ask)
     setNewDraft(restore.draft)
     setEdited(restore.edited)
@@ -262,7 +281,7 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
         if (Object.keys(patch).length) await apiPatch<ScenarioDetail>(`/api/v1/scenarios/${encodeURIComponent(original.id)}`, patch)
         savedId = original.id
       }
-      if (mode === 'new') writeStore('session', DRAFT_STORE_KEY, null)
+      if (mode === 'new') closeStore()
       router.replace(scenarioSheetHref(savedId, true))
       return null
     } catch (e) {
@@ -279,13 +298,13 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
       else setSaveMessage({ kind: f.kind })
       return null
     }
-  }, [draft, mode, ask, original, router])
+  }, [draft, mode, ask, original, router, closeStore])
 
   const discard = useCallback(() => {
     req.current.ac?.abort()
-    if (mode === 'new') writeStore('session', DRAFT_STORE_KEY, null)
+    if (mode === 'new') closeStore()
     router.replace(SCENARIO_HOME_HREF)
-  }, [mode, router])
+  }, [mode, router, closeStore])
 
   return {
     mode,
@@ -296,7 +315,8 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
     draft,
     setDraft,
     edited,
-    restore,
+    // 새 초안을 만드는 동안에는 복구 상자를 숨긴다(실패·취소로 묻기 단계에 돌아오면 다시 보인다).
+    restore: editStage === 'ask' ? restore : null,
     acceptRestore,
     dropRestore,
     long,
