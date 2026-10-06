@@ -311,12 +311,11 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
   const chunk = { text: input.text, tokens: p.tokens, normalizedText: p.normalizedText }
   const fromCache = (hit: CachedAudio, ms: number): SynthesizeResult => {
     const ttfaMs = Math.round(total())
+    // 길이·timing 은 readCachedAudio 가 읽은 파일 기준으로 준다(행과 파일이 다른 합성이면 timing 은 이미 null — REV-136).
     steps.push(ttsStep(synthName, ms, { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, voiceId: voice.id, audioMs: hit.durationMs, status: 'OK' }))
-    // 길이는 실제 파일에서 — 같은 키를 동시에 다시 합성해 파일과 행이 엇갈렸으면 timing 길이가 맞지 않아 null 이 된다.
-    const fileMs = wavInfo(hit.audio)?.durationMs ?? null
-    const timing = attachTiming(steps, idx, { stored: hit.timing ?? null, missing: 'NONE', source: 'CACHE' }, chunk, fileMs)
+    const timing = attachTiming(steps, idx, { stored: hit.timing ?? null, missing: 'NONE', source: 'CACHE' }, chunk, hit.durationMs)
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
-    return { ...base, audio: hit.audio, cached: true, durationMs: hit.durationMs ?? fileMs, ttfaMs, timing }
+    return { ...base, audio: hit.audio, cached: true, durationMs: hit.durationMs, ttfaMs, timing }
   }
 
   const t = stopwatch()

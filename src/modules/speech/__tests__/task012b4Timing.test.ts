@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { Prisma } from '@prisma/client'
 import type { TtsTiming } from '@/types/tts'
 import { clearTokenTiming, readSignedTtsAudio, signTtsAudioToken } from '../tts/audioUrl'
-import { timingColumns, ttsCacheUpsertArgs, type CacheKeyParts } from '../tts/cache'
+import { audioFingerprint, storedTimingForAudio, timingColumns, ttsCacheUpsertArgs, type CacheKeyParts } from '../tts/cache'
 import { lessonClipPieces } from '../tts/lessonAudio'
 import { ttsStep } from '../tts/metrics'
 import { normalizeJapanese } from '../tts/normalizer'
@@ -116,9 +116,10 @@ test('캐시 형식 — 엔진 결과 검사(오디오 길이·정규화 글 범
   assert.equal(toStoredTiming({ ...t, words: [[0, 300, 0, 9]] }, '今日は。', 2000), null, '정규화 글 밖')
   assert.equal(toStoredTiming(null, '今日は。', 2000), null)
   assert.equal(toStoredTiming({ ...t, version: 'bad version' }, '今日は。', 2000), null)
-  const col = timingColumns(s)
+  const col = timingColumns(s, Buffer.from('wav-a'))
   assert.equal(col.timingVersion, 'engine-duration-1')
-  assert.deepEqual(parseStoredTiming(col.timing, col.timingVersion), s)
+  assert.equal((col.timing as Record<string, unknown>).audioSha1, audioFingerprint(Buffer.from('wav-a')), '지문은 timing JSON 안에')
+  assert.deepEqual(parseStoredTiming(col.timing, col.timingVersion), s, '모양 검사는 지문 키를 무시하고 화면 쪽 형식에 싣지 않는다')
   assert.equal(parseStoredTiming(col.timing, 'engine-duration-2'), null, '버전 칸 불일치')
   assert.equal(parseStoredTiming(col.timing, null), null)
   assert.equal(parseStoredTiming({ method: 'ENGINE', alignerVersion: 'x', words: [{ text: '今日', startMs: 0, endMs: 1, charStart: 0, charEnd: 2 }] }, 'x'), null, '설계 초안 모양(글 포함) 거부')
@@ -142,18 +143,48 @@ const PARTS: CacheKeyParts = {
   textVersion: 1,
 }
 
-test('캐시 upsert — timing·timingVersion 을 create 와 update 둘 다에 싣고, 없으면 둘 다 지운다(DbNull)', () => {
+test('캐시 upsert — timing·timingVersion·지문(audioSha1 = 이 wav)을 create 와 update 둘 다에 싣고, 없으면 둘 다 지운다(DbNull)', () => {
   const s = stored([[0, 300, 0, 2]], 2000)
-  const a = ttsCacheUpsertArgs('a'.repeat(40), PARTS, Buffer.alloc(100), 2000, s)
-  assert.deepEqual(a.create.timing, JSON.parse(JSON.stringify(s)))
+  const audio = Buffer.alloc(100, 7)
+  const withFp = { ...JSON.parse(JSON.stringify(s)), audioSha1: audioFingerprint(audio) }
+  const a = ttsCacheUpsertArgs('a'.repeat(40), PARTS, audio, 2000, s)
+  assert.deepEqual(a.create.timing, withFp)
   assert.equal(a.create.timingVersion, 'engine-duration-1')
-  assert.deepEqual(a.update.timing, JSON.parse(JSON.stringify(s)), 'update(같은 키 재합성 — 파일이 바뀜)도 timing 갱신')
+  assert.deepEqual(a.update.timing, withFp, 'update(같은 키 재합성 — 파일이 바뀜)도 timing·지문을 같은 문장으로 갱신')
   assert.equal(a.update.timingVersion, 'engine-duration-1')
   assert.equal(a.update.durationMs, 2000)
+  assert.equal(a.update.bytes, 100)
   const b = ttsCacheUpsertArgs('a'.repeat(40), PARTS, Buffer.alloc(100), 2000, null)
   assert.equal(b.create.timing, Prisma.DbNull)
   assert.equal(b.update.timing, Prisma.DbNull, '옛 오디오의 timing 이 새 오디오에 남지 않는다')
   assert.equal(b.update.timingVersion, null)
+})
+
+test('오디오 지문 — wav 바이트 전체의 sha1(16진 40자): 알려진 값·같은 내용이면 같고 한 바이트만 달라도 다르다', () => {
+  assert.equal(audioFingerprint(Buffer.alloc(0)), 'da39a3ee5e6b4b0d3255bfef95601890afd80709')
+  assert.equal(audioFingerprint(Buffer.from('abc')), 'a9993e364706816aba3e25717850c26c9cd0d89d')
+  const a = Buffer.alloc(4096, 0x11)
+  const b = Buffer.from(a)
+  assert.equal(audioFingerprint(a), audioFingerprint(b), '다른 Buffer 객체라도 내용이 같으면 같다')
+  b[4095] = 0x12
+  assert.notEqual(audioFingerprint(a), audioFingerprint(b), '마지막 바이트 하나 차이')
+  assert.match(audioFingerprint(a), /^[0-9a-f]{40}$/)
+})
+
+test('storedTimingForAudio — 모양이 맞고 지문이 이 파일과 같을 때만 timing, 지문 없음(옛 행)·다름·형식 틀림·모양 틀림은 null', () => {
+  const s = stored([[0, 300, 0, 2]], 2000)
+  const audio = Buffer.alloc(64, 0x21)
+  const other = Buffer.alloc(64, 0x22)
+  const col = timingColumns(s, audio)
+  assert.deepEqual(storedTimingForAudio(col.timing, col.timingVersion, audio), s)
+  assert.equal(storedTimingForAudio(col.timing, col.timingVersion, other), null, '다른 합성의 파일')
+  const plain = JSON.parse(JSON.stringify(s))
+  assert.equal(storedTimingForAudio(plain, 'engine-duration-1', audio), null, '지문 도입 전 행')
+  assert.equal(storedTimingForAudio({ ...plain, audioSha1: audioFingerprint(audio).toUpperCase() }, 'engine-duration-1', audio), null, '대문자 — 형식 밖')
+  assert.equal(storedTimingForAudio({ ...plain, audioSha1: audioFingerprint(audio).slice(0, 39) }, 'engine-duration-1', audio), null, '39자')
+  assert.equal(storedTimingForAudio({ ...plain, audioSha1: 1 }, 'engine-duration-1', audio), null, '문자열 아님')
+  assert.equal(storedTimingForAudio(col.timing, 'engine-duration-2', audio), null, '지문이 맞아도 버전 칸이 다르면')
+  assert.equal(storedTimingForAudio(null, null, audio), null)
 })
 
 const KEY = 'ab'.repeat(20)

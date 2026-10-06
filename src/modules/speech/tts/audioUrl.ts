@@ -15,7 +15,6 @@ import type { TtsTiming } from '@/types/tts'
 import { isCacheKey, readCachedAudio } from './cache'
 import { recallRecentAudio } from './recentAudio'
 import { TIMING_DURATION_TOLERANCE_MS } from './timing'
-import { wavInfo } from './wav'
 
 export const TTS_AUDIO_URL_PATH = '/api/v1/speech/tts/'
 export const TTS_AUDIO_URL_TTL_SEC = 600
@@ -155,7 +154,8 @@ export async function readSignedTtsAudio(userId: string, token: unknown, now = D
   }
   const recent = recallRecentAudio(v.cacheKey, now)
   if (recent) return { ...recent, remainingSec: v.remainingSec, timing: timingFor(recent.durationMs) }
+  // 캐시 파일 경로의 길이는 readCachedAudio 가 파일 헤더에서 읽은 값(행 값 아님 — REV-136).
   const hit = await readCachedAudio(v.cacheKey)
   if (!hit) return null
-  return { audio: hit.audio, durationMs: hit.durationMs, modelVersion: hit.modelVersion ?? null, dictionaryVersion: hit.dictionaryVersion ?? null, remainingSec: v.remainingSec, timing: timingFor(wavInfo(hit.audio)?.durationMs ?? hit.durationMs) }
+  return { audio: hit.audio, durationMs: hit.durationMs, modelVersion: hit.modelVersion ?? null, dictionaryVersion: hit.dictionaryVersion ?? null, remainingSec: v.remainingSec, timing: timingFor(hit.durationMs) }
 }

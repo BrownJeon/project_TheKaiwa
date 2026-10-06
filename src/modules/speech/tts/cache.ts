@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { Prisma, type SpeechProfile } from '@prisma/client'
 import { prisma, readDataFile, removeDataFile, writeDataFile } from '@/modules/infra'
 import { parseStoredTiming, type StoredTiming } from './timing'
+import { wavInfo } from './wav'
 
 export const TTS_CACHE_DIR = 'tts-cache'
 /** 합성 경로(#23) 텍스트 버전 — 정규화 규칙 변경은 normalizedText 가 바뀌어 자연히 갈리므로 올릴 일이 드물다. */
@@ -69,15 +70,38 @@ export function cacheSegments(key: string): [string, string, string] {
 
 export interface CachedAudio {
   audio: Buffer
+  /** 캐시 HIT 은 **읽은 파일**의 길이(wav 헤더). 헤더를 못 읽으면 행 값 — 행은 다른 합성의 값일 수 있다(아래 storeCachedAudio). */
   durationMs: number | null
   /** #24 응답 헤더용(task-007). 합성 직후 값에는 없다. */
   modelVersion?: string
   dictionaryVersion?: number
-  /** 단어 timing(정규화 글 좌표, task-012b-4). 012b-4 이전 행·모르는 형식은 null. */
+  /** 단어 timing(정규화 글 좌표, task-012b-4). 012b-4 이전 행·지문 없는 행·지문이 파일과 다른 행·모르는 형식은 null. */
   timing?: StoredTiming | null
 }
 
-/** HIT 면 파일을 읽고 hits·lastHitAt 을 올린다. 행은 있는데 파일이 없으면 행을 지우고 MISS. */
+const SHA1_RE = /^[0-9a-f]{40}$/
+
+/** 오디오 지문(wav 바이트 전체의 sha1, 16진 40자) — `TtsCache.timing` JSON 의 `audioSha1` 과 읽은 파일을 맞대 본다(REV-136). */
+export function audioFingerprint(audio: Buffer): string {
+  return createHash('sha1').update(audio).digest('hex')
+}
+
+/**
+ * 행의 timing 을 **이 파일**에 써도 되는가 — 모양 검사(`parseStoredTiming`) 뒤, JSON 의 `audioSha1` 이 파일 지문과 같을 때만 준다.
+ * 지문이 없거나(지문 도입 전 행) 다르면(다른 합성이 파일이나 행을 나중에 덮음) null — 틀린 강조보다 없는 강조.
+ */
+export function storedTimingForAudio(raw: unknown, timingVersion: string | null | undefined, audio: Buffer): StoredTiming | null {
+  const timing = parseStoredTiming(raw, timingVersion)
+  if (!timing) return null
+  const sha = (raw as Record<string, unknown>).audioSha1
+  return typeof sha === 'string' && SHA1_RE.test(sha) && sha === audioFingerprint(audio) ? timing : null
+}
+
+/**
+ * 캐시 HIT 의 유일한 읽기 경로(#23·레슨·턴 청크는 `synthesizeSentence` CACHE, #24 는 `readSignedTtsAudio` 가 여기로 온다).
+ * HIT 면 파일을 읽고 hits·lastHitAt 을 올린다. 행은 있는데 파일이 없으면 행을 지우고 MISS.
+ * 길이·timing 은 행이 아니라 **읽은 파일** 기준이다 — 행과 파일이 다른 합성일 수 있다(storeCachedAudio 주석).
+ */
 export async function readCachedAudio(key: string): Promise<CachedAudio | null> {
   const segs = cacheSegments(key)
   const row = await prisma.ttsCache.findUnique({ where: { key }, select: { durationMs: true, modelVersion: true, dictionaryVersion: true, timing: true, timingVersion: true } })
@@ -88,23 +112,30 @@ export async function readCachedAudio(key: string): Promise<CachedAudio | null> 
     return null
   }
   void prisma.ttsCache.update({ where: { key }, data: { hits: { increment: 1 }, lastHitAt: new Date() } }).catch(() => undefined)
-  return { audio, durationMs: row.durationMs, modelVersion: row.modelVersion, dictionaryVersion: row.dictionaryVersion, timing: parseStoredTiming(row.timing, row.timingVersion) }
+  return {
+    audio,
+    durationMs: wavInfo(audio)?.durationMs ?? row.durationMs,
+    modelVersion: row.modelVersion,
+    dictionaryVersion: row.dictionaryVersion,
+    timing: storedTimingForAudio(row.timing, row.timingVersion, audio),
+  }
 }
 
 /**
- * timing 칸 — create·update 에 **같이** 싣는다(task-012b-4). update 는 같은 키를 다시 합성해 wav 파일을 덮어쓴 경우라
- * (다른 프로세스와 경합) timing 도 그 오디오 것으로 바꿔야 한다. 이번 합성에 timing 이 없으면 옛 값을 지운다(DbNull) —
- * 다른 오디오의 timing 이 남아 어긋나는 것보다 없는 편이 낫다.
+ * timing 칸 — create·update 에 **같이** 싣고, JSON 안에 이 행이 가리킬 wav 의 지문(`audioSha1`)을 같은 문장으로 넣는다(REV-136).
+ * update 는 같은 키를 다른 프로세스가 다시 합성한 경우다. 파일 rename 과 행 쓰기가 한 단위가 아니라 마지막 파일과 마지막 행이
+ * 서로 다른 합성일 수 있는데, 읽을 때 지문이 파일과 다르면 timing 을 버리므로 다른 합성의 단어 경계가 나가지 않는다.
+ * 이번 합성에 timing 이 없으면 옛 값을 지운다(DbNull) — 다른 오디오의 timing 이 남아 어긋나는 것보다 없는 편이 낫다.
  */
-export function timingColumns(timing: StoredTiming | null): { timing: Prisma.InputJsonValue | typeof Prisma.DbNull; timingVersion: string | null } {
+export function timingColumns(timing: StoredTiming | null, audio: Buffer): { timing: Prisma.InputJsonValue | typeof Prisma.DbNull; timingVersion: string | null } {
   if (!timing) return { timing: Prisma.DbNull, timingVersion: null }
-  return { timing: JSON.parse(JSON.stringify(timing)) as Prisma.InputJsonValue, timingVersion: timing.alignerVersion }
+  return { timing: { ...(JSON.parse(JSON.stringify(timing)) as Prisma.InputJsonObject), audioSha1: audioFingerprint(audio) }, timingVersion: timing.alignerVersion }
 }
 
 /** `storeCachedAudio` 의 upsert 인자(순수 — 테스트가 create·update 칸을 본다). */
 export function ttsCacheUpsertArgs(key: string, parts: CacheKeyParts, audio: Buffer, durationMs: number | null, timing: StoredTiming | null) {
   const segs = cacheSegments(key)
-  const t = timingColumns(timing)
+  const t = timingColumns(timing, audio)
   const data = {
     voiceProfileId: parts.voiceProfileId,
     normalizedText: parts.normalizedText.slice(0, 200),
@@ -127,13 +158,20 @@ export function ttsCacheUpsertArgs(key: string, parts: CacheKeyParts, audio: Buf
   return { where: { key }, create: { key, ...data }, update: { bytes: data.bytes, durationMs, path: data.path, ...t } }
 }
 
+/**
+ * 파일(임시 파일 + rename) → 행 upsert. 둘은 한 단위가 아니다. 같은 키를 두 프로세스(개발·QA·운영이 TtsCache·DATA_ROOT 공유)가
+ * 겹쳐 쓰면 마지막 파일과 마지막 행이 서로 다른 합성일 수 있다. 같은 입력이라도 엔진 합성은 확률적(시드 고정 없음)이라
+ * 두 오디오는 다르다. 그래서 읽는 쪽이 행 값을 믿지 않는다: 길이는 파일 헤더에서, timing 은 지문(`audioSha1`)이 파일과 같을 때만.
+ * `bytes` 칸만 파일과 어긋난 채 남을 수 있다(용량 정리 계산에만 쓰인다).
+ */
 export async function storeCachedAudio(key: string, parts: CacheKeyParts, audio: Buffer, durationMs: number | null, timing: StoredTiming | null = null): Promise<void> {
   const segs = cacheSegments(key)
   await writeDataFile(segs, audio)
   try {
     await prisma.ttsCache.upsert(ttsCacheUpsertArgs(key, parts, audio, durationMs, timing))
   } catch (e) {
-    // 다른 프로세스가 같은 키를 먼저 넣었다(같은 입력 → 같은 오디오) — 그 행이 이 파일을 가리키므로 그대로 둔다.
+    // 다른 프로세스가 같은 키 행을 먼저 넣었다(동시 첫 저장). 파일은 이쪽 오디오로 바뀌었고 행은 그쪽 합성 값이지만,
+    // 읽을 때 길이는 파일에서·timing 은 지문이 맞을 때만 쓰므로 그대로 둔다(오디오는 정상, 그 키의 timing 은 null).
     if ((e as { code?: string }).code === 'P2002') return
     // 행을 못 남기면 파일도 치운다 — 행 없는 파일은 조회 경로가 닿지 않는 쓰레기가 된다.
     await removeDataFile(segs).catch(() => undefined)
