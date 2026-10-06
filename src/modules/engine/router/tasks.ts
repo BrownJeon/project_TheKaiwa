@@ -35,6 +35,8 @@ export const LLM_TASKS = {
   reviewDecision: { tier: 'balanced', timeoutMs: 60_000, lane: 'batch', retryOnTimeout: true }, // A11 — 타임아웃 1회 재시도(task-010b3), 유효 상한 ≈121~131s(위 retryOnTimeout 주석)
   // A12 주제 새 단어(task-042) — 사용자가 [시작하기] 대기 화면에서 기다리는 동기 호출. 큐 대기를 포함한 벽시계 30초는 호출자(learning.vocab)가 따로 건다.
   topicWords: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' },
+  // 상황 역할극 종료 판정(task-010d, scenarioVerdict@v1) — 학습자가 [마치기] 뒤 결과를 기다리는 단건. 재시도 없음(실패·시간 초과면 판정 없이 코드 규칙만으로 기록).
+  scenarioVerdict: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' },
 } as const satisfies Record<string, TaskSpec>
 
 export type LlmTask = keyof typeof LLM_TASKS

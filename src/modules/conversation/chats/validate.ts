@@ -56,12 +56,13 @@ export interface CreateChatInput {
   level: JlptLevel | null
 }
 
-/** #28 — ASK·레슨 역할극·시나리오는 아직 열리지 않았다(400 FEATURE_NOT_READY). */
+/**
+ * #28 — ASK 는 아직 열리지 않았다(400 FEATURE_NOT_READY). 상황 역할극 칸(`scenarioId`·`lessonId`)은 여기서 보지 않는다 —
+ * 라우트가 `parseRolePlayIds`(chats/rolePlay.ts) 결과가 있으면 `createRolePlayChat` 으로 보낸다(task-010d A3b, CHAT 이면 거기서 400).
+ */
 export function parseCreateChat(body: Record<string, unknown>): CreateChatInput {
   const kind = parseKind(body.kind)
   if (kind === 'ASK') throw featureNotReady('무엇이든 물어보기는 아직 준비 중이에요.')
-  if (body.lessonId != null) throw featureNotReady('레슨 역할극 대화는 아직 준비 중이에요.')
-  if (body.scenarioId != null) throw featureNotReady('상황 대화는 아직 준비 중이에요.')
   let level: JlptLevel | null = null
   if (body.level !== undefined && body.level !== null) {
     if (typeof body.level !== 'string' || !(CHAT_LEVELS as readonly string[]).includes(body.level)) bad('level', CHAT_LEVELS.join('|'), 'level 값이 올바르지 않습니다.')

@@ -10,6 +10,9 @@
  */
 import type { JlptLevel } from '@prisma/client'
 import { ApiError, prisma } from '@/modules/infra'
+import type { ScenarioGoal, ScenarioOpening, ScenarioRoles, ScenarioStep } from '@/types/scenario'
+import { readScenarioExpressions, scenarioChunkIds, scenarioRequiredExpressions, type ScenarioChunkRef, type ScenarioExpression } from './expressions'
+import { readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from './view'
 
 export interface ScenarioChatStartInput {
   scenarioId: string | null
@@ -103,4 +106,75 @@ export async function resolveScenarioChatStart(userId: string, input: ScenarioCh
     topicSource = 'SCENARIO'
   }
   return { scenario: { id: row.id, title: row.title, titleJa: row.titleJa, level: row.level }, lessonId: lesson?.id ?? null, topic, topicSource }
+}
+
+/**
+ * 역할극 진행 재료(task-010d A3b, Leader 승인 additive) — **읽기 전용**. #28 첫마디·턴 `[상황]` 헤더·`done.scenario` 진행 값·#29 `chat.scenario`·종료 판정 입력이
+ * 모두 이 함수 하나로 상황 행을 읽는다(conversation 은 Scenario 표를 직접 읽지 않는다 — 6층·테이블 소유).
+ * - 접근 = `scenarioAccessWhere`(시드 또는 본인) 그대로, 아니면 null. **status 는 보지 않는다** — 진행 중 역할극은 상황이 ARCHIVED 돼도 이어 간다
+ *   (새 역할극 시작은 `resolveScenarioChatStart` 의 409 `ARCHIVED` 가 막는다).
+ * - 쿼리: 상황 1 + 참조 조각(`chunkId`)이 있을 때만 1. 모양이 틀린 JSON 칸도 throw 하지 않는다(view·expressions 읽기 함수가 관대하게 읽는다).
+ */
+export interface ScenarioRolePlayRow {
+  roles: unknown
+  goal: unknown
+  constraints: unknown
+  keyExpressions: unknown
+  completionRule: unknown
+}
+
+export interface ScenarioRolePlayMaterial {
+  id: string
+  title: string
+  titleJa: string | null
+  level: JlptLevel
+  status: string
+  /** 저장 JSON 칸 그대로(A1-PE `scenarioPromptParts(row, chunks)` 입력). */
+  row: ScenarioRolePlayRow
+  chunks: Map<string, ScenarioChunkRef>
+  /** 판정용 표현(`match` 포함 — 코드 표현 확인이 카탈로그·종료와 같은 재료를 쓴다). */
+  expressions: ScenarioExpression[]
+  roles: ScenarioRoles
+  goal: ScenarioGoal
+  steps: ScenarioStep[]
+  opening: ScenarioOpening | null
+  requiredExpressions: number
+}
+
+const MATERIAL_SELECT = { id: true, title: true, titleJa: true, level: true, status: true, roles: true, goal: true, constraints: true, keyExpressions: true, completionRule: true } as const
+
+export interface ScenarioMaterialDb {
+  scenario: {
+    findFirst(args: { where: ReturnType<typeof scenarioAccessWhere>; select: typeof MATERIAL_SELECT }): Promise<({ id: string; title: string; titleJa: string | null; level: JlptLevel; status: string } & ScenarioRolePlayRow) | null>
+  }
+  topicChunk: {
+    findMany(args: { where: { id: { in: string[] } }; select: { id: true; textJa: true; reading: true; meaningKo: true; chunkType: true } }): Promise<({ id: string } & ScenarioChunkRef)[]>
+  }
+}
+
+export async function readScenarioRolePlayMaterial(userId: string, scenarioId: string, db: ScenarioMaterialDb = prisma as unknown as ScenarioMaterialDb): Promise<ScenarioRolePlayMaterial | null> {
+  if (!validId(scenarioId)) return null
+  const r = await db.scenario.findFirst({ where: scenarioAccessWhere(userId, scenarioId), select: MATERIAL_SELECT })
+  if (!r) return null
+  const chunkIds = scenarioChunkIds(r.keyExpressions)
+  const rows = chunkIds.length
+    ? await db.topicChunk.findMany({ where: { id: { in: chunkIds } }, select: { id: true, textJa: true, reading: true, meaningKo: true, chunkType: true } })
+    : []
+  const chunks = new Map<string, ScenarioChunkRef>(rows.map((c) => [c.id, { textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo, chunkType: c.chunkType }]))
+  const expressions = readScenarioExpressions(r.keyExpressions, chunks)
+  return {
+    id: r.id,
+    title: r.title,
+    titleJa: r.titleJa,
+    level: r.level,
+    status: r.status,
+    row: { roles: r.roles, goal: r.goal, constraints: r.constraints, keyExpressions: r.keyExpressions, completionRule: r.completionRule },
+    chunks,
+    expressions,
+    roles: readScenarioRoles(r.roles),
+    goal: readScenarioGoal(r.goal),
+    steps: readScenarioSteps(r.constraints, r.goal),
+    opening: readScenarioOpening(r.constraints, r.goal),
+    requiredExpressions: scenarioRequiredExpressions(r.completionRule, expressions.length),
+  }
 }

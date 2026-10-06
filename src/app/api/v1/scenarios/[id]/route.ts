@@ -1,5 +1,6 @@
 import { ok, rateLimit, readJsonObject, requireSession, withApi } from '@/modules/infra'
 import { archiveScenario, getScenarioDetail, updateScenario } from '@/modules/learning'
+import { listOpenRolePlayChats } from '@/modules/conversation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ type Ctx = { params: Promise<{ id: string }> }
 export const GET = withApi<Ctx>(async (_req, ctx) => {
   const s = await requireSession()
   const { id } = await ctx.params
-  return ok(await getScenarioDetail(s.user.id, id), null, { headers: { 'Cache-Control': 'private, no-store' } })
+  return ok(await getScenarioDetail(s.user.id, id, undefined, { openChats: listOpenRolePlayChats }), null, { headers: { 'Cache-Control': 'private, no-store' } })
 })
 
 /** #164 내 상황 고치기 — 보낸 칸만. 시드 404 `SEED` · 남의 것 404 · 지운 상황 409 `ARCHIVED` · 400 `{field, reason, problems[]}`. 응답 = 상세. */
@@ -18,7 +19,7 @@ export const PATCH = withApi<Ctx>(async (req, ctx) => {
   const s = await requireSession()
   rateLimit(`scenario-write:${s.user.id}`, 20)
   const { id } = await ctx.params
-  return ok(await updateScenario(s.user.id, id, await readJsonObject(req, 16 * 1024)))
+  return ok(await updateScenario(s.user.id, id, await readJsonObject(req, 16 * 1024), undefined, { openChats: listOpenRolePlayChats }))
 })
 
 /** #165 내 상황 지우기 = ARCHIVED(목록에서 빠짐, 지난 역할극·기록은 그대로). 멱등. 시드 404 `SEED` · 남의 것 404. */

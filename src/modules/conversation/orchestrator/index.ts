@@ -19,6 +19,11 @@
  *  코치 자기수정은 LLM 없이 코드가 판정한다 — 직전 말의 힌트 교정을 이번 말이 고쳤으면 그 메시지 메타에 판정을 쓰고, 고쳤을 때만
  *  라우트 훅(`recordSelfCorrection`, learning 관측)을 같은 트랜잭션에서 부른다. 판정 재료 읽기는 수락 뒤 LLM 과 병렬(첫 음성 경로 밖).
  *
+ * task-010d(상황 역할극, A3b-1): `Chat.scenarioId` 가 있으면 수락 전 읽기와 병렬로 상황 재료(`learning.readScenarioRolePlayMaterial`, 쿼리 1~2)를 한 번 읽어
+ *  `[상황]` 헤더(A1-PE `buildTalkRequest({scenario})`)와 `done.scenario` 진행 값(코드 계산 — LLM 칸 없음, D-4)에 같이 쓴다. 진행 값용 학습자 말 읽기(쿼리 1)는
+ *  수락 뒤 LLM 과 병렬(첫 음성 경로 밖). 수락 트랜잭션은 잠금 뒤 끝낸 역할극이면 409 `ROLEPLAY_ENDED`(끝낸 표식 조회 1 — 대화 생성 시각 하한, REV-134 M-2).
+ *  역할극 턴당 추가 쿼리 = 재료 1~2(LLM 시작 전, 학습자 헤더·이력과 병렬) + 끝낸 표식 1(수락 tx) + 학습자 말 1(LLM 과 병렬).
+ *
  * 사용자당 턴 1(Q1):
  *   ① 메모리 락(이 프로세스) — 같은 사용자의 두 번째 요청은 즉시 409.
  *   ② 수락 트랜잭션에서 **사용자 행 `FOR UPDATE`** 로 직렬화한 뒤(여러 채팅·blue/green 두 프로세스 공통 지점) 채팅 행 `FOR UPDATE`,
@@ -30,8 +35,10 @@
 import { Prisma, type ChatKind, type InputSource, type JlptLevel } from '@prisma/client'
 import { ApiError, classifyError, dates, isRetryableTxError, lockUserRow, prisma, withTransaction, type Tx } from '@/modules/infra'
 import { appendTraceSteps, llm, newTraceId, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceStep } from '@/modules/engine'
+import { isScenarioRolePlayEnded, readScenarioRolePlayMaterial, type ScenarioRolePlayMaterial } from '@/modules/learning'
 import { buildChatRequest } from '../prompts/chat'
-import { buildTalkRequest, type CorrectionMode } from '../prompts/talk'
+import { buildTalkRequest, type CorrectionMode, type TalkScenarioInput } from '../prompts/talk'
+import { scenarioPromptParts } from '../prompts/scenarioInput'
 import type { TutorResponse } from '../structuredResponse/schemas'
 import { buildLearnerHeader, loadCoachPending, loadHistoryBefore, loadRecentHistory, loadTalkCorrectionMode, type CoachPending } from '../turnContext'
 import {
@@ -46,6 +53,7 @@ import {
 import type { WindowMessage } from '../window'
 import type { LearnerHeader } from '../prompts/header'
 import { chatPreview, notFoundChat } from '../chats'
+import { loadRolePlayLearnerTexts, rolePlayEnded, rolePlayProgress } from '../chats/rolePlay'
 import type { TurnClientTimings, TurnRequest } from '../chats/validate'
 import { TurnAudio, type TurnSpeaker } from './turnAudio'
 import { computeSceneCap, type SceneCapReason } from './sceneCap'
@@ -124,58 +132,66 @@ interface AcceptedTurn {
 const USER_MESSAGE_SELECT = { id: true, content: true, createdAt: true, inputSource: true } as const
 
 async function acceptTurn(userId: string, chatId: string, req: TurnRequest): Promise<AcceptedTurn> {
-  return withTransaction(async (tx) => {
-    const now = Date.now()
-    await lockUserRow(tx, userId)
-    const rows = await tx.$queryRaw<{ id: string; userId: string; kind: ChatKind; level: JlptLevel | null; scenarioId: string | null }[]>`SELECT id, userId, kind, level, scenarioId FROM Chat WHERE id = ${chatId} FOR UPDATE`
-    const chat = rows[0]
-    if (!chat || chat.userId !== userId) throw notFoundChat()
-    if (chat.kind === 'ASK') throw new ApiError('FEATURE_NOT_READY', '무엇이든 물어보기는 아직 준비 중이에요.')
+  return withTransaction((tx) => acceptTurnTx(tx, userId, chatId, req))
+}
 
-    const pendings = await tx.chatMessage.findMany({ where: { userId, role: 'ASSISTANT', status: 'PENDING' }, select: { id: true, createdAt: true } })
-    const stale = pendings.filter((p) => isStalePending(p.createdAt, now, isMessageLocallyRunning(p.id)))
-    const live = pendings.find((p) => !stale.includes(p))
-    if (live) throw turnConflict(live.id)
-    if (stale.length) await tx.chatMessage.updateMany({ where: { id: { in: stale.map((p) => p.id) }, status: 'PENDING' }, data: { status: 'FAILED' } })
+/** acceptTurn 의 트랜잭션 본문 — 단위 테스트가 가짜 tx 로 잠금·거절 순서를 확인한다(task-010d 끝낸 역할극 409). */
+export async function acceptTurnTx(tx: Tx, userId: string, chatId: string, req: TurnRequest): Promise<AcceptedTurn> {
+  const now = Date.now()
+  await lockUserRow(tx, userId)
+  const rows = await tx.$queryRaw<{ id: string; userId: string; kind: ChatKind; level: JlptLevel | null; scenarioId: string | null; createdAt: Date | string }[]>`SELECT id, userId, kind, level, scenarioId, createdAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
+  const chat = rows[0]
+  if (!chat || chat.userId !== userId) throw notFoundChat()
+  if (chat.kind === 'ASK') throw new ApiError('FEATURE_NOT_READY', '무엇이든 물어보기는 아직 준비 중이에요.')
+  // task-010d — 마친 역할극에는 턴을 받지 않는다(종료 #167 도 사용자 → 대화 순서로 잠그므로 둘은 겹치지 않는다). 이미 읽은 행의 생성 시각을 하한으로(전수 훑기 없음).
+  if (chat.scenarioId) {
+    const createdAt = chat.createdAt instanceof Date ? chat.createdAt : new Date(String(chat.createdAt))
+    if (await isScenarioRolePlayEnded(userId, { id: chatId, createdAt }, tx)) throw rolePlayEnded()
+  }
 
-    const traceId = newTraceId()
-    const base = { chatId, kind: chat.kind, level: chat.level, scenarioId: chat.scenarioId ?? null, traceId, resumed: req.resume }
+  const pendings = await tx.chatMessage.findMany({ where: { userId, role: 'ASSISTANT', status: 'PENDING' }, select: { id: true, createdAt: true } })
+  const stale = pendings.filter((p) => isStalePending(p.createdAt, now, isMessageLocallyRunning(p.id)))
+  const live = pendings.find((p) => !stale.includes(p))
+  if (live) throw turnConflict(live.id)
+  if (stale.length) await tx.chatMessage.updateMany({ where: { id: { in: stale.map((p) => p.id) }, status: 'PENDING' }, data: { status: 'FAILED' } })
 
-    if (req.resume) {
-      // D1: 마지막 강사 메시지가 FAILED(방금 정리된 죽은 PENDING 포함)면 그 앞 사용자 메시지로 다시 돈다. 살아 있는 PENDING 은 위에서 409.
-      const last = await tx.chatMessage.findFirst({ where: { chatId, role: 'ASSISTANT' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, status: true, createdAt: true } })
-      if (!last || last.status !== 'FAILED') throw new ApiError('CONFLICT', '다시 받을 답이 없어요.', { status: last?.status ?? null })
-      const user = await tx.chatMessage.findFirst({
-        where: { chatId, role: 'USER', OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: USER_MESSAGE_SELECT,
-      })
-      if (!user) throw new ApiError('CONFLICT', '다시 받을 답이 없어요.', { status: last.status })
-      // createdAt 을 지금으로 — 이 값이 이번 실행의 표식(pendingSince)이자 stale 판정 기준이다.
-      const pendingSince = new Date(now)
-      const res = await tx.chatMessage.updateMany({
-        where: { id: last.id, status: 'FAILED' },
-        data: { status: 'PENDING', createdAt: pendingSince, content: '', reading: null, translation: null, toolLog: Prisma.DbNull, traceId },
-      })
-      if (res.count === 0) throw turnConflict(null)
-      return { ...base, userMessage: user, assistantMessageId: last.id, pendingSince }
-    }
+  const traceId = newTraceId()
+  const base = { chatId, kind: chat.kind, level: chat.level, scenarioId: chat.scenarioId ?? null, traceId, resumed: req.resume }
 
-    // 사용자·강사 행의 createdAt 을 1ms 벌려 정렬이 id 에 기대지 않게 한다.
-    const createdAt = new Date(now)
-    const pendingSince = new Date(now + 1)
-    const user = await tx.chatMessage.create({
-      data: { chatId, userId, role: 'USER', content: req.text, inputSource: req.inputSource, status: 'DONE', createdAt },
+  if (req.resume) {
+    // D1: 마지막 강사 메시지가 FAILED(방금 정리된 죽은 PENDING 포함)면 그 앞 사용자 메시지로 다시 돈다. 살아 있는 PENDING 은 위에서 409.
+    const last = await tx.chatMessage.findFirst({ where: { chatId, role: 'ASSISTANT' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, status: true, createdAt: true } })
+    if (!last || last.status !== 'FAILED') throw new ApiError('CONFLICT', '다시 받을 답이 없어요.', { status: last?.status ?? null })
+    const user = await tx.chatMessage.findFirst({
+      where: { chatId, role: 'USER', OR: [{ createdAt: { lt: last.createdAt } }, { createdAt: last.createdAt, id: { lt: last.id } }] },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: USER_MESSAGE_SELECT,
     })
-    const assistant = await tx.chatMessage.create({
-      data: { chatId, userId, role: 'ASSISTANT', content: '', status: 'PENDING', traceId, createdAt: pendingSince },
-      select: { id: true },
+    if (!user) throw new ApiError('CONFLICT', '다시 받을 답이 없어요.', { status: last.status })
+    // createdAt 을 지금으로 — 이 값이 이번 실행의 표식(pendingSince)이자 stale 판정 기준이다.
+    const pendingSince = new Date(now)
+    const res = await tx.chatMessage.updateMany({
+      where: { id: last.id, status: 'FAILED' },
+      data: { status: 'PENDING', createdAt: pendingSince, content: '', reading: null, translation: null, toolLog: Prisma.DbNull, traceId },
     })
-    // 행 수는 행을 만드는 트랜잭션에서 센다(실패 턴도 두 행이 남으므로 +2, 재실행은 +0).
-    await tx.chat.update({ where: { id: chatId }, data: { messageCount: { increment: 2 }, lastMessageAt: createdAt, preview: chatPreview(req.text) } })
-    return { ...base, userMessage: user, assistantMessageId: assistant.id, pendingSince }
+    if (res.count === 0) throw turnConflict(null)
+    return { ...base, userMessage: user, assistantMessageId: last.id, pendingSince }
+  }
+
+  // 사용자·강사 행의 createdAt 을 1ms 벌려 정렬이 id 에 기대지 않게 한다.
+  const createdAt = new Date(now)
+  const pendingSince = new Date(now + 1)
+  const user = await tx.chatMessage.create({
+    data: { chatId, userId, role: 'USER', content: req.text, inputSource: req.inputSource, status: 'DONE', createdAt },
+    select: USER_MESSAGE_SELECT,
   })
+  const assistant = await tx.chatMessage.create({
+    data: { chatId, userId, role: 'ASSISTANT', content: '', status: 'PENDING', traceId, createdAt: pendingSince },
+    select: { id: true },
+  })
+  // 행 수는 행을 만드는 트랜잭션에서 센다(실패 턴도 두 행이 남으므로 +2, 재실행은 +0).
+  await tx.chat.update({ where: { id: chatId }, data: { messageCount: { increment: 2 }, lastMessageAt: createdAt, preview: chatPreview(req.text) } })
+  return { ...base, userMessage: user, assistantMessageId: assistant.id, pendingSince }
 }
 
 /**
@@ -435,6 +451,8 @@ interface LlmRun {
   scene: { cap: number; reason: SceneCapReason } | null
   /** TALK 만 — 이번 턴 교정 방식(task-010c). */
   correctionMode: CorrectionMode | null
+  /** 역할극 경로로 조립했는가(task-010d). */
+  rolePlay: boolean
   abort: () => void
 }
 
@@ -448,6 +466,8 @@ function startLlmRun(o: {
   elapsed: () => number
   /** TALK 만 의미가 있다(CHAT 은 무시). */
   correctionMode: CorrectionMode | null
+  /** 상황 역할극(task-010d) — 있으면 `[상황]` 헤더가 붙는 역할극 경로. 없으면 일반 TALK(바이트 불변). */
+  scenario?: TalkScenarioInput | null
 }): LlmRun {
   o.emit({ event: 'status', data: { stage: 'PROMPT', elapsedMs: o.elapsed() } })
   const t = Date.now()
@@ -455,7 +475,9 @@ function startLlmRun(o: {
   // 상한은 TALK 의 [지시] 줄·후검증에만 간다(persona·세션 캐시 키 불변). CHAT(A2)은 그대로 — task-024.
   const scene = o.kind === 'TALK' ? computeSceneCap({ text: o.text, level: o.learner.level }) : null
   const correctionMode = o.kind === 'TALK' ? (o.correctionMode ?? 'FLUENCY') : null
-  const req = scene ? buildTalkRequest({ ...input, sceneCap: scene.cap, correctionMode: correctionMode ?? 'FLUENCY' }) : buildChatRequest(input)
+  const req = scene
+    ? buildTalkRequest({ ...input, sceneCap: scene.cap, correctionMode: correctionMode ?? 'FLUENCY', ...(o.scenario ? { scenario: o.scenario } : {}) })
+    : buildChatRequest(input)
   const promptMs = Date.now() - t
   const audio = o.kind === 'TALK' && o.speaker ? new TurnAudio({ speaker: o.speaker, emit: o.emit, elapsed: o.elapsed, early: true }) : null
   const startAt = o.elapsed()
@@ -470,7 +492,12 @@ function startLlmRun(o: {
   })
   // 수락이 끝나기 전에 실패해도 미처리 거부가 되지 않게(뒤에서 await 가 같은 거부를 받는다).
   promise.catch(() => undefined)
-  return { promise, audio, startAt, promptMs, scene, correctionMode, abort: () => ac.abort() }
+  return { promise, audio, startAt, promptMs, scene, correctionMode, rolePlay: o.kind === 'TALK' && !!o.scenario, abort: () => ac.abort() }
+}
+
+/** 상황 재료 → A1 `[상황]` 헤더 입력(A1-PE 어댑터). 재료가 없으면(상황이 사라짐) 일반 TALK. */
+function talkScenarioOf(m: ScenarioRolePlayMaterial | null): TalkScenarioInput | null {
+  return m ? scenarioPromptParts(m.row, m.chunks).talk : null
 }
 
 /** TALK 의 교정 방식 — 설정(60초 캐시) + 역할극이면 코치. 읽기 실패는 기본(유창성)으로 — 턴을 막지 않는다. */
@@ -494,6 +521,8 @@ interface ProcessInput {
   speaker: TurnSpeaker | null
   /** 직전 코치 힌트 카드의 정답을 열고 말했는가(클라 보고, task-010c — REPEAT 판정). */
   coachRevealed: boolean
+  /** 수락 전에 읽은 상황 재료(task-010d — 역할극이 아니면 null, 끊김 복구는 여기서 읽는다). 헤더와 진행 값이 같은 재료를 쓴다. */
+  rolePlay: ScenarioRolePlayMaterial | null
 }
 
 async function processTurn(p: ProcessInput): Promise<void> {
@@ -518,15 +547,22 @@ async function processTurn(p: ProcessInput): Promise<void> {
   // 코치 자기수정 판정 재료(직전 말의 힌트 교정) — LLM 과 병렬로 읽는다. 실패는 판정 생략(턴은 계속).
   const coachPending: Promise<CoachPending | null> =
     a.kind === 'TALK' ? turnDeps.loadCoachPending(userId, a.chatId, a.userMessage).catch(() => null) : Promise.resolve(null)
+  // task-010d — 진행 값 재료(이 턴 말까지의 학습자 말). LLM 과 병렬로 읽고 실패하면 `done.scenario` 만 뺀다(턴은 계속).
+  const rolePlayTexts: Promise<string[] | null> =
+    a.kind === 'TALK' && a.scenarioId ? turnDeps.loadRolePlayLearnerTexts(userId, a.chatId).catch(() => null) : Promise.resolve(null)
+  rolePlayTexts.catch(() => undefined)
+  let rolePlay = p.rolePlay
   try {
     let run = p.run
     if (!run) {
-      const [learner, history, correctionMode] = await Promise.all([
+      const [learner, history, correctionMode, material] = await Promise.all([
         buildLearnerHeader(userId, a.level),
         loadHistoryBefore(a.chatId, a.userMessage),
         talkCorrectionModeFor(userId, a),
+        a.kind === 'TALK' && a.scenarioId && !rolePlay ? turnDeps.loadRolePlayMaterial(userId, a.scenarioId) : Promise.resolve(rolePlay),
       ])
-      run = startLlmRun({ kind: a.kind, text: a.userMessage.content, learner, history, speaker: p.speaker, emit: (e) => stream.emit(e), elapsed, correctionMode })
+      rolePlay = material
+      run = startLlmRun({ kind: a.kind, text: a.userMessage.content, learner, history, speaker: p.speaker, emit: (e) => stream.emit(e), elapsed, correctionMode, scenario: talkScenarioOf(rolePlay) })
       audio = run.audio
     }
     steps.push({
@@ -534,6 +570,7 @@ async function processTurn(p: ProcessInput): Promise<void> {
       ms: run.promptMs,
       ...(run.scene ? { sceneCap: run.scene.cap, sceneCapReason: run.scene.reason } : {}),
       ...(run.correctionMode ? { correctionMode: run.correctionMode } : {}),
+      ...(run.rolePlay ? { rolePlay: true } : {}),
     })
     const r = await run.promise
     const llmMs = elapsed() - run.startAt
@@ -593,6 +630,8 @@ async function processTurn(p: ProcessInput): Promise<void> {
       steps.push(...audio.steps())
       toolLog = { ...toolLog, ttsStartMs: m.ttsStartMs, ttfaMs: m.ttfaMs, audioCount: m.audioCount }
     }
+    const learnerTexts = rolePlay ? await rolePlayTexts : null
+    const scenarioProgress = rolePlay && learnerTexts ? rolePlayProgress(rolePlay, learnerTexts) : null
     stream.emit({
       event: 'done',
       data: {
@@ -610,6 +649,8 @@ async function processTurn(p: ProcessInput): Promise<void> {
         proposals: saved.proposals,
         audioCount: audio?.metrics().audioCount ?? 0,
         traceId: a.traceId,
+        // 상황 역할극 진행 값(task-010d S7, additive) — 서버 코드 계산. 재료·학습자 말을 못 읽었으면 칸이 없다.
+        ...(scenarioProgress ? { scenario: scenarioProgress } : {}),
       },
     })
   } catch (e) {
@@ -671,6 +712,10 @@ export const turnDeps = {
   loadCorrectionMode: loadTalkCorrectionMode,
   /** task-010c — 직전 말의 코치 힌트 교정(판정 재료). */
   loadCoachPending,
+  /** task-010d — 상황 재료(헤더·진행 값 공용, 턴당 1회). */
+  loadRolePlayMaterial: (userId: string, scenarioId: string): Promise<ScenarioRolePlayMaterial | null> => readScenarioRolePlayMaterial(userId, scenarioId),
+  /** task-010d — 진행 값용 학습자 말(이 대화 전체, 시간순). */
+  loadRolePlayLearnerTexts: (userId: string, chatId: string): Promise<string[]> => loadRolePlayLearnerTexts(userId, chatId),
   completeJson: <T>(req: LlmJsonRequest<T>): Promise<LlmJsonResult<T>> => llm.completeJson<T>(req),
   prewarm: (req: LlmJsonRequest<TutorResponse>) => llm.prewarm(req),
 }
@@ -706,17 +751,20 @@ export async function startTurn(input: { userId: string; chatId: string; request
   const speaker: TurnSpeaker | null = hooks.speaker ? async (req) => hooks.speaker!(await acceptedPromise)(req) : null
 
   let run: LlmRun | null = null
+  let rolePlay: ScenarioRolePlayMaterial | null = null
   let accepted: AcceptedTurn
   let acceptMs = 0
   try {
     if (!request.resume) {
       const [pre] = await Promise.all([turnDeps.precheckChat(input.userId, input.chatId), hooks.gate ? hooks.gate() : Promise.resolve()])
-      const [learner, history, correctionMode] = await Promise.all([
+      const [learner, history, correctionMode, material] = await Promise.all([
         turnDeps.buildLearnerHeader(input.userId, pre.level),
         (preload.history ?? Promise.reject(new Error('no preload'))).catch(() => turnDeps.loadRecentHistory(input.userId, input.chatId)),
         talkCorrectionModeFor(input.userId, pre),
+        pre.kind === 'TALK' && pre.scenarioId ? turnDeps.loadRolePlayMaterial(input.userId, pre.scenarioId) : Promise.resolve(null),
       ])
-      run = startLlmRun({ kind: pre.kind, text: request.text, learner, history, speaker, emit: early.emit, elapsed, correctionMode })
+      rolePlay = material
+      run = startLlmRun({ kind: pre.kind, text: request.text, learner, history, speaker, emit: early.emit, elapsed, correctionMode, scenario: talkScenarioOf(rolePlay) })
     }
     const t = Date.now()
     accepted = await turnDeps.acceptTurn(input.userId, input.chatId, request)
@@ -739,7 +787,7 @@ export async function startTurn(input: { userId: string; chatId: string; request
     ? { speaker: hooks.speaker, recordSelfCorrection: hooks.recordSelfCorrection, recordCorrectionProposed: hooks.recordCorrectionProposed }
     : hooks
   const coachRevealed = !request.resume && request.coachRevealed === true
-  void processTurn({ userId: input.userId, a: accepted, lock, stream, elapsed, acceptMs, hooks: turnHooks, clientTimings, run, speaker, coachRevealed }).catch((e) =>
+  void processTurn({ userId: input.userId, a: accepted, lock, stream, elapsed, acceptMs, hooks: turnHooks, clientTimings, run, speaker, coachRevealed, rolePlay }).catch((e) =>
     console.error('[turn] 예기치 못한 예외:', e instanceof Error ? e.message : String(e)),
   )
   return { accepted: acc, subscribe: (l) => stream.subscribe(l), done: stream.done }

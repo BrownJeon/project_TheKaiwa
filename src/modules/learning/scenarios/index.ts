@@ -18,9 +18,13 @@ export {
 export type { ScenarioExpression, ScenarioChunkRef, ScenarioVerdict, ScenarioOutcome, ScenarioJudgement } from './expressions'
 export { resolveScenarioChatStart, scenarioNotFound, scenarioAccessWhere, linkedTopicsFor } from './start'
 export type { ScenarioChatStartInput, ScenarioChatStart, ScenarioTopicSource, ScenarioStartDb } from './start'
+// A3b(Leader 승인 additive): 역할극 진행 재료 읽기(첫마디·[상황] 헤더·진행 값·#29·종료 판정 공용)
+export { readScenarioRolePlayMaterial } from './start'
+export type { ScenarioRolePlayMaterial, ScenarioRolePlayRow, ScenarioMaterialDb } from './start'
 export {
   endScenarioRolePlay,
   isScenarioRolePlayEnded,
+  readScenarioRolePlayResult,
   scenarioEndLookupSince,
   SCENARIO_REPETITION_REF_TYPE,
   SCENARIO_UNJUDGED_CONFIDENCE,

@@ -49,6 +49,24 @@ export type { CreateChatInput, TurnRequest, TurnClientTimings } from './chats/va
 export { createChat, listChats, getChatDetail, getOwnedChat, ownedChatIds, updateChatTitle, deleteChat, sweepStalePending } from './chats'
 export type { ChatDto, ChatDetailDto, MessageDto } from './chats'
 export { retryUserTranslation } from './chats/translation'
+// task-010d 상황 역할극 — A1-서버 생성·종료 재료 + A3b-1 라우트 연결(#28 첫마디·#29 chat.scenario·#167 종료·진행 중 칸)
+export {
+  parseRolePlayIds,
+  createRolePlayChat,
+  readRolePlayEndFacts,
+  listOpenRolePlayChats,
+  finishRolePlay,
+  rolePlayChatView,
+  chatRolePlayView,
+  rolePlayProgress,
+  rolePlayEnded,
+  ROLE_PLAY_TURNS_READ_MAX,
+} from './chats/rolePlay'
+export type { RolePlayChatDto, RolePlayChatInput, RolePlayEndFacts, RolePlayChatRef } from './chats/rolePlay'
+// task-010d A1-PE — 종료 판정(scenarioVerdict@v1)·상황 행 → 프롬프트 입력
+export { buildScenarioVerdictRequest, finalizeScenarioVerdictFor, ScenarioVerdictInputError, SCENARIO_VERDICT_TASK, SCENARIO_VERDICT_PROMPT_VERSION } from './prompts/scenarioVerdict'
+export type { ScenarioVerdictInput, ScenarioVerdictTurn } from './prompts/scenarioVerdict'
+export { scenarioPromptParts } from './prompts/scenarioInput'
 export type { UserTranslationResult } from './chats/translation'
 export { startTurn, prewarmTalkTurn } from './orchestrator'
 export type { TurnHandle, TurnAccepted, TurnHooks, SelfCorrectionRecord, CorrectionProposedRecord } from './orchestrator'

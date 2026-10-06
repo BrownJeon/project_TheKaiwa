@@ -57,6 +57,9 @@ export interface CreatedChat {
   messageCount: number
   running: boolean
   createdAt: string
+  /** 상황 역할극 대화(task-010d, additive) — 본문에 `scenarioId`·`lessonId` 를 보냈을 때만. 첫마디가 있으면 `messageCount` 1(선생님 첫 말 저장). */
+  scenarioId?: string
+  lessonId?: string | null
 }
 
 /** #29 `chat` */
@@ -68,6 +71,66 @@ export interface ChatInfo {
   running: boolean
   reviewedAt: string | null
   messageCount: number
+  /** 상황 역할극 대화일 때만(task-010d S6, additive). */
+  scenario?: RolePlayChatView | null
+}
+
+// ── 상황 역할극(task-010d A3b) — 이름은 서버 코드가 정본(`expressions.usedIds` 는 A1-서버 `ScenarioEndResult` 그대로) ──
+
+/** #32 `done.scenario` · #29 `chat.scenario.progress` — 서버가 코드로 계산(LLM 칸 없음, D-4). */
+export interface RolePlayProgress {
+  /** 학습자 말 전체에서 코드가 확인한 핵심 표현 id(누적·표현 목록 순서). */
+  usedIds: string[]
+  /** 지금 단계(0부터). 지금은 늘 null — 학습자 말과 단계를 잇는 코드 신호가 없다(이력서 A3b-1 결정). 화면은 `rp-nostep`. */
+  stepIndex: number | null
+}
+
+/** 결과 화면 다음 상황(S8 `next?`) — 코드 추천 1개, 없으면 칸 없음. */
+export interface RolePlayNext {
+  id: string
+  title: string
+  titleJa: string | null
+  goalKo: string
+}
+
+/** #167 종료 응답 · #29 `chat.scenario.ended`(S8·S9 ResultView). */
+export interface RolePlayResultView {
+  replayed: boolean
+  chatId: string
+  scenarioId: string
+  studyLogId: string | null
+  repetitionItemId: string | null
+  outcome: 'ACHIEVED' | 'ALMOST' | 'NOT_YET'
+  goalAchieved: boolean
+  tutorGoalAchieved: boolean | null
+  codeRulePassed: boolean
+  communicationSuccess: boolean | null
+  /** false = 판정 없이(시간 초과·실패·학습자 말 없음) 코드 규칙만으로 기록했다(`res-unjudged`). */
+  judged: boolean
+  expressions: { usedIds: string[]; missedIds: string[]; verifiedIds: string[]; required: number; total: number }
+  turns: number
+  hintsUsed: number
+  selfCorrections: number
+  /** 이 대화에서 아직 채택·거절하지 않은 교정 수(`res-pending`). */
+  pendingCorrections: number
+  endedAt: string
+  next?: RolePlayNext
+}
+
+/** #29 `chat.scenario`(S6). */
+export interface RolePlayChatView {
+  id: string
+  title: string
+  titleJa: string | null
+  roles: { learner: string; tutor: string }
+  goalKo: string
+  steps: { ko: string }[]
+  keyExpressions: { id: string; ja: string; reading?: string; ko: string }[]
+  requiredExpressions: number
+  progress: RolePlayProgress
+  /** 마친 역할극이면 결과, 아니면 null. */
+  ended: RolePlayResultView | null
+  lesson?: { id: string; title: string } | null
 }
 
 export interface LearningInfo {
@@ -224,6 +287,8 @@ export interface TurnDoneEvent {
   userTranslation?: string | null
   audioCount?: number
   traceId?: string
+  /** 상황 역할극 대화일 때만(task-010d S7, additive) — 이번 말까지의 진행 값. 계산에 실패하면 칸이 없다(화면은 진행 갱신만 건너뜀). */
+  scenario?: RolePlayProgress
 }
 
 export interface TurnErrorEvent {

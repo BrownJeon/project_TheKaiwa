@@ -108,6 +108,26 @@ export async function isScenarioRolePlayEnded(userId: string, chat: { id: string
   return !!(await db.learningObservation.findFirst({ where: endedWhere(userId, chat.id, chat.createdAt), select: { id: true } }))
 }
 
+/**
+ * 끝낸 역할극의 결과 읽기(task-010d A3b, Leader 승인 additive) — **읽기 전용, 쓰기·잠금 0**. #29 `chat.scenario.ended` 와 결과 화면(S9)이 같이 쓰는 단일 출처다
+ * (두 번째 종료의 `replayed` 결과와 같은 함수 `replayResult` 로 만든다). 끝내지 않은 대화·다른 사용자·다른 상황이면 null.
+ * 끝낸 표식 조회는 `endedWhere`(대화 생성 시각 − 하루 하한, REV-134 M-2) + 관측의 `scenarioId` 가 그 대화의 상황과 같을 때만. `endedAt` = 그 관측 시각.
+ */
+export async function readScenarioRolePlayResult(
+  userId: string,
+  chat: { id: string; createdAt: Date; scenarioId: string },
+  db: Pick<Tx, 'learningObservation' | 'studyLog'> = prisma,
+): Promise<(ScenarioEndResult & { endedAt: Date }) | null> {
+  if (!validId(userId) || !validId(chat.id) || !validId(chat.scenarioId)) return null
+  const done = await db.learningObservation.findFirst({
+    where: { ...endedWhere(userId, chat.id, chat.createdAt), scenarioId: chat.scenarioId },
+    orderBy: { occurredAt: 'asc' },
+    select: { meta: true, occurredAt: true },
+  })
+  if (!done) return null
+  return { ...(await replayResult(userId, { chatId: chat.id, scenarioId: chat.scenarioId }, done.meta, db)), endedAt: done.occurredAt }
+}
+
 export async function endScenarioRolePlay(userId: string, input: ScenarioEndInput, tx: Tx, opts: { now?: Date } = {}): Promise<ScenarioEndResult> {
   if (!validId(input.chatId)) throw new ApiError('NOT_FOUND', '채팅을 찾을 수 없어요.')
   if (!validId(input.scenarioId)) throw scenarioNotFound()
@@ -253,7 +273,7 @@ const boolOrNull = (v: unknown): boolean | null => (typeof v === 'boolean' ? v :
 const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
 
 /** 두 번째 종료 — 처음 기록(관측 meta, StudyLog 가 남아 있으면 표현 id 까지)으로 같은 결과를 만든다. 쓰기 0. */
-async function replayResult(userId: string, input: ScenarioEndInput, metaJson: Prisma.JsonValue | null, tx: Tx): Promise<ScenarioEndResult> {
+async function replayResult(userId: string, input: Pick<ScenarioEndInput, 'chatId' | 'scenarioId'>, metaJson: Prisma.JsonValue | null, tx: Pick<Tx, 'studyLog'>): Promise<ScenarioEndResult> {
   const m = rec(metaJson)
   const logId = validId(m.logId) ? m.logId : null
   const log = logId ? await tx.studyLog.findFirst({ where: { id: logId, userId }, select: { id: true, result: true } }) : null

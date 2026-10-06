@@ -447,8 +447,14 @@ export async function updateScenario(userId: string, id: string, body: Record<st
     if (row.status !== 'ACTIVE') throw new ApiError('CONFLICT', '지운 상황은 고칠 수 없어요.', { reason: 'ARCHIVED' })
     const merged = mergeScenarioFields(row, v)
     if (merged.problems.length) invalid(merged.problems)
-    if (v.topicIds !== undefined) await replaceTopicLinks(tx, id, await visibleTopicIds(tx, userId, v.topicIds))
-    if (Object.keys(merged.data).length) await tx.scenario.updateMany({ where: { id, userId, isSeed: false, status: 'ACTIVE' }, data: merged.data })
+    const topicIds = v.topicIds !== undefined ? await visibleTopicIds(tx, userId, v.topicIds) : null
+    // 2차 방벽(REV-134 후속): 쓰기는 소유 조건(userId·시드 아님·ACTIVE)이 걸린 updateMany 가 정확히 1행을 바꾼 **뒤에만** 연결을 바꾼다 —
+    // 위 소유자 조회가 빠지거나 틀려도 남의 상황·시드의 ScenarioTopic 을 지우지 못한다. 장소만 고칠 때도 updatedAt 으로 같은 조건을 거친다.
+    if (Object.keys(merged.data).length || topicIds !== null) {
+      const res = await tx.scenario.updateMany({ where: { id, userId, isSeed: false, status: 'ACTIVE' }, data: Object.keys(merged.data).length ? merged.data : { updatedAt: d.now() } })
+      if (res.count !== 1) throw scenarioNotFound()
+      if (topicIds !== null) await replaceTopicLinks(tx, id, topicIds)
+    }
   })
   return getScenarioDetail(userId, id, d, opts)
 }

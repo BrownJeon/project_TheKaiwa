@@ -1,5 +1,5 @@
 import { ok, parseLimit, readJsonObject, requireSession, withApi } from '@/modules/infra'
-import { createChat, listChats, parseCreateChat, parseKind } from '@/modules/conversation'
+import { createChat, createRolePlayChat, listChats, parseCreateChat, parseKind, parseRolePlayIds } from '@/modules/conversation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,8 +12,15 @@ export const GET = withApi(async (req) => {
   return ok(await listChats(s.user.id, { kind, limit: parseLimit(q.get('limit'), 20, 100), cursor: q.get('cursor') }))
 })
 
-/** #28 대화 만들기 — ASK·레슨·시나리오는 400 FEATURE_NOT_READY. */
+/**
+ * #28 대화 만들기 — ASK 는 400 FEATURE_NOT_READY. `scenarioId`·`lessonId` 가 있으면 상황 역할극(task-010d): TALK 만(CHAT 400), 남의 상황·레슨 404,
+ * 숨긴 상황 409 `ARCHIVED`, 첫마디가 있으면 선생님 첫 메시지를 함께 저장한다(LLM 0회).
+ */
 export const POST = withApi(async (req) => {
   const s = await requireSession()
-  return ok(await createChat(s.user.id, parseCreateChat(await readJsonObject(req))))
+  const body = await readJsonObject(req)
+  const input = parseCreateChat(body)
+  const rolePlay = parseRolePlayIds(body)
+  if (rolePlay.scenarioId !== null || rolePlay.lessonId !== null) return ok(await createRolePlayChat(s.user.id, { ...input, ...rolePlay }))
+  return ok(await createChat(s.user.id, input))
 })

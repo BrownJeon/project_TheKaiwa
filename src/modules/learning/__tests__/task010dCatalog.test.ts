@@ -521,3 +521,39 @@ test('추천 규칙 — last 없음 + 반복 항목 있음 = 해 본 상황: 다
   assert.equal(recommendReasonOf(inTopic, focus), 'NEXT_IN_TOPIC', '반복 항목도 last 도 없으면 안 해 본 상황')
   assert.equal(recommendReasonOf(cand('x'), signals()), 'NEW_EASY')
 })
+
+test('2차 방벽(A3b-1, REV-134 후속): 소유자 조회가 속아 남의 상황을 내 것으로 읽어도 소유 조건 updateMany 가 0행이면 404 — 연결·행 그대로, 정상 고치기는 updateMany 뒤에만 연결 교체', async () => {
+  const f = seeded()
+  f.tables.scenarioTopic.push({ scenarioId: 'other_1', topicId: 'topic_other', weight: 1 })
+  const links = JSON.stringify(f.tables.scenarioTopic)
+  const rows = JSON.stringify(f.tables.scenario)
+  const forged = { ...f.tables.scenario.find((r) => r.id === 'other_1'), userId: ME }
+  const fooled = f.deps({
+    transaction: async (fn) => {
+      const tx = Object.create(f.db) as Record<string, unknown>
+      tx.scenario = { ...(f.db as unknown as Record<string, object>).scenario, findFirst: async () => ({ ...forged }) }
+      return fn(tx as never)
+    },
+  })
+  await assert.rejects(updateScenario(ME, 'other_1', { topicIds: ['topic_cafe'] }, fooled), expectApi('NOT_FOUND'))
+  await assert.rejects(updateScenario(ME, 'other_1', { title: '가로채기', topicIds: [] }, fooled), expectApi('NOT_FOUND'))
+  // 시드도 같다 — 조회가 시드를 "내 상황"으로 속아 읽어도 소유 조건(isSeed:false·userId)이 0행이라 시드 연결은 그대로.
+  const seedForged = { ...f.tables.scenario.find((r) => r.id === 'scn_cafe_a'), userId: ME, isSeed: false }
+  const fooledSeed = f.deps({
+    transaction: async (fn) => {
+      const tx = Object.create(f.db) as Record<string, unknown>
+      tx.scenario = { ...(f.db as unknown as Record<string, object>).scenario, findFirst: async () => ({ ...seedForged }) }
+      return fn(tx as never)
+    },
+  })
+  await assert.rejects(updateScenario(ME, 'scn_cafe_a', { topicIds: ['topic_road'] }, fooledSeed), expectApi('NOT_FOUND'))
+  assert.equal(JSON.stringify(f.tables.scenarioTopic), links, '남의 상황·시드 연결 그대로(deleteMany 가 돌지 않음)')
+  assert.equal(JSON.stringify(f.tables.scenario), rows, '남의 상황·시드 행 그대로')
+
+  f.log.length = 0
+  await updateScenario(ME, 'mine_1', { topicIds: ['topic_road'] }, f.deps())
+  assert.deepEqual(f.tables.scenarioTopic.filter((l) => l.scenarioId === 'mine_1').map((l) => l.topicId), ['topic_road'])
+  const upd = f.log.indexOf('scenario.updateMany')
+  const del = f.log.indexOf('scenarioTopic.deleteMany')
+  assert.ok(upd >= 0 && del > upd, `장소만 고쳐도 소유 조건 쓰기(updatedAt)가 먼저: ${f.log.join(',')}`)
+})

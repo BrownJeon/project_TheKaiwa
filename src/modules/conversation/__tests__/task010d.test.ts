@@ -1,15 +1,13 @@
 /**
- * task-010d A1-서버 — conversation 쪽 단위 테스트(DB·LLM 없음): 라우트 가드 유지(G1 — `validate.ts` 63·64행 원문과 400 FEATURE_NOT_READY),
+ * task-010d A1-서버 — conversation 쪽 단위 테스트(DB·LLM 없음): 라우트 가드 해제(A3b-1 — G1 시험 교체: 요청 형태 검증만 남음),
  * 역할극 대화 생성 서비스(가짜 의존 — Chat 칸·기본값·TALK 만·learning 판정 404 전파), 코치 강제 연결, 종료 재료 읽기(가짜 tx — 잠금 순서·남의 대화 404·
  * 역할극 아님 400·힌트·스스로 고침·교정 수).
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { ApiError, type Tx } from '@/modules/infra'
 import { parseCreateChat } from '../chats/validate'
-import { createRolePlayChat, parseRolePlayIds, readRolePlayEndFacts, ROLE_PLAY_TURNS_READ_MAX, type RolePlayChatDeps, type RolePlayChatRowData } from '../chats/rolePlay'
+import { createRolePlayChat, parseRolePlayIds, readRolePlayEndFacts, ROLE_PLAY_TURNS_READ_MAX, type RolePlayChatDeps, type RolePlayChatRowData, type RolePlayOpening } from '../chats/rolePlay'
 import { resolveTalkCorrectionMode } from '../corrections/talkDelivery'
 import type { ChatRow } from '../chats'
 
@@ -25,14 +23,15 @@ function expectApi(code: string, extra?: (e: ApiError) => void) {
   }
 }
 
-test('G1 가드 유지: validate.ts 63·64행 원문 그대로, #28 본문의 lessonId·scenarioId 는 여전히 400 FEATURE_NOT_READY', () => {
-  const lines = readFileSync(join(process.cwd(), 'src/modules/conversation/chats/validate.ts'), 'utf8').split('\n')
-  assert.equal(lines[62], "  if (body.lessonId != null) throw featureNotReady('레슨 역할극 대화는 아직 준비 중이에요.')")
-  assert.equal(lines[63], "  if (body.scenarioId != null) throw featureNotReady('상황 대화는 아직 준비 중이에요.')")
-  assert.throws(() => parseCreateChat({ kind: 'TALK', scenarioId: 'scn_seed' }), expectApi('FEATURE_NOT_READY'))
-  assert.throws(() => parseCreateChat({ kind: 'TALK', lessonId: 'les_1' }), expectApi('FEATURE_NOT_READY'))
-  assert.throws(() => parseCreateChat({ kind: 'TALK', topicId: 't_1', scenarioId: 'scn_seed', lessonId: 'les_1' }), expectApi('FEATURE_NOT_READY'))
+test('G1 가드 해제(A3b-1): #28 본문의 scenarioId·lessonId 는 더는 FEATURE_NOT_READY 가 아니고 역할극 칸으로 따로 읽힌다 · ASK 는 그대로 400', () => {
+  const body = { kind: 'TALK', topicId: 't_1', scenarioId: 'scn_seed', lessonId: 'les_1' }
+  assert.deepEqual(parseCreateChat(body), { kind: 'TALK', title: null, topicId: 't_1', level: null }, '일반 칸만 읽는다(역할극 칸은 parseRolePlayIds)')
+  assert.deepEqual(parseRolePlayIds(body), { scenarioId: 'scn_seed', lessonId: 'les_1' })
+  assert.deepEqual(parseCreateChat({ kind: 'TALK', lessonId: 'les_1' }), { kind: 'TALK', title: null, topicId: null, level: null })
   assert.deepEqual(parseCreateChat({ kind: 'TALK', topicId: 't_1', scenarioId: null, lessonId: null }), { kind: 'TALK', title: null, topicId: 't_1', level: null }, 'null 은 지금처럼 통과(기존 클라이언트 본문)')
+  assert.deepEqual(parseRolePlayIds({ kind: 'TALK', scenarioId: null, lessonId: null }), { scenarioId: null, lessonId: null }, '둘 다 null 이면 라우트는 일반 createChat')
+  assert.throws(() => parseCreateChat({ kind: 'ASK', scenarioId: 'scn_seed' }), expectApi('FEATURE_NOT_READY'))
+  assert.throws(() => parseCreateChat({ kind: 'TALK', level: 'N9', scenarioId: 'scn_seed' }), expectApi('VALIDATION', (e) => assert.equal(e.details?.field, 'level')))
 })
 
 test('parseRolePlayIds(A3 용): 1~40자 문자열만, 없음/null 은 null, 그 밖은 400', () => {
@@ -60,19 +59,22 @@ function chatRow(d: RolePlayChatRowData, topicTitle: string | null): ChatRow {
 
 function deps(over: Partial<RolePlayChatDeps> = {}) {
   const created: RolePlayChatRowData[] = []
+  const openings: (RolePlayOpening | null)[] = []
   const resolved: unknown[] = []
   const d: RolePlayChatDeps = {
     resolveStart: async (userId, input) => {
       resolved.push({ userId, input })
       return { scenario: { id: 'scn_seed', title: '사이즈·온도 바꿔 주문하기', titleJa: 'サイズと温度を変えて注文する', level: 'N5' }, lessonId: input.lessonId, topic: { id: 't_cafe', title: '카페' }, topicSource: 'SCENARIO' }
     },
-    createChat: async (data) => {
+    readMaterial: async () => null,
+    createChat: async (data, opening) => {
       created.push(data)
+      openings.push(opening)
       return chatRow(data, '카페')
     },
     ...over,
   }
-  return { d, created, resolved }
+  return { d, created, openings, resolved }
 }
 
 test('역할극 대화 생성: Chat.scenarioId·lessonId·topicId 기록, 제목·수준 기본값 = 상황, 요청 값 우선, TALK 만', async () => {
