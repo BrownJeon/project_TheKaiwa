@@ -4,8 +4,9 @@
  *
  * 상황마다 이유 하나(위에서부터 먼저 맞는 것):
  *   1. RETRY_NOT_YET — 지난 결과가 목표 전(NOT_YET·ALMOST)이고 마지막 시도가 오늘(KST) 전.
- *   2. REVIEW_DUE    — 해 본 상황이고 반복 항목의 다음 학습일이 오늘 이전·오늘(마지막 시도가 오늘 전).
- *   3. NEXT_IN_TOPIC — 안 해 본 상황 + 기준 주제(요청 `topicId` 또는 오늘 끝낸 수업의 주제)와 이어짐.
+ *   2. REVIEW_DUE    — 해 본 상황이고 반복 항목의 다음 학습일이 오늘 이전·오늘(마지막 시도가 오늘 전). 지난 결과가 읽는 창 밖이라
+ *                      `last` 가 없어도 반복 항목이 있으면 해 본 상황이다(결과를 몰라 1 은 아니고, 2 만 본다).
+ *   3. NEXT_IN_TOPIC — 안 해 본 상황(`last`·반복 항목 둘 다 없음) + 기준 주제(요청 `topicId` 또는 오늘 끝낸 수업의 주제)와 이어짐.
  *   4. NEW_EASY      — 안 해 본 상황 + 수준이 학습자 수준 이하(N5 학습자 → N5).
  * 이유 안 순서: 1 = NOT_YET 먼저·오래된 시도 먼저 / 2 = FOCUS 먼저·다음 학습일 이른 순 / 3 = 그 주제 weight 큰 순·난이도 낮은 순 /
  * 4 = 난이도 낮은 순·학습자 수준에 가까운 순. 끝은 만든 순·id.
@@ -49,12 +50,14 @@ const byCreated = (a: RecommendCandidate, b: RecommendCandidate) => a.createdAt.
 /** 이 상황의 추천 이유(없으면 null). */
 export function recommendReasonOf(c: RecommendCandidate, s: RecommendSignals): ScenarioRecommendReason | null {
   const last = s.last.get(c.id)
+  const rep = s.repetition.get(c.id)
   if (last) {
     if (last.day >= s.today) return null
     if (last.outcome !== 'ACHIEVED') return 'RETRY_NOT_YET'
-    const rep = s.repetition.get(c.id)
     return rep?.nextDue && rep.nextDue <= s.today ? 'REVIEW_DUE' : null
   }
+  // 지난 결과가 창(catalog SCENARIO_HISTORY_WINDOW_DAYS) 밖이어도 반복 항목은 남는다 — 해 본 상황을 "안 해 본 상황"(3·4)으로 추천하지 않는다.
+  if (rep) return rep.nextDue && rep.nextDue <= s.today ? 'REVIEW_DUE' : null
   if (s.focusTopicId && c.topicWeights.has(s.focusTopicId)) return 'NEXT_IN_TOPIC'
   return LEVEL_RANK[c.level] <= LEVEL_RANK[s.learnerLevel] ? 'NEW_EASY' : null
 }

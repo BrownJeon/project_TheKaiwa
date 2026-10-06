@@ -25,7 +25,7 @@ import {
   type ScenarioTopicRef,
 } from '@/types/scenario'
 import { readScenarioExpressions, scenarioChunkIds, scenarioRequiredExpressions, type ScenarioChunkRef, type ScenarioExpression } from './expressions'
-import { SCENARIO_REPETITION_REF_TYPE } from './end'
+import { SCENARIO_REPETITION_REF_TYPE, scenarioEndLookupSince } from './end'
 import { recommendScenarios, type RecommendCandidate } from './recommend'
 import {
   assignExpressionIds,
@@ -35,8 +35,10 @@ import {
   expressionsJson,
   goalJson,
   isScenarioId,
+  maxExpressionSeq,
   normalizeScenarioInput,
   SCENARIO_LEVELS,
+  storedExpressionSeq,
   type ScenarioFields,
 } from './shape'
 import { scenarioAccessWhere, scenarioNotFound } from './start'
@@ -44,6 +46,13 @@ import { expressionView, readScenarioGoal, readScenarioOpening, readScenarioRole
 
 /** 한 번에 읽는 후보 상한(시드 ≤ 수십 + 내 상황 ≤50). */
 export const SCENARIO_CATALOG_MAX = 300
+/**
+ * 지난 결과(`last`)·추천 재료로 읽는 관측의 시간 창(일, REV-134 M-2). `LearningObservation` 인덱스가 `(userId, occurredAt)` 뿐이라(상황·종류 칸
+ * 인덱스는 스키마 변경 — 사용자 DB 승인 필요, 보류) 창이 없으면 목록·상세마다 그 사용자 관측 전체를 훑는다. 180일 = 반복 간격 상한(7일)의 약 25배라
+ * 다시 해 볼·복습할 상황 판단에는 충분하다. 창 밖의 지난 시도는 `last` 가 없지만, 종료 때 같은 tx 로 쓰는 `RepetitionItem(SCENARIO)` 가 남아
+ * 추천은 "안 해 본 상황"이 아니라 복습 기준으로 본다(recommend.ts `recommendReasonOf`).
+ */
+export const SCENARIO_HISTORY_WINDOW_DAYS = 180
 
 export interface ScenarioDeps {
   db: Tx
@@ -63,8 +72,11 @@ export const defaultScenarioDeps: ScenarioDeps = {
 
 const withDeps = (over?: Partial<ScenarioDeps>): ScenarioDeps => (over ? { ...defaultScenarioDeps, ...over } : defaultScenarioDeps)
 
-/** 진행 중 역할극 후보(라우트가 conversation 에서 읽어 넘긴다 — 상황마다 끝내지 않았을 수 있는 최근 대화). */
-export type OpenRolePlayChats = (userId: string, scenarioIds: string[]) => Promise<{ scenarioId: string; chatId: string; at: Date }[]>
+/**
+ * 진행 중 역할극 후보(라우트가 conversation 에서 읽어 넘긴다 — 상황마다 끝내지 않았을 수 있는 최근 대화). `at` = 정렬 시각(`lastMessageAt`),
+ * `createdAt` = `Chat.createdAt`(끝낸 표식 조회의 시간 하한 — end.ts `scenarioEndLookupSince`, REV-134 M-2).
+ */
+export type OpenRolePlayChats = (userId: string, scenarioIds: string[]) => Promise<{ scenarioId: string; chatId: string; at: Date; createdAt: Date }[]>
 
 export interface ScenarioReadOptions {
   openChats?: OpenRolePlayChats
@@ -189,7 +201,7 @@ async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, o
   const chunks = new Map<string, ScenarioChunkRef>(chunkRows.map((c) => [c.id, c]))
 
   const obs = await db.learningObservation.findMany({
-    where: { userId, kind: 'SCENARIO_COMPLETED', scenarioId: { in: ids } },
+    where: { userId, occurredAt: { gte: new Date(now.getTime() - SCENARIO_HISTORY_WINDOW_DAYS * 86_400_000) }, kind: 'SCENARIO_COMPLETED', scenarioId: { in: ids } },
     orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
     take: 2000,
     select: { scenarioId: true, occurredAt: true, outcome: true, meta: true },
@@ -210,10 +222,17 @@ async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, o
 
   const inProgress = new Map<string, string>()
   if (opts.openChats) {
-    const open = (await opts.openChats(userId, ids)).filter((c) => ids.includes(c.scenarioId) && isScenarioId(c.chatId))
-    const ended = open.length
-      ? new Set((await db.learningObservation.findMany({ where: { userId, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: { in: open.map((c) => c.chatId) } }, select: { refId: true } })).map((o) => o.refId))
-      : new Set<string>()
+    // 생성 시각을 모르는 후보는 끝냈는지 범위로 확인할 수 없어 뺀다(진행 중으로 잘못 보이는 것보다 새로 시작하게 하는 쪽이 안전).
+    const open = (await opts.openChats(userId, ids)).filter((c) => ids.includes(c.scenarioId) && isScenarioId(c.chatId) && scenarioEndLookupSince(c.createdAt) !== null)
+    const since = open.length ? scenarioEndLookupSince(new Date(Math.min(...open.map((c) => c.createdAt.getTime())))) : null
+    const ended =
+      open.length && since
+        ? new Set(
+            (await db.learningObservation.findMany({ where: { userId, occurredAt: { gte: since }, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: { in: open.map((c) => c.chatId) } }, select: { refId: true } })).map(
+              (o) => o.refId,
+            ),
+          )
+        : new Set<string>()
     const latest = new Map<string, { chatId: string; at: Date }>()
     for (const c of open) {
       if (ended.has(c.chatId)) continue
@@ -368,7 +387,7 @@ export async function createScenario(userId: string, body: Record<string, unknow
         difficulty: v.difficulty ?? 2,
         roles: { learner: v.roles!.learner, tutor: v.roles!.tutor },
         goal: goalJson(v.goal!),
-        constraints: constraintsJson(null, v.steps!, v.opening ?? null) as Prisma.InputJsonValue,
+        constraints: constraintsJson(null, v.steps!, v.opening ?? null, maxExpressionSeq(ids)) as Prisma.InputJsonValue,
         keyExpressions: expressionsJson(exprs, ids) as Prisma.InputJsonValue,
         completionRule: completionRuleJson(null, required) as Prisma.InputJsonValue,
       },
@@ -391,13 +410,16 @@ export function mergeScenarioFields(row: Pick<ScenarioRow, 'constraints' | 'keyE
   if (v.difficulty !== undefined) data.difficulty = v.difficulty
   if (v.roles !== undefined) data.roles = { learner: v.roles.learner, tutor: v.roles.tutor }
   if (v.goal !== undefined) data.goal = goalJson(v.goal)
-  if (v.steps !== undefined || v.opening !== undefined) data.constraints = constraintsJson(row.constraints, v.steps, v.opening) as Prisma.InputJsonValue
   const stored = readScenarioExpressions(row.keyExpressions)
   const count = v.keyExpressions?.length ?? stored.length
+  let exprSeq: number | undefined
   if (v.keyExpressions !== undefined) {
-    const ids = assignExpressionIds(v.keyExpressions, new Set(stored.map((e) => e.id)))
+    const floor = storedExpressionSeq(row.constraints, stored.map((e) => e.id))
+    const ids = assignExpressionIds(v.keyExpressions, new Set(stored.map((e) => e.id)), false, floor)
     data.keyExpressions = expressionsJson(v.keyExpressions, ids) as Prisma.InputJsonValue
+    exprSeq = Math.max(floor, maxExpressionSeq(ids))
   }
+  if (v.steps !== undefined || v.opening !== undefined || exprSeq !== undefined) data.constraints = constraintsJson(row.constraints, v.steps, v.opening, exprSeq) as Prisma.InputJsonValue
   if (v.requiredExpressions !== undefined || v.keyExpressions !== undefined) {
     const storedRequired = rec(row.completionRule).requiredExpressions
     // 보낸 값은 그대로 검사하고, 저장 값은 새 표현 수에 맞춰 줄인다(표현을 지워 필수 수가 넘쳐도 400 이 아니라 자동으로 맞춤).
@@ -408,7 +430,10 @@ export function mergeScenarioFields(row: Pick<ScenarioRow, 'constraints' | 'keyE
   return { data, problems }
 }
 
-/** #164 고치기 — 내 상황(시드 아님·ACTIVE)만. 보낸 칸만 바꾼다. 표현 id 는 기존 것을 유지(지난 기록의 쓴 표현 id 가 그대로 뜻을 갖게). */
+/**
+ * #164 고치기 — 내 상황(시드 아님·ACTIVE)만. 보낸 칸만 바꾼다. 표현 id 는 기존 것을 유지하고 새 표현은 고수위(`constraints.exprSeq`) 다음 번호 —
+ * 여러 번 고쳐도 지운 번호를 다시 주지 않는다(지난 기록의 쓴 표현 id 가 그대로 뜻을 갖게).
+ */
 export async function updateScenario(userId: string, id: string, body: Record<string, unknown>, over?: Partial<ScenarioDeps>, opts: ScenarioReadOptions = {}): Promise<ScenarioDetail> {
   const d = withDeps(over)
   if (!isScenarioId(id)) throw scenarioNotFound()

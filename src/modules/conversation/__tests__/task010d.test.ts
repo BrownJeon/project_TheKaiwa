@@ -112,7 +112,7 @@ test('코치 강제 연결: 만든 역할극 대화(scenarioId 있음)는 설정
 
 // ── 종료 재료 읽기(가짜 tx) ───────────────────────────────────────────────
 
-type ChatLock = { id: string; userId: string; kind: string; scenarioId: string | null; lessonId: string | null; topicId: string | null }
+type ChatLock = { id: string; userId: string; kind: string; scenarioId: string | null; lessonId: string | null; topicId: string | null; createdAt: Date | string }
 
 function factsTx(chat: ChatLock | null, messages: { content: string; createdAt: Date; toolLog: unknown }[], corrections: Record<string, number> = {}) {
   const calls: { op: string; sql?: string; args?: unknown }[] = []
@@ -143,7 +143,8 @@ function factsTx(chat: ChatLock | null, messages: { content: string; createdAt: 
   return { tx: tx as unknown as Tx, calls }
 }
 
-const CHAT: ChatLock = { id: 'chat_rp_1', userId: U, kind: 'TALK', scenarioId: 'scn_seed', lessonId: 'les_mine', topicId: 't_cafe' }
+const CHAT_CREATED = new Date('2026-10-06T09:58:00Z')
+const CHAT: ChatLock = { id: 'chat_rp_1', userId: U, kind: 'TALK', scenarioId: 'scn_seed', lessonId: 'les_mine', topicId: 't_cafe', createdAt: CHAT_CREATED }
 const coach = (id: string, hintKo: string | null, selfCheck: string | null) => ({ correction: { id, mode: 'COACH', deliver: 'NOW', hintKo, selfCheck } })
 
 test('종료 재료: 사용자 → 대화 행 잠금 순서, 학습자 말·턴 수·힌트(코치 힌트 받은 말)·스스로 고침(SELF·REPEAT)·교정 수(상태 무관 제안 수)', async () => {
@@ -161,9 +162,11 @@ test('종료 재료: 사용자 → 대화 행 잠금 순서, 학습자 말·턴 
   const f = await readRolePlayEndFacts(U, 'chat_rp_1', tx)
   assert.deepEqual(calls.slice(0, 2).map((c) => c.op), ['lockUser', 'lockChat'], '턴(acceptTurn)과 같은 잠금 순서')
   assert.ok(calls[1].sql?.includes('FOR UPDATE'))
+  assert.ok(calls[1].sql?.includes('createdAt'), '대화 생성 시각을 같이 읽는다(끝낸 표식 조회 하한 — REV-134 M-2)')
   assert.deepEqual((calls.find((c) => c.op === 'msg.findMany')!.args as { where: unknown }).where, { chatId: 'chat_rp_1', userId: U, role: 'USER' })
   assert.deepEqual(f, {
     chatId: 'chat_rp_1',
+    chatCreatedAt: CHAT_CREATED,
     scenarioId: 'scn_seed',
     lessonId: 'les_mine',
     topicId: 't_cafe',
@@ -175,6 +178,8 @@ test('종료 재료: 사용자 → 대화 행 잠금 순서, 학습자 말·턴 
     startedAt: t0,
   })
   assert.ok(!calls.some((c) => c.op === 'msg.count'), '상한 아래면 따로 세지 않음')
+  const asText = await readRolePlayEndFacts(U, 'chat_rp_1', factsTx({ ...CHAT, createdAt: '2026-10-06T09:58:00.000Z' }, []).tx)
+  assert.equal(asText.chatCreatedAt.getTime(), CHAT_CREATED.getTime(), '원시 쿼리 DATETIME 이 글로 와도 Date 로 맞춘다')
 })
 
 test('종료 재료 거부: 남의 대화·없는 대화 404(존재를 드러내지 않음), 상황 없는 TALK·CHAT 400', async () => {

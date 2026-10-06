@@ -8,9 +8,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ApiError } from '@/modules/infra'
 import { SCENARIO_LIMITS } from '@/types/scenario'
-import { archiveScenario, createScenario, getScenarioDetail, listScenarios, mergeScenarioFields, parseScenarioListQuery, updateScenario } from '../scenarios/catalog'
-import { recommendScenarios, type RecommendCandidate, type RecommendSignals } from '../scenarios/recommend'
-import { assignExpressionIds, cleanScenarioText, normalizeScenarioInput } from '../scenarios/shape'
+import { archiveScenario, createScenario, getScenarioDetail, listScenarios, mergeScenarioFields, parseScenarioListQuery, SCENARIO_HISTORY_WINDOW_DAYS, updateScenario } from '../scenarios/catalog'
+import { SCENARIO_END_LOOKUP_MARGIN_MS } from '../scenarios/end'
+import { recommendReasonOf, recommendScenarios, type RecommendCandidate, type RecommendSignals } from '../scenarios/recommend'
+import { assignExpressionIds, cleanScenarioText, normalizeScenarioInput, storedExpressionSeq } from '../scenarios/shape'
 import { readScenarioOpening, readScenarioSteps } from '../scenarios/view'
 import { scenarioFakeDb, scenarioForeignWrites } from './scenarioFakeDb'
 
@@ -265,10 +266,10 @@ test('진행 중 대화: 후보 중 끝낸 대화(관측)는 빼고 가장 최�
   const f = seeded()
   f.tables.learningObservation.push({ id: 'o9', userId: ME, kind: 'SCENARIO_COMPLETED', outcome: 'SUCCESS', scenarioId: 'scn_cafe_a', refType: 'Chat', refId: 'chat_done', occurredAt: new Date('2026-10-06T00:00:00Z'), meta: {} })
   const openChats = async () => [
-    { scenarioId: 'scn_cafe_a', chatId: 'chat_done', at: new Date('2026-10-06T09:00:00Z') },
-    { scenarioId: 'scn_cafe_a', chatId: 'chat_old', at: new Date('2026-10-01T00:00:00Z') },
-    { scenarioId: 'scn_cafe_b', chatId: 'chat_b', at: new Date('2026-10-02T00:00:00Z') },
-    { scenarioId: 'other_1', chatId: 'chat_leak', at: new Date('2026-10-02T00:00:00Z') },
+    { scenarioId: 'scn_cafe_a', chatId: 'chat_done', at: new Date('2026-10-06T09:00:00Z'), createdAt: new Date('2026-10-05T23:00:00Z') },
+    { scenarioId: 'scn_cafe_a', chatId: 'chat_old', at: new Date('2026-10-01T00:00:00Z'), createdAt: new Date('2026-09-30T23:00:00Z') },
+    { scenarioId: 'scn_cafe_b', chatId: 'chat_b', at: new Date('2026-10-02T00:00:00Z'), createdAt: new Date('2026-10-01T23:00:00Z') },
+    { scenarioId: 'other_1', chatId: 'chat_leak', at: new Date('2026-10-02T00:00:00Z'), createdAt: new Date('2026-10-01T23:00:00Z') },
   ]
   const r = await listScenarios(ME, query(), f.deps(), { openChats })
   const by = new Map(r.items.map((i) => [i.id, i.inProgressChatId]))
@@ -277,6 +278,29 @@ test('진행 중 대화: 후보 중 끝낸 대화(관측)는 빼고 가장 최�
   assert.equal(by.get('scn_road_a'), undefined)
   assert.ok(!r.items.some((i) => i.inProgressChatId === 'chat_leak'))
   assert.equal((await listScenarios(ME, query(), f.deps())).items.some((i) => 'inProgressChatId' in i), false, 'openChats 없으면 칸 없음')
+})
+
+test('진행 중 대화의 끝낸 표식 조회 = 후보 중 가장 이른 Chat.createdAt − 하루 하한(REV-134 M-2) · 생성 시각 모르는 후보는 뺀다', async () => {
+  const f = seeded()
+  const oldest = new Date('2026-09-30T23:00:00Z')
+  const since = new Date(oldest.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS)
+  f.tables.learningObservation.push(
+    { id: 'o_edge', userId: ME, kind: 'SCENARIO_COMPLETED', outcome: 'SUCCESS', scenarioId: 'scn_cafe_a', refType: 'Chat', refId: 'chat_old', occurredAt: since, meta: {} },
+    // 하한 1ms 앞 = 이 후보 대화보다 하루 넘게 먼저 생긴 표식 → 이 대화의 것이 아니다(실제로는 생길 수 없는 행 — 조건이 걸렸는지 보는 탐침).
+    { id: 'o_before', userId: ME, kind: 'SCENARIO_COMPLETED', outcome: 'SUCCESS', scenarioId: 'scn_cafe_b', refType: 'Chat', refId: 'chat_b', occurredAt: new Date(since.getTime() - 1), meta: {} },
+  )
+  const openChats = async () => [
+    { scenarioId: 'scn_cafe_a', chatId: 'chat_old', at: new Date('2026-10-01T00:00:00Z'), createdAt: oldest },
+    { scenarioId: 'scn_cafe_b', chatId: 'chat_b', at: new Date('2026-10-02T00:00:00Z'), createdAt: new Date('2026-10-01T23:00:00Z') },
+    { scenarioId: 'mine_1', chatId: 'chat_nodate', at: new Date('2026-10-02T00:00:00Z'), createdAt: new Date('nope') },
+  ]
+  const r = await listScenarios(ME, query(), f.deps(), { openChats })
+  const by = new Map(r.items.map((i) => [i.id, i.inProgressChatId]))
+  assert.equal(by.get('scn_cafe_a'), undefined, '하한과 같은 시각의 표식 = 끝낸 대화')
+  assert.equal(by.get('scn_cafe_b'), 'chat_b', '하한 밖 표식은 보지 않는다')
+  assert.equal(by.get('mine_1'), undefined, '생성 시각을 모르는 후보는 진행 중으로 보이지 않는다')
+  const probe = f.reads.find((x) => x.op === 'learningObservation' && (x.where as { refType?: string } | undefined)?.refType === 'Chat')!
+  assert.deepEqual((probe.where as { occurredAt: unknown }).occurredAt, { gte: since })
 })
 
 test('상세: 시드·내 것 — 목표·단계·핵심 표현(id 규약)·필수 수·첫마디 / 남의 것·주인 없는 비시드·없음·형식 틀림 404(세부 없음) / 지운 것 404 ARCHIVED', async () => {
@@ -313,7 +337,7 @@ test('만들기: 잠금 → 한도 확인 → Scenario 1 + ScenarioTopic — 저
   assert.equal(row.isSeed, false)
   assert.equal(row.status, 'ACTIVE')
   assert.deepEqual(row.goal, { communicativeGoal_ko: '봉투와 포인트 카드를 묻고 답해요', successCriteria: ['봉투 필요 여부 답하기'] })
-  assert.deepEqual(row.constraints, { steps: [{ ko: '인사하기' }, { ko: '봉투 묻기' }, { ko: '계산하기' }], opening: { ja: 'いらっしゃいませ。', ko: '어서 오세요.' } })
+  assert.deepEqual(row.constraints, { steps: [{ ko: '인사하기' }, { ko: '봉투 묻기' }, { ko: '계산하기' }], opening: { ja: 'いらっしゃいませ。', ko: '어서 오세요.' }, exprSeq: 2 })
   assert.deepEqual(row.completionRule, { requiredExpressions: 2, tutorJudgement: true })
   assert.equal(f.log.indexOf('lockUser') < f.log.indexOf('scenario.create'), true, '사용자 잠금이 먼저')
   assert.deepEqual(scenarioForeignWrites(f.log), [], 'Scenario·ScenarioTopic 밖에는 쓰지 않는다')
@@ -387,4 +411,113 @@ test('지우기 = ARCHIVED(멱등) — 목록·상세에서 빠지고 연결·�
   assert.ok(f.tables.scenario.some((r) => r.id === 'mine_1' && r.status === 'ARCHIVED'))
   assert.ok(f.tables.scenarioTopic.some((l) => l.scenarioId === 'mine_1'))
   assert.deepEqual(scenarioForeignWrites(f.log), [])
+})
+
+// ── REV-134 보완 ────────────────────────────────────────────────────────
+
+const expr = (ja: string, ko: string, id?: string) => (id ? { id, ja, ko } : { ja, ko })
+const idsOf = (d: { keyExpressions: { id: string }[] }) => d.keyExpressions.map((e) => e.id)
+const seqOf = (f: ReturnType<typeof seeded>, id: string) => (f.tables.scenario.find((r) => r.id === id)!.constraints as Record<string, unknown>).exprSeq
+
+test('표현 id 고수위(M-1): e1·e2·e3 → [e1,e2] → 새 표현 = e4(지운 e3 재사용 없음) · 지운 id 를 다시 보내도 새 번호 · 글만 바꾸면 id 유지 · 다른 칸만 고치면 고수위 그대로', async () => {
+  const f = seeded()
+  const made = await createScenario(ME, { ...validBody(), keyExpressions: [expr('一つ', '하나'), expr('二つ', '둘'), expr('三つ', '셋')] }, f.deps())
+  assert.deepEqual(idsOf(made), ['e1', 'e2', 'e3'])
+  assert.equal(seqOf(f, made.id), 3, '만들 때 고수위 = 발급한 최대 번호')
+  const p1 = await updateScenario(ME, made.id, { keyExpressions: [expr('一つ', '하나', 'e1'), expr('二つ', '둘', 'e2')] }, f.deps())
+  assert.deepEqual(idsOf(p1), ['e1', 'e2'])
+  assert.equal(seqOf(f, made.id), 3, '지워도 고수위는 내려가지 않는다')
+  const p2 = await updateScenario(ME, made.id, { keyExpressions: [expr('一つ', '하나', 'e1'), expr('二つ', '둘', 'e2'), expr('四つ', '넷')] }, f.deps())
+  assert.deepEqual(idsOf(p2), ['e1', 'e2', 'e4'], '두 번째 PATCH 의 새 표현은 e3 가 아니라 e4')
+  const p3 = await updateScenario(ME, made.id, { keyExpressions: [expr('一つ', '하나', 'e1'), expr('五つ', '다섯', 'e3')] }, f.deps())
+  assert.deepEqual(idsOf(p3), ['e1', 'e5'], '지운 e3 를 클라이언트가 다시 보내도 되살리지 않는다')
+  const p4 = await updateScenario(ME, made.id, { keyExpressions: [expr('全然違う', '전혀 다른 글', 'e1'), expr('五つ', '다섯', 'e5')] }, f.deps())
+  assert.deepEqual(idsOf(p4), ['e1', 'e5'], '기존 id 를 달고 글을 바꾸면 id 유지(Leader 결정)')
+  assert.equal(p4.keyExpressions[0].ja, '全然違う')
+  await updateScenario(ME, made.id, { steps: [{ ko: '하나' }, { ko: '둘' }], opening: null }, f.deps())
+  assert.equal(seqOf(f, made.id), 5, '단계·첫마디만 고쳐도 고수위 유지')
+  const p5 = await updateScenario(ME, made.id, { keyExpressions: [expr('一つ', '하나', 'e1'), expr('六つ', '여섯')] }, f.deps())
+  assert.deepEqual(idsOf(p5), ['e1', 'e6'])
+  assert.deepEqual(scenarioForeignWrites(f.log), [])
+})
+
+test('표현 id 고수위 — 옛 행(exprSeq 칸 없음)은 저장된 표현의 최대 번호부터 · 이상한 exprSeq 는 무시 · 저장 최대보다 작은 exprSeq 는 최대 쪽', async () => {
+  const f = seeded()
+  f.tables.scenario.find((r) => r.id === 'mine_1')!.keyExpressions = [{ id: 'e1', ja: 'A', ko: 'a' }, { id: 'e2', ja: 'B', ko: 'b' }, { id: 'e3', ja: 'C', ko: 'c' }]
+  assert.equal(seqOf(f, 'mine_1'), undefined, '옛 행(고수위 칸 없음)')
+  const a = await updateScenario(ME, 'mine_1', { keyExpressions: [expr('A', 'a', 'e1'), expr('B', 'b', 'e2')] }, f.deps())
+  assert.deepEqual(idsOf(a), ['e1', 'e2'])
+  assert.equal(seqOf(f, 'mine_1'), 3, '옛 행은 저장돼 있던 최대 번호(e3)에서 시작해 칸을 채운다')
+  const b = await updateScenario(ME, 'mine_1', { keyExpressions: [expr('A', 'a', 'e1'), expr('B', 'b', 'e2'), expr('新しい', '새 표현')] }, f.deps())
+  assert.deepEqual(idsOf(b), ['e1', 'e2', 'e4'])
+  assert.equal(storedExpressionSeq({ exprSeq: 7 }, ['e1', 'e2']), 7)
+  assert.equal(storedExpressionSeq({ exprSeq: 1 }, ['e1', 'e4']), 4)
+  for (const bad of ['9', -1, 1.5, Number.NaN, 1e12, null]) assert.equal(storedExpressionSeq({ exprSeq: bad }, ['e2']), 2, `exprSeq=${String(bad)}`)
+  assert.equal(storedExpressionSeq(null, ['k1', 'chunk_x']), 0)
+  const merged = mergeScenarioFields(
+    { constraints: { exprSeq: 7, conditions: ['조건'] }, keyExpressions: [{ id: 'e1', ja: 'A', ko: 'a' }, { id: 'e2', ja: 'B', ko: 'b' }], completionRule: { requiredExpressions: 2 } },
+    { keyExpressions: [{ id: 'e1', ja: 'A', reading: null, ko: 'a', chunkType: null, match: null }, { id: null, ja: 'C', reading: null, ko: 'c', chunkType: null, match: null }] },
+  )
+  assert.deepEqual((merged.data.keyExpressions as { id: string }[]).map((e) => e.id), ['e1', 'e8'])
+  assert.deepEqual(merged.data.constraints, { exprSeq: 8, conditions: ['조건'] }, '다른 constraints 칸은 그대로')
+})
+
+test('남의 상황·시드·주인 없는 비시드 PATCH 에 topicIds 를 실어도 404 — 그 상황의 ScenarioTopic 연결·행 그대로(L-3 ③)', async () => {
+  const f = seeded()
+  f.tables.scenarioTopic.push({ scenarioId: 'other_1', topicId: 'topic_other', weight: 1 }, { scenarioId: 'orphan_null', topicId: 'topic_road', weight: 1 })
+  const links = JSON.stringify(f.tables.scenarioTopic)
+  const rows = JSON.stringify(f.tables.scenario)
+  const unchanged = (who: string) => {
+    assert.equal(JSON.stringify(f.tables.scenarioTopic), links, `${who}: 연결 교체(deleteMany·createMany) 없음`)
+    assert.equal(JSON.stringify(f.tables.scenario), rows, `${who}: 행 그대로`)
+  }
+  await assert.rejects(updateScenario(ME, 'other_1', { topicIds: ['topic_cafe'] }, f.deps()), expectApi('NOT_FOUND', (e) => assert.equal(e.details, undefined)))
+  unchanged('남의 상황')
+  await assert.rejects(updateScenario(ME, 'orphan_null', { topicIds: [], title: '가로채기' }, f.deps()), expectApi('NOT_FOUND', (e) => assert.equal(e.details, undefined)))
+  unchanged('주인 없는 비시드')
+  await assert.rejects(updateScenario(ME, 'scn_cafe_a', { topicIds: ['topic_road'] }, f.deps()), expectApi('NOT_FOUND', (e) => assert.equal(e.details?.reason, 'SEED')))
+  unchanged('시드')
+  await assert.rejects(updateScenario(ME, 'mine_gone', { topicIds: ['topic_road'] }, f.deps()), expectApi('CONFLICT', (e) => assert.equal(e.details?.reason, 'ARCHIVED')))
+  unchanged('지운 상황')
+  assert.ok(!f.log.some((l) => l.startsWith('scenarioTopic.') && /delete|create/.test(l)))
+})
+
+test('지난 결과 창(M-2): 180일 하한과 같으면 last 있음 · 1ms 앞이면 없음 · 창 밖이어도 반복 항목이 있으면 "안 해 본 상황"으로 추천하지 않음', async () => {
+  const f = seeded()
+  const now = f.clock.now
+  const windowStart = new Date(now.getTime() - SCENARIO_HISTORY_WINDOW_DAYS * 86_400_000)
+  const outside = new Date(windowStart.getTime() - 1)
+  f.tables.learningObservation.push(
+    { id: 'w1', userId: ME, kind: 'SCENARIO_COMPLETED', outcome: 'FAIL', scenarioId: 'scn_cafe_a', refType: 'Chat', refId: 'chat_w1', occurredAt: windowStart, meta: { outcome: 'NOT_YET', used: 0, total: 3 } },
+    { id: 'w2', userId: ME, kind: 'SCENARIO_COMPLETED', outcome: 'SUCCESS', scenarioId: 'scn_cafe_b', refType: 'Chat', refId: 'chat_w2', occurredAt: outside, meta: { outcome: 'ACHIEVED', used: 3, total: 3 } },
+    { id: 'w3', userId: ME, kind: 'SCENARIO_COMPLETED', outcome: 'SUCCESS', scenarioId: 'scn_road_a', refType: 'Chat', refId: 'chat_w3', occurredAt: outside, meta: { outcome: 'ACHIEVED', used: 3, total: 3 } },
+  )
+  f.tables.repetitionItem.push(
+    { id: 'rw2', userId: ME, refType: 'Scenario', refId: 'scn_cafe_b', nextDueAt: new Date('2026-10-01T00:00:00Z'), priority: 'NORMAL' },
+    { id: 'rw3', userId: ME, refType: 'Scenario', refId: 'scn_road_a', nextDueAt: new Date('2026-10-20T00:00:00Z'), priority: 'NORMAL' },
+  )
+  // 오늘 수업 주제 = 길 묻기 → 반복 항목 규칙이 없으면 scn_road_a 가 NEXT_IN_TOPIC("오늘 수업한 주제의 다음 상황")으로 잘못 추천된다.
+  f.tables.lesson.push({ id: 'lw', userId: ME, status: 'DONE', date: new Date('2026-10-07T00:00:00Z'), topicId: 'topic_road', completedAt: new Date('2026-10-07T01:00:00Z') })
+  const r = await listScenarios(ME, query(), f.deps())
+  const by = new Map(r.items.map((i) => [i.id, i]))
+  assert.deepEqual(by.get('scn_cafe_a')!.last, { at: windowStart.toISOString(), outcome: 'NOT_YET', usedCount: 0, totalCount: 3 }, '하한과 같은 시각 = 창 안')
+  assert.equal(by.get('scn_cafe_b')!.last, undefined, '하한 1ms 앞 = 창 밖 → last 없음')
+  assert.equal(by.get('scn_road_a')!.last, undefined)
+  assert.deepEqual(r.items.filter((i) => i.recommended).map((i) => [i.id, i.recommendReason]), [['mine_1', 'NEW_EASY'], ['scn_cafe_a', 'RETRY_NOT_YET'], ['scn_cafe_b', 'REVIEW_DUE']])
+  assert.deepEqual(r.recommendedIds, ['scn_cafe_a', 'scn_cafe_b', 'mine_1'])
+  assert.equal(by.get('scn_road_a')!.recommended, false, '창 밖에서 해 봤고 다음 학습일 전 → 추천 없음(NEXT_IN_TOPIC 아님)')
+  const probe = f.reads.find((x) => x.op === 'learningObservation')!
+  assert.deepEqual((probe.where as { occurredAt: unknown }).occurredAt, { gte: windowStart }, '관측 조회는 시간 창으로 (userId, occurredAt) 범위만 탄다')
+})
+
+test('추천 규칙 — last 없음 + 반복 항목 있음 = 해 본 상황: 다음 학습일 지났으면 REVIEW_DUE, 아니면 없음(3·4 로 가지 않음)', () => {
+  const focus = signals({ focusTopicId: 'topic_cafe' })
+  const inTopic = cand('x', { topicWeights: new Map([['topic_cafe', 1]]) })
+  const withRep = (nextDue: string | null, priority: 'NORMAL' | 'FOCUS' = 'NORMAL') => ({ ...focus, repetition: new Map([['x', { nextDue, priority }]]) })
+  assert.equal(recommendReasonOf(inTopic, withRep('2026-10-07')), 'REVIEW_DUE')
+  assert.equal(recommendReasonOf(inTopic, withRep('2026-10-06', 'FOCUS')), 'REVIEW_DUE')
+  assert.equal(recommendReasonOf(inTopic, withRep('2026-10-08')), null)
+  assert.equal(recommendReasonOf(inTopic, withRep(null)), null)
+  assert.equal(recommendReasonOf(inTopic, focus), 'NEXT_IN_TOPIC', '반복 항목도 last 도 없으면 안 해 본 상황')
+  assert.equal(recommendReasonOf(cand('x'), signals()), 'NEW_EASY')
 })

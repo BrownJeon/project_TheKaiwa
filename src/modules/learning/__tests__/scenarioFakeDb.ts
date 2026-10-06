@@ -41,11 +41,14 @@ function sortRows(rows: Row[], orderBy: unknown): Row[] {
 export function scenarioFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
   const tables: ScenarioFakeTables = { scenario: [], scenarioTopic: [], conversationTopic: [], topicChunk: [], learningObservation: [], repetitionItem: [], lesson: [] }
   const log: string[] = []
+  /** 읽기 호출의 인자(where 단언용 — 예: 관측 조회의 시간 창). */
+  const reads: { op: string; where: Where }[] = []
   const clock = { now }
   let seq = 0
   const delegate = (name: keyof ScenarioFakeTables) => {
     const rows = () => tables[name]
     const find = (args: { where?: Where; orderBy?: unknown; take?: number } = {}) => {
+      reads.push({ op: name, where: args.where })
       let out = sortRows(rows().filter((r) => matches(r, args.where)), args.orderBy)
       if (typeof args.take === 'number') out = out.slice(0, args.take)
       return out.map((r) => ({ ...r }))
@@ -97,7 +100,7 @@ export function scenarioFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
     learnerLevel: async () => 'N5',
     ...over,
   })
-  return { tables, log, clock, db, deps }
+  return { tables, log, reads, clock, db, deps }
 }
 
 /** 쓰기 호출 중 Scenario·ScenarioTopic 밖 표에 쓴 것. */

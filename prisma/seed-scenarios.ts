@@ -73,7 +73,8 @@ export function parseSeedScenarios(raw: unknown, topicKeys: ReadonlySet<string>)
     if (rest.requiredExpressions === undefined && isObj(completionRule) && completionRule.requiredExpressions !== undefined) rest.requiredExpressions = completionRule.requiredExpressions
     const { value: v, problems: fieldProblems } = normalizeScenarioInput(rest, 'seed')
     for (const p of fieldProblems) at(`${p.field}: ${p.message}`)
-    if (constraints !== undefined && (!isObj(constraints) || 'steps' in constraints || 'opening' in constraints)) at('constraints 는 객체이고 steps·opening 은 위 칸에 씁니다')
+    // exprSeq 는 사용자 상황의 표현 번호 고수위(shape.ts) — 시드는 고정 id 라 쓰지 않는다.
+    if (constraints !== undefined && (!isObj(constraints) || 'steps' in constraints || 'opening' in constraints || 'exprSeq' in constraints)) at('constraints 는 객체이고 steps·opening 은 위 칸에 씁니다(exprSeq 는 넣지 않음)')
     if (grammarPoints !== undefined && (!Array.isArray(grammarPoints) || grammarPoints.length > 5)) at('grammarPoints 는 5개 이하 배열')
     if (fieldProblems.length || typeof key !== 'string' || !KEY.test(key)) return
     const exprs = v.keyExpressions!

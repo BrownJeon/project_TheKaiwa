@@ -22,6 +22,11 @@ import { parseCreateChat } from '@/modules/conversation/chats/validate'
 import { createRolePlayChat, readRolePlayEndFacts } from '@/modules/conversation/chats/rolePlay'
 import { resolveTalkCorrectionMode } from '@/modules/conversation/corrections/talkDelivery'
 
+// 공유 DB 에 직접 쓰는 개발 전용 스모크(REV-134 L-5) — A3a 스모크와 같은 PRODUCTION 거부. HTTP 를 쓰지 않아 BASE·포트 검사 대신 운영 릴리스 경로를 거부한다
+// (개발 .env 도 PORT=3010 이라 포트로는 가를 수 없다).
+const SMOKE_ENV = (process.env.SMOKE_ENV ?? process.env.APP_ENV ?? 'LOCAL').toUpperCase()
+if (SMOKE_ENV === 'PRODUCTION' || /\/apps\/thekaiwa(\/|$)/.test(process.cwd())) throw new Error('PRODUCTION(운영 릴리스)에서는 실행하지 않는다 — 개발 미러 전용')
+
 const prisma = new PrismaClient()
 const MARK = `smk010d-${Date.now().toString(36)}`
 const LEAK = /claude|haiku|sonnet|opus|qwen|toolLog|home-m4|reazon|whisper|style-?bert|sbv2|"model"/i

@@ -6,7 +6,7 @@
  * 문제는 한 번에 모두 모은다(`problems[]` — 화면이 칸마다 문구를 붙인다). 길이는 코드포인트(`SCENARIO_LIMITS`, `src/types/scenario.ts`).
  *
  * 저장 모양(domain-model §9-1 + 이 task 의 정함 — 정본 반영 필요):
- *   `goal = {communicativeGoal_ko, successCriteria[]}` · `constraints = {…기존 칸, steps:[{ko}], opening:{ja,ko}|null}` ·
+ *   `goal = {communicativeGoal_ko, successCriteria[]}` · `constraints = {…기존 칸, steps:[{ko}], opening:{ja,ko}|null, exprSeq?}`(exprSeq = 사용자 상황만) ·
  *   `keyExpressions = [{id, ja, reading?, ko, chunkType?, match?}]` · `completionRule = {…기존 칸, requiredExpressions, tutorJudgement:true}`.
  */
 import type { ChunkType, JlptLevel } from '@prisma/client'
@@ -250,17 +250,40 @@ export function defaultRequiredExpressions(count: number): number {
 }
 
 /**
- * 표현 id 정하기 — `keep` 에 있는 id(고치기의 기존 표현)는 그대로, 나머지는 `e<n>`(기존 `e<n>` 의 최대 다음 번호부터, 겹치지 않게).
- * 만들 때는 `keep` 이 비어 있어 들어온 id 를 쓰지 않는다(클라이언트가 id 를 정하지 않는다). 시드는 `keepAll` 로 들어온 id 를 그대로 쓴다.
+ * 사용자 상황의 표현 번호 고수위 — `constraints.exprSeq` = 지금까지 발급한 가장 큰 `e<n>` 의 n(REV-134 M-1, 스키마 0).
+ * 지운 표현의 번호를 다시 주면 지난 `StudyLog.result.scenario.usedExpressionIds` 의 id 가 다른 표현을 가리키게 되므로, 다음 번호는
+ * 저장된 표현이 아니라 이 칸에서 잇는다. 클라이언트는 `constraints` 를 보낼 수 없다(본문 화이트리스트 밖) — 서버만 쓴다.
  */
-export function assignExpressionIds(items: readonly ScenarioExpressionInput[], keep: ReadonlySet<string>, keepAll = false): string[] {
-  const used = new Set<string>()
-  const fixed = items.map((e) => (e.id && (keepAll || keep.has(e.id)) && !used.has(e.id) ? (used.add(e.id), e.id) : null))
+export const SCENARIO_EXPR_SEQ_KEY = 'exprSeq'
+const EXPR_NO = /^e(\d{1,9})$/
+const SEQ_MAX = 999_999_999
+
+/** id 들 가운데 `e<n>` 의 가장 큰 n(없으면 0). */
+export function maxExpressionSeq(ids: Iterable<string>): number {
   let n = 0
-  for (const id of [...keep, ...used]) {
-    const m = /^e(\d{1,6})$/.exec(id)
+  for (const id of ids) {
+    const m = EXPR_NO.exec(id)
     if (m) n = Math.max(n, Number(m[1]))
   }
+  return n
+}
+
+/** 저장된 행의 고수위 = max(`constraints.exprSeq`, 저장된 표현의 최대 번호). 칸이 없거나 이상한 옛 행은 저장된 표현의 최대 번호에서 시작한다. */
+export function storedExpressionSeq(constraints: unknown, storedIds: Iterable<string>): number {
+  const raw = isObj(constraints) ? constraints[SCENARIO_EXPR_SEQ_KEY] : undefined
+  const seq = typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0 && raw <= SEQ_MAX ? raw : 0
+  return Math.max(seq, maxExpressionSeq(storedIds))
+}
+
+/**
+ * 표현 id 정하기 — `keep` 에 있는 id(고치기의 기존 표현)는 그대로, 나머지는 `e<n>`(max(`floor`, `keep`·유지 id 의 최대 번호) 다음부터, 겹치지 않게).
+ * `floor` = 저장된 고수위(`storedExpressionSeq`) — 지운 번호를 다시 쓰지 않게 한다. 기존 id 를 달고 글을 바꿔 보내도 id 는 유지한다(Leader 결정).
+ * 만들 때는 `keep` 이 비어 있어 들어온 id 를 쓰지 않는다(클라이언트가 id 를 정하지 않는다). 시드는 `keepAll` 로 들어온 id 를 그대로 쓴다.
+ */
+export function assignExpressionIds(items: readonly ScenarioExpressionInput[], keep: ReadonlySet<string>, keepAll = false, floor = 0): string[] {
+  const used = new Set<string>()
+  const fixed = items.map((e) => (e.id && (keepAll || keep.has(e.id)) && !used.has(e.id) ? (used.add(e.id), e.id) : null))
+  let n = Math.max(floor, maxExpressionSeq([...keep, ...used]))
   return fixed.map((id) => {
     if (id) return id
     let next: string
@@ -287,11 +310,12 @@ export const goalJson = (g: ScenarioGoal) => ({ communicativeGoal_ko: g.communic
 
 const rec = (v: unknown): Record<string, unknown> => (isObj(v) ? v : {})
 
-/** `constraints` 에 단계·첫마디를 얹는다(조건·분기 등 다른 칸은 그대로). */
-export function constraintsJson(prev: unknown, steps: readonly ScenarioStep[] | undefined, opening: ScenarioOpening | null | undefined): Record<string, unknown> {
+/** `constraints` 에 단계·첫마디·표현 번호 고수위를 얹는다(조건·분기 등 다른 칸은 그대로). `undefined` 인 칸은 저장 값을 유지한다. */
+export function constraintsJson(prev: unknown, steps: readonly ScenarioStep[] | undefined, opening: ScenarioOpening | null | undefined, exprSeq?: number): Record<string, unknown> {
   const out: Record<string, unknown> = { ...rec(prev) }
   if (steps !== undefined) out.steps = steps.map((s) => ({ ko: s.ko }))
   if (opening !== undefined) out.opening = opening ? { ja: opening.ja, ko: opening.ko } : null
+  if (exprSeq !== undefined) out[SCENARIO_EXPR_SEQ_KEY] = exprSeq
   return out
 }
 

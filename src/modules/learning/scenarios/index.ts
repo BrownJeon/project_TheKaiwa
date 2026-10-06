@@ -18,7 +18,15 @@ export {
 export type { ScenarioExpression, ScenarioChunkRef, ScenarioVerdict, ScenarioOutcome, ScenarioJudgement } from './expressions'
 export { resolveScenarioChatStart, scenarioNotFound, scenarioAccessWhere, linkedTopicsFor } from './start'
 export type { ScenarioChatStartInput, ScenarioChatStart, ScenarioTopicSource, ScenarioStartDb } from './start'
-export { endScenarioRolePlay, isScenarioRolePlayEnded, SCENARIO_REPETITION_REF_TYPE, SCENARIO_UNJUDGED_CONFIDENCE, SCENARIO_DURATION_MAX_SEC } from './end'
+export {
+  endScenarioRolePlay,
+  isScenarioRolePlayEnded,
+  scenarioEndLookupSince,
+  SCENARIO_REPETITION_REF_TYPE,
+  SCENARIO_UNJUDGED_CONFIDENCE,
+  SCENARIO_DURATION_MAX_SEC,
+  SCENARIO_END_LOOKUP_MARGIN_MS,
+} from './end'
 export type { ScenarioEndInput, ScenarioEndResult } from './end'
 export {
   listScenarios,
@@ -29,6 +37,7 @@ export {
   parseScenarioListQuery,
   mergeScenarioFields,
   SCENARIO_CATALOG_MAX,
+  SCENARIO_HISTORY_WINDOW_DAYS,
 } from './catalog'
 export type { ScenarioDeps, ScenarioListQuery, ScenarioReadOptions, OpenRolePlayChats } from './catalog'
 export { recommendScenarios, recommendReasonOf, SCENARIO_RECOMMEND_MAX, SCENARIO_RECOMMEND_REASONS } from './recommend'

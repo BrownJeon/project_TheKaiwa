@@ -96,6 +96,8 @@ export async function createRolePlayChat(userId: string, input: RolePlayChatInpu
 /** 종료 기록 재료(L2 표에서 읽은 값) — `learning.endScenarioRolePlay` 입력과 같은 이름. 학습자 말 원문은 표현 확인에만 쓴다. */
 export interface RolePlayEndFacts {
   chatId: string
+  /** `Chat.createdAt` — learning 이 끝낸 표식 조회의 시간 하한으로 쓴다(REV-134 M-2). */
+  chatCreatedAt: Date
   scenarioId: string
   lessonId: string | null
   topicId: string | null
@@ -107,7 +109,7 @@ export interface RolePlayEndFacts {
   startedAt: Date | null
 }
 
-type ChatLockRow = { id: string; userId: string; kind: ChatKind; scenarioId: string | null; lessonId: string | null; topicId: string | null }
+type ChatLockRow = { id: string; userId: string; kind: ChatKind; scenarioId: string | null; lessonId: string | null; topicId: string | null; createdAt: Date | string }
 
 /**
  * 호출자 tx 안에서 — 사용자 행 → 대화 행(`FOR UPDATE`) 잠금 뒤 읽는다. 없음·남의 대화 404, 역할극이 아닌 대화(상황 없음·TALK 아님) 400.
@@ -116,10 +118,12 @@ type ChatLockRow = { id: string; userId: string; kind: ChatKind; scenarioId: str
 export async function readRolePlayEndFacts(userId: string, chatId: string, tx: Tx): Promise<RolePlayEndFacts> {
   if (typeof chatId !== 'string' || !chatId || chatId.length > 40) throw notFoundChat()
   await lockUserRow(tx, userId)
-  const rows = await tx.$queryRaw<ChatLockRow[]>`SELECT id, userId, kind, scenarioId, lessonId, topicId FROM Chat WHERE id = ${chatId} FOR UPDATE`
+  const rows = await tx.$queryRaw<ChatLockRow[]>`SELECT id, userId, kind, scenarioId, lessonId, topicId, createdAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
   const chat = rows[0]
   if (!chat || chat.userId !== userId) throw notFoundChat()
   if (chat.kind !== 'TALK' || !chat.scenarioId) throw new ApiError('VALIDATION', '상황 역할극 대화가 아니에요.', { field: 'chatId', reason: 'not_scenario' })
+  // 원시 쿼리의 DATETIME 은 Date 로 오지만 드라이버 설정에 따라 글로 올 수 있어 한 번 더 맞춘다(이상한 값이면 learning 이 하한 없이 찾는다 — 결과는 같다).
+  const chatCreatedAt = chat.createdAt instanceof Date ? chat.createdAt : new Date(String(chat.createdAt))
   const msgs = await tx.chatMessage.findMany({
     where: { chatId, userId, role: 'USER' },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -137,6 +141,7 @@ export async function readRolePlayEndFacts(userId: string, chatId: string, tx: T
   const c = await countChatCorrections(userId, chatId, tx)
   return {
     chatId,
+    chatCreatedAt,
     scenarioId: chat.scenarioId,
     lessonId: chat.lessonId,
     topicId: chat.topicId,

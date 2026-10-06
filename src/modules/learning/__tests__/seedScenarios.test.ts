@@ -1,12 +1,14 @@
 /**
  * task-010d A3a — 시드 상황 로더(`prisma/seed-scenarios.ts`) 단위 테스트(DB 없음). 검사(문제 전부 모음)·안정 id·계획(create/keep/update·연결 교체·지우지 않음)
- * · 시드가 아닌 행과 id 가 겹치면 멈춤 · 실제 `seed-data/scenarios.json`(PE 작성)이 있으면 그 파일도 검사한다(없으면 건너뜀).
+ * · 시드가 아닌 행과 id 가 겹치면 멈춤 · 쓰기 단계(가짜 prisma — update 데이터에 상태 없음·DbNull·연결 교체 범위, REV-134 L-3)
+ * · 실제 `seed-data/scenarios.json`(PE 작성)이 있으면 그 파일도 검사한다(없으면 건너뜀).
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseSeedScenarios, planSeedScenarios, seedScenarioId, summarizeSeedScenariosPlan, type ExistingScenario } from '../../../../prisma/seed-scenarios'
+import { Prisma, type PrismaClient } from '@prisma/client'
+import { parseSeedScenarios, planSeedScenarios, seedScenarioId, seedScenarios, summarizeSeedScenariosPlan, type ExistingScenario } from '../../../../prisma/seed-scenarios'
 import type { SeedTopicInput } from '../../../../prisma/seed-topics'
 
 const TOPIC_KEYS = new Set(['cafe', 'road'])
@@ -95,4 +97,98 @@ test('실제 seed-data/scenarios.json(있을 때) — 검사 통과·key 유일�
   const seeds = parseSeedScenarios(JSON.parse(readFileSync(realFile, 'utf8')), new Set(topics.map((t) => t.key)))
   assert.ok(seeds.length > 0)
   assert.equal(new Set(seeds.map((s) => s.id)).size, seeds.length)
+})
+
+// ── 쓰기 단계(seedScenarios — 가짜 prisma, REV-134 L-3 ②) ─────────────────
+
+const TOPIC_SEEDS: SeedTopicInput[] = [
+  { key: 'cafe', title: '카페', titleJa: 'カフェ', level: 'N5', description: '카페', tags: [], chunks: [] },
+  { key: 'road', title: '길 묻기', titleJa: '道を聞く', level: 'N5', description: '길', tags: [], chunks: [] },
+]
+const DB_TOPICS = [
+  { id: 'tp_cafe', title: '카페', titleJa: 'カフェ', level: 'N5', description: '카페', tags: [], chunks: [] },
+  { id: 'tp_road', title: '길 묻기', titleJa: '道を聞く', level: 'N5', description: '길', tags: [], chunks: [] },
+]
+
+type Call = { op: string; args: Record<string, unknown> }
+
+function fakePrisma(existing: Record<string, unknown>[], topics: Record<string, unknown>[] = DB_TOPICS) {
+  const calls: Call[] = []
+  const write = (op: string) => async (args: Record<string, unknown>) => (calls.push({ op, args }), { count: 1 })
+  const tx = {
+    scenario: { create: write('scenario.create'), update: write('scenario.update'), delete: write('scenario.delete'), deleteMany: write('scenario.deleteMany') },
+    scenarioTopic: { deleteMany: write('scenarioTopic.deleteMany'), createMany: write('scenarioTopic.createMany') },
+  }
+  const prisma = {
+    conversationTopic: { findMany: async () => topics },
+    scenario: { ...tx.scenario, findMany: async () => existing },
+    scenarioTopic: tx.scenarioTopic,
+    $transaction: async (fn: (t: typeof tx) => Promise<unknown>) => (calls.push({ op: '$transaction', args: {} }), fn(tx)),
+  }
+  return { prisma: prisma as unknown as PrismaClient, calls }
+}
+
+const quiet = async <T>(fn: () => Promise<T>): Promise<T> => {
+  const log = console.log
+  console.log = () => {}
+  try {
+    return await fn()
+  } finally {
+    console.log = log
+  }
+}
+
+test('쓰기: 새 상황 create(시드·주인 없음·ACTIVE·grammarPoints 없으면 DbNull) + 그 상황 연결만 교체 · 상황마다 한 트랜잭션', async () => {
+  const { prisma, calls } = fakePrisma([])
+  const sum = await quiet(() => seedScenarios(prisma, [entry(), entry({ key: 'road-ask', topics: [{ key: 'road' }], grammarPoints: ['〜てください'] })], TOPIC_SEEDS))
+  assert.deepEqual(calls.map((c) => c.op), ['$transaction', 'scenario.create', 'scenarioTopic.deleteMany', 'scenarioTopic.createMany', '$transaction', 'scenario.create', 'scenarioTopic.deleteMany', 'scenarioTopic.createMany'])
+  const [c1, c2] = calls.filter((c) => c.op === 'scenario.create').map((c) => c.args.data as Record<string, unknown>)
+  assert.deepEqual([c1.id, c1.userId, c1.isSeed, c1.status], ['scn_cafe-size', null, true, 'ACTIVE'])
+  assert.equal(c1.grammarPoints, Prisma.DbNull, 'JSON 칸 null 은 DbNull(Prisma 의 JSON null 과 구별)')
+  assert.deepEqual(c2.grammarPoints, ['〜てください'])
+  assert.deepEqual(
+    calls.filter((c) => c.op === 'scenarioTopic.deleteMany').map((c) => c.args),
+    [{ where: { scenarioId: 'scn_cafe-size' } }, { where: { scenarioId: 'scn_road-ask' } }],
+    'deleteMany 범위 = 그 상황의 연결뿐',
+  )
+  assert.deepEqual(calls.find((c) => c.op === 'scenarioTopic.createMany')!.args, { data: [{ scenarioId: 'scn_cafe-size', topicId: 'tp_cafe', weight: 2 }] })
+  assert.deepEqual(sum, { scenarios: { keep: 0, update: 0, create: 2 }, linksChanged: 2, orphans: 0, writes: 4 })
+})
+
+test('쓰기: 바뀐 시드 update 는 상태·소유 칸을 싣지 않는다(숨긴 시드를 되살리지 않음) · 같으면 쓰기 0 · 빠진 시드 상황은 지우지 않음', async () => {
+  const [s] = parseSeedScenarios([entry()], TOPIC_KEYS)
+  const hidden = { id: s.id, userId: null, isSeed: true, status: 'ARCHIVED', ...s.data, title: '옛 제목', topics: [{ topicId: 'tp_cafe', weight: 2 }] }
+  const orphan = { id: 'scn_old', userId: null, isSeed: true, status: 'ACTIVE', ...s.data, title: '빠진 시드', topics: [] }
+  const { prisma, calls } = fakePrisma([hidden, orphan])
+  await quiet(() => seedScenarios(prisma, [entry()], TOPIC_SEEDS))
+  assert.deepEqual(calls.map((c) => c.op), ['$transaction', 'scenario.update'], '연결이 같으면 연결은 건드리지 않음')
+  const up = calls[1].args as { where: unknown; data: Record<string, unknown> }
+  assert.deepEqual(up.where, { id: s.id })
+  for (const k of ['status', 'userId', 'isSeed', 'id']) assert.equal(k in up.data, false, `update 데이터에 ${k} 없음`)
+  assert.equal(up.data.title, s.data.title)
+  assert.equal(up.data.grammarPoints, Prisma.DbNull)
+  assert.ok(!calls.some((c) => /delete/.test(c.op) && c.op !== 'scenarioTopic.deleteMany'), '상황 삭제 경로 없음(빠진 시드 scn_old 포함)')
+
+  const same = fakePrisma([{ id: s.id, userId: null, isSeed: true, status: 'ACTIVE', ...s.data, topics: [{ topicId: 'tp_cafe', weight: 2 }] }])
+  const sum = await quiet(() => seedScenarios(same.prisma, [entry()], TOPIC_SEEDS))
+  assert.deepEqual(same.calls, [], '같으면 트랜잭션도 열지 않는다')
+  assert.equal(sum.writes, 0)
+})
+
+test('쓰기 전 멈춤: 드라이런 = 쓰기 0 · 주제가 DB 에 없으면(실제 실행) 쓰기 전에 던짐 · 시드가 아닌 행과 id 가 겹치면 던짐 · 검사 실패면 DB 를 읽지도 않음', async () => {
+  const dry = fakePrisma([])
+  const plan = await quiet(() => seedScenarios(dry.prisma, [entry()], TOPIC_SEEDS, { dryRun: true }))
+  assert.deepEqual(dry.calls, [])
+  assert.equal(plan.writes, 2)
+  const noTopic = fakePrisma([], [DB_TOPICS[1]])
+  await assert.rejects(quiet(() => seedScenarios(noTopic.prisma, [entry()], TOPIC_SEEDS)), /주제가 DB 에 없어/)
+  assert.deepEqual(noTopic.calls, [])
+  const clash = fakePrisma([{ id: 'scn_cafe-size', userId: 'u1', isSeed: false, title: 'x', topics: [] }])
+  await assert.rejects(quiet(() => seedScenarios(clash.prisma, [entry()], TOPIC_SEEDS)), /시드가 아닌 행/)
+  assert.deepEqual(clash.calls, [])
+  let read = false
+  const strict = { conversationTopic: { findMany: async () => ((read = true), DB_TOPICS) } } as unknown as PrismaClient
+  await assert.rejects(seedScenarios(strict, [entry({ title: '' })], TOPIC_SEEDS), /scenarios\.json 문제/)
+  assert.equal(read, false)
+  assert.throws(() => parseSeedScenarios([entry({ constraints: { exprSeq: 3 } })], TOPIC_KEYS), /exprSeq/)
 })

@@ -17,7 +17,15 @@ import {
   type ScenarioChunkRef,
 } from '../scenarios/expressions'
 import { linkedTopicsFor, resolveScenarioChatStart, type ScenarioStartDb } from '../scenarios/start'
-import { endScenarioRolePlay, isScenarioRolePlayEnded, SCENARIO_REPETITION_REF_TYPE, SCENARIO_UNJUDGED_CONFIDENCE, type ScenarioEndInput } from '../scenarios/end'
+import {
+  endScenarioRolePlay,
+  isScenarioRolePlayEnded,
+  scenarioEndLookupSince,
+  SCENARIO_END_LOOKUP_MARGIN_MS,
+  SCENARIO_REPETITION_REF_TYPE,
+  SCENARIO_UNJUDGED_CONFIDENCE,
+  type ScenarioEndInput,
+} from '../scenarios/end'
 import { emptyDaily } from '../snapshots'
 
 const U = 'cuser0000000000000000010d'
@@ -123,7 +131,11 @@ test('종료 판정: 쓴 표현 = 코드 확인 ∪ (강사 ∩ 핵심), 달성 
 type Row = Record<string, unknown>
 /** where 를 실제로 평가한다(키 일치 + OR) — 소유자 조건이 빠지면 테스트가 깨지게. */
 function matches(row: Row, where: Row): boolean {
-  return Object.entries(where).every(([k, v]) => (k === 'OR' ? (v as Row[]).some((w) => matches(row, w)) : row[k] === v))
+  return Object.entries(where).every(([k, v]) => {
+    if (k === 'OR') return (v as Row[]).some((w) => matches(row, w))
+    if (v && typeof v === 'object' && !(v instanceof Date) && 'gte' in v) return row[k] instanceof Date && (row[k] as Date).getTime() >= ((v as Row).gte as Date).getTime()
+    return row[k] === v
+  })
 }
 
 interface FakeTopicLink { topicId: string; weight: number; topic: { id: string; title: string; userId: string | null } }
@@ -201,9 +213,10 @@ test('시작 주제: 요청(이어진 주제만, 아니면 400) > 레슨 주제(
 
 // ── 종료 트랜잭션(가짜 tx) ────────────────────────────────────────────────
 
-interface FakeObs { userId: string; kind: string; refType: string; refId: string; meta?: Row; outcome: string; confidence: number; scenarioId: string | null; skill: string }
+interface FakeObs { userId: string; kind: string; refType: string; refId: string; meta?: Row; outcome: string; confidence: number; scenarioId: string | null; skill: string; occurredAt?: Date }
 
-function endTx(opts: { scenarios?: Row[]; repetition?: Row[] } = {}) {
+/** 관측 `occurredAt` 은 DB 기본값(now())이라 가짜가 대신 찍는다 — 기본은 NOW(종료 시각). */
+function endTx(opts: { scenarios?: Row[]; repetition?: Row[]; obsAt?: Date } = {}) {
   const calls: { op: string; args?: unknown }[] = []
   const scenarios = opts.scenarios ?? [{ id: 'scn_seed', userId: null, isSeed: true, title: '사이즈·온도 바꿔 주문하기', titleJa: 'サイズと温度を変えて注文する', keyExpressions: KEY_EXPRESSIONS, completionRule: { requiredExpressions: 2, tutorJudgement: true } }]
   const repetition = [...(opts.repetition ?? [])]
@@ -227,10 +240,9 @@ function endTx(opts: { scenarios?: Row[]; repetition?: Row[] } = {}) {
         const o = observations.find((x) => matches(x as unknown as Row, args.where))
         return o ? { meta: o.meta ?? null } : null
       },
-      count: async (args: { where: Row }) => observations.filter((x) => matches(x as unknown as Row, args.where)).length,
       createMany: async (args: { data: FakeObs[] }) => {
         calls.push({ op: 'obs.createMany', args })
-        observations.push(...args.data)
+        observations.push(...args.data.map((o) => ({ occurredAt: opts.obsAt ?? NOW, ...o })))
         return { count: args.data.length }
       },
     },
@@ -283,12 +295,15 @@ function endTx(opts: { scenarios?: Row[]; repetition?: Row[] } = {}) {
   return { tx: tx as unknown as Tx, calls, observations, logs, repetition, daily: () => daily as Row }
 }
 
+const CHAT_AT = new Date('2026-10-06T09:58:00Z')
+
 const WRITE_OPS = new Set(['rep.create', 'rep.update', 'log.create', 'daily.update', 'obs.createMany', 'ensureDaily'])
 const writes = (calls: { op: string }[]) => calls.filter((c) => WRITE_OPS.has(c.op)).map((c) => c.op)
 
 function endInput(over: Partial<ScenarioEndInput> = {}): ScenarioEndInput {
   return {
     chatId: 'chat_rp_1',
+    chatCreatedAt: CHAT_AT,
     scenarioId: 'scn_seed',
     lessonId: 'les_mine',
     topicId: 't_cafe',
@@ -355,8 +370,41 @@ test('종료 한 트랜잭션: 사용자 잠금 먼저 → RepetitionItem(SCENAR
   assert.deepEqual([o.kind, o.outcome, o.skill, o.refType, o.refId, o.scenarioId, o.confidence], ['SCENARIO_COMPLETED', 'SUCCESS', 'CONVERSATION_MAINTAIN', 'Chat', 'chat_rp_1', 'scn_seed', 1])
   assert.ok(JSON.stringify(o.meta).length <= 1024)
   assert.deepEqual([r.replayed, r.outcome, r.studyLogId, r.repetitionItemId, r.expressions.usedIds.length, r.expressions.verifiedIds.length], [false, 'ACHIEVED', 'log1', 'rep1', 4, 3])
-  assert.equal(await isScenarioRolePlayEnded(U, 'chat_rp_1', f.tx), true)
-  assert.equal(await isScenarioRolePlayEnded(OTHER, 'chat_rp_1', f.tx), false)
+  assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: CHAT_AT }, f.tx), true)
+  assert.equal(await isScenarioRolePlayEnded(OTHER, { id: 'chat_rp_1', createdAt: CHAT_AT }, f.tx), false)
+})
+
+test('끝낸 표식 조회 = 대화 생성 시각 하한(REV-134 M-2): 멱등 확인·isScenarioRolePlayEnded 둘 다 occurredAt ≥ Chat.createdAt − 하루 · 경계 안은 끝냄 · 밖은 아님', async () => {
+  const since = new Date(CHAT_AT.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS)
+  assert.deepEqual(scenarioEndLookupSince(CHAT_AT), since)
+  assert.equal(scenarioEndLookupSince(new Date('nope')), null)
+  assert.equal(scenarioEndLookupSince(undefined), null)
+
+  const f = endTx()
+  await endScenarioRolePlay(U, endInput(), f.tx, { now: NOW })
+  const probe = f.calls.find((c) => c.op === 'obs.findFirst')!.args as { where: Row }
+  assert.deepEqual(probe.where, { userId: U, occurredAt: { gte: since }, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: 'chat_rp_1' }, '시간 하한이 있어야 (userId, occurredAt) 범위만 탄다')
+  const ended = f.calls.filter((c) => c.op === 'obs.findFirst').length
+  assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: CHAT_AT }, f.tx), true)
+  const turnProbe = f.calls.filter((c) => c.op === 'obs.findFirst')[ended].args as { where: Row }
+  assert.deepEqual(turnProbe.where, probe.where, '턴 경로 확인도 같은 하한')
+
+  // 경계: 표식이 하한과 같으면 끝낸 대화(gte), 1ms 앞이면 이 대화의 표식이 아니다(대화보다 하루 넘게 먼저 생긴 표식은 없다).
+  const edge = endTx({ obsAt: since })
+  await endScenarioRolePlay(U, endInput(), edge.tx, { now: NOW })
+  assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: CHAT_AT }, edge.tx), true)
+  assert.equal((await endScenarioRolePlay(U, endInput(), edge.tx, { now: NOW })).replayed, true)
+  const before = endTx({ obsAt: new Date(since.getTime() - 1) })
+  await endScenarioRolePlay(U, endInput(), before.tx, { now: NOW })
+  assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: CHAT_AT }, before.tx), false)
+
+  // 생성 시각이 이상하면 하한 없이 찾는다(느리지만 결과는 같다).
+  const bad = endTx()
+  await endScenarioRolePlay(U, endInput({ chatCreatedAt: new Date('nope') }), bad.tx, { now: NOW })
+  const badProbe = bad.calls.find((c) => c.op === 'obs.findFirst')!.args as { where: Row }
+  assert.equal('occurredAt' in badProbe.where, false)
+  assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: new Date('nope') }, bad.tx), true)
+  assert.equal(await isScenarioRolePlayEnded(U, { id: '', createdAt: CHAT_AT }, bad.tx), false)
 })
 
 test('종료 멱등: 같은 대화 두 번째 종료는 쓰기 0 · 처음 결과 그대로(replayed)', async () => {

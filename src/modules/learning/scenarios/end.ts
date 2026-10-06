@@ -33,9 +33,27 @@ export const SCENARIO_REPETITION_REF_TYPE = 'Scenario'
 export const SCENARIO_UNJUDGED_CONFIDENCE = 0.5
 /** durationSec 상한(대화를 열어 둔 채 다음 날 마쳐도 하루 넘게 적지 않는다). */
 export const SCENARIO_DURATION_MAX_SEC = 3 * 3600
+/**
+ * 끝낸 표식(관측) 조회 하한의 여유. `LearningObservation` 인덱스가 `(userId, occurredAt)` 뿐이라(종류·참조 칸 인덱스는 스키마 변경 — DB 승인 필요, 보류)
+ * 시간 하한 없이 `refType·refId` 로 찾으면 그 사용자 관측 전체를 훑는다(REV-134 M-2). 표식은 대화가 생긴 뒤에만 생기므로 `occurredAt >= Chat.createdAt`
+ * 으로 범위를 좁힌다. `Chat.createdAt` 은 앱 시계, `occurredAt` 은 DB 기본값일 수 있어 시계·시간대 차이를 하루 여유로 덮는다(비용 = 그 하루치 행).
+ */
+export const SCENARIO_END_LOOKUP_MARGIN_MS = 86_400_000
+
+/** 대화 생성 시각 → 끝낸 표식 조회 하한. 시각이 올바르지 않으면 null(하한 없음 — 느리지만 결과는 맞다). */
+export function scenarioEndLookupSince(chatCreatedAt: Date | null | undefined): Date | null {
+  return chatCreatedAt instanceof Date && !Number.isNaN(chatCreatedAt.getTime()) ? new Date(chatCreatedAt.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS) : null
+}
+
+const endedWhere = (userId: string, chatId: string, chatCreatedAt: Date | null | undefined) => {
+  const since = scenarioEndLookupSince(chatCreatedAt)
+  return { userId, ...(since ? { occurredAt: { gte: since } } : {}), kind: 'SCENARIO_COMPLETED' as const, refType: 'Chat', refId: chatId }
+}
 
 export interface ScenarioEndInput {
   chatId: string
+  /** 대화 생성 시각(`Chat.createdAt`, conversation 이 잠근 행에서 읽은 값) — 끝낸 표식 조회의 시간 하한(`scenarioEndLookupSince`). */
+  chatCreatedAt: Date
   /** 대화의 `Chat.scenarioId`(conversation 이 잠근 행에서 읽은 값). */
   scenarioId: string
   lessonId: string | null
@@ -81,10 +99,13 @@ const OUTCOMES = new Set<string>(['ACHIEVED', 'ALMOST', 'NOT_YET'])
 const validId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 40
 const count = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0)
 
-/** 이 대화를 이미 끝냈는가(읽기 — A3 턴·화면이 "마친 역할극에는 더 말할 수 없어요"에 쓴다). */
-export async function isScenarioRolePlayEnded(userId: string, chatId: string, db: Pick<Tx, 'learningObservation'> = prisma): Promise<boolean> {
-  if (!validId(chatId)) return false
-  return (await db.learningObservation.count({ where: { userId, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: chatId } })) > 0
+/**
+ * 이 대화를 이미 끝냈는가(읽기 — A3b 턴·화면이 "마친 역할극에는 더 말할 수 없어요"에 쓴다). `chat.createdAt` 은 그 대화 행의 생성 시각 —
+ * 시간 하한으로 `(userId, occurredAt)` 인덱스 범위만 탄다(위 여유 주석). 턴 경로에서는 이미 읽은 Chat 행의 값을 넘긴다.
+ */
+export async function isScenarioRolePlayEnded(userId: string, chat: { id: string; createdAt: Date }, db: Pick<Tx, 'learningObservation'> = prisma): Promise<boolean> {
+  if (!validId(chat.id)) return false
+  return !!(await db.learningObservation.findFirst({ where: endedWhere(userId, chat.id, chat.createdAt), select: { id: true } }))
 }
 
 export async function endScenarioRolePlay(userId: string, input: ScenarioEndInput, tx: Tx, opts: { now?: Date } = {}): Promise<ScenarioEndResult> {
@@ -97,7 +118,7 @@ export async function endScenarioRolePlay(userId: string, input: ScenarioEndInpu
 
   await lockUserRow(tx, userId)
   const done = await tx.learningObservation.findFirst({
-    where: { userId, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: input.chatId },
+    where: endedWhere(userId, input.chatId, input.chatCreatedAt),
     orderBy: { occurredAt: 'asc' },
     select: { meta: true },
   })

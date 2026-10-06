@@ -15,7 +15,6 @@ import { join } from 'node:path'
 import { PrismaClient, Prisma, type Environment } from '@prisma/client'
 import { seedLexicon } from './seed-lexicon'
 import { seedTopics, type SeedTopicInput } from './seed-topics'
-import { seedScenarios } from './seed-scenarios'
 
 const prisma = new PrismaClient()
 const data = (name: string) => JSON.parse(readFileSync(join(__dirname, 'seed-data', name), 'utf-8'))
@@ -133,10 +132,22 @@ async function seedOwner() {
   console.log(`[seed] OWNER(SUPER_ADMIN) 설정 기본 행 + N5 단어 ${added}개 추가(기존 ${words.length - added})`)
 }
 
+/**
+ * 상황 단계(prisma/seed-scenarios.ts, 안정 id `scn_<key>`) — 실행 순서의 **맨 끝**(REV-134 L-2). scenarios.json(PE 작성)의 검사 실패·로더 오류가
+ * 다른 시드 단계를 막지 않게 하고, 실패하면 앞 단계가 끝났음을 알린 뒤 던진다(main → 종료 코드 1).
+ * 로더는 앱 모듈(`src/modules/learning/scenarios/shape` → `@/modules/infra` 색인)을 끌어오므로 파일이 있을 때만 동적으로 불러온다 —
+ * 모듈 로드 실패도 이 단계 안에 가둔다(정적 import 면 시드 전체가 시작 전에 멈춘다).
+ */
 async function seedScenarioStep(topics: SeedTopicInput[], dryRun: boolean) {
   const file = join(__dirname, 'seed-data', 'scenarios.json')
   if (!existsSync(file)) return console.log('[seed] seed-data/scenarios.json 이 없어 상황 단계를 건너뜁니다.')
-  await seedScenarios(prisma, data('scenarios.json'), topics, { dryRun })
+  try {
+    const { seedScenarios } = await import('./seed-scenarios')
+    await seedScenarios(prisma, data('scenarios.json'), topics, { dryRun })
+  } catch (e) {
+    console.error(`[seed] 상황 단계 실패 — ${dryRun ? '드라이런(쓰기 0)' : '앞 단계는 모두 끝났다 · 검사 실패면 상황 쓰기 0, 쓰는 중 실패면 그 상황 앞까지만 썼다(상황마다 한 트랜잭션)'}`)
+    throw e
+  }
 }
 
 async function main() {
@@ -151,14 +162,14 @@ async function main() {
   }
   // 주제·조각은 안정 id upsert(prisma/seed-topics.ts) — 이미 있는 조각 id 를 바꾸지 않는다(RepetitionItem 이 가리킴).
   await seedTopics(prisma, topics)
-  // 상황은 주제 다음(주제 연결 — prisma/seed-scenarios.ts, 안정 id `scn_<key>`). 파일이 없으면 건너뛴다(시드 JSON 은 PE 작성).
-  await seedScenarioStep(topics, false)
   await seedEngines(envs)
   await seedVoices()
   await seedAppSettings(envs)
   await seedLexicon(prisma, envs, data('lexicon.json').entries)
   await seedPromptTemplates()
   await seedOwner()
+  // 상황은 맨 끝(주제 연결이 필요해 주제 뒤면 되고, 실패해도 위 단계는 이미 끝났다). 파일이 없으면 건너뛴다(시드 JSON 은 PE 작성).
+  await seedScenarioStep(topics, false)
 }
 
 main()
