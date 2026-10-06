@@ -8,6 +8,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { PrismaClient, type JlptLevel } from '@prisma/client'
+import { todayKst } from '../../src/modules/infra/dates'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3011'
 if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(BASE)) throw new Error('BASE 는 localhost 만 허용')
@@ -118,11 +119,17 @@ async function turnOk(cookie: string, chatId: string, body: unknown): Promise<Tu
 async function uid(email: string): Promise<string> {
   return (await prisma.user.findUniqueOrThrow({ where: { email } })).id
 }
+// 오늘 DAILY 스냅샷 행은 점검·턴이 정당하게 만든다(010b `bumpDailySnapshot` — 행이 없으면 INSERT) — 날짜마다 있다·없다가 달라 불변으로 볼 수 없다(task-038).
+// 서버와 같은 KST 날짜 함수를 쓰고, 자정을 넘겨 도는 실행에 대비해 시작 날과 지금 날 두 날의 DAILY 만 뺀다.
+// 그 밖의 스냅샷(어제 이전 DAILY·VOCAB_SESSION·EVALUATION·LESSON)이 생기면 계속 FAIL 로 잡는다.
+const DAILY_NOTE = '오늘 DAILY 행은 점검·턴이 정당하게 만들 수 있어 제외(010b bumpDailySnapshot — task-038)'
+const START_DAY = todayKst()
 async function counts(userId: string) {
+  const dailyDays = [...new Set([START_DAY, todayKst()])]
   const [w, s, snap, err] = await Promise.all([
     prisma.wordEntry.count({ where: { userId } }),
     prisma.studyLog.count({ where: { userId } }),
-    prisma.statsSnapshot.count({ where: { userId } }),
+    prisma.statsSnapshot.count({ where: { userId, NOT: { kind: 'DAILY', periodKey: { in: dailyDays } } } }),
     prisma.learnerErrorStat.count({ where: { userId } }),
   ])
   return { w, s, snap, err }
@@ -208,7 +215,7 @@ async function main() {
 
   // ── 6. 채택 전 행 0 (턴 뒤) ─────────────────────────────────────────
   const afterTurns = await counts(u1)
-  check('6a 턴 전후 WordEntry·StudyLog·StatsSnapshot·LearnerErrorStat 변화 0', JSON.stringify(afterTurns) === JSON.stringify(before), `${JSON.stringify(before)} → ${JSON.stringify(afterTurns)}`)
+  check(`6a 턴 전후 WordEntry·StudyLog·StatsSnapshot·LearnerErrorStat 변화 0 (${DAILY_NOTE})`, JSON.stringify(afterTurns) === JSON.stringify(before), `${JSON.stringify(before)} → ${JSON.stringify(afterTurns)}`)
 
   // ── 5. 표현 점검(동기) ───────────────────────────────────────────────
   const rv = await api(COOKIE1, 'POST', `/api/v1/chats/${chatA}/review`)
@@ -230,7 +237,7 @@ async function main() {
   const rv0 = await api(COOKIE1, 'POST', `/api/v1/chats/${chatEmpty}/review`)
   check('5d 사용자 메시지 0 → 400', rv0.status === 400)
   const afterReview = await counts(u1)
-  check('6b 점검 전후 행 수 변화 0', JSON.stringify(afterReview) === JSON.stringify(before), JSON.stringify(afterReview))
+  check(`6b 점검 전후 행 수 변화 0 (${DAILY_NOTE})`, JSON.stringify(afterReview) === JSON.stringify(before), JSON.stringify(afterReview))
   const originalsBefore = new Map(dbCorr.map((c) => [c.id, c.original]))
 
   // ── 5e. 잡 경로(사용자 메시지 21건 → AiJob) + 진행 중 409 ─────────────
@@ -285,7 +292,7 @@ async function main() {
   // ── 8. 제안 채택 ───────────────────────────────────────────────────
   const props = await api(COOKIE1, 'GET', `/api/v1/proposals?chatId=${chatA}&kind=ADD_STUDY_LOG`)
   const studyP = (props.body.data.items as { id: string; payload: Record<string, unknown> }[])[0]
-  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+  const today = todayKst()
   const snapBefore = await prisma.statsSnapshot.findUnique({ where: { userId_kind_periodKey: { userId: u1, kind: 'DAILY', periodKey: today } } })
   const sp = await api(COOKIE1, 'POST', `/api/v1/proposals/${studyP?.id}/accept`, {})
   const logId = String((sp.body.data.proposal as { result?: { studyLogId?: string } })?.result?.studyLogId ?? '')
