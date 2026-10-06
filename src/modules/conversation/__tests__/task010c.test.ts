@@ -227,6 +227,9 @@ async function runTurn(o: {
     seen.pendingCalls++
     return o.pending ?? null
   })
+  // task-010d A3b-1 — 역할극 대화는 상황 재료를 읽는다. 여기서는 재료 없음(상황이 사라짐 → [상황] 헤더 없이 코치 강제만 본다).
+  mock.method(turnDeps, 'loadRolePlayMaterial', async () => null)
+  mock.method(turnDeps, 'loadRolePlayLearnerTexts', async () => [])
   mock.method(turnDeps, 'acceptTurn', async () => ({
     chatId: 'c-010c',
     kind,

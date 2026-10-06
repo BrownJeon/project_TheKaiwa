@@ -37,9 +37,10 @@ test('턴 본문: utteranceId 없는 REALTIME_STT 는 400, utteranceId 는 task-
   assert.throws(() => parseTurnBody({ resumePending: 'yes', text: 'a' }), code('VALIDATION'))
 })
 
-test('대화 생성: ASK·레슨·시나리오는 FEATURE_NOT_READY, 제목은 100 코드포인트(이모지 1자), 비면 null', () => {
+test('대화 생성: ASK 는 FEATURE_NOT_READY, 제목은 100 코드포인트(이모지 1자), 비면 null', () => {
   assert.throws(() => parseCreateChat({ kind: 'ASK' }), code('FEATURE_NOT_READY'))
-  assert.throws(() => parseCreateChat({ kind: 'CHAT', lessonId: 'ls_1' }), code('FEATURE_NOT_READY'))
+  // task-010d A3b-1(G1 해제): 레슨·상황 칸은 여기서 보지 않는다 — parseRolePlayIds 로 따로 읽고, CHAT 이면 createRolePlayChat 이 400(task010d·task010dA3b 시험).
+  assert.deepEqual(parseCreateChat({ kind: 'CHAT', lessonId: 'ls_1' }), { kind: 'CHAT', title: null, topicId: null, level: null })
   assert.throws(() => parseCreateChat({ kind: 'NOPE' }), code('VALIDATION'))
   assert.throws(() => parseCreateChat({ kind: 'CHAT', level: 'N6' }), code('VALIDATION'))
   assert.equal(parseCreateChat({ kind: 'CHAT', title: '🎉'.repeat(100) }).title, '🎉'.repeat(100))
