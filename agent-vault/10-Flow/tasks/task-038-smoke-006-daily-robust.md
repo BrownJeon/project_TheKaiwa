@@ -247,4 +247,4 @@ $ kill <dev PID>; ss -ltn | grep -E ':(3011|3012|8197|8198)'  → 출력 없음;
 
 **알려진 한계·후속** — L-1: 오늘 DAILY 를 행 수에서 빼면 턴·점검이 오늘 DAILY 의 `chatTurns`·`corrections.accepted` 등 **값**을 부당하게 올리는 회귀는 6a·6b 가 못 잡는다(오늘 행이 이미 있던 날에도 원래 못 잡던 사각 — 이번이 새로 만든 것 아님; 한 줄 단언 추가 후보) · L-2 check id 문구 · 보정 전(HEAD) 41/42 재현은 QA 가 재실행하지 않고 developer 증빙을 신뢰(NOT_VERIFIED)·자정을 넘기는 라이브 실행은 단위로 갈음.
 
-**배포 상태** — 운영 영향 0(운영 번들 변경 없음). `tests/live` 는 webhook 의 "문서·기록만" 건너뜀 목록(`agent-vault/`·`docs/`·`.claude/`·`CLAUDE.md`·`AGENTS.md`·`README.md`)에 없어 **이 코드 커밋을 push 하면 운영 재배포(pm2 재시작)가 일어나므로 로컬 커밋으로 두고 push 는 다음 운영 코드 변경과 묶는다**(task-035 때와 같은 결정). vault 기록 커밋만 먼저 push(docs_only 건너뜀).
+**배포 상태** — 운영 영향 0(운영 번들 변경 없음). `tests/live` 는 webhook 의 "문서·기록만" 건너뜀 목록(`agent-vault/`·`docs/`·`.claude/`·`CLAUDE.md`·`AGENTS.md`·`README.md`)에 없어 **이 코드 커밋을 push 하면 운영 재배포(pm2 재시작)가 일어나므로 로컬 커밋으로 두고 push 는 다음 운영 코드 변경과 묶는다**(task-035 때와 같은 결정). vault 기록 커밋만 먼저 push(docs_only 건너뜀 — **정정: 이 push 는 개선 항목 한글 파일명 때문에 건너뛰지 않고 재배포됐다**, 릴리스 `20261006-125144-c8760053`·동작 변화 없음 — ACTIVE 13:50 정정 참조).
