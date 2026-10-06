@@ -42,6 +42,8 @@ import { elapsedSec, showAskPermission, transcriptParts, type SttUiError } from 
 import { unlockTtsAudio } from '@/components/speech/ttsAudio'
 import { useRealtimeStt, type SttFinal } from '@/components/speech/useRealtimeStt'
 import { useTtsRuntimeStatus } from '@/components/speech/useTtsRuntimeStatus'
+import { useUtteranceReviews } from '@/components/speech/useUtteranceReviews'
+import { UtteranceReviewSlot } from '@/components/speech/UtteranceReviewCard'
 import { isNativeApp } from '@/modules/infra/native'
 import { browserEnvironmentProblem, onDeviceModelStore, type SttClientConfig } from '@/modules/speech/stt/client'
 import type {
@@ -724,6 +726,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
             ? STT_STATUS_COPY.rationale
             : coachStatus),
   })
+  const reviews = useUtteranceReviews({ chatId, messages, paused: view.state !== 'IDLE' })
   const turnBusy = turn.phase === 'sending' || turn.phase === 'streaming' || turn.phase === 'detached'
 
   const lastAssistant = useMemo(() => {
@@ -793,6 +796,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
             ) : undefined
           }
         />
+        <UtteranceReviewSlot reviews={reviews} message={m} />
         {list.length > 0 ? (
           <ul className="mt-1.5 flex w-full min-w-0 flex-col gap-2">
             {list.map((c) => (

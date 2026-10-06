@@ -9,6 +9,7 @@ import MicTestCard from '@/components/speech/MicTestCard'
 import OnDeviceModelCard from '@/components/speech/OnDeviceModelCard'
 import { modeDescription, type RecognitionMode } from '@/components/speech/modelCopy'
 import { useOnDeviceModel } from '@/components/speech/useOnDeviceModel'
+import UtteranceLogEntry from '@/components/speech/UtteranceLogEntry'
 import type { SttClientConfig } from '@/modules/speech/stt/client'
 
 type Mode = RecognitionMode
@@ -106,6 +107,7 @@ export default function SpeechSettings() {
       )}
       <OnDeviceModelCard config={config} recognitionMode={s?.recognitionMode ?? null} micBusy={micBusy} onToast={toast.show} />
       <MicTestCard config={config} onBusy={setMicBusy} />
+      <UtteranceLogEntry />
       <Toast message={toast.message} />
     </Section>
   )

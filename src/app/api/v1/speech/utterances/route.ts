@@ -1,13 +1,26 @@
 import { ok, rateLimit, readFormDataCapped, requireSession, withApi } from '@/modules/infra'
 import { getOwnedChat } from '@/modules/conversation'
 import { assertOwnedLesson } from '@/modules/learning'
-import { parseUploadForm, recordUploadedUtterance, UTTERANCE_MAX_BYTES } from '@/modules/speech'
+import { listUtterances, parseUploadForm, parseUtteranceListQuery, recordUploadedUtterance, UTTERANCE_MAX_BYTES } from '@/modules/speech'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /** 오디오 2MB + 텍스트·구간·계측 필드 여유. */
 const BODY_MAX_BYTES = UTTERANCE_MAX_BYTES + 256 * 1024
+
+/**
+ * #21c 내 발화 목록(task-012b-2) — 소유자 행만, 최근 것부터 커서(`limit` 1~50, 기본 20). `chatId` 는 소유자 방만(남의 방·없는 방 404 —
+ * 읽기 1회 getOwnedChat), `reviewable=1` 은 지금 확인할 수 있는 발화만. 응답 `{items, nextCursor, reviewableCount}` — 엔진 이름·신뢰도·임계 없음,
+ * 원음은 `audioAvailable` 만(#21b 로 받는다). 회화방 확인 카드가 주기적으로 부르므로 DB 읽기 2번(목록·개수)만 한다. 사용자당 60/분.
+ */
+export const GET = withApi(async (req) => {
+  const s = await requireSession()
+  rateLimit(`speech-utterance-list:${s.user.id}`, 60)
+  const q = parseUtteranceListQuery(req.nextUrl.searchParams)
+  if (q.chatId) await getOwnedChat(s.user.id, q.chatId)
+  return ok(await listUtterances(s.user.id, q), null, { headers: { 'Cache-Control': 'private, no-store' } })
+})
 
 /**
  * #21 발화 wav(PCM16 16kHz mono ≤2MB·≤60초) + 실시간 텍스트 업로드 — 온디바이스 경로(task-003f 에서 사용).

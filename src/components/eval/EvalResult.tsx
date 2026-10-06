@@ -20,7 +20,7 @@ import { formatMonthDay, todayKey } from '@/components/vocab/format'
 import { kstDateKey } from '@/components/common/format'
 import BackBar from '@/components/shell/BackBar'
 import type { EvalDim, EvaluationDetail, EvaluationItem } from '@/types/evaluation'
-import { CHUNK_CHOICES, DIM_NAME, DIM_ORDER, GRADE_RANGE, GRADE_SUB, ITEM_KIND, KIND_NAME, LEVEL, RESULT } from './evalCopy'
+import { answerSourceLabel, CHUNK_CHOICES, DIM_NAME, DIM_ORDER, GRADE_RANGE, GRADE_SUB, ITEM_KIND, KIND_NAME, LEVEL, RESULT } from './evalCopy'
 import { assembleMineText, assembleRightText, collectEvalTexts, filledRange, fixLineRanges, usageRightFill } from './displayGuard'
 import { BlankSentence } from './EvalItems'
 import { clockText, itemTone, koDuration, levelProposalView, levelRo, promptArr, promptStr, resultMeta, type LevelProposalView } from './logic'
@@ -123,7 +123,7 @@ function MyAnswer({ it }: { it: EvaluationItem }) {
       return (
         <>
           <JaBlock text={it.answerText} tint />
-          <p className="text-[12px] text-ink2">{it.inputSource === 'TEXT' ? RESULT.byText : RESULT.byVoice}</p>
+          {answerSourceLabel(it) ? <p className="text-[12px] text-ink2">{answerSourceLabel(it)}</p> : null}
         </>
       )
   }

@@ -2,7 +2,7 @@
  * AI 평가 화면 문구(task-011 데모 v1 승인본 — 결정 a·b·c·d·e=B, f=A). 음성 인식 상태 줄은 공용 `sttCopy` 를 그대로 쓴다.
  * 엔진명·모델명·작업 번호를 싣지 않는다.
  */
-import type { EvalDim, EvalGrade, EvalItemKind, EvalKind } from '@/types/evaluation'
+import type { EvalDim, EvalGrade, EvalInputSource, EvalItemKind, EvalKind } from '@/types/evaluation'
 
 export const KIND_NAME: Record<EvalKind, string> = { WORDS: '단어 평가', TALK: '회화 평가' }
 export const KIND_SHORT: Record<EvalKind, string> = { WORDS: '단어', TALK: '회화' }
@@ -343,6 +343,9 @@ export const RESULT = {
   pickedSpot: '고른 곳 · ',
   byVoice: '말로 답함',
   byText: '글자로 답함',
+  byUserFix: '말로 답함 · 내가 고친 말로 채점했어요',
+  byServerStt: '말로 답함 · 다시 들어 본 말로 채점했어요',
+  byRealtimeStt: '말로 답함 · 처음 들린 말로 채점했어요',
   feedback: '선생님 피드백',
   noAnswerFeedback: '답하지 않아서 0점이에요.',
   dims: '이 문항이 재는 것',
@@ -395,3 +398,21 @@ export const COMMON = {
   today: '오늘로',
   network: '인터넷 연결을 확인하고 다시 눌러 주세요.',
 } as const
+
+/**
+ * 말하기 문항 "내 답" 아래 채점 글의 출처(task-012b-2 가이드 §2-E, D-B7) — 엔진 이름 없이. `voiced`(#66, D-2) = 답이 녹음에서 왔는가:
+ * 학습자가 직접 고친 글로 채점되면 `inputSource` 는 TEXT 로 남아 글자로 쓴 답과 같아 보이므로 이 값으로 가른다(없으면 글자로 답함).
+ * `inputSource` 가 없으면 줄 없음(null).
+ */
+export function answerSourceLabel(it: { inputSource: EvalInputSource | null; voiced?: boolean }): string | null {
+  switch (it.inputSource) {
+    case 'TEXT':
+      return it.voiced ? RESULT.byUserFix : RESULT.byText
+    case 'SERVER_STT':
+      return RESULT.byServerStt
+    case 'REALTIME_STT':
+      return RESULT.byRealtimeStt
+    default:
+      return null
+  }
+}

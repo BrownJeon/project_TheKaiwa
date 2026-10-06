@@ -37,6 +37,8 @@ export interface EvaluationItem {
   inputSource: EvalInputSource | null
   answeredAt: string | null
   textRevealed?: boolean
+  /** task-012b-2(#66 additive): 그 문항에 음성 발화(`Utterance`)가 연결됐는가 — 라우트 조합. 옛 응답엔 없음(= 글자로 답함으로 취급). */
+  voiced?: boolean
   expected: Record<string, unknown> | null
   score: number | null
   correct: boolean | null

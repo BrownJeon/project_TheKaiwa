@@ -7,6 +7,7 @@
  * 채점 재료는 발화의 최종 텍스트(`finalText`, 없으면 실시간 텍스트) — L1: 분석 STT(012b) 전까지 실시간 STT 최종 텍스트.
  */
 import { ApiError, prisma, type Tx } from '@/modules/infra'
+import { answerCameFrom } from '../analysis/policy'
 import { audioKept } from './lesson'
 import { UTTERANCE_TURN_WINDOW_MS } from './turn'
 
@@ -58,4 +59,28 @@ export async function linkUtteranceToEvaluationItem(userId: string, utteranceId:
   }
   const text = (row.finalText ?? '').trim() || row.realtimeText.trim()
   return { id: utteranceId, text, hasAudio: audioKept(row, now) }
+}
+
+const VOICED_MAX_ITEMS = 50
+
+/** 단위 테스트가 바꿔 끼운다. */
+export const voicedDb = {
+  linked: (userId: string, itemIds: string[]): Promise<{ evaluationItemId: string | null; finalText: string | null; realtimeText: string }[]> =>
+    prisma.utterance.findMany({ where: { userId, evaluationItemId: { in: itemIds } }, select: { evaluationItemId: true, finalText: true, realtimeText: true } }),
+}
+
+/**
+ * #66 `items[].voiced`(task-012b-2 D-2) — 저장된 답이 이 문항에 붙은 녹음에서 왔는가. 채점이 학습자가 직접 고친 글(#21a USER)을 고르면
+ * 답은 `inputSource=TEXT` 로 남아 글자로 쓴 답과 구분되지 않는다(D-B7) — 결과 화면이 "말로 답함 · 내가 고친 말로 채점"을 보이려면 이 값이 필요하다.
+ * 판정은 채점 텍스트 선택과 같은 규칙(`answerCameFrom` — 답과 발화의 연결 당시 텍스트가 같다). learning 은 speech 를 모르므로 라우트가 조합한다.
+ */
+export async function voicedEvaluationItems(userId: string, items: readonly { evaluationItemId: string; answerText: string }[]): Promise<Set<string>> {
+  const out = new Set<string>()
+  const wanted = items.filter((i) => ID_RE.test(i.evaluationItemId) && i.answerText.trim()).slice(0, VOICED_MAX_ITEMS)
+  if (wanted.length === 0) return out
+  const rows = await voicedDb.linked(userId, [...new Set(wanted.map((i) => i.evaluationItemId))])
+  for (const it of wanted) {
+    if (rows.some((r) => r.evaluationItemId === it.evaluationItemId && answerCameFrom(it.answerText, r))) out.add(it.evaluationItemId)
+  }
+  return out
 }

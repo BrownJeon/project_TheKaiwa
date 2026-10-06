@@ -6,6 +6,7 @@
  * task-007: 턴 문장 합성(createTurnSpeaker)·#24 서명 URL(audioUrl)·턴 ↔ 발화 연결·#21b 원음·#29 발화 조합.
  * task-010: 레슨 오디오 조각(synthesizeLessonClips, #62c)·레슨 말하기 ↔ 발화 연결(linkUtteranceToLesson, #62b)·#21 lessonId.
  * task-012b: 분석 STT(`analysis` — 적재 게이트·claim·실패 백오프·결과 반영·requiresReview 판정·평가 채점 텍스트)·#22 조회·#21a 확정.
+ * task-012b-2: #21c 내 발화 목록(`listUtterances`)·#66 `voiced` 판정(`voicedEvaluationItems`).
  * conversation·learning 을 import 하지 않는다(라우트가 조합).
  */
 // task-026 S1: 읽기 분석(후리가나·한글 줄의 서버 데이터). 화면이 쓰는 변환기는 `@/modules/speech/reading/client`.
@@ -48,8 +49,11 @@ export {
   getUtteranceView,
   resolveFinalText,
   parseResolveBody,
+  listUtterances,
+  parseUtteranceListQuery,
+  voicedEvaluationItems,
 } from './utterances'
-export type { RecordedUtterance, RegisteredGatewayUtterance, TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance, LessonUtteranceLink, EvaluationUtteranceLink, UtteranceView, ResolveChoice } from './utterances'
+export type { RecordedUtterance, RegisteredGatewayUtterance, TurnUtterance, UtteranceLinkResult, UtteranceAudio, MessageUtterance, LessonUtteranceLink, EvaluationUtteranceLink, UtteranceView, ResolveChoice, UtteranceListQuery } from './utterances'
 export {
   claimAnalysisJobs,
   reportJobFailure,
