@@ -17,7 +17,10 @@ import { TtsEngineError } from './errors'
 
 export { TtsEngineError, isTtsEngineError } from './errors'
 export type { TtsFailureKind } from './errors'
-export type { TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics, TtsG2pOutput } from '../registry/types'
+export type { TtsSegmentInput, TtsSynthOutput, TtsVoiceRef, TtsLexiconHint, TtsSynthMetrics, TtsG2pOutput, TtsTimingOutput, TtsTimingWord } from '../registry/types'
+// 단어 timing 공용 규칙(task-012b-4) — 어댑터와 L4 가 같은 검사·좌표 되돌리기를 쓴다.
+export { checkTimingWords, projectTimingWords, identityUnitMap, codePointOffsets, TIMING_MAX_WORDS } from './timing'
+export type { TextUnitMap } from './timing'
 
 export interface TtsTarget {
   id: string

@@ -3,9 +3,10 @@
  * 응답·헤더에는 엔진명·connection 키·호스트·캐시 키가 없다(완료 기준 10, U3·U5, Codex C1 S3).
  */
 import { ApiError } from '@/modules/infra'
-import type { SynthesizeResult } from '@/modules/speech'
+import { encodeTimingHeader, type SynthesizeResult } from '@/modules/speech'
 import { TTS_HEADERS } from '@/types/tts'
 
+/** wav 응답 — 단어 timing 이 있으면 `X-Tts-Timing`(앱 형식, ≤3KB — 넘으면 생략, task-012b-4 D-T1). */
 export function ttsAudioResponse(r: SynthesizeResult): Response {
   const headers = new Headers({
     'Content-Type': 'audio/wav',
@@ -17,6 +18,8 @@ export function ttsAudioResponse(r: SynthesizeResult): Response {
     [TTS_HEADERS.traceId]: r.traceId,
   })
   if (r.durationMs !== null) headers.set(TTS_HEADERS.durationMs, String(r.durationMs))
+  const timing = encodeTimingHeader(r.timing)
+  if (timing) headers.set(TTS_HEADERS.timing, timing)
   return new Response(new Uint8Array(r.audio), { status: 200, headers })
 }
 

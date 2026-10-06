@@ -7,7 +7,7 @@
  */
 import type { LexiconEntryData, LexiconHint, LexiconMatch } from './lexicon'
 import { findLexiconMatches, guardCompoundMatches, rescanHintSurfaces } from './lexicon'
-import { normalizeJapanese, type NormalizationResult } from './normalizer'
+import { normalizeJapanese, type NormalizationResult, type NormalizationToken } from './normalizer'
 import { clamp, RANGES, round3 } from './parameterResolver'
 import { learningSpeedFactor, PROFILE_POLICIES, type SpeechProfileName } from './profiles'
 import { splitSentences } from './sentences'
@@ -20,10 +20,15 @@ export interface PreparedSegment {
   rulesApplied: number
 }
 
-export function prepareSegments(
+/** `prepareSegments` + 그 세그먼트의 정규화 token map(원문 `text` 의 UTF-16 좌표) — 단어 timing 을 조각 글로 되돌릴 때(task-012b-4). */
+export interface PreparedSegmentWithTokens extends PreparedSegment {
+  tokens: NormalizationToken[]
+}
+
+export function prepareSegmentsWithTokens(
   text: string,
   opts: { lexicon: ReadonlyMap<string, LexiconEntryData>; maxChars: number; splitAtComma?: boolean; single?: boolean },
-): PreparedSegment[] {
+): PreparedSegmentWithTokens[] {
   const pieces = opts.single ? [{ start: 0, end: text.length, text }] : splitSentences(text, { maxChars: opts.maxChars, splitAtComma: opts.splitAtComma })
   return pieces.map((p) => {
     let matches = guardCompoundMatches(p.text, findLexiconMatches(p.text, opts.lexicon))
@@ -31,11 +36,19 @@ export function prepareSegments(
       const n = normalizeJapanese(p.text, { protect: matches })
       const ambiguous = surfacesRescannedElsewhere(p.text, n, matches)
       if (ambiguous.size === 0) {
-        return { text: p.text, normalizedText: n.normalizedText, hints: matches.map(({ surface, reading, accentType, wordType }) => ({ surface, reading, accentType, wordType })), rulesApplied: n.rulesApplied }
+        return { text: p.text, normalizedText: n.normalizedText, hints: matches.map(({ surface, reading, accentType, wordType }) => ({ surface, reading, accentType, wordType })), rulesApplied: n.rulesApplied, tokens: n.tokens }
       }
       matches = matches.filter((m) => !ambiguous.has(m.surface))
     }
   })
+}
+
+/** 결과 모양은 task-035 L-2 고정값 그대로(token map 은 `prepareSegmentsWithTokens` 에만). */
+export function prepareSegments(
+  text: string,
+  opts: { lexicon: ReadonlyMap<string, LexiconEntryData>; maxChars: number; splitAtComma?: boolean; single?: boolean },
+): PreparedSegment[] {
+  return prepareSegmentsWithTokens(text, opts).map(({ text: t, normalizedText, hints, rulesApplied }) => ({ text: t, normalizedText, hints, rulesApplied }))
 }
 
 /**

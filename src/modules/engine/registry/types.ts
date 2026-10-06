@@ -202,11 +202,31 @@ export interface TtsSynthMetrics {
   modelLoaded: 'hit' | 'cold' | null
   /** 엔진이 요청 스타일을 못 찾아 기본 스타일로 대체했다. */
   styleFallback: boolean
+  /** 단어 timing 상태(task-012b-4) — `OK` · `ABSENT`(엔진이 timing 을 주지 않음) · `INVALID`(형식·범위 검사 실패) · 엔진이 알린 사유(대문자). 없으면 모름. */
+  timingStatus?: string | null
+  /** 엔진이 timing 계산에 쓴 시간(ms, 엔진 보고값). */
+  timingMs?: number | null
+}
+
+/** 단어 1개 = [startMs, endMs, charStart, charEnd] — 글 좌표는 **코드포인트**(task-012b-4, speech-platform/16 §8). */
+export type TtsTimingWord = readonly [number, number, number, number]
+
+/** 엔진 중립 단어 timing. 글 좌표는 어댑터가 받은 `TtsSegmentInput.text` 기준이다(어댑터 내부 치환은 어댑터가 되돌린다). */
+export interface TtsTimingOutput {
+  method: 'ENGINE_DURATION' | 'FORCED_ALIGN'
+  /** 산출기 버전(캐시 `timingVersion`). 엔진명이 아닌 짧은 식별자. */
+  version: string
+  /** timing 이 기준으로 삼은 오디오 길이(ms). */
+  durationMs: number
+  /** 오름차순·시간과 글 구간 모두 겹침 0. 구두점만인 구간은 단어가 아니다(빈틈이 있을 수 있다). */
+  words: readonly TtsTimingWord[]
 }
 
 export interface TtsSynthOutput {
   audio: Buffer
   metrics: TtsSynthMetrics
+  /** 단어 timing(task-012b-4). 엔진이 못 주거나 검사에 실패하면 null — 오디오는 그대로다. */
+  timing?: TtsTimingOutput | null
 }
 
 /** 엔진이 실제로 읽을 읽기·악센트(발음 사전 미리듣기, task-003g). 문자열은 가나·악센트 기호뿐 — 엔진명·모델명 없음. */

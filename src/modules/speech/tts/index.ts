@@ -4,6 +4,8 @@
 export { synthesizeSentence, previewSettings, clearTtsSettingCache, TTS_SEGMENT_MAX_CHARS, TTS_SENTENCE_TIMEOUT_MS } from './synthesize'
 export { signTtsAudioToken, verifyTtsAudioToken, readSignedTtsAudio, TTS_AUDIO_URL_PATH, TTS_AUDIO_URL_TTL_SEC } from './audioUrl'
 export type { SignedTtsAudio, VerifiedTtsAudio, SignedAudioFile } from './audioUrl'
+// 단어 timing(task-012b-4) — 라우트가 wav 응답 헤더 `X-Tts-Timing` 을 만들 때.
+export { encodeTimingHeader, TTS_TIMING_HEADER_MAX } from './timing'
 export { createTurnSpeaker } from './turnSpeaker'
 export { synthesizeLessonClips } from './lessonAudio'
 export type { LessonAudioClip, LessonAudioPace } from './lessonAudio'

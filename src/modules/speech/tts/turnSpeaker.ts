@@ -47,7 +47,8 @@ export function createTurnSpeaker(ctx: { userId: string; messageId: string }): (
         chunk: { index: req.chunkIndex, previousDurationMs: req.previousDurationMs },
         trace: { refType: 'chatMessage', refId: ctx.messageId, record: false },
       })
-      const signed = signTtsAudioToken(ctx.userId, r.cacheKey)
+      // 청크 문장 기준 timing 을 토큰에 묶는다 — 재생 큐가 받는 #24 응답 헤더로 나간다(task-012b-4 D-T1·D-T4, SSE·#32 무변경).
+      const signed = signTtsAudioToken(ctx.userId, r.cacheKey, { timing: r.timing })
       return { status: 'OK', executionMode: 'SERVER', url: signed.url, cacheKey: r.cacheKey, durationMs: r.durationMs, cached: r.cached, pauseBeforeMs: r.pauseBeforeMs, errorCode: null, steps: r.steps }
     } catch (e) {
       const err = e as { name?: string; problem?: string; kind?: string; steps?: unknown }

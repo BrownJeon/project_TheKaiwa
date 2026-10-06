@@ -17,10 +17,13 @@ import { lexiconDigest, loadActiveLexicon, selectEntries, type LexiconEntryData 
 import { stopwatch, synthSteps, ttsStep } from './metrics'
 import { resolveTtsParameters, type UserVoiceInput } from './parameterResolver'
 import { PROFILE_POLICIES, resolveSpeechProfile, type SpeechProfileName } from './profiles'
-import { buildRenderingPlan, prepareSegments, type RequestedLabels } from './renderingPlan'
+import { buildRenderingPlan, prepareSegmentsWithTokens, type RequestedLabels } from './renderingPlan'
 import { assessAvailability, breakerOpen, recordSynthFailure, recordSynthSuccess } from './status'
 import { SEGMENT_STYLES, type LlmSpeechStyle, type SegmentStyle } from './types'
 import { rememberRecentAudio } from './recentAudio'
+import { chunkTiming, toStoredTiming, type StoredTiming } from './timing'
+import type { NormalizationToken } from './normalizer'
+import type { TtsTiming } from '@/types/tts'
 import { wavInfo } from './wav'
 
 /** 단일 합성 경로의 세그먼트 상한(서비스 상한과 같다). 연결 설정이 더 작으면 어댑터가 한 번 더 막는다. */
@@ -69,6 +72,11 @@ export interface SynthesizeResult {
   pauseBeforeMs: number
   /** 허용 meta 만 담은 단계(본문 없음). `trace.record:false` 인 호출자가 자기 Trace 에 합친다. */
   steps: TraceStep[]
+  /**
+   * 단어 timing — **요청 `text`(조각 글) 기준 코드포인트**(task-012b-4, D-T3). MISS 첫 합성부터 있고, 012b-4 이전 캐시 행·엔진이 못 준 경우·
+   * 되돌리기 실패면 null(오디오는 그대로). #24 로 내보내려면 서명 때 `signTtsAudioToken(…, { timing })` 로 묶는다.
+   */
+  timing: TtsTiming | null
 }
 
 // ── AppSetting(30초 캐시) ─────────────────────────────────────────────────
@@ -127,12 +135,13 @@ async function pickVoice(explicit: string | null | undefined, saved: string | nu
 
 // ── 같은 키 합성은 하나로 합친다(출처: CACHE·SHARED·SYNTH — singleFlight) ──────────────
 
-type Synthesized = { out: TtsSynthOutput; durationMs: number; parts: CacheKeyParts }
+/** `timing` = 정규화 글 좌표(캐시 형식). `timingStatus` = 없을 때 이유(엔진 사유·`DURATION_MISMATCH`). */
+type Synthesized = { out: TtsSynthOutput; durationMs: number; parts: CacheKeyParts; timing: StoredTiming | null; timingStatus: string }
 
 const flights = createSingleFlight<CachedAudio, Synthesized>({
   readCache: (key) => readCachedAudio(key),
   // 첫 오디오를 저장 I/O 만큼 늦추지 않는다 — 저장은 응답 뒤에 이어지고, 끝날 때까지 같은 키 요청은 합류한다.
-  store: (key, r) => storeCachedAudio(key, r.parts, r.out.audio, r.durationMs),
+  store: (key, r) => storeCachedAudio(key, r.parts, r.out.audio, r.durationMs, r.timing),
   onStoreError: (e) => {
     if (!tts.isTtsEngineError(e)) console.warn('[tts] 캐시 저장 실패:', e instanceof Error ? e.name : 'unknown')
   },
@@ -161,8 +170,39 @@ function startSynthesis(target: TtsTarget, voice: TtsVoice, parts: CacheKeyParts
       if (!info) throw new tts.TtsEngineError('BAD_AUDIO', 'NOT_WAV')
       // 캐시 저장(파일·행 커밋)은 응답 뒤에 이어진다 — 그 사이 #24 가 서명 URL 로 바로 받을 수 있게 먼저 메모리에 둔다(recentAudio).
       rememberRecentAudio(ttsCacheKey(parts), { audio: out.audio, durationMs: info.durationMs, modelVersion: parts.modelVersion, dictionaryVersion: parts.dictionaryVersion })
-      return { out, durationMs: info.durationMs, parts }
+      const timing = toStoredTiming(out.timing, parts.normalizedText, info.durationMs)
+      const timingStatus = timing ? 'OK' : out.timing ? 'DURATION_MISMATCH' : (out.metrics.timingStatus ?? 'ABSENT')
+      return { out, durationMs: info.durationMs, parts, timing, timingStatus }
     })
+}
+
+/** 조각 글 timing + Trace `TTS_TIMING[i]` 단계(상태·단어 수·계산 ms·헤더 바이트 — 글·오디오 없음). 합성 기록과 **같은** steps 에 넣는다(REV-123). */
+function attachTiming(
+  steps: TraceStep[],
+  idx: number,
+  src: { stored: StoredTiming | null; missing: string; source: 'ENGINE' | 'SHARED' | 'CACHE'; engineMs?: number | null },
+  chunk: { text: string; tokens: readonly NormalizationToken[] | undefined; normalizedText: string },
+  audioDurationMs: number | null,
+): TtsTiming | null {
+  const t = stopwatch()
+  let r: ReturnType<typeof chunkTiming>
+  try {
+    r = chunkTiming(src.stored, src.missing, chunk, audioDurationMs)
+  } catch {
+    r = { timing: null, status: 'ERROR', words: 0, bytes: null }
+  }
+  steps.push(
+    ttsStep(`TTS_TIMING[${idx}]`, t(), {
+      chunkIndex: idx,
+      status: r.status,
+      source: src.source,
+      words: r.words,
+      method: src.stored?.method ?? null,
+      alignMs: src.engineMs ?? null,
+      bytes: r.bytes,
+    }),
+  )
+  return r.timing
 }
 
 /** 캐시 키까지의 준비 결과(합성 전). 라이브 스모크가 같은 키를 계산할 때도 쓴다. */
@@ -172,6 +212,8 @@ export interface PreparedSentence {
   dictionaryVersion: number
   normalizedText: string
   hints: readonly TtsLexiconHint[]
+  /** 정규화 token map(요청 `text` 의 UTF-16 좌표) — timing 을 조각 글로 되돌릴 때. */
+  tokens?: NormalizationToken[]
   target: TtsTarget | null
   parts: CacheKeyParts | null
   key: string | null
@@ -203,7 +245,7 @@ export async function prepareSentence(input: SynthesizeInput): Promise<PreparedS
   const lexMs = t()
 
   t = stopwatch()
-  const [seg] = prepareSegments(input.text, { lexicon: selected, maxChars: TTS_SEGMENT_MAX_CHARS, single: true })
+  const [seg] = prepareSegmentsWithTokens(input.text, { lexicon: selected, maxChars: TTS_SEGMENT_MAX_CHARS, single: true })
   const normMs = t()
   steps.push(ttsStep('TTS_LEXICON', lexMs, { dictionaryVersion: lex.dictionaryVersion, matches: seg.hints.length }))
   steps.push(ttsStep('TTS_NORMALIZE', normMs, { inputChars: codePointLength(input.text), outputChars: codePointLength(seg.normalizedText), rulesApplied: seg.rulesApplied }))
@@ -246,7 +288,7 @@ export async function prepareSentence(input: SynthesizeInput): Promise<PreparedS
       }
     : null
   const pauseBeforeMs = chunkPauseMs(profile, input.chunk?.index ?? 0, plan.segments[0].pauseBeforeMs, input.chunk?.previousDurationMs)
-  return { voice, profile, dictionaryVersion: lex.dictionaryVersion, normalizedText: seg.normalizedText, hints: seg.hints, target, parts, key: parts ? ttsCacheKey(parts) : null, steps, pauseBeforeMs }
+  return { voice, profile, dictionaryVersion: lex.dictionaryVersion, normalizedText: seg.normalizedText, hints: seg.hints, tokens: seg.tokens, target, parts, key: parts ? ttsCacheKey(parts) : null, steps, pauseBeforeMs }
 }
 
 export async function synthesizeSentence(input: SynthesizeInput): Promise<SynthesizeResult> {
@@ -266,11 +308,15 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
   const idx = input.chunk?.index ?? 0
   const synthName = `TTS_SYNTH[${idx}]`
   const base = { traceId, normalizedText: seg.normalizedText, dictionaryVersion: lex.dictionaryVersion, modelVersion: voice.modelVersion, cacheKey: key, pauseBeforeMs: p.pauseBeforeMs, steps }
+  const chunk = { text: input.text, tokens: p.tokens, normalizedText: p.normalizedText }
   const fromCache = (hit: CachedAudio, ms: number): SynthesizeResult => {
     const ttfaMs = Math.round(total())
     steps.push(ttsStep(synthName, ms, { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, voiceId: voice.id, audioMs: hit.durationMs, status: 'OK' }))
+    // 길이는 실제 파일에서 — 같은 키를 동시에 다시 합성해 파일과 행이 엇갈렸으면 timing 길이가 맞지 않아 null 이 된다.
+    const fileMs = wavInfo(hit.audio)?.durationMs ?? null
+    const timing = attachTiming(steps, idx, { stored: hit.timing ?? null, missing: 'NONE', source: 'CACHE' }, chunk, fileMs)
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
-    return { ...base, audio: hit.audio, cached: true, durationMs: hit.durationMs ?? wavInfo(hit.audio)?.durationMs ?? null, ttfaMs }
+    return { ...base, audio: hit.audio, cached: true, durationMs: hit.durationMs ?? fileMs, ttfaMs, timing }
   }
 
   const t = stopwatch()
@@ -298,17 +344,19 @@ export async function synthesizeSentence(input: SynthesizeInput): Promise<Synthe
   // SHARED = 진행 중·저장 중인 합성에 합류(엔진 호출 0) → 사용자에게는 캐시 적중(HIT). SYNTH 만 MISS·상태 판정 대상.
   const shared = run.source === 'SHARED'
   try {
-    const { out, durationMs } = await run.promise
+    const { out, durationMs, timing: stored, timingStatus } = await run.promise
     const ttfaMs = Math.round(total())
     if (shared) {
       steps.push(ttsStep(synthName, t(), { chunkIndex: idx, cacheHit: true, modelVersion: voice.modelVersion, connectionKey: target.key, voiceId: voice.id, audioMs: durationMs, status: 'OK' }))
+      const timing = attachTiming(steps, idx, { stored, missing: timingStatus, source: 'SHARED' }, chunk, durationMs)
       void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 1, ttfaMs })
-      return { ...base, audio: out.audio, cached: true, durationMs, ttfaMs }
+      return { ...base, audio: out.audio, cached: true, durationMs, ttfaMs, timing }
     }
     recordSynthSuccess()
     steps.push(...synthSteps(out, { connectionKey: target.key, modelVersion: voice.modelVersion, ms: t(), durationMs, chunkIndex: idx, voiceId: voice.id }))
+    const timing = attachTiming(steps, idx, { stored, missing: timingStatus, source: 'ENGINE', engineMs: out.metrics.timingMs }, chunk, durationMs)
     void finishTrace(traceId, steps, ttfaMs, 'OK', null, input, { ...meta, cacheHits: 0, ttfaMs })
-    return { ...base, audio: out.audio, cached: false, durationMs, ttfaMs }
+    return { ...base, audio: out.audio, cached: false, durationMs, ttfaMs, timing }
   } catch (e) {
     // 엔진 호출 실패만 상태 판정(연속 실패)에 넣는다 — 합류 요청은 원 요청이 이미 셌으므로 세지 않는다. 그 밖의 예외(DB 등)는 그대로(500).
     if (!tts.isTtsEngineError(e)) throw e

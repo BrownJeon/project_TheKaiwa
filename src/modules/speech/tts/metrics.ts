@@ -16,6 +16,11 @@ const ALLOWED: Record<string, readonly string[]> = {
   // 원천. 값은 엔진 독립 Voice Profile id(예: teacher_haruka)뿐 — 엔진 speaker id·모델 id·모델 파일명은 싣지 않는다.
   TTS_SYNTH: ['chunkIndex', 'synthMs', 'audioMs', 'rtf', 'modelLoaded', 'modelVersion', 'cacheHit', 'connectionKey', 'voiceId', 'status', 'errorCode'],
   TTS_ENCODE: ['bytes', 'format'],
+  // task-012b-4 단어 timing(16 §7.2 TTS_TIMING): 상태·출처(ENGINE·SHARED·CACHE)·단어 수·산출 방식·엔진 계산 ms·앱 헤더 길이 — 글·좌표·오디오 없음.
+  // 이름이 `TTS_TIMING[i]` 라 012b-3 지표 집계(`TTS_SYNTH[i]`·`TTS[i]`·`TTS` 만 본다)에 섞이지 않는다.
+  // status: OK · 엔진 쪽(어댑터) ABSENT·INVALID·UNKNOWN·UNAVAILABLE·TOKEN_MISMATCH·FRAME_MISMATCH·WORD_MISMATCH·TEXT_MISMATCH·EMPTY·TOO_LARGE·TOO_LONG·ERROR
+  //   · 앱 쪽(timing.ts) NONE(캐시 행에 timing 없음)·DURATION_MISMATCH·NO_TOKEN_MAP·PROJECT_FAILED·HEADER_TOO_LARGE(앱 헤더 3KB 초과)·ERROR.
+  TTS_TIMING: ['chunkIndex', 'status', 'source', 'words', 'method', 'alignMs', 'bytes'],
 }
 
 const SAFE_STRING = /^[\w.:\-]{1,60}$/

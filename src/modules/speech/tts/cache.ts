@@ -11,8 +11,9 @@
  * 오디오 조회 URL(#24)은 서명 URL(`audioUrl.ts`, task-007). 용량 정리·예열 후보는 아래 "P1"(task-012b-3, 16 §11.2).
  */
 import { createHash } from 'node:crypto'
-import type { SpeechProfile } from '@prisma/client'
+import { Prisma, type SpeechProfile } from '@prisma/client'
 import { prisma, readDataFile, removeDataFile, writeDataFile } from '@/modules/infra'
+import { parseStoredTiming, type StoredTiming } from './timing'
 
 export const TTS_CACHE_DIR = 'tts-cache'
 /** 합성 경로(#23) 텍스트 버전 — 정규화 규칙 변경은 normalizedText 가 바뀌어 자연히 갈리므로 올릴 일이 드물다. */
@@ -72,12 +73,14 @@ export interface CachedAudio {
   /** #24 응답 헤더용(task-007). 합성 직후 값에는 없다. */
   modelVersion?: string
   dictionaryVersion?: number
+  /** 단어 timing(정규화 글 좌표, task-012b-4). 012b-4 이전 행·모르는 형식은 null. */
+  timing?: StoredTiming | null
 }
 
 /** HIT 면 파일을 읽고 hits·lastHitAt 을 올린다. 행은 있는데 파일이 없으면 행을 지우고 MISS. */
 export async function readCachedAudio(key: string): Promise<CachedAudio | null> {
   const segs = cacheSegments(key)
-  const row = await prisma.ttsCache.findUnique({ where: { key }, select: { durationMs: true, modelVersion: true, dictionaryVersion: true } })
+  const row = await prisma.ttsCache.findUnique({ where: { key }, select: { durationMs: true, modelVersion: true, dictionaryVersion: true, timing: true, timingVersion: true } })
   if (!row) return null
   const audio = await readDataFile(segs)
   if (!audio) {
@@ -85,12 +88,23 @@ export async function readCachedAudio(key: string): Promise<CachedAudio | null> 
     return null
   }
   void prisma.ttsCache.update({ where: { key }, data: { hits: { increment: 1 }, lastHitAt: new Date() } }).catch(() => undefined)
-  return { audio, durationMs: row.durationMs, modelVersion: row.modelVersion, dictionaryVersion: row.dictionaryVersion }
+  return { audio, durationMs: row.durationMs, modelVersion: row.modelVersion, dictionaryVersion: row.dictionaryVersion, timing: parseStoredTiming(row.timing, row.timingVersion) }
 }
 
-export async function storeCachedAudio(key: string, parts: CacheKeyParts, audio: Buffer, durationMs: number | null): Promise<void> {
+/**
+ * timing 칸 — create·update 에 **같이** 싣는다(task-012b-4). update 는 같은 키를 다시 합성해 wav 파일을 덮어쓴 경우라
+ * (다른 프로세스와 경합) timing 도 그 오디오 것으로 바꿔야 한다. 이번 합성에 timing 이 없으면 옛 값을 지운다(DbNull) —
+ * 다른 오디오의 timing 이 남아 어긋나는 것보다 없는 편이 낫다.
+ */
+export function timingColumns(timing: StoredTiming | null): { timing: Prisma.InputJsonValue | typeof Prisma.DbNull; timingVersion: string | null } {
+  if (!timing) return { timing: Prisma.DbNull, timingVersion: null }
+  return { timing: JSON.parse(JSON.stringify(timing)) as Prisma.InputJsonValue, timingVersion: timing.alignerVersion }
+}
+
+/** `storeCachedAudio` 의 upsert 인자(순수 — 테스트가 create·update 칸을 본다). */
+export function ttsCacheUpsertArgs(key: string, parts: CacheKeyParts, audio: Buffer, durationMs: number | null, timing: StoredTiming | null) {
   const segs = cacheSegments(key)
-  await writeDataFile(segs, audio)
+  const t = timingColumns(timing)
   const data = {
     voiceProfileId: parts.voiceProfileId,
     normalizedText: parts.normalizedText.slice(0, 200),
@@ -108,9 +122,16 @@ export async function storeCachedAudio(key: string, parts: CacheKeyParts, audio:
     path: segs.join('/'),
     bytes: audio.length,
     durationMs,
+    ...t,
   }
+  return { where: { key }, create: { key, ...data }, update: { bytes: data.bytes, durationMs, path: data.path, ...t } }
+}
+
+export async function storeCachedAudio(key: string, parts: CacheKeyParts, audio: Buffer, durationMs: number | null, timing: StoredTiming | null = null): Promise<void> {
+  const segs = cacheSegments(key)
+  await writeDataFile(segs, audio)
   try {
-    await prisma.ttsCache.upsert({ where: { key }, create: { key, ...data }, update: { bytes: data.bytes, durationMs, path: data.path } })
+    await prisma.ttsCache.upsert(ttsCacheUpsertArgs(key, parts, audio, durationMs, timing))
   } catch (e) {
     // 다른 프로세스가 같은 키를 먼저 넣었다(같은 입력 → 같은 오디오) — 그 행이 이 파일을 가리키므로 그대로 둔다.
     if ((e as { code?: string }).code === 'P2002') return

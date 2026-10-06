@@ -6,6 +6,8 @@
  *   → { text(≤100), voice{model, speaker, style, styleWeight}, controls{speed, pitch, intonation}, engine{sdpRatio, noise, noiseW}, profile, traceId }
  *     헤더 X-Internal-Secret(= 앱 env TTS_SERVICE_SECRET, 상수시간 비교; 없음·불일치 401)
  *   ← audio/wav + X-Kaiwa-{Queue,Synth,Encode,Audio}-Ms · X-Kaiwa-Style-Fallback · X-Trace-Id(echo)
+ *     + (0.4.0, task-012b-4) X-Kaiwa-Timing 상태 · X-Tts-Timing(단어 timing, 보낸 글 코드포인트) · X-Kaiwa-Timing-Ms — `readTimingHeaders`.
+ *       요청은 바꾸지 않는다(서비스가 모르는 키를 400 으로 거부). 헤더가 없거나 틀리면 timing=null, 합성은 그대로 성공.
  *     오류 JSON {error:{code,message}}: 400 TEXT_*·UNKNOWN_MODEL·UNKNOWN_SPEAKER / 401 / 413 / 503 NOT_READY·BUSY(+Retry-After) / 500 SYNTH_FAILED
  *
  * 발음 사전(방식 A): 이 래퍼는 사용자 사전 입력이 없어 **플랫폼 치환**으로 강등한다 — 매칭 표기를 가타카나 읽기로 바꿔 보낸다
@@ -17,8 +19,9 @@
  * 보낸다(`infra.readServiceSecretFor`). DB·Effective baseUrl 의 origin 이 다르거나 env 가 비면 **호출 자체를 하지 않고** MISCONFIGURED.
  */
 import { readServiceSecretFor } from '@/modules/infra'
-import type { ConnectionProfile, HealthDetail, TtsG2pOutput, TtsLexiconHint, TtsSegmentInput, TtsSynthOutput, TtsVoiceRef } from '../../registry/types'
+import type { ConnectionProfile, HealthDetail, TtsG2pOutput, TtsLexiconHint, TtsSegmentInput, TtsSynthOutput, TtsTimingOutput, TtsVoiceRef } from '../../registry/types'
 import { TtsEngineError } from '../../tts/errors'
+import { checkTimingWords, identityUnitMap, projectTimingWords, type TextUnitMap } from '../../tts/timing'
 import { healthUrl, pickCommonDetail } from '../common/httpHealth'
 
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024
@@ -39,19 +42,38 @@ export function maxCharsOf(values: Record<string, unknown>): number {
   return Math.min(DEFAULT_MAX_CHARS, Math.max(1, Math.trunc(numberValue(values, 'runtime.maxChars', DEFAULT_MAX_CHARS))))
 }
 
-/** 표기 → 가타카나 읽기 치환(왼쪽부터 최장 일치 — L4 매칭과 같은 규칙). */
-export function substituteReadings(text: string, hints: readonly TtsLexiconHint[]): string {
-  if (hints.length === 0) return text
+/**
+ * 표기 → 가타카나 읽기 치환(왼쪽부터 최장 일치 — L4 매칭과 같은 규칙) + 보낸 글의 코드 유닛별 원래 구간(timing 좌표 되돌리기용).
+ * 읽기로 바뀐 글자는 그 표기 전체를 가리킨다.
+ */
+export function substituteReadingsMapped(text: string, hints: readonly TtsLexiconHint[]): TextUnitMap {
+  if (hints.length === 0) return identityUnitMap(text)
   const sorted = [...new Map(hints.map((h) => [h.surface, h])).values()].sort((a, b) => b.surface.length - a.surface.length)
   let out = ''
+  const start: number[] = []
+  const end: number[] = []
   for (let i = 0; i < text.length; ) {
     const h = sorted.find((x) => x.surface.length > 0 && text.startsWith(x.surface, i))
     if (h) {
       out += h.reading
+      for (let k = 0; k < h.reading.length; k++) {
+        start.push(i)
+        end.push(i + h.surface.length)
+      }
       i += h.surface.length
-    } else out += text[i++]
+    } else {
+      out += text[i]
+      start.push(i)
+      end.push(i + 1)
+      i++
+    }
   }
-  return out
+  return { derived: out, source: text, start, end }
+}
+
+/** 표기 → 가타카나 읽기 치환(왼쪽부터 최장 일치 — L4 매칭과 같은 규칙). */
+export function substituteReadings(text: string, hints: readonly TtsLexiconHint[]): string {
+  return substituteReadingsMapped(text, hints).derived
 }
 
 function networkCode(e: unknown): string {
@@ -103,13 +125,63 @@ function isWav(buf: Buffer): boolean {
   return buf.length >= 44 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE'
 }
 
+/** 서비스 timing 헤더 상한(서비스 README §2 `MAX_HEADER_BYTES`). */
+export const TIMING_HEADER_MAX = 4096
+const TIMING_METHODS = new Set(['ENGINE_DURATION', 'FORCED_ALIGN'])
+const TIMING_VERSION = /^[\w.:-]{1,40}$/
+/**
+ * 서비스 `X-Kaiwa-Timing` 값(README §2, 0.4.0 — `too_long` 은 REV-130 L-1 로 추가). `ok` 밖은 전부 timing=null 이고 Trace 상태는 대문자로,
+ * 이 목록에 없는 값은 `UNKNOWN`(Trace 값 종류를 닫아 둔다 — 서비스가 새 사유를 내면 여기에 더한다).
+ */
+const ENGINE_TIMING_STATES = new Set(['unavailable', 'token_mismatch', 'frame_mismatch', 'word_mismatch', 'text_mismatch', 'empty', 'too_large', 'too_long', 'error'])
+const B64URL = /^[A-Za-z0-9_-]+$/
+
+export interface TimingRead {
+  timing: TtsTimingOutput | null
+  status: string
+  ms: number | null
+}
+
+/**
+ * 서비스 0.4.0 응답 헤더(`X-Kaiwa-Timing` 상태 · `X-Tts-Timing` base64url JSON · `X-Kaiwa-Timing-Ms`) → 엔진 중립 timing.
+ * 서비스 좌표는 **보낸 글**(사전 치환 뒤)의 코드포인트 — `sent` 지도로 받은 세그먼트 글 좌표로 되돌린다.
+ * 상태가 ok 가 아니거나·헤더가 없거나(구 서비스)·형식/범위가 하나라도 틀리면 timing=null 이고 합성은 성공 그대로다(오류를 만들지 않는다).
+ */
+export function readTimingHeaders(headers: Headers, sent: TextUnitMap): TimingRead {
+  const msRaw = headers.get('x-kaiwa-timing-ms')?.trim() ?? ''
+  const ms = /^\d{1,6}(\.\d{1,3})?$/.test(msRaw) ? Number(msRaw) : null
+  const state = headers.get('x-kaiwa-timing')?.trim().toLowerCase() ?? null
+  if (state === null) return { timing: null, status: 'ABSENT', ms }
+  if (state !== 'ok') return { timing: null, status: ENGINE_TIMING_STATES.has(state) ? state.toUpperCase() : 'UNKNOWN', ms }
+  const invalid: TimingRead = { timing: null, status: 'INVALID', ms }
+  const value = headers.get('x-tts-timing')?.trim() ?? ''
+  if (!value || value.length > TIMING_HEADER_MAX || !B64URL.test(value)) return invalid
+  let j: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return invalid
+    j = parsed as Record<string, unknown>
+  } catch {
+    return invalid
+  }
+  const { v, method, alignerVersion, coord, durationMs } = j
+  if (v !== 1 || coord !== 'codepoint' || typeof method !== 'string' || !TIMING_METHODS.has(method)) return invalid
+  if (typeof alignerVersion !== 'string' || !TIMING_VERSION.test(alignerVersion)) return invalid
+  if (typeof durationMs !== 'number' || !Number.isSafeInteger(durationMs) || durationMs <= 0) return invalid
+  const words = checkTimingWords(j.words, { textCodePoints: [...sent.derived].length, durationMs })
+  const back = words && projectTimingWords(words, sent)
+  if (!back) return invalid
+  return { timing: { method: method as TtsTimingOutput['method'], version: alignerVersion, durationMs, words: back }, status: 'OK', ms }
+}
+
 export async function synthesizeHttp(profile: ConnectionProfile, voice: TtsVoiceRef, seg: TtsSegmentInput, opts: { traceId: string; timeoutMs: number }): Promise<TtsSynthOutput> {
   const url = healthUrl(profile.values['connection.baseUrl'], '/synthesize')
   if (!url) throw new TtsEngineError('MISCONFIGURED', 'BAD_BASE_URL')
   const grant = readServiceSecretFor('TTS_SERVICE_SECRET', url)
   if (!grant.ok) throw new TtsEngineError('MISCONFIGURED', grant.reason)
   const secret = grant.secret
-  const text = substituteReadings(seg.text, seg.lexiconHints)
+  const sent = substituteReadingsMapped(seg.text, seg.lexiconHints)
+  const text = sent.derived
   if ([...text].length > maxCharsOf(profile.values)) throw new TtsEngineError('TEXT_TOO_LONG', 'TEXT_TOO_LONG')
 
   const body = {
@@ -159,9 +231,18 @@ export async function synthesizeHttp(profile: ConnectionProfile, voice: TtsVoice
     throw new TtsEngineError(code === 'ETIMEDOUT' ? 'TIMEOUT' : 'UNAVAILABLE', code)
   }
   if (!audio || !isWav(audio)) throw new TtsEngineError('BAD_AUDIO', audio ? 'NOT_WAV' : 'TOO_LARGE')
+  let t: TimingRead
+  try {
+    t = readTimingHeaders(res.headers, sent)
+  } catch {
+    t = { timing: null, status: 'INVALID', ms: null }
+  }
   return {
     audio,
+    timing: t.timing,
     metrics: {
+      timingStatus: t.status,
+      timingMs: t.ms,
       httpMs: Date.now() - startedAt,
       synthMs: headerMs(res, 'x-kaiwa-synth-ms', 'x-synth-ms'),
       queueMs: headerMs(res, 'x-kaiwa-queue-ms', 'x-queue-ms'),

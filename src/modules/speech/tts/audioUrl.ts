@@ -11,8 +11,11 @@
  */
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { deriveSubkey } from '@/modules/infra'
+import type { TtsTiming } from '@/types/tts'
 import { isCacheKey, readCachedAudio } from './cache'
 import { recallRecentAudio } from './recentAudio'
+import { TIMING_DURATION_TOLERANCE_MS } from './timing'
+import { wavInfo } from './wav'
 
 export const TTS_AUDIO_URL_PATH = '/api/v1/speech/tts/'
 export const TTS_AUDIO_URL_TTL_SEC = 600
@@ -31,13 +34,71 @@ export interface SignedTtsAudio {
   expiresAt: string
 }
 
-export function signTtsAudioToken(userId: string, cacheKey: string, opts: { now?: number; ttlSec?: number } = {}): SignedTtsAudio {
+// ── 토큰 ↔ 조각 글 timing(task-012b-4, D-T1) ───────────────────────────────────────────────
+// #24 는 토큰(캐시 키)만 받아 그 소리가 어느 조각 글의 것인지 모른다. 캐시 행의 timing 은 정규화 글 좌표라(같은 키를 원문이 다른 조각이
+// 함께 쓴다) 조각 글 좌표로 바꾸려면 원문이 필요하다 → **서명하는 쪽**(원문을 아는 합성 호출)이 바꿔 둔 값을 토큰에 묶어 둔다.
+// 토큰 형식·MAC 은 그대로다. 프로세스 메모리(globalThis — 턴 라우트와 #24 가 다른 번들이어도 같은 보관소, recentAudio 와 같은 방식).
+// 없으면(다른 인스턴스·재시작·밀려남) timing 없음 = 화면은 강조 없이 재생(정상). 같은 토큰에 다른 값이 오면(같은 사용자·키·초에
+// 원문이 다른 두 조각) 둘 다 null — 틀린 강조보다 없는 강조.
+
+export const TOKEN_TIMING_MAX_ENTRIES = 512
+
+interface TokenTimingEntry {
+  /** 화면 형식 JSON 문자열. null = 충돌(또는 timing 없음). */
+  json: string | null
+  expiresAt: number
+}
+
+declare global {
+  var __kaiwaTtsTokenTiming: Map<string, TokenTimingEntry> | undefined
+}
+
+const tokenTiming: Map<string, TokenTimingEntry> = (globalThis.__kaiwaTtsTokenTiming ??= new Map())
+
+function rememberTokenTiming(token: string, timing: TtsTiming | null, expiresAt: number, now: number): void {
+  for (const [k, v] of tokenTiming) if (v.expiresAt <= now) tokenTiming.delete(k)
+  const json = timing ? JSON.stringify(timing) : null
+  const prev = tokenTiming.get(token)
+  if (prev && prev.expiresAt > now) {
+    if (prev.json !== json) prev.json = null
+    return
+  }
+  while (tokenTiming.size >= TOKEN_TIMING_MAX_ENTRIES) {
+    const oldest = tokenTiming.keys().next().value as string | undefined
+    if (oldest === undefined) break
+    tokenTiming.delete(oldest)
+  }
+  tokenTiming.set(token, { json, expiresAt })
+}
+
+function recallTokenTiming(token: string, now: number): TtsTiming | null {
+  const e = tokenTiming.get(token)
+  if (!e || e.expiresAt <= now || e.json === null) return null
+  try {
+    return JSON.parse(e.json) as TtsTiming
+  } catch {
+    return null
+  }
+}
+
+/** 테스트용. */
+export function clearTokenTiming(): void {
+  tokenTiming.clear()
+}
+
+/**
+ * `timing` 을 주면(null 포함) 이 토큰으로 #24 가 줄 timing 을 기억한다 — 그 소리를 만든 조각 글 기준 좌표여야 한다.
+ * 생략하면 기억하지 않는다(#24 timing 없음).
+ */
+export function signTtsAudioToken(userId: string, cacheKey: string, opts: { now?: number; ttlSec?: number; timing?: TtsTiming | null } = {}): SignedTtsAudio {
   if (!userId) throw new Error('signTtsAudioToken: userId 필요')
   if (!isCacheKey(cacheKey)) throw new Error('signTtsAudioToken: 캐시 키 형식')
   const ttl = Math.min(MAX_TTL_SEC, Math.max(1, Math.floor(opts.ttlSec ?? TTS_AUDIO_URL_TTL_SEC)))
-  const e = Math.floor((opts.now ?? Date.now()) / 1000) + ttl
+  const now = opts.now ?? Date.now()
+  const e = Math.floor(now / 1000) + ttl
   const payload = Buffer.from(JSON.stringify({ k: cacheKey, e }), 'utf8').toString('base64url')
   const token = `${payload}.${mac(userId, cacheKey, e).toString('base64url')}`
+  if (opts.timing !== undefined) rememberTokenTiming(token, opts.timing, e * 1000, now)
   return { token, url: `${TTS_AUDIO_URL_PATH}${token}`, expiresAt: new Date(e * 1000).toISOString() }
 }
 
@@ -75,19 +136,26 @@ export interface SignedAudioFile {
   modelVersion: string | null
   dictionaryVersion: number | null
   remainingSec: number
+  /** 서명한 쪽이 묶어 둔 조각 글 기준 timing(task-012b-4). 없으면 null(정상). */
+  timing: TtsTiming | null
 }
 
 /**
  * 서명 검증 → (방금 합성한 오디오 보관소 → 캐시 파일). 실패는 전부 null(라우트가 같은 404 로).
  * 보관소는 검증을 통과한 뒤에만 본다 — 서명이 틀린 요청에는 어느 저장소에 무엇이 있는지 드러나지 않는다.
  * 합성 직후 캐시 행 커밋 전(≈1s)에 온 요청도 바로 200 이다(recentAudio 주석 — MISS 청크 404 경합 수정).
+ * timing 은 토큰에 묶인 값만 준다(캐시 행의 정규화 글 좌표는 조각 글을 모르면 쓸 수 없다). 그 값의 wav 길이가 지금 줄 오디오와 다르면 null.
  */
 export async function readSignedTtsAudio(userId: string, token: unknown, now = Date.now()): Promise<SignedAudioFile | null> {
   const v = verifyTtsAudioToken(userId, token, now)
   if (!v) return null
+  const timingFor = (durationMs: number | null): TtsTiming | null => {
+    const t = recallTokenTiming(token as string, now)
+    return t && durationMs !== null && Math.abs(t.durationMs - durationMs) <= TIMING_DURATION_TOLERANCE_MS ? t : null
+  }
   const recent = recallRecentAudio(v.cacheKey, now)
-  if (recent) return { ...recent, remainingSec: v.remainingSec }
+  if (recent) return { ...recent, remainingSec: v.remainingSec, timing: timingFor(recent.durationMs) }
   const hit = await readCachedAudio(v.cacheKey)
   if (!hit) return null
-  return { audio: hit.audio, durationMs: hit.durationMs, modelVersion: hit.modelVersion ?? null, dictionaryVersion: hit.dictionaryVersion ?? null, remainingSec: v.remainingSec }
+  return { audio: hit.audio, durationMs: hit.durationMs, modelVersion: hit.modelVersion ?? null, dictionaryVersion: hit.dictionaryVersion ?? null, remainingSec: v.remainingSec, timing: timingFor(wavInfo(hit.audio)?.durationMs ?? hit.durationMs) }
 }
