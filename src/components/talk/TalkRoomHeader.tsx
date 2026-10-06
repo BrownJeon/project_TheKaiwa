@@ -53,6 +53,9 @@ export default function TalkRoomHeader({
   onAnnounce,
   later,
   menuRef,
+  roleTag,
+  endAction,
+  back: backTo,
 }: {
   teacherName: string
   title: string | null
@@ -62,8 +65,14 @@ export default function TalkRoomHeader({
   later?: LaterChipProps
   /** 시트를 닫았는데 칩이 사라졌을 때 초점을 ⋯ 로 돌려준다. */
   menuRef?: React.Ref<HTMLButtonElement>
+  /** 역할극(task-010d): 이름 뒤 "{역} 역" 태그 + 스크린리더 제목. 없으면 지금과 같다. */
+  roleTag?: { text: string; sr: string }
+  /** 역할극 [마치기] — 누를 수 없을 때도 보이고(aria-disabled) 누르면 방이 이유를 알린다. */
+  endAction?: { label: string; disabled: boolean; onClick: () => void }
+  /** ← 가 돌아갈 곳(역할극 = 시나리오). 계획표에서 왔으면 계획표 규칙이 이긴다. */
+  back?: { href: string; label: string }
 }) {
-  const back = usePlanReturn('/study/ai?tab=talk', TALK_ROOM.back)
+  const back = usePlanReturn(backTo?.href ?? '/study/ai?tab=talk', backTo?.label ?? TALK_ROOM.back)
   return (
     <header className="flex h-14 min-w-0 flex-none items-center gap-1 border-b border-line bg-surface px-1">
       <Link href={back.href} aria-label={back.label} className="grid h-11 w-11 flex-none place-items-center text-ink">
@@ -73,12 +82,31 @@ export default function TalkRoomHeader({
       </Link>
       <TeacherAvatar name={teacherName} size="md" />
       <div className="flex min-w-0 flex-1 flex-col items-start pl-1.5">
-        <h1 className="max-w-full truncate text-[16px] font-semibold leading-5">
-          {teacherName}
-          {title ? <span className="sr-only">{TALK_ROOM.srTitle(title)}</span> : null}
-        </h1>
+        {roleTag ? (
+          <h1 className="flex min-w-0 max-w-full items-center gap-1.5 text-[16px] font-semibold leading-5">
+            <span className="truncate">{teacherName}</span>
+            <span className="max-w-[7.5rem] flex-none truncate rounded-full bg-surface2 px-2 py-px text-[12px] font-medium text-ink2">{roleTag.text}</span>
+            <span className="sr-only">{roleTag.sr}</span>
+          </h1>
+        ) : (
+          <h1 className="max-w-full truncate text-[16px] font-semibold leading-5">
+            {teacherName}
+            {title ? <span className="sr-only">{TALK_ROOM.srTitle(title)}</span> : null}
+          </h1>
+        )}
         {onAnnounce ? <TtsRuntimeStatusIndicator onAnnounce={onAnnounce} /> : null}
       </div>
+      {endAction ? (
+        <button
+          type="button"
+          aria-disabled={endAction.disabled || undefined}
+          aria-haspopup="dialog"
+          onClick={endAction.onClick}
+          className={`relative h-9 flex-none rounded-full border border-line px-3 text-[13px] font-semibold text-ink before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] ${endAction.disabled ? 'opacity-50' : ''}`}
+        >
+          {endAction.label}
+        </button>
+      ) : null}
       {later && later.count > 0 ? <LaterChip {...later} /> : null}
       {onMenu ? (
         <button ref={menuRef} type="button" aria-label={TALK_ROOM.menu} onClick={onMenu} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink">

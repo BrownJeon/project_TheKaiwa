@@ -11,9 +11,15 @@ export const SCENARIO_NEW_HREF = '/study/ai/scenario/new'
 export const scenarioEditHref = (id: string) => `/study/ai/scenario/${encodeURIComponent(id)}/edit`
 export const scenarioSheetHref = (id: string, saved = false) => `${SCENARIO_HOME_HREF}&sc=${encodeURIComponent(id)}${saved ? '&saved=1' : ''}`
 export const talkRoomHref = (chatId: string) => `/study/ai/talk/${encodeURIComponent(chatId)}`
+/** 역할극 결과 화면(B3 가 페이지를 만든다 — 경로·첫 그림 보관 키는 여기 한 곳). */
+export const rolePlayResultHref = (chatId: string) => `${talkRoomHref(chatId)}/result`
+/** 마치기 응답(ResultView)을 결과 화면 첫 그림용으로 잠깐 넣어 두는 곳(sessionStorage). 없으면 결과 화면이 읽기 요청. */
+export const rolePlayResultStoreKey = (chatId: string) => `kaiwa.rp.result.${chatId}`
 
 /** AI 초안 자동 보관(이 탭에서만 — sessionStorage). */
 export const DRAFT_STORE_KEY = 'kaiwa.scenario.draft'
+/** 역할극 방 — 표현 체크 숨김(이 탭 동안)·대답 연습 마지막 방식. */
+export const ROOM_STORE = { checksHidden: 'kaiwa.rp.checksHidden', practiceMode: 'kaiwa.rp.practiceMode' } as const
 
 /** 결과 문구(서버 `OUTCOME_KO` 와 같은 말). */
 export const OUTCOME_KO: Record<ScenarioOutcome, string> = {
@@ -202,6 +208,120 @@ export const DRAFT = {
   restoreTitle: (title: string) => (title ? `고치던 초안이 있어요 · ${title}` : '고치던 초안이 있어요'),
   restoreContinue: '이어서 고치기',
   restoreNew: '버리고 새로 만들기',
+} as const
+
+/** 역할극 회화방(가이드 §3-D) — 머리·목표 카드·첫 안내·마무리 띠·마친 뒤 바·메뉴 한 줄. */
+export const ROOM = {
+  back: '시나리오로',
+  roleTag: (tutor: string) => `${tutor} 역`,
+  srTitle: (title: string) => `, 상황 역할극: ${title}`,
+  end: '마치기',
+  endWhileLoading: '역할극이 열린 뒤에 마칠 수 있어요',
+  endWhileTurn: '선생님 대답이 끝나면 마칠 수 있어요',
+  endWhileListening: '말하는 중에는 마칠 수 없어요',
+  goalTag: '목표',
+  summaryEnded: '마침',
+  summaryChecksHidden: (total: number) => `표현 ${total}개`,
+  summaryExpr: (used: number, total: number) => `표현 ${used}/${total}`,
+  summarySteps: (steps: number, expr: string) => `${steps}단계 · ${expr}`,
+  summaryStepAt: (at: number, steps: number, expr: string) => `${at}/${steps}단계 · ${expr}`,
+  me: '나',
+  tutor: '선생님',
+  stepsTitle: '대화 순서',
+  stepDoneSr: '끝남',
+  stepNowSr: '지금',
+  exprCount: (used: number, total: number) => `${used}/${total}`,
+  exprNeed: (m: number) => ` · ${m}개 이상 쓰면 돼요`,
+  exprHiddenNote: (m: number) => `${m}개 이상 · 쓴 표현은 끝나고 보여 드려요`,
+  checksHidden: '체크 숨김',
+  checksShown: '체크 보기',
+  usedSr: ', 썼어요',
+  usedAnnounce: (ja: string) => `「${ja}」 썼어요`,
+  stepAnnounce: (ko: string) => `다음 단계: ${ko}`,
+  fromLesson: (title: string) => `오늘 수업 「${title}」에서 이어져요.`,
+  /** 시스템 줄 "선생님은 <b>{tutor}</b>, 나는 <b>{learner}</b>{이에요/예요}." — 굵은 글자 사이 조각. */
+  sysPre: '선생님은 ',
+  sysMid: ', 나는 ',
+  sysFirst: '선생님이 먼저 말을 걸어요.',
+  introLead: (teacherWithTopic: string, tutor: string, learnerWithCopula: string) => `${teacherWithTopic} ${tutor}, 나는 ${learnerWithCopula}.`,
+  introHowVoice: (learnerWithJosa: string) => `아래 버튼을 누른 채로 ${learnerWithJosa} 되어 먼저 말을 걸어 보세요.`,
+  introHowText: (learnerWithJosa: string) => `${learnerWithJosa} 되어 아래 입력창에 먼저 말을 써 보세요.`,
+  introTry: '이렇게 시작해 보세요:',
+  textPlaceholder: (learnerWithRo: string) => `${learnerWithRo} 할 말을 일본어로 써 보세요 — 선생님이 역할로 대답해요`,
+  menuNote: '역할극은 늘 코치 방식으로 교정해요 — 힌트를 먼저 드려요.',
+  nudgeLead: '선생님이 목표를 이룬 것 같다고 해요.',
+  nudgeAsk: ' 역할극을 마칠까요?',
+  nudgeFinish: '마치고 결과 보기',
+  nudgeMore: '조금 더 하기',
+  nudgeMoreToast: '이어서 말해 보세요 · 다 되면 위의 [마치기]를 눌러요',
+  endedTitle: '이 역할극은 마쳤어요',
+  endedBody: '더 말하려면 다시 해 보세요.',
+  endedResult: '결과 보기',
+  endedRetry: '다시 하기',
+  endedRetrying: '시작하는 중…',
+  endedUnsent: '이미 마친 역할극이에요.',
+} as const
+
+/** 마치기 시트(가이드 §3-F). */
+export const END = {
+  confirmTitle: '역할극을 마칠까요?',
+  confirmBody: '지금까지 나눈 대화로 선생님이 목표를 이뤘는지 판단해요. 마친 뒤에는 이 역할극에 더 말할 수 없어요.',
+  badgeTurns: (n: number) => `내 말 ${n}번`,
+  badgeExpr: (used: number, total: number) => `핵심 표현 ${used}/${total}`,
+  badgeSteps: (at: number, total: number) => `${at}/${total}단계`,
+  finish: '마치고 결과 보기',
+  keepGoing: '계속하기',
+  emptyTitle: '아직 한 마디도 하지 않았어요',
+  emptyBody: '지금 그만두면 결과와 기록이 남지 않아요. 선생님 말에 한 마디만 대답해 봐도 좋아요.',
+  quit: '그만두기',
+  quitting: '그만두는 중…',
+  quitDone: '역할극을 그만뒀어요',
+  quitFail: '그만두지 못했어요. 다시 눌러 주세요.',
+  busy: '선생님이 결과를 정리하고 있어요…',
+  busyNote: '보통 몇 초면 끝나요',
+  fail: '결과를 기록하지 못했어요. 대화는 저장돼 있어요.',
+  retry: '다시 시도',
+  later: '나중에 하기',
+} as const
+
+/** 대답 연습(가이드 §3-E). */
+export const PRACTICE = {
+  entry: '대답 연습',
+  entrySub: '무엇을 말할지 막히면 눌러요',
+  region: '대답 연습',
+  modeAria: '연습 방식',
+  modeChoose: '고르기',
+  modeSay: '말하기',
+  modeRepeat: '따라 하기',
+  close: '대답 연습 닫기',
+  noChoose: '이 말에는 고르기 연습이 없어요',
+  loadingSr: '대답 예시를 만드는 중…',
+  slow: '조금만 기다려 주세요',
+  error: '대답 예시를 만들지 못했어요.',
+  retry: '다시 시도',
+  rate: '잠시 뒤 다시 눌러 주세요.',
+  rateIn: (sec: number) => `${sec}초 뒤 다시 눌러 주세요.`,
+  stale: '새 말이 와서 연습을 닫았어요',
+  busy: '선생님 말이 끝나면 다시 눌러 주세요.',
+  chooseLead: '빈칸에 들어갈 말을 골라 보세요',
+  blankAria: '빈칸',
+  chooseLegend: '빈칸에 들어갈 말',
+  right: '✓ 맞아요',
+  wrong: '다시 골라 보세요',
+  rightNextVoice: '이제 이 문장을 말해 보세요 — 아래 버튼을 누른 채로.',
+  sayLead: '이 뜻을 일본어로 말해 보세요',
+  hint: '힌트',
+  showAnswer: '정답 보기',
+  sayHowVoice: '아래 버튼을 누른 채로 말해요',
+  sayHowText: '입력창에 써서 보내요',
+  repeatLead: '듣고 따라 말해 보세요',
+  listen: '▶ 듣기',
+  stop: '■ 멈춤',
+  listenAria: '연습 문장 듣기',
+  stopAria: '연습 문장 멈추기',
+  loadingSound: '불러오는 중…',
+  repeatHowVoice: '아래 버튼을 누른 채로 따라 말해요',
+  fill: '입력창에 넣기',
 } as const
 
 /** 화면 검사 문구(서버 400 문구와 같은 뜻 — 서버가 다른 문구를 주면 서버 문구를 쓴다). */

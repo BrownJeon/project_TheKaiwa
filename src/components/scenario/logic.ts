@@ -6,6 +6,7 @@
 import { cpLength, kstDateKey } from '@/components/common/format'
 import type { Err } from '@/components/common/errors'
 import { formatMonthDay } from '@/components/vocab/format'
+import type { ChatMessageView, RolePlayChatView, RolePlayProgress } from '@/types/chat'
 import type { JlptLevel } from '@/types/lesson'
 import {
   SCENARIO_LIMITS as L,
@@ -17,7 +18,7 @@ import {
   type ScenarioRecommendReason,
   type ScenarioTopicRef,
 } from '@/types/scenario'
-import { CARD, CHECK, HOME, RECOMMEND_REASON_KO } from './scenarioCopy'
+import { CARD, CHECK, HOME, RECOMMEND_REASON_KO, ROOM } from './scenarioCopy'
 
 /* ── 조사 ─────────────────────────────────────────────────────────────── */
 
@@ -174,11 +175,11 @@ export function stepPosition(stepIndex: number | null | undefined, stepCount: nu
 }
 
 export function goalSummary(o: { stepIndex: number | null | undefined; stepCount: number; usedCount: number; total: number; checksHidden: boolean }): string {
-  if (o.checksHidden) return `표현 ${o.total}개`
+  if (o.checksHidden) return ROOM.summaryChecksHidden(o.total)
   const pos = stepPosition(o.stepIndex, o.stepCount)
-  const expr = `표현 ${Math.min(o.usedCount, o.total)}/${o.total}`
+  const expr = ROOM.summaryExpr(Math.min(o.usedCount, o.total), o.total)
   if (o.stepCount <= 0) return expr
-  return pos === null ? `${o.stepCount}단계 · ${expr}` : `${pos + 1}/${o.stepCount}단계 · ${expr}`
+  return pos === null ? ROOM.summarySteps(o.stepCount, expr) : ROOM.summaryStepAt(pos + 1, o.stepCount, expr)
 }
 
 export type StepState = 'done' | 'current' | 'next'
@@ -634,4 +635,97 @@ export function serializeStoredDraft(s: Omit<StoredDraft, 'v'>): string {
 /** 비어 있는 보관(묻기 칸이 비고 초안이 없음)이면 저장하지 않는다. */
 export function isBlankStore(s: Pick<StoredDraft, 'ask' | 'draft'>): boolean {
   return !s.draft && !oneLine(s.ask.desc) && !s.ask.topicId
+}
+
+/* ── 역할극 방(B2 — 가이드 §3-D·§3-F·§5 `useRolePlay` 의 순수 부분) ─────── */
+
+/** 진행 값 합치기 — 받은 값 중 최댓값(표현은 합집합, 단계는 큰 쪽). 선생님 판단이 뒤로 가도 화면은 되돌리지 않는다. 표현 목록에 없는 id 는 버린다. */
+export function mergeProgress(prev: RolePlayProgress | null | undefined, next: RolePlayProgress | null | undefined, order: readonly { id: string }[]): RolePlayProgress {
+  const used = new Set<string>()
+  for (const p of [prev, next]) for (const id of Array.isArray(p?.usedIds) ? p.usedIds : []) if (typeof id === 'string') used.add(id)
+  const steps = [prev?.stepIndex, next?.stepIndex].filter((s): s is number => typeof s === 'number' && Number.isInteger(s) && s >= 0)
+  return { usedIds: order.filter((e) => used.has(e.id)).map((e) => e.id), stepIndex: steps.length ? Math.max(...steps) : null }
+}
+
+/** 이번에 새로 생긴 ✓·단계 이동 → 스크린리더 한 줄씩(표현 목록 순서, 단계는 마지막). */
+export function progressNews(prev: RolePlayProgress, next: RolePlayProgress, view: Pick<RolePlayChatView, 'keyExpressions' | 'steps'>): string[] {
+  const before = new Set(prev.usedIds)
+  const out = view.keyExpressions.filter((e) => next.usedIds.includes(e.id) && !before.has(e.id)).map((e) => ROOM.usedAnnounce(e.ja))
+  const a = stepPosition(prev.stepIndex, view.steps.length)
+  const b = stepPosition(next.stepIndex, view.steps.length)
+  if (b !== null && (a === null || b > a)) out.push(ROOM.stepAnnounce(view.steps[b].ko))
+  return out
+}
+
+/** 학습자 말 수(보내는 중인 임시 말 포함 — "첫 말을 보낸 뒤" 자동 접힘 기준). */
+export function learnerTurns(messages: readonly Pick<ChatMessageView, 'role'>[]): number {
+  let n = 0
+  for (const m of messages) if (m.role === 'USER') n++
+  return n
+}
+
+/** 대답 연습을 붙일 선생님 말 — 마지막 메시지가 끝난(DONE) 선생님 말일 때만 그 id. */
+export function practiceTargetOf(messages: readonly Pick<ChatMessageView, 'id' | 'role' | 'status' | 'localStatus'>[]): string | null {
+  const last = messages[messages.length - 1]
+  return last && last.role === 'ASSISTANT' && last.status === 'DONE' && !last.localStatus ? last.id : null
+}
+
+/** 목표 카드 자동 접힘(가이드 §3-D) — 첫 말을 보낸 뒤 한 번. 사용자가 직접 펼쳤거나 카드 안에 초점이 있으면 접지 않는다. */
+export function shouldAutoCollapse(o: { turns: number; alreadyDone: boolean; userOpened: boolean; goalOpen: boolean; focusInside: boolean }): boolean {
+  return o.turns >= 1 && !o.alreadyDone && !o.userOpened && o.goalOpen && !o.focusInside
+}
+
+/**
+ * 자동 접힘 한 걸음 — 방이 학습자 말 수가 바뀔 때마다 부른다. 첫 말(≥1)을 본 순간 딱 한 번 판단하고(`done` 이 true 가 됨),
+ * 그때 카드 안 초점·직접 펼침 때문에 접지 않았어도 다시 판단하지 않는다(가이드 §3-D "한 번만"). 다시 들어온 방(이미 말 ≥1)도 첫 판단에서 끝난다.
+ */
+export function autoCollapseStep(done: boolean, o: { active: boolean; turns: number; userOpened: boolean; goalOpen: boolean; focusInside: boolean }): { done: boolean; collapse: boolean } {
+  if (done || !o.active || o.turns < 1) return { done, collapse: false }
+  return { done: true, collapse: shouldAutoCollapse({ ...o, alreadyDone: false }) }
+}
+
+export type FlightResult<T> = { ran: false } | { ran: true; ok: true; value: T } | { ran: true; ok: false; error: unknown }
+
+/**
+ * 한 번에 하나만 도는 요청(마치기 #167·그만두기 #31) — 도는 중에 다시 부르면 아무것도 하지 않는다(`ran:false`).
+ * 실패하면 풀려 [다시 시도]로 다시 부를 수 있고, 성공하면 `hold` 면 잠긴 채 둔다(결과 화면으로 넘어가는 동안 두 번째 요청이 나가지 않게).
+ */
+export function createSingleFlight() {
+  let busy = false
+  return {
+    isBusy: () => busy,
+    async run<T>(work: () => Promise<T>, hold: boolean): Promise<FlightResult<T>> {
+      if (busy) return { ran: false }
+      busy = true
+      try {
+        const value = await work()
+        if (!hold) busy = false
+        return { ran: true, ok: true, value }
+      } catch (error) {
+        busy = false
+        return { ran: true, ok: false, error }
+      }
+    },
+  }
+}
+
+/** [마치기] 를 지금 누를 수 없는 이유(없으면 null). 순서: 방 준비 → 녹음·인식 → 턴 진행. */
+export function endBlockedReason(o: { ready: boolean; listening: boolean; turnBusy: boolean }): string | null {
+  if (!o.ready) return ROOM.endWhileLoading
+  if (o.listening) return ROOM.endWhileListening
+  if (o.turnBusy) return ROOM.endWhileTurn
+  return null
+}
+
+export type FinishFailure = 'noTurns' | 'busy' | 'fail'
+
+/** #167 실패 → 시트 상태. 409 NO_TURNS = 빈 대화 시트 · 409 TURN_RUNNING(그 밖 409 도) = 토스트 · 그 밖(0·5xx·429·400·404) = 기록 실패(다시 시도). */
+export function finishFailureOf(err: Err): FinishFailure {
+  if (err.status === 409) return err.details.reason === 'NO_TURNS' ? 'noTurns' : 'busy'
+  return 'fail'
+}
+
+/** 턴 거절이 "마친 역할극"(#32 409 ROLEPLAY_ENDED)인가. */
+export function isRolePlayEndedRejection(status: number, details: Record<string, unknown> | null | undefined): boolean {
+  return status === 409 && details?.reason === 'ROLEPLAY_ENDED'
 }

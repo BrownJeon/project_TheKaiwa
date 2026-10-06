@@ -37,6 +37,14 @@ import NewChatSheet from '@/components/chat/NewChatSheet'
 import ProposalCard from '@/components/chat/ProposalCard'
 import TurnNotice from '@/components/chat/TurnNotice'
 import { useChatTurn, type RestoreInfo, type SettledKind } from '@/components/chat/useChatTurn'
+import { isRolePlayEndedRejection } from '@/components/scenario/logic'
+import PracticeDock from '@/components/scenario/PracticeDock'
+import { RolePlayEndedBar, RolePlayFinishNudge } from '@/components/scenario/RolePlayBars'
+import RolePlayEndSheet from '@/components/scenario/RolePlayEndSheet'
+import RolePlayGoalCard from '@/components/scenario/RolePlayGoalCard'
+import RolePlayIntro, { RolePlaySystemLine } from '@/components/scenario/RolePlayIntro'
+import { ROOM } from '@/components/scenario/scenarioCopy'
+import { useRolePlay } from '@/components/scenario/useRolePlay'
 import { STT_HINT_COPY, STT_STATUS_COPY, STT_SWITCH_TOAST } from '@/components/speech/sttCopy'
 import { elapsedSec, showAskPermission, transcriptParts, type SttUiError } from '@/components/speech/sttUiState'
 import { unlockTtsAudio } from '@/components/speech/ttsAudio'
@@ -321,6 +329,12 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     sendingRef.current = null
     const st = info?.status ?? 0
     const why = st === 409 ? info?.details?.reason : null
+    if (isRolePlayEndedRejection(st, info?.details)) {
+      // 다른 탭에서 마친 역할극 — 말은 띠에 남기고(다시 보내기 없음) 방을 마친 상태로 다시 읽는다.
+      setUnsent({ text, utteranceId: null, reason: 400, serverMessage: ROOM.endedUnsent })
+      void rp.reload()
+      return
+    }
     if (why === 'UTTERANCE_USED' || why === 'UTTERANCE_EXPIRED' || why === 'UTTERANCE_OTHER_CHAT') {
       // 발화를 다시 붙일 수 없다(이미 연결됨·10분 지남·다른 방 녹음) — 계약 권장대로 다시 보내기는 글자 턴(발화 id 없이).
       // 글자로 고쳐 보낸 경우도 같은 띠로 — 입력창에 되돌리면 죽은 발화 id 가 다시 붙는다.
@@ -390,6 +404,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     onDone: (dn: TurnDoneEvent) => {
       const aid = dn.assistantMessageId
       queue.endTurn(aid)
+      rp.onDone(dn)
       if ((audioCountRef.current.get(aid) ?? 0) === 0 || dn.audioCount === 0) signalTextOnly(aid)
       const sc = dn.selfCheck
       if (sc?.correctionId) setMessages((ms) => applySelfCheck(ms, sc))
@@ -502,6 +517,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const onPress = () => {
     // 순서가 중요하다: 큐를 먼저 멈춰야 stt.press() 안의 stopAllTts 가 "청크가 끝났다"로 읽혀 다음 청크가 재생되지 않는다.
     queue.interrupt('BARGE_IN')
+    rp.stopSound()
     unlockTtsAudio()
     setTalkHint(null)
     stt.press()
@@ -733,6 +749,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'ASSISTANT') return messages[i]
     return null
   }, [messages])
+  const rp = useRolePlay({ chatId, chat, messages, talkState: view.state, turnBusy, listening, notify, srAnnounce, roomSounding: snapshot.phase === 'playing', stopRoom: playback.stop })
 
   /* ── 다시 듣기 ──────────────────────────────────────────────────── */
 
@@ -826,6 +843,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     const speaking = speakingFor(m)
     return (
       <>
+        {rp.active && !olderCursor && messages[0]?.id === m.id ? <RolePlaySystemLine rp={rp} /> : null}
         <TalkTutorBubble
           message={m}
           mode="done"
@@ -942,6 +960,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
       onAnnounce={announce}
       later={{ count: laterCount, bumpKey: laterBump, onOpen: openLater }}
       menuRef={menuBtnRef}
+      {...rp.header}
     />
   )
 
@@ -1018,6 +1037,12 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     )
   } else if (turn.notice && mode === 'text' && lastVia === 'text') {
     strip = <TurnNotice notice={turn.notice} blockedUntil={turn.blockedUntil} onClose={turn.clearNotice} />
+  } else if (showTopicEnd && rp.active) {
+    const closeNudge = () => {
+      setTopicDismissed(topicEndFor)
+      writeStore('session', TALK_KEYS.topicEnd(chatId), topicEndFor)
+    }
+    strip = rp.ended ? null : <RolePlayFinishNudge rp={rp} onToast={notify} onClose={closeNudge} />
   } else if (showTopicEnd) {
     strip = (
       <TopicEndNudge
@@ -1032,8 +1057,9 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const stripIsNotice = strip !== null && !showSttAlert && !unsent && snapshot.phase !== 'blocked' && !!turn.notice && mode === 'text' && lastVia === 'text'
 
   return (
-    <div data-talk-state={view.state} className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
+    <div data-talk-state={view.state} data-roleplay={rp.active ? 'on' : undefined} className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
       {header}
+      <RolePlayGoalCard rp={rp} />
       <DisplayBar onToast={notify} />
       <MessageList
         chatId={chatId}
@@ -1051,13 +1077,16 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         renderUser={renderUser}
         renderTutor={renderTutor}
         renderPending={renderPending}
-        intro={<TalkIntro teacherName={teacherName} />}
+        intro={rp.active ? <RolePlayIntro rp={rp} teacherName={teacherName} voice={mode === 'voice'} /> : <TalkIntro teacherName={teacherName} />}
         tail={tail}
         liveOff={view.state === 'RECORDING'}
         followContent
       />
       {strip ? <div className={stripIsNotice ? 'flex-none' : 'flex-none px-4 pb-2 pt-1'}>{strip}</div> : null}
-      {mode === 'voice' ? (
+      <PracticeDock rp={rp} voice={mode === 'voice'} textOnly={status.snapshot.state === 'TEXT_ONLY'} blocked={strip !== null} onFill={(t) => composerRef.current?.fill(t)} onToast={notify} />
+      {rp.ended ? (
+        <RolePlayEndedBar rp={rp} />
+      ) : mode === 'voice' ? (
         <VoiceBar
           view={view}
           db={stt.ui.db}
@@ -1072,7 +1101,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
           chatId={chatId}
           busy={turnBusy}
           blockedUntil={turn.blockedUntil}
-          placeholder={TALK_ROOM.textPlaceholder}
+          placeholder={rp.placeholder ?? TALK_ROOM.textPlaceholder}
           onSend={sendText}
           onBlocked={notify}
           handleRef={composerRef}
@@ -1099,13 +1128,14 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         extra={
           <>
             <SpeechProfileMenu labels={config?.tts?.speechProfiles ?? null} onToast={notify} />
-            <CorrectionModeMenu onToast={notify} />
+            {rp.active ? <p className="px-1 py-2 text-[13px] text-ink2 break-keep">{ROOM.menuNote}</p> : <CorrectionModeMenu onToast={notify} />}
             {/* 앱에서만 "알아듣는 곳" 읽기 전용 한 줄(§11-2 D). 웹·플러그인 없는 셸은 WEB 이라 그리지 않는다. */}
             {native && stt.route.reason !== 'WEB' ? <SttRouteRow route={stt.route} /> : null}
           </>
         }
       />
       <NewChatSheet open={newOpen} kind="TALK" onClose={() => setNewOpen(false)} />
+      <RolePlayEndSheet rp={rp} />
       <LaterCorrectionsSheet
         open={laterOpen}
         state={laterState}
