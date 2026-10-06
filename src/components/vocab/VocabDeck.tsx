@@ -22,12 +22,17 @@ import GestureHint from './GestureHint'
 import { useMediaQuery } from './hooks'
 import { MODE_LABEL } from './labels'
 import SwipeCardStack from './SwipeCardStack'
+import { q } from './topicCopy'
+import TopicDeckLines from './TopicDeckLines'
+import { deckChallengeLine, finishChallengeNote, topicSourceParts } from './topicLogic'
 import type { VocabDeckState } from './useVocabDeck'
 import VocabCardFace from './VocabCardFace'
 
 export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const [endOpen, setEndOpen] = useState(false)
   const coarse = useMediaQuery('(pointer: coarse)')
+  // 360 폭·낮은 화면은 출처 줄을 1줄로 줄인다(가이드 §3-6 높이 예산 — 덱 스크롤 0 유지).
+  const tight = useMediaQuery('(max-width: 370px), (max-height: 760px)')
   const nextRef = useRef<HTMLButtonElement>(null)
   const firstRef = useRef<HTMLButtonElement>(null)
   const { session, cards, view, frontier, card, mode, isCurrent, answered, peekable, side } = deck
@@ -122,6 +127,11 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
 
   const t = tallyCards(cards)
   const readingAvailable = !!card.reading && card.reading !== card.surface
+  const topic = session.topic ?? null
+  const here = t.correct + t.wrong
+  const sourceLine = topic ? topicSourceParts(topic, session.cardCount || n, deck.generation) : null
+  const challengeLine = topic ? deckChallengeLine(deck.challengeCtx, session, here) : null
+  const challengeNote = topic ? finishChallengeNote(deck.challengeCtx, session, here) : null
   const canGoNext = isAnswered(card)
 
   const onTap = () => {
@@ -136,7 +146,7 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
         backHref="/study/today"
         backLabel="오늘로"
         title="오늘의 단어"
-        subtitle={`${MODE_LABEL[mode]} · ${session.cardCount || n}장`}
+        subtitle={`${topic ? `${q(topic.title)} · ` : ''}${MODE_LABEL[mode]} · ${session.cardCount || n}장`}
         right={
           <button
             type="button"
@@ -148,8 +158,9 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           </button>
         }
       />
-      <DeckProgress cards={cards} view={view} frontier={frontier} />
-      {deck.notice ? <DeckNotice notice={deck.notice} onClose={deck.closeNotice} /> : null}
+      <DeckProgress cards={cards} view={view} frontier={frontier} topicTitle={topic?.title ?? null} />
+      {sourceLine ? <TopicDeckLines source={sourceLine} challenge={challengeLine} compact={tight} /> : null}
+      {deck.notice ? <DeckNotice notice={deck.notice} onClose={deck.closeNotice} topic={!!topic} /> : null}
       <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-3">
         <SwipeCardStack
           count={n}
@@ -225,6 +236,7 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
         error={endOpen ? deck.finishError : null}
         onConfirm={() => void deck.finish()}
         onClose={() => setEndOpen(false)}
+        challengeNote={challengeNote}
       />
     </div>
   )

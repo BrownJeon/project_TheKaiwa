@@ -55,3 +55,6 @@ export type { ObservationInput } from './observations'
 // ── task-010b 교정 사건 관측(제안·채택·거절) — Correction 은 L2 라 라우트·훅이 값으로 넘겨 같은 tx 에 쓴다 ──
 export { recordCorrectionsProposed, registerAcceptedCorrection, recordCorrectionIgnored } from './observations/corrections'
 export type { CorrectionEventInput, AcceptedCorrectionInput } from './observations/corrections'
+// ── Phase 2 — 챌린지(task-041)·상황 역할극(task-010d) 공개 API 는 각 하위 index.ts 에만 더한다(이 파일은 이 두 줄 그대로) ──
+export * from './challenges'
+export * from './scenarios'

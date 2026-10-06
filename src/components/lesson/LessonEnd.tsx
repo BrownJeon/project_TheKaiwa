@@ -17,7 +17,9 @@ import { readStore } from '@/components/common/storage'
 import { Btn, BtnRow, Card } from '@/components/common/ui'
 import BackBar from '@/components/shell/BackBar'
 import { formatMonthDay } from '@/components/vocab/format'
+import type { ChallengeProgress } from '@/types/challenge'
 import type { LessonContent, LessonDto } from '@/types/lesson'
+import ChallengeEndLine from './ChallengeEndLine'
 import type { ReviewItem } from '@/types/review'
 import { END, FLASH, HOME, PASTED_TOPIC } from './lessonCopy'
 import type { EndResult } from './logic'
@@ -38,6 +40,7 @@ export default function LessonEnd({
   onToast,
   review = null,
   teacherName = '선생님',
+  challenge = null,
 }: {
   lesson: LessonDto & { content: LessonContent }
   result: EndResult
@@ -45,6 +48,8 @@ export default function LessonEnd({
   /** 복습 수업을 방금 끝냈으면 #62 의 복습 칸(다시 들어왔으면 null — #60 `nextReview` 를 쓴다). */
   review?: FreshReviewEnd | null
   teacherName?: string
+  /** #62 `challenge`(task-044) — 방금 끝냈고 챌린지 과제로 세어졌을 때만. 다시 들어왔으면 null. */
+  challenge?: ChallengeProgress | null
 }) {
   const router = useRouter()
   const { create, busy } = useLessonCreate(onToast)
@@ -108,6 +113,7 @@ export default function LessonEnd({
             </div>
           ))}
         </div>
+        <ChallengeEndLine challenge={challenge} topicTitle={topic?.title} />
         <Card>
           <h3 className="text-[15px] font-semibold">{END.usedTitle}</h3>
           {used.length ? (

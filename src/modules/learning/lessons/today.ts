@@ -8,10 +8,13 @@
  *  - `recommendation`(Leader 추가 사양, designer 데모 v1): 가장 최근에 끝낸 주제 레슨이 있으면 그 주제 + 그 수업의 `nextPreview`
  *    (CONTINUE). 그 주제를 이미 `TOPIC_ROTATE_AFTER`번 끝냈으면 학습자 수준에서 가장 적게 한 다른 주제(NEXT_TOPIC). 끝낸 주제 수업이
  *    없으면 학습자 수준의 주제 중 가장 적게 한 것(START). 하던 수업(READY·IN_PROGRESS)이 있으면 화면은 그쪽을 먼저 보인다 — 추천은 참고용.
+ *    task-041: 진행 중 챌린지(기간 안·수업 과제 켜짐)가 있고 오늘 그 주제 새 수업을 아직 안 끝냈으면 그 주제가 최우선(CHALLENGE) — 같은 주제 3번
+ *    회전 규칙보다 앞선다. 챌린지 칸 계산이 실패하면 기존 추천으로(로그만). LLM·잡을 늘리지 않는다(DB 읽기만).
  */
 import type { JlptLevel, LessonKind, LessonStatus } from '@prisma/client'
-import { dates, prisma } from '@/modules/infra'
+import { dates, prisma, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
+import { getActiveChallengeTopic, type ActiveChallengeTopic, type ChallengeDeps } from '../challenges'
 import type { ReviewDecisionDriver } from '../repetition/decision'
 import { EMPTY_REVIEW_STATE, getTodayReviewState, type TodayReviewState } from '../reviewSchedule'
 import { doneLessonStats, levelWindow, pickFewestLessonTopic } from '../topics'
@@ -40,7 +43,7 @@ export interface LessonRecommendation {
   topicId: string
   topicTitle: string
   level: JlptLevel
-  reason: 'CONTINUE' | 'NEXT_TOPIC' | 'START'
+  reason: 'CONTINUE' | 'NEXT_TOPIC' | 'START' | 'CHALLENGE'
   nextPreview: { titleKo: string; teaserKo: string } | null
 }
 
@@ -56,7 +59,45 @@ const ITEM_SELECT = {
   topic: { select: { id: true, title: true } },
 } as const
 
-async function recommend(userId: string, level: JlptLevel): Promise<LessonRecommendation | null> {
+function previewOf(content: unknown): LessonRecommendation['nextPreview'] {
+  const np = readStoredContent(content)?.nextPreview
+  return np && typeof np.titleKo === 'string' && typeof np.teaserKo === 'string' ? { titleKo: np.titleKo, teaserKo: np.teaserKo } : null
+}
+
+async function activeChallengeSafely(userId: string, over?: Partial<ChallengeDeps>): Promise<ActiveChallengeTopic | null> {
+  try {
+    return await getActiveChallengeTopic(userId, over)
+  } catch (e) {
+    console.error('[today] 챌린지 추천 계산 실패:', e instanceof Error ? e.name : 'unknown')
+    return null
+  }
+}
+
+/** 추천 계산의 주입점 — 라우트(`getTodayLessons`)는 기본값(실제 DB·기존 추천 규칙)만 쓰고, 단위 테스트가 메모리 DB 를 넘긴다(REV-120 L-4). */
+export interface TodayRecommendDeps {
+  db: Pick<Tx, 'lesson'>
+  /** 진행 중 챌린지 판정(`getActiveChallengeTopic`)에 넘길 의존성 — 없으면 실제 DB. */
+  challenge: Partial<ChallengeDeps> | undefined
+  /** 챌린지 추천이 아닐 때의 기존 추천(CONTINUE·NEXT_TOPIC·START). */
+  byHistory: (userId: string, level: JlptLevel) => Promise<LessonRecommendation | null>
+}
+
+/** #58 `recommendation` — 챌린지 주제 최우선(CHALLENGE), 아니면 기존 추천. */
+export async function recommendTodayLesson(userId: string, level: JlptLevel, over: Partial<TodayRecommendDeps> = {}): Promise<LessonRecommendation | null> {
+  const deps: TodayRecommendDeps = { db: prisma, challenge: undefined, byHistory: recommendByHistory, ...over }
+  const challenge = await activeChallengeSafely(userId, deps.challenge)
+  if (challenge && !challenge.lessonDoneToday) {
+    const lastOfTopic = await deps.db.lesson.findFirst({
+      where: { userId, status: 'DONE', kind: 'NEW', topicId: challenge.topicId },
+      orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
+      select: { content: true },
+    })
+    return { topicId: challenge.topicId, topicTitle: challenge.topicTitle, level: challenge.level, reason: 'CHALLENGE', nextPreview: lastOfTopic ? previewOf(lastOfTopic.content) : null }
+  }
+  return deps.byHistory(userId, level)
+}
+
+async function recommendByHistory(userId: string, level: JlptLevel): Promise<LessonRecommendation | null> {
   const window = levelWindow(level)
   const last = await prisma.lesson.findFirst({
     where: { userId, status: 'DONE', topicId: { not: null } },
@@ -66,8 +107,7 @@ async function recommend(userId: string, level: JlptLevel): Promise<LessonRecomm
   const topic = last?.topic && (last.topic.userId === null || last.topic.userId === userId) ? last.topic : null
   if (topic) {
     const done = (await doneLessonStats(userId, [topic.id])).get(topic.id)?.count ?? 0
-    const np = readStoredContent(last?.content)?.nextPreview
-    const nextPreview = np && typeof np.titleKo === 'string' && typeof np.teaserKo === 'string' ? { titleKo: np.titleKo, teaserKo: np.teaserKo } : null
+    const nextPreview = previewOf(last?.content)
     if (done < TOPIC_ROTATE_AFTER) return { topicId: topic.id, topicTitle: topic.title, level: topic.level, reason: 'CONTINUE', nextPreview }
     const next = (await pickFewestLessonTopic(userId, [level], topic.id)) ?? (await pickFewestLessonTopic(userId, window, topic.id))
     if (next) return { topicId: next.id, topicTitle: next.title, level: next.level, reason: 'NEXT_TOPIC', nextPreview: null }
@@ -130,6 +170,6 @@ export async function getTodayLessons<T = unknown>(userId: string, opts: { revie
     date: today,
     todayLessons,
     resume: older ? { id: older.id, title: older.title, titleKo: readStoredContent(older.content)?.titleKo ?? null, stageDone: older.stageDone, date: dates.fromDbDate(older.date) } : null,
-    recommendation: await recommend(userId, profile.level as JlptLevel),
+    recommendation: await recommendTodayLesson(userId, profile.level as JlptLevel),
   }
 }

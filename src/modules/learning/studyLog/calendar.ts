@@ -7,10 +7,14 @@
  * - `minutes` = 그날 `StudyLog.durationSec` 합을 분으로 반올림(값이 없는 기록은 0 — 추정하지 않는다).
  * - `hasEvaluation` = 그날 EVALUATION 기록이 있는가 · `reviewDue` = 그날이 `ReviewSchedule(status=DUE)` 의 예정일인가.
  * - `summary.streak` 은 #25·#26 과 같은 "오늘 기준 연속 출석일", `summary.longestStreak` 은 그 달 안의 최장 연속 출석일.
+ * - 챌린지 칸(task-041, additive): `days[].challenge`(그 달에 걸친 챌린지 날만 — 없는 날은 키 자체가 없다) · `summary.challenge`(진행 중일 때만) ·
+ *   #71 `challenge`(그날이 챌린지 날일 때만). `../challenges` 를 읽기만 한다(단방향). 챌린지 계산이 실패해도 달력·하루 시트는 그대로 내려준다(로그만).
  */
 import type { ReviewStatus, StudyType } from '@prisma/client'
 import { ApiError, dates, prisma } from '@/modules/infra'
+import type { CalendarChallengeDay, CalendarChallengeSummary, DayChallenge } from '@/types/challenge'
 import { listMonth } from '../attendance'
+import { challengeDayStates, type ChallengeDayStatesResult } from '../challenges'
 import { DAY_LOG_CAP, LOG_SELECT, serializeLogs, STUDY_TYPES, type StudyLogDto, type StudyLogRefs } from './logs'
 
 export interface CalendarDayDto {
@@ -22,6 +26,7 @@ export interface CalendarDayDto {
   logCount: number
   hasEvaluation: boolean
   reviewDue: boolean
+  challenge?: CalendarChallengeDay
 }
 
 export interface CalendarDto {
@@ -29,7 +34,26 @@ export interface CalendarDto {
   /** 서버 KST 오늘 — 오늘 표시·미래 달 비활성 판단용. */
   today: string
   days: CalendarDayDto[]
-  summary: { attendedDays: number; studyDays: number; streak: number; longestStreak: number }
+  summary: { attendedDays: number; studyDays: number; streak: number; longestStreak: number; challenge?: CalendarChallengeSummary }
+}
+
+async function challengeStatesSafely(userId: string, from: string, to: string): Promise<ChallengeDayStatesResult | null> {
+  try {
+    return await challengeDayStates(userId, { from, to })
+  } catch (e) {
+    console.error('[calendar] 챌린지 칸 계산 실패:', e instanceof Error ? e.name : 'unknown')
+    return null
+  }
+}
+
+/** 순수 — 기존 달력에 챌린지 칸을 붙인다(값이 있는 날·진행 중일 때만 키를 더한다 — 기존 모양 그대로). */
+export function withChallengeCalendar(cal: CalendarDto, ch: ChallengeDayStatesResult | null): CalendarDto {
+  if (!ch) return cal
+  const days = cal.days.map((d) => {
+    const c = ch.days.get(d.date)
+    return c ? { ...d, challenge: { challengeId: c.challengeId, dayIndex: c.dayIndex, state: c.state } } : d
+  })
+  return { ...cal, days, summary: ch.active ? { ...cal.summary, challenge: ch.active } : cal.summary }
 }
 
 export interface CalendarLogGroup {
@@ -122,12 +146,13 @@ export async function getCalendar(userId: string, month: string): Promise<Calend
   const today = dates.todayKst()
   const { from, to } = dates.monthBounds(`${month}-01`)
   const range = dates.dbDateRange(from, to)
-  const [groups, attendance, reviews] = await Promise.all([
+  const [groups, attendance, reviews, challenge] = await Promise.all([
     prisma.studyLog.groupBy({ by: ['date', 'type'], where: { userId, date: range }, _count: { _all: true }, _sum: { durationSec: true } }),
     listMonth(userId, month),
     prisma.reviewSchedule.findMany({ where: { userId, status: 'DUE', dueDate: range }, select: { dueDate: true } }),
+    challengeStatesSafely(userId, from, to),
   ])
-  return buildCalendar({
+  const cal = buildCalendar({
     month,
     today,
     logGroups: groups.map((g) => ({ date: dates.fromDbDate(g.date), type: g.type, count: g._count._all, durationSec: g._sum.durationSec ?? 0 })),
@@ -135,6 +160,7 @@ export async function getCalendar(userId: string, month: string): Promise<Calend
     reviewDueDates: reviews.map((r) => dates.fromDbDate(r.dueDate)),
     streak: attendance.streak,
   })
+  return withChallengeCalendar(cal, challenge)
 }
 
 export interface DayDto {
@@ -144,15 +170,21 @@ export interface DayDto {
   logs: StudyLogDto[]
   /** 그날이 예정일인 복습(없으면 null). `lessonId` 는 복습을 시작해 만든 레슨(아직 없으면 null). */
   review: { id: string; status: ReviewStatus; lessonId: string | null } | null
+  /** 그날이 챌린지 날이면 "챌린지 n일째 — 달성/일부/놓침" 한 줄 재료(task-041). 아니면 키 없음. */
+  challenge?: DayChallenge
 }
 
 /** #71 */
 export async function getDay(userId: string, date: string, refs: StudyLogRefs): Promise<DayDto> {
   const d = dates.toDbDate(date)
-  const [rows, attendance, review] = await Promise.all([
+  const [rows, attendance, review, challenge] = await Promise.all([
     prisma.studyLog.findMany({ where: { userId, date: d }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: DAY_LOG_CAP, select: LOG_SELECT }),
     prisma.attendance.findUnique({ where: { userId_date: { userId, date: d } }, select: { id: true } }),
     prisma.reviewSchedule.findUnique({ where: { userId_dueDate: { userId, dueDate: d } }, select: { id: true, status: true, lessonId: true } }),
+    challengeStatesSafely(userId, date, date),
   ])
-  return { date, attended: !!attendance, logs: await serializeLogs(userId, rows, refs), review: review ? { id: review.id, status: review.status, lessonId: review.lessonId } : null }
+  const out: DayDto = { date, attended: !!attendance, logs: await serializeLogs(userId, rows, refs), review: review ? { id: review.id, status: review.status, lessonId: review.lessonId } : null }
+  const c = challenge?.days.get(date)
+  if (c) out.challenge = { challengeId: c.challengeId, title: c.title, dayIndex: c.dayIndex, state: c.state, lesson: c.lesson, words: c.words }
+  return out
 }

@@ -8,6 +8,7 @@
  * - 주소 `?month=&day=` 에 지금 보는 달·열린 날을 적는다(`history.replaceState` — 서버를 다시 부르지 않는다). 원본 화면으로 갔다가
  *   뒤로 오면 같은 달·같은 날 시트가 다시 열리고, 방금 연 기록(`&log=`)으로 초점이 돌아온다. 원본 화면 머리의 ← 도 같은 주소로 오도록
  *   이동 직전에 돌아올 주소를 한 건 적어 두고(`shell/planReturn`), 계획표에 돌아오면 지운다.
+ * - 맨 위 챌린지 현황 카드(task-043, #158) — 달력과 따로 읽고, #158 실패는 카드 안에서만 알린다. 화면이 다시 보이면 #158 만 조용히 다시 읽는다.
  * - 첫 값은 `useSearchParams()` 로 읽는다 — 뒤로 가기로 돌아올 때 서버가 처음 렌더한 값이 아니라 지금 주소를 따라야 해서다.
  *   시트는 하이드레이션이 끝난 뒤에만 연다 — 공용 `Sheet` 는 서버에서 아무것도 그리지 않으므로(포털) `?day=` 로 들어와 첫 렌더부터
  *   열면 서버·클라이언트 HTML 이 어긋난다.
@@ -17,6 +18,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { apiDelete } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import Toast, { useToast } from '@/components/common/Toast'
+import { readStore, writeStore } from '@/components/common/storage'
+import ChallengePlanCard from '@/components/challenge/ChallengePlanCard'
+import { COPY as CHALLENGE_COPY, FLASH_KEY } from '@/components/challenge/challengeCopy'
+import { useChallengeToday } from '@/components/challenge/useChallengeData'
 import { forgetPlanReturn, rememberPlanReturn } from '@/components/shell/planReturn'
 import type { StudyLogDeleteResponse, StudyLogItem } from '@/types/plan'
 import { CalendarError, CalendarGrid, CalendarLegend, MonthNav, MonthNoteBlock, SummaryRow } from './CalendarSection'
@@ -44,6 +49,8 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
   const cal = useCalendar(month)
   const day = useDay(openDay)
+  const ch = useChallengeToday()
+  const refreshChallenge = ch.refresh
   const today = cal.data?.today ?? serverToday
   const isCurrent = month === monthOf(today)
 
@@ -51,6 +58,22 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
   useEffect(() => {
     forgetPlanReturn()
   }, [])
+
+  // 만들기에서 막 돌아왔으면 한 번 알린다(만들기 화면이 적고, 읽은 뒤 지운다).
+  useEffect(() => {
+    if (readStore('session', FLASH_KEY) !== '1') return
+    writeStore('session', FLASH_KEY, null)
+    show(CHALLENGE_COPY.flash, 3600)
+  }, [show])
+
+  // 오늘 탭에서 과제를 하고 돌아오면 카드만 맞춘다(달력은 그대로).
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refreshChallenge()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [refreshChallenge])
 
   // 주소 동기화 — 원본에서 뒤로 오면 같은 자리(서버 렌더 없이 기록만 바꾼다).
   useEffect(() => {
@@ -135,10 +158,15 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
   }, [cal, day, del, confirmLog, logs, show])
 
   const lastOfDay = confirmLog ? logs.length === 1 : false
+  const active = ch.status === 'ready' && ch.data?.challenge?.status === 'ACTIVE' ? ch.data.challenge : null
+  const dayCh = day.data?.challenge
+  const challengeNeed = active && dayCh && dayCh.challengeId === active.id ? active.dailyGoal.wordsMinAnswered : null
+  const showChallenge = !!cal.data?.days.some((d) => d.challenge)
 
   return (
     <div className="min-w-0 px-4 pb-8">
-      <section aria-labelledby={titleId} className="min-w-0">
+      <ChallengePlanCard status={ch.status} data={ch.data} dailyWordCount={dailyWordCount} onRetry={ch.reload} />
+      <section aria-labelledby={titleId} className="mt-[18px] min-w-0">
         <MonthNav
           month={month}
           isCurrent={isCurrent}
@@ -152,7 +180,7 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
           onToday={() => changeMonth(monthOf(today))}
           onBlocked={show}
         />
-        <SummaryRow status={cal.status} summary={cal.data?.summary ?? null} month={month} today={today} />
+        <SummaryRow status={cal.status} summary={cal.data?.summary ?? null} month={month} today={today} attendHint={!!active && isCurrent} />
         {cal.status === 'error' ? (
           <CalendarError onRetry={cal.reload} />
         ) : (
@@ -170,7 +198,7 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
               }}
             />
             {cal.status === 'ready' && cal.data ? <MonthNoteBlock days={cal.data.days} month={month} today={today} dailyWordCount={dailyWordCount} /> : null}
-            <CalendarLegend />
+            <CalendarLegend showChallenge={showChallenge} />
           </>
         )}
       </section>
@@ -199,6 +227,8 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
         onOpenSource={openSource}
         onGone={() => show('원본이 삭제돼서 열 수 없어요. 기록은 그대로 있어요.')}
         onMenu={(log) => setMenuId(log.id)}
+        challengeNeed={challengeNeed}
+        onOpenChallenge={(id) => rememberPlanReturn(planUrl(month, openDay), `/plan/challenge/${id}`)}
       />
       <LogMenuSheet
         log={menuLog}

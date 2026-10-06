@@ -7,12 +7,14 @@
  * - **채점은 #50 응답으로만** 그린다(낙관적 채점 금지). 먼저 그리는 것은 표시(★)·읽기 토글뿐이고 실패하면 되돌린다(§5-10).
  * - #50·#51 은 `useAttemptQueue` 한 줄 큐로 보낸다. 언마운트해도 큐는 끝까지 보내고 화면 갱신만 막는다(`alive`).
  * - 답 0장 끝내기는 서버가 `ABANDONED`(기록 없음, F2)로 닫는다 → 오늘 홈으로 돌아가 안내한다.
+ * - 주제 세트(task-044): 처음 열 때 대기 화면이 남긴 #47 `generation` 을 한 번 읽어(ref — StrictMode 이중 effect 에도 같은 값) 출처 줄·사유 알림에 쓰고,
+ *   #158 을 한 번 읽어 덱 챌린지 줄·끝내기 메모의 오늘 합계(`challengeCtx`)로 둔다(실패 = null → 줄 없음).
  */
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiGet } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
-import type { AttemptResult, FinishResult, FlagResult, SessionDetail, VocabCard, VocabSessionInfo } from '@/types/vocab'
+import type { AttemptResult, FinishResult, FlagResult, SessionDetail, TopicGeneration, VocabCard, VocabSessionInfo } from '@/types/vocab'
 import {
   canPeek,
   cardSide,
@@ -28,6 +30,8 @@ import { putSession, takeSession, useMediaQuery, useStoredPref, VOCAB_KEYS } fro
 import { FLASH, HINT } from './labels'
 import { useAttemptQueue } from './useAttemptQueue'
 import { useCardTimer } from './useCardTimer'
+import { challengeCtxOf, parseGeneration, topicReasonNotice, type ChallengeCtx } from './topicLogic'
+import { fetchChallengeToday } from './useTodayChallenge'
 
 export type DeckPhase = 'loading' | 'playing' | 'finishing' | 'result' | 'closed' | 'notFound' | 'error'
 
@@ -77,6 +81,10 @@ export function useVocabDeck(sessionId: string) {
   const [flash, setFlash] = useState<string | null>(null)
   const [announce, setAnnounce] = useState<Announce>({ seq: 0, before: '' })
   const [focus, setFocus] = useState<FocusTarget>({ seq: 0, kind: 'first' })
+  const [generation, setGeneration] = useState<TopicGeneration | null>(null)
+  const [challengeCtx, setChallengeCtx] = useState<ChallengeCtx | null>(null)
+  const genRef = useRef<TopicGeneration | null | undefined>(undefined)
+  const chAsked = useRef(false)
 
   const { send, finish } = useAttemptQueue(sessionId)
   const alive = useRef(true)
@@ -143,7 +151,18 @@ export function useVocabDeck(sessionId: string) {
         setView(v)
         const stored = takeSession(VOCAB_KEYS.notice(d.session.id))
         const answered = next.filter((c) => isAnswered(c)).length
-        setNotice(pickNotice(d.session, answered, stored === 'few' || stored === 'deleted' ? stored : null, t))
+        if (genRef.current === undefined) genRef.current = parseGeneration(takeSession(VOCAB_KEYS.topicGen(d.session.id)))
+        const gen = d.session.topic ? genRef.current : null
+        setGeneration(gen)
+        const reason = d.session.topic ? topicReasonNotice(gen, d.session.topic) : null
+        setNotice(pickNotice(d.session, answered, stored === 'few' || stored === 'deleted' ? stored : null, t, reason))
+        if (d.session.topic && !chAsked.current) {
+          chAsked.current = true
+          fetchChallengeToday().then(
+            (r) => alive.current && setChallengeCtx(challengeCtxOf(r)),
+            () => alive.current && setChallengeCtx(null),
+          )
+        }
         if (next[v]) say(`${v + 1}번째 카드, `, next[v].surface)
         setFocus((x) => ({ seq: x.seq + 1, kind: 'first' }))
       } else {
@@ -457,6 +476,8 @@ export function useVocabDeck(sessionId: string) {
     clearFlash,
     announce,
     focus,
+    generation,
+    challengeCtx,
     reload,
     choose,
     selfGrade,

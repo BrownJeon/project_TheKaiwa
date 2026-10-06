@@ -275,19 +275,24 @@ export type DeckNotice =
   | { kind: 'fewer'; cardCount: number }
   | { kind: 'resume'; answered: number }
   | { kind: 'pastDate'; date: string }
+  /** 주제 세트 폴백 사유(task-044 — #47 직후 첫 열기만, 문구는 `topicLogic.topicReasonNotice`). */
+  | { kind: 'topicReason'; text: string }
 
 /**
- * 우선순위대로 하나만. `stored` 는 세트를 만든 화면이 sessionStorage 에 남긴 강등 사유(없으면 서버 `downgraded` 로 대신 판단).
+ * 우선순위대로 하나만(few/deleted > topicReason > fewer > resume > pastDate). `stored` 는 세트를 만든 화면이 sessionStorage 에 남긴 강등 사유
+ * (없으면 서버 `downgraded` 로 대신 판단). `topicReason` 은 주제 세트의 폴백 사유 문구(없으면 null).
  */
 export function pickNotice(
   session: Pick<VocabSessionInfo, 'cardCount' | 'requestedCount' | 'downgraded' | 'replayOfId' | 'date'>,
   answered: number,
   stored: 'few' | 'deleted' | null,
   today: string,
+  topicReason: string | null = null,
 ): DeckNotice | null {
   const fresh = answered === 0
   if (stored === 'few' || stored === 'deleted') return { kind: stored }
   if (fresh && session.downgraded) return { kind: session.replayOfId ? 'deleted' : 'few' }
+  if (fresh && topicReason) return { kind: 'topicReason', text: topicReason }
   if (fresh && session.cardCount < session.requestedCount) return { kind: 'fewer', cardCount: session.cardCount }
   if (answered > 0) return { kind: 'resume', answered }
   if (today && session.date && session.date !== today) return { kind: 'pastDate', date: session.date }

@@ -11,7 +11,7 @@ import type { CategoryCount, SessionSummary, VocabMode } from '@/types/vocab'
 import CategoryChips from './CategoryChips'
 import { countOptions, estimateMinutes } from './deck'
 import { formatSessionDate } from './format'
-import { MODE_LABEL } from './labels'
+import { inProgressNotes, MODE_LABEL } from './labels'
 import { visibleCategories } from './validate'
 
 export type WordsCardState = 'loading' | 'ready' | 'inProgress' | 'empty' | 'poolEmpty' | 'error'
@@ -53,6 +53,7 @@ export default function TodayWordsCard({
   onSeed,
   onShowKept,
   onRetry,
+  embedded = false,
 }: {
   state: WordsCardState
   loadError: string | null
@@ -82,6 +83,8 @@ export default function TodayWordsCard({
   onSeed: () => void
   onShowKept: () => void
   onRetry: () => void
+  /** 챌린지 단어 카드 안 [내 단어장으로 풀기] 펼침(task-044 E10) — 카드 틀·머리줄 없이 본문만(동작 그대로). */
+  embedded?: boolean
 }) {
   const head = (
     <div className="flex items-baseline justify-between gap-2">
@@ -108,37 +111,16 @@ export default function TodayWordsCard({
       break
     case 'inProgress': {
       const s = inProgress!.session
-      const answered = inProgress!.answered
-      const all = answered !== null && answered >= s.cardCount
       body = (
-        <div className="mt-2">
-          <p className="text-[15px] font-semibold">풀던 세트가 있어요</p>
-          <p className="mt-0.5 text-[13px] text-ink2 break-keep">
-            {formatSessionDate(s.date, today) || '오늘'} 시작 · {MODE_LABEL[s.mode]} · {s.cardCount}장
-            {answered !== null ? ` 중 ${answered}장 답함` : ''}
-          </p>
-          <p className="text-[12px] text-ink2 break-keep">답한 카드는 저장돼 있어요.</p>
-          {today && s.date !== today ? (
-            <p className="text-[12px] text-ink2 break-keep">지난 날 시작한 세트예요. 끝내면 그날 기록으로 남아요.</p>
-          ) : null}
-          {all ? (
-            <Btn className="mt-3 w-full" onClick={onShowResult} aria-disabled={finishing || undefined} aria-busy={finishing || undefined}>
-              {finishing ? '끝내는 중…' : '결과 보기'}
-            </Btn>
-          ) : (
-            <BtnRow>
-              <Link
-                href={`/study/today/words/${encodeURIComponent(s.id)}`}
-                className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-on-accent"
-              >
-                이어서 풀기
-              </Link>
-              <Btn variant="ghost" onClick={onFinish}>
-                여기서 끝내기
-              </Btn>
-            </BtnRow>
-          )}
-        </div>
+        <InProgressBody
+          session={s}
+          answered={inProgress!.answered}
+          today={today}
+          notes={inProgressNotes(s.date, today)}
+          finishing={finishing}
+          onFinish={onFinish}
+          onShowResult={onShowResult}
+        />
       )
       break
     }
@@ -229,10 +211,77 @@ export default function TodayWordsCard({
     }
   }
 
+  if (embedded) return <div className="min-w-0">{body}</div>
   return (
     <Card>
       {head}
       {body}
     </Card>
   )
+}
+
+/**
+ * "풀던 세트" 몸통(E3) — 지금 카드와 챌린지 주제 카드(`TopicWordsCard`, task-044 §3-3)가 같이 쓴다.
+ * `chip` = 제목 아래 주제 칩, `source` = 날짜 줄 아래 출처 줄, `notes` = 12px 안내 줄(위에서 아래로).
+ */
+export function InProgressBody({
+  session: s,
+  answered,
+  today,
+  notes,
+  finishing,
+  chip,
+  source,
+  onFinish,
+  onShowResult,
+}: {
+  session: SessionSummary
+  answered: number | null
+  today: string
+  notes: readonly string[]
+  finishing: boolean
+  chip?: React.ReactNode
+  source?: React.ReactNode
+  onFinish: () => void
+  onShowResult: () => void
+}) {
+  const all = answered !== null && answered >= s.cardCount
+  return (
+    <div className="mt-2">
+      <p className="text-[15px] font-semibold">풀던 세트가 있어요</p>
+      {chip ? <div className="mt-1">{chip}</div> : null}
+      <p className="mt-0.5 text-[13px] text-ink2 break-keep">
+        {formatSessionDate(s.date, today) || '오늘'} 시작 · {MODE_LABEL[s.mode]} · {s.cardCount}장
+        {answered !== null ? ` 중 ${answered}장 답함` : ''}
+      </p>
+      {source}
+      {notes.map((n) => (
+        <p key={n} className="text-[12px] text-ink2 break-keep">
+          {n}
+        </p>
+      ))}
+      {all ? (
+        <Btn className="mt-3 w-full" onClick={onShowResult} aria-disabled={finishing || undefined} aria-busy={finishing || undefined}>
+          {finishing ? '끝내는 중…' : '결과 보기'}
+        </Btn>
+      ) : (
+        <BtnRow>
+          <Link
+            href={`/study/today/words/${encodeURIComponent(s.id)}`}
+            className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-on-accent"
+          >
+            이어서 풀기
+          </Link>
+          <Btn variant="ghost" onClick={onFinish}>
+            여기서 끝내기
+          </Btn>
+        </BtnRow>
+      )}
+    </div>
+  )
+}
+
+/** 챌린지 단어 카드의 내 단어장 패널 — 지금 카드 준비 몸통(장수·방식·분류·[시작하기]·오류)·빈 단어장·오늘 풀 단어 없음 그대로(task-044 E10). */
+export function MineSetPanel(props: Omit<Parameters<typeof TodayWordsCard>[0], 'embedded'>) {
+  return <TodayWordsCard {...props} embedded />
 }

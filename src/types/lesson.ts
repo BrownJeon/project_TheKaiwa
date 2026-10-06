@@ -2,6 +2,7 @@
  * 오늘의 회화(task-010) 화면 ↔ 서버 DTO — api-contract §2-12 #56 · §2-13 #58~#62·#62a~#62c 의 필드명 그대로.
  * 서버 모듈을 import 하지 않는다(컴포넌트는 서버 코드를 끌어오지 않는다 — module-dependency §3 규칙 5).
  */
+import type { ChallengeProgress } from './challenge'
 import type { ChunkType, ProposalDto } from './chat'
 import type { NextReviewDetail, ReviewItem, TodayReviewFields } from './review'
 
@@ -63,7 +64,8 @@ export interface LessonRecommendation {
   topicId: string
   topicTitle: string
   level: JlptLevel
-  reason: 'CONTINUE' | 'NEXT_TOPIC' | 'START'
+  /** CHALLENGE(task-041) = 진행 중 챌린지 주제 — 오늘 그 주제 새 수업을 아직 안 끝냈을 때 최우선. */
+  reason: 'CONTINUE' | 'NEXT_TOPIC' | 'START' | 'CHALLENGE'
   nextPreview: NextPreview | null
 }
 
@@ -229,6 +231,8 @@ export interface CompleteResult {
   reviewDecisionJobId?: string | null
   /** #60 `nextReview` 와 같은 모양(★⑤). 판단 대기면 null. */
   nextReview?: NextReviewDetail | null
+  /** 진행 중 챌린지 과제로 세어졌을 때만 값(task-041, additive) — 복습·붙여넣기·다른 주제·기간 밖·계산 실패는 null. `words` 는 수업이라 늘 null. */
+  challenge?: ChallengeProgress | null
   result: {
     score: number
     quiz: { correct: number; total: number; answered: number }

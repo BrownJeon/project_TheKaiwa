@@ -12,15 +12,43 @@
  *   - 끝내기(finish): 사용자 행 → 세트 행 → 카드 → 단어 카운터 → StudyLog → 스냅샷(VOCAB_SESSION·DAILY)
  *   - 단어 삭제·수정·보관(words.*)도 사용자 행을 먼저 잡는다 → finish 의 카운터 갱신·세트 생성의 풀 읽기와 직렬화된다.
  * answer 와 finish 는 같은 세트 행을 잡으므로 서로의 중간 상태를 보지 않는다(답이 먼저면 집계에 들어가고, finish 가 먼저면 답은 409).
+ *
+ * 주제 단어 세트(task-042, 설계서 `docs/design/challenge.md` §4-3a~e·§9-2): `VocabSession.topicId` 가 있는 세트. 카드는 `wordId=null` +
+ * 스냅샷 + `refType/refId`(`TopicChunk`·`Expr`·`AiWord`). A12 새 단어 생성은 트랜잭션 **밖**(`./topicSet`)이고, 세트·카드 쓰기는 지금과
+ * 같은 잠금 순서(사용자 행 → 진행 중 확인 → 생성)다. 단어장(`WordEntry`) 자동 추가는 없다 — [단어장에 넣기](#41)를 눌러야만 생긴다.
  */
 import type { PartOfSpeech, Prisma, VocabAnswer, VocabMode, VocabSessionStatus } from '@prisma/client'
 import { ApiError, codePointLength, dates, decodeCursor, encodeCursor, isTimeIdCursor, lockUserRow, prisma, sanitizeText, withTransaction, type Tx } from '@/modules/infra'
 import { recordStudyLog } from '../studyLog'
-import { bumpDailySnapshot, createVocabSessionSnapshot } from '../snapshots'
+import { bumpDailySnapshot, createVocabSessionSnapshot, type VocabSessionSnapshotData } from '../snapshots'
 import { registerRepetitionItems, type RepetitionItemInput } from '../repetition'
 import { recordObservations, type ObservationInput } from '../observations'
+import { loadTopicPool, topicAiWordHistory } from '../topics/pool'
 import { distinctMeaningCount, pickChoices, CHOICE_COUNT, type MeaningSource } from './distractors'
 import { createRng, generateWordSet, newSeed, requestedModeOf, shuffle } from './setGenerator'
+import {
+  TOPIC_KIND_ANY,
+  beginTopicWordsGeneration,
+  composeTopicCards,
+  defaultTopicSetDeps,
+  endTopicWordsGeneration,
+  generationSourceOf,
+  loadRepetitionStats,
+  loadTopicSetMaterial,
+  readTodayTopicCards,
+  refundTopicWordsAttempt,
+  runTopicWords,
+  todayAiWordExists,
+  todayTopicState,
+  topicCardCounts,
+  topicCardRepetitionInputs,
+  topicMeaningSources,
+  type TopicGenerationDto,
+  type TopicGenerationReason,
+  type TopicSetDeps,
+  type TopicWordCandidate,
+  type TopicWordsDriver,
+} from './topicSet'
 import { isValidId } from './words'
 
 export const SET_COUNT_MIN = 5
@@ -31,7 +59,20 @@ export const DURATION_CAP_SEC = 3_600
 export const VOCAB_MODES = ['CHOICE', 'FLIP'] as const
 export const VOCAB_SESSION_STATUSES = ['IN_PROGRESS', 'DONE', 'ABANDONED'] as const
 
-export type EmptyReason = 'NO_WORDS' | 'ALL_DONE_TODAY' | 'NO_WORDS_IN_CATEGORY'
+export type EmptyReason = 'NO_WORDS' | 'ALL_DONE_TODAY' | 'NO_WORDS_IN_CATEGORY' | 'TOPIC_EMPTY' | 'TOPIC_ALL_DONE_TODAY'
+
+/**
+ * 세션 DTO 의 `topic`(§9-2) — 주제 세트만, 내 단어장 세트·주제가 지워진 세트는 null. 두 수는 **그 세트의 카드 행**에서 센다
+ * (`lessonCardCount` = refType `Expr` 장수, `aiCardCount` = `AiWord` 장수) — 새로 고침·이어 풀기·다시 풀기 뒤에도 같은 값.
+ */
+export interface VocabSessionTopicDto {
+  id: string
+  title: string
+  lessonCardCount: number
+  aiCardCount: number
+}
+
+export type { TopicGenerationDto, TopicWordsDriver }
 
 export interface VocabSessionDto {
   id: string
@@ -50,6 +91,7 @@ export interface VocabSessionDto {
   durationSec: number | null
   keptAt: string | null
   replayOfId: string | null
+  topic: VocabSessionTopicDto | null
 }
 
 export interface VocabCardDto {
@@ -71,19 +113,22 @@ export interface VocabCardDto {
   answeredAt?: string | null
 }
 
+/** #47·#53. 주제 세트(#47)면 `generation`(이 응답에만 — 저장 안 함). */
 export type CreateSessionResult =
-  | { session: VocabSessionDto; cards: VocabCardDto[] }
+  | { session: VocabSessionDto; cards: VocabCardDto[]; generation?: TopicGenerationDto }
   | { session: null; empty: { reason: EmptyReason; cta: string[] } }
 
 const SESSION_SELECT = {
   id: true, date: true, mode: true, requestedCount: true, cardCount: true, correctCount: true, wrongCount: true, skippedCount: true,
   status: true, keptAt: true, replayOfId: true, seed: true, startedAt: true, finishedAt: true, durationSec: true,
+  topicId: true, topic: { select: { title: true } },
 } as const
 type SessionRow = Prisma.VocabSessionGetPayload<{ select: typeof SESSION_SELECT }>
 
+/** `refType` 은 세션 DTO 의 `topic` 두 수를 세는 데만 쓴다 — 카드 응답(`toCardDto`)에는 싣지 않는다(`refId` 도 미노출). */
 const ATTEMPT_SELECT = {
   id: true, order: true, wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, choices: true, answer: true,
-  chosenText: true, flagged: true, answeredAt: true, word: { select: { example: true, exampleKo: true } },
+  chosenText: true, flagged: true, answeredAt: true, refType: true, word: { select: { example: true, exampleKo: true } },
 } as const
 type AttemptRow = Prisma.VocabAttemptGetPayload<{ select: typeof ATTEMPT_SELECT }>
 
@@ -101,7 +146,15 @@ function notFound(): ApiError {
   return new ApiError('NOT_FOUND', '세트를 찾을 수 없어요.')
 }
 
-function toSessionDto(s: SessionRow): VocabSessionDto {
+type TopicCounts = { lessonCardCount: number; aiCardCount: number }
+
+/** 트랜잭션 실행기 주입(테스트의 가짜 tx) — 생략하면 `withTransaction`. */
+export interface TxRunner {
+  transaction?: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>
+}
+
+/** `counts` 는 그 세트 카드에서 센 값(`topicCardCounts`) — 주제 세트가 아니면 무시한다. */
+function toSessionDto(s: SessionRow, counts?: TopicCounts | null): VocabSessionDto {
   return {
     id: s.id,
     date: dates.fromDbDate(s.date),
@@ -118,7 +171,23 @@ function toSessionDto(s: SessionRow): VocabSessionDto {
     durationSec: s.durationSec,
     keptAt: s.keptAt ? s.keptAt.toISOString() : null,
     replayOfId: s.replayOfId,
+    topic: s.topicId && s.topic ? { id: s.topicId, title: s.topic.title, lessonCardCount: counts?.lessonCardCount ?? 0, aiCardCount: counts?.aiCardCount ?? 0 } : null,
   }
+}
+
+/** 주제 세트들의 카드 출처 수 — `groupBy` 1회(#48·#52·#51 멱등 응답). 주제 세트가 없으면 쿼리 0. */
+export async function topicCountsOf(db: Pick<Tx, 'vocabAttempt'>, sessions: readonly { id: string; topicId: string | null }[]): Promise<Map<string, TopicCounts>> {
+  const ids = sessions.filter((s) => s.topicId).map((s) => s.id)
+  const out = new Map<string, TopicCounts>()
+  if (!ids.length) return out
+  const rows = await db.vocabAttempt.groupBy({ by: ['sessionId', 'refType'], where: { sessionId: { in: ids }, refType: { in: ['Expr', 'AiWord'] } }, _count: { _all: true } })
+  for (const r of rows) {
+    const c = out.get(r.sessionId) ?? { lessonCardCount: 0, aiCardCount: 0 }
+    if (r.refType === 'Expr') c.lessonCardCount += r._count._all
+    else if (r.refType === 'AiWord') c.aiCardCount += r._count._all
+    out.set(r.sessionId, c)
+  }
+  return out
 }
 
 function parseChoices(raw: Prisma.JsonValue | null): string[] {
@@ -130,7 +199,7 @@ function parseChoices(raw: Prisma.JsonValue | null): string[] {
  * 전 카드 정답은 **DONE 세트에서만**(결과 화면, api-contract #49). ABANDONED(답 0장으로 닫힌 세트, F2)는 "본 적 없는 세트"라
  * 진행 중과 똑같이 숨긴다 — 오늘 DONE 제외 규칙이 적용되지 않아 같은 단어가 다음 세트에 다시 나오기 때문(REV-008 H1).
  */
-export function toCardDto(mode: VocabMode, status: VocabSessionStatus, a: Omit<AttemptRow, 'id'>): VocabCardDto {
+export function toCardDto(mode: VocabMode, status: VocabSessionStatus, a: Omit<AttemptRow, 'id' | 'refType'>): VocabCardDto {
   const answered = a.answer != null
   const card: VocabCardDto = { order: a.order, wordId: a.wordId, surface: a.surfaceSnap, reading: a.readingSnap, flagged: a.flagged, answered }
   if (mode === 'CHOICE') card.choices = parseChoices(a.choices)
@@ -155,17 +224,37 @@ export interface CreateSessionInput {
   count?: number
   mode: VocabMode
   category: string | null
+  /** 주제 세트(task-042) — 있을 때만 칸이 생긴다. `category` 와 같이 올 수 없다. 접근(시드·내 주제)은 세트 생성이 확인한다(아니면 404). */
+  topicId?: string
+  /** 주제 세트에서 A12 새 단어를 만들어도 되는가(기본 true). false = [주제 표현으로 바로 풀기](B1 풀만). `topicId` 와만. */
+  generate?: boolean
 }
+
+const CREATE_KEYS = ['count', 'mode', 'category', 'topicId', 'generate']
 
 function intIn(raw: unknown, field: string, min: number, max: number): number {
   if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < min || raw > max) bad(field, `${min}~${max}`, `${field} 은(는) ${min}~${max} 사이 정수여야 합니다.`)
   return raw
 }
 
-/** #47 본문 — `count` 5~30(생략 시 프로필 기본), `mode` CHOICE|FLIP(기본 CHOICE), `category` ≤40 또는 null(전체). */
+/**
+ * #47 본문 — `count` 5~30(생략 시 프로필 기본), `mode` CHOICE|FLIP(기본 CHOICE), `category` ≤40 또는 null(전체),
+ * `topicId`(주제 세트 — `category` 와 같이 오면 400), `generate` boolean(`topicId` 와만, 기본 true).
+ */
 export function parseCreateSessionBody(body: Record<string, unknown>): CreateSessionInput {
-  const extra = Object.keys(body).filter((k) => !['count', 'mode', 'category'].includes(k))
+  const extra = Object.keys(body).filter((k) => !CREATE_KEYS.includes(k))
   if (extra.length) bad(extra[0], 'unknown_key', `넣을 수 없는 항목입니다: ${extra.join(', ')}`)
+  let topicId: string | null = null
+  if (body.topicId != null) {
+    if (typeof body.topicId !== 'string' || !body.topicId) bad('topicId', 'string', 'topicId 형식이 올바르지 않습니다.')
+    topicId = body.topicId
+  }
+  if (topicId && body.category != null) bad('category', 'with_topicId', 'topicId 와 category 는 같이 보낼 수 없습니다.')
+  if (body.generate !== undefined) {
+    if (typeof body.generate !== 'boolean') bad('generate', 'boolean', 'generate 는 true/false 여야 합니다.')
+    if (!topicId) bad('generate', 'topicId_required', 'generate 는 topicId 와 함께만 보낼 수 있습니다.')
+  }
+  const generate = body.generate !== false
   const count = body.count == null ? undefined : intIn(body.count, 'count', SET_COUNT_MIN, SET_COUNT_MAX)
   if (body.mode != null && !(VOCAB_MODES as readonly unknown[]).includes(body.mode)) bad('mode', VOCAB_MODES.join('|'), 'mode 값이 올바르지 않습니다.')
   let category: string | null = null
@@ -174,7 +263,7 @@ export function parseCreateSessionBody(body: Record<string, unknown>): CreateSes
     category = sanitizeText(body.category) || null
     if (category && codePointLength(category) > 40) bad('category', 'length ≤40', 'category 는 40자 이내여야 합니다.')
   }
-  return { count, mode: (body.mode as VocabMode | undefined) ?? 'CHOICE', category }
+  return { count, mode: (body.mode as VocabMode | undefined) ?? 'CHOICE', category, ...(topicId ? { topicId, generate } : {}) }
 }
 
 export type AttemptInput =
@@ -217,7 +306,7 @@ export function parseAttemptBody(body: Record<string, unknown>): AttemptInput {
 
 // ── 공통 ─────────────────────────────────────────────────────────────────────
 
-async function assertNoInProgress(tx: Tx, userId: string): Promise<void> {
+async function assertNoInProgress(tx: Pick<Tx, 'vocabSession'>, userId: string): Promise<void> {
   const cur = await tx.vocabSession.findFirst({ where: { userId, status: 'IN_PROGRESS' }, select: { id: true }, orderBy: { startedAt: 'desc' } })
   if (cur) throw new ApiError('CONFLICT', '풀던 세트가 있어요. 이어서 풀거나 끝낸 뒤 새로 시작해 주세요.', { sessionId: cur.id })
 }
@@ -235,24 +324,31 @@ interface CardSeed {
   surface: string
   reading: string | null
   meaning: string
-  partOfSpeech: PartOfSpeech
+  /** 보기 고르기의 "같은 종류" — 단어장 카드는 품사, 주제 카드는 조각 종류(모르면 빈 문자열). 저장하지 않는다. */
+  kind: PartOfSpeech | string
   example: string | null
   exampleKo: string | null
+  /** 주제 카드 출처(D5) — 단어장 카드는 null. 응답에는 싣지 않는다. */
+  refType: string | null
+  refId: string | null
 }
 
 /**
  * 세트 행 + 카드 행 생성(카드 = `answer=null` 인 VocabAttempt, 표기·읽기·뜻·보기 스냅샷). CHOICE 인데 한 카드라도 보기를
- * 만들 수 없으면 세트 전체를 FLIP 으로 내린다(E6).
+ * 만들 수 없으면 세트 전체를 FLIP 으로 내린다(E6). `topicId` 가 있으면 주제 세트(D4), 카드 `refType/refId`(D5)를 함께 쓴다.
  */
 async function insertSession(
-  tx: Tx,
+  tx: Pick<Tx, 'vocabSession' | 'vocabAttempt'>,
   userId: string,
-  opts: { seed: string; mode: VocabMode; requestedCount: number; replayOfId: string | null; cards: CardSeed[]; sources: MeaningSource[]; rng: () => number },
+  opts: {
+    seed: string; mode: VocabMode; requestedCount: number; replayOfId: string | null; cards: CardSeed[]; sources: MeaningSource[]; rng: () => number
+    topicId?: string | null; date?: string
+  },
 ): Promise<{ session: VocabSessionDto; cards: VocabCardDto[] }> {
   let mode = opts.mode
   let choices: (string[] | null)[] = opts.cards.map(() => null)
   if (mode === 'CHOICE') {
-    choices = opts.cards.map((c) => pickChoices(c, opts.sources, opts.rng))
+    choices = opts.cards.map((c) => pickChoices({ meaning: c.meaning, partOfSpeech: c.kind }, opts.sources, opts.rng))
     if (choices.some((c) => !c || c.length !== CHOICE_COUNT)) {
       mode = 'FLIP'
       choices = opts.cards.map(() => null)
@@ -260,14 +356,15 @@ async function insertSession(
   }
   const s = await tx.vocabSession.create({
     data: {
-      userId, date: dates.toDbDate(dates.todayKst()), mode, requestedCount: opts.requestedCount, cardCount: opts.cards.length,
-      seed: opts.seed, replayOfId: opts.replayOfId,
+      userId, date: dates.toDbDate(opts.date ?? dates.todayKst()), mode, requestedCount: opts.requestedCount, cardCount: opts.cards.length,
+      seed: opts.seed, replayOfId: opts.replayOfId, ...(opts.topicId ? { topicId: opts.topicId } : {}),
     },
     select: SESSION_SELECT,
   })
   const rows = opts.cards.map((c, order) => ({
     sessionId: s.id, wordId: c.wordId, order, surfaceSnap: c.surface, readingSnap: c.reading, meaningSnap: c.meaning,
     choices: (choices[order] ?? undefined) as Prisma.InputJsonValue | undefined,
+    ...(c.refType && c.refId ? { refType: c.refType, refId: c.refId } : {}),
   }))
   await tx.vocabAttempt.createMany({ data: rows })
   const cards = opts.cards.map((c, order) =>
@@ -276,20 +373,36 @@ async function insertSession(
       answer: null, chosenText: null, flagged: false, answeredAt: null, word: c.wordId ? { example: c.example, exampleKo: c.exampleKo } : null,
     }),
   )
-  return { session: toSessionDto(s), cards }
+  return { session: toSessionDto(s, topicCardCounts(opts.cards)), cards }
 }
 
 function toCardSeed(w: PoolWord): CardSeed {
-  return { wordId: w.id, surface: w.surface, reading: w.reading, meaning: w.meaning, partOfSpeech: w.partOfSpeech, example: w.example, exampleKo: w.exampleKo }
+  return { wordId: w.id, surface: w.surface, reading: w.reading, meaning: w.meaning, kind: w.partOfSpeech, example: w.example, exampleKo: w.exampleKo, refType: null, refId: null }
 }
 
 // ── #47 세트 생성 ────────────────────────────────────────────────────────────
 
+export interface CreateSessionOptions {
+  /** 주제 세트의 A12 함수 묶음(라우트가 conversation 으로 만든다). 없으면 생성을 시도하지 않고 폴백 `FAILED`. */
+  topicWords?: TopicWordsDriver
+  /** 손님 연결(라우트 `req.signal`) — 끊기면 A12 를 멈추고 세트를 만들지 않는다. */
+  signal?: AbortSignal
+  /** 요청 시작 시각(ms) — 벽시계 30초의 기준(큐 대기 포함). 생략하면 지금. */
+  startedAt?: number
+  /** 테스트 주입(가짜 db·트랜잭션·엔진·시계). */
+  deps?: Partial<TopicSetDeps>
+}
+
 /**
  * 풀 = 보관 안 한 단어(카테고리 필터) − 오늘(KST) 끝낸 세트의 단어. 풀 0 → 빈 상태(F5 사유). 풀 <4 또는 서로 다른 뜻 <4 → FLIP 강등.
- * `count` 는 라우트가 채운다(요청값 또는 `Profile.dailyWordCount`).
+ * `count` 는 라우트가 채운다(요청값 또는 `Profile.dailyWordCount`). `topicId` 가 있으면 주제 세트(`createTopicVocabSession`).
  */
-export async function createVocabSession(userId: string, input: { count: number; mode: VocabMode; category: string | null }): Promise<CreateSessionResult> {
+export async function createVocabSession(
+  userId: string,
+  input: { count: number; mode: VocabMode; category: string | null; topicId?: string | null; generate?: boolean },
+  opts: CreateSessionOptions = {},
+): Promise<CreateSessionResult> {
+  if (input.topicId) return createTopicVocabSession(userId, { count: input.count, mode: input.mode, topicId: input.topicId, generate: input.generate !== false }, opts)
   return withTransaction(async (tx) => {
     await lockUserRow(tx, userId)
     await assertNoInProgress(tx, userId)
@@ -318,6 +431,116 @@ export async function createVocabSession(userId: string, input: { count: number;
     const picked = generateWordSet(pool, input.count, rng, new Date())
     const mode: VocabMode = input.mode === 'CHOICE' && (pool.length < 4 || distinctMeaningCount(active) < CHOICE_COUNT) ? 'FLIP' : input.mode
     return insertSession(tx, userId, { seed, mode, requestedCount: input.count, replayOfId: null, cards: picked.map(toCardSeed), sources: active, rng })
+  })
+}
+
+const TOPIC_EMPTY_CTA = ['MY_WORDS']
+
+function cancelledError(): ApiError {
+  return new ApiError('CONFLICT', '요청이 취소됐어요.', { reason: 'CANCELLED' })
+}
+
+/**
+ * #47 주제 세트(설계서 §4-3e). 순서:
+ *  0. 주제 접근(시드·내 주제, 아니면 404) → 1. (잠금 없이) 풀던 세트 409 — LLM 을 헛돌리지 않게, 트랜잭션에서 다시 확인
+ *  2. 생성 여부: `generate` && 오늘 이 주제 새 단어 없음 && 생성 중 아님(아니면 409 `GENERATING`) && 오늘 시도 < 3(아니면 `LIMIT`)
+ *  3. A12(**트랜잭션 밖**, 벽시계 30초·손님 취소) → 손님이 끊었으면 세트를 만들지 않는다
+ *  4. 트랜잭션: 사용자 행 → 풀던 세트 409 → 오늘 카드(재사용·답한 키) → 새 단어 → 모자라면 B1 풀 → 0장이면 빈 상태 → 세트·카드 생성
+ *     (2 에서 켠 생성 중 표시는 4 가 끝날 때까지 유지)
+ * 실패·시간 초과·부족은 B1 풀로 폴백·채움 — 하루 목표가 LLM 한도로 막히지 않는다(폴백 세트도 하루 판정에 똑같이 더해진다).
+ */
+async function createTopicVocabSession(
+  userId: string,
+  input: { count: number; mode: VocabMode; topicId: string; generate: boolean },
+  opts: CreateSessionOptions,
+): Promise<CreateSessionResult> {
+  const deps: TopicSetDeps = { ...defaultTopicSetDeps(), ...opts.deps }
+  const startedAt = opts.startedAt ?? deps.now()
+  const material = await loadTopicSetMaterial(deps.db, userId, input.topicId)
+  if (!material) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
+  const topicId = material.topic.id
+  await assertNoInProgress(deps.db, userId)
+  const today = dates.todayKst(new Date(deps.now()))
+  const todayDb = dates.toDbDate(today)
+
+  let fresh: TopicWordCandidate[] | null = null
+  let reuse = false
+  let reason: TopicGenerationReason | null = null
+  let generating = false
+  if (!input.generate) reason = 'SKIPPED'
+  else if (await todayAiWordExists(deps.db, userId, topicId, todayDb)) reuse = true
+  else {
+    const gate = beginTopicWordsGeneration(userId, today)
+    if (gate === 'GENERATING') throw new ApiError('CONFLICT', '오늘의 새 단어를 만들고 있어요. 잠시만 기다려 주세요.', { reason: 'GENERATING' })
+    if (gate === 'LIMIT') reason = 'LIMIT'
+    else generating = true
+  }
+  // 생성 중 표시는 세트 트랜잭션이 끝날 때까지 쥔다 — A12 직후에 풀면 커밋 전 틈에 들어온 두 번째 요청이 "오늘 새 단어 없음"을 보고 한 번 더 부른다.
+  try {
+    if (generating) {
+      if (!opts.topicWords) reason = 'FAILED'
+      else {
+        const prior = await topicAiWordHistory(deps.db, userId, topicId)
+        const r = await runTopicWords(deps, {
+          userId, material, targetCount: input.count, priorSurfaces: prior.words.map((p) => p.surface), priorDays: prior.generationDays, driver: opts.topicWords,
+          signal: opts.signal, deadlineAt: startedAt + deps.wallMs,
+        })
+        if (r.ok) fresh = r.words
+        else if (r.reason === 'CANCELLED') {
+          refundTopicWordsAttempt(userId, today)
+          throw cancelledError()
+        } else reason = r.reason
+      }
+    }
+    if (opts.signal?.aborted) {
+      // A12 가 끝난 직후 끊긴 틈 — A12 도중 취소와 같이 이 요청이 쓴 하루 시도를 되돌린다(만든 단어는 저장 칸이 없어 버려진다).
+      if (generating) refundTopicWordsAttempt(userId, today)
+      throw cancelledError()
+    }
+    return await composeTopicSessionTx(deps, userId, { ...input, topicId, today, todayDb }, { fresh, reuse, reason })
+  } finally {
+    if (generating) endTopicWordsGeneration(userId)
+  }
+}
+
+/** #47 주제 세트 4단계(트랜잭션) — 사용자 행 → 풀던 세트 409 → 오늘 카드 → 새 단어 → B1 채움 → 빈 상태 또는 세트·카드 생성. */
+async function composeTopicSessionTx(
+  deps: TopicSetDeps,
+  userId: string,
+  input: { count: number; mode: VocabMode; topicId: string; today: string; todayDb: Date },
+  gen: { fresh: TopicWordCandidate[] | null; reuse: boolean; reason: TopicGenerationReason | null },
+): Promise<CreateSessionResult> {
+  const { topicId, today, todayDb } = input
+  const { fresh, reuse } = gen
+  let reason = gen.reason
+  const seed = newSeed(input.mode)
+  const rng = createRng(seed)
+  return deps.transaction(async (tx) => {
+    await lockUserRow(tx, userId)
+    try {
+      await assertNoInProgress(tx, userId)
+    } catch (e) {
+      if (fresh?.length) console.info(`[vocab] 풀던 세트가 생겨 새 단어 ${fresh.length}개를 버림 — topic=${topicId}`)
+      throw e
+    }
+    const state = todayTopicState(await readTodayTopicCards(tx, userId, topicId, todayDb))
+    const pool = await loadTopicPool(tx, userId, topicId)
+    const stats = await loadRepetitionStats(tx, userId, pool.entries)
+    const composed = composeTopicCards({ count: input.count, fresh, reuse, todayAi: state.todayAi, answered: state.answered, pool, stats, rng, now: new Date(deps.now()) })
+    if (!composed.cards.length) {
+      const nothing = !pool.entries.length && !state.todayAi.length && !fresh?.length
+      return { session: null, empty: { reason: nothing ? 'TOPIC_EMPTY' : 'TOPIC_ALL_DONE_TODAY', cta: TOPIC_EMPTY_CTA } }
+    }
+    if (fresh) reason = composed.aiCount >= input.count ? null : composed.aiCount > 0 ? 'SHORT' : 'INVALID'
+    else if (reuse) reason = composed.aiCount >= input.count ? null : 'NEW_DONE'
+    const words = await tx.wordEntry.findMany({ where: { userId, archived: false }, select: { id: true, meaning: true } })
+    const sources = topicMeaningSources(pool, words, composed.cards)
+    const r = await insertSession(tx, userId, {
+      seed, mode: input.mode, requestedCount: input.count, replayOfId: null, rng, topicId, date: today, sources,
+      cards: composed.cards.map((c) => ({ wordId: null, surface: c.surface, reading: c.reading, meaning: c.meaning, kind: c.kind, example: null, exampleKo: null, refType: c.refType, refId: c.refId })),
+    })
+    const generation: TopicGenerationDto = { source: generationSourceOf(composed.aiCount, composed.cards.length), generatedNow: !!fresh && composed.aiCount > 0, reason }
+    return { ...r, generation }
   })
 }
 
@@ -358,9 +581,10 @@ export async function listVocabSessions(userId: string, q: SessionListQuery): Pr
     ? await prisma.vocabAttempt.groupBy({ by: ['sessionId'], where: { sessionId: { in: page.map((s) => s.id) }, answeredAt: { not: null } }, _count: { _all: true } })
     : []
   const answered = new Map(counts.map((c) => [c.sessionId, c._count._all]))
+  const topicCounts = await topicCountsOf(prisma, page)
   const last = page.at(-1)
   return {
-    items: page.map((s) => ({ ...toSessionDto(s), answeredCount: answered.get(s.id) ?? 0 })),
+    items: page.map((s) => ({ ...toSessionDto(s, topicCounts.get(s.id)), answeredCount: answered.get(s.id) ?? 0 })),
     nextCursor: rows.length > q.limit && last ? encodeCursor({ t: last.startedAt.toISOString(), id: last.id }) : null,
   }
 }
@@ -372,7 +596,7 @@ export async function listVocabSessions(userId: string, q: SessionListQuery): Pr
 export async function readVocabSessionTx(tx: Tx, userId: string, id: string): Promise<{ session: VocabSessionDto; cards: VocabCardDto[] }> {
   const s = await lockSession(tx, userId, id)
   const attempts = await tx.vocabAttempt.findMany({ where: { sessionId: id }, orderBy: { order: 'asc' }, select: ATTEMPT_SELECT })
-  return { session: toSessionDto(s), cards: attempts.map((a) => toCardDto(s.mode, s.status, a)) }
+  return { session: toSessionDto(s, topicCardCounts(attempts)), cards: attempts.map((a) => toCardDto(s.mode, s.status, a)) }
 }
 
 /** #49 — #47 형태. 답한 카드·DONE 세트만 정답 포함. */
@@ -445,19 +669,21 @@ export async function recordAttempt(userId: string, id: string, input: AttemptIn
 export interface FinishResultDto {
   session: VocabSessionDto
   studyLogId: string | null
-  wrongWords: { wordId: string | null; surface: string; reading: string | null; correctText: string }[]
+  /** `source` — 단어장 카드 `WORD` · 주제 카드 `TOPIC`(`wordId=null`, 화면이 [단어장에 넣기]로 처리). */
+  wrongWords: { wordId: string | null; surface: string; reading: string | null; correctText: string; source: 'WORD' | 'TOPIC' }[]
   flaggedCount: number
 }
 
-async function finishResult(tx: Tx, userId: string, s: SessionRow): Promise<FinishResultDto> {
+async function finishResult(tx: Tx, userId: string, s: SessionRow, counts?: TopicCounts | null): Promise<FinishResultDto> {
   // 트랜잭션 연결 하나에서 차례로(interactive tx 에 병렬 쿼리를 걸지 않는다).
-  const wrong = await tx.vocabAttempt.findMany({ where: { sessionId: s.id, answer: 'WRONG' }, orderBy: { order: 'asc' }, select: { wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true } })
+  const wrong = await tx.vocabAttempt.findMany({ where: { sessionId: s.id, answer: 'WRONG' }, orderBy: { order: 'asc' }, select: { wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, refType: true } })
   const flaggedCount = await tx.vocabAttempt.count({ where: { sessionId: s.id, flagged: true } })
   const log = s.status === 'DONE' ? await tx.studyLog.findFirst({ where: { userId, type: 'WORDS', refId: s.id }, orderBy: { createdAt: 'asc' }, select: { id: true } }) : null
+  const topicCounts = counts !== undefined ? counts : (await topicCountsOf(tx, [s])).get(s.id)
   return {
-    session: toSessionDto(s),
+    session: toSessionDto(s, topicCounts),
     studyLogId: log?.id ?? null,
-    wrongWords: wrong.map((w) => ({ wordId: w.wordId, surface: w.surfaceSnap, reading: w.readingSnap, correctText: w.meaningSnap })),
+    wrongWords: wrong.map((w) => ({ wordId: w.wordId, surface: w.surfaceSnap, reading: w.readingSnap, correctText: w.meaningSnap, source: w.refType ? ('TOPIC' as const) : ('WORD' as const) })),
     flaggedCount,
   }
 }
@@ -500,20 +726,21 @@ export async function finishVocabSession(userId: string, id: string): Promise<Fi
 }
 
 /** #51 + 이번 호출이 세트를 실제로 끝냈는가(`finishedNow` — 라우트가 그때만 복습 판단 잡을 건다, 멱등 재호출·ABANDONED 는 false). */
-export async function finishVocabSessionDetailed(userId: string, id: string): Promise<{ result: FinishResultDto; finishedNow: boolean; repetitionItems: number }> {
-  return withTransaction(async (tx) => {
+export async function finishVocabSessionDetailed(userId: string, id: string, opts: TxRunner = {}): Promise<{ result: FinishResultDto; finishedNow: boolean; repetitionItems: number }> {
+  return (opts.transaction ?? withTransaction)(async (tx) => {
     await lockUserRow(tx, userId)
     const s = await lockSession(tx, userId, id)
     if (s.status !== 'IN_PROGRESS') return { result: await finishResult(tx, userId, s), finishedNow: false, repetitionItems: 0 }
     const attempts = await tx.vocabAttempt.findMany({
       where: { sessionId: id },
       orderBy: { order: 'asc' },
-      select: { id: true, order: true, wordId: true, answer: true, responseMs: true, surfaceSnap: true, meaningSnap: true },
+      select: { id: true, order: true, wordId: true, answer: true, responseMs: true, surfaceSnap: true, meaningSnap: true, refType: true, refId: true },
     })
+    const counts = topicCardCounts(attempts)
     const now = new Date()
     if (!attempts.some((a) => a.answer != null)) {
       const closed = await tx.vocabSession.update({ where: { id }, data: { status: 'ABANDONED', finishedAt: now }, select: SESSION_SELECT })
-      return { result: await finishResult(tx, userId, closed), finishedNow: false, repetitionItems: 0 }
+      return { result: await finishResult(tx, userId, closed, counts), finishedNow: false, repetitionItems: 0 }
     }
     await tx.vocabAttempt.updateMany({ where: { sessionId: id, answer: null }, data: { answer: 'SKIPPED' } })
     const cards = attempts.map((a) => ({ ...a, answer: a.answer ?? ('SKIPPED' as const) }))
@@ -536,8 +763,10 @@ export async function finishVocabSessionDetailed(userId: string, id: string): Pr
     if (wrongIds.length) await tx.wordEntry.updateMany({ where: { userId, id: { in: wrongIds } }, data: { wrongCount: { increment: 1 }, lastSeenAt: now, lastResult: 'WRONG' } })
     if (skippedIds.length) await tx.wordEntry.updateMany({ where: { userId, id: { in: skippedIds } }, data: { lastSeenAt: now, lastResult: 'SKIPPED' } })
     const date = dates.fromDbDate(s.date)
-    const registered = await registerRepetitionItems(userId, vocabRepetitionInputs(cards), tx, { now })
+    const registered = await registerRepetitionItems(userId, [...vocabRepetitionInputs(cards), ...topicCardRepetitionInputs(cards)], tx, { now })
     const cardCount = final.length
+    const topicTitle = s.topicId && s.topic ? s.topic.title : null
+    const head = topicTitle ? `주제 단어 「${topicTitle}」` : '오늘의 단어'
     await recordStudyLog(
       userId,
       {
@@ -545,16 +774,18 @@ export async function finishVocabSessionDetailed(userId: string, id: string): Pr
         type: 'WORDS',
         origin: 'DIRECT',
         refId: id,
-        summary: `오늘의 단어 ${cardCount}장(${s.mode === 'CHOICE' ? '보기 고르기' : '뒤집기'}) · 맞힘 ${correct} · 틀림 ${wrong} · 건너뜀 ${skipped}`,
+        summary: `${head} ${cardCount}장(${s.mode === 'CHOICE' ? '보기 고르기' : '뒤집기'}) · 맞힘 ${correct} · 틀림 ${wrong} · 건너뜀 ${skipped}`,
         result: { correct, wrong, skipped, cardCount, durationSec },
         durationSec,
       },
       tx,
     )
-    await createVocabSessionSnapshot(userId, id, { cardCount, correct, wrong, skipped, durationSec, mode: s.mode, date }, tx)
+    // 주제 세트만 `topicId` 한 칸(§4-3 ⑧) — 챌린지 하루 판정(T1)이 이 칸·date·correct/wrong 만 읽는다. 생성 시 1회, 이후 불변(규칙 2).
+    const snapshot: VocabSessionSnapshotData = { cardCount, correct, wrong, skipped, durationSec, mode: s.mode, date, ...(s.topicId ? { topicId: s.topicId } : {}) }
+    await createVocabSessionSnapshot(userId, id, snapshot, tx)
     await bumpDailySnapshot(userId, date, { words: { sessions: 1, correct, wrong }, repetition: { studied: registered.length } }, tx)
     await recordObservations(userId, vocabObservations(s.mode, cards), tx, { date })
-    return { result: await finishResult(tx, userId, done), finishedNow: true, repetitionItems: registered.length }
+    return { result: await finishResult(tx, userId, done, counts), finishedNow: true, repetitionItems: registered.length }
   })
 }
 
@@ -574,32 +805,52 @@ export async function keepVocabSession(userId: string, id: string, kept: boolean
     await lockUserRow(tx, userId)
     const s = await lockSession(tx, userId, id)
     if (s.status !== 'DONE') throw new ApiError('CONFLICT', '끝낸 세트만 보관할 수 있어요.', { status: s.status })
-    if (kept === !!s.keptAt) return toSessionDto(s)
-    return toSessionDto(await tx.vocabSession.update({ where: { id }, data: { keptAt: kept ? new Date() : null }, select: SESSION_SELECT }))
+    const counts = (await topicCountsOf(tx, [s])).get(s.id)
+    if (kept === !!s.keptAt) return toSessionDto(s, counts)
+    return toSessionDto(await tx.vocabSession.update({ where: { id }, data: { keptAt: kept ? new Date() : null }, select: SESSION_SELECT }), counts)
   })
 }
 
 /**
  * #53 — 보관한 DONE 세트(F7)의 같은 단어 목록으로 새 세트(`replayOfId`). 순서는 새 시드로 다시 섞고 원 모드를 따른다.
  * 삭제된 단어가 하나라도 있으면 세트 전체 FLIP(E4, 삭제 단어 카드는 원 세트의 `*Snap`). 오늘 DONE 제외 규칙은 적용하지 않는다.
+ * **주제 세트는 주제 세트로**(U15 A, §9-2): `topicId`·카드 `refType/refId` 를 그대로 복사(새 단어 `AiWord` 포함 — LLM 호출 없음),
+ * 보기는 주제 풀 뜻 ∪ 내 단어장 뜻 ∪ 같은 세트 뜻에서 다시 고른다(조각 종류는 저장하지 않아 종류 구분 없이). 다시 푼 세트도 그날 주제 세트 합계에 더해진다.
  */
-export async function replayVocabSession(userId: string, id: string): Promise<{ session: VocabSessionDto; cards: VocabCardDto[] }> {
+export async function replayVocabSession(userId: string, id: string, opts: TxRunner = {}): Promise<{ session: VocabSessionDto; cards: VocabCardDto[] }> {
   if (!isValidId(id)) throw notFound()
-  return withTransaction(async (tx) => {
+  return (opts.transaction ?? withTransaction)(async (tx) => {
     await lockUserRow(tx, userId)
     const src = await tx.vocabSession.findFirst({
       where: { id, userId },
-      select: { id: true, mode: true, status: true, keptAt: true, cardCount: true, attempts: { orderBy: { order: 'asc' }, select: { wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true } } },
+      select: {
+        id: true, mode: true, status: true, keptAt: true, cardCount: true, topicId: true,
+        attempts: { orderBy: { order: 'asc' }, select: { wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, refType: true, refId: true } },
+      },
     })
     if (!src) throw notFound()
     if (src.status !== 'DONE' || !src.keptAt) throw new ApiError('CONFLICT', '보관한 세트만 다시 풀 수 있어요.', { status: src.status, kept: !!src.keptAt })
     await assertNoInProgress(tx, userId)
+    if (src.topicId) {
+      const cards: CardSeed[] = src.attempts.map((a) => ({
+        wordId: null, surface: a.surfaceSnap, reading: a.readingSnap, meaning: a.meaningSnap, kind: TOPIC_KIND_ANY, example: null, exampleKo: null,
+        refType: a.refType && a.refId ? a.refType : null, refId: a.refType && a.refId ? a.refId : null,
+      }))
+      const seed = newSeed(src.mode)
+      const rng = createRng(seed)
+      const ordered = shuffle(cards, rng)
+      const pool = await loadTopicPool(tx, userId, src.topicId)
+      const words = src.mode === 'CHOICE' ? await tx.wordEntry.findMany({ where: { userId, archived: false }, select: { id: true, meaning: true } }) : []
+      const own = cards.map((c, i) => ({ id: `r:${i}`, meaning: c.meaning, partOfSpeech: TOPIC_KIND_ANY }))
+      const sources = src.mode === 'CHOICE' ? [...topicMeaningSources(pool, words, [], true), ...own] : []
+      return insertSession(tx, userId, { seed, mode: src.mode, requestedCount: src.cardCount, replayOfId: src.id, cards: ordered, sources, rng, topicId: src.topicId })
+    }
     const ids = src.attempts.flatMap((a) => (a.wordId ? [a.wordId] : []))
     const words = ids.length ? await tx.wordEntry.findMany({ where: { userId, id: { in: ids } }, select: POOL_SELECT }) : []
     const byId = new Map(words.map((w) => [w.id, w]))
     const cards: CardSeed[] = src.attempts.map((a) => {
       const w = a.wordId ? byId.get(a.wordId) : undefined
-      return w ? toCardSeed(w) : { wordId: null, surface: a.surfaceSnap, reading: a.readingSnap, meaning: a.meaningSnap, partOfSpeech: 'OTHER', example: null, exampleKo: null }
+      return w ? toCardSeed(w) : { wordId: null, surface: a.surfaceSnap, reading: a.readingSnap, meaning: a.meaningSnap, kind: 'OTHER', example: null, exampleKo: null, refType: null, refId: null }
     })
     const seed = newSeed(src.mode)
     const rng = createRng(seed)

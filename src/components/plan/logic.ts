@@ -8,6 +8,7 @@
 import { addDays, isDateString, monthBounds } from '@/modules/infra/dates'
 import { formatClock } from '@/components/common/format'
 import type { CalendarDay, CalendarSummary, DayReview, StudyLogItem, StudyType } from '@/types/plan'
+import type { ChallengeDayState } from '@/types/challenge'
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'] as const
 /** 주 시작 = 월요일(결정 c=B) — 오늘 탭 "최근 7일"(월~일)과 같은 순서. */
@@ -134,7 +135,13 @@ export function orderedTypes(types: StudyType[]): StudyType[] {
   return [...(has.has('EVALUATION') ? (['EVALUATION'] as StudyType[]) : []), ...CELL_ORDER.filter((t) => has.has(t))]
 }
 
-export type CellMark = { kind: 'type'; type: StudyType } | { kind: 'eval' } | { kind: 'due' } | { kind: 'more'; n: number }
+/** `ch` = 챌린지 하루 모양(task-043 — 달성·일부·놓침만 칩으로, 칩 3개 안에 센다). */
+export type CellMark =
+  | { kind: 'type'; type: StudyType }
+  | { kind: 'eval' }
+  | { kind: 'due' }
+  | { kind: 'more'; n: number }
+  | { kind: 'ch'; state: 'MET' | 'PARTIAL' | 'MISSED' }
 
 export type CellKind = 'future' | 'study' | 'attended' | 'none'
 
@@ -146,6 +153,8 @@ export interface CellView {
   marks: CellMark[]
   /** 칩이 없고 출석만 했으면 작은 동그라미. */
   attendedDot: boolean
+  /** 칸 아래 챌린지 기간 띠(그만둔 날을 뺀 챌린지 날 — 예정 날 포함). 챌린지 칸이 없으면 false(지금 달력과 같다). */
+  band: boolean
   label: string
 }
 
@@ -153,6 +162,8 @@ export function cellView(day: CalendarDay, today: string): CellView {
   const future = day.date > today
   const attended = day.attended && !future
   const chips: CellMark[] = []
+  const ch = day.challenge
+  if (ch && (ch.state === 'MET' || ch.state === 'PARTIAL' || ch.state === 'MISSED')) chips.push({ kind: 'ch', state: ch.state })
   if (day.hasEvaluation) chips.push({ kind: 'eval' })
   if (day.reviewDue) chips.push({ kind: 'due' })
   for (const t of orderedTypes(day.types)) if (t !== 'EVALUATION') chips.push({ kind: 'type', type: t })
@@ -164,6 +175,7 @@ export function cellView(day: CalendarDay, today: string): CellView {
     interactive: !future || day.reviewDue,
     marks,
     attendedDot: marks.length === 0 && attended,
+    band: !!ch && ch.state !== 'STOPPED',
     label: cellLabel(day, today),
   }
 }
@@ -179,7 +191,17 @@ export function cellLabel(day: CalendarDay, today: string): string {
     p.push(`공부 ${ts.length}가지: ${ts.map((t) => TYPE_META[t].label).join(', ')}`)
   }
   if (day.reviewDue) p.push('복습할 날')
+  if (day.challenge) p.push(`챌린지 ${day.challenge.dayIndex}일째 ${CHALLENGE_STATE_SPOKEN[day.challenge.state]}`)
   return p.join(', ')
+}
+
+const CHALLENGE_STATE_SPOKEN: Record<ChallengeDayState, string> = {
+  MET: '달성',
+  PARTIAL: '일부',
+  MISSED: '놓침',
+  TODAY: '오늘, 진행 중',
+  UPCOMING: '예정',
+  STOPPED: '그만둠',
 }
 
 // ── 요약 3칸 · 빈 달 안내 ────────────────────────────────────────────────────────

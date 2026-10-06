@@ -150,6 +150,17 @@ export function startErrorText(e: ErrorLike): string {
   return '세트를 만들지 못했어요. 다시 시도해 주세요.'
 }
 
+/** 오늘 카드 "풀던 세트" 몸통의 안내 줄 — 지금 카드와 챌린지 주제 카드(`TopicWordsCard`)가 같은 줄을 쓴다. */
+export const IN_PROGRESS_NOTE = {
+  saved: '답한 카드는 저장돼 있어요.',
+  past: '지난 날 시작한 세트예요. 끝내면 그날 기록으로 남아요.',
+} as const
+
+/** 풀던 세트 안내 줄. 세트는 시작한 날로 세므로 지난 날 시작한 세트면 그날 기록으로 남는다고 알린다(`today` 를 모르면 생략). */
+export function inProgressNotes(sessionDate: string, today: string): string[] {
+  return today && sessionDate !== today ? [IN_PROGRESS_NOTE.saved, IN_PROGRESS_NOTE.past] : [IN_PROGRESS_NOTE.saved]
+}
+
 // ── 덱 ⓑ ────────────────────────────────────────────────────────────────────────────────────
 
 export const HINT = {

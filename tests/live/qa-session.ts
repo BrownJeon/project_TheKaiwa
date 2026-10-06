@@ -3,6 +3,9 @@
  * 토큰은 `qa:true`·1시간 짜리이며 nginx 를 거친 요청에서는 서버가 거부한다(infra/jwt isQaTokenAllowed). 쓴 뒤에는 쿠키 파일을 지운다.
  * 계정(provider `test`, 비밀번호 없음 — Google 로그인으로는 닿지 않는다: `.test` 도메인은 검증 불가, provider 가 google 이 아니라 연결도 거부):
  *   QA_ACCOUNT=1 `qa-bot@thekaiwa.test`(USER) · 2 `qa-bot2@thekaiwa.test`(USER, IDOR 검증용)
+ *   3 `qa-bot3@thekaiwa.test`(USER, 챌린지 레인 — task-041·042·043·044) · 4 `qa-bot4@thekaiwa.test`(USER, 상황 역할극 레인 — task-010d)
+ *     레인별로 계정을 나눈 이유: 006 스모크가 QA 계정의 스냅샷 행 수를 세고, 진행 중 챌린지 1개·풀던 세트 409 규칙이 계정 단위라
+ *     같은 계정을 두 레인이 쓰면 서로 깨진다(phase2-batch-plan §6). 행은 이 스크립트를 처음 실행할 때 upsert 로 생긴다.
  *   admin `qa-admin@thekaiwa.test`(ADMIN) · developer `qa-developer@thekaiwa.test`(DEVELOPER) · super `qa-super@thekaiwa.test`(SUPER_ADMIN) — task-005b 권한 매트릭스 검증용
  * 역할 계정의 QA 토큰은 APP_ENV=PRODUCTION 서버가 세션으로 인정하지 않는다(infra/auth — 운영 프로세스에서 관리자 권한 QA 세션 차단).
  * 쿠키 헤더를 권한 600 파일에 쓰고 화면에는 출력하지 않는다. 실행: `node --env-file=.env --import tsx tests/live/qa-session.ts <out>`
@@ -16,6 +19,8 @@ type QaRole = 'USER' | 'ADMIN' | 'DEVELOPER' | 'SUPER_ADMIN'
 const ACCOUNTS: Record<string, { email: string; oauthId: string; name: string; role: QaRole }> = {
   '1': { email: 'qa-bot@thekaiwa.test', oauthId: 'qa-bot', name: 'QA', role: 'USER' },
   '2': { email: 'qa-bot2@thekaiwa.test', oauthId: 'qa-bot2', name: 'QA2', role: 'USER' },
+  '3': { email: 'qa-bot3@thekaiwa.test', oauthId: 'qa-bot3', name: 'QA3', role: 'USER' },
+  '4': { email: 'qa-bot4@thekaiwa.test', oauthId: 'qa-bot4', name: 'QA4', role: 'USER' },
   admin: { email: 'qa-admin@thekaiwa.test', oauthId: 'qa-admin', name: 'QA Admin', role: 'ADMIN' },
   developer: { email: 'qa-developer@thekaiwa.test', oauthId: 'qa-developer', name: 'QA Developer', role: 'DEVELOPER' },
   super: { email: 'qa-super@thekaiwa.test', oauthId: 'qa-super', name: 'QA Super', role: 'SUPER_ADMIN' },
@@ -27,7 +32,7 @@ async function main() {
   const secret = process.env.JWT_SECRET
   if (!secret) throw new Error('JWT_SECRET 없음 — node --env-file=.env 로 실행')
   const account = ACCOUNTS[process.env.QA_ACCOUNT ?? '1']
-  if (!account) throw new Error('QA_ACCOUNT 는 1·2·admin·developer·super')
+  if (!account) throw new Error('QA_ACCOUNT 는 1·2·3·4·admin·developer·super')
   const out = process.argv[2] ?? '/tmp/kaiwa-qa-cookie'
   const user = await prisma.user.upsert({
     where: { email: account.email },

@@ -1,0 +1,1707 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-040-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:bf67d6c60da2">
+<meta name="description" content="챌린지 — 주제 하나로 매일 하는 오늘의 회화·주제 단어와 수행 현황, 계획표 개편. 화면 8개(계획표 없음·진행 중·만들기·상세·하루 시트·오늘 탭·주제 단어·결과/목록) × 상태, 결정 필요 10건(full 데모 v1, 합성 샘플 데이터)">
+<title>챌린지 · 계획표 개편</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 결정 필요(접힘) → 상태 줄 → 왼쪽 화면 목록 · 가운데 휴대폰 · 오른쪽 설명 → 화면×상태 전수 → 수치 대조 → 설계서와 다르게 그린 곳 */
+/* 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음). 새 색 없음 */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; padding: 0; }
+p, h1, h2, h3, h4, ul, ol, dl, dd, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+.num { font-variant-numeric: tabular-nums; }
+.kk { word-break: keep-all; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; min-height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dseg button[aria-disabled="true"] { color: var(--ink3); cursor: not-allowed; }
+.djump { display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--accent); background: var(--surface); color: var(--ink); font-size: 12.5px; font-weight: 700; text-decoration: none; }
+.dvar { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.dvar > span { flex: none; font-size: 12px; color: var(--ink2); padding-top: 8px; }
+.dvar .dseg { flex: 1 1 auto; min-width: 0; }
+.dvar .ct { display: inline-block; font-size: 11px; font-weight: 700; color: var(--ink2); margin-right: 4px; padding: 0 4px; border-radius: 4px; background: var(--surface2); }
+.dvar button[aria-pressed="true"] .ct { background: var(--accent-soft); color: var(--ink); }
+.dlay { display: grid; grid-template-columns: 220px minmax(0, 1fr) 380px; gap: 18px; padding: 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 6px 4px 4px; }
+.dnav a { display: block; min-height: 40px; padding: 8px; border-radius: 8px; font-size: 13px; color: var(--ink2); text-decoration: none; }
+.dnav a:hover { background: var(--surface2); color: var(--ink); }
+.dnav a[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.dnav .did { font-size: 11px; color: var(--ink2); margin-right: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+.dnav .dx { display: block; font-size: 11.5px; color: var(--ink2); font-weight: 400; margin-top: 1px; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard .dk { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.dcard ul.dn, .dcard ol.dn { padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.dcard ul.dn { list-style: disc; } .dcard ol.dn { list-style: decimal; }
+.dcard .dsub { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+.dcard .dsl { display: flex; flex-wrap: wrap; gap: 6px; }
+.dcard .dsl a { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border-radius: 8px; background: var(--surface2); color: var(--ink); text-decoration: none; font-size: 12.5px; }
+.dcard .dsl a[aria-current="true"] { background: var(--accent-soft); font-weight: 700; }
+.dtw { overflow-x: auto; }
+.dtbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 6px 6px; border-top: 1px solid var(--line); }
+.dtbl thead th { font-weight: 600; color: var(--ink2); font-size: 12px; border-top: 0; white-space: nowrap; }
+.dtbl th[scope="row"] { white-space: nowrap; font-weight: 700; }
+.dtbl td a { color: var(--ink); }
+.dtbl .na { color: var(--ink2); }
+.dpanel { margin: 4px 16px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; scroll-margin-top: 120px; }
+.dpanel > h2, .dpanel > summary { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 92ch; }
+details.dpanel > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 44px; }
+details.dpanel > summary::-webkit-details-marker { display: none; }
+details.dpanel > summary::before { content: "▸"; font-size: 14px; color: var(--ink2); }
+details.dpanel[open] > summary::before { content: "▾"; }
+.dsumc { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 500; }
+.dsumc span { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink); }
+.dsumc span.chg { background: var(--accent-soft); font-weight: 700; }
+.dq { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 18px; container-type: inline-size; scroll-margin-top: 120px; }
+.dq > h3 { font-size: 15px; font-weight: 700; }
+.dq > h3 .did { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink2); margin-right: 6px; }
+.dq > p { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 92ch; }
+.dq-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+@container (min-width: 640px) { .dq-g.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dq-g.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; font-weight: 700; }
+.opt-h .rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 13px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 2px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 12px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.dex { margin-top: 4px; border-radius: 10px; background: var(--surface2); padding: 10px; font-size: 12.5px; }
+.dex b { font-weight: 700; }
+.dsum { margin-top: 14px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.dsum button { min-height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 12.5px; font-weight: 600; }
+.dref { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; font-size: 13px; }
+.dref li { padding: 4px 0; }
+.minis { display: flex; gap: 16px; overflow-x: auto; padding: 6px 2px 10px; }
+.minif { flex: none; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.minif figcaption { font-size: 12.5px; font-weight: 700; }
+.minif figcaption.on { color: var(--accent); }
+.miniw { position: relative; overflow: hidden; border-radius: 18px; flex: none; }
+.miniw .phone { transform: scale(.6); transform-origin: top left; position: absolute; left: 0; top: 0; }
+.dnote li { padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.dnote li:first-child { border-top: 0; }
+.dnote b { font-weight: 700; }
+.dtoast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+@media (max-width: 1280px) { .dlay { grid-template-columns: 200px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px 16px; }
+  .dnav { position: static; max-height: none; }
+  .dside { grid-template-columns: minmax(0, 1fr); }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dvar { flex-direction: column; gap: 4px; }
+  .dpanel { margin: 4px 12px 24px; padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+
+/* ── 휴대폰 프레임 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--ground); min-width: 0; }
+.main { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--ground); }
+.scr { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pad { padding: 0 16px 32px; min-width: 0; }
+.pad2 { padding: 14px 16px 32px; min-width: 0; }
+.omit { margin-top: 18px; border: 1.5px dashed var(--line); border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--ink2); text-align: center; }
+
+/* AppBar · BackBar · TabBar */
+.appbar { position: sticky; top: 0; z-index: 10; margin-bottom: 10px; height: 52px; display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 0 12px 0 16px; }
+.appbar h1 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; }
+.me { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; flex: none; }
+.me span { width: 32px; height: 32px; border-radius: 50%; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+.bb { height: 52px; flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; border-bottom: 1px solid var(--line); background: var(--surface); padding: 0 4px; }
+.back, .icb { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink); }
+.bb-m { flex: 1; min-width: 0; }
+.bb-m h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; }
+.bb-m p { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.endb { height: 44px; flex: none; border: 0; background: none; border-radius: 12px; padding: 0 12px; font-size: 14px; font-weight: 500; color: var(--ink2); }
+.tabbar { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 max(10px, env(safe-area-inset-bottom, 0px)); }
+.tab { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; border: 0; background: none; border-radius: 12px; font-size: 11px; color: var(--ink3); text-decoration: none; }
+.tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+/* 공용(common/ui.tsx) */
+.card { min-width: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.card.flat { border-color: transparent; background: var(--surface2); }
+.card.acc { border-color: var(--accent); }
+.sec { margin-top: 18px; min-width: 0; }
+.h2s { font-size: 15px; font-weight: 600; }
+.bdg { display: inline-flex; align-items: center; height: 22px; flex: none; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: var(--surface2); color: var(--ink2); }
+.bdg.on2 { background: var(--surface); }
+.bdg.good { background: var(--good-soft); color: var(--good); }
+.bdg.bad { background: var(--bad-soft); color: var(--bad); }
+.bdg.line { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; white-space: nowrap; min-width: 0; color: var(--ink); text-decoration: none; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.danger { border: 1px solid var(--line); background: var(--surface); color: var(--bad); }
+.btn.full { width: 100%; }
+.btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.btnrow { display: flex; gap: 8px; margin-top: 12px; }
+.btnrow > * { flex: 1; min-width: 0; }
+.ulink { display: flex; min-height: 44px; width: 100%; align-items: center; justify-content: center; border: 0; background: none; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.lnk { display: inline-flex; justify-content: center; min-width: 44px; min-height: 44px; align-items: center; gap: 2px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.errb { border-radius: 12px; background: var(--bad-soft); color: var(--bad); padding: 12px 14px; font-size: 13px; }
+.errb b { font-weight: 700; }
+.errb button:not(.btn), .errb a:not(.btn) { display: inline-flex; min-height: 44px; align-items: center; border: 0; background: none; padding: 0; color: var(--bad); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.infob { border-radius: 12px; background: var(--surface2); padding: 12px 14px; font-size: 13px; }
+.infob .t { font-size: 15px; font-weight: 600; }
+.emptyb { border-radius: 14px; border: 1.5px dashed var(--line); padding: 22px 16px; text-align: center; font-size: 13px; color: var(--ink2); }
+.c12 { font-size: 12px; color: var(--ink2); }
+.c125 { font-size: 12.5px; color: var(--ink2); }
+.c13 { font-size: 13px; color: var(--ink2); }
+.mt2 { margin-top: 2px; } .mt4 { margin-top: 4px; } .mt6 { margin-top: 6px; } .mt8 { margin-top: 8px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; } .mt14 { margin-top: 14px; } .mt18 { margin-top: 18px; }
+.sk { display: block; border-radius: 10px; background: var(--surface2); }
+.skp { animation: skp 1.2s ease-in-out infinite; }
+@keyframes skp { 50% { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .skp { animation: none; } }
+.spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.indet { margin-top: 12px; height: 4px; overflow: hidden; border-radius: 999px; background: var(--surface2); }
+.indet i { display: block; height: 100%; width: 40%; border-radius: 999px; background: var(--accent); animation: indet 1.6s ease-in-out infinite; }
+@keyframes indet { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .indet i { animation: none; } }
+.seg { display: flex; gap: 3px; padding: 3px; border-radius: 12px; background: var(--surface2); min-width: 0; }
+.seg button { position: relative; flex: 1; min-width: 0; height: 36px; border: 0; border-radius: 9px; background: none; font-size: 13.5px; font-weight: 500; color: var(--ink2); padding: 0 4px; }
+.seg button::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.seg.sm button { height: 32px; font-size: 12.5px; }
+.seg button[aria-checked="true"], .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.seg button span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ptoast { position: absolute; left: 16px; right: 16px; bottom: 84px; z-index: 50; background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.ptoast.lo { bottom: 24px; }
+
+/* 시트(common/Sheet.tsx) */
+.shw { position: absolute; inset: 0; z-index: 40; }
+.scrim { position: absolute; inset: 0; background: rgba(20, 24, 22, .45); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 85%; display: flex; flex-direction: column; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.18); min-width: 0; }
+.sh-h { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 0 4px 0 16px; }
+.sh-h h2 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; }
+.sh-b { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px calc(18px + env(safe-area-inset-bottom, 0px)); min-width: 0; }
+
+/* ── 계획표 달력(지금 그대로 + 챌린지 표시) ── */
+.mnav { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.mnav h2 { flex: 1; min-width: 0; font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.todayb { position: relative; margin-right: 2px; height: 32px; flex: none; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--ink3); }
+.todayb::before { content: ""; position: absolute; left: -2px; right: -2px; top: -7px; bottom: -7px; }
+.ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 12px; color: var(--ink); }
+.ib[aria-disabled="true"] { color: var(--ink3); }
+.sum3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.sum3 > div { min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px 6px; text-align: center; }
+.sum3 b { display: block; font-size: 20px; font-weight: 700; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.sum3 span { display: block; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wkh, .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.wkh { margin-top: 14px; }
+.wkh span { height: 24px; line-height: 24px; text-align: center; font-size: 12px; color: var(--ink2); }
+.cell { position: relative; height: 66px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; border-radius: 10px; border: 1px solid transparent; padding: 6px 0 0; background: none; color: var(--ink); font: inherit; }
+button.cell::before { content: ""; position: absolute; top: 0; bottom: 0; left: -2px; right: -2px; }
+.cell.study { background: var(--surface); border-color: var(--line); }
+.cell.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cell .n { font-size: 13px; line-height: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cell.fut .n { color: var(--ink3); font-weight: 500; }
+.cell.none .n { color: var(--ink2); font-weight: 500; }
+.cell.blank { visibility: hidden; }
+.cell.skc { background: var(--surface2); }
+.mk { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; width: 37px; }
+.tc { width: 17px; height: 17px; flex: none; border-radius: 5px; display: grid; place-items: center; font-size: 11px; font-weight: 700; line-height: 1; background: var(--surface2); color: var(--ink); }
+.tc.cg { border-radius: 50%; }
+.tc.cg.met { background: var(--good-soft); color: var(--good); }
+.tc.cg.par { background: var(--warn-soft); color: var(--ink); }
+.tc.cg.mis { background: var(--surface); color: var(--ink2); box-shadow: inset 0 0 0 1.5px var(--ink3); }
+.tc.more { background: none; color: var(--ink2); font-weight: 600; }
+.adot { display: block; width: 9px; height: 9px; flex: none; border-radius: 50%; border: 1.5px solid var(--ink2); margin-top: 7px; }
+.band { position: absolute; left: 5px; right: 5px; bottom: 1px; height: 3px; border-radius: 2px; background: var(--accent); }
+.legend { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--ink2); }
+.legend li { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.legend .lband { display: block; width: 17px; height: 3px; border-radius: 2px; background: var(--accent); }
+.legend .ltd { display: block; width: 17px; height: 17px; border-radius: 5px; box-shadow: inset 0 0 0 2px var(--accent); }
+.mnote { margin-top: 12px; border-radius: 12px; background: var(--surface2); padding: 12px 14px; font-size: 13px; }
+.grow { margin-top: 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; border-radius: 14px; background: var(--surface2); padding: 14px; }
+.grow h2 { font-size: 15px; font-weight: 600; }
+.grow p { margin-top: 4px; font-size: 13px; color: var(--ink2); }
+.dayl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dayl p { flex: 1; min-width: 0; font-size: 13px; color: var(--ink2); }
+.lg { display: grid; grid-template-columns: 30px minmax(0, 1fr) 44px; align-items: center; gap: 10px; min-height: 64px; padding: 8px 0; border-top: 1px solid var(--line); }
+.lg .tcl { width: 30px; height: 30px; border-radius: 9px; font-size: 14px; display: grid; place-items: center; font-weight: 700; background: var(--surface2); }
+.lg b { display: block; font-size: 14px; font-weight: 600; }
+.lg .m { display: block; font-size: 12.5px; color: var(--ink2); }
+.lg a, .lg > span:not(.tcl) { color: inherit; text-decoration: none; min-width: 0; min-height: 44px; display: flex; flex-direction: column; justify-content: center; }
+.lg .bdg { align-self: flex-start; }
+
+/* ── 챌린지 공통 — 하루 상태(달성 ✓ · 일부 ◐ · 놓침 ✕ · 오늘 · 예정): 글자·모양·색을 함께 ── */
+.g { display: grid; place-items: center; border-radius: 50%; font-weight: 700; line-height: 1; flex: none; }
+.g.met { background: var(--good-soft); color: var(--good); }
+.g.par { background: var(--warn-soft); color: var(--ink); }
+.g.mis { background: var(--surface); color: var(--ink2); box-shadow: inset 0 0 0 1.5px var(--ink3); }
+.g.tod { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 2px var(--accent); }
+.g.up { background: transparent; color: var(--ink2); border: 1.5px dashed var(--ink3); }
+.g.end { background: var(--surface2); color: var(--ink2); }
+.ch-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin-top: -10px; }
+.eyb { font-size: 12.5px; font-weight: 600; color: var(--ink2); min-width: 0; }
+.eyb b { color: var(--ink); font-weight: 700; }
+.ch-t { font-size: 17px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.ch-s { margin-top: 2px; font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
+.pips { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.pip { height: 32px; border-radius: 9px; font-size: 14px; }
+.pip.g.tod, .pip.g.up { font-size: 11.5px; }
+.pipsum { margin-top: 6px; font-size: 12px; color: var(--ink2); }
+.h3s { margin-top: 14px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 14px; font-weight: 700; }
+.h3s span { font-size: 12.5px; font-weight: 600; color: var(--ink2); }
+.tasks { margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.task { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 56px; padding: 8px 12px; color: var(--ink); text-decoration: none; background: none; border: 0; width: 100%; text-align: left; }
+li + li > .task { border-top: 1px solid var(--line); }
+.tk { width: 26px; height: 26px; font-size: 13px; }
+.tk.todo { box-shadow: inset 0 0 0 1.5px var(--ink3); color: var(--ink2); background: var(--surface); border-radius: 50%; display: grid; place-items: center; }
+.tk.fail { background: var(--bad-soft); color: var(--bad); border-radius: 50%; display: grid; place-items: center; font-weight: 700; }
+.tk.wait { color: var(--ink2); display: grid; place-items: center; }
+.tt { min-width: 0; }
+.tt b { display: block; font-size: 14.5px; font-weight: 600; line-height: 1.35; }
+.tt span { display: block; font-size: 12.5px; color: var(--ink2); line-height: 1.4; overflow-wrap: anywhere; }
+.go { font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--ink); }
+.go.muted { color: var(--ink2); font-weight: 500; }
+.st2, .st3 { display: grid; gap: 8px; margin-top: 10px; }
+.st2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.st3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stt { min-width: 0; border-radius: 12px; background: var(--surface2); padding: 10px 12px; }
+.card.flat .stt, .stt.on { background: var(--surface); }
+.stt b { display: block; font-size: 22px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.stt .l { display: block; font-size: 12.5px; font-weight: 600; margin-top: 2px; }
+.stt .s { display: block; font-size: 12px; color: var(--ink2); }
+.st3 .stt { padding: 10px 8px; }
+.st3 .stt b { font-size: 20px; }
+.gm { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 10px 12px; background: var(--good-soft); color: var(--ink); min-width: 0; }
+.gm .g { width: 28px; height: 28px; font-size: 14px; }
+.gm .g.solid { background: var(--good); color: var(--surface); }
+.gm .tx { flex: 1; min-width: 0; font-size: 13.5px; }
+.gm .tx b { display: block; font-size: 14.5px; font-weight: 700; }
+.gm.part { background: var(--surface2); }
+.note1 { margin-top: 8px; font-size: 12px; color: var(--ink2); }
+
+/* 상세(S4) */
+.strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.sday { position: relative; min-width: 0; min-height: 78px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; padding: 6px 0; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+.sday::before { content: ""; position: absolute; top: 0; bottom: 0; left: -2px; right: -2px; }
+.sday .d { font-size: 12px; color: var(--ink2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sday .g { width: 26px; height: 26px; font-size: 13px; }
+.sday .w { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.sday.tod { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sday.up { border-style: dashed; border-color: var(--ink3); background: transparent; }
+.sday.end { background: var(--surface2); border-color: transparent; }
+.slg { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--ink2); }
+.slg li { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.slg .g { width: 18px; height: 18px; font-size: 11px; }
+.bars2 { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.bar2 .r { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.bar2 .r b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.bar2 .t { margin-top: 4px; height: 8px; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+.bar2 .t i { display: block; height: 100%; border-radius: 999px; background: var(--ink2); }
+.bar2.ok .t i { background: var(--good); }
+.xcs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.xc { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0 6px; max-width: 100%; min-width: 0; border-radius: 10px; background: var(--surface2); padding: 5px 10px; }
+.xc [lang="ja"] { font-size: 16px; overflow-wrap: anywhere; }
+.xc .fu { line-height: 2.1; }
+.xc .m { font-size: 12px; color: var(--ink2); }
+.xc .xs { font-size: 12px; font-weight: 700; }
+.xc.ok .xs { color: var(--good); }
+.xc.new { background: transparent; border: 1.5px dashed var(--ink3); padding: 3.5px 8.5px; }
+.xlg { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink2); }
+details.more > summary { display: flex; min-height: 44px; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; list-style: none; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: "▾"; color: var(--ink2); font-size: 12px; }
+details.more[open] > summary::after { content: "▴"; }
+.chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; align-items: end; height: 124px; margin-top: 12px; border-bottom: 1px solid var(--line); }
+.ccol { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.cbars { display: flex; align-items: flex-end; gap: 4px; height: 100px; }
+.cbar { position: relative; width: 13px; border-radius: 3px 3px 0 0; }
+.cbar.ls { background: var(--ink2); }
+.cbar.wd { background: var(--surface); box-shadow: inset 0 0 0 2px var(--ink2); }
+.cbar i { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 2px; font-style: normal; font-size: 11px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cnone { font-size: 11px; color: var(--ink2); padding-bottom: 4px; white-space: nowrap; }
+.cx { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 4px; }
+.cx span { text-align: center; font-size: 11px; color: var(--ink2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.clg { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink2); }
+.clg li { display: inline-flex; align-items: center; gap: 6px; }
+.clg i { display: block; width: 12px; height: 12px; border-radius: 2px; }
+.clg i.ls { background: var(--ink2); }
+.clg i.wd { box-shadow: inset 0 0 0 2px var(--ink2); }
+.dz { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 14px; }
+.rules li { position: relative; padding-left: 14px; font-size: 13px; margin-top: 4px; }
+.rules li::before { content: "·"; position: absolute; left: 4px; color: var(--ink2); font-weight: 700; }
+
+/* 만들기(S3) */
+.steps { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 8px 12px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.stp { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; color: var(--ink2); min-width: 0; }
+.stp .c { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface2); color: var(--ink2); }
+.stp.done .c { background: var(--good-soft); color: var(--good); }
+.stp.cur .c { background: var(--accent); color: var(--on-accent); }
+.stp.cur { color: var(--ink); font-weight: 700; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend { padding: 0; font-size: 15px; font-weight: 600; }
+.ropts { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.ropt { position: relative; display: flex; gap: 10px; align-items: flex-start; min-height: 56px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 12px 14px; cursor: pointer; min-width: 0; }
+.ropt input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.ropt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ropt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rdot { flex: none; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink3); margin-top: 1px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: transparent; }
+.rdot.sq { border-radius: 6px; }
+.ropt.on .rdot { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+.rbody { flex: 1; min-width: 0; }
+.rbody .t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 15px; font-weight: 600; }
+.rbody .t [lang="ja"] { font-size: 13px; font-weight: 400; color: var(--ink2); }
+.rbody .d, .rbody .m { display: block; }
+.rbody .d { margin-top: 2px; font-size: 13px; color: var(--ink2); }
+.rbody .m { margin-top: 2px; font-size: 12px; color: var(--ink2); }
+.rbody .m.new { color: var(--good); font-weight: 600; }
+.rside { flex: none; display: flex; align-items: center; gap: 6px; }
+.subl { margin: 12px 0 6px; font-size: 12.5px; color: var(--ink2); }
+.actbar { flex: none; padding: 10px 16px max(12px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--surface); }
+.acterr { margin-bottom: 8px; font-size: 12.5px; color: var(--bad); }
+.acterr.info { color: var(--ink2); }
+.dl { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px 10px; font-size: 14px; }
+.dl dt { color: var(--ink2); font-size: 13px; padding-top: 1px; }
+.dl dd { min-width: 0; overflow-wrap: anywhere; }
+.inp { display: block; width: 100%; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 16px; color: var(--ink); }
+
+/* 오늘 탭(S6) */
+.cstrip { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 60px; border-radius: 14px; background: var(--surface2); padding: 10px 6px 10px 14px; color: var(--ink); text-decoration: none; }
+.cstrip b { display: block; font-size: 14px; font-weight: 700; }
+.cstrip .s { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 2px; font-size: 12.5px; color: var(--ink2); }
+.cstrip .s .g { width: 18px; height: 18px; font-size: 11px; display: inline-grid; vertical-align: -4px; margin-right: 3px; }
+.cstrip .go { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; }
+.cstrip.met { background: var(--good-soft); }
+.chiprow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.mini5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.mini5 li { height: 28px; display: grid; place-items: center; border-radius: 8px; font-size: 11.5px; background: var(--surface2); color: var(--ink2); white-space: nowrap; overflow: hidden; }
+.mini5 li.cur { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mini5 li.done { background: var(--good-soft); color: var(--good); font-weight: 600; }
+.recb { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; }
+.recb .r1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink2); }
+.recb .r2 { margin-top: 2px; font-size: 15px; font-weight: 600; }
+.recb .r3 { margin-top: 2px; font-size: 12px; color: var(--ink2); }
+
+/* 덱(S7) */
+.dprog { flex: none; padding: 12px 16px 0; }
+.dprog .r { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dprog .n { font-size: 15px; font-weight: 600; }
+.dbar { margin-top: 6px; display: flex; gap: 2px; }
+.dbar i { height: 6px; min-width: 0; flex: 1; border-radius: 999px; background: var(--surface2); }
+.dbar i.ok { background: var(--good); } .dbar i.ng { background: var(--bad); } .dbar i.cur { background: var(--accent); }
+.dnotice { flex: none; padding: 8px 16px 0; }
+.dnotice > div { display: flex; min-width: 0; align-items: center; gap: 4px; border-radius: 12px; background: var(--surface2); padding: 2px 0 2px 12px; font-size: 13px; color: var(--ink2); }
+.dnotice p { flex: 1; min-width: 0; padding: 6px 0; word-break: keep-all; }
+.dstk { display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; padding: 12px 16px; }
+.stk { position: relative; height: 100%; max-height: 330px; min-height: 190px; width: 80%; max-width: 340px; }
+.stk .bkc { position: absolute; inset: 0; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.kface { position: absolute; inset: 0; display: flex; min-width: 0; flex-direction: column; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.kface .top { height: 24px; flex: none; }
+.kmid { display: grid; min-height: 0; flex: 1; place-items: center; text-align: center; }
+.ks { font-size: 36px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.ks.fu { line-height: 1.7; }
+.ks rt { font-size: 16px; }
+.ghint { display: flex; height: 18px; flex: none; align-items: center; justify-content: center; padding: 0 16px; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; }
+.chl { display: grid; gap: 8px; flex: none; padding: 8px 16px 0; }
+.cho { display: flex; min-height: 52px; width: 100%; min-width: 0; align-items: center; gap: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 8px 12px; text-align: left; font-size: 16px; line-height: 1.375; color: var(--ink); }
+.cho .no { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 50%; background: var(--surface2); font-size: 12px; color: var(--ink2); }
+.dtb { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px 16px 12px; }
+.tool { display: flex; height: 52px; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 12px; color: var(--ink); }
+.tool .a { display: grid; height: 20px; place-items: center; font-size: 16px; font-weight: 600; line-height: 1; }
+.tool[aria-pressed="true"] { border-color: var(--ink); }
+.flipb { flex: none; padding: 8px 16px 0; }
+.tpc { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 999px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+/* 결과(S7) */
+.rstat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.rstat > div { min-width: 0; border-radius: 12px; border: 1px solid var(--line); border-top-width: 4px; background: var(--surface); padding: 8px 10px; }
+.rstat .ok { border-top-color: var(--good); } .rstat .ng { border-top-color: var(--bad); } .rstat .sk2 { border-top-color: var(--ink3); }
+.rstat b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rstat span { font-size: 12px; color: var(--ink2); }
+.wrl { margin-top: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.wr { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 64px; padding: 8px 10px 8px 12px; }
+li + li > .wr { border-top: 1px solid var(--line); }
+.wr .rs { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.wr .rs.ok { background: var(--good-soft); color: var(--good); }
+.wr .rs.ng { background: var(--bad-soft); color: var(--bad); }
+.wr .wja { font-size: 18px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.wr .wja.fu { line-height: 1.95; }
+.wr .hg { font-size: 12.5px; }
+.wr .m { display: block; font-size: 13px; color: var(--ink2); }
+.addb { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--ink); }
+.addb[aria-disabled="true"] { cursor: default; }
+.addb.done { border-color: transparent; background: var(--good-soft); color: var(--good); }
+.inwb { font-size: 12.5px; color: var(--ink2); white-space: nowrap; text-align: right; }
+.rowerr { grid-column: 2 / -1; font-size: 12px; color: var(--bad); }
+
+/* 결과·목록(S8) */
+.rhero { text-align: center; padding: 18px 14px 16px; }
+.rhero .big { margin-top: 8px; font-size: 24px; font-weight: 700; line-height: 1.3; }
+.rhero .sub { margin-top: 4px; font-size: 13px; color: var(--ink2); }
+.clist { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.crow { display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; gap: 10px; align-items: center; min-height: 72px; padding: 10px 12px 10px 14px; color: var(--ink); text-decoration: none; }
+li + li > .crow { border-top: 1px solid var(--line); }
+.crow b { display: block; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.crow .s { display: block; font-size: 12.5px; color: var(--ink2); }
+.crow .ch { font-size: 18px; color: var(--ink2); }
+
+/* 일본어 표시 층(공용 JapaneseText — screens §15-1 값 그대로) */
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: 11px; line-height: 1; color: var(--ink2); font-weight: 400; letter-spacing: 0; -webkit-user-select: none; user-select: none; }
+.hg { display: block; margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; -webkit-user-select: none; user-select: none; }
+.hg.s15 { font-size: 15px; margin-top: 4px; }
+.hgi { font-size: 12px; color: var(--ink2); word-break: normal; overflow-wrap: anywhere; -webkit-user-select: none; user-select: none; }
+.bk { color: var(--ink3); }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>챌린지 · 계획표 개편 <span class="lvl">full</span><small>데모 v1 · 화면 8개 × 상태 · 합성 샘플 데이터(오늘 = 2026년 10월 6일 화요일)</small></h1>
+  <div class="dctls">
+    <div class="dctl"><span>폭</span><div class="dseg" id="d-w" role="group" aria-label="휴대폰 폭"><button type="button" data-v="360" aria-pressed="false">360</button><button type="button" data-v="390" aria-pressed="true">390</button><button type="button" data-v="412" aria-pressed="false">412</button></div></div>
+    <div class="dctl"><span>높이</span><div class="dseg" id="d-h" role="group" aria-label="휴대폰 높이"><button type="button" data-v="780" aria-pressed="true">780</button><button type="button" data-v="892" aria-pressed="false">892</button></div></div>
+    <div class="dctl"><span>보기</span><div class="dseg" id="d-view" role="group" aria-label="제안만 보기 또는 지금 화면과 나란히"><button type="button" data-v="prop" aria-pressed="true">제안</button><button type="button" data-v="pair" aria-pressed="false">지금 화면과 나란히</button></div></div>
+    <div class="dctl"><span>앱 표시 설정</span><div class="dseg" id="d-lay" role="group" aria-label="일본어 표시 설정"><button type="button" data-k="fu" aria-pressed="true">히라가나</button><button type="button" data-k="hg" aria-pressed="true">한글</button></div></div>
+    <div class="dctl"><span>테마</span><div class="dseg" id="d-t" role="group" aria-label="테마"><button type="button" data-v="auto" aria-pressed="true">기기</button><button type="button" data-v="light" aria-pressed="false">밝게</button><button type="button" data-v="dark" aria-pressed="false">어둡게</button></div></div>
+    <a class="djump" href="#decide" id="d-jump">결정 필요 10건</a>
+  </div>
+</header>
+<details class="dpanel" id="decide">
+  <summary><span>결정 필요 10건</span><span class="dsumc" id="dec-sum"></span></summary>
+  <p class="dsub">항목마다 안을 나란히 놓았어요. 하나를 고르면 아래 휴대폰 화면이 그 안으로 바뀌어요. 처음 상태는 설계서 권고안이에요. 데이터 모델·DB 같은 화면에 안 나오는 결정은 맨 아래에 한 줄씩만 적었어요.</p>
+  <div id="dec-body"></div>
+</details>
+<div class="dvar"><span>상태</span><div class="dseg" id="d-var" role="group" aria-label="이 화면의 상태"></div></div>
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="데모 화면 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside" id="side" aria-label="화면 설명"></aside>
+</div>
+<section class="dpanel" id="matrix" aria-labelledby="mx-h"></section>
+<section class="dpanel" id="data" aria-labelledby="da-h"></section>
+<section class="dpanel" id="notes" aria-labelledby="nt-h"></section>
+<div class="dtoast" id="dtoast" role="status" hidden></div>
+<script>
+(function () {
+'use strict';
+var root = document.documentElement;
+function $(s, r) { return (r || document).querySelector(s); }
+function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+/* ════════ 상태 ════════ */
+var REC = { ia: 'F1', tab: 'A', period: 'A', multi: 'A', streak: 'A', attr: 'A', prep: 'C2', pool: 'A', add: 'A', title: 'A' };
+var S = {
+  scr: 's2', w: 390, h: 780, view: 'prop', theme: 'auto',
+  v: { s1: 'normal', s2: 't0', s3: 'step1', s4: 'normal', s5: 'met', s6: 'ready', s7: 'deck', s8: 'done' },
+  dec: JSON.parse(JSON.stringify(REC)),
+  f2tab: 'ch',
+  s3: { topic: 'cafe', len: 7, lesson: true, words: true, count: 10, start: 'TODAY', name: '카페 주문 7일 챌린지' },
+  sheet: null, added: {}, ret: null
+};
+var P = { fu: true, hg: true };
+
+/* ════════ 날짜 ════════ */
+var TODAY = '2026-10-06';
+var WD = ['일', '월', '화', '수', '목', '금', '토'];
+function ymd(d) { return d.split('-').map(Number); }
+function wd(d) { var p = ymd(d); return WD[new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay()]; }
+function md(d) { return Number(d.slice(5, 7)) + '월 ' + Number(d.slice(8, 10)) + '일'; }
+function mdw(d) { return md(d) + ' (' + wd(d) + ')'; }
+function dsh(d) { return Number(d.slice(8, 10)) + '(' + wd(d) + ')'; }
+function addD(d, n) { var p = ymd(d); return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10); }
+
+/* ════════ 일본어 표시 층 ════════
+   ja 는 '持{も}ち帰{かえ}ります' 처럼 한자 묶음 뒤 {읽기}. h = 서버 읽기 분석의 한글 줄(D1-A '까' 계열, 승인 데모 v4 규칙으로 미리 계산한 값) */
+var KJ = '[㐀-䶿一-鿿々〆ヶ]';
+var RE_RUBY = new RegExp('(' + KJ + '+)\\{([^}]+)\\}', 'g');
+function plain(s) { return s.replace(/\{[^}]*\}/g, ''); }
+function hasKanji(s) { return new RegExp(KJ).test(plain(s)); }
+function rb(s) { return P.fu ? s.replace(RE_RUBY, '<ruby>$1<rt aria-hidden="true">$2</rt></ruby>') : plain(s); }
+function fuc(s) { return P.fu && hasKanji(s) ? ' fu' : ''; }
+function hgB(h, cls) { if (!P.hg || !h) return ''; return '<p class="hg ' + (cls || '') + '" lang="ko"><span class="sr">한글 발음: </span><span class="bk" aria-hidden="true">[</span>' + h + '<span class="bk" aria-hidden="true">]</span></p>'; }
+function hgI(h) { if (!P.hg || !h) return ''; return '<span class="hgi" lang="ko"><span class="sr">한글 발음: </span><span class="bk" aria-hidden="true">[</span>' + h + '<span class="bk" aria-hidden="true">]</span></span>'; }
+
+/* ════════ 합성 데이터(설계서 §1-3 기준값) ════════ */
+/* 카페 주문 기본 표현 12개 — 저장소 시드 주제의 조각 그대로. st = 오늘 세트 전: ok 맞힘 · seen 공부만 · new 아직 */
+var X = [
+  { ja: 'コーヒー', h: '코-히-', ko: '커피', st: 'ok' },
+  { ja: '紅茶{こうちゃ}', h: '코-쨔', ko: '홍차', st: 'ok' },
+  { ja: 'ケーキ', h: '케-끼', ko: '케이크', st: 'new' },
+  { ja: 'ください', h: '쿠다사이', ko: '주세요', st: 'ok' },
+  { ja: '飲{の}みます', h: '노미마스', ko: '마셔요', st: 'ok' },
+  { ja: '持{も}ち帰{かえ}ります', h: '모찌까에리마스', ko: '가져가요(포장)', st: 'seen' },
+  { ja: 'おいしいです', h: '오이시-데스', ko: '맛있어요', st: 'ok' },
+  { ja: '甘{あま}いです', h: '아마이데스', ko: '달아요', st: 'new' },
+  { ja: '温{あたた}かいです', h: '아따따까이데스', ko: '따뜻해요', st: 'seen' },
+  { ja: '一{ひと}つ', h: '히또쯔', ko: '하나', st: 'ok' },
+  { ja: '小{ちい}さい', h: '치-사이', ko: '작은', st: 'new' },
+  { ja: '冷{つめ}たい', h: '츠메따이', ko: '차가운', st: 'new' }
+];
+/* 수업에서 더 만난 표현 5개 → 주제 단어 풀 = 12 + 5 = 17 */
+var XE = [
+  { ja: '店内{てんない}で', h: '텐나이데', ko: '매장에서' },
+  { ja: 'サイズ', h: '사이즈', ko: '사이즈' },
+  { ja: 'ホット', h: '홋또', ko: '따뜻한 것' },
+  { ja: 'アイス', h: '아이스', ko: '차가운 것' },
+  { ja: 'お願{ねが}いします', h: '오네가이시마스', ko: '부탁해요' }
+];
+/* 오늘(4일째) 주제 단어 세트 10장 — 8 맞힘 · 2 틀림. 끝내면 기본 표현 공부 8→10(+2: ケーキ·甘いです), 맞힘 6→7(+1: ケーキ) */
+var SET = [
+  { x: X[0], ok: true, inWb: true }, { x: X[1], ok: true }, { x: X[2], ok: true }, { x: X[3], ok: true }, { x: X[4], ok: true },
+  { x: X[5], ok: false }, { x: X[7], ok: false }, { x: X[6], ok: true }, { x: XE[0], ok: true }, { x: XE[2], ok: true }
+];
+var TOPIC = { title: '카페 주문', ja: 'カフェで注文', level: 'N5' };
+var TOPICS = [
+  { id: 'cafe', title: '카페 주문', ja: 'カフェで注文', level: 'N5', d: '카페에서 음료와 디저트를 주문하고 크기·온도·포장 여부를 말해요', m: '지난 수업 1번 · 9월 30일', n: 12 },
+  { id: 'intro', title: '자기소개', ja: '自己紹介', level: 'N5', d: '처음 만난 사람에게 이름·하는 일·사는 곳·좋아하는 것을 말해요', m: '지난 수업 7번 · 9월 27일', n: 12 },
+  { id: 'dir', title: '길 묻기', ja: '道をたずねる', level: 'N5', d: '역·은행 같은 장소를 묻고, 방향 안내를 알아듣고 다시 확인해요', m: '지난 수업 9번 · 9월 14일', n: 12 },
+  { id: 'week', title: '주말 계획', ja: '週末の予定', level: 'N4', d: '주말에 무엇을 할지, 누구와 어디에 갈지 이야기해요', m: '', n: 12 },
+  { id: 'trip', title: '여행 이야기', ja: '旅行の話', level: 'N4', d: '다녀온 여행에서 한 일과 느낌을 과거형으로 이야기해요', m: '', n: 12 }
+];
+
+/* 진행 중 챌린지(설계서 §1-3): 10/03 시작 · 7일 · 하루 목표 = 수업 1 + 주제 단어 10장 · 오늘 4일째 */
+function chal(v) {
+  if (v === 'first') {
+    var fd = [{ st: 'TODAY' }];
+    for (var k = 1; k < 7; k++) fd.push({ st: 'UP' });
+    return { title: '카페 주문 7일 챌린지', start: TODAY, len: 7, today: 1, days: fd, first: true };
+  }
+  var todayMet = v === 't2';
+  var lessonToday = v === 't1' || v === 't2';
+  var days = [
+    { st: 'MET', lesson: { s: 80, ttl: 'コーヒーを注文しよう', at: '오후 9:05' }, words: { c: 8, w: 2, at: '오후 9:20' }, met: '오후 9:20' },
+    { st: 'MET', lesson: { s: 90, ttl: 'サイズと温度を伝えよう', at: '오후 8:30' }, words: { c: 9, w: 1, at: '오후 8:55' }, met: '오후 8:55' },
+    { st: 'PARTIAL', lesson: null, words: { c: 7, w: 3, at: '오후 8:40' } },
+    { st: todayMet ? 'MET' : 'TODAY', lesson: lessonToday ? { s: 80, ttl: '持ち帰りで頼もう', at: '오후 7:50' } : null, words: todayMet ? { c: 8, w: 2, at: '오후 8:10' } : null, met: todayMet ? '오후 8:10' : null },
+    { st: 'UP' }, { st: 'UP' }, { st: 'UP' }
+  ];
+  return { title: '카페 주문 7일 챌린지', start: '2026-10-03', len: 7, today: 4, days: days };
+}
+function dateOf(ch, i) { return addD(ch.start, i); }
+function metrics(ch) {
+  var ti = ch.today - 1, past = ch.days.slice(0, ti), td = ch.days[ti];
+  var todayMet = !!td && td.st === 'MET';
+  var met = past.filter(function (x) { return x.st === 'MET'; }).length + (todayMet ? 1 : 0);
+  var B = S.dec.streak === 'B';
+  var elapsed = B ? past.length + 1 : past.length + (todayMet ? 1 : 0);
+  var run = 0, k = ti - 1;
+  while (k >= 0 && ch.days[k].st === 'MET') { run++; k--; }
+  var streak = todayMet ? run + 1 : (B ? 0 : run);
+  var best = 0, cur = 0;
+  ch.days.forEach(function (x) { if (x.st === 'MET') { cur++; if (cur > best) best = cur; } else cur = 0; });
+  var lessons = 0, sets = 0, correct = 0;
+  ch.days.forEach(function (x) { if (x.lesson) lessons++; if (x.words) { sets++; correct += x.words.c; } });
+  return {
+    met: met, elapsed: elapsed, rate: elapsed ? Math.round(met / elapsed * 100) : null, streak: streak, next: run + 1, longest: best,
+    partial: past.filter(function (x) { return x.st === 'PARTIAL'; }).length,
+    missed: past.filter(function (x) { return x.st === 'MISSED'; }).length,
+    left: ch.len - ch.today, todayMet: todayMet, lessons: lessons, sets: sets, correct: correct
+  };
+}
+/* 오늘 할 일 상태 — 설계서 §6-1 */
+function todayTasks(v) {
+  var C3 = S.dec.prep === 'C3';
+  var L = { t0: C3 ? 'TODO' : 'READY', gen: 'GEN', busy: 'BUSY', fail: 'FAIL', t1: 'DONE', t2: 'DONE', first: C3 ? 'TODO' : 'GEN', done: 'DONE', ready: C3 ? 'TODO' : 'READY' }[v] || (C3 ? 'TODO' : 'READY');
+  var W = (v === 't2' || v === 'done' || v === 'w1') ? 'DONE' : 'TODO';
+  return { lesson: L, words: W, done: (L === 'DONE' ? 1 : 0) + (W === 'DONE' ? 1 : 0) };
+}
+/* 지난 챌린지 */
+var PAST = {
+  intro: { title: '자기소개 7일 챌린지', topic: '자기소개', start: '2026-09-21', len: 7, kind: 'COMPLETED', states: ['MET', 'MET', 'MET', 'MET', 'MET', 'MET', 'MET'], lessons: 7, sets: 7, correct: 61, prog: '기본 표현 12개 중 12개 공부 · 10개 맞힘' },
+  dir: { title: '길 묻기 14일 챌린지', topic: '길 묻기', start: '2026-09-01', len: 14, kind: 'COMPLETED', states: ['MET', 'MET', 'MET', 'MET', 'PARTIAL', 'MISSED', 'MET', 'MET', 'PARTIAL', 'MISSED', 'MET', 'MET', 'PARTIAL', 'MISSED'], lessons: 9, sets: 11, correct: 82, prog: '기본 표현 12개 중 11개 공부 · 8개 맞힘' },
+  cafe: { title: '카페 주문 7일 챌린지', topic: '카페 주문', start: '2026-10-03', len: 7, kind: 'ENDED', states: ['MET', 'MET', 'PARTIAL', 'ENDED'], lessons: 2, sets: 3, correct: 24, prog: '기본 표현 12개 중 8개 공부 · 6개 맞힘' }
+};
+function pastStats(p) {
+  var counted = p.states.filter(function (s) { return s !== 'ENDED'; });
+  var met = counted.filter(function (s) { return s === 'MET'; }).length;
+  var best = 0, cur = 0;
+  counted.forEach(function (s) { if (s === 'MET') { cur++; if (cur > best) best = cur; } else cur = 0; });
+  return { met: met, n: counted.length, rate: Math.round(met / counted.length * 100), longest: best, partial: counted.filter(function (s) { return s === 'PARTIAL'; }).length, missed: counted.filter(function (s) { return s === 'MISSED'; }).length };
+}
+
+/* 달력(10월) 기록 — 종류 글자 칩: 단 오늘의 단어 · 수 오늘의 회화 · 회 AI 회화 */
+var TYPE = { WORDS: ['단', '오늘의 단어'], LESSON: ['수', '오늘의 회화'], TALK: ['회', 'AI 회화'], REVIEW: ['복', '복습 수업'], CHAT: ['채', 'AI 채팅'] };
+function calDays(world) {
+  var m = {
+    '2026-10-01': ['WORDS'], '2026-10-02': ['TALK'], '2026-10-03': ['LESSON', 'WORDS'], '2026-10-04': ['LESSON', 'WORDS'], '2026-10-05': ['WORDS'], '2026-10-06': []
+  };
+  if (world === 'empty') return {};
+  if (world === 't1') m['2026-10-06'] = ['LESSON'];
+  if (world === 't2') m['2026-10-06'] = ['LESSON', 'WORDS'];
+  return m;
+}
+
+/* ════════ 문구 상수 ════════ */
+var GL = { MET: '✓', PARTIAL: '◐', MISSED: '✕', TODAY: '오늘', UP: '', ENDED: '–' };
+var GW = { MET: '달성', PARTIAL: '일부', MISSED: '놓침', TODAY: '오늘', UP: '예정', ENDED: '그만둠' };
+var GC = { MET: 'met', PARTIAL: 'par', MISSED: 'mis', TODAY: 'tod', UP: 'up', ENDED: 'end' };
+function tabName() { return S.dec.tab === 'B' ? '챌린지' : '계획표'; }
+
+/* ════════ 아이콘 ════════ */
+function svg(d, w, o) { o = o || {}; return '<svg width="' + w + '" height="' + w + '" viewBox="0 0 24 24" fill="' + (o.fill ? 'currentColor' : 'none') + '"' + (o.fill ? '' : ' stroke="currentColor" stroke-width="' + (o.sw || 2) + '" stroke-linecap="round" stroke-linejoin="round"') + ' aria-hidden="true">' + d + '</svg>'; }
+var IC = {
+  back: svg('<path d="M15 5l-7 7 7 7"/>', 22), left: svg('<path d="M15 5l-7 7 7 7"/>', 22), right: svg('<path d="M9 5l7 7-7 7"/>', 22),
+  close: svg('<path d="M6 6l12 12M18 6L6 18"/>', 20), close16: svg('<path d="M6 6l12 12M18 6L6 18"/>', 16),
+  dots: svg('<circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>', 20, { fill: 1 }),
+  prev: svg('<path d="M15 18l-6-6 6-6"/>', 18), star: svg('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', 18, { sw: 1.8 }),
+  skip: svg('<path d="M5 5l8 7-8 7zM16 5v14"/>', 18, { sw: 1.8 })
+};
+var TABS = [
+  ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+  ['오늘', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
+  ['PLAN', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'],
+  ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+  ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']
+];
+var TAB_GO = { 0: '', 1: 's6', 2: 's2', 3: '', 4: '' };
+
+/* ════════ 셸 조각 ════════ */
+var UID = 0, UIDP = 's';
+function uid(p) { UID++; return UIDP + p + UID; }
+function tabBar(active) {
+  return '<nav class="tabbar" aria-label="주 메뉴">' + TABS.map(function (t, i) {
+    var label = t[0] === 'PLAN' ? tabName() : t[0];
+    var go = TAB_GO[i];
+    return '<a class="tab" href="#' + (go || '') + '"' + (go ? ' data-go="' + go + '"' : ' data-act="noop"') + (i === active ? ' aria-current="page"' : '') + '>' + svg('<path d="' + t[1] + '"/>', 24, { sw: 1.8 }) + label + '</a>';
+  }).join('') + '</nav>';
+}
+function appBar(title) {
+  return '<header class="appbar"><h1 tabindex="-1">' + title + '</h1><button type="button" class="me" aria-label="설정" data-act="noop"><span>나</span></button></header>';
+}
+function backBar(o) {
+  return '<header class="bb"><a class="back" href="#' + (o.go || '') + '" aria-label="' + o.back + '"' + (o.go ? ' data-go="' + o.go + '"' : ' data-act="' + (o.act || 'noop') + '"') + '>' + IC.back + '</a><div class="bb-m"><h1 tabindex="-1">' + o.title + '</h1>' + (o.sub ? '<p>' + o.sub + '</p>' : '') + '</div>' + (o.right || '') + '</header>';
+}
+function tabApp(active, body, sheet) {
+  return '<div class="app"><div class="main" data-scroll>' + body + '</div>' + tabBar(active) + (sheet || '') + '<div class="ptoast" role="status" hidden></div></div>';
+}
+function roomApp(head, body, foot, sheet) {
+  return '<div class="app">' + head + '<div class="scr" data-scroll>' + body + '</div>' + (foot || '') + (sheet || '') + '<div class="ptoast lo" role="status" hidden></div></div>';
+}
+function sheetHtml(o) {
+  var id = uid('sh');
+  return '<div class="shw" data-sheet><div class="scrim" data-act="closeSheet" aria-hidden="true"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="' + id + '"><div class="sh-h"><h2 id="' + id + '" tabindex="-1">' + o.title + '</h2><button type="button" class="icb" aria-label="닫기" data-act="closeSheet">' + IC.close + '</button></div><div class="sh-b">' + o.body + '</div></div></div>';
+}
+function errBlock(msg, act, label) {
+  return '<div class="errb" role="alert"><p class="kk">' + msg + '</p><button type="button" data-act="' + (act || 'retry') + '">' + (label || '다시 시도') + '</button></div>';
+}
+function seg(label, opts, val, act, sm) {
+  return '<div class="seg' + (sm ? ' sm' : '') + '" role="radiogroup" aria-label="' + label + '">' + opts.map(function (o) {
+    return '<button type="button" role="radio" aria-checked="' + (String(o[0]) === String(val)) + '" data-act="' + act + '" data-v="' + o[0] + '"><span>' + o[1] + '</span></button>';
+  }).join('') + '</div>';
+}
+function g(st, cls) { return '<span class="g ' + GC[st] + ' ' + (cls || '') + '" aria-hidden="true">' + GL[st] + '</span>'; }
+
+/* ════════ 계획표 — 달력(지금 그대로 + 챌린지 칩·기간 선) ════════ */
+function calSection(o) {
+  // o.world: 't0'|'t1'|'t2'|'first'|'ended'|'plain'|'empty' · o.loading · o.chal(ch|null) · o.endedAt(일차, 그만둔 날까지만 기간 선)
+  var logs = calDays(o.world === 'empty' ? 'empty' : o.world);
+  var ch = o.chal, chMap = {};
+  if (ch) ch.days.forEach(function (x, i) { if (o.endedAt && i >= o.endedAt) return; chMap[dateOf(ch, i)] = { st: x.st, i: i + 1 }; });
+  var att = o.world === 'empty' ? {} : { '2026-10-01': 1, '2026-10-02': 1, '2026-10-03': 1, '2026-10-04': 1, '2026-10-05': 1, '2026-10-06': 1 };
+  var studyDays = Object.keys(logs).filter(function (d) { return logs[d].length; }).length;
+  var head = '<div class="mnav"><h2 aria-live="polite">2026년 10월</h2><button type="button" class="todayb" aria-disabled="true" data-act="toast" data-msg="지금 이번 달을 보고 있어요">오늘</button><button type="button" class="ib" aria-label="이전 달" data-act="toast" data-msg="데모는 10월만 그렸어요">' + IC.left + '</button><button type="button" class="ib" aria-label="다음 달" aria-disabled="true" data-act="toast" data-msg="다음 달은 아직 오지 않았어요">' + IC.right + '</button></div>';
+  var sum;
+  if (o.loading) sum = '<div class="sum3" aria-hidden="true">' + [0, 1, 2].map(function () { return '<div><span class="sk skp" style="height:22px;width:44px;margin:2px auto 4px"></span><span>&nbsp;</span></div>'; }).join('') + '</div>';
+  else sum = '<div class="sum3" role="group" aria-label="이번 달 요약"><div><b>' + Object.keys(att).length + '일</b><span>이번 달 출석</span></div><div><b>' + studyDays + '일</b><span>이번 달 공부</span></div><div><b>' + Object.keys(att).length + '일</b><span>지금 연속 출석</span></div></div>';
+  var cells = '';
+  for (var b = 0; b < 3; b++) cells += '<span class="cell blank" aria-hidden="true"></span>';
+  for (var dnum = 1; dnum <= 31; dnum++) {
+    var d = '2026-10-' + (dnum < 10 ? '0' : '') + dnum;
+    if (o.loading) { cells += '<span class="cell skc" aria-hidden="true"></span>'; continue; }
+    var t = logs[d] || [], fut = d > TODAY, isT = d === TODAY, c = chMap[d];
+    var kind = fut ? 'fut' : t.length ? 'study' : att[d] ? 'att' : 'none';
+    var marks = [];
+    if (c && !fut && (c.st === 'MET' || c.st === 'PARTIAL' || c.st === 'MISSED')) marks.push('<span class="tc cg ' + GC[c.st] + '" aria-hidden="true">' + GL[c.st] + '</span>');
+    ['LESSON', 'REVIEW', 'WORDS', 'TALK', 'CHAT'].forEach(function (k) { if (t.indexOf(k) >= 0) marks.push('<span class="tc" aria-hidden="true">' + TYPE[k][0] + '</span>'); });
+    if (marks.length > 3) marks = marks.slice(0, 3).concat(['<span class="tc more" aria-hidden="true">+' + (marks.length - 3) + '</span>']);
+    var lab = [md(d) + ' ' + wd(d) + '요일'];
+    if (isT) lab.push('오늘');
+    lab.push(fut ? '아직 오지 않은 날' : att[d] ? '출석' : '출석 안 함');
+    if (t.length) lab.push('공부 ' + t.length + '가지: ' + t.map(function (k) { return TYPE[k][1]; }).join(', '));
+    if (c) lab.push('챌린지 ' + c.i + '일째 ' + (o.endedAt && c.i === o.endedAt ? '그만둔 날' : c.st === 'UP' ? '예정' : c.st === 'TODAY' ? '진행 중' : GW[c.st]));
+    var inner = '<span class="n" aria-hidden="true">' + dnum + '</span>' + (marks.length ? '<span class="mk" aria-hidden="true">' + marks.join('') + '</span>' : (kind === 'att' ? '<span class="adot" aria-hidden="true"></span>' : '')) + (c ? '<i class="band" aria-hidden="true"></i>' : '');
+    var cls = 'cell ' + (kind === 'study' ? 'study' : kind === 'fut' ? 'fut' : kind === 'none' ? 'none' : '') + (isT ? ' today' : '');
+    if (fut) cells += '<span class="' + cls + '">' + inner + '<span class="sr">' + lab.join(', ') + '</span></span>';
+    else cells += '<button type="button" class="' + cls + '" aria-label="' + lab.join(', ') + '" aria-haspopup="dialog"' + (isT ? ' aria-current="date"' : '') + ' data-act="openDay" data-d="' + d + '" data-fid="cal-' + d + '">' + inner + '</button>';
+  }
+  var grid = '<div class="wkh" aria-hidden="true">' + ['월', '화', '수', '목', '금', '토', '일'].map(function (w) { return '<span>' + w + '</span>'; }).join('') + '</div><div class="cal" role="group" aria-label="2026년 10월 달력"' + (o.loading ? ' aria-busy="true"' : '') + '>' + cells + '</div>' + (o.loading ? '<p role="status" class="sr">2026년 10월 달력을 불러오는 중…</p>' : '');
+  var note = o.world === 'empty' && !o.loading ? '<div class="mnote"><p class="kk" style="font-size:15px;font-weight:600">아직 이번 달 공부 기록이 없어요</p><p class="c13 mt4 kk">오늘 탭에서 단어 10장부터 시작해 보세요. 끝내면 여기 달력에 바로 표시돼요.</p><a class="btn ghost mt8" href="#s6" data-go="s6.none" style="height:44px;font-size:14px">오늘 탭으로</a></div>' : '';
+  var lg = '<ul class="legend" aria-label="달력 표시 설명">' +
+    '<li><span class="tc" aria-hidden="true">단</span>오늘의 단어</li><li><span class="tc" aria-hidden="true">수</span>오늘의 회화</li><li><span class="tc" aria-hidden="true">회</span>AI 회화</li>' +
+    '<li><span class="adot" style="margin-top:0" aria-hidden="true"></span>출석만 한 날</li><li><span class="ltd" aria-hidden="true"></span>오늘</li>' +
+    (ch ? '<li><span class="lband" aria-hidden="true"></span>챌린지 기간</li><li><span class="tc cg met" aria-hidden="true">✓</span>목표 달성</li><li><span class="tc cg par" aria-hidden="true">◐</span>일부만</li><li><span class="tc cg mis" aria-hidden="true">✕</span>놓침</li>' : '') + '</ul>';
+  return '<section class="sec" aria-label="달력" style="margin-top:' + (o.top ? '0' : '18px') + '">' + head + sum + grid + note + lg + '</section>';
+}
+function growCard() {
+  return '<section class="grow" aria-label="분석 · 성장 기록"><div style="min-width:0"><h2>분석 · 성장 기록</h2><p class="kk">선생님이 기록을 보고 공부 계획을 제안하고, 평가 점수와 교정이 어떻게 달라졌는지 보여 드려요.</p></div><span class="bdg on2">곧 열려요</span></section>';
+}
+
+/* ── 챌린지 현황 카드(S2) ── */
+function taskRows(v, ctx) {
+  var T = todayTasks(v);
+  var wordsRow, lessonRow;
+  var wc = S.s3.count || 10;
+  if (T.words === 'DONE') wordsRow = row('done', '주제 단어 10장', '끝냈어요 · 10장 중 8장 맞힘', '', null);
+  else wordsRow = row('todo', '주제 단어 10장', '아직 안 했어요 · 약 3분', '하러 가기', 's6.' + (v === 't1' ? 't1' : 'ready'));
+  var L = T.lesson;
+  if (L === 'DONE') lessonRow = row('done', '오늘의 회화', '끝냈어요 · 수업 80점', '', null);
+  else if (L === 'READY') lessonRow = row('todo', '오늘의 회화', '수업이 준비됐어요 · 약 15분', '하러 가기', 's6.ready');
+  else if (L === 'GEN') lessonRow = row('wait', '오늘의 회화', '수업을 만들고 있어요 · 보통 1~2분', '보기', 's6.gen');
+  else if (L === 'BUSY') lessonRow = row('todo', '오늘의 회화', '다른 수업을 만드는 중이에요 · 다 되면 만들 수 있어요', '보기', 's6.busy');
+  else if (L === 'FAIL') lessonRow = row('fail', '오늘의 회화', '수업을 만들지 못했어요 · 다시 만들 수 있어요', '보기', 's6.fail');
+  else lessonRow = row('todo', '오늘의 회화', '아직 안 만들었어요 · 만드는 데 1~2분', '만들러 가기', 's6.ready');
+  return '<ul class="tasks" aria-label="오늘 할 일">' + wordsRow + lessonRow + '</ul>';
+  function row(st, t, s, go, target) {
+    var ic = st === 'done' ? '<span class="tk g met" aria-hidden="true">✓</span>' : st === 'wait' ? '<span class="tk wait" aria-hidden="true"><span class="spin"></span></span>' : st === 'fail' ? '<span class="tk fail" aria-hidden="true">!</span>' : '<span class="tk todo" aria-hidden="true"></span>';
+    var sr = '<span class="sr">' + (st === 'done' ? '끝냄: ' : st === 'fail' ? '문제 있음: ' : '할 일: ') + '</span>';
+    var inner = ic + '<span class="tt">' + sr + '<b>' + t + '</b><span>' + s + '</span></span>' + (go ? '<span class="go">' + go + '<span aria-hidden="true"> ›</span></span>' : '<span class="go muted"></span>');
+    return '<li>' + (target ? '<a class="task" href="#' + target + '" data-go="' + target + '">' + inner + '</a>' : '<div class="task">' + inner + '</div>') + '</li>';
+  }
+}
+function statTiles(ch, m, flat) {
+  var B = S.dec.streak === 'B';
+  var rate = m.rate === null ? '<b>–</b><span class="l">달성률</span><span class="s">오늘 채우면 생겨요</span>' : '<b>' + m.rate + '%</b><span class="l">달성률</span><span class="s">' + m.elapsed + '일 중 ' + m.met + '일</span>';
+  var stk = '<b>' + m.streak + '일</b><span class="l">수행 연속</span><span class="s">' + (m.todayMet ? '오늘까지 이어졌어요' : '오늘 하면 ' + m.next + '일') + '</span>';
+  if (ch.first) stk = '<b>–</b><span class="l">수행 연속</span><span class="s">오늘 하면 1일</span>';
+  return '<div class="st2"><div class="stt' + (flat ? ' on' : '') + '">' + rate + '</div><div class="stt' + (flat ? ' on' : '') + '">' + stk + '</div></div>' + (B && !m.todayMet && !ch.first ? '<p class="note1 kk">오늘도 날 수에 넣어요 — 오늘 목표를 채우면 달성률이 올라가요.</p>' : '');
+}
+function pips(ch) {
+  var m = metrics(ch);
+  var cells = ch.days.map(function (x, i) {
+    var st = x.st;
+    var txt = st === 'TODAY' ? '오늘' : st === 'UP' ? String(i + 1) : GL[st];
+    return '<span class="pip g ' + GC[st] + '">' + txt + '</span>';
+  }).join('');
+  var sum = ch.first ? '오늘이 첫날이에요 · 남은 날 6일' : '달성 ' + m.met + '일 · 일부 ' + m.partial + '일' + (m.missed ? ' · 놓침 ' + m.missed + '일' : '') + ' · 남은 날 ' + m.left + '일';
+  return '<div class="pips" aria-hidden="true">' + cells + '</div><p class="pipsum">' + sum + '</p>';
+}
+function chCard(v) {
+  var ch = chal(v), m = metrics(ch), T = todayTasks(v);
+  var hid = uid('cc');
+  var end = addD(ch.start, ch.len - 1);
+  var met = T.done === 2;
+  var banner = met ? '<div class="gm mt12" role="status"><span class="g solid" aria-hidden="true">✓</span><p class="tx"><b>오늘 목표 달성!</b>수행 연속 ' + m.streak + '일째예요. 내일도 이어 가요.</p></div>' : '';
+  var busyNote = v === 'busy' ? '<p class="note1 kk">자기소개 수업을 만드는 중이라 챌린지 수업은 그 뒤에 만들 수 있어요.</p>' : '';
+  return '<section class="card acc" aria-labelledby="' + hid + '">' +
+    '<div class="ch-top"><p class="eyb">챌린지 · <b class="num">' + ch.today + '일째</b> / ' + ch.len + '일</p><a class="lnk" href="#s4" data-go="s4.' + (v === 'first' ? 'first' : 'normal') + '">자세히<span aria-hidden="true"> ›</span></a></div>' +
+    '<h2 class="ch-t" id="' + hid + '">' + ch.title + '</h2>' +
+    '<p class="ch-s"><span lang="ja">' + TOPIC.ja + '</span> · ' + TOPIC.level + ' · ' + md(ch.start) + ' ~ ' + md(end) + '</p>' +
+    pips(ch) + banner +
+    '<h3 class="h3s">오늘 할 일 <span class="num">' + T.done + ' / 2</span></h3>' + taskRows(v) + busyNote +
+    statTiles(ch, m) +
+    '</section>';
+}
+function startCard(o) {
+  var hid = uid('sc');
+  var past = o.past ? '<a class="ulink" href="#s8" data-go="s8.list">지난 챌린지 2개 보기</a>' : '';
+  return '<section class="card" aria-labelledby="' + hid + '"><p class="eyb">챌린지</p><h2 class="ch-t mt2" id="' + hid + '">주제 하나로 매일 조금씩</h2>' +
+    '<p class="c13 mt4 kk">주제를 하나 고르고 7·14·30일 중 기간을 정하면, 매일 그 주제로 오늘의 회화와 주제 단어가 준비돼요. 얼마나 잘 하고 있는지는 여기서 보여 드려요.</p>' +
+    '<div class="xcs" aria-label="하루 목표 예시"><span class="bdg">하루 목표</span><span class="bdg on2" style="box-shadow:inset 0 0 0 1px var(--line)">오늘의 회화 1개</span><span class="bdg on2" style="box-shadow:inset 0 0 0 1px var(--line)">주제 단어 1세트</span></div>' +
+    '<a class="btn primary full mt12" href="#s3" data-go="s3.step1" data-fid="start">챌린지 시작</a>' + past + '</section>';
+}
+function endedCard() {
+  var p = PAST.cafe, st = pastStats(p), hid = uid('ec');
+  return '<section class="card" aria-labelledby="' + hid + '"><p class="eyb">챌린지 · 오늘 그만둠</p><h2 class="ch-t mt2" id="' + hid + '">' + p.title + '</h2>' +
+    '<p class="c13 mt4 kk">지난 ' + st.n + '일 중 ' + st.met + '일 달성 · 최장 연속 ' + st.longest + '일 · 기록은 그대로 남아요</p>' +
+    '<div class="btnrow"><a class="btn primary" href="#s3" data-act="retry409" data-fid="again">다시 도전</a><a class="btn ghost" href="#s8" data-go="s8.ended">결과 보기</a></div>' +
+    '<a class="ulink" href="#s3" data-go="s3.step1">다른 주제로 시작</a></section>';
+}
+function skelCard(h) { return '<div class="card" aria-hidden="true"><span class="sk skp" style="height:14px;width:40%"></span><span class="sk skp mt8" style="height:20px;width:70%"></span><span class="sk skp mt12" style="height:' + (h || 180) + 'px"></span></div><p role="status" class="sr">챌린지를 불러오는 중…</p>'; }
+
+function planScreen(o) {
+  // o.v · o.ia · o.cur(지금 화면) · o.mini
+  var v = o.v, ia = o.ia || S.dec.ia;
+  if (o.cur) {
+    var cw = (o.scr === 's1' && v === 'empty') ? 'empty' : 'plain';
+    return tabApp(2, appBar('계획표') + '<div class="pad">' + calSection({ world: cw, top: true, loading: v === 'loading' }) + growCard() + '</div>');
+  }
+  var top, world, chObj = null, endedAt = 0;
+  if (o.scr === 's1') {
+    world = v === 'empty' ? 'empty' : 'plain';
+    if (v === 'loading') top = skelCard(150);
+    else if (v === 'error') top = '<section class="card" aria-label="챌린지">' + errBlock('<b>챌린지를 불러오지 못했어요.</b> 달력은 그대로 볼 수 있어요.') + '</section>';
+    else if (v === 'ended') { top = endedCard(); chObj = chal('t0'); endedAt = 4; world = 't0'; }
+    else top = startCard({ past: v === 'normal' });
+  } else {
+    world = v === 'first' ? 'empty' : (v === 't1' || v === 't2') ? v : 't0';
+    if (v === 'loading') top = skelCard(300);
+    else if (v === 'error') top = '<section class="card" aria-label="챌린지">' + errBlock('<b>챌린지를 불러오지 못했어요.</b> 달력과 기록은 그대로 볼 수 있어요.') + '</section>';
+    else top = chCard(v);
+    if (v !== 'loading' && v !== 'first') chObj = chal(v === 't1' || v === 't2' ? v : 't0');
+    if (v === 'first') { chObj = chal('first'); world = 'firstw'; }
+  }
+  var cal = calSection({ world: world === 'firstw' ? 'plain' : world, loading: v === 'loading', chal: chObj, endedAt: endedAt, top: ia === 'F3' });
+  var title = tabName();
+  var sheet = '';
+  if (o.scr === 's2' && v === 'sheet' && !o.mini) sheet = calDaySheet(S.sheet && S.sheet.d ? S.sheet.d : '2026-10-05');
+  else if (S.sheet && S.sheet.kind === 'cal' && !o.mini) sheet = calDaySheet(S.sheet.d);
+  var body;
+  if (ia === 'F2') {
+    var tab = o.mini ? 'ch' : S.f2tab;
+    var tabs = '<div class="seg" role="tablist" aria-label="' + title + ' 보기">' + [['ch', '챌린지'], ['cal', '달력'], ['grow', '성장 기록']].map(function (t) { return '<button type="button" role="tab" aria-selected="' + (tab === t[0]) + '" data-act="f2tab" data-v="' + t[0] + '"><span>' + t[1] + '</span></button>'; }).join('') + '</div>';
+    var content = tab === 'ch' ? top : tab === 'cal' ? cal : '<div class="sec">' + growCard() + '</div>';
+    body = appBar(title) + '<div class="pad">' + tabs + '<div class="mt12" role="tabpanel">' + content + '</div></div>';
+  } else if (ia === 'F3') {
+    body = appBar(title) + '<div class="pad">' + cal + '<div class="sec">' + top + '</div></div>';
+  } else {
+    body = appBar(title) + '<div class="pad">' + top + cal + growCard() + '</div>';
+  }
+  return tabApp(2, body, sheet);
+}
+
+/* ── 달력 하루 시트(지금 그대로 + 챌린지 한 줄) ── */
+function calDaySheet(d) {
+  var ch = chal('t0'), i = Math.round((Date.parse(d) - Date.parse(ch.start)) / 864e5), day = (i >= 0 && i < ch.len) ? ch.days[i] : null;
+  var logs = [];
+  if (d === '2026-10-01') logs.push(['단', '오늘의 단어 10장 중 9장 맞힘', '오후 9:30 · 2분 50초']);
+  if (d === '2026-10-02') logs.push(['회', 'AI 회화 · 주말 이야기', '오후 8:15 · 메시지 12개 · 교정 2건']);
+  if (day && day.lesson) logs.push(['수', '오늘의 회화 「카페 주문」 · ' + day.lesson.s + '점', day.lesson.at + ' · 14분']);
+  if (day && day.words) logs.push(['단', '주제 단어 「카페 주문」 10장 중 ' + day.words.c + '장 맞힘', day.words.at + ' · 3분 10초']);
+  var line = '';
+  if (day) {
+    var st = day.st;
+    var txt = st === 'MET' ? '목표 달성 · ' + day.met + '에 다 채웠어요' : st === 'PARTIAL' ? '일부만 했어요 · 하루 목표 2개 중 1개' : st === 'TODAY' ? '오늘 · 아직 진행 중이에요' : '예정';
+    line = '<a class="gm' + (st === 'MET' ? '' : ' part') + ' mt10" href="#s5" data-act="openChDay" data-i="' + i + '" data-fid="calch" style="text-decoration:none"><span class="g ' + GC[st] + '" aria-hidden="true">' + (st === 'TODAY' ? '·' : GL[st]) + '</span><span class="tx"><b>챌린지 ' + (i + 1) + '일째 — ' + GW[st] + '</b>' + txt + '</span><span class="go">챌린지<span aria-hidden="true"> ›</span></span></a>';
+  }
+  var list = logs.length ? logs.map(function (l) { return '<div class="lg"><span class="tcl" aria-hidden="true">' + l[0] + '</span><a href="#" data-act="toast" data-msg="원본 화면으로 가요(지금 그대로)"><b>' + l[1] + '</b><span class="m">' + l[2] + '</span></a><button type="button" class="icb" aria-label="기록 메뉴" data-act="toast" data-msg="기록 메뉴 — 지워도 챌린지 달성은 그대로예요">' + IC.dots + '</button></div>'; }).join('') : '<p class="c13 mt12">이날은 기록이 없어요.</p>';
+  var body = '<div class="dayl"><p>출석 · 기록 ' + logs.length + '개</p><button type="button" class="ib" aria-label="전날" data-act="calStep" data-v="-1" data-d="' + d + '">' + IC.left + '</button><button type="button" class="ib" aria-label="다음 날" data-act="calStep" data-v="1" data-d="' + d + '"' + (d >= TODAY ? ' aria-disabled="true"' : '') + '>' + IC.right + '</button></div>' + line + '<div class="mt8">' + list + '</div>' +
+    (day ? '<p class="c12 mt12 kk">기록을 지워도 챌린지 달성·통계는 그대로예요.</p>' : '');
+  return sheetHtml({ title: mdw(d), body: body });
+}
+
+/* ════════ S3 챌린지 만들기 ════════ */
+function createScreen(o) {
+  var v = o.v, s = S.s3;
+  var step = v.indexOf('step') === 0 ? Number(v.slice(4)) : (v === 'tload' || v === 'tempty' || v === 'terr') ? 1 : v === 'nogoal' ? 3 : 4;
+  var names = ['주제', '기간', '목표', '확인'];
+  var steps = '<ol class="steps" aria-label="챌린지 만들기 4단계">' + names.map(function (n, i) {
+    var k = i + 1, cls = k === step ? 'cur' : k < step ? 'done' : '';
+    return '<li class="stp ' + cls + '"' + (k === step ? ' aria-current="step"' : '') + '><span class="c" aria-hidden="true">' + (k < step ? '✓' : k) + '</span><span>' + n + '</span><span class="sr">' + (k < step ? ' 끝냄' : k === step ? ' 지금 단계' : '') + '</span></li>';
+  }).join('') + '</ol>';
+  var startD = s.start === 'TODAY' ? TODAY : addD(TODAY, 1);
+  var lens = S.dec.period === 'B' ? [7, 14, 21, 30] : [7, 14, 30];
+  var body = '', foot = '', note = '';
+  var nextLabel = step === 4 ? '챌린지 시작' : '다음';
+  var topic = TOPICS.filter(function (t) { return t.id === s.topic; })[0] || TOPICS[0];
+  if (step === 1) {
+    var list;
+    if (v === 'tload') list = '<p role="status" class="sr">주제를 불러오는 중…</p><div class="ropts" aria-hidden="true">' + [0, 1, 2, 3].map(function () { return '<span class="sk skp" style="height:86px;border-radius:14px"></span>'; }).join('') + '</div>';
+    else if (v === 'terr') list = '<div class="mt10">' + errBlock('주제를 불러오지 못했어요.') + '</div>';
+    else if (v === 'tempty') list = '<div class="emptyb mt10 kk">고를 수 있는 주제가 없어요. 오늘 탭에서 문장을 붙여넣어 수업을 먼저 해 보세요.</div>';
+    else list = '<div class="ropts">' + TOPICS.map(function (t) {
+      var on = t.id === s.topic;
+      var prev = on ? '<div class="xcs" aria-label="이 주제 표현 미리 보기">' + [X[0], X[1], X[3]].map(function (x) { return '<span class="xc"><span lang="ja" class="' + fuc(x.ja).trim() + '">' + rb(x.ja) + '</span>' + hgI(x.h) + '</span>'; }).join('') + '<span class="xc" style="background:none;padding-left:2px"><span class="m">외 9개 · 수업하면 늘어나요</span></span></div>' : '';
+      return '<label class="ropt' + (on ? ' on' : '') + '"><input type="radio" name="s3topic" value="' + t.id + '" data-act="s3topic"' + (on ? ' checked' : '') + '><span class="rdot" aria-hidden="true">✓</span><span class="rbody"><span class="t">' + t.title + ' <span lang="ja">' + t.ja + '</span></span><span class="d kk">' + t.d + '</span><span class="m' + (t.m ? '' : ' new') + '">' + (t.m || '아직 수업하지 않았어요') + ' · 표현 ' + t.n + '개</span>' + (on && t.id === 'cafe' ? prev : '') + '</span><span class="rside"><span class="bdg">' + t.level + '</span></span></label>';
+    }).join('') + '</div>';
+    body = '<fieldset><legend class="kk">어떤 주제로 할까요?</legend><p class="c13 mt4 kk">내 수준(N5)과 한 단계 위(N4) 주제를 보여 드려요. 챌린지 동안 매일 이 주제로 공부해요.</p>' + list + '</fieldset>';
+    if (v === 'tload' || v === 'terr' || v === 'tempty') foot = '<div class="actbar"><button type="button" class="btn primary full" aria-disabled="true" data-act="toast" data-msg="주제를 먼저 골라 주세요">다음</button></div>';
+  } else if (step === 2) {
+    body = '<fieldset><legend>며칠 동안 할까요?</legend><p class="c13 mt4 kk">' + (s.start === 'TODAY' ? '오늘' : '내일') + ' 시작하면 끝나는 날이에요. 기간은 시작한 뒤 바꿀 수 없어요.</p><div class="ropts">' + lens.map(function (n) {
+      var on = n === s.len, endD = addD(startD, n - 1);
+      var lab = { 7: '한 주 — 처음이라면 추천', 14: '두 주', 21: '세 주', 30: '한 달' }[n];
+      return '<label class="ropt' + (on ? ' on' : '') + '"><input type="radio" name="s3len" value="' + n + '" data-act="s3len"' + (on ? ' checked' : '') + '><span class="rdot" aria-hidden="true">✓</span><span class="rbody"><span class="t">' + n + '일</span><span class="d">' + lab + '</span><span class="m">' + mdw(startD) + ' ~ ' + mdw(endD) + '</span></span></label>';
+    }).join('') + '</div></fieldset>';
+  } else if (step === 3) {
+    var noGoal = !s.lesson && !s.words;
+    var counts = [5, 10, 15, 20, 30].map(function (n) { return [n, n + '장']; });
+    body = '<fieldset><legend>하루에 무엇을 할까요?</legend><p class="c13 mt4 kk">고른 것을 다 끝낸 날이 ‘달성’이에요. 하나만 골라도 돼요.</p><div class="ropts">' +
+      '<label class="ropt' + (s.lesson ? ' on' : '') + '"><input type="checkbox" data-act="s3goal" data-k="lesson"' + (s.lesson ? ' checked' : '') + '><span class="rdot sq" aria-hidden="true">✓</span><span class="rbody"><span class="t">오늘의 회화 1개</span><span class="d kk">' + topic.title + ' 수업을 하루 1개 끝내요 · 약 15분</span><span class="m kk">' + (S.dec.prep === 'C3' ? '오늘 탭에서 [수업 만들기]를 누르면 만들어요(1~2분).' : S.dec.prep === 'C1' ? '매일 아침 미리 만들어 둬요.' : '그날 앱을 처음 열 때 미리 만들어 둬요.') + '</span></span></label>' +
+      '<label class="ropt' + (s.words ? ' on' : '') + '"><input type="checkbox" data-act="s3goal" data-k="words"' + (s.words ? ' checked' : '') + '><span class="rdot sq" aria-hidden="true">✓</span><span class="rbody"><span class="t">주제 단어 1세트</span><span class="d kk">' + topic.title + ' 표현 카드를 넘기며 뜻을 맞혀요</span></span></label>' +
+      '</div></fieldset>' +
+      (s.words ? '<p class="subl" id="s3cnt">한 세트 장수 · 기본은 설정의 하루 단어 수(10장)</p>' + seg('한 세트 장수', counts, s.count, 's3count', true) : '') +
+      '<p class="subl">시작하는 날</p>' + seg('시작하는 날', [['TODAY', '오늘 · ' + mdw(TODAY)], ['TOMORROW', '내일 · ' + mdw(addD(TODAY, 1))]], s.start, 's3start') +
+      (s.start === 'TODAY' && S.dec.attr === 'A' ? '<p class="note1 kk">오늘 이미 이 주제로 끝낸 수업·단어가 있으면 오늘 기록으로 바로 들어가요.</p>' : '');
+    if (noGoal) note = '<p class="acterr" role="alert">하루 목표를 하나 이상 골라 주세요.</p>';
+  } else {
+    var endD2 = addD(startD, s.len - 1);
+    var goal = [s.lesson ? '오늘의 회화 1개' : '', s.words ? '주제 단어 ' + s.count + '장' : ''].filter(Boolean).join(' + ');
+    var nameRow = S.dec.title === 'B' ? '<dd><label class="sr" for="s3name">챌린지 이름</label><input class="inp" id="s3name" value="' + esc(s.name) + '" maxlength="40"><span class="c12">40자까지 · 비우면 ‘' + topic.title + ' ' + s.len + '일 챌린지’</span></dd>' : '<dd><b>' + topic.title + ' ' + s.len + '일 챌린지</b></dd>';
+    var rules = S.dec.attr === 'B' ?
+      ['챌린지 화면의 [하러 가기]로 시작한 공부만 세요.', '하루 목표를 다 채운 날이 ‘달성’, 하나만 한 날은 ‘일부’예요.', '진행 중인 챌린지는 하나뿐이에요. 바꾸려면 그만두고 새로 시작해요.', '자정이 지나 끝낸 수업은 다음 날로 세요.'] :
+      ['같은 주제면 오늘 탭 어디서 공부해도 세요.', '하루 목표를 다 채운 날이 ‘달성’, 하나만 한 날은 ‘일부’예요.', '진행 중인 챌린지는 하나뿐이에요. 바꾸려면 그만두고 새로 시작해요.', '자정이 지나 끝낸 수업은 다음 날로 세요.'];
+    if (S.dec.multi === 'B') rules[2] = '챌린지는 여러 개 함께 할 수 있고, 잠시 멈추거나 목표를 바꿀 수 있어요.';
+    body = '<h2 class="h2s">이렇게 시작할까요?</h2><div class="card mt10"><dl class="dl"><dt>이름</dt>' + nameRow + '<dt>주제</dt><dd>' + topic.title + ' <span lang="ja" class="c13">' + topic.ja + '</span> · ' + topic.level + '</dd><dt>기간</dt><dd>' + mdw(startD) + ' ~ ' + mdw(endD2) + ' · ' + s.len + '일</dd><dt>하루 목표</dt><dd>' + (goal || '—') + '</dd></dl></div>' +
+      '<h3 class="h3s">' + (s.start === 'TODAY' ? '오늘' : '내일') + ' 할 일 <span>1일째</span></h3><ul class="tasks">' +
+      (s.words ? '<li><div class="task"><span class="tk todo" aria-hidden="true"></span><span class="tt"><b>주제 단어 ' + s.count + '장</b><span>' + topic.title + ' 표현 카드</span></span><span></span></div></li>' : '') +
+      (s.lesson ? '<li><div class="task"><span class="tk todo" aria-hidden="true"></span><span class="tt"><b>오늘의 회화</b><span>' + topic.title + ' 수업 · ' + (S.dec.prep === 'C3' ? '오늘 탭에서 만들어요' : '시작하면 바로 만들기 시작해요') + '</span></span><span></span></div></li>' : '') + '</ul>' +
+      '<h3 class="h3s">이렇게 세요</h3><ul class="rules mt4">' + rules.map(function (r) { return '<li class="kk">' + r + '</li>'; }).join('') + '</ul>';
+    if (v === 'fail') note = '<p class="acterr" role="alert">챌린지를 만들지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>';
+    if (v === 'c409') body = '<div class="errb" role="alert" style="background:var(--surface2);color:var(--ink)"><p style="font-size:15px;font-weight:700">이미 진행 중인 챌린지가 있어요</p><p class="mt4 kk">「카페 주문 7일 챌린지」 4일째예요. 챌린지는 한 번에 하나만 할 수 있어요. 새로 시작하려면 그 챌린지를 그만둔 뒤 다시 만들어 주세요.</p><div class="btnrow"><a class="btn primary" href="#s4" data-go="s4.normal">진행 중 챌린지 보기</a><a class="btn ghost" href="#s2" data-go="s2.t0">계획표로</a></div></div>' + '<div class="mt14" style="opacity:.5" aria-hidden="true">' + body + '</div>';
+    if (v === 'c404') body = '<div class="errb" role="alert"><p style="font-size:15px;font-weight:700">이 주제를 찾을 수 없어요</p><p class="mt4 kk">주제가 지워졌거나 바뀌었어요. 주제를 다시 골라 주세요.</p><button type="button" data-go="s3.step1" data-act="go">주제 다시 고르기</button></div>';
+  }
+  if (!foot) {
+    var dis = (step === 3 && !s.lesson && !s.words) || v === 'c409' || v === 'c404';
+    var busy = v === 'busy';
+    foot = '<div class="actbar">' + note + '<button type="button" class="btn primary full" data-act="s3next" data-step="' + step + '"' + (dis ? ' aria-disabled="true"' : '') + (busy ? ' aria-busy="true"' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span>시작하는 중…' : nextLabel) + '</button></div>';
+  }
+  var head = backBar({ back: step === 1 ? '계획표로' : '이전 단계로', go: step === 1 ? 's1.normal' : 's3.step' + (step - 1), title: '챌린지 만들기', sub: step + ' / 4 · ' + names[step - 1] });
+  return roomApp(head + steps, '<div class="pad2">' + body + '</div>', foot);
+}
+
+/* ════════ S4 챌린지 상세 ════════ */
+function strip(ch, opts) {
+  opts = opts || {};
+  return '<div class="strip" role="group" aria-label="날짜별 결과">' + ch.days.map(function (x, i) {
+    var d = dateOf(ch, i), st = x.st;
+    var lab = mdw(d) + ', ' + (i + 1) + '일째, ' + (st === 'TODAY' ? '오늘, 진행 중' : st === 'UP' ? '예정' : st === 'ENDED' ? '그만둔 날' : GW[st]);
+    return '<button type="button" class="sday ' + GC[st] + '" aria-label="' + lab + '" aria-haspopup="dialog" data-act="openChDay" data-i="' + i + '" data-src="' + (opts.src || 'cur') + '" data-fid="sd-' + i + '"><span class="d" aria-hidden="true">' + (opts.month ? Number(d.slice(5, 7)) + '/' + Number(d.slice(8)) : dsh(d)) + '</span><span class="g ' + GC[st] + '" aria-hidden="true">' + (st === 'TODAY' ? '·' : st === 'UP' ? '' : GL[st]) + '</span><span class="w" aria-hidden="true">' + GW[st] + '</span></button>';
+  }).join('') + '</div><ul class="slg" aria-label="날짜 표시 설명"><li>' + g('MET') + '달성</li><li>' + g('PARTIAL') + '일부</li><li>' + g('MISSED') + '놓침</li>' +
+    (has('TODAY') ? '<li><span class="g tod" aria-hidden="true" style="width:18px;height:18px"></span>오늘</li>' : '') +
+    (has('UP') ? '<li><span class="g up" aria-hidden="true" style="width:18px;height:18px"></span>예정</li>' : '') +
+    (has('ENDED') ? '<li><span class="g end" aria-hidden="true">–</span>그만둔 날</li>' : '') + '</ul>';
+  function has(st) { return ch.days.some(function (x) { return x.st === st; }); }
+}
+function scoreChart(ch) {
+  var cols = ch.days.map(function (x, i) {
+    var inner;
+    if (x.lesson || x.words) {
+      inner = '<div class="cbars">' + (x.lesson ? '<span class="cbar ls" style="height:' + x.lesson.s + 'px"><i>' + x.lesson.s + '</i></span>' : '<span class="cnone">—</span>') + (x.words ? '<span class="cbar wd" style="height:' + Math.round(x.words.c / (x.words.c + x.words.w) * 100) + 'px"><i>' + Math.round(x.words.c / (x.words.c + x.words.w) * 100) + '</i></span>' : '<span class="cnone">—</span>') + '</div>';
+    } else inner = '<span class="cnone">' + (x.st === 'TODAY' ? '오늘' : x.st === 'UP' ? '' : '—') + '</span>';
+    return '<div class="ccol">' + inner + '</div>';
+  }).join('');
+  var xl = ch.days.map(function (x, i) { return '<span>' + (i + 1) + '일째</span>'; }).join('');
+  var rows = ch.days.map(function (x, i) {
+    if (x.st === 'UP') return '';
+    return '<tr><th scope="row">' + (i + 1) + '일째 ' + md(dateOf(ch, i)) + '</th><td>' + (x.lesson ? x.lesson.s + '점' : '없음') + '</td><td>' + (x.words ? Math.round(x.words.c / (x.words.c + x.words.w) * 100) + '% (' + x.words.c + '/' + (x.words.c + x.words.w) + ')' : '없음') + '</td></tr>';
+  }).join('');
+  return '<div class="chart" aria-hidden="true">' + cols + '</div><div class="cx" aria-hidden="true">' + xl + '</div><ul class="clg" aria-hidden="true"><li><i class="ls"></i>수업 점수(100점)</li><li><i class="wd"></i>단어 정답률(%)</li></ul>' +
+    '<table class="sr"><caption>날짜별 수업 점수와 단어 정답률</caption><thead><tr><th scope="col">날</th><th scope="col">수업 점수</th><th scope="col">단어 정답률</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+function exprChips(after) {
+  return '<div class="xcs">' + X.map(function (x) {
+    var st = x.st;
+    if (after && (x.ja === 'ケーキ')) st = 'ok';
+    if (after && (x.ja === '甘{あま}いです')) st = 'seen';
+    var mark = st === 'ok' ? '<span class="xs" aria-hidden="true">✓</span>' : st === 'seen' ? '<span class="xs" aria-hidden="true">•</span>' : '';
+    var sr = '<span class="sr">' + (st === 'ok' ? '맞힘: ' : st === 'seen' ? '공부함: ' : '아직: ') + '</span>';
+    return '<span class="xc ' + st + '">' + sr + mark + '<span lang="ja" class="' + fuc(x.ja).trim() + '">' + rb(x.ja) + '</span>' + hgI(x.h) + '<span class="m">' + x.ko + '</span></span>';
+  }).join('') + '</div><p class="xlg"><span>✓ 맞힌 적 있음</span><span>• 공부만 함</span><span>점선 = 아직</span></p>';
+}
+function topicProg(after) {
+  var st = after ? 10 : 8, ok = after ? 7 : 6;
+  return '<div class="bars2"><div class="bar2"><p class="r"><span>공부한 표현</span><b>' + st + ' / 12' + (after ? ' (+2)' : '') + '</b></p><div class="t" aria-hidden="true"><i style="width:' + Math.round(st / 12 * 100) + '%"></i></div></div><div class="bar2 ok"><p class="r"><span>맞힌 표현</span><b>' + ok + ' / 12' + (after ? ' (+1)' : '') + '</b></p><div class="t" aria-hidden="true"><i style="width:' + Math.round(ok / 12 * 100) + '%"></i></div></div></div><p class="c125 mt8 kk">수업에서 더 만난 표현 +5 · 이 주제로 끝낸 수업 3개(챌린지 전 1개 포함)</p>';
+}
+function detailScreen(o) {
+  var v = o.v;
+  var head = backBar({ back: '계획표로', go: 's2.t0', title: v === 'first' ? '카페 주문 7일 챌린지' : '카페 주문 7일 챌린지', sub: v === 'first' ? '1일째 / 7일 · 10월 6일 ~ 10월 12일' : '4일째 / 7일 · 10월 3일 ~ 10월 9일' });
+  if (v === 'loading') return roomApp(backBar({ back: '계획표로', go: 's2.t0', title: '챌린지' }), '<div class="pad2">' + skelCard(120) + '<span class="sk skp mt14" style="height:90px" aria-hidden="true"></span><span class="sk skp mt14" style="height:140px" aria-hidden="true"></span></div>');
+  if (v === 'error') return roomApp(backBar({ back: '계획표로', go: 's2.t0', title: '챌린지' }), '<div class="pad2">' + errBlock('<b>챌린지를 불러오지 못했어요.</b> 잠시 뒤 다시 시도해 주세요.') + '</div>');
+  if (v === 'nf') return roomApp(backBar({ back: '계획표로', go: 's2.t0', title: '챌린지' }), '<div class="pad2"><div class="infob" role="alert"><p class="t">챌린지를 찾을 수 없어요</p><p class="c13 mt4 kk">주소가 바뀌었거나 이 계정의 챌린지가 아니에요.</p><a class="btn ghost mt12" href="#s2" data-go="s2.t0">계획표로</a></div></div>');
+  var ch = chal(v === 'first' ? 'first' : 't0'), m = metrics(ch);
+  var B = S.dec.streak === 'B';
+  var tiles = '<div class="st3"><div class="stt">' + (m.rate === null ? '<b>–</b><span class="l">달성률</span><span class="s">오늘 채우면 생겨요</span>' : '<b>' + m.rate + '%</b><span class="l">달성률</span><span class="s">' + m.elapsed + '일 중 ' + m.met + '일</span>') + '</div><div class="stt">' + (ch.first ? '<b>–</b>' : '<b>' + m.streak + '일</b>') + '<span class="l">수행 연속</span><span class="s">오늘 하면 ' + m.next + '일</span></div><div class="stt">' + (ch.first ? '<b>–</b>' : '<b>' + m.longest + '일</b>') + '<span class="l">최장 연속</span><span class="s">이 챌린지에서</span></div></div>' +
+    '<p class="note1 kk">' + (ch.first ? '첫날이에요. 오늘 목표를 채우면 달성률과 연속이 생겨요.' : B ? '오늘도 날 수에 넣었어요. 오늘 목표를 채우면 올라가요.' : '오늘은 아직 끝나지 않아서 달성률에 넣지 않았어요. 수행 연속은 출석과 달리 목표를 채운 날만 세요.') + '</p>';
+  var T = todayTasks(v === 'first' ? 'first' : 't0');
+  var body = '<section aria-label="수행 현황"><h2 class="sr">수행 현황</h2>' + tiles + '</section>' +
+    '<section class="sec"><h2 class="h2s">날짜별</h2>' + strip(ch) + '</section>' +
+    '<section class="sec"><h2 class="h2s">오늘 할 일 <span class="c125 num">' + ch.today + '일째 · ' + mdw(TODAY) + ' · ' + T.done + ' / 2</span></h2>' + taskRows(v === 'first' ? 'first' : 't0') + '<p class="note1 kk">자정이 지나 끝낸 수업은 다음 날로 세요.</p></section>' +
+    (ch.first ? '<section class="sec"><h2 class="h2s">카페 주문 표현</h2><div class="infob mt8"><p class="kk">기본 표현 12개 · 오늘부터 공부한 만큼 여기 쌓여요. 챌린지 전에 이 주제로 공부한 것도 함께 세요.</p></div></section>' :
+      '<section class="sec"><h2 class="h2s">카페 주문 표현</h2><p class="c12 mt2 kk">챌린지 전에 이 주제로 공부한 것도 함께 세요.</p>' + topicProg(false) + '<details class="more mt4"><summary>표현 12개 자세히</summary>' + exprChips(false) + '</details></section>' +
+      '<section class="sec"><h2 class="h2s">점수 추이</h2>' + scoreChart(ch) + '</section>' +
+      '<section class="sec"><h2 class="h2s">지금까지</h2><div class="st3"><div class="stt"><b>' + m.lessons + '개</b><span class="l">수업</span></div><div class="stt"><b>' + m.sets + '세트</b><span class="l">주제 단어</span></div><div class="stt"><b>' + m.correct + '장</b><span class="l">맞힌 카드</span></div></div></section>') +
+    '<details class="more sec"><summary>챌린지는 이렇게 세요</summary><ul class="rules">' +
+    ['하루 목표를 다 채운 날 = 달성 ✓, 하나만 한 날 = 일부 ◐, 아무것도 안 한 날 = 놓침 ✕.', S.dec.attr === 'B' ? '챌린지 화면에서 시작한 공부만 세요.' : '같은 주제면 오늘 탭 어디서 공부해도 세요.', B ? '달성률은 오늘까지 날 수로 나눠요.' : '달성률은 지난 날 수로 나눠요. 오늘은 채운 뒤에 들어가요.', '수행 연속은 앱을 연 날(출석)이 아니라 목표를 채운 날만 세요.', '기록을 지워도 챌린지 달성은 그대로예요.'].map(function (r) { return '<li class="kk">' + r + '</li>'; }).join('') + '</ul></details>' +
+    '<a class="ulink" href="#s8" data-go="s8.list">지난 챌린지 보기</a>' +
+    '<div class="dz"><button type="button" class="btn danger full" data-act="openEnd" data-fid="endbtn">그만두기</button><p class="c12 mt6 kk">그만두면 되돌릴 수 없어요. 지금까지 기록은 그대로 남아요.</p></div>';
+  var sheet = '';
+  if (v === 'end' || v === 'endfail' || v === 'endbusy') sheet = endSheet(v);
+  else if (S.sheet && S.sheet.kind === 'ch') sheet = chDaySheet(S.sheet.i, S.sheet.src);
+  return roomApp(head, '<div class="pad2">' + body + '</div>', '', sheet);
+}
+function endSheet(v) {
+  var busy = v === 'endbusy';
+  var body = '<p class="kk" style="font-size:15px">「카페 주문 7일 챌린지」를 4일째에 끝내요.</p><ul class="rules mt8"><li class="kk">지금까지 기록(달성 2일 · 일부 1일)은 그대로 남아요.</li><li class="kk">그만두면 되돌릴 수 없어요. 같은 주제로 새로 시작할 수는 있어요.</li><li class="kk">오늘 공부는 그대로 할 수 있지만 이 챌린지에는 세지 않아요.</li></ul>' +
+    (v === 'endfail' ? '<p class="acterr mt10" role="alert">그만두지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>' : '') +
+    '<div class="btnrow"><button type="button" class="btn danger" data-act="doEnd"' + (busy ? ' aria-busy="true" aria-disabled="true"' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span>그만두는 중…' : '그만두기') + '</button><button type="button" class="btn ghost" data-act="closeSheet"' + (busy ? ' aria-disabled="true"' : '') + '>계속하기</button></div>';
+  return sheetHtml({ title: '챌린지를 그만둘까요?', body: body });
+}
+
+/* ════════ S5 챌린지 하루 시트 ════════ */
+function chDaySheet(i, src) {
+  var ch, d, x, topicT = '카페 주문', isPast = src === 'dir' || src === 'intro' || src === 'cafeEnded';
+  if (src === 'dir') { var p = PAST.dir; d = addD(p.start, i); x = { st: p.states[i] }; topicT = '길 묻기'; ch = { len: 14 }; }
+  else if (src === 'intro') { var p2 = PAST.intro; d = addD(p2.start, i); x = { st: p2.states[i] }; topicT = '자기소개'; ch = { len: 7 }; }
+  else { ch = chal(src === 'first' ? 'first' : 't0'); d = dateOf(ch, i); x = ch.days[i]; if (src === 'cafeEnded' && i === 3) x = { st: 'ENDED' }; }
+  var st = x.st, gone = src === 'gone';
+  var stTxt = { MET: '목표 달성' + (x.met ? ' · ' + x.met + '에 다 채웠어요' : ''), PARTIAL: '일부만 했어요 · 하루 목표 2개 중 1개', MISSED: '놓쳤어요 · 이날은 챌린지 공부 기록이 없어요', TODAY: '오늘 · 아직 진행 중이에요', UP: (i + 1) + '일째예요 · 그날 오늘 탭에 준비돼요', ENDED: '이날 챌린지를 그만뒀어요' }[st];
+  var head = '<div class="gm' + (st === 'MET' ? '' : ' part') + '"><span class="g ' + GC[st] + '" aria-hidden="true">' + (st === 'TODAY' ? '·' : GL[st]) + '</span><p class="tx"><b>' + GW[st] + '</b>' + stTxt + '</p></div>';
+  var plan = '<p class="c13 mt10">그날 할 일 · ' + topicT + ' · 오늘의 회화 1개 + 주제 단어 10장</p>';
+  var rows = '';
+  if (!isPast || src === 'cafeEnded') {
+    if (st === 'MET' || st === 'PARTIAL' || st === 'TODAY' || st === 'ENDED') {
+      var L = x.lesson, W = x.words;
+      rows += '<div class="lg"><span class="tcl" aria-hidden="true">수</span>' + (L ? (gone ? '<span style="min-width:0"><b>오늘의 회화 「' + topicT + '」 · ' + L.s + '점</b><span class="m">' + L.at + '</span><span class="bdg mt4">원본이 삭제됐어요</span></span>' : '<a href="#" data-act="toast" data-msg="수업 결과 화면으로 가요(지금 그대로)"><b>오늘의 회화 「' + topicT + '」 · ' + L.s + '점</b><span class="m">' + L.at + ' · 수업 결과 보기 ›</span></a>') : '<span style="min-width:0"><b>오늘의 회화</b><span class="m">' + (st === 'TODAY' ? '수업이 준비됐어요 · 오늘 탭에서 할 수 있어요' : '하지 않았어요') + '</span></span>') + '<span></span></div>';
+      rows += '<div class="lg"><span class="tcl" aria-hidden="true">단</span>' + (W ? '<a href="#" data-act="toast" data-msg="세트 결과 화면으로 가요(지금 그대로)"><b>주제 단어 10장 중 ' + W.c + '장 맞힘</b><span class="m">' + W.at + ' · 세트 결과 보기 ›</span></a>' : '<span style="min-width:0"><b>주제 단어</b><span class="m">' + (st === 'TODAY' ? '아직 안 했어요' : '하지 않았어요') + '</span></span>') + '<span></span></div>';
+    }
+  } else if (st === 'MET') {
+    rows = '<p class="c13 mt10 kk">이날 수업과 주제 단어를 모두 했어요. 기록을 누르면 수업 결과·세트 결과를 열 수 있어요.</p>';
+  } else if (st === 'PARTIAL') {
+    rows = '<p class="c13 mt10 kk">이날은 주제 단어만 했어요.</p>';
+  }
+  var extra = st === 'MISSED' ? '<p class="c13 mt10 kk">괜찮아요. 다음 날 이어서 하면 수행 연속이 다시 시작돼요.</p>' : st === 'UP' ? '' : gone ? '<p class="c12 mt10 kk">원본을 지워도 챌린지 기록(달성·점수)은 그대로예요.</p>' : '';
+  var todayBtn = st === 'TODAY' ? '<a class="btn primary full mt12" href="#s6" data-go="s6.ready">오늘 탭에서 하기</a>' : '';
+  var navPrev = i > 0, navNext = i < (ch.len - 1);
+  var nav = '<div class="dayl mt10"><p>' + (i + 1) + '일째 / ' + ch.len + '일</p><button type="button" class="ib" aria-label="전날" data-act="chStep" data-v="-1"' + (navPrev ? '' : ' aria-disabled="true"') + '>' + IC.left + '</button><button type="button" class="ib" aria-label="다음 날" data-act="chStep" data-v="1"' + (navNext ? '' : ' aria-disabled="true"') + '>' + IC.right + '</button></div>';
+  return sheetHtml({ title: mdw(d) + ' · ' + (i + 1) + '일째', body: head + plan + '<div class="mt8">' + rows + '</div>' + extra + todayBtn + nav });
+}
+
+/* ════════ S6 오늘 탭 ════════ */
+function cStrip(v) {
+  var ch = chal(v === 't1' ? 't1' : v === 'done' ? 't2' : 't0'), T = todayTasks(v), m = metrics(ch);
+  var wS = T.words === 'DONE' ? 'MET' : 'TODAY', lS = T.lesson === 'DONE' ? 'MET' : 'TODAY';
+  var met = T.done === 2;
+  var sr = '챌린지 카페 주문, ' + ch.today + '일째 / ' + ch.len + '일, 오늘 할 일 ' + T.done + ' / 2' + (met ? ', 오늘 목표 달성' : '');
+  return '<a class="cstrip' + (met ? ' met' : '') + '" href="#s2" data-go="s2.' + (v === 't1' ? 't1' : v === 'done' ? 't2' : 't0') + '" aria-label="' + sr + ', ' + tabName() + '에서 보기"><span style="min-width:0"><b>' + (met ? '✓ 오늘 챌린지 목표 달성' : '카페 주문 챌린지 · ' + ch.today + '일째 / ' + ch.len + '일') + '</b><span class="s" aria-hidden="true">' + (met ? '<span>수행 연속 ' + m.streak + '일째 · 내일도 이어 가요</span>' : '<span>오늘 할 일 ' + T.done + ' / 2</span><span>' + (wS === 'MET' ? '<span class="g met">✓</span>' : '<span class="g up"></span>') + '단어</span><span>' + (lS === 'MET' ? '<span class="g met">✓</span>' : '<span class="g up"></span>') + '회화</span>') + '</span></span><span class="go">' + tabName() + '<span aria-hidden="true"> ›</span></span></a>';
+}
+function wordsCard(v, o) {
+  o = o || {};
+  var head = '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><h2 class="h2s">오늘의 단어</h2>' + (o.state === 'ready' || !o.state ? '<span class="c12">약 3분</span>' : '') + '</div>';
+  if (o.cur) {
+    return '<section class="card" aria-label="오늘의 단어">' + head + '<p class="c13 mt4 kk">카드를 넘기며 뜻을 맞혀요. 틀린 단어일수록 자주 나와요.</p><p class="subl">장수</p>' + seg('카드 장수', [[5, '5장'], [10, '10장'], [15, '15장'], [20, '20장'], [30, '30장']], 10, 'noop', true) + '<p class="subl">방식</p>' + seg('푸는 방식', [['C', '4지선다'], ['F', '뒤집기 카드']], 'C', 'noop', true) + '<button type="button" class="btn primary full mt12" data-act="noop">시작하기</button></section>';
+  }
+  var chip = '';
+  var state = o.state || 'ready';
+  head = '<div style="display:flex;align-items:center;gap:8px;min-width:0"><h2 class="h2s">오늘의 단어</h2><span class="tpc"><span class="sr">챌린지 주제: </span>챌린지 · 카페 주문</span>' + (state === 'ready' ? '<span class="c12" style="margin-left:auto;flex:none">약 3분</span>' : '') + '</div>';
+  var body;
+  if (state === 'done') body = chip + '<p class="mt6" style="font-size:15px;font-weight:600">✓ 오늘 주제 단어를 끝냈어요</p><p class="c13 mt2">10장 중 8장 맞힘 · 오늘 남은 이 주제 표현 7개</p><div class="btnrow"><a class="btn ghost" href="#s7" data-go="s7.few">한 세트 더 (7장)</a></div><button type="button" class="ulink" data-act="toast" data-msg="내 단어장 세트를 만들어요(지금 그대로)">내 단어장으로 풀기</button>';
+  else if (state === 'alldone') body = chip + '<p class="mt6 kk" style="font-size:14px">오늘 이 주제 표현을 모두 풀었어요. 오늘 푼 표현은 내일 다시 나와요.</p><div class="btnrow"><button type="button" class="btn primary" data-act="toast" data-msg="내 단어장 세트를 만들어요(지금 그대로)">내 단어장으로 풀기</button></div>';
+  else if (state === 'ip') body = chip + '<p class="mt6" style="font-size:15px;font-weight:600">풀던 세트가 있어요</p><p class="c13 mt2 kk">오늘 시작 · 카페 주문 · 4지선다 · 10장 중 3장 답함</p><p class="c12 kk">답한 카드는 저장돼 있어요.</p><div class="btnrow"><a class="btn primary" href="#s7" data-go="s7.deck">이어서 풀기</a><button type="button" class="btn ghost" data-act="toast" data-msg="여기서 끝내기 확인 시트(지금 그대로)">여기서 끝내기</button></div>';
+  else {
+    var few = S.dec.pool === 'B' && o.few;
+    body = chip + '<p class="c13 mt4 kk">카페 주문 표현 10장 · 틀린 표현일수록 자주 나와요.</p><p class="c12 mt2 kk">이 주제 표현 17개에서 골라요 · 수업을 하면 늘어나요</p>' + (few ? '<p class="c12">주제 표현이 모자라면 내 단어장 단어로 채워요</p>' : '') +
+      '<p class="subl">방식</p>' + seg('푸는 방식', [['C', '4지선다'], ['F', '뒤집기 카드']], 'C', 'noop', true) +
+      '<button type="button" class="btn primary full mt12" data-act="startSet"' + (state === 'starting' ? ' aria-busy="true" aria-disabled="true"' : '') + '>' + (state === 'starting' ? '<span class="spin" aria-hidden="true"></span>만드는 중…' : '시작하기') + '</button>' +
+      (state === 'err' ? '<p class="acterr mt6" role="alert">세트를 만들지 못했어요. 잠시 뒤 다시 눌러 주세요.</p>' : '') +
+      '<button type="button" class="ulink" data-act="toast" data-msg="내 단어장 세트를 만들어요(지금 그대로 — 장수·분류 선택)">내 단어장으로 풀기</button>';
+  }
+  return '<section class="card" aria-label="오늘의 단어">' + head + body + '</section>';
+}
+function lessonCard(v, o) {
+  o = o || {};
+  var head = '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><h2 class="h2s">오늘의 회화</h2></div>';
+  var chipHead = '<div style="display:flex;align-items:center;gap:8px;min-width:0"><h2 class="h2s">오늘의 회화</h2><span class="tpc"><span class="sr">챌린지 주제: </span>챌린지 · 4일째</span></div>';
+  if (o.cur) {
+    return '<section class="card sec" aria-label="오늘의 회화">' + head + '<p class="c13 mt4 kk">선생님과 5단계로 수업해요. 듣기 → 문법 → 문제 → 응용 → 말하기</p><div class="recb"><p class="r1"><span>추천 주제</span><span class="bdg on2">N4</span></p><p class="r2">주말 계획</p><p class="r3 kk">같은 주제를 세 번 했어요 · 새 주제로 넘어가 봐요</p></div><div class="btnrow"><button type="button" class="btn primary" data-act="noop">수업 만들기</button><button type="button" class="btn ghost" data-act="noop">주제 고르기</button></div></section>';
+  }
+  var T = todayTasks(v);
+  var chip = '';
+  var body;
+  var L = T.lesson;
+  if (L !== 'BUSY' && L !== 'TODO') head = chipHead;
+  if (L === 'READY') body = chip + '<p class="mt6" style="font-size:15px;font-weight:600">수업이 준비됐어요</p><p class="c13 mt2">카페 주문 · 5단계 · 약 15분</p><ol class="mini5" aria-label="5단계 중 0단계 끝냄"><li class="cur">이해</li><li>문법</li><li>문제</li><li>응용</li><li>말하기</li></ol><p class="c12 mt8 kk">' + (S.dec.prep === 'C1' ? '오늘 아침에 미리 만들어 뒀어요.' : '오늘 처음 들어왔을 때 미리 만들어 뒀어요.') + '</p><button type="button" class="btn primary full mt12" data-act="toast" data-msg="수업 화면으로 가요(지금 그대로)">시작하기</button>';
+  else if (L === 'GEN') body = chip + '<p class="mt6" style="font-size:15px;font-weight:600">수업을 만들고 있어요</p><p class="c13 mt2 kk">카페 주문 · 보통 1~2분 걸려요. 다 되면 여기서 열 수 있어요.</p><div class="indet" aria-hidden="true"><i></i></div><button type="button" class="btn ghost full mt12" data-act="toast" data-msg="수업 만들기 대기 화면(지금 그대로)">보러 가기</button>';
+  else if (L === 'BUSY') body = '<p class="mt4" style="font-size:15px;font-weight:600">수업을 만들고 있어요</p><p class="c13 mt2 kk">자기소개 · 보통 1~2분 걸려요. 다 되면 여기서 열 수 있어요.</p><div class="indet" aria-hidden="true"><i></i></div><div class="infob mt12"><p class="kk">챌린지 주제(카페 주문) 수업은 이 수업이 다 된 뒤에 [수업 만들기]로 만들 수 있어요.</p></div><button type="button" class="btn ghost full mt12" data-act="toast" data-msg="수업 만들기 대기 화면(지금 그대로)">보러 가기</button>';
+  else if (L === 'FAIL') body = chip + '<p class="mt6" style="font-size:15px;font-weight:600">수업을 만들지 못했어요</p><p class="c13 mt2 kk">카페 주문 · 다시 만들면 대부분 잘 만들어져요.</p><div class="btnrow"><button type="button" class="btn primary" data-act="toast" data-msg="같은 수업을 다시 만들어요">다시 만들기</button><button type="button" class="btn ghost" data-act="toast" data-msg="주제 고르기 화면(지금 그대로)">주제 고르기</button></div>';
+  else if (L === 'DONE') body = chip + '<p class="mt6" style="font-size:15px;font-weight:600">✓ 오늘 수업을 끝냈어요</p><p class="c13 mt2">카페 주문 · 문제 4/5 맞힘 · 말하기 표현 2/3</p><div class="btnrow"><button type="button" class="btn ghost" data-act="toast" data-msg="같은 주제로 새 수업을 만들어요 — 오늘 목표는 이미 채웠어요">한 번 더 하기</button></div><button type="button" class="ulink" data-act="toast" data-msg="수업 결과 화면(지금 그대로)">끝낸 수업 결과 보기</button>';
+  else body = '<p class="c13 mt4 kk">선생님과 5단계로 수업해요. 듣기 → 문법 → 문제 → 응용 → 말하기</p><div class="recb"><p class="r1"><span>챌린지 주제</span><span class="bdg on2">N5</span></p><p class="r2">카페 주문</p><p class="r3 kk">챌린지 4일째 · 지난 시간 예고 · 사이즈와 온도 다음은 포장 주문</p></div><div class="btnrow"><button type="button" class="btn primary" data-act="toast" data-msg="수업을 만들어요 · 1~2분">수업 만들기</button><button type="button" class="btn ghost" data-act="toast" data-msg="주제 고르기 화면(지금 그대로)">주제 고르기</button></div>';
+  return '<section class="card sec" aria-label="오늘의 회화">' + head + body + '</section>';
+}
+function todayScreen(o) {
+  var v = o.v;
+  if (o.cur || v === 'none') {
+    return tabApp(1, appBar('오늘') + '<div class="pad">' + wordsCard(v, { cur: 1 }) + lessonCard(v, { cur: 1 }) + '<div class="omit">AI 평가 카드 · 단어 통계 · 보관한 세트 — 지금 그대로</div></div>');
+  }
+  if (v === 'loading') return tabApp(1, appBar('오늘') + '<div class="pad"><span class="sk skp" style="height:60px;border-radius:14px" aria-hidden="true"></span><section class="card mt12"><h2 class="h2s">오늘의 단어</h2><p class="c13 mt4" role="status">불러오는 중…</p></section><section class="card sec"><h2 class="h2s">오늘의 회화</h2><p class="c13 mt4" role="status">불러오는 중…</p></section></div>');
+  var wState = (v === 'done' || v === 'w1') ? 'done' : v === 'alldone' ? 'alldone' : v === 'ip' ? 'ip' : v === 'starting' ? 'starting' : v === 'werr' ? 'err' : 'ready';
+  var lv = v === 'alldone' || v === 'ip' || v === 'starting' || v === 'werr' ? 't0' : v;
+  var top = v === 'cerr' ? '' : cStrip(lv);
+  var body = appBar('오늘') + '<div class="pad">' + top + '<div class="' + (top ? 'mt12' : '') + '">' + wordsCard(lv, { state: wState }) + '</div>' + lessonCard(lv) + '<div class="omit">AI 평가 카드 · 단어 통계 · 보관한 세트 — 지금 그대로</div></div>';
+  return tabApp(1, body);
+}
+
+/* ════════ S7 주제 단어 세트 ════════ */
+function deckScreen(o) {
+  var v = o.v, cur = o.cur;
+  var n = (v === 'few' && (cur || S.dec.pool !== 'B')) ? 7 : 10, flip = v === 'flip';
+  var sub = cur ? '4지선다 · 10장' : '카페 주문 · ' + (flip ? '뒤집기 카드' : '4지선다') + ' · ' + n + '장';
+  var head = backBar({ back: '오늘로', go: 's6.ready', title: '오늘의 단어', sub: sub, right: '<button type="button" class="endb" data-act="toResult">끝내기</button>' });
+  var bar = '<i class="ok"></i><i class="ng"></i><i class="cur"></i>' + new Array(n - 2).join('<i></i>');
+  var prog = '<div class="dprog"><div class="r"><p class="n num">3 / ' + n + '</p>' + (cur ? '' : '<span class="tpc"><span class="sr">주제: </span>카페 주문</span>') + '<p class="c12 num">남은 ' + (n - 2) + '장</p></div><div class="dbar" role="progressbar" aria-valuemin="0" aria-valuemax="' + n + '" aria-valuenow="2" aria-valuetext="' + n + '장 중 2장 답함, 맞힘 1 틀림 1">' + bar + '</div></div>';
+  var notice = '';
+  if (!cur && v === 'few') notice = S.dec.pool === 'B' ? '오늘 남은 이 주제 표현이 7개라 내 단어장 단어 3개를 더해 10장으로 만들었어요.' : '오늘 남은 이 주제 표현이 7개라 7장으로 만들었어요.';
+  if (flip) notice = cur ? '뜻이 서로 다른 단어가 4개보다 적어서 이번엔 뒤집기 카드로 풀어요.' : '뜻이 서로 다른 표현이 4개보다 적어서 이번엔 뒤집기 카드로 풀어요.';
+  if (cur && v === 'few') notice = '풀 수 있는 단어가 7개라 7장으로 만들었어요.';
+  var nt = notice ? '<div class="dnotice"><div role="status"><p>' + notice + '</p><button type="button" class="icb" aria-label="알림 닫기" data-act="noop">' + IC.close16 + '</button></div></div>' : '';
+  var c = X[5];
+  var mid = '<p class="ks' + fuc(c.ja) + '" lang="ja">' + rb(c.ja) + '</p>' + hgB(c.h, 's15');
+  var face = '<div class="dstk"><div class="stk"><div class="bkc" style="transform:scale(.92) translateY(16px)"></div><div class="bkc" style="transform:scale(.96) translateY(8px)"></div><div class="kface"><div class="top"></div><div class="kmid"><div style="min-width:0">' + mid + '</div></div>' + (flip ? '<p class="c12" style="text-align:center">눌러서 뜻 보기</p>' : '') + '</div></div></div>';
+  var choices = flip ? '<div class="flipb"><div class="btnrow" style="margin-top:0"><button type="button" class="btn ghost" data-act="toResult">몰랐어요</button><button type="button" class="btn primary" data-act="toResult">알았어요</button></div></div>' :
+    '<ol class="chl" aria-label="보기">' + ['가져가요(포장)', '마셔요', '주세요', '따뜻해요'].map(function (t, i) { return '<li><button type="button" class="cho" data-act="toResult"><span class="no" aria-hidden="true">' + (i + 1) + '</span><span>' + t + '</span></button></li>'; }).join('') + '</ol>';
+  var tools = '<div class="dtb"><button type="button" class="tool" data-act="noop">' + IC.prev + '이전</button><button type="button" class="tool" aria-pressed="' + P.fu + '" data-act="toggleFu"><span class="a" lang="ja" aria-hidden="true">あ</span>읽기</button><button type="button" class="tool" aria-pressed="false" data-act="noop">' + IC.star + '표시</button><button type="button" class="tool" data-act="noop">' + IC.skip + '건너뛰기</button></div>';
+  return roomApp(head, '<div style="display:flex;flex-direction:column;min-height:100%">' + nt + prog + face + '<div class="ghint" aria-hidden="true">← 밀어 다음 · → 밀어 이전 · ↑ 밀어 표시</div>' + choices + tools + '</div>');
+}
+function resultScreen(o) {
+  var v = o.v, cur = o.cur;
+  var head = backBar({ back: '오늘로', go: 's6.' + (v === 'result1' ? 'w1' : 'done'), title: '세트 결과', sub: '오늘 · 4지선다 · 10장' + (cur ? '' : ' · 카페 주문') });
+  var banner = '';
+  if (!cur && (v === 'result' || v === 'inwb')) banner = '<div class="gm" role="status"><span class="g solid" aria-hidden="true">✓</span><p class="tx"><b>오늘 챌린지 목표를 채웠어요</b>카페 주문 4일째 · 수행 연속 1일째</p><a class="lnk" href="#s4" data-go="s4.normal">챌린지<span aria-hidden="true"> ›</span></a></div>';
+  if (!cur && v === 'result1') banner = '<div class="gm part" role="status"><span class="g par" aria-hidden="true">◐</span><p class="tx"><b>챌린지 오늘 할 일 1 / 2</b>오늘의 회화가 남았어요</p><a class="lnk" href="#s6" data-go="s6.w1">회화<span aria-hidden="true"> ›</span></a></div>';
+  var stat = '<div class="card' + (banner ? ' mt12' : '') + '"><p style="font-size:22px;font-weight:600">10장 중 8장 맞혔어요</p><div class="rstat"><div class="ok"><b>8</b><span>맞힘</span></div><div class="ng"><b>2</b><span>틀림</span></div><div class="sk2"><b>0</b><span>건너뜀</span></div></div><p class="c13 mt8">걸린 시간 2분 48초 · 다시 볼 카드 0장</p></div>';
+  if (cur) {
+    var wrong = SET.filter(function (s) { return !s.ok; });
+    return roomApp(head, '<div class="pad2">' + stat + '<div class="card flat mt12"><button type="button" class="btn ghost full" data-act="noop">☆ 이 세트 보관</button></div><h2 class="h2s mt18">틀린 단어 ' + wrong.length + '</h2><ul class="wrl">' + wrong.map(function (s) { return '<li><div class="wr"><span class="rs ng" aria-hidden="true">✕</span><div style="min-width:0"><span class="wja' + fuc(s.x.ja) + '" lang="ja">' + rb(s.x.ja) + '</span>' + hgB(s.x.h) + '<span class="m">' + s.x.ko + '</span></div><span></span></div></li>'; }).join('') + '</ul><div class="btnrow"><a class="btn primary" href="#" data-act="noop">오늘로</a><a class="btn ghost" href="#" data-act="noop">단어장 보기</a></div></div>');
+  }
+  var prog = '<section class="card mt12" aria-label="카페 주문 표현 진행"><h2 class="h2s">카페 주문 표현</h2>' + topicProg(true) + '</section>';
+  var list = '<section class="sec" aria-labelledby="wl-h"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap"><h2 class="h2s" id="wl-h" tabindex="-1">카드 10장</h2><span class="c12">마음에 드는 표현은 단어장에 넣어 두세요</span></div><ul class="wrl">' + SET.map(function (s, i) {
+    var key = 'w' + i, done = S.added[key], inWb = s.inWb || (v === 'inwb' && i === 1 && S.added[key + 'x']);
+    var btn;
+    if (inWb) btn = '<span class="inwb">✓ 단어장에 있어요</span>';
+    else if (done) btn = '<span class="addb done" role="status">✓ 넣었어요</span>';
+    else btn = '<button type="button" class="addb" data-act="addWord" data-k="' + key + '" data-i="' + i + '" aria-label="' + plain(s.x.ja) + ' 단어장에 넣기">단어장에 넣기</button>';
+    return '<li><div class="wr"><span class="rs ' + (s.ok ? 'ok' : 'ng') + '" aria-hidden="true">' + (s.ok ? '✓' : '✕') + '</span><div style="min-width:0"><span class="sr">' + (s.ok ? '맞힘: ' : '틀림: ') + '</span><span class="wja' + fuc(s.x.ja) + '" lang="ja">' + rb(s.x.ja) + '</span>' + hgB(s.x.h) + '<span class="m">' + s.x.ko + '</span></div>' + btn + '</div></li>';
+  }).join('') + '</ul></section>';
+  var keep = '<div class="card flat mt12"><button type="button" class="btn ghost full" data-act="toast" data-msg="보관했어요 · 오늘 탭 ‘보관한 세트’에서 다시 풀 수 있어요">☆ 이 세트 보관</button></div>';
+  var foot = '<div class="btnrow"><a class="btn primary" href="#s6" data-go="s6.' + (v === 'result1' ? 'ready' : 'done') + '">오늘로</a><a class="btn ghost" href="#" data-act="toast" data-msg="단어장 화면(지금 그대로)">단어장 보기</a></div>';
+  var sheet = (S.sheet && S.sheet.kind === 'add') ? addSheet(S.sheet.i) : '';
+  return roomApp(head, '<div class="pad2">' + banner + stat + prog + list + keep + foot + '</div>', '', sheet);
+}
+function addSheet(i) {
+  var s = SET[i];
+  var body = '<p class="c13 kk">표기·읽기·뜻을 확인하고 넣어요. 고친 내용은 단어장에만 들어가요.</p><div class="mt12" style="display:flex;flex-direction:column;gap:10px"><label class="c125">표기<input class="inp mt4" lang="ja" value="' + plain(s.x.ja) + '"></label><label class="c125">읽기<input class="inp mt4" lang="ja" value="' + s.x.ja.replace(RE_RUBY, '$2') + '"></label><label class="c125">뜻<input class="inp mt4" value="' + s.x.ko + '"></label></div><div class="btnrow"><button type="button" class="btn primary" data-act="addConfirm" data-k="w' + i + '">넣기</button><button type="button" class="btn ghost" data-act="closeSheet">닫기</button></div>';
+  return sheetHtml({ title: '단어장에 넣기', body: body });
+}
+function wordsScreen(o) {
+  var v = o.v;
+  if (v === 'deck' || v === 'few' || v === 'flip') return deckScreen(o);
+  if (v === 'result' || v === 'result1' || v === 'inwb') return resultScreen(o);
+  // 오늘 탭 단어 카드에서 보이는 상태들
+  return todayScreen({ v: v === 'alldone' ? 'alldone' : v === 'ip' ? 'ip' : v === 'starting' ? 'starting' : 'werr' });
+}
+
+/* ════════ S8 결과 · 목록 ════════ */
+function pastScreen(o) {
+  var v = o.v;
+  if (v === 'list' || v === 'lempty' || v === 'loading' || v === 'error') {
+    var head = backBar({ back: '계획표로', go: 's2.t0', title: '챌린지 기록' });
+    var b;
+    if (v === 'loading') b = '<p role="status" class="sr">챌린지 기록을 불러오는 중…</p><div aria-hidden="true">' + [0, 1, 2].map(function () { return '<span class="sk skp mt8" style="height:72px;border-radius:14px"></span>'; }).join('') + '</div>';
+    else if (v === 'error') b = errBlock('챌린지 기록을 불러오지 못했어요.');
+    else if (v === 'lempty') b = '<div class="emptyb kk">아직 끝낸 챌린지가 없어요.<br>주제 하나를 골라 첫 챌린지를 시작해 보세요.</div><a class="btn primary full mt12" href="#s3" data-go="s3.step1">챌린지 시작</a>';
+    else b = '<ul class="clist">' + [
+      ['s2.t0', '카페 주문 7일 챌린지', '10월 3일 ~ 10월 9일 · 4일째 · 3일 중 2일 달성', '<span class="bdg line">진행 중</span>'],
+      ['s8.done', '자기소개 7일 챌린지', '9월 21일 ~ 9월 27일 · 7일 중 7일 달성', '<span class="bdg good">완주</span>'],
+      ['s8.partial', '길 묻기 14일 챌린지', '9월 1일 ~ 9월 14일 · 14일 중 8일 달성', '<span class="bdg">기간 끝</span>']
+    ].map(function (r) { return '<li><a class="crow" href="#' + r[0] + '" data-go="' + r[0] + '"><span style="min-width:0"><b>' + r[1] + '</b><span class="s">' + r[2] + '</span></span>' + r[3] + '<span class="ch" aria-hidden="true">›</span></a></li>'; }).join('') + '</ul><p class="c12 mt8 kk">진행 중인 챌린지를 먼저, 끝난 챌린지는 끝난 날짜 순서로 보여 드려요.</p>';
+    return roomApp(head, '<div class="pad2">' + b + '</div>');
+  }
+  if (v === 'nf') return roomApp(backBar({ back: '계획표로', go: 's2.t0', title: '챌린지' }), '<div class="pad2"><div class="infob" role="alert"><p class="t">챌린지를 찾을 수 없어요</p><p class="c13 mt4 kk">주소가 바뀌었거나 이 계정의 챌린지가 아니에요.</p><a class="btn ghost mt12" href="#s8" data-go="s8.list">챌린지 기록으로</a></div></div>');
+  var key = v === 'done' ? 'intro' : v === 'partial' ? 'dir' : 'cafe';
+  if (v === 'r409') key = 'cafe';
+  var p = PAST[key], st = pastStats(p), endD = addD(p.start, p.len - 1);
+  var badge = p.kind === 'ENDED' ? '<span class="bdg">그만둠</span>' : st.met === st.n ? '<span class="bdg good">완주</span>' : '<span class="bdg">기간 끝</span>';
+  var big = p.kind === 'ENDED' ? '지난 ' + st.n + '일 중 ' + st.met + '일 달성' : p.len + '일 중 ' + st.met + '일 달성';
+  var sub = p.kind === 'ENDED' ? p.len + '일 중 4일째에 그만뒀어요 · 달성률 ' + st.rate + '%' : '달성률 ' + st.rate + '% · 일부 ' + st.partial + '일 · 놓침 ' + st.missed + '일';
+  var chObj = { start: p.start, len: p.states.length, days: p.states.map(function (s) { return { st: s }; }) };
+  var stripHtml = strip(chObj, { src: key === 'cafe' ? 'cafeEnded' : key, month: false });
+  var next;
+  var active = key !== 'cafe';
+  if (v === 'r409') next = '<div class="errb mt12" role="alert" style="background:var(--surface2);color:var(--ink)"><p style="font-weight:700">이미 진행 중인 챌린지가 있어요</p><p class="mt2 kk">다른 기기에서 「카페 주문 7일 챌린지」를 방금 시작했어요. 그 챌린지를 보여 드릴게요.</p><a class="btn ghost mt8" href="#s4" data-go="s4.first" style="height:44px;font-size:14px">진행 중 챌린지 보기</a></div>';
+  else if (active) next = '<div class="infob mt12"><p class="kk">지금은 「카페 주문 7일 챌린지」(4일째)를 하고 있어요. 그 챌린지가 끝나면 다시 도전할 수 있어요.</p><a class="lnk" href="#s4" data-go="s4.normal">진행 중 챌린지 보기<span aria-hidden="true"> ›</span></a></div>';
+  else next = '<div class="btnrow"><a class="btn primary" href="#s3" data-act="retry409" data-fid="again2">다시 도전 (7일)</a><a class="btn ghost" href="#s3" data-go="s3.step1">다른 주제로</a></div>';
+  var hid = uid('rh');
+  var body = '<section class="card rhero" aria-labelledby="' + hid + '">' + badge + '<p class="big" id="' + hid + '">' + big + '</p><p class="sub">' + sub + '</p></section>' +
+    '<section class="sec"><h2 class="h2s">날짜별</h2>' + stripHtml + '</section>' +
+    '<section class="sec"><h2 class="h2s">해낸 것</h2><div class="st3"><div class="stt"><b>' + st.longest + '일</b><span class="l">최장 연속</span></div><div class="stt"><b>' + p.lessons + '개</b><span class="l">수업</span></div><div class="stt"><b>' + p.correct + '장</b><span class="l">맞힌 카드</span></div></div><p class="c125 mt8">주제 단어 ' + p.sets + '세트 · ' + p.topic + ' ' + p.prog + '</p></section>' +
+    '<section class="sec"><h2 class="h2s">다음 챌린지</h2><p class="c13 mt4 kk">같은 주제로 한 번 더 하거나, 다음 주제로 넘어가 보세요.</p>' + next + '</section>' +
+    '<p class="c12 mt18 kk">이 결과는 챌린지가 끝날 때 한 번 저장돼요. 기록을 지워도 바뀌지 않아요.</p>';
+  var sheet = (S.sheet && S.sheet.kind === 'ch') ? chDaySheet(S.sheet.i, S.sheet.src) : '';
+  return roomApp(backBar({ back: '챌린지 기록으로', go: 's8.list', title: p.title, sub: (p.kind === 'ENDED' ? '그만둠' : '끝남') + ' · ' + md(p.start) + ' ~ ' + md(endD) }), '<div class="pad2">' + body + '</div>', '', sheet);
+}
+/* S5 는 S4(상세) 위 시트로 그린다 */
+function sheetScreen(o) {
+  var v = o.v;
+  var map = { met: [1, 'cur'], partial: [2, 'cur'], today: [3, 'cur'], upcoming: [4, 'cur'], missed: [5, 'dir'], gone: [0, 'gone'] };
+  var t = map[v] || map.met;
+  if (t[1] === 'dir') return pastScreenWithSheet(t[0]);
+  S.sheet = { kind: 'ch', i: t[0], src: t[1] };
+  var html = detailScreen({ v: 'normal' });
+  S.sheet = null;
+  return html;
+}
+function pastScreenWithSheet(i) {
+  S.sheet = { kind: 'ch', i: i, src: 'dir' };
+  var html = pastScreen({ v: 'partial' });
+  S.sheet = null;
+  return html;
+}
+
+/* ════════ 화면·상태 목록 ════════ */
+var SCR = [
+  ['s1', '계획표 — 챌린지 없음', '/plan · 시작 카드 + 달력'],
+  ['s2', '계획표 — 진행 중', '/plan · 현황 카드 + 달력 표시'],
+  ['s3', '챌린지 만들기', '/plan/challenge/new · 4단계'],
+  ['s4', '챌린지 상세', '/plan/challenge/:id · 수행 현황'],
+  ['s5', '챌린지 하루 시트', '상세 위 시트'],
+  ['s6', '오늘 탭 연동', '/study/today · 챌린지 주제'],
+  ['s7', '주제 단어 세트', '/study/today/words/:id · 덱·결과'],
+  ['s8', '끝난 챌린지 · 기록', '/plan/challenge/:id · /plan/challenges']
+];
+/* [id, 분류, 이름, 지금 화면과 비교 가능?] — 분류: 정상·로딩·빈·오류·409·404 */
+var VARS = {
+  s1: [['normal', '정상', '지난 챌린지 있음', 1], ['ended', '정상', '오늘 그만둔 뒤', 1], ['empty', '빈', '처음 사용자', 1], ['loading', '로딩', '불러오는 중', 1], ['error', '오류', '챌린지만 실패', 1]],
+  s2: [['t0', '정상', '오늘 0/2', 1], ['t1', '정상', '1/2', 1], ['t2', '정상', '2/2 달성', 1], ['sheet', '정상', '하루 시트', 1], ['gen', '로딩', '수업 만드는 중', 1], ['loading', '로딩', '불러오는 중', 1], ['first', '빈', '첫날(방금 만듦)', 1], ['error', '오류', '챌린지만 실패', 1], ['busy', '409', '다른 수업 만드는 중', 1]],
+  s3: [['step1', '정상', '① 주제'], ['step2', '정상', '② 기간'], ['step3', '정상', '③ 목표·시작일'], ['step4', '정상', '④ 확인'], ['busy', '로딩', '시작하는 중'], ['tload', '로딩', '주제 불러오는 중'], ['tempty', '빈', '주제 없음'], ['terr', '오류', '주제 실패'], ['nogoal', '오류', '목표 둘 다 끔'], ['fail', '오류', '만들기 실패'], ['c409', '409', '이미 진행 중'], ['c404', '404', '주제 없음']],
+  s4: [['normal', '정상', '4일째'], ['end', '정상', '그만두기 확인'], ['endbusy', '로딩', '그만두는 중'], ['loading', '로딩', '불러오는 중'], ['first', '빈', '첫날'], ['error', '오류', '불러오기 실패'], ['endfail', '오류', '그만두기 실패'], ['nf', '404', '없는 챌린지']],
+  s5: [['met', '정상', '달성(2일째)'], ['partial', '정상', '일부(3일째)'], ['today', '정상', '오늘(4일째)'], ['missed', '정상', '놓침(지난 챌린지)'], ['upcoming', '빈', '예정(5일째)'], ['gone', '404', '원본 삭제됨']],
+  s6: [['ready', '정상', '수업 준비됨', 1], ['w1', '정상', '1/2 단어 먼저', 1], ['t1', '정상', '1/2 회화 먼저', 1], ['done', '정상', '오늘 목표 달성', 1], ['gen', '로딩', '수업 준비 중', 1], ['loading', '로딩', '불러오는 중', 1], ['none', '빈', '챌린지 없음 = 지금 화면'], ['fail', '오류', '수업 만들기 실패', 1], ['busy', '409', '다른 수업 만드는 중', 1]],
+  s7: [['deck', '정상', '덱', 1], ['result', '정상', '결과 · 목표 달성', 1], ['result1', '정상', '결과 · 1/2', 1], ['flip', '정상', '뒤집기로 바뀜', 1], ['starting', '로딩', '세트 만드는 중'], ['few', '빈', '표현 적음(7장)', 1], ['alldone', '빈', '오늘 다 풂'], ['err', '오류', '시작 실패'], ['ip', '409', '풀던 세트 있음'], ['inwb', '409', '이미 단어장에']],
+  s8: [['done', '정상', '완주'], ['partial', '정상', '기간 끝 · 일부'], ['ended', '정상', '그만둠'], ['list', '정상', '챌린지 기록'], ['loading', '로딩', '기록 불러오는 중'], ['lempty', '빈', '기록 없음'], ['error', '오류', '기록 실패'], ['r409', '409', '다시 도전 막힘'], ['nf', '404', '없는 챌린지']]
+};
+var CATS = ['정상', '로딩', '빈', '오류', '409', '404'];
+var NA = {
+  s1: { '409': '시작 버튼은 만들기로 갈 뿐 — 막힘은 만들기 ④에서(→ S3 409)', '404': '목록 화면이라 대상 없음' },
+  s2: { '404': '진행 중 챌린지는 지울 수 없어 사라지지 않음' },
+  s3: {},
+  s4: { '409': '그만두기는 같은 요청을 두 번 받아도 같은 결과(멱등) — 이미 기간 끝이면 결과 화면으로' },
+  s5: { '로딩': '상세 화면이 가진 값으로 그려서 따로 읽지 않음', '오류': '따로 읽지 않음 — 상세 오류를 따름', '409': '쓰기 없음' },
+  s6: { '404': '오늘 탭은 대상 없음' },
+  s7: { '404': '세트 404 는 지금 화면 그대로(덱 공통)' },
+  s8: {}
+};
+
+/* ════════ 화면 렌더 ════════ */
+function render(scr, v, opts) {
+  opts = opts || {};
+  var o = { scr: scr, v: v, cur: opts.cur, ia: opts.ia, mini: opts.mini };
+  switch (scr) {
+    case 's1': case 's2': return planScreen(o);
+    case 's3': return createScreen(o);
+    case 's4': return detailScreen(o);
+    case 's5': return sheetScreen(o);
+    case 's6': return todayScreen(o);
+    case 's7': return wordsScreen(o);
+    case 's8': return pastScreen(o);
+  }
+  return '';
+}
+function phone(html, w, h, extra) { return '<div class="phone w' + w + ' h' + h + '"' + (extra || '') + '>' + html + '</div>'; }
+function curVar() { return S.v[S.scr]; }
+function varMeta(scr, v) { return VARS[scr].filter(function (x) { return x[0] === v; })[0] || VARS[scr][0]; }
+
+function renderStage() {
+  UID = 0;
+  var scr = S.scr, v = curVar(), meta = varMeta(scr, v);
+  var pairOk = !!meta[3];
+  var caption = SCR.filter(function (x) { return x[0] === scr; })[0][1] + ' · ' + meta[1] + ' · ' + meta[2];
+  var prop = '<figure class="fw"><figcaption><span class="tagp">제안</span>' + caption + '</figcaption>' + phone(render(scr, v), S.w, S.h, ' data-main') + '</figure>';
+  var html = prop;
+  if (S.view === 'pair' && pairOk) {
+    var cur = '<figure class="fw"><figcaption><span class="tagc">지금</span>' + (scr === 's6' ? '오늘 탭(지금)' : scr === 's7' ? '오늘의 단어(지금)' : '계획표(지금)') + '</figcaption>' + phone(render(scr, v, { cur: true }), S.w, S.h, ' inert') + '</figure>';
+    html = cur + prop;
+  }
+  $('#stage').innerHTML = html;
+  renderVarBar(); renderNav(); renderSide();
+  var dv = $('#d-view');
+  $$('button', dv)[1].setAttribute('aria-disabled', pairOk ? 'false' : 'true');
+}
+function renderVarBar() {
+  var scr = S.scr;
+  $('#d-var').innerHTML = VARS[scr].map(function (x) {
+    return '<button type="button" data-var="' + x[0] + '" aria-pressed="' + (S.v[scr] === x[0]) + '"><span class="ct">' + x[1] + '</span>' + x[2] + '</button>';
+  }).join('');
+  $('#d-var').setAttribute('aria-label', SCR.filter(function (s) { return s[0] === scr; })[0][1] + ' 상태');
+}
+function renderNav() {
+  $('#dnav').innerHTML = '<h2>화면</h2>' + SCR.map(function (s) {
+    return '<a href="#' + s[0] + '" data-nav="' + s[0] + '"' + (S.scr === s[0] ? ' aria-current="true"' : '') + '><span class="did">' + s[0].toUpperCase() + '</span>' + s[1] + '<span class="dx">' + s[2] + '</span></a>';
+  }).join('') + '<h2>아래 패널</h2><a href="#matrix">화면 × 상태 전수</a><a href="#data">수치 대조</a><a href="#notes">설계서와 다르게 그린 곳</a><a href="#decide" data-open="decide">결정 필요 10건</a>';
+}
+var SIDE = {
+  s1: { goal: '챌린지를 아직 안 하는 사람에게 무엇을 하는지와 시작 버튼을 맨 위에 보여 줘요. 달력·하루 시트·성장 기록 카드는 그대로예요.',
+    ch: ['맨 위에 시작 카드 — 한 줄 설명 + 하루 목표 예시 + [챌린지 시작](48px)', '지난 챌린지가 있으면 ‘지난 챌린지 n개 보기’', '오늘·어제 끝난 챌린지가 있으면 결과 한 줄 + [다시 도전] [결과 보기] — 하루 지나면 사라짐', '챌린지를 못 읽어도 달력은 따로 읽어 그대로 보임'],
+    a11y: ['시작 카드 제목이 영역 이름(aria-labelledby)', '로딩은 화면 읽기에 “챌린지를 불러오는 중…” 한 번'] },
+  s2: { goal: '진행 중이면 ‘오늘 할 일’과 ‘얼마나 잘 하고 있는지’를 첫 화면(780px) 안에서 보여 줘요.',
+    hier: ['오늘 할 일 2줄(행동)', '진행 — n일째 / N일 · 날짜 칸 N개', '달성률 · 수행 연속', '달력(지난 기록) · 하루 시트', '분석 · 성장 기록(곧 열려요)'],
+    ch: ['현황 카드: 날짜 칸(✓ 달성 · ◐ 일부 · ✕ 놓침 · 오늘 · 예정 숫자) + 요약 글 한 줄', '할 일 줄을 누르면 오늘 탭(실제 공부는 지금 화면 그대로)', '달력: 챌린지 기간 아래 선 + 지난 날 칸에 둥근 결과 칩 · 표시 설명 3줄 추가', '하루 시트 맨 위에 “챌린지 n일째 — 달성/일부” 한 줄(누르면 챌린지 하루 시트)'],
+    a11y: ['날짜 칸·띠는 장식(aria-hidden), 같은 내용을 글(“달성 2일 · 일부 1일 · 남은 날 3일”)로', '달력 칸 읽기 문구 끝에 “챌린지 3일째 일부”', '할 일 줄은 링크 하나(56px), 앞에 “할 일:/끝냄:” 숨은 글'] },
+  s3: { goal: '주제 → 기간 → 하루 목표·시작일 → 확인, 4단계로 만든다. 한 단계에 결정 하나.',
+    ch: ['하단 탭 숨김 · ← 는 이전 단계(1단계에서는 계획표)', '주제 카드는 지금 ‘주제 고르기’ 행과 같은 모양(제목 + 일본어 제목 + 설명 + 지난 수업) + 고르면 표현 미리 보기', '[다음]은 아래 고정 바 한 곳 — 목표를 둘 다 끄면 흐리게 + 이유 글', '날짜는 오늘·내일만 고르고 서버가 계산', '상황(장소·상황 카드) 고르기는 그리지 않음 — 상황 역할극 화면이 나온 뒤'],
+    a11y: ['단계는 ol + aria-current="step"', '주제·기간은 라디오, 목표는 체크박스(라벨이 카드 전체)', '오류·막힘은 role="alert"'] },
+  s4: { goal: '“얼마나 잘 하고 있나”를 한 화면에. 숫자 → 날짜별 → 오늘 할 일 → 주제 표현 → 점수 추이 → 누적 → 그만두기 순.',
+    ch: ['달성률·수행 연속·최장 연속 3칸 + 규칙 한 줄(오늘 유예)', '날짜별 칸은 버튼 — 누르면 하루 시트(S5)', '주제 표현: 기본 12개 중 공부·맞힘 막대 + 수업 표현 +5 · 표현 12개는 접어 둠', '점수 추이: 수업 점수(채운 막대)·단어 정답률(빈 막대) — 값 글자 병기 + 화면 읽기용 표', '그만두기는 맨 아래, 확인 시트(되돌릴 수 없음) → 결과 화면'],
+    a11y: ['그래프는 aria-hidden + 숨은 표(caption·th)', '그만두기 확인: 확정 → 취소 순, 진행 중엔 두 버튼 잠금'] },
+  s5: { goal: '그날 무엇을 해야 했고 무엇을 했는지. 원본(수업 결과·세트 결과)으로 가는 길.',
+    ch: ['머리 = 날짜 · n일째, 첫 줄 = 상태(글자 + 모양)', '수업·단어 두 줄 — 한 것은 원본 링크, 안 한 것은 “하지 않았어요”', '원본이 지워져도 점수·달성은 그대로(배지)', '‹ › 로 챌린지 안 다른 날'],
+    a11y: ['시트 열면 제목으로 초점, Esc·닫기로 닫고 연 칸으로 초점 복귀'] },
+  s6: { goal: '오늘 탭은 그대로 두고, 맨 위 챌린지 띠 + 단어·회화 카드가 챌린지 주제를 따른다.',
+    ch: ['맨 위 챌린지 띠(누르면 계획표) — 오늘 할 일 n/2 · 단어/회화 ✓', '오늘의 단어: 주제 칩 + “이 주제 표현 17개 중 10장” · 장수는 챌린지 목표로 고정, 방식만 · [내 단어장으로 풀기]는 아래 링크', '오늘의 회화: 챌린지 주제 수업(준비됨·만드는 중·실패) — 지금 카드와 같은 상태 문구', '챌린지가 없으면 지금 화면 그대로'],
+    a11y: ['띠는 링크 하나, 화면 읽기 문구에 진행 요약', '만드는 중 막대는 장식, 상태는 글'] },
+  s7: { goal: '덱·결과는 지금 그대로. 머리에 주제, 결과에 “챌린지 목표”와 [단어장에 넣기].',
+    ch: ['덱: 부제에 주제 · 진행 줄에 주제 칩', '결과: 맨 위 목표 달성 알림(또는 1/2) · 주제 표현 진행(+n) · 카드 10장 전부에 [단어장에 넣기]', '단어장에 이미 있으면 “단어장에 있어요”', '알림 줄(표현 적음·뒤집기로 바뀜)은 지금 알림 줄 모양'],
+    a11y: ['넣기 버튼 이름에 표현 포함(“持ち帰ります 단어장에 넣기”)', '넣은 뒤 버튼 자리 글이 role="status"'] },
+  s8: { goal: '끝난 챌린지의 결과를 한 번 저장된 값으로 보여 주고 다음 챌린지로 잇는다.',
+    ch: ['결과: 상태 배지(완주 · 기간 끝 · 그만둠) + “N일 중 M일 달성” · 날짜별 · 해낸 것', '다음 챌린지: [다시 도전](같은 주제) · [다른 주제로] — 진행 중이 있으면 안내 한 줄로 대신', '챌린지 기록: 진행 중 먼저, 끝난 것은 끝난 날 순'],
+    a11y: ['배지는 글자(색만 아님)', '목록 행은 링크 하나(72px)'] }
+};
+function renderSide() {
+  var s = SIDE[S.scr], scr = S.scr;
+  var st = '<div class="dcard"><h2>이 화면의 상태</h2><div class="dsl">' + VARS[scr].map(function (x) { return '<a href="#' + scr + '.' + x[0] + '" data-var-link="' + x[0] + '"' + (S.v[scr] === x[0] ? ' aria-current="true"' : '') + '>' + x[1] + ' · ' + x[2] + '</a>'; }).join('') + '</div></div>';
+  var html = '<div class="dcard"><h2>무엇을 보여 주나</h2><p class="dk" style="font-size:14px;font-weight:600">' + s.goal + '</p>' + (s.hier ? '<p class="dsub">보는 순서</p><ol class="dn">' + s.hier.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>' : '') + '</div>' +
+    '<div class="dcard"><h2>' + (scr === 's3' || scr === 's4' || scr === 's5' || scr === 's8' ? '새 화면 — 핵심' : '지금 화면에서 바뀌는 곳') + '</h2><ul class="dn">' + s.ch.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></div>' +
+    st + '<div class="dcard"><h2>접근성</h2><ul class="dn">' + s.a11y.concat(['터치 44px 이상(목록 행 56px)', '색만으로 구분하지 않음 — ✓ ◐ ✕ 글자 + 모양 + 이름']).map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></div>';
+  $('#side').innerHTML = html;
+}
+
+/* ════════ 아래 패널 ════════ */
+function renderMatrix() {
+  var head = '<thead><tr><th scope="col">화면</th>' + ['정상', '로딩', '빈', '오류', '409 · 404'].map(function (c) { return '<th scope="col">' + c + '</th>'; }).join('') + '</tr></thead>';
+  var rows = SCR.map(function (s) {
+    var scr = s[0];
+    var cells = [['정상'], ['로딩'], ['빈'], ['오류'], ['409', '404']].map(function (cs) {
+      var items = VARS[scr].filter(function (x) { return cs.indexOf(x[1]) >= 0; });
+      if (items.length) return '<td>' + items.map(function (x) { return '<a href="#' + scr + '.' + x[0] + '" data-jump="' + scr + '.' + x[0] + '">' + (cs.length > 1 ? x[1] + ' ' : '') + x[2] + '</a>'; }).join('<br>') + '</td>';
+      var why = cs.map(function (c) { return NA[scr][c]; }).filter(Boolean).join(' / ');
+      return '<td class="na">— ' + (why || '해당 없음') + '</td>';
+    }).join('');
+    return '<tr><th scope="row">' + scr.toUpperCase() + ' ' + s[1] + '</th>' + cells + '</tr>';
+  }).join('');
+  $('#matrix').innerHTML = '<h2 id="mx-h">화면 × 상태 전수</h2><p class="dsub">설계서 화면 표의 “꼭 그릴 상태”를 정상·로딩·빈·오류·409/404 다섯 칸에 나눴어요. 칸을 누르면 그 상태로 바뀌어요. “—” 칸은 그 화면에 해당 상태가 없는 이유예요.</p><div class="dtw mt10"><table class="dtbl">' + head + '<tbody>' + rows + '</tbody></table></div>';
+}
+function renderData() {
+  var ch = chal('t0'), m = metrics(ch), B = S.dec.streak === 'B';
+  var rows = [
+    ['챌린지', '카페 주문 7일 챌린지 · N5 · 10월 3일 ~ 10월 9일', '같음', '머리: 10월 n일 · n일째', '띠: 카페 주문 챌린지', '기간 아래 선 10/3~10/9'],
+    ['오늘', '4일째 / 7일', '4일째 / 7일', '4일째 = 오늘', '4일째 / 7일', '10/6 오늘 테두리'],
+    ['날짜별', '✓ ✓ ◐ 오늘 5 6 7', '✓ ✓ ◐ · 예정 3칸', '2일째 달성 · 3일째 일부', '—', '10/3 ✓ · 10/4 ✓ · 10/5 ◐'],
+    ['달성률', m.rate + '% · ' + m.elapsed + '일 중 ' + m.met + '일', '같음', '—', '—', '—'],
+    ['수행 연속', m.streak + '일 · 오늘 하면 ' + m.next + '일', '같음 · 최장 ' + m.longest + '일', '—', '—', '—'],
+    ['오늘 할 일', '0 / 2 · 단어 10장 · 회화 준비됨', '같음', '4일째 시트: 회화 준비됨 · 단어 아직', '띠 0 / 2 · 회화 카드 “준비됐어요”', '10/6 칩 없음(출석만)'],
+    ['3일째(10/5)', '◐ 일부', '◐ 일부', '단어 10장 중 7장 · 회화 안 함', '—', '단 칩 + ◐ · 하루 시트 “일부”'],
+    ['주제 표현', '—', '12개 중 8개 공부 · 6개 맞힘 · +5', '—', '17개 중 10장(=12+5)', '—'],
+    ['누적', '—', '수업 2개 · 세트 3 · 맞힌 카드 24장', '1일째 8/10 · 2일째 9/10 · 3일째 7/10', '—', '—'],
+    ['점수 추이', '—', '수업 80 → 90 → 없음 · 단어 80 → 90 → 70%', '1일째 80점 · 2일째 90점', '—', '—']
+  ];
+  $('#data').innerHTML = '<h2 id="da-h">수치 대조 — 설계서 §1-3 기준값</h2><p class="dsub">같은 계산 함수로 그려서 화면끼리 어긋나지 않아요. 지금 고른 연속·달성률 규칙: <b>' + (B ? 'B 오늘도 셈' : 'A 오늘 유예') + '</b>. S7 결과는 오늘 세트를 끝낸 뒤라 주제 표현이 10개 공부(+2) · 7개 맞힘(+1)이고, 수업을 먼저 끝냈으면 그때 오늘 목표 달성(연속 1일 · 달성률 4일 중 3일 75%)이 돼요.</p><div class="dtw mt10"><table class="dtbl"><thead><tr><th scope="col">값</th><th scope="col">S2 계획표 카드</th><th scope="col">S4 상세</th><th scope="col">S5 하루 시트</th><th scope="col">S6 오늘 탭</th><th scope="col">달력</th></tr></thead><tbody>' +
+    rows.map(function (r) { return '<tr><th scope="row">' + r[0] + '</th>' + r.slice(1).map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+}
+function renderNotes() {
+  var items = [
+    ['문구', '설계서의 “Day n/N”은 앱이 한국어만 쓰므로 “n일째 / N일”로 그렸어요.'],
+    ['할 일 순서', '오늘 할 일을 단어 → 회화 순으로 놓았어요. 오늘 탭 카드 순서(단어 카드가 위)와 맞추려고요. 설계서 응답 예시는 회화 → 단어 순이에요.'],
+    ['수업 점수', '설계서의 수업 점수(100점)를 “80점”으로 그렸어요. 지금 오늘 카드·종료 카드는 “문제 4/5 맞힘”을 써서 같은 수업이 두 방식으로 보여요. 구현 때 하나로 정해야 해요(권고: 챌린지 화면도 “문제 n/5”와 함께 표기하거나 점수만).'],
+    ['이 주제 수업 수', '설계서 응답 예시의 “이 주제 수업 3개 · 평균 85”와 §1-3의 챌린지 수업 2개(80·90)가 달라 보여요. 데모는 “이 주제로 끝낸 수업 3개(챌린지 전 1개 포함)”와 챌린지 누적 “수업 2개”를 나눠 적었어요.'],
+    ['주제 단어 장수', '챌린지 세트는 하루 목표 장수(만들 때 정한 값)로 고정하고 오늘 카드에서 장수 선택을 숨겼어요. 설계서에는 명시가 없어요 — 장수를 바꾸고 싶으면 [내 단어장으로 풀기].'],
+    ['할 일 줄 이동', '계획표 카드의 할 일 줄은 오늘 탭으로 가요(설계서 흐름 그대로). 수업 화면으로 바로 가지 않아요.'],
+    ['기록 이름', '“지난 챌린지 목록”은 진행 중도 맨 위에 보여서 이름을 “챌린지 기록”으로 했어요(경로는 그대로).'],
+    ['놓침 예시', '지금 챌린지에는 놓친 날이 없어서 하루 시트의 “놓침”은 지난 챌린지(길 묻기 6일째)로 그렸어요.'],
+    ['결과 화면의 다시 도전', '진행 중 챌린지가 있으면 [다시 도전] 대신 안내 한 줄을 보여요(막힘을 미리 피함). 다른 기기에서 막 시작한 경우만 막힘 알림.'],
+    ['출석 연속', '달력 요약의 “지금 연속 출석”은 그대로 두고, 챌린지는 “수행 연속”으로 이름을 달리했어요. 같은 화면에 연속이 두 개라 헷갈리지 않는지 확인이 필요해요.']
+  ];
+  $('#notes').innerHTML = '<h2 id="nt-h">설계서와 다르게 그린 곳 · 확인할 것</h2><p class="dsub">설계서를 고치지 않고 데모에서 정한 것들이에요. 승인 때 함께 봐 주세요.</p><ul class="dnote mt10">' + items.map(function (x) { return '<li><b>' + x[0] + '</b> — ' + x[1] + '</li>'; }).join('') + '</ul>';
+}
+
+/* ════════ 결정 필요 ════════ */
+var DEC = [
+  { id: 'ia', u: 'U9', t: '계획표 화면 구성', d: '챌린지를 계획표 탭 어디에 둘까요? 아래에 세 안을 같은 데이터로 나란히 그렸어요.', see: 's2.t0', mini: 'ia',
+    o: [['F1', '맨 위 현황 카드 + 달력 그대로', 1, ['오늘 할 일이 첫 화면 맨 위', '승인된 달력은 칸 표시만 더함', '성장 기록 자리 그대로'], ['달력이 아래로 밀림(카드 높이만큼)']],
+      ['F2', '탭 안 서브탭 [챌린지 · 달력 · 성장 기록]', 0, ['화면마다 하나만 보여 짧음'], ['달력을 보려면 한 번 더 누름', '빈 “성장 기록” 서브탭이 어색함']],
+      ['F3', '달력 아래, 성장 기록 자리에 챌린지', 0, ['달력이 맨 위 그대로'], ['오늘 할 일이 780px 첫 화면 밖', '성장 기록 자리가 사라짐']]] },
+  { id: 'tab', u: 'U10', t: '하단 탭 이름', d: '하단 탭 5개는 그대로예요. 이름만 정해요.', see: 's2.t0', mini: 'tab',
+    o: [['A', '“계획표” 그대로', 1, ['달력·성장 기록과 이름이 맞음', '주소·아이콘 그대로'], []], ['B', '“챌린지”로 바꿈', 0, ['새 기능이 눈에 띔'], ['달력·성장 기록이 이름과 어긋남', '챌린지가 없을 때 탭 이름이 비어 보임']]] },
+  { id: 'period', u: 'U11', t: '기간 · 하루 목표 선택지', d: '만들기 ②·③의 선택지예요. 하루 목표는 회화·단어를 각각 켜고 끌 수 있고, 단어 장수 기본값은 설정의 하루 단어 수예요.', see: 's3.step2',
+    o: [['A', '7 · 14 · 30일', 1, ['고르기 쉬움', '처음엔 7일 추천'], []], ['B', '7 · 14 · 21 · 30일', 0, ['세 주 선택지가 생김'], ['카드가 하나 늘어 화면이 길어짐']]] },
+  { id: 'multi', u: 'U13', t: '진행 중 개수 · 조작', d: '한 번에 몇 개, 무엇을 바꿀 수 있나요?', see: 's3.step4', mini: 'multi',
+    o: [['A', '1개 · 그만두기만', 1, ['계획표 카드 하나로 끝', '연속·달성률 규칙이 단순'], ['목표를 바꾸려면 그만두고 새로']], ['B', '여러 개 · 일시정지 · 목표 수정', 0, ['자유로움'], ['카드가 목록이 됨', '일시정지 때 연속 계산이 복잡', '서버·DB 변경이 더 큼']]] },
+  { id: 'streak', u: 'U8', t: '수행 연속 · 달성률 — 오늘을 어떻게 셀까', d: '지금 데이터(어제 일부)에서는 연속이 둘 다 0이지만 달성률이 달라요. 아래 예시는 “1·2일째 달성, 3일째 아침”이에요.', see: 's4.normal', mini: 'streak',
+    o: [['A', '오늘 유예 — 어제까지로 셈', 1, ['아침에 열어도 연속이 안 깨져 보임', '지금 화면: 3일 중 2일 67%'], ['“오늘 하면 n일” 안내 필요']], ['B', '오늘도 셈 — 못 채우면 바로 반영', 0, ['계산이 단순'], ['아침마다 연속 0·달성률 하락으로 보임', '지금 화면: 4일 중 2일 50%']]] },
+  { id: 'attr', u: 'U12', t: '무엇을 챌린지 공부로 셀까', d: '같은 주제 수업·단어를 오늘 탭 어디서 해도 셀지, 챌린지 화면에서 시작한 것만 셀지.', see: 's3.step4',
+    o: [['A', '같은 주제면 어디서 했든 셈 + 만들 때 오늘 것 반영', 1, ['“방금 했는데 0” 없음', '공부 화면은 지금 그대로'], ['주제가 같은 우연한 공부도 셈']], ['B', '챌린지 화면에서 시작한 것만', 0, ['의도가 분명'], ['오늘 탭에서 한 같은 공부가 안 세어져 헷갈림']]] },
+  { id: 'prep', u: 'U5', t: '그날 수업을 언제 만들까', d: '오늘 탭의 회화 카드가 “준비됐어요”로 보일지, 눌러서 기다릴지가 갈려요.', see: 's6.ready',
+    o: [['C1', '매일 새벽 미리 만들기', 0, ['열면 늘 준비됨'], ['안 여는 날도 만듦(비용)', '새 운영 부품(예약 실행) 필요']], ['C2', '그날 처음 열 때 미리 만들기', 1, ['대개 준비됨', '연 날만 만듦'], ['처음 몇 분은 “만들고 있어요”']], ['C3', '누를 때만(지금 방식)', 0, ['추가 없음'], ['매일 1~2분 기다림', '“매일 생성” 요청과 어긋남']]] },
+  { id: 'pool', u: 'U4', t: '주제 표현이 모자랄 때', d: '오늘 남은 이 주제 표현이 목표 장수보다 적을 때(예: 두 번째 세트 7개).', see: 's7.few',
+    o: [['A', '주제 표현만 — 장수를 줄임', 1, ['세트 의미가 분명(주제 단어만)'], ['짧은 세트']], ['B', '내 단어장 단어로 채움', 0, ['장수 유지'], ['주제와 상관없는 카드가 섞임']]] },
+  { id: 'add', u: 'N1', t: '[단어장에 넣기] 흐름', d: '설계서 U 목록 밖, 데모에서 생긴 결정이에요. 결과 화면 카드마다 버튼이 있어요. 누르면 바로 넣을지, 확인 시트를 열지.', see: 's7.result',
+    o: [['A', '한 번 누르면 바로 넣기', 1, ['3분 리듬을 안 깸', '넣은 뒤 “✓ 넣었어요”'], ['읽기·뜻을 고치려면 단어장에서']], ['B', '시트에서 확인 후 넣기', 0, ['넣기 전에 고칠 수 있음'], ['카드마다 한 단계 더']]] },
+  { id: 'title', u: 'N2', t: '챌린지 이름', d: '설계서에서 미정으로 남긴 항목이에요(만들기 ④).', see: 's3.step4',
+    o: [['A', '자동 — “카페 주문 7일 챌린지”', 1, ['입력 없음', '목록이 한눈에'], ['같은 이름이 반복될 수 있음']], ['B', '직접 입력(비우면 자동)', 0, ['내 말로 다짐'], ['입력칸·글자 수 검증 추가']]] }
+];
+function miniPlan(ia) {
+  var saved = S.dec.ia;
+  S.dec.ia = ia; UIDP = 'n' + ia;
+  var h = planScreen({ scr: 's2', v: 't0', ia: ia, mini: true });
+  S.dec.ia = saved; UIDP = 's';
+  return h;
+}
+function miniBlock(kind) {
+  if (kind === 'ia') {
+    return '<div class="minis" aria-label="세 안을 같은 데이터로 나란히">' + ['F1', 'F2', 'F3'].map(function (ia) {
+      return '<figure class="minif"><figcaption class="' + (S.dec.ia === ia ? 'on' : '') + '">' + ia + (ia === 'F1' ? ' · 권고' : '') + (S.dec.ia === ia ? ' · 고름' : '') + '</figcaption><div class="miniw" style="width:' + Math.round(390 * .6) + 'px;height:' + Math.round(780 * .6) + 'px">' + phone(miniPlan(ia), 390, 780, ' inert aria-hidden="true"') + '</div></figure>';
+    }).join('') + '</div>';
+  }
+  if (kind === 'tab') {
+    var bars = ['A', 'B'].map(function (k) {
+      var saved = S.dec.tab; S.dec.tab = k; var b = tabBar(2); S.dec.tab = saved;
+      return '<figure class="minif" style="width:min(390px,100%)"><figcaption>' + k + (k === 'A' ? ' · 권고' : '') + '</figcaption><div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;width:100%" inert aria-hidden="true">' + b + '</div></figure>';
+    }).join('');
+    return '<div class="minis">' + bars + '</div>';
+  }
+  if (kind === 'streak') {
+    return '<div class="dq-g c2"><div class="dex"><b>A 오늘 유예</b><br>달성률 <b>100%</b> · 2일 중 2일<br>수행 연속 <b>2일</b> · 오늘 하면 3일</div><div class="dex"><b>B 오늘도 셈</b><br>달성률 <b>67%</b> · 3일 중 2일<br>수행 연속 <b>0일</b> · 오늘 하면 3일</div></div>';
+  }
+  if (kind === 'multi') {
+    return '<div class="dq-g c2"><div class="dex"><b>A</b> 계획표 맨 위 카드 1개 · 상세 맨 아래 [그만두기]만<br>만들기 ④ “진행 중인 챌린지는 하나뿐이에요”</div><div class="dex"><b>B</b> 계획표 맨 위가 진행 중 목록(카드 2~3개)으로 바뀌고, 상세에 [잠시 멈추기] [목표 바꾸기]가 생겨요 — 이 데모는 A 로만 그렸어요.</div></div>';
+  }
+  return '';
+}
+function renderDecide() {
+  var body = DEC.map(function (q) {
+    var cols = q.o.length === 3 ? 'c3' : 'c2';
+    var opts = q.o.map(function (op) {
+      var on = S.dec[q.id] === op[0];
+      return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="dec-' + q.id + '" value="' + op[0] + '" data-dec="' + q.id + '"' + (on ? ' checked' : '') + '><span class="opt-h">' + op[0] + ' · ' + op[1] + (op[2] ? '<span class="rec">권고</span>' : '') + '</span><ul>' + op[3].map(function (t) { return '<li class="p">' + t + '</li>'; }).join('') + op[4].map(function (t) { return '<li class="m">' + t + '</li>'; }).join('') + '</ul><span class="sel">' + (on ? '✓ 지금 데모에 적용' : '눌러서 데모에 적용') + '</span></label>';
+    }).join('');
+    return '<div class="dq" id="dq-' + q.id + '"><h3><span class="did">' + q.u + '</span>' + q.t + '</h3><p>' + q.d + ' <a href="#' + q.see + '" data-jump="' + q.see + '">데모에서 보기</a></p>' + (q.mini ? miniBlock(q.mini) : '') + '<div class="dq-g ' + cols + '">' + opts + '</div></div>';
+  }).join('');
+  var changed = Object.keys(REC).filter(function (k) { return S.dec[k] !== REC[k]; });
+  var sum = '<div class="dsum"><span>지금 고른 안: ' + DEC.map(function (q) { return q.u + ' ' + S.dec[q.id]; }).join(' · ') + '</span><button type="button" data-act-top="resetDec">권고안으로 되돌리기</button></div>';
+  var ref = '<div class="dref"><h3 style="font-size:15px;font-weight:700">화면에 안 나오는 결정 — 설계서에서 정해요</h3><ul class="mt4"><li><b>U1 · U2 · U7</b> 챌린지 데이터 모델 · DB 추가 승인 범위 · 지표 원천 — 설계서 §3 · §6 · §11 참조</li><li><b>U3</b> 주제 단어를 만드는 방식(1단계는 주제 표현에서 고르기만) — 설계서 §4 참조. 화면 차이는 위 “표현이 모자랄 때”뿐이에요</li><li><b>U6</b> 상황 역할극과 나누는 범위 — 설계서 §7 참조. 이 데모는 상황 카드를 그리지 않아요(만들기에 “준비 중” 자리도 없음)</li></ul></div>';
+  $('#dec-body').innerHTML = body + sum + ref;
+  $('#dec-sum').innerHTML = DEC.map(function (q) { return '<span' + (S.dec[q.id] !== REC[q.id] ? ' class="chg"' : '') + '>' + q.u + ' ' + S.dec[q.id] + '</span>'; }).join('');
+  $('#d-jump').textContent = '결정 필요 10건' + (changed.length ? ' · 바꾼 것 ' + changed.length : '');
+}
+
+/* ════════ 동작 ════════ */
+function go(target, opt) {
+  opt = opt || {};
+  var p = target.split('.');
+  if (!VARS[p[0]]) return;
+  S.scr = p[0];
+  if (p[1] && varMeta(p[0], p[1])[0] === p[1]) S.v[p[0]] = p[1];
+  S.sheet = null;
+  try { history.replaceState(null, '', '#' + S.scr + '.' + S.v[S.scr]); } catch (e) { /* 미리 보기에서 막히면 무시 */ }
+  renderStage();
+  if (opt.nofocus) return;
+  var h = $('[data-main] .sheet h2') || $('[data-main] h1');
+  if (h) h.focus({ preventScroll: true });
+}
+function pToast(msg) {
+  var t = $('[data-main] .ptoast');
+  if (!t) return dToast(msg);
+  t.hidden = false; t.textContent = msg;
+  clearTimeout(pToast.tm); pToast.tm = setTimeout(function () { t.hidden = true; }, 2600);
+}
+function dToast(msg) {
+  var t = $('#dtoast'); t.hidden = false; t.textContent = msg;
+  clearTimeout(dToast.tm); dToast.tm = setTimeout(function () { t.hidden = true; }, 2600);
+}
+function rerenderKeepFocus(sel) {
+  renderStage();
+  if (sel) { var el = $('[data-main] ' + sel); if (el) el.focus({ preventScroll: true }); }
+}
+function openSheet(sh, opener) {
+  S.sheet = sh; S.ret = opener ? opener.getAttribute('data-fid') : null;
+  renderStage();
+  var h = $('[data-main] .sheet h2'); if (h) h.focus({ preventScroll: true });
+}
+function closeSheet() {
+  var ret = S.ret;
+  S.sheet = null; S.ret = null;
+  if (S.scr === 's2' && S.v.s2 === 'sheet') S.v.s2 = 't0';
+  if (S.scr === 's4' && (S.v.s4 === 'end' || S.v.s4 === 'endfail' || S.v.s4 === 'endbusy')) S.v.s4 = 'normal';
+  if (S.scr === 's5') { S.scr = 's4'; S.v.s4 = 'normal'; }
+  renderStage();
+  if (ret) { var el = $('[data-main] [data-fid="' + ret + '"]'); if (el) el.focus({ preventScroll: true }); }
+}
+function act(a, el) {
+  switch (a) {
+    case 'noop': return pToast('데모 — 지금 화면 그대로 동작해요');
+    case 'toast': return pToast(el.getAttribute('data-msg'));
+    case 'go': return go(el.getAttribute('data-go'));
+    case 'retry': return pToast('다시 불러와요 — 데모라 같은 상태예요');
+    case 'closeSheet': return closeSheet();
+    case 'openDay': {
+      var d = el.getAttribute('data-d');
+      if (S.scr === 's2' && S.v.s2 !== 'sheet' && S.v.s2 !== 'loading') { openSheet({ kind: 'cal', d: d }, el); return; }
+      openSheet({ kind: 'cal', d: d }, el); return;
+    }
+    case 'calStep': {
+      if (el.getAttribute('aria-disabled') === 'true') return pToast('다음 날은 아직 오지 않았어요');
+      var nd = addD(el.getAttribute('data-d'), Number(el.getAttribute('data-v')));
+      if (nd < '2026-10-01') return pToast('이 달의 첫날이에요');
+      S.sheet = { kind: 'cal', d: nd }; if (S.v.s2 === 'sheet') S.v.s2 = 't0';
+      renderStage(); var hh = $('[data-main] .sheet h2'); if (hh) hh.focus({ preventScroll: true }); return;
+    }
+    case 'openChDay': {
+      var i = Number(el.getAttribute('data-i')), src = el.getAttribute('data-src') || 'cur';
+      if (S.scr === 's2' || S.scr === 's1') { S.scr = 's4'; S.v.s4 = 'normal'; S.sheet = null; renderStage(); }
+      openSheet({ kind: 'ch', i: i, src: src }, el); return;
+    }
+    case 'chStep': {
+      if (el.getAttribute('aria-disabled') === 'true') return pToast('챌린지 기간 밖이에요');
+      var cur = S.sheet || {};
+      if (S.scr === 's5') { var mp = { met: 1, partial: 2, today: 3, upcoming: 4, gone: 0 }; cur = S.v.s5 === 'missed' ? { kind: 'ch', i: 5, src: 'dir' } : { kind: 'ch', i: mp[S.v.s5] || 1, src: S.v.s5 === 'gone' ? 'gone' : 'cur' }; S.scr = cur.src === 'dir' ? 's8' : 's4'; if (cur.src === 'dir') S.v.s8 = 'partial'; else S.v.s4 = 'normal'; }
+      var ni = cur.i + Number(el.getAttribute('data-v'));
+      S.sheet = { kind: 'ch', i: ni, src: cur.src === 'gone' ? 'cur' : cur.src };
+      renderStage(); var h2 = $('[data-main] .sheet h2'); if (h2) h2.focus({ preventScroll: true }); return;
+    }
+    case 'openEnd': S.v.s4 = 'end'; S.ret = 'endbtn'; renderStage(); var eh = $('[data-main] .sheet h2'); if (eh) eh.focus({ preventScroll: true }); return;
+    case 'doEnd': {
+      if (el.getAttribute('aria-disabled') === 'true') return;
+      S.v.s4 = 'endbusy'; renderStage();
+      setTimeout(function () { S.ret = null; go('s8.ended'); pToast('챌린지를 그만뒀어요 · 기록은 그대로 남아요'); }, 900);
+      return;
+    }
+    case 'f2tab': S.f2tab = el.getAttribute('data-v'); return rerenderKeepFocus('[role="tab"][aria-selected="true"]');
+    case 's3next': {
+      if (el.getAttribute('aria-disabled') === 'true') return pToast(S.v.s3 === 'c409' ? '진행 중인 챌린지가 있어요' : S.v.s3 === 'c404' ? '주제를 다시 골라 주세요' : '하루 목표를 하나 이상 골라 주세요');
+      var step = Number(el.getAttribute('data-step'));
+      if (step < 4) return go('s3.step' + (step + 1));
+      S.v.s3 = 'busy'; renderStage();
+      setTimeout(function () { go('s2.first'); pToast('챌린지를 시작했어요 · 오늘 수업을 만들고 있어요'); }, 900);
+      return;
+    }
+    case 's3count': S.s3.count = Number(el.getAttribute('data-v')); return rerenderKeepFocus('[data-act="s3count"][aria-checked="true"]');
+    case 's3start': S.s3.start = el.getAttribute('data-v'); return rerenderKeepFocus('[data-act="s3start"][aria-checked="true"]');
+    case 'startSet': if (el.getAttribute('aria-disabled') === 'true') return; return go('s7.deck');
+    case 'toResult': return go(S.v.s7 === 'few' || S.v.s7 === 'flip' ? 's7.result' : 's7.result');
+    case 'toggleFu': P.fu = !P.fu; syncLay(); return rerenderKeepFocus('[data-act="toggleFu"]');
+    case 'addWord': {
+      var k = el.getAttribute('data-k'), wi = Number(el.getAttribute('data-i'));
+      if (S.v.s7 === 'inwb' && wi === 1) { S.added[k + 'x'] = 1; rerenderKeepFocus('#wl-h'); return pToast('이미 단어장에 있는 표현이에요'); }
+      if (S.dec.add === 'B') { openSheet({ kind: 'add', i: wi }, el); return; }
+      S.added[k] = 1; rerenderKeepFocus('#wl-h'); return pToast('단어장에 넣었어요 · ' + plain(SET[wi].x.ja));
+    }
+    case 'addConfirm': { var kk = el.getAttribute('data-k'); S.added[kk] = 1; S.sheet = null; renderStage(); return pToast('단어장에 넣었어요'); }
+    case 'retry409': {
+      if (S.scr === 's8' && S.v.s8 === 'r409') return pToast('진행 중인 챌린지가 있어요');
+      S.s3 = { topic: 'cafe', len: 7, lesson: true, words: true, count: 10, start: 'TODAY', name: '카페 주문 7일 챌린지' };
+      return go('s3.step4');
+    }
+  }
+}
+function syncLay() { $$('#d-lay button').forEach(function (b) { b.setAttribute('aria-pressed', String(P[b.getAttribute('data-k')])); }); }
+
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  var nav = t.closest('[data-nav]');
+  if (nav) { e.preventDefault(); go(nav.getAttribute('data-nav')); return; }
+  var vl = t.closest('[data-var-link]');
+  if (vl) { e.preventDefault(); go(S.scr + '.' + vl.getAttribute('data-var-link')); return; }
+  var j = t.closest('[data-jump]');
+  if (j) { e.preventDefault(); go(j.getAttribute('data-jump')); $('#stage').scrollIntoView({ block: 'start' }); return; }
+  var op = t.closest('[data-open]');
+  if (op) { $('#decide').open = true; return; }
+  var vb = t.closest('#d-var button');
+  if (vb) { var vv = vb.getAttribute('data-var'); go(S.scr + '.' + vv, { nofocus: true }); var nb = $('#d-var button[data-var="' + vv + '"]'); if (nb) nb.focus(); return; }
+  var at = t.closest('[data-act-top]');
+  if (at) { S.dec = JSON.parse(JSON.stringify(REC)); renderDecide(); renderStage(); renderData(); dToast('권고안으로 되돌렸어요'); return; }
+  if (!t.closest('[data-main]')) return;
+  var el = t.closest('[data-act],[data-go]');
+  if (!el || el.tagName === 'INPUT') return;
+  e.preventDefault();
+  var a = el.getAttribute('data-act');
+  if (a && a !== 'go') act(a, el); else go(el.getAttribute('data-go'));
+});
+document.addEventListener('change', function (e) {
+  var t = e.target;
+  if (t.matches('[data-dec]')) { S.dec[t.getAttribute('data-dec')] = t.value; renderDecide(); renderStage(); renderData(); var f = document.querySelector('input[name="' + t.name + '"]:checked'); if (f) f.focus({ preventScroll: true }); return; }
+  if (!t.closest('[data-main]')) return;
+  var a = t.getAttribute('data-act');
+  if (a === 's3topic') { S.s3.topic = t.value; rerenderKeepFocus('input[name="s3topic"]:checked'); }
+  if (a === 's3len') { S.s3.len = Number(t.value); rerenderKeepFocus('input[name="s3len"]:checked'); }
+  if (a === 's3goal') { S.s3[t.getAttribute('data-k')] = t.checked; rerenderKeepFocus('input[data-k="' + t.getAttribute('data-k') + '"]'); }
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && $('[data-main] [data-sheet]')) { e.preventDefault(); closeSheet(); }
+});
+
+/* 위 조작 줄 */
+function segCtl(id, fn) {
+  $('#' + id).addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.getAttribute('aria-disabled') === 'true') { dToast('이 화면은 새로 생기는 화면이라 지금 화면이 없어요'); return; }
+    $$('#' + id + ' button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    fn(b.getAttribute('data-v'));
+  });
+}
+segCtl('d-w', function (v) { S.w = Number(v); renderStage(); renderDecide(); });
+segCtl('d-h', function (v) { S.h = Number(v); renderStage(); });
+segCtl('d-view', function (v) { S.view = v; renderStage(); });
+segCtl('d-t', function (v) { S.theme = v; if (v === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', v); });
+$('#d-lay').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  var k = b.getAttribute('data-k'); P[k] = !P[k]; syncLay(); renderStage(); renderDecide();
+});
+$('#d-jump').addEventListener('click', function () { $('#decide').open = true; });
+
+/* 시작 */
+(function init() {
+  var h = (location.hash || '').slice(1);
+  if (h && h.indexOf('.') > 0 && VARS[h.split('.')[0]]) { var p = h.split('.'); S.scr = p[0]; if (varMeta(p[0], p[1])[0] === p[1]) S.v[p[0]] = p[1]; }
+  else if (VARS[h]) S.scr = h;
+  renderStage(); renderMatrix(); renderData(); renderNotes(); renderDecide();
+})();
+})();
+</script>
+</body>
+</html>

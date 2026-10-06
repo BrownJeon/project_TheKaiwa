@@ -14,7 +14,9 @@ import { writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Btn, ErrorBlock } from '@/components/common/ui'
 import BackBar from '@/components/shell/BackBar'
+import type { ChallengeProgress } from '@/types/challenge'
 import type { CompleteResult, LessonContent, LessonDto } from '@/types/lesson'
+import { LESSON_END_CH } from '@/components/vocab/topicCopy'
 import LessonEnd from './LessonEnd'
 import LessonGenScreen from './LessonGenScreen'
 import { GEN, LESSON, PASTED_TOPIC } from './lessonCopy'
@@ -42,6 +44,7 @@ export default function LessonScreen({ lessonId, teacherName, learningSpeed }: {
   const { show } = toast
   const [end, setEnd] = useState<EndResult | null>(null)
   const [endReview, setEndReview] = useState<FreshReviewEnd | null>(null)
+  const [endChallenge, setEndChallenge] = useState<ChallengeProgress | null>(null)
   const wasGenerating = useRef(false)
   const [justReady, setJustReady] = useState(false)
 
@@ -117,7 +120,9 @@ export default function LessonScreen({ lessonId, teacherName, learningSpeed }: {
     const result = end ?? endResultFrom(ready)
     return (
       <>
-        {result ? <LessonEnd lesson={ready} result={result} onToast={show} review={end ? endReview : null} teacherName={teacherName} /> : null}
+        {result ? (
+          <LessonEnd lesson={ready} result={result} onToast={show} review={end ? endReview : null} teacherName={teacherName} challenge={end ? endChallenge : null} />
+        ) : null}
         <Toast message={toast.message} bottomPx={24} />
       </>
     )
@@ -131,9 +136,12 @@ export default function LessonScreen({ lessonId, teacherName, learningSpeed }: {
       learningSpeed={learningSpeed}
       justReady={justReady}
       toast={toast}
-      onEnded={(r, rv) => {
+      onEnded={(r, rv, chp) => {
         setEnd(r)
         setEndReview(rv ?? null)
+        setEndChallenge(chp ?? null)
+        // 종료 화면 제목 초점 뒤 한 번(task-044 §3-9) — 그날을 달성으로 바꾼 수업일 때만.
+        if (chp?.goalMetNow) setTimeout(() => show(LESSON_END_CH.toast), 0)
       }}
     />
   )
@@ -154,7 +162,7 @@ function LessonStages({
   learningSpeed: number | null
   justReady: boolean
   toast: ReturnType<typeof useToast>
-  onEnded: (r: EndResult, review?: FreshReviewEnd) => void
+  onEnded: (r: EndResult, review?: FreshReviewEnd, challenge?: ChallengeProgress | null) => void
 }) {
   const { show } = toast
   const [stage, setStage] = useState(() => firstStage(lesson.stageDone))
@@ -234,6 +242,7 @@ function LessonStages({
       onEnded(
         { correct: r.result.quiz.correct, total: r.result.quiz.total, applicationDone: r.result.applicationDone, usedIds: r.result.expressions.usedIds, missedIds: r.result.expressions.missedIds, nextPreview: r.result.nextPreview },
         isReviewLesson ? { jobId: r.reviewDecisionJobId ?? null, nextReview: r.nextReview ?? null } : undefined,
+        r.challenge ?? null,
       )
       st.replace({ ...lesson, status: 'DONE', stageDone: 5, score: r.lesson.score, completedAt: r.lesson.completedAt })
     }

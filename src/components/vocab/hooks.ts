@@ -21,6 +21,12 @@ export const VOCAB_KEYS = {
   notice: (sessionId: string) => `kaiwa.vocab.notice.${sessionId}`,
   /** 덱 → 오늘 홈: 한 번 띄울 토스트 문구 */
   flash: 'kaiwa.vocab.flash',
+  /** 오늘 카드·결과 [시작하기]·[한 세트 더] → 새 단어 대기 화면: 시작 값(task-044 E2, 60초) */
+  topicStart: 'kaiwa.vocab.topicStart',
+  /** 대기 화면 → 덱 첫 열기: #47 `generation`(출처·사유 — 한 번 읽고 지운다) */
+  topicGen: (sessionId: string) => `kaiwa.vocab.topicGen.${sessionId}`,
+  /** 대기 화면 빈 상태 [내 단어장으로 풀기] → 오늘 홈: 내 단어장 패널을 펼친 채(한 번) */
+  openMine: 'kaiwa.vocab.openMine',
 } as const
 
 const memory = new Map<string, string | null>()

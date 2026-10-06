@@ -6,6 +6,7 @@
  */
 import Sheet from '@/components/common/Sheet'
 import { Btn, BtnRow } from '@/components/common/ui'
+import type { FinishNote } from './topicLogic'
 
 export default function FinishConfirmSheet({
   open,
@@ -15,6 +16,7 @@ export default function FinishConfirmSheet({
   error,
   onConfirm,
   onClose,
+  challengeNote = null,
 }: {
   open: boolean
   /** 답한 카드 수. 모르면 null(두 경우를 함께 안내) */
@@ -24,6 +26,8 @@ export default function FinishConfirmSheet({
   error: string | null
   onConfirm: () => void
   onClose: () => void
+  /** 챌린지 주제 세트의 오늘 합계 메모(task-044 §3-7, `finishChallengeNote`). 없으면 지금 시트 그대로. */
+  challengeNote?: FinishNote | null
 }) {
   const none = answered === 0
   const text =
@@ -35,6 +39,16 @@ export default function FinishConfirmSheet({
   return (
     <Sheet open={open} title={none ? '이 세트를 그만둘까요?' : '여기서 끝낼까요?'} onClose={onClose} dismissible={!busy}>
       <p className="text-[14px] text-ink2 break-keep">{text}</p>
+      {challengeNote ? (
+        challengeNote.tone === 'warn' ? (
+          <p role="note" className="mt-2 rounded-xl bg-warn-soft px-3 py-2.5 text-[13px] text-ink break-keep">
+            {challengeNote.strong ? <b>{challengeNote.strong}</b> : null}
+            {challengeNote.text}
+          </p>
+        ) : (
+          <p className="mt-2 text-[13px] text-ink2 break-keep">{challengeNote.text}</p>
+        )
+      ) : null}
       {error ? (
         <p role="alert" className="mt-2 text-[13px] text-bad break-keep">
           {error}

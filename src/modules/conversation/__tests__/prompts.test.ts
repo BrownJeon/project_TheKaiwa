@@ -13,6 +13,7 @@ import { buildEvalGradeRequest } from '../prompts/evalGrade'
 import { buildLessonRequest, type LessonTopicInput } from '../prompts/lesson'
 import { buildReviewDecisionRequest, type ReviewDecisionCandidateInput } from '../prompts/reviewDecision'
 import { buildReviewMixRequest, type ReviewMixItemInput } from '../prompts/reviewMix'
+import { buildTopicWordsRequest } from '../prompts/topicWords'
 import { buildUserTranslationRequest } from '../prompts/userTranslation'
 import { buildWordEnrichRequest } from '../prompts/wordEnrich'
 import { CHAT_SCHEMA, TALK_SCHEMA } from '../structuredResponse/schemas'
@@ -67,9 +68,9 @@ test('TALK: 출력 JSON 키 순서 지시문 — 최상위 speech 가 conversati
 // 이 상수는 `src` 에서 그 이름이 남는 **유일한 곳**(부정 단언 전용)이다 — 지시 줄·골격·스키마 required·타입·테스트 어디에도 없어야 한다(A5·A11 교훈).
 const REMOVED_READING_KEY = 'replyReading'
 
-test('task-036: talk@v8·chat@v3 — 구 읽기 줄 필드가 지시 줄·키 순서 문구·골격·스키마(required·properties)·실 요청 어디에도 없다', () => {
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
-  assert.equal(CHAT_PROMPT_VERSION, 'chat@v3')
+test('task-036: talk@v8·chat@v3 이후(현재 talk@v9·chat@v4, task-039) — 구 읽기 줄 필드가 지시 줄·키 순서 문구·골격·스키마(required·properties)·실 요청 어디에도 없다', () => {
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v9')
+  assert.equal(CHAT_PROMPT_VERSION, 'chat@v4')
   for (const mode of CORRECTION_MODES) for (const cap of [1, 2, 3, 4]) for (const level of ['N5', 'N3']) assert.ok(!talkInstruction(mode, cap, level).includes(REMOVED_READING_KEY), `${mode}/${cap}/${level}`)
   const skeleton = talkInstruction().split('\n').find((l) => l.startsWith('[순서 예]'))!
   assert.ok(skeleton.includes('"conversation":{"replyJa":"<...>","replyKo":"<...>"}'), '골격: conversation 안은 replyJa·replyKo 둘뿐')
@@ -163,7 +164,7 @@ test('TALK: altText 상한 — 상한을 한참 넘는 후보를 줘도 사용�
 
 test('TALK: talk@v5 — [교정] 헤더 줄이 실리고, 생략하면 기본 FLUENCY(유창성)다', () => {
   // v4 = task-024 문장 수 상한 sceneCap 도입(v3 는 고정 2문장, 상세 회귀는 talkLength.test.ts) · v5 = REV-055 M-1 TALK 학습자 헤더에서 `교정 모드` 칸 제거(아래 테스트)
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v9') // v9 = task-039 extraNoteKo·일상 회화 우선 설명
   assert.deepEqual(CORRECTION_MODES, ['FLUENCY', 'COACH'])
   const omitted = buildTalkRequest({ todayKst: '2026-09-27', learner, history: [], text: 'おはよう' })
   assert.match(omitted.system, /\[교정\] 유창성/)
@@ -259,7 +260,7 @@ test('TALK: COACH 힌트 지시 — 정답의 한국어 뜻·번역·「X가 아
   // 실제 요청의 system(stdin)에도 COACH 에서만 실린다. 버전 번호는 올리지 않았다(v5 미배포 — 위 버전 테스트가 그대로 통과해야 한다).
   const req = (correctionMode: 'COACH' | 'FLUENCY') => buildTalkRequest({ todayKst: '2026-10-03', learner, history: [], text: '明日学校に行きました', correctionMode }).system
   assert.ok(req('COACH').includes(COACH_HINT_LINE) && !req('FLUENCY').includes('한국어 뜻'))
-  assert.equal(TALK_PROMPT_VERSION, 'talk@v8')
+  assert.equal(TALK_PROMPT_VERSION, 'talk@v9')
 })
 
 test('TALK: 예산 — [교정] 헤더가 늘어난 뒤에도 altText·긴 이력 최악 조합은 두 모드 모두 ≤3,000자(불변식 회귀)', () => {
@@ -415,13 +416,15 @@ test('task-037: repairRootClose 는 buildTalkRequest·buildChatRequest 만 true 
     ['wordEnrich', buildWordEnrichRequest({ surface: '映画', level: 'N5' })],
     ['userTranslation', buildUserTranslationRequest({ text: 'こんにちは。', level: 'N5' })],
     ['reviewDecision(A11)', buildReviewDecisionRequest({ todayKst, learner, candidates: decisionFx.candidates })],
+    // task-042 A12 — 구문 슬립 복구는 TALK·CHAT 전용이다(주제 단어 생성은 JSON 이 짧고 항목 단위로 버려 복구 경로가 필요 없다). strip 은 켠다(별도 pin: engine additionalPropertiesStrip.test).
+    ['topicWords(A12)', buildTopicWordsRequest({ topic: { title: '카페 주문', level: 'N5' }, targetCount: 10, exclude: ['コーヒー'] })],
   ]
   for (const [name, req] of others) assert.ok(!req.repairRootClose, `${name} 요청은 repairRootClose 를 켜지 않는다(undefined/false)`)
   // 빌더가 늘면 이 목록에 추가해야 한다 — prompts/ 의 build*Request 전부가 위 표에 있다.
   const exported = readdirSync(join(process.cwd(), 'src/modules/conversation/prompts'))
     .filter((f) => f.endsWith('.ts'))
     .flatMap((f) => [...readFileSync(join(process.cwd(), 'src/modules/conversation/prompts', f), 'utf8').matchAll(/^export function (build\w+Request)\(/gm)].map((m) => m[1]))
-  assert.deepEqual([...exported].sort(), ['buildChatRequest', 'buildChatReviewRequest', 'buildEvalGenRequest', 'buildEvalGradeRequest', 'buildLessonRequest', 'buildReviewDecisionRequest', 'buildReviewMixRequest', 'buildTalkRequest', 'buildUserTranslationRequest', 'buildWordEnrichRequest'])
+  assert.deepEqual([...exported].sort(), ['buildChatRequest', 'buildChatReviewRequest', 'buildEvalGenRequest', 'buildEvalGradeRequest', 'buildLessonRequest', 'buildReviewDecisionRequest', 'buildReviewMixRequest', 'buildTalkRequest', 'buildTopicWordsRequest', 'buildUserTranslationRequest', 'buildWordEnrichRequest'])
   // task-036 pin 은 그대로: TALK·CHAT 은 stripAdditionalProperties 를 켜지 않는다(옛 키는 거부 → 재시도).
   assert.ok(!talk.stripAdditionalProperties && !chat.stripAdditionalProperties, 'task-036 pin: TALK·CHAT 은 strip 을 켜지 않는다')
 })

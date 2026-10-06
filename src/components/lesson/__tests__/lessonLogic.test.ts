@@ -152,3 +152,46 @@ test('WAV 이어 붙이기: 같은 형식이면 PCM + 조각 사이 무음, 형�
   assert.equal(concatWav([a, new ArrayBuffer(4)]), a, '깨진 조각이면 첫 조각')
   assert.equal(parseWav(new ArrayBuffer(8)), null)
 })
+
+/* ── task-044: 챌린지 모드 회화 카드(가이드 §3-4) ─────────────────────────── */
+
+test('챌린지 회화 카드: 다른 주제 수업을 끝낸 날·열린 날에도 챌린지 [오늘 수업 만들기]가 주인, 다른 수업은 보조 줄 하나', async () => {
+  const { deriveChallengeLessonCard } = await import('../logic')
+  const other = (over: Partial<TodayLessonItem> = {}) => item({ id: 'o1', topic: { id: 't9', title: '길 묻기' }, ...over })
+  const task = (state: 'TODO' | 'GENERATING' | 'READY' | 'IN_PROGRESS' | 'CONTINUE' | 'DONE' | 'FAILED', lessonId: string | null = null, jobId: string | null = null) => ({ state, lessonId, jobId })
+  // ① 다른 주제 수업을 이미 끝낸 날
+  const d1 = deriveChallengeLessonCard('ready', today([other({ status: 'DONE', score: 80 })]), task('TODO'), 't1')
+  assert.equal(d1.card.kind, 'make')
+  assert.deepEqual(d1.aux, { kind: 'done', title: '길 묻기', score: 80 })
+  // ② 다른 주제 수업이 열려 있는 날(열림 > 끝냄)
+  const d2 = deriveChallengeLessonCard('ready', today([other({ status: 'DONE' }), other({ id: 'o2', status: 'IN_PROGRESS', stageDone: 2 })]), task('TODO'), 't1')
+  assert.equal(d2.card.kind, 'make')
+  assert.deepEqual(d2.aux, { kind: 'open', lessonId: 'o2', title: '길 묻기', stageDone: 2 })
+  // 어제 만든 다른 주제 수업(resume) — 보조 줄 [이어서 하기], 카드 주인은 챌린지
+  const d3 = deriveChallengeLessonCard('ready', today([], { resume: { id: 'r1', title: 'みち', titleKo: '길 묻기', stageDone: 3, date: '2026-09-27' } }), task('TODO'), 't1')
+  assert.equal(d3.card.kind, 'make')
+  assert.deepEqual(d3.aux, { kind: 'open', lessonId: 'r1', title: '길 묻기', stageDone: 3 })
+  // 챌린지 주제 수업 resume(CONTINUE)만 주인 — 날짜·단계는 #58 resume 에서
+  const d4 = deriveChallengeLessonCard('ready', today([], { resume: { id: 'c1', title: 'カフェ', titleKo: '카페', stageDone: 2, date: '2026-09-27' } }), task('CONTINUE', 'c1'), 't1')
+  assert.deepEqual(d4.card, { kind: 'continue', lessonId: 'c1', date: '2026-09-27', stageDone: 2 })
+  assert.equal(d4.aux, null, '자기 resume 는 보조 줄이 아니다')
+  // 다른 주제(붙여넣기 포함) 수업을 만드는 중이면 busy + 그 잡을 지켜본다
+  const d5 = deriveChallengeLessonCard('ready', today([item({ id: 'p1', status: 'GENERATING', topic: null, jobId: 'jp' })]), task('TODO'), 't1')
+  assert.equal(d5.card.kind, 'busy')
+  assert.equal(d5.watchJobId, 'jp')
+  // 챌린지 수업 만드는 중 — #58 같은 id 의 jobId 우선, 없으면 #158 jobId
+  const d6 = deriveChallengeLessonCard('ready', today([item({ id: 'c2', status: 'GENERATING', jobId: 'j58' })]), task('GENERATING', 'c2', 'j158'), 't1')
+  assert.equal(d6.card.kind, 'gen')
+  assert.equal(d6.watchJobId, 'j58')
+  assert.equal(deriveChallengeLessonCard('ready', today([]), task('GENERATING', 'c2', 'j158'), 't1').watchJobId, 'j158')
+  // 진행·준비·실패·끝냄 · #58 로딩·실패
+  assert.deepEqual(deriveChallengeLessonCard('ready', today([item({ id: 'c3', status: 'IN_PROGRESS', stageDone: 3 })]), task('IN_PROGRESS', 'c3'), 't1').card, { kind: 'progress', lessonId: 'c3', stageDone: 3 })
+  assert.equal(deriveChallengeLessonCard('ready', today([]), task('READY', 'c3'), 't1').card.kind, 'ready')
+  assert.equal(deriveChallengeLessonCard('ready', today([]), task('FAILED', 'c3'), 't1').card.kind, 'fail')
+  const done = deriveChallengeLessonCard('ready', today([item({ id: 'c4' })]), task('DONE', 'c4'), 't1')
+  assert.ok(done.card.kind === 'done' && done.card.lesson?.id === 'c4' && done.card.nextPreview?.titleKo === '계산하기')
+  assert.equal(deriveChallengeLessonCard('loading', null, task('TODO'), 't1').card.kind, 'loading')
+  assert.equal(deriveChallengeLessonCard('error', null, task('TODO'), 't1').card.kind, 'error')
+  // 복습 레슨은 보지 않는다
+  assert.equal(deriveChallengeLessonCard('ready', today([other({ kind: 'REVIEW', status: 'IN_PROGRESS' })]), task('TODO'), 't1').aux, null)
+})

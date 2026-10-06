@@ -10,6 +10,10 @@
  *
  * 풀던 세트는 사용자당 하나이고 새 세트·다시 풀기를 막으므로 늘 가장 최근에 시작한 세트다 → 최근 10개 안에서 찾는다(F3 `answeredCount`).
  * 장수는 저장하지 않고 늘 설정(`dailyWordCount`)에서 시작한다. 방식·분류는 마지막 선택을 기억한다(저장소가 막혀도 기본값으로 동작).
+ *
+ * task-044(챌린지 T4): #158 을 #58 과 같은 tick 으로 읽어 맨 위 챌린지 띠·단어 카드(주제 모드)·회화 카드(챌린지 모드)를 정한다(가이드 §3-1).
+ * #158 이 끝나기 전엔 두 카드가 "불러오는 중…", 실패하면 지금 카드 그대로 + 맨 위 한 줄 오류. 챌린지가 없으면 지금 화면 그대로.
+ * 주제 세트 [시작하기]·[한 세트 더]는 시작 값만 남기고 대기 화면으로 간다 — 새 단어 생성 요청은 오늘 탭에서 보내지 않는다(§2 5초 예산 규칙 1).
  */
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -37,7 +41,12 @@ import { todayKey } from './format'
 import { putSession, takeSession, useSeedPack, useStoredPref, useStoredString, VOCAB_KEYS } from './hooks'
 import KeptSets from './KeptSets'
 import { actionErrorText, FLASH, HINT, homeLoadErrorText, seedResultText, startErrorText } from './labels'
+import ChallengeStrip, { ChallengeStripError } from './ChallengeStrip'
 import TodayWordsCard, { type PoolEmptyKind, type WordsCardState } from './TodayWordsCard'
+import { stripModel, todayMode, topicSetsTally } from './topicLogic'
+import TopicWordsCard from './TopicWordsCard'
+import { useTodayChallenge } from './useTodayChallenge'
+import { writeTopicStart } from './useTopicSetStart'
 import { categoryTotals, normalizeCategories, visibleCategories } from './validate'
 import VocabStatsCard from './VocabStatsCard'
 
@@ -76,6 +85,11 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
   const [lessonTick, setLessonTick] = useState(0)
   const [reviewBusy, setReviewBusy] = useState(false)
   const reviewBusyRef = useRef(false)
+  const [challenge, retryChallenge] = useTodayChallenge(tick, lessonTick)
+  const [nowKey] = useState(() => todayKey())
+  const [mineOpen, setMineOpen] = useState(false)
+  const [topicStarting, setTopicStarting] = useState(false)
+  const topicStartingRef = useRef(false)
   const keptRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const { show } = toast
@@ -147,10 +161,12 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
   }, [])
 
   // 덱에서 돌아왔을 때 한 번 띄울 안내(풀던 세트 저장·기록 없이 닫힘·풀던 세트 먼저)
+  // 대기 화면 빈 상태의 [내 단어장으로 풀기]로 왔으면 내 단어장 패널을 펼친 채로(task-044 E10).
   useEffect(() => {
     const id = setTimeout(() => {
       const msg = takeSession(VOCAB_KEYS.flash)
       if (msg) show(msg)
+      if (takeSession(VOCAB_KEYS.openMine)) setMineOpen(true)
     }, 0)
     return () => clearTimeout(id)
   }, [show])
@@ -296,49 +312,87 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
 
   const ip = data?.inProgress ?? null
   const answeredNow = ip?.answered ?? null
+  const tm = todayMode(challenge.state, challenge.data)
+  const strip = challenge.state === 'ready' ? stripModel(challenge.data, data?.today ?? nowKey) : null
+  const ctx = tm.ctx
+
+  /** 챌린지 주제 세트 [시작하기]·[한 세트 더] — 시작 값(E2)만 남기고 대기 화면으로. 두 번 눌러도 한 번. */
+  const startTopic = () => {
+    if (!ctx || !tm.wordsTask || topicStartingRef.current) return
+    topicStartingRef.current = true
+    setTopicStarting(true)
+    writeTopicStart({ topicId: ctx.topicId, title: ctx.title, count: tm.wordsTask.wordCount ?? 10, mode, wordsDone: tm.wordsTask.state === 'DONE' })
+    router.push('/study/today/words/new')
+  }
+
+  const wordsCardProps = {
+    state: tm.loading ? ('loading' as const) : state,
+    loadError,
+    dailyWordCount,
+    count,
+    mode,
+    category,
+    categories,
+    archivedTotal: totals?.archived ?? 0,
+    todayDone,
+    inProgress: ip,
+    today: data?.today ?? '',
+    poolEmptyKind: override?.kind ?? null,
+    hasKept: !!data?.kept && data.kept.items.length > 0,
+    starting,
+    startError,
+    seeding,
+    finishing,
+    onCount: setCount,
+    onMode: (m: VocabMode) => setMode(m),
+    onCategory: (c: string | null) => setStoredCategory(c),
+    onStart: () => void start(category),
+    onStartAll: () => {
+      setStoredCategory(null)
+      void start(null)
+    },
+    onBackToReady: () => setOverride(null),
+    onFinish: () => {
+      setFinishError(null)
+      setFinishOpen(true)
+    },
+    onShowResult: () => void finishInProgress(),
+    onSeed: () => void runSeed(),
+    onShowKept: () => keptRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+    onRetry: () => {
+      setLoadState('loading')
+      setTick((t) => t + 1)
+    },
+  }
 
   return (
     <div className="px-4 pb-8">
+      {tm.error ? <ChallengeStripError onRetry={retryChallenge} /> : strip ? <ChallengeStrip model={strip} /> : null}
       <div ref={cardRef} className="scroll-mt-16">
-        <TodayWordsCard
-          state={state}
-          loadError={loadError}
-          dailyWordCount={dailyWordCount}
-          count={count}
-          mode={mode}
-          category={category}
-          categories={categories}
-          archivedTotal={totals?.archived ?? 0}
-          todayDone={todayDone}
-          inProgress={ip}
-          today={data?.today ?? ''}
-          poolEmptyKind={override?.kind ?? null}
-          hasKept={!!data?.kept && data.kept.items.length > 0}
-          starting={starting}
-          startError={startError}
-          seeding={seeding}
-          finishing={finishing}
-          onCount={setCount}
-          onMode={(m) => setMode(m)}
-          onCategory={(c) => setStoredCategory(c)}
-          onStart={() => void start(category)}
-          onStartAll={() => {
-            setStoredCategory(null)
-            void start(null)
-          }}
-          onBackToReady={() => setOverride(null)}
-          onFinish={() => {
-            setFinishError(null)
-            setFinishOpen(true)
-          }}
-          onShowResult={() => void finishInProgress()}
-          onSeed={() => void runSeed()}
-          onShowKept={() => keptRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
-          onRetry={() => {
-            setLoadState('loading')
-            setTick((t) => t + 1)
-          }}
-        />
+        {ctx && tm.wordsTask ? (
+          <TopicWordsCard
+            loadState={loadState === 'loading' ? 'loading' : loadState === 'error' || !data ? 'error' : 'ready'}
+            loadError={loadError}
+            ctx={ctx}
+            task={tm.wordsTask}
+            inProgress={ip}
+            today={data?.today ?? ''}
+            tally={topicSetsTally(data?.recent ?? [], ctx.topicId, data?.today ?? '')}
+            mode={mode}
+            starting={topicStarting}
+            finishing={finishing}
+            mineOpen={mineOpen}
+            mineProps={wordsCardProps}
+            onMode={(m) => setMode(m)}
+            onStartTopic={startTopic}
+            onFinish={wordsCardProps.onFinish}
+            onShowResult={wordsCardProps.onShowResult}
+            onToggleMine={() => setMineOpen((o) => !o)}
+            onRetry={wordsCardProps.onRetry}
+          />
+        ) : (
+          <TodayWordsCard {...wordsCardProps} />
+        )}
       </div>
       {rvPlace === 'above' ? reviewCard : null}
       <TodayLessonCard
@@ -346,6 +400,8 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
         today={lessonToday.data}
         onToast={show}
         errorText={RV_HOME.loadError}
+        challenge={ctx && tm.lessonTask ? { ctx, task: tm.lessonTask } : null}
+        challengeLoading={tm.loading}
         onReload={() => {
           setLessonToday((prev) => (prev.state === 'error' ? { state: 'loading', data: prev.data } : prev))
           setLessonTick((t) => t + 1)

@@ -28,6 +28,8 @@ export { buildWordEnrichRequest, WORD_ENRICH_PROMPT_VERSION, WordEnrichInputErro
 export type { WordEnrichInput } from './prompts/wordEnrich'
 export { buildUserTranslationRequest, sanitizeUserTranslation, USER_TRANSLATION_PROMPT_VERSION, USER_TRANSLATION_TASK, USER_TRANSLATION_SCHEMA, USER_TRANSLATION_TEXT_MAX, UserTranslationInputError } from './prompts/userTranslation'
 export type { UserTranslationInput, UserTranslationResponse } from './prompts/userTranslation'
+export { buildTopicWordsRequest, assembleTopicWords, classifyTopicWordsResult, topicWordsRequestCount, buildTopicWordsExcludeLine, TOPIC_WORDS_PROMPT_VERSION, TOPIC_WORDS_TASK, TOPIC_WORDS_SCHEMA, TOPIC_WORDS_REQUEST_MAX, TOPIC_WORDS_EXCLUDE_MAX_ITEMS, TOPIC_WORDS_EXCLUDE_MAX_CHARS, TopicWordsInputError } from './prompts/topicWords'
+export type { TopicWordsInput, TopicWordsTopicInput, TopicWordsRequest, TopicWordsResponse, TopicWordItem, TopicWord, TopicWordsAssembled, TopicWordsAssembleContext, TopicWordsOutcome, TopicWordDropReason } from './prompts/topicWords'
 export { buildLessonRequest, LESSON_PROMPT_VERSION, LessonInputError } from './prompts/lesson'
 export type { LessonInput, LessonTopicInput, LessonTopicChunkInput, LessonAcceptedCorrection, LessonPreviousPreview, LessonRequest } from './prompts/lesson'
 

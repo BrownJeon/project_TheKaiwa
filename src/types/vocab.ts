@@ -4,6 +4,7 @@
  * 계약에 "선택"으로 적힌 필드나 상태에 따라 빠지는 필드는 `?` 로 둔다(화면은 없을 때를 늘 다룬다).
  */
 import type { ChunkType, Paged, PartOfSpeech } from './chat'
+import type { ChallengeProgress } from './challenge'
 
 export type { ChunkType, Paged, PartOfSpeech }
 
@@ -136,6 +137,35 @@ export interface SeedPackResult {
 
 // ── 오늘의 단어 ───────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 세션의 `topic`(task-042 주제 단어 세트) — 주제 세트만, 내 단어장 세트면 null. 두 수는 그 세트 카드에서 센 값이라
+ * 새로 고침·이어 풀기·다시 풀기 뒤에도 같다: `lessonCardCount` = 지난 수업 표현 카드 수, `aiCardCount` = AI 새 단어 카드 수.
+ */
+export interface VocabSessionTopic {
+  id: string
+  title: string
+  lessonCardCount: number
+  aiCardCount: number
+}
+
+/** #47 주제 세트 응답에만 — 새 단어를 만들었는지·폴백 사유(저장 안 함, 새로 고침 뒤에는 없다). */
+export type TopicGenerationSource = 'AI' | 'MIXED' | 'TOPIC'
+export type TopicGenerationReason = 'SHORT' | 'NEW_DONE' | 'TIMEOUT' | 'FAILED' | 'INVALID' | 'LIMIT' | 'SKIPPED'
+export interface TopicGeneration {
+  source: TopicGenerationSource
+  generatedNow: boolean
+  reason: TopicGenerationReason | null
+}
+
+/** #47 본문 — `topicId` 가 있으면 주제 세트(`category` 와 함께 보내지 않는다). `generate:false` = [주제 표현으로 바로 풀기]. */
+export interface CreateSessionBody {
+  count?: number
+  mode?: VocabMode
+  category?: string | null
+  topicId?: string
+  generate?: boolean
+}
+
 /** #47·#49 `session`. DONE 이면 개수·걸린 시간·보관·다시 풀기 원본이 붙는다(F4). */
 export interface VocabSessionInfo {
   id: string
@@ -153,6 +183,7 @@ export interface VocabSessionInfo {
   keptAt?: string | null
   replayOfId?: string | null
   finishedAt?: string | null
+  topic?: VocabSessionTopic | null
 }
 
 /**
@@ -176,11 +207,12 @@ export interface VocabCard {
   answeredAt?: string | null
 }
 
-export type EmptyReason = 'NO_WORDS' | 'ALL_DONE_TODAY' | 'NO_WORDS_IN_CATEGORY'
+/** `TOPIC_EMPTY`·`TOPIC_ALL_DONE_TODAY` 는 주제 세트(CTA `MY_WORDS` — 내 단어장으로 풀기). */
+export type EmptyReason = 'NO_WORDS' | 'ALL_DONE_TODAY' | 'NO_WORDS_IN_CATEGORY' | 'TOPIC_EMPTY' | 'TOPIC_ALL_DONE_TODAY'
 
-/** #47·#53 */
+/** #47·#53. 409 는 `{sessionId}`(풀던 세트) 또는 `{reason:'GENERATING'}`(같은 사용자가 새 단어를 만드는 중). */
 export type CreateSessionResult =
-  | { session: VocabSessionInfo; cards: VocabCard[]; empty?: undefined }
+  | { session: VocabSessionInfo; cards: VocabCard[]; empty?: undefined; generation?: TopicGeneration }
   | { session: null; empty: { reason: EmptyReason; cta?: string[] }; cards?: undefined }
 
 /** #49 */
@@ -223,10 +255,14 @@ export interface FinishResult {
     wrongCount: number
     skippedCount: number
     durationSec: number | null
+    topic?: VocabSessionTopic | null
   }
   studyLogId: string | null
-  wrongWords: { wordId: string | null; surface: string; correctText: string | null }[]
+  /** `source` — `WORD` 단어장 카드 · `TOPIC` 주제 카드(`wordId` null → [단어장에 넣기]). */
+  wrongWords: { wordId: string | null; surface: string; reading?: string | null; correctText: string | null; source?: 'WORD' | 'TOPIC' }[]
   flaggedCount: number
+  /** 진행 중 챌린지의 그 주제 세트일 때만 값(그날 합계 `words.answered`·인정 장수 `need`·`goalMetNow` 토스트) — 그 밖은 null. */
+  challenge?: ChallengeProgress | null
 }
 
 /** #48 항목(F3) */
@@ -244,6 +280,7 @@ export interface SessionSummary {
   replayOfId: string | null
   durationSec?: number | null
   startedAt?: string
+  topic?: VocabSessionTopic | null
 }
 
 /** #54 */

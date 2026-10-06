@@ -112,7 +112,11 @@ test('runJsonWithRetry: 옵션이 매 시도에 전달된다 — 켜면 1회, �
   assert.equal(calls, 1)
 })
 
-test('stripAdditionalProperties 를 켜는 프로덕션 코드는 A4 lesson 요청 빌더 하나뿐이다(다른 A 지점 불변)', () => {
+// task-042(A12 topicWords@v1) — 켜는 곳이 둘로 늘었다. 근거: ① 설계서 §4-3a 가 요구한다(lesson@v7 선례). ② 막는 실패가 비싸다 — 항목 20개 × 6필드 중 하나에 스키마 밖
+// 키(예: `example`)가 붙으면 `additionalProperties:false` 위반으로 **응답 전체가 재시도**돼 사용자가 기다리는 [시작하기] 가 6~12s 늘어난다. ③ 키가 깨끗하면 아무 일도 하지
+// 않고 필수 필드 이름이 바뀐 응답은 여전히 위반이다. ⚠ 실측(haiku 126호출, `tests/live/task042-topicwords-measure.ts`)에서는 지운 키가 0건이라 **효과는 측정으로 입증되지
+// 않았다** — 예방 보험이다. 효과가 끝내 0 이면 이 목록에서 빼도 된다(그때 이 주석·`topicWords.ts` 의 한 줄을 함께 고친다).
+test('stripAdditionalProperties 를 켜는 프로덕션 코드는 A4 lesson·A12 topicWords 요청 빌더 둘뿐이다(다른 A 지점 불변)', () => {
   const modulesRoot = join(process.cwd(), 'src', 'modules')
   const offenders: string[] = []
   const walk = (dir: string): void => {
@@ -128,5 +132,5 @@ test('stripAdditionalProperties 를 켜는 프로덕션 코드는 A4 lesson 요�
     }
   }
   walk(modulesRoot)
-  assert.deepEqual(offenders, ['conversation/prompts/lesson.ts'])
+  assert.deepEqual(offenders.sort(), ['conversation/prompts/lesson.ts', 'conversation/prompts/topicWords.ts'])
 })

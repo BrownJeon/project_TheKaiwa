@@ -1,6 +1,7 @@
 /**
  * 오늘의 회화 화면의 순수 판정(screens §12-3 A·§12-2 D·K·F) — 단위 테스트 대상. DOM·API 를 모른다.
  *  - `deriveLessonCard`: 오늘 홈 카드 8상태(표의 위 줄이 이긴다)
+ *  - `deriveChallengeLessonCard`: 진행 중 챌린지에 회화 과제가 있을 때 카드의 주인(task-044 가이드 §3-4) + 다른 주제 수업 보조 줄
  *  - `genPhase`: 생성 대기 경과 문구
  *  - `endResultFrom`: #60 DONE 레슨 → 종료 카드 값(#62 `result` 와 같은 계산)
  *  - `memoWordProblem`: 들린 단어 메모 한 줄 검사(서버 #61·#62a 규칙과 같음)
@@ -12,6 +13,7 @@
 import type { AnnotationState } from '@/components/common/japanese/annotations'
 import type { ReadingSegment } from '@/modules/speech/reading/client'
 import type { PlaybackSnapshot } from '@/modules/speech/tts/client'
+import type { ChallengeLessonTask } from '@/types/challenge'
 import type { AudioPace, LessonContent, LessonDto, LessonProgress, LessonQuiz, MemoDraft, NextPreview, TodayLessonItem, TodayLessons } from '@/types/lesson'
 import { U3 } from './lessonCopy'
 import type { LessonPlayback } from './useLessonPlayback'
@@ -48,6 +50,74 @@ export function deriveLessonCard(state: 'loading' | 'error' | 'ready', today: To
   const done = list.find((l) => l.status === 'DONE')
   if (done) return { kind: 'done', lesson: done, nextPreview: today.recommendation?.nextPreview ?? null }
   return { kind: 'start' }
+}
+
+/* ── 오늘 홈 카드 — 챌린지 모드(task-044) ─────────────────────────────── */
+
+export type ChallengeLessonCard =
+  | { kind: 'loading' }
+  | { kind: 'error' }
+  | { kind: 'gen'; lessonId: string | null }
+  | { kind: 'busy'; other: TodayLessonItem }
+  | { kind: 'make' }
+  | { kind: 'ready'; lessonId: string }
+  | { kind: 'progress'; lessonId: string; stageDone: number }
+  | { kind: 'continue'; lessonId: string; date: string | null; stageDone: number | null }
+  | { kind: 'fail' }
+  | { kind: 'done'; lessonId: string | null; lesson: TodayLessonItem | null; nextPreview: NextPreview | null }
+
+/** 다른 주제(붙여넣기 포함) 수업 보조 줄 — 하나만, 열림 > 끝냄. `title` null = 붙여넣은 문장. */
+export type AuxLessonLine = { kind: 'open'; lessonId: string; title: string | null; stageDone: number } | { kind: 'done'; title: string | null; score: number | null } | null
+
+/**
+ * 챌린지가 있으면 #158 LESSON 과제 상태가 오늘의 회화 카드의 주인이다(설계서 §8-3 S6 ①②). 오늘 다른 주제 수업을 끝냈거나 열려 있어도
+ * 카드는 챌린지 상태로 그리고, 그 수업은 보조 줄 하나로만 보인다. "이어서 하기(어제 만든 수업)"는 챌린지 주제 수업(`CONTINUE`)일 때만 주인이다.
+ * `watchJobId` = 카드가 지켜볼 생성 잡(만드는 중 = 챌린지 수업, 다른 수업 만드는 중 = 그 수업).
+ */
+export function deriveChallengeLessonCard(
+  state: 'loading' | 'error' | 'ready',
+  today: TodayLessons | null,
+  task: Pick<ChallengeLessonTask, 'state' | 'lessonId' | 'jobId'>,
+  topicId: string,
+): { card: ChallengeLessonCard; aux: AuxLessonLine; watchJobId: string | null } {
+  if (state === 'loading') return { card: { kind: 'loading' }, aux: null, watchJobId: null }
+  if (state === 'error' || !today) return { card: { kind: 'error' }, aux: null, watchJobId: null }
+  const list = (today.todayLessons ?? []).filter((l) => l.kind === 'NEW')
+  const same = task.lessonId ? (list.find((l) => l.id === task.lessonId) ?? null) : null
+  const others = list.filter((l) => l.id !== task.lessonId && l.topic?.id !== topicId)
+  const resume = today.resume && today.resume.id !== task.lessonId ? today.resume : null
+  const openOther = others.find((l) => l.status === 'READY' || l.status === 'IN_PROGRESS')
+  const doneOther = others.find((l) => l.status === 'DONE')
+  const aux: AuxLessonLine = openOther
+    ? { kind: 'open', lessonId: openOther.id, title: openOther.topic?.title ?? null, stageDone: openOther.stageDone }
+    : resume
+      ? { kind: 'open', lessonId: resume.id, title: resume.titleKo || resume.title, stageDone: resume.stageDone }
+      : doneOther
+        ? { kind: 'done', title: doneOther.topic?.title ?? null, score: doneOther.score }
+        : null
+  const ownResume = today.resume && today.resume.id === task.lessonId ? today.resume : null
+  switch (task.state) {
+    case 'GENERATING':
+      return { card: { kind: 'gen', lessonId: task.lessonId }, aux, watchJobId: same?.jobId ?? task.jobId }
+    case 'READY':
+      if (task.lessonId) return { card: { kind: 'ready', lessonId: task.lessonId }, aux, watchJobId: null }
+      break
+    case 'IN_PROGRESS':
+      if (task.lessonId) return { card: { kind: 'progress', lessonId: task.lessonId, stageDone: same?.stageDone ?? ownResume?.stageDone ?? 0 }, aux, watchJobId: null }
+      break
+    case 'CONTINUE':
+      if (task.lessonId) return { card: { kind: 'continue', lessonId: task.lessonId, date: ownResume?.date ?? null, stageDone: ownResume?.stageDone ?? null }, aux, watchJobId: null }
+      break
+    case 'FAILED':
+      return { card: { kind: 'fail' }, aux, watchJobId: null }
+    case 'DONE':
+      return { card: { kind: 'done', lessonId: task.lessonId, lesson: same, nextPreview: today.recommendation?.nextPreview ?? null }, aux, watchJobId: null }
+    default:
+      break
+  }
+  const genOther = others.find((l) => l.status === 'GENERATING')
+  if (genOther) return { card: { kind: 'busy', other: genOther }, aux, watchJobId: genOther.jobId }
+  return { card: { kind: 'make' }, aux, watchJobId: null }
 }
 
 /** 점수(서버 재채점) → 맞힌 수. 문제는 늘 5개(스키마 고정)라 기본 5. */

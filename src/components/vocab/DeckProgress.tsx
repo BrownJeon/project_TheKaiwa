@@ -5,6 +5,7 @@
  * 맞힘 good · 틀림 bad · 건너뜀 ink3 · 지금 카드 accent · 남은 카드 surface2. 지난 카드를 보는 중이면 그 칸에 링.
  */
 import { isAnswered, tallyCards } from './deck'
+import { DECK_CH } from './topicCopy'
 import type { DeckCard } from './useVocabDeck'
 
 function segClass(c: DeckCard, i: number, frontier: number): string {
@@ -12,7 +13,7 @@ function segClass(c: DeckCard, i: number, frontier: number): string {
   return i === frontier ? 'bg-accent' : 'bg-surface2'
 }
 
-export default function DeckProgress({ cards, view, frontier }: { cards: DeckCard[]; view: number; frontier: number }) {
+export default function DeckProgress({ cards, view, frontier, topicTitle = null }: { cards: DeckCard[]; view: number; frontier: number; topicTitle?: string | null }) {
   const n = cards.length
   const t = tallyCards(cards)
   const remaining = n - t.answered
@@ -20,9 +21,15 @@ export default function DeckProgress({ cards, view, frontier }: { cards: DeckCar
   return (
     <div className="flex-none px-4 pt-3">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[15px] font-semibold tabular-nums">
+        <p className="flex-none text-[15px] font-semibold tabular-nums">
           {Math.min(view + 1, n)} / {n}
         </p>
+        {topicTitle ? (
+          <span className="inline-flex h-6 min-w-0 max-w-[40%] items-center self-center rounded-full bg-surface2 px-2 text-[12px] font-semibold text-ink2">
+            <span className="sr-only">{DECK_CH.chipSr}</span>
+            <span className="truncate">{topicTitle}</span>
+          </span>
+        ) : null}
         <p className="min-w-0 truncate text-[12px] text-ink2 tabular-nums">
           {past ? '지난 카드 보는 중 · ' : ''}남은 {remaining}장{t.flagged > 0 ? ` · ★ ${t.flagged}` : ''}
         </p>

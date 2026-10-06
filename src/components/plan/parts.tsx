@@ -1,6 +1,8 @@
 /**
  * 계획표 공용 조각 — 종류 글자 칩·아이콘. 색만으로 구분하지 않는다: 종류는 글자, 평가는 반전 칩, 복습할 날은 점선 칩(데모 `.tc`).
  */
+import { DAY_VIEW } from '@/components/challenge/challengeCopy'
+import { DayMarkInner } from '@/components/challenge/parts'
 import type { CellMark } from './logic'
 import { TYPE_META } from './logic'
 
@@ -14,6 +16,13 @@ const CHIP_SIZE = {
  */
 export function Chip({ mark, size = 'sm', soft = false }: { mark: CellMark; size?: 'sm' | 'lg'; soft?: boolean }) {
   const base = `grid flex-none place-items-center font-bold leading-none ${CHIP_SIZE[size]}`
+  // 챌린지 하루 모양은 원형(종류 글자 칩과 모양으로도 구분된다). 일부는 반원 그림(글꼴 비의존).
+  if (mark.kind === 'ch')
+    return (
+      <span aria-hidden="true" className={`${base} rounded-full! ${DAY_VIEW[mark.state].cls}`}>
+        <DayMarkInner state={mark.state} />
+      </span>
+    )
   if (mark.kind === 'eval') return <span aria-hidden="true" className={`${base} bg-ink text-surface`}>{TYPE_META.EVALUATION.ch}</span>
   if (mark.kind === 'due') return <span aria-hidden="true" className={`${base} border-[1.5px] border-dashed border-ink2 text-ink`}>{TYPE_META.REVIEW.ch}</span>
   if (mark.kind === 'more') return <span aria-hidden="true" className={`${base} font-semibold tracking-[-0.02em] text-ink2`}>+{mark.n}</span>

@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { addDays } from '@/modules/infra/dates'
 import type { CalendarDay, CalendarSummary } from '@/types/plan'
+import { COPY } from '@/components/challenge/challengeCopy'
 import { AttendDot, Chip, IconLeft, IconRight } from './parts'
 import {
   arrowDelta,
@@ -72,7 +73,20 @@ export function MonthNav({
   )
 }
 
-export function SummaryRow({ status, summary, month, today }: { status: LoadStatus; summary: CalendarSummary | null; month: string; today: string }) {
+/** `attendHint` = 진행 중 챌린지가 있고 이번 달 — 셋째 칸 아래 "앱을 연 날"(챌린지 "수행 연속"과 이름으로 구분, task-043). */
+export function SummaryRow({
+  status,
+  summary,
+  month,
+  today,
+  attendHint = false,
+}: {
+  status: LoadStatus
+  summary: CalendarSummary | null
+  month: string
+  today: string
+  attendHint?: boolean
+}) {
   const ml = monthWord(month, today)
   if (status === 'loading') {
     return (
@@ -89,10 +103,11 @@ export function SummaryRow({ status, summary, month, today }: { status: LoadStat
   const tiles = summaryTiles(status === 'ready' ? summary : null, month, today)
   return (
     <div role="group" aria-label={`${ml} 요약`} className="mt-1.5 grid grid-cols-3 gap-2">
-      {tiles.map((t) => (
+      {tiles.map((t, i) => (
         <div key={t.label} className="min-w-0 rounded-xl border border-line bg-surface px-1.5 py-2 text-center">
           <b className="block text-[20px] font-bold leading-[1.3] tabular-nums">{t.value}</b>
           <span className="block truncate text-[12px] text-ink2">{t.label}</span>
+          {attendHint && i === 2 ? <span className="block truncate text-[12px] text-ink2">{COPY.attendHint}</span> : null}
         </div>
       ))}
     </div>
@@ -163,10 +178,12 @@ export function CalendarGrid({
             <AttendDot className="mt-[7px]" />
           ) : null
           const n = <span aria-hidden="true" className={`text-[13px] leading-4 tabular-nums ${num}`}>{Number(date.slice(8))}</span>
+          const band = v.band ? <span aria-hidden="true" className="absolute inset-x-[5px] bottom-px h-[3px] rounded-[2px] bg-accent" /> : null
           if (!v.interactive) {
             return (
               <span key={date} className={`${CELL_BASE} ${tone}`}>
                 {n}
+                {band}
                 <span className="sr-only">{v.label}</span>
               </span>
             )
@@ -189,6 +206,7 @@ export function CalendarGrid({
             >
               {n}
               {marks}
+              {band}
             </button>
           )
         })}
@@ -230,7 +248,8 @@ export function CalendarError({ onRetry }: { onRetry: () => void }) {
   )
 }
 
-export function CalendarLegend() {
+/** `showChallenge` = 그 달에 챌린지 날이 있을 때만 챌린지 4항목을 끝에 더한다(없으면 지금 달력과 같다). */
+export function CalendarLegend({ showChallenge = false }: { showChallenge?: boolean }) {
   return (
     <ul aria-label="달력 표시 설명" className="mt-3.5 flex flex-wrap gap-x-3 gap-y-1.5 text-[12px] text-ink2">
       {LEGEND_TYPES.map((t) => (
@@ -255,6 +274,26 @@ export function CalendarLegend() {
         <span aria-hidden="true" className="block h-[17px] w-[17px] flex-none rounded-[5px] shadow-[inset_0_0_0_2px_var(--color-accent)]" />
         <span>오늘</span>
       </li>
+      {showChallenge ? (
+        <>
+          <li className="inline-flex items-center gap-[5px] whitespace-nowrap">
+            <span aria-hidden="true" className="block h-[3px] w-[17px] flex-none rounded-[2px] bg-accent" />
+            <span>{COPY.legendBand}</span>
+          </li>
+          <li className="inline-flex items-center gap-[5px] whitespace-nowrap">
+            <Chip mark={{ kind: 'ch', state: 'MET' }} />
+            <span>{COPY.legendMet}</span>
+          </li>
+          <li className="inline-flex items-center gap-[5px] whitespace-nowrap">
+            <Chip mark={{ kind: 'ch', state: 'PARTIAL' }} />
+            <span>{COPY.legendPartial}</span>
+          </li>
+          <li className="inline-flex items-center gap-[5px] whitespace-nowrap">
+            <Chip mark={{ kind: 'ch', state: 'MISSED' }} />
+            <span>{COPY.legendMissed}</span>
+          </li>
+        </>
+      ) : null}
     </ul>
   )
 }

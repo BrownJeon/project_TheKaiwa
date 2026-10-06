@@ -7,6 +7,8 @@
  * 기록 한 줄 = 원본으로 가는 링크(원본이 지워졌으면 "원본이 삭제됐어요" 배지·이동 안 함) + ⋯ 메뉴.
  */
 import Link from 'next/link'
+import { ChallengeDayLine } from '@/components/challenge/ChallengePlanCard'
+import { COPY as CHALLENGE_COPY } from '@/components/challenge/challengeCopy'
 import Sheet from '@/components/common/Sheet'
 import { Badge } from '@/components/common/ui'
 import type { DayResponse, StudyLogItem } from '@/types/plan'
@@ -41,6 +43,8 @@ export default function DaySheet({
   onOpenSource,
   onGone,
   onMenu,
+  challengeNeed = null,
+  onOpenChallenge,
 }: {
   date: string | null
   today: string
@@ -56,12 +60,29 @@ export default function DaySheet({
   onOpenSource: (log: StudyLogItem) => void
   onGone: () => void
   onMenu: (log: StudyLogItem) => void
+  /** 그날 챌린지의 인정 장수(#71 에 없을 때 #158 로 보충 — 같은 챌린지일 때만, task-043). */
+  challengeNeed?: number | null
+  /** 챌린지 줄을 누르기 직전(돌아올 계획표 주소를 적는다). */
+  onOpenChallenge?: (challengeId: string) => void
 }) {
   return (
     <Sheet open={date !== null} title={date ? dayLabel(date) : ''} onClose={onClose} dismissible={dismissible}>
       {date ? (
         <div data-plan-daybody className="pb-2">
-          <DayBody date={date} today={today} status={status} data={data} onStep={onStep} onBlocked={onBlocked} onRetry={onRetry} onOpenSource={onOpenSource} onGone={onGone} onMenu={onMenu} />
+          <DayBody
+            date={date}
+            today={today}
+            status={status}
+            data={data}
+            onStep={onStep}
+            onBlocked={onBlocked}
+            onRetry={onRetry}
+            onOpenSource={onOpenSource}
+            onGone={onGone}
+            onMenu={onMenu}
+            challengeNeed={challengeNeed}
+            onOpenChallenge={onOpenChallenge}
+          />
         </div>
       ) : null}
     </Sheet>
@@ -79,6 +100,8 @@ function DayBody({
   onOpenSource,
   onGone,
   onMenu,
+  challengeNeed,
+  onOpenChallenge,
 }: {
   date: string
   today: string
@@ -90,6 +113,8 @@ function DayBody({
   onOpenSource: (log: StudyLogItem) => void
   onGone: () => void
   onMenu: (log: StudyLogItem) => void
+  challengeNeed: number | null
+  onOpenChallenge?: (challengeId: string) => void
 }) {
   const nav = dayNav(date, today)
   const future = date > today
@@ -97,6 +122,7 @@ function DayBody({
   const logs = ready ? data.logs : []
   const line = dayStatusLine(logs)
   const review = ready ? reviewLine(data.review, date, today, logs) : null
+  const dc = ready ? (data.challenge ?? null) : null
 
   const stepper = (
     <div className="flex flex-none items-center">
@@ -179,6 +205,7 @@ function DayBody({
               </div>
             </div>
           ) : null}
+          {dc ? <ChallengeDayLine challenge={dc} date={date} need={challengeNeed} onOpen={() => onOpenChallenge?.(dc.challengeId)} /> : null}
           {future ? (
             <p className="mt-3 text-[14px]">아직 오지 않은 날이에요.</p>
           ) : logs.length === 0 ? (
@@ -195,6 +222,7 @@ function DayBody({
               ) : null}
             </>
           )}
+          {data.challenge ? <p className="mt-2.5 text-[12px] text-ink2 break-keep">{CHALLENGE_COPY.dayLineKeep}</p> : null}
         </>
       )}
     </>

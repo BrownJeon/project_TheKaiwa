@@ -145,6 +145,8 @@ export interface VocabSessionSnapshotData {
   mode: 'CHOICE' | 'FLIP'
   /** 세션 `date`(시작한 KST 날짜, E3). */
   date: string
+  /** task-042(챌린지 T2): 주제 세트만 채운다(JSON additive — 옛 행은 없음 = 내 단어장 세트). 챌린지 지표(T1)가 읽을 때 계산하는 원천. */
+  topicId?: string
 }
 
 /**
