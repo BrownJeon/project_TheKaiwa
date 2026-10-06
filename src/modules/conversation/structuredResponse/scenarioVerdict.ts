@@ -85,7 +85,7 @@ export interface FinalizeScenarioVerdictInput {
   expressionIds: readonly string[]
   /** 학습자 말(원문 — 증거 대조에만 쓰고 저장하지 않는다). 선생님 말은 넣지 않는다. */
   learnerTexts: readonly string[]
-  /** 표현 id → 표기(`ja`). 주면 모델이 댄 증거가 그 표현과 충분히 겹치는지(`SCENARIO_VERDICT_OVERLAP_MIN`)도 본다 — 없으면 이 검사를 건너뛴다. */
+  /** 표현 id → 표기(`ja`). 주면 모델이 댄 증거가 그 표현과 충분히 겹치는지(`SCENARIO_VERDICT_OVERLAP_MIN`, 핵심 1자 이하 표현은 인용 안에 글자 그대로 — `overlapsExpression`)도 본다 — 그 id 의 표기를 안 주면 이 검사를 건너뛴다. */
   expressionTexts?: Readonly<Record<string, string>>
   /** 코드가 이미 학습자 말에서 확인한 표현 id. */
   verifiedExpressionIds?: readonly string[]
@@ -125,6 +125,18 @@ function longestCommonRun(a: readonly string[], b: readonly string[]): number {
 const expressionCore = (ja: string): string[] => Array.from(normalizeForQuote(ja))
 
 /**
+ * 인용(`quote`, 정규화·코드포인트 배열)이 표현(`core`)을 충분히 담았는가 — 증거 대조의 겹침 검사.
+ *  - 핵심 2자 이상: 가장 긴 공통 부분 문자열이 `max(2, ceil(0.6×핵심 글자 수))` 이상.
+ *  - **핵심 1자**(예: `〜を`·`〜は`)와 **핵심 0자**(표기가 문장부호뿐)는 비율이 의미 없다. 이전에는 이 경우 검사를 건너뛰어 학습자 말에 있는 아무 2자 인용이나 인정됐다(REV-137 L-3) —
+ *    이제 1자는 **인용 안에 그 글자가 그대로** 있어야 인정하고(정확 부분문자열), 0자는 인용으로는 인정하지 않는다(코드 확인 `verifiedExpressionIds` 만 인정한다).
+ */
+function overlapsExpression(quote: readonly string[], core: readonly string[]): boolean {
+  if (core.length === 0) return false
+  if (core.length === 1) return quote.includes(core[0])
+  return longestCommonRun(quote, core) >= Math.max(2, Math.ceil(core.length * SCENARIO_VERDICT_OVERLAP_MIN))
+}
+
+/**
  * 모델 응답 → 학습 쪽이 읽는 판정 객체. 스키마를 통과한 응답을 받지만 방어적으로 읽는다(타입이 어긋난 값은 버림).
  * - 증거: id 가 목록 안이어야 하고 `quote` 정규화 값이 **어느 한 학습자 말**의 정규화 값에 들어 있어야 인정. 아니면 `rejectedClaims`.
  * - 쓴 표현 = 인정된 증거 id ∪ 코드 확인 id(표현 목록 순서). 못 쓴 표현 = 나머지 전부.
@@ -151,8 +163,7 @@ export function finalizeScenarioVerdict(input: FinalizeScenarioVerdictInput, dat
       continue
     }
     const ja = input.expressionTexts?.[id]
-    const core = ja ? expressionCore(ja) : []
-    if (core.length >= 2 && longestCommonRun(Array.from(quote), core) < Math.max(2, Math.ceil(core.length * SCENARIO_VERDICT_OVERLAP_MIN))) {
+    if (typeof ja === 'string' && !overlapsExpression(Array.from(quote), expressionCore(ja))) {
       rejectedClaims.push({ id, reason: 'LOOSE_MATCH' })
       continue
     }

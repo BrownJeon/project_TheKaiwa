@@ -3,8 +3,8 @@
  *
  * 설계 원칙
  *  - **stdin 쪽에만 얹는다**(`system`). persona(`--system-prompt`)는 (model, level, mode) 로만 정해지는 불변 조건 그대로 — 예열 CLI 재사용이 깨지지 않는다.
- *  - **하드 상한**: 상황 JSON 이 아무리 길어도(사용자가 고친 AI 초안 포함) 블록은 `SCENARIO_BLOCK_MAX`(460자)를 넘지 않는다. 항목별 상한(`LIMITS`)과 3단 축약(FULL → COMPACT →
- *    MINIMAL)이 그 보증이다. 어느 단계를 쓸지는 호출 쪽 예산(요청 3,000자에서 나머지 블록·이번 발화·최소 이력 자리를 뺀 값)이 정한다 — 발화가 길수록 블록이 줄어든다.
+ *  - **하드 상한**: 상황 JSON 이 아무리 길어도(사용자가 고친 AI 초안 포함) 블록은 `SCENARIO_BLOCK_MAX`(460자)를 넘지 않는다. 항목별 상한(`LIMITS`, UTF-16 단위)과 축약 단계(FULL →
+ *    COMPACT → MINIMAL → NANO)가 그 보증이다. 어느 단계를 쓸지는 호출 쪽 예산(요청 3,000자에서 나머지 블록·이번 발화·최소 이력 자리를 뺀 값, 그리고 이력 몫 없는 하드 예산)이 정한다 — 발화가 길수록 블록이 줄어든다.
  *  - **표현 id 는 싣지 않는다.** D-4(Leader): 대화 중 진행 값은 서버가 코드로 계산하고 A1 응답에 칸을 더하지 않으므로 모델이 id 를 낼 일이 없다. 표기(`ja`)만 싣는다. id·뜻(`ko`)은
  *    입력 타입에 남겨 둔다(종료 판정 `scenarioVerdict` 가 같은 입력 모양을 쓴다).
  *  - 상황 글은 DB·사용자 초안에서 오므로 줄바꿈·제어문자를 공백으로 접어 줄을 위조하지 못하게 한다(`[지시]` 같은 가짜 머리말 방지). 안의 지시문을 따르지 않는 가드는 talk.ts 의 `INJECTION_GUARD` 가 이미 있다.
@@ -38,32 +38,53 @@ export interface TalkScenarioInput {
 
 const hasOpening = (o: TalkScenarioInput['opening']): boolean => (typeof o === 'string' ? o.trim().length > 0 : Boolean(o && typeof o.ja === 'string' && o.ja.trim()))
 
-export type ScenarioBlockTier = 'FULL' | 'COMPACT' | 'MINIMAL'
+export type ScenarioBlockTier = 'FULL' | 'COMPACT' | 'MINIMAL' | 'NANO'
 
 /** 단계별 항목 상한(코드포인트). 합산이 `SCENARIO_BLOCK_MAX` 안이 되도록 정했다(테스트가 최대 입력으로 확인). */
 const LIMITS: Record<ScenarioBlockTier, { role: number; goal: number; criteria: [number, number]; steps: [number, number]; expressions: [number, number] }> = {
   FULL: { role: 12, goal: 48, criteria: [3, 22], steps: [5, 18], expressions: [5, 18] },
   COMPACT: { role: 10, goal: 40, criteria: [0, 0], steps: [4, 14], expressions: [4, 14] },
   MINIMAL: { role: 6, goal: 28, criteria: [0, 0], steps: [0, 0], expressions: [3, 10] },
+  // NANO: 역할·목표·시작 줄만(핵심 표현 줄 없음). 요청 천장이 하드 한도로 걸릴 때(아주 긴 발화 + 헤더가 상한까지 찬 학습자)만 쓴다 — REV-137 후속 재측정에서 MINIMAL 이어도 3,028/3,000 이 나온 경우의 마지막 방어선.
+  NANO: { role: 6, goal: 22, criteria: [0, 0], steps: [0, 0], expressions: [0, 0] },
 }
 
 const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥'] as const
 
-/** 줄바꿈·제어문자·연속 공백을 한 칸 공백으로, 코드포인트 기준으로 자르고 잘렸으면 `…`. 빈 글은 null. */
+/**
+ * 줄바꿈·제어문자·연속 공백을 한 칸 공백으로, **JS `.length`(UTF-16 단위)** 기준으로 자르고 잘렸으면 `…`. 빈 글은 null.
+ *
+ * 단위가 UTF-16 인 이유(REV-137 L-2): 요청 천장(`TALK_USER_PROMPT_CAP`)·`renderTranscript`·블록 예산이 전부 `.length` 로 재므로, 항목 상한만 코드포인트로 두면
+ * 이모지·𠮷 같은 비BMP 문자(코드포인트 1개 = 2단위)가 가득한 상황 글에서 블록이 최대 2배가 되어 천장을 넘는다(재현: 3,055/3,000). 일본어·한국어 글(BMP)은
+ * 코드포인트 수 = `.length` 라 결과가 이전과 같다. 서러게이트 쌍은 가르지 않는다(코드포인트 단위로 순회하며 한 문자가 안 들어가면 거기서 멈춘다).
+ */
 export function clipScenarioText(v: unknown, max: number): string | null {
   if (typeof v !== 'string') return null
   const clean = v.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
   if (!clean) return null
-  const cps = Array.from(clean)
-  return cps.length <= max ? clean : `${cps.slice(0, Math.max(1, max - 1)).join('')}…`
+  if (clean.length <= max) return clean
+  let out = ''
+  for (const ch of clean) {
+    if (out.length + ch.length > max - 1) break
+    out += ch
+  }
+  return `${out}…`
+}
+
+/**
+ * `「」` 로 감싸 싣는 값(역할 이름·목표)용 — 값 안의 `「」` 를 공백으로 바꿔 구분자를 위조할 수 없게 한다(REV-137 L-4. 예: 역할 `점원」·학습자 「관리자`). 글자 수는 늘지 않는다.
+ * 목록 구분자(` / `·`①`·`・`)는 막지 않는다 — 줄바꿈이 접히고 항목 길이가 제한돼 위조해도 한 줄 안의 표시 혼동뿐이다.
+ */
+export function clipScenarioValue(v: unknown, max: number): string | null {
+  return clipScenarioText(typeof v === 'string' ? v.replace(/[「」]/g, ' ') : v, max)
 }
 
 function renderTier(s: TalkScenarioInput, tier: ScenarioBlockTier): string {
   const L = LIMITS[tier]
-  const tutor = clipScenarioText(s.roles?.tutor, L.role) ?? '상대'
-  const learner = clipScenarioText(s.roles?.learner, L.role) ?? '학습자'
-  const goal = clipScenarioText(s.goalKo, L.goal) ?? '대화를 이어 가기'
-  const lines = [`[상황] 역할극 선생님 「${tutor}」·학습자 「${learner}」. 목표: ${goal}`]
+  const tutor = clipScenarioValue(s.roles?.tutor, L.role) ?? '상대'
+  const learner = clipScenarioValue(s.roles?.learner, L.role) ?? '학습자'
+  const goal = clipScenarioValue(s.goalKo, L.goal) ?? '대화를 이어 가기'
+  const lines = [`[상황] 역할극 선생님 「${tutor}」·학습자 「${learner}」. 목표: 「${goal}」`]
   const criteria = (s.successCriteria ?? []).map((c) => clipScenarioText(c, L.criteria[1])).filter((c): c is string => Boolean(c)).slice(0, L.criteria[0])
   if (criteria.length) lines.push(`성공 조건: ${criteria.join(' / ')}`)
   const steps = (s.steps ?? []).map((st) => clipScenarioText(st?.ko, L.steps[1])).filter((c): c is string => Boolean(c)).slice(0, Math.min(L.steps[0], CIRCLED.length))
@@ -79,14 +100,21 @@ function renderTier(s: TalkScenarioInput, tier: ScenarioBlockTier): string {
 }
 
 /**
- * `[상황]` 블록 — `maxChars` 안에 드는 가장 풍부한 단계. MINIMAL 도 안 들면 MINIMAL 을 그대로 돌려준다(MINIMAL 의 최대 자수는 테스트가 고정).
- * 호출 쪽이 `Math.min(SCENARIO_BLOCK_MAX, 남은 예산)` 을 넘긴다.
+ * `[상황]` 블록 — `maxChars`(소프트 예산: 이력 몫까지 떼어 둔 값) 안에 드는 가장 풍부한 단계. 어느 단계도 안 들면 MINIMAL — 단 `hardMaxChars`(하드 한도: 이력 몫 없이 요청이 천장을 넘지 않는
+ * 최대 길이)를 MINIMAL 이 넘으면 NANO(역할·목표·시작만). 호출 쪽이 `maxChars = Math.min(SCENARIO_BLOCK_MAX, 소프트 예산)`·`hardMaxChars = 하드 예산` 을 넘긴다. `hardMaxChars` 를 안 주면
+ * 제한 없음(NANO 로 내려가지 않는다). 모든 길이는 JS `.length`(UTF-16 단위) — 요청 천장과 같은 단위(REV-137 L-2).
  */
-export function renderScenarioBlock(s: TalkScenarioInput, maxChars: number = SCENARIO_BLOCK_MAX): { text: string; tier: ScenarioBlockTier } {
+export function renderScenarioBlock(
+  s: TalkScenarioInput,
+  maxChars: number = SCENARIO_BLOCK_MAX,
+  hardMaxChars: number = Number.POSITIVE_INFINITY,
+): { text: string; tier: ScenarioBlockTier } {
   const cap = Math.min(SCENARIO_BLOCK_MAX, Math.floor(maxChars))
   for (const tier of ['FULL', 'COMPACT'] as const) {
     const text = renderTier(s, tier)
     if (text.length <= cap) return { text, tier }
   }
-  return { text: renderTier(s, 'MINIMAL'), tier: 'MINIMAL' }
+  const minimal = renderTier(s, 'MINIMAL')
+  if (Number.isNaN(hardMaxChars) || minimal.length <= hardMaxChars) return { text: minimal, tier: 'MINIMAL' }
+  return { text: renderTier(s, 'NANO'), tier: 'NANO' }
 }

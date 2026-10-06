@@ -24,7 +24,7 @@ import {
   type ScenarioVerdictFinal,
   type ScenarioVerdictResponse,
 } from '../structuredResponse/scenarioVerdict'
-import { clipScenarioText } from './talkScenario'
+import { clipScenarioText, clipScenarioValue } from './talkScenario'
 
 export const SCENARIO_VERDICT_PROMPT_VERSION = 'scenarioVerdict@v1'
 
@@ -135,8 +135,9 @@ const INSTRUCTION = [
 ].join('\n')
 
 function renderSituation(input: ScenarioVerdictInput): string {
-  const tutor = clipScenarioText(input.roles?.tutor, 24) ?? '상대'
-  const learner = clipScenarioText(input.roles?.learner, 24) ?? '학습자'
+  // 역할 이름은 「」 로 감싸 싣는다 — 값 안의 「」 는 지워 구분자를 위조하지 못하게 한다(REV-137 L-4, 글자 수는 늘지 않는다).
+  const tutor = clipScenarioValue(input.roles?.tutor, 24) ?? '상대'
+  const learner = clipScenarioValue(input.roles?.learner, 24) ?? '학습자'
   const level = clipScenarioText(input.level, 6)
   const goal = clipScenarioText(input.goalKo, 120) ?? '대화를 이어 가기'
   const out = [`[상황] 선생님 「${tutor}」, 학습자 「${learner}」${level ? ` · 학습자 수준 ${level}` : ''}`, `[목표] ${goal}`]
