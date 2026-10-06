@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from kaiwa_tts.runtime import QueueTimeout
 from kaiwa_tts.server import create_app
+from kaiwa_tts.timing import TIMING_MAX_TEXT_CHARS, decode_header
 
 AUTH = {"X-Internal-Secret": SECRET}
 LOOPBACK = ("127.0.0.1", 50000)
@@ -412,3 +413,123 @@ def test_g2p(client: TestClient) -> None:
     assert body["accent"] == "コ↑ンニチワ.ア↓メ"
     assert body["moras"][1] == {"mora": "ン", "tone": 1}
     assert client.post("/g2p", json={"text": "あ" * 201}, headers=AUTH).json()["error"]["code"] == "TEXT_TOO_LONG"
+
+
+# ---- timing (task-012b-4: 응답 헤더 X-Tts-Timing, 요청 스키마 무변경) ----
+
+TIMING_TEXT = "今日は駅前で、友達に会います。"
+
+
+def test_synthesize_attaches_timing_header(client: TestClient) -> None:
+    r = _synth(client, {"text": TIMING_TEXT, "traceId": "t_timing"})
+    assert r.status_code == 200
+    assert r.headers["X-Kaiwa-Timing"] == "ok"
+    assert float(r.headers["X-Kaiwa-Timing-Ms"]) >= 0
+    value = r.headers["X-Tts-Timing"]
+    assert value.isascii() and "=" not in value
+    data = decode_header(value)
+    assert data["method"] == "ENGINE_DURATION" and data["coord"] == "codepoint"
+    assert abs(data["durationMs"] - int(r.headers["X-Kaiwa-Audio-Ms"])) <= 1
+    pieces = [TIMING_TEXT[cs:ce] for _, _, cs, ce in data["words"]]
+    assert pieces == ["今日", "は", "駅前", "で", "友達", "に", "会", "います"]
+    starts = [s for s, _, _, _ in data["words"]]
+    assert starts == sorted(starts) and all(s < e <= data["durationMs"] for s, e, _, _ in data["words"])
+    # 헤더에 문장·단어 글이 없다(숫자뿐).
+    assert "今日" not in json.dumps(data, ensure_ascii=False)
+
+
+def test_request_schema_is_unchanged_for_timing(client: TestClient) -> None:
+    # 요청에 timing 키를 새로 받지 않는다 — 구 서비스가 400 을 내는 키를 앱이 보내지 않게(배포 순서 무관).
+    r = _synth(client, {"text": "テスト", "timing": True})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_timing_coordinates_are_raw_request_codepoints(client: TestClient) -> None:
+    text = "  こんにちは\U0001f600、元気？"
+    r = _synth(client, {"text": text})
+    words = decode_header(r.headers["X-Tts-Timing"])["words"]
+    assert [text[cs:ce] for _, _, cs, ce in words] == ["こんにちは", "元気"]
+    assert words[0][2] == 2 and words[1][2] == 9
+
+
+@pytest.mark.parametrize(
+    "alignment, status",
+    [
+        ("none", "unavailable"),
+        ("raise:token_mismatch", "token_mismatch"),
+        ("extra_samples:1", "frame_mismatch"),
+        ("boom", "error"),
+    ],
+)
+def test_timing_failure_keeps_audio(assets: Path, alignment: str, status: str) -> None:
+    with _client(assets, FakeBackend()) as ok_client:
+        _wait_ready(ok_client)
+        good = _synth(ok_client, {"text": TIMING_TEXT})
+    with _client(assets, FakeBackend(alignment=alignment)) as c:
+        _wait_ready(c)
+        r = _synth(c, {"text": TIMING_TEXT})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/wav"
+    assert r.headers["X-Kaiwa-Timing"] == status
+    assert "X-Tts-Timing" not in r.headers
+    if not alignment.startswith("extra_samples"):
+        # timing 유무와 무관하게 오디오 바이트가 같다.
+        assert r.content == good.content
+
+
+def test_pitch_adjust_allows_small_length_difference(assets: Path) -> None:
+    body = {"text": TIMING_TEXT, "controls": {"pitch": 1.1}}
+    with _client(assets, FakeBackend(alignment="extra_samples:200")) as c:
+        _wait_ready(c)
+        r = _synth(c, body)
+        assert r.headers["X-Kaiwa-Adjust"] == "applied" and r.headers["X-Kaiwa-Timing"] == "ok"
+        # 후처리가 없으면 1샘플도 허용하지 않는다.
+        r2 = _synth(c, {"text": TIMING_TEXT})
+        assert r2.headers["X-Kaiwa-Timing"] == "frame_mismatch"
+    with _client(assets, FakeBackend(alignment="extra_samples:300")) as c:
+        _wait_ready(c)
+        assert _synth(c, body).headers["X-Kaiwa-Timing"] == "frame_mismatch"
+
+
+def test_timing_header_over_cap_is_omitted(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import kaiwa_tts.server as server_mod
+
+    monkeypatch.setattr(server_mod, "encode_header", lambda _t: None)
+    r = _synth(client, {"text": TIMING_TEXT})
+    assert r.status_code == 200 and r.headers["X-Kaiwa-Timing"] == "too_large"
+    assert "X-Tts-Timing" not in r.headers
+
+
+def test_overlong_request_text_skips_timing_but_keeps_audio(client: TestClient) -> None:
+    # 앞뒤 공백은 합성 100자 검사 전에 지워지지만 timing 좌표는 원문 기준이라 원문 길이로 막는다.
+    good = _synth(client, {"text": TIMING_TEXT})
+    at_cap = " " * (TIMING_MAX_TEXT_CHARS - len(TIMING_TEXT)) + TIMING_TEXT
+    r_cap = _synth(client, {"text": at_cap})
+    assert r_cap.status_code == 200 and r_cap.headers["X-Kaiwa-Timing"] == "ok"
+    words = decode_header(r_cap.headers["X-Tts-Timing"])["words"]
+    assert at_cap[words[0][2] : words[0][3]] == "今日"
+    r = _synth(client, {"text": " " + at_cap})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/wav"
+    assert r.headers["X-Kaiwa-Timing"] == "too_long" and "X-Tts-Timing" not in r.headers
+    assert r.content == good.content == r_cap.content
+
+
+def test_timing_failure_logs_have_no_text(assets: Path) -> None:
+    records: list[logging.LogRecord] = []
+
+    class Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = Capture(level=logging.DEBUG)
+    logger = logging.getLogger("kaiwa_tts")
+    logger.addHandler(handler)
+    try:
+        with _client(assets, FakeBackend(alignment="boom"), log_level="DEBUG") as c:
+            _wait_ready(c)
+            assert _synth(c, {"text": "秘密の文章です。"}).status_code == 200
+    finally:
+        logger.removeHandler(handler)
+    lines = [r.getMessage() for r in records]
+    assert any("timing failed" in line and "RuntimeError" in line for line in lines)
+    assert any("timing=error" in line for line in lines)
+    assert not any("秘密" in line for line in lines)

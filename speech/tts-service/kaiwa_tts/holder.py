@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -17,6 +18,7 @@ from .backend import Backend, ModelInfo
 from .config import Settings
 from .models import ModelSpec, ScanIssue, scan_model_assets
 from .params import SynthPlan, without_pitch_adjust
+from .timing import PITCH_ADJUST_TOLERANCE_MS, STATUS_OK, Timing, TimingError, compute_timing
 
 log = logging.getLogger("kaiwa_tts.holder")
 
@@ -45,6 +47,10 @@ class SynthResult:
     audio: NDArray[Any]
     adjust: str  # none | applied | skipped
     synth_ms: int
+    timing: Timing | None = None
+    # ok | unavailable | token_mismatch | frame_mismatch | word_mismatch | text_mismatch | empty | too_long | error
+    timing_status: str = "unavailable"
+    timing_ms: float = 0.0
 
 
 def _sha256(path: Any) -> str:
@@ -252,8 +258,37 @@ class ModelHolder:
             adjust = "skipped"
         if audio.size == 0:
             raise SynthFailed("EmptyAudio")
+        synth_ms = int((time.perf_counter() - t0) * 1000)
+        timing, status, timing_ms = self._timing(lm, plan, sr, int(audio.size), adjust)
         self._sample_gpu()
-        return SynthResult(sample_rate=sr, audio=audio, adjust=adjust, synth_ms=int((time.perf_counter() - t0) * 1000))
+        return SynthResult(
+            sample_rate=sr,
+            audio=audio,
+            adjust=adjust,
+            synth_ms=synth_ms,
+            timing=timing,
+            timing_status=status,
+            timing_ms=timing_ms,
+        )
+
+    def _timing(self, lm: LoadedModel, plan: SynthPlan, sr: int, samples: int, adjust: str) -> tuple[Timing | None, str, float]:
+        # 오디오는 이미 나왔다 — 여기서 무엇이 실패해도 timing 만 빠지고 합성 응답은 그대로다.
+        t0 = time.perf_counter()
+        timing: Timing | None = None
+        try:
+            cap = self.backend.take_alignment(lm.handle)
+            if cap is None:
+                status = "unavailable"
+            else:
+                tolerance = math.ceil(sr * PITCH_ADJUST_TOLERANCE_MS / 1000) if adjust == "applied" else 0
+                timing = compute_timing(cap, plan.source_text or plan.text, samples, sr, tolerance)
+                status = STATUS_OK
+        except TimingError as e:
+            status = e.status
+        except Exception as e:  # noqa: BLE001 — timing 은 부가 정보다
+            log.warning("timing failed model=%s err=%s", lm.spec.model_id, type(e).__name__)
+            status = "error"
+        return timing, status, (time.perf_counter() - t0) * 1000
 
     def g2p(self, text: str) -> tuple[str, list[tuple[str, int]]]:
         return self.backend.g2p(text)

@@ -30,6 +30,7 @@ from .params import TextError, build_plan, clean_text
 from .runtime import QueueTimeout, SerialRunner
 from .schemas import G2pIn, SynthesizeIn
 from .security import InternalGate
+from .timing import STATUS_OK, TIMING_HEADER, encode_header
 
 log = logging.getLogger("kaiwa_tts.server")
 
@@ -236,6 +237,12 @@ def create_app(settings: Settings | None = None, backend: Backend | None = None,
         wav = encode_wav(result.sample_rate, result.audio)
         encode_ms = int((time.perf_counter() - t_enc) * 1000)
         audio_ms = int(result.audio.size * 1000 / result.sample_rate)
+        timing_status = result.timing_status
+        timing_value: str | None = None
+        if result.timing is not None:
+            timing_value = encode_header(result.timing)
+            if timing_value is None:
+                timing_status = "too_large"
         total_ms = int((time.perf_counter() - t0) * 1000)
         headers = {
             "X-Kaiwa-Latency-Ms": str(total_ms),
@@ -248,14 +255,21 @@ def create_app(settings: Settings | None = None, backend: Backend | None = None,
             "X-Kaiwa-Style": quote(plan.style, safe=""),
             "X-Kaiwa-Style-Fallback": "1" if plan.style_fallback else "0",
             "X-Kaiwa-Adjust": result.adjust,
+            "X-Kaiwa-Timing": timing_status,
+            "X-Kaiwa-Timing-Ms": f"{result.timing_ms:.2f}",
             "X-Service-Version": VERSION,
             "Cache-Control": "no-store",
         }
+        # 요청 스키마는 그대로 두고 응답 헤더로만 싣는다 — 구 앱은 모르는 헤더를 무시하고, 새 앱은 구 서비스에서 헤더가
+        # 없으면 timing=null 로 동작한다(배포 순서 무관, task-012b-4 Leader 결정).
+        if timing_value is not None and timing_status == STATUS_OK:
+            headers[TIMING_HEADER] = timing_value
         if req.traceId:
             headers["X-Trace-Id"] = req.traceId
         # 문장 원문은 어떤 로그 레벨에서도 남기지 않는다 — 글자 수·해시 앞 12자·traceId 로만 대조한다(Codex C2).
         log.info(
-            "synth ok trace=%s model=%s profile=%s chars=%d text_sha=%s audio_ms=%d queue_ms=%d synth_ms=%d total_ms=%d adjust=%s",
+            "synth ok trace=%s model=%s profile=%s chars=%d text_sha=%s audio_ms=%d queue_ms=%d synth_ms=%d total_ms=%d adjust=%s"
+            " timing=%s timing_words=%d timing_ms=%.2f",
             req.traceId or "-",
             model_id,
             req.profile or "-",
@@ -266,6 +280,9 @@ def create_app(settings: Settings | None = None, backend: Backend | None = None,
             result.synth_ms,
             total_ms,
             result.adjust,
+            timing_status,
+            len(result.timing.words) if result.timing is not None else 0,
+            result.timing_ms,
         )
         return Response(content=wav, media_type="audio/wav", headers=headers)
 

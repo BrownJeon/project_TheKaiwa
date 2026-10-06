@@ -39,7 +39,9 @@ def main() -> int:
     print(
         "SYNTH",
         status,
-        f"bytes={len(payload)} client_ms={int(secs * 1000)} server_ms={lower.get('x-kaiwa-latency-ms')} model={lower.get('x-kaiwa-model')}",
+        f"bytes={len(payload)} client_ms={int(secs * 1000)} server_ms={lower.get('x-kaiwa-latency-ms')} model={lower.get('x-kaiwa-model')}"
+        # timing 은 부가 정보라 성공 판정에 넣지 않는다(헤더가 없는 구 버전도 통과). 배포 확인용 표시만.
+        f" timing={lower.get('x-kaiwa-timing', '-')} timing_bytes={len(lower.get('x-tts-timing', ''))}",
     )
     return 0 if ok else 1
 

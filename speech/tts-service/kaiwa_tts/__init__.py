@@ -4,5 +4,5 @@
 """
 
 SERVICE_NAME = "tts-service"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 LICENSE = "AGPL-3.0 (see LICENSE-NOTICE.md)"

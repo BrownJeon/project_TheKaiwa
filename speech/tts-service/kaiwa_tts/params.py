@@ -56,6 +56,8 @@ class SynthPlan:
     style_fallback: bool
     adjusts_pitch: bool
     kwargs: dict[str, Any]
+    # 요청 `text` 원본(NFC·strip 전) — timing 좌표의 기준. 앱이 보낸 글 그대로의 코드포인트로 돌려준다.
+    source_text: str = ""
 
 
 def build_plan(req: SynthesizeIn, text: str, available_styles: list[str]) -> SynthPlan:
@@ -83,6 +85,7 @@ def build_plan(req: SynthesizeIn, text: str, available_styles: list[str]) -> Syn
         style_fallback=fallback,
         adjusts_pitch=not (pitch == 1.0 and intonation == 1.0),
         kwargs=kwargs,
+        source_text=req.text,
     )
 
 
