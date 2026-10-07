@@ -155,3 +155,55 @@ test('M-2 주제 만들기의 Btn size="sm"(38px)은 모두 min-h-11 로 44px �
     for (const b of sm) assert.match(b, /min-h-11/, `${file} sm 버튼에 min-h-11 필요:\n${b.slice(0, 120)}`)
   }
 })
+
+// ── T5-3b-fix (REV-164) 소스 가드 ──────────────────────────────────────────
+
+test('REV-164 L-5 ① 저장 표시는 곧바로 보관한다 — 주제 저장·상황 저장 성공 직후 keepNow 가 불리고, 그 뒤 디바운스(300ms)에 기대지 않는다', () => {
+  const onTopic = between(hook, 'const onTopicSaved = useCallback(', 'const onScenarioSaved = useCallback(')
+  assert.match(onTopic, /savedTopicRef\.current = id\s*setSavedTopicId\(id\)\s*keepNow\(\{ savedTopicId: id \}\)/, '#57 성공 직후 주제 id 를 곧바로 보관(새로 고침이 300ms 안에 와도 주제를 두 번 만들지 않는다)')
+  const onScenario = between(hook, 'const onScenarioSaved = useCallback(', 'const save = useCallback(')
+  assert.match(onScenario, /setScenarios\(next\)\s*keepNow\(\{ scenarios: next \}\)/, '#163 성공마다 저장된 상황 id 를 곧바로 보관')
+  const keepNow = between(hook, 'const keepNow = useCallback(', '[flush],')
+  assert.match(keepNow, /snapRef\.current = \{ \.\.\.snapRef\.current, \.\.\.patch \}\s*flush\(\)/, '값을 덮어쓴 뒤 같은 flush 경로로 즉시 쓴다')
+  // 저장 흐름이 이 두 훅을 실제로 넘긴다(넘기지 않으면 위 보관은 불리지 않는다)
+  const saveFn = between(hook, 'const save = useCallback(', 'const goToTopic = useCallback(')
+  assert.match(saveFn, /\{ onTopicSaved, onScenarioSaved, onProgress: setProgress \}/)
+})
+
+test('REV-164 L-5 ② 저장 더블 탭 가드 — 저장은 saveGuard.run 안에서만 요청을 보낸다(훅이 가드를 실제로 쓴다)', () => {
+  assert.match(hook, /const \[saveGuard\] = useState\(createOnceGuard\)/, '가드는 화면 수명 동안 하나')
+  const saveFn = between(hook, 'const save = useCallback(', 'const goToTopic = useCallback(')
+  const run = saveFn.indexOf('saveGuard.run(async () => {')
+  assert.ok(run >= 0, 'saveGuard.run 래퍼가 없다 — 더블 탭이 #57 을 두 번 보낼 수 있다')
+  assert.ok(saveFn.indexOf('runTopicCreateSave(') > run, '요청은 가드 안쪽에서만')
+  assert.ok(!saveFn.slice(0, run).includes('runTopicCreateSave('), '가드 밖에서 요청하지 않는다')
+  assert.equal([...saveFn.matchAll(/runTopicCreateSave\(/g)].length, 1, '저장 요청 경로는 하나')
+})
+
+test('REV-164 L-1 저장 중에는 ← 가 막힌다 — 화면이 onBack 에서 되돌리고 BackBar 는 aria-disabled·누름 무시', () => {
+  const screen = read(TOPIC_DIR, 'TopicCreateScreen.tsx')
+  const onBack = between(screen, 'const onBack = () => {', 'const k = m.pick.k')
+  assert.match(onBack, /^const onBack = \(\) => \{\s*if \(saving\) return/, '저장 중이면 아무것도 하지 않는다(나가기 시트도 열지 않는다)')
+  assert.match(screen, /const saving = m\.stage === 'saving'/)
+  assert.match(screen, /onBack=\{onBack\}\s*backDisabled=\{saving\}/, 'BackBar 에 저장 중임을 알린다')
+  const bar = read(TOPIC_DIR, '..', 'shell', 'BackBar.tsx')
+  assert.match(bar, /onClick=\{\(\) => !backDisabled && onBack\(\)\}/, '비활성이면 누름을 무시')
+  assert.match(bar, /aria-disabled=\{backDisabled \|\| undefined\}/, '보조 기술에 비활성을 알린다')
+  assert.match(bar, /backDisabled = false/, '기본은 막지 않는다(다른 화면 동작 그대로)')
+})
+
+test('REV-164 L-3 상황 카드 체크는 상황 제목이 든 접근성 이름을 가진다 · 보이는 label 글은 그대로', () => {
+  const cards = read(TOPIC_DIR, 'ScenarioDraftCards.tsx')
+  const input = between(cards, '<input\n', '/>')
+  assert.match(input, /id=\{ck\}[\s\S]*type="checkbox"[\s\S]*aria-label=\{scenarioKeepName\(title\)\}/, '체크 이름 = 제목 + 「이 상황도 저장」')
+  assert.match(cards, /<label htmlFor=\{ck\}[^>]*>[\s\S]*<span className="break-keep">\{SCDRAFT\.keep\}<\/span>/, '보이는 글은 그대로')
+})
+
+test('REV-164 L-4 저장 안내 줄은 고른 상황이 없어도 사라지지 않는다 — 두 글을 같은 칸에 겹쳐 그려 줄 높이가 한 번도 바뀌지 않는다', () => {
+  const review = read(TOPIC_DIR, 'TopicDraftReview.tsx')
+  assert.match(review, /saveNote\?: \{ on: string; off: string; active: boolean \} \| null/)
+  assert.match(review, /<p className="grid [^"]*\[&>\*\]:col-start-1 \[&>\*\]:row-start-1">\s*<span className=\{saveNote\.active \? '' : 'invisible'\}>\{saveNote\.on\}<\/span>\s*<span className=\{saveNote\.active \? 'invisible' : ''\}>\{saveNote\.off\}<\/span>/)
+  const screen = read(TOPIC_DIR, 'TopicCreateScreen.tsx')
+  assert.match(screen, /saveNote=\{\{ on: REVIEW\.saveOrder, off: REVIEW\.saveIdle, active: k > 0 \}\}/, 'k=0 이어도 null 로 줄을 없애지 않는다')
+  assert.ok(!/saveNote=\{k > 0/.test(screen))
+})

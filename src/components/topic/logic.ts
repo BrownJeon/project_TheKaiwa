@@ -554,6 +554,13 @@ export function nextAddedKey(chunks: readonly EditableChunk[], used: number): { 
   return { key: `n${max + 1}`, n: max + 1 }
 }
 
+/**
+ * 이 탭 보관 읽기가 받는 표현 열쇠(REV-164 H-1) — 화면이 만드는 열쇠(`chunkKeyOf` 의 `c<번호>`·`nextAddedKey` 의 `n<번호>`)와 같은 모양이어야 한다.
+ * 한쪽 모양을 바꾸면 보관 전체가 버려져(읽기 거절) 이어 고치기·`partial` 재개가 사라지므로, 두 함수와 이 검사를 한 곳에 두고 속성 시험이 묶어 본다.
+ * 서버 표현 id 는 S4 보관에 없다(S7 은 보관하지 않는다). 임의 문자열·길이는 거절한다.
+ */
+export const isStoredChunkKey = (v: unknown): v is string => typeof v === 'string' && /^[cn]\d{1,6}$/.test(v)
+
 const TOPIC_WARNING_CODES: readonly TopicWarningCode[] = [
   'CHUNKS_SHORT',
   'TYPE_THIN_NAME',
@@ -844,7 +851,7 @@ export function parseTopicStore(raw: string | null, userId: string): StoredTopic
     const keys = new Set<string>()
     for (const c of d.chunks as unknown[]) {
       const o = c as Record<string, unknown> | null
-      if (!o || typeof o.key !== 'string' || !/^c\d{1,4}$/.test(o.key) || keys.has(o.key) || !isChunkType(o.chunkType)) return null
+      if (!o || !isStoredChunkKey(o.key) || keys.has(o.key) || !isChunkType(o.chunkType)) return null
       if (!okText(o.textJa) || !okText(o.reading) || !okText(o.meaningKo)) return null
       keys.add(o.key)
       chunks.push({ key: o.key, chunkType: o.chunkType, textJa: o.textJa, reading: o.reading, meaningKo: o.meaningKo })
@@ -1501,6 +1508,11 @@ export interface PartialView {
   m: number
   lines: { key: ScenarioSlotKey; title: string; text: string | null; field: boolean }[]
   block: string | null
+  /**
+   * 응답을 받지 못해(네트워크) 실패한 남은 상황이 있으면 true(REV-164 M-1). #163 에는 멱등 키가 없어 서버가 이미 저장했는데 응답만 끊겼다면
+   * [상황 다시 저장]이 같은 상황을 한 번 더 만든다 — 그때만 「이미 저장됐을 수 있어요」 한 줄을 보인다(서버가 거절한 오류에는 보이지 않는다).
+   */
+  unsure: boolean
 }
 
 export function partialView(slots: readonly ScenarioSlot[], fails: readonly ScenarioSaveFail[]): PartialView {
@@ -1514,8 +1526,12 @@ export function partialView(slots: readonly ScenarioSlot[], fails: readonly Scen
       return { key: s.key, title: oneLine(s.draft.title), text: f ? f.text : null, field: f?.kind === 'field' }
     }),
     block: blockF ? blockF.failure.text : null,
+    unsure: pending.some((s) => byKey.get(s.key)?.kind === 'network'),
   }
 }
+
+/** S4 상황 카드 체크의 접근성 이름(REV-164 L-3) — 카드가 둘이면 「이 상황도 저장」 이 같아 구분되지 않아 상황 제목을 앞에 붙인다(보이는 글은 그대로). */
+export const scenarioKeepName = (title: string): string => `${oneLine(title)} ${SCDRAFT.keep}`.trim()
 
 /* ── 이 탭 보관(상황 초안 칸) — 모양이 하나라도 어긋나면 보관 전체를 버린다(`parseTopicStore`) ── */
 

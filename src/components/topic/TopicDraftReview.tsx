@@ -51,8 +51,8 @@ export default function TopicDraftReview({
   /** T5-3b 「상황 초안」 절 자리(기본 표현과 저장 줄 사이). */
   scenarioSlot?: React.ReactNode
   saveLabel?: string
-  /** 버튼 아래 한 줄(상황을 함께 저장할 때 「주제를 먼저 저장하고…」). */
-  saveNote?: string | null
+  /** 버튼 아래 한 줄 — 상황을 함께 저장하면 `on`(「주제를 먼저 저장하고…」), 고른 상황이 없으면 `off`. 두 글을 겹쳐 그려 줄 높이가 바뀌지 않는다(REV-164 L-4). */
+  saveNote?: { on: string; off: string; active: boolean } | null
   savingText?: string
   /** 상황 초안을 만드는 중 — 저장을 막고 이 id(자리 카드)를 이유로 잇는다. */
   saveHoldId?: string | null
@@ -128,7 +128,12 @@ export default function TopicDraftReview({
         >
           {saving ? savingText : saveLabel}
         </Btn>
-        {saveNote && !locked ? <p className="text-center text-[12px] text-ink2 break-keep">{saveNote}</p> : null}
+        {saveNote && !locked ? (
+          <p className="grid text-center text-[12px] text-ink2 break-keep [&>*]:col-start-1 [&>*]:row-start-1">
+            <span className={saveNote.active ? '' : 'invisible'}>{saveNote.on}</span>
+            <span className={saveNote.active ? 'invisible' : ''}>{saveNote.off}</span>
+          </p>
+        ) : null}
         <Btn id={REGEN_DOM_ID} hidden={!!locked} variant="ghost" className="w-full" aria-disabled={saving || undefined} aria-expanded={regenAsk} onClick={() => !saving && setRegenAsk((v) => !v)}>
           {REVIEW.regen}
         </Btn>

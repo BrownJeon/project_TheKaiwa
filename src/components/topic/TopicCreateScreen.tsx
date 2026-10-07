@@ -115,6 +115,8 @@ function Screen({ defaultLevel, userId }: { defaultLevel: DraftLevel; userId: st
   const slotErrors = useMemo(() => (editKey ? problemMap(m.scProblems.get(editKey) ?? []) : {}), [editKey, m.scProblems])
 
   const onBack = () => {
+    // 저장 중에는 ← 가 막힌다(REV-164 L-1) — 저장이 끝나면 훅이 주제 보기로 옮기므로, 그 사이 나가면 사용자가 다른 화면에서 끌려간다.
+    if (saving) return
     if (editSlot) closeStep()
     else if (reviewing && m.edited) setLeaveOpen(true)
     else m.leave()
@@ -131,6 +133,7 @@ function Screen({ defaultLevel, userId }: { defaultLevel: DraftLevel; userId: st
         backLabel={editSlot ? SCDRAFT.backToReview : TOPIC.back}
         title={CREATE.title}
         onBack={onBack}
+        backDisabled={saving}
       />
       {editSlot && m.draft ? (
         <div className="mx-auto min-w-0 max-w-[520px] px-4 pb-8 pt-3.5">
@@ -197,7 +200,7 @@ function Screen({ defaultLevel, userId }: { defaultLevel: DraftLevel; userId: st
               onRegen={m.generate}
               onDiscard={() => setDiscardOpen(true)}
               saveLabel={k > 0 ? REVIEW.save(k) : REVIEW.saveTopicOnly}
-              saveNote={k > 0 ? REVIEW.saveOrder : null}
+              saveNote={{ on: REVIEW.saveOrder, off: REVIEW.saveIdle, active: k > 0 }}
               savingText={savingText}
               saveHoldId={m.scFlight.busy ? SC_GEN_DOM_ID : null}
               locked={

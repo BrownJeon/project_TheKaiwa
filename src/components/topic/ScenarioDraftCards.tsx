@@ -17,7 +17,7 @@ import { oneLine, type DraftProblem, type EditableDraft } from '@/components/sce
 import { DRAFT } from '@/components/scenario/scenarioCopy'
 import { SCENARIO_LIMITS } from '@/types/scenario'
 import type { Failure } from './failure'
-import { SCENARIO_DRAFTS_MAX, topicProblemDomId, type PartialView, type ScenarioSlot, type ScenarioSlotKey, type TopicDraftFlightState } from './logic'
+import { SCENARIO_DRAFTS_MAX, scenarioKeepName, topicProblemDomId, type PartialView, type ScenarioSlot, type ScenarioSlotKey, type TopicDraftFlightState } from './logic'
 import { PARTIAL, REVIEW, SCDRAFT } from './topicCopy'
 
 export const SC_GEN_DOM_ID = 'tp-sc-gen'
@@ -207,7 +207,15 @@ function ScenarioCard({
       ) : null}
       <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
         <label htmlFor={ck} className="flex min-h-11 min-w-0 items-center gap-2 text-[14px]">
-          <input id={ck} type="checkbox" className="h-5 w-5 shrink-0" checked={slot.keep} disabled={disabled} onChange={(e) => onToggle(slot.key, e.target.checked)} />
+          <input
+            id={ck}
+            type="checkbox"
+            className="h-5 w-5 shrink-0"
+            aria-label={scenarioKeepName(title)}
+            checked={slot.keep}
+            disabled={disabled}
+            onChange={(e) => onToggle(slot.key, e.target.checked)}
+          />
           <span className="break-keep">{SCDRAFT.keep}</span>
         </label>
         <Btn
@@ -232,6 +240,7 @@ export function PartialTop({ view }: { view: PartialView }) {
     <div id={PARTIAL_DOM_ID} tabIndex={-1} role="alert" className="rounded-[14px] bg-bad-soft p-3.5 text-bad outline-none">
       <p className="text-[14px] font-bold break-keep">{PARTIAL.title}</p>
       {view.m ? <p className="mt-1 text-[13px] break-keep">{PARTIAL.body(view.m)}</p> : null}
+      {view.unsure ? <p className="mt-1 text-[13px] font-semibold break-keep">{PARTIAL.unsure}</p> : null}
       {view.lines.length ? (
         <ul className="mt-1.5 flex flex-col gap-1 text-[13px]">
           {view.lines.map((l) => (

@@ -44,10 +44,16 @@ import { CREATE, FAIL, REVIEW, TOAST } from '../topicCopy'
 // T5-3b 상황 초안·순차 저장·부분 저장
 import { validateDraft, type EditableDraft } from '@/components/scenario/logic'
 import { DRAFT as SC_DRAFT } from '@/components/scenario/scenarioCopy'
+import { TOPIC_SAVE_LIMITS } from '@/types/topicWrite'
 import {
+  chunkKeyOf,
   createScenarioDraftFlight,
+  isStoredChunkKey,
+  nextAddedKey,
   nextScenarioSlotKey,
   partialView,
+  regenChunks,
+  scenarioKeepName,
   runTopicCreateSave,
   scenarioDraftBody,
   scenarioMoreProblem,
@@ -776,4 +782,140 @@ test('T5-3b 화면 소스: savedTopicId 가 있으면 partial 로 열고(이어 
   const editor = readFileSync(join(__dirname, '..', '..', 'scenario', 'DraftEditor.tsx'), 'utf8')
   assert.ok(!/from '@\/components\/topic|from '\.\.\/topic/.test(editor))
   assert.match(editor, /placesFixed\?: \{ title: string; label: string \}/)
+})
+
+/* ───── T5-3b-fix — REV-164 보완(H-1 보관 열쇠·M-1 응답 전 끊김·L-3·L-4) ───── */
+
+const nk = (n: number, chunkType: EditableChunk['chunkType'], textJa: string, reading: string, meaningKo: string): EditableChunk => ({ key: `n${n}`, chunkType, textJa, reading, meaningKo })
+
+test('REV-164 H-1 보관 왕복: 서버 도착 열쇠(c)와 새로 더한 열쇠(n)가 섞인 초안·partial(주제 id·저장된 상황 id·남은 상황 초안)이 새로 고침 뒤에도 그대로 돌아온다', () => {
+  const chunks = [...BANK.map((c) => ({ ...c })), nk(1, 'NAME', '預金', 'よきん', '예금'), nk(12, 'ACTION', '貯める', 'ためる', '모으다')]
+  const draft = draftOf({ chunks })
+  const scenarios = [slotOf('sc0', { savedId: 'scn_1' }), slotOf('sc1', { keep: false })]
+  const snap = { userId: 'u1', ask: { title: '은행', level: 'N4' as const }, draft, warnings: ['CHUNKS_SHORT' as const], arrivalTitle: '은행 계좌 만들기', edited: true, savedAt: 1, scenarios, savedTopicId: 'top_new', scAsked: true }
+  const back = parseTopicStore(serializeTopicStore(snap), 'u1')
+  assert.ok(back, '새 행 열쇠 n<번호> 가 든 보관이 통째로 버려지면 이어 고치기·partial 재개가 사라진다')
+  assert.deepEqual(back.draft, draft)
+  assert.deepEqual(back.draft?.chunks.map((c) => c.key), [...BANK.map((c) => c.key), 'n1', 'n12'], '열쇠·순서 그대로')
+  assert.equal(back.savedTopicId, 'top_new')
+  assert.deepEqual(back.scenarios, scenarios, '저장된 상황 id·남은 상황 초안·체크')
+  assert.equal(back.scAsked, true)
+  assert.deepEqual(readTopicStore(serializeTopicStore(snap), 'u1').discard, false, '지우라는 신호도 없다')
+  // partial 이 아닌(주제 저장 전) 보관도 같다 — S4 에서 표현만 더한 초안
+  const plain = parseTopicStore(serializeTopicStore({ userId: 'u1', ask: snap.ask, draft, warnings: [], arrivalTitle: '', edited: true, savedAt: 2 }), 'u1')
+  assert.deepEqual(plain?.draft, draft)
+})
+
+test('REV-164 H-1 보관 거절: 모르는 열쇠 모양·너무 긴 열쇠·중복·문자열이 아닌 열쇠는 통째로 버린다(임의 문자열을 받지 않는다)', () => {
+  const withKeys = (...keys: unknown[]) => {
+    const draft = draftOf({ chunks: BANK.slice(0, keys.length).map((c) => ({ ...c })) })
+    const raw = JSON.parse(serializeTopicStore({ userId: 'u1', ask: { title: '은행', level: 'N4' }, draft, warnings: [], arrivalTitle: '', edited: true, savedAt: 1 })) as { draft: { chunks: Array<{ key: unknown }> } }
+    raw.draft.chunks.forEach((c, i) => (c.key = keys[i]))
+    return parseTopicStore(JSON.stringify(raw), 'u1')
+  }
+  assert.ok(withKeys('c1', 'n1', 'c2', 'n2'), 'c 와 n 은 섞여도 된다')
+  assert.ok(withKeys('c1', 'n1'), 'c1 과 n1 은 서로 다른 열쇠')
+  const bad: unknown[] = ['', 'x1', 'c', 'n', 'c1x', 'xn1', 'n-1', 'N1', 'C1', ' n1', 'n1 ', 'n1\n', 'cn1', 'nn1', 'n1.5', 'n1234567', `c${'1'.repeat(500)}`, '__proto__', '../x', 'n٣', 1, null, undefined, { a: 1 }]
+  for (const k of bad) assert.equal(withKeys(k), null, `거절해야 하는 열쇠: ${JSON.stringify(k)}`)
+  assert.equal(withKeys('n1', 'n1'), null, '중복 n 열쇠')
+  assert.equal(withKeys('c1', 'c1'), null, '중복 c 열쇠')
+  assert.equal(withKeys('c1', 'n1', 'n1'), null)
+  // 열쇠 검사 함수도 같은 규칙
+  assert.ok(isStoredChunkKey('c1') && isStoredChunkKey('n1') && isStoredChunkKey('n999999'))
+  assert.ok(!isStoredChunkKey('n1000000') && !isStoredChunkKey('x1') && !isStoredChunkKey(5))
+})
+
+test('REV-164 H-1 속성: 편집기가 만드는 열쇠(응답 c1..cN · nextAddedKey · regenChunks · chunkUpsert)는 어떤 순서로 더하고 지워도 중복이 없고 보관 읽기를 통과한다', () => {
+  let seed = 20261007
+  const rnd = (n: number): number => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+    return seed % n
+  }
+  const textOf = (i: number): Pick<EditableChunk, 'chunkType' | 'textJa' | 'reading' | 'meaningKo'> => ({ chunkType: (['NAME', 'ACTION', 'FEELING', 'MODIFIER'] as const)[i % 4], textJa: `表現${i}`, reading: `ひょうげん${i}`, meaningKo: `표현${i}` })
+  let steps = 0
+  for (let run = 0; run < 150; run++) {
+    const arrived = topicDraftFromResponse({
+      draft: { title: '은행', titleJa: null, level: 'N4', description: null, chunks: Array.from({ length: 1 + rnd(12) }, (_, i) => textOf(i)) },
+    })
+    assert.ok(arrived)
+    let chunks = arrived.draft.chunks
+    let used = 0 // ChunkEditor 의 addNo ref — 한 번 쓴 번호를 다시 쓰지 않는다
+    for (let step = 0; step < 60; step++) {
+      const op = rnd(5)
+      if (op <= 1 && chunks.length < TOPIC_SAVE_LIMITS.chunksMax) {
+        const k = nextAddedKey(chunks, used)
+        assert.ok(k.n > used, '번호는 늘 커진다')
+        used = k.n
+        if (rnd(4) > 0) chunks = chunkUpsert(chunks, { key: k.key, ...textOf(100 + step) }) // 나머지는 [취소] — 번호만 쓴다
+      } else if (op === 2 && chunks.length) {
+        const at = rnd(chunks.length)
+        chunks = chunks.filter((_, i) => i !== at)
+      } else if (op === 3 && chunks.length) {
+        const at = rnd(chunks.length)
+        chunks = chunkUpsert(chunks, { ...chunks[at], textJa: `고침${step}` }) // 행 고치기 — 열쇠 그대로
+      } else if (op === 4) {
+        chunks = regenChunks(chunks, Array.from({ length: 1 + rnd(8) }, (_, i) => ({ key: chunkKeyOf(i + 1), ...textOf(i) })))
+      }
+      const keys = chunks.map((c) => c.key)
+      assert.equal(new Set(keys).size, keys.length, `열쇠 중복: ${keys.join(',')}`)
+      for (const k of keys) assert.ok(isStoredChunkKey(k), `보관 읽기가 거절하는 열쇠를 만들었다: ${k}`)
+      const draft = draftOf({ chunks })
+      const back = parseTopicStore(serializeTopicStore({ userId: 'u1', ask: { title: '은행', level: 'N4' }, draft, warnings: [], arrivalTitle: '', edited: true, savedAt: 1 }), 'u1')
+      assert.ok(back, `왕복 실패(보관이 통째로 버려진다): ${keys.join(',')}`)
+      assert.deepEqual(back.draft, draft)
+      steps++
+    }
+  }
+  assert.ok(steps >= 9000)
+  // 오래 쓴 편집기(번호가 큰 값)도 읽기 한도 안
+  assert.equal(nextAddedKey([], 9999).key, 'n10000')
+  assert.ok(isStoredChunkKey(nextAddedKey([], 9999).key))
+  assert.equal(chunkKeyOf(1), 'c1')
+})
+
+test('REV-164 M-1 partial: 응답을 받지 못한(네트워크) 상황이 남았을 때만 「이미 저장됐을 수 있어요」 — 서버가 거절한 오류·서버 일시 오류에는 보이지 않는다', async () => {
+  const viewOf = async (fails: Record<number, unknown>, slots: ScenarioSlot[], show: ScenarioSlot[] = slots) => {
+    const f = fakeSaveApi({ scenarioFail: fails })
+    const r = await runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots }, f.api as never, saveHooks(f.log).hooks)
+    assert.equal(r.kind, 'partial')
+    return r.kind === 'partial' ? partialView(show, r.failed) : null
+  }
+  // 실제 요청 계층은 fetch 가 응답 없이 끊기면 status 0 `ApiError` 를 던진다(`common/api.ts` send).
+  const net = new ApiError('연결하지 못했습니다. 네트워크를 확인해 주세요.', 0)
+  assert.equal((await viewOf({ 0: net }, [slotOf('sc0')]))?.unsure, true, '응답이 없으면 서버가 이미 저장했는지 모른다')
+  assert.equal((await viewOf({ 0: new TypeError('x') }, [slotOf('sc0')]))?.unsure, false, '봉투 밖 예외(코드 오류)는 응답 없음이 아니다')
+  assert.equal((await viewOf({ 0: new ApiError('서버 문구', 409, null, { reason: 'SCENARIO_LIMIT' }) }, [slotOf('sc0'), slotOf('sc1')]))?.unsure, false, '서버가 거절한 오류(한도)')
+  assert.equal((await viewOf({ 0: new ApiError('서버 문구', 429, null, { reason: 'DAILY_LIMIT' }) }, [slotOf('sc0')]))?.unsure, false, '하루 한도')
+  assert.equal((await viewOf({ 0: new ApiError('서버 문구', 500, null, {}) }, [slotOf('sc0')]))?.unsure, false, '서버가 오류로 답함')
+  assert.equal(
+    (await viewOf({ 0: new ApiError('서버 문구', 400, null, { problems: [{ field: 'roles.learner', reason: 'max_length' }] }) }, [slotOf('sc0')]))?.unsure,
+    false,
+    '400 칸 문제',
+  )
+  // 둘 중 하나만 응답 없음이어도 보인다
+  const mixed = await viewOf({ 0: new ApiError('서버 문구', 400, null, { problems: [{ field: 'roles.learner', reason: 'max_length' }] }), 1: net }, [slotOf('sc0'), slotOf('sc1')])
+  assert.equal(mixed?.unsure, true)
+  // 응답 없던 상황이 지금은 남은 상황이 아니면(체크를 껐거나 이미 저장) 보이지 않는다 — 없는 상황에 대한 경고가 되지 않게
+  assert.equal((await viewOf({ 0: net }, [slotOf('sc0')], [slotOf('sc0', { keep: false })]))?.unsure, false)
+  assert.equal((await viewOf({ 0: net }, [slotOf('sc0')], [slotOf('sc0', { savedId: 'scn_x' })]))?.unsure, false)
+  // 문구: 확정하지 않고(수 있어요) 해요체, 엔진명·「AI」·「세요」 없음
+  assert.match(PARTIAL.unsure, /이미 저장됐을 수 있어요/)
+  assert.match(PARTIAL.unsure, /같은 상황이 두 개/)
+  assert.ok(!/claude|whisper|reazon|style-?bert|\bAI\b|세요/i.test(PARTIAL.unsure))
+})
+
+test('REV-164 L-3 상황 카드 체크의 접근성 이름: 카드마다 다르고(제목이 앞) 보이는 글 「이 상황도 저장」 을 그대로 품는다', () => {
+  const a = scenarioKeepName('창구에서 계좌 만들기')
+  const b = scenarioKeepName('앱으로 계좌 만들기')
+  assert.notEqual(a, b)
+  assert.equal(a, `창구에서 계좌 만들기 ${SCDRAFT.keep}`)
+  for (const n of [a, b]) assert.ok(n.includes(SCDRAFT.keep), '보이는 글자를 품어야 음성 조작이 된다')
+  assert.equal(scenarioKeepName(' 창구\n계좌 '), `창구 계좌 ${SCDRAFT.keep}`, '한 줄로 접는다')
+  assert.equal(scenarioKeepName('  '), SCDRAFT.keep, '제목이 비어도 이름이 비지 않는다')
+})
+
+test('REV-164 L-4 문구: 고른 상황이 없을 때 쓰는 한 줄은 해요체이고 엔진명·「AI」·「세요」 가 없다', () => {
+  assert.ok(REVIEW.saveIdle.trim().length > 0)
+  assert.match(REVIEW.saveIdle, /요\.$/)
+  assert.ok(!/claude|whisper|reazon|style-?bert|\bAI\b|세요/i.test(REVIEW.saveIdle))
 })

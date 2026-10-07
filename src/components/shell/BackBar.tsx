@@ -16,6 +16,7 @@ export default function BackBar({
   right,
   sticky = false,
   onBack,
+  backDisabled = false,
 }: {
   backHref: string
   backLabel: string
@@ -25,6 +26,8 @@ export default function BackBar({
   sticky?: boolean
   /** 있으면 `←` 가 링크 대신 버튼이 되어 이것을 부른다(고치던 초안이 있을 때 나가기 확인 — task-045 S4). */
   onBack?: () => void
+  /** `onBack` 와 함께 — 저장 중처럼 나가면 안 될 때 `←` 를 `aria-disabled` 로 두고 누름을 무시한다(task-045 S4 REV-164 L-1). */
+  backDisabled?: boolean
 }) {
   const back = usePlanReturn(backHref, backLabel)
   return (
@@ -32,7 +35,13 @@ export default function BackBar({
       className={`${sticky ? 'sticky top-0 z-10' : ''} flex h-[52px] min-w-0 flex-none items-center gap-1 border-b border-line bg-surface pl-1 pr-1`}
     >
       {onBack ? (
-        <button type="button" onClick={onBack} aria-label={back.label} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink">
+        <button
+          type="button"
+          onClick={() => !backDisabled && onBack()}
+          aria-label={back.label}
+          aria-disabled={backDisabled || undefined}
+          className={`grid h-11 w-11 flex-none place-items-center rounded-full text-ink ${backDisabled ? 'opacity-40' : ''}`}
+        >
           <BackIcon />
         </button>
       ) : (
