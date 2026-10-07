@@ -60,10 +60,10 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
   const headRef = useRef<HTMLHeadingElement>(null)
   const focusHead = useRef(false)
 
-  // 되돌리기 뒤 이 주제(시드)로 왔을 때만 — 관리 화면용 토스트는 건드리지 않는다.
+  // 되돌리기 뒤 이 주제(시드)로·주제 만들기(T5-3a) 저장 뒤 새 주제로 왔을 때만 — 관리 화면용 토스트는 건드리지 않는다.
   useEffect(() => {
     const f = parseFlash(readStore('session', MANAGE_FLASH_KEY))
-    if (!f || f.kind !== 'restored') return
+    if (!f || (f.kind !== 'restored' && f.kind !== 'created')) return
     writeStore('session', MANAGE_FLASH_KEY, null)
     show(flashText(f))
     focusHead.current = true
@@ -139,7 +139,8 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
             v={v}
             headRef={headRef}
             onOpenScenario={openSheet}
-            onRetryScenarios={refresh}
+            onRetryScenarios={d.retryScenarios}
+            scenariosRetrying={d.scenariosRetrying}
             onRemove={(mode) => setRemoval({ mode, topicId: v.topic.id, seedId: v.seedId })}
           />
         )}
@@ -170,12 +171,14 @@ function Body({
   headRef,
   onOpenScenario,
   onRetryScenarios,
+  scenariosRetrying,
   onRemove,
 }: {
   v: TopicDetailView
   headRef: React.RefObject<HTMLHeadingElement | null>
   onOpenScenario: (id: string) => void
   onRetryScenarios: () => void
+  scenariosRetrying: boolean
   onRemove: (mode: RemovalTarget['mode']) => void
 }) {
   const t = v.topic
@@ -267,7 +270,14 @@ function Body({
           {v.scenarios ? TOPIC.scenariosHead(v.scenarios.length) : MANAGE.tabScenarios(null)}
         </h2>
         {!v.scenarios ? (
-          <ErrorBox title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={onRetryScenarios} />
+          // [다시 시도] 를 눌렀다는 것이 보이게 — 다시 실패해도 최소 0.5초는 자리표시(관리 화면 #161 과 같은 방식).
+          scenariosRetrying ? (
+            <div aria-busy="true">
+              <Skeleton heights={[88, 88]} label={MANAGE.loading} />
+            </div>
+          ) : (
+            <ErrorBox title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={onRetryScenarios} />
+          )
         ) : v.scenarios.length ? (
           <ul className="flex flex-col gap-2">
             {v.scenarios.map((r) => (

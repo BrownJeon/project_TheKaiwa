@@ -21,6 +21,7 @@ import {
   removalView,
   REMOVAL_MODE_OF,
   restoreRemovalOf,
+  topicOrigin,
   topicScenarioNewHref,
   topicSheetHref,
 } from '../logic'
@@ -363,6 +364,38 @@ test('돌아왔을 때 토스트: 숫자는 응답 값 · 저장소 값은 모�
   assert.equal(parseFlash(JSON.stringify({ kind: 'removed' })), null)
   assert.equal(parseFlash(JSON.stringify({ kind: 'evil', title: 'x' })), null)
   assert.deepEqual(parseFlash(JSON.stringify({ kind: 'removed', title: 'a', scenarios: -2, challenge: 'yes' })), { kind: 'removed', title: 'a', scenarios: 0, challenge: false })
+})
+
+test('돌아왔을 때 토스트 글자 자체(독립 리터럴) — 숨기기는 「지웠어요」가 아니다(REV-161 L-1)', () => {
+  // 같은 상수끼리 비교하면 문구가 통째로 바뀌어도 통과한다(순환) — 글자를 직접 고정한다.
+  const hidden = flashText(removalFlash('hide', '길 묻기', result({ result: 'HIDDEN' })))
+  assert.equal(hidden, '「길 묻기」 주제를 숨겼어요')
+  assert.equal(TOAST.hidden('길 묻기'), '「길 묻기」 주제를 숨겼어요')
+  assert.ok(!hidden.includes('지웠'), '숨기기 결과가 지웠다고 말하면 안 된다')
+  const removed = flashText(removalFlash('delete', '병원 진료', result({ scenariosArchived: 2, challengeDeleted: true })))
+  assert.ok(removed.includes('주제를 지웠어요') && removed.includes('상황 2개도 함께 지웠어요') && !removed.includes('숨겼'), removed)
+  const copy = flashText(removalFlash('copyDelete', '카페 주문', result()))
+  assert.ok(copy.includes('내 버전을 지웠어요') && !copy.includes('주제를 지웠어요'), copy)
+  const restored = flashText(removalFlash('restore', '카페 주문', result({ mode: 'RESTORE' })))
+  assert.ok(restored.includes('기본으로 되돌렸어요') && !restored.includes('지웠') && !restored.includes('숨겼'), restored)
+})
+
+test('시트 mode 는 #172 의 isSeed·isSeedCopy 와 같은 갈래다 — 4조합(REV-161 L-4)', () => {
+  // 화면은 #56 isSeed·#179 사본 id 로 출처를 정하고 REMOVAL_MODE_OF 로 mode 를 고른다. #172 가 알려 주는 갈래([isSeed, isSeedCopy])를
+  // 같은 규칙에 넣었을 때 같은 mode 가 나와야, 기본 주제를 지우기로 보내거나(ack 없는 숨기기를 내 주제에 보내는) 어긋남이 없다.
+  const combos: Array<{ isSeed: boolean; isSeedCopy: boolean; mode: string }> = [
+    { isSeed: false, isSeedCopy: false, mode: 'delete' },
+    { isSeed: true, isSeedCopy: false, mode: 'hide' },
+    { isSeed: false, isSeedCopy: true, mode: 'copyDelete' },
+    { isSeed: true, isSeedCopy: true, mode: 'hide' }, // 서버에 없는 조합 — 기본 주제가 우선(숨기기는 아무것도 지우지 않는다)
+  ]
+  for (const c of combos) {
+    const p = preview({ isSeed: c.isSeed, isSeedCopy: c.isSeedCopy })
+    const origin = topicOrigin({ id: p.topicId, isSeed: p.isSeed }, new Set(p.isSeedCopy ? [p.topicId] : []))
+    assert.equal(REMOVAL_MODE_OF[origin], c.mode, `isSeed=${c.isSeed} isSeedCopy=${c.isSeedCopy}`)
+    // 이 mode 로 본문이 그려진다(미리보기 값과 모양이 맞는다).
+    assert.doesNotThrow(() => removalView(REMOVAL_MODE_OF[origin], p))
+  }
 })
 
 const chunk = (id: string, chunkType: string, order: number): TopicChunk => ({ id, chunkType, textJa: `日${id}`, reading: null, meaningKo: `뜻${id}`, order }) as unknown as TopicChunk

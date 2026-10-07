@@ -141,6 +141,12 @@ test('[일본어로 만들기] 막힘: 역할 글자 수·꺾쇠도 요청 전�
   assert.equal(rolesProblem(draft({ tutor: '가'.repeat(max + 1) })), CHECK.tooLong('tutor', max))
   assert.equal(rolesProblem(draft({ learner: '손<님' })), CHECK.angle('learner'))
   assert.equal(rolesProblem(draft()), null)
+  // 두 칸 모두 같은 12자 경계(REV-161 L-3) — learner 도 12자 통과·13자 거절(글자 수는 서버 `roleMax` 와 같은 값이라 리터럴로 고정).
+  assert.equal(max, 12, '서버 한도 roleMax 가 바뀌면 두 칸 경계 시험을 함께 갱신')
+  assert.equal(openingBlock(draft({ learner: '가'.repeat(12) })), null, 'learner 12자는 통과')
+  assert.equal(openingBlock(draft({ learner: '가'.repeat(13) })), 'badRoles', 'learner 13자는 거절')
+  assert.equal(rolesProblem(draft({ learner: '가'.repeat(12) })), null)
+  assert.equal(rolesProblem(draft({ learner: '가'.repeat(13) })), CHECK.tooLong('learner', 12))
   // 한국어 칸 문제가 먼저 — 한 번에 한 이유만 보인다.
   assert.equal(openingBlock(draft({ tutor: '가'.repeat(max + 1), opening: null })), 'noKo')
 })
@@ -279,6 +285,18 @@ test('취소 잠금: 시작 후 800ms 전에는 [그만두기] 가 요청을 끊
   assert.equal(r.clock.pendingCount(), 0, '취소하면 타이머가 남지 않는다')
   r.flight.make(draft(), null, () => {})
   assert.equal(r.calls.length, 2, '끝난 뒤에는 새 요청이 가능')
+})
+
+test('취소 잠금 값 자체: 800ms — 상수를 바꾸면 이 시험이 실패해 디자이너 확인을 부른다(REV-161 L-2)', () => {
+  assert.equal(OPENING_CANCEL_LOCK_MS, 800)
+  const r = flightRig()
+  r.flight.make(draft(), null, () => {})
+  r.clock.tick(799)
+  assert.equal(r.last().cancelable, false, '799ms — 아직 잠김')
+  r.flight.cancel()
+  assert.equal(r.calls[0].signal.aborted, false)
+  r.clock.tick(1)
+  assert.equal(r.last().cancelable, true, '800ms — 풀림')
 })
 
 test('성공: 결과는 한 번만 알리고 타이머를 모두 거두며, 서버가 줄였다는 표시를 전한다', async () => {

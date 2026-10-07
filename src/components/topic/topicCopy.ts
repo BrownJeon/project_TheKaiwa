@@ -108,6 +108,8 @@ export const REVIEW = {
   menuUp: '위로',
   menuDown: '아래로',
   menuRemove: '지우기',
+  /** 표현 고치기 펼침의 종류 칸 이름표(가이드 S4 「종류 `Segmented sm`… 보이는 이름표」 — 표에 값이 없어 T5-3a 가 더함). */
+  fType: '종류',
   fJa: '일본어',
   fReading: '읽기',
   fMeaning: '뜻',

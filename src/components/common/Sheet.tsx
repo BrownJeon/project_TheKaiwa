@@ -9,11 +9,17 @@
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
+/** 대화상자 이름·설명 연결. `describedBy` 가 없으면 `aria-describedby` 를 내지 않는다(설명을 쓰지 않는 기존 시트는 그대로). */
+export function dialogAria(titleId: string, describedBy?: string): { 'aria-labelledby': string; 'aria-describedby'?: string } {
+  return describedBy ? { 'aria-labelledby': titleId, 'aria-describedby': describedBy } : { 'aria-labelledby': titleId }
+}
+
 export default function Sheet({
   open,
   title,
   onClose,
   dismissible = true,
+  describedBy,
   children,
 }: {
   open: boolean
@@ -21,6 +27,8 @@ export default function Sheet({
   onClose: () => void
   /** false 면 배경 탭·Esc·✕ 로 닫지 않는다(제출 중). */
   dismissible?: boolean
+  /** 열렸을 때 스크린리더가 제목 다음에 읽을 설명 요소의 id(되돌릴 수 없는 확인처럼 본문을 건너뛰면 안 되는 시트). 안에 그 요소가 있을 때만 넘긴다. */
+  describedBy?: string
   children: React.ReactNode
 }) {
   const titleId = useId()
@@ -66,7 +74,7 @@ export default function Sheet({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        {...dialogAria(titleId, describedBy)}
         className="absolute inset-x-0 bottom-0 flex max-h-[85%] min-w-0 flex-col rounded-t-2xl bg-surface shadow-xl min-[900px]:left-1/2 min-[900px]:w-[480px] min-[900px]:-translate-x-1/2"
       >
         <div className="flex h-[52px] flex-none items-center gap-2 border-b border-line pl-4 pr-1">

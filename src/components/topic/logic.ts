@@ -10,6 +10,16 @@ import type { ScenarioListItem } from '@/types/scenario'
 import type { RestoreSeedResult, SeedKind, SeedOverrideItem } from '@/types/seedOverride'
 import { TOPIC_CHUNK_TYPES, TOPIC_LIMITS, type TopicRemovalPreview, type TopicRemovalResult, type TopicRemovalScenarioRef } from '@/types/topic'
 import { REMOVAL, TOAST, TOPIC, FAIL, type RemovalMode } from './topicCopy'
+// T5-3a 주제 만들기(아래 구역)가 쓰는 것.
+import { isAbort } from '@/components/common/api'
+import { toErr } from '@/components/common/errors'
+import { cpLength } from '@/components/common/format'
+import { DRAFT_LEVELS, oneLine, type DraftLevel } from '@/components/scenario/logic'
+import type { JlptLevel } from '@/types/lesson'
+import type { TopicChunkType } from '@/types/topic'
+import { TOPIC_SAVE_LIMITS, type TopicCreateInput, type TopicDraftRequestBody, type TopicWarningCode } from '@/types/topicWrite'
+import { failureCopy, TOPIC_ASK_TITLE_MAX, TOPIC_ASK_TITLE_MIN, type Failure, type FieldFailure } from './failure'
+import { CREATE, REVIEW } from './topicCopy'
 
 export type Origin = 'MINE' | 'SEED' | 'COPY'
 export type ManageTab = 'topics' | 'scenarios'
@@ -372,6 +382,8 @@ export type ManageFlash =
   | { kind: 'removed'; title: string; scenarios: number; challenge: boolean }
   | { kind: 'copyRemoved' | 'hidden' | 'restored'; title: string }
   | { kind: 'gone' | 'notOverridden' }
+  /** T5-3a 주제 만들기 저장 뒤 새 주제 보기(S6)가 읽는다. */
+  | { kind: 'created'; title: string }
 
 /** 결과 숫자는 응답 값(미리보기 아님 — `ack` 는 진행 중 챌린지만 덮어 상황 수는 바뀔 수 있다). */
 export function removalFlash(mode: RemovalMode, title: string, r: TopicRemovalResult): ManageFlash {
@@ -394,6 +406,7 @@ export function parseFlash(raw: string | null): ManageFlash | null {
   if (f.kind === 'gone' || f.kind === 'notOverridden') return { kind: f.kind }
   if (typeof f.title !== 'string' || !f.title.trim() || f.title.length > 200) return null
   if (f.kind === 'copyRemoved' || f.kind === 'hidden' || f.kind === 'restored') return { kind: f.kind, title: f.title }
+  if (f.kind === 'created') return { kind: 'created', title: f.title }
   if (f.kind === 'removed') {
     const s = typeof f.scenarios === 'number' && Number.isInteger(f.scenarios) && f.scenarios >= 0 ? f.scenarios : 0
     return { kind: 'removed', title: f.title, scenarios: s, challenge: f.challenge === true }
@@ -415,9 +428,505 @@ export function flashText(f: ManageFlash): string {
       return REMOVAL.gone
     case 'notOverridden':
       return FAIL.notOverridden
+    case 'created':
+      return TOAST.created(f.title, 0)
   }
 }
 
 /** 지우기·숨기기 뒤 관리 화면에서 초점을 목록 머리(「내가 만든 주제」)로 옮길지. */
 export const flashFocusesList = (f: ManageFlash): boolean => f.kind !== 'restored'
+
+/* ───────── T5-3a 주제 만들기(S3 묻기·S4 검토·#57 저장) — 편집 값·검사·요청 본문·이 탭 보관·요청 흐름 ───────── */
+
+export const TOPIC_DRAFT_STORE_KEY = 'kaiwa.topic.draft'
+export const TOPIC_DRAFT_STORE_VERSION = 1
+export const TOPIC_DRAFT_LONG_MS = 15_000
+/** 벽시계 상한(§16-2 S3 「60초」 — 서버 예산 40초 + 여유). */
+export const TOPIC_DRAFT_TIMEOUT_MS = 60_000
+/** 요청 직후 이 시간 동안은 [그만두기] 가 듣지 않는다 — 더블 탭의 둘째 탭이 방금 시작한 요청을 끊으면 서버는 계속 돌아 한도만 쓴다(`scenario/openingFlight.ts` 와 같은 규칙). */
+export const TOPIC_DRAFT_CANCEL_LOCK_MS = 800
+/** 서버 안내 기준(`TOPIC_DRAFT_LIMITS.chunksTarget`·`perTypeMin`) — 「확인해 볼 곳」 줄이 고쳐졌는지 볼 때만 쓴다(저장은 막지 않는다). */
+export const TOPIC_CHUNKS_TARGET = 12
+export const TOPIC_TYPE_MIN = 2
+
+const CHUNK_TYPES: readonly TopicChunkType[] = TOPIC_CHUNK_TYPES
+const JLPT: readonly JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
+
+export interface TopicAsk {
+  title: string
+  level: DraftLevel
+}
+
+/** 편집 중 표현 한 개 — `key` 는 화면 안에서만 쓰는 고정 열쇠(목록 `key`·칸 id), 서버로 보내지 않는다. */
+export interface EditableChunk {
+  key: string
+  chunkType: TopicChunkType
+  textJa: string
+  reading: string
+  meaningKo: string
+}
+
+export interface EditableTopicDraft {
+  title: string
+  titleJa: string
+  level: JlptLevel
+  description: string
+  /** 배열 순서 = 저장 순서. 화면은 종류 4묶음으로 나눠 보인다(묶음 안은 이 순서). */
+  chunks: EditableChunk[]
+}
+
+export type ChunkField = 'textJa' | 'reading' | 'meaningKo'
+export type ChunkValues = Omit<EditableChunk, 'key'>
+
+/** 저장 전 문제 — `key` 는 `title`·`titleJa`·`level`·`description`·`chunks`·`chunk:<열쇠>:<칸>`. */
+export interface TopicProblem {
+  key: string
+  message: string
+}
+
+const isJlpt = (v: unknown): v is JlptLevel => typeof v === 'string' && (JLPT as readonly string[]).includes(v)
+const isChunkType = (v: unknown): v is TopicChunkType => typeof v === 'string' && (CHUNK_TYPES as readonly string[]).includes(v)
+
+/** S3 주제 한 줄 검사(#170 2~40자). */
+export function topicAskProblem(title: string): string | null {
+  const n = cpLength(oneLine(title))
+  if (n < TOPIC_ASK_TITLE_MIN) return CREATE.short
+  if (n > TOPIC_ASK_TITLE_MAX) return CREATE.long
+  return null
+}
+
+/** #170 본문 — `note` 칸은 화면에 없다. */
+export function topicAskBody(ask: TopicAsk): TopicDraftRequestBody {
+  return { title: oneLine(ask.title), level: ask.level }
+}
+
+export const chunkKeyOf = (n: number): string => `c${n}`
+
+export function nextChunkKey(chunks: readonly EditableChunk[]): string {
+  let max = 0
+  for (const c of chunks) {
+    const m = /^c(\d+)$/.exec(c.key)
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  return chunkKeyOf(max + 1)
+}
+
+const TOPIC_WARNING_CODES: readonly TopicWarningCode[] = [
+  'CHUNKS_SHORT',
+  'TYPE_THIN_NAME',
+  'TYPE_THIN_ACTION',
+  'TYPE_THIN_FEELING',
+  'TYPE_THIN_MODIFIER',
+  'DESCRIPTION_MISSING',
+  'TITLE_JA_MISSING',
+  'TITLE_TRUNCATED',
+]
+const isWarningCode = (v: unknown): v is TopicWarningCode => typeof v === 'string' && (TOPIC_WARNING_CODES as readonly string[]).includes(v)
+
+/** #170 응답 → 편집 값. 모양이 어긋나면 null(화면은 일시 실패로 다룬다). 쓸 수 없는 표현 한 개는 버리지 않고 그대로 둔다 — 저장 검사가 그 행을 짚는다. */
+export function topicDraftFromResponse(raw: unknown): { draft: EditableTopicDraft; warnings: TopicWarningCode[] } | null {
+  const d = (raw as { draft?: unknown } | null)?.draft as Record<string, unknown> | undefined
+  if (!d || typeof d !== 'object') return null
+  if (typeof d.title !== 'string' || !isJlpt(d.level) || !Array.isArray(d.chunks)) return null
+  const chunks: EditableChunk[] = []
+  for (const c of d.chunks as unknown[]) {
+    const o = c as Record<string, unknown> | null
+    if (!o || !isChunkType(o.chunkType) || typeof o.textJa !== 'string' || typeof o.reading !== 'string' || typeof o.meaningKo !== 'string') return null
+    chunks.push({ key: chunkKeyOf(chunks.length + 1), chunkType: o.chunkType, textJa: o.textJa, reading: o.reading, meaningKo: o.meaningKo })
+  }
+  const warnings = Array.isArray((raw as { warnings?: unknown }).warnings) ? ((raw as { warnings: unknown[] }).warnings.filter(isWarningCode) as TopicWarningCode[]) : []
+  return {
+    draft: {
+      title: d.title,
+      titleJa: typeof d.titleJa === 'string' ? d.titleJa : '',
+      level: d.level,
+      description: typeof d.description === 'string' ? d.description : '',
+      chunks,
+    },
+    warnings,
+  }
+}
+
+/** #57 본문 — `chunks[].id`·화면 열쇠·`order` 는 보내지 않는다(배열 순서가 순서, 새 주제에 `id` 를 보내면 400). */
+export function topicCreateBody(d: EditableTopicDraft): TopicCreateInput {
+  const titleJa = oneLine(d.titleJa)
+  const description = oneLine(d.description)
+  return {
+    title: oneLine(d.title),
+    titleJa: titleJa || null,
+    level: d.level,
+    description: description || null,
+    chunks: d.chunks.map((c) => ({ chunkType: c.chunkType, textJa: c.textJa.trim(), reading: c.reading.trim(), meaningKo: c.meaningKo.trim() })),
+  }
+}
+
+/* 서버 검사(`topicDraftSchemas.ts` `checkTopicChunkFields`·`saveBody.ts`)와 같은 문자 종류 — components 는 `@/modules` 를 읽지 못해 옮겨 적고, `topicDraft.test.ts` 가 서버 함수와 같은 표로 대조한다.
+   숨은·제어 글자·비밀 모양·읽기와 표기의 어긋남은 서버만 본다(400 → `failure.ts` 칸 문구). */
+const KANA_CLASS = '\\u3041-\\u3096\\u30A1-\\u30FA\\u30FC'
+const KANJI_CLASS = '\\u3005\\u3006\\u3400-\\u4DBF\\u4E00-\\u9FFF'
+const SURFACE_ALLOWED = new RegExp(`^[${KANA_CLASS}\\u30FB${KANJI_CLASS}0-9０-９〜]+$`)
+const SURFACE_HAS_LETTER = new RegExp(`[${KANA_CLASS}${KANJI_CLASS}]`)
+const READING_ALLOWED = new RegExp(`^[${KANA_CLASS}\\u30FB]+$`)
+const KANA_ANY = /[ぁ-ゖァ-ヺ]/
+const HANGUL = /[가-힣]/
+const JA_CHAR = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u
+const URL_LIKE = /[a-z][a-z0-9+.-]{1,15}:\/\/|\bwww\.|\bjavascript:/i
+const MARKUP = /[<>＜＞]/
+
+const blocked = (s: string): boolean => {
+  const t = s.normalize('NFKC')
+  return MARKUP.test(t) || URL_LIKE.test(t)
+}
+const surfaceKey = (s: string) => s.normalize('NFKC').replace(/[\s　、。，．,.!！?？・「」『』〜~…]/g, '')
+const meaningKey = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\s.,!?~·()（）、。，…-]/g, '')
+
+/** 표현 한 개의 칸 검사(중복은 `others` — 같은 주제의 다른 표현). 칸마다 첫 문제 하나. */
+export function chunkFieldProblems(v: ChunkValues, others: readonly ChunkValues[] = []): Partial<Record<ChunkField, string>> {
+  const L = TOPIC_SAVE_LIMITS
+  const out: Partial<Record<ChunkField, string>> = {}
+  const ja = v.textJa.trim()
+  const rd = v.reading.trim()
+  const mk = v.meaningKo.trim()
+  if (!ja) out.textJa = FAIL.field.required('textJa')
+  else if (cpLength(ja) > L.textJaMax) out.textJa = FAIL.field.max('textJa', L.textJaMax)
+  else if (blocked(ja)) out.textJa = FAIL.field.forbiddenChar
+  else if (HANGUL.test(ja) || !SURFACE_HAS_LETTER.test(ja)) out.textJa = FAIL.field.notJapanese
+  else if (!SURFACE_ALLOWED.test(ja)) out.textJa = FAIL.field.chars
+  else if (others.some((o) => surfaceKey(o.textJa.trim()) === surfaceKey(ja))) out.textJa = FAIL.field.duplicate
+  if (!rd) out.reading = FAIL.field.required('reading')
+  else if (cpLength(rd) > L.readingMax) out.reading = FAIL.field.max('reading', L.readingMax)
+  else if (!READING_ALLOWED.test(rd) || !KANA_ANY.test(rd)) out.reading = FAIL.field.reading
+  if (!mk) out.meaningKo = FAIL.field.required('meaningKo')
+  else if (cpLength(mk) > L.meaningMax) out.meaningKo = FAIL.field.max('meaningKo', L.meaningMax)
+  else if (blocked(mk)) out.meaningKo = FAIL.field.forbiddenChar
+  else if (!HANGUL.test(mk) || KANA_ANY.test(mk)) out.meaningKo = FAIL.field.noHangul
+  else if (others.some((o) => meaningKey(o.meaningKo.trim()) === meaningKey(mk))) out.meaningKo = FAIL.field.duplicate
+  return out
+}
+
+export const chunkProblemKey = (chunkKey: string, field: ChunkField): string => `chunk:${chunkKey}:${field}`
+const CHUNK_FIELDS: readonly ChunkField[] = ['textJa', 'reading', 'meaningKo']
+
+/** 종류 4묶음(이름·액션·느낌·꾸밈 순, 묶음 안은 배열 순서) — 빈 묶음은 뺀다. */
+export function chunkGroupsOf(chunks: readonly EditableChunk[]): { type: TopicChunkType; items: EditableChunk[] }[] {
+  return CHUNK_TYPES.map((type) => ({ type, items: chunks.filter((c) => c.chunkType === type) })).filter((g) => g.items.length > 0)
+}
+
+/** 저장 전 검사 — 화면 위에서 아래 순서(주제 정보 → 표현 개수 → 묶음 순서의 표현). 중복은 앞(배열 순서) 표현을 두고 뒤 표현을 짚는다. */
+export function validateTopicDraft(d: EditableTopicDraft): TopicProblem[] {
+  const L = TOPIC_SAVE_LIMITS
+  const out: TopicProblem[] = []
+  const title = oneLine(d.title)
+  if (cpLength(title) < L.titleMin) out.push({ key: 'title', message: FAIL.field.required('title') })
+  else if (cpLength(title) > L.titleMax) out.push({ key: 'title', message: FAIL.field.max('title', L.titleMax) })
+  else if (blocked(title)) out.push({ key: 'title', message: FAIL.field.forbiddenChar })
+  const titleJa = oneLine(d.titleJa)
+  if (titleJa) {
+    if (cpLength(titleJa) > L.titleJaMax) out.push({ key: 'titleJa', message: FAIL.field.max('titleJa', L.titleJaMax) })
+    else if (blocked(titleJa)) out.push({ key: 'titleJa', message: FAIL.field.forbiddenChar })
+    else if (!JA_CHAR.test(titleJa) || HANGUL.test(titleJa)) out.push({ key: 'titleJa', message: FAIL.field.notJapanese })
+  }
+  if (!isJlpt(d.level)) out.push({ key: 'level', message: FAIL.field.enum })
+  const desc = oneLine(d.description)
+  if (cpLength(desc) > L.descriptionMax) out.push({ key: 'description', message: FAIL.field.max('description', L.descriptionMax) })
+  else if (desc && blocked(desc)) out.push({ key: 'description', message: FAIL.field.forbiddenChar })
+  const n = d.chunks.length
+  if (n < L.chunksMin || n > L.chunksMax) out.push({ key: 'chunks', message: FAIL.field.count(n) })
+  const index = new Map(d.chunks.map((c, i) => [c.key, i]))
+  for (const g of chunkGroupsOf(d.chunks)) {
+    for (const c of g.items) {
+      const i = index.get(c.key) ?? 0
+      const found = chunkFieldProblems(c, d.chunks.slice(0, i))
+      for (const f of CHUNK_FIELDS) if (found[f]) out.push({ key: chunkProblemKey(c.key, f), message: found[f] as string })
+    }
+  }
+  return out
+}
+
+/** 400 칸 문제(`failure.ts` 가 고른 고정 문구) → 화면 칸 열쇠. `chunks[i]` 는 보낸 배열 순서 = `d.chunks` 순서. 화면 결함(모양 오류)은 `defect` 로 따로. */
+export function serverTopicProblems(problems: readonly FieldFailure[], d: EditableTopicDraft): { problems: TopicProblem[]; defect: boolean } {
+  const out: TopicProblem[] = []
+  let defect = false
+  for (const p of problems) {
+    if (p.defect) {
+      defect = true
+      continue
+    }
+    const m = /^chunks\[(\d+)\]\.(textJa|reading|meaningKo|chunkType)$/.exec(p.field)
+    if (m) {
+      const c = d.chunks[Number(m[1])]
+      const f: ChunkField = m[2] === 'chunkType' ? 'textJa' : (m[2] as ChunkField)
+      out.push({ key: c ? chunkProblemKey(c.key, f) : 'chunks', message: p.text })
+    } else if (p.field === 'title' || p.field === 'titleJa' || p.field === 'description' || p.field === 'level' || p.field === 'chunks') {
+      out.push({ key: p.field, message: p.text })
+    } else defect = true
+  }
+  return { problems: out, defect }
+}
+
+/** 문제 열쇠 → 화면 요소 id(초점 대상). 표현 칸 문제는 칸이 접혀 있으면 그 행의 ⋯ 버튼(`chunkRowDomId`)으로 떨어진다. */
+export const topicProblemDomId = (key: string): string => `tp-${key.replace(/:/g, '-')}`
+export const chunkRowDomId = (chunkKey: string): string => `tp-row-${chunkKey}`
+export const chunkKeyOfProblem = (key: string): string | null => /^chunk:([^:]+):/.exec(key)?.[1] ?? null
+
+/** 같은 종류 안에서 위(-1)·아래(+1)로 — 바로 앞·뒤 같은 종류 표현과 배열 자리를 바꾼다. 움직일 수 없으면 같은 배열. */
+export function chunkMove(chunks: readonly EditableChunk[], key: string, dir: -1 | 1): EditableChunk[] {
+  const i = chunks.findIndex((c) => c.key === key)
+  if (i < 0) return [...chunks]
+  let j = i + dir
+  while (j >= 0 && j < chunks.length && chunks[j].chunkType !== chunks[i].chunkType) j += dir
+  if (j < 0 || j >= chunks.length) return [...chunks]
+  const next = [...chunks]
+  ;[next[i], next[j]] = [next[j], next[i]]
+  return next
+}
+
+export function chunkCanMove(chunks: readonly EditableChunk[], key: string, dir: -1 | 1): boolean {
+  const type = chunks.find((x) => x.key === key)?.chunkType
+  const same = chunks.filter((c) => c.chunkType === type)
+  const i = same.findIndex((c) => c.key === key)
+  return i >= 0 && (dir < 0 ? i > 0 : i < same.length - 1)
+}
+
+/** 지운 뒤 초점을 둘 이웃(같은 묶음의 다음 → 앞, 없으면 null — 화면이 [＋ 표현 더하기]로). */
+export function chunkNeighborKey(chunks: readonly EditableChunk[], key: string): string | null {
+  const type = chunks.find((c) => c.key === key)?.chunkType
+  const same = chunks.filter((c) => c.chunkType === type)
+  const i = same.findIndex((c) => c.key === key)
+  if (i < 0) return null
+  return same[i + 1]?.key ?? same[i - 1]?.key ?? null
+}
+
+/** 고치기 [바꾸기] — 있는 열쇠면 그 자리를 바꾸고(종류가 바뀌면 새 묶음의 끝 순서로 보인다), 없으면 끝에 더한다. */
+export function chunkUpsert(chunks: readonly EditableChunk[], c: EditableChunk): EditableChunk[] {
+  const i = chunks.findIndex((x) => x.key === c.key)
+  if (i < 0) return [...chunks, c]
+  const next = [...chunks]
+  next[i] = c
+  return next
+}
+
+/** 「확인해 볼 곳」 한 줄(§16-2 S4·v2 E) — 저장을 막지 않는다. `target` = 누르면 초점을 옮길 칸. */
+export interface WarnLine {
+  code: 'TITLE_TRUNCATED' | 'TITLE_JA_MISSING' | 'DESCRIPTION_MISSING' | 'CHUNKS_SHORT' | 'TYPE_THIN'
+  text: string
+  target: 'title' | 'titleJa' | 'description' | 'chunks'
+  types: TopicChunkType[]
+}
+
+/** 도착 때 한 번 만든다(숫자는 도착 때 값). 여러 종류가 모자라면 한 줄로 묶는다. 화면 순서 = 칸 순서. */
+export function topicWarnLines(codes: readonly TopicWarningCode[], d: EditableTopicDraft): WarnLine[] {
+  const has = (c: TopicWarningCode) => codes.includes(c)
+  const out: WarnLine[] = []
+  if (has('TITLE_TRUNCATED')) out.push({ code: 'TITLE_TRUNCATED', text: REVIEW.warn.TITLE_TRUNCATED, target: 'title', types: [] })
+  if (has('TITLE_JA_MISSING')) out.push({ code: 'TITLE_JA_MISSING', text: REVIEW.warn.TITLE_JA_MISSING, target: 'titleJa', types: [] })
+  if (has('DESCRIPTION_MISSING')) out.push({ code: 'DESCRIPTION_MISSING', text: REVIEW.warn.DESCRIPTION_MISSING, target: 'description', types: [] })
+  if (has('CHUNKS_SHORT')) out.push({ code: 'CHUNKS_SHORT', text: REVIEW.warn.CHUNKS_SHORT(d.chunks.length), target: 'chunks', types: [] })
+  const thin = CHUNK_TYPES.filter((t) => has(`TYPE_THIN_${t}` as TopicWarningCode))
+  if (thin.length) {
+    const n = Math.max(...thin.map((t) => d.chunks.filter((c) => c.chunkType === t).length))
+    out.push({ code: 'TYPE_THIN', text: REVIEW.warn.TYPE_THIN(thin, n), target: 'chunks', types: thin })
+  }
+  return out
+}
+
+/** 줄이 고쳐졌는지(줄은 사라지지 않고 「✓ 고쳤어요」로 바뀐다 — R2). */
+export function warnLineFixed(w: WarnLine, d: EditableTopicDraft, arrivalTitle: string): boolean {
+  switch (w.code) {
+    case 'TITLE_TRUNCATED':
+      return oneLine(d.title) !== oneLine(arrivalTitle)
+    case 'TITLE_JA_MISSING':
+      return oneLine(d.titleJa) !== ''
+    case 'DESCRIPTION_MISSING':
+      return oneLine(d.description) !== ''
+    case 'CHUNKS_SHORT':
+      return d.chunks.length >= TOPIC_CHUNKS_TARGET
+    case 'TYPE_THIN':
+      return w.types.every((t) => d.chunks.filter((c) => c.chunkType === t).length >= TOPIC_TYPE_MIN)
+  }
+}
+
+/** 이 탭 보관 모양(§16-4) — 초안 본문과 입력값뿐(토큰·응답 원문·서버 문구 없음). T5-3b 가 상황 초안 칸을 더한다. */
+export interface StoredTopicDraft {
+  version: typeof TOPIC_DRAFT_STORE_VERSION
+  ask: TopicAsk
+  draft: EditableTopicDraft | null
+  warnings: TopicWarningCode[]
+  /** `TITLE_TRUNCATED` 줄이 고쳐졌는지 볼 기준(도착 때 이름). */
+  arrivalTitle: string
+  edited: boolean
+  savedAt: number
+}
+
+const STORE_TEXT_MAX = 400
+const STORE_CHUNKS_MAX = 40
+const okText = (v: unknown): v is string => typeof v === 'string' && v.length <= STORE_TEXT_MAX
+
+export function serializeTopicStore(s: Omit<StoredTopicDraft, 'version'>): string {
+  return JSON.stringify({ version: TOPIC_DRAFT_STORE_VERSION, ...s })
+}
+
+export function isBlankTopicStore(s: Pick<StoredTopicDraft, 'ask' | 'draft'>): boolean {
+  return !s.draft && oneLine(s.ask.title) === ''
+}
+
+/** 이 탭에 남은 초안 — 모양이 하나라도 어긋나면 통째로 버린다(다른 판의 값·손댄 값). */
+export function parseTopicStore(raw: string | null): StoredTopicDraft | null {
+  if (!raw) return null
+  let v: unknown
+  try {
+    v = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  const s = v as Record<string, unknown> | null
+  if (!s || typeof s !== 'object' || s.version !== TOPIC_DRAFT_STORE_VERSION) return null
+  const ask = s.ask as Record<string, unknown> | null
+  if (!ask || !okText(ask.title) || !(DRAFT_LEVELS as readonly string[]).includes(ask.level as string)) return null
+  let draft: EditableTopicDraft | null = null
+  if (s.draft !== null && s.draft !== undefined) {
+    const d = s.draft as Record<string, unknown>
+    if (typeof d !== 'object' || !okText(d.title) || !okText(d.titleJa) || !okText(d.description) || !isJlpt(d.level)) return null
+    if (!Array.isArray(d.chunks) || d.chunks.length > STORE_CHUNKS_MAX) return null
+    const chunks: EditableChunk[] = []
+    const keys = new Set<string>()
+    for (const c of d.chunks as unknown[]) {
+      const o = c as Record<string, unknown> | null
+      if (!o || typeof o.key !== 'string' || !/^c\d{1,4}$/.test(o.key) || keys.has(o.key) || !isChunkType(o.chunkType)) return null
+      if (!okText(o.textJa) || !okText(o.reading) || !okText(o.meaningKo)) return null
+      keys.add(o.key)
+      chunks.push({ key: o.key, chunkType: o.chunkType, textJa: o.textJa, reading: o.reading, meaningKo: o.meaningKo })
+    }
+    draft = { title: d.title, titleJa: d.titleJa, level: d.level, description: d.description, chunks }
+  }
+  const warnings = Array.isArray(s.warnings) ? (s.warnings.filter(isWarningCode) as TopicWarningCode[]) : []
+  return {
+    version: TOPIC_DRAFT_STORE_VERSION,
+    ask: { title: ask.title, level: ask.level as DraftLevel },
+    draft,
+    warnings,
+    arrivalTitle: okText(s.arrivalTitle) ? s.arrivalTitle : '',
+    edited: s.edited === true,
+    savedAt: typeof s.savedAt === 'number' ? s.savedAt : 0,
+  }
+}
+
+/** #170 요청 한 건의 흐름 — React 를 모르는 제어기(시험 가능). 한 번에 하나(409 `DRAFT_BUSY` 도 한도를 쓴다)·취소 잠금·15초 `long`·벽시계 상한. */
+export interface TopicDraftFlightState {
+  busy: boolean
+  /** 만드는 중이고 취소 잠금이 지났을 때만. */
+  cancelable: boolean
+  long: boolean
+}
+export const TOPIC_DRAFT_IDLE: TopicDraftFlightState = { busy: false, cancelable: false, long: false }
+
+export type TopicDraftOutcome =
+  | { kind: 'ok'; draft: EditableTopicDraft; warnings: TopicWarningCode[] }
+  | { kind: 'fail'; failure: Failure }
+  | { kind: 'canceled' }
+
+export interface TopicDraftFlightDeps {
+  post: (body: TopicDraftRequestBody, signal: AbortSignal) => Promise<unknown>
+  onState: (s: TopicDraftFlightState) => void
+  timers?: { set: (fn: () => void, ms: number) => unknown; clear: (handle: unknown) => void }
+}
+
+export interface TopicDraftFlight {
+  /** 요청 중이면 false(아무것도 보내지 않는다). */
+  start: (body: TopicDraftRequestBody, onDone: (o: TopicDraftOutcome) => void) => boolean
+  /** 취소 잠금이 지난 요청만 끊는다. */
+  cancel: () => void
+  /** 화면이 사라질 때 — 요청·타이머 정리(결과를 알리지 않는다). */
+  dispose: () => void
+}
+
+const SYNTH_TIMEOUT = { status: 504, message: '', code: null, details: {}, retryAfterSec: null }
+const SYNTH_BAD_SHAPE = { status: 502, message: '', code: null, details: {}, retryAfterSec: null }
+
+export function createTopicDraftFlight(deps: TopicDraftFlightDeps): TopicDraftFlight {
+  const timers = deps.timers ?? { set: (fn: () => void, ms: number) => setTimeout(fn, ms), clear: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>) }
+  type Run = { ac: AbortController; handles: unknown[]; timedOut: boolean; cancelable: boolean; onDone: (o: TopicDraftOutcome) => void }
+  let cur: Run | null = null
+  let state = TOPIC_DRAFT_IDLE
+  const emit = (next: Partial<TopicDraftFlightState>) => {
+    state = { ...state, ...next }
+    deps.onState(state)
+  }
+  const release = (run: Run) => {
+    run.handles.forEach((h) => timers.clear(h))
+    run.handles = []
+    if (cur === run) cur = null
+  }
+  const finish = (run: Run, o: TopicDraftOutcome) => {
+    release(run)
+    emit({ busy: false, cancelable: false, long: false })
+    run.onDone(o)
+  }
+  return {
+    start(body, onDone) {
+      if (cur) return false
+      const run: Run = { ac: new AbortController(), handles: [], timedOut: false, cancelable: false, onDone }
+      cur = run
+      run.handles.push(
+        timers.set(() => {
+          run.cancelable = true
+          if (cur === run) emit({ cancelable: true })
+        }, TOPIC_DRAFT_CANCEL_LOCK_MS),
+        timers.set(() => {
+          if (cur === run) emit({ long: true })
+        }, TOPIC_DRAFT_LONG_MS),
+        timers.set(() => {
+          run.timedOut = true
+          run.ac.abort()
+        }, TOPIC_DRAFT_TIMEOUT_MS),
+      )
+      emit({ busy: true, cancelable: false, long: false })
+      deps.post(body, run.ac.signal).then(
+        (raw) => {
+          if (cur !== run) return
+          const r = topicDraftFromResponse(raw)
+          if (!r) finish(run, { kind: 'fail', failure: failureCopy('topicDraft', SYNTH_BAD_SHAPE) })
+          else finish(run, { kind: 'ok', draft: r.draft, warnings: r.warnings })
+        },
+        (e: unknown) => {
+          if (cur !== run) return
+          if (run.timedOut) return finish(run, { kind: 'fail', failure: failureCopy('topicDraft', SYNTH_TIMEOUT) })
+          if (isAbort(e)) return finish(run, { kind: 'canceled' })
+          finish(run, { kind: 'fail', failure: failureCopy('topicDraft', toErr(e)) })
+        },
+      )
+      return true
+    },
+    cancel() {
+      const run = cur
+      if (!run || !run.cancelable) return
+      release(run)
+      run.ac.abort()
+      emit({ busy: false, cancelable: false, long: false })
+      run.onDone({ kind: 'canceled' })
+    },
+    dispose() {
+      const run = cur
+      if (!run) return
+      release(run)
+      run.ac.abort()
+    },
+  }
+}
+
+/** 저장(#57) 한 번에 하나 — 더블 탭의 둘째 탭은 요청을 만들지 않는다. `run` 이 false 면 이미 도는 중. */
+export function createOnceGuard(): { run: (fn: () => Promise<void>) => boolean; busy: () => boolean } {
+  let busy = false
+  return {
+    run(fn) {
+      if (busy) return false
+      busy = true
+      void fn().finally(() => {
+        busy = false
+      })
+      return true
+    },
+    busy: () => busy,
+  }
+}
 

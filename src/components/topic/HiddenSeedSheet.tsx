@@ -65,7 +65,7 @@ export default function HiddenSeedSheet({ items, onClose }: { items: SeedOverrid
             const st = rows[k]
             const title = o.seedTitle?.trim() ? o.seedTitle : HIDDEN.noTitle
             return (
-              <li key={k} className="flex min-h-14 min-w-0 items-center gap-2.5 border-b border-line py-2">
+              <li key={k} className="flex min-h-14 min-w-0 items-center gap-2.5 border-b border-line py-1.5">
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="flex min-w-0 items-center gap-1.5">
                     <Badge>{o.kind === 'TOPIC' ? HIDDEN.kindTopic : HIDDEN.kindScenario}</Badge>
@@ -77,11 +77,11 @@ export default function HiddenSeedSheet({ items, onClose }: { items: SeedOverrid
                     </span>
                   ) : null}
                 </span>
-                {/* 다시 보이게 한 뒤에도 같은 버튼을 둔다(글자만 바뀜) — 누른 버튼에 초점이 그대로 남는다. */}
+                {/* 다시 보이게 한 뒤에도 같은 버튼을 둔다(글자만 바뀜) — 누른 버튼에 초점이 그대로 남는다. `sm` 은 38px 라 `min-h-11` 로 44px 를 맞추고, 줄은 `py-1.5` 로 56→57px(border 포함)에 그친다. */}
                 <Btn
                   variant="ghost"
                   size="sm"
-                  className={`flex-none ${st?.phase === 'shown' ? 'border-transparent text-good' : ''}`}
+                  className={`min-h-11 flex-none ${st?.phase === 'shown' ? 'border-transparent text-good' : ''}`}
                   aria-label={st ? undefined : HIDDEN.showAria(title)}
                   aria-busy={st?.phase === 'busy' || undefined}
                   aria-disabled={st?.phase === 'busy' || st?.phase === 'shown' || undefined}
