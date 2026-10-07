@@ -31,6 +31,7 @@ import {
   goalSummary,
   goalTasks,
   isChallengeIdParam,
+  isTopicGone,
   md,
   minAnsweredOf,
   parseDraft,
@@ -86,8 +87,8 @@ export default function ChallengeCreateScreen({ today, dailyWordCount }: { today
     apiGet<ChallengeDetail>(`/api/v1/challenges/${encodeURIComponent(again)}`).then(
       (d) => {
         if (cancelled) return
-        if (!d.topic.id) {
-          show(CREATE.againFail)
+        if (isTopicGone(d.topic) || !d.topic.id) {
+          show(CREATE.againTopicGone)
           router.replace(`${NEW}?step=1`)
           return
         }

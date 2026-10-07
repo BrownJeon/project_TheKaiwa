@@ -28,6 +28,7 @@ import {
   parseDayParam,
   rateTile,
   resultHeroView,
+  resultNextView,
   ruleLines,
   streakTile,
   taskCounts,
@@ -269,6 +270,7 @@ function ResultBody({
 }) {
   const v = resultHeroView(d)
   if (v.removed) return <InfoBox>{COPY.removed}</InfoBox>
+  const next = resultNextView(d.topic, retry)
   return (
     <>
       <section aria-labelledby={`hero-${d.id}`} className="min-w-0 rounded-[14px] border border-line bg-surface p-3.5">
@@ -308,12 +310,14 @@ function ResultBody({
       </section>
       <section className="mt-[18px]">
         <H2>{COPY.nextTitle}</H2>
-        <p className="text-[13px] text-ink2 break-keep">{COPY.nextBody}</p>
+        <p className="text-[13px] text-ink2 break-keep">{next.topicGone ? COPY.nextBodyNoTopic : COPY.nextBody}</p>
         {retry.kind === 'show' ? (
           <div className="mt-3 flex gap-2">
-            <BtnLink href={`/plan/challenge/new?again=${encodeURIComponent(d.id)}`}>
-              {COPY.retryChallenge} ({d.lengthDays}일)
-            </BtnLink>
+            {next.showRetry ? (
+              <BtnLink href={`/plan/challenge/new?again=${encodeURIComponent(d.id)}`}>
+                {COPY.retryChallenge} ({d.lengthDays}일)
+              </BtnLink>
+            ) : null}
             <BtnLink href="/plan/challenge/new" variant="ghost">
               {COPY.otherTopicShort}
             </BtnLink>

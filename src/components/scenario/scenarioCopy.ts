@@ -5,6 +5,7 @@
  */
 import type { ScenarioOutcome, ScenarioRecommendReason } from '@/types/scenario'
 import { SCENARIO_LIMITS as L } from '@/types/scenario'
+import { SCENARIO_VARIANT_AXIS_LABELS, SCENARIO_VARIANT_NO_CHANGE_MESSAGE, SCENARIO_VARIANT_NOTE_MAX } from '@/types/scenarioVariant'
 
 export const SCENARIO_HOME_HREF = '/study/ai?tab=scenario'
 export const SCENARIO_NEW_HREF = '/study/ai/scenario/new'
@@ -12,6 +13,7 @@ export const SCENARIO_NEW_HREF = '/study/ai/scenario/new'
 export type DraftFrom = 'manage' | null
 export const parseDraftFrom = (v: unknown): DraftFrom => (v === 'manage' ? 'manage' : null)
 export const scenarioEditHref = (id: string, from: DraftFrom = null) => `/study/ai/scenario/${encodeURIComponent(id)}/edit${from === 'manage' ? '?from=manage' : ''}`
+export const scenarioVariantHref = (id: string, from: DraftFrom = null) => `/study/ai/scenario/${encodeURIComponent(id)}/variant${from === 'manage' ? '?from=manage' : ''}`
 export const scenarioSheetHref = (id: string, saved = false) => `${SCENARIO_HOME_HREF}&sc=${encodeURIComponent(id)}${saved ? '&saved=1' : ''}`
 /** 관리 화면 상황 탭(T5-1 딥링크 `?tab=scenarios&sc=`) — topic 폴더를 import 하지 않으려고 주소만 같은 값으로 둔다. */
 export const MANAGE_SCENARIOS_HREF = '/settings/scenarios?tab=scenarios'
@@ -133,6 +135,8 @@ export const SHEET = {
   /** S10 출처 뱃지(내 상황은 `mineBadge`). */
   badgeSeed: '기본',
   badgeCopy: '✎ 내 버전',
+  /** S10 행동 줄 — 변형 상황 만들기(A). 변형으로 저장한 상황은 따로 표시하지 않는다(Leader L-2). */
+  variant: '변형 만들기',
   /** S10 기본 상황 [지우기] = 나에게서 숨기기(데모 v2 S10 `seeddel`). */
   hideTitle: '이 상황을 지울까요?',
   hideBodyStrong: '기본 상황이라 나에게만 숨겨져요. 기본으로 되돌릴 수 있어요.',
@@ -241,6 +245,44 @@ export const DRAFT = {
   restoreTitle: (title: string) => (title ? `고치던 초안이 있어요 · ${title}` : '고치던 초안이 있어요'),
   restoreContinue: '이어서 고치기',
   restoreNew: '버리고 새로 만들기',
+} as const
+
+/**
+ * 변형 상황 만들기 A(screens.md §16-2 A·§16-6 `VARIANT`). 축 이름·칩 라벨은 여기에 복사하지 않는다 — `types/scenarioVariant.ts` 단일 출처.
+ * 표현 수준 칩만 화면이 수준 글자를 덧붙인다(「그대로(N5)」·「한 단계 위(N4)」).
+ */
+export const VARIANT = {
+  title: '변형 상황 만들기',
+  baseHead: '원본 상황',
+  baseMeta: (learner: string, tutor: string, level: string) => `나 ${learner} · 선생님 ${tutor} · ${level}`,
+  ask: '무엇을 바꿔 볼까요?',
+  askSub: '하나 이상 골라 주세요. 고르지 않은 것은 원본 그대로예요.',
+  levelSame: (l: string) => `${SCENARIO_VARIANT_AXIS_LABELS.level.options.same}(${l})`,
+  levelUp: (l: string) => `${SCENARIO_VARIANT_AXIS_LABELS.level.options.up}(${l})`,
+  levelTop: '이미 가장 높은 수준이라 올릴 수 없어요.',
+  note: '직접 적기(선택)',
+  notePlaceholder: '예: 상대가 처음에 내 말을 못 알아들어요',
+  noteCount: (n: number) => `${n}/${SCENARIO_VARIANT_NOTE_MAX}`,
+  noteTooLong: `직접 적기는 ${SCENARIO_VARIANT_NOTE_MAX}자까지 쓸 수 있어요.`,
+  submit: '변형 초안 만들기',
+  /** 서버 422 `NO_VARIATION` 과 같은 글(화면이 먼저 막는다). */
+  noChange: SCENARIO_VARIANT_NO_CHANGE_MESSAGE,
+  gen: '선생님이 변형 상황 초안을 만들고 있어요',
+  genSub: '보통 10~20초 걸려요.',
+  genLong: '조금 더 걸리고 있어요. 그만두고 다시 만들어도 돼요.',
+  cancel: '그만두기',
+  reviewTitle: '변형 초안이 왔어요',
+  reviewBody: '「바뀜」 표시는 원본과 달라진 칸이에요. 고친 뒤 저장해야 새 상황이 돼요.',
+  changed: '바뀜',
+  changedSr: '원본에서 바뀌었어요',
+  save: '새 상황으로 저장',
+  saveNote: '새 상황은 내 상황 50개·하루 만들기 30번에 들어가요.',
+  regen: '다시 만들기',
+  baseGone: '원본 상황을 찾을 수 없어요. 지웠거나 내 목록에서 숨긴 상황이에요.',
+  unfit: '이 내용으로는 변형 상황을 만들기 어려워요. 바꿀 점을 다르게 적어 주세요.',
+  busy: '다른 화면에서 변형 초안을 만드는 중이에요. 끝난 뒤 다시 눌러 주세요.',
+  rate: (s: number) => `변형 초안은 1분에 6번까지 만들 수 있어요. ${s}초 뒤 다시 눌러 주세요.`,
+  fail: '잠시 문제가 생겼어요. 다시 만들어 볼까요?',
 } as const
 
 /** 역할극 회화방(가이드 §3-D) — 머리·목표 카드·첫 안내·마무리 띠·마친 뒤 바·메뉴 한 줄. */

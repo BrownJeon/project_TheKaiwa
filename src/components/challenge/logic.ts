@@ -634,6 +634,17 @@ export function canRetry(today: ChallengeTodayResponse | null, id: string): Retr
   return { kind: 'show' }
 }
 
+/** 주제가 지워진 챌린지(`topic.id` null 또는 `exists:false`) — 같은 주제로 다시 만들 수 없다. 제목은 얼린 스냅샷 그대로 보인다(task-045 결정 3). */
+export function isTopicGone(topic: Pick<ChallengeDetail['topic'], 'id' | 'exists'>): boolean {
+  return !topic.id || topic.exists === false
+}
+
+/** 결과 화면 「다음 챌린지」 — 주제가 지워졌으면 [다시 도전](같은 주제)만 숨긴다. [다른 주제로]·진행 중 안내는 그대로. */
+export function resultNextView(topic: Pick<ChallengeDetail['topic'], 'id' | 'exists'>, retry: RetryGate): { topicGone: boolean; showRetry: boolean } {
+  const topicGone = isTopicGone(topic)
+  return { topicGone, showRetry: retry.kind === 'show' && !topicGone }
+}
+
 // ── S3 만들기 ──────────────────────────────────────────────────────────────────
 
 export const LENGTHS: readonly ChallengeLength[] = [7, 14, 30]

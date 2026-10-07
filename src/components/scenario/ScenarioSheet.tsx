@@ -27,7 +27,7 @@ import type { SeedOverrideItem } from '@/types/seedOverride'
 import { scenarioFailure } from './failure'
 import { DifficultyDots } from './ScenarioCard'
 import { dateLabel, josa, requiredOf, seedIdOfCopy, sheetOrigin, type SheetOrigin } from './logic'
-import { HOME, OUTCOME_KO, scenarioEditHref, SHEET } from './scenarioCopy'
+import { HOME, OUTCOME_KO, scenarioEditHref, scenarioVariantHref, SHEET } from './scenarioCopy'
 import { useKeyedSound } from './useKeyedSound'
 import { useScenarioDetail } from './useScenarioDetail'
 import { useStartRolePlay } from './useStartRolePlay'
@@ -144,6 +144,7 @@ export default function ScenarioSheet({ id, onClose, saved = false, fromLesson =
           delBtnRef={delBtnRef}
           origin={overrides.status === 'loading' ? null : sheetOrigin(detail.data, soItems)}
           editHref={scenarioEditHref(detail.data.id, fromManage ? 'manage' : null)}
+          variantHref={scenarioVariantHref(detail.data.id, fromManage ? 'manage' : null)}
           delFail={delFail}
           onAskDelete={(kind) => {
             setDelState('idle')
@@ -199,6 +200,7 @@ function SheetBody({
   delBtnRef,
   origin,
   editHref,
+  variantHref,
   delFail,
   onAskDelete,
   onCancelDelete,
@@ -217,6 +219,8 @@ function SheetBody({
   /** null = #179 를 읽는 중(행동 줄 자리만 둔다). */
   origin: SheetOrigin | null
   editHref: string
+  /** [변형 만들기](task-045 A) — 내 상황·기본 상황·내 버전 모두. */
+  variantHref: string
   delFail: string | null
   onAskDelete: (kind: ConfirmKind) => void
   onCancelDelete: () => void
@@ -369,11 +373,14 @@ function SheetBody({
         {s.opening ? SHEET.leadOpening(tutorJ) : SHEET.leadNoOpening(tutorJ, josa(s.roles.learner, '이', '가'))}
       </p>
 
-      <div className="mt-2 flex min-h-11 gap-2">
+      <div className="mt-2 flex min-h-11 flex-wrap gap-x-2">
         {origin ? (
           <>
             <Link href={editHref} className="inline-flex h-11 items-center px-1 text-[13px] font-semibold text-accent">
               {SHEET.edit}
+            </Link>
+            <Link href={variantHref} className="inline-flex h-11 items-center px-1 text-[13px] font-semibold text-accent">
+              {SHEET.variant}
             </Link>
             {confirmKind ? (
               <button ref={delBtnRef} type="button" aria-haspopup="true" onClick={() => onAskDelete(confirmKind)} className="inline-flex h-11 items-center px-1 text-[13px] font-semibold text-bad">

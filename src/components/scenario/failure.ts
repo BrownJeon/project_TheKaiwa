@@ -1,13 +1,13 @@
 /**
  * 상황 쪽 서버 오류 → 화면 고정 문구(screens.md §16-7 규칙 — 상황 초안 #166·저장 #163·고치기 #164·내 버전 #175·지우기/숨기기 #165·
- * 되돌리기 #176·첫마디 제안 #178). **서버 `message` 는 화면에 쓰지 않는다**(400 문구에 「을(를)」 조사 병기가 섞여 있다).
+ * 되돌리기 #176·첫마디 제안 #178·변형 초안 #177). **서버 `message` 는 화면에 쓰지 않는다**(400 문구에 「을(를)」 조사 병기가 섞여 있다).
  * 고르는 열쇠 = (문맥, HTTP 상태, `details.reason`, `details.field`, `retryAfterSec`) — 429 는 `reason` 없이 `retryAfterSec` 만 오기도 해서
- * 선생님 초안류(#166·#178)는 60초를 넘으면 하루 한도로 읽는다. 표에 없는 조합은 그 문맥의 일반 실패 문구로 떨어진다.
+ * 선생님 초안류(#166·#178·#177)는 60초를 넘으면 하루 한도로 읽는다. 표에 없는 조합은 그 문맥의 일반 실패 문구로 떨어진다.
  * topic 폴더(`components/topic/failure.ts`)를 import 하지 않는다(의존 방향 topic → scenario). 순수 함수 — 초점·닫기는 `kind` 를 보고 화면이 정한다.
  */
 import { detailString, retryAfterOf, type Err } from '@/components/common/errors'
 import { SCENARIO_LIMITS as L } from '@/types/scenario'
-import { CHECK, DRAFT, FAIL, SHEET, type FieldLabelKey } from './scenarioCopy'
+import { CHECK, DRAFT, FAIL, SHEET, VARIANT, type FieldLabelKey } from './scenarioCopy'
 
 export type ScenarioFailContext =
   | 'scenarioDraft' // #166 내 상황 만들기 묻기 단계
@@ -18,6 +18,7 @@ export type ScenarioFailContext =
   | 'scenarioHide' // #165 기본 상황(나에게서 숨기기)
   | 'scenarioRevert' // #176 내 버전 → 기본
   | 'openingDraft' // #178
+  | 'variantDraft' // #177 변형 상황 초안
 
 export type ScenarioFailureKind =
   | 'network'
@@ -34,6 +35,7 @@ export type ScenarioFailureKind =
   | 'copied'
   | 'seedGone'
   | 'notOverridden'
+  | 'noChange'
   | 'fail'
 
 export interface ScenarioFieldFailure {
@@ -57,7 +59,7 @@ export interface ScenarioFailure {
   waitSec: number | null
 }
 
-const LLM_CONTEXTS: ReadonlySet<ScenarioFailContext> = new Set(['scenarioDraft', 'openingDraft'])
+const LLM_CONTEXTS: ReadonlySet<ScenarioFailContext> = new Set(['scenarioDraft', 'openingDraft', 'variantDraft'])
 const FIELD_CONTEXTS: ReadonlySet<ScenarioFailContext> = new Set(['scenarioDraft', 'scenarioSave', 'scenarioEdit', 'scenarioFork', 'openingDraft'])
 
 function make(kind: ScenarioFailureKind, text: string, extra: Partial<Omit<ScenarioFailure, 'kind' | 'text'>> = {}): ScenarioFailure {
@@ -180,7 +182,9 @@ function onTooMany(ctx: ScenarioFailContext, err: Err, reason: string | null): S
         ? make('daily', FAIL.opening.daily(FAIL.waitAbout(sec)), { block: true, waitSec: sec })
         : make('rate', FAIL.opening.rate(sec), { waitSec: sec })
     }
-    return daily ? make('daily', FAIL.draftDaily, { block: true, waitSec: sec }) : make('rate', FAIL.draftRate(sec), { waitSec: sec })
+    // #177 은 하루 한도를 #166 과 같은 카운터로 쓴다(같은 하루 문구), 분당만 따로.
+    if (daily) return make('daily', FAIL.draftDaily, { block: true, waitSec: sec })
+    return make('rate', ctx === 'variantDraft' ? VARIANT.rate(sec) : FAIL.draftRate(sec), { waitSec: sec })
   }
   if (reason === 'DAILY_LIMIT' && (ctx === 'scenarioSave' || ctx === 'scenarioFork')) return make('daily', FAIL.saveDaily, { block: true, waitSec: sec })
   return make('rate', FAIL.writeRate(sec), { waitSec: sec })
@@ -193,6 +197,8 @@ function generic(ctx: ScenarioFailContext): ScenarioFailure {
       return make('engine', DRAFT.genFail, { retry: true })
     case 'openingDraft':
       return make('engine', FAIL.opening.fail, { body: FAIL.opening.failKeep, retry: true })
+    case 'variantDraft':
+      return make('engine', VARIANT.fail, { retry: true })
     case 'scenarioSave':
     case 'scenarioEdit':
     case 'scenarioFork':
@@ -206,6 +212,26 @@ function generic(ctx: ScenarioFailContext): ScenarioFailure {
   }
 }
 
+/**
+ * #177 400 칸 문제(`scenarioVariantSchemas.parseScenarioVariantBody`) — 화면이 고르는 칸은 직접 적기(`note`)뿐이다.
+ * `axes` 가 비었다는 문제는 「바꿀 점 없음」과 같은 뜻, 축 값·키·본문 모양 오류는 화면이 막았어야 할 결함 문구.
+ */
+function variantFieldFailures(details: Record<string, unknown>): ScenarioFieldFailure[] {
+  const raw = Array.isArray(details.problems) ? details.problems : [details]
+  const out: ScenarioFieldFailure[] = []
+  for (const p of raw) {
+    if (!p || typeof p !== 'object') continue
+    const { field, reason } = p as { field?: unknown; reason?: unknown }
+    if (typeof field !== 'string' || typeof reason !== 'string') continue
+    if (field === 'note') {
+      const text = reason === 'max_length' ? VARIANT.noteTooLong : reason === 'secret_like' ? CHECK.secretLike : reason === 'forbidden_char' || reason === 'url' ? CHECK.forbidden : null
+      out.push(text ? { field, text, defect: false } : { field, text: CHECK.defect, defect: true })
+    } else if (field === 'axes' && (reason === 'required' || reason === 'no_change')) out.push({ field, text: VARIANT.noChange, defect: false })
+    else out.push({ field, text: CHECK.defect, defect: true })
+  }
+  return out
+}
+
 /** 문맥 + 오류 → 화면 문구·동작 힌트. */
 export function scenarioFailure(ctx: ScenarioFailContext, err: Err): ScenarioFailure {
   const reason = detailString(err, 'reason')
@@ -217,6 +243,12 @@ export function scenarioFailure(ctx: ScenarioFailContext, err: Err): ScenarioFai
   if (err.status === 404 && reason === 'USER_GONE') return make('userGone', FAIL.userGone)
   if (err.status === 429) return onTooMany(ctx, err, reason)
 
+  if (err.status === 400 && ctx === 'variantDraft') {
+    const problems = variantFieldFailures(err.details)
+    if (problems.some((p) => p.field === 'axes' && !p.defect)) return make('noChange', VARIANT.noChange)
+    if (problems.length) return make('field', problems[0].text, { problems })
+    return make('field', CHECK.defect)
+  }
   if (err.status === 400 && FIELD_CONTEXTS.has(ctx)) {
     const problems = scenarioFieldFailures(ctx, err.details)
     if (problems.length) return make('field', problems[0].text, { problems })
@@ -231,6 +263,11 @@ export function scenarioFailure(ctx: ScenarioFailContext, err: Err): ScenarioFai
     case 'openingDraft':
       if (err.status === 422) return reason === 'TOO_LONG' ? make('tooLong', FAIL.opening.tooLong) : make('unfit', FAIL.opening.unfit)
       if (err.status === 409) return make('busy', FAIL.opening.busy)
+      break
+    case 'variantDraft':
+      if (err.status === 422) return reason === 'NO_VARIATION' ? make('noChange', VARIANT.noChange) : make('unfit', VARIANT.unfit)
+      if (err.status === 409) return make('busy', VARIANT.busy)
+      if (err.status === 404) return make('gone', VARIANT.baseGone)
       break
     case 'scenarioFork':
       if (err.status === 409 && reason === 'ALREADY_COPIED') return make('copied', DRAFT.copied)

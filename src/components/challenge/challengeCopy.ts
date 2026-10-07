@@ -103,6 +103,8 @@ export const COPY = {
   resultKeep: '이 결과는 챌린지가 끝날 때 한 번 저장돼요. 기록을 지워도 바뀌지 않아요.',
   nextTitle: '다음 챌린지',
   nextBody: '같은 주제로 한 번 더 하거나, 다음 주제로 넘어가 보세요.',
+  /** 주제가 지워진 챌린지(task-045 사용자 결정 3) — 같은 주제로 다시 할 수 없어 [다시 도전]을 숨기고 이 글만. 「삭제됨」 표기는 하지 않는다. */
+  nextBodyNoTopic: '다음 주제로 넘어가 보세요.',
   otherTopicShort: '다른 주제로',
   seeActive: '진행 중 챌린지 보기 ›',
   doneTitle: '해낸 것',
@@ -187,5 +189,7 @@ export const CREATE = {
   rateLimited: '오늘은 챌린지를 여러 번 만들어서 더 만들 수 없어요. 내일 다시 만들어 주세요.',
   againLoading: '지난 챌린지를 불러오는 중…',
   againFail: '지난 챌린지를 불러오지 못해 처음부터 골라요',
+  /** [다시 도전]·[다시 하기]로 온 지난 챌린지의 주제가 지워졌을 때(계획표 카드는 주제 정보가 없어 버튼을 그대로 두고 여기서 받는다). */
+  againTopicGone: '그 주제는 이제 내 목록에 없어요. 주제를 다시 골라 주세요.',
   previewMore: (n: number) => `외 ${n}개 · 수업을 하면 늘어나요`,
 } as const
