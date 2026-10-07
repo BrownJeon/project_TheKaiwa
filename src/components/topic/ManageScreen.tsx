@@ -6,7 +6,7 @@
  * 목록 `key` 바꾸기·다시 마운트·`scrollTo`·`scrollIntoView` 를 하지 않아 `main` 스크롤과 초점(누른 분절·연 카드)이 그대로다(R1~R6).
  * 출처 칩·토글은 React 상태만(주소에 싣지 않음). 딥링크 시트는 수화가 끝난 뒤에 연다(`sheetIdAfterHydration`, 회화 탭과 같은 이유).
  * 불러오는 중은 같은 높이 자리표시(IMP-0027 — 「아직 없어요」·가짜 숫자를 먼저 보이지 않는다). 주제 자리표시·빈 상자 높이는 실제 주제 행 높이
- * (`TOPIC_ROW_HEIGHT` — 근거는 `logic.ts`), 상황 탭 자리표시는 칩 44 + 카드 88.
+ * (`TOPIC_ROW_HEIGHT` — 근거는 `logic.ts`), 상황 탭 자리표시는 칩 44 + 실제 상황 카드 높이(`SCENARIO_CARD_HEIGHT`).
  * 돌아왔을 때 토스트(T5-2): 주제 보기의 지우기·숨기기 뒤 sessionStorage `kaiwa.manage.flash`(마운트 때 한 번 읽고 지움 → 초점 「내가 만든 주제」 절 제목),
  * 상황 편집기 저장 뒤 `&saved=1`(한 번 보이고 주소에서 지움 — 다시 들어와도 다시 뜨지 않음), 상황 시트의 지우기·숨기기·되돌리기는 시트가 넘긴 문구 그대로.
  */
@@ -38,6 +38,7 @@ import {
   manageHref,
   parseFlash,
   scenarioCountByTopic,
+  SCENARIO_CARD_HEIGHT,
   SCENARIO_NEW_FROM_MANAGE_HREF,
   TOPIC_NEW_HREF,
   TOPIC_ROW_HEIGHT,
@@ -300,12 +301,12 @@ function ScenariosPanel({
         <ErrorBox className="mt-[18px]" title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={onRetry} />
       ) : !view ? (
         <div className="mt-[18px]">
-          <Skeleton heights={[44, 88, 88, 88]} label={MANAGE.loading} />
+          <Skeleton heights={[44, SCENARIO_CARD_HEIGHT, SCENARIO_CARD_HEIGHT, SCENARIO_CARD_HEIGHT]} label={MANAGE.loading} />
         </div>
       ) : !sc ? (
         retrying ? (
           <div className="mt-[18px]" aria-busy="true">
-            <Skeleton heights={[44, 88, 88, 88]} label={MANAGE.loading} />
+            <Skeleton heights={[44, SCENARIO_CARD_HEIGHT, SCENARIO_CARD_HEIGHT, SCENARIO_CARD_HEIGHT]} label={MANAGE.loading} />
           </div>
         ) : (
           <ErrorBox className="mt-[18px]" title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={onRetryList} />

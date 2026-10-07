@@ -8,6 +8,7 @@ import {
   chunkTextRetexted,
   chunkUpsert,
   createTopicDraftFlight,
+  editBackAction,
   levelRegenBody,
   levelRegenPrompt,
   nextAddedKey,
@@ -322,4 +323,29 @@ test('L-1 ⓓ S7 의 size="sm" 버튼은 전부 min-h-11(44px) — LevelRegenBox
     }
   }
   assert.ok(total >= 9, `작은 버튼을 못 찾았다(${total})`)
+})
+
+// ── REV-167 L-2 — S7 ← 는 저장 중에만 막는다(수준 바꿈 재생성 D4 중에는 막지 않는다) ─────────────
+
+test('REV-167 L-2 S7 ←: 막는 것(ignore)은 저장 중(saving) 하나뿐 — 재생성(D4) 중은 saving 이 아니라서 고친 곳이 있으면 확인 시트(ask), 없으면 바로 나간다(leave)', () => {
+  assert.equal(editBackAction.length, 2, '인자는 (edited, saving) 둘뿐 — 재생성 상태가 끼어들 자리가 없다')
+  // 재생성 중의 값: 저장이 아니므로 saving=false. 고친 곳이 있든 없든 막히지 않는다.
+  const regenerating = { saving: false }
+  assert.equal(editBackAction(true, regenerating.saving), 'ask')
+  assert.equal(editBackAction(false, regenerating.saving), 'leave')
+  for (const edited of [true, false]) {
+    for (const saving of [true, false]) assert.equal(editBackAction(edited, saving) === 'ignore', saving, `edited=${edited} saving=${saving}`)
+  }
+})
+
+test('REV-167 L-2 S7 ← 소스: 화면은 저장 중(m.saving)만 ← 에 넘기고 재생성(regenFlight) 은 넘기지 않는다 · 저장과 재생성은 서로 배타라 두 상태가 겹치지 않는다', () => {
+  const screen = read('TopicEditScreen.tsx')
+  const onBack = between(screen, 'const onBack = () => {', 'const seed =')
+  assert.match(onBack, /editBackAction\(m\.edited, m\.saving\)/)
+  assert.ok(!/regen|flight/i.test(onBack), '← 처리에 재생성 상태가 없다')
+  assert.match(screen, /backDisabled=\{m\.saving\}/, '막힌 모양(aria-disabled)도 저장 중만')
+  assert.ok(!/backDisabled=\{[^}]*regen/i.test(screen), '재생성 중에는 ← 가 막힌 모양이 아니다')
+  const hook = read('useTopicEdit.ts')
+  assert.match(hook, /if \(!loaded \|\| !draft \|\| saving \|\| copied \|\| regenFlight\.busy \|\| saveMessage\?\.block\) return/, '저장은 재생성 중이면 무시')
+  assert.match(hook, /if \(!draft \|\| saving \|\| regenFailure\?\.block\) return/, '재생성은 저장 중이면 무시')
 })

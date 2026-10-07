@@ -113,7 +113,7 @@ export default function ExpressionEditor({
                   <div className="min-w-0 flex-1">
                     {e.ja ? <JaText text={e.ja} state={ann[i]} className="text-[16px] [overflow-wrap:anywhere]" rt={11} leading={2.1} /> : null}
                     <HangulLine state={ann[i]} size={12} />
-                    <p className="text-[13px] text-ink2 break-keep">{e.ko}</p>
+                    <p className="text-[13px] text-ink2 break-keep [overflow-wrap:anywhere]">{e.ko}</p>
                   </div>
                   <button type="button" aria-label={DRAFT.exprMenu(i + 1)} aria-haspopup="dialog" onClick={() => setMenuKey(e.rowKey)} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink2">
                     <IconDots />

@@ -28,6 +28,8 @@ import {
   parseFlash,
   removalFlash,
   REMOVAL_MODE_OF,
+  SCENARIO_CARD_HEIGHT,
+  TOPIC_DETAIL_SKELETON,
   topicEditHref,
   topicHref,
   topicScenarioNewHref,
@@ -129,7 +131,7 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
       <BackBar sticky backHref={MANAGE_HREF} backLabel={TOPIC.back} title={v?.topic.title ?? ''} />
       <div className="mx-auto min-w-0 max-w-[520px] px-4 pb-8 pt-3">
         {d.status === 'loading' ? (
-          <Skeleton heights={[104, 64, 240, 120]} label={TOPIC.loading} />
+          <DetailSkeleton />
         ) : d.status === 'error' ? (
           <ErrorBox title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={d.reload} />
         ) : !v ? (
@@ -149,6 +151,28 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
       <TopicRemovalSheet target={removal} onClose={() => setRemoval(null)} onDone={onRemovalDone} onGone={onRemovalGone} />
       <Toast message={message} />
     </>
+  )
+}
+
+/**
+ * 주제 보기 자리표시 — 높이 근거는 `logic.ts` `TOPIC_DETAIL_SKELETON`. 공용 `Skeleton`(gap-2 8)이 아니라 실제 화면과 같은 블록 간격(mt-3·mt-[18px])으로 늘어놓아
+ * 도착 뒤에도 출처 안내 상자·표현 절의 시작 위치가 같다(읽기 알림은 하나만).
+ */
+function DetailSkeleton() {
+  const h = TOPIC_DETAIL_SKELETON
+  const block = 'block rounded-[14px] bg-surface2'
+  return (
+    <div>
+      <p role="status" className="sr-only">
+        {TOPIC.loading}
+      </p>
+      <div aria-hidden="true">
+        <span className={block} style={{ height: h.head }} />
+        <span className={`mt-3 ${block}`} style={{ height: h.info }} />
+        <span className={`mt-[18px] ${block}`} style={{ height: h.chunks }} />
+        <span className={`mt-[18px] ${block}`} style={{ height: h.scenarios }} />
+      </div>
+    </div>
   )
 }
 
@@ -199,7 +223,7 @@ function Body({
             {t.titleJa}
           </p>
         ) : null}
-        {t.description?.trim() ? <p className="mt-2 text-[14px] break-keep">{t.description}</p> : null}
+        {t.description?.trim() ? <p className="mt-2 text-[14px] break-keep [overflow-wrap:anywhere]">{t.description}</p> : null}
       </section>
 
       {v.origin === 'SEED' ? (
@@ -224,7 +248,7 @@ function Body({
 
       {v.challenge ? (
         <div className="mt-3 flex min-w-0 items-center gap-2.5 rounded-[14px] border border-line bg-surface px-3.5 py-1.5">
-          <p className="min-w-0 flex-1 text-[14px] font-semibold break-keep">{TOPIC.challenge(v.challenge.title, v.challenge.day, v.challenge.lengthDays)}</p>
+          <p className="min-w-0 flex-1 text-[14px] font-semibold break-keep [overflow-wrap:anywhere]">{TOPIC.challenge(v.challenge.title, v.challenge.day, v.challenge.lengthDays)}</p>
           <ULink href={challengeHref(v.challenge.id)} className="flex-none">
             {TOPIC.challengeLink}
             <span aria-hidden="true">&nbsp;›</span>
@@ -256,7 +280,7 @@ function Body({
                         {c.reading}
                       </p>
                     ) : null}
-                    <p className="text-[13px] text-ink2 break-keep">{c.meaningKo}</p>
+                    <p className="text-[13px] text-ink2 break-keep [overflow-wrap:anywhere]">{c.meaningKo}</p>
                   </li>
                 ))}
               </ul>
@@ -273,7 +297,7 @@ function Body({
           // [다시 시도] 를 눌렀다는 것이 보이게 — 다시 실패해도 최소 0.5초는 자리표시(관리 화면 #161 과 같은 방식).
           scenariosRetrying ? (
             <div aria-busy="true">
-              <Skeleton heights={[88, 88]} label={MANAGE.loading} />
+              <Skeleton heights={[SCENARIO_CARD_HEIGHT, SCENARIO_CARD_HEIGHT]} label={MANAGE.loading} />
             </div>
           ) : (
             <ErrorBox title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={onRetryScenarios} />

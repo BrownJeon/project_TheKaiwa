@@ -73,6 +73,57 @@ export function retryBusyRemainingMs(startedAt: number, now: number, min: number
   return Math.min(min, Math.max(0, min - (now - startedAt)))
 }
 
+/**
+ * 관리 화면 필수 요청(#56·#179)의 오류 상자 [다시 시도] — 바로 다시 실패해도(오프라인·연결 거부) 자리표시가 `RETRY_MIN_BUSY_MS` 는 보이도록
+ * 실패 결과를 반영하기까지 기다릴 시간(ms). 성공은 기다리게 하지 않는다(#161 의 [다시 시도] 와 같은 규칙 — 값이 오면 바로 목록).
+ */
+export function retryFailHoldMs(failed: boolean, startedAt: number, now: number): number {
+  return failed ? retryBusyRemainingMs(startedAt, now) : 0
+}
+
+/**
+ * 상황 카드(`scenario/ScenarioCard`)의 실제 높이 근거(px) — 클래스에서 계산한 값이다(실측은 QA, qa-045-ui-a 결함 #3: 옛 자리표시 88 은 하한 `min-h-[88px]` 일 뿐
+ * 실제 카드는 121). 흔한 카드 = 테두리 2 · `p-3.5` 14+14 · 첫 줄(제목 한 줄 15×1.375 < 뱃지·› 22 → 22) · 일본어 이름 `mt-0.5` 2 + 13×1.5 · 목표 `mt-1` 4 + 13×1.5 ·
+ * 메타 줄 `mt-1.5` 6 + 12×1.5. 메타 줄의 상태가 뱃지(시도함·거의 달성·달성, 22)이면 +4, 제목이 두 줄이면 +19.25(제목 줄 둘 41.25 가 첫 줄 22 를 대신함)로 더 크다 —
+ * 시드 상황 10개를 처음 보는 사용자의 높이(121)에 맞췄다. 어긋나면 그 차이만큼 아래가 밀린다(4px 단위 — 뱃지 상태 카드 수만큼 쌓임).
+ * (`topic/__tests__/rowHeight.test.ts` 가 클래스와 이 값을 묶어 둔다 — `ScenarioCard` 는 고치지 않고 읽기만 한다.)
+ */
+export const SCENARIO_CARD_PARTS = { border: 2, padY: 28, head: 22, titleJaTop: 2, titleJa: 19.5, goalTop: 4, goal: 19.5, metaTop: 6, meta: 18 } as const
+export const SCENARIO_CARD_MIN_HEIGHT = 88
+
+export function scenarioCardHeight(p: { [K in keyof typeof SCENARIO_CARD_PARTS]: number } = SCENARIO_CARD_PARTS): number {
+  return p.border + p.padY + p.head + p.titleJaTop + p.titleJa + p.goalTop + p.goal + p.metaTop + p.meta
+}
+
+export const SCENARIO_CARD_HEIGHT = scenarioCardHeight()
+
+/**
+ * 주제 보기(S6) 자리표시 높이 근거(px) — 클래스에서 계산한 값이다(실측은 QA, qa-045-ui-a 결함 #2: 옛 값 [104,64,240,120] 은 근사였다).
+ * 가장 흔한 주제 = 일본어 이름·설명이 있고 설명이 모든 폭(360/390/412)에서 두 줄 — 기본 주제 5개와 초안으로 만든 주제 대부분.
+ * 머리 카드 = 테두리 2 · `py-3` 12+12 · 제목 줄 18×1.5(뱃지 22 보다 큼) · 일본어 이름 `mt-1` 4 + 13×1.5 · 설명 `mt-2` 8 + 14×1.5 × 2줄 = 126.5.
+ * 출처 안내 상자 = `InfoBox` `py-3` 12+12 + 13×1.5 × 2줄 = 63(기본·내 버전 주제만 — 내 주제에는 이 상자가 없다).
+ * 표현 절·상황 절은 표현·상황 개수에 따라 달라 맞출 수 없다 — 옛 값 240·120 을 채움용으로 그대로 둔다(표현이 8개 이상이면 표현 절만 600 이상이라 도착하면 길어질 뿐 위는 움직이지 않는다).
+ * 일본어 이름·설명이 없는 주제(머리 카드 53~105)는 도착 뒤 내용이 위로 당겨지는 쪽이다 — 자리표시를 줄이면 흔한 쪽이 밀려 내려가므로 흔한 쪽에 맞췄다.
+ * 실제 화면은 블록 사이가 `mt-3`(12)·`mt-[18px]`(18)이라 자리표시도 같은 간격을 쓴다(공용 `Skeleton` 의 `gap-2` 8 을 쓰면 아래 블록 시작이 어긋난다).
+ */
+export const TOPIC_HEAD_PARTS = { border: 2, padY: 24, title: 27, titleJaTop: 4, titleJa: 19.5, descTop: 8, descLine: 21, descLines: 2 } as const
+export const TOPIC_INFO_PARTS = { padY: 24, line: 19.5, lines: 2 } as const
+
+export const topicHeadHeight = (p: { [K in keyof typeof TOPIC_HEAD_PARTS]: number } = TOPIC_HEAD_PARTS): number =>
+  p.border + p.padY + p.title + p.titleJaTop + p.titleJa + p.descTop + p.descLine * p.descLines
+export const topicInfoHeight = (p: { [K in keyof typeof TOPIC_INFO_PARTS]: number } = TOPIC_INFO_PARTS): number => p.padY + p.line * p.lines
+
+/** 블록 사이 간격은 화면과 같은 값 — 첫 블록 앞은 0. */
+export const TOPIC_DETAIL_SKELETON = {
+  head: topicHeadHeight(),
+  info: topicInfoHeight(),
+  chunks: 240,
+  scenarios: 120,
+  gapAfterHead: 12,
+  gapAfterInfo: 18,
+  gapAfterChunks: 18,
+} as const
+
 export function parseManageTab(v: unknown): ManageTab {
   return v === 'scenarios' ? 'scenarios' : 'topics'
 }

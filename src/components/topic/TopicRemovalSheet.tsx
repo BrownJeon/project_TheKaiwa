@@ -100,11 +100,11 @@ export default function TopicRemovalSheet({
                     <span aria-hidden="true">⚠</span>
                     {view.warn.title}
                   </p>
-                  <p className="mt-1 break-keep">{view.warn.text}</p>
+                  <p className="mt-1 break-keep [overflow-wrap:anywhere]">{view.warn.text}</p>
                 </div>
               ) : (
                 <InfoBox>
-                  <p id={idOf('warn')}>{view.warn.text}</p>
+                  <p id={idOf('warn')} className="[overflow-wrap:anywhere]">{view.warn.text}</p>
                 </InfoBox>
               )
             ) : null}
