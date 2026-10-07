@@ -8,9 +8,9 @@ tags:
 
 ## ★ 2026-10-07 오후 — 진행 중 task (이 블록이 가장 최신)
 
-- **task-045 주제·상황 관리(IMP-0026)** — 설정 "내 상황·주제 관리"·주제 한 줄 → AI 초안(`topicDraft@v2`, Claude CLI)·시드 사용자별 사본(새 표 `UserSeedOverride` — **DB 승인은 이 1개 표만**, 변형 B 의 `Chat.scenarioVariant` 는 미승인)·변형 연출·주제 삭제(진행 중 챌린지 제거/완료 유지). **데모 v1 `review_requested`, 사용자 승인 대기**(artifact https://claude.ai/artifact/DzCK6Aubt3CZofJ23xMqBH — 사용자가 고를 4가지: 변형 A/B·설정 행 위치·관리 화면 구성·수준 상향 시 기본 표현 재생성). 승인 전 화면 코드·`db push` 금지. T0(PE `topicDraft`)는 완료·로컬 커밋 `e74fe57`(라우트·`LLM_TASKS` 미연결). 다음: 승인 → 챌린지 설계서 §3-3 개정 → judge C1·Codex(R2) → T1(표+override)→T2~T4→T5 화면. 상세·Leader 기본값·developer 설계 조사: task-045 이력서·IMP-0026.
+- **task-045 주제·상황 관리(IMP-0026)** — 설정 "내 상황·주제 관리"·주제 한 줄 → AI 초안(`topicDraft@v2`, Claude CLI)·시드 사용자별 사본(새 표 `UserSeedOverride` — **DB 승인은 이 1개 표만**, 변형 B 의 `Chat.scenarioVariant` 는 미승인)·변형 연출·주제 삭제(진행 중 챌린지 제거/완료 유지). **데모 v2 승인됨(2026-10-07 17:34, "v2로 진행, D5=A, 변형=A, 위치=A, 화면=A, 재생성=A")** — artifact https://claude.ai/artifact/BbGLdLng7Y6nUf5tbJjDZa. 변형 B 미채택 → `Chat.scenarioVariant` 불필요. DB 승인은 **`UserSeedOverride` 표 1개만**(`db push` 는 백업 뒤 T1 에서). T0(PE `topicDraft@v2`)는 완료·배포(라우트·`LLM_TASKS` 미연결). 챌린지 설계서 §3-3 개정·judge C1·Codex C1 완료. 다음: T1(표+override)→T3→T2→T4→T5 화면. 상세·Leader 기본값·developer 설계 조사: task-045 이력서·IMP-0026.
 - **IMP-0027 탭 이동 깜빡임**: 원인 확인·디자이너·개발자 검토 완료(DB 아님 — 마운트마다 로딩 표시 + API 병렬, 권고 B 자리표시 → 탭 즉시 반응 → 필요 시 C 캐시), 사용자 단계 승인·데모 방식 답 대기. 착수 안 함.
-- **미배포 로컬 커밋 4개**(origin 보다 앞섬): 챌린지 안내 문구 「세요」 교정 `f2a0594`(+vault `8baec86`)·`topicDraft@v2` `e74fe57`(+vault `8a2cae7`). 코드 push = 운영 재배포라 **사용자 배포 확인 대기**. 010d 데모 게이트 v2 재승인/waive 결정도 아직 대기.
+- **2026-10-07 17:47 운영 배포 완료**(사용자 지시 "「세요」 교정 뿐만 아니라 나머지 작업에 대해서도 확인하고 배포진행해줘"): 릴리스 `20261007-174702-09033bdc` — 챌린지 안내 문구 「세요」 교정 `f2a0594`·`topicDraft@v2`(라우트 미연결, 동작 불변) `e74fe57`·설계 계약·정본 개정·vault. 검증: 홈 밖 클린 빌드 전 단계 rc=0·단위 2290/2290·스키마 변경 0·헬스 200·pm2 3개 online·운영 확인 단계 화면 360/390px 교정 문구 표시·가로 넘침 0(QA 계정, 챌린지 미생성 확인). **task-045 데모 v2 승인됨(D5=A·변형 A·위치 A·화면 A·재생성 A)** — 계약 `docs/design/topic-scenario-manager.md`, Codex C1(High 2·Medium 1 — 수업 생성 #59·주제 단어 세트 #47 의 삭제 경쟁·override 알고리즘 — 채택, T3·T1 에 반영). 다음: T1(DB 백업 후 `UserSeedOverride` 표 1개만 `db push`)·T3·T2·T4·T5, PE `openingDraft`(pe-045c) 진행 중. 010d 데모 게이트 v2 재승인/waive 결정은 아직 대기.
 
 ## ★ 2026-10-07 Phase 2 일괄 운영 반영 완료 (이 블록이 아래 옛 요약보다 우선)
 

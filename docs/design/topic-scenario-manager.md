@@ -73,7 +73,9 @@ model UserSeedOverride {
 순서: `lockUserRow` → 주제 재조회(내 것·시드 아님; 시드면 숨김 경로) → **진행 중(`ACTIVE`) 챌린지 행 삭제**(완료·그만둔 `ENDED`·`COMPLETED` 는 유지, FK `onDelete SetNull` 로 `topicId=null`, 화면은 저장된 `topicTitleSnap` 을 평소 그대로 표시·"삭제됨" 표기 없음) → 이 주제에 걸린 상황 중 **다른 주제 연결이 없는 것만 `ARCHIVED`**(하드 삭제 안 함 — `Chat.scenarioId` 보존; #165 의미 재사용), 나머지는 `ScenarioTopic` 연결만 끊음 → 주제 하드 삭제(`TopicChunk`·`ScenarioTopic` Cascade; `Chat`·`Lesson`·`Evaluation`·`VocabSession` `topicId` SetNull). FK 없음(`RepetitionItem.refId`·`VocabAttempt.refId`·발음 사전 COURSE)은 끊어진 참조 허용(스냅샷으로 읽힘). 소프트 삭제 없음.
 - **기존 동시성 결함 수정(필수)**: `createChallenge` 가 주제를 트랜잭션 밖에서 확인(`service.ts:68`) + infra 에 FK 위반(P2003) 변환 0건 → 삭제와 겹치면 500. **트랜잭션 안에서 주제를 다시 확인**하고 P2003 을 404 `TOPIC_GONE` 으로 변환. 수업 생성(#59)·주제 단어 세트(#47)도 같은 패턴인지 점검(NOT_VERIFIED).
 - 삭제 확인 창: #172 응답으로 문구를 만든다(진행 중 챌린지가 있으면 그 사실·제목·며칠째, 연결 상황 수, 완료 챌린지 기록은 그대로 남음). 서버 판단이 바뀌었으면 409 `IMPACT_CHANGED` 로 창을 다시 연다.
-- **정본 개정**: `challenge.md` §3-3:253·schema 주석 "진행 중 챌린지가 쓰는 주제는 삭제 409" → 위 규칙(진행 중 챌린지 제거)으로 바꾼다(구현 전 Leader).
+- **정본 개정**: `challenge.md` §3-3:253·schema 주석 "진행 중 챌린지가 쓰는 주제는 삭제 409" → 위 규칙(진행 중 챌린지 제거)으로 바꾼다. **`challenge.md` 는 2026-10-07 개정 완료**(schema 주석 `prisma/schema.prisma` Challenge 는 T1 때 함께).
+- **Codex C1 반영(2026-10-07, High 2·Medium 1 — 채택)**: ⓐ **#59 수업 생성**(`lessons/generate.ts:99`) — `loadLessonMaterials` 가 트랜잭션 밖에서 주제를 읽고 `claimLessonTx` 잠금 뒤 재조회 없이 INSERT → **잠금 뒤 주제 재조회 + P2003→404 `TOPIC_GONE`** ⓑ **#47 주제 단어 세트**(`vocab/sessions.ts:459`) — 잠금 전 주제 읽음 → 긴 AI 호출 → 삭제 중인 주제에 세트 저장 가능 → **저장 직전 잠금 안에서 주제·override 재확인 + P2003 변환**(AI 호출 뒤에 주제가 사라졌으면 세트를 만들지 않고 `TOPIC_GONE`) ⓒ 위 둘과 `createChallenge`(:68)를 **같은 공용 헬퍼**(`assertTopicVisible(tx, userId, topicId)` — 잠금 안에서 존재·소유·숨김 확인)로 모아 T3 에서 한꺼번에 고치고 경합 시험으로 고정.
+- **시드 override 알고리즘과 종료 불변식(Codex Medium — 채택)**: 모든 쓰기는 `lockUserRow` 아래 한 트랜잭션. 불변식 = 사용자·종류·시드 한 쌍마다 **override 행이 없거나**, `copyId` 가 **존재하는 그 사용자 소유 행**을 가리키거나, `copyId=null`(숨김). 연산: **fork**(override 있음 → 409 `ALREADY_COPIED`; 없음 → 사본 생성+override 한 번에) · **hide**(override 있음 → 이미 숨김/사본 있음이므로 무변경 200; 없음 → `copyId=null` 행) · **restore**(override 없음 → 404; `copyId=null` → 행 삭제; `copyId` 있음 → 사본에 **삭제 규칙(주제면 위 트랜잭션·`ack`)** 적용 + override 삭제를 같은 트랜잭션) · **고아 처리**: 가시성 판정은 `copyId` 가 가리키는 행이 없으면 "숨김(copyId=null)"으로 읽고, restore 가 이를 정리한다. 경합 시험(두 탭 동시 fork → 하나 409·행 1개, fork×hide, restore×fork, restore×주제 삭제, 시드 로더 실행 중 fork)을 T1 완료 기준에 넣는다.
 
 ## 5. AI 작업 (모두 Claude CLI · 제안만 · JSON 하나 · ajv + 1회 재시도)
 
@@ -99,7 +101,7 @@ model UserSeedOverride {
 | T0 | PE `topicDraft`(완료)·`openingDraft`(진행 중) | — | 낮음 |
 | T1 | `UserSeedOverride` 표 + override 모듈 + 가시성 6곳 + #174~176 | **DB 백업·`db push`(표 1개만)**, judge C1·Codex | 높음 |
 | T2 | #57·#170·#171·`LLM_TASKS.topicDraft`·`level=all` | T0 | 중 |
-| T3 | #172·#173 + `createChallenge` 경쟁 재확인 + `challenge.md` §3-3 개정(Leader) | — | **최고** |
+| T3 | #172·#173 + **`assertTopicVisible` 공용 헬퍼로 `createChallenge`·#59 수업 생성·#47 주제 단어 세트의 경쟁 재확인(Codex C1)** + P2003→`TOPIC_GONE` + (`challenge.md` §3-3 개정 ✅ 완료) | — | **최고** |
 | T4 | #177 변형 A·#166 `topic` 인라인·#178 `openingDraft` 연결 | T0 | 중 |
 | T5 | 화면: 설정 행·관리 화면·주제 편집·삭제 확인·시드 편집/되돌리기·변형·공유 편집기 첫마디 | 데모 v2 승인 ✅ + 위 API | 중 |
 
@@ -107,4 +109,4 @@ model UserSeedOverride {
 
 ## 8. 열린 항목 (구현 중 확정 — 확정되면 이 절에 반영)
 
-① §2 장소 연결 해석 ② 사본 주제로 바꾼 뒤 진행 중 챌린지가 가리키는 원본 주제의 "시작" 차단 범위(챌린지는 계속, 새 시작만 사본으로) ③ `#164 PATCH opening:null` 동작(첫마디 지우기) ④ 수업 생성(#59)·주제 단어 세트(#47)의 삭제 경쟁 ⑤ A11 이 숨긴·보관 상황의 `RepetitionItem(SCENARIO)` 를 복습으로 고르는지 ⑥ 사용자 주제가 발음 사전 COURSE 대상이 될 수 있는지 ⑦ 운영 DB 의 기존 사용자 주제 수(쓰기 경로가 없었으니 0 이 유력 — 미확인) ⑧ api-contract #161~#169 문서화.
+① §2 장소 연결 해석 ② 사본 주제로 바꾼 뒤 진행 중 챌린지가 가리키는 원본 주제의 "시작" 차단 범위(챌린지는 계속, 새 시작만 사본으로) ③ `#164 PATCH opening:null` 동작(첫마디 지우기) ④ ~~수업 생성(#59)·주제 단어 세트(#47)의 삭제 경쟁~~ → Codex C1 이 둘 다 **실제 결함으로 확인**(§4 Codex C1 반영, T3 에서 수정) ⑤ A11 이 숨긴·보관 상황의 `RepetitionItem(SCENARIO)` 를 복습으로 고르는지 ⑥ 사용자 주제가 발음 사전 COURSE 대상이 될 수 있는지 ⑦ 운영 DB 의 기존 사용자 주제 수(쓰기 경로가 없었으니 0 이 유력 — 미확인) ⑧ api-contract #161~#169 문서화.

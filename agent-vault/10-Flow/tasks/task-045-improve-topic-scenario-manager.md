@@ -19,16 +19,16 @@ updated: 2026-10-07
 demo_gate:
   required: true
   level: "full"
-  status: "review_requested"
+  status: "approved"
   version: 2
   repo_path: "docs/demo/task-045-improve-topic-scenario-manager-v2.html"
   artifact_url: "https://claude.ai/artifact/BbGLdLng7Y6nUf5tbJjDZa"
   content_sha256: "dd04306507e54698124c38495f730d619ff112c0c14eba6beb944ee387655100"
   decided_by: "judge"
   rule_id: "JV-ui_change"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-07T17:34:21+09:00"
+  approval_quote: "v2로 진행, D5=A, 변형=A, 위치=A, 화면=A, 재생성=A"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
@@ -79,6 +79,7 @@ demo_gate:
 | v1 | 검토요청 | docs/demo/task-045-improve-topic-scenario-manager-v1.html | https://claude.ai/artifact/DzCK6Aubt3CZofJ23xMqBH | 사용자 검토 요청 | 10-07 13:00 |
 | v1 | 수정요청 | docs/demo/task-045-improve-topic-scenario-manager-v1.html | https://claude.ai/artifact/DzCK6Aubt3CZofJ23xMqBH | "1. 주체초안 검토시 체크박스 체크/해제 시 스크롤이 상위로 올라가는 현상 방지 2. 상황에 대한 선생님의 첫마디를 한국어로 작성하고 실제 회화시에는 일본어로 말하도록 해줘." | 10-07 14:22 |
 | v2 | 검토요청 | docs/demo/task-045-improve-topic-scenario-manager-v2.html | https://claude.ai/artifact/BbGLdLng7Y6nUf5tbJjDZa | 사용자 검토 요청 | 10-07 14:41 |
+| v2 | 승인 | docs/demo/task-045-improve-topic-scenario-manager-v2.html | https://claude.ai/artifact/BbGLdLng7Y6nUf5tbJjDZa | "v2로 진행, D5=A, 변형=A, 위치=A, 화면=A, 재생성=A" | 10-07 17:34 |
 
 ## Designer 기록
 
@@ -518,3 +519,20 @@ demo_gate:
 - **D5(사용자 선택 대기)**: A「고칠 때 일본어를 만들어 저장」(권고) vs B「역할극 시작 때마다 즉석 생성」(시작마다 3~5초 [추측]·매번 다른 말·저장 형태·서버 검사 변경). 사용자가 B 를 고르면 PE 범위·`talkScenario@v2` 가 바뀐다.
 - **PE 후속(승인 뒤)**: `openingJa`(한국어 첫마디 → 장면·역할·수준에 맞는 일본어 ≤60자 + 읽기, 거절·주입 방어, `fast` 실측) — 데모 D5 확정 뒤 소환.
 - 사용자 승인 필요 목록은 v1 과 같음: 데모 v2 승인 + 4가지 선택(변형 A/B·설정 행 위치·관리 화면 구성·수준 상향 시 기본 표현 재생성) + D5.
+
+## Codex 검토 (task-045 C1 — 설계, 동시성)
+
+### [2026-10-07 09:41 UTC] C1 adversarial-review focus=concurrency — 완료
+- judge 판정: C1 설계 검토 (intake 2026-10-07) / 호출 차수: 1/4
+- 대상: repo=TheKaiwa base=8baec86(task_file) snapshot=18ebdc1e
+- **지적 3건**: 
+  - [High] `src/modules/learning/lessons/generate.ts:99` — #59 수업 생성이 잠금 전 주제 읽고, 동시 삭제 시 FK P2003/500 (권고: 잠금 후 재조회 + TOPIC_GONE 변환)
+  - [High] `src/modules/learning/vocab/sessions.ts:459` — #47 주제 단어 세트가 AI 호출 뒤 재검증 없이 삭제된 topicId 저장 가능 (권고: 잠금 후 override 확인 + P2003 변환)
+  - [Medium] `docs/design/topic-scenario-manager.md:69` — restore·fork·hide 경쟁 시 orphan override 가능 (권고: 명시적 알고리즘·종료 불변식·경합 테스트)
+- 검토하지 못한 범위: T1~T5 구현 코드·실제 경합 테스트·시드 로더 경쟁·성능·DB 마이그레이션
+- 원본: `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20261007T084138Z-task-045-C1/raw.txt`
+
+**요약**: 사용자 행 잠금으로 직렬화 가능하나, 수업/세트 생성(#59·#47)이 잠금 전 읽은 주제를 재검증하지 않아 동시 삭제 시 FK 위반 발생. restore 알고리즘·종료 불변식 미정의. 최소한 #59·#47 잠금 후 재조회·오류 변환·restore 계약 명시 필요.
+
+**다음**: Reviewer가 지적 3건 채택·오탐 판정 → developer (설계 계약 개정 + T1~T5 구현) → Reviewer · judge C2(Codex R2 필수)
+
