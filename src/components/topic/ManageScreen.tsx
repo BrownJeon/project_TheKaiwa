@@ -6,11 +6,14 @@
  * 목록 `key` 바꾸기·다시 마운트·`scrollTo`·`scrollIntoView` 를 하지 않아 `main` 스크롤과 초점(누른 분절·연 카드)이 그대로다(R1~R6).
  * 출처 칩·토글은 React 상태만(주소에 싣지 않음). 딥링크 시트는 수화가 끝난 뒤에 연다(`sheetIdAfterHydration`, 회화 탭과 같은 이유).
  * 불러오는 중은 같은 높이 자리표시(IMP-0027 — 「아직 없어요」·가짜 숫자를 먼저 보이지 않는다). 주제 자리표시·빈 상자 높이는 실제 주제 행 높이
- * (`TOPIC_ROW_HEIGHT` — 근거는 `logic.ts`), 상황 탭 자리표시는 칩 44 + 카드 88. 숨긴 기본 항목 시트·돌아왔을 때 토스트는 T5-2.
+ * (`TOPIC_ROW_HEIGHT` — 근거는 `logic.ts`), 상황 탭 자리표시는 칩 44 + 카드 88.
+ * 돌아왔을 때 토스트(T5-2): 주제 보기의 지우기·숨기기 뒤 sessionStorage `kaiwa.manage.flash`(마운트 때 한 번 읽고 지움 → 초점 「내가 만든 주제」 절 제목),
+ * 상황 편집기 저장 뒤 `&saved=1`(한 번 보이고 주소에서 지움 — 다시 들어와도 다시 뜨지 않음), 상황 시트의 지우기·숨기기·되돌리기는 시트가 넘긴 문구 그대로.
  */
 import { useRouter } from 'next/navigation'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Segmented from '@/components/common/Segmented'
+import { readStore, writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Btn } from '@/components/common/ui'
 import { useNativeEnv } from '@/components/common/useNativeEnv'
@@ -19,7 +22,7 @@ import { sheetIdAfterHydration } from '@/components/scenario/logic'
 import PlaceChips from '@/components/scenario/PlaceChips'
 import ScenarioCard from '@/components/scenario/ScenarioCard'
 import ScenarioSheet from '@/components/scenario/ScenarioSheet'
-import { CARD, HOME } from '@/components/scenario/scenarioCopy'
+import { CARD, SHEET } from '@/components/scenario/scenarioCopy'
 import BackBar from '@/components/shell/BackBar'
 import {
   activeChallengeBadge,
@@ -27,8 +30,13 @@ import {
   buildTopicSections,
   copyIdSet,
   filterScenarioRows,
+  flashFocusesList,
+  flashText,
   hiddenSeedCount,
+  hiddenSeedItems,
+  MANAGE_FLASH_KEY,
   manageHref,
+  parseFlash,
   scenarioCountByTopic,
   SCENARIO_NEW_FROM_MANAGE_HREF,
   TOPIC_NEW_HREF,
@@ -40,8 +48,10 @@ import {
   type ScenarioRows,
   type TopicSections,
 } from './logic'
+import type { SeedOverrideItem } from '@/types/seedOverride'
+import HiddenSeedSheet from './HiddenSeedSheet'
 import TopicRow from './TopicRow'
-import { MANAGE } from './topicCopy'
+import { HIDDEN, MANAGE, TOAST } from './topicCopy'
 import { useManageData, type ManageData } from './useManageData'
 
 const LIMIT_NOTE_ID = 'mg-topic-limit'
@@ -68,7 +78,16 @@ function viewOf(d: ManageData): ManageView {
 
 const SCENARIO_BADGE: Record<Origin, string> = { MINE: CARD.mine, SEED: MANAGE.badgeSeed, COPY: MANAGE.badgeCopy }
 
-export default function ManageScreen({ initialTab, initialSheetId }: { initialTab: ManageTab; initialSheetId: string | null }) {
+export default function ManageScreen({
+  initialTab,
+  initialSheetId,
+  initialSaved = false,
+}: {
+  initialTab: ManageTab
+  initialSheetId: string | null
+  /** 상황 편집기 저장 뒤(`&saved=1`) — 토스트 한 번. */
+  initialSaved?: boolean
+}) {
   const router = useRouter()
   const data = useManageData()
   const { refresh, reload, retryList, listRetrying } = data
@@ -80,6 +99,29 @@ export default function ManageScreen({ initialTab, initialSheetId }: { initialTa
   const openId = sheetIdAfterHydration(sheetId, hydrated)
   const { message, show } = useToast()
   const view = useMemo(() => (data.data ? viewOf(data.data) : null), [data.data])
+  const [hiddenItems, setHiddenItems] = useState<SeedOverrideItem[] | null>(null)
+  const savedPending = useRef(initialSaved && !!initialSheetId)
+
+  useEffect(() => {
+    const f = parseFlash(readStore('session', MANAGE_FLASH_KEY))
+    // 되돌리기 토스트는 시드의 주제 보기가 읽는다.
+    if (!f || f.kind === 'restored') return
+    writeStore('session', MANAGE_FLASH_KEY, null)
+    show(flashText(f))
+    if (flashFocusesList(f)) document.getElementById(MINE_HEADING_ID)?.focus()
+  }, [show])
+
+  useEffect(() => {
+    if (initialSaved) router.replace(manageHref('scenarios', initialSheetId), { scroll: false })
+  }, [initialSaved, initialSheetId, router])
+
+  // 저장한 상황이 내 버전이면 「내 버전으로 저장했어요」 — 출처는 #179 를 읽은 뒤에야 안다(실패하면 일반 문구).
+  useEffect(() => {
+    if (!savedPending.current || data.status === 'loading') return
+    savedPending.current = false
+    const origin = view?.scenarios?.rows.find((r) => r.item.id === initialSheetId)?.origin
+    show(origin === 'COPY' ? TOAST.copySaved : SHEET.saved)
+  }, [data.status, view, initialSheetId, show])
 
   const changeTab = (next: ManageTab) => {
     if (next === tab) return
@@ -104,11 +146,30 @@ export default function ManageScreen({ initialTab, initialSheetId }: { initialTa
     }
   }, [router])
 
-  const onDeleted = useCallback(() => {
-    closeSheet()
-    refresh()
-    show(HOME.deleted)
-  }, [closeSheet, refresh, show])
+  // 지우기·숨기기·되돌리기마다 문구가 다르다 — 시트가 고른 문구를 그대로 보인다(예전에는 늘 「지웠어요」).
+  const onDeleted = useCallback(
+    (_: string, toast: string) => {
+      closeSheet()
+      refresh()
+      show(toast)
+    },
+    [closeSheet, refresh, show],
+  )
+
+  const openHidden = useCallback(() => {
+    if (data.data) setHiddenItems(hiddenSeedItems(data.data.overrides))
+  }, [data.data])
+
+  const closeHidden = useCallback(
+    (restored: number) => {
+      setHiddenItems(null)
+      if (restored > 0) {
+        refresh()
+        show(HIDDEN.shown)
+      }
+    },
+    [refresh, show],
+  )
 
   return (
     <>
@@ -124,18 +185,29 @@ export default function ManageScreen({ initialTab, initialSheetId }: { initialTa
           onChange={changeTab}
         />
         {tab === 'topics' ? (
-          <TopicsPanel failed={data.status === 'error'} view={view} onRetry={reload} />
+          <TopicsPanel failed={data.status === 'error'} view={view} onRetry={reload} onOpenHidden={openHidden} />
         ) : (
-          <ScenariosPanel failed={data.status === 'error'} view={view} filter={filter} onFilter={setFilter} onOpen={openSheet} onRetry={reload} onRetryList={retryList} retrying={listRetrying} />
+          <ScenariosPanel
+            failed={data.status === 'error'}
+            view={view}
+            filter={filter}
+            onFilter={setFilter}
+            onOpen={openSheet}
+            onRetry={reload}
+            onRetryList={retryList}
+            retrying={listRetrying}
+            onOpenHidden={openHidden}
+          />
         )}
       </div>
       <ScenarioSheet id={openId} onClose={closeSheet} onDeleted={onDeleted} />
+      <HiddenSeedSheet items={hiddenItems} onClose={closeHidden} />
       <Toast message={message} />
     </>
   )
 }
 
-function TopicsPanel({ failed, view, onRetry }: { failed: boolean; view: ManageView | null; onRetry: () => void }) {
+function TopicsPanel({ failed, view, onRetry, onOpenHidden }: { failed: boolean; view: ManageView | null; onRetry: () => void; onOpenHidden: () => void }) {
   const limit = view ? topicLimitReached(view.topics.ownedCount) : false
   return (
     <>
@@ -183,7 +255,7 @@ function TopicsPanel({ failed, view, onRetry }: { failed: boolean; view: ManageV
               {MANAGE.seedSection(view ? view.topics.seed.length : null)}
             </h2>
             {!view ? <Blocks heights={[TOPIC_ROW_HEIGHT, TOPIC_ROW_HEIGHT, TOPIC_ROW_HEIGHT]} /> : view.topics.seed.length ? <TopicList rows={view.topics.seed} /> : null}
-            {view && view.hidden > 0 ? <HiddenRow n={view.hidden} /> : null}
+            {view && view.hidden > 0 ? <HiddenRow n={view.hidden} onOpen={onOpenHidden} /> : null}
           </section>
         </>
       )}
@@ -200,6 +272,7 @@ function ScenariosPanel({
   onRetry,
   onRetryList,
   retrying,
+  onOpenHidden,
 }: {
   failed: boolean
   view: ManageView | null
@@ -210,6 +283,7 @@ function ScenariosPanel({
   onRetryList: () => void
   /** #161 만 실패했을 때 [다시 시도] 를 누른 직후(최소 시간 유지) — 자리표시가 보이고, 다시 실패하면 오류 상자가 다시 나타난다. */
   retrying: boolean
+  onOpenHidden: () => void
 }) {
   const sc = view?.scenarios ?? null
   const rows = useMemo(() => (sc ? filterScenarioRows(sc.rows, filter) : []), [sc, filter])
@@ -261,7 +335,7 @@ function ScenariosPanel({
           ) : (
             <Dashed className="mt-2">{MANAGE.scenarioEmpty}</Dashed>
           )}
-          {view.hidden > 0 ? <HiddenRow n={view.hidden} /> : null}
+          {view.hidden > 0 ? <HiddenRow n={view.hidden} onOpen={onOpenHidden} /> : null}
         </>
       )}
     </>
@@ -300,7 +374,19 @@ function Dashed({ children, className = '', minHeight = 76 }: { children: React.
   )
 }
 
-/** 숨긴 기본 항목 수 — 다시 보기 시트는 T5-2 가 이 줄을 버튼으로 바꾼다. */
-function HiddenRow({ n }: { n: number }) {
-  return <p className="mt-3 flex min-h-14 min-w-0 items-center rounded-[14px] border border-line bg-surface px-3.5 py-2.5 text-[15px] font-semibold">{MANAGE.hiddenRow(n)}</p>
+/** 숨긴 기본 항목 수 → 다시 보기 시트(T5-2). 높이·모양은 T5-1 의 정적 줄 그대로(56). */
+function HiddenRow({ n, onOpen }: { n: number; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      onClick={onOpen}
+      className="mt-3 flex min-h-14 w-full min-w-0 items-center gap-2 rounded-[14px] border border-line bg-surface px-3.5 py-2.5 text-left text-[15px] font-semibold"
+    >
+      <span className="min-w-0 flex-1 truncate">{MANAGE.hiddenRow(n)}</span>
+      <span aria-hidden="true" className="flex-none text-ink2">
+        ›
+      </span>
+    </button>
+  )
 }

@@ -57,6 +57,8 @@ export const HIDDEN = {
   show: '다시 보기',
   showing: '다시 보이게 하는 중…',
   shown: '다시 보이게 했어요',
+  /** 같은 이름의 [다시 보기] 버튼이 여러 개라 읽어 줄 때 무엇을 다시 보는지 붙인다. */
+  showAria: (t: string) => `「${t}」 다시 보기`,
   empty: '숨긴 기본 항목이 없어요.',
   fail: '다시 보이게 하지 못했어요. 다시 눌러 주세요.',
 } as const
@@ -199,6 +201,7 @@ export const TOPIC = {
   notFound: '이 주제를 찾을 수 없어요',
   notFoundBody: '지워졌거나 내 목록에서 숨긴 주제예요.',
   notFoundBtn: '내 상황·주제로',
+  loading: '주제를 불러오는 중…',
 } as const
 
 export const EDIT = {
@@ -223,7 +226,10 @@ export type RemovalMode = 'delete' | 'copyDelete' | 'restore' | 'hide'
 export const REMOVAL = {
   title: { delete: '주제를 지울까요?', copyDelete: '내 버전을 지울까요?', restore: '기본으로 되돌릴까요?', hide: '이 주제를 숨길까요?' } satisfies Record<RemovalMode, string>,
   loading: '무엇이 바뀌는지 확인하는 중…',
+  /** 확인(#172)이 끝나기 전 실행 버튼 글자(§16-2 S8·S9 열기). */
+  checking: '확인하는 중…',
   loadFail: '확인하지 못했어요. 다시 시도해 주세요.',
+  retry: '다시 시도',
   warnTitle: '진행 중인 챌린지가 있어요',
   warn: {
     delete: (t: string, d: number) => `「${t}」 챌린지를 ${d}일째 하고 있어요. 지우면 이 챌린지도 함께 지워지고, 되돌릴 수 없어요.`,
