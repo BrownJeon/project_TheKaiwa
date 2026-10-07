@@ -215,6 +215,9 @@ function fakeTx(lessons: FakeLesson[], jobs: FakeJob[] = []) {
   const eq = (v: unknown, w: unknown) => w === undefined || v === w
   const tx = {
     $queryRaw: async () => [{ id: U }],
+    // task-045 T3 — claimLessonTx 의 잠금 안 주제 재확인(assertTopicVisible): 주제 T 는 시드, 가림 없음.
+    conversationTopic: { findFirst: async () => ({ id: 'T', userId: null }) },
+    userSeedOverride: { findFirst: async () => null },
     lesson: {
       findMany: async ({ where }: { where: { userId: string; topicId: string | null; scenarioId: string | null; kind: string; date: Date; status: { in: string[] } } }) =>
         lessons

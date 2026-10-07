@@ -22,6 +22,7 @@ import { getActiveChallengeTopic } from '../challenges'
 import { readScenarioRolePlayMaterial, resolveScenarioChatStart, scenarioNotFound, type ScenarioChatStart, type ScenarioChatStartInput, type ScenarioRolePlayMaterial } from '../scenarios/start'
 import { isSeedVisibleFor } from '../seedOverride/visibility'
 import { getTopicForLesson, type LessonTopicMaterial } from '../topics'
+import { assertTopicVisible, mapTopicGone } from '../topics/visible'
 import { readStoredContent, toStoredContent, type LessonGenOutput } from './content'
 import type { CreateLessonInput } from './validate'
 
@@ -118,7 +119,7 @@ const TOPIC_LESSON_DEPS: TopicLessonDeps = {
  * 주제 수업 재료(#59 `{topicId}`) — 시드 또는 내 주제, 이 사용자가 가린 시드 주제는 없는 주제와 같은 404(새 수업을 만들지 않는다 — 지난 수업은 그대로).
  * 예외: 진행 중 챌린지의 수업 주제면 허용한다(계약 §0 #9 "시드 숨김에서 진행 중 챌린지는 계속" — 챌린지 오늘 수업 과제가 이 경로로 수업을 만든다).
  * 챌린지 조회는 가려진 주제일 때만 한다(override 없는 사용자는 추가 조회 1회 = override 확인뿐).
- * 잠금 안 재확인(삭제 경쟁, Codex C1 ⓐ)은 T3 공용 헬퍼 몫. 상황 수업은 `resolveScenarioChatStart` 가 같은 규칙(가린 시드 상황 404·장소 치환)을 판정한다.
+ * 잠금 안 재확인(삭제 경쟁, Codex C1 ⓐ)은 `claimLessonTx` 의 `assertTopicVisible`(같은 예외). 상황 수업은 `resolveScenarioChatStart` 가 같은 규칙(가린 시드 상황 404·장소 치환)을 판정한다.
  */
 export async function loadTopicLessonMaterials(userId: string, input: Extract<CreateLessonInput, { kind: 'topic' }>, deps: TopicLessonDeps = TOPIC_LESSON_DEPS): Promise<LessonMaterials> {
   const topic = await deps.topic(userId, input.topicId)
@@ -185,6 +186,8 @@ export function sameLessonWhere(userId: string, m: Pick<LessonMaterials, 'topic'
 /** 점유 본체(호출자 트랜잭션) — 시험이 가짜 tx 로 재사용 판정·생성 행을 본다. */
 export async function claimLessonTx(tx: Tx, userId: string, m: LessonMaterials, gen: LessonGeneration, today: string, traceId: string): Promise<CreateLessonResult & { claim: Claim | null }> {
   await lockUserRow(tx, userId)
+  // 재료는 잠금 전에 읽었다 — 주제 삭제(#173, 같은 잠금)가 그 사이 끝났으면 404 TOPIC_GONE(Codex C1 ⓐ). 진행 중 챌린지 주제는 가린 시드여도 허용(§0 #9).
+  if (m.topic) await assertTopicVisible(tx, userId, m.topic.id, { allowActiveChallenge: true })
   let revive: string | null = null
   const sameWhere = sameLessonWhere(userId, m, dates.toDbDate(today))
   if (sameWhere) {
@@ -214,18 +217,24 @@ export async function claimLessonTx(tx: Tx, userId: string, m: LessonMaterials, 
     await tx.lesson.update({ where: { id: revive }, data: { ...base, content: Prisma.DbNull, progress: Prisma.DbNull } })
     lessonId = revive
   } else {
-    const row = await tx.lesson.create({
-      data: {
-        ...base,
-        userId,
-        topicId: m.topic?.id ?? null,
-        scenarioId: m.scenario?.id ?? null,
-        date: dates.toDbDate(today),
-        kind: 'NEW',
-        sourceText: m.input.kind === 'text' ? m.input.sourceText : null,
-      },
-      select: { id: true },
-    })
+    let row: { id: string }
+    try {
+      row = await tx.lesson.create({
+        data: {
+          ...base,
+          userId,
+          topicId: m.topic?.id ?? null,
+          scenarioId: m.scenario?.id ?? null,
+          date: dates.toDbDate(today),
+          kind: 'NEW',
+          sourceText: m.input.kind === 'text' ? m.input.sourceText : null,
+        },
+        select: { id: true },
+      })
+    } catch (e) {
+      // 잠금 밖에서 주제가 지워진 경우(시드 로더 등) — FK 위반을 500 대신 404 TOPIC_GONE 으로.
+      throw mapTopicGone(e)
+    }
     lessonId = row.id
   }
   const job = await jobs.createJob(

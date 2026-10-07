@@ -53,6 +53,17 @@ export async function detachCopy(db: Tx, userId: string, kind: SeedKind, copyId:
   return (await db.userSeedOverride.updateMany({ where: { userId, kind, copyId }, data: { copyId: null } })).count
 }
 
+/** `detachCopy` 여러 개 한 번에(주제 삭제가 상황 사본 여러 개를 보관할 때, T3). */
+export async function detachCopies(db: Tx, userId: string, kind: SeedKind, copyIds: readonly string[]): Promise<number> {
+  if (!copyIds.length) return 0
+  return (await db.userSeedOverride.updateMany({ where: { userId, kind, copyId: { in: [...copyIds] } }, data: { copyId: null } })).count
+}
+
+/** 이 행이 어떤 시드의 내 버전(사본)인가 — 그 override 또는 null(T3 주제 삭제·사전 조회). */
+export async function findOverrideByCopy(db: Tx, userId: string, kind: SeedKind, copyId: string): Promise<OverrideRow | null> {
+  return db.userSeedOverride.findFirst({ where: { userId, kind, copyId } })
+}
+
 /** 살아 있는 사본 id — 주제: 그 사용자 소유 행이 있음 · 상황: 그 사용자 소유 ACTIVE 행이 있음(ARCHIVED 사본은 지운 것으로 본다). */
 export async function liveCopyIds(db: Tx, userId: string, kind: SeedKind, copyIds: readonly string[]): Promise<Set<string>> {
   const ids = [...new Set(copyIds)]

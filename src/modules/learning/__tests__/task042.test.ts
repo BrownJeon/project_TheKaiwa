@@ -83,6 +83,10 @@ class FakeDb {
   rep: Row[] = []
   snapshots: Row[] = []
   logs: Row[] = []
+  /** task-045 T3 — 잠금 안 주제 재확인(가린 시드 override · 진행 중 챌린지 예외)과 FK 위반 주입. */
+  overrides: Row[] = []
+  challenges: Row[] = []
+  sessionCreateError: unknown = null
   wordCreates = 0
   sessionCreates = 0
   private seq = 0
@@ -161,6 +165,7 @@ function fakeTx(db: FakeDb): Tx {
       },
       findUniqueOrThrow: async ({ where }: { where: Row }) => db.sessionView(db.sessions.find((x) => x.id === where.id) as Row),
       create: async ({ data }: { data: Row }) => {
+        if (db.sessionCreateError) throw db.sessionCreateError
         db.sessionCreates++
         const s = { id: db.id('vs'), correctCount: 0, wrongCount: 0, skippedCount: 0, status: 'IN_PROGRESS', keptAt: null, replayOfId: null, finishedAt: null, durationSec: null, topicId: null, startedAt: new Date(db.clock++), ...data }
         db.sessions.push(s)
@@ -234,6 +239,8 @@ function fakeTx(db: FakeDb): Tx {
       update: async () => ({}),
     },
     learningObservation: { createMany: async ({ data }: { data: Row[] }) => ({ count: data.length }) },
+    userSeedOverride: { findFirst: async ({ where }: { where: Row }) => db.overrides.find((o) => o.userId === where.userId && o.kind === where.kind && o.seedId === where.seedId) ?? null },
+    challenge: { findFirst: async ({ where }: { where: Row }) => db.challenges.find((c) => c.userId === where.userId && c.status === where.status && c.topicId === where.topicId) ?? null },
   } as unknown as Tx
 }
 
@@ -767,6 +774,40 @@ test('#51·#53 스냅샷 불변: 다시 풀기는 스냅샷 0 · 멱등 재호�
 // ── 7. 정적 경계 ────────────────────────────────────────────────────────────────
 
 const LEARNING = 'src/modules/learning'
+
+const topicGone = (e: unknown) => e instanceof ApiError && e.code === 'NOT_FOUND' && e.details?.reason === 'TOPIC_GONE'
+
+test('#47 삭제 경쟁(task-045 T3, Codex C1 ⓑ) — A12 도중 주제가 지워지면 세트를 만들지 않는다(404 TOPIC_GONE·새 단어 버림, 잠금은 저장 구간만)', async () => {
+  const h: Harness = harness(async () => {
+    h.db.topics = h.db.topics.filter((t) => t.id !== TOPIC)
+    return { data: { words: aiWords(13) }, connectionKey: 'conn', model: 'm', attempts: 1, promptChars: 900 }
+  })
+  await assert.rejects(create(h, { count: 10 }), topicGone)
+  assert.equal(h.calls.length, 1, 'AI 는 한 번 불렸다(잠금 밖)')
+  assert.equal(h.db.sessionCreates, 0)
+  assert.equal(h.db.attempts.length, 0)
+})
+
+test('#47 가린 시드(task-045 T3) — 숨김이면 404 · 진행 중 챌린지 주제면 허용(§0 #9) · 다른 사용자의 숨김은 영향 없음', async () => {
+  const g = harness()
+  g.db.overrides.push({ userId: OTHER, kind: 'TOPIC', seedId: TOPIC, copyId: null })
+  created(await create(g, { count: 5, generate: false }))
+  const h = harness()
+  h.db.overrides.push({ userId: U, kind: 'TOPIC', seedId: TOPIC, copyId: null })
+  await assert.rejects(create(h, { count: 5, generate: false }), topicGone)
+  assert.equal(h.db.sessionCreates, 0)
+  h.db.challenges.push({ userId: U, status: 'ACTIVE', topicId: TOPIC })
+  created(await create(h, { count: 5, generate: false }))
+})
+
+test('#47 FK 위반(task-045 T3) — 세트 저장 때 주제 FK P2003 은 404 TOPIC_GONE, 다른 FK 오류는 그대로 던진다', async () => {
+  const h = harness()
+  h.db.sessionCreateError = Object.assign(new Error('fk'), { code: 'P2003', meta: { field_name: 'VocabSession_topicId_fkey (index)' } })
+  await assert.rejects(create(h, { count: 5, generate: false }), topicGone)
+  const other = Object.assign(new Error('fk-user'), { code: 'P2003', meta: { field_name: 'VocabSession_userId_fkey (index)' } })
+  h.db.sessionCreateError = other
+  await assert.rejects(create(h, { count: 5, generate: false }), (e: unknown) => e === other)
+})
 
 /** 값 import·re-export 지정자. `import type`·`export type` 는 빌드에서 지워져 순환을 만들지 않으므로 뺀다(`import { type A, b }` 는 값). */
 function valueImportSpecifiers(src: string): string[] {

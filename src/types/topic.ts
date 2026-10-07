@@ -46,3 +46,50 @@ export interface TopicInput {
   description?: string | null
   chunks?: TopicChunkInput[]
 }
+
+// ── 주제 삭제(#172 사전 조회 · #173 삭제 · #176 내 버전 되돌리기) — 계약 §4 ──────────────
+
+/** 오류 `details.reason` — `TOPIC_GONE`(404: 주제가 없거나 사라짐·가려짐) · `IMPACT_CHANGED`(409: 확인 뒤 삭제 영향이 바뀜, `details.preview` 에 새 사전 조회). */
+export type TopicErrorReason = 'TOPIC_GONE' | 'IMPACT_CHANGED'
+
+/** 삭제 확인 `ack` 값 — 진행 중 챌린지가 없으면 이 값, 있으면 그 챌린지 id. */
+export const TOPIC_REMOVAL_ACK_NONE = 'none'
+
+export interface TopicRemovalScenarioRef {
+  id: string
+  title: string
+}
+
+/**
+ * #172 사전 조회. 제목·개수·id 만(원문 없음). 상황 목록은 사용자에게 보이는 ACTIVE 상황만 싣는다(보관된 상황은 연결만 함께 사라진다).
+ * - `ack` = 이 응답대로 지우려면 #173·#176 에 보낼 값(`activeChallenge.id` 또는 `'none'`). 서버가 다시 계산한 값과 다르면 409 `IMPACT_CHANGED`.
+ * - `isSeed` 이면 삭제 = 이 사용자 목록에서만 숨김(진행 중 챌린지는 계속, 상황 변화 없음 — 세 목록은 빈 배열, `ack` 는 보지 않는다).
+ * - `isSeedCopy` 이면 이 주제는 시드의 내 버전이다: `scenariosRelinked` 는 시드 주제로 되돌려 붙는 내 상황(되돌리기 #176 과 같은 계산).
+ */
+export type TopicRemovalPreview = {
+  topicId: string
+  title: string
+  isSeed: boolean
+  isSeedCopy: boolean
+  ack: string
+  activeChallenge: { id: string; title: string; day: number; lengthDays: number } | null
+  finishedChallenges: number
+  scenariosArchived: TopicRemovalScenarioRef[]
+  scenariosUnlinked: TopicRemovalScenarioRef[]
+  scenariosRelinked: TopicRemovalScenarioRef[]
+  doneLessons: number
+  chunks: number
+}
+
+/** #173 결과(#176 주제 사본 되돌리기의 `removal` 도 `REMOVED` 모양 그대로). */
+export type TopicRemovalResult = {
+  topicId: string
+  result: 'REMOVED' | 'HIDDEN'
+  challengeDeleted: boolean
+  deletedChallengeId: string | null
+  scenariosArchived: number
+  scenariosUnlinked: number
+  scenariosRelinked: number
+  /** 지운 주제가 시드의 내 버전이었으면 그 시드 id — 그 사용자 목록에서는 숨김으로 남는다(되돌리기 #176 으로 다시 보임). */
+  seedId: string | null
+}

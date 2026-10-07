@@ -10,8 +10,8 @@ import type {
   ChallengeDetail, ChallengeLessonTask, ChallengeListResponse, ChallengeSummary, ChallengeTask, ChallengeTodayResponse, ChallengeTodayTasks, ChallengeWordCount,
   ChallengeWordsTask,
 } from '@/types/challenge'
-import { isSeedVisibleFor } from '../seedOverride/visibility'
 import { buildTopicPool } from '../topics/pool'
+import { assertTopicVisible, mapTopicGone, topicGone } from '../topics/visible'
 import { CHALLENGE_WORD_COUNTS, freezeDailyGoal, kstDayStart } from './metrics'
 import { finishChallengeTx, settleExpired, settleExpiredTx } from './settle'
 import { CHALLENGE_ROW_SELECT, ChallengeDataError, challengeNotFound, isUniqueViolation, withDeps, type ChallengeDb, type ChallengeDeps, type ChallengeRow } from './store'
@@ -66,9 +66,9 @@ export async function createChallenge(userId: string, input: CreateChallengeInpu
   const deps = withDeps(over)
   const now = deps.now()
   const today = dates.todayKst(now)
+  // 제목·수준·기본 표현 수는 잠금 전에 읽는다(입력 검사). 존재·가림 판정은 잠금 안 `assertTopicVisible` 이 한다(task-045 T3, Codex C1 ⓒ).
   const topic = await deps.db.conversationTopic.findFirst({ where: { id: input.topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, level: true } })
-  // 이 사용자가 가린(숨김·내 버전) 시드 주제로는 새 챌린지를 만들지 않는다 — 없는 주제와 같은 404(task-045 §2). 잠금 안 재확인은 T3 공용 헬퍼.
-  if (!topic || !(await isSeedVisibleFor(deps.db, userId, 'TOPIC', topic.id))) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
+  if (!topic) throw topicGone()
   let wordCount: ChallengeWordCount | null = null
   if (input.words) {
     const chunks = await deps.db.topicChunk.findMany({ where: { topicId: topic.id }, orderBy: [{ order: 'asc' }, { id: 'asc' }], select: { id: true, chunkType: true, textJa: true, reading: true, meaningKo: true } })
@@ -86,6 +86,8 @@ export async function createChallenge(userId: string, input: CreateChallengeInpu
   try {
     id = await deps.transaction(async (tx) => {
       await deps.lockUser(tx, userId)
+      // 주제 삭제(#173)와 같은 잠금 — 잠금 전에 읽은 주제가 그 사이 지워졌거나 가려졌으면 404 TOPIC_GONE(새 챌린지에는 가린 시드 예외 없음).
+      await assertTopicVisible(tx, userId, topic.id)
       // 끝내는 전이(TOPIC_REMOVED 의 endedAt)는 잠금 뒤 시각으로 — endChallenge 와 같은 이유(REV-124). 시작일·429 는 요청 도착 시각 그대로.
       const lockedAt = deps.now()
       await settleExpiredTx(tx, userId, dates.todayKst(lockedAt), lockedAt)
@@ -117,7 +119,8 @@ export async function createChallenge(userId: string, input: CreateChallengeInpu
   } catch (e) {
     // 잠금을 지나 두 요청이 겹쳐도 `activeKey @unique` 가 하나만 남긴다 — 그 위반도 같은 409.
     if (isUniqueViolation(e)) throw activeExists((await findActive(deps.db, userId))?.id ?? null)
-    throw e
+    // 잠금 밖에서 주제가 지워진 경우(시드 로더 등) — FK 위반을 500 대신 404 TOPIC_GONE 으로.
+    throw mapTopicGone(e)
   }
   return getChallengeDetail(userId, id, deps)
 }

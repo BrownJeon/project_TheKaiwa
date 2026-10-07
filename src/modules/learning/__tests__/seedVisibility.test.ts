@@ -289,10 +289,16 @@ test('planRestoreRelink — 순수 계산: 내 상황만·연결 수가 늘지 �
 })
 
 test('구조 — learning 하위 모듈은 seedOverride index 를 거치지 않는다(ops → scenarios/catalog 순환 방지)', () => {
-  const files = ['topics/index.ts', 'scenarios/catalog.ts', 'scenarios/start.ts', 'challenges/service.ts', 'lessons/generate.ts']
+  // T3: challenges/service 는 잠금 안 재확인 헬퍼(topics/visible — 그 파일이 가시성 도구를 직접 import)를 쓴다. vocab/sessions·topics/remove 도 같은 규칙.
+  const files = ['topics/index.ts', 'topics/visible.ts', 'topics/remove.ts', 'scenarios/catalog.ts', 'scenarios/start.ts', 'challenges/service.ts', 'lessons/generate.ts', 'vocab/sessions.ts']
+  const direct: Record<string, RegExp> = {
+    'challenges/service.ts': /from '\.\.\/topics\/visible'/,
+    'vocab/sessions.ts': /from '\.\.\/topics\/visible'/,
+    'topics/remove.ts': /from '\.\.\/seedOverride\/(store|relink)'/,
+  }
   for (const file of files) {
     const src = readFileSync(join(process.cwd(), 'src/modules/learning', file), 'utf8')
     assert.ok(!/from '\.\.\/seedOverride(\/index)?'/.test(src) && !/from '@\/modules\/learning'/.test(src), file)
-    assert.ok(/from '\.\.\/seedOverride\/visibility'/.test(src), `${file} 가 가시성 도구를 직접 import`)
+    assert.ok((direct[file] ?? /from '\.\.\/seedOverride\/visibility'/).test(src), `${file} 가 가시성 도구(또는 재확인 헬퍼)를 직접 import`)
   }
 })

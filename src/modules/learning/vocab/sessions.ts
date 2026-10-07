@@ -24,6 +24,7 @@ import { bumpDailySnapshot, createVocabSessionSnapshot, type VocabSessionSnapsho
 import { registerRepetitionItems, type RepetitionItemInput } from '../repetition'
 import { recordObservations, type ObservationInput } from '../observations'
 import { loadTopicPool, topicAiWordHistory } from '../topics/pool'
+import { assertTopicVisible, mapTopicGone } from '../topics/visible'
 import { distinctMeaningCount, pickChoices, CHOICE_COUNT, type MeaningSource } from './distractors'
 import { createRng, generateWordSet, newSeed, requestedModeOf, shuffle } from './setGenerator'
 import {
@@ -510,38 +511,59 @@ async function composeTopicSessionTx(
   input: { count: number; mode: VocabMode; topicId: string; today: string; todayDb: Date },
   gen: { fresh: TopicWordCandidate[] | null; reuse: boolean; reason: TopicGenerationReason | null },
 ): Promise<CreateSessionResult> {
+  try {
+    return await deps.transaction((tx) => composeTopicSessionLocked(tx, deps, userId, input, gen))
+  } catch (e) {
+    // 잠금 밖에서 주제가 지워진 경우(시드 로더 등) — FK 위반을 500 대신 404 TOPIC_GONE 으로.
+    throw mapTopicGone(e)
+  }
+}
+
+async function composeTopicSessionLocked(
+  tx: Tx,
+  deps: TopicSetDeps,
+  userId: string,
+  input: { count: number; mode: VocabMode; topicId: string; today: string; todayDb: Date },
+  gen: { fresh: TopicWordCandidate[] | null; reuse: boolean; reason: TopicGenerationReason | null },
+): Promise<CreateSessionResult> {
   const { topicId, today, todayDb } = input
   const { fresh, reuse } = gen
   let reason = gen.reason
   const seed = newSeed(input.mode)
   const rng = createRng(seed)
-  return deps.transaction(async (tx) => {
-    await lockUserRow(tx, userId)
-    try {
-      await assertNoInProgress(tx, userId)
-    } catch (e) {
-      if (fresh?.length) console.info(`[vocab] 풀던 세트가 생겨 새 단어 ${fresh.length}개를 버림 — topic=${topicId}`)
-      throw e
-    }
-    const state = todayTopicState(await readTodayTopicCards(tx, userId, topicId, todayDb))
-    const pool = await loadTopicPool(tx, userId, topicId)
-    const stats = await loadRepetitionStats(tx, userId, pool.entries)
-    const composed = composeTopicCards({ count: input.count, fresh, reuse, todayAi: state.todayAi, answered: state.answered, pool, stats, rng, now: new Date(deps.now()) })
-    if (!composed.cards.length) {
-      const nothing = !pool.entries.length && !state.todayAi.length && !fresh?.length
-      return { session: null, empty: { reason: nothing ? 'TOPIC_EMPTY' : 'TOPIC_ALL_DONE_TODAY', cta: TOPIC_EMPTY_CTA } }
-    }
-    if (fresh) reason = composed.aiCount >= input.count ? null : composed.aiCount > 0 ? 'SHORT' : 'INVALID'
-    else if (reuse) reason = composed.aiCount >= input.count ? null : 'NEW_DONE'
-    const words = await tx.wordEntry.findMany({ where: { userId, archived: false }, select: { id: true, meaning: true } })
-    const sources = topicMeaningSources(pool, words, composed.cards)
-    const r = await insertSession(tx, userId, {
-      seed, mode: input.mode, requestedCount: input.count, replayOfId: null, rng, topicId, date: today, sources,
-      cards: composed.cards.map((c) => ({ wordId: null, surface: c.surface, reading: c.reading, meaning: c.meaning, kind: c.kind, example: null, exampleKo: null, refType: c.refType, refId: c.refId })),
-    })
-    const generation: TopicGenerationDto = { source: generationSourceOf(composed.aiCount, composed.cards.length), generatedNow: !!fresh && composed.aiCount > 0, reason }
-    return { ...r, generation }
+  await lockUserRow(tx, userId)
+  // 주제는 잠금 전(긴 A12 호출 앞)에 읽었다 — 그 사이 주제 삭제(#173, 같은 잠금)가 끝났거나 가려졌으면 세트를 만들지 않는다(Codex C1 ⓑ).
+  // 진행 중 챌린지 주제는 가린 시드여도 허용(§0 #9 — 챌린지 단어 과제).
+  try {
+    await assertTopicVisible(tx, userId, topicId, { allowActiveChallenge: true })
+  } catch (e) {
+    if (fresh?.length) console.info(`[vocab] 주제가 사라져 새 단어 ${fresh.length}개를 버림 — topic=${topicId}`)
+    throw e
+  }
+  try {
+    await assertNoInProgress(tx, userId)
+  } catch (e) {
+    if (fresh?.length) console.info(`[vocab] 풀던 세트가 생겨 새 단어 ${fresh.length}개를 버림 — topic=${topicId}`)
+    throw e
+  }
+  const state = todayTopicState(await readTodayTopicCards(tx, userId, topicId, todayDb))
+  const pool = await loadTopicPool(tx, userId, topicId)
+  const stats = await loadRepetitionStats(tx, userId, pool.entries)
+  const composed = composeTopicCards({ count: input.count, fresh, reuse, todayAi: state.todayAi, answered: state.answered, pool, stats, rng, now: new Date(deps.now()) })
+  if (!composed.cards.length) {
+    const nothing = !pool.entries.length && !state.todayAi.length && !fresh?.length
+    return { session: null, empty: { reason: nothing ? 'TOPIC_EMPTY' : 'TOPIC_ALL_DONE_TODAY', cta: TOPIC_EMPTY_CTA } }
+  }
+  if (fresh) reason = composed.aiCount >= input.count ? null : composed.aiCount > 0 ? 'SHORT' : 'INVALID'
+  else if (reuse) reason = composed.aiCount >= input.count ? null : 'NEW_DONE'
+  const words = await tx.wordEntry.findMany({ where: { userId, archived: false }, select: { id: true, meaning: true } })
+  const sources = topicMeaningSources(pool, words, composed.cards)
+  const r = await insertSession(tx, userId, {
+    seed, mode: input.mode, requestedCount: input.count, replayOfId: null, rng, topicId, date: today, sources,
+    cards: composed.cards.map((c) => ({ wordId: null, surface: c.surface, reading: c.reading, meaning: c.meaning, kind: c.kind, example: null, exampleKo: null, refType: c.refType, refId: c.refId })),
   })
+  const generation: TopicGenerationDto = { source: generationSourceOf(composed.aiCount, composed.cards.length), generatedNow: !!fresh && composed.aiCount > 0, reason }
+  return { ...r, generation }
 }
 
 // ── #48 목록 · #49 조회 ──────────────────────────────────────────────────────
