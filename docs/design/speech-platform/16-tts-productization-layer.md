@@ -274,6 +274,16 @@ flowchart TD
 | 위험 | 정렬 실패 시 `timing=null`(오디오는 정상). MPS 미지원이면 CPU | 라이브러리 내부 API 의존 → 버전 업 시 깨짐. 지연 0 이 장점 |
 | 결정 | 기본 | task-012b-4 에서 스파이크 1회, A 와 오차 비교 후 채택 여부 |
 
+### 8.2a 구현 결과 (task-012b-4, 2026-10-07 — 사후 정렬(A) 대신 합성 중 attention 추출 채택)
+
+- **채택 방식**: 스파이크 결과 **합성 중 SBV2 attention 에서 단어 구간을 뽑는 방식**(`method=ENGINE_DURATION`, `alignerVersion=engine-duration-1`)을 M4 서비스 0.4.0 이 낸다. 사후 강제정렬(A)은 쓰지 않는다 — 합성 외 추가 모델·지연 없음(§6.4 TTFA 영향은 QA 측정 항목).
+- **서비스 → 앱 헤더**: 요청 모양은 바꾸지 않는다(구 서비스는 모르는 키를 400 으로 거부). 응답에 `X-Kaiwa-Timing`(상태: `ok` · `unavailable` · `token_mismatch` · `frame_mismatch` · `word_mismatch` · `text_mismatch` · `empty` · `too_large` · `too_long` · `error`), `X-Tts-Timing`(base64url JSON `{v:1, method, alignerVersion, coord:'codepoint', durationMs, words[…]}` ≤4096B), `X-Kaiwa-Timing-Ms`. `ok` 밖은 전부 **timing=null**(오디오는 정상). 어댑터(`styleBertHttp.readTimingHeaders`)만 이 헤더를 알고 엔진 중립 `TtsTimingOutput` 으로 바꾼다.
+- **좌표**: 전부 **코드포인트**. 엔진(보낸 글) → 어댑터 → **정규화 글(`normalizedText`)** → L4 `timing.ts` → **조각 글**(합성 요청 `text`). `TtsCache.timing` 은 정규화 글 좌표로 저장한다(캐시 키가 정규화 글 기준이라 원문이 달라도 같은 오디오). 조각 글 좌표로의 변환은 원문을 아는 합성 호출 자리에서 정규화 token map 으로 한다. 되돌릴 수 없거나 오디오 길이와 어긋나면(허용 차 2ms) **전체를 null**(일부 단어만 버리지 않음 — 틀린 강조 금지).
+- **앱 → 브라우저**: wav 는 `X-Tts-Timing`(≤**3KB**, nginx 응답 헤더 4KB 안에 다른 헤더와 함께 들어가도록), JSON 은 `timing`. 화면·응답에는 글·읽기·엔진 정보가 없다(`TtsTiming` = 숫자만).
+- **오디오 지문**: `TtsCache.timing` JSON 에 `audioSha1`(wav 바이트 sha1)을 같은 쓰기 문장으로 넣고, 읽을 때 파일 지문과 맞대 같을 때만 쓴다(REV-136 — 오디오가 다시 만들어졌는데 옛 timing 이 남는 경우 차단). 컬럼 추가 없음.
+- **#24 `GET /speech/tts/:token`**: 토큰을 서명한 쪽이 그 조각 글 기준 timing 을 **프로세스 메모리**(512건·10분)에 묶어 둔다. 재기동·다른 프로세스에서는 timing 이 없다(오디오 정상) — 지문 검증 없음(알려진 한계).
+- **Trace**: `TTS_TIMING` 단계를 같은 `recordTrace` 호출에 싣는다(상태·소요 ms 만, 글·좌표 없음).
+
 ### 8.3 활용(§147, 립싱크·아바타는 P2 비목표)
 
 Karaoke Subtitle(말풍선 단어 강조) · Shadowing Highlight(SHADOWING gap 동안 다음 문장 미리 강조) · 현재 단어 강조 · **모라 단위 발음 비교**(Phase 3 PronunciationAnalyzer 가 학습자 정렬 결과와 선생님 timing 을 같은 축에서 비교) · Pronunciation Practice(단어 탭 → 그 구간만 재생).

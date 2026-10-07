@@ -166,6 +166,8 @@ flowchart LR
 
 부족한 네 가지(재사용·자기수정·상황 완료·인지/산출 태그)를 위해 append-only 이벤트 `LearningObservation` 을 둔다. 원문·오디오는 복제하지 않고 `refType/refId` 만 가리킨다.
 
+> task-039(IMP-0025): 교정의 **추가 설명** `Correction.extraNoteKo`(JLPT·교과서식 문형 한 줄, nullable)는 화면 표시 전용이다 — 관측(`observations/corrections`)·반복 학습 뜻 스냅샷(`repetition.correctionMeaningSnap`)은 지금처럼 메인 설명 `explanation` 만 쓴다(추가 설명을 복습 재료로 넣지 않는 것이 의도).
+
 ### 2-2. `LearningObservation` (L3 learning, append-only)
 
 | 필드 | 형 | 뜻 |

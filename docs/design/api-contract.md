@@ -714,7 +714,7 @@ K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio
   "chat": { "id": "c_01…", "kind": "TALK", "title": "…", "level": "N4", "running": false, "reviewedAt": null, "messageCount": 6 },
   "messages": [
     { "id": "m_1", "role": "USER", "content": "昨日映画を見に行くました", "translation": "어제 영화를 보러 갔어요.", "inputSource": "REALTIME_STT", "utteranceId": "u_01…", "status": "DONE", "createdAt": "…",
-      "corrections": [ { "id": "cr_1", "status": "PROPOSED", "original": "…", "corrected": "…", "explanation": "…", "errorType": "CONJUGATION", "severity": "MINOR", "chunkType": "ACTION" } ] },
+      "corrections": [ { "id": "cr_1", "status": "PROPOSED", "original": "…", "corrected": "…", "explanation": "…", "extraNoteKo": "〜ました(N5): 동사 ます형의 과거", "errorType": "CONJUGATION", "severity": "MINOR", "chunkType": "ACTION" } ] },
     { "id": "m_2", "role": "ASSISTANT", "content": "そうですね。昨日は何をしましたか？", "reading": null, "translation": "그렇군요. 어제는 무엇을 했나요?",
       "status": "DONE", "audio": [ { "idx": 0, "text": "そうですね。", "url": "/api/v1/speech/tts/…" }, { "idx": 1, "text": "昨日は何をしましたか？", "url": "/api/v1/speech/tts/…" } ],
       "learning": { "grammarPoint": "動詞の過去形", "difficulty": "N5" }, "traceId": "t_…", "createdAt": "…" }
@@ -727,6 +727,7 @@ K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio
 - **task-007 구현 차이**: USER 메시지에 `utteranceId`(연결된 발화, 없으면 `null`)·`audioAvailable`(원음이 보존 기간 안이고 지워지지 않음 = #21b 재생 가능) — `Utterance` 는 speech 테이블이라 **#29 라우트가 conversation 결과에 speech 조회를 조합**한다. ASSISTANT 메시지에 `speechStyle`(저장된 LLM `speech.style` — 다시 듣기 #23 의 `styleHint` 로 쓰면 같은 캐시 키 HIT). 예시의 `audio[]` 는 **채우지 않는다**(task-007 후속 — 다시 듣기는 #23 문장별 요청). TALK 방 첫 조회(`after` 없음)는 LLM 예열 트리거다(응답과 무관).
 - **task-010c(TALK 만)**: 교정 객체에 `deliver`(`NOW`\|`LATER` — 메타가 없는 옛 교정은 `NOW`)·`hintKo`(코치 힌트, 정답 미포함 ≤200자, 없으면 `null`)·`selfCheck`(`SELF`\|`REPEAT`\|`MISSED`\|`null` — 다음 말 판정, 아래 #32) 를 더한다. 최상위에 `laterPending`(이 회화 **전체**(페이지와 무관)의 `deliver=LATER`·`PROPOSED` 수 — 칩 숫자). 값의 원천은 교정이 달린 USER 메시지의 `toolLog.correction = {id, mode, deliver, hintKo, selfCheck}`(같은 저장 트랜잭션에서 쓰고, toolLog 자체는 응답에 싣지 않는다). CHAT 응답은 그대로(필드 없음).
 - **task-026**: USER 메시지 `translation` = 내 말의 한국어 번역(턴 응답 `userKo` 를 정리해 저장, 또는 #32t). `null` = 아직 없음·가져오기 실패 → 화면은 [다시 가져오기](#32t). 이전 메시지에도 같은 칸(옛 USER 행은 `null`).
+- **task-039(TALK·CHAT 공통 교정 객체)**: 교정 객체에 `extraNoteKo`(string \| null) — **JLPT·교과서식 추가 설명** 한 줄(문형 이름·접속 형태·급수, 저장 전 정리 통과분 ≤200자·개행 없음). 메인 설명 `explanation` 은 일상 쓰임 중심이고 이 칸이 "추가 설명"이다(화면은 교정 카드 안 접이식 줄, 늘 접힘). `null` = 추가 설명 없음(옛 교정 행·모델이 칸을 안 냈거나 정리에서 버려짐) → 줄을 그리지 않는다. 키는 늘 있다. 원천은 `Correction.extraNoteKo`(생성 시에만 기록, 수정 경로 없음). #34 목록·모아 둔 교정(`deliver=LATER`)도 같은 교정 객체라 같은 칸을 싣는다.
 - **task-036(talk@v8·chat@v3)**: ASSISTANT 메시지 `reading`(히라가나 읽기 한 줄)은 **제거됨 — 새 메시지에서는 늘 `null`**(LLM 이 더는 만들지 않고 `saveTurn` 이 `null` 을 쓴다). 응답 필드 자체는 **옛 메시지(task-036 이전) 값 호환용으로 남겨 둔다** — 화면은 읽지 않는다(읽기 줄은 후리가나·한글 분석 #24r 이 대신함). DB `ChatMessage.reading` 컬럼도 그대로(마이그레이션 없음).
 - `after` 는 폴링 재개용(그 id 이후만, 오름차순). `after` 가 없으면 **최근 `limit`(기본 50)건을 오름차순**으로 주고 `nextCursor` 는 그보다 **오래된** 메시지 쪽 커서다(`?cursor=` 로 이전 메시지 로드, task-006 D2). `toolLog` 는 사용자 응답에 싣지 않는다(개발자는 `traceId` 로 `/api/admin/v1/traces/:id`).
 - 메시지 `status: PENDING` 이 남아 있고 `running=false` 면 클라이언트는 `{resumePending:true}` 턴을 호출해 정리한다.
@@ -774,7 +775,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
   "assistantMessageId": "m_2",
   "conversation": { "replyJa": "そうですね。昨日は何をしましたか？", "replyKo": "그렇군요. 어제는 무엇을 했나요?" },
   "correction": { "id": "cr_1", "required": true, "original": "昨日映画を見に行くました", "corrected": "昨日映画を見に行きました",
-                  "explanationKo": "「行くました」가 아니라 「行きました」를 사용합니다.", "errorType": "CONJUGATION", "severity": "MINOR", "chunkType": "ACTION", "status": "PROPOSED" },
+                  "explanationKo": "「行くました」가 아니라 「行きました」를 사용합니다.", "extraNoteKo": "〜ました(N5): 동사 ます형의 과거", "errorType": "CONJUGATION", "severity": "MINOR", "chunkType": "ACTION", "status": "PROPOSED" },
   "learning": { "grammarPoint": "動詞の過去形", "difficulty": "N5" },
   "speech": { "style": "ENCOURAGING" },
   "endOfTopic": false,
@@ -788,6 +789,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 
 - **구 읽기 줄 제거(task-036, talk@v8·chat@v3)**: A1·A2 응답의 `conversation` 은 이제 `{ replyJa, replyKo }` 둘뿐이다(구 히라가나 읽기 필드는 지시 줄·골격·스키마 required·타입에서 모두 제거 — 이전 버전 `done` 에는 `replyReading` 이 있었다). 키 순서는 `speech → conversation(replyJa → replyKo) → …` 로 **`replyJa` 앞은 그대로**라 조기 추출·문장 단위 합성은 불변이다. 스키마는 `conversation.additionalProperties:false` 라 모델이 옛 키를 내면 ajv 위반(1회 재시도, 재실패 시 `JsonSchemaError`) — TALK·CHAT 요청은 스키마 밖 필드 제거 옵션(`stripAdditionalProperties`)을 켜지 않는다. 읽기 줄은 서버 분석 #24r(후리가나·한글)이 만든다.
 - **구문 슬립 복구(task-037, 요청 단위 옵트인)**: TALK·CHAT 응답이 루트 객체를 한 칸 일찍 닫는 구문 슬립(`…"proposals":[]},"userKo":"…"}`)이면 `JSON.parse` 가 실패해 1회 재시도하던 것을, 두 요청(`buildTalkRequest`·`buildChatRequest`)에 한해 `repairRootClose`(`engine/json/repairRootClose`)가 **`extractJson` ② 와 같은 전역 코드펜스 표식 제거를 거친 텍스트에서, 문자열 리터럴을 인식하는 스캔으로 처음 닫힌 루트의 `}` 하나를 지운 뒤** 읽는다(문자열 값 안의 코드펜스 표식도 함께 지워질 수 있으나 슬립과 겹칠 확률이 매우 낮고, `correction.original` 은 후검증의 바이트 일치가 막는다) — 기존 파서(`extractJson`)가 **실패한 응답에만**, 한 번만 적용하고(그 밖의 모양·정상 응답은 결과 불변) 복구한 객체도 같은 스키마·후검증을 그대로 통과해야 한다(위반이면 기존 재시도). 복구가 쓰이면 서버 로그 `[json] 구문 슬립 복구(ROOT_CLOSE)` 한 줄(내용 없음)과 `RequestTrace` LLM 단계 `repaired: "ROOT_CLOSE"` 가 남는다(SSE·`done` 계약 불변). 나머지 프롬프트(레슨·점검·평가·단어 보강·복습 판단)는 옵션을 켜지 않는다.
+- **추가 설명(task-039, talk@v9)**: LLM 응답 `correction.extraNoteKo`(**선택·null 가능**, 스키마 required 아님·길이 규칙 없음 — 이 칸 때문에 재시도·턴 실패가 없다)를 서버가 `sanitizeExtraNoteKo(explanationKo, extraNoteKo, 학습자 text)`로 정리한 값만 `Correction.extraNoteKo` 에 **교정 행 생성과 같은 insert** 로 쓰고 `done.correction.extraNoteKo` 로 내린다(저장 행과 같은 값). 정리(task-039 dev-039d 기준): ① **거부(`null`, 지우지 않음) — 접기 전 원값에서 검사**: 서식 문자(`\p{Cf}` — 영폭·BiDi·isolate·BOM 등)·기본 무시 코드 포인트(`\p{Default_Ignorable_Code_Point}` — 변이 선택자 U+FE00–FE0F·CGJ U+034F·한글 채움 U+3164·U+115F·U+1160·U+FFA0 등, 따라서 U+FE0F 가 붙은 이모지도)·U+2800(점자 빈 칸)·짝 없는 서로게이트 ② **접기**: 공백류(JS `\s` — 개행·탭·NBSP·전각 공백 등)와 U+0085(NEL)·U+2028·U+2029 는 공백 하나로 접어 한 줄로 ③ 그 밖 `null`: 누락·비문자열·공백뿐·**접은 뒤** 200자 초과(자르지 않음)·접은 뒤 C0/C1/DEL 제어문자(U+0000–001F·U+007F–009F) 잔존·한글 0·**메인 설명 복제**(같거나 통째 포함)·**학습자 말 통째 포함**·엔진명. 두 복제 비교는 양쪽을 NFKC 로 맞춘 뒤 공백·구두점(`\p{P}`)·①의 보이지 않는 문자를 지우고 한다 — 학습자 말은 이렇게 정규화한 **뒤** 4자 이상일 때만, 메인 설명은 정규화 결과가 빈 문자열이면 건너뛴다(저장값은 정규화하지 않는다). 모델 값을 그대로 저장하지 않는다. 값은 `toolLog`·Trace·로그에 싣지 않는다(교정 표시 메타 `toolLog.correction` 도 불변). 복습·관측 입력은 `explanation` 만 쓴다(추가 설명은 복습 재료가 아니다).
 - **내 말 번역(task-026, talk@v7·chat@v2)**: LLM 응답 최상위 `userKo`(학습자 말의 한국어 번역 — **선택·null 가능**, 스키마 required 아님·길이 규칙 없음, 지시문·골격에서는 맨 끝 키로 요구)를 서버가 `sanitizeUserKo`(누락·공백·비문자열·입력 베끼기·일본어 입력인데 한글 0·이중 높임·저장 상한 초과 → `null`, 자르지 않음)로 거른 값만 이번 **USER** `ChatMessage.translation` 에 **같은 저장 트랜잭션**으로 쓰고(교정 표시 메타와 같은 갱신 1회), `done.userTranslation` 으로 내린다(`null` = 번역 없음 → 화면 [다시 가져오기] #32t). 모델 값을 그대로 저장하지 않는다. 번역 문제로 턴이 재시도·실패하지 않는다(부가 정보). ASK 는 늘 `null`. 강사 말 번역(`conversation.replyKo`)은 그대로 ASSISTANT 행 `translation`.
 
 - **교정 방식(task-010c, TALK 만)**: 서버가 설정 `correctionMode`(역할극은 코치)를 A1 `[교정] 유창성|코치` 줄로 넘긴다. **교정 행 생성 규칙은 그대로**(모드와 무관하게 `Correction(PROPOSED)`). `done.correction` 에 `deliver`(유창성: `severity=MAJOR` → `NOW`, `MINOR` → `LATER` / 코치: 늘 `NOW`)·`hintKo`(코치만, 정답을 그대로 담거나(교정문 전체, 또는 원문 대비 바뀐 조각 정규화 길이 2자 이상 — 문자열 비교, 한국어 뜻은 보지 않음) 비었거나 200자를 넘으면 `null` — 그 카드는 바로 정답)·`selfCheck: null` 을 더하고, 최상위 `selfCheck: { correctionId, result: "SELF"|"REPEAT"|"MISSED" } | null` 은 **직전 사용자 말의 코치 힌트 교정**(힌트 있음·미판정·PROPOSED) 판정이다 — LLM 없이 코드가 교정문(NFKC·공백·문장부호 제거)이 이번 말에 들어 있는지 본다(원문을 그대로 다시 말한 "지우기" 교정은 MISSED, 교정문 2자 미만·원문과 같으면 판정 불가 = MISSED). `SELF`·`REPEAT` 면 같은 저장 트랜잭션에서 `LearningObservation(SELF_CORRECTION, SUCCESS|PARTIAL, skill=CONVERSATION_MAINTAIN, refType=Correction)` 1행(라우트가 learning 으로 조합, 관측 기록 실패는 턴을 막지 않음 — 교착만 트랜잭션 재시도). 판정은 그 교정이 달린 USER 메시지 `toolLog.correction.selfCheck` 에 남는다(채택은 여전히 사용자 몫 — 상태 불변). CHAT/ASK 의 `done` 에는 `selfCheck` 키가 없다. 판정 재료 읽기는 수락 뒤 LLM 과 병렬(첫 음성 경로 밖), 모드 읽기는 학습자 헤더와 같은 60초 캐시라 5초 예산에 더하는 DB 왕복이 없다. `toolLog`(ASSISTANT)에 `correctionMode`·`deliver`·`selfCheck`(코드만), Trace `PROMPT` 단계에 `correctionMode`.
@@ -812,7 +814,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 `kind=CHAT` 전용, `Chat.reviewedAt` 이 있으면 `409 ALREADY_REVIEWED`. 사용자 메시지 ≤20건이면 동기(90s), 초과면 `AiJob(CHAT_REVIEW)`.
 
 ```json
-← 동기 { "items": [ { "correctionId": "cr_9", "messageId": "m_3", "original": "…", "corrected": "…", "explanation": "…", "errorType": "PARTICLE", "severity": "MAJOR", "chunkType": "MODIFIER", "status": "PROPOSED" } ],
+← 동기 { "items": [ { "correctionId": "cr_9", "messageId": "m_3", "original": "…", "corrected": "…", "explanation": "…", "extraNoteKo": null, "errorType": "PARTICLE", "severity": "MAJOR", "chunkType": "MODIFIER", "status": "PROPOSED" } ],
         "summaryKo": "…", "strengths": ["…"], "focus": ["に/で 구분"], "reviewedAt": "…" }
 ← 잡   { "jobId": "j_…" }   (완료 후 GET /api/v1/corrections?chatId= 로 조회)
 ```
@@ -820,6 +822,8 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 점검이 만든 교정(PROPOSED)마다 관측 `CORRECTION_PROPOSED`(MAJOR=FAIL·MINOR=PARTIAL, 축 = 오류 유형)를 같은 저장 트랜잭션에 쓴다(task-010b — 턴 #32 의 TALK 교정도 같다. 관측 실패는 경고만 남기고 결과는 저장, 교착은 트랜잭션 전체 재시도). 채택 전이라 반복 항목·단어·기록은 만들지 않는다.
 
 `original` 은 해당 `message.content` **전체** 또는 그 안의 **문장 하나 전체**(。！？!?·줄바꿈 경계)와 바이트 일치해야 한다 — 여러 문장짜리 메시지에서 틀린 문장만 짚기 위한 예외이며, 문장 안의 임의 조각은 인정하지 않는다(2026-09-27 구현·reviewer REV-005, `conversation/structuredResponse/checks.ts`). 불일치 항목은 1회 재시도 후에도 남으면 버린다(응답 `dropped` 카운트 포함).
+
+**추가 설명(task-039, chatReview@v3)**: 항목의 `extraNoteKo`(string \| null)는 A3 응답 항목 `extra_note_ko`(선택·null 가능, required 아님)를 TALK 과 같은 정리(`sanitizeExtraNoteKo`)로 거른 값이다 — 학습자 원문 통째 포함 검사는 **메시지 전체**와 **짚은 문장(`original`)** 양쪽으로 건다. 병합(1회 재시도 후보 합치기)이 고른 항목의 값이 그대로 `Correction.extraNoteKo` 에 생성 시 저장되고 응답 항목에 실린다(같은 값). 칸을 안 낸 항목·옛 행은 `null`. 잡 경로 결과(#34)도 같은 칸.
 
 ### 2-7. 교정 `/api/v1/corrections` (L2 conversation/corrections)
 

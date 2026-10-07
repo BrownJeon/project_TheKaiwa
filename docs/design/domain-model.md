@@ -1170,6 +1170,10 @@ model Correction {
   original    String         @db.Text
   corrected   String         @db.Text
   explanation String         @db.Text
+  /// task-039(IMP-0025, 2026-10-06 사용자 승인 — 이 컬럼 1개) — JLPT·교과서식 추가 설명 한 줄(TALK `correction.extraNoteKo`·A3 `extra_note_ko` 를
+  /// `sanitizeExtraNoteKo` 로 정리한 값, ≤200자·개행 없음). **생성 시에만** 쓰고 수정 경로 없음(갱신 타입 `CorrectionUpdate` 에서 제외). 옛 행·없음 = NULL.
+  /// additive nullable — 백필·환경 분리 없음(설정 엔티티가 아니라 학습 데이터). 복습·관측 입력에는 쓰지 않는다(`explanation` 만)
+  extraNoteKo String?        @db.VarChar(400)
   errorType   ErrorType
   severity    Severity       @default(MINOR)
   chunkType   ChunkType?
@@ -1815,6 +1819,7 @@ model TtsCache {
   speechProfile       SpeechProfile @default(NATIVE)
   /// TtsTimingMetadata {method:'FORCED_ALIGN'|'ENGINE', alignerVersion, words[{text,startMs,endMs,charStart,charEnd}], moras[{mora,startMs,endMs,wordIndex}], phonemes?[]} (P1, speech-platform/16 §8)
   timing              Json?
+  /// task-012b-4(REV-136): `timing` JSON 안에 **`audioSha1`**(이 행이 가리키는 wav 바이트 전체의 sha1, 16진 40자)을 같은 쓰기 문장으로 함께 넣는다 — 읽는 쪽은 행 값을 믿지 않고 읽은 파일 지문과 맞대 같을 때만 timing 을 쓴다(오디오가 다시 만들어졌는데 옛 timing 이 남는 경우 차단). 컬럼 추가 없음(JSON 키). 지문이 없거나 다르면 timing=null 로 폴백(말풍선 단어 강조 없음, 재생 정상)
   /// aligner 버전(변경 시 timing 만 재계산, 오디오 유지)
   timingVersion       String?   @db.VarChar(40)
   style               String    @db.VarChar(40)
@@ -2242,7 +2247,7 @@ model DebugSession {
 |---|---|---|---|---|---|---|
 | `Chat` | 회화·채팅·질문 세션 | `kind`, `topicId`, `scenarioId`·`lessonId`(역할극·레슨 말하기 연결, task-010d), `reviewedAt`, `messageCount` | L2 | `POST /api/v1/chats` | 사용자 삭제 가능 → Message·Correction Cascade, Proposal/Utterance SetNull, StatsSnapshot 불변. Scenario·Lesson 삭제 시 `scenarioId`·`lessonId` SetNull | 1 |
 | `ChatMessage` | 턴 메시지 | `role`, `content`, `inputSource`, `toolLog`, `traceId` | L2 | 턴 시작(USER) / 턴 완료(ASSISTANT, PENDING→DONE) | Chat Cascade. 기동·조회 시 PENDING(180초↑, 메모리 락 없음)→FAILED(task-006) | 1 |
-| `Correction` | AI 교정 제안 | `original`(불변), `corrected`, `errorType`, `status`, `savedWordId` | L2 | A1 턴 응답 / A3 점검 결과 (PROPOSED) | Message Cascade. ACCEPTED 시 WordEntry·LearnerErrorStat 생성/증가, 그 뒤 Correction 삭제돼도 유지 | 1 |
+| `Correction` | AI 교정 제안 | `original`(불변), `corrected`, `explanation`, `extraNoteKo`(task-039 추가 설명, 생성 시에만·nullable), `errorType`, `status`, `savedWordId` | L2 | A1 턴 응답 / A3 점검 결과 (PROPOSED) | Message Cascade. ACCEPTED 시 WordEntry·LearnerErrorStat 생성/증가, 그 뒤 Correction 삭제돼도 유지 | 1 |
 | `TutorProposal` | 강사 제안 카드 | `kind`, `payload`, `status`, `result` | L2 | A1/A9 응답의 `proposals[]` (PROPOSED) | 30일 미처리 EXPIRED, Chat 삭제 시 SetNull 로 남김 | 1 |
 | `PromptTemplate` | Prompt Registry 키 | `key`, `filePath`, `ownerRole` | L2 | `npm run prompts:sync` 첫 실행 | 삭제 없음 | 2 |
 | `PromptVersion` | 프롬프트 버전 | `[environment,key,version]`, `body`, `source`, `status`, `checksum` | L2 | sync(SOURCE_CODE) / Console 편집(CONSOLE) | 삭제 없음, ARCHIVED 만. activate 는 ConfigurationVersion(PROMPT)+AuditLog | 2 |
