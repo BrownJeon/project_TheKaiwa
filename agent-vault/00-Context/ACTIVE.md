@@ -1,12 +1,21 @@
 ---
 project: TheKaiwa
-updated: 2026-10-05
+updated: 2026-10-08
 tags:
   - type/context
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-07 오후 — 진행 중 task (이 블록이 가장 최신)
+## ★ 2026-10-08 오전 — task-045 구현·감사·QA 완료, **사용자 배포 확인 대기** (이 블록이 가장 최신)
+
+- **상태**: 백엔드(T0~T4)·화면(T5-1~T5-5b)·모든 감사·QA 보완이 **로컬 커밋, 미푸시·미배포**(HEAD 는 `git log` 로 확인 — 마지막 코드 커밋 `8726999` `scenarioVariant@v3`). 운영 코드는 릴리스 `20261007-174702-09033bdc` 그대로. DB 는 **`UserSeedOverride` 표 1개만** 20:06 에 적용(백업 `files/thekaiwa/backups/thekaiwa-20261007-200546-pre-task045.sql.gz`), 다른 변경 없음 — 운영 코드는 이 표를 아직 안 쓰므로 배포 전에도 안전.
+- **검증 요약**: 감사 REV-149~170 전부 PASS/PASS_WITH_NOTES(High 는 REV-164 H-1 보관 열쇠 1건 — 수정·재확인). 백엔드 QA a1 207/208·b1/b2 라이브 AI. 화면 QA 5묶음(A 관리 화면 586/607→Low 4 수정·B 삭제/되돌리기/409 256/256·C/C2 주제 만들기·D/D2 주제 고치기·E/E2/E3 편집기·변형·챌린지→결함 3 수정)·재측정 F·G 결함 0. `scenarioVariant` 라이브 재측정 H: v2 suggest 1차 위반 12.5%·최종 실패 4.2% → **PE v3(`8726999`)** 라이브 36호출 계약 위반 0·1차 통과 29/30(시간 초과 1건은 CLI 지연). 단위 시험 `src/components/**` 934+·`conversation`+`engine` 989.
+- **남은 순서**: ① 배포 전 게이트(홈 밖 클린 빌드·전체 단위 시험·스키마 변경 0) ② **사용자 배포 확인**(`git push` = webhook 재배포; 코드·`tests/live` 포함이라 배포됨, 시드 영향 없음·M4 변경 없음·`UserSeedOverride` 이미 적용) ③ 배포 뒤 운영 헬스·pm2 3개·`SMOKE_ENV=PRODUCTION` 스모크·QA 계정 읽기 전용 화면 확인.
+- **사용자 확인 대기(기본값으로 구현됨)**: L-1 S4 상황 초안 = 자동 1개 + [하나 더](승인 데모는 자동 2개) · L-2 「변형」 뱃지·「원본 · 제목」 표시 안 함(원본 칸 DB 미승인). designer 확인 후보: 자동 요청 중 [저장] 막힘 이유 한 줄·S5 복귀 근사 복원(실측 이탈 197px 1건)·「바뀜」 꼬리표 모양·409 문구·되돌린 뒤 토스트 이름·「연결된 상황은 없어요」(데모 S9)·변형 「만드는 중」 표시를 데모의 맨 위 카드 대신 버튼 아래에 둔 편차(412 에서 첫 화면 밖)·변형 검토 안내 제목 데모와 다름·표현 행 편집기 값이 [＋ 표현 더하기]로 닫힘·`REVIEW.saveIdle`/`PARTIAL.unsure`/`EDIT.textChanged`(데모에 없는 추가 문구).
+- **알려진 한계(수용)**: `scenarioVariant` CLI 꼬리 지연 약 3%(40s 초과 → 504, [다시 시도] 로 갈음 — `retryOnTimeout` 은 한 데드라인 안 JSON 재시도와 충돌해 못 켬, REV-170) · 힌트 없는 S6 직접 진입은 MINE −75px/COPY +24.5px 점프 · 진행 중 챌린지 있는 주제 S6 +70px · 주제 저장 하루 10 하드 삭제 우회 · #57·#163 응답 전 끊김 중복 위험(안내 문구만) · #178 학습자 글 오수용(확인 문구만).
+- **백로그**: 서버 멱등 키(`requestId`)·#170·#166·#177·#178 429 `reason` 추가·`DRAFT_BUSY` 409 가 한도를 소모(잠금 확인을 한도 앞으로)·`PROBLEM_TEXT.NOT_REFLECTED` 재시도 안내 보강·`countNewExpressions` 낱말만 바꾼 표현 인정·#178 학습자 글 PE 보강·조사 병기 문구 13개 파일 일괄 정리(IMP 후보)·**앱 셸 아래 `overflow-y-auto` + `sr-only` 이중 스크롤 의심 17곳(eval·lesson·challenge 생성·역할극 결과·PracticeDock·콘솔 등, task-045 이전부터 — 별도 task)**·`Attendance_userId_date_key`/`StatsSnapshot` 유일 제약 위반 로그(동시 생성 경쟁, `upsert`/P2002 무시)·계획표 360px 날짜 칸 43.4px·010d 데모 v2 재승인/waive·IMP-0027 탭 깜빡임·사용자 정리 폴더(`~/.node-local/thekaiwa-{qa045a,qa045b,qa045ui-*,fix3,fix4,t5-*,pe045*}`·scratchpad `rev14x~rev170`).
+
+## ★ 2026-10-07 오후 — 진행 중 task (이 블록 아래는 옛 요약)
 
 - **task-045 주제·상황 관리(IMP-0026)** — 설정 "내 상황·주제 관리"·주제 한 줄 → AI 초안(`topicDraft@v2`, Claude CLI)·시드 사용자별 사본(새 표 `UserSeedOverride` — **DB 승인은 이 1개 표만**, 변형 B 의 `Chat.scenarioVariant` 는 미승인)·변형 연출·주제 삭제(진행 중 챌린지 제거/완료 유지). **데모 v2 승인됨(2026-10-07 17:34, "v2로 진행, D5=A, 변형=A, 위치=A, 화면=A, 재생성=A")** — artifact https://claude.ai/artifact/BbGLdLng7Y6nUf5tbJjDZa. 변형 B 미채택 → `Chat.scenarioVariant` 불필요. DB 승인은 **`UserSeedOverride` 표 1개만**(`db push` 는 백업 뒤 T1 에서). T0(PE `topicDraft@v2`)는 완료·배포(라우트·`LLM_TASKS` 미연결). 챌린지 설계서 §3-3 개정·judge C1·Codex C1 완료. 다음: T1(표+override)→T3→T2→T4→T5 화면. 상세·Leader 기본값·developer 설계 조사: task-045 이력서·IMP-0026.
 - **IMP-0027 탭 이동 깜빡임**: 원인 확인·디자이너·개발자 검토 완료(DB 아님 — 마운트마다 로딩 표시 + API 병렬, 권고 B 자리표시 → 탭 즉시 반응 → 필요 시 C 캐시), 사용자 단계 승인·데모 방식 답 대기. 착수 안 함.
