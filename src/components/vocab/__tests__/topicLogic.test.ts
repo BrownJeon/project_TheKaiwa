@@ -105,7 +105,7 @@ test('덱 챌린지 줄 C: 첫 세트·두 번째 세트(4/8 부터)·채움·�
   assert.equal(deckChallengeLine(ctx(tasks({ state: 'TODO' })), { date: TODAY, topic: null }, 0), null, '내 단어장 세트')
   assert.equal(deckChallengeLine(ctx(tasks(null)), s, 0), null, '단어 과제 꺼짐')
   assert.equal(deckChallengeLine(null, s, 0), null, '챌린지 없음·#158 실패')
-  assert.equal(deckChallengeLine(ctx(tasks({ state: 'TODO' })), { date: '2026-10-06', topic: { id: 'tp1' } }, 2), '챌린지 · 10월 6일에 시작한 세트라 그날(3일째) 단어로 세요')
+  assert.equal(deckChallengeLine(ctx(tasks({ state: 'TODO' })), { date: '2026-10-06', topic: { id: 'tp1' } }, 2), '챌린지 · 10월 6일 시작 세트 · 그날(3일째) 단어로 인정돼요')
   assert.equal(deckChallengeLine(ctx(tasks({ state: 'TODO' }, { dayIndex: 1 })), { date: '2026-10-06', topic: { id: 'tp1' } }, 2), null, '챌린지 시작 전날 세트(k<1)')
 })
 
@@ -115,7 +115,7 @@ test('끝내기 시트 메모: 답 0장·미달(일부)·채움·이미 완료·
   const short = finishChallengeNote(ctx(tasks({ state: 'TODO' })), s, 4)
   assert.equal(short?.tone, 'warn')
   assert.equal(`${short?.strong}${short?.text}`, '지금 끝내면 오늘 단어는 8장 중 4장 — ‘일부’로 남아요. 남은 표현으로 한 세트 더 풀 수 있어요.')
-  assert.equal(finishChallengeNote(ctx(tasks({ state: 'SHORT', answered: 4 })), s, 5)?.text, '이 세트까지 오늘 9장 풀었어요 — 오늘 단어는 완료로 세요.')
+  assert.equal(finishChallengeNote(ctx(tasks({ state: 'SHORT', answered: 4 })), s, 5)?.text, '이 세트까지 오늘 9장 풀었어요 — 오늘 단어는 완료로 인정돼요.')
   assert.equal(finishChallengeNote(ctx(tasks({ state: 'DONE', answered: 8 })), s, 2)?.text, '오늘 단어는 이미 완료예요. 이 세트도 오늘 합계에 더해져요.')
   assert.equal(finishChallengeNote(ctx(tasks({ state: 'DONE', answered: 8 })), s, 0)?.text, '오늘 단어는 이미 완료 그대로예요.')
   assert.equal(finishChallengeNote(ctx(tasks({ state: 'TODO' })), { date: '2026-10-06', topic: { id: 'tp1' } }, 3)?.text, '이 세트는 10월 6일에 시작해서 그날 기록으로 남아요.')

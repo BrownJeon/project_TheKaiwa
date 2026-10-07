@@ -149,7 +149,7 @@ export function taskRowView(t: ChallengeTask, opts: TaskRowOpts = {}): TaskRowVi
         go = '오늘 탭에서 이어서'
         break
       case 'CONTINUE':
-        desc = '어제 만든 수업이 있어요 · 오늘 끝내면 오늘로 세요'
+        desc = '어제 만든 수업이 있어요 · 오늘 끝내면 오늘 기록으로 인정돼요'
         go = '오늘 탭에서 이어서'
         break
       case 'DONE':
@@ -213,7 +213,7 @@ export function rateTile(s: ChallengeStats): StatTile {
 export function streakTile(s: ChallengeStats, short = false): StatTile {
   const n = s.streak ?? 0
   const second = s.todayMet ? '오늘까지 이어졌어요' : s.dayIndex === 0 ? '내일 채우면 1일' : `오늘 채우면 ${n + 1}일`
-  return { key: 'streak', value: `${n}일`, label: '수행 연속', sub: short ? ['목표를 다 한 날만'] : ['하루 목표를 다 한 날만 세요', second] }
+  return { key: 'streak', value: `${n}일`, label: '수행 연속', sub: short ? ['목표를 다 한 날만'] : ['하루 목표를 다 한 날만 계산해요', second] }
 }
 
 export function longestTile(longest: number): StatTile {
@@ -499,16 +499,16 @@ export function ruleLines(goal: ChallengeDailyGoal): string[] {
   const out: string[] = []
   if (goal.words) {
     out.push(
-      `단어는 하루 ${goal.wordCount ?? 0}장 중 ${goal.wordsMinAnswered ?? 0}장 이상 풀면 완료예요. 하루에 푼 장수를 합쳐서 세요. 건너뛴 카드는 푼 것으로 세지 않아요(건너뛰기만 한 세트는 공부한 날로도 세지 않아요).`,
+      `단어는 하루 ${goal.wordCount ?? 0}장 중 ${goal.wordsMinAnswered ?? 0}장 이상 풀면 완료예요. 하루에 푼 장수를 합쳐서 계산해요. 건너뛴 카드는 푼 것으로 인정되지 않아요(건너뛰기만 한 세트는 공부한 날로도 인정되지 않아요).`,
       '같은 세트를 다시 푼 장수도 하루 합계에 더해요.',
     )
   }
   if (goal.lesson) out.push('회화는 수업을 끝내기만 하면 완료예요(문제 점수와 상관없음).')
   out.push(
-    '같은 주제면 오늘 탭 어디서 공부해도 세요. 오늘 시작한 챌린지는 만들기 전에 끝낸 같은 주제 공부도 세요.',
+    '같은 주제면 오늘 탭 어디서 공부해도 인정돼요. 오늘 시작한 챌린지는 만들기 전에 끝낸 같은 주제 공부도 오늘 기록으로 인정돼요.',
     '세트는 시작한 날로, 수업은 끝낸 날로 기록돼요 · 마지막 날 자정에 마감돼요.',
     '달성률은 지난 날 수로 나눠요. 오늘은 채운 뒤에 들어가요.',
-    '수행 연속은 앱을 연 날(연속 출석)이 아니라 하루 목표를 다 한 날만 세요.',
+    '수행 연속은 앱을 연 날(연속 출석)이 아니라 하루 목표를 다 한 날만 계산해요.',
     '기록을 지워도 챌린지 달성은 그대로예요.',
   )
   return out

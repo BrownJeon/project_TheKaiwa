@@ -133,7 +133,7 @@ test('오늘 할 일 줄: 회화 상태별 — 만드는 중은 글자만, 죽�
   assert.equal(g.desc, '만드는 중 · 1분쯤')
   assert.equal(g.prefix, '준비 중: ')
   assert.equal(taskRowView(lesson('READY')).go, '오늘 탭에서 시작')
-  assert.equal(taskRowView(lesson('CONTINUE')).desc, '어제 만든 수업이 있어요 · 오늘 끝내면 오늘로 세요')
+  assert.equal(taskRowView(lesson('CONTINUE')).desc, '어제 만든 수업이 있어요 · 오늘 끝내면 오늘 기록으로 인정돼요')
   assert.equal(taskRowView(lesson('DONE')).desc, '끝냈어요')
   assert.equal(taskRowView(lesson('DONE'), { lessonScore: { correct: 4, total: 5 } }).desc, '끝냈어요 · 문제 4/5')
   const f = taskRowView(lesson('FAILED'))
@@ -156,7 +156,7 @@ test('꺼진 과제 줄 없음 · 할 일 한마디', () => {
 test('지표 기준 수치: 아침 67% · 3일 중 2일 · 수행 연속 0일 → 둘 다 끝내면 75% · 4일 중 3일 · 1일, 첫날 "—"', () => {
   const [rate, streak] = planStatTiles(MORNING)
   assert.deepEqual([rate.value, rate.sub[0]], ['67%', '3일 중 2일'])
-  assert.deepEqual([streak.label, streak.value, ...streak.sub], ['수행 연속', '0일', '하루 목표를 다 한 날만 세요', '오늘 채우면 1일'])
+  assert.deepEqual([streak.label, streak.value, ...streak.sub], ['수행 연속', '0일', '하루 목표를 다 한 날만 계산해요', '오늘 채우면 1일'])
   const [r2, s2] = planStatTiles(BOTH_DONE)
   assert.deepEqual([r2.value, r2.sub[0], s2.value, s2.sub[1]], ['75%', '4일 중 3일', '1일', '오늘까지 이어졌어요'])
   const first = rateTile({ ...MORNING, dayIndex: 1, elapsedDays: 0, metDays: 0, rate: null, streak: 0 })

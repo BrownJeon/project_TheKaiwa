@@ -174,7 +174,7 @@ export function TopicProgressBlock({ p, totals }: { p: ChallengeTopicProgress; t
     <div>
       <p className="text-[12px] text-ink2 break-keep">{COPY.topicNote}</p>
       {fresh ? (
-        <InfoBox className="mt-2">기본 표현 {p.chunkTotal}개 · 오늘부터 푼 만큼 여기 쌓여요. 챌린지 전에 이 주제로 공부한 것도 함께 세요.</InfoBox>
+        <InfoBox className="mt-2">기본 표현 {p.chunkTotal}개 · 오늘부터 푼 만큼 여기 쌓여요. 챌린지 전에 이 주제로 공부한 것도 포함돼요.</InfoBox>
       ) : (
         <>
           <Bar name="익힘" value={p.chunkMastered} total={p.chunkTotal} tone="good" />
