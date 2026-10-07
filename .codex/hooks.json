@@ -1,59 +1,56 @@
 {
+  "description": "Agent Vault lifecycle hooks for TheKaiwa.",
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "^(Bash|Agent|Task)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/codex-switch/guard.sh'",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
-        "matcher": "",
         "hooks": [
           {
+            "timeout": 15,
             "type": "command",
-            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/agent-vault/context-inject.sh'"
+            "command": "bash -lc 'd=\"$PWD\"; while [ \"$d\" != / ] && [ ! -f \"$d/.codex/hooks/agent-vault/context-inject.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.codex/hooks/agent-vault/context-inject.sh\" ] && exec bash \"$d/.codex/hooks/agent-vault/context-inject.sh\" || exit 0'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$d = Get-Item (Get-Location).Path; while ($d -and -not (Test-Path (Join-Path $d.FullName '.codex/hooks/agent-vault/context-inject.ps1'))) { $d = $d.Parent }; if ($d) { & (Join-Path $d.FullName '.codex/hooks/agent-vault/context-inject.ps1') }\""
           }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/codex-switch/guard.sh'",
-            "timeout": 10
-          }
-        ]
+        ],
+        "matcher": ""
       }
     ],
     "SubagentStart": [
       {
-        "matcher": "",
         "hooks": [
           {
+            "timeout": 15,
             "type": "command",
-            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/agent-vault/context-inject.sh'"
+            "command": "bash -lc 'd=\"$PWD\"; while [ \"$d\" != / ] && [ ! -f \"$d/.codex/hooks/agent-vault/context-inject.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.codex/hooks/agent-vault/context-inject.sh\" ] && exec bash \"$d/.codex/hooks/agent-vault/context-inject.sh\" || exit 0'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$d = Get-Item (Get-Location).Path; while ($d -and -not (Test-Path (Join-Path $d.FullName '.codex/hooks/agent-vault/context-inject.ps1'))) { $d = $d.Parent }; if ($d) { & (Join-Path $d.FullName '.codex/hooks/agent-vault/context-inject.ps1') }\""
           }
-        ]
+        ],
+        "matcher": ""
       }
     ],
     "SubagentStop": [
       {
-        "matcher": "",
         "hooks": [
           {
+            "timeout": 15,
             "type": "command",
-            "command": "bash '/Volumes/homes/brownjeon/project/TheKaiwa/.codex/hooks/agent-vault/log-gate.sh'"
+            "command": "bash -lc 'd=\"$PWD\"; while [ \"$d\" != / ] && [ ! -f \"$d/.codex/hooks/agent-vault/log-gate.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.codex/hooks/agent-vault/log-gate.sh\" ] && exec bash \"$d/.codex/hooks/agent-vault/log-gate.sh\" || exit 0'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$d = Get-Item (Get-Location).Path; while ($d -and -not (Test-Path (Join-Path $d.FullName '.codex/hooks/agent-vault/log-gate.ps1'))) { $d = $d.Parent }; if ($d) { & (Join-Path $d.FullName '.codex/hooks/agent-vault/log-gate.ps1') }\""
           }
-        ]
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "timeout": 15,
+            "type": "command",
+            "command": "bash -lc 'd=\"$PWD\"; while [ \"$d\" != / ] && [ ! -f \"$d/.codex/hooks/agent-vault/log-gate.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.codex/hooks/agent-vault/log-gate.sh\" ] && exec bash \"$d/.codex/hooks/agent-vault/log-gate.sh\" || exit 0'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$d = Get-Item (Get-Location).Path; while ($d -and -not (Test-Path (Join-Path $d.FullName '.codex/hooks/agent-vault/log-gate.ps1'))) { $d = $d.Parent }; if ($d) { & (Join-Path $d.FullName '.codex/hooks/agent-vault/log-gate.ps1') }\""
+          }
+        ],
+        "matcher": ""
       }
     ]
   }
