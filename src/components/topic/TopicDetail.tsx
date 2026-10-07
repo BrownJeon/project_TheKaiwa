@@ -60,10 +60,10 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
   const headRef = useRef<HTMLHeadingElement>(null)
   const focusHead = useRef(false)
 
-  // 되돌리기 뒤 이 주제(시드)로·주제 만들기(T5-3a) 저장 뒤 새 주제로 왔을 때만 — 관리 화면용 토스트는 건드리지 않는다.
+  // 되돌리기 뒤 이 주제(시드)로·주제 만들기(T5-3a) 저장 뒤 새 주제로·주제 고치기(T5-4) 저장 뒤(내 버전이면 사본으로) 왔을 때만 — 관리 화면용 토스트는 건드리지 않는다.
   useEffect(() => {
     const f = parseFlash(readStore('session', MANAGE_FLASH_KEY))
-    if (!f || (f.kind !== 'restored' && f.kind !== 'created')) return
+    if (!f || (f.kind !== 'restored' && f.kind !== 'created' && f.kind !== 'saved' && f.kind !== 'copySaved')) return
     writeStore('session', MANAGE_FLASH_KEY, null)
     show(flashText(f))
     focusHead.current = true

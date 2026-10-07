@@ -20,6 +20,8 @@ import type { TopicChunkType } from '@/types/topic'
 import { TOPIC_SAVE_LIMITS, type TopicCreateInput, type TopicDraftRequestBody, type TopicWarningCode } from '@/types/topicWrite'
 import { failureCopy, TOPIC_ASK_TITLE_MAX, TOPIC_ASK_TITLE_MIN, type Failure, type FieldFailure } from './failure'
 import { CREATE, REVIEW } from './topicCopy'
+import type { TopicUpdateInput } from '@/types/topicWrite'
+import { EDIT } from './topicCopy'
 
 export type Origin = 'MINE' | 'SEED' | 'COPY'
 export type ManageTab = 'topics' | 'scenarios'
@@ -384,6 +386,8 @@ export type ManageFlash =
   | { kind: 'gone' | 'notOverridden' }
   /** T5-3a 주제 만들기 저장 뒤 새 주제 보기(S6)가 읽는다. */
   | { kind: 'created'; title: string }
+  /** T5-4 주제 고치기 저장 뒤 주제 보기(S6)가 읽는다 — 내 주제·내 버전(#171) · 기본 주제를 내 버전으로(#174, 사본 id 의 S6). */
+  | { kind: 'saved' | 'copySaved' }
 
 /** 결과 숫자는 응답 값(미리보기 아님 — `ack` 는 진행 중 챌린지만 덮어 상황 수는 바뀔 수 있다). */
 export function removalFlash(mode: RemovalMode, title: string, r: TopicRemovalResult): ManageFlash {
@@ -404,6 +408,7 @@ export function parseFlash(raw: string | null): ManageFlash | null {
   if (!v || typeof v !== 'object') return null
   const f = v as Record<string, unknown>
   if (f.kind === 'gone' || f.kind === 'notOverridden') return { kind: f.kind }
+  if (f.kind === 'saved' || f.kind === 'copySaved') return { kind: f.kind }
   if (typeof f.title !== 'string' || !f.title.trim() || f.title.length > 200) return null
   if (f.kind === 'copyRemoved' || f.kind === 'hidden' || f.kind === 'restored') return { kind: f.kind, title: f.title }
   if (f.kind === 'created') return { kind: 'created', title: f.title }
@@ -430,6 +435,10 @@ export function flashText(f: ManageFlash): string {
       return FAIL.notOverridden
     case 'created':
       return TOAST.created(f.title, 0)
+    case 'saved':
+      return TOAST.saved
+    case 'copySaved':
+      return TOAST.copySaved
   }
 }
 
@@ -460,6 +469,8 @@ export interface TopicAsk {
 /** 편집 중 표현 한 개 — `key` 는 화면 안에서만 쓰는 고정 열쇠(목록 `key`·칸 id), 서버로 보내지 않는다. */
 export interface EditableChunk {
   key: string
+  /** S7 주제 고치기(T5-4)에서만 — 서버가 준 표현 id 그대로(화면이 만들지 않는다). #57·#174 본문에는 싣지 않는다. */
+  id?: string
   chunkType: TopicChunkType
   textJa: string
   reading: string
@@ -652,10 +663,11 @@ export function serverTopicProblems(problems: readonly FieldFailure[], d: Editab
       defect = true
       continue
     }
-    const m = /^chunks\[(\d+)\]\.(textJa|reading|meaningKo|chunkType)$/.exec(p.field)
+    // 칸 이름 없는 `chunks[i]`(서버 `engine_name` — 세 칸 중 어느 칸인지 서버만 안다)도 그 행의 첫 칸에 붙인다 — 안 그러면 고칠 행을 모른 채 같은 400 을 반복한다.
+    const m = /^chunks\[(\d+)\](?:\.(textJa|reading|meaningKo|chunkType))?$/.exec(p.field)
     if (m) {
       const c = d.chunks[Number(m[1])]
-      const f: ChunkField = m[2] === 'chunkType' ? 'textJa' : (m[2] as ChunkField)
+      const f: ChunkField = m[2] === undefined || m[2] === 'chunkType' ? 'textJa' : (m[2] as ChunkField)
       out.push({ key: c ? chunkProblemKey(c.key, f) : 'chunks', message: p.text })
     } else if (p.field === 'title' || p.field === 'titleJa' || p.field === 'description' || p.field === 'level' || p.field === 'chunks') {
       out.push({ key: p.field, message: p.text })
@@ -749,6 +761,8 @@ export function warnLineFixed(w: WarnLine, d: EditableTopicDraft, arrivalTitle: 
 /** 이 탭 보관 모양(§16-4) — 초안 본문과 입력값뿐(토큰·응답 원문·서버 문구 없음). T5-3b 가 상황 초안 칸을 더한다. */
 export interface StoredTopicDraft {
   version: typeof TOPIC_DRAFT_STORE_VERSION
+  /** 이 초안의 주인(내부 사용자 id) — 읽을 때 지금 사용자와 같을 때만 쓴다(REV-162 M-1: 같은 탭에서 계정을 바꿔도 남의 초안이 보이지 않게). 화면에는 나오지 않는다. */
+  userId: string
   ask: TopicAsk
   draft: EditableTopicDraft | null
   warnings: TopicWarningCode[]
@@ -770,9 +784,9 @@ export function isBlankTopicStore(s: Pick<StoredTopicDraft, 'ask' | 'draft'>): b
   return !s.draft && oneLine(s.ask.title) === ''
 }
 
-/** 이 탭에 남은 초안 — 모양이 하나라도 어긋나면 통째로 버린다(다른 판의 값·손댄 값). */
-export function parseTopicStore(raw: string | null): StoredTopicDraft | null {
-  if (!raw) return null
+/** 이 탭에 남은 초안 — 모양이 하나라도 어긋나면 통째로 버린다(다른 판의 값·손댄 값). 주인(`userId`)이 지금 사용자와 다르거나 없으면(옛 형식) 같다. */
+export function parseTopicStore(raw: string | null, userId: string): StoredTopicDraft | null {
+  if (!raw || !userId) return null
   let v: unknown
   try {
     v = JSON.parse(raw)
@@ -780,7 +794,7 @@ export function parseTopicStore(raw: string | null): StoredTopicDraft | null {
     return null
   }
   const s = v as Record<string, unknown> | null
-  if (!s || typeof s !== 'object' || s.version !== TOPIC_DRAFT_STORE_VERSION) return null
+  if (!s || typeof s !== 'object' || s.version !== TOPIC_DRAFT_STORE_VERSION || s.userId !== userId) return null
   const ask = s.ask as Record<string, unknown> | null
   if (!ask || !okText(ask.title) || !(DRAFT_LEVELS as readonly string[]).includes(ask.level as string)) return null
   let draft: EditableTopicDraft | null = null
@@ -802,6 +816,7 @@ export function parseTopicStore(raw: string | null): StoredTopicDraft | null {
   const warnings = Array.isArray(s.warnings) ? (s.warnings.filter(isWarningCode) as TopicWarningCode[]) : []
   return {
     version: TOPIC_DRAFT_STORE_VERSION,
+    userId,
     ask: { title: ask.title, level: ask.level as DraftLevel },
     draft,
     warnings,
@@ -809,6 +824,12 @@ export function parseTopicStore(raw: string | null): StoredTopicDraft | null {
     edited: s.edited === true,
     savedAt: typeof s.savedAt === 'number' ? s.savedAt : 0,
   }
+}
+
+/** 읽기 한 번의 결정 — 보관 값이 있는데 이 사용자 것이 아니거나 못 읽으면 지운다(`discard`). 다른 사용자·옛 형식·손상 모두 같은 길이다. */
+export function readTopicStore(raw: string | null, userId: string): { store: StoredTopicDraft | null; discard: boolean } {
+  const store = parseTopicStore(raw, userId)
+  return { store, discard: !!raw && !store }
 }
 
 /** #170 요청 한 건의 흐름 — React 를 모르는 제어기(시험 가능). 한 번에 하나(409 `DRAFT_BUSY` 도 한도를 쓴다)·취소 잠금·15초 `long`·벽시계 상한. */
@@ -928,5 +949,197 @@ export function createOnceGuard(): { run: (fn: () => Promise<void>) => boolean; 
     },
     busy: () => busy,
   }
+}
+
+/* ───────── T5-4 주제 고치기(S7) — 저장 경로·바뀐 칸 본문(#171)·내 버전 본문(#174)·수준 바꿈 표현 다시 받기(D4-A)·저장 결과 ───────── */
+
+export type TopicEditRoute = 'patch' | 'fork'
+
+/** 저장 경로 — 내 주제·내 버전은 #171(보낸 칸만), 기본 주제는 #174(전체 값으로 내 버전 만들기). 출처는 `topicOrigin`(#56 `isSeed` + #179 사본 id)이 정한다. */
+export function topicEditRoute(origin: Origin): TopicEditRoute {
+  return origin === 'SEED' ? 'fork' : 'patch'
+}
+
+/** #56 항목 → 편집 값. 표현은 서버 `order` 순, 화면 열쇠는 c1..cN, `id` 는 서버 값 그대로(읽기가 없는 옛 행은 빈 글 — 그 표현을 보낼 때 저장 검사가 짚는다). */
+export function topicEditFrom(t: Pick<Topic, 'title' | 'titleJa' | 'level' | 'description' | 'chunks'>): EditableTopicDraft {
+  const sorted = [...t.chunks].sort((a, b) => a.order - b.order)
+  return {
+    title: t.title,
+    titleJa: t.titleJa ?? '',
+    level: t.level,
+    description: t.description ?? '',
+    chunks: sorted.map((c, i) => ({ key: chunkKeyOf(i + 1), id: c.id, chunkType: c.chunkType, textJa: c.textJa, reading: c.reading ?? '', meaningKo: c.meaningKo })),
+  }
+}
+
+const sameChunk = (a: EditableChunk, b: EditableChunk): boolean =>
+  a.id === b.id && a.chunkType === b.chunkType && a.textJa.trim() === b.textJa.trim() && a.reading.trim() === b.reading.trim() && a.meaningKo.trim() === b.meaningKo.trim()
+
+/**
+ * #171 본문 — 바뀐 칸만. 표현이 하나라도 바뀌면(순서·더함·지움 포함) 지금 목록 전체를 보낸다: 원래 있던 표현은 서버가 준 `id` 그대로, 새 표현(더한 것·다시 받은 것)은
+ * `id` 없이, 지운 표현은 목록에서 빠진다. `id` 는 원본에 있던 값만 싣는다(화면이 id 를 만들지 않는다). 글(`textJa`)을 바꾼 표현은 서버가 옛 행을 지우고 새 id 를 준다.
+ * 바뀐 게 없으면 null(서버를 부르지 않는다).
+ */
+export function topicEditPatch(orig: EditableTopicDraft, cur: EditableTopicDraft): TopicUpdateInput | null {
+  const out: TopicUpdateInput = {}
+  if (oneLine(cur.title) !== oneLine(orig.title)) out.title = oneLine(cur.title)
+  if (oneLine(cur.titleJa) !== oneLine(orig.titleJa)) out.titleJa = oneLine(cur.titleJa) || null
+  if (cur.level !== orig.level) out.level = cur.level
+  if (oneLine(cur.description) !== oneLine(orig.description)) out.description = oneLine(cur.description) || null
+  const same = cur.chunks.length === orig.chunks.length && cur.chunks.every((c, i) => sameChunk(c, orig.chunks[i]))
+  if (!same) {
+    const known = new Set(orig.chunks.map((c) => c.id).filter((v): v is string => !!v))
+    out.chunks = cur.chunks.map((c) => ({
+      ...(c.id && known.has(c.id) ? { id: c.id } : {}),
+      chunkType: c.chunkType,
+      textJa: c.textJa.trim(),
+      reading: c.reading.trim(),
+      meaningKo: c.meaningKo.trim(),
+    }))
+  }
+  return Object.keys(out).length ? out : null
+}
+
+export const isTopicEdited = (orig: EditableTopicDraft, cur: EditableTopicDraft): boolean => topicEditPatch(orig, cur) !== null
+
+/** #174 본문 — #57 과 같은 전체 값(`id` 없음 — 사본은 새 표현 행이라 진행이 0부터). */
+export const topicForkBody = (cur: EditableTopicDraft): TopicUpdateInput => topicCreateBody(cur)
+
+const INFO_KEYS: ReadonlySet<string> = new Set(['title', 'titleJa', 'level', 'description'])
+const isChunkProblem = (key: string): boolean => key === 'chunks' || key.startsWith('chunk:')
+
+/**
+ * 저장 전 검사(T5-3a 규칙 그대로). #171 은 보낸 칸만 서버가 보므로 보내는 칸의 문제만 짚는다 — 읽기가 빈 옛 표현 때문에 이름 고치기가 막히지 않게.
+ * #174 는 전체 값을 보내므로 전부.
+ */
+export function validateTopicEdit(cur: EditableTopicDraft, route: TopicEditRoute, patch: TopicUpdateInput | null): TopicProblem[] {
+  const all = validateTopicDraft(cur)
+  if (route === 'fork') return all
+  const sent = patch ?? {}
+  return all.filter((p) => (isChunkProblem(p.key) ? !!sent.chunks : INFO_KEYS.has(p.key) && p.key in sent))
+}
+
+/** 400 칸 문제 → 화면 칸. `chunks[i].id` `not_found`(다른 곳에서 바뀐 표현)는 칸이 아니라 저장 줄 안내(`stale`), 그 밖의 id 문제는 화면 결함. */
+export function editServerProblems(problems: readonly FieldFailure[], cur: EditableTopicDraft): { problems: TopicProblem[]; stale: boolean; defect: boolean } {
+  const isId = (p: FieldFailure) => /^chunks\[\d+\]\.id$/.test(p.field)
+  const ids = problems.filter(isId)
+  const stale = ids.some((p) => !p.defect && p.text === FAIL.field.chunkGone)
+  const s = serverTopicProblems(
+    problems.filter((p) => !isId(p)),
+    cur,
+  )
+  return { problems: s.problems, stale, defect: s.defect || ids.some((p) => p.defect || p.text !== FAIL.field.chunkGone) }
+}
+
+/** 화면이 할 일(저장 실패) — 찾을 수 없음 · 다른 탭이 먼저 내 버전을 만듦 · 기본 주제로 바꿔 다시 누르기 · 칸 문제 · 저장 줄 문구. 서버 `message` 는 쓰지 않는다. */
+export interface TopicEditFailView {
+  notFound: boolean
+  copied: boolean
+  forceSeed: boolean
+  problems: TopicProblem[]
+  message: { text: string; block: boolean } | null
+}
+
+export function topicEditFailView(f: Failure, cur: EditableTopicDraft): TopicEditFailView {
+  const base: TopicEditFailView = { notFound: false, copied: false, forceSeed: false, problems: [], message: null }
+  switch (f.kind) {
+    case 'gone':
+    case 'seedGone':
+      return { ...base, notFound: true }
+    case 'copied':
+      return { ...base, copied: true }
+    case 'useFork':
+      return { ...base, forceSeed: true, message: { text: f.text, block: false } }
+    case 'field': {
+      const s = editServerProblems(f.problems, cur)
+      const text = s.stale ? EDIT.chunkGone : s.defect || !s.problems.length ? FAIL.field.defect : null
+      return { ...base, problems: s.problems, message: text ? { text, block: false } : null }
+    }
+    default:
+      return { ...base, message: { text: f.text, block: f.block } }
+  }
+}
+
+/** [내 버전 열기] — 다른 화면이 먼저 만든 사본 id(#179 다시 읽은 값). 없으면 null(관리 화면으로). */
+export function seedCopyId(overrides: readonly SeedOverrideItem[], seedId: string): string | null {
+  const o = overrides.find((x) => x.kind === 'TOPIC' && x.seedId === seedId && x.state === 'COPIED' && !x.orphan && !!x.copyId)
+  return o?.copyId ?? null
+}
+
+export interface TopicEditSaveInput {
+  id: string
+  route: TopicEditRoute
+  orig: EditableTopicDraft
+  cur: EditableTopicDraft
+}
+
+export interface TopicEditApi {
+  patch: (id: string, body: TopicUpdateInput) => Promise<unknown>
+  fork: (id: string, body: TopicUpdateInput) => Promise<unknown>
+}
+
+export type TopicEditSaveOutcome =
+  | { kind: 'unchanged' }
+  | { kind: 'invalid'; problems: TopicProblem[] }
+  /** `id` = 저장된 주제(#171 같은 id · #174 사본 id). 응답에서 못 읽으면 null(관리 화면으로). */
+  | { kind: 'saved'; route: TopicEditRoute; id: string | null }
+  | { kind: 'fail'; failure: Failure }
+
+const idOf = (v: unknown): string | null => (typeof v === 'string' && v ? v : null)
+
+/** 저장 한 번 — 바뀐 게 없으면 서버 0 · 검사 실패면 서버 0 · 경로대로 한 요청. 더블 탭은 화면이 `createOnceGuard` 로 막는다. */
+export async function runTopicEditSave(input: TopicEditSaveInput, api: TopicEditApi): Promise<TopicEditSaveOutcome> {
+  const { id, route, orig, cur } = input
+  const patch = topicEditPatch(orig, cur)
+  if (!patch) return { kind: 'unchanged' }
+  const problems = validateTopicEdit(cur, route, patch)
+  if (problems.length) return { kind: 'invalid', problems }
+  try {
+    if (route === 'patch') {
+      const res = (await api.patch(id, patch)) as { topic?: { id?: unknown } } | null
+      return { kind: 'saved', route, id: idOf(res?.topic?.id) ?? id }
+    }
+    const res = (await api.fork(id, topicForkBody(cur))) as { copyId?: unknown; topic?: { id?: unknown } } | null
+    return { kind: 'saved', route, id: idOf(res?.copyId) ?? idOf(res?.topic?.id) }
+  } catch (e) {
+    return { kind: 'fail', failure: failureCopy(route === 'patch' ? 'topicEdit' : 'topicFork', toErr(e), { chunkCount: cur.chunks.length }) }
+  }
+}
+
+/** 저장 뒤 주제 보기(S6)에 남길 토스트. */
+export const editFlash = (route: TopicEditRoute): ManageFlash => ({ kind: route === 'fork' ? 'copySaved' : 'saved' })
+
+/** D4-A 수준 바꿈 상자 — 지금 표현이 만들어진 수준과 고른 수준이 다르고, [지금 표현 두기]로 넘긴 수준이 아니면 보인다. */
+export function levelRegenPrompt(chunksLevel: JlptLevel, curLevel: JlptLevel, keptLevel: JlptLevel | null): { from: JlptLevel; to: JlptLevel } | null {
+  if (curLevel === chunksLevel || curLevel === keptLevel) return null
+  return { from: chunksLevel, to: curLevel }
+}
+
+/** #170 본문 — 지금 이름 + 새 수준(이름·설명은 바꾸지 않는다). 이름이 #170 범위(2~40자) 밖이면 null(보내지 않는다). */
+export function levelRegenBody(cur: Pick<EditableTopicDraft, 'title' | 'level'>): TopicDraftRequestBody | null {
+  if (topicAskProblem(cur.title)) return null
+  return { title: oneLine(cur.title), level: cur.level }
+}
+
+/** 다시 받은 표현 → 편집기 값. 모두 새 표현(`id` 없음 — 저장하면 옛 표현은 빠지고 연습 기록이 처음부터), 화면 열쇠는 지금 목록 다음 번호부터(열려 있던 고치기 칸이 새 행을 가리키지 않게). */
+export function regenChunks(current: readonly EditableChunk[], fresh: readonly EditableChunk[]): EditableChunk[] {
+  let n = Number(nextChunkKey(current).slice(1))
+  return fresh.map((c) => ({ key: chunkKeyOf(n++), chunkType: c.chunkType, textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo }))
+}
+
+const CHUNK_WARNINGS: ReadonlySet<TopicWarningCode> = new Set(['CHUNKS_SHORT', 'TYPE_THIN_NAME', 'TYPE_THIN_ACTION', 'TYPE_THIN_FEELING', 'TYPE_THIN_MODIFIER'])
+
+/** 다시 받은 표현의 「확인해 볼 곳」 — 표현 관련 안내만(이름·설명은 받지 않으므로). */
+export function regenWarnLines(codes: readonly TopicWarningCode[], d: EditableTopicDraft): WarnLine[] {
+  return topicWarnLines(
+    codes.filter((c) => CHUNK_WARNINGS.has(c)),
+    d,
+  )
+}
+
+/** 표현 다시 받기 실패 문구 — 첫 줄은 늘 「표현을 받지 못했어요…」, 한도·동시 요청·맞지 않는 이름이면 그 이유를 둘째 줄로(§16-7 `TOPIC_DRAFT`). */
+export function levelRegenFailLines(f: Failure): { text: string; detail: string | null; block: boolean } {
+  const specific = f.kind === 'rate' || f.kind === 'daily' || f.kind === 'busy' || f.kind === 'unfit' || f.kind === 'userGone' || f.kind === 'field'
+  return { text: EDIT.lvlFail, detail: specific ? f.text : null, block: f.block }
 }
 

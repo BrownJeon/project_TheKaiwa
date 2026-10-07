@@ -5,7 +5,7 @@
  * 고치기는 시트가 아니라 행 자리에서 아래로 펼친다(보이는 이름표, [바꾸기][취소]). 위로·아래로는 같은 종류 안에서만 자리를 바꾼다.
  * 스크롤 규칙(R1·R3·R4): 메뉴·펼침은 React 상태만 바꾸고(목록 `key` 는 표현 열쇠로 고정) 스크롤을 옮기지 않는다. 메뉴를 닫으면 `Sheet` 가 ⋯ 버튼으로 초점을 돌린다.
  * 지운 뒤·펼침을 닫은 뒤에는 바로 옆 ⋯ 버튼(없으면 [＋ 표현 더하기])으로 초점을 둔다 — 화면에 보이는 가까운 요소라 위치가 움직이지 않는다.
- * S7 주제 고치기(T5-4)가 표현 id 보존을 더해 다시 쓴다.
+ * S7 주제 고치기(T5-4)도 같은 편집기를 쓴다 — 행의 서버 `id` 는 고쳐도 그대로 두고(위로·아래로는 행 객체를 옮길 뿐), 새로 더한 표현만 id 가 없다.
  */
 import { useEffect, useRef, useState } from 'react'
 import Segmented from '@/components/common/Segmented'
@@ -79,7 +79,16 @@ export default function ChunkEditor({
       document.getElementById(topicProblemDomId(chunkProblemKey(edit.key, first)))?.focus()
       return
     }
-    const next: EditableChunk = { key: edit.key, ...edit.values, textJa: edit.values.textJa.trim(), reading: edit.values.reading.trim(), meaningKo: edit.values.meaningKo.trim() }
+    // S7 고치기: 행 자리에서 고친 표현은 서버가 준 `id` 를 그대로 들고 간다(글이 바뀌었는지는 서버가 보고 새 id 를 정한다). 새 표현은 id 가 없다.
+    const keepId = edit.isNew ? undefined : chunks.find((c) => c.key === edit.key)?.id
+    const next: EditableChunk = {
+      key: edit.key,
+      ...(keepId ? { id: keepId } : {}),
+      ...edit.values,
+      textJa: edit.values.textJa.trim(),
+      reading: edit.values.reading.trim(),
+      meaningKo: edit.values.meaningKo.trim(),
+    }
     onChange((cs) => chunkUpsert(cs, next))
     closeEdit(edit.key)
   }
@@ -162,7 +171,7 @@ export default function ChunkEditor({
         id={CHUNK_ADD_DOM_ID}
         variant="ghost"
         size="sm"
-        className={`w-full ${full ? 'opacity-40' : ''}`}
+        className={`min-h-11 w-full ${full ? 'opacity-40' : ''}`}
         aria-disabled={disabled || full || !!edit?.isNew || undefined}
         aria-describedby={full ? 'tp-chunks-range' : undefined}
         onClick={add}
@@ -275,10 +284,10 @@ function ChunkFields({
         )
       })}
       <div className="flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
-        <Btn size="sm" onClick={onApply}>
+        <Btn size="sm" className="min-h-11" onClick={onApply}>
           {REVIEW.apply}
         </Btn>
-        <Btn size="sm" variant="ghost" onClick={onCancel}>
+        <Btn size="sm" variant="ghost" className="min-h-11" onClick={onCancel}>
           {REVIEW.cancel}
         </Btn>
       </div>

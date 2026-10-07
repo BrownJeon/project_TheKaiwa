@@ -20,7 +20,7 @@ import {
   isBlankTopicStore,
   MANAGE_FLASH_KEY,
   MANAGE_HREF,
-  parseTopicStore,
+  readTopicStore,
   serializeTopicStore,
   serverTopicProblems,
   topicAskBody,
@@ -78,9 +78,14 @@ export interface TopicDraftModel {
   discard: () => void
 }
 
-export function useTopicDraft(defaultLevel: DraftLevel): TopicDraftModel {
+export function useTopicDraft(defaultLevel: DraftLevel, userId: string): TopicDraftModel {
   const router = useRouter()
-  const [stored] = useState<StoredTopicDraft | null>(() => parseTopicStore(readStore('session', TOPIC_DRAFT_STORE_KEY)))
+  // 보관 값이 지금 사용자 것이 아니면(다른 계정·옛 형식·손상) 읽지 않고 지운다 — 같은 탭에서 계정을 바꿔도 남의 초안이 이어 고치기 카드로 보이지 않게(REV-162 M-1).
+  const [stored] = useState<StoredTopicDraft | null>(() => {
+    const r = readTopicStore(readStore('session', TOPIC_DRAFT_STORE_KEY), userId)
+    if (r.discard) writeStore('session', TOPIC_DRAFT_STORE_KEY, null)
+    return r.store
+  })
   const [restore, setRestore] = useState<StoredTopicDraft | null>(() => (stored?.draft ? stored : null))
   const [ask, setAskState] = useState<TopicAsk>(() => stored?.ask ?? { title: '', level: defaultLevel })
   const [askError, setAskError] = useState<string | null>(null)
@@ -117,11 +122,11 @@ export function useTopicDraft(defaultLevel: DraftLevel): TopicDraftModel {
     writeStore('session', TOPIC_DRAFT_STORE_KEY, isBlankTopicStore(snap) ? null : serializeTopicStore({ ...snap, savedAt: Date.now() }))
   }, [])
   useEffect(() => {
-    snapRef.current = restore ? null : { ask, draft, warnings, arrivalTitle, edited }
+    snapRef.current = restore ? null : { userId, ask, draft, warnings, arrivalTitle, edited }
     if (restore || storeClosed.current) return
     const t = setTimeout(flush, SAVE_DEBOUNCE_MS)
     return () => clearTimeout(t)
-  }, [restore, ask, draft, warnings, arrivalTitle, edited, flush])
+  }, [restore, userId, ask, draft, warnings, arrivalTitle, edited, flush])
 
   useEffect(
     () => () => {

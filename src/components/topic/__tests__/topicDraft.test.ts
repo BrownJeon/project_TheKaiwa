@@ -22,6 +22,7 @@ import {
   nextChunkKey,
   parseFlash,
   parseTopicStore,
+  readTopicStore,
   serializeTopicStore,
   serverTopicProblems,
   topicAskBody,
@@ -194,23 +195,55 @@ test('확인해 볼 곳: 칸 순서·여러 종류는 한 줄·고치면 「✓ 
 })
 
 test('이 탭 보관: 왕복 같음 · 다른 판·잘못된 열쇠·과한 길이는 통째로 버림 · 보관 값에 토큰·응답 원문 칸이 없다', () => {
-  const snap = { ask: { title: '은행', level: 'N4' as const }, draft: draftOf(), warnings: ['CHUNKS_SHORT' as const], arrivalTitle: '은행 계좌 만들기', edited: true, savedAt: 1 }
+  const snap = { userId: 'u-1', ask: { title: '은행', level: 'N4' as const }, draft: draftOf(), warnings: ['CHUNKS_SHORT' as const], arrivalTitle: '은행 계좌 만들기', edited: true, savedAt: 1 }
   const raw = serializeTopicStore(snap)
-  const back = parseTopicStore(raw)
+  const back = parseTopicStore(raw, 'u-1')
   assert.ok(back)
   assert.deepEqual(back.draft, snap.draft)
   assert.deepEqual(back.ask, snap.ask)
   assert.equal(back.edited, true)
-  assert.deepEqual(Object.keys(JSON.parse(raw)).sort(), ['arrivalTitle', 'ask', 'draft', 'edited', 'savedAt', 'version', 'warnings'])
-  assert.equal(parseTopicStore(raw.replace('"version":1', '"version":2')), null)
-  assert.equal(parseTopicStore(raw.replace('"key":"c1"', '"key":"x1"')), null)
-  assert.equal(parseTopicStore(JSON.stringify({ ...JSON.parse(raw), ask: { title: 'a'.repeat(401), level: 'N4' } })), null)
-  const extra = parseTopicStore(JSON.stringify({ ...JSON.parse(raw), token: 'secret' }))
+  assert.deepEqual(Object.keys(JSON.parse(raw)).sort(), ['arrivalTitle', 'ask', 'draft', 'edited', 'savedAt', 'userId', 'version', 'warnings'])
+  assert.equal(parseTopicStore(raw.replace('"version":1', '"version":2'), 'u-1'), null)
+  assert.equal(parseTopicStore(raw.replace('"key":"c1"', '"key":"x1"'), 'u-1'), null)
+  assert.equal(parseTopicStore(JSON.stringify({ ...JSON.parse(raw), ask: { title: 'a'.repeat(401), level: 'N4' } }), 'u-1'), null)
+  const extra = parseTopicStore(JSON.stringify({ ...JSON.parse(raw), token: 'secret' }), 'u-1')
   assert.ok(extra && !('token' in extra))
-  assert.equal(parseTopicStore('{'), null)
-  assert.equal(parseTopicStore(null), null)
+  assert.equal(parseTopicStore('{', 'u-1'), null)
+  assert.equal(parseTopicStore(null, 'u-1'), null)
   assert.equal(isBlankTopicStore({ ask: { title: '  ', level: 'N5' }, draft: null }), true)
   assert.equal(isBlankTopicStore({ ask: { title: '은행', level: 'N5' }, draft: null }), false)
+})
+
+test('REV-162 M-1 이 탭 보관은 주인이 같을 때만 쓴다 — 같은 사용자는 유지, 다른 사용자·userId 없는 옛 값·손상 JSON 은 쓰지 않고 지우라고 알린다', () => {
+  const snap = { userId: 'u-1', ask: { title: '은행', level: 'N4' as const }, draft: draftOf(), warnings: [] as never[], arrivalTitle: '은행 계좌 만들기', edited: true, savedAt: 1 }
+  const raw = serializeTopicStore(snap)
+  const mine = readTopicStore(raw, 'u-1')
+  assert.equal(mine.discard, false, '같은 사용자의 초안은 지우지 않는다')
+  assert.equal(mine.store?.userId, 'u-1')
+  assert.deepEqual(mine.store?.draft, snap.draft)
+  const other = readTopicStore(raw, 'u-2')
+  assert.deepEqual(other, { store: null, discard: true }, '다른 사용자 값은 쓰지 않고 지운다(같은 탭에서 계정을 바꿔도 이전 사용자의 초안 카드가 없다)')
+  const oldShape = JSON.parse(raw) as Record<string, unknown>
+  delete oldShape.userId
+  assert.deepEqual(readTopicStore(JSON.stringify(oldShape), 'u-1'), { store: null, discard: true }, 'userId 가 없는 옛 형식')
+  assert.deepEqual(readTopicStore(JSON.stringify({ ...oldShape, userId: 7 }), 'u-1'), { store: null, discard: true }, 'userId 가 문자열이 아님')
+  assert.deepEqual(readTopicStore(JSON.stringify({ ...oldShape, userId: '' }), 'u-1'), { store: null, discard: true })
+  assert.deepEqual(readTopicStore('{', 'u-1'), { store: null, discard: true }, '손상 JSON')
+  assert.deepEqual(readTopicStore('', 'u-1'), { store: null, discard: false })
+  assert.deepEqual(readTopicStore(null, 'u-1'), { store: null, discard: false }, '보관 값이 없으면 지울 것도 없다')
+  assert.deepEqual(readTopicStore(JSON.stringify({ ...oldShape, userId: '' }), ''), { store: null, discard: true }, '지금 사용자를 모르면 어떤 값도 쓰지 않는다')
+})
+
+test('REV-162 L-1 서버 engine_name 400 은 칸 이름 없이 chunks[i] 로 와도 그 행에 붙는다(화면 문제 문구로 떨어지지 않는다)', () => {
+  const d = draftOf()
+  const f = fieldFailures('topicSave', { problems: [{ field: 'chunks[2]', reason: 'engine_name' }] })
+  const s = serverTopicProblems(f, d)
+  assert.deepEqual(s.problems, [{ key: chunkProblemKey('c3', 'textJa'), message: FAIL.field.engineName }])
+  assert.equal(s.defect, false)
+  const gone = serverTopicProblems(f, { ...d, chunks: [] })
+  assert.deepEqual(gone.problems, [{ key: 'chunks', message: FAIL.field.engineName }], '행이 이미 없으면 표현 개수 칸으로')
+  const shape = serverTopicProblems(fieldFailures('topicSave', { problems: [{ field: 'chunks[2]', reason: 'type' }] }), d)
+  assert.equal(shape.defect, true, '모양 오류(type)는 여전히 화면 결함')
 })
 
 test('돌아왔을 때 토스트: created 는 제목과 함께 읽히고 문구는 문구표 그대로', () => {
@@ -296,6 +329,7 @@ test('흐름: 더블 탭 → 요청 1건 · 성공하면 편집 값 · 타이머
 })
 
 test('흐름: 취소 잠금 799ms 는 듣지 않고 800ms 부터 끊는다 — 끊으면 canceled·신호 abort·결과가 늦게 와도 무시', async () => {
+  assert.equal(TOPIC_DRAFT_CANCEL_LOCK_MS, 800, '잠금 값 자체를 고정한다 — 상수로만 경계를 만들면 80 으로 줄어도 통과한다(REV-162 L-3)')
   const s = setup()
   s.start()
   s.clock.advance(TOPIC_DRAFT_CANCEL_LOCK_MS - 1)

@@ -22,10 +22,11 @@ import { useTopicDraft, type TopicDraftModel } from './useTopicDraft'
 const noopSubscribe = () => () => {}
 const GEN_FAIL_DOM_ID = 'tp-gen-fail'
 
-export default function TopicCreateScreen({ defaultLevel }: { defaultLevel: DraftLevel }) {
+/** `userId` 는 이 탭 보관 초안의 주인 확인에만 쓴다(화면에 나오지 않는다 — REV-162 M-1). */
+export default function TopicCreateScreen({ defaultLevel, userId }: { defaultLevel: DraftLevel; userId: string }) {
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
   if (!hydrated) return <BackBar sticky backHref={MANAGE_HREF} backLabel={TOPIC.back} title={CREATE.title} />
-  return <Screen defaultLevel={defaultLevel} />
+  return <Screen defaultLevel={defaultLevel} userId={userId} />
 }
 
 /** 첫 문제로 초점 — 표현 칸이 접혀 있으면 그 행의 ⋯ 버튼. */
@@ -35,8 +36,8 @@ function focusProblem(p: TopicProblem | undefined) {
   el?.focus()
 }
 
-function Screen({ defaultLevel }: { defaultLevel: DraftLevel }) {
-  const m = useTopicDraft(defaultLevel)
+function Screen({ defaultLevel, userId }: { defaultLevel: DraftLevel; userId: string }) {
+  const m = useTopicDraft(defaultLevel, userId)
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
   const askRef = useRef<HTMLInputElement>(null)

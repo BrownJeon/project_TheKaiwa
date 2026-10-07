@@ -21,11 +21,14 @@ export default function TopicInfoFields({
   onChange,
   errors,
   disabled = false,
+  levelSlot,
 }: {
   value: Info
   onChange: (patch: Partial<Info>) => void
   errors: Record<string, string>
   disabled?: boolean
+  /** S7 수준 바꿈 상자(D4-A) 자리 — 수준 칸 바로 아래. */
+  levelSlot?: React.ReactNode
 }) {
   return (
     <section className="flex min-w-0 flex-col gap-3.5" aria-labelledby="tp-info-h">
@@ -39,6 +42,7 @@ export default function TopicInfoFields({
         <Segmented<JlptLevel> ariaLabel={REVIEW.fLevel} options={levelOptions(value.level)} value={value.level} onChange={(v) => !disabled && onChange({ level: v })} />
         {errors.level ? <p className="text-[12px] text-bad break-keep">{errors.level}</p> : null}
       </div>
+      {levelSlot ?? null}
       <TextField fkey="description" multiline label={REVIEW.fDesc} value={value.description} max={L.descriptionMax} error={errors.description} disabled={disabled} onChange={(v) => onChange({ description: v })} />
     </section>
   )

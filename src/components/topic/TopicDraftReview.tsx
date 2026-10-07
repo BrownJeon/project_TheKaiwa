@@ -115,6 +115,7 @@ export default function TopicDraftReview({
             <div className="mt-2 flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
               <Btn
                 size="sm"
+                className="min-h-11"
                 onClick={() => {
                   setRegenAsk(false)
                   onRegen()
@@ -125,6 +126,7 @@ export default function TopicDraftReview({
               <Btn
                 size="sm"
                 variant="ghost"
+                className="min-h-11"
                 onClick={() => {
                   setRegenAsk(false)
                   document.getElementById(REGEN_DOM_ID)?.focus()
