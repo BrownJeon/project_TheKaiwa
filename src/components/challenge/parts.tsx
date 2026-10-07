@@ -74,8 +74,8 @@ export function TaskGlyphIcon({ glyph }: { glyph: TaskGlyph }) {
 export function InfoBox({ title, children, className = '' }: { title?: React.ReactNode; children?: React.ReactNode; className?: string }) {
   return (
     <div className={`rounded-xl bg-surface2 px-3.5 py-3 text-[13px] text-ink ${className}`}>
-      {title ? <p className="font-bold break-keep">{title}</p> : null}
-      {children ? <div className={`${title ? 'mt-1 ' : ''}break-keep`}>{children}</div> : null}
+      {title ? <p className="font-bold break-keep [overflow-wrap:anywhere]">{title}</p> : null}
+      {children ? <div className={`${title ? 'mt-1 ' : ''}break-keep [overflow-wrap:anywhere]`}>{children}</div> : null}
     </div>
   )
 }
@@ -83,7 +83,7 @@ export function InfoBox({ title, children, className = '' }: { title?: React.Rea
 export function ErrorBox({ title, body, onRetry, retryLabel = '다시 시도', className = '' }: { title: string; body?: string; onRetry?: () => void; retryLabel?: string; className?: string }) {
   return (
     <div role="alert" className={`rounded-xl bg-bad-soft px-3.5 py-3 text-[13px] text-bad ${className}`}>
-      <p className="break-keep">
+      <p className="break-keep [overflow-wrap:anywhere]">
         <b className="font-bold">{title}</b>
         {body ? ` ${body}` : null}
       </p>

@@ -3,7 +3,7 @@
 /**
  * 변형 상황 만들기 `/study/ai/scenario/[id]/variant[?from=manage]`(task-045 변형 A, screens.md §16-2 A).
  * BackBar 52 + 본문 한 곳만 스크롤. 원본 요약 → 무엇을 바꿀지(4축 + 직접 적기) → [변형 초안 만들기] → 검토(공유 편집기 + 「바뀜」) → [새 상황으로 저장].
- * 만들기 버튼은 만드는 동안 같은 자리의 [그만두기]가 된다(초점이 누른 버튼에 남음 — R6). 초안이 오면 검토 안내 제목으로 초점(R5 — 의도된 이동).
+ * 만들기 버튼은 만드는 동안 같은 자리의 [그만두기]가 된다(초점이 누른 버튼에 남음 — R6, 만드는 중 표시는 그 버튼 아래). 초안이 오면 검토 안내 제목으로 초점(R5 — 의도된 이동).
  * 초안이 있으면 ← 는 버리기 확인을 먼저 연다(안드로이드 뒤로는 막지 않는다 — §16-0 #7). 오류 문구는 `failure.ts` 고정 문구.
  */
 import Link from 'next/link'
@@ -139,7 +139,6 @@ function Pick({ m }: { m: VariantScreenModel }) {
           ) : null}
         </Field>
         <div className="flex min-w-0 flex-col gap-2">
-          {gen ? <GenStatus long={m.flight.long} /> : null}
           {!gen && !aboveAxes ? <FailBox m={m} /> : null}
           <Btn
             variant={gen ? 'ghost' : undefined}
@@ -150,6 +149,8 @@ function Pick({ m }: { m: VariantScreenModel }) {
           >
             {gen ? VARIANT.cancel : VARIANT.submit}
           </Btn>
+          {/* 만드는 중 표시는 누른 버튼 아래에 둔다 — 위에 끼면 [그만두기]가 표시 높이(88px)만큼 밀려 접힌 영역 밖으로 나간다(R1~R6: 높이 변화는 누른 줄 아래에만). */}
+          {gen ? <GenStatus long={m.flight.long} /> : null}
           {!gen && reason ? (
             <p id="va-submit-why" className="text-center text-[12px] text-ink2 break-keep">
               {reason}

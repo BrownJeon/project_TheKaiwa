@@ -41,7 +41,7 @@ const noopSubscribe = () => () => {}
 
 function H2({ children, id, focusRef }: { children: React.ReactNode; id?: string; focusRef?: React.Ref<HTMLHeadingElement> }) {
   return (
-    <h2 id={id} ref={focusRef} tabIndex={focusRef ? -1 : undefined} className="mb-2 text-[15px] font-semibold outline-none break-keep">
+    <h2 id={id} ref={focusRef} tabIndex={focusRef ? -1 : undefined} className="mb-2 text-[15px] font-semibold outline-none break-keep [overflow-wrap:anywhere]">
       {children}
     </h2>
   )
@@ -303,7 +303,7 @@ function ResultBody({
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-[12.5px] text-ink2 break-keep">
+            <p className="mt-2 text-[12.5px] text-ink2 break-keep [overflow-wrap:anywhere]">
               「{d.topic.title}」 오늘의 단어 {v.done.sets}세트
             </p>
           </>
@@ -325,7 +325,7 @@ function ResultBody({
           </div>
         ) : (
           <InfoBox className="mt-3">
-            <p>{blockedNoteText(retry, next.topicGone)}</p>
+            <p className="[overflow-wrap:anywhere]">{blockedNoteText(retry, next.topicGone)}</p>
             <ULink href={`/plan/challenge/${encodeURIComponent(retry.id)}`}>{COPY.seeActive}</ULink>
           </InfoBox>
         )}

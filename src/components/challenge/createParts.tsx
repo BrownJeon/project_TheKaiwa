@@ -77,7 +77,7 @@ export function TopicRadioCard({ topic, name, checked, onSelect }: { topic: Topi
                 </span>
               ) : null}
             </span>
-            {topic.description ? <span className="mt-0.5 line-clamp-2 text-[13px] text-ink2 break-keep">{topic.description}</span> : null}
+            {topic.description ? <span className="mt-0.5 line-clamp-2 text-[13px] text-ink2 break-keep [overflow-wrap:anywhere]">{topic.description}</span> : null}
             <span className="mt-0.5 text-[12px] text-ink2">
               {topic.lessonCount > 0 ? (
                 `끝낸 수업 ${topic.lessonCount}개${topic.lastLessonAt ? ` · ${formatMonthDay(kstDateKey(topic.lastLessonAt))}` : ''}`
@@ -142,7 +142,7 @@ export function CheckCard({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className={`text-[15px] font-semibold ${disabled ? 'text-ink2' : ''}`}>{title}</span>
-          <span className="text-[13px] text-ink2 break-keep">{body}</span>
+          <span className="text-[13px] text-ink2 break-keep [overflow-wrap:anywhere]">{body}</span>
           <span className="text-[12.5px] text-ink2 break-keep">{rule}</span>
         </span>
       </span>
