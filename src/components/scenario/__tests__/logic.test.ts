@@ -70,7 +70,7 @@ function draft(over: Partial<EditableDraft> = {}): EditableDraft {
       { ja: '袋をください', ko: '봉투 주세요' },
       { ja: 'カードはありません', ko: '카드는 없어요' },
     ],
-    opening: { ja: 'いらっしゃいませ', ko: '어서 오세요' },
+    opening: { ja: 'いらっしゃいませ', ko: '어서 오세요', koAtJa: '어서 오세요', reading: null },
     topicIds: ['t_conv'],
     requiredExpressions: null,
     ...over,
@@ -224,13 +224,15 @@ test('저장 전 검사: 서버 한도 그대로(단계 2~8·표현 2~12·꺾쇠
   assert.deepEqual(keys(draft({ expressions: [{ ja: '袋', ko: '봉투' }, { ja: ' 袋', ko: '봉투2' }] })), ['expr[1]'])
   assert.deepEqual(keys(draft({ expressions: [{ ja: '袋', ko: '' }] })), ['expr', 'expr[0]'])
   assert.deepEqual(keys(draft({ expressions: Array.from({ length: 13 }, (_, i) => ({ ja: `j${i}`, ko: 'k' })) })), ['expr'])
-  assert.deepEqual(keys(draft({ opening: { ja: '', ko: '어서' } })), ['opening'])
+  // task-045 T5-5a: 첫마디는 한국어 주 입력 — 일본어가 아직 없으면(koOnly) 저장을 막는다. 문구는 조사를 미리 붙인 이름표(「은(는)」 병기 없음).
+  assert.deepEqual(keys(draft({ opening: { ko: '어서', ja: null, koAtJa: null, reading: null } })), ['opening'])
   assert.deepEqual(keys(draft({ opening: null })), [])
-  assert.equal(validateDraft(draft({ title: 'a'.repeat(41) }))[0].message, '제목은(는) 40자까지 쓸 수 있어요.')
+  assert.equal(validateDraft(draft({ title: 'a'.repeat(41) }))[0].message, '제목은 40자까지 쓸 수 있어요.')
 })
 
 test('서버 400 문제 → 화면 칸 · 초점 id', () => {
   const p = serverProblems(
+    'scenarioSave',
     {
       field: 'steps[2].ko',
       reason: 'max_length',
@@ -243,10 +245,13 @@ test('서버 400 문제 → 화면 칸 · 초점 id', () => {
         { field: 'requiredExpressions', reason: 'range', message: 'w' },
       ],
     },
-    '봉투',
   )
   assert.deepEqual(p.map((x) => x.key), ['steps[2]', 'expr[1]', 'criteria[0]', 'tutor', 'place', 'expr'])
-  assert.deepEqual(serverProblems({ field: 'title', reason: 'required' }, '제목을 적어 주세요.'), [{ key: 'title', message: '제목을 적어 주세요.' }])
+  // task-045 T5-5a: 서버 message 대신 고정 문구(「을(를)」·「은(는)」 병기 0).
+  assert.equal(p[0].message, '대화 순서는 40자까지 쓸 수 있어요.')
+  assert.equal(p[3].message, '선생님 역할을 적어 주세요.')
+  assert.ok(p.every((x) => !/\([을를은는이가]\)/.test(x.message) && x.message !== 'x' && x.message !== 'y'))
+  assert.deepEqual(serverProblems('scenarioSave', { field: 'title', reason: 'required' }), [{ key: 'title', message: '제목을 적어 주세요.' }])
   assert.equal(problemKey('opening.ko'), 'openingKo')
   assert.equal(problemKey('opening.ja'), 'opening')
   assert.equal(problemKey('opening'), 'opening')
@@ -262,18 +267,28 @@ test('오류 분류: 시작·초안·저장', () => {
   assert.equal(startFailureOf(err(429)), 'rate')
   assert.equal(startFailureOf(err(400, {}, '상황 대화는 아직 준비 중이에요.', 'FEATURE_NOT_READY')), 'fail')
   assert.equal(startFailureOf(err(0)), 'fail')
-  assert.deepEqual(genFailureOf(err(422), false), { kind: 'unfit' })
-  assert.deepEqual(genFailureOf({ ...err(429), retryAfterSec: 7 }, false), { kind: 'rate', sec: 7 })
-  assert.deepEqual(genFailureOf(err(404), false), { kind: 'fail' })
-  assert.deepEqual(genFailureOf(err(422), true), { kind: 'fail' })
-  assert.deepEqual(genFailureOf(err(400, { field: 'description' }, '상황 설명은 300자까지'), false), { kind: 'field', message: '상황 설명은 300자까지' })
+  // task-045 T5-5a: 초안·저장 실패 문구는 failure.ts 고정 문구(서버 message 는 쓰지 않는다).
+  assert.equal(genFailureOf(err(422), false).kind, 'unfit')
+  assert.deepEqual(
+    (({ kind, waitSec }) => ({ kind, waitSec }))(genFailureOf({ ...err(429), retryAfterSec: 7 }, false)),
+    { kind: 'rate', waitSec: 7 },
+  )
+  assert.equal(genFailureOf(err(404), false).kind, 'engine')
+  assert.equal(genFailureOf(err(404), false).retry, true)
+  assert.equal(genFailureOf(err(422), true).kind, 'engine')
+  const field = genFailureOf(err(400, { field: 'description', reason: 'max_length' }, '상황 설명은(는) 300자까지'), false)
+  assert.equal(field.kind, 'field')
+  assert.equal(field.text, '상황 설명은 300자까지 쓸 수 있어요.')
+  assert.equal(field.problems[0]?.field, 'description')
   assert.deepEqual(saveFailureOf(err(404, { reason: 'SEED' })), { kind: 'gone' })
   assert.deepEqual(saveFailureOf(err(409, { reason: 'ARCHIVED' })), { kind: 'gone' })
-  assert.deepEqual(saveFailureOf(err(409, { reason: 'SCENARIO_LIMIT' }, '내 상황은 50개까지')), { kind: 'message', text: '내 상황은 50개까지' })
-  assert.deepEqual(saveFailureOf(err(429, { reason: 'DAILY_LIMIT' }, '오늘은 더')), { kind: 'message', text: '오늘은 더' })
-  assert.deepEqual(saveFailureOf(err(429)), { kind: 'rate' })
-  assert.deepEqual(saveFailureOf(err(500)), { kind: 'fail' })
-  assert.equal(saveFailureOf(err(400, { field: 'title' }, '제목')).kind, 'invalid')
+  assert.deepEqual(saveFailureOf(err(409, { reason: 'SCENARIO_LIMIT' }, '서버 문구')), { kind: 'message', text: '내 상황이 50개라 더 저장할 수 없어요. 안 쓰는 상황을 지운 뒤 다시 저장해 주세요.', block: false })
+  assert.deepEqual(saveFailureOf(err(429, { reason: 'DAILY_LIMIT' }, '서버 문구')), { kind: 'message', text: '오늘은 상황을 30개 저장했어요. 내일 다시 저장할 수 있어요.', block: true })
+  assert.deepEqual(saveFailureOf(err(429)), { kind: 'message', text: '잠시 뒤 다시 눌러 주세요. 10초 뒤에 할 수 있어요.', block: false })
+  assert.equal(saveFailureOf(err(500)).kind, 'message')
+  assert.equal(saveFailureOf(err(400, { field: 'title', reason: 'required' }, '제목')).kind, 'invalid')
+  assert.equal(saveFailureOf(err(409, { reason: 'ALREADY_COPIED' }), 'scenarioFork').kind, 'copied')
+  assert.equal(saveFailureOf(err(404, { reason: 'SEED_NOT_FOUND' }), 'scenarioFork').kind, 'seedGone')
 })
 
 test('초안 보관: 왕복 · 깨진 값 · 빈 보관', () => {
@@ -333,14 +348,14 @@ test('역할극 시작 409: details.reason 이 없어도 오류 코드 ARCHIVED 
   assert.equal(startFailureOf(err(409, {}, '다른 충돌', 'CONFLICT')), 'fail')
 })
 
-test('첫마디(M-3): 일본어·뜻을 따로 검사 · 뜻 한도 정확값 통과', () => {
+test('첫마디(M-3 → task-045 D5=A): 한국어 한도 정확값 통과 · 비우면 첫마디 없음(null) · 맞춘 값만 저장', () => {
   const keys = (d: EditableDraft) => validateDraft(d).map((p) => p.key)
-  const ko = (s: string) => draft({ opening: { ja: 'いらっしゃいませ', ko: s } })
-  assert.deepEqual(keys(ko('')), ['openingKo'])
-  assert.equal(validateDraft(ko(''))[0].message, '첫마디 뜻을(를) 적어 주세요.')
+  const ko = (s: string) => draft({ opening: { ja: 'いらっしゃいませ', ko: s, koAtJa: s.replace(/[\r\n\t\f\v ]+/g, ' ').trim(), reading: null } })
+  assert.deepEqual(keys(ko('')), [])
+  assert.equal(draftInput(ko(''), { desc: '' }).opening, null)
   assert.deepEqual(keys(ko('가'.repeat(SCENARIO_LIMITS.openingKoMax))), [])
   assert.deepEqual(keys(ko('가'.repeat(SCENARIO_LIMITS.openingKoMax + 1))), ['openingKo'])
-  assert.deepEqual(keys(draft({ opening: { ja: '', ko: '' } })), ['opening', 'openingKo'])
+  assert.equal(validateDraft(ko('가'.repeat(SCENARIO_LIMITS.openingKoMax + 1)))[0].message, '선생님 첫마디는 80자까지 쓸 수 있어요.')
   const body = draftInput(ko(' 어서\n오세요 '), { desc: '' })
   assert.deepEqual(body.opening, { ja: 'いらっしゃいませ', ko: '어서 오세요' })
 })

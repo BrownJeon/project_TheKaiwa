@@ -5,10 +5,16 @@
  * 아래 버튼 줄만 시트 스크롤 안 `sticky`(입력칸이 없는 시트라 키보드 규칙과 무관 — 가이드 §9 M-4).
  * 상세는 열 때 S2 로 읽는다(목록 실패여도 딥링크 시트는 따로 열린다). 시작은 S5, 지우기는 #165.
  * 표현 ▶ 는 사용자 목소리 설정 그대로(#23), 표시등이 자막만이면 숨긴다.
+ * task-045 S10: 행동 줄은 출처별(#179 로 내 버전 판정) — 내 상황 [고치기·지우기(#165 보관)] · 기본 [고치기·지우기(#165 = 나에게서 숨기기)] ·
+ * 내 버전 [고치기·기본으로 되돌리기(#176)]. 상세와 #179 가 둘 다 온 뒤 한 번에 그린다(자리 44px 고정 — 늦게 붙는 버튼으로 줄이 밀리지 않게).
+ * 확인은 기존 인라인 확인 자리(위쪽, 열면 제목 초점·취소하면 연 버튼 초점). 관리 화면 아래에서 열리면 [고치기]가 `?from=manage` 를 단다.
  */
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { apiDelete } from '@/components/common/api'
+import { apiDelete, apiPost } from '@/components/common/api'
+import { toErr } from '@/components/common/errors'
+import { useKeyedResource } from '@/components/plan/usePlanData'
 import Sheet from '@/components/common/Sheet'
 import { Badge, Btn } from '@/components/common/ui'
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
@@ -17,9 +23,11 @@ import { useTtsRuntimeStatus } from '@/components/speech/useTtsRuntimeStatus'
 import { SOUND_MSG, SOUND_RETRYING, soundText } from '@/components/vocab/wordSound'
 import { ErrorBox, Skeleton } from '@/components/challenge/parts'
 import type { ScenarioDetail } from '@/types/scenario'
+import type { SeedOverrideItem } from '@/types/seedOverride'
+import { scenarioFailure } from './failure'
 import { DifficultyDots } from './ScenarioCard'
-import { dateLabel, josa, requiredOf } from './logic'
-import { OUTCOME_KO, scenarioEditHref, SHEET } from './scenarioCopy'
+import { dateLabel, josa, requiredOf, seedIdOfCopy, sheetOrigin, type SheetOrigin } from './logic'
+import { HOME, OUTCOME_KO, scenarioEditHref, SHEET } from './scenarioCopy'
 import { useKeyedSound } from './useKeyedSound'
 import { useScenarioDetail } from './useScenarioDetail'
 import { useStartRolePlay } from './useStartRolePlay'
@@ -32,20 +40,27 @@ export interface ScenarioSheetProps {
   saved?: boolean
   /** 수업 종료 카드에서 열었을 때(B3) — 안내 한 줄 + 시작 요청에 `lessonId`. */
   fromLesson?: { lessonId: string; title: string } | null
-  /** 지우기 성공(목록 다시 읽기·토스트는 부르는 쪽). */
-  onDeleted?: (id: string) => void
+  /** 지우기·숨기기·되돌리기 성공(또는 이미 목록에 없음) — 목록 다시 읽기·토스트(`toast` 문구)는 부르는 쪽. */
+  onDeleted?: (id: string, toast: string) => void
   /** `sh-404` [다른 상황 고르기] — 기본은 닫기. */
   onPickOther?: () => void
 }
 
 const btnGhostDanger = 'border-bad text-bad'
+const overridesPath = () => '/api/v1/seed-overrides?kind=SCENARIO'
+
+type ConfirmKind = 'delete' | 'hide' | 'revert'
+const CONFIRM_OF: Record<Exclude<SheetOrigin, 'MINE_UNSURE'>, ConfirmKind> = { MINE: 'delete', SEED: 'hide', COPY: 'revert' }
 
 export default function ScenarioSheet({ id, onClose, saved = false, fromLesson = null, onDeleted, onPickOther }: ScenarioSheetProps) {
   const detail = useScenarioDetail(id)
   const start = useStartRolePlay()
   const sound = useKeyedSound()
-  const [confirmDel, setConfirmDel] = useState(false)
+  const overrides = useKeyedResource<{ items?: SeedOverrideItem[] }>(id ? `so:${id}` : null, overridesPath)
+  const fromManage = (usePathname() ?? '').startsWith('/settings/scenarios')
+  const [confirmDel, setConfirmDel] = useState<ConfirmKind | null>(null)
   const [delState, setDelState] = useState<'idle' | 'busy' | 'failed'>('idle')
+  const [delFail, setDelFail] = useState<string | null>(null)
   const delHeadId = useId()
   const delHeadRef = useRef<HTMLHeadingElement>(null)
   const delBtnRef = useRef<HTMLButtonElement>(null)
@@ -58,7 +73,7 @@ export default function ScenarioSheet({ id, onClose, saved = false, fromLesson =
     if (busy) return
     stopSound()
     resetStart()
-    setConfirmDel(false)
+    setConfirmDel(null)
     setDelState('idle')
     onClose()
   }, [busy, stopSound, resetStart, onClose])
@@ -67,16 +82,37 @@ export default function ScenarioSheet({ id, onClose, saved = false, fromLesson =
     if (confirmDel) delHeadRef.current?.focus()
   }, [confirmDel])
 
-  const remove = async (s: ScenarioDetail) => {
+  const soItems = overrides.status === 'ready' ? (Array.isArray(overrides.data?.items) ? overrides.data.items : []) : null
+
+  const done = (sid: string, toast: string) => {
+    stopSound()
+    setConfirmDel(null)
+    setDelState('idle')
+    // 목록이 없는 곳(수업 카드·결과 화면)은 받을 쪽이 없으니 시트만 닫는다(숨긴·지운 상황을 계속 보여 주지 않게).
+    if (onDeleted) onDeleted(sid, toast)
+    else onClose()
+  }
+
+  const remove = async (s: ScenarioDetail, kind: ConfirmKind) => {
     if (delState === 'busy') return
+    const ctx = kind === 'delete' ? 'scenarioDelete' : kind === 'hide' ? 'scenarioHide' : 'scenarioRevert'
+    const seedId = kind === 'revert' ? seedIdOfCopy(s.id, soItems) : null
     setDelState('busy')
+    setDelFail(null)
     try {
-      await apiDelete(`/api/v1/scenarios/${encodeURIComponent(s.id)}`)
-      stopSound()
-      setConfirmDel(false)
-      setDelState('idle')
-      onDeleted?.(s.id)
-    } catch {
+      if (kind === 'revert') {
+        if (!seedId) throw new Error('no seed')
+        await apiPost('/api/v1/seed-overrides/restore', { kind: 'SCENARIO', seedId })
+        done(s.id, SHEET.reverted)
+      } else {
+        await apiDelete(`/api/v1/scenarios/${encodeURIComponent(s.id)}`)
+        done(s.id, kind === 'hide' ? SHEET.hidden(s.title) : HOME.deleted)
+      }
+    } catch (e) {
+      const f = scenarioFailure(ctx, toErr(e))
+      // 이미 목록에 없거나 이미 기본으로 돌아가 있으면 시트를 닫고 목록을 다시 읽는다(같은 결과).
+      if (f.kind === 'gone' || f.kind === 'notOverridden') return done(s.id, f.text)
+      setDelFail(f.text)
       setDelState('failed')
     }
   }
@@ -106,16 +142,20 @@ export default function ScenarioSheet({ id, onClose, saved = false, fromLesson =
           delHeadId={delHeadId}
           delHeadRef={delHeadRef}
           delBtnRef={delBtnRef}
-          onAskDelete={() => {
+          origin={overrides.status === 'loading' ? null : sheetOrigin(detail.data, soItems)}
+          editHref={scenarioEditHref(detail.data.id, fromManage ? 'manage' : null)}
+          delFail={delFail}
+          onAskDelete={(kind) => {
             setDelState('idle')
-            setConfirmDel(true)
+            setDelFail(null)
+            setConfirmDel(kind)
           }}
           onCancelDelete={() => {
-            setConfirmDel(false)
+            setConfirmDel(null)
             setDelState('idle')
             requestAnimationFrame(() => delBtnRef.current?.focus())
           }}
-          onDelete={() => void remove(detail.data!)}
+          onDelete={() => confirmDel && void remove(detail.data!, confirmDel)}
           footer={
             <StartBar
               s={detail.data}
@@ -157,6 +197,9 @@ function SheetBody({
   delHeadId,
   delHeadRef,
   delBtnRef,
+  origin,
+  editHref,
+  delFail,
   onAskDelete,
   onCancelDelete,
   onDelete,
@@ -166,12 +209,16 @@ function SheetBody({
   saved: boolean
   fromLesson: { lessonId: string; title: string } | null
   sound: ReturnType<typeof useKeyedSound>
-  confirmDel: boolean
+  confirmDel: ConfirmKind | null
   delState: 'idle' | 'busy' | 'failed'
   delHeadId: string
   delHeadRef: React.RefObject<HTMLHeadingElement | null>
   delBtnRef: React.RefObject<HTMLButtonElement | null>
-  onAskDelete: () => void
+  /** null = #179 를 읽는 중(행동 줄 자리만 둔다). */
+  origin: SheetOrigin | null
+  editHref: string
+  delFail: string | null
+  onAskDelete: (kind: ConfirmKind) => void
   onCancelDelete: () => void
   onDelete: () => void
   footer: React.ReactNode
@@ -185,23 +232,41 @@ function SheetBody({
   const voice = !textOnly && s.keyExpressions.some((e) => soundText(e.ja))
   const last = s.last && Object.prototype.hasOwnProperty.call(OUTCOME_KO, s.last.outcome) ? s.last : null
   const tutorJ = josa(s.roles.tutor, '이', '가')
+  const confirmKind = origin && origin !== 'MINE_UNSURE' ? CONFIRM_OF[origin] : null
+  const badge = origin === 'SEED' ? SHEET.badgeSeed : origin === 'COPY' ? SHEET.badgeCopy : origin === 'MINE' || origin === 'MINE_UNSURE' ? SHEET.mineBadge : null
 
   return (
     <div className="flex min-w-0 flex-col">
       {confirmDel ? (
         <div role="group" aria-labelledby={delHeadId} aria-busy={delState === 'busy' || undefined} className="mb-3 rounded-[14px] border border-line bg-surface2 p-3.5">
           <h3 id={delHeadId} ref={delHeadRef} tabIndex={-1} className="text-[15px] font-semibold outline-none">
-            {SHEET.deleteTitle}
+            {confirmDel === 'revert' ? SHEET.revertTitle : confirmDel === 'hide' ? SHEET.hideTitle : SHEET.deleteTitle}
           </h3>
-          <p className="mt-1 text-[13px] text-ink2 break-keep">{SHEET.deleteBody}</p>
+          {confirmDel === 'hide' ? (
+            <p className="mt-1 text-[13px] text-ink2 break-keep">
+              <b className="font-semibold text-ink">{SHEET.hideBodyStrong}</b> {SHEET.hideBodyRest}
+            </p>
+          ) : (
+            <p className="mt-1 text-[13px] text-ink2 break-keep">{confirmDel === 'revert' ? SHEET.revertBody : SHEET.deleteBody}</p>
+          )}
           {delState === 'failed' ? (
             <p role="alert" className="mt-2 rounded-xl bg-bad-soft px-3 py-2 text-[13px] text-bad break-keep">
-              {SHEET.deleteFail}
+              {delFail ?? SHEET.deleteFail}
             </p>
           ) : null}
           <div className="mt-3 flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
-            <Btn variant="ghost" className={btnGhostDanger} aria-disabled={delState === 'busy' || undefined} onClick={onDelete}>
-              {delState === 'busy' ? SHEET.deleting : SHEET.deleteConfirm}
+            <Btn variant="ghost" className={btnGhostDanger} aria-busy={delState === 'busy' || undefined} aria-disabled={delState === 'busy' || undefined} onClick={() => delState !== 'busy' && onDelete()}>
+              {delState === 'busy'
+                ? confirmDel === 'revert'
+                  ? SHEET.reverting
+                  : confirmDel === 'hide'
+                    ? SHEET.hiding
+                    : SHEET.deleting
+                : confirmDel === 'revert'
+                  ? SHEET.revertConfirm
+                  : confirmDel === 'hide'
+                    ? SHEET.hideConfirm
+                    : SHEET.deleteConfirm}
             </Btn>
             <Btn variant="ghost" aria-disabled={delState === 'busy' || undefined} onClick={() => delState !== 'busy' && onCancelDelete()}>
               {SHEET.deleteCancel}
@@ -220,7 +285,7 @@ function SheetBody({
         <Badge>{s.level}</Badge>
         <DifficultyDots value={s.difficulty} />
         {place ? <span>{place}</span> : null}
-        {s.isMine ? <Badge>{SHEET.mineBadge}</Badge> : null}
+        {badge ? <Badge>{badge}</Badge> : null}
       </p>
 
       {saved ? (
@@ -304,16 +369,20 @@ function SheetBody({
         {s.opening ? SHEET.leadOpening(tutorJ) : SHEET.leadNoOpening(tutorJ, josa(s.roles.learner, '이', '가'))}
       </p>
 
-      {s.isMine ? (
-        <div className="mt-2 flex gap-2">
-          <Link href={scenarioEditHref(s.id)} className="inline-flex h-11 items-center px-1 text-[13px] font-semibold text-accent">
-            {SHEET.edit}
-          </Link>
-          <button ref={delBtnRef} type="button" aria-haspopup="true" onClick={onAskDelete} className="inline-flex h-11 items-center px-1 text-[13px] font-semibold text-bad">
-            {SHEET.delete}
-          </button>
-        </div>
-      ) : null}
+      <div className="mt-2 flex min-h-11 gap-2">
+        {origin ? (
+          <>
+            <Link href={editHref} className="inline-flex h-11 items-center px-1 text-[13px] font-semibold text-accent">
+              {SHEET.edit}
+            </Link>
+            {confirmKind ? (
+              <button ref={delBtnRef} type="button" aria-haspopup="true" onClick={() => onAskDelete(confirmKind)} className="inline-flex h-11 items-center px-1 text-[13px] font-semibold text-bad">
+                {confirmKind === 'revert' ? SHEET.revert : SHEET.delete}
+              </button>
+            ) : null}
+          </>
+        ) : null}
+      </div>
 
       {footer}
     </div>

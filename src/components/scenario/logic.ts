@@ -18,7 +18,8 @@ import {
   type ScenarioRecommendReason,
   type ScenarioTopicRef,
 } from '@/types/scenario'
-import { CARD, CHECK, END, HOME, RECOMMEND_REASON_KO, ROOM } from './scenarioCopy'
+import { scenarioFailure, scenarioFieldFailures, type ScenarioFailContext, type ScenarioFailure } from './failure'
+import { CARD, CHECK, END, HOME, OPENING, RECOMMEND_REASON_KO, ROOM, type FieldLabelKey } from './scenarioCopy'
 
 /* ── 조사 ─────────────────────────────────────────────────────────────── */
 
@@ -235,7 +236,8 @@ export interface EditableDraft {
   criteria: string[]
   steps: string[]
   expressions: DraftExpression[]
-  opening: { ja: string; ko: string } | null
+  /** 선생님 첫마디(D5=A) — null 과 한국어가 빈 값은 같은 뜻(첫마디 없음). */
+  opening: OpeningValue | null
   topicIds: string[]
   /** 고칠 때 저장된 필수 표현 수(보이기만 — 화면에서 바꾸지 않는다). */
   requiredExpressions: number | null
@@ -262,8 +264,120 @@ function exprList(v: unknown, keepIds: boolean): DraftExpression[] {
   })
 }
 
-function openingOf(v: unknown): { ja: string; ko: string } | null {
-  return isObj(v) && typeof v.ja === 'string' && v.ja ? { ja: v.ja, ko: str(v.ko) } : null
+/* ── 상황 시트 행동 줄(S10) ───────────────────────────────────────────── */
+
+/**
+ * 시트 출처 — `isMine` + #179(`kind=SCENARIO`)의 내 버전 id. #179 를 못 읽으면(`overrides` null) 내 상황인지 내 버전인지 몰라
+ * `MINE_UNSURE`(고치기만 — 내 버전을 「지우기」하면 기본까지 숨겨지는 #165 경로를 열지 않으려고).
+ */
+export type SheetOrigin = 'MINE' | 'SEED' | 'COPY' | 'MINE_UNSURE'
+
+export interface SheetOverride {
+  seedId: string
+  state: string
+  copyId: string | null
+  orphan: boolean
+}
+
+export function sheetOrigin(s: Pick<ScenarioListItem, 'id' | 'isMine'>, overrides: readonly SheetOverride[] | null): SheetOrigin {
+  if (!s.isMine) return 'SEED'
+  if (!overrides) return 'MINE_UNSURE'
+  return overrides.some((o) => o.state === 'COPIED' && !o.orphan && o.copyId === s.id) ? 'COPY' : 'MINE'
+}
+
+/** 내 버전 → 원본 시드 id(#176 `seedId`). */
+export function seedIdOfCopy(copyId: string, overrides: readonly SheetOverride[] | null): string | null {
+  return overrides?.find((o) => o.state === 'COPIED' && !o.orphan && o.copyId === copyId)?.seedId ?? null
+}
+
+/* ── 선생님 첫마디(공유 편집기 `OpeningField`, D5=A — screens.md §16-2) ─────── */
+
+/**
+ * 편집 값: 한국어(주 입력) · 선생님이 만든 일본어 · 그 일본어를 만든 때의 한국어(한 줄 정리) · 확인용 읽기(저장하지 않는다).
+ * 저장 값은 지금과 같은 `{ja, ko}` 다.
+ */
+export interface OpeningValue {
+  ko: string
+  ja: string | null
+  koAtJa: string | null
+  reading: string | null
+}
+
+export const EMPTY_OPENING: OpeningValue = { ko: '', ja: null, koAtJa: null, reading: null }
+
+/** `none` 첫마디 없음(저장 `opening:null`) · `koOnly` 일본어 아직 없음 · `stale` 한국어를 고침 · `matched` 저장 가능. 앞의 둘은 저장을 막는다. */
+export type OpeningState = 'none' | 'koOnly' | 'stale' | 'matched'
+
+export function openingState(o: OpeningValue | null | undefined): OpeningState {
+  if (!o || !oneLine(o.ko)) return 'none'
+  if (!o.ja) return 'koOnly'
+  return oneLine(o.ko) === o.koAtJa ? 'matched' : 'stale'
+}
+
+/** 저장된 첫마디(#162 상세·#166 초안의 `{ja, ko}`) → 맞춤 상태. 일본어가 없으면 null. */
+export function openingFromSaved(v: unknown): OpeningValue | null {
+  if (!isObj(v) || typeof v.ja !== 'string' || !v.ja) return null
+  const ko = str(v.ko)
+  return { ko, ja: v.ja, koAtJa: oneLine(ko), reading: null }
+}
+
+/** 저장 본문 — 맞춤일 때만 `{ja, ko}`, 그 밖은 null(막힌 상태는 `validateDraft` 가 먼저 막는다). */
+export function openingBody(o: OpeningValue | null | undefined): { ja: string; ko: string } | null {
+  if (!o || openingState(o) !== 'matched' || !o.ja) return null
+  return { ja: oneLine(o.ja), ko: oneLine(o.ko) }
+}
+
+/** [일본어로 만들기]를 누를 수 있는지 — 한국어 없음·역할 없음(400 `scenario.roles` 를 보내지 않게)·글자 넘침이면 막는다. */
+export type OpeningBlock = 'noKo' | 'noRoles' | 'tooLong' | null
+export function openingBlock(d: Pick<EditableDraft, 'opening' | 'learner' | 'tutor'>): OpeningBlock {
+  const ko = oneLine(d.opening?.ko ?? '')
+  if (!ko) return 'noKo'
+  if (cpLength(ko) > L.openingKoMax) return 'tooLong'
+  if (!oneLine(d.learner) || !oneLine(d.tutor)) return 'noRoles'
+  return null
+}
+
+/** 선택 칸은 서버 한도 안·꺾쇠 없음일 때만 싣는다(넘는 칸 하나로 400 이 나지 않게 — 그 칸은 저장 검사가 따로 알린다). */
+function optional(raw: string, max: number): string | undefined {
+  const t = oneLine(raw)
+  return t && cpLength(t) <= max && !/[<>]/.test(t) ? t : undefined
+}
+
+/** #178 본문 — 지금 편집 중인 값으로(저장 전). */
+export function openingRequestBody(d: EditableDraft, placeTitle: string | null) {
+  const scenario: Record<string, unknown> = { level: d.level, roles: { learner: oneLine(d.learner), tutor: oneLine(d.tutor) } }
+  const title = optional(d.title, L.titleMax)
+  const titleJa = optional(d.titleJa, L.titleJaMax)
+  const goal = optional(d.goalKo, L.goalMax)
+  const place = placeTitle ? optional(placeTitle, 40) : undefined
+  if (title) scenario.title = title
+  if (titleJa) scenario.titleJa = titleJa
+  if (goal) scenario.goal = goal
+  if (place) scenario.placeTitle = place
+  return { ko: oneLine(d.opening?.ko ?? ''), scenario }
+}
+
+/** #178 응답 → `{ja, reading, truncated}`. 일본어가 없으면 null(쓸 수 없는 응답 — 실패로 본다). */
+export function openingDraftResult(raw: unknown): { ja: string; reading: string | null; truncated: boolean } | null {
+  if (!isObj(raw) || typeof raw.ja !== 'string' || !raw.ja.trim()) return null
+  const warnings = Array.isArray(raw.warnings) ? raw.warnings : []
+  const reading = typeof raw.reading === 'string' && raw.reading.trim() && !warnings.includes('READING_DROPPED') ? raw.reading : null
+  return { ja: raw.ja, reading, truncated: warnings.includes('JA_TRUNCATED') }
+}
+
+/** 받은 일본어를 넣는다 — 「맞춘 한국어」는 보낸 값(만드는 동안 한국어 칸은 읽기 전용). */
+export function applyOpeningDraft(o: OpeningValue | null, sentKo: string, r: { ja: string; reading: string | null }): OpeningValue {
+  return { ko: o?.ko ?? sentKo, ja: r.ja, koAtJa: sentKo, reading: r.reading }
+}
+
+/** 보관 값(새 모양 또는 예전 `{ja, ko}`) → 편집 값. */
+function parseOpening(v: unknown): OpeningValue | null {
+  if (!isObj(v)) return null
+  if ('koAtJa' in v) {
+    const nul = (x: unknown) => (typeof x === 'string' ? x : null)
+    return { ko: str(v.ko), ja: nul(v.ja) || null, koAtJa: nul(v.koAtJa), reading: nul(v.reading) || null }
+  }
+  return openingFromSaved(v)
 }
 
 /**
@@ -287,7 +401,7 @@ export function draftFromResponse(raw: unknown, ask: DraftAsk): EditableDraft | 
     criteria: strList(goal.successCriteria).slice(0, L.successCriteriaMax),
     steps: strList(d.steps).slice(0, L.stepsMax),
     expressions: exprList(d.keyExpressions, false).slice(0, L.expressionsMax),
-    opening: openingOf(d.opening),
+    opening: openingFromSaved(d.opening),
     topicIds,
     requiredExpressions: null,
   }
@@ -305,7 +419,7 @@ export function draftFromDetail(s: ScenarioDetail): EditableDraft {
     criteria: [...s.goal.successCriteria],
     steps: s.steps.map((x) => x.ko),
     expressions: exprList(s.keyExpressions, true),
-    opening: s.opening ? { ja: s.opening.ja, ko: s.opening.ko } : null,
+    opening: s.opening ? openingFromSaved(s.opening) : null,
     topicIds: s.topics.map((t) => t.id),
     requiredExpressions: s.requiredExpressions,
   }
@@ -337,7 +451,7 @@ export function draftInput(d: EditableDraft, ask: Pick<DraftAsk, 'desc'>): Scena
     goal: { communicativeGoalKo: oneLine(d.goalKo), successCriteria: d.criteria.map(oneLine) },
     steps: d.steps.map((ko) => ({ ko: oneLine(ko) })),
     keyExpressions: d.expressions.map((e) => exprBody(e, false)),
-    opening: d.opening ? { ja: oneLine(d.opening.ja), ko: oneLine(d.opening.ko) } : null,
+    opening: openingBody(d.opening),
     topicIds: d.topicIds.slice(0, L.topicsMax),
   }
 }
@@ -467,7 +581,7 @@ export function problemDomId(key: string): string {
   return `dr-${key.replace(/\[(\d+)\]/, '-$1')}`
 }
 
-function checkText(p: DraftProblem[], key: string, raw: string, max: number, label: string, required: boolean) {
+function checkText(p: DraftProblem[], key: string, raw: string, max: number, label: FieldLabelKey, required: boolean) {
   const t = oneLine(raw)
   if (!t) {
     if (required) p.push({ key, message: CHECK.required(label) })
@@ -480,32 +594,34 @@ function checkText(p: DraftProblem[], key: string, raw: string, max: number, lab
 /** 저장 전 검사(서버 한도와 같은 값). 칸마다 첫 문제 하나씩, 화면 순서대로. */
 export function validateDraft(d: EditableDraft): DraftProblem[] {
   const p: DraftProblem[] = []
-  const C = CHECK.label
-  checkText(p, 'title', d.title, L.titleMax, C.title, true)
-  checkText(p, 'titleJa', d.titleJa, L.titleJaMax, C.titleJa, false)
-  checkText(p, 'learner', d.learner, L.roleMax, C.learner, true)
-  checkText(p, 'tutor', d.tutor, L.roleMax, C.tutor, true)
-  checkText(p, 'goal', d.goalKo, L.goalMax, C.goal, true)
-  if (d.steps.length < L.stepsMin) p.push({ key: 'steps', message: CHECK.listMin(C.steps, L.stepsMin) })
-  else if (d.steps.length > L.stepsMax) p.push({ key: 'steps', message: CHECK.listMax(C.steps, L.stepsMax) })
-  d.steps.forEach((s, i) => checkText(p, `steps[${i}]`, s, L.stepMax, C.step, true))
-  if (d.criteria.length < L.successCriteriaMin) p.push({ key: 'criteria', message: CHECK.listMin(C.criteria, L.successCriteriaMin) })
-  else if (d.criteria.length > L.successCriteriaMax) p.push({ key: 'criteria', message: CHECK.listMax(C.criteria, L.successCriteriaMax) })
-  d.criteria.forEach((s, i) => checkText(p, `criteria[${i}]`, s, L.successCriterionMax, C.criterion, true))
-  if (d.expressions.length < L.expressionsMin) p.push({ key: 'expr', message: CHECK.listMin(C.expressions, L.expressionsMin) })
-  else if (d.expressions.length > L.expressionsMax) p.push({ key: 'expr', message: CHECK.listMax(C.expressions, L.expressionsMax) })
+  checkText(p, 'title', d.title, L.titleMax, 'title', true)
+  checkText(p, 'titleJa', d.titleJa, L.titleJaMax, 'titleJa', false)
+  checkText(p, 'learner', d.learner, L.roleMax, 'learner', true)
+  checkText(p, 'tutor', d.tutor, L.roleMax, 'tutor', true)
+  checkText(p, 'goal', d.goalKo, L.goalMax, 'goal', true)
+  if (d.steps.length < L.stepsMin) p.push({ key: 'steps', message: CHECK.listMin('step', L.stepsMin) })
+  else if (d.steps.length > L.stepsMax) p.push({ key: 'steps', message: CHECK.listMax('step', L.stepsMax) })
+  d.steps.forEach((s, i) => checkText(p, `steps[${i}]`, s, L.stepMax, 'step', true))
+  if (d.criteria.length < L.successCriteriaMin) p.push({ key: 'criteria', message: CHECK.listMin('criterion', L.successCriteriaMin) })
+  else if (d.criteria.length > L.successCriteriaMax) p.push({ key: 'criteria', message: CHECK.listMax('criterion', L.successCriteriaMax) })
+  d.criteria.forEach((s, i) => checkText(p, `criteria[${i}]`, s, L.successCriterionMax, 'criterion', true))
+  if (d.expressions.length < L.expressionsMin) p.push({ key: 'expr', message: CHECK.listMin('expressions', L.expressionsMin) })
+  else if (d.expressions.length > L.expressionsMax) p.push({ key: 'expr', message: CHECK.listMax('expressions', L.expressionsMax) })
   const seen = new Set<string>()
   d.expressions.forEach((e, i) => {
     const before = p.length
-    checkText(p, `expr[${i}]`, e.ja, L.expressionJaMax, C.exprJa, true)
-    if (p.length === before) checkText(p, `expr[${i}]`, e.ko, L.expressionKoMax, C.exprKo, true)
+    checkText(p, `expr[${i}]`, e.ja, L.expressionJaMax, 'exprJa', true)
+    if (p.length === before) checkText(p, `expr[${i}]`, e.ko, L.expressionKoMax, 'exprKo', true)
     const ja = oneLine(e.ja)
     if (p.length === before && ja && seen.has(ja)) p.push({ key: `expr[${i}]`, message: CHECK.duplicate })
     if (ja) seen.add(ja)
   })
-  if (d.opening) {
-    checkText(p, 'opening', d.opening.ja, L.openingJaMax, C.openingJa, true)
-    checkText(p, 'openingKo', d.opening.ko, L.openingKoMax, C.openingKo, true)
+  // 첫마디: 한국어 칸 → 일본어 맞추기(맞추지 않으면 저장 막음 — 초점은 [일본어로 만들기] 버튼 `dr-opening`).
+  const st = openingState(d.opening)
+  if (d.opening && st !== 'none') {
+    checkText(p, 'openingKo', d.opening.ko, L.openingKoMax, 'openingKo', true)
+    if (st === 'koOnly') p.push({ key: 'opening', message: OPENING.problemKoOnly })
+    else if (st === 'stale') p.push({ key: 'opening', message: OPENING.problemStale })
   }
   return dedupe(p)
 }
@@ -515,15 +631,9 @@ function dedupe(p: DraftProblem[]): DraftProblem[] {
   return p.filter((x) => (seen.has(x.key) ? false : (seen.add(x.key), true)))
 }
 
-/** 400 `details.problems[]`(없으면 `{field}` + 봉투 문구) → 화면 칸 문제. */
-export function serverProblems(details: Record<string, unknown>, message: string): DraftProblem[] {
-  const list = Array.isArray(details.problems) ? details.problems : []
-  const out = list
-    .filter(isObj)
-    .filter((x) => typeof x.field === 'string')
-    .map((x) => ({ key: problemKey(x.field as string), message: str(x.message) || message }))
-  if (!out.length && typeof details.field === 'string') out.push({ key: problemKey(details.field), message })
-  return dedupe(out)
+/** 400 `details.problems[]`(없으면 `{field, reason}`) → 화면 칸 문제. 문구는 `failure.ts` 고정 문구(서버 `message` 는 쓰지 않는다). */
+export function serverProblems(ctx: ScenarioFailContext, details: Record<string, unknown>): DraftProblem[] {
+  return dedupe(scenarioFieldFailures(ctx, details).map((x) => ({ key: problemKey(x.field), message: x.text })))
 }
 
 export function problemMap(p: readonly DraftProblem[]): Record<string, string> {
@@ -544,42 +654,36 @@ export function startFailureOf(err: Err): StartFailure {
   return 'fail'
 }
 
-/** 429 대기 초(`common/errors.retryAfterOf` 와 같은 규칙 — 이 파일은 서버 페이지도 읽어서 런타임 import 를 순수 모듈로만 둔다). */
-function retrySecOf(err: Err): number {
-  const fromDetails = Number(err.details.retryAfterSec)
-  if (Number.isFinite(fromDetails) && fromDetails > 0) return Math.ceil(fromDetails)
-  return err.retryAfterSec && err.retryAfterSec > 0 ? err.retryAfterSec : 10
+/**
+ * S3(초안 만들기 #166) 실패 → 화면 문구(`failure.ts` 문맥 `scenarioDraft`). 벽시계 초과는 일반 실패로 본다.
+ * `kind:'field'` 의 `problems` 가 상황 설명 칸이면 묻기 칸 아래, 그 밖이면 상자에 보인다.
+ */
+export function genFailureOf(err: Err, timedOut: boolean): ScenarioFailure {
+  if (timedOut) return scenarioFailure('scenarioDraft', { ...err, status: 504 })
+  return scenarioFailure('scenarioDraft', err)
 }
 
-export type GenFailure = { kind: 'fail' } | { kind: 'unfit' } | { kind: 'rate'; sec: number } | { kind: 'field'; message: string }
-
-/** S3(초안 만들기) 실패 → 화면 상태. 아직 없는 API(404·501)·네트워크·5xx·시간 초과는 모두 다시 시도. */
-export function genFailureOf(err: Err, timedOut: boolean): GenFailure {
-  if (timedOut) return { kind: 'fail' }
-  if (err.status === 422) return { kind: 'unfit' }
-  if (err.status === 429) return { kind: 'rate', sec: retrySecOf(err) }
-  if (err.status === 400 && err.details.field === 'description' && err.message) return { kind: 'field', message: err.message }
-  return { kind: 'fail' }
-}
-
-export type SaveFailure = { kind: 'invalid'; problems: DraftProblem[] } | { kind: 'gone' } | { kind: 'message'; text: string } | { kind: 'rate' } | { kind: 'fail' }
+export type SaveFailure =
+  | { kind: 'invalid'; problems: DraftProblem[] }
+  | { kind: 'gone' }
+  | { kind: 'copied'; text: string }
+  | { kind: 'seedGone'; text: string }
+  | { kind: 'message'; text: string; block: boolean }
 
 /**
- * S4(#163·#164) 실패 → 화면 상태. 400 = 칸 문제 · 404(시드·남의 것·없음)·409 ARCHIVED = 고칠 수 없음 ·
- * 409 SCENARIO_LIMIT·429 DAILY_LIMIT = 서버 문구 그대로(가이드에 없는 상태 — 숫자가 서버 한도라 서버 문구가 정확하다) · 그 밖 429 = 잠시 뒤 · 0·5xx = 저장 실패.
+ * S4(#163 만들기·#164 고치기·#175 내 버전 저장) 실패 → 화면 상태. 400 = 칸 문제(고정 문구) · 404·409 ARCHIVED = 고칠 수 없음(#164) ·
+ * #175 409 ALREADY_COPIED = 다른 화면이 먼저 만듦 · 404 = 기본 항목 없음 · 그 밖 = 한도·잠시 뒤·실패 고정 문구.
  */
-export function saveFailureOf(err: Err): SaveFailure {
-  if (err.status === 400) {
-    const problems = serverProblems(err.details, err.message)
-    return problems.length ? { kind: 'invalid', problems } : { kind: 'fail' }
+export function saveFailureOf(err: Err, ctx: 'scenarioSave' | 'scenarioEdit' | 'scenarioFork' = 'scenarioSave'): SaveFailure {
+  const f = scenarioFailure(ctx, err)
+  if (f.kind === 'field') {
+    const problems = serverProblems(ctx, err.details)
+    return problems.length ? { kind: 'invalid', problems } : { kind: 'message', text: f.text, block: false }
   }
-  if (err.status === 404) return { kind: 'gone' }
-  if (err.status === 409 && err.details.reason === 'ARCHIVED') return { kind: 'gone' }
-  if ((err.status === 409 && err.details.reason === 'SCENARIO_LIMIT') || (err.status === 429 && err.details.reason === 'DAILY_LIMIT')) {
-    return err.message ? { kind: 'message', text: err.message } : { kind: 'fail' }
-  }
-  if (err.status === 429) return { kind: 'rate' }
-  return { kind: 'fail' }
+  if (f.kind === 'gone') return { kind: 'gone' }
+  if (f.kind === 'copied') return { kind: 'copied', text: f.text }
+  if (f.kind === 'seedGone') return { kind: 'seedGone', text: f.text }
+  return { kind: 'message', text: f.text, block: f.block }
 }
 
 /* ── 초안 보관(sessionStorage) ───────────────────────────────────────── */
@@ -610,7 +714,7 @@ function parseEditable(v: unknown): EditableDraft | null {
     criteria: (v.criteria as string[]).slice(0, L.successCriteriaMax),
     steps: (v.steps as string[]).slice(0, L.stepsMax),
     expressions: exprList(v.expressions, false).slice(0, L.expressionsMax),
-    opening: openingOf(v.opening) ?? (isObj(v.opening) ? { ja: str(v.opening.ja), ko: str(v.opening.ko) } : null),
+    opening: parseOpening(v.opening),
     topicIds: (v.topicIds as string[]).filter(isScenarioIdParam).slice(0, L.topicsMax),
     requiredExpressions: null,
   }

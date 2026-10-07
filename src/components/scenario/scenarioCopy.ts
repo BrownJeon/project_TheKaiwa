@@ -8,8 +8,19 @@ import { SCENARIO_LIMITS as L } from '@/types/scenario'
 
 export const SCENARIO_HOME_HREF = '/study/ai?tab=scenario'
 export const SCENARIO_NEW_HREF = '/study/ai/scenario/new'
-export const scenarioEditHref = (id: string) => `/study/ai/scenario/${encodeURIComponent(id)}/edit`
+/** 편집 화면에 들어온 곳 — 관리 화면(`/settings/scenarios`)이면 뒤로·저장 뒤 돌아갈 곳이 관리 화면 상황 탭이다(S11). */
+export type DraftFrom = 'manage' | null
+export const parseDraftFrom = (v: unknown): DraftFrom => (v === 'manage' ? 'manage' : null)
+export const scenarioEditHref = (id: string, from: DraftFrom = null) => `/study/ai/scenario/${encodeURIComponent(id)}/edit${from === 'manage' ? '?from=manage' : ''}`
 export const scenarioSheetHref = (id: string, saved = false) => `${SCENARIO_HOME_HREF}&sc=${encodeURIComponent(id)}${saved ? '&saved=1' : ''}`
+/** 관리 화면 상황 탭(T5-1 딥링크 `?tab=scenarios&sc=`) — topic 폴더를 import 하지 않으려고 주소만 같은 값으로 둔다. */
+export const MANAGE_SCENARIOS_HREF = '/settings/scenarios?tab=scenarios'
+export const manageSheetHref = (id: string, saved = false) => `${MANAGE_SCENARIOS_HREF}&sc=${encodeURIComponent(id)}${saved ? '&saved=1' : ''}`
+/** 들어온 곳에 맞춘 돌아갈 곳·시트 주소·뒤로 이름표. */
+export const draftReturn = (from: DraftFrom) =>
+  from === 'manage'
+    ? { backHref: MANAGE_SCENARIOS_HREF, sheetHref: manageSheetHref, backLabel: DRAFT.backManage }
+    : { backHref: SCENARIO_HOME_HREF, sheetHref: scenarioSheetHref, backLabel: DRAFT.back }
 export const talkRoomHref = (chatId: string) => `/study/ai/talk/${encodeURIComponent(chatId)}`
 /** 역할극 결과 화면(B3 가 페이지를 만든다 — 결과는 #29 로 읽는다, 첫 그림 보관 없음 — REV-141 L-3). */
 export const rolePlayResultHref = (chatId: string) => `${talkRoomHref(chatId)}/result`
@@ -119,12 +130,38 @@ export const SHEET = {
   goneBody: '더 이상 쓰지 않는 상황이에요. 다른 상황을 골라 주세요.',
   goneBtn: '다른 상황 고르기',
   retry: '다시 시도',
+  /** S10 출처 뱃지(내 상황은 `mineBadge`). */
+  badgeSeed: '기본',
+  badgeCopy: '✎ 내 버전',
+  /** S10 기본 상황 [지우기] = 나에게서 숨기기(데모 v2 S10 `seeddel`). */
+  hideTitle: '이 상황을 지울까요?',
+  hideBodyStrong: '기본 상황이라 나에게만 숨겨져요. 기본으로 되돌릴 수 있어요.',
+  hideBodyRest: '이 상황으로 한 역할극과 기록은 그대로 남아요.',
+  hideConfirm: '나에게서 숨기기',
+  hiding: '숨기는 중…',
+  hidden: (title: string) => `「${title}」 상황을 숨겼어요`,
+  /** S10 내 버전 [기본으로 되돌리기](#176). */
+  revert: '기본으로 되돌리기',
+  revertTitle: '기본 상황으로 되돌릴까요?',
+  revertBody: '내가 고친 내용은 목록에서 빠지고 기본 상황이 다시 보여요. 내 버전으로 한 역할극 기록은 그대로 남아요.',
+  revertConfirm: '기본으로 되돌리기',
+  reverting: '되돌리는 중…',
+  reverted: '기본 상황으로 되돌렸어요',
 } as const
 
 export const DRAFT = {
   back: '시나리오로',
+  backManage: '내 상황·주제로',
   titleNew: '내 상황 만들기',
   titleEdit: '내 상황 고치기',
+  /** S11 기본 상황 고치기(데모 v2 S11 `seed`). */
+  titleEditSeed: '상황 고치기',
+  seedInfoStrong: '기본 상황이에요.',
+  seedInfo: '고쳐서 저장하면 내 버전으로 바뀌고, 언제든 기본으로 되돌릴 수 있어요.',
+  saveSeed: '내 버전으로 저장',
+  copied: '다른 화면에서 이미 내 버전을 만들었어요. 여기서 고친 내용은 저장되지 않았어요.',
+  openCopy: '내 버전 열기',
+  openingCopy: '여는 중…',
   askTitle: '어떤 상황을 연습하고 싶어요?',
   askBody: '장소와 하고 싶은 말을 한국어나 일본어로 적어 주세요. 선생님이 대화 순서와 핵심 표현을 넣은 초안을 만들어 드려요. 마음에 들게 고친 뒤 저장하면 돼요.',
   descLabel: '상황 설명',
@@ -148,7 +185,6 @@ export const DRAFT = {
   genCancel: '그만두기',
   genFail: '초안을 만들지 못했어요. 다시 시도해 주세요.',
   gen422: '이 내용으로는 회화 상황을 만들기 어려워요. 장소와 하고 싶은 말을 조금 더 적어 주세요.',
-  gen429: (sec: number) => `잠시 뒤 다시 눌러 주세요. (${sec}초)`,
   retry: '다시 시도',
   editNoteTitle: '선생님이 만든 초안이에요',
   editNoteBody: '고친 뒤 [저장]해야 내 상황 목록에 생겨요. 저장하기 전에는 아무것도 남지 않아요.',
@@ -162,9 +198,6 @@ export const DRAFT = {
   fSteps: '대화 순서',
   fCriteria: '이렇게 되면 성공이에요',
   fExpressions: '핵심 표현',
-  fOpening: '선생님 첫마디',
-  fOpeningKo: '첫마디 뜻',
-  openingNote: '선생님이 이 말로 역할극을 시작해요.',
   stepAdd: '＋ 단계 더하기',
   stepMax: `${L.stepsMax}단계까지 넣을 수 있어요`,
   stepMin: `대화 순서는 ${L.stepsMin}단계 이상이어야 해요`,
@@ -193,9 +226,9 @@ export const DRAFT = {
   regen: '다시 만들기',
   discard: '버리기',
   leaveEdit: '고치지 않고 나가기',
-  invalidSummary: (n: number) => `고칠 곳이 ${n}군데 있어요`,
+  /** 문제가 첫마디 하나뿐이면 「· 선생님 첫마디」를 붙인다(데모 v2 S11 `opBlock`). */
+  invalidSummary: (n: number, openingOnly = false) => `고칠 곳이 ${n}군데 있어요${openingOnly ? ' · 선생님 첫마디' : ''}`,
   saveFail: '저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 눌러 주세요.',
-  saveRate: '잠시 뒤 다시 눌러 주세요.',
   regenConfirm: '고친 내용이 사라지고 새 초안으로 바뀌어요.',
   regenConfirmBtn: '새로 만들기',
   discardTitle: '초안을 버릴까요?',
@@ -203,7 +236,6 @@ export const DRAFT = {
   discardConfirm: '버리기',
   discardKeep: '계속 고치기',
   edit404: '이 상황은 고칠 수 없어요.',
-  edit404Btn: '시나리오로',
   loadError: '상황을 불러오지 못했어요.',
   loadingSr: '상황을 불러오는 중…',
   restoreTitle: (title: string) => (title ? `고치던 초안이 있어요 · ${title}` : '고치던 초안이 있어요'),
@@ -325,29 +357,101 @@ export const PRACTICE = {
   fill: '입력창에 넣기',
 } as const
 
-/** 화면 검사 문구(서버 400 문구와 같은 뜻 — 서버가 다른 문구를 주면 서버 문구를 쓴다). */
+/**
+ * 상황 편집기 칸 이름표 — 조사를 미리 붙여 둔다(「을(를)」 병기 금지, screens.md §16-7 규칙 4). 화면 검사(`validateDraft`)와
+ * 서버 400 문구(`failure.ts`)가 같은 표를 쓴다. `obj` = 을/를 · `top` = 은/는(단위 시험이 `josa()` 와 대조한다).
+ */
+export const FIELD_LABEL = {
+  title: { noun: '제목', obj: '제목을', top: '제목은' },
+  titleJa: { noun: '일본어 제목', obj: '일본어 제목을', top: '일본어 제목은' },
+  description: { noun: '상황 설명', obj: '상황 설명을', top: '상황 설명은' },
+  level: { noun: '수준', obj: '수준을', top: '수준은' },
+  difficulty: { noun: '난이도', obj: '난이도를', top: '난이도는' },
+  place: { noun: '장소', obj: '장소를', top: '장소는' },
+  learner: { noun: '내 역할', obj: '내 역할을', top: '내 역할은' },
+  tutor: { noun: '선생님 역할', obj: '선생님 역할을', top: '선생님 역할은' },
+  goal: { noun: '목표', obj: '목표를', top: '목표는' },
+  criterion: { noun: '성공 조건', obj: '성공 조건을', top: '성공 조건은' },
+  step: { noun: '대화 순서', obj: '대화 순서를', top: '대화 순서는' },
+  exprJa: { noun: '표현 일본어', obj: '표현 일본어를', top: '표현 일본어는' },
+  exprKo: { noun: '표현 뜻', obj: '표현 뜻을', top: '표현 뜻은' },
+  exprReading: { noun: '표현 읽기', obj: '표현 읽기를', top: '표현 읽기는' },
+  expressions: { noun: '핵심 표현', obj: '핵심 표현을', top: '핵심 표현은' },
+  openingKo: { noun: '선생님 첫마디', obj: '선생님 첫마디를', top: '선생님 첫마디는' },
+  openingJa: { noun: '일본어 첫마디', obj: '일본어 첫마디를', top: '일본어 첫마디는' },
+} as const
+export type FieldLabelKey = keyof typeof FIELD_LABEL
+
+/** 화면 검사·서버 칸 문구(같은 뜻이면 같은 글 — 서버 `message` 는 쓰지 않는다). */
 export const CHECK = {
-  required: (label: string) => `${label}을(를) 적어 주세요.`,
-  tooLong: (label: string, max: number) => `${label}은(는) ${max}자까지 쓸 수 있어요.`,
-  angle: (label: string) => `${label}에 꺾쇠(< >)는 쓸 수 없어요.`,
+  required: (k: FieldLabelKey) => `${FIELD_LABEL[k].obj} 적어 주세요.`,
+  tooLong: (k: FieldLabelKey, max: number) => `${FIELD_LABEL[k].top} ${max}자까지 쓸 수 있어요.`,
+  angle: (k: FieldLabelKey) => `${FIELD_LABEL[k].noun}에 꺾쇠(< >)는 쓸 수 없어요.`,
   duplicate: '같은 표현이 두 번 들어 있어요.',
-  listMin: (label: string, min: number) => `${label}은(는) ${min}개 이상이어야 해요.`,
-  listMax: (label: string, max: number) => `${label}은(는) ${max}개까지 넣을 수 있어요.`,
-  /** 검사 문구에 쓰는 칸 이름. */
-  label: {
-    title: '제목',
-    titleJa: '일본어 제목',
-    learner: '내 역할',
-    tutor: '선생님 역할',
-    goal: '목표',
-    criterion: '성공 조건',
-    criteria: '성공 조건',
-    step: '대화 순서',
-    steps: '대화 순서',
-    exprJa: '표현 일본어',
-    exprKo: '표현 뜻',
-    expressions: '핵심 표현',
-    openingJa: '선생님 첫마디',
-    openingKo: '첫마디 뜻',
+  listMin: (k: FieldLabelKey, min: number) => `${FIELD_LABEL[k].top} ${min}개 이상이어야 해요.`,
+  listMax: (k: FieldLabelKey, max: number) => `${FIELD_LABEL[k].top} ${max}개까지 넣을 수 있어요.`,
+  /** 서버가 꺾쇠·링크 주소·숨은 글자를 `forbidden_char` 로 묶는다. */
+  forbidden: '꺾쇠(< >)나 링크 주소는 쓸 수 없어요. 지우고 다시 적어 주세요.',
+  secretLike: '비밀번호·카드 번호처럼 보이는 글은 쓸 수 없어요.',
+  enumPick: '목록에서 골라 주세요.',
+  noHangul: '한국어로 적어 주세요.',
+  notLinked: '지금 목록에 없는 장소예요. 목록을 새로 고친 뒤 다시 골라 주세요.',
+  /** 화면이 막았어야 할 모양 오류(`type`·`unknown_key`·`format` …) — 화면 결함. */
+  defect: '저장하지 못했어요. 화면을 새로 고친 뒤 다시 해 주세요.',
+} as const
+
+/** 공유 편집기 첫마디(`OpeningField`, D5=A — screens.md §16-2·§16-6 `OPENING`). `{tutor}` 가 비면 괄호를 뺀다. */
+const tutorRole = (tutor: string) => (tutor.trim() ? `선생님(${tutor.trim()} 역할)` : '선생님')
+export const OPENING = {
+  legend: '선생님 첫마디',
+  koLabel: '한국어로 적어요',
+  koHint: (tutor: string) => `역할극을 시작할 때 ${tutorRole(tutor)}이 나에게 먼저 건네는 말을 적어요. 비워 두면 첫마디 없이 내가 먼저 말을 걸어요.`,
+  make: '일본어로 만들기',
+  remake: '일본어 다시 만들기',
+  retry: '다시 만들기',
+  cancel: '그만두기',
+  play: '일본어 첫마디 듣기',
+  stopPlay: '일본어 첫마디 멈추기',
+  matchedHead: '역할극에서 선생님이 이렇게 말해요',
+  confirmRole: (tutor: string) => `${tutorRole(tutor)}이 먼저 건네는 말이 맞는지 확인해 주세요. 내가 할 말이면 첫마디가 아니라 대화 순서에 적어요.`,
+  koOnlyHead: '역할극에서 선생님이 할 말(일본어)',
+  koOnly: '아직 일본어가 없어요. 아래 [일본어로 만들기]를 눌러 주세요.',
+  stale: '한국어를 고쳤어요. 일본어를 다시 만들어 주세요.',
+  staleOld: '예전 한국어로 만든 일본어',
+  genTitle: '선생님이 일본어로 바꾸고 있어요',
+  genSub: (tutor: string, level: string) => `상황과 역할(${tutor.trim() || '선생님'})·수준(${level})에 맞춰요. 보통 3~5초 걸려요.`,
+  empty: '첫마디가 없어요. 역할극에서는 내가 먼저 말을 걸어요.',
+  needRoles: '역할을 먼저 적으면 일본어로 만들 수 있어요.',
+  truncated: '일본어가 길어서 줄였어요. 뜻이 다 담겼는지 확인해 주세요.',
+  problemStale: '저장하려면 일본어 첫마디를 다시 만들어 주세요.',
+  problemKoOnly: '저장하려면 [일본어로 만들기]를 눌러 주세요.',
+} as const
+
+/** 서버 오류 → 화면 고정 문구(`failure.ts` — screens.md §16-7 상황 쪽 문맥). 서버 `message` 는 쓰지 않는다. */
+export const FAIL = {
+  network: '인터넷 연결을 확인한 뒤 다시 눌러 주세요.',
+  userGone: '계정을 다시 확인해야 해요. 다시 로그인해 주세요.',
+  writeRate: (s: number) => `잠시 뒤 다시 눌러 주세요. ${s}초 뒤에 할 수 있어요.`,
+  /** 하루 한도의 남은 때 — 1시간 이상이면 시간(올림), 아니면 분(올림). */
+  waitAbout: (sec: number) => (sec >= 3600 ? `약 ${Math.ceil(sec / 3600)}시간 뒤` : `약 ${Math.max(1, Math.ceil(sec / 60))}분 뒤`),
+  draftBusy: '다른 화면에서 상황 초안을 만드는 중이에요. 끝난 뒤 다시 눌러 주세요.',
+  draftRate: (s: number) => `상황 초안은 1분에 6번까지 만들 수 있어요. ${s}초 뒤 다시 눌러 주세요.`,
+  draftDaily: '오늘은 상황 초안을 모두 만들었어요. 상황 초안과 변형 초안을 합쳐 하루 40번까지예요.',
+  saveLimit: `내 상황이 ${L.activePerUser}개라 더 저장할 수 없어요. 안 쓰는 상황을 지운 뒤 다시 저장해 주세요.`,
+  saveDaily: `오늘은 상황을 ${L.createPerDay}개 저장했어요. 내일 다시 저장할 수 있어요.`,
+  seedGone: '기본 항목을 찾을 수 없어요. 목록을 새로 고칠게요.',
+  scenarioGone: '이 상황은 이미 목록에 없어요.',
+  notOverridden: '이미 기본으로 돌아가 있어요.',
+  hideFail: '숨기지 못했어요. 다시 눌러 주세요.',
+  revertFail: '되돌리지 못했어요. 다시 눌러 주세요.',
+  opening: {
+    unfit: '선생님이 처음 건넬 말을 적어 주세요. 예: 어서 오세요, 무엇을 드릴까요?',
+    tooLong: '첫마디가 길어서 일본어 한 줄로 만들기 어려워요. 조금 줄여 주세요.',
+    busy: '앞에서 누른 일본어를 아직 만들고 있어요. 끝난 뒤 다시 눌러 주세요.',
+    rate: (s: number) => `일본어 만들기는 1분에 10번까지예요. ${s}초 뒤 다시 눌러 주세요.`,
+    daily: (wait: string) => `오늘은 일본어 만들기를 60번 모두 했어요. ${wait} 다시 할 수 있어요.`,
+    fail: '일본어로 바꾸지 못했어요. 다시 해 볼까요?',
+    failKeep: '한국어는 그대로 있어요.',
+    max: `첫마디는 ${L.openingKoMax}자까지 적을 수 있어요.`,
   },
 } as const

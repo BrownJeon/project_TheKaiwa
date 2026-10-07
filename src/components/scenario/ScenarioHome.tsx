@@ -120,10 +120,10 @@ export default function ScenarioHome({ initialSheetId = null, saved = false }: {
         id={openId}
         saved={showSaved && openId === initialSheetId}
         onClose={closeSheet}
-        onDeleted={() => {
+        onDeleted={(_, toast) => {
           closeSheet()
           list.refresh()
-          show(HOME.deleted)
+          show(toast)
         }}
       />
       <Toast message={message} />

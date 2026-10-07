@@ -4,19 +4,25 @@
  * AI 초안 만들기·고치기 상태(가이드 §3-H·§5) — 단계 `ask → generating → edit → saving`.
  * - 새 상황: 초안(S3 `POST /api/v1/scenarios/drafts`, 동기 — 행 없음)을 받아 고친 뒤 [저장] = #163. **저장 전에는 서버에 아무것도 남지 않는다**(제안→채택).
  *   묻기·초안은 이 탭의 sessionStorage 에만 자동 보관(300ms 디바운스) — 돌아오면 "고치던 초안이 있어요". 저장·버리기에서 지운다.
- * - 고치기(D-6): 상세(#162)를 편집 모양으로 바꿔 시작, [저장] = #164(바뀐 칸만). 보관하지 않는다. 시드·남의 것·없음 = 고칠 수 없음.
+ * - 고치기(D-6): 상세(#162)를 편집 모양으로 바꿔 시작, [저장] = #164(바뀐 칸만). 보관하지 않는다. 남의 것·없음 = 고칠 수 없음.
+ * - 기본 상황 고치기(task-045 S11): 시드 상세로 시작, [내 버전으로 저장] = #175(바뀐 칸만, 빠진 칸은 시드 값 — 사본은 저장 때만 생긴다).
+ *   바뀐 것이 없으면 서버를 부르지 않고 돌아간다. 409 `ALREADY_COPIED`(두 탭 경쟁) → [내 버전 열기](#179 로 사본 id 를 찾아 그 시트).
+ * - 들어온 곳(`from=manage`)이면 뒤로·저장 뒤 돌아갈 곳이 관리 화면 상황 탭, `presetTopicId` 는 묻기 단계 장소를 미리 고른다(목록에 없으면 무시).
+ * 오류 문구는 `failure.ts` 고정 문구(서버 `message` 는 쓰지 않는다).
  * 초안 API 는 아직 서버에 없을 수 있다(A3b) — 404·501·네트워크 실패는 `dr-gen-fail` 로 다시 시도하게 한다. 벽시계 상한 45초, 15초부터 "오래 걸려요".
  * 검사 문구는 `logic.validateDraft`(서버 한도 그대로), 첫 저장 시도 뒤에는 고칠 때마다 다시 검사한다.
  */
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { apiPatch, apiPost, isAbort } from '@/components/common/api'
+import { apiGet, apiPatch, apiPost, isAbort } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
 import { readStore, writeStore } from '@/components/common/storage'
 import { useKeyedResource } from '@/components/plan/usePlanData'
 import type { TopicList } from '@/types/lesson'
 import { SCENARIO_LIMITS, type ScenarioDetail } from '@/types/scenario'
+import type { SeedOverrideItem } from '@/types/seedOverride'
+import type { ScenarioFailure } from './failure'
 import {
   draftFromDetail,
   draftFromResponse,
@@ -33,10 +39,9 @@ import {
   type DraftLevel,
   type DraftProblem,
   type EditableDraft,
-  type GenFailure,
   type StoredDraft,
 } from './logic'
-import { DRAFT, DRAFT_STORE_KEY, SCENARIO_HOME_HREF, scenarioSheetHref } from './scenarioCopy'
+import { DRAFT, DRAFT_STORE_KEY, draftReturn, type DraftFrom } from './scenarioCopy'
 import { useScenarioDetail } from './useScenarioDetail'
 
 export const DRAFT_LONG_MS = 15_000
@@ -46,10 +51,18 @@ const SAVE_DEBOUNCE_MS = 300
 const topicsPath = () => '/api/v1/topics'
 
 export type DraftStage = 'ask' | 'generating' | 'edit' | 'saving'
-export type SaveMessage = { kind: 'fail' } | { kind: 'rate' } | { kind: 'text'; text: string }
+/** 저장 줄 위 상자 — 한도·실패 문구(`block` 이면 저장 버튼을 막는다) · 다른 화면이 먼저 내 버전을 만듦 · 기본 항목 없음. */
+export type SaveMessage = { kind: 'text'; text: string; block: boolean } | { kind: 'copied'; text: string } | { kind: 'seedGone'; text: string }
 
 export interface DraftScreenModel {
   mode: 'new' | 'edit'
+  /** 기본 상황을 고치는 중(저장 = 내 버전 #175). */
+  isSeed: boolean
+  /** 들어온 곳에 맞춘 뒤로 주소·이름표. */
+  back: { href: string; label: string }
+  /** 409 `ALREADY_COPIED` 뒤 [내 버전 열기]. */
+  openCopy: () => void
+  opening: boolean
   stage: DraftStage
   ask: DraftAsk
   setAsk: (patch: Partial<DraftAsk>) => void
@@ -62,7 +75,7 @@ export interface DraftScreenModel {
   acceptRestore: () => void
   dropRestore: () => void
   long: boolean
-  genError: GenFailure | null
+  genError: ScenarioFailure | null
   generate: () => void
   cancelGenerate: () => void
   problems: DraftProblem[]
@@ -79,18 +92,32 @@ export interface DraftScreenModel {
   discard: () => void
 }
 
-export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'edit'; id: string | null; defaultLevel: DraftLevel }): DraftScreenModel {
+export function useScenarioDraft({
+  mode,
+  id,
+  defaultLevel,
+  from = null,
+  presetTopicId = null,
+}: {
+  mode: 'new' | 'edit'
+  id: string | null
+  defaultLevel: DraftLevel
+  from?: DraftFrom
+  presetTopicId?: string | null
+}): DraftScreenModel {
   const router = useRouter()
+  const ret = useMemo(() => draftReturn(from), [from])
   const [stored] = useState<StoredDraft | null>(() => (mode === 'new' ? parseStoredDraft(readStore('session', DRAFT_STORE_KEY)) : null))
   const [restore, setRestore] = useState<StoredDraft | null>(() => (stored?.draft ? stored : null))
-  const [ask, setAskState] = useState<DraftAsk>(() => stored?.ask ?? { desc: '', topicId: null, level: defaultLevel })
+  const [ask, setAskState] = useState<DraftAsk>(() => stored?.ask ?? { desc: '', topicId: presetTopicId, level: defaultLevel })
   const [askError, setAskError] = useState<string | null>(null)
   const [newDraft, setNewDraft] = useState<EditableDraft | null>(null)
   const [edits, setEdits] = useState<EditableDraft | null>(null)
   const [edited, setEdited] = useState(false)
   const [stage, setStage] = useState<DraftStage>('ask')
   const [long, setLong] = useState(false)
-  const [genError, setGenError] = useState<GenFailure | null>(null)
+  const [genError, setGenError] = useState<ScenarioFailure | null>(null)
+  const [opening, setOpening] = useState(false)
   const [tried, setTried] = useState(false)
   const [server, setServer] = useState<DraftProblem[]>([])
   const [saveMessage, setSaveMessage] = useState<SaveMessage | null>(null)
@@ -108,11 +135,19 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
 
   const detail = useScenarioDetail(mode === 'edit' ? id : null)
   const topics = useKeyedResource<TopicList>('topics', topicsPath)
-  const original: ScenarioDetail | null = mode === 'edit' && detail.data?.isMine ? detail.data : null
+  const original: ScenarioDetail | null = mode === 'edit' && detail.status === 'ready' ? detail.data : null
+  const isSeed = !!original && !original.isMine
   const base = useMemo(() => (original ? draftFromDetail(original) : null), [original])
   const draft = mode === 'edit' ? (edits ?? base) : newDraft
   const editStage: DraftStage = mode === 'edit' ? (stage === 'saving' ? 'saving' : 'edit') : stage
-  const gone = goneOnSave || (mode === 'edit' && ((detail.status === 'error' && detail.errStatus === 404) || (detail.status === 'ready' && !detail.data?.isMine)))
+  const gone = goneOnSave || (mode === 'edit' && detail.status === 'error' && detail.errStatus === 404)
+
+  // `?topicId=` 로 미리 고른 장소가 주제 목록에 없으면(지운·숨긴 주제) 한 번만 버린다 — 렌더 중 조정(효과 안 setState 를 피한다).
+  const [presetChecked, setPresetChecked] = useState(false)
+  if (!presetChecked && presetTopicId && topics.status === 'ready') {
+    setPresetChecked(true)
+    if (!(topics.data?.items ?? []).some((t) => t.id === presetTopicId)) setAskState((a) => (a.topicId === presetTopicId ? { ...a, topicId: null } : a))
+  }
 
   const clearTimers = () => {
     req.current.timers.forEach(clearTimeout)
@@ -199,7 +234,7 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
         setLong(false)
         const d = draftFromResponse(res, ask)
         if (!d) {
-          setGenError({ kind: 'fail' })
+          setGenError(genFailureOf({ status: 502, message: '', code: null, details: {}, retryAfterSec: null }, false))
           setStage('ask')
           return
         }
@@ -221,7 +256,7 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
         setStage(newDraftRef.current ? 'edit' : 'ask')
         if (isAbort(e) && !timedOut) return
         const f = genFailureOf(toErr(e), timedOut)
-        if (f.kind === 'field') setAskError(f.message)
+        if (f.kind === 'field' && f.problems[0]?.field === 'description') setAskError(f.text)
         else setGenError(f)
       },
     )
@@ -249,10 +284,10 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
   const dropRestore = useCallback(() => {
     writeStore('session', DRAFT_STORE_KEY, null)
     setRestore(null)
-    setAskState({ desc: '', topicId: null, level: defaultLevel })
+    setAskState({ desc: '', topicId: presetTopicId, level: defaultLevel })
     setNewDraft(null)
     setEdited(false)
-  }, [defaultLevel])
+  }, [defaultLevel, presetTopicId])
 
   const problems = useMemo(() => {
     const client = tried && draft ? validateDraft(draft) : []
@@ -271,43 +306,71 @@ export function useScenarioDraft({ mode, id, defaultLevel }: { mode: 'new' | 'ed
     saving.current = true
     setStage('saving')
     setSaveMessage(null)
+    const ctx = mode === 'new' ? 'scenarioSave' : isSeed ? 'scenarioFork' : 'scenarioEdit'
     try {
       let savedId: string
+      let changed = true
       if (mode === 'new') {
         savedId = (await apiPost<ScenarioDetail>('/api/v1/scenarios', draftInput(draft, ask))).id
       } else {
         if (!original) throw new Error('no original')
         const patch = draftPatch(draft, original)
-        if (Object.keys(patch).length) await apiPatch<ScenarioDetail>(`/api/v1/scenarios/${encodeURIComponent(original.id)}`, patch)
-        savedId = original.id
+        changed = Object.keys(patch).length > 0
+        const path = `/api/v1/scenarios/${encodeURIComponent(original.id)}`
+        if (!changed) savedId = original.id
+        else if (isSeed) savedId = (await apiPost<ScenarioDetail>(`${path}/fork`, patch)).id
+        else {
+          await apiPatch<ScenarioDetail>(path, patch)
+          savedId = original.id
+        }
       }
       if (mode === 'new') closeStore()
-      router.replace(scenarioSheetHref(savedId, true))
+      // 기본 상황을 바꾸지 않고 저장하면 사본을 만들지 않고 그 시트로 돌아간다(「저장했어요」 없이).
+      router.replace(ret.sheetHref(savedId, !(isSeed && !changed)))
       return null
     } catch (e) {
       saving.current = false
       setStage('edit')
-      const f = saveFailureOf(toErr(e))
+      const f = saveFailureOf(toErr(e), ctx)
       if (f.kind === 'invalid') {
         setTried(true)
         setServer(f.problems)
         return f.problems
       }
       if (f.kind === 'gone') setGoneOnSave(true)
-      else if (f.kind === 'message') setSaveMessage({ kind: 'text', text: f.text })
-      else setSaveMessage({ kind: f.kind })
+      else setSaveMessage(f.kind === 'message' ? { kind: 'text', text: f.text, block: f.block } : f)
       return null
     }
-  }, [draft, mode, ask, original, router, closeStore])
+  }, [draft, mode, ask, original, isSeed, router, closeStore, ret])
+
+  /** 다른 화면이 먼저 만든 내 버전을 #179 로 찾아 그 시트로(못 찾으면 목록으로). */
+  const openCopy = useCallback(() => {
+    if (!original || opening) return
+    setOpening(true)
+    apiGet<{ items?: SeedOverrideItem[] }>('/api/v1/seed-overrides?kind=SCENARIO').then(
+      (res) => {
+        const hit = (Array.isArray(res.items) ? res.items : []).find((o) => o.seedId === original.id && o.state === 'COPIED' && !o.orphan && o.copyId)
+        router.replace(hit?.copyId ? ret.sheetHref(hit.copyId) : ret.backHref)
+      },
+      () => {
+        setOpening(false)
+        router.replace(ret.backHref)
+      },
+    )
+  }, [original, opening, router, ret])
 
   const discard = useCallback(() => {
     req.current.ac?.abort()
     if (mode === 'new') closeStore()
-    router.replace(SCENARIO_HOME_HREF)
-  }, [mode, router, closeStore])
+    router.replace(ret.backHref)
+  }, [mode, router, closeStore, ret])
 
   return {
     mode,
+    isSeed,
+    back: { href: ret.backHref, label: ret.backLabel },
+    openCopy,
+    opening,
     stage: editStage,
     ask,
     setAsk,

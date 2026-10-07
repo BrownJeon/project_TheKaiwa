@@ -1,10 +1,9 @@
 'use client'
 
 /**
- * 초안 편집기(가이드 §3-H `dr-edit`·`dr-edit-existing`) — 제목 → 일본어 제목 → 장소 → 수준 → 역할 → 목표 → 대화 순서 → 성공 조건 → 핵심 표현 → (있으면) 첫마디.
+ * 초안 편집기(가이드 §3-H `dr-edit`·`dr-edit-existing`) — 제목 → 일본어 제목 → 장소 → 수준 → 역할 → 목표 → 대화 순서 → 성공 조건 → 핵심 표현 → 선생님 첫마디.
  * 입력칸은 16px(확대 방지), 제목·입력칸에는 루비를 달지 않는다(§15-1 F). 칸 문제는 칸 아래 + `aria-invalid`. 초점 id 는 `logic.problemDomId` 규칙.
- * 첫마디는 일본어(`opening.ja`)와 뜻(`opening.ko`, ≤`SCENARIO_LIMITS.openingKoMax`·카운터)을 함께 고친다 — 일본어만 고쳐 옛 뜻이 남지 않게(REV-139 M-3).
- * 서버는 둘 다 있어야 받으므로 뜻을 비우면 저장 전 검사(`openingKo`)가 그 칸을 가리킨다. 칸 위치·문구는 designer 확인 대기.
+ * 첫마디는 늘 보이는 `OpeningField`(task-045 D5=A — 한국어 주 입력 + 선생님이 만든 일본어). 회화 탭 새 상황·고치기·기본 상황 고치기가 같은 편집기다.
  */
 import Segmented from '@/components/common/Segmented'
 import { Field } from '@/components/common/ui'
@@ -13,6 +12,7 @@ import type { JlptLevel } from '@/types/lesson'
 import { SCENARIO_LIMITS as L } from '@/types/scenario'
 import ExpressionEditor from './ExpressionEditor'
 import ListEditor from './ListEditor'
+import OpeningField from './OpeningField'
 import { DRAFT_LEVELS, type EditableDraft } from './logic'
 import PlaceChips from './PlaceChips'
 import { DRAFT } from './scenarioCopy'
@@ -53,7 +53,7 @@ export default function DraftEditor({
   const set = (patch: Partial<EditableDraft>) => setDraft((d) => ({ ...d, ...patch }))
   const placeOpts = [{ value: '', label: DRAFT.placeNone }, ...places.map((p) => ({ value: p.id, label: p.title }))]
   const goalLen = cpLength(draft.goalKo.trim())
-  const openingKoLen = draft.opening ? cpLength(draft.opening.ko.trim()) : 0
+  const placeTitle = places.find((p) => p.id === draft.topicIds[0])?.title ?? null
 
   return (
     <div className="flex min-w-0 flex-col gap-[18px]">
@@ -183,46 +183,7 @@ export default function DraftEditor({
         disabled={disabled}
       />
       <ExpressionEditor items={draft.expressions} onChange={(expressions) => set({ expressions })} errors={errors} storedRequired={draft.requiredExpressions} disabled={disabled} />
-      {draft.opening ? (
-        <Field label={DRAFT.fOpening} htmlFor="dr-opening">
-          <textarea
-            id="dr-opening"
-            lang="ja"
-            rows={2}
-            value={draft.opening.ja}
-            disabled={disabled}
-            aria-invalid={errors.opening ? true : undefined}
-            aria-describedby={errors.opening ? 'dr-opening-err' : 'dr-opening-note'}
-            onChange={(e) => {
-              const ja = e.target.value
-              setDraft((d) => (d.opening ? { ...d, opening: { ...d.opening, ja } } : d))
-            }}
-            className={areaCls(!!errors.opening)}
-          />
-          <FieldError id="dr-opening-err" text={errors.opening} />
-          <input
-            id="dr-openingKo"
-            aria-label={DRAFT.fOpeningKo}
-            placeholder={DRAFT.fOpeningKo}
-            value={draft.opening.ko}
-            disabled={disabled}
-            aria-invalid={errors.openingKo ? true : undefined}
-            aria-describedby={errors.openingKo ? 'dr-openingKo-err dr-openingKo-count' : 'dr-openingKo-count'}
-            onChange={(e) => {
-              const ko = e.target.value
-              setDraft((d) => (d.opening ? { ...d, opening: { ...d.opening, ko } } : d))
-            }}
-            className={inputCls(!!errors.openingKo)}
-          />
-          <p id="dr-openingKo-count" className={`text-right text-[12px] tabular-nums ${openingKoLen > L.openingKoMax ? 'text-bad' : 'text-ink2'}`}>
-            {openingKoLen}/{L.openingKoMax}
-          </p>
-          <FieldError id="dr-openingKo-err" text={errors.openingKo} />
-          <p id="dr-opening-note" className="text-[12px] text-ink2">
-            {DRAFT.openingNote}
-          </p>
-        </Field>
-      ) : null}
+      <OpeningField draft={draft} setDraft={setDraft} errors={errors} placeTitle={placeTitle} disabled={disabled} />
     </div>
   )
 }
