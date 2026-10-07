@@ -50,7 +50,7 @@ test('M-3 ① 저장 성공 직후 이 탭 보관을 닫고(closeStore), 닫은 
 test('M-3 ② 저장 성공의 router.replace 만 { scroll: false } — 나가기·버리기는 기본 스크롤(맨 위)', () => {
   const calls = [...saveOk.matchAll(/router\.replace\(([^\n]*)\)\s*$/gm)].map((m) => m[1])
   assert.equal(calls.length, 1, '저장 성공에서 이동은 한 곳')
-  assert.match(calls[0], /topicHref\(id\)/)
+  assert.match(calls[0], /topicHref\(id, 'MINE'\)/, '새로 만든 내 주제 — 출처 힌트 m(자리표시 모양)')
   assert.match(calls[0], /\{\s*scroll:\s*false\s*\}/, '새 주제 보기로 이동할 때 { scroll: false }')
   const leaveFn = between(hook, 'const leave = useCallback(', 'const discard = useCallback(')
   assert.match(leaveFn, /router\.push\(MANAGE_HREF\)/)

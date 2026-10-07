@@ -235,10 +235,14 @@ export function createVariantFlight(deps: VariantFlightDeps): VariantFlight {
   return { make, cancel, clear, dispose }
 }
 
-/** 축 위에 붙잡아 둔 실패 — 입력 서명(`variantInputSig`)과 함께 둔다. */
+/**
+ * 축 위에 붙잡아 둔 실패 — 입력 서명(`variantInputSig`)과 함께 둔다. `n` 은 새 실패가 올 때마다 하나씩 늘어나는 일련번호 —
+ * 화면이 상자의 `key` 로 써서 같은 실패가 되풀이돼도 상자를 다시 만든다(`role="alert"` 는 같은 노드의 같은 글을 다시 읽지 않는다. 위치·높이·초점은 그대로).
+ */
 export interface HeldFailure {
   failure: ScenarioFailure
   sig: string
+  n: number
 }
 
 /** 고른 축·직접 적은 글이 그대로인지 가리는 서명(만드는 동안 두 칸은 잠겨 있어 요청 중에는 늘 같다). */
@@ -254,12 +258,12 @@ export function isAboveAxesFailure(f: ScenarioFailure | null): boolean {
 /**
  * 축 위 실패 상자를 다시 만드는 동안·취소한 뒤에도 입력이 그대로이면 붙잡는다 — 요청이 시작되며 상자가 사라지면 그 아래 칩·누른 버튼이
  * 상자 높이만큼 위로 올라가 버튼이 제자리를 잃는다(R2). 새 실패가 오면 바꾸고(축 위 실패가 아니면 놓는다) 입력이 바뀌면 놓는다.
- * 같은 값이면 같은 객체를 돌려준다(렌더 중 상태 보정이 되풀이되지 않게).
+ * 같은 값이면 같은 객체를 돌려준다(렌더 중 상태 보정이 되풀이되지 않게). 새 실패 객체가 오면(같은 입력으로 다시 실패해도) 일련번호 `n` 이 하나 늘어난다.
  */
 export function holdFailure(prev: HeldFailure | null, live: ScenarioFailure | null, sig: string): HeldFailure | null {
   if (live) {
     if (!isAboveAxesFailure(live)) return null
-    return prev && prev.failure === live && prev.sig === sig ? prev : { failure: live, sig }
+    return prev && prev.failure === live && prev.sig === sig ? prev : { failure: live, sig, n: (prev?.n ?? 0) + 1 }
   }
   return prev && prev.sig === sig ? prev : null
 }

@@ -140,8 +140,9 @@ test('L-7 S6: #161 만 실패했을 때 [다시 시도] 는 최소 0.5초 자리
   const hook = strip(read(TOPIC_DIR, 'useTopicDetail.ts'))
   assert.match(hook, /retryBusyRemainingMs\(startedAt, Date\.now\(\)\)/, '최소 표시 시간 계산')
   assert.match(hook, /return \{ status, view, reload, refresh, retryScenarios, scenariosRetrying \}/)
-  assert.ok(!/if \(my !== seq\.current\) return/.test(hook), '늦은 응답을 버리더라도 중간에 돌아가지 않는다')
-  assert.ok(hook.indexOf('onSettled?.()') > hook.indexOf('if (my === seq.current)'), '늦은 응답이어도 표시는 끝낸다')
+  // 순번 확인은 값을 반영하는 `apply` 안에만 있고(재시도 최소 표시 대기 때문에 반영만 미룬다), `.then` 본문은 중간에 돌아가지 않는다.
+  assert.ok(!/if \(my !== seq\.current\) return/.test(hook.replace(/const apply = \(\) => \{\s*if \(my !== seq\.current\) return/, '')), '늦은 응답을 버리더라도 중간에 돌아가지 않는다')
+  assert.ok(hook.indexOf('onSettled?.()') > hook.indexOf('else apply()'), '늦은 응답이어도 표시는 끝낸다(반영·대기 뒤, 값을 버렸든 아니든)')
   assert.match(hook, /clearTimeout\(busyTimer\.current\)/, '타이머 정리')
   const screen = strip(read(TOPIC_DIR, 'TopicDetail.tsx'))
   assert.match(screen, /onRetryScenarios=\{d\.retryScenarios\}/, '조용히 다시 읽는 refresh 가 아니라 표시가 있는 다시 시도')

@@ -467,5 +467,6 @@ test('R1~R6: 주제 보기의 router.replace 는 모두 { scroll: false }', () =
   const calls = [...src.matchAll(/router\.replace\(([^\n]*)\)/g)].map((m) => m[1])
   assert.ok(calls.length >= 5, `시트 열기·닫기·지운 뒤·되돌린 뒤·없음 다섯 곳: ${calls.length}`)
   for (const c of calls) assert.match(c, /\{\s*scroll:\s*false\s*\}/, c)
-  assert.ok(!/\bkey=\{/.test(src.replace(/<li key=\{[^}]+\}|<div key=\{[^}]+\}/g, '')), '목록 밖 key 바꾸기 금지')
+  // 목록 항목 key(`<li>`·`<div>`)와 자리표시 블록 목록(`DetailSkeleton` 의 `<span key={b.key}>` — 블록 이름 고정, 값이 바뀌어도 다시 만들지 않는다)은 예외.
+  assert.ok(!/\bkey=\{/.test(src.replace(/<li key=\{[^}]+\}|<div key=\{[^}]+\}|<span key=\{b\.key\}/g, '')), '목록 밖 key 바꾸기 금지')
 })

@@ -49,7 +49,23 @@ export const MANAGE_HREF = '/settings/scenarios'
 export const TOPIC_NEW_HREF = '/settings/scenarios/topics/new'
 export const SCENARIO_NEW_FROM_MANAGE_HREF = '/study/ai/scenario/new?from=manage'
 
-export const topicHref = (id: string): string => `/settings/scenarios/topics/${encodeURIComponent(id)}`
+/**
+ * 주제 보기(S6)로 가는 링크의 출처 힌트 `?o=m|s|c`(내 주제·기본 주제·내 버전) — 도착 전 **자리표시 모양**(출처 안내 상자의 유무·높이)만 고른다.
+ * 출처 판정은 늘 #56·#179 데이터(`topicOrigin`)가 하고, 힌트가 틀려도 도착하면 실제 값으로 다시 그린다(화면이 틀리지 않는다).
+ * 허용 값 외(없음·모르는 글자·여러 개·빈 값)는 없는 것으로 본다 — 문자열 비교만 하고 화면에 출력하지 않는다.
+ */
+export type OriginHint = 'm' | 's' | 'c'
+export const ORIGIN_HINT_OF: Record<Origin, OriginHint> = { MINE: 'm', SEED: 's', COPY: 'c' }
+
+export function parseOriginHint(v: unknown): OriginHint | null {
+  return v === 'm' || v === 's' || v === 'c' ? v : null
+}
+
+/** 출처를 아는 곳(관리 화면 행·고친 뒤·되돌린 뒤)은 `origin` 을 넘겨 힌트를 붙인다. 모르면 생략(힌트 없음 = 기본 주제 모양 자리표시). */
+export const topicHref = (id: string, origin?: Origin | null): string => {
+  const base = `/settings/scenarios/topics/${encodeURIComponent(id)}`
+  return origin ? `${base}?o=${ORIGIN_HINT_OF[origin]}` : base
+}
 
 /**
  * 주제 행(`TopicRow`)의 실제 높이 근거(px) — 클래스에서 계산한 값이다(실측은 QA). 본문 `line-height: 1.5`(globals.css)를 이어받고
@@ -101,28 +117,68 @@ export const SCENARIO_CARD_HEIGHT = scenarioCardHeight()
  * 주제 보기(S6) 자리표시 높이 근거(px) — 클래스에서 계산한 값이다(실측은 QA, qa-045-ui-a 결함 #2: 옛 값 [104,64,240,120] 은 근사였다).
  * 가장 흔한 주제 = 일본어 이름·설명이 있고 설명이 모든 폭(360/390/412)에서 두 줄 — 기본 주제 5개와 초안으로 만든 주제 대부분.
  * 머리 카드 = 테두리 2 · `py-3` 12+12 · 제목 줄 18×1.5(뱃지 22 보다 큼) · 일본어 이름 `mt-1` 4 + 13×1.5 · 설명 `mt-2` 8 + 14×1.5 × 2줄 = 126.5.
- * 출처 안내 상자 = `InfoBox` `py-3` 12+12 + 13×1.5 × 2줄 = 63(기본·내 버전 주제만 — 내 주제에는 이 상자가 없다).
+ * 출처 안내 상자는 출처에 따라 모양이 다르다 — 기본 주제 = `InfoBox` `py-3` 12+12 + 13×1.5 × 2줄 = 63, 내 버전 = 같은 상자 안에 제목 한 줄 19.5 + [기본으로 되돌리기] 버튼 줄(`min-h-11` 44) = 87.5,
+ * **내가 만든 주제는 이 상자가 없다**(QA-F 실측: 상자 없는 주제에 63 자리를 두면 도착 뒤 표현 절이 약 75px 당겨진다). 그래서 링크가 출처 힌트(`?o=m|s|c`)를 실어
+ * `topicDetailSkeleton(hint)` 가 상자 자리를 두거나(`s`·`c`) 뺀다(`m`). 힌트가 없으면(직접 주소·새로 고침) 기본 주제 모양(63) — 시드 5개를 처음 여는 경우가 가장 흔했던 옛 기준을 그대로 둔다.
  * 표현 절·상황 절은 표현·상황 개수에 따라 달라 맞출 수 없다 — 옛 값 240·120 을 채움용으로 그대로 둔다(표현이 8개 이상이면 표현 절만 600 이상이라 도착하면 길어질 뿐 위는 움직이지 않는다).
- * 일본어 이름·설명이 없는 주제(머리 카드 53~105)는 도착 뒤 내용이 위로 당겨지는 쪽이다 — 자리표시를 줄이면 흔한 쪽이 밀려 내려가므로 흔한 쪽에 맞췄다.
+ * 일본어 이름·설명이 없는 주제(머리 카드 53~105)는 도착 뒤 내용이 위로 당겨지는 쪽이다(설명 길이에 달려 있어 자리표시로 고칠 수 없다) — 자리표시를 줄이면 흔한 쪽이 밀려 내려가므로 흔한 쪽에 맞췄다.
  * 실제 화면은 블록 사이가 `mt-3`(12)·`mt-[18px]`(18)이라 자리표시도 같은 간격을 쓴다(공용 `Skeleton` 의 `gap-2` 8 을 쓰면 아래 블록 시작이 어긋난다).
  */
 export const TOPIC_HEAD_PARTS = { border: 2, padY: 24, title: 27, titleJaTop: 4, titleJa: 19.5, descTop: 8, descLine: 21, descLines: 2 } as const
 export const TOPIC_INFO_PARTS = { padY: 24, line: 19.5, lines: 2 } as const
+/**
+ * 내 버전 안내 상자 — 제목 `<p className="font-bold">`(13px) 한 줄(「✎ 내 버전이에요 · M월 D일에 만들었어요」는 가장 좁은 상자 328px 에서도 한 줄) 19.5 +
+ * [기본으로 되돌리기] 버튼은 `inline-flex min-h-11` — 줄 상자가 버튼 높이 44 로 정해진다(버튼 안 글자의 기준선 위·아래가 모두 윗줄 기준선 여백보다 커서). 실측은 QA.
+ */
+export const TOPIC_COPY_INFO_PARTS = { padY: 24, line: 19.5, lines: 1, action: 44 } as const
 
 export const topicHeadHeight = (p: { [K in keyof typeof TOPIC_HEAD_PARTS]: number } = TOPIC_HEAD_PARTS): number =>
   p.border + p.padY + p.title + p.titleJaTop + p.titleJa + p.descTop + p.descLine * p.descLines
 export const topicInfoHeight = (p: { [K in keyof typeof TOPIC_INFO_PARTS]: number } = TOPIC_INFO_PARTS): number => p.padY + p.line * p.lines
+export const topicCopyInfoHeight = (p: { [K in keyof typeof TOPIC_COPY_INFO_PARTS]: number } = TOPIC_COPY_INFO_PARTS): number => p.padY + p.line * p.lines + p.action
 
-/** 블록 사이 간격은 화면과 같은 값 — 첫 블록 앞은 0. */
+/** 블록 사이 간격은 화면과 같은 값 — 첫 블록 앞은 0. `info` 는 기본 주제 상자, `copyInfo` 는 내 버전 상자. */
 export const TOPIC_DETAIL_SKELETON = {
   head: topicHeadHeight(),
   info: topicInfoHeight(),
+  copyInfo: topicCopyInfoHeight(),
   chunks: 240,
   scenarios: 120,
   gapAfterHead: 12,
   gapAfterInfo: 18,
   gapAfterChunks: 18,
 } as const
+
+export interface TopicSkeletonBlock {
+  key: 'head' | 'info' | 'chunks' | 'scenarios'
+  height: number
+  /** 이 블록 앞 간격(px) — 화면의 `mt-3`·`mt-[18px]` 와 같은 값. */
+  gap: number
+}
+
+/**
+ * 주제 보기 자리표시 블록 — 힌트 `m` 은 출처 안내 상자 자리 없이 머리 카드 바로 뒤(+18)에 표현 절, `s`·`c` 와 힌트 없음은 상자 자리를 둔다
+ * (`c` 는 버튼 줄까지 87.5, 힌트 없음·`s` 는 63). 힌트는 이 모양을 고르는 데만 쓴다.
+ */
+export function topicDetailSkeleton(hint: OriginHint | null): TopicSkeletonBlock[] {
+  const h = TOPIC_DETAIL_SKELETON
+  const blocks: TopicSkeletonBlock[] = [{ key: 'head', height: h.head, gap: 0 }]
+  if (hint !== 'm') blocks.push({ key: 'info', height: hint === 'c' ? h.copyInfo : h.info, gap: h.gapAfterHead })
+  blocks.push({ key: 'chunks', height: h.chunks, gap: h.gapAfterInfo })
+  blocks.push({ key: 'scenarios', height: h.scenarios, gap: h.gapAfterChunks })
+  return blocks
+}
+
+/** 자리표시에서 블록(`key`)이 시작하는 위치(머리 카드 위 = 0) — 도착한 실제 화면의 시작 위치와 맞는지 시험이 비교한다. */
+export function topicSkeletonStart(blocks: readonly TopicSkeletonBlock[], key: TopicSkeletonBlock['key']): number {
+  let y = 0
+  for (const b of blocks) {
+    y += b.gap
+    if (b.key === key) return y
+    y += b.height
+  }
+  return NaN
+}
 
 export function parseManageTab(v: unknown): ManageTab {
   return v === 'scenarios' ? 'scenarios' : 'topics'

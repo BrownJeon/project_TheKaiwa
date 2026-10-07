@@ -14,7 +14,7 @@ const ORIGIN_BADGE: Record<Origin, string> = { MINE: MANAGE.badgeMine, SEED: MAN
 export default function TopicRow({ row }: { row: TopicRowView }) {
   return (
     <Link
-      href={topicHref(row.id)}
+      href={topicHref(row.id, row.origin)}
       data-topic-id={row.id}
       className="flex min-h-[76px] w-full min-w-0 items-start gap-2.5 rounded-[14px] border border-line bg-surface px-3.5 py-3 text-left"
     >

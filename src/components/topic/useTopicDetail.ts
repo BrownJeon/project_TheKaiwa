@@ -8,6 +8,7 @@
  * `refresh()` 는 지금 값을 둔 채 조용히 다시 읽는다(R1). 늦은 응답은 순번으로 버린다.
  * `retryScenarios()` 는 #161 단독 실패의 [다시 시도] — 값은 그대로 두되 `scenariosRetrying` 이 잠깐 켜져(최소 `RETRY_MIN_BUSY_MS`) 눌렀다는 것이 보인다
  * (관리 화면 `useManageData.retryList` 와 같은 방식).
+ * `reload()`(오류 상자의 [다시 시도])는 자리표시부터 다시 보이고, 바로 다시 실패해도 최소 `RETRY_MIN_BUSY_MS` 뒤에 오류 상자가 돌아온다(성공은 기다리지 않음 — `useManageData.reload` 와 같은 규칙).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChallengeListResponse } from '@/types/challenge'
@@ -15,7 +16,7 @@ import type { Topic } from '@/types/lesson'
 import type { ScenarioListItem } from '@/types/scenario'
 import type { SeedOverrideItem } from '@/types/seedOverride'
 import { getActiveChallenge, getManageScenarios, getManageTopics, getSeedOverrides } from './api'
-import { buildTopicDetail, retryBusyRemainingMs, type TopicDetailView } from './logic'
+import { buildTopicDetail, retryBusyRemainingMs, retryFailHoldMs, type TopicDetailView } from './logic'
 
 interface Raw {
   topics: Topic[]
@@ -33,11 +34,15 @@ export function useTopicDetail(id: string) {
   const [scenariosRetrying, setScenariosRetrying] = useState(false)
   const seq = useRef(0)
   const busyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const request = useCallback((forId: string, silent: boolean, onSettled?: () => void) => {
+  // holdFrom: 오류 상자 [다시 시도] 를 누른 시각 — 필수 요청(#56·#179) 실패 반영만 최소 표시 시간까지 미룬다(순번 확인은 반영하는 순간에).
+  const request = useCallback((forId: string, silent: boolean, onSettled?: () => void, holdFrom?: number) => {
     const my = ++seq.current
     void Promise.allSettled([getManageTopics(), getSeedOverrides(), getManageScenarios(), getActiveChallenge()]).then(([topics, overrides, scenarios, challenges]) => {
-      if (my === seq.current) {
+      const failed = topics.status === 'rejected' || overrides.status === 'rejected'
+      const apply = () => {
+        if (my !== seq.current) return
         setState((s) => {
           const keep = silent && s.forId === forId ? s.raw : null
           if (topics.status === 'rejected' || overrides.status === 'rejected') return keep ? s : { forId, status: 'error', raw: null }
@@ -53,6 +58,11 @@ export function useTopicDetail(id: string) {
           }
         })
       }
+      const hold = holdFrom === undefined ? 0 : retryFailHoldMs(failed, holdFrom, Date.now())
+      if (hold > 0) {
+        if (holdTimer.current) clearTimeout(holdTimer.current)
+        holdTimer.current = setTimeout(apply, hold)
+      } else apply()
       // 늦은 응답이라 값은 버려도 「다시 시도 중」 표시는 끝내야 한다(안 그러면 켜진 채 남는다).
       onSettled?.()
     })
@@ -65,6 +75,7 @@ export function useTopicDetail(id: string) {
   useEffect(
     () => () => {
       if (busyTimer.current) clearTimeout(busyTimer.current)
+      if (holdTimer.current) clearTimeout(holdTimer.current)
     },
     [],
   )
@@ -74,10 +85,10 @@ export function useTopicDetail(id: string) {
   const view = useMemo<TopicDetailView | null>(() => (raw ? buildTopicDetail(id, raw) : null), [raw, id])
   const status: TopicDetailStatus = !current || current.status === 'loading' ? 'loading' : current.status === 'error' ? 'error' : view ? 'ready' : 'notFound'
 
-  /** 오류 상자의 [다시 시도] — 자리표시부터. */
+  /** 오류 상자의 [다시 시도] — 자리표시부터(다시 실패해도 최소 표시 시간 뒤에 오류 상자). */
   const reload = useCallback(() => {
     setState({ forId: null, status: 'loading', raw: null })
-    request(id, false)
+    request(id, false, undefined, Date.now())
   }, [id, request])
   const refresh = useCallback(() => request(id, true), [id, request])
   const retryScenarios = useCallback(() => {

@@ -29,13 +29,14 @@ import {
   removalFlash,
   REMOVAL_MODE_OF,
   SCENARIO_CARD_HEIGHT,
-  TOPIC_DETAIL_SKELETON,
+  topicDetailSkeleton,
   topicEditHref,
   topicHref,
   topicScenarioNewHref,
   topicSheetHref,
   type ManageFlash,
   type Origin,
+  type OriginHint,
   type TopicDetailView,
 } from './logic'
 import TopicRemovalSheet from './TopicRemovalSheet'
@@ -49,7 +50,7 @@ const CHUNK_TYPE: Record<string, string> = REVIEW.type
 
 const leaveFlash = (f: ManageFlash) => writeStore('session', MANAGE_FLASH_KEY, JSON.stringify(f))
 
-export default function TopicDetail({ id, initialSheetId }: { id: string; initialSheetId: string | null }) {
+export default function TopicDetail({ id, initialSheetId, originHint = null }: { id: string; initialSheetId: string | null; originHint?: OriginHint | null }) {
   const router = useRouter()
   const d = useTopicDetail(id)
   const { refresh } = d
@@ -110,7 +111,7 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
       if (!t) return
       leaveFlash(removalFlash(t.mode, s.preview.title, s.result))
       setRemoval(null)
-      if (t.mode === 'restore' && t.seedId) router.replace(topicHref(t.seedId), { scroll: false })
+      if (t.mode === 'restore' && t.seedId) router.replace(topicHref(t.seedId, 'SEED'), { scroll: false })
       else router.replace(MANAGE_HREF, { scroll: false })
     },
     [removal, router],
@@ -131,7 +132,7 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
       <BackBar sticky backHref={MANAGE_HREF} backLabel={TOPIC.back} title={v?.topic.title ?? ''} />
       <div className="mx-auto min-w-0 max-w-[520px] px-4 pb-8 pt-3">
         {d.status === 'loading' ? (
-          <DetailSkeleton />
+          <DetailSkeleton hint={originHint} />
         ) : d.status === 'error' ? (
           <ErrorBox title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={d.reload} />
         ) : !v ? (
@@ -155,11 +156,11 @@ export default function TopicDetail({ id, initialSheetId }: { id: string; initia
 }
 
 /**
- * 주제 보기 자리표시 — 높이 근거는 `logic.ts` `TOPIC_DETAIL_SKELETON`. 공용 `Skeleton`(gap-2 8)이 아니라 실제 화면과 같은 블록 간격(mt-3·mt-[18px])으로 늘어놓아
- * 도착 뒤에도 출처 안내 상자·표현 절의 시작 위치가 같다(읽기 알림은 하나만).
+ * 주제 보기 자리표시 — 높이·모양 근거는 `logic.ts` `TOPIC_DETAIL_SKELETON`·`topicDetailSkeleton`. 공용 `Skeleton`(gap-2 8)이 아니라 실제 화면과 같은 블록 간격(12·18)으로 늘어놓아
+ * 도착 뒤에도 출처 안내 상자·표현 절의 시작 위치가 같다(읽기 알림은 하나만). `hint`(링크의 `?o=`)는 출처 안내 상자 자리를 두거나 빼는 데만 쓴다 —
+ * 내가 만든 주제에는 그 상자가 없다. 도착하면 힌트가 아니라 실제 데이터(`Body` 의 `v.origin`)로 그린다.
  */
-function DetailSkeleton() {
-  const h = TOPIC_DETAIL_SKELETON
+function DetailSkeleton({ hint }: { hint: OriginHint | null }) {
   const block = 'block rounded-[14px] bg-surface2'
   return (
     <div>
@@ -167,10 +168,9 @@ function DetailSkeleton() {
         {TOPIC.loading}
       </p>
       <div aria-hidden="true">
-        <span className={block} style={{ height: h.head }} />
-        <span className={`mt-3 ${block}`} style={{ height: h.info }} />
-        <span className={`mt-[18px] ${block}`} style={{ height: h.chunks }} />
-        <span className={`mt-[18px] ${block}`} style={{ height: h.scenarios }} />
+        {topicDetailSkeleton(hint).map((b) => (
+          <span key={b.key} className={block} style={{ height: b.height, marginTop: b.gap }} />
+        ))}
       </div>
     </div>
   )

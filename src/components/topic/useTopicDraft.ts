@@ -356,7 +356,7 @@ export function useTopicDraft(defaultLevel: DraftLevel, userId: string): TopicDr
       closeStore()
       const flash: ManageFlash = { kind: 'created', title, scenarios: saved }
       writeStore('session', MANAGE_FLASH_KEY, JSON.stringify(flash))
-      router.replace(typeof id === 'string' && id ? topicHref(id) : MANAGE_HREF, { scroll: false })
+      router.replace(typeof id === 'string' && id ? topicHref(id, 'MINE') : MANAGE_HREF, { scroll: false })
     },
     [closeStore, router],
   )

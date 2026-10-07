@@ -98,6 +98,7 @@ function Pick({ m }: { m: VariantScreenModel }) {
   const blocked = !!m.block || daily
   const reason = m.block === 'noChange' ? VARIANT.noChange : m.block === 'noteLong' ? VARIANT.noteTooLong : null
   // 축 위 실패(guide §16-7)는 다시 만드는 동안 붙잡아 둔다 — 요청이 시작되며 사라지면 누른 버튼이 상자 높이만큼 올라간다(R2). 렌더 중 상태 보정(공식 패턴)이며 같은 값이면 같은 객체라 되풀이되지 않는다.
+  // 붙잡은 상자는 DOM 에 계속 남아 같은 실패가 되풀이돼도 스크린리더가 다시 읽지 않는다 — 새 실패마다 `key`(일련번호)로 상자를 다시 만든다(위치·높이는 그대로).
   const [held, setHeld] = useState<HeldFailure | null>(null)
   const nextHeld = holdFailure(held, m.failure, variantInputSig(m.axes, m.note))
   if (nextHeld !== held) setHeld(nextHeld)
@@ -120,7 +121,7 @@ function Pick({ m }: { m: VariantScreenModel }) {
           <h2 className="text-[16px] font-semibold">{VARIANT.ask}</h2>
           <p className="mt-1 text-[13px] text-ink2 break-keep">{VARIANT.askSub}</p>
         </div>
-        <FailBox f={above} onRetry={m.generate} />
+        <FailBox key={nextHeld?.n ?? 0} f={above} onRetry={m.generate} />
         <VariantAxes axes={m.axes} baseLevel={base.level} onPick={m.pick} locked={gen} />
         <Field label={VARIANT.note} htmlFor="va-note">
           <textarea

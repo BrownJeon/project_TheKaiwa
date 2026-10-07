@@ -76,7 +76,7 @@ export default function TopicEditScreen({ id }: { id: string }) {
 
   return (
     <>
-      <BackBar sticky backHref={topicHref(id)} backLabel={m.origTitle || TOPIC.back} title={EDIT.title} onBack={m.status === 'ready' ? onBack : undefined} backDisabled={m.saving} />
+      <BackBar sticky backHref={topicHref(id, m.origin)} backLabel={m.origTitle || TOPIC.back} title={EDIT.title} onBack={m.status === 'ready' ? onBack : undefined} backDisabled={m.saving} />
       <div className="mx-auto min-w-0 max-w-[520px] px-4 pb-8 pt-3.5">
         {m.status === 'loading' ? <Skeleton heights={[96, 300, 240]} label={TOPIC.loading} /> : null}
         {m.status === 'error' ? <ErrorBox title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={m.reload} /> : null}

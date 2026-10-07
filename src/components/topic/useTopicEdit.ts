@@ -26,6 +26,7 @@ import {
   MANAGE_HREF,
   regenArrival,
   regenWarnLines,
+  retryFailHoldMs,
   runTopicEditSave,
   seedCopyId,
   topicEditFailView,
@@ -101,38 +102,53 @@ export function useTopicEdit(id: string): TopicEditModel {
   const [focus, setFocus] = useState<EditFocus>({ n: 0, to: 'level' })
   const requestFocus = useCallback((to: EditFocus['to']) => setFocus((f) => ({ n: f.n + 1, to })), [])
   const seq = useRef(0)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 다시 받은 표현이 도착했을 때 그 순간의 편집 값(이름·설명·수준은 그대로 두고 표현만 바꾼다).
   const draftRef = useRef<EditableTopicDraft | null>(null)
   useEffect(() => {
     draftRef.current = draft
   }, [draft])
 
-  const load = useCallback(() => {
-    const my = ++seq.current
-    void Promise.all([getManageTopics(), getSeedOverrides('TOPIC')]).then(
-      ([topics, overrides]) => {
-        if (my !== seq.current) return
-        const t = topics.find((x) => x.id === id)
-        if (!t) return setStatus('notFound')
-        const orig = topicEditFrom(t)
-        setLoaded({ orig, origin: topicOrigin(t, copyIdSet(overrides, 'TOPIC')) })
-        setDraftState(orig)
-        setChunksLevel(orig.level)
-        setStatus('ready')
-      },
-      () => {
-        if (my === seq.current) setStatus('error')
-      },
-    )
-  }, [id])
+  // holdFrom: 오류 상자 [다시 시도] 를 누른 시각 — 바로 다시 실패해도 자리표시가 최소 표시 시간(500ms)은 보이도록 실패 반영만 미룬다(성공은 기다리지 않음, 관리 화면과 같은 규칙).
+  const load = useCallback(
+    (holdFrom?: number) => {
+      const my = ++seq.current
+      void Promise.all([getManageTopics(), getSeedOverrides('TOPIC')]).then(
+        ([topics, overrides]) => {
+          if (my !== seq.current) return
+          const t = topics.find((x) => x.id === id)
+          if (!t) return setStatus('notFound')
+          const orig = topicEditFrom(t)
+          setLoaded({ orig, origin: topicOrigin(t, copyIdSet(overrides, 'TOPIC')) })
+          setDraftState(orig)
+          setChunksLevel(orig.level)
+          setStatus('ready')
+        },
+        () => {
+          const apply = () => {
+            if (my === seq.current) setStatus('error')
+          }
+          const hold = holdFrom === undefined ? 0 : retryFailHoldMs(true, holdFrom, Date.now())
+          if (hold > 0) {
+            if (holdTimer.current) clearTimeout(holdTimer.current)
+            holdTimer.current = setTimeout(apply, hold)
+          } else apply()
+        },
+      )
+    },
+    [id],
+  )
 
   useEffect(() => {
     load()
+    return () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current)
+    }
   }, [load])
 
   const reload = useCallback(() => {
     setStatus('loading')
-    load()
+    load(Date.now())
   }, [load])
 
   // 화면 수명 동안 하나씩 — 상태 초기화 함수로 한 번만 만든다(렌더 중 ref 를 읽지 않게).
@@ -169,12 +185,12 @@ export function useTopicEdit(id: string): TopicEditModel {
       setSaveMessage(null)
       const o = await runTopicEditSave(input, { patch: updateTopic, fork: forkTopic })
       if (o.kind === 'unchanged') {
-        router.replace(topicHref(id), { scroll: false })
+        router.replace(topicHref(id, origin), { scroll: false })
         return
       }
       if (o.kind === 'saved') {
         writeStore('session', MANAGE_FLASH_KEY, JSON.stringify(editFlash(o.route)))
-        router.replace(o.id ? topicHref(o.id) : MANAGE_HREF, { scroll: false })
+        router.replace(o.id ? topicHref(o.id, o.route === 'fork' ? 'COPY' : origin) : MANAGE_HREF, { scroll: false })
         return
       }
       setSaving(false)
@@ -199,14 +215,14 @@ export function useTopicEdit(id: string): TopicEditModel {
       }
       setSaveMessage(v.message)
     })
-  }, [loaded, draft, saving, copied, regenFlight.busy, saveMessage, id, route, saveGuard, router, requestFocus])
+  }, [loaded, draft, saving, copied, regenFlight.busy, saveMessage, id, route, origin, saveGuard, router, requestFocus])
 
   const openCopy = useCallback(() => {
     copyGuard.run(async () => {
       setOpeningCopy(true)
       try {
         const copyId = seedCopyId(await getSeedOverrides('TOPIC'), id)
-        router.replace(copyId ? topicHref(copyId) : MANAGE_HREF, { scroll: false })
+        router.replace(copyId ? topicHref(copyId, 'COPY') : MANAGE_HREF, { scroll: false })
       } catch (e) {
         setOpeningCopy(false)
         setSaveMessage({ text: failureCopy('topicFork', toErr(e)).text, block: false })
@@ -266,8 +282,8 @@ export function useTopicEdit(id: string): TopicEditModel {
   // 다른 경로(주제 보기)로 가는 이동이라 기본 스크롤을 둔다(R5) — 고친 값은 남기지 않는다.
   const leave = useCallback(() => {
     flightCtl.dispose()
-    router.push(topicHref(id))
-  }, [flightCtl, router, id])
+    router.push(topicHref(id, origin))
+  }, [flightCtl, router, id, origin])
 
   return {
     status,
