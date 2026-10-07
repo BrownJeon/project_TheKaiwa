@@ -185,7 +185,7 @@ enum ChallengeStatus {
 /// 챌린지 — 사용자가 직접 만든다(규칙 1 의 DIRECT 행위, AI 산출 아님). L3 learning/challenges 소유.
 /// 하루별 결과는 저장하지 않는다 — 기간 안 StatsSnapshot(LESSON·VOCAB_SESSION)을 읽을 때 계산하고(§6-4), 끝날 때 result 에 한 번 얼린다.
 /// activeKey = ACTIVE 일 때 userId, 끝나면 null → @unique 가 "사용자당 진행 중 1개"를 DB 에서 보증(InnoDB 유니크는 NULL 여러 개 허용).
-/// 사용자 삭제 경로 없음(계정 삭제 시에만 Cascade). 진행 중 챌린지의 주제는 지울 수 없다(#57 이 409 — §3-3)
+/// 사용자 삭제 경로 없음(계정 삭제 시에만 Cascade). **주제를 지우면 진행 중(ACTIVE) 챌린지 행은 같은 트랜잭션에서 함께 지워지고, 끝난 챌린지(ENDED·COMPLETED)는 남는다**(task-045 사용자 결정 — `topic-scenario-manager.md` §4, §3-3)
 model Challenge {
   id             String          @id @default(cuid())
   userId         String
@@ -250,7 +250,7 @@ model VocabAttempt {
 | 진행 중 1개 | `Challenge.activeKey @unique` + 만들기 트랜잭션에서 사용자 행 잠금(`lockUserRow`) 뒤 확인 → 409 `ACTIVE_EXISTS`. 유니크 위반(P2002)도 409 로 변환. **끝내는 모든 경로(COMPLETED 전이·#159)가 `activeKey=null`** 을 함께 쓴다 | 앱 검사만으로는 두 요청이 겹칠 때 빈틈 — DB 가 마지막 방어. 이 기법은 `domain-model.md` §8 #4 에서 **제안만 됐고 스키마·코드 선례는 없다** — 이번이 첫 사용이라 T1 테스트에 "동시 두 #156 → 하나 409"·"끝낸 뒤 새로 만들기 성공"을 넣는다 |
 | 만들기 상한 | #156 사용자당 하루 20회(429) | 만들기·그만두기 반복으로 행이 쌓이는 것 방어(사용자 삭제 경로가 없으므로) |
 | `onDelete` | `Challenge → User` Cascade · 주제 SetNull · 세트의 주제 SetNull | 계정 삭제 = 소유 행 전부. 끝난 챌린지는 `result` 와 `topicTitleSnap` 으로 읽힌다 |
-| 주제 삭제 | 사용자 주제 삭제(#57, 아직 없음)는 **진행 중 챌린지가 쓰는 주제면 409** — 확인은 삭제와 **같은 트랜잭션(사용자 행 잠금 뒤)** 에서. 그래도 ACTIVE 인데 `topicId=null` 이 보이면 읽을 때 ENDED 로 전이(`result.endReason='TOPIC_REMOVED'`) — 이때 인정 집합은 비운다(§6-4 `topicId=null` 줄) | 주제가 끊기면 인정 비교가 항상 실패해 챌린지가 조용히 멈춘다(REV L-14) — #57 구현 task 의 완료 기준에 넣는다. 지금은 주제·조각을 지우는 코드 경로가 없다(`src/` 에 `conversationTopic.delete`·`topicChunk.delete` 0건, 시드 `seed-topics.ts` 는 만들기·고치기만) [확실] → 1단계에서 도달 불가 |
+| 주제 삭제 | **(2026-10-07 개정 — task-045 사용자 결정, 계약 `topic-scenario-manager.md` §4)** 주제 삭제(#173)는 **진행 중(ACTIVE) 챌린지 행을 같은 트랜잭션(사용자 행 잠금 뒤)에서 함께 삭제**하고 끝난 챌린지(ENDED·COMPLETED)는 `topicId=null` 로 남긴다(저장된 `topicTitleSnap` 을 평소처럼 보이고 "삭제됨" 표기 없음). 삭제 확인 창은 #172 사전 조회로 진행 중 챌린지가 있다는 사실을 알린다. ~~이전 안: 진행 중이면 409~~. 예외 경로로 ACTIVE 인데 `topicId=null` 이 보이면 읽을 때 ENDED 로 전이(`result.endReason='TOPIC_REMOVED'`) — 이때 인정 집합은 비운다(§6-4 `topicId=null` 줄) | 주제가 끊기면 인정 비교가 항상 실패해 챌린지가 조용히 멈춘다(REV L-14) — #57 구현 task 의 완료 기준에 넣는다. 지금은 주제·조각을 지우는 코드 경로가 없다(`src/` 에 `conversationTopic.delete`·`topicChunk.delete` 0건, 시드 `seed-topics.ts` 는 만들기·고치기만) [확실] → 1단계에서 도달 불가 |
 | 소유자 검사 | 모든 #155~#159 는 `where {id, userId}` 로 읽고, 없거나 남의 것은 404(`api-contract.md` §0-4). `topicId` 는 시드 또는 내 주제만(`topics/index.ts:12-15` `getTopicRef`), 아니면 404 | 기존 규약 |
 | 사용자 삭제 | 1단계에는 챌린지 지우기 없음(목록에서 끝난 것 접기만 — 화면 처리) | 필요해지면 `hiddenAt` 칸 추가(별도 승인) |
 | 날짜 | 전부 서버 KST(`infra.dates.todayKst`) — 클라이언트 날짜를 키로 쓰지 않는다 | `module-dependency.md` §8 #10 |
@@ -589,7 +589,7 @@ stateDiagram-v2
   [*] --> ACTIVE: #156 만들기
   ACTIVE --> COMPLETED: 오늘(KST) > endDate — 읽거나 만들 때 지연 전이. endedAt = endDate 다음 날 00:00 KST, result 얼림, activeKey=null
   ACTIVE --> ENDED: #159 그만두기 — endedAt = 지금, result 얼림, activeKey=null
-  ACTIVE --> ENDED: 주제가 끊김(topicId=null) — result.endReason=TOPIC_REMOVED(1단계 도달 불가 — §3-3)
+  ACTIVE --> ENDED: 주제가 끊김(topicId=null) — result.endReason=TOPIC_REMOVED(예외 경로 — 주제 삭제는 진행 중 챌린지를 행째 지운다, §3-3 개정)
   COMPLETED --> [*]
   ENDED --> [*]
 ```
@@ -724,7 +724,7 @@ stateDiagram-v2
 - (iii) 은 **기간 집계**(하루 달성·달성률·수행 연속·최장·문제 점수 추이·단어 비율·챌린지 누적)를 `StatsSnapshot` 에서만 읽으므로 **규칙 2 와 모순이 없다** — v1 의 갱신안(규칙 2 에 `ChallengeDay` 추가)은 **철회**한다. 표현 진행·이 주제 수업 수·오늘 할 일은 기간 집계가 아니라 `RepetitionItem`·`Lesson`·`VocabSession` 의 **현재 상태 읽기**다(아래 셋째 줄, REV-113 L-9).
 - 정본 갱신은 `domain-model.md` §9-3 VOCAB_SESSION `data` 에 `topicId?` 한 칸(주제 세트만)뿐이다. LESSON `data` 는 그대로.
 - 주제 표현 진행은 `RepetitionItem` 의 **지금 상태 읽기**다(기간 집계가 아님 — 단어장 카운터를 읽는 것과 같은 성격). **새 단어 진행(v2.3)** 도 같다 — 이 주제로 받은 새 단어 키(`VocabAttempt` 카드)와 그 `RepetitionItem` 카운터를 지금 읽는다(기간 집계 아님, 세트·반복 항목 모두 사용자 삭제 경로 없음). `RepetitionItem` 은 삭제 경로 없음(`domain-model.md` §6)이라 "삭제 후 불변" 취지도 지킨다.
-- `Challenge.result` 는 끝날 때 한 번 쓰는 요약이다. `domain-model.md` §6 삭제 매트릭스에 "`Challenge` — 사용자 삭제 없음, 계정 삭제 시 Cascade, 주제 삭제는 SetNull(진행 중이면 #57 거부)" 행을 더한다.
+- `Challenge.result` 는 끝날 때 한 번 쓰는 요약이다. `domain-model.md` §6 삭제 매트릭스에 "`Challenge` — 사용자 삭제 없음, 계정 삭제 시 Cascade, 주제 삭제는 SetNull(진행 중(ACTIVE)이면 #173 이 같은 트랜잭션에서 행째 삭제 — task-045 개정)" 행을 더한다.
 
 ### 6-4. 읽을 때 계산 — 알고리즘 (T1 `learning/challenges/metrics.ts`, 순수 함수 + `today` 주입)
 
