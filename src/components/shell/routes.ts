@@ -11,6 +11,7 @@ export const FOCUS_ROUTE_PREFIXES = [
   '/plan/challenge/',
   '/plan/challenges',
   '/study/ai/scenario/',
+  '/settings/scenarios',
 ] as const
 
 export function isFocusRoute(pathname: string): boolean {

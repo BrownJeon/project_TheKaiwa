@@ -13,6 +13,7 @@ import VoiceSettings from '@/components/settings/VoiceSettings'
 import { baselineFrom, type VoiceBaselines } from '@/components/settings/voiceSliderLogic'
 import AdminConsoleEntry from './AdminConsoleEntry'
 import LogoutButton from './LogoutButton.client'
+import ManageEntryRow from './ManageEntryRow'
 
 /**
  * 목소리별 "기본" 원자료(task-022 REV-040) — 합성 때 서버 Resolver 가 읽는 목소리 행(`loadTtsVoice`)에서 숫자·말투 이름만 골라 넘긴다.
@@ -47,6 +48,7 @@ export default async function SettingsPage() {
           <p className="truncate text-[14px] text-ink2">{user?.email}</p>
           <LogoutButton />
         </section>
+        <ManageEntryRow />
         <LearningSettings />
         <DisplaySettings />
         {/* 슬라이더 범위·목소리 기본값은 서버 정본을 그대로 넘긴다 — 컴포넌트는 preferences·speech 를 import 하지 않는다(task-022). */}

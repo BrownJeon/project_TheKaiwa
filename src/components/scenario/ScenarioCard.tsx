@@ -51,9 +51,24 @@ function StatusBits({ st }: { st: CardStatus }) {
   )
 }
 
-export default function ScenarioCard({ item, variant = 'list', onOpen }: { item: ScenarioListItem; variant?: 'list' | 'reco'; onOpen: (id: string) => void }) {
+/**
+ * `originBadge`(관리 화면, task-045) — 주면 기본 「내 상황」 뱃지 자리를 이 글로 바꾼다(null = 뱃지 없음). 출처 판정과 문구는 부르는 쪽이 정한다
+ * (내 버전도 `isMine` 이라 그대로 두면 「내 상황」이 붙는다). 주지 않으면 지금과 같다(회화 탭·수업 카드·챌린지).
+ */
+export default function ScenarioCard({
+  item,
+  variant = 'list',
+  onOpen,
+  originBadge,
+}: {
+  item: ScenarioListItem
+  variant?: 'list' | 'reco'
+  onOpen: (id: string) => void
+  originBadge?: string | null
+}) {
   const reason = variant === 'reco' ? recommendReasonText(item.recommendReason) : null
   const steps = cardMetaSteps(item.stepCount)
+  const badge = originBadge === undefined ? (item.isMine ? CARD.mine : null) : originBadge
   return (
     <button
       type="button"
@@ -64,7 +79,7 @@ export default function ScenarioCard({ item, variant = 'list', onOpen }: { item:
     >
       <span className="flex min-w-0 items-start gap-1.5">
         <span className="line-clamp-2 min-w-0 flex-1 text-[15px] font-semibold leading-snug [overflow-wrap:anywhere]">{item.title}</span>
-        {item.isMine ? <Badge>{CARD.mine}</Badge> : null}
+        {badge ? <Badge>{badge}</Badge> : null}
         <Badge>{item.level}</Badge>
         <span aria-hidden="true" className="flex-none text-[15px] leading-[22px] text-ink2">
           ›
