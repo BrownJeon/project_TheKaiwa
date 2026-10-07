@@ -1,11 +1,12 @@
 /**
- * task-010d A1-서버 라이브 스모크 — **서비스 직접 호출**(HTTP 아님). #28 라우트는 가드(`validate.ts` 63·64행, Leader 결정 G1)가 막고 있어
- * 역할극 대화를 HTTP 로 만들 수 없다 — 그래서 실제 DB 에 대고 `createRolePlayChat`·`readRolePlayEndFacts`·`endScenarioRolePlay` 를 부른다. LLM 없음.
+ * task-010d A1-서버 라이브 스모크 — **서비스 직접 호출**(HTTP 아님). 처음엔 #28 가드(Leader 결정 G1)가 역할극 대화 생성을 막아 서비스를 직접 불렀고,
+ * 가드는 A3b-1(`23a582b`)에서 의도적으로 풀렸다(`chats/route.ts` — `parseCreateChat` 은 역할극 칸을 보지 않고 `parseRolePlayIds` 가 id 모양만 검사).
+ * 지금도 실제 DB 에 대고 `createRolePlayChat`·`readRolePlayEndFacts`·`endScenarioRolePlay` 를 직접 부른다. LLM 없음.
  *
  * 계정: QA4 `qa-bot4@thekaiwa.test`(상황 역할극 레인) = 주 계정 · QA2 `qa-bot2@thekaiwa.test` = 남의 것(IDOR). 두 계정 행은 먼저
  * `QA_ACCOUNT=4 node --env-file=.env --import tsx tests/live/qa-session.ts /tmp/x && rm /tmp/x`(2 도 같게)로 만들어 둔다 — 없으면 아무것도 쓰지 않고 끝난다.
  *
- * 흐름: 0 가드(parseCreateChat 400 FEATURE_NOT_READY) → 1 고정 행 심기(QA4 주제·조각·상황(+ScenarioTopic)·상황 수업 / QA2 상황·수업 — 시드 행은 만들지 않는다)
+ * 흐름: 0 가드 해제 확인(parseCreateChat 이 역할극 칸을 막지 않음·parseRolePlayIds id 모양 검사) → 1 고정 행 심기(QA4 주제·조각·상황(+ScenarioTopic)·상황 수업 / QA2 상황·수업 — 시드 행은 만들지 않는다)
  *   → 2 대화 생성: scenarioId · lessonId 만(상황 상속) · 남의 상황 404 · 남의 수업 404 · 이어지지 않은 주제 400 · CHAT 400 → Chat.scenarioId·lessonId·topicId·
  *   코치 강제(resolveTalkCorrectionMode) → 3 학습자 말 2개·교정 1건 심기(턴 LLM 대신) → 4 종료 한 트랜잭션(재료 읽기 → 기록): 행 수 대조
  *   StudyLog(TALK·DIRECT) 1 · RepetitionItem(SCENARIO) 1 · LearningObservation(SCENARIO_COMPLETED) 1 · DAILY talkTurns+2·corrections.proposed+1·repetition.studied+1·
@@ -19,7 +20,7 @@ import { PrismaClient, type Prisma } from '@prisma/client'
 import { ApiError, dates, withTransaction } from '@/modules/infra'
 import { endScenarioRolePlay } from '@/modules/learning'
 import { parseCreateChat } from '@/modules/conversation/chats/validate'
-import { createRolePlayChat, readRolePlayEndFacts } from '@/modules/conversation/chats/rolePlay'
+import { createRolePlayChat, parseRolePlayIds, readRolePlayEndFacts } from '@/modules/conversation/chats/rolePlay'
 import { resolveTalkCorrectionMode } from '@/modules/conversation/corrections/talkDelivery'
 
 // 공유 DB 에 직접 쓰는 개발 전용 스모크(REV-134 L-5) — A3a 스모크와 같은 PRODUCTION 거부. HTTP 를 쓰지 않아 BASE·포트 검사 대신 운영 릴리스 경로를 거부한다
@@ -58,9 +59,17 @@ async function main(): Promise<void> {
   const since = new Date()
 
   try {
-    // 0 가드(G1)
-    await expectApi('0a #28 scenarioId 는 여전히 400 FEATURE_NOT_READY', 'FEATURE_NOT_READY', () => parseCreateChat({ kind: 'TALK', scenarioId: 'x' }))
-    await expectApi('0b #28 lessonId 는 여전히 400 FEATURE_NOT_READY', 'FEATURE_NOT_READY', () => parseCreateChat({ kind: 'TALK', lessonId: 'x' }))
+    // 0 가드(G1) 해제 뒤 — 역할극 칸은 막지 않고 id 모양만 본다(23a582b). 잘못된 모양은 400 VALIDATION.
+    {
+      const a = parseCreateChat({ kind: 'TALK', scenarioId: 'x' })
+      const ra = parseRolePlayIds({ kind: 'TALK', scenarioId: 'x' })
+      check('0a #28 scenarioId — 가드 없음(TALK 그대로 통과·scenarioId 만 읽음)', a.kind === 'TALK' && ra.scenarioId === 'x' && ra.lessonId === null, JSON.stringify(ra))
+      const b = parseCreateChat({ kind: 'TALK', lessonId: 'x' })
+      const rb = parseRolePlayIds({ kind: 'TALK', lessonId: 'x' })
+      check('0b #28 lessonId — 가드 없음(TALK 그대로 통과·lessonId 만 읽음)', b.kind === 'TALK' && rb.scenarioId === null && rb.lessonId === 'x', JSON.stringify(rb))
+      await expectApi('0c #28 scenarioId 빈 문자열 → 400 VALIDATION', 'VALIDATION', () => parseRolePlayIds({ kind: 'TALK', scenarioId: '' }))
+      await expectApi('0d #28 lessonId 41자 → 400 VALIDATION', 'VALIDATION', () => parseRolePlayIds({ kind: 'TALK', lessonId: 'a'.repeat(41) }))
+    }
 
     // 1 고정 행
     const topic = await prisma.conversationTopic.create({ data: { userId: U, title: `${MARK} 카페`, level: 'N5', isSeed: false }, select: { id: true } })

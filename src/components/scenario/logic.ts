@@ -56,6 +56,12 @@ const ID_PARAM = /^[A-Za-z0-9_-]{1,40}$/
 /** `?sc=`·`[id]` — 서버 id 모양(영문·숫자·_·- 1~40자)만 받는다. */
 export const isScenarioIdParam = (v: unknown): v is string => typeof v === 'string' && ID_PARAM.test(v)
 
+/**
+ * 시트에 넘길 id — 수화가 끝나기 전(서버 렌더·수화 첫 렌더)에는 늘 닫힘(null). 공용 `Sheet` 는 서버에서 null, 클라이언트에선 포털을 그리므로
+ * `?sc=` 딥링크로 첫 렌더부터 열면 수화 불일치(React #418)가 난다(qa-p2c-A 결함 #2). 수화 뒤에 고른 id 를 그대로 넘긴다.
+ */
+export const sheetIdAfterHydration = (sheetId: string | null, hydrated: boolean): string | null => (hydrated ? sheetId : null)
+
 /* ── 카드 ─────────────────────────────────────────────────────────────── */
 
 export type CardStatus = { kind: 'first' } | { kind: 'achieved' | 'almost' | 'notYet'; date: string }
