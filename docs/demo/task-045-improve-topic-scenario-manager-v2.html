@@ -1,0 +1,1374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-045-v2">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:246b2050bb94">
+<meta name="description" content="내 상황·주제 관리 v2 — v1 수정 요청 2건 반영: 체크·칩·분절을 눌러도 스크롤 위치·초점 유지, 선생님 첫마디를 한국어로 적고 일본어는 선생님이 만들어 역할극에서 일본어로 말함. 그 밖에 주제 초안 경고 안내·읽기 확인 안내·거절 문구 하나로·한도 숫자 확정. full 데모 v2, 합성 샘플 데이터">
+<title>내 상황·주제 관리 v2</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 결정 필요(접힘) → 상태 줄 → 왼쪽 화면 목록 · 가운데 휴대폰 · 오른쪽 설명 → 화면×상태 전수 → 확인할 것 → 개발 메모(접힘) */
+/* 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음). 새 색 없음 */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; padding: 0; }
+p, h1, h2, h3, h4, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+.num { font-variant-numeric: tabular-nums; }
+.kk { word-break: keep-all; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; min-height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.djump { display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--accent); background: var(--surface); color: var(--ink); font-size: 12.5px; font-weight: 700; text-decoration: none; }
+.dvar { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.dvar > span { flex: none; font-size: 12px; color: var(--ink2); padding-top: 8px; }
+.dvar .dseg { flex: 1 1 auto; min-width: 0; }
+.dlay { display: grid; grid-template-columns: 230px minmax(0, 1fr) 360px; gap: 18px; padding: 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 6px 4px 4px; }
+.dnav button { display: block; width: 100%; text-align: left; border: 0; background: none; min-height: 40px; padding: 8px; border-radius: 8px; font-size: 13px; color: var(--ink2); }
+.dnav button:hover { background: var(--surface2); color: var(--ink); }
+.dnav button[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.dnav .did { font-size: 11px; color: var(--ink2); margin-right: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+.dnav .dx { display: block; font-size: 11.5px; color: var(--ink2); font-weight: 400; margin-top: 1px; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; overflow-x: auto; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard .dk { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.dcard ul.dn, .dcard ol.dn { padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.dcard ul.dn { list-style: disc; } .dcard ol.dn { list-style: decimal; }
+.dcard .dsub { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+.dpanel { margin: 0 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.dpanel > summary { cursor: pointer; font-size: 15px; font-weight: 700; min-height: 32px; display: flex; align-items: center; gap: 10px; }
+.dpanel h2 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.dpanel .dsub { font-size: 12.5px; color: var(--ink2); margin: 6px 0 10px; }
+.dq { border-top: 1px solid var(--line); padding: 12px 0; }
+.dq h3 { font-size: 14px; font-weight: 700; }
+.dq > p { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+.dq-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 8px; }
+.opt { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt-h { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; }
+.opt-h .rec { font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 5px; background: var(--surface2); color: var(--ink); }
+.opt p { font-size: 12.5px; margin-top: 4px; }
+.opt ul { font-size: 12.5px; padding-left: 16px; list-style: disc; margin-top: 4px; color: var(--ink2); }
+.opt .pc b { color: var(--ink); }
+.dtw { overflow-x: auto; }
+.dtbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 6px; border-top: 1px solid var(--line); }
+.dtbl thead th { font-weight: 600; color: var(--ink2); font-size: 12px; border-top: 0; white-space: nowrap; }
+.dtbl td button { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; min-height: 30px; padding: 0 8px; margin: 2px 2px 2px 0; font-size: 12px; }
+@media (max-width: 1180px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); }
+  .dnav { position: static; max-height: none; }
+}
+
+/* ── 휴대폰 ── */
+.ph { position: relative; display: flex; flex-direction: column; background: var(--ground); border: 1px solid var(--line); border-radius: 26px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.08); flex: none; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.sbar { flex: none; height: 24px; display: flex; justify-content: space-between; align-items: center; padding: 0 18px; font-size: 11px; color: var(--ink2); background: var(--surface); }
+.scr { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.abar { flex: none; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: var(--ground); }
+.abar h1 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; }
+.avt { width: 36px; height: 36px; border-radius: 50%; background: var(--surface2); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.bbar { flex: none; height: 52px; display: flex; align-items: center; gap: 4px; padding: 0 4px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.bk { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; }
+.bt { min-width: 0; flex: 1; }
+.bt h1 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; }
+.bt p { font-size: 12px; color: var(--ink2); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 32px; }
+.bd > * + * { margin-top: 18px; }
+.bd.tight > * + * { margin-top: 12px; }
+.tabs { flex: none; height: 62px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-top: 1px solid var(--line); padding-bottom: 6px; }
+.tabs span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; color: var(--ink2); }
+.tabs i { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid currentColor; display: block; }
+.kb { flex: none; height: 286px; background: var(--surface2); border-top: 1px solid var(--line); padding: 8px 4px; display: grid; grid-template-rows: repeat(4, 1fr); gap: 6px; }
+.kb div { display: flex; gap: 5px; justify-content: center; }
+.kb b { flex: 0 1 32px; height: 100%; border-radius: 6px; background: var(--surface); font-weight: 400; font-size: 12px; color: var(--ink2); display: grid; place-items: center; }
+.kb .wide { flex: 0 1 160px; }
+
+/* 앱 조각(공용 컴포넌트 모양 — ui.tsx·Sheet·Segmented·challenge/parts 를 그대로 옮김) */
+.card { min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 14px; }
+.sh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sh h3, .sh h2 { min-width: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh .r { flex: none; font-size: 12px; color: var(--ink2); }
+.lnk { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; border: 0; background: none; font-size: 13px; font-weight: 600; color: var(--accent); }
+.lnk.bad { color: var(--bad); }
+.lnk.u { text-decoration: underline; text-underline-offset: 3px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; font-weight: 600; height: 48px; padding: 0 16px; font-size: 15px; border: 0; }
+.btn.p { background: var(--accent); color: var(--on-accent); }
+.btn.g { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.btn.d { border: 1px solid var(--bad); background: var(--surface); color: var(--bad); }
+.btn.sm { height: 44px; padding: 0 14px; font-size: 13px; }
+.btn.full { width: 100%; }
+.btn[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+.brow { display: flex; gap: 8px; }
+.brow > * { flex: 1; min-width: 0; }
+.col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bdg { display: inline-flex; align-items: center; flex: none; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; background: var(--surface2); color: var(--ink2); white-space: nowrap; }
+.bdg.good { background: var(--good-soft); color: var(--good); }
+.bdg.bad { background: var(--bad-soft); color: var(--bad); }
+.fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fld > label, .fld > .lb, legend.lb { font-size: 12.5px; font-weight: 500; color: var(--ink2); padding: 0; }
+.lb .bdg { margin-left: 6px; vertical-align: 1px; }
+.in, .ta { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; font-size: 16px; color: var(--ink); }
+.in { height: 44px; padding: 0 12px; }
+.ta { padding: 10px 12px; resize: none; line-height: 1.4; }
+.in[aria-invalid="true"], .ta[aria-invalid="true"] { border-color: var(--bad); }
+.in::placeholder, .ta::placeholder { color: var(--ink3); }
+.cnt { text-align: right; font-size: 12px; color: var(--ink2); }
+.ferr { font-size: 12px; color: var(--bad); word-break: keep-all; }
+.hint { font-size: 12px; color: var(--ink2); word-break: keep-all; }
+.seg { display: flex; gap: 3px; padding: 3px; border-radius: 12px; background: var(--surface2); }
+.seg button { position: relative; flex: 1; min-width: 0; height: 36px; border: 0; background: none; border-radius: 9px; font-size: 13.5px; font-weight: 500; color: var(--ink2); padding: 0 4px; }
+.seg.sm button { height: 32px; font-size: 12px; }
+.seg button::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.seg button span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips.x { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.chips.x::-webkit-scrollbar { display: none; }
+.chip { position: relative; flex: none; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13.5px; color: var(--ink); white-space: nowrap; }
+.chip::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.chip[aria-checked="true"] { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+.chip[aria-disabled="true"] { color: var(--ink2); background: var(--surface2); }
+.note { border-radius: 14px; background: var(--accent-soft); padding: 14px; }
+.note h2 { font-size: 14px; font-weight: 600; outline: none; }
+.note p { font-size: 13px; margin-top: 4px; word-break: keep-all; }
+.info { border-radius: 12px; background: var(--surface2); padding: 12px 14px; font-size: 13px; word-break: keep-all; }
+.info b { font-weight: 700; }
+.err { border-radius: 12px; background: var(--bad-soft); padding: 12px 14px; font-size: 13px; color: var(--bad); word-break: keep-all; }
+.err b { font-weight: 700; }
+.err .lnk { color: var(--bad); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+.warnb { border-radius: 12px; border: 1.5px solid var(--bad); background: var(--bad-soft); padding: 12px 14px; font-size: 13.5px; color: var(--ink); word-break: keep-all; }
+.warnb .wh { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--bad); font-size: 14px; }
+.warnb p + p { margin-top: 4px; }
+.skel { display: flex; flex-direction: column; gap: 8px; }
+.skel span { display: block; border-radius: 14px; background: var(--surface2); }
+.spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--accent); flex: none; }
+@media (prefers-reduced-motion: no-preference) { .spin { animation: spin 0.9s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast { position: absolute; left: 16px; right: 16px; z-index: 50; bottom: 16px; border-radius: 12px; background: var(--ink); color: var(--ground); padding: 10px 14px; font-size: 13.5px; font-weight: 600; word-break: keep-all; }
+.toast.ab { bottom: 76px; }
+.c12 { font-size: 12px; color: var(--ink2); }
+.c13 { font-size: 13px; color: var(--ink2); }
+.mt4 { margin-top: 4px; } .mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; }
+
+/* 설정 행 · 목록 행 */
+.lrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; min-width: 0; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 10px 14px; }
+.lt { min-width: 0; flex: 1; display: block; }
+.t1 { display: block; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t2 { display: block; font-size: 13px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chev { flex: none; color: var(--ink2); }
+.rlist { display: flex; flex-direction: column; gap: 8px; }
+.trow { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 76px; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px 14px; }
+.trow .chev { margin-top: 1px; }
+.trow .tm { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.l1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.l1 .tt { min-width: 0; flex: 1; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l2 { font-size: 13px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l3 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; color: var(--ink2); margin-top: 2px; }
+.dash { border: 1px dashed var(--line); border-radius: 12px; padding: 18px 16px; text-align: center; }
+.dash b { display: block; font-size: 15px; }
+.dash p { font-size: 13px; color: var(--ink2); margin-top: 4px; word-break: keep-all; }
+.newmark { box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* 기본 표현(조각) */
+.cg + .cg { margin-top: 12px; }
+.cg h4 { font-size: 13px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; }
+.xl { display: flex; flex-direction: column; gap: 6px; }
+.xrow { display: flex; align-items: center; gap: 8px; min-height: 56px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 6px 4px 6px 12px; min-width: 0; }
+.xrow.bad { border-color: var(--bad); border-width: 1.5px; }
+.xt { min-width: 0; flex: 1; }
+.xj { font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+.xr { font-size: 13px; color: var(--ink2); line-height: 1.4; overflow-wrap: anywhere; }
+.xk { font-size: 13px; line-height: 1.4; }
+.ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 10px; color: var(--ink2); }
+.xedit { border-radius: 12px; background: var(--surface2); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.xedit .in { background: var(--surface); }
+.xedit .sl { font-size: 12px; color: var(--ink2); }
+.rd { display: flex; flex-direction: column; gap: 6px; }
+.rd li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.rd li:last-child { border-bottom: 0; }
+.rd .xj { flex: none; }
+.rd .xs { min-width: 0; font-size: 13px; color: var(--ink2); }
+
+/* 상황 초안 카드 */
+.scard { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+.scard .st { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.scard .sj { font-size: 13px; color: var(--ink2); }
+.scard .sm { font-size: 13px; word-break: keep-all; }
+.scard .meta { font-size: 12px; color: var(--ink2); }
+.scard .ft { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.ck { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; }
+.ck input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; margin: 0; }
+.scard.off .st, .scard.off .sm { color: var(--ink2); }
+
+/* 시트(바텀시트 — Sheet.tsx) */
+.ov { position: absolute; inset: 0; z-index: 40; }
+.ov .bg { position: absolute; inset: 0; background: rgba(20, 24, 22, .4); }
+.sht { position: absolute; left: 0; right: 0; bottom: 0; max-height: 85%; display: flex; flex-direction: column; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,.18); }
+.sht .hd { flex: none; height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 16px; border-bottom: 1px solid var(--line); }
+.sht .hd h2 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; outline: none; }
+.sht .bx { position: relative; flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 16px; }
+.sht .bx > * + * { margin-top: 12px; }
+.sht .ftr { flex: none; border-top: 1px solid var(--line); padding: 8px 16px 10px; }
+.mitem { display: flex; align-items: center; width: 100%; min-height: 52px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; font-size: 15px; padding: 0 4px; }
+.mitem.bad { color: var(--bad); font-weight: 600; border-bottom: 0; }
+.dl { font-size: 13.5px; }
+.dl h3 { font-size: 13px; font-weight: 700; color: var(--ink2); margin-bottom: 4px; }
+.dl ul { display: flex; flex-direction: column; gap: 4px; }
+.dl li { display: flex; gap: 8px; align-items: baseline; word-break: keep-all; }
+.dl li::before { content: "·"; color: var(--ink2); flex: none; }
+.dl .sub { display: block; font-size: 12.5px; color: var(--ink2); }
+
+/* 상황 시트 */
+.roles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.roles div { border-radius: 12px; background: var(--surface2); padding: 8px 12px; }
+.roles span { display: block; font-size: 12px; color: var(--ink2); }
+.roles b { font-size: 15px; }
+.goal { border-radius: 14px; background: var(--accent-soft); padding: 12px 14px; }
+.goal .gl { font-size: 12px; }
+.goal p { font-size: 15px; font-weight: 600; word-break: keep-all; }
+.exr { display: flex; align-items: center; gap: 8px; min-height: 48px; border-bottom: 1px solid var(--line); }
+.exr .ja { font-size: 16px; flex: 1; min-width: 0; }
+.exr .ko { font-size: 13px; color: var(--ink2); }
+.pb { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+.acts { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.disc { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; border: 1px solid var(--line); background: var(--surface2); border-radius: 12px; padding: 0 14px; font-size: 14px; font-weight: 600; text-align: left; }
+.disc .dsm { font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+.ax { display: flex; flex-direction: column; gap: 6px; }
+.ax legend { font-size: 12.5px; font-weight: 500; color: var(--ink2); padding: 0; margin-bottom: 6px; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.bub { max-width: 85%; border-radius: 16px 16px 16px 4px; background: var(--surface); border: 1px solid var(--line); padding: 10px 12px; font-size: 17px; line-height: 1.7; }
+.sysl { text-align: center; font-size: 12.5px; color: var(--ink2); }
+.ptt { flex: none; display: flex; align-items: center; justify-content: center; padding: 10px 16px 14px; background: var(--surface); border-top: 1px solid var(--line); }
+.ptt span { width: 72px; height: 72px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.chg { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; border: 1px solid var(--ink2); font-size: 11px; font-weight: 700; color: var(--ink); margin-left: 6px; vertical-align: 1px; }
+.lst { display: flex; flex-direction: column; gap: 6px; }
+.lst li { display: flex; align-items: center; gap: 8px; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 4px 4px 4px 12px; font-size: 14px; }
+.lst li .n { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface2); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.lst li .tx { flex: 1; min-width: 0; word-break: keep-all; }
+
+/* v2 — 선생님 첫마디(한국어 주 입력 + 선생님이 만든 일본어) */
+.opg { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.opg.inv { border-color: var(--bad); border-width: 1.5px; }
+.opg > .oph { font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+.opj { border-radius: 12px; background: var(--surface2); padding: 10px 12px; min-height: 92px; display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; }
+.opj .opl { font-size: 12px; color: var(--ink2); }
+.opj .opja { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.opj .oprd { font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
+.opj.old .opja { text-decoration: line-through; text-decoration-color: var(--ink2); color: var(--ink2); }
+.opw { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; font-weight: 600; color: var(--bad); word-break: keep-all; }
+.opw svg { flex: none; margin-top: 1px; }
+.oprow { display: flex; align-items: center; gap: 8px; }
+.oprow .btn { flex: 1; min-width: 0; }
+.opgen { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+/* v2 — 주제 초안 경고·읽기 확인 안내 */
+.wl { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.wl button { display: flex; align-items: flex-start; gap: 8px; width: 100%; min-height: 44px; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; font-size: 13px; color: var(--ink); word-break: keep-all; }
+.wl button .wk { flex: none; font-size: 11.5px; font-weight: 700; color: var(--ink2); padding-top: 1px; min-width: 32px; }
+.rdn { display: flex; gap: 8px; align-items: flex-start; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 13px; word-break: keep-all; margin-bottom: 10px; }
+.rdn svg { flex: none; margin-top: 1px; color: var(--ink2); }
+/* v2 — 역할극 첫 장면 */
+.bub .bko { display: block; font-size: 13px; line-height: 1.5; color: var(--ink2); margin-top: 4px; }
+.bubw { display: flex; align-items: flex-end; gap: 6px; }
+/* v2 — 비교 스위치(데모 틀) */
+.dlegacy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>내 상황·주제 관리 <span class="lvl">full</span><small>데모 v2 · 화면 14개 × 상태 · 합성 샘플 데이터(학습자 = 준, 수준 N4, 오늘 = 2026년 10월 7일)</small></h1>
+  <div class="dctls">
+    <div class="dctl"><span>폭</span><div class="dseg" role="group" aria-label="휴대폰 폭"><button type="button" data-ctl="w" data-v="360" aria-pressed="false">360</button><button type="button" data-ctl="w" data-v="390" aria-pressed="true">390</button><button type="button" data-ctl="w" data-v="412" aria-pressed="false">412</button></div></div>
+    <div class="dctl"><span>높이</span><div class="dseg" role="group" aria-label="휴대폰 높이"><button type="button" data-ctl="h" data-v="780" aria-pressed="true">780</button><button type="button" data-ctl="h" data-v="892" aria-pressed="false">892</button></div></div>
+    <div class="dctl"><span>보기</span><div class="dseg" role="group" aria-label="제안만 보기 또는 지금 화면과 나란히"><button type="button" data-ctl="view" data-v="prop" aria-pressed="true">제안</button><button type="button" data-ctl="view" data-v="pair" aria-pressed="false">지금 화면과 나란히</button></div></div>
+    <div class="dctl"><span>테마</span><div class="dseg" role="group" aria-label="테마"><button type="button" data-ctl="theme" data-v="auto" aria-pressed="true">기기</button><button type="button" data-ctl="theme" data-v="light" aria-pressed="false">밝게</button><button type="button" data-ctl="theme" data-v="dark" aria-pressed="false">어둡게</button></div></div>
+    <a class="djump" href="#v2chg">v1 → v2 바뀐 것</a>
+    <a class="djump" href="#decide">결정 필요 5건</a>
+  </div>
+</header>
+
+<details class="dpanel" id="v2chg" open>
+  <summary><span>v1 → v2 바뀐 것 (수정 요청 2건 + 함께 고친 것)</span></summary>
+  <ol class="dn" style="padding-left:18px;list-style:decimal;font-size:13px;display:flex;flex-direction:column;gap:6px;margin-top:8px">
+    <li><b>체크·칩을 눌러도 화면이 위로 올라가지 않아요(요청 1).</b> v1 은 체크 한 번에 휴대폰 화면 전체를 새로 그려서 스크롤이 맨 위로 가고 초점도 사라졌어요. v2 는 누른 줄만 바뀌고 스크롤 위치·초점이 그대로예요. 같은 문제가 있던 곳도 함께 고쳤어요: 변형 A·B 의 고르기 칩, 표현 ⋯ 메뉴 열고 닫기, 표현 고치기 펼침, 「다시 만들기」 확인, 주제 고치기의 수준, 지우기·되돌리기 확인 창 열고 닫기. <a class="lnk u" style="min-height:0;padding:0" href="#" data-go="review:base" data-top="1">주제 초안 검토</a> 화면에서 아래로 내린 뒤 「이 상황도 저장」을 눌러 보세요.
+      <div class="dlegacy"><span>비교해 보기</span><div class="dseg" role="group" aria-label="v1 동작과 비교"><button type="button" data-ctl="legacy" data-v="off" aria-pressed="true">v2(위치 유지)</button><button type="button" data-ctl="legacy" data-v="on" aria-pressed="false">v1 재현(맨 위로 튐)</button></div></div></li>
+    <li><b>선생님 첫마디를 한국어로 적어요(요청 2).</b> 편집 화면의 입력 칸은 한국어 하나예요. 일본어는 [일본어로 만들기]를 누르면 선생님이 상황·역할·수준에 맞춰 만들어요. 한국어를 고치면 「일본어를 다시 만들어 주세요」가 뜨고, 맞추기 전에는 저장할 수 없어요. 역할극에서는 저장된 일본어로 말해요(첫 말풍선은 지금처럼 바로 떠요). 화면: <a class="lnk u" style="min-height:0;padding:0" href="#" data-go="sedit:mine" data-top="1">상황 고치기</a> · <a class="lnk u" style="min-height:0;padding:0" href="#" data-go="room:opening" data-top="1">역할극 첫 장면</a>. 다른 방법(시작할 때마다 일본어로 즉석 생성)은 결정 D5 에서 비교해요.</li>
+    <li>주제 초안 검토에 <b>읽기 확인 안내</b>(한자 읽기는 선생님도 틀릴 수 있어요)와 <b>확인해 볼 곳</b>(표현이 적음·종류가 한쪽에 몰림·설명/일본어 이름 비어 있음·이름을 20자로 줄임)을 넣었어요.</li>
+    <li>주제가 아니거나 알맞지 않은 글은 <b>같은 문구 하나</b>로 안내해요(이유를 나눠 알려 주지 않아요). 잠시 실패하면 「잠시 문제가 생겼어요. 다시 만들어 볼까요?」.</li>
+    <li>한도 숫자 확정: 내 주제 30개 · 주제 저장 하루 10번 · 주제 초안 1분에 6번, 하루 20번. 주제 이름에 이모지는 써도 되고, 꺾쇠(&lt; &gt;)만 막아요.</li>
+    <li>내 버전(고친 기본 주제)을 되돌리거나 지울 때도 <b>주제 지우기와 같은 규칙</b>: 내 버전에서 진행 중인 챌린지가 있으면 함께 지워지고, 확인 창에 그 사실을 알려요.</li>
+  </ol>
+</details>
+
+<details class="dpanel" id="decide" open>
+  <summary><span>결정 필요 5건</span></summary>
+  <p class="dsub">항목마다 안을 나란히 놓았어요. 하나를 고르면 휴대폰 화면이 그 안으로 바뀌어요. 처음 상태는 디자이너 권고안이에요(「권고」 표시). D1~D4 는 v1 과 같고, D5 가 새로 생겼어요. DB 변경 여부는 이 데모와 따로 Leader 가 여쭤봐요.</p>
+  <div id="dec-body"></div>
+</details>
+
+<div class="dvar"><span>상태</span><div class="dseg" id="d-var" role="group" aria-label="이 화면의 상태"></div></div>
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="데모 화면 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside" id="side" aria-label="화면 설명"></aside>
+</div>
+
+<section class="dpanel" aria-labelledby="mx-h">
+  <h2 id="mx-h">화면 × 상태 전수</h2>
+  <p class="dsub">버튼을 누르면 그 화면·상태로 가요. 휴대폰 안의 버튼도 눌러서 흐름을 따라갈 수 있어요(설정 → 관리 → 주제 만들기 → 초안 → 저장 / 주제 보기 → 지우기 / 상황 카드 → 변형).</p>
+  <div class="dtw"><table class="dtbl" id="matrix"><thead><tr><th scope="col">화면</th><th scope="col">상태</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section class="dpanel" aria-labelledby="ask-h">
+  <h2 id="ask-h">확인할 것</h2>
+  <ol class="dn" style="padding-left:18px;list-style:decimal;font-size:13px;display:flex;flex-direction:column;gap:4px">
+    <li>v2 수정 요청 2건이 원하신 대로인지 — ① 주제 초안 검토에서 아래로 내린 뒤 「이 상황도 저장」을 껐다 켜도 화면이 그대로인지 ② 상황 고치기에서 첫마디를 한국어로 적고 [일본어로 만들기] → 역할극 첫 장면에서 일본어로 말하는 흐름이 맞는지.</li>
+    <li>위 「결정 필요」 5건(변형 연출 A/B · 설정 행 위치 · 관리 화면 구조 · 수준 바꾸면 표현 다시 받기 · <b>첫마디 일본어를 언제 만들지</b>). 기본 주제·상황 지우기는 사용자 결정(나에게만 숨김·되살리기)으로 확정돼 결정 목록에서 뺐어요.</li>
+    <li>주제 지우기 확인 문구(진행 중 챌린지 있음/없음 · 기본 주제는 「나에게만 숨겨져요」)가 원하신 내용과 맞는지 — 「주제 지우기」 화면의 상태 버튼으로 비교해요.</li><li>숨긴 기본 항목을 다시 보는 곳(관리 화면 맨 아래 줄 → 시트)이 찾기 쉬운지.</li>
+    <li>주제를 만들 때 상황 초안을 2개 받는 것이 적당한지(각각 빼고 저장할 수 있어요).</li>
+    <li>기본 주제·상황을 고치면 「내 버전」으로 보이고, 「기본으로 되돌리기」로 돌아가는 방식이 이해되는지.</li>
+    <li>실기기에서 볼 것: 360px 줄바꿈, 키보드가 올라온 채 표현 고치기, 다크 모드·글자 크게.</li>
+  </ol>
+</section>
+
+<details class="dpanel" aria-labelledby="nt-h">
+  <summary><span id="nt-h">개발 메모(화면이 받아야 하는 것 — 계약은 Leader·developer)</span></summary>
+  <ul class="dn" style="padding-left:18px;list-style:disc;font-size:13px;display:flex;flex-direction:column;gap:4px;margin-top:8px">
+    <li>주제 목록(관리용): 수준 필터 없이 전부(지금 #56 은 학습자 수준 ±1) + 출처(기본·내 버전·내 주제)·상황 수·기본 표현 수·진행 중 챌린지(제목·며칠째)·끝난 챌린지 수.</li>
+    <li>주제 초안: 주제 한 줄 + 수준 → 주제 정보(이름·일본어 이름·설명) + 기본 표현 8~12개(종류·일본어·읽기·뜻) + 상황 초안 0~2개. 저장 전 서버 행 없음. 상황 초안만 실패한 부분 성공을 따로 알려 줄 것.</li>
+    <li>저장: 주제 + 표현 + 고른 상황을 한 번에(하나라도 실패하면 아무것도 저장하지 않음).</li>
+    <li>지우기 미리보기: 이 주제에만 있는 상황 수·제목, 다른 주제에도 있는 상황 수, 진행 중 챌린지(제목·며칠째), 끝난 챌린지 수. 지우기는 한 트랜잭션.</li>
+    <li>기본 편집(사용자 결정 — 사용자별 사본): 화면은 「내 버전」 여부·고친 날짜·되돌리기만 안다. 기본 주제·상황 지우기 = 그 사용자에게만 숨김 → 숨긴 기본 항목 목록(주제·상황, 함께 숨겨진 기본 상황 수)과 다시 보기.</li><li>주제 초안 요청은 새 AI 작업(측정 p50 약 12초·p95 약 14초, 서버 한도 40초): 취소(요청 끊기), 주제가 아니거나 알맞지 않은 입력은 같은 문구의 422 하나(이유를 나눠 알리지 않음), 일시 실패·시간 초과는 502 → 「잠시 문제가 생겼어요. 다시 만들어 볼까요?」. 성공 응답의 warnings(CHUNKS_SHORT·TYPE_THIN_*·DESCRIPTION_MISSING·TITLE_JA_MISSING·TITLE_TRUNCATED)를 「확인해 볼 곳」으로 보여 줌.</li><li><b>v2 새 요청</b> — 첫마디 일본어 만들기: 한국어 첫마디 + 상황(제목·역할·목표)·수준 → 일본어 첫마디(+읽기). 제안만 돌려주고 행은 만들지 않음. 저장 값은 지금과 같은 {ja, ko}. 계약·프롬프트는 Leader·PE.</li><li>끝난 챌린지: 저장된 주제 이름을 그대로 보이고 주제 링크만 뺀다(따로 「지움」 표시 없음).</li>
+    <li>편집 화면 공유: 상황 고치기 경로에 들어온 곳(시나리오 / 관리)을 넘겨 뒤로 가기 대상만 바꾼다.</li>
+  </ul>
+</details>
+
+<noscript><p style="padding:16px">이 데모는 화면을 그리려면 스크립트가 필요해요.</p></noscript>
+
+<script>
+(function () {
+'use strict';
+
+/* ───────── 상태 ───────── */
+var S = { scr: 'hub', v: 'base', w: '390', h: '780', view: 'prop', theme: 'auto', legacy: 'off',
+  dec: { d1: 'A', d2: 'A', d3: 'A', d4: 'A', d5: 'A', d6: 'A' },
+  lastOpener: '', opTimer: null,
+  ex: '', scOn: [true, true], bp: { p: 'busy', t: 'soldout', f: 'same' }, ap: { p: 'busy', t: 'soldout', f: 'same', l: 'same' } };
+var P = '';
+var timer = null;
+
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function josaRo(w) { var c = w.charCodeAt(w.length - 1) - 0xAC00; if (c < 0 || c > 11171) return w + '로'; var j = c % 28; return w + (j === 0 || j === 8 ? '로' : '으로'); }
+
+var IC = {
+  back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
+  chev: '<svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+  x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  dots: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  warn: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/></svg>',
+  down: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+  up: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>'
+};
+
+/* ───────── 합성 데이터 ───────── */
+var CT = { NAME: '이름 조각', ACTION: '액션 조각', FEELING: '느낌 조각', MODIFIER: '꾸밈 조각' };
+var CK = {
+  bank: [['NAME', '口座', 'こうざ', '계좌'], ['NAME', '通帳', 'つうちょう', '통장'], ['NAME', '身分証明書', 'みぶんしょうめいしょ', '신분증'],
+    ['ACTION', '作りたいです', 'つくりたいです', '만들고 싶어요'], ['ACTION', '記入します', 'きにゅうします', '기입해요'], ['ACTION', '待ちます', 'まちます', '기다려요'],
+    ['FEELING', '大丈夫です', 'だいじょうぶです', '괜찮아요'], ['FEELING', '難しいです', 'むずかしいです', '어려워요'], ['FEELING', '助かります', 'たすかります', '도움이 돼요'],
+    ['MODIFIER', '新しい', 'あたらしい', '새로운'], ['MODIFIER', 'もう一度', 'もういちど', '한 번 더'], ['MODIFIER', 'ゆっくり', 'ゆっくり', '천천히']],
+  hosp: [['NAME', '保険証', 'ほけんしょう', '보험증'], ['NAME', '薬', 'くすり', '약'], ['NAME', '熱', 'ねつ', '열'],
+    ['ACTION', '予約しています', 'よやくしています', '예약했어요'], ['ACTION', '飲みます', 'のみます', '(약을) 먹어요'], ['ACTION', '見せます', 'みせます', '보여 줘요'],
+    ['FEELING', '痛いです', 'いたいです', '아파요'], ['FEELING', 'だるいです', 'だるいです', '나른해요'],
+    ['MODIFIER', '昨日から', 'きのうから', '어제부터'], ['MODIFIER', '少し', 'すこし', '조금']],
+  way: [['NAME', '駅', 'えき', '역'], ['NAME', '銀行', 'ぎんこう', '은행'], ['NAME', '交差点', 'こうさてん', '교차로'],
+    ['ACTION', '曲がります', 'まがります', '돌아요'], ['ACTION', 'まっすぐ行きます', 'まっすぐいきます', '곧장 가요'], ['ACTION', '教えてください', 'おしえてください', '알려 주세요'],
+    ['FEELING', '近いです', 'ちかいです', '가까워요'], ['FEELING', '遠いです', 'とおいです', '멀어요'], ['FEELING', '助かります', 'たすかります', '도움이 돼요'],
+    ['MODIFIER', '右に', 'みぎに', '오른쪽으로'], ['MODIFIER', '左に', 'ひだりに', '왼쪽으로'], ['MODIFIER', '次の', 'つぎの', '다음']],
+  cafe: [['NAME', 'カフェラテ', 'カフェラテ', '카페라테'], ['NAME', '紅茶', 'こうちゃ', '홍차'], ['NAME', 'ケーキ', 'ケーキ', '케이크'],
+    ['ACTION', 'お願いします', 'おねがいします', '부탁해요'], ['ACTION', '飲みます', 'のみます', '마셔요'], ['ACTION', 'テイクアウトします', 'テイクアウトします', '가져가요'],
+    ['FEELING', 'おいしいです', 'おいしいです', '맛있어요'], ['FEELING', '甘すぎます', 'あますぎます', '너무 달아요'], ['FEELING', '温かいです', 'あたたかいです', '따뜻해요'],
+    ['MODIFIER', '一つ', 'ひとつ', '하나'], ['MODIFIER', '少なめに', 'すくなめに', '조금 적게'], ['MODIFIER', '冷たい', 'つめたい', '차가운']]
+};
+var TP = {
+  hosp: { t: '병원 진료', ja: '病院で診察を受ける', lv: 'N4', src: 'mine', sc: 3, ck: 'hosp', desc: '접수에서 예약을 확인하고, 증상을 말하고, 약 먹는 법을 알아들어요', act: { t: '병원 진료 14일', d: 4 }, done: 1 },
+  hair: { t: '미용실 예약', ja: '美容院の予約', lv: 'N4', src: 'mine', sc: 1, n: 9, desc: '전화로 날짜·시간을 정하고 원하는 머리 모양을 말해요', done: 0 },
+  intro: { t: '자기소개', ja: '自己紹介', lv: 'N5', src: 'seed', sc: 1, n: 12, desc: '처음 만난 사람에게 이름·하는 일·사는 곳·좋아하는 것을 말해요' },
+  cafe: { t: '카페 주문', ja: 'カフェで注文', lv: 'N4', src: 'edited', at: '10월 5일', sc: 2, ck: 'cafe', desc: '카페에서 음료와 디저트를 주문하고 양·온도·포장까지 부탁해요', done: 1 },
+  way: { t: '길 묻기', ja: '道をたずねる', lv: 'N5', src: 'seed', sc: 2, ck: 'way', desc: '역·은행 같은 장소를 묻고, 방향 안내를 알아듣고 다시 확인해요' },
+  week: { t: '주말 계획', ja: '週末の予定', lv: 'N4', src: 'seed', sc: 1, n: 12, desc: '주말에 무엇을 할지, 누구와 어디에 갈지 이야기해요', done: 1 },
+  trip: { t: '여행 이야기', ja: '旅行の話', lv: 'N4', src: 'seed', sc: 1, n: 12, desc: '다녀온 여행에서 한 일과 느낌을 과거형으로 이야기해요' }
+};
+var SC = [
+  { t: '접수에서 예약 확인하기', ja: '受付で予約を確認する', lv: 'N4', src: 'mine', pl: ['hosp'], st: 4 },
+  { t: '증상 말하기', ja: '症状を伝える', lv: 'N4', src: 'mine', pl: ['hosp'], st: 5 },
+  { t: '약국 가는 길 묻기', ja: '薬局への道をたずねる', lv: 'N4', src: 'mine', pl: ['hosp', 'way'], st: 4 },
+  { t: '미용실 전화 예약', ja: '美容院に電話で予約する', lv: 'N4', src: 'mine', pl: ['hair'], st: 4 },
+  { t: '카페에서 주문하기', ja: 'カフェで注文する', lv: 'N5', src: 'seed', pl: ['cafe'], st: 4 },
+  { t: '추천 디저트 묻기', ja: 'おすすめのデザートを聞く', lv: 'N4', src: 'edited', pl: ['cafe'], st: 4 },
+  { t: '처음 만난 사람과 인사하기', ja: '初対面のあいさつ', lv: 'N5', src: 'seed', pl: ['intro'], st: 3 },
+  { t: '역에서 길 묻기', ja: '駅で道をたずねる', lv: 'N5', src: 'seed', pl: ['way'], st: 4 },
+  { t: '친구와 주말 약속 잡기', ja: '週末の約束をする', lv: 'N4', src: 'seed', pl: ['week'], st: 5 },
+  { t: '여행지에서 사진 부탁하기', ja: '写真をお願いする', lv: 'N4', src: 'seed', pl: ['trip'], st: 3 }
+];
+var VARSC = { t: '카페에서 주문하기 · 품절', ja: 'カフェで注文する（品切れ）', lv: 'N5', src: 'variant', pl: ['cafe'], st: 5, of: '카페에서 주문하기' };
+var DR = [
+  { t: '창구에서 계좌 만들기', ja: '窓口で口座を作る', me: '손님', tu: '은행 직원', goal: '계좌를 만들고 싶다고 말하고 필요한 서류를 확인해요', st: 4, ex: 5, op: '다음 분, 이쪽으로 오세요.' },
+  { t: '번호표 뽑고 기다리기', ja: '番号札を取って待つ', me: '손님', tu: '안내 직원', goal: '무슨 일로 왔는지 말하고 기다리는 방법을 알아들어요', st: 3, ex: 4, op: '어서 오세요. 오늘은 어떤 일로 오셨어요?' }
+];
+/* v2: 첫마디 — 한국어(주 입력) / 선생님이 만든 일본어(저장 값) / 읽기(보여 주기만) */
+var OP = {
+  bank: { ko: '다음 분, 이쪽으로 오세요.', ja: '次の方、こちらへどうぞ。', rd: 'つぎのかた、こちらへどうぞ。' },
+  cafe: { ko: '어서 오세요. 주문 정하셨어요?', ja: 'いらっしゃいませ。ご注文はお決まりですか。', rd: 'いらっしゃいませ。ごちゅうもんはおきまりですか。' },
+  cafeNew: { ko: '어서 오세요. 오늘은 따뜻한 음료가 인기예요.', ja: 'いらっしゃいませ。今日は温かい飲み物が人気ですよ。', rd: 'いらっしゃいませ。きょうはあたたかいのみものがにんきですよ。' },
+  hosp: { ko: '안녕하세요. 예약하셨어요?', ja: 'こんにちは。ご予約の方ですか。', rd: 'こんにちは。ごよやくのかたですか。' },
+  hospNew: { ko: '안녕하세요. 보험증을 먼저 보여 주시겠어요?', ja: 'こんにちは。先に保険証を見せていただけますか。', rd: 'こんにちは。さきにほけんしょうをみせていただけますか。' },
+  soldout: { ko: '어서 오세요! 주문하시겠어요?', ja: 'いらっしゃいませ、ご注文どうぞ！', rd: 'いらっしゃいませ、ごちゅうもんどうぞ！' }
+};
+var AX = {
+  p: { lb: '상대 성격', o: [['same', '그대로'], ['kind', '친절해요'], ['busy', '바빠서 말이 빨라요'], ['picky', '꼼꼼히 되물어요']] },
+  t: { lb: '돌발 상황', o: [['none', '없음'], ['soldout', '메뉴가 다 떨어졌어요'], ['mishear', '주문을 잘못 알아들어요'], ['card', '카드가 안 돼요']] },
+  f: { lb: '대화 흐름', o: [['same', '그대로'], ['suggest', '상대가 다른 걸 권해요'], ['rephrase', '내가 한 번 바꿔 말해요']] },
+  l: { lb: '표현 수준', o: [['same', '그대로(N5)'], ['up', '한 단계 위(N4)']] }
+};
+function axLabel(k, v) { var o = AX[k].o; for (var i = 0; i < o.length; i++) if (o[i][0] === v) return o[i][1]; return ''; }
+function picked(pk, keys) { return keys.filter(function (k) { return pk[k] && pk[k] !== 'same' && pk[k] !== 'none'; }).map(function (k) { return axLabel(k, pk[k]); }); }
+
+/* ───────── 조각 ───────── */
+function bdg(t, tone) { return '<span class="bdg' + (tone ? ' ' + tone : '') + '">' + t + '</span>'; }
+function btn(label, cls, attr) { return '<button type="button" class="btn ' + (cls || 'p') + '"' + (attr ? ' ' + attr : '') + '>' + label + '</button>'; }
+function srcBadge(src) { return src === 'mine' ? bdg('내 주제') : src === 'edited' ? bdg('✎ 내 버전') : src === 'variant' ? bdg('변형') : bdg('기본'); }
+function scBadge(src) { return src === 'mine' ? bdg('내 상황') : src === 'edited' ? bdg('✎ 내 버전') : src === 'variant' ? bdg('변형') : bdg('기본'); }
+function abar(t) { return '<div class="abar"><h1 tabindex="-1" data-focus>' + t + '</h1><span class="avt" aria-label="설정(준)">준</span></div>'; }
+function bbar(back, title, sub, go) {
+  return '<div class="bbar"><button type="button" class="bk" aria-label="' + esc(josaRo(back)) + '" data-go="' + go + '">' + IC.back + '</button><div class="bt"><h1 tabindex="-1" data-focus>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div></div>';
+}
+function tabs() { return '<div class="tabs" aria-hidden="true"><span><i></i>회화</span><span><i></i>오늘</span><span><i></i>계획표</span><span><i></i>단어장</span><span><i></i>질문</span></div>'; }
+function kb() { var r = function (n) { var s = ''; for (var i = 0; i < n; i++) s += '<b></b>'; return '<div>' + s + '</div>'; }; return '<div class="kb" aria-label="키보드(데모 그림)" role="img">' + r(10) + r(9) + r(9) + '<div><b></b><b></b><b class="wide">스페이스</b><b></b><b></b></div></div>'; }
+function toast(m, ab) { return '<div class="toast' + (ab ? ' ab' : '') + '" role="status">' + m + '</div>'; }
+function seg(aria, opts, val, act, sm) {
+  return '<div class="seg' + (sm ? ' sm' : '') + '" role="radiogroup" aria-label="' + aria + '">' + opts.map(function (o) {
+    return '<button type="button" role="radio" aria-checked="' + (o[0] === val) + '"' + (act ? ' data-act="' + act + '" data-x="' + o[0] + '"' : '') + '><span>' + o[1] + '</span></button>';
+  }).join('') + '</div>';
+}
+function chips(aria, opts, val, act, key, cls) {
+  return '<div class="chips' + (cls ? ' ' + cls : '') + '" role="radiogroup" aria-label="' + aria + '">' + opts.map(function (o) {
+    var on = o[0] === val;
+    return '<button type="button" class="chip" role="radio" aria-checked="' + on + '" data-act="' + act + '" data-k="' + (key || '') + '" data-x="' + o[0] + '" data-l="' + esc(o[1]) + '">' + (on ? '✓ ' : '') + o[1] + '</button>';
+  }).join('') + '</div>';
+}
+function sheet(title, body, close, o) {
+  o = o || {};
+  return '<div class="ov"><div class="bg" aria-hidden="true"' + (o.busy ? '' : ' data-go="' + close + '"') + '></div><div class="sht" role="dialog" aria-modal="true" aria-labelledby="' + P + 'sh-t"' + (o.desc ? ' aria-describedby="' + P + o.desc + '"' : '') + ' data-close="' + (o.busy ? '' : close) + '">' +
+    '<div class="hd"><h2 id="' + P + 'sh-t" tabindex="-1" data-focus>' + title + '</h2><button type="button" class="ib" aria-label="닫기"' + (o.busy ? ' aria-disabled="true"' : ' data-go="' + close + '"') + '>' + IC.x + '</button></div>' +
+    '<div class="bx">' + body + '</div>' + (o.ftr ? '<div class="ftr">' + o.ftr + '</div>' : '') + '</div></div>';
+}
+function shell(o) {
+  return '<div class="ph w' + S.w + ' h' + S.h + '"><div class="sbar" aria-hidden="true"><span>9:41</span><span>100%</span></div><div class="scr">' +
+    (o.bar || '') + '<div class="bd' + (o.bdc ? ' ' + o.bdc : '') + '">' + o.body + '</div>' + (o.foot || '') + (o.tabs ? tabs() : '') + (o.kb ? kb() : '') + (o.toast ? toast(o.toast, o.tabs) : '') + (o.ov || '') + '</div></div>';
+}
+function skel(hs, label) { return '<div><p role="status" class="sr">' + label + '</p><div class="skel" aria-hidden="true">' + hs.map(function (h) { return '<span style="height:' + h + 'px"></span>'; }).join('') + '</div></div>'; }
+function errBox(t, retry, go) { return '<div class="err" role="alert"><p><b>' + t + '</b></p>' + (retry ? '<button type="button" class="lnk"' + (go ? ' data-go="' + go + '"' : '') + '>' + retry + '</button>' : '') + '</div>'; }
+function field(id, label, input, o) {
+  o = o || {};
+  return '<div class="fld"><label for="' + P + id + '">' + label + (o.chg ? '<span class="chg">바뀜</span>' : '') + '</label>' + input + (o.cnt ? '<p class="cnt num" id="' + P + id + '-c">' + o.cnt + '</p>' : '') + (o.err ? '<p class="ferr" id="' + P + id + '-e">' + o.err + '</p>' : '') + (o.hint ? '<p class="hint" id="' + P + id + '-h">' + o.hint + '</p>' : '') + '</div>';
+}
+function inp(id, val, o) {
+  o = o || {};
+  var d = [o.err ? P + id + '-e' : '', o.cnt ? P + id + '-c' : '', o.hint ? P + id + '-h' : ''].filter(Boolean).join(' ');
+  return '<input class="in" id="' + P + id + '"' + (o.ja ? ' lang="ja"' : '') + ' value="' + esc(val) + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.err ? ' aria-invalid="true"' : '') + (d ? ' aria-describedby="' + d + '"' : '') + (o.ro ? ' readonly' : '') + '>';
+}
+function ta(id, val, rows, o) {
+  o = o || {};
+  var d = [o.err ? P + id + '-e' : '', o.cnt ? P + id + '-c' : ''].filter(Boolean).join(' ');
+  return '<textarea class="ta" id="' + P + id + '" rows="' + rows + '"' + (o.ja ? ' lang="ja"' : '') + (o.err ? ' aria-invalid="true"' : '') + (d ? ' aria-describedby="' + d + '"' : '') + (o.ro ? ' readonly' : '') + '>' + esc(val) + '</textarea>';
+}
+function lvSeg(val, act) { return '<div class="fld"><span class="lb" id="' + P + 'lv-l">수준</span>' + seg('수준', [['N5', 'N5'], ['N4', 'N4'], ['N3', 'N3']], val, act || '') + '</div>'; }
+
+/* 기본 표현 편집기 */
+function chunkGroups(list, o) {
+  o = o || {};
+  return ['NAME', 'ACTION', 'FEELING', 'MODIFIER'].map(function (tp) {
+    var items = []; list.forEach(function (c, i) { if (c[0] === tp) items.push([c, i]); });
+    if (!items.length) return '';
+    return '<div class="cg"><h4>' + CT[tp] + ' <span class="num">' + items.length + '</span></h4><ul class="xl">' + items.map(function (ci) { return chunkRow(ci[0], ci[1], o); }).join('') + '</ul></div>';
+  }).join('');
+}
+function chunkRow(c, i, o) {
+  var err = o.err && o.err[i];
+  if (o.open === i) {
+    return '<li class="xedit" aria-label="' + (i + 1) + '번째 표현 고치기"><span class="sl" id="' + P + 'xe-k">종류</span>' + seg('표현 종류', [['NAME', '이름'], ['ACTION', '액션'], ['FEELING', '느낌'], ['MODIFIER', '꾸밈']], c[0], '', true) +
+      field('xe-j', '일본어', inp('xe-j', c[1], { ja: true })) + field('xe-r', '읽기(히라가나·가타카나)', inp('xe-r', c[2], { ja: true })) + field('xe-k2', '뜻', inp('xe-k2', c[3])) +
+      '<div class="brow">' + btn('바꾸기', 'p sm', 'data-go="review:base"') + btn('취소', 'g sm', 'data-go="review:base"') + '</div></li>';
+  }
+  return '<li class="xrow' + (err ? ' bad' : '') + '"><div class="xt"><p class="xj" lang="ja">' + c[1] + '</p><p class="xr" lang="ja">' + c[2] + '</p><p class="xk">' + c[3] + '</p>' + (err ? '<p class="ferr" id="' + P + 'x' + i + '-e">' + err + '</p>' : '') + '</div>' +
+    (o.edit ? '<button type="button" class="ib" aria-label="' + c[1] + ' 메뉴" aria-haspopup="dialog"' + (err ? ' aria-describedby="' + P + 'x' + i + '-e"' : '') + ' data-go="' + (o.menuGo || 'review:menu') + '">' + IC.dots + '</button>' : '') + '</li>';
+}
+function chunkRead(list) {
+  return ['NAME', 'ACTION', 'FEELING', 'MODIFIER'].map(function (tp) {
+    var items = list.filter(function (c) { return c[0] === tp; });
+    if (!items.length) return '';
+    return '<div class="cg"><h4>' + CT[tp] + ' <span class="num">' + items.length + '</span></h4><ul class="rd">' + items.map(function (c) { return '<li><span class="xj" lang="ja">' + c[1] + '</span><span class="xs"><span lang="ja">' + c[2] + '</span> · ' + c[3] + '</span></li>'; }).join('') + '</ul></div>';
+  }).join('');
+}
+
+/* ───────── 화면: 설정 허브 ───────── */
+function hubBody(withRow) {
+  var row = '<section><div class="sh"><h3>회화 연습</h3></div><button type="button" class="lrow" data-go="mgr:base"><span class="lt"><span class="t1">내 상황·주제 관리</span><span class="t2">주제를 적으면 선생님이 상황 초안을 만들어요</span></span>' + IC.chev + '</button></section>';
+  var att = '<div class="card"><p class="c12">출석</p><p style="font-size:16px;font-weight:700">이번 달 12일 · 연속 4일</p></div>';
+  var acc = '<section class="card"><p class="c13">로그인 계정</p><p style="font-size:16px;font-weight:600;margin-top:4px">준</p><p class="c13">jun@example.com</p>' + btn('로그아웃', 'g sm', 'data-act="noop"') + '</section>';
+  var learn = '<section><div class="sh"><h3>기본정보 · 학습</h3></div><div class="card col" style="gap:14px">' + field(P + 'h-n', '내 이름(선생님이 부를 이름)', inp(P + 'h-n', '준')) + field(P + 'h-t', '선생님 이름', inp(P + 'h-t', '', { ph: "비우면 '선생님'" })) + '<div class="fld"><span class="lb">내 수준</span>' + seg('내 수준', [['N5', 'N5'], ['N4', 'N4'], ['N3', 'N3'], ['N2', 'N2'], ['N1', 'N1']], 'N4') + '</div><div class="fld"><span class="lb">교정 방식</span><p class="c13">코치 방식 · 힌트를 먼저 드려요</p></div>' + btn('저장', 'p full', 'data-act="noop"') + '</div></section>';
+  var disp = '<section><div class="sh"><h3>일본어 표시</h3></div><div class="card"><p class="c13">히라가나 · 한글 읽기 · 번역</p></div></section>';
+  var voice = '<section><div class="sh"><h3>선생님 목소리</h3></div><div class="card"><p class="c13">말 빠르기 · 높낮이 · ▶ 지금 설정으로 미리듣기</p></div></section>';
+  var sp = '<section><div class="sh"><h3>음성 인식</h3></div><div class="card"><p class="c13">마이크 테스트</p></div></section>';
+  var top = withRow && S.dec.d2 === 'A' ? row : '';
+  var mid = withRow && S.dec.d2 === 'B' ? row : '';
+  return att + acc + top + learn + mid + disp + voice + sp;
+}
+function scrHub(v) {
+  return shell({ bar: abar('설정'), body: hubBody(true), tabs: true });
+}
+function scrHubCur() { return shell({ bar: abar('설정'), body: hubBody(false), tabs: true }); }
+
+/* ───────── 화면: 관리(주제·상황) ───────── */
+function topicRow(id, o) {
+  var t = TP[id]; o = o || {};
+  var nChunks = t.ck ? CK[t.ck].length : t.n;
+  var act = t.act ? bdg('챌린지 ' + t.act.d + '일째', 'good') : '';
+  return '<li><button type="button" class="trow' + (o.newmark ? ' newmark' : '') + '" data-go="' + (o.go || 'topic:' + id) + '"><span class="tm"><span class="l1"><span class="tt">' + t.t + '</span>' + bdg(t.lv) + srcBadge(t.src) + '</span><span class="l2" lang="ja">' + t.ja + '</span><span class="l3"><span>상황 ' + t.sc + '개 · 기본 표현 ' + nChunks + '개</span>' + act + (o.newmark ? bdg('방금 저장') : '') + '</span></span>' + IC.chev + '</button></li>';
+}
+function bankRow() {
+  return '<li><button type="button" class="trow newmark" data-go="topic:mine"><span class="tm"><span class="l1"><span class="tt">은행 계좌 만들기</span>' + bdg('N4') + bdg('내 주제') + '</span><span class="l2" lang="ja">銀行で口座を作る</span><span class="l3"><span>상황 2개 · 기본 표현 12개</span>' + bdg('방금 저장') + '</span></span>' + IC.chev + '</button></li>';
+}
+function scRow(s) {
+  var place = s.pl.map(function (k) { return TP[k].t; }).join(' · ');
+  return '<li><button type="button" class="trow" aria-haspopup="dialog" data-go="ssheet:' + (s.src === 'mine' ? 'mine' : s.src === 'edited' ? 'edited' : s.src === 'variant' ? 'variant' : 'seed') + '"><span class="tm"><span class="l1"><span class="tt">' + s.t + '</span>' + bdg(s.lv) + scBadge(s.src) + '</span><span class="l2" lang="ja">' + s.ja + '</span><span class="l3"><span>' + place + ' · ' + s.st + '단계</span>' + (s.of ? '<span>원본 · ' + s.of + '</span>' : '') + '</span></span>' + IC.chev + '</button></li>';
+}
+function mgrTopics(v) {
+  var lim = v === 'limit';
+  var mine = v === 'empty' ? [] : (v === 'deleted' ? ['hair'] : ['hosp', 'hair']);
+  var head = (lim ? btn('＋ 주제 만들기', 'p full', 'aria-disabled="true" aria-describedby="' + P + 'lim-n"') : btn('＋ 주제 만들기', 'p full', 'data-go="create:input"')) +
+    (lim ? '<div class="info mt8" id="' + P + 'lim-n"><b>내 주제는 30개까지예요.</b> 안 쓰는 주제를 지우면 새로 만들 수 있어요.</div>' : '<p class="c13 mt8 kk">주제를 한 줄로 적으면 선생님이 설명·기본 표현·상황 초안을 만들어요. <span class="num">내 주제 ' + (v === 'saved' ? 3 : mine.length) + '/30</span></p>');
+  if (v === 'loading') return '<div>' + head + '</div><section><div class="sh"><h2>내가 만든 주제</h2></div>' + skel([78, 78], '주제를 불러오는 중…') + '</section><section><div class="sh"><h2>기본 주제</h2></div><div class="skel" aria-hidden="true"><span style="height:78px"></span><span style="height:78px"></span><span style="height:78px"></span></div></section>';
+  if (v === 'error') return '<div>' + head + '</div>' + errBox('주제를 불러오지 못했어요.', '다시 시도', 'mgr:base');
+  var mineList = mine.length || v === 'saved' ? '<ul class="rlist">' + (v === 'saved' ? bankRow() : '') + mine.map(function (id) { return topicRow(id); }).join('') + '</ul>' :
+    '<div class="dash"><b>아직 만든 주제가 없어요</b><p>병원·은행처럼 연습하고 싶은 주제를 적으면 선생님이 초안을 만들어 드려요.</p></div>';
+  var hid = v === 'hidden' || v === 'hiddenSheet';
+  var seeds = ['cafe', 'intro', 'way', 'week', 'trip'].filter(function (id) { return !(hid && id === 'trip'); });
+  var hiddenRow = hid ? hiddenRowHtml() : '';
+  var nMine = (v === 'saved' ? 1 : 0) + mine.length;
+  return '<div>' + head + '</div><section aria-labelledby="' + P + 'g-m"><div class="sh"><h2 id="' + P + 'g-m">내가 만든 주제</h2><span class="r num">' + nMine + '개</span></div>' + mineList + '</section>' +
+    '<section aria-labelledby="' + P + 'g-s"><div class="sh"><h2 id="' + P + 'g-s">기본 주제</h2><span class="r num">' + seeds.length + '개</span></div><ul class="rlist">' + seeds.map(function (id) { return topicRow(id); }).join('') + '</ul>' + hiddenRow + '</section>';
+}
+function hiddenRowHtml() { return '<button type="button" class="lrow mt12" aria-haspopup="dialog" data-go="mgr:hiddenSheet"><span class="lt"><span class="t1">숨긴 기본 항목 2개</span><span class="t2">지운 기본 주제·상황을 다시 볼 수 있어요</span></span>' + IC.chev + '</button>'; }
+function hiddenSheet() {
+  var row = function (kind, t, sub) { return '<li style="display:flex;align-items:center;gap:10px;min-height:56px;border-bottom:1px solid var(--line)"><span style="flex:1;min-width:0"><span class="c12" style="display:block">' + kind + '</span><span style="display:block;font-size:15px;font-weight:600">' + t + '</span>' + (sub ? '<span class="c12" style="display:block">' + sub + '</span>' : '') + '</span>' + btn('다시 보기', 'g sm', 'aria-label="' + t + ' 다시 보기" data-go="mgr:restored"') + '</li>'; };
+  return sheet('숨긴 기본 항목', '<p class="kk c13" id="' + P + 'hs-d">지운 기본 주제와 상황이에요. 나에게만 숨겨져 있어요. 다시 보면 기본 내용으로 목록에 돌아와요.</p><ul>' + row('주제', '여행 이야기', '기본 상황 1개도 함께 돌아와요') + row('상황', '처음 만난 사람과 인사하기', '자기소개') + '</ul>', 'mgr:hidden', { desc: 'hs-d' });
+}
+function mgrTopicsNested(v) {
+  /* D4-B: 분절 없이 주제 카드 안에 상황을 펼친다 */
+  var card = function (id, open) {
+    var t = TP[id];
+    var scs = SC.filter(function (s) { return s.pl.indexOf(id) >= 0; });
+    return '<li class="card" style="padding:0"><button type="button" class="trow" style="border:0" data-go="topic:' + id + '"><span class="tm"><span class="l1"><span class="tt">' + t.t + '</span>' + bdg(t.lv) + srcBadge(t.src) + '</span><span class="l2" lang="ja">' + t.ja + '</span>' + (t.act ? '<span class="l3">' + bdg('챌린지 ' + t.act.d + '일째', 'good') + '</span>' : '') + '</span>' + IC.chev + '</button>' +
+      '<button type="button" class="disc" style="border-radius:0 0 14px 14px;border-width:1px 0 0" aria-expanded="' + open + '" data-act="noop"><span>상황 ' + scs.length + '개</span>' + (open ? IC.up : IC.down) + '</button>' +
+      (open ? '<ul style="padding:8px 12px 12px;display:flex;flex-direction:column;gap:6px">' + scs.map(function (s) { return '<li><button type="button" class="lrow" style="min-height:48px" aria-haspopup="dialog" data-go="ssheet:mine"><span class="lt"><span class="t1" style="font-size:14px">' + s.t + '</span></span>' + IC.chev + '</button></li>'; }).join('') + '<li>' + btn('＋ 이 주제로 상황 만들기', 'g sm full', 'data-act="noop"') + '</li></ul>' : '') + '</li>';
+  };
+  return '<div>' + btn('＋ 주제 만들기', 'p full', 'data-go="create:input"') + '<p class="c13 mt8 kk">주제를 누르면 설명·기본 표현을, 「상황」을 펼치면 그 주제의 상황을 봐요.</p></div>' +
+    '<section><div class="sh"><h2>내가 만든 주제</h2><span class="r">2개</span></div><ul class="rlist">' + card('hosp', true) + card('hair', false) + '</ul></section>' +
+    '<section><div class="sh"><h2>기본 주제</h2><span class="r">5개</span></div><ul class="rlist">' + card('cafe', false) + card('way', false) + '</ul><p class="c12 mt8">… 기본 주제 3개 더</p></section>';
+}
+function mgrScenarios(v) {
+  var list = SC.slice();
+  if (S.dec.d1 === 'A') list.splice(5, 0, VARSC);
+  var nMine = list.filter(function (s) { return s.src === 'mine' || s.src === 'variant'; }).length;
+  var body = btn('＋ 상황 만들기', 'p full', 'data-act="noop"') + '<p class="c13 mt8 kk">상황 카드를 누르면 고치기·' + (S.dec.d1 === 'A' ? '변형 만들기·' : '') + '지우기를 할 수 있어요. <span class="num">내 상황 ' + nMine + '/50</span></p>';
+  var f = chips('보기', [['all', '전체 ' + list.length], ['mine', '내가 만든 ' + nMine], ['seed', '기본 ' + (list.length - nMine)]], v === 'scempty' ? 'mine' : 'all', 'noop', '', 'x');
+  if (v === 'scempty') return '<div>' + body + '</div>' + f + '<div class="dash"><b>아직 만든 상황이 없어요</b><p>하고 싶은 상황을 적으면 선생님이 대화 순서와 핵심 표현을 넣은 초안을 만들어 드려요.</p></div>';
+  return '<div>' + body + '</div>' + f + '<ul class="rlist">' + list.map(scRow).join('') + '</ul>';
+}
+function scrMgr(v) {
+  var isSc = v === 'sc' || v === 'scempty';
+  var nested = S.dec.d4 === 'B' && !isSc;
+  var segHtml = S.dec.d4 === 'A' || isSc ? seg('보기', [['t', '주제 7'], ['s', '상황 ' + (S.dec.d1 === 'A' ? 11 : 10)]], isSc ? 's' : 't', 'mgrTab') : '';
+  var body = segHtml + (isSc ? mgrScenarios(v) : nested ? mgrTopicsNested(v) : mgrTopics(v));
+  var t = v === 'deleted' ? '「병원 진료」를 지웠어요 · 상황 2개와 진행 중 챌린지도 함께 지웠어요' : v === 'saved' ? '주제를 저장했어요 · 상황 2개도 함께' : v === 'restored' ? '「여행 이야기」를 목록에 다시 넣었어요' : '';
+  return shell({ bar: bbar('설정', '내 상황·주제', '', 'hub:base'), body: body, toast: t, ov: v === 'hiddenSheet' ? hiddenSheet() : '' });
+}
+
+/* ───────── 화면: 주제 만들기 ───────── */
+function scrCreate(v) {
+  var val = v === 'input' ? '' : v === 'short' ? '은' : '은행에서 계좌 만들기';
+  if (S.ex && (v === 'input' || v === 'typed')) val = S.ex;
+  var locked = v === 'gen' || v === 'long';
+  if (v === 'reject') val = '오늘 날씨 어때?';
+  /* v2: 주제가 아닌 입력·알맞지 않은 입력은 같은 422 문구 하나(Leader 확정 — 이유를 나눠 알리지 않음) */
+  var err = v === 'short' ? '주제를 조금 더 적어 주세요(2자 이상).' : v === 'reject' ? '이 글로는 주제를 만들기 어려워요. 장소·상황·활동 이름을 적어 주세요(예: 병원 진료, 공항 체크인).' : '';
+  var n = Array.from(val).length;
+  var top = '';
+  if (v === 'restore') top = '<div class="card"><p style="font-size:14px;font-weight:600" class="kk">고치던 주제 초안이 있어요 · 은행 계좌 만들기</p><div class="brow mt12">' + btn('이어서 고치기', 'p', 'data-go="review:base"') + btn('버리고 새로 만들기', 'g', 'data-go="create:input"') + '</div></div>';
+  if (locked) top = '<div class="card" role="status"><p style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600"><span class="spin" aria-hidden="true"></span>선생님이 주제 초안을 만들고 있어요</p><p class="c13 mt4 kk">주제 설명과 기본 표현, 상황 초안 2개를 만들고 있어요. 보통 10~15초 걸려요.</p>' + (v === 'long' ? '<p class="c13 mt4 kk">조금 오래 걸리고 있어요. 그만두면 적은 주제는 그대로 남고, 다시 누르면 처음부터 만들어요.</p>' : '') + btn('그만두기', 'g full mt12', 'data-go="create:canceled"') + '</div>';
+  if (v === 'fail') top = errBox('잠시 문제가 생겼어요. 다시 만들어 볼까요?', '다시 만들기', 'create:gen');
+  if (v === 'canceled') top = '<p class="info" role="status">초안 만들기를 그만뒀어요. 적은 주제는 그대로 있어요.</p>';
+  if (v === 'rate') top = '<p class="info" role="alert">초안은 1분에 6번까지 만들 수 있어요. 12초 뒤 다시 눌러 주세요.</p>';
+  if (v === 'daily') top = '<div class="info" role="alert" id="' + P + 'dl-n"><b>오늘은 주제 초안을 20번 모두 만들었어요.</b> 내일 다시 만들 수 있어요. 적은 주제는 그대로 둘게요.</div>';
+  var genAttr = (n < 2 || v === 'daily') ? 'aria-disabled="true"' + (v === 'daily' ? ' aria-describedby="' + P + 'dl-n"' : '') : locked ? 'aria-disabled="true"' : 'data-go="create:gen"';
+  var exs = ['은행에서 계좌 만들기', '병원 진료 받기', '미용실 예약하기', '회사에서 회의하기'];
+  var form = '<section class="col" style="gap:18px"' + (locked ? ' aria-busy="true"' : '') + '><div><h2 style="font-size:16px;font-weight:600">어떤 주제로 연습하고 싶어요?</h2><p class="c13 mt4 kk">주제를 한 줄로 적어 주세요. 선생님이 주제 설명과 기본 표현, 상황 초안 2개를 만들어 드려요. 마음에 들게 고친 뒤 저장하면 돼요.</p></div>' +
+    field('tp', '주제', inp('tp', val, { ph: '예: 은행에서 계좌 만들기', err: err, cnt: n + '/40', ro: locked }), { cnt: n + '/40', err: err }) +
+    '<div><p class="c12">이렇게 적어 볼 수 있어요</p><div class="chips mt4">' + exs.map(function (e) { return '<button type="button" class="chip"' + (locked ? ' aria-disabled="true"' : ' data-act="ex" data-x="' + e + '"') + '>' + e + '</button>'; }).join('') + '</div></div>' +
+    '<div class="fld"><span class="lb">수준</span>' + seg('수준', [['N5', 'N5'], ['N4', 'N4'], ['N3', 'N3']], 'N4') + '<p class="hint">내 수준(N4)으로 골라 뒀어요.</p></div>' +
+    '<div class="col">' + btn('초안 만들기', 'p full', genAttr) + '<p class="c12 kk" style="text-align:center">초안은 저장하기 전까지 어디에도 남지 않아요.</p></div></section>';
+  return shell({ bar: bbar('내 상황·주제', '주제 만들기', '', 'mgr:base'), body: top + form, kb: v === 'kb' });
+}
+
+/* ───────── 화면: 주제 초안 검토 ───────── */
+function scrReview(v) {
+  var list = CK.bank.slice();
+  var errs = null;
+  var warn = v === 'warn';
+  if (warn) list = list.filter(function (c, i) { return i !== 7 && i !== 8 && i !== 11; });
+  if (v === 'check') { list[2] = ['NAME', '身分証明書', 'みぶん証明しょ', '신분증']; list[10] = ['MODIFIER', '口座', 'こうざ', '계좌']; errs = { 2: '읽기는 히라가나·가타카나로만 적어 주세요.', 10: '같은 표현이 두 번 들어 있어요.' }; }
+  var saving = v === 'saving';
+  var nOn = S.scOn.filter(Boolean).length;
+  var note = '<div class="note" role="note"><h2 tabindex="-1">선생님이 만든 초안이에요</h2><p>고친 뒤 [저장]해야 내 주제로 생겨요. 저장하기 전에는 아무것도 남지 않아요.</p></div>';
+  /* v2: AI 응답 warnings → 「확인해 볼 곳」(저장을 막지 않음). 고쳐도 줄은 그 자리에서 「✓ 고쳤어요」로 바뀌고 줄 수는 그대로(위쪽 높이 고정 — 스크롤 규칙) */
+  var wl = warn ? '<div class="info" role="note" aria-labelledby="' + P + 'wl-h"><p id="' + P + 'wl-h"><b>확인해 볼 곳 4가지</b> · 그대로 저장해도 돼요</p><div class="wl">' +
+    [['이름', '적은 주제가 길어서 이름을 20자로 줄였어요. 이름을 확인해 주세요.', 'TITLE_TRUNCATED'],
+     ['설명', '설명이 비어 있어요. 한 줄 적어 두면 목록에서 알아보기 쉬워요.', 'DESCRIPTION_MISSING'],
+     ['표현', '기본 표현이 9개예요. 12개까지 더 넣을 수 있어요.', 'CHUNKS_SHORT'],
+     ['종류', '느낌 조각이 1개뿐이에요. 하나 더 넣으면 수업 카드가 고르게 나와요.', 'TYPE_THIN_FEELING']].map(function (w) { return '<button type="button" data-act="noop" data-k="' + w[2] + '"><span class="wk">' + w[0] + '</span><span>' + w[1] + '</span></button>'; }).join('') + '</div></div>' : '';
+  var tVal = warn ? '은행에서 처음으로 내 계좌 만들고…' : v === 'check' ? '은행 <계좌> 만들기' : '은행 계좌 만들기';
+  var tErr = v === 'check' ? '꺾쇠(< >)는 쓸 수 없어요. 지우고 다시 적어 주세요.' : '';
+  var info = '<section class="col" style="gap:14px" aria-labelledby="' + P + 'rv-i"><h2 id="' + P + 'rv-i" style="font-size:15px;font-weight:600">주제 정보</h2>' +
+    field('rv-t', '주제 이름', inp('rv-t', tVal, { err: esc(tErr), cnt: Array.from(tVal).length + '/20' }), { err: esc(tErr), cnt: Array.from(tVal).length + '/20' }) + field('rv-j', '일본어 이름', inp('rv-j', '銀行で口座を作る', { ja: true }), {}) + lvSeg('N4') +
+    field('rv-d', '설명', ta('rv-d', warn ? '' : '은행 창구에서 계좌를 만들 때 목적과 신분증을 말하고, 서류 안내를 알아들어요', 3, { cnt: (warn ? 0 : 47) + '/300' }), { cnt: (warn ? 0 : 47) + '/300' }) + '</section>';
+  /* v2: 읽기는 늘 보이고(행 둘째 줄), 맨 위에 「읽기 확인」 안내 한 줄 — 한자 읽기는 기계가 검사하지 못해요 */
+  var rdn = '<p class="rdn" role="note">' + IC.warn + '<span><b>읽기가 틀릴 수 있어요. 확인해 주세요.</b> 한자 읽기는 선생님도 가끔 틀려요. 틀린 읽기는 ⋯ › 고치기에서 바꿔요.</span></p>';
+  var chunks = '<section aria-labelledby="' + P + 'rv-c"><div class="sh"><h2 id="' + P + 'rv-c">기본 표현 ' + list.length + '개</h2><span class="r">8~12개</span></div><p class="c13 kk" style="margin:-2px 0 10px">수업과 챌린지 단어 카드에 나와요. 일본어·읽기·뜻을 확인해 주세요.</p>' + rdn +
+    chunkGroups(list, { edit: true, err: errs, open: v === 'kb' ? 2 : -1 }) +
+    (list.length < 12 ? btn('＋ 표현 더하기', 'g sm full mt12', 'data-act="noop"') : btn('＋ 표현 더하기', 'g sm full mt12', 'aria-disabled="true" aria-describedby="' + P + 'rv-max"') + '<p class="c12 mt4" id="' + P + 'rv-max">기본 표현은 12개까지 넣을 수 있어요.</p>') + '</section>';
+  var scs = v === 'scfail' ? '<section><div class="sh"><h2>상황 초안</h2></div>' + errBox('상황 초안은 만들지 못했어요. 주제만 저장하고 상황은 나중에 만들 수도 있어요.', '상황 초안 다시 만들기', 'review:base') + '</section>' :
+    '<section aria-labelledby="' + P + 'rv-s"><div class="sh"><h2 id="' + P + 'rv-s">상황 초안 2개</h2><span class="r num" id="' + P + 'rv-son">저장할 상황 ' + nOn + '/2</span></div><p class="c13 kk" style="margin:-2px 0 10px">주제와 함께 저장할 상황이에요. 빼고 싶은 상황은 체크를 풀어요.</p><div class="col">' +
+    DR.map(function (d, i) {
+      var on = S.scOn[i];
+      /* v2: 체크를 바꾸면 이 카드의 class·저장 버튼 글자·머리 숫자(한 줄 고정)만 바뀐다 — 화면 전체를 다시 그리지 않음 */
+      return '<div class="scard' + (on ? '' : ' off') + '" id="' + P + 'sc' + i + '"><p class="st">' + d.t + '</p><p class="sj" lang="ja">' + d.ja + '</p><p class="sm">나 ' + d.me + ' · 선생님 ' + d.tu + '</p><p class="sm">목표 · ' + d.goal + '</p><p class="sm">첫마디 · ' + d.op + '</p><p class="meta">' + d.st + '단계 · 핵심 표현 ' + d.ex + '개</p>' +
+        '<div class="ft"><label class="ck"><input type="checkbox" id="' + P + 'sc' + i + '-ck"' + (on ? ' checked' : '') + ' data-act="scOn" data-i="' + i + '"><span>이 상황도 저장</span></label>' + btn('고치기', 'g sm', 'aria-label="' + d.t + ' 고치기" data-go="scedit:base"') + '</div></div>';
+    }).join('') + '</div></section>';
+  var saveLabel = v === 'scfail' ? '주제만 저장' : nOn ? '주제와 상황 ' + nOn + '개 저장' : '주제만 저장';
+  var save = '<div class="col">' + (v === 'check' ? '<p class="err" role="alert"><b>고칠 곳이 3군데 있어요</b></p>' : '') + (v === 'savefail' ? '<p class="err" role="alert">저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 눌러 주세요.</p>' : '') +
+    (v === 'savelimit' ? '<div class="info" role="alert" id="' + P + 'sl-n"><b>오늘은 주제를 10번 저장했어요.</b> 내일 다시 저장할 수 있어요. 고친 초안은 이 탭에 남아 있어요.</div>' : '') +
+    btn(saving ? '저장하는 중…' : saveLabel, 'p full', (saving ? 'aria-busy="true" aria-disabled="true"' : v === 'savelimit' ? 'aria-disabled="true" aria-describedby="' + P + 'sl-n"' : v === 'check' ? 'data-go="review:check"' : 'data-go="mgr:saved"') + ' id="' + P + 'rv-save"') +
+    btn('다시 만들기', 'g full', saving ? 'aria-disabled="true"' : 'data-go="review:regen"') +
+    (v === 'regen' ? '<div class="info"><p>고친 내용이 사라지고 새 초안으로 바뀌어요.</p><div class="brow mt8">' + btn('새로 만들기', 'p sm', 'data-go="create:gen"') + btn('취소', 'g sm', 'data-go="review:base"') + '</div></div>' : '') +
+    '<button type="button" class="lnk bad u" style="align-self:center"' + (saving ? ' aria-disabled="true"' : ' data-go="review:discard"') + '>버리기</button></div>';
+  var ov = '';
+  if (v === 'menu') ov = sheet('표현 · <span lang="ja">口座</span>', '<div><button type="button" class="mitem" data-go="review:kb">고치기</button><button type="button" class="mitem" aria-disabled="true">위로 옮기기</button><button type="button" class="mitem" data-go="review:base">아래로 옮기기</button><button type="button" class="mitem bad" data-go="review:base">지우기</button></div>', 'review:base');
+  if (v === 'leave') ov = sheet('저장하지 않고 나갈까요?', '<p class="kk" id="' + P + 'lv-d">초안은 이 탭에 잠시 남아요. 다시 들어오면 이어서 고칠 수 있어요.</p><div class="brow">' + btn('나가기', 'g', 'data-go="create:restore"') + btn('계속 고치기', 'p', 'data-go="review:base"') + '</div>', 'review:base', { desc: 'lv-d' });
+  if (v === 'discard') ov = sheet('초안을 버릴까요?', '<p class="kk" id="' + P + 'dc-d">저장하지 않은 초안은 되돌릴 수 없어요.</p><div class="brow">' + btn('버리기', 'd', 'data-go="mgr:base"') + btn('계속 고치기', 'g', 'data-go="review:base"') + '</div>', 'review:base', { desc: 'dc-d' });
+  return shell({ bar: bbar('내 상황·주제', '주제 초안 검토', '은행 계좌 만들기', 'review:leave'), body: note + wl + info + chunks + scs + save, kb: v === 'kb', ov: ov });
+}
+
+/* ───────── 화면: 상황 초안 고치기(DraftEditor 재사용) ───────── */
+function draftFields(o) {
+  o = o || {};
+  var c = o.chg || {};
+  var steps = o.steps || ['용건 말하기', '신분증 보여 주기', '서류 기입하기', '통장 받고 인사하기'];
+  var crit = o.crit || ['계좌를 만들고 싶다고 말해요', '신분증이 있다고 말해요'];
+  var exs = o.exs || [['口座を作りたいです', '계좌를 만들고 싶어요'], ['身分証明書はこれです', '신분증은 이거예요'], ['ここに書けばいいですか', '여기에 쓰면 돼요?'], ['もう一度お願いします', '한 번 더 부탁해요'], ['ありがとうございました', '고맙습니다']];
+  var lst = function (label, arr, ch) { return '<div class="fld"><span class="lb">' + label + (ch ? '<span class="chg">바뀜</span>' : '') + '</span><ol class="lst">' + arr.map(function (s, i) { return '<li><span class="n num" aria-hidden="true">' + (i + 1) + '</span><span class="tx">' + s + '</span><button type="button" class="ib" aria-label="' + (i + 1) + '번째 ' + label + ' 메뉴" data-act="noop">' + IC.dots + '</button></li>'; }).join('') + '</ol></div>'; };
+  return field('df-t', '제목', inp('df-t', o.t || '창구에서 계좌 만들기'), { chg: c.t }) + field('df-j', '일본어 제목', inp('df-j', o.ja || '窓口で口座を作る', { ja: true }), { chg: c.t }) +
+    '<div class="fld"><span class="lb">장소</span>' + (o.place ? chips('장소', o.place, o.placeVal, 'noop') : '<div class="chips"><span class="chip" aria-checked="true" role="img" aria-label="장소: 은행 계좌 만들기, 새 주제">✓ 은행 계좌 만들기 · 새 주제</span></div><p class="hint">새 주제에 붙어요. 저장한 뒤 다른 주제에 옮길 수 있어요.</p>') + '</div>' +
+    lvSeg(o.lv || 'N4') +
+    '<fieldset><legend class="lb">역할' + (c.r ? '<span class="chg">바뀜</span>' : '') + '</legend><div class="roles" style="margin-top:6px"><div class="fld" style="background:none;padding:0"><label for="' + P + 'df-me" class="c12">나</label>' + inp('df-me', o.me || '손님') + '</div><div class="fld" style="background:none;padding:0"><label for="' + P + 'df-tu" class="c12">선생님</label>' + inp('df-tu', o.tu || '은행 직원') + '</div></div></fieldset>' +
+    field('df-g', '목표', ta('df-g', o.goal || '계좌를 만들고 싶다고 말하고 필요한 서류를 확인해요', 2, { cnt: '26/80' }), { cnt: '26/80', chg: c.g }) +
+    lst('대화 순서', steps, c.s) + btn('＋ 단계 더하기', 'g sm full', 'data-act="noop"') +
+    lst('이렇게 되면 성공이에요', crit, c.c) +
+    '<div class="fld"><span class="lb">핵심 표현' + (c.e ? '<span class="chg">바뀜</span>' : '') + '</span><ul class="lst">' + exs.map(function (e, i) { return '<li><span class="tx"><span lang="ja" style="font-size:16px;display:block">' + e[0] + '</span><span class="c13">' + e[1] + '</span></span><button type="button" class="ib" aria-label="' + (i + 1) + '번째 표현 메뉴" data-act="noop">' + IC.dots + '</button></li>'; }).join('') + '</ul><p class="hint">이 중 2개 이상 쓰면 표현 조건을 채워요.</p></div>' +
+    openingGroup(o.opk || 'bank', o.opState || 'ready', { cur: o.cur, chg: c.o, tutor: o.tu || '은행 직원', lv: o.lv || 'N4' });
+}
+
+/* ───────── v2: 선생님 첫마디 ─────────
+   한국어 = 주 입력(학습자가 적음) · 일본어 = 선생님이 한국어를 보고 만든 제안(읽기용) · 저장 값은 지금과 같은 {ja, ko}.
+   상태: ready(맞춤) · none(한국어만 있음) · stale(한국어를 고침) · gen(만드는 중) · fail(실패) · empty(첫마디 없음) · block(맞추지 않고 저장 누름) */
+function opJ(st, d, o) {
+  o = o || {};
+  if (st === 'gen') return '<p class="opgen"><span class="spin" aria-hidden="true"></span>선생님이 일본어로 바꾸고 있어요</p><p class="c13 kk">상황과 역할(' + (o.tutor || '점원') + ')·수준(' + (o.lv || 'N5') + ')에 맞춰요. 보통 3~5초 걸려요.</p>';
+  if (st === 'fail') return '<p class="opw">' + IC.warn + '<span>일본어로 바꾸지 못했어요. 다시 해 볼까요?</span></p><p class="c13">한국어는 그대로 있어요.</p>';
+  if (st === 'empty') return '<p class="c13 kk">첫마디가 없어요. 역할극에서는 내가 먼저 말을 걸어요.</p>';
+  if (st === 'none') return '<p class="opl">역할극에서 선생님이 할 말(일본어)</p><p class="c13 kk">아직 일본어가 없어요. 아래 [일본어로 만들기]를 눌러 주세요.</p>';
+  if (st === 'stale' || st === 'block') return '<p class="opw">' + IC.warn + '<span>한국어를 고쳤어요. 일본어를 다시 만들어 주세요.</span></p><p class="opl">예전 한국어로 만든 일본어</p><p class="opja" lang="ja">' + d.ja + '</p>' + (st === 'block' ? '<p class="ferr" id="' + P + 'op-e">저장하려면 일본어 첫마디를 다시 만들어 주세요.</p>' : '');
+  return '<p class="opl">역할극에서 선생님이 이렇게 말해요</p><p class="opja" lang="ja">' + d.ja + '</p><p class="oprd" lang="ja">' + d.rd + '</p>';
+}
+function opBtn(st) {
+  if (st === 'gen') return { t: '그만두기', c: 'g', x: 'cancel' };
+  if (st === 'ready') return { t: '일본어 다시 만들기', c: 'g', x: 'gen' };
+  if (st === 'fail') return { t: '다시 만들기', c: 'p', x: 'gen' };
+  if (st === 'stale' || st === 'block') return { t: '일본어 다시 만들기', c: 'p', x: 'gen' };
+  return { t: '일본어로 만들기', c: 'p', x: 'gen', off: st === 'empty' };
+}
+function openingGroup(key, st, o) {
+  o = o || {};
+  var d = OP[key] || OP.bank;
+  var ko = st === 'stale' || st === 'block' || st === 'gen' && o.wasStale ? (OP[key + 'New'] || d).ko : st === 'empty' ? '' : d.ko;
+  if (st === 'none') ko = (OP[key + 'New'] || d).ko;
+  if (o.cur) {
+    /* 지금 운영 화면: 일본어 입력 칸 + 뜻 칸(DraftEditor.tsx) */
+    return field('df-o', '선생님 첫마디', ta('df-o', d.ja, 2, { ja: true }) + inp('df-ok', d.ko, { ph: '첫마디 뜻' }) + '<p class="cnt num">' + Array.from(d.ko).length + '/80</p>', { hint: '선생님이 이 말로 역할극을 시작해요.' });
+  }
+  var n = Array.from(ko).length;
+  if (S.dec.d6 === 'B') {
+    return '<fieldset class="opg" id="' + P + 'op"><legend class="oph">선생님 첫마디' + (o.chg ? '<span class="chg">바뀜</span>' : '') + '</legend><div class="fld"><label for="' + P + 'op-ko">한국어로 적어요</label>' +
+      '<textarea class="ta" id="' + P + 'op-ko" rows="2" aria-describedby="' + P + 'op-ko-c ' + P + 'op-ko-h">' + esc(ko) + '</textarea><p class="cnt num" id="' + P + 'op-ko-c">' + n + '/80</p>' +
+      '<p class="hint" id="' + P + 'op-ko-h">역할극을 시작할 때마다 선생님이 이 말을 일본어로 바꿔 말해요. 매번 조금씩 다를 수 있어요. 비워 두면 내가 먼저 말을 걸어요.</p></div></fieldset>';
+  }
+  var b = opBtn(st);
+  var inv = st === 'block';
+  return '<fieldset class="opg' + (inv ? ' inv' : '') + '" id="' + P + 'op" data-key="' + key + '" data-st="' + st + '" data-hasja="' + (st === 'ready' || st === 'stale' || st === 'block' ? '1' : '0') + '" data-tutor="' + esc(o.tutor || '') + '" data-lv="' + (o.lv || '') + '"><legend class="oph">선생님 첫마디' + (o.chg ? '<span class="chg">바뀜</span>' : '') + '</legend>' +
+    '<div class="fld"><label for="' + P + 'op-ko">한국어로 적어요</label>' +
+    '<textarea class="ta" id="' + P + 'op-ko" rows="2" data-orig="' + esc(d.ko) + '" aria-describedby="' + P + 'op-ko-c ' + P + 'op-ko-h"' + (st === 'gen' ? ' readonly' : '') + '>' + esc(ko) + '</textarea>' +
+    '<p class="cnt num" id="' + P + 'op-ko-c">' + n + '/80</p><p class="hint" id="' + P + 'op-ko-h">역할극에서는 선생님이 아래 일본어로 말해요. 비워 두면 첫마디 없이 내가 먼저 말을 걸어요.</p></div>' +
+    '<div class="opj' + (st === 'stale' || st === 'block' ? ' old' : '') + '" id="' + P + 'op-j" aria-live="polite">' + opJ(st, d, o) + '</div>' +
+    '<div class="oprow"><button type="button" class="btn sm ' + b.c + '" id="' + P + 'op-btn" data-act="op" data-x="' + b.x + '"' + (b.off ? ' aria-disabled="true" aria-describedby="' + P + 'op-ko-h"' : '') + (inv ? ' aria-describedby="' + P + 'op-e"' : '') + '>' + b.t + '</button>' +
+    '<button type="button" class="pb" id="' + P + 'op-play" aria-label="일본어 첫마디 듣기"' + (st === 'ready' ? ' data-act="noop"' : ' aria-disabled="true"') + '>▶</button></div></fieldset>';
+}
+function scrScEdit(v) {
+  var body = '<p class="c13 kk">고친 내용은 주제를 저장할 때 함께 저장돼요.</p><div class="col" style="gap:18px">' + draftFields() + '</div><div class="brow">' + btn('완료', 'p', 'data-go="review:base"') + btn('취소', 'g', 'data-go="review:base"') + '</div>';
+  return shell({ bar: bbar('주제 초안', '상황 초안 고치기', '1 / 2 · 창구에서 계좌 만들기', 'review:base'), body: body });
+}
+
+/* ───────── 화면: 주제 보기 ───────── */
+function scrTopic(v) {
+  var id = v === 'seed' ? 'way' : v === 'edited' || v === 'reverted' || v === 'saved' ? 'cafe' : v === 'mine' ? 'hair' : 'hosp';
+  var t = Object.assign({}, TP[id]);
+  if (v === 'reverted') { t.src = 'seed'; t.lv = 'N5'; t.desc = '카페에서 음료와 디저트를 주문하고 크기·온도·포장 여부를 말해요'; }
+  if (v === 'saved') { t = Object.assign({}, TP.way, { src: 'edited', at: '10월 7일', lv: 'N4' }); id = 'way'; }
+  var chunks = t.ck ? CK[t.ck] : CK.hosp.slice(0, 9);
+  var head = '<div class="card"><div class="l1" style="flex-wrap:wrap"><h2 style="font-size:18px;font-weight:700;min-width:0">' + t.t + '</h2>' + bdg(t.lv) + srcBadge(t.src) + '</div><p class="l2 mt4" lang="ja" style="white-space:normal">' + t.ja + '</p><p class="mt8 kk" style="font-size:14px">' + t.desc + '</p></div>';
+  var seedInfo = t.src === 'seed' ? '<div class="info"><b>기본 주제예요.</b> 고치면 내 버전으로 저장되고, 언제든 기본으로 되돌릴 수 있어요.</div>' : '';
+  var edInfo = t.src === 'edited' ? '<div class="info"><p><b>✎ 내 버전이에요</b> · ' + t.at + '에 고쳤어요</p><button type="button" class="lnk u" style="padding:0" data-go="revert:ask">기본으로 되돌리기</button></div>' : '';
+  var act = t.act ? '<div class="card" style="display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><p style="display:flex;gap:6px;align-items:center">' + bdg('챌린지 진행 중', 'good') + '</p><p class="mt4" style="font-size:14px;font-weight:600">' + t.act.t + ' · ' + t.act.d + '일째</p></div><button type="button" class="lnk" data-act="noop">챌린지 보기 ›</button></div>' : '';
+  var ch = '<section aria-labelledby="' + P + 'tp-c"><div class="sh"><h2 id="' + P + 'tp-c">기본 표현 ' + chunks.length + '개</h2><button type="button" class="lnk" style="min-height:44px" aria-label="' + t.t + ' 주제 고치기" data-go="tedit:' + (t.src === 'seed' ? 'seed' : 'mine') + '">고치기</button></div>' + chunkRead(chunks) + '</section>';
+  var scs = SC.filter(function (s) { return s.pl.indexOf(id) >= 0; });
+  var scSec = '<section aria-labelledby="' + P + 'tp-s"><div class="sh"><h2 id="' + P + 'tp-s">이 주제의 상황 ' + scs.length + '개</h2></div><ul class="rlist">' + scs.map(scRow).join('') + '</ul>' + btn('＋ 이 주제로 상황 만들기', 'g full mt8', 'data-act="noop"') + '</section>';
+  var delGo = id === 'hosp' ? 'del:active' : id === 'hair' ? 'del:none' : t.src === 'edited' ? 'del:seedEdited' : 'del:seed';
+  var del = '<div style="text-align:center"><button type="button" class="lnk bad u" aria-haspopup="dialog" data-go="' + delGo + '">주제 지우기</button>' + (t.src !== 'mine' ? '<p class="c12">기본 주제는 나에게만 숨겨지고, 다시 볼 수 있어요.</p>' : '') + '</div>';
+  var tst = v === 'reverted' ? '기본으로 되돌렸어요' : v === 'saved' ? '내 버전으로 저장했어요' : '';
+  return shell({ bar: bbar('내 상황·주제', t.t, '', 'mgr:base'), body: head + seedInfo + edInfo + act + ch + scSec + del, toast: tst });
+}
+
+/* ───────── 화면: 주제 고치기 ───────── */
+function scrTEdit(v) {
+  var seed = v === 'seed' || v === 'lvl' || v === 'regen';
+  var t = seed ? TP.way : TP.hosp;
+  var lv = v === 'lvl' || v === 'regen' ? 'N4' : t.lv;
+  var list = seed ? CK.way : CK.hosp;
+  var note = seed ? '<div class="info"><b>기본 주제예요.</b> 저장하면 내 버전으로 바뀌고, 기본 내용은 언제든 되돌릴 수 있어요.</div>' : '';
+  var lvHint = (v === 'lvl' && S.dec.d5 === 'A') ? '<div class="info" role="status"><p>수준을 <b>N4</b>로 바꿨어요. 기본 표현도 N4에 맞게 선생님에게 다시 받을까요? 지금 표현 12개가 새 초안으로 바뀌고, 저장해야 확정돼요.</p><div class="brow mt8">' + btn('표현 다시 받기', 'p sm', 'data-go="tedit:regen"') + btn('지금 표현 두기', 'g sm', 'data-go="tedit:seed"') + '</div></div>' : '';
+  var regenBox = v === 'regen' ? '<div class="card" role="status"><p style="display:flex;align-items:center;gap:8px;font-weight:600"><span class="spin" aria-hidden="true"></span>N4 표현을 받는 중이에요</p>' + btn('그만두기', 'g sm full mt8', 'data-go="tedit:lvl"') + '</div>' : '';
+  var info = '<section class="col" style="gap:14px"><h2 style="font-size:15px;font-weight:600">주제 정보</h2>' + field('te-t', '주제 이름', inp('te-t', t.t)) + field('te-j', '일본어 이름', inp('te-j', t.ja, { ja: true })) +
+    '<div class="fld"><span class="lb">수준</span>' + seg('수준', [['N5', 'N5'], ['N4', 'N4'], ['N3', 'N3']], lv, 'teLv') + '</div>' + lvHint +
+    field('te-d', '설명', ta('te-d', t.desc, 3, { cnt: Array.from(t.desc).length + '/300' }), { cnt: Array.from(t.desc).length + '/300' }) + '</section>';
+  var ch = '<section><div class="sh"><h2>기본 표현 ' + list.length + '개</h2><span class="r">8~12개</span></div>' + regenBox + (v === 'regen' ? '' : chunkGroups(list, { edit: true, menuGo: 'tedit:' + v })) + btn('＋ 표현 더하기', 'g sm full mt12', list.length >= 12 ? 'aria-disabled="true"' : 'data-act="noop"') + '</section>';
+  var save = '<div class="col">' + btn(seed ? '내 버전으로 저장' : '저장', 'p full', 'data-go="topic:' + (seed ? 'saved' : 'mine-active') + '"') + '<button type="button" class="lnk u" style="align-self:center;color:var(--ink2)" data-go="topic:' + (seed ? 'seed' : 'mine-active') + '">고치지 않고 나가기</button></div>';
+  return shell({ bar: bbar(t.t, '주제 고치기', '', 'topic:' + (seed ? 'seed' : 'mine-active')), body: note + info + ch + save });
+}
+
+/* ───────── 시트: 기본으로 되돌리기 ───────── */
+function scrRevert(v) {
+  var busy = v === 'busy';
+  /* v2: 내 버전 되돌리기 = 주제 지우기와 같은 규칙(Leader 기본값) — 내 버전에서 진행 중인 챌린지는 함께 지워짐 */
+  var act = v === 'active';
+  var body = (act ? '<div class="warnb" id="' + P + 'rv-dw"><p class="wh">' + IC.warn + '진행 중인 챌린지가 있어요</p><p>내 버전으로 시작한 「카페 주문 7일」 챌린지를 3일째 하고 있어요. 기본으로 되돌리면 이 챌린지도 함께 지워지고, 되돌릴 수 없어요.</p></div>' : '') +
+    '<p class="kk" id="' + P + 'rv-dd">내가 고친 설명·수준·기본 표현이 기본 내용으로 바뀌어요.' + (act ? '' : ' 진행 중인 챌린지는 없어요.') + ' 이 주제의 상황과 지난 기록은 그대로예요. 완료한 챌린지 기록도 그대로 남아요.</p>' +
+    (v === 'fail' ? '<p class="err" role="alert">되돌리지 못했어요. 아무것도 바뀌지 않았어요. 다시 눌러 주세요.</p>' : '') +
+    '<div class="brow">' + btn(busy ? '되돌리는 중…' : act ? '챌린지까지 되돌리기' : '기본으로 되돌리기', 'd', busy ? 'aria-busy="true" aria-disabled="true"' : 'data-go="topic:reverted"') + btn('취소', 'g', busy ? 'aria-disabled="true"' : 'data-go="topic:edited"') + '</div>';
+  if (act) return scrTopicWith('edited', sheet('「카페 주문」을 기본으로 되돌릴까요?', body, 'topic:edited', { busy: busy, desc: 'rv-dw' }));
+  return scrTopicWith('edited', sheet('「카페 주문」을 기본으로 되돌릴까요?', body, 'topic:edited', { busy: busy, desc: 'rv-dd' }));
+}
+function scrTopicWith(v, ov) { var h = scrTopic(v); return h.replace(/<\/div><\/div>$/, ov + '</div></div>'); }
+
+/* ───────── 시트: 주제 지우기 ───────── */
+function scrDel(v) {
+  if (v === 'done') return scrMgr('deleted');
+  if (v === 'record') return scrRecord();
+  var busy = v === 'busy';
+  var active = v === 'active' || v === 'busy' || v === 'fail';
+  var sea = v === 'seedEditedActive';
+  if (sea) v = 'seedEdited';
+  var seed = v === 'seed' || v === 'seedEdited';
+  var name = v === 'seedEdited' ? '카페 주문' : seed ? '길 묻기' : active ? '병원 진료' : '미용실 예약';
+  var title = seed ? '「' + name + '」 기본 주제를 지울까요?' : '「' + name + '」 주제를 지울까요?';
+  var warn = active ? '<div class="warnb" id="' + P + 'dw"><p class="wh">' + IC.warn + '진행 중인 챌린지가 있어요</p><p>「병원 진료 14일」 챌린지를 4일째 하고 있어요. 주제를 지우면 이 챌린지도 함께 지워지고, 되돌릴 수 없어요.</p></div>' :
+    sea ? '<div class="warnb" id="' + P + 'dw"><p class="wh">' + IC.warn + '진행 중인 챌린지가 있어요</p><p>내 버전으로 시작한 「카페 주문 7일」 챌린지를 3일째 하고 있어요. 지우면 이 챌린지도 함께 지워지고, 되돌릴 수 없어요.</p></div>' : '';
+  var DONE = '완료한 챌린지 기록은 그대로 남아요';
+  var gone, keep;
+  if (active) {
+    gone = ['이 주제에만 있는 상황 2개<span class="sub">접수에서 예약 확인하기 · 증상 말하기</span>', '진행 중인 챌린지 1개<span class="sub">병원 진료 14일 · 4일째</span>'];
+    keep = [DONE, '다른 주제에도 있는 상황 1개 — 약국 가는 길 묻기(길 묻기에 남아요)', '지금까지 한 수업·단어 기록과 단어장'];
+  } else if (v === 'seedEdited') {
+    gone = ['이 주제와 기본 상황 1개(카페에서 주문하기)가 내 목록에서 숨겨져요', '내가 고친 내용(✎ 내 버전 — 주제 1개, 상황 1개)은 지워져요'];
+    if (sea) gone.push('진행 중인 챌린지 1개<span class="sub">카페 주문 7일 · 3일째</span>');
+    keep = [DONE, '지난 수업·단어 기록과 단어장'];
+  } else if (seed) {
+    gone = ['이 주제와 기본 상황 1개(역에서 길 묻기)가 내 목록에서 숨겨져요'];
+    keep = [DONE, '다른 주제에도 있는 내 상황 1개 — 약국 가는 길 묻기(병원 진료에 남아요)', '지난 수업·단어 기록과 단어장'];
+  } else if (v === 'zero') {
+    gone = ['연결된 상황은 없어요'];
+    keep = [DONE, '지난 수업·단어 기록과 단어장'];
+  } else {
+    gone = ['이 주제에만 있는 상황 1개<span class="sub">미용실 전화 예약</span>'];
+    keep = [DONE, '지난 수업·단어 기록과 단어장'];
+  }
+  var dl = function (h, arr) { return '<div class="dl"><h3>' + h + '</h3><ul>' + arr.map(function (x) { return '<li><span>' + x + '</span></li>'; }).join('') + '</ul></div>'; };
+  var lead = active ? '' : seed ? '<div class="info"' + (sea ? '' : ' id="' + P + 'dw"') + '><p><b>나에게만 숨겨져요. 기본으로 되돌릴 수 있어요.</b></p><p class="mt4">다른 사람에게는 그대로 보여요. 「내 상황·주제」 맨 아래 「숨긴 기본 항목」에서 다시 볼 수 있어요.' + (sea ? '' : ' 진행 중인 챌린지는 없어요.') + '</p></div>' : '<p class="kk" id="' + P + 'dw">진행 중인 챌린지는 없어요. 지우면 되돌릴 수 없어요.</p>';
+  var body = warn + lead + dl(seed ? '숨겨져요' : '함께 지워져요', gone) + dl('그대로 남아요', keep) +
+    (v === 'fail' ? '<p class="err" role="alert">지우지 못했어요. 아무것도 지워지지 않았어요. 다시 눌러 주세요.</p>' : '') +
+    '<div class="brow">' + btn(busy ? '지우는 중…' : active ? '챌린지까지 지우기' : sea ? '챌린지 지우고 숨기기' : seed ? '나에게서 숨기기' : '주제 지우기', 'd', busy ? 'aria-busy="true" aria-disabled="true"' : 'data-go="del:done"') + btn('취소', 'g', busy ? 'aria-disabled="true"' : 'data-go="topic:' + (v === 'seedEdited' ? 'edited' : seed ? 'seed' : active ? 'mine-active' : 'mine') + '"') + '</div>';
+  var under = v === 'seedEdited' ? 'edited' : seed ? 'seed' : active ? 'mine-active' : 'mine';
+  return scrTopicWith(under, sheet(title, body, 'topic:' + under, { busy: busy, desc: 'dw' }));
+}
+function scrRecord() {
+  var card = function (title, range, st, rate) {
+    return '<li class="card"><div class="l1"><span class="tt">' + title + '</span>' + bdg(st) + '</div><p class="c13 mt4">' + range + '</p><p class="mt4" style="font-size:14px">달성 <b class="num">' + rate + '</b></p></li>';
+  };
+  var body = '<ul class="rlist">' + card('카페 주문 7일', '9월 22일 – 9월 28일', '끝남', '5/7일') + card('병원 진료 7일', '9월 12일 – 9월 18일', '끝남', '6/7일') + card('주말 계획 7일', '9월 1일 – 9월 7일', '끝남', '4/7일') + '</ul>';
+  return shell({ bar: bbar('계획표', '챌린지 기록', '', 'mgr:deleted'), body: body });
+}
+
+/* ───────── 시트: 상황(공유 — 시나리오 탭·관리 화면 둘 다) ───────── */
+function sheetBody(kind, o) {
+  o = o || {};
+  var isVar = kind === 'variant';
+  var t = isVar ? VARSC.t : kind === 'edited' ? '추천 디저트 묻기' : kind === 'mine' ? '접수에서 예약 확인하기' : '카페에서 주문하기';
+  var ja = isVar ? VARSC.ja : kind === 'edited' ? 'おすすめのデザートを聞く' : kind === 'mine' ? '受付で予約を確認する' : 'カフェで注文する';
+  var tu = isVar ? '바쁜 점원' : kind === 'mine' ? '접수 직원' : '점원';
+  var goal = isVar ? '원하는 음료가 다 떨어졌을 때 다른 음료로 바꿔 주문해요' : kind === 'mine' ? '이름과 예약 시간을 말하고 보험증을 보여 줘요' : kind === 'edited' ? '점원에게 추천을 묻고 이유를 들은 뒤 하나 골라요' : '음료를 크기·온도까지 정해서 주문해요';
+  var exs = isVar ? [['カフェラテはありますか', '카페라테 있어요?'], ['じゃあ、紅茶にします', '그럼 홍차로 할게요'], ['ほかに何がありますか', '다른 건 뭐가 있어요?']] :
+    kind === 'mine' ? [['予約している者です', '예약한 사람이에요'], ['保険証はこれです', '보험증은 이거예요'], ['何時ごろですか', '몇 시쯤이에요?']] :
+    [['アイスコーヒーをください', '아이스커피 주세요'], ['Sサイズでお願いします', 'S 사이즈로 부탁해요'], ['店内で', '가게에서 먹을게요']];
+  var meta = '<p class="l3" style="margin-top:6px">' + bdg(kind === 'mine' ? 'N4' : isVar ? 'N5' : kind === 'edited' ? 'N4' : 'N5') + scBadge(kind === 'mine' ? 'mine' : kind) + '<span>' + (kind === 'mine' ? '병원 진료' : '카페 주문') + ' · 난이도 2</span>' + (isVar ? '<span>원본 · 카페에서 주문하기</span>' : '') + '</p>';
+  var saved = o.saved ? '<p role="status" class="bdg good" style="height:auto;padding:8px 12px;font-size:13px;display:block">내 상황에 저장했어요</p>' : '';
+  var acts = [];
+  acts.push('<button type="button" class="lnk" data-go="sedit:' + (kind === 'seed' ? 'seed' : 'mine') + '">고치기</button>');
+  if (o.d1 === 'A') acts.push('<button type="button" class="lnk" data-go="varA:pick">변형 만들기</button>');
+  if (kind === 'edited') acts.push('<button type="button" class="lnk bad" data-act="noop">기본으로 되돌리기</button>');
+  if (kind === 'mine' || isVar) acts.push('<button type="button" class="lnk bad" data-act="noop">지우기</button>');
+  if (kind === 'seed' || kind === 'edited') acts.push('<button type="button" class="lnk bad" aria-haspopup="true" data-go="ssheet:seeddel">지우기</button>');
+  if (o.cur) acts = kind === 'mine' ? ['<span class="lnk">고치기</span>', '<span class="lnk bad">지우기</span>'] : [];
+  var bpart = '';
+  if (o.d1 === 'B' && !o.cur) {
+    if (o.bopen) {
+      bpart = '<div class="col" data-scrollto style="gap:12px"><button type="button" class="disc" aria-expanded="true" data-go="varB:closed"><span>연출 바꾸기 · 이번만</span>' + IC.up + '</button>' +
+        ['p', 't', 'f'].map(function (k) { return '<fieldset class="ax"><legend>' + AX[k].lb + '</legend>' + chips(AX[k].lb, AX[k].o, S.bp[k], 'bpick', k) + '</fieldset>'; }).join('') +
+        '<p class="hint">이번 역할극에만 쓰여요. 상황 카드와 핵심 표현은 그대로예요.</p><button type="button" class="lnk u" style="align-self:flex-start;padding:0" data-act="breset">처음 연출로</button></div>';
+    } else {
+      var pk = picked(S.bp, ['p', 't', 'f']);
+      bpart = '<button type="button" class="disc" aria-expanded="false" data-go="varB:open"><span>연출 바꾸기 · 이번만<span class="dsm" style="display:block">' + (o.bpicked && pk.length ? '이번 연출 · ' + pk.join(' · ') : '상대 성격·돌발 상황·대화 흐름') + '</span></span>' + IC.down + '</button>';
+    }
+  }
+  var body = '<div><p class="st" style="font-size:17px;font-weight:700">' + t + '</p><p class="c13" lang="ja">' + ja + '</p>' + meta + '</div>' + saved +
+    '<div class="roles" role="group" aria-label="역할"><div><span>나</span><b>손님</b></div><div><span>선생님</span><b>' + tu + '</b></div></div>' +
+    '<div class="goal"><p class="gl">목표</p><p>' + goal + '</p></div>' +
+    '<section><div class="sh"><h3>핵심 표현 ' + exs.length + '개</h3></div><ul>' + exs.map(function (e) { return '<li class="exr"><button type="button" class="pb" aria-label="' + e[0] + ' 듣기">▶</button><span class="ja" lang="ja">' + e[0] + '<span class="ko" style="display:block">' + e[1] + '</span></span></li>'; }).join('') + '</ul></section>' +
+    (acts.length ? '<div class="acts">' + acts.join('') + '</div>' : '') +
+    (o.del ? '<div class="info" data-scrollto role="group" aria-labelledby="' + P + 'sd-t"><p id="' + P + 'sd-t" style="font-size:15px;font-weight:600">이 상황을 지울까요?</p><p class="mt4"><b>기본 상황이라 나에게만 숨겨져요. 기본으로 되돌릴 수 있어요.</b> 이 상황으로 한 역할극과 기록은 그대로 남아요.</p><div class="brow mt8">' + btn('나에게서 숨기기', 'd sm', 'data-go="mgr:hidden"') + btn('취소', 'g sm', 'data-go="ssheet:seed"') + '</div></div>' : '') + bpart;
+  var hasPick = o.d1 === 'B' && o.bpicked && !o.cur && picked(S.bp, ['p', 't', 'f']).length > 0;
+  var ftr = '<div class="brow">' + btn(hasPick ? '이 연출로 시작' : '역할극 시작', 'p', (hasPick ? 'data-go="varB:room"' : 'data-go="room:opening"') + ' id="' + P + 'b-start"') + btn('닫기', 'g', 'data-act="noop"') + '</div>';
+  return { body: body, ftr: ftr };
+}
+function behindHome() {
+  var cards = SC.slice(4, 8).map(function (s) { return '<div class="card"><p style="font-weight:600">' + s.t + '</p><p class="c13" lang="ja">' + s.ja + '</p></div>'; }).join('');
+  return '<div class="seg" aria-hidden="true"><button type="button"><span>회화</span></button><button type="button"><span>채팅</span></button><button type="button" aria-checked="true"><span>시나리오</span></button></div>' + btn('＋ 내 상황 만들기', 'p full', 'tabindex="-1"') + cards;
+}
+function scrSSheet(v, cur) {
+  var kind = v === 'variant' || v === 'saved' ? 'variant' : v === 'seeddel' ? 'seed' : v;
+  var sb = sheetBody(kind, { d1: S.dec.d1, saved: v === 'saved', cur: cur, del: v === 'seeddel' && !cur });
+  return shell({ bar: abar('회화'), body: behindHome(), tabs: true, ov: sheet('상황 역할극', sb.body, 'ssheet:' + v, { ftr: sb.ftr }) });
+}
+
+/* ───────── 화면: 변형 A ───────── */
+function scrVarA(v) {
+  if (v === 'saved') return scrSSheet('saved');
+  var orig = '<div class="info"><p class="c12">원본</p><p style="font-size:15px;font-weight:600">카페에서 주문하기</p><p class="c13" lang="ja">カフェで注文する</p><p class="c12 mt4">나 손님 · 선생님 점원 · N5 · 4단계</p></div>';
+  if (v === 'review') {
+    var note = '<div class="note" role="note"><h2 tabindex="-1">「카페에서 주문하기」를 바꾼 초안이에요</h2><p>바꾼 것 · ' + picked(S.ap, ['p', 't', 'f', 'l']).join(' · ') + '. 「바뀜」 칸을 확인하고 [새 상황으로 저장]해야 생겨요. 원본은 그대로예요.</p></div>';
+    var f = draftFields({ t: '카페에서 주문하기 · 품절', ja: 'カフェで注文する（品切れ）', tu: '바쁜 점원', me: '손님', lv: 'N5', goal: '원하는 음료가 다 떨어졌을 때 다른 음료로 바꿔 주문해요',
+      steps: ['주문하기', '품절 안내 알아듣기', '다른 메뉴 묻기', '바꿔서 주문하기', '계산하기'], crit: ['다른 음료로 바꿔 주문해요', '크기를 말해요'],
+      exs: [['カフェラテはありますか', '카페라테 있어요?'], ['じゃあ、紅茶にします', '그럼 홍차로 할게요'], ['ほかに何がありますか', '다른 건 뭐가 있어요?'], ['Sサイズでお願いします', 'S 사이즈로 부탁해요'], ['以上です', '이게 다예요']],
+      opk: 'soldout', place: [['cafe', '카페 주문'], ['way', '길 묻기']], placeVal: 'cafe', chg: { t: 1, r: 1, g: 1, s: 1, c: 1, e: 1, o: 1 } });
+    var save = '<div class="col">' + btn('새 상황으로 저장', 'p full', 'data-go="varA:saved"') + btn('다시 만들기', 'g full', 'data-act="noop"') + '<button type="button" class="lnk bad u" style="align-self:center" data-act="noop">버리기</button></div>';
+    return shell({ bar: bbar('시나리오', '변형 상황 만들기', '원본 · 카페에서 주문하기', 'ssheet:seed'), body: note + '<div class="col" style="gap:18px">' + f + '</div>' + save });
+  }
+  var gen = v === 'gen';
+  var pk = picked(S.ap, ['p', 't', 'f', 'l']);
+  var top = gen ? '<div class="card" role="status"><p style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600"><span class="spin" aria-hidden="true"></span>선생님이 변형 초안을 만들고 있어요</p><p class="c13 mt4 kk">목표·대화 순서·핵심 표현을 바꾼 조건에 맞추는 중이에요.</p>' + btn('그만두기', 'g full mt12', 'data-go="varA:pick"') + '</div>' : '';
+  var axes = ['p', 't', 'f', 'l'].map(function (k) { return '<fieldset class="ax"' + (gen ? ' disabled' : '') + '><legend>' + AX[k].lb + '</legend>' + chips(AX[k].lb, AX[k].o, S.ap[k], 'apick', k) + '</fieldset>'; }).join('');
+  var none = pk.length === 0;
+  var body = top + orig + '<section class="col" style="gap:16px"' + (gen ? ' aria-busy="true"' : '') + '><div><h2 style="font-size:16px;font-weight:600">무엇을 바꿔 볼까요?</h2><p class="c13 mt4 kk">하나 이상 고르면 선생님이 목표·대화 순서·핵심 표현까지 맞춘 새 상황 초안을 만들어요. 원본은 그대로 남아요.</p></div>' + axes +
+    field('va-x', '직접 적기(선택)', inp('va-x', '', { ph: '예: 친구 몫까지 두 잔 주문해요', cnt: '0/100' }), { cnt: '0/100' }) +
+    '<div class="col">' + btn('변형 초안 만들기', 'p full', (none || gen ? 'aria-disabled="true"' + (none ? ' aria-describedby="' + P + 'va-n"' : '') : 'data-go="varA:gen"') + ' id="' + P + 'va-btn"') +
+    '<p class="' + (none ? 'hint' : 'c12') + '" id="' + P + 'va-n" style="text-align:center">' + (none ? '바꿀 것을 하나 이상 골라 주세요.' : '바꿀 것 · ' + pk.join(' · ')) + '</p>' +
+    '<p class="c12 kk" style="text-align:center">새 상황은 내 상황 50개·하루 만들기 30개에 들어가요.</p></div></section>';
+  return shell({ bar: bbar('시나리오', '변형 상황 만들기', '', 'ssheet:seed'), body: body });
+}
+
+/* ───────── 화면: 변형 B ───────── */
+function scrVarB(v) {
+  if (v === 'room') {
+    var pk = picked(S.bp, ['p', 't', 'f']);
+    var body = '<div class="goal" style="border-radius:12px"><p class="gl">목표</p><p style="font-size:14px">음료를 크기·온도까지 정해서 주문해요</p><p class="l3" style="margin-top:6px">' + bdg('이번 연출') + '<span style="color:var(--ink)">' + pk.join(' · ') + '</span></p></div>' +
+      '<p class="sysl">선생님은 <b>점원</b>, 나는 <b>손님</b>이에요. 선생님이 먼저 말을 걸어요.</p>' +
+      '<div class="bub" lang="ja">いらっしゃいませ、ご注文どうぞ！</div><div class="bub" lang="ja">すみません、カフェラテは今日もう売り切れなんです。</div>';
+    return shell({ bar: bbar('시나리오', '카페에서 주문하기', '점원 역 · 1/4단계 · 표현 0/3', 'varB:picked'), body: body, foot: '<div class="ptt"><span>누르고 말하기</span></div>' });
+  }
+  var sb = sheetBody('seed', { d1: 'B', bopen: v === 'open', bpicked: v !== 'closed' });
+  return shell({ bar: abar('회화'), body: behindHome(), tabs: true, ov: sheet('상황 역할극', sb.body, 'varB:closed', { ftr: sb.ftr }) });
+}
+
+/* ───────── 화면: 상황 고치기(기본 상황) ───────── */
+var OPV = { opNone: 'none', opStale: 'stale', opGen: 'gen', opFail: 'fail', opEmpty: 'empty', opBlock: 'block' };
+function scrSEdit(v) {
+  var seed = v === 'seed';
+  var opState = OPV[v] || 'ready';
+  var note = seed ? '<div class="info"><b>기본 상황이에요.</b> 고쳐서 저장하면 내 버전으로 바뀌고, 언제든 기본으로 되돌릴 수 있어요.</div>' : '<p class="c13 kk">고친 내용은 다음 역할극부터 쓰여요. 지난 결과는 그대로예요.</p>';
+  var f = draftFields({ t: seed ? '카페에서 주문하기' : '접수에서 예약 확인하기', ja: seed ? 'カフェで注文する' : '受付で予約を確認する', tu: seed ? '점원' : '접수 직원', lv: seed ? 'N5' : 'N4',
+    goal: seed ? '음료를 크기·온도까지 정해서 주문해요' : '이름과 예약 시간을 말하고 보험증을 보여 줘요', steps: seed ? ['인사하고 메뉴 묻기', '음료 고르기', '크기·온도 정하기', '먹고 갈지 말하고 계산하기'] : ['이름 말하기', '예약 시간 확인하기', '보험증 보여 주기', '기다리는 곳 듣기'],
+    crit: seed ? ['마실 것과 크기를 말해요', '가게에서 먹을지 가져갈지 말해요'] : ['예약했다고 말해요'],
+    exs: seed ? [['アイスコーヒーをください', '아이스커피 주세요'], ['Sサイズでお願いします', 'S 사이즈로 부탁해요'], ['店内で', '가게에서 먹을게요'], ['以上です', '이게 다예요']] : [['予約している者です', '예약한 사람이에요'], ['保険証はこれです', '보험증은 이거예요'], ['何時ごろですか', '몇 시쯤이에요?']],
+    opk: seed ? 'cafe' : 'hosp', opState: opState, place: seed ? [['cafe', '카페 주문'], ['way', '길 묻기'], ['hosp', '병원 진료']] : [['hosp', '병원 진료'], ['way', '길 묻기']], placeVal: seed ? 'cafe' : 'hosp' });
+  /* v2: 저장 누름 → 첫마디가 맞지 않으면(none·stale) 요약 + 첫마디 칸의 버튼으로 초점(저장 안 됨) */
+  var blk = opState === 'block';
+  var save = '<div class="col"><p class="err" role="alert" id="' + P + 'sv-err"' + (blk ? '' : ' hidden') + '><b>고칠 곳이 1군데 있어요</b> · 선생님 첫마디</p>' + btn(seed ? '내 버전으로 저장' : '저장', 'p full', 'data-act="opsave" data-to="' + (seed ? 'ssheet:edited' : 'ssheet:mine') + '"') + '<button type="button" class="lnk u" style="align-self:center;color:var(--ink2)" data-act="noop">고치지 않고 나가기</button></div>';
+  return shell({ bar: bbar(v === 'frommgr' ? '내 상황·주제' : '시나리오', seed ? '상황 고치기' : '내 상황 고치기', '', 'ssheet:seed'), body: note + '<div class="col" style="gap:18px">' + f + '</div>' + save });
+}
+function scrSEditCur(v) {
+  if (v === 'seed') return shell({ bar: bbar('시나리오', '내 상황 고치기', '', 'ssheet:seed'), body: '<div class="card"><p style="font-size:15px;font-weight:600">이 상황은 고칠 수 없어요.</p>' + btn('시나리오로', 'g full mt12', 'data-act="noop"') + '</div>' });
+  /* 지금 운영 화면 — 첫마디는 일본어 입력 칸 + 뜻 칸 */
+  var f = draftFields({ t: '접수에서 예약 확인하기', ja: '受付で予約を確認する', tu: '접수 직원', lv: 'N4', goal: '이름과 예약 시간을 말하고 보험증을 보여 줘요', steps: ['이름 말하기', '예약 시간 확인하기', '보험증 보여 주기', '기다리는 곳 듣기'], crit: ['예약했다고 말해요'],
+    exs: [['予約している者です', '예약한 사람이에요'], ['保険証はこれです', '보험증은 이거예요'], ['何時ごろですか', '몇 시쯤이에요?']], opk: 'hosp', cur: true, place: [['hosp', '병원 진료'], ['way', '길 묻기']], placeVal: 'hosp' });
+  return shell({ bar: bbar('시나리오', '내 상황 고치기', '', 'ssheet:seed'), body: '<p class="c13 kk">고친 내용은 다음 역할극부터 쓰여요. 지난 결과는 그대로예요.</p><div class="col" style="gap:18px">' + f + '</div>' + '<div class="col">' + btn('저장', 'p full', 'data-act="noop"') + '</div>' });
+}
+
+/* ───────── 화면: 역할극 첫 장면(v2 — 첫마디는 일본어로 말함) ───────── */
+function scrRoom(v) {
+  if (S.dec.d6 === 'B' && v === 'opening') v = 'liveB';
+  var d = OP.cafe;
+  var goal = '<div class="goal" style="border-radius:12px"><p class="gl">목표</p><p style="font-size:14px">음료를 크기·온도까지 정해서 주문해요</p></div>';
+  var body;
+  if (v === 'none') {
+    body = goal + '<p class="sysl">선생님은 <b>점원</b>, 나는 <b>손님</b>이에요. 먼저 말을 걸어 보세요.</p>';
+  } else if (v === 'liveB') {
+    body = goal + '<p class="sysl">선생님은 <b>점원</b>, 나는 <b>손님</b>이에요. 선생님이 먼저 말을 걸어요.</p><div class="card" role="status" style="display:flex;align-items:center;gap:8px"><span class="spin" aria-hidden="true"></span><span style="font-size:14px;font-weight:600">선생님이 첫마디를 준비하고 있어요</span></div><p class="c12" style="text-align:center">D5-B 를 고르면 시작할 때마다 3~5초 기다려요.</p>';
+  } else {
+    body = goal + '<p class="sysl">선생님은 <b>점원</b>, 나는 <b>손님</b>이에요. 선생님이 먼저 말을 걸어요.</p>' +
+      '<div class="bubw"><div class="bub"><span lang="ja">' + d.ja + '</span><span class="bko">' + d.ko + '</span></div><button type="button" class="pb" aria-label="선생님 첫마디 다시 듣기" data-act="noop">▶</button></div>';
+  }
+  return shell({ bar: bbar('시나리오', '카페에서 주문하기', '점원 역 · 1/4단계 · 표현 0/3', 'ssheet:seed'), body: body, foot: '<div class="ptt"><span>누르고 말하기</span></div>' });
+}
+
+/* ───────── 화면 목록 ───────── */
+var SCREENS = [
+  { id: 'hub', no: 'S1', name: '설정 허브', sub: '새 행 「내 상황·주제 관리」', vars: [['base', '기본']], render: scrHub, pair: scrHubCur },
+  { id: 'mgr', no: 'S2', name: '내 상황·주제', sub: '주제·상황 목록', vars: [['base', '주제'], ['sc', '상황'], ['loading', '불러오는 중'], ['error', '오류'], ['empty', '내 주제 없음'], ['scempty', '내 상황 없음'], ['limit', '상한 도달'], ['saved', '저장 직후'], ['hidden', '숨긴 기본 항목 있음'], ['hiddenSheet', '숨긴 항목 다시 보기'], ['restored', '다시 보이게 한 뒤']], render: scrMgr },
+  { id: 'create', no: 'S3', name: '주제 만들기', sub: '한 줄 입력 → 초안 요청', vars: [['input', '비어 있음'], ['typed', '적음'], ['short', '너무 짧음'], ['kb', '키보드'], ['gen', '만드는 중'], ['long', '오래 걸림'], ['canceled', '그만둔 뒤'], ['fail', '잠시 실패(502)'], ['reject', '주제로 어려운 글(422)'], ['rate', '1분 한도'], ['daily', '오늘 한도'], ['restore', '고치던 초안']], render: scrCreate },
+  { id: 'review', no: 'S4', name: '주제 초안 검토', sub: '주제 정보·기본 표현·상황 초안', vars: [['base', '초안 도착'], ['warn', '확인해 볼 곳(경고)'], ['check', '고칠 곳 있음'], ['kb', '표현 고치기(키보드)'], ['menu', '표현 메뉴'], ['scfail', '상황 초안만 실패'], ['regen', '다시 만들기 확인'], ['saving', '저장 중'], ['savefail', '저장 실패'], ['savelimit', '오늘 저장 한도'], ['leave', '나가기 확인'], ['discard', '버리기 확인']], render: scrReview },
+  { id: 'scedit', no: 'S5', name: '상황 초안 고치기', sub: '기존 편집기 재사용', vars: [['base', '기본']], render: scrScEdit },
+  { id: 'topic', no: 'S6', name: '주제 보기', sub: '내 주제·기본·내 버전', vars: [['mine-active', '내 주제 · 챌린지 진행 중'], ['mine', '내 주제'], ['seed', '기본 주제'], ['edited', '내 버전'], ['saved', '내 버전 저장 직후'], ['reverted', '되돌린 직후']], render: scrTopic },
+  { id: 'tedit', no: 'S7', name: '주제 고치기', sub: '같은 편집기 · 기본이면 내 버전으로', vars: [['seed', '기본 주제'], ['mine', '내 주제'], ['lvl', '수준 바꿈(D4)'], ['regen', '표현 다시 받는 중']], render: scrTEdit },
+  { id: 'revert', no: 'S8', name: '기본으로 되돌리기', sub: '확인 시트', vars: [['ask', '확인'], ['active', '내 버전 챌린지 진행 중'], ['busy', '되돌리는 중'], ['fail', '실패']], render: scrRevert },
+  { id: 'del', no: 'S9', name: '주제 지우기', sub: '확인 시트 · 결과', vars: [['active', '진행 중 챌린지 있음'], ['none', '진행 중 챌린지 없음'], ['zero', '연결 상황 없음'], ['seed', '기본 주제(숨김)'], ['seedEdited', '내 버전 기본 주제'], ['seedEditedActive', '내 버전 + 챌린지 진행 중'], ['busy', '지우는 중'], ['fail', '실패'], ['done', '지운 뒤'], ['record', '챌린지 기록']], render: scrDel },
+  { id: 'ssheet', no: 'S10', name: '상황 시트(공유)', sub: '고치기·변형 진입', vars: [['seed', '기본 상황'], ['seeddel', '기본 상황 지우기(숨김)'], ['edited', '내 버전'], ['mine', '내 상황'], ['variant', '변형 상황(A)']], render: function (v) { return scrSSheet(v); }, pair: function (v) { return scrSSheet(v, true); } },
+  { id: 'sedit', no: 'S11', name: '상황 고치기', sub: '기본 상황도 고침 · 첫마디는 한국어로', vars: [['mine', '내 상황(첫마디 맞춤)'], ['seed', '기본 상황'], ['frommgr', '관리에서 들어옴'], ['opStale', '첫마디 한국어 고침'], ['opGen', '일본어 만드는 중'], ['opFail', '일본어 만들기 실패'], ['opNone', '한국어만 있음'], ['opEmpty', '첫마디 비움'], ['opBlock', '맞추지 않고 저장']], render: scrSEdit, pair: scrSEditCur },
+  { id: 'room', no: 'S12', name: '역할극 첫 장면', sub: '첫마디는 일본어로 말해요', vars: [['opening', '첫마디 있음'], ['none', '첫마디 없음'], ['liveB', 'D5-B 시작 대기']], render: scrRoom },
+  { id: 'varA', no: 'A', name: '변형 A · 새 상황 만들기', sub: '고르기 → 초안 → 저장', vars: [['pick0', '아무것도 안 고름'], ['pick', '고름'], ['gen', '만드는 중'], ['review', '검토(바뀜 표시)'], ['saved', '저장 뒤 시트']], render: scrVarA },
+  { id: 'varB', no: 'B', name: '변형 B · 연출 옵션', sub: '이번 판만, 저장 안 함', vars: [['closed', '접힘'], ['open', '펼침'], ['picked', '고른 뒤'], ['room', '역할극 방']], render: scrVarB }
+];
+function scrById(id) { for (var i = 0; i < SCREENS.length; i++) if (SCREENS[i].id === id) return SCREENS[i]; return SCREENS[0]; }
+
+/* ───────── 설명(오른쪽) ───────── */
+var SIDE = {
+  hub: { k: '설정 허브에 행 하나', d: ['행 = 「내 상황·주제 관리」 + 한 줄 설명, 누르면 관리 화면. 모양은 관리자 행과 같은 56px 목록 행(재사용).', '위치는 결정 D2 — 권고 A: 로그인 계정 바로 아래. 412×780 첫 화면에 보이고, 바로 아래 「기본정보 · 학습」과 묶여 읽혀요. B 는 학습 카드 아래라 한 번 내려야 보여요.', '절 제목 「회화 연습」 — 행 제목과 같은 말을 되풀이하지 않게.', '회화 탭 「시나리오」의 [＋ 내 상황 만들기]·상황 시트의 [고치기]는 그대로 두고 같은 편집 화면을 써요.'] },
+  mgr: { k: '내 상황·주제(관리 화면)', d: ['머리 = ← 설정, 하단 탭 숨김(하위 화면 규칙). 세로 스크롤은 본문 한 곳.', '분절 「주제 | 상황」(Segmented 재사용, 숫자 포함). D3-B 를 고르면 분절 없이 주제 카드 안에 상황을 펼쳐요.', '숨긴 기본 항목이 있을 때만 목록 맨 아래(주제·상황 두 탭 모두)에 「숨긴 기본 항목 n개」 줄 → 시트에서 항목마다 [다시 보기]. 다시 보면 기본 내용으로 돌아와요(사용자 결정).', '주제 행: 이름·수준·출처(기본 / ✎ 내 버전 / 내 주제)·상황 수·기본 표현 수·진행 중 챌린지(초록 글자 뱃지 「챌린지 4일째」 — 색만이 아니라 글자로).', '불러오는 중 = 같은 높이(78px)의 정적 자리표시(IMP-0027 원칙). 「아직 없어요」를 먼저 보이지 않아요. 만들기 버튼은 데이터와 상관없이 늘 유효해서 그대로 둬요.', '상한 도달 = 버튼 흐리게(aria-disabled) + 이유 글을 버튼에 연결. 내 주제 30개(v2 확정).'] },
+  create: { k: '주제 한 줄 → 선생님 초안', d: ['기존 「내 상황 만들기」(AskForm)와 같은 틀: 질문 제목 → 입력 → 예시 칩 → 수준 → [초안 만들기] → 「저장 전엔 남지 않아요」.', '수준 기본값 = 내 수준(설정의 내 수준). 초안 수준은 N5~N3(상황 초안과 같은 범위).', '만드는 중: 위에 상태 카드 + [그만두기], 아래 입력은 잠금(aria-busy). 오래 걸리면 한 줄 더.', '새 AI 작업(사용자 결정): 측정 p50 약 12초·p95 약 14초(서버 한도 40초) — 만드는 중 문구 「보통 10~15초 걸려요」, 20초가 넘으면 한 줄 더. [그만두기]는 적은 주제를 남기고 처음 상태로.', 'v2: 주제가 아닌 글과 알맞지 않은 글은 <b>같은 문구 하나</b>(422) — 「이 글로는 주제를 만들기 어려워요. 장소·상황·활동 이름을 적어 주세요(예: 병원 진료, 공항 체크인).」 입력칸에 초점 + 칸 아래 오류(aria-invalid). 이유를 나눠 알리지 않아요(우회를 돕지 않게).', 'v2: 잠시 실패·시간 초과(502)는 위 상자 「잠시 문제가 생겼어요. 다시 만들어 볼까요?」 + [다시 만들기]. 적은 주제는 그대로.', '한도(v2 확정): 초안 1분 6번·하루 20번, 저장 하루 10번, 내 주제 30개.', '키보드: 입력칸은 위쪽이라 가려지지 않고, [초안 만들기]는 내용 끝 제자리(키보드 규칙 D2 A).', '데모: 「만드는 중」은 2초 뒤 초안 화면으로 넘어가요.'] },
+  review: { k: '검토 → 고쳐서 저장', d: ['맨 위 안내(초점이 여기로) — 저장해야 생기고 그 전엔 아무것도 없다(제안→채택).', '주제 정보: 이름·일본어 이름·수준·설명(300자).', '기본 표현: 종류별(이름·액션·느낌·꾸밈 조각) 묶음, 행마다 일본어 16px·읽기·뜻 + ⋯ 메뉴(고치기·옮기기·지우기). 고치기는 행 자리에서 펼침(시트 아님) — 칸마다 보이는 이름표.', '읽기는 히라가나·가타카나만, 같은 표현 두 번 금지, 8~12개. 문제는 행 테두리+글자, 저장 때 「고칠 곳이 n군데」 + 첫 문제로 초점.', '상황 초안 2개: 카드 요약(첫마디는 한국어로 보여요) + [고치기](다음 화면) + 「이 상황도 저장」 체크. 저장 버튼 글자와 절 머리 「저장할 상황 n/2」가 개수를 따라가요.', '<b>v2 스크롤 규칙</b>: 체크를 껐다 켜도 바뀌는 것은 그 카드의 흐림·체크, 절 머리 숫자(한 줄 고정), 저장 버튼 글자뿐 — 스크롤 위치와 초점(체크 상자)이 그대로예요. 카드를 접거나 지우지 않아 높이도 그대로예요.', '<b>v2 읽기 확인</b>: 기본 표현 위에 「읽기가 틀릴 수 있어요. 확인해 주세요.」 — 한자 읽기는 기계가 검사하지 못해요(측정 오류 약 0.4%). 읽기는 모든 행 둘째 줄에 늘 보여요.', '<b>v2 확인해 볼 곳</b>(상태 「확인해 볼 곳」): 선생님 응답의 경고를 저장을 막지 않는 안내로 — 이름을 20자로 줄임·설명 비어 있음·일본어 이름 비어 있음·표현 8~11개·한 종류가 1개 이하. 줄을 누르면 그 칸으로 가요. 고쳐도 줄은 「✓ 고쳤어요」로 바뀌고 사라지지 않아요(위쪽 높이 고정).', '뒤로 가기(← · 안드로이드 뒤로)는 「나가기 확인」. 초안은 이 탭에 잠시 남아 다시 들어오면 「고치던 초안」 카드.'] },
+  scedit: { k: '상황 초안 = 기존 편집기', d: ['DraftEditor 칸 순서·검사 그대로(제목 → 일본어 제목 → 장소 → 수준 → 역할 → 목표 → 대화 순서 → 성공 조건 → 핵심 표현 → 첫마디).', '장소는 「새 주제」로 고정(아직 저장 전이라 고를 수 없음) — 칩 대신 고정 표시 + 설명.', '[완료]로 검토 화면에 돌아가요. 저장은 검토 화면에서 주제와 함께 한 번에.'] },
+  topic: { k: '주제 보기', d: ['머리 카드(이름·수준·출처·일본어 이름·설명) → 상태 안내(기본/내 버전) → 진행 중 챌린지 → 기본 표현(읽기 전용) → 이 주제의 상황 → 맨 아래 「주제 지우기」.', '「고치기」는 기본 표현 절 머리 오른쪽(주제 전체를 고쳐요).', '기본 주제: 「고치면 내 버전」 안내. 내 버전: 「✎ 내 버전이에요 · 날짜」 + 「기본으로 되돌리기」(같은 안내 상자 안).', '상황 행을 누르면 공유 상황 시트(S10)가 열려요.', '지우기는 위험 동작이라 화면 맨 아래 글자 버튼 + 확인 시트(S9).'] },
+  tedit: { k: '주제 고치기', d: ['S4 와 같은 편집기(주제 정보 + 기본 표현). 상황은 주제 보기에서 따로 고쳐요.', '기본 주제면 안내 + 저장 버튼 「내 버전으로 저장」.', 'D4-A: 수준을 바꾸면 「표현 다시 받기」 제안 — 받은 표현은 초안이고 저장해야 확정. 사용자 결정 4의 이유(수준이 오르면 표현도 올라감)에 맞춘 것.'] },
+  revert: { k: '기본으로 되돌리기', d: ['바뀌는 것(설명·수준·기본 표현)과 그대로인 것(상황·지난 기록·완료한 챌린지)을 함께 말해요.', '<b>v2</b>: 주제 지우기와 같은 규칙 — 내 버전으로 시작해 진행 중인 챌린지가 있으면 빨간 테두리 경고 + 버튼 「챌린지까지 되돌리기」. 내 버전을 만들기 전부터 하던 챌린지는 기본 주제에서 계속돼요.', '버튼은 [기본으로 되돌리기](빨간 테두리) → [취소] 순서(확정 → 취소).', '되돌리는 중에는 시트를 닫을 수 없어요. 끝나면 토스트 「기본으로 되돌렸어요」.'] },
+  del: { k: '주제 지우기 확인', d: ['진행 중 챌린지가 있으면 빨간 테두리 경고 상자를 맨 위에 — 「진행 중인 챌린지가 있어요」 + 챌린지 이름·며칠째·되돌릴 수 없음. 버튼 글자도 「챌린지까지 지우기」.', '없으면 한 줄 「진행 중인 챌린지는 없어요. 지우면 되돌릴 수 없어요.」 + [주제 지우기].', '「함께 지워져요」(이 주제에만 있는 상황·진행 중 챌린지) / 「그대로 남아요」(끝난 챌린지·다른 주제에도 있는 상황·수업·단어 기록) 두 목록.', '실패: 「아무것도 지워지지 않았어요」 — 지우기가 한 번에 되거나 아예 안 되어야 쓸 수 있는 문구(개발 확인).', '기본 주제(사용자 결정): 「나에게만 숨겨져요. 기본으로 되돌릴 수 있어요.」를 굵게 맨 위에, 버튼은 「나에게서 숨기기」. 내 버전이면 고친 내용은 지워지고, 다시 보면 기본 내용이 돌아와요.', '모든 경우 「완료한 챌린지 기록은 그대로 남아요」를 남는 목록 첫 줄에.', '지운 뒤: 목록 + 토스트. 끝난 챌린지는 따로 표시하지 않고 저장된 주제 이름 그대로 — 주제로 가는 링크만 없어요(사용자 결정).'] },
+  ssheet: { k: '상황 시트 — 두 진입점이 공유', d: ['지금은 내 상황만 [고치기·지우기]. 제안: 기본 상황도 [고치기]·[지우기](나에게만 숨김 — 시트 안 확인), 내 버전은 [기본으로 되돌리기], 변형 상황은 원본 이름 표시.', 'D1-A 면 [변형 만들기]가 같은 줄에, D1-B 면 시작 버튼 위에 「연출 바꾸기 · 이번만」 접힘 줄.', '「지금 화면과 나란히」로 비교해 보세요.'] },
+  sedit: { k: '상황 고치기 — 첫마디는 한국어로 적어요', d: ['<b>v2 요청 2</b>: 「선생님 첫마디」 칸 = 한국어 입력 하나(80자). 일본어는 그 아래 읽기 상자에 선생님이 만든 것을 보여 줘요(일본어·읽기·▶ 듣기). [일본어로 만들기]를 누르면 상황·역할·수준에 맞춰 만들어요(보통 3~5초, [그만두기]).', '한국어를 고치면 일본어 상자에 ⚠ 「한국어를 고쳤어요. 일본어를 다시 만들어 주세요」 + 예전 일본어에 줄 긋기(색만 쓰지 않음). 맞추지 않고 저장하면 「고칠 곳이 1군데」 + 버튼으로 초점, 저장 안 돼요.', '저장되는 값은 지금과 같아요: 일본어(역할극에서 말할 말) + 한국어(뜻). DB 변경 없음. 한국어를 비우면 첫마디 없이 내가 먼저 말을 걸어요(지금은 첫마디를 넣거나 뺄 수 없음 — 바뀌는 점).', '기본·기존 상황은 이미 일본어·한국어가 있어서 한국어가 입력 칸에, 일본어가 읽기 상자에 그대로 보여요(상태 「맞춤」).', '같은 칸 구성을 상황 초안 고치기(S5)·AI 상황 초안(내 상황 만들기)·변형 초안(A)도 써요.', '지금 운영 화면(「지금 화면과 나란히」): 일본어 입력 칸 + 「첫마디 뜻」 칸. 일본어를 모르면 고칠 수 없는 구조였어요.', '기본 상황 고치기: 지금은 「이 상황은 고칠 수 없어요」 → 안내 상자 + 「내 버전으로 저장」. 회화 탭과 관리 화면이 같은 편집 화면을 쓰고, ← 뒤로 대상만 달라요.', '데모: 한국어 칸에 글을 고쳐 보거나 [일본어 다시 만들기]를 눌러 보세요. 스크롤이 움직이지 않아요.'] },
+  room: { k: '역할극 첫 장면 — 일본어로 말해요', d: ['저장된 일본어 첫마디가 선생님 첫 말풍선으로 바로 떠요(지금과 같음, 회화 시작에 AI 대기 없음). 아래에 한국어 뜻, 옆에 ▶ 다시 듣기(자동 재생 없음 — 010d).', '매번 같은 말이라 음성도 미리 만들어 둘 수 있어요.', '첫마디가 없는 상황: 「먼저 말을 걸어 보세요」(지금과 같음).', 'D5-B(시작할 때마다 즉석 생성)를 고르면 첫 말풍선 전에 「첫마디를 준비하고 있어요」로 3~5초 기다려요 — 상태 「D5-B 시작 대기」.'] },
+  varA: { k: '안 A — 변형 상황 만들기', d: ['상황 시트의 [변형 만들기] → 원본 요약 → 바꿀 것 고르기(상대 성격·돌발 상황·대화 흐름·표현 수준 + 직접 적기) → 선생님이 새 초안 → 「바뀜」 칸 확인 → 새 상황으로 저장.', '좋은 점: 목표·성공 조건·핵심 표현이 바뀐 조건에 맞게 함께 바뀌어 결과 판단이 공정. 고쳐서 다시 쓸 수 있고 기록도 따로 쌓임. 실시간 회화 프롬프트는 그대로.', '아쉬운 점: 초안을 기다려야 하고(수 초) 상황 목록이 늘어남(내 상황 50개·하루 30개 한도에 들어감).'] },
+  varB: { k: '안 B — 연출 옵션(이번만)', d: ['상황 시트의 시작 버튼 위 「연출 바꾸기 · 이번만」을 펼쳐 상대 성격·돌발 상황·대화 흐름을 고르면 [이 연출로 시작].', '좋은 점: 기다림 없이 바로, 목록이 늘지 않음, 여러 번 가볍게 바꿔 보기 좋음.', '아쉬운 점: 목표·성공 조건·핵심 표현은 원래 그대로라 돌발 상황과 어긋날 수 있음(예: 품절인데 목표는 「그 음료 주문」). 결과 판단·실시간 회화 프롬프트에 연출을 넣어야 해서 5초 예산에 영향. 같은 연출을 다시 하려면 또 골라야 함.', '역할극 방: 목표 카드에 「이번 연출」 뱃지 + 고른 것.'] }
+};
+var VNOTE = {
+  'review:base': 'v2 요청 1 확인: 화면을 아래로 내려 「이 상황도 저장」을 껐다 켜 보세요. 스크롤·초점이 그대로이고, 카드 흐림·「저장할 상황 n/2」·저장 버튼 글자만 바뀌어요. 위 「v1 → v2」 패널에서 「v1 재현」을 고르면 예전처럼 맨 위로 튀어요.',
+  'review:warn': '선생님 응답의 경고 4가지를 저장을 막지 않는 안내로 보여 줘요(이름 20자로 줄임·설명 비어 있음·표현 9개·느낌 조각 1개). 줄을 누르면 그 칸으로 가요(데모에서는 이동 없음).',
+  'review:check': '저장을 누르면 첫 문제(주제 이름의 꺾쇠)로 이동·초점. 이모지는 괜찮고 꺾쇠(< >)만 막아요. 행의 ⋯ 버튼이 오류 글을 읽어요.',
+  'review:savelimit': '주제 저장은 하루 10번. 초안은 이 탭에 남아 내일 이어서 저장할 수 있어요.',
+  'review:regen': '[다시 만들기]를 누르면 그 아래에 확인 상자가 열려요. v2: 화면이 위로 튀지 않고, 상자가 화면 아래로 잘리면 그만큼만 내려가요.',
+  'create:reject': '주제가 아닌 글(질문·잡담)과 알맞지 않은 글은 같은 문구 하나로 안내해요(Leader 확정 문구).',
+  'create:fail': '선생님 쪽 일시 실패(약 4%)나 40초 시간 초과 — 같은 안내 + [다시 만들기]. 적은 주제는 그대로.',
+  'sedit:mine': '첫마디 = 한국어 입력 칸 + 선생님이 만든 일본어(읽기 상자). 한국어를 고쳐 보세요 — 일본어 상자가 「다시 만들어 주세요」로 바뀌고, [일본어 다시 만들기] → 1.5초 뒤 새 일본어. 스크롤은 그대로예요.',
+  'sedit:opStale': '한국어를 고친 상태. 예전 일본어에 줄을 긋고 ⚠ 글로 알려요(색만 쓰지 않음). 이대로 저장하면 「고칠 곳 1군데」.',
+  'sedit:opNone': '한국어만 적고 아직 일본어를 만들지 않은 상태(새로 첫마디를 넣을 때).',
+  'sedit:opEmpty': '한국어를 비우면 첫마디 없이 저장돼요 → 역할극에서 「먼저 말을 걸어 보세요」. [일본어로 만들기]는 이유와 함께 흐리게.',
+  'sedit:opBlock': '맞추지 않고 저장을 누른 뒤: 저장 버튼 위 요약 + 첫마디 칸 빨간 테두리·오류 글 + 버튼으로 초점. 저장되지 않아요.',
+  'sedit:opGen': '일본어를 만드는 동안 한국어 칸은 읽기 전용, [그만두기]로 이전 상태로.',
+  'room:opening': '역할극에서는 저장된 일본어로 말해요 — 첫 말풍선이 바로 떠요(AI 대기 없음). 한국어 뜻은 아래 작은 글씨, ▶ 다시 듣기.',
+  'revert:active': '내 버전으로 시작한 챌린지가 진행 중이면 되돌리기도 지우기와 같은 경고·버튼 글자(「챌린지까지 되돌리기」).',
+  'del:seedEditedActive': '내 버전 기본 주제 + 그 버전으로 시작한 진행 중 챌린지 — 경고 상자 + 「함께 지워져요」에 챌린지.',
+  'varA:pick': 'v2: 칩을 눌러도 화면이 위로 튀지 않아요. 고른 칩·아래 「바꿀 것」 줄·버튼만 바뀌어요.',
+  'varB:open': 'v2: 시트 안에서 칩을 눌러도 시트 스크롤이 그대로예요. 시작 버튼 글자만 바뀌어요.',
+  'mgr:loading': '가짜 빈 상태 없이 같은 높이 자리표시만. 화면 읽기는 「주제를 불러오는 중…」 한 번.',
+  'mgr:limit': '내 주제는 30개까지(v2 확정 — Leader 기본값).',
+  'mgr:hidden': '숨긴 기본 항목이 있을 때만 보이는 줄(사용자 결정 — 나에게만 숨김). 여기서는 기본 주제 1개(여행 이야기)·기본 상황 1개를 숨긴 상태.',
+  'mgr:hiddenSheet': '항목마다 [다시 보기]. 주제를 다시 보면 함께 숨겨진 기본 상황도 돌아와요. 함께 지워진 진행 중 챌린지·내 상황은 돌아오지 않아요(개발 확인).',
+  'create:blocked': '부적절한 입력 거절 — 무엇이 문제인지 따지지 않고 다시 적는 방향만 말해요. 입력 예시는 데모에서 가렸어요.',
+  'create:unfit': '주제가 아닌 입력(질문·잡담 등) 거절 — 예시를 하나 보여 줘요.',
+  'create:timeout': '서버 시간 한도를 넘은 경우. 적은 주제는 그대로, [다시 시도]는 처음부터.',
+  'create:canceled': '[그만두기] 뒤 — 요청을 끊고 적은 주제를 남겨요.',
+  'ssheet:seeddel': '시트 안 확인(지금 내 상황 지우기와 같은 자리·모양). 숨긴 뒤 관리 화면 「숨긴 기본 항목」에서 다시 봐요.',
+  'del:seedEdited': '내 버전인 기본 주제 — 고친 내용은 지워지고 주제는 나에게만 숨겨져요.',
+  'mgr:saved': '저장 뒤 목록으로 돌아와 새 주제 행에 테두리 + 「방금 저장」 + 토스트. 초점은 새 행.',
+  'create:kb': '키보드(약 290px)가 올라와도 입력칸은 화면 위쪽이라 그대로 보여요.',
+  'create:restore': '나가기 확인에서 [나가기]를 누르고 다시 들어온 상태.',
+  'review:kb': '행 자리에서 펼친 편집 상자 — 칸마다 보이는 이름표(종류·일본어·읽기·뜻).',
+  'review:scfail': '주제·기본 표현은 됐는데 상황 초안만 실패한 경우 — 주제만 저장할 수 있어요.',
+  'topic:reverted': '되돌린 뒤: 출처 뱃지가 「기본」으로, 수준·설명·표현이 기본값으로.',
+  'del:done': '지운 뒤 목록에서 「병원 진료」가 빠지고 토스트. 초점은 목록 머리.',
+  'del:record': '계획표 › 챌린지 기록. 「병원 진료 7일」은 주제가 지워졌지만 다른 챌린지와 똑같이 보여요(사용자 결정). 상세·결과에서 주제로 가는 링크와 「같은 주제로 한 번 더」만 빠져요. 지금 문구 「주제가 지워져 이 챌린지 기록을 계산할 수 없어요」는 끝난 챌린지에 나오면 안 돼요(가이드 모순 항목).',
+  'del:seed': '기본 주제 지우기 = 나에게만 숨김(사용자 결정). 다른 사람에게는 그대로.',
+  'ssheet:variant': 'D1-A 로 만든 변형 상황 — 「변형」 뱃지 + 원본 이름.',
+  'varB:room': '고른 연출은 이번 역할극에만. 결과 화면에도 「이번 연출」 한 줄을 남기는 것을 권해요.'
+};
+
+/* ───────── 결정 필요 ───────── */
+var DEC = [
+  { k: 'd1', h: 'D1 변형 연출 방식', q: '같은 상황을 조건·성격·분기를 바꿔 연출하는 방법. 두 안 모두 화면 A·B 에 그려 뒀어요.', o: [
+    ['A', '변형 상황 만들기(새 상황으로 저장)', true, '상황 시트 [변형 만들기] → 바꿀 것 고르기 → 선생님 초안 → 검토 → 저장.', ['<b>좋음</b> 목표·성공 조건·표현이 바뀐 조건에 맞춰져 결과 판단이 공정', '<b>좋음</b> 고쳐 쓰고 다시 할 수 있음, 실시간 회화 그대로', '<b>아쉬움</b> 초안 대기 몇 초, 목록이 늘어남(50·30 한도)']],
+    ['B', '연출 옵션(이번 판만)', false, '시작 전 시트에서 상대 성격·돌발 상황·흐름을 골라 바로 시작, 저장 안 함.', ['<b>좋음</b> 기다림 없음, 목록 그대로, 가볍게 여러 번', '<b>아쉬움</b> 목표·성공 조건은 그대로라 돌발 상황과 어긋날 수 있음', '<b>아쉬움</b> 실시간 회화·결과 판단 프롬프트 변경(5초 예산)']]] },
+  { k: 'd2', h: 'D2 설정 허브 행 위치', q: '「내 상황·주제 관리」 행을 어디에 둘까요?', o: [
+    ['A', '로그인 계정 바로 아래', true, '첫 화면(412×780)에 보이고, 바로 아래 「기본정보 · 학습」과 묶여 읽혀요.', ['<b>좋음</b> 자주 쓰는 항목을 내리지 않고 찾음']],
+    ['B', '「기본정보 · 학습」 카드 아래', false, '학습 설정 다음 차례라 순서는 자연스럽지만 한 번 내려야 보여요.', ['<b>아쉬움</b> 학습 카드가 길어 첫 화면 밖']]] },
+  { k: 'd4', h: 'D3 관리 화면 구조', q: '주제와 상황을 어떻게 나눠 보여 줄까요?', o: [
+    ['A', '분절 「주제 | 상황」', true, '두 목록을 오가며, 주제를 누르면 그 주제의 상황이 보여요.', ['<b>좋음</b> 한 상황이 주제 여러 개에 붙어도 한 번만 나옴', '<b>좋음</b> 상황만 찾기 쉬움']],
+    ['B', '주제 목록 하나 + 주제 안에 상황 펼치기', false, '주제가 부모라는 생각과 맞지만 상황이 여러 주제에 겹쳐 나와요.', ['<b>아쉬움</b> 펼친 목록이 길어지고 상황 찾기가 한 단계 깊음']]] },
+  { k: 'd5', h: 'D4 수준을 바꾸면 기본 표현 다시 받기', q: '주제 고치기에서 수준을 올리면 선생님에게 그 수준의 표현을 다시 받는 버튼을 이번에 넣을까요?', o: [
+    ['A', '이번에 넣기', true, '주제 초안과 같은 요청을 표현 부분만 다시 써요. 받은 표현은 초안이라 저장해야 확정.', ['<b>좋음</b> 결정 4의 이유에 바로 답함']],
+    ['B', '나중에', false, '이번에는 손으로 고치기만.', ['<b>좋음</b> 범위가 작음']]] },
+  { k: 'd6', h: 'D5 첫마디 일본어는 언제 만들까요? (v2 새 결정)', q: '한국어로 적은 첫마디를 역할극에서 일본어로 말하게 하는 방법. 화면 S11(상황 고치기)·S12(역할극 첫 장면)이 고른 안으로 바뀌어요.', o: [
+    ['A', '고칠 때 만들어 저장', true, '편집 화면에서 [일본어로 만들기] → 확인 → 저장. 역할극은 저장된 일본어로 시작.', ['<b>좋음</b> 첫 말풍선이 바로 뜨고 매번 같은 말(음성 미리 준비 가능)', '<b>좋음</b> 저장 값·DB 그대로({일본어, 한국어}), 결과·다시 하기와 어긋나지 않음', '<b>아쉬움</b> 고칠 때 한 번 3~5초 기다림, 한국어를 고치면 다시 만들어야 저장됨']],
+    ['B', '역할극을 시작할 때마다 즉석으로', false, '편집 화면엔 한국어만. 시작할 때 선생님이 그때그때 일본어로 바꿔 말함.', ['<b>좋음</b> 편집이 가장 단순(한국어만)', '<b>아쉬움</b> 시작할 때마다 3~5초 대기, 매번 다른 말, 저장된 일본어 없음', '<b>아쉬움</b> 실패하면 첫마디 없이 시작, 시작마다 AI 호출']]] }
+];
+
+/* ───────── 그리기 ───────── */
+function renderDec() {
+  $('#dec-body').innerHTML = DEC.map(function (d) {
+    return '<div class="dq"><h3>' + d.h + '</h3><p>' + d.q + '</p><div class="dq-g">' + d.o.map(function (o) {
+      return '<button type="button" class="opt" aria-pressed="' + (S.dec[d.k] === o[0]) + '" data-dec="' + d.k + ':' + o[0] + '"><span class="opt-h">' + o[0] + ' · ' + o[1] + (o[2] ? '<span class="rec">권고</span>' : '') + '</span><p>' + o[3] + '</p><ul class="pc">' + o[4].map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></button>';
+    }).join('') + '</div></div>';
+  }).join('');
+}
+function renderNav() {
+  $('#dnav').innerHTML = '<h2>화면</h2>' + SCREENS.map(function (s) {
+    return '<button type="button" data-go="' + s.id + ':' + s.vars[0][0] + '"' + (S.scr === s.id ? ' aria-current="true"' : '') + '><span class="did">' + s.no + '</span>' + s.name + '<span class="dx">' + s.sub + '</span></button>';
+  }).join('');
+}
+function renderVar() {
+  var s = scrById(S.scr);
+  $('#d-var').innerHTML = s.vars.map(function (v) { return '<button type="button" data-go="' + s.id + ':' + v[0] + '" aria-pressed="' + (S.v === v[0]) + '">' + v[1] + '</button>'; }).join('');
+}
+/* ───────── v2: 스크롤·초점 유지 ─────────
+   v1 원인: 체크·칩·메뉴를 누를 때마다 #stage.innerHTML 을 통째로 바꿔 스크롤 상자(.bd·.bx)가 새로 생기고(scrollTop 0) 초점도 사라졌다.
+   v2: ① 체크·칩은 그 줄(과 한 줄 고정 요약·버튼 글자)만 고친다(patch) ② 같은 화면 안의 다른 변화(메뉴·확인 창·펼침)는
+   다시 그리더라도 같은 화면이면 .bd·.bx 의 scrollTop 과 초점을 되살린다 ③ 위로 튀는 이동은 없음 — 연 내용이 아래로 잘릴 때만 최소로 내림 */
+function phones() { return Array.prototype.slice.call(document.querySelectorAll('#stage .ph')); }
+function sig(ph) { var h = ph.querySelector('.bbar h1, .abar h1'), p = ph.querySelector('.bbar p'); return (h ? h.textContent : '') + '|' + (p ? p.textContent : ''); }
+function cssq(v) { return String(v).replace(/["\\]/g, '\\$&'); }
+function fkey(el) {
+  if (!el || !el.closest || !el.closest('#stage')) return '';
+  if (el.id) return '[id="' + cssq(el.id) + '"]';
+  var k = ['data-go', 'data-act', 'data-k', 'data-x', 'data-i', 'aria-label'].filter(function (a) { return el.hasAttribute(a); }).map(function (a) { return '[' + a + '="' + cssq(el.getAttribute(a)) + '"]'; }).join('');
+  return k ? el.tagName.toLowerCase() + k : '';
+}
+function byKey(k, pi) { if (!k) return null; var ps = phones(); var ph = ps[pi] || ps[ps.length - 1]; return ph ? ph.querySelector(k) : null; }
+function reveal(el) {
+  var sc = el.closest('.bx') || el.closest('.bd'); if (!sc) return;
+  var er = el.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+  var over = er.bottom - sr.bottom + 16;
+  if (over > 0) sc.scrollTop += Math.min(over, Math.max(0, er.top - sr.top - 12));
+}
+function toProblem(ph) {
+  var el = ph.querySelector('.bd [aria-invalid="true"], .bd .xrow.bad .ib, .bd .opg.inv [data-act="op"]'); if (!el) return;
+  var sc = el.closest('.bd'), er = el.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+  sc.scrollTop += er.top - sr.top - 80;
+  el.focus({ preventScroll: true });
+}
+function renderStage(keep) {
+  var before = keep ? phones().map(function (ph) { var bd = ph.querySelector('.bd'), bx = ph.querySelector('.sht .bx'); return { sig: sig(ph), bd: bd ? bd.scrollTop : 0, bx: bx ? bx.scrollTop : 0, dlg: !!ph.querySelector('[role="dialog"]') }; }) : null;
+  var s = scrById(S.scr);
+  var html = '';
+  P = '';
+  var prop = s.render(S.v);
+  if (S.view === 'pair' && s.pair) {
+    P = 'c-';
+    var cur = s.pair(S.v);
+    P = '';
+    html = '<figure class="fw"><figcaption><span class="tagc">지금</span>운영 중인 화면</figcaption>' + cur + '</figure><figure class="fw"><figcaption><span class="tagp">제안</span>' + s.name + '</figcaption>' + prop + '</figure>';
+  } else {
+    html = '<figure class="fw"><figcaption><span class="tagp">제안</span>' + s.no + ' ' + s.name + ' · ' + varLabel(s, S.v) + (S.view === 'pair' ? ' (이 화면은 지금 없음)' : '') + '</figcaption>' + prop + '</figure>';
+  }
+  $('#stage').innerHTML = html;
+  var kept = false;
+  if (before) phones().forEach(function (ph, i) {
+    var b = before[i]; if (!b || b.sig !== sig(ph)) return;
+    kept = true;
+    var bd = ph.querySelector('.bd'); if (bd) bd.scrollTop = b.bd;
+    var bx = ph.querySelector('.sht .bx'); if (bx && b.dlg) bx.scrollTop = b.bx;
+  });
+  return kept;
+}
+function varLabel(s, v) { for (var i = 0; i < s.vars.length; i++) if (s.vars[i][0] === v) return s.vars[i][1]; return v; }
+function renderSide() {
+  var s = scrById(S.scr), d = SIDE[s.id];
+  var vn = VNOTE[s.id + ':' + S.v];
+  $('#side').innerHTML = '<div class="dcard"><h2>' + s.no + ' · ' + s.name + '</h2><p class="dk">' + d.k + '</p><ul class="dn">' + d.d.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></div>' +
+    (vn ? '<div class="dcard"><h2>이 상태</h2><p style="font-size:13px">' + vn + '</p></div>' : '') +
+    '<div class="dcard"><h2>지금 고른 안</h2><p style="font-size:13px">' + DEC.map(function (x) { return x.h.split(' ')[0] + '-' + S.dec[x.k]; }).join(' · ') + '</p><p class="dsub">바꾸려면 위 「결정 필요」에서 골라요.</p></div>';
+}
+function renderMatrix() {
+  $('#matrix tbody').innerHTML = SCREENS.map(function (s) {
+    return '<tr><th scope="row">' + s.no + ' ' + s.name + '</th><td>' + s.vars.map(function (v) { return '<button type="button" data-go="' + s.id + ':' + v[0] + '" data-top="1">' + v[1] + '</button>'; }).join('') + '</td></tr>';
+  }).join('');
+}
+function renderCtl() {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ctl]'), function (b) { b.setAttribute('aria-pressed', String(S[b.getAttribute('data-ctl')] === b.getAttribute('data-v'))); });
+  var r = document.documentElement;
+  if (S.theme === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', S.theme);
+}
+function render() { renderNav(); renderVar(); renderStage(); renderSide(); renderCtl(); }
+function $(s) { return document.querySelector(s); }
+
+function go(id, v, fromPhone, opener) {
+  if (timer) { clearTimeout(timer); timer = null; }
+  if (S.opTimer) { clearTimeout(S.opTimer); S.opTimer = null; }
+  /* 휴대폰 안에서 누른 변화는 늘 「유지」를 시도하고, 머리 제목(화면 이름)이 같을 때만 되살린다 — 화면이 바뀌면 맨 위 */
+  var keep = !!fromPhone && S.legacy !== 'on';
+  var ae = document.activeElement, fk = keep ? fkey(ae) : '', pi = ae && ae.closest ? phones().indexOf(ae.closest('.ph')) : -1;
+  var hadDlg = !!$('#stage [role="dialog"]');
+  if (id === 'varA' && v === 'pick0') S.ap = { p: 'same', t: 'none', f: 'same', l: 'same' };
+  if (id === 'varA' && v === 'pick' && !fromPhone) S.ap = { p: 'busy', t: 'soldout', f: 'same', l: 'same' };
+  S.scr = id; S.v = v;
+  if (id === 'create' && v === 'input') S.ex = '';
+  renderNav(); renderVar();
+  var kept = renderStage(keep);
+  renderSide(); renderCtl();
+  var dlg = $('#stage [role="dialog"]');
+  if (fromPhone) {
+    var f = null;
+    if (dlg && !hadDlg) { S.lastOpener = opener || ''; f = dlg.querySelector('[data-focus]'); }
+    else if (!dlg && hadDlg && kept) { f = byKey(S.lastOpener, pi) || byKey(fk, pi); }
+    else if (kept) { f = byKey(fk, pi); }
+    if (!f && !kept) f = (dlg && dlg.querySelector('[data-focus]')) || $('#stage [data-focus]');
+    if (f) f.focus({ preventScroll: true });
+  }
+  var st = $('#stage [data-scrollto]');
+  if (st && S.legacy !== 'on') reveal(st);
+  var ps = phones();
+  if (fromPhone && id === 'review' && v === 'check') toProblem(ps[ps.length - 1]);
+  if (fromPhone && keep && id === 'review' && v === 'regen') { var rg = ps[ps.length - 1].querySelector('.bd .info .brow'); if (rg) reveal(rg); }
+  if ((id === 'create' && v === 'gen') || (id === 'varA' && v === 'gen')) {
+    timer = setTimeout(function () { if (S.scr === id && S.v === 'gen') go(id === 'create' ? 'review' : 'varA', id === 'create' ? 'base' : 'review', true); }, 2000);
+  }
+}
+
+/* v2: 그 줄만 고치기 — 체크(상황 초안 저장 여부)·고르기 칩(변형 A·B) */
+function patchScOn(t) {
+  var i = +t.getAttribute('data-i'); S.scOn[i] = t.checked;
+  if (S.legacy === 'on') { renderStage(false); return; }
+  var ph = t.closest('.ph'), n = S.scOn.filter(Boolean).length;
+  var card = t.closest('.scard'); if (card) card.classList.toggle('off', !t.checked);
+  var son = ph.querySelector('[id$="rv-son"]'); if (son) son.textContent = '저장할 상황 ' + n + '/2';
+  var sv = ph.querySelector('[id$="rv-save"]');
+  if (sv && sv.hasAttribute('data-go') && S.v !== 'scfail') sv.textContent = n ? '주제와 상황 ' + n + '개 저장' : '주제만 저장';
+}
+function patchChip(t, store) {
+  var k = t.getAttribute('data-k'); store[k] = t.getAttribute('data-x');
+  if (S.legacy === 'on') { renderStage(false); return false; }
+  var grp = t.closest('[role="radiogroup"]');
+  Array.prototype.forEach.call(grp.querySelectorAll('.chip'), function (b) { var on = b === t; b.setAttribute('aria-checked', String(on)); b.textContent = (on ? '✓ ' : '') + b.getAttribute('data-l'); });
+  return true;
+}
+function patchVarA(ph) {
+  var pk = picked(S.ap, ['p', 't', 'f', 'l']), none = !pk.length;
+  var nv = none ? 'pick0' : 'pick'; if (S.v !== nv) { S.v = nv; renderVar(); renderSide(); }
+  var b = ph.querySelector('[id$="va-btn"]'), n = ph.querySelector('[id$="va-n"]');
+  if (n) { n.className = none ? 'hint' : 'c12'; n.textContent = none ? '바꿀 것을 하나 이상 골라 주세요.' : '바꿀 것 · ' + pk.join(' · '); }
+  if (b) { if (none) { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-describedby', n.id); b.removeAttribute('data-go'); } else { b.removeAttribute('aria-disabled'); b.removeAttribute('aria-describedby'); b.setAttribute('data-go', 'varA:gen'); } }
+}
+function patchVarB(ph) {
+  var pk = picked(S.bp, ['p', 't', 'f']), b = ph.querySelector('[id$="b-start"]'); if (!b) return;
+  b.textContent = pk.length ? '이 연출로 시작' : '역할극 시작'; b.setAttribute('data-go', pk.length ? 'varB:room' : 'room:opening');
+}
+/* v2: 선생님 첫마디 칸 — 칸 안만 바뀜(한국어 입력 아래쪽만 높이가 변함) */
+function opSet(fs, st) {
+  var key = fs.getAttribute('data-key'), d = fs.getAttribute('data-cur') === 'new' ? (OP[key + 'New'] || OP[key]) : OP[key];
+  fs.setAttribute('data-st', st); fs.classList.toggle('inv', st === 'block');
+  var j = fs.querySelector('.opj'); j.className = 'opj' + (st === 'stale' || st === 'block' ? ' old' : '');
+  j.innerHTML = opJ(st, d, { tutor: fs.getAttribute('data-tutor'), lv: fs.getAttribute('data-lv') });
+  var b = opBtn(st), bt = fs.querySelector('[data-act="op"]');
+  bt.textContent = b.t; bt.className = 'btn sm ' + b.c; bt.setAttribute('data-x', b.x);
+  if (b.off) { bt.setAttribute('aria-disabled', 'true'); bt.setAttribute('aria-describedby', fs.querySelector('.hint').id); }
+  else if (st === 'block') { bt.removeAttribute('aria-disabled'); bt.setAttribute('aria-describedby', (fs.querySelector('.ferr') || {}).id || ''); }
+  else { bt.removeAttribute('aria-disabled'); bt.removeAttribute('aria-describedby'); }
+  var pl = fs.querySelector('.pb'); if (st === 'ready') { pl.removeAttribute('aria-disabled'); pl.setAttribute('data-act', 'noop'); } else { pl.setAttribute('aria-disabled', 'true'); pl.removeAttribute('data-act'); }
+  fs.querySelector('textarea').readOnly = st === 'gen';
+  if (st === 'ready' || st === 'empty') { var e = fs.closest('.ph').querySelector('[id$="sv-err"]'); if (e) e.hidden = true; }
+}
+function opClick(t) {
+  var fs = t.closest('fieldset.opg'), x = t.getAttribute('data-x');
+  if (x === 'cancel') { if (S.opTimer) clearTimeout(S.opTimer); S.opTimer = null; opSet(fs, fs.getAttribute('data-prev') || 'none'); return; }
+  fs.setAttribute('data-prev', fs.getAttribute('data-st'));
+  opSet(fs, 'gen');
+  S.opTimer = setTimeout(function () {
+    S.opTimer = null;
+    var ta = fs.querySelector('textarea'), key = fs.getAttribute('data-key'), ko = ta.value.trim();
+    fs.setAttribute('data-cur', ko === OP[key].ko ? 'orig' : 'new'); ta.setAttribute('data-orig', ko); fs.setAttribute('data-hasja', '1');
+    opSet(fs, 'ready');
+  }, 1500);
+}
+function opInput(ta) {
+  var fs = ta.closest('fieldset.opg'); if (!fs) return;
+  var c = fs.querySelector('.cnt'); if (c) c.textContent = Array.from(ta.value.trim()).length + '/80';
+  if (!fs.getAttribute('data-key')) return;
+  var st = fs.getAttribute('data-st'); if (st === 'gen') return;
+  var has = fs.getAttribute('data-hasja') === '1';
+  var v = ta.value.trim();
+  if (!v) opSet(fs, 'empty');
+  else if (v === ta.getAttribute('data-orig') && has) opSet(fs, 'ready');
+  else if (has) opSet(fs, 'stale');
+  else opSet(fs, 'none');
+}
+function opSave(t) {
+  var ph = t.closest('.ph'), fs = ph.querySelector('fieldset.opg[data-key]'), st = fs ? fs.getAttribute('data-st') : 'ready';
+  if (st === 'ready' || st === 'empty') { var p = t.getAttribute('data-to').split(':'); go(p[0], p[1], true); return; }
+  opSet(fs, 'block');
+  var e = ph.querySelector('[id$="sv-err"]'); if (e) e.hidden = false;
+  var sc = fs.closest('.bd'), er = fs.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+  sc.scrollTop += er.top - sr.top - 60;
+  fs.querySelector('[data-act="op"]').focus({ preventScroll: true });
+}
+
+if (typeof document !== 'undefined' && document.getElementById('stage')) {
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-go],[data-act],[data-dec],[data-ctl]');
+    if (!t) return;
+    if (t.getAttribute('aria-disabled') === 'true') return;
+    var g = t.getAttribute('data-go');
+    if (g) {
+      var p = g.split(':');
+      e.preventDefault();
+      go(p[0], p[1], !!t.closest('#stage'), fkey(t));
+      if (t.getAttribute('data-top')) window.scrollTo({ top: 0 });
+      return;
+    }
+    var dc = t.getAttribute('data-dec');
+    if (dc) { var q = dc.split(':'); S.dec[q[0]] = q[1]; renderDec(); render(); return; }
+    var c = t.getAttribute('data-ctl');
+    if (c) { S[c] = t.getAttribute('data-v'); render(); return; }
+    var a = t.getAttribute('data-act');
+    var ph = t.closest('.ph');
+    if (a === 'ex') { S.ex = t.getAttribute('data-x'); go('create', 'typed', true); return; }
+    if (a === 'scOn') { patchScOn(t); return; }
+    if (a === 'bpick') { if (patchChip(t, S.bp)) patchVarB(ph); return; }
+    if (a === 'breset') { S.bp = { p: 'same', t: 'none', f: 'same' }; go('varB', 'open', S.legacy !== 'on'); return; }
+    if (a === 'apick') { if (patchChip(t, S.ap)) patchVarA(ph); else { S.v = picked(S.ap, ['p', 't', 'f', 'l']).length ? 'pick' : 'pick0'; renderVar(); } return; }
+    if (a === 'mgrTab') { go('mgr', t.getAttribute('data-x') === 's' ? 'sc' : 'base', true); return; }
+    if (a === 'teLv') { go('tedit', t.getAttribute('data-x') !== 'N5' ? 'lvl' : 'seed', true); return; }
+    if (a === 'op') { opClick(t); return; }
+    if (a === 'opsave') { opSave(t); return; }
+  });
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.matches && e.target.matches('fieldset.opg textarea')) opInput(e.target);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var d = $('#stage [role="dialog"]');
+    if (!d) return;
+    var c = d.getAttribute('data-close');
+    if (c) { var p = c.split(':'); go(p[0], p[1], true); }
+  });
+  renderDec(); renderMatrix(); render();
+}
+
+/* 노드 점검용(브라우저에서는 쓰지 않음) */
+if (typeof module !== 'undefined') module.exports = { SCREENS: SCREENS, S: S };
+})();
+</script>
+</body>
+</html>
