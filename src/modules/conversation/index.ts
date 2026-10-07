@@ -99,6 +99,11 @@ export type { ScenarioVariantBase, ScenarioVariantBody, ScenarioVariantBodyProbl
 export { draftTopic, readTopicDraftBody, topicDraftDeps, TOPIC_DRAFT_REJECT_MESSAGE, TOPIC_DRAFT_FAIL_MESSAGE } from './chats/topicDraft'
 export type { TopicDraftDeps, TopicDraftResult } from './chats/topicDraft'
 export { detectUnsafeUserTopicText, topicContentWarnings, findTopicChunkDuplicate } from './structuredResponse/topicDraftSchemas'
+// task-045 T4 — #177 변형 상황 초안 · #178 첫마디 일본어 제안 실행 서비스(행 없음, 라우트는 본문 검사 → 한도 → 서비스)
+export { readScenarioVariantBase, readScenarioVariantBody, draftScenarioVariant, scenarioVariantDeps, SCENARIO_VARIANT_REJECT_MESSAGE, SCENARIO_VARIANT_FAIL_MESSAGE } from './chats/scenarioVariantDraft'
+export type { ScenarioVariantDeps, ScenarioVariantTarget } from './chats/scenarioVariantDraft'
+export { readOpeningDraftBody, runOpeningDraft, openingDraftRunDeps, OPENING_DRAFT_REJECT_MESSAGE, OPENING_DRAFT_FAIL_MESSAGE } from './chats/openingDraftRun'
+export type { OpeningDraftRunDeps, OpeningDraftResult } from './chats/openingDraftRun'
 export { suggestReply, parseReplyPracticeBody, REPLY_PRACTICE_WINDOW } from './chats/replyPractice'
 export type { ReplyPracticeResult } from './chats/replyPractice'
 export type { UserTranslationResult } from './chats/translation'
