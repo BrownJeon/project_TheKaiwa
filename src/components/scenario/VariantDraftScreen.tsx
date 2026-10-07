@@ -28,7 +28,8 @@ export default function VariantDraftScreen({ id, from = null }: { id: string; fr
   return (
     <div className="flex h-full min-h-0 flex-col bg-ground">
       <BackBar backHref={m.gone ? m.back.listHref : m.back.href} backLabel={m.back.label} title={VARIANT.title} onBack={m.result && !m.saving ? () => setLeaveOpen(true) : undefined} />
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-3.5">
+      {/* `relative`: 축 칩의 숨은 라디오·표현 줄의 `sr-only`(absolute)가 앱 셸 `main` 기준으로 잡혀 `main` 이 따로 스크롤되지 않게 한다(ScenarioDraftScreen `Scroll` 과 같은 이유). */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-3.5">
         <div className="flex min-w-0 flex-col gap-[18px]">
           <Body m={m} onDiscard={() => setLeaveOpen(true)} />
         </div>

@@ -235,7 +235,8 @@ function Body({
 
 function Scroll({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-3.5">
+    // `relative`: 편집기 안 핵심 표현 줄의 `sr-only`(absolute)가 앱 셸 `main` 기준으로 잡히면 `main` 이 따로 스크롤돼 저장 막힘 초점 이동 때 위쪽 막대가 밀려난다.
+    <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-3.5">
       <div className="flex min-w-0 flex-col gap-[18px]">{children}</div>
     </div>
   )
