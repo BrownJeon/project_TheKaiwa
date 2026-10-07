@@ -19,6 +19,7 @@ import { ChallengeDaySheet, EndChallengeSheet, type EndState } from './Challenge
 import { DayStrip, ScoreTable, TopicProgressBlock } from './DayStrip'
 import {
   activeTodayView,
+  blockedNoteText,
   canRetry,
   detailMemo,
   isFresh,
@@ -324,9 +325,7 @@ function ResultBody({
           </div>
         ) : (
           <InfoBox className="mt-3">
-            <p>
-              지금은 「{retry.title}」({retry.dayIndex === 0 ? '내일 시작' : `${retry.dayIndex}일째`})를 하고 있어요. 진행 중인 챌린지가 끝나면 다시 도전할 수 있어요.
-            </p>
+            <p>{blockedNoteText(retry, next.topicGone)}</p>
             <ULink href={`/plan/challenge/${encodeURIComponent(retry.id)}`}>{COPY.seeActive}</ULink>
           </InfoBox>
         )}

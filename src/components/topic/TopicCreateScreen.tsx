@@ -16,7 +16,7 @@ import { ErrorBox } from '@/components/challenge/parts'
 import { Spinner } from '@/components/plan/parts'
 import { oneLine, problemMap, type DraftLevel, type EditableDraft } from '@/components/scenario/logic'
 import BackBar from '@/components/shell/BackBar'
-import { chunkKeyOfProblem, chunkRowDomId, isScenarioSlotKey, MANAGE_HREF, TOPIC_NEW_HREF, topicProblemDomId, type ScenarioSlotKey, type TopicProblem } from './logic'
+import { chunkKeyOfProblem, chunkRowDomId, isScenarioSlotKey, MANAGE_HREF, saveNoteActive, TOPIC_NEW_HREF, topicProblemDomId, type ScenarioSlotKey, type TopicProblem } from './logic'
 import ScenarioDraftCards, { PARTIAL_DOM_ID, PartialActions, PartialTop, ScenarioSlotEditor, SC_GEN_DOM_ID, scEditDomId } from './ScenarioDraftCards'
 import TopicAskForm from './TopicAskForm'
 import TopicDraftReview from './TopicDraftReview'
@@ -200,7 +200,7 @@ function Screen({ defaultLevel, userId }: { defaultLevel: DraftLevel; userId: st
               onRegen={m.generate}
               onDiscard={() => setDiscardOpen(true)}
               saveLabel={k > 0 ? REVIEW.save(k) : REVIEW.saveTopicOnly}
-              saveNote={{ on: REVIEW.saveOrder, off: REVIEW.saveIdle, active: k > 0 }}
+              saveNote={{ on: REVIEW.saveOrder, off: REVIEW.saveIdle, active: saveNoteActive(k, m.scFlight.busy) }}
               savingText={savingText}
               saveHoldId={m.scFlight.busy ? SC_GEN_DOM_ID : null}
               locked={

@@ -3,7 +3,7 @@
 /**
  * 주제 고치기 `/settings/scenarios/topics/[id]/edit`(task-045 T5-4 — screens.md §16-2 S7). BackBar 52(sticky) + 앱 셸 `main` 한 곳 스크롤.
  * S4 의 `TopicInfoFields`·`ChunkEditor` 를 그대로 쓴다(표현 행은 서버 id 를 들고 있다). 기본 주제면 안내 + 「내 버전으로 저장」.
- * ← 는 고친 값이 있으면 나가기 시트(이 탭에 남기지 않는다). 안드로이드 뒤로는 막지 않는다(§16-0 #7).
+ * ← 는 고친 값이 있으면 나가기 시트(이 탭에 남기지 않는다), 저장 중에는 막는다(`backDisabled`). 안드로이드 뒤로는 막지 않는다(§16-0 #7).
  * 초점은 한 곳씩만 옮긴다: 저장 검사 실패 → 첫 문제 · 다른 화면이 먼저 내 버전을 만듦 → 그 상자 · 수준 바꿈 상자 안 버튼이 숨으면 같은 상자의 다음 버튼 ·
  * 표현을 받거나 「지금 표현 두기」 → 고른 수준 칩. 스크롤 호출은 없다(초점이 그 요소를 화면에 보이게 한다 — R1·R5).
  */
@@ -14,7 +14,7 @@ import { BtnLink, ErrorBox, InfoBox, Skeleton } from '@/components/challenge/par
 import BackBar from '@/components/shell/BackBar'
 import ChunkEditor, { CHUNK_ADD_DOM_ID } from './ChunkEditor'
 import LevelRegenBox, { LVL_CANCEL_DOM_ID, LVL_REGEN_DOM_ID, LVL_RETRY_DOM_ID } from './LevelRegenBox'
-import { chunkKeyOfProblem, chunkRowDomId, MANAGE_HREF, topicEditLocked, topicHref, topicProblemDomId, warnLineFixed, type TopicProblem } from './logic'
+import { chunkKeyOfProblem, chunkRowDomId, editBackAction, MANAGE_HREF, topicEditLocked, topicHref, topicProblemDomId, warnLineFixed, type TopicProblem } from './logic'
 import TopicInfoFields from './TopicInfoFields'
 import { EDIT, MANAGE, REVIEW, TOPIC } from './topicCopy'
 import { useTopicEdit, type EditFocus } from './useTopicEdit'
@@ -60,7 +60,10 @@ export default function TopicEditScreen({ id }: { id: string }) {
   }, [m.focus])
 
   const onBack = () => {
-    if (m.edited && !m.saving) setLeaveOpen(true)
+    // 저장 중에는 ← 가 막힌다(REV-166 L-D, S4 와 같은 방식) — 나가면 저장 응답을 놓친 채 다른 화면에 서게 된다.
+    const act = editBackAction(m.edited, m.saving)
+    if (act === 'ignore') return
+    if (act === 'ask') setLeaveOpen(true)
     else m.leave()
   }
 
@@ -73,7 +76,7 @@ export default function TopicEditScreen({ id }: { id: string }) {
 
   return (
     <>
-      <BackBar sticky backHref={topicHref(id)} backLabel={m.origTitle || TOPIC.back} title={EDIT.title} onBack={m.status === 'ready' ? onBack : undefined} />
+      <BackBar sticky backHref={topicHref(id)} backLabel={m.origTitle || TOPIC.back} title={EDIT.title} onBack={m.status === 'ready' ? onBack : undefined} backDisabled={m.saving} />
       <div className="mx-auto min-w-0 max-w-[520px] px-4 pb-8 pt-3.5">
         {m.status === 'loading' ? <Skeleton heights={[96, 300, 240]} label={TOPIC.loading} /> : null}
         {m.status === 'error' ? <ErrorBox title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={m.reload} /> : null}

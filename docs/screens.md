@@ -8416,6 +8416,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 - 데모 S3 그대로: 「어떤 주제로 연습하고 싶어요?」 → `Field` 주제(input 16px, 2~40자 카운터) → 예시 칩 4개 → 수준 `Segmented`(`levelOptions(프로필 수준)` 재사용 — `DraftEditor.tsx:32`) + 「내 수준(N4)으로 골라 뒀어요」 → [초안 만들기] → 「초안은 저장하기 전까지 어디에도 남지 않아요」.
 - 요청 **#170** `POST /api/v1/topics/drafts` `{title, level}`(`note` 칸은 화면에 없다). 벽시계 60초, 15초 넘으면 「조금 더 걸리고 있어요」 한 줄. [그만두기] = `AbortController` — **서버는 계속 돌아 그 사이 다시 누르면 409 `DRAFT_BUSY`**(한도도 1 소모 — QA b2 #2) → 그만둔 뒤 [초안 만들기]는 바로 누를 수 있게 두되 409 면 §16-7 문구.
 - **더블 탭 방지**: 요청 중 버튼 `aria-disabled`+`aria-busy`, 폼 `aria-busy`·readOnly. 409 도 한도를 쓰므로 막는 것이 필수.
+- **취소 잠금(구현이 확정)**: 시작 직후 800ms(`TOPIC_DRAFT_CANCEL_LOCK_MS`) 동안은 [그만두기]가 듣지 않는다 — 같은 자리 더블 탭이 곧바로 취소가 되지 않게(REV-160 M-3). 「조금 더 걸리고 있어요」 15초(`TOPIC_DRAFT_LONG_MS`)·벽시계 60초(`TOPIC_DRAFT_TIMEOUT_MS`).
 - 오류(§16-7 `TOPIC_DRAFT`): 400 `title` → 칸 오류(고정 문구) · 422 `NOT_A_TOPIC` 한 문구 + 입력칸 초점 · 409 · 429(분/일) · 502·네트워크 → 상자 + [다시 만들기]. 사유 구분 표시 없음.
 - 도착 → S4, 안내 제목에 초점(`tabIndex=-1`). sessionStorage `kaiwa.topic.draft`(300ms 디바운스, 하이드레이션 뒤 읽기) — 다시 들어오면 「고치던 주제 초안이 있어요」 카드 [이어서 고치기][버리고 새로 만들기].
 
@@ -8431,6 +8432,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
   7. 실패: 502·504·네트워크 → 절 안 `ErrorBox` 「상황 초안은 만들지 못했어요. 주제만 저장하고 상황은 나중에 만들 수도 있어요.」 + [다시 만들기] (데모 `scfail`) · 422 `NOT_A_SCENARIO` → 「이 주제로는 상황 초안을 만들기 어려워요. 아래에 상황을 한 줄로 적어 다시 만들어 보세요.」 + 4번 입력 펼침 · 429·409 → §16-7. **어떤 실패도 주제 저장을 막지 않는다**(저장 버튼 「주제만 저장」).
   8. 주제 이름을 상황 초안 도착 뒤에 고쳐도 이미 받은 상황 초안 글은 바뀌지 않는다(저장 때 장소 연결은 새 주제 id 로 맞음) — 안내하지 않는다(P2, §16-9).
 - **S5 상황 초안 고치기**: 카드 [고치기] → `?step=sc0|sc1` 를 `router.push(…, { scroll: false })` 로 붙여 같은 경로의 단계(안드로이드 뒤로 = S4 복귀). BackBar 「주제 초안」 + `DraftEditor` 그대로, 장소 칸만 `placesFixed={{ title: 주제 이름 }}` → 칩 대신 정적 글 「장소 · {이름} (저장할 때 이 주제에 이어져요)」. [완료] 는 S4 카드 값만 바꾼다(서버 0). 돌아오면 **S4 의 들어가기 전 `main.scrollTop` 을 되살리고 그 카드의 [고치기]에 초점**(R5 의도된 이동).
+- **상황 만드는 중 표시(구현이 확정)**: 상황 초안을 만드는 동안(자동 요청·[하나 더]) 카드 영역에 같은 높이(132px) 자리 카드 `role=status` 가 서고, 저장 줄 위 한 줄은 `saveOrder` 를 유지한다(`saveNoteActive`) — 이때 「저장할 상황이 없어요.」는 보이지 않는다. 체크 `aria-label` 은 「{n}번째 상황 {제목} 이 상황도 저장」(보이는 글은 그대로).
 - **저장(순서·부분 실패 — 한 트랜잭션 아님을 정직하게)**
   1. 저장 전 화면 검사: 주제 칸·표현(`TOPIC_SAVE_LIMITS`) + **체크한 상황 카드마다 `validateDraft`**(첫마디 맞추지 않음 포함). 문제가 있으면 저장 버튼 위 「고칠 곳이 n군데 있어요」 + 첫 문제로 이동(R5) — 상황 카드 문제는 그 카드의 「고칠 곳 n군데」 줄에 초점. **검사로 막을 수 있는 실패는 서버에 보내기 전에 막는다**(부분 실패를 줄이려고).
   2. 저장 버튼 글자: 체크 k>0 → 「주제와 상황 k개 저장」, 아니면 「주제만 저장」. 버튼 아래 한 줄 「주제를 먼저 저장하고, 고른 상황을 하나씩 저장해요.」
@@ -8440,6 +8442,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
   6. 전부 성공 → `router.replace('/settings/scenarios/topics/<id>')`(S6) + 토스트 「「{이름}」 주제를 저장했어요 · 상황 k개도 저장했어요」 + sessionStorage 초안 삭제.
   7. **일부 실패 → `partial`**: 화면 맨 위 상태 상자(`role=alert`, 초점) 「주제는 저장했어요」 + 「상황 m개는 저장하지 못했어요. 주제와 상황은 따로 저장돼요.」 + 실패한 상황 제목과 이유 한 줄씩(§16-7 `SCENARIO_SAVE`) → [상황 다시 저장](실패한 것만 #163 재시도) · [주제 보기로](남은 초안이 있으면 확인 시트 「저장하지 못한 상황 초안 m개는 사라져요」). 주제 정보·표현 칸은 읽기 전용으로 바꾸고 「주제는 저장됐어요. 주제를 고치려면 주제 보기에서 고쳐요.」. 실패 이유가 `SCENARIO_LIMIT`(50)·`DAILY_LIMIT`(하루 30)이면 [상황 다시 저장]을 `aria-disabled` + 이유. 400 칸 문제면 그 카드 [고치기]로 안내.
 - 나가기: BackBar ← 에서 고친 내용이 있으면 나가기 시트(데모 `leave`), [버리기]는 확인 시트(`discard`), [다시 만들기]는 아래로 열리는 인라인 확인(R3, 위로 0px).
+- **저장 중 ←(구현이 확정)**: S4 와 S7 모두 저장 중에는 ← 가 `aria-disabled`(`BackBar backDisabled`)이고 누름은 무시된다(나가기 시트도 안 열린다). 안드로이드 하드웨어 뒤로는 막지 않는다(§16-0 #7). REV-164 L-1·REV-166 L-D.
 
 #### S6 주제 보기 — `/settings/scenarios/topics/[id]`
 - 데이터(`useTopicDetail`): #56 `level=all` 에서 `id` 찾기 · #179 `kind=TOPIC` · #155 ACTIVE · #161 `?topicId=<id>&limit=100`. #56 에 없으면 「이 주제를 찾을 수 없어요 · 지워졌거나 내 목록에서 숨긴 주제예요.」 + [내 상황·주제로](숨긴 시드를 id 로 직접 연 경우 포함).
@@ -8474,6 +8477,8 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 - **성공**: 결과 숫자는 **응답 값**(`TopicRemovalResult`)으로 만든다(미리보기 아님 — `ack` 는 진행 중 챌린지만 덮어 상황 수가 바뀌어도 409 가 안 난다, 알려진 한계). `delete`·`copyDelete`·`hide` → S2 `replace` + flash 토스트 · `restore` → **시드 id 의 S6** 로 `replace` + 「「{이름}」 주제를 기본으로 되돌렸어요」.
 - **실패**: §16-7 `TOPIC_REMOVAL`. 한 트랜잭션이라 「아무것도 지워지지 않았어요」가 참이다([확실] — `topic-scenario-manager.md` §4).
 
+- 시트 접근성(구현이 확정, REV-161): 확인 시트는 `Sheet describedBy` 로 본문(`descId`)을 대화상자 설명에 연결해, 열리면 제목과 함께 무엇이 바뀌는지 읽힌다.
+
 #### 숨긴 기본 항목 — `HiddenSeedSheet`(S2 맨 아래 행)
 - 목록 = #179 의 `state:'HIDDEN'` 또는 `orphan:true` 항목(탭의 종류로 거름). 줄 = 종류 뱃지(「주제」/「상황」) + `seedTitle`(null 이면 「이름을 알 수 없는 기본 항목」) + [다시 보기].
 - [다시 보기] = #176 `{kind, seedId}`(ack 없음 — `HIDDEN`·`ORPHAN` 경로는 override 만 지움 [확실]) → 그 줄만 「다시 보이게 했어요」로 바뀌고(R1, 시트 스크롤 0px) 닫으면 S2 `silent` 다시 읽기. 404 `NOT_OVERRIDDEN` → 이미 돌아온 것으로 보고 같은 처리.
@@ -8503,6 +8508,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 - **학습자 글 오수용 대비(QA b1 #1 — 코드가 막지 못함)**: `matched` 상자 일본어 아래에 늘 「선생님({tutor} 역할)이 먼저 건네는 말이 맞는지 확인해 주세요. 내가 할 말이면 첫마디가 아니라 대화 순서에 적어요.」(13px `ink2`). 체크 상자·확인 시트는 두지 않는다(매번 저장을 막는 마찰 대비 효과가 낮다 [가능성 높음]). 근본 수정은 PE(L-6).
 - 저장 막힘: 저장 버튼 위 「고칠 곳이 1군데 있어요 · 선생님 첫마디」 + 칸 `aria-invalid` + `bad` 테두리 + 「저장하려면 일본어 첫마디를 다시 만들어 주세요.」(`stale`)/「저장하려면 [일본어로 만들기]를 눌러 주세요.」(`koOnly`) + 그 버튼 초점(R5). 한국어를 원래 글로 되돌리면 다시 `matched`.
 - 생성 중 한국어 칸 readOnly, [그만두기] = abort(서버는 계속 — 곧바로 다시 누르면 409, §16-7). 결과가 와도 그 칸 안만 바뀌고 초점은 누른 버튼(R6).
+- **취소 잠금(구현이 확정, REV-160 M-3)**: 시작 뒤 800ms(`OPENING_CANCEL_LOCK_MS`) 동안 [그만두기]가 듣지 않는다(같은 버튼 더블 탭). 벽시계 30초(`OPENING_TIMEOUT_MS`).
 - **기존 편집기 변경 범위**: `DraftEditor.tsx:186` 의 「첫마디가 있을 때만 일본어 칸 + 뜻 칸」 → 늘 보이는 `OpeningField`. 회화 탭의 새 상황(#166)·고치기 화면도 함께 바뀐다(Leader 결정 ①, 승인된 material 변화).
 
 #### A 변형 상황 만들기 — `/study/ai/scenario/[id]/variant[?from=manage]`
@@ -8511,6 +8517,8 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 - 「직접 적기(선택)」 `textarea` ≤100(`SCENARIO_VARIANT_NOTE_MAX`) — 저장 값에 들어가지 않는다는 안내는 두지 않는다(학습자에게 의미 없는 내부 사실).
 - [변형 초안 만들기]: 축이 전부 `same`/`none` 이면 `aria-disabled` + 이유 「바꿀 점을 하나 이상 골라 주세요.」(`SCENARIO_VARIANT_NO_CHANGE_MESSAGE` 와 같은 글 — 서버 422 `NO_VARIATION` 은 한도를 쓰지 않지만 화면이 먼저 막는다). note 만 적고 축을 안 고른 경우도 같다(서버 `no_change`).
 - 요청 **#177** `{axes, note?}` → 만드는 중 `role=status` 「선생님이 변형 상황 초안을 만들고 있어요 · 보통 10~20초 걸려요.」(QA b2 p95 21.4s — 20초 넘으면 「조금 더 걸리고 있어요」) + [그만두기].
+- **만드는 중(구현이 확정)**: 표시(`role=status`)는 [변형 초안 만들기] **바로 위**에 서고(데모는 맨 위 카드 — **코드 우선**, 누른 버튼에 초점이 남는다 R6), 같은 버튼이 [그만두기]가 된다. 「조금 더 걸리고 있어요」 20초(`VARIANT_LONG_MS`)·벽시계 60초(`VARIANT_TIMEOUT_MS` — 넘으면 일반 실패 + [다시 만들기])·시작 뒤 800ms(`VARIANT_CANCEL_LOCK_MS` = `OPENING_CANCEL_LOCK_MS`) 동안 [그만두기]가 듣지 않는다. ← 는 초안이 있는 검토 단계에서만 버리기 확인을 연다.
+- **검토 안내 문단(데모 v2 `:957` 복원, REV-165 M-2)**: `바꾼 것 · {고른 축 글자들}. 「바뀜」 칸을 확인하고 [새 상황으로 저장]해야 생겨요. 원본은 그대로예요.` — 축 글자는 칩 글자(`axisOptions`, 수준은 「한 단계 위(N4)」)를 성격·돌발·흐름·수준 순서로, 기준이 N1 이면 `up` 은 적지 않는다(서버가 `same` 으로 접는다). 직접 적은 글은 싣지 않는다 — 축 없이 직접 적기만으로는 요청이 나가지 않으므로(데모도 같다) 「바꾼 것 · 직접 적은 내용」 은 없다. 함수 `variantReviewBody`(`variantLogic.ts`).
 - 검토: `DraftEditor` + **`changed={changedFields}`** → 해당 칸 라벨 옆 「바뀜」 글자 꼬리표(색만 쓰지 않음, 화면 읽기용 「원본에서 바뀌었어요」). 칸 대응: `title` 제목 · `roles` 역할 · `goal` 목표 · `successCriteria` 성공 조건 · `steps` 대화 순서 · `keyExpressions` 핵심 표현 · `opening` 선생님 첫마디 · `level` 수준. `changedFields` 에 없는 칸은 표시하지 않는다(설명은 늘 원본 그대로 — 표시 없음).
 - [새 상황으로 저장] = **#163**(응답 `draft` 그대로 + 고친 값, `topicIds` 는 응답 값) → 그 상황 시트 `saved`. 저장 줄 위 「새 상황은 내 상황 50개·하루 만들기 30번에 들어가요.」
 - 비서비스 기준(자기소개·길 묻기·여행·주말)의 `unavailable`·`trouble` 칩도 **막지 않는다**(REV-153 L-5 → designer 결정: QA b2 에서 비서비스 기준 19/19 장소·목적 유지, 부분 반영 3/32 는 품질 문제이고 검토 화면이 거른다).
@@ -8518,6 +8526,7 @@ NextReviewCard            ← "다음 시간엔"·[다음 수업 만들기]·[�
 #### 챌린지 기록 (주제가 지워진 완료 챌린지)
 - `ChallengeScreen.tsx:314` 「같은 주제로 한 번 더」(`?again=`)는 **`d.topic.exists === false` 이면 숨기고** `nextBody` 대신 「다음 주제로 넘어가 보세요.」. 제목·결과는 스냅샷 그대로, 「삭제됨」 표기 없음.
 - `ChallengeCreateScreen.tsx:89` `!d.topic.id` 일 때 토스트를 `againFail`(「지난 챌린지를 불러오지 못해…」) 대신 「그 주제는 이제 내 목록에 없어요. 주제를 다시 골라 주세요.」(계획표 카드 `ChallengePlanCard.tsx:104` 는 주제 정보가 없어 버튼을 그대로 두고 이 문구로 받는다).
+- 다른 챌린지가 진행 중이면(`retry.kind==='blocked'`) 아래 상자 글은 `blockedNoteText(retry, topicGone)`(`challenge/logic.ts`) 가 고른다 — 주제가 있으면 「지금은 「{t}」({n}일째)를 하고 있어요. 진행 중인 챌린지가 끝나면 다시 도전할 수 있어요.」, **지워졌으면 앞 문장만**(위 줄 「다음 주제로 넘어가 보세요.」와 어긋나지 않게). [다른 주제로] 버튼은 blocked 에 없고 [진행 중 챌린지 보기 ›] 링크만 있다.
 - `COPY.removed`(`ChallengeScreen.tsx:271`)는 **손대지 않는다** — `endReason === 'TOPIC_REMOVED'`(ENDED) 에서만 나오고, 새 삭제 경로는 기간 지난 챌린지를 먼저 완료로 바꾸고(settle) 진행 중 챌린지 행은 지우므로 새로 생기지 않는다 [가능성 높음 — T3-1 결정·`settle.ts:6`]. 완료(COMPLETED) 챌린지에는 나오지 않는다.
 
 ### 16-3. API 호출 계획 (화면 → 엔드포인트)
@@ -8656,6 +8665,15 @@ Leader 지시는 「topicCopy.ts 에 전부」였으나 **공유 편집기·시�
 | `TOAST.removed(t, s, ch)` | 「{t}」 주제를 지웠어요 (+ ` · 상황 {s}개도 함께 지웠어요` s>0) (+ ` · 진행 중인 챌린지도 지웠어요` ch) |
 | `TOAST.hidden(t)` · `copyRemoved(t)` · `restored(t)` | 「{t}」 주제를 숨겼어요 · 「{t}」 내 버전을 지웠어요 · 기본 주제는 숨긴 기본 항목에 있어요 · 「{t}」 주제를 기본으로 되돌렸어요 |
 | `TOAST.created(t, k)` · `saved` · `copySaved` | 「{t}」 주제를 저장했어요 (+ ` · 상황 {k}개도 저장했어요`) · 저장했어요 · 내 버전으로 저장했어요 |
+| `SCDRAFT.nth(n)` | {n}번째 상황 — 상황 카드 체크 `aria-label` 맨 앞에 붙는 순번(`scenarioKeepName(n, title)` = 「{n}번째 상황 {제목} 이 상황도 저장」). 화면에 보이지 않는다. **데모에 없는 추가**(REV-166 L-C — 제목이 같은 두 초안도 이름이 달라지게) |
+| `REVIEW.fType` | 종류 — 표현 고치기 펼침의 종류 칸 이름표. 이 가이드 S4 에 값이 없어 코드가 정했다. **코드 우선** |
+| `REVIEW.saveIdle` | 저장할 상황이 없어요. — 저장 줄 위 한 줄. `saveOrder` 와 같은 칸에 겹쳐 그려 줄 높이가 바뀌지 않는다. 고른 상황이 있거나 상황 초안을 만드는 중이면 `saveOrder`, 둘 다 아닐 때만 이 글(`saveNoteActive(k, scBusy)`). **데모에 없는 추가**(REV-164 L-4·REV-166 L-E) |
+| `PARTIAL.unsure` | 응답을 받지 못한 상황은 이미 저장됐을 수 있어요. 다시 저장하면 같은 상황이 두 개 생길 수 있어요. — `partial` 상자에서 남은 상황 중 **응답 없음(네트워크)** 으로 실패한 것이 있을 때만(서버가 거절한 오류·새로 고침 뒤에는 보이지 않는다). **데모에 없는 추가**(REV-164 M-1) |
+| `EDIT.leaveBody` | 나가면 고친 내용은 저장되지 않아요. — S7 나가기 시트 본문(주제 만들기와 달리 이 탭에 남지 않는다). 제목·버튼은 `REVIEW.leaveTitle`·`leave`·`stay`. **코드 우선**(REV-163) |
+| `EDIT.textChanged` | 일본어 글을 바꾸면 이 표현의 연습 기록이 처음부터 다시 시작돼요. — 행 고치기에서 일본어 글이 원래 글과 달라졌을 때만(서버가 새 행으로 만든다). **데모에 없는 추가**(REV-163 M-3) |
+| `REMOVAL.checking` | 확인하는 중… — #172 확인이 끝나기 전 실행 버튼 글자. **코드 우선** |
+| `MANAGE.tabsAria` · `filterAria` · `filterAll(n)` · `filterMine(n)` · `filterSeed(n)` | 관리 대상 · 상황 보기 범위 · 전체 {n} · 내가 만든 {n} · 기본 {n} — 화면에 보이지 않는 읽어 주는 이름(같은 화면의 두 `radiogroup` 이름이 달라야 한다). **코드 우선** |
+| `HIDDEN.showAria(t)` | 「{t}」 다시 보기 — 숨긴 항목 행 [다시 보기] 의 읽어 주는 이름. **코드 우선** |
 
 **scenarioCopy.ts 추가**(공유 편집기·시트·A)
 | 키 | 문구 |
@@ -8677,10 +8695,14 @@ Leader 지시는 「topicCopy.ts 에 전부」였으나 **공유 편집기·시�
 | `VARIANT.levelSame(l)` · `levelUp(l)` · `levelTop` | 그대로({l}) · 한 단계 위({l}) · 이미 가장 높은 수준이라 올릴 수 없어요. |
 | `VARIANT.note` · `notePlaceholder` · `submit` | 직접 적기(선택) · 예: 상대가 처음에 내 말을 못 알아들어요 · 변형 초안 만들기 |
 | `VARIANT.gen` · `genSub` · `genLong` · `cancel` | 선생님이 변형 상황 초안을 만들고 있어요 · 보통 10~20초 걸려요. · 조금 더 걸리고 있어요. 그만두고 다시 만들어도 돼요. · 그만두기 |
-| `VARIANT.reviewTitle` · `reviewBody` · `changed` · `changedSr` | 변형 초안이 왔어요 · 「바뀜」 표시는 원본과 달라진 칸이에요. 고친 뒤 저장해야 새 상황이 돼요. · 바뀜 · 원본에서 바뀌었어요 |
+| `VARIANT.reviewTitle` · `reviewChanged(labels)` · `reviewBody` · `changed` · `changedSr` | 변형 초안이 왔어요 · 바꾼 것 · {labels}. · 「바뀜」 칸을 확인하고 [새 상황으로 저장]해야 생겨요. 원본은 그대로예요. · 바뀜 · 원본에서 바뀌었어요 (**데모 v2 `:957` 복원**, REV-165 M-2 — 검토 안내 한 문단 = `reviewChanged` + 공백 + `reviewBody`, `{labels}` = 실제 바뀐 축의 칩 글자를 ` · ` 로 이음. 안내 **제목**은 데모의 「「{원본}」를 바꾼 초안이에요」 대신 `reviewTitle` 을 둔다 — 조사(를/을) 처리가 필요해 **코드 우선**) |
 | `VARIANT.save` · `saveNote` · `baseGone` · `unfit` | 새 상황으로 저장 · 새 상황은 내 상황 50개·하루 만들기 30번에 들어가요. · 원본 상황을 찾을 수 없어요. 지웠거나 내 목록에서 숨긴 상황이에요. · 이 내용으로는 변형 상황을 만들기 어려워요. 바꿀 점을 다르게 적어 주세요. |
+| `VARIANT.baseMeta(l,t,lv)` · `noteCount(n)` · `noteTooLong` · `noChange` | 나 {l} · 선생님 {t} · {lv} · {n}/100 · 직접 적기는 100자까지 쓸 수 있어요. · 바꿀 점을 하나 이상 골라 주세요.(`SCENARIO_VARIANT_NO_CHANGE_MESSAGE` 와 같은 글) — 원본 요약 줄·직접 적기 카운터·막힘 이유. **코드 우선** |
+| `VARIANT.busy` · `rate(s)` · `fail` | 다른 화면에서 변형 초안을 만드는 중이에요. 끝난 뒤 다시 눌러 주세요. · 변형 초안은 1분에 6번까지 만들 수 있어요. {s}초 뒤 다시 눌러 주세요. · 잠시 문제가 생겼어요. 다시 만들어 볼까요? (§16-7 변형 #177 표와 같은 글) |
+| `CHECK.forbidden` · `secretLike` | §16-7 칸 문구 표의 `forbidden_char`·`secret_like` 와 같은 글(공유 편집기용 사본 — 앱 코드는 scenario → topic import 금지라 두 벌, `common/__tests__/copySync.test.ts` 가 맞춘다). **코드 우선** |
+| `CHECK.unusableIn(k)` | {칸 이름}에 쓸 수 없는 글이 있어요. 그 칸을 고친 뒤 다시 만들어 주세요. — 첫마디 제안 #178 이 상황 정보 칸(제목·목표·역할 …)을 거절했을 때 어느 칸인지 말한다. **데모에 없는 추가** |
 
-**challengeCopy.ts 추가**: `CREATE.againTopicGone` 그 주제는 이제 내 목록에 없어요. 주제를 다시 골라 주세요. · `COPY.nextBodyNoTopic` 다음 주제로 넘어가 보세요.
+**challengeCopy.ts 추가**: `CREATE.againTopicGone` 그 주제는 이제 내 목록에 없어요. 주제를 다시 골라 주세요. · `COPY.nextBodyNoTopic` 다음 주제로 넘어가 보세요. · `COPY.blockedNow(t,d)` 지금은 「{t}」({내일 시작|{d}일째})를 하고 있어요. · `COPY.blockedAgain` 진행 중인 챌린지가 끝나면 다시 도전할 수 있어요. (다른 챌린지가 진행 중일 때 결과 화면 상자 = `blockedNow` + 공백 + `blockedAgain`. **주제가 지워졌으면 `blockedAgain` 을 붙이지 않는다** — 같은 주제 [다시 도전]이 없어 약속이 모순이라서, REV-165 M-1. **코드 우선**)
 
 
 ### 16-7. 서버 응답 → 화면 문구 규칙 (`src/components/topic/failure.ts` — 단위 시험)
@@ -8696,8 +8718,8 @@ Leader 지시는 「topicCopy.ts 에 전부」였으나 **공유 편집기·시�
 |---|---|
 | `required` · `no_text` | {이름표+을/를} 적어 주세요. (예: 「주제 이름을 적어 주세요.」 「뜻을 적어 주세요.」 「읽기를 적어 주세요.」 — 칸별 문자열을 표로 고정) |
 | `max_length` | {이름표+은/는} {상한}자까지 쓸 수 있어요. (상한은 `TOPIC_SAVE_LIMITS`·`SCENARIO_LIMITS` 상수) |
-| `forbidden_char` | 꺾쇠(< >)는 쓸 수 없어요. 지우고 다시 적어 주세요. |
-| `secret_like` | 주소(URL)나 비밀번호·카드 번호처럼 보이는 글은 쓸 수 없어요. [가능성 높음 — URL·카드번호 모양이 이 reason 으로 묶임, developer 가 `detectUnsafeUserTopicText` 의 reason 확인] |
+| `forbidden_char` | 꺾쇠(< >)·링크 주소·눈에 보이지 않는 글자는 쓸 수 없어요. (서버가 꺾쇠·URL·숨은 글자를 모두 이 reason 으로 묶는다 — **코드 우선**, `topicCopy.ts` `FAIL.field.forbiddenChar`·`scenarioCopy.ts` `CHECK.forbidden`) |
+| `secret_like` | 비밀번호·카드 번호·긴 영문 숫자 키처럼 보이는 글은 쓸 수 없어요. (저장 경로는 카드 번호 모양 숫자열, 초안 경로 #170·#166·#178 은 긴 영문·숫자 토큰도 이 reason — **코드 우선**, `FAIL.field.secretLike`·`CHECK.secretLike`) |
 | `not_japanese` · `chars` | 일본어로 적어 주세요. · 쓸 수 없는 글자가 있어요. |
 | `reading` | 읽기는 히라가나·가타카나로만 적어 주세요. |
 | `duplicate` | 같은 표현이 이미 있어요. |

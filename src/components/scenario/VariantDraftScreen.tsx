@@ -19,6 +19,7 @@ import DraftEditor from './DraftEditor'
 import { oneLine, problemDomId, problemMap } from './logic'
 import { DRAFT, VARIANT, type DraftFrom } from './scenarioCopy'
 import { useVariantDraft, type VariantScreenModel } from './useVariantDraft'
+import { variantReviewBody } from './variantLogic'
 import VariantAxes from './VariantAxes'
 
 export default function VariantDraftScreen({ id, from = null }: { id: string; from?: DraftFrom }) {
@@ -192,7 +193,7 @@ function Review({ m, onDiscard }: { m: VariantScreenModel; onDiscard: () => void
         <h2 ref={headRef} tabIndex={-1} className="text-[14px] font-semibold outline-none">
           {VARIANT.reviewTitle}
         </h2>
-        <p className="mt-1 text-[13px] text-ink break-keep">{VARIANT.reviewBody}</p>
+        <p className="mt-1 text-[13px] text-ink break-keep">{m.base ? variantReviewBody(m.axes, m.base.level) : VARIANT.reviewBody}</p>
       </div>
       <DraftEditor draft={m.draft!} setDraft={m.setDraft} errors={errors} places={m.places} placesFailed={m.placesFailed} disabled={busy} changed={m.result!.changed} />
       <div className="flex min-w-0 flex-col gap-2">

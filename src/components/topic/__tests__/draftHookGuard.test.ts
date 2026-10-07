@@ -195,7 +195,8 @@ test('REV-164 L-1 저장 중에는 ← 가 막힌다 — 화면이 onBack 에서
 test('REV-164 L-3 상황 카드 체크는 상황 제목이 든 접근성 이름을 가진다 · 보이는 label 글은 그대로', () => {
   const cards = read(TOPIC_DIR, 'ScenarioDraftCards.tsx')
   const input = between(cards, '<input\n', '/>')
-  assert.match(input, /id=\{ck\}[\s\S]*type="checkbox"[\s\S]*aria-label=\{scenarioKeepName\(title\)\}/, '체크 이름 = 제목 + 「이 상황도 저장」')
+  assert.match(input, /id=\{ck\}[\s\S]*type="checkbox"[\s\S]*aria-label=\{scenarioKeepName\(index, title\)\}/, '체크 이름 = 순번 + 제목 + 「이 상황도 저장」')
+  assert.match(cards, /slots\.map\(\(s, i\) => \(\s*<ScenarioCard key=\{s\.key\} index=\{i \+ 1\}/, '카드 순번은 목록 위치(1부터)')
   assert.match(cards, /<label htmlFor=\{ck\}[^>]*>[\s\S]*<span className="break-keep">\{SCDRAFT\.keep\}<\/span>/, '보이는 글은 그대로')
 })
 
@@ -204,6 +205,14 @@ test('REV-164 L-4 저장 안내 줄은 고른 상황이 없어도 사라지지 �
   assert.match(review, /saveNote\?: \{ on: string; off: string; active: boolean \} \| null/)
   assert.match(review, /<p className="grid [^"]*\[&>\*\]:col-start-1 \[&>\*\]:row-start-1">\s*<span className=\{saveNote\.active \? '' : 'invisible'\}>\{saveNote\.on\}<\/span>\s*<span className=\{saveNote\.active \? 'invisible' : ''\}>\{saveNote\.off\}<\/span>/)
   const screen = read(TOPIC_DIR, 'TopicCreateScreen.tsx')
-  assert.match(screen, /saveNote=\{\{ on: REVIEW\.saveOrder, off: REVIEW\.saveIdle, active: k > 0 \}\}/, 'k=0 이어도 null 로 줄을 없애지 않는다')
+  assert.match(screen, /saveNote=\{\{ on: REVIEW\.saveOrder, off: REVIEW\.saveIdle, active: saveNoteActive\(k, m\.scFlight\.busy\) \}\}/, 'k=0 이어도 null 로 줄을 없애지 않고, 만드는 중에는 on')
   assert.ok(!/saveNote=\{k > 0/.test(screen))
+})
+
+test('REV-166 L-D S7 주제 고치기도 저장 중 ← 를 막는다 — BackBar backDisabled + onBack 즉시 반환', () => {
+  const screen = read(TOPIC_DIR, 'TopicEditScreen.tsx')
+  assert.match(screen, /<BackBar[^>]*onBack=\{m\.status === 'ready' \? onBack : undefined\}[^>]*backDisabled=\{m\.saving\}/, '저장 중 ← 비활성')
+  const onBack = between(screen, 'const onBack = () => {', 'const seed =')
+  assert.match(onBack, /editBackAction\(m\.edited, m\.saving\)/)
+  assert.match(onBack, /if \(act === 'ignore'\) return/, '저장 중이면 아무것도 하지 않는다(시트도 이동도 없음)')
 })

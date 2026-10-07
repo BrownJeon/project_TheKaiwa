@@ -107,6 +107,9 @@ export const COPY = {
   nextBodyNoTopic: '다음 주제로 넘어가 보세요.',
   otherTopicShort: '다른 주제로',
   seeActive: '진행 중 챌린지 보기 ›',
+  /** 다른 챌린지가 진행 중일 때 결과 화면 상자(REV-165 M-1) — 주제가 지워졌으면 같은 주제 [다시 도전]이 없어 `blockedAgain` 은 붙이지 않는다. */
+  blockedNow: (title: string, dayIndex: number) => `지금은 「${title}」(${dayIndex === 0 ? '내일 시작' : `${dayIndex}일째`})를 하고 있어요.`,
+  blockedAgain: '진행 중인 챌린지가 끝나면 다시 도전할 수 있어요.',
   doneTitle: '해낸 것',
   prestopEmpty: '시작하기 전에 그만둬서 기록이 없어요.',
   // 기록

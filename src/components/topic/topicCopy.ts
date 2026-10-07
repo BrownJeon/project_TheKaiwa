@@ -155,6 +155,8 @@ export const SCDRAFT = {
   genSub: '보통 10~20초 걸려요. 그동안 위 표현을 먼저 고쳐도 돼요.',
   cancel: '그만두기',
   keep: '이 상황도 저장',
+  /** 체크의 읽어 주는 이름 앞에 붙는 순번(REV-166 L-C) — 화면에 보이지 않는다. 제목이 같은 두 초안도 이름이 달라진다. */
+  nth: (n: number) => `${n}번째 상황`,
   opening: (ko: string) => `첫마디 · ${ko}`,
   noOpening: '첫마디 없음',
   edit: '고치기',

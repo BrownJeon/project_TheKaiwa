@@ -80,8 +80,8 @@ export default function ScenarioDraftCards({
       </div>
       <p className="text-[13px] text-ink2 break-keep">{SCDRAFT.intro}</p>
 
-      {slots.map((s) => (
-        <ScenarioCard key={s.key} slot={s} problemCount={problems.get(s.key)?.length ?? 0} disabled={disabled} onToggle={onToggle} onEdit={onEdit} />
+      {slots.map((s, i) => (
+        <ScenarioCard key={s.key} index={i + 1} slot={s} problemCount={problems.get(s.key)?.length ?? 0} disabled={disabled} onToggle={onToggle} onEdit={onEdit} />
       ))}
 
       {busy ? (
@@ -166,12 +166,15 @@ export default function ScenarioDraftCards({
 }
 
 function ScenarioCard({
+  index,
   slot,
   problemCount,
   disabled,
   onToggle,
   onEdit,
 }: {
+  /** 카드 순번(1부터) — 체크 이름용. */
+  index: number
   slot: ScenarioSlot
   problemCount: number
   disabled: boolean
@@ -211,7 +214,7 @@ function ScenarioCard({
             id={ck}
             type="checkbox"
             className="h-5 w-5 shrink-0"
-            aria-label={scenarioKeepName(title)}
+            aria-label={scenarioKeepName(index, title)}
             checked={slot.keep}
             disabled={disabled}
             onChange={(e) => onToggle(slot.key, e.target.checked)}

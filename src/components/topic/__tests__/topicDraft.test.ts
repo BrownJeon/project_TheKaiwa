@@ -54,6 +54,8 @@ import {
   partialView,
   regenChunks,
   scenarioKeepName,
+  saveNoteActive,
+  editBackAction,
   runTopicCreateSave,
   scenarioDraftBody,
   scenarioMoreProblem,
@@ -904,14 +906,32 @@ test('REV-164 M-1 partial: 응답을 받지 못한(네트워크) 상황이 남�
   assert.ok(!/claude|whisper|reazon|style-?bert|\bAI\b|세요/i.test(PARTIAL.unsure))
 })
 
-test('REV-164 L-3 상황 카드 체크의 접근성 이름: 카드마다 다르고(제목이 앞) 보이는 글 「이 상황도 저장」 을 그대로 품는다', () => {
-  const a = scenarioKeepName('창구에서 계좌 만들기')
-  const b = scenarioKeepName('앱으로 계좌 만들기')
+test('REV-164 L-3 · REV-166 L-C 상황 카드 체크의 접근성 이름: 순번이 앞, 제목이 가운데, 보이는 글 「이 상황도 저장」 이 끝', () => {
+  const a = scenarioKeepName(1, '창구에서 계좌 만들기')
+  const b = scenarioKeepName(2, '앱으로 계좌 만들기')
   assert.notEqual(a, b)
-  assert.equal(a, `창구에서 계좌 만들기 ${SCDRAFT.keep}`)
-  for (const n of [a, b]) assert.ok(n.includes(SCDRAFT.keep), '보이는 글자를 품어야 음성 조작이 된다')
-  assert.equal(scenarioKeepName(' 창구\n계좌 '), `창구 계좌 ${SCDRAFT.keep}`, '한 줄로 접는다')
-  assert.equal(scenarioKeepName('  '), SCDRAFT.keep, '제목이 비어도 이름이 비지 않는다')
+  assert.equal(a, `1번째 상황 창구에서 계좌 만들기 ${SCDRAFT.keep}`)
+  for (const n of [a, b]) assert.ok(n.endsWith(SCDRAFT.keep), '보이는 글자를 품어야 음성 조작이 된다')
+  // 제목이 같아도 카드마다 이름이 다르다(L-C)
+  assert.notEqual(scenarioKeepName(1, '창구에서 계좌 만들기'), scenarioKeepName(2, '창구에서 계좌 만들기'))
+  assert.equal(scenarioKeepName(2, ' 창구\n계좌 '), `2번째 상황 창구 계좌 ${SCDRAFT.keep}`, '한 줄로 접는다')
+  assert.equal(scenarioKeepName(1, '  '), `1번째 상황 ${SCDRAFT.keep}`, '제목이 비어도 이름이 비지 않고 순번은 남는다')
+  assert.equal(SCDRAFT.nth(3), '3번째 상황')
+  assert.ok(!/claude|whisper|reazon|style-?bert|\bAI\b|세요/i.test(SCDRAFT.nth(1)))
+})
+
+test('REV-166 L-E 저장 줄 위 한 줄: 고른 상황이 있거나 상황 초안을 만드는 중이면 「주제를 먼저 저장하고…」, 둘 다 아닐 때만 「저장할 상황이 없어요」', () => {
+  assert.equal(saveNoteActive(0, false), false, '만드는 중도 아니고 고른 것도 없다')
+  assert.equal(saveNoteActive(0, true), true, '자동 요청·[하나 더] 진행 중에는 아직 카드가 없어도 「없어요」 라고 하지 않는다')
+  assert.equal(saveNoteActive(1, false), true)
+  assert.equal(saveNoteActive(2, true), true)
+})
+
+test('REV-166 L-D S7 ← 의 동작: 저장 중이면 무시, 고친 내용이 있으면 확인, 아니면 나간다', () => {
+  assert.equal(editBackAction(true, true), 'ignore')
+  assert.equal(editBackAction(false, true), 'ignore', '저장 중에는 고친 내용이 없어도 나가지 않는다')
+  assert.equal(editBackAction(true, false), 'ask')
+  assert.equal(editBackAction(false, false), 'leave')
 })
 
 test('REV-164 L-4 문구: 고른 상황이 없을 때 쓰는 한 줄은 해요체이고 엔진명·「AI」·「세요」 가 없다', () => {

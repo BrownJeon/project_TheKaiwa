@@ -21,7 +21,7 @@ import type {
   DayChallenge,
 } from '@/types/challenge'
 import type { Topic } from '@/types/lesson'
-import { DAY_VIEW, STATE_ORDER, TODAY_HREF } from './challengeCopy'
+import { COPY, DAY_VIEW, STATE_ORDER, TODAY_HREF } from './challengeCopy'
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
 
@@ -643,6 +643,12 @@ export function isTopicGone(topic: Pick<ChallengeDetail['topic'], 'id' | 'exists
 export function resultNextView(topic: Pick<ChallengeDetail['topic'], 'id' | 'exists'>, retry: RetryGate): { topicGone: boolean; showRetry: boolean } {
   const topicGone = isTopicGone(topic)
   return { topicGone, showRetry: retry.kind === 'show' && !topicGone }
+}
+
+/** 다른 챌린지가 진행 중일 때 결과 화면 상자 글 — 주제가 지워졌으면 같은 주제로 다시 도전할 길이 없으므로 「다시 도전할 수 있어요」를 약속하지 않는다(REV-165 M-1). */
+export function blockedNoteText(retry: Extract<RetryGate, { kind: 'blocked' }>, topicGone: boolean): string {
+  const now = COPY.blockedNow(retry.title, retry.dayIndex)
+  return topicGone ? now : `${now} ${COPY.blockedAgain}`
 }
 
 // ── S3 만들기 ──────────────────────────────────────────────────────────────────

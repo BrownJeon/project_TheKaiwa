@@ -15,12 +15,14 @@ import {
   VARIANT_LONG_MS,
   VARIANT_TIMEOUT_MS,
   axisOptions,
+  changedAxisLabels,
   createVariantFlight,
   hasVariation,
   pickAxis,
   submitBlock,
   variantRequestBody,
   variantResult,
+  variantReviewBody,
   variantSaveBody,
   type VariantFlightState,
 } from '../variantLogic'
@@ -394,4 +396,42 @@ test('계획표 카드 [다시 하기] → 주제가 지워졌으면 새 문구�
   const screen = stripComments(readFileSync(join(dir, '..', 'challenge', 'ChallengeScreen.tsx'), 'utf8'))
   assert.match(screen, /next\.showRetry \?/)
   assert.match(screen, /next\.topicGone \? COPY\.nextBodyNoTopic : COPY\.nextBody/)
+})
+
+/* ── 검토 안내: 「바꾼 것 · …」 + 「원본은 그대로예요」 (REV-165 M-2 — 승인 데모 v2 `:957` 복원) ── */
+
+test('검토 안내는 데모 v2 글자 그대로 — 「바꾼 것 · 고른 축 글자들. 「바뀜」 칸을 확인하고 [새 상황으로 저장]해야 생겨요. 원본은 그대로예요.」', () => {
+  const axes: ScenarioVariantAxes = { persona: 'kind', twist: 'none', flow: 'suggest', level: 'up' }
+  assert.deepEqual(changedAxisLabels(axes, 'N5'), ['친절해요', '상대가 다른 걸 권해요', '한 단계 위(N4)'])
+  assert.equal(variantReviewBody(axes, 'N5'), '바꾼 것 · 친절해요 · 상대가 다른 걸 권해요 · 한 단계 위(N4). 「바뀜」 칸을 확인하고 [새 상황으로 저장]해야 생겨요. 원본은 그대로예요.')
+  // 네 축 모두 — 순서는 성격·돌발·흐름·수준(데모 `picked` 순서), 수준 글자는 기준 수준에서 한 단계 위
+  const all: ScenarioVariantAxes = { persona: 'busy', twist: 'mishear', flow: 'rephrase', level: 'up' }
+  assert.deepEqual(changedAxisLabels(all, 'N3'), ['바빠서 말이 빨라요', '말을 잘못 알아들어요', '내가 한 번 바꿔 말해요', '한 단계 위(N2)'])
+  // 고르지 않은 축(same·none)은 적지 않는다
+  assert.deepEqual(changedAxisLabels({ ...NONE, twist: 'trouble' }, 'N4'), ['문제가 생겨요'])
+})
+
+test('검토 안내의 축 글자는 types/scenarioVariant 정본 칩 글자와 같다(복사 없음) · 기준 N1 의 「한 단계 위」는 바뀐 것으로 적지 않는다', () => {
+  for (const k of ['persona', 'twist', 'flow'] as const) {
+    const labels = SCENARIO_VARIANT_AXIS_LABELS[k].options as Record<string, string>
+    for (const [v, label] of Object.entries(labels)) {
+      if (v === 'same' || v === 'none') continue
+      assert.deepEqual(changedAxisLabels({ ...NONE, [k]: v } as ScenarioVariantAxes, 'N5'), [label], `${k}.${v}`)
+    }
+  }
+  // N1 + 수준만 → 서버가 same 으로 접으므로 적을 것이 없고 안내 뒤쪽만 남는다
+  assert.deepEqual(changedAxisLabels({ ...NONE, level: 'up' }, 'N1'), [])
+  assert.equal(variantReviewBody({ ...NONE, level: 'up' }, 'N1'), VARIANT.reviewBody)
+  assert.equal(variantReviewBody({ ...NONE, persona: 'kind', level: 'up' }, 'N1'), `바꾼 것 · 친절해요. ${VARIANT.reviewBody}`)
+  // 축 없이 직접 적기만으로는 요청이 나가지 않는다(데모와 같다) — 그래서 「바꾼 것 · 직접 적은 내용」 은 만들지 않는다
+  assert.equal(submitBlock(NONE, '친구 몫까지 두 잔 주문해요', 'N5'), 'noChange')
+  assert.ok(!/직접 적은/.test(variantReviewBody({ ...NONE, persona: 'kind' }, 'N5')))
+})
+
+test('검토 안내 문구: 「원본은 그대로예요」 가 있고 해요체이며 엔진명·「AI」·「세요」 가 없다 · 화면이 이 함수를 쓴다', () => {
+  for (const t of [VARIANT.reviewChanged('친절해요'), VARIANT.reviewBody]) assert.ok(!/claude|whisper|reazon|style-?bert|\bAI\b|세요/i.test(t), t)
+  assert.match(VARIANT.reviewBody, /원본은 그대로예요\.$/)
+  assert.equal(VARIANT.reviewChanged('친절해요'), '바꾼 것 · 친절해요.')
+  const screen = code('VariantDraftScreen.tsx')
+  assert.match(screen, /m\.base \? variantReviewBody\(m\.axes, m\.base\.level\) : VARIANT\.reviewBody/)
 })

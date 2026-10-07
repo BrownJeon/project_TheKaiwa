@@ -1530,8 +1530,20 @@ export function partialView(slots: readonly ScenarioSlot[], fails: readonly Scen
   }
 }
 
-/** S4 상황 카드 체크의 접근성 이름(REV-164 L-3) — 카드가 둘이면 「이 상황도 저장」 이 같아 구분되지 않아 상황 제목을 앞에 붙인다(보이는 글은 그대로). */
-export const scenarioKeepName = (title: string): string => `${oneLine(title)} ${SCDRAFT.keep}`.trim()
+/**
+ * S4 상황 카드 체크의 접근성 이름(REV-164 L-3 → REV-166 L-C) — 카드가 둘이면 「이 상황도 저장」 이 같아 구분되지 않아 「{n}번째 상황 {제목}」 을 앞에 붙인다.
+ * 제목이 같아도 순번으로 달라지고, 보이는 글 「이 상황도 저장」 은 이름 끝에 그대로 있다(음성 조작). `n` 은 1부터.
+ */
+export const scenarioKeepName = (n: number, title: string): string => [SCDRAFT.nth(n), oneLine(title), SCDRAFT.keep].filter((p) => p !== '').join(' ')
+
+/**
+ * 저장 줄 위 한 줄이 「주제를 먼저 저장하고…」(on)인지 — 고른 상황이 있거나 상황 초안을 만드는 중이면 on.
+ * 만드는 중에는 아직 카드가 없어 k=0 이지만 「저장할 상황이 없어요」 라고 말하면 틀리다(REV-166 L-E).
+ */
+export const saveNoteActive = (k: number, scBusy: boolean): boolean => k > 0 || scBusy
+
+/** S7 ← 의 동작 — 저장 중에는 누름을 무시(나가면 저장 응답을 놓친다), 고친 내용이 있으면 나가기 확인, 아니면 바로 나간다(REV-166 L-D). */
+export const editBackAction = (edited: boolean, saving: boolean): 'ignore' | 'ask' | 'leave' => (saving ? 'ignore' : edited ? 'ask' : 'leave')
 
 /* ── 이 탭 보관(상황 초안 칸) — 모양이 하나라도 어긋나면 보관 전체를 버린다(`parseTopicStore`) ── */
 

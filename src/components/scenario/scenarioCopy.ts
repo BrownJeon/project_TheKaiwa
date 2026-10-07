@@ -272,7 +272,10 @@ export const VARIANT = {
   genLong: '조금 더 걸리고 있어요. 그만두고 다시 만들어도 돼요.',
   cancel: '그만두기',
   reviewTitle: '변형 초안이 왔어요',
-  reviewBody: '「바뀜」 표시는 원본과 달라진 칸이에요. 고친 뒤 저장해야 새 상황이 돼요.',
+  /** 검토 안내 첫 줄(데모 v2 `:957`) — `{labels}` 는 실제로 바뀐 축의 칩 글자를 ` · ` 로 이은 것(`variantLogic.variantReviewBody`). */
+  reviewChanged: (labels: string) => `바꾼 것 · ${labels}.`,
+  /** 데모 v2 `:957` 둘째·셋째 문장 — 「원본은 그대로예요」는 변형이 새 상황 한 행이라 원본이 바뀌지 않는다는 뜻. */
+  reviewBody: '「바뀜」 칸을 확인하고 [새 상황으로 저장]해야 생겨요. 원본은 그대로예요.',
   changed: '바뀜',
   changedSr: '원본에서 바뀌었어요',
   save: '새 상황으로 저장',

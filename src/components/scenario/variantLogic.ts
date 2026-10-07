@@ -77,6 +77,23 @@ export function submitBlock(axes: ScenarioVariantAxes, note: string, baseLevel: 
   return null
 }
 
+/**
+ * 검토 안내의 「바꾼 것」(데모 v2 `:957` `picked`) — 실제로 바뀌는 축(N1 의 `up` 은 `same` 으로 접힌다)의 칩 글자를 성격·돌발·흐름·수준 순서로.
+ * 직접 적은 글(`note`)은 싣지 않는다(데모도 축만). 축 없이 직접 적기만으로는 요청이 나가지 않으므로 검토 단계엔 빈 목록이 오지 않는다.
+ */
+export function changedAxisLabels(axes: ScenarioVariantAxes, baseLevel: JlptLevel): string[] {
+  const a = effectiveAxes(axes, baseLevel)
+  return SCENARIO_VARIANT_AXIS_KEYS.filter((k) => a[k] !== SCENARIO_VARIANT_NO_AXES[k])
+    .map((k) => axisOptions(k, baseLevel).find((o) => o.value === a[k])?.label ?? '')
+    .filter((l) => l !== '')
+}
+
+/** 검토 안내 글 — 「바꾼 것 · …」 + 「바뀜」 안내 + 「원본은 그대로예요」. 바뀐 축이 없으면 뒤쪽 안내만(방어). */
+export function variantReviewBody(axes: ScenarioVariantAxes, baseLevel: JlptLevel): string {
+  const labels = changedAxisLabels(axes, baseLevel)
+  return labels.length ? `${VARIANT.reviewChanged(labels.join(' · '))} ${VARIANT.reviewBody}` : VARIANT.reviewBody
+}
+
 /** #177 본문 — 바꾸는 축만 싣는다. 직접 적은 글은 한 줄로 정리해 비었으면 뺀다. */
 export function variantRequestBody(axes: ScenarioVariantAxes, note: string, baseLevel: JlptLevel): ScenarioVariantRequestBody {
   const a = effectiveAxes(axes, baseLevel)
