@@ -1,7 +1,8 @@
 ---
 task_id: task-003f
 title: "안드로이드 앱(Capacitor 셸) + 온디바이스 STT 플러그인 + 모델 배포 + APK 배포본·배너"
-status: waiting-user
+status: done
+waiting: device_verify
 base_ref: 218664e
 risk_level: R2
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer, codex]

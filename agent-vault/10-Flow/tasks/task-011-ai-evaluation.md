@@ -1,7 +1,7 @@
 ---
 task_id: task-011
 title: "AI 평가 — A6 출제·코드/A7 채점·10분 제한·기록률 100% 트랜잭션·결과·이력"
-status: doing
+status: done
 base_ref: 98d8cac
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, codex, qa, deployer]

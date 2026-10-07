@@ -1,7 +1,7 @@
 ---
 task_id: task-022
 title: "개선 — 음성 설정 조절 범위 약 2배 확대(속도·높낮이·억양·말투) (IMP-0005)"
-status: doing
+status: done
 base_ref: 055dbcf
 risk_level: R1
 roles_involved: [leader, judge, developer, reviewer, qa, deployer]

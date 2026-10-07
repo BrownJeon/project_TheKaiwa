@@ -1,7 +1,7 @@
 ---
 task_id: task-012
 title: "달력 — 계획표 탭 월 달력·하루 상세·학습 기록 목록·기록 삭제(스냅샷 보존)"
-status: doing
+status: done
 base_ref: 98d8cac
 risk_level: R1
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]

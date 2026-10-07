@@ -1,7 +1,7 @@
 ---
 task_id: task-025
 title: "개선 — 오늘의 회화: 이해 문장별 재생·표현 재생·문제 한국어 표기·응용 차이 비교 (IMP-0012·0013·0014·0016)"
-status: doing
+status: done
 base_ref: 055dbcf
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, deployer]

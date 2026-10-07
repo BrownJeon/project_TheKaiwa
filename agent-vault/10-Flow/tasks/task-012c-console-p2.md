@@ -1,7 +1,7 @@
 ---
 task_id: task-012c
 title: "Console P2 — 설정 편집(Form/Raw JSON)·Validate/Test/Diff/Apply·ConfigurationVersion·History·Rollback·credentialRef 연결 + 후속 분할(012c-2 Prompt Registry·Playground · 012c-3 TTS Quality·대시보드)"
-status: doing
+status: done
 base_ref: f4a3f32
 risk_level: R2
 roles_involved: [leader, judge, designer, developer, reviewer, codex, qa, deployer]

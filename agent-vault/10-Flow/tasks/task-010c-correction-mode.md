@@ -1,7 +1,7 @@
 ---
 task_id: task-010c
 title: "교정 방식 설정 — Profile.correctionMode(유창성 기본·코치), 회화 교정 표시·코치 힌트"
-status: doing
+status: done
 base_ref: 98d8cac
 risk_level: R1
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, deployer]

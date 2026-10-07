@@ -1,7 +1,7 @@
 ---
 task_id: task-021
 title: "개선 — 키보드가 입력창을 가리는 문제 공통 수정 (IMP-0008)"
-status: doing
+status: done
 base_ref: 055dbcf
 risk_level: R1
 roles_involved: [leader, judge, developer, reviewer, qa, deployer]

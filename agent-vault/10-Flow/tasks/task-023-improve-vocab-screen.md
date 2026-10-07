@@ -1,7 +1,7 @@
 ---
 task_id: task-023
 title: "개선 — 단어장 화면: 조각 필터·조각 뱃지·단어 상세 음성 재생 (IMP-0001·0002·0003)"
-status: doing
+status: done
 base_ref: 055dbcf
 risk_level: R1
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
