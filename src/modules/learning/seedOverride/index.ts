@@ -12,6 +12,7 @@ export type { SeedVisibility } from './visibility'
 export { planRestoreRelink, loadRestoreRelinkPlan, applyRestoreRelink } from './relink'
 export type { RestoreRelinkPlan, ScenarioTopicLink } from './relink'
 export { listSeedOverrides, detachCopy, isSeedKind, readOverride, SEED_OVERRIDE_LIST_MAX } from './store'
+export { listSeedOverrideItems } from './items'
 // task-045 T3 — 주제 삭제(#172 사전 조회 · #173 삭제 · #176 포트 구현). 본체는 topics/remove.ts.
 export { previewTopicRemoval, removeUserTopic, removeUserTopicTx, makeTopicRemovalPort, parseTopicRemovalAck } from './topicRemoval'
 export type { TopicRemovalServiceDeps } from './topicRemoval'

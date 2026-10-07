@@ -53,6 +53,16 @@ export interface RestoreSeedResult {
   removal: Record<string, unknown> | null
 }
 
+/** #179 관리 화면 한 줄 — 내가 숨겼거나 내 버전으로 바꾼 시드. `seedTitle` 은 공유 시드 행의 제목(시드 행이 사라졌으면 null). */
+export interface SeedOverrideItem extends SeedOverrideDto {
+  seedTitle: string | null
+}
+
+/** #165 상황 지우기 응답 — 내 상황은 기존 모양(`ARCHIVED`) + `result`, 시드 id 는 그 사용자 목록에서만 숨김(`HIDDEN`, 시드 행은 그대로). */
+export type ScenarioDeleteResult =
+  | { id: string; status: 'ARCHIVED'; alreadyArchived: boolean; result: 'ARCHIVED' }
+  | { id: string; result: 'HIDDEN'; state: Exclude<SeedOverrideState, 'VISIBLE'>; alreadyHidden: boolean }
+
 /** 오류 `details.reason` 코드(화면 문구 1:1). */
 export type SeedOverrideErrorReason =
   | 'SEED_NOT_FOUND'
@@ -62,3 +72,4 @@ export type SeedOverrideErrorReason =
   | 'SCENARIO_LIMIT'
   | 'DAILY_LIMIT'
   | 'TOPIC_REMOVAL_UNAVAILABLE'
+  | 'USER_GONE'

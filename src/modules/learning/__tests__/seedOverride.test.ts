@@ -334,11 +334,17 @@ test('T3-1b REV-150 L2 — override 유니크 위반(P2002)은 덮어쓰지 않�
   assert.equal(JSON.stringify(f.tables), before, '덮어쓰기 0 · 사본 행·조각·연결 0(롤백)')
 })
 
-test('T3-1b REV-150 L3 — 상황 fork 의 장소 중복 제거: 시드 주제와 그 내 버전을 함께 고르면 사본 주제 연결 1개(앞선 weight) · 가짜 DB 의 ScenarioTopic PK 가 중복을 막는다', async () => {
+test('T3-1b REV-150 L3·L4 — 상황 fork 장소: 시드 주제와 그 내 버전을 함께 고르면 이제 400 not_linked(T1-3, 가린 시드 주제 거절 — 쓰기 0) · 내 버전 id 만 보내면 사본 주제 연결 1개 · 가짜 DB 의 ScenarioTopic PK 가 중복을 막는다', async () => {
   const f = fixture()
   const t = await forkSeedTopic(U, 'topCafe', {}, f.deps())
-  const s = await forkSeedScenario(U, 'scnOrder', { topicIds: ['topCafe', t.copyId] }, f.deps())
-  assert.deepEqual(f.tables.scenarioTopic.filter((l) => l.scenarioId === s.copyId).map((l) => `${l.topicId}:${l.weight}`), [`${t.copyId}:2`])
+  const before = JSON.stringify(f.tables)
+  await assert.rejects(
+    forkSeedScenario(U, 'scnOrder', { topicIds: ['topCafe', t.copyId] }, f.deps()),
+    (e: unknown) => e instanceof ApiError && e.code === 'VALIDATION' && (e.details as { field?: string; reason?: string }).field === 'topicIds[0]' && (e.details as { reason?: string }).reason === 'not_linked',
+  )
+  assert.equal(JSON.stringify(f.tables), before, '거절 때 사본·연결·override 0')
+  const s = await forkSeedScenario(U, 'scnOrder', { topicIds: [t.copyId] }, f.deps())
+  assert.deepEqual(f.tables.scenarioTopic.filter((l) => l.scenarioId === s.copyId).map((l) => `${l.topicId}:${l.weight}`), [`${t.copyId}:1`])
   await assert.rejects(
     f.db.scenarioTopic.createMany({ data: [{ scenarioId: 'scnOrder', topicId: 'topCafe', weight: 1 }] }),
     (e: unknown) => (e as { code?: string }).code === 'P2002',

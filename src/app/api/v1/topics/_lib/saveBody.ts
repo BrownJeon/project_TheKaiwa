@@ -162,6 +162,14 @@ export function parseTopicUpdateBody(body: Record<string, unknown>): TopicUpdate
   return v
 }
 
+/**
+ * #174 시드 주제 사본 본문(task-045 T1-3) — 빈 본문 `{}` = 시드를 그대로 복사(검사 없음, 빈 객체 그대로).
+ * 그 밖에는 **전체 입력**을 #57 과 같은 규칙(`parseTopicCreateBody` — 같은 한도·이모지 허용 변형·재검사)으로 본다.
+ */
+export function parseTopicForkBody(body: Record<string, unknown>): TopicCreateInput | Record<string, never> {
+  return Object.keys(body).length ? parseTopicCreateBody(body) : {}
+}
+
 /** 저장한 주제의 안내 코드(저장을 막지 않는다 — 초안과 같은 순서). */
 export function topicSaveWarnings(t: { titleJa: string | null; description: string | null; chunks: ReadonlyArray<{ chunkType: string }> }): TopicWarningCode[] {
   return topicContentWarnings(t)

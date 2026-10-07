@@ -41,7 +41,7 @@ import {
   storedExpressionSeq,
   type ScenarioFields,
 } from './shape'
-import { loadSeedVisibility, mapPlaceLinks, seedTopicOfCopy } from '../seedOverride/visibility'
+import { hiddenSeedIds, loadSeedVisibility, mapPlaceLinks, seedTopicOfCopy } from '../seedOverride/visibility'
 import { scenarioAccessWhere, scenarioNotFound } from './start'
 import { expressionView, readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from './view'
 
@@ -345,11 +345,23 @@ function invalid(problems: ScenarioFieldProblem[]): never {
   throw new ApiError('VALIDATION', first.message, { field: first.field, reason: first.reason, problems })
 }
 
-/** 장소(주제) — 시드 또는 내 주제만. 없으면 400(칸 문구). */
-async function visibleTopicIds(tx: Tx, userId: string, ids: readonly string[]): Promise<string[]> {
+/**
+ * 장소(주제) 저장 검사(#163·#164·#175) — 시드 또는 내 주제만, 없으면 400 `not_found`. 이 사용자가 가린 시드 주제(숨김·내 버전으로 바꿈·고아)는
+ * 400 `not_linked`(REV-150 L4 — 목록에 없는 장소를 오래된 화면이 보내면 저장 뒤 읽을 때 조용히 빠지므로 저장 때 막는다; 화면은 사본 id 를 보낸다).
+ * override 는 시드 주제가 들어 있을 때만 읽는다.
+ */
+export async function visibleTopicIds(tx: Tx, userId: string, ids: readonly string[]): Promise<string[]> {
   if (!ids.length) return []
-  const found = new Set((await tx.conversationTopic.findMany({ where: { id: { in: [...ids] }, OR: [{ userId: null }, { userId }] }, select: { id: true } })).map((t) => t.id))
-  const problems = ids.flatMap((t, i) => (found.has(t) ? [] : [{ field: `topicIds[${i}]`, reason: 'not_found', message: '고를 수 없는 장소예요. 다시 골라 주세요.' }]))
+  const rows = await tx.conversationTopic.findMany({ where: { id: { in: [...ids] }, OR: [{ userId: null }, { userId }] }, select: { id: true, userId: true } })
+  const owner = new Map(rows.map((t) => [t.id, t.userId]))
+  const hidden = rows.some((t) => t.userId === null) ? new Set(await hiddenSeedIds(tx, userId, 'TOPIC')) : new Set<string>()
+  const problems = ids.flatMap((t, i) =>
+    !owner.has(t)
+      ? [{ field: `topicIds[${i}]`, reason: 'not_found', message: '고를 수 없는 장소예요. 다시 골라 주세요.' }]
+      : owner.get(t) === null && hidden.has(t)
+        ? [{ field: `topicIds[${i}]`, reason: 'not_linked', message: '지금 목록에 없는 장소예요. 목록을 새로 고친 뒤 다시 골라 주세요.' }]
+        : [],
+  )
   if (problems.length) invalid(problems)
   return [...ids]
 }

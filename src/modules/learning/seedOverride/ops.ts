@@ -14,7 +14,7 @@ import { ApiError, dates, lockUserRow, prisma, withTransaction, type Tx } from '
 import { SCENARIO_LIMITS } from '@/types/scenario'
 import type { ForkSeedResult, HideSeedResult, RestoreSeedResult, SeedKind } from '@/types/seedOverride'
 import { TOPIC_LIMITS, type TopicChunkInput, type TopicRemovalMode } from '@/types/topic'
-import { archiveScenario, mergeScenarioFields } from '../scenarios/catalog'
+import { archiveScenario, mergeScenarioFields, visibleTopicIds } from '../scenarios/catalog'
 import { isScenarioId as isRowId, normalizeScenarioInput } from '../scenarios/shape'
 import { createOverride, deleteOverride, findOverride, isSeedKind, liveCopyIds, readOverride } from './store'
 import { normalizeTopicInput, type TopicFieldProblem } from './topicInput'
@@ -114,14 +114,8 @@ async function claimOverride(tx: Tx, userId: string, kind: SeedKind, seedId: str
   }
 }
 
-/** 장소로 고른 주제 — 시드 또는 내 주제만(없으면 400, catalog.ts 와 같은 문구). */
-async function checkedTopicIds(tx: Tx, userId: string, ids: readonly string[]): Promise<string[]> {
-  if (!ids.length) return []
-  const found = new Set((await tx.conversationTopic.findMany({ where: { id: { in: [...ids] }, OR: [{ userId: null }, { userId }] }, select: { id: true } })).map((t) => t.id))
-  const problems = ids.flatMap((t, i) => (found.has(t) ? [] : [{ field: `topicIds[${i}]`, reason: 'not_found', message: '고를 수 없는 장소예요. 다시 골라 주세요.' }]))
-  if (problems.length) invalid(problems)
-  return [...ids]
-}
+/** 장소로 고른 주제 — #163·#164 와 같은 검사(catalog `visibleTopicIds`: 없으면 `not_found`, 이 사용자가 가린 시드 주제면 `not_linked`). */
+const checkedTopicIds = visibleTopicIds
 
 // ── hide ──────────────────────────────────────────────────────────────
 
