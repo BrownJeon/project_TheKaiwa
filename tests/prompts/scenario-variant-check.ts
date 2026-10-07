@@ -11,6 +11,7 @@
  *   C 변이     점검기가 실제로 잡는지 — 한 건씩 넣어 정확히 그 이유로 걸리는지(원본 그대로·표현만/순서만 바뀜·수준 미반영·한국어 칸 한글 없음·URL·꺾쇠·비밀 모양·엔진명·보이지 않는 글자·성격 미반영) +
  *              코드가 고치는 것(학습자 역할·상대 역할·제목·한글 첫마디·따옴표 첫마디·4문장 첫마디→기준 첫마디로·기준에 없는 로마자·한글 뜻 없는 표현)이 실제로 고쳐지는지 — 빈 증명 방지로 변이 없는 샘플은 OK
  *   D 샘플     samples 3건의 상태·수준·바뀐 칸·상대 역할이 기대와 같음, 표현 id 없음, 장소 이어짐
+ *   E 지시문 중립(REV-153 M-2)  중립 기준(가상 상황)으로 모든 축·수준 조합(474건)의 요청 전체와, 라이브 케이스 27건의 고정 지시문(system·persona·스키마)에 장면 단어(카페·결제·품절·コンビニ …)가 0 — 금지 목록은 fixtures `instructionNeutrality.forbidden`
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -30,6 +31,7 @@ const fx = JSON.parse(readFileSync(join(ROOT, 'tests/prompts/fixtures/scenario-v
   parseCases: { id: string; body: unknown; baseLevel?: ScenarioVariantBase['level']; ok: boolean; problems?: [string, string][] }[]
   samples: Record<string, { axes: Partial<ScenarioVariantAxes>; response: ScenarioVariantModelResponse; expect: { status: string; level: string; changed: string[]; unchanged: string[]; tutor: string } }>
   liveCases: { id: string; seed: string; axes: Partial<ScenarioVariantAxes>; note?: string }[]
+  instructionNeutrality: { base: ScenarioVariantBase; forbidden: string[] }
 }
 
 const baseOf = (key: string): ScenarioVariantBase => {
@@ -131,6 +133,38 @@ for (const [id, s] of Object.entries(fx.samples)) {
   }
 }
 infos.push(`D 샘플 ${Object.keys(fx.samples).length}건`)
+
+// E 지시문 중립 — 고정 지시문(system·persona·스키마)에 장면 단어가 있으면 서비스 장면이 아닌 기준에서도 모델이 베낀다
+{
+  const words = fx.instructionNeutrality.forbidden
+  const hitsIn = (text: string) => words.filter((w) => text.toLowerCase().includes(w.toLowerCase()))
+  if (hitsIn('결제 · カード').length !== 2) fail('E', '대조 함수가 장면 단어를 못 잡는다(빈 증명)')
+  const levels = ['N5', 'N4', 'N3', 'N2', 'N1'] as const
+  let built = 0
+  for (const level of levels) for (const persona of ['same', 'kind', 'busy', 'picky'] as const) for (const twist of ['none', 'unavailable', 'mishear', 'trouble'] as const) for (const flow of ['same', 'suggest', 'rephrase'] as const) for (const lv of ['same', 'up'] as const) {
+    let r: ReturnType<typeof buildScenarioVariantRequest>
+    try {
+      r = buildScenarioVariantRequest({ base: { ...fx.instructionNeutrality.base, level }, axes: { persona, twist, flow, level: lv } })
+    } catch {
+      continue
+    }
+    built++
+    const rendered = renderTranscript(withJsonOnly(r.system, r.jsonSchema!), r.messages)
+    const hits = hitsIn([r.system, r.persona!.prompt, r.messages[0].content, JSON.stringify(r.jsonSchema), rendered].join('\n'))
+    if (hits.length) fail('E', `${level}/${persona}/${twist}/${flow}/${lv}: 장면 단어 ${hits.join(',')}`)
+  }
+  if (built !== 474) fail('E', `만들어진 조합 ${built} (기대 474)`)
+  let live = 0
+  for (const c of fx.liveCases) {
+    const parsed = parseScenarioVariantBody({ axes: c.axes, ...(c.note ? { note: c.note } : {}) }, { baseLevel: baseOf(c.seed).level })
+    if (!parsed.ok) continue
+    const r = buildScenarioVariantRequest({ base: baseOf(c.seed), axes: parsed.value.axes, note: parsed.value.note })
+    live++
+    const hits = hitsIn([r.system, r.persona!.prompt, JSON.stringify(r.jsonSchema)].join('\n'))
+    if (hits.length) fail('E', `${c.id}: 고정 지시문에 장면 단어 ${hits.join(',')}`)
+  }
+  infos.push(`E 지시문 중립 — 중립 기준 ${built}조합 · 라이브 ${live}건 · 금지 어휘 ${words.length}개`)
+}
 
 for (const i of infos) console.log(`ok   ${i}`)
 if (fails.length) {

@@ -54,7 +54,7 @@ interface Sample { axes: Partial<ScenarioVariantAxes>; response: ScenarioVariant
 interface LiveCase { id: string; seed: string; axes: Partial<ScenarioVariantAxes>; note?: string; inject?: unknown }
 interface ParseCase { id: string; body: unknown; baseLevel?: 'N5' | 'N4' | 'N3' | 'N2' | 'N1'; ok: boolean; axes?: ScenarioVariantAxes; note?: string | null; problems?: [string, string][] }
 const ROOT = process.cwd()
-const fx = JSON.parse(readFileSync(join(ROOT, 'tests/prompts/fixtures/scenario-variant.json'), 'utf8')) as { parseCases: ParseCase[]; samples: Record<string, Sample>; liveCases: LiveCase[] }
+const fx = JSON.parse(readFileSync(join(ROOT, 'tests/prompts/fixtures/scenario-variant.json'), 'utf8')) as { parseCases: ParseCase[]; samples: Record<string, Sample>; liveCases: LiveCase[]; instructionNeutrality: { base: ScenarioVariantBase; forbidden: string[] } }
 interface SeedScenario { key: string; topics: { key: string }[]; title: string; titleJa: string; description: string; level: ScenarioVariantBase['level']; roles: { learner: string; tutor: string }; goal: { communicativeGoalKo: string; successCriteria: string[] }; steps: { ko: string }[]; opening: { ja: string; ko: string } | null; keyExpressions: { ja: string; reading?: string; ko: string }[] }
 const seeds = JSON.parse(readFileSync(join(ROOT, 'prisma/seed-data/scenarios.json'), 'utf8')) as SeedScenario[]
 const seedTopics = JSON.parse(readFileSync(join(ROOT, 'prisma/seed-data/topics.json'), 'utf8')) as { key: string; title: string }[]
@@ -178,7 +178,8 @@ test('요청: 수준 상향은 [수준] 줄이 한 단계 위로 바뀌고 conte
   assert.equal(same.context.level, 'N5')
   assert.match(same.system, /\[수준\] N5 — [^(]*$/m)
   const persona = req({ axes: { persona: 'busy' } })
-  assert.match(persona.system, /원본이 "직원"이면 "바쁜 직원"/)
+  assert.match(persona.system, /"〈성격〉 〈원본 상대 역할〉" 꼴/)
+  assert.ok(!persona.system.includes('tutor 도 원본과 똑같이'))
   assert.deepEqual(same.context.topicIds, ['tp_cafe-order'])
   assert.ok(!same.system.includes('tp_cafe-order') && !same.messages[0].content.includes('tp_cafe-order'), '장소 id 는 프롬프트에 없고 context 로만')
 })
@@ -244,6 +245,63 @@ test('system: 수준·축에 따라 달라지는 곳은 [수준]·[변경] 줄�
   const b = buildScenarioVariantSystem('N4', { persona: 'same', twist: 'trouble', flow: 'same', level: 'same' }).split('\n')
   const diff = a.map((l, i) => (l === b[i] ? null : l)).filter((l): l is string => l !== null)
   assert.ok(diff.every((l) => l.startsWith('[수준]') || l.startsWith('- 돌발 상황:')), JSON.stringify(diff))
+})
+
+// ── 지시문 중립(REV-153 M-2) ─────────────────────────────────────────────────────
+/** 장면 단어 대조(부분 문자열·대소문자 무시) — 고정 지시문에 있으면 모델이 서비스 장면이 아닌 기준에서도 그 내용을 베낀다. */
+const SCENE_WORDS = fx.instructionNeutrality.forbidden
+const sceneHits = (text: string): string[] => SCENE_WORDS.filter((w) => text.toLowerCase().includes(w.toLowerCase()))
+const PERSONAS = SCENARIO_VARIANT_AXES.persona
+const TWISTS = SCENARIO_VARIANT_AXES.twist
+const FLOWS = SCENARIO_VARIANT_AXES.flow
+const LEVELS_UP = SCENARIO_VARIANT_AXES.level
+const JLPT = ['N5', 'N4', 'N3', 'N2', 'N1'] as const
+/** 요청이 지시문 전체로 만들어지는 전 조합(수준 5 × 성격 4 × 돌발 4 × 흐름 3 × 수준축 2 = 480) 중 바꿀 점이 있는 것만 — 전부 same/none 5건 + N1 의 up 단독 1건은 만들지 않는다. */
+function* everyRequest(base: ScenarioVariantBase) {
+  for (const level of JLPT) for (const persona of PERSONAS) for (const twist of TWISTS) for (const flow of FLOWS) for (const lv of LEVELS_UP) {
+    try {
+      yield buildScenarioVariantRequest({ base: { ...base, level }, axes: { persona, twist, flow, level: lv } })
+    } catch (e) {
+      if (!(e instanceof ScenarioVariantInputError && e.code === 'NO_VARIATION')) throw e
+    }
+  }
+}
+
+test('지시문 중립: 중립 기준(가상 상황)으로 모든 축·수준 조합을 만들면 요청 전체(system·persona·user·스키마·렌더링)에 장면 단어가 한 개도 없다', () => {
+  assert.ok(SCENE_WORDS.length >= 40, '금지 어휘 목록이 비어 가는 것을 막는다')
+  assert.deepEqual(sceneHits('결제 수단이 안 됨 · 카드 · コンビニ'), ['결제', '카드', 'コンビニ'], '대조 함수가 실제로 잡는다(빈 증명 방지)')
+  let built = 0
+  let longest = 0
+  for (const r of everyRequest(fx.instructionNeutrality.base)) {
+    built++
+    const rendered = renderTranscript(withJsonOnly(r.system, r.jsonSchema!), r.messages)
+    const hay = [r.system, r.persona!.prompt, r.messages[0].content, JSON.stringify(r.jsonSchema), rendered].join('\n')
+    longest = Math.max(longest, r.system.length)
+    const hits = sceneHits(hay)
+    assert.deepEqual(hits, [], `${r.context.level}/${JSON.stringify(r.context.axes)}: 지시문에 장면 단어 ${hits.join(',')}`)
+  }
+  assert.equal(built, 474, '480 조합 중 NO_VARIATION 6건을 뺀 전부를 돌았다')
+  assert.ok(longest > 1_500, `지시문이 실제로 만들어졌다(${longest}자)`)
+})
+
+test('지시문 중립: 장면이 있는 기준(시드 카페)에서도 system·persona·스키마는 깨끗하고 장면은 user 메시지(학습자 글)에만 있다', () => {
+  let built = 0
+  for (const r of everyRequest(cafe)) {
+    built++
+    const fixedPart = [r.system, r.persona!.prompt, JSON.stringify(r.jsonSchema)].join('\n')
+    const hits = sceneHits(fixedPart)
+    assert.deepEqual(hits, [], `${r.context.level}/${JSON.stringify(r.context.axes)}: 고정 지시문에 장면 단어 ${hits.join(',')}`)
+    if (built === 1) assert.ok(sceneHits(r.messages[0].content).length >= 2, '대조군: 카페 기준 글은 user 메시지에 정상적으로 들어간다')
+  }
+  assert.equal(built, 474)
+})
+
+test('지시문: 장면에 맞지 않는 돌발·흐름은 가장 가까운 자연스러운 형태로 바꾸되 목적·장소·역할 구도는 유지(REV-153 L-5) · 돌발 설명은 장면을 모델이 정한다', () => {
+  const sys = buildScenarioVariantSystem('N5', { persona: 'same', twist: 'trouble', flow: 'suggest', level: 'same' })
+  assert.match(sys, /원본 상황의 장면에 어울리지 않으면[^.]*가장 가까운 자연스러운 형태로 바꿔 반영하되, 원본의 주제·장소·두 역할 구도를 벗어나지 않습니다/)
+  assert.match(SCENARIO_VARIANT_AXIS_RULES.twist.unavailable, /원본 상황의 장면에 어울리게 직접 정합니다/)
+  assert.match(SCENARIO_VARIANT_AXIS_RULES.twist.trouble, /원본 상황의 장면에 맞게 직접 정합니다/)
+  assert.match(SCENARIO_VARIANT_AXIS_RULES.persona.picky, /원본 상황의 장면에 맞게 정합니다/)
 })
 
 // ── 보정: 정상 ────────────────────────────────────────────────────────────────────
