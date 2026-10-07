@@ -34,6 +34,8 @@ export type { CalendarDto, CalendarDayDto, DayDto, StudyLogDto, StudyLogRefs, St
 export { bumpDailySnapshot, mergeDaily, emptyDaily } from './snapshots'
 export type { DailyData, DailyDelta, VocabSessionSnapshotData, LessonSnapshotData } from './snapshots'
 export { getTopicRef, listTopics, parseTopicQuery } from './topics'
+// task-045 REV-152a M-1 — #28 새 채팅 저장의 주제 FK 위반(P2003) → 404 TOPIC_GONE
+export { mapTopicGone } from './topics/visible'
 export type { TopicDto, TopicChunkDto, TopicQuery } from './topics'
 // task-045 T2 — #57 내 주제 만들기 · #171 고치기
 export { createUserTopic, defaultTopicWriteDeps } from './topics/create'

@@ -7,7 +7,7 @@
  */
 import type { ChatKind, JlptLevel, Prisma } from '@prisma/client'
 import { ApiError, decodeCursor, encodeCursor, isTimeIdCursor, prisma, toPreview, truncateCodePoints } from '@/modules/infra'
-import { getTopicRef } from '@/modules/learning'
+import { getTopicRef, mapTopicGone } from '@/modules/learning'
 import { getProfile } from '@/modules/preferences'
 import { isStalePending, locallyRunningMessageIds, STALE_PENDING_MS } from '../orchestrator/locks'
 import { serializeCorrection, CORRECTION_SELECT } from '../corrections/serialize'
@@ -99,24 +99,33 @@ function defaultTitle(kind: 'TALK' | 'CHAT', topicTitle: string | null): string 
   return kind === 'CHAT' ? '새 채팅' : '새 회화'
 }
 
-/** #28 — `lastMessageAt = createdAt`(D9: 빈 채팅도 목록 정렬에 바로 들어간다). */
-export async function createChat(userId: string, input: CreateChatInput): Promise<ChatDto> {
-  const topic = input.topicId ? await getTopicRef(userId, input.topicId) : null
+/**
+ * #28 — `lastMessageAt = createdAt`(D9: 빈 채팅도 목록 정렬에 바로 들어간다).
+ * 사용자 행 잠금은 쓰지 않는다 — 확인(`getTopicRef`)과 저장 사이에 주제 삭제(#173)가 커밋되면 FK 위반(P2003)이 나므로 404 `TOPIC_GONE` 으로 바꾼다(REV-152a M-1).
+ */
+export async function createChat(userId: string, input: CreateChatInput, over?: { db?: typeof prisma }): Promise<ChatDto> {
+  const db = over?.db ?? prisma
+  const topic = input.topicId ? await getTopicRef(userId, input.topicId, db) : null
   if (input.topicId && !topic) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
   const level = input.level ?? (await getProfile(userId)).level
   const now = new Date()
-  const c = await prisma.chat.create({
-    data: {
-      userId,
-      kind: input.kind,
-      title: input.title ?? defaultTitle(input.kind, topic?.title ?? null),
-      topicId: topic?.id ?? null,
-      level,
-      lastMessageAt: now,
-      createdAt: now,
-    },
-    select: CHAT_SELECT,
-  })
+  let c
+  try {
+    c = await db.chat.create({
+      data: {
+        userId,
+        kind: input.kind,
+        title: input.title ?? defaultTitle(input.kind, topic?.title ?? null),
+        topicId: topic?.id ?? null,
+        level,
+        lastMessageAt: now,
+        createdAt: now,
+      },
+      select: CHAT_SELECT,
+    })
+  } catch (e) {
+    throw mapTopicGone(e)
+  }
   return serializeChat(c, false)
 }
 

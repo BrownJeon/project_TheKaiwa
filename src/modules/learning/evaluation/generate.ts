@@ -15,6 +15,7 @@
 import { Prisma, type EvalItemKind, type EvalKind } from '@prisma/client'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type TraceStep } from '@/modules/engine'
 import { ApiError, classifyError, jobs, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
+import { assertTopicVisible, mapTopicGone } from '../topics/visible'
 import { assertCurrentEvalJob, EvaluationJobSuperseded, logSuperseded, type EvalJobClaim } from './fencing'
 import type { EvalMaterialWord, EvaluationMaterials } from './materials'
 import { ACTIVE_EVAL_STATUSES } from './rows'
@@ -98,54 +99,70 @@ export function buildItemRows(evaluationId: string, kind: EvalKind, out: EvalGen
 
 type Claim = EvalJobClaim
 
-async function claimEvaluation(userId: string, m: EvaluationMaterials, promptVersion: string, inputMeta: EvaluationGeneration<EvalGenOutputLike>['inputMeta']): Promise<Claim> {
+type EvalInputMeta = EvaluationGeneration<EvalGenOutputLike>['inputMeta']
+
+async function claimEvaluation(userId: string, m: EvaluationMaterials, promptVersion: string, inputMeta: EvalInputMeta): Promise<Claim> {
   const traceId = newTraceId()
   return withTransaction(async (tx) => {
     await lockUserRow(tx, userId)
-    const active = await tx.evaluation.findMany({
-      where: { userId, status: { in: [...ACTIVE_EVAL_STATUSES] } },
-      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
-      select: { id: true, status: true },
-    })
-    for (const e of active) {
-      if (e.status === 'GENERATING' && !(await jobs.findActiveJob({ userId, kind: 'EVAL_GEN', refId: e.id }, tx))) {
-        await tx.evaluation.updateMany({ where: { id: e.id, status: 'GENERATING' }, data: { status: 'FAILED', error: 'stale' } })
-        continue
-      }
-      throw new ApiError('CONFLICT', '진행 중인 평가가 있어요. 끝낸 뒤 새로 만들 수 있어요.', { reason: 'IN_PROGRESS', evaluationId: e.id, status: e.status })
+    return claimEvaluationTx(tx, userId, m, promptVersion, inputMeta, traceId)
+  })
+}
+
+/**
+ * #65 점유 본체 — **호출자의 트랜잭션·사용자 행 잠금 안**. 재료(`m`)는 잠금 전에 읽었으므로 주제 삭제(#173, 같은 잠금)가 그 사이 끝났을 수 있다 —
+ * 잠금 직후 주제를 다시 확인한다(평가에는 진행 중 챌린지 예외 없음, REV-152a M-1 · Codex C1 ⓐ 와 같은 패턴).
+ */
+export async function claimEvaluationTx(tx: Tx, userId: string, m: EvaluationMaterials, promptVersion: string, inputMeta: EvalInputMeta, traceId: string): Promise<Claim> {
+  if (m.topic) await assertTopicVisible(tx, userId, m.topic.id)
+  const active = await tx.evaluation.findMany({
+    where: { userId, status: { in: [...ACTIVE_EVAL_STATUSES] } },
+    orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, status: true },
+  })
+  for (const e of active) {
+    if (e.status === 'GENERATING' && !(await jobs.findActiveJob({ userId, kind: 'EVAL_GEN', refId: e.id }, tx))) {
+      await tx.evaluation.updateMany({ where: { id: e.id, status: 'GENERATING' }, data: { status: 'FAILED', error: 'stale' } })
+      continue
     }
-    const revive = await tx.evaluation.findFirst({
-      where: { userId, status: 'FAILED', submittedAt: null, items: { none: {} } },
-      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
-      select: { id: true },
-    })
-    const base = {
-      kind: m.kind,
-      level: m.level,
-      topicId: m.topic?.id ?? null,
-      status: 'GENERATING' as const,
-      error: null,
-      startedAt: new Date(),
-      submittedAt: null,
-      completedAt: null,
-      totalScore: null,
-      comment: null,
-      model: null,
-      promptVersion: null,
-    }
-    let evaluationId: string
+    throw new ApiError('CONFLICT', '진행 중인 평가가 있어요. 끝낸 뒤 새로 만들 수 있어요.', { reason: 'IN_PROGRESS', evaluationId: e.id, status: e.status })
+  }
+  const revive = await tx.evaluation.findFirst({
+    where: { userId, status: 'FAILED', submittedAt: null, items: { none: {} } },
+    orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+    select: { id: true },
+  })
+  const base = {
+    kind: m.kind,
+    level: m.level,
+    topicId: m.topic?.id ?? null,
+    status: 'GENERATING' as const,
+    error: null,
+    startedAt: new Date(),
+    submittedAt: null,
+    completedAt: null,
+    totalScore: null,
+    comment: null,
+    model: null,
+    promptVersion: null,
+  }
+  let evaluationId: string
+  try {
     if (revive) {
       await tx.evaluation.update({ where: { id: revive.id }, data: { ...base, rubric: Prisma.DbNull, nextFocus: Prisma.DbNull, studyLogId: null } })
       evaluationId = revive.id
     } else {
       evaluationId = (await tx.evaluation.create({ data: { ...base, userId }, select: { id: true } })).id
     }
-    const job = await jobs.createJob(
-      { userId, kind: 'EVAL_GEN', refId: evaluationId, traceId, payload: { promptKey: 'evalGen', promptVersion, inputMeta } as Prisma.InputJsonValue },
-      tx,
-    )
-    return { evaluationId, jobId: job.id, traceId }
-  })
+  } catch (e) {
+    // 잠금 밖에서 주제가 지워진 경우(시드 로더 등) — FK 위반(P2003)을 500 대신 404 TOPIC_GONE 으로(REV-152a M-1).
+    throw mapTopicGone(e)
+  }
+  const job = await jobs.createJob(
+    { userId, kind: 'EVAL_GEN', refId: evaluationId, traceId, payload: { promptKey: 'evalGen', promptVersion, inputMeta } as Prisma.InputJsonValue },
+    tx,
+  )
+  return { evaluationId, jobId: job.id, traceId }
 }
 
 /** 출제 결과 저장(펜싱) — 평가 READY + 문항 + 잡 DONE 을 호출자 트랜잭션에서. 세대가 바뀌었으면 `EvaluationJobSuperseded`(트랜잭션 되돌림). */

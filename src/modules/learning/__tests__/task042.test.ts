@@ -796,7 +796,7 @@ test('#47 가린 시드(task-045 T3) — 숨김이면 404 · 진행 중 챌린�
   h.db.overrides.push({ userId: U, kind: 'TOPIC', seedId: TOPIC, copyId: null })
   await assert.rejects(create(h, { count: 5, generate: false }), topicGone)
   assert.equal(h.db.sessionCreates, 0)
-  h.db.challenges.push({ userId: U, status: 'ACTIVE', topicId: TOPIC })
+  h.db.challenges.push({ userId: U, status: 'ACTIVE', topicId: TOPIC, endDate: new Date('2099-12-31T00:00:00Z') })
   created(await create(h, { count: 5, generate: false }))
 })
 
@@ -805,7 +805,7 @@ test('#47 가린 시드 시작(task-045 T3-1b, REV-150 M1) — 숨김이면 A12 
   h.db.overrides.push({ userId: U, kind: 'TOPIC', seedId: TOPIC, copyId: null })
   await assert.rejects(create(h, { count: 5, generate: true }), topicGone)
   assert.deepEqual([h.calls.length, h.db.sessionCreates], [0, 0])
-  h.db.challenges.push({ userId: U, status: 'ACTIVE', topicId: TOPIC })
+  h.db.challenges.push({ userId: U, status: 'ACTIVE', topicId: TOPIC, endDate: new Date('2099-12-31T00:00:00Z') })
   created(await create(h, { count: 5, generate: true }))
   assert.equal(h.calls.length, 1)
 })

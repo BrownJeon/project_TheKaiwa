@@ -251,7 +251,32 @@ const EMOJI_ZWJ = /(\p{Extended_Pictographic}[\u{1F3FB}-\u{1F3FF}]?)\u{200D}(?=\
  * 줄바꿈은 호출 전에 접어서 넘긴다(원래 함수와 같다). 원래 함수는 바꾸지 않는다 — AI 초안 검사는 계속 엄격하다.
  */
 export function detectUnsafeUserTopicText(text: string): TopicDraftUnsafeKind | null {
-  return detectUnsafeTopicText(text.replace(EMOJI_VS16, '$1').replace(EMOJI_ZWJ, '$1'))
+  const kind = detectUnsafeTopicText(text.replace(EMOJI_VS16, '$1').replace(EMOJI_ZWJ, '$1'))
+  if (kind !== null) return kind
+  return hasCardLikeDigits(text.normalize('NFKC')) ? 'SECRET_LIKE' : null
+}
+
+/** 숫자 묶음을 공백·하이픈 한 칸으로 이은 덩어리(전각 숫자·전각 공백은 NFKC 뒤). */
+const DIGIT_CHAIN = /\d+(?:[ -]\d+)*/g
+/** 카드번호 모양으로 보는 자릿수 — 카드 13~19자리(REV-152b L3). 휴대전화 11자리·국가번호 붙은 번호 12자리는 아래로 남는다. */
+const CARD_LIKE_MIN_DIGITS = 13
+/** 이 길이 미만의 묶음(날짜의 월·일 `10-07`, 국가번호 `82`, 번지 `5`)은 사슬을 끊는다 — 날짜 범위·주소가 13자리로 잡히지 않게. */
+const CARD_LIKE_MIN_GROUP = 3
+
+/**
+ * 학습자 글의 카드번호 모양 숫자열(REV-152b L3) — 3자리 이상 숫자 묶음이 공백·하이픈 한 칸으로 이어져 합이 13자리 이상이면 참
+ * (`4111111111111111`·`4111 1111 1111 1111`·`3782-822463-10005`). 연도 `2025`·전화 `010-1234-5678`(11)·`+82 10 1234 5678`·
+ * 날짜 범위 `2025-10-07 2026-10-07`·번지 `123-45` 는 통과. AI 초안 검사(`detectUnsafeTopicText`)에는 넣지 않았다.
+ */
+function hasCardLikeDigits(t: string): boolean {
+  for (const m of t.matchAll(DIGIT_CHAIN)) {
+    let run = 0
+    for (const g of m[0].split(/[ -]/)) {
+      run = g.length >= CARD_LIKE_MIN_GROUP ? run + g.length : 0
+      if (run >= CARD_LIKE_MIN_DIGITS) return true
+    }
+  }
+  return false
 }
 
 // `topicWords.ts` 의 SURFACE_ALLOWED·READING_ALLOWED 와 같은 문자 종류다(드리프트는 단위 시험이 같은 표로 대조한다).

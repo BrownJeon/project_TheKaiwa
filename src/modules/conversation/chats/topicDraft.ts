@@ -61,13 +61,14 @@ export async function draftTopic(userId: string, body: TopicDraftBody, deps: Top
     throw e
   }
   if (inFlight.has(userId)) throw new ApiError('CONFLICT', '주제 초안을 만드는 중이에요.', { reason: 'DRAFT_BUSY' })
-  inFlight.add(userId)
   const { context, ...llmReq } = req
   const traceId = newTraceId()
   const started = Date.now()
   const steps: TraceStep[] = []
   let status: 'OK' | 'ERROR' = 'OK'
   let errorCode: string | null = null
+  // 확인(has)과 등록(add) 사이에 비동기 대기가 없어 같은 사용자의 두 요청이 끼어들 수 없다. 등록은 try 바로 앞 — 사이에서 던지면 영구 DRAFT_BUSY(REV-152b L1).
+  inFlight.add(userId)
   try {
     let r: LlmJsonResult<TopicDraftResponse>
     try {

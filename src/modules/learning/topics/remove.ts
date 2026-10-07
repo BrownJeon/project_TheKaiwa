@@ -25,7 +25,7 @@ import {
 } from '@/types/topic'
 import { applyRestoreRelink, loadRestoreRelinkPlan, type RestoreRelinkPlan } from '../seedOverride/relink'
 import { detachCopies, detachCopy, findOverrideByCopy } from '../seedOverride/store'
-import { topicGone } from './visible'
+import { isChallengeInProgress, topicGone } from './visible'
 
 export interface TopicRemovalImpact {
   topic: { id: string; title: string; isSeed: boolean }
@@ -76,10 +76,10 @@ export async function readTopicRemovalImpact(db: Tx, userId: string, topicId: st
   const challenges = await db.challenge.findMany({
     where: { userId, topicId: topic.id },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    select: { id: true, title: true, status: true, startDate: true, endDate: true, lengthDays: true },
+    select: { id: true, title: true, status: true, startDate: true, endDate: true, lengthDays: true, topicId: true },
   })
-  // 기간이 지난 ACTIVE 는 지연 전이에서 완료가 된다 — 끝난 챌린지로 센다(settle.ts expiredWhere 와 같은 기준: 종료일 < 오늘).
-  const live = challenges.filter((c) => c.status === 'ACTIVE' && dates.fromDbDate(c.endDate) >= today)
+  // 기간이 지난 ACTIVE 는 지연 전이에서 완료가 된다 — 끝난 챌린지로 센다(가린 시드 예외와 같은 판정 `isChallengeInProgress`).
+  const live = challenges.filter((c) => isChallengeInProgress(c, today))
   const active = live[0] ?? null
   const doneLessons = await db.lesson.count({ where: { userId, topicId: topic.id, status: 'DONE' } })
   const chunks = await db.topicChunk.count({ where: { topicId: topic.id } })

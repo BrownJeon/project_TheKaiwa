@@ -43,7 +43,8 @@ function mini() {
 }
 
 const hide = (T: ReturnType<typeof mini>['T'], userId: string, copyId: string | null = null) => T.userSeedOverride.push({ userId, kind: 'TOPIC', seedId: 'topSeed', copyId })
-const liveChallenge = (T: ReturnType<typeof mini>['T'], status = 'ACTIVE') => T.challenge.push({ id: 'ch1', userId: U, status, topicId: 'topSeed' })
+// 진행 중 = ACTIVE 이고 종료일이 오늘 이후(REV-152a L-1 `isChallengeInProgress`) — 실제 시계를 쓰는 경로도 있어 종료일은 먼 미래로 둔다.
+const liveChallenge = (T: ReturnType<typeof mini>['T'], status = 'ACTIVE') => T.challenge.push({ id: 'ch1', userId: U, status, topicId: 'topSeed', endDate: new Date('2099-12-31T00:00:00Z') })
 const reasonOf = (e: unknown) => (e instanceof ApiError ? `${e.code}:${String(e.details?.reason ?? '')}` : `raw:${(e as Error)?.message}`)
 const evalOf = (db: Tx, topicId: string) => loadEvaluationMaterials(U, { kind: 'WORDS', topicId, level: 'N5' }, new Date('2026-10-07T03:00:00Z'), db)
 const evalReason = async (db: Tx, topicId: string) => evalOf(db, topicId).then(() => 'ok', reasonOf)

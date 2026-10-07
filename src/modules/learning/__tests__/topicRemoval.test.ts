@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { ApiError, dates } from '@/modules/infra'
-import type { TopicRemovalPreview } from '@/types/topic'
+import { TOPIC_REMOVAL_ACK_NONE, type TopicRemovalPreview } from '@/types/topic'
 import { freezeDailyGoal } from '../challenges/metrics'
 import { createChallenge } from '../challenges/service'
 import type { CreateChallengeInput } from '../challenges/validate'
@@ -13,7 +13,9 @@ import { claimLessonTx, type LessonGeneration, type LessonMaterials } from '../l
 import { restoreSeed } from '../seedOverride/ops'
 import { loadRestoreRelinkPlan } from '../seedOverride/relink'
 import { makeTopicRemovalPort, parseTopicRemovalAck, previewTopicRemoval, removeUserTopic } from '../seedOverride/topicRemoval'
-import { isTopicFkViolation, mapTopicGone } from '../topics/visible'
+import { isChallengeInProgress, isTopicFkViolation, isTopicVisibleTo, mapTopicGone } from '../topics/visible'
+import { readTopicRemovalImpact, removalAckOf } from '../topics/remove'
+import { settleExpiredTx } from '../challenges/settle'
 import { fakeDb, type FakeDbOptions } from './challengeFakeDb'
 
 const U = 'userA'
@@ -375,7 +377,8 @@ test('경쟁 ⓐ #59 가린 시드 — 숨김이면 404, 진행 중 챌린지 �
   T.userSeedOverride.push({ id: 'ovH', userId: U, kind: 'TOPIC', seedId: 'topSeed', copyId: null })
   await rejectsWith(claim(f, lessonOf('topSeed')), 'NOT_FOUND:TOPIC_GONE')
   await rejectsWith(createChallenge(U, chInput('topSeed'), f.deps()), 'NOT_FOUND:TOPIC_GONE')
-  T.challenge.push(challenge('chSeed', 'topSeed', 'ACTIVE', '2026-10-05', '2026-10-11'))
+  // 종료일은 먼 미래 — #59 경로는 실제 시계로 진행 중을 판정한다(isChallengeInProgress).
+  T.challenge.push(challenge('chSeed', 'topSeed', 'ACTIVE', '2026-10-05', '2099-12-31'))
   const r = await claim(f, lessonOf('topSeed'))
   assert.equal(r.reused, false)
   assert.equal((T.lesson.find((l) => l.id === r.lessonId) as Row).topicId, 'topSeed')
@@ -397,4 +400,77 @@ test('FK 위반 판정 — topicId FK 만 TOPIC_GONE, 다른 FK·다른 오류�
   assert.equal(reasonOf(mapTopicGone(fk('VocabSession_topicId_fkey (index)'))), 'NOT_FOUND:TOPIC_GONE')
   const other = fk('Lesson_userId_fkey (index)')
   assert.equal(mapTopicGone(other), other)
+})
+
+// ── REV-152a 보완(L-1·L-3) ───────────────────────────────────────────────────────────────────────────
+
+test('REV-152a L-3 포트 직접 호출 — 시드 id·남의 주제 id 는 잠금 안 재조회에서 404 TOPIC_GONE · 쓰기 0 · 표 불변(롤백 없이도)', async () => {
+  for (const id of ['topSeed', 'topOther']) {
+    const { f, T, port } = fixture({ fk: true })
+    const before = JSON.stringify(T)
+    f.log.length = 0
+    await rejectsWith(f.deps().transaction!((tx) => port(tx, U, id, { ack: TOPIC_REMOVAL_ACK_NONE, mode: 'DELETE' })), 'NOT_FOUND:TOPIC_GONE')
+    assert.deepEqual(writes(f.log), [], `${id}: 재조회 전에 쓰기 없음`)
+    assert.equal(JSON.stringify(T), before, `${id}: 표 불변`)
+  }
+})
+
+test('REV-152a L-3 마지막 삭제 가드 — 영향 재계산 뒤 주제가 내 것이 아니게 되면(표현 삭제 직전에 바꿔 흉내) 주제를 지우지 않고 404', async () => {
+  const { f, T, port } = fixture({ fk: true })
+  await rejectsWith(
+    f.deps().transaction!((tx) => {
+      // 가짜 tx 는 Proxy 라 펼치기 대신 Proxy 로 감싼다 — topicChunk.deleteMany 앞에서만 끼어든다.
+      const chunks = (tx as unknown as { topicChunk: { deleteMany: (a: unknown) => Promise<unknown> } }).topicChunk
+      const chunkProxy = new Proxy(chunks, {
+        get: (target, prop) =>
+          prop === 'deleteMany'
+            ? async (a: unknown) => {
+                ;(T.conversationTopic.find((x) => x.id === 'topMine') as Row).userId = O
+                return target.deleteMany(a)
+              }
+            : Reflect.get(target, prop),
+      })
+      const wrapped = new Proxy(tx as object, { get: (target, prop) => (prop === 'topicChunk' ? chunkProxy : Reflect.get(target, prop)) })
+      return port(wrapped as typeof tx, U, 'topMine', { ack: 'chLive', mode: 'DELETE' })
+    }),
+    'NOT_FOUND:TOPIC_GONE',
+  )
+  assert.ok(T.conversationTopic.some((t) => t.id === 'topMine'), '남의 것이 된 주제는 지우지 않는다')
+})
+
+test('REV-152a M8 새 챌린지 — 가린 시드에 진행 중 챌린지가 있어도 예외 없이 404 TOPIC_GONE(409 진행 중 아님 · 만들기 0)', async () => {
+  const { f, T } = fixture()
+  T.challenge.splice(0)
+  T.userSeedOverride.push({ id: 'ovH', userId: U, kind: 'TOPIC', seedId: 'topSeed', copyId: null })
+  // 종료일 먼 미래 — 변이(예외 확대)가 실제 시계로도 "진행 중"을 보게 해서 409 로 드러나게 한다.
+  T.challenge.push(challenge('chSeed', 'topSeed', 'ACTIVE', '2026-10-05', '2099-12-31'))
+  f.log.length = 0
+  await rejectsWith(createChallenge(U, chInput('topSeed'), f.deps()), 'NOT_FOUND:TOPIC_GONE')
+  assert.ok(!f.log.includes('challenge.create'))
+})
+
+test('REV-152a L-1 진행 중 챌린지 판정 하나 — 삭제 사전 조회의 activeChallenge·ack 와 가린 시드 예외(allowActiveChallenge)가 같은 챌린지를 본다 · settle 이 끝내는 것의 여집합', async () => {
+  const yesterday = dates.addDays(TODAY, -1)
+  const tomorrow = dates.addDays(TODAY, 1)
+  const cases: Array<[string, 'ACTIVE' | 'COMPLETED', string, boolean]> = [
+    ['만료·정산 전', 'ACTIVE', yesterday, false],
+    ['오늘 끝남', 'ACTIVE', TODAY, true],
+    ['내일 끝남', 'ACTIVE', tomorrow, true],
+    ['완료', 'COMPLETED', tomorrow, false],
+  ]
+  for (const [label, status, end, live] of cases) {
+    const { f, T, now } = fixture({ fk: true })
+    T.challenge.splice(0)
+    T.userSeedOverride.push({ id: 'ovH', userId: U, kind: 'TOPIC', seedId: 'topSeed', copyId: null })
+    const row = challenge('chX', 'topSeed', status, '2026-09-30', end, status === 'ACTIVE' ? {} : { activeKey: null })
+    T.challenge.push(row)
+    assert.equal(isChallengeInProgress(row as { status: string; endDate: Date; topicId: string | null }, TODAY), live, `${label}: 판정 함수`)
+    const impact = await readTopicRemovalImpact(f.db, U, 'topSeed', TODAY)
+    assert.equal(impact.activeChallenge?.id ?? null, live ? 'chX' : null, `${label}: 사전 조회`)
+    assert.equal(removalAckOf(impact), live ? 'chX' : TOPIC_REMOVAL_ACK_NONE, `${label}: ack`)
+    assert.equal(await isTopicVisibleTo(f.db, U, { id: 'topSeed', userId: null }, { allowActiveChallenge: true, now: now() }), live, `${label}: 가린 시드 예외`)
+    // settle 은 진행 중이 아닌 ACTIVE 만 끝낸다(같은 경계).
+    await f.deps().transaction!((tx) => settleExpiredTx(tx as never, U, TODAY, now()))
+    assert.equal((T.challenge[0] as Row).status, status === 'ACTIVE' && !live ? 'COMPLETED' : status, `${label}: settle`)
+  }
 })
