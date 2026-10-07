@@ -84,7 +84,7 @@ model UserSeedOverride {
 |---|---|---|
 | `topicDraft@v2` | 구현 완료·로컬 커밋 `e74fe57`, `LLM_TASKS.topicDraft {balanced, 40_000, interactive}` 는 developer | 이력서 PE 기록(topicDraft·보완), REV-147·148 |
 | `openingDraft@v2` | 구현 완료·로컬 커밋 `8cc224d`(프롬프트)·`9e961e5`(서비스·라우트), `LLM_TASKS.openingDraft {balanced, 25_000, interactive}`, 라우트 #178 연결 | 이력서 PE 기록(openingDraft) · `conversation/prompts/openingDraft.ts` |
-| 변형 상황 초안(A) `scenarioVariant@v1` | 구현 완료·로컬 커밋 `8979415`(프롬프트)·`9e961e5`(서비스·라우트), `LLM_TASKS.scenarioVariant {balanced, 40_000, interactive}`, 라우트 #177 연결(#166 `scenarioDraft` 재사용이 아니라 **별도 프롬프트**, 입력 `axes`) | `conversation/prompts/scenarioVariant.ts` |
+| 변형 상황 초안(A) `scenarioVariant@v2` | 구현 완료·로컬 커밋 `8979415`(프롬프트)·`9e961e5`(서비스·라우트), `LLM_TASKS.scenarioVariant {balanced, 40_000, interactive}`, 라우트 #177 연결(#166 `scenarioDraft` 재사용이 아니라 **별도 프롬프트**, 입력 `axes`) | `conversation/prompts/scenarioVariant.ts` |
 | 시나리오 초안(#166) | 기존. 본문 `topic` 인라인만 추가 | 010d 이력서 |
 - 한자 읽기는 기계가 검증하지 못한다 → 검토 화면에 **읽기를 반드시 보이고** 「읽기가 틀릴 수 있어요」 안내. `warnings`(`CHUNKS_SHORT`·`TYPE_THIN_*`·`DESCRIPTION_MISSING`·`TITLE_JA_MISSING`·**`TITLE_TRUNCATED` 신규**)는 저장을 막지 않는다. 사용자 편집 저장 검증은 이모지 접합 문자(U+FE0F·U+200D) 허용, 꺾쇠·URL·비밀 모양·제어문자는 금지.
 
@@ -116,4 +116,7 @@ model UserSeedOverride {
 - 주제 저장 하루 한도(10)는 **오늘 만든 내 주제 행 수**로 센다 — 만든 뒤 하드 삭제하면 그 행이 빠져 한도를 우회할 수 있다(내 주제 30개 상한은 그대로 막는다).
 - 삭제 확인 `ack` 는 **진행 중 챌린지 id(또는 `none`)만** 덮는다 — 확인 창을 연 뒤 보관·연결 해제될 상황의 개수·목록이 바뀌어도 409 `IMPACT_CHANGED` 가 나지 않는다.
 - #28 역할극 시작은 시작 직전 재확인(`assertScenarioStartableTx`)이 **상황만** 보고 주제는 보지 않는다 — 주제 확인(`resolveStart`)은 잠금 밖이라, 그 사이 주제가 지워지면 오류 코드가 일관되지 않을 수 있다.
+- `scenarioVariant@v2`(#177)는 JSON **1차 응답이 한도를 어기는 경우가 남는다**(QA 실측 4/34 → PE v2 재측정 1/14; 성공 조건 3개 초과는 해소, 항목 40자 초과는 `flow=suggest` 에서 잔존). 엔진 재시도 1회로 회복돼 사용자에겐 200 이지만 그 경우 응답 시간이 약 2배(p95 ≈ 21s, 한도 40s 안)다.
+- `DRAFT_BUSY` 409 거절도 분당·하루 한도를 소모한다(한도 검사가 서비스의 동시 1건 확인보다 앞) — 화면은 만드는 중 버튼을 비활성화해 더블탭을 막는다.
+- #178 첫마디 일본어 제안은 **학습자의 질문·자기소개 같은 글도 선생님 첫마디로 받아 일본어로 옮길 수 있다**(QA 실측 2/2, 코드가 막지 못함) — 화면이 제안 아래에 확인 문구를 둔다. 서버 400 메시지에는 「을(를)」 같은 조사 병기가 들어 있어(13개 파일의 기존 스타일) 화면 고정 문구로 바꿔 쓴다.
 - 학습자 글의 **13자리 이상 숫자열 거절**(3자리 이상 숫자 묶음이 공백·하이픈 한 칸으로 이어진 합계, 카드번호 모양)은 카드번호가 아닌 긴 숫자(전화번호 외 일련번호 등)도 막을 수 있다. 연도·한국 전화번호(11자리)·날짜 범위·번지는 통과.

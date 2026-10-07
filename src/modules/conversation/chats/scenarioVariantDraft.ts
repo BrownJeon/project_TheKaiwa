@@ -7,7 +7,7 @@
  * - 본문 `{axes, note?}`(`parseScenarioVariantBody`, 기준 수준을 넘겨 N1 의 `up` 을 접는다). 칸 문제 400 · 바꿀 점 없음 422 `NO_VARIATION`.
  * - 엔진 `scenarioVariant`(balanced·40s, JSON 재시도 1회는 엔진 안) → `finalizeScenarioVariant`. `OK` 200 `{draft, changedFields, axes}` · `UNSAFE` 422 한 문구(사유 구분 없음) ·
  *   `INVALID`·엔진 오류 502 · 시간 초과 504(#166 과 같은 상태 코드) · 엔진 큐 포화 429 그대로.
- * - 사용자당 동시 1건(프로세스 메모리) 409 `DRAFT_BUSY`. Trace 에는 수치·코드·판 이름(`scenarioVariant@v1`)만 — 기준 상황·직접 적은 글·초안 글 원문 0.
+ * - 사용자당 동시 1건(프로세스 메모리) 409 `DRAFT_BUSY`. Trace 에는 수치·코드·판 이름(`scenarioVariant@v2`)만 — 기준 상황·직접 적은 글·초안 글 원문 0.
  */
 import type { JlptLevel } from '@prisma/client'
 import { ApiError, classifyError, prisma } from '@/modules/infra'

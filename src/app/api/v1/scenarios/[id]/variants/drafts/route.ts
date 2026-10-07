@@ -13,7 +13,7 @@ const SCENARIO_DRAFT_PER_DAY = 40
 type Ctx = { params: Promise<{ id: string }> }
 
 /**
- * #177 변형 상황 초안(task-045 T4, 변형 A, `scenarioVariant@v1`) — **행을 만들지 않는다**(저장은 학습자가 고친 뒤 #163).
+ * #177 변형 상황 초안(task-045 T4, 변형 A, `scenarioVariant@v2`) — **행을 만들지 않는다**(저장은 학습자가 고친 뒤 #163).
  * 기준 상황 = 경로 `:id` — 내 상황 또는 가리지 않은 시드만(남의 것·없음·지운 것·가린 시드 404). 장소는 기준 상황의 것(가린 시드 주제 제외)을 이어받는다.
  * 본문 `{axes:{persona?, twist?, flow?, level?}, note?(≤100자)}`(그 밖 키 400) · 응답 200 `{draft, changedFields, axes}`.
  * 오류: 401 · 404 · 400 칸(한도 미소모) · 422 `NO_VARIATION`(바꿀 점 없음, 한도 미소모) · 422 `NOT_A_VARIANT`(같은 문구) · 409 `DRAFT_BUSY` · 429 · 502(쓸 수 없는 초안·엔진 오류) · 504(시간 초과).
