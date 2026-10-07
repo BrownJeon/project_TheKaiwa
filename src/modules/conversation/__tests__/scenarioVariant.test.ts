@@ -1,5 +1,5 @@
 /**
- * task-045 PE — 변형 상황 초안(`scenarioVariant@v1`, #177) 단위 테스트(DB·LLM 없음).
+ * task-045 PE — 변형 상황 초안(`scenarioVariant@v2`, #177) 단위 테스트(DB·LLM 없음).
  * 계약(스키마·열거) · 요청 본문 검사 · 요청 모양(학습자 글은 [입력] 구획 안에만·축별 변경 줄) · 거절 · 코드 보정과 `changedFields`(코드 비교) · 반영 검사(변이) · 보정된 초안이 `normalizeScenarioInput` 을 통과.
  */
 import { test } from 'node:test'
@@ -26,6 +26,7 @@ import {
   buildScenarioVariantSystem,
   finalizeScenarioVariant,
   SCENARIO_VARIANT_AXIS_RULES,
+  SCENARIO_VARIANT_LIMIT_LINE,
   SCENARIO_VARIANT_PROMPT_VERSION,
   SCENARIO_VARIANT_SYSTEM_CHARS,
   SCENARIO_VARIANT_TASK,
@@ -82,7 +83,7 @@ const withDraft = (id: string, over: Partial<ScenarioDraftModel>): ScenarioVaria
 
 // ── 계약·열거 ─────────────────────────────────────────────────────────────────
 test('상수·열거: 버전·태스크 키·축 열거(데모 일반화: unavailable·trouble)·칩 문구·changedFields 이름', () => {
-  assert.equal(SCENARIO_VARIANT_PROMPT_VERSION, 'scenarioVariant@v1')
+  assert.equal(SCENARIO_VARIANT_PROMPT_VERSION, 'scenarioVariant@v2')
   assert.equal(SCENARIO_VARIANT_TASK, 'scenarioVariant')
   assert.deepEqual(SCENARIO_VARIANT_AXES, {
     persona: ['same', 'kind', 'busy', 'picky'],
@@ -302,6 +303,65 @@ test('지시문: 장면에 맞지 않는 돌발·흐름은 가장 가까운 자�
   assert.match(SCENARIO_VARIANT_AXIS_RULES.twist.unavailable, /원본 상황의 장면에 어울리게 직접 정합니다/)
   assert.match(SCENARIO_VARIANT_AXIS_RULES.twist.trouble, /원본 상황의 장면에 맞게 직접 정합니다/)
   assert.match(SCENARIO_VARIANT_AXIS_RULES.persona.picky, /원본 상황의 장면에 맞게 정합니다/)
+})
+
+// ── 지시문 한도(v2 — JSON 1차 위반 보완) ─────────────────────────────────────────────
+test('지시문 한도(v2): 숫자 한도 점검 줄이 [출력] 바로 앞에 있고 숫자가 스키마와 같다 · 성공 조건이 이미 상한이면 더하지 말고 바꾸거나 합친다 · 모든 조합에서 같은 줄', () => {
+  const p = SCENARIO_VARIANT_SCHEMA.properties.draft.anyOf[1].properties
+  const maxItems = p.successCriteria.maxItems
+  const maxLen = p.successCriteria.items.maxLength
+  assert.equal(maxItems, 3, '스키마 한도(이 시험의 기준) — 바뀌면 지시문 숫자도 같이 바뀐다')
+  assert.equal(maxLen, 40)
+  assert.equal(p.roles.properties.learner.maxLength, p.roles.properties.tutor.maxLength)
+  const lim = SCENARIO_VARIANT_LIMIT_LINE
+  // 스키마의 한도 숫자가 모두 점검 줄에 같은 이름으로 있다(어긋나면 모델이 허용 안 되는 길이를 쓰거나 필요 이상으로 줄인다)
+  for (const piece of [
+    `successCriteria 는 최대 ${maxItems}개이고 항목마다 ${maxLen}자 이내`,
+    `${maxItems}개를 넘거나 ${maxLen}자를 넘는 항목이 있으면 합치거나 핵심만 남겨 줄입니다`,
+    `title ${p.title.maxLength}자`,
+    `titleJa ${p.titleJa.maxLength}자`,
+    `roles 각 ${p.roles.properties.learner.maxLength}자`,
+    `goalKo ${p.goalKo.maxLength}자`,
+    `steps 각 ${p.steps.items.maxLength}자(최대 ${p.steps.maxItems}개)`,
+    `opening.ja ${p.opening.properties.ja.maxLength}자`,
+    `opening.ko ${p.opening.properties.ko.maxLength}자`,
+  ]) assert.ok(lim.includes(piece), `한도 점검 줄에 「${piece}」`)
+  assert.ok(lim.startsWith('- 한도 점검(내보내기 전에 센다)'))
+
+  let built = 0
+  for (const r of everyRequest(cafe)) {
+    built++
+    const lines = r.system.split('\n')
+    assert.equal(lines.filter((l) => l === lim).length, 1, `${r.context.level}/${JSON.stringify(r.context.axes)}: 한도 점검 줄 1개`)
+    assert.equal(lines.indexOf(lim), lines.length - 2, '한도 점검 줄은 [출력] 바로 앞(모델이 마지막에 보는 자리)')
+    assert.match(lines[lines.length - 1], new RegExp(`^\\[출력\\] .*한도\\(특히 successCriteria 최대 ${maxItems}개·각 ${maxLen}자 이내\\)를 어긴 칸이 없는지 마지막으로 확인한 뒤 내보냅니다\\.$`))
+  }
+  assert.equal(built, 474)
+  // 기준 상황이 달라도 같은 줄(고정 줄 — systemSha 는 수준·축만의 함수)
+  const a = buildScenarioVariantRequest({ base: { ...baseOf('self-intro-first-meeting'), level: 'N4' }, axes: { twist: 'trouble' } }).system.split('\n')
+  const b = buildScenarioVariantRequest({ base: { ...baseOf('travel-story-tell'), level: 'N4' }, axes: { twist: 'trouble' } }).system.split('\n')
+  assert.deepEqual(a, b)
+
+  // goalKo 줄: 4개 이상 금지 + 원본이 이미 상한이면 더하지 말고 바꾸거나 합친다 — v1 의 「대응 행동이 하나 들어가야 합니다」(상한 기준에서 4번째 항목을 부름)가 없다
+  const goalLine = a.find((l) => l.startsWith('- goalKo:'))!
+  assert.ok(goalLine.includes(`${maxItems}개(${maxItems + 1}개 이상 금지)`), 'successCriteria 4개 이상 금지')
+  assert.ok(goalLine.includes(`각 ${maxLen}자 이내 한 문장`))
+  assert.ok(goalLine.includes(`원본 성공 조건이 이미 ${maxItems}개이면 새 항목을 더하지 말고 원본 항목 하나를 바꾸거나 두 항목을 합칩니다`))
+  assert.ok(!goalLine.includes('학습자의 행동이 하나 들어가야 합니다'), '새 항목 추가를 요구하던 v1 문구가 없다')
+  // 장면 단어는 점검 줄에도 없다(지시문 중립)
+  assert.deepEqual(sceneHits([lim, goalLine].join('\n')), [])
+
+  // QA 라이브(qa-045-b2 결함 #1)에서 1차 응답이 어긴 두 모양이 스키마에서 정확히 그 이유로 걸린다 — 재시도(지연 2배)를 부르는 위반이 스키마 단계에서 잡힌다는 증거(회귀 케이스)
+  const validate = new Ajv({ strict: false, allErrors: true }).compile(SCENARIO_VARIANT_SCHEMA)
+  const ok = sample('cafe-busy').response.draft!
+  const criteria = ['이름을 말해요', '하는 일을 말해요', '사는 곳을 말해요']
+  assert.ok(validate({ status: 'OK', draft: { ...ok, successCriteria: criteria } }), '3개·짧은 항목은 통과(빈 증명 방지)')
+  assert.ok(!validate({ status: 'OK', draft: { ...ok, successCriteria: [...criteria, '못 알아들으면 다시 말해요'] } }))
+  // draft 는 anyOf[null, 객체] 라 null 가지의 type·anyOf 오류가 함께 오므로 객체 안쪽(/draft/…) 위반만 본다
+  const inner = () => (validate.errors ?? []).filter((e) => e.instancePath.startsWith('/draft/')).map((e) => [e.instancePath, e.keyword])
+  assert.deepEqual(inner(), [['/draft/successCriteria', 'maxItems']], '항목 수 3개 초과')
+  assert.ok(!validate({ status: 'OK', draft: { ...ok, successCriteria: [criteria[0], criteria[1], '가'.repeat(maxLen + 1)] } }))
+  assert.deepEqual(inner(), [['/draft/successCriteria/2', 'maxLength']], '항목 40자 초과')
 })
 
 // ── 보정: 정상 ────────────────────────────────────────────────────────────────────

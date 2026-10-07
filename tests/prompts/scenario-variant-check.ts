@@ -1,5 +1,5 @@
 /**
- * task-045 PE — `scenarioVariant@v1` 오프라인 점검. **결정적·LLM 0·DB 0**(일회용 점검 스크립트, 단위 시험 `scenarioVariant.test.ts` 와 같은 코드를 다른 눈으로 한 번 더 본다).
+ * task-045 PE — `scenarioVariant@v2` 오프라인 점검. **결정적·LLM 0·DB 0**(일회용 점검 스크립트, 단위 시험 `scenarioVariant.test.ts` 와 같은 코드를 다른 눈으로 한 번 더 본다).
  *
  * 실행(미러에서, DB 접촉 없음):
  *   DATABASE_URL="mysql://invalid:invalid@127.0.0.1:1/invalid" node --import tsx tests/prompts/scenario-variant-check.ts
@@ -12,6 +12,7 @@
  *              코드가 고치는 것(학습자 역할·상대 역할·제목·한글 첫마디·따옴표 첫마디·4문장 첫마디→기준 첫마디로·기준에 없는 로마자·한글 뜻 없는 표현)이 실제로 고쳐지는지 — 빈 증명 방지로 변이 없는 샘플은 OK
  *   D 샘플     samples 3건의 상태·수준·바뀐 칸·상대 역할이 기대와 같음, 표현 id 없음, 장소 이어짐
  *   E 지시문 중립(REV-153 M-2)  중립 기준(가상 상황)으로 모든 축·수준 조합(474건)의 요청 전체와, 라이브 케이스 27건의 고정 지시문(system·persona·스키마)에 장면 단어(카페·결제·품절·コンビニ …)가 0 — 금지 목록은 fixtures `instructionNeutrality.forbidden`
+ *   F 한도 점검(v2)  라이브 케이스 27건의 system 끝(마지막 두 줄 = 숫자 한도 점검 줄 + [출력])이 스키마 한도와 같은 숫자인지 · QA 가 본 1차 위반 두 모양(성공 조건 4개·40자 초과)이 스키마에서 그 이유로 걸리는지 · 시드 상황 성공 조건 개수·길이(정보)
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -164,6 +165,47 @@ infos.push(`D 샘플 ${Object.keys(fx.samples).length}건`)
     if (hits.length) fail('E', `${c.id}: 고정 지시문에 장면 단어 ${hits.join(',')}`)
   }
   infos.push(`E 지시문 중립 — 중립 기준 ${built}조합 · 라이브 ${live}건 · 금지 어휘 ${words.length}개`)
+}
+
+// F 한도 점검(v2) — JSON 1차 위반(성공 조건 4개·40자 초과)을 부르던 한도 문구가 출력 규칙 가까이에 스키마와 같은 숫자로 있는가
+{
+  const dp = SCENARIO_VARIANT_SCHEMA.properties.draft.anyOf[1].properties
+  const maxItems = dp.successCriteria.maxItems
+  const maxLen = dp.successCriteria.items.maxLength
+  const need = [
+    `successCriteria 는 최대 ${maxItems}개이고 항목마다 ${maxLen}자 이내`,
+    `title ${dp.title.maxLength}자`,
+    `titleJa ${dp.titleJa.maxLength}자`,
+    `roles 각 ${dp.roles.properties.learner.maxLength}자`,
+    `goalKo ${dp.goalKo.maxLength}자`,
+    `steps 각 ${dp.steps.items.maxLength}자(최대 ${dp.steps.maxItems}개)`,
+    `opening.ja ${dp.opening.properties.ja.maxLength}자`,
+    `opening.ko ${dp.opening.properties.ko.maxLength}자`,
+  ]
+  let live = 0
+  for (const c of fx.liveCases) {
+    const parsed = parseScenarioVariantBody({ axes: c.axes, ...(c.note ? { note: c.note } : {}) }, { baseLevel: baseOf(c.seed).level })
+    if (!parsed.ok) continue
+    const r = buildScenarioVariantRequest({ base: baseOf(c.seed), axes: parsed.value.axes, note: parsed.value.note })
+    live++
+    const lines = r.system.split('\n')
+    const lim = lines[lines.length - 2]
+    const out = lines[lines.length - 1]
+    if (!lim.startsWith('- 한도 점검(내보내기 전에 센다)')) fail('F', `${c.id}: 끝에서 두 번째 줄이 한도 점검이 아니다`)
+    for (const piece of need) if (!lim.includes(piece)) fail('F', `${c.id}: 한도 점검 줄에 「${piece}」 없음`)
+    if (!out.startsWith('[출력]') || !out.includes(`successCriteria 최대 ${maxItems}개·각 ${maxLen}자 이내`)) fail('F', `${c.id}: [출력] 줄에 한도 재확인 없음`)
+  }
+  // QA 라이브가 본 1차 위반 두 모양 — 스키마가 그 이유로 거절하는가(빈 증명 방지: 3개·짧은 항목은 통과)
+  const ok = fx.samples['cafe-busy'].response.draft!
+  const crit = ['이름을 말해요', '하는 일을 말해요', '사는 곳을 말해요']
+  const run = (successCriteria: string[]) => validateOutput({ status: 'OK', draft: { ...ok, successCriteria } }, SCENARIO_VARIANT_SCHEMA)
+  if (!run(crit).ok) fail('F', '3개·짧은 항목이 스키마를 통과하지 못한다(빈 증명)')
+  const four = run([...crit, '못 알아들으면 다시 말해요'])
+  if (four.ok || !JSON.stringify(four).includes('successCriteria')) fail('F', `성공 조건 4개가 스키마에서 걸리지 않는다: ${JSON.stringify(four)}`)
+  const long = run([crit[0], crit[1], '가'.repeat(maxLen + 1)])
+  if (long.ok || !JSON.stringify(long).includes('successCriteria')) fail('F', `성공 조건 ${maxLen + 1}자가 스키마에서 걸리지 않는다: ${JSON.stringify(long)}`)
+  const lens = seeds.map((s) => `${s.goal.successCriteria.length}개/최대 ${Math.max(...s.goal.successCriteria.map((x) => Array.from(x).length))}자`)
+  infos.push(`F 한도 점검 — 라이브 ${live}건 · 시드 상황 성공 조건 ${[...new Set(lens)].join(' · ')}(기준이 이미 상한이면 4번째 항목을 더하기 쉽다)`)
 }
 
 for (const i of infos) console.log(`ok   ${i}`)

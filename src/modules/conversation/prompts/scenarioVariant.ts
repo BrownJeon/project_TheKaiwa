@@ -1,5 +1,5 @@
 /**
- * 변형 상황 초안(`scenarioVariant@v1`) — task-045 변형 A(데모 v2 승인: 「원본에서 조건·상대 성격·분기를 바꾼 새 상황 초안을 AI 가 만들고 사용자가 검토·저장」), `POST /api/v1/scenarios/:id/variants/drafts`(#177).
+ * 변형 상황 초안(`scenarioVariant@v2`) — task-045 변형 A(데모 v2 승인: 「원본에서 조건·상대 성격·분기를 바꾼 새 상황 초안을 AI 가 만들고 사용자가 검토·저장」), `POST /api/v1/scenarios/:id/variants/drafts`(#177).
  * 학습자가 이미 가진 상황(**기준 상황** — 서버가 읽어 넘긴다)과 고른 축(상대 성격·돌발 상황·대화 흐름·표현 수준)·(선택) 직접 적은 한 줄 → **새 상황 초안**(+ 바뀐 칸 `changedFields`).
  * 이 호출은 저장하지 않는다(제안→채택: 학습자가 검토·수정해 [새 상황으로 저장]할 때 #163 이 행을 만든다. 표현 id 는 그때 서버가 발급한다).
  *
@@ -12,6 +12,8 @@
  *  - 모델이 내지 않는 것: 수준(코드가 기준 또는 한 단계 위로 채움)·설명(기준 상황의 설명 그대로 — 직접 적은 한 줄은 저장하지 않는다)·장소(기준 상황의 장소)·표현 id·`changedFields`(코드가 기준과 비교해 정한다).
  *  - **지시문에 도메인(장면) 예시를 싣지 않는다**(1차 실측: 제목 예시의 장면 문구 때문에 성격·수준·되묻기 축에서도 서비스 장면 기준이 모두 그 내용으로 나왔다. REV-153 M-2: 돌발 상황 설명에 남은 구체 장면 예시를 서비스 장면이 아닌 기준에서도 베꼈다 → 2차 중립화) — 형식 예시만 쓰고 장면은 모델이 원본 상황에 맞게 정한다.
  *    **시험이 지킨다**: `scenarioVariant.test.ts` 「지시문 중립」(금지 어휘 목록 · 모든 축 조합 · 중립 기준 입력 · 학습자 글을 뺀 system+persona+스키마) — 지시문에 장면 단어를 다시 넣으면 걸린다. 고르지 않은 변화는 만들지 않는다고 명시한다.
+ *  - **v2(JSON 1차 위반 보완)**: 성공 조건 3개 초과·40자 초과로 1차 응답이 스키마를 어겨 재시도(지연 2배)하던 것을 줄이려고 숫자 한도 점검 줄(`SCENARIO_VARIANT_LIMIT_LINE`)을 `[출력]` 앞에 두고
+ *    `goalKo` 줄의 「대응 행동이 하나 들어가야 한다」를 「원본이 이미 상한이면 항목을 바꾸거나 합친다」로 고쳤다. 한도 숫자는 스키마와 같은 값(시험이 대조), 장면 예시는 새로 넣지 않았다.
  *  - 실행은 호출부(라우트)가 맡는다. 엔진 태스크 키 `scenarioVariant` 는 `engine/router/tasks.ts` 에 developer 가 한 줄 추가한다(권고는 task 이력서). **모델명은 코드에 없다.**
  */
 import type { LlmJsonRequest, LlmPersona, LlmTask } from '@/modules/engine'
@@ -40,7 +42,7 @@ import {
   type ScenarioVariantModelResponse,
 } from '../structuredResponse/scenarioVariantSchemas'
 
-export const SCENARIO_VARIANT_PROMPT_VERSION = 'scenarioVariant@v1'
+export const SCENARIO_VARIANT_PROMPT_VERSION = 'scenarioVariant@v2'
 
 /** 엔진 태스크 키 — `engine/router/tasks.ts` `LLM_TASKS` 에 같은 이름으로 추가해야 한다(developer). */
 export const SCENARIO_VARIANT_TASK = 'scenarioVariant'
@@ -112,6 +114,13 @@ export const SCENARIO_VARIANT_AXIS_RULES = {
 
 const AXIS_TITLE = { persona: '상대 성격', twist: '돌발 상황', flow: '대화 흐름', level: '표현 수준' } as const
 
+/**
+ * 숫자 한도 점검 줄 — 모델이 마지막에 보는 자리(`[출력]` 바로 앞)에 둔다. 숫자는 스키마(`SCENARIO_LIMITS` → `SCENARIO_DRAFT_SCHEMA`)와 같은 값이어야 하며 시험이 스키마와 대조한다.
+ * v2(1차 JSON 위반 보완): v1 은 한도를 `goalKo` 줄 한가운데 한 번만 적었고 같은 줄이 「대응하는 학습자의 행동이 하나 들어가야 합니다」라고 해, 성공 조건이 이미 상한(3개)인 기준에서 4번째 항목을 더하거나
+ * 한 항목을 40자 넘게 써 1차 응답이 계약을 어겼다(QA 34건 중 4건 = 11.8%, 전부 재시도로 회복되나 응답 시간이 2배). **고정 줄**이다 — 수준·축·기준 상황에 따라 달라지지 않는다(`systemSha` 는 여전히 수준·축만의 함수).
+ */
+export const SCENARIO_VARIANT_LIMIT_LINE = `- 한도 점검(내보내기 전에 센다): successCriteria 는 최대 ${L.successCriteriaMax}개이고 항목마다 ${L.successCriterionMax}자 이내입니다 — ${L.successCriteriaMax}개를 넘거나 ${L.successCriterionMax}자를 넘는 항목이 있으면 합치거나 핵심만 남겨 줄입니다. title ${L.titleMax}자·titleJa ${L.titleJaMax}자·roles 각 ${L.roleMax}자·goalKo ${L.goalMax}자·steps 각 ${L.stepMax}자(최대 ${L.stepsMax}개)·opening.ja ${L.openingJaMax}자·opening.ko ${L.openingKoMax}자도 넘기지 않습니다.`
+
 function isJlptLevel(v: unknown): v is JlptLevel {
   return typeof v === 'string' && (JLPT_LEVELS as readonly string[]).includes(v)
 }
@@ -138,13 +147,14 @@ export function buildScenarioVariantSystem(level: JlptLevel, axes: ScenarioVaria
     `- title: 원본 제목에 [변경]의 바뀐 점을 짧게 덧붙이거나 바꾼 새 한국어 제목("원본 제목 · 바뀐 점" 꼴, ${L.titleMax}자 이내, 원본과 같은 제목 금지). titleJa: 그 일본어 제목(${L.titleJaMax}자 이내).`,
     `- difficulty: 1~5. [수준]이 N5 이면 1~2, N4 2~3, N3 3~4, N2 이상 3~5.`,
     `- roles: learner 는 원본 학습자 역할과 똑같이, ${tutorRule}(각 ${L.roleMax}자 이내, 짧은 한국어 명사).`,
-    `- goalKo: 바뀐 상황에서 학습자가 해내는 일 한 문장(${L.goalMax}자 이내). successCriteria: ${L.successCriteriaMin}~${L.successCriteriaMax}개, 각 ${L.successCriterionMax}자 이내, 학습자가 한 말로 확인할 수 있는 한국어 행동. [변경]에 돌발 상황·권유·되묻기가 있으면 그에 대응하는 학습자의 행동이 하나 들어가야 합니다.`,
+    `- goalKo: 바뀐 상황에서 학습자가 해내는 일 한 문장(${L.goalMax}자 이내). successCriteria: ${L.successCriteriaMin}~${L.successCriteriaMax}개(${L.successCriteriaMax + 1}개 이상 금지), 각 ${L.successCriterionMax}자 이내 한 문장, 학습자가 한 말로 확인할 수 있는 한국어 행동. [변경]에 돌발 상황·권유·되묻기가 있으면 그에 대응하는 학습자의 행동이 들어가야 하며, 원본 성공 조건이 이미 ${L.successCriteriaMax}개이면 새 항목을 더하지 말고 원본 항목 하나를 바꾸거나 두 항목을 합칩니다.`,
     `- steps: 새 상황에서 대화가 흘러가는 순서대로 학습자가 하는 일을 ${SCENARIO_DRAFT_STEPS_HINT}개(최대 ${L.stepsMax}개), 각 ${L.stepMax}자 이내 한국어. [변경]에 돌발 상황·권유·되묻기가 있으면 그것이 일어나는 단계를 넣고, 없으면 원본 순서를 거의 그대로 둡니다. 첫 단계는 opening 에 대한 학습자의 대답입니다.`,
     `- keyExpressions: **roles.learner 가 그 상황에서 직접 말하는** 일본어 표현 ${SCENARIO_DRAFT_EXPRESSIONS_HINT}개(최대 ${L.expressionsMax}개). [변경]에 대응하는 표현(돌발 상황이면 그 상황에서 학습자가 하는 말, 권유·되묻기면 그에 대한 대답이나 다시 말하기, 수준 상향이면 한 단계 높인 표현)이 반드시 들어가고, 원본 표현 중 새 상황에서도 쓰는 것은 남겨도 되지만 원본에 없던 새 표현이 2개 이상이어야 합니다. 상대 역할(roles.tutor)이 하는 말·질문은 넣지 않습니다. 문법 설명이 아니라 실제로 말하는 문장·구여야 하고, 어느 상황에나 쓰는 말(ありがとうございます 등)이나 「はい」「すみません」 같은 짧은 말·서로 겹치는 표현은 넣지 않습니다. 빈자리를 〜 로 둔 틀도 좋지만 〜 는 표현의 맨 앞이나 맨 끝에만 두고(중간 빈칸·〇·□ 금지) 〜·문장부호를 뺀 글자가 ${SCENARIO_DRAFT_EXPRESSION_CORE_MIN}자 이상이어야 합니다. 꼭 필요한 표현부터 나열합니다. ja(일본어 ${L.expressionJaMax}자 이내, 한자·가나·숫자·문장부호만)·reading(ja 전체의 읽기를 가나로만, 띄어쓰기 없이, ${L.expressionReadingMax}자 이내 — ja 가 한자 없이 가나뿐이면 빈 문자열)·ko(ja 를 그대로 옮긴 한국어 뜻 ${L.expressionKoMax}자 이내, 해요체, 설명·괄호 주석 없이).`,
     `- requiredExpressions: 이 중 쓰면 연습이 됐다고 볼 핵심 표현 수, 2~${SCENARIO_DRAFT_REQUIRED_MAX}.`,
     `- opening: roles.tutor(바뀐 이름)가 먼저 건네는 첫마디. [변경]에 상대 성격이 있으면 말투에만 드러내고 돌발 상황·되묻기·권유의 내용은 담지 않으며(그것은 대화 중간에 생깁니다) 원본 첫마디와 같은 평범한 시작으로 씁니다. ja(1~2문장, ${L.openingJaMax}자 이내, 한자·가나·숫자와 문장부호 。、？！만)·ko(ja 를 그대로 옮긴 한국어 ${L.openingKoMax}자 이내). 학습자가 steps 첫 단계로 바로 대답할 수 있도록 질문으로 끝냅니다.`,
     '- 일본어는 정중체(です·ます)의 자연스러운 일상 회화로 [수준] 범위 안에서만 쓰며 opening 과 표현의 말투를 정중체로 통일합니다. 한국어 글은 모두 해요체(~해요·~해 주세요)로 씁니다. 실제 상표·상호·사람 이름·전화번호·주소는 넣지 않습니다(일반 명사는 가능). 원본에 있던 영어·약어 외 로마자는 쓰지 않습니다.',
-    '[출력] JSON 객체 하나, 키 순서 status → draft(title → titleJa → difficulty → roles → goalKo → successCriteria → steps → keyExpressions → requiredExpressions → opening).',
+    SCENARIO_VARIANT_LIMIT_LINE,
+    `[출력] JSON 객체 하나, 키 순서 status → draft(title → titleJa → difficulty → roles → goalKo → successCriteria → steps → keyExpressions → requiredExpressions → opening). 한도(특히 successCriteria 최대 ${L.successCriteriaMax}개·각 ${L.successCriterionMax}자 이내)를 어긴 칸이 없는지 마지막으로 확인한 뒤 내보냅니다.`,
   ].join('\n')
 }
 

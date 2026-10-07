@@ -1,5 +1,5 @@
 /**
- * task-045 실측 — `scenarioVariant@v1`(변형 상황 초안: 기준 상황 + 축 → 새 상황 초안 + 바뀐 칸)과 #166 인라인 주제 상황 초안을 실제 Claude CLI(구독)로 **직렬** 호출해
+ * task-045 실측 — `scenarioVariant@v2`(변형 상황 초안: 기준 상황 + 축 → 새 상황 초안 + 바뀐 칸)과 #166 인라인 주제 상황 초안을 실제 Claude CLI(구독)로 **직렬** 호출해
  * JSON 유효율·재시도율·응답 시간·구조 한도 충족·축 반영(코드 판정 + 눈 판정용 대조 출력)·`changedFields` 필수 칸·주입 방어·누출을 잰다.
  *
  * 입력: `tests/prompts/fixtures/scenario-variant.json` 의 `liveCases`(시드 상황 5개 × 축 조합 21 + 직접 적기 3 + 주입 3) · `inlineTopicCases`(저장 전 새 주제 5) · `regressCases`(기존 topicId 요청 2).
@@ -29,6 +29,8 @@ type Kind = 'variant' | 'inject' | 'inline' | 'regress'
 interface SeedScenario { key: string; topics: { key: string }[]; title: string; titleJa: string; description: string; level: ScenarioVariantBase['level']; roles: { learner: string; tutor: string }; goal: { communicativeGoalKo: string; successCriteria: string[] }; steps: { ko: string }[]; opening: { ja: string; ko: string } | null; keyExpressions: { ja: string; reading?: string; ko: string }[] }
 interface Fixture {
   liveCases: { id: string; seed: string; axes: Partial<ScenarioVariantAxes>; note?: string; inject?: { mustNotContain: string[]; legitKeywords: string[] } }[]
+  /** QA 결함 #1(JSON 1차 위반) 재현 보충 입력 — `liveCases` 와 같은 모양, 있으면 그 뒤에 이어 읽는다(`IDS` 로 고른다). */
+  firstPassCases?: { id: string; seed: string; axes: Partial<ScenarioVariantAxes>; note?: string }[]
   inlineTopicCases: { id: string; title: string; titleJa: string; level: 'N5' | 'N4'; description: string }[]
   regressCases: { id: string; description: string; level: 'N5' | 'N4'; topic: { id: string; title: string; titleJa: string } }[]
 }
@@ -44,6 +46,7 @@ const baseOf = (key: string): ScenarioVariantBase => {
 interface Case { id: string; kind: Kind; seed?: string; axes?: Partial<ScenarioVariantAxes>; note?: string; inject?: { mustNotContain: string[]; legitKeywords: string[] }; draftInput?: { description: string; level: 'N5' | 'N4'; topic: { id: string | null; title: string; titleJa: string } } }
 const allCases: Case[] = [
   ...fixture.liveCases.map((c): Case => ({ id: c.id, kind: c.inject ? 'inject' : 'variant', seed: c.seed, axes: c.axes, note: c.note, inject: c.inject })),
+  ...(fixture.firstPassCases ?? []).map((c): Case => ({ id: c.id, kind: 'variant', seed: c.seed, axes: c.axes, note: c.note })),
   ...fixture.inlineTopicCases.map((c): Case => ({ id: c.id, kind: 'inline', draftInput: { description: c.description, level: c.level, topic: { id: null, title: c.title, titleJa: c.titleJa } } })),
   ...fixture.regressCases.map((c): Case => ({ id: c.id, kind: 'regress', draftInput: { description: c.description, level: c.level, topic: c.topic } })),
 ]
