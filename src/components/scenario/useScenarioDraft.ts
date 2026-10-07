@@ -143,10 +143,15 @@ export function useScenarioDraft({
   const gone = goneOnSave || (mode === 'edit' && detail.status === 'error' && detail.errStatus === 404)
 
   // `?topicId=` 로 미리 고른 장소가 주제 목록에 없으면(지운·숨긴 주제) 한 번만 버린다 — 렌더 중 조정(효과 안 setState 를 피한다).
+  // 버려진 값은 [고치던 초안 버리기](dropRestore) 뒤에도 다시 들어오지 않게 기억한다(REV-160 L-4).
   const [presetChecked, setPresetChecked] = useState(false)
+  const [presetDropped, setPresetDropped] = useState(false)
   if (!presetChecked && presetTopicId && topics.status === 'ready') {
     setPresetChecked(true)
-    if (!(topics.data?.items ?? []).some((t) => t.id === presetTopicId)) setAskState((a) => (a.topicId === presetTopicId ? { ...a, topicId: null } : a))
+    if (!(topics.data?.items ?? []).some((t) => t.id === presetTopicId)) {
+      setPresetDropped(true)
+      setAskState((a) => (a.topicId === presetTopicId ? { ...a, topicId: null } : a))
+    }
   }
 
   const clearTimers = () => {
@@ -284,10 +289,10 @@ export function useScenarioDraft({
   const dropRestore = useCallback(() => {
     writeStore('session', DRAFT_STORE_KEY, null)
     setRestore(null)
-    setAskState({ desc: '', topicId: presetTopicId, level: defaultLevel })
+    setAskState({ desc: '', topicId: presetDropped ? null : presetTopicId, level: defaultLevel })
     setNewDraft(null)
     setEdited(false)
-  }, [defaultLevel, presetTopicId])
+  }, [defaultLevel, presetTopicId, presetDropped])
 
   const problems = useMemo(() => {
     const client = tried && draft ? validateDraft(draft) : []

@@ -390,9 +390,14 @@ export const CHECK = {
   duplicate: '같은 표현이 두 번 들어 있어요.',
   listMin: (k: FieldLabelKey, min: number) => `${FIELD_LABEL[k].top} ${min}개 이상이어야 해요.`,
   listMax: (k: FieldLabelKey, max: number) => `${FIELD_LABEL[k].top} ${max}개까지 넣을 수 있어요.`,
-  /** 서버가 꺾쇠·링크 주소·숨은 글자를 `forbidden_char` 로 묶는다. */
-  forbidden: '꺾쇠(< >)나 링크 주소는 쓸 수 없어요. 지우고 다시 적어 주세요.',
-  secretLike: '비밀번호·카드 번호처럼 보이는 글은 쓸 수 없어요.',
+  /**
+   * 서버가 꺾쇠·링크 주소·숨은 글자를 `forbidden_char` 로 묶는다. 이 두 문구는 `topic/topicCopy.ts` `FAIL.field` 와 같은 글자여야 한다 —
+   * 두 벌이 어긋나지 않게 `common/__tests__/copySync.test.ts` 가 맞춘다(앱 코드는 scenario → topic import 금지).
+   */
+  forbidden: '꺾쇠(< >)·링크 주소·눈에 보이지 않는 글자는 쓸 수 없어요.',
+  secretLike: '비밀번호·카드 번호·긴 영문 숫자 키처럼 보이는 글은 쓸 수 없어요.',
+  /** 첫마디 제안(#178)이 상황 정보 칸(제목·목표·역할 …)을 거절한 경우 — 어느 칸인지 말해 주고, 칸은 위 편집기에서 고친다. */
+  unusableIn: (k: FieldLabelKey) => `${FIELD_LABEL[k].noun}에 쓸 수 없는 글이 있어요. 그 칸을 고친 뒤 다시 만들어 주세요.`,
   enumPick: '목록에서 골라 주세요.',
   noHangul: '한국어로 적어 주세요.',
   notLinked: '지금 목록에 없는 장소예요. 목록을 새로 고친 뒤 다시 골라 주세요.',

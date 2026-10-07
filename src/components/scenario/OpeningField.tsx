@@ -13,7 +13,7 @@ import { Spinner } from '@/components/plan/parts'
 import { useTtsRuntimeStatus } from '@/components/speech/useTtsRuntimeStatus'
 import { SOUND_MSG, soundText } from '@/components/vocab/wordSound'
 import { SCENARIO_LIMITS as L } from '@/types/scenario'
-import { applyOpeningDraft, EMPTY_OPENING, oneLine, openingBlock, openingState, type EditableDraft } from './logic'
+import { applyOpeningDraft, EMPTY_OPENING, oneLine, openingBlock, openingState, rolesProblem, type EditableDraft } from './logic'
 import { OPENING } from './scenarioCopy'
 import { useKeyedSound } from './useKeyedSound'
 import { useOpeningDraft } from './useOpeningDraft'
@@ -39,6 +39,9 @@ export default function OpeningField({
   const o = draft.opening ?? EMPTY_OPENING
   const st = openingState(draft.opening)
   const busy = gen.phase === 'busy'
+  // 시작 직후 잠깐은 같은 버튼이 눌리지 않는다(더블 탭이 방금 시작한 요청을 바로 끊지 않게 — `openingFlight`).
+  const cancelling = busy && gen.cancelable
+  const locked = busy && !gen.cancelable
   const failure = gen.phase === 'failed' ? gen.failure : null
   const block = openingBlock(draft)
   const koLen = cpLength(oneLine(o.ko))
@@ -57,15 +60,15 @@ export default function OpeningField({
   const off = disabled || (!busy && (!!block || !!failure?.block))
   const onMain = () => {
     if (disabled) return
-    if (busy) return gen.cancel()
+    if (busy) return gen.cancel() // 잠금 중이면 제어기가 무시한다
     if (off) return
     sound.stop()
     gen.make(draft, placeTitle, (sentKo, r) => setDraft((d) => ({ ...d, opening: applyOpeningDraft(d.opening, sentKo, r) })))
   }
 
-  const label = busy ? OPENING.cancel : failure ? OPENING.retry : st === 'matched' || st === 'stale' ? OPENING.remake : OPENING.make
-  const ghost = busy || (!failure && st === 'matched')
-  const reasonId = block === 'noKo' ? 'dr-openingKo-hint' : block === 'noRoles' ? 'dr-opening-roles' : block === 'tooLong' ? 'dr-openingKo-count' : undefined
+  const label = cancelling ? OPENING.cancel : failure ? OPENING.retry : st === 'matched' || st === 'stale' ? OPENING.remake : OPENING.make
+  const ghost = cancelling || (!failure && st === 'matched')
+  const reasonId = block === 'noKo' ? 'dr-openingKo-hint' : block === 'noRoles' || block === 'badRoles' ? 'dr-opening-roles' : block === 'tooLong' ? 'dr-openingKo-count' : undefined
   const describedBy = errOp ? 'dr-opening-err' : !busy && off ? reasonId : undefined
 
   return (
@@ -107,9 +110,9 @@ export default function OpeningField({
             {errOp}
           </p>
         ) : null}
-        {block === 'noRoles' && !busy ? (
+        {(block === 'noRoles' || block === 'badRoles') && !busy ? (
           <p id="dr-opening-roles" className="text-[12px] text-ink2 break-keep">
-            {OPENING.needRoles}
+            {block === 'badRoles' ? rolesProblem(draft) : OPENING.needRoles}
           </p>
         ) : null}
 
@@ -118,7 +121,7 @@ export default function OpeningField({
             id="dr-opening"
             variant={ghost ? 'ghost' : 'primary'}
             className={`min-w-0 flex-1 ${off && !busy ? 'opacity-40' : ''}`}
-            aria-disabled={(off && !busy) || undefined}
+            aria-disabled={(off && !busy) || locked || undefined}
             aria-busy={busy || undefined}
             aria-describedby={describedBy}
             onClick={onMain}

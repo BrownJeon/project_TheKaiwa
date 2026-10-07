@@ -327,14 +327,26 @@ export function openingBody(o: OpeningValue | null | undefined): { ja: string; k
   return { ja: oneLine(o.ja), ko: oneLine(o.ko) }
 }
 
-/** [일본어로 만들기]를 누를 수 있는지 — 한국어 없음·역할 없음(400 `scenario.roles` 를 보내지 않게)·글자 넘침이면 막는다. */
-export type OpeningBlock = 'noKo' | 'noRoles' | 'tooLong' | null
+/**
+ * [일본어로 만들기]를 누를 수 있는지 — 한국어 없음·글자 넘침·역할 없음·역할 글자 넘침/꺾쇠(서버 400 `scenario.roles.*` 를 보내지 않게)이면 막는다.
+ * `badRoles` 의 이유 문구는 `rolesProblem`(저장 검사와 같은 문구).
+ */
+export type OpeningBlock = 'noKo' | 'noRoles' | 'badRoles' | 'tooLong' | null
 export function openingBlock(d: Pick<EditableDraft, 'opening' | 'learner' | 'tutor'>): OpeningBlock {
   const ko = oneLine(d.opening?.ko ?? '')
   if (!ko) return 'noKo'
   if (cpLength(ko) > L.openingKoMax) return 'tooLong'
   if (!oneLine(d.learner) || !oneLine(d.tutor)) return 'noRoles'
+  if (rolesProblem(d)) return 'badRoles'
   return null
+}
+
+/** 역할 두 칸의 첫 문제 문구(길이는 서버와 같은 `SCENARIO_LIMITS.roleMax`·꺾쇠) — 없으면 null. 저장 검사(`validateDraft`)와 같은 `checkText` 를 쓴다. */
+export function rolesProblem(d: Pick<EditableDraft, 'learner' | 'tutor'>): string | null {
+  const p: DraftProblem[] = []
+  checkText(p, 'learner', d.learner, L.roleMax, 'learner', false)
+  checkText(p, 'tutor', d.tutor, L.roleMax, 'tutor', false)
+  return p[0]?.message ?? null
 }
 
 /** 선택 칸은 서버 한도 안·꺾쇠 없음일 때만 싣는다(넘는 칸 하나로 400 이 나지 않게 — 그 칸은 저장 검사가 따로 알린다). */

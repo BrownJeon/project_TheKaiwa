@@ -67,8 +67,28 @@ function make(kind: ScenarioFailureKind, text: string, extra: Partial<Omit<Scena
 /** 칸 경로 → 이름표·글자 상한·목록 개수 범위. 이름표가 없는 칸은 null(이름이 들어가는 문구는 결함 문구로 떨어진다). */
 function labelOf(ctx: ScenarioFailContext, field: string): { key: FieldLabelKey; max: number | null } | null {
   if (ctx === 'openingDraft') {
-    if (field === 'ko') return { key: 'openingKo', max: L.openingKoMax }
-    return null
+    // #178 본문 칸 이름(`openingDraftSchemas.ts` `OpeningDraftBodyProblem.field`): ko · scenario.{title,titleJa,goal,placeTitle,level,roles.learner,roles.tutor}.
+    // `scenario`·`scenario.roles`(객체 자체)·`body` 는 화면이 항상 올바른 모양으로 보내므로 이름표 없음 = 화면 결함 문구. `placeTitle` 글자 수는 화면이 먼저 걸러 보낸다(`optional`).
+    switch (field) {
+      case 'ko':
+        return { key: 'openingKo', max: L.openingKoMax }
+      case 'scenario.title':
+        return { key: 'title', max: L.titleMax }
+      case 'scenario.titleJa':
+        return { key: 'titleJa', max: L.titleJaMax }
+      case 'scenario.goal':
+        return { key: 'goal', max: L.goalMax }
+      case 'scenario.placeTitle':
+        return { key: 'place', max: null }
+      case 'scenario.level':
+        return { key: 'level', max: null }
+      case 'scenario.roles.learner':
+        return { key: 'learner', max: L.roleMax }
+      case 'scenario.roles.tutor':
+        return { key: 'tutor', max: L.roleMax }
+      default:
+        return null
+    }
   }
   if (field === 'title') return { key: 'title', max: L.titleMax }
   if (field === 'titleJa') return { key: 'titleJa', max: L.titleJaMax }
@@ -118,9 +138,10 @@ export function scenarioFieldFailure(ctx: ScenarioFailContext, field: string, re
       return lab && lab.max !== null ? ok(CHECK.tooLong(lab.key, lab.max)) : defect
     case 'forbidden_char':
     case 'url':
-      return ok(CHECK.forbidden)
     case 'secret_like':
-      return ok(CHECK.secretLike)
+      // 첫마디 칸이 아닌 상황 정보 칸이 거절됐으면 칸 이름을 말해 준다(읽기 상자에 뜨므로 어느 칸인지 알 수 없다).
+      if (ctx === 'openingDraft' && lab && lab.key !== 'openingKo') return ok(CHECK.unusableIn(lab.key))
+      return ok(reason === 'secret_like' ? CHECK.secretLike : CHECK.forbidden)
     case 'no_hangul':
       return ok(CHECK.noHangul)
     case 'duplicate':

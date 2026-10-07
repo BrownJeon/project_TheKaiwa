@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Err } from '@/components/common/errors'
 import { scenarioFailure, scenarioFieldFailure, scenarioFieldFailures, type ScenarioFailContext } from '../failure'
+import { SCENARIO_LIMITS } from '@/types/scenario'
 import { josa } from '../logic'
 import { CHECK, DRAFT, FAIL, FIELD_LABEL, SHEET } from '../scenarioCopy'
 
@@ -61,7 +62,12 @@ test('#178 첫마디: 칸·422·409·429(분/하루)·502·네트워크 — 「�
   assert.equal(f(err(400, { field: 'ko', reason: 'max_length' })).text, FAIL.opening.max)
   assert.equal(f(err(400, { field: 'ko', reason: 'no_hangul' })).text, CHECK.noHangul)
   assert.equal(f(err(400, { field: 'ko', reason: 'required' })).text, '선생님 첫마디를 적어 주세요.')
+  // `scenario.roles`(객체 자체)·`scenario`·`body` 는 화면이 늘 올바른 모양으로 보내므로 화면 결함 문구 — 칸 이름이 있는 것만 고칠 수 있게 말한다.
   assert.equal(f(err(400, { field: 'scenario.roles', reason: 'required' })).text, CHECK.defect)
+  assert.equal(f(err(400, { field: 'scenario', reason: 'required' })).text, CHECK.defect)
+  assert.equal(f(err(400, { field: 'ko', reason: 'unknown_key' })).text, CHECK.defect)
+  assert.equal(f(err(400, { field: 'ko', reason: 'forbidden_char' })).text, CHECK.forbidden)
+  assert.equal(f(err(400, { field: 'ko', reason: 'secret_like' })).text, CHECK.secretLike)
   assert.equal(f(err(422, { reason: 'NOT_AN_UTTERANCE' })).text, FAIL.opening.unfit)
   assert.equal(f(err(422, { reason: 'TOO_LONG' })).kind, 'tooLong')
   assert.equal(f(err(409, { reason: 'DRAFT_BUSY' })).text, FAIL.opening.busy)
@@ -73,6 +79,31 @@ test('#178 첫마디: 칸·422·409·429(분/하루)·502·네트워크 — 「�
   const engine = f(err(502))
   assert.deepEqual([engine.kind, engine.text, engine.body, engine.retry], ['engine', FAIL.opening.fail, FAIL.opening.failKeep, true])
   assert.equal(f(err(0)).body, FAIL.opening.failKeep)
+})
+
+test('#178 400 의 상황 정보 칸(REV-160 M-2): 서버가 내는 칸 이름마다 칸 문구 — 「저장하지 못했어요」 결함 문구로 떨어지지 않는다', () => {
+  const t = (field: string, reason: string) => scenarioFieldFailure('openingDraft', field, reason)
+  const max = SCENARIO_LIMITS.roleMax
+  assert.equal(t('scenario.roles.learner', 'max_length').text, `내 역할은 ${max}자까지 쓸 수 있어요.`)
+  assert.equal(t('scenario.roles.tutor', 'max_length').text, `선생님 역할은 ${max}자까지 쓸 수 있어요.`)
+  assert.equal(t('scenario.roles.learner', 'required').text, '내 역할을 적어 주세요.')
+  assert.equal(t('scenario.roles.tutor', 'no_text').text, '선생님 역할을 적어 주세요.')
+  assert.equal(t('scenario.title', 'max_length').text, `제목은 ${SCENARIO_LIMITS.titleMax}자까지 쓸 수 있어요.`)
+  assert.equal(t('scenario.titleJa', 'max_length').text, `일본어 제목은 ${SCENARIO_LIMITS.titleJaMax}자까지 쓸 수 있어요.`)
+  assert.equal(t('scenario.goal', 'max_length').text, `목표는 ${SCENARIO_LIMITS.goalMax}자까지 쓸 수 있어요.`)
+  assert.equal(t('scenario.level', 'enum').text, CHECK.enumPick)
+  // 첫마디 칸이 아닌 칸이 거절되면 읽기 상자에 뜨므로 어느 칸인지 말한다(첫마디 칸은 그대로 일반 문구).
+  assert.equal(t('scenario.roles.tutor', 'forbidden_char').text, CHECK.unusableIn('tutor'))
+  assert.equal(t('scenario.title', 'secret_like').text, CHECK.unusableIn('title'))
+  assert.equal(t('scenario.placeTitle', 'forbidden_char').text, CHECK.unusableIn('place'))
+  assert.equal(t('ko', 'forbidden_char').text, CHECK.forbidden)
+  // 이름표가 없거나 화면이 막았어야 할 모양 오류는 결함 문구.
+  for (const [field, reason] of [['scenario.placeTitle', 'max_length'], ['scenario.roles.learner', 'type'], ['scenario.title', 'unknown_key'], ['scenario', 'type'], ['body', 'type']]) {
+    assert.equal(t(field, reason).defect, true, `${field}/${reason}`)
+  }
+  // 한 요청에 여러 칸이 걸려도(problems[]) 칸마다 문구가 나온다.
+  const many = scenarioFailure('openingDraft', err(400, { field: 'scenario.roles.tutor', reason: 'max_length', problems: [{ field: 'scenario.roles.tutor', reason: 'max_length' }, { field: 'ko', reason: 'no_hangul' }] }))
+  assert.deepEqual([many.kind, many.problems.map((p) => p.text)], ['field', [`선생님 역할은 ${max}자까지 쓸 수 있어요.`, CHECK.noHangul]])
 })
 
 test('#166 상황 초안(묻기 단계): 422 · 409 · 429 분/하루 · 5xx', () => {

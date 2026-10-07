@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import type { ScenarioDetail } from '@/types/scenario'
+import { ApiError } from '@/components/common/api'
+import { SCENARIO_LIMITS, type ScenarioDetail } from '@/types/scenario'
 import {
   applyOpeningDraft,
   draftFromDetail,
@@ -14,6 +15,7 @@ import {
   openingRequestBody,
   openingState,
   parseStoredDraft,
+  rolesProblem,
   seedIdOfCopy,
   serializeStoredDraft,
   sheetOrigin,
@@ -21,7 +23,8 @@ import {
   type EditableDraft,
   type OpeningValue,
 } from '../logic'
-import { OPENING, SHEET } from '../scenarioCopy'
+import { CHECK, FAIL, OPENING, SHEET } from '../scenarioCopy'
+import { createOpeningFlight, OPENING_CANCEL_LOCK_MS, OPENING_TIMEOUT_MS, type OpeningFlightState, type OpeningRequestBody } from '../openingFlight'
 
 /* task-045 T5-5a — 공유 편집기 첫마디(D5=A) 상태·저장 본문·#178 요청/응답 · 상황 시트 행동 줄 출처(S10). */
 
@@ -129,6 +132,19 @@ test('[일본어로 만들기] 막힘: 한국어 없음 · 역할 없음(400 을
   assert.equal(openingBlock(draft()), null)
 })
 
+test('[일본어로 만들기] 막힘: 역할 글자 수·꺾쇠도 요청 전에 막는다(서버 400 `scenario.roles.*` 를 보내지 않게, REV-160 M-2)', () => {
+  const max = SCENARIO_LIMITS.roleMax
+  assert.equal(openingBlock(draft({ tutor: '가'.repeat(max) })), null, '한도 정확히는 통과')
+  assert.equal(openingBlock(draft({ tutor: '가'.repeat(max + 1) })), 'badRoles')
+  assert.equal(openingBlock(draft({ learner: '손<님' })), 'badRoles')
+  assert.equal(openingBlock(draft({ learner: ' ' })), 'noRoles', '비어 있으면 badRoles 가 아니라 noRoles')
+  assert.equal(rolesProblem(draft({ tutor: '가'.repeat(max + 1) })), CHECK.tooLong('tutor', max))
+  assert.equal(rolesProblem(draft({ learner: '손<님' })), CHECK.angle('learner'))
+  assert.equal(rolesProblem(draft()), null)
+  // 한국어 칸 문제가 먼저 — 한 번에 한 이유만 보인다.
+  assert.equal(openingBlock(draft({ tutor: '가'.repeat(max + 1), opening: null })), 'noKo')
+})
+
 test('#178 본문: 지금 편집 값 · 빈 칸·한도 넘는 칸·꺾쇠 칸은 빼고 보낸다 · 장소 이름', () => {
   const b = openingRequestBody(draft({ opening: { ko: ' 어서\n오세요 ', ja: null, koAtJa: null, reading: null } }), '카페 주문')
   assert.deepEqual(b, {
@@ -181,4 +197,146 @@ test('첫마디·시트 문구: 「AI」·엔진명·조사 병기 없음, 해�
   }
   assert.equal(OPENING.confirmRole(''), '선생님이 먼저 건네는 말이 맞는지 확인해 주세요. 내가 할 말이면 첫마디가 아니라 대화 순서에 적어요.')
   assert.ok(OPENING.confirmRole('점원').startsWith('선생님(점원 역할)이 '))
+})
+
+/* ── 요청 한 건의 흐름(openingFlight) — 더블 탭 요청 1건 · 시작 직후 취소 잠금 800ms · 30초 상한 · 정리 (REV-160 M-3·L-1) ── */
+
+function fakeClock() {
+  let now = 0
+  let seq = 0
+  const pending = new Map<number, { at: number; fn: () => void }>()
+  return {
+    timers: {
+      set: (fn: () => void, ms: number) => {
+        const id = ++seq
+        pending.set(id, { at: now + ms, fn })
+        return id
+      },
+      clear: (h: unknown) => {
+        pending.delete(h as number)
+      },
+    },
+    tick(ms: number) {
+      const end = now + ms
+      for (;;) {
+        const next = [...pending.entries()].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0]
+        if (!next) break
+        pending.delete(next[0])
+        now = next[1].at
+        next[1].fn()
+      }
+      now = end
+    },
+    pendingCount: () => pending.size,
+  }
+}
+
+function flightRig() {
+  const clock = fakeClock()
+  const calls: { body: OpeningRequestBody; signal: AbortSignal; resolve: (v: unknown) => void; reject: (e: unknown) => void }[] = []
+  const states: OpeningFlightState[] = []
+  const flight = createOpeningFlight({
+    timers: clock.timers,
+    onState: (s) => states.push(s),
+    post: (body, signal) =>
+      new Promise((resolve, reject) => {
+        calls.push({ body, signal, resolve, reject })
+        // 실제 fetch 처럼 취소하면 AbortError 로 거절된다.
+        signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+      }),
+  })
+  const last = () => states[states.length - 1]
+  return { clock, calls, states, flight, last }
+}
+
+const settle = () => new Promise<void>((r) => setImmediate(r))
+
+test('더블 탭: 요청 중에 [일본어로 만들기] 를 또 눌러도 요청은 1건(409 도 한도를 쓴다)', () => {
+  const r = flightRig()
+  const results: string[] = []
+  r.flight.make(draft(), '카페 주문', (ko) => results.push(ko))
+  r.flight.make(draft(), '카페 주문', (ko) => results.push(ko))
+  assert.equal(r.calls.length, 1)
+  assert.equal(r.last().phase, 'busy')
+  assert.equal(r.calls[0].body.ko, '어서 오세요, 무엇을 드릴까요?')
+})
+
+test('취소 잠금: 시작 후 800ms 전에는 [그만두기] 가 요청을 끊지 못하고, 그 뒤에는 끊는다', () => {
+  const r = flightRig()
+  r.flight.make(draft(), null, () => {})
+  assert.equal(r.last().cancelable, false)
+  r.flight.cancel() // 더블 탭의 둘째 탭
+  assert.equal(r.calls[0].signal.aborted, false)
+  assert.equal(r.last().phase, 'busy')
+  r.clock.tick(OPENING_CANCEL_LOCK_MS - 1)
+  r.flight.cancel()
+  assert.equal(r.calls[0].signal.aborted, false, '799ms — 아직 잠김')
+  r.clock.tick(1)
+  assert.equal(r.last().cancelable, true)
+  r.flight.cancel()
+  assert.equal(r.calls[0].signal.aborted, true)
+  assert.deepEqual([r.last().phase, r.last().cancelable, r.last().failure], ['idle', false, null])
+  assert.equal(r.clock.pendingCount(), 0, '취소하면 타이머가 남지 않는다')
+  r.flight.make(draft(), null, () => {})
+  assert.equal(r.calls.length, 2, '끝난 뒤에는 새 요청이 가능')
+})
+
+test('성공: 결과는 한 번만 알리고 타이머를 모두 거두며, 서버가 줄였다는 표시를 전한다', async () => {
+  const r = flightRig()
+  const got: { ko: string; ja: string }[] = []
+  r.flight.make(draft(), null, (ko, res) => got.push({ ko, ja: res.ja }))
+  r.calls[0].resolve({ ja: 'いらっしゃいませ', reading: 'いらっしゃいませ', warnings: ['JA_TRUNCATED'] })
+  await settle()
+  assert.deepEqual(got, [{ ko: '어서 오세요, 무엇을 드릴까요?', ja: 'いらっしゃいませ' }])
+  assert.deepEqual([r.last().phase, r.last().truncated, r.last().cancelable], ['idle', true, false])
+  assert.equal(r.clock.pendingCount(), 0)
+  r.clock.tick(OPENING_TIMEOUT_MS)
+  assert.equal(got.length, 1)
+})
+
+test('실패: 서버 오류는 고정 문구로, 일본어가 없는 응답도 실패로 본다 — 실패 뒤 다시 만들 수 있다', async () => {
+  const r = flightRig()
+  r.flight.make(draft(), null, () => assert.fail('실패인데 결과가 들어갔다'))
+  r.calls[0].reject(new ApiError('서버 내부 문구', 502))
+  await settle()
+  assert.equal(r.last().phase, 'failed')
+  assert.equal(r.last().failure?.text, FAIL.opening.fail)
+  r.flight.make(draft(), null, () => assert.fail('빈 응답인데 결과가 들어갔다'))
+  assert.equal(r.calls.length, 2)
+  r.calls[1].resolve({ ja: '  ', warnings: [] })
+  await settle()
+  assert.equal(r.last().phase, 'failed')
+  assert.equal(r.last().failure?.text, FAIL.opening.fail)
+})
+
+test('30초가 지나면 끊고 실패로 알린다 · 요청 중이 아닐 때 clear 는 지난 실패를 지운다', async () => {
+  const r = flightRig()
+  r.flight.make(draft(), null, () => {})
+  r.clock.tick(OPENING_TIMEOUT_MS)
+  assert.equal(r.calls[0].signal.aborted, true)
+  await settle()
+  assert.deepEqual([r.last().phase, r.last().failure?.text], ['failed', FAIL.opening.fail])
+  r.flight.clear()
+  assert.deepEqual([r.last().phase, r.last().failure], ['idle', null])
+  r.flight.make(draft(), null, () => {})
+  r.flight.clear() // 요청 중에는 무시
+  assert.equal(r.last().phase, 'busy')
+})
+
+test('화면이 사라지면(dispose) 요청을 끊고 타이머를 모두 거둔다 — 상태는 더 알리지 않는다', async () => {
+  const r = flightRig()
+  r.flight.make(draft(), null, () => assert.fail('사라진 화면에 결과가 들어갔다'))
+  const before = r.states.length
+  r.flight.dispose()
+  assert.equal(r.calls[0].signal.aborted, true)
+  assert.equal(r.clock.pendingCount(), 0)
+  await settle()
+  assert.equal(r.states.length, before)
+})
+
+test('한국어가 비면 요청하지 않는다', () => {
+  const r = flightRig()
+  r.flight.make(draft({ opening: null }), null, () => {})
+  assert.equal(r.calls.length, 0)
+  assert.equal(r.states.length, 0)
 })
