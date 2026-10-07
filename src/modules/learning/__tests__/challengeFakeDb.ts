@@ -102,6 +102,8 @@ export interface FakeTables {
   repetitionItem: Row[]
   aiJob: Row[]
   requestTrace: Row[]
+  /** task-045 T1-2 — 챌린지 만들기의 시드 가시성 확인(가려진 시드 주제 404). */
+  userSeedOverride: Row[]
 }
 
 export interface FakeDb {
@@ -115,7 +117,7 @@ export interface FakeDb {
 }
 
 export function fakeDb(): FakeDb {
-  const tables: FakeTables = { challenge: [], statsSnapshot: [], lesson: [], vocabSession: [], vocabAttempt: [], conversationTopic: [], topicChunk: [], repetitionItem: [], aiJob: [], requestTrace: [] }
+  const tables: FakeTables = { challenge: [], statsSnapshot: [], lesson: [], vocabSession: [], vocabAttempt: [], conversationTopic: [], topicChunk: [], repetitionItem: [], aiJob: [], requestTrace: [], userSeedOverride: [] }
   const log: string[] = []
   const clock = { now: new Date('2026-10-06T00:00:00.000Z') }
   const beforeActiveCheck: FakeDb['beforeActiveCheck'] = { fn: null }

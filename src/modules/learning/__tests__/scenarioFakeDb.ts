@@ -18,6 +18,8 @@ export interface ScenarioFakeTables {
   learningObservation: Row[]
   repetitionItem: Row[]
   lesson: Row[]
+  /** task-045 T1-2 — 목록·추천·장소의 시드 가시성(override 행). */
+  userSeedOverride: Row[]
 }
 
 function sortRows(rows: Row[], orderBy: unknown): Row[] {
@@ -39,7 +41,7 @@ function sortRows(rows: Row[], orderBy: unknown): Row[] {
 }
 
 export function scenarioFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
-  const tables: ScenarioFakeTables = { scenario: [], scenarioTopic: [], conversationTopic: [], topicChunk: [], learningObservation: [], repetitionItem: [], lesson: [] }
+  const tables: ScenarioFakeTables = { scenario: [], scenarioTopic: [], conversationTopic: [], topicChunk: [], learningObservation: [], repetitionItem: [], lesson: [], userSeedOverride: [] }
   const log: string[] = []
   /** 읽기 호출의 인자(where 단언용 — 예: 관측 조회의 시간 창). */
   const reads: { op: string; where: Where }[] = []

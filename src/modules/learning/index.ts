@@ -58,3 +58,5 @@ export type { CorrectionEventInput, AcceptedCorrectionInput } from './observatio
 // ── Phase 2 — 챌린지(task-041)·상황 역할극(task-010d) 공개 API 는 각 하위 index.ts 에만 더한다(이 파일은 이 두 줄 그대로) ──
 export * from './challenges'
 export * from './scenarios'
+// ── task-045 시드 사용자별 관리(UserSeedOverride) — 공개 API 는 seedOverride/index.ts 에만 더한다 ──
+export * from './seedOverride'

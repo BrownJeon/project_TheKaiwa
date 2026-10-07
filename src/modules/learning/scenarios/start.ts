@@ -7,10 +7,14 @@
  * - `scenarioId` 없이 `lessonId` 만 오면 그 레슨의 상황(상황 수업, A2)을 쓴다. 상황이 없는 레슨이면 400(역할극이 아님 — 주제로 이어 말하기는 기존 `topicId` 경로).
  * - 주제(`Chat.topicId`): 요청 `topicId`(그 상황과 이어진 주제여야 함, 아니면 400) > 레슨 주제(이어져 있을 때) > 이어진 주제 중 `weight` 큰 것(같으면 id 순) > 없음.
  *   이어진 주제라도 남의 사용자 주제는 고르지 않는다.
+ * - 시드 사용자별 관리(task-045 §2): 이 사용자가 가린(숨김·내 버전) 시드 상황은 새로 시작하지 않는다(없는 상황과 같은 404 — 진행 중 역할극은
+ *   `readScenarioRolePlayMaterial` 로 계속). 이어진 주제는 이 사용자의 장소로 읽는다 — 내 버전이 있는 시드 주제는 내 버전으로, 가린 시드 주제는 뺀다.
+ *   판정은 읽기 전용이라 사용자 잠금 밖이다: 숨김과 동시에 들어온 시작은 숨기기 직전에 시작한 대화와 같다(진행 중 대화는 숨김의 영향을 받지 않는다).
  */
 import type { JlptLevel } from '@prisma/client'
-import { ApiError, prisma } from '@/modules/infra'
+import { ApiError, prisma, type Tx } from '@/modules/infra'
 import type { ScenarioGoal, ScenarioOpening, ScenarioRoles, ScenarioStep } from '@/types/scenario'
+import { loadSeedVisibility, placeTopicId, type SeedVisibility } from '../seedOverride/visibility'
 import { readScenarioExpressions, scenarioChunkIds, scenarioRequiredExpressions, type ScenarioChunkRef, type ScenarioExpression } from './expressions'
 import { readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from './view'
 
@@ -62,10 +66,33 @@ interface StartScenarioRow {
   topics: { topicId: string; weight: number; topic: { id: string; title: string; userId: string | null } }[]
 }
 
-/** 테스트가 가짜를 넣을 수 있게 쓰는 면만 좁힌 읽기 DB. */
+/** 테스트가 가짜를 넣을 수 있게 쓰는 면만 좁힌 읽기 DB. `userSeedOverride`·`conversationTopic` 은 시드 가시성(override 1회 + 내 버전 주제 이름). */
 export interface ScenarioStartDb {
   lesson: { findFirst(args: { where: { id: string; userId: string }; select: { id: true; topicId: true; scenarioId: true } }): Promise<{ id: string; topicId: string | null; scenarioId: string | null } | null> }
   scenario: { findFirst(args: { where: ReturnType<typeof scenarioAccessWhere>; select: typeof START_SELECT }): Promise<StartScenarioRow | null> }
+  userSeedOverride: Pick<Tx['userSeedOverride'], 'findMany'>
+  conversationTopic: Pick<Tx['conversationTopic'], 'findMany'>
+}
+
+/**
+ * 이어진 주제(`linkedTopicsFor` 결과)를 이 사용자의 장소로 — 가린 시드 주제는 빼고, 내 버전이 있으면 내 버전(id·이름)으로 바꾼다. 순서 유지·중복 제거.
+ * 내 버전 이름은 바뀌는 것이 있을 때만 한 번 읽는다(override 없는 사용자는 조회 0).
+ */
+async function placeLinkedTopics(userId: string, linked: { id: string; title: string }[], vis: SeedVisibility, db: ScenarioStartDb): Promise<{ id: string; title: string }[]> {
+  const placed = linked.flatMap((t) => {
+    const id = placeTopicId(vis, t.id)
+    return id === null ? [] : [{ id, title: t.title, copied: id !== t.id }]
+  })
+  const copyIds = [...new Set(placed.filter((t) => t.copied).map((t) => t.id))]
+  const titles = copyIds.length
+    ? new Map((await db.conversationTopic.findMany({ where: { id: { in: copyIds }, userId, isSeed: false }, select: { id: true, title: true } })).map((t) => [t.id, t.title]))
+    : new Map<string, string>()
+  const seen = new Set<string>()
+  return placed.flatMap((t) => {
+    if (seen.has(t.id) || (t.copied && !titles.has(t.id))) return []
+    seen.add(t.id)
+    return [{ id: t.id, title: t.copied ? titles.get(t.id)! : t.title }]
+  })
 }
 
 /** 이어진 주제 중 이 사용자가 볼 수 있는 것(시드·본인) — weight 큰 순, 같으면 id 순. */
@@ -90,8 +117,10 @@ export async function resolveScenarioChatStart(userId: string, input: ScenarioCh
   const row = await db.scenario.findFirst({ where: scenarioAccessWhere(userId, scenarioId), select: START_SELECT })
   if (!row) throw scenarioNotFound()
   if (row.status !== 'ACTIVE') throw new ApiError('CONFLICT', '지금은 열 수 없는 상황이에요.', { reason: 'ARCHIVED' })
+  const vis = await loadSeedVisibility(db as unknown as Tx, userId)
+  if (vis.hiddenScenarios.has(row.id)) throw scenarioNotFound()
 
-  const linked = linkedTopicsFor(userId, row.topics)
+  const linked = await placeLinkedTopics(userId, linkedTopicsFor(userId, row.topics), vis, db)
   let topic: { id: string; title: string } | null = null
   let topicSource: ScenarioTopicSource = 'NONE'
   if (input.topicId !== null) {

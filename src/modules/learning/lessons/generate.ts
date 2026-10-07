@@ -18,7 +18,9 @@ import { Prisma, type JlptLevel, type LessonStatus } from '@prisma/client'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type TraceStep } from '@/modules/engine'
 import { ApiError, classifyError, dates, jobs, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
+import { getActiveChallengeTopic } from '../challenges'
 import { readScenarioRolePlayMaterial, resolveScenarioChatStart, scenarioNotFound, type ScenarioChatStart, type ScenarioChatStartInput, type ScenarioRolePlayMaterial } from '../scenarios/start'
+import { isSeedVisibleFor } from '../seedOverride/visibility'
 import { getTopicForLesson, type LessonTopicMaterial } from '../topics'
 import { readStoredContent, toStoredContent, type LessonGenOutput } from './content'
 import type { CreateLessonInput } from './validate'
@@ -95,6 +97,36 @@ export async function loadScenarioLessonMaterials(
   return { input, topic, scenario, level: topic ? topic.level : scenario.level, ...history }
 }
 
+/** 주제 수업 재료 읽기의 바깥 의존 — 시험이 가짜를 넣는다(기본 = 실제 DB 읽기). */
+export interface TopicLessonDeps {
+  topic: (userId: string, topicId: string) => Promise<LessonTopicMaterial | null>
+  /** 이 사용자가 가린(숨김·내 버전) 시드 주제가 아닌가(task-045 §2). */
+  visible: (userId: string, topicId: string) => Promise<boolean>
+  /** 진행 중 챌린지의 오늘 수업 주제 id(수업 과제가 켜져 있고 기간 안일 때만) 또는 null. */
+  challengeTopicId: (userId: string) => Promise<string | null>
+  history: (userId: string, key: LessonHistoryKey) => Promise<LessonHistory>
+}
+
+const TOPIC_LESSON_DEPS: TopicLessonDeps = {
+  topic: getTopicForLesson,
+  visible: (userId, topicId) => isSeedVisibleFor(prisma, userId, 'TOPIC', topicId),
+  challengeTopicId: async (userId) => (await getActiveChallengeTopic(userId))?.topicId ?? null,
+  history: loadLessonHistory,
+}
+
+/**
+ * 주제 수업 재료(#59 `{topicId}`) — 시드 또는 내 주제, 이 사용자가 가린 시드 주제는 없는 주제와 같은 404(새 수업을 만들지 않는다 — 지난 수업은 그대로).
+ * 예외: 진행 중 챌린지의 수업 주제면 허용한다(계약 §0 #9 "시드 숨김에서 진행 중 챌린지는 계속" — 챌린지 오늘 수업 과제가 이 경로로 수업을 만든다).
+ * 챌린지 조회는 가려진 주제일 때만 한다(override 없는 사용자는 추가 조회 1회 = override 확인뿐).
+ * 잠금 안 재확인(삭제 경쟁, Codex C1 ⓐ)은 T3 공용 헬퍼 몫. 상황 수업은 `resolveScenarioChatStart` 가 같은 규칙(가린 시드 상황 404·장소 치환)을 판정한다.
+ */
+export async function loadTopicLessonMaterials(userId: string, input: Extract<CreateLessonInput, { kind: 'topic' }>, deps: TopicLessonDeps = TOPIC_LESSON_DEPS): Promise<LessonMaterials> {
+  const topic = await deps.topic(userId, input.topicId)
+  const allowed = topic !== null && ((await deps.visible(userId, topic.id)) || (await deps.challengeTopicId(userId)) === topic.id)
+  if (!topic || !allowed) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
+  return { input, topic, scenario: null, level: topic.level, ...(await deps.history(userId, { topicId: topic.id })) }
+}
+
 /** #59 재료 — 주제는 시드 또는 내 것(아니면 404). 읽기 전용(점유 전). */
 export async function loadLessonMaterials(userId: string, input: CreateLessonInput): Promise<LessonMaterials> {
   if (input.kind === 'text') {
@@ -102,9 +134,7 @@ export async function loadLessonMaterials(userId: string, input: CreateLessonInp
     return { input, topic: null, scenario: null, level: profile.level as JlptLevel, previousTitles: [], previousNextPreview: null }
   }
   if (input.kind === 'scenario') return loadScenarioLessonMaterials(userId, input)
-  const topic = await getTopicForLesson(userId, input.topicId)
-  if (!topic) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
-  return { input, topic, scenario: null, level: topic.level, ...(await loadLessonHistory(userId, { topicId: topic.id })) }
+  return loadTopicLessonMaterials(userId, input)
 }
 
 export interface CreateLessonResult {

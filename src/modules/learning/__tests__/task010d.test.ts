@@ -157,6 +157,9 @@ function startDb(scenarios: FakeScenario[], lessons: { id: string; userId: strin
         return scenarios.find((x) => matches(x as unknown as Row, args.where)) ?? null
       },
     },
+    // task-045 T1-2: 시드 가시성 조회 — 이 시험의 사용자는 override 가 없다.
+    userSeedOverride: { findMany: async () => [] },
+    conversationTopic: { findMany: async () => [] },
   }
   return { db: db as unknown as ScenarioStartDb, seen }
 }

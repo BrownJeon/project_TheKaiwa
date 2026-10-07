@@ -524,6 +524,7 @@ model User {
   evaluations      Evaluation[]
   studyPlans       StudyPlan[]
   challenges       Challenge[]
+  seedOverrides    UserSeedOverride[]
   snapshots        StatsSnapshot[]
   errorStats       LearnerErrorStat[]
   utterances       Utterance[]
@@ -1039,6 +1040,26 @@ model ScenarioTopic {
   @@id([scenarioId, topicId])
 }
 
+/// task-045 — 시드(공유 행)를 사용자별로 따로 관리. 시드 행은 절대 수정하지 않는다.
+/// copyId 있음 = 그 사용자가 고쳐 만든 "내 버전"(사용자 소유 행)이 원본을 대신한다. copyId null = 그 사용자 목록에서 시드를 숨김.
+/// FK 없음(seedId·copyId 는 문자열) — 시드·사본 행 삭제와 override 정합은 learning/seedOverride 의 한 트랜잭션(사용자 행 잠금 뒤)이 보증한다.
+/// 정본 계약 docs/design/topic-scenario-manager.md §1·§4(불변식: 행 없음 | copyId = 존재하는 그 사용자 소유 행 | copyId null).
+model UserSeedOverride {
+  id        String   @id @default(cuid())
+  userId    String
+  /// 'TOPIC' | 'SCENARIO'
+  kind      String   @db.VarChar(10)
+  seedId    String   @db.VarChar(40)
+  copyId    String?  @db.VarChar(40)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, seedId])
+  @@index([userId, kind])
+}
+
 /// 오늘의 회화 1:1 수업(이해→문법→문제→응용→말하기). content = A4 스키마 JSON. sourceText = 사용자가 붙여넣은 자막 문장(레퍼런스3)
 model Lesson {
   id              String       @id @default(cuid())
@@ -1284,7 +1305,7 @@ model StudyPlan {
 /// 챌린지(task-040 설계 challenge.md §3-2, 구현 task-041) — 사용자가 직접 만든다(규칙 1 의 DIRECT 행위, AI 산출 아님). L3 learning/challenges 소유.
 /// 하루별 결과는 저장하지 않는다 — 기간 안 StatsSnapshot(LESSON·VOCAB_SESSION)을 읽을 때 계산하고(§6-4), 끝날 때 result 에 한 번 얼린다.
 /// activeKey = ACTIVE 일 때 userId, 끝나면 null → @unique 가 "사용자당 진행 중 1개"를 DB 에서 보증(InnoDB 유니크는 NULL 여러 개 허용).
-/// 사용자 삭제 경로 없음(계정 삭제 시에만 Cascade). 진행 중 챌린지의 주제는 지울 수 없다(#57 이 409 — §3-3)
+/// 사용자 삭제 경로 없음(계정 삭제 시에만 Cascade). 주제를 지우면 진행 중(ACTIVE) 챌린지 행은 같은 트랜잭션에서 함께 지워지고, 끝난 챌린지(ENDED·COMPLETED)는 topicId=null 로 남는다(task-045 사용자 결정 — topic-scenario-manager.md §4, challenge.md §3-3)
 model Challenge {
   id             String          @id @default(cuid())
   userId         String
@@ -1304,7 +1325,7 @@ model Challenge {
   activeKey      String?         @unique @db.VarChar(40)
   /// 끝날 때 한 번만 쓰는 요약(§5-5) — {ruleVersion, endReason, metDays, partialDays, missedDays, stoppedDays, elapsedDays, rate, longestStreak,
   /// lessonsDone, wordSets, wordsCorrect, days:[{date, state, quiz:[c,t]|null, words:[c,w,s,n,sets]|null}] ≤30} — 이후 불변.
-  /// endReason = COMPLETED 면 null · ENDED 면 'USER' | 'TOPIC_REMOVED'. JSON 모양은 정본 domain-model §9-3
+  /// endReason = COMPLETED 면 null · ENDED 면 'USER' | 'TOPIC_REMOVED'(예외 경로 — 주제 삭제는 진행 중 챌린지를 행째 지운다, challenge.md §3-3 개정). JSON 모양은 정본 domain-model §9-3
   result         Json?
   /// COMPLETED = endDate 다음 날 00:00 KST(마감 시각 — 전이를 실행한 시각이 아님) · ENDED = 그만둔 시각
   endedAt        DateTime?

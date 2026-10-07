@@ -41,6 +41,7 @@ import {
   storedExpressionSeq,
   type ScenarioFields,
 } from './shape'
+import { loadSeedVisibility, mapPlaceLinks, seedTopicOfCopy } from '../seedOverride/visibility'
 import { scenarioAccessWhere, scenarioNotFound } from './start'
 import { expressionView, readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from './view'
 
@@ -166,20 +167,29 @@ const rec = (v: unknown): Record<string, unknown> => (v && typeof v === 'object'
 const nonNeg = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0)
 const cmpId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
+/**
+ * 목록·추천(`f.ids` 없음)은 이 사용자가 가린 시드 상황을 빼고, 장소는 `mapPlaceLinks` 로 이 사용자의 장소(사본 치환·가린 시드 주제 제외)로 읽는다
+ * (task-045 계약 §2·§8 ①, 저장 변경 없음). `f.ids`(상세 단건)는 가린 시드도 읽는다 — id 로 직접 읽기는 막지 않는다.
+ */
 async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, opts: ScenarioReadOptions): Promise<{ entries: CatalogEntry[]; recommendedIds: string[] }> {
   const db = d.db
+  const vis = await loadSeedVisibility(db, userId)
+  // 가린 시드 주제로는 거를 수 없고, 사본 id 로 거르면 원래 시드 주제에 붙은 연결(시드 상황)도 포함한다.
+  if (f.topicId && vis.hiddenTopics.has(f.topicId)) return { entries: [], recommendedIds: [] }
   let idFilter: string[] | null = f.ids ?? null
   if (f.topicId) {
-    const linked = (await db.scenarioTopic.findMany({ where: { topicId: f.topicId }, select: { scenarioId: true }, take: SCENARIO_CATALOG_MAX })).map((r) => r.scenarioId)
+    const seedOf = seedTopicOfCopy(vis, f.topicId)
+    const linked = (await db.scenarioTopic.findMany({ where: { topicId: seedOf ? { in: [f.topicId, seedOf] } : f.topicId }, select: { scenarioId: true }, take: SCENARIO_CATALOG_MAX })).map((r) => r.scenarioId)
     idFilter = idFilter ? idFilter.filter((id) => linked.includes(id)) : linked
   }
   if (idFilter && !idFilter.length) return { entries: [], recommendedIds: [] }
+  const hiddenScenarios = f.ids ? [] : [...vis.hiddenScenarios]
   const rows: ScenarioRow[] = await db.scenario.findMany({
     where: {
       status: 'ACTIVE',
       ...(f.level ? { level: f.level } : {}),
       ...(idFilter ? { id: { in: idFilter } } : {}),
-      ...(f.mine ? { userId, isSeed: false } : { OR: [{ userId: null, isSeed: true }, { userId }] }),
+      ...(f.mine ? { userId, isSeed: false } : { OR: [{ userId: null, isSeed: true, ...(hiddenScenarios.length ? { id: { notIn: hiddenScenarios } } : {}) }, { userId }] }),
     },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: SCENARIO_CATALOG_MAX,
@@ -190,9 +200,9 @@ async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, o
   const now = d.now()
   const today = dates.todayKst(now)
 
-  const links = await db.scenarioTopic.findMany({ where: { scenarioId: { in: ids } }, select: { scenarioId: true, topicId: true, weight: true } })
+  const links = mapPlaceLinks(await db.scenarioTopic.findMany({ where: { scenarioId: { in: ids } }, select: { scenarioId: true, topicId: true, weight: true } }), vis)
   const topicRows = links.length
-    ? await db.conversationTopic.findMany({ where: { id: { in: [...new Set(links.map((l) => l.topicId))] }, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, titleJa: true, createdAt: true } })
+    ? await db.conversationTopic.findMany({ where: { id: { in: [...new Set(links.flatMap((l) => (l.from === l.topicId ? [l.topicId] : [l.topicId, l.from])))] }, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, titleJa: true, createdAt: true } })
     : []
   const topicById = new Map(topicRows.map((t) => [t.id, t]))
   if (f.topicId && !topicById.has(f.topicId)) return { entries: [], recommendedIds: [] }
@@ -215,10 +225,11 @@ async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, o
   }
   const reps = await db.repetitionItem.findMany({ where: { userId, refType: SCENARIO_REPETITION_REF_TYPE, refId: { in: ids } }, select: { refId: true, nextDueAt: true, priority: true } })
   const repetition = new Map(reps.map((r) => [r.refId, { nextDue: r.nextDueAt ? dates.fromDbDate(r.nextDueAt) : null, priority: r.priority }]))
-  const focusTopicId =
+  const lessonTopicId =
     f.topicId ??
     (await db.lesson.findFirst({ where: { userId, status: 'DONE', date: dates.toDbDate(today), topicId: { not: null } }, orderBy: [{ completedAt: 'desc' }, { id: 'desc' }], select: { topicId: true } }))?.topicId ??
     null
+  const focusTopicId = lessonTopicId === null ? null : (vis.topicCopies.get(lessonTopicId) ?? lessonTopicId)
 
   const inProgress = new Map<string, string>()
   if (opts.openChats) {
@@ -238,7 +249,7 @@ async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, o
     for (const [sid, v] of latest) inProgress.set(sid, v.chatId)
   }
 
-  const linksBy = new Map<string, { topicId: string; weight: number }[]>()
+  const linksBy = new Map<string, { topicId: string; weight: number; from: string }[]>()
   for (const l of links) if (topicById.has(l.topicId)) linksBy.set(l.scenarioId, [...(linksBy.get(l.scenarioId) ?? []), l])
   const candidates: RecommendCandidate[] = []
   const entries: CatalogEntry[] = rows.map((row) => {
@@ -268,7 +279,7 @@ async function buildCatalog(userId: string, f: CatalogFilter, d: ScenarioDeps, o
       ...(lastView ? { last: lastView } : {}),
       ...(chatId ? { inProgressChatId: chatId } : {}),
     }
-    return { row, expressions, item, primaryTopicAt: own.length ? topicById.get(own[0].topicId)!.createdAt : null }
+    return { row, expressions, item, primaryTopicAt: own.length ? (topicById.get(own[0].from) ?? topicById.get(own[0].topicId)!).createdAt : null }
   })
   const recos = recommendScenarios(candidates, { today, learnerLevel: await d.learnerLevel(userId), last, repetition, focusTopicId })
   const byId = new Map(entries.map((e) => [e.row.id, e]))

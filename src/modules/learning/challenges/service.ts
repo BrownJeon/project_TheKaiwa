@@ -10,6 +10,7 @@ import type {
   ChallengeDetail, ChallengeLessonTask, ChallengeListResponse, ChallengeSummary, ChallengeTask, ChallengeTodayResponse, ChallengeTodayTasks, ChallengeWordCount,
   ChallengeWordsTask,
 } from '@/types/challenge'
+import { isSeedVisibleFor } from '../seedOverride/visibility'
 import { buildTopicPool } from '../topics/pool'
 import { CHALLENGE_WORD_COUNTS, freezeDailyGoal, kstDayStart } from './metrics'
 import { finishChallengeTx, settleExpired, settleExpiredTx } from './settle'
@@ -66,7 +67,8 @@ export async function createChallenge(userId: string, input: CreateChallengeInpu
   const now = deps.now()
   const today = dates.todayKst(now)
   const topic = await deps.db.conversationTopic.findFirst({ where: { id: input.topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, level: true } })
-  if (!topic) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
+  // 이 사용자가 가린(숨김·내 버전) 시드 주제로는 새 챌린지를 만들지 않는다 — 없는 주제와 같은 404(task-045 §2). 잠금 안 재확인은 T3 공용 헬퍼.
+  if (!topic || !(await isSeedVisibleFor(deps.db, userId, 'TOPIC', topic.id))) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
   let wordCount: ChallengeWordCount | null = null
   if (input.words) {
     const chunks = await deps.db.topicChunk.findMany({ where: { topicId: topic.id }, orderBy: [{ order: 'asc' }, { id: 'asc' }], select: { id: true, chunkType: true, textJa: true, reading: true, meaningKo: true } })

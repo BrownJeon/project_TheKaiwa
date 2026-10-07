@@ -3,8 +3,9 @@
  * 사용자는 시드 주제(userId null)와 **자기** 주제만 본다. #57 사용자 주제 생성은 task-010d.
  */
 import type { ChunkType, JlptLevel } from '@prisma/client'
-import { ApiError, prisma } from '@/modules/infra'
+import { ApiError, prisma, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
+import { hiddenSeedIds, visibleRowsWhere } from '../seedOverride/visibility'
 
 export const JLPT_ORDER: readonly JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
 export const TOPIC_LIST_MAX = 100
@@ -66,10 +67,10 @@ export interface TopicDto {
 const CHUNK_SELECT = { id: true, chunkType: true, textJa: true, reading: true, meaningKo: true, order: true } as const
 
 /** 주제별 마지막으로 끝낸 레슨 제목(사용자 것만). 주제당 1건 — 완료 시각 최신. */
-export async function lastDoneLessonTitles(userId: string, topicIds: string[]): Promise<Map<string, string>> {
+export async function lastDoneLessonTitles(userId: string, topicIds: string[], db: Tx = prisma): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   if (!topicIds.length) return out
-  const rows = await prisma.lesson.findMany({
+  const rows = await db.lesson.findMany({
     where: { userId, status: 'DONE', topicId: { in: topicIds } },
     orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
     select: { topicId: true, title: true },
@@ -80,8 +81,8 @@ export async function lastDoneLessonTitles(userId: string, topicIds: string[]): 
 }
 
 /** 주제별 끝낸 레슨 수·마지막 완료 시각(사용자 것만). */
-export async function doneLessonStats(userId: string, topicIds?: string[]): Promise<Map<string, { count: number; last: Date | null }>> {
-  const rows = await prisma.lesson.groupBy({
+export async function doneLessonStats(userId: string, topicIds?: string[], db: Tx = prisma): Promise<Map<string, { count: number; last: Date | null }>> {
+  const rows = await db.lesson.groupBy({
     by: ['topicId'],
     where: { userId, status: 'DONE', topicId: topicIds ? { in: topicIds } : { not: null } },
     _count: { _all: true },
@@ -94,11 +95,15 @@ function tagsOf(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 20) : []
 }
 
-/** #56 — 시드 + 내 주제(mine=1 이면 내 것만), 조각 포함. 정렬: 수준(N5→N1) → 시드 먼저 → 만든 순. */
-export async function listTopics(userId: string, q: TopicQuery): Promise<{ items: TopicDto[]; level: JlptLevel[] }> {
+/**
+ * #56 — 시드 + 내 주제(mine=1 이면 내 것만), 조각 포함. 정렬: 수준(N5→N1) → 시드 먼저 → 만든 순.
+ * 이 사용자가 숨겼거나 내 버전으로 바꾼 시드는 빠진다(task-045 계약 §2 — 내 버전은 일반 내 행으로 보인다).
+ */
+export async function listTopics(userId: string, q: TopicQuery, db: Tx = prisma): Promise<{ items: TopicDto[]; level: JlptLevel[] }> {
   const levels = q.level ? [q.level] : levelWindow((await getProfile(userId)).level as JlptLevel)
-  const rows = await prisma.conversationTopic.findMany({
-    where: { level: { in: levels }, ...(q.mine ? { userId } : { OR: [{ userId: null }, { userId }] }) },
+  const hidden = q.mine ? [] : await hiddenSeedIds(db, userId, 'TOPIC')
+  const rows = await db.conversationTopic.findMany({
+    where: { level: { in: levels }, ...(q.mine ? { userId } : visibleRowsWhere(userId, hidden)) },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: TOPIC_LIST_MAX,
     select: {
@@ -107,7 +112,7 @@ export async function listTopics(userId: string, q: TopicQuery): Promise<{ items
     },
   })
   const ids = rows.map((r) => r.id)
-  const [stats, titles] = await Promise.all([doneLessonStats(userId, ids), lastDoneLessonTitles(userId, ids)])
+  const [stats, titles] = await Promise.all([doneLessonStats(userId, ids, db), lastDoneLessonTitles(userId, ids, db)])
   const rank = (l: JlptLevel) => JLPT_ORDER.indexOf(l)
   const items = rows
     .map((r) => ({ r, s: stats.get(r.id) }))
@@ -147,17 +152,18 @@ export async function getTopicForLesson(userId: string, topicId: string): Promis
 
 /**
  * 수업 추천용 — 주어진 수준 목록 안에서 끝낸 레슨 수가 가장 적은 주제(동률이면 만든 순). `excludeId` 는 빼고 고른다.
- * 수준 안에 없으면 null.
+ * 이 사용자가 가린 시드는 고르지 않는다(task-045 §2). 수준 안에 없으면 null.
  */
-export async function pickFewestLessonTopic(userId: string, levels: JlptLevel[], excludeId?: string | null): Promise<{ id: string; title: string; level: JlptLevel } | null> {
-  const rows = await prisma.conversationTopic.findMany({
-    where: { level: { in: levels }, OR: [{ userId: null }, { userId }], ...(excludeId ? { id: { not: excludeId } } : {}) },
+export async function pickFewestLessonTopic(userId: string, levels: JlptLevel[], excludeId?: string | null, db: Tx = prisma): Promise<{ id: string; title: string; level: JlptLevel } | null> {
+  const hidden = await hiddenSeedIds(db, userId, 'TOPIC')
+  const rows = await db.conversationTopic.findMany({
+    where: { level: { in: levels }, ...visibleRowsWhere(userId, hidden), ...(excludeId ? { id: { not: excludeId } } : {}) },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: TOPIC_LIST_MAX,
     select: { id: true, title: true, level: true },
   })
   if (!rows.length) return null
-  const stats = await doneLessonStats(userId, rows.map((r) => r.id))
+  const stats = await doneLessonStats(userId, rows.map((r) => r.id), db)
   let best = rows[0]
   let bestCount = stats.get(best.id)?.count ?? 0
   for (const r of rows.slice(1)) {
