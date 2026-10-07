@@ -234,3 +234,32 @@ export function createVariantFlight(deps: VariantFlightDeps): VariantFlight {
 
   return { make, cancel, clear, dispose }
 }
+
+/** 축 위에 붙잡아 둔 실패 — 입력 서명(`variantInputSig`)과 함께 둔다. */
+export interface HeldFailure {
+  failure: ScenarioFailure
+  sig: string
+}
+
+/** 고른 축·직접 적은 글이 그대로인지 가리는 서명(만드는 동안 두 칸은 잠겨 있어 요청 중에는 늘 같다). */
+export function variantInputSig(axes: ScenarioVariantAxes, note: string): string {
+  return `${SCENARIO_VARIANT_AXIS_KEYS.map((k) => axes[k]).join('|')}\n${note}`
+}
+
+/** 축 위(guide §16-7 「축 위」)에 서는 실패 — 바꿀 점 없음·만들기 어려움. 나머지 실패는 [변형 초안 만들기] 아래 상자. */
+export function isAboveAxesFailure(f: ScenarioFailure | null): boolean {
+  return f !== null && (f.kind === 'noChange' || f.kind === 'unfit')
+}
+
+/**
+ * 축 위 실패 상자를 다시 만드는 동안·취소한 뒤에도 입력이 그대로이면 붙잡는다 — 요청이 시작되며 상자가 사라지면 그 아래 칩·누른 버튼이
+ * 상자 높이만큼 위로 올라가 버튼이 제자리를 잃는다(R2). 새 실패가 오면 바꾸고(축 위 실패가 아니면 놓는다) 입력이 바뀌면 놓는다.
+ * 같은 값이면 같은 객체를 돌려준다(렌더 중 상태 보정이 되풀이되지 않게).
+ */
+export function holdFailure(prev: HeldFailure | null, live: ScenarioFailure | null, sig: string): HeldFailure | null {
+  if (live) {
+    if (!isAboveAxesFailure(live)) return null
+    return prev && prev.failure === live && prev.sig === sig ? prev : { failure: live, sig }
+  }
+  return prev && prev.sig === sig ? prev : null
+}

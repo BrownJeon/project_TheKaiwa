@@ -3,7 +3,7 @@
 /**
  * 변형 상황 만들기 `/study/ai/scenario/[id]/variant[?from=manage]`(task-045 변형 A, screens.md §16-2 A).
  * BackBar 52 + 본문 한 곳만 스크롤. 원본 요약 → 무엇을 바꿀지(4축 + 직접 적기) → [변형 초안 만들기] → 검토(공유 편집기 + 「바뀜」) → [새 상황으로 저장].
- * 만들기 버튼은 만드는 동안 같은 자리의 [그만두기]가 된다(초점이 누른 버튼에 남음 — R6, 만드는 중 표시는 그 버튼 아래). 초안이 오면 검토 안내 제목으로 초점(R5 — 의도된 이동).
+ * 만들기 버튼은 만드는 동안 같은 자리의 [그만두기]가 된다(초점이 누른 버튼에 남음 — R6). 만드는 중 표시·실패 상자는 선택·검토 두 단계 모두 누르는 버튼 아래(R2 — 위에 끼면 누른 버튼이 밀린다). 초안이 오면 검토 안내 제목으로 초점(R5 — 의도된 이동).
  * 초안이 있으면 ← 는 버리기 확인을 먼저 연다(안드로이드 뒤로는 막지 않는다 — §16-0 #7). 오류 문구는 `failure.ts` 고정 문구.
  */
 import Link from 'next/link'
@@ -16,10 +16,11 @@ import { Spinner } from '@/components/plan/parts'
 import BackBar from '@/components/shell/BackBar'
 import { SCENARIO_VARIANT_NOTE_MAX } from '@/types/scenarioVariant'
 import DraftEditor from './DraftEditor'
+import type { ScenarioFailure } from './failure'
 import { oneLine, problemDomId, problemMap } from './logic'
 import { DRAFT, VARIANT, type DraftFrom } from './scenarioCopy'
 import { useVariantDraft, type VariantScreenModel } from './useVariantDraft'
-import { variantReviewBody } from './variantLogic'
+import { holdFailure, isAboveAxesFailure, variantInputSig, variantReviewBody, type HeldFailure } from './variantLogic'
 import VariantAxes from './VariantAxes'
 
 export default function VariantDraftScreen({ id, from = null }: { id: string; from?: DraftFrom }) {
@@ -64,11 +65,10 @@ function Body({ m, onDiscard }: { m: VariantScreenModel; onDiscard: () => void }
   return m.result && m.draft ? <Review m={m} onDiscard={onDiscard} /> : <Pick m={m} />
 }
 
-/** 실패 상자 — 다시 시도할 수 있으면 [다시 만들기]. */
-function FailBox({ m }: { m: VariantScreenModel }) {
-  const f = m.failure
+/** 실패 상자 — 다시 시도할 수 있으면 [다시 만들기]. 늘 누르는 버튼 아래에 둔다(요청이 시작돼 사라져도 그 버튼은 안 움직인다 — R2). */
+function FailBox({ f, onRetry }: { f: ScenarioFailure | null; onRetry: () => void }) {
   if (!f) return null
-  if (f.retry) return <ErrorBox title={f.text} onRetry={m.generate} retryLabel={VARIANT.regen} />
+  if (f.retry) return <ErrorBox title={f.text} onRetry={onRetry} retryLabel={VARIANT.regen} />
   return (
     <p role="alert" className={`rounded-xl px-3.5 py-3 text-[13px] break-keep ${f.kind === 'unfit' || f.kind === 'noChange' ? 'bg-bad-soft text-bad' : 'bg-surface2 text-ink'}`}>
       {f.text}
@@ -97,7 +97,12 @@ function Pick({ m }: { m: VariantScreenModel }) {
   const daily = m.failure?.block === true
   const blocked = !!m.block || daily
   const reason = m.block === 'noChange' ? VARIANT.noChange : m.block === 'noteLong' ? VARIANT.noteTooLong : null
-  const aboveAxes = m.failure && (m.failure.kind === 'noChange' || m.failure.kind === 'unfit')
+  // 축 위 실패(guide §16-7)는 다시 만드는 동안 붙잡아 둔다 — 요청이 시작되며 사라지면 누른 버튼이 상자 높이만큼 올라간다(R2). 렌더 중 상태 보정(공식 패턴)이며 같은 값이면 같은 객체라 되풀이되지 않는다.
+  const [held, setHeld] = useState<HeldFailure | null>(null)
+  const nextHeld = holdFailure(held, m.failure, variantInputSig(m.axes, m.note))
+  if (nextHeld !== held) setHeld(nextHeld)
+  const above = nextHeld?.failure ?? null
+  const below = isAboveAxesFailure(m.failure) ? null : m.failure
   return (
     <>
       <InfoBox>
@@ -115,7 +120,7 @@ function Pick({ m }: { m: VariantScreenModel }) {
           <h2 className="text-[16px] font-semibold">{VARIANT.ask}</h2>
           <p className="mt-1 text-[13px] text-ink2 break-keep">{VARIANT.askSub}</p>
         </div>
-        {aboveAxes ? <FailBox m={m} /> : null}
+        <FailBox f={above} onRetry={m.generate} />
         <VariantAxes axes={m.axes} baseLevel={base.level} onPick={m.pick} locked={gen} />
         <Field label={VARIANT.note} htmlFor="va-note">
           <textarea
@@ -139,7 +144,6 @@ function Pick({ m }: { m: VariantScreenModel }) {
           ) : null}
         </Field>
         <div className="flex min-w-0 flex-col gap-2">
-          {!gen && !aboveAxes ? <FailBox m={m} /> : null}
           <Btn
             variant={gen ? 'ghost' : undefined}
             className={`w-full ${blocked && !gen ? 'opacity-40' : ''}`}
@@ -151,6 +155,8 @@ function Pick({ m }: { m: VariantScreenModel }) {
           </Btn>
           {/* 만드는 중 표시는 누른 버튼 아래에 둔다 — 위에 끼면 [그만두기]가 표시 높이(88px)만큼 밀려 접힌 영역 밖으로 나간다(R1~R6: 높이 변화는 누른 줄 아래에만). */}
           {gen ? <GenStatus long={m.flight.long} /> : null}
+          {/* 그 밖의 실패 상자도 버튼 아래 — 다시 누르면 사라지지만 위 줄은 안 움직인다. */}
+          {!gen ? <FailBox f={below} onRetry={m.generate} /> : null}
           {!gen && reason ? (
             <p id="va-submit-why" className="text-center text-[12px] text-ink2 break-keep">
               {reason}
@@ -213,8 +219,6 @@ function Review({ m, onDiscard }: { m: VariantScreenModel; onDiscard: () => void
         <Btn className={`w-full ${saveBlocked && !m.saving ? 'opacity-40' : ''}`} aria-busy={m.saving || undefined} aria-disabled={saveBlocked || undefined} onClick={() => !saveBlocked && void save()}>
           {m.saving ? DRAFT.saving : VARIANT.save}
         </Btn>
-        {gen ? <GenStatus long={m.flight.long} /> : null}
-        {!gen ? <FailBox m={m} /> : null}
         <Btn variant="ghost" className="w-full" aria-disabled={(gen ? !m.flight.cancelable : m.saving) || undefined} onClick={regen}>
           {gen ? VARIANT.cancel : VARIANT.regen}
         </Btn>
@@ -236,6 +240,9 @@ function Review({ m, onDiscard }: { m: VariantScreenModel; onDiscard: () => void
             </div>
           </div>
         ) : null}
+        {/* 만드는 중 표시·실패 상자는 [다시 만들기] 아래 — 위에 끼면 누른 버튼이 표시 높이만큼 밀린다(R2). [저장]은 그 위라 안 움직인다. */}
+        {gen ? <GenStatus long={m.flight.long} /> : null}
+        {!gen ? <FailBox f={m.failure} onRetry={m.generate} /> : null}
         <button
           type="button"
           aria-disabled={busy || undefined}
