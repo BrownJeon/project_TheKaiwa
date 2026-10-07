@@ -13,6 +13,8 @@ import {
   hiddenSeedCount,
   manageHref,
   parseManageTab,
+  retryBusyRemainingMs,
+  RETRY_MIN_BUSY_MS,
   scenarioCountByTopic,
   scenarioOrigin,
   topicHref,
@@ -118,7 +120,9 @@ test('scenarioCountByTopic — 여러 주제에 이어진 상황은 주제마다
 
 test('activeChallengeBadge — 진행 중·1일째 이상·주제 있음일 때만', () => {
   assert.deepEqual(activeChallengeBadge({ items: [challenge({ day: 4 })] }), { topicId: 't1', day: 4 })
+  // 경계: 0일째(시작 전)에는 뱃지가 없고 1일째부터 붙는다 — 「0일째」 가 보이지 않게.
   assert.equal(activeChallengeBadge({ items: [challenge({ day: 0 })] }), null)
+  assert.deepEqual(activeChallengeBadge({ items: [challenge({ day: 1 })] }), { topicId: 't1', day: 1 })
   assert.equal(activeChallengeBadge({ items: [challenge({ topicId: null })] }), null)
   assert.equal(activeChallengeBadge({ items: [challenge({ status: 'COMPLETED' })] }), null)
   assert.equal(activeChallengeBadge({ items: [] }), null)
@@ -195,4 +199,14 @@ test('주소 — 주제 탭은 쿼리 없음, 상황 탭·시트, 잘못된 탭 
   assert.equal(parseManageTab(['scenarios']), 'topics')
   assert.equal(parseManageTab(undefined), 'topics')
   assert.equal(topicHref('a/b'), '/settings/scenarios/topics/a%2Fb')
+})
+
+test('retryBusyRemainingMs — 눌린 뒤 최소 시간까지만 남기고, 넘으면 0·시계가 뒤로 가도 최소 시간을 넘지 않음', () => {
+  assert.equal(RETRY_MIN_BUSY_MS, 500)
+  assert.equal(retryBusyRemainingMs(1000, 1000), RETRY_MIN_BUSY_MS)
+  assert.equal(retryBusyRemainingMs(1000, 1200), RETRY_MIN_BUSY_MS - 200)
+  assert.equal(retryBusyRemainingMs(1000, 1500), 0)
+  assert.equal(retryBusyRemainingMs(1000, 9000), 0)
+  assert.equal(retryBusyRemainingMs(1000, 1100, 300), 200)
+  assert.equal(retryBusyRemainingMs(1000, 900), RETRY_MIN_BUSY_MS)
 })

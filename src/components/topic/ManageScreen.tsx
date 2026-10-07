@@ -5,7 +5,8 @@
  * 두 탭이 `useManageData` 한 번 읽은 값을 나눠 쓴다(탭을 바꿔도 다시 읽지 않음). 탭·시트는 `router.replace(…, { scroll: false })` 로 주소만 맞춘다 —
  * 목록 `key` 바꾸기·다시 마운트·`scrollTo`·`scrollIntoView` 를 하지 않아 `main` 스크롤과 초점(누른 분절·연 카드)이 그대로다(R1~R6).
  * 출처 칩·토글은 React 상태만(주소에 싣지 않음). 딥링크 시트는 수화가 끝난 뒤에 연다(`sheetIdAfterHydration`, 회화 탭과 같은 이유).
- * 불러오는 중은 같은 높이 자리표시(IMP-0027 — 「아직 없어요」·가짜 숫자를 먼저 보이지 않는다). 숨긴 기본 항목 시트·돌아왔을 때 토스트는 T5-2.
+ * 불러오는 중은 같은 높이 자리표시(IMP-0027 — 「아직 없어요」·가짜 숫자를 먼저 보이지 않는다). 주제 자리표시·빈 상자 높이는 실제 주제 행 높이
+ * (`TOPIC_ROW_HEIGHT` — 근거는 `logic.ts`), 상황 탭 자리표시는 칩 44 + 카드 88. 숨긴 기본 항목 시트·돌아왔을 때 토스트는 T5-2.
  */
 import { useRouter } from 'next/navigation'
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -31,6 +32,7 @@ import {
   scenarioCountByTopic,
   SCENARIO_NEW_FROM_MANAGE_HREF,
   TOPIC_NEW_HREF,
+  TOPIC_ROW_HEIGHT,
   topicLimitReached,
   type ManageTab,
   type Origin,
@@ -69,7 +71,7 @@ const SCENARIO_BADGE: Record<Origin, string> = { MINE: CARD.mine, SEED: MANAGE.b
 export default function ManageScreen({ initialTab, initialSheetId }: { initialTab: ManageTab; initialSheetId: string | null }) {
   const router = useRouter()
   const data = useManageData()
-  const { refresh, reload } = data
+  const { refresh, reload, retryList, listRetrying } = data
   const [tab, setTab] = useState<ManageTab>(initialSheetId ? 'scenarios' : initialTab)
   const [filter, setFilter] = useState<ScenarioFilter>('all')
   const [sheetId, setSheetId] = useState<string | null>(initialSheetId)
@@ -124,7 +126,7 @@ export default function ManageScreen({ initialTab, initialSheetId }: { initialTa
         {tab === 'topics' ? (
           <TopicsPanel failed={data.status === 'error'} view={view} onRetry={reload} />
         ) : (
-          <ScenariosPanel failed={data.status === 'error'} view={view} filter={filter} onFilter={setFilter} onOpen={openSheet} onRetry={reload} onRetryList={refresh} />
+          <ScenariosPanel failed={data.status === 'error'} view={view} filter={filter} onFilter={setFilter} onOpen={openSheet} onRetry={reload} onRetryList={retryList} retrying={listRetrying} />
         )}
       </div>
       <ScenarioSheet id={openId} onClose={closeSheet} onDeleted={onDeleted} />
@@ -169,18 +171,18 @@ function TopicsPanel({ failed, view, onRetry }: { failed: boolean; view: ManageV
               {MANAGE.mineSection(view ? view.topics.mine.length : null)}
             </h2>
             {!view ? (
-              <Skeleton heights={[76]} label={MANAGE.loading} />
+              <Skeleton heights={[TOPIC_ROW_HEIGHT]} label={MANAGE.loading} />
             ) : view.topics.mine.length ? (
               <TopicList rows={view.topics.mine} />
             ) : (
-              <Dashed>{MANAGE.mineEmpty}</Dashed>
+              <Dashed minHeight={TOPIC_ROW_HEIGHT}>{MANAGE.mineEmpty}</Dashed>
             )}
           </section>
           <section aria-labelledby="mg-seed" className="mt-[18px] min-w-0">
             <h2 id="mg-seed" className="mb-2 min-w-0 truncate text-[15px] font-semibold">
               {MANAGE.seedSection(view ? view.topics.seed.length : null)}
             </h2>
-            {!view ? <Blocks heights={[76, 76, 76]} /> : view.topics.seed.length ? <TopicList rows={view.topics.seed} /> : null}
+            {!view ? <Blocks heights={[TOPIC_ROW_HEIGHT, TOPIC_ROW_HEIGHT, TOPIC_ROW_HEIGHT]} /> : view.topics.seed.length ? <TopicList rows={view.topics.seed} /> : null}
             {view && view.hidden > 0 ? <HiddenRow n={view.hidden} /> : null}
           </section>
         </>
@@ -197,6 +199,7 @@ function ScenariosPanel({
   onOpen,
   onRetry,
   onRetryList,
+  retrying,
 }: {
   failed: boolean
   view: ManageView | null
@@ -205,6 +208,8 @@ function ScenariosPanel({
   onOpen: (id: string) => void
   onRetry: () => void
   onRetryList: () => void
+  /** #161 만 실패했을 때 [다시 시도] 를 누른 직후(최소 시간 유지) — 자리표시가 보이고, 다시 실패하면 오류 상자가 다시 나타난다. */
+  retrying: boolean
 }) {
   const sc = view?.scenarios ?? null
   const rows = useMemo(() => (sc ? filterScenarioRows(sc.rows, filter) : []), [sc, filter])
@@ -224,7 +229,13 @@ function ScenariosPanel({
           <Skeleton heights={[44, 88, 88, 88]} label={MANAGE.loading} />
         </div>
       ) : !sc ? (
-        <ErrorBox className="mt-[18px]" title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={onRetryList} />
+        retrying ? (
+          <div className="mt-[18px]" aria-busy="true">
+            <Skeleton heights={[44, 88, 88, 88]} label={MANAGE.loading} />
+          </div>
+        ) : (
+          <ErrorBox className="mt-[18px]" title={MANAGE.loadFail} body={MANAGE.loadFailBody} retryLabel={MANAGE.retry} onRetry={onRetryList} />
+        )
       ) : (
         <>
           <div className="mt-[18px]">
@@ -280,10 +291,10 @@ function Blocks({ heights }: { heights: number[] }) {
   )
 }
 
-/** 빈 목록 — 자리표시(76px)와 같은 높이라 도착 뒤에도 아래가 밀리지 않는다. */
-function Dashed({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+/** 빈 목록 — 같은 자리의 자리표시와 높이를 맞춘다(주제 탭은 주제 행 높이) — 도착 뒤에도 아래가 밀리지 않는다. */
+function Dashed({ children, className = '', minHeight = 76 }: { children: React.ReactNode; className?: string; minHeight?: number }) {
   return (
-    <div className={`flex min-h-[76px] items-center justify-center rounded-[14px] border border-dashed border-line px-4 py-3 text-center text-[13px] text-ink2 ${className}`}>
+    <div style={{ minHeight }} className={`flex items-center justify-center rounded-[14px] border border-dashed border-line px-4 py-3 text-center text-[13px] text-ink2 ${className}`}>
       <p className="break-keep">{children}</p>
     </div>
   )

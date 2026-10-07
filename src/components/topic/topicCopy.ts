@@ -15,7 +15,8 @@ export const ENTRY = {
 export const MANAGE = {
   title: '내 상황·주제',
   back: '설정',
-  tabsAria: '보기',
+  /** 같은 화면의 두 `radiogroup` 이름은 서로 달라야 한다(분절 ↔ 상황 칩). */
+  tabsAria: '관리 대상',
   /** 불러오기 전에는 숫자를 비운다(가짜 0 을 보이지 않게). */
   tabTopics: (n: number | null) => (n === null ? '주제' : `주제 ${n}`),
   tabScenarios: (n: number | null) => (n === null ? '상황' : `상황 ${n}`),
@@ -35,8 +36,8 @@ export const MANAGE = {
   createScenario: '＋ 상황 만들기',
   scenarioCount: (n: number) => `내 상황 ${n}/50`,
   scenarioEmpty: '아직 만든 상황이 없어요.',
-  /** 상황 탭 출처 칩(데모 v2 `chips('보기', 전체·내가 만든·기본)`). */
-  filterAria: '보기',
+  /** 상황 탭 출처 칩(전체·내가 만든·기본)의 읽어 주는 이름 — 화면에 보이지 않고, 분절 이름과만 구분하면 된다. */
+  filterAria: '상황 보기 범위',
   filterAll: (n: number) => `전체 ${n}`,
   filterMine: (n: number) => `내가 만든 ${n}`,
   filterSeed: (n: number) => `기본 ${n}`,
@@ -329,9 +330,10 @@ export const FAIL = {
   field: {
     required: (label: FieldLabel) => `${FIELD_OBJ[label]} 적어 주세요.`,
     max: (label: FieldLabel, max: number) => `${FIELD_TOPIC[label]} ${max}자까지 쓸 수 있어요.`,
-    /** 서버가 꺾쇠·링크 주소·숨은 글자를 모두 `forbidden_char` 로 묶는다(`saveBody.ts`·`topicDraftSchemas.ts`). */
-    forbiddenChar: '꺾쇠(< >)나 링크 주소는 쓸 수 없어요. 지우고 다시 적어 주세요.',
-    secretLike: '비밀번호·카드 번호처럼 보이는 글은 쓸 수 없어요.',
+    /** 서버가 숨은·제어 글자·꺾쇠·링크 주소를 모두 `forbidden_char` 로 묶는다(`saveBody.ts`·`topicDraftSchemas.ts` `detectUnsafeTopicText`) — 셋 다 말한다. */
+    forbiddenChar: '꺾쇠(< >)·링크 주소·눈에 보이지 않는 글자는 쓸 수 없어요.',
+    /** 저장 경로는 카드 번호 모양 숫자열, 초안 경로(#170·#166·#178)는 긴 영문·숫자 토큰(키)도 이 reason 으로 막는다(`isSecretLikeText`·`hasCardLikeDigits`). */
+    secretLike: '비밀번호·카드 번호·긴 영문 숫자 키처럼 보이는 글은 쓸 수 없어요.',
     notJapanese: '일본어로 적어 주세요.',
     chars: '쓸 수 없는 글자가 있어요.',
     reading: '읽기는 히라가나·가타카나로만 적어 주세요.',

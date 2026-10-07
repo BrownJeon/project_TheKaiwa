@@ -20,6 +20,28 @@ export const SCENARIO_NEW_FROM_MANAGE_HREF = '/study/ai/scenario/new?from=manage
 
 export const topicHref = (id: string): string => `/settings/scenarios/topics/${encodeURIComponent(id)}`
 
+/**
+ * 주제 행(`TopicRow`)의 실제 높이 근거(px) — 클래스에서 계산한 값이다(실측은 QA). 본문 `line-height: 1.5`(globals.css)를 이어받고
+ * `text-[Npx]` 는 글자 크기만 정한다: 테두리 1+1 · `py-3` 12+12 · 제목 줄 15×1.5(뱃지 22 보다 큼) · `gap-0.5` 2 · 일본어 이름 13×1.5 ·
+ * `gap-0.5` 2 · `mt-0.5` 2 · 메타 줄 12×1.5. 일본어 이름이 없는 행은 `min-h-[76px]` 하한이 잡고, 챌린지 뱃지(22)가 붙으면 메타 줄이 22 로 커져 +4.
+ * 자리표시·빈 상자가 이 값을 쓰면 내 주제 1개·기본 주제 도착 때 아래가 밀리지 않는다(`topic/__tests__/rowHeight.test.ts` 가 클래스와 이 값을 묶어 둔다).
+ */
+export const TOPIC_ROW_PARTS = { border: 2, padY: 24, title: 22.5, gap: 2, titleJa: 19.5, metaTop: 2, meta: 18 } as const
+export const TOPIC_ROW_MIN_HEIGHT = 76
+
+export function topicRowHeight(p: { [K in keyof typeof TOPIC_ROW_PARTS]: number } = TOPIC_ROW_PARTS): number {
+  return p.border + p.padY + p.title + p.gap + p.titleJa + p.gap + p.metaTop + p.meta
+}
+
+export const TOPIC_ROW_HEIGHT = topicRowHeight()
+
+/** 상황 목록만 다시 읽을 때(#161 단독 실패의 [다시 시도]) 자리표시가 적어도 이만큼 보인다 — 응답이 바로 실패해도 「눌렀다」가 눈에 보이게. */
+export const RETRY_MIN_BUSY_MS = 500
+
+export function retryBusyRemainingMs(startedAt: number, now: number, min: number = RETRY_MIN_BUSY_MS): number {
+  return Math.min(min, Math.max(0, min - (now - startedAt)))
+}
+
 export function parseManageTab(v: unknown): ManageTab {
   return v === 'scenarios' ? 'scenarios' : 'topics'
 }
