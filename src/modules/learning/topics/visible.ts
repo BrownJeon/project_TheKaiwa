@@ -18,17 +18,23 @@ export interface AssertTopicVisibleOptions {
   allowActiveChallenge?: boolean
 }
 
+/**
+ * 이미 읽은 주제 행(시드 또는 내 것)이 이 사용자에게 새로 시작할 수 있는 주제인가 — 내 주제는 언제나, 시드는 가리지 않았거나(override 없음)
+ * `allowActiveChallenge` 이고 그 주제의 진행 중(ACTIVE) 챌린지 행이 있을 때. 챌린지 조회는 가린 시드일 때만 한다. 잠금 안팎 어디서나 쓴다
+ * (잠금 밖 = 새 시작 거절 · 잠금 안 = `assertTopicVisible`).
+ */
+export async function isTopicVisibleTo(db: Tx, userId: string, topic: { id: string; userId: string | null }, opts: AssertTopicVisibleOptions = {}): Promise<boolean> {
+  // override 는 시드에만 생긴다 — 내 주제는 확인할 것이 없다.
+  if (topic.userId !== null) return true
+  if (await isSeedVisibleFor(db, userId, 'TOPIC', topic.id)) return true
+  return !!opts.allowActiveChallenge && (await db.challenge.findFirst({ where: { userId, status: 'ACTIVE', topicId: topic.id }, select: { id: true } })) !== null
+}
+
 /** 존재·소유(시드 또는 내 것)·가림(시드 override)을 확인한다. 아니면 404 `TOPIC_GONE`. */
 export async function assertTopicVisible(tx: Tx, userId: string, topicId: string, opts: AssertTopicVisibleOptions = {}): Promise<{ id: string; userId: string | null }> {
   const topic = await tx.conversationTopic.findFirst({ where: { id: topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, userId: true } })
-  if (!topic) throw topicGone()
-  // override 는 시드에만 생긴다 — 내 주제는 확인할 것이 없다.
-  if (topic.userId !== null) return { id: topic.id, userId: topic.userId }
-  if (await isSeedVisibleFor(tx, userId, 'TOPIC', topic.id)) return { id: topic.id, userId: null }
-  if (opts.allowActiveChallenge && (await tx.challenge.findFirst({ where: { userId, status: 'ACTIVE', topicId: topic.id }, select: { id: true } }))) {
-    return { id: topic.id, userId: null }
-  }
-  throw topicGone()
+  if (!topic || !(await isTopicVisibleTo(tx, userId, topic, opts))) throw topicGone()
+  return { id: topic.id, userId: topic.userId }
 }
 
 /**

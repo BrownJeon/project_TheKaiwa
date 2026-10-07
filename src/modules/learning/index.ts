@@ -35,6 +35,10 @@ export { bumpDailySnapshot, mergeDaily, emptyDaily } from './snapshots'
 export type { DailyData, DailyDelta, VocabSessionSnapshotData, LessonSnapshotData } from './snapshots'
 export { getTopicRef, listTopics, parseTopicQuery } from './topics'
 export type { TopicDto, TopicChunkDto, TopicQuery } from './topics'
+// task-045 T2 — #57 내 주제 만들기 · #171 고치기
+export { createUserTopic, defaultTopicWriteDeps } from './topics/create'
+export type { TopicWriteDeps } from './topics/create'
+export { updateUserTopic } from './topics/update'
 export { topicExists, lessonExists } from './refs'
 // ── task-010 오늘의 회화 · 반복 학습 항목 ──
 export * from './lessons'

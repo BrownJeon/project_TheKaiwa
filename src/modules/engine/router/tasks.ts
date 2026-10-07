@@ -41,6 +41,10 @@ export const LLM_TASKS = {
   scenarioDraft: { tier: 'balanced', timeoutMs: 40_000, lane: 'interactive' },
   // 역할극 대답 연습(task-010d #169, replyPractice@v1) — 12s fail-fast, 재시도 없음.
   replyPractice: { tier: 'fast', timeoutMs: 12_000, lane: 'interactive' },
+  // AI 주제 초안(task-045 #170, topicDraft@v2) — 대기 화면 단건. sonnet p95 13.8s × (1차 + JSON 재시도 1회) 가 40s 안. haiku 는 빠르지만 표현 품질이 낮아 비권고(PE 실측).
+  topicDraft: { tier: 'balanced', timeoutMs: 40_000, lane: 'interactive' },
+  // 첫마디 일본어 제안(task-045 #178, openingDraft) — 편집 화면 단건. 라우트 연결은 T4.
+  openingDraft: { tier: 'balanced', timeoutMs: 25_000, lane: 'interactive' },
 } as const satisfies Record<string, TaskSpec>
 
 export type LlmTask = keyof typeof LLM_TASKS

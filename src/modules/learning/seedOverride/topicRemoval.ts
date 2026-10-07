@@ -5,8 +5,8 @@
  *
  * - #172 `previewTopicRemoval` — 읽기 전용. 시드 또는 내 주제(남의 주제·없는 주제 404 `TOPIC_GONE`).
  * - #173 `removeUserTopic`   — 시드 id = 그 사용자 목록에서만 숨김(`hideSeed`, 진행 중 챌린지는 계속, `ack` 를 보지 않음) ·
- *                               내 주제 = 한 트랜잭션·사용자 행 잠금 → `removeUserTopicTxWith`.
- * - `removeUserTopicTx`        — `TopicRemovalPort` 구현(호출자 tx·잠금 안).
+ *                               내 주제 = 한 트랜잭션·사용자 행 잠금 → `removeUserTopicTxWith(mode 'DELETE')` — 내 버전이면 시드는 숨김으로 남는다.
+ * - `removeUserTopicTx`        — `TopicRemovalPort` 구현(호출자 tx·잠금 안). restoreSeed(#176)가 `mode: 'RESTORE'` 로 부른다.
  */
 import { ApiError, dates, prisma, type Tx } from '@/modules/infra'
 import { TOPIC_REMOVAL_ACK_NONE, type TopicRemovalPreview, type TopicRemovalResult } from '@/types/topic'
@@ -58,10 +58,10 @@ export async function removeUserTopic(userId: string, topicId: string, opts: { a
   if (!row) throw topicGone()
   if (row.userId === null) {
     await hideSeed(userId, 'TOPIC', topicId, { db: d.db, transaction: d.transaction, lockUser: d.lockUser, now: d.now })
-    return { topicId, result: 'HIDDEN', challengeDeleted: false, deletedChallengeId: null, scenariosArchived: 0, scenariosUnlinked: 0, scenariosRelinked: 0, seedId: null }
+    return { topicId, result: 'HIDDEN', mode: 'DELETE', challengeDeleted: false, deletedChallengeId: null, scenariosArchived: 0, scenariosUnlinked: 0, scenariosRelinked: 0, seedId: null }
   }
   return d.transaction(async (tx) => {
-    await d.lockUser(tx, userId)
-    return removeUserTopicTxWith(tx, userId, topicId, opts, { now: d.now, settleChallenges: d.settleChallenges })
+    if (!(await d.lockUser(tx, userId))) throw topicGone()
+    return removeUserTopicTxWith(tx, userId, topicId, { ack: opts.ack, mode: 'DELETE' }, { now: d.now, settleChallenges: d.settleChallenges })
   })
 }

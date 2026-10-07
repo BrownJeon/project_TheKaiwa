@@ -85,11 +85,13 @@ test('#172 사전 조회 — 진행 중 챌린지(며칠째)·끝난 챌린지 �
     scenariosArchived: [{ id: 'scnOnly', title: '혼자 붙은 상황' }],
     scenariosUnlinked: [{ id: 'scnMulti', title: '둘 붙은 상황' }],
     scenariosRelinked: [],
+    delete: { scenariosArchived: [{ id: 'scnOnly', title: '혼자 붙은 상황' }], scenariosUnlinked: [{ id: 'scnMulti', title: '둘 붙은 상황' }], scenariosRelinked: [] },
+    restore: null,
     doneLessons: 1, chunks: 2,
   } satisfies TopicRemovalPreview)
   assert.deepEqual(writes(f.log), [], '사전 조회는 쓰지 않는다')
   const seed = await previewTopicRemoval(U, 'topSeed', { db: f.db, now: () => f.clock.now })
-  assert.deepEqual([seed.isSeed, seed.scenariosArchived, seed.scenariosUnlinked, seed.scenariosRelinked], [true, [], [], []])
+  assert.deepEqual([seed.isSeed, seed.scenariosArchived, seed.scenariosUnlinked, seed.scenariosRelinked, seed.restore], [true, [], [], [], null])
   await rejectsWith(previewTopicRemoval(U, 'topOther', { db: f.db }), 'NOT_FOUND:TOPIC_GONE')
   await rejectsWith(previewTopicRemoval(U, 'topNone', { db: f.db }), 'NOT_FOUND:TOPIC_GONE')
   await rejectsWith(previewTopicRemoval(U, '../x', { db: f.db }), 'NOT_FOUND:TOPIC_GONE')
@@ -98,7 +100,7 @@ test('#172 사전 조회 — 진행 중 챌린지(며칠째)·끝난 챌린지 �
 test('#173 삭제 — 진행 중 챌린지 행 삭제 · 끝난/완료 유지(topicId null) · 혼자 붙은 상황만 보관 · 연결·표현 삭제 · 수업·세트 topicId null', async () => {
   const { f, T } = fixture()
   const r = await removeUserTopic(U, 'topMine', { ack: 'chLive' }, { ...f.deps() })
-  assert.deepEqual(r, { topicId: 'topMine', result: 'REMOVED', challengeDeleted: true, deletedChallengeId: 'chLive', scenariosArchived: 1, scenariosUnlinked: 1, scenariosRelinked: 0, seedId: null })
+  assert.deepEqual(r, { topicId: 'topMine', result: 'REMOVED', mode: 'DELETE', challengeDeleted: true, deletedChallengeId: 'chLive', scenariosArchived: 1, scenariosUnlinked: 1, scenariosRelinked: 0, seedId: null })
   assert.deepEqual(T.challenge.map((c) => `${c.id}:${c.status}:${String(c.topicId)}`).sort(), ['chDone:COMPLETED:null', 'chEnded:ENDED:null'])
   assert.deepEqual(T.scenario.map((s) => `${s.id}:${s.status}`).sort(), ['scnMulti:ACTIVE', 'scnOld:ARCHIVED', 'scnOnly:ARCHIVED', 'scnSeed:ACTIVE'])
   assert.deepEqual(T.scenarioTopic.map((l) => `${l.scenarioId}>${l.topicId}`).sort(), ['scnMulti>topSeed', 'scnSeed>topSeed'])
@@ -168,18 +170,82 @@ function copyFixture() {
   return x
 }
 
-test('내 버전(사본) 삭제 — 사전 조회의 되돌려 붙는 상황 = planRestoreRelink 계산 · 삭제는 내 상황을 시드 주제로 되돌려 붙이고 override 를 숨김으로(고아 없음)', async () => {
-  const { f, T } = copyFixture()
+const linksOf = (T: { scenarioTopic: Row[] }, sid: string) => T.scenarioTopic.filter((l) => l.scenarioId === sid).map((l) => `${l.topicId}:${l.weight}`).sort()
+const statusOf = (T: { scenario: Row[] }, sid: string) => T.scenario.find((s) => s.id === sid)?.status
+
+test('T3-1b #172 내 버전 사전 조회 — 두 갈래를 모두 돌려준다: delete(보관·연결 끊기, 되돌려 붙임 없음) · restore(planRestoreRelink 계산) · 맨 위 = delete · ack 같음', async () => {
+  const { f } = copyFixture()
   const p = await previewTopicRemoval(U, 'topCopy', { db: f.db, now: () => f.clock.now })
   const plan = await loadRestoreRelinkPlan(f.db, U, 'topCopy', 'topSeed')
-  assert.deepEqual(p.scenariosRelinked.map((s) => s.id), plan?.relinkedScenarioIds)
-  assert.deepEqual([p.isSeedCopy, p.scenariosArchived, p.scenariosUnlinked, p.ack], [true, [], [], 'none'])
-  const r = await removeUserTopic(U, 'topCopy', { ack: 'none' }, { ...f.deps() })
-  assert.deepEqual([r.seedId, r.scenariosRelinked, r.scenariosArchived], ['topSeed', 2, 0])
-  const links = (sid: string) => T.scenarioTopic.filter((l) => l.scenarioId === sid).map((l) => `${l.topicId}:${l.weight}`)
-  assert.deepEqual([links('scnCopy'), links('scnCopy2')], [['topSeed:3'], ['topSeed:2']])
-  assert.ok(T.scenario.filter((s) => String(s.id).startsWith('scnCopy')).every((s) => s.status === 'ACTIVE'))
-  assert.deepEqual(T.userSeedOverride.map((o) => o.copyId), [null], '시드는 그 사용자 목록에서 숨김으로 남고 고아가 없다')
+  const ref = (id: string) => ({ id, title: id === 'scnCopy' ? '사본에 붙은 상황' : '사본+시드' })
+  assert.deepEqual([p.isSeedCopy, p.ack], [true, 'none'])
+  assert.deepEqual(p.delete, { scenariosArchived: [ref('scnCopy')], scenariosUnlinked: [ref('scnCopy2')], scenariosRelinked: [] })
+  assert.deepEqual(p.restore, { scenariosArchived: [], scenariosUnlinked: [], scenariosRelinked: [ref('scnCopy'), ref('scnCopy2')] })
+  assert.deepEqual(p.restore?.scenariosRelinked.map((s) => s.id), plan?.relinkedScenarioIds)
+  assert.deepEqual([p.scenariosArchived, p.scenariosUnlinked, p.scenariosRelinked], [p.delete.scenariosArchived, p.delete.scenariosUnlinked, p.delete.scenariosRelinked])
+  assert.deepEqual(writes(f.log), [])
+})
+
+test('T3-1b #173 내 버전 지우기(DELETE) — 사본에만 붙은 상황 보관 · 시드에도 붙은 상황은 연결만 끊김 · 시드 주제로 되돌려 붙이지 않음 · override copyId null(시드 숨김 유지) · 진행 중 챌린지 삭제(ack)', async () => {
+  const { f, T } = copyFixture()
+  T.challenge.push(challenge('chCopy', 'topCopy', 'ACTIVE', '2026-10-06', '2026-10-08', { activeKey: `${U}-2` }))
+  await rejectsWith(removeUserTopic(U, 'topCopy', { ack: 'none' }, { ...f.deps() }), 'CONFLICT:IMPACT_CHANGED')
+  const r = await removeUserTopic(U, 'topCopy', { ack: 'chCopy' }, { ...f.deps() })
+  assert.deepEqual(
+    [r.mode, r.seedId, r.scenariosArchived, r.scenariosUnlinked, r.scenariosRelinked, r.deletedChallengeId],
+    ['DELETE', 'topSeed', 1, 1, 0, 'chCopy'],
+  )
+  assert.deepEqual([statusOf(T, 'scnCopy'), linksOf(T, 'scnCopy')], ['ARCHIVED', []], '사본에만 붙은 내 상황은 보관(숨긴 시드 주제에 붙이지 않는다)')
+  assert.deepEqual([statusOf(T, 'scnCopy2'), linksOf(T, 'scnCopy2')], ['ACTIVE', ['topSeed:2']], '이미 있던 시드 연결만 남는다(새로 붙이지 않음)')
+  assert.ok(!T.scenarioTopic.some((l) => l.topicId === 'topCopy'))
+  assert.deepEqual(T.userSeedOverride.map((o) => `${o.seedId}:${String(o.copyId)}`), ['topSeed:null'], '시드는 그 사용자 목록에서 숨김으로 남는다(되돌리기는 #176)')
+  assert.ok(!T.challenge.some((c) => c.id === 'chCopy'))
+  assert.ok(T.conversationTopic.some((t) => t.id === 'topSeed'), '시드 행 불변')
+})
+
+test('T3-1b #176 되돌리기(RESTORE, 실제 포트) — 내 상황을 시드 주제로 되돌려 붙임(보관 0) · override 삭제(시드 다시 보임) · 사본의 진행 중 챌린지 삭제 · 포트가 mode RESTORE 로 불림', async () => {
+  const { f, T, now } = copyFixture()
+  T.challenge.push(challenge('chCopy', 'topCopy', 'ACTIVE', '2026-10-06', '2026-10-08', { activeKey: `${U}-2` }))
+  const modes: unknown[] = []
+  const real = makeTopicRemovalPort({ now })
+  const spy: typeof real = (tx, userId, topicId, o) => (modes.push(o.mode), real(tx, userId, topicId, o))
+  const r = await restoreSeed(U, 'TOPIC', 'topSeed', { ack: 'chCopy' }, { ...f.deps(), removeTopic: spy })
+  assert.deepEqual(modes, ['RESTORE'])
+  const removal = r.removal as Record<string, unknown>
+  assert.deepEqual([r.path, removal.mode, removal.scenariosRelinked, removal.scenariosArchived, removal.scenariosUnlinked, removal.deletedChallengeId], ['COPY', 'RESTORE', 2, 0, 0, 'chCopy'])
+  assert.deepEqual([linksOf(T, 'scnCopy'), linksOf(T, 'scnCopy2')], [['topSeed:3'], ['topSeed:2']])
+  assert.deepEqual([statusOf(T, 'scnCopy'), statusOf(T, 'scnCopy2')], ['ACTIVE', 'ACTIVE'])
+  assert.deepEqual(T.userSeedOverride, [], 'override 삭제 = 시드가 다시 보인다')
+  assert.ok(!T.conversationTopic.some((t) => t.id === 'topCopy') && !T.challenge.some((c) => c.id === 'chCopy'))
+})
+
+test('T3-1b #176 ack 불일치 — 409 의 새 사전 조회는 되돌려 붙이기 전 상태로 계산(restore.scenariosRelinked 2개) · 표 전체 불변', async () => {
+  const { f, T, port } = copyFixture()
+  T.challenge.push(challenge('chCopy', 'topCopy', 'ACTIVE', '2026-10-06', '2026-10-08', { activeKey: `${U}-2` }))
+  const before = structuredClone(T)
+  const e = await rejectsWith(restoreSeed(U, 'TOPIC', 'topSeed', { ack: 'none' }, { ...f.deps(), removeTopic: port }), 'CONFLICT:IMPACT_CHANGED')
+  const pv = e.details?.preview as TopicRemovalPreview
+  assert.deepEqual([pv.ack, pv.restore?.scenariosRelinked.map((s) => s.id)], ['chCopy', ['scnCopy', 'scnCopy2']])
+  assert.deepEqual(T, before)
+})
+
+test('T3-1b RESTORE 경계 — 시드 주제가 사라졌으면 되돌려 붙일 곳이 없어 DELETE 규칙(보관) · 연결 한도(3)를 넘은 상황은 연결만 끊김 · 사본이 아닌 주제의 RESTORE 는 DELETE 와 같다', async () => {
+  const gone = copyFixture()
+  gone.T.conversationTopic.splice(gone.T.conversationTopic.findIndex((t) => t.id === 'topSeed'), 1)
+  gone.T.scenarioTopic.splice(0, gone.T.scenarioTopic.length, ...gone.T.scenarioTopic.filter((l) => l.topicId !== 'topSeed'))
+  const pg = await previewTopicRemoval(U, 'topCopy', { db: gone.f.db, now: () => gone.f.clock.now })
+  assert.deepEqual(pg.restore, pg.delete, '시드 주제 없음 → 두 갈래 같음')
+  const rg = await restoreSeed(U, 'TOPIC', 'topSeed', { ack: 'none' }, { ...gone.f.deps(), removeTopic: gone.port })
+  assert.deepEqual([(rg.removal as Record<string, unknown>).scenariosArchived, statusOf(gone.T, 'scnCopy')], [2, 'ARCHIVED'])
+
+  const full = copyFixture()
+  full.T.scenarioTopic.push({ scenarioId: 'scnCopy', topicId: 'topX', weight: 1 }, { scenarioId: 'scnCopy', topicId: 'topY', weight: 1 }, { scenarioId: 'scnCopy', topicId: 'topZ', weight: 1 })
+  const pf = await previewTopicRemoval(U, 'topCopy', { db: full.f.db, now: () => full.f.clock.now })
+  assert.deepEqual([pf.restore?.scenariosUnlinked.map((s) => s.id), pf.restore?.scenariosRelinked.map((s) => s.id)], [['scnCopy'], ['scnCopy2']])
+
+  const plain = fixture()
+  const viaRestore = await plain.f.deps().transaction!((tx) => plain.port(tx, U, 'topMine', { ack: 'chLive', mode: 'RESTORE' }))
+  assert.deepEqual([viaRestore.mode, viaRestore.scenariosArchived, viaRestore.scenariosUnlinked, viaRestore.scenariosRelinked], ['DELETE', 1, 1, 0])
 })
 
 test('포트 연결 — restoreSeed(#176) 가 removeUserTopicTx 로 실제 삭제 · override 삭제 · ack 다르면 아무것도 안 바뀜', async () => {

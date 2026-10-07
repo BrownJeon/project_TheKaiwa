@@ -3,7 +3,9 @@
  * - where 판정은 챌린지 가짜(`challengeFakeDb.matches`)를 쓴다. `select` 는 무시하고 행 전체 사본을 돌려준다.
  * - 모든 호출 앞에서 한 번 양보(setImmediate)해 동시에 돌린 트랜잭션이 실제로 끼어든다 — 잠금(`lockUser`)은 사용자별 FIFO 뮤텍스이고
  *   트랜잭션이 끝날 때 풀린다. 잠금을 빼면 끼어들기가 그대로 드러난다(경합 시험).
- * - `UserSeedOverride` 의 (userId, kind, seedId) 유니크를 흉내 내 P2002 를 던진다. 롤백은 흉내 내지 않는다(쓰기 전에 판정하는지를 본다).
+ * - `UserSeedOverride` 의 (userId, kind, seedId) 유니크와 `ScenarioTopic` 의 복합 PK (scenarioId, topicId)를 흉내 내 P2002 를 던진다(T3-1b, REV-150 L3).
+ * - 롤백은 선택(`{ rollback: true }`) — 트랜잭션이 던지면 시작 때 표 전체로 되돌린다. 동시에 도는 트랜잭션이 있는 경합 시험에서는 켜지 않는다
+ *   (다른 트랜잭션의 쓰기까지 되돌리므로). 기본값은 예전처럼 롤백 없음(쓰기 전에 판정하는지를 본다).
  */
 import type { Tx } from '@/modules/infra'
 import type { SeedOverrideDeps } from '../seedOverride'
@@ -37,7 +39,12 @@ function sortRows(rows: Row[], orderBy: unknown): Row[] {
   })
 }
 
-export function seedOverrideFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
+const uniqueKey: Partial<Record<keyof SeedFakeTables, (r: Row) => string>> = {
+  userSeedOverride: (r) => `${String(r.userId)}|${String(r.kind)}|${String(r.seedId)}`,
+  scenarioTopic: (r) => `${String(r.scenarioId)}|${String(r.topicId)}`,
+}
+
+export function seedOverrideFakeDb(now = new Date('2026-10-07T03:00:00.000Z'), opts: { rollback?: boolean } = {}) {
   const tables: SeedFakeTables = { userSeedOverride: [], conversationTopic: [], topicChunk: [], scenario: [], scenarioTopic: [] }
   const log: string[] = []
   const clock = { now }
@@ -53,6 +60,15 @@ export function seedOverrideFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
       const t = new Date(clock.now.getTime())
       return { id: `${name.slice(0, 3)}${String(++seq).padStart(5, '0')}`, createdAt: t, updatedAt: t, ...structuredClone(data) }
     }
+    const assertUnique = (data: readonly Row[]) => {
+      const key = uniqueKey[name]
+      if (!key) return
+      const seen = new Set(rows().map(key))
+      for (const d of data) {
+        if (seen.has(key(d))) throw Object.assign(new Error(`Unique constraint failed on ${name}`), { code: 'P2002', meta: { modelName: name } })
+        seen.add(key(d))
+      }
+    }
     return {
       findMany: async (a?: { where?: Where; orderBy?: unknown; take?: number }) => (await tick(), log.push(`${name}.findMany`), find(a)),
       findFirst: async (a?: { where?: Where; orderBy?: unknown }) => (await tick(), log.push(`${name}.findFirst`), find({ ...a, take: 1 })[0] ?? null),
@@ -60,9 +76,7 @@ export function seedOverrideFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
       create: async (a: { data: Row }) => {
         await tick()
         log.push(`${name}.create`)
-        if (name === 'userSeedOverride' && rows().some((r) => r.userId === a.data.userId && r.kind === a.data.kind && r.seedId === a.data.seedId)) {
-          throw Object.assign(new Error('Unique constraint failed on UserSeedOverride_userId_kind_seedId_key'), { code: 'P2002' })
-        }
+        assertUnique([a.data])
         const row = stamp(a.data)
         rows().push(row)
         return structuredClone(row)
@@ -70,6 +84,7 @@ export function seedOverrideFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
       createMany: async (a: { data: Row[] }) => {
         await tick()
         log.push(`${name}.createMany`)
+        assertUnique(a.data)
         for (const d of a.data) rows().push(stamp(d))
         return { count: a.data.length }
       },
@@ -105,8 +120,12 @@ export function seedOverrideFakeDb(now = new Date('2026-10-07T03:00:00.000Z')) {
       const tx = Object.create(db) as Tx
       const mine: (() => void)[] = []
       releases.set(tx, mine)
+      const snapshot = opts.rollback ? structuredClone(tables) : null
       try {
         return await fn(tx)
+      } catch (e) {
+        if (snapshot) for (const k of Object.keys(tables) as (keyof SeedFakeTables)[]) tables[k] = snapshot[k]
+        throw e
       } finally {
         for (const r of mine) r()
       }

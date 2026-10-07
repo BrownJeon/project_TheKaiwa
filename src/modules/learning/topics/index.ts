@@ -6,13 +6,19 @@ import type { ChunkType, JlptLevel } from '@prisma/client'
 import { ApiError, prisma, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
 import { hiddenSeedIds, visibleRowsWhere } from '../seedOverride/visibility'
+import { isTopicVisibleTo } from './visible'
 
 export const JLPT_ORDER: readonly JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
 export const TOPIC_LIST_MAX = 100
 
-export async function getTopicRef(userId: string, topicId: string): Promise<{ id: string; title: string } | null> {
+/**
+ * #28 새 채팅의 주제 — 시드 또는 내 주제, 이 사용자가 가린(숨김·내 버전) 시드는 null(→ 404, task-045 §2 새 시작 차단 · REV-150 M1).
+ * 진행 중 챌린지 예외 없음(챌린지 과제는 #59·#47 경로). 지난 채팅의 주제 읽기는 이 함수를 쓰지 않는다.
+ */
+export async function getTopicRef(userId: string, topicId: string, db: Tx = prisma): Promise<{ id: string; title: string } | null> {
   if (typeof topicId !== 'string' || !topicId || topicId.length > 40) return null
-  return prisma.conversationTopic.findFirst({ where: { id: topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true } })
+  const t = await db.conversationTopic.findFirst({ where: { id: topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, userId: true } })
+  return t && (await isTopicVisibleTo(db, userId, t)) ? { id: t.id, title: t.title } : null
 }
 
 /** 학습자 수준 ±1(N5 → N5·N4, N3 → N4·N3·N2). */
@@ -24,18 +30,22 @@ export function levelWindow(level: JlptLevel): JlptLevel[] {
 export interface TopicQuery {
   level: JlptLevel | null
   mine: boolean
+  /** `level=all`(task-045 #56 변경) — 수준 창을 풀고 다섯 수준 전부. 켜면 `level` 은 null. */
+  allLevels?: boolean
 }
 
-/** #56 쿼리 — `level=N5..N1`(없으면 학습자 수준 ±1), `mine=1|0`. */
+/** #56 쿼리 — `level=N5..N1|all`(없으면 학습자 수준 ±1, `all` 은 관리 화면용 전체 수준), `mine=1|0`(`all` 과 함께 쓸 수 있다). */
 export function parseTopicQuery(q: URLSearchParams): TopicQuery {
   for (const k of q.keys()) {
     if (k !== 'level' && k !== 'mine') throw new ApiError('VALIDATION', `지원하지 않는 조건입니다: ${k}`, { field: k, reason: 'unknown_key' })
   }
   const level = q.get('level')
-  if (level !== null && !(JLPT_ORDER as readonly string[]).includes(level)) throw new ApiError('VALIDATION', 'level 은 N5~N1 입니다.', { field: 'level', reason: JLPT_ORDER.join('|') })
+  const all = level === 'all'
+  if (level !== null && !all && !(JLPT_ORDER as readonly string[]).includes(level)) throw new ApiError('VALIDATION', 'level 은 N5~N1 입니다.', { field: 'level', reason: JLPT_ORDER.join('|') })
   const mine = q.get('mine')
   if (mine !== null && mine !== '0' && mine !== '1') throw new ApiError('VALIDATION', 'mine 은 0 또는 1 입니다.', { field: 'mine', reason: '0|1' })
-  return { level: (level as JlptLevel | null) ?? null, mine: mine === '1' }
+  // `allLevels` 는 켤 때만 싣는다 — 기존 쿼리의 결과 모양(`{level, mine}`)은 그대로.
+  return { level: all ? null : ((level as JlptLevel | null) ?? null), mine: mine === '1', ...(all ? { allLevels: true } : {}) }
 }
 
 export interface TopicChunkDto {
@@ -100,7 +110,7 @@ function tagsOf(v: unknown): string[] {
  * 이 사용자가 숨겼거나 내 버전으로 바꾼 시드는 빠진다(task-045 계약 §2 — 내 버전은 일반 내 행으로 보인다).
  */
 export async function listTopics(userId: string, q: TopicQuery, db: Tx = prisma): Promise<{ items: TopicDto[]; level: JlptLevel[] }> {
-  const levels = q.level ? [q.level] : levelWindow((await getProfile(userId)).level as JlptLevel)
+  const levels = q.allLevels ? [...JLPT_ORDER] : q.level ? [q.level] : levelWindow((await getProfile(userId)).level as JlptLevel)
   const hidden = q.mine ? [] : await hiddenSeedIds(db, userId, 'TOPIC')
   const rows = await db.conversationTopic.findMany({
     where: { level: { in: levels }, ...(q.mine ? { userId } : visibleRowsWhere(userId, hidden)) },
@@ -141,13 +151,18 @@ export interface LessonTopicMaterial {
   chunks: TopicChunkDto[]
 }
 
-/** 레슨 재료 — 시드 또는 내 주제(아니면 null → 라우트 404). */
-export async function getTopicForLesson(userId: string, topicId: string): Promise<LessonTopicMaterial | null> {
+/**
+ * #59 레슨 재료 — 시드 또는 내 주제(아니면 null → 라우트 404). 이 사용자가 가린 시드는 null(task-045 §2) — 단, 그 주제에 진행 중(ACTIVE) 챌린지가
+ * 있으면 읽는다(§0 #9, 챌린지 오늘 수업 과제가 이 경로). 수업 쪽(`loadTopicLessonMaterials`)이 더 좁은 챌린지 규칙(수업 과제·기간 안)을 다시 건다.
+ */
+export async function getTopicForLesson(userId: string, topicId: string, db: Tx = prisma): Promise<LessonTopicMaterial | null> {
   if (typeof topicId !== 'string' || !topicId || topicId.length > 40) return null
-  return prisma.conversationTopic.findFirst({
+  const t = await db.conversationTopic.findFirst({
     where: { id: topicId, OR: [{ userId: null }, { userId }] },
-    select: { id: true, title: true, titleJa: true, level: true, chunks: { orderBy: [{ order: 'asc' }, { id: 'asc' }], select: CHUNK_SELECT, take: 40 } },
+    select: { id: true, title: true, titleJa: true, level: true, userId: true, chunks: { orderBy: [{ order: 'asc' }, { id: 'asc' }], select: CHUNK_SELECT, take: 40 } },
   })
+  if (!t || !(await isTopicVisibleTo(db, userId, t, { allowActiveChallenge: true }))) return null
+  return { id: t.id, title: t.title, titleJa: t.titleJa, level: t.level, chunks: t.chunks }
 }
 
 /**

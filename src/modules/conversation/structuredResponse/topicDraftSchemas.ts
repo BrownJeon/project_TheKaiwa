@@ -241,6 +241,19 @@ export function detectUnsafeTopicText(text: string): TopicDraftUnsafeKind | null
   return null
 }
 
+/** 이모지 표현 선택자(VS16)·이모지 사이 접합 문자(ZWJ) — 그림 문자 바로 뒤(·사이)에 있을 때만 허용한다. 다른 자리의 같은 문자는 URL 쪼개기에 쓰일 수 있어 그대로 남긴다. */
+const EMOJI_VS16 = /(\p{Extended_Pictographic}|[0-9#*])\u{FE0F}/gu
+const EMOJI_ZWJ = /(\p{Extended_Pictographic}[\u{1F3FB}-\u{1F3FF}]?)\u{200D}(?=\p{Extended_Pictographic})/gu
+
+/**
+ * 학습자가 직접 고친 글(#57·#171 저장)용 `detectUnsafeTopicText` — REV-148 L-8: 「여행 ✈+VS16」·「👩+ZWJ+🍳」 처럼 **이모지에 붙은** VS16(U+FE0F)·ZWJ(U+200D) 만 허용한다.
+ * 허용한 접합 문자를 걷어 낸 글로 원래 검사를 하므로(꺾쇠·URL·비밀 모양·제어문자 금지는 그대로) 이모지 자리 밖의 접합 문자나 그것으로 쪼갠 URL 은 여전히 막힌다.
+ * 줄바꿈은 호출 전에 접어서 넘긴다(원래 함수와 같다). 원래 함수는 바꾸지 않는다 — AI 초안 검사는 계속 엄격하다.
+ */
+export function detectUnsafeUserTopicText(text: string): TopicDraftUnsafeKind | null {
+  return detectUnsafeTopicText(text.replace(EMOJI_VS16, '$1').replace(EMOJI_ZWJ, '$1'))
+}
+
 // `topicWords.ts` 의 SURFACE_ALLOWED·READING_ALLOWED 와 같은 문자 종류다(드리프트는 단위 시험이 같은 표로 대조한다).
 const KANA_CLASS = '\\u3041-\\u3096\\u30A1-\\u30FA\\u30FC'
 const KANJI_CLASS = '\\u3005\\u3006\\u3400-\\u4DBF\\u4E00-\\u9FFF'
@@ -334,7 +347,8 @@ export type TopicDraftFinalStatus = 'OK' | 'NOT_A_TOPIC' | 'UNSAFE' | 'INVALID'
 /** `TEXT_UNSAFE` = 제목·일본어 제목·설명(폴백한 입력 제목 포함) 중 하나에 URL·꺾쇠·비밀 모양·숨은 문자가 있다 — 벗겨서 쓰지 않고 **초안 전체를 거절**하고 JSON 재시도 1회로 보낸다. */
 export type TopicDraftProblem = 'DRAFT_MISSING' | 'TITLE_EMPTY' | 'TEXT_UNSAFE' | 'CHUNKS_TOO_FEW'
 
-export type TopicDraftWarning = 'CHUNKS_SHORT' | 'DESCRIPTION_MISSING' | 'TITLE_JA_MISSING' | `TYPE_THIN_${ChunkType}`
+/** `TITLE_TRUNCATED`(task-045 T2, REV-147 L-7) = 제목이 `titleMax` 를 넘어 `…` 로 잘렸다(입력 21~40자를 모델이 줄이지 않은 경우 등) — 화면이 「제목이 길어서 줄였어요」를 띄운다. */
+export type TopicDraftWarning = 'CHUNKS_SHORT' | 'DESCRIPTION_MISSING' | 'TITLE_JA_MISSING' | `TYPE_THIN_${ChunkType}` | 'TITLE_TRUNCATED'
 
 export interface TopicDraftRepairs {
   /** 모델이 낸 표현 수(통과 + 버림). */
@@ -410,8 +424,10 @@ export function fitTopicDraft(ctx: TopicDraftContext, data: TopicDraftResponse):
   guardText(d.description)
 
   let title = cut(d.title, L.titleMax)
+  let titleTruncated = cpLen(cleanModelText(d.title)) > L.titleMax
   if (!title && ctx.title) {
     title = cutTo(cleanModelText(ctx.title), L.titleMax)
+    titleTruncated = cpLen(cleanModelText(ctx.title)) > L.titleMax
     repairs.titleFallback = title !== ''
     guardText(ctx.title) // 입력 제목은 본문 검사(꺾쇠·비밀)를 이미 지났지만 URL 은 아직이다 — 폴백으로 쓰는 값도 같은 규칙
   }
@@ -483,12 +499,38 @@ export function fitTopicDraft(ctx: TopicDraftContext, data: TopicDraftResponse):
   if (chunks.length < L.chunksMin) problems.push('CHUNKS_TOO_FEW')
   if (problems.length > 0) return done('INVALID', repairs, problems)
 
-  const warnings: TopicDraftWarning[] = []
-  if (chunks.length < L.chunksTarget) warnings.push('CHUNKS_SHORT')
-  for (const t of CHUNK_TYPES) if (byType[t].length < L.perTypeMin) warnings.push(`TYPE_THIN_${t}`)
-  if (!description) warnings.push('DESCRIPTION_MISSING')
-  if (!titleJa) warnings.push('TITLE_JA_MISSING')
+  const warnings = topicContentWarnings({ titleJa, description, chunks })
+  if (titleTruncated) warnings.push('TITLE_TRUNCATED')
   return { status: 'OK', draft: { title, titleJa, level: ctx.level, description, chunks }, problems: [], warnings, repairs }
+}
+
+/**
+ * 초안·저장한 주제 공통 안내(저장을 막지 않는다) — 순서 고정: `CHUNKS_SHORT` → `TYPE_THIN_*`(유형 순) → `DESCRIPTION_MISSING` → `TITLE_JA_MISSING`.
+ * `TITLE_TRUNCATED` 는 초안에서만(저장은 20자 초과를 400 으로 막는다).
+ */
+export function topicContentWarnings(t: { titleJa: string | null; description: string | null; chunks: ReadonlyArray<{ chunkType: string }> }): TopicDraftWarning[] {
+  const L = TOPIC_DRAFT_LIMITS
+  const warnings: TopicDraftWarning[] = []
+  if (t.chunks.length < L.chunksTarget) warnings.push('CHUNKS_SHORT')
+  for (const type of CHUNK_TYPES) if (t.chunks.filter((c) => c.chunkType === type).length < L.perTypeMin) warnings.push(`TYPE_THIN_${type}`)
+  if (!t.description) warnings.push('DESCRIPTION_MISSING')
+  if (!t.titleJa) warnings.push('TITLE_JA_MISSING')
+  return warnings
+}
+
+/** 저장 검사(#57·#171)의 표현 중복 — 초안과 같은 정규화(표기 `normalizeTopicWordKey`·뜻 `normalizeMeaning`). 첫 중복의 위치와 종류, 없으면 null. */
+export function findTopicChunkDuplicate(chunks: ReadonlyArray<{ textJa: string; meaningKo: string }>): { index: number; reason: 'DUP_SURFACE' | 'DUP_MEANING' } | null {
+  const surfaces = new Set<string>()
+  const meanings = new Set<string>()
+  for (const [index, c] of chunks.entries()) {
+    const key = normalizeTopicWordKey(c.textJa)
+    if (surfaces.has(key)) return { index, reason: 'DUP_SURFACE' }
+    const m = normalizeMeaning(c.meaningKo)
+    if (m && meanings.has(m)) return { index, reason: 'DUP_MEANING' }
+    surfaces.add(key)
+    if (m) meanings.add(m)
+  }
+  return null
 }
 
 const PROBLEM_TEXT: Record<TopicDraftProblem, string> = {

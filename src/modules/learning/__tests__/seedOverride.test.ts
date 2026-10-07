@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { ApiError } from '@/modules/infra'
+import { ApiError, type Tx } from '@/modules/infra'
 import {
   detachCopy, forkSeedScenario, forkSeedTopic, hiddenSeedIds, hideSeed, isSeedVisibleFor, listSeedOverrides, normalizeTopicInput, parseSeedRefBody,
   resolvePlaceTopicId, restoreSeed, visibleRowsWhere, visibleSeedWhere, type TopicRemovalPort,
@@ -16,8 +16,8 @@ const U = 'userA'
 const V = 'userB'
 const OLD = new Date('2026-09-01T00:00:00.000Z')
 
-function fixture() {
-  const f = seedOverrideFakeDb()
+function fixture(opts: { rollback?: boolean } = {}) {
+  const f = seedOverrideFakeDb(undefined, opts)
   const T = f.tables
   const topic = (id: string, userId: string | null, title: string) => ({ id, userId, isSeed: userId === null, title, titleJa: null, level: 'N5', description: `${title} 설명`, tags: userId ? null : ['seed'], createdAt: OLD, updatedAt: OLD })
   T.conversationTopic.push(topic('topCafe', null, '카페'), topic('topStation', null, '역'))
@@ -302,4 +302,61 @@ test('도구 — visibleSeedWhere·listSeedOverrides·detachCopy·parseSeedRefBo
   assert.throws(() => parseSeedRefBody({ kind: 'TOPIC', seedId: '../a' }), reason('VALIDATION', 'invalid'))
   assert.throws(() => parseSeedRefBody({ kind: 'TOPIC', seedId: 'a', ack: 'drop table' }), reason('VALIDATION', 'invalid'))
   assert.deepEqual(normalizeTopicInput({ description: '  ', titleJa: null }), { value: { description: null, titleJa: null }, problems: [] })
+})
+
+// ── T3-1b · REV-150 Low 보강 ─────────────────────────────────────────
+
+/** 잠금 아래에서도 닿을 수 있는 마지막 방어층을 드러내려고, 확인(findFirst)만 "없음"으로 속이는 트랜잭션. */
+function fooledDeps(f: ReturnType<typeof fixture>) {
+  const base = f.deps()
+  return {
+    ...base,
+    // 잠금은 풀리지 않는 가짜 tx 대신 빈 잠금 — 이 시험은 잠금이 놓친 경우(마지막 방어층)를 본다.
+    lockUser: async () => true,
+    transaction: <R>(fn: (tx: Tx) => Promise<R>) =>
+      base.transaction!(async (tx) => {
+        const fooled = Object.create(tx) as Record<string, unknown>
+        fooled.userSeedOverride = { ...(tx as unknown as Record<string, object>).userSeedOverride, findFirst: async () => null }
+        return fn(fooled as unknown as Tx)
+      }),
+  }
+}
+
+test('T3-1b REV-150 L2 — override 유니크 위반(P2002)은 덮어쓰지 않고 409 ALREADY_COPIED · 롤백 가짜에서 사본·연결이 남지 않음(fork 주제·fork 상황·hide)', async () => {
+  const f = fixture({ rollback: true })
+  f.tables.userSeedOverride.push({ id: 'ovPre', userId: U, kind: 'TOPIC', seedId: 'topCafe', copyId: null }, { id: 'ovPre2', userId: U, kind: 'SCENARIO', seedId: 'scnOrder', copyId: null })
+  const before = JSON.stringify(f.tables)
+  const d = fooledDeps(f)
+  await assert.rejects(forkSeedTopic(U, 'topCafe', {}, d), (e: unknown) => reason('CONFLICT', 'ALREADY_COPIED')(e) && !('state' in ((e as ApiError).details ?? {})))
+  await assert.rejects(forkSeedScenario(U, 'scnOrder', {}, d), reason('CONFLICT', 'ALREADY_COPIED'))
+  await assert.rejects(hideSeed(U, 'TOPIC', 'topCafe', d), reason('CONFLICT', 'ALREADY_COPIED'))
+  assert.ok(f.log.includes('conversationTopic.create') && f.log.includes('scenario.create'), '사본을 만든 뒤 override 기록에서 막혔다')
+  assert.equal(JSON.stringify(f.tables), before, '덮어쓰기 0 · 사본 행·조각·연결 0(롤백)')
+})
+
+test('T3-1b REV-150 L3 — 상황 fork 의 장소 중복 제거: 시드 주제와 그 내 버전을 함께 고르면 사본 주제 연결 1개(앞선 weight) · 가짜 DB 의 ScenarioTopic PK 가 중복을 막는다', async () => {
+  const f = fixture()
+  const t = await forkSeedTopic(U, 'topCafe', {}, f.deps())
+  const s = await forkSeedScenario(U, 'scnOrder', { topicIds: ['topCafe', t.copyId] }, f.deps())
+  assert.deepEqual(f.tables.scenarioTopic.filter((l) => l.scenarioId === s.copyId).map((l) => `${l.topicId}:${l.weight}`), [`${t.copyId}:2`])
+  await assert.rejects(
+    f.db.scenarioTopic.createMany({ data: [{ scenarioId: 'scnOrder', topicId: 'topCafe', weight: 1 }] }),
+    (e: unknown) => (e as { code?: string }).code === 'P2002',
+  )
+})
+
+test('T3-1b REV-150 L5 — 사용자 행이 없으면(잠금 false) 네 연산 모두 404 USER_GONE · 쓰기 0', async () => {
+  const f = fixture()
+  const before = JSON.stringify(f.tables)
+  const gone = f.deps({ lockUser: async () => false })
+  for (const run of [
+    () => hideSeed(U, 'TOPIC', 'topCafe', gone),
+    () => forkSeedTopic(U, 'topCafe', {}, gone),
+    () => forkSeedScenario(U, 'scnOrder', {}, gone),
+    () => restoreSeed(U, 'TOPIC', 'topCafe', {}, gone),
+  ]) {
+    await assert.rejects(run(), reason('NOT_FOUND', 'USER_GONE'))
+  }
+  assert.equal(JSON.stringify(f.tables), before)
+  assert.ok(!f.log.some((l) => /\.(create|createMany|updateMany|deleteMany)$/.test(l)))
 })

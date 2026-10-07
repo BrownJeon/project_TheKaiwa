@@ -800,6 +800,16 @@ test('#47 가린 시드(task-045 T3) — 숨김이면 404 · 진행 중 챌린�
   created(await create(h, { count: 5, generate: false }))
 })
 
+test('#47 가린 시드 시작(task-045 T3-1b, REV-150 M1) — 숨김이면 A12 를 부르기 전에 404 TOPIC_GONE(LLM 0·세트 0) · 진행 중 챌린지 주제면 생성까지 간다', async () => {
+  const h = harness()
+  h.db.overrides.push({ userId: U, kind: 'TOPIC', seedId: TOPIC, copyId: null })
+  await assert.rejects(create(h, { count: 5, generate: true }), topicGone)
+  assert.deepEqual([h.calls.length, h.db.sessionCreates], [0, 0])
+  h.db.challenges.push({ userId: U, status: 'ACTIVE', topicId: TOPIC })
+  created(await create(h, { count: 5, generate: true }))
+  assert.equal(h.calls.length, 1)
+})
+
 test('#47 FK 위반(task-045 T3) — 세트 저장 때 주제 FK P2003 은 404 TOPIC_GONE, 다른 FK 오류는 그대로 던진다', async () => {
   const h = harness()
   h.db.sessionCreateError = Object.assign(new Error('fk'), { code: 'P2003', meta: { field_name: 'VocabSession_topicId_fkey (index)' } })

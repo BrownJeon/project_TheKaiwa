@@ -11,7 +11,7 @@ import { createChallenge, parseCreateChallengeBody } from '../challenges'
 import { loadScenarioLessonMaterials, loadTopicLessonMaterials, type ScenarioLessonDeps } from '../lessons/generate'
 import { getScenarioDetail, listScenarios, type ScenarioListQuery } from '../scenarios/catalog'
 import { readScenarioRolePlayMaterial, resolveScenarioChatStart, type ScenarioMaterialDb, type ScenarioStartDb } from '../scenarios/start'
-import { forkSeedTopic, isSeedVisibleFor, planRestoreRelink, restoreSeed, type TopicRemovalPort } from '../seedOverride'
+import { applyRestoreRelink, forkSeedTopic, isSeedVisibleFor, loadRestoreRelinkPlan, planRestoreRelink, restoreSeed, type TopicRemovalPort } from '../seedOverride'
 import { listTopics, pickFewestLessonTopic } from '../topics'
 import { fakeDb, kst, matches } from './challengeFakeDb'
 import { scenarioFakeDb } from './scenarioFakeDb'
@@ -248,9 +248,14 @@ test('되돌리기(주제 사본) — 내 상황이 보관되지 않고 시드 �
     { scenarioId: 'scnBoth', topicId: C, weight: 3 }, { scenarioId: 'scnBoth', topicId: 'topCafe', weight: 1 },
     { scenarioId: 'scnFull', topicId: C, weight: 1 }, { scenarioId: 'scnFull', topicId: 'topX', weight: 1 }, { scenarioId: 'scnFull', topicId: 'topY', weight: 1 }, { scenarioId: 'scnFull', topicId: 'topZ', weight: 1 },
   )
-  // §4 흉내: 사본 주제에만 붙은 내 상황은 보관, 나머지는 연결만 끊고 주제 삭제.
+  // §4 흉내: 사본 주제에만 붙은 내 상황은 보관, 나머지는 연결만 끊고 주제 삭제. T3-1b 부터 되돌려 붙이기는 포트 몫(mode RESTORE) —
+  // 실제 포트와 같은 계산(relink.ts)을 먼저 적용한다(실제 포트 시험은 topicRemoval.test.ts "T3-1b #176").
   const archived: string[] = []
-  const port: TopicRemovalPort = async (tx, userId, topicId) => {
+  const modes: unknown[] = []
+  const port: TopicRemovalPort = async (tx, userId, topicId, opts) => {
+    modes.push(opts.mode)
+    const plan = opts.mode === 'RESTORE' ? await loadRestoreRelinkPlan(tx, userId, topicId, 'topCafe') : null
+    if (plan) await applyRestoreRelink(tx, plan, topicId, 'topCafe')
     for (const l of T.scenarioTopic.filter((x) => x.topicId === topicId)) {
       if (!T.scenarioTopic.some((x) => x.scenarioId === l.scenarioId && x.topicId !== topicId)) archived.push(l.scenarioId as string)
     }
@@ -260,6 +265,7 @@ test('되돌리기(주제 사본) — 내 상황이 보관되지 않고 시드 �
   }
   const r = await restoreSeed(A, 'TOPIC', 'topCafe', { ack: 'none' }, f.deps({ removeTopic: port }))
   assert.equal(r.path, 'COPY')
+  assert.deepEqual(modes, ['RESTORE'], 'restoreSeed 는 포트를 RESTORE 로 부른다')
   assert.deepEqual(archived, [], '되돌리기로 보관되는 내 상황 없음')
   const linksOf = (sid: string) => T.scenarioTopic.filter((l) => l.scenarioId === sid).map((l) => `${l.topicId}:${l.weight}`).sort()
   assert.deepEqual(linksOf('scnMine'), ['topCafe:2', 'topStation:1'], 'fork 로 옮긴 연결이 원래대로')

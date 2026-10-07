@@ -14,6 +14,7 @@ import type { ChunkType, JlptLevel, VocabAnswer, VocabSessionStatus } from '@pri
 import { llm, LLM_TASKS, newTraceId, recordTrace, type LlmJsonRequest, type TraceRecord, type TraceStep } from '@/modules/engine'
 import { prisma, withTransaction, type Tx } from '@/modules/infra'
 import { normalizeRefText, repetitionRefId, type RepetitionItemInput } from '../repetition'
+import { isTopicVisibleTo, topicGone } from '../topics/visible'
 import {
   CARD_REF_AI_WORD,
   CARD_REF_TOPIC_CHUNK,
@@ -153,16 +154,24 @@ export interface TopicSetMaterial {
   chunkMeanings: string[]
 }
 
-export type TopicSetReadDb = Pick<Tx, 'conversationTopic' | 'vocabSession' | 'vocabAttempt'>
+/** 주제 재료·오늘 카드 읽기 — 가시성(시드 override·진행 중 챌린지)까지 읽으므로 트랜잭션 클라이언트 모양 전체. */
+export type TopicSetReadDb = Tx
 
-/** 주제 재료 — 시드(userId null) 또는 **내** 주제만(아니면 null → 404). */
-export async function loadTopicSetMaterial(db: Pick<Tx, 'conversationTopic'>, userId: string, topicId: string): Promise<TopicSetMaterial | null> {
+/**
+ * 주제 재료 — 시드(userId null) 또는 **내** 주제만(아니면 null → 404). 이 사용자가 가린 시드는 A12 를 부르기 전에 404 `TOPIC_GONE`
+ * (task-045 §2 새 시작 차단 · REV-150 M1) — 단, 그 주제에 진행 중 챌린지가 있으면 허용(§0 #9, 챌린지 단어 과제). 저장 직전 잠금 안 재확인은 sessions.ts.
+ */
+export async function loadTopicSetMaterial(db: Tx, userId: string, topicId: string): Promise<TopicSetMaterial | null> {
   if (typeof topicId !== 'string' || !topicId || topicId.length > 40) return null
   const t = await db.conversationTopic.findFirst({
     where: { id: topicId, OR: [{ userId: null }, { userId }] },
-    select: { id: true, title: true, titleJa: true, description: true, level: true, chunks: { orderBy: [{ order: 'asc' }, { id: 'asc' }], select: { textJa: true, meaningKo: true } } },
+    select: {
+      id: true, title: true, titleJa: true, description: true, level: true, userId: true,
+      chunks: { orderBy: [{ order: 'asc' }, { id: 'asc' }], select: { textJa: true, meaningKo: true } },
+    },
   })
   if (!t) return null
+  if (!(await isTopicVisibleTo(db, userId, t, { allowActiveChallenge: true }))) throw topicGone()
   return {
     topic: { id: t.id, title: t.title, titleJa: t.titleJa, description: t.description, level: t.level },
     chunkTexts: t.chunks.map((c) => c.textJa),

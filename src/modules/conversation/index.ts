@@ -160,3 +160,7 @@ export { buildEvalGenRequest, EVAL_GEN_PROMPT_VERSION, EVAL_GEN_MATERIALS_MAX, E
 export type { EvalGenInput, EvalGenWordCandidate, EvalGenTopicInput } from './prompts/evalGen'
 export { buildEvalGradeRequest, EVAL_GRADE_PROMPT_VERSION, EVAL_GRADE_ANSWER_RENDER_MAX, EVAL_GRADE_USER_PROMPT_CAP, EvalGradeInputError } from './prompts/evalGrade'
 export type { EvalGradeInput, EvalGradeSubjectiveItem, EvalGradeObjectiveSummary, EvalGradeSubjectiveKind } from './prompts/evalGrade'
+// task-045 T2 — #170 AI 주제 초안 실행 서비스 · #57/#171 저장 검사 보조(학습자 글용 이모지 허용 변형·안내 코드·표현 중복)
+export { draftTopic, readTopicDraftBody, topicDraftDeps, TOPIC_DRAFT_REJECT_MESSAGE, TOPIC_DRAFT_FAIL_MESSAGE } from './chats/topicDraft'
+export type { TopicDraftDeps, TopicDraftResult } from './chats/topicDraft'
+export { detectUnsafeUserTopicText, topicContentWarnings, findTopicChunkDuplicate } from './structuredResponse/topicDraftSchemas'

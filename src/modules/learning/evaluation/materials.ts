@@ -7,8 +7,9 @@
  * A6 원본 모양(`kind·prompt·expected·wordSurface·chunkType`)으로 되살려 돌려주고, 라우트가 해시로 바꿔 요청에 싣는다(module-dependency §4-4).
  */
 import type { EvalItemKind, EvalKind, JlptLevel } from '@prisma/client'
-import { ApiError, dates, prisma } from '@/modules/infra'
+import { ApiError, dates, prisma, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
+import { isTopicVisibleTo, topicGone } from '../topics/visible'
 import { createRng, sampleWeighted, weightOf, type Rng, type WeightInput } from '../vocab/setGenerator'
 import type { CreateEvaluationInput } from './validate'
 
@@ -56,15 +57,19 @@ export interface EvaluationMaterials {
   todayKst: string
 }
 
-/** #65 재료 — 읽기 전용(점유 전). 주제는 시드 또는 내 것(아니면 404), 단어가 모자라면 400 NOT_ENOUGH_WORDS. */
-export async function loadEvaluationMaterials(userId: string, input: CreateEvaluationInput, now = new Date()): Promise<EvaluationMaterials> {
+/**
+ * #65 재료 — 읽기 전용(점유 전). 주제는 시드 또는 내 것(아니면 404 `TOPIC_GONE`), 이 사용자가 가린 시드도 같은 404(task-045 §2 새 시작 차단 ·
+ * REV-150 M1, 진행 중 챌린지 예외 없음). 단어가 모자라면 400 NOT_ENOUGH_WORDS. `db` 는 시험용(기본 prisma).
+ */
+export async function loadEvaluationMaterials(userId: string, input: CreateEvaluationInput, now = new Date(), db: Tx = prisma): Promise<EvaluationMaterials> {
   const level = input.level ?? ((await getProfile(userId)).level as JlptLevel)
   let topic: EvaluationMaterials['topic'] = null
   if (input.topicId) {
-    topic = await prisma.conversationTopic.findFirst({ where: { id: input.topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, titleJa: true } })
-    if (!topic) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
+    const t = await db.conversationTopic.findFirst({ where: { id: input.topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, titleJa: true, userId: true } })
+    if (!t || !(await isTopicVisibleTo(db, userId, t))) throw topicGone()
+    topic = { id: t.id, title: t.title, titleJa: t.titleJa }
   }
-  const pool = await prisma.wordEntry.findMany({
+  const pool = await db.wordEntry.findMany({
     where: { userId, archived: false },
     orderBy: [{ wrongCount: 'desc' }, { id: 'asc' }],
     take: POOL_MAX,
@@ -75,7 +80,7 @@ export async function loadEvaluationMaterials(userId: string, input: CreateEvalu
     throw new ApiError('VALIDATION', `단어장에 단어가 ${need}개 이상 있어야 평가를 만들 수 있어요.`, { field: 'kind', reason: 'NOT_ENOUGH_WORDS', have: pool.length, need })
   }
   const since = new Date(now.getTime() - EVAL_RECENT_DAYS * 86_400_000)
-  const recent = await prisma.evaluationItem.findMany({
+  const recent = await db.evaluationItem.findMany({
     where: { evaluation: { userId, startedAt: { gte: since } } },
     select: { kind: true, prompt: true, expected: true, wordSurfaceSnap: true, chunkType: true },
     take: 500,
