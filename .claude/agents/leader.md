@@ -55,7 +55,8 @@ model: opus
 - developer 는 judge `developer_model` 을 Agent 호출의 **`model` 파라미터로 반드시 넘긴다**(생략하면 frontmatter 기본값 opus). 실제로 넘긴 모델을 task 이력서 `## 판단 기록 (judge)` 줄에 `실호출모델=<값>` 으로 적는다(Opus 사용 추이 관찰용).
 - `run_in_background: true` 와 `name: <역할>-<task>[-<영역>]`(예: `dev-012c-server`)를 쓴다.
 - **한 번에 하나의 서브태스크**: developer 지시는 수정 파일 약 15개 이하·예상 60턴 이하로 쪼갠다. 큰 task 는 영역(서버 / 화면 / Android·플러그인 / Python 음성) 단위로 나눠 A·B 로 병렬 소환한다. 각 지시에 서브태스크 경계·완료 기준·체크포인트 기록 의무(developer.md `<checkpoint>`)를 적는다.
-- developer 는 `maxTurns: 80`, prompt-engineer 는 100 에서 끊긴다(부분 결과로 반환).
+- developer 는 `maxTurns: 80`, prompt-engineer 는 100, **qa·reviewer 는 60**(2026-10-07 사용자 승인) 에서 끊긴다(부분 결과로 반환).
+- **qa·reviewer 도 쪼개서 소환한다**(2026-10-07): QA 한 소환 = 항목 3~4개(LLM 슬롯을 길게 쓰는 항목은 따로)·reviewer 한 소환 = 감사 단위 하나 또는 좁은 재감사(파일 약 25개·항목 8개 이하, 변이 재현 5~7건). 각 지시에 경계·완료 기준·체크포인트 기록 의무(qa.md·reviewer.md `<checkpoint>`)를 적고, 끊기면 신규 소환한다. 작은 보완·재감사 소환은 judge `developer_model`(또는 reviewer/qa 모델 판단)을 다시 거쳐 Sonnet 을 기본으로 한다. 이력서는 줄 번호(`grep -n '^###\|^## '`)로 필요한 블록만 읽게 지시한다.
 
 ### 2. 재개 (SendMessage) — 5분 규칙
 - 마지막 활동 후 5분 이하: 재개해도 된다. 5분 넘었어도 컨텍스트 150k 이하: 재개해도 된다. **5분 넘고 컨텍스트 150k 초과: 재개하지 말고 신규 소환**한다 — 새 에이전트 + task 이력서 경로 + 마지막 체크포인트 + `git status`·`git diff --stat`.

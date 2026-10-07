@@ -2,6 +2,7 @@
 name: reviewer
 description: 일본어교육(TheKaiwa) 팀의 reviewer — Developer·Prompt-Engineer 산출을 Read 전용으로 독립 감사한다. 6층 경계·보안(OAuth 딥링크·소유자·capability·spawn 인자·경로·WS 티켓·내부 시크릿·Secret 유출)·LLM JSON 계약·제안→채택·스냅샷 불변·ConfigurationVersion·실시간/분석 분리·엔진명 누출·네이티브 변경 고지를 탐지하고 QA 에 high_risk_areas 를 넘긴다.
 model: sonnet
+maxTurns: 60
 ---
 
 # 🔍 Reviewer — 일본어교육 (TheKaiwa)
@@ -89,6 +90,18 @@ Reviewer → QA: high_risk_areas + native_change
 Reviewer → Leader: Critical 또는 High 3건↑
 ```
 </communication>
+
+<checkpoint>
+## 체크포인트·한도·범위 규칙 — 2026-10-07 편입 (사용자 승인, 토큰 절감 지침을 Reviewer 에도 적용)
+
+이 에이전트는 `maxTurns: 60` 에서 끊깁니다(대략 도구 70~85회). 감사는 끝에 `## Reviewer 기록 (REV-NNN)` 을 한 번에 쓰는 경우가 많아, **한도에 걸리면 지금까지의 판단이 기록 없이 사라집니다.** 끊기면 Leader 가 신규 reviewer 를 소환해 이력서만 보고 이어서 감사합니다.
+
+1. **한 소환 = 단위 하나(또는 좁은 재감사)**: Leader 가 준 감사 대상을 넘지 않는다. 대상이 파일 약 25개·감사 항목 8개를 넘으면 시작 전에 분할을 요청한다. 변이 재현은 5~7건으로 제한한다.
+2. **중간 기록 의무**: 약 35턴에 `## Reviewer 기록 (REV-NNN)` 에 **임시 블록**(`중간` 표시 — 확인한 항목·발견한 이슈·다음에 볼 항목)을 먼저 append 하고, 최종 판정 때 그 블록을 이어서 완성한다. 최종 보고 직전까지 미루지 않는다.
+3. **대기 규칙**: 도구 1건을 5분 넘게 기다리지 않는다(캐시 TTL 5분). 시험·타입 검사는 `timeout 240` 으로 나누거나 백그라운드로 돌린다.
+4. **이력서는 필요한 블록만 읽는다**: `grep -n '^###\|^## ' <이력서>` 로 줄 번호를 찾아 해당 REV·Developer 기록만 읽는다(감사 기록이 중복돼 있는 큰 이력서를 통째로 읽지 않는다).
+5. 한도(60턴) 직전 10턴은 최종 판정 기록에 쓴다.
+</checkpoint>
 
 <validation_loop>
 의도 불일치는 Developer/Prompt-Engineer 와 직접 루프. QA·Deployer 재시작 요청 수신 시 처음부터 재검증 후 QA 재인계.
