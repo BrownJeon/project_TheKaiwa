@@ -21,19 +21,21 @@ import {
   chunkNeighborKey,
   chunkProblemKey,
   chunkRowDomId,
+  chunkTextRetexted,
   chunkUpsert,
-  nextChunkKey,
+  nextAddedKey,
   topicProblemDomId,
   type ChunkField,
   type ChunkValues,
   type EditableChunk,
 } from './logic'
-import { REVIEW } from './topicCopy'
+import { EDIT, REVIEW } from './topicCopy'
 
 const FIELDS: readonly ChunkField[] = ['textJa', 'reading', 'meaningKo']
 const FIELD_LABEL: Record<ChunkField, string> = { textJa: REVIEW.fJa, reading: REVIEW.fReading, meaningKo: REVIEW.fMeaning }
 const TYPE_OPTIONS = TOPIC_CHUNK_TYPES.map((t) => ({ value: t, label: REVIEW.type[t] }))
 export const CHUNK_ADD_DOM_ID = 'tp-chunk-add'
+const RETEXT_NOTE_DOM_ID = 'tp-chunk-retext-note'
 
 type Editing = { key: string; isNew: boolean; values: ChunkValues; problems: Partial<Record<ChunkField, string>> }
 
@@ -42,17 +44,22 @@ export default function ChunkEditor({
   onChange,
   errors,
   disabled = false,
+  origTexts,
 }: {
   chunks: EditableChunk[]
   onChange: (fn: (chunks: EditableChunk[]) => EditableChunk[]) => void
   /** 문제 열쇠(`chunks`·`chunk:<열쇠>:<칸>`) → 문구. */
   errors: Record<string, string>
   disabled?: boolean
+  /** S7 전용 — 서버 표현 id → 서버가 준 원래 일본어 글. 있으면 기존 행 고치기에서 글이 달라질 때 연습 기록 안내를 보인다(S4 는 넘기지 않는다). */
+  origTexts?: ReadonlyMap<string, string>
 }) {
   const [menuKey, setMenuKey] = useState<string | null>(null)
   const [edit, setEdit] = useState<Editing | null>(null)
   // 시트가 닫히며 연 버튼으로 초점을 돌린 다음 프레임에 옮길 곳(지운 행·닫힌 펼침).
   const focusNext = useRef<string | null>(null)
+  // 새 행 열쇠 번호 — 한 번 쓴 번호를 다시 쓰지 않는다(`nextAddedKey`).
+  const addNo = useRef(0)
   useEffect(() => {
     const id = focusNext.current
     if (!id || menuKey !== null) return
@@ -70,7 +77,7 @@ export default function ChunkEditor({
   }
 
   const apply = () => {
-    if (!edit) return
+    if (!edit || disabled) return
     const others = chunks.filter((c) => c.key !== edit.key)
     const found = chunkFieldProblems(edit.values, others)
     const first = FIELDS.find((f) => found[f])
@@ -100,7 +107,9 @@ export default function ChunkEditor({
 
   const add = () => {
     if (disabled || full || edit?.isNew) return
-    setEdit({ key: nextChunkKey(chunks), isNew: true, values: { chunkType: 'NAME', textJa: '', reading: '', meaningKo: '' }, problems: {} })
+    const k = nextAddedKey(chunks, addNo.current)
+    addNo.current = k.n
+    setEdit({ key: k.key, isNew: true, values: { chunkType: 'NAME', textJa: '', reading: '', meaningKo: '' }, problems: {} })
   }
 
   const menuAction = (kind: 'edit' | 'up' | 'down' | 'remove') => {
@@ -121,10 +130,18 @@ export default function ChunkEditor({
     setMenuKey(null)
   }
 
+  const retextedFor = (e: Editing) => {
+    if (e.isNew || !origTexts) return false
+    const id = chunks.find((c) => c.key === e.key)?.id
+    return chunkTextRetexted(id === undefined ? undefined : origTexts.get(id), e.values.textJa)
+  }
+
   const editorFor = (e: Editing) => (
     <ChunkFields
       e={e}
       errors={errors}
+      locked={disabled}
+      retexted={retextedFor(e)}
       onValues={(patch) => setEdit((cur) => (cur ? { ...cur, values: { ...cur.values, ...patch }, problems: {} } : cur))}
       onApply={apply}
       onCancel={cancel}
@@ -244,12 +261,18 @@ function ChunkRow({ c, errors, disabled, onMenu, children }: { c: EditableChunk;
 function ChunkFields({
   e,
   errors,
+  locked,
+  retexted,
   onValues,
   onApply,
   onCancel,
 }: {
   e: Editing
   errors: Record<string, string>
+  /** 저장 중·표현 받는 중 — [바꾸기]를 막는다(입력은 이 편집기 안 값이라 막지 않는다). */
+  locked: boolean
+  /** 일본어 글이 서버 원래 글과 정규화 기준으로 달라짐(기존 행만). */
+  retexted: boolean
   onValues: (patch: Partial<ChunkValues>) => void
   onApply: () => void
   onCancel: () => void
@@ -263,6 +286,8 @@ function ChunkFields({
       {FIELDS.map((f) => {
         const id = topicProblemDomId(chunkProblemKey(e.key, f))
         const err = e.problems[f] ?? (e.isNew ? undefined : errors[chunkProblemKey(e.key, f)])
+        const note = f === 'textJa' && retexted
+        const described = [err ? `${id}-err` : null, note ? RETEXT_NOTE_DOM_ID : null].filter(Boolean).join(' ') || undefined
         return (
           <Field key={f} label={FIELD_LABEL[f]} htmlFor={id}>
             <input
@@ -271,7 +296,7 @@ function ChunkFields({
               lang={f === 'meaningKo' ? undefined : 'ja'}
               value={e.values[f]}
               aria-invalid={err ? true : undefined}
-              aria-describedby={err ? `${id}-err` : undefined}
+              aria-describedby={described}
               onChange={(ev) => onValues({ [f]: ev.target.value })}
               className={`h-12 w-full min-w-0 rounded-xl border bg-surface px-3 text-[16px] text-ink ${err ? 'border-bad' : 'border-line'}`}
             />
@@ -280,11 +305,19 @@ function ChunkFields({
                 {err}
               </p>
             ) : null}
+            {note ? (
+              <p id={RETEXT_NOTE_DOM_ID} role="note" className="flex min-w-0 gap-2 text-[12.5px] text-ink">
+                <span aria-hidden="true" className="flex-none">
+                  ⚠
+                </span>
+                <span className="min-w-0 break-keep">{EDIT.textChanged}</span>
+              </p>
+            ) : null}
           </Field>
         )
       })}
       <div className="flex gap-2 [&>*]:min-w-0 [&>*]:flex-1">
-        <Btn size="sm" className="min-h-11" onClick={onApply}>
+        <Btn size="sm" className={`min-h-11 ${locked ? 'opacity-40' : ''}`} aria-disabled={locked || undefined} onClick={onApply}>
           {REVIEW.apply}
         </Btn>
         <Btn size="sm" variant="ghost" className="min-h-11" onClick={onCancel}>

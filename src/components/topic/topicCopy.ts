@@ -223,6 +223,8 @@ export const EDIT = {
   chunkGone: '다른 곳에서 바뀐 표현이 있어요. 화면을 새로 고친 뒤 다시 고쳐 주세요.',
   /** S7 나가기 시트 본문(T5-4 — 가이드 §16-6 에 없어 developer 가 더함, 주제 만들기와 달리 이 탭에 남지 않는다). 제목·버튼은 `REVIEW.leaveTitle`·`leave`·`stay`. */
   leaveBody: '나가면 고친 내용은 저장되지 않아요.',
+  /** 행 고치기에서 일본어 글이 원래 글과 달라졌을 때만(REV-163 M-3 — 데모에 없는 정보성 추가, 서버가 새 행으로 만들어 연습 기록이 0부터). */
+  textChanged: '일본어 글을 바꾸면 이 표현의 연습 기록이 처음부터 다시 시작돼요.',
 } as const
 
 export type RemovalMode = 'delete' | 'copyDelete' | 'restore' | 'hide'

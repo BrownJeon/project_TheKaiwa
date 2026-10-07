@@ -41,6 +41,28 @@ import {
   type TopicDraftOutcome,
 } from '../logic'
 import { CREATE, FAIL, REVIEW, TOAST } from '../topicCopy'
+// T5-3b 상황 초안·순차 저장·부분 저장
+import { validateDraft, type EditableDraft } from '@/components/scenario/logic'
+import { DRAFT as SC_DRAFT } from '@/components/scenario/scenarioCopy'
+import {
+  createScenarioDraftFlight,
+  nextScenarioSlotKey,
+  partialView,
+  runTopicCreateSave,
+  scenarioDraftBody,
+  scenarioMoreProblem,
+  scenarioPick,
+  scenarioSaveBody,
+  scenarioSeedDescription,
+  scenarioSlotProblems,
+  scenariosToSave,
+  slotServerProblems,
+  toggleScenarioKeep,
+  type ScenarioDraftOutcome,
+  type ScenarioSlot,
+  type TopicCreateSaveProgress,
+} from '../logic'
+import { PARTIAL, SCDRAFT } from '../topicCopy'
 
 // task-045 T5-3a 주제 만들기(S3·S4) — 순수 함수·요청 흐름(가짜 시계·가짜 post). 화면 실측(360/390/412·scrollTop)은 QA.
 
@@ -248,8 +270,12 @@ test('REV-162 L-1 서버 engine_name 400 은 칸 이름 없이 chunks[i] 로 와
 
 test('돌아왔을 때 토스트: created 는 제목과 함께 읽히고 문구는 문구표 그대로', () => {
   const f = parseFlash(JSON.stringify({ kind: 'created', title: '은행 계좌' }))
-  assert.deepEqual(f, { kind: 'created', title: '은행 계좌' })
+  assert.deepEqual(f, { kind: 'created', title: '은행 계좌', scenarios: 0 })
   assert.equal(flashText(f!), TOAST.created('은행 계좌', 0))
+  // T5-3b: 함께 저장한 상황 수(0~2)가 토스트 둘째 마디로 — 범위 밖 값은 0.
+  const f2 = parseFlash(JSON.stringify({ kind: 'created', title: '은행 계좌', scenarios: 2 }))
+  assert.equal(flashText(f2!), TOAST.created('은행 계좌', 2))
+  assert.deepEqual(parseFlash(JSON.stringify({ kind: 'created', title: '은행 계좌', scenarios: 9 })), { kind: 'created', title: '은행 계좌', scenarios: 0 })
   assert.equal(parseFlash(JSON.stringify({ kind: 'created' })), null)
   const detail = readFileSync(join(__dirname, '..', 'TopicDetail.tsx'), 'utf8')
   assert.match(detail, /f\.kind !== 'created'/, '새 주제 보기가 created 토스트를 읽어야 한다')
@@ -418,4 +444,336 @@ test('화면 소스: 새 파일도 서버 message·@/modules·엔진 이름·「
     assert.ok(!/\b(?:e|err|error|res)\.message\b/.test(src), `${f}: 서버 message 사용 금지`)
     assert.ok(!/claude|whisper|reazon|style-?bert|\bAI\b/i.test(src), `${f}: 엔진명·AI 금지`)
   }
+})
+
+/* ───── T5-3b 상황 초안(#166 인라인 주제)·S5·순차 저장(#57 → #163)·부분 저장 ───── */
+
+const scDraftOf = (over: Partial<EditableDraft> = {}): EditableDraft => ({
+  title: '창구에서 계좌 만들기',
+  titleJa: '窓口で口座を作る',
+  level: 'N4',
+  difficulty: 2,
+  learner: '손님',
+  tutor: '은행원',
+  goalKo: '목적을 말하고 서류 안내를 알아들어요',
+  criteria: ['목적을 말한다'],
+  steps: ['인사', '목적 말하기'],
+  expressions: [
+    { ja: '口座を作りたいです', ko: '계좌를 만들고 싶어요' },
+    { ja: 'お願いします', ko: '부탁해요' },
+  ],
+  opening: { ko: '어서 오세요', ja: 'いらっしゃいませ', koAtJa: '어서 오세요', reading: null },
+  topicIds: [],
+  requiredExpressions: null,
+  ...over,
+})
+const slotOf = (key: ScenarioSlot['key'], over: Partial<ScenarioSlot> = {}): ScenarioSlot => ({ key, desc: '은행 창구에서 계좌를 만들어요', draft: scDraftOf({ title: `상황 ${key}` }), keep: true, savedId: null, ...over })
+const SC_RAW = {
+  draft: {
+    title: '창구에서 계좌 만들기',
+    titleJa: '窓口で口座を作る',
+    level: 'N4',
+    roles: { learner: '손님', tutor: '은행원' },
+    goal: { communicativeGoalKo: '목적을 말해요', successCriteria: ['목적을 말한다'] },
+    steps: [{ ko: '인사' }, { ko: '목적' }],
+    keyExpressions: [{ ja: '口座', ko: '계좌' }, { ja: 'お願いします', ko: '부탁해요' }],
+    opening: null,
+    topicIds: ['top_other'],
+  },
+}
+
+test('T5-3b 자동 요청 본문: 주제 설명(5자 이상) 또는 「{이름} 상황에서 나누는 대화」 · 인라인 topic(아이디 없음) · 300자 상한', () => {
+  assert.equal(scenarioSeedDescription(draftOf()), '은행 창구에서 계좌를 만들어요')
+  assert.equal(scenarioSeedDescription(draftOf({ description: ' 짧음 ' })), SCDRAFT.fallbackDesc('은행 계좌 만들기'))
+  assert.equal(scenarioSeedDescription(draftOf({ description: '' })), '은행 계좌 만들기 상황에서 나누는 대화')
+  assert.equal(Array.from(scenarioSeedDescription(draftOf({ description: '가'.repeat(400) }))).length, 300)
+  const body = scenarioDraftBody(draftOf(), '은행 창구에서 계좌를 만들어요', '도착 이름')
+  assert.deepEqual(body, { description: '은행 창구에서 계좌를 만들어요', level: 'N4', topic: { title: '은행 계좌 만들기', titleJa: '銀行で口座を作る' } })
+  assert.ok(!('topicId' in body), 'topicId 와 topic 을 같이 보내면 400 conflict')
+  // 고치는 중이라 주제 한도에 맞지 않는 이름이면 도착 때 이름 · 빈 일본어 이름은 보내지 않는다
+  const b2 = scenarioDraftBody(draftOf({ title: '가'.repeat(21), titleJa: '' }), '설명 다섯자 이상', '은행 계좌')
+  assert.deepEqual(b2.topic, { title: '은행 계좌' })
+  assert.equal(scenarioDraftBody(draftOf({ title: '<b>은행' }), 'x설명입니다', '은행').topic?.title, '은행')
+  assert.equal(scenarioMoreProblem('약'), SC_DRAFT.tooShort)
+  assert.equal(scenarioMoreProblem('가'.repeat(301)), SC_DRAFT.descTooLong)
+  assert.equal(scenarioMoreProblem('약을 받으며 먹는 법을 묻는 상황'), null)
+})
+
+function scSetup() {
+  const clock = fakeClock()
+  const p = fakePost()
+  const states: TopicDraftFlightState[] = []
+  const outcomes: ScenarioDraftOutcome[] = []
+  const flight = createScenarioDraftFlight({ post: p.post as never, onState: (s) => states.push(s), timers: clock.timers })
+  const body = scenarioDraftBody(draftOf(), scenarioSeedDescription(draftOf()), '은행 계좌 만들기')
+  return { clock, p, states, outcomes, flight, body, done: (o: ScenarioDraftOutcome) => outcomes.push(o) }
+}
+
+test('T5-3b ① 주제 초안 도착마다 #166 은 정확히 1회 — 같은 도착 번호로 다시 불러도(요청 중·끝난 뒤) 0회, 새 도착이면 다시 1회', async () => {
+  const t = scSetup()
+  assert.equal(t.flight.autoOnce(1, t.body, t.done), true)
+  assert.equal(t.flight.autoOnce(1, t.body, t.done), false, '다시 그려도 재요청 0')
+  assert.equal(t.p.calls.length, 1)
+  t.p.calls[0].resolve(SC_RAW)
+  await tick()
+  assert.equal(t.flight.autoOnce(1, t.body, t.done), false, '끝난 뒤에도 같은 도착으로는 0')
+  assert.equal(t.flight.autoOnce(0, t.body, t.done), false, '옛 도착 번호도 0')
+  assert.equal(t.p.calls.length, 1)
+  assert.equal(t.outcomes.length, 1)
+  const o = t.outcomes[0]
+  assert.ok(o.kind === 'ok')
+  assert.deepEqual(o.draft.topicIds, [], '새 주제는 아직 id 가 없다 — 초안의 장소는 버리고 저장 때 새 주제 id 로')
+  assert.equal(o.draft.title, '창구에서 계좌 만들기')
+  // 주제 초안을 다시 만들면(새 도착) 그때 한 번 더
+  assert.equal(t.flight.autoOnce(2, t.body, t.done), true)
+  assert.equal(t.p.calls.length, 2)
+})
+
+test('T5-3b ③ 병렬 금지: 자동 요청이 도는 동안 [하나 더](start)는 아무것도 보내지 않는다 · 취소 잠금 · 15초 long · 실패 문구는 고정 문구', async () => {
+  const t = scSetup()
+  t.flight.autoOnce(1, t.body, t.done)
+  assert.equal(t.flight.start(t.body, t.done), false)
+  assert.equal(t.p.calls.length, 1)
+  assert.deepEqual(t.states.at(-1), { busy: true, cancelable: false, long: false })
+  t.flight.cancel()
+  assert.equal(t.p.calls[0].signal.aborted, false, '800ms 안에는 끊지 않는다')
+  t.clock.advance(TOPIC_DRAFT_CANCEL_LOCK_MS)
+  t.clock.advance(TOPIC_DRAFT_LONG_MS)
+  assert.deepEqual(t.states.at(-1), { busy: true, cancelable: true, long: true })
+  t.flight.cancel()
+  await tick()
+  assert.deepEqual(t.outcomes, [{ kind: 'canceled' }])
+  assert.equal(t.flight.start(t.body, t.done), true, '끝나면 다음 요청을 보낼 수 있다')
+  t.p.calls[1].reject(new ApiError('서버 문구', 422, null, { reason: 'NOT_A_SCENARIO' }))
+  await tick()
+  const f = t.outcomes.at(-1)
+  assert.ok(f?.kind === 'fail' && f.failure.kind === 'unfit' && f.failure.text === SCDRAFT.unfit)
+  t.flight.start(t.body, t.done)
+  t.p.calls[2].reject(new ApiError('서버 문구', 409, null, { reason: 'DRAFT_BUSY' }))
+  await tick()
+  const b = t.outcomes.at(-1)
+  assert.ok(b?.kind === 'fail' && b.failure.text === FAIL.scenarioDraft.busy)
+  t.flight.start(t.body, t.done)
+  t.clock.advance(TOPIC_DRAFT_TIMEOUT_MS)
+  await tick()
+  const to = t.outcomes.at(-1)
+  assert.ok(to?.kind === 'fail' && to.failure.text === SCDRAFT.fail && to.failure.retry, '시간 초과 = 상황 초안만 실패(주제 저장은 막지 않는다)')
+})
+
+test('T5-3b 카드: 다음 열쇠(최대 2) · 「저장할 상황 k/n」 · 체크는 그 카드 객체만 바꾼다(R1 — 나머지 참조 그대로)', () => {
+  assert.equal(nextScenarioSlotKey([]), 'sc0')
+  assert.equal(nextScenarioSlotKey([slotOf('sc0')]), 'sc1')
+  assert.equal(nextScenarioSlotKey([slotOf('sc0'), slotOf('sc1')]), null)
+  const slots = [slotOf('sc0'), slotOf('sc1')]
+  assert.deepEqual(scenarioPick(slots), { k: 2, n: 2 })
+  const off = toggleScenarioKeep(slots, 'sc1', false)
+  assert.deepEqual(scenarioPick(off), { k: 1, n: 2 })
+  assert.equal(off[0], slots[0], '다른 카드는 같은 객체')
+  assert.notEqual(off[1], slots[1])
+  assert.equal(toggleScenarioKeep(off, 'sc1', false)[1], off[1], '같은 값이면 바꾸지 않는다')
+  // 저장된 카드는 셈에서 빠진다(부분 저장 뒤 남은 카드만)
+  assert.deepEqual(scenarioPick([slotOf('sc0', { savedId: 'scn_1' }), slotOf('sc1', { keep: false })]), { k: 0, n: 1 })
+  assert.deepEqual(
+    scenariosToSave([slotOf('sc0', { keep: false }), slotOf('sc1')]).map((s) => s.key),
+    ['sc1'],
+    '체크를 끈 상황은 보내지 않는다',
+  )
+  // 저장 전 검사: 체크한 카드만 validateDraft
+  const bad = [slotOf('sc0', { draft: scDraftOf({ learner: '' }) }), slotOf('sc1', { keep: false, draft: scDraftOf({ goalKo: '' }) })]
+  const probs = scenarioSlotProblems(bad, validateDraft)
+  assert.deepEqual([...probs.keys()], ['sc0'])
+  assert.equal(probs.get('sc0')?.[0].key, 'learner')
+})
+
+function fakeSaveApi(opts: { topicFail?: unknown; scenarioFail?: Record<number, unknown> } = {}) {
+  const log: string[] = []
+  const topicBodies: unknown[] = []
+  const scenarioBodies: { topicIds: string[]; title: string; description: string | null }[] = []
+  let inFlight = 0
+  let maxInFlight = 0
+  let n = 0
+  return {
+    log,
+    topicBodies,
+    scenarioBodies,
+    maxInFlight: () => maxInFlight,
+    api: {
+      createTopic: async (body: unknown) => {
+        log.push('topic')
+        topicBodies.push(body)
+        if (opts.topicFail) throw opts.topicFail
+        return { topic: { id: 'top_new', title: '은행 계좌 만들기' }, warnings: [] }
+      },
+      createScenario: async (body: { topicIds: string[]; title: string; description: string | null }) => {
+        const i = n++
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        log.push(`scenario:${body.title}`)
+        scenarioBodies.push(body)
+        await Promise.resolve()
+        inFlight--
+        const f = opts.scenarioFail?.[i]
+        if (f) throw f
+        return { id: `scn_${i}` }
+      },
+    },
+  }
+}
+
+function saveHooks(log: string[]) {
+  const progress: TopicCreateSaveProgress[] = []
+  const saved: Record<string, string> = {}
+  let topicId: string | null = null
+  return {
+    progress,
+    saved,
+    topicId: () => topicId,
+    hooks: {
+      onTopicSaved: (id: string) => {
+        topicId = id
+        log.push(`topicSaved:${id}`)
+      },
+      onScenarioSaved: (key: ScenarioSlot['key'], id: string) => {
+        saved[key] = id
+        log.push(`scenarioSaved:${key}`)
+      },
+      onProgress: (p: TopicCreateSaveProgress) => progress.push(p),
+    },
+  }
+}
+
+test('T5-3b 저장: #57 → savedTopicId 기록 → 체크한 상황만 #163 하나씩(새 주제 id 를 장소로) → 전부 성공이면 done', async () => {
+  const f = fakeSaveApi()
+  const h = saveHooks(f.log)
+  const slots = [slotOf('sc0'), slotOf('sc1', { keep: false })]
+  const r = await runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots }, f.api as never, h.hooks)
+  assert.deepEqual(r, { kind: 'done', topicId: 'top_new', title: '은행 계좌 만들기', saved: 1 })
+  assert.deepEqual(f.log, ['topic', 'topicSaved:top_new', 'scenario:상황 sc0', 'scenarioSaved:sc0'], '주제 id 를 기록한 뒤에 상황을 보낸다 · 체크 끈 sc1 은 보내지 않는다')
+  assert.deepEqual(f.scenarioBodies[0].topicIds, ['top_new'])
+  assert.equal(f.scenarioBodies[0].description, '은행 창구에서 계좌를 만들어요')
+  assert.deepEqual(scenarioSaveBody(slots[0], 'top_x').topicIds, ['top_x'])
+  assert.ok(!('chunks' in (f.scenarioBodies[0] as object)))
+  assert.deepEqual(h.progress, [{ phase: 'topic' }, { phase: 'scenario', i: 1, k: 1 }])
+  // 두 개 체크 → 순차(동시에 2건이 나가지 않는다)
+  const f2 = fakeSaveApi()
+  await runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots: [slotOf('sc0'), slotOf('sc1')] }, f2.api as never, saveHooks(f2.log).hooks)
+  assert.equal(f2.maxInFlight(), 1, '#163 병렬 금지')
+  assert.equal(f2.scenarioBodies.length, 2)
+})
+
+test('T5-3b ④ 상황 저장만 실패 → partial(주제 1번만) · [상황 다시 저장]은 savedTopicId 로 #57 을 다시 부르지 않고 남은 것만', async () => {
+  const limit = new ApiError('서버 문구', 409, null, { reason: 'SCENARIO_LIMIT' })
+  const f = fakeSaveApi({ scenarioFail: { 0: limit } })
+  const h = saveHooks(f.log)
+  const slots = [slotOf('sc0'), slotOf('sc1')]
+  const r = await runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots }, f.api as never, h.hooks)
+  assert.equal(r.kind, 'partial')
+  if (r.kind !== 'partial') return
+  assert.equal(r.topicId, 'top_new')
+  assert.equal(f.log.filter((x) => x === 'topic').length, 1)
+  assert.equal(f.scenarioBodies.length, 1, '내 상황 50 이면 남은 상황은 보내지 않는다(같은 이유로 실패)')
+  assert.deepEqual(
+    r.failed.map((x) => [x.key, x.failure.kind]),
+    [
+      ['sc0', 'limit'],
+      ['sc1', 'limit'],
+    ],
+  )
+  assert.equal(r.failed[0].failure.text, FAIL.scenarioSave.limit)
+  const v = partialView(slots, r.failed)
+  assert.equal(v.m, 2)
+  assert.equal(v.block, FAIL.scenarioSave.limit, '[상황 다시 저장]을 막는 이유')
+  assert.equal(PARTIAL.body(v.m), '상황 2개는 저장하지 못했어요. 주제와 상황은 따로 저장돼요.')
+
+  // 다시 저장(새로 고침 뒤와 같다 — 보관에서 savedTopicId·savedId 를 읽어 온 값): 주제를 다시 만들지 않는다
+  const f2 = fakeSaveApi()
+  const h2 = saveHooks(f2.log)
+  const again = [slotOf('sc0', { savedId: 'scn_old' }), slotOf('sc1')]
+  const r2 = await runTopicCreateSave({ draft: draftOf(), savedTopicId: 'top_new', slots: again }, f2.api as never, h2.hooks)
+  assert.deepEqual(r2, { kind: 'done', topicId: 'top_new', title: '은행 계좌 만들기', saved: 2 })
+  assert.equal(f2.topicBodies.length, 0, '재시도에서 #57 0회')
+  assert.equal(h2.topicId(), null, '주제 저장 표시도 다시 쓰지 않는다')
+  assert.deepEqual(f2.log, ['scenario:상황 sc1', 'scenarioSaved:sc1'], '이미 저장한 sc0 은 보내지 않는다')
+  assert.deepEqual(f2.scenarioBodies[0].topicIds, ['top_new'])
+})
+
+test('T5-3b 저장 실패 갈래: 주제 실패 = 아무것도 저장 안 됨(상황 0·기록 0) · 네트워크 실패 상황은 다음 상황을 계속 보낸다 · 400 칸은 그 카드 칸으로', async () => {
+  const f = fakeSaveApi({ topicFail: new ApiError('서버 문구', 409, null, { reason: 'TOPIC_LIMIT' }) })
+  const h = saveHooks(f.log)
+  const r = await runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots: [slotOf('sc0')] }, f.api as never, h.hooks)
+  assert.ok(r.kind === 'topicFail' && r.failure.text === FAIL.topicSave.limit)
+  assert.deepEqual(f.log, ['topic'])
+  assert.equal(h.topicId(), null)
+
+  const net = new TypeError('Failed to fetch')
+  const f2 = fakeSaveApi({ scenarioFail: { 0: net } })
+  const h2 = saveHooks(f2.log)
+  const r2 = await runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots: [slotOf('sc0'), slotOf('sc1')] }, f2.api as never, h2.hooks)
+  assert.ok(r2.kind === 'partial')
+  assert.equal(f2.scenarioBodies.length, 2, '일시 실패는 다음 상황을 계속')
+  assert.deepEqual(Object.keys(h2.saved), ['sc1'])
+  if (r2.kind === 'partial') {
+    assert.equal(r2.saved, 1)
+    assert.equal(partialView([slotOf('sc0'), slotOf('sc1', { savedId: 'scn_1' })], r2.failed).block, null, '일시 실패면 다시 저장을 막지 않는다')
+  }
+
+  const field = new ApiError('서버 문구', 400, null, { problems: [{ field: 'roles.learner', reason: 'max_length' }] })
+  const f3 = fakeSaveApi({ scenarioFail: { 0: field } })
+  const r3 = await runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots: [slotOf('sc0')] }, f3.api as never, saveHooks(f3.log).hooks)
+  assert.ok(r3.kind === 'partial')
+  if (r3.kind === 'partial') {
+    assert.equal(r3.failed[0].failure.kind, 'field')
+    assert.deepEqual(
+      slotServerProblems(r3.failed[0].failure).map((p) => p.key),
+      ['learner'],
+      '서버 칸 경로 → 편집기 칸 열쇠',
+    )
+    assert.ok(partialView([slotOf('sc0')], r3.failed).lines[0].field)
+  }
+})
+
+test('T5-3b 저장 더블 탭: 같은 가드 안에서 두 번 눌러도 #57 은 1건', async () => {
+  const f = fakeSaveApi()
+  const guard = createOnceGuard()
+  const run = () => runTopicCreateSave({ draft: draftOf(), savedTopicId: null, slots: [slotOf('sc0')] }, f.api as never, saveHooks(f.log).hooks).then(() => undefined)
+  assert.equal(guard.run(run), true)
+  assert.equal(guard.run(run), false)
+  await tick()
+  await tick()
+  assert.equal(f.topicBodies.length, 1)
+  assert.equal(f.scenarioBodies.length, 1)
+})
+
+test('T5-3b 보관: 상황 초안·체크·savedTopicId·저장된 상황 id 가 새로 고침 뒤에도 그대로 · 모양이 어긋나면 통째로 버린다 · 옛 보관은 빈 값', () => {
+  const base = { userId: 'u1', ask: { title: '은행', level: 'N4' as const }, draft: draftOf(), warnings: [], arrivalTitle: '은행', edited: true, savedAt: 1 }
+  const scenarios = [slotOf('sc0', { savedId: 'scn_1' }), slotOf('sc1', { keep: false })]
+  const raw = serializeTopicStore({ ...base, scenarios, savedTopicId: 'top_new', scAsked: true })
+  const back = parseTopicStore(raw, 'u1')
+  assert.ok(back)
+  assert.equal(back.savedTopicId, 'top_new')
+  assert.equal(back.scAsked, true)
+  assert.deepEqual(back.scenarios, scenarios)
+  assert.equal(parseTopicStore(raw, 'u2'), null, '남의 값은 읽지 않는다')
+  const old = parseTopicStore(serializeTopicStore(base), 'u1')
+  assert.deepEqual([old?.scenarios, old?.savedTopicId, old?.scAsked], [[], null, false])
+  const bad = (patch: Record<string, unknown>) => parseTopicStore(JSON.stringify({ ...JSON.parse(raw), ...patch }), 'u1')
+  assert.equal(bad({ savedTopicId: '../x' }), null)
+  assert.equal(bad({ scenarios: [...scenarios, slotOf('sc0')] }), null, '3개·중복 열쇠')
+  assert.equal(bad({ scenarios: [{ ...scenarios[0], key: 'sc9' }] }), null)
+  assert.equal(bad({ scenarios: [{ ...scenarios[0], draft: { ...scenarios[0].draft, steps: 'x' } }] }), null)
+  assert.equal(bad({ scenarios: [{ ...scenarios[0], keep: 'yes' }] }), null)
+  // 실패 문구·서버 message 칸은 보관 모양에 없다
+  assert.ok(!/message|failure|text/.test(Object.keys(back).join(',')))
+})
+
+test('T5-3b 화면 소스: savedTopicId 가 있으면 partial 로 열고(이어 고치기 묻지 않음) · 주소 단계 S5 · 공유 편집기는 topic 을 import 하지 않는다', () => {
+  const hook = readFileSync(join(__dirname, '..', 'useTopicDraft.ts'), 'utf8')
+  assert.match(hook, /useState<TopicDraftStage>\(resumed \? 'partial' : 'ask'\)/)
+  assert.match(hook, /stored\?\.draft && !stored\.savedTopicId \? stored : null/)
+  assert.match(hook, /scFlightCtl\.autoOnce\(arrivalSeq\.current, body,/, '자동 요청은 도착 번호 가드를 지난다')
+  const screen = readFileSync(join(__dirname, '..', 'TopicCreateScreen.tsx'), 'utf8')
+  assert.match(screen, /router\.push\(`\$\{TOPIC_NEW_HREF\}\?step=\$\{key\}`, \{ scroll: false \}\)/)
+  const editor = readFileSync(join(__dirname, '..', '..', 'scenario', 'DraftEditor.tsx'), 'utf8')
+  assert.ok(!/from '@\/components\/topic|from '\.\.\/topic/.test(editor))
+  assert.match(editor, /placesFixed\?: \{ title: string; label: string \}/)
 })

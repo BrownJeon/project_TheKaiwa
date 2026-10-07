@@ -15,7 +15,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const from = parseDraftFrom(sp.from)
   const topicId = isScenarioIdParam(sp.topicId) ? sp.topicId : null
   const session = await auth()
-  if (!session) redirect(`/login?callbackUrl=${encodeURIComponent('/study/ai/scenario/new')}`)
+  if (!session) {
+    // 로그인 뒤에도 들어온 곳·장소를 잇는다 — 검사를 지난 값만 다시 싣는다(같은 경로 안에서만, 다른 주소로 보내지 않는다 — 열린 리다이렉트 금지).
+    const back = new URLSearchParams()
+    if (from) back.set('from', from)
+    if (topicId) back.set('topicId', topicId)
+    const qs = back.toString()
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/study/ai/scenario/new${qs ? `?${qs}` : ''}`)}`)
+  }
   const profile = await getProfile(session.user.id)
   return <ScenarioDraftScreen mode="new" defaultLevel={draftLevelOf(profile.level)} from={from} presetTopicId={topicId} />
 }

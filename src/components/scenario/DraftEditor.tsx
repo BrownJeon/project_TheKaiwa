@@ -42,6 +42,7 @@ export default function DraftEditor({
   places,
   placesFailed,
   disabled = false,
+  placesFixed,
 }: {
   draft: EditableDraft
   setDraft: (fn: (d: EditableDraft) => EditableDraft) => void
@@ -49,11 +50,16 @@ export default function DraftEditor({
   places: { id: string; title: string }[]
   placesFailed: boolean
   disabled?: boolean
+  /**
+   * 장소를 고르지 않고 정해진 곳(task-045 S5 — 아직 id 가 없는 새 주제)일 때: 칩 대신 `label` 정적 글, 첫마디 요청의 장소 이름은 `title`.
+   * 문구는 부르는 쪽이 넘긴다(이 폴더는 topic 을 import 하지 않는다). 없으면 기존 동작 그대로.
+   */
+  placesFixed?: { title: string; label: string }
 }) {
   const set = (patch: Partial<EditableDraft>) => setDraft((d) => ({ ...d, ...patch }))
   const placeOpts = [{ value: '', label: DRAFT.placeNone }, ...places.map((p) => ({ value: p.id, label: p.title }))]
   const goalLen = cpLength(draft.goalKo.trim())
-  const placeTitle = places.find((p) => p.id === draft.topicIds[0])?.title ?? null
+  const placeTitle = placesFixed ? placesFixed.title : (places.find((p) => p.id === draft.topicIds[0])?.title ?? null)
 
   return (
     <div className="flex min-w-0 flex-col gap-[18px]">
@@ -84,7 +90,11 @@ export default function DraftEditor({
       </Field>
       <div className="flex min-w-0 flex-col gap-1.5">
         <span className="text-[12.5px] font-medium text-ink2">{DRAFT.placeLabel}</span>
-        {placesFailed ? (
+        {placesFixed ? (
+          <p id="dr-place" className="text-[14px] text-ink break-keep [overflow-wrap:anywhere]">
+            {placesFixed.label}
+          </p>
+        ) : placesFailed ? (
           <p className="text-[12px] text-ink2 break-keep">{DRAFT.placesFail}</p>
         ) : (
           <PlaceChips<string>

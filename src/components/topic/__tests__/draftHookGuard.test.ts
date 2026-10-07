@@ -25,12 +25,17 @@ function between(src: string, start: string | RegExp, end: string | RegExp): str
 
 // ── M-3 ① 저장 성공 → 보관 삭제 ────────────────────────────────────────────
 
-const saveOk = between(hook, 'const res = await createTopic(', '} catch (e) {')
+// T5-3b: 저장이 「#57 → #163 순차」(`logic.runTopicCreateSave`)로 바뀌어 성공 마무리는 `finishSaved` 한 곳이 한다(저장 성공·`partial` 의 [주제 보기로] 공용).
+// 그래서 시험 구간을 `finishSaved` 본문으로 옮기고, 저장 성공 분기가 그것을 부르는지 따로 본다.
+const saveOk = between(hook, 'const finishSaved = useCallback(', '[closeStore, router],')
 
 test('M-3 ① 저장 성공 직후 이 탭 보관을 닫고(closeStore), 닫은 뒤에는 어떤 쓰기도 일어나지 않는다', () => {
   const close = saveOk.indexOf('closeStore()')
   assert.ok(close >= 0, '저장 성공 분기에 closeStore() 가 없다 — 초안이 sessionStorage 에 남는다')
   assert.ok(close < saveOk.indexOf('router.replace('), '이동하기 전에 지운다')
+  const saveFn = between(hook, 'const save = useCallback(', 'const goToTopic = useCallback(')
+  assert.match(saveFn, /if \(r\.kind === 'done'\) \{\s*finishSaved\(r\.topicId, r\.title, r\.saved\)\s*return/, '전부 저장되면 finishSaved 로 마무리')
+  assert.ok(!/closeStore\(\)|router\./.test(saveFn), '저장 함수는 보관을 직접 닫거나 이동하지 않는다(partial·실패는 화면에 남는다)')
   const closeFn = between(hook, 'const closeStore = useCallback(', '}, [])')
   assert.match(closeFn, /storeClosed\.current = true/, '닫힘 표시')
   assert.match(closeFn, /writeStore\('session', TOPIC_DRAFT_STORE_KEY, null\)/, '키 삭제')
@@ -70,11 +75,17 @@ test('M-3 ③ sessionStorage 에 쓰는 곳은 다섯 곳뿐(세 가지 형태)�
   assert.equal(calls.length, 5, `쓰는 곳: 읽을 때 지우기 1 + 자동 보관 1 + closeStore 1 + dropRestore 1 + 토스트 1 — ${calls.join(' | ')}`)
   for (const c of calls) assert.ok(allowed.includes(c), `허용하지 않는 sessionStorage 쓰기: ${c}`)
   // 자동 보관 값(snap)의 칸 — 새 칸(실패 문구 등)이 들어오면 이 목록을 보고 사람이 판단하게 한다.
+  // T5-3b 가 의도적으로 더한 칸: scenarios(상황 초안 본문·체크·저장된 상황 id) · savedTopicId(주제를 두 번 만들지 않게) · scAsked(자동 요청을 다시 보내지 않게).
+  // 셋 다 초안 본문·id·참거짓뿐이고 실패 문구·서버 message 가 아니다(모양은 `logic.storedScenarioPart` 가 읽을 때 다시 검사).
   const snapKeys = /snapRef\.current = restore \? null : \{ ([^}]*) \}/.exec(hook)?.[1].split(',').map((k) => k.trim())
-  assert.deepEqual(snapKeys, ['userId', 'ask', 'draft', 'warnings', 'arrivalTitle', 'edited'])
-  // 토스트용 값은 종류와 제목뿐
+  assert.deepEqual(snapKeys, ['userId', 'ask', 'draft', 'warnings', 'arrivalTitle', 'edited', 'scenarios', 'savedTopicId', 'scAsked'])
+  // 곧바로 보관(keepNow)은 저장 표시 두 칸만 덮어쓰고 같은 flush 경로를 쓴다(새 쓰기 자리 없음).
+  const keepNow = between(hook, 'const keepNow = useCallback(', '[flush],')
+  assert.match(keepNow, /patch: Partial<Pick<StoredTopicDraft, 'scenarios' \| 'savedTopicId'>>/)
+  assert.match(keepNow, /flush\(\)/)
+  // 토스트용 값은 종류·제목·함께 저장한 상황 수뿐
   const flash = /const flash: ManageFlash = \{ ([^\n]*) \}\s*$/m.exec(saveOk)?.[1] ?? ''
-  assert.match(flash, /^kind: 'created', title: typeof res\?\.topic\?\.title === 'string' \? res\.topic\.title : d\.title$/)
+  assert.match(flash, /^kind: 'created', title, scenarios: saved$/)
   // 서버 message·실패 문구는 어떤 쓰기에도 나오지 않는다
   for (const c of calls) assert.ok(!/message|failure|saveMessage|genFailure|askError|\.text/.test(c), `쓰기 인자에 실패 문구 후보: ${c}`)
 })
@@ -82,7 +93,8 @@ test('M-3 ③ sessionStorage 에 쓰는 곳은 다섯 곳뿐(세 가지 형태)�
 // ── M-3 ④ 취소 ─────────────────────────────────────────────────────────────
 
 test('M-3 ④ 그만두기(취소) 뒤에는 입력·초안·보관을 건드리지 않고 안내만 켠다', () => {
-  const onDone = between(hook, 'const onDone = useCallback(', '[arrive, requestFocus]')
+  // T5-3b: 의존 배열에 자동 상황 초안(autoScenario)이 더해져 끝 표지를 접두로 맞췄다.
+  const onDone = between(hook, 'const onDone = useCallback(', '[arrive, requestFocus, autoScenario]')
   const canceled = between(onDone, "if (o.kind === 'canceled') {", 'const f = o.failure')
   assert.match(canceled, /if \(!hasDraft\) setCanceled\(true\)/, '안내는 초안이 없을 때만')
   assert.ok(!/setAskState|setAsk\(|setDraftState|setDraft\(|setRestore|writeStore|closeStore|dropRestore|setEdited|setWarn/.test(canceled), `취소 분기가 입력·초안·보관을 건드린다:\n${canceled}`)

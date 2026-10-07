@@ -24,7 +24,7 @@ import {
   levelRegenPrompt,
   MANAGE_FLASH_KEY,
   MANAGE_HREF,
-  regenChunks,
+  regenArrival,
   regenWarnLines,
   runTopicEditSave,
   seedCopyId,
@@ -55,6 +55,8 @@ export interface TopicEditModel {
   reload: () => void
   /** 화면 머리(← 이름표)용 — 원본 이름. */
   origTitle: string
+  /** 서버 표현 id → 서버가 준 원래 일본어 글(행 고치기의 「글을 바꾸면 연습 기록이 처음부터」 안내용). */
+  origTexts: ReadonlyMap<string, string>
   origin: Origin | null
   draft: EditableTopicDraft | null
   setDraft: (fn: (d: EditableTopicDraft) => EditableTopicDraft) => void
@@ -139,6 +141,8 @@ export function useTopicEdit(id: string): TopicEditModel {
   const [copyGuard] = useState(createOnceGuard)
   useEffect(() => () => flightCtl.dispose(), [flightCtl])
 
+  const origTexts = useMemo(() => new Map((loaded?.orig.chunks ?? []).flatMap((c) => (c.id ? [[c.id, c.textJa] as [string, string]] : []))), [loaded])
+
   const origin: Origin | null = loaded ? (forceSeed ? 'SEED' : loaded.origin) : null
   const route = origin ? topicEditRoute(origin) : 'patch'
 
@@ -216,7 +220,7 @@ export function useTopicEdit(id: string): TopicEditModel {
   const regenFailure = regenFail && draft && (regenFail.failure.block || regenFail.level === draft.level) ? regenFail.failure : null
 
   const regen = useCallback(() => {
-    if (!draft || regenFailure?.block) return
+    if (!draft || saving || regenFailure?.block) return
     const level = draft.level
     const body = levelRegenBody(draft)
     if (!body) {
@@ -227,12 +231,14 @@ export function useTopicEdit(id: string): TopicEditModel {
     const onDone = (o: TopicDraftOutcome) => {
       const cur = draftRef.current
       if (o.kind === 'ok' && cur) {
-        const next = { ...cur, chunks: regenChunks(cur.chunks, o.draft.chunks) }
-        setDraftState(next)
+        // 서버 쓰기 없음 — 받은 표현은 편집 값만 바꾼다(저장은 [저장]). 경합 순서는 `regenArrival` 규칙.
+        const arrived = regenArrival(cur, { title: body.title, level }, o.draft.chunks)
+        if (!arrived) return requestFocus('regenPrompt')
+        setDraftState(arrived.draft)
         setServer([])
-        setChunksLevel(level)
+        setChunksLevel(arrived.chunksLevel)
         setKeptLevel(null)
-        setRegenWarn(regenWarnLines(o.warnings, next))
+        setRegenWarn(regenWarnLines(o.warnings, arrived.draft))
         requestFocus('level')
         return
       }
@@ -246,14 +252,14 @@ export function useTopicEdit(id: string): TopicEditModel {
     if (!flightCtl.start(body, onDone)) return
     setRegenFail(null)
     requestFocus('regenBusy')
-  }, [draft, regenFailure, flightCtl, requestFocus])
+  }, [draft, saving, regenFailure, flightCtl, requestFocus])
 
   const keepChunks = useCallback(() => {
-    if (!draft || regenFlight.busy) return
+    if (!draft || saving || regenFlight.busy) return
     setKeptLevel(draft.level)
     setRegenFail((f) => (f?.failure.block ? f : null))
     requestFocus('level')
-  }, [draft, regenFlight.busy, requestFocus])
+  }, [draft, saving, regenFlight.busy, requestFocus])
 
   const cancelRegen = useCallback(() => flightCtl.cancel(), [flightCtl])
 
@@ -267,6 +273,7 @@ export function useTopicEdit(id: string): TopicEditModel {
     status,
     reload,
     origTitle: loaded?.orig.title ?? '',
+    origTexts,
     origin,
     draft,
     setDraft,

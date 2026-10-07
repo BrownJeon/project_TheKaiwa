@@ -22,6 +22,24 @@ import { failureCopy, TOPIC_ASK_TITLE_MAX, TOPIC_ASK_TITLE_MIN, type Failure, ty
 import { CREATE, REVIEW } from './topicCopy'
 import type { TopicUpdateInput } from '@/types/topicWrite'
 import { EDIT } from './topicCopy'
+// T5-3b 상황 초안(#166 인라인 주제)·순차 저장(#57 → #163)이 쓰는 것.
+import {
+  difficultyOf,
+  draftFromResponse,
+  draftInput,
+  draftLevelOf,
+  isScenarioIdParam,
+  problemKey,
+  type DraftExpression,
+  type DraftProblem,
+  type EditableDraft,
+  type OpeningValue,
+} from '@/components/scenario/logic'
+import { DRAFT as SC_DRAFT } from '@/components/scenario/scenarioCopy'
+import { SCENARIO_LIMITS, type ScenarioInput } from '@/types/scenario'
+import type { ScenarioDraftForTopicBody } from './api'
+import type { FailureKind } from './failure'
+import { SCDRAFT } from './topicCopy'
 
 export type Origin = 'MINE' | 'SEED' | 'COPY'
 export type ManageTab = 'topics' | 'scenarios'
@@ -384,8 +402,8 @@ export type ManageFlash =
   | { kind: 'removed'; title: string; scenarios: number; challenge: boolean }
   | { kind: 'copyRemoved' | 'hidden' | 'restored'; title: string }
   | { kind: 'gone' | 'notOverridden' }
-  /** T5-3a 주제 만들기 저장 뒤 새 주제 보기(S6)가 읽는다. */
-  | { kind: 'created'; title: string }
+  /** T5-3a 주제 만들기 저장 뒤 새 주제 보기(S6)가 읽는다. `scenarios` = 함께 저장한 상황 수(T5-3b, 없으면 0). */
+  | { kind: 'created'; title: string; scenarios?: number }
   /** T5-4 주제 고치기 저장 뒤 주제 보기(S6)가 읽는다 — 내 주제·내 버전(#171) · 기본 주제를 내 버전으로(#174, 사본 id 의 S6). */
   | { kind: 'saved' | 'copySaved' }
 
@@ -411,7 +429,7 @@ export function parseFlash(raw: string | null): ManageFlash | null {
   if (f.kind === 'saved' || f.kind === 'copySaved') return { kind: f.kind }
   if (typeof f.title !== 'string' || !f.title.trim() || f.title.length > 200) return null
   if (f.kind === 'copyRemoved' || f.kind === 'hidden' || f.kind === 'restored') return { kind: f.kind, title: f.title }
-  if (f.kind === 'created') return { kind: 'created', title: f.title }
+  if (f.kind === 'created') return { kind: 'created', title: f.title, scenarios: typeof f.scenarios === 'number' && Number.isInteger(f.scenarios) && f.scenarios >= 0 && f.scenarios <= SCENARIO_DRAFTS_MAX ? f.scenarios : 0 }
   if (f.kind === 'removed') {
     const s = typeof f.scenarios === 'number' && Number.isInteger(f.scenarios) && f.scenarios >= 0 ? f.scenarios : 0
     return { kind: 'removed', title: f.title, scenarios: s, challenge: f.challenge === true }
@@ -434,7 +452,7 @@ export function flashText(f: ManageFlash): string {
     case 'notOverridden':
       return FAIL.notOverridden
     case 'created':
-      return TOAST.created(f.title, 0)
+      return TOAST.created(f.title, f.scenarios ?? 0)
     case 'saved':
       return TOAST.saved
     case 'copySaved':
@@ -520,6 +538,20 @@ export function nextChunkKey(chunks: readonly EditableChunk[]): string {
     if (m) max = Math.max(max, Number(m[1]))
   }
   return chunkKeyOf(max + 1)
+}
+
+/**
+ * [＋ 표현 더하기] 편집기가 쓰는 새 행 열쇠 `n<번호>`(REV-163 M-2). 읽어 온 서버 행·초안 행·다시 받은 행의 열쇠(`c<번호>`)와 이름 공간이 달라 겹치지 않는다 —
+ * 편집기를 연 채 다시 받기가 끝나도 [바꾸기]가 받은 표현을 덮어쓰지 않고 끝에 더한다. 번호는 `used`(그 편집기가 지금까지 쓴 가장 큰 번호)와
+ * 목록에 있는 `n` 열쇠보다 커서, 한 번 쓴 열쇠(취소·더한 뒤 지움 포함)를 다시 쓰지 않는다.
+ */
+export function nextAddedKey(chunks: readonly EditableChunk[], used: number): { key: string; n: number } {
+  let max = used
+  for (const c of chunks) {
+    const m = /^n(\d+)$/.exec(c.key)
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  return { key: `n${max + 1}`, n: max + 1 }
 }
 
 const TOPIC_WARNING_CODES: readonly TopicWarningCode[] = [
@@ -770,6 +802,12 @@ export interface StoredTopicDraft {
   arrivalTitle: string
   edited: boolean
   savedAt: number
+  /** T5-3b 상황 초안 카드(최대 2)·체크·저장된 상황 id — 초안 본문뿐(실패 문구 없음). */
+  scenarios?: ScenarioSlot[]
+  /** #57 이 성공해 받은 주제 id — 있으면 다시 들어와도 `partial` 로 열고 주제를 다시 만들지 않는다. */
+  savedTopicId?: string | null
+  /** 주제 초안 도착 직후 자동 상황 초안(#166)을 이미 보냈는지 — 다시 들어와도 자동으로 다시 보내지 않는다. */
+  scAsked?: boolean
 }
 
 const STORE_TEXT_MAX = 400
@@ -814,7 +852,10 @@ export function parseTopicStore(raw: string | null, userId: string): StoredTopic
     draft = { title: d.title, titleJa: d.titleJa, level: d.level, description: d.description, chunks }
   }
   const warnings = Array.isArray(s.warnings) ? (s.warnings.filter(isWarningCode) as TopicWarningCode[]) : []
+  const sc = storedScenarioPart(s)
+  if (!sc) return null
   return {
+    ...sc,
     version: TOPIC_DRAFT_STORE_VERSION,
     userId,
     ask: { title: ask.title, level: ask.level as DraftLevel },
@@ -1127,6 +1168,35 @@ export function regenChunks(current: readonly EditableChunk[], fresh: readonly E
   return fresh.map((c) => ({ key: chunkKeyOf(n++), chunkType: c.chunkType, textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo }))
 }
 
+/** 다시 받기를 보낼 때의 이름·수준(요청 본문과 같은 값). */
+export type RegenRequest = Pick<EditableTopicDraft, 'title' | 'level'>
+
+/**
+ * S7 칸 잠금(REV-163 M-1) — 저장 중이거나 표현을 받는 중이면 이름·일본어 이름·수준·설명과 표현 편집(펼친 편집기의 [바꾸기] 포함)을 막는다.
+ * 받는 중 칸이 바뀌면 요청 시점 값으로 만든 표현이 바뀐 칸 아래 저장되고, 수준을 되돌려 수준 상자([그만두기])가 사라지는 경합도 생긴다.
+ */
+export const topicEditLocked = (s: { saving: boolean; regenBusy: boolean }): boolean => s.saving || s.regenBusy
+
+/**
+ * 다시 받은 표현을 편집 값에 적용 — 경합 순서 규칙(서버 쓰기는 없다 — 저장은 사용자가 [저장]을 눌러야):
+ * ① 받은 표현이 어느 수준 것인지는 **요청 시점 수준**으로 적는다(`chunksLevel`). 도착 때 칩이 다른 수준이면 수준 상자가 다시 묻는다.
+ * ② 요청 시점 이름과 지금 이름이 다르면 적용하지 않는다(null). 화면이 받는 중 이름 칸을 잠그지만 이 함수가 한 번 더 막아,
+ *    옛 이름으로 만든 표현이 새 이름 아래 저장되는 경로를 없앤다.
+ * 이름·설명·수준은 그대로 두고 표현만 바꾼다.
+ */
+export function regenArrival(cur: EditableTopicDraft, req: RegenRequest, fresh: readonly EditableChunk[]): { draft: EditableTopicDraft; chunksLevel: JlptLevel } | null {
+  if (oneLine(cur.title) !== oneLine(req.title)) return null
+  return { draft: { ...cur, chunks: regenChunks(cur.chunks, fresh) }, chunksLevel: req.level }
+}
+
+/**
+ * S7 행 고치기 안내용(REV-163 M-3) — 서버는 표현 글이 `normalizeRefText`(NFKC·공백·문장부호·물결표 제거 — 위 `surfaceKey` 와 같은 규칙)로 바뀌면
+ * 옛 행을 지우고 새 id 로 만들어 그 표현의 연습 기록이 처음부터다. `origTextJa` 는 서버가 준 원래 글, 없으면(새 표현) 안내하지 않는다.
+ */
+export function chunkTextRetexted(origTextJa: string | undefined, curTextJa: string): boolean {
+  return origTextJa !== undefined && surfaceKey(origTextJa.trim()) !== surfaceKey(curTextJa.trim())
+}
+
 const CHUNK_WARNINGS: ReadonlySet<TopicWarningCode> = new Set(['CHUNKS_SHORT', 'TYPE_THIN_NAME', 'TYPE_THIN_ACTION', 'TYPE_THIN_FEELING', 'TYPE_THIN_MODIFIER'])
 
 /** 다시 받은 표현의 「확인해 볼 곳」 — 표현 관련 안내만(이름·설명은 받지 않으므로). */
@@ -1143,3 +1213,366 @@ export function levelRegenFailLines(f: Failure): { text: string; detail: string 
   return { text: EDIT.lvlFail, detail: specific ? f.text : null, block: f.block }
 }
 
+
+/* ───────── T5-3b 상황 초안(#166 인라인 주제)·순차 저장(#57 → #163)·부분 저장(`partial`) — screens.md §16-2 S4·S5, §16-4 ───────── */
+
+/** 주제 하나당 상황 초안 카드 최대 수(자동 1 + [하나 더] 1 — L-1 A). */
+export const SCENARIO_DRAFTS_MAX = 2
+/** #166 `description` 하한(서버 5~300자). */
+export const SCENARIO_DESC_MIN = 5
+
+export type ScenarioSlotKey = 'sc0' | 'sc1'
+const SLOT_KEYS: readonly ScenarioSlotKey[] = ['sc0', 'sc1']
+export const isScenarioSlotKey = (v: unknown): v is ScenarioSlotKey => v === 'sc0' || v === 'sc1'
+
+/** S4 상황 초안 카드 한 장. `desc` = 요청한 상황 설명(#163 `description` 으로도 보낸다) · `savedId` = #163 이 성공한 뒤. 장소는 저장 때 새 주제 id 로 정한다(초안에는 없다). */
+export interface ScenarioSlot {
+  key: ScenarioSlotKey
+  desc: string
+  draft: EditableDraft
+  keep: boolean
+  savedId: string | null
+}
+
+/** 자동 요청의 상황 설명 — 주제 설명이 5자 미만이면 「{이름} 상황에서 나누는 대화」. 300자를 넘기지 않는다. */
+export function scenarioSeedDescription(d: Pick<EditableTopicDraft, 'title' | 'description'>): string {
+  const desc = oneLine(d.description)
+  const base = cpLength(desc) >= SCENARIO_DESC_MIN ? desc : SCDRAFT.fallbackDesc(oneLine(d.title))
+  return Array.from(base).slice(0, SCENARIO_LIMITS.descriptionMax).join('')
+}
+
+/** [하나 더] 입력 검사(5~300자) — 문구는 상황 만들기와 같은 고정 문구. */
+export function scenarioMoreProblem(desc: string): string | null {
+  const n = cpLength(oneLine(desc))
+  if (n < SCENARIO_DESC_MIN) return SC_DRAFT.tooShort
+  if (n > SCENARIO_LIMITS.descriptionMax) return SC_DRAFT.descTooLong
+  return null
+}
+
+const topicNameOk = (t: string, max: number): boolean => !!t && cpLength(t) <= max && !/[<>＜＞]/.test(t)
+
+/**
+ * #166 본문 — 아직 주제 id 가 없으므로 `topic` 인라인(`topicId` 와 같이 보내면 400 `conflict`). 지금 이름이 주제 한도에 맞지 않으면(고치는 중)
+ * 도착 때 이름(`fallbackTitle`)을 쓴다 — 상황 초안 한 건 때문에 400 을 받지 않게.
+ */
+export function scenarioDraftBody(d: Pick<EditableTopicDraft, 'title' | 'titleJa' | 'level'>, desc: string, fallbackTitle: string): ScenarioDraftForTopicBody {
+  const title = oneLine(d.title)
+  const titleJa = oneLine(d.titleJa)
+  return {
+    description: oneLine(desc),
+    level: d.level,
+    topic: {
+      title: topicNameOk(title, TOPIC_SAVE_LIMITS.titleMax) ? title : oneLine(fallbackTitle),
+      ...(topicNameOk(titleJa, TOPIC_SAVE_LIMITS.titleJaMax) ? { titleJa } : {}),
+    },
+  }
+}
+
+/** 다음 카드 열쇠 — 2개면 null(이때 [하나 더] 줄을 숨긴다). */
+export function nextScenarioSlotKey(slots: readonly Pick<ScenarioSlot, 'key'>[]): ScenarioSlotKey | null {
+  return SLOT_KEYS.find((k) => !slots.some((s) => s.key === k)) ?? null
+}
+
+/** 체크했고 아직 저장하지 않은 카드(저장 순서 = 카드 순서). 체크를 끈 카드는 보내지 않는다. */
+export const scenariosToSave = (slots: readonly ScenarioSlot[]): ScenarioSlot[] => slots.filter((s) => s.keep && !s.savedId)
+
+/** 「저장할 상황 k/n」 — 아직 저장하지 않은 카드만 센다(부분 저장 뒤에는 남은 카드). */
+export function scenarioPick(slots: readonly ScenarioSlot[]): { k: number; n: number } {
+  const rest = slots.filter((s) => !s.savedId)
+  return { k: rest.filter((s) => s.keep).length, n: rest.length }
+}
+
+/** 카드 체크 하나만 바꾼다 — 배열·나머지 카드 객체는 그대로(목록 `key` 를 바꾸지 않는다, R1). */
+export function toggleScenarioKeep(slots: readonly ScenarioSlot[], key: ScenarioSlotKey, keep: boolean): ScenarioSlot[] {
+  return slots.map((s) => (s.key === key && s.keep !== keep ? { ...s, keep } : s))
+}
+
+/** #163 본문 — 초안 + 새 주제 id 하나를 장소로. */
+export function scenarioSaveBody(s: Pick<ScenarioSlot, 'draft' | 'desc'>, topicId: string): ScenarioInput {
+  return { ...draftInput(s.draft, { desc: s.desc }), topicIds: [topicId] }
+}
+
+/** 저장 검사 — 체크한(아직 저장 안 한) 카드마다 상황 편집기와 같은 `validateDraft` 결과. 문제가 없는 카드는 빠진다. */
+export function scenarioSlotProblems(slots: readonly ScenarioSlot[], validate: (d: EditableDraft) => DraftProblem[]): Map<ScenarioSlotKey, DraftProblem[]> {
+  const out = new Map<ScenarioSlotKey, DraftProblem[]>()
+  for (const s of scenariosToSave(slots)) {
+    const p = validate(s.draft)
+    if (p.length) out.set(s.key, p)
+  }
+  return out
+}
+
+/** #163 400 칸 실패 → 상황 편집기 칸 열쇠(`problemKey`) 문제(문구는 `failure.ts` 고정 문구). */
+export function slotServerProblems(f: Failure): DraftProblem[] {
+  const seen = new Set<string>()
+  const out: DraftProblem[] = []
+  for (const p of f.problems) {
+    const key = problemKey(p.field)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ key, message: p.text })
+  }
+  return out
+}
+
+/* ── #166 요청 흐름(한 번에 하나 — 409 `DRAFT_BUSY`·취소 잠금·15초 `long`·벽시계 상한) + 도착마다 자동 한 번 ── */
+
+export type ScenarioDraftOutcome = { kind: 'ok'; draft: EditableDraft } | { kind: 'fail'; failure: Failure } | { kind: 'canceled' }
+
+export interface ScenarioDraftFlight {
+  /** 요청 중이면 false(아무것도 보내지 않는다 — 병렬 금지). */
+  start: (body: ScenarioDraftForTopicBody, onDone: (o: ScenarioDraftOutcome) => void) => boolean
+  /** 주제 초안 도착 번호(`arrival`)마다 자동 요청 한 번 — 같은(또는 옛) 번호로 다시 부르면 보내지 않는다(다시 그려도·다시 들어와도 0). */
+  autoOnce: (arrival: number, body: ScenarioDraftForTopicBody, onDone: (o: ScenarioDraftOutcome) => void) => boolean
+  cancel: () => void
+  dispose: () => void
+}
+
+export function createScenarioDraftFlight(deps: {
+  post: (body: ScenarioDraftForTopicBody, signal: AbortSignal) => Promise<unknown>
+  onState: (s: TopicDraftFlightState) => void
+  timers?: TopicDraftFlightDeps['timers']
+}): ScenarioDraftFlight {
+  const timers = deps.timers ?? { set: (fn: () => void, ms: number) => setTimeout(fn, ms), clear: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>) }
+  type Run = { ac: AbortController; handles: unknown[]; timedOut: boolean; cancelable: boolean; onDone: (o: ScenarioDraftOutcome) => void }
+  let cur: Run | null = null
+  let lastAuto = Number.NEGATIVE_INFINITY
+  let state = TOPIC_DRAFT_IDLE
+  const emit = (next: Partial<TopicDraftFlightState>) => {
+    state = { ...state, ...next }
+    deps.onState(state)
+  }
+  const release = (run: Run) => {
+    run.handles.forEach((h) => timers.clear(h))
+    run.handles = []
+    if (cur === run) cur = null
+  }
+  const finish = (run: Run, o: ScenarioDraftOutcome) => {
+    release(run)
+    emit({ busy: false, cancelable: false, long: false })
+    run.onDone(o)
+  }
+  const start: ScenarioDraftFlight['start'] = (body, onDone) => {
+    if (cur) return false
+    const run: Run = { ac: new AbortController(), handles: [], timedOut: false, cancelable: false, onDone }
+    cur = run
+    run.handles.push(
+      timers.set(() => {
+        run.cancelable = true
+        if (cur === run) emit({ cancelable: true })
+      }, TOPIC_DRAFT_CANCEL_LOCK_MS),
+      timers.set(() => {
+        if (cur === run) emit({ long: true })
+      }, TOPIC_DRAFT_LONG_MS),
+      timers.set(() => {
+        run.timedOut = true
+        run.ac.abort()
+      }, TOPIC_DRAFT_TIMEOUT_MS),
+    )
+    emit({ busy: true, cancelable: false, long: false })
+    const ask = { desc: body.description, topicId: null, level: draftLevelOf(body.level) }
+    deps.post(body, run.ac.signal).then(
+      (raw) => {
+        if (cur !== run) return
+        const d = draftFromResponse(raw, ask)
+        if (!d) finish(run, { kind: 'fail', failure: failureCopy('scenarioDraft', SYNTH_BAD_SHAPE) })
+        else finish(run, { kind: 'ok', draft: { ...d, topicIds: [] } })
+      },
+      (e: unknown) => {
+        if (cur !== run) return
+        if (run.timedOut) return finish(run, { kind: 'fail', failure: failureCopy('scenarioDraft', SYNTH_TIMEOUT) })
+        if (isAbort(e)) return finish(run, { kind: 'canceled' })
+        finish(run, { kind: 'fail', failure: failureCopy('scenarioDraft', toErr(e)) })
+      },
+    )
+    return true
+  }
+  return {
+    start,
+    autoOnce(arrival, body, onDone) {
+      if (arrival <= lastAuto) return false
+      if (!start(body, onDone)) return false
+      lastAuto = arrival
+      return true
+    },
+    cancel() {
+      const run = cur
+      if (!run || !run.cancelable) return
+      release(run)
+      run.ac.abort()
+      emit({ busy: false, cancelable: false, long: false })
+      run.onDone({ kind: 'canceled' })
+    },
+    dispose() {
+      const run = cur
+      if (!run) return
+      release(run)
+      run.ac.abort()
+      emit({ busy: false, cancelable: false, long: false })
+    },
+  }
+}
+
+/* ── 저장: #57 주제(+표현, 한 트랜잭션) → 받은 id 로 체크한 상황을 #163 하나씩. 한 트랜잭션이 아니다(부분 저장 → `partial`). ── */
+
+export interface TopicCreateSaveApi {
+  createTopic: (body: TopicCreateInput) => Promise<unknown>
+  createScenario: (body: ScenarioInput) => Promise<unknown>
+}
+
+export type TopicCreateSaveProgress = { phase: 'topic' } | { phase: 'scenario'; i: number; k: number }
+
+export interface TopicCreateSaveHooks {
+  /** #57 성공 직후(상황을 보내기 전에) — 화면은 곧바로 이 탭 보관에 `savedTopicId` 를 쓴다(재시도·새로 고침 때 주제를 두 번 만들지 않게). */
+  onTopicSaved: (id: string) => void
+  /** #163 하나가 성공할 때마다 — 보관 카드에 `savedId` 를 쓴다(같은 상황을 두 번 만들지 않게). */
+  onScenarioSaved: (key: ScenarioSlotKey, id: string) => void
+  onProgress: (p: TopicCreateSaveProgress) => void
+}
+
+export interface ScenarioSaveFail {
+  key: ScenarioSlotKey
+  title: string
+  failure: Failure
+}
+
+export type TopicCreateSaveResult =
+  | { kind: 'topicFail'; failure: Failure }
+  | { kind: 'done'; topicId: string | null; title: string; saved: number }
+  | { kind: 'partial'; topicId: string; title: string; saved: number; failed: ScenarioSaveFail[] }
+
+/** 이 실패 뒤에는 남은 상황을 보내지 않는다(같은 이유로 실패한다 — 한도·분당 제한·사용자 없음). */
+const SAVE_STOP_KINDS: ReadonlySet<FailureKind> = new Set<FailureKind>(['limit', 'daily', 'rate', 'userGone'])
+
+/**
+ * 저장 한 번. `savedTopicId` 가 있으면 #57 을 다시 부르지 않고 남은 상황만 보낸다([상황 다시 저장]·새로 고침 뒤).
+ * 상황은 병렬로 보내지 않는다(분당 20 `scenario-write`·사용자 잠금). 실패 문구는 `failure.ts` 고정 문구.
+ */
+export async function runTopicCreateSave(
+  input: { draft: EditableTopicDraft; savedTopicId: string | null; slots: readonly ScenarioSlot[] },
+  api: TopicCreateSaveApi,
+  hooks: TopicCreateSaveHooks,
+): Promise<TopicCreateSaveResult> {
+  let title = oneLine(input.draft.title)
+  let topicId = input.savedTopicId
+  let saved = input.slots.filter((s) => s.savedId).length
+  if (!topicId) {
+    hooks.onProgress({ phase: 'topic' })
+    let res: unknown
+    try {
+      res = await api.createTopic(topicCreateBody(input.draft))
+    } catch (e) {
+      return { kind: 'topicFail', failure: failureCopy('topicSave', toErr(e), { chunkCount: input.draft.chunks.length }) }
+    }
+    const t = (res as { topic?: { id?: unknown; title?: unknown } } | null)?.topic
+    if (typeof t?.title === 'string' && t.title) title = t.title
+    const id = idOf(t?.id)
+    // 201 에는 늘 id 가 있다(계약). 없으면 상황을 이을 곳이 없어 관리 화면으로 간다.
+    if (!id) return { kind: 'done', topicId: null, title, saved: 0 }
+    hooks.onTopicSaved(id)
+    topicId = id
+  }
+  const todo = scenariosToSave(input.slots)
+  const failed: ScenarioSaveFail[] = []
+  let stop: Failure | null = null
+  for (let i = 0; i < todo.length; i++) {
+    const s = todo[i]
+    if (stop) {
+      failed.push({ key: s.key, title: oneLine(s.draft.title), failure: stop })
+      continue
+    }
+    hooks.onProgress({ phase: 'scenario', i: i + 1, k: todo.length })
+    try {
+      const r = await api.createScenario(scenarioSaveBody(s, topicId))
+      // 저장 표시로만 쓰는 값 — 응답에 id 가 없어도(계약 위반) 같은 상황을 다시 보내지 않게 카드 열쇠를 남긴다.
+      hooks.onScenarioSaved(s.key, idOf((r as { id?: unknown } | null)?.id) ?? s.key)
+      saved++
+    } catch (e) {
+      const f = failureCopy('scenarioSave', toErr(e))
+      failed.push({ key: s.key, title: oneLine(s.draft.title), failure: f })
+      if (f.block || SAVE_STOP_KINDS.has(f.kind)) stop = f
+    }
+  }
+  return failed.length ? { kind: 'partial', topicId, title, saved, failed } : { kind: 'done', topicId, title, saved }
+}
+
+/** `partial` 상자 — 남은(체크했고 저장 못 한) 상황 줄·이유, [상황 다시 저장]을 막을 이유(내 상황 50·하루 30). */
+export interface PartialView {
+  m: number
+  lines: { key: ScenarioSlotKey; title: string; text: string | null; field: boolean }[]
+  block: string | null
+}
+
+export function partialView(slots: readonly ScenarioSlot[], fails: readonly ScenarioSaveFail[]): PartialView {
+  const byKey = new Map(fails.map((f) => [f.key, f.failure]))
+  const pending = scenariosToSave(slots)
+  const blockF = fails.find((f) => f.failure.kind === 'limit' || f.failure.kind === 'daily')
+  return {
+    m: pending.length,
+    lines: pending.map((s) => {
+      const f = byKey.get(s.key) ?? null
+      return { key: s.key, title: oneLine(s.draft.title), text: f ? f.text : null, field: f?.kind === 'field' }
+    }),
+    block: blockF ? blockF.failure.text : null,
+  }
+}
+
+/* ── 이 탭 보관(상황 초안 칸) — 모양이 하나라도 어긋나면 보관 전체를 버린다(`parseTopicStore`) ── */
+
+const STORE_LIST_MAX = 20
+const okList = (v: unknown): v is string[] => Array.isArray(v) && v.length <= STORE_LIST_MAX && v.every(okText)
+const okOptText = (v: unknown): v is string | null => v === null || okText(v)
+
+function storedScenarioDraftOf(v: unknown): EditableDraft | null {
+  const d = v as Record<string, unknown> | null
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null
+  if (!okText(d.title) || !okText(d.titleJa) || !okText(d.learner) || !okText(d.tutor) || !okText(d.goalKo) || !isJlpt(d.level)) return null
+  if (!okList(d.criteria) || !okList(d.steps) || !Array.isArray(d.expressions) || d.expressions.length > STORE_LIST_MAX) return null
+  if (d.difficulty !== null && (typeof d.difficulty !== 'number' || !Number.isFinite(d.difficulty))) return null
+  const expressions: DraftExpression[] = []
+  for (const e of d.expressions as unknown[]) {
+    const o = e as Record<string, unknown> | null
+    if (!o || typeof o !== 'object' || !okText(o.ja) || !okText(o.ko) || (o.reading !== undefined && !okText(o.reading))) return null
+    expressions.push({ ja: o.ja, ko: o.ko, ...(typeof o.reading === 'string' && o.reading ? { reading: o.reading } : {}) })
+  }
+  let opening: OpeningValue | null = null
+  if (d.opening !== null && d.opening !== undefined) {
+    const o = d.opening as Record<string, unknown>
+    if (typeof o !== 'object' || !okText(o.ko) || !okOptText(o.ja) || !okOptText(o.koAtJa) || !okOptText(o.reading)) return null
+    opening = { ko: o.ko, ja: o.ja, koAtJa: o.koAtJa, reading: o.reading }
+  }
+  return {
+    title: d.title,
+    titleJa: d.titleJa,
+    level: d.level,
+    difficulty: typeof d.difficulty === 'number' ? difficultyOf(d.difficulty) : null,
+    learner: d.learner,
+    tutor: d.tutor,
+    goalKo: d.goalKo,
+    criteria: [...d.criteria],
+    steps: [...d.steps],
+    expressions,
+    opening,
+    topicIds: [],
+    requiredExpressions: null,
+  }
+}
+
+/** 보관 값의 상황 칸 — 옛 보관(칸 없음)은 빈 값. 어긋나면 null(보관 전체를 버린다). */
+function storedScenarioPart(s: Record<string, unknown>): Required<Pick<StoredTopicDraft, 'scenarios' | 'savedTopicId' | 'scAsked'>> | null {
+  const scenarios: ScenarioSlot[] = []
+  if (s.scenarios !== undefined) {
+    if (!Array.isArray(s.scenarios) || s.scenarios.length > SCENARIO_DRAFTS_MAX) return null
+    for (const x of s.scenarios as unknown[]) {
+      const o = x as Record<string, unknown> | null
+      if (!o || typeof o !== 'object' || !isScenarioSlotKey(o.key) || scenarios.some((c) => c.key === o.key)) return null
+      if (!okText(o.desc) || typeof o.keep !== 'boolean' || (o.savedId != null && !isScenarioIdParam(o.savedId))) return null
+      const draft = storedScenarioDraftOf(o.draft)
+      if (!draft) return null
+      scenarios.push({ key: o.key, desc: o.desc, draft, keep: o.keep, savedId: typeof o.savedId === 'string' ? o.savedId : null })
+    }
+  }
+  const tid = s.savedTopicId
+  if (tid != null && !isScenarioIdParam(tid)) return null
+  return { scenarios, savedTopicId: typeof tid === 'string' ? tid : null, scAsked: s.scAsked === true }
+}

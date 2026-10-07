@@ -14,7 +14,7 @@ import { BtnLink, ErrorBox, InfoBox, Skeleton } from '@/components/challenge/par
 import BackBar from '@/components/shell/BackBar'
 import ChunkEditor, { CHUNK_ADD_DOM_ID } from './ChunkEditor'
 import LevelRegenBox, { LVL_CANCEL_DOM_ID, LVL_REGEN_DOM_ID, LVL_RETRY_DOM_ID } from './LevelRegenBox'
-import { chunkKeyOfProblem, chunkRowDomId, MANAGE_HREF, topicHref, topicProblemDomId, warnLineFixed, type TopicProblem } from './logic'
+import { chunkKeyOfProblem, chunkRowDomId, MANAGE_HREF, topicEditLocked, topicHref, topicProblemDomId, warnLineFixed, type TopicProblem } from './logic'
 import TopicInfoFields from './TopicInfoFields'
 import { EDIT, MANAGE, REVIEW, TOPIC } from './topicCopy'
 import { useTopicEdit, type EditFocus } from './useTopicEdit'
@@ -68,6 +68,8 @@ export default function TopicEditScreen({ id }: { id: string }) {
   const draft = m.draft
   const regenBusy = m.regenFlight.busy
   const blocked = m.saving || m.copied || regenBusy || !!m.saveMessage?.block
+  // 받는 중에는 이름·수준·설명·표현 편집도 잠근다(REV-163 M-1) — 받은 표현이 요청 시점 이름·수준 기준이라서. [그만두기] 상자는 잠기지 않는다.
+  const locked = topicEditLocked({ saving: m.saving, regenBusy })
 
   return (
     <>
@@ -83,7 +85,7 @@ export default function TopicEditScreen({ id }: { id: string }) {
             <TopicInfoFields
               value={draft}
               errors={errors}
-              disabled={m.saving}
+              disabled={locked}
               onChange={(patch) => m.setDraft((d) => ({ ...d, ...patch }))}
               levelSlot={
                 m.regenPrompt ? (
@@ -126,7 +128,7 @@ export default function TopicEditScreen({ id }: { id: string }) {
               </div>
             ) : null}
 
-            <ChunkEditor chunks={draft.chunks} errors={errors} disabled={m.saving || regenBusy} onChange={(fn) => m.setDraft((d) => ({ ...d, chunks: fn(d.chunks) }))} />
+            <ChunkEditor chunks={draft.chunks} errors={errors} disabled={locked} origTexts={m.origTexts} onChange={(fn) => m.setDraft((d) => ({ ...d, chunks: fn(d.chunks) }))} />
 
             <div className="flex min-w-0 flex-col gap-2">
               {m.problems.length ? (
