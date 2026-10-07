@@ -23,6 +23,7 @@ import { toErr } from '@/components/common/errors'
 import { readStore, writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import { DISPLAY_COPY, DISPLAY_TOAST_MS, useClaimDisplaySaveFailure, useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
+import { JaQuoted } from '@/components/common/japanese/JaQuoted'
 import { DisplayBar } from '@/components/common/japanese/JapaneseText'
 import { useCountdown } from '@/components/common/useNow'
 import { ErrorBlock, LoadingBlock } from '@/components/common/ui'
@@ -1165,7 +1166,7 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         }}
       />
       <p role="status" className="sr-only">
-        {srMsg}
+        <JaQuoted text={srMsg} />
       </p>
       <Toast message={toast.message} bottomPx={mode === 'voice' ? VOICE_TOAST_BOTTOM : TEXT_TOAST_BOTTOM} />
     </div>

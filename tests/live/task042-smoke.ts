@@ -40,6 +40,16 @@ function check(id: string, ok: boolean, note = ''): void {
 }
 const info = (msg: string) => console.log(`INFO ${msg}`)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/** Trace 는 응답 뒤 `void recordTrace` 로 늦게 쓰인다(0.25~1.8초) — `ready` 가 참이 될 때까지 최대 5초(250ms 간격) 다시 읽는다. 끝내 안 되면 마지막 값을 그대로 돌려줘 판정이 FAIL 로 드러난다(기대값은 그대로). */
+async function pollUntil<T>(read: () => Promise<T>, ready: (v: T) => boolean, timeoutMs = 5_000, stepMs = 250): Promise<T> {
+  const until = Date.now() + timeoutMs
+  let v = await read()
+  while (!ready(v) && Date.now() < until) {
+    await sleep(stepMs)
+    v = await read()
+  }
+  return v
+}
 
 type Json = Record<string, unknown>
 interface Res {
@@ -255,9 +265,9 @@ async function main(): Promise<void> {
     check('B1 첫 세트 200·generation.generatedNow·source AI|MIXED', g1.status === 200 && !!s1 && gen1?.generatedNow === true && (gen1?.source === 'AI' || gen1?.source === 'MIXED'), `${g1.status} ${JSON.stringify(gen1)}`)
     if (!s1) throw new Error('B1 세트가 없다 — 중단')
     const jobAfter = await aiJobCount(u3.id)
-    const trAfter = await traceCount(u3.id, start, TB.id)
+    const trAfter = await pollUntil(() => traceCount(u3.id, start, TB.id), (c) => c - trB >= 1)
     check('B2 A12 = Trace +1·AiJob +0(동기 — 잡 없음)', trAfter - trB === 1 && jobAfter === jobB, `trace+${trAfter - trB} job+${jobAfter - jobB}`)
-    const t1 = await prisma.requestTrace.findFirst({ where: { userId: u3.id, refType: 'topicWords', refId: TB.id, createdAt: { gte: start } }, orderBy: { createdAt: 'desc' }, select: { status: true, totalMs: true, steps: true, errorCode: true } })
+    const t1 = await pollUntil(() => prisma.requestTrace.findFirst({ where: { userId: u3.id, refType: 'topicWords', refId: TB.id, createdAt: { gte: start } }, orderBy: { createdAt: 'desc' }, select: { status: true, totalMs: true, steps: true, errorCode: true } }), (r) => r !== null)
     const step = Array.isArray(t1?.steps) ? (t1?.steps[0] as Json | undefined) : undefined
     check('B3 Trace lane interactive·totalMs ≤ 30s·원문 없음', step?.lane === 'interactive' && (t1?.totalMs ?? 99_999) <= WALL_MS + 500, JSON.stringify({ status: t1?.status, totalMs: t1?.totalMs, kept: step?.kept, dropped: step?.dropped }))
     const ai1 = await prisma.vocabAttempt.findMany({ where: { sessionId: s1.id, refType: 'AiWord' }, orderBy: { order: 'asc' }, select: { order: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, refId: true } })

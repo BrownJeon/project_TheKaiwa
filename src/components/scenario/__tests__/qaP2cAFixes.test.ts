@@ -3,20 +3,24 @@
  *  - #2 딥링크 시트: 수화 전(서버·수화 첫 렌더)에는 시트를 그리지 않는다. 클라이언트 첫 렌더 조건(`document` 있음)을 흉내 내도 포털을 만들지 않아야
  *    서버 렌더와 어긋나지 않는다(React #418). 열림은 수화 뒤 `sheetIdAfterHydration`.
  *  - #3 결과 화면: 세로 flex 스크롤 칸에 바로 놓인 [다시 해 보기]·[다른 상황 고르기]가 줄어들지 않게 `shrink-0`(높이 h-12 유지).
+ *  - qa-p2c-B #4·#8: 결과 안내 주 링크 `shrink-0` · 회화방 스크린리더 칸(`srMsg`)의 「일본어」 구간 `lang="ja"`.
  *  - #5 계열: 수업에서 이어진 역할극 안내 "오늘 수업 「…」에서 이어져요." 의 일본어 제목이 `lang="ja"` 안에 있다.
  */
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { createElement, type ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
+import { JaQuoted } from '@/components/common/japanese/JaQuoted'
 import type { RolePlayChatView, RolePlayResultView } from '@/types/chat'
 import { sheetIdAfterHydration } from '../logic'
-import { ResultBody } from '../RolePlayResultScreen'
+import { Missing, ResultBody } from '../RolePlayResultScreen'
 import RolePlayIntro, { RolePlaySystemLine } from '../RolePlayIntro'
 import ScenarioHome from '../ScenarioHome'
 import type { EndedRolePlay } from '../resultLogic'
-import { ROOM, SHEET } from '../scenarioCopy'
+import { ROOM, SCENARIO_HOME_HREF, SHEET } from '../scenarioCopy'
 import { RESULT } from '../scenarioCopyResult'
 import type { RolePlay } from '../useRolePlay'
 
@@ -133,6 +137,12 @@ test('결과 화면 다음 상황 없음: [다른 상황 고르기] 링크도 h-
   assert.ok(hasClass(classOf(withNext, 'button', RESULT.nextBtn), 'h-12'))
 })
 
+test('결과 화면 안내(없음·아직 안 끝남)의 주 링크(linkPrimary)도 h-12 + shrink-0 (qa-p2c-B #4 재확인)', () => {
+  const html = render(createElement(Missing, { title: RESULT.goneTitle, href: SCENARIO_HOME_HREF, label: RESULT.goneBtn }))
+  const cls = classOf(html, 'a', RESULT.goneBtn)
+  assert.ok(hasClass(cls, 'h-12') && hasClass(cls, 'shrink-0') && hasClass(cls, 'w-full'), cls)
+})
+
 /* ── #5 계열 — 수업 제목 lang ───────────────────────────────────────── */
 
 const KANA_HAN = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u
@@ -150,4 +160,34 @@ test('rp-fromlesson: "오늘 수업 「…」에서 이어져요." 의 일본어
     assert.ok(!KANA_HAN.test(left), `lang 밖 일본어: ${left}`)
   }
   assert.ok(line.replace(/<[^>]+>/g, '').includes(ROOM.fromLesson(title)), '문구는 그대로')
+})
+
+/* ── qa-p2c-B #8 — 회화방 스크린리더 칸(role=status)의 「일본어」 lang ─────────────── */
+
+const srCell = (msg: string) => renderToStaticMarkup(createElement('p', { role: 'status', className: 'sr-only' }, createElement(JaQuoted, { text: msg })))
+const textOf = (html: string) => html.replace(/<[^>]+>/g, '')
+
+test('스크린리더 칸: 역할극 "「ja」 썼어요" 의 일본어 구간만 lang="ja", 낭독 글자는 그대로', () => {
+  const msg = ROOM.usedAnnounce('お願いします')
+  const html = srCell(msg)
+  assert.ok(html.includes('<span lang="ja">「お願いします」</span>'), html)
+  assert.equal(textOf(html), msg)
+  const two = [ROOM.usedAnnounce('お願いします'), ROOM.usedAnnounce('ください')].join(' ')
+  assert.equal(textOf(srCell(two)), two)
+  assert.equal((srCell(two).match(/lang="ja"/g) ?? []).length, 2)
+})
+
+test('스크린리더 칸: 일반 회화·빈 문자열은 글자 그대로(「」 없으면 lang 없음)', () => {
+  const plain = ROOM.stepAnnounce('주문하기')
+  const html = srCell(plain)
+  assert.ok(!html.includes('lang='), html)
+  assert.equal(textOf(html), plain)
+  assert.equal(textOf(srCell('')), '')
+})
+
+test('TalkRoom: role=status sr-only 칸이 srMsg 를 JaQuoted 로 그린다(srMsg 는 문자열 state)', () => {
+  const src = readFileSync(join(process.cwd(), 'src/components/talk/TalkRoom.tsx'), 'utf8')
+  assert.ok(src.includes("import { JaQuoted } from '@/components/common/japanese/JaQuoted'"))
+  assert.ok(/<p role="status" className="sr-only">\s*<JaQuoted text=\{srMsg\} \/>\s*<\/p>/.test(src))
+  assert.ok(src.includes("const [srMsg, setSrMsg] = useState('')"))
 })

@@ -22,9 +22,9 @@ import { RESULT } from './scenarioCopyResult'
 import { useRolePlayResult } from './useRolePlayResult'
 import { useStartRolePlay } from './useStartRolePlay'
 
-const linkPrimary = 'flex h-12 w-full items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-on-accent'
 // 본문은 세로 flex 스크롤 칸이라 내용이 화면보다 길면 높이 고정 항목이 글자 높이까지 줄어든다(qa-p2c-A 결함 #3 — [다시 해 보기] 25px). 그 칸에 바로 놓이는 버튼·링크는 `shrink-0`.
 const NO_SHRINK = 'shrink-0'
+const linkPrimary = `flex h-12 w-full ${NO_SHRINK} items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-on-accent`
 const linkGhost = `flex h-12 w-full ${NO_SHRINK} items-center justify-center rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold`
 const linkText = 'flex h-11 shrink-0 items-center justify-center text-[13px] font-medium text-ink2 underline underline-offset-4'
 
@@ -59,7 +59,8 @@ export default function RolePlayResultScreen({ chatId }: { chatId: string }) {
   )
 }
 
-function Missing({ title, href, label }: { title: string; href: string; label: string }) {
+/** 결과를 못 보여 줄 때의 안내(없음·아직 안 끝남). 내보내는 것은 정적 렌더 시험용(`linkPrimary` 의 shrink-0 확인). */
+export function Missing({ title, href, label }: { title: string; href: string; label: string }) {
   const ref = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     ref.current?.focus()

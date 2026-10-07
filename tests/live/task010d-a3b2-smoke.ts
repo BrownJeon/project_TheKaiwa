@@ -50,6 +50,16 @@ function skip(id: string, note: string): void {
   console.log(`SKIP ${id} — ${note}`)
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/** Trace 는 응답 뒤 `void recordTrace` 로 늦게 쓰인다(0.25~1.8초) — `ready` 가 참이 될 때까지 최대 5초(250ms 간격) 다시 읽는다. 끝내 안 되면 마지막 값을 그대로 돌려줘 판정이 FAIL 로 드러난다(기대값은 그대로). */
+async function pollUntil<T>(read: () => Promise<T>, ready: (v: T) => boolean, timeoutMs = 5_000, stepMs = 250): Promise<T> {
+  const until = Date.now() + timeoutMs
+  let v = await read()
+  while (!ready(v) && Date.now() < until) {
+    await sleep(stepMs)
+    v = await read()
+  }
+  return v
+}
 type Json = Record<string, unknown>
 const obj = (v: unknown): Json => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : {})
 
@@ -186,7 +196,7 @@ async function main(): Promise<void> {
     }
     const no = await api(COOKIE4, 'POST', '/api/v1/scenarios/drafts', { description: '안녕하세요 반가워요 오늘 날씨 좋네요', level: 'N5' })
     check('5c 상황 아닌 글 422 NOT_A_SCENARIO(모델 판정)', no.status === 422 && details(no.data).reason === 'NOT_A_SCENARIO', `${no.ms}ms status=${no.status}`)
-    const dtr = await prisma.requestTrace.findMany({ where: { userId: U, refType: 'scenarioDraft', createdAt: { gte: made.since } }, select: { steps: true } })
+    const dtr = await pollUntil(() => prisma.requestTrace.findMany({ where: { userId: U, refType: 'scenarioDraft', createdAt: { gte: made.since } }, select: { steps: true } }), (r) => r.length >= 2)
     check('5d 초안 Trace 원문 0', dtr.length >= 2 && !JSON.stringify(dtr).includes('아이스커피') && !JSON.stringify(dtr).includes('날씨'))
 
     // ── 6 #169 정상 [LLM] ────────────────────────────────────────────────
@@ -198,7 +208,7 @@ async function main(): Promise<void> {
     check('6a 연습 200 {messageId, ja, ko} · 고르기 세트 통째로', pr.status === 200 && sug.messageId === opening && typeof sug.ja === 'string' && typeof sug.ko === 'string' && setOk, `${pr.ms}ms set=${set}`)
     check('6b 12초 안', pr.ms <= 12_500, `${pr.ms}ms`)
     check('6c 저장 없음(메시지·교정·StudyLog·관측 행 불변)', JSON.stringify(await rowCounts(U, RP)) === JSON.stringify(before))
-    const ptr = await prisma.requestTrace.findMany({ where: { userId: U, refType: 'replyPractice', refId: RP }, select: { steps: true } })
+    const ptr = await pollUntil(() => prisma.requestTrace.findMany({ where: { userId: U, refType: 'replyPractice', refId: RP }, select: { steps: true } }), (r) => r.length >= 1)
     check('6d 연습 Trace 원문 0', ptr.length === 1 && !JSON.stringify(ptr).includes('いらっしゃいませ') && !JSON.stringify(ptr).includes(String(sug.ja)))
 
     // ── 7 마친 역할극 [LLM: 턴 1 + 판정 1] ─────────────────────────────

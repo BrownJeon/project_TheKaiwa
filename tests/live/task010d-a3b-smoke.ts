@@ -58,6 +58,16 @@ function skip(id: string, note: string): void {
   console.log(`SKIP ${id} — ${note}`)
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/** Trace 는 응답 뒤 `void recordTrace` 로 늦게 쓰인다(0.25~1.8초) — `ready` 가 참이 될 때까지 최대 5초(250ms 간격) 다시 읽는다. 끝내 안 되면 마지막 값을 그대로 돌려줘 판정이 FAIL 로 드러난다(기대값은 그대로). */
+async function pollUntil<T>(read: () => Promise<T>, ready: (v: T) => boolean, timeoutMs = 5_000, stepMs = 250): Promise<T> {
+  const until = Date.now() + timeoutMs
+  let v = await read()
+  while (!ready(v) && Date.now() < until) {
+    await sleep(stepMs)
+    v = await read()
+  }
+  return v
+}
 
 type Json = Record<string, unknown>
 const obj = (v: unknown): Json => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : {})
@@ -251,7 +261,12 @@ async function main(): Promise<void> {
     check('6a 턴 SSE done.scenario: usedIds 에 e1 · stepIndex null', t1.status === 200 && Array.isArray(prog1.usedIds) && (prog1.usedIds as string[]).includes('e1') && prog1.stepIndex === null, JSON.stringify(prog1))
     const d1 = await api(COOKIE4, 'GET', `/api/v1/chats/${CHAT}`)
     check('6b #29 progress = done.scenario(같은 코드 계산)', JSON.stringify(obj(obj(d1.data.chat).scenario).progress) === JSON.stringify(prog1))
-    const tr1 = typeof done1.traceId === 'string' ? await prisma.requestTrace.findUnique({ where: { traceId: done1.traceId }, select: { steps: true } }) : null
+    const waitTrace = async (id: unknown) => {
+      if (typeof id !== 'string') return null
+      const traceId = id
+      return pollUntil(() => prisma.requestTrace.findUnique({ where: { traceId }, select: { steps: true } }), (r) => r !== null)
+    }
+    const tr1 = await waitTrace(done1.traceId)
     const steps1 = (Array.isArray(tr1?.steps) ? tr1.steps : []) as Json[]
     check('6c Trace PROMPT.rolePlay=true', steps1.some((s) => s.name === 'PROMPT' && s.rolePlay === true))
     // 비교: 일반 TALK 1턴 → 역할극 1턴(같은 길이 말). 둘 다 예열된 뒤라 순서 영향이 작다.
@@ -262,8 +277,7 @@ async function main(): Promise<void> {
       if (typeof id === 'string') made.traceIds.push(id)
     }
     const acceptMs = async (t: Turn) => {
-      const id = obj(doneOf(t)).traceId
-      const tr = typeof id === 'string' ? await prisma.requestTrace.findUnique({ where: { traceId: id }, select: { steps: true } }) : null
+      const tr = await waitTrace(obj(doneOf(t)).traceId)
       return num(((Array.isArray(tr?.steps) ? tr.steps : []) as Json[]).find((s) => s.name === 'ACCEPT')?.ms)
     }
     const ttfaServer = async (chatId: string) => num(obj((await prisma.chatMessage.findFirst({ where: { chatId, role: 'ASSISTANT', status: 'DONE' }, orderBy: { createdAt: 'desc' }, select: { toolLog: true } }))?.toolLog).ttfaMs)
@@ -296,7 +310,7 @@ async function main(): Promise<void> {
     check('7f #29 ended = 결과(outcome·studyLogId·replayed true)', ended.outcome === fin.data.outcome && ended.studyLogId === fin.data.studyLogId && ended.replayed === true)
     const det2 = await api(COOKIE4, 'GET', `/api/v1/scenarios/${SID}`)
     check('7g 마친 대화는 inProgressChatId 에서 빠짐', det2.status === 200 && det2.data.inProgressChatId !== CHAT, String(det2.data.inProgressChatId))
-    const ftr = await prisma.requestTrace.findFirst({ where: { userId: U, refType: 'scenarioFinish', refId: CHAT }, select: { traceId: true, steps: true } })
+    const ftr = await pollUntil(() => prisma.requestTrace.findFirst({ where: { userId: U, refType: 'scenarioFinish', refId: CHAT }, select: { traceId: true, steps: true } }), (r) => r !== null)
     if (ftr) made.traceIds.push(ftr.traceId)
     const ftext = JSON.stringify(ftr?.steps ?? null)
     check('7h 종료 Trace(SCENARIO_VERDICT) 있음 · 학습자 원문·인용 0', !!ftr && ftext.includes('SCENARIO_VERDICT') && !ftext.includes('コーヒー') && !ftext.includes('ホット'))
