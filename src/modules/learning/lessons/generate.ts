@@ -22,7 +22,7 @@ import { getActiveChallengeTopic } from '../challenges'
 import { assertScenarioStartableTx, readScenarioRolePlayMaterial, resolveScenarioChatStart, scenarioNotFound, type ScenarioChatStart, type ScenarioChatStartInput, type ScenarioRolePlayMaterial } from '../scenarios/start'
 import { isSeedVisibleFor } from '../seedOverride/visibility'
 import { getTopicForLesson, type LessonTopicMaterial } from '../topics'
-import { assertTopicVisible, mapTopicGone } from '../topics/visible'
+import { assertTopicVisible, mapTopicGone, topicGone } from '../topics/visible'
 import { readStoredContent, toStoredContent, type LessonGenOutput } from './content'
 import type { CreateLessonInput } from './validate'
 
@@ -116,7 +116,7 @@ const TOPIC_LESSON_DEPS: TopicLessonDeps = {
 }
 
 /**
- * 주제 수업 재료(#59 `{topicId}`) — 시드 또는 내 주제, 이 사용자가 가린 시드 주제는 없는 주제와 같은 404(새 수업을 만들지 않는다 — 지난 수업은 그대로).
+ * 주제 수업 재료(#59 `{topicId}`) — 시드 또는 내 주제, 이 사용자가 가린 시드 주제는 없는 주제와 같은 404 `TOPIC_GONE`(#156·#47·#65 와 같은 오류 계약, 새 수업을 만들지 않는다 — 지난 수업은 그대로).
  * 예외: 진행 중 챌린지의 수업 주제면 허용한다(계약 §0 #9 "시드 숨김에서 진행 중 챌린지는 계속" — 챌린지 오늘 수업 과제가 이 경로로 수업을 만든다).
  * 챌린지 조회는 가려진 주제일 때만 한다(override 없는 사용자는 추가 조회 1회 = override 확인뿐).
  * 잠금 안 재확인(삭제 경쟁, Codex C1 ⓐ)은 `claimLessonTx` 의 `assertTopicVisible`(같은 예외). 상황 수업은 `resolveScenarioChatStart` 가 같은 규칙(가린 시드 상황 404·장소 치환)을 판정한다.
@@ -124,7 +124,7 @@ const TOPIC_LESSON_DEPS: TopicLessonDeps = {
 export async function loadTopicLessonMaterials(userId: string, input: Extract<CreateLessonInput, { kind: 'topic' }>, deps: TopicLessonDeps = TOPIC_LESSON_DEPS): Promise<LessonMaterials> {
   const topic = await deps.topic(userId, input.topicId)
   const allowed = topic !== null && ((await deps.visible(userId, topic.id)) || (await deps.challengeTopicId(userId)) === topic.id)
-  if (!topic || !allowed) throw new ApiError('NOT_FOUND', '주제를 찾을 수 없어요.')
+  if (!topic || !allowed) throw topicGone()
   return { input, topic, scenario: null, level: topic.level, ...(await deps.history(userId, { topicId: topic.id })) }
 }
 
