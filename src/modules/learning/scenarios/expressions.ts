@@ -5,13 +5,14 @@
  *   항목의 `id`(영숫자·`_`·`-` 1~40자) > `chunkId`(TopicChunk 참조) > 자리 번호 `k1`·`k2`…(배열 순서). 같은 id 는 처음 것만.
  * 표기: 항목 자체 `ja`(또는 `textJa`) > 참조한 TopicChunk 표기. 둘 다 없으면 그 항목은 판정 재료가 아니라 버린다.
  * `match`(선택): 코드가 발화에서 찾을 핵심(예 `〜にしてください` → `にしてください`) — 표기·읽기와 함께 "어느 하나라도 들어 있으면 사용"으로 본다.
+ *   시드는 `|`(대안 여럿)·`〜`(조각 모두 포함) 도 쓸 수 있다 — `parseScenarioMatch`.
  *
  * 종료 판정(Leader's Plan L2 · 데모 결정 (d)): 쓴 표현 = 코드가 학습자 말에서 확인한 것 ∪ (강사 제안 ∩ 핵심 표현 — 보정, 목록 밖 id 는 버림).
  * 코드 규칙 = 쓴 표현 수 ≥ 필수 수. **목표 달성 = 강사 판단(goalAchieved=true) 과 코드 규칙을 둘 다 채울 때만.**
  * 강사만 달성 → "거의"(ALMOST). 강사 판정이 없을 때(판정 턴 실패 등)는 달성으로 올리지 않고, 코드 규칙을 채웠으면 "거의" — 이때 관측 신뢰도는 낮춘다(end.ts).
  */
 import type { ChunkType } from '@prisma/client'
-import { chunkForms, matchTargets, type MatchTarget, type TargetForms } from '../lessons/matching'
+import { chunkForms, matchTargets, normalizeForMatch, type MatchTarget, type TargetForms } from '../lessons/matching'
 
 /** 상황 1개가 판정에 쓰는 핵심 표현 상한(시드는 3~5개 — 프롬프트·매칭 비용 상한). */
 export const SCENARIO_EXPRESSION_MAX = 12
@@ -98,10 +99,47 @@ export function scenarioRequiredExpressions(completionRule: unknown, total: numb
   return Math.max(0, Math.min(Math.max(0, total), n))
 }
 
-/** 매칭 대안 — 표기·읽기(chunkForms)에 `match` 의 대안을 더한다(어느 하나라도 들어 있으면 사용). */
+const MATCH_ALT_SEP = /[|｜]/
+const MATCH_AND_SEP = /[〜～~]/
+const MATCH_EXPLICIT = /[|｜〜～~]/
+/** 구분자 대안의 글자 수 하한(조각을 이은 길이) — `です` 한두 글자만 남은 대안은 거의 모든 말에 걸려 버린다. */
+const MATCH_ALT_MIN = 3
+
+export interface ScenarioMatchParse {
+  /** `|`·`〜` 가 하나라도 있었는가(있으면 아래 `alts` 는 쓴 그대로 — 자동 핵심 없음). */
+  explicit: boolean
+  alts: TargetForms
+  /** 쓰였지만 버려진 대안(빈 대안은 `''`, 너무 짧은 대안은 쓴 글) — 시드 점검 스크립트가 FAIL 로 본다. 코드는 조용히 건너뛴다. */
+  ignored: string[]
+}
+
+/**
+ * `match`(시드 전용 — 사용자 상황 입력은 `match` 를 받지 않는다, shape.ts) 읽기.
+ *   구분자 없음: 기존 그대로 — 글 하나를 조각 하나로 보고 정중·사전형 어미를 뗀 핵심도 더한다.
+ *   `|`(`｜`): 대안 여럿 — 하나라도 들어 있으면 사용. 대안 안의 `〜`(`～`·`~`): 조각 여럿 — 모두(순서 무관) 들어 있어야 사용.
+ *   구분자가 하나라도 있으면 자동 핵심을 만들지 않는다(안 끄면 `員です`→`員で` 같은 2자 조각이 생긴다). 문형용 `grammarForms` 는 한자를 건너뛴
+ *   가나 대안을 만들어 `私は〜が好きです` 가 `きです` 한 조각으로 되묻기 「何が好きですか」까지 통과시키므로 쓰지 않는다.
+ */
+export function parseScenarioMatch(match: string | null): ScenarioMatchParse {
+  if (!match) return { explicit: false, alts: [], ignored: [] }
+  if (!MATCH_EXPLICIT.test(match)) return { explicit: false, alts: chunkForms(match), ignored: [] }
+  const alts: TargetForms = []
+  const ignored: string[] = []
+  for (const part of match.split(MATCH_ALT_SEP)) {
+    const uniq = [...new Set(part.split(MATCH_AND_SEP).map(normalizeForMatch).filter(Boolean))]
+    // 다른 조각 안에 통째로 들어 있는 조각은 그 조각이 있으면 항상 있다 — 빼도 뜻이 같고 길이 하한이 부풀지 않는다.
+    const frags = uniq.filter((f) => !uniq.some((g) => g !== f && g.includes(f)))
+    if (!frags.length) ignored.push('')
+    else if (Array.from(frags.join('')).length < MATCH_ALT_MIN) ignored.push(part.trim())
+    else alts.push(frags)
+  }
+  return { explicit: true, alts, ignored }
+}
+
+/** 매칭 대안 — 표기·읽기(chunkForms)에 `match` 의 대안(`parseScenarioMatch`)을 더한다(어느 하나라도 들어 있으면 사용). */
 export function scenarioExpressionForms(e: ScenarioExpression): TargetForms {
   const alts = new Map<string, string[]>()
-  for (const alt of [...chunkForms(e.textJa, e.reading), ...(e.match ? chunkForms(e.match) : [])]) alts.set(alt.join('\u0000'), alt)
+  for (const alt of [...chunkForms(e.textJa, e.reading), ...parseScenarioMatch(e.match).alts]) alts.set(alt.join('\u0000'), alt)
   return [...alts.values()]
 }
 

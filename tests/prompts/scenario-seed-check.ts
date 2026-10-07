@@ -11,7 +11,8 @@
  *   C 표현      id e1…eN 연속 · 같은 일본어 중복 0 · 표현 5~8 · 필수 1~3(≤표현 수) · steps 3~5 · 성공 조건 2~3 · 첫마디가 선생님 질문/권유형
  *   D 표현 확인  (코드 판정 `scenarioExpressionForms`) 자기 표현 인식 · **일본어 5자 미만 0(조정관 지시 — 3자 이하 표현은 쓰지 않는다)** · 모든 대안(ja·읽기·정중 어미 뗀 핵심·match)이
  *               3자 이상(3자는 한자 포함일 때만) · 상황 안 두 표현이 서로를 인식하면(중복 변형) FAIL · 흔한 맞장구·빈 말("です"·"お願いします"…)이 어떤 표현도 통과시키지 않음
- *   G 변형 인식  "바꿔 말하는" 표현의 자연스러운 변형 18개를 코드가 인식(MUST) · 되묻기·다른 표현 30문장이 그 표현으로 세어지지 않음(NEG) · 못 잡는 6개는 GAP 으로 정보만(qa-p2c-B #7)
+ *   G 변형 인식  "바꿔 말하는" 표현의 자연스러운 변형 22개를 코드가 인식(MUST) · 되묻기·다른 표현 30문장이 그 표현으로 세어지지 않음(NEG) · 못 잡는 2개는 GAP 으로 정보만(qa-p2c-B #7)
+ *               + `match` 의 `|`·`〜` 문법에서 빈·짧은 대안이 조용히 버려지면 FAIL(D-match)
  *   F 로더       실제 파일로 `seedScenarios` 를 메모리 가짜 DB 에 돌려 — 드라이런 쓰기 0 · 첫 실행 새 10 · 다시 실행 쓰기 0(멱등) · 연결 10 · 시드 아닌 행·지우기 0
  *   E 헤더 예산  `[상황]` 블록 FULL 단계가 460자 안·`…`(잘림) 0, COMPACT 단계는 잘림 0 을 권장(WARN) — 표현은 앞 5개가 FULL, 앞 3개가 MINIMAL 에 실린다
  */
@@ -20,7 +21,7 @@ import { join } from 'node:path'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { parseSeedScenarios, seedScenarios, type ScenarioSeed } from '../../prisma/seed-scenarios'
 import type { SeedTopicInput } from '../../prisma/seed-topics'
-import { detectScenarioExpressions, readScenarioExpressions, scenarioExpressionForms, scenarioRequiredExpressions } from '../../src/modules/learning/scenarios/expressions'
+import { detectScenarioExpressions, parseScenarioMatch, readScenarioExpressions, scenarioExpressionForms, scenarioRequiredExpressions } from '../../src/modules/learning/scenarios/expressions'
 import { readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from '../../src/modules/learning/scenarios/view'
 import { normalizeForMatch } from '../../src/modules/learning/lessons/matching'
 import { renderScenarioBlock, SCENARIO_BLOCK_MAX, type TalkScenarioInput } from '../../src/modules/conversation/prompts/talkScenario'
@@ -168,6 +169,9 @@ seeds.forEach((s) => {
     const jaLen = len(x.textJa)
     if (jaLen < 5) fail('D-short', `${where(x.id)}: 일본어 ${jaLen}자(5자 이상 — 3자 이하는 쓰지 않는다) — ${x.textJa}`)
     else if (jaLen > 14) warn('D-long', `${where(x.id)}: 일본어 ${jaLen}자 — COMPACT 헤더는 14자에서 잘린다 — ${x.textJa}`)
+    const pm = parseScenarioMatch(x.match)
+    // `match` 의 `|`·`〜` 문법: 코드는 빈·짧은 대안을 조용히 건너뛰므로 여기서 드러낸다(시드는 군더더기 없이).
+    if (pm.explicit && (pm.ignored.length > 0 || pm.alts.length === 0)) fail('D-match', `${where(x.id)}: match 문법에서 버려진 대안 ${JSON.stringify(pm.ignored)} / 살아남은 대안 ${pm.alts.length}개 — match ${x.match}`)
     const forms = scenarioExpressionForms(x)
     for (const alt of forms) {
       const frag = alt.join('')
@@ -198,10 +202,11 @@ seeds.forEach((s) => {
 })
 
 // ── G. 바꿔 말하기 변형 인식(qa-p2c-B 결함 #7 — `b-recog.ts` 24 변형을 고정) ───────────────────
-// MUST = 코드가 알아봐야 하는 자연스러운 변형(데이터 `match` 로 닿는 18개 — 빠지면 FAIL) · NEG = 그 표현으로 세면 안 되는 말(되묻기·다른 표현 — 인식되면 FAIL).
-// GAP = 알려진 한계 6개(한 조각 `match` 로는 정밀하게 못 잡는 열린 칸·결제 수단 목록 — 정보만 출력, 코드가 `match` 의 `|`(대안)·`〜`(모두 포함)를 지원하면 MUST 로 올린다).
+// MUST = 코드가 알아봐야 하는 자연스러운 변형(`match` 로 닿는 22개 — 빠지면 FAIL) · NEG = 그 표현으로 세면 안 되는 말(되묻기·다른 표현 — 인식되면 FAIL).
+// GAP = 알려진 한계 2개(열린 활동·좋은 점 칸 — 긍정·부정·할 일 같은 의미 판단이 필요해 문자열로는 못 가른다. 정보만 출력). `match` 의 `|`(대안)·`〜`(모두 포함) 문법이 들어와 4개를 MUST 로 올렸다.
 const VAR_MUST: Record<string, string> = {
-  'self-intro-first-meeting:e1': '私の名前はスミです', 'self-intro-first-meeting:e3': '釜山に住んでいます', 'self-intro-likes:e4': '休みの日によく料理をします',
+  'self-intro-first-meeting:e1': '私の名前はスミです', 'self-intro-first-meeting:e2': '学生です', 'self-intro-first-meeting:e3': '釜山に住んでいます',
+  'self-intro-likes:e1': '私は映画が好きです', 'self-intro-likes:e2': 'とてもおもしろいです', 'self-intro-likes:e4': '休みの日によく料理をします', 'cafe-order-takeout:e4': '現金でお願いします',
   'cafe-order-drink:e1': 'ラテをください', 'cafe-order-drink:e3': '大きいサイズでお願いします', 'cafe-order-takeout:e2': 'すみません、やっぱり持ち帰りに変えてもいいですか',
   'directions-station-exit:e1': 'すみません、トイレはどこですか', 'directions-station-exit:e5': '駅までここから遠いですか', 'directions-recheck:e4': '駅はどこですか',
   'weekend-plan-tell:e2': '家族と一緒に行きます', 'weekend-plan-tell:e3': 'たぶん日曜日に行きます', 'weekend-plan-invite:e2': '日曜日は大丈夫ですか', 'weekend-plan-invite:e3': '土曜日ならいいです',
@@ -209,8 +214,7 @@ const VAR_MUST: Record<string, string> = {
   'travel-story-recommend:e4': 'でも少し遠かったです', 'travel-story-recommend:e5': '夏に行くのがおすすめです',
 }
 const VAR_GAP: Record<string, string> = {
-  'self-intro-first-meeting:e2': '学生です', 'self-intro-likes:e1': '私は映画が好きです', 'self-intro-likes:e2': 'とてもおもしろいです',
-  'cafe-order-takeout:e4': '現金でお願いします', 'weekend-plan-tell:e1': '買い物に行きます', 'travel-story-recommend:e1': '景色がすばらしかったです',
+  'weekend-plan-tell:e1': '買い物に行きます', 'travel-story-recommend:e1': '景色がすばらしかったです',
 }
 const VAR_NEG: Record<string, string[]> = {
   'self-intro-first-meeting:e2': ['私の名前はスミです', '釜山に住んでいます', 'よろしくお願いします'],
