@@ -90,7 +90,7 @@ export { checkReplyPracticeShape, dropChoiceSet } from './structuredResponse/rep
 export type { ReplyPracticeModel, ReplyPracticeSuggestion } from './structuredResponse/replyPractice'
 export { draftScenario, parseScenarioDraftBody, SCENARIO_DRAFT_DESCRIPTION_MIN } from './chats/scenarioDraft'
 export type { ScenarioDraftResult, ScenarioDraftBody, ScenarioDraftInlineTopic } from './chats/scenarioDraft'
-// task-045 변형 상황 초안(scenarioVariant@v2 — 기준 상황 + 축(성격·돌발·흐름·수준) → 새 상황 초안 + 바뀐 칸, 저장하지 않음). 라우트(app 층)가 값으로 엔진을 부른다. 축 열거·칩 문구는 `@/types/scenarioVariant`
+// task-045 변형 상황 초안(scenarioVariant@v3 — 기준 상황 + 축(성격·돌발·흐름·수준) → 새 상황 초안 + 바뀐 칸, 저장하지 않음). 라우트(app 층)가 값으로 엔진을 부른다. 축 열거·칩 문구는 `@/types/scenarioVariant`
 export { buildScenarioVariantRequest, finalizeScenarioVariant, ScenarioVariantInputError, SCENARIO_VARIANT_TASK, SCENARIO_VARIANT_PROMPT_VERSION } from './prompts/scenarioVariant'
 export type { ScenarioVariantInput, ScenarioVariantRequest, ScenarioVariantInputErrorCode } from './prompts/scenarioVariant'
 export { parseScenarioVariantBody, scenarioVariantViolations, fitScenarioVariant, effectiveVariantAxes, hasVariantChange, normalizeVariantBase, computeVariantChangedFields, SCENARIO_VARIANT_SCHEMA } from './structuredResponse/scenarioVariantSchemas'

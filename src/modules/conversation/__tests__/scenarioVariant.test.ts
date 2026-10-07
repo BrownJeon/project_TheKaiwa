@@ -1,5 +1,5 @@
 /**
- * task-045 PE — 변형 상황 초안(`scenarioVariant@v2`, #177) 단위 테스트(DB·LLM 없음).
+ * task-045 PE — 변형 상황 초안(`scenarioVariant@v3`, #177) 단위 테스트(DB·LLM 없음).
  * 계약(스키마·열거) · 요청 본문 검사 · 요청 모양(학습자 글은 [입력] 구획 안에만·축별 변경 줄) · 거절 · 코드 보정과 `changedFields`(코드 비교) · 반영 검사(변이) · 보정된 초안이 `normalizeScenarioInput` 을 통과.
  */
 import { test } from 'node:test'
@@ -26,8 +26,11 @@ import {
   buildScenarioVariantSystem,
   finalizeScenarioVariant,
   SCENARIO_VARIANT_AXIS_RULES,
+  SCENARIO_VARIANT_CRITERION_TYPICAL,
   SCENARIO_VARIANT_LIMIT_LINE,
+  SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN,
   SCENARIO_VARIANT_PROMPT_VERSION,
+  SCENARIO_VARIANT_REFLECT_LINE,
   SCENARIO_VARIANT_SYSTEM_CHARS,
   SCENARIO_VARIANT_TASK,
   ScenarioVariantInputError,
@@ -83,7 +86,7 @@ const withDraft = (id: string, over: Partial<ScenarioDraftModel>): ScenarioVaria
 
 // ── 계약·열거 ─────────────────────────────────────────────────────────────────
 test('상수·열거: 버전·태스크 키·축 열거(데모 일반화: unavailable·trouble)·칩 문구·changedFields 이름', () => {
-  assert.equal(SCENARIO_VARIANT_PROMPT_VERSION, 'scenarioVariant@v2')
+  assert.equal(SCENARIO_VARIANT_PROMPT_VERSION, 'scenarioVariant@v3')
   assert.equal(SCENARIO_VARIANT_TASK, 'scenarioVariant')
   assert.deepEqual(SCENARIO_VARIANT_AXES, {
     persona: ['same', 'kind', 'busy', 'picky'],
@@ -345,7 +348,7 @@ test('지시문 한도(v2): 숫자 한도 점검 줄이 [출력] 바로 앞에 �
   // goalKo 줄: 4개 이상 금지 + 원본이 이미 상한이면 더하지 말고 바꾸거나 합친다 — v1 의 「대응 행동이 하나 들어가야 합니다」(상한 기준에서 4번째 항목을 부름)가 없다
   const goalLine = a.find((l) => l.startsWith('- goalKo:'))!
   assert.ok(goalLine.includes(`${maxItems}개(${maxItems + 1}개 이상 금지)`), 'successCriteria 4개 이상 금지')
-  assert.ok(goalLine.includes(`각 ${maxLen}자 이내 한 문장`))
+  assert.ok(goalLine.includes(`각 ${maxLen}자 이내이고 보통 ${SCENARIO_VARIANT_CRITERION_TYPICAL}자 안팎의 한 문장`), 'v3: 한도(40자)보다 짧은 보통 길이를 함께 준다')
   assert.ok(goalLine.includes(`원본 성공 조건이 이미 ${maxItems}개이면 새 항목을 더하지 말고 원본 항목 하나를 바꾸거나 두 항목을 합칩니다`))
   assert.ok(!goalLine.includes('학습자의 행동이 하나 들어가야 합니다'), '새 항목 추가를 요구하던 v1 문구가 없다')
   // 장면 단어는 점검 줄에도 없다(지시문 중립)
@@ -362,6 +365,89 @@ test('지시문 한도(v2): 숫자 한도 점검 줄이 [출력] 바로 앞에 �
   assert.deepEqual(inner(), [['/draft/successCriteria', 'maxItems']], '항목 수 3개 초과')
   assert.ok(!validate({ status: 'OK', draft: { ...ok, successCriteria: [criteria[0], criteria[1], '가'.repeat(maxLen + 1)] } }))
   assert.deepEqual(inner(), [['/draft/successCriteria/2', 'maxLength']], '항목 40자 초과')
+})
+
+// ── 지시문 반영(v3 — suggest 축 NOT_REFLECTED 보완) ──────────────────────────────────
+interface V3Regression { seed: string; axes: Partial<ScenarioVariantAxes>; common: Omit<ScenarioDraftModel, 'keyExpressions'>; midBlankExpressions: ScenarioDraftModel['keyExpressions']; completeExpressions: ScenarioDraftModel['keyExpressions'] }
+const v3Reg = (fx as unknown as { v3Regression: V3Regression }).v3Regression
+
+test('지시문 반영(v3): 반영 점검 줄이 한도 점검 줄 바로 앞 · 새 표현 3개(코드 하한보다 여유) · 완결된 문장·메모 따라 하지 않기 · suggest 설명에 권유 단계와 대답 표현 · 성공 조건은 행동 하나·25자 안팎', () => {
+  // 코드 검사 하한: 돌발·흐름 1개, 수준 상향 2개 — 모델 요구(3개)는 그보다 커야 코드가 일부를 버려도 하한이 남는다
+  assert.equal(SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN, 3)
+  assert.ok(SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN > 2, '코드 하한(수준 상향 2개)보다 여유 있게')
+  assert.ok(SCENARIO_VARIANT_CRITERION_TYPICAL < L.successCriterionMax && SCENARIO_VARIANT_CRITERION_TYPICAL >= 15, '보통 길이는 한도보다 짧되 의미가 남는 길이')
+
+  const rl = SCENARIO_VARIANT_REFLECT_LINE
+  assert.ok(rl.startsWith('- 반영 점검(내보내기 전에 확인한다)'))
+  for (const piece of [
+    '[변경]에 적힌 축마다 steps 에 그 변화가 일어나는 단계가 따로 있고',
+    `원본에 없던 새 표현이 ${SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN}개 이상 있는지`,
+    '〜 로 비우지 않고 낱말까지 정한 완결된 문장',
+    '가운데에 〜 가 있는 표현',
+    '어느 상황에나 쓰는 짧은 말',
+    '원본과 겹치는 표현은 새 표현으로 세어지지 않습니다',
+    '〜 로 비운 틀만 더하면 반영되지 않은 것으로 거절됩니다',
+  ]) assert.ok(rl.includes(piece), `반영 점검 줄에 「${piece}」`)
+
+  let built = 0
+  for (const r of everyRequest(cafe)) {
+    built++
+    const lines = r.system.split('\n')
+    assert.equal(lines.filter((l) => l === rl).length, 1, `${r.context.level}/${JSON.stringify(r.context.axes)}: 반영 점검 줄 1개`)
+    assert.equal(lines.indexOf(rl), lines.length - 3, '반영 점검 줄은 한도 점검 줄 바로 앞(그 뒤에 한도 점검 줄·[출력])')
+    assert.equal(lines[lines.length - 2], SCENARIO_VARIANT_LIMIT_LINE)
+  }
+  assert.equal(built, 474)
+
+  // keyExpressions 줄: 새 표현 3개·완결된 문장·원본 한국어 메모를 따라 빈자리 틀로 만들지 않는다 — v2 의 「2개 이상」·「〜 틀도 좋지만」이 없다
+  const sys = buildScenarioVariantSystem('N5', { persona: 'same', twist: 'none', flow: 'suggest', level: 'same' })
+  const exprLine = sys.split('\n').find((l) => l.startsWith('- keyExpressions:'))!
+  assert.ok(exprLine.includes(`원본에 없던 새 표현이 ${SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN}개 이상이어야 합니다`))
+  assert.ok(exprLine.includes('새 표현이 모자라면 응답이 거절됩니다'))
+  assert.ok(exprLine.includes('새 표현은 낱말까지 정한 완결된 문장으로 쓰고'))
+  assert.ok(exprLine.includes('한국어 괄호 메모(「바꿔 말해요」 같은 안내)는 참고일 뿐이니 따라서 빈자리 틀로 만들지 않습니다'))
+  assert.ok(exprLine.includes('〜 를 쓴다면 표현의 맨 앞이나 맨 끝에만 두고(중간 빈칸·〇·□ 금지)'), '〜 위치 규칙은 그대로')
+  assert.ok(!exprLine.includes('새 표현이 2개 이상'), 'v2 의 2개 요구가 없다')
+  assert.ok(!exprLine.includes('빈자리를 〜 로 둔 틀도 좋지만'), '빈자리 틀을 권하던 v2 문구가 없다')
+
+  // goalKo 줄: 성공 조건 한 항목은 행동 하나·보통 25자 안팎(합친 항목도)
+  const goalLine = sys.split('\n').find((l) => l.startsWith('- goalKo:'))!
+  assert.ok(goalLine.includes('한 항목에는 학습자의 행동 하나만 담고'))
+  assert.ok(goalLine.includes(`(합친 항목도 한 문장·${SCENARIO_VARIANT_CRITERION_TYPICAL}자 안팎)`))
+
+  // suggest 설명: 권유 단계와 대답 단계를 순서에 넣고 대답 표현을 새로 — suggest 를 고른 호출에만 실린다
+  const suggestRule = SCENARIO_VARIANT_AXIS_RULES.flow.suggest
+  assert.ok(suggestRule.includes('대화 순서에 상대가 다른 선택지를 권하는 단계와 학습자가 대답하는 단계를 넣고, 그 대답에 쓸 핵심 표현을 새로 더하거나 바꿉니다'))
+  assert.ok(buildScenarioVariantRequest({ base: cafe, axes: { flow: 'suggest' } }).system.includes(suggestRule))
+  assert.ok(!buildScenarioVariantRequest({ base: cafe, axes: { flow: 'rephrase' } }).system.includes('다른 선택지를 권하는 단계'))
+
+  // 새 문구에도 장면 단어가 없다(지시문 중립)
+  assert.deepEqual(sceneHits([rl, exprLine, goalLine, suggestRule].join('\n')), [])
+})
+
+test('회귀(QA qa-045-llm-h): 새 표현을 〜 가운데 빈칸 틀로 쓰면 코드가 버려 새 표현이 모자라 NOT_REFLECTED — 같은 응답에서 새 표현만 완결된 문장이면 통과(코드 검사의 이 의존이 지시문 변경의 이유)', () => {
+  const base = baseOf(v3Reg.seed)
+  const ctx = buildScenarioVariantRequest({ base, axes: v3Reg.axes }).context
+  const respond = (keyExpressions: ScenarioDraftModel['keyExpressions']): ScenarioVariantModelResponse => ({ status: 'OK', draft: { ...v3Reg.common, keyExpressions } as ScenarioDraftModel })
+
+  // 위반 재현: 새 표현 3개가 모두 중간 빈칸 → 코드가 midBlank 로 버림 → 남은 것이 기준 표현뿐이라 새 표현 0개
+  const bad = fitScenarioVariant(ctx, respond(v3Reg.midBlankExpressions))
+  assert.equal(bad.status, 'INVALID')
+  assert.deepEqual(bad.problems, ['NOT_REFLECTED'])
+  assert.ok(scenarioVariantViolations(ctx, respond(v3Reg.midBlankExpressions)).length > 0, '재시도 안내가 나간다')
+
+  // 같은 응답에서 새 표현만 완결된 문장 — 통과하고 새 표현은 요구 수 이상(코드가 일부를 버려도 하한이 남는 여유)
+  const good = fitScenarioVariant(ctx, respond(v3Reg.completeExpressions))
+  assert.equal(good.status, 'OK', JSON.stringify(good.problems))
+  assert.ok(good.changedFields.includes('steps') && good.changedFields.includes('keyExpressions'))
+  assert.ok(countNewExpressions(base, good.draft!.keyExpressions) >= SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN, '새 표현 ≥ 요구 수')
+  assert.equal(good.repairs.droppedExpressions.midBlank, 0)
+
+  // 여유의 증명: 요구 수(3)만큼 새 표현을 썼다면 그중 2개를 버려도 하한(돌발·흐름 1개)이 남는다
+  const oneLeft = fitScenarioVariant(ctx, respond([...v3Reg.midBlankExpressions.slice(0, 2), v3Reg.completeExpressions[0], ...v3Reg.completeExpressions.slice(3)]))
+  assert.equal(oneLeft.status, 'OK', '새 표현 3개 중 2개가 버려져도 1개가 남으면 통과')
+  assert.equal(oneLeft.repairs.droppedExpressions.midBlank, 2)
+  assert.equal(countNewExpressions(base, oneLeft.draft!.keyExpressions), 1)
 })
 
 // ── 보정: 정상 ────────────────────────────────────────────────────────────────────

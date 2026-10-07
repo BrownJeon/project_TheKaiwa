@@ -1,5 +1,5 @@
 /**
- * task-045 실측 — `scenarioVariant@v2`(변형 상황 초안: 기준 상황 + 축 → 새 상황 초안 + 바뀐 칸)과 #166 인라인 주제 상황 초안을 실제 Claude CLI(구독)로 **직렬** 호출해
+ * task-045 실측 — `scenarioVariant@v3`(변형 상황 초안: 기준 상황 + 축 → 새 상황 초안 + 바뀐 칸)과 #166 인라인 주제 상황 초안을 실제 Claude CLI(구독)로 **직렬** 호출해
  * JSON 유효율·재시도율·응답 시간·구조 한도 충족·축 반영(코드 판정 + 눈 판정용 대조 출력)·`changedFields` 필수 칸·주입 방어·누출을 잰다.
  *
  * 입력: `tests/prompts/fixtures/scenario-variant.json` 의 `liveCases`(시드 상황 5개 × 축 조합 21 + 직접 적기 3 + 주입 3) · `inlineTopicCases`(저장 전 새 주제 5) · `regressCases`(기존 topicId 요청 2).

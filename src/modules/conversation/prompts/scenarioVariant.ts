@@ -1,5 +1,5 @@
 /**
- * 변형 상황 초안(`scenarioVariant@v2`) — task-045 변형 A(데모 v2 승인: 「원본에서 조건·상대 성격·분기를 바꾼 새 상황 초안을 AI 가 만들고 사용자가 검토·저장」), `POST /api/v1/scenarios/:id/variants/drafts`(#177).
+ * 변형 상황 초안(`scenarioVariant@v3`) — task-045 변형 A(데모 v2 승인: 「원본에서 조건·상대 성격·분기를 바꾼 새 상황 초안을 AI 가 만들고 사용자가 검토·저장」), `POST /api/v1/scenarios/:id/variants/drafts`(#177).
  * 학습자가 이미 가진 상황(**기준 상황** — 서버가 읽어 넘긴다)과 고른 축(상대 성격·돌발 상황·대화 흐름·표현 수준)·(선택) 직접 적은 한 줄 → **새 상황 초안**(+ 바뀐 칸 `changedFields`).
  * 이 호출은 저장하지 않는다(제안→채택: 학습자가 검토·수정해 [새 상황으로 저장]할 때 #163 이 행을 만든다. 표현 id 는 그때 서버가 발급한다).
  *
@@ -14,6 +14,12 @@
  *    **시험이 지킨다**: `scenarioVariant.test.ts` 「지시문 중립」(금지 어휘 목록 · 모든 축 조합 · 중립 기준 입력 · 학습자 글을 뺀 system+persona+스키마) — 지시문에 장면 단어를 다시 넣으면 걸린다. 고르지 않은 변화는 만들지 않는다고 명시한다.
  *  - **v2(JSON 1차 위반 보완)**: 성공 조건 3개 초과·40자 초과로 1차 응답이 스키마를 어겨 재시도(지연 2배)하던 것을 줄이려고 숫자 한도 점검 줄(`SCENARIO_VARIANT_LIMIT_LINE`)을 `[출력]` 앞에 두고
  *    `goalKo` 줄의 「대응 행동이 하나 들어가야 한다」를 「원본이 이미 상한이면 항목을 바꾸거나 합친다」로 고쳤다. 한도 숫자는 스키마와 같은 값(시험이 대조), 장면 예시는 새로 넣지 않았다.
+ *  - **v3(`flow=suggest` 축 `NOT_REFLECTED` 보완 — QA qa-045-llm-h: 길 묻기×suggest 1차 위반 2/6·재시도 후에도 실패 1건)**: 코드의 반영 검사(`reflectionProblems`)는 돌발·흐름 축이면 「steps 가 바뀌었고 **코드 정리를 통과한 새 표현이 1개 이상**」을 요구한다.
+ *    [가능성 높음] 모델이 새 표현을 〜 가운데 빈칸 틀(원본 표현의 한국어 메모 「장소는 바꿔 말해요」를 따라 한 것)로 쓰면 `fitScenarioDraft` 가 `midBlank` 로 버려 새 표현이 0~1개로 줄고, 재시도 안내문(`PROBLEM_TEXT.NOT_REFLECTED`)은 버려진 이유를 말하지 않아 같은 실수가 되풀이됐다.
+ *    근거: 엔진은 위반 원문을 저장하지 않아 실패한 두 응답은 못 봤고, 재시도로 통과한 dir-6 응답(7개 중 `midBlank` 3·`generic` 1 이 버려져 새 표현 1개만 남음)과 v3 에서 `midBlank` 0건·새 표현 3~7개로 위반이 사라진 것이 정황이다.
+ *    그래서 ① 새 표현 요구를 2→3개로(버려져도 하한이 남게) ② 새 표현은 〜 로 비우지 않고 완결된 문장으로, 원본 표현의 한국어 메모를 따라 빈자리 틀로 만들지 말라고 명시 ③ `suggest` 설명에 「권유 단계 + 대답 단계를 순서에 넣고 대답 표현을 새로」 ④ 반영 점검 고정 줄
+ *    (`SCENARIO_VARIANT_REFLECT_LINE`)을 한도 점검 줄 앞에 ⑤ 성공 조건 한 항목은 행동 하나·보통 25자 안팎(40자 한도에 딱 닿는 항목이 1차 위반을 만들었다 — 여행×suggest). 스키마·코드 검사는 바꾸지 않았다. 새 문구에도 장면 단어는 없다.
+ *    실측(라이브 36호출): suggest 30·다른 축 6 모두 1차 JSON 위반 0·재시도 0(성공 조건 최대 33자). system 고정부는 v2 대비 약 +590자(전 조합 최대 4,001자 — 이 도구의 핀 ≤4,600, 5초 예산(A1 3,000자) 대상 아님).
  *  - 실행은 호출부(라우트)가 맡는다. 엔진 태스크 키 `scenarioVariant` 는 `engine/router/tasks.ts` 에 developer 가 한 줄 추가한다(권고는 task 이력서). **모델명은 코드에 없다.**
  */
 import type { LlmJsonRequest, LlmPersona, LlmTask } from '@/modules/engine'
@@ -42,7 +48,7 @@ import {
   type ScenarioVariantModelResponse,
 } from '../structuredResponse/scenarioVariantSchemas'
 
-export const SCENARIO_VARIANT_PROMPT_VERSION = 'scenarioVariant@v2'
+export const SCENARIO_VARIANT_PROMPT_VERSION = 'scenarioVariant@v3'
 
 /** 엔진 태스크 키 — `engine/router/tasks.ts` `LLM_TASKS` 에 같은 이름으로 추가해야 한다(developer). */
 export const SCENARIO_VARIANT_TASK = 'scenarioVariant'
@@ -104,7 +110,7 @@ export const SCENARIO_VARIANT_AXIS_RULES = {
     trouble: '대화 중간에 진행에 작은 문제가 하나 생겨 대화가 잠시 막힙니다(무슨 문제인지는 원본 상황의 장면에 맞게 직접 정합니다). 학습자는 문제를 설명하고 다른 방법을 말합니다.',
   },
   flow: {
-    suggest: '상대 역할이 학습자가 말한 것 대신 다른 것을 권합니다. 학습자는 받아들이거나 정중히 거절하고 원래 원하는 것을 다시 말합니다.',
+    suggest: '상대 역할이 학습자가 말한 것 대신 다른 것을 권합니다. 학습자는 받아들이거나 정중히 거절하고 원래 원하는 것을 다시 말합니다. 대화 순서에 상대가 다른 선택지를 권하는 단계와 학습자가 대답하는 단계를 넣고, 그 대답에 쓸 핵심 표현을 새로 더하거나 바꿉니다.',
     rephrase: '학습자가 한 말이 잘 전해지지 않아 같은 뜻을 다른 말로 바꿔 한 번 더 말해야 합니다.',
   },
   level: {
@@ -113,6 +119,18 @@ export const SCENARIO_VARIANT_AXIS_RULES = {
 } as const
 
 const AXIS_TITLE = { persona: '상대 성격', twist: '돌발 상황', flow: '대화 흐름', level: '표현 수준' } as const
+
+/** v3: 새 표현 요구 수 — 코드 검사(`reflectionProblems`)의 하한은 돌발·흐름 1개·수준 상향 2개지만, 코드가 쓸 수 없는 표현(중간 빈칸·빈 말·겹침)을 버리고 나서도 하한이 남도록 모델에는 3개를 요구한다. */
+export const SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN = 3
+/** v3: 성공 조건 한 항목의 보통 길이(스키마 한도 40자보다 짧게 — 한도에 딱 닿는 항목이 1차 위반을 만든다). */
+export const SCENARIO_VARIANT_CRITERION_TYPICAL = 25
+
+/**
+ * v3(suggest 축 `NOT_REFLECTED` 보완) 반영 점검 줄 — 한도 점검 줄 바로 앞에 둔다(모델이 마지막에 보는 자리 근처). 고정 줄이라 수준·축·기준 상황에 따라 달라지지 않는다.
+ * 원인: 1차·재시도 응답이 새 표현을 〜 가운데 빈칸 틀로 써서(원본 표현의 한국어 메모 「바꿔 말해요」를 따라 한 것) 코드가 그 표현을 버렸고, 남은 새 표현이 하한(1개) 아래로 내려가 `NOT_REFLECTED` 가 났다.
+ * 장면 단어는 넣지 않는다(「선택지」·「권한다」 같은 일반어만).
+ */
+export const SCENARIO_VARIANT_REFLECT_LINE = `- 반영 점검(내보내기 전에 확인한다): [변경]에 적힌 축마다 steps 에 그 변화가 일어나는 단계가 따로 있고, keyExpressions 에 원본에 없던 새 표현이 ${SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN}개 이상 있는지 봅니다. 새 표현은 〜 로 비우지 않고 낱말까지 정한 완결된 문장으로 쓰며, 가운데에 〜 가 있는 표현·어느 상황에나 쓰는 짧은 말·원본과 겹치는 표현은 새 표현으로 세어지지 않습니다. 원본 표현의 순서만 바꾸거나 〜 로 비운 틀만 더하면 반영되지 않은 것으로 거절됩니다.`
 
 /**
  * 숫자 한도 점검 줄 — 모델이 마지막에 보는 자리(`[출력]` 바로 앞)에 둔다. 숫자는 스키마(`SCENARIO_LIMITS` → `SCENARIO_DRAFT_SCHEMA`)와 같은 값이어야 하며 시험이 스키마와 대조한다.
@@ -147,12 +165,13 @@ export function buildScenarioVariantSystem(level: JlptLevel, axes: ScenarioVaria
     `- title: 원본 제목에 [변경]의 바뀐 점을 짧게 덧붙이거나 바꾼 새 한국어 제목("원본 제목 · 바뀐 점" 꼴, ${L.titleMax}자 이내, 원본과 같은 제목 금지). titleJa: 그 일본어 제목(${L.titleJaMax}자 이내).`,
     `- difficulty: 1~5. [수준]이 N5 이면 1~2, N4 2~3, N3 3~4, N2 이상 3~5.`,
     `- roles: learner 는 원본 학습자 역할과 똑같이, ${tutorRule}(각 ${L.roleMax}자 이내, 짧은 한국어 명사).`,
-    `- goalKo: 바뀐 상황에서 학습자가 해내는 일 한 문장(${L.goalMax}자 이내). successCriteria: ${L.successCriteriaMin}~${L.successCriteriaMax}개(${L.successCriteriaMax + 1}개 이상 금지), 각 ${L.successCriterionMax}자 이내 한 문장, 학습자가 한 말로 확인할 수 있는 한국어 행동. [변경]에 돌발 상황·권유·되묻기가 있으면 그에 대응하는 학습자의 행동이 들어가야 하며, 원본 성공 조건이 이미 ${L.successCriteriaMax}개이면 새 항목을 더하지 말고 원본 항목 하나를 바꾸거나 두 항목을 합칩니다.`,
+    `- goalKo: 바뀐 상황에서 학습자가 해내는 일 한 문장(${L.goalMax}자 이내). successCriteria: ${L.successCriteriaMin}~${L.successCriteriaMax}개(${L.successCriteriaMax + 1}개 이상 금지), 각 ${L.successCriterionMax}자 이내이고 보통 ${SCENARIO_VARIANT_CRITERION_TYPICAL}자 안팎의 한 문장 — 한 항목에는 학습자의 행동 하나만 담고(두 행동을 〜하고·〜하거나 로 길게 잇지 말고 길어지면 핵심 행동만 남기되 뜻이 사라질 만큼 줄이지는 않습니다), 학습자가 한 말로 확인할 수 있는 한국어 행동. [변경]에 돌발 상황·권유·되묻기가 있으면 그에 대응하는 학습자의 행동이 들어가야 하며, 원본 성공 조건이 이미 ${L.successCriteriaMax}개이면 새 항목을 더하지 말고 원본 항목 하나를 바꾸거나 두 항목을 합칩니다(합친 항목도 한 문장·${SCENARIO_VARIANT_CRITERION_TYPICAL}자 안팎).`,
     `- steps: 새 상황에서 대화가 흘러가는 순서대로 학습자가 하는 일을 ${SCENARIO_DRAFT_STEPS_HINT}개(최대 ${L.stepsMax}개), 각 ${L.stepMax}자 이내 한국어. [변경]에 돌발 상황·권유·되묻기가 있으면 그것이 일어나는 단계를 넣고, 없으면 원본 순서를 거의 그대로 둡니다. 첫 단계는 opening 에 대한 학습자의 대답입니다.`,
-    `- keyExpressions: **roles.learner 가 그 상황에서 직접 말하는** 일본어 표현 ${SCENARIO_DRAFT_EXPRESSIONS_HINT}개(최대 ${L.expressionsMax}개). [변경]에 대응하는 표현(돌발 상황이면 그 상황에서 학습자가 하는 말, 권유·되묻기면 그에 대한 대답이나 다시 말하기, 수준 상향이면 한 단계 높인 표현)이 반드시 들어가고, 원본 표현 중 새 상황에서도 쓰는 것은 남겨도 되지만 원본에 없던 새 표현이 2개 이상이어야 합니다. 상대 역할(roles.tutor)이 하는 말·질문은 넣지 않습니다. 문법 설명이 아니라 실제로 말하는 문장·구여야 하고, 어느 상황에나 쓰는 말(ありがとうございます 등)이나 「はい」「すみません」 같은 짧은 말·서로 겹치는 표현은 넣지 않습니다. 빈자리를 〜 로 둔 틀도 좋지만 〜 는 표현의 맨 앞이나 맨 끝에만 두고(중간 빈칸·〇·□ 금지) 〜·문장부호를 뺀 글자가 ${SCENARIO_DRAFT_EXPRESSION_CORE_MIN}자 이상이어야 합니다. 꼭 필요한 표현부터 나열합니다. ja(일본어 ${L.expressionJaMax}자 이내, 한자·가나·숫자·문장부호만)·reading(ja 전체의 읽기를 가나로만, 띄어쓰기 없이, ${L.expressionReadingMax}자 이내 — ja 가 한자 없이 가나뿐이면 빈 문자열)·ko(ja 를 그대로 옮긴 한국어 뜻 ${L.expressionKoMax}자 이내, 해요체, 설명·괄호 주석 없이).`,
+    `- keyExpressions: **roles.learner 가 그 상황에서 직접 말하는** 일본어 표현 ${SCENARIO_DRAFT_EXPRESSIONS_HINT}개(최대 ${L.expressionsMax}개). [변경]에 대응하는 표현(돌발 상황이면 그 상황에서 학습자가 하는 말, 권유·되묻기면 그에 대한 대답이나 다시 말하기, 수준 상향이면 한 단계 높인 표현)이 반드시 들어가고, 원본 표현 중 새 상황에서도 쓰는 것은 남겨도 되지만 원본에 없던 새 표현이 ${SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN}개 이상이어야 합니다(코드가 쓸 수 없는 표현을 버려도 남도록 여유 있게 — 새 표현이 모자라면 응답이 거절됩니다). 상대 역할(roles.tutor)이 하는 말·질문은 넣지 않습니다. 문법 설명이 아니라 실제로 말하는 문장·구여야 하고, 어느 상황에나 쓰는 말(ありがとうございます 등)이나 「はい」「すみません」 같은 짧은 말·서로 겹치는 표현은 넣지 않습니다. 새 표현은 낱말까지 정한 완결된 문장으로 쓰고, 원본 핵심 표현 뒤의 한국어 괄호 메모(「바꿔 말해요」 같은 안내)는 참고일 뿐이니 따라서 빈자리 틀로 만들지 않습니다. 〜 를 쓴다면 표현의 맨 앞이나 맨 끝에만 두고(중간 빈칸·〇·□ 금지) 〜·문장부호를 뺀 글자가 ${SCENARIO_DRAFT_EXPRESSION_CORE_MIN}자 이상이어야 합니다. 꼭 필요한 표현부터 나열합니다. ja(일본어 ${L.expressionJaMax}자 이내, 한자·가나·숫자·문장부호만)·reading(ja 전체의 읽기를 가나로만, 띄어쓰기 없이, ${L.expressionReadingMax}자 이내 — ja 가 한자 없이 가나뿐이면 빈 문자열)·ko(ja 를 그대로 옮긴 한국어 뜻 ${L.expressionKoMax}자 이내, 해요체, 설명·괄호 주석 없이).`,
     `- requiredExpressions: 이 중 쓰면 연습이 됐다고 볼 핵심 표현 수, 2~${SCENARIO_DRAFT_REQUIRED_MAX}.`,
     `- opening: roles.tutor(바뀐 이름)가 먼저 건네는 첫마디. [변경]에 상대 성격이 있으면 말투에만 드러내고 돌발 상황·되묻기·권유의 내용은 담지 않으며(그것은 대화 중간에 생깁니다) 원본 첫마디와 같은 평범한 시작으로 씁니다. ja(1~2문장, ${L.openingJaMax}자 이내, 한자·가나·숫자와 문장부호 。、？！만)·ko(ja 를 그대로 옮긴 한국어 ${L.openingKoMax}자 이내). 학습자가 steps 첫 단계로 바로 대답할 수 있도록 질문으로 끝냅니다.`,
     '- 일본어는 정중체(です·ます)의 자연스러운 일상 회화로 [수준] 범위 안에서만 쓰며 opening 과 표현의 말투를 정중체로 통일합니다. 한국어 글은 모두 해요체(~해요·~해 주세요)로 씁니다. 실제 상표·상호·사람 이름·전화번호·주소는 넣지 않습니다(일반 명사는 가능). 원본에 있던 영어·약어 외 로마자는 쓰지 않습니다.',
+    SCENARIO_VARIANT_REFLECT_LINE,
     SCENARIO_VARIANT_LIMIT_LINE,
     `[출력] JSON 객체 하나, 키 순서 status → draft(title → titleJa → difficulty → roles → goalKo → successCriteria → steps → keyExpressions → requiredExpressions → opening). 한도(특히 successCriteria 최대 ${L.successCriteriaMax}개·각 ${L.successCriterionMax}자 이내)를 어긴 칸이 없는지 마지막으로 확인한 뒤 내보냅니다.`,
   ].join('\n')

@@ -1,5 +1,5 @@
 /**
- * task-045 PE — `scenarioVariant@v2` 오프라인 점검. **결정적·LLM 0·DB 0**(일회용 점검 스크립트, 단위 시험 `scenarioVariant.test.ts` 와 같은 코드를 다른 눈으로 한 번 더 본다).
+ * task-045 PE — `scenarioVariant@v3` 오프라인 점검. **결정적·LLM 0·DB 0**(일회용 점검 스크립트, 단위 시험 `scenarioVariant.test.ts` 와 같은 코드를 다른 눈으로 한 번 더 본다).
  *
  * 실행(미러에서, DB 접촉 없음):
  *   DATABASE_URL="mysql://invalid:invalid@127.0.0.1:1/invalid" node --import tsx tests/prompts/scenario-variant-check.ts
@@ -13,14 +13,15 @@
  *   D 샘플     samples 3건의 상태·수준·바뀐 칸·상대 역할이 기대와 같음, 표현 id 없음, 장소 이어짐
  *   E 지시문 중립(REV-153 M-2)  중립 기준(가상 상황)으로 모든 축·수준 조합(474건)의 요청 전체와, 라이브 케이스 27건의 고정 지시문(system·persona·스키마)에 장면 단어(카페·결제·품절·コンビニ …)가 0 — 금지 목록은 fixtures `instructionNeutrality.forbidden`
  *   F 한도 점검(v2)  라이브 케이스 27건의 system 끝(마지막 두 줄 = 숫자 한도 점검 줄 + [출력])이 스키마 한도와 같은 숫자인지 · QA 가 본 1차 위반 두 모양(성공 조건 4개·40자 초과)이 스키마에서 그 이유로 걸리는지 · 시드 상황 성공 조건 개수·길이(정보)
+ *   G 반영 점검(v3)  라이브 케이스 27건의 system 끝에서 세 번째 줄이 반영 점검 줄(새 표현 3개·완결된 문장)인지 · suggest 설명이 권유·대답 단계를 요구하는지 · QA(길 묻기×suggest) NOT_REFLECTED 재현 응답 쌍이 기대대로(midBlank → INVALID, 완결 문장 → OK·새 표현 ≥3) · 새 문구에 장면 단어 0
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderTranscript } from '../../src/modules/engine/llm'
 import { llm } from '../../src/modules/engine'
 import { validateOutput, withJsonOnly } from '../../src/modules/engine/json/schemaValidate'
-import { buildScenarioVariantRequest, finalizeScenarioVariant } from '../../src/modules/conversation/prompts/scenarioVariant'
-import { parseScenarioVariantBody, SCENARIO_VARIANT_SCHEMA, type ScenarioVariantBase, type ScenarioVariantModelResponse } from '../../src/modules/conversation/structuredResponse/scenarioVariantSchemas'
+import { buildScenarioVariantRequest, finalizeScenarioVariant, SCENARIO_VARIANT_AXIS_RULES, SCENARIO_VARIANT_CRITERION_TYPICAL, SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN, SCENARIO_VARIANT_PROMPT_VERSION, SCENARIO_VARIANT_REFLECT_LINE } from '../../src/modules/conversation/prompts/scenarioVariant'
+import { countNewExpressions, parseScenarioVariantBody, SCENARIO_VARIANT_SCHEMA, type ScenarioVariantBase, type ScenarioVariantModelResponse } from '../../src/modules/conversation/structuredResponse/scenarioVariantSchemas'
 import type { ScenarioDraftModel } from '../../src/modules/conversation/structuredResponse/scenarioDraft'
 import type { ScenarioVariantAxes } from '../../src/types/scenarioVariant'
 
@@ -33,6 +34,7 @@ const fx = JSON.parse(readFileSync(join(ROOT, 'tests/prompts/fixtures/scenario-v
   samples: Record<string, { axes: Partial<ScenarioVariantAxes>; response: ScenarioVariantModelResponse; expect: { status: string; level: string; changed: string[]; unchanged: string[]; tutor: string } }>
   liveCases: { id: string; seed: string; axes: Partial<ScenarioVariantAxes>; note?: string }[]
   instructionNeutrality: { base: ScenarioVariantBase; forbidden: string[] }
+  v3Regression: { seed: string; axes: Partial<ScenarioVariantAxes>; common: Omit<ScenarioDraftModel, 'keyExpressions'>; midBlankExpressions: ScenarioDraftModel['keyExpressions']; completeExpressions: ScenarioDraftModel['keyExpressions'] }
 }
 
 const baseOf = (key: string): ScenarioVariantBase => {
@@ -206,6 +208,54 @@ infos.push(`D 샘플 ${Object.keys(fx.samples).length}건`)
   if (long.ok || !JSON.stringify(long).includes('successCriteria')) fail('F', `성공 조건 ${maxLen + 1}자가 스키마에서 걸리지 않는다: ${JSON.stringify(long)}`)
   const lens = seeds.map((s) => `${s.goal.successCriteria.length}개/최대 ${Math.max(...s.goal.successCriteria.map((x) => Array.from(x).length))}자`)
   infos.push(`F 한도 점검 — 라이브 ${live}건 · 시드 상황 성공 조건 ${[...new Set(lens)].join(' · ')}(기준이 이미 상한이면 4번째 항목을 더하기 쉽다)`)
+}
+
+// G 반영 점검(v3) — suggest 축 NOT_REFLECTED(QA qa-045-llm-h): 새 표현이 〜 가운데 빈칸 틀이면 코드가 버려 새 표현이 모자란다 → 지시문이 완결된 문장·새 표현 3개·권유/대답 단계를 요구하는가
+{
+  if (SCENARIO_VARIANT_PROMPT_VERSION !== 'scenarioVariant@v3') fail('G', `버전 ${SCENARIO_VARIANT_PROMPT_VERSION}`)
+  const needReflect = [
+    '[변경]에 적힌 축마다 steps 에 그 변화가 일어나는 단계가 따로 있고',
+    `원본에 없던 새 표현이 ${SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN}개 이상 있는지`,
+    '〜 로 비우지 않고 낱말까지 정한 완결된 문장',
+    '가운데에 〜 가 있는 표현',
+    '원본과 겹치는 표현은 새 표현으로 세어지지 않습니다',
+  ]
+  let live = 0
+  for (const c of fx.liveCases) {
+    const parsed = parseScenarioVariantBody({ axes: c.axes, ...(c.note ? { note: c.note } : {}) }, { baseLevel: baseOf(c.seed).level })
+    if (!parsed.ok) continue
+    const r = buildScenarioVariantRequest({ base: baseOf(c.seed), axes: parsed.value.axes, note: parsed.value.note })
+    live++
+    const lines = r.system.split('\n')
+    if (lines[lines.length - 3] !== SCENARIO_VARIANT_REFLECT_LINE) fail('G', `${c.id}: 끝에서 세 번째 줄이 반영 점검이 아니다`)
+    for (const piece of needReflect) if (!SCENARIO_VARIANT_REFLECT_LINE.includes(piece)) fail('G', `반영 점검 줄에 「${piece}」 없음`)
+    const expr = lines.find((l) => l.startsWith('- keyExpressions:')) ?? ''
+    if (!expr.includes(`새 표현이 ${SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN}개 이상이어야 합니다`) || expr.includes('빈자리를 〜 로 둔 틀도 좋지만') || !expr.includes('따라서 빈자리 틀로 만들지 않습니다')) fail('G', `${c.id}: keyExpressions 줄이 v3 문구가 아니다`)
+    const goal = lines.find((l) => l.startsWith('- goalKo:')) ?? ''
+    if (!goal.includes(`보통 ${SCENARIO_VARIANT_CRITERION_TYPICAL}자 안팎의 한 문장`) || !goal.includes('한 항목에는 학습자의 행동 하나만 담고')) fail('G', `${c.id}: goalKo 줄에 성공 조건 길이 문구 없음`)
+    const suggest = c.axes.flow === 'suggest'
+    if (suggest !== r.system.includes('다른 선택지를 권하는 단계와 학습자가 대답하는 단계를 넣고')) fail('G', `${c.id}: suggest 설명은 suggest 를 고른 호출에만`)
+  }
+  const words = fx.instructionNeutrality.forbidden
+  const newText = [SCENARIO_VARIANT_REFLECT_LINE, SCENARIO_VARIANT_AXIS_RULES.flow.suggest].join('\n')
+  const hit = words.filter((w) => newText.toLowerCase().includes(w.toLowerCase()))
+  if (hit.length) fail('G', `새 문구에 장면 단어 ${hit.join(',')}`)
+
+  // QA 재현 응답 쌍
+  const v = fx.v3Regression
+  const base = baseOf(v.seed)
+  const ctx = buildScenarioVariantRequest({ base, axes: v.axes }).context
+  const respond = (keyExpressions: ScenarioDraftModel['keyExpressions']): ScenarioVariantModelResponse => ({ status: 'OK', draft: { ...v.common, keyExpressions } as ScenarioDraftModel })
+  for (const [name, exprs] of [['midBlank', v.midBlankExpressions], ['complete', v.completeExpressions]] as const) {
+    const sv = validateOutput(respond(exprs), SCENARIO_VARIANT_SCHEMA)
+    if (!sv.ok) fail('G', `${name}: 재현 응답이 스키마를 못 통과한다(빈 증명) ${JSON.stringify(sv)}`)
+  }
+  const bad = finalizeScenarioVariant(ctx, respond(v.midBlankExpressions))
+  if (bad.status !== 'INVALID' || JSON.stringify(bad.problems) !== '["NOT_REFLECTED"]') fail('G', `midBlank 재현: ${bad.status} ${JSON.stringify(bad.problems)}`)
+  const good = finalizeScenarioVariant(ctx, respond(v.completeExpressions))
+  const newN = good.draft ? countNewExpressions(base, good.draft.keyExpressions) : 0
+  if (good.status !== 'OK' || newN < SCENARIO_VARIANT_NEW_EXPRESSIONS_MIN) fail('G', `완결 문장 응답: ${good.status} 새 표현 ${newN}`)
+  infos.push(`G 반영 점검(v3) — 라이브 ${live}건 · 재현 쌍(midBlank → INVALID·완결 → OK·새 표현 ${newN}개) · 새 문구 장면 단어 0`)
 }
 
 for (const i of infos) console.log(`ok   ${i}`)

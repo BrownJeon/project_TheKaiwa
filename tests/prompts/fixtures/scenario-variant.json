@@ -1,5 +1,5 @@
 {
-  "note": "task-045 PE — 변형 상황 초안(scenarioVariant@v2) 합성 입력. 학습자 개인 데이터 없음. 기준 상황은 시드(prisma/seed-data/scenarios.json 의 key)를 쓴다. liveCases = 라이브 측정용(tests/live/task045-variant-measure.ts), firstPassCases = QA 결함 #1(JSON 1차 위반 4/34 — 성공 조건 4개·40자 초과, 시드의 성공 조건이 모두 상한 3개인 자기소개 기준에 몰림) 재현 보충 입력(v2 재측정용, 같은 스크립트가 liveCases 뒤에 이어 읽는다), samples = 오프라인 시험용 모델 응답(기준: cafe-order-drink), parseCases = 요청 본문 검사 기대.",
+  "note": "task-045 PE — 변형 상황 초안(scenarioVariant@v3) 합성 입력. 학습자 개인 데이터 없음. 기준 상황은 시드(prisma/seed-data/scenarios.json 의 key)를 쓴다. liveCases = 라이브 측정용(tests/live/task045-variant-measure.ts), firstPassCases = QA 결함 #1(JSON 1차 위반 4/34 — 성공 조건 4개·40자 초과, 시드의 성공 조건이 모두 상한 3개인 자기소개 기준에 몰림) 재현 보충 입력(v2 재측정용, 같은 스크립트가 liveCases 뒤에 이어 읽는다), samples = 오프라인 시험용 모델 응답(기준: cafe-order-drink), parseCases = 요청 본문 검사 기대, v3Regression = QA qa-045-llm-h(길 묻기×suggest NOT_REFLECTED) 재현 응답 쌍.",
   "parseCases": [
     { "id": "p01-ok-single", "body": { "axes": { "twist": "unavailable" } }, "baseLevel": "N5", "ok": true, "axes": { "persona": "same", "twist": "unavailable", "flow": "same", "level": "same" }, "note": null },
     { "id": "p02-ok-full-with-note", "body": { "axes": { "persona": "busy", "twist": "mishear", "flow": "suggest", "level": "up" }, "note": "  친구 몫까지\n두 잔 주문해요  " }, "baseLevel": "N5", "ok": true, "axes": { "persona": "busy", "twist": "mishear", "flow": "suggest", "level": "up" }, "note": "친구 몫까지 두 잔 주문해요" },
@@ -162,6 +162,39 @@
       "메뉴", "주문", "점원", "직원", "손님", "고객", "가게", "상점", "매장", "식당", "음식", "예약", "자리 없음",
       "준비물", "약속이", "사이즈", "크기", "수량", "인원", "봉투", "포장", "ATM",
       "コンビニ", "カフェ", "メニュー", "カード", "コーヒー", "注文", "会計", "お会計", "レジ", "予約", "品切れ", "売り切れ", "支払", "いらっしゃい", "をください"
+    ]
+  },
+  "v3Regression": {
+    "note": "QA qa-045-llm-h(길 묻기 × flow=suggest, scenarioVariant@v2) — 새 표현을 〜 가운데 빈칸 틀로 써서 코드가 버리면 새 표현이 하한(돌발·흐름 1개) 아래로 줄어 NOT_REFLECTED(1차·재시도 모두 위반한 1건). dir-6 의 재시도 응답(midBlank 3·generic 1 이 버려져 새 표현 1개만 남았다)에서 새 표현 1개를 기준 표현으로 바꿔 재현. midBlankResponse = 위반 재현, completeResponse = 같은 응답에서 새 표현만 완결된 문장으로 쓴 것. 기대: midBlank → INVALID[NOT_REFLECTED], complete → OK 이고 새 표현 3개 이상.",
+    "seed": "directions-station-exit",
+    "axes": { "flow": "suggest" },
+    "common": {
+      "titleJa": "駅で出口をたずねる・別の出口を勧められる",
+      "difficulty": 1,
+      "roles": { "learner": "여행자", "tutor": "현지인" },
+      "goalKo": "출구 위치를 묻고, 다른 출구를 권유받으면 정중히 거절하고 원하는 출구를 다시 말해요",
+      "successCriteria": ["말을 걸고 출구를 물었어요", "다른 출구 권유를 정중히 거절했어요", "안내를 확인하고 감사 인사를 했어요"],
+      "steps": ["말을 걸며 인사하기", "출구 위치 묻기", "다른 출구를 권유받기", "권유를 정중히 거절하고 원래 출구 다시 말하기", "안내 듣고 확인하기", "감사 인사하기"],
+      "requiredExpressions": 3,
+      "opening": { "ja": "あの、どうしましたか。何か探していますか。", "ko": "저기, 무슨 일이세요? 뭔가 찾고 있어요?" },
+      "title": "역에서 출구 물어보기 · 다른 출구 권유받기"
+    },
+    "midBlankExpressions": [
+      { "ja": "すみません、〜出口はどこですか", "reading": "すみません、でぐちはどこですか", "ko": "실례합니다, 출구는 어디예요?" },
+      { "ja": "そちらではなく、〜出口に行きたいです", "reading": "そちらではなく、でぐちにいきたいです", "ko": "그쪽이 아니라, 출구로 가고 싶어요" },
+      { "ja": "いえ、やはり〜出口がいいです", "reading": "いえ、やはりでぐちがいいです", "ko": "아니요, 역시 출구가 좋아요" },
+      { "ja": "まっすぐ行って、右ですね", "reading": "まっすぐいって、みぎですね", "ko": "똑바로 가서 오른쪽이죠?" },
+      { "ja": "はい、わかりました", "reading": "はい、わかりました", "ko": "네, 알겠어요" },
+      { "ja": "ここから遠いですか", "reading": "ここからとおいですか", "ko": "여기서 멀어요?" },
+      { "ja": "ありがとうございました", "reading": "ありがとうございました", "ko": "감사합니다" }
+    ],
+    "completeExpressions": [
+      { "ja": "こちらの出口のほうが近いですか", "reading": "こちらのでぐちのほうがちかいですか", "ko": "이쪽 출구가 더 가까워요?" },
+      { "ja": "いえ、最初の出口に行きたいです", "reading": "いえ、さいしょのでぐちにいきたいです", "ko": "아니요, 처음 말한 출구로 가고 싶어요" },
+      { "ja": "ではそちらの出口にします", "reading": "ではそちらのでぐちにします", "ko": "그럼 그쪽 출구로 할게요" },
+      { "ja": "まっすぐ行って、右ですね", "reading": "まっすぐいって、みぎですね", "ko": "똑바로 가서 오른쪽이죠?" },
+      { "ja": "はい、わかりました", "reading": "はい、わかりました", "ko": "네, 알겠어요" },
+      { "ja": "ここから遠いですか", "reading": "ここからとおいですか", "ko": "여기서 멀어요?" }
     ]
   }
 }
