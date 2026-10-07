@@ -19,7 +19,7 @@ import { llm, newTraceId, recordTrace, type LlmJsonRequest, type TraceStep } fro
 import { ApiError, classifyError, dates, jobs, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
 import { getActiveChallengeTopic } from '../challenges'
-import { readScenarioRolePlayMaterial, resolveScenarioChatStart, scenarioNotFound, type ScenarioChatStart, type ScenarioChatStartInput, type ScenarioRolePlayMaterial } from '../scenarios/start'
+import { assertScenarioStartableTx, readScenarioRolePlayMaterial, resolveScenarioChatStart, scenarioNotFound, type ScenarioChatStart, type ScenarioChatStartInput, type ScenarioRolePlayMaterial } from '../scenarios/start'
 import { isSeedVisibleFor } from '../seedOverride/visibility'
 import { getTopicForLesson, type LessonTopicMaterial } from '../topics'
 import { assertTopicVisible, mapTopicGone } from '../topics/visible'
@@ -186,7 +186,9 @@ export function sameLessonWhere(userId: string, m: Pick<LessonMaterials, 'topic'
 /** 점유 본체(호출자 트랜잭션) — 시험이 가짜 tx 로 재사용 판정·생성 행을 본다. */
 export async function claimLessonTx(tx: Tx, userId: string, m: LessonMaterials, gen: LessonGeneration, today: string, traceId: string): Promise<CreateLessonResult & { claim: Claim | null }> {
   await lockUserRow(tx, userId)
-  // 재료는 잠금 전에 읽었다 — 주제 삭제(#173, 같은 잠금)가 그 사이 끝났으면 404 TOPIC_GONE(Codex C1 ⓐ). 진행 중 챌린지 주제는 가린 시드여도 허용(§0 #9).
+  // 재료는 잠금 전에 읽었다 — 상황 지우기·숨김(#165, 같은 잠금)이 그 사이 끝났으면 시작 판정과 같은 404/409 ARCHIVED(Codex C2). 챌린지 예외는 주제에만 있다.
+  if (m.scenario) await assertScenarioStartableTx(tx, userId, m.scenario.id)
+  // 주제 삭제(#173, 같은 잠금)가 그 사이 끝났으면 404 TOPIC_GONE(Codex C1 ⓐ). 진행 중 챌린지 주제는 가린 시드여도 허용(§0 #9).
   if (m.topic) await assertTopicVisible(tx, userId, m.topic.id, { allowActiveChallenge: true })
   let revive: string | null = null
   const sameWhere = sameLessonWhere(userId, m, dates.toDbDate(today))

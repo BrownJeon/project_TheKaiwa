@@ -15,6 +15,7 @@ import type { ChatKind, JlptLevel, Prisma } from '@prisma/client'
 import { ApiError, classifyError, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceRecord, type TraceStep } from '@/modules/engine'
 import {
+  assertScenarioStartableTx,
   detectScenarioExpressions,
   endedScenarioRolePlayChatIds,
   endScenarioRolePlay,
@@ -107,8 +108,21 @@ export interface RolePlayChatDeps {
   resolveStart(userId: string, input: ScenarioChatStartInput): Promise<ScenarioChatStart>
   /** 상황 진행 재료(첫마디) — 없으면 첫마디 없이 만든다. */
   readMaterial(userId: string, scenarioId: string): Promise<Pick<ScenarioRolePlayMaterial, 'opening'> | null>
-  /** Chat 행(+ 첫마디가 있으면 선생님 메시지 1행)을 한 트랜잭션에. */
-  createChat(data: RolePlayChatRowData, opening: RolePlayOpening | null): Promise<ChatRow>
+  /** Chat 행(+ 첫마디가 있으면 선생님 메시지 1행)을 한 트랜잭션에 — 그 트랜잭션의 첫 쓰기 전에 `guard` 를 부른다(사용자 잠금 뒤 상황 재확인). */
+  createChat(data: RolePlayChatRowData, opening: RolePlayOpening | null, guard: RolePlayStartGuard): Promise<ChatRow>
+}
+
+/** 역할극 Chat 을 만드는 트랜잭션 안에서 첫 쓰기 전에 부르는 확인. */
+export type RolePlayStartGuard = (tx: Tx, userId: string, scenarioId: string) => Promise<void>
+
+/**
+ * 저장 직전 재확인(Codex C2 High) — 사용자 행을 잠근 뒤 상황이 아직 시작할 수 있는지 learning 판정(`assertScenarioStartableTx`)으로 다시 본다.
+ * 시작 판정(`resolveScenarioChatStart`)은 잠금 밖이라, 그 사이 끝난 상황 지우기·시드 숨김(같은 잠금)을 여기서 잡는다 — 오류는 시작 판정과 같다.
+ * 일반 회화·채팅(`createChat`)은 이 경로를 타지 않는다.
+ */
+export const rolePlayStartGuard: RolePlayStartGuard = async (tx, userId, scenarioId) => {
+  await lockUserRow(tx, userId)
+  await assertScenarioStartableTx(tx, userId, scenarioId)
 }
 
 /** 첫마디 메시지의 `toolLog` — 화면이 읽는 `meta.style`(다시 듣기 #23 styleHint)·`meta.learning` 모양만 턴 메시지와 같게. */
@@ -116,13 +130,18 @@ export function openingToolLog(): Prisma.InputJsonValue {
   return { source: ROLE_PLAY_OPENING_SOURCE, meta: { learning: null, style: 'NEUTRAL', endOfTopic: false, warning: null } }
 }
 
-/** Chat 행 + (첫마디가 있으면) 선생님 메시지 1행을 한 트랜잭션에. `run` 은 단위 테스트가 가짜 tx 로 바꾼다. */
+/**
+ * Chat 행 + (첫마디가 있으면) 선생님 메시지 1행을 한 트랜잭션에. `run` 은 단위 테스트가 가짜 tx 로 바꾼다.
+ * `guard` 가 있으면 같은 트랜잭션의 첫 쓰기 전에 부른다(역할극 시작은 `rolePlayStartGuard` — 던지면 아무것도 만들지 않는다).
+ */
 export async function createChatWithOpening(
   data: RolePlayChatRowData,
   opening: RolePlayOpening | null,
   run: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T> = (fn) => withTransaction(fn),
+  guard?: RolePlayStartGuard,
 ): Promise<ChatRow> {
   return run(async (tx) => {
+    if (guard) await guard(tx, data.userId, data.scenarioId)
     const c = await tx.chat.create({ data: { ...data, ...(opening ? { messageCount: 1, preview: chatPreview(opening.ja) } : {}) }, select: CHAT_SELECT })
     if (opening) {
       // 선생님 첫 말(LLM 0회, D-3). TTS 는 화면이 기존 #23 경로로 요청한다(서버 합성 없음).
@@ -138,7 +157,7 @@ export async function createChatWithOpening(
 const defaultDeps: RolePlayChatDeps = {
   resolveStart: (userId, input) => resolveScenarioChatStart(userId, input),
   readMaterial: (userId, scenarioId) => readScenarioRolePlayMaterial(userId, scenarioId),
-  createChat: (data, opening) => createChatWithOpening(data, opening),
+  createChat: (data, opening, guard) => createChatWithOpening(data, opening, undefined, guard),
 }
 
 /** #28 응답(ChatDto) + 역할극 칸(additive). */
@@ -171,6 +190,7 @@ export async function createRolePlayChat(userId: string, input: RolePlayChatInpu
       createdAt: now,
     },
     opening,
+    rolePlayStartGuard,
   )
   return { ...serializeChat(c, false), scenarioId: start.scenario.id, lessonId: start.lessonId }
 }

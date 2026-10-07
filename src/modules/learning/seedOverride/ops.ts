@@ -14,7 +14,7 @@ import { ApiError, dates, lockUserRow, prisma, withTransaction, type Tx } from '
 import { SCENARIO_LIMITS } from '@/types/scenario'
 import type { ForkSeedResult, HideSeedResult, RestoreSeedResult, SeedKind } from '@/types/seedOverride'
 import { TOPIC_LIMITS, type TopicChunkInput, type TopicRemovalMode } from '@/types/topic'
-import { archiveScenario, mergeScenarioFields, visibleTopicIds } from '../scenarios/catalog'
+import { archiveScenarioTx, mergeScenarioFields, visibleTopicIds } from '../scenarios/catalog'
 import { isScenarioId as isRowId, normalizeScenarioInput } from '../scenarios/shape'
 import { createOverride, deleteOverride, findOverride, isSeedKind, liveCopyIds, readOverride } from './store'
 import { normalizeTopicInput, type TopicFieldProblem } from './topicInput'
@@ -301,7 +301,8 @@ export async function restoreSeed(
     }
     let removal: Record<string, unknown> | null = null
     if (k === 'TOPIC') removal = await d.removeTopic(tx, userId, row.copyId, { ack: opts.ack ?? null, mode: 'RESTORE' })
-    else await archiveScenario(userId, row.copyId, { db: tx })
+    // 이미 잡은 잠금·tx 안의 본체만(다시 잠그거나 트랜잭션을 새로 열지 않는다). 본체가 override 를 숨김으로 바꾼 뒤 아래에서 행을 지운다.
+    else await archiveScenarioTx(tx, userId, row.copyId)
     await deleteOverride(tx, userId, row.id)
     return { ...base, path: 'COPY', copyId: row.copyId, removal }
   })

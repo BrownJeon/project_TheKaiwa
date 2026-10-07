@@ -107,6 +107,9 @@ export interface FakeTables {
   /** task-045 T3 — 주제 삭제가 보관·연결 끊기를 하는 상황. */
   scenario: Row[]
   scenarioTopic: Row[]
+  /** task-045 Codex C2 — 역할극 대화 만들기(conversation `createChatWithOpening`)가 상황 지우기와 같은 잠금을 타는지 보는 경합 시험. */
+  chat: Row[]
+  chatMessage: Row[]
 }
 
 /**
@@ -141,7 +144,7 @@ export interface FakeDb {
 export function fakeDb(opts: FakeDbOptions = {}): FakeDb {
   const tables: FakeTables = {
     challenge: [], statsSnapshot: [], lesson: [], vocabSession: [], vocabAttempt: [], conversationTopic: [], topicChunk: [], repetitionItem: [], aiJob: [], requestTrace: [], userSeedOverride: [],
-    scenario: [], scenarioTopic: [],
+    scenario: [], scenarioTopic: [], chat: [], chatMessage: [],
   }
   const log: string[] = []
   const clock = { now: new Date('2026-10-06T00:00:00.000Z') }

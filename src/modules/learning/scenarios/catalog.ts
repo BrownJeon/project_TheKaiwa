@@ -41,6 +41,7 @@ import {
   storedExpressionSeq,
   type ScenarioFields,
 } from './shape'
+import { detachCopy, findOverrideByCopy } from '../seedOverride/store'
 import { hiddenSeedIds, loadSeedVisibility, mapPlaceLinks, seedTopicOfCopy } from '../seedOverride/visibility'
 import { scenarioAccessWhere, scenarioNotFound, TOPIC_NOT_LINKED_MESSAGE } from './start'
 import { expressionView, readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from './view'
@@ -478,14 +479,31 @@ export async function updateScenario(userId: string, id: string, body: Record<st
   return getScenarioDetail(userId, id, d, opts)
 }
 
-/** #165 지우기 = ARCHIVED(목록·새 역할극에서 빠짐, 지난 역할극·기록·진행 중 대화는 그대로). 멱등. */
+/**
+ * #165 지우기 = ARCHIVED(목록·새 역할극에서 빠짐, 지난 역할극·기록·진행 중 대화는 그대로). 멱등.
+ * 사용자 행 잠금 아래 한 트랜잭션(Codex C2 High) — 역할극 시작(#28)·상황 수업(#59)도 같은 잠금 안에서 상황을 다시 확인하므로
+ * 지우기가 먼저 끝나면 그 뒤의 시작은 거절되고, 시작이 먼저면 지우기는 그 뒤에 끝난다(만든 대화·수업은 그대로).
+ */
 export async function archiveScenario(userId: string, id: string, over?: Partial<ScenarioDeps>): Promise<ScenarioArchiveResult> {
   const d = withDeps(over)
   if (!isScenarioId(id)) throw scenarioNotFound()
-  const row = await d.db.scenario.findFirst({ where: scenarioAccessWhere(userId, id), select: { id: true, userId: true, isSeed: true, status: true } })
+  return d.transaction(async (tx) => {
+    if (!(await d.lockUser(tx, userId))) throw new ApiError('NOT_FOUND', '사용자를 찾을 수 없어요.', { reason: 'USER_GONE' })
+    return archiveScenarioTx(tx, userId, id)
+  })
+}
+
+/**
+ * #165 본체 — 호출자가 연 트랜잭션·사용자 잠금 안에서 부른다(`archiveScenario`, restoreSeed 의 상황 사본 경로). 잠그지 않는다.
+ * 이 상황이 시드의 내 버전(override `copyId` = 이 id)이면 같은 트랜잭션에서 override 를 숨김(`copyId=null`)으로 바꾼다 —
+ * 주제 삭제(#173 DELETE)와 같은 규칙이고 고아 override 를 남기지 않는다(Codex C2 Medium). 사본이 아니면 override 표에 쓰지 않는다.
+ */
+export async function archiveScenarioTx(tx: Tx, userId: string, id: string): Promise<ScenarioArchiveResult> {
+  const row = await tx.scenario.findFirst({ where: scenarioAccessWhere(userId, id), select: { id: true, userId: true, isSeed: true, status: true } })
   if (!row) throw scenarioNotFound()
   if (row.userId !== userId || row.isSeed) throw new ApiError('NOT_FOUND', '이 상황은 지울 수 없어요.', { reason: 'SEED' })
   if (row.status === 'ARCHIVED') return { id, status: 'ARCHIVED', alreadyArchived: true }
-  await d.db.scenario.updateMany({ where: { id, userId, isSeed: false }, data: { status: 'ARCHIVED' } })
+  await tx.scenario.updateMany({ where: { id, userId, isSeed: false }, data: { status: 'ARCHIVED' } })
+  if (await findOverrideByCopy(tx, userId, 'SCENARIO', id)) await detachCopy(tx, userId, 'SCENARIO', id)
   return { id, status: 'ARCHIVED', alreadyArchived: false }
 }

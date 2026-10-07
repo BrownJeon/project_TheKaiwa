@@ -16,7 +16,7 @@ export {
   SCENARIO_REQUIRED_DEFAULT,
 } from './expressions'
 export type { ScenarioExpression, ScenarioChunkRef, ScenarioVerdict, ScenarioOutcome, ScenarioJudgement } from './expressions'
-export { resolveScenarioChatStart, scenarioNotFound, scenarioAccessWhere, linkedTopicsFor } from './start'
+export { resolveScenarioChatStart, assertScenarioStartableTx, scenarioNotFound, scenarioAccessWhere, linkedTopicsFor } from './start'
 export type { ScenarioChatStartInput, ScenarioChatStart, ScenarioTopicSource, ScenarioStartDb } from './start'
 // A3b(Leader 승인 additive): 역할극 진행 재료 읽기(첫마디·[상황] 헤더·진행 값·#29·종료 판정 공용)
 export { readScenarioRolePlayMaterial, readScenarioDraftTopic } from './start'

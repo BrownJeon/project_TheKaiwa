@@ -9,7 +9,8 @@
  *   이어진 주제라도 남의 사용자 주제는 고르지 않는다.
  * - 시드 사용자별 관리(task-045 §2): 이 사용자가 가린(숨김·내 버전) 시드 상황은 새로 시작하지 않는다(없는 상황과 같은 404 — 진행 중 역할극은
  *   `readScenarioRolePlayMaterial` 로 계속). 이어진 주제는 이 사용자의 장소로 읽는다 — 내 버전이 있는 시드 주제는 내 버전으로, 가린 시드 주제는 뺀다.
- *   판정은 읽기 전용이라 사용자 잠금 밖이다: 숨김과 동시에 들어온 시작은 숨기기 직전에 시작한 대화와 같다(진행 중 대화는 숨김의 영향을 받지 않는다).
+ *   판정은 읽기 전용이라 사용자 잠금 밖이다 — 대신 대화·수업을 만드는 트랜잭션이 잠금 뒤 `assertScenarioStartableTx` 로 상황만 다시 확인한다
+ *   (지우기·숨김 뒤의 새 시작 금지, Codex C2).
  */
 import type { JlptLevel } from '@prisma/client'
 import { ApiError, prisma, type Tx } from '@/modules/infra'
@@ -93,6 +94,19 @@ async function placeLinkedTopics(userId: string, linked: { id: string; title: st
     seen.add(t.id)
     return [{ id: t.id, title: t.copied ? titles.get(t.id)! : t.title }]
   })
+}
+
+/**
+ * 저장 직전 재확인(Codex C2 High) — 역할극 대화(#28)·상황 수업(#59)을 만드는 트랜잭션이 **사용자 행 잠금 뒤** 첫 쓰기 전에 부른다.
+ * 상황 지우기(#165)·시드 숨김(#165 시드 id·#174)도 같은 잠금 아래 한 트랜잭션이라, 여기서 확인한 상황은 그 트랜잭션이 끝날 때까지 지워지거나 가려지지 않는다
+ * (지우기가 먼저면 여기서 거절, 시작이 먼저면 지우기가 그 뒤에 끝난다). 오류는 `resolveScenarioChatStart` 와 같다 —
+ * 없음·남의 상황·가린 시드 404, 지운 상황 409 `ARCHIVED`. 잠그지 않는다(호출자 몫). 가림 조회는 시드일 때만.
+ */
+export async function assertScenarioStartableTx(tx: Tx, userId: string, scenarioId: string): Promise<void> {
+  const row = await tx.scenario.findFirst({ where: scenarioAccessWhere(userId, scenarioId), select: { id: true, userId: true, status: true } })
+  if (!row) throw scenarioNotFound()
+  if (row.status !== 'ACTIVE') throw new ApiError('CONFLICT', '지금은 열 수 없는 상황이에요.', { reason: 'ARCHIVED' })
+  if (row.userId === null && !(await isSeedVisibleFor(tx, userId, 'SCENARIO', row.id))) throw scenarioNotFound()
 }
 
 /** 이어진 주제 중 이 사용자가 볼 수 있는 것(시드·본인) — weight 큰 순, 같으면 id 순. */

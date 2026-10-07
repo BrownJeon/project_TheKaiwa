@@ -218,6 +218,8 @@ function fakeTx(lessons: FakeLesson[], jobs: FakeJob[] = []) {
     // task-045 T3 — claimLessonTx 의 잠금 안 주제 재확인(assertTopicVisible): 주제 T 는 시드, 가림 없음.
     conversationTopic: { findFirst: async () => ({ id: 'T', userId: null }) },
     userSeedOverride: { findFirst: async () => null },
+    // task-045 Codex C2 — claimLessonTx 의 잠금 안 상황 재확인(assertScenarioStartableTx): 상황은 시드·ACTIVE, 가림 없음.
+    scenario: { findFirst: async ({ where }: { where: { id: string } }) => ({ id: where.id, userId: null, status: 'ACTIVE' }) },
     lesson: {
       findMany: async ({ where }: { where: { userId: string; topicId: string | null; scenarioId: string | null; kind: string; date: Date; status: { in: string[] } } }) =>
         lessons
