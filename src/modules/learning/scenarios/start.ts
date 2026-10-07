@@ -14,7 +14,7 @@
 import type { JlptLevel } from '@prisma/client'
 import { ApiError, prisma, type Tx } from '@/modules/infra'
 import type { ScenarioGoal, ScenarioOpening, ScenarioRoles, ScenarioStep } from '@/types/scenario'
-import { loadSeedVisibility, placeTopicId, type SeedVisibility } from '../seedOverride/visibility'
+import { isSeedVisibleFor, loadSeedVisibility, placeTopicId, type SeedVisibility } from '../seedOverride/visibility'
 import { readScenarioExpressions, scenarioChunkIds, scenarioRequiredExpressions, type ScenarioChunkRef, type ScenarioExpression } from './expressions'
 import { readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from './view'
 
@@ -181,17 +181,34 @@ export interface ScenarioMaterialDb {
   }
 }
 
+/** 장소 저장 검사의 가린 시드 주제 문구 — #163·#164·#175(`visibleTopicIds`)와 #166 초안이 같은 글을 쓴다. */
+export const TOPIC_NOT_LINKED_MESSAGE = '지금 목록에 없는 장소예요. 목록을 새로 고친 뒤 다시 골라 주세요.'
+
+export interface ScenarioDraftTopicDb {
+  conversationTopic: {
+    findFirst(args: { where: { id: string; OR: ({ userId: null } | { userId: string })[] }; select: { id: true; userId: true; title: true; titleJa: true } }): Promise<{ id: string; userId: string | null; title: string; titleJa: string | null } | null>
+  }
+  userSeedOverride: Pick<Tx['userSeedOverride'], 'findFirst'>
+}
+
 /**
  * AI 상황 초안(#166)의 장소(주제) — 시드(`userId null`) 또는 본인 주제만(#163 `visibleTopicIds` 와 같은 조건), 아니면 null(라우트가 400 `not_found`).
- * 초안 모듈은 받은 id 를 검증 없이 `topicIds` 로 되돌려 주므로 권한 확인은 여기 한 곳이다(task-010d A3b-2). 읽기 전용·쿼리 1.
+ * 이 사용자가 가린 시드 주제(숨김·내 버전으로 바꿈·고아)는 400 `{field:'topicId', reason:'not_linked'}` — `visibleTopicIds` 와 같은 판정이라
+ * 초안은 나오는데 #163 저장에서 막히는 상태가 생기지 않는다(task-045 REV-154). 초안 모듈은 받은 id 를 검증 없이 `topicIds` 로 되돌려 주므로
+ * 권한 확인은 여기 한 곳이다(task-010d A3b-2). 읽기 전용 — 쿼리 1, 시드 주제일 때만 override 1.
  */
 export async function readScenarioDraftTopic(
   userId: string,
   topicId: string,
-  db: { conversationTopic: { findFirst(args: { where: { id: string; OR: ({ userId: null } | { userId: string })[] }; select: { id: true; title: true; titleJa: true } }): Promise<{ id: string; title: string; titleJa: string | null } | null> } } = prisma as never,
+  db: ScenarioDraftTopicDb = prisma as never,
 ): Promise<{ id: string; title: string; titleJa: string | null } | null> {
   if (!validId(topicId)) return null
-  return db.conversationTopic.findFirst({ where: { id: topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, title: true, titleJa: true } })
+  const t = await db.conversationTopic.findFirst({ where: { id: topicId, OR: [{ userId: null }, { userId }] }, select: { id: true, userId: true, title: true, titleJa: true } })
+  if (!t) return null
+  if (t.userId === null && !(await isSeedVisibleFor(db as unknown as Tx, userId, 'TOPIC', t.id))) {
+    throw new ApiError('VALIDATION', TOPIC_NOT_LINKED_MESSAGE, { field: 'topicId', reason: 'not_linked' })
+  }
+  return { id: t.id, title: t.title, titleJa: t.titleJa }
 }
 
 export async function readScenarioRolePlayMaterial(userId: string, scenarioId: string, db: ScenarioMaterialDb = prisma as unknown as ScenarioMaterialDb): Promise<ScenarioRolePlayMaterial | null> {

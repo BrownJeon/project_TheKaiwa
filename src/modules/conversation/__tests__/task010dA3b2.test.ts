@@ -398,6 +398,8 @@ test('#166 장소 읽기(readScenarioDraftTopic 기본 어댑터): where = {id, 
         return r ? pickSelected(r, a.select) : null
       },
     },
+    // task-045 REV-154: 시드 주제면 가린 시드인지 override 를 1회 본다(이 시험의 사용자는 override 없음 — 판정은 task045Fix2Items 시험).
+    userSeedOverride: { findFirst: async () => null },
   }
   assert.deepEqual(await readScenarioDraftTopic(U, 'top_seed', db as never), { id: 'top_seed', title: '카페', titleJa: 'カフェ' })
   assert.deepEqual(await readScenarioDraftTopic(U, 'top_mine', db as never), { id: 'top_mine', title: '단골 카페', titleJa: null })

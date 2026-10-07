@@ -42,7 +42,7 @@ import {
   type ScenarioFields,
 } from './shape'
 import { hiddenSeedIds, loadSeedVisibility, mapPlaceLinks, seedTopicOfCopy } from '../seedOverride/visibility'
-import { scenarioAccessWhere, scenarioNotFound } from './start'
+import { scenarioAccessWhere, scenarioNotFound, TOPIC_NOT_LINKED_MESSAGE } from './start'
 import { expressionView, readScenarioGoal, readScenarioOpening, readScenarioRoles, readScenarioSteps } from './view'
 
 /** 한 번에 읽는 후보 상한(시드 ≤ 수십 + 내 상황 ≤50). */
@@ -359,7 +359,7 @@ export async function visibleTopicIds(tx: Tx, userId: string, ids: readonly stri
     !owner.has(t)
       ? [{ field: `topicIds[${i}]`, reason: 'not_found', message: '고를 수 없는 장소예요. 다시 골라 주세요.' }]
       : owner.get(t) === null && hidden.has(t)
-        ? [{ field: `topicIds[${i}]`, reason: 'not_linked', message: '지금 목록에 없는 장소예요. 목록을 새로 고친 뒤 다시 골라 주세요.' }]
+        ? [{ field: `topicIds[${i}]`, reason: 'not_linked', message: TOPIC_NOT_LINKED_MESSAGE }]
         : [],
   )
   if (problems.length) invalid(problems)

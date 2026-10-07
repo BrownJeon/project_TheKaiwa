@@ -77,12 +77,13 @@ export async function runOpeningDraft(userId: string, body: OpeningDraftBody, de
     throw e
   }
   if (inFlight.has(userId)) throw new ApiError('CONFLICT', '첫마디를 만드는 중이에요.', { reason: 'DRAFT_BUSY' })
-  inFlight.add(userId)
   const traceId = newTraceId()
   const started = Date.now()
   const steps: TraceStep[] = []
   let status: 'OK' | 'ERROR' = 'OK'
   let errorCode: string | null = null
+  // 등록과 try 사이에 던질 수 있는 문장이 끼면 finally 가 돌지 않아 그 사용자가 재기동 전까지 DRAFT_BUSY 로 막힌다(REV-155 L1).
+  inFlight.add(userId)
   try {
     let r: LlmJsonResult<OpeningDraftResponse>
     try {
