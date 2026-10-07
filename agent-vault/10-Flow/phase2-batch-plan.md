@@ -411,3 +411,19 @@ flowchart TB
 
 - 재현 폴더(사용자 정리 대상, 지우지 않음): `~/.node-local/thekaiwa-buildcheck-c2`(A) · `/tmp/claude-1000/-home-brownjeon-NFS-homes-brownjeon-project-TheKaiwa/729e3300-9a56-4bdf-bda2-ca7f7603c97f/scratchpad/{kc2,kc3}`(B·C, 안의 `NFS` 는 심볼릭 링크). 로그 `scratchpad/{A,B,C}-*.log`.
 - 미커밋 파일: `tsconfig.json`(1줄) · 이 절 · `20-Log/2026-10-07.md` 1줄.
+
+## 운영 반영 결과 (Leader, 2026-10-07 10:4x~)
+
+| 단계 | 결과 |
+|---|---|
+| 클린 빌드(홈 밖 `git archive` 사본, HEAD `61044b9`) | `npm ci` rc=0 · `prisma generate` rc=0 · `tsc` 0 오류 · `next build` rc=0 · 단위 **2249/2249**(skip 0) |
+| M4 tts-service | `deploy-from-ubuntu.sh HEAD` rc=0 — `/health/detail` version **0.4.0**·mps·모델 3개, 합성 스모크 `timing=ok`(314B) |
+| DB 스키마 대조 | `prisma migrate diff`(DB → 현재 schema) = **빈 마이그레이션**(차이 0) — push 전 확인 |
+| git push | `5c3a701..61044b9`(39커밋) → webhook blue/green 새 릴리스 `20261007-104449-61044b91`, 헬스 200·`env=PRODUCTION`·pm2 3개 online |
+| 시드 상황 적재 | 코드 배포 **뒤**(L-3 순서) `seed-scenarios-run.ts` plan→apply: 수정 6(keyExpressions 만)·연결 교체 0·새 0·삭제 0, 재계획 = 유지 10·수정 0(멱등) |
+| 운영 회귀 스모크(qa-prod-1, `SMOKE_ENV=PRODUCTION`) | 010 64/65 · 011 60/60 · 012 32/32 · 007 45/45 = **201/202** |
+| 운영 신규 경로(읽기 전용, QA4 세션) | `/api/v1/scenarios` 200(10건)·`/challenges/current` 404(진행 중 없음 — 설계)·`/speech/utterances` 200·`/app/version` 200 · TTS 합성 200 + `X-Tts-Timing` **263자**(≤3KB) |
+
+- **010 스모크 9d FAIL = 낡은 기대값(제품 결함 아님)** [확인]: 9d 는 "레슨 완료 응답의 `reviewDecisionJobId`·`nextReview` 가 null" 을 기대하는데(010b 이전 작성), 완료 2.3초 뒤(01:48:20.9Z) `AiJob(REVIEW_DECISION)` 행이 실제로 생겼다(DB 대조, 읽기 전용) — 라우트 주석대로 반복 학습 항목이 쌓인 QA 계정은 A11 잡이 걸린다. qa-prod-1 의 "기능 결함 의심" 추정은 로그가 200자에서 잘려 값이 안 보인 채 쓴 [추측] 이었다. **백로그**: 9d 를 `string|null` 허용으로 갱신(tests/live — 이 경로는 webhook 건너뜀 목록 밖이라 push 하면 재배포되므로 다음 운영 코드 변경과 묶는다).
+- **Phase 2 신규 경로 라이브 스모크는 운영 3010 에서 돌리지 않았다** — 헤더가 "운영 포트 거부·공유 DB 쓰기"(챌린지·역할극·주제 단어·분석 결과). 같은 코드·같은 DB 로 개발 서버에서 QA(qa-039·p2a·p2b·p2c-A·B)를 통과했다. 운영에서 못 본 것: 챌린지 시작(A12)·역할극 실흐름·분석 결과 화면 — **사용자 실기기/브라우저 확인 항목**.
+- 푸시 후 추가 커밋(문서)은 vault·docs 만이라 webhook 이 배포를 건너뛴다(메모리 교훈).
