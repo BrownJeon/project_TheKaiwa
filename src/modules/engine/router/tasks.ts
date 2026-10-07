@@ -45,7 +45,7 @@ export const LLM_TASKS = {
   topicDraft: { tier: 'balanced', timeoutMs: 40_000, lane: 'interactive' },
   // 첫마디 일본어 제안(task-045 #178, openingDraft) — 편집 화면 단건. 라우트 연결은 T4.
   openingDraft: { tier: 'balanced', timeoutMs: 25_000, lane: 'interactive' },
-  // 변형 상황 초안(task-045 #177, scenarioVariant@v2) — 대기 화면 단건. sonnet p95 12.6s·max 13.5s × (1차 + JSON 재시도 1회) 가 40s 안(PE 실측 40호출, 재시도 0).
+  // 변형 상황 초안(task-045 #177, scenarioVariant@v2) — 대기 화면 단건. sonnet p95 12.6s·max 13.5s × (1차 + JSON 재시도 1회) 가 40s 안(v1 PE 실측 40호출, 재시도 0 · v2 재측정 14건에서 1차 위반 1건, 재시도 포함 21.6s — REV-158).
   scenarioVariant: { tier: 'balanced', timeoutMs: 40_000, lane: 'interactive' },
 } as const satisfies Record<string, TaskSpec>
 
