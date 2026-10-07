@@ -48,7 +48,7 @@ model UserSeedOverride {
 - 목록 필터를 고칠 곳(6): `learning/topics/index.ts` `listTopics`(:100)·`pickFewestLessonTopic`(:153) · `learning/scenarios/catalog.ts`(:177-187 목록) / **숨긴 시드로 새로 시작을 막을 곳**: `scenarios/start.ts` `resolveScenarioChatStart` · `challenges/service.ts`(:68 주제 확인) · `lessons/generate.ts`.
 - **장소 연결 해석(열린 설계 — developer T1 이 정하고 reviewer·Codex 가 점검)**: 시드 상황은 시드 주제에 붙어 있고(`ScenarioTopic`) 사용자가 그 주제를 사본으로 바꾸면 시드 상황의 장소가 "숨은 주제"를 가리킨다. 권고 = 읽을 때 사용자의 override 로 **주제 id 를 사본 id 로 치환해 보여 주고**(저장 변경 없음), 사용자 소유 상황은 `fork` 때 연결을 사본 주제로 옮긴다.
 
-## 3. API (번호는 `api-contract.md` 최신 이후 **#170 부터**; #57 은 예약 번호 사용; #161~#169(010d)는 api-contract 에 아직 없는 **문서 부채** — 이번에 함께 채운다)
+## 3. API (번호는 `api-contract.md` 최신 이후 **#170 부터**; #57 은 예약 번호 사용; #161~#169(010d)는 api-contract 에 없던 **문서 부채**였고 2026-10-07 `api-contract.md` §1-5 에 #170~#179 와 함께 채웠다 — #168 은 라우트가 없다. 요청·오류 코드의 정본은 코드(라우트 JSDoc), 아래 표는 요지)
 
 | # | 메서드·경로 | 요지 | 오류·한도 |
 |---|---|---|---|
@@ -61,7 +61,7 @@ model UserSeedOverride {
 | 174 | `POST /topics/:id/fork` | 시드 주제를 **저장 시점에 복사**(본문 = 전체 입력): 사용자 락 → 시드 조각 복사(새 조각 id) → 병합 → override. 편집을 취소하면 사본이 남지 않는다 | 이미 사본 있음 409 |
 | 175 | `POST /scenarios/:id/fork` | 시드 상황 사본(본문 = 전체 입력). `keyExpressions` id·`constraints.exprSeq` 를 그대로 복사한 뒤 `mergeScenarioFields` | 상한 50(409 `SCENARIO_LIMIT`)·하루 30 공유 |
 | 176 | `POST /seed-overrides/restore` `{kind, seedId}` | "기본으로 되돌리기"·숨긴 시드 다시 보기. 사본이 있으면 **삭제와 같은 규칙**(주제면 §4, `ack` 필요) | 404 |
-| 177 | `POST /scenarios/:id/variants/drafts` | **변형 A** — 기준 상황 + `variation{tutorMood, twist, note?}`(코드 열거 한 곳 — 화면 칩 목록과 공유)로 새 상황 초안(행 없음) → 저장은 #163 | 하루 30 상황 한도와 공유 |
+| 177 | `POST /scenarios/:id/variants/drafts` | **변형 A** — 기준 상황 + `axes{persona?, twist?, flow?, level?}`·`note?`(코드 열거 한 곳 — 화면 칩 목록과 공유)로 새 상황 초안(행 없음) → 저장은 #163 | **변형 초안 분당 6**(`scenario-variant`), **하루 한도는 #166 과 공유하는 `scenario-draft-day` 40**(저장 한도 하루 30·상황 50 과는 별개) · 422 `NO_VARIATION`(바꿀 점 없음, 한도 미소모)·`NOT_A_VARIANT` · 409 `DRAFT_BUSY` |
 | 178 | `POST /scenarios/openings/draft` | 한국어 첫마디 → 일본어 첫마디 제안(`openingDraft`, 행 없음, `reading` 은 확인용 비저장) | 분당 10·하루 60·`NOT_AN_UTTERANCE`/`UNSAFE`→422·502 |
 | 166(변경) | `POST /scenarios/drafts` | 본문에 `topic:{title,titleJa}` 인라인 허용(additive) — 저장 전 새 주제의 상황 초안 | 기존 |
 | 165(변경) | `DELETE /scenarios/:id` | 시드 id 면 그 사용자만 숨김(override) | 기존 의미 유지 |
@@ -76,14 +76,15 @@ model UserSeedOverride {
 - **정본 개정**: `challenge.md` §3-3:253·schema 주석 "진행 중 챌린지가 쓰는 주제는 삭제 409" → 위 규칙(진행 중 챌린지 제거)으로 바꾼다. **`challenge.md` 는 2026-10-07 개정 완료**(schema 주석 `prisma/schema.prisma` Challenge 는 T1 때 함께).
 - **Codex C1 반영(2026-10-07, High 2·Medium 1 — 채택)**: ⓐ **#59 수업 생성**(`lessons/generate.ts:99`) — `loadLessonMaterials` 가 트랜잭션 밖에서 주제를 읽고 `claimLessonTx` 잠금 뒤 재조회 없이 INSERT → **잠금 뒤 주제 재조회 + P2003→404 `TOPIC_GONE`** ⓑ **#47 주제 단어 세트**(`vocab/sessions.ts:459`) — 잠금 전 주제 읽음 → 긴 AI 호출 → 삭제 중인 주제에 세트 저장 가능 → **저장 직전 잠금 안에서 주제·override 재확인 + P2003 변환**(AI 호출 뒤에 주제가 사라졌으면 세트를 만들지 않고 `TOPIC_GONE`) ⓒ 위 둘과 `createChallenge`(:68)를 **같은 공용 헬퍼**(`assertTopicVisible(tx, userId, topicId)` — 잠금 안에서 존재·소유·숨김 확인)로 모아 T3 에서 한꺼번에 고치고 경합 시험으로 고정.
 - **시드 override 알고리즘과 종료 불변식(Codex Medium — 채택)**: 모든 쓰기는 `lockUserRow` 아래 한 트랜잭션. 불변식 = 사용자·종류·시드 한 쌍마다 **override 행이 없거나**, `copyId` 가 **존재하는 그 사용자 소유 행**을 가리키거나, `copyId=null`(숨김). 연산: **fork**(override 있음 → 409 `ALREADY_COPIED`; 없음 → 사본 생성+override 한 번에) · **hide**(override 있음 → 이미 숨김/사본 있음이므로 무변경 200; 없음 → `copyId=null` 행) · **restore**(override 없음 → 404; `copyId=null` → 행 삭제; `copyId` 있음 → 사본에 **삭제 규칙(주제면 위 트랜잭션·`ack`)** 적용 + override 삭제를 같은 트랜잭션) · **고아 처리**: 가시성 판정은 `copyId` 가 가리키는 행이 없으면 "숨김(copyId=null)"으로 읽고, restore 가 이를 정리한다. 경합 시험(두 탭 동시 fork → 하나 409·행 1개, fork×hide, restore×fork, restore×주제 삭제, 시드 로더 실행 중 fork)을 T1 완료 기준에 넣는다.
+- **상황 삭제(#165)의 잠금 트랜잭션 규칙(Codex C2 반영, 2026-10-07)**: 각 경로가 사용자 행 잠금(`lockUserRow`) 아래 **자기 한 트랜잭션**에서 끝난다 — **시드 id** = 그 사용자 목록에서 숨김(override `copyId=null`, 시드 행 불변, 멱등 `alreadyHidden`, 응답 `result:'HIDDEN'`) · **내 시드 사본 id** = `detachCopy`(사본 `ARCHIVED` + override 를 숨김으로 정리해 고아를 남기지 않음) · **일반 내 상황** = `ARCHIVED`(멱등 `alreadyArchived`, 응답 `result:'ARCHIVED'`). 지운 상황으로 **역할극 시작(#28)·상황 수업 생성(#59)** 은 같은 잠금 아래 **첫 쓰기 직전에 상황을 다시 확인**(`assertScenarioStartableTx`)한다 — `ARCHIVED` 상황 409 `ARCHIVED`, 없음·남의 것·가린 시드 404. 지우기가 먼저면 시작이 거절되고, 시작이 먼저면 지우기가 그 뒤에 끝난다(이미 열린 역할극·기록은 그대로).
 
 ## 5. AI 작업 (모두 Claude CLI · 제안만 · JSON 하나 · ajv + 1회 재시도)
 
 | 작업 | 상태 | 계약 위치 |
 |---|---|---|
 | `topicDraft@v2` | 구현 완료·로컬 커밋 `e74fe57`, `LLM_TASKS.topicDraft {balanced, 40_000, interactive}` 는 developer | 이력서 PE 기록(topicDraft·보완), REV-147·148 |
-| `openingDraft@v1` | PE 진행 중(pe-045c) | 이력서 PE 기록(openingDraft) |
-| 변형 상황 초안(A) | #166 `scenarioDraft` 재사용 + `variation` 입력 — PE T4 에서 프롬프트 확정 | `conversation/prompts/scenarioDraft.ts` |
+| `openingDraft@v2` | 구현 완료·로컬 커밋 `8cc224d`(프롬프트)·`9e961e5`(서비스·라우트), `LLM_TASKS.openingDraft {balanced, 25_000, interactive}`, 라우트 #178 연결 | 이력서 PE 기록(openingDraft) · `conversation/prompts/openingDraft.ts` |
+| 변형 상황 초안(A) `scenarioVariant@v1` | 구현 완료·로컬 커밋 `8979415`(프롬프트)·`9e961e5`(서비스·라우트), `LLM_TASKS.scenarioVariant {balanced, 40_000, interactive}`, 라우트 #177 연결(#166 `scenarioDraft` 재사용이 아니라 **별도 프롬프트**, 입력 `axes`) | `conversation/prompts/scenarioVariant.ts` |
 | 시나리오 초안(#166) | 기존. 본문 `topic` 인라인만 추가 | 010d 이력서 |
 - 한자 읽기는 기계가 검증하지 못한다 → 검토 화면에 **읽기를 반드시 보이고** 「읽기가 틀릴 수 있어요」 안내. `warnings`(`CHUNKS_SHORT`·`TYPE_THIN_*`·`DESCRIPTION_MISSING`·`TITLE_JA_MISSING`·**`TITLE_TRUNCATED` 신규**)는 저장을 막지 않는다. 사용자 편집 저장 검증은 이모지 접합 문자(U+FE0F·U+200D) 허용, 꺾쇠·URL·비밀 모양·제어문자는 금지.
 
@@ -109,4 +110,10 @@ model UserSeedOverride {
 
 ## 8. 열린 항목 (구현 중 확정 — 확정되면 이 절에 반영)
 
-① §2 장소 연결 해석 ② 사본 주제로 바꾼 뒤 진행 중 챌린지가 가리키는 원본 주제의 "시작" 차단 범위(챌린지는 계속, 새 시작만 사본으로) ③ `#164 PATCH opening:null` 동작(첫마디 지우기) ④ ~~수업 생성(#59)·주제 단어 세트(#47)의 삭제 경쟁~~ → Codex C1 이 둘 다 **실제 결함으로 확인**(§4 Codex C1 반영, T3 에서 수정) ⑤ A11 이 숨긴·보관 상황의 `RepetitionItem(SCENARIO)` 를 복습으로 고르는지 ⑥ 사용자 주제가 발음 사전 COURSE 대상이 될 수 있는지 ⑦ 운영 DB 의 기존 사용자 주제 수(쓰기 경로가 없었으니 0 이 유력 — 미확인) ⑧ api-contract #161~#169 문서화.
+① §2 장소 연결 해석 ② 사본 주제로 바꾼 뒤 진행 중 챌린지가 가리키는 원본 주제의 "시작" 차단 범위(챌린지는 계속, 새 시작만 사본으로) ③ `#164 PATCH opening:null` 동작(첫마디 지우기) ④ ~~수업 생성(#59)·주제 단어 세트(#47)의 삭제 경쟁~~ → Codex C1 이 둘 다 **실제 결함으로 확인**(§4 Codex C1 반영, T3 에서 수정) ⑤ A11 이 숨긴·보관 상황의 `RepetitionItem(SCENARIO)` 를 복습으로 고르는지 ⑥ 사용자 주제가 발음 사전 COURSE 대상이 될 수 있는지 ⑦ 운영 DB 의 기존 사용자 주제 수(쓰기 경로가 없었으니 0 이 유력 — 미확인) ⑧ ~~api-contract #161~#169 문서화~~ → 2026-10-07 `api-contract.md` §1-5 에 반영(#168 은 라우트 없음 — 확인 필요).
+
+**알려진 한계 (task-045 구현 시점, 2026-10-07 — 수정 전까지 유지)**
+- 주제 저장 하루 한도(10)는 **오늘 만든 내 주제 행 수**로 센다 — 만든 뒤 하드 삭제하면 그 행이 빠져 한도를 우회할 수 있다(내 주제 30개 상한은 그대로 막는다).
+- 삭제 확인 `ack` 는 **진행 중 챌린지 id(또는 `none`)만** 덮는다 — 확인 창을 연 뒤 보관·연결 해제될 상황의 개수·목록이 바뀌어도 409 `IMPACT_CHANGED` 가 나지 않는다.
+- #28 역할극 시작은 시작 직전 재확인(`assertScenarioStartableTx`)이 **상황만** 보고 주제는 보지 않는다 — 주제 확인(`resolveStart`)은 잠금 밖이라, 그 사이 주제가 지워지면 오류 코드가 일관되지 않을 수 있다.
+- 학습자 글의 **13자리 이상 숫자열 거절**(3자리 이상 숫자 묶음이 공백·하이픈 한 칸으로 이어진 합계, 카드번호 모양)은 카드번호가 아닌 긴 숫자(전화번호 외 일련번호 등)도 막을 수 있다. 연도·한국 전화번호(11자리)·날짜 범위·번지는 통과.

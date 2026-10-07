@@ -21,7 +21,7 @@
 | L0 admin (app 층 조합) | `src/modules/admin` | `ConfigurationPreset` · `DebugSession` | 모든 층 import 가능. 설정 변경 자체는 L5 `engine/configuration` 을 호출해 기록 |
 | L1 preferences | `src/modules/preferences` | `Profile` · `UserVoiceSetting` · `UserSpeechSetting` · `AppSetting` | `Profile` 은 **학습 설정만**. 음성 설정은 `UserVoiceSetting`/`UserSpeechSetting` |
 | L2 conversation | `src/modules/conversation` | `Chat` · `ChatMessage` · `Correction` · `TutorProposal` · `PromptTemplate` · `PromptVersion` | AI 산출은 `PROPOSED` 상태로만 존재 |
-| L3 learning | `src/modules/learning` | `WordEntry` · `VocabSession` · `VocabAttempt` · `ConversationTopic` · `TopicChunk` · `Scenario` · `ScenarioTopic` · `Lesson` · `ReviewSchedule` · `RepetitionItem` · `StudyLog` · `Attendance` · `Evaluation` · `EvaluationItem` · `StudyPlan` · `StatsSnapshot` · `LearnerErrorStat` · `LearningObservation` | 집계는 `StatsSnapshot` 에서만 읽는다. `Scenario`·`ScenarioTopic`·`LearningObservation` 은 2026-10-01 §9 에서 승격 |
+| L3 learning | `src/modules/learning` | `WordEntry` · `VocabSession` · `VocabAttempt` · `ConversationTopic` · `TopicChunk` · `Scenario` · `ScenarioTopic` · `UserSeedOverride` · `Lesson` · `ReviewSchedule` · `RepetitionItem` · `StudyLog` · `Attendance` · `Evaluation` · `EvaluationItem` · `StudyPlan` · `StatsSnapshot` · `LearnerErrorStat` · `LearningObservation` | 집계는 `StatsSnapshot` 에서만 읽는다. `Scenario`·`ScenarioTopic`·`LearningObservation` 은 2026-10-01 §9 에서 승격. `UserSeedOverride`(task-045, 2026-10-07)는 시드를 사용자별로 숨기거나 내 버전으로 바꾸는 표 |
 | L4 speech | `src/modules/speech` (+ Python `speech/gateway`·`speech/worker` 는 `/api/internal/*` 콜백으로 같은 테이블에 기록) | `Utterance` · `SpeechAnalysis` · `SpeechJob` · `TtsCache` · `VoiceProfile` · `VoiceModel` · `VoiceStyle` · `VoiceImportJob` | 오디오 파일은 `DATA_ROOT`, DB 는 경로만 |
 | L5 engine | `src/modules/engine` | `Engine` · `EngineConnection` · `EngineHealth` · `EngineFallbackPolicy` · `ConfigurationVersion` · `RuntimeOverride` · `RequestTrace` · `EngineMetricsDaily` | 설정 계열은 전부 `environment` 컬럼, 프로세스는 `APP_ENV` 행만 읽는다 |
 | L6 infra | `src/modules/infra` | `User` · `AppAuthCode` · `AiJob` · `AppRelease` · `AuditLog` | `AuditLog` 는 append-only |
@@ -919,6 +919,7 @@ model User {
   vocabSessions    VocabSession[]
   topics           ConversationTopic[]
   scenarios        Scenario[]
+  seedOverrides    UserSeedOverride[]
   lessons          Lesson[]
   reviewSchedules  ReviewSchedule[]
   repetitionItems  RepetitionItem[]
@@ -1431,6 +1432,26 @@ model ScenarioTopic {
   topic    ConversationTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@id([scenarioId, topicId])
+}
+
+/// task-045 — 시드(공유 행)를 사용자별로 따로 관리. 시드 행은 절대 수정하지 않는다.
+/// copyId 있음 = 그 사용자가 고쳐 만든 "내 버전"(사용자 소유 행)이 원본을 대신한다. copyId null = 그 사용자 목록에서 시드를 숨김.
+/// FK 없음(seedId·copyId 는 문자열) — 시드·사본 행 삭제와 override 정합은 learning/seedOverride 의 한 트랜잭션(사용자 행 잠금 뒤)이 보증한다.
+/// 정본 계약 docs/design/topic-scenario-manager.md §1·§4(불변식: 행 없음 | copyId = 존재하는 그 사용자 소유 행 | copyId null).
+model UserSeedOverride {
+  id        String   @id @default(cuid())
+  userId    String
+  /// 'TOPIC' | 'SCENARIO'
+  kind      String   @db.VarChar(10)
+  seedId    String   @db.VarChar(40)
+  copyId    String?  @db.VarChar(40)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, seedId])
+  @@index([userId, kind])
 }
 
 /// 오늘의 회화 1:1 수업(이해→문법→문제→응용→말하기). content = A4 스키마 JSON. sourceText = 사용자가 붙여넣은 자막 문장(레퍼런스3)
@@ -2259,10 +2280,11 @@ model DebugSession {
 | `WordEntry` | 단어장(채택된 단어만) | `surface`, `meaning`, `chunkType`, `source`, `archived`, `correct/wrongCount` | L3 | 직접 추가 / 시드 팩 / Correction·Proposal 채택 | 사용자 삭제·보관 가능. 참조 행은 SetNull + `*Snap`, StatsSnapshot 불변 | 1 |
 | `VocabSession` | 오늘의 단어 1세트 | `date`, `mode`, `cardCount`, 카운터, `status`, `keptAt`, `seed` | L3 | `POST /api/v1/vocab/sessions` | 삭제 시 Attempt Cascade, 스냅샷 불변. 24h 미완료 → ABANDONED | 1 |
 | `VocabAttempt` | 카드 1장 결과 | `order`, `*Snap`, `choices`, `answer`, `flagged` | L3 | 세션 생성 시 일괄 | Session Cascade, Word SetNull | 1 |
-| `ConversationTopic` | 회화·레슨 주제 | `title`, `level`, `isSeed`, `tags` | L3 | 시드 5개 / 사용자 추가 / `ADD_TOPIC` 채택 | 시드는 삭제 불가. 사용자 주제 삭제 시 Lesson/Chat/Evaluation SetNull, Chunk·ScenarioTopic Cascade | 1(시드)/2 |
+| `ConversationTopic` | 회화·레슨 주제 | `title`, `level`, `isSeed`, `tags` | L3 | 시드 5개 / 사용자 추가 / `ADD_TOPIC` 채택 | 시드 행은 삭제·수정되지 않는다(시드 id 에 대한 삭제 = 그 사용자 목록에서만 숨김 — `UserSeedOverride`, task-045). 사용자 주제 삭제 시 Lesson/Chat/Evaluation/VocabSession/Challenge `topicId` SetNull, Chunk·ScenarioTopic Cascade(진행 중 챌린지 행은 같은 트랜잭션에서 먼저 삭제 — §6) | 1(시드)/2 |
 | `TopicChunk` | 주제 조각 | `chunkType`, `textJa`, `meaningKo`, `order` | L3 | 주제와 함께 | Topic Cascade | 1(시드)/2 |
-| `Scenario` | 상황 역할극 과제(역할·목표·핵심 표현·완료 규칙) | `level`, `difficulty`(1~5), `roles`, `goal`, `constraints`, `keyExpressions`(TopicChunk 참조 우선), `completionRule`, `isSeed`, `status` | L3 | 시드(주제 5 × 상황 2, `isSeed`) / 사용자 생성(제안→채택 또는 직접) | 시드 삭제 불가. `status=ARCHIVED` 로 숨김. 사용자 상황 삭제 시 ScenarioTopic Cascade, Lesson·Chat `scenarioId` SetNull. User Cascade(사용자 상황만) | 2(task-010d) |
+| `Scenario` | 상황 역할극 과제(역할·목표·핵심 표현·완료 규칙) | `level`, `difficulty`(1~5), `roles`, `goal`, `constraints`, `keyExpressions`(TopicChunk 참조 우선), `completionRule`, `isSeed`, `status` | L3 | 시드(주제 5 × 상황 2, `isSeed`) / 사용자 생성(제안→채택 또는 직접) | 시드 행은 삭제·수정되지 않는다(시드 id 에 대한 삭제 = 그 사용자 목록에서만 숨김 — `UserSeedOverride`, task-045). 내 상황은 `status=ARCHIVED` 로 숨김. 사용자 상황 삭제 시 ScenarioTopic Cascade, Lesson·Chat `scenarioId` SetNull. User Cascade(사용자 상황만) | 2(task-010d) |
 | `ScenarioTopic` | 상황↔주제 N:M | `[scenarioId, topicId]`, `weight`(추천 정렬) | L3 | 상황과 함께(시드) | Scenario·Topic 어느 쪽 삭제든 Cascade | 2(task-010d) |
+| `UserSeedOverride` | 시드(공유 행)를 사용자별로 숨기거나 "내 버전"(사본)으로 대신하는 표 | `userId`, `kind`(`TOPIC`\|`SCENARIO`), `seedId`, `copyId?`, `@@unique([userId,kind,seedId])`, `@@index([userId,kind])` | L3 (`learning/seedOverride`) | 시드 id 숨김(#165·#173) · 시드 fork(#174·#175) | 되돌리기(#176)가 행 삭제. User Cascade. `seedId`·`copyId` 는 FK 가 아니다 — 시드·사본 삭제와의 정합은 사용자 행 잠금 아래 한 트랜잭션이 보증(불변식 아래) | 2(task-045) |
 | `Lesson` | 오늘의 회화 수업 | `kind`, `status`, `content`, `scenarioId`(상황 레슨, task-010d), `sourceLessonIds`, `sourceText`, `score` | L3 | `POST /api/v1/lessons`(잡) / 복습 start | 삭제 시 ReviewSchedule·Utterance·Chat(`lessonId`) SetNull, StatsSnapshot 불변. Scenario 삭제 시 `scenarioId` SetNull | 2 |
 | `ReviewSchedule` | 오늘의 복습 세션(강사 판단 3~7일) | `dueDate`, `itemIds`, `status`, `lessonId`, `decidedBy`, `tutorRationale` | L3 | A11 판단 잡(REVIEW_DECISION) 결과를 코드가 검증 후 upsert / 폴백 코드 | User Cascade, Lesson SetNull | 2 |
 | `RepetitionItem` | 반복 학습 항목·횟수·피드백 기록 | `itemType`, `refType/refId`, `studiedCount`, `wrongCount`, `feedbackCount`, `intervalDays`(3~7), `nextDueAt`, `priority`(FOCUS) | L3 | 레슨 complete·교정 accept·세트 finish 트랜잭션에서 upsert | 원본 삭제 시 `textJa/meaningKo` 스냅샷으로 생존, 카운터 증가만 | 2 |
@@ -2274,6 +2296,13 @@ model DebugSession {
 | `StudyPlan` | 분석→공부계획서 | `status`, `period*`, `analysis`, `curriculum`, `sourceRange.hash` | L3 | A8 잡 (PROPOSED) | ACCEPTED 1개 유지, 이전은 ARCHIVED. 삭제 없음 | 3 |
 | `StatsSnapshot` | 집계 원장 | `[userId,kind,periodKey]`, `data` | L3 | finish/complete/DONE 트랜잭션에서 upsert(증가만) | **생성·증가만. 어떤 삭제 경로에서도 쓰지 않음** | 1 |
 | `LearnerErrorStat` | 반복 오류 집계 | `[userId,type,pattern]`, `count`, `lastAt` | L3 | Correction ACCEPTED / SpeechAnalysis 완료 | 증가만. 원본 삭제에 불변 | 1(교정 채택 경로, 정합성 수정 #8) |
+
+**`UserSeedOverride` 불변식 (task-045, 계약 `topic-scenario-manager.md` §1·§4)** — 한 (사용자, 종류, 시드) 쌍마다:
+
+1. override 행이 **없거나**, `copyId` 가 **존재하는 그 사용자 소유 행**(주제 = 그 사용자 소유 `ConversationTopic`, 상황 = 그 사용자 소유 ACTIVE `Scenario`)을 가리키거나, `copyId = null`(숨김)이다.
+2. 사본이 사라지거나(주제 하드 삭제) 보관되면(상황 `ARCHIVED`) 그 override 는 읽을 때 **숨김으로 읽는다**(고아 — 가시성 판정에서 `copyId=null` 과 같다). 삭제·보관 경로는 같은 트랜잭션에서 `copyId` 를 null 로 정리하고(`detachCopy`), 남은 고아는 되돌리기(#176)가 정리한다.
+3. 시드 행(`userId null`·`isSeed`)은 읽기만 한다. fork·hide·restore 와 사본 삭제는 모두 사용자 행 잠금(`lockUserRow`) 아래 한 트랜잭션이다(동시 요청 직렬화 — 같은 시드의 fork 두 번은 하나만 성공, 나머지 409 `ALREADY_COPIED`).
+4. 가시성은 **목록·새로 시작**에만 적용한다 — override 행이 없는 시드만 그 사용자에게 보인다. id 로 직접 읽기와 과거 기록(`Chat.scenarioId`·`Lesson.*Id`·`LearningObservation.scenarioId`·`RepetitionItem(SCENARIO)`·`Challenge`/`VocabSession` `topicId`)은 막지 않는다.
 
 ### 4-4. L4 speech
 
@@ -2432,8 +2461,9 @@ model DebugSession {
 | `Lesson` 삭제 | — | `ReviewSchedule.lessonId`, `Utterance.lessonId`, `Chat.lessonId` | `StatsSnapshot(LESSON)`, `StudyLog`(refId 만), `ReviewSchedule.itemIds`(id 문자열), `RepetitionItem`(`textJa` 스냅샷·카운터) | — |
 | `RepetitionItem` | (사용자 삭제 없음 — 단어 보관/삭제·레슨 삭제와 무관하게 유지) | — | 전부(카운터·판단 이력). 계정 삭제 시에만 Cascade | — |
 | `Evaluation` 삭제 | `EvaluationItem` | `Utterance.evaluationItemId` | `StudyLog`(Evaluation→StudyLog 방향은 삭제하지 않음), `StatsSnapshot(EVALUATION)` | — |
-| 사용자 `ConversationTopic` 삭제 | `TopicChunk`, `ScenarioTopic` | `Lesson.topicId`, `Chat.topicId`, `Evaluation.topicId` | 시드 주제(삭제 API 거부), `Scenario` 자체(다른 주제 연결·단독으로 남음) | — |
-| 사용자 `Scenario` 삭제 (task-010d) | `ScenarioTopic` | `Lesson.scenarioId`, `Chat.scenarioId` | 시드 상황(삭제 API 거부 — `status=ARCHIVED` 만), `RepetitionItem(SCENARIO)`(`textJa` 스냅샷), `LearningObservation.scenarioId`(FK 없음, dangling), `StudyLog.result.scenario`, `StatsSnapshot` | — |
+| 사용자 `ConversationTopic` 삭제 (task-045, #173 — 사용자 행 잠금 아래 한 트랜잭션) | `TopicChunk`, `ScenarioTopic`, **진행 중(`ACTIVE`) `Challenge` 행**(같은 트랜잭션에서 먼저 삭제) | `Lesson.topicId`, `Chat.topicId`, `Evaluation.topicId`, `VocabSession.topicId`, `Challenge.topicId` — **끝난(`ENDED`·`COMPLETED`) 챌린지는 남고 주제 연결만 끊긴다**(화면은 저장된 `topicTitleSnap` 을 그대로 보임) | 시드 주제 행(시드 id 삭제 = 그 사용자 목록에서만 숨김 — `UserSeedOverride`, 진행 중 챌린지는 계속), `Scenario` 자체(그 주제에만 붙은 내 상황은 `ARCHIVED`, 다른 주제 연결이 남은 상황은 연결만 끊김 — 하드 삭제 없음), `RepetitionItem.refId`·`VocabAttempt.refId`(FK 없음 — 끊어진 참조는 스냅샷으로 읽힘) | — |
+| 사용자 `Scenario` 삭제 (task-010d) | `ScenarioTopic` | `Lesson.scenarioId`, `Chat.scenarioId` | 시드 상황 행(삭제·수정되지 않음 — 시드 id 삭제 = 그 사용자 목록에서만 숨김, `UserSeedOverride`), `RepetitionItem(SCENARIO)`(`textJa` 스냅샷), `LearningObservation.scenarioId`(FK 없음, dangling), `StudyLog.result.scenario`, `StatsSnapshot` | — |
+| `UserSeedOverride` (되돌리기 #176 · 계정 삭제, task-045) | 계정 삭제 시 그 사용자 행 전부(User Cascade) | — | 시드 행·사본 행(되돌리기는 override 만 지움 — `COPY` 경로의 사본은 주제면 삭제 규칙, 상황이면 보관) | — |
 | `Utterance` 오디오 만료(30일, `audioExpiresAt`) | — | — | 행·텍스트·`SpeechAnalysis`·`SpeechJob` 영구. `audioPath=null`, `audioDeletedAt` | wav 삭제 |
 | `Utterance` 사용자 삭제 | `SpeechAnalysis`, `SpeechJob` | (ChatMessage 쪽 참조 없음) | `LearnerErrorStat`, `ChatMessage.content`(STT 텍스트는 메시지에 복제되어 있음) | wav 즉시 삭제 |
 | `Utterance.trainingOptIn` | — | — | 기본 `false`. 운영 데이터 ≠ 학습 데이터(§71). true 라도 **자동 사용 없음** — 별도 허가·익명화·품질검증·Dataset 등록 절차 문서(`docs/design/speech-platform/`)를 거친다 | — |
