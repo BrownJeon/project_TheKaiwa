@@ -13,7 +13,7 @@ import { COPY, CREATE, DAY_VIEW, STRIP_LEGEND } from '../challengeCopy'
 import { ChoicePills } from '../createParts'
 import { DayStrip } from '../DayStrip'
 import { daySheetView, ruleLines, taskRowView, wordCountOptions } from '../logic'
-import { BLOCKED_DIM, ctaClass, DayGlyph, PartialMark, TaskRows } from '../parts'
+import { BLOCKED_FACE, BUSY_FACE, ctaClass, DayGlyph, PartialMark, TaskRows } from '../parts'
 
 // 반원 글자(U+25D0) — 기기 글꼴에 따라 작은 점·빈 네모로 보여 화면에 쓰지 않는다(REV-122 M-5).
 const HALF = String.fromCodePoint(0x25d0)
@@ -111,17 +111,61 @@ test('챌린지·계획표 화면 소스(테스트 제외)에 반원 글자 0', 
   )
 })
 
-test('만들기 막힘은 보이게 흐린다 — [다음]·[챌린지 시작]·장수 칩은 aria-disabled + 흐림 클래스', () => {
-  assert.equal(BLOCKED_DIM, 'aria-disabled:opacity-40')
-  assert.deepEqual(ctaClass(false).split(' '), ['w-full', 'aria-disabled:opacity-40'])
-  assert.deepEqual(ctaClass(true).split(' '), ['w-full', 'opacity-70'])
+test('만들기 막힘은 보이게 구분한다 — [다음]·[챌린지 시작]·장수 칩은 aria-disabled + 면 클래스(글자는 토큰 유지)', () => {
+  assert.deepEqual(ctaClass(false).split(' '), ['w-full', ...BLOCKED_FACE.split(' ')])
+  assert.deepEqual(ctaClass(true).split(' '), ['w-full', ...BUSY_FACE.split(' ')])
 
   const blocked = renderToStaticMarkup(createElement(Btn, { className: ctaClass(false), 'aria-disabled': true }, CREATE.next))
-  assert.ok(blocked.includes('aria-disabled="true"') && blocked.includes('aria-disabled:opacity-40'))
+  assert.ok(blocked.includes('aria-disabled="true"') && blocked.includes('aria-disabled:bg-surface2') && blocked.includes('aria-disabled:text-ink2'))
+  const busy = renderToStaticMarkup(createElement(Btn, { className: ctaClass(true), 'aria-disabled': true }, CREATE.starting))
+  assert.ok(busy.includes('aria-disabled="true"') && busy.includes('aria-disabled:bg-accent-soft') && busy.includes('aria-disabled:text-ink'))
 
-  // 표현 12개 주제 — 15장 칸만 막힘(이유 문장 id 연결), 고를 수 있는 칸은 aria-disabled 가 없어 흐려지지 않는다.
+  // 표현 12개 주제 — 15장 칸만 막힘(이유 문장 id 연결), 고를 수 있는 칸은 aria-disabled 가 없어 면이 바뀌지 않는다.
   const pills = renderToStaticMarkup(createElement(ChoicePills, { label: CREATE.countLabel, options: wordCountOptions(12).options, value: 10, onChange: () => {}, reasonId: 'why' }))
   const btn = (n: number) => pills.match(new RegExp(`<button[^>]*>${n}(?:<!-- -->)?장</button>`))?.[0] ?? ''
-  assert.ok(btn(15).includes('aria-disabled="true"') && btn(15).includes('aria-describedby="why"') && btn(15).includes(BLOCKED_DIM))
+  assert.ok(btn(15).includes('aria-disabled="true"') && btn(15).includes('aria-describedby="why"') && btn(15).includes(BLOCKED_FACE))
   for (const n of [5, 10]) assert.ok(btn(n) && !btn(n).includes('aria-disabled="true"'), String(n))
+})
+
+// 막힘·보내는 중의 면은 글자까지 옅어지는 `opacity` 로 만들지 않는다 — 라벨 대비가 1.4~2.9:1 까지 떨어졌다(qa-p2a #3).
+test('막힘·보내는 중 면 클래스는 opacity 0건, 모두 aria-disabled: 한정, 색은 토큰만', () => {
+  for (const face of [BLOCKED_FACE, BUSY_FACE]) {
+    const classes = face.split(' ')
+    assert.ok(classes.length >= 4)
+    for (const c of classes) {
+      assert.ok(c.startsWith('aria-disabled:'), `${c} — 막히지 않은 상태에 영향이 없어야 한다`)
+      assert.ok(!/opacity/.test(c), `${c} — 버튼 전체 불투명도 금지`)
+      assert.ok(!/#[0-9a-f]{3,6}\b|rgb\(|\[/i.test(c), `${c} — 토큰만`)
+    }
+  }
+  const files = readdirSync(join(process.cwd(), 'src/components/challenge')).filter((n) => /\.tsx?$/.test(n))
+  assert.ok(files.length >= 10)
+  for (const n of files) {
+    const src = readFileSync(join(process.cwd(), 'src/components/challenge', n), 'utf8')
+    assert.ok(!/(^|[\s'"`:])opacity-\d+/.test(src), `${n} — 챌린지 화면 버튼에 opacity-N 을 쓰지 않는다(글자까지 옅어짐)`)
+  }
+})
+
+// 라벨 대비 ≥ 3:1 — 면 클래스가 가리키는 토큰의 실제 색값(globals.css 라이트·다크)으로 계산한다(WCAG 상대 휘도).
+test('막힘·보내는 중 라벨 대비는 라이트·다크 모두 3:1 이상', () => {
+  const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8')
+  const block = (re: RegExp): Record<string, string> => {
+    const m = re.exec(css)
+    assert.ok(m, String(re))
+    return Object.fromEntries([...m[1].matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)].map((x) => [x[1], x[2]]))
+  }
+  const light = block(/:root\s*\{([^}]*)\}/)
+  const dark = { ...light, ...block(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([^}]*)\}/) }
+  const lin = (v: number) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4)
+  const lum = (hex: string) => 0.2126 * lin(parseInt(hex.slice(1, 3), 16)) + 0.7152 * lin(parseInt(hex.slice(3, 5), 16)) + 0.0722 * lin(parseInt(hex.slice(5, 7), 16))
+  const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
+  for (const face of [BLOCKED_FACE, BUSY_FACE]) {
+    const bg = /aria-disabled:bg-([a-z0-9-]+)/.exec(face)?.[1]
+    const fg = /aria-disabled:text-([a-z0-9-]+)/.exec(face)?.[1]
+    assert.ok(bg && fg, face)
+    for (const [scheme, t] of [['light', light], ['dark', dark]] as const) {
+      assert.ok(t[bg] && t[fg], `${scheme} ${bg}/${fg} 토큰`)
+      assert.ok(ratio(t[fg], t[bg]) >= 3, `${scheme} ${fg} on ${bg} = ${ratio(t[fg], t[bg]).toFixed(2)}`)
+    }
+  }
 })

@@ -12,7 +12,7 @@ import { formatMonthDay } from '@/components/vocab/format'
 import type { ChallengeWordCount } from '@/types/challenge'
 import type { Topic } from '@/types/lesson'
 import { CREATE } from './challengeCopy'
-import { BLOCKED_DIM } from './parts'
+import { BLOCKED_FACE } from './parts'
 
 export function StepIndicator({ step }: { step: 1 | 2 | 3 | 4 }) {
   return (
@@ -176,7 +176,7 @@ export function ChoicePills({
             aria-disabled={o.disabled || undefined}
             aria-describedby={o.disabled ? reasonId : undefined}
             onClick={() => !o.disabled && onChange(o.value)}
-            className={`relative h-9 min-w-0 rounded-full border text-[14px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[''] ${BLOCKED_DIM} ${
+            className={`relative h-9 min-w-0 rounded-full border text-[14px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[''] ${BLOCKED_FACE} ${
               on ? 'border-transparent bg-surface font-semibold text-ink shadow-[inset_0_0_0_2px_var(--color-accent)]' : o.disabled ? 'border-line bg-surface2 text-ink2' : 'border-line bg-surface text-ink'
             }`}
           >

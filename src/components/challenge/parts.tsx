@@ -7,14 +7,19 @@ import { DAY_VIEW } from './challengeCopy'
 import type { StatTile, TaskGlyph, TaskRowView } from './logic'
 
 /**
- * `aria-disabled` 로 막은 버튼의 흐림 — 공용 `Btn` 은 native `disabled:` 만 꾸미고, 막힌 버튼도 눌러서 이유를 알려야 해서
+ * `aria-disabled` 로 막은 버튼의 면 — 공용 `Btn` 은 native `disabled:` 만 꾸미고, 막힌 버튼도 눌러서 이유를 알려야 해서
  * native disabled 를 쓰지 않는다(선례 `eval/EvalStartScreen.tsx`).
+ * `opacity` 는 글자까지 함께 옅어져 라벨 대비가 1.8:1 까지 떨어졌다(qa-p2a #3) — 면·테두리만 바꾸고 글자는 토큰(`ink2`)을 지킨다.
+ * `aria-disabled:` 꾸밈은 속성 선택자가 붙어 `Btn` 변형(`bg-accent`·`bg-surface`)보다 우선한다.
  */
-export const BLOCKED_DIM = 'aria-disabled:opacity-40'
+export const BLOCKED_FACE = 'aria-disabled:border aria-disabled:border-dashed aria-disabled:border-ink3 aria-disabled:bg-surface2 aria-disabled:text-ink2'
 
-/** 만들기 [다음]·[챌린지 시작] — 막힘은 흐림 40%, 보내는 중(이때도 `aria-disabled`)은 70%로 정해 둔다(두 aria 꾸밈이 겹치지 않게). */
+/** 보내는 중(이때도 `aria-disabled`) — 같은 동작이 진행 중이라 막힘(회색 면)과 달리 옅은 강조 면 + 강조 테두리 + 기본 글자색. */
+export const BUSY_FACE = 'aria-disabled:border aria-disabled:border-accent aria-disabled:bg-accent-soft aria-disabled:text-ink'
+
+/** 만들기 [다음]·[챌린지 시작] — 막힘은 회색 면, 보내는 중은 강조 옅은 면(두 면이 겹치지 않게 한쪽만 싣는다). */
 export function ctaClass(busy: boolean): string {
-  return `w-full ${busy ? 'opacity-70' : BLOCKED_DIM}`
+  return `w-full ${busy ? BUSY_FACE : BLOCKED_FACE}`
 }
 
 const GLYPH_SIZE = {

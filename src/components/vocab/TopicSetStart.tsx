@@ -62,7 +62,7 @@ export default function TopicSetStart() {
   const skipBtn = (variant: 'ghost' | 'primary' = 'ghost', full = true) => (
     <Btn
       variant={variant}
-      className={full ? 'mt-6 w-full' : ''}
+      className={full ? 'mt-6 w-full break-keep' : 'break-keep'}
       onClick={skipping ? undefined : skip}
       aria-disabled={skipping || undefined}
       aria-busy={skipping || undefined}
@@ -102,7 +102,9 @@ export default function TopicSetStart() {
             <>
               <p className="mt-1 text-[14px] text-ink2 break-keep">{WAIT.busyGiveUp}</p>
               <BtnRow>
-                <Btn onClick={retry}>{WAIT.retry}</Btn>
+                <Btn className="break-keep" onClick={retry}>
+                  {WAIT.retry}
+                </Btn>
                 {skipBtn('ghost', false)}
               </BtnRow>
             </>
@@ -123,7 +125,9 @@ export default function TopicSetStart() {
             {state.rate ? WAIT.rate : WAIT.error}
           </div>
           <BtnRow>
-            <Btn onClick={retry}>{WAIT.retry}</Btn>
+            <Btn className="break-keep" onClick={retry}>
+              {WAIT.retry}
+            </Btn>
             {skipBtn('ghost', false)}
           </BtnRow>
           <Link href="/study/today" className="mt-1 flex h-11 items-center justify-center text-[13px] font-medium text-ink2 underline underline-offset-4">
@@ -138,8 +142,10 @@ export default function TopicSetStart() {
           <p className="text-[15px] font-semibold break-keep">{state.reason === 'TOPIC_EMPTY' ? WAIT.topicEmptyTitle : WAIT.allDoneTitle}</p>
           {state.reason === 'TOPIC_EMPTY' ? null : <p className="mt-0.5 text-[13px] text-ink2 break-keep">{WAIT.allDoneBody(!!token?.wordsDone)}</p>}
           <BtnRow>
-            <Btn onClick={openMine}>{WAIT.mine}</Btn>
-            <Link href="/study/today" className="inline-flex h-12 items-center justify-center rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold">
+            <Btn className="break-keep" onClick={openMine}>
+              {WAIT.mine}
+            </Btn>
+            <Link href="/study/today" className="inline-flex h-12 items-center justify-center rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold break-keep">
               {WAIT.today}
             </Link>
           </BtnRow>

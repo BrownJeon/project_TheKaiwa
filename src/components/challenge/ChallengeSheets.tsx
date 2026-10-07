@@ -10,7 +10,7 @@ import { Chip, IconLeft, IconRight, Spinner } from '@/components/plan/parts'
 import type { ChallengeDay, ChallengeDetail } from '@/types/challenge'
 import { COPY, TODAY_HREF } from './challengeCopy'
 import { daySheetView, endSheetView, taskCounts } from './logic'
-import { BLOCKED_DIM, DayGlyph, PartialMark } from './parts'
+import { BLOCKED_FACE, DayGlyph, PartialMark } from './parts'
 
 export function ChallengeDaySheet({
   detail,
@@ -159,7 +159,7 @@ export function EndChallengeSheet({
               COPY.endBtn
             )}
           </Btn>
-          <Btn variant="ghost" className={BLOCKED_DIM} aria-disabled={busy || undefined} onClick={() => !busy && onCancel()}>
+          <Btn variant="ghost" className={BLOCKED_FACE} aria-disabled={busy || undefined} onClick={() => !busy && onCancel()}>
             {COPY.keepGoing}
           </Btn>
         </BtnRow>
