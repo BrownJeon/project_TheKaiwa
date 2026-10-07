@@ -79,6 +79,11 @@ export { buildTopicDraftRequest, finalizeTopicDraft, TopicDraftInputError, TOPIC
 export type { TopicDraftInput, TopicDraftRequest } from './prompts/topicDraft'
 export { parseTopicDraftBody, topicDraftViolations, fitTopicDraft, checkTopicChunkFields, detectUnsafeTopicText, TOPIC_DRAFT_SCHEMA, TOPIC_DRAFT_LIMITS } from './structuredResponse/topicDraftSchemas'
 export type { TopicDraftResponse, TopicDraftFinal, TopicDraftOutput, TopicDraftChunk, TopicDraftContext, TopicDraftBody, TopicDraftBodyProblem, TopicDraftBodyResult, TopicDraftDropReason, TopicDraftProblem, TopicDraftWarning, TopicDraftRepairs, TopicDraftUnsafeKind } from './structuredResponse/topicDraftSchemas'
+// task-045 역할극 첫마디 일본어 제안(openingDraft@v2 — 한국어 첫마디 → 장면·역할·수준에 맞는 일본어 + 읽기, 저장하지 않음). 라우트(app 층)가 값으로 엔진을 부른다
+export { buildOpeningDraftRequest, finalizeOpeningDraft, OpeningDraftInputError, OPENING_DRAFT_TASK, OPENING_DRAFT_PROMPT_VERSION, OPENING_DRAFT_TOO_LONG_MESSAGE } from './prompts/openingDraft'
+export type { OpeningDraftInput, OpeningDraftRequest } from './prompts/openingDraft'
+export { parseOpeningDraftBody, openingDraftViolations, fitOpeningDraft, OPENING_DRAFT_SCHEMA, OPENING_DRAFT_LIMITS } from './structuredResponse/openingDraftSchemas'
+export type { OpeningDraftResponse, OpeningDraftFinal, OpeningDraftBody, OpeningDraftBodyProblem, OpeningDraftBodyResult, OpeningDraftScenarioContext, OpeningDraftProblem, OpeningDraftWarning, OpeningReadingDropReason, OpeningDraftRepairs, OpeningDraftStatus, OpeningDraftFinalStatus, OpeningDraftContext, OpeningTooLongReason } from './structuredResponse/openingDraftSchemas'
 export { buildReplyPracticeRequest, finalizeReplyPracticeResponse, ReplyPracticeInputError, REPLY_PRACTICE_TASK, REPLY_PRACTICE_PROMPT_VERSION } from './prompts/replyPractice'
 export type { ReplyPracticeInput } from './prompts/replyPractice'
 export { checkReplyPracticeShape, dropChoiceSet } from './structuredResponse/replyPractice'

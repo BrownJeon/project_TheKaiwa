@@ -17,6 +17,7 @@ import { buildReplyPracticeRequest } from '../prompts/replyPractice'
 import { buildScenarioDraftRequest } from '../prompts/scenarioDraft'
 import { buildScenarioVerdictRequest } from '../prompts/scenarioVerdict'
 import { buildTopicDraftRequest } from '../prompts/topicDraft'
+import { buildOpeningDraftRequest } from '../prompts/openingDraft'
 import { buildTopicWordsRequest } from '../prompts/topicWords'
 import { buildUserTranslationRequest } from '../prompts/userTranslation'
 import { buildWordEnrichRequest } from '../prompts/wordEnrich'
@@ -424,6 +425,8 @@ test('task-037: repairRootClose 는 buildTalkRequest·buildChatRequest 만 true 
     ['topicWords(A12)', buildTopicWordsRequest({ topic: { title: '카페 주문', level: 'N5' }, targetCount: 10, exclude: ['コーヒー'] })],
     // task-045 topicDraft — AI 주제 초안(별도 호출, 대화 턴이 아니다). 구문 슬립 복구·strip 모두 켜지 않는다(항목 단위로 코드가 버리고, 고칠 수 없을 때만 JSON 재시도 1회).
     ['topicDraft(045)', buildTopicDraftRequest({ title: '병원 진료', level: 'N4' })],
+    // task-045 openingDraft — 역할극 첫마디 한국어→일본어 제안(별도 호출, 대화 턴이 아니다). 구문 슬립 복구·strip 모두 켜지 않는다(글자·길이·읽기는 코드가 보정하고 고칠 수 없을 때만 JSON 재시도 1회).
+    ['openingDraft(045)', buildOpeningDraftRequest({ ko: '어서 오세요. 주문해 주세요.', scenario: { roles: { learner: '손님', tutor: '점원' }, level: 'N5' } })],
     // task-010d A1-PE — 역할극 종료 판정(별도 호출, 대화 턴이 아니다). 구문 슬립 복구는 TALK·CHAT 전용.
     ['scenarioVerdict(010d)', buildScenarioVerdictRequest({ roles: { learner: '손님', tutor: '점원' }, goalKo: '주문해요', expressions: [{ id: 'e1', ja: 'ください' }], requiredExpressions: 1, turns: [{ role: 'learner', text: 'コーヒーをください' }] })],
     // task-010d PE-2b — AI 시나리오 초안(S3)·대답 연습(S10): 둘 다 대화 턴이 아닌 별도 호출이라 구문 슬립 복구(repairRootClose)·strip 모두 켜지 않는다.
@@ -435,7 +438,7 @@ test('task-037: repairRootClose 는 buildTalkRequest·buildChatRequest 만 true 
   const exported = readdirSync(join(process.cwd(), 'src/modules/conversation/prompts'))
     .filter((f) => f.endsWith('.ts'))
     .flatMap((f) => [...readFileSync(join(process.cwd(), 'src/modules/conversation/prompts', f), 'utf8').matchAll(/^export function (build\w+Request)\(/gm)].map((m) => m[1]))
-  assert.deepEqual([...exported].sort(), ['buildChatRequest', 'buildChatReviewRequest', 'buildEvalGenRequest', 'buildEvalGradeRequest', 'buildLessonRequest', 'buildReplyPracticeRequest', 'buildReviewDecisionRequest', 'buildReviewMixRequest', 'buildScenarioDraftRequest', 'buildScenarioVerdictRequest', 'buildTalkRequest', 'buildTopicDraftRequest', 'buildTopicWordsRequest', 'buildUserTranslationRequest', 'buildWordEnrichRequest'])
+  assert.deepEqual([...exported].sort(), ['buildChatRequest', 'buildChatReviewRequest', 'buildEvalGenRequest', 'buildEvalGradeRequest', 'buildLessonRequest', 'buildOpeningDraftRequest', 'buildReplyPracticeRequest', 'buildReviewDecisionRequest', 'buildReviewMixRequest', 'buildScenarioDraftRequest', 'buildScenarioVerdictRequest', 'buildTalkRequest', 'buildTopicDraftRequest', 'buildTopicWordsRequest', 'buildUserTranslationRequest', 'buildWordEnrichRequest'])
   // task-036 pin 은 그대로: TALK·CHAT 은 stripAdditionalProperties 를 켜지 않는다(옛 키는 거부 → 재시도).
   assert.ok(!talk.stripAdditionalProperties && !chat.stripAdditionalProperties, 'task-036 pin: TALK·CHAT 은 strip 을 켜지 않는다')
 })
