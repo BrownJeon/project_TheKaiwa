@@ -1,7 +1,7 @@
 ---
 task_id: task-046
 title: "탭 이동 깜빡임 (IMP-0027) — '불러오는 중' 문구·가짜 빈 상태를 같은 높이 자리표시로 바꾸고 탭 누름 즉시 반응"
-status: done-deploy-pending
+status: done
 base_ref: cb95612
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -691,3 +691,9 @@ Critical 0 · High 0 · Medium 0 · Low 3(L-8·L-9·L-10) + 참고 3 · native_c
 **검증**: 단위 시험 `src/components/**` 993/993·`tsc`·`eslint`·`next build` 통과, 변이 시험 다수(개발자 단계별 10·11·14·9건, 감사 각 10건), 감사 REV-171(CONDITIONAL_PASS→수정)·REV-172(PASS), QA 운영 빌드 실측 2갈래 PASS. QA 계정 데이터는 전후 행 수가 같도록 복구했습니다(QA3 단어 시드 50행 정리 확인).
 
 **남은 일**: ① 사용자 확인 후 `git push`(= 운영 배포; 롤백 대상은 직전 릴리스 `20261008-082829-6896ac31`, `scripts/deploy.sh TheKaiwa --rollback`) ② 실기기 확인 ③ 월 이동 깜빡임·C 캐시는 별도 결정.
+
+## 배포 기록 (2026-10-08 14:54 KST)
+- 사용자 승인: 배포 확인 질문(원 제안과 다른 방식임을 함께 고지)에 「지금 배포」 선택.
+- `git push origin main`(`cb95612..5d0d8f8`, 로컬 커밋 3개) → webhook blue/green → **릴리스 `20261008-145346-5d0d8f8d`**, `RELEASE_RESULT ok`(`migrated:false`), 헬스 200(env=PRODUCTION), pm2 `thekaiwa`·`thekaiwa-speech-gateway`·`thekaiwa-speech-worker` 모두 새 릴리스 경로에서 online. 직전 릴리스 `20261008-082829-6896ac31` 은 롤백 대상(`scripts/deploy.sh TheKaiwa --rollback`).
+- 운영 읽기 전용 스모크(QA2 쿠키, 데이터 쓰기·LLM 호출 0): `/study/ai?tab=talk|chat|scenario`·`/study/today`·`/plan`·`/drawer/words`·`/ask`·`/study/today/eval/history`·`/plan/challenges` 9경로 전부 200. HTML 안의 「불러오는 중…」은 `sr-only` 낭독 문구뿐(보이는 글자 아님).
+- 남음: 사용자 실기기(S25+ WebView) 확인 — 다르게 느끼면 조정. 후속 후보: 계획표 월 이동 깜빡임·C 캐시·감사 Low(L-8·L-10).

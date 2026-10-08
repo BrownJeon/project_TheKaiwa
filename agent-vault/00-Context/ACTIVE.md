@@ -6,9 +6,9 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-08 오후 — task-046(IMP-0027 탭 이동 깜빡임) **구현·감사·QA 완료, 배포 대기**(이 블록이 가장 최신)
+## ★ 2026-10-08 오후 — task-046(IMP-0027 탭 이동 깜빡임) **운영 배포 완료**(릴리스 `20261008-145346-5d0d8f8d`) (이 블록이 가장 최신)
 
-- **상태**: 로컬 커밋 `d4065cc`(구현)·`1be738e`(REV-171 수정)·docs/vault 커밋 — **push·배포 안 함**. 사용자 확인 대기(배포 = `git push`, 코드·`tests/live` 포함이라 blue/green 재빌드; 롤백 대상 직전 릴리스 `20261008-082829-6896ac31`). task-046 이력서 끝 「최종 요약」이 정본.
+- **상태**: 사용자 「지금 배포」 승인 → `git push`(`cb95612..5d0d8f8`: `d4065cc` 구현·`1be738e` REV-171 수정·`5d0d8f8` docs/vault) → webhook blue/green → `RELEASE_RESULT ok`(`migrated:false`), 헬스 200(env=PRODUCTION), pm2 `thekaiwa`·`thekaiwa-speech-gateway`·`thekaiwa-speech-worker` online. **운영 읽기 전용 스모크**(QA2 쿠키 GET 9경로 `/study/ai?tab=talk|chat|scenario`·`/study/today`·`/plan`·`/drawer/words`·`/ask`·`/study/today/eval/history`·`/plan/challenges` 전부 200, 「불러오는 중…」은 `sr-only` 문구만). 롤백 대상 직전 릴리스 `20261008-082829-6896ac31`(`scripts/deploy.sh TheKaiwa --rollback`). 실기기 확인은 사용자 대기. task-046 이력서 끝 「최종 요약」이 정본.
 - **내용**: 오늘·회화·단어장·계획표 탭 로딩 개선(B 단계) — 탭 누름 즉시 반응(≈16ms, `prefetch` 불변)·`(tab)` 라우트 그룹 `loading.tsx`·실측 높이 자리표시·모두 끝나면 한 번에 공개(상한 1.5s)·`?tab=` 따라가는 회화 자리표시. 운영 빌드 실측: 오늘 탭 점프 383~402→0, 계획표 →0, 회화 위쪽 이동 0. 규칙 정본 `docs/screens.md` §17.
 - **사용자에게 알릴 점**: 원 제안(「빈 데이터로 먼저 그리기」)과 다른 방식 — 가짜 빈 상태/CTA 를 피하려고 같은 높이 자리표시 + 한 번에 공개. 기기에서 보고 다르게 느끼면 조정.
 - **알려진 한계**: 단어 0개 계정 오늘 탭 +45.5px(360폭 65) · 챌린지 요청 실패 시 공개 순간 +75 · 목록 먼저 실패+교정 카드 늦음 시 오류 상자 252px 밀림(드묾) · 하드 로드+느린 회선 첫 ≈40ms 탭줄만 · 단어 0개 단어장 분류 줄 접힘 · 감사 Low(시험 고정 빈틈 L-8·L-10, `challengeCopy.cardLoading` 안 쓰임) · **계획표 월 이동 시 달력이 자리표시로 돌아가 아래 55~154px 이동(변경 전부터, 후속 후보)**. NOT_VERIFIED: 실기기·TalkBack·진행 중 챌린지/기록 있는 달/단어 1~49개 계정 높이.
