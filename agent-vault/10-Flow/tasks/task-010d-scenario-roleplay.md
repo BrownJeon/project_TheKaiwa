@@ -18,23 +18,23 @@ aliases:
   - 역할극
   - task-010d
 created: 2026-09-28
-updated: 2026-10-01
+updated: 2026-10-08
 demo_gate:
   required: true
   level: "full"
-  status: "approved"
-  version: 1
+  status: "waived"
+  version: 2
   repo_path: "docs/demo/task-010d-scenario-roleplay-v1.html"
   artifact_url: "https://claude.ai/artifact/VbLHUXXbMnM4R4ZAv7vxgj"
-  content_sha256: "473c0e0c983e34243acd33707ccc37fa84914960035a679cf6ac2242d6590a4d"
+  content_sha256: ""
   decided_by: "judge"
   rule_id: "JV-ui_change"
-  approved_by: "user"
-  approved_at: "2026-10-01T08:17:27+09:00"
-  approval_quote: "대기 중인 데모 전부 권고안대로 승인"
-  waived_by: ""
-  waived_at: ""
-  waiver_quote: ""
+  approved_by: ""
+  approved_at: ""
+  approval_quote: ""
+  waived_by: "user"
+  waived_at: "2026-10-08T17:36:28+09:00"
+  waiver_quote: "010d 데모는 생략하고 지금 구현 그대로 진행해줘"
   active: false
 ---
 
@@ -114,6 +114,8 @@ demo_gate:
 | - | 작성중 | - | - | judge: full (JV-ui_change) | 09-28 18:07 |
 | v1 | 검토요청 | docs/demo/task-010d-scenario-roleplay-v1.html | https://claude.ai/artifact/VbLHUXXbMnM4R4ZAv7vxgj | 사용자 검토 요청 | 09-28 20:23 |
 | v1 | 승인 | docs/demo/task-010d-scenario-roleplay-v1.html | https://claude.ai/artifact/VbLHUXXbMnM4R4ZAv7vxgj | "대기 중인 데모 전부 권고안대로 승인" | 10-01 08:17 |
+| v2 | 작성중 | docs/demo/task-010d-scenario-roleplay-v1.html | - | v1 승인 무효화 → v2 작성 | 10-08 17:00 |
+| v2 | 생략 | - | - | "010d 데모는 생략하고 지금 구현 그대로 진행해줘" | 10-08 17:36 |
 
 ## 작업 기록
 
@@ -2437,3 +2439,8 @@ dev 보고(14/14·18/18·7/7·38/38)와 일치하는 부분은 전부 재현됐�
 - **L-4 시드 로더 문법 검사**: 이번에는 넣지 않는다(시드 점검 스크립트 D-match 가 대신 막는다). 백로그.
 - **열린 칸 표현 2건**(`weekend-plan-tell:e1`·`travel-story-recommend:e1`)은 문자열로 풀리지 않아 **ALMOST 허용으로 둔다**(강사 판정 경로가 보완). 최종 보고 한계에 기록.
 - **데모 게이트**: 010d 는 v1 approved 라 사용자 지시("데모 생략하고 진행해줘")를 도구로 waive 할 수 없다. `evidence.jsonl` 에는 10-01 승인 한 줄뿐(에이전트가 대신 승인한 흔적 없음, reviewer 확인). 최종 보고에 §8 material 차이 M1~M10 과 v2 재승인/waive 방법 결정을 사용자에게 요청한다.
+
+## Leader 기록 — 데모 게이트 정리 (2026-10-08 17:36)
+- **결정**: 사용자가 010d 데모 v2 를 생략했다. 사용자 원문 「010d 데모는 생략하고 지금 구현 그대로 진행해줘」(채팅 직접 입력) → `check.mjs waive` 로 `waived`(frontmatter `demo_gate.status: waived`, version 2, waived_by user, `check` → `DEMO_GATE_PASSED`). 이전 질문 「010d 데모 재승인·waive 결정」(선택지 답)과 첫 입력 「010d 데모 v2는 생략하고 …」는 도구의 면제 문구 인식(`WAIVER`: 「데모」 바로 뒤에 조사만 두고 「생략」)에 맞지 않아 거부됐다.
+- **경위·실수 기록**: 도구가 `approved` 상태에서는 `waive` 를 받지 않아 v1 승인을 먼저 무효화(`drafting` v2, 10-08 17:00)한 뒤 `waive` 를 실행했는데, 면제 문장을 먼저 `isWaiverText` 로 검사하지 않아 첫 시도가 거부되고 게이트가 약 36분간 `drafting` 으로 남았다(훅 `warn` 단계라 차단·운영 영향 없음). 다음부터 문장 검사 뒤 상태를 바꾼다.
+- **의미**: 승인 v1 과 구현의 material 차이 M1~M10(진입점=회화 탭 「시나리오」·대답 연습·대화 순서·AI 초안·마치기 위치·결과 화면 3종 확장·⋯ 메뉴·첫마디 자동재생 없음·이어서 하기·빼는 것)은 **시각 자료로 사용자 승인된 적이 없고**, 사용자 지시(IMP-0017 결정 ①②·IMP-0021·2026-10-06 「페이즈2 전체를 데모화면 승인없이 한번에 진행」)와 이번 면제로 갈음한다. `docs/demo/task-010d-scenario-roleplay-v1.html` 은 옛 승인본으로 남는다(구현과 다름). 남은 확인은 사용자 실기기(S25+) 사용과 시드 일본어 원어민 검수.
