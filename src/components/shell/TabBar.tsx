@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { isFocusRoute } from './routes'
+import { isPlainClick, nextPressed, PRESS_TIMEOUT_MS, tabIsOn } from './tabPress'
 
 /**
  * 하단 탭 5개(설계안 §11) — 기획서 메뉴 1·2·3·4·6 에 대응하고, 5(프로필)는 상단 아바타(→ /settings)로 간다.
@@ -24,6 +26,19 @@ const TABS = [
  */
 export default function TabBar() {
   const pathname = usePathname()
+  // 누른 탭(href) — 서버 응답이 오기 전에도 눌린 탭이 바로 켜진다. 경로가 바뀌면 풀린다(렌더 중 조정: 효과로 풀면 한 프레임 늦는다).
+  // `prefetch` 는 건드리지 않는다 — 오늘 탭의 API 는 복습 판단 잡을 만든다.
+  const [pressed, setPressed] = useState<string | null>(null)
+  const [seenPath, setSeenPath] = useState(pathname)
+  if (seenPath !== pathname) {
+    setSeenPath(pathname)
+    setPressed(null)
+  }
+  useEffect(() => {
+    if (pressed === null) return
+    const id = setTimeout(() => setPressed(null), PRESS_TIMEOUT_MS)
+    return () => clearTimeout(id)
+  }, [pressed])
 
   // 목록은 `routes.ts` 한 곳 — 권장 업데이트 띠도 같은 화면에서 숨는다(screens §11-3 E).
   if (isFocusRoute(pathname)) return null
@@ -39,14 +54,18 @@ export default function TabBar() {
     >
       {TABS.map((t) => {
         const active = pathname === t.match || pathname.startsWith(t.match + '/')
+        const on = tabIsOn(active, pressed, t.href)
         return (
           <Link
             key={t.href}
             href={t.href}
+            // 읽기 도구가 읽는 현재 위치는 경로가 실제로 바뀐 뒤에만 옮긴다 — 눌림 중에는 모양(data-pending)만 바뀐다.
             aria-current={active ? 'page' : undefined}
+            data-pending={pressed === t.href ? 'true' : undefined}
+            onClick={(e) => setPressed((prev) => nextPressed(prev, t.href, active, isPlainClick(e)))}
             // 터치 타겟 44px 이상(모바일 UI 원칙)
             className={`flex min-h-[56px] min-w-0 flex-1 flex-col items-center gap-[3px] rounded-xl pt-1 text-[11px] ${
-              active ? 'font-semibold text-accent' : 'text-ink3'
+              on ? 'font-semibold text-accent' : 'text-ink3'
             }`}
           >
             <svg

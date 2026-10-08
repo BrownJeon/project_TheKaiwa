@@ -12,8 +12,14 @@
  * 장수는 저장하지 않고 늘 설정(`dailyWordCount`)에서 시작한다. 방식·분류는 마지막 선택을 기억한다(저장소가 막혀도 기본값으로 동작).
  *
  * task-044(챌린지 T4): #158 을 #58 과 같은 tick 으로 읽어 맨 위 챌린지 띠·단어 카드(주제 모드)·회화 카드(챌린지 모드)를 정한다(가이드 §3-1).
- * #158 이 끝나기 전엔 두 카드가 "불러오는 중…", 실패하면 지금 카드 그대로 + 맨 위 한 줄 오류. 챌린지가 없으면 지금 화면 그대로.
+ * #158 이 끝나기 전엔 두 카드가 몸통 자리표시(`CardLoadingBody`), 실패하면 지금 카드 그대로 + 맨 위 한 줄 오류. 챌린지가 없으면 지금 화면 그대로.
  * 주제 세트 [시작하기]·[한 세트 더]는 시작 값만 남기고 대기 화면으로 간다 — 새 단어 생성 요청은 오늘 탭에서 보내지 않는다(§2 5초 예산 규칙 1).
+ *
+ * task-046(IMP-0027, T3): 요청 4곳(홈 묶음·#58·#158·평가 카드)이 도착 순서대로 따로 그려지면 본문이 3~4번 바뀌며 +669px 자랐다. 첫 화면은
+ * **모두 끝난 뒤(상한 `TODAY_HOLD_MS` 가 지나면 그때까지 온 것만) 한 번에** 보인다. 그 전에는 같은 높이의 자리표시(`TodayCardsSkeleton`)만 보이고,
+ * 진짜 카드는 `invisible` 로 **제자리에 이미 마운트돼 요청을 보내고 있다**(요청 수·시점은 그대로). 자리표시는 그 위에 겹쳐 그린다 — 카드를 `display:none`·높이 0 으로
+ * 숨기면 분류 칩의 `scrollIntoView` 가 화면 밖 좌표를 읽어 본문을 밀 수 있고, 겹쳐 두면 카드가 처음부터 최종 좌표에 있다. 카드마다 로딩 몸통의 높이가 자리표시와 같아
+ * 보이기 전과 후의 전체 높이도 같다. 한 번 보인 뒤에는 되돌아가지 않는다 — [다시 시도]·화면 복귀 때는 카드 안 몸통 자리표시만 잠깐 보인다.
  */
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -42,8 +48,10 @@ import { putSession, takeSession, useSeedPack, useStoredPref, useStoredString, V
 import KeptSets from './KeptSets'
 import { actionErrorText, FLASH, HINT, homeLoadErrorText, seedResultText, startErrorText } from './labels'
 import ChallengeStrip, { ChallengeStripError } from './ChallengeStrip'
+import { TODAY_HOLD_MS, todayRevealed } from './todayHold'
 import TodayWordsCard, { type PoolEmptyKind, type WordsCardState } from './TodayWordsCard'
 import { stripModel, todayMode, topicSetsTally } from './topicLogic'
+import { TodayCardsSkeleton } from './TodaySkeleton'
 import TopicWordsCard from './TopicWordsCard'
 import { useTodayChallenge } from './useTodayChallenge'
 import { writeTopicStart } from './useTopicSetStart'
@@ -86,6 +94,15 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
   const [reviewBusy, setReviewBusy] = useState(false)
   const reviewBusyRef = useRef(false)
   const [challenge, retryChallenge] = useTodayChallenge(tick, lessonTick)
+  // 첫 화면을 한 번에 보이기 위한 기다림(task-046) — 평가 카드는 자기 요청을 갖고 있어 끝났다고 알려 온다.
+  const [evalSettled, setEvalSettled] = useState(false)
+  const onEvalSettled = useCallback(() => setEvalSettled(true), [])
+  const [holdOver, setHoldOver] = useState(false)
+  const [shown, setShown] = useState(false)
+  // 렌더 중 조정(효과로 풀면 한 프레임 늦는다) — 한 번 참이 되면 다시 거두지 않는다.
+  if (!shown && todayRevealed({ home: loadState !== 'loading', lessons: lessonToday.state !== 'loading', challenge: challenge.state !== 'loading', evaluation: evalSettled }, holdOver)) {
+    setShown(true)
+  }
   const [nowKey] = useState(() => todayKey())
   const [mineOpen, setMineOpen] = useState(false)
   const [topicStarting, setTopicStarting] = useState(false)
@@ -151,6 +168,11 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
       cancelled = true
     }
   }, [tick, lessonTick])
+
+  useEffect(() => {
+    const id = setTimeout(() => setHoldOver(true), TODAY_HOLD_MS)
+    return () => clearTimeout(id)
+  }, [])
 
   useEffect(() => {
     const onVis = () => {
@@ -366,55 +388,62 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
   }
 
   return (
-    <div className="px-4 pb-8">
-      {tm.error ? <ChallengeStripError onRetry={retryChallenge} /> : strip ? <ChallengeStrip model={strip} /> : null}
-      <div ref={cardRef} className="scroll-mt-16">
-        {ctx && tm.wordsTask ? (
-          <TopicWordsCard
-            loadState={loadState === 'loading' ? 'loading' : loadState === 'error' || !data ? 'error' : 'ready'}
-            loadError={loadError}
-            ctx={ctx}
-            task={tm.wordsTask}
-            inProgress={ip}
-            today={data?.today ?? ''}
-            tally={topicSetsTally(data?.recent ?? [], ctx.topicId, data?.today ?? '')}
-            mode={mode}
-            starting={topicStarting}
-            finishing={finishing}
-            mineOpen={mineOpen}
-            mineProps={wordsCardProps}
-            onMode={(m) => setMode(m)}
-            onStartTopic={startTopic}
-            onFinish={wordsCardProps.onFinish}
-            onShowResult={wordsCardProps.onShowResult}
-            onToggleMine={() => setMineOpen((o) => !o)}
-            onRetry={wordsCardProps.onRetry}
-          />
-        ) : (
-          <TodayWordsCard {...wordsCardProps} />
-        )}
+    <div className="relative px-4 pb-8">
+      {shown ? null : (
+        <div className="absolute inset-x-4 top-0">
+          <TodayCardsSkeleton />
+        </div>
+      )}
+      <div className={shown ? undefined : 'invisible'} aria-hidden={shown ? undefined : true} inert={!shown}>
+        {tm.error ? <ChallengeStripError onRetry={retryChallenge} /> : strip ? <ChallengeStrip model={strip} /> : null}
+        <div ref={cardRef} className="scroll-mt-16">
+          {ctx && tm.wordsTask ? (
+            <TopicWordsCard
+              loadState={loadState === 'loading' ? 'loading' : loadState === 'error' || !data ? 'error' : 'ready'}
+              loadError={loadError}
+              ctx={ctx}
+              task={tm.wordsTask}
+              inProgress={ip}
+              today={data?.today ?? ''}
+              tally={topicSetsTally(data?.recent ?? [], ctx.topicId, data?.today ?? '')}
+              mode={mode}
+              starting={topicStarting}
+              finishing={finishing}
+              mineOpen={mineOpen}
+              mineProps={wordsCardProps}
+              onMode={(m) => setMode(m)}
+              onStartTopic={startTopic}
+              onFinish={wordsCardProps.onFinish}
+              onShowResult={wordsCardProps.onShowResult}
+              onToggleMine={() => setMineOpen((o) => !o)}
+              onRetry={wordsCardProps.onRetry}
+            />
+          ) : (
+            <TodayWordsCard {...wordsCardProps} />
+          )}
+        </div>
+        {rvPlace === 'above' ? reviewCard : null}
+        <TodayLessonCard
+          state={lessonToday.state}
+          today={lessonToday.data}
+          onToast={show}
+          errorText={RV_HOME.loadError}
+          challenge={ctx && tm.lessonTask ? { ctx, task: tm.lessonTask } : null}
+          challengeLoading={tm.loading}
+          onReload={() => {
+            setLessonToday((prev) => (prev.state === 'error' ? { state: 'loading', data: prev.data } : prev))
+            setLessonTick((t) => t + 1)
+          }}
+        />
+        {rvPlace === 'below' ? reviewCard : null}
+        {/* task-011: AI 평가 카드(데모 v1 — 오늘의 회화 카드 바로 아래, "곧 열려요" 칸은 없어진다). 자기 요청·오류를 따로 갖는다. */}
+        <EvalHomeCard myLevel={myLevel} reloadKey={tick} onToast={show} onSettled={onEvalSettled} />
+        {data?.stats && data.stats.byCount.length > 0 ? <VocabStatsCard stats={data.stats} today={data.today} /> : null}
+        {data?.kept && data.kept.items.length > 0 ? (
+          <KeptSets key={loadSeq} initial={data.kept} today={data.today} busyId={replayingId} onReplay={(id) => void replay(id)} anchorRef={keptRef} />
+        ) : null}
+        {rvCard.kind === 'guard' ? <ReviewSoonSection guard={rvCard.guard} /> : null}
       </div>
-      {rvPlace === 'above' ? reviewCard : null}
-      <TodayLessonCard
-        state={lessonToday.state}
-        today={lessonToday.data}
-        onToast={show}
-        errorText={RV_HOME.loadError}
-        challenge={ctx && tm.lessonTask ? { ctx, task: tm.lessonTask } : null}
-        challengeLoading={tm.loading}
-        onReload={() => {
-          setLessonToday((prev) => (prev.state === 'error' ? { state: 'loading', data: prev.data } : prev))
-          setLessonTick((t) => t + 1)
-        }}
-      />
-      {rvPlace === 'below' ? reviewCard : null}
-      {/* task-011: AI 평가 카드(데모 v1 — 오늘의 회화 카드 바로 아래, "곧 열려요" 칸은 없어진다). 자기 요청·오류를 따로 갖는다. */}
-      <EvalHomeCard myLevel={myLevel} reloadKey={tick} onToast={show} />
-      {data?.stats && data.stats.byCount.length > 0 ? <VocabStatsCard stats={data.stats} today={data.today} /> : null}
-      {data?.kept && data.kept.items.length > 0 ? (
-        <KeptSets key={loadSeq} initial={data.kept} today={data.today} busyId={replayingId} onReplay={(id) => void replay(id)} anchorRef={keptRef} />
-      ) : null}
-      {rvCard.kind === 'guard' ? <ReviewSoonSection guard={rvCard.guard} /> : null}
       <FinishConfirmSheet
         open={finishOpen}
         answered={answeredNow}

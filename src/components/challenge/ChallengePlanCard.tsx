@@ -8,6 +8,7 @@
 import Link from 'next/link'
 import { useId } from 'react'
 import { Badge } from '@/components/common/ui'
+import { PLAN_SKELETON } from '@/components/plan/planSkeleton'
 import type { ChallengeTodayResponse, DayChallenge } from '@/types/challenge'
 import { COPY } from './challengeCopy'
 import {
@@ -49,7 +50,7 @@ export default function ChallengePlanCard({
         <p role="status" className="sr-only">
           {COPY.cardLoading}
         </p>
-        <span aria-hidden="true" className="block h-[172px] rounded-[14px] bg-surface2" />
+        <span aria-hidden="true" className="block rounded-[14px] bg-surface2" style={{ height: PLAN_SKELETON.challengeCardH }} />
       </div>
     )
 

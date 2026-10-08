@@ -86,3 +86,16 @@ export function IconOpen() {
 export function Spinner() {
   return <span aria-hidden="true" className="inline-block h-4 w-4 flex-none animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none" />
 }
+
+/** 달력 아래 "분석 · 성장 기록 곧 열려요" 카드 — 정적이라 계획표 화면과 로딩 자리표시(`PlanSkeleton`)가 같은 부품을 그린다(높이 점프 없음). */
+export function GrowthSoonCard() {
+  return (
+    <section aria-label="분석 · 성장 기록" className="mt-[18px] flex min-w-0 items-start justify-between gap-2 rounded-[14px] border border-transparent bg-surface2 p-3.5">
+      <div className="min-w-0">
+        <h2 className="text-[15px] font-semibold">분석 · 성장 기록</h2>
+        <p className="mt-1 text-[13px] text-ink2 break-keep">선생님이 기록을 보고 공부 계획을 제안하고, 평가 점수와 교정이 어떻게 달라졌는지 보여 드려요.</p>
+      </div>
+      <span className="inline-flex h-[22px] flex-none items-center whitespace-nowrap rounded-md bg-surface px-2 text-[11.5px] font-semibold text-ink2">곧 열려요</span>
+    </section>
+  )
+}

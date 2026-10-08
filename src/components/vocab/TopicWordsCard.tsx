@@ -12,6 +12,7 @@ import type { ChallengeWordsTask } from '@/types/challenge'
 import type { SessionSummary, VocabMode } from '@/types/vocab'
 import { estimateMinutes } from './deck'
 import { MODE_LABEL } from './labels'
+import { CardLoadingBody } from './TodaySkeleton'
 import { WORDS_CARD } from './topicCopy'
 import { topicSourceLine, wipCardNotes, wordsCardKind, type ChallengeCtx } from './topicLogic'
 import { InProgressBody, MineSetPanel } from './TodayWordsCard'
@@ -90,11 +91,8 @@ export default function TopicWordsCard({
 
   let body: React.ReactNode
   if (loadState === 'loading') {
-    body = (
-      <p role="status" className="mt-2 text-[13px] text-ink2">
-        불러오는 중…
-      </p>
-    )
+    // 챌린지 카드의 실제 높이는 상태·주제에 따라 달라 실측하지 못했다 — 지금 단어 카드(준비)와 같은 높이로 둔다.
+    body = <CardLoadingBody kind="word" />
   } else if (loadState === 'error') {
     body = (
       <div className="mt-2">

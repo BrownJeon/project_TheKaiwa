@@ -1,0 +1,58 @@
+/**
+ * 탭 화면 공용 자리표시 부품(task-046 IMP-0027) — 정적 회색 블록만 그린다. 「불러오는 중…」 글자·가짜 빈 상태·가짜 버튼은 그리지 않는다.
+ * 서버 `loading.tsx` 와 클라이언트 로딩 구간이 **같은 부품**을 써서 「서버 자리표시 → 클라이언트 자리표시 → 데이터」 사이에 모양이 바뀌지 않는다.
+ * 훅이 없어 서버·클라이언트 양쪽에서 쓴다.
+ */
+import { CHAT_SKELETON, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from './tabSkeleton'
+
+/** 자리표시 묶음 — 보이는 블록은 읽기에서 숨기고 `role=status` 한 줄만 알린다. `sr-only` 는 absolute 라 셸 `<main>`(relative) 안에서만 쓴다. */
+export function SkeletonRegion({ children, label = SKELETON_SR_LABEL }: { children: React.ReactNode; label?: string }) {
+  return (
+    <div aria-busy="true">
+      <p role="status" className="sr-only">
+        {label}
+      </p>
+      <div aria-hidden="true">{children}</div>
+    </div>
+  )
+}
+
+/** 회화·채팅 목록 자리표시 — 카드 줄 N개(실제 줄과 같은 `gap-2`·둥근 모서리) */
+export function ChatRowsSkeleton() {
+  return (
+    <SkeletonRegion>
+      <div className="flex min-w-0 flex-col" style={{ gap: CHAT_SKELETON.gap }}>
+        {Array.from({ length: CHAT_SKELETON.rows }, (_, i) => (
+          <span key={i} className="block rounded-[14px] bg-surface2" style={{ height: CHAT_SKELETON.rowHeight }} />
+        ))}
+      </div>
+    </SkeletonRegion>
+  )
+}
+
+/** 단어장 목록 자리표시 — 실제 목록과 같은 테두리 상자 + 줄 N개(줄마다 회색 막대 둘) */
+export function WordRowsSkeleton() {
+  return (
+    <SkeletonRegion>
+      <div className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
+        {Array.from({ length: WORD_SKELETON.rows }, (_, i) => (
+          <div key={i} className="flex flex-col justify-center gap-2 px-3.5" style={{ height: WORD_SKELETON.rowHeight }}>
+            <span className="block h-[18px] w-2/5 rounded-md bg-surface2" />
+            <span className="block h-3.5 w-3/5 rounded-md bg-surface2" />
+          </div>
+        ))}
+      </div>
+    </SkeletonRegion>
+  )
+}
+
+/** 단어장 분류 칩 줄 자리 — 분류가 있는 흔한 상태의 칩 줄과 같은 높이(응답이 와서 칩이 되거나, 분류가 없으면 줄이 접힌다). */
+export function WordCategoryRowSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex" style={{ marginTop: WORD_CATEGORY_ROW.top, paddingBlock: WORD_CATEGORY_ROW.pad, gap: 8 }}>
+      {WORD_CATEGORY_ROW.widths.map((w, i) => (
+        <span key={i} className="block flex-none rounded-full bg-surface2" style={{ width: w, height: WORD_CATEGORY_ROW.chip }} />
+      ))}
+    </div>
+  )
+}

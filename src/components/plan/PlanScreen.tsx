@@ -28,6 +28,7 @@ import { CalendarError, CalendarGrid, CalendarLegend, MonthNav, MonthNoteBlock, 
 import DaySheet from './DaySheet'
 import { DeleteConfirmSheet, LogMenuSheet, type DeleteState } from './LogSheets'
 import { deleteDetail, monthOf, parsePlanParams, planUrl, shiftMonth, sourceHref, MIN_MONTH } from './logic'
+import { GrowthSoonCard } from './parts'
 import { useCalendar, useDay } from './usePlanData'
 
 const noopSubscribe = () => () => {}
@@ -203,13 +204,7 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
         )}
       </section>
 
-      <section aria-label="분석 · 성장 기록" className="mt-[18px] flex min-w-0 items-start justify-between gap-2 rounded-[14px] border border-transparent bg-surface2 p-3.5">
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold">분석 · 성장 기록</h2>
-          <p className="mt-1 text-[13px] text-ink2 break-keep">선생님이 기록을 보고 공부 계획을 제안하고, 평가 점수와 교정이 어떻게 달라졌는지 보여 드려요.</p>
-        </div>
-        <span className="inline-flex h-[22px] flex-none items-center whitespace-nowrap rounded-md bg-surface px-2 text-[11.5px] font-semibold text-ink2">곧 열려요</span>
-      </section>
+      <GrowthSoonCard />
 
       <DaySheet
         date={hydrated ? openDay : null}

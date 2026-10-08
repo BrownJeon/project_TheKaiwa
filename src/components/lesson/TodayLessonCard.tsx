@@ -4,11 +4,12 @@
  * 오늘 홈 "오늘의 회화" 카드(screens §12-2 A · 데모 v2 `#home-*`) — 상태는 `deriveLessonCard`(순수)가 #58 한 번으로 정한다.
  * 만드는 중이면 화면이 보이는 동안 잡(#55)을 5초마다 확인하고 끝나면 #58 을 다시 읽는다(`onReload`).
  * task-044: 진행 중 챌린지에 회화 과제가 있으면 `challenge` 가 카드의 주인(`deriveChallengeLessonCard`) — [오늘 수업 만들기]는 앱에서 이 카드에만 있다(N3 A).
- * #158 을 읽는 동안(`challengeLoading`)은 "불러오는 중…"(챌린지 카드로 바뀌며 깜빡이지 않게).
+ * #158 을 읽는 동안(`challengeLoading`)은 몸통 자리표시(`CardLoadingBody`) — 챌린지 카드로 바뀌며 깜빡이지 않게. 「불러오는 중…」 글자는 그리지 않는다(task-046).
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatMonthDay } from '@/components/vocab/format'
+import { CardLoadingBody } from '@/components/vocab/TodaySkeleton'
 import { readStore } from '@/components/common/storage'
 import { Badge, Btn, BtnRow, Card, ErrorBlock } from '@/components/common/ui'
 import type { ChallengeLessonTask } from '@/types/challenge'
@@ -131,9 +132,7 @@ export default function TodayLessonCard({
       body = (
         <>
           <Head />
-          <p role="status" className="mt-1 text-[13px] text-ink2">
-            {HOME.loading}
-          </p>
+          <CardLoadingBody kind="lesson" />
         </>
       )
       break
@@ -323,9 +322,7 @@ function ChallengeBody({
       return (
         <>
           {head}
-          <p role="status" className="mt-1 text-[13px] text-ink2">
-            {HOME.loading}
-          </p>
+          <CardLoadingBody kind="lesson" />
         </>
       )
     case 'error':

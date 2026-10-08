@@ -3,17 +3,21 @@
 /**
  * 채팅 목록(#27, `lastMessageAt desc`, 커서). 마운트·화면 복귀(visible) 때만 첫 쪽을 새로 읽는다(자동 폴링 없음).
  * task-007 음성 회화 목록도 `kind` 만 바꿔 재사용한다.
+ * `hold`: true 면 데이터가 와 있어도 자리표시를 유지한다(교정 카드와 함께 나타나려고 — `listHold.ts`). 오류 상자는 막지 않는다.
+ * `onSettled`: 첫 결과(데이터 또는 오류)가 정해졌을 때 알린다(이후 다시 읽을 때마다 불려도 부모는 같은 값으로 받는다).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiGet } from '@/components/common/api'
-import { Btn, ErrorBlock, LoadingBlock, Section, SectionHeader } from '@/components/common/ui'
+import { Btn, ErrorBlock, Section, SectionHeader } from '@/components/common/ui'
 import type { ChatKind, ChatSummary, Paged } from '@/types/chat'
+import { ChatRowsSkeleton } from '@/components/shell/TabSkeleton'
+import { retryFailHoldMs } from '@/components/topic/logic'
 import ChatListItem from './ChatListItem'
 import { TALK_HOME } from '@/components/talk/talkCopy'
 import { toErr } from '@/components/common/errors'
 import { actionErrorText } from './labels'
 
-export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () => void }) {
+export default function ChatList({ kind, onNew, hold = false, onSettled }: { kind: ChatKind; onNew: () => void; hold?: boolean; onSettled?: () => void }) {
   const talk = kind === 'TALK'
   const basePath = talk ? '/study/ai/talk/' : '/study/ai/chat/'
   const [items, setItems] = useState<ChatSummary[] | null>(null)
@@ -23,9 +27,17 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
   // 목록 시각("오늘/어제")의 기준. 렌더 중에 시계를 읽지 않게 불러올 때 같이 정한다.
   const [now, setNow] = useState<Date | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  // 오류 상자 [다시 시도] 를 누른 시각 — 바로 다시 실패해도 자리표시가 최소 시간 보인 뒤에 오류 상자가 돌아온다(깜빡임 방지, useManageData 와 같은 규칙).
+  const retryAt = useRef<number | null>(null)
+  // 요청 효과가 콜백 정체성에 매이지 않게 ref 로 읽는다.
+  const settledRef = useRef(onSettled)
+  useEffect(() => {
+    settledRef.current = onSettled
+  }, [onSettled])
 
   useEffect(() => {
     let cancelled = false
+    let holdTimer: ReturnType<typeof setTimeout> | undefined
     const fetchFirst = () =>
       apiGet<Paged<ChatSummary>>(`/api/v1/chats?kind=${kind}&limit=20`)
         .then((r) => {
@@ -34,9 +46,22 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
           setNextCursor(r.nextCursor)
           setNow(new Date())
           setError(null)
+          settledRef.current?.()
         })
         .catch((e: unknown) => {
-          if (!cancelled) setError(actionErrorText(toErr(e)))
+          if (cancelled) return
+          const holdMs = retryAt.current === null ? 0 : retryFailHoldMs(true, retryAt.current, Date.now())
+          retryAt.current = null
+          if (holdMs <= 0) {
+            setError(actionErrorText(toErr(e)))
+            settledRef.current?.()
+            return
+          }
+          holdTimer = setTimeout(() => {
+            if (cancelled) return
+            setError(actionErrorText(toErr(e)))
+            settledRef.current?.()
+          }, holdMs)
         })
     void fetchFirst()
     const onVis = () => {
@@ -45,6 +70,7 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
     document.addEventListener('visibilitychange', onVis)
     return () => {
       cancelled = true
+      if (holdTimer) clearTimeout(holdTimer)
       document.removeEventListener('visibilitychange', onVis)
     }
   }, [kind, reloadKey])
@@ -67,8 +93,20 @@ export default function ChatList({ kind, onNew }: { kind: ChatKind; onNew: () =>
   }
 
   let content: React.ReactNode
-  if (items === null) {
-    content = error ? <ErrorBlock message={error} onRetry={() => { setError(null); setReloadKey((k) => k + 1) }} /> : <LoadingBlock />
+  if (items === null || hold) {
+    content =
+      items === null && error ? (
+        <ErrorBlock
+          message={error}
+          onRetry={() => {
+            retryAt.current = Date.now()
+            setError(null)
+            setReloadKey((k) => k + 1)
+          }}
+        />
+      ) : (
+        <ChatRowsSkeleton />
+      )
   } else if (items.length === 0) {
     content = (
       <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center">

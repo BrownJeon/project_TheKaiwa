@@ -17,11 +17,12 @@ import { toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
 import Segmented from '@/components/common/Segmented'
 import Toast, { useToast } from '@/components/common/Toast'
-import { Btn, ErrorBlock, LoadingBlock } from '@/components/common/ui'
+import { Btn, ErrorBlock } from '@/components/common/ui'
 import { useWordLayersList } from '@/components/common/japanese/annotations'
 import { DISPLAY_COPY } from '@/components/common/japanese/displayPrefs'
 import { DisplayToggles } from '@/components/common/japanese/JapaneseText'
 import AppBar from '@/components/shell/AppBar'
+import { WordCategoryRowSkeleton, WordRowsSkeleton } from '@/components/shell/TabSkeleton'
 import type { CategoryCount, WordEntry, WordListPage, WordSort } from '@/types/vocab'
 import ArchiveToggle from './ArchiveToggle'
 import CategoryChips from './CategoryChips'
@@ -37,7 +38,7 @@ import WordSearchBar from './WordSearchBar'
 import WordsEmpty from './WordsEmpty'
 
 const SORTS = ['recent', 'wrong', 'surface'] as const satisfies readonly WordSort[]
-const SORT_OPTIONS = [
+export const WORD_SORT_OPTIONS = [
   { value: 'recent', label: '최근 추가' },
   { value: 'wrong', label: '많이 틀린' },
   { value: 'surface', label: '가나다순' },
@@ -73,6 +74,8 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
   const [reloadTick, setReloadTick] = useState(0)
   const [categories, setCategories] = useState<CategoryCount[] | null>(null)
   const [catTick, setCatTick] = useState(0)
+  // 분류 요청이 실패했는가 — 실패하면 칩 줄 자리표시를 거둔다(null 만으로는 「아직 오는 중」과 구분이 안 된다).
+  const [catFailed, setCatFailed] = useState(false)
   const [sheet, setSheet] = useState<SheetState>(() =>
     initialWordId ? { kind: 'detail', id: initialWordId } : initialAdd ? { kind: 'add', key: 0 } : null,
   )
@@ -114,6 +117,7 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         if (cancelled) return
         const cats = normalizeCategories(raw)
         setCategories(cats)
+        setCatFailed(false)
         // 선택한 칩이 사라졌으면(마지막 단어 삭제·보관) 전체로 돌아간다.
         setFilter((f) =>
           f.category !== null && !visibleCategories(cats, f.archived ? 'archived' : 'active').some((c) => c.category === f.category)
@@ -122,7 +126,10 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         )
       })
       .catch(() => {
-        if (!cancelled) setCategories(null)
+        if (!cancelled) {
+          setCategories(null)
+          setCatFailed(true)
+        }
       })
     return () => {
       cancelled = true
@@ -189,13 +196,16 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
   // 빈 화면 안내도 그 응답의 조건으로 — 응답 전에 새 조건의 안내가 먼저 뜨지 않게.
   const shown = list.shown ?? filter
   const showCategoryRow = visibleCategories(categories, filter.archived ? 'archived' : 'active').length > 0
+  // 분류 응답 전에는 칩 줄 자리를 비워 두지 않는다 — 단어가 있는 흔한 상태에서 칩이 도착할 때 아래 줄이 밀리지 않게(task-046).
+  const catPending = categories === null && !catFailed
   // 단어가 하나도 없는 단어장(#46 합 0)에서는 거를 것이 없어 조각 줄을 그리지 않는다. 고른 조각이 있으면 풀 수 있게 남긴다.
   const showChunkRow = filter.chunk !== null || !(totals && totals.active + totals.archived === 0)
   // 그린 행 표제어를 한 번에(한 쪽 = 1요청, [단어 더 보기] 때는 새 행만 — 캐시 적중). 루비는 저장 읽기로, 한글은 한글 켬일 때만 요청한다.
   const layers = useWordLayersList(list.items)
 
   let body: React.ReactNode
-  if (list.status === 'loading') body = <LoadingBlock />
+  // 「불러오는 중…」 글자 대신 목록 모양의 자리표시 — 빈 상태 안내는 응답이 와서 0건일 때만 그린다(가짜 빈 상태 금지, task-046).
+  if (list.status === 'loading') body = <WordRowsSkeleton />
   else if (list.status === 'error' && list.items.length === 0)
     body = <ErrorBlock message={list.error ?? listErrorText({ status: -1 })} onRetry={() => setReloadTick((t) => t + 1)} />
   else if (list.items.length === 0)
@@ -267,15 +277,17 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
               onChange={(c) => setFilter((f) => ({ ...f, category: c }))}
             />
           </div>
+        ) : catPending ? (
+          <WordCategoryRowSkeleton />
         ) : null}
         {showChunkRow ? (
-          <div className={showCategoryRow ? undefined : 'mt-1.5'}>
+          <div className={showCategoryRow || catPending ? undefined : 'mt-1.5'}>
             <ChunkChips value={filter.chunk} onChange={(c) => setFilter((f) => ({ ...f, chunk: c }))} />
           </div>
         ) : null}
         <div className="mt-2 flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <Segmented<WordSort> size="sm" ariaLabel="정렬" options={SORT_OPTIONS} value={sort} onChange={(v) => setSort(v)} />
+            <Segmented<WordSort> size="sm" ariaLabel="정렬" options={WORD_SORT_OPTIONS} value={sort} onChange={(v) => setSort(v)} />
           </div>
           <ArchiveToggle pressed={filter.archived} onToggle={() => setFilter((f) => ({ ...f, archived: !f.archived, category: null }))} />
         </div>

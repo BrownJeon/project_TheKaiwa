@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { formatMonthDay, todayKey } from '@/components/vocab/format'
+import { CardLoadingBody } from '@/components/vocab/TodaySkeleton'
 import { kstDateKey } from '@/components/common/format'
 import { useNow } from '@/components/common/useNow'
 import { Badge, Btn, BtnRow, Card, ErrorBlock } from '@/components/common/ui'
@@ -66,7 +67,18 @@ function Pill({ warn, children }: { warn?: boolean; children: React.ReactNode })
   )
 }
 
-export default function EvalHomeCard({ myLevel, reloadKey, onToast }: { myLevel: JlptLevel; reloadKey: number; onToast: (m: string) => void }) {
+export default function EvalHomeCard({
+  myLevel,
+  reloadKey,
+  onToast,
+  onSettled,
+}: {
+  myLevel: JlptLevel
+  reloadKey: number
+  onToast: (m: string) => void
+  /** 첫 읽기가 끝났을 때(성공이든 실패든) — 오늘 홈이 카드들을 한 번에 보이기 위해 기다린다(task-046). 바깥은 참조가 바뀌지 않는 함수를 넘긴다. */
+  onSettled?: () => void
+}) {
   const router = useRouter()
   const tts = useTtsRuntimeStatus()
   const textOnly = tts.snapshot.state === 'TEXT_ONLY'
@@ -91,6 +103,10 @@ export default function EvalHomeCard({ myLevel, reloadKey, onToast }: { myLevel:
       cancelled = true
     }
   }, [reloadKey, tick])
+
+  useEffect(() => {
+    if (data.state !== 'loading') onSettled?.()
+  }, [data.state, onSettled])
 
   const inProgress = data.latest?.status === 'IN_PROGRESS'
   const now = useNow(inProgress)
@@ -121,9 +137,7 @@ export default function EvalHomeCard({ myLevel, reloadKey, onToast }: { myLevel:
       body = (
         <>
           <Head myLevel={myLevel} badge={false} />
-          <p role="status" className="mt-1 text-[13px] text-ink2">
-            {HOME.loading}
-          </p>
+          <CardLoadingBody kind="eval" />
         </>
       )
       break

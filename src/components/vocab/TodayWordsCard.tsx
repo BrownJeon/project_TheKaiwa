@@ -12,6 +12,7 @@ import CategoryChips from './CategoryChips'
 import { countOptions, estimateMinutes } from './deck'
 import { formatSessionDate } from './format'
 import { inProgressNotes, MODE_LABEL } from './labels'
+import { CardLoadingBody } from './TodaySkeleton'
 import { visibleCategories } from './validate'
 
 export type WordsCardState = 'loading' | 'ready' | 'inProgress' | 'empty' | 'poolEmpty' | 'error'
@@ -96,11 +97,7 @@ export default function TodayWordsCard({
   let body: React.ReactNode
   switch (state) {
     case 'loading':
-      body = (
-        <p role="status" className="mt-2 text-[13px] text-ink2">
-          불러오는 중…
-        </p>
-      )
+      body = <CardLoadingBody kind="word" />
       break
     case 'error':
       body = (

@@ -5,23 +5,36 @@
  * 채팅 교정은 점검 결과 화면으로, 회화(TALK) 교정은 회화방의 그 카드로 보낸다(ASK 는 교정이 없다).
  */
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiGet } from '@/components/common/api'
 import { Section, SectionHeader } from '@/components/common/ui'
 import type { CorrectionDto, Paged } from '@/types/chat'
 import { TALK_HOME } from '@/components/talk/talkCopy'
 
-export default function PendingCorrectionsCard() {
+/**
+ * `onSettled`: 요청이 끝났을 때(성공·0건·오류 모두) 한 번 알린다 — 목록이 이 카드와 함께 나타나려고 기다린다(`listHold.ts`).
+ * `hold`: true 면 데이터가 와 있어도 그리지 않는다(목록 자리표시가 카드 높이만큼 밀리지 않게).
+ */
+export default function PendingCorrectionsCard({ onSettled, hold = false }: { onSettled?: () => void; hold?: boolean }) {
   const [data, setData] = useState<Paged<CorrectionDto> | null>(null)
+  // 요청 효과가 콜백 정체성에 매이지 않게 ref 로 읽는다(정체성이 바뀌어도 다시 요청하지 않는다).
+  const settledRef = useRef(onSettled)
+  useEffect(() => {
+    settledRef.current = onSettled
+  }, [onSettled])
 
   useEffect(() => {
     let cancelled = false
+    // setData 와 같은 틱에서 알려야 부모가 같은 렌더에서 목록·카드를 함께 푼다(효과로 미루면 한 프레임 어긋난다).
     apiGet<Paged<CorrectionDto>>('/api/v1/corrections?status=PROPOSED&limit=3')
       .then((r) => {
-        if (!cancelled) setData(r)
+        if (cancelled) return
+        setData(r)
+        settledRef.current?.()
       })
       .catch(() => {
-        /* 조용히 숨긴다 */
+        // 조용히 숨기되 끝난 것으로는 친다 — 카드 실패가 목록을 막지 않는다.
+        if (!cancelled) settledRef.current?.()
       })
     return () => {
       cancelled = true
@@ -29,7 +42,7 @@ export default function PendingCorrectionsCard() {
   }, [])
 
   const rows = (data?.items ?? []).filter((c) => c.chat && (c.chat.kind === 'CHAT' || c.chat.kind === 'TALK'))
-  if (rows.length === 0) return null
+  if (hold || rows.length === 0) return null
 
   return (
     <Section>

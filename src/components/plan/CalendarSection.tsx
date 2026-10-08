@@ -93,7 +93,7 @@ export function SummaryRow({
       <div aria-hidden="true" className="mt-1.5 grid grid-cols-3 gap-2">
         {[0, 1, 2].map((i) => (
           <div key={i} className="min-w-0 rounded-xl border border-line bg-surface px-1.5 py-2 text-center">
-            <span className="mx-auto mb-1 mt-0.5 block h-[22px] w-11 rounded-md bg-surface2" />
+            <span className="mx-auto mb-0.5 mt-0.5 block h-[22px] w-11 rounded-md bg-surface2" />
             <span className="block text-[12px]">&nbsp;</span>
           </div>
         ))}
