@@ -48,6 +48,7 @@ TheKaiwa/
 └── src/
     ├── middleware.ts
     ├── app/{(auth)/{login,invite}, (app)/{study/{ai,today},plan,drawer,settings,ask}, (admin)/admin/*, api/{health,auth,v1,admin/v1,internal,app/version,models}}
+    │       # 탭 홈(study/ai·study/today·plan)은 `(tab)/{page,loading}.tsx` 라우트 그룹 — loading.tsx 가 하위 경로(채팅방·챌린지 등)로 새지 않게(task-046, screens.md §17)
     ├── components/{shell,talk,chat,vocab,lesson,eval,plan,drawer,settings,admin,ask,speech,common}
     └── modules/                   # ★ 6층 플랫폼 — 위→아래로만 import
         ├── admin/          # L0 (app 층 조합): console·configuration·diagnostics·playground·audit·permissions
