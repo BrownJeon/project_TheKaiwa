@@ -28,7 +28,7 @@ import ArchiveToggle from './ArchiveToggle'
 import CategoryChips from './CategoryChips'
 import ChunkChips from './ChunkChips'
 import { useHydrated, useSeedPack, useStoredPref, VOCAB_KEYS } from './hooks'
-import { actionErrorText, listErrorText, seedResultText, WORD_NOT_FOUND } from './labels'
+import { actionErrorText, listErrorText, seedResultText, WORD_NOT_FOUND, WORD_SORT_OPTIONS } from './labels'
 import { listFromPage, listHeader, listWithoutRow, WORD_LIST_INITIAL, type WordListFilter, type WordListState } from './logic'
 import { categoryTotals, emptyVariant, normalizeCategories, visibleCategories, WORD_LIMITS } from './validate'
 import WordAddSheet from './WordAddSheet'
@@ -38,11 +38,6 @@ import WordSearchBar from './WordSearchBar'
 import WordsEmpty from './WordsEmpty'
 
 const SORTS = ['recent', 'wrong', 'surface'] as const satisfies readonly WordSort[]
-export const WORD_SORT_OPTIONS = [
-  { value: 'recent', label: '최근 추가' },
-  { value: 'wrong', label: '많이 틀린' },
-  { value: 'surface', label: '가나다순' },
-] as const
 const PAGE = 30
 
 type SheetState = { kind: 'add'; key: number; preset?: string } | { kind: 'detail'; id: string; preview?: WordEntry } | null

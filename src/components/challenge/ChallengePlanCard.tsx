@@ -8,7 +8,7 @@
 import Link from 'next/link'
 import { useId } from 'react'
 import { Badge } from '@/components/common/ui'
-import { PLAN_SKELETON } from '@/components/plan/planSkeleton'
+import { PLAN_SKELETON } from '@/components/plan/planSkeletonSizes'
 import type { ChallengeTodayResponse, DayChallenge } from '@/types/challenge'
 import { COPY } from './challengeCopy'
 import {
@@ -45,12 +45,10 @@ export default function ChallengePlanCard({
   const kind = planCardKind(status, data)
 
   if (kind === 'loading')
+    // 알림(`role=status`)은 달력 로딩 쪽 한 곳만 둔다 — 첫 화면에서 두 곳이 함께 읽히면 서버 자리표시→클라이언트 자리표시로 바뀔 때 되풀이된다(task-046 REV-171 L-2).
     return (
-      <div className="mt-3">
-        <p role="status" className="sr-only">
-          {COPY.cardLoading}
-        </p>
-        <span aria-hidden="true" className="block rounded-[14px] bg-surface2" style={{ height: PLAN_SKELETON.challengeCardH }} />
+      <div aria-hidden="true" className="mt-3">
+        <span className="block rounded-[14px] bg-surface2" style={{ height: PLAN_SKELETON.challengeCardH }} />
       </div>
     )
 

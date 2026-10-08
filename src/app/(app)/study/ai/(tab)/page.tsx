@@ -1,5 +1,6 @@
 import AppBar from '@/components/shell/AppBar'
 import StudyAiHome from '@/components/chat/StudyAiHome'
+import { parseStudyAiTab } from '@/components/chat/studyAiTabs'
 import { isScenarioIdParam } from '@/components/scenario/logic'
 
 /**
@@ -9,7 +10,7 @@ import { isScenarioIdParam } from '@/components/scenario/logic'
  */
 export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string | string[]; sc?: string | string[]; saved?: string | string[] }> }) {
   const { tab, sc, saved } = await searchParams
-  const initialTab = tab === 'chat' ? 'chat' : tab === 'scenario' ? 'scenario' : 'talk'
+  const initialTab = parseStudyAiTab(tab)
   const sheetId = initialTab === 'scenario' && isScenarioIdParam(sc) ? sc : null
   return (
     <>

@@ -24,3 +24,27 @@ export function shouldHoldList(cardSettled: boolean, capElapsed: boolean): boole
 export function shouldHoldCard(listSettled: boolean): boolean {
   return !listSettled
 }
+
+/** 타이머 예약 함수 — 시험에서 가짜로 바꾼다. */
+export type Schedule = (fn: () => void, ms: number) => ReturnType<typeof setTimeout>
+
+/**
+ * 목록 첫 읽기가 실패했을 때의 순서(REV-171 L-4). 오류 상자를 보이는 일(`showError`)과 「첫 결과가 정해졌다」는 알림(`settle`)은
+ * **항상 같은 호출(같은 틱)에서 이 순서로** 일어난다 — `settle` 이 먼저 가면 부모가 교정 카드를 오류 상자보다 먼저 공개한다.
+ * `holdMs`(다시 시도 직후 실패가 너무 빨리 돌아오지 않게 하는 유예, `retryFailHoldMs`)가 있으면 둘 다 그 시간 뒤다. 반환값은 유예 타이머(없으면 undefined) — 호출한 쪽이 정리한다.
+ */
+export function settleFirstFailure(
+  holdMs: number,
+  fx: { showError: () => void; settle: () => void },
+  schedule: Schedule = setTimeout,
+): ReturnType<typeof setTimeout> | undefined {
+  const fire = () => {
+    fx.showError()
+    fx.settle()
+  }
+  if (holdMs <= 0) {
+    fire()
+    return undefined
+  }
+  return schedule(fire, holdMs)
+}

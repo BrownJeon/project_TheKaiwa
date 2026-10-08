@@ -13,6 +13,13 @@ export interface ErrorLike {
 
 // ── 라벨 ⓔ ──────────────────────────────────────────────────────────────────────────────────
 
+/** 단어장 정렬 분절 — 화면(`WordsScreen`)과 로딩 자리표시(`WordsSkeleton`)가 같이 읽는다. 큰 화면 모듈을 자리표시가 끌어오지 않도록 이 표에 둔다(task-046 REV-171 L-6). */
+export const WORD_SORT_OPTIONS = [
+  { value: 'recent', label: '최근 추가' },
+  { value: 'wrong', label: '많이 틀린' },
+  { value: 'surface', label: '가나다순' },
+] as const
+
 export const POS_OPTIONS: readonly { value: PartOfSpeech; label: string }[] = [
   { value: 'NOUN', label: '명사' },
   { value: 'VERB', label: '동사' },

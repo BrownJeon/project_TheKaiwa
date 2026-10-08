@@ -3,14 +3,14 @@
  * 그래서 「서버 자리표시 → 클라이언트 자리표시 → 데이터」 사이에 모양이 바뀌지 않는다. 훅이 없어 서버·클라이언트 양쪽에서 쓴다.
  *
  * 정적으로 아는 것(앱바 제목·카드 제목)은 실제 글자를 그대로 그리고, 데이터가 정하는 몸통만 회색 블록이다. 「불러오는 중…」 글자·가짜 빈 상태·가짜 [시작하기]
- * 버튼은 그리지 않는다. 높이는 `todaySkeleton.ts`(실측 상수)에서 CSS 변수로 읽는다 — 폭이 좁으면 글줄이 한 줄 더 감겨 카드가 커지므로 두 값을 폭으로 가른다.
+ * 버튼은 그리지 않는다. 높이는 `todaySkeletonSizes.ts`(실측 상수)에서 CSS 변수로 읽는다 — 폭이 좁으면 글줄이 한 줄 더 감겨 카드가 커지므로 두 값을 폭으로 가른다.
  */
 import { HOME as EVAL_HOME } from '@/components/eval/evalCopy'
 import { HOME as LESSON_HOME } from '@/components/lesson/lessonCopy'
 import AppBar from '@/components/shell/AppBar'
-import { SKELETON_SR_LABEL } from '@/components/shell/tabSkeleton'
+import { SKELETON_SR_LABEL } from '@/components/shell/tabSkeletonSizes'
 import { SkeletonRegion } from '@/components/shell/TabSkeleton'
-import { cardHeightVars, type TodayCardKind } from './todaySkeleton'
+import { cardHeightVars, type TodayCardKind } from './todaySkeletonSizes'
 import { WORDS_CARD } from './topicCopy'
 
 /** 카드 높이 클래스 — 숫자는 `cardHeightVars` 가 변수로 넘기고, 좁은 폭 경계(`narrowBelow`)만 클래스에 있다. Tailwind 가 정적으로 찾도록 리터럴로 쓴다. */

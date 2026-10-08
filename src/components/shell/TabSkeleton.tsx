@@ -3,16 +3,22 @@
  * 서버 `loading.tsx` 와 클라이언트 로딩 구간이 **같은 부품**을 써서 「서버 자리표시 → 클라이언트 자리표시 → 데이터」 사이에 모양이 바뀌지 않는다.
  * 훅이 없어 서버·클라이언트 양쪽에서 쓴다.
  */
-import { CHAT_SKELETON, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from './tabSkeleton'
+import { CHAT_SKELETON, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from './tabSkeletonSizes'
 
-/** 자리표시 묶음 — 보이는 블록은 읽기에서 숨기고 `role=status` 한 줄만 알린다. `sr-only` 는 absolute 라 셸 `<main>`(relative) 안에서만 쓴다. */
+/**
+ * 자리표시 묶음 — 보이는 블록은 읽기에서 숨기고 `role=status` 한 줄만 알린다. `sr-only` 는 absolute 라 셸 `<main>`(relative) 안에서만 쓴다.
+ * 알림은 `aria-busy` 래퍼 **밖**(형제)에 둔다 — busy 인 동안 변경 알림을 미루는 보조기기에서 이 한 줄이 읽히지 않을 수 있어서다(REV-171 L-2).
+ * 한 화면에는 이 알림(`role=status`)을 한 곳만 둔다.
+ */
 export function SkeletonRegion({ children, label = SKELETON_SR_LABEL }: { children: React.ReactNode; label?: string }) {
   return (
-    <div aria-busy="true">
+    <div>
       <p role="status" className="sr-only">
         {label}
       </p>
-      <div aria-hidden="true">{children}</div>
+      <div aria-busy="true" aria-hidden="true">
+        {children}
+      </div>
     </div>
   )
 }

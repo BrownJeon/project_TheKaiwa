@@ -12,16 +12,10 @@ import ChatList from './ChatList'
 import NewChatSheet from './NewChatSheet'
 import PendingCorrectionsCard from './PendingCorrectionsCard'
 import { LIST_HOLD_CAP_MS, shouldHoldCard, shouldHoldList } from './listHold'
-import { TALK_HOME } from '@/components/talk/talkCopy'
 import ScenarioHome from '@/components/scenario/ScenarioHome'
+import { newButtonLabel, STUDY_AI_TABS, type StudyAiTab } from './studyAiTabs'
 
-type Tab = 'chat' | 'talk' | 'scenario'
-
-export const STUDY_AI_TABS = [
-  { value: 'talk', label: '회화' },
-  { value: 'scenario', label: '시나리오' },
-  { value: 'chat', label: '채팅' },
-] as const
+type Tab = StudyAiTab
 
 /**
  * 회화·채팅 탭의 본문 — [새로] · 채택을 기다리는 교정 · 목록. 교정 카드와 목록은 별도 요청이라 한쪽이 먼저 그려지면
@@ -43,7 +37,7 @@ function TalkChatPanel({ tab, onNew }: { tab: 'talk' | 'chat'; onNew: () => void
   return (
     <>
       <Btn className="mt-3.5 w-full" onClick={onNew}>
-        {tab === 'talk' ? TALK_HOME.newTalk : '＋ 새 채팅'}
+        {newButtonLabel(tab)}
       </Btn>
       <PendingCorrectionsCard onSettled={markCardSettled} hold={shouldHoldCard(listSettled)} />
       <ChatList kind={tab === 'talk' ? 'TALK' : 'CHAT'} onNew={onNew} onSettled={markListSettled} hold={shouldHoldList(cardSettled, capElapsed)} />

@@ -2,7 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { PLAN_SKELETON } from '../planSkeleton'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
+import { SearchParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime'
+import PlanSkeleton from '../PlanSkeleton'
+import { PLAN_SKELETON } from '../planSkeletonSizes'
 
 // task-046(IMP-0027, T3): 계획표 자리표시는 실제 부품을 그대로 그리고(달 격자는 같은 monthGrid), 데이터가 정하는 챌린지 카드만 실측 높이 상수다.
 const root = join(__dirname, '..', '..')
@@ -81,4 +86,22 @@ test('loading.tsx 적용 범위 — 계획표 홈에만 닿는다((tab) 그룹),
   assert.ok(!exists('plan', 'page.tsx'), '그룹으로 옮긴 page 가 두 곳에 남지 않는다')
   const loading = readFileSync(join(app, 'plan', '(tab)', 'loading.tsx'), 'utf8')
   assert.match(loading, /<PlanSkeleton today=\{todayKst\(\)\} \/>/)
+})
+
+// REV-171 L-2: 계획표 자리표시는 알림(role=status)이 한 곳(달력) — 챌린지 카드 자리는 조용한 회색 블록. 서버 자리표시→클라이언트 자리표시로 바뀔 때 같은 문구가 겹쳐 되풀이되지 않는다.
+test('계획표 자리표시 전체에서 role=status 는 한 곳(달력), 챌린지 카드 자리는 aria-hidden 블록', () => {
+  const ROUTER = { push: () => {}, replace: () => {}, prefetch: () => {}, back: () => {}, forward: () => {}, refresh: () => {} }
+  const html = renderToStaticMarkup(
+    createElement(
+      AppRouterContext.Provider,
+      { value: ROUTER as never },
+      createElement(SearchParamsContext.Provider, { value: new URLSearchParams('month=2026-10') as never }, createElement(PlanSkeleton, { today: '2026-10-08' })),
+    ),
+  )
+  assert.equal((html.match(/role="status"/g) ?? []).length, 1)
+  assert.match(html, /달력을 불러오는 중…<\/p>/)
+  assert.ok(!html.includes('챌린지를 불러오는 중'))
+  assert.match(html, /<div aria-hidden="true" class="mt-3"><span class="block rounded-\[14px\] bg-surface2" style="height:278\.4px">/)
+  const card = read('challenge', 'ChallengePlanCard.tsx')
+  assert.ok(!/COPY\.cardLoading/.test(card), '챌린지 카드 로딩 분기는 알림을 그리지 않는다')
 })

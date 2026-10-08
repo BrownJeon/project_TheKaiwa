@@ -14,6 +14,8 @@ import { ChatRowsSkeleton } from '@/components/shell/TabSkeleton'
 import { retryFailHoldMs } from '@/components/topic/logic'
 import ChatListItem from './ChatListItem'
 import { TALK_HOME } from '@/components/talk/talkCopy'
+import { settleFirstFailure } from './listHold'
+import { listSectionTitle } from './studyAiTabs'
 import { toErr } from '@/components/common/errors'
 import { actionErrorText } from './labels'
 
@@ -52,16 +54,15 @@ export default function ChatList({ kind, onNew, hold = false, onSettled }: { kin
           if (cancelled) return
           const holdMs = retryAt.current === null ? 0 : retryFailHoldMs(true, retryAt.current, Date.now())
           retryAt.current = null
-          if (holdMs <= 0) {
-            setError(actionErrorText(toErr(e)))
-            settledRef.current?.()
-            return
-          }
-          holdTimer = setTimeout(() => {
-            if (cancelled) return
-            setError(actionErrorText(toErr(e)))
-            settledRef.current?.()
-          }, holdMs)
+          // 오류 상자와 「첫 결과 정해짐」 알림은 한 호출에서 함께 — 순서는 `settleFirstFailure` 가 지킨다(시험으로 고정).
+          holdTimer = settleFirstFailure(holdMs, {
+            showError: () => {
+              if (!cancelled) setError(actionErrorText(toErr(e)))
+            },
+            settle: () => {
+              if (!cancelled) settledRef.current?.()
+            },
+          })
         })
     void fetchFirst()
     const onVis = () => {
@@ -143,7 +144,7 @@ export default function ChatList({ kind, onNew, hold = false, onSettled }: { kin
 
   return (
     <Section>
-      <SectionHeader title={talk ? TALK_HOME.section : '채팅'} />
+      <SectionHeader title={listSectionTitle(talk ? 'talk' : 'chat')} />
       {content}
     </Section>
   )

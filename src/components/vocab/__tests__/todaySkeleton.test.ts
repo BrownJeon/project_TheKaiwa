@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { createElement, type ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
-import { cardHeightVars, TODAY_CARD_CHROME, TODAY_CARD_CHROME_H, TODAY_CARD_GAP, TODAY_CARD_H } from '../todaySkeleton'
+import { cardHeightVars, TODAY_CARD_CHROME, TODAY_CARD_CHROME_H, TODAY_CARD_GAP, TODAY_CARD_H } from '../todaySkeletonSizes'
 import TodaySkeleton, { CardLoadingBody, TodayCardsSkeleton } from '../TodaySkeleton'
 
 // task-046(IMP-0027, T3): 자리표시 높이는 클래스 합산이 아니라 실측 상수다 — 상수와 그리는 곳을 묶어 한쪽만 바뀌지 않게 한다.
@@ -138,4 +138,18 @@ test('loading.tsx 적용 범위 — 오늘 탭 홈에만 닿는다((tab) 그룹)
 test('화면 문구 — 엔진명·모델명·「AI」 새로 만들지 않음(제목 「AI 평가」는 기존 문구), 해요체', () => {
   const copy = readRaw('vocab', 'TodaySkeleton.tsx')
   assert.ok(!/claude|sonnet|haiku|opus|reazon|whisper|style-bert/i.test(copy))
+})
+
+// REV-171 L-2: 오늘 탭은 공개 전에 알림이 자리표시 한 곳뿐이다 — 진짜 카드(각자 몸통 알림을 가진다)는 aria-hidden+inert 아래라 읽히지 않는다.
+test('세 카드 자리표시: role=status 는 한 곳 · busy 래퍼 밖(앞) 형제', () => {
+  const html = render(createElement(TodayCardsSkeleton))
+  assert.equal((html.match(/role="status"/g) ?? []).length, 1)
+  assert.ok(html.indexOf('role="status"') < html.indexOf('aria-busy="true"'))
+  const page = render(createElement(TodaySkeleton))
+  assert.equal((page.match(/role="status"/g) ?? []).length, 1, '서버 loading 화면 전체에서도 한 곳')
+})
+
+test('TodayHome: 공개 전에는 진짜 카드 묶음이 aria-hidden+inert — 카드 안 몸통 알림은 공개된 뒤에만 읽힌다', () => {
+  const src = read('vocab', 'TodayHome.tsx')
+  assert.match(src, /aria-hidden=\{shown \? undefined : true\} inert=\{!shown\}/)
 })

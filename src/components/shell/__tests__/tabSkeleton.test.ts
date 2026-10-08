@@ -2,7 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CHAT_SKELETON, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from '../tabSkeleton'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { ChatRowsSkeleton, SkeletonRegion, WordRowsSkeleton } from '../TabSkeleton'
+import { CHAT_SKELETON, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from '../tabSkeletonSizes'
 
 // task-046(IMP-0027): 자리표시 높이는 클래스 합산이 아니라 실측 상수다 — 상수와 그리는 곳을 묶어 두어 한쪽만 바뀌지 않게 한다.
 const root = join(__dirname, '..', '..')
@@ -74,4 +77,35 @@ test('서버 loading 화면은 데이터 요청을 하지 않는다(진짜 화�
     assert.ok(!/apiGet|apiPost|fetch\(/.test(src), file)
     assert.match(src, /\binert\b/, file)
   }
+})
+
+// REV-171 L-2: 알림(role=status)은 aria-busy 래퍼 안에 두면 busy 동안 낭독이 미뤄질 수 있다 — 래퍼 밖 형제로, 한 묶음에 한 줄.
+test('SkeletonRegion: 알림은 aria-busy 래퍼 밖 형제 · 보이는 블록은 busy+hidden 래퍼 안 · role=status 한 줄', () => {
+  const html = renderToStaticMarkup(createElement(SkeletonRegion, null, createElement('span', null, 'x')))
+  assert.equal((html.match(/role="status"/g) ?? []).length, 1)
+  const busyAt = html.indexOf('aria-busy="true"')
+  const statusAt = html.indexOf('role="status"')
+  assert.ok(statusAt >= 0 && busyAt > statusAt, '알림이 busy 래퍼보다 앞(형제)')
+  const busy = html.slice(busyAt)
+  assert.ok(!busy.includes('role="status"'), 'busy 래퍼 안에는 알림이 없다')
+  assert.match(html, /<div aria-busy="true" aria-hidden="true">/)
+  assert.match(html, /<p role="status" class="sr-only">불러오고 있어요<\/p><div aria-busy/)
+})
+
+test('목록 자리표시 부품(채팅·단어)도 한 줄 알림만', () => {
+  for (const el of [createElement(ChatRowsSkeleton), createElement(WordRowsSkeleton)]) {
+    const html = renderToStaticMarkup(el)
+    assert.equal((html.match(/role="status"/g) ?? []).length, 1)
+    assert.ok(html.indexOf('role="status"') < html.indexOf('aria-busy="true"'))
+  }
+})
+
+// REV-171 L-6: 서버 loading 자리표시가 큰 화면 모듈 전체를 끌어오지 않는다.
+test('자리표시는 화면 모듈(StudyAiHome·WordsScreen)을 import 하지 않는다 — 상수는 작은 모듈에서', () => {
+  assert.ok(!/from '\.\/StudyAiHome'/.test(read('chat', 'StudyAiSkeleton.tsx')))
+  const words = read('vocab', 'WordsSkeleton.tsx')
+  assert.ok(!/from '\.\/WordsScreen'/.test(words))
+  assert.match(words, /import \{ WORD_SORT_OPTIONS \} from '\.\/labels'/)
+  assert.match(read('vocab', 'WordsScreen.tsx'), /WORD_SORT_OPTIONS \} from '\.\/labels'/)
+  assert.ok(!/export const WORD_SORT_OPTIONS/.test(read('vocab', 'WordsScreen.tsx')))
 })

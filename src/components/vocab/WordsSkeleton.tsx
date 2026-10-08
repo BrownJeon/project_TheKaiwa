@@ -14,7 +14,7 @@ import { WordCategoryRowSkeleton, WordRowsSkeleton } from '@/components/shell/Ta
 import ArchiveToggle from './ArchiveToggle'
 import ChunkChips from './ChunkChips'
 import WordSearchBar from './WordSearchBar'
-import { WORD_SORT_OPTIONS } from './WordsScreen'
+import { WORD_SORT_OPTIONS } from './labels'
 
 const noop = () => {}
 
