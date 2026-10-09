@@ -33,7 +33,8 @@ export default function ConsoleShell({ access, children }: { access: ClientConso
         <ConsoleBar menu={access.menu} pathname={pathname} onOpenMenu={() => setMenuOpenAt(pathname)} />
         <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] lg:grid-cols-[232px_minmax(0,1fr)]">
           <ConsoleSidebar menu={access.menu} role={access.role} pathname={pathname} />
-          <main className="min-h-0 min-w-0 overflow-y-auto bg-ground">
+          {/* `relative`: 조상에 위치 지정이 없어 `sr-only`(absolute)가 문서 기준으로 잡히면 문서 스크롤이 늘어난다(task-047). */}
+          <main className="relative min-h-0 min-w-0 overflow-y-auto bg-ground">
             <div
               className="mx-auto w-full max-w-[960px] px-4 pt-3 lg:px-6"
               style={{ paddingBottom: 'max(40px, calc(16px + env(safe-area-inset-bottom)))' }}
