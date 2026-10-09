@@ -39,7 +39,7 @@ tags:
 - **알려진 한계**: 새 `match` 문법은 되묻는 문장(「学生ですか」)을 표현 사용으로 셀 수 있음(진행 표시 후보일 뿐 저장 아님)·열린 칸 표현 2건 ALMOST 허용·A12 가 첫 세트 대기에 6~7초·#24 timing 은 프로세스 메모리(재기동 시 없음).
 - **백로그(착수 안 함)**: 010 스모크 9d 기대값 갱신 · `match` 하한·다문장 NEG·AND 구분자 시험 · 시드 로더 문법 검사 · `stripAdditionalProperties`(A3) · `ecosystem.config.js` eslint · tests/live 별도 tsconfig 타입 검사 · designer 확인 후보(막힘 버튼 면·테두리 톤, 날짜 띠 오늘 범례, 넓은 화면 line-clamp) · `/신규도입` playwright-core.
 - **작업 방식(2026-10-07 사용자 승인)**: qa·reviewer `maxTurns: 60` + 쪼개 소환(QA ≤3~4 항목, reviewer ≤~25 파일). light 트랙은 judge 접수 문구에 부정 표현("신규 화면 없음")을 넣으면 키워드가 걸려 standard 로 판정된다 — 사실대로 "스타일 클래스 수정만" 으로 쓴다.
-- **정리 대상 폴더(사용자가 `rm -rf`)**: `~/.node-local/thekaiwa-ui2`·`thekaiwa-buildcheck-c2`·그 밖 미러 `thekaiwa-010d-b` 등, scratchpad `kc2·kc3·kc4`, `tasks/task-039-improve-tutor-explanation.md.bak`(untracked).
+- **정리 대상 폴더(사용자가 `rm -rf`)**: `~/.node-local/thekaiwa-ui2`·`thekaiwa-buildcheck-c2`·그 밖 미러 `thekaiwa-010d-b` 등, scratchpad `kc2·kc3·kc4`. (~~`tasks/task-039-improve-tutor-explanation.md.bak`~~ ✅ 2026-10-09 삭제 — 보이지 않는 문자 원본 1줄 외에 정본에 없는 내용 없음 확인.)
 
 ## 한 줄 요약
 
