@@ -10,6 +10,8 @@ import { join } from 'node:path'
 // 규칙이 못 덮는 모양(`md:` 변형·`overflow-[auto]`·인라인 스타일·`main` 요소 자신)은 같은 요소에 직접 위치 지정이 있거나 허용 목록의 사유가 있어야 한다.
 // 정적 분석이라 "이 상자가 `main` 안에 있는가"는 알 수 없다: `main` 밖 상자(포털 시트·콘솔 사이드바)는 허용 목록에 사유로 적어 두고,
 // 새로 생긴 `main` 밖 상자가 abspos 자손을 가지는 경우는 이 시험이 잡지 못한다(알려진 한계). 실제 계산값은 QA 가 브라우저에서 본다.
+// 그 밖의 알려진 한계(현재 소스에는 해당 모양 0건): 동적 조립(`overflow-${x}-auto`)·`.css` 안의 클래스형 규칙은 스캔 대상이 아니고,
+// JSX 텍스트의 따옴표 밖 `//` 는 줄 주석으로 오인되며, 템플릿 리터럴 안 삼항의 따옴표는 className 구간 추정을 흐린다(`enclosingString`).
 
 const srcDir = join(__dirname, '..', '..', '..')
 const rootDir = join(srcDir, '..')
@@ -20,9 +22,38 @@ const REQUIRED_SELECTORS = ['main .overflow-y-auto', 'main .overflow-auto', 'mai
 
 // ───────────────────────── 소스 스캔 ─────────────────────────
 
-// 주석을 지운다 — 블록 주석(JSX 안의 중괄호 주석 포함)과 줄 주석(`://` 의 URL·따옴표 바로 뒤 `//` 는 남긴다).
+/** 같은 줄 `from` 부터 이스케이프되지 않은 닫는 따옴표 `q` 가 있는가. */
+function closesOnLine(line: string, from: number, q: string): boolean {
+  for (let j = from; j < line.length; j++) {
+    if (line[j] === '\\') j++
+    else if (line[j] === q) return true
+  }
+  return false
+}
+
+// 주석을 지운다 — 블록 주석(JSX 안의 중괄호 주석 포함)과 줄 주석.
+// 줄 주석은 같은 줄에서 닫히는 문자열 밖의 `//` 만 주석으로 본다(`'a // b'`·`"https://…"` 는 남긴다). `://` 의 URL 도 남긴다.
+// 같은 줄에 닫는 따옴표가 없는 따옴표(JSX 텍스트의 아포스트로피·여러 줄 템플릿)는 문자열로 보지 않는다(이전 판과 같은 동작으로 되돌아간다).
 function stripComments(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1')
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => {
+      let quote = ''
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '\\') i++ // 문자열 안의 이스케이프이자, 정규식 리터럴 `/^W\//` 의 `\/` 도 주석 시작으로 보지 않기 위해
+        else if (quote) {
+          if (ch === quote) quote = ''
+        } else if (ch === '"' || ch === "'" || ch === '`') {
+          if (closesOnLine(line, i + 1, ch)) quote = ch
+        } else if (ch === '/' && line[i + 1] === '/' && line[i - 1] !== ':') {
+          return line.slice(0, i)
+        }
+      }
+      return line
+    })
+    .join('\n')
 }
 
 type Hit = {
@@ -70,7 +101,12 @@ function scanSource(file: string, raw: string): Omit<Hit, 'key'>[] {
     const str = enclosingString(text, index)
     found.push({ index, hit: { file, kind: kind(m[2]), token: m[2] + m[3], cls: str.value, mainSelf: isMainTag(text, str.start) } })
   }
-  for (const m of text.matchAll(CLASS_TOKEN)) pushClass(m, (prefix) => (prefix ? 'variant' : 'class'))
+  for (const m of text.matchAll(CLASS_TOKEN)) {
+    // Tailwind 중요 표시(`!overflow-y-auto`·`overflow-y-auto!`)의 실제 클래스는 `.\!overflow-y-auto` 라 규칙의 `.overflow-y-auto` 에 안 걸린다 → 변형과 같다.
+    const end = (m.index ?? 0) + m[1].length + m[2].length + m[3].length
+    const important = m[1] === '!' || text[end] === '!'
+    pushClass(m, (prefix) => (prefix || important ? 'variant' : 'class'))
+  }
   for (const m of text.matchAll(ARBITRARY_TOKEN)) pushClass(m, () => 'variant')
   for (const m of text.matchAll(INLINE_TOKEN)) found.push({ index: (m.index ?? 0) + m[1].length, hit: { file, kind: 'inline', token: m[2], cls: '', mainSelf: false } })
   return found.sort((a, b) => a.index - b.index).map((f) => f.hit)
@@ -262,6 +298,9 @@ test('판별기 자체 점검: 소스 스캔이 변형·임의값·인라인·ma
   assert.deepEqual(kinds('<div className="overflow-[auto]">'), ['variant'])
   assert.deepEqual(kinds('<div className="overflow-y-[scroll]">'), ['variant'])
   assert.deepEqual(kinds('<div className="[overflow-y:auto]">'), ['variant'])
+  assert.deepEqual(kinds('<div className="!overflow-y-auto">'), ['variant'], 'Tailwind 중요 표시(앞 `!`)는 규칙의 `.overflow-y-auto` 에 안 걸린다')
+  assert.deepEqual(kinds('<div className="overflow-y-auto!">'), ['variant'], 'Tailwind 4 중요 표시(뒤 `!`)도 마찬가지')
+  assert.deepEqual(kinds('<div className="md:!overflow-auto">'), ['variant'])
   assert.deepEqual(kinds('<main className="relative overflow-y-auto">'), ['class+main'])
   assert.deepEqual(kinds('<div className={`flex ${x} overflow-y-auto`}>'), ['class'])
   assert.deepEqual(kinds("const BOX = 'max-h-[40dvh] overflow-y-auto overscroll-contain'"), ['class'])
@@ -273,6 +312,12 @@ test('판별기 자체 점검: 소스 스캔이 변형·임의값·인라인·ma
   assert.deepEqual(kinds("if (getComputedStyle(p).overflowY === 'auto') run()"), [])
   assert.deepEqual(kinds("el.style.overflow = 'hidden'"), [])
   assert.deepEqual(kinds('// overflow-y-auto 는 주석\n/* overflow-auto */ <div className="flex">{/* overflow-y-scroll */}'), [])
+  assert.deepEqual(kinds('const x = 1 // overflow-y-auto 는 줄 끝 주석\nconst y = "overflow-auto" // 뒤쪽만 주석'), ['class'], '문자열 앞의 토큰은 남기고 줄 끝 주석은 지운다')
+  // 문자열 안의 `//` 는 주석이 아니다 — 같은 줄 뒤쪽 className 이 지워지면 안 된다(REV-174 L-1)
+  assert.deepEqual(kinds("const u = 'a // b'; const c = <div className=\"md:overflow-y-auto\"/>"), ['variant'])
+  assert.deepEqual(kinds('const u = "https://x.y/z"; const c = <div className="max-lg:overflow-auto"/>'), ['variant'])
+  assert.deepEqual(kinds('const r = /^W\\//; const c = <div className="md:overflow-y-auto"/>'), ['variant'], '정규식 리터럴의 `\\//` 를 줄 주석으로 오인하지 않는다')
+  assert.deepEqual(kinds("<p>don't</p> // overflow-y-auto 는 주석"), [], '짝 없는 아포스트로피는 문자열로 보지 않아 뒤의 줄 주석이 지워진다')
   // 요소 하나의 className 문자열을 정확히 잘라 낸다
   const [h] = scanSource('x.tsx', '<a className="p-1 relative">x</a><div className="min-h-0 md:relative overflow-y-auto">')
   assert.equal(h.cls, 'min-h-0 md:relative overflow-y-auto')
@@ -288,6 +333,9 @@ test('판별기 자체 점검: 판정 정책 — 변형·인라인·main 자신�
   assert.equal(bad('<div className="relative md:overflow-y-auto">'), 0, '같은 요소에 직접 위치 지정이 있으면 통과')
   assert.equal(bad('<div className="md:relative md:overflow-y-auto">'), 1, '`md:relative` 는 인정하지 않는다')
   assert.equal(bad('<div className="overflow-[auto]">'), 1)
+  assert.equal(bad('<div className="!overflow-y-auto"><span className="sr-only">x</span></div>'), 1, '중요 표시 토큰은 규칙이 못 덮으니 직접 위치 지정이 필요하다')
+  assert.equal(bad('<div className="overflow-y-auto!">'), 1)
+  assert.equal(bad('<div className="relative !overflow-y-auto">'), 0, '같은 요소에 직접 위치 지정이 있으면 통과')
   assert.equal(bad("el.style.overflowY = 'auto'"), 1)
   assert.equal(bad("el.style.overflowY = 'auto'", { x: { why: 'r' } }), 1, '열쇠는 토큰 열쇠(파일 경로)여야 한다')
   assert.equal(bad("el.style.overflowY = 'auto'", { 'x.tsx': { why: 'r' } }), 0)
@@ -329,10 +377,12 @@ test('globals.css: `main` 안 세로 스크롤 상자를 relative 로 만드는 
 
 test('소스 스캔: 빈 통과 방지 — 파일·토큰 수 하한과 알려진 상자', () => {
   const { files, hits } = scanTree()
+  // 하한의 목적은 「디렉터리 이동·정규식 고장으로 아무것도 안 읽고 통과」를 막는 것뿐이다. 읽은 값(2026-10-10: 파일 약 620, 토큰 22)보다 일부러 한참 낮춰,
+  // 세로 스크롤 상자를 한두 개 지우거나 파일을 정리하는 정상 변경에는 깨지지 않게 한다. 정규식이 일부만 놓치는 고장은 아래 알려진 상자 이름 검사가 잡는다.
   assert.ok(files >= 300, `읽은 소스 파일이 너무 적다(${files}) — 디렉터리가 옮겨졌나?`)
-  assert.ok(hits.length >= 22, `세로 스크롤 토큰이 너무 적다(${hits.length}) — 정규식이나 경로가 깨졌나?`)
+  assert.ok(hits.length >= 15, `세로 스크롤 토큰이 너무 적다(${hits.length}) — 정규식이나 경로가 깨졌나? (상자를 대거 정리한 변경이라면 이 하한과 아래 알려진 상자 목록을 함께 손볼 것)`)
   const keys = hits.map((h) => h.key)
-  for (const f of ['chat/MessageList.tsx', 'eval/EvalResult.tsx', 'admin/console/ConsoleShell.tsx', 'lesson/LessonScreen.tsx', 'scenario/RolePlayGoalCard.tsx', 'vocab/WordForm.tsx']) {
+  for (const f of ['chat/MessageList.tsx', 'eval/EvalResult.tsx', 'admin/console/ConsoleShell.tsx', 'common/Sheet.tsx', 'lesson/LessonScreen.tsx', 'scenario/RolePlayGoalCard.tsx', 'vocab/WordForm.tsx']) {
     assert.ok(keys.includes(`src/components/${f}`), `${f} 의 세로 스크롤 토큰을 찾지 못함: ${keys.join(', ')}`)
   }
   assert.ok(keys.includes('src/app/(app)/layout.tsx'), '앱 셸 main 의 토큰을 찾지 못함')
