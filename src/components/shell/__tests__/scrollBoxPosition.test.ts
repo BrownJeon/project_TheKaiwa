@@ -6,6 +6,7 @@ import { join } from 'node:path'
 // task-047: 안쪽 세로 스크롤 상자가 위치 기준(`position`)을 갖지 않으면 그 안의 `sr-only`(absolute)가 앱 셸 `main`(`relative`) 기준으로 잡혀
 // `main` 의 스크롤 높이가 늘고, 숨은 입력에 초점이 가면 `main` 까지 따로 스크롤된다(task-021·029·045 가 한 곳씩 고친 같은 결함).
 // 그래서 `globals.css` 의 `@layer base` 한 규칙이 `main` 안의 `overflow-y-auto|overflow-auto|overflow-y-scroll|overflow-scroll` 를 `relative` 로 만든다.
+// 단 `textarea` 는 `:not(textarea)` 로 뺀다 — 폼 컨트롤은 자손이 없어 얻는 것이 없고, 위치 지정 요소가 되면 초점 링 가장자리 픽셀이 달라진다(QA-047a-L1).
 // 이 시험은 ① 그 규칙이 살아 있는지 ② 소스의 세로 스크롤 토큰이 규칙이 덮는 모양(접두어 없는 위 네 개)뿐인지를 고정한다 —
 // 규칙이 못 덮는 모양(`md:` 변형·`overflow-[auto]`·인라인 스타일·`main` 요소 자신)은 같은 요소에 직접 위치 지정이 있거나 허용 목록의 사유가 있어야 한다.
 // 정적 분석이라 "이 상자가 `main` 안에 있는가"는 알 수 없다: `main` 밖 상자(포털 시트·콘솔 사이드바)는 허용 목록에 사유로 적어 두고,
@@ -17,8 +18,13 @@ const srcDir = join(__dirname, '..', '..', '..')
 const rootDir = join(srcDir, '..')
 
 const POSITIONED = ['relative', 'absolute', 'fixed', 'sticky']
-/** 규칙이 덮어야 하는 선택자 네 가지(`:where()` 안 목록). */
-const REQUIRED_SELECTORS = ['main .overflow-y-auto', 'main .overflow-auto', 'main .overflow-y-scroll', 'main .overflow-scroll']
+/** 규칙이 덮어야 하는 선택자 네 가지(`:where()` 안 목록). 폼 컨트롤 `textarea` 는 `:not(textarea)` 로 제외한다(QA-047a-L1). */
+const REQUIRED_SELECTORS = [
+  'main .overflow-y-auto:not(textarea)',
+  'main .overflow-auto:not(textarea)',
+  'main .overflow-y-scroll:not(textarea)',
+  'main .overflow-scroll:not(textarea)',
+]
 
 // ───────────────────────── 소스 스캔 ─────────────────────────
 
@@ -159,7 +165,7 @@ const ALLOW: Record<string, Allow> = {
     must: /createPortal\(/,
   },
   'src/components/chat/Composer.tsx': {
-    why: 'textarea — 자손이 없다(채팅방처럼 `main` 안이면 규칙이 relative 로 만들고, 시트 안이면 그대로. 어느 쪽이든 무해)',
+    why: 'textarea — 자손이 없어 위치 기준이 필요 없고, 규칙에서도 `:not(textarea)` 로 제외한다(relative 가 되면 초점 링 가장자리 픽셀이 달라짐, QA-047a-L1)',
     mustNot: NO_ABSPOS_CHILD,
   },
   'src/components/vocab/WordForm.tsx': {
@@ -368,6 +374,9 @@ test('판별기 자체 점검: CSS 규칙 판정 — 선택자 누락·position 
   assert.equal(ruleProblems(`@layer utilities { :where(${sel}) { position: relative } }`).length, 5, '다른 층에 있으면 base 규칙이 아니다(선택자 4 + 층 밖 경고)')
   assert.equal(ruleProblems(`${good}\n:where(${sel}) { position: relative }`).length, 1, 'base 에 있어도 층 밖에 같은 규칙이 또 있으면 실패')
   assert.equal(ruleProblems(`@layer base, components;\n${good}`).length, 0, '층 순서 선언문은 블록이 아니다')
+  // `:not(textarea)` 가 빠진 선택자(폼 컨트롤까지 relative 로 만드는 모양)는 필요한 선택자가 아니다 — 네 개 모두 빠진 것으로 본다
+  const bare = REQUIRED_SELECTORS.map((x) => x.replace(':not(textarea)', ''))
+  assert.equal(ruleProblems(`@layer base { :where(${bare.join(', ')}) { position: relative } }`).length, 4, '`:not(textarea)` 삭제는 실패')
 })
 
 test('globals.css: `main` 안 세로 스크롤 상자를 relative 로 만드는 규칙이 @layer base 에 있다', () => {

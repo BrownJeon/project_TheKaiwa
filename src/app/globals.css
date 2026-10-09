@@ -137,10 +137,17 @@ body {
  *
  * `main` 안으로 좁힌 이유: `body` 로 포털하는 `Sheet` 처럼 `main` 밖 상자는 이미 따로 containing block 이 있어 건드릴 까닭이 없다.
  * `@layer base` 라 `absolute|fixed|sticky` 유틸리티(utilities 층)가 항상 이기고, `:where()` 라 명시도는 0 이다. 가로 줄(`overflow-x-auto`)은 대상이 아니다.
+ * `textarea` 는 뺀다(`:not(textarea)`): 폼 컨트롤은 자식 요소를 가질 수 없어 `sr-only` 자손이 있을 수 없으니 얻는 것이 없고, 위치 지정 요소가 되면
+ * Chromium 이 따로 그려 초점 링 가장자리 픽셀이 달라진다(QA-047a-L1, 채팅방 `Composer`). `input`·`select` 에는 이 클래스를 쓰는 곳이 없다.
  * 시험: `components/shell/__tests__/scrollBoxPosition.test.ts` — 규칙이 이 층에 살아 있는지, 소스의 세로 스크롤 토큰이 이 네 개뿐인지 고정한다.
  */
 @layer base {
-  :where(main .overflow-y-auto, main .overflow-auto, main .overflow-y-scroll, main .overflow-scroll) {
+  :where(
+      main .overflow-y-auto:not(textarea),
+      main .overflow-auto:not(textarea),
+      main .overflow-y-scroll:not(textarea),
+      main .overflow-scroll:not(textarea)
+    ) {
     position: relative;
   }
 }
