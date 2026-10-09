@@ -2048,7 +2048,7 @@ return <ConsoleShell access={toClientAccess(access)}>{children}</ConsoleShell>
     <ConsoleBar menu onOpenMenu />                        ← 52px
     <div className="grid min-h-0 min-w-0 lg:grid-cols-[232px_minmax(0,1fr)]">
       <ConsoleSidebar menu className="hidden lg:flex" />  ← ≥1024 만. 자체 overflow-y-auto(데스크톱 예외)
-      <main className="min-h-0 min-w-0 overflow-y-auto bg-ground">
+      <main className="relative min-h-0 min-w-0 overflow-y-auto bg-ground">   ← `relative`: 조상에 위치 지정이 없어 sr-only 가 문서 스크롤을 늘림(task-047, §18)
         <div className="mx-auto w-full max-w-[960px] px-4 pt-3 lg:px-6"
              style={{ paddingBottom: 'max(40px, calc(16px + env(safe-area-inset-bottom)))' }}>
           {children}
@@ -8855,3 +8855,27 @@ v2 보강 H-1~H-8 도 모두 닫힘(H-1 읽기 비저장 Leader ④ · H-2 #178 
 - 계획표 월 이동: 달력이 자리표시로 돌아갔다가 새 달로 바뀌어 달력 아래가 55~154px 움직인다(**변경 전부터 있던 동작**, 탭 전환 범위 밖) — 후속 개선 후보(이전 달 격자 유지 또는 자리표시 높이를 새 달에 맞춤).
 - 진행 중 챌린지 카드·기록이 있는 달의 계획표 높이는 실측하지 못했다(NOT_VERIFIED). 실기기(S25+ WebView)·TalkBack 낭독 확인 대기.
 - 탭 전환 사이의 **데이터 캐시**(마지막 데이터를 유지한 채 바로 보여 주기)는 이번 범위가 아니다 — B 단계 측정 뒤 별도 결정(사용자별 열쇠·로그아웃 시 비움·무효화 규칙 필요).
+
+## 18. task-047 안쪽 스크롤 상자 위치 기준 규칙 (IMP-0023 계열, 2026-10-10)
+
+> 앱 셸 `main` 안의 안쪽 스크롤 상자에 위치 기준(`position`)이 없으면, 그 안의 `sr-only`(absolute·1px)가 상자가 아니라 `main` 기준으로 잡혀 `main` 의 스크롤 높이를 늘린다. 그 상태에서 숨은 라디오·체크에 초점이 가면 상자뿐 아니라 `main` 도 따로 스크롤돼 BackBar·하단 탭이 화면 밖으로 밀린다(IMP-0023 설정 화면, task-045 편집기). task-021·029·045 가 화면마다 한 곳씩 고쳐도 같은 결함이 남아, 한 규칙으로 막았다. **화면 모양·간격·문구·기능은 바뀌지 않고 위치 지정만 바뀐다.** 구현 정본: task-047 이력서(`agent-vault/10-Flow/tasks/task-047-improve-scroller-relative.md`).
+
+### 18-1. 규칙
+1. **전역 규칙 한 개** — `src/app/globals.css` 의 `@layer base`: `:where(main .overflow-y-auto:not(textarea), main .overflow-auto:not(textarea), main .overflow-y-scroll:not(textarea), main .overflow-scroll:not(textarea)) { position: relative }`. `:where()` 라 명시도 0 이고 `base` 층이라 `absolute|fixed|sticky|relative` 유틸리티가 항상 이긴다.
+   - `main` **안**으로 좁혔다: `body` 로 포털하는 공용 `Sheet` 등 `main` 밖 상자는 따로 containing block 이 있어 건드리지 않는다.
+   - `textarea` 는 뺐다: 폼 컨트롤은 자식 요소를 가질 수 없어 `sr-only` 자손이 있을 수 없으니 얻는 것이 없고, 위치 지정 요소가 되면 Chromium 이 따로 그려 초점 링 가장자리 픽셀이 달라진다(QA-047a-L1, 채팅방 `Composer`).
+   - 가로 줄(`overflow-x-auto`)은 대상이 아니다(내용이 짧고 `sr-only` 자손은 `DayStrip` 하나뿐).
+2. **콘솔** — 콘솔 `main` 은 조상에도 위치 지정이 없어 안쪽 상자가 없어도 `sr-only` 가 **문서** 기준으로 잡혀 문서 스크롤을 늘린다. 규칙은 `main` 요소 자신에는 닿지 않으므로 `ConsoleShell` 의 `main` 에 직접 `relative` 를 달았다(앱 셸 `main` 은 `(app)/layout.tsx` 에서 이미 `relative`, task-029).
+3. **새 화면을 쓸 때** — 안쪽 세로 스크롤 상자는 접두어 없는 `overflow-y-auto|overflow-auto|overflow-y-scroll|overflow-scroll` 를 쓰면 자동으로 보호된다. `md:overflow-y-auto`·`overflow-[auto]`·`!overflow-y-auto`·인라인 스타일처럼 규칙이 못 덮는 형태를 쓰면 시험이 실패하므로 같은 요소에 접두어 없는 `relative|absolute|fixed|sticky` 를 직접 달거나(자손에 `sr-only`·`absolute` 가 있다면 `relative`) 시험의 허용 목록에 사유를 적는다.
+4. **시험** — `src/components/shell/__tests__/scrollBoxPosition.test.ts`: 규칙이 `@layer base` 에 살아 있고 네 선택자가 모두 있는지, 소스의 모든 세로 스크롤 토큰이 접두어 없는 표준 토큰인지(변형 금지), 허용 목록(`Sheet`·`Composer`·`WordForm`·`ConsoleNav`)의 사유가 기대는 사실, 콘솔 `main` 의 `relative`, 빈 통과 방지(파일·토큰 하한). 기존 `scenario/__tests__/editorScroller.test.ts`·`app/(app)/__tests__/appShellScroll.test.ts` 와 함께 유지한다.
+
+### 18-2. 실측 요약 (운영 빌드 `next start`, 변경 전 ↔ 후 같은 쿠키로 비교, 읽기 전용)
+- **앱 셸 144 상태·콘솔 291 셀**: 요소 위치(기하)·겹침 순서(`elementsFromPoint` 격자)·픽셀 차이 0. 규칙이 실제로 `static` → `relative` 로 바꾼 곳은 `eval/new`·`eval/history`·`plan/challenge/new` 상자뿐이었다.
+- **스크롤 누수 대조**(상자에 2400px 블록 + 숨은 라디오 `focus()`): 앱 셸 `main` Δ 1788~2650 → **0**, 콘솔 문서 Δ 2797~3665 → **0**(원래 `relative` 인 편집기·`MessageList` 는 전후 0).
+- **예상된 차이**: 콘솔 `lexicon` 표의 `sr-only caption` 좌표가 문서 기준에서 `main` 기준으로 바뀜(보이지 않는 요소, 픽셀·겹침 0). 콘솔 설정 화면 데스크톱 초점 링 가장자리 서브픽셀 차이(최대 채널 ±5/255, 모바일은 0) — 콘솔 `main` 에 `relative` 를 다는 것 자체의 결과로 수용.
+
+### 18-3. 알려진 한계
+- 데이터가 있어야 열리는 화면(레슨 단계·평가 진행/결과·역할극 결과·진행 중 챌린지·콘솔 설정 편집/diff)은 실측하지 못했다(NOT_VERIFIED). 정적 분석(REV-173 표 A 13곳)과 단순화 재현·DOM 주입 대조로 갈음.
+- 시험은 정적 소스 스캔이다 — 동적으로 조립되는 클래스·템플릿 리터럴 안 삼항 따옴표·`.css` 클래스형 규칙은 못 잡는다(현재 소스에 해당 모양 없음). `input`·`select` 에 스크롤 클래스를 쓰면 규칙이 `relative` 로 바꾼다(현재 없음).
+- 빌드 CSS 에 쓰이지 않는 유틸리티 몇 개가 생김(새 시험 파일의 문자열을 Tailwind 가 후보로 읽은 것으로 추정, 약 410B, 화면 영향 없음 [추측]).
+- 앱 WebView·Safari·실기기·가상 키보드 상태는 미확인.
