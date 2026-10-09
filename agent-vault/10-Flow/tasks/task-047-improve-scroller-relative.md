@@ -1,7 +1,7 @@
 ---
 task_id: task-047
 title: "안쪽 스크롤 상자 위치 기준(relative) 누락 전수 점검·보정 — 앱 셸 main 이 같이 스크롤되는 잠복 결함 (IMP-0023 계열)"
-status: done-deploy-pending
+status: done
 base_ref: 23e08b9
 risk_level: "R1"
 roles_involved: [leader, judge, reviewer, developer, qa]
@@ -718,3 +718,9 @@ demo_gate:
 - 앱 WebView·Safari·실기기·가상 키보드 상태는 확인하지 못했습니다.
 
 **남은 일**: ① 사용자 확인 후 `git push`(= 운영 배포, `src` 변경이라 blue/green 재빌드; 롤백 대상 직전 릴리스 `20261008-145346-5d0d8f8d`) ② 배포 뒤 실기기에서 화면이 이전과 다르게 보이는지(특히 레슨·평가·콘솔) 확인.
+
+## 배포 기록 (2026-10-10 15:44 KST)
+- 사용자 승인: 배포 확인 질문(예방 성격·전역 CSS·데이터 필요 화면 미실측 한계를 함께 고지)에 「지금 배포」 선택.
+- `git push origin main`(`23e08b9..402b193`, 로컬 커밋 6개) → webhook blue/green → **릴리스 `20261010-064417-402b193e`**, `RELEASE_RESULT ok`(`migrated:false`), 헬스 200, pm2 `thekaiwa`·`thekaiwa-speech-gateway`·`thekaiwa-speech-worker` 모두 새 릴리스 경로에서 online. 직전 릴리스 `20261008-145346-5d0d8f8d` 는 롤백 대상(`scripts/deploy.sh TheKaiwa --rollback`).
+- 운영 읽기 전용 스모크(QA2 쿠키, 데이터 쓰기·LLM 호출 0): `/study/ai?tab=talk|chat|scenario`·`/study/today`·`/plan`·`/drawer/words`·`/ask`·`/settings`·`/study/today/eval/new`·`/study/today/eval/history`·`/plan/challenge/new`·`/plan/challenges` 12경로 전부 200. **운영 CSS**(`/_next/static/chunks/0_k3ymbsh_x11.css`)에 전역 규칙이 `:not(textarea)` 4개 보존·`@layer base` 안·`@layer utilities` 앞으로 살아 있음(REV-175 가 NOT_VERIFIED 로 둔 「운영 빌드 CSS 층 순서」 확인 완료). 운영은 역할 계정 QA 토큰을 받지 않아 콘솔 화면은 운영 스모크 대상에서 제외(변경 전후 비교 QA 로 갈음).
+- 남음: 사용자 실기기(S25+ WebView) 확인 — 레슨·평가·역할극 결과·콘솔이 이전과 다르게 보이는지. 후속 후보: 계획표 월 이동 깜빡임·C 캐시·역할극 시드 원어민 검수.

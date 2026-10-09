@@ -6,9 +6,9 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-10 — task-047(안쪽 스크롤 상자 위치 기준, IMP-0023 계열) **구현·감사·QA 완료, 배포 대기**(이 블록이 가장 최신)
+## ★ 2026-10-10 — task-047(안쪽 스크롤 상자 위치 기준, IMP-0023 계열) **운영 배포 완료**(릴리스 `20261010-064417-402b193e`) (이 블록이 가장 최신)
 
-- **상태**: 로컬 커밋 `9c8301d`(구현)·`1b9d099`(REV-174 수정)·`3d0485c`(QA-047a-L1 `textarea` 제외)·주석·docs/vault 커밋 — **push·배포 안 함**. 사용자 확인 대기(배포 = `git push`, `src` 변경이라 blue/green 재빌드; 롤백 대상 직전 릴리스 `20261008-145346-5d0d8f8d`). task-047 이력서 끝 「최종 요약」이 정본. 세션 시작 전 push 한 vault 커밋 3개(`5d0d8f8..23e08b9`)는 `docs_only` 로 건너뛰어 운영 재시작 없었음.
+- **상태**: 사용자 「지금 배포」 승인 → `git push`(`23e08b9..402b193`: `9c8301d` 구현·`1b9d099` REV-174 수정·`3d0485c` `textarea` 제외·`9e98b5c` 주석·`13b7804` docs·`402b193` vault) → webhook blue/green → `RELEASE_RESULT ok`(`migrated:false`), 헬스 200, pm2 3개 online. **운영 읽기 전용 스모크** 12경로(앱 셸 화면·eval·challenge·settings) 전부 200 + 운영 CSS 에 전역 규칙 확인(`:not(textarea)` 4개·`@layer base`·`@layer utilities` 앞). 롤백 대상 직전 릴리스 `20261008-145346-5d0d8f8d`(`scripts/deploy.sh TheKaiwa --rollback`). 실기기 확인은 사용자 대기. task-047 이력서 끝 「최종 요약」이 정본. (세션 시작 전 push 한 vault 커밋 3개 `5d0d8f8..23e08b9` 는 `docs_only` 로 건너뜀.)
 - **내용**: 앱 셸 `main` 안 세로 스크롤 상자에 전역 규칙 `:where(main .overflow-y-auto:not(textarea), …){position:relative}`(`globals.css` `@layer base`) + 콘솔 `ConsoleShell` `main` `relative` + 소스 스캔 회귀 시험 `scrollBoxPosition.test.ts`. 규칙 정본 `docs/screens.md` §18. 효과 대조(DOM 주입): 앱 셸 `main` Δ 1788~2650 → 0, 콘솔 문서 Δ 2797~3665 → 0. 화면 모양·간격 변화 0(비교 QA: 앱 셸 144 상태·콘솔 291 셀 기하·겹침·픽셀 0, 예외 = 콘솔 설정 데스크톱 초점 링 서브픽셀 ±5/255·`lexicon` `sr-only caption` 좌표).
 - **사용자에게 알릴 점**: 예방 성격(현재 QA 데이터로는 자연 재현 안 됨, 효과는 주입 대조) · 전역 CSS 라 모든 화면 영향 → 비교 QA 로 확인 · **데이터가 있어야 열리는 화면(레슨 단계·평가 진행/결과·역할극 결과·진행 중 챌린지·콘솔 설정 편집/diff) 실측 못 함** · 실기기·WebView 미확인. 데모 게이트는 judge light 트랙 자동 면제(`DM-light-waive`, 선택지 답 「데모 면제」는 발화 증거가 아니라 쓰지 않음).
 - **다음 후보**: 사용자 배포 확인 → 실기기 확인(task-045·046·047·010d 역할극) → 계획표 월 이동 깜빡임·C 캐시(별도 결정) · 역할극 시드 원어민 검수. 사용자 정리 폴더에 `~/.node-local/thekaiwa-{t047,t047-qa}` 추가(`thekaiwa-t046-*` 도 그대로).
