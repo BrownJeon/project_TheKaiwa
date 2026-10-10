@@ -100,6 +100,7 @@ erDiagram
     string id PK
     ChatKind kind
     datetime reviewedAt
+    datetime endedAt
   }
   ChatMessage {
     string id PK
@@ -1116,6 +1117,8 @@ model Chat {
   messageCount  Int       @default(0)
   /// 표현 점검(A3)은 채팅당 1회
   reviewedAt    DateTime?
+  /// 역할극을 사용자가 [마치기]로 끝낸 시각(task-048, 사용자 승인 2026-10-10). nullable·기본값 없음, 옛 행·다른 경로로 닫힌 행은 NULL
+  endedAt       DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -2266,7 +2269,7 @@ model DebugSession {
 
 | 모델 | 목적 | 핵심 필드 | 소유 층 | 생성 시점 | 삭제/보존 정책 | Phase |
 |---|---|---|---|---|---|---|
-| `Chat` | 회화·채팅·질문 세션 | `kind`, `topicId`, `scenarioId`·`lessonId`(역할극·레슨 말하기 연결, task-010d), `reviewedAt`, `messageCount` | L2 | `POST /api/v1/chats` | 사용자 삭제 가능 → Message·Correction Cascade, Proposal/Utterance SetNull, StatsSnapshot 불변. Scenario·Lesson 삭제 시 `scenarioId`·`lessonId` SetNull | 1 |
+| `Chat` | 회화·채팅·질문 세션 | `kind`, `topicId`, `scenarioId`·`lessonId`(역할극·레슨 말하기 연결, task-010d), `reviewedAt`, `endedAt`(task-048 — 사용자가 역할극을 [마치기]로 끝낸 시각. 쓰는 곳은 #167 종료 기록 tx 하나(관측 `SCENARIO_COMPLETED` 와 같은 `now`, 빈 행만). NULL = 안 끝냄·역할극 아님·백필 전 옛 행 — 「끝냈는가」는 이 칸을 먼저 보고 NULL 이면 관측으로 확인(2차 방어). **불변식: `endedAt` 이 있으면 같은 대화의 종료 관측(`SCENARIO_COMPLETED`)도 있다**(같은 tx 에서 둘을 쓴다) — 종료 관측을 지우는 코드가 생기면 `endedAt` 도 함께 다뤄야 한다(`endedAt` 만 있고 관측이 없으면 재종료 때 빈 결과가 나가고 #29 `ended` 가 null — REV-176 L-3)), `messageCount` | L2 | `POST /api/v1/chats` | 사용자 삭제 가능 → Message·Correction Cascade, Proposal/Utterance SetNull, StatsSnapshot 불변. Scenario·Lesson 삭제 시 `scenarioId`·`lessonId` SetNull | 1 |
 | `ChatMessage` | 턴 메시지 | `role`, `content`, `inputSource`, `toolLog`, `traceId` | L2 | 턴 시작(USER) / 턴 완료(ASSISTANT, PENDING→DONE) | Chat Cascade. 기동·조회 시 PENDING(180초↑, 메모리 락 없음)→FAILED(task-006) | 1 |
 | `Correction` | AI 교정 제안 | `original`(불변), `corrected`, `explanation`, `extraNoteKo`(task-039 추가 설명, 생성 시에만·nullable), `errorType`, `status`, `savedWordId` | L2 | A1 턴 응답 / A3 점검 결과 (PROPOSED) | Message Cascade. ACCEPTED 시 WordEntry·LearnerErrorStat 생성/증가, 그 뒤 Correction 삭제돼도 유지 | 1 |
 | `TutorProposal` | 강사 제안 카드 | `kind`, `payload`, `status`, `result` | L2 | A1/A9 응답의 `proposals[]` (PROPOSED) | 30일 미처리 EXPIRED, Chat 삭제 시 SetNull 로 남김 | 1 |
@@ -2753,3 +2756,5 @@ model TtsAbCompare {
 }
 ```
 `EngineMetricsDaily` 확장 컬럼(제안, 별도 `TtsMetricsDaily` 대신): `p99Ms Int?`, `ttfaP50Ms Int?`, `ttfaP95Ms Int?`, `rtfAvg Float?`, `cacheHitRate Float?`, `queueDelayMs Int?`, `modelLoadMs Int?`, `byVoice Json?`(`{voiceId:{requests, errors, p50Ms}}`, TTS connection 행만). 추가 제안: `VoiceModel.currentVersionId String?`(PRODUCTION 버전 포인터), `JobKind.TTS_QUALITY_RUN`(회귀 실행 잡), `AppSetting` 키 `tts.styleMap`·`tts.normalizer.overrides`·`tts.cache.maxBytes`(2GB)·`tts.cache.warmupSentences`. Canary 세션 배정은 `RequestTrace.steps[].meta.modelVersion` 으로 추적.
+
+> **2026-10-10 사용자 결정 정정**: 위 제안 중 **실제 승인·구현된 것은 `EngineMetricsDaily` 6칸(`p99Ms`·`ttfaP50Ms`·`ttfaP95Ms`·`rtfAvg`·`cacheHitRate`·`byVoice`)뿐**이다. **`queueDelayMs`·`modelLoadMs` 는 철회**(DB 변경 없음 — 제안 문구만 남은 것), **`JobKind.TTS_QUALITY_RUN` 은 보류**(012c-3 가 Phase 4 로 이관되어 그때 연계해 재결정). `VoiceModel.currentVersionId`·Voice Versions·Canary 는 이미 Phase 4(016).

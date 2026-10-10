@@ -129,7 +129,7 @@ bash scripts/build-apk.sh       # 우분투, JDK 21 — 네이티브 변경 시�
 | 1 | 온디바이스 STT 플러그인+gateway+M4 TTS P0 실측 / AI 클라이언트+페르소나 v1 / 설정 허브+미리듣기 / Console 골격 / AI 채팅·교정 / AI 회화 / 단어장+오늘의 단어 / 통합 QA·라이브·APK | ⬜ task-003~009 |
 | 2 | 오늘의 회화(주제·상황·청취 구간)·반복 학습(강사 판단 3~7일·RepetitionItem) / AI평가 / 달력 / 음성 P2(whisper 분석·Ensemble) / Console P2(편집·Version·Rollback·Prompt Registry·Playground) | ⬜ |
 | 3 | 분석·성장기록 / 서랍장 전체 / 무엇이든 물어보세요 / 음성 P3(발음 분석) / Console P3(E2E·Diagnostics·Debug) | ⬜ |
-| 4 | Voice Package Import·스타일·Preset·Export/Import·Override·Admin Web 분리 검토 | ⬜ |
+| 4 | Voice Package Import·스타일·Preset·Export/Import·Override·Admin Web 분리 검토 / **012c-3 TTS 품질(Golden·회귀·A/B·대시보드, 2026-10-10 Phase 2 에서 이관 — DB 3표 승인 여부부터 재결정) + 그때 `JobKind`·`SnapshotKind` 값 추가(챌린지 T6 등) 연계 재결정** | ⬜ |
 
 > Phase별 상세 범위·완료 기준은 [설계안 §15](docs/design-spec.md). 착수 전 반드시 읽을 것.
 
