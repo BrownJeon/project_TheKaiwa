@@ -14,10 +14,10 @@ import {
   CARD_REF_AI_WORD, buildTopicPool, cardRepetitionKey, repetitionKeyOfCard, type TopicPoolChunkRow,
 } from '../topics/pool'
 import {
-  createVocabSession, finishVocabSessionDetailed, parseCreateSessionBody, readVocabSessionTx, replayVocabSession, topicCountsOf, toCardDto,
+  createVocabSession, finishVocabSessionDetailed, parseCreateSessionBody, readVocabSessionTx, replayVocabSession, topicCountsOf, toAttemptResult, toCardDto,
 } from '../vocab/sessions'
 import {
-  TOPIC_WORDS_DAILY_ATTEMPTS, composeTopicCards, isTopicWordsGenerating, recheckTopicWords, resetTopicWordsStateForTest, runTopicWords, todayTopicState,
+  TOPIC_CARD_EXAMPLE_MAX, TOPIC_WORDS_DAILY_ATTEMPTS, composeTopicCards, topicExamplePair, isTopicWordsGenerating, recheckTopicWords, resetTopicWordsStateForTest, runTopicWords, todayTopicState,
   topicCardCounts, topicCardRepetitionInputs, topicWordsAttemptsUsed, topicWordsFailureReason,
   type TodayTopicCardRow, type TopicSetDeps, type TopicWordCandidate, type TopicWordsCallResult, type TopicWordsDriver, type TopicWordsOutput,
 } from '../vocab/topicSet'
@@ -127,6 +127,15 @@ class FakeDb {
     return fakeTx(this)
   }
 
+  /** 카드 행 → Prisma `select` 모양(task-049: 고른 칸만 — 빠진 칸은 null, select 에서 칸을 빼면 값도 사라진다). `word` 는 단어장 행. */
+  projectAttempt(a: Row, select?: Row): Row {
+    const s = this.sessions.find((x) => x.id === a.sessionId) as Row
+    const w = a.wordId ? this.words.find((x) => x.id === a.wordId) : undefined
+    const full: Row = { ...a, word: w ? { example: w.example ?? null, exampleKo: w.exampleKo ?? null } : null, session: { status: s.status, replayOfId: s.replayOfId, date: s.date } }
+    if (!select) return full
+    return Object.fromEntries(Object.keys(select).filter((k) => select[k]).map((k) => [k, full[k] ?? null]))
+  }
+
   /** 세트의 카드에 답을 적고 끝낸 것처럼(카운터는 무시). */
   answer(sessionId: string, picks: Record<number, 'CORRECT' | 'WRONG' | 'SKIPPED'>, status: 'DONE' | 'ABANDONED' | 'IN_PROGRESS' = 'DONE') {
     for (const a of this.attempts) if (a.sessionId === sessionId && picks[a.order as number]) {
@@ -138,7 +147,6 @@ class FakeDb {
 }
 
 function fakeTx(db: FakeDb): Tx {
-  const sessionOf = (a: Row) => db.sessions.find((s) => s.id === a.sessionId) as Row
   return {
     $queryRaw: async () => [{ id: 'locked' }],
     $executeRaw: async () => 1,
@@ -160,7 +168,10 @@ function fakeTx(db: FakeDb): Tx {
         const s = db.sessions.filter((x) => Object.entries(where).every(([k, v]) => x[k] === v)).at(-1)
         if (!s) return null
         const view = db.sessionView(s) as Row
-        if (select?.attempts) view.attempts = db.attempts.filter((a) => a.sessionId === s.id).sort((a, b) => (a.order as number) - (b.order as number))
+        if (select?.attempts) {
+          const sel = ((select.attempts as Row).select ?? undefined) as Row | undefined
+          view.attempts = db.attempts.filter((a) => a.sessionId === s.id).sort((a, b) => (a.order as number) - (b.order as number)).map((a) => db.projectAttempt(a, sel))
+        }
         return view
       },
       findUniqueOrThrow: async ({ where }: { where: Row }) => db.sessionView(db.sessions.find((x) => x.id === where.id) as Row),
@@ -179,8 +190,7 @@ function fakeTx(db: FakeDb): Tx {
     },
     vocabAttempt: {
       findFirst: async ({ where }: { where: Row }) => db.attempts.find((a) => db.matchAttempt(a, where)) ?? null,
-      findMany: async ({ where }: { where: Row }) =>
-        db.attempts.filter((a) => db.matchAttempt(a, where)).map((a) => ({ ...a, word: null, session: { status: sessionOf(a).status, replayOfId: sessionOf(a).replayOfId, date: sessionOf(a).date } })),
+      findMany: async ({ where, select }: { where: Row; select?: Row }) => db.attempts.filter((a) => db.matchAttempt(a, where)).map((a) => db.projectAttempt(a, select)),
       createMany: async ({ data }: { data: Row[] }) => {
         for (const d of data) db.attempts.push({ id: db.id('va'), answer: null, chosenText: null, responseMs: null, flagged: false, answeredAt: null, refType: null, refId: null, ...d })
         return { count: data.length }
@@ -382,12 +392,12 @@ test('구성: 새 단어 13 → 앞에서 10장(AI)·시드 셔플 재현 / 7 �
 
 test('구성: 재사용 — 오늘 새 단어 중 답한 것 제외·남은 것 먼저, 모자라면 B1 · 오늘 답한(맞힘·틀림) 키만 제외(건너뜀은 다시 나옴)', () => {
   const rows: TodayTopicCardRow[] = candidates(10).map((w, i) => ({
-    refType: 'AiWord', refId: repetitionRefId(w.textJa), surfaceSnap: w.textJa, readingSnap: w.reading, meaningSnap: w.meaningKo,
+    refType: 'AiWord', refId: repetitionRefId(w.textJa), surfaceSnap: w.textJa, readingSnap: w.reading, meaningSnap: w.meaningKo, exampleSnap: null, exampleKoSnap: null,
     answer: i < 3 ? 'CORRECT' : i === 3 ? 'WRONG' : i === 4 ? 'SKIPPED' : null, session: { status: 'DONE', replayOfId: null },
   }))
-  rows.push({ refType: 'TopicChunk', refId: 'c00', surfaceSnap: 'コーヒー', readingSnap: 'こーひー', meaningSnap: '커피', answer: 'CORRECT', session: { status: 'DONE', replayOfId: null } })
+  rows.push({ refType: 'TopicChunk', refId: 'c00', surfaceSnap: 'コーヒー', readingSnap: 'こーひー', meaningSnap: '커피', exampleSnap: null, exampleKoSnap: null, answer: 'CORRECT', session: { status: 'DONE', replayOfId: null } })
   // 다시 풀기 세트의 새 단어는 "오늘 만든 새 단어"가 아니다.
-  rows.push({ refType: 'AiWord', refId: repetitionRefId('過去'), surfaceSnap: '過去', readingSnap: 'かこ', meaningSnap: '과거', answer: null, session: { status: 'DONE', replayOfId: 'old' } })
+  rows.push({ refType: 'AiWord', refId: repetitionRefId('過去'), surfaceSnap: '過去', readingSnap: 'かこ', meaningSnap: '과거', exampleSnap: null, exampleKoSnap: null, answer: null, session: { status: 'DONE', replayOfId: 'old' } })
   const state = todayTopicState(rows)
   assert.equal(state.todayAi.length, 10)
   assert.equal(state.answered.size, 5)
@@ -404,7 +414,7 @@ test('구성: 풀까지 비면 0장(빈 상태는 호출자) · 카드 출처 �
   const r = composeTopicCards({ count: 10, fresh: null, reuse: false, todayAi: [], answered: all, pool: pool12(), stats: new Map(), rng: rng(), now: NOW })
   assert.equal(r.cards.length, 0)
   assert.deepEqual(topicCardCounts([{ refType: 'Expr' }, { refType: 'AiWord' }, { refType: 'AiWord' }, { refType: 'TopicChunk' }, { refType: null }]), { lessonCardCount: 1, aiCardCount: 2 })
-  const dto = toCardDto('CHOICE', 'IN_PROGRESS', { order: 0, wordId: null, surfaceSnap: '砂糖', readingSnap: 'さとう', meaningSnap: '설탕', choices: ['설탕', '우유', '얼음', '포장'], answer: null, chosenText: null, flagged: false, answeredAt: null, word: null })
+  const dto = toCardDto('CHOICE', 'IN_PROGRESS', { order: 0, wordId: null, surfaceSnap: '砂糖', readingSnap: 'さとう', meaningSnap: '설탕', choices: ['설탕', '우유', '얼음', '포장'], answer: null, chosenText: null, flagged: false, answeredAt: null, word: null, exampleSnap: null, exampleKoSnap: null })
   assert.equal('meaning' in dto || 'correctText' in dto || 'answer' in dto, false)
 })
 
@@ -872,4 +882,174 @@ test('import 경계(REV-121 L-5): T2 파일 전체(topics/**·vocab/topicSet·se
     assert.doesNotMatch(src, /@\/modules\/conversation/, p)
   }
   assert.match(read(`${LEARNING}/topics/pool.ts`), /from '\.\.\/lessons\/content'/, 'pool 은 수업 본문 파일을 직접 쓴다')
+})
+
+// ── task-049 — 새 단어 예문 스냅샷(`VocabAttempt.exampleSnap`·`exampleKoSnap`): 저장·복제·응답 ─────────────
+
+/** A12 v2 모양 — 단어마다 예문 쌍. `odd` 로 몇 개를 한쪽만·너무 길게 만든다. */
+const exJa = (t: string) => `${t}をお願いします。`
+const exKo = (t: string) => `${t} 부탁해요.`
+const aiWordsEx = (n: number, odd: Record<number, { exampleJa?: string | null; exampleKo?: string | null }> = {}): TopicWordsOutput['words'] =>
+  aiWords(n).map((w, i) => ({ ...w, exampleJa: exJa(w.textJa), exampleKo: exKo(w.meaningKo), ...odd[i] }))
+
+/** 운영 driver 처럼 예문 칸을 그대로 넘긴다(L2 `assembleTopicWords` 의 `TopicWord` 와 같은 모양). */
+const exDriver: TopicWordsDriver = {
+  ...passDriver,
+  assemble: (raw) => {
+    const list = (raw as TopicWordsOutput).words
+    return { words: list.filter((w) => w.valid).map((w) => ({ ...toCandidate(w), exampleJa: w.exampleJa ?? null, exampleKo: w.exampleKo ?? null })), received: list.length }
+  },
+}
+
+const exHarness = (odd: Parameters<typeof aiWordsEx>[1] = {}) => harness(async () => ({ data: { words: aiWordsEx(13, odd) }, connectionKey: 'conn', model: 'm', attempts: 1, promptChars: 900 }))
+const rowsOf = (h: Harness, sessionId: string) => h.db.attempts.filter((a) => a.sessionId === sessionId)
+const snapOf = (a: Row) => ({ ja: a.exampleSnap ?? null, ko: a.exampleKoSnap ?? null })
+
+test('task-049 쌍 정규화: 둘 다 비지 않은 문자열·각 ≤300 일 때만 그대로, 한쪽만·빈 값·공백·문자열 아님·301자 → 둘 다 null', () => {
+  assert.deepEqual(topicExamplePair('砂糖を入れます。', '설탕을 넣어요.'), { example: '砂糖を入れます。', exampleKo: '설탕을 넣어요.' })
+  const none = { example: null, exampleKo: null }
+  for (const [ja, ko] of [['砂糖', null], [null, '설탕'], ['', '설탕'], ['砂糖', '  '], [1, '설탕'], [undefined, undefined], ['あ'.repeat(TOPIC_CARD_EXAMPLE_MAX + 1), '설탕'], ['砂糖', '가'.repeat(TOPIC_CARD_EXAMPLE_MAX + 1)]] as [unknown, unknown][]) {
+    assert.deepEqual(topicExamplePair(ja, ko), none, `${String(ja).slice(0, 8)}/${String(ko).slice(0, 8)}`)
+  }
+  assert.equal(topicExamplePair('あ'.repeat(TOPIC_CARD_EXAMPLE_MAX), '가'.repeat(TOPIC_CARD_EXAMPLE_MAX)).example?.length, TOPIC_CARD_EXAMPLE_MAX, '300자는 통과')
+  // 서버 재검사는 예문 때문에 단어를 버리지 않는다(예문만 null) · 예문 칸이 없는 후보(v1 모양)는 null.
+  const words = recheckTopicWords([
+    { ...candidates(1)[0], exampleJa: 'あ', exampleKo: '가' },
+    { ...candidates(1, 1)[0], exampleJa: 'い', exampleKo: null },
+    { ...candidates(1, 2)[0], exampleJa: 'う'.repeat(301), exampleKo: '나' },
+    candidates(1, 3)[0],
+  ], [])
+  assert.equal(words.length, 4, '단어 4개 모두 통과')
+  assert.deepEqual(words.map((w) => [w.exampleJa, w.exampleKo]), [['あ', '가'], [null, null], [null, null], [null, null]])
+})
+
+test('task-049 #47 첫 세트 저장: AiWord 카드 행마다 exampleSnap·exampleKoSnap(같은 create) · 한쪽만·301자는 둘 다 null(단어 카드는 유지) · B1 채움 카드는 칸 없음', async () => {
+  const h = exHarness({ 1: { exampleKo: null }, 2: { exampleJa: 'え'.repeat(301) } })
+  const r = created(await create(h, { count: 10 }, { driver: exDriver }))
+  assert.equal(r.session.topic?.aiCardCount, 10)
+  const rows = rowsOf(h, r.session.id)
+  const byText = new Map(rows.map((a) => [a.surfaceSnap as string, a]))
+  for (const [i, [textJa, , meaningKo]] of AI.slice(0, 10).entries()) {
+    const a = byText.get(textJa) as Row
+    assert.ok(a, `${textJa} 카드`)
+    if (i === 1 || i === 2) assert.deepEqual(snapOf(a), { ja: null, ko: null }, `${textJa} — 쌍 아님/너무 김 → 둘 다 null`)
+    else assert.deepEqual(snapOf(a), { ja: exJa(textJa), ko: exKo(meaningKo) }, `${textJa} 예문 저장`)
+  }
+  // CHOICE 미답 카드에는 예문이 없다(정답 미노출 규칙 그대로).
+  assert.ok(r.cards.every((c) => !('example' in c) && !('exampleKo' in c)))
+  // 7장만 통과하면 나머지 3장은 B1(주제 표현) — 그 행에는 예문 칸을 쓰지 않는다.
+  const h2 = harness(async () => ({ data: { words: aiWordsEx(7) }, attempts: 1 }))
+  const r2 = created(await create(h2, { count: 10, mode: 'FLIP' }, { driver: exDriver }))
+  const fill = rowsOf(h2, r2.session.id).filter((a) => a.refType !== CARD_REF_AI_WORD)
+  assert.equal(fill.length, 3)
+  for (const a of fill) assert.equal('exampleSnap' in a || 'exampleKoSnap' in a, false, `${a.surfaceSnap} — B1 카드에 예문 칸 없음`)
+  // FLIP 은 처음부터 예문(새 단어는 스냅샷, B1 카드는 null).
+  for (const c of r2.cards) {
+    const ai = AI.slice(0, 7).find(([t]) => t === c.surface)
+    assert.deepEqual([c.example, c.exampleKo], ai ? [exJa(ai[0]), exKo(ai[2])] : [null, null], c.surface)
+  }
+})
+
+test('task-049 #49·#50 응답: 답한 카드·DONE 세트는 스냅샷 예문 · 옛 행(NULL)은 예문 없음 · #50 결과에도 같은 예문', async () => {
+  const h = exHarness()
+  const r = created(await create(h, { count: 10 }, { driver: exDriver }))
+  const rows = rowsOf(h, r.session.id)
+  const old = rows[9]
+  delete old.exampleSnap
+  delete old.exampleKoSnap // 옛 행(칸 추가 전) — DB 에서는 NULL
+  h.db.answer(r.session.id, { 0: 'CORRECT' }, 'IN_PROGRESS')
+  const tx = h.db.tx()
+  const mid = await readVocabSessionTx(tx, U, r.session.id)
+  const c0 = mid.cards.find((c) => c.order === 0)
+  assert.equal(c0?.example, rows[0].exampleSnap)
+  assert.equal(c0?.exampleKo, rows[0].exampleKoSnap)
+  assert.ok(mid.cards.filter((c) => c.order !== 0).every((c) => !('example' in c)), '미답 카드는 그대로 숨김')
+  const res = toAttemptResult(h.db.projectAttempt(rows[0], { order: true, wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, exampleSnap: true, exampleKoSnap: true, choices: true, answer: true, chosenText: true, flagged: true, answeredAt: true, word: true }) as unknown as Parameters<typeof toAttemptResult>[0])
+  assert.deepEqual([res.example, res.exampleKo], [rows[0].exampleSnap, rows[0].exampleKoSnap], '#50 결과 = 스냅샷 예문')
+  h.db.answer(r.session.id, {}, 'DONE')
+  const done = await readVocabSessionTx(tx, U, r.session.id)
+  for (const c of done.cards) {
+    const a = rows.find((x) => x.order === c.order) as Row
+    assert.deepEqual([c.example, c.exampleKo], a === old ? [null, null] : [a.exampleSnap, a.exampleKoSnap], `order ${c.order}`)
+  }
+})
+
+test('task-049 우선순위: 단어장 단어(WordEntry) 예문 > 카드 스냅샷 > null — toCardDto·toAttemptResult 같은 규칙', () => {
+  const base = { order: 0, wordId: null, surfaceSnap: '砂糖', readingSnap: 'さとう', meaningSnap: '설탕', choices: null, answer: 'CORRECT' as const, chosenText: null, flagged: false, answeredAt: NOW }
+  const cases: [Parameters<typeof toCardDto>[2], [string | null, string | null]][] = [
+    [{ ...base, word: { example: 'W例', exampleKo: 'W뜻' }, exampleSnap: 'S例', exampleKoSnap: 'S뜻' }, ['W例', 'W뜻']],
+    [{ ...base, word: null, exampleSnap: 'S例', exampleKoSnap: 'S뜻' }, ['S例', 'S뜻']],
+    [{ ...base, word: null, exampleSnap: null, exampleKoSnap: null }, [null, null]],
+    [{ ...base, word: { example: null, exampleKo: null }, exampleSnap: null, exampleKoSnap: null }, [null, null]],
+  ]
+  for (const [row, want] of cases) {
+    const card = toCardDto('FLIP', 'IN_PROGRESS', row)
+    assert.deepEqual([card.example, card.exampleKo], want)
+    const res = toAttemptResult(row)
+    assert.deepEqual([res.example, res.exampleKo], want)
+  }
+})
+
+test('task-049 복제 ① 같은 날 한 세트 더(재사용, LLM 0): 오늘 새 단어 카드의 예문 스냅샷이 새 세트 행으로 옮겨진다', async () => {
+  const h = exHarness({ 5: { exampleJa: null, exampleKo: null } })
+  const first = created(await create(h, { count: 10 }, { driver: exDriver }))
+  // 답할 2장은 예문 없는 단어(AI[5])가 아닌 카드로 고른다 — 순서는 시드 셔플이라 order 로 고르면 그 단어가 빠질 수 있다.
+  const [p, q] = rowsOf(h, first.session.id).filter((a) => a.surfaceSnap !== AI[5][0]).map((a) => a.order as number)
+  h.db.answer(first.session.id, { [p]: 'CORRECT', [q]: 'WRONG' })
+  const second = created(await create(h, { count: 10 }, { driver: exDriver }))
+  assert.equal(h.calls.length, 1, '재사용 — LLM 0회')
+  const firstBy = new Map(rowsOf(h, first.session.id).map((a) => [a.refId, a]))
+  const ai = rowsOf(h, second.session.id).filter((a) => a.refType === CARD_REF_AI_WORD)
+  assert.equal(ai.length, 8)
+  for (const a of ai) assert.deepEqual(snapOf(a), snapOf(firstBy.get(a.refId) as Row), `${a.surfaceSnap} 예문 복제`)
+  assert.ok(ai.some((a) => a.exampleSnap) && ai.some((a) => !a.exampleSnap), '예문 있는 카드·없는 카드 모두 원본 그대로')
+})
+
+test('task-049 복제 ② 다시 풀기(#53, 주제 세트): 모든 카드의 예문 스냅샷을 그대로 복사 · 다시 푼 세트를 또 다시 풀어도 유지', async () => {
+  const h = exHarness({ 3: { exampleKo: null } })
+  const r = created(await create(h, { count: 10, mode: 'FLIP' }, { driver: exDriver }))
+  h.db.answer(r.session.id, { 0: 'CORRECT' })
+  ;(h.db.sessions[0] as Row).keptAt = NOW
+  const tx = h.db.tx()
+  const rep = await replayVocabSession(U, r.session.id, { transaction: (fn) => fn(tx) })
+  const orig = new Map(rowsOf(h, r.session.id).map((a) => [`${a.refType}:${a.refId}`, a]))
+  const copied = rowsOf(h, rep.session.id)
+  assert.equal(copied.length, 10)
+  for (const a of copied) assert.deepEqual(snapOf(a), snapOf(orig.get(`${a.refType}:${a.refId}`) as Row), `${a.surfaceSnap} 예문 복제`)
+  for (const c of rep.cards) {
+    const a = copied.find((x) => x.order === c.order) as Row
+    assert.deepEqual([c.example, c.exampleKo], [a.exampleSnap ?? null, a.exampleKoSnap ?? null], `FLIP 다시 풀기 카드 ${c.surface}`)
+  }
+  h.db.answer(rep.session.id, { 0: 'CORRECT' })
+  ;(h.db.sessions.at(-1) as Row).keptAt = NOW
+  const rep2 = await replayVocabSession(U, rep.session.id, { transaction: (fn) => fn(tx) })
+  for (const a of rowsOf(h, rep2.session.id)) assert.deepEqual(snapOf(a), snapOf(orig.get(`${a.refType}:${a.refId}`) as Row), `2차 다시 풀기 ${a.surfaceSnap}`)
+  assert.equal(h.calls.length, 1)
+})
+
+test('task-049 단어장 카드 불변: 단어장 세트 다시 풀기는 예문 스냅샷 칸을 쓰지 않고, 응답 예문은 지금 단어(WordEntry)에서', async () => {
+  const h = harness()
+  h.db.words = [
+    { id: 'w1', userId: U, archived: false, surface: '映画', reading: 'えいが', meaning: '영화', partOfSpeech: 'NOUN', correctCount: 0, wrongCount: 0, lastSeenAt: null, example: '映画を見ます。', exampleKo: '영화를 봐요.' },
+    { id: 'w2', userId: U, archived: false, surface: '本', reading: 'ほん', meaning: '책', partOfSpeech: 'NOUN', correctCount: 0, wrongCount: 0, lastSeenAt: null, example: null, exampleKo: null },
+  ]
+  h.db.sessions.push({ id: 'vs-word', userId: U, mode: 'FLIP', status: 'DONE', keptAt: NOW, cardCount: 2, topicId: null, replayOfId: null, startedAt: NOW, date: NOW, seed: 'Fseed', requestedCount: 2 })
+  h.db.attempts.push(
+    { id: 'a1', sessionId: 'vs-word', order: 0, wordId: 'w1', surfaceSnap: '映画', readingSnap: 'えいが', meaningSnap: '영화', answer: 'CORRECT', refType: null, refId: null },
+    { id: 'a2', sessionId: 'vs-word', order: 1, wordId: 'w2', surfaceSnap: '本', readingSnap: 'ほん', meaningSnap: '책', answer: 'WRONG', refType: null, refId: null },
+  )
+  const tx = h.db.tx()
+  const rep = await replayVocabSession(U, 'vs-word', { transaction: (fn) => fn(tx) })
+  for (const a of rowsOf(h, rep.session.id)) assert.equal('exampleSnap' in a || 'exampleKoSnap' in a, false, `${a.surfaceSnap} — 단어장 카드에 스냅샷 없음`)
+  const byWord = new Map(rep.cards.map((c) => [c.wordId, c]))
+  assert.deepEqual([byWord.get('w1')?.example, byWord.get('w1')?.exampleKo], ['映画を見ます。', '영화를 봐요.'])
+  assert.deepEqual([byWord.get('w2')?.example, byWord.get('w2')?.exampleKo], [null, null])
+})
+
+test('task-049 6층: learning 의 예문 코드(topicSet·sessions)는 conversation 을 import 하지 않는다 — 예문은 라우트가 넘긴 driver 값으로만 들어온다', () => {
+  for (const f of ['vocab/topicSet.ts', 'vocab/sessions.ts']) {
+    const src = readFileSync(join(LEARNING, f), 'utf8')
+    assert.doesNotMatch(src, /from '@\/modules\/conversation/, f)
+    assert.doesNotMatch(src, /from '\.\.\/\.\.\/conversation/, f)
+  }
 })

@@ -107,6 +107,7 @@ test('정답 위치 분산(완료 기준 3): 시드 20개에서 정답 자리가
 const attemptBase: Parameters<typeof toCardDto>[2] = {
   order: 0, wordId: 'w1', surfaceSnap: '映画', readingSnap: 'えいが', meaningSnap: '영화', choices: ['음악', '영화', '사진', '여행'],
   answer: null, chosenText: null, flagged: false, answeredAt: null, word: { example: '映画を見ました。', exampleKo: '영화를 봤어요.' },
+  exampleSnap: null, exampleKoSnap: null,
 }
 
 test('정답 미노출(F1·REV-008): CHOICE 미답 카드는 진행 중·ABANDONED 모두 정답·뜻·예문 없음, 답하면·DONE 이면 포함, FLIP 은 뜻·예문 처음부터', () => {

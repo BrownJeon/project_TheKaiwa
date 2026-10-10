@@ -40,6 +40,7 @@ import {
   refundTopicWordsAttempt,
   runTopicWords,
   todayAiWordExists,
+  topicExamplePair,
   todayTopicState,
   topicCardCounts,
   topicCardRepetitionInputs,
@@ -126,9 +127,12 @@ const SESSION_SELECT = {
 } as const
 type SessionRow = Prisma.VocabSessionGetPayload<{ select: typeof SESSION_SELECT }>
 
-/** `refType` 은 세션 DTO 의 `topic` 두 수를 세는 데만 쓴다 — 카드 응답(`toCardDto`)에는 싣지 않는다(`refId` 도 미노출). */
+/**
+ * `refType` 은 세션 DTO 의 `topic` 두 수를 세는 데만 쓴다 — 카드 응답(`toCardDto`)에는 싣지 않는다(`refId` 도 미노출).
+ * 예문은 단어장 카드면 `word`(지금 단어), 새 단어 카드면 `exampleSnap/exampleKoSnap`(task-049) — `exampleOf` 가 고른다.
+ */
 const ATTEMPT_SELECT = {
-  id: true, order: true, wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, choices: true, answer: true,
+  id: true, order: true, wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, exampleSnap: true, exampleKoSnap: true, choices: true, answer: true,
   chosenText: true, flagged: true, answeredAt: true, refType: true, word: { select: { example: true, exampleKo: true } },
 } as const
 type AttemptRow = Prisma.VocabAttemptGetPayload<{ select: typeof ATTEMPT_SELECT }>
@@ -191,6 +195,11 @@ export async function topicCountsOf(db: Pick<Tx, 'vocabAttempt'>, sessions: read
   return out
 }
 
+/** 카드 예문(#47·#49·#50 공통) — 단어장 단어(`WordEntry`) 우선, 없으면 카드 스냅샷(새 단어), 둘 다 없으면 null(옛 행). */
+function exampleOf(a: Pick<AttemptRow, 'word' | 'exampleSnap' | 'exampleKoSnap'>): { example: string | null; exampleKo: string | null } {
+  return { example: a.word?.example ?? a.exampleSnap ?? null, exampleKo: a.word?.exampleKo ?? a.exampleKoSnap ?? null }
+}
+
 function parseChoices(raw: Prisma.JsonValue | null): string[] {
   return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
 }
@@ -206,8 +215,9 @@ export function toCardDto(mode: VocabMode, status: VocabSessionStatus, a: Omit<A
   if (mode === 'CHOICE') card.choices = parseChoices(a.choices)
   const reveal = answered || status === 'DONE'
   if (mode === 'FLIP' || reveal) {
-    card.example = a.word?.example ?? null
-    card.exampleKo = a.word?.exampleKo ?? null
+    const ex = exampleOf(a)
+    card.example = ex.example
+    card.exampleKo = ex.exampleKo
   }
   if (mode === 'FLIP') card.meaning = a.meaningSnap
   if (reveal) {
@@ -362,16 +372,20 @@ async function insertSession(
     },
     select: SESSION_SELECT,
   })
+  // 예문 스냅샷은 단어장 단어가 아닌 카드(새 단어)만 — 단어장 카드는 지금 단어의 예문을 읽는다(수정이 바로 보이게).
+  const snaps = opts.cards.map((c) => (c.wordId ? { example: null, exampleKo: null } : topicExamplePair(c.example, c.exampleKo)))
   const rows = opts.cards.map((c, order) => ({
     sessionId: s.id, wordId: c.wordId, order, surfaceSnap: c.surface, readingSnap: c.reading, meaningSnap: c.meaning,
     choices: (choices[order] ?? undefined) as Prisma.InputJsonValue | undefined,
     ...(c.refType && c.refId ? { refType: c.refType, refId: c.refId } : {}),
+    ...(snaps[order].example ? { exampleSnap: snaps[order].example, exampleKoSnap: snaps[order].exampleKo } : {}),
   }))
   await tx.vocabAttempt.createMany({ data: rows })
   const cards = opts.cards.map((c, order) =>
     toCardDto(mode, 'IN_PROGRESS', {
       order, wordId: c.wordId, surfaceSnap: c.surface, readingSnap: c.reading, meaningSnap: c.meaning, choices: choices[order],
       answer: null, chosenText: null, flagged: false, answeredAt: null, word: c.wordId ? { example: c.example, exampleKo: c.exampleKo } : null,
+      exampleSnap: snaps[order].example, exampleKoSnap: snaps[order].exampleKo,
     }),
   )
   return { session: toSessionDto(s, topicCardCounts(opts.cards)), cards }
@@ -560,7 +574,7 @@ async function composeTopicSessionLocked(
   const sources = topicMeaningSources(pool, words, composed.cards)
   const r = await insertSession(tx, userId, {
     seed, mode: input.mode, requestedCount: input.count, replayOfId: null, rng, topicId, date: today, sources,
-    cards: composed.cards.map((c) => ({ wordId: null, surface: c.surface, reading: c.reading, meaning: c.meaning, kind: c.kind, example: null, exampleKo: null, refType: c.refType, refId: c.refId })),
+    cards: composed.cards.map((c) => ({ wordId: null, surface: c.surface, reading: c.reading, meaning: c.meaning, kind: c.kind, example: c.example, exampleKo: c.exampleKo, refType: c.refType, refId: c.refId })),
   })
   const generation: TopicGenerationDto = { source: generationSourceOf(composed.aiCount, composed.cards.length), generatedNow: !!fresh && composed.aiCount > 0, reason }
   return { ...r, generation }
@@ -640,14 +654,14 @@ export interface AttemptResultDto {
   flagged: boolean
 }
 
-function toAttemptResult(a: AttemptRow): AttemptResultDto {
+/** #50 응답 — 화면은 이 `example`·`exampleKo` 로 답한 카드를 채운다(CHOICE 세트의 첫 예문 출처). */
+export function toAttemptResult(a: Omit<AttemptRow, 'id' | 'refType'>): AttemptResultDto {
   return {
     order: a.order,
     answer: a.answer as VocabAnswer,
     correctText: a.meaningSnap,
     chosenText: a.chosenText,
-    example: a.word?.example ?? null,
-    exampleKo: a.word?.exampleKo ?? null,
+    ...exampleOf(a),
     answeredAt: a.answeredAt ? a.answeredAt.toISOString() : null,
     flagged: a.flagged,
   }
@@ -836,7 +850,7 @@ export async function keepVocabSession(userId: string, id: string, kept: boolean
 /**
  * #53 — 보관한 DONE 세트(F7)의 같은 단어 목록으로 새 세트(`replayOfId`). 순서는 새 시드로 다시 섞고 원 모드를 따른다.
  * 삭제된 단어가 하나라도 있으면 세트 전체 FLIP(E4, 삭제 단어 카드는 원 세트의 `*Snap`). 오늘 DONE 제외 규칙은 적용하지 않는다.
- * **주제 세트는 주제 세트로**(U15 A, §9-2): `topicId`·카드 `refType/refId` 를 그대로 복사(새 단어 `AiWord` 포함 — LLM 호출 없음),
+ * **주제 세트는 주제 세트로**(U15 A, §9-2): `topicId`·카드 `refType/refId`·예문 스냅샷(task-049)을 그대로 복사(새 단어 `AiWord` 포함 — LLM 호출 없음),
  * 보기는 주제 풀 뜻 ∪ 내 단어장 뜻 ∪ 같은 세트 뜻에서 다시 고른다(조각 종류는 저장하지 않아 종류 구분 없이). 다시 푼 세트도 그날 주제 세트 합계에 더해진다.
  */
 export async function replayVocabSession(userId: string, id: string, opts: TxRunner = {}): Promise<{ session: VocabSessionDto; cards: VocabCardDto[] }> {
@@ -847,7 +861,7 @@ export async function replayVocabSession(userId: string, id: string, opts: TxRun
       where: { id, userId },
       select: {
         id: true, mode: true, status: true, keptAt: true, cardCount: true, topicId: true,
-        attempts: { orderBy: { order: 'asc' }, select: { wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, refType: true, refId: true } },
+        attempts: { orderBy: { order: 'asc' }, select: { wordId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, exampleSnap: true, exampleKoSnap: true, refType: true, refId: true } },
       },
     })
     if (!src) throw notFound()
@@ -855,7 +869,7 @@ export async function replayVocabSession(userId: string, id: string, opts: TxRun
     await assertNoInProgress(tx, userId)
     if (src.topicId) {
       const cards: CardSeed[] = src.attempts.map((a) => ({
-        wordId: null, surface: a.surfaceSnap, reading: a.readingSnap, meaning: a.meaningSnap, kind: TOPIC_KIND_ANY, example: null, exampleKo: null,
+        wordId: null, surface: a.surfaceSnap, reading: a.readingSnap, meaning: a.meaningSnap, kind: TOPIC_KIND_ANY, example: a.exampleSnap, exampleKo: a.exampleKoSnap,
         refType: a.refType && a.refId ? a.refType : null, refId: a.refType && a.refId ? a.refId : null,
       }))
       const seed = newSeed(src.mode)

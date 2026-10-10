@@ -54,8 +54,11 @@ export interface TopicGenerationDto {
 // ── A12 계약(로컬 구조 타입 — conversation `TopicWordsResponse`·`TopicWordsInput` 과 같은 필드) ─────────────
 
 export interface TopicWordsOutput {
-  /** `jlpt` 는 모델이 문자열 `"null"` 로 낼 때가 있어 스키마가 받아 준다(L2 조립이 null 로 본다). */
-  words: { textJa: string; reading: string; meaningKo: string; chunkType: ChunkType; jlpt: JlptLevel | 'null' | null; valid: boolean }[]
+  /** `jlpt` 는 모델이 문자열 `"null"` 로 낼 때가 있어 스키마가 받아 준다(L2 조립이 null 로 본다). 예문 두 칸은 v2(task-049) — v1 모양 응답에는 없다. */
+  words: {
+    textJa: string; reading: string; meaningKo: string; chunkType: ChunkType; jlpt: JlptLevel | 'null' | null; valid: boolean
+    exampleJa?: string | null; exampleKo?: string | null
+  }[]
 }
 
 export interface TopicWordsBuildInput {
@@ -74,6 +77,21 @@ export interface TopicWordCandidate {
   meaningKo: string
   chunkType: ChunkType
   jlpt: JlptLevel | null
+  /** L2 예문 검사를 통과한 예문(task-049) — 쌍이 아니면 서버가 둘 다 null 로 본다(`topicExamplePair`). 생략 = 예문 없음. */
+  exampleJa?: string | null
+  exampleKo?: string | null
+}
+
+/** 카드 예문 스냅샷 상한(코드포인트) — 칸은 TEXT 라 DB 제한이 없어 폭주 값만 막는다(L2 상한 60/100 보다 넉넉하게, 넘으면 자르지 않고 null). */
+export const TOPIC_CARD_EXAMPLE_MAX = 300
+
+/**
+ * 예문 스냅샷 쌍(`VocabAttempt.exampleSnap`·`exampleKoSnap`) — 둘 다 비지 않은 문자열이고 각 ≤300자일 때만 그대로, 아니면 **둘 다 null**
+ * (일본어만·번역만 있는 카드는 만들지 않는다). 새 단어 저장·같은 날 재사용·다시 풀기가 모두 이 함수를 거친다.
+ */
+export function topicExamplePair(ja: unknown, ko: unknown): { example: string | null; exampleKo: string | null } {
+  const okText = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0 && cp(v) <= TOPIC_CARD_EXAMPLE_MAX
+  return okText(ja) && okText(ko) ? { example: ja, exampleKo: ko } : { example: null, exampleKo: null }
 }
 
 export interface TopicWordsAssembleCtx {
@@ -191,6 +209,8 @@ export interface TodayTopicCardRow {
   surfaceSnap: string
   readingSnap: string | null
   meaningSnap: string
+  exampleSnap: string | null
+  exampleKoSnap: string | null
   answer: VocabAnswer | null
   session: { status: VocabSessionStatus; replayOfId: string | null }
 }
@@ -200,7 +220,10 @@ export async function readTodayTopicCards(db: Pick<Tx, 'vocabAttempt'>, userId: 
   return db.vocabAttempt.findMany({
     where: { session: { userId, topicId, date: todayDb } },
     orderBy: [{ session: { startedAt: 'asc' } }, { sessionId: 'asc' }, { order: 'asc' }],
-    select: { refType: true, refId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, answer: true, session: { select: { status: true, replayOfId: true } } },
+    select: {
+      refType: true, refId: true, surfaceSnap: true, readingSnap: true, meaningSnap: true, exampleSnap: true, exampleKoSnap: true, answer: true,
+      session: { select: { status: true, replayOfId: true } },
+    },
   })
 }
 
@@ -237,9 +260,12 @@ export interface TopicCardSeed {
   kind: string
   refType: TopicCardRefType
   refId: string
+  /** 예문 스냅샷 쌍(새 단어 카드만 값이 있다 — 주제 표현·수업 표현은 null). */
+  example: string | null
+  exampleKo: string | null
 }
 
-/** 오늘 행 → 재사용할 새 단어(refId 별 1개, 다시 풀기 세트 제외) · 오늘 **답한**(맞힘·틀림) 카드의 반복 키(§4-3 ④ — 건너뛴 카드는 빼지 않는다). */
+/** 오늘 행 → 재사용할 새 단어(refId 별 1개, 다시 풀기 세트 제외 — 예문 스냅샷도 함께 옮긴다) · 오늘 **답한**(맞힘·틀림) 카드의 반복 키(§4-3 ④ — 건너뛴 카드는 빼지 않는다). */
 export function todayTopicState(rows: readonly TodayTopicCardRow[]): { todayAi: TopicCardSeed[]; answered: Set<string> } {
   const todayAi: TopicCardSeed[] = []
   const seen = new Set<string>()
@@ -249,7 +275,7 @@ export function todayTopicState(rows: readonly TodayTopicCardRow[]): { todayAi: 
     if (r.answer === 'CORRECT' || r.answer === 'WRONG') answered.add(cardRepetitionKey(r.refType, r.refId))
     if (r.refType === CARD_REF_AI_WORD && !r.session.replayOfId && !seen.has(r.refId)) {
       seen.add(r.refId)
-      todayAi.push({ surface: r.surfaceSnap, reading: r.readingSnap, meaning: r.meaningSnap, kind: '', refType: CARD_REF_AI_WORD, refId: r.refId })
+      todayAi.push({ surface: r.surfaceSnap, reading: r.readingSnap, meaning: r.meaningSnap, kind: '', refType: CARD_REF_AI_WORD, refId: r.refId, ...topicExamplePair(r.exampleSnap, r.exampleKoSnap) })
     }
   }
   return { todayAi, answered }
@@ -257,7 +283,7 @@ export function todayTopicState(rows: readonly TodayTopicCardRow[]): { todayAi: 
 
 /** 새 단어 → 카드(`AiWord`, refId = 수업 표현과 같은 `repetitionRefId(textJa)`). */
 export function aiWordCard(w: TopicWordCandidate): TopicCardSeed {
-  return { surface: w.textJa, reading: w.reading, meaning: w.meaningKo, kind: w.chunkType, refType: CARD_REF_AI_WORD, refId: repetitionRefId(w.textJa) }
+  return { surface: w.textJa, reading: w.reading, meaning: w.meaningKo, kind: w.chunkType, refType: CARD_REF_AI_WORD, refId: repetitionRefId(w.textJa), ...topicExamplePair(w.exampleJa, w.exampleKo) }
 }
 
 export interface ComposeTopicCardsInput {
@@ -325,7 +351,7 @@ export function composeTopicCards(input: ComposeTopicCardsInput): ComposedTopicC
       return [{ id, correctCount: st?.correctCount ?? 0, wrongCount: st?.wrongCount ?? 0, lastSeenAt: st?.lastStudiedAt ?? null, e }]
     })
     filled = generateWordSet(candidates, need, input.rng, input.now).map((c) => ({
-      surface: c.e.textJa, reading: c.e.reading, meaning: c.e.meaningKo, kind: c.e.chunkType, refType: c.e.refType, refId: c.e.refId,
+      surface: c.e.textJa, reading: c.e.reading, meaning: c.e.meaningKo, kind: c.e.chunkType, refType: c.e.refType, refId: c.e.refId, example: null, exampleKo: null,
     }))
   }
   return { cards: shuffle([...chosen, ...filled], input.rng), aiCount, reusableLeft }
@@ -397,7 +423,7 @@ const cp = (s: string) => [...s].length
 
 /**
  * L2 항목 검사를 통과한 단어에 서버가 아는 것으로 한 번 더(§4-3a ⑥ + 카드 칸 폭): 형·길이(표기 ≤80·읽기 ≤120·뜻 ≤200 — DB 칸, 자르지 않고 버림),
- * 정규화 표기가 전체 제외 집합(상한 없는 원본)·앞 항목과 같으면 버림. 순서 유지.
+ * 정규화 표기가 전체 제외 집합(상한 없는 원본)·앞 항목과 같으면 버림. 순서 유지. 예문은 단어를 버리는 사유가 아니다 — 쌍이 아니거나 너무 길면 예문만 null.
  */
 export function recheckTopicWords(words: readonly TopicWordCandidate[], exclude: readonly string[]): TopicWordCandidate[] {
   const seen = new Set(exclude.map((e) => normalizeRefText(e)).filter(Boolean))
@@ -408,7 +434,8 @@ export function recheckTopicWords(words: readonly TopicWordCandidate[], exclude:
     const norm = normalizeRefText(w.textJa)
     if (!norm || seen.has(norm)) continue
     seen.add(norm)
-    out.push({ textJa: w.textJa, reading: w.reading, meaningKo: w.meaningKo, chunkType: w.chunkType, jlpt: w.jlpt ?? null })
+    const ex = topicExamplePair(w.exampleJa, w.exampleKo)
+    out.push({ textJa: w.textJa, reading: w.reading, meaningKo: w.meaningKo, chunkType: w.chunkType, jlpt: w.jlpt ?? null, exampleJa: ex.example, exampleKo: ex.exampleKo })
   }
   return out
 }
