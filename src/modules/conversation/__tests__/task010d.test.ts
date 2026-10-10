@@ -165,10 +165,12 @@ test('종료 재료: 사용자 → 대화 행 잠금 순서, 학습자 말·턴 
   assert.deepEqual(calls.slice(0, 2).map((c) => c.op), ['lockUser', 'lockChat'], '턴(acceptTurn)과 같은 잠금 순서')
   assert.ok(calls[1].sql?.includes('FOR UPDATE'))
   assert.ok(calls[1].sql?.includes('createdAt'), '대화 생성 시각을 같이 읽는다(끝낸 표식 조회 하한 — REV-134 M-2)')
+  assert.ok(calls[1].sql?.includes('endedAt'), '잠근 행의 끝낸 표식(Chat.endedAt, task-048)을 같이 읽는다')
   assert.deepEqual((calls.find((c) => c.op === 'msg.findMany')!.args as { where: unknown }).where, { chatId: 'chat_rp_1', userId: U, role: 'USER' })
   assert.deepEqual(f, {
     chatId: 'chat_rp_1',
     chatCreatedAt: CHAT_CREATED,
+    chatEndedAt: null,
     scenarioId: 'scn_seed',
     lessonId: 'les_mine',
     topicId: 't_cafe',

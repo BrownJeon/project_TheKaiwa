@@ -31,6 +31,7 @@ export {
   SCENARIO_UNJUDGED_CONFIDENCE,
   SCENARIO_DURATION_MAX_SEC,
   SCENARIO_END_LOOKUP_MARGIN_MS,
+  SCENARIO_END_MARK,
 } from './end'
 export type { ScenarioEndInput, ScenarioEndResult } from './end'
 export {

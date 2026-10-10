@@ -368,10 +368,21 @@ function finishWorld(opts: { messages?: Msg[]; ended?: boolean } = {}) {
     { id: 'm3', role: 'USER', content: 'Mサイズにしてください', status: 'DONE', createdAt: t(20), toolLog: null },
     { id: 'm4', role: 'ASSISTANT', content: 'かしこまりました。', status: 'DONE', createdAt: t(21), toolLog: { meta: { endOfTopic: true } } },
   ]
-  const state = { depth: 0, txCount: 0, beforeTx: [] as ((n: number) => void)[], ended: opts.ended ?? false }
-  const chat = { id: 'chat_rp', userId: U, kind: 'TALK', scenarioId: 'scn_seed', lessonId: null, topicId: null, createdAt: CHAT_AT }
+  const state = { depth: 0, txCount: 0, beforeTx: [] as ((n: number) => void)[], ended: opts.ended ?? false, isEndedCalls: 0 }
+  const chat = { id: 'chat_rp', userId: U, kind: 'TALK', scenarioId: 'scn_seed', lessonId: null, topicId: null, createdAt: CHAT_AT, endedAt: null as Date | null }
+  const marks: { where: Record<string, unknown>; data: { endedAt: Date } }[] = []
+  // 실제 DB 의 사용자 행 잠금처럼 트랜잭션을 하나씩(동시 종료 상태기계 시험 — task-048).
+  let lock: Promise<unknown> = Promise.resolve()
   const tx = {
-    $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => (strings.join('?').includes('`User`') ? [{ id: values[0] }] : values[0] === chat.id ? [chat] : []),
+    $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => (strings.join('?').includes('`User`') ? [{ id: values[0] }] : values[0] === chat.id ? [{ ...chat }] : []),
+    chat: {
+      updateMany: async (a: { where: { id: string; userId: string; endedAt: null }; data: { endedAt: Date } }) => {
+        marks.push(a)
+        const hit = a.where.id === chat.id && a.where.userId === chat.userId && a.where.endedAt === null && chat.endedAt === null
+        if (hit) chat.endedAt = a.data.endedAt
+        return { count: hit ? 1 : 0 }
+      },
+    },
     chatMessage: {
       findMany: async (a: { where: { role?: string; status?: string }; orderBy: { createdAt: 'asc' | 'desc' }[]; take: number }) => {
         let rows = messages.filter((m) => (!a.where.role || m.role === a.where.role) && (!a.where.status || m.status === a.where.status))
@@ -397,6 +408,10 @@ function finishWorld(opts: { messages?: Msg[]; ended?: boolean } = {}) {
   })
   const deps: RolePlayFinishDeps = {
     transaction: async (fn) => {
+      const prev = lock
+      let release = () => {}
+      lock = new Promise<void>((r) => (release = r))
+      await prev
       state.txCount++
       for (const f of state.beforeTx) f(state.txCount)
       state.depth++
@@ -404,6 +419,7 @@ function finishWorld(opts: { messages?: Msg[]; ended?: boolean } = {}) {
         return await fn(tx)
       } finally {
         state.depth--
+        release()
       }
     },
     readMaterial: async () => material(),
@@ -413,7 +429,7 @@ function finishWorld(opts: { messages?: Msg[]; ended?: boolean } = {}) {
       llmCalls.push({ depth: state.depth, system: req.system ?? '', body })
       return llm(body)
     },
-    isEnded: async () => state.ended,
+    isEnded: async () => (state.isEndedCalls++, state.ended),
     endRolePlay: async (_u, input) => {
       ends.push(input)
       if (state.ended) return { ...END_RESULT, replayed: true }
@@ -427,7 +443,7 @@ function finishWorld(opts: { messages?: Msg[]; ended?: boolean } = {}) {
     },
     now: () => new Date('2026-10-07T01:25:00Z'),
   }
-  return { deps, messages, state, llmCalls, ends, traces, setLlm: (f: typeof llm) => (llm = f), t }
+  return { deps, messages, state, llmCalls, ends, traces, setLlm: (f: typeof llm) => (llm = f), t, chat, marks }
 }
 
 test('종료: 판정 LLM 은 트랜잭션 밖(잠금 없음)에서 한 번 → 증거 대조 결과만 기록 tx 에 넘김(L-1) · 첫마디 포함 대화 · endedBy/endOfTopic', async () => {
@@ -550,7 +566,8 @@ test('진행 중 후보: 사용자·TALK·상황 in 조건, lastMessageAt 순, �
   const out = await listOpenRolePlayChats(U, ['scn_a', 'scn_b', 'scn_a', ''], db, now)
   const args = seen[0] as { where: unknown; take: number; orderBy: unknown }
   // 30일 넘게 말이 없던 역할극은 후보 아님(REV-140 L-4 — 카탈로그 끝낸 표식 창이 방치 대화로 늘지 않게).
-  assert.deepEqual(args.where, { userId: U, kind: 'TALK', scenarioId: { in: ['scn_a', 'scn_b'] }, lastMessageAt: { gte: new Date(now.getTime() - OPEN_ROLE_PLAY_MAX_AGE_DAYS * 86_400_000) } })
+  // 사용자가 마친 역할극(Chat.endedAt 있음)은 후보에서 바로 뺀다(task-048).
+  assert.deepEqual(args.where, { userId: U, kind: 'TALK', scenarioId: { in: ['scn_a', 'scn_b'] }, endedAt: null, lastMessageAt: { gte: new Date(now.getTime() - OPEN_ROLE_PLAY_MAX_AGE_DAYS * 86_400_000) } })
   assert.equal(args.take, OPEN_ROLE_PLAY_MAX)
   assert.deepEqual(out.map((o) => o.chatId), ['ca0', 'ca1', 'ca2', 'cb0'])
   assert.equal(out[3].at.getTime(), CHAT_AT.getTime(), 'lastMessageAt 이 없으면 생성 시각')
@@ -622,4 +639,100 @@ test('종료(L-3): 기록 tx 는 tx2 에서 다시 읽은 재료(교정 수)로 
   assert.equal(r.replayed, false)
   assert.equal(w.ends.length, 1)
   assert.deepEqual(w.ends[0].corrections, { proposed: 4, accepted: 2, ignored: 1 }, 'tx1 값은 proposed 1 · accepted 0')
+})
+
+// ── task-048: Chat.endedAt — 사용자 [마치기] 표식(잠근 행 우선, 관측은 2차 방어) ─────────────
+
+const FINISH_NOW = '2026-10-07T01:25:00.000Z' // finishWorld deps.now
+const OBS_AT = '2026-10-07T01:30:00.000Z' // finishWorld readResult(관측 시각)
+
+test('task-048 ①: 처음 종료는 같은 tx 에서 Chat.endedAt = now(비어 있는 행만) · 응답 endedAt = 저장 값 · 다시 마치면 관측 판정 없이 replayed·같은 endedAt', async () => {
+  const w = finishWorld()
+  const first = await finishRolePlay(U, 'chat_rp', w.deps)
+  assert.equal(first.replayed, false)
+  assert.equal(w.marks.length, 1)
+  assert.deepEqual(w.marks[0].where, { id: 'chat_rp', userId: U, endedAt: null }, '덮어쓰지 않는다(비어 있는 행만)')
+  assert.equal(w.chat.endedAt?.toISOString(), FINISH_NOW, '관측 occurredAt 과 같은 now')
+  assert.equal(first.endedAt, FINISH_NOW, '첫 응답 endedAt = 저장 값')
+  const isEndedBefore = w.state.isEndedCalls
+  const again = await finishRolePlay(U, 'chat_rp', w.deps)
+  assert.deepEqual([again.replayed, again.endedAt], [true, FINISH_NOW], `재시도 응답도 저장 값(관측 시각 ${OBS_AT} 이 아니라)`)
+  assert.equal(w.state.isEndedCalls, isEndedBefore, '잠근 행에 표식이 있으면 관측 판정을 부르지 않는다')
+  assert.deepEqual([w.ends.length, w.llmCalls.length, w.marks.length], [1, 1, 1], '두 번째 종료는 기록·판정·표식 쓰기 0')
+})
+
+test('task-048 ②: 시계 어긋남 모의(Chat.createdAt = 표식 시각 + 2일·+8일, 7일 창 안·밖) — 턴 409 ROLEPLAY_ENDED(관측 조회 0)·두 번째 종료 replayed(기록·판정 0)', async () => {
+  const day = 86_400_000
+  const markedAt = new Date(FINISH_NOW)
+  for (const skew of [2, 8]) {
+    const createdAt = new Date(markedAt.getTime() + skew * day)
+    // 관측 가짜는 "못 찾음" — 창 밖 어긋남에서 관측 기반 판정이 놓치는 상황. 그래도 끝남이어야 한다.
+    const turn = acceptTx({ id: 'chat_rp', userId: U, kind: 'TALK', level: 'N5', scenarioId: 'scn_seed', createdAt, endedAt: markedAt }, false)
+    await assert.rejects(acceptTurnTx(turn.tx, U, 'chat_rp', TURN), expectApi('CONFLICT', 'ROLEPLAY_ENDED'))
+    assert.deepEqual(turn.calls.map((c) => c.op), ['lockUser', 'lockChat'], `+${skew}일: 관측 조회·메시지 행 0`)
+    assert.ok(String(turn.calls[1].args).includes('endedAt'), '잠근 행에서 endedAt 을 같이 읽는다')
+
+    const w = finishWorld()
+    w.chat.createdAt = createdAt
+    w.chat.endedAt = markedAt
+    const seen: { endedAt?: Date | null }[] = []
+    w.deps.readResult = async (_u, c) => (seen.push(c), { ...END_RESULT, replayed: true, endedAt: new Date(OBS_AT) })
+    const r = await finishRolePlay(U, 'chat_rp', w.deps)
+    assert.deepEqual([r.replayed, r.endedAt], [true, FINISH_NOW], `+${skew}일`)
+    assert.deepEqual([w.ends.length, w.llmCalls.length, w.marks.length, w.state.isEndedCalls], [0, 0, 0, 0], `+${skew}일: 기록·판정·표식·관측 판정 0`)
+    assert.equal(seen[0].endedAt?.getTime(), markedAt.getTime(), '결과 읽기에 표식 시각을 넘긴다(관측 창 하한)')
+  }
+})
+
+test('task-048 ③: endedAt NULL 인 옛 행은 관측 기반 판정(2차 방어)으로 계속 — 턴 409·재종료 replayed(옛 행에 표식을 쓰지 않음) · 드라이버가 글로 준 endedAt 도 끝남', async () => {
+  const legacy = acceptTx({ id: 'chat_rp', userId: U, kind: 'TALK', level: 'N5', scenarioId: 'scn_seed', createdAt: CHAT_AT, endedAt: null }, true)
+  await assert.rejects(acceptTurnTx(legacy.tx, U, 'chat_rp', TURN), expectApi('CONFLICT', 'ROLEPLAY_ENDED'))
+  assert.deepEqual(legacy.calls.map((c) => c.op), ['lockUser', 'lockChat', 'obs.findFirst'])
+  const asText = acceptTx({ id: 'chat_rp', userId: U, kind: 'TALK', level: 'N5', scenarioId: 'scn_seed', createdAt: CHAT_AT, endedAt: FINISH_NOW }, false)
+  await assert.rejects(acceptTurnTx(asText.tx, U, 'chat_rp', TURN), expectApi('CONFLICT', 'ROLEPLAY_ENDED'))
+  assert.equal(asText.calls.some((c) => c.op === 'obs.findFirst'), false)
+  const open = acceptTx({ id: 'chat_rp', userId: U, kind: 'TALK', level: 'N5', scenarioId: 'scn_seed', createdAt: CHAT_AT, endedAt: null }, false)
+  assert.equal((await acceptTurnTx(open.tx, U, 'chat_rp', TURN)).scenarioId, 'scn_seed', '표식·관측 둘 다 없으면 턴을 받는다')
+
+  const w = finishWorld({ ended: true })
+  const r = await finishRolePlay(U, 'chat_rp', w.deps)
+  assert.deepEqual([r.replayed, r.endedAt, w.state.isEndedCalls, w.ends.length, w.marks.length], [true, OBS_AT, 1, 0, 0], '옛 행: 관측 시각 · 지연 백필 없음')
+})
+
+test('task-048 ④: 동시 종료 상태기계 — 두 요청을 함께 보내도 처음 기록·표식은 1회, 두 응답의 endedAt 이 같다(저장 값) · 스냅샷 뒤 다른 요청이 표식을 쓰면 그 값', async () => {
+  const w = finishWorld()
+  const [a, b] = await Promise.all([finishRolePlay(U, 'chat_rp', w.deps), finishRolePlay(U, 'chat_rp', w.deps)])
+  assert.deepEqual([a.replayed, b.replayed].sort(), [false, true])
+  assert.deepEqual([a.endedAt, b.endedAt], [FINISH_NOW, FINISH_NOW])
+  assert.equal(w.chat.endedAt?.toISOString(), FINISH_NOW)
+  assert.equal(w.marks.length, 1, '표식 쓰기 1회')
+  assert.equal(w.ends.filter((e) => !e.chatEndedAt).length, 1, '표식 없이 learning 을 부른 것은 처음 요청 하나(나머지는 잠근 행 표식을 넘겨 쓰지 않게)')
+
+  const x = finishWorld()
+  const other = new Date('2026-10-07T01:24:00Z')
+  x.state.beforeTx.push((n) => {
+    if (n === 2) {
+      x.chat.endedAt = other
+      x.state.ended = true
+    }
+  })
+  const v = await finishRolePlay(U, 'chat_rp', x.deps)
+  assert.deepEqual([v.replayed, v.endedAt, x.marks.length], [true, other.toISOString(), 0], '처음 기록한 요청의 저장 값 — 지금·관측 시각 아님')
+  assert.equal(x.ends[0].chatEndedAt?.getTime(), other.getTime(), 'learning 에 잠근 행의 표식을 넘긴다')
+})
+
+test('task-048 #29: 결과 endedAt 은 Chat.endedAt 이 먼저 · 결과 읽기에 표식을 넘긴다 · 옛 행은 관측 시각', async () => {
+  const markedAt = new Date(FINISH_NOW)
+  const seen: { endedAt?: Date | null }[] = []
+  const vd = viewDeps({ readResult: async (_u, c) => (seen.push(c), { ...END_RESULT, replayed: true, endedAt: new Date(OBS_AT) }) })
+  const v = await rolePlayChatView(U, { id: 'chat_rp', createdAt: CHAT_AT, scenarioId: 'scn_seed', lessonId: null, endedAt: markedAt }, vd)
+  assert.equal(v?.ended?.endedAt, FINISH_NOW)
+  assert.equal(seen[0].endedAt?.getTime(), markedAt.getTime())
+  const legacy = await rolePlayChatView(U, { id: 'chat_rp', createdAt: CHAT_AT, scenarioId: 'scn_seed', lessonId: null }, vd)
+  assert.equal(legacy?.ended?.endedAt, OBS_AT)
+  const selects: unknown[] = []
+  const db = { chat: { findFirst: async (a: { select: unknown }) => (selects.push(a.select), { id: 'chat_rp', kind: 'TALK', scenarioId: 'scn_seed', lessonId: null, createdAt: CHAT_AT, endedAt: markedAt }) } } as unknown as Pick<Tx, 'chat'>
+  const c = await chatRolePlayView(U, 'chat_rp', vd, db)
+  assert.equal(c?.ended?.endedAt, FINISH_NOW)
+  assert.equal((selects[0] as { endedAt?: boolean }).endedAt, true)
 })

@@ -414,7 +414,7 @@ test('#166 장소 읽기(readScenarioDraftTopic 기본 어댑터): where = {id, 
 
 test('#169 기본 어댑터(readPracticeChat·readPracticeMessages): where 에 소유 조건 userId — 남의 대화·남의 행은 안 읽힌다 · 새것부터 · 창 REPLY_PRACTICE_WINDOW · 고른 칸만', async () => {
   const chats = [
-    { id: 'chat_rp', userId: U, kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT },
+    { id: 'chat_rp', userId: U, kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT, endedAt: null },
     { id: 'chat_x', userId: OTHER, kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT },
   ]
   const msgs = [
@@ -441,7 +441,7 @@ test('#169 기본 어댑터(readPracticeChat·readPracticeMessages): where 에 �
       },
     },
   }
-  assert.deepEqual(await readPracticeChat(U, 'chat_rp', db as never), { id: 'chat_rp', kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT })
+  assert.deepEqual(await readPracticeChat(U, 'chat_rp', db as never), { id: 'chat_rp', kind: 'TALK', level: 'N4', scenarioId: 'scn_seed', createdAt: CHAT_AT, endedAt: null }, '끝낸 표식(Chat.endedAt, task-048)도 같이 읽는다')
   assert.deepEqual(chatWheres[0], { id: 'chat_rp', userId: U }, '소유 조건이 where 에 있다')
   assert.equal(await readPracticeChat(U, 'chat_x', db as never), null, '남의 대화')
   assert.equal(await readPracticeChat(OTHER, 'chat_rp', db as never), null, '내 대화는 남에게 안 보인다')

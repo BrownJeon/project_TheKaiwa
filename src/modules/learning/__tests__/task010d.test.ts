@@ -485,3 +485,28 @@ test('A3b-2 시계 어긋남 모의: 대화 생성 시각이 표식보다 2일 �
   await endScenarioRolePlay(U, endInput({ chatCreatedAt: far }), g.tx, { now: NOW })
   assert.equal(await isScenarioRolePlayEnded(U, { id: 'chat_rp_1', createdAt: far }, g.tx), false, '여유 밖 어긋남은 못 덮는다(문서화된 한계)')
 })
+
+test('task-048: 대화 행 표식(chatEndedAt) — 하한 = min(생성, 표식) − 여유(좁아지지 않음) · +8일 어긋남도 재종료 replayed(쓰기 0) · 관측을 못 찾아도 다시 기록하지 않는다', async () => {
+  const day = 86_400_000
+  const far = new Date(NOW.getTime() + 8 * day)
+  const minus = (d: Date) => new Date(d.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS)
+  assert.deepEqual(scenarioEndLookupSince(far, NOW), minus(NOW))
+  assert.deepEqual(scenarioEndLookupSince(CHAT_AT, far), minus(CHAT_AT), '표식이 늦으면 생성 기준 그대로')
+  assert.deepEqual(scenarioEndLookupSince(new Date('nope'), NOW), minus(NOW))
+  assert.deepEqual(scenarioEndLookupSince(CHAT_AT, new Date('nope')), minus(CHAT_AT))
+  assert.deepEqual(scenarioEndLookupSince(CHAT_AT, null), minus(CHAT_AT))
+
+  const g = endTx()
+  const first = await endScenarioRolePlay(U, endInput({ chatCreatedAt: far }), g.tx, { now: NOW })
+  assert.equal(first.replayed, false)
+  const written = writes(g.calls).length
+  const again = await endScenarioRolePlay(U, endInput({ chatCreatedAt: far, chatEndedAt: NOW }), g.tx, { now: new Date(NOW.getTime() + day) })
+  assert.deepEqual([again.replayed, again.outcome], [true, first.outcome])
+  assert.equal(writes(g.calls).length, written, '두 번째 종료는 쓰기 0')
+  assert.equal(g.calls.filter((c) => c.op === 'obs.createMany').length, 1)
+
+  const h = endTx()
+  const orphan = await endScenarioRolePlay(U, endInput({ chatEndedAt: NOW }), h.tx, { now: NOW })
+  assert.equal(orphan.replayed, true)
+  assert.deepEqual(writes(h.calls), [], '대화 행이 끝났다면 관측이 없어도 쓰지 않는다')
+})

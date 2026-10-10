@@ -181,3 +181,12 @@ test('결과 읽기: 다른 사용자·다른 상황의 관측은 null(소유자
   assert.deepEqual([wheres[0].userId, wheres[1].scenarioId], [OTHER, 'scn_other'])
   assert.equal(await readScenarioRolePlayResult(ME, { id: '', createdAt: CHAT_AT, scenarioId: 'scn_seed' }, db), null)
 })
+
+test('task-048 결과 읽기: 대화 행 표식(endedAt)을 넘기면 하한 = min(생성, 표식) − 여유 — 생성이 8일 늦은 시계 어긋남도 찾는다(넘기지 않으면 못 찾음 — 옛 한계)', async () => {
+  const { db, wheres } = resultDb([OBS])
+  const skewed = new Date(OBS.occurredAt.getTime() + 8 * 86_400_000)
+  assert.equal(await readScenarioRolePlayResult(ME, { id: 'chat_rp', createdAt: skewed, scenarioId: 'scn_seed' }, db), null, '관측 창만으로는 놓친다')
+  const r = await readScenarioRolePlayResult(ME, { id: 'chat_rp', createdAt: skewed, scenarioId: 'scn_seed', endedAt: OBS.occurredAt }, db)
+  assert.equal(r?.endedAt.getTime(), OBS.occurredAt.getTime())
+  assert.equal((wheres[1] as { occurredAt: { gte: Date } }).occurredAt.gte.getTime(), OBS.occurredAt.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS)
+})

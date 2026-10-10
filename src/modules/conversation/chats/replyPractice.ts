@@ -34,6 +34,8 @@ export interface PracticeChatRow {
   level: JlptLevel | null
   scenarioId: string | null
   createdAt: Date
+  /** `Chat.endedAt`(task-048) — 있으면 관측 조회 없이 마친 역할극. */
+  endedAt?: Date | null
 }
 
 export interface PracticeMessageRow {
@@ -60,7 +62,7 @@ export interface ReplyPracticeDeps {
 
 /** 대화는 `(id, userId)` 로만 읽는다(남의 대화 = null → 404). `db` 는 시험이 소유 조건을 가짜 db 로 고정하려고 받는다(REV-142 L-1). */
 export function readPracticeChat(userId: string, chatId: string, db: Pick<Tx, 'chat'> = prisma): Promise<PracticeChatRow | null> {
-  return db.chat.findFirst({ where: { id: chatId, userId }, select: { id: true, kind: true, level: true, scenarioId: true, createdAt: true } })
+  return db.chat.findFirst({ where: { id: chatId, userId }, select: { id: true, kind: true, level: true, scenarioId: true, createdAt: true, endedAt: true } })
 }
 
 /** 그 대화의 최근 메시지 — 본인 행만(`userId`), 새것부터. */
@@ -141,7 +143,7 @@ export async function suggestReply(userId: string, chatId: string, messageId: st
   const chat = await deps.readChat(userId, chatId)
   if (!chat || chat.kind !== 'TALK' || !chat.scenarioId) throw notFoundChat()
   const scenarioId = chat.scenarioId
-  const [ended, rows] = await Promise.all([deps.isEnded(userId, { id: chat.id, createdAt: chat.createdAt }), deps.recentMessages(userId, chatId)])
+  const [ended, rows] = await Promise.all([chat.endedAt ? true : deps.isEnded(userId, { id: chat.id, createdAt: chat.createdAt }), deps.recentMessages(userId, chatId)])
   if (ended) throw conflict('마친 역할극이에요.', 'ENDED')
   if (practiceTurnRunning(rows, deps.turnLocked(userId, chatId))) throw conflict('선생님 말이 끝나면 다시 눌러 주세요.', 'TURN_RUNNING')
   const target = latestTutorMessage(rows, messageId)

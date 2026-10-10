@@ -713,6 +713,8 @@ model Chat {
   messageCount  Int       @default(0)
   /// 표현 점검(A3)은 채팅당 1회
   reviewedAt    DateTime?
+  /// 역할극을 사용자가 [마치기]로 끝낸 시각(task-048, 사용자 승인 2026-10-10). nullable·기본값 없음, 옛 행·다른 경로로 닫힌 행은 NULL
+  endedAt       DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -940,6 +942,10 @@ model VocabAttempt {
   /// 'AiWord'(A12 새 단어, refId = 같은 sha1 정규화 표기. 반복 항목 등록·오늘 제외 비교 때는 ('Expr', refId) 로 바꿔 쓴다). 단어장 카드는 null(wordId 로 충분)
   refType     String?      @db.VarChar(30)
   refId       String?      @db.VarChar(40)
+
+  /// 주제 단어(AiWord) 예문 스냅샷 — 일본어 예문 / 한국어 번역(task-049, 사용자 승인 2026-10-10). 타입은 WordEntry.example·exampleKo 와 같다. nullable, 옛 행·예문 없는 카드는 NULL
+  exampleSnap   String? @db.Text
+  exampleKoSnap String? @db.Text
 
   session VocabSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   word    WordEntry?   @relation(fields: [wordId], references: [id], onDelete: SetNull)

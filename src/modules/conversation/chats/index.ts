@@ -129,7 +129,7 @@ export async function createChat(userId: string, input: CreateChatInput, over?: 
   return serializeChat(c, false)
 }
 
-const LIST_SELECT = { ...CHAT_SELECT, scenarioId: true } as const
+const LIST_SELECT = { ...CHAT_SELECT, scenarioId: true, endedAt: true } as const
 
 /** #27 — `lastMessageAt desc, id desc`, 키셋 커서. 역할극 행은 `scenario{id, ended}`(한 쪽당 끝낸 표식 배치 조회 1회 — `rolePlayListBadges`). */
 export async function listChats(userId: string, q: { kind?: ChatKind; limit: number; cursor?: string | null }): Promise<{ items: ChatDto[]; nextCursor: string | null }> {

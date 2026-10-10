@@ -8,8 +8,10 @@
  *     ① 짧은 tx: 사용자 → 대화 `FOR UPDATE` 아래 재료 읽기 · 진행 중 턴(살아 있는 PENDING) 409 `TURN_RUNNING` · 이미 끝냈는가 · 판정용 대화 읽기 → 커밋(잠금 풀림)
  *     ② 잠금 밖: 판정 호출(실패·시간 초과·학습자 말 0 → 판정 없음 `verdict:null`) → `finalizeScenarioVerdictFor` 결과만 넘긴다(L-1 — 모델 응답을 그대로 넘기지 않는다)
  *     ③ tx: 같은 순서로 다시 잠근 뒤 재확인 — 진행 중 턴 409, 학습자 말이 ①과 달라졌으면(그사이 턴이 끝남) 처음부터 한 번 더, 두 번째도 다르면 409 `TURN_RUNNING`
- *        → `learning.endScenarioRolePlay`(같은 tx, 멱등 — 동시에 두 번 마쳐도 기록은 한 번).
+ *        → `learning.endScenarioRolePlay`(같은 tx, 멱등 — 동시에 두 번 마쳐도 기록은 한 번) → 처음 기록이면 같은 tx 에서 `Chat.endedAt = now`.
  *   턴 수락(`acceptTurn`)도 사용자 → 대화 순서로 잠그고 끝낸 대화를 409 `ROLEPLAY_ENDED` 로 거절하므로 ③과 턴은 어느 쪽이 먼저 와도 겹치지 않는다.
+ * - 「끝냈는가」(task-048): 잠근 대화 행의 `Chat.endedAt` 을 먼저 본다(시계·조회 창 무관, 추가 쿼리 0). NULL 이면 관측(`SCENARIO_COMPLETED`) 기반 판정으로
+ *   내려간다(2차 방어 — 옛 행·백필 전). `endedAt` 은 사용자 [마치기](이 흐름)만 쓴다. 응답 `endedAt` 도 이 값이 먼저다.
  */
 import type { ChatKind, JlptLevel, Prisma } from '@prisma/client'
 import { ApiError, classifyError, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
@@ -63,6 +65,13 @@ function optionalId(v: unknown, field: string): string | null {
 }
 
 const validChatId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 40
+
+/** 원시 쿼리의 DATETIME 은 Date 로 오지만 드라이버 설정에 따라 글로 올 수 있다. 비었거나 올바르지 않으면 null. */
+export function rawDateOrNull(v: Date | string | null | undefined): Date | null {
+  if (v === null || v === undefined || v === '') return null
+  const d = v instanceof Date ? v : new Date(String(v))
+  return Number.isNaN(d.getTime()) ? null : d
+}
 
 /** 마친 역할극에 말을 보냈을 때(턴 수락 거절) — 409 `ROLEPLAY_ENDED`. */
 export function rolePlayEnded(): ApiError {
@@ -249,12 +258,17 @@ export interface RolePlayChatRef {
   createdAt: Date
   scenarioId: string
   lessonId: string | null
+  /** `Chat.endedAt`(task-048) — 있으면 결과 `endedAt` 은 이 값. */
+  endedAt?: Date | null
 }
+
+/** 결과 읽기에 넘기는 대화 칸 — `endedAt` 은 관측 조회 창 하한에도 쓴다(learning `scenarioEndLookupSince`). */
+export type RolePlayResultChat = { id: string; createdAt: Date; scenarioId: string; endedAt?: Date | null }
 
 export interface RolePlayViewDeps {
   readMaterial(userId: string, scenarioId: string): Promise<ScenarioRolePlayMaterial | null>
   learnerTexts(userId: string, chatId: string): Promise<string[]>
-  readResult(userId: string, chat: { id: string; createdAt: Date; scenarioId: string }): Promise<(ScenarioEndResult & { endedAt: Date }) | null>
+  readResult(userId: string, chat: RolePlayResultChat): Promise<(ScenarioEndResult & { endedAt: Date }) | null>
   pendingCorrections(userId: string, chatId: string): Promise<number>
 }
 
@@ -270,10 +284,10 @@ export async function rolePlayChatView(userId: string, chat: RolePlayChatRef, de
   const [material, texts, result] = await Promise.all([
     deps.readMaterial(userId, chat.scenarioId),
     deps.learnerTexts(userId, chat.id),
-    deps.readResult(userId, { id: chat.id, createdAt: chat.createdAt, scenarioId: chat.scenarioId }),
+    deps.readResult(userId, { id: chat.id, createdAt: chat.createdAt, scenarioId: chat.scenarioId, endedAt: chat.endedAt ?? null }),
   ])
   if (!material) return null
-  const ended = result ? toRolePlayResultView(result, await deps.pendingCorrections(userId, chat.id), result.endedAt) : null
+  const ended = result ? toRolePlayResultView(result, await deps.pendingCorrections(userId, chat.id), chat.endedAt ?? result.endedAt) : null
   return {
     id: material.id,
     title: material.title,
@@ -294,9 +308,9 @@ export async function rolePlayChatView(userId: string, chat: RolePlayChatRef, de
  */
 export async function chatRolePlayView(userId: string, chatId: string, deps: RolePlayViewDeps = rolePlayViewDeps, db: Pick<Tx, 'chat'> = prisma): Promise<(RolePlayChatView & { lessonId: string | null }) | null> {
   if (!validChatId(chatId)) return null
-  const c = await db.chat.findFirst({ where: { id: chatId, userId }, select: { id: true, kind: true, scenarioId: true, lessonId: true, createdAt: true } })
+  const c = await db.chat.findFirst({ where: { id: chatId, userId }, select: { id: true, kind: true, scenarioId: true, lessonId: true, createdAt: true, endedAt: true } })
   if (!c || c.kind !== 'TALK' || !c.scenarioId) return null
-  const view = await rolePlayChatView(userId, { id: c.id, createdAt: c.createdAt, scenarioId: c.scenarioId, lessonId: c.lessonId }, deps)
+  const view = await rolePlayChatView(userId, { id: c.id, createdAt: c.createdAt, scenarioId: c.scenarioId, lessonId: c.lessonId, endedAt: c.endedAt ?? null }, deps)
   return view ? { ...view, lessonId: c.lessonId } : null
 }
 
@@ -307,6 +321,8 @@ export interface RolePlayEndFacts {
   chatId: string
   /** `Chat.createdAt` — learning 이 끝낸 표식 조회의 시간 하한으로 쓴다(REV-134 M-2). */
   chatCreatedAt: Date
+  /** 잠근 행의 `Chat.endedAt`(task-048) — 있으면 이미 끝낸 대화(정본). learning 입력 `chatEndedAt` 과 같은 이름. */
+  chatEndedAt: Date | null
   scenarioId: string
   lessonId: string | null
   topicId: string | null
@@ -318,7 +334,7 @@ export interface RolePlayEndFacts {
   startedAt: Date | null
 }
 
-type ChatLockRow = { id: string; userId: string; kind: ChatKind; scenarioId: string | null; lessonId: string | null; topicId: string | null; createdAt: Date | string }
+type ChatLockRow = { id: string; userId: string; kind: ChatKind; scenarioId: string | null; lessonId: string | null; topicId: string | null; createdAt: Date | string; endedAt?: Date | string | null }
 
 /**
  * 호출자 tx 안에서 — 사용자 행 → 대화 행(`FOR UPDATE`) 잠금 뒤 읽는다. 없음·남의 대화 404, 역할극이 아닌 대화(상황 없음·TALK 아님) 400.
@@ -327,7 +343,7 @@ type ChatLockRow = { id: string; userId: string; kind: ChatKind; scenarioId: str
 export async function readRolePlayEndFacts(userId: string, chatId: string, tx: Tx): Promise<RolePlayEndFacts> {
   if (!validChatId(chatId)) throw notFoundChat()
   await lockUserRow(tx, userId)
-  const rows = await tx.$queryRaw<ChatLockRow[]>`SELECT id, userId, kind, scenarioId, lessonId, topicId, createdAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
+  const rows = await tx.$queryRaw<ChatLockRow[]>`SELECT id, userId, kind, scenarioId, lessonId, topicId, createdAt, endedAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
   const chat = rows[0]
   if (!chat || chat.userId !== userId) throw notFoundChat()
   if (chat.kind !== 'TALK' || !chat.scenarioId) throw new ApiError('VALIDATION', '상황 역할극 대화가 아니에요.', { field: 'chatId', reason: 'not_scenario' })
@@ -351,6 +367,7 @@ export async function readRolePlayEndFacts(userId: string, chatId: string, tx: T
   return {
     chatId,
     chatCreatedAt,
+    chatEndedAt: rawDateOrNull(chat.endedAt),
     scenarioId: chat.scenarioId,
     lessonId: chat.lessonId,
     topicId: chat.topicId,
@@ -400,7 +417,7 @@ export interface RolePlayFinishDeps {
   completeVerdict(req: LlmJsonRequest<ScenarioVerdictResponse>): Promise<LlmJsonResult<ScenarioVerdictResponse>>
   isEnded(userId: string, chat: { id: string; createdAt: Date }, db: Tx): Promise<boolean>
   endRolePlay(userId: string, input: ScenarioEndInput, tx: Tx, opts: { now: Date }): Promise<ScenarioEndResult>
-  readResult(userId: string, chat: { id: string; createdAt: Date; scenarioId: string }, db?: Tx): Promise<(ScenarioEndResult & { endedAt: Date }) | null>
+  readResult(userId: string, chat: RolePlayResultChat, db?: Tx): Promise<(ScenarioEndResult & { endedAt: Date }) | null>
   pendingCorrections(userId: string, chatId: string, db?: Tx): Promise<number>
   trace(t: TraceRecord): Promise<void>
   now(): Date
@@ -418,6 +435,8 @@ export const rolePlayFinishDeps: RolePlayFinishDeps = {
   trace: (t) => recordTrace(t),
   now: () => new Date(),
 }
+
+const resultChat = (f: RolePlayEndFacts): RolePlayResultChat => ({ id: f.chatId, createdAt: f.chatCreatedAt, scenarioId: f.scenarioId, endedAt: f.chatEndedAt })
 
 const sameLearnerTurns = (a: RolePlayEndFacts, b: RolePlayEndFacts): boolean =>
   a.turns === b.turns && a.learnerTexts.length === b.learnerTexts.length && a.learnerTexts.every((t, i) => t === b.learnerTexts[i])
@@ -482,6 +501,14 @@ interface FinishSnapshot {
   transcript: VerdictTranscript | null
 }
 
+/**
+ * 끝낸 표식(task-048) — 처음 기록한 tx 에서만, 비어 있는 행에만 쓴다(덮어쓰지 않음). `now` 는 관측 `occurredAt` 과 같은 값.
+ * 잠근 행이라 같은 대화의 다른 종료·턴과 겹치지 않는다(선례 `review` 의 `reviewedAt: null` 조건부 갱신).
+ */
+export async function markRolePlayChatEnded(tx: Pick<Tx, 'chat'>, userId: string, chatId: string, now: Date): Promise<void> {
+  await tx.chat.updateMany({ where: { id: chatId, userId, endedAt: null }, data: { endedAt: now } })
+}
+
 /** 학습자 말 0 — 기록 없음(데모 "그만두기"). learning `endScenarioRolePlay` 와 같은 코드·문구. */
 function noTurns(): ApiError {
   return new ApiError('CONFLICT', '아직 한 마디도 하지 않았어요.', { reason: 'NO_TURNS' })
@@ -503,15 +530,15 @@ export async function finishRolePlay(userId: string, chatId: string, deps: RoleP
       const snap = await deps.transaction<FinishSnapshot>(async (tx) => {
         const facts = await readRolePlayEndFacts(userId, chatId, tx)
         if (await hasLiveTurn(tx, userId, chatId)) throw turnRunning()
-        const ended = await deps.isEnded(userId, { id: chatId, createdAt: facts.chatCreatedAt }, tx)
+        const ended = facts.chatEndedAt !== null || (await deps.isEnded(userId, { id: chatId, createdAt: facts.chatCreatedAt }, tx))
         const transcript = ended || facts.turns === 0 ? null : await readVerdictTranscript(tx, userId, chatId)
         return { facts, ended, transcript }
       })
       if (snap.ended) {
-        const r = await deps.readResult(userId, { id: chatId, createdAt: snap.facts.chatCreatedAt, scenarioId: snap.facts.scenarioId })
+        const r = await deps.readResult(userId, resultChat(snap.facts))
         if (r) {
           steps.push({ name: 'SCENARIO_FINISH', ms: Date.now() - started, replayed: true })
-          return toRolePlayResultView({ ...r, replayed: true }, await deps.pendingCorrections(userId, chatId), r.endedAt)
+          return toRolePlayResultView({ ...r, replayed: true }, await deps.pendingCorrections(userId, chatId), snap.facts.chatEndedAt ?? r.endedAt)
         }
       }
       if (snap.facts.turns === 0) throw noTurns()
@@ -521,8 +548,10 @@ export async function finishRolePlay(userId: string, chatId: string, deps: RoleP
         if (await hasLiveTurn(tx, userId, chatId)) throw turnRunning()
         if (!sameLearnerTurns(snap.facts, facts)) return null
         const now = deps.now()
+        // facts.chatEndedAt 이 있으면 learning 은 쓰지 않는다(재생). 없을 때 처음 기록이면 같은 tx 에서 Chat 표식을 같은 now 로.
         const r = await deps.endRolePlay(userId, { ...facts, endOfTopic: snap.transcript?.endOfTopic === true, verdict }, tx, { now })
-        const endedAt = r.replayed ? ((await deps.readResult(userId, { id: chatId, createdAt: facts.chatCreatedAt, scenarioId: facts.scenarioId }, tx))?.endedAt ?? now) : now
+        if (!r.replayed && facts.chatEndedAt === null) await markRolePlayChatEnded(tx, userId, chatId, now)
+        const endedAt = facts.chatEndedAt ?? (r.replayed ? ((await deps.readResult(userId, resultChat(facts), tx))?.endedAt ?? now) : now)
         return toRolePlayResultView(r, await deps.pendingCorrections(userId, chatId, tx), endedAt)
       })
       if (view) {
@@ -558,16 +587,18 @@ export type EndedRolePlayLookup = (userId: string, chats: { id: string; createdA
 /**
  * #27 한 쪽(≤ limit 행)의 역할극 칸 — 역할극 행(TALK·`scenarioId` 있음)만 모아 끝낸 표식을 **한 번의 배치 조회**로 확인한다
  * (learning `endedScenarioRolePlayChatIds` — 창 하한 = 그 행들의 `Chat.createdAt` 최솟값 − 여유). 역할극 행이 없으면 조회 0. 행마다 조회하지 않는다.
+ * `Chat.endedAt` 이 있는 행은 조회 없이 끝남(task-048) — 배치 조회는 NULL 행만(전부 차 있으면 조회 0).
  */
 export async function rolePlayListBadges(
   userId: string,
-  rows: readonly { id: string; kind: ChatKind; scenarioId: string | null; createdAt: Date }[],
+  rows: readonly { id: string; kind: ChatKind; scenarioId: string | null; createdAt: Date; endedAt?: Date | null }[],
   endedChats: EndedRolePlayLookup = (u, chats) => endedScenarioRolePlayChatIds(u, chats),
 ): Promise<Map<string, RolePlayListBadge>> {
   const rp = rows.filter((r): r is typeof r & { scenarioId: string } => r.kind === 'TALK' && !!r.scenarioId)
   if (!rp.length) return new Map()
-  const ended = await endedChats(userId, rp.map((r) => ({ id: r.id, createdAt: r.createdAt })))
-  return new Map(rp.map((r) => [r.id, { id: r.scenarioId, ended: ended.has(r.id) }]))
+  const open = rp.filter((r) => !r.endedAt)
+  const ended = open.length ? await endedChats(userId, open.map((r) => ({ id: r.id, createdAt: r.createdAt }))) : new Set<string>()
+  return new Map(rp.map((r) => [r.id, { id: r.scenarioId, ended: !!r.endedAt || ended.has(r.id) }]))
 }
 
 // ── 진행 중 칸(#161·#162 `inProgressChatId`) ────────────────────────────────────
@@ -586,6 +617,7 @@ export const OPEN_ROLE_PLAY_MAX_AGE_DAYS = 30
  * 진행 중 역할극 후보 — 상황마다 최근 TALK 대화 ≤3개(`lastMessageAt` 내림차순). `Chat(userId, kind, lastMessageAt)` 인덱스 순서로 읽고 `scenarioId in (…)` 로 거른다.
  * 라우트가 `listScenarios(…, { openChats: listOpenRolePlayChats })` 로 넘긴다(learning 은 Chat 을 읽지 않는다 — 6층).
  * 읽는 행 수는 `OPEN_ROLE_PLAY_MAX` 고정이다 — `상황 수 × 3` 으로 자르면 자주 한 상황의 최근 대화가 창을 다 채워 다른 상황의 진행 중 대화가 빠진다(상황마다 ≤3 은 아래에서 센다).
+ * `Chat.endedAt` 이 있는 대화(사용자가 마친 역할극, task-048)는 여기서 뺀다 — 카탈로그의 관측 기반 거르기는 옛 행(NULL)만 맡는 2차 방어다.
  */
 export async function listOpenRolePlayChats(
   userId: string,
@@ -596,7 +628,7 @@ export async function listOpenRolePlayChats(
   const ids = [...new Set(scenarioIds.filter(validChatId))]
   if (!ids.length) return []
   const rows = await db.chat.findMany({
-    where: { userId, kind: 'TALK', scenarioId: { in: ids }, lastMessageAt: { gte: new Date(now.getTime() - OPEN_ROLE_PLAY_MAX_AGE_DAYS * 86_400_000) } },
+    where: { userId, kind: 'TALK', scenarioId: { in: ids }, endedAt: null, lastMessageAt: { gte: new Date(now.getTime() - OPEN_ROLE_PLAY_MAX_AGE_DAYS * 86_400_000) } },
     orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
     take: OPEN_ROLE_PLAY_MAX,
     select: { id: true, scenarioId: true, lastMessageAt: true, createdAt: true },

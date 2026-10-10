@@ -53,7 +53,7 @@ import {
 import type { WindowMessage } from '../window'
 import type { LearnerHeader } from '../prompts/header'
 import { chatPreview, notFoundChat } from '../chats'
-import { loadRolePlayLearnerTexts, rolePlayEnded, rolePlayProgress } from '../chats/rolePlay'
+import { loadRolePlayLearnerTexts, rawDateOrNull, rolePlayEnded, rolePlayProgress } from '../chats/rolePlay'
 import type { TurnClientTimings, TurnRequest } from '../chats/validate'
 import { TurnAudio, type TurnSpeaker } from './turnAudio'
 import { computeSceneCap, type SceneCapReason } from './sceneCap'
@@ -139,12 +139,14 @@ async function acceptTurn(userId: string, chatId: string, req: TurnRequest): Pro
 export async function acceptTurnTx(tx: Tx, userId: string, chatId: string, req: TurnRequest): Promise<AcceptedTurn> {
   const now = Date.now()
   await lockUserRow(tx, userId)
-  const rows = await tx.$queryRaw<{ id: string; userId: string; kind: ChatKind; level: JlptLevel | null; scenarioId: string | null; createdAt: Date | string }[]>`SELECT id, userId, kind, level, scenarioId, createdAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
+  const rows = await tx.$queryRaw<{ id: string; userId: string; kind: ChatKind; level: JlptLevel | null; scenarioId: string | null; createdAt: Date | string; endedAt?: Date | string | null }[]>`SELECT id, userId, kind, level, scenarioId, createdAt, endedAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
   const chat = rows[0]
   if (!chat || chat.userId !== userId) throw notFoundChat()
   if (chat.kind === 'ASK') throw new ApiError('FEATURE_NOT_READY', '무엇이든 물어보기는 아직 준비 중이에요.')
-  // task-010d — 마친 역할극에는 턴을 받지 않는다(종료 #167 도 사용자 → 대화 순서로 잠그므로 둘은 겹치지 않는다). 이미 읽은 행의 생성 시각을 하한으로(전수 훑기 없음).
+  // task-010d — 마친 역할극에는 턴을 받지 않는다(종료 #167 도 사용자 → 대화 순서로 잠그므로 둘은 겹치지 않는다).
+  // 잠근 행의 Chat.endedAt 이 먼저(task-048, 조회 0). NULL 이면 관측 기반 판정 — 이미 읽은 행의 생성 시각을 하한으로(전수 훑기 없음).
   if (chat.scenarioId) {
+    if (rawDateOrNull(chat.endedAt)) throw rolePlayEnded()
     const createdAt = chat.createdAt instanceof Date ? chat.createdAt : new Date(String(chat.createdAt))
     if (await isScenarioRolePlayEnded(userId, { id: chatId, createdAt }, tx)) throw rolePlayEnded()
   }

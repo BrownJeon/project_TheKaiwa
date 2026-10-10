@@ -5,8 +5,9 @@
  *   `LearningObservation(SCENARIO_COMPLETED)` + DAILY `observations`(recordObservations).
  *
  * - DAILY 규칙은 기존 TALK 종료(ADD_STUDY_LOG 채택, `recordAcceptedChatLog`)와 같은 칸이다. 역할극 1건 스냅샷은 만들지 않는다(S1 — 챌린지 T6 가 필요하면 승인과 함께 더한다).
- * - 멱등: 끝낸 표식은 그 대화의 `SCENARIO_COMPLETED` 관측(append-only, 삭제 경로 없음)이다. 두 번째 종료는 아무 행도 쓰지 않고 처음 결과를 돌려준다
- *   (`replayed:true`). StudyLog 는 사용자가 지울 수 있어(#73) 표식으로 쓰지 않는다.
+ * - 멱등: 끝낸 표식의 정본은 대화 행 `Chat.endedAt`(task-048 — conversation 이 같은 tx 에서 쓰고, 잠근 행에서 읽어 `chatEndedAt` 으로 넘긴다).
+ *   `chatEndedAt` 이 있으면 **어떤 경우에도 쓰지 않는다**. 2차 방어로 그 대화의 `SCENARIO_COMPLETED` 관측(append-only, 삭제 경로 없음)도 본다(옛 행·백필 전).
+ *   두 번째 종료는 아무 행도 쓰지 않고 처음 결과를 돌려준다(`replayed:true`). StudyLog 는 사용자가 지울 수 있어(#73) 표식으로 쓰지 않는다.
  * - Chat·ChatMessage·Correction 은 L2 소유라 여기서 읽지 않는다 — 라우트가 conversation 의 종료 재료(`readRolePlayEndFacts`)를 같은 tx 에서 넘긴다.
  *   학습자 말 원문은 표현 확인에만 쓰고 어디에도 저장하지 않는다.
  */
@@ -38,18 +39,27 @@ export const SCENARIO_DURATION_MAX_SEC = 3 * 3600
  * 시간 하한 없이 `refType·refId` 로 찾으면 그 사용자 관측 전체를 훑는다(REV-134 M-2). 표식은 대화가 생긴 뒤에만 생기므로 `occurredAt >= Chat.createdAt`
  * 으로 범위를 좁힌다. 표식의 `occurredAt` 은 기록 때 앱 시계(`opts.now`)로 **명시해 쓴다** — `Chat.createdAt` 과 같은 시계라 시계 *차이* 위험은 없고(A3b-2),
  * 남는 위험(앱 호스트 시계 되돌림·두 호스트 blue/green 의 시계 어긋남)을 7일 여유로 덮는다(REV-140 Codex C2 — 비용 = 그 7일치 관측 행을 더 훑음).
- * 시계와 무관한 근본 해결은 `Chat.endedAt` 칼럼(DB 승인 대기).
+ * 시계와 무관한 근본 해결은 `Chat.endedAt`(task-048) — 그 값이 있으면 관측은 같은 `now` 로 쓰였으므로 하한을 그 시각 기준으로도 잡는다.
  */
 export const SCENARIO_END_LOOKUP_MARGIN_MS = 7 * 86_400_000
 
-/** 대화 생성 시각 → 끝낸 표식 조회 하한. 시각이 올바르지 않으면 null(하한 없음 — 느리지만 결과는 맞다). */
-export function scenarioEndLookupSince(chatCreatedAt: Date | null | undefined): Date | null {
-  return chatCreatedAt instanceof Date && !Number.isNaN(chatCreatedAt.getTime()) ? new Date(chatCreatedAt.getTime() - SCENARIO_END_LOOKUP_MARGIN_MS) : null
+/** 끝낸 표식 관측 행의 종류·참조(refId = Chat.id) — 기록·조회·백필(`scripts/backfill-roleplay-endedat.ts`)이 같은 값을 쓴다. */
+export const SCENARIO_END_MARK = { kind: 'SCENARIO_COMPLETED', refType: 'Chat' } as const
+
+const validDate = (d: Date | null | undefined): d is Date => d instanceof Date && !Number.isNaN(d.getTime())
+
+/**
+ * 끝낸 표식 조회 하한 = (대화 생성 시각, 대화 행의 끝낸 시각 중 이른 쪽) − 여유. `chatEndedAt` 은 생략 가능 — 넣어도 하한이 늦어지지 않는다.
+ * 올바른 시각이 하나도 없으면 null(하한 없음 — 느리지만 결과는 맞다).
+ */
+export function scenarioEndLookupSince(chatCreatedAt: Date | null | undefined, chatEndedAt?: Date | null): Date | null {
+  const at = [chatCreatedAt, chatEndedAt].filter(validDate).map((d) => d.getTime())
+  return at.length ? new Date(Math.min(...at) - SCENARIO_END_LOOKUP_MARGIN_MS) : null
 }
 
-const endedWhere = (userId: string, chatId: string, chatCreatedAt: Date | null | undefined) => {
-  const since = scenarioEndLookupSince(chatCreatedAt)
-  return { userId, ...(since ? { occurredAt: { gte: since } } : {}), kind: 'SCENARIO_COMPLETED' as const, refType: 'Chat', refId: chatId }
+const endedWhere = (userId: string, chatId: string, chatCreatedAt: Date | null | undefined, chatEndedAt?: Date | null) => {
+  const since = scenarioEndLookupSince(chatCreatedAt, chatEndedAt)
+  return { userId, ...(since ? { occurredAt: { gte: since } } : {}), ...SCENARIO_END_MARK, refId: chatId }
 }
 
 /**
@@ -65,7 +75,7 @@ export async function endedScenarioRolePlayChatIds(
   if (!ok.length) return new Set()
   const since = scenarioEndLookupSince(new Date(Math.min(...ok.map((c) => c.createdAt.getTime()))))!
   const rows = await db.learningObservation.findMany({
-    where: { userId, occurredAt: { gte: since }, kind: 'SCENARIO_COMPLETED', refType: 'Chat', refId: { in: [...new Set(ok.map((c) => c.id))] } },
+    where: { userId, occurredAt: { gte: since }, ...SCENARIO_END_MARK, refId: { in: [...new Set(ok.map((c) => c.id))] } },
     select: { refId: true },
   })
   return new Set(rows.map((r) => r.refId))
@@ -75,6 +85,8 @@ export interface ScenarioEndInput {
   chatId: string
   /** 대화 생성 시각(`Chat.createdAt`, conversation 이 잠근 행에서 읽은 값) — 끝낸 표식 조회의 시간 하한(`scenarioEndLookupSince`). */
   chatCreatedAt: Date
+  /** 대화 행의 끝낸 시각(`Chat.endedAt`, 잠근 행에서 읽은 값) — 있으면 이미 끝낸 대화라 쓰지 않는다(task-048). 생략·null = 관측으로만 확인. */
+  chatEndedAt?: Date | null
   /** 대화의 `Chat.scenarioId`(conversation 이 잠근 행에서 읽은 값). */
   scenarioId: string
   lessonId: string | null
@@ -132,16 +144,17 @@ export async function isScenarioRolePlayEnded(userId: string, chat: { id: string
 /**
  * 끝낸 역할극의 결과 읽기(task-010d A3b, Leader 승인 additive) — **읽기 전용, 쓰기·잠금 0**. #29 `chat.scenario.ended` 와 결과 화면(S9)이 같이 쓰는 단일 출처다
  * (두 번째 종료의 `replayed` 결과와 같은 함수 `replayResult` 로 만든다). 끝내지 않은 대화·다른 사용자·다른 상황이면 null.
- * 끝낸 표식 조회는 `endedWhere`(대화 생성 시각 − 하루 하한, REV-134 M-2) + 관측의 `scenarioId` 가 그 대화의 상황과 같을 때만. `endedAt` = 그 관측 시각.
+ * 끝낸 표식 조회는 `endedWhere`(min(대화 생성, `chat.endedAt`) − 여유 하한, REV-134 M-2) + 관측의 `scenarioId` 가 그 대화의 상황과 같을 때만.
+ * `endedAt` = 그 관측 시각(대화 행의 `Chat.endedAt` 이 정본이면 conversation 이 그 값을 먼저 쓴다 — 새 기록·백필 행은 둘이 같다).
  */
 export async function readScenarioRolePlayResult(
   userId: string,
-  chat: { id: string; createdAt: Date; scenarioId: string },
+  chat: { id: string; createdAt: Date; scenarioId: string; endedAt?: Date | null },
   db: Pick<Tx, 'learningObservation' | 'studyLog'> = prisma,
 ): Promise<(ScenarioEndResult & { endedAt: Date }) | null> {
   if (!validId(userId) || !validId(chat.id) || !validId(chat.scenarioId)) return null
   const done = await db.learningObservation.findFirst({
-    where: { ...endedWhere(userId, chat.id, chat.createdAt), scenarioId: chat.scenarioId },
+    where: { ...endedWhere(userId, chat.id, chat.createdAt, chat.endedAt), scenarioId: chat.scenarioId },
     orderBy: { occurredAt: 'asc' },
     select: { meta: true, occurredAt: true },
   })
@@ -159,11 +172,13 @@ export async function endScenarioRolePlay(userId: string, input: ScenarioEndInpu
 
   await lockUserRow(tx, userId)
   const done = await tx.learningObservation.findFirst({
-    where: endedWhere(userId, input.chatId, input.chatCreatedAt),
+    where: endedWhere(userId, input.chatId, input.chatCreatedAt, input.chatEndedAt),
     orderBy: { occurredAt: 'asc' },
     select: { meta: true },
   })
   if (done) return replayResult(userId, input, done.meta, tx)
+  // 대화 행이 끝났다고 하는데 관측을 못 찾음(정상 경로로는 생기지 않는다 — 둘은 같은 tx 에서 쓰인다): 다시 기록하지 않는다. 결과 칸은 비어 있다.
+  if (validDate(input.chatEndedAt)) return replayResult(userId, input, null, tx)
 
   const scenario = await tx.scenario.findFirst({
     where: scenarioAccessWhere(userId, input.scenarioId),
@@ -243,9 +258,8 @@ export async function endScenarioRolePlay(userId: string, input: ScenarioEndInpu
   // recordObservations 와 같은 두 걸음(createMany + DAILY observations)을 시각 칸 하나만 더해 여기서 한다.
   const endObservation = {
     ...observationRow(userId, {
-      kind: 'SCENARIO_COMPLETED',
+      ...SCENARIO_END_MARK,
       outcome: OUTCOME_OBS[j.outcome],
-      refType: 'Chat',
       refId: input.chatId,
       scenarioId: scenario.id,
       confidence: j.judged ? 1 : SCENARIO_UNJUDGED_CONFIDENCE,
