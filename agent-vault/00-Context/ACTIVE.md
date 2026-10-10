@@ -6,11 +6,18 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-10 밤 — vault 상태 정리 완료 + 추적 백로그 (이 블록이 가장 최신)
+## ★ 2026-10-10 밤(2) — task-050 챌린지 정본 문서 반영 완료 (이 블록이 가장 최신)
+
+- **정본 3종을 구현 사실(as-built)로 맞춤**(문서 전용, 커밋 `ed94702` 작성 → `5123822` 감사 반영, 로컬·미 push): `domain-model.md`(`Challenge`·`ChallengeStatus`·전이·삭제 정책·DB0 칸·예문 스냅샷) · `api-contract.md`(#155~#159·#21c·#66 `voiced`·예문 규칙·#47~#53 주제 세트 보강·#58 `CHALLENGE`) · `module-dependency.md`(`learning/challenges`·`findActiveJob` 쓰기 예외·L3 소유 테이블 4개 보강). `role-permission`·`configuration-resolution` 은 챌린지가 쓰지 않아 변경 없음. 독립 감사 REV-178 PASS-with-fixes(High 0) → Medium 4·Low 3 반영. 최종 요약은 [[task-050-challenge-canon-docs]] 끝.
+- **새 백로그(코드 쪽, 결정 불필요)**: ① 낡은 코드 주석 3곳 — `challenges/settle.ts` 머리·`src/types/challenge.ts` `ChallengeEndReason`(「주제를 지우는 경로가 없다」 → task-045 #173 이후 사실과 다름)·`challenges/index.ts` 머리 import 목록(`../topics/visible` 누락) ② `UtteranceContextKind` 의 `'DELETED'` 가 `contextOfRow` 5종에 없음(계약 불일치) ③ #58 응답 전체 형태(`resume`·`todayLessons[]` 등) 정본 대조 ④ `Challenge` 스키마 주석 「규칙 1 의 DIRECT 행위」 문구 — 스키마를 만질 때 문서 Prisma 블록과 함께 정리.
+- **로컬 미 push 커밋**(문서·vault 전용 — push 해도 재배포 없음, 사용자가 말할 때만): `667e73c`·`e25b024`·`ed94702`·`5123822` + 이번 vault 기록 커밋.
+- 남은 사용자 결정·사용자 몫은 바로 아래 블록 그대로(다음 기능 방향 · 012b-4 강조 화면 · ISS-0001 가드 지표 · Codex 가드 항목 · 예문 힌트 완화 · 폰 확인 · 시드 검수 · IMP-0011 참고 화면 · 임시 폴더 삭제).
+
+## ★ 2026-10-10 밤 — vault 상태 정리 완료 + 추적 백로그
 
 - **사용자 승인(「2번 승인하고 진행해줘」)으로 정리**: IMP 14건(연결 task `done`) + IMP-0024 → `done`. 열려 있던 task 14개를 읽기 전용 감사 2건으로 증거 대조해 **10개를 `done` 으로 닫음**(006·008·p2-db0·012b-2·012b-3·040·041·042·043·044 — 각 이력서 끝 「상태 정리」 절에 근거·남은 후속). 상태 분포 `done` 60·열림 4.
 - **의도적으로 열어 둔 4개와 닫는 조건**(각 이력서 끝 「열어 둔 이유」 절): **task-010d `doing`** — 운영 DB 에 역할극 대화 0건이라 운영 실흐름 증거 없음(사용자 보고와 충돌) → 역할극 1건을 마치기까지 해 보면 닫힘(IMP-0017·0021 동반) · **task-039 `in_progress`** — 기준 4 의 운영 006 스모크 증거 없음(QA 계정 쓰기 스모크 1회, 사용자 승인) → 닫히면 IMP-0025 동반 · **task-027 `doing`** — ISS-0001 측정(다음 점검 10-17) · **task-012b-4 `todo`** — 서버·M4 만 완료, **단어 강조(카라오케) 화면 미구현**, 후속 task 없음(분리해 닫을지 철회할지 사용자 결정).
-- **추적되지 않던 후속 → 백로그 등록**: ① **챌린지 정본 5종 미반영** — `domain-model.md` 에 `Challenge` 엔티티 정의 없음 · `api-contract.md` 에 `/api/v1/challenges` #155~#159 없음 · `module-dependency.md` 에 `challenges/` 없음(코드와 정본이 어긋난 상태, Leader 문서 부채) ② `api-contract.md` `#21c`(발화 목록)·#66 `voiced` 미반영(012b-2) ③ TTS 캐시 예열·정리 실행 진입점(crontab·pm2·관리자 라우트)과 운영 SUPER_ADMIN `GET /api/admin/v1/tts/metrics` 확인(012b-3) ④ 012b-3 F-1/F-2 수정 뒤 reviewer 재확인 기록 없음 ⑤ 012b-4 단어 강조 화면(위) ⑥ `board.md` 가 039~044 항목 없음·010d 줄 낡음(보드는 task 이력서가 정본).
+- **추적되지 않던 후속 → 백로그 등록**: ① **챌린지 정본 5종 미반영** — `domain-model.md` 에 `Challenge` 엔티티 정의 없음 · `api-contract.md` 에 `/api/v1/challenges` #155~#159 없음 · `module-dependency.md` 에 `challenges/` 없음(코드와 정본이 어긋난 상태, Leader 문서 부채) — **✅ task-050 으로 해소(위 최신 블록)** ② `api-contract.md` `#21c`(발화 목록)·#66 `voiced` 미반영(012b-2) — **✅ task-050 에 포함** ③ TTS 캐시 예열·정리 실행 진입점(crontab·pm2·관리자 라우트)과 운영 SUPER_ADMIN `GET /api/admin/v1/tts/metrics` 확인(012b-3) ④ 012b-3 F-1/F-2 수정 뒤 reviewer 재확인 기록 없음 ⑤ 012b-4 단어 강조 화면(위) ⑥ `board.md` 가 039~044 항목 없음·010d 줄 낡음(보드는 task 이력서가 정본).
 - **남은 사용자 결정**: 다음 기능 방향(Phase 3 / IMP-0011 / IMP-0004 / IMP-0007) · 012b-4 강조 화면 처리 · ISS-0001 가드 지표 · Codex 가드 항목 의도 확인 · 예문 힌트 완화(선택) · 보류 후속 개선. 사용자 몫: 폰 확인(예문 표시·역할극 마치기)·시드 원어민 검수·IMP-0011 참고 화면·임시 폴더 삭제.
 
 ## ★ 2026-10-10 오후 — task-048(역할극 `Chat.endedAt`)·task-049(주제 단어 예문) **운영 배포 완료**(릴리스 `20261010-121054-869e28d6`)
