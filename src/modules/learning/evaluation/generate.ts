@@ -72,7 +72,9 @@ export interface EvalItemCreateRow {
  * `wordSurface` 는 A6 원본 그대로 `wordSurfaceSnap` 에 남기고(14일 해시 재현), [재료] 표기와 글자 그대로 같을 때만 `wordId` 를 잇는다.
  */
 export function buildItemRows(evaluationId: string, kind: EvalKind, out: EvalGenOutputLike, materials: readonly EvalMaterialWord[]): EvalItemCreateRow[] {
-  const bySurface = new Map(materials.map((w) => [w.surface, w.id]))
+  // 같은 표기·다른 읽기 재료가 함께 올 수 있다(task-051, REV-179 M2) — A6 는 표기만 돌려주므로 [재료] 순서의 앞 행을 고정으로 잇는다(뒤 행이 덮지 않게).
+  const bySurface = new Map<string, string>()
+  for (const w of materials) if (!bySurface.has(w.surface)) bySurface.set(w.surface, w.id)
   const rank = (k: string) => {
     const i = KIND_ORDER[kind].indexOf(k as EvalItemKind)
     return i < 0 ? 99 : i

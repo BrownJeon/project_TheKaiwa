@@ -104,6 +104,35 @@ export const KANA_KANJI = /[぀-ヿ一-鿿㐀-䶿々〆]/
 export const LATIN = /[A-Za-zＡ-Ｚａ-ｚ]/
 export const KANA_ONLY = /^[぀-ゟ゠-ヿー]+$/
 const JA_OK = /^[぀-ヿ一-鿿㐀-䶿々〆0-9０-９、。！？「」『』・ー〜～…\s,.!?]+$/
+/** 예문의 반각(ASCII) 문장부호 — 일본어 문장에는 전각 「！？、。」 를 쓴다(REV-179 L4, 실측 N4 あ 「あ、忘れた!」). */
+const JA_ASCII_PUNCT = /[!?,.]/
+/** 번역(한국어)에 섞인 일본어 전각 문장부호(REV-179 L4, 실측 N1 演出·反射 끝 「。」·N2 おやすみ 「」). */
+const KO_JA_PUNCT = /[。！？「」『』、]/
+
+/**
+ * cp932(Windows-31J) 로 인코딩되는 글자 집합 — 일본어에 없는 한자(중국어 간체자 등)를 거른다(실측 N5 お父さん 예문 「会社员」의 员 U+5458).
+ * WHATWG Shift_JIS 디코더는 cp932 확장(NEC·IBM)과 ～∥－ 매핑을 포함하므로 모든 1·2바이트 열을 디코딩해 집합을 만든다.
+ */
+const CP932_CHARS: ReadonlySet<string> = (() => {
+  const dec = new TextDecoder('shift_jis')
+  const out = new Set<string>()
+  for (let b = 0x20; b < 0x7f; b++) out.add(String.fromCharCode(b))
+  for (let b = 0xa1; b <= 0xdf; b++) out.add(dec.decode(new Uint8Array([b])))
+  for (let lead = 0x81; lead <= 0xfc; lead++) {
+    if (lead > 0x9f && lead < 0xe0) continue
+    for (let trail = 0x40; trail <= 0xfc; trail++) {
+      if (trail === 0x7f) continue
+      const c = dec.decode(new Uint8Array([lead, trail]))
+      if (c.length === 1 && c !== '�') out.add(c)
+    }
+  }
+  return out
+})()
+
+/** cp932 로 인코딩되지 않는 글자(중복 없이). 공백류는 문자 검사가 따로 본다. */
+export function nonCp932Chars(s: string): string[] {
+  return [...new Set([...s].filter((c) => !/\s/.test(c) && !CP932_CHARS.has(c)))]
+}
 
 export const LIMITS = { meaning: 40, exampleJa: 60, exampleKo: 100 } as const
 
@@ -142,6 +171,8 @@ export function meaningCodes(meaning: string): { hard: string[]; soft: string[] 
   if (!HANGUL.test(meaning)) hard.push('MEANING_NO_HANGUL')
   if (KANA_KANJI.test(meaning)) hard.push('MEANING_JA_CHARS')
   if ([...meaning].length > LIMITS.meaning) hard.push('MEANING_LEN')
+  const parts = meaning.split(',').map((p) => p.trim()).filter(Boolean)
+  if (new Set(parts).size !== parts.length) hard.push('MEANING_REPEAT') // 「보이다, 보이다」(REV-179 L4, 실측 N4 見える)
   if (/[()（）]/.test(meaning)) soft.push('MEANING_PAREN')
   if (LATIN.test(meaning)) soft.push('MEANING_LATIN')
   return { hard, soft }
@@ -152,11 +183,14 @@ export function exampleCodes(exJa: string, exKo: string, src: Pick<VocabSource, 
   const hard: string[] = []
   const soft: string[] = []
   if (!exJa.trim() || !JA_OK.test(exJa) || HANGUL.test(exJa) || LATIN.test(exJa)) hard.push('EXJA_CHARS')
+  if (JA_ASCII_PUNCT.test(exJa)) hard.push('EXJA_ASCII_PUNCT')
+  if (nonCp932Chars(exJa).length) hard.push('EXJA_NOT_CP932')
   if ([...exJa].length > LIMITS.exampleJa) hard.push('EXJA_LEN')
   const hw = headwordCheck(exJa, src)
   if (hw.hard) hard.push(hw.hard)
   if (hw.soft) soft.push(hw.soft)
   if (!exKo.trim() || !HANGUL.test(exKo) || KANA_KANJI.test(exKo) || [...exKo].length > LIMITS.exampleKo) hard.push('EXKO_CHARS')
+  if (KO_JA_PUNCT.test(exKo)) hard.push('EXKO_JA_PUNCT')
   return { hard, soft }
 }
 
@@ -177,6 +211,7 @@ export function checkRow(raw: unknown, src: VocabSource): RowVerdict {
   const hard: string[] = []
   const soft: string[] = []
   if (surface !== src.word) hard.push('SURFACE_MISMATCH')
+  if (nonCp932Chars(src.word).length || nonCp932Chars(src.reading).length) hard.push('SOURCE_NOT_CP932') // 원본 표기·읽기(관측 0건) — 재시도해도 안 바뀌어 거절로 끝난다
   if (typeof pos !== 'string' || !(PARTS_OF_SPEECH as readonly string[]).includes(pos)) hard.push('ENUM_POS')
   let chunk: ChunkType | null = null
   if (typeof chunkRaw === 'string' && (CHUNK_TYPES as readonly string[]).includes(chunkRaw)) chunk = chunkRaw as ChunkType
@@ -243,6 +278,35 @@ export function posHints(tags: readonly string[] = []): Set<PartOfSpeech> {
 /** 시드 파일 직렬화 — 레코드 한 줄씩(diff·grep 이 쉬움). */
 export function serializeRecords(records: readonly SeedRecord[]): string {
   return `[\n${records.map((r) => JSON.stringify(r, SEED_RECORD_KEYS as unknown as string[])).join(',\n')}\n]\n`
+}
+
+/**
+ * 기존 50개(`words-n5.json`, 사람이 쓴 뜻·예문)의 표기 → OpenJLPT N5 의 같은 읽기 다른 표기. 이 짝은 같은 단어의 철자 차이라
+ * N5 에 병합하지 않는다(신규 사용자에게 같은 단어가 두 번 들어가지 않게). 알려진 한계: 옛 50개를 이미 가진 사용자는
+ * N5 를 넣으면 두 표기(예: ご飯·御飯)가 함께 남는다 — 단어장 중복 키가 (표기, 읽기)라 다른 단어로 본다.
+ */
+export const LEGACY_SPELLING_VARIANTS: Readonly<Record<string, string>> = { 'ご飯': '御飯', '友だち': '友達' }
+
+/**
+ * REV-179 M3 — 기존 50개 중 N5 시드에 (표기, 읽기)가 없는 행을 N5 끝(OpenJLPT 순서 뒤)에 기존 순서대로 붙인다.
+ * 레코드는 기존 파일 값 그대로(7필드만). 철자 차이 짝(`LEGACY_SPELLING_VARIANTS`)의 상대 표기가 N5 에 같은 읽기로 있으면 붙이지 않는다.
+ */
+export function mergeLegacyN5(records: readonly SeedRecord[], legacy: readonly SeedRecord[]): { records: SeedRecord[]; merged: string[]; variants: string[] } {
+  const keyOf = (s: string, r: string) => `${s}\u0000${r}`
+  const have = new Set(records.map((r) => keyOf(r.surface, r.reading)))
+  const out = [...records]
+  const merged: string[] = []
+  const variants: string[] = []
+  for (const w of legacy) {
+    if (have.has(keyOf(w.surface, w.reading))) continue
+    const alt = LEGACY_SPELLING_VARIANTS[w.surface]
+    if (alt && have.has(keyOf(alt, w.reading))) { variants.push(`${w.surface}→${alt}/${w.reading}`); continue }
+    const rec = Object.fromEntries(SEED_RECORD_KEYS.map((k) => [k, w[k]])) as unknown as SeedRecord
+    out.push(rec)
+    have.add(keyOf(w.surface, w.reading))
+    merged.push(`${w.surface}/${w.reading}`)
+  }
+  return { records: out, merged, variants }
 }
 
 /** 고정 seed 난수(mulberry32) — 표본 추출 재현용. */

@@ -61,11 +61,14 @@ function findLine(content: StoredLessonContent, segment: number, surface: string
   return idx.find((i) => content.dialogue[i].segment === segment && hit(i)) ?? idx.find(hit) ?? null
 }
 
-/** 단어장 바이트 일치 — 표현 → 단어 id. */
-async function wordbookMatches(userId: string, surfaces: string[]): Promise<Map<string, string>> {
+/**
+ * 단어장 바이트 일치 — 표현 → 단어 id. 메모는 표기만 있어 읽기로 가를 수 없다 — 같은 표기·다른 읽기 행이 여럿이면(task-051, REV-179 M2)
+ * 가장 먼저 만든 행으로 고정한다. `db` 는 시험 주입용(기본 prisma).
+ */
+export async function wordbookMatches(userId: string, surfaces: string[], db: Tx = prisma): Promise<Map<string, string>> {
   const uniq = [...new Set(surfaces)].slice(0, 60)
   if (!uniq.length) return new Map()
-  const rows = await prisma.wordEntry.findMany({ where: { userId, surface: { in: uniq } }, select: { id: true, surface: true }, take: 500 })
+  const rows = await db.wordEntry.findMany({ where: { userId, surface: { in: uniq } }, select: { id: true, surface: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 500 })
   const out = new Map<string, string>()
   for (const r of rows) if (uniq.includes(r.surface) && !out.has(r.surface)) out.set(r.surface, r.id)
   return out

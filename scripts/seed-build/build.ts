@@ -9,13 +9,15 @@
  *   node --import tsx scripts/seed-build/build.ts run --repo <저장소 루트> [--levels N5,N4] [--work DIR] [--raw DIR] [--conc 3]
  *   node --import tsx scripts/seed-build/build.ts counts --repo <저장소 루트>
  *   node --import tsx scripts/seed-build/build.ts sample --repo <저장소 루트> [--work DIR] [--raw DIR]
+ *   node --import tsx scripts/seed-build/build.ts recheck --repo <저장소 루트> [--levels …]   (검사기 변경 뒤 재판정 — 새 규칙에 걸린 ok 행은 다시 생성 대기로)
  */
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
-  LEVELS, SYSTEM_PROMPT, VOCAB_ENRICH_PROMPT_VERSION, buildUserPrompt, checkRow, mulberry32, parseRows, posHints, serializeRecords, toSeedRecord,
+  LEVELS, SYSTEM_PROMPT, VOCAB_ENRICH_PROMPT_VERSION, buildUserPrompt, checkRow, mergeLegacyN5, mulberry32, parseRows, posHints, serializeRecords, toSeedRecord,
   type EnrichedRow, type SeedRecord, type VocabLevel, type VocabSource,
 } from './enrich'
 import { validateLevels } from './validate'
@@ -50,11 +52,18 @@ export function loadSources(rawDir: string, level: VocabLevel): VocabSource[] {
   return all.map((r) => ({ word: r.word, reading: r.reading, pos: r.pos ?? [], meanings: r.meanings ?? [] }))
 }
 
+/** 원본 파일 바이트의 sha256 — 체크포인트가 위치(index) 기준이라 원본 순서가 바뀌면 조용히 어긋나는 것을 막는다(REV-179 L3). */
+export function rawSha256(rawDir: string, level: VocabLevel): string {
+  return createHash('sha256').update(readFileSync(join(rawDir, `${level.toLowerCase()}.json`))).digest('hex')
+}
+
+/** 검사기 변경으로 다시 생성 대기가 된 ok 행의 이전 값(표본 파일이 전후를 보여 준다). */
+interface Requeued { codes: string[]; before: unknown[] }
 type ItemState =
-  | { status: 'pending'; attempts: number; codes?: string[]; lastRaw?: unknown }
-  | { status: 'ok'; attempts: number; row: EnrichedRow; soft: string[] }
-  | { status: 'rejected'; attempts: number; codes: string[]; lastRaw?: unknown }
-interface LevelState { promptVersion: string; model: string; batch: number; total: number; items: ItemState[] }
+  | { status: 'pending'; attempts: number; codes?: string[]; lastRaw?: unknown; requeued?: Requeued }
+  | { status: 'ok'; attempts: number; row: EnrichedRow; soft: string[]; requeued?: Requeued }
+  | { status: 'rejected'; attempts: number; codes: string[]; lastRaw?: unknown; requeued?: Requeued }
+interface LevelState { promptVersion: string; model: string; batch: number; total: number; rawSha256?: string; items: ItemState[] }
 
 function writeAtomic(path: string, text: string): void {
   const tmp = `${path}.tmp-${process.pid}`
@@ -62,17 +71,30 @@ function writeAtomic(path: string, text: string): void {
   renameSync(tmp, path)
 }
 
-function loadState(dir: string, level: VocabLevel, total: number): LevelState {
+/** 체크포인트가 지금 입력과 맞는지 — 맞지 않으면 이유(문구), 맞으면 null. 원본 해시가 없는 옛 체크포인트는 호출자가 채택한다. */
+export function checkpointMismatch(s: Pick<LevelState, 'total' | 'promptVersion' | 'model' | 'rawSha256'>, want: { total: number; model: string; rawSha256: string }): string | null {
+  if (s.total !== want.total) return `원본 개수 ${s.total}≠${want.total}`
+  if (s.promptVersion !== VOCAB_ENRICH_PROMPT_VERSION) return `프롬프트 ${s.promptVersion}≠${VOCAB_ENRICH_PROMPT_VERSION}`
+  if (s.model !== want.model) return `모델 ${s.model}≠${want.model}`
+  if (s.rawSha256 !== undefined && s.rawSha256 !== want.rawSha256) return `원본 해시 ${s.rawSha256.slice(0, 12)}≠${want.rawSha256.slice(0, 12)}`
+  return null
+}
+
+function loadState(dir: string, level: VocabLevel, total: number, sha: string): LevelState {
   const p = join(dir, 'state.json')
   const plan = LEVEL_PLAN[level]
   if (existsSync(p)) {
     const s = JSON.parse(readFileSync(p, 'utf8')) as LevelState
-    if (s.total !== total || s.promptVersion !== VOCAB_ENRICH_PROMPT_VERSION || s.model !== plan.model) {
-      throw new Error(`${level}: 체크포인트가 지금 입력·프롬프트·모델과 다릅니다(${p}). 지우고 다시 시작하세요.`)
+    const why = checkpointMismatch(s, { total, model: plan.model, rawSha256: sha })
+    if (why) throw new Error(`${level}: 체크포인트가 지금 입력·프롬프트·모델과 다릅니다(${why} — ${p}). 지우고 다시 시작하세요.`)
+    if (s.rawSha256 === undefined) {
+      // 해시 도입(REV-179 L3) 전 체크포인트 — 지금 원본 해시를 기록한다(그 전 실행이 같은 원본이었는지는 README 의 해시로 사람이 확인).
+      console.log(`[${level}] 체크포인트에 원본 해시가 없어 지금 원본 해시 ${sha.slice(0, 12)}… 를 기록한다`)
+      s.rawSha256 = sha
     }
     return s
   }
-  return { promptVersion: VOCAB_ENRICH_PROMPT_VERSION, model: plan.model, batch: plan.batch, total, items: Array.from({ length: total }, () => ({ status: 'pending', attempts: 0 })) }
+  return { promptVersion: VOCAB_ENRICH_PROMPT_VERSION, model: plan.model, batch: plan.batch, total, rawSha256: sha, items: Array.from({ length: total }, () => ({ status: 'pending', attempts: 0 })) }
 }
 
 const ENV_KEYS = ['HOME', 'PATH', 'USER', 'LANG', 'LC_ALL', 'TMPDIR', 'SHELL']
@@ -142,7 +164,7 @@ async function runLevel(args: Args, level: VocabLevel): Promise<'done' | 'incomp
   mkdirSync(dir, { recursive: true })
   const cwd = join(args.work, 'cwd')
   mkdirSync(cwd, { recursive: true })
-  const state = loadState(dir, level, src.length)
+  const state = loadState(dir, level, src.length, rawSha256(args.raw, level))
   const save = () => writeAtomic(join(dir, 'state.json'), JSON.stringify(state))
   const callLog = join(dir, 'calls.jsonl')
   let halted: string | null = null
@@ -184,10 +206,11 @@ async function runLevel(args: Args, level: VocabLevel): Promise<'done' | 'incomp
           const prev = state.items[itemIdx]!
           const v = checkRow(res!.rows![k], src[itemIdx]!)
           const attempts = prev.attempts + 1
+          const requeued = prev.requeued ? { requeued: prev.requeued } : {}
           tally[v.status]++
-          if (v.status === 'ok') state.items[itemIdx] = { status: 'ok', attempts, row: v.row, soft: v.soft }
-          else if (attempts >= ROW_PASSES) state.items[itemIdx] = { status: 'rejected', attempts, codes: v.hard, lastRaw: res!.rows![k] }
-          else state.items[itemIdx] = { status: 'pending', attempts, codes: v.hard, lastRaw: res!.rows![k] }
+          if (v.status === 'ok') state.items[itemIdx] = { status: 'ok', attempts, row: v.row, soft: v.soft, ...requeued }
+          else if (attempts >= ROW_PASSES) state.items[itemIdx] = { status: 'rejected', attempts, codes: v.hard, lastRaw: res!.rows![k], ...requeued }
+          else state.items[itemIdx] = { status: 'pending', attempts, codes: v.hard, lastRaw: res!.rows![k], ...requeued }
         })
         save()
         console.log(`[${level}] pass${pass} 배치 ${doneBatches}/${batches.length} ok=${tally.ok} retry=${tally.retry} null=${tally.null} wall=${(res.wallMs / 1000).toFixed(1)}s out=${res.outTok}tok`)
@@ -204,12 +227,21 @@ async function runLevel(args: Args, level: VocabLevel): Promise<'done' | 'incomp
 }
 
 function finalizeLevel(args: Args, level: VocabLevel, src: VocabSource[], state: LevelState): void {
-  const records: SeedRecord[] = []
+  let records: SeedRecord[] = []
   const rejected: unknown[] = []
   state.items.forEach((s, i) => {
     if (s.status === 'ok') records.push(toSeedRecord(src[i]!, s.row))
     else if (s.status === 'rejected') rejected.push({ index: i, word: src[i]!.word, reading: src[i]!.reading, pos: src[i]!.pos, meanings: src[i]!.meanings.slice(0, 3), codes: s.codes, lastRaw: s.lastRaw })
   })
+  let mergedLegacy: string[] = []
+  if (level === 'N5') {
+    // REV-179 M3: 기존 50개 중 N5 에 (표기, 읽기)가 없는 행을 OpenJLPT 순서 뒤에 붙인다(사람이 쓴 값 그대로).
+    const legacy = JSON.parse(readFileSync(join(args.repo, 'prisma', 'seed-data', 'words-n5.json'), 'utf8')) as SeedRecord[]
+    const m = mergeLegacyN5(records, legacy)
+    records = m.records
+    mergedLegacy = m.merged
+    console.log(`[N5] 기존 50개 병합 ${m.merged.length}: ${m.merged.join(' ') || '없음'} · 철자 차이 짝으로 대신: ${m.variants.join(' ') || '없음'}`)
+  }
   const outDir = join(args.repo, 'prisma', 'seed-data', 'jlpt')
   mkdirSync(outDir, { recursive: true })
   const outPath = join(outDir, `${level.toLowerCase()}.json`)
@@ -225,7 +257,7 @@ function finalizeLevel(args: Args, level: VocabLevel, src: VocabSource[], state:
   writeAtomic(join(args.work, '..', `rejected-${level.toLowerCase()}.json`), `${JSON.stringify(rejected, null, 1)}\n`)
   writeCounts(args)
   const calls = readCalls(join(args.work, level, 'calls.jsonl'))
-  const summary = { level, model: LEVEL_PLAN[level].model, batch: LEVEL_PLAN[level].batch, source: src.length, records: records.length, rejected: rejected.length, ...calls }
+  const summary = { level, model: LEVEL_PLAN[level].model, batch: LEVEL_PLAN[level].batch, source: src.length, records: records.length, rejected: rejected.length, mergedLegacy, ...calls }
   writeAtomic(join(args.work, level, 'summary.json'), `${JSON.stringify(summary, null, 1)}\n`)
   console.log(`[${level}] 완료 — 시드 ${records.length}/${src.length} · 거절 ${rejected.length} · 호출 ${calls.calls} · 출력 ${calls.outTok}tok · 입력 ${calls.inTok}tok · 호출 벽시계 합 ${(calls.wallMs / 1000).toFixed(0)}s · API 환산 $${calls.costUsd.toFixed(2)}`)
 }
@@ -285,57 +317,129 @@ export function writeCounts(args: Pick<Args, 'repo' | 'raw'>): Record<VocabLevel
   return counts
 }
 
-/** 사용자 표본 검수 파일 — 단계별 무작위(고정 seed), haiku 산출(N5·N4)은 40개, 그 밖 30개 + 품사 힌트 불일치 최대 10개. */
+/**
+ * REV-179 M4 — 리뷰어가 표본(seed 179)에서 짚은 행. 자동 검사로는 못 잡는 어색함이라 고치지 않고 사용자 검수 표 맨 앞에 둔다.
+ * `note` 는 리뷰어 메모(원어민 판단 아님).
+ */
+const REVIEWER_FLAGGED: readonly { level: VocabLevel; surface: string; note: string }[] = [
+  { level: 'N5', surface: '知る', note: '예문 「知ります」 — 「知っています」가 일반적' },
+  { level: 'N4', surface: 'すく', note: '예문 용법 어긋남(すく=배가 고프다·비다)' },
+  { level: 'N4', surface: 'すっと', note: '번역 「곧게」 어색' },
+  { level: 'N2', surface: '注す', note: '예문 「酒を注して」 부자연' },
+  { level: 'N1', surface: '手掛ける', note: '번역 「손수 다루었다」 어색' },
+]
+
+/** 사용자 표본 검수 파일 — 리뷰어 지적 행·다시 만든 행·기존 50개 병합 행을 앞에 두고, 단계별 무작위(고정 seed) N5·N4 40개·그 밖 30개 + 품사 힌트 불일치 최대 10개. */
 function writeSample(args: Args): void {
   const SEED = 51051
   const PER: Record<VocabLevel, number> = { N5: 40, N4: 40, N3: 30, N2: 30, N1: 30 }
-  const esc = (s: string | null) => (s ?? '—').replace(/\|/g, '\\|')
+  const esc = (s: unknown) => (s === null || s === undefined || s === '' ? '—' : String(s)).replace(/\|/g, '\\|')
+  const levelData = new Map<VocabLevel, { recs: SeedRecord[]; src: VocabSource[]; st: LevelState | null }>()
+  for (const level of LEVELS) {
+    const p = join(args.repo, 'prisma', 'seed-data', 'jlpt', `${level.toLowerCase()}.json`)
+    if (!existsSync(p)) continue
+    const stPath = join(args.work, level, 'state.json')
+    levelData.set(level, {
+      recs: JSON.parse(readFileSync(p, 'utf8')) as SeedRecord[],
+      src: loadSources(args.raw, level),
+      st: existsSync(stPath) ? (JSON.parse(readFileSync(stPath, 'utf8')) as LevelState) : null,
+    })
+  }
+  const total = [...levelData.values()].reduce((a, d) => a + d.recs.length, 0)
   const lines: string[] = [
     '---', 'task_id: task-051', 'title: "task-051 사용자 표본 검수 — JLPT 기본 단어 보강 결과"', 'tags:', '  - type/review', '  - domain/vocab', `created: ${new Date().toISOString().slice(0, 10)}`, '---', '',
     '# task-051 표본 검수 (사용자 원어민 검수용)', '',
-    `> 생성: \`scripts/seed-build/build.ts sample\` (seed ${SEED}, 프롬프트 \`${VOCAB_ENRICH_PROMPT_VERSION}\`). 표기·읽기는 OpenJLPT 원본, **뜻·품사·예문·번역은 AI 생성**입니다.`,
-    '> 검수 방법: 틀리거나 어색한 행의 ☐ 를 ☒ 로 바꾸고 「메모」에 고칠 내용을 적어 주세요. 자동 검사(형식·한글/일본어 문자·예문에 표제어 포함)는 이미 통과한 행들이라, 여기서는 **뜻이 맞는지·예문이 자연스러운지·번역이 정확한지**만 보면 됩니다.',
-    '> 「자동 표시」 칸: 어간만 = 예문에 활용형으로만 들어감 · 읽기만 = 예문에 가나로만 들어감 · 면제 = する·来る 등 불규칙이라 포함 검사 면제 · 품사? = 사전 품사태그와 AI 품사가 다름.',
+    `> 생성: \`scripts/seed-build/build.ts sample\` (seed ${SEED}, 프롬프트 \`${VOCAB_ENRICH_PROMPT_VERSION}\`). 표기·읽기는 OpenJLPT 원본, **뜻·품사·예문·번역은 AI 생성**입니다(「기존 50개」 행만 사람이 쓴 값).`,
+    `> 전체 ${total.toLocaleString('en-US')}개 — ${[...levelData].map(([l, d]) => `${l} ${d.recs.length.toLocaleString('en-US')}`).join(' · ')}.`,
+    '> **검수 방법**: 틀리거나 어색한 행의 ☐ 를 ☒ 로 바꾸고 「메모」에 고칠 내용을 적어 주세요. 자동 검사(형식·문자·문장부호·일본어 한자(cp932)·예문에 표제어 포함·뜻 되풀이)는 이미 통과한 행들이라, **뜻이 맞는지·예문이 자연스러운지·번역이 정확한지**만 보면 됩니다.',
+    '> 「자동 표시」 칸: 어간만 = 예문에 활용형으로만 들어감 · 읽기만 = 예문에 가나로만 들어감 · 면제 = する·来る 등 불규칙이라 포함 검사 면제 · 품사? = 사전 품사태그와 AI 품사가 다름 · 다시 만듦 = 새 검사 규칙에 걸려 AI 가 다시 생성 · 기존 = 기존 50개에서 병합.',
     '',
   ]
-  const rnd = mulberry32(SEED)
-  for (const level of LEVELS) {
-    const p = join(args.repo, 'prisma', 'seed-data', 'jlpt', `${level.toLowerCase()}.json`)
-    if (!existsSync(p)) { lines.push(`## ${level} — 시드 파일 없음(아직 생성 전)`, ''); continue }
-    const recs = JSON.parse(readFileSync(p, 'utf8')) as SeedRecord[]
-    const src = loadSources(args.raw, level)
-    const byKey = new Map(src.map((s) => [`${s.word}\u0000${s.reading}`, s]))
-    const st = existsSync(join(args.work, level, 'state.json')) ? (JSON.parse(readFileSync(join(args.work, level, 'state.json'), 'utf8')) as LevelState) : null
-    const softByKey = new Map<string, string[]>()
-    if (st) st.items.forEach((it, i) => { if (it.status === 'ok' && src[i]) softByKey.set(`${src[i]!.word}\u0000${src[i]!.reading}`, it.soft) })
+  const ctx = (level: VocabLevel) => {
+    const d = levelData.get(level)!
+    const key = (s: string, r: string) => `${s}\u0000${r}`
+    const byKey = new Map(d.src.map((s) => [key(s.word, s.reading), s]))
+    const itemByKey = new Map<string, ItemState>()
+    if (d.st) d.st.items.forEach((it, i) => { if (d.src[i]) itemByKey.set(key(d.src[i]!.word, d.src[i]!.reading), it) })
     const flags = (r: SeedRecord): string => {
-      const key = `${r.surface}\u0000${r.reading}`
+      const k = key(r.surface, r.reading)
+      if (!byKey.has(k)) return '기존'
+      const it = itemByKey.get(k)
       const f: string[] = []
-      for (const c of softByKey.get(key) ?? []) {
+      for (const c of it?.status === 'ok' ? it.soft : []) {
         if (c === 'EXJA_STEM_ONLY') f.push('어간만')
         else if (c === 'EXJA_READING_ONLY') f.push('읽기만')
         else if (c === 'EXJA_INCLUDE_EXEMPT') f.push('면제')
       }
-      const hints = posHints(byKey.get(key)?.pos)
+      if (it?.requeued) f.push('다시 만듦')
+      const hints = posHints(byKey.get(k)?.pos)
       if (hints.size && !hints.has(r.partOfSpeech)) f.push('품사?')
       return f.join('·')
     }
-    const idx = recs.map((_, i) => i)
+    return { ...d, flags, itemByKey, key }
+  }
+  const HEAD = ['| 단계 | # | 표기 | 읽기 | 뜻 | 품사 | 예문 | 번역 | 자동 표시 | 검수 | 메모 |', '|---|---|---|---|---|---|---|---|---|---|---|']
+  const rowLine = (level: VocabLevel, r: SeedRecord, i: number, flags: string, memo = '') =>
+    `| ${level} | ${i + 1} | ${esc(r.surface)} | ${esc(r.reading)} | ${esc(r.meaning)} | ${r.partOfSpeech}${r.chunkType ? `/${r.chunkType}` : ''} | ${esc(r.example)} | ${esc(r.exampleKo)} | ${flags} | ☐ | ${memo} |`
+
+  // ① 리뷰어 지적 행
+  lines.push('## ① 리뷰어 지적 행 (REV-179 — 먼저 봐 주세요)', '', '> 리뷰어가 표본에서 어색하다고 본 행입니다. 자동 검사로는 못 잡는 종류라 **고치지 않고 그대로** 두었습니다. 「메모」 칸의 리뷰어 의견은 원어민 판단이 아닙니다.', '', ...HEAD)
+  for (const f of REVIEWER_FLAGGED) {
+    if (!levelData.has(f.level)) continue
+    const c = ctx(f.level)
+    const i = c.recs.findIndex((r) => r.surface === f.surface)
+    if (i < 0) lines.push(`| ${f.level} | — | ${esc(f.surface)} | — | (시드에 없음) | | | | | ☐ | ${esc(f.note)} |`)
+    else lines.push(rowLine(f.level, c.recs[i]!, i, c.flags(c.recs[i]!), `리뷰어: ${esc(f.note)}`))
+  }
+  lines.push('')
+
+  // ② 새 검사 규칙에 걸려 다시 만든 행(전후)
+  const regen: string[] = []
+  for (const level of LEVELS) {
+    if (!levelData.has(level)) continue
+    const c = ctx(level)
+    c.st?.items.forEach((it, i) => {
+      if (!it.requeued) return
+      const b = it.requeued.before as (string | null)[]
+      const now = c.recs.findIndex((r) => r.surface === c.src[i]!.word && r.reading === c.src[i]!.reading)
+      const after = now >= 0 ? c.recs[now]! : null
+      regen.push(`| ${level} | ${esc(c.src[i]!.word)} | ${esc(it.requeued.codes.join(', '))} | ${esc(b[1])} · ${esc(b[4])} · ${esc(b[5])} | ${after ? `${esc(after.meaning)} · ${esc(after.example)} · ${esc(after.exampleKo)}` : `(다시 만들기 실패 — 시드에서 빠짐: ${esc(it.status === 'rejected' ? it.codes.join(', ') : it.status)})`} | ☐ |  |`)
+    })
+  }
+  if (regen.length) {
+    lines.push('## ② 새 검사 규칙에 걸려 AI 가 다시 만든 행 (REV-179)', '', '> 간체자·문장부호·뜻 되풀이 규칙을 추가한 뒤 기존 값이 걸려 같은 생성 경로로 다시 만들었습니다(손으로 고치지 않음). 새 값이 맞는지 봐 주세요.', '',
+      '| 단계 | 표기 | 걸린 규칙 | 이전 (뜻 · 예문 · 번역) | 새 값 (뜻 · 예문 · 번역) | 검수 | 메모 |', '|---|---|---|---|---|---|---|', ...regen, '')
+  }
+
+  // ③ 기존 50개에서 병합한 행
+  if (levelData.has('N5')) {
+    const c = ctx('N5')
+    const merged = c.recs.map((r, i) => ({ r, i })).filter(({ r }) => c.flags(r) === '기존')
+    if (merged.length) {
+      lines.push('## ③ 기존 기본 단어 50개에서 N5 에 합친 행 (REV-179)', '', '> 공개 목록(OpenJLPT) N5 에 없어서 기존 50개의 값을 그대로 붙였습니다(사람이 쓴 값). 참고용 — 검수는 선택입니다.', '', ...HEAD)
+      for (const { r, i } of merged) lines.push(rowLine('N5', r, i, '기존'))
+      lines.push('')
+    }
+  }
+
+  // ④ 단계별 무작위 표본
+  const rnd = mulberry32(SEED)
+  lines.push('## ④ 단계별 무작위 표본', '')
+  for (const level of LEVELS) {
+    if (!levelData.has(level)) { lines.push(`### ${level} — 시드 파일 없음(아직 생성 전)`, ''); continue }
+    const c = ctx(level)
+    const idx = c.recs.map((_, i) => i)
     for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j]!, idx[i]!] }
     const picked = idx.slice(0, PER[level]).sort((a, b) => a - b)
     const pickedSet = new Set(picked)
-    const posOdd = recs.map((r, i) => ({ r, i })).filter(({ r, i }) => !pickedSet.has(i) && flags(r).includes('품사?')).slice(0, 10)
-    const model = LEVEL_PLAN[level].model
-    lines.push(`## ${level} — 무작위 ${picked.length}개 / 전체 ${recs.length}개 (${model} 생성)`, '')
-    const table = (rows: { r: SeedRecord; i: number }[]) => {
-      lines.push('| # | 표기 | 읽기 | 뜻 | 품사 | 예문 | 번역 | 자동 표시 | 검수 | 메모 |', '|---|---|---|---|---|---|---|---|---|---|')
-      for (const { r, i } of rows) lines.push(`| ${i + 1} | ${esc(r.surface)} | ${esc(r.reading)} | ${esc(r.meaning)} | ${r.partOfSpeech}${r.chunkType ? `/${r.chunkType}` : ''} | ${esc(r.example)} | ${esc(r.exampleKo)} | ${flags(r)} | ☐ |  |`)
-      lines.push('')
-    }
-    table(picked.map((i) => ({ r: recs[i]!, i })))
+    const posOdd = c.recs.map((r, i) => ({ r, i })).filter(({ r, i }) => !pickedSet.has(i) && c.flags(r).includes('품사?')).slice(0, 10)
+    lines.push(`### ${level} — 무작위 ${picked.length}개 / 전체 ${c.recs.length}개 (${LEVEL_PLAN[level].model} 생성)`, '', ...HEAD)
+    for (const i of picked) lines.push(rowLine(level, c.recs[i]!, i, c.flags(c.recs[i]!)))
+    lines.push('')
     if (posOdd.length) {
-      lines.push(`### ${level} 품사 확인 표본 — 사전 품사태그와 AI 품사가 다른 행 앞에서부터 ${posOdd.length}개`, '')
-      table(posOdd)
+      lines.push(`#### ${level} 품사 확인 표본 — 사전 품사태그와 AI 품사가 다른 행 앞에서부터 ${posOdd.length}개`, '', ...HEAD)
+      for (const { r, i } of posOdd) lines.push(rowLine(level, r, i, c.flags(r)))
+      lines.push('')
     }
   }
   const target = join(args.repo, 'agent-vault', '10-Flow', 'tasks', 'task-051-sample-review.md')
@@ -344,24 +448,37 @@ function writeSample(args: Args): void {
 }
 
 /**
- * 검사기 수정 뒤 거절 행 재판정 — 모델을 다시 부르지 않고 마지막 원 출력(lastRaw)을 지금 `checkRow` 로 다시 본다.
- * 검사기의 오판(예: コピーする 의 어간 규칙 누락)으로 거절된 행만 살아난다. 완료된 단계는 다시 확정(finalize)한다.
+ * 검사기 수정 뒤 재판정 — 모델을 다시 부르지 않고 지금 `checkRow` 로 다시 본다.
+ * ① 거절 행: 마지막 원 출력(lastRaw)이 지금 통과하면 살린다(검사기 오판으로 거절된 행, 예: コピーする 어간 규칙 누락).
+ * ② ok 행: 새 규칙(예: cp932·문장부호·뜻 되풀이, REV-179)에 걸리면 이전 값을 `requeued` 에 남기고 다시 생성 대기(attempts 0)로 돌린다
+ *    → 같은 `run` 명령이 그 행만 다시 부른다(행 단위 재시도 1회 포함). 손으로 데이터를 고치지 않는다.
+ * 대기 행이 없는 단계만 다시 확정(finalize)한다.
  */
 function recheck(args: Args): void {
   for (const level of args.levels) {
     const dir = join(args.work, level)
     if (!existsSync(join(dir, 'state.json'))) continue
     const src = loadSources(args.raw, level)
-    const state = loadState(dir, level, src.length)
+    const state = loadState(dir, level, src.length, rawSha256(args.raw, level))
     let revived = 0
+    const requeued: string[] = []
     state.items.forEach((s, i) => {
-      if (s.status !== 'rejected' || s.lastRaw === undefined) return
-      const v = checkRow(s.lastRaw, src[i]!)
-      if (v.status === 'ok') { state.items[i] = { status: 'ok', attempts: s.attempts, row: v.row, soft: [...v.soft, 'RECHECKED'] }; revived++ }
+      if (s.status === 'rejected' && s.lastRaw !== undefined) {
+        const v = checkRow(s.lastRaw, src[i]!)
+        if (v.status === 'ok') { state.items[i] = { status: 'ok', attempts: s.attempts, row: v.row, soft: [...v.soft, 'RECHECKED'] }; revived++ }
+      } else if (s.status === 'ok') {
+        const before = [src[i]!.word, s.row.meaningKo, s.row.partOfSpeech, s.row.chunkType, s.row.exampleJa, s.row.exampleKo]
+        const v = checkRow(before, src[i]!)
+        if (v.status !== 'ok') {
+          state.items[i] = { status: 'pending', attempts: 0, codes: v.hard, requeued: { codes: v.hard, before } }
+          requeued.push(`[${i}] ${src[i]!.word} ${v.hard.join(',')}`)
+        }
+      }
     })
     writeAtomic(join(dir, 'state.json'), JSON.stringify(state))
-    console.log(`[${level}] 재판정 — 살아난 행 ${revived}`)
+    console.log(`[${level}] 재판정 — 살아난 행 ${revived} · 새 규칙에 걸려 다시 생성 대기 ${requeued.length}${requeued.length ? `: ${requeued.join(' / ')}` : ''}`)
     if (!state.items.some((s) => s.status === 'pending')) finalizeLevel(args, level, src, state)
+    else console.log(`[${level}] 대기 행이 있어 확정하지 않음 — \`build.ts run --levels ${level}\` 로 다시 생성`)
   }
 }
 

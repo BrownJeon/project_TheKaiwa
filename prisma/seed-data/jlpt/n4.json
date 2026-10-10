@@ -1,5 +1,5 @@
 [
-{"surface":"あ","reading":"あ","meaning":"아","partOfSpeech":"EXPRESSION","chunkType":null,"example":"あ、忘れた!","exampleKo":"아, 깜빡했다!"},
+{"surface":"あ","reading":"あ","meaning":"아","partOfSpeech":"EXPRESSION","chunkType":null,"example":"あ、そうですか。","exampleKo":"아, 그렇군요."},
 {"surface":"ああ","reading":"ああ","meaning":"그렇게, 저렇게","partOfSpeech":"ADVERB","chunkType":"MODIFIER","example":"ああいう人は好きです。","exampleKo":"그런 사람은 좋아요."},
 {"surface":"あいさつする","reading":"あいさつする","meaning":"인사하다","partOfSpeech":"VERB","chunkType":"ACTION","example":"毎朝、駅で友達にあいさつします。","exampleKo":"매일 아침 역에서 친구에게 인사해요."},
 {"surface":"間","reading":"あいだ","meaning":"사이","partOfSpeech":"NOUN","chunkType":"NAME","example":"二人の間に座っています。","exampleKo":"두 사람 사이에 앉아 있어요."},
@@ -556,7 +556,7 @@
 {"surface":"回る","reading":"まわる","meaning":"도는, 돌아다니다","partOfSpeech":"VERB","chunkType":"ACTION","example":"地球が回ります。","exampleKo":"지구가 돌아요."},
 {"surface":"漫画","reading":"まんが","meaning":"만화","partOfSpeech":"NOUN","chunkType":"NAME","example":"漫画を読んでいます。","exampleKo":"만화를 읽고 있어요."},
 {"surface":"真ん中","reading":"まんなか","meaning":"한가운데, 중앙","partOfSpeech":"NOUN","chunkType":"NAME","example":"真ん中に座ります。","exampleKo":"한가운데 앉아요."},
-{"surface":"見える","reading":"みえる","meaning":"보이다, 보이다","partOfSpeech":"VERB","chunkType":"ACTION","example":"山が見えます。","exampleKo":"산이 보여요."},
+{"surface":"見える","reading":"みえる","meaning":"보이다","partOfSpeech":"VERB","chunkType":"ACTION","example":"山が見えます。","exampleKo":"산이 보여요."},
 {"surface":"湖","reading":"みずうみ","meaning":"호수","partOfSpeech":"NOUN","chunkType":"NAME","example":"湖で泳いでいます。","exampleKo":"호수에서 헤엄치고 있어요."},
 {"surface":"味噌","reading":"みそ","meaning":"된장","partOfSpeech":"NOUN","chunkType":"NAME","example":"味噌汁は毎日飲みます。","exampleKo":"된장국은 매일 마셔요."},
 {"surface":"見つかる","reading":"みつかる","meaning":"발견되다","partOfSpeech":"VERB","chunkType":"ACTION","example":"鍵が見つかりました。","exampleKo":"열쇠가 발견됐어요."},

@@ -7,7 +7,7 @@
     "dev": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/next/dist/bin/next dev -p 3010",
     "build": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/next/dist/bin/next build",
     "start": "cd $HOME/.node-local/thekaiwa && node node_modules/next/dist/bin/next start -p 3010",
-    "test": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node --import tsx --test --test-concurrency=1 $(find src -name '*.test.ts' | sort)",
+    "test": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node --import tsx --test --test-concurrency=1 $(find src scripts/seed-build -name '*.test.ts' | sort)",
     "lint": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/eslint/bin/eslint.js .",
     "typecheck": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/typescript/bin/tsc --noEmit",
     "db:generate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma generate",

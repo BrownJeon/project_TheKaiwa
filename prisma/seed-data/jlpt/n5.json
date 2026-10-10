@@ -111,7 +111,7 @@
 {"surface":"遅い","reading":"おそい","meaning":"늦다","partOfSpeech":"ADJ_I","chunkType":"MODIFIER","example":"電車は遅いです。","exampleKo":"기차가 늦어요."},
 {"surface":"お茶","reading":"おちゃ","meaning":"차","partOfSpeech":"NOUN","chunkType":"NAME","example":"お茶を飲みます。","exampleKo":"차를 마셔요."},
 {"surface":"お手洗い","reading":"おてあらい","meaning":"화장실","partOfSpeech":"NOUN","chunkType":"NAME","example":"お手洗いはどこですか。","exampleKo":"화장실이 어디예요."},
-{"surface":"お父さん","reading":"おとうさん","meaning":"아버지","partOfSpeech":"NOUN","chunkType":"NAME","example":"お父さんは会社员です。","exampleKo":"아버지는 회사원이에요."},
+{"surface":"お父さん","reading":"おとうさん","meaning":"아버지","partOfSpeech":"NOUN","chunkType":"NAME","example":"お父さんは会社に行きます。","exampleKo":"아버지는 회사에 가요."},
 {"surface":"弟","reading":"おとうと","meaning":"남동생","partOfSpeech":"NOUN","chunkType":"NAME","example":"弟は学生です。","exampleKo":"남동생은 학생이에요."},
 {"surface":"男","reading":"おとこ","meaning":"남자","partOfSpeech":"NOUN","chunkType":"NAME","example":"男の人です。","exampleKo":"남자 사람이에요."},
 {"surface":"男の子","reading":"おとこのこ","meaning":"남자 아이","partOfSpeech":"NOUN","chunkType":"NAME","example":"男の子は公園で遊びます。","exampleKo":"남자 아이는 공원에서 놀아요."},
@@ -672,5 +672,7 @@
 {"surface":"私","reading":"わたくし","meaning":"나","partOfSpeech":"NOUN","chunkType":"NAME","example":"私は学生です。","exampleKo":"나는 학생이에요."},
 {"surface":"渡す","reading":"わたす","meaning":"건네주다","partOfSpeech":"VERB","chunkType":"ACTION","example":"本を渡しました。","exampleKo":"책을 건네줬어요."},
 {"surface":"渡る","reading":"わたる","meaning":"건너가다","partOfSpeech":"VERB","chunkType":"ACTION","example":"橋を渡ります。","exampleKo":"다리를 건너가요."},
-{"surface":"悪い","reading":"わるい","meaning":"나쁘다","partOfSpeech":"ADJ_I","chunkType":"FEELING","example":"天気が悪いです。","exampleKo":"날씨가 나빠요."}
+{"surface":"悪い","reading":"わるい","meaning":"나쁘다","partOfSpeech":"ADJ_I","chunkType":"FEELING","example":"天気が悪いです。","exampleKo":"날씨가 나빠요."},
+{"surface":"私","reading":"わたし","meaning":"나, 저","partOfSpeech":"NOUN","chunkType":"NAME","example":"私は学生です。","exampleKo":"저는 학생입니다."},
+{"surface":"日本語","reading":"にほんご","meaning":"일본어","partOfSpeech":"NOUN","chunkType":"NAME","example":"日本語を勉強しています。","exampleKo":"일본어를 공부하고 있어요."}
 ]

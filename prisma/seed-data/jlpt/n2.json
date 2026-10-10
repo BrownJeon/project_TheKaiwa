@@ -197,7 +197,7 @@
 {"surface":"思いっきり","reading":"おもいっきり","meaning":"마음껏","partOfSpeech":"ADVERB","chunkType":"MODIFIER","example":"休日は思いっきり遊ぶことにした。","exampleKo":"휴일은 마음껏 놀기로 했다."},
 {"surface":"思い付く","reading":"おもいつく","meaning":"떠올리다","partOfSpeech":"VERB","chunkType":"ACTION","example":"新しい企画をふと思い付いた。","exampleKo":"새로운 기획을 문득 떠올렸다."},
 {"surface":"重たい","reading":"おもたい","meaning":"무겁다","partOfSpeech":"ADJ_I","chunkType":"FEELING","example":"このかばんはとても重たい。","exampleKo":"이 가방은 매우 무겁다."},
-{"surface":"おやすみ","reading":"おやすみ","meaning":"안녕(잘 자)","partOfSpeech":"EXPRESSION","chunkType":null,"example":"子供に「おやすみ」と言った。","exampleKo":"아이에게 「잘 자」라고 말했다."},
+{"surface":"おやすみ","reading":"おやすみ","meaning":"휴일, 안녕히 주무세요","partOfSpeech":"EXPRESSION","chunkType":null,"example":"今週は三連休でおやすみが続きます。","exampleKo":"이번 주는 사흘 연휴라 휴일이 이어져요."},
 {"surface":"おやつ","reading":"おやつ","meaning":"간식","partOfSpeech":"NOUN","chunkType":"NAME","example":"午後三時におやつを食べる。","exampleKo":"오후 세 시에 간식을 먹는다."},
 {"surface":"親指","reading":"おやゆび","meaning":"엄지손가락","partOfSpeech":"NOUN","chunkType":"NAME","example":"親指をけがしてしまった。","exampleKo":"엄지손가락을 다쳐 버렸다."},
 {"surface":"オルガン","reading":"オルガン","meaning":"오르간","partOfSpeech":"NOUN","chunkType":"NAME","example":"教会でオルガンの音が響いた。","exampleKo":"교회에서 오르간 소리가 울렸다."},

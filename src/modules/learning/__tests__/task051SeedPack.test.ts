@@ -141,7 +141,13 @@ for (const pack of SEED_PACKS) {
   })
 }
 
-test('task-051 데이터 일관성: 단계 사이 (표기, 읽기) 중복 없음 · 이전 50개 중 새 N5 와 표기가 같은 단어는 읽기도 같다(다시 눌러도 두 번 안 들어감)', { skip: skipReason }, () => {
+/**
+ * 기존 50개와 OpenJLPT N5 의 철자만 다른 같은 단어(같은 읽기) — 병합하지 않는다(`scripts/seed-build/enrich.ts` LEGACY_SPELLING_VARIANTS 와 같아야 한다).
+ * 알려진 한계: 옛 50개를 이미 가진 사용자는 N5 를 넣으면 두 표기(ご飯·御飯, 友だち·友達)가 함께 남는다 — 중복 키가 (표기, 읽기)라 다른 단어로 본다.
+ */
+const KNOWN_SPELLING_VARIANTS: Readonly<Record<string, string>> = { 'ご飯': '御飯', '友だち': '友達' }
+
+test('task-051 데이터 일관성: 단계 사이 (표기, 읽기) 중복 없음', { skip: skipReason }, () => {
   const seen = new Map<string, SeedPack>()
   for (const pack of SEED_PACKS) {
     for (const w of asSeedWords(JSON.parse(readFileSync(fileOf(pack), 'utf8')), pack)) {
@@ -150,13 +156,40 @@ test('task-051 데이터 일관성: 단계 사이 (표기, 읽기) 중복 없음
       seen.set(k, pack)
     }
   }
+})
+
+test('task-051 데이터 일관성: 기존 50개는 모두 N5 에 (표기, 읽기)로 있다 — 철자 차이 짝만 상대 표기로(허용 목록), 병합 행은 기존 값 그대로', { skip: skipReason }, () => {
   const n5 = asSeedWords(JSON.parse(readFileSync(fileOf('N5'), 'utf8')), 'N5')
-  const n5Surfaces = new Set(n5.map((w) => w.surface))
-  const n5Keys = new Set(n5.map(keyOf))
-  const notInN5: string[] = []
+  const n5ByKey = new Map(n5.map((w) => [keyOf(w), w]))
+  const viaVariant: string[] = []
   for (const w of asSeedWords(wordsN5)) {
-    if (!n5Surfaces.has(w.surface)) notInN5.push(w.surface)
-    else assert.ok(n5Keys.has(keyOf(w)), `이전 50개 ${w.surface}/${w.reading}: 새 N5 에 같은 표기·다른 읽기만 있다 → 다시 누르면 추가된다`)
+    const hit = n5ByKey.get(keyOf(w))
+    if (hit) continue
+    const alt = KNOWN_SPELLING_VARIANTS[w.surface]
+    assert.ok(alt && n5ByKey.has(keyOf({ surface: alt, reading: w.reading })), `기존 ${w.surface}/${w.reading} 이 N5 에 없다(병합 누락)`)
+    viaVariant.push(w.surface)
   }
-  if (notInN5.length) console.log(`[task-051] 이전 50개 중 새 N5 에 같은 표기가 없는 단어 ${notInN5.length}개(표기 규칙상 새 단어로 들어간다): ${notInN5.join(' ')}`)
+  assert.deepEqual(viaVariant.sort(), Object.keys(KNOWN_SPELLING_VARIANTS).sort(), '허용 목록 밖의 철자 차이가 생겼거나 목록이 낡았다')
+  // REV-179 가 짚은 병합 행(OpenJLPT N5 에 없던 기존 행)은 N5 끝에 기존 레코드 그대로 — 사람이 쓴 뜻·예문 유지.
+  const legacyByKey = new Map(asSeedWords(wordsN5).map((w) => [keyOf(w), w]))
+  const tail = n5.slice(-2)
+  assert.deepEqual(tail.map((w) => `${w.surface}/${w.reading}`), ['私/わたし', '日本語/にほんご'])
+  for (const w of tail) assert.deepEqual(w, legacyByKey.get(keyOf(w)), `${w.surface} 병합 행이 기존 값과 다르다`)
+})
+
+test('task-051 멱등: 옛 50개 사용자가 N5 를 누르면 added = N5 − (표기, 읽기) 일치분, 두 번째는 0', { skip: skipReason }, async () => {
+  const n5 = asSeedWords(JSON.parse(readFileSync(fileOf('N5'), 'utf8')), 'N5')
+  const old = asSeedWords(wordsN5)
+  const oldKeys = new Set(old.map(keyOf))
+  const matched = n5.filter((w) => oldKeys.has(keyOf(w))).length
+  assert.equal(matched, old.length - Object.keys(KNOWN_SPELLING_VARIANTS).length)
+  const { tx, rows } = fakeTx(old.map((w) => ({ userId: 'u1', surface: w.surface, reading: w.reading, category: 'N5 기초' })))
+  assert.deepEqual(await insertSeedWords(tx, 'u1', 'N5', n5), { added: n5.length - matched, skipped: matched })
+  assert.deepEqual(await insertSeedWords(tx, 'u1', 'N5', n5), { added: 0, skipped: n5.length }, '두 번째 누름')
+  const mine = rows.filter((r) => r.userId === 'u1')
+  assert.equal(mine.length, old.length + n5.length - matched)
+  // 철자 차이 짝: 두 표기가 같은 읽기로 함께 남는다(알려진 한계 — 옛 50개 사용자만).
+  for (const [legacy, alt] of Object.entries(KNOWN_SPELLING_VARIANTS)) {
+    assert.ok(mine.some((r) => r.surface === legacy) && mine.some((r) => r.surface === alt), `${legacy}·${alt}`)
+  }
 })

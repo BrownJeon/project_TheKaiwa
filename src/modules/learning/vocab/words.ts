@@ -117,11 +117,15 @@ const WORD_SELECT = {
   archived: true, archivedAt: true, createdAt: true, updatedAt: true,
 } as const
 
-/** 같은 사용자의 같은 표현(바이트 일치) id — 없으면 null. `excludeId` 는 수정 중인 자기 자신. */
+/**
+ * 같은 사용자의 같은 표현(바이트 일치) id — 없으면 null. `excludeId` 는 수정 중인 자기 자신.
+ * 같은 표기·다른 읽기 행이 여럿일 수 있어(task-051 기본 단어 팩, REV-179 M2) 가장 먼저 만든 행을 고른다 — `existingId` 가 호출마다 바뀌지 않게.
+ */
 async function findSameSurface(db: Tx, userId: string, surface: string, excludeId?: string): Promise<string | null> {
   const candidates = await db.wordEntry.findMany({
     where: { userId, surface, ...(excludeId ? { id: { not: excludeId } } : {}) },
     select: { id: true, surface: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: 50,
   })
   return candidates.find((c) => c.surface === surface)?.id ?? null
