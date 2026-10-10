@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0010
 title: "AI 응답을 자연스러운 대화형(되묻기 포함)으로 확장"
-status: planned
+status: done
 screen: "§9 AI 회화(음성) — 회화방"
 area: behavior
 priority: "P2"
 found_on: ""
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-10
 observed_ref: 055dbcf
 related_task: "[[task-007]]"
 planned_task: "[[task-024-improve-talk-length]]"
@@ -39,3 +39,7 @@ AI가 응답을 해줄때는 너무 간단하게 말해줌.
 - Q8 "회화 응답에 대해서는 얼마나 늘릴지는 그때그때마다 달라질것같아서 이건 판단 에이전트가 필요할것같아" — 같은 호출 안의 판단 기준(장면별 상한+프롬프트 기준)으로 먼저 구현하고, 측정 후 부족하면 별도 판단 호출을 지연 트레이드오프와 함께 제안.
 - 우선순위·순서는 사용자가 지정하지 않아 **Leader 권고 순서**(P1→P2→P3)를 잠정 채택했다. 사용자가 바꾸면 이 값을 고친다.
 - 담당 task: [[task-024-improve-talk-length]]
+
+## 상태 정리 (2026-10-10)
+
+- 연결 task [[task-024-improve-talk-length]] 가 `done`(구현·배포 완료, 해당 이력서 「최종 요약」 참고)이라 `planned`→`done` 으로 정리했다 — Leader, 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」).

@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0005
 title: "AI강사 음성이 어색함 — 억양·말투 설정이 플러그인에 종속되는지 확인"
-status: planned
+status: done
 screen: ""
 area: ""
 priority: "P1"
 found_on: ""
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-10
 observed_ref: 055dbcf
 related_task: ""
 planned_task: "[[task-022-improve-voice-range]]"
@@ -39,3 +39,7 @@ ai강사의 목소리가 어색하고 억양이나 말투변경에 따라서 음
 - Q4 "내가 ai강사를 어색하다고 느낀건 설정화면의 미리듣기였는데 … 일단은 설정에서 억양, 말투, 속도의 변경 차이를 지금의 2배가량 더 넓게 설정할수있도록 해줘" — 이번에는 범위 확대만, 다른 화면 어색함은 사용자 재테스트 뒤 판단.
 - 우선순위·순서는 사용자가 지정하지 않아 **Leader 권고 순서**(P1→P2→P3)를 잠정 채택했다. 사용자가 바꾸면 이 값을 고친다.
 - 담당 task: [[task-022-improve-voice-range]]
+
+## 상태 정리 (2026-10-10)
+
+- 연결 task [[task-022-improve-voice-range]] 가 `done`(구현·배포 완료, 해당 이력서 「최종 요약」 참고)이라 `planned`→`done` 으로 정리했다 — Leader, 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」).

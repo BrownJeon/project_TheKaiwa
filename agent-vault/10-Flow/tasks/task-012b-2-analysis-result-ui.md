@@ -1,7 +1,7 @@
 ---
 task_id: task-012b-2
 title: "음성 P2 ② 분석 결과 화면 — 재확인 2안 카드(회화방·채팅방)·내 발화 기록·평가 결과 인식 텍스트 표기"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: R1
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
@@ -15,7 +15,7 @@ aliases:
   - 내 발화 기록
   - task-012b-2
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 demo_gate:
   required: true
   level: "delta"
@@ -659,3 +659,10 @@ designer 가이드(`## Designer 기록`)의 결정 D-1~D-5 를 **모두 designer
 - **D-4** 방 카드 주기(30초·최근 6분 창)는 developer 가 실측으로 확정하고 이력서에 값을 남긴다.
 - **D-5** 대화 삭제 뒤 발화 행·녹음은 **현 정책(남김, 30일 정리)을 바꾸지 않는다** — 화면은 "지운 대화"로 정직하게 표시. 정책 변경은 이번 범위 밖(최종 보고에서 한 줄 언급).
 - 파일 경계: `TalkRoom.tsx` 삽입은 task-039 로컬 커밋 뒤, `chat/**` 는 건드리지 않음(D-3 으로 해소).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `todo` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- Phase 2 릴리스 `20261007-104449-61044b91`(커밋 `1ccc105`). 감사 REV-132·REV-135 PASS_WITH_NOTES, qa-p2c-A 27/27 + 화면 57검사 실패 0, qa-p2c-B 15/15.
+- 완료 기준 8개 중 1~6 충족. 7(턴 p50·TTFA 회귀)·8(스모크)은 이 이력서 안에 직접 증거가 없고 Phase 2 운영 회귀 스모크 201/202 로 갈음. 기준 1 의 「채팅방에 연결된 발화 0건」 DB 확인은 코드 확인뿐(QA 기록 없음).
+- 남은 일(후속 추적): `docs/design/api-contract.md` 에 `#21c`(발화 목록)·`#66 voiced` 미반영(REV-132·135 M-1 이월, Leader 문서). 사용자 몫: 실기기·분석 결과 화면 확인.

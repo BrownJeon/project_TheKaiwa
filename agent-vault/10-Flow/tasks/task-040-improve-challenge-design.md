@@ -1,7 +1,7 @@
 ---
 task_id: task-040
 title: "챌린지 기능 설계 (IMP-0024) — 주제 선택형 매일 학습·수행 현황·계획표 개편, 010d(시나리오)와 함께"
-status: in_progress
+status: done
 base_ref: 5c3a701
 risk_level: "R1"
 roles_involved: [leader, judge, designer, prompt-engineer, reviewer]
@@ -16,7 +16,7 @@ aliases:
   - 계획표 개편
   - task-040
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 demo_gate:
   required: true
   level: "full"
@@ -575,3 +575,10 @@ demo_gate:
 ### 확인 못 한 것
 
 실제 DB·Prisma 로의 구현(설계 단계 — 단위 테스트는 T1 몫) · 운영 A11 하루 실제 호출 빈도 · `Expr` 키가 주제 사이에서 겹치는 빈도 [추측 — 드묾] · task-039 의 `Correction.extraNoteKo` 칸의 DB 승인·적용 여부(승인 기록 미조회) · 데모 v2 본문 재감사(범위 밖 — 위 grep 로 잔존 문구 3종만 확인) · `TodayHome`·`TodayLessonCard` 현재 단어·수업 카드 파생 로직 전수(T4 영향, REV-113 과 같음).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `in_progress` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 설계 전용 task. `docs/design/challenge.md`·데모 v1·v2(`bd6e291`) 완료, 구현 분할안 041~044 가 모두 실행·배포됨(릴리스 `20261007-104449-61044b91`). 감사 REV-112·113·114.
+- 완료 기준 1·2 충족, 3 부분: 「사용자가 데모를 승인」은 승인이 아니라 「데모 생략하고 진행해줘」 면제로 갈음되었고 v2 데모는 시각 승인이 없다(결정 (a)~(f)는 「나머지 권고」 답으로 확정).
+- 챌린지 정본 5종 미반영(`domain-model.md` 의 `Challenge` 엔티티 정의·`api-contract.md` 의 `/api/v1/challenges` #155~#159·`module-dependency.md` 의 `challenges/`) — 이 task 만의 일이 아니라 챌린지 전체의 문서 부채로 ACTIVE 백로그에서 추적한다.

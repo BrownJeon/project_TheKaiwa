@@ -1,7 +1,7 @@
 ---
 task_id: task-006
 title: "AI 채팅 + 표현 점검 + 교정 채택"
-status: done-deploy-pending
+status: done
 base_ref: 77aead8
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, codex]
@@ -11,7 +11,7 @@ tags:
   - domain/conversation
   - domain/ui
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-10-10
 ---
 
 ## 목표 (Leader)
@@ -290,3 +290,10 @@ design-spec §15 task-006: AI 채팅(텍스트) 화면과 SSE 턴 처리, 사용
 **남은 확인(사용자)**: 실기기(S25+) 채팅 화면 — Gboard 일본어 IME 확정 Enter 가 전송되지 않는지, 보내기 후 키보드 유지, 키보드가 입력창을 가리지 않는지, 360/390/412 실제 렌더(헤드리스 dev 서버에서 하이드레이션이 안 돼 정적 셸만 확인됨 — 운영 빌드 반영 후 재확인 권장).
 
 **범위 밖 발견(backlog)**: `infra/http.ts` 기본 오류 문구 "AI 엔진…", 공용 `Badge` warn·accent·`ink3` 라이트 명암비 미달, `ComingSoon` 의 Phase/task 번호 노출(설정·오늘 등 기존 화면).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `done-deploy-pending` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 운영 반영 2026-09-27 18:26(커밋 `c411fc3`), 운영 E2E `task006-smoke` 41/41(`task-009-release-cutover` 이력서). 감사 REV-007 PASS_WITH_NOTES, QA-011 PASS(결함 0), 스모크 41/41.
+- 완료 기준 14개 중 13개 충족. 14번(화면 3폭)은 정적 셸만 PASS, 하이드레이션 이후는 NOT_VERIFIED(이력서가 실기기 확인을 NOT_VERIFIED 허용 항목으로 둠).
+- 남은 일: 사용자 폰 확인(Gboard IME 확정 Enter·키보드 유지). 키보드 가림 문제는 task-021 로 이관되어 해결됨.

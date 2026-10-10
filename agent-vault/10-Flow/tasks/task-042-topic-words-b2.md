@@ -1,7 +1,7 @@
 ---
 task_id: task-042
 title: "주제 단어 세트 서버 + A12 topicWords(B2) — #47 generate·#48·#49·#51·#53·topics/pool·폴백 (IMP-0024, 설계서 T2)"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: R2
 roles_involved: [leader, judge, prompt-engineer, developer, reviewer, codex, qa]
@@ -17,7 +17,7 @@ aliases:
   - A12 topicWords
   - task-042
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 demo_gate:
   required: false
   level: "none"
@@ -434,3 +434,10 @@ demo_gate:
 Codex C2(호출 1/4)의 두 지적은 **Reviewer REV-121 이 이미 같은 가정을 판정한 항목**이라 별도 Reviewer 호출 없이 Leader 가 근거를 대조해 기록한다(새 근거 없음 — 필요하면 Reviewer 재판정 요청 가능).
 - **[high] 프로세스 메모리 표식·시도 버킷이 blue/green·재시작에서 경계를 못 넘음 → A12 중복 호출·하루 상한 우회**: REV-121 "다중 프로세스·재시작 상한 — **허용 한계**" 와 동일. 근거: `thekaiwa` 는 `instances: 1`(`ecosystem.config.js`·`pm2 jlist`), 최악은 **A12 가 몇 번 더 도는 것(LLM 비용·큐 점유)** 뿐이고 **세트 중복은 DB 로 막힘**(트랜잭션 안 `assertNoInProgress`·하루 성공 1회 재사용은 DB 기준 `todayAiWordExists`). → **수용**. 감시: QA 서버 재시작 전후 `LIMIT`·`GENERATING` 확인(REV-121 QA high_risk 6), 배포 문서에 "`instances` ≥ 2 로 올리면 상한·표식·큐 동시성이 느슨해짐" 한 줄 경고(Leader 정본 반영 때).
 - **[medium] `signal` 검사가 A12 완료 전에만 있어 저장(세트 트랜잭션) 중 연결 종료에는 세트 미생성 보장 없음**: dev-042c 가 이미 기록한 "세트 트랜잭션 도중 끊김은 기존과 같이 세트가 만들어진다 — 이번 범위 밖" 과 동일. A12 성공 직후~트랜잭션 전 끊김은 dev-042c(L-2)가 시도 복원·세트 0 으로 처리. 트랜잭션 도중 끊겨 세트가 만들어져도 **사용자 불이익 없음**(다음 진입 때 "풀던 세트 있음" 으로 이어 풀기, 중복 세트 없음). → **수용**(복잡도 대비 이득 없음).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `todo` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 주제 단어(A12) 서버. PE 게이트 통과율 95.4%·읽기 눈 판정 99.8%·p95 9.9s(판정자가 모델이라 사람 검수는 아님), qa-p2a 17/17·qa-p2b 29/29, 감사 REV-121 PASS_WITH_NOTES. Phase 2 릴리스에 포함. 완료 기준 5개 중 4개 충족, 1개 부분(3분 지표 미측정·폴백 사유 중 라이브 확인은 LIMIT 뿐·수업 `Expr`↔`AiWord` 병합 라이브 미확인).
+- 예문 칸은 task-049 로 이어서 구현·배포됨(2026-10-10).
+- 챌린지 정본 5종 미반영(`domain-model.md` 의 `Challenge` 엔티티 정의·`api-contract.md` 의 `/api/v1/challenges` #155~#159·`module-dependency.md` 의 `challenges/`) — 이 task 만의 일이 아니라 챌린지 전체의 문서 부채로 ACTIVE 백로그에서 추적한다.

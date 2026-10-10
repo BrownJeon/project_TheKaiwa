@@ -1,7 +1,7 @@
 ---
 task_id: task-044
 title: "오늘 탭 연동·주제 단어 화면 — S6·S7, 새 단어 대기 화면·폴백 문구 (IMP-0024, 설계서 T4)"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: R1
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - 주제 단어 화면
   - task-044
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 demo_gate:
   required: true
   level: "delta"
@@ -826,3 +826,10 @@ DeckNotice?    (기존 자리·우선순위: few/deleted > topicReason > fewer >
 - **커밋 순서**: T3(task-043) 와 **한 커밋**(PartialMark import — REV-128).
 - **designer 후보(wave 끝 일괄)**: 넓은 화면에서 긴 제목일 때 AI 주의 문구가 `line-clamp-2` 로 잘릴 수 있음(REV-128 L-1) · `docs/screens.md`·가이드 §3-5 표에 "취소 직후 409 → 그 세트 덱" 행 추가.
 - **다음**: QA(오늘 탭 3폭·실데이터 대조, 화면 스크립트 `task044-screens.ts` 는 QA 가 실행 — `requestfailed` 이벤트 가정 확인).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `todo` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 오늘 탭 통합. qa-p2a 109 checks 실패 0, qa-p2b 취소 6/6, 챌린지+상황 수업 9/9, 감사 REV-125·128 PASS_WITH_NOTES, QA 결함 #2(360px 줄바꿈)는 `a362be9` 에서 수정. 완료 기준 6개 중 5개 충족, 1개 부분(5번 폴백 사유 TIMEOUT·FAILED·INVALID·NEW_DONE·409 두 탭 동시·실기기 미확인).
+- 새 단어 요청 중 회화 턴 TTFA +3.3~4.1초는 설계서가 인정한 위험(대기 화면을 떠나면 A12 취소).
+- 챌린지 정본 5종 미반영(`domain-model.md` 의 `Challenge` 엔티티 정의·`api-contract.md` 의 `/api/v1/challenges` #155~#159·`module-dependency.md` 의 `challenges/`) — 이 task 만의 일이 아니라 챌린지 전체의 문서 부채로 ACTIVE 백로그에서 추적한다.

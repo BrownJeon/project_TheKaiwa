@@ -1,7 +1,7 @@
 ---
 task_id: task-008
 title: "단어장 최소판 + 오늘의 단어"
-status: done-deploy-pending
+status: done
 base_ref: 4cac3de
 risk_level: R2
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, codex]
@@ -14,7 +14,7 @@ aliases:
   - 단어장
   - 오늘의 단어
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-10-10
 ---
 
 ## 목표 (Leader)
@@ -404,3 +404,9 @@ design-spec §15 task-008: 단어장 최소판(CRUD·보관·카테고리·검�
 **Codex 검토(사용자 한도 초기화 후 재개)**: C2 exec 모드 실행(165초) → 지적 2건(Medium: 보관 토글이 사용자 행을 잠그지 않아 세트 생성과 엇갈림 / Low: 세트 조회가 끝내기와 겹칠 때 자기 세트 정답이 조금 일찍 보임) → reviewer 둘 다 채택 → 수정 `b0eebcf`(스모크 74/74) → 재검증 PASS. QA 재확인은 task-005b QA 와 함께. 호출 1/4.
 **폰에서 확인할 것**: 실제 손가락 스와이프 감도(위·좌·우), 뜻 채우기·검색 중 Gboard 입력.
 **발견(backlog)**: `persona/loader.ts` 의 동적 `statSync` 가 빌드 시 "프로젝트 전체 추적" 경고(task-004 부터, 빌드는 통과) · webpack dev 모드에서 `crypto` 모듈 해석 실패(Turbopack 기본 경로는 정상).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `done-deploy-pending` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 운영 반영 2026-09-27 18:26, 운영 E2E `task008-smoke` 74/74. 감사 REV-008(High 1건 수정·재검증 PASS), QA-012 72/72·보충 74/74, Codex C2 지적 2건 채택·수정 `b0eebcf`.
+- 완료 기준 12개 모두 충족(화면은 실브라우저 3폭 PASS). 남은 일: 실기기 스와이프 감도(NOT_VERIFIED로 분리됨).

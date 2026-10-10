@@ -1,7 +1,7 @@
 ---
 task_id: task-043
 title: "계획표 개편·챌린지 화면 — S1~S5·S8 (IMP-0024, 설계서 T3)"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: R1
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - 계획표 개편
   - task-043
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 demo_gate:
   required: true
   level: "full"
@@ -1286,3 +1286,10 @@ light 트랙(R0, docs). 사용자 지적: 챌린지 만들기 '확인' 단계 �
 - 의도적으로 남김: 단독 「세지 않아요」 8곳(오독 위험 없음 — reviewer·developer 판단 일치). 정본 문서 `docs/design/challenge.md`·승인 데모 v1 의 옛 문구는 승인본이라 수정 안 함.
 - **재순환 생략 사실**: 위 ①~⑤ 는 reviewer 지적에 대한 문자열 수정이라 좁은 재감사 없이 Leader 가 시험으로 확인했다 — challenge+vocab+lesson+plan 단위 196/196·`tsc` 0·변경 7파일 eslint 0·변이 2건 검출. 사후 확인 대상: 덱 챌린지 줄 잘림(360px)·확인 단계 줄 수 증가.
 - 배포: 사용자 확인 전까지 push 하지 않음(`src` 변경이라 push = 운영 재배포).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `todo` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 챌린지 화면. 고정 응답 1587/1590(FAIL 3건은 스크립트 기준일 하드코딩), 실데이터 27/27, QA 결함 #3(막힘 버튼 대비 1.39:1)은 `a362be9` 에서 수정, 감사 REV-122·127·129·145·146 통과. 완료 기준 7개 중 6개 충족, 1개 부분(7번 실서버 왕복 화면 수준 증거 없음 — 서버 쪽은 스모크 28/28).
+- NOT_VERIFIED: 실기기 ◐ 모양·글자 크게·TalkBack·[더 보기] 빠른 두 번.
+- 챌린지 정본 5종 미반영(`domain-model.md` 의 `Challenge` 엔티티 정의·`api-contract.md` 의 `/api/v1/challenges` #155~#159·`module-dependency.md` 의 `challenges/`) — 이 task 만의 일이 아니라 챌린지 전체의 문서 부채로 ACTIVE 백로그에서 추적한다.

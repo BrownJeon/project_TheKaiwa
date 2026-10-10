@@ -1,7 +1,7 @@
 ---
 task_id: task-041
 title: "챌린지 DB·서버 코어 — learning/challenges·#155~#159·#58 CHALLENGE·#62 응답·#70·#71 (IMP-0024, 설계서 T1)"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: R2
 roles_involved: [leader, judge, developer, reviewer, codex, qa]
@@ -16,7 +16,7 @@ aliases:
   - challenge-core
   - task-041
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 demo_gate:
   required: true
   level: "delta"
@@ -613,3 +613,10 @@ demo_gate:
 - **SQL 소속 task**: `Correction.extraNoteKo` = task-039 · `EngineMetricsDaily` 6칸 = task-012b-3 · `VocabAttempt.refType/refId`·`VocabSession.topicId`(+인덱스·FK) = task-042 · `Challenge` 표(유니크 1·인덱스 2·FK 2) = task-041. 이 push 로 **네 task 의 DB 선행이 충족**됐다(운영 코드는 추가분을 select 하지 않으므로 영향 없음).
 - 복구 1순위: 새 칸·표만 역순으로 되돌리기(Challenge 표 → VocabSession 의 FK·인덱스·칸 → VocabAttempt 2칸 → EMD 6칸 → Correction 1칸). 백업 전체 복원은 공유 DB 전체 되돌림이라 최후 수단.
 - 이후: `git push` 는 사용자 지시대로 **전부 끝난 뒤 한 번** — 커밋은 pathspec(`git add -A` 금지).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `todo` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 챌린지 코어(`Challenge` 서버). 완료 기준 6/6 충족: 스모크 28/28, `#159`×`#51` 경합 44회 불일치 0, LLM 레인 `challenge-lesson-live` 18/20(실패 2건은 스크립트·A4 생성 실패, 제품 결함 아님), dead-check 4/4, race-real 2/2. 감사 REV-120·124·126, Codex C2 2건 판정. Phase 2 릴리스에 포함.
+- NOT_VERIFIED: 실시간 자정 경계, A11 과 겹친 TTFA(QA 계정 3이 가드를 못 넘김), `NEXT_TOPIC` 라이브. 010 스모크 9d 실패는 낡은 기대값(제품 결함 아님).
+- 챌린지 정본 5종 미반영(`domain-model.md` 의 `Challenge` 엔티티 정의·`api-contract.md` 의 `/api/v1/challenges` #155~#159·`module-dependency.md` 의 `challenges/`) — 이 task 만의 일이 아니라 챌린지 전체의 문서 부채로 ACTIVE 백로그에서 추적한다.

@@ -1,7 +1,7 @@
 ---
 task_id: task-012b-3
 title: "TTS P1 관측 — EngineMetricsDaily 물화·TTS 컬럼 확장·GET /api/admin/v1/tts/metrics·TTS 캐시 예열/정리"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: R2
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - TTS 지표
   - task-012b-3
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 demo_gate:
   required: false
   level: "none"
@@ -414,3 +414,10 @@ REV-119 목록(1~7)은 그대로, 아래만 바뀐다. 최종 코드는 **dev-01
 - **완료 기준 4("예열하면 HIT 로 바뀌고 회화 TTFA 가 나빠지지 않음") 정정**: 예열·정리를 **실제로 돌리는 진입점(crontab·pm2·관리자 실행 라우트)은 이번에 만들지 않는다**(L-4: 인프라 변경은 승인 밖, `TtsCache` 에 환경 칸이 없어 정리가 개발·운영 캐시를 함께 지우는 위험). 따라서 검증 범위는 **예열 후보 선정·정리 dryRun·물화·지표 API** 까지이고 "예열 효과(HIT 전환·TTFA)" 는 **이번 범위 밖(후속 — 실행 진입점 승인 시)**. 최종 보고에 한 줄 명시.
 - **dev-012b3b 가 점검에서 고친 결함 2건(다른 환경 조회 시 쓰기 방지 `writable`·꺼진 시험 연결에 의한 고아 실패 버림)은 채택** — Reviewer 가 확인.
 - 알려진 한계(수용): 끝난 날 행은 다시 계산하지 않음(지표 정의가 바뀌면 행 삭제 필요), 이 task 이전 Trace 에는 voiceId 가 없어 그날 `byVoice` 는 null, TURN Trace 단계 64개 절단, 90일 조회 30만 행 초과 시 500.
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `todo` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- Phase 2 릴리스 `20261007-104449-61044b91`(커밋 `5b4fcc7`·`c69e0af`). 스모크 27/27 + 26/26 + 보충 10/10(손계산 일치), 감사 REV-119 PASS_WITH_NOTES·REV-123 경미 지적(dev-012b3d 수정).
+- 완료 기준 6개 중 1·2·3·5·6 충족, 4 는 Leader 결정으로 정정(예열·정리 실행 진입점은 범위 밖).
+- 남은 일(후속 추적): ① TTS 캐시 예열·정리 실행 진입점(crontab·pm2·관리자 라우트) — 후속 task 없음 ② 운영 SUPER_ADMIN 으로 `GET /api/admin/v1/tts/metrics` 확인(사용자 몫) ③ F-1/F-2 수정 뒤 reviewer 재확인 기록 없음(QA 보충 10/10 이 간접 확인).

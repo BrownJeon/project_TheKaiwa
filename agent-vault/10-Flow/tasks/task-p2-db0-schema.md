@@ -1,7 +1,7 @@
 ---
 task_id: task-p2-db0
 title: "Phase 2 통합 스키마 작성(DB0) — 챌린지 D1·D2·D4·D5 + TTS 관측 6칸 + 빈 모듈 스캐폴딩 + QA 계정 3·4"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: "R2"
 roles_involved: [leader, developer, reviewer]
@@ -13,7 +13,7 @@ aliases:
   - DB0
   - Phase 2 스키마
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-10
 ---
 
 ## 목표 (Leader)
@@ -199,3 +199,9 @@ Phase 2 일괄([[phase2-batch-plan]] §4)의 **스키마 단일 작성자 작업
 - **SQL 소속 task**: `Correction.extraNoteKo` = task-039 · `EngineMetricsDaily` 6칸 = task-012b-3 · `VocabAttempt.refType/refId`·`VocabSession.topicId`(+인덱스·FK) = task-042 · `Challenge` 표(유니크 1·인덱스 2·FK 2) = task-041. 이 push 로 **네 task 의 DB 선행이 충족**됐다(운영 코드는 추가분을 select 하지 않으므로 영향 없음).
 - 복구 1순위: 새 칸·표만 역순으로 되돌리기(Challenge 표 → VocabSession 의 FK·인덱스·칸 → VocabAttempt 2칸 → EMD 6칸 → Correction 1칸). 백업 전체 복원은 공유 DB 전체 되돌림이라 최후 수단.
 - 이후: `git push` 는 사용자 지시대로 **전부 끝난 뒤 한 번** — 커밋은 pathspec(`git add -A` 금지).
+
+## 상태 정리 (2026-10-10)
+
+- 상태 `todo` → `done`. 사용자 승인(2026-10-10 「2번 승인하고 진행해줘」) — Leader. 근거는 상태 감사 2건(읽기 전용) 결과를 Leader 가 일부 직접 대조한 것이다.
+- 스키마 단일 작성(커밋 `68a588a`) → 감사 REV-118 PASS_WITH_NOTES(승인 9문장과 1:1) → 2026-10-06 22:17 `db push` rc=0·적용 후 빈 diff(이력서 195~197줄). Phase 2 릴리스 `20261007-104449-61044b91` 에 포함.
+- 완료 기준 3/3 충족. 최종 요약 절이 없던 것을 이 절로 갈음. 남은 일 없음(정본 `domain-model.md` 의 `Challenge` 반영은 이 task 범위 밖 — 아래 챌린지 정본 부채).
