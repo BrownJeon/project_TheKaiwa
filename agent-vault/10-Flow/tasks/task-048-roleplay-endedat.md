@@ -1,7 +1,7 @@
 ---
 task_id: task-048
 title: "역할극 끝냄 표식 — 사용자가 마치기로 끝낸 역할극에 Chat.endedAt 저장 (DB 승인 2026-10-10)"
-status: done-deploy-pending
+status: done
 base_ref: 6e97554
 risk_level: "R2"
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -396,3 +396,11 @@ ALTER TABLE `VocabAttempt` ADD COLUMN `exampleKoSnap` TEXT NULL,
 **알려진 한계**: 지연 백필 없음(옛 NULL 행은 재마치기로 안 채워짐 — 백필 스크립트 몫). `orchestrator/index.ts:150` 의 `new Date(String(chat.createdAt))` 는 서버가 KST·값이 문자열일 때 관측 조회 하한이 9시간 일러지는 동일 패턴 — 창이 넓어지는 쪽이라 틀린 판정은 안 만들어 이번엔 미수정. 턴∥마치기 경합의 두 순서는 실서버 재현 못 함(단위 시험으로 고정). blue/green 구·신 혼재·백필 `--apply` 는 미검증.
 **백필**: `scripts/backfill-roleplay-endedat.ts`(기본 dry-run, `--apply` 만 UPDATE). **현재 공유 DB 에 역할극 대화가 0건이라 대상 0건 — 지금은 `--apply` 가 필요 없다.** 배포 직후 dry-run 을 한 번 더 돌려 0 이 아니면 사용자 확인 뒤 `--apply`.
 **남은 일**: 사용자 배포 확인(커밋 `ad39547`·`23dfba3`) → 배포 후 스모크와 백필 dry-run.
+
+## 배포 기록 (2026-10-10 21:1x KST, Leader) — task-048·049 공용
+- 사용자 승인: 배포 확인 질문(예문 대기 +3.5초·퀴즈 힌트 부작용·백필 불필요를 함께 고지)에 「둘 다 지금 배포」 선택.
+- `git push origin main`(`6e97554..869e28d`, 로컬 커밋 8개 — 코드 `ad39547`·`23dfba3`·`94518d0`·`638948d`·`ff60d2f`, 문서·vault). QA 검증 코드(`10cd615`)와 push 코드가 같음을 확인(`10cd615`→`HEAD` 사이 `src`·`prisma`·`scripts`·`tests` 변경 0).
+- webhook blue/green → **릴리스 `20261010-121054-869e28d6`**, `RELEASE_RESULT ok`(`migrated:false` — DB 3칸은 사전 `db push` 로 이미 적용), 헬스 `ok`(degraded 없음, PRODUCTION), pm2 `thekaiwa`·`thekaiwa-speech-gateway`·`thekaiwa-speech-worker` 모두 새 릴리스 경로에서 online. 직전 릴리스 `20261010-064417-402b193e` 는 롤백 대상(`scripts/deploy.sh TheKaiwa --rollback`).
+- 운영 읽기 전용 스모크(QA2 쿠키, 데이터 쓰기·LLM 호출 0): `/study/ai?tab=talk|scenario`·`/study/today`·`/plan`·`/drawer/words`·`/ask`·`/settings`·`/study/today/eval/new`·`/plan/challenges`·`/plan/challenge/new`·`/study/ai/scenario/new` 11경로 전부 200.
+- **백필 dry-run(운영 DB, UPDATE 0)**: `matched 0`·`updated 0` — 역할극 대화가 0건이라 `--apply` 불필요(실행하지 않음).
+- 남음: 운영에서 새 단어 예문이 실제로 나오는지 사용자 실기기 확인(챌린지 주제 단어 세트 시작 → 카드 뒷면) · 역할극을 처음 쓰는 시점에 `endedAt` 저장 확인(DB 가 비어 있어 운영 실흐름은 아직 증명되지 않음 — QA 는 개발 서버+공유 DB 에서 통과).

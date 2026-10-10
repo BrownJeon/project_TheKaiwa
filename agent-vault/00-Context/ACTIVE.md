@@ -6,7 +6,10 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-10 오후 — task-048(역할극 `Chat.endedAt`)·task-049(주제 단어 예문) **구현·감사·QA 완료, 배포 확인 대기**(이 블록이 가장 최신)
+## ★ 2026-10-10 오후 — task-048(역할극 `Chat.endedAt`)·task-049(주제 단어 예문) **운영 배포 완료**(릴리스 `20261010-121054-869e28d6`) (이 블록이 가장 최신)
+
+- **배포 결과**: 사용자 「둘 다 지금 배포」 승인 → `git push`(`6e97554..869e28d`, 8커밋) → webhook blue/green → `RELEASE_RESULT ok`(`migrated:false`)·헬스 ok·pm2 3개 online. 운영 읽기 전용 스모크 11경로 200, **백필 dry-run `matched 0`(역할극 대화 0건 — `--apply` 불필요)**. 롤백 대상 직전 릴리스 `20261010-064417-402b193e`. 남은 일: 사용자 실기기에서 챌린지 주제 단어 카드 예문 표시 확인, 역할극 첫 사용 때 `endedAt` 저장 확인(운영 DB 에 역할극이 아직 없어 운영 실흐름은 미증명).
+- (아래는 배포 직전 기록)
 
 - **사용자 결정(「DB 승인 대기 5건」 C안, 정본 [[db-approval-decisions-2026-10-10]])**: 1 역할극 `Chat.endedAt` 승인(사용자가 마치기로 끝낸 것만) · 2 주제 단어 예문 `exampleSnap/exampleKoSnap` 승인 · 3 `EngineMetricsDaily.queueDelayMs/modelLoadMs` 철회(문서 정정) · 4 012c-3 Phase 4 이관·결정 종료 · 5 `JobKind/SnapshotKind` 값 추가는 Phase 4 에서 4번 작업 뒤 연계 재결정.
 - **DB 적용 완료**: 백업 `files/thekaiwa/backups/thekaiwa-20261010-102226-pre-task048-049.sql.gz` → `migrate diff` 검토본 대조(ALTER 2문장·ADD COLUMN 3) → `db push` 1회 → 빈 diff. **운영과 같은 DB** 라 컬럼은 이미 있다(구 운영 코드는 새 nullable 칸을 읽지 않아 영향 없음). 운영 헬스 정상.

@@ -1,7 +1,7 @@
 ---
 task_id: task-049
 title: "챌린지 주제 단어 예문 — AI 가 만든 새 단어에 예문(일·한)을 만들어 VocabAttempt.exampleSnap·exampleKoSnap 에 저장 (DB 승인 2026-10-10)"
-status: done-deploy-pending
+status: done
 base_ref: 6e97554
 risk_level: "R2"
 roles_involved: [leader, judge, prompt-engineer, developer, reviewer, qa]
@@ -472,3 +472,11 @@ ALTER TABLE `VocabAttempt` ADD COLUMN `exampleKoSnap` TEXT NULL,
 3. 단어장 단어를 지우면 지난 세트·다시 풀기에서 그 카드의 예문이 사라진다(변경 전과 같은 동작).
 4. 하루 3회 생성 상한 때문에 지연 표본이 3개, 20초 한도에서 JSON 재시도가 겹치는 경우(B1 폴백)는 관측되지 않아 NOT_VERIFIED. 실기기·다크 모드 미확인.
 **남은 일**: 사용자 배포 확인(커밋 `94518d0` 프롬프트·`638948d`·`ff60d2f` 서버) → 배포 후 스모크.
+
+## 배포 기록 (2026-10-10 21:1x KST, Leader) — task-048·049 공용
+- 사용자 승인: 배포 확인 질문(예문 대기 +3.5초·퀴즈 힌트 부작용·백필 불필요를 함께 고지)에 「둘 다 지금 배포」 선택.
+- `git push origin main`(`6e97554..869e28d`, 로컬 커밋 8개 — 코드 `ad39547`·`23dfba3`·`94518d0`·`638948d`·`ff60d2f`, 문서·vault). QA 검증 코드(`10cd615`)와 push 코드가 같음을 확인(`10cd615`→`HEAD` 사이 `src`·`prisma`·`scripts`·`tests` 변경 0).
+- webhook blue/green → **릴리스 `20261010-121054-869e28d6`**, `RELEASE_RESULT ok`(`migrated:false` — DB 3칸은 사전 `db push` 로 이미 적용), 헬스 `ok`(degraded 없음, PRODUCTION), pm2 `thekaiwa`·`thekaiwa-speech-gateway`·`thekaiwa-speech-worker` 모두 새 릴리스 경로에서 online. 직전 릴리스 `20261010-064417-402b193e` 는 롤백 대상(`scripts/deploy.sh TheKaiwa --rollback`).
+- 운영 읽기 전용 스모크(QA2 쿠키, 데이터 쓰기·LLM 호출 0): `/study/ai?tab=talk|scenario`·`/study/today`·`/plan`·`/drawer/words`·`/ask`·`/settings`·`/study/today/eval/new`·`/plan/challenges`·`/plan/challenge/new`·`/study/ai/scenario/new` 11경로 전부 200.
+- **백필 dry-run(운영 DB, UPDATE 0)**: `matched 0`·`updated 0` — 역할극 대화가 0건이라 `--apply` 불필요(실행하지 않음).
+- 남음: 운영에서 새 단어 예문이 실제로 나오는지 사용자 실기기 확인(챌린지 주제 단어 세트 시작 → 카드 뒷면) · 역할극을 처음 쓰는 시점에 `endedAt` 저장 확인(DB 가 비어 있어 운영 실흐름은 아직 증명되지 않음 — QA 는 개발 서버+공유 DB 에서 통과).
