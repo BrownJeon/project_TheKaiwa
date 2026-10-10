@@ -6,7 +6,16 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-10 — task-047(안쪽 스크롤 상자 위치 기준, IMP-0023 계열) **운영 배포 완료**(릴리스 `20261010-064417-402b193e`) (이 블록이 가장 최신)
+## ★ 2026-10-10 오후 — task-048(역할극 `Chat.endedAt`)·task-049(주제 단어 예문) **구현·감사·QA 완료, 배포 확인 대기**(이 블록이 가장 최신)
+
+- **사용자 결정(「DB 승인 대기 5건」 C안, 정본 [[db-approval-decisions-2026-10-10]])**: 1 역할극 `Chat.endedAt` 승인(사용자가 마치기로 끝낸 것만) · 2 주제 단어 예문 `exampleSnap/exampleKoSnap` 승인 · 3 `EngineMetricsDaily.queueDelayMs/modelLoadMs` 철회(문서 정정) · 4 012c-3 Phase 4 이관·결정 종료 · 5 `JobKind/SnapshotKind` 값 추가는 Phase 4 에서 4번 작업 뒤 연계 재결정.
+- **DB 적용 완료**: 백업 `files/thekaiwa/backups/thekaiwa-20261010-102226-pre-task048-049.sql.gz` → `migrate diff` 검토본 대조(ALTER 2문장·ADD COLUMN 3) → `db push` 1회 → 빈 diff. **운영과 같은 DB** 라 컬럼은 이미 있다(구 운영 코드는 새 nullable 칸을 읽지 않아 영향 없음). 운영 헬스 정상.
+- **로컬 커밋(미 push·미배포)**: 코드 `ad39547`·`23dfba3`(task-048) · `94518d0`·`638948d`·`ff60d2f`(task-049) · 문서 `10cd615` + 이번 vault 커밋. 배포 = `git push`(코드 포함이라 blue/green 재빌드; 롤백 대상 직전 릴리스 `20261010-064417-402b193e`).
+- **검증**: 감사 REV-176(048 PASS_WITH_NOTES)·REV-177(049 PASS), QA qa-048(21/21 등 전 PASS)·qa-049(전 PASS, 캡처 21장 가로 넘침 0). 최종 후보 커밋 `10cd615` 스냅샷으로 라이브 확인.
+- **사용자에게 알린 한계**: 예문 생성 대기 **+3.5초**(사용자 수용) · **퀴즈 힌트 부작용**(같은 세트 다른 단어가 예문에 섞임, 표본 2/10·상한 10.4%) · 긴 예문 후리가나 잔상(합성 50자만) · 백필 스크립트 `--apply` 는 **현재 역할극 대화 0건이라 불필요**(배포 직후 dry-run 재확인).
+- **다음 후보**: 사용자 배포 확인 → 배포 후 스모크·백필 dry-run → IMP/task 상태 정리 승인·Codex 가드 확인(남은 사용자 결정) → 다음 기능 방향(Phase 3 / IMP-0011·0004·0007).
+
+## 2026-10-10 — task-047(안쪽 스크롤 상자 위치 기준, IMP-0023 계열) **운영 배포 완료**(릴리스 `20261010-064417-402b193e`)
 
 - **상태**: 사용자 「지금 배포」 승인 → `git push`(`23e08b9..402b193`: `9c8301d` 구현·`1b9d099` REV-174 수정·`3d0485c` `textarea` 제외·`9e98b5c` 주석·`13b7804` docs·`402b193` vault) → webhook blue/green → `RELEASE_RESULT ok`(`migrated:false`), 헬스 200, pm2 3개 online. **운영 읽기 전용 스모크** 12경로(앱 셸 화면·eval·challenge·settings) 전부 200 + 운영 CSS 에 전역 규칙 확인(`:not(textarea)` 4개·`@layer base`·`@layer utilities` 앞). 롤백 대상 직전 릴리스 `20261008-145346-5d0d8f8d`(`scripts/deploy.sh TheKaiwa --rollback`). ✅ **실기기 확인: 사용자 보고 「실기기에서 테스트완료」(2026-10-10 — 대상 task-045·046·047·010d 역할극, 세부 결과·이상 여부는 말씀 없음)**. **ISS-0001(토큰 과다 소진) 점검 완료(사용자 승인, 2026-10-10)**: verdict `improved`(dev 턴 p90 254→80·재개 재기록 90→17건), 단 p90 은 `maxTurns 80` 상한과 같은 값·개선 task 에이전트당 턴 불변·task당 dev 에이전트 수/비용 증가·품질 기준선 없음 → 상태는 `measuring` 유지, 다음 점검 2026-10-17(`/이슈기록 점검 ISS-0001`, 가드 지표 추가 검토). task-047 이력서 끝 「최종 요약」이 정본. (세션 시작 전 push 한 vault 커밋 3개 `5d0d8f8..23e08b9` 는 `docs_only` 로 건너뜀.)
 - **내용**: 앱 셸 `main` 안 세로 스크롤 상자에 전역 규칙 `:where(main .overflow-y-auto:not(textarea), …){position:relative}`(`globals.css` `@layer base`) + 콘솔 `ConsoleShell` `main` `relative` + 소스 스캔 회귀 시험 `scrollBoxPosition.test.ts`. 규칙 정본 `docs/screens.md` §18. 효과 대조(DOM 주입): 앱 셸 `main` Δ 1788~2650 → 0, 콘솔 문서 Δ 2797~3665 → 0. 화면 모양·간격 변화 0(비교 QA: 앱 셸 144 상태·콘솔 291 셀 기하·겹침·픽셀 0, 예외 = 콘솔 설정 데스크톱 초점 링 서브픽셀 ±5/255·`lexicon` `sr-only caption` 좌표).
