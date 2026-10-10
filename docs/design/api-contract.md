@@ -169,11 +169,11 @@
 | 45 | POST | `/api/v1/words/:id/archive` · `/unarchive` | 보관 토글 | S | learning/vocab | 1 | — | `WordEntry` |
 | 46 | GET | `/api/v1/words/categories` | 카테고리·개수 | S | learning/vocab | 1 | — | `[{category,count}]` |
 | 46b | POST | `/api/v1/words/seed-pack` | 기본 단어 팩 추가(빈 단어장 CTA, task-008 E1) | S | learning/vocab | 1 | `{pack:"N5"}` | `{added,skipped}` |
-| 47 | POST | `/api/v1/vocab/sessions` | 오늘의 단어 세트 생성(**정답 미포함**) | S | learning/vocab | 1 | `{count?,mode?,category?}` | `VocabSession`+cards |
+| 47 | POST | `/api/v1/vocab/sessions` | 오늘의 단어 세트 생성(**정답 미포함**) | S | learning/vocab | 1 | `{count?,mode?,category?,topicId?,generate?}` | `VocabSession`+cards(+주제 세트면 `generation`, §2-10) |
 | 48 | GET | `/api/v1/vocab/sessions?kept=1` | 세션 목록/보관함 | S | learning/vocab | 1 | query | 목록 |
 | 49 | GET | `/api/v1/vocab/sessions/:id` | 세션 상세(이어풀기) | S | learning/vocab | 1 | — | 세션+cards(+답한 카드만 정답) |
 | 50 | POST | `/api/v1/vocab/sessions/:id/attempts` | 카드 답(order 멱등) | S | learning/vocab | 1 | `{order,chosenText?,selfResult?,responseMs,flagged?}` | `{answer,correctText,example}` |
-| 51 | POST | `/api/v1/vocab/sessions/:id/finish` | 세트 완료(단일 트랜잭션) | S | learning/vocab | 1 | — | 집계 |
+| 51 | POST | `/api/v1/vocab/sessions/:id/finish` | 세트 완료(단일 트랜잭션) | S | learning/vocab | 1 | — | 집계(+`challenge`, §2-31) |
 | 52 | POST | `/api/v1/vocab/sessions/:id/keep` | 세트 보관 토글 | S | learning/vocab | 1 | `{kept}` | `VocabSession` |
 | 53 | POST | `/api/v1/vocab/sessions/:id/replay` | 보관 세트 다시 풀기 | S | learning/vocab | 1 | — | 새 `VocabSession`+cards |
 | 54 | GET | `/api/v1/vocab/stats` | 개수별 맞춘/틀린(스냅샷) | S | learning/snapshots | 1 | `?days=` | 집계 |
@@ -184,7 +184,7 @@
 | 59 | POST | `/api/v1/lessons` | 레슨 생성(A4, 잡) | S | app(conversation+learning 조합) | 2(task-010) | `{topicId}` 또는 `{sourceText}` | `{lessonId,jobId,status,reused}` |
 | 60 | GET | `/api/v1/lessons/:id` | 레슨 상세 | S | learning/lessons | 2(task-010) | — | `Lesson` |
 | 61 | PATCH | `/api/v1/lessons/:id/progress` | 단계 진행 저장 | S | learning/lessons | 2(task-010) | `{stageDone?,progress?}` | `Lesson` |
-| 62 | POST | `/api/v1/lessons/:id/complete` | 레슨 완료(트랜잭션+RepetitionItem 갱신+관측, 트랜잭션 뒤 A11 잡 — task-010b) | S | learning/lessons+repetition | 2(task-010·010b) | `{score?}`(무시) | `{lesson,studyLogId,reviewDecisionJobId,nextReview,result}` |
+| 62 | POST | `/api/v1/lessons/:id/complete` | 레슨 완료(트랜잭션+RepetitionItem 갱신+관측, 트랜잭션 뒤 A11 잡 — task-010b) | S | learning/lessons+repetition | 2(task-010·010b) | `{score?}`(무시) | `{lesson,studyLogId,reviewDecisionJobId,nextReview,result,challenge}`(`challenge` 는 §2-31) |
 | 62a | POST | `/api/v1/lessons/:id/memo` | 들린 단어 메모 → ADD_WORD 제안 | S | app(learning+conversation 조합) | 2(task-010) | `{segments:[{segment,words[≤5]}]}` | `{proposals[],skipped[],memo}` |
 | 62b | POST | `/api/v1/lessons/:id/speaking` | 말하기 확인(목표 표현 포함, LLM 없음) | S | app(learning+speech 조합) | 2(task-010) | `{itemId,text,utteranceId?}` | `{itemId,used,matchedIds,missedIds,unknownIds,modelAnswer,utteranceId,hasAudio}` |
 | 62c | POST | `/api/v1/lessons/:id/audio` | 레슨 문장 음성(느리게/보통) | S | app(learning+speech 조합) | 2(task-010) | `{kind,idx,pace?}` | `{clips[{url,durationMs,pauseBeforeMs,cached}],runtime}` |
@@ -198,8 +198,8 @@
 | 67c | POST | `/api/v1/evaluations/:id/items/:itemId/reveal` | 듣고 답하기 "글자로 보기"(결정 (b)=B) | S | learning/evaluation | 2(task-011) | `{}` | `{itemId,textJa,textRevealed:true,textRevealedAt}` |
 | 68 | POST | `/api/v1/evaluations/:id/submit` | 채점(A7, 잡; DONE 단일 트랜잭션) | S | app(learning+conversation 조합) | 2(task-011) | `{}` | `{evaluationId,jobId,status,reused,overtime}` |
 | 69 | GET | `/api/v1/evaluations?limit=&cursor=&kind=` | 평가 이력 | S | learning/evaluation | 2(task-011) | query | 목록 |
-| 70 | GET | `/api/v1/plan/calendar?month=` | 달력(출석·학습) | S | learning/studyLog | 2 | query | `{days[]}` |
-| 71 | GET | `/api/v1/plan/day?date=` | 하루 상세 | S | learning/studyLog | 2 | query | `{date,logs[],attended}` |
+| 70 | GET | `/api/v1/plan/calendar?month=` | 달력(출석·학습) | S | learning/studyLog | 2 | query | `{days[]}`(+`days[].challenge`·`summary.challenge`, §2-31) |
+| 71 | GET | `/api/v1/plan/day?date=` | 하루 상세 | S | learning/studyLog | 2 | query | `{date,logs[],attended}`(+`challenge`, §2-31) |
 | 72 | GET | `/api/v1/study-logs?from=&to=&type=` | 학습 기록 | S | learning/studyLog | 2 | query | 목록 |
 | 73 | DELETE | `/api/v1/study-logs/:id` | 기록 삭제(스냅샷 보존) | S | learning/studyLog | 2 | — | `{deleted:true,snapshotKept:true}` |
 | 74 | POST | `/api/v1/plan/analysis` | 분석→공부계획서(A8, 잡; hash 재사용) | S | learning/studyPlan | 3 | `{weeks?}` | `{jobId,planId?}` |
@@ -347,7 +347,7 @@
 
 ### 1-5a. 챌린지 사용자 API (#155~#159 — task-041, 2026-10-10 코드 기준)
 
-> 라우트 `src/app/api/v1/challenges/{route,today/route,[id]/route,[id]/end/route}.ts`, 모듈 `learning/challenges`(L3). 모두 세션 필수(401) + 소유자만(`where {id, userId}` — 없거나 남의 것·형식이 잘못된 id 는 404). capability 없는 일반 사용자 API(`role-permission.md` 변경 없음). 챌린지 라우트는 LLM·엔진을 부르지 않는다(DB 만). 응답 모양의 단일 출처는 `src/types/challenge.ts`. 상세·오류는 §2-31.
+> 라우트 `src/app/api/v1/challenges/{route,today/route,[id]/route,[id]/end/route}.ts`, 모듈 `learning/challenges`(L3). 모두 세션 필수(401) + 소유자만(`where {id, userId}` — 없거나 남의 것·형식이 잘못된 id 는 404). capability 없는 일반 사용자 API(`role-permission.md` 변경 없음). 챌린지 라우트는 LLM·엔진을 부르지 않는다(DB 만 — #158 이 부르는 `findActiveJob` 이 오래된 생성 잡 행을 `FAILED('stale')` 로 닫는 infra 기존 동작을 탈 뿐 챌린지 쪽 쓰기는 없다, §2-31 #158). 응답 모양의 단일 출처는 `src/types/challenge.ts`. 상세·오류는 §2-31.
 
 | # | Method | Path | 목적 | auth | 층 | Phase | 요청 | 응답 |
 |---|---|---|---|---|---|---|---|---|
@@ -930,11 +930,16 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
     "cards": [ { "order": 0, "wordId": "w_01…", "surface": "映画", "reading": "えいが", "choices": ["영화", "음악", "사진", "여행"], "flagged": false, "answered": false } ] }
 ```
 
-- `count` 5~30(기본 `Profile.dailyWordCount`), `mode CHOICE|FLIP`(기본 CHOICE). 풀 = `archived=false`(카테고리 필터) − 오늘 DONE 세션 단어. 풀 0 → `200 { "session": null, "empty": { "reason": "NO_WORDS", "cta": ["ADD_WORD", "SEED_PACK"] } }`; 풀 <4 이고 CHOICE → FLIP 강등(`downgraded:true`). `choices` 는 셔플된 4개(정답 위치·정답값은 응답에 없음), FLIP 은 `choices` 없음. **FLIP 카드는 자기 채점이라 `meaning`·`example`·`exampleKo` 를 처음부터 싣는다**(뒷면 표시용 — 정답 미노출 규칙은 CHOICE 에만 적용, task-008 F1). 빈 풀 사유 `empty.reason ∈ { NO_WORDS(단어 0) | ALL_DONE_TODAY(오늘 세트에서 다 풂) | NO_WORDS_IN_CATEGORY }`(F5).
+- `count` 5~30(기본 `Profile.dailyWordCount`), `mode CHOICE|FLIP`(기본 CHOICE). 풀 = `archived=false`(카테고리 필터) − 오늘 DONE 세션 단어. 풀 0 → `200 { "session": null, "empty": { "reason": "NO_WORDS", "cta": ["ADD_WORD", "SEED_PACK"] } }`; 풀 <4 이고 CHOICE → FLIP 강등(`downgraded:true`). `choices` 는 셔플된 4개(정답 위치·정답값은 응답에 없음), FLIP 은 `choices` 없음. **FLIP 카드는 자기 채점이라 `meaning`·`example`·`exampleKo` 를 처음부터 싣는다**(뒷면 표시용 — 정답 미노출 규칙은 CHOICE 에만 적용, task-008 F1). 빈 풀 사유 `empty.reason ∈ { NO_WORDS(단어 0) | ALL_DONE_TODAY(오늘 세트에서 다 풂) | NO_WORDS_IN_CATEGORY | TOPIC_EMPTY | TOPIC_ALL_DONE_TODAY }`(F5; 뒤 둘은 주제 세트 — 아래 "주제 세트 요청·응답 보강").
 - `VocabAttempt` 행은 카드 생성 시 `answer=null` 로 미리 만들어지며 `surfaceSnap/readingSnap/meaningSnap/choices` 를 스냅샷한다. 진행 중 세션이 이미 있으면 `409 { details: { sessionId } }`(이어풀기 유도).
 
 - **주제 단어 세트(task-040·042 — 챌린지 하루 단어 과제의 원천)**: 본문에 `topicId?`·`generate?` 가 더해졌다(라우트가 `{count, mode, category, topicId, generate}` 를 `createVocabSession` 에 넘긴다). `topicId` 가 있으면 주제 세트(`VocabSession.topicId`) — 그날 그 주제의 첫 세트는 A12 새 단어를 요청 안에서 동기로 만들고(요청 시작부터 큐 대기 포함 30초), 클라이언트가 끊으면(`req.signal`) 생성을 멈추고 세트를 만들지 않는다. 생성 중 두 번째 요청은 409 `{reason:'GENERATING'}`. A12 요청·결과 검사(conversation `buildTopicWordsRequest`·`assembleTopicWords`)는 라우트가 값으로 learning 에 넘긴다(L3 → L2 import 없음).
 - **카드 예문 규칙(task-049, 2026-10-10 — #47·#49·#50 공통)**: 새 단어(`refType='AiWord'`) 카드의 일본어 예문·한국어 번역은 세트를 만들 때 `VocabAttempt.exampleSnap`·`exampleKoSnap` 에 스냅샷으로 저장한다(둘 다 비지 않은 문자열이고 각 ≤300자일 때만 쌍으로, 아니면 둘 다 null. 단어장 카드는 저장하지 않고 지금 단어를 읽는다). 응답의 `example`·`exampleKo` 는 **단어장 단어(`WordEntry`)의 예문 > 카드 스냅샷 > `null`** 순으로 고른다. CHOICE 세트는 정답 미노출 규칙에 따라 **답하기 전 카드에는 #47·#49 응답에 `example`·`exampleKo` 키가 없고**, #50 의 답 응답과(답한 카드·`DONE` 세트의) #49 에서 공개된다. FLIP 세트는 처음부터 싣는다. 다시 풀기(#53)는 주제 세트의 스냅샷을 새 카드로 복사한다.
+- **주제 세트 요청·응답 보강(task-040·042·049, 코드 기준 2026-10-10 — #47~#53)**:
+  - 요청 검사(#47): `topicId` 와 `category` 를 같이 보내면 400 `VALIDATION` `{field:'category', reason:'with_topicId'}`. `generate` 는 boolean 이어야 하고(`reason:'boolean'`) `topicId` 없이 보내면 400 `{field:'generate', reason:'topicId_required'}`. `generate` 를 생략하면 `true`(주제 세트에서만 의미 — `false` 면 새 단어를 만들지 않고(`generation.reason:'SKIPPED'`) 이미 있는 풀과 오늘 만들어 둔 새 단어로만 세트를 짠다).
+  - `generation`(**#47 응답에만**, 저장 안 함, 주제 세트일 때만 키가 있다): `{ source:'AI'|'MIXED'|'TOPIC', generatedNow:boolean, reason:null|'SHORT'|'NEW_DONE'|'TIMEOUT'|'FAILED'|'INVALID'|'LIMIT'|'SKIPPED' }`. 엔진·모델 이름 없이 사유 코드만 싣는다.
+  - 세션 객체의 `topic: { id, title, lessonCardCount, aiCardCount } | null` — 세션 객체를 싣는 응답 공통(#47·#48 `items[]`·#49·#51·#52·#53). 주제 세트만 값이 있고 내 단어장 세트·주제가 지워진 세트는 `null`. 두 수는 **그 세트의 카드 행**에서 센다(`lessonCardCount` = 수업 표현 카드 `Expr`, `aiCardCount` = 새 단어 카드 `AiWord`) — 새로 고침·이어 풀기·다시 풀기 뒤에도 같은 값.
+  - 빈 상태 `empty` (주제 세트): `{ reason:'TOPIC_EMPTY'|'TOPIC_ALL_DONE_TODAY', cta:['MY_WORDS'] }` — `TOPIC_EMPTY` = 그 주제 풀·그날 새 단어·방금 만든 새 단어가 모두 0, `TOPIC_ALL_DONE_TODAY` = 그 밖에 오늘 더 낼 카드가 없음. `cta MY_WORDS` = 내 단어장으로 풀기.
 
 #### #48 `GET /api/v1/vocab/sessions?kept=1&status=IN_PROGRESS&limit=&cursor=` → `{ items: [ { id, date, mode, cardCount, answeredCount, correctCount, wrongCount, skippedCount, status, keptAt, replayOfId, durationSec, startedAt } ], nextCursor }`. 정렬 `startedAt desc`(F3).
 
@@ -959,8 +964,10 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 
 ```json
 ← { "session": { "id": "vs_01…", "status": "DONE", "correctCount": 7, "wrongCount": 2, "skippedCount": 1, "durationSec": 156 },
-    "studyLogId": "sl_…", "wrongWords": [ { "wordId": "w_…", "surface": "…", "correctText": "…" } ], "flaggedCount": 2 }
+    "studyLogId": "sl_…", "wrongWords": [ { "wordId": "w_…", "surface": "…", "reading": "…", "correctText": "…", "source": "WORD" } ], "flaggedCount": 2 }
 ```
+
+`wrongWords[]` 항목: `wordId` 와 `reading` 은 null 일 수 있고(주제 세트의 수업 표현·새 단어 카드는 단어장 행이 없다), `source` = 카드 출처 — 내 단어장 카드 `'WORD'`, 주제 세트 카드(`refType` 있음) `'TOPIC'`. 주제 세트의 응답에는 세션 객체 `topic` 도 실린다(위 "주제 세트 요청·응답 보강"). 진행 중 챌린지가 있으면 응답에 `challenge` 키(없으면 `null`)가 더해진다(§2-31).
 
 이미 DONE 이면 같은 응답을 재전송(멱등). **답한 카드가 0장이면** 기록 없이 `status=ABANDONED` 로 닫는다(StudyLog·스냅샷·카운터 변화 0, 응답 `session.status="ABANDONED"`, `studyLogId:null` — F2).
 
@@ -1048,7 +1055,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
   - 복습 칸 계산이 실패해도 레슨 칸은 그대로 내려주고 복습 칸은 `review:null, guard:null, decisionPending:false, nextReview:null` 로 비운다(Leader ⑥ — 오류는 서버 로그만).
 - `todayLessons` = 오늘(KST) 날짜 레슨 전부(최신 먼저, ≤20). `GENERATING` 이면 `jobId`(#55 폴링) — 잡이 죽었으면(재시작·stale) 이 자리에서 `FAILED` 로 닫아 보인다. `speaking{used,total}` = 말하기에서 쓴 표현 수·판정 가능한 목표 수(#62 `result.expressions` 와 같은 계산, 본문이 없으면 null — task-010 화면 §12-11 ① Leader 판정으로 추가, additive, 홈 완료 카드 "말하기 표현 {used}/{total}").
 - `resume` = 오늘 이전 날짜의 `READY`·`IN_PROGRESS` **새 수업(`kind:"NEW"`)** 중 가장 최근 것 1개(없으면 null) — "이어서 하기"(task-010b ★①).
-- `recommendation`(designer 데모 v1 요청, `reason ∈ CONTINUE|NEXT_TOPIC|START`): 가장 최근에 끝낸 **주제** 레슨이 있으면 그 주제 + 그 수업의 `content.nextPreview`(CONTINUE). 그 주제를 이미 3번(`TOPIC_ROTATE_AFTER`) 끝냈으면 학습자 수준에서 끝낸 수가 가장 적은 다른 주제(NEXT_TOPIC, `nextPreview:null`). 끝낸 주제 레슨이 없으면 학습자 수준(없으면 ±1)의 주제 중 가장 적게 한 것(START). 하던 수업이 있으면 화면은 그쪽을 먼저 — 추천은 참고용.
+- `recommendation`(designer 데모 v1 요청, `reason ∈ CONTINUE|NEXT_TOPIC|START|CHALLENGE` — CHALLENGE 는 진행 중 챌린지 주제를 최우선으로 추천할 때, §2-31): 가장 최근에 끝낸 **주제** 레슨이 있으면 그 주제 + 그 수업의 `content.nextPreview`(CONTINUE). 그 주제를 이미 3번(`TOPIC_ROTATE_AFTER`) 끝냈으면 학습자 수준에서 끝낸 수가 가장 적은 다른 주제(NEXT_TOPIC, `nextPreview:null`). 끝낸 주제 레슨이 없으면 학습자 수준(없으면 ±1)의 주제 중 가장 적게 한 것(START). 하던 수업이 있으면 화면은 그쪽을 먼저 — 추천은 참고용.
 
 #### #59 `POST /api/v1/lessons`
 
@@ -1894,7 +1901,7 @@ SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못�
 ← ChallengeDetail   // #157 과 같은 모양, status:"ACTIVE", dailyGoal.wordsMinAnswered:8
 ```
 
-- 본문 ≤4KB, 키 화이트리스트 `topicId`·`lengthDays`·`start`·`dailyGoal`·`title`(그 밖은 400 `unknown_key`). `lengthDays` 7·14·30. `start` `TODAY`(오늘부터)·`TOMORROW`(내일부터) — `endDate` = 시작일 + `lengthDays` − 1. `dailyGoal.lesson`·`words` 는 boolean 필수이고 **둘 다 false 면 400** `reason:'NO_TASK'`. `wordCount` 5·10·15(`words:true` 일 때만 의미, 생략하면 서버가 학습 설정 하루 단어 수 이하에서 가장 큰 선택지를 주제 기본 표현 수 안에서 고름). `title` 생략·빈 값이면 자동 `"<주제 제목 ≤60자> N일 챌린지"`, 입력은 ≤40자(코드포인트).
+- 본문 ≤4KB, 키 화이트리스트 `topicId`·`lengthDays`·`start`·`dailyGoal`·`title`(그 밖은 400 `unknown_key`). `lengthDays` 7·14·30. `start` `TODAY`(오늘부터)·`TOMORROW`(내일부터) — `endDate` = 시작일 + `lengthDays` − 1. `dailyGoal.lesson`·`words` 는 boolean 필수이고 **둘 다 false 면 400** `reason:'NO_TASK'`. `wordCount` 5·10·15(`words:true` 일 때만 의미, 생략하면 서버가 학습 설정 하루 단어 수 이하에서 가장 큰 선택지를 주제 기본 표현 수 안에서 고르고, 하루 단어 수 이하 선택지가 없으면 주제 기본 표현 수 안의 가장 작은 선택지를 쓴다). `title` 생략·빈 값이면 자동 `"<주제 제목 ≤60자> N일 챌린지"`, 입력은 ≤40자(코드포인트).
 - 서버가 `dailyGoal` 에 `wordsMinAnswered = ceil(4×wordCount/5)`(5·10·15 → 4·8·12)·`countSkipped:false`·`ruleVersion:1` 을 채워 **얼린다**(만든 뒤 수정 경로 없음).
 - 오류: 400 `VALIDATION` `{field:'dailyGoal.wordCount', reason:'WORD_COUNT_OVER_POOL', poolSize}` — 장수가 그 주제의 기본 표현(`TopicChunk`, 카드 폭 필터 뒤) 수보다 크거나 고를 선택지가 없을 때 · 404 `NOT_FOUND` `{reason:'TOPIC_GONE'}` — 주제가 없거나 남의 주제이거나 이 사용자가 가린 시드(새 챌린지에는 가린 시드 예외 없음) · 409 `CONFLICT` `{reason:'ACTIVE_EXISTS', challengeId}` — 진행 중 챌린지가 이미 있음(`Challenge.activeKey` 유니크 위반 P2002 도 같은 409) · 429 `RATE_LIMITED` `{retryAfterSec}` + `Retry-After` — 사용자당 하루(KST) 20회(만들기·그만두기 반복으로 행이 쌓이는 것 방어, 사용자 삭제 경로가 없음).
 - 한 트랜잭션 순서: 사용자 행 잠금(`lockUserRow` — 주제 삭제 #173 과 같은 잠금) → 주제 재확인 → 기간 지난 ACTIVE 지연 전이 → 진행 중 확인(409) → 하루 20회 확인(429) → `Challenge` 1행 INSERT(`StudyLog`·`StatsSnapshot` 은 만들지 않는다). 성공 응답은 만든 챌린지의 #157 상세.
@@ -1907,7 +1914,7 @@ SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못�
 
 #### #158 `GET /api/v1/challenges/today`
 
-- 응답 `{ challenge: ChallengeSummary|null, today: ChallengeTodayTasks|null, recentlyEnded: { id, status:'COMPLETED'|'ENDED', title, endedAt, result:{lengthDays, metDays, elapsedDays, rate|null, longestStreak, endReason|null} }|null }`. `recentlyEnded` = `endedAt` 이 어제 00:00 KST 이후인 끝난 챌린지 1개(진행 중 챌린지가 있어도 실린다). DB 만 읽는다(LLM·엔진 호출 없음). `private, no-store`.
+- 응답 `{ challenge: ChallengeSummary|null, today: ChallengeTodayTasks|null, recentlyEnded: { id, status:'COMPLETED'|'ENDED', title, endedAt, result:{lengthDays, metDays, elapsedDays, rate|null, longestStreak, endReason|null} }|null }`. `recentlyEnded` = `endedAt` 이 어제 00:00 KST 이후인 끝난 챌린지 1개(진행 중 챌린지가 있어도 실린다). 끝난 행의 `dailyGoal` 이 깨져 있으면 그 행은 `recentlyEnded` 에서도 뺀다(#155 와 같은 규칙 — 500 으로 만들지 않음). 챌린지 쪽 쓰기는 없고 LLM·엔진 호출도 없다 — 다만 생성 잡 상태를 보는 `findActiveJob` 이 오래된 QUEUED·RUNNING 잡 행을 `FAILED('stale')` 로 닫는 infra 기존 동작을 탄다(#58·#59 가 쓰는 같은 함수). `private, no-store`.
 - `ChallengeTodayTasks` = `{date, dayIndex, topic:{id,title}|null, tasks[], goalMet}`. `tasks` 순서는 화면 순서(**단어 → 회화**)이고 꺼진 과제는 없다. WORDS = `{kind:'WORDS', state:'TODO'|'IN_PROGRESS'|'SHORT'|'DONE', sessionId|null, wordCount|null, minAnswered|null, answered, sets}`(`answered` = 그날 **끝낸** 주제 세트의 맞힘+틀림 합계 — 풀고 있는 세트는 안 들어 있음). LESSON = `{kind:'LESSON', state:'TODO'|'GENERATING'|'READY'|'IN_PROGRESS'|'CONTINUE'|'DONE'|'FAILED', lessonId|null, jobId|null}` — `CONTINUE` = 어제 이전에 만든 챌린지 주제 새 수업을 이어서, `GENERATING` 은 그 수업의 생성 잡이 살아 있을 때만이고 죽은 잡이면 **표시만** `FAILED`(레슨 행을 닫는 것은 #58·#59 몫). 풀 크기는 싣지 않는다.
 
 #### #159 `POST /api/v1/challenges/:id/end`
