@@ -77,9 +77,13 @@ export interface TopicWordCandidate {
   meaningKo: string
   chunkType: ChunkType
   jlpt: JlptLevel | null
-  /** L2 예문 검사를 통과한 예문(task-049) — 쌍이 아니면 서버가 둘 다 null 로 본다(`topicExamplePair`). 생략 = 예문 없음. */
-  exampleJa?: string | null
-  exampleKo?: string | null
+  /**
+   * L2 예문 검사를 통과한 예문(task-049) — 쌍이 아니면 서버가 둘 다 null 로 본다(`topicExamplePair`).
+   * 필수 칸이다: 선택 칸이면 conversation 쪽 이름이 바뀌어도 `route.ts` 의 구조 대입이 tsc 를 통과한 채 예문만 조용히 사라진다(REV-177 M-1).
+   * (모델 원문 `TopicWordsOutput` 은 v1 모양 응답을 받으려고 선택 칸 그대로.)
+   */
+  exampleJa: string | null
+  exampleKo: string | null
 }
 
 /** 카드 예문 스냅샷 상한(코드포인트) — 칸은 TEXT 라 DB 제한이 없어 폭주 값만 막는다(L2 상한 60/100 보다 넉넉하게, 넘으면 자르지 않고 null). */

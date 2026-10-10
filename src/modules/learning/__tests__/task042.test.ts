@@ -46,7 +46,9 @@ const AI: [string, string, string, ChunkType][] = [
   ['温かいです', 'あたたかいです', '따뜻해요', 'FEELING'], ['ストロー', 'すとろー', '빨대', 'NAME'], ['カップ', 'かっぷ', '컵', 'NAME'], ['大きい', 'おおきい', '크다', 'FEELING'],
 ]
 const aiWords = (n: number, from = 0): TopicWordsOutput['words'] => AI.slice(from, from + n).map(([textJa, reading, meaningKo, chunkType]) => ({ textJa, reading, meaningKo, chunkType, jlpt: 'N5' as const, valid: true }))
-const toCandidate = (w: TopicWordsOutput['words'][number]): TopicWordCandidate => ({ textJa: w.textJa, reading: w.reading, meaningKo: w.meaningKo, chunkType: w.chunkType, jlpt: w.jlpt === 'null' ? null : w.jlpt })
+const toCandidate = (w: TopicWordsOutput['words'][number]): TopicWordCandidate => ({
+  textJa: w.textJa, reading: w.reading, meaningKo: w.meaningKo, chunkType: w.chunkType, jlpt: w.jlpt === 'null' ? null : w.jlpt, exampleJa: w.exampleJa ?? null, exampleKo: w.exampleKo ?? null,
+})
 const candidates = (n: number, from = 0): TopicWordCandidate[] => aiWords(n, from).map(toCandidate)
 
 function lessonContent(chunks: StoredLessonContent['chunks']): StoredLessonContent {
@@ -383,7 +385,7 @@ test('구성: 새 단어 13 → 앞에서 10장(AI)·시드 셔플 재현 / 7 �
   assert.equal(b.cards.length, 10)
   assert.equal(b.cards.filter((c) => c.refType === 'TopicChunk').length, 3)
   // 새 단어가 기본 표현과 표기가 같으면(정규화) 그 기본 표현은 채움에서 빠진다 · 오늘 답한 키의 새 단어는 버린다.
-  const dup: TopicWordCandidate = { textJa: 'コーヒー', reading: 'こーひー', meaningKo: '커피', chunkType: 'NAME', jlpt: null }
+  const dup: TopicWordCandidate = { textJa: 'コーヒー', reading: 'こーひー', meaningKo: '커피', chunkType: 'NAME', jlpt: null, exampleJa: null, exampleKo: null }
   const answered = new Set([cardRepetitionKey('Expr', repetitionRefId('砂糖'))])
   const c = composeTopicCards({ ...base, answered, count: 12, fresh: [dup, ...candidates(2)], rng: rng() })
   assert.equal(c.cards.filter((x) => x.surface === 'コーヒー').length, 1)
@@ -419,7 +421,7 @@ test('구성: 풀까지 비면 0장(빈 상태는 호출자) · 카드 출처 �
 })
 
 test('서버 재검사(⑥·칸 폭): 전체 제외 집합과 정규화 표기가 같으면·앞 항목과 같으면·표기 >80·읽기 >120·뜻 >200·이상한 종류 → 버림', () => {
-  const w = (textJa: string, extra: Partial<TopicWordCandidate> = {}): TopicWordCandidate => ({ textJa, reading: 'よみ', meaningKo: '뜻', chunkType: 'NAME', jlpt: null, ...extra })
+  const w = (textJa: string, extra: Partial<TopicWordCandidate> = {}): TopicWordCandidate => ({ textJa, reading: 'よみ', meaningKo: '뜻', chunkType: 'NAME', jlpt: null, exampleJa: null, exampleKo: null, ...extra })
   const out = recheckTopicWords([
     w('コーヒー。'), w('砂糖'), w('砂糖 '), w('あ'.repeat(81)), w('長い', { reading: 'な'.repeat(121) }), w('意味', { meaningKo: '가'.repeat(201) }),
     w('種類', { chunkType: 'OTHER' as ChunkType }), w('牛乳'),
@@ -892,14 +894,8 @@ const exKo = (t: string) => `${t} 부탁해요.`
 const aiWordsEx = (n: number, odd: Record<number, { exampleJa?: string | null; exampleKo?: string | null }> = {}): TopicWordsOutput['words'] =>
   aiWords(n).map((w, i) => ({ ...w, exampleJa: exJa(w.textJa), exampleKo: exKo(w.meaningKo), ...odd[i] }))
 
-/** 운영 driver 처럼 예문 칸을 그대로 넘긴다(L2 `assembleTopicWords` 의 `TopicWord` 와 같은 모양). */
-const exDriver: TopicWordsDriver = {
-  ...passDriver,
-  assemble: (raw) => {
-    const list = (raw as TopicWordsOutput).words
-    return { words: list.filter((w) => w.valid).map((w) => ({ ...toCandidate(w), exampleJa: w.exampleJa ?? null, exampleKo: w.exampleKo ?? null })), received: list.length }
-  },
-}
+/** 가짜 driver — `toCandidate` 가 예문 칸을 그대로 넘긴다(L2 `assembleTopicWords` 의 `TopicWord` 와 같은 모양). 진짜 L2 조합은 app 층 시험 `src/app/api/v1/__tests__/task049TopicWordsSeam.test.ts`(learning 시험은 6층 lint 로 conversation 을 import 할 수 없다). */
+const exDriver: TopicWordsDriver = passDriver
 
 const exHarness = (odd: Parameters<typeof aiWordsEx>[1] = {}) => harness(async () => ({ data: { words: aiWordsEx(13, odd) }, connectionKey: 'conn', model: 'm', attempts: 1, promptChars: 900 }))
 const rowsOf = (h: Harness, sessionId: string) => h.db.attempts.filter((a) => a.sessionId === sessionId)
@@ -921,6 +917,23 @@ test('task-049 쌍 정규화: 둘 다 비지 않은 문자열·각 ≤300 일 �
   ], [])
   assert.equal(words.length, 4, '단어 4개 모두 통과')
   assert.deepEqual(words.map((w) => [w.exampleJa, w.exampleKo]), [['あ', '가'], [null, null], [null, null], [null, null]])
+})
+
+test('task-049 서로게이트 경계(REV-177 L-1): 예문 상한 300 은 UTF-16 길이가 아니라 코드포인트 — 𠮷×300(UTF-16 600)은 통과 · ×301 은 둘 다 null(단어는 유지)', () => {
+  const kanji = '\u{20BB7}' // 𠮷 — 서로게이트 쌍 한 글자(UTF-16 2칸)
+  const ja300 = kanji.repeat(TOPIC_CARD_EXAMPLE_MAX)
+  assert.equal(ja300.length, TOPIC_CARD_EXAMPLE_MAX * 2, '전제: UTF-16 길이는 600')
+  assert.equal([...ja300].length, TOPIC_CARD_EXAMPLE_MAX)
+  assert.deepEqual(topicExamplePair(ja300, '가'), { example: ja300, exampleKo: '가' }, '300 코드포인트는 통과')
+  assert.deepEqual(topicExamplePair(ja300 + kanji, '가'), { example: null, exampleKo: null }, '301 코드포인트는 둘 다 null')
+  assert.deepEqual(topicExamplePair('あ', ja300), { example: 'あ', exampleKo: ja300 }, '번역 쪽도 같은 기준')
+  assert.deepEqual(topicExamplePair('あ', ja300 + kanji), { example: null, exampleKo: null })
+  // 서버 재검사 경로도 같은 기준 — 단어는 둘 다 남고 예문만 갈린다.
+  const words = recheckTopicWords([
+    { ...candidates(1)[0], exampleJa: ja300, exampleKo: '가' },
+    { ...candidates(1, 1)[0], exampleJa: ja300 + kanji, exampleKo: '가' },
+  ], [])
+  assert.deepEqual(words.map((w) => [w.exampleJa, w.exampleKo]), [[ja300, '가'], [null, null]])
 })
 
 test('task-049 #47 첫 세트 저장: AiWord 카드 행마다 exampleSnap·exampleKoSnap(같은 create) · 한쪽만·301자는 둘 다 null(단어 카드는 유지) · B1 채움 카드는 칸 없음', async () => {
