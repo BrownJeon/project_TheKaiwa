@@ -1,0 +1,732 @@
+{
+ "version": "topicWords@v2",
+ "note": "task-049 A12 예문(exampleJa·exampleKo) 회귀 픽스처 — 합성 입력만. pairs = checkTopicExample 한 쌍 검사(경계·정책), responses = 응답 전체 조립(예문 불량이 단어를 버리지 않음). 기존 6필드 검사는 topic-words.json 이 맡는다.",
+ "pairs": [
+  {
+   "id": "e01",
+   "note": "정상 — 카페 문장",
+   "input": {
+    "ja": "カフェでコーヒーを飲みます。",
+    "ko": "카페에서 커피를 마십니다."
+   },
+   "expect": {
+    "reason": null
+   }
+  },
+  {
+   "id": "e02",
+   "note": "정상 — 인사",
+   "input": {
+    "ja": "ありがとうございます。",
+    "ko": "감사합니다."
+   },
+   "expect": {
+    "reason": null
+   }
+  },
+  {
+   "id": "e03",
+   "note": "정상 — 가타카나 위주 + 반각 느낌표 없음",
+   "input": {
+    "ja": "コーヒーをください。",
+    "ko": "커피를 주세요."
+   },
+   "expect": {
+    "reason": null
+   }
+  },
+  {
+   "id": "e04",
+   "note": "정상 — 「」·숫자",
+   "input": {
+    "ja": "「いらっしゃいませ」と言います。3つください。",
+    "ko": "\"어서 오세요\"라고 합니다. 세 개 주세요."
+   },
+   "expect": {
+    "reason": null
+   }
+  },
+  {
+   "id": "e05",
+   "note": "정상 — 앞뒤 공백은 제거해 돌려준다",
+   "input": {
+    "ja": "  水をください。 ",
+    "ko": " 물을 주세요. "
+   },
+   "expect": {
+    "reason": null
+   }
+  },
+  {
+   "id": "e06",
+   "note": "정확히 60자 일본어 + 정확히 100자 한국어 = 통과(상한 경계)",
+   "input": {
+    "ja": "ああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ",
+    "ko": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+   },
+   "expect": {
+    "reason": null
+   }
+  },
+  {
+   "id": "e07",
+   "note": "일본어 61자 → EXAMPLE_JA_LEN",
+   "input": {
+    "ja": "あああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ",
+    "ko": "가나다라마바사"
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_LEN"
+   }
+  },
+  {
+   "id": "e08",
+   "note": "한국어 101자 → EXAMPLE_KO_LEN",
+   "input": {
+    "ja": "水をください。",
+    "ko": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+   },
+   "expect": {
+    "reason": "EXAMPLE_KO_LEN"
+   }
+  },
+  {
+   "id": "e09",
+   "note": "후리가나 반각 괄호 → EXAMPLE_JA_CHARS",
+   "input": {
+    "ja": "飲(の)みます。",
+    "ko": "마십니다."
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_CHARS"
+   }
+  },
+  {
+   "id": "e10",
+   "note": "후리가나 전각 괄호 → EXAMPLE_JA_CHARS",
+   "input": {
+    "ja": "飲（の）みます。",
+    "ko": "마십니다."
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_CHARS"
+   }
+  },
+  {
+   "id": "e11",
+   "note": "일본어 안 한글 → EXAMPLE_JA_CHARS",
+   "input": {
+    "ja": "カフェで 커피を飲みます。",
+    "ko": "마십니다."
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_CHARS"
+   }
+  },
+  {
+   "id": "e12",
+   "note": "일본어 안 로마자 → EXAMPLE_JA_CHARS(정책: 로마자 불허)",
+   "input": {
+    "ja": "Wi-Fiを使います。",
+    "ko": "와이파이를 씁니다."
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_CHARS"
+   }
+  },
+  {
+   "id": "e13",
+   "note": "가나 없는 한자만 → EXAMPLE_JA_CHARS",
+   "input": {
+    "ja": "今日天気",
+    "ko": "오늘 날씨"
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_CHARS"
+   }
+  },
+  {
+   "id": "e14",
+   "note": "일본어 안 개행 → EXAMPLE_JA_CHARS",
+   "input": {
+    "ja": "水を\nください。",
+    "ko": "물을 주세요."
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_CHARS"
+   }
+  },
+  {
+   "id": "e15",
+   "note": "일본어 안 ASCII 따옴표 → EXAMPLE_JA_CHARS(정책 기록)",
+   "input": {
+    "ja": "\"こんにちは\"と言います。",
+    "ko": "안녕하세요라고 합니다."
+   },
+   "expect": {
+    "reason": "EXAMPLE_JA_CHARS"
+   }
+  },
+  {
+   "id": "e16",
+   "note": "한국어에 한글 없음(영어) → EXAMPLE_KO_CHARS",
+   "input": {
+    "ja": "水をください。",
+    "ko": "Please give me water."
+   },
+   "expect": {
+    "reason": "EXAMPLE_KO_CHARS"
+   }
+  },
+  {
+   "id": "e17",
+   "note": "한국어에 가나 섞임 → EXAMPLE_KO_CHARS",
+   "input": {
+    "ja": "水をください。",
+    "ko": "물을 ください."
+   },
+   "expect": {
+    "reason": "EXAMPLE_KO_CHARS"
+   }
+  },
+  {
+   "id": "e18",
+   "note": "한국어에 한자 섞임 → EXAMPLE_KO_CHARS",
+   "input": {
+    "ja": "水をください。",
+    "ko": "물을 下さい."
+   },
+   "expect": {
+    "reason": "EXAMPLE_KO_CHARS"
+   }
+  },
+  {
+   "id": "e19",
+   "note": "한국어 안 개행 → EXAMPLE_KO_CHARS",
+   "input": {
+    "ja": "水をください。",
+    "ko": "물을\n주세요."
+   },
+   "expect": {
+    "reason": "EXAMPLE_KO_CHARS"
+   }
+  },
+  {
+   "id": "e20",
+   "note": "일본어 빈 문자열 → EXAMPLE_MISSING",
+   "input": {
+    "ja": "",
+    "ko": "물을 주세요."
+   },
+   "expect": {
+    "reason": "EXAMPLE_MISSING"
+   }
+  },
+  {
+   "id": "e21",
+   "note": "공백만 → EXAMPLE_MISSING",
+   "input": {
+    "ja": "   ",
+    "ko": "   "
+   },
+   "expect": {
+    "reason": "EXAMPLE_MISSING"
+   }
+  },
+  {
+   "id": "e22",
+   "note": "한국어만 비어 있음 → 쌍 전체 null(EXAMPLE_MISSING)",
+   "input": {
+    "ja": "水をください。",
+    "ko": ""
+   },
+   "expect": {
+    "reason": "EXAMPLE_MISSING"
+   }
+  },
+  {
+   "id": "e23",
+   "note": "둘 다 JSON null → EXAMPLE_MISSING",
+   "input": {
+    "ja": null,
+    "ko": null
+   },
+   "expect": {
+    "reason": "EXAMPLE_MISSING"
+   }
+  },
+  {
+   "id": "e24",
+   "note": "키 없음(v1 모양) → EXAMPLE_MISSING",
+   "input": {
+    "omit": true
+   },
+   "expect": {
+    "reason": "EXAMPLE_MISSING"
+   }
+  },
+  {
+   "id": "e25",
+   "note": "숫자 타입 → EXAMPLE_TYPE",
+   "input": {
+    "ja": 123,
+    "ko": "물을 주세요."
+   },
+   "expect": {
+    "reason": "EXAMPLE_TYPE"
+   }
+  },
+  {
+   "id": "e26",
+   "note": "배열 타입 → EXAMPLE_TYPE",
+   "input": {
+    "ja": "水をください。",
+    "ko": [
+     "물"
+    ]
+   },
+   "expect": {
+    "reason": "EXAMPLE_TYPE"
+   }
+  },
+  {
+   "id": "e27",
+   "note": "일본어에 엔진명 → EXAMPLE_ENGINE_NAME(문자 검사보다 먼저)",
+   "input": {
+    "ja": "haikuがつくった文です。",
+    "ko": "만든 문장입니다."
+   },
+   "expect": {
+    "reason": "EXAMPLE_ENGINE_NAME"
+   }
+  },
+  {
+   "id": "e28",
+   "note": "한국어에 엔진명 → EXAMPLE_ENGINE_NAME",
+   "input": {
+    "ja": "水をください。",
+    "ko": "Claude 가 만든 번역"
+   },
+   "expect": {
+    "reason": "EXAMPLE_ENGINE_NAME"
+   }
+  }
+ ],
+ "responses": [
+  {
+   "id": "x01",
+   "note": "예문 3개 모두 정상 → 단어 3·예문 null 0",
+   "level": "N5",
+   "target": 3,
+   "response": {
+    "words": [
+     {
+      "textJa": "砂糖",
+      "reading": "さとう",
+      "meaningKo": "설탕",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
+     },
+     {
+      "textJa": "ミルク",
+      "reading": "ミルク",
+      "meaningKo": "우유",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
+     },
+     {
+      "textJa": "注文",
+      "reading": "ちゅうもん",
+      "meaningKo": "주문",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
+     }
+    ]
+   },
+   "expect": {
+    "schema": true,
+    "kept": 3,
+    "dropped": {},
+    "nulled": 0,
+    "nulledByReason": {},
+    "exampleOk": [
+     true,
+     true,
+     true
+    ]
+   }
+  },
+  {
+   "id": "x02",
+   "note": "단어 4개 — 예문 불량 3종(한글 섞임·null·길이 초과)이어도 단어 4개 전부 통과, 예문만 null",
+   "level": "N5",
+   "target": 4,
+   "response": {
+    "words": [
+     {
+      "textJa": "砂糖",
+      "reading": "さとう",
+      "meaningKo": "설탕",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
+     },
+     {
+      "textJa": "ミルク",
+      "reading": "ミルク",
+      "meaningKo": "우유",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "ミルク를ください。",
+      "exampleKo": "우유를 주세요."
+     },
+     {
+      "textJa": "注文",
+      "reading": "ちゅうもん",
+      "meaningKo": "주문",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": null,
+      "exampleKo": null
+     },
+     {
+      "textJa": "お水",
+      "reading": "おみず",
+      "meaningKo": "물",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "あああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ",
+      "exampleKo": "물을 주세요."
+     }
+    ]
+   },
+   "expect": {
+    "schema": true,
+    "kept": 4,
+    "dropped": {},
+    "nulled": 3,
+    "nulledByReason": {
+     "EXAMPLE_JA_CHARS": 1,
+     "EXAMPLE_MISSING": 1,
+     "EXAMPLE_JA_LEN": 1
+    },
+    "exampleOk": [
+     true,
+     false,
+     false,
+     false
+    ],
+    "classify": {
+     "source": "AI",
+     "reason": null,
+     "fill": 0
+    }
+   }
+  },
+  {
+   "id": "x03",
+   "note": "단어 검사에서 버려지는 항목은 예문 검사를 하지 않는다 — valid=false(불량 예문 Wi-Fi)·읽기 불일치(불량 예문)는 NOT_VALID/READING_MISMATCH 만 세고 예문 null 로는 세지 않는다",
+   "level": "N5",
+   "target": 3,
+   "response": {
+    "words": [
+     {
+      "textJa": "砂糖",
+      "reading": "さとう",
+      "meaningKo": "설탕",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
+     },
+     {
+      "textJa": "ミルク",
+      "reading": "ミルク",
+      "meaningKo": "우유",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": false,
+      "exampleJa": "Wi-Fi",
+      "exampleKo": "x"
+     },
+     {
+      "textJa": "注文",
+      "reading": "ちゅうもん",
+      "meaningKo": "주문",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
+     },
+     {
+      "textJa": "お願いします",
+      "reading": "ねがいします",
+      "meaningKo": "부탁합니다",
+      "chunkType": "ACTION",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "Wi-Fi",
+      "exampleKo": "x"
+     }
+    ]
+   },
+   "expect": {
+    "schema": true,
+    "kept": 2,
+    "dropped": {
+     "NOT_VALID": 1,
+     "READING_MISMATCH": 1
+    },
+    "nulled": 0,
+    "nulledByReason": {},
+    "exampleOk": [
+     true,
+     true
+    ]
+   }
+  },
+  {
+   "id": "x04",
+   "note": "v1 모양 응답(예문 키 없음) — 스키마는 required 라 위반이지만 조립은 단어를 모두 통과시키고 예문 null(EXAMPLE_MISSING)",
+   "level": "N5",
+   "target": 2,
+   "response": {
+    "words": [
+     {
+      "textJa": "砂糖",
+      "reading": "さとう",
+      "meaningKo": "설탕",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true
+     },
+     {
+      "textJa": "ミルク",
+      "reading": "ミルク",
+      "meaningKo": "우유",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": true
+     }
+    ]
+   },
+   "expect": {
+    "schema": false,
+    "kept": 2,
+    "dropped": {},
+    "nulled": 2,
+    "nulledByReason": {
+     "EXAMPLE_MISSING": 2
+    },
+    "exampleOk": [
+     false,
+     false
+    ]
+   }
+  },
+  {
+   "id": "x05",
+   "note": "스키마 밖 키 note — 그대로면 위반, strip 이면 통과하고 예문은 그대로 산다",
+   "level": "N5",
+   "target": 2,
+   "response": {
+    "words": [
+     {
+      "textJa": "砂糖",
+      "reading": "さとう",
+      "meaningKo": "설탕",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요.",
+      "note": "x"
+     },
+     {
+      "textJa": "ミルク",
+      "reading": "ミルク",
+      "meaningKo": "우유",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요.",
+      "note": "y"
+     }
+    ]
+   },
+   "expect": {
+    "schema": false,
+    "schemaWithStrip": true,
+    "kept": 2,
+    "dropped": {},
+    "nulled": 0,
+    "nulledByReason": {},
+    "exampleOk": [
+     true,
+     true
+    ]
+   }
+  },
+  {
+   "id": "x06",
+   "note": "예문에 표기가 없어도(활용형·다른 단어) 하드 실패가 아니다 — 단어·예문 모두 통과",
+   "level": "N5",
+   "target": 2,
+   "response": {
+    "words": [
+     {
+      "textJa": "飲みます",
+      "reading": "のみます",
+      "meaningKo": "마십니다",
+      "chunkType": "ACTION",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "朝は紅茶を飲む。",
+      "exampleKo": "아침에는 홍차를 마신다."
+     },
+     {
+      "textJa": "おいしいです",
+      "reading": "おいしいです",
+      "meaningKo": "맛있습니다",
+      "chunkType": "FEELING",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "この店のパンは最高だ。",
+      "exampleKo": "이 가게의 빵은 최고다."
+     }
+    ]
+   },
+   "expect": {
+    "schema": true,
+    "kept": 2,
+    "dropped": {},
+    "nulled": 0,
+    "nulledByReason": {},
+    "exampleOk": [
+     true,
+     true
+    ]
+   }
+  },
+  {
+   "id": "x07",
+   "note": "예문이 전부 불량이어도 단어 생성 성공률은 그대로 — 통과 3장 = AI(MIXED/TOPIC 으로 떨어지지 않음)",
+   "level": "N5",
+   "target": 3,
+   "response": {
+    "words": [
+     {
+      "textJa": "砂糖",
+      "reading": "さとう",
+      "meaningKo": "설탕",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "sugar",
+      "exampleKo": "sugar"
+     },
+     {
+      "textJa": "ミルク",
+      "reading": "ミルク",
+      "meaningKo": "우유",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": "",
+      "exampleKo": ""
+     },
+     {
+      "textJa": "注文",
+      "reading": "ちゅうもん",
+      "meaningKo": "주문",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "飲(の)む",
+      "exampleKo": "x"
+     }
+    ]
+   },
+   "expect": {
+    "schema": true,
+    "kept": 3,
+    "dropped": {},
+    "nulled": 3,
+    "nulledByReason": {
+     "EXAMPLE_JA_CHARS": 2,
+     "EXAMPLE_MISSING": 1
+    },
+    "exampleOk": [
+     false,
+     false,
+     false
+    ],
+    "classify": {
+     "source": "AI",
+     "reason": null,
+     "fill": 0
+    }
+   }
+  },
+  {
+   "id": "x08",
+   "note": "예문 둘 중 하나만 모델이 null — 쌍 전체 null, 단어 유지",
+   "level": "N5",
+   "target": 2,
+   "response": {
+    "words": [
+     {
+      "textJa": "砂糖",
+      "reading": "さとう",
+      "meaningKo": "설탕",
+      "chunkType": "NAME",
+      "jlpt": "N4",
+      "valid": true,
+      "exampleJa": "砂糖は甘いです。",
+      "exampleKo": null
+     },
+     {
+      "textJa": "ミルク",
+      "reading": "ミルク",
+      "meaningKo": "우유",
+      "chunkType": "NAME",
+      "jlpt": "N5",
+      "valid": true,
+      "exampleJa": null,
+      "exampleKo": "우유를 마십니다."
+     }
+    ]
+   },
+   "expect": {
+    "schema": true,
+    "kept": 2,
+    "dropped": {},
+    "nulled": 2,
+    "nulledByReason": {
+     "EXAMPLE_MISSING": 2
+    },
+    "exampleOk": [
+     false,
+     false
+    ]
+   }
+  }
+ ]
+}

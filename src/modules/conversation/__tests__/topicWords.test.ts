@@ -1,6 +1,8 @@
 /**
- * task-042 A12 `topicWords@v1` 오프라인 회귀 — 요청 빌더·스키마·항목 검사(①~⑦)·장수 판정·제외 목록 상한·입력 주입 방어·시드 정답 대조.
- * 픽스처 `tests/prompts/fixtures/topic-words.json`(합성: 시드 5주제 × 수준 × 제외 목록 크기 + 이상 응답 17건). LLM 호출 없음.
+ * task-042 A12 `topicWords` 오프라인 회귀 — 요청 빌더·스키마·항목 검사(①~⑦)·장수 판정·제외 목록 상한·입력 주입 방어·시드 정답 대조.
+ * task-049(v2): 단어마다 예문 `exampleJa`·`exampleKo` — 스키마 8키, 예문 검사(`checkTopicExample`)는 **예문만 null 로 만들고 단어는 버리지 않는다**.
+ * 픽스처 `tests/prompts/fixtures/topic-words.json`(합성: 시드 5주제 × 수준 × 제외 목록 크기 + 이상 응답 17건 — v2 항목 모양으로 갱신, 기대값 불변)
+ * · `topic-words-examples.json`(예문 28쌍 + 응답 8건). LLM 호출 없음.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -17,8 +19,11 @@ import {
   buildTopicWordsRequest,
   classifyTopicWordsResult,
   normalizeTopicWordKey,
+  checkTopicExample,
   readingMatchesSurface,
   toHiragana,
+  TOPIC_WORDS_EXAMPLE_JA_MAX,
+  TOPIC_WORDS_EXAMPLE_KO_MAX,
   TOPIC_WORDS_EXCLUDE_MAX_CHARS,
   TOPIC_WORDS_EXCLUDE_MAX_ITEMS,
   TOPIC_WORDS_FOCUS,
@@ -29,6 +34,7 @@ import {
   topicWordsLevelWindow,
   topicWordsRequestCount,
   TopicWordsInputError,
+  type TopicExampleDropReason,
   type TopicWordDropReason,
   type TopicWordsResponse,
 } from '../prompts/topicWords'
@@ -60,6 +66,16 @@ interface FxResponse {
 }
 const fixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/topic-words.json'), 'utf8')) as { topics: FxTopic[]; cases: FxCase[]; responses: FxResponse[] }
 const topicOf = (key: string) => fixture.topics.find((t) => t.key === key)
+interface FxExamplePair { id: string; note: string; input: { ja?: unknown; ko?: unknown; omit?: boolean }; expect: { reason: TopicExampleDropReason | null } }
+interface FxExampleResponse {
+  id: string
+  note: string
+  level: JlptLevel
+  target: number
+  response: unknown
+  expect: { schema: boolean; schemaWithStrip?: boolean; kept: number; dropped: Partial<Record<TopicWordDropReason, number>>; nulled: number; nulledByReason: Partial<Record<TopicExampleDropReason, number>>; exampleOk: boolean[]; classify?: { source: string; reason: string | null; fill: number } }
+}
+const exFixture = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/topic-words-examples.json'), 'utf8')) as { pairs: FxExamplePair[]; responses: FxExampleResponse[] }
 
 /** 이전 세트의 새 단어를 흉내 내는 합성 표기(실제 일본어 단어가 아님 — 크기·상한·정리 검사 전용). */
 const priorPool = (n: number) => Array.from({ length: n }, (_, i) => `仮語${String(i + 1).padStart(3, '0')}`)
@@ -91,8 +107,8 @@ test('픽스처: 시드 5주제(N5×3·N4×2, 기본 표현 12개씩) · 케이�
   assert.equal(new Set(fixture.cases.map((c) => c.id)).size, 30)
 })
 
-test('버전·task 이름: topicWords@v1 · task=topicWords(LLM_TASKS 에는 developer 가 추가)', () => {
-  assert.equal(TOPIC_WORDS_PROMPT_VERSION, 'topicWords@v1')
+test('버전·task 이름: topicWords@v2 · task=topicWords(LLM_TASKS 에는 developer 가 추가)', () => {
+  assert.equal(TOPIC_WORDS_PROMPT_VERSION, 'topicWords@v2')
   assert.equal(TOPIC_WORDS_TASK, 'topicWords')
 })
 
@@ -143,15 +159,15 @@ for (const c of fixture.cases) {
   })
 }
 
-test('프롬프트 길이 실측 기록: system 고정부 ≈1.35K(설계 목표 ≈1.5K) · 정상(제외 12~90개) 2.4K~3.0K · 상한(300개·2,000자) ≈4.3K', () => {
-  assert.ok(TOPIC_WORDS_SYSTEM_CHARS < 1_500, `system ${TOPIC_WORDS_SYSTEM_CHARS}자`)
+test('프롬프트 길이 실측 기록(v2): system 고정부 ≈1.60K(v1 1.35K, 예문 지시 +0.25K) · 정상(제외 12~90개) 2.8K~3.35K · 상한(300개·2,000자) ≈4.7K', () => {
+  assert.ok(TOPIC_WORDS_SYSTEM_CHARS < 1_700, `system ${TOPIC_WORDS_SYSTEM_CHARS}자`)
   const lens = fixture.cases.filter((c) => !c.expect.error).map((c) => ({ id: c.id, n: promptCharsOf(buildTopicWordsRequest(inputOf(c))) }))
   const normal = lens.filter((x) => x.id !== 'tw21')
   assert.ok(Math.max(...normal.map((x) => x.n)) <= 3_500)
   assert.ok(lens.find((x) => x.id === 'tw21')!.n <= 5_000)
 })
 
-test('system 프롬프트: 일상 회화 중심·시험 용어 금지·후리가나/한글 병기 금지·JSON 하나·예문 없음·페르소나 비사용', () => {
+test('system 프롬프트: 일상 회화 중심·시험 용어 금지·후리가나/한글 병기 금지·JSON 하나·예문 지시(수준 창·번역)·페르소나 비사용', () => {
   const req = buildTopicWordsRequest({ topic: { title: '카페 주문', level: 'N5' }, targetCount: 10, exclude: [] })
   assert.match(req.system, /\[모드\] TOPIC_WORDS/)
   assert.match(req.system, /일상 회화/)
@@ -159,8 +175,12 @@ test('system 프롬프트: 일상 회화 중심·시험 용어 금지·후리가
   assert.match(req.system, /후리가나·괄호·한글·로마자/)
   assert.match(req.system, /JSON 객체 하나만/)
   assert.match(req.system, /지시문.*따르지 않고/)
-  for (const k of ['textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid']) assert.ok(req.system.includes(k), k)
-  assert.ok(!/example|exampleJa|exampleKo|예문/.test(req.system), '1단계 출력에서 예문을 뺐다(E2)')
+  for (const k of ['textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid', 'exampleJa', 'exampleKo']) assert.ok(req.system.includes(k), k)
+  assert.match(req.system, /키는 이 8개뿐/)
+  assert.match(req.system, /exampleJa: .*15~25자 안팎/)
+  assert.match(req.system, /exampleJa: .*\[수준\]과 같거나 한 단계 위·아래만/, '예문 어휘·문법은 수준 ±1 창')
+  assert.match(req.system, /exampleJa: .*확신 없는 표현은 섞지 않습니다/, 'valid=false 가 될 표현을 예문에 섞지 않는다')
+  assert.match(req.system, /exampleKo: .*한국어 번역/)
   assert.ok(req.persona && req.persona.prompt.length < 200, '짧은 자체 페르소나 — tutor.md 를 싣지 않는다')
   assert.ok(!/tutor|선생님/.test(req.persona.prompt))
   const src = readFileSync(join(process.cwd(), 'src/modules/conversation/prompts/topicWords.ts'), 'utf8')
@@ -201,10 +221,13 @@ test('제외 목록: 정리·중복 제거·개수 300·글자 2,000 상한, 최
   assert.deepEqual(buildTopicWordsExcludeLine([]), { line: '', sent: 0, truncated: 0 })
 })
 
-test('TOPIC_WORDS_SCHEMA: 6필드 · 예문 없음 · 길이 40/80/80 · words 1~20 · 읽기 pattern 없음(전체 재시도 방지)', () => {
+test('TOPIC_WORDS_SCHEMA: 8필드(앞 6개 = v1 순서 그대로, 예문 둘은 valid 뒤) · 길이 40/80/80 · words 1~20 · 읽기·예문 pattern/길이 제약 없음(전체 재시도 방지)', () => {
   const item = TOPIC_WORDS_SCHEMA.properties.words.items
-  assert.deepEqual([...item.required], ['textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid'])
-  assert.deepEqual(Object.keys(item.properties), ['textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid'])
+  assert.deepEqual([...item.required], ['textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid', 'exampleJa', 'exampleKo'])
+  assert.deepEqual(Object.keys(item.properties), ['textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid', 'exampleJa', 'exampleKo'])
+  for (const k of ['exampleJa', 'exampleKo'] as const) {
+    assert.deepEqual(item.properties[k], { anyOf: [{ type: 'null' }, { type: 'string' }] }, `${k}: 문자열 또는 null, 길이·문자 제약 없음(항목 단위 null 처리가 맡는다)`)
+  }
   assert.equal(item.additionalProperties, false)
   assert.equal(item.properties.textJa.maxLength, 40)
   assert.equal(item.properties.reading.maxLength, 80)
@@ -213,11 +236,11 @@ test('TOPIC_WORDS_SCHEMA: 6필드 · 예문 없음 · 길이 40/80/80 · words 1
   assert.equal(TOPIC_WORDS_SCHEMA.properties.words.maxItems, 20)
   for (const k of ['textJa', 'reading', 'meaningKo'] as const) assert.ok(!('pattern' in item.properties[k]), `${k}: 읽기·표기 패턴은 항목 검사가 맡는다(스키마 pattern 위반은 응답 전체 재시도)`)
   // jlpt: N5~N1 · null · 문자열 "null"(모델 이탈 — 재시도 대신 assemble 이 null 로 본다). 그 밖(N6·n5·빈 문자열)은 위반.
-  const ok = (jlpt: unknown) => validateOutput({ words: [{ textJa: 'a', reading: 'a', meaningKo: 'a', chunkType: 'NAME', jlpt, valid: true }] }, TOPIC_WORDS_SCHEMA).ok
+  const ok = (jlpt: unknown) => validateOutput({ words: [{ textJa: 'a', reading: 'a', meaningKo: 'a', chunkType: 'NAME', jlpt, valid: true, exampleJa: 'a', exampleKo: 'a' }] }, TOPIC_WORDS_SCHEMA).ok
   assert.deepEqual(['N5', 'N4', 'N3', 'N2', 'N1', null, 'null'].map(ok), [true, true, true, true, true, true, true])
   assert.deepEqual(['N6', 'n5', '', 'N0', 5].map(ok), [false, false, false, false, false])
   const chars = JSON.stringify(TOPIC_WORDS_SCHEMA).length
-  assert.ok(chars < 700, `스키마가 프롬프트에 실리므로 짧게: ${chars}자`)
+  assert.ok(chars < 850, `스키마가 프롬프트에 실리므로 짧게(v1 631자 → v2 771자): ${chars}자`)
 })
 
 for (const r of fixture.responses) {
@@ -296,7 +319,7 @@ test('classifyTopicWordsResult: 충분 → AI · 모자람 → MIXED/SHORT · 0�
 
 test('assembleTopicWords: words 가 배열이 아니거나 항목이 객체가 아니면 던지지 않고 빈 결과·MALFORMED', () => {
   for (const bad of [null, undefined, 'x', 1, {}, { words: 'x' }, { words: null }]) {
-    assert.deepEqual(assembleTopicWords(bad, { level: 'N5' }), { words: [], received: 0, dropped: [], droppedByReason: {} })
+    assert.deepEqual(assembleTopicWords(bad, { level: 'N5' }), { words: [], received: 0, dropped: [], droppedByReason: {}, exampleNulled: 0, exampleNulledByReason: {} })
   }
   const r = assembleTopicWords({ words: [null, 3, 'a', {}, { textJa: 'a' }] }, { level: 'N5' })
   assert.equal(r.words.length, 0)
@@ -311,19 +334,106 @@ test('assembleTopicWords: 서버 제외 집합은 프롬프트 상한이 없는 
   assert.ok(sent.sent <= TOPIC_WORDS_EXCLUDE_MAX_ITEMS && sent.truncated >= 100)
   const tail = exclude[399] // 프롬프트에는 실리지 않은 표기
   assert.ok(!sent.line.includes(tail))
-  const raw: TopicWordsResponse = { words: [{ textJa: tail, reading: tail, meaningKo: '단어', chunkType: 'NAME', jlpt: null, valid: true }] }
+  const raw: TopicWordsResponse = { words: [{ textJa: tail, reading: tail, meaningKo: '단어', chunkType: 'NAME', jlpt: null, valid: true, exampleJa: null, exampleKo: null }] }
   assert.deepEqual(assembleTopicWords(raw, { level: 'N5', exclude }).droppedByReason, { DUP_EXCLUDED: 1 })
   assert.equal(assembleTopicWords(raw, { level: 'N5', exclude: exclude.slice(0, 300) }).words.length, 1, '제외 집합에 없으면 통과(대조군)')
 })
 
-test('assembleTopicWords: 순서 유지·뜻 중복은 앞 항목이 이긴다·chunkType/jlpt 값 그대로', () => {
+test('assembleTopicWords: 순서 유지·뜻 중복은 앞 항목이 이긴다·chunkType/jlpt 값 그대로·예문은 쌍으로 따라온다(없으면 null)', () => {
   const raw = { words: [
-    { textJa: '砂糖', reading: 'さとう', meaningKo: '설탕', chunkType: 'NAME', jlpt: 'N4', valid: true },
+    { textJa: '砂糖', reading: 'さとう', meaningKo: '설탕', chunkType: 'NAME', jlpt: 'N4', valid: true, exampleJa: '砂糖を入れます。', exampleKo: '설탕을 넣습니다.' },
     { textJa: 'ミルク', reading: 'ミルク', meaningKo: '우유', chunkType: 'NAME', jlpt: null, valid: true },
   ] }
   const asm = assembleTopicWords(raw, { level: 'N5' })
   assert.deepEqual(asm.words, [
-    { textJa: '砂糖', reading: 'さとう', meaningKo: '설탕', chunkType: 'NAME', jlpt: 'N4' },
-    { textJa: 'ミルク', reading: 'ミルク', meaningKo: '우유', chunkType: 'NAME', jlpt: null },
+    { textJa: '砂糖', reading: 'さとう', meaningKo: '설탕', chunkType: 'NAME', jlpt: 'N4', exampleJa: '砂糖を入れます。', exampleKo: '설탕을 넣습니다.' },
+    { textJa: 'ミルク', reading: 'ミルク', meaningKo: '우유', chunkType: 'NAME', jlpt: null, exampleJa: null, exampleKo: null },
   ])
+  assert.deepEqual(asm.exampleNulledByReason, { EXAMPLE_MISSING: 1 })
+})
+
+// ── 예문 (task-049, v2) ─────────────────────────────────────────────────────────────────────
+
+test('예문 픽스처: 28쌍 · 응답 8건 · id 유일', () => {
+  assert.equal(exFixture.pairs.length, 28)
+  assert.equal(exFixture.responses.length, 8)
+  assert.equal(new Set([...exFixture.pairs, ...exFixture.responses].map((x) => x.id)).size, 36)
+})
+
+for (const p of exFixture.pairs) {
+  test(`예문 쌍 ${p.id}: ${p.note}`, () => {
+    const r = p.input.omit ? checkTopicExample(undefined, undefined) : checkTopicExample(p.input.ja, p.input.ko)
+    assert.equal(r.reason, p.expect.reason)
+    if (p.expect.reason === null) {
+      assert.equal(typeof r.exampleJa, 'string')
+      assert.equal(typeof r.exampleKo, 'string')
+      assert.equal(r.exampleJa, (p.input.ja as string).trim(), '앞뒤 공백만 제거하고 내용은 그대로')
+      assert.equal(r.exampleKo, (p.input.ko as string).trim())
+    } else {
+      assert.equal(r.exampleJa, null, '실패하면 쌍 전체가 null')
+      assert.equal(r.exampleKo, null)
+    }
+  })
+}
+
+test('예문 상한 상수: 일본어 60자 · 한국어 100자(코드포인트 기준)', () => {
+  assert.equal(TOPIC_WORDS_EXAMPLE_JA_MAX, 60)
+  assert.equal(TOPIC_WORDS_EXAMPLE_KO_MAX, 100)
+  assert.equal(checkTopicExample('一' + 'あ'.repeat(59), '가').reason, null, '한자 1 + 가나 59 = 60자 경계')
+  assert.equal(checkTopicExample('𠮷' + 'あ'.repeat(59), '가').reason, 'EXAMPLE_JA_CHARS', 'BMP 밖 한자(CJK 확장 B)는 표기 검사와 같이 허용 밖 — 드문 경우라 예문만 null')
+})
+
+for (const r of exFixture.responses) {
+  test(`예문 응답 ${r.id}: ${r.note}`, () => {
+    assert.equal(validateOutput(r.response, TOPIC_WORDS_SCHEMA).ok, r.expect.schema, '스키마')
+    let data: unknown = r.response
+    if (r.expect.schemaWithStrip !== undefined) {
+      const stripped = extractAndValidate(JSON.stringify(r.response), TOPIC_WORDS_SCHEMA, { stripAdditionalProperties: true })
+      assert.equal(stripped.ok, r.expect.schemaWithStrip)
+      if (stripped.ok) data = stripped.data
+    }
+    const asm = assembleTopicWords(data, { level: r.level })
+    assert.equal(asm.words.length, r.expect.kept, JSON.stringify(asm.dropped))
+    assert.deepEqual(asm.droppedByReason, r.expect.dropped)
+    assert.equal(asm.exampleNulled, r.expect.nulled)
+    assert.deepEqual(asm.exampleNulledByReason, r.expect.nulledByReason)
+    assert.deepEqual(asm.words.map((w) => w.exampleJa !== null && w.exampleKo !== null), r.expect.exampleOk)
+    for (const w of asm.words) assert.equal(w.exampleJa === null, w.exampleKo === null, '예문은 항상 쌍으로 있거나 쌍으로 없다')
+    if (r.expect.classify) assert.deepEqual(classifyTopicWordsResult(asm.words.length, r.target), { source: r.expect.classify.source, reason: r.expect.classify.reason, fillCount: r.expect.classify.fill })
+  })
+}
+
+test('불변식: 예문을 지우든 망가뜨리든 단어의 통과·버림은 같다 — 기존 18개 응답 전체에서 words·droppedByReason 이 예문과 무관', () => {
+  const variants: Array<(it: Record<string, unknown>) => Record<string, unknown>> = [
+    (it) => Object.fromEntries(Object.entries(it).filter(([k]) => k !== 'exampleJa' && k !== 'exampleKo')), // v1 모양
+    (it) => ({ ...it, exampleJa: null, exampleKo: null }),
+    (it) => ({ ...it, exampleJa: 'Wi-Fi (와이파이)', exampleKo: 'Please' }), // 둘 다 불량
+    (it) => ({ ...it, exampleJa: 'あ'.repeat(500), exampleKo: '가'.repeat(500) }),
+  ]
+  for (const r of fixture.responses) {
+    const t = topicOf(r.topic)!
+    const ctx = { level: r.level, exclude: t.chunks.map((c) => c.textJa), excludeMeanings: r.excludeMeanings ?? [] }
+    const raw = r.response as { words?: unknown }
+    // 스키마 밖 키(r05 의 example)는 그대로 둔다 — 조립은 모르는 키를 무시한다.
+    const base = assembleTopicWords(raw, ctx)
+    for (const [i, f] of variants.entries()) {
+      const words = Array.isArray(raw.words) ? raw.words.map((it) => (it && typeof it === 'object' && !Array.isArray(it) ? f(it as Record<string, unknown>) : it)) : raw.words
+      const v = assembleTopicWords({ ...raw, words }, ctx)
+      assert.deepEqual(v.words.map((w) => w.textJa), base.words.map((w) => w.textJa), `${r.id} variant ${i}: 통과 단어가 달라졌다`)
+      assert.deepEqual(v.droppedByReason, base.droppedByReason, `${r.id} variant ${i}: 버림 이유가 달라졌다`)
+      assert.deepEqual(v.dropped, base.dropped)
+      assert.equal(v.received, base.received)
+    }
+  }
+})
+
+test('기존 6필드 검사 불변: v2 항목 모양으로 갱신한 픽스처의 모든 기대값(kept·dropped·classify)이 그대로이고, 통과 단어는 8필드 모양이다', () => {
+  const r01 = fixture.responses.find((r) => r.id === 'r01')!
+  const asm = assembleTopicWords(r01.response, { level: r01.level, exclude: topicOf(r01.topic)!.chunks.map((c) => c.textJa) })
+  assert.equal(asm.words.length, 13)
+  for (const w of asm.words) {
+    assert.deepEqual(Object.keys(w).sort(), ['chunkType', 'exampleJa', 'exampleKo', 'jlpt', 'meaningKo', 'reading', 'textJa'])
+    assert.equal(w.exampleJa, 'これを一つください。')
+    assert.equal(w.exampleKo, '이것을 하나 주세요.')
+  }
 })

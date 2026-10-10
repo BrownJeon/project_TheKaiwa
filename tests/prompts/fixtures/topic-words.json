@@ -1,6 +1,6 @@
 {
- "version": "topicWords@v1",
- "note": "task-042 A12 topicWords 회귀 픽스처 — 합성 입력만. topics 는 prisma/seed-data/topics.json 의 복사본(수준·기본 표현 12개). cases = 요청 빌더 입력(exclude.prior = 합성 이전 새 단어 개수), responses = 항목 검사·스키마·장수 판정.",
+ "version": "topicWords@v2",
+ "note": "task-042 A12 topicWords 회귀 픽스처 — 합성 입력만. topics 는 prisma/seed-data/topics.json 의 복사본(수준·기본 표현 12개). cases = 요청 빌더 입력(exclude.prior = 합성 이전 새 단어 개수), responses = 항목 검사·스키마·장수 판정. [task-049: responses 의 모든 항목에 v2 필수 키 exampleJa·exampleKo 를 같은 정상 예문으로 채웠다 — 기존 6필드 검사 기대값(kept·dropped·classify)은 그대로. 예문 전용 케이스는 topic-words-examples.json]",
  "topics": [
   {
    "key": "self-intro",
@@ -885,7 +885,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -893,7 +895,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -901,7 +905,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -909,7 +915,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "メニュー",
@@ -917,7 +925,9 @@
       "meaningKo": "메뉴",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "頼みます",
@@ -925,7 +935,9 @@
       "meaningKo": "부탁해요, 주문해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "待ちます",
@@ -933,7 +945,9 @@
       "meaningKo": "기다려요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "払います",
@@ -941,7 +955,9 @@
       "meaningKo": "지불해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "苦いです",
@@ -949,7 +965,9 @@
       "meaningKo": "써요",
       "chunkType": "FEELING",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "熱いです",
@@ -957,7 +975,9 @@
       "meaningKo": "뜨거워요",
       "chunkType": "FEELING",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "大きい",
@@ -965,7 +985,9 @@
       "meaningKo": "큰",
       "chunkType": "MODIFIER",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "少し",
@@ -973,7 +995,9 @@
       "meaningKo": "조금",
       "chunkType": "MODIFIER",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "全部で",
@@ -981,7 +1005,9 @@
       "meaningKo": "전부해서",
       "chunkType": "MODIFIER",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1010,7 +1036,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -1018,7 +1046,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -1026,7 +1056,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1034,7 +1066,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "メニュー",
@@ -1042,7 +1076,9 @@
       "meaningKo": "메뉴",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "頼みます",
@@ -1050,7 +1086,9 @@
       "meaningKo": "부탁해요, 주문해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "待ちます",
@@ -1058,7 +1096,9 @@
       "meaningKo": "기다려요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "払います",
@@ -1066,7 +1106,9 @@
       "meaningKo": "지불해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "苦いです",
@@ -1074,7 +1116,9 @@
       "meaningKo": "써요",
       "chunkType": "FEELING",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "熱いです",
@@ -1082,7 +1126,9 @@
       "meaningKo": "뜨거워요",
       "chunkType": "FEELING",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "커피",
@@ -1090,7 +1136,9 @@
       "meaningKo": "커피",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ストロー",
@@ -1098,7 +1146,9 @@
       "meaningKo": "빨대",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "レジ",
@@ -1106,7 +1156,9 @@
       "meaningKo": "계산대",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": false
+      "valid": false,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1152,7 +1204,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -1160,7 +1214,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -1168,7 +1224,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1176,7 +1234,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "メニュー",
@@ -1184,7 +1244,9 @@
       "meaningKo": "메뉴",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "頼みます",
@@ -1192,7 +1254,9 @@
       "meaningKo": "부탁해요, 주문해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "待ちます",
@@ -1200,7 +1264,9 @@
       "meaningKo": "기다려요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "払います",
@@ -1208,7 +1274,9 @@
       "meaningKo": "지불해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "苦いです",
@@ -1216,7 +1284,9 @@
       "meaningKo": "써요",
       "chunkType": "FEELING",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "熱いです",
@@ -1224,7 +1294,9 @@
       "meaningKo": "뜨거워요",
       "chunkType": "FEELING",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "大きい",
@@ -1232,7 +1304,9 @@
       "meaningKo": "큰",
       "chunkType": "MODIFIER",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "少し",
@@ -1240,7 +1314,9 @@
       "meaningKo": "조금",
       "chunkType": "MODIFIER",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "全部で",
@@ -1248,7 +1324,9 @@
       "meaningKo": "전부해서",
       "chunkType": "MODIFIER",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "砂糖",
@@ -1256,7 +1334,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -1264,7 +1344,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -1272,7 +1354,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1280,7 +1364,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "メニュー",
@@ -1288,7 +1374,9 @@
       "meaningKo": "메뉴",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "頼みます",
@@ -1296,7 +1384,9 @@
       "meaningKo": "부탁해요, 주문해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "待ちます",
@@ -1304,7 +1394,9 @@
       "meaningKo": "기다려요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "払います",
@@ -1312,7 +1404,9 @@
       "meaningKo": "지불해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1335,7 +1429,9 @@
       "chunkType": "NAME",
       "jlpt": "N4",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -1344,7 +1440,9 @@
       "chunkType": "NAME",
       "jlpt": "N5",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -1353,7 +1451,9 @@
       "chunkType": "NAME",
       "jlpt": "N4",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1362,7 +1462,9 @@
       "chunkType": "NAME",
       "jlpt": "N5",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "メニュー",
@@ -1371,7 +1473,9 @@
       "chunkType": "NAME",
       "jlpt": "N5",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "頼みます",
@@ -1380,7 +1484,9 @@
       "chunkType": "ACTION",
       "jlpt": "N4",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "待ちます",
@@ -1389,7 +1495,9 @@
       "chunkType": "ACTION",
       "jlpt": "N5",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "払います",
@@ -1398,7 +1506,9 @@
       "chunkType": "ACTION",
       "jlpt": "N4",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "苦いです",
@@ -1407,7 +1517,9 @@
       "chunkType": "FEELING",
       "jlpt": "N4",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "熱いです",
@@ -1416,7 +1528,9 @@
       "chunkType": "FEELING",
       "jlpt": "N5",
       "valid": true,
-      "example": "例文です。"
+      "example": "例文です。",
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1440,7 +1554,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -1448,7 +1564,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -1456,7 +1574,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1464,7 +1584,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "メニュー",
@@ -1472,7 +1594,9 @@
       "meaningKo": "메뉴",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "頼みます",
@@ -1480,7 +1604,9 @@
       "meaningKo": "부탁해요, 주문해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "待ちます",
@@ -1488,7 +1614,9 @@
       "meaningKo": "기다려요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "払います",
@@ -1496,7 +1624,9 @@
       "meaningKo": "지불해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "苦いです",
@@ -1504,7 +1634,9 @@
       "meaningKo": "써요",
       "chunkType": "FEELING",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "熱いです",
@@ -1512,7 +1644,9 @@
       "meaningKo": "뜨거워요",
       "chunkType": "FEELING",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "コーヒー ",
@@ -1520,7 +1654,9 @@
       "meaningKo": "커피 한 잔",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "紅茶",
@@ -1528,7 +1664,9 @@
       "meaningKo": "차(홍차)",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ケーキ",
@@ -1536,7 +1674,9 @@
       "meaningKo": "케이크류",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1567,7 +1707,9 @@
       "meaningKo": "얼음",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "氷",
@@ -1575,7 +1717,9 @@
       "meaningKo": "얼음 조각",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お冷や",
@@ -1583,7 +1727,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1591,7 +1737,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ストロー",
@@ -1599,7 +1747,9 @@
       "meaningKo": "빨대",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1626,7 +1776,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "砂糖",
@@ -1634,7 +1786,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "濃度",
@@ -1642,7 +1796,9 @@
       "meaningKo": "농도",
       "chunkType": "NAME",
       "jlpt": "N2",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "提供",
@@ -1650,7 +1806,9 @@
       "meaningKo": "제공",
       "chunkType": "ACTION",
       "jlpt": "N3",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "氷",
@@ -1658,7 +1816,9 @@
       "meaningKo": "얼음",
       "chunkType": "NAME",
       "jlpt": null,
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1684,7 +1844,9 @@
       "meaningKo": "부탁합니다",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ありがとう",
@@ -1692,7 +1854,9 @@
       "meaningKo": "고마워요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "コーヒー",
@@ -1700,7 +1864,9 @@
       "meaningKo": "커피",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "学校",
@@ -1708,7 +1874,9 @@
       "meaningKo": "학교",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "払います",
@@ -1716,7 +1884,9 @@
       "meaningKo": "지불해요",
       "chunkType": "ACTION",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "飲み物",
@@ -1724,7 +1894,9 @@
       "meaningKo": "음료",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1750,7 +1922,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -1758,7 +1932,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -1766,7 +1942,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1774,7 +1952,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "커피",
@@ -1782,7 +1962,9 @@
       "meaningKo": "커피",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "レジ",
@@ -1790,7 +1972,9 @@
       "meaningKo": "계산대",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": false
+      "valid": false,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1822,7 +2006,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": false
+      "valid": false,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -1830,7 +2016,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": false
+      "valid": false,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -1838,7 +2026,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": false
+      "valid": false,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お水",
@@ -1846,7 +2036,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": false
+      "valid": false,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "メニュー",
@@ -1854,7 +2046,9 @@
       "meaningKo": "메뉴",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": false
+      "valid": false,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1885,7 +2079,9 @@
       "meaningKo": "길다",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "い",
@@ -1893,7 +2089,9 @@
       "meaningKo": "길다",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "う",
@@ -1901,7 +2099,9 @@
       "meaningKo": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1929,7 +2129,9 @@
       "meaningKo": "haiku 가 만든 단어",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "砂糖",
@@ -1937,7 +2139,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -1963,7 +2167,9 @@
       "meaningKo": "물",
       "chunkType": "VERB",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "砂糖",
@@ -1971,7 +2177,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N6",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "氷",
@@ -1979,7 +2187,9 @@
       "meaningKo": "얼음",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -2005,7 +2215,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "砂糖/シュガー",
@@ -2013,7 +2225,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お 水",
@@ -2021,7 +2235,9 @@
       "meaningKo": "물",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ありがとう！",
@@ -2029,7 +2245,9 @@
       "meaningKo": "고마워요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "Wi-Fi",
@@ -2037,7 +2255,9 @@
       "meaningKo": "와이파이",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "氷",
@@ -2045,7 +2265,9 @@
       "meaningKo": "얼음",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -2071,7 +2293,9 @@
       "meaningKo": "water",
       "chunkType": "NAME",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "砂糖",
@@ -2079,7 +2303,9 @@
       "meaningKo": "설탕(さとう)",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "氷",
@@ -2087,7 +2313,9 @@
       "meaningKo": "얼음",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -2119,7 +2347,9 @@
       "meaningKo": "커피",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "お願いします",
@@ -2127,7 +2357,9 @@
       "meaningKo": "주세요",
       "chunkType": "ACTION",
       "jlpt": "N5",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "砂糖",
@@ -2135,7 +2367,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
@@ -2161,7 +2395,9 @@
       "meaningKo": "설탕",
       "chunkType": "NAME",
       "jlpt": "null",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "ミルク",
@@ -2169,7 +2405,9 @@
       "meaningKo": "우유",
       "chunkType": "NAME",
       "jlpt": "null",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      },
      {
       "textJa": "注文",
@@ -2177,7 +2415,9 @@
       "meaningKo": "주문",
       "chunkType": "NAME",
       "jlpt": "N4",
-      "valid": true
+      "valid": true,
+      "exampleJa": "これを一つください。",
+      "exampleKo": "이것을 하나 주세요."
      }
     ]
    },
