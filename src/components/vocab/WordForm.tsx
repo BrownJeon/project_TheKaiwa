@@ -7,7 +7,7 @@
  */
 import { useLayoutEffect, useRef } from 'react'
 import type { WordField, WordFormValues } from './validate'
-import { JLPT_LEVELS, POS_OPTIONS } from './labels'
+import { JLPT_LEVELS, levelLabel, POS_OPTIONS } from './labels'
 
 export const INPUT = 'h-11 w-full min-w-0 rounded-xl border bg-surface px-3 text-[16px] text-ink placeholder:text-ink3'
 
@@ -139,7 +139,7 @@ export default function WordForm({
             <option value="">선택 안 함</option>
             {JLPT_LEVELS.map((l) => (
               <option key={l} value={l}>
-                {l}
+                {levelLabel(l)}
               </option>
             ))}
           </select>

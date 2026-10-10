@@ -5,6 +5,7 @@ import { listSelectableVoices, loadTtsVoice } from '@/modules/speech'
 import AppBar from '@/components/shell/AppBar'
 import AppVersionRow from '@/components/settings/AppVersionRow'
 import AttendanceCard from '@/components/settings/AttendanceCard'
+import DataCreditRow from '@/components/settings/DataCreditRow'
 import DisplaySettings from '@/components/settings/DisplaySettings'
 import LearningSettings from '@/components/settings/LearningSettings'
 import OnDeviceDiagnosticsCard from '@/components/settings/OnDeviceDiagnosticsCard'
@@ -56,6 +57,8 @@ export default async function SettingsPage() {
         <SpeechSettings />
         {/* 앱에서만(웹은 DOM 0): 앱 버전 줄 · 관리자 행 아래 휴대폰 인식 진단(engine.read — task-003f §11-2 G·I). */}
         <AppVersionRow />
+        {/* 단어 자료 출처(task-051 D5-A) — 웹·앱 모두. 일반 사용자에게는 설정의 마지막 줄. */}
+        <DataCreditRow />
         {showConsole ? <AdminConsoleEntry /> : null}
         <OnDeviceDiagnosticsCard show={showConsole} />
       </div>

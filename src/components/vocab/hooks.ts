@@ -7,10 +7,12 @@
  * 저장값으로 **하이드레이션 불일치 없이** 바뀐다. 저장소가 막힌 환경(사생활 모드·WebView 설정)에서도 이번 방문 동안은
  * 고른 값이 유지되도록 메모리 사본을 먼저 본다.
  */
-import { useCallback, useState, useSyncExternalStore } from 'react'
-import { apiPost } from '@/components/common/api'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { apiGet, apiPost } from '@/components/common/api'
 import { readStore, writeStore } from '@/components/common/storage'
+import { isSeedPack, type SeedPack } from '@/types/seedPack'
 import type { SeedPackResult } from '@/types/vocab'
+import { seedLevelsFrom } from './labels'
 
 export const VOCAB_KEYS = {
   wordsSort: 'kaiwa.words.sort',
@@ -114,18 +116,63 @@ export function useMediaQuery(query: string): boolean {
   )
 }
 
-/** #46b 기본 단어 팩(N5). 결과 문구·목록 갱신은 호출부가 한다(§4-5). */
+/**
+ * #46b 기본 단어 팩(단계 다섯 개, task-051 §19-4 D). 결과 문구·목록 갱신은 호출부가 한다(§4-5).
+ * 상태 갱신 전에 들어온 두 번째 탭은 `inFlight` 로 막는다 — 화면 쪽 `if (seedingPack) return` 은 렌더 뒤에야 참이 된다.
+ * 진행 중 두 번째 호출은 `null` 을 돌려준다(아무 일도 하지 않음).
+ */
 export function useSeedPack() {
-  const [seeding, setSeeding] = useState(false)
-  const seed = useCallback(async (): Promise<SeedPackResult> => {
-    setSeeding(true)
+  const [seedingPack, setSeedingPack] = useState<SeedPack | null>(null)
+  const inFlight = useRef(false)
+  const seed = useCallback(async (pack: SeedPack): Promise<SeedPackResult | null> => {
+    if (inFlight.current || !isSeedPack(pack)) return null
+    inFlight.current = true
+    setSeedingPack(pack)
     try {
-      return await apiPost<SeedPackResult>('/api/v1/words/seed-pack', { pack: 'N5' })
+      return await apiPost<SeedPackResult>('/api/v1/words/seed-pack', { pack })
     } finally {
-      setSeeding(false)
+      inFlight.current = false
+      setSeedingPack(null)
     }
   }, [])
-  return { seed, seeding }
+  return { seed, seedingPack }
+}
+
+export interface SeedLevels {
+  status: 'loading' | 'ready' | 'error'
+  main: SeedPack | null
+  goal: SeedPack | null
+  retry: () => void
+}
+
+/**
+ * 넣기 단계(§19-3) — #11 `GET /api/v1/settings/profile` 의 `level`(주)·`goalLevel`(보조). 마운트 때 한 번 읽는다
+ * (설정에서 바꾸고 돌아오면 화면이 다시 마운트된다). 실패하면 `error` 이고 넣기 버튼을 그리지 않는다.
+ */
+export function useSeedLevels(): SeedLevels {
+  const [state, setState] = useState<Omit<SeedLevels, 'retry'>>({ status: 'loading', main: null, goal: null })
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    apiGet<unknown>('/api/v1/settings/profile').then(
+      (raw) => {
+        if (cancelled) return
+        const { main, goal } = seedLevelsFrom(raw)
+        setState(main === null ? { status: 'error', main: null, goal: null } : { status: 'ready', main, goal })
+      },
+      () => {
+        if (!cancelled) setState({ status: 'error', main: null, goal: null })
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [tick])
+  const retry = useCallback(() => {
+    setState({ status: 'loading', main: null, goal: null })
+    setTick((t) => t + 1)
+  }, [])
+  return { ...state, retry }
 }
 
 /** sessionStorage 의 한 번 쓰는 값 — 읽으면서 지운다. */

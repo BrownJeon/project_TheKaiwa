@@ -23,11 +23,12 @@ import { DISPLAY_COPY } from '@/components/common/japanese/displayPrefs'
 import { DisplayToggles } from '@/components/common/japanese/JapaneseText'
 import AppBar from '@/components/shell/AppBar'
 import { WordCategoryRowSkeleton, WordRowsSkeleton } from '@/components/shell/TabSkeleton'
+import type { SeedPack } from '@/types/seedPack'
 import type { CategoryCount, WordEntry, WordListPage, WordSort } from '@/types/vocab'
 import ArchiveToggle from './ArchiveToggle'
 import CategoryChips from './CategoryChips'
 import ChunkChips from './ChunkChips'
-import { useHydrated, useSeedPack, useStoredPref, VOCAB_KEYS } from './hooks'
+import { useHydrated, useSeedLevels, useSeedPack, useStoredPref, VOCAB_KEYS } from './hooks'
 import { actionErrorText, listErrorText, seedResultText, WORD_NOT_FOUND, WORD_SORT_OPTIONS } from './labels'
 import { listFromPage, listHeader, listWithoutRow, WORD_LIST_INITIAL, type WordListFilter, type WordListState } from './logic'
 import { categoryTotals, emptyVariant, normalizeCategories, visibleCategories, WORD_LIMITS } from './validate'
@@ -58,7 +59,9 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
   const router = useRouter()
   const hydrated = useHydrated()
   const toast = useToast()
-  const { seed, seeding } = useSeedPack()
+  const { seed, seedingPack } = useSeedPack()
+  // 넣기 단계(#11)는 목록 요청과 동시에 마운트 때 한 번 읽는다(§19-3).
+  const levels = useSeedLevels()
   const [sort, setSort] = useStoredPref<WordSort>(VOCAB_KEYS.wordsSort, 'recent', SORTS)
   const [filter, setFilter] = useState<WordListFilter>({ q: '', category: null, chunk: null, archived: false })
   const [qInput, setQInput] = useState('')
@@ -168,11 +171,12 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
     setFilter((f) => (f.q === t ? f : { ...f, q: t }))
   }
 
-  const runSeed = async () => {
-    if (seeding) return
+  const runSeed = async (pack: SeedPack) => {
+    if (seedingPack) return
     try {
-      const r = await seed()
-      toast.show(seedResultText(r))
+      const r = await seed(pack)
+      if (!r) return
+      toast.show(seedResultText(pack, r))
       reloadAll()
     } catch (e) {
       toast.show(actionErrorText(toErr(e)))
@@ -197,22 +201,27 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
   const showChunkRow = filter.chunk !== null || !(totals && totals.active + totals.archived === 0)
   // 그린 행 표제어를 한 번에(한 쪽 = 1요청, [단어 더 보기] 때는 새 행만 — 캐시 적중). 루비는 저장 읽기로, 한글은 한글 켬일 때만 요청한다.
   const layers = useWordLayersList(list.items)
+  const emptyKind = emptyVariant(shown, totals)
 
   let body: React.ReactNode
   // 「불러오는 중…」 글자 대신 목록 모양의 자리표시 — 빈 상태 안내는 응답이 와서 0건일 때만 그린다(가짜 빈 상태 금지, task-046).
   if (list.status === 'loading') body = <WordRowsSkeleton />
   else if (list.status === 'error' && list.items.length === 0)
     body = <ErrorBlock message={list.error ?? listErrorText({ status: -1 })} onRetry={() => setReloadTick((t) => t + 1)} />
+  else if (list.items.length === 0 && emptyKind === 'noWords' && levels.status === 'loading')
+    // 빈 단어장 안내는 넣기 단계(#11)를 받은 뒤에 그린다 — 버튼이 늦게 끼어들어 카드가 커지지 않게(§19-3).
+    body = <WordRowsSkeleton />
   else if (list.items.length === 0)
     body = (
       <WordsEmpty
-        variant={emptyVariant(shown, totals)}
+        variant={emptyKind}
         q={shown.q}
         category={shown.category}
         chunk={shown.chunk}
         archived={shown.archived}
-        seeding={seeding}
-        onSeed={() => void runSeed()}
+        levels={levels}
+        seedingPack={seedingPack}
+        onSeed={(p) => void runSeed(p)}
         onAdd={openAdd}
         onShowArchive={() => setFilter((f) => ({ ...f, archived: true, category: null }))}
         onShowAll={() => setFilter((f) => ({ ...f, category: null }))}
@@ -331,8 +340,9 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
             reloadAll()
           }}
           onOpenWord={(id) => setSheet({ kind: 'detail', id })}
-          onSeed={() => void runSeed()}
-          seeding={seeding}
+          onSeed={(p) => void runSeed(p)}
+          levels={levels}
+          seedingPack={seedingPack}
         />
       ) : null}
       {hydrated && sheet?.kind === 'detail' ? (

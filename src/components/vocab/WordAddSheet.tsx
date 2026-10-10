@@ -14,8 +14,10 @@ import { detailString, retryAfterOf, toErr } from '@/components/common/errors'
 import Sheet from '@/components/common/Sheet'
 import { Btn, BtnRow } from '@/components/common/ui'
 import { elapsedSec, useCountdown, useNow } from '@/components/common/useNow'
+import type { SeedPack } from '@/types/seedPack'
 import type { WordEntry, WordEnrichResponse, WordSaveResponse } from '@/types/vocab'
-import { actionErrorText, DRAFT_INVALID, DUPLICATE_TEXT, enrichErrorText } from './labels'
+import type { SeedLevels } from './hooks'
+import { actionErrorText, DRAFT_INVALID, DUPLICATE_TEXT, enrichErrorText, SEED_COPY } from './labels'
 import {
   draftIsEmpty,
   EXTRA_FIELDS,
@@ -47,6 +49,22 @@ export function DuplicateNote({ id, onOpen }: { id: string; onOpen: () => void }
   )
 }
 
+/** 시트 맨 아래 넣기 글자 버튼(§19-4 B). 긴 문구는 줄바꿈을 허용한다(§19-8). */
+function SeedTextBtn({ pack, label, seedingPack, onSeed }: { pack: SeedPack; label: string; seedingPack: SeedPack | null; onSeed: (pack: SeedPack) => void }) {
+  const busy = seedingPack === pack
+  return (
+    <button
+      type="button"
+      onClick={() => onSeed(pack)}
+      aria-busy={busy || undefined}
+      aria-disabled={seedingPack !== null || undefined}
+      className={`${TEXT_BTN} self-start text-left break-keep leading-[1.25]`}
+    >
+      {busy ? SEED_COPY.busy : label}
+    </button>
+  )
+}
+
 export default function WordAddSheet({
   presetSurface,
   defaultCategory,
@@ -55,7 +73,8 @@ export default function WordAddSheet({
   onSaved,
   onOpenWord,
   onSeed,
-  seeding,
+  levels,
+  seedingPack,
 }: {
   presetSurface?: string
   defaultCategory?: string | null
@@ -63,8 +82,10 @@ export default function WordAddSheet({
   onClose: () => void
   onSaved: (word: WordEntry) => void
   onOpenWord: (id: string) => void
-  onSeed: () => void
-  seeding: boolean
+  onSeed: (pack: SeedPack) => void
+  /** 넣기 단계(§19-3). 단계를 모르면(읽는 중·실패) 맨 아래 넣기 줄을 그리지 않는다 — 시트의 주 목적은 직접 넣기. */
+  levels: SeedLevels
+  seedingPack: SeedPack | null
 }) {
   const [step, setStep] = useState<Step>('surface')
   const [form, setForm] = useState<WordFormValues>(() => emptyForm(presetSurface ?? '', defaultCategory ?? ''))
@@ -310,10 +331,15 @@ export default function WordAddSheet({
         >
           직접 입력하기
         </Btn>
-        <hr className="mt-2 border-line" />
-        <button type="button" onClick={onSeed} aria-busy={seeding || undefined} aria-disabled={seeding || undefined} className={`${TEXT_BTN} self-start`}>
-          {seeding ? '넣는 중…' : '기본 단어 50개(N5) 한 번에 넣기 ›'}
-        </button>
+        {levels.main ? (
+          <>
+            <hr className="mt-2 border-line" />
+            <div className="flex min-w-0 flex-col">
+              <SeedTextBtn pack={levels.main} label={SEED_COPY.sheetMain(levels.main)} seedingPack={seedingPack} onSeed={onSeed} />
+              {levels.goal ? <SeedTextBtn pack={levels.goal} label={SEED_COPY.sheetGoal(levels.goal)} seedingPack={seedingPack} onSeed={onSeed} /> : null}
+            </div>
+          </>
+        ) : null}
       </form>
     )
   } else {

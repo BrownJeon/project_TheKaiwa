@@ -18,7 +18,7 @@ import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Badge, Btn, BtnRow, LoadingBlock } from '@/components/common/ui'
 import type { WordArchiveResponse, WordEntry, WordStats } from '@/types/vocab'
 import { formatMonthDay } from './format'
-import { actionErrorText, CHUNK_LABEL, POS_LABEL, RESULT_LABEL, SOURCE_SENTENCE } from './labels'
+import { actionErrorText, categoryBadgeText, CHUNK_LABEL, levelLabel, POS_LABEL, RESULT_LABEL, SOURCE_SENTENCE } from './labels'
 import { diffPatch, EXTRA_FIELDS, fieldOf, firstErrorField, formFromWord, normalizeWordDetail, validateWord, type WordField, type WordFormValues } from './validate'
 import { DuplicateNote } from './WordAddSheet'
 import WordForm from './WordForm'
@@ -291,8 +291,8 @@ export default function WordDetailSheet({
         <p className="mt-2 text-[17px] font-medium break-keep [overflow-wrap:anywhere]">{w.meaning}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Badge tone="neutral">{POS_LABEL[w.partOfSpeech] ?? '기타'}</Badge>
-          {w.jlpt ? <Badge tone="neutral">{w.jlpt}</Badge> : null}
-          {w.category ? (
+          {w.jlpt ? <Badge tone="neutral">{levelLabel(w.jlpt)}</Badge> : null}
+          {categoryBadgeText(w.category, w.jlpt) ? (
             <Badge tone="neutral">
               <span className="block max-w-[200px] truncate">{w.category}</span>
             </Badge>

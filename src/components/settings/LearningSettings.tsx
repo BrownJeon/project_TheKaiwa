@@ -3,10 +3,11 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiPut, errorMessage } from '@/components/common/api'
-import Segmented from '@/components/common/Segmented'
+import Segmented, { type SegOption } from '@/components/common/Segmented'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Badge, Btn, Card, ErrorBlock, Field, LoadingBlock, Section, SectionHeader } from '@/components/common/ui'
 import { CORRECTION_MODE_COPY, type CorrectionModeValue } from '@/components/talk/talkCopy'
+import { JLPT_LEVELS, levelHelpText, levelLabel, levelName } from '@/components/vocab/labels'
 
 type Level = 'N5' | 'N4' | 'N3' | 'N2' | 'N1'
 interface Profile {
@@ -83,7 +84,10 @@ function CorrectionModeField({ value, disabled, onChange }: { value: CorrectionM
   )
 }
 
-const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'].map((v) => ({ value: v as Level, label: v }))
+// 두 줄 분절(task-051 D2-A): 위 이름·아래 코드, 읽기는 「초보자 (N5)」. 이름은 seedPack 단일 출처(labels).
+const LEVELS: SegOption<Level>[] = JLPT_LEVELS.map((v) => ({ value: v, label: levelName(v), sub: v, ariaLabel: levelLabel(v) }))
+const GOAL_LEVELS: SegOption<Level | 'NONE'>[] = [{ value: 'NONE', label: '없음', ariaLabel: '없음' }, ...LEVELS]
+const LEVEL_HELP_ID = 'levelHelp'
 const inputCls = 'h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3 text-[15px] text-ink placeholder:text-ink3'
 
 /** 설정 허브 · 기본정보·목표·학습(api-contract #11·#12). 선생님 이름은 비우면 "선생님". */
@@ -149,10 +153,13 @@ export default function LearningSettings() {
           <input id="teacherName" className={inputCls} maxLength={30} value={p.teacherName ?? ''} onChange={(e) => set('teacherName', e.target.value)} placeholder="비우면 '선생님'" />
         </Field>
         <Field label="지금 수준">
-          <Segmented ariaLabel="지금 수준" options={LEVELS} value={p.level} onChange={(v) => set('level', v)} />
+          <Segmented ariaLabel="지금 수준" twoLine describedBy={LEVEL_HELP_ID} options={LEVELS} value={p.level} onChange={(v) => set('level', v)} />
+          <p id={LEVEL_HELP_ID} className="text-[12px] text-ink2 break-keep">
+            {levelHelpText()}
+          </p>
         </Field>
         <Field label="목표 수준">
-          <Segmented ariaLabel="목표 수준" options={[{ value: 'NONE', label: '없음' }, ...LEVELS] as { value: Level | 'NONE'; label: string }[]} value={p.goalLevel ?? 'NONE'} onChange={(v) => set('goalLevel', v === 'NONE' ? null : (v as Level))} />
+          <Segmented ariaLabel="목표 수준" twoLine options={GOAL_LEVELS} value={p.goalLevel ?? 'NONE'} onChange={(v) => set('goalLevel', v === 'NONE' ? null : v)} />
         </Field>
         <Field label="대화 문체">
           <Segmented ariaLabel="대화 문체" options={[{ value: 'POLITE', label: '존댓말(です・ます)' }, { value: 'CASUAL', label: '반말(タメ口)' }] as const} value={p.politeness} onChange={(v) => set('politeness', v)} />

@@ -4,6 +4,7 @@
  * **오류 문구는 서버 `message` 가 아니라 이 표에서 고른다**(400 VALIDATION 만 예외) — 서버 기본 문구에는 구현 용어가
  * 섞일 수 있다(task-006 D8). 엔진·모델명·traceId 는 어디에도 없다. "AI"·엔진 대신 "선생님"으로 쓴다.
  */
+import { isSeedPack, SEED_PACK_COUNT, SEED_PACK_LABEL, type SeedPack } from '@/types/seedPack'
 import type { ChunkType, JlptLevel, PartOfSpeech, SeedPackResult, VocabAnswer, VocabMode, WordChunkFilter, WordSource } from '@/types/vocab'
 
 export interface ErrorLike {
@@ -38,10 +39,74 @@ export const POS_LABEL: Record<PartOfSpeech, string> = Object.fromEntries(POS_OP
 
 export const JLPT_LEVELS: readonly JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
 
+// ── 수준 이름(task-051 §19-2) — 이름·개수는 `@/types/seedPack` 에서만 읽는다 ─────────────────────────────
+
+/** 「초보자 (N5)」 — `WordEntry.jlpt` 와 기본 단어 팩 단계는 같은 다섯 값이다. */
+export function levelLabel(l: JlptLevel): string {
+  return SEED_PACK_LABEL[l]
+}
+
+/** 「초보자」 — 표시 이름에서 끝의 ` (N5)` 를 뗀 이름. 설정 두 줄 분절 위쪽 글자·도움말에만 쓴다. */
+export function levelName(l: JlptLevel): string {
+  const full = SEED_PACK_LABEL[l]
+  const tail = ` (${l})`
+  return full.endsWith(tail) ? full.slice(0, -tail.length) : full
+}
+
+export function fmtCount(n: number): string {
+  return n.toLocaleString('ko-KR')
+}
+
+/** 다섯 단계 기본 단어 합계(출처 시트) — 생성 파일 값의 합. */
+export function seedPackTotal(): number {
+  return JLPT_LEVELS.reduce((sum, l) => sum + SEED_PACK_COUNT[l], 0)
+}
+
+/**
+ * 단어 상세의 분류 뱃지 글(§19-4 E) — 분류가 수준 뱃지 글과 같으면(팩 단어) 그리지 않는다(null).
+ * 기존 행의 분류(예: 옛 팩 이름)는 받은 글자 그대로 둔다.
+ */
+export function categoryBadgeText(category: string | null | undefined, jlpt: JlptLevel | null | undefined): string | null {
+  if (!category) return null
+  return jlpt && category === levelLabel(jlpt) ? null : category
+}
+
+/** 설정 「지금 수준」 도움말(§19-4 F-1). */
+export function levelHelpText(): string {
+  return `선생님 대화와 기본 단어 넣기가 이 수준을 따라요. 이름은 JLPT 급수와 같아요 — ${levelName('N1')}은 가장 높은 급수(N1)예요.`
+}
+
+/** 기본 단어 넣기 문구(§19-4 A·B·C). `p` 는 단계, 개수는 생성 파일 값. */
+export const SEED_COPY = {
+  busy: '넣는 중…',
+  mainBtn: (p: SeedPack) => `${levelLabel(p)} 단어 ${fmtCount(SEED_PACK_COUNT[p])}개 넣기`,
+  goalBtn: (p: SeedPack) => `목표 수준 ${levelLabel(p)} 단어 ${fmtCount(SEED_PACK_COUNT[p])}개 넣기`,
+  sheetMain: (p: SeedPack) => `${levelLabel(p)} 기본 단어 ${fmtCount(SEED_PACK_COUNT[p])}개 한 번에 넣기 ›`,
+  sheetGoal: (p: SeedPack) => `목표 수준 ${levelLabel(p)} 단어 ${fmtCount(SEED_PACK_COUNT[p])}개 한 번에 넣기 ›`,
+  emptyBody: (p: SeedPack) =>
+    `${levelLabel(p)} 기본 단어 ${fmtCount(SEED_PACK_COUNT[p])}개로 바로 시작하거나, 아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요.`,
+  emptyBodyNoLevel: '아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요.',
+  todayBody: (p: SeedPack) => `오늘의 단어는 내 단어장에서 골라요. ${levelLabel(p)} 기본 단어로 바로 시작해 볼까요?`,
+  todayBodyNoLevel: '오늘의 단어는 내 단어장에서 골라요.',
+  levelRetry: '수준을 불러오지 못했어요 · 다시 시도 ›',
+} as const
+
+/**
+ * #11 프로필 응답에서 넣기 단계를 고른다(§19-3). 지금 수준이 다섯 값이 아니면 둘 다 null(넣기 버튼 숨김).
+ * 목표 수준은 정해 두었고 지금 수준과 다를 때만 — 지금보다 낮아도 「다름」 하나로 판단한다.
+ */
+export function seedLevelsFrom(profile: unknown): { main: SeedPack | null; goal: SeedPack | null } {
+  const p = profile && typeof profile === 'object' ? (profile as { level?: unknown; goalLevel?: unknown }) : {}
+  const main = isSeedPack(p.level) ? p.level : null
+  if (main === null) return { main: null, goal: null }
+  const goal = isSeedPack(p.goalLevel) && p.goalLevel !== main ? p.goalLevel : null
+  return { main, goal }
+}
+
 export const SOURCE_SENTENCE: Record<WordSource, string> = {
   MANUAL: '직접 넣은 단어예요',
   CORRECTION: '채팅 교정에서 채택한 표현이에요',
-  SEED: '기본 단어(N5) 팩에서 넣었어요',
+  SEED: '기본 단어 팩에서 넣었어요',
   TUTOR: '선생님 제안을 채택한 단어예요',
   LESSON: '레슨에서 넣은 단어예요',
   EVALUATION: '평가에서 넣은 단어예요',
@@ -139,10 +204,12 @@ export function enrichErrorText(e: ErrorLike, retryAfterSec?: number | null): st
   }
 }
 
-export function seedResultText(r: SeedPackResult): string {
-  if (r.added <= 0) return '기본 단어가 이미 모두 들어 있어요'
-  if (r.skipped > 0) return `기본 단어 ${r.added}개를 넣었어요 · 이미 있는 ${r.skipped}개는 건너뛰었어요`
-  return `기본 단어 ${r.added}개를 넣었어요`
+/** 넣기 결과 토스트(§19-4 D). 건너뛴 수는 서버 값 그대로. */
+export function seedResultText(pack: SeedPack, r: SeedPackResult): string {
+  const name = levelLabel(pack)
+  if (r.added <= 0) return `${name} 단어가 이미 모두 들어 있어요`
+  if (r.skipped > 0) return `${name} 단어 ${fmtCount(r.added)}개를 넣었어요 · 이미 있는 ${fmtCount(r.skipped)}개는 건너뛰었어요`
+  return `${name} 단어 ${fmtCount(r.added)}개를 넣었어요`
 }
 
 // ── 오늘 홈 ⓐ ───────────────────────────────────────────────────────────────────────────────

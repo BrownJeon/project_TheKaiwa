@@ -7,13 +7,16 @@
 import Link from 'next/link'
 import Segmented from '@/components/common/Segmented'
 import { Btn, BtnRow, Card, ErrorBlock } from '@/components/common/ui'
+import type { SeedPack } from '@/types/seedPack'
 import type { CategoryCount, SessionSummary, VocabMode } from '@/types/vocab'
 import CategoryChips from './CategoryChips'
 import { countOptions, estimateMinutes } from './deck'
 import { formatSessionDate } from './format'
-import { inProgressNotes, MODE_LABEL } from './labels'
+import type { SeedLevels } from './hooks'
+import { inProgressNotes, MODE_LABEL, SEED_COPY } from './labels'
 import { CardLoadingBody } from './TodaySkeleton'
 import { visibleCategories } from './validate'
+import { SeedPackButtons } from './WordsEmpty'
 
 export type WordsCardState = 'loading' | 'ready' | 'inProgress' | 'empty' | 'poolEmpty' | 'error'
 export type PoolEmptyKind = 'allDone' | 'category'
@@ -41,7 +44,8 @@ export default function TodayWordsCard({
   hasKept,
   starting,
   startError,
-  seeding,
+  levels,
+  seedingPack,
   finishing,
   onCount,
   onMode,
@@ -71,7 +75,9 @@ export default function TodayWordsCard({
   hasKept: boolean
   starting: boolean
   startError: string | null
-  seeding: boolean
+  /** 넣기 단계(§19-3) — `empty` 에서만 쓴다. 읽는 중이면 부모가 `loading` 으로 그린다. */
+  levels: SeedLevels
+  seedingPack: SeedPack | null
   finishing: boolean
   onCount: (n: number) => void
   onMode: (m: VocabMode) => void
@@ -81,7 +87,7 @@ export default function TodayWordsCard({
   onBackToReady: () => void
   onFinish: () => void
   onShowResult: () => void
-  onSeed: () => void
+  onSeed: (pack: SeedPack) => void
   onShowKept: () => void
   onRetry: () => void
   /** 챌린지 단어 카드 안 [내 단어장으로 풀기] 펼침(task-044 E10) — 카드 틀·머리줄 없이 본문만(동작 그대로). */
@@ -125,11 +131,9 @@ export default function TodayWordsCard({
       body = (
         <div className="mt-2">
           <p className="text-[15px] font-semibold">단어장이 비어 있어요</p>
-          <p className="mt-0.5 text-[13px] text-ink2 break-keep">오늘의 단어는 내 단어장에서 골라요. 기본 단어로 바로 시작해 볼까요?</p>
+          <p className="mt-0.5 text-[13px] text-ink2 break-keep">{levels.main ? SEED_COPY.todayBody(levels.main) : SEED_COPY.todayBodyNoLevel}</p>
           <div className="mt-3 flex flex-col gap-2">
-            <Btn className="w-full" onClick={onSeed} aria-disabled={seeding || undefined} aria-busy={seeding || undefined}>
-              {seeding ? '넣는 중…' : '기본 단어 50개 넣기'}
-            </Btn>
+            <SeedPackButtons levels={levels} seedingPack={seedingPack} onSeed={onSeed} />
             <Link href="/drawer/words?add=1" className="inline-flex h-12 items-center justify-center rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold">
               단어 직접 추가
             </Link>

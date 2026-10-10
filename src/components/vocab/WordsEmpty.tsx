@@ -9,11 +9,61 @@
  */
 import { Btn, Card } from '@/components/common/ui'
 import { cpLength } from '@/components/common/format'
+import type { SeedPack } from '@/types/seedPack'
 import type { WordChunkFilter } from '@/types/vocab'
-import { chunkEmptyText } from './labels'
+import type { SeedLevels } from './hooks'
+import { chunkEmptyText, SEED_COPY } from './labels'
 import type { WordsEmptyVariant } from './validate'
 
 const SMALL_BTN = 'inline-flex h-11 min-w-0 items-center justify-center rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold'
+const TEXT_BTN = 'inline-flex min-h-[44px] items-center text-[13px] font-medium text-accent break-keep'
+
+/**
+ * 기본 단어 넣기 버튼(§19-4 A·C) — 빈 단어장 카드와 오늘 카드가 같이 쓴다. 채운 버튼은 지금 수준 하나뿐이고,
+ * 목표 수준(정해 두었고 지금과 다를 때)은 바로 아래 ghost. 넣는 동안 누른 버튼만 「넣는 중…」, 넣기 버튼은 모두 `aria-disabled`.
+ * 단계를 모르면 넣기 버튼을 그리지 않는다 — 읽기에 실패했으면 「다시 시도」 글자 버튼 하나(§19-3).
+ * 긴 보조 문구(목표 최상급)는 360폭에서 두 줄이 될 수 있어 줄바꿈을 허용한다(`truncate` 금지, §19-8).
+ */
+export function SeedPackButtons({
+  levels,
+  seedingPack,
+  onSeed,
+  retryClassName = 'self-start',
+}: {
+  levels: SeedLevels
+  seedingPack: SeedPack | null
+  onSeed: (pack: SeedPack) => void
+  retryClassName?: string
+}) {
+  const { main, goal } = levels
+  if (main === null) {
+    return levels.status === 'error' ? (
+      <button type="button" onClick={levels.retry} className={`${TEXT_BTN} ${retryClassName}`}>
+        {SEED_COPY.levelRetry}
+      </button>
+    ) : null
+  }
+  const seedBtn = (pack: SeedPack, variant: 'primary' | 'ghost', label: string) => {
+    const busy = seedingPack === pack
+    return (
+      <Btn
+        variant={variant}
+        className="w-full whitespace-normal break-keep leading-[1.25]"
+        onClick={() => onSeed(pack)}
+        aria-disabled={seedingPack !== null || undefined}
+        aria-busy={busy || undefined}
+      >
+        {busy ? SEED_COPY.busy : label}
+      </Btn>
+    )
+  }
+  return (
+    <>
+      {seedBtn(main, 'primary', SEED_COPY.mainBtn(main))}
+      {goal ? seedBtn(goal, 'ghost', SEED_COPY.goalBtn(goal)) : null}
+    </>
+  )
+}
 
 export default function WordsEmpty({
   variant,
@@ -21,7 +71,8 @@ export default function WordsEmpty({
   category = null,
   chunk = null,
   archived = false,
-  seeding,
+  levels,
+  seedingPack,
   onSeed,
   onAdd,
   onShowArchive,
@@ -33,8 +84,9 @@ export default function WordsEmpty({
   category?: string | null
   chunk?: WordChunkFilter | null
   archived?: boolean
-  seeding: boolean
-  onSeed: () => void
+  levels: SeedLevels
+  seedingPack: SeedPack | null
+  onSeed: (pack: SeedPack) => void
   onAdd: (preset?: string) => void
   onShowArchive: () => void
   /** 분류만 푼다(분류 → 전체). */
@@ -49,12 +101,10 @@ export default function WordsEmpty({
   switch (variant) {
     case 'noWords':
       title = '단어장이 비어 있어요'
-      body = '기본 단어 50개(N5)로 바로 시작하거나, 아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요.'
+      body = levels.main ? SEED_COPY.emptyBody(levels.main) : SEED_COPY.emptyBodyNoLevel
       actions = (
         <div className="mt-3 flex flex-col gap-2">
-          <Btn className="w-full" onClick={onSeed} aria-disabled={seeding || undefined} aria-busy={seeding || undefined}>
-            {seeding ? '넣는 중…' : '기본 단어 50개 넣기'}
-          </Btn>
+          <SeedPackButtons levels={levels} seedingPack={seedingPack} onSeed={onSeed} retryClassName="w-full justify-center text-center" />
           <Btn variant="ghost" className="w-full" onClick={() => onAdd()}>
             직접 추가
           </Btn>
