@@ -48,3 +48,45 @@ tags:
 ### QA 에 넘길 high_risk_areas
 1. 실제 DB 에서 N1 3,034개 삽입 시간(30s 상한)·중간 실패 시 0행 롤백·삽입 중 같은 사용자 채팅 턴 대기 2. 단계별 첫 호출 `added/skipped` 와 `import().default` 배열 동작(N5→N1 모두) 3. 옛 50개 사용자: N5 628/46 → 두 번째 0, ご飯/御飯·友だち/友達·私 3행 확인 4. 같은 표기 다른 읽기 행에서 교정 채택(409 existingId)·평가 생성(wordId)·레슨 메모 연결 5. 7.7천 단어 보유 사용자 오늘의 단어 세트 생성 지연 6. B 완료 전 문구(「50개」) 7. 앱 내 출처 줄 존재
 native_change: false
+
+## Reviewer 기록 (REV-180) — A3 델타 + B 화면
+- [중간 1] 스냅샷 `~/.node-local/thekaiwa-rev180-src`(git archive 46efd74, node_modules 하드링크). 재현(질문 8): `next build` exit 0(`✓ Compiled successfully`) · tsc exit 0 · eslint 0 error/5 warning(기존 `useEffect(load)` 패턴) · 지정 시험 1468/1468 통과 · `validate.ts` VALIDATE_PASSED(N5 676·병합 2행 포함). 
+- [중간 1] A3 질문 9~11: ① 새 검사 규칙을 A3 이전 데이터(def8fd4)에 돌리면 정확히 6행(N5 EXJA_NOT_CP932 1·N4 ASCII_PUNCT 1+MEANING_REPEAT 1·N2 KO_JA_PUNCT 1·N1 KO_JA_PUNCT 2)+기존 50개 누락 2 = hard 8, 최종 데이터·원본 5단계 표기/읽기에는 0건(과잉 거부 0 확인). 단 `nonCp932Chars('〜' U+301C)` 는 걸리는데 `JA_OK` 는 U+301C 를 허용 — 불일치(재생성 때만 영향, 현 데이터 0행). ② M2 세 곳 변이(정렬 제거·첫 행 고정→마지막 덮어쓰기·memo 정렬 제거) 3건 모두 새 시험이 실패로 잡음. 
+- [중간 1] B: §19-4 A·B·C·D·F 문구·구조 대부분 가이드와 일치 확인(WordsEmpty·WordAddSheet·TodayWordsCard·DataCreditRow 문구 원문 대조). 남은 확인: 시험 파일 내용·#11 중복 호출·`.next/static` 데이터 유입·SOURCES.md 대조·Segmented 사용처·접근성 세부.
+- [중간 2] 체크포인트: 전체 시험 `find src scripts/seed-build`(= 바뀐 `npm test` 범위) 2953/2953 통과 · validate `--raw /nonexistent` exit 1, `--allow-missing-raw` exit 4 재현 · `.next/static` 에 단어 데이터 0(「OpenJLPT」 글자만 한 청크) · 화면 파일 mtime 23:10~23:14 > 승인 22:56:43 · 데모 게이트 `DEMO_GATE_PASSED`(v1, hash verified, evidence.jsonl 승인 줄 1개 — 세션 id 일치, waive 없음).
+
+## 최종 판정 (REV-180) — **PASS-with-fixes** (Critical 0 · High 0 · Medium 1(배포 게이트) · Low 8, 코드 수정 필수 0)
+재현 근거: 스냅샷 `~/.node-local/thekaiwa-rev180-src`(46efd74). `next build` exit 0 · tsc 0 · eslint 0 error(경고 5, 기존 `useEffect(load)`) · 지정 시험 1468/1468 · 전체 2953/2953 · `validate.ts` VALIDATE_PASSED. DB·서버·포트 접속 없음. 브라우저 실측 없음(QA 몫). 디자인 판단은 하지 않았다.
+
+### 질문별 결론
+1. **§19-4 대조**: A·B·C·D·E·F-1·F-2 문구를 가이드 원문과 줄 단위 대조 — 불일치 0(`labels.ts` `SEED_COPY`·`seedResultText`·`levelHelpText`, `DataCreditRow.tsx` `DATA_CREDIT`). 구조·위계(채움 1·ghost 보조·직접 추가)·`aria-describedby`·`aria-label`·`aria-busy/aria-disabled`·버튼 말줄임 금지 모두 가이드대로. `DataCreditRow` 는 `Card` 클래스를 그대로 옮긴 `button`.
+2. **D4-B 경계**: `seedLevelsFrom`(labels.ts) 이 level 아닌 값→둘 다 null, goal==main→null, 목표가 더 낮아도 그림, `'NONE'`→null. 시험이 이 경계를 모두 덮는다. loading 중 빈 카드는 `WordsScreen`(skeleton)·`TodayHome`(`state='loading'`)에서 #11 이 끝날 때까지 유지 — 늦게 끼어들어 커지지 않음. 훅의 status 전이는 시험 없음(L3).
+3. **D6-A**: 확인 창 없음, `inFlight` ref + `isSeedPack` 통과 값만 `{pack}` 전송(`hooks.ts`), 화면의 `if (seedingPack) return` 도 유지, 결과 문구 4경우 가이드와 같음, 실패는 `actionErrorText` 공통 표.
+4. **단일 출처**: 화면 코드에 옛 이름 「원어민」·기본 단어 `50개`·674·7,811·`'N5 기초'` 생성 0(주석·무관 문구만), 엔진·모델 이름 0, 출처 시트 Tatoeba 0, 라이선스 3줄이 SOURCES.md 와 일치(OpenJLPT CC BY-SA 4.0·Tanos CC BY·JMdict CC BY-SA 4.0). 합계는 `seedPackTotal()`.
+5. **경계·번들**: 화면은 `@/types/seedPack` 리프만 import(서버 모듈 import 0), 클라이언트 번들에 단어 JSON 0. `Segmented` 사용처 33개 파일 — 한 줄 가지 클래스 문자열 동일(`tone` 분리만), `ariaLabel`/`sub` 는 선택 필드라 tsc 통과·시험 확인.
+6. **접근성·모바일(소스 판단)**: 터치 44px↑(재시도 `min-h-[44px]`, 시트 글자 버튼, 분절 `h-12`), 긴 보조 버튼 `whitespace-normal break-keep` 2줄, 시트 초점·Esc·복귀는 공용 `Sheet` 규칙. 360 계산: 목표 수준 6칸 ≈46px(안쪽 ≈42px) 안에 「최상급」12.5px 세 글자 ≈38px, WordForm select 칸 ≈111~119px 안에 「최상급 (N1)」≈83px — 소스상 들어감 `[가능성 높음]`, 실측은 QA.
+7. **보고된 차이 5개**: ① `seed()` 중복 호출 `null` — 타당(호출부 2곳 `if (!r) return`) ② `SegOption.ariaLabel?` — 타당(두 줄 칸의 이름이 「초보자N5」가 되지 않게) ③ 주 버튼 줄바꿈 클래스 — 무해 ④ 누른 버튼도 `aria-disabled` — 기존 방식 ⑤ #11 중복 — 가이드 준수지만 개선 여지(L1). 재시도 링크 정렬(빈 단어장 가운데·오늘 카드 왼쪽)은 각 카드의 기존 정렬(`Card text-center` / 왼쪽)과 일치, 디자이너 확인 권고 유지.
+8. **재현**: 위 근거.
+9. **N5 병합**: `build.ts finalizeLevel`→`mergeLegacyN5`(원본 행 뒤, 기존 값 그대로) 재현 가능, `validate.ts` 가 보장·값 불변·순서를 검사(A3 이전 데이터에서는 「빠진 것 2」 hard 로 잡힘). 위험 기록은 정확 — SOURCES.md 가공 6항·README(옛 50개 사용자만 `ご飯`+`御飯`·`友だち`+`友達` 공존, 신규 사용자는 중복 없음), 시뮬레이션 added 628·skipped 48·두 번째 0 과 일치. 다만 Leader 의 REV-179 처리 문구는 4행 병합이라 이 결정(2행)은 아직 Leader 확인 전(L4).
+10. **새 검사 규칙**: A3 이전 데이터에 돌리면 정확히 6행(N5 `员` 1·N4 `!`·뜻 되풀이·N2 `「」`·N1 `。` 2) + 병합 누락 2 = hard 8, 최종 데이터·원본 5단계에는 0 — 과잉 거부 없음, 6건 모두 진짜 결함. 예외: `nonCp932Chars('〜' U+301C)` 가 걸리는데 `JA_OK` 는 허용(L5).
+11. **M2 세 곳**: 변이 3건(정렬 제거·첫 행 고정→마지막 덮어쓰기·memo 정렬 제거) 모두 `task051Homograph.test.ts` 가 실패로 잡음 — 시험이 의미 있음. 전체 시험 통과로 기존 동작 회귀 없음.
+
+### 지적 (심각도 · 근거 · 권고 · 확신)
+- **M1(Medium·배포 게이트)** 출처 시트 문구 「사람은 일부만 확인했어요」(`DataCreditRow.tsx:26`)와 SOURCES.md 가공 4항은 사용자 표본 검수가 끝났다는 전제인데 검수는 「남은 일」이다(ACTIVE·이력서). 이 상태로 배포하면 사용자 화면의 사실 진술이 거짓. 권고: Leader 게이트 유지(표본 검수 전 push·배포 금지)를 deployer 체크리스트에 넣거나 검수 전에는 문구를 「사람이 확인하지 않은 항목이 많아요」로. `[확실]`
+- L1 `study/today/(tab)/page.tsx` 가 이미 `getProfile` 로 level 을 읽는데 `goalLevel` 만 안 넘겨 #11 을 클라이언트에서 다시 부르고(요청 +1) 빈 카드가 로딩 대기를 한다. 권고: 후속 개선으로 서버 prop 전달(가이드 19-3 은 준수). `[확실]`
+- L2 B 기록의 체크포인트 시각(22:10~22:55)이 실제와 어긋난다 — 화면 파일 mtime 은 23:10~23:14, 승인 22:56:43, 가이드 커밋 23:06. 승인 뒤 작성이라 게이트 위반은 아니지만 기록이 위반처럼 읽힘. 권고: 실제 시각으로 정정. `[확실]`
+- L3 시험 공백: `useSeedPack` 의 `inFlight` 중복 탭 차단과 `useSeedLevels` 상태 전이·화면의 로딩 대기 분기는 SSR 문자열 시험 밖(훅 시험 없음). 서버가 멱등(두 번째 added 0)이라 피해는 작음. 권고: QA 가 실제 더블탭으로 확인. `[확실]`
+- L4 Leader 결정 불일치: `task-051-improve-n5-vocab-pack.md` 「Leader 처리」는 4행 병합이고 A3 는 2행(+철자 짝 제외). 합리적 판단이나 승인·이력서 갱신 필요. `[확실]`
+- L5 `enrich.ts` `JA_OK` 는 `〜`(U+301C) 허용, `CP932_CHARS` 는 불허 — 모델이 `〜` 를 쓰면 재생성에서 거절. 현 데이터 0행이라 영향은 다음 재생성뿐. 권고: `〜`→`～` 정규화 또는 JA_OK 와 맞춤. `[확실]`
+- L6 `generate.ts` 앞 행 고정은 결정성만 보장(개발자 기록과 같음) — 평가 문항 `wordId` 가 같은 표기 형제 행에 붙을 수 있는 근본 문제는 `materials.ts` 에서 같은 표기 하나만 뽑는 후속 필요. `[확실]`
+- L7 출처 시트가 Tanos 주소를 보이는데 SOURCES.md 는 사이트 접속 불가(보관본만)라고 적는다. 귀속 의무는 충족, 주소가 죽어 있음. `[확실]`
+- L8 `aria-disabled` 에 시각 표시가 없어 넣는 중 다른 넣기 버튼이 활성처럼 보인다(기존 방식). 설정 외 화면(평가 홈 카드·평가 시작 화면)에는 여전히 「내 레벨 N5」 같은 raw 코드가 있어 §19 의 「이름 (코드)」 통일 밖 — designer 판단 사항으로 Leader 에게 전달. `[확실]`
+
+### QA 에 넘길 high_risk_areas
+1. 실제 브라우저 360/390/412: (지금 고급·목표 최상급) 보조 버튼 2줄이 48px 안, 오늘 홈 보조 버튼 +56px 일 때 [시작하기]·회화 카드 위치, 설정 목표 수준 6칸 「최상급」 잘림, WordForm 2열 select 「최상급 (N1)」, 추가 시트 글자 버튼 줄바꿈, 출처 시트 안 스크롤·초점 복귀·Esc
+2. 넣기 실동작: N1 3,034개 시간(상한 30s)·실패 시 0행·넣는 중 다른 버튼 무반응·더블탭 1회·결과 문구 숫자(옛 50개 사용자 628/48, 두 번째 0)
+3. #11 실패(오프라인) → 「다시 시도」 → 복귀, loading 중 빈 카드 대기(높이 변화·깜빡임), 웹·앱 설정 맨 아래 순서(웹: 음성 인식→출처 줄 / 앱: 버전→출처→관리자)
+4. 같은 표기 다른 읽기 행: 교정 채택 409 `existingId`·평가 wordId·레슨 메모 연결
+5. `Segmented` 한 줄 사용처 회귀(채팅·회화·관리자 등 33개 파일) 시각 확인, 스크린리더 이름(「초보자 (N5)」)·`aria-busy`
+6. 표본 검수 완료 전 배포 금지(M1)
+native_change: false

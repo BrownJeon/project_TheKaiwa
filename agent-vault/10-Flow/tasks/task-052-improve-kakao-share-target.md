@@ -2,6 +2,7 @@
 task_id: task-052
 title: "카카오톡 공유하기 수신 — 안드로이드 공유(text/plain) 대상 등록 + 오늘의 회화 붙여넣기 화면 자동 채움 (IMP-0004, 네이티브·APK)"
 status: doing
+waiting: demo_review
 base_ref: df9df75
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
