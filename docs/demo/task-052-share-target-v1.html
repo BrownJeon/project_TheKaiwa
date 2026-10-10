@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-052-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="카카오톡 공유하기로 글을 받아 오늘의 회화 붙여넣기 화면에 채우는 흐름 — 정상 도착·쓰던 글 충돌·길이/일본어 경계·로그인 전·빈 공유·진입 카드, 현재 vs 제안(delta 데모 v1)">
+<title>공유로 글 넣기</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, textarea, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+p, h1, h2, h3, h4, ul, ol, dl, dd, figure, fieldset, legend { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+fieldset { border: 0; padding: 0; min-width: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.dtop h1 small { display: inline-block; font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.meta { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.meta span { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.meta span.lv { background: var(--accent); color: var(--on-accent); }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 36px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dwrap { max-width: 1480px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dcard > h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.dcard h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 6px; }
+.dsub { font-size: 12.5px; color: var(--ink2); }
+.intro2 { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: 4px 0 12px; }
+.flow li { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border-radius: 999px; background: var(--surface2); font-size: 12.5px; }
+.flow li b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 999px; background: var(--surface); font-size: 11.5px; flex: none; }
+.flow li.sys { background: none; border: 1px dashed var(--line); color: var(--ink2); }
+.flow li.key { background: var(--accent-soft); }
+.flow .ar { color: var(--ink2); font-size: 12px; padding: 0 2px; }
+.lst { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.lst li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 4px; }
+.lst li::before { content: "•"; color: var(--ink2); }
+.lst.plus li::before { content: "+"; color: var(--good); font-weight: 700; }
+.lst.same li::before { content: "="; color: var(--ink2); font-weight: 700; }
+.lst.out li::before { content: "×"; color: var(--bad); font-weight: 700; }
+.callout { border-radius: 12px; background: var(--surface2); padding: 12px; font-size: 12.5px; margin-top: 12px; }
+
+.tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 4px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; text-align: left; }
+.tabs button b { font-size: 13.5px; }
+.tabs button span { font-size: 11.5px; color: var(--ink2); }
+.tabs button[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.scap { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.scap h3 { font-size: 15px; font-weight: 700; }
+.scap .why { font-size: 13px; }
+.scap .why b { font-weight: 700; }
+.scap .dep { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; width: max-content; max-width: 100%; }
+.onebar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-top: 10px; }
+.dbtn { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; cursor: pointer; flex: none; }
+.vrows { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 28px; margin-top: 16px; min-width: 0; }
+.vrows.stack { flex-direction: column; flex-wrap: nowrap; }
+.vrow { min-width: 0; max-width: 100%; }
+.vrow > h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tg { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.tg.now { background: var(--surface2); color: var(--ink2); }
+.tg.fix { background: var(--good-soft); color: var(--good); }
+.tg.same { background: var(--surface2); color: var(--ink2); }
+.tg.alt { background: var(--warn-soft); color: var(--ink); }
+.prow { display: flex; gap: 22px; overflow-x: auto; padding: 4px 4px 10px; }
+.fw { margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; }
+.fdim { font-size: 11.5px; color: var(--ink2); margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.decs { border: 2px solid var(--accent); }
+.dec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; container-type: inline-size; }
+.dec:first-of-type { border-top: 0; padding-top: 0; margin-top: 4px; }
+.dec legend { font-size: 14px; font-weight: 700; padding: 0; }
+.dec p.q { font-size: 13px; margin-top: 2px; }
+.dec-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 8px; }
+@container (min-width: 620px) { .dec-g { grid-template-columns: repeat(3, minmax(0, 1fr)); } .dec-g.two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; }
+.opt-d { font-size: 13px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 3px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.rec { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--good-soft); color: var(--good); }
+.decsum { margin-top: 14px; font-size: 12.5px; color: var(--ink2); }
+.decsum b { color: var(--ink); }
+.notes2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) {
+  .intro2, .notes2 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px; }
+  .dtop h1 { font-size: 14px; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dwrap { padding: 12px 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── 휴대폰 프레임 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); height: 780px; flex: none;
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; background: var(--ground); }
+.gest { position: absolute; left: 50%; bottom: 5px; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; background: var(--ink); opacity: .35; z-index: 45; pointer-events: none; }
+.stb { flex: none; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 12px; font-weight: 600; background: var(--surface); font-variant-numeric: tabular-nums; }
+.stb i { font-style: normal; color: var(--ink2); font-weight: 500; }
+.bb { flex: none; height: 52px; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-bottom: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; color: var(--ink); cursor: pointer; }
+.ib.mut { color: var(--ink2); }
+.bbt { min-width: 0; flex: 1; }
+.bbt .t { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; }
+.bbt .s { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; position: relative; display: flex; flex-direction: column; gap: 18px; padding: 14px 16px 48px; }
+.sc > * { flex: none; }
+.p14 { font-size: 14px; }
+.lbl { font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+textarea.ta { margin-top: 6px; display: block; width: 100%; min-width: 0; min-height: 176px; resize: vertical; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; font-size: 16px; line-height: 1.625; color: var(--ink); }
+textarea.ta::placeholder { color: var(--ink3); }
+.mrow { margin-top: 6px; display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink2); }
+.mrow span:first-child { min-width: 0; }
+.mrow span:last-child { flex: none; font-variant-numeric: tabular-nums; }
+.mrow .bad { color: var(--bad); }
+.err { margin-top: 8px; border-radius: 12px; border: 1px solid var(--bad-soft); background: var(--bad-soft); padding: 12px 14px; font-size: 13px; color: var(--bad); }
+.err b { display: block; font-weight: 600; }
+.cap12 { font-size: 12px; color: var(--ink2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; font-size: 15px; font-weight: 600; cursor: pointer; min-width: 0; }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.gho { border: 1px solid var(--line); background: var(--surface); }
+.btn.sm44 { height: 44px; padding: 0 14px; font-size: 13px; }
+.btn.full { width: 100%; }
+.note { margin-top: 8px; text-align: center; font-size: 12px; color: var(--ink2); }
+/* 새 요소 ① 공유 안내 띠 */
+.shb { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; background: var(--surface2); padding: 10px 12px; min-width: 0; }
+.shb .ic { flex: none; width: 28px; height: 28px; border-radius: 999px; background: var(--surface); display: grid; place-items: center; color: var(--ink2); margin-top: 1px; }
+.shb .tx { min-width: 0; flex: 1; }
+.shb .tx b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
+.shb .tx p { font-size: 12.5px; color: var(--ink2); line-height: 1.45; }
+.shb .tx .btn { margin-top: 8px; }
+.tip { font-size: 12px; color: var(--ink2); border-left: 3px solid var(--line); padding-left: 8px; }
+/* 새 요소 ② 2,000자 맞추기 줄 */
+.trim { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; }
+.trim p { flex: 1 1 170px; min-width: 0; font-size: 12.5px; color: var(--ink2); }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 40px; z-index: 30; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 12px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.toast:empty { display: none; }
+/* 시트(D2-B 대안) */
+.ovl { position: absolute; inset: 0; z-index: 40; background: color-mix(in srgb, var(--ink) 40%, transparent); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.18); padding-bottom: 20px; }
+.sheet .shd { height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 16px; border-bottom: 1px solid var(--line); }
+.sheet .shd h5 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; outline: none; }
+.sheet .sbd { padding: 12px 16px 0; font-size: 14px; }
+.brow { margin-top: 14px; display: flex; gap: 8px; }
+.brow > * { flex: 1; min-width: 0; }
+/* 수업 대기로 넘어감(기존 화면) */
+.go { position: absolute; inset: 80px 16px auto; z-index: 35; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.16); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.go b { font-size: 15px; }
+.go p { font-size: 13px; color: var(--ink2); }
+/* 로그인 */
+.lg { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 32px 28px 60px; }
+.lg .lgt { font-size: 44px; line-height: 1.05; font-weight: 700; letter-spacing: -.02em; }
+.lg .lgt span { color: var(--accent); }
+.lg .tag { margin: 4px 0 24px; color: var(--ink2); }
+.lg .tag b { color: var(--ink); font-weight: 600; }
+.lnote { display: flex; gap: 10px; align-items: flex-start; border-radius: 10px; background: var(--surface2); padding: 10px 14px; font-size: 13px; margin-bottom: 8px; }
+.lnote .ic { flex: none; color: var(--ink2); margin-top: 1px; }
+.gbtn { min-height: 52px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font-size: 15px; font-weight: 600; cursor: pointer; }
+.gbtn .g { width: 20px; height: 20px; border-radius: 999px; border: 2px solid var(--ink2); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--ink2); }
+.lwait { border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
+.lwait b { display: block; font-size: 14px; }
+.lwait p { font-size: 13px; color: var(--ink2); }
+.spin { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 999px; border: 2px solid var(--line); border-top-color: var(--accent); animation: sp 1s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.lfoot { margin-top: 14px; text-align: center; font-size: 12.5px; color: var(--ink2); }
+/* 주제 고르기(F, 변경 없음) */
+.trow { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-height: 86px; }
+.trow b { font-size: 16px; font-weight: 600; }
+.trow span { font-size: 13px; color: var(--ink2); }
+.trow i { font-style: normal; font-size: 12px; color: var(--ink2); }
+.card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 14px; }
+.card b { display: block; font-size: 15px; font-weight: 600; }
+.card p { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+.card .btn { margin-top: 12px; }
+.ph { flex: 1; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--ink2); font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>카톡 공유로 글 넣기 <small>오늘의 회화 · 붙여넣기 화면</small>
+    <span class="meta"><span>task-052</span><span>v1</span><span class="lv">delta</span></span></h1>
+  <div class="dctls">
+    <div class="dctl" id="wlab">폭
+      <div class="dseg" role="group" aria-labelledby="wlab">
+        <button type="button" data-w="360" aria-pressed="false">360</button>
+        <button type="button" data-w="390" aria-pressed="true">390</button>
+        <button type="button" data-w="412" aria-pressed="false">412</button>
+        <button type="button" data-w="all" aria-pressed="false">세 폭 나란히</button>
+      </div>
+    </div>
+    <div class="dctl" id="thlab">화면 밝기
+      <div class="dseg" role="group" aria-labelledby="thlab">
+        <button type="button" data-th="" aria-pressed="true">기기 설정</button>
+        <button type="button" data-th="light" aria-pressed="false">밝게</button>
+        <button type="button" data-th="dark" aria-pressed="false">어둡게</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="dwrap">
+  <section class="dcard" id="overview" aria-labelledby="ov-h">
+    <h2 id="ov-h">무엇이 바뀌나요</h2>
+    <div class="intro2">
+      <div>
+        <ol class="flow" aria-label="새 흐름">
+          <li><b>1</b>카톡 메시지 길게 누르기</li><li class="ar" aria-hidden="true">→</li>
+          <li><b>2</b>공유</li><li class="ar" aria-hidden="true">→</li>
+          <li class="sys"><b>3</b>안드로이드 공유 목록에서 Lingofy Japanese (시스템 화면 — 그리지 않음)</li><li class="ar" aria-hidden="true">→</li>
+          <li class="key"><b>4</b>앱이 열리고 붙여넣기 화면에 글이 채워짐</li><li class="ar" aria-hidden="true">→</li>
+          <li><b>5</b>확인 후 [이 문장으로 수업 만들기] — 이때만 서버로 보냄</li>
+        </ol>
+        <ul class="lst plus">
+          <li>붙여넣기 화면 맨 위에 <b>안내 띠 하나</b>(공유로 들어온 글이라는 표시 + 아직 보내지 않았다는 안내) — 상태 A</li>
+          <li>쓰던 글이 있을 때 <b>바꾸고 되돌리기</b> — 상태 B</li>
+          <li>2,000자가 넘을 때 <b>[2,000자에 맞춰 자르기]</b> 줄 — 상태 C2 (직접 붙여넣은 긴 글에도 같은 줄)</li>
+          <li>로그인 화면에 공유 안내 <b>한 줄</b> — 상태 D</li>
+        </ul>
+      </div>
+      <div>
+        <h3>그대로인 것</h3>
+        <ul class="lst same">
+          <li>붙여넣기 화면의 머리·설명·입력칸·글자 수·안내 문구·버튼·오류 상자(현재 §12-2 C 그대로)</li>
+          <li>50~2,000자 규칙과 일본어 판정(서버, 일본어 30% 이상) — 보낼 때만 판정</li>
+          <li>앱이 꺼져 있었든 켜져 있었든 도착 화면은 같음</li>
+          <li>오늘의 회화 카드·주제 고르기의 붙여넣기 카드(상태 F)</li>
+        </ul>
+        <h3 style="margin-top:12px">하지 않는 것</h3>
+        <ul class="lst out">
+          <li>자동 수집(알림 읽기 등), 카카오톡 연동·크롤링, 사진·파일 공유</li>
+          <li>공유한 글을 수업 만들기 전에 서버·기록에 남기기</li>
+        </ul>
+      </div>
+    </div>
+    <p class="callout">아래 휴대폰은 <b>폭 360·390·412</b>로 바꿔 볼 수 있고(위 「폭」), 휴대폰 안 버튼은 실제처럼 눌러집니다. 「결정 필요」에서 안을 바꾸면 해당 상태 화면이 그 안으로 다시 그려집니다. 기본은 권고안입니다.</p>
+  </section>
+
+  <section class="dcard" id="states" aria-labelledby="st-h">
+    <h2 id="st-h">상태별 화면</h2>
+    <div class="tabs" role="tablist" aria-label="상태" id="tabs"></div>
+    <div role="tabpanel" id="panel" tabindex="-1" aria-labelledby="st-h"></div>
+  </section>
+
+  <section class="dcard decs" id="decisions" aria-labelledby="dc-h">
+    <h2 id="dc-h">결정 필요</h2>
+    <p class="dsub">각 항목에서 하나를 고르면 위 화면이 바뀝니다. 「권고」가 붙은 안이 기본입니다. 정한 안은 맨 아래 한 줄로 Leader 에게 전해 주세요.</p>
+    <div id="declist"></div>
+    <p class="decsum" id="decsum" aria-live="polite"></p>
+  </section>
+
+  <section class="dcard" id="assume" aria-labelledby="as-h">
+    <h2 id="as-h">이 데모가 전제한 동작 · 확인 못 한 것</h2>
+    <div class="notes2">
+      <div>
+        <h3>전제한 동작(이견 있으면 알려 주세요)</h3>
+        <ul class="lst">
+          <li>공유한 글은 주소(URL)·기록(로그)·서버에 싣지 않습니다. 화면에 채운 뒤에는 지금 붙여넣기처럼 이 기기의 임시 초안에만 남고, [이 문장으로 수업 만들기]를 누를 때 지금과 같은 경로로 보냅니다.</li>
+          <li>한 번 받은 공유는 한 번만 채웁니다. 새로고침해도 띠가 다시 뜨지 않습니다(초안으로만 남음).</li>
+          <li>앱이 켜져 있을 때 공유가 오면 보던 화면(수업·회화 중이어도)에서 붙여넣기 화면으로 넘어갑니다. 화면의 ‹(주제 고르기로)는 지금과 같고, 기기 뒤로 가기는 보던 화면으로 돌아갑니다. 앱이 꺼져 있었다면 기기 뒤로 가기는 앱을 닫고 카카오톡으로 돌아갑니다.</li>
+          <li>입력칸에 자동으로 커서를 두지 않습니다 — 키보드가 올라와 글과 버튼을 가리지 않게.</li>
+          <li>아주 긴 공유(1만 자 넘음)는 앱이 앞 1만 자만 받고, 그 뒤는 상태 C2 와 같습니다(기기 메모리 보호).</li>
+          <li>Lingofy Japanese 는 <b>글</b> 공유에만 공유 목록에 나옵니다. 사진·파일·여러 개 공유에는 목록에 없습니다.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>확인 못 한 것</h3>
+        <ul class="lst">
+          <li>카톡 메시지의 「공유」가 이 폰에서 안드로이드 공유 목록을 띄우는지, 그리고 넘어오는 글에 보낸 사람·시간 같은 머리말이 붙는지(실기기 확인 전). 머리말이 붙으면 글자 수와 일본어 비율이 달라집니다.</li>
+          <li>수지센세 글의 실제 길이와 한국어 설명 비율. 서버는 일본어 30% 이상만 받습니다 — 한국어 설명이 대부분인 글은 상태 C3 처럼 막힙니다. 실제 글 1~2개를 보면 C2·C3 기본안을 다시 볼 수 있습니다.</li>
+          <li>로그인 창(Chrome)이 열린 사이 앱이 메모리에서 밀려나는 빈도 — 상태 D 의 「글을 받지 못함」이 얼마나 드문지.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var MIN = 50, MAX = 2000;
+  function cp(s) { return Array.from(s).length; }
+  function fmt(n) { return n.toLocaleString('ko-KR'); }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+  /* ── 현재 화면 문구(lessonCopy PASTE) ── */
+  var PASTE = {
+    title: '문장으로 수업 만들기', subtitle: '오늘의 회화', back: '주제 고르기로',
+    intro: '일본어 문장을 붙여넣으면 선생님이 그 문장으로 5단계 수업을 만들어요. 드라마 대사·노래 가사·교재 문장이 좋아요.',
+    label: '붙여넣을 문장', placeholder: '예) 今日はいい天気ですね。\nそうですね。散歩に行きませんか。',
+    hintEmpty: '50자 이상 · 3~8줄이 알맞아요', hintShort: function (n) { return '50자 이상 넣어 주세요 · 지금 ' + n + '자'; },
+    hintLong: '2,000자까지 넣을 수 있어요', hintOk: '3~8줄이 알맞아요', count: function (n) { return fmt(n) + ' / 2,000자'; },
+    noJaTitle: '일본어 문장이 너무 적어요.', noJaBody: '일본어가 들어간 문장을 붙여넣어 주세요.',
+    saved: '붙여넣은 문장은 이 수업과 함께 저장돼요.', submit: '이 문장으로 수업 만들기', creating: '만드는 중…',
+    note: '수업을 만드는 데 1~2분 걸려요. 만들기 시작하면 취소할 수 없어요.'
+  };
+  /* ── 새 문구(제안) ── */
+  var SH = {
+    arrivedT: '공유한 글을 넣어 두었어요', arrivedB: '아직 아무 데도 보내지 않았어요. 확인하고 수업을 만들어 보세요.',
+    replacedT: '공유한 글로 바꿔 넣었어요', replacedB: function (n) { return '쓰던 글(' + fmt(n) + '자)은 이 화면에 있는 동안 되돌릴 수 있어요.'; }, replacedA: '쓰던 글로 되돌리기',
+    restoredT: '쓰던 글로 되돌렸어요', restoredB: function (n) { return '공유한 글(' + fmt(n) + '자)을 다시 넣을 수 있어요.'; }, restoredA: '공유한 글 다시 넣기',
+    appendedT: '쓰던 글 뒤에 공유한 글을 붙였어요', appendedB: '필요 없는 부분은 지워 주세요.',
+    longcutT: '글이 길어 앞부분만 넣었어요', longcutB: function (f, k) { return '전체 ' + fmt(f) + '자 중 문장이 끝나는 곳까지 ' + fmt(k) + '자예요. 뒷부분은 빠졌어요.'; }, longcutA: '전체 넣기',
+    longrejT: '공유한 글이 너무 길어요', longrejB: function (f) { return fmt(f) + '자예요. 2,000자까지 넣을 수 있어요. 나눠서 공유해 주세요.'; },
+    trimHint: function (r) { return '문장이 끝나는 곳에서 잘라 2,000자 안으로 맞춰요. 뒷부분 ' + fmt(r) + '자는 빠져요.'; }, trimA: '2,000자에 맞춰 자르기',
+    trimmed: function (r) { return '뒷부분 ' + fmt(r) + '자를 뺐어요.'; }, untrimA: '되돌리기',
+    sheetT: '쓰던 글이 있어요', sheetB: function (n) { return '공유한 글로 바꿀까요? 지금 쓰던 글(' + fmt(n) + '자)은 지워져요. 쓰던 글을 두면 공유한 글은 넣지 않아요.'; },
+    sheetOk: '공유한 글로 바꾸기', sheetKeep: '쓰던 글 두기',
+    tArrived: '공유한 글을 넣어 두었어요.', tKept: '쓰던 글을 그대로 두었어요.',
+    tLost: '공유한 글을 받지 못했어요. 다시 공유해 주세요.', tEmpty: '공유한 내용에 글이 없어요. 글을 골라 공유해 주세요.',
+    loginNote: '공유한 글은 로그인하면 붙여넣기 화면에 넣어 드려요.',
+    tip: '카카오톡 메시지를 길게 눌러 [공유] → Lingofy Japanese 를 고르면 여기로 바로 들어와요.'
+  };
+
+  /* ── 합성 샘플(실제 대화 아님) ── */
+  var SHARE_NORMAL = '★ 오늘의 표현 — 허락 구하기\n写真を撮ってもいいですか。\nここに座ってもいいですか。\n窓を開けてもいいですか。\n― はい、どうぞ。\n― すみません、それはちょっと…。\nみなさん、声に出して練習してみてくださいね！';
+  var DRAFT_OLD = '駅までの道を教えてください。\nまっすぐ行って、二つ目の角を右に曲がってください。\nありがとうございます。助かりました。';
+  var SHARE_SHORT = '明日のレッスンは10時からです。よろしくお願いします！';
+  var SHARE_NOJA = '이번 주 수업은 목요일로 옮겼어요. 시간은 그대로 저녁 8시예요. 숙제는 지난번 프린트 3쪽까지 해 오세요. 궁금한 건 언제든 물어보세요!';
+  var LONG_BLOCK = ['今日は「〜てもいいですか」と「〜てはいけません」をいっしょに練習しましょう。', '図書館で写真を撮ってもいいですか。', 'いいえ、図書館の中で写真を撮ってはいけません。', 'この部屋でお弁当を食べてもいいですか。', 'はい、ここで食べてもいいですよ。でも、ごみは持って帰ってくださいね。', '明日、少し遅れて来てもいいですか。', '大丈夫ですよ。でも、遅れるときは先に連絡してください。'];
+  var SHARE_LONG = ''; (function () { var k = 1; while (cp(SHARE_LONG) < 2340) { SHARE_LONG += '【' + k + '】\n' + LONG_BLOCK.join('\n') + '\n\n'; k++; } SHARE_LONG = SHARE_LONG.trim(); })();
+
+  function meta(t) {
+    var n = cp(t);
+    if (n === 0) return { n: n, hint: PASTE.hintEmpty, bad: false, ok: false };
+    if (n < MIN) return { n: n, hint: PASTE.hintShort(n), bad: false, ok: false };
+    if (n > MAX) return { n: n, hint: PASTE.hintLong, bad: true, ok: false };
+    return { n: n, hint: PASTE.hintOk, bad: false, ok: true };
+  }
+  /* 데모용 근사(실제 판정은 서버 한 곳) */
+  function jaRatio(t) {
+    var a = Array.from(t).filter(function (c) { return !/\s/.test(c); });
+    if (!a.length) return 0;
+    var j = a.filter(function (c) { return /[぀-ヿ㐀-鿿ｦ-ﾟ]/.test(c); }).length;
+    return j / a.length;
+  }
+  function trimPoint(t) {
+    var a = Array.from(t); if (a.length <= MAX) return a.length;
+    for (var i = MAX - 1; i >= MAX - 400; i--) { if (/[。！？!?\n]/.test(a[i])) return i + 1; }
+    return MAX;
+  }
+  function head(t, k) { return Array.from(t).slice(0, k).join('').replace(/\s+$/, ''); }
+
+  /* ── 결정(기본 = 권고) ── */
+  var DEC = { d1: 'A', d2: 'A', d3: 'A', d4: 'A', d5: 'A', d6: 'A' };
+
+  /* ── 아이콘 ── */
+  var IC_BACK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
+  var IC_SHARE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>';
+  var IC_INFO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.01"/></svg>';
+  var IC_X = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  /* ── 상태 정의 ── */
+  var STATES = [
+    { id: 'g', tab: 'G 현재 vs 제안', sub: '바뀌는 곳 한눈에', title: 'G. 현재 vs 제안',
+      why: function () { return '<b>현재</b>는 카톡에서 복사 → 앱 열기 → 오늘 탭 → [주제 고르기] → [문장 붙여넣기] → 입력칸 길게 눌러 붙여넣기 → [이 문장으로 수업 만들기] 7단계예요. <b>제안</b>은 길게 눌러 공유 → Lingofy Japanese → [이 문장으로 수업 만들기] 3단계이고, 화면에서 새로 생기는 것은 맨 위 안내 띠 하나예요.'; },
+      dep: '결정 D1·D6 이 반영돼요',
+      rows: [{ v: 'g-current', h: '현재 — 직접 들어와 붙여넣기 전', tag: ['now', '현재'] }, { v: 'g-proposed', h: '제안 — 공유로 도착', tag: ['fix', '제안'] }] },
+    { id: 'a', tab: 'A 정상 도착', sub: '글이 채워진 채 열림', title: 'A. 정상 도착',
+      why: function () { return '공유하면 앱이 열리고 글이 채워져 있어요. <b>새로 생기는 것은 맨 위 띠 하나</b> — 왜 글이 들어 있는지와, 아직 아무 데도 보내지 않았다는 안내예요. 입력칸에 자동으로 커서를 두지 않아 키보드가 글과 버튼을 가리지 않아요. 글자 수·안내·버튼은 지금과 같아요. 휴대폰 안 [이 문장으로 수업 만들기]를 눌러 보세요(기존 수업 대기 화면으로 넘어가요).'; },
+      dep: '결정 D1·D6 이 반영돼요', reset: '공유 다시 도착',
+      rows: [{ v: 'a', h: '공유로 도착(앱이 꺼져 있었든 켜져 있었든 같음)', tag: ['fix', '제안'] }] },
+    { id: 'b', tab: 'B 쓰던 글 있음', sub: '덮어쓰기 vs 유지', title: 'B. 쓰던 글이 있는 상태에서 새 공유가 도착',
+      why: function () {
+        var t = { A: '<b>권고(D2-A)</b>: 방금 한 행동(공유)의 뜻이 가장 분명하니 공유한 글로 바꾸고, 띠에 [쓰던 글로 되돌리기]를 둬요. 매번 묻지 않고, 화면을 떠나기 전까지는 잃지 않아요.', B: '<b>대안(D2-B)</b>: 바꾸기 전에 시트로 물어요. 확정 → 취소 순서(전 화면 규칙). [쓰던 글 두기]를 고르면 공유한 글은 넣지 않아요.', C: '<b>대안(D2-C)</b>: 쓰던 글 뒤에 공유한 글을 이어 붙여요. 잃는 것은 없지만 두 글이 섞여요.' };
+        return '쓰던 글은 앱이 켜져 있고 붙여넣기 화면에 쓰다 만 글이 남아 있을 때만 있어요(앱을 새로 켜면 초안이 비어 있어 상태 A 가 돼요). 쓰던 글과 공유한 글이 같으면 안내 없이 상태 A 와 같아요. ' + t[DEC.d2];
+      },
+      dep: '결정 D2 가 반영돼요', reset: '공유 다시 도착',
+      rows: [{ v: 'b-before', h: '공유 직전 — 쓰던 글이 남아 있는 현재 화면', tag: ['now', '현재'] }, { v: 'b-after', h: '공유 도착 후', tag: ['fix', '제안'] }] },
+    { id: 'c1', tab: 'C1 50자 미만', sub: '짧은 글', title: 'C1. 50자 미만',
+      why: function () { return '그대로 넣고 <b>지금 안내를 그대로</b> 보여요(「50자 이상 넣어 주세요 · 지금 n자」). 버튼을 누르면 지금처럼 이유 토스트가 떠요. 사용자가 글을 더 보태거나 다른 글을 다시 공유하면 돼요. 새 안내를 따로 만들지 않아요.'; },
+      dep: '결정 D1 이 반영돼요', reset: '공유 다시 도착',
+      rows: [{ v: 'c1', h: '짧은 공유(27자)', tag: ['fix', '제안'] }] },
+    { id: 'c2', tab: 'C2 2,000자 초과', sub: '자르기 vs 거부', title: 'C2. 2,000자 초과',
+      why: function () {
+        var t = { A: '<b>권고(D3-A)</b>: 다 넣고 지금 빨간 안내(「2,000자까지 넣을 수 있어요」)를 그대로 보이면서, 그 아래 <b>[2,000자에 맞춰 자르기]</b> 줄을 둬요. 문장이 끝나는 곳에서 자르고 [되돌리기]가 있어요. 무엇이 빠지는지 보고 고를 수 있고, 한국어 설명을 직접 지워 일본어를 더 남길 수도 있어요. 직접 붙여넣은 긴 글에도 같은 줄이 보여요(규칙 하나).', B: '<b>대안(D3-B)</b>: 문장이 끝나는 곳에서 자동으로 잘라 넣고 띠에 알려요. 바로 버튼을 누를 수 있지만 모르는 사이 뒷부분이 빠져요.', C: '<b>대안(D3-C)</b>: 넣지 않고 안내만 해요. 카톡 메시지는 일부만 골라 공유하기 어려워 막히기 쉬워요.' };
+        return '공유한 글 ' + fmt(cp(SHARE_LONG)) + '자(샘플). ' + t[DEC.d3];
+      },
+      dep: '결정 D3 이 반영돼요', reset: '공유 다시 도착',
+      rows: [{ v: 'c2', h: '긴 공유(' + fmt(cp(SHARE_LONG)) + '자)', tag: ['fix', '제안'] }] },
+    { id: 'c3', tab: 'C3 일본어 아님', sub: '보낼 때 판정', title: 'C3. 일본어가 아닌 글',
+      why: function () { return '<b>미리 막지 않아요.</b> 지금 붙여넣기와 같이 버튼을 누를 때 서버가 판정하고(일본어 30% 이상), 지금과 같은 오류 상자가 떠요. 판정 기준을 서버 한 곳에만 두는 현재 원칙을 지켜요. 휴대폰 안 버튼을 눌러 보세요. 입력을 고치면 오류 상자는 지워져요.'; },
+      dep: '결정 D1 이 반영돼요', reset: '공유 다시 도착',
+      rows: [{ v: 'c3', h: '한국어 공지 공유(합성 샘플)', tag: ['fix', '제안'] }] },
+    { id: 'd', tab: 'D 로그인 전', sub: '로그인 뒤 같은 화면', title: 'D. 로그인 전에 공유가 도착',
+      why: function () {
+        var t = { A: '<b>권고(D4-A)</b>: 로그인 화면에 한 줄 안내를 보이고, 로그인이 끝나면 같은 붙여넣기 화면으로 돌아와 글이 채워져요. 카톡에서 왔는데 로그인 화면만 보이면 글이 사라진 것처럼 보이기 때문이에요. 로그인 화면 변경은 이 한 줄뿐이에요.', B: '<b>대안(D4-B)</b>: 로그인 화면은 그대로 두고, 로그인 뒤 붙여넣기 화면으로 돌아와 글을 채워요.' };
+        return '앱 로그인은 지금도 돌아갈 화면을 이어 줘요(로그인 화면 → Chrome 창 → 앱). 글은 주소에 싣지 않고 「공유에서 왔다」는 표시만 이어 가요. ' + t[DEC.d4] + ' 휴대폰 안 [Google로 계속하기]를 눌러 보세요.';
+      },
+      dep: '결정 D4 가 반영돼요', reset: '처음부터',
+      rows: [{ v: 'd-login', h: '공유가 먼저 왔고 로그인이 안 된 상태', tag: ['fix', '제안'] }, { v: 'd-lost', h: '드문 경우 — 로그인하는 사이 글을 받지 못함', tag: ['fix', '제안'] }] },
+    { id: 'e', tab: 'E 빈 공유', sub: '글이 없는 공유', title: 'E. 빈 공유 · 지원하지 않는 공유',
+      why: function () {
+        var t = { A: '<b>권고(D5-A)</b>: 공유에 글이 비어 있으면(공백뿐 포함) 붙여넣기 화면을 열고 토스트 한 번. Lingofy 를 고른 행동에 응답이 있고, 쓰던 글은 건드리지 않아요.', B: '<b>대안(D5-B)</b>: 앱만 열고 아무 안내도 하지 않아요. 공유가 실패한 건지 알 수 없어요.' };
+        return '<b>사진·파일·여러 개 공유</b>에는 공유 목록에 Lingofy Japanese 가 아예 나오지 않아요(글 공유만 받도록 등록) — 보여 줄 화면이 없어요. 글 공유인데 내용이 비어 있는 드문 경우만 아래처럼 해요. ' + t[DEC.d5];
+      },
+      dep: '결정 D5 가 반영돼요', reset: '다시 보기',
+      rows: [{ v: 'e', h: '글이 빈 공유가 도착', tag: ['fix', '제안'] }] },
+    { id: 'f', tab: 'F 진입 카드', sub: '변경 없음', title: 'F. 오늘의 회화 진입 카드 — 변경 없음',
+      why: function () {
+        var t = { A: '알리는 방법은 <b>권고(D6-A)</b>: 앱 업데이트 안내(1.0.3 설치 시트의 「바뀐 점」)에 한 줄 — 예: 「카카오톡에서 글을 공유하면 바로 \'문장으로 수업 만들기\' 화면에 들어가요.」 화면 코드는 그대로이고 배포 메모만 써요.', B: '알리는 방법은 <b>대안(D6-B)</b>: 붙여넣기 화면 설명 아래에 앱에서만 보이는 팁 한 줄(상태 A·G 화면에 반영됨).', C: '알리는 방법은 <b>대안(D6-C)</b>: 따로 알리지 않아요.' };
+        return '공유는 붙여넣기 화면으로 바로 들어가므로 오늘 홈의 오늘의 회화 카드와 주제 고르기 화면의 붙여넣기 카드(아래)는 <b>바꾸지 않아요</b>. ' + t[DEC.d6];
+      },
+      dep: '결정 D6 이 반영돼요',
+      rows: [{ v: 'f', h: '주제 고르기 화면 아래 붙여넣기 카드', tag: ['same', '변경 없음'] }] }
+  ];
+
+  var DECS = [
+    { k: 'd1', t: 'D1. 공유로 들어왔다는 표시', q: '글이 채워진 채 화면이 열릴 때 무엇을 보일까요?', opts: [
+      { v: 'A', h: '맨 위 안내 띠', rec: true, d: '「공유한 글을 넣어 두었어요 / 아직 아무 데도 보내지 않았어요」', p: ['떠나기 전까지 남아 「왜 글이 들어 있지?」에 답함', '「아직 보내지 않았어요」로 개인 글이 서버에 갔는지 걱정하지 않음', '높이 약 60px — 360폭에서도 첫 화면 안에 버튼이 남음'], m: ['화면 위쪽이 조금 내려감'] },
+      { v: 'B', h: '토스트 한 번', d: '화면은 지금과 똑같고 아래에 잠깐 알림', p: ['화면 변화 없음'], m: ['몇 초 뒤 사라져 단서가 없음', '되돌리기·자르기 같은 버튼을 둘 곳이 없음'] },
+      { v: 'C', h: '표시 없음', d: '글만 채움', p: ['가장 단순'], m: ['예전에 쓰던 글로 알고 지울 수 있음'] }] },
+    { k: 'd2', t: 'D2. 쓰던 글이 있을 때 새 공유', q: '붙여넣기 화면에 쓰다 만 글이 있는데 다른 글이 공유되면?', opts: [
+      { v: 'A', h: '바꾸고 되돌리기', rec: true, d: '공유한 글로 바꾸고 띠에 [쓰던 글로 되돌리기]', p: ['방금 한 공유가 가장 분명한 뜻', '묻지 않아 탭이 늘지 않음', '되돌릴 수 있어 잃지 않음'], m: ['화면을 떠나면 쓰던 글은 되돌릴 수 없음'] },
+      { v: 'B', h: '먼저 확인 시트', d: '「공유한 글로 바꿀까요?」 [바꾸기] [쓰던 글 두기]', p: ['무엇이 일어나는지 가장 분명함'], m: ['열자마자 시트가 덮고 탭이 하나 늘어남'] },
+      { v: 'C', h: '뒤에 이어 붙이기', d: '쓰던 글 + 빈 줄 + 공유한 글', p: ['아무것도 잃지 않음'], m: ['두 글이 섞여 2,000자를 넘기 쉽고 지워야 함'] }] },
+    { k: 'd3', t: 'D3. 2,000자 넘는 글', q: '공유한 글이 2,000자를 넘으면?', opts: [
+      { v: 'A', h: '다 넣고 [2,000자에 맞춰 자르기]', rec: true, d: '지금 빨간 안내 + 아래에 자르기 줄(문장 끝에서, 되돌리기 있음)', p: ['무엇이 빠지는지 보고 고름', '한국어 설명을 직접 지워 일본어를 더 남길 수 있음', '직접 붙여넣은 긴 글에도 같은 줄 — 규칙 하나'], m: ['한 번 더 눌러야 함'] },
+      { v: 'B', h: '자동으로 잘라 넣기', d: '문장 끝에서 잘라 넣고 띠로 알림 + [전체 넣기]', p: ['바로 수업을 만들 수 있음'], m: ['모르는 사이 뒷부분이 빠짐'] },
+      { v: 'C', h: '넣지 않고 안내', d: '「너무 길어요. 나눠서 공유해 주세요.」', p: ['서버 규칙과 똑같이 엄격'], m: ['카톡 메시지는 일부만 골라 공유하기 어려워 막힘'] }] },
+    { k: 'd4', t: 'D4. 로그인 전에 공유가 오면', q: '로그인 화면에 안내를 보일까요? (로그인 뒤에는 둘 다 같은 붙여넣기 화면으로 돌아와요)', two: true, opts: [
+      { v: 'A', h: '로그인 화면에 한 줄 안내', rec: true, d: '「공유한 글은 로그인하면 붙여넣기 화면에 넣어 드려요.」', p: ['글이 사라진 것처럼 보이지 않음', '로그인 화면 변경은 문구 한 줄'], m: ['로그인 화면(인증 경로)을 조금 건드림'] },
+      { v: 'B', h: '안내 없이', d: '로그인 화면은 그대로', p: ['로그인 화면을 건드리지 않음'], m: ['로그인하는 동안 공유가 잘 됐는지 알 수 없음'] }] },
+    { k: 'd5', t: 'D5. 글이 빈 공유', q: '공유에 글이 없으면?', two: true, opts: [
+      { v: 'A', h: '붙여넣기 화면 + 토스트', rec: true, d: '「공유한 내용에 글이 없어요. 글을 골라 공유해 주세요.」', p: ['고른 행동에 응답이 있음', '쓰던 글은 그대로'], m: ['드문 경우를 위한 문구 하나'] },
+      { v: 'B', h: '앱만 열기', d: '마지막 화면이 그대로 열리고 안내 없음', p: ['만들 것이 없음'], m: ['공유가 실패한 건지 알 수 없음'] }] },
+    { k: 'd6', t: 'D6. 공유 기능 알리기', q: '공유로 넣을 수 있다는 것을 어디에 알릴까요?', opts: [
+      { v: 'A', h: '업데이트 안내에 한 줄', rec: true, d: '1.0.3 설치 시트 「바뀐 점」(배포 메모)', p: ['화면 코드 변경 없음', '앱/웹을 가르는 곳을 지금 세 곳(로그인·음성 인식·업데이트 띠)으로 유지'], m: ['업데이트할 때 한 번만 보임'] },
+      { v: 'B', h: '붙여넣기 화면 팁', d: '설명 아래 「카카오톡 메시지를 길게 눌러 [공유] → …」(앱에서만)', p: ['늘 보임'], m: ['앱/웹 가르는 곳이 하나 늘어남', '이미 아는 사용자에게는 군더더기'] },
+      { v: 'C', h: '알리지 않음', d: '—', p: ['할 일 없음'], m: ['나중에 잊기 쉬움'] }] }
+  ];
+
+  /* ── 휴대폰 상태 ── */
+  var P = {}; var seq = 0; var curState = 'g'; var widthMode = '390';
+
+  function arrive(s, shared) {
+    var prev = s.text || '';
+    s.kind = 'paste'; s.shared = shared; s.noJa = false; s.trim = null; s.sheet = false; s.toast = ''; s.alt = null; s.banner = null; s.busy = false; s.go = false;
+    if (DEC.d3 === 'C' && cp(shared) > MAX) { s.text = prev; s.banner = { t: 'longrej', full: cp(shared) }; return s; }
+    var fill = shared;
+    if (DEC.d3 === 'B' && cp(shared) > MAX) { var k = trimPoint(shared); fill = head(shared, k); s.banner = { t: 'longcut', full: cp(shared), kept: cp(fill) }; }
+    if (prev && prev !== fill) {
+      if (DEC.d2 === 'A') { s.alt = prev; s.text = fill; s.banner = { t: 'replaced', n: cp(prev) }; }
+      else if (DEC.d2 === 'B') { s.text = prev; s.pendingFill = fill; s.sheet = true; }
+      else { s.text = prev + '\n\n' + fill; s.banner = { t: 'appended' }; }
+    } else { s.text = fill; if (!s.banner) s.banner = { t: 'arrived' }; }
+    if (DEC.d1 !== 'A' && s.banner && s.banner.t === 'arrived') { s.banner = null; if (DEC.d1 === 'B') { s.toast = SH.tArrived; s.sticky = true; } }
+    return s;
+  }
+  function init(v) {
+    switch (v) {
+      case 'g-current': return { kind: 'paste', text: '', v: v };
+      case 'g-proposed': case 'a': return arrive({ v: v, text: '' }, SHARE_NORMAL);
+      case 'b-before': return { kind: 'paste', text: DRAFT_OLD, v: v };
+      case 'b-after': return arrive({ v: v, text: DRAFT_OLD }, SHARE_NORMAL);
+      case 'c1': return arrive({ v: v, text: '' }, SHARE_SHORT);
+      case 'c2': return arrive({ v: v, text: '' }, SHARE_LONG);
+      case 'c3': return arrive({ v: v, text: '' }, SHARE_NOJA);
+      case 'd-login': return { kind: 'login', phase: 'idle', v: v, lost: false };
+      case 'd-lost': return { kind: 'paste', text: '', v: v, toast: SH.tLost, sticky: true };
+      case 'e': return DEC.d5 === 'A' ? { kind: 'paste', text: '', v: v, toast: SH.tEmpty, sticky: true } : { kind: 'last', v: v };
+      case 'f': return { kind: 'topics', v: v };
+    }
+    return { kind: 'last', v: v };
+  }
+
+  function stbHTML() { return '<div class="stb" aria-hidden="true"><span>9:41</span><i>LTE · 82%</i></div>'; }
+  function backbar(pid, title, sub, back) {
+    return '<div class="bb"><button type="button" class="ib" data-act="back" data-fk="back" aria-label="' + esc(back) + '">' + IC_BACK + '</button>' +
+      '<div class="bbt"><p class="t" role="heading" aria-level="5" tabindex="-1" data-fk="title">' + esc(title) + '</p><p class="s">' + esc(sub) + '</p></div></div>';
+  }
+  function bannerHTML(s) {
+    var b = s.banner; if (!b) return '';
+    var t = '', d = '', a = '', act = '';
+    if (b.t === 'arrived') { t = SH.arrivedT; d = SH.arrivedB; }
+    else if (b.t === 'replaced') { t = SH.replacedT; d = SH.replacedB(b.n); a = SH.replacedA; act = 'swap'; }
+    else if (b.t === 'restored') { t = SH.restoredT; d = SH.restoredB(b.n); a = SH.restoredA; act = 'swap'; }
+    else if (b.t === 'appended') { t = SH.appendedT; d = SH.appendedB; }
+    else if (b.t === 'longcut') { t = SH.longcutT; d = SH.longcutB(b.full, b.kept); a = SH.longcutA; act = 'fullin'; }
+    else if (b.t === 'longrej') { t = SH.longrejT; d = SH.longrejB(b.full); }
+    return '<div class="shb" role="status"><span class="ic">' + (b.t === 'longrej' ? IC_INFO : IC_SHARE) + '</span><div class="tx"><b>' + esc(t) + '</b><p>' + esc(d) + '</p>' +
+      (a ? '<button type="button" class="btn gho sm44" data-act="' + act + '" data-fk="banact">' + esc(a) + '</button>' : '') + '</div></div>';
+  }
+  function metaHTML(pid, s) {
+    var m = meta(s.text || '');
+    var out = '<div class="mrow"><span id="hint-' + pid + '"' + (m.bad ? ' class="bad"' : '') + '>' + esc(m.hint) + '</span><span id="cnt-' + pid + '"' + (m.bad ? ' class="bad"' : '') + '>' + esc(PASTE.count(m.n)) + '</span></div>';
+    if (s.v !== 'g-current' && s.v !== 'b-before' && DEC.d3 === 'A') {
+      if (s.trim) out += '<div class="trim"><p>' + esc(SH.trimmed(s.trim.removed)) + '</p><button type="button" class="btn gho sm44" data-act="untrim" data-fk="trimbtn">' + esc(SH.untrimA) + '</button></div>';
+      else if (m.n > MAX) { var k = trimPoint(s.text); out += '<div class="trim"><p>' + esc(SH.trimHint(m.n - cp(head(s.text, k)))) + '</p><button type="button" class="btn gho sm44" data-act="trim" data-fk="trimbtn">' + esc(SH.trimA) + '</button></div>'; }
+    }
+    if (s.noJa) out += '<div class="err" role="alert"><b>' + esc(PASTE.noJaTitle) + '</b><p>' + esc(PASTE.noJaBody) + '</p></div>';
+    return out;
+  }
+  function pasteHTML(pid, s) {
+    var proposed = s.v !== 'g-current' && s.v !== 'b-before';
+    var h = stbHTML() + backbar(pid, PASTE.title, PASTE.subtitle, PASTE.back) + '<div class="sc">';
+    h += bannerHTML(s);
+    h += '<p class="p14">' + esc(PASTE.intro) + '</p>';
+    if (proposed && DEC.d6 === 'B') h += '<p class="tip">' + esc(SH.tip) + '</p>';
+    h += '<div><label class="lbl" for="ta-' + pid + '">' + esc(PASTE.label) + '</label>' +
+      '<textarea class="ta" id="ta-' + pid + '" lang="ja" rows="8" data-pid="' + pid + '" data-fk="ta" placeholder="' + esc(PASTE.placeholder) + '" aria-describedby="hint-' + pid + ' cnt-' + pid + '">' + esc(s.text || '') + '</textarea>' +
+      '<div id="mx-' + pid + '">' + metaHTML(pid, s) + '</div></div>';
+    h += '<p class="cap12">' + esc(PASTE.saved) + '</p>';
+    h += '<div><button type="button" class="btn pri full" data-act="submit" data-fk="submit"' + (meta(s.text || '').ok && !s.busy ? '' : ' aria-disabled="true"') + (s.busy ? ' aria-busy="true"' : '') + '>' + esc(s.busy ? PASTE.creating : PASTE.submit) + '</button><p class="note">' + esc(PASTE.note) + '</p></div>';
+    h += '</div>';
+    if (s.go) h += '<div class="go" role="status"><b>→ 수업 만들기 대기 화면으로 넘어가요</b><p>기존 화면(§12-2 D) · 이번에 바뀌지 않아요. 보낸 글은 지금과 같이 이 수업과 함께 저장돼요.</p><button type="button" class="btn gho sm44" data-act="reset" data-fk="go">데모: 처음 상태로</button></div>';
+    if (s.sheet) h += '<div class="ovl" data-act="sheetkeep"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-' + pid + '"><div class="shd"><h5 id="sh-' + pid + '" tabindex="-1" data-fk="sheett">' + esc(SH.sheetT) + '</h5><button type="button" class="ib mut" data-act="sheetkeep" aria-label="닫기">' + IC_X + '</button></div><div class="sbd"><p>' + esc(SH.sheetB(cp(s.text))) + '</p><div class="brow"><button type="button" class="btn pri" data-act="sheetok">' + esc(SH.sheetOk) + '</button><button type="button" class="btn gho" data-act="sheetkeep">' + esc(SH.sheetKeep) + '</button></div></div></div>';
+    return h;
+  }
+  function loginHTML(pid, s) {
+    var h = '<div class="lg"><p class="lgt" role="heading" aria-level="5">Lingofy <span>Japanese</span></p><p class="tag"><b>일본어가 자연스러워지는 AI 회화</b><br>AI 선생님과 회화 · 교정 · 단어 · 평가</p>';
+    if (DEC.d4 === 'A') h += '<p class="lnote" role="status"><span class="ic">' + IC_SHARE + '</span><span>' + esc(SH.loginNote) + '</span></p>';
+    if (s.phase === 'waiting') h += '<div class="lwait" role="status"><span class="spin" aria-hidden="true"></span><div><b>Chrome 창에서 로그인하고 있어요</b><p>로그인이 끝나면 이 화면으로 자동으로 돌아와요.</p></div></div>';
+    else h += '<button type="button" class="gbtn" data-act="login" data-fk="login"><span class="g" aria-hidden="true">G</span>Google로 계속하기</button>';
+    h += '<p class="lfoot">처음이라면 초대코드가 필요합니다.</p></div>';
+    return stbHTML() + h;
+  }
+  function topicsHTML(pid) {
+    return stbHTML() + backbar(pid, '주제 고르기', '오늘의 회화', '오늘로') + '<div class="sc">' +
+      '<p class="p14">어떤 이야기로 수업할까요? 내 수준(N5)과 한 단계 위(N4) 주제를 보여 드려요.</p>' +
+      '<div class="trow"><b lang="ja">はじめての注文</b><span>처음 주문하기 · N5</span><i>지난 수업 2번 · 10월 8일</i></div>' +
+      '<div class="trow"><b lang="ja">道をたずねる</b><span>길 묻기 · N5</span><i>아직 수업하지 않았어요</i></div>' +
+      '<div class="card"><b>갖고 있는 문장으로 수업 만들기</b><p>드라마 대사나 교재 문장을 붙여넣으면 그 문장으로 수업을 만들어요.</p><button type="button" class="btn gho full" data-act="topaste">문장 붙여넣기</button></div>' +
+      '</div>';
+  }
+  function appHTML(pid, s) {
+    var h;
+    if (s.kind === 'paste') h = pasteHTML(pid, s);
+    else if (s.kind === 'login') h = loginHTML(pid, s);
+    else if (s.kind === 'topics') h = topicsHTML(pid);
+    else h = stbHTML() + '<div class="ph"><p>마지막으로 보던 화면이 그대로 열려요.<br>공유에 대한 안내는 없어요.</p></div>';
+    h += '<div class="toast" role="status" aria-live="polite">' + esc(s.toast || '') + '</div><div class="gest" aria-hidden="true"></div>';
+    return h;
+  }
+  function rerender(pid) {
+    var el = document.getElementById('ph-' + pid); if (!el) return;
+    var s = P[pid]; var ae = document.activeElement; var key = null, sel = null;
+    if (ae && el.contains(ae)) { key = ae.getAttribute('data-fk'); if (ae.tagName === 'TEXTAREA') sel = [ae.selectionStart, ae.selectionEnd]; }
+    el.querySelector('.app').innerHTML = appHTML(pid, s);
+    var want = s.focus || key; s.focus = null;
+    if (want) { var n = el.querySelector('[data-fk="' + want + '"]'); if (n) { n.focus(); if (sel && n.setSelectionRange) n.setSelectionRange(sel[0], sel[1]); } }
+  }
+  function toast(pid, msg) {
+    var s = P[pid]; s.toast = msg; s.sticky = false; var id = (s.tid = (s.tid || 0) + 1);
+    setTimeout(function () { if (P[pid] === s && s.tid === id && !s.sticky) { s.toast = ''; var t = document.querySelector('#ph-' + pid + ' .toast'); if (t) t.textContent = ''; } }, 3200);
+  }
+
+  function act(pid, a) {
+    var s = P[pid]; if (!s) return;
+    if (s.sticky) { s.toast = ''; s.sticky = false; }
+    switch (a) {
+      case 'back': toast(pid, '(데모) ‹ 는 지금과 같이 이전 화면으로 가요 — 바뀌지 않음'); break;
+      case 'topaste': toast(pid, '(데모) 붙여넣기 화면으로 — 바뀌지 않음'); break;
+      case 'swap': {
+        var cur = s.text; s.text = s.alt; s.alt = cur; s.noJa = false;
+        s.banner = s.banner.t === 'replaced' ? { t: 'restored', n: cp(cur) } : { t: 'replaced', n: cp(cur) };
+        s.focus = 'banact'; break;
+      }
+      case 'fullin': s.text = s.shared; s.banner = { t: 'arrived' }; s.focus = 'ta'; break;
+      case 'trim': { var k = trimPoint(s.text); var nt = head(s.text, k); s.trim = { full: s.text, removed: cp(s.text) - cp(nt) }; s.text = nt; s.focus = 'trimbtn'; break; }
+      case 'untrim': s.text = s.trim.full; s.trim = null; s.focus = 'trimbtn'; break;
+      case 'sheetok': s.text = s.pendingFill; s.sheet = false; s.banner = { t: 'arrived' }; s.focus = 'title'; break;
+      case 'sheetkeep': s.sheet = false; s.focus = 'title'; toast(pid, SH.tKept); break;
+      case 'submit': {
+        if (s.busy) return;
+        var m = meta(s.text || '');
+        if (!m.ok) { toast(pid, m.n > MAX ? PASTE.hintLong : PASTE.hintShort(m.n)); break; }
+        s.busy = true; rerender(pid);
+        setTimeout(function () { if (P[pid] !== s) return; s.busy = false; if (jaRatio(s.text) < 0.3) s.noJa = true; else s.go = true; s.focus = s.go ? 'go' : 'submit'; rerender(pid); }, 900);
+        return;
+      }
+      case 'reset': P[pid] = init(s.v); P[pid].focus = 'title'; break;
+      case 'login': {
+        s.phase = 'waiting'; rerender(pid);
+        setTimeout(function () { if (P[pid] !== s) return; var n = arrive({ v: 'a', text: '' }, SHARE_NORMAL); n.v = 'd-login'; n.focus = 'title'; P[pid] = n; rerender(pid); }, 1400);
+        return;
+      }
+    }
+    rerender(pid);
+  }
+
+  /* ── 그리기 ── */
+  var tabsEl = document.getElementById('tabs'), panel = document.getElementById('panel');
+  function drawTabs() {
+    tabsEl.innerHTML = STATES.map(function (st) {
+      var on = st.id === curState;
+      return '<button type="button" role="tab" id="tab-' + st.id + '" aria-controls="panel" aria-selected="' + on + '" tabindex="' + (on ? 0 : -1) + '" data-tab="' + st.id + '"><b>' + esc(st.tab) + '</b><span>' + esc(st.sub) + '</span></button>';
+    }).join('');
+    panel.setAttribute('aria-labelledby', 'tab-' + curState);
+  }
+  function drawPanel() {
+    var st = STATES.filter(function (x) { return x.id === curState; })[0];
+    P = {};
+    var widths = widthMode === 'all' ? ['360', '390', '412'] : [widthMode];
+    var h = '<div class="scap"><h3>' + esc(st.title) + '</h3><p class="why">' + st.why() + '</p><span class="dep">' + esc(st.dep) + '</span></div>';
+    if (st.reset) h += '<div class="onebar"><button type="button" class="dbtn" data-reset="1">' + esc(st.reset) + '</button><span class="dsub">휴대폰마다 따로 움직여요.</span></div>';
+    h += '<div class="vrows' + (widthMode === 'all' ? ' stack' : '') + '">';
+    st.rows.forEach(function (r) {
+      h += '<div class="vrow"><h4><span class="tg ' + r.tag[0] + '">' + esc(r.tag[1]) + '</span>' + esc(r.h) + '</h4><div class="prow">';
+      widths.forEach(function (w) {
+        var pid = 'p' + (++seq); P[pid] = init(r.v);
+        h += '<figure class="fw"><div class="phone w' + w + '" id="ph-' + pid + '" role="group" aria-label="' + esc(r.h + ' · 폭 ' + w) + '"><div class="app">' + appHTML(pid, P[pid]) + '</div></div><figcaption class="fdim">' + w + ' × 780 · 첫 화면</figcaption></figure>';
+      });
+      h += '</div></div>';
+    });
+    h += '</div>';
+    panel.innerHTML = h;
+  }
+  function drawDecs() {
+    document.getElementById('declist').innerHTML = DECS.map(function (d) {
+      return '<fieldset class="dec"><legend>' + esc(d.t) + '</legend><p class="q">' + esc(d.q) + '</p><div class="dec-g' + (d.two ? ' two' : '') + '">' +
+        d.opts.map(function (o) {
+          var on = DEC[d.k] === o.v; var id = d.k + o.v;
+          return '<label class="opt' + (on ? ' on' : '') + '" for="' + id + '"><input type="radio" name="' + d.k + '" id="' + id + '" value="' + o.v + '"' + (on ? ' checked' : '') + '>' +
+            '<span class="opt-h">' + d.k.toUpperCase() + '-' + o.v + ' ' + esc(o.h) + (o.rec ? ' <span class="rec">권고</span>' : '') + '</span>' +
+            '<span class="opt-d">' + esc(o.d) + '</span><ul>' + o.p.map(function (x) { return '<li class="p">' + esc(x) + '</li>'; }).join('') + o.m.map(function (x) { return '<li class="m">' + esc(x) + '</li>'; }).join('') + '</ul>' +
+            '<span class="sel">' + (on ? '● 고른 안' : '○ 이 안으로 보기') + '</span></label>';
+        }).join('') + '</div></fieldset>';
+    }).join('');
+    var rec = { d1: 'A', d2: 'A', d3: 'A', d4: 'A', d5: 'A', d6: 'A' };
+    var same = Object.keys(rec).every(function (k) { return rec[k] === DEC[k]; });
+    document.getElementById('decsum').innerHTML = '고른 안: <b>' + Object.keys(DEC).map(function (k) { return k.toUpperCase() + '-' + DEC[k]; }).join(' · ') + '</b>' + (same ? ' (권고안 그대로)' : '');
+  }
+
+  /* ── 이벤트 ── */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-act]');
+    if (t) { var ph = t.closest('.phone'); if (ph) { e.preventDefault(); act(ph.id.slice(3), t.getAttribute('data-act')); } return; }
+    var tb = e.target.closest('[data-tab]');
+    if (tb) { curState = tb.getAttribute('data-tab'); drawTabs(); drawPanel(); try { history.replaceState(null, '', '#state-' + curState); } catch (x) {} document.getElementById('tab-' + curState).focus(); return; }
+    if (e.target.closest('[data-reset]')) { drawPanel(); return; }
+    var wb = e.target.closest('[data-w]');
+    if (wb) { widthMode = wb.getAttribute('data-w'); document.querySelectorAll('[data-w]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === wb)); }); drawPanel(); return; }
+    var thb = e.target.closest('[data-th]');
+    if (thb) { var v = thb.getAttribute('data-th'); if (v) document.documentElement.setAttribute('data-theme', v); else document.documentElement.removeAttribute('data-theme'); document.querySelectorAll('[data-th]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === thb)); }); }
+  });
+  document.addEventListener('input', function (e) {
+    var ta = e.target; if (ta.tagName !== 'TEXTAREA' || !ta.getAttribute('data-pid')) return;
+    var pid = ta.getAttribute('data-pid'); var s = P[pid]; if (!s) return;
+    s.text = ta.value; s.noJa = false; s.trim = null;
+    document.getElementById('mx-' + pid).innerHTML = metaHTML(pid, s);
+    var b = document.querySelector('#ph-' + pid + ' [data-act="submit"]'); if (b) { if (meta(s.text).ok) b.removeAttribute('aria-disabled'); else b.setAttribute('aria-disabled', 'true'); }
+  });
+  document.addEventListener('change', function (e) {
+    var r = e.target; if (r.type !== 'radio' || !DEC.hasOwnProperty(r.name)) return;
+    DEC[r.name] = r.value; drawDecs(); drawPanel();
+    var n = document.getElementById(r.name + r.value); if (n) n.focus();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { var sh = e.target.closest && e.target.closest('.phone'); if (sh && P[sh.id.slice(3)] && P[sh.id.slice(3)].sheet) { act(sh.id.slice(3), 'sheetkeep'); } return; }
+    var tb = e.target.closest && e.target.closest('[role="tab"]');
+    if (!tb || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End')) return;
+    e.preventDefault();
+    var ids = STATES.map(function (x) { return x.id; }); var i = ids.indexOf(tb.getAttribute('data-tab'));
+    i = e.key === 'Home' ? 0 : e.key === 'End' ? ids.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + ids.length) % ids.length;
+    curState = ids[i]; drawTabs(); drawPanel(); document.getElementById('tab-' + curState).focus();
+  });
+
+  var hs = (location.hash || '').replace('#state-', '');
+  if (STATES.some(function (x) { return x.id === hs; })) curState = hs;
+  drawTabs(); drawPanel(); drawDecs();
+})();
+</script>
+</body>
+</html>

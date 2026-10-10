@@ -6,7 +6,15 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-10 밤(2) — task-050 챌린지 정본 문서 반영 완료 (이 블록이 가장 최신)
+## ★ 2026-10-10 밤(3) — 개선 백로그 착수: task-051(IMP-0007 N5 단어 팩)·task-052(IMP-0004 카톡 공유하기) 병행 (이 블록이 가장 최신)
+
+- **착수 경위**: 사용자 「다음 작업 이어서 진행해줘」 → 착수 가능 항목을 보여 주고 선택받음(「두 건 모두 (병행)」). 두 항목은 2026-10-03 에 방안이 이미 확정돼 있었다(IMP-0007 공개 N5 목록+AI 보강 / IMP-0004 안드로이드 공유하기 대상 등록). 재확인 결과 둘 다 현재 코드에서도 유효(`ACTION_SEND` 필터 없음, N5 시드 50개 그대로). 열린 IMP 중 나머지: IMP-0011(참고 화면 미수신)·0017·0021(010d 종료 조건)·0025(039 종료 조건)는 대기.
+- **task-051 [[task-051-improve-n5-vocab-pack]]** — 범위 확대(사용자 결정): **OpenJLPT(CC BY-SA 4.0) N5~N1 JLPT 5단계 시드**, 이름 초보자 (N5)·초급 (N4)·중급 (N3)·고급 (N2)·**최상급 (N1)**. judge 재접수 **standard**(R1·opus·데모 delta). 스키마·DB 변경 없음(`WordEntry.jlpt` enum 재사용, 사용자 CTA 때만 단어 추가). **진행(2026-10-10)**: 출처 조사 → PE 측정(비용 0.43배, 게이트 통과) → A1 데이터(7,811 중 **7,755** 확정: N5 676·N4 629·N3 1,649·N2 1,767·N1 3,034, 거절 58) · A2 모듈(5단계 팩·지연 로딩·(표기,읽기) 건너뜀) → 커밋 `def8fd4` → 감사 **REV-179 PASS-with-fixes** → A3 반영 `524adee`(N5 에 기존 `私/わたし`·`日本語` 병합, 간체자 행 재생성, 검사 규칙 보강, 표기 전용 조회 결정성). Leader 직접 확인: tsc 0·eslint 0·시험 553/553·`VALIDATE_PASSED`. **남은 일**: 데모 v1 사용자 승인(문장 직접 입력 — D1 C·D2 A·D3 B·D4 B·D5 A·D6 A) → B(화면: 문구 3곳·`hooks.ts` pack 전송·`LearningSettings`·`DataCreditRow`·`screens.md`) → reviewer(A3 델타+B) → QA → **사용자 표본 검수**(`task-051-sample-review.md` 전달함) → 배포. **M1 게이트: B·표본 검수 전에는 push·배포 금지**(이 커밋만 나가면 「50개」 버튼이 676개를 넣음). **사용자 결정 후보**: 오늘의 단어가 큰 단계(N1 약 39%)로 쏠림 — 세트 생성이 내 수준 이하 단어를 우선하게 할지(별도 task) · 같은 표기·다른 읽기 직접 추가 409 정책.
+- **task-052 [[task-052-improve-kakao-share-target]]** — judge **standard·R2·opus**, 데모 **delta 필수**(`demo_first`): designer 데모 v1 → **사용자 승인 전 화면 코드 금지** → developer(네이티브 Manifest·MainActivity·브리지) → reviewer → qa → deployer(APK `versionCode` 3→4, 1.0.3·재설치 필요). 공유 본문은 URL 에 싣지 않고 네이티브가 한 번만 꺼내게 한다. 실기기(카톡→공유)는 사용자 확인 항목.
+- **병행 파일 영역**: 051 = `prisma/seed-data/**`·`vocab/seedPack.ts`·단어장 문구 컴포넌트 3개·`labels.test.ts` / 052 = `android/**`·`src/modules/infra/native/*.ts`·`LessonPasteScreen.tsx` — 겹치는 곳은 `docs/screens.md` 뿐(다른 절, 작은 Edit).
+- 이전 블록(task-050 완료·남은 결정)은 바로 아래.
+
+## ★ 2026-10-10 밤(2) — task-050 챌린지 정본 문서 반영 완료
 
 - **정본 3종을 구현 사실(as-built)로 맞춤**(문서 전용, 커밋 `ed94702` 작성 → `5123822` 감사 반영, 로컬·미 push): `domain-model.md`(`Challenge`·`ChallengeStatus`·전이·삭제 정책·DB0 칸·예문 스냅샷) · `api-contract.md`(#155~#159·#21c·#66 `voiced`·예문 규칙·#47~#53 주제 세트 보강·#58 `CHALLENGE`) · `module-dependency.md`(`learning/challenges`·`findActiveJob` 쓰기 예외·L3 소유 테이블 4개 보강). `role-permission`·`configuration-resolution` 은 챌린지가 쓰지 않아 변경 없음. 독립 감사 REV-178 PASS-with-fixes(High 0) → Medium 4·Low 3 반영. 최종 요약은 [[task-050-challenge-canon-docs]] 끝.
 - **새 백로그(코드 쪽, 결정 불필요)**: ① 낡은 코드 주석 3곳 — `challenges/settle.ts` 머리·`src/types/challenge.ts` `ChallengeEndReason`(「주제를 지우는 경로가 없다」 → task-045 #173 이후 사실과 다름)·`challenges/index.ts` 머리 import 목록(`../topics/visible` 누락) ② `UtteranceContextKind` 의 `'DELETED'` 가 `contextOfRow` 5종에 없음(계약 불일치) ③ #58 응답 전체 형태(`resume`·`todayLessons[]` 등) 정본 대조 ④ `Challenge` 스키마 주석 「규칙 1 의 DIRECT 행위」 문구 — 스키마를 만질 때 문서 Prisma 블록과 함께 정리.
