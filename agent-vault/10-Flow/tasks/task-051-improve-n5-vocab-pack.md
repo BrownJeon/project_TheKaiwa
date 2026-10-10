@@ -19,20 +19,20 @@ updated: 2026-10-10
 demo_gate:
   required: true
   level: "delta"
-  status: "review_requested"
+  status: "approved"
   version: 1
   repo_path: "docs/demo/task-051-jlpt-tier-wording-v1.html"
   artifact_url: ""
   content_sha256: "42a69f93f068c82a03050acce5893474e24548eb191dab451bb21961c961e3ee"
   decided_by: "judge"
   rule_id: "DM-low-confidence"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-10T22:56:43+09:00"
+  approval_quote: "task-051 데모 v1 승인, D1 C·D2 A·D3 B·D4 B·D5 A·D6 A"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: false
+  active: true
 ---
 
 # task-051 — N5 기본 단어 팩 확장 (IMP-0007)
@@ -81,6 +81,7 @@ demo_gate:
 | - | 해당없음 | - | - | judge: none (DM-light-waive) | 10-10 15:35 |
 | - | 작성중 | - | - | judge: delta (DM-low-confidence) | 10-10 16:21 |
 | v1 | 검토요청 | docs/demo/task-051-jlpt-tier-wording-v1.html | - | 사용자 검토 요청 | 10-10 16:38 |
+| v1 | 승인 | docs/demo/task-051-jlpt-tier-wording-v1.html | - | "task-051 데모 v1 승인, D1 C·D2 A·D3 B·D4 B·D5 A·D6 A" | 10-10 22:56 |
 
 ## 출처 조사 (research)
 
@@ -568,3 +569,12 @@ N1 out: ["実態", "실태", "NOUN", "NAME", "調査で現場の実態が明ら�
 - **M1 배포 게이트(Leader 결정)**: **이 task 는 B(화면 문구·`hooks.ts` pack 전송·출처 줄 `DataCreditRow`)와 사용자 표본 검수가 끝나기 전에는 push·배포하지 않는다.** 이 커밋만 나가면 「기본 단어 50개」 버튼이 674개를 넣고 약속한 앱 내 출처 줄이 없다.
 - **QA 에 넘길 `high_risk_areas`**(REV-179): ① 실제 DB 에서 N1 3,034개 삽입 시간(트랜잭션 상한 30초)·중간 실패 시 0행 롤백·삽입 중 같은 사용자 채팅 턴 대기 ② 단계별 첫 호출 `added/skipped` 와 `import().default` 배열 동작(N5→N1) ③ 옛 50개 사용자의 N5 결과·두 번째 0·`ご飯/御飯`·`友だち/友達` 철자 중복 ④ 같은 표기·다른 읽기 행에서 교정 채택(409 `existingId`)·평가 생성·레슨 메모 ⑤ 단어 약 7.7천 개 보유 사용자의 오늘의 단어 세트 생성 지연 ⑥ 문구(B) ⑦ 앱 내 출처 줄.
 - **설계상 사실(사용자에게 알릴 것)**: 오늘의 단어 세트는 보관하지 않은 단어 전체에서 미학습 단어를 균등 가중으로 뽑는다(`vocab/sessions.ts:428,573,879,895`). 여러 단계를 넣으면 풀이 큰 단계(N1 약 39%·N2 23%·N3 21%)로 쏠려 초보자의 오늘의 단어가 어려워진다. 단계 필터는 단어장 분류 칩(`category`)으로만 가능. **후속 결정 후보**: 세트 생성이 내 수준(`Profile.level`) 이하 단어를 우선하게 하는 별도 task.
+
+## Designer 구현 가이드 기록
+
+- [23:06] **구현 가이드 완료** — `docs/screens.md` **§19 「task-051 JLPT 단계 기본 단어」**(19-1 결정 최종값 ~ 19-9 데모와 다른 곳) 끝에 추가. 승인 정본 `docs/demo/task-051-jlpt-tier-wording-v1.html`(v1, sha256 앞 12자 `42a69f93f068` 재확인, 토큰 `globals.css@sha256:a314f18f1807` = 지금 파일). 문서만 수정(코드·데모·SOURCES.md·서버 export 무수정). 「N1 옛 이름」은 §19 에 0건(`grep -c` 0 — 파일 전체 0).
+- 기존 절 갱신 14곳(task-008 §4·§5만, 낡은 「기본 단어 50개」·`{pack:'N5'}`·「기본 단어(N5) 팩」·코드만 수준 표시를 `{L}`·`{n}` 변수 + 「→ §19」로): §4 원칙 7(807행) · A 표 단어 0(925) · 추가 시트 `SeedPackLink`(946) · 폼 `Field 수준` select(974) · 상세 뱃지 줄(1002) · #46b 호출표(1097) · §4-8 ⓓ 기본 단어 문구(1215)·결과 문구(1216) · `JlptLevel` 라벨(1224) · WordSource 문장(1226) · §5 원칙 2(1304) · `empty` 상태표(1379) · §5 #46b 호출표(1769, 오류 처리 「카드 안 ErrorBlock」→ 토스트 — **지금 코드가 이미 토스트**(`TodayHome.runSeed` → `show(actionErrorText)`)라 문서를 코드에 맞춤) · §5 문구표 빈 단어장(1857). **일부러 둔 곳**: 와이어프레임 칩 예시 `[N5 기초 50]`(853·1351)·조건 줄 예시(856) — 기존 50개 사용자에게 여전히 맞는 예라 그대로. §11(task-003f) 설정 맨 아래 서술(5651)은 다른 task 라 손대지 않음 — 출처 줄 위치는 §19-4 F-2 가 정본.
+- **데모와 다르게 쓴 곳(§19-9, Leader 확인 요청)**: ① 개수 = `SEED_PACK_COUNT`(데모 7,811 → 7,755) ② 출처 시트 — Tatoeba 줄 삭제, 「선생님이 새로 채웠어요」→「AI 가 새로 썼고, 사람은 일부만 확인했어요」, 첫 줄 「다섯 단계 기본 단어 {합계}개는…」, 둘째 줄 「JLPT 공식 단어 목록이 아니에요」로 비공식 고지를 앞에, **라이선스 주소 글자 한 줄 추가**(데모에 없음 — 원치 않으면 빼도 구조 동일) ③ D4-B 보조 버튼 단계 — 데모는 「지금 다음 단계(NEXT)」로 그렸으나 가이드는 실제 `goalLevel`(데모 D4-B 설명문을 따름) ④ 수준을 못 읽을 때(데모에 없던 상태) — 넣기 버튼 숨김 + 새 글자 버튼 「수준을 불러오지 못했어요 · 다시 시도 ›」 1개. 화면 구조를 바꾸는 변경은 없다고 판단 [가능성 높음] — ②의 추가 줄·④의 새 문구가 재승인 대상인지는 Leader 판단.
+- **B(구현자)가 헷갈릴 점**: ① 단계 값은 #11 `GET /api/v1/settings/profile`(`level`·`goalLevel`)에서 — API 변경 없음, 새 훅 `useSeedLevels`, #46 이 먼저 끝나도 빈 카드는 #11 을 기다린다(버튼이 늦게 끼어들어 카드가 커지지 않게) ② 설정 두 줄 분절 위 글자는 이름만 필요 → `labels.ts` `levelName()` 이 `SEED_PACK_LABEL` 에서 「 (N5)」를 떼어 만든다(`src/types/seedPack.ts` 는 고치지 않음, 시험으로 일치 단언) ③ 상세 뱃지는 category 가 수준 이름과 같으면 생략 — 팩 단어는 뱃지 하나, 기존 50개는 `초보자 (N5)`+`N5 기초` 둘 ④ `seedResultText` 인자에 pack 추가·숫자 천 단위 쉼표 ⑤ busy 동안 누른 버튼만 「넣는 중…」, 다른 넣기 버튼은 `aria-disabled`(`disabled` 아님) ⑥ 출처 줄은 웹·앱 모두(`AppVersionRow` 는 앱 전용이라 따로) ⑦ D4-A 의 안내 링크·문장은 넣지 않는다.
+- **확인 못 한 것**: 보조 버튼 「목표 수준 최상급 (N1) 단어 3,034개 넣기」의 360폭 한 줄 여부(계산상 글자 자리 약 268px 대 글자 약 272px [추측] — 가이드는 두 줄 허용으로 지시, 데모는 이 조합을 그리지 않음) · 보조 버튼이 생길 때 오늘 홈 첫 화면 780px 안 배치 · `Segmented` 두 줄 변형의 실제 360 렌더(데모 헤드리스만) · 최상급 삽입 시간(QA) · 출처 표기의 CC BY-SA 4.0 요건 충족(법률 판단 아님) · 실기기.
+- 디자인 스킬: 이번 단계는 승인 데모를 가이드로 옮기는 문서 작업이라 스킬 재적용 없음(데모 v1 자체 점검 P0 0·P1 0·P2 2, a11y Critical 0·Major 0·Minor 2 — 위 「Designer 기록 (데모 v1)」).

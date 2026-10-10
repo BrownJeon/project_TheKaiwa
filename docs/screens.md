@@ -804,7 +804,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 4. 카운터(맞힘·틀림·푼 횟수)와 출처는 **읽기 전용**이라 폼에 없다. 교정에서 온 단어는 상세에서 그 채팅의 점검 결과로 이어 준다.
 5. 삭제는 시트 안 확인 단계를 거친다("지난 기록과 통계는 그대로 남아요"). 보관은 확인 없이 토글하고 토스트로 알린다("오늘의 단어에 나오지 않아요").
 6. 409 중복은 오류로 보이지 않고 **그 단어로 안내**한다. 입력 아래 문구와 [그 단어 보기]를 두고, 누르면 추가 시트를 닫고 상세 시트를 연다.
-7. 빈 단어장에는 [기본 단어 50개 넣기](#46b)와 [직접 추가]를 둔다. 기본 단어 넣기는 추가 시트 맨 아래에서 언제든 할 수 있다(이미 있는 표현은 서버가 건너뜀).
+7. 빈 단어장에는 [{지금 수준} 단어 {n}개 넣기](#46b)(목표 수준이 따로 있으면 보조 버튼 하나 더)와 [직접 추가]를 둔다. 기본 단어 넣기는 추가 시트 맨 아래에서 언제든 할 수 있다(이미 있는 표현은 서버가 건너뜀). 단계 이름·개수·문구는 **§19**(task-051).
 8. 오류 문구는 §4-8 표를 쓴다(서버 `message` 는 400 에만). "AI"·엔진 용어 없이 "선생님이 채워 줘요"라고 쓴다. 소리 버튼은 상세 시트에만 둔다(task-023 — 단어 ▶ + 예문 ▶, §4-2 C·§4-11).
 
 ### 4-1. 화면 개요
@@ -922,7 +922,7 @@ WordAddSheet · WordDetailSheet · Toast
 
 | 조건 | 제목 / 본문 | 버튼 |
 |---|---|---|
-| 단어 0(#46 의 `count+archivedCount` 합 0, 검색·칩·보관함 모두 기본) | 단어장이 비어 있어요 / 기본 단어 50개(N5)로 바로 시작하거나, 아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요. | [기본 단어 50개 넣기](primary full) [직접 추가](ghost full) |
+| 단어 0(#46 의 `count+archivedCount` 합 0, 검색·칩·보관함 모두 기본) | 단어장이 비어 있어요 / {L} 기본 단어 {n}개로 바로 시작하거나, 아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요. (§19-4 A) | [{L} 단어 {n}개 넣기](primary full) ([목표 수준 {L} 단어 {n}개 넣기](ghost full) — 목표 수준이 있을 때) [직접 추가](ghost full) |
 | 보관 안 한 단어 0, 보관 단어 있음 | 보관하지 않은 단어가 없어요 / 보관함에서 꺼내거나 새 단어를 넣어 보세요. | [보관함 보기] [단어 추가] |
 | 검색 결과 0 | ‘{q}’에 맞는 단어가 없어요 | [‘{q}’ 추가하기](ghost) → 추가 시트(표현 = q, q 가 80자 이하일 때만 버튼 표시) |
 | 칩 선택 결과 0 | 이 분류에 단어가 없어요 | [전체 보기] |
@@ -943,7 +943,7 @@ Sheet title="단어 추가" dismissible={!busy}
    p 12px ink2  "선생님이 읽기·뜻·예문을 채워 줘요. 확인하고 저장해야 단어장에 들어가요."
    [직접 입력하기]  ghost full  → step 'form'(빈 폼, 표현은 유지)
    hr (mt-4)
-   SeedPackLink  "기본 단어 50개(N5) 한 번에 넣기 ›"  텍스트 버튼 44px 13px accent  → #46b (시트 유지, 결과는 토스트)
+   SeedPackLink  "{L} 기본 단어 {n}개 한 번에 넣기 ›" (+목표 수준 줄)  텍스트 버튼 44px 13px accent  → #46b (시트 유지, 결과는 토스트, §19-4 B)
  step 'enriching':
    <p lang=ja className="text-[20px] font-semibold">{surface}</p>
    Card flat role=status aria-live=polite:
@@ -971,7 +971,7 @@ Field 읽기    input lang=ja placeholder="히라가나 (선택)"          ≤12
 Field 뜻*     input placeholder="한국어 뜻 (예: 영화)"              1~200
 <div className="grid grid-cols-2 gap-2.5">                        ← 360 에서도 2열(각 ≥150px)
   Field 품사   select(명사·동사·い형용사·な형용사·부사·조사·표현·기타)  기본 '기타'
-  Field 수준   select(선택 안 함·N5·N4·N3·N2·N1)
+  Field 수준   select(선택 안 함·초보자 (N5)…최상급 (N1), 값은 N5~N1 — §19-4 E)
 </div>
 Field 분류    input list="word-categories" placeholder="예: 일상, 여행 (선택)"   ≤40   ← <datalist> = #46 분류 이름
 [예문·메모 더 쓰기 ▾]  텍스트 버튼 44px aria-expanded                        ← 직접 입력은 접힘, 초안에 예문이 있거나 수정 모드에서 값이 있으면 펼침
@@ -999,7 +999,7 @@ Sheet title="단어"
   </div>
   WordSoundLine target=word        ← 누른 버튼 바로 아래 한 줄(실패·자막만·한도·막힘)
   <p className="mt-2 break-keep text-[17px] font-medium">{meaning}</p>
-  <div className="mt-2 flex flex-wrap gap-1.5">   Badge neutral: 품사 · jlpt · category · chunkType 라벨 · (archived) "보관함"
+  <div className="mt-2 flex flex-wrap gap-1.5">   Badge neutral: 품사 · 수준 이름(levelLabel(jlpt)) · category(수준 이름과 같으면 생략, §19-4 E) · chunkType 라벨 · (archived) "보관함"
   example && Card flat mt-3:
       <p lang=ja className="whitespace-pre-wrap text-[16px] leading-[1.7] [overflow-wrap:anywhere]">{example}</p>
       exampleKo && <p className="mt-1 break-keep text-[14px] text-ink2">{exampleKo}</p>
@@ -1094,7 +1094,7 @@ loading ; busy ; errors ; dup
 | 44 | `/api/v1/words/:id` | DELETE | 삭제 확인 | — | `deleted` · `snapshotKept` | 404 → 이미 없는 것으로 보고 목록에서 제거 |
 | 45 | `/api/v1/words/:id/archive` · `/unarchive` | POST | 보관하기·보관 풀기 | — | `archived` · `archivedAt` | 404 · 그 외 토스트 |
 | 46 | `/api/v1/words/categories` | GET | 칩·폼 datalist·빈 상태 판정 | — | `[{category,count,archivedCount}]` | 실패 → 칩 줄 숨김(조용히) |
-| 46b | `/api/v1/words/seed-pack` | POST | [기본 단어 50개 넣기] | `{ pack: 'N5' }` | `added` · `skipped` | 토스트(§4-8 ⓓ) |
+| 46b | `/api/v1/words/seed-pack` | POST | [{L} 단어 {n}개 넣기]·목표 수준 보조 | `{ pack: SeedPack }`(N5~N1, §19-3) | `added` · `skipped` | 토스트(§4-8 ⓓ) |
 
 - 호출은 전부 `src/components/common/api.ts` 의 `apiGet/apiPost/apiPatch/apiDelete`, 오류는 `@/components/chat/errors` 의 `toErr`·`retryAfterOf`·`detailString` 으로 푼다. 화면 분기는 **HTTP status 먼저**, 같은 status 안의 갈래만 `details` 로 본다(§3-4 와 같음).
 - 모든 요청 경로에 사용자 입력을 붙일 때는 `URLSearchParams`/`encodeURIComponent` 를 쓴다.
@@ -1212,8 +1212,8 @@ loading ; busy ; errors ; dup
 | 삭제 토스트 | 삭제했어요 · 지난 기록은 그대로 남아요 |
 | 수정 토스트 | 고쳤어요 |
 | 404 | 단어를 찾을 수 없어요. 삭제되었을 수 있어요. |
-| 기본 단어 | 기본 단어 50개 넣기 / 기본 단어 50개(N5) 한 번에 넣기 / 넣는 중… |
-| 기본 단어 결과 | 기본 단어 {added}개를 넣었어요 / 기본 단어 {added}개를 넣었어요 · 이미 있는 {skipped}개는 건너뛰었어요 / 기본 단어가 이미 모두 들어 있어요 |
+| 기본 단어 | {L} 단어 {n}개 넣기 / 목표 수준 {L} 단어 {n}개 넣기 / {L} 기본 단어 {n}개 한 번에 넣기 / 목표 수준 {L} 단어 {n}개 한 번에 넣기 / 넣는 중… ({L}·{n} 은 §19-2) |
+| 기본 단어 결과 | {L} 단어 {added}개를 넣었어요 / {L} 단어 {added}개를 넣었어요 · 이미 있는 {skipped}개는 건너뛰었어요 / {L} 단어가 이미 모두 들어 있어요 (숫자 천 단위 쉼표, §19-4 D) |
 | 빈 상태 | §4-2 A `WordsEmpty` 표 |
 
 ⓔ **라벨**
@@ -1221,9 +1221,9 @@ loading ; busy ; errors ; dup
 | 값 | 라벨 |
 |---|---|
 | PartOfSpeech `NOUN`/`VERB`/`ADJ_I`/`ADJ_NA`/`ADVERB`/`PARTICLE`/`EXPRESSION`/`OTHER` | 명사 / 동사 / い형용사 / な형용사 / 부사 / 조사 / 표현 / 기타 |
-| JlptLevel `N5`~`N1` | N5 ~ N1 |
+| JlptLevel `N5`~`N1` | 초보자 (N5) · 초급 (N4) · 중급 (N3) · 고급 (N2) · 최상급 (N1) — `SEED_PACK_LABEL`(§19-2) |
 | ~~WordSource 뱃지(목록)~~ | task-023 에서 없앰 — 목록 행은 조각 뱃지(`CHUNK_LABEL`, neutral 톤), 조각 없으면 뱃지 없음. 출처는 상세 "출처" 절에만 |
-| WordSource 문장(상세) | 직접 넣은 단어예요 / 채팅 교정에서 채택한 표현이에요 / 기본 단어(N5) 팩에서 넣었어요 / 선생님 제안을 채택한 단어예요 / 레슨에서 넣은 단어예요 / 평가에서 넣은 단어예요 |
+| WordSource 문장(상세) | 직접 넣은 단어예요 / 채팅 교정에서 채택한 표현이에요 / 기본 단어 팩에서 넣었어요(§19-4 E) / 선생님 제안을 채택한 단어예요 / 레슨에서 넣은 단어예요 / 평가에서 넣은 단어예요 |
 | ChunkType | §3-8 ⓔ 와 같음(이름 조각 · 액션 조각 · 느낌 조각 · 꾸밈 조각) |
 | lastResult `CORRECT`/`WRONG`/`SKIPPED` | 맞힘 / 틀림 / 건너뜀 |
 
@@ -1301,7 +1301,7 @@ loading ; busy ; errors ; dup
 ### 5-0. 한눈에 보는 결정
 
 1. 경로 2개: 오늘 홈 `/study/today` → 덱·결과 `/study/today/words/[sessionId]`. 결과는 **같은 경로**에서 세트 상태(`DONE`)로 갈라 그린다(§11 의 `(+result)` 를 경로로 나누지 않는다 — 새로고침·재방문·보관 세트 열기가 한 곳에서 끝난다). 덱·결과 화면은 하단 탭을 숨기고 `BackBar` 를 쓴다.
-2. 오늘 홈의 "오늘의 단어" 카드는 상태 5가지다. **준비**(장수·방식·분류 → [시작하기]) / **풀던 세트 있음**(E3: [이어서 풀기]·[여기서 끝내기]) / **빈 단어장**([기본 단어 50개 넣기]·[단어 직접 추가]) / **오늘 풀 단어 없음** / 오류. 레슨·평가는 "곧 열려요" 카드이고 Phase·task 번호는 보이지 않는다.
+2. 오늘 홈의 "오늘의 단어" 카드는 상태 5가지다. **준비**(장수·방식·분류 → [시작하기]) / **풀던 세트 있음**(E3: [이어서 풀기]·[여기서 끝내기]) / **빈 단어장**([{L} 단어 {n}개 넣기]·(목표 수준 보조)·[단어 직접 추가], §19) / **오늘 풀 단어 없음** / 오류. 레슨·평가는 "곧 열려요" 카드이고 Phase·task 번호는 보이지 않는다.
 3. **정답은 서버만 안다.** 덱은 답을 보낸 뒤 #50 응답(`answer`·`correctText`·예문)으로만 정답·오답을 그린다. 미리 표시하거나 낙관적으로 채점하지 않는다. 보기 버튼은 누르는 순간 "확인 중"이 되고, 응답(보통 0.1~0.3초)이 오면 뒤집힌다.
 4. 덱 구조: 제스처 영역(가운데 80%, 3장 스택)은 **카드 면만** 담는다. 보기 4버튼·알았어요/몰랐어요·도구 줄은 **제스처 영역 밖**에 둔다. `touchend preventDefault` 가 그 영역 안의 버튼 click 을 죽이고, 뒤집힌 직후 새로 생긴 버튼에 떨어지는 유령 클릭도 막기 때문이다.
 5. 제스처(bjj 이식): 탭 10px 미만 / 위로 −80px = **다시 볼 카드 표시 토글**(카드는 넘어가지 않는다) / 왼쪽 60px = 다음(**답한 뒤에만**, 안 답했으면 튕겨 돌아오고 안내) / 오른쪽 60px = 이전 카드(읽기 전용). 모든 제스처는 버튼·키보드로도 할 수 있다(1~4·Space·Enter·←/→·F).
@@ -1376,7 +1376,7 @@ FinishConfirmSheet · Toast
 | `loading` | 머리줄 + "불러오는 중…"(ink2, `role=status`) — **※ task-046 이후: 글자 대신 같은 높이 몸통 자리표시(`CardLoadingBody`)를 그린다. §17 참고** |
 | `ready` | 설명 2줄 · (오늘 끝낸 세트 ≥1) "오늘 {n}세트를 끝냈어요 · 맞힘 {Σc}/{Σ장}" · 라벨 "장수"(12.5px ink2) + `Segmented sm` `[5,10,15,20,30] ∪ {dailyWordCount}` 오름차순, 기본 `dailyWordCount` · 라벨 "방식" + `Segmented sm` `[4지선다 CHOICE \| 뒤집기 카드 FLIP]` · 라벨 "분류" + `CategoryChips basis=active`(분류가 1개 이하면 줄 생략) · [시작하기] primary full(요청 중 "만드는 중…" + `aria-busy`) · 400 이면 버튼 아래 12px bad 서버 문구 |
 | `inProgress` | "풀던 세트가 있어요"(15px semibold) · "{오늘\|M월 D일} 시작 · {mode 라벨} · {cardCount}장 중 {answered}장 답함"(13px ink2) · "답한 카드는 저장돼 있어요."(12px ink2) · (시작일 ≠ 오늘) "지난 날 시작한 세트예요. 끝내면 그날 기록으로 남아요."(12px ink2) · 버튼: `answered < cardCount` → BtnRow [이어서 풀기](primary) [여기서 끝내기](ghost) / `answered === cardCount` → [결과 보기](primary full, #51) |
-| `empty` (단어 0) | "단어장이 비어 있어요" · "오늘의 단어는 내 단어장에서 골라요. 기본 단어로 바로 시작해 볼까요?" · [기본 단어 50개 넣기](primary full, `useSeedPack`) · [단어 직접 추가](ghost full → `/drawer/words?add=1`) · (보관 단어 > 0) "보관한 단어 {n}개는 오늘의 단어에 나오지 않아요 · 단어장에서 보기 ›"(Link 44px) |
+| `empty` (단어 0) | "단어장이 비어 있어요" · "오늘의 단어는 내 단어장에서 골라요. {L} 기본 단어로 바로 시작해 볼까요?" · [{L} 단어 {n}개 넣기](primary full, `useSeedPack`) · (목표 수준이 있을 때) [목표 수준 {L} 단어 {n}개 넣기](ghost full) · [단어 직접 추가](ghost full → `/drawer/words?add=1`) · (보관 단어 > 0) "보관한 단어 {n}개는 오늘의 단어에 나오지 않아요 · 단어장에서 보기 ›"(Link 44px) |
 | `poolEmpty` | #47 가 `empty` 를 준 경우. 변형은 아래 |
 | `error` | ErrorBlock(§5-8 ⓐ) + 다시 시도 |
 
@@ -1766,7 +1766,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 |---|---|---|---|---|---|---|
 | 11 | (서버 컴포넌트) `preferences.getProfile` | — | 오늘 홈 기본 장수 | — | `dailyWordCount`(5~30, 기본 10) | — |
 | 46 | `/api/v1/words/categories` | GET | 분류 칩·빈 단어장 판정·poolEmpty 구분 | — | `category,count,archivedCount` | 오늘 홈 `error` |
-| 46b | `/api/v1/words/seed-pack` | POST | 빈 상태 [기본 단어 50개 넣기] | `{pack:'N5'}` | `added,skipped` | 카드 안 ErrorBlock |
+| 46b | `/api/v1/words/seed-pack` | POST | 빈 상태 [{L} 단어 {n}개 넣기]·목표 수준 보조 | `{pack: SeedPack}`(§19-3) | `added,skipped` | 토스트 `actionErrorText`(§19-4 D) |
 | 47 | `/api/v1/vocab/sessions` | POST | [시작하기]·[전체로 풀기] | `{count, mode, category}`(`category` 는 `null` = 전체) | `session.{id,downgraded,cardCount,requestedCount}` / `empty.reason` | 409 `details.sessionId` → inProgress · 400 서버 문구 · 그 외 §5-8 ⓐ |
 | 48 | `/api/v1/vocab/sessions` | GET | 진행 중 찾기·오늘 끝낸 수 / 보관한 세트·더 보기 | `limit=10` / `kept=1&limit=5&cursor=` | `items[].{id,date,mode,cardCount,correctCount,wrongCount,skippedCount,status,keptAt,replayOfId}` · `nextCursor` | 최근: `error` / 보관: 섹션 숨김 |
 | 49 | `/api/v1/vocab/sessions/:id` | GET | 덱 로드·이어 풀기·결과·홈의 답한 수 | — | `session`, `cards[].{order,wordId,surface,reading,choices,flagged,answered,answer,correctText,chosenText,example,exampleKo?,meaning?}` | 404 → notFound 화면 |
@@ -1854,7 +1854,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 | 시작 | 시작하기 / 만드는 중… |
 | 풀던 세트 | 풀던 세트가 있어요 / {오늘\|M월 D일} 시작 · {방식} · {N}장 중 {k}장 답함 / 답한 카드는 저장돼 있어요. / 지난 날 시작한 세트예요. 끝내면 그날 기록으로 남아요. / 이어서 풀기 / 여기서 끝내기 / 결과 보기 |
 | 409(시작) | 풀던 세트가 있어요. 이어서 풀거나 끝내 주세요. |
-| 빈 단어장 | 단어장이 비어 있어요 / 오늘의 단어는 내 단어장에서 골라요. 기본 단어로 바로 시작해 볼까요? / 기본 단어 50개 넣기 / 넣는 중… / 단어 직접 추가 / 보관한 단어 {n}개는 오늘의 단어에 나오지 않아요 · 단어장에서 보기 |
+| 빈 단어장 | 단어장이 비어 있어요 / 오늘의 단어는 내 단어장에서 골라요. {L} 기본 단어로 바로 시작해 볼까요? / {L} 단어 {n}개 넣기 / 목표 수준 {L} 단어 {n}개 넣기 / 넣는 중… / 단어 직접 추가 / 보관한 단어 {n}개는 오늘의 단어에 나오지 않아요 · 단어장에서 보기 |
 | 기본 단어 결과 | §4-8 ⓓ 와 같음 |
 | 오늘 풀 단어 없음 | 오늘 풀 단어를 모두 풀었어요. 오늘 끝낸 세트의 단어는 내일 다시 나와요. / 보관한 세트 보기 / 단어 추가하기 |
 | 분류에 없음 | ‘{분류}’에서 오늘 풀 단어가 없어요. 오늘 끝낸 세트의 단어는 내일 다시 나와요. / 전체로 풀기 / 분류 바꾸기 |
@@ -8879,3 +8879,174 @@ v2 보강 H-1~H-8 도 모두 닫힘(H-1 읽기 비저장 Leader ④ · H-2 #178 
 - 시험은 정적 소스 스캔이다 — 동적으로 조립되는 클래스·템플릿 리터럴 안 삼항 따옴표·`.css` 클래스형 규칙은 못 잡는다(현재 소스에 해당 모양 없음). `input`·`select` 에 스크롤 클래스를 쓰면 규칙이 `relative` 로 바꾼다(현재 없음).
 - 빌드 CSS 에 쓰이지 않는 유틸리티 몇 개가 생김(새 시험 파일의 문자열을 Tailwind 가 후보로 읽은 것으로 추정, 약 410B, 화면 영향 없음 [추측]).
 - 앱 WebView·Safari·실기기·가상 키보드 상태는 미확인.
+
+## 19. task-051 JLPT 단계 기본 단어 (IMP-0007, 2026-10-10)
+
+> **승인 데모: `docs/demo/task-051-jlpt-tier-wording-v1.html` (v1)** — 파일 sha256 앞 12자 `42a69f93f068`, 토큰 `src/app/globals.css@sha256:a314f18f1807`(지금 파일과 같음). 사용자 승인 2026-10-10 22:56, 원문 「task-051 데모 v1 승인, D1 C·D2 A·D3 B·D4 B·D5 A·D6 A」.
+> **정본은 데모 「결정 필요」 패널에서 이 조합을 고른 화면이다.** 데모를 처음 열면 권고안(D1-A·D3-A·D4-A·D6-C)이 그려지므로 패널에서 C·A·B·B·A·A 로 바꿔 본다. 데모 안의 N1 옛 이름(D1-C 로 바꾸기 전 이름)과 단계 수(674·630·1,659·1,778·3,070, 합계 7,811)는 데모를 만들 때 값이라 **이 절이 이긴다**. 데모와 다르게 쓴 곳은 19-9 에 모았다.
+> 기본 단어 팩이 JLPT 5단계(N5~N1)로 늘어나 단어장·오늘의 단어·추가 시트의 넣기 문구, 단어 상세·입력의 수준 표시, 설정의 수준 선택과 맨 아래 출처 줄이 바뀐다. 스키마·API 모양은 바뀌지 않는다(#46b `pack` 값만 다섯 개). 이력서: `agent-vault/10-Flow/tasks/task-051-improve-n5-vocab-pack.md`.
+> 적용 토큰(이름만, 새 색 없음): `--color-accent` · `--color-on-accent` · `--color-ink` · `--color-ink2` · `--color-surface` · `--color-surface2` · `--color-line`. 공용 컴포넌트: `Btn` · `Card` · `Section` · `Badge` · `Segmented`(두 줄 변형 추가) · `Sheet` · `Toast`.
+
+### 19-1. 결정 최종값
+
+| # | 고른 안 | 화면에 미치는 것 |
+|---|---|---|
+| D1 | **C** — `초보자 (N5)` · `초급 (N4)` · `중급 (N3)` · `고급 (N2)` · `최상급 (N1)` | 모든 수준 표시가 「이름 (코드)」. N1 옛 이름은 화면·문구·시험 어디에도 쓰지 않는다 |
+| D2 | **A** — 설정 지금·목표 수준을 두 줄 분절로 | `Segmented` 두 줄 변형(19-4 F-1) |
+| D3 | **B** — 팩 단어의 분류(`category`) = 단계 이름(`seedPackCategory`) | 서버가 넣는다. **기존 소유자 50개는 `N5 기초` 그대로라 분류 칩이 `N5 기초`·`초보자 (N5)` 둘로 갈린다**(합치기 = 데이터 변경, 범위 밖) |
+| D4 | **B** — 목표 수준(`goalLevel`) 보조 버튼 | 지금 수준·선생님 대화 수준은 안 바뀐다. 목표 수준을 정해 둔 단계만 넣을 수 있다 |
+| D5 | **A** — 설정 맨 아래 출처 한 줄 + 누르면 시트 | 새 `DataCreditRow`(19-4 F-2) |
+| D6 | **A** — 확인 창 없이 바로 넣기 | 확인 시트를 만들지 않는다 |
+
+**위험 (D6-A, 사용자 고지 완료)**: 넣은 단어를 한꺼번에 빼는 API·화면이 없다(words 는 GET·POST, categories 는 GET 만). 잘못 누르면(최상급은 3천 개가 넘는다) 하나씩 지우거나 보관해야 한다.
+
+### 19-2. 단일 출처 — 화면에 이름·숫자를 직접 쓰지 않는다
+
+- `@/types/seedPack`(리프 파일, 클라이언트 import 가능, 단어 JSON 을 싣지 않음): `SEED_PACKS`(N5→N1 순서) · `type SeedPack` · `SEED_PACK_LABEL[pack]`(표시 이름) · `seedPackCategory(pack)`(분류 칩 이름, 표시 이름과 같은 글자) · `SEED_PACK_COUNT[pack]`(개수) · `isSeedPack(v)`. **이 파일과 `seedPackCounts.ts`(생성 파일)는 화면 작업에서 고치지 않는다.**
+- 지금 개수(참고용, 코드에 쓰지 않음): 초보자 676 · 초급 629 · 중급 1,649 · 고급 1,767 · 최상급 3,034 · 합계 7,755. 데이터를 다시 만들면 생성 파일만 바뀐다.
+- `labels.ts` 에 세 함수를 둔다:
+  - `levelLabel(l)` = `SEED_PACK_LABEL[l]` — `WordEntry.jlpt`(`JlptLevel`)와 `SeedPack` 은 같은 다섯 값이다. 타입이 안 맞으면 `isSeedPack` 으로 좁힌다.
+  - `levelName(l)` = `SEED_PACK_LABEL[l]` 에서 끝의 ` (N5)` 를 뗀 이름(`초보자`) — 두 줄 분절 위쪽 글자·설정 도움말에만 쓴다. 시험: 다섯 값 모두 괄호가 없고 `` `${levelName(l)} (${l})` === SEED_PACK_LABEL[l] ``.
+  - `fmtCount(n)` = `n.toLocaleString('ko-KR')`(천 단위 쉼표).
+- 금지: 화면 코드·`labels.ts` 의 N1 옛 이름, `'N5 기초'` 를 새로 만드는 코드(기존 행은 받은 글자 그대로 그린다), `50`·`674`·`7,811` 같은 개수 상수.
+
+### 19-3. 어느 단계를 넣나 — `useSeedLevels`
+
+- 값의 출처: **#11 `GET /api/v1/settings/profile`** 의 `level`(주 버튼)·`goalLevel`(보조 버튼). API 변경 없음(이미 쓰는 곳: `LearningSettings`·`CorrectionModeMenu`·`displayPrefs`).
+- 새 훅 `useSeedLevels()`(`components/vocab/hooks.ts`): `{ status: 'loading' | 'ready' | 'error', main: SeedPack | null, goal: SeedPack | null, retry: () => void }`.
+  - `main` = `isSeedPack(level) ? level : null`
+  - `goal` = `isSeedPack(goalLevel) && goalLevel !== main ? goalLevel : null` — 목표 수준이 `없음`이거나 지금 수준과 같으면 보조 버튼을 그리지 않는다. 목표가 지금보다 낮은 단계여도 조건은 「다름」 하나뿐이라 그린다.
+  - `status === 'error'` 거나 `level` 이 다섯 값이 아니면 `main = null`, `goal = null`.
+- 부르는 곳: `WordsScreen`·`TodayHome` 마운트 때 한 번, 목록·홈 요청과 **동시에** 보낸다. 설정에서 수준을 바꾸고 돌아오면 화면이 다시 마운트되며 새로 읽는다(탭 전환 데이터 캐시 없음 — §17).
+- **단계를 모를 때(`main === null`)는 넣기 버튼을 그리지 않는다.**
+  - `loading`: 빈 단어장 카드(`noWords`)와 오늘 카드 `empty` 는 #11 이 끝날 때까지 지금 로딩 모양을 유지한다(#46 이 먼저 끝나도 기다림 — 버튼이 늦게 끼어들어 카드가 커지지 않게). 단어가 있는 목록·준비 카드는 기다리지 않는다. 추가 시트는 넣기 줄(구분선 포함)을 그리지 않는다.
+  - `error`: 빈 단어장 카드 본문 「아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요.」, 오늘 카드 본문 「오늘의 단어는 내 단어장에서 골라요.」, 두 카드 모두 넣기 버튼 대신 글자 버튼 **「수준을 불러오지 못했어요 · 다시 시도 ›」**(44px·13px·accent, `retry`)을 [직접 추가] 위에 둔다. 추가 시트는 넣기 줄을 그리지 않는다(재시도 없음 — 시트의 주 목적은 직접 넣기). *(데모에 없던 상태 — 19-9 ④)*
+
+### 19-4. 컴포넌트별 지침
+
+`{L}` = `levelLabel(pack)`, `{n}` = `fmtCount(SEED_PACK_COUNT[pack])`. `main`·`goal` 은 19-3.
+
+**A. `WordsEmpty` — `noWords`** (데모 상태 A)
+- props 바꿈: `seeding: boolean`·`onSeed()` → `levels: { status, main, goal, retry }` · `seedingPack: SeedPack | null` · `onSeed(pack: SeedPack)`.
+- 제목 그대로 「단어장이 비어 있어요」.
+- 본문: `{L(main)} 기본 단어 {n(main)}개로 바로 시작하거나, 아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요.`
+- 버튼 열(`mt-3 flex flex-col gap-2`, 위에서 아래로):
+  1. primary full — `{L(main)} 단어 {n(main)}개 넣기`
+  2. goal 이 있을 때만 ghost full — `목표 수준 {L(goal)} 단어 {n(goal)}개 넣기`
+  3. ghost full — `직접 추가`(그대로)
+- 위계: 채운 accent 버튼은 주 하나뿐이다. 보조는 [직접 추가]와 같은 ghost 이고 주 바로 아래 자리와 「목표 수준」 머리말로 구분한다. 데모 D4-A 의 「다른 수준 단어는 설정에서…」 링크는 넣지 않는다.
+
+**B. `WordAddSheet` — 맨 아래 넣기 줄** (데모 상태 B)
+- props 바꿈은 A 와 같다(`levels`·`seedingPack`·`onSeed(pack)`).
+- `<hr>` 아래 글자 버튼(`TEXT_BTN` = 44px·13px·accent, `self-start`)을 세로로 붙여 둔다:
+  1. `{L(main)} 기본 단어 {n(main)}개 한 번에 넣기 ›`
+  2. goal 이 있을 때만 `목표 수준 {L(goal)} 단어 {n(goal)}개 한 번에 넣기 ›`
+- 누른 뒤: 시트는 그대로 열려 있고 결과는 토스트, 뒤 목록은 지금처럼 `reloadAll()`. 데모 D4-A 의 12px 안내(「수준은 설정 › …」)는 넣지 않는다.
+- `main === null` 이면 구분선과 두 글자 버튼을 모두 그리지 않는다.
+
+**C. `TodayWordsCard` — `empty`** (데모 상태 C)
+- 본문: `오늘의 단어는 내 단어장에서 골라요. {L(main)} 기본 단어로 바로 시작해 볼까요?`
+- 버튼: primary full `{L(main)} 단어 {n(main)}개 넣기` → (goal 있을 때) ghost full `목표 수준 {L(goal)} 단어 {n(goal)}개 넣기` → ghost full `단어 직접 추가`(→ `/drawer/words?add=1`, 그대로). 보관 단어 안내 줄은 그대로.
+- 넣은 뒤 지금처럼 `setTick` → 카드가 준비 상태([시작하기])로 바뀐다.
+- 보조 버튼이 있으면 카드가 56px(48 + 간격 8) 커진다 — 오늘 홈 첫 화면(≈780px) 안에서 [시작하기]·회화 카드 위치를 3폭에서 확인.
+
+**D. 넣기 → 결과** (데모 상태 D, D6-A — 확인 시트 없음)
+- `useSeedPack()` → `{ seed(pack: SeedPack): Promise<SeedPackResult>, seedingPack: SeedPack | null }`. 요청 `apiPost('/api/v1/words/seed-pack', { pack })` — 지금의 `{ pack: 'N5' }` 고정을 지운다.
+- 상태: `idle` → (누름) `busy(pack)` → 성공·실패 모두 `idle`.
+  - busy 동안 **누른 버튼만** 글이 「넣는 중…」 + `aria-busy="true"`.
+  - 같은 화면의 다른 넣기 버튼(주·보조, 시트의 두 글자 버튼)은 `aria-disabled="true"` 이고 누르면 아무 일도 없다(`disabled` 속성은 쓰지 않는다 — 초점이 사라지지 않게, 지금 코드 방식). [직접 추가]·[직접 입력하기] 등 다른 버튼은 막지 않는다.
+  - 두 번 탭 방지: 상태 갱신 전 두 번째 탭을 막도록 훅 안 `ref`(`inFlight.current`)로도 막는다. 화면 쪽 `if (seedingPack) return` 도 유지.
+- 결과 토스트 `seedResultText(pack, r)`(인자에 pack 추가, 숫자는 `fmtCount`):
+
+  | 경우 | 문구 |
+  |---|---|
+  | `added > 0`, `skipped === 0` | `{L} 단어 {added}개를 넣었어요` |
+  | `added > 0`, `skipped > 0` | `{L} 단어 {added}개를 넣었어요 · 이미 있는 {skipped}개는 건너뛰었어요` |
+  | `added <= 0` | `{L} 단어가 이미 모두 들어 있어요` |
+  | 실패 | `actionErrorText(e)` — 공통 표(`NETWORK_ERROR`·`GENERIC_ERROR`) 그대로, 새 문구 없음 |
+
+- 건너뛴 수는 서버 값 그대로 쓴다. 기존 50개를 가진 사용자가 초보자를 넣으면 같은 (표기, 읽기)만 건너뛴다 — `ご飯`·`友だち` 는 팩의 `御飯`·`友達` 와 표기가 달라 함께 남는다(SOURCES.md 가공 내용 6, 버그 아님).
+- 실패하면 서버가 한 트랜잭션으로 전부 되돌린다(api-contract #46b) — 버튼이 다시 눌리고, 다시 눌러도 같은 단어가 두 번 들어가지 않는다.
+- 성공 뒤 목록·홈 갱신은 지금 그대로(`reloadAll`·`setTick`). 토스트는 기존 `Toast`(`role=status`) — 버튼 글이 바뀌므로 따로 live 영역을 두지 않는다.
+- 진행 표시는 「넣는 중…」 하나뿐이다. 최상급 3천여 개를 넣는 시간은 재지 않았다(QA 측정, 서버 트랜잭션 상한 30초 — 넘으면 실패 토스트).
+
+**E. 단어 상세·입력** (데모 상태 E)
+- `WordDetailSheet` 뱃지 줄: 품사 · `w.jlpt ? levelLabel(w.jlpt)` · **category 가 있고 수준 뱃지 글과 다를 때만** category · 조각 · (보관) 「보관함」. 팩 단어(category = 수준 이름)는 수준 뱃지 하나만, 기존 50개는 `초보자 (N5)` + `N5 기초` 두 개가 보인다.
+- `SOURCE_SENTENCE.SEED` = **「기본 단어 팩에서 넣었어요」**(모든 단계 같은 문장 — 단계는 뱃지가 말한다).
+- `WordForm` 「수준」 select: `<option value="">선택 안 함</option>` 다음 `JLPT_LEVELS` 순서로 `value="N5"`… 라벨 `levelLabel`. 네이티브 select 를 그대로 쓴다(안드로이드 기본 선택 창). 폼 2열(품사·수준)이 360 에서 각 ≥150px 인지 다시 확인 — 고른 값 「최상급 (N1)」 이 select 안에서 잘리지 않아야 한다.
+- `WordRow`(목록 행)는 수준을 그리지 않는다(범위 밖).
+- 분류 칩(`CategoryChips`)·목록 조건 줄(`listConditionText`)은 category 글자를 그대로 쓴다 — `초보자 (N5)` 처럼 공백·괄호가 들어간다(목록 요청은 `URLSearchParams` 가 인코딩).
+
+**F-1. 설정 `LearningSettings` — 지금·목표 수준** (데모 상태 F, D2-A)
+- `Segmented` 에 두 줄 변형을 더한다: 옵션 `{ value, label, sub? }` + prop `twoLine`(+ `describedBy?`). 기존 한 줄 사용처는 바뀌지 않는다.
+  - 칸 높이 48px(`h-12`), 위 줄 `label` 13px `leading-[1.2]`(목표 수준 6칸은 12.5px), 아래 줄 `sub` 11px `text-ink2`, 두 줄 사이 1px, 좌우 여백 2px, 두 줄 모두 `truncate`. 고른 칸 모양(surface 배경·그림자·굵게)은 지금과 같다. 「없음」 칸은 한 줄(`label` 만).
+  - 칸마다 `aria-label` = `levelLabel(v)`(「초보자 (N5)」), 「없음」 칸은 「없음」.
+- 옵션: `JLPT_LEVELS.map((v) => ({ value: v, label: levelName(v), sub: v }))`. 목표 수준은 앞에 `{ value: 'NONE', label: '없음' }`.
+- 지금 수준 분절 바로 아래 도움말(12px `text-ink2`, `id` 를 두고 분절에 `aria-describedby`):
+  **「선생님 대화와 기본 단어 넣기가 이 수준을 따라요. 이름은 JLPT 급수와 같아요 — {levelName('N1')}은 가장 높은 급수(N1)예요.」** → 지금 값은 「…— 최상급은 가장 높은 급수(N1)예요.」
+- 목표 수준 아래에는 도움말을 더하지 않는다(데모와 같음). 저장은 지금 [학습 설정 저장] 하나.
+- 360폭: 목표 수준 6칸은 칸 폭이 약 46px 이다 — 「최상급」(12.5px 세 글자)이 들어간다(데모 헤드리스 360 잘림 0건). 실제 컴포넌트로 다시 확인.
+
+**F-2. 설정 맨 아래 — `DataCreditRow`** (새 파일 `src/components/settings/DataCreditRow.tsx`, 클라이언트, D5-A)
+- 위치: `app/(app)/settings/page.tsx` 의 `<AppVersionRow />` **바로 아래**, `{showConsole ? <AdminConsoleEntry /> : null}` **위**. **웹·앱 모두** 그린다(앱 버전 줄과 달리 앱 검사 없음) — 웹에서는 음성 인식 설정 바로 아래, 일반 사용자에게는 설정의 마지막 줄이 된다.
+- 줄: `<Section>` 안 `<button type="button" aria-haspopup="dialog">`, `Card` 모양 `flex min-h-[56px] w-full min-w-0 items-center justify-between gap-3 text-left`.
+  - 왼쪽(`min-w-0`): 「단어 자료 출처」 14px `text-ink` · 「OpenJLPT 외 · CC BY-SA 4.0」 12px `text-ink2`, 둘 다 `truncate`.
+  - 오른쪽: `›` 18px `text-ink2` `aria-hidden`. 접근 이름은 보이는 두 줄 글자 그대로.
+- 누르면 공용 `Sheet`(제목 「단어 자료 출처」) — 열면 제목으로 초점, Esc·바깥 누름·[닫기]로 닫히고 닫히면 줄 버튼으로 초점이 돌아간다(기존 `Sheet` 규칙). 내용(위에서 아래로, 14px 본문·13px `text-ink2` 보조):
+  1. 「다섯 단계 기본 단어 **{fmtCount(합계)}**개는 공개 자료 **OpenJLPT** 를 바탕으로 만들었어요.」 — 합계 = `SEED_PACK_COUNT` 다섯 값의 합(지금 7,755).
+  2. 「JLPT 공식 단어 목록이 아니에요. 급수는 공개 자료가 추정한 값이에요.」
+  3. 자료 목록 `<dl>`(칸마다 `surface2` 배경·12px 둥근 모서리·10/12px 안쪽 여백, 칸 사이 10px; `dt` 14px 굵게, `dd` 12.5px `text-ink2`, 주소 `dd` 12px 고정폭 `select-all`):
+
+     | `dt` | `dd` | 주소(글자만) |
+     |---|---|---|
+     | OpenJLPT | evanclan · CC BY-SA 4.0 | `github.com/evanclan/OpenJLPT` |
+     | JLPT 급수 단어 목록 | Jonathan Waller (Tanos) · CC BY | `tanos.co.uk/jlpt` |
+     | JMdict 사전 | EDRDG · CC BY-SA 4.0 | `edrdg.org` |
+
+  4. 「한국어 뜻·예문은 AI 가 새로 썼고, 사람은 일부만 확인했어요. 틀린 곳이 보이면 단어를 눌러 고칠 수 있어요.」
+  5. 「이 앱의 기본 단어 자료도 같은 CC BY-SA 4.0 으로 둬요.」 + 그 아래 12px 고정폭 `creativecommons.org/licenses/by-sa/4.0`(글자만) *(가이드 추가 — 19-9 ②)*
+  6. [닫기] ghost full.
+- **주소는 링크로 만들지 않는다**(글자만) — 앱 WebView 가 바깥 사이트로 나가지 않게.
+- **Tatoeba 줄은 넣지 않는다** — 예문 생성 입력에 쓰지 않았다(`prisma/seed-data/SOURCES.md`). 엔진·모델 이름도 넣지 않는다(「AI」 일반어만).
+- 문구는 컴포넌트 안 상수 한 곳(`DATA_CREDIT`)에 둔다. 시험: 「Tatoeba」와 N1 옛 이름이 없고, 합계가 `SEED_PACK_COUNT` 에서 계산되는지.
+
+### 19-5. API 호출 계획
+
+| # | 엔드포인트 | 메서드 | 보낼 값 | 쓰는 필드 | 오류 처리 |
+|---|---|---|---|---|---|
+| 11 | `/api/v1/settings/profile` | GET | — | `level` · `goalLevel` | 실패·잘못된 값 → 19-3 `error` 대체(넣기 버튼 숨김 + 「다시 시도」). 401 은 기존 공통 처리 |
+| 46b | `/api/v1/words/seed-pack` | POST | `{ pack: SeedPack }`(`N5`·`N4`·`N3`·`N2`·`N1`) | `added` · `skipped` | 토스트 `actionErrorText`. `400 VALIDATION` 은 `isSeedPack` 으로 보내기 전에 막는다 |
+
+### 19-6. 생성·수정 파일 (`src/app`·`src/components` 만)
+
+| 구분 | 파일 |
+|---|---|
+| 생성 | `src/components/settings/DataCreditRow.tsx` |
+| 수정 | `src/components/vocab/{labels.ts, hooks.ts, WordsEmpty.tsx, WordAddSheet.tsx, WordsScreen.tsx, TodayWordsCard.tsx, TodayHome.tsx, WordDetailSheet.tsx, WordForm.tsx}` · `src/components/common/Segmented.tsx`(두 줄 변형) · `src/components/settings/LearningSettings.tsx` · `src/app/(app)/settings/page.tsx` · 해당 시험(`components/vocab/__tests__/labels.test.ts` 등) |
+| 고치지 않음 | `src/types/seedPack.ts` · `src/types/seedPackCounts.ts` · `src/modules/**` · `prisma/seed-data/**`(SOURCES.md 포함) · 데모 파일 |
+
+### 19-7. 구현 순서
+1. `labels.ts` — `levelLabel`·`levelName`·`fmtCount`·`seedResultText(pack, r)`·`SOURCE_SENTENCE.SEED` + 시험.
+2. `hooks.ts` — `useSeedLevels`·`useSeedPack(pack)`(+ `inFlight` ref).
+3. 단어장 — `WordsEmpty`·`WordAddSheet`·`WordsScreen`(levels·seedingPack 전달, 빈 카드 대기).
+4. 오늘 — `TodayWordsCard`·`TodayHome`.
+5. 상세·입력 — `WordDetailSheet`·`WordForm`.
+6. 설정 — `Segmented` 두 줄 변형 → `LearningSettings`.
+7. `DataCreditRow` → `settings/page.tsx` 배치.
+8. 360·390·412 확인(19-8 첫 줄의 조합 포함) + 웹·앱 양쪽 설정 맨 아래.
+
+### 19-8. 주의사항
+- **가장 긴 글(3폭)**: 주 버튼 「최상급 (N1) 단어 3,034개 넣기」는 한 줄. **보조 버튼 「목표 수준 최상급 (N1) 단어 3,034개 넣기」는 360폭 카드 안 글자 자리가 약 268px 라 15px 한 줄이 빠듯하다**[추측] — `truncate` 금지, `whitespace-normal break-keep leading-[1.25]` 로 48px 안 두 줄을 허용하고 360 에서 (지금 고급 · 목표 최상급) 조합을 확인한다. 추가 시트의 같은 글자 버튼(13px)도 줄바꿈을 허용한다. 데모는 보조 버튼을 「지금 다음 단계」로만 그려 이 조합을 그리지 않았다.
+- 빈 상태·로딩·오류: 19-3. 오프라인이면 넣기 실패 → `NETWORK_ERROR` 토스트, 수준 읽기 실패 → 「다시 시도」.
+- 권한: #11·#46b 는 로그인 사용자 본인 것만 — 화면에 추가 권한 분기 없음.
+- 화면당 세로 스크롤 1곳 유지(출처 시트 안 스크롤은 `Sheet` 규칙). 탭 5개·상단 아바타 변화 없음.
+- D3-B 결과: 소유자 계정 분류 칩이 `N5 기초 50`·`초보자 (N5) {added}` 로 갈린다 — 버그 아님. 칩 합치기(기존 행 이름 변경)는 D3-C 로 고르지 않았다.
+- 여러 단계를 넣으면 오늘의 단어 세트가 큰 단계로 쏠린다(세트 생성 규칙, Leader 기록) — 화면 범위 밖, 후속 task 후보. 분류 칩으로 단계를 골라 풀 수는 있다.
+- 사용자 화면 엔진명 0건: 출처 시트·문구에 모델·엔진 이름을 넣지 않는다.
+
+### 19-9. 데모와 다르게 쓴 곳 (Leader 확인)
+1. **개수**: 데모의 674·630·1,659·1,778·3,070·7,811 → `SEED_PACK_COUNT`(지금 676·629·1,649·1,767·3,034·합 7,755).
+2. **출처 시트 문구**: Tatoeba 줄 삭제(쓰지 않음) · 「한국어 뜻·예문은 선생님이 새로 채웠어요」 → 「AI 가 새로 썼고, 사람은 일부만 확인했어요」(SOURCES.md 가공 내용 2·4) · 첫 줄 「기본 단어(옛 단계 이름 범위, 7,811개)는」 → 「다섯 단계 기본 단어 {합계}개는」(옛 이름 제거, 이름을 따로 적지 않게) · 둘째 줄 「JLPT 는 공식 단어 목록을 내지 않아요」 → 「JLPT 공식 단어 목록이 아니에요」(비공식 고지를 앞에) · **라이선스 주소 한 줄 추가**(CC BY-SA 4.0 표시 요건을 돕는 글자 한 줄 — 원치 않으면 빼도 화면 구조는 같다).
+3. **보조 버튼 단계**: 데모는 「지금 수준의 다음 단계」로 그렸다 → 구현은 실제 `goalLevel`(데모 D4-B 설명 「목표 수준이 있고 지금 수준과 다르면」을 따름).
+4. **수준을 못 읽을 때**: 데모에 없던 상태 — 넣기 버튼을 숨기고 새 글자 버튼 「수준을 불러오지 못했어요 · 다시 시도 ›」 하나를 둔다(19-3).
+5. 데모 D2·D5 는 사용자에게 따로 묻지 않고 권고안을 그렸고, 승인 문장에 D2 A·D5 A 로 확정됐다.
