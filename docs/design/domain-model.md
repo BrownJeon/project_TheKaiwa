@@ -21,7 +21,7 @@
 | L0 admin (app 층 조합) | `src/modules/admin` | `ConfigurationPreset` · `DebugSession` | 모든 층 import 가능. 설정 변경 자체는 L5 `engine/configuration` 을 호출해 기록 |
 | L1 preferences | `src/modules/preferences` | `Profile` · `UserVoiceSetting` · `UserSpeechSetting` · `AppSetting` | `Profile` 은 **학습 설정만**. 음성 설정은 `UserVoiceSetting`/`UserSpeechSetting` |
 | L2 conversation | `src/modules/conversation` | `Chat` · `ChatMessage` · `Correction` · `TutorProposal` · `PromptTemplate` · `PromptVersion` | AI 산출은 `PROPOSED` 상태로만 존재 |
-| L3 learning | `src/modules/learning` | `WordEntry` · `VocabSession` · `VocabAttempt` · `ConversationTopic` · `TopicChunk` · `Scenario` · `ScenarioTopic` · `UserSeedOverride` · `Lesson` · `ReviewSchedule` · `RepetitionItem` · `StudyLog` · `Attendance` · `Evaluation` · `EvaluationItem` · `StudyPlan` · `StatsSnapshot` · `LearnerErrorStat` · `LearningObservation` | 집계는 `StatsSnapshot` 에서만 읽는다. `Scenario`·`ScenarioTopic`·`LearningObservation` 은 2026-10-01 §9 에서 승격. `UserSeedOverride`(task-045, 2026-10-07)는 시드를 사용자별로 숨기거나 내 버전으로 바꾸는 표 |
+| L3 learning | `src/modules/learning` | `WordEntry` · `VocabSession` · `VocabAttempt` · `ConversationTopic` · `TopicChunk` · `Scenario` · `ScenarioTopic` · `UserSeedOverride` · `Lesson` · `ReviewSchedule` · `RepetitionItem` · `StudyLog` · `Attendance` · `Evaluation` · `EvaluationItem` · `StudyPlan` · `Challenge` · `StatsSnapshot` · `LearnerErrorStat` · `LearningObservation` | 집계는 `StatsSnapshot` 에서만 읽는다. `Scenario`·`ScenarioTopic`·`LearningObservation` 은 2026-10-01 §9 에서 승격. `UserSeedOverride`(task-045, 2026-10-07)는 시드를 사용자별로 숨기거나 내 버전으로 바꾸는 표. `Challenge`(task-041, 2026-10-06 Phase 2 일괄 DB0)는 주제 선택형 N일 챌린지 — 하루 결과는 저장하지 않고 `StatsSnapshot(LESSON·VOCAB_SESSION)` 에서 계산한다 |
 | L4 speech | `src/modules/speech` (+ Python `speech/gateway`·`speech/worker` 는 `/api/internal/*` 콜백으로 같은 테이블에 기록) | `Utterance` · `SpeechAnalysis` · `SpeechJob` · `TtsCache` · `VoiceProfile` · `VoiceModel` · `VoiceStyle` · `VoiceImportJob` | 오디오 파일은 `DATA_ROOT`, DB 는 경로만 |
 | L5 engine | `src/modules/engine` | `Engine` · `EngineConnection` · `EngineHealth` · `EngineFallbackPolicy` · `ConfigurationVersion` · `RuntimeOverride` · `RequestTrace` · `EngineMetricsDaily` | 설정 계열은 전부 `environment` 컬럼, 프로세스는 `APP_ENV` 행만 읽는다 |
 | L6 infra | `src/modules/infra` | `User` · `AppAuthCode` · `AiJob` · `AppRelease` · `AuditLog` | `AuditLog` 는 append-only |
@@ -162,6 +162,9 @@ erDiagram
   Lesson o|--o{ Chat : "speaking-stage role-play (SetNull)"
   User ||--o{ RepetitionItem : "repetition"
   User ||--o{ LearningObservation : "append-only observations"
+  User ||--o{ Challenge : "creates (DIRECT, Cascade)"
+  ConversationTopic o|--o{ Challenge : "topic (SetNull, topicTitleSnap kept)"
+  ConversationTopic o|--o{ VocabSession : "topic word set (SetNull)"
 
   WordEntry {
     string id PK
@@ -238,6 +241,14 @@ erDiagram
     ObservationOutcome outcome
     SkillAxis skill
     string refId "no FK"
+  }
+  Challenge {
+    string id PK
+    string topicTitleSnap
+    ChallengeStatus status
+    string activeKey "unique, ACTIVE only"
+    json dailyGoal "frozen at create"
+    json result "frozen at end"
   }
 ```
 
@@ -682,6 +693,13 @@ enum PlanStatus {
   ARCHIVED
 }
 
+/// 챌린지 상태(task-040·041, Challenge 전용). ACTIVE → COMPLETED(기간 끝 — 읽거나 만들 때 지연 전이) | ENDED(사용자가 그만둠). 끝난 상태는 되돌리지 않는다
+enum ChallengeStatus {
+  ACTIVE
+  COMPLETED
+  ENDED
+}
+
 enum SnapshotKind {
   DAILY
   VOCAB_SESSION
@@ -929,6 +947,7 @@ model User {
   attendances      Attendance[]
   evaluations      Evaluation[]
   studyPlans       StudyPlan[]
+  challenges       Challenge[]
   snapshots        StatsSnapshot[]
   errorStats       LearnerErrorStat[]
   utterances       Utterance[]
@@ -1316,12 +1335,17 @@ model VocabSession {
   startedAt      DateTime           @default(now())
   finishedAt     DateTime?
   durationSec    Int?
+  /// 주제 단어 세트(task-040·042). null = 기존 "내 단어장" 세트
+  topicId        String?
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts VocabAttempt[]
 
+  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
   @@index([userId, date])
   @@index([userId, keptAt])
+  @@index([userId, topicId, date])
 }
 
 /// 카드 1장. surfaceSnap/readingSnap/meaningSnap = 삭제 정책 스냅샷(규칙 2). choices 는 보기 스냅샷, 정답은 응답에 미포함
@@ -1340,6 +1364,14 @@ model VocabAttempt {
   /// 위 스와이프 = 다시 보기 표시
   flagged     Boolean      @default(false)
   answeredAt  DateTime?
+  /// 주제 카드의 출처(task-040·042, FK 없음 — RepetitionItem 과 같은 규약): 'TopicChunk'(조각 id) | 'Expr'(sha1 정규화 표기 — 수업 표현) |
+  /// 'AiWord'(A12 새 단어, refId = 같은 sha1 정규화 표기. 반복 항목 등록·오늘 제외 비교 때는 ('Expr', refId) 로 바꿔 쓴다). 단어장 카드는 null(wordId 로 충분)
+  refType     String?      @db.VarChar(30)
+  refId       String?      @db.VarChar(40)
+
+  /// 주제 단어(AiWord) 예문 스냅샷 — 일본어 예문 / 한국어 번역(task-049, 사용자 승인 2026-10-10). 타입은 WordEntry.example·exampleKo 와 같다. nullable, 옛 행·예문 없는 카드는 NULL
+  exampleSnap   String? @db.Text
+  exampleKoSnap String? @db.Text
 
   session VocabSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   word    WordEntry?   @relation(fields: [wordId], references: [id], onDelete: SetNull)
@@ -1368,6 +1400,9 @@ model ConversationTopic {
   lessons     Lesson[]
   chats       Chat[]
   evaluations Evaluation[]
+
+  challenges    Challenge[]
+  vocabSessions VocabSession[]
 
   @@index([userId, level])
   @@index([isSeed, level])
@@ -1697,6 +1732,43 @@ model StudyPlan {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, createdAt])
+}
+
+/// 챌린지(task-040 설계 challenge.md §3-2, 구현 task-041) — 사용자가 직접 만든다(규칙 1 의 DIRECT 행위, AI 산출 아님). L3 learning/challenges 소유.
+/// 하루별 결과는 저장하지 않는다 — 기간 안 StatsSnapshot(LESSON·VOCAB_SESSION)을 읽을 때 계산하고(§6-4), 끝날 때 result 에 한 번 얼린다.
+/// activeKey = ACTIVE 일 때 userId, 끝나면 null → @unique 가 "사용자당 진행 중 1개"를 DB 에서 보증(InnoDB 유니크는 NULL 여러 개 허용).
+/// 사용자 삭제 경로 없음(계정 삭제 시에만 Cascade). 주제를 지우면 진행 중(ACTIVE) 챌린지 행은 같은 트랜잭션에서 함께 지워지고, 끝난 챌린지(ENDED·COMPLETED)는 topicId=null 로 남는다(task-045 사용자 결정 — topic-scenario-manager.md §4, challenge.md §3-3)
+model Challenge {
+  id             String          @id @default(cuid())
+  userId         String
+  /// 자동 "<주제 제목 ≤60자> N일 챌린지" 또는 사용자 입력 ≤40자
+  title          String          @db.VarChar(80)
+  topicId        String?
+  topicTitleSnap String          @db.VarChar(80)
+  level          JlptLevel
+  lengthDays     Int
+  startDate      DateTime        @db.Date
+  endDate        DateTime        @db.Date
+  /// {lesson:boolean, words:boolean, wordCount:5|10|15|null, wordsMinAnswered:4|8|12|null, countSkipped:false, ruleVersion:1} — 만들 때 얼림(1단계 수정 없음).
+  /// wordsMinAnswered = ceil(4×wordCount/5) — 그날 주제 세트들의 (맞힘+틀림) 합계가 이 값 이상이면 단어 과제 인정(§6-0). words:false 면 wordCount·wordsMinAnswered = null.
+  /// 판정 파라미터를 여기 얼려 코드 규칙이 바뀌어도 진행 중 챌린지 수치가 바뀌지 않게 한다. 2단계 scenario 슬롯은 additive 키
+  dailyGoal      Json
+  status         ChallengeStatus @default(ACTIVE)
+  activeKey      String?         @unique @db.VarChar(40)
+  /// 끝날 때 한 번만 쓰는 요약(§5-5) — {ruleVersion, endReason, metDays, partialDays, missedDays, stoppedDays, elapsedDays, rate, longestStreak,
+  /// lessonsDone, wordSets, wordsCorrect, days:[{date, state, quiz:[c,t]|null, words:[c,w,s,n,sets]|null}] ≤30} — 이후 불변.
+  /// endReason = COMPLETED 면 null · ENDED 면 'USER' | 'TOPIC_REMOVED'(예외 경로 — 주제 삭제는 진행 중 챌린지를 행째 지운다, challenge.md §3-3 개정). JSON 모양은 정본 domain-model §9-3
+  result         Json?
+  /// COMPLETED = endDate 다음 날 00:00 KST(마감 시각 — 전이를 실행한 시각이 아님) · ENDED = 그만둔 시각
+  endedAt        DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic ConversationTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, startDate])
+  @@index([userId, endedAt])
 }
 
 /// 삭제 정책 구현체(규칙 2). 생성·증가만. 삭제 경로(단어·기록·세션·채팅 삭제)에서 절대 쓰지 않는다. 성장기록·분석은 여기서만 읽는다
@@ -2200,6 +2272,14 @@ model EngineMetricsDaily {
   avgMs        Int?
   p50Ms        Int?
   p95Ms        Int?
+  /// task-012b-3 TTS 관측(speech-platform/16 §7.3) — 아래 6칸은 TTS connection 행만 채우고 나머지·표본 0 은 null
+  p99Ms        Int?
+  ttfaP50Ms    Int?
+  ttfaP95Ms    Int?
+  rtfAvg       Float?
+  cacheHitRate Float?
+  /// {voiceId:{requests, errors, p50Ms}}
+  byVoice      Json?
   computedAt   DateTime @default(now())
 
   connection EngineConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
@@ -2281,8 +2361,8 @@ model DebugSession {
 | 모델 | 목적 | 핵심 필드 | 소유 층 | 생성 시점 | 삭제/보존 정책 | Phase |
 |---|---|---|---|---|---|---|
 | `WordEntry` | 단어장(채택된 단어만) | `surface`, `meaning`, `chunkType`, `source`, `archived`, `correct/wrongCount` | L3 | 직접 추가 / 시드 팩 / Correction·Proposal 채택 | 사용자 삭제·보관 가능. 참조 행은 SetNull + `*Snap`, StatsSnapshot 불변 | 1 |
-| `VocabSession` | 오늘의 단어 1세트 | `date`, `mode`, `cardCount`, 카운터, `status`, `keptAt`, `seed` | L3 | `POST /api/v1/vocab/sessions` | 삭제 시 Attempt Cascade, 스냅샷 불변. 24h 미완료 → ABANDONED | 1 |
-| `VocabAttempt` | 카드 1장 결과 | `order`, `*Snap`, `choices`, `answer`, `flagged` | L3 | 세션 생성 시 일괄 | Session Cascade, Word SetNull | 1 |
+| `VocabSession` | 오늘의 단어 1세트 | `date`, `mode`, `cardCount`, 카운터, `status`, `keptAt`, `seed`, `topicId`(주제 단어 세트면 그 주제, null = 내 단어장 세트 — task-042) | L3 | `POST /api/v1/vocab/sessions` | 삭제 시 Attempt Cascade, 스냅샷 불변. 24h 미완료 → ABANDONED. 주제 삭제 시 `topicId` SetNull | 1(`topicId` 는 2) |
+| `VocabAttempt` | 카드 1장 결과 | `order`, `*Snap`, `choices`, `answer`, `flagged`, `refType`/`refId`(주제 카드 출처 — `TopicChunk`·`Expr`·`AiWord`, FK 없음, 단어장 카드는 null — task-042), `exampleSnap`/`exampleKoSnap`(새 단어 카드의 일본어 예문·한국어 번역 스냅샷, nullable, 풀 카드·옛 행은 NULL — task-049, 2026-10-10) | L3 | 세션 생성 시 일괄 | Session Cascade, Word SetNull | 1(`ref*`·`example*Snap` 은 2) |
 | `ConversationTopic` | 회화·레슨 주제 | `title`, `level`, `isSeed`, `tags` | L3 | 시드 5개 / 사용자 추가 / `ADD_TOPIC` 채택 | 시드 행은 삭제·수정되지 않는다(시드 id 에 대한 삭제 = 그 사용자 목록에서만 숨김 — `UserSeedOverride`, task-045). 사용자 주제 삭제 시 Lesson/Chat/Evaluation/VocabSession/Challenge `topicId` SetNull, Chunk·ScenarioTopic Cascade(진행 중 챌린지 행은 같은 트랜잭션에서 먼저 삭제 — §6) | 1(시드)/2 |
 | `TopicChunk` | 주제 조각 | `chunkType`, `textJa`, `meaningKo`, `order` | L3 | 주제와 함께 | Topic Cascade | 1(시드)/2 |
 | `Scenario` | 상황 역할극 과제(역할·목표·핵심 표현·완료 규칙) | `level`, `difficulty`(1~5), `roles`, `goal`, `constraints`, `keyExpressions`(TopicChunk 참조 우선), `completionRule`, `isSeed`, `status` | L3 | 시드(주제 5 × 상황 2, `isSeed`) / 사용자 생성(제안→채택 또는 직접) | 시드 행은 삭제·수정되지 않는다(시드 id 에 대한 삭제 = 그 사용자 목록에서만 숨김 — `UserSeedOverride`, task-045). 내 상황은 `status=ARCHIVED` 로 숨김. 사용자 상황 삭제 시 ScenarioTopic Cascade, Lesson·Chat `scenarioId` SetNull. User Cascade(사용자 상황만) | 2(task-010d) |
@@ -2297,6 +2377,7 @@ model DebugSession {
 | `Evaluation` | AI평가 | `kind`, `level`, `status`, `totalScore`, `rubric`, `studyLogId` | L3 | `POST /api/v1/evaluations`(잡) | 삭제 시 Item Cascade, StudyLog·Snapshot 유지 | 2 |
 | `EvaluationItem` | 평가 문항 | `kind`, `prompt`, `expected`, `answerText`, `score`, `wordSurfaceSnap`, `textRevealedAt`(듣기 문항 글자 공개 시각 — "글자로 봤어요", task-011) | L3 | 출제 잡 완료 | Evaluation Cascade, Word SetNull | 2 |
 | `StudyPlan` | 분석→공부계획서 | `status`, `period*`, `analysis`, `curriculum`, `sourceRange.hash` | L3 | A8 잡 (PROPOSED) | ACCEPTED 1개 유지, 이전은 ARCHIVED. 삭제 없음 | 3 |
+| `Challenge` | 주제 선택형 N일 챌린지(7·14·30일) — 하루 목표(오늘의 회화 수업 완료·주제 단어 5·10·15장 중 인정 장수 이상)의 수행 현황 | `topicId`·`topicTitleSnap`, `level`(주제 수준을 만들 때 복사), `lengthDays`, `startDate`·`endDate`(KST `@db.Date`), `dailyGoal`(§9-3, 만들 때 얼림), `status`(`ChallengeStatus`), `activeKey`(`@unique` — ACTIVE 일 때 `userId`, 끝나면 null), `result`(§9-3, 끝날 때 한 번), `endedAt` | L3 (`learning/challenges`) | 사용자가 직접 만든다: `POST /api/v1/challenges`(#156, `createChallenge` — 사용자 행 잠금 → 기간 지난 ACTIVE 지연 전이 → 진행 중 확인 → 오늘(KST) 만든 수 확인 → 1행 INSERT). 상태 전이는 3경로: 읽거나 만들 때 지연 전이(`settleExpired*` — 오늘 > `endDate` 이면 `COMPLETED`), 그만두기(#159 → `ENDED`), 주제가 끊긴 ACTIVE(`topicId=null`)의 지연 전이(`ENDED`·`endReason='TOPIC_REMOVED'`, 예외 경로). 세 경로 모두 `status='ACTIVE'` 조건부 UPDATE 로 `activeKey=null`·`endedAt`·`result` 를 함께 쓴다 | 사용자 삭제 경로 없음(계정 삭제 시에만 User Cascade). 주제 삭제(#173) 시 **진행 중(`ACTIVE`) 행은 같은 트랜잭션에서 삭제**(`learning/topics/remove.ts`), 끝난 행(`ENDED`·`COMPLETED`)은 `topicId` SetNull 로 남고 `topicTitleSnap`·`result` 로 읽힌다(§6). 하루 결과는 저장하지 않고 기간 안 `StatsSnapshot(LESSON·VOCAB_SESSION)` 에서 읽을 때 계산한다. 만들기·그만두기는 `StudyLog`·`StatsSnapshot` 을 쓰지 않는다(같은 공부를 두 번 세지 않음 — challenge.md §3-4). 불변식: 사용자당 ACTIVE 1개(`activeKey` 유니크 + 만들기 트랜잭션의 사용자 행 잠금, 유니크 위반 P2002 도 409 로 변환) · 사용자당 하루(KST) 만들기 20회 상한 · `dailyGoal`·`result` 는 한 번 쓰면 수정 경로 없음 | 2 |
 | `StatsSnapshot` | 집계 원장 | `[userId,kind,periodKey]`, `data` | L3 | finish/complete/DONE 트랜잭션에서 upsert(증가만) | **생성·증가만. 어떤 삭제 경로에서도 쓰지 않음** | 1 |
 | `LearnerErrorStat` | 반복 오류 집계 | `[userId,type,pattern]`, `count`, `lastAt` | L3 | Correction ACCEPTED / SpeechAnalysis 완료 | 증가만. 원본 삭제에 불변 | 1(교정 채택 경로, 정합성 수정 #8) |
 
@@ -2333,7 +2414,7 @@ model DebugSession {
 | `ConfigurationVersion` | 설정 변경 버전 | `[environment,scope,targetId,version]`, `snapshot`, `diff`, `status`, `testResult` | L5 | Apply / Rollback / Import / activate — **task-012c(2026-09-29, 스키마 0)**: 대상 첫 적용 때 같은 트랜잭션에 기준선 v1(`snapshot._meta.origin=BASELINE`)+적용 v2 · `snapshot._meta{schemaVersion, origin: BASELINE\|APPLY\|RAW_JSON\|ROLLBACK}` 는 물화·Diff 에서 빼는 예약 키 · `diff` 는 봉투 `{entries[], summary, candidateHash}`(Prisma 주석의 배열 표기는 옛 모양) · 되돌림 원본 = `restoredFromVersion`, `ROLLED_BACK` = 밀려난 직전 ACTIVE · 행위 구분은 `AuditLog.action` | **삭제 없음** | 2 |
 | `RuntimeOverride` | 임시·세션 오버라이드 | `kind`, `patch`, `expiresAt`, `sessionId` | L5 | Console(DEVELOPER) | 만료·revoke 후 30일 purge | 4 |
 | `RequestTrace` | 요청 추적 | `traceId`, `kind`, `steps`, `totalMs`, `status`, `refType/refId` | L5 | 모든 턴·미리듣기·플레이그라운드·테스트 | 90일 purge(물화 후). DebugSession 수집물은 expiresAt+7일 | 1 |
-| `EngineMetricsDaily` | 일별 지표 물화 | `[connectionId,date]`, `requests`, `errors`, `p50/p95` | L5 | 매일 03:00 KST + 요청 시 당일 재계산 | Connection Cascade. 삭제 없음 | 3 |
+| `EngineMetricsDaily` | 일별 지표 물화 | `[connectionId,date]`, `requests`, `errors`, `p50/p95`, TTS 관측 6칸 `p99Ms`·`ttfaP50Ms`·`ttfaP95Ms`·`rtfAvg`·`cacheHitRate`·`byVoice`(TTS connection 행만 채우고 나머지·표본 0 은 null — task-012b-3) | L5 | 매일 03:00 KST + 요청 시 당일 재계산 | Connection Cascade. 삭제 없음 | 3 |
 | `ConfigurationPreset` | 설정 조합 프리셋 | `[environment,name]`, `snapshot` | L0 | Console(DEVELOPER) | 사용자 삭제 가능(AuditLog 기록) | 4 |
 | `DebugSession` | 명시적 디버그 수집 범위 | `purpose`, `captureAudio`, `captureText`, `expiresAt` | L0 | Console(DEVELOPER, PRODUCTION 은 SUPER_ADMIN) | 만료 후 수집물 7일 내 삭제, 행은 보존 | 3 |
 
@@ -2445,6 +2526,7 @@ model DebugSession {
 | `ReviewStatus` | `DUE` → `DONE`(REVIEW 레슨 complete: 포함 `RepetitionItem.studiedCount+1`, A11 재판단 잡) / `SKIPPED`(당일 skip, 다음 학습일 재DUE) / `EXPIRED`(intervalDays 상한(7일) 이상 지연 — 항목은 `nextDueAt` 유지로 자동 승계) |
 | `RepetitionItem` | 등록(레슨 complete·교정 accept·세트 finish) → 매 세션 `studiedCount/correct/wrong/feedbackCount` 증가 → A11(`REVIEW_DECISION` 잡) 이 `intervalDays 3~7`·`priority`·`decisionReason` 결정, 코드가 클램프(FOCUS ≤3)·`nextDueAt` 산출·`decidedBy` 기록 → LLM 실패 시 FALLBACK(기존 interval 유지, 초기 3) |
 | `VocabSessionStatus` | `IN_PROGRESS` →(finish 트랜잭션)→ `DONE` / →(24h 미완료 배치)→ `ABANDONED`(집계 없음) |
+| `ChallengeStatus` (task-041) | `ACTIVE` →(오늘(KST) > `endDate`, 읽거나 만들 때 지연 전이)→ `COMPLETED`(`endedAt` = `endDate` 다음 날 00:00 KST — 전이를 실행한 시각이 아님) / →(#159 그만두기)→ `ENDED`(`endedAt` = 사용자 행 잠금을 얻은 시각, `endReason='USER'`) / →(`topicId=null` 인 ACTIVE 의 지연 전이, 예외 경로)→ `ENDED`(`endReason='TOPIC_REMOVED'`). 세 경로 모두 `status='ACTIVE'` 조건부 UPDATE 로 `activeKey=null`·`result` 를 함께 쓴다. 끝난 상태는 되돌리지 않는다. 이미 `ENDED` 에 #159 를 다시 부르면 같은 응답(멱등), `COMPLETED` 에는 409 `NOT_ACTIVE` |
 | `Scenario.status` (task-010d) | `ACTIVE` ↔ `ARCHIVED`(목록·추천에서 숨김, 진행 중 역할극·과거 기록은 그대로). 시드(`isSeed`)는 삭제 없이 이 전이만 |
 | `LearningObservation` (task-010b) | 전이 없음 — append-only(INSERT 만, UPDATE·DELETE 경로 없음) |
 | `MessageStatus` | `PENDING`(ASSISTANT 자리) → `DONE` / `FAILED`(12s fail-fast·기동 정리) |
@@ -2455,6 +2537,7 @@ model DebugSession {
 
 | 삭제/만료 경로 | Cascade(같이 사라짐) | SetNull(참조만 끊김) | 살아남는 것(근거) | 파일 |
 |---|---|---|---|---|
+| `Challenge` (사용자 삭제 경로 없음) | 계정 삭제 시 User Cascade | 주제 삭제(#173) 시 끝난 챌린지의 `topicId`(진행 중 행은 같은 트랜잭션에서 삭제 — 아래 `ConversationTopic` 삭제 행) | 끝난 챌린지의 `result`·`topicTitleSnap`, `StatsSnapshot`(LESSON·VOCAB_SESSION — 하루 결과의 원천이고 챌린지를 지워도 불변) | — |
 | 계정 삭제(`User`) | 소유 행 전부(Profile·설정·Chat·Word·Log·Snapshot·RepetitionItem·LearningObservation·사용자 Scenario·Utterance·Job·DebugSession…) | `AuditLog`·`ConfigurationVersion`·`RuntimeOverride`·`ConfigurationPreset`·`PromptVersion`·`VoiceImportJob`·`RequestTrace` 의 actor/user | 감사·버전 이력(`actorEmailSnap`·`actorRoleSnap` 으로 읽힘) | `DATA_ROOT/users/<id>/` 즉시 삭제 |
 | `WordEntry` 삭제 | — | `VocabAttempt.wordId`, `Correction.savedWordId`, `EvaluationItem.wordId` | `VocabAttempt.*Snap`, `EvaluationItem.wordSurfaceSnap`, `StatsSnapshot`, `LearnerErrorStat` (규칙 2) | — |
 | `WordEntry` 보관(`archived`) | — | — | 전부(세트 풀에서만 제외) | — |
@@ -2672,9 +2755,11 @@ model LearnerSkillState {
 | `StudyLog.result` (TALK·CHAT) | `{turns, corrections:{proposed, accepted, ignored}, scenario?:{…위와 동일}, endOfTopic}` |
 | `StudyLog.result` (EVALUATION) | `{total, grade, rubric:{accuracy,vocabulary,grammar,naturalness,assembly}}` |
 | `StatsSnapshot.data` (DAILY) | `{attended, words:{sessions,correct,wrong}, talkTurns, chatTurns, corrections:{proposed,accepted}, lessons, reviews, evals, repetition:{studied, focus}}` — **턴 `done` 은 스냅샷을 바꾸지 않는다**(AI 산출은 채택 시에만 저장 — task-006 완료 기준 6). `chatTurns`/`talkTurns`·`corrections.proposed` 는 대화 종료 `ADD_STUDY_LOG` 제안 채택이, `corrections.accepted` 는 교정 accept 가 증가(정합성 #7, 2026-09-27 task-006 개정) · **task-010b(선택 칸, additive)**: `observations?:{total, bySkill:{<SkillAxis>:{success, partial, fail, skipped}}, selfCorrections, reuses}` — 관측(`LearningObservation`)을 쓰는 트랜잭션이 같은 tx 에서 증가(관측이 없는 날의 행에는 생기지 않는다). `selfCorrections` = `SELF_CORRECTION` 중 SUCCESS·PARTIAL, `reuses` = `CORRECTION_REUSED`·`EXPRESSION_REUSE` 의 SUCCESS. 단어 세트 관측은 세트 날짜(`VocabSession.date`) 행 |
-| `StatsSnapshot.data` (VOCAB_SESSION) | `{cardCount, correct, wrong, skipped, durationSec, mode}` |
+| `StatsSnapshot.data` (VOCAB_SESSION) | `{cardCount, correct, wrong, skipped, durationSec, mode, date, topicId?}` — `date` = 세트를 시작한 KST 날짜(#54 일별 집계·챌린지 하루 판정용, task-008 E3), `topicId?` = 주제 세트만 채운다(JSON additive, task-042 — 옛 행·내 단어장 세트는 없음). 챌린지 지표가 읽을 때 계산하는 원천 |
 | `StatsSnapshot.data` (EVALUATION) | `{kind, level, total, rubric, date}` |
 | `StatsSnapshot.data` (LESSON) | `{kind, topicId, score, stageDone, itemCount, quizCorrect, quizTotal, date}` (task-010, api-contract #62) · 역할극 도입 시 `scenarioId?` additive |
+| `Challenge.dailyGoal` | task-041 구현(타입 `ChallengeDailyGoal`, `src/types/challenge.ts`): `{lesson:boolean, words:boolean, wordCount:5\|10\|15\|null, wordsMinAnswered:4\|8\|12\|null, countSkipped:false, ruleVersion:1}` — 만들 때 서버가 얼리고 수정 경로가 없다. `lesson`·`words` 중 하나 이상 true. `words:false` 면 `wordCount`·`wordsMinAnswered` = null. `wordsMinAnswered` = ceil(4×`wordCount`/5)(정수식 — 5·10·15 → 4·8·12) = 그날 주제 세트들의 (맞힘+틀림) 합계가 이 값 이상이면 단어 과제 인정. `countSkipped` 는 현재 늘 false(건너뜀을 답한 장수에 세지 않음). 읽을 때 형태가 어긋나면(`readDailyGoal` null) 진행 중 챌린지는 오류로 다루고 끝난 챌린지는 목록에서 그 행만 건너뛴다 |
+| `Challenge.result` | task-041 구현(타입 `ChallengeResult`): 끝날 때 한 번 쓰고 이후 불변. `{ruleVersion, endReason:null\|'USER'\|'TOPIC_REMOVED', metDays, partialDays, missedDays, stoppedDays, elapsedDays, rate:number\|null(0~1, 소수 둘째 자리), longestStreak, lessonsDone, wordSets, wordsCorrect, days:[{date, state:'UPCOMING'\|'TODAY'\|'MET'\|'PARTIAL'\|'MISSED'\|'STOPPED', quiz:[맞힘,문항]\|null, words:[맞힘,틀림,건너뜀,카드 수,세트 수]\|null}]}`. `endReason` 은 `COMPLETED` 면 null, `ENDED` 면 `USER`(#159)·`TOPIC_REMOVED`(예외 경로). `wordSets` 는 답한 카드(맞힘+틀림) ≥ 1 인 세트만 센다. 계산이 불가능한 행(`dailyGoal` 형태 오류)은 `result` 없이(NULL) 상태만 끝낸다. 하루 상태·연속·달성률의 계산식은 challenge.md §6-4 |
 | `Lesson.content.dialogue[].segment` | 청취 구간 번호(2~3줄 단위), `Lesson.content.nextPreview` = `{kind:'segment'|'scenario', ref, teaser_ko}` (피드백 #11) |
 | `RepetitionItem`(교정 재채택 갱신, task-010b) | 같은 교정문(`refType="Correction"`, `refId=sha1(정규화 교정문)`)을 다시 채택하면 같은 행의 `feedbackCount+1`(3회 → `FOCUS`)과 함께 **`nextDueAt = 오늘 + 간격`(기존 간격 3~7·FOCUS ≤3 클램프)·`decidedBy=FALLBACK` 으로 일정을 다시 정한다 — 의도된 동작**(같은 실수가 다시 나왔으니 더 빨리 복습, 다음 A11 이 다시 판단 — REV-061 L-1). `studiedCount`·`lastStudiedAt` 은 바꾸지 않는다(채택은 공부가 아님) |
 | `Lesson.progress.reviewDecision` | **서버 전용**(task-010b): 완료 뒤 강사 복습 판단(A11) 결과 `{jobId, decidedBy:'TUTOR'|'FALLBACK', rationaleKo, decidedAt, groups:[{days, date, itemIds}]}` — #60 `nextReview` 의 근거(판단 직후 묶음 고정). 응답 `progress` 에서 빼고 #61 로 쓸 수 없다 |

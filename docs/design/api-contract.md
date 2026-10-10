@@ -140,6 +140,7 @@
 | 21 | POST | `/api/v1/speech/utterances` | 발화 wav+실시간 텍스트 업로드(Phase 2: 분석 잡 적재 — 워커 생존 게이트, task-012b D-B3) | S | speech/utterances | 1 | multipart ≤2MB/≤60s | `{utteranceId,status,analysisQueued,expiresAt}` |
 | 21a | PATCH | `/api/v1/speech/utterances/:id` | requiresReview 발화의 텍스트 확정 — 고른 안의 출처 기록(`Utterance` 만 변경, task-012b D-B5·D-B6) | S | speech/utterances | 2 | `{choice:'REALTIME'\|'ANALYSIS'\|'USER', text?}` | `Utterance`(#22 형태) |
 | 21b | GET | `/api/v1/speech/utterances/:id/audio` | 소유자 원음(30일) — 회화방 "내 발음 다시 듣기" | S | speech/utterances | 1(task-007 최소판) | — | `audio/wav` |
+| 21c | GET | `/api/v1/speech/utterances?chatId=&reviewable=1&cursor=&limit=` | 내 발화 목록(task-012b-2) — 소유자 행만 `createdAt desc, id desc` 키셋 커서. `chatId` 는 내 방만(남의 방·없는 방 404), `reviewable=1` 은 지금 확인할 수 있는 발화(`ANALYZED ∧ requiresReview ∧ finalSource=REALTIME ∧ realtimeText≠''`)만. DB 읽기 2번(목록·개수), 사용자당 60/분(초과 429) | S | speech/utterances | 2(task-012b-2) | query `chatId?`·`reviewable?`(`1`\|`0`)·`cursor?`·`limit?`(1~50, 기본 20) — 모르는 키·잘못된 값 400 | `{items:[{id,createdAt,durationMs,status,realtimeText,analysisText\|null,finalText\|null,finalSource,requiresReview,wasReviewTarget,audioAvailable,chatMessageId\|null,context:{kind:'TALK'\|'LESSON'\|'EVALUATION'\|'ROOM_ONLY'\|'UNSENT',id\|null}}],nextCursor,reviewableCount}` · `private, no-store` · 엔진명·신뢰도·임계 없음, 원음은 `audioAvailable` 만(#21b 로 받는다) |
 | 22 | GET | `/api/v1/speech/utterances/:id` | 발화·분석 결과 | S | speech/utterances | 2 | — | `Utterance`+`SpeechAnalysis` |
 | 23 | POST | `/api/v1/speech/tts` | 문장 → 음성(정규화·사전·Rendering Plan·캐시) | S | speech/tts | 1 | `{text,voiceId?,speechProfile?,renderingPlan?,context?}` | `audio/wav` 또는 `{url,cacheKey,durationMs,ttfaMs,timing?,runtime}` (5차 §133·§146) |
 | 24 | GET | `/api/v1/speech/tts/:token` | 캐시 오디오 조회(**서명 URL**, 사용자 결속·10분) | S | speech/tts | 1 | — | `audio/wav` 또는 `{audioUrl,durationMs,timing}` |
@@ -190,7 +191,7 @@
 | 63 | POST | `/api/v1/reviews/:id/start` | 복습 레슨 생성(A5, 잡) | S | app(conversation+learning 조합) | 2(task-010b) | — | `{lessonId,jobId,status,reused}` |
 | 64 | POST | `/api/v1/reviews/:id/skip` | 복습 건너뛰기 | S | learning/reviewSchedule | 2(task-010b) | — | `{id,status:"SKIPPED",resolvedAt}` |
 | 65 | POST | `/api/v1/evaluations` | 평가 출제(A6, 잡) | S | app(learning+conversation 조합) | 2(task-011) | `{kind,topicId?,level?}` | `{evaluationId,jobId,status}` |
-| 66 | GET | `/api/v1/evaluations/:id` | 평가 상세(문항/결과) | S | learning/evaluation(+conversation 레벨 제안) | 2(task-011) | — | `Evaluation`+items(제출 전 정답 숨김) |
+| 66 | GET | `/api/v1/evaluations/:id` | 평가 상세(문항/결과) | S | learning/evaluation(+conversation 레벨 제안, speech 발화 대조 — 라우트 조합) | 2(task-011) | — | `Evaluation`+items(제출 전 정답 숨김, `items[].voiced` — task-012b-2) |
 | 67 | POST | `/api/v1/evaluations/:id/items/:itemId/answer` | 문항 답 저장 | S | app(learning+speech 조합) | 2(task-011) | `{answerText?,inputSource?,utteranceId?,pieceOrder?,spotIndex?}` | `{id,answered,graded,expectedShown:false,answerSpot,…}`(점수 없음) |
 | 67a | POST | `/api/v1/evaluations/:id/items/:itemId/audio` | 듣고 답하기 소리 | S | app(learning+speech 조합) | 2(task-011) | `{}` | `{itemId,clips[],runtime}` |
 | 67b | POST | `/api/v1/evaluations/:id/start` | 평가 시작(10분 시계) — 화면 [시작하기](결정 (d)=B) | S | learning/evaluation | 2(task-011) | — | #66 상세 |
@@ -321,7 +322,7 @@
 
 ### 1-5. 상황·역할극·주제 관리 사용자 API (#161~#179 — task-010d · task-045, 2026-10-07 코드 기준)
 
-> **문서 정합(2026-10-07)**: 이 절은 구현된 라우트(`src/app/api/v1/{scenarios,topics,seed-overrides,chats/[id]/{scenario/finish,reply-practice}}/**/route.ts`)의 요약이다. **코드와 다르면 코드가 정답**이다. 오류는 §0-5 코드(`VALIDATION`·`NOT_FOUND`·`CONFLICT`·`UNPROCESSABLE`·`RATE_LIMITED`)에 `details.reason` 으로 세부 사유를 단다(아래 `reason`·대문자 이름). 모든 `/api/v1` 은 세션 + 소유자 검사(남의 것·없음 404), 모든 쓰기는 사용자 행 잠금(`lockUserRow`) 아래 한 트랜잭션이다. 구현 계약·결정 이유는 [topic-scenario-manager.md](topic-scenario-manager.md). **#155~#160 은 챌린지 — [challenge.md](challenge.md) §9 가 정본이며 이 총람에는 아직 반영하지 않았다**(이번 범위 밖). **#168 은 라우트가 없다**(010d 예약 번호였고 쓰이지 않음 — 확인 필요, 재사용 금지). §2 상세 항목은 아직 없다.
+> **문서 정합(2026-10-07)**: 이 절은 구현된 라우트(`src/app/api/v1/{scenarios,topics,seed-overrides,chats/[id]/{scenario/finish,reply-practice}}/**/route.ts`)의 요약이다. **코드와 다르면 코드가 정답**이다. 오류는 §0-5 코드(`VALIDATION`·`NOT_FOUND`·`CONFLICT`·`UNPROCESSABLE`·`RATE_LIMITED`)에 `details.reason` 으로 세부 사유를 단다(아래 `reason`·대문자 이름). 모든 `/api/v1` 은 세션 + 소유자 검사(남의 것·없음 404), 모든 쓰기는 사용자 행 잠금(`lockUserRow`) 아래 한 트랜잭션이다. 구현 계약·결정 이유는 [topic-scenario-manager.md](topic-scenario-manager.md). **#155~#159 는 챌린지 — 아래 §1-5a 총람과 §2-31 상세에 2026-10-10 코드 기준(`src/app/api/v1/challenges/**`)으로 반영했다**(설계서 [challenge.md](challenge.md) §9 는 설계 정본이라 코드와 다르면 코드가 정답). **#160 은 라우트가 없다**(challenge.md v2.3 에서 예약 해제 — 재사용 금지). **#168 은 라우트가 없다**(010d 예약 번호였고 쓰이지 않음 — 확인 필요, 재사용 금지). #161~#179 는 §2 상세 항목이 아직 없다.
 
 | # | Method | Path | 목적 | auth | 층 | Phase | 요청 | 응답 |
 |---|---|---|---|---|---|---|---|---|
@@ -343,6 +344,18 @@
 | 177 | POST | `/api/v1/scenarios/:id/variants/drafts` | 변형 상황 초안(변형 A, `scenarioVariant@v3`, balanced 40s) — **행 없음**, 저장은 #163. 기준 상황 = `:id`(내 상황 또는 가리지 않은 시드), 장소는 기준 상황의 것을 이어받는다 | S | conversation/chats | 2(task-045) | `{axes:{persona?,twist?,flow?,level?},note?(≤100자)}`(본문 ≤4KB, 그 밖 키 400) | 200 `{draft,changedFields,axes}` · 404 기준 상황(남의·없음·지운 것·가린 시드) · 400 칸(한도 미소모) · 422 `NO_VARIATION`(바꿀 점 없음, 한도 미소모)·`NOT_A_VARIANT`(같은 문구) · 409 `DRAFT_BUSY` · 429 **분당 6(`scenario-variant`) + 하루 40 은 #166 과 같은 `scenario-draft-day` 카운터를 공유** · 502(쓸 수 없는 초안·엔진 오류) · 504(시간 초과) |
 | 178 | POST | `/api/v1/scenarios/openings/draft` | 한국어 첫마디 → 일본어 첫마디 제안(`openingDraft@v2`, balanced 25s) — **행 없음**(일본어는 상황 저장 때 `opening{ja,ko}` 로, `reading` 은 확인용이라 저장하지 않는다) | S | conversation/chats | 2(task-045) | `{ko(1~80자, 한글 1자 이상),scenario:{title?,titleJa?,goal?,placeTitle?,level?,roles:{learner,tutor}}}`(본문 ≤4KB, 그 밖 키 400) | 200 `{ja,reading\|null,warnings[]}` · 400 칸(한도 미소모) · 422 `NOT_AN_UTTERANCE`(첫마디 아닌·부적절한 글, 같은 문구)·`TOO_LONG` · 409 `DRAFT_BUSY` · 429 분당 10·하루 60(`opening-draft`·`opening-draft-day`) · 502(쓸 수 없는 제안·엔진 오류·시간 초과, 같은 문구) |
 | 179 | GET | `/api/v1/seed-overrides?kind=` | 내가 숨겼거나 내 버전으로 바꾼 시드 목록(관리 화면, 읽기 전용·본인 override 만, `private, no-store`) | S | learning/seedOverride | 2(task-045) | query `kind=TOPIC\|SCENARIO`(없으면 둘 다) | 200 `{items:[{kind,seedId,seedTitle\|null,state:'HIDDEN'\|'COPIED',copyId\|null,orphan,updatedAt}]}` — `copyId` 있으면 내 버전, null 이면 숨김(`seedTitle` 은 시드 행이 사라졌으면 null) · 400 `kind` `enum` |
+
+### 1-5a. 챌린지 사용자 API (#155~#159 — task-041, 2026-10-10 코드 기준)
+
+> 라우트 `src/app/api/v1/challenges/{route,today/route,[id]/route,[id]/end/route}.ts`, 모듈 `learning/challenges`(L3). 모두 세션 필수(401) + 소유자만(`where {id, userId}` — 없거나 남의 것·형식이 잘못된 id 는 404). capability 없는 일반 사용자 API(`role-permission.md` 변경 없음). 챌린지 라우트는 LLM·엔진을 부르지 않는다(DB 만). 응답 모양의 단일 출처는 `src/types/challenge.ts`. 상세·오류는 §2-31.
+
+| # | Method | Path | 목적 | auth | 층 | Phase | 요청 | 응답 |
+|---|---|---|---|---|---|---|---|---|
+| 155 | GET | `/api/v1/challenges?status=ACTIVE\|FINISHED\|ALL&limit=&cursor=` | 챌린지 기록 — 진행 중 1개(첫 쪽만) 먼저, 끝난 것 `endedAt desc, id desc`. `FINISHED` = `COMPLETED`+`ENDED`. 기간 지난 진행 중은 이 요청에서 지연 전이 | S | learning/challenges | 2(task-041) | query `status`(기본 `ALL`)·`limit`(1~50, 기본 20)·`cursor` | `{items: ChallengeSummary[], nextCursor}` · `private, no-store` |
+| 156 | POST | `/api/v1/challenges` | 챌린지 만들기(한 트랜잭션: 사용자 행 잠금 → 지연 전이 → 진행 중 확인 → 하루 20회 확인 → 1행) | S | learning/challenges | 2(task-041) | `{topicId, lengthDays:7\|14\|30, start:'TODAY'\|'TOMORROW', dailyGoal:{lesson,words,wordCount?:5\|10\|15}, title?(≤40자)}`(본문 ≤4KB) | `ChallengeDetail` · 400 `VALIDATION`(`NO_TASK`·`WORD_COUNT_OVER_POOL{poolSize}`·`unknown_key`) · 404 `TOPIC_GONE` · 409 `ACTIVE_EXISTS{challengeId}` · 429 `RATE_LIMITED`(하루 20회) |
+| 157 | GET | `/api/v1/challenges/:id` | 상세 = 수행 현황(날짜 띠·달성률·연속·주제 표현·새 단어 진행·누적·오늘 할 일). 끝난 챌린지는 얼린 `result` | S | learning/challenges | 2(task-041) | — | `ChallengeDetail` · `private, no-store` · 404 |
+| 158 | GET | `/api/v1/challenges/today` | 계획표 카드·오늘 탭·덱 머리용 요약(DB 만) | S | learning/challenges | 2(task-041) | — | `{challenge: ChallengeSummary\|null, today: ChallengeTodayTasks\|null, recentlyEnded: {id,status,title,endedAt,result}\|null}` · `private, no-store` |
+| 159 | POST | `/api/v1/challenges/:id/end` | 그만두기(`ACTIVE` → `ENDED`, 결과 얼림·`activeKey` 비움) — 이미 `ENDED` 면 같은 응답(멱등) | S | learning/challenges | 2(task-041) | `{}`(본문 ≤1KB, 모르는 키 400) | `ChallengeSummary` · 404 · 409 `NOT_ACTIVE{status:'COMPLETED'}` |
 
 ---
 
@@ -920,6 +933,9 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 - `count` 5~30(기본 `Profile.dailyWordCount`), `mode CHOICE|FLIP`(기본 CHOICE). 풀 = `archived=false`(카테고리 필터) − 오늘 DONE 세션 단어. 풀 0 → `200 { "session": null, "empty": { "reason": "NO_WORDS", "cta": ["ADD_WORD", "SEED_PACK"] } }`; 풀 <4 이고 CHOICE → FLIP 강등(`downgraded:true`). `choices` 는 셔플된 4개(정답 위치·정답값은 응답에 없음), FLIP 은 `choices` 없음. **FLIP 카드는 자기 채점이라 `meaning`·`example`·`exampleKo` 를 처음부터 싣는다**(뒷면 표시용 — 정답 미노출 규칙은 CHOICE 에만 적용, task-008 F1). 빈 풀 사유 `empty.reason ∈ { NO_WORDS(단어 0) | ALL_DONE_TODAY(오늘 세트에서 다 풂) | NO_WORDS_IN_CATEGORY }`(F5).
 - `VocabAttempt` 행은 카드 생성 시 `answer=null` 로 미리 만들어지며 `surfaceSnap/readingSnap/meaningSnap/choices` 를 스냅샷한다. 진행 중 세션이 이미 있으면 `409 { details: { sessionId } }`(이어풀기 유도).
 
+- **주제 단어 세트(task-040·042 — 챌린지 하루 단어 과제의 원천)**: 본문에 `topicId?`·`generate?` 가 더해졌다(라우트가 `{count, mode, category, topicId, generate}` 를 `createVocabSession` 에 넘긴다). `topicId` 가 있으면 주제 세트(`VocabSession.topicId`) — 그날 그 주제의 첫 세트는 A12 새 단어를 요청 안에서 동기로 만들고(요청 시작부터 큐 대기 포함 30초), 클라이언트가 끊으면(`req.signal`) 생성을 멈추고 세트를 만들지 않는다. 생성 중 두 번째 요청은 409 `{reason:'GENERATING'}`. A12 요청·결과 검사(conversation `buildTopicWordsRequest`·`assembleTopicWords`)는 라우트가 값으로 learning 에 넘긴다(L3 → L2 import 없음).
+- **카드 예문 규칙(task-049, 2026-10-10 — #47·#49·#50 공통)**: 새 단어(`refType='AiWord'`) 카드의 일본어 예문·한국어 번역은 세트를 만들 때 `VocabAttempt.exampleSnap`·`exampleKoSnap` 에 스냅샷으로 저장한다(둘 다 비지 않은 문자열이고 각 ≤300자일 때만 쌍으로, 아니면 둘 다 null. 단어장 카드는 저장하지 않고 지금 단어를 읽는다). 응답의 `example`·`exampleKo` 는 **단어장 단어(`WordEntry`)의 예문 > 카드 스냅샷 > `null`** 순으로 고른다. CHOICE 세트는 정답 미노출 규칙에 따라 **답하기 전 카드에는 #47·#49 응답에 `example`·`exampleKo` 키가 없고**, #50 의 답 응답과(답한 카드·`DONE` 세트의) #49 에서 공개된다. FLIP 세트는 처음부터 싣는다. 다시 풀기(#53)는 주제 세트의 스냅샷을 새 카드로 복사한다.
+
 #### #48 `GET /api/v1/vocab/sessions?kept=1&status=IN_PROGRESS&limit=&cursor=` → `{ items: [ { id, date, mode, cardCount, answeredCount, correctCount, wrongCount, skippedCount, status, keptAt, replayOfId, durationSec, startedAt } ], nextCursor }`. 정렬 `startedAt desc`(F3).
 
 #### #49 `GET /api/v1/vocab/sessions/:id` → #47 형태. **답한 카드만** `answer/correctText/example/chosenText` 를 포함하고, 미답 카드는 정답을 숨긴다. `status=DONE` 이면 전체 카드 정답 포함(결과 화면). 세션 객체에 `correctCount/wrongCount/skippedCount/durationSec/keptAt/replayOfId`, 답한 카드에 `exampleKo` 포함(F4).
@@ -933,6 +949,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 ← { "order": 3, "answer": "CORRECT", "correctText": "영화", "chosenText": "영화", "example": "昨日映画を見ました。", "exampleKo": "…", "answeredAt": "…" }
 ```
 
+- 응답의 `example`·`exampleKo` 는 단어장 예문 > 카드 스냅샷(`exampleSnap`·`exampleKoSnap`) > `null` 순이다(위 #47 "카드 예문 규칙", task-049). CHOICE 세트의 첫 예문 출처가 이 응답이다.
 - `{ "order": 3, "flagged": true }` 처럼 **답 필드 없이** 보내면 표시(`flagged`)만 바꾼다(`IN_PROGRESS` 에서만, task-008 E2).
 - 같은 `order` 재전송은 첫 결과를 그대로 돌려준다(`200`, 변경 없음). `responseMs` 0~60,000. 세션이 `DONE/ABANDONED` 면 `409`. CHOICE 에서 `chosenText ∉ choices` 면 `400`.
 
@@ -1191,6 +1208,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
   "result": null }
 ```
 
+- **`items[].voiced`(task-012b-2 D-2)**: 문항의 저장된 답이 녹음에서 왔는가. 음성 출처(`inputSource` = `REALTIME_STT`·`SERVER_STT`)면 `true`. 글자(`TEXT`) 답이 말로 답할 수 있는 문항(`LISTEN_RESPOND`·`SITUATION_RESPOND`·`CORRECTION_SPOT`)이면 speech 가 그 문항에 연결된 녹음(소유자 범위, 한 번에 문항 최대 50개)의 글과 답을 대조해 같으면 `true` — 학습자가 #21a 로 직접 고친 글이 채점에 쓰이면 답이 `TEXT` 로 남아 글자로 쓴 답과 구분되지 않기 때문(D-B7). 그 밖은 `false`. 대조가 실패하면 **`voiced` 칸을 통째로 빼고**(옛 응답 모양) 응답한다 — 부가 정보 때문에 평가 상세가 500 이 되지 않게(REV-132 L-2, 로그에는 오류 이름만). learning 은 speech 를 import 하지 않으므로 라우트가 평가 문항과 발화 대조를 조합한다. 응답은 `Cache-Control: private, no-store`.
 - `READY/IN_PROGRESS/GRADING` 에서는 문항별 `expected`(정답)·`score`·`correct`·`feedback`·`dims` 가 `null` 이다(객관식은 #67 에서 이미 채점해 저장했지만 공개하지 않는다). **듣고 답하기의 들려줄 문장(`prompt.textJa`)은 싣지 않고 `textHidden:true` 만**(단 #67c "글자로 보기"를 한 문항은 `textRevealedAt` 이 남아 다시 들어와도 `textJa`·`textHidden:false`·`textRevealed:true`) — 소리는 #67a(종전 예시의 `audioUrl` 은 쓰지 않는다: 레슨 #62c 처럼 재생할 때 받는다). `DONE` 이면 전부 공개(`prompt.textJa`·`textHidden:false` 포함) + `result`:
 
 ```json
@@ -1856,6 +1874,51 @@ SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못�
 - 로그: 전사 원문 0 — 길이·`sha1[:8]`·코드값만. 요청 헤더 `X-Service: worker`·`X-Service-Env: <APP_ENV>`·`X-Trace-Id`.
 - 워커 의존성: 운영 venv(`~/.node-local/thekaiwa-speech/venv`, gateway 와 공유)에 `speech/worker/requirements.txt`(pyopenjtalk) 추가 설치 = **사용자 승인(U2)**. 개발·테스트는 별도 dev venv `~/.node-local/thekaiwa-speech-dev`.
 - #154 는 **claim 하트비트로 대체**(D-B4) — 워커는 포트를 열지 않는다. 종전 `GET /health`·`/admin/*` 서술은 폐기.
+
+### 2-31. 챌린지 `/api/v1/challenges` (#155~#159, L3 learning/challenges · Phase 2 — task-041 구현 기준 2026-10-10)
+
+> **코드가 정답**이다(설계 정본 [challenge.md](challenge.md) §9 와 다른 곳은 코드를 적었다). 응답 DTO 는 `src/types/challenge.ts`(`ChallengeSummary`·`ChallengeDetail`·`ChallengeTodayResponse`…)가 단일 출처다. 날짜는 전부 서버 KST(클라이언트 날짜를 받지 않는다 — §0-6). 오류는 §0-5 코드에 `details.reason` 으로 세부 사유를 단다.
+
+**공통 DTO 요약** — `ChallengeSummary` = `{id, title, topic:{id:string\|null, title, exists}, level, lengthDays, startDate, endDate, status:'ACTIVE'\|'COMPLETED'\|'ENDED', dailyGoal:{lesson, words, wordCount\|null, wordsMinAnswered\|null, countSkipped, ruleVersion}, stats:{dayIndex, elapsedDays, metDays, rate\|null, streak\|null, longestStreak, todayMet}, endedAt\|null}` (`topic.title` 은 만들 때 얼린 `topicTitleSnap`, `topic.id` 가 null 이면 `exists:false`; `streak` 은 진행 중일 때만, 끝난 챌린지는 null). `ChallengeDetail` = `ChallengeSummary` + `{days[], topicProgress\|null, totals:{lessonsDone, wordSets, wordsCorrect}, today\|null, result\|null}` — `days[]` = `{date, dayIndex, state:'UPCOMING'\|'TODAY'\|'MET'\|'PARTIAL'\|'MISSED'\|'STOPPED', goalMetAt\|null, lesson:{done, quizCorrect, quizTotal, lessonId\|null, refExists}\|null, words:{sets, correct, wrong, skipped, cardCount, answered, need\|null, ok\|null, sessionId\|null, refExists}\|null}`. `result` 모양은 `domain-model.md` §9-3 `Challenge.result`.
+
+#### #155 `GET /api/v1/challenges?status=&limit=&cursor=`
+
+- query 화이트리스트 `status`·`limit`·`cursor` — 모르는 키는 400 `VALIDATION`(`details.reason:'unknown_key'`), `status` 는 `ACTIVE`·`FINISHED`·`ALL`(생략·빈 값 = `ALL`) 밖이면 400, `limit` 1~50(기본 20), 깨진 `cursor` 400.
+- 응답 `{ items: ChallengeSummary[], nextCursor: string|null }`. **진행 중 1개는 첫 쪽(커서 없음)에만, `status≠FINISHED` 일 때 맨 앞**에 오고, 끝난 것(`COMPLETED`·`ENDED`)이 `endedAt desc, id desc` 로 이어진다. 커서 = 끝난 것의 `(endedAt, id)`. `status=ACTIVE` 면 끝난 것을 읽지 않는다.
+- 요청 시작에 지연 전이를 한다(오늘(KST) > `endDate` 인 ACTIVE → `COMPLETED`, `topicId` 가 null 인 ACTIVE → `ENDED`/`TOPIC_REMOVED`). 끝난 행의 `dailyGoal` 형태가 깨져 있으면 그 행만 목록에서 뺀다(500 으로 만들지 않음). `Cache-Control: private, no-store`.
+
+#### #156 `POST /api/v1/challenges`
+
+```json
+→ { "topicId": "t_…", "lengthDays": 7, "start": "TODAY", "dailyGoal": { "lesson": true, "words": true, "wordCount": 10 }, "title": "카페 일주일" }
+← ChallengeDetail   // #157 과 같은 모양, status:"ACTIVE", dailyGoal.wordsMinAnswered:8
+```
+
+- 본문 ≤4KB, 키 화이트리스트 `topicId`·`lengthDays`·`start`·`dailyGoal`·`title`(그 밖은 400 `unknown_key`). `lengthDays` 7·14·30. `start` `TODAY`(오늘부터)·`TOMORROW`(내일부터) — `endDate` = 시작일 + `lengthDays` − 1. `dailyGoal.lesson`·`words` 는 boolean 필수이고 **둘 다 false 면 400** `reason:'NO_TASK'`. `wordCount` 5·10·15(`words:true` 일 때만 의미, 생략하면 서버가 학습 설정 하루 단어 수 이하에서 가장 큰 선택지를 주제 기본 표현 수 안에서 고름). `title` 생략·빈 값이면 자동 `"<주제 제목 ≤60자> N일 챌린지"`, 입력은 ≤40자(코드포인트).
+- 서버가 `dailyGoal` 에 `wordsMinAnswered = ceil(4×wordCount/5)`(5·10·15 → 4·8·12)·`countSkipped:false`·`ruleVersion:1` 을 채워 **얼린다**(만든 뒤 수정 경로 없음).
+- 오류: 400 `VALIDATION` `{field:'dailyGoal.wordCount', reason:'WORD_COUNT_OVER_POOL', poolSize}` — 장수가 그 주제의 기본 표현(`TopicChunk`, 카드 폭 필터 뒤) 수보다 크거나 고를 선택지가 없을 때 · 404 `NOT_FOUND` `{reason:'TOPIC_GONE'}` — 주제가 없거나 남의 주제이거나 이 사용자가 가린 시드(새 챌린지에는 가린 시드 예외 없음) · 409 `CONFLICT` `{reason:'ACTIVE_EXISTS', challengeId}` — 진행 중 챌린지가 이미 있음(`Challenge.activeKey` 유니크 위반 P2002 도 같은 409) · 429 `RATE_LIMITED` `{retryAfterSec}` + `Retry-After` — 사용자당 하루(KST) 20회(만들기·그만두기 반복으로 행이 쌓이는 것 방어, 사용자 삭제 경로가 없음).
+- 한 트랜잭션 순서: 사용자 행 잠금(`lockUserRow` — 주제 삭제 #173 과 같은 잠금) → 주제 재확인 → 기간 지난 ACTIVE 지연 전이 → 진행 중 확인(409) → 하루 20회 확인(429) → `Challenge` 1행 INSERT(`StudyLog`·`StatsSnapshot` 은 만들지 않는다). 성공 응답은 만든 챌린지의 #157 상세.
+
+#### #157 `GET /api/v1/challenges/:id`
+
+- 소유자만(`where {id, userId}`) — 없음·남의 것·형식이 잘못된 id 404. 요청 시작에 지연 전이. `private, no-store`.
+- 진행 중이면 기간 안 `StatsSnapshot(LESSON·VOCAB_SESSION)` 으로 지금 계산한다. **끝난 챌린지는 얼린 `result` 가 상태·수치를 정하고**, 원본 링크(`lessonId`·`sessionId`)와 `goalMetAt` 만 같은 마감 시각으로 다시 계산해 채운다. `refExists` = 그 수업·세트 행이 아직 있는가.
+- `topicProgress` = `{chunkTotal, chunkStudied, chunkMastered, lessonExprCount, lessonsDone, aiWordTotal, aiWordStudied, aiWordMastered}`(이 주제의 지금 상태, 챌린지 전 공부 포함 · 익힘 = `correctCount ≥ 2 ∧ correctCount > wrongCount`, 공부 = `studiedCount ≥ 1`), 주제가 끊겼으면(`topicId=null`) null. `today` 는 아래 `ChallengeTodayTasks`(진행 중 ∧ 시작일 ≤ 오늘 ≤ 마지막 날 ∧ 주제 있음일 때만, 아니면 null).
+
+#### #158 `GET /api/v1/challenges/today`
+
+- 응답 `{ challenge: ChallengeSummary|null, today: ChallengeTodayTasks|null, recentlyEnded: { id, status:'COMPLETED'|'ENDED', title, endedAt, result:{lengthDays, metDays, elapsedDays, rate|null, longestStreak, endReason|null} }|null }`. `recentlyEnded` = `endedAt` 이 어제 00:00 KST 이후인 끝난 챌린지 1개(진행 중 챌린지가 있어도 실린다). DB 만 읽는다(LLM·엔진 호출 없음). `private, no-store`.
+- `ChallengeTodayTasks` = `{date, dayIndex, topic:{id,title}|null, tasks[], goalMet}`. `tasks` 순서는 화면 순서(**단어 → 회화**)이고 꺼진 과제는 없다. WORDS = `{kind:'WORDS', state:'TODO'|'IN_PROGRESS'|'SHORT'|'DONE', sessionId|null, wordCount|null, minAnswered|null, answered, sets}`(`answered` = 그날 **끝낸** 주제 세트의 맞힘+틀림 합계 — 풀고 있는 세트는 안 들어 있음). LESSON = `{kind:'LESSON', state:'TODO'|'GENERATING'|'READY'|'IN_PROGRESS'|'CONTINUE'|'DONE'|'FAILED', lessonId|null, jobId|null}` — `CONTINUE` = 어제 이전에 만든 챌린지 주제 새 수업을 이어서, `GENERATING` 은 그 수업의 생성 잡이 살아 있을 때만이고 죽은 잡이면 **표시만** `FAILED`(레슨 행을 닫는 것은 #58·#59 몫). 풀 크기는 싣지 않는다.
+
+#### #159 `POST /api/v1/challenges/:id/end`
+
+- 본문은 `{}` 만(≤1KB, 모르는 키 400). 사용자 행 잠금 아래 `ACTIVE` → `ENDED`: `endedAt` = 잠금을 얻은 뒤의 시각, `result.endReason='USER'` 로 결과를 얼리고 `activeKey` 를 비운다(조건부 UPDATE `status='ACTIVE'` — 두 번 일어나지 않음). 이미 `ENDED` 면 같은 응답(멱등), 기간이 지나 `COMPLETED` 로 전이된 챌린지는 409 `CONFLICT` `{reason:'NOT_ACTIVE', status:'COMPLETED'}`. 없음·남의 것 404. 응답 `ChallengeSummary`.
+
+#### 다른 라우트가 붙이는 챌린지 칸 (전부 additive·읽기 전용, `learning/challenges` 의 `index.ts` 함수를 라우트·같은 층 모듈이 부른다)
+
+- **#62** `complete` 응답과 **#51** `finish` 응답에 `challenge` 키(없으면 `null`, 키는 항상 있음) — `{challengeId, date, dayIndex, goalMet, goalMetNow, words:{answered, need}|null}`. 라우트가 **커밋 뒤** `challengeProgressAfter` 를 부르고, 계산이 실패하면 로그만 남기고 `null`(수업 완료·세트 끝내기는 되돌려지지 않는다). #62 는 새 수업(`kind=NEW`) 완료 때만(`words:null`), #51 은 세트가 `DONE` 이고 주제 세트일 때만 계산한다. 값이 나오는 조건: 진행 중 챌린지 ∧ 그 주제·기간 안·마감 전의 공부 ∧ 그 과제가 `dailyGoal` 에서 켜져 있음. 수업·세트 완료 트랜잭션에는 챌린지 쓰기가 없다.
+- **#58** `lessons/today` — `recommendation.reason` 에 `CHALLENGE` 추가: 진행 중이고 기간 안이며 수업 과제가 켜진 챌린지가 있고 오늘 그 주제 새 수업을 아직 안 끝냈으면 그 주제를 최우선으로 추천한다(LLM 호출 없음).
+- **#70** `plan/calendar` — `days[].challenge`(그 달에 걸친 챌린지 날만, 없는 날은 키 자체가 없음) `{challengeId, dayIndex, state}` · `summary.challenge`(진행 중일 때만) `{id, metDays, elapsedDays, streak}`. **#71** `plan/day` — `challenge`(그날이 챌린지 날일 때만) `{challengeId, title, dayIndex, state, lesson:{quizCorrect, quizTotal}|null, words:{correct, wrong, skipped, cardCount, ok|null, need|null}|null}`. 챌린지 계산이 실패해도 달력·하루 시트는 그대로 내려간다(로그만).
 
 ---
 
