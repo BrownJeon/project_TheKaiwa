@@ -66,10 +66,21 @@ function optionalId(v: unknown, field: string): string | null {
 
 const validChatId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 40
 
-/** 원시 쿼리의 DATETIME 은 Date 로 오지만 드라이버 설정에 따라 글로 올 수 있다. 비었거나 올바르지 않으면 null. */
+// DB 의 DATETIME 은 UTC 로 저장·해석한다(Prisma 관례 — `infra/dates.ts` 머리말). 시간대 표지가 없는 글을 `new Date()` 에 그대로 주면
+// 서버 시간대(KST)로 읽혀 9시간 어긋난다.
+const BARE_DATETIME = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/
+
+/** 원시 쿼리의 DATETIME(`Date`, 드라이버 설정에 따라 글) → `Date`. 시간대 표지 없는 글은 UTC 로 읽는다. 올바르지 않으면 Invalid Date. */
+export function parseRawDateTime(v: Date | string): Date {
+  if (v instanceof Date) return v
+  const s = String(v).trim()
+  return new Date(BARE_DATETIME.test(s) ? `${s.replace(' ', 'T')}Z` : s)
+}
+
+/** 비었거나 올바르지 않으면 null. */
 export function rawDateOrNull(v: Date | string | null | undefined): Date | null {
   if (v === null || v === undefined || v === '') return null
-  const d = v instanceof Date ? v : new Date(String(v))
+  const d = parseRawDateTime(v)
   return Number.isNaN(d.getTime()) ? null : d
 }
 
@@ -347,8 +358,8 @@ export async function readRolePlayEndFacts(userId: string, chatId: string, tx: T
   const chat = rows[0]
   if (!chat || chat.userId !== userId) throw notFoundChat()
   if (chat.kind !== 'TALK' || !chat.scenarioId) throw new ApiError('VALIDATION', '상황 역할극 대화가 아니에요.', { field: 'chatId', reason: 'not_scenario' })
-  // 원시 쿼리의 DATETIME 은 Date 로 오지만 드라이버 설정에 따라 글로 올 수 있어 한 번 더 맞춘다(이상한 값이면 learning 이 하한 없이 찾는다 — 결과는 같다).
-  const chatCreatedAt = chat.createdAt instanceof Date ? chat.createdAt : new Date(String(chat.createdAt))
+  // 원시 쿼리의 DATETIME 은 Date 로 오지만 드라이버 설정에 따라 글로 올 수 있어 한 번 더 맞춘다(UTC 로 읽음 · 이상한 값이면 learning 이 하한 없이 찾는다 — 결과는 같다).
+  const chatCreatedAt = parseRawDateTime(chat.createdAt)
   const msgs = await tx.chatMessage.findMany({
     where: { chatId, userId, role: 'USER' },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
