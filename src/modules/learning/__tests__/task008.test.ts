@@ -5,7 +5,8 @@ import { createRng, generateWordSet, newSeed, recencyFactor, requestedModeOf, sa
 import { distinctMeaningCount, pickChoices, type MeaningSource } from '../vocab/distractors'
 import { durationSecOf, parseAttemptBody, parseCreateSessionBody, parseKeepBody, parseSessionListQuery, toCardDto } from '../vocab/sessions'
 import { parseWordInput, parseWordListQuery, parseWordPatch, parseEnrichSurface, isBlankMeaning, wordListFilter } from '../vocab/words'
-import { parseSeedPackBody, seedPackWords } from '../vocab/seedPack'
+import { asSeedWords, parseSeedPackBody } from '../vocab/seedPack'
+import wordsN5 from '../../../../prisma/seed-data/words-n5.json'
 import { aggregateVocabStats, parseStatsDays, readSnapshot } from '../vocab/stats'
 import { cachedDraft, enrichCacheSize, rememberDraft, toDraft } from '../vocab/enrich'
 
@@ -264,13 +265,14 @@ test('#41 보강 경로 판정·표현 검증', () => {
   assert.throws(() => parseEnrichSurface({ surface: 'a', saved: true }), code('VALIDATION'))
 })
 
-test('기본 단어 팩(E1): 원본 50개·표현 중복 없음·전부 #41 한도 통과, 다른 pack 400', () => {
-  const pack = seedPackWords('N5')
+test('기본 단어(E1): OWNER 시드 원본 words-n5.json 50개·표현 중복 없음·전부 #41 한도 통과, pack 5단계만(task-051)', () => {
+  const pack = asSeedWords(wordsN5)
   assert.equal(pack.length, 50)
   assert.equal(new Set(pack.map((w) => w.surface)).size, 50)
   for (const w of pack) parseWordInput({ surface: w.surface, meaning: w.meaning, reading: w.reading, partOfSpeech: w.partOfSpeech, chunkType: w.chunkType, example: w.example, exampleKo: w.exampleKo, jlpt: 'N5', category: 'N5 기초' })
-  assert.equal(parseSeedPackBody({ pack: 'N5' }), 'N5')
-  assert.throws(() => parseSeedPackBody({ pack: 'N4' }), code('VALIDATION'))
+  for (const p of ['N5', 'N4', 'N3', 'N2', 'N1']) assert.equal(parseSeedPackBody({ pack: p }), p)
+  assert.throws(() => parseSeedPackBody({ pack: 'N6' }), code('VALIDATION'))
+  assert.throws(() => parseSeedPackBody({ pack: 'n5' }), code('VALIDATION'))
   assert.throws(() => parseSeedPackBody({}), code('VALIDATION'))
   assert.throws(() => parseSeedPackBody({ pack: 'N5', extra: 1 }), code('VALIDATION'))
 })

@@ -40,7 +40,8 @@ fi
 # 이미 덮는데 미러에 파일이 없어 검사가 빠졌다 — task-003f REV-022). .sh·.mjs(빌드·아이콘 도구)는 보내지 않는다 — 실행은 NFS 원본에서 한다.
 if [ -d "$PROJECT_ROOT/scripts" ]; then
   mkdir -p "$LOCAL_ROOT/scripts"
-  rsync -a --delete --include '*.ts' --exclude '*' "$PROJECT_ROOT/scripts/" "$LOCAL_ROOT/scripts/"
+  # `--include '*/'` 가 없으면 `--exclude '*'` 가 하위 폴더까지 걸러 `scripts/seed-build/*.ts` 가 빠진다(task-051). `-m` 은 .ts 없는 빈 폴더를 만들지 않는다.
+  rsync -a --delete -m --include '*/' --include '*.ts' --exclude '*' "$PROJECT_ROOT/scripts/" "$LOCAL_ROOT/scripts/"
 fi
 
 # 안드로이드 프로젝트(Phase 7). NFS 가 소스이고 **빌드는 미러에서만** 돈다(noexec).

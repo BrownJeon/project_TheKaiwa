@@ -168,7 +168,7 @@
 | 44 | DELETE | `/api/v1/words/:id` | 단어 삭제(스냅샷 보존) | S | learning/vocab | 1 | — | `{deleted:true,snapshotKept:true}` |
 | 45 | POST | `/api/v1/words/:id/archive` · `/unarchive` | 보관 토글 | S | learning/vocab | 1 | — | `WordEntry` |
 | 46 | GET | `/api/v1/words/categories` | 카테고리·개수 | S | learning/vocab | 1 | — | `[{category,count}]` |
-| 46b | POST | `/api/v1/words/seed-pack` | 기본 단어 팩 추가(빈 단어장 CTA, task-008 E1) | S | learning/vocab | 1 | `{pack:"N5"}` | `{added,skipped}` |
+| 46b | POST | `/api/v1/words/seed-pack` | 기본 단어 팩 추가(빈 단어장 CTA, task-008 E1 · JLPT 5단계 task-051) | S | learning/vocab | 1 | `{pack:"N5"\|"N4"\|"N3"\|"N2"\|"N1"}` | `{added,skipped}` |
 | 47 | POST | `/api/v1/vocab/sessions` | 오늘의 단어 세트 생성(**정답 미포함**) | S | learning/vocab | 1 | `{count?,mode?,category?,topicId?,generate?}` | `VocabSession`+cards(+주제 세트면 `generation`, §2-10) |
 | 48 | GET | `/api/v1/vocab/sessions?kept=1` | 세션 목록/보관함 | S | learning/vocab | 1 | query | 목록 |
 | 49 | GET | `/api/v1/vocab/sessions/:id` | 세션 상세(이어풀기) | S | learning/vocab | 1 | — | 세션+cards(+답한 카드만 정답) |
@@ -918,7 +918,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 | #44 `DELETE /api/v1/words/:id` | 행 삭제. `VocabAttempt.wordId`·`Correction.savedWordId`·`EvaluationItem.wordId` 는 `SetNull`, `*Snap` 컬럼으로 이력 유지. 응답 `{ "deleted": true, "snapshotKept": true }` |
 | #45 `POST /api/v1/words/:id/archive` · `/unarchive` | `archived` 토글(`archivedAt`). 보관 단어는 세트 생성 풀에서 제외 |
 | #46 `GET /api/v1/words/categories` | `[ { "category": "일상", "count": 32, "archivedCount": 2 }, { "category": null, "count": 5 } ]` |
-| #46b `POST /api/v1/words/seed-pack` body `{ "pack": "N5" }` | 원본 `prisma/seed-data/words-n5.json`(domain-model 시드 §3, 단일 출처)을 `source=SEED, category="N5 기초", jlpt=N5` 로 복사. 이미 있는 표현(JS 바이트 일치)은 건너뜀 → `{ "added": 50, "skipped": 0 }`. 다른 `pack` 값은 `400`. 사용자 직접 행위(CTA)라 제안·채택 규칙 대상 아님 |
+| #46b `POST /api/v1/words/seed-pack` body `{ "pack": "N5" }` — `pack` = `N5`·`N4`·`N3`·`N2`·`N1`(task-051) | 원본 `prisma/seed-data/jlpt/{n5,n4,n3,n2,n1}.json`(OpenJLPT 바탕 CC BY-SA 4.0 파생, 출처 `SOURCES.md`)의 그 단계를 `source=SEED, jlpt=<pack>, category=<단계 표시 이름>` 으로 복사. 표시 이름 = `초보자 (N5)`·`초급 (N4)`·`중급 (N3)`·`고급 (N2)`·`최상급 (N1)`(정본 `src/types/seedPack.ts` `SEED_PACK_LABEL`, 분류 칩 이름도 같은 글자). 단계별 개수 = `SEED_PACK_COUNT`(`src/types/seedPackCounts.ts` 생성 파일, 데이터 길이와 같음을 시험이 단언). **건너뜀**: 내 단어장(보관 포함)에 같은 표기(JS 바이트 일치 — DB 콜레이션이 같게 보는 가나·탁음 차이는 다른 표기)가 있고 그 단어의 읽기가 **같거나 비어 있으면** `skipped`. 같은 표기·다른 읽기(明日 あした/あす)는 다른 단어로 넣는다(데이터 키 = 표기+읽기). 사용자 행 잠금 아래 **한 트랜잭션**(조회·삽입은 500개씩 나눔, 중간 실패 시 전부 되돌림) → `{ "added": 674, "skipped": 0 }`. 다시 눌러도 같은 단어는 두 번 들어가지 않는다(`{ "added": 0, "skipped": <단계 개수> }`). 다른 `pack` 값은 `400 VALIDATION`(`details.reason="N5\|N4\|N3\|N2\|N1"`), 다른 키는 `400 VALIDATION`(`unknown_key`). 어느 단계를 보낼지는 클라이언트가 정한다(지금 수준·목표 수준). 이전 원본 `prisma/seed-data/words-n5.json` 50개는 OWNER 시드 전용으로 남고(분류 `N5 기초`, 기존 행 변경 없음) 그 단어를 가진 사용자는 같은 (표기, 읽기)만큼 `skipped`. 사용자 직접 행위(CTA)라 제안·채택 규칙 대상 아님 |
 
 ### 2-10. 오늘의 단어 `/api/v1/vocab/*` (L3 learning/vocab · snapshots)
 
