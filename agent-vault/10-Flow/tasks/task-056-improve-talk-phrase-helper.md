@@ -1,7 +1,7 @@
 ---
 task_id: task-056
 title: "회화방 일본어 도우미 — 말이 막힐 때 한국어로 물어보면 알맞은 일본어를 제안 (IMP-0030, 마이크 버튼 오른쪽에 별도 배치)"
-status: doing
+status: review
 base_ref: d004079
 risk_level: "R1"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa]
@@ -114,6 +114,9 @@ demo_gate:
 - **화면 수정 완료**: F-2/F-3(판 안 버튼 7개 `onPointerDown preventDefault`, 첫 탭 38/38)·F-5(칩 히트 `before:-inset-y-[5px]`)·**자동 취소 구현**(`cancelPending()` — 마이크 누름 `onPress` 와 모든 턴 시작 `sendOutgoing`, 브라우저 18/18) → REV-194 PASS_WITH_NOTES(Low 2 = 소스 검사 시험이 주석 처리 코드를 통과시키는 약점 → TS 파서 기반 공용 도구 `src/components/__tests__/sourceCode.ts` 로 닫음, 변이 11건 사망).
 - **QA-C2(화면 재검증) FAIL → Leader 재분류 PASS_WITH_NOTES**: 38/38·12/12(⑤A, 가짜 마이크+게이트웨이)·18/18(자동 취소)·상태/문구/저장소/엔진명 62 통과. 남은 FAIL 은 F-5 잔존 1건(Low): 칩이 **2행으로 줄바꿈될 때** 첫 행 칩의 실효 히트가 41.75px — 36px 칩 + 위·아래 각 4px 확장 = 44px 인데 행 간격(`gap-1.5`=6px)이 36+6=42px 피치라 확장 영역이 **2px 겹쳐 아래 칩이 받는** 기하 한계(REV-193 F-4 에서 이미 평가·수용: 손가락 접촉 오차 대비 무시 수준, 오터치 위험 아님). 행 간격을 8px 로 늘리면 해소되나 승인 데모의 레이아웃 변경(designer 사항)이라 하지 않는다. N-1(429 sr 줄이 서버 초에 고정)은 매초 낭독을 피하려는 의도된 설계. N-2(짧은 누름 뒤 RECOGNIZING 유지)는 가짜 게이트웨이가 `final` 을 안 보내서 생긴 **기존 STT 상태 기계의 동작**(`sttPhase==='finishing'`)이며 도우미와 무관 `[가능성 높음]`. N-3(입력 중 도우미 버튼 DOM 부재)은 §22-3/§22-6 설계대로.
 - **다음**: QA-B2(자동 취소 뒤 턴 지연·콜드 504) 결과 → 통과 시 task-056 파일만 pathspec 커밋(사용자 지시 시) → 배포(사용자 승인) → 배포 직후 콜드 504·nginx 경유 abort 전파·실기기 확인 목록. 별건: task-058(#169·#178 취소 신호) 완료·미커밋, L2 중복 정의 통합은 task-056 커밋 뒤, 소스 검사 시험의 같은 약점이 의심되는 `scenario/__tests__` 5파일 정리는 후속.
+
+## 커밋 (2026-10-12)
+- 사용자 지시 「056 과 058 을 각각 별도 커밋」에 따라 로컬 커밋 **`facff39`**(task-056, 52파일: 통째 49 + 공유 파일 hunk 3 — `docs/screens.md` §22·도우미 줄, `api-contract.md` 제목·#180 행, 일일 로그 2줄). task-058 은 `30b8b4c` 로 별도. **push 하면 webhook 으로 운영 배포** — 사용자 지시 대기. 배포 후: 콜드 504·nginx abort 전파·실기기(APK) 확인 목록(ACTIVE `★★★★` 블록).
 
 ## 데모 검토 (demo gate)
 
