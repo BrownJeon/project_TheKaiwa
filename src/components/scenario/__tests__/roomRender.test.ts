@@ -2,7 +2,7 @@
  * 역할극 회화방 부품(task-010d B2)을 실제 `useRolePlay` 로 정적 렌더해 본다(서버 렌더 — 효과는 돌지 않는다).
  *  - 역할극이 아닌 대화: 방에 얹은 부품이 아무것도 그리지 않고 머리가 예전 모양 그대로(바이트 비교).
  *  - 역할극: 첫마디 방·대화 중·마친 방·녹음 중·글자 모드·수업에서 이어짐, 대답 연습 판 3방식·로딩·실패.
- *  - `TalkRoom.tsx` 의 삽입 줄이 모두 역할극 조건 안에 있는지(소스 검사).
+ *  - `TalkRoom.tsx` 의 삽입 줄이 모두 역할극 조건 안에 있는지(소스 검사 — 주석을 걷은 소스에서 본다: 주석 처리한 삽입이 통과하지 않게, REV-194 F-1 과 같은 약점).
  */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import TalkRoomHeader from '@/components/talk/TalkRoomHeader'
 import type { ChatInfo, ChatMessageView, RolePlayChatView, RolePlayResultView } from '@/types/chat'
+import { readCode } from '../../__tests__/sourceCode'
 import PracticeDock from '../PracticeDock'
 import { RolePlayEndedBar } from '../RolePlayBars'
 import RolePlayEndSheet from '../RolePlayEndSheet'
@@ -253,7 +254,7 @@ test('대답 연습 판: 로딩(스켈레톤·5초 문구)·실패(오류 alert�
 /* ── TalkRoom 삽입 줄은 모두 역할극 조건 안 ─────────────────────────────── */
 
 test('TalkRoom: 역할극 삽입은 조건부(일반 회화 출력 불변) — 그리는 부품은 rp 가 없으면 null 이다', () => {
-  const src = readFileSync(join(__dirname, '..', '..', 'talk', 'TalkRoom.tsx'), 'utf8')
+  const src = readCode(join(__dirname, '..', '..', 'talk', 'TalkRoom.tsx'))
   const must = [
     "data-roleplay={rp.active ? 'on' : undefined}",
     'intro={rp.active ? <RolePlayIntro',
@@ -273,7 +274,7 @@ test('TalkRoom: 역할극 삽입은 조건부(일반 회화 출력 불변) — �
   // 한 번씩만(중복 삽입 없음)
   assert.equal(src.split('useRolePlay(').length - 1, 1)
   assert.equal(src.split('<PracticeDock ').length - 1, 1)
-  // SSE·재생·말풍선 부품은 역할극을 모른다
+  // SSE·재생·말풍선 부품은 역할극을 모른다 — 부정 단언이라 원문 그대로 본다(주석에 이름이 있어도 실패하는 쪽이 더 엄격하고, 주석 처리로는 없던 참조를 숨길 수 없다)
   for (const f of ['TalkTutorBubble.tsx', 'useTalkPlayback.ts', 'VoiceBar.tsx']) {
     const other = readFileSync(join(__dirname, '..', '..', 'talk', f), 'utf8')
     assert.ok(!/scenario|rolePlay|RolePlay/.test(other), f)

@@ -47,6 +47,8 @@ export const LLM_TASKS = {
   openingDraft: { tier: 'balanced', timeoutMs: 25_000, lane: 'interactive' },
   // 변형 상황 초안(task-045 #177, scenarioVariant@v3) — 대기 화면 단건. v3 라이브 36호출(suggest 30·다른 축 6): 1차 JSON 위반 0·재시도 0, suggest 성공 29건 p50 11.7s·p95 12.9s·max 18.2s(1차+재시도 1회 ≈ 2배도 40s 안). v2(QA 24호출)는 1차 위반 3·최종 실패 1. CLI 꼬리 지연(v2 47.1s 1건·v3 60s 시간 초과 1건)은 프롬프트로 못 막으며 이 40s 상한을 넘는다 — 재시도 없음(`retryOnTimeout` 꺼짐).
   scenarioVariant: { tier: 'balanced', timeoutMs: 40_000, lane: 'interactive' },
+  // 회화방 일본어 도우미(task-056 #180, phraseHelp@v1) — 12s fail-fast, 재시도 없음. 저장 없음.
+  phraseHelp: { tier: 'fast', timeoutMs: 12_000, lane: 'interactive' },
 } as const satisfies Record<string, TaskSpec>
 
 export type LlmTask = keyof typeof LLM_TASKS

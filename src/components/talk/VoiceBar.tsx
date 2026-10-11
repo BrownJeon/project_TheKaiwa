@@ -4,6 +4,7 @@
  * 음성 입력 바(screens §9-2 F) — 상태 줄(h-6, `#talk-status`) + [⌨ 44 · 푸시투토크 72 · ■ 44]. ■ 가 없을 때도 빈 칸을 두어 버튼이 움직이지 않는다.
  * 푸시투토크는 §8 컴포넌트 그대로 — 누름·뗌 순서(barge-in·오디오 깨우기)는 방이 감싼다.
  */
+import type { ReactNode } from 'react'
 import MicLevelMeter from '@/components/speech/MicLevelMeter'
 import PushToTalkButton from '@/components/speech/PushToTalkButton'
 import { TALK_ROOM } from './talkCopy'
@@ -36,6 +37,7 @@ export default function VoiceBar({
   onAbort,
   onKeyboard,
   onStop,
+  trailing,
 }: {
   view: TalkView
   db: number | null
@@ -44,7 +46,20 @@ export default function VoiceBar({
   onAbort: () => void
   onKeyboard: () => void
   onStop: () => void
+  /** 마이크 오른쪽 자리(일본어 도우미 버튼, screens §22-2). 넘기지 않으면 지금 화면·DOM 그대로. */
+  trailing?: ReactNode
 }) {
+  const ptt = (
+    <PushToTalkButton
+      phase={view.ptt.phase}
+      disabled={view.ptt.disabled}
+      label={view.ptt.label}
+      describedBy={TALK_STATUS_ID}
+      onPress={onPress}
+      onRelease={onRelease}
+      onAbort={onAbort}
+    />
+  )
   return (
     <div className="flex-none border-t border-line bg-surface px-4 pt-2" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
       {/* div — 레벨 미터가 div 라 p 안에 둘 수 없다(수화 오류). */}
@@ -62,17 +77,16 @@ export default function VoiceBar({
         >
           <KeyboardIcon />
         </button>
-        <div className="flex justify-center">
-          <PushToTalkButton
-            phase={view.ptt.phase}
-            disabled={view.ptt.disabled}
-            label={view.ptt.label}
-            describedBy={TALK_STATUS_ID}
-            onPress={onPress}
-            onRelease={onRelease}
-            onAbort={onAbort}
-          />
-        </div>
+        {trailing ? (
+          // 가운데 칸을 [빈 1fr · 마이크 72 · 1fr] 로 — 마이크는 그대로 가운데, 오른쪽 칸 왼쪽 끝에 도우미(마이크와 12px).
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] items-center">
+            <span aria-hidden="true" />
+            {ptt}
+            <div className="ml-3 justify-self-start">{trailing}</div>
+          </div>
+        ) : (
+          <div className="flex justify-center">{ptt}</div>
+        )}
         {view.showStop ? (
           <button type="button" aria-label={TALK_ROOM.stopTeacher} onClick={onStop} className="grid h-11 w-11 place-items-center rounded-full bg-surface2 text-ink">
             <StopIcon />

@@ -365,7 +365,7 @@ export const END = {
 /** 대답 연습(가이드 §3-E). */
 export const PRACTICE = {
   entry: '대답 연습',
-  entrySub: '무엇을 말할지 막히면 눌러요',
+  entrySub: '선생님 말에 맞는 대답 예시를 봐요',
   region: '대답 연습',
   modeAria: '연습 방식',
   modeChoose: '고르기',

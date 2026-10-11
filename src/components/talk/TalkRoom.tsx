@@ -73,6 +73,10 @@ import { applySelfCheck, isInlineCorrection, waitingCoach } from './correctionVi
 import LaterCorrectionsSheet, { type LaterListState } from './LaterCorrectionsSheet'
 import TalkCorrectionCard from './TalkCorrectionCard'
 import LiveUtteranceBubble from './LiveUtteranceBubble'
+import PhraseHelperButton from './PhraseHelperButton'
+import PhraseHelperPanel from './PhraseHelperPanel'
+import PhraseHelperTip, { HELPER_TIP_ID } from './PhraseHelperTip'
+import { claimHelperTip, helperLockReason, helperLockToast } from './phraseHelperLogic'
 import type { ReplayState } from './ReplayButton'
 import { completeChunkTexts, hasMoreAfter, sentenceSpans, visiblePrefix, type AudioChunkView } from './revealChunks'
 import SpeechProfileMenu, { type ProfileLabel } from './SpeechProfileMenu'
@@ -87,6 +91,7 @@ import { deriveTalkState } from './talkState'
 import { buildClientTimings, type PrevTurn, type TurnOrigin } from './timings'
 import TopicEndNudge from './TopicEndNudge'
 import UnsentBar, { type UnsentView } from './UnsentBar'
+import { usePhraseHelper } from './usePhraseHelper'
 import { perfNow, useTalkPlayback, type ReplayErrorInfo } from './useTalkPlayback'
 import VoiceBar from './VoiceBar'
 
@@ -226,6 +231,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   const saveFailDeferredRef = useRef(false)
   const focusTextRef = useRef(false)
   const turnPhaseRef = useRef<string>('idle')
+  /** 도우미 훅은 STT 훅보다 뒤에 만들어져 STT 콜백이 닿는 `sendOutgoing` 이 직접 부를 수 없다 — 최신 `helper.cancelPending` 을 여기 둔다(task-056). */
+  const cancelHelperRef = useRef<() => boolean>(() => false)
   const laterCountRef = useRef(0)
   const revealedRef = useRef<ReadonlySet<string>>(revealed)
   const deferredSrRef = useRef<string | null>(null)
@@ -376,6 +383,8 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
       withdrawChunks(aid)
       queue.startTurn(aid)
       pauseStatus(true)
+      // 말을 보냈으면(말·글자) 도우미 판을 닫는다 — 결과는 기억(§22-10 ⑤A).
+      helper.close()
     },
     onAudio: (ev: TurnAudioEvent, aid: string) => {
       if (mismatchRef.current.has(aid)) return
@@ -447,6 +456,9 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   useEffect(() => () => pauseStatus(false), [pauseStatus])
 
   const sendOutgoing = (o: Outgoing, via: InputMode) => {
+    // 회화 턴이 도우미 요청과 AI 호출 줄을 나눠 쓰면 첫 소리가 늦어진다(5초 예산) — 아직 답이 오지 않은 도우미 요청은 턴보다 먼저 멈춘다.
+    // 모든 턴 시작이 지나는 길: 글자 전송·다시 보내기·밀려 있던 말(말로 보낼 때는 녹음을 누를 때 이미 멈췄다). 끝난 요청은 건드리지 않는다.
+    cancelHelperRef.current()
     const prev = prevTurnRef.current
     const clientTimings = buildClientTimings(prev ? { ...prev, queue: queue.timingsOf(prev.assistantMessageId) } : null, o.origin)
     sendingRef.current = { via, origin: o.origin }
@@ -516,6 +528,9 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   }, [recording, showToast])
 
   const onPress = () => {
+    helper.stopSound()
+    // 말하기를 시작하면 도우미 요청을 접는다(판이 열려 있든 닫혀 있든) — 회화 턴의 첫 소리가 밀리지 않게(5초 예산, 사용자 결정 2026-10-11).
+    helper.cancelPending()
     // 순서가 중요하다: 큐를 먼저 멈춰야 stt.press() 안의 stopAllTts 가 "청크가 끝났다"로 읽혀 다음 청크가 재생되지 않는다.
     queue.interrupt('BARGE_IN')
     rp.stopSound()
@@ -751,6 +766,52 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
     return null
   }, [messages])
   const rp = useRolePlay({ chatId, chat, messages, talkState: view.state, turnBusy, listening, notify, srAnnounce, roomSounding: snapshot.phase === 'playing', stopRoom: playback.stop })
+
+  /* ── 일본어 도우미(task-056, screens §22) ───────────────────────────── */
+
+  // 잠김 = 말하는 중(녹음·인식) + 선생님이 답하는 중(대기·생각). 훅의 `recording` 도 같은 값으로 입력·[물어보기]·카드 버튼을 잠근다.
+  const helperLockWhy = helperLockReason(view.state)
+  const helperLock = helperLockWhy !== null
+  const helper = usePhraseHelper({
+    chatId,
+    recording: helperLock,
+    ended: rp.ended,
+    roomSounding: snapshot.phase === 'playing',
+    stopOthers: () => {
+      playback.stop()
+      rp.stopSound()
+    },
+    onEnded: () => void rp.reload(),
+  })
+  const helperBtnRef = useRef<HTMLButtonElement>(null)
+  const focusHelperBtnRef = useRef(false)
+  // ✕·Esc 로 닫으면 초점은 도우미 버튼으로 — 입력 중에는 버튼이 그려지지 않으므로 다시 그려진 뒤에 옮긴다.
+  useEffect(() => {
+    if (helper.open || helper.typing || !focusHelperBtnRef.current) return
+    focusHelperBtnRef.current = false
+    helperBtnRef.current?.focus()
+  }, [helper.open, helper.typing])
+  // [입력창에 넣기]로 닫으면 초점은 입력창으로 — 판 안 버튼은 입력칸 초점을 지키므로(F-3) 누르는 순간 입력창은 아직 숨겨져 있다(`hidden`). 다시 그려진 뒤에 옮긴다.
+  const focusComposerRef = useRef(false)
+  useEffect(() => {
+    if (helper.open || helper.typing || !focusComposerRef.current) return
+    focusComposerRef.current = false
+    composerRef.current?.focus()
+  }, [helper.open, helper.typing])
+  const cancelHelperPending = helper.cancelPending
+  useEffect(() => {
+    cancelHelperRef.current = cancelHelperPending
+  }, [cancelHelperPending])
+  // 처음 한 번 안내(④B) — 말 모드 입력 바가 처음 그려진 뒤 한 번 판정. 로딩 중·마친 역할극·글자 모드에서는 판정하지 않는다.
+  const [tipOpen, setTipOpen] = useState(false)
+  /** 이 방문에서 판정했는가(null = 아직) — 판정 결과를 담는다. */
+  const tipClaimRef = useRef<boolean | null>(null)
+  const voiceBarReady = load === 'ready' && !!chat && !rp.ended && mode === 'voice'
+  useEffect(() => {
+    if (!voiceBarReady || tipClaimRef.current !== null) return
+    tipClaimRef.current = claimHelperTip()
+    if (tipClaimRef.current) setTipOpen(true)
+  }, [voiceBarReady])
 
   /* ── 다시 듣기 ──────────────────────────────────────────────────── */
 
@@ -1057,6 +1118,35 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
   }
   const stripIsNotice = strip !== null && !showSttAlert && !unsent && snapshot.phase !== 'blocked' && !!turn.notice && mode === 'text' && lastVia === 'text'
 
+  const helperShown = helper.shown
+  // 안내 말풍선은 닫힌 게 아니라 잠깐 숨는다 — 판 열림·말하는 중·띠·대답 연습 판·토스트(§22-4). 식은 여기 한 곳(훅 값을 함수에 넘기면 컴파일러 순수성 검사가 오탐한다).
+  // 말풍선은 말 모드 입력 바에만 그려진다 — 글자 모드에서 버튼의 aria-describedby 가 없는 id 를 가리키지 않게 모드까지 본다(REV-191 I-1).
+  const tipShown = tipOpen && !helper.open && !helperLock && strip === null && !rp.practiceOpen && !toast.message && mode === 'voice'
+  const toggleHelper = () => {
+    if (helper.open) {
+      helper.close()
+      return
+    }
+    setTipOpen(false)
+    rp.closePractice()
+    if (rp.goalOpen) rp.toggleGoal()
+    helper.setOpen(true)
+  }
+  const closeHelperToButton = () => {
+    focusHelperBtnRef.current = true
+    helper.close()
+  }
+  const helperButton = (
+    <PhraseHelperButton
+      open={helperShown}
+      locked={helperLock}
+      describedBy={tipShown ? HELPER_TIP_ID : undefined}
+      buttonRef={helperBtnRef}
+      onToggle={toggleHelper}
+      onLocked={() => notify(helperLockToast(helperLockWhy))}
+    />
+  )
+
   return (
     <div data-talk-state={view.state} data-roleplay={rp.active ? 'on' : undefined} className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
       {header}
@@ -1084,40 +1174,74 @@ export default function TalkRoom({ chatId, teacherName }: { chatId: string; teac
         followContent
       />
       {strip ? <div className={stripIsNotice ? 'flex-none' : 'flex-none px-4 pb-2 pt-1'}>{strip}</div> : null}
-      <PracticeDock rp={rp} voice={mode === 'voice'} textOnly={status.snapshot.state === 'TEXT_ONLY'} blocked={strip !== null} onFill={(t) => composerRef.current?.fill(t)} onToast={notify} />
+      {/* 대답 연습 줄·판과 도우미 판은 한 자리 — 도우미가 열려 있는 동안 대답 연습은 그리지 않는다(§22-10). */}
+      {helperShown ? (
+        <PhraseHelperPanel
+          h={helper}
+          kind={rp.active ? 'rp' : 'talk'}
+          textMode={mode === 'text'}
+          textOnly={status.snapshot.state === 'TEXT_ONLY'}
+          locked={helperLock}
+          focusOnOpen={helper.fresh}
+          onClose={closeHelperToButton}
+          onFill={(ja) => {
+            composerRef.current?.fill(ja)
+            focusComposerRef.current = true
+            helper.close()
+          }}
+          blocked={strip !== null}
+          otherOpen={rp.goalOpen || rp.practiceOpen}
+          onDismiss={helper.close}
+        />
+      ) : (
+        <PracticeDock rp={rp} voice={mode === 'voice'} textOnly={status.snapshot.state === 'TEXT_ONLY'} blocked={strip !== null} onFill={(t) => composerRef.current?.fill(t)} onToast={notify} />
+      )}
       {rp.ended ? (
         <RolePlayEndedBar rp={rp} />
       ) : mode === 'voice' ? (
-        <VoiceBar
-          view={view}
-          db={stt.ui.db}
-          onPress={onPress}
-          onRelease={onRelease}
-          onAbort={stt.abort}
-          onKeyboard={toText}
-          onStop={playback.stop}
-        />
+        // 도우미 입력칸에 초점이 있는 동안 아래 바를 그리지 않는다(초점 기반 — data-kb 없는 앱 WebView 에서도). 상자는 안내 말풍선의 기준.
+        helper.typing ? null : (
+          <div className="relative flex-none">
+            {tipShown ? <PhraseHelperTip onClose={() => setTipOpen(false)} /> : null}
+            <VoiceBar
+              view={view}
+              db={stt.ui.db}
+              onPress={onPress}
+              onRelease={onRelease}
+              onAbort={stt.abort}
+              onKeyboard={toText}
+              onStop={playback.stop}
+              trailing={helperButton}
+            />
+          </div>
+        )
       ) : (
-        <Composer
-          chatId={chatId}
-          busy={turnBusy}
-          blockedUntil={turn.blockedUntil}
-          placeholder={rp.placeholder ?? TALK_ROOM.textPlaceholder}
-          onSend={sendText}
-          onBlocked={notify}
-          handleRef={composerRef}
-          onTextChange={(t) => {
-            if (t.trim() === '') setPendingUtteranceId(null)
-          }}
-          leading={
-            <button type="button" aria-label={TALK_ROOM.voice} onClick={toVoice} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink2">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect x="9" y="3" width="6" height="11" rx="3" />
-                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-              </svg>
-            </button>
-          }
-        />
+        // 입력창은 숨기기만 한다(내리지 않음) — 쓰던 초안·입력창 핸들이 그대로 남게.
+        <div hidden={helper.typing} className="contents">
+          <Composer
+            chatId={chatId}
+            busy={turnBusy}
+            blockedUntil={turn.blockedUntil}
+            placeholder={rp.placeholder ?? TALK_ROOM.textPlaceholder}
+            onSend={sendText}
+            onBlocked={notify}
+            handleRef={composerRef}
+            onTextChange={(t) => {
+              if (t.trim() === '') setPendingUtteranceId(null)
+            }}
+            leading={
+              <>
+                <button type="button" aria-label={TALK_ROOM.voice} onClick={toVoice} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink2">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="9" y="3" width="6" height="11" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                  </svg>
+                </button>
+                {helperButton}
+              </>
+            }
+          />
+        </div>
       )}
       <ChatMenuSheet
         open={menuOpen}

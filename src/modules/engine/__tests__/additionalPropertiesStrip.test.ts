@@ -116,7 +116,9 @@ test('runJsonWithRetry: 옵션이 매 시도에 전달된다 — 켜면 1회, �
 // 키(예: `example`)가 붙으면 `additionalProperties:false` 위반으로 **응답 전체가 재시도**돼 사용자가 기다리는 [시작하기] 가 6~12s 늘어난다. ③ 키가 깨끗하면 아무 일도 하지
 // 않고 필수 필드 이름이 바뀐 응답은 여전히 위반이다. ⚠ 실측(haiku 126호출, `tests/live/task042-topicwords-measure.ts`)에서는 지운 키가 0건이라 **효과는 측정으로 입증되지
 // 않았다** — 예방 보험이다. 효과가 끝내 0 이면 이 목록에서 빼도 된다(그때 이 주석·`topicWords.ts` 의 한 줄을 함께 고친다).
-test('stripAdditionalProperties 를 켜는 프로덕션 코드는 A4 lesson·A12 topicWords 요청 빌더 둘뿐이다(다른 A 지점 불변)', () => {
+// task-056(회화방 일본어 도우미 phraseHelp@v1) — 셋으로 늘었다. 근거: PE 실측(haiku)에서 모델이 `_id`·`$schema` 를 덧붙여 응답 전체를 재시도한 것이 2~3건(+4~5s, task-056-pe-record §8-5).
+// 필수 칸은 건드리지 않고 스키마 밖 키만 지운다 — 12s fail-fast 도우미라 재시도 한 번이 지연 예산을 크게 먹는다.
+test('stripAdditionalProperties 를 켜는 프로덕션 코드는 A4 lesson·A12 topicWords·phraseHelp 요청 빌더 셋뿐이다(다른 A 지점 불변)', () => {
   const modulesRoot = join(process.cwd(), 'src', 'modules')
   const offenders: string[] = []
   const walk = (dir: string): void => {
@@ -132,5 +134,5 @@ test('stripAdditionalProperties 를 켜는 프로덕션 코드는 A4 lesson·A12
     }
   }
   walk(modulesRoot)
-  assert.deepEqual(offenders.sort(), ['conversation/prompts/lesson.ts', 'conversation/prompts/topicWords.ts'])
+  assert.deepEqual(offenders.sort(), ['conversation/prompts/lesson.ts', 'conversation/prompts/phraseHelp.ts', 'conversation/prompts/topicWords.ts'])
 })

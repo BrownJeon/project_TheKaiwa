@@ -88,6 +88,13 @@ export { buildReplyPracticeRequest, finalizeReplyPracticeResponse, ReplyPractice
 export type { ReplyPracticeInput } from './prompts/replyPractice'
 export { checkReplyPracticeShape, dropChoiceSet } from './structuredResponse/replyPractice'
 export type { ReplyPracticeModel, ReplyPracticeSuggestion } from './structuredResponse/replyPractice'
+// task-056 회화방 일본어 도우미(#180 phraseHelp@v1 — 한국어로 하고 싶은 말 → 일본어 표현 1~3개, 저장하지 않음). 라우트·서비스(app 층)가 값으로 엔진을 부른다
+export { buildPhraseHelpRequest, finalizePhraseHelp, PhraseHelpInputError, PHRASE_HELP_TASK, PHRASE_HELP_PROMPT_VERSION } from './prompts/phraseHelp'
+export type { PhraseHelpInput, PhraseHelpRequest, PhraseHelpScene } from './prompts/phraseHelp'
+export { parsePhraseHelpBody, phraseHelpItems, phraseHelpTrace, phraseHelpViolations, fitPhraseHelp, PHRASE_HELP_SCHEMA, PHRASE_HELP_LIMITS } from './structuredResponse/phraseHelp'
+export type { PhraseHelpResponse, PhraseHelpModelItem, PhraseHelpItem, PhraseHelpFinal, PhraseHelpFinalStatus, PhraseHelpBody, PhraseHelpBodyProblem, PhraseHelpBodyResult, PhraseHelpContext, PhraseHelpDropReason, PhraseHelpRepairs, PhraseHelpStatus } from './structuredResponse/phraseHelp'
+export { helpPhrase, readPhraseHelpBody, phraseHelpDeps, phraseHelpScene, PHRASE_HELP_FAIL_MESSAGE } from './chats/phraseHelp'
+export type { PhraseHelpDeps, PhraseHelpResult, PhraseHelpSceneCode } from './chats/phraseHelp'
 export { draftScenario, parseScenarioDraftBody, SCENARIO_DRAFT_DESCRIPTION_MIN } from './chats/scenarioDraft'
 export type { ScenarioDraftResult, ScenarioDraftBody, ScenarioDraftInlineTopic } from './chats/scenarioDraft'
 // task-045 변형 상황 초안(scenarioVariant@v3 — 기준 상황 + 축(성격·돌발·흐름·수준) → 새 상황 초안 + 바뀐 칸, 저장하지 않음). 라우트(app 층)가 값으로 엔진을 부른다. 축 열거·칩 문구는 `@/types/scenarioVariant`

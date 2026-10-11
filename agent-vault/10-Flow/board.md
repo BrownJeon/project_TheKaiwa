@@ -33,6 +33,7 @@ tags:
 - [[task-001-initial-planning]] — **초기 기획·설계 확정**(2026-09-26). 기획서 4종 통합 → `design-spec.md` + 정본 5종 + 설계 문서 33종, 팀 7인 + 강사 페르소나, Agent Vault 구성. 코드 없음.
 
 ## Doing
+- [[task-056-improve-talk-phrase-helper]] — 회화방 일본어 도우미(IMP-0030, P2, `/개선작업 착수` 2026-10-11): 마이크 오른쪽 버튼 → 한국어로 물어보면 일본어 표현 제안, 일반 회화방+역할극 방. judge standard·R1·opus·demo=delta → **데모 v1 사용자 승인 2026-10-11 17:58**(④B·나머지 권고안, 질의는 글자 입력) → designer 구현 가이드 확정·screens.md 반영 + prompt-engineer 프롬프트·계약(`phraseHelp@v1`, API #180) 병렬 진행 중 → 다음 judge C1 → developer
 - [[task-026-improve-hangul-reading]] — 히라가나·한글·번역 표시 ✅ **완료·운영 반영**(서버 `f67bf70` + 화면 A·B `726daf7`, QA PASS, 운영 스모크 42/42·45/45) — 후속 Low 6건·범위 밖 화면은 최종 요약 참고
 - [[task-030-japanese-display-followup]] — 일본어 표시 후속 Low 6건 ✅ **완료·운영 반영** `4ce98e4`(데모 v1 승인, REV-098~101, Codex C2, QA PASS, 운영 스모크 42/42·45/45)
 - task-012b-2·-3·-4 — 음성 P2 후속(재확인 카드·발화 로그 화면=데모 / TTS 지표=DB 추가 / 타이밍=M4 설치) — 승인 뒤 착수

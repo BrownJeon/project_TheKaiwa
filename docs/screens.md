@@ -78,7 +78,7 @@
 | 회화 | `/study/ai?tab=talk\|chat` (기본 `talk`) | AI와 공부하기 홈(회화·채팅 전환 · 회화 목록/채팅 목록 · 채택 대기 교정 요약) | 로그인 사용자 | 보임 | **task-006(§3)** · 회화 탭 **task-007(§9-2 A)** |
 | 회화 | `/study/ai/chat/[chatId]` | 채팅방 | 소유자(타인 404) | **숨김** | **task-006(§3)** |
 | 회화 | `/study/ai/chat/[chatId]/review` | 표현 점검 결과 | 소유자 | **숨김** | **task-006(§3)** |
-| 회화 | `/study/ai/talk/[chatId]` (`#cr_{교정 id}` 로 카드 위치) | 음성 회화방(머리 = 선생님 아바타·이름 + TTS 상태 표시등(§7) · 푸시투토크 72px(§8) + 글자 입력 전환 · 문장별 점진 표시·재생·barge-in · 교정 카드 즉시) | 소유자(타인 404) | **숨김** | **task-007(§9)** · 앱 분기(권한 [앱 설정 열기]·휴대폰→서버 전환 안내·메뉴 "알아듣는 곳" 한 줄) **task-003f(§11-2 D·F)** |
+| 회화 | `/study/ai/talk/[chatId]` (`#cr_{교정 id}` 로 카드 위치) | 음성 회화방(머리 = 선생님 아바타·이름 + TTS 상태 표시등(§7) · 푸시투토크 72px(§8) + 글자 입력 전환 · 문장별 점진 표시·재생·barge-in · 교정 카드 즉시) | 소유자(타인 404) | **숨김** | **task-007(§9)** · 앱 분기(권한 [앱 설정 열기]·휴대폰→서버 전환 안내·메뉴 "알아듣는 곳" 한 줄) **task-003f(§11-2 D·F)** · 입력 바 「일본어 도우미」(마이크 오른쪽 44px 원형 버튼·처음 한 번 안내·입력 바 위 판, 일반 회화방·역할극 방 공통) **task-056(§22)** — 데모 v1 승인 2026-10-11 |
 | 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드 → **오늘의 회화 카드**·최근 기록·보관한 세트, AI 평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** · 오늘의 회화 카드 **task-010(§12-2 A)** |
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
 | 오늘 | `/study/today/talk/new` · `/study/today/talk/new/paste` | 오늘의 회화 — 주제 고르기(확인 시트) · 문장 붙여넣기 | 로그인 | **숨김** | **task-010(§12-2 B·C)** |
@@ -3853,6 +3853,13 @@ AppBar title="AI와 공부하기"
 - 모드는 `sessionStorage kaiwa.talk.inputMode`(`voice|text`, 기본 voice) — "지금은 말하기 어려운 곳" 은 그때그때라 브라우저 세션 동안만 기억한다.
 - 글자 모드에서 선생님 말 멈추기는 말풍선의 [■ 멈춤] 으로(새로 보내도 멈춘다).
 
+**일본어 도우미 자리**(task-056, 승인 데모 `docs/demo/task-056-talk-phrase-helper-v1.html` — 상세·상태·문구는 **§22**):
+- **말 모드**: `VoiceBar` 에 선택 prop `trailing` 하나. 가운데 칸을 `grid grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)]` 로 나눠 PTT 는 둘째 칸(**위치 불변**), 도우미 버튼(44px 원형 아이콘)은 셋째 칸 `ml-3 justify-self-start` — 마이크↔도우미 12px, 도우미↔■ 28/43/54px(360/390/412). ⌨·■ 칸은 그대로. `trailing` 을 넘기지 않으면 지금 화면과 같다.
+- **글자 모드**: `leading` = 🎤 + 도우미 버튼(같은 44px 원형). 입력창 폭 180/210/232px.
+- **처음 한 번 안내 말풍선**(§22-4)은 말 모드 입력 바 바로 위에 뜬다 — 띠·토스트·판·녹음 중에는 숨는다.
+- **판은 입력 바 바로 위 한 자리**: 띠(G) 아래·입력 바 위. 역할극 방에서는 「대답 연습」(task-010d 가이드 §3-E `PracticeDock`)과 **한 번에 하나** — 도우미가 열려 있는 동안 대답 연습 줄·판을 그리지 않고, 목표 카드·대답 연습이 새로 펼쳐지면 도우미를 닫는다. 띠가 새로 뜨면 도우미 판도 닫는다(결과는 기억). 판 안에 마이크·보내기 없음(D-8 과 같음).
+- 마친 역할극(`RolePlayEndedBar`)에는 버튼·안내·판 모두 없다. 녹음·인식 중 버튼은 `aria-disabled`(판은 열려 있으면 그대로 — §22-0 ⑤).
+
 #### G. 입력 바 위 띠(StripSlot, 한 번에 하나 — 위 칸이 이긴다)
 
 | 우선 | 띠 | 언제 | 모양 · 동작 |
@@ -4047,6 +4054,7 @@ createTtsPlaybackQueue(deps) → {
 | 21b | `/api/v1/speech/utterances/:id/audio` | GET | 내 목소리 ▶ | — | `audio/wav` | 404 → "녹음이 없어요" + 버튼 숨김 |
 | §7-1 | `/api/v1/speech/tts/status` | GET | 표시등(스토어) | — | §7-4 | §7-3 A |
 | 13·14 | `/api/v1/settings/voice` | GET·PUT | 메뉴 "들려주는 방식" | GET 값에서 `speechProfile` 만 바꿔 PUT | `speechProfile` | 400·422·0 → 되돌림 + 토스트 |
+| 180 | `/api/v1/chats/:id/phrase-help` | POST | 일본어 도우미 [물어보기]·예시 칩·[다시 시도](task-056) | §22-9 | §22-9 | §22-9 — **계약 정본은 Leader 가 `api-contract.md` 에 반영**(이 표는 참조만) |
 
 - `common/api.ts` 에 **`apiGetAudio(path, { signal })`** 추가 → `ArrayBuffer`. 실패는 `apiPostAudio` 와 같은 규칙(401 로그인 이동·봉투 → `ApiError`·취소는 AbortError). 큐는 `audio.url` 이 **`/api/v1/speech/tts/` 로 시작할 때만** 받는다(그 밖 URL 은 버림 — 서버 응답을 그대로 fetch 대상으로 쓰지 않는다).
 - 타입(`src/types/chat.ts`): `TurnAudioEvent{chunkIndex,text,url?,durationMs?,last,status,runtime?:{executionMode},cached?,pauseBeforeMs?}` · `TurnCorrection`(done 의 교정) · `ClientTimings` · `ChatMessage.utteranceId?` 추가. `cacheKey`·`ttfaMs`·`timing`·`connectionKey` 는 타입에 두지 않는다(쓰지 않는 값을 받지 않는다).
@@ -4217,6 +4225,7 @@ createTtsPlaybackQueue(deps) → {
 - [ ] 스크롤 영역은 `MessageList` 하나(`main`·입력 바·띠 스크롤 없음). 시트 내부만 예외.
 - [ ] 머리 360: ← 44 + 아바타 40 + 이름·표시등 열(`min-w-0`, 이름 말줄임, "상태 확인 중 ›" 한 줄) + ⋯ 44 겹침 없음. 표시등 히트가 목록 첫 버튼과 겹치지 않음(56px).
 - [ ] 입력 바 360: ⌨ 44 · PTT 72 · ■ 44 가 한 줄, PTT 는 가운데 고정(■ 가 나타나도 움직이지 않음 — 빈 자리 유지). 상태 줄 가장 긴 문구("다시 듣는 중 · 누르면 멈추고 말해요")가 레벨 미터와 함께 한 줄 또는 `break-keep` 두 줄 안에서 입력 바 높이를 바꾸지 않음(h-6 넘치면 문구 줄임 — qa 확인).
+- [ ] (task-056) 도우미 버튼 44px 원형이 마이크 오른쪽에 들어가도 PTT 위치·입력 바 높이 불변, 세 폭 넘침 0 — 나머지 도우미 확인 항목은 §22-14.
 - [ ] 교정 카드: 360 위아래 / 390·412 나란히. 선생님 말풍선 아래 줄 버튼들(▶·읽기·번역·문법 칩·시각)은 줄바꿈으로 넘침 0.
 - [ ] 100dvh·safe-area: 입력 바 `padding-bottom: max(8px, env(safe-area-inset-bottom))`, 글자 모드 키보드 = §3-9 키보드 항목 그대로(`resizes-content` + `--kb-inset`).
 - [ ] 일본어 요소 전부 `lang="ja"`(말풍선·부분 인식·UnsentBar 문장·예문), 일본어 블록에 `break-keep` 없음.
@@ -9765,4 +9774,313 @@ chip = ChunkChips 의 CHIP 클래스 그대로(h-9 · min-w-[44px] · whitespace
 13. **분절 이동 방식**: 데모는 화면 전환만 그렸다 — `Link replace`(기록을 쌓지 않음, 회화 탭 선례) + 이동 뒤 분절 현재 항목에 초점.
 
 ---
+
+## 22. 회화방 일본어 도우미 (task-056, IMP-0030, 2026-10-11)
+
+> **승인 데모**: `docs/demo/task-056-talk-phrase-helper-v1.html` (v1) — 2026-10-11 17:58 사용자 승인 「4번만 'B안'으로 하고 나머지는 권고안대로 진행해줘」(sha256 `704e8d58cb2a5067…`). `#hp-*`·`#rp-*` 는 데모 왼쪽 상태 목록 id, 「세 폭」은 데모 아래 「입력 바 세 폭」 패널이다.
+> **적용 토큰 이름**(새 색 없음): `ground` · `surface` · `surface2` · `ink` · `ink2` · `ink3`(placeholder 만) · `line` · `accent` · `accent-soft` · `on-accent` · `bad` · `--safe-bottom` · `:root[data-kb]` · `--kb-inset`(앱 셸이 처리).
+> **정본 관계**: 회화방 바탕은 §9(입력 바 자리는 §9-2 F 「일본어 도우미 자리」), 표시 스위치는 §15, 역할극 「대답 연습」은 task-010d 가이드 §3-E(`PracticeDock`). 서버 계약 #180 은 **Leader 가 `api-contract.md` 에 반영**하고, 요청·응답 모양·한도는 prompt-engineer 기록(task-056)이 확정한다 — 이 절은 화면이 쓰는 칸만 적는다. 결정 근거·실측: `agent-vault/10-Flow/tasks/task-056-designer-record.md`.
+
+### 22-0. 결정 최종값
+
+| # | 결정 | 확정 | 채택 안 함 |
+|---|---|---|---|
+| — | 질의 입력 | 한국어 **글자** 입력(키보드) | 한국어 음성 질의 — 범위 밖(휴대폰 인식은 일본어 모델, 새 인식 경로는 별도 판단) |
+| ① | 판 형태 | **A 입력 바 위 판** — 대답 연습 판과 같은 자리·모양 | 바텀시트 |
+| ② | 후보 수 | **B 최대 3개** — 첫 카드만 보이고 [다른 말투 n개 더 보기]로 접음(추가 요청 없음) | 1개만 |
+| ③ | 자연스러운 이유 | **A 카드마다 한 줄 있음** | 없음 |
+| ④ | 도우미 버튼 | **B 둥근 아이콘만 44px + 처음 한 번 안내 말풍선** | 아이콘+글씨 56×56 |
+| ⑤ | 녹음 중 판 | **A 그대로 보임** — 보내면(`accepted`) 닫고 마지막 답 기억 | 녹음 시작 때 사라짐 |
+| ⑥ | 한국어 뜻 줄 | **A 늘 보임** — 「번역」 스위치와 무관(대답 연습 판 규칙) | 「번역」 스위치 따름 |
+| ⑦ | 역할극 구분 문구 | **A 대답 연습 입구 부제도 바꿈** — 문구 한 줄만(§22-8) | 도우미 쪽만 |
+
+고정: 저장(단어장 추가) 버튼 없음 — AI 는 제안만 · 판 안에 마이크·보내기 없음(대답 연습 D-8) · 마이크 72px 위치 불변 · 웹 배포만(네이티브 변경 없음) · 마친 역할극에는 없음.
+
+### 22-1. 레이아웃 설계
+
+1. **목표** — 회화 중 말이 막힐 때 하고 싶은 말을 한국어로 써서 물으면 일본어 표현을 보여 주고, 그 표현을 **보면서** 바로 말하거나(말 모드) 입력창에 넣어 고쳐 보내게(글자 모드) 한다. 저장하지 않는다.
+2. **위계** — ① 마이크(주 행동, 72px 가운데 그대로) ② 도우미 버튼(보조 — 흰 원 44px, 마이크보다 약하게) ③ 판: 머리 → 입력 줄 → 첫 카드(일본어 17px) → [다른 말투].
+3. **영역**(위→아래) — 머리 · (역할극: 목표 카드) · 표시 줄 · 대화 목록(유일한 세로 스크롤) · 띠(§9-2 G) · **[대답 연습 줄·판 | 도우미 판] 중 하나** · 입력 바. 판 안 세로 스크롤은 대답 연습 판과 같은 예외(§1-4 시트 내부 예외와 같은 취급).
+4. **컴포넌트** — 새: `PhraseHelperButton` · `PhraseHelperTip` · `PhraseHelperPanel` · `PhraseHelperCard` · `usePhraseHelper` · `helperCopy.ts` · `phraseHelperLogic.ts` / 재사용: `JaText` · `HangulLine` · `useAnnotations` · `Skeleton`(`challenge/parts`) · `Badge` · `useKeyedSound` · `soundText` · `SOUND_MSG` · `composerRef.fill` · 방의 `notify`.
+5. **상태** — §22-6 표.
+6. **행동** — 주: 물어보기 → 말하기(아래 마이크) / 입력창에 넣기(글자 모드) · 보조: ▶ 듣기 · [다른 말투 더 보기] · ✕/Esc · 위험 동작 없음.
+7. **반응형** — 360/390/412 같은 구조, 줄어드는 것은 글자 모드 입력창 폭뿐(180/210/232px). 판 최대 `min(46dvh,320px)`, 키보드가 올라오면 판은 머리+입력 줄만.
+
+### 22-2. 자리 — 입력 바 (§9-2 F 에 더함)
+
+**말 모드** (`#hp-closed` · `#hp-speaking`, 「세 폭」 「제안 · 버튼 B(원형 44) — 말 모드 · ■ 보이는 때」 행)
+```
+<div className="relative flex-none">                      ← 안내 말풍선(§22-4)의 기준 상자. 말풍선이 없으면 껍데기뿐
+  {tipShown && <PhraseHelperTip />}
+  VoiceBar (새 선택 prop `trailing?: ReactNode` — 넘기지 않으면 지금 화면과 같다)
+    #talk-status h-6                                        ← 그대로
+    <div className="mt-1 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center">
+      ⌨ 44                                                  ← 그대로
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] items-center">   ← 지금 `flex justify-center` 를 바꿈
+        <span aria-hidden="true" />
+        <PushToTalkButton … />                              ← 72, 가운데 — 위치 불변
+        {trailing ? <div className="ml-3 justify-self-start">{trailing}</div> : <span aria-hidden="true" />}
+      </div>
+      ■ 44 | 빈 칸 44                                        ← 그대로
+    </div>
+</div>
+```
+- 실측: 마이크↔도우미 **12px**(세 폭 같음) · 도우미↔■ **28 / 43 / 54px**(360/390/412) · 가로 넘침 0. ■ 가 없을 때는 빈 44 칸이 자리를 지켜 도우미도 움직이지 않는다.
+- 녹음 중 마이크는 1.05배 + 바깥 링(§9-3 A)이라 보이는 링 끝이 도우미 왼쪽 가장자리에 약 2px 닿는다. 누름 영역(버튼 + 링 상자 6px)과 도우미 사이는 약 4px 떨어져 겹치지 않는다 — 그대로 둔다(그동안 도우미는 흐림·잠김).
+
+**글자 모드** (`#hp-text`, 「세 폭」 「제안 · 버튼 B(원형 44) — 글자 모드」 행)
+```
+Composer leading={<>{🎤 44 (기존)}<PhraseHelperButton /></>}      ← Composer 의 `flex items-end gap-2` 그대로
+[🎤][가あ][ 일본어로 써 보세요 — … ][↑]
+```
+- 입력창 폭 **180 / 210 / 232px**(지금 232 / 262 / 284). 넘침 0. 글자 모드에는 안내 말풍선을 띄우지 않는다(§22-4).
+- `RolePlayEndedBar`(마친 역할극)에는 버튼·안내·판 모두 없다.
+
+### 22-3. 도우미 버튼 — `PhraseHelperButton` (④B)
+
+props `{ open: boolean; locked: boolean; describedBy?: string; onToggle(): void; onLocked(): void }` — 말·글자 모드 같은 부품, 같은 크기.
+
+| 상태 | 모양 | 탭 |
+|---|---|---|
+| 닫힘 | `grid h-11 w-11 flex-none place-items-center rounded-full border border-line bg-surface text-ink` + 글리프 `<span aria-hidden="true" className="whitespace-nowrap text-[14px] font-bold leading-none tracking-[-0.5px]">가<span lang="ja" className="text-accent">あ</span></span>` | 판 열기(§22-10) + 안내 말풍선 닫기 |
+| 열림 | `border-transparent bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--color-accent)]` · `aria-expanded="true"` | 판 닫기 — 초점은 버튼에 그대로 |
+| 잠김(RECORDING·RECOGNIZING·**QUEUED·THINKING** — 사용자 결정 2026-10-11, QA-B2: 턴을 보낸 직후 약 1초 안에 도우미를 부르면 턴의 AI 호출이 도우미 뒤로 밀려 턴 첫 음성 p50 2.42→5.83s) | `opacity-40` + `aria-disabled="true"`(`disabled` 속성은 쓰지 않음 — 눌러서 이유를 듣게). 열 수 있는 상태는 **IDLE·SPEAKING** 뿐(선생님 말 재생 중은 AI 호출이 이미 끝났으니 허용) | 말하는 중(RECORDING·RECOGNIZING): 토스트 「말하는 중에는 열 수 없어요」(방의 `notify` — 녹음 중이면 끝난 뒤 뜸, §9-0 ⑨) · 선생님이 답을 만드는 중(QUEUED·THINKING): 토스트 「선생님이 답하는 중에는 열 수 없어요」 |
+| 초점 | `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent` | — |
+
+- **QUEUED·THINKING 에는 잠긴다**(사용자 결정 2026-10-11 — 도우미와 회화 턴은 같은 AI 호출 줄(동시 1건)을 나눠 써서, 턴을 보낸 직후 도우미를 부르면 턴이 밀린다. QA-B2). 단 **SPEAKING 에는 잠기지 않는다** — 선생님 소리를 재생하는 동안은 턴의 AI 호출이 이미 시작됐으니 도우미는 그 뒤에서 기다릴 뿐 턴을 밀지 않는다(`#hp-speaking`: 선생님 소리는 그대로, 판 안 ▶ 를 누를 때 멈춤).
+- **접근성 이름** `aria-label="일본어 도우미"` · `aria-expanded` · `aria-controls="talk-helper"`(판이 있을 때만 — 없는 id 를 가리키지 않게) · 안내 말풍선이 보이는 동안 `aria-describedby="talk-helper-tip"`.
+- 글리프는 그림 취급(`aria-hidden`). 열림 상태 `accent`/`accent-soft` 4.08:1 은 글자 기준엔 모자라지만 아이콘(비텍스트) 3:1 은 넘는다 — §1-1 「글자 금지」는 읽어야 하는 글에 대한 규칙이다.
+- **툴팁**: hover `title` 은 달지 않는다 — 터치에서 보이지 않고, 앱의 다른 아이콘 버튼(⌨·🎤·■)도 쓰지 않는다. 버튼 뜻은 ① 이름 ② 처음 한 번 안내 말풍선(§22-4) ③ 판 머리 「일본어 도우미 / 하고 싶은 말을 한국어로 물어보세요」가 알린다.
+
+### 22-4. 처음 한 번 안내 말풍선 — `PhraseHelperTip` (④B)
+
+데모: 결정 ④ B 에서 `#hp-closed` · `#hp-speaking` · `#rp-closed` 에 보이는 말풍선(데모는 상태를 고를 때마다 다시 보인다 — 모형 한계, 실제는 아래 플래그).
+
+- **문구**: 본문 「한국어로 물어보면 일본어로 알려 줘요」 · 닫기 버튼 `aria-label` 「안내 닫기」.
+- **저장 — 기기 안 1비트 플래그**: `localStorage` 키 **`kaiwa.talk.helperTipSeen`** = `'1'`(기존 `common/storage.ts` `readStore`·`writeStore`, 전부 try/catch). 질의·답 원문은 어디에도 저장하지 않는다 — 이 키가 이 기능이 저장소에 남기는 **유일한 값**이다.
+- **판정**(순수 함수, `talk/phraseHelperLogic.ts` — 단위 시험: 처음 / 이미 봄 / 저장 막힘):
+  ```ts
+  export const HELPER_TIP_KEY = 'kaiwa.talk.helperTipSeen'
+  export function claimHelperTip(read = readStore, write = writeStore): boolean {
+    if (read('local', HELPER_TIP_KEY) !== null) return false   // 이미 봄
+    write('local', HELPER_TIP_KEY, '1')                         // 보이는 순간 = 본 것으로 기록
+    return read('local', HELPER_TIP_KEY) === '1'                // 쓰기가 막힌 환경 → false = 한 번도 안 보임
+  }
+  ```
+  `writeStore` 는 실패를 알리지 않으므로 **써 보고 다시 읽어** 가린다 — 사생활 모드·저장소 차단·WebView 설정에서 방마다 매번 뜨는 일이 없다(그 환경은 한 번도 안 보임).
+- **언제 판정하나**: 말 모드 `VoiceBar` 에 도우미 버튼이 처음 그려진 뒤의 `useEffect` 에서 한 번. 참이면 이 방에 있는 동안 `tipOpen = true` — **방 한 번 방문 동안만** 보이고, 무시하고 지나가도 다음 방부터 뜨지 않는다. 서버 렌더·첫 렌더는 늘 숨김(hydration 차이 없음). 방 로딩 중·마친 역할극·**글자 모드에서는 판정하지 않는다**(글자 모드로 들어왔다가 말 모드로 바꾸면 그때 판정).
+- **잠깐 숨김**(닫힌 것 아님 — 조건이 풀리면 이 방에서 다시 보임):
+  `tipShown = tipOpen && !helper.open && !locked && !strip && !rp.practiceOpen && !toast.message`
+  — 판 열림 · RECORDING·RECOGNIZING · 띠(오류·보내지 못한 말 등 — 버튼을 가리지 않게) · 대답 연습 판 펼침 · 토스트(말 모드 토스트 bottom 136px 와 겹침).
+- **닫힘**(이 방에서 다시 안 보임): ✕ 탭 · 도우미 버튼 탭(판이 열리며 닫힘) · 방을 나감. 말풍선 본문 탭은 아무 일도 하지 않는다(데모와 같음).
+- **모양**(데모 `.tip` 값 — §22-2 의 `relative flex-none` 상자 기준):
+  ```
+  <div id="talk-helper-tip" role="note"
+       className="absolute bottom-[calc(100%+8px)] right-[calc((100%-192px)/2+4px)] z-[5] flex w-[196px] items-start gap-0.5
+                  rounded-[10px] bg-ink py-2 pl-3 pr-0.5 text-[12.5px] leading-[1.45] text-surface break-keep shadow-[0_6px_16px_rgba(0,0,0,.18)]">
+    <p className="min-w-0 flex-1">한국어로 물어보면 일본어로 알려 줘요</p>
+    <button type="button" aria-label="안내 닫기" className="relative grid h-7 w-7 flex-none place-items-center rounded-full text-surface before:absolute before:-inset-2">✕(14px, aria-hidden)</button>
+    <span aria-hidden="true" className="absolute right-[15px] top-full border-[7px] border-transparent border-t-ink" />   ← 꼬리 = 도우미 버튼 가운데
+  </div>
+  ```
+  - 위치 공식 = 바 오른쪽 끝에서 도우미 오른쪽 가장자리까지 `16 + 44 + (가운데 칸 폭 − 56)` = `(바 폭 − 192)/2 + 4`. VoiceBar 의 `px-4` · 44 칸 · 72 마이크 · `ml-3` · 44 버튼 중 하나라도 바뀌면 같이 고친다. 360 실측: 말풍선 76~272px(왼쪽 여백 ≥16), 꼬리 = 도우미 가운데.
+  - ✕ 보이는 28px · 히트 44px(`before:-inset-2`). 다크 테마는 `bg-ink`/`text-surface` 가 저절로 뒤집힌다(대비 = §1-1 ink/surface 12:1 이상). 나타날 때 애니메이션 없음.
+- **접근성**: `role="note"` — 나타날 때 낭독하지 않는다(누름 직전 소리와 섞이지 않게). 대신 보이는 동안 도우미 버튼 `aria-describedby` 로 이어져 버튼 초점 때 「일본어 도우미, 한국어로 물어보면 일본어로 알려 줘요」로 읽힌다. DOM 이 VoiceBar 앞이라 Tab 순서는 ✕ → ⌨ → 마이크 → 도우미.
+- 역할극 방에서는 말풍선이 「대답 연습」 접힌 줄 오른쪽 부분을 잠깐 가린다(데모 `#rp-closed` + ④ B 그림 그대로) — 한 번뿐이고 ✕ 로 바로 닫혀 받아들인다.
+
+### 22-5. 판·카드 — `PhraseHelperPanel` · `PhraseHelperCard` (①A·②B·③A·⑥A)
+
+```
+<section id="talk-helper" aria-labelledby="talk-helper-title" data-kb-docked
+         className="max-h-[min(46dvh,320px)] flex-none overflow-y-auto overscroll-contain border-t border-line bg-surface px-4 pb-3">
+  머리 min-h-11 flex items-center gap-2 -mr-2:
+    <div className="min-w-0 flex-1">
+      <h2 id="talk-helper-title" 14px semibold>일본어 도우미</h2>
+      <p 12px ink2 truncate>하고 싶은 말을 한국어로 물어보세요</p>
+    </div>
+    ✕ 44 rounded-full text-ink2  aria-label="일본어 도우미 닫기"
+  <form noValidate className="mt-0.5 flex min-w-0 items-center gap-2">
+    <label className="sr-only" htmlFor="talk-helper-q">한국어로 물어볼 말</label>
+    <input id="talk-helper-q" type="text" lang="ko" enterKeyHint="search" autoComplete="off" spellCheck={false}
+           aria-describedby="talk-helper-msg" disabled={녹음·인식 중}
+           className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-[16px] text-ink placeholder:text-ink3 focus:outline-2 focus:-outline-offset-1 focus:outline-accent"
+           placeholder={역할극 ? '예: 얼음 적게 해 주세요' : '예: 목이 쉬었어요'} />
+    <button type="submit" aria-disabled={빈칸·초과·요청 중·녹음 중·429 대기} onPointerDown={e => e.preventDefault()}
+            className="h-11 min-w-11 flex-none whitespace-nowrap rounded-xl bg-accent px-3.5 text-[14px] font-semibold text-on-accent aria-disabled:opacity-40">물어보기</button>
+  </form>
+  <p id="talk-helper-msg" role="status" className="mt-1 text-[12px] break-keep">…</p>        ← 늘 마운트(display:none 금지)
+  <p role="status" className="sr-only">{결과·빈 결과·429 낭독 문장}</p>                       ← 늘 마운트, 녹음 중이면 끝난 뒤 채움
+  <div className="mt-2.5 min-w-0 [:root[data-kb]_&]:hidden">  본문(상태별 §22-6) </div>
+</section>
+```
+- [물어보기]는 `onPointerDown preventDefault` 로 입력칸 초점·키보드를 지키고, 보낼 때 input `blur()`(키보드 내림). **판 안 모든 조작 버튼(✕·예시 칩·카드 ▶·[입력창에 넣기]·[다른 말투 n개 더 보기]·[다시 시도])도 같은 `onPointerDown preventDefault`** — 입력칸 초점이 있을 때 버튼을 누르면 blur → 아래 바 재등장 → 판이 약 117px 밀려 click 이 사라지던 문제(QA-C F-2/F-3, 2026-10-11)를 막는다. 질의를 보내는 칩·[다시 시도]는 [물어보기]처럼 보낼 때 input `blur()`. 비활성은 흐림 + `aria-disabled` — 눌러도 보내지 않고 안내 줄로 이유를 말한다(Composer 보내기와 같은 방식). 키보드 검색 키(Enter)도 같은 동작, IME 조합 중 Enter 는 무시(`isComposing`·keyCode 229).
+- 글자 수는 코드포인트(`HELPER_MAX = 100`, `helperCopy.ts` 한 곳). 서버도 같은 한도로 400 — 값은 prompt-engineer·Leader 확정값을 따른다.
+- 결과 목록: `<ul aria-label="일본어 표현" className="flex flex-col gap-2">` 첫 카드 → (후보 2개 이상) 행 버튼 `my-1 flex h-11 w-full min-w-0 items-center gap-2 rounded-[10px] px-1 text-left`: 「다른 말투 n개 더 보기」(13 semibold ink) + 나머지 꼬리표를 ` · ` 로 이은 요약(12 ink2 truncate) + ▾/▴(aria-hidden), `aria-expanded`·`aria-controls="talk-helper-alts"` → `<ul id="talk-helper-alts" aria-label="다른 말투" hidden={!more}>`(늘 마운트). 펼친 문구 「다른 말투 접기」. 새로 물으면 다시 접힘.
+- 판 안에 마이크·보내기·저장 없음. 말 모드 판에는 「말해 보세요」 줄을 두지 않는다(바로 아래 상태 줄 「누르고 있는 동안 말해요」가 다음 행동을 알림).
+
+**카드** `PhraseHelperCard`
+```
+<li className="flex min-w-0 gap-0.5 rounded-[14px] border border-line bg-surface py-2.5 pl-3 pr-1">
+  <div className="min-w-0 flex-1">
+    {후보 ≥2 && labelKo ? <Badge tone="neutral">{labelKo}</Badge> : null}
+    <JaText text={ja} state={ann} rt={11} leading={2.1} className="mt-1 text-[17px] text-ink [overflow-wrap:anywhere]" />
+    <HangulLine state={ann} size={13} />
+    <p className="mt-0.5 text-[13px] text-ink2 break-keep">{ko}</p>                                      ← ⑥A 늘 보임
+    {whyKo ? <p className="mt-1.5 border-l-2 border-line pl-2 text-[13px] text-ink break-keep">{「」 안은 <span lang="ja">}</p> : null}   ← ③A
+    {글자 모드 ? <button className={`${GHOST} mt-2`} aria-disabled={녹음 중}>입력창에 넣기</button> : null}
+  </div>
+  {!자막만 && soundText(ja) ? <button aria-label={`${ja} ${재생 중 ? '멈추기' : '듣기'}`} className="grid h-11 w-11 flex-none place-items-center rounded-full (재생 중: bg-accent text-on-accent)">▶/■</button> : null}
+</li>
+{소리 실패면 그 카드 아래 SOUND_MSG 한 줄(단어장 ▶ 와 같음)}
+```
+- `GHOST` = PracticeDock 의 같은 클래스 문자열(공용으로 꺼내거나 같은 값). 첫 카드는 서버가 준 순서 첫 항목(가장 흔한 말). 후보가 1개면 꼬리표·[다른 말투] 줄 없음.
+- [입력창에 넣기] = 판 닫기 → `composerRef.current?.fill(ja)`(입력창을 그 문장으로 덮어쓰고 초점, 자동 전송 없음 — 대답 연습과 같은 동작, `#hp-text-filled`).
+
+### 22-6. 상태 표 (데모 상태 id — 문구는 §22-7)
+
+| 데모 id | 언제 | 화면 |
+|---|---|---|
+| `hp-closed` | 기본 | 버튼만. 처음 방문이면 안내 말풍선(§22-4) |
+| `hp-speaking` | 선생님 말하는 중 | ■ 와 나란히, 버튼 위치 불변. 열 수 있음 |
+| `hp-open-kb` | 처음 열기(이전 답 없음) | 판 + 입력칸 초점(키보드). 키보드 위에는 머리+입력 줄만, 아래 바 숨김 |
+| `hp-typed` | 한 글자 이상 | [물어보기] 켜짐 |
+| `hp-empty` | 빈 채(공백만 포함) 제출 | 안내 줄 bad 「물어볼 말을 한국어로 써 주세요」, 초점·키보드 유지 |
+| `hp-long` | 90자~ / 100자 초과 | 「n/100」(ink2, 오른쪽) / bad 「100자까지 물어볼 수 있어요 · n/100」 + [물어보기] 흐림 |
+| `hp-open` | 키보드 내림·이전 답 없음 | 「이렇게 물어보세요」 + 예시 칩 3개(방 종류별, 누르면 바로 물음) |
+| `hp-loading` | 요청 0~5초 | `Skeleton heights={[120, 120]}` + sr 「일본어 표현을 찾는 중…」, [물어보기] 흐림 |
+| `hp-slow` | 5초~12초 | 스켈레톤 아래 12 ink2 「조금만 기다려 주세요」 |
+| `hp-result` | 결과 | sr 「표현 n개를 찾았어요」 · 첫 카드 + [다른 말투 n개 더 보기] |
+| `hp-more` | 펼침 | 나머지 카드(판 안 스크롤) |
+| `hp-playing` | ▶ | 그 카드 ■ + 주황 바탕. 한 번에 소리 하나 |
+| `hp-rec` | 녹음 중(⑤A) | 판 유지 · 입력칸 `disabled` · [물어보기]·카드 버튼 `aria-disabled` · 도우미 버튼 흐림. 보내면(`accepted`) 판 닫힘, 다시 열면 마지막 답. **녹음을 시작할 때 아직 답이 오지 않은 도우미 요청(로딩·slow)은 자동 취소**(사용자 결정 2026-10-11, QA-B: 도우미가 먼저 돌면 회화 턴 첫 음성 p50 2.2s→5.2s) — 질의는 입력칸에 남고 안내 줄에 「말하는 동안 도우미를 멈췄어요. 끝나면 다시 물어봐 주세요.」 |
+| `hp-none` | `items` 0개 | 상자(자체 `role` 없음 — 낭독은 늘 마운트된 sr-only 줄이 한다, §22-13): 「이 말에 맞는 일본어를 찾지 못했어요.」 + 12 ink2 「짧은 한국어 문장으로 다시 써 보세요. 예: ‘천천히 말해 주세요’」(역할극 ‘얼음 적게 해 주세요’). [다시 시도] 없음 |
+| `hp-error` | 0·5xx·404 | `role=alert` 「지금은 표현을 가져오지 못했어요.」 + [다시 시도](GHOST) |
+| `hp-timeout` | 12초·504 | `role=alert` 「시간이 오래 걸려 멈췄어요. 다시 물어봐 주세요.」 + [다시 시도] |
+| `hp-rate` | 429 | 「n초 뒤 다시 물어볼 수 있어요.」(0 → 「잠시 뒤 다시 물어봐 주세요.」) + [다시 시도] — 카운트다운 동안 [다시 시도]·[물어보기] `aria-disabled` |
+| ★ `busy` | 409 `TURN_RUNNING`(계약이 턴 중 호출을 막기로 할 때만) | 「선생님 말이 끝나면 다시 물어봐 주세요.」 + [다시 시도] — 데모에 없음, §22-15 |
+| `hp-textonly` | 머리 표시등 「자막만」 | 카드 ▶ 없음(대답 연습 [▶ 듣기]와 같은 규칙) |
+| `hp-text` | 글자 모드 결과 | 카드마다 [입력창에 넣기] |
+| `hp-text-filled` | 넣은 뒤 | 판 닫힘 · 입력창 채움 · 초점(키보드) |
+| `hp-text-kb` | 글자 모드 + 도우미 입력 중 | 아래 Composer 숨김(입력칸 두 개가 겹쳐 보이지 않게) |
+| `rp-closed` | 역할극 | 「대답 연습」 줄(새 부제 §22-8) + 마이크 옆 도우미 |
+| `rp-helper` | 역할극 도우미 열림 | 대답 연습 줄·판을 그리지 않음 — 닫으면 돌아옴. 예시 칩은 가게 말 |
+| `rp-practice` | 대답 연습 판이 열린 채 도우미 탭 | 대답 연습 판을 접고 도우미를 연다 / 도우미가 열려 있는 동안에는 대답 연습 줄 자체를 그리지 않는다(§22-10) — 도우미를 닫으면 줄이 돌아온다 |
+| `rp-kb` | 역할극 + 도우미 입력 중 | 목표 카드(접힘)·표시 줄·대화만 남고 대답 연습 줄·마이크 줄 숨김 |
+| — | 마친 역할극 | 도우미 없음 |
+
+### 22-7. 문구 단일 출처 — `src/components/talk/helperCopy.ts` (데모 문구 그대로, ★ = 데모에 없던 것)
+
+| 키 | 문구 |
+|---|---|
+| `button` (aria-label) | 일본어 도우미 |
+| `tip` · `tipClose` | 한국어로 물어보면 일본어로 알려 줘요 · 안내 닫기 |
+| `title` · `sub` · `close` | 일본어 도우미 · 하고 싶은 말을 한국어로 물어보세요 · 일본어 도우미 닫기 |
+| `inputLabel` · `ask` | 한국어로 물어볼 말 · 물어보기 |
+| `placeholder.talk` · `placeholder.rp` | 예: 목이 쉬었어요 · 예: 얼음 적게 해 주세요 |
+| `empty` · `count(n)` · `over(n)` | 물어볼 말을 한국어로 써 주세요 · `{n}/100` · `100자까지 물어볼 수 있어요 · {n}/100` |
+| `examplesLead` | 이렇게 물어보세요 |
+| `examples.talk` | 목이 쉬었어요 · 천천히 말해 주세요 · 다음에 또 가고 싶어요 |
+| `examples.rp` | 얼음 적게 해 주세요 · 빨대는 필요 없어요 · 여기서 마실게요 |
+| `loadingSr` · `slow` | 일본어 표현을 찾는 중… · 조금만 기다려 주세요 |
+| `found(n)` · `listAria` · `altsAria` | `표현 {n}개를 찾았어요` · 일본어 표현 · 다른 말투 |
+| `more(n)` · `less` | `다른 말투 {n}개 더 보기` · 다른 말투 접기 |
+| `listen(ja)` · `stop(ja)` · `fill` | `{ja} 듣기` · `{ja} 멈추기` · 입력창에 넣기 |
+| `none` · `noneHint(ex)` | 이 말에 맞는 일본어를 찾지 못했어요. · `짧은 한국어 문장으로 다시 써 보세요. 예: ‘{ex}’`(일반 「천천히 말해 주세요」 / 역할극 「얼음 적게 해 주세요」) |
+| `error` · `timeout` · `retry` | 지금은 표현을 가져오지 못했어요. · 시간이 오래 걸려 멈췄어요. 다시 물어봐 주세요. · 다시 시도 |
+| `rate(n)` · `rateDone` | `{n}초 뒤 다시 물어볼 수 있어요.` · 잠시 뒤 다시 물어봐 주세요. |
+| `cancelled` ★ | 말하는 동안 도우미를 멈췄어요. 끝나면 다시 물어봐 주세요. (녹음 시작·턴 시작 때 대기 중 요청을 자동 취소했을 때 안내 줄에. 말하는 동안은 `aria-live="off"`) |
+| ★ `busy` | 선생님 말이 끝나면 다시 물어봐 주세요. |
+| `locked` (토스트) | 말하는 중에는 열 수 없어요 |
+| `lockedTurn` ★ (토스트) | 선생님이 답하는 중에는 열 수 없어요 (QUEUED·THINKING — 턴의 AI 호출이 도우미 뒤로 밀리지 않게) |
+
+- 꼬리표(`labelKo`)·뜻(`ko`)·이유(`whyKo`) 문장은 서버(프롬프트)가 준다 — 화면은 문구를 만들지 않는다. 엔진·모델 이름이 들어간 문구 없음.
+
+### 22-8. 역할극 「대답 연습」 입구 부제 (⑦A — 문구 한 줄만)
+
+- `src/components/scenario/scenarioCopy.ts` `PRACTICE.entrySub`: 「무엇을 말할지 막히면 눌러요」 → **「선생님 말에 맞는 대답 예시를 봐요」**.
+- 바뀌는 것은 접힌 줄 부제 글자뿐이다. 대답 연습의 보이는 조건·호출(#169)·판·모드·동작은 task-010d 가이드 §3-E 그대로. 시험은 상수를 참조해 고칠 필요 없음(`scenario/__tests__/roomRender.test.ts:145`).
+- 부제는 `truncate` — 360 에서 새 문구가 잘리지 않는지 QA 확인(잘려도 넘침은 없음).
+- 두 기능의 구분: 「대답 연습」 = 선생님 말에 대한 **대답 예시 보기**, 「일본어 도우미」 = **내가 하고 싶은 말을 한국어로 묻기**.
+
+### 22-9. API — #180 (Leader 가 `api-contract.md` 에 반영 · 계약 확정은 prompt-engineer 기록 참조)
+
+| # | 엔드포인트 | 메서드 | 화면 동작 | 요청 | 화면이 쓰는 칸 | 오류 처리 |
+|---|---|---|---|---|---|---|
+| 180 | `/api/v1/chats/:id/phrase-help` | POST | [물어보기] · 예시 칩 · [다시 시도] | `{ queryKo }` — trim 1~100 코드포인트(화면이 먼저 막음) | `items[1..3].{ ja, ko, labelKo?, whyKo? }` — 첫 항목 = 가장 흔한 말, 0개면 빈 결과 | 400 → 입력 안내(보통 오지 않음) · 404 → `hp-error` · 409 `ENDED` → 판 닫고 기존 마친 방 처리(다시 읽기) · 409 `TURN_RUNNING`(계약이 막을 때만) → ★`busy` · 429 → `hp-rate`(`Retry-After` 또는 계약의 대기 초) · 502·0 → `hp-error` · 504·12초 → `hp-timeout` |
+| 24r | `/api/v1/text/annotate` | POST | 카드 루비·한글 줄 | `items[].ja`(기존 `useAnnotations`) | 읽기 조각 | 실패해도 일본어 글자는 보임(기존 `JaText`) |
+| — | 기존 단어 소리 경로(`useKeyedSound`) | — | 카드 ▶ | `ja` | — | 기존 `SOUND_MSG` |
+
+- 위 요청·응답 모양은 **화면 가정**이다 — 계약이 달라지면 Leader 가 알려 주고 「화면이 쓰는 칸」만 맞춘다. 대화 맥락(마지막 선생님 말·역할극 역할)은 화면이 보내지 않는다(서버·프롬프트 판단 — 화면 문구도 맥락 사용을 약속하지 않음).
+- 저장 없음(#169 선례). 질의·답 원문은 `RequestTrace`·로그·브라우저 저장소에 남기지 않는다.
+
+### 22-10. 상태 관리 — `usePhraseHelper(chatId, roomKind)` · `TalkRoom`
+
+- 훅 상태 `{ open, query, phase: 'idle'|'loading'|'slow'|'result'|'none'|'error'|'timeout'|'rate'|'busy', items, more, playingKey, rateUntil, hint }` — **메모리만**(방을 나가면 사라짐). 질의 초안도 `sessionStorage` 에 두지 않는다.
+- **열기**: 이전 결과 없음 → 입력칸 초점(같은 사용자 동작 안 — 판 마운트 직후 `useLayoutEffect` 한 번) / 있음 → 결과 그대로, 키보드 안 올림(`hp-open` 의 두 번째 줄). **닫기**(✕·Esc·버튼 재탭): 초점 → 도우미 버튼. Esc 는 초점이 판 안이거나 버튼일 때만.
+- **물어보기**: `AbortController` + 12초 끊기, 5초에 `slow`. 요청 중 재요청 금지. 새 질의는 `more=false` · 소리 정지 · input `blur()`. 판을 닫아도 요청은 끝까지 받아 결과를 기억한다(다시 열면 보임).
+- **서로 배타**(방 상태): 도우미 열기 → `rp.closePractice()` + (`rp.goalOpen` 이면) `rp.toggleGoal()` / 목표 카드·대답 연습이 **새로**(false→true) 펼쳐지면 도우미 닫기 / 띠가 새로 뜨면 도우미 닫기(결과 기억) / 도우미가 열려 있는 동안 TalkRoom 은 `PracticeDock` 를 그리지 않는다(`PracticeDock` 수정 없음).
+- **녹음(⑤A)**: 판 유지 · 입력 `disabled` · [물어보기]·카드 버튼 `aria-disabled`([다른 말투] 펼침은 허용). 턴 `onAccepted`(말·글자 모두) → 판 닫기(결과 기억). 너무 짧아 보내지 않은 녹음이면 판 유지. 결과 낭독은 녹음이 끝난 뒤로 미룬다(§9-0 ⑨). **녹음 시작 시(마이크를 누르는 `onPress`, `stt.press()` 직전) 그리고 모든 회화 턴 시작(`sendOutgoing` 첫 줄 — 글자 전송·다시 보내기·밀려 있던 말 포함) 때 대기 중(`loading`·`slow`) 요청은 `cancelPending()` 으로 취소**한다 — 서버는 이미 `req.signal` 로 엔진 호출을 멈춘다(#180 `CANCELLED`, 약 0.5초). 취소하면 `phase='idle'`, 질의는 유지, 안내 줄(`talk-helper-msg`)에 「말하는 동안 도우미를 멈췄어요. 끝나면 다시 물어봐 주세요.」. 결과가 이미 보이는 상태(`result`)는 그대로 둔다. 글자로 회화 턴을 보내는 경로에서도 대기 중 요청이 있으면 같은 규칙으로 취소한다.
+- **소리**: `useKeyedSound` 키 `helper:{index}`. ▶ → 먼저 방 재생 `playback.stop()` + `rp.stopSound()`. 마이크 누름(`onPress` 첫 줄에 추가) · 방 소리 시작 · 판 닫힘이면 멈춤 — 한 번에 하나(대답 연습과 같은 규칙).
+- **안내 말풍선**: 방 상태 `tipOpen`(§22-4) + 표시 식 `tipShown`.
+- **입력 중**: 도우미 입력칸 `onFocus`/`onBlur` → 방 상태 `helperTyping`(§22-11).
+
+### 22-11. 키보드 · 스켈레톤 높이 · 표시 스위치 · 접근성 · 폭
+
+- **키보드**(`#hp-open-kb` · `#hp-text-kb` · `#rp-kb`): 도우미 입력칸에 초점이 있는 동안 `helperTyping=true` → VoiceBar(+안내 상자)·Composer·대답 연습 줄을 그리지 않는다 — **초점 기반**이라 `data-kb` 가 없는 앱 WebView 에서도 동작한다. 판 본문(예시·결과) 숨김만 `[:root[data-kb]_&]:hidden` 에 기댄다. 판 `section` 은 `data-kb-docked`(KeyboardInset 이 판 안 입력칸을 스크롤로 옮기지 않게 — Composer 와 같음)이고, 셸 높이가 `--kb-inset` 만큼 줄어 판이 키보드 위에 온다. 판이 맨 아래인 동안(입력 중) 아래 여백 `max(12px, var(--safe-bottom))`. 실측 360×780(키보드 모형 300): 대화 목록 약 280px(역할극 약 230px).
+- **스켈레톤 높이**: 판 안 로딩 = `Skeleton heights={[120, 120]}`(③A 이유 줄 있음 → 카드 120, ②B → 두 장 — 결과 「첫 카드 + [다른 말투] 줄」과 비슷한 높이라 바뀔 때 판이 덜 출렁인다). 방 첫 로딩은 `LoadingBlock` 이라 입력 바를 그리지 않아 바뀌지 않는다. 탭 스켈레톤(§17·`tabSkeletonSizes`)과 무관 — 회화방은 하위 화면이다.
+- **판 높이**: 최대 `min(46dvh, 320px)`, 넘치면 판 안 스크롤. ②B+③A 첫 카드만일 때 [다른 말투] 줄이 판 아래로 말 모드 약 20px·글자 모드 약 73px 밀려 조금 넘겨야 보인다(데모 결정 ② B 에 공개된 실측 — 받아들임). 펼치면 240~535px 넘겨 본다.
+- **표시 스위치**(§15): 히라가나 → `JaText` 루비, 한글 → `HangulLine`(두 부품이 스위치를 읽음 — PracticeDock 와 같은 쓰임), **번역 → 카드 뜻 줄에는 적용하지 않음(⑥A)**. 이유 줄은 한국어 설명이라 늘 보인다. 대화 말풍선 번역은 지금처럼 스위치를 따른다.
+- **접근성 요약**: 버튼 이름·`aria-expanded`·`aria-controls`(판이 있을 때만)·`aria-describedby`(안내) / 판 = `<section aria-labelledby>` 비모달(대답 연습 판과 같음), ✕·Esc 로 닫으면 초점 → 버튼 / 입력칸 sr 라벨 + 안내 줄 `aria-describedby` + `role=status`(늘 마운트) / 결과·빈 결과·429 는 늘 마운트된 sr `role=status`, 오류·시간 초과는 `role=alert` 상자 / 일본어 칸 `lang="ja"`, 입력칸 `lang="ko"` / 색만으로 구분하지 않음(글자로 말함) / 터치 44px — 칩·안내 ✕ 는 `before:` 히트.
+- **폭**: 360/390/412 가로 넘침 0(데모 실측), 판·카드 `min-w-0`, 일본어 `[overflow-wrap:anywhere]`(일본어 블록에 `break-keep` 금지 §1-2), 한국어 설명만 `break-keep`.
+- **엔진명·저장**: 화면·DOM·`aria-*`·토스트·콘솔에 엔진·모델 이름과 추적 값 0. 브라우저 저장소에 남는 것은 `kaiwa.talk.helperTipSeen='1'` 하나.
+
+### 22-12. 생성·수정 파일 · 구현 순서 (`src/components` 만 — 서버 라우트·conversation 모듈은 Leader 사양)
+
+- 새: `src/components/talk/{PhraseHelperButton,PhraseHelperTip,PhraseHelperPanel,PhraseHelperCard}.tsx` · `usePhraseHelper.ts` · `helperCopy.ts`(§22-7 + `HELPER_MAX`) · `phraseHelperLogic.ts`(순수: 글자 수·잠김 이유·실패 → 상태·`claimHelperTip`·`HELPER_TIP_KEY`) · `__tests__/phraseHelper.test.ts`.
+- 수정: `talk/TalkRoom.tsx`(자리·배타·`helperTyping`·띠·`onAccepted` 닫기·소리·안내 상자) · `talk/VoiceBar.tsx`(`trailing` 슬롯) · `scenario/scenarioCopy.ts`(⑦A 한 줄). 응답 타입 위치는 developer 판단.
+- 순서: ① 문구·순수 함수 + 시험(`claimHelperTip` 처음/이미 봄/저장 막힘 포함) → ② `VoiceBar trailing`(없으면 무변화) → ③ Button·Tip·Card·Panel(가짜 데이터) → ④ `usePhraseHelper`(API 연결은 계약 확정 뒤) → ⑤ TalkRoom 배치·배타·키보드·띠·소리 → ⑥ ⑦A 문구 → ⑦ 360/390/412 × 780/892 · 키보드 · 다크 · 엔진명 점검.
+
+### 22-13. 주의사항 · developer 금지
+
+- 대답 연습(`PracticeDock`)·목표 카드의 **동작을 바꾸지 않는다** — TalkRoom 이 그리기 여부만 정한다. ⑦A 는 문구 한 줄.
+- `PushToTalkButton` 은 고치지 않는다. VoiceBar 치수를 바꾸면 안내 말풍선 위치 공식도 같이 고친다.
+- 저장 버튼·저장 경로를 만들지 않는다(단어장 추가 없음). 질의·답을 `localStorage`·`sessionStorage`·`console` 에 남기지 않는다.
+- 판 안에 마이크·보내기를 두지 않는다. [입력창에 넣기]는 채우기만, 자동 전송 금지.
+- `role=status`·`alert` 영역을 상태가 바뀔 때 새로 마운트하지 않는다(안내 줄·결과 sr 줄은 늘 마운트 — 오류 상자 `alert` 만 예외).
+- 빈 상태·로딩·오류·429·자막만·마친 역할극을 모두 그린다(§22-6). 권한 거부·오프라인은 회화방 규칙 그대로(도우미 요청 실패는 `hp-error`).
+
+### 22-14. reviewer·qa 확인표
+
+| # | 항목 | 확인 |
+|---|---|---|
+| H1 | 자리·폭 | 360/390/412 가로 넘침 0 · PTT 위치가 도우미 유무·■ 유무와 무관 · 마이크↔도우미 12px · 글자 입력창 180/210/232 |
+| H2 | 터치 | 도우미·판 ✕·[물어보기]·▶·[다른 말투]·[입력창에 넣기]·[다시 시도] 44px 이상, 칩·안내 ✕ 는 히트 44 |
+| H3 | 처음 한 번 안내 | 새 브라우저 프로필 → 첫 말 모드 방에서 보임 → 같은 방 녹음·띠·토스트 동안 숨었다 다시 보임 → ✕ 또는 도우미 탭으로 닫힘 → 다른 방 안 보임 · 사이트 데이터 차단 환경 → 한 번도 안 보임 · 글자 모드로 들어오면 안 보이다가 말 모드로 바꾸면 보임 · 버튼 초점 낭독에 안내 문장 포함 |
+| H4 | 흐름 | 열기 → 초점·키보드 → 빈 제출 안내 → 입력 → 물어보기(키보드 내림) → 스켈레톤 → 첫 카드 + [다른 말투 n개] → 펼침 → ▶(선생님 소리 먼저 멈춤) → (글자) [입력창에 넣기] → 판 닫힘·입력창 채움·초점 · 다시 열면 마지막 답·키보드 안 올림 · Esc → 초점 버튼 |
+| H5 | 녹음(⑤A) | 판 유지 · 입력·[물어보기]·카드 버튼 잠김 · 도우미 버튼 흐림 + 탭 토스트 · 보낸 뒤 닫힘 · 너무 짧은 녹음이면 판 유지 · **녹음 시작 때 대기 중 요청 자동 취소(안내 줄 문구)** |
+| H5b | 선생님 답변 중 잠금 | QUEUED·THINKING 에서 도우미 버튼 `aria-disabled` + 토스트 「선생님이 답하는 중에는 열 수 없어요」, SPEAKING·IDLE 에서 열림 · 판이 열린 채 THINKING 이 되면 판 유지·입력/버튼 잠김 |
+| H6 | 역할극 | 도우미 열면 대답 연습 줄·판 사라짐 · 대답 연습 줄·목표 카드 펼치면 도우미 닫힘 · 입구 부제 「선생님 말에 맞는 대답 예시를 봐요」 · 대답 연습 동작 회귀 없음 · 마친 역할극에 도우미 없음 |
+| H7 | 실패(모의) | 0개 · 오류 · 12초 · 429 카운트다운 · (계약 시) 409 `TURN_RUNNING`·`ENDED` |
+| H8 | 표시 스위치 | 히라가나·한글 꺼짐 반영 · 「번역」을 꺼도 카드 뜻 줄은 보임 |
+| H9 | 저장·엔진명 | 질의 뒤 `localStorage`·`sessionStorage` 에 질의·답 없음(`kaiwa.talk.helperTipSeen` 만) · `console` 출력 0 · DOM·`aria-*`·토스트에 엔진·모델 이름 0 |
+| H10 | 5초 예산 | QA 계정 라이브 응답 시간 분포(5초 안 비율) — 서버·프롬프트 지표와 함께 |
+| H11 | 키보드 | 360×780 + 키보드: 판 머리+입력 줄만, VoiceBar·Composer·대답 연습 줄 숨김 · 앱 WebView 실기기(§22-15 D) |
+| H12 | 다크 | 안내 말풍선 색 반전 · 열림 버튼 링 · 카드 테두리 |
+
+### 22-15. 데모와 다르게 쓴 곳 · Leader 확인
+
+데모와 다르게 쓴 곳(모양 불변 — 동작·접근성 보강):
+1. **안내 말풍선 숨김 조건 추가**: 데모는 판 열림·녹음 중만 그렸다. 인식 중(RECOGNIZING — 버튼이 잠기는 구간과 맞춤)·띠·대답 연습 판 펼침·토스트 동안도 숨긴다(오류 띠의 버튼·토스트와 겹침 방지).
+2. **안내 「본 것」 기록 시점 = 처음 보인 순간**(방 한 번 방문 동안만 보임). 저장소가 막힌 환경은 한 번도 안 보인다(Leader 해석 「기기 안 1비트 플래그」를 따름).
+3. **안내가 보이는 동안 도우미 버튼 `aria-describedby`** — 데모 자체 점검 Minor 「처음 나타날 때 낭독되지 않음」의 보완.
+4. **`aria-controls` 는 판이 있을 때만**, 다른 말투 목록은 `hidden` 으로 늘 마운트(데모는 펼쳤을 때만 그림 — 없는 id 참조 방지).
+5. **결과 낭독을 늘 마운트된 sr 상태 줄 하나로**(데모는 결과 때 새로 그린 status — 새로 생긴 라이브 영역은 읽히지 않을 수 있음).
+6. **판 `data-kb-docked` + 입력 중 아래 여백 `max(12px, var(--safe-bottom))`**(데모 키보드 모형에는 없던 셸 규칙).
+7. ★ **409 `TURN_RUNNING` 문구**는 계약이 턴 중 호출을 막기로 할 때만 쓴다(데모에 없음).
+
+Leader 확인:
+- **A. 턴 진행 중 호출** — ✅ **닫힘(2026-10-11 사용자 결정)**: QUEUED·THINKING 동안 도우미 버튼을 잠근다(화면만, 서버 `TURN_RUNNING` 409 는 두지 않음). 이유: QA-B2 에서 턴 직후 약 1초 안에 도우미를 부르면 턴 첫 음성 p50 2.42→5.83s. SPEAKING 은 허용.
+- **B. 한도** — 글자 수 100·429 분당/하루 값은 prompt-engineer·Leader 확정값으로 `helperCopy.ts` 상수만 바꾼다.
+- **C. 원문 미보관** — 화면은 질의 초안도 저장하지 않는다. 저장소에 남는 값은 `kaiwa.talk.helperTipSeen='1'` 하나(reviewer 확인 대상).
+- **D. 앱 WebView 키보드** — `KeyboardInset` 주석상 앱(Android 15 edge-to-edge)은 키보드 인셋을 받지 않아 `data-kb` 가 켜지지 않는다 [가능성 높음]. 그 경우 판 본문이 키보드 위에서 숨지 않고, 입력 줄이 키보드에 가려지는지는 Composer 와 같은 기존 한계다 — 실기기 확인(H11).
 

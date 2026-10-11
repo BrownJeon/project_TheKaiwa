@@ -103,7 +103,7 @@ const typeAndSend = (text: string): Act => async (p) => {
 
 const STATES: State[] = [
   // ── 방 ──
-  { id: 'rp-open-first', mocks: { [K29]: chat29(OPENING) }, expect: ['점원 역', '마치기', '목표', '원하는 온도·크기로 음료를 주문해요', '4단계 · 표현 0/4', '선생님은 점원, 나는 손님이에요. 선생님이 먼저 말을 걸어요.', '대화 순서', '0/4 · 2개 이상 쓰면 돼요', '대답 연습', '무엇을 말할지 막히면 눌러요'], absent: ['●', '✓'] },
+  { id: 'rp-open-first', mocks: { [K29]: chat29(OPENING) }, expect: ['점원 역', '마치기', '목표', '원하는 온도·크기로 음료를 주문해요', '4단계 · 표현 0/4', '선생님은 점원, 나는 손님이에요. 선생님이 먼저 말을 걸어요.', '대화 순서', '0/4 · 2개 이상 쓰면 돼요', '대답 연습', '선생님 말에 맞는 대답 예시를 봐요'], absent: ['●', '✓'] },
   { id: 'rp-open-me', mocks: { [K29]: chat29([]) }, expect: ['나는 손님이에요.', '먼저 말을 걸어 보세요', '이렇게 시작해 보세요:', 'アイスでお願いします'], absent: ['대답 연습', '선생님이 먼저 말을 걸어요.'] },
   { id: 'rp-fromlesson', mocks: { [K29]: chat29(OPENING, { lesson: { id: 'L1', title: '카페 표현' } }) }, expect: ['오늘 수업 「카페 표현」에서 이어져요.'] },
   { id: 'rp-mid', mocks: { [K29]: chat29(MID, { progress: { usedIds: ['k1', 'k2'], stepIndex: null } }) }, expect: ['4단계 · 표현 2/4', '대답 연습'], absent: ['대화 순서'] },
@@ -127,11 +127,11 @@ const STATES: State[] = [
   { id: 'es-noturns', mocks: { [K29]: chat29(MID), [KFIN]: fail(409, 'CONFLICT', { reason: 'NO_TURNS' }) }, sheet: true, act: seq(tap('마치기'), tap('마치고 결과 보기')), expect: ['아직 한 마디도 하지 않았어요', '그만두기'] },
   { id: 'es-turnrunning', mocks: { [K29]: chat29(MID), [KFIN]: fail(409, 'CONFLICT', { reason: 'TURN_RUNNING' }) }, act: seq(tap('마치기'), tap('마치고 결과 보기')), expect: ['선생님 대답이 끝나면 마칠 수 있어요'], absent: ['역할극을 마칠까요?'] },
   // ── 대답 연습 ──
-  { id: 'pr-entry', mocks: { [K29]: chat29(OPENING) }, expect: ['대답 연습', '무엇을 말할지 막히면 눌러요'] },
+  { id: 'pr-entry', mocks: { [K29]: chat29(OPENING) }, expect: ['대답 연습', '선생님 말에 맞는 대답 예시를 봐요'] },
   { id: 'pr-choose', mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: openPractice, expect: ['고르기', '말하기', '따라 하기', '빈칸에 들어갈 말을 골라 보세요', '아이스커피 주세요', 'ホットコーヒー', 'アイスコーヒー', 'ジュース'] },
   { id: 'pr-choose-wrong', mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: seq(openPractice, tap('ホットコーヒー')), expect: ['다시 골라 보세요'] },
   { id: 'pr-choose-right', mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: seq(openPractice, tap('アイスコーヒー')), expect: ['✓ 맞아요', '이제 이 문장을 말해 보세요 — 아래 버튼을 누른 채로.'], absent: ['입력창에 넣기'] },
-  { id: 'pr-choose-text', session: TEXT_MODE, mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: seq(openPractice, tap('アイスコーヒー'), tap('입력창에 넣기')), probes: [{ sel: 'textarea[aria-label="메시지 입력"]', attr: 'value', includes: 'アイスコーヒーをください' }], expect: ['무엇을 말할지 막히면 눌러요'] },
+  { id: 'pr-choose-text', session: TEXT_MODE, mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: seq(openPractice, tap('アイスコーヒー'), tap('입력창에 넣기')), probes: [{ sel: 'textarea[aria-label="메시지 입력"]', attr: 'value', includes: 'アイスコーヒーをください' }], expect: ['선생님 말에 맞는 대답 예시를 봐요'] },
   { id: 'pr-say', session: { 'kaiwa.rp.practiceMode': 'say' }, mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: openPractice, expect: ['이 뜻을 일본어로 말해 보세요', '힌트', '정답 보기', '아래 버튼을 누른 채로 말해요'] },
   { id: 'pr-say-hint', session: { 'kaiwa.rp.practiceMode': 'say' }, mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: seq(openPractice, tap('힌트'), tap('정답 보기')), expect: ['차가운 커피', 'アイスコーヒーをください'] },
   { id: 'pr-repeat', session: { 'kaiwa.rp.practiceMode': 'repeat' }, mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: openPractice, expect: ['듣고 따라 말해 보세요', '▶ 듣기', '아래 버튼을 누른 채로 따라 말해요'], absent: ['입력창에 넣기'] },
@@ -141,7 +141,7 @@ const STATES: State[] = [
   { id: 'pr-404', mocks: { [K29]: chat29(OPENING), [KPR]: fail(404, 'NOT_FOUND') }, panel: true, act: openPractice, expect: ['대답 예시를 만들지 못했어요.', '다시 시도'] },
   { id: 'pr-rate', mocks: { [K29]: chat29(OPENING), [KPR]: fail(429, 'RATE_LIMITED', { retryAfterSec: 30 }) }, panel: true, act: openPractice, expect: ['초 뒤 다시 눌러 주세요.'] },
   { id: 'pr-busy', mocks: { [K29]: chat29(OPENING), [KPR]: fail(409, 'CONFLICT', { reason: 'TURN_RUNNING' }) }, panel: true, act: openPractice, expect: ['선생님 말이 끝나면 다시 눌러 주세요.'] },
-  { id: 'pr-stale', mocks: { [K29]: chat29(OPENING), [KPR]: fail(409, 'CONFLICT', { reason: 'NOT_LATEST' }) }, act: openPractice, expect: ['새 말이 와서 연습을 닫았어요', '무엇을 말할지 막히면 눌러요'], absent: ['빈칸에 들어갈 말을 골라 보세요'] },
+  { id: 'pr-stale', mocks: { [K29]: chat29(OPENING), [KPR]: fail(409, 'CONFLICT', { reason: 'NOT_LATEST' }) }, act: openPractice, expect: ['새 말이 와서 연습을 닫았어요', '선생님 말에 맞는 대답 예시를 봐요'], absent: ['빈칸에 들어갈 말을 골라 보세요'] },
   { id: 'pr-kb', session: TEXT_MODE, mocks: { [K29]: chat29(OPENING), [KPR]: ok(PRACTICE) }, panel: true, act: seq(openPractice, (p) => p.evaluate(() => (document.documentElement.dataset.kb = 'open'))), expect: ['ください'], absent: ['빈칸에 들어갈 말을 골라 보세요', 'ホットコーヒー'] },
 ]
 
