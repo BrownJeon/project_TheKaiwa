@@ -84,6 +84,17 @@ demo_gate:
 - 구현 지점(코드 확인 2026-10-11): `sessions.ts` `insertSession`(:352 — `mode==='CHOICE'` 일 때만 `choices` 를 만들던 것을 `FLIP` 에도), `recordAttempt`(:692 — `choice` 시도의 `s.mode !== 'CHOICE'` 400 을 `FLIP` 허용으로, `flip` 시도의 `s.mode !== 'FLIP'` 400 은 유지), `replayVocabSession`(:869~ — 새 세트 방식), 라우트 기본 `mode`, `toCardDto`(FLIP 카드에 `choices` 노출), 주제 세트 경로(`createTopicVocabSession` — 같은 `insertSession`).
 - **L1 판단(Leader)**: FLIP 세트는 이미 뜻을 처음부터 싣고 있어 `choices` 가 정답을 더 드러내지 않는다. 「정답은 서버만 안다」(§5-0 3)는 `CHOICE` 세트에만 남기고 채점은 계속 서버 — reviewer 가 이 판단을 감사한다. **L2**(#50 혼합 수용)·**L3**(`choices` 없음 → 객관식 숨김 + 안내)·**L4**(#53 새 방식)는 위 명세로 확정. **L5·L6**(자리표시 `TODAY_CARD_H` 재측정 — 홈 카드가 약 75px 낮아짐 `[추측]`, `kaiwa.vocab.mode` 정리, `keyAction` C 키, 듣기 버튼 접근 이름, 덱용 짧은 실패 문구)는 구현 지시에 포함.
 
+**구현 가이드**: `docs/screens.md` **§23**(designer, 2026-10-11, §5 에는 21곳 대체 표시만) — 우선순위 = 이 이력서 「확정 결정」 > §23 > 데모. 개발 분담·순서·함정은 §23-10.
+
+**Leader 결정 (가이드 §23-12 의 확인 요청, 2026-10-11)**
+1. **이전 뒤집기 세트와 카드 우선 세트는 구분하지 않는다.** 둘 다 `FLIP` 이고 이전 뒤집기 세트는 카드 `choices` 가 없어 객관식이 자연히 숨겨져 동작 차이가 없다 → API 필드를 추가하지 않고, 방식 이름은 **이전 4지선다(`CHOICE`)에만** 붙인다. (승인 데모 G 탭의 보관 줄 「· 뒤집기 카드」 표기는 앱에서 나오지 않는다 — 표시상 사소한 차이, 사용자에게 배포 확인 때 고지.)
+2. **#50 둘 다 보내면**: 계약을 코드에 맞춘다 — 서버 변경 없이 `parseAttemptBody` 의 `one_answer`(두 번째 답 필드)가 그대로(계약 갱신 완료).
+3. **#47 기본 mode** 서술 충돌: 앞 줄을 「기본 FLIP」으로 정정(계약 갱신 완료).
+4. **계획표 날짜 시트의 「(뒤집기)」**: finish 의 `StudyLog.summary` 방식 문구를 `CHOICE` → 「보기 고르기」, 그 밖(`FLIP`) → **「카드」** 로 바꾼다(`sessions.ts:831`). 응답 모양·카운터·통계 변경 없음, 이전 기록은 그대로(계약 #51 에 명시 완료).
+5. **기존 시험 수정 허용 범위(완료 기준 2 개정)**: ① `todaySkeleton.test.ts` — 실측 상수 갱신 ② `seedButtons.test.ts:47`·`topicLogic.test.ts:206·208` — 카드 props `mode`·`onMode` 삭제에 따른 속성 줄 삭제(단언 변경 없음) ③ 종료 요약 문구를 단언하는 기존 시험(있다면)의 문자열만 ④ **(Dev-S 요청, Leader 승인 2026-10-11)** `task008.test.ts:169`(`parseCreateSessionBody({})` 기본 mode `'CHOICE'`→`'FLIP'`) · `task042.test.ts:689·696`(주제 CHOICE 세트 다시 풀기 — 새 세트 mode `'FLIP'`, 696 은 `c.choices?.length === 4 && c.meaning === <원 카드 뜻>`: 보기 4개 단언 유지 + 뜻 실림 단언). `task042.test.ts:644·645·646`(#47 본문 검증의 기본 `mode: 'CHOICE'`→`'FLIP'`, 같은 원인). **일반 기준(Dev-S 에게 전달)**: 기존 시험이 깨지는 원인이 (a) `mode` 생략 기본값 (b) 다시 풀기 새 세트 방식 (c) 종료 요약 문구 중 하나이고 고치는 내용이 기대값 문자열/모드 값 교체뿐(단언 수·강도 유지)이면 진행·기록, 그 밖의 원인은 수정 말고 Leader 보고. 사유 표는 `task-059-dev-s-record.md`. **계약 문구**: FLIP 세트의 「보기 없는 카드」는 `choices:null` 이 아니라 **키 생략**(기존 FLIP 동작·`task008.test.ts:136` strict undefined 유지, 화면 `hasChoices` 가 undefined·null·[] 를 같게 봄). **그 밖의 기존 시험은 수정 없이 통과해야 하며, reviewer 가 diff 로 단언이 약해지지 않았는지 확인한다.**
+6. **재생 버튼 해석**: 표시 설정(히라가나·한글)은 카드 글자에만 적용되고 소리는 같은 일본어 문장을 읽는다(designer 해석 수용).
+7. **높이 위험(§23-7 B, `[추측]`)**: 주제 세트 + 알림 + 객관식 답한 뒤 + 360×740 에서 카드가 하한 200 아래로 가는지 — QA Q4 실측 후 결정.
+
 ## 하지 않는 것
 - 스와이프 제스처·판정 변경, 스키마 변경(DB 추가는 사용자 승인 사항), 단어 가중(task-053)·세트 생성 로직 변경, TTS 엔진/음성 설정 변경, 챌린지·주제 세트의 규칙 변경(화면 공유 범위 확인만).
 

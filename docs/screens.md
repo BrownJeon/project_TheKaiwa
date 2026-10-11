@@ -1299,14 +1299,16 @@ loading ; busy ; errors ; dup
 
 ## 5. 오늘의 단어 (task-008)
 
+> **task-059(IMP-0011, 2026-10-11) 로 일부 대체됨 → §23.** 푸는 방식 선택 제거 · 카드 탭 → 객관식 · 뜻 보기 면 단어·예문 듣기 · 답한 방식대로 기록(D0~D8). 대체·보완된 줄 끝에 `[task-059 → §23-x]` 표시가 있고 전체 목록은 §23-1 B 표다. 충돌하면 §23 이 우선한다.
+
 ### 5-0. 한눈에 보는 결정
 
 1. 경로 2개: 오늘 홈 `/study/today` → 덱·결과 `/study/today/words/[sessionId]`. 결과는 **같은 경로**에서 세트 상태(`DONE`)로 갈라 그린다(§11 의 `(+result)` 를 경로로 나누지 않는다 — 새로고침·재방문·보관 세트 열기가 한 곳에서 끝난다). 덱·결과 화면은 하단 탭을 숨기고 `BackBar` 를 쓴다.
-2. 오늘 홈의 "오늘의 단어" 카드는 상태 5가지다. **준비**(장수·방식·분류 → [시작하기]) / **풀던 세트 있음**(E3: [이어서 풀기]·[여기서 끝내기]) / **빈 단어장**([{L} 단어 {n}개 넣기]·(목표 수준 보조)·[단어 직접 추가], §19) / **오늘 풀 단어 없음** / 오류. 레슨·평가는 "곧 열려요" 카드이고 Phase·task 번호는 보이지 않는다.
-3. **정답은 서버만 안다.** 덱은 답을 보낸 뒤 #50 응답(`answer`·`correctText`·예문)으로만 정답·오답을 그린다. 미리 표시하거나 낙관적으로 채점하지 않는다. 보기 버튼은 누르는 순간 "확인 중"이 되고, 응답(보통 0.1~0.3초)이 오면 뒤집힌다.
+2. 오늘 홈의 "오늘의 단어" 카드는 상태 5가지다. **준비**(장수·방식·분류 → [시작하기]) / **풀던 세트 있음**(E3: [이어서 풀기]·[여기서 끝내기]) / **빈 단어장**([{L} 단어 {n}개 넣기]·(목표 수준 보조)·[단어 직접 추가], §19) / **오늘 풀 단어 없음** / 오류. 레슨·평가는 "곧 열려요" 카드이고 Phase·task 번호는 보이지 않는다. **[task-059 → §23-2]**
+3. **정답은 서버만 안다.** 덱은 답을 보낸 뒤 #50 응답(`answer`·`correctText`·예문)으로만 정답·오답을 그린다. 미리 표시하거나 낙관적으로 채점하지 않는다. 보기 버튼은 누르는 순간 "확인 중"이 되고, 응답(보통 0.1~0.3초)이 오면 뒤집힌다. **[task-059 → §23-4]**
 4. 덱 구조: 제스처 영역(가운데 80%, 3장 스택)은 **카드 면만** 담는다. 보기 4버튼·알았어요/몰랐어요·도구 줄은 **제스처 영역 밖**에 둔다. `touchend preventDefault` 가 그 영역 안의 버튼 click 을 죽이고, 뒤집힌 직후 새로 생긴 버튼에 떨어지는 유령 클릭도 막기 때문이다.
 5. 제스처(bjj 이식): 탭 10px 미만 / 위로 −80px = **다시 볼 카드 표시 토글**(카드는 넘어가지 않는다) / 왼쪽 60px = 다음(**답한 뒤에만**, 안 답했으면 튕겨 돌아오고 안내) / 오른쪽 60px = 이전 카드(읽기 전용). 모든 제스처는 버튼·키보드로도 할 수 있다(1~4·Space·Enter·←/→·F).
-6. 조작 수(12초/장): CHOICE 는 보기 1탭 + [다음 카드] 1탭(또는 왼쪽 밀기). FLIP 은 카드 탭(뒤집기) + [알았어요/몰랐어요] 1탭이고, 응답이 오면 **다음 카드로 자동으로 넘어간다**(뒷면을 이미 봤기 때문). 10장이면 조작 약 20번.
+6. 조작 수(12초/장): CHOICE 는 보기 1탭 + [다음 카드] 1탭(또는 왼쪽 밀기). FLIP 은 카드 탭(뒤집기) + [알았어요/몰랐어요] 1탭이고, 응답이 오면 **다음 카드로 자동으로 넘어간다**(뒷면을 이미 봤기 때문). 10장이면 조작 약 20번. **[task-059 → §23-3]**
 7. 카드 뒷면 = 표현·읽기 + 결과 띠(맞았어요/틀렸어요/건너뛴 카드) + 정답 뜻 + 예문(+번역). 카드 영역은 스크롤할 수 없으므로(`touch-action:none`) 예문은 2줄·번역 1줄로 자르고, 전체는 결과 화면·단어 상세에서 본다.
 8. 결과 화면: 맞힘/틀림/건너뜀·걸린 시간·다시 볼 카드 수 → [이 세트 보관]·(보관 세트면 [다시 풀기]) → 틀린 단어·다시 볼 카드 목록(→ 단어 상세) → [오늘로]. 진행 중에 나가도 답한 카드는 이미 저장돼 있다. 오늘 홈이 "풀던 세트는 저장했어요" 토스트와 이어 풀기 카드로 안내한다.
 9. **FLIP 뒷면 데이터는 계약 공백이다**(§5-11 ①). 권장안(FLIP 세트 카드에 뜻·예문 포함)이 확정되기 전에는 카드에 `meaning` 이 있을 때만 "뒤집기 → 자기 채점"으로 동작하고, 없으면 "자기 채점 → 뒷면"으로 동작하게 만든다(§5-2 D).
@@ -1320,7 +1322,7 @@ loading ; busy ; errors ; dup
 | 역할별 가시성 | 로그인 사용자 전원. 타인 세트 id → #49 404 → "세트를 찾을 수 없어요" |
 | 앱/웹 분기 | 없음 |
 | 하단 탭 | 오늘 홈은 보임. 덱·결과(`/study/today/words/`)는 **숨김**(TabBar `HIDDEN_PREFIXES` 추가) |
-| 음성 | 소리 버튼 없음(E9). 자리는 덱 도구 줄의 [읽기]와 [표시] 사이, 결과 화면 단어 행 오른쪽(렌더하지 않음) |
+| 음성 | 소리 버튼 없음(E9). 자리는 덱 도구 줄의 [읽기]와 [표시] 사이, 결과 화면 단어 행 오른쪽(렌더하지 않음) **[task-059 → §23-5]** |
 | TTS 상태 표시등 | 없음(강사 아바타가 없는 화면) |
 
 ### 5-2. UI 구조 (의사코드, 390px 기준)
@@ -1375,8 +1377,8 @@ FinishConfirmSheet · Toast
 | 상태 | 내용 |
 |---|---|
 | `loading` | 머리줄 + "불러오는 중…"(ink2, `role=status`) — **※ task-046 이후: 글자 대신 같은 높이 몸통 자리표시(`CardLoadingBody`)를 그린다. §17 참고** |
-| `ready` | 설명 2줄 · (오늘 끝낸 세트 ≥1) "오늘 {n}세트를 끝냈어요 · 맞힘 {Σc}/{Σ장}" · 라벨 "장수"(12.5px ink2) + `Segmented sm` `[5,10,15,20,30] ∪ {dailyWordCount}` 오름차순, 기본 `dailyWordCount` · 라벨 "방식" + `Segmented sm` `[4지선다 CHOICE \| 뒤집기 카드 FLIP]` · 라벨 "분류" + `CategoryChips basis=active`(분류가 1개 이하면 줄 생략) · [시작하기] primary full(요청 중 "만드는 중…" + `aria-busy`) · 400 이면 버튼 아래 12px bad 서버 문구 |
-| `inProgress` | "풀던 세트가 있어요"(15px semibold) · "{오늘\|M월 D일} 시작 · {mode 라벨} · {cardCount}장 중 {answered}장 답함"(13px ink2) · "답한 카드는 저장돼 있어요."(12px ink2) · (시작일 ≠ 오늘) "지난 날 시작한 세트예요. 끝내면 그날 기록으로 남아요."(12px ink2) · 버튼: `answered < cardCount` → BtnRow [이어서 풀기](primary) [여기서 끝내기](ghost) / `answered === cardCount` → [결과 보기](primary full, #51) |
+| `ready` | 설명 2줄 · (오늘 끝낸 세트 ≥1) "오늘 {n}세트를 끝냈어요 · 맞힘 {Σc}/{Σ장}" · 라벨 "장수"(12.5px ink2) + `Segmented sm` `[5,10,15,20,30] ∪ {dailyWordCount}` 오름차순, 기본 `dailyWordCount` · 라벨 "방식" + `Segmented sm` `[4지선다 CHOICE \| 뒤집기 카드 FLIP]` · 라벨 "분류" + `CategoryChips basis=active`(분류가 1개 이하면 줄 생략) · [시작하기] primary full(요청 중 "만드는 중…" + `aria-busy`) · 400 이면 버튼 아래 12px bad 서버 문구 **[task-059 → §23-2]** |
+| `inProgress` | "풀던 세트가 있어요"(15px semibold) · "{오늘\|M월 D일} 시작 · {mode 라벨} · {cardCount}장 중 {answered}장 답함"(13px ink2) · "답한 카드는 저장돼 있어요."(12px ink2) · (시작일 ≠ 오늘) "지난 날 시작한 세트예요. 끝내면 그날 기록으로 남아요."(12px ink2) · 버튼: `answered < cardCount` → BtnRow [이어서 풀기](primary) [여기서 끝내기](ghost) / `answered === cardCount` → [결과 보기](primary full, #51) **[task-059 → §23-9]** |
 | `empty` (단어 0) | "단어장이 비어 있어요" · "오늘의 단어는 내 단어장에서 골라요. {L} 기본 단어로 바로 시작해 볼까요?" · [{L} 단어 {n}개 넣기](primary full, `useSeedPack`) · (목표 수준이 있을 때) [목표 수준 {L} 단어 {n}개 넣기](ghost full) · [단어 직접 추가](ghost full → `/drawer/words?add=1`) · (보관 단어 > 0) "보관한 단어 {n}개는 오늘의 단어에 나오지 않아요 · 단어장에서 보기 ›"(Link 44px) |
 | `poolEmpty` | #47 가 `empty` 를 준 경우. 변형은 아래 |
 | `error` | ErrorBlock(§5-8 ⓐ) + 다시 시도 |
@@ -1394,7 +1396,7 @@ FinishConfirmSheet · Toast
   - `empty` → `poolEmpty`.
   - 409 `details.sessionId` → #49 로 그 세트를 읽어 `inProgress` + 토스트 "풀던 세트가 있어요. 이어서 풀거나 끝내 주세요."
 - [여기서 끝내기] → `FinishConfirmSheet`(§5-2 F) → #51 → `router.push('/study/today/words/' + id)`(DONE 이라 결과 화면).
-- 방식·분류의 마지막 선택은 `localStorage kaiwa.vocab.mode`·`kaiwa.vocab.category` 에 저장한다(분류가 사라졌으면 전체). 장수는 저장하지 않고 늘 `dailyWordCount` 에서 시작한다(설정이 기준).
+- 방식·분류의 마지막 선택은 `localStorage kaiwa.vocab.mode`·`kaiwa.vocab.category` 에 저장한다(분류가 사라졌으면 전체). 장수는 저장하지 않고 늘 `dailyWordCount` 에서 시작한다(설정이 기준). **[task-059 → §23-2]**
 
 **VocabStatsCard**(#54 `?days=30`, `byCount` 가 비면 섹션을 그리지 않는다)
 ```
@@ -1425,7 +1427,7 @@ SectionHeader "보관한 세트"  right={nextCursor ? <button 44px>더 보기</b
   </li>
 </ul>
 ```
-- [다시 풀기] → #53 → `kaiwa.vocab.notice.{newId}` 에 `{ downgraded: session.downgraded ? 'deleted' : null }` → push 새 덱. 409 → 토스트 "풀던 세트를 먼저 끝내 주세요" + #49 로 `inProgress` 전환 + 카드로 스크롤.
+- [다시 풀기] → #53 → `kaiwa.vocab.notice.{newId}` 에 `{ downgraded: session.downgraded ? 'deleted' : null }` → push 새 덱. 409 → 토스트 "풀던 세트를 먼저 끝내 주세요" + #49 로 `inProgress` 전환 + 카드로 스크롤. **[task-059 → §23-4]**
 
 **TodayComingSoon**
 ```
@@ -1524,7 +1526,7 @@ FLIP:
 
 | 조건 | 문구 |
 |---|---|
-| sessionStorage notice `downgraded:'few'` | 뜻이 서로 다른 단어가 4개보다 적어서 이번엔 뒤집기 카드로 풀어요. |
+| sessionStorage notice `downgraded:'few'` | 뜻이 서로 다른 단어가 4개보다 적어서 이번엔 뒤집기 카드로 풀어요. **[task-059 → §23-8]** |
 | notice `downgraded:'deleted'` | 지운 단어가 있어서 이번엔 뒤집기 카드로 풀어요. |
 | `cardCount < requestedCount` 이고 답한 카드 0 | 풀 수 있는 단어가 {cardCount}개라 {cardCount}장으로 만들었어요. |
 | 들어왔을 때 이미 답한 카드 ≥1 | 이어서 풀어요 · {k}장은 이미 답했어요. (4초 뒤 자동으로 사라짐) |
@@ -1580,7 +1582,7 @@ notice 는 읽은 즉시 sessionStorage 에서 지운다(새로고침하면 다�
 - 보기 글(한국어 뜻)은 `lang` 없음, 2줄에서 자른다. 전체 글은 `aria-label` 에 넣는다.
 - 정답 보기는 응답의 `correctText` 와 문자열이 같은 보기다(E6 로 보기 4개의 뜻은 서로 다르다).
 
-**DeckControls — FLIP `FlipControls`**: 앞면 [뜻 보기](primary full 52px) · 뒷면 미답 BtnRow [알았어요][몰랐어요](각 52px, `h-[52px]` 로 덮어씀) · 응답 대기 중엔 두 버튼 `aria-disabled` + 누른 버튼 "기록 중…". 답한 카드(이전 카드 보기)에서는 버튼 대신 한 줄 "{알았어요|몰랐어요|건너뛴 카드}로 기록했어요"(13px ink2).
+**DeckControls — FLIP `FlipControls`**: 앞면 [뜻 보기](primary full 52px) · 뒷면 미답 BtnRow [알았어요][몰랐어요](각 52px, `h-[52px]` 로 덮어씀) · 응답 대기 중엔 두 버튼 `aria-disabled` + 누른 버튼 "기록 중…". 답한 카드(이전 카드 보기)에서는 버튼 대신 한 줄 "{알았어요|몰랐어요|건너뛴 카드}로 기록했어요"(13px ink2). **[task-059 → §23-3]**
 
 **DeckToolbar**(`grid gap-2`, 버튼은 아이콘 + 12px 라벨 세로 배치 44px 이상, `ink` 글자)
 
@@ -1594,11 +1596,11 @@ notice 는 읽은 즉시 sessionStorage 에서 지운다(새로고침하면 다�
 - [가 읽기]는 읽기 값이 없거나 표현과 같으면 `aria-disabled`(이유: "이 카드는 읽기가 따로 없어요").
 - [☆ 표시]: 켜짐은 채운 별(accent) + 라벨 "표시됨", 꺼짐은 빈 별 + "표시".
 - [건너뛰기] → #50 `{ order, skipped: true }` → 뒷면(결과 띠 "건너뛴 카드") + [다음 카드].
-- 소리 버튼 자리는 [가 읽기]와 [☆ 표시] 사이다(E9 — 지금은 그리지 않고 `grid-cols-4` 유지).
+- 소리 버튼 자리는 [가 읽기]와 [☆ 표시] 사이다(E9 — 지금은 그리지 않고 `grid-cols-4` 유지). **[task-059 → §23-5]**
 
 **GestureHint**(12px ink2, 한 줄, `aria-hidden` — 스크린리더에는 버튼이 같은 기능을 한다)
 - 터치(`matchMedia('(pointer: coarse)')`): `← 밀어 다음 · → 밀어 이전 · ↑ 밀어 표시`(화살표 = 손가락 방향).
-- 정밀 포인터: `1~4 고르기 · → 다음 · ← 이전 · F 표시`(FLIP 은 `Space 뒤집기 · 1 알았어요 · 2 몰랐어요 · → 다음`).
+- 정밀 포인터: `1~4 고르기 · → 다음 · ← 이전 · F 표시`(FLIP 은 `Space 뒤집기 · 1 알았어요 · 2 몰랐어요 · → 다음`). **[task-059 → §23-6]**
 - 막힌 동작이 있으면 이 줄을 2초 동안 안내로 바꾼다(`role=status`): "먼저 답을 골라 주세요" / "알았어요·몰랐어요를 먼저 골라 주세요" / "첫 카드예요" / "다시 볼 카드로 표시했어요" / "표시를 뺐어요".
 - **bjj 힌트 문구를 복사하지 않는다.** bjj 는 `← 이전 · 다음 →` 로 적혀 있지만 실제로는 왼쪽으로 밀면 다음이다(문구와 동작이 반대).
 - 덱 화면은 하단 `Toast`(bottom 84px)를 쓰지 않는다. 보기·도구 줄을 가리기 때문이다. 알림은 이 줄과 DeckNotice 로만 한다.
@@ -1620,7 +1622,7 @@ notice 는 읽은 즉시 sessionStorage 에서 지운다(새로고침하면 다�
 바꾸는 것
 | bjj | TheKaiwa |
 |---|---|
-| 탭 → 상세 열기 | 탭 → FLIP 앞면이면 뒤집기, CHOICE 앞면이면 읽기 토글, 뒷면이면 아무것도 안 함 |
+| 탭 → 상세 열기 | 탭 → FLIP 앞면이면 뒤집기, CHOICE 앞면이면 읽기 토글, 뒷면이면 아무것도 안 함 **[task-059 → §23-3]** |
 | 위 −80 → 카드를 위로 날리고(`translateY(-120%)`) 다음 카드 | 위 −80 → **표시(flagged) 토글만**. 카드는 넘어가지 않고 16px 위로 튀었다 돌아온다(160ms). ★ 가 켜지거나 꺼진다 |
 | 왼쪽 → 다음(`min(i+1, n−1)`) | 왼쪽 → `canNext` 일 때만 다음. 카드가 왼쪽으로 날아가고(`translateX(-120%) rotate(-8deg)`, opacity 0, 180ms) `view+1`. 안 되면 튕겨 돌아오고 GestureHint 안내 |
 | 오른쪽 → 이전 | 오른쪽 → `view > 0` 이면 이전(읽기 전용). 새 카드는 opacity 120ms 로 나타난다 |
@@ -1634,7 +1636,7 @@ notice 는 읽은 즉시 sessionStorage 에서 지운다(새로고침하면 다�
 - `prefers-reduced-motion: reduce` → 회전·날아가기·튀기 없음, opacity 120ms 전환만.
 - 스택 영역: `role="group" aria-roledescription="카드" aria-label="{view+1}번째 카드, 모두 {n}장"`. 카드가 바뀌면 sr-only live 영역(`aria-live=polite`)에 "{n}번째 카드, {surface}"(surface 는 `lang=ja` span), 답 응답이 오면 "맞았어요. 정답 {correctText}" / "틀렸어요. 정답 {correctText}" 를 알린다.
 
-키보드(document `keydown`, `VocabDeck` 마운트 동안)
+키보드(document `keydown`, `VocabDeck` 마운트 동안) **[task-059 → §23-6]**
 | 키 | CHOICE | FLIP |
 |---|---|---|
 | `1`~`4` | 지금 카드·안 답함 → 그 보기 선택 | `1` 알았어요 · `2` 몰랐어요(뒷면일 때) |
@@ -1648,7 +1650,7 @@ notice 는 읽은 즉시 sessionStorage 에서 지운다(새로고침하면 다�
 무시 조건: 대상이 `input/textarea/select/[contenteditable]` · 시트가 열림 · `e.isComposing` · `ctrl/meta/alt` · `e.repeat` · 초점이 `button`/`a` 인데 `Space`/`Enter`(버튼 자신의 클릭과 이중 실행 방지).
 초점: 답 응답 후 [다음 카드]로, 새 카드가 되면 첫 보기(CHOICE) 또는 [뜻 보기](FLIP)로 `focus({ preventScroll: true })`. 포커스 링은 `focus-visible` 에서만 보이므로 터치 사용자에게는 보이지 않는다.
 
-#### D. 한 장의 흐름 (두 모드)
+#### D. 한 장의 흐름 (두 모드) **[task-059 → §23-3]**
 
 ```
 CHOICE:  앞면 ──(보기 탭 / 1~4)──▶ pending ──#50──▶ 뒷면(결과 띠·정답 뜻·예문) + 보기 표시 ──(다음 / ← 밀기 / →키)──▶ 다음 카드
@@ -1662,7 +1664,7 @@ FLIP(대체, 카드에 meaning 없음):
 - 대체 흐름에서는 탭이 뒤집기가 아니라 읽기 토글이다. 어느 흐름인지는 `card.meaning != null`(세트 전체가 같다)로 정한다.
 - `responseMs` = 그 카드가 **지금 카드로 보인 시각부터** 답을 누른 시각까지(`document.hidden` 인 동안·지난 카드를 보는 동안은 멈춤), `min(60000, round(ms))`. 서버 범위 0~60,000 밖은 400 이라 반드시 자른다. 건너뛰기에는 보내지 않는다.
 
-#### E. 결과 화면 — `VocabResult` (세트가 `DONE`)
+#### E. 결과 화면 — `VocabResult` (세트가 `DONE`) **[task-059 → §23-9]**
 
 ```
 BackBar backHref="/study/today" backLabel="오늘로" title="세트 결과" subtitle="{M월 D일} · {mode 라벨} · {cardCount}장" sticky
@@ -1768,7 +1770,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 | 11 | (서버 컴포넌트) `preferences.getProfile` | — | 오늘 홈 기본 장수 | — | `dailyWordCount`(5~30, 기본 10) | — |
 | 46 | `/api/v1/words/categories` | GET | 분류 칩·빈 단어장 판정·poolEmpty 구분 | — | `category,count,archivedCount` | 오늘 홈 `error` |
 | 46b | `/api/v1/words/seed-pack` | POST | 빈 상태 [{L} 단어 {n}개 넣기]·목표 수준 보조 | `{pack: SeedPack}`(§19-3) | `added,skipped` | 토스트 `actionErrorText`(§19-4 D) |
-| 47 | `/api/v1/vocab/sessions` | POST | [시작하기]·[전체로 풀기] | `{count, mode, category}`(`category` 는 `null` = 전체) | `session.{id,downgraded,cardCount,requestedCount}` / `empty.reason` | 409 `details.sessionId` → inProgress · 400 서버 문구 · 그 외 §5-8 ⓐ |
+| 47 | `/api/v1/vocab/sessions` | POST | [시작하기]·[전체로 풀기] | `{count, mode, category}`(`category` 는 `null` = 전체) | `session.{id,downgraded,cardCount,requestedCount}` / `empty.reason` | 409 `details.sessionId` → inProgress · 400 서버 문구 · 그 외 §5-8 ⓐ **[task-059 → §23-4]** |
 | 48 | `/api/v1/vocab/sessions` | GET | 진행 중 찾기·오늘 끝낸 수 / 보관한 세트·더 보기 | `limit=10` / `kept=1&limit=5&cursor=` | `items[].{id,date,mode,cardCount,correctCount,wrongCount,skippedCount,status,keptAt,replayOfId}` · `nextCursor` | 최근: `error` / 보관: 섹션 숨김 |
 | 49 | `/api/v1/vocab/sessions/:id` | GET | 덱 로드·이어 풀기·결과·홈의 답한 수 | — | `session`, `cards[].{order,wordId,surface,reading,choices,flagged,answered,answer,correctText,chosenText,example,exampleKo?,meaning?}` | 404 → notFound 화면 |
 | 50 | `/api/v1/vocab/sessions/:id/attempts` | POST | 보기·알았어요/몰랐어요·건너뛰기·표시 | CHOICE `{order, chosenText, responseMs, flagged}` · FLIP `{order, selfResult:'CORRECT'\|'WRONG', responseMs}` · `{order, skipped:true}` · 표시 `{order, flagged}` | `answer,correctText,chosenText,example,exampleKo,answeredAt` / 표시: `flagged` | §5-3 A 표 |
@@ -1851,7 +1853,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 | 오늘 끝냄 | 오늘 {n}세트를 끝냈어요 · 맞힘 {c}/{t} |
 | 라벨 | 장수 / 방식 / 분류 |
 | 장수 | {n}장 (aria: 카드 장수) |
-| 방식 | 4지선다 / 뒤집기 카드 (aria: 푸는 방식) |
+| 방식 | 4지선다 / 뒤집기 카드 (aria: 푸는 방식) **[task-059 → §23-8]** |
 | 시작 | 시작하기 / 만드는 중… |
 | 풀던 세트 | 풀던 세트가 있어요 / {오늘\|M월 D일} 시작 · {방식} · {N}장 중 {k}장 답함 / 답한 카드는 저장돼 있어요. / 지난 날 시작한 세트예요. 끝내면 그날 기록으로 남아요. / 이어서 풀기 / 여기서 끝내기 / 결과 보기 |
 | 409(시작) | 풀던 세트가 있어요. 이어서 풀거나 끝내 주세요. |
@@ -1905,7 +1907,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 
 | 값 | 라벨 |
 |---|---|
-| VocabMode `CHOICE` / `FLIP` | 4지선다 / 뒤집기 카드 |
+| VocabMode `CHOICE` / `FLIP` | 4지선다 / 뒤집기 카드 **[task-059 → §23-8]** |
 | VocabAnswer `CORRECT` / `WRONG` / `SKIPPED` | 맞힘 / 틀림 / 건너뜀 (뱃지 good / bad / neutral) |
 | 날짜 | 오늘 / 어제 / M월 D일 (KST) |
 | 걸린 시간 | {s}초 / {m}분 {s}초 |
@@ -1919,7 +1921,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 - [ ] 덱·결과에서 하단 탭이 숨겨지고, 오늘 홈에서는 보인다.
 
 제스처(실기기 Chrome — 헤드리스 불가면 NOT_VERIFIED + 사용자 폰 확인 항목)
-- [ ] 탭(10px 미만) = FLIP 뒤집기 / CHOICE 읽기 토글, 위로 80px 넘게 = 표시 토글(카드는 그대로), 왼쪽 60px 넘게 = 답한 뒤에만 다음, 오른쪽 = 이전.
+- [ ] 탭(10px 미만) = FLIP 뒤집기 / CHOICE 읽기 토글, 위로 80px 넘게 = 표시 토글(카드는 그대로), 왼쪽 60px 넘게 = 답한 뒤에만 다음, 오른쪽 = 이전. **[task-059 → §23-11]**
 - [ ] 안 답한 카드를 왼쪽으로 밀면 저항(×0.25) 후 튕겨 돌아오고 "먼저 답을 골라 주세요".
 - [ ] 카드 탭으로 뒤집은 직후 [알았어요]가 **저절로 눌리지 않는다**(touchend preventDefault).
 - [ ] 카드 좌우 바깥 10% 에서 세로로 밀면 페이지가 움직일 수 있다(카드 위에서는 페이지가 움직이지 않는다).
@@ -1957,7 +1959,7 @@ inProgress: { session: VocabSessionInfo; answered: number } | null ; poolEmptyKi
 - **날짜**: "오늘"은 서버가 정한 `session.date` 를 따른다. 화면의 KST 계산은 "오늘/어제" 라벨과 WeekStrip 표시에만 쓴다.
 - **빈 상태**: 단어 0 · 오늘 다 풂 · 분류에 없음 · 보관 세트 0(섹션 숨김) · 통계 0(섹션 숨김)을 모두 구현한다.
 - **엔진명**: 오류 문구는 §5-8 표만 쓴다. `traceId` 는 렌더·콘솔에 남기지 않는다.
-- **저장소 차단**: `kaiwa.vocab.*` 키는 전부 try/catch. 실패하면 기본값(CHOICE·전체·읽기 켬·notice 없음)으로 동작한다.
+- **저장소 차단**: `kaiwa.vocab.*` 키는 전부 try/catch. 실패하면 기본값(CHOICE·전체·읽기 켬·notice 없음)으로 동작한다. **[task-059 → §23-2]**
 - **12초 리듬**: 카드마다 타이머·재촉 문구를 보이지 않는다(부담을 주지 않는다). 리듬은 조작 수(카드당 2번)로 맞춘다.
 
 ### 5-11. Leader 확인 요청 (§4·§5 공통 — 계약 공백·해석·전역 변경)
@@ -10084,3 +10086,480 @@ Leader 확인:
 - **C. 원문 미보관** — 화면은 질의 초안도 저장하지 않는다. 저장소에 남는 값은 `kaiwa.talk.helperTipSeen='1'` 하나(reviewer 확인 대상).
 - **D. 앱 WebView 키보드** — `KeyboardInset` 주석상 앱(Android 15 edge-to-edge)은 키보드 인셋을 받지 않아 `data-kb` 가 켜지지 않는다 [가능성 높음]. 그 경우 판 본문이 키보드 위에서 숨지 않고, 입력 줄이 키보드에 가려지는지는 Composer 와 같은 기존 한계다 — 실기기 확인(H11).
 
+## 23. 오늘의 단어 — 카드 우선 방식 통합 (task-059, IMP-0011, 2026-10-11)
+
+> 승인 데모: `docs/demo/task-059-today-words-card-first-v1.html` (v1) — sha256 `5ee92a5850232c1aabe270522a3a6bd1240e9dde16f36c60e59911af1cd7a671`, 토큰 `src/app/globals.css@sha256:a314f18f1807`(2026-10-11 지금 파일과 같음 확인). 사용자 승인 2026-10-11 22:37, 원문 「task-059 데모 v1 승인, D0~D8은 권고대로」. 데모를 처음 열면 그려지는 권고안(D0~D8 모두 A)이 곧 승인안이다.
+> **우선순위: task 이력서 「확정 결정」 표(D0~D8)·「서버 명세」 > 이 절 > 데모.** 데모는 합성 5장(Q9 예시)·시스템 글꼴·`pointer` 이벤트 흉내라 **수치는 비교용**이고, 문구·간격·색 토큰·상태 구성은 데모가 기준이다. 데모와 다르게 쓴 곳·Leader 확인은 23-12 에 모았다.
+> 이 절은 §5(task-008)의 일부를 **대체·보완**한다(대체 줄 목록 23-1 B). §5 의 나머지(제스처 이식 §5-2 C, 요청 큐, 결과 화면 구조, 끝내기 시트 등)는 그대로 유효하다. 이력서: `agent-vault/10-Flow/tasks/task-059-improve-today-words-card-first.md`, 데모 기록: `task-059-designer-record.md`.
+> 적용 토큰(이름만, 새 색 없음): `--color-ground` · `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3` · `--color-line` · `--color-accent` · `--color-on-accent` · `--color-accent-soft` · `--color-good` · `--color-good-soft` · `--color-bad` · `--color-bad-soft`. 공용 부품: `BackBar` · `Btn`·`BtnRow`·`Card`(`common/ui.tsx`) · `JaText`·`HangulLine` · `SkeletonRegion`.
+> **스키마·네이티브 변경 없음** → 웹 배포만. 서버 변경은 이력서 「서버 명세」(Leader 확정)대로 — 이 절은 화면이 기대는 계약만 인용한다(23-4).
+
+### 23-0. 레이아웃 설계 (page-layout-designer — delta 범위, 데모 기록 그대로)
+
+| 항목 | 내용 |
+|---|---|
+| 목표 | 방식을 고르지 않고 카드로 바로 풀되, 헷갈리면 같은 카드에서 객관식으로 확인하고, 뜻 보기 면에서 단어·예문을 듣는다. 스와이프는 그대로 |
+| 주요 위계(덱) | 카드(표현) → 카드 아래 듣기 줄(뜻 보기 면만) → 힌트 한 줄 → 답하는 버튼(앞면 [뜻 보기]·[객관식] / 보기 4개 / [알았어요]·[몰랐어요]) → 도구 줄 |
+| 주요 위계(오늘 홈) | 장수 → (분류) → [시작하기] — 방식 줄 없음 |
+| 영역 | 제스처 영역(카드 면만, 버튼 없음)과 버튼 영역(카드 밖)의 분리는 지금 그대로(§5-0 4). **새 버튼(객관식·듣기)은 모두 카드 밖** |
+| 컴포넌트 | 기존 `ChoiceList`·`FlipControls`(앞면 두 버튼으로 확장)·`DeckToolbar`(그대로)·`GestureHint`(문구 계산 밖으로)·`VocabCardFace`(안내·띠만) + 새 `DeckListenRow`·순수 모듈 `cardFirst.ts` |
+| 상태 | 앞면(보기 닫힘/열림) · 확인 중 · 객관식 정답/오답 · 뜻 보기 면(답 전/기록 중/스스로 답함) · 건너뜀 · 지난 카드 · 보기 없는 세트 · 이전 세트(4지선다/뒤집기) · 소리 7종 · 답 저장 실패 · 섞인 결과 |
+| 반응형 | 360/390/412 모두 덱 스크롤 0. 카드 높이 340 상한, 객관식으로 답한 뒤에만 듣기 줄만큼 작아진다(데모 실측 −40px) |
+
+### 23-1. 한눈에 보는 결정 · §5 에서 대체되는 줄
+
+#### A. 확정 결정(D0~D8 = 구현 기준)
+
+| # | 확정 | 화면에 미치는 것 | 이 절 | 데모 탭 |
+|---|---|---|---|---|
+| D0 | 스와이프 지금 그대로 | 위 = 다시 볼 카드 표시 · 왼쪽 = 다음(답한 뒤에만) · 오른쪽 = 이전. 알았어요/몰랐어요는 뜻 보기 면 **버튼**만. 스와이프로는 채점하지 않는다 | 23-3 | E |
+| D1 | 앞면 탭 = 객관식 열기/닫기 + [객관식] 버튼 | 탭 판정(10px 미만)·판정 순서·임계는 그대로, 「탭이 하는 일」만 바뀜. 뜻 보기 면·답한 카드는 탭해도 그대로 | 23-3 | B·D |
+| D2 | 객관식 = 머묾 + [다음 카드] · 스스로 = 0.4초 뒤 자동 | 두 경로 모두 지금 코드 동작(4지선다·뒤집기) 그대로 | 23-3 | D·C |
+| D3 | 카드 바로 아래 한 줄 [단어 듣기][예문 듣기] | 예문 없음·100자 초과면 [단어 듣기]만. 카드 안에는 버튼 없음 | 23-5 | C·I |
+| D4 | 모든 제스처에 화면 버튼·키(새 C 키) + 초점 이동·화면 읽기 알림 | `keyAction` 확장, 초점 목표 1종 추가 | 23-6 | B |
+| D5 | 합산 타일 그대로 + 섞였을 때만 구분 한 줄 | `chosenText` 유무로 화면이 센다(새 API 필드 없음) | 23-9 C | F |
+| D6 | 이전 세트는 시작한 방식 화면 그대로 + 듣기 버튼, 다시 풀기는 새 방식 | 이전 세트용 서버 변경 없음, #53 만 새 방식 | 23-9 A | G |
+| D7 | 도구 줄 4칸 그대로 | 앞면 버튼 8개(4지선다) → 6개 | 23-3 | B |
+| D8 | 시작 카드 설명 문구 그대로 | 「카드를 넘기며 뜻을 맞혀요. 틀린 단어일수록 자주 나와요.」 유지 | 23-7 | A |
+
+#### B. §5 에서 대체·보완되는 줄 (줄 번호 = 이 절을 넣은 뒤의 `docs/screens.md`, 해당 줄 끝에 `[task-059 → §23-x]` 표시)
+
+| §5 위치 | 줄 | 지금 서술 | task-059 이후 | 이 절 |
+|---|---|---|---|---|
+| §5-0 2 | 1307 | 준비 = 장수·**방식**·분류 | 장수·분류 → [시작하기] | 23-2 |
+| §5-0 3 | 1308 | 정답은 서버만 안다(모든 세트) | **CHOICE 세트에만**. 카드 우선(FLIP) 세트는 뜻이 처음부터 오지만 채점 표시는 여전히 #50 응답으로만 | 23-4 |
+| §5-0 6 | 1311 | 모드별 조작 수 | 카드마다 답한 방식(객관식 2탭+[다음] / 스스로 2탭 자동) | 23-3 |
+| §5-1 음성 | 1325 | 소리 버튼 없음(E9) | 뜻 보기 면 카드 아래 듣기 줄 | 23-5 |
+| §5-2 A `ready` | 1380 | 「방식」 라벨 + `Segmented` | 삭제 | 23-2 |
+| §5-2 A 저장 | 1399 | `kaiwa.vocab.mode` 저장 | 읽지도 쓰지도 않음(정리) | 23-2 |
+| §5-2 A `inProgress` | 1381 | 「{mode 라벨}」 | 이전 4지선다 세트만 방식 이름 | 23-9 |
+| §5-2 A 다시 풀기 | 1430 | `downgraded` → notice `deleted` | 보기 없는 세트 → notice `noChoice` | 23-4 |
+| §5-2 B DeckNotice | 1529 | 「…이번엔 뒤집기 카드로 풀어요.」 | 새 세트는 「…이번엔 객관식 없이 풀어요.」(이전 세트 문구는 유지) | 23-8 |
+| §5-2 B FlipControls | 1585 | 앞면 [뜻 보기] 한 개 | 보기가 있으면 [뜻 보기][객관식] | 23-3 |
+| §5-2 B 소리 자리 | 1599 | 도구 줄 [읽기]·[표시] 사이(그리지 않음) | 도구 줄은 그대로 4칸, 소리는 카드 아래 듣기 줄 | 23-5 |
+| §5-2 B GestureHint | 1603 | 모드별 고정 문구 | 카드 상태별 문구(정밀 포인터), 소리 안내 줄 | 23-6 |
+| §5-2 C 바꾸는 것 | 1625 | 탭 → FLIP 뒤집기 / CHOICE 읽기 | 카드 우선 세트: 탭 → 객관식 열기/닫기 | 23-3 |
+| §5-2 C 키보드 | 1639 | C 키 없음 | C 키·보기 열림 때 1~4 | 23-6 |
+| §5-2 D 한 장의 흐름 | 1653 | 두 모드 흐름 | 23-3 상태 머신이 대체(이전 세트는 §5-2 D 그대로) | 23-3 |
+| §5-2 E 결과(머리) | 1667 | 부제 `{mode 라벨}` · FLIP 이면 「알았어요」 | 객관식 답이 하나라도 있으면 「맞혔어요」 + 섞였을 때 한 줄 | 23-9 |
+| §5-4 #47 | 1773 | `{count, mode, category}` | `{count, category}` — `mode` 를 보내지 않는다 | 23-4 |
+| §5-8 ⓐ 방식 | 1856 | 방식 라벨·aria 「푸는 방식」 | 삭제 | 23-8 |
+| §5-8 ⓓ 라벨 | 1910 | VocabMode 라벨 늘 표시 | 이전 4지선다 세트에만 | 23-8 |
+| §5-9 제스처 | 1924 | 탭 = FLIP 뒤집기 / CHOICE 읽기 | 23-11 표 | 23-11 |
+| §5-10 저장소 | 1962 | 기본값 CHOICE | `kaiwa.vocab.mode` 없음 | 23-2 |
+
+그대로 유효(바꾸지 않음): §5-0 4(제스처 영역 밖 버튼)·§5-0 5(제스처 의미)·§5-2 B 카드 안 버튼 금지(「카드 안에는 버튼을 두지 않는다」)·§5-2 C 「그대로 옮기는 것」 표 전부·저항·reduced-motion·§5-3 요청 큐·타이머·§5-2 E 보관·목록 구조·§5-2 F 끝내기 시트.
+
+### 23-2. 파일 지도 (경로·줄은 2026-10-11 코드에서 확인 — [확실], 「미확인」 표시 제외)
+
+| 구분 | 파일 | 할 일 |
+|---|---|---|
+| **고치지 않음** | `src/components/vocab/SwipeCardStack.tsx` | **0줄 변경.** 탭(<10)·위(dy<−80)·좌우(\|dx\|>60) 판정, 저항, `touchend preventDefault`(:162-167), 3장 스택, `touch`+`mouse` 이벤트 구성, `locked` 시 드래그 무시 모두 그대로. 탭이 하는 일은 부모(`VocabDeck.onTap`)가 정한다 |
+| 고치지 않음 | `deck.ts` 의 `classifyGesture`·`resistX`·`TAP_MAX`·`UP_MIN`·`SIDE_MIN`·`RESIST`·`FLY_MS` | 기존 시험(`deck.test.ts` 9/10·79/80·59/60) 그대로 통과해야 한다 |
+| 고치지 않음 | `wordSound.ts` · `useWordSound.ts` · `WordSoundButton.tsx` | `talk/PhraseHelperCard.tsx`(task-056 다른 세션)·`scenario/*` 가 import 한다. **읽어 쓰기만**, 덱용 모양·문구는 새 `cardFirst.ts` 에 |
+| 고치지 않음 | `useAttemptQueue.ts` | 이미 `send(body)` 범용 — FLIP 세트의 `chosenText` 본문도 그대로 보낸다(본문을 만드는 곳은 `useVocabDeck.choose`). `AttemptBody`(`src/types/vocab.ts:225`)에 `{order, chosenText, responseMs, flagged?}` 형태가 이미 있다 |
+| 고치지 않음 | `logic.ts` · `validate.ts` · `DeckProgress.tsx` · `DeckToolbar.tsx` · `FinishConfirmSheet.tsx` · `ChallengeStrip.tsx` | 방식(`mode`) 참조 없음(grep 확인). `ChallengeStrip` 에는 방식 줄이 **원래 없다** — 데모 H 의 방식 줄은 `TopicWordsCard` 쪽이다 |
+| 고치지 않음 | `src/types/vocab.ts` 의 모양 | `VocabCard.choices?: string[] \| null`(:198)·`CreateSessionBody.mode?`(:163)·`AttemptBody`·`VocabSessionInfo.downgraded?` 가 이미 새 계약을 받는다. 주석(:190-191 「FLIP 카드는 … choices 없음」 류)만 고쳐도 된다 |
+| 새로 | `src/components/vocab/cardFirst.ts` | 순수 규칙·문구 단일 출처(23-3·23-8): `hasChoices`·`answeredBy`·`isNoChoiceSet`·`methodTally`·`modeTag`·`frontHint`·`fixedHint`·`blockedNextHint`·`deckSoundView`·`DECK_SOUND_MSG`·`CARD_FIRST`(문구) |
+| 새로 | `src/components/vocab/DeckListenRow.tsx` | 뜻 보기 면 카드 아래 듣기 줄(23-5) — 표시만, 상태는 `VocabDeck` 의 `useWordSound()` |
+| 새로(시험) | `src/components/vocab/__tests__/cardFirst.test.ts` | 23-10 C |
+| 바꿈 | `src/components/vocab/deck.ts` | `KeyContext` 에 선택 필드 `choices?: 'none' \| 'closed' \| 'open'`(기본 `'none'` = 지금 동작), `KeyIntent` 에 `{ type: 'choices' }`, `letterIs` 에 `'C'`. `pickNotice` 의 `stored` 에 `'noChoice'` 추가(최우선, `few`·`deleted` 와 같은 자리), `DeckNotice` 유니온에 `{ kind: 'noChoice' }` |
+| 바꿈 | `src/components/vocab/useVocabDeck.ts` | `DeckCard.open?: boolean`(로컬, `flipped` 와 같은 규칙으로 `refresh` 때 유지 :132-133) · `toggleChoices(from: 'tap'\|'btn'\|'key')` 새 함수 · `choose` 가드(:379 `mode !== 'CHOICE'`)를 「CHOICE 세트 또는 (FLIP·보기 있음·열림)」으로 · `flip` 이 `open=false` 도 함께 · `next` 의 막힘 문구를 `blockedNextHint` 로 · `FocusTarget.kind` 에 `'choicesBtn'` · notice 읽기(:152-158)에 `'noChoice'` · `hint` 를 `{ text, tone }` 으로(`HINT.saveFailed`·`flagFailed`·`finishFailed` = `'bad'`, 나머지 `'neutral'` — 23-12 ⑩, `HINT` 문구는 그대로) |
+| 바꿈 | `src/components/vocab/VocabDeck.tsx` | `onTap`(:137-141)을 23-3 C 규칙으로 · 아래 버튼 영역 고르기(:193-208)를 23-3 D 로 · `useWordSound()` + `DeckListenRow` 를 카드 무대(:164-191)와 `GestureHint`(:192) 사이에 · 부제(:149) `MODE_LABEL[mode]` → `modeTag(mode)` · 키 처리(:65-124)에 `choices` 문맥과 `'choices'` 의도 · 소리 멈춤 효과(23-5) |
+| 바꿈 | `src/components/vocab/VocabCardFace.tsx` | 앞면 안내(:171-175)를 `frontHint(...)` 로, 보기 열림이면 카드 테두리 `border-accent`(지금 `border-line`, :149) · 결과 띠(:180 `resultBand(card.answer, mode)`)를 카드별 방식으로 — `resultBand(card.answer, answeredBy(card, mode) === 'choice' ? 'CHOICE' : 'FLIP')`(함수 시그니처 그대로). **안에 버튼 넣지 않음** |
+| 바꿈 | `src/components/vocab/FlipControls.tsx` | 선택 prop `onChoices?: () => void`·`choicesRef?` — 있으면 앞면을 [뜻 보기](primary)·[객관식](ghost) 두 칸으로(23-3 D). 없으면 지금 그대로(full 한 칸) |
+| 그대로 재사용 | `src/components/vocab/ChoiceList.tsx` | 0줄 변경으로 충분하다 [가능성 높음] — 보기 표시는 `card.choices`·`card.pending`·`card.chosen`·`markChoice`(응답 `correctText` 기준)만 본다. 카드 우선 세트의 「보기 열림」·「객관식으로 답함」에도 그대로 쓴다 |
+| 바꿈 | `src/components/vocab/GestureHint.tsx` | props 를 `{ fixed: string; message: { text: string; tone: 'bad' \| 'neutral' } \| null }` 로(문구 계산은 `cardFirst.fixedHint`). 늘 마운트된 `role=status` 줄 + `role=alert` 줄 두 개(23-6) |
+| 바꿈 | `src/components/vocab/DeckNotice.tsx` | `noChoice` 문구(23-8) |
+| 바꿈 | `src/components/vocab/TodayWordsCard.tsx` | `MODE_OPTIONS`(:24-27)·「방식」 라벨+`Segmented`(:194-195) 삭제, props `mode`·`onMode` 삭제, `InProgressBody`(:255) `MODE_LABEL[s.mode]` → `modeTag(s.mode)` |
+| 바꿈 | `src/components/vocab/TopicWordsCard.tsx` | `MODE_OPTIONS`(:20-23)·`modePicker`(:85-90, 사용처 :140·:161) 삭제, props `mode`·`onMode` 삭제 |
+| 바꿈 | `src/components/vocab/TodayHome.tsx` | `MODES`(:62)·`useStoredPref(VOCAB_KEYS.mode…)`(:79) 삭제 · #47 본문(:221) `{ count, category: cat }` · 시작 후 notice(:223)·다시 풀기 notice(:289)를 23-4 D 규칙으로 · `writeTopicStart`(:352)에서 `mode` 빼기 · `wordsCardProps.mode/onMode`(:361·:376)·`TopicWordsCard` 의 `mode`/`onMode`(:416·:421) 삭제 · 마운트 때 옛 키 지우기 한 줄(23-2 하단) |
+| 바꿈 | `src/components/vocab/KeptSets.tsx` | 행 제목(:72) `· {MODE_LABEL[s.mode]}` → `modeTag` 규칙(23-9 A) |
+| 바꿈 | `src/components/vocab/VocabResult.tsx` | `MODES`·`prefMode`(:31·:66) 삭제, `writeTopicStart`(:150)에서 `mode` 빼기 · 부제(:156) `modeTag` · 제목 동사(:161) · 구분 한 줄(23-9 C) · 다시 풀기 notice(:107) 23-4 D |
+| 바꿈 | `src/components/vocab/WordResultList.tsx` | 섞인 세트일 때만 방식 뱃지(23-9 C) — 선택 prop `methodOf?: (card) => …` 또는 `mixedMode?: VocabMode`(이름은 developer) |
+| 바꿈 | `src/components/vocab/topicLogic.ts` | `TopicStartToken.mode` 를 선택(`mode?`)으로, `parseTopicStart`(:297)는 「없으면 통과, 있는데 CHOICE·FLIP 이 아니면 null」(기존 시험 :178 `mode:'X'` → null 유지) |
+| 바꿈 | `src/components/vocab/topicSetStart.ts` | `TopicStartBody.mode` 를 선택으로(기존 시험이 넣어 보냄 — 그대로 통과), `done` 상태에 `noChoice?: true`(값이 있을 때만 키를 둔다 — 기존 시험 :69 `deepEqual` 유지, 23-4 D) |
+| 바꿈 | `src/components/vocab/useTopicSetStart.ts` | 본문(:49) `{ topicId, count }` — **토큰의 `mode` 는 읽어도 보내지 않는다**(배포 직전 옛 화면이 남긴 60초 토큰 방어) · notice(:58) 23-4 D |
+| 바꿈 | `src/components/vocab/TopicSetStart.tsx` · `topicCopy.ts` | 대기 화면 부제(:165) `WAIT.subtitle(title, MODE_LABEL[token.mode], count)` → 방식 없이 `‘제목’ · 10장`(`WAIT.subtitle` 인자에서 mode 제거) · `WORDS_CARD.modeLabel`(:39) 삭제 · `REASON.noChoice`(★ 23-8) 추가 |
+| 바꿈 | `src/components/vocab/hooks.ts` | `VOCAB_KEYS.mode`(:19) 삭제 대신 주석 「task-059 로 폐기 — 마운트 때 지움」(지우는 코드가 이 키를 쓰므로 키 값은 남긴다) |
+| 바꿈 | `src/components/vocab/todaySkeletonSizes.ts` · `__tests__/todaySkeleton.test.ts` · (경계가 바뀌면) `TodaySkeleton.tsx` `H_CLASS.word` | 23-7 재측정 |
+| 바꿈(시험, 속성 삭제만) | `__tests__/seedButtons.test.ts:47` · `__tests__/topicLogic.test.ts:206·208` | 카드 props 에서 `mode`·`onMode` 가 없어지므로 객체에서 두 줄 삭제(단언 변경 없음 — 23-12 ⑤) |
+| 서버(Dev-S) | `src/modules/learning/vocab/sessions.ts` · `src/app/api/v1/vocab/sessions/route.ts`(주석 :28) | 이력서 「서버 명세」 그대로(23-4 E) |
+
+**옛 저장값 정리(L5)**: `TodayHome` 마운트 효과에서 `writeStore('local', VOCAB_KEYS.mode, null)` 한 번(`common/storage.ts` — try/catch 내장). 다른 곳은 이 키를 읽지도 쓰지도 않는다. `kaiwa.vocab.category`·`readingDefault` 는 그대로.
+
+### 23-3. 카드 상태 머신 (카드 우선 세트 = `session.mode==='FLIP'`)
+
+#### A. 판별 함수 (`cardFirst.ts`, 화면 전체가 이것만 쓴다)
+
+| 함수 | 규칙 |
+|---|---|
+| `hasChoices(card)` | `Array.isArray(card.choices) && card.choices.length > 0` — `undefined`(이전 뒤집기 세트)·`null`(보기 없는 새 세트)·`[]` 모두 「없음」 |
+| `answeredBy(card, mode)` | 안 답함 → `null` · `SKIPPED` → `'skip'` · `mode==='CHOICE'` → `'choice'` · `card.chosenText != null` → `'choice'` · 그 밖 → `'self'` |
+| 세트 종류 | `mode==='CHOICE'` → **이전 4지선다 세트**(§5 그대로 + 듣기 줄) · `mode==='FLIP'` + 카드에 보기 있음 → **카드 우선** · `mode==='FLIP'` + 보기 없음 → **보기 없는 세트**(이전 뒤집기 세트와 화면이 같다 — 구분 불가, 23-12 ①) |
+
+#### B. 상태 표 (카드 우선 세트, 지금 카드 = `view === frontier`)
+
+| 상태 | 카드 면 | 아래 영역 | 카드 탭(10px 미만) | [객관식]·C | [뜻 보기]·Space·Enter | 보기·1~4 | [알았어요]/[몰랐어요]·1/2 | 왼쪽 밀기·→·[다음 카드] |
+|---|---|---|---|---|---|---|---|---|
+| F0 앞면·닫힘 | 앞면 + 안내 「카드를 누르면 객관식으로 골라요」 | [뜻 보기][객관식] + 도구 4칸 | → F1 (초점 이동 없음) | → F1, 초점 첫 보기 | → B0, 초점 [알았어요] | 무시 | 무시 | 막힘 「뜻 보기나 객관식으로 먼저 답해 주세요」 + 튕김(×0.25 저항) |
+| F1 앞면·보기 열림 | 앞면 **테두리 accent** + 안내 「카드를 다시 누르면 객관식을 닫아요」 | 보기 4개(`ChoiceList`) + 도구 4칸 | → F0 | → F0, 초점 [객관식](C·버튼일 때만) | Space·Enter 무시(버튼이 없다) | → P | 무시 | 막힘 「먼저 답을 골라 주세요」 |
+| P 확인 중 | F1 그대로 | 누른 보기 「확인 중…」, 나머지 `aria-disabled` | 드래그·탭 시작 안 됨(`locked`) | 무시 | 무시 | 무시 | 무시 | 무시 |
+| Ac 객관식으로 답함 | 뜻 보기 면 + 띠 「✓ 맞았어요」/「✗ 틀렸어요」 + 뜻·예문 | **듣기 줄** + 보기 4개(✓ 정답/✗ 내 답, `locked`) + [이전][표시][다음 카드] | 무시 | 무시 | Space·Enter → 다음 | 무시 | 무시 | → 다음 카드(자동 아님, D2). 소리 멈춤 |
+| B0 뜻 보기 면·답 전 | 뜻 보기 면(띠 없음) | **듣기 줄** + [알았어요][몰랐어요] + 도구 4칸 | 무시 | 무시 | 무시 | 무시 | → Ps | 막힘 「알았어요·몰랐어요를 먼저 골라 주세요」 |
+| Ps 기록 중 | B0 그대로 | 누른 버튼 「기록 중…」 | `locked` | 무시 | 무시 | 무시 | 무시 | 무시 |
+| As 스스로 답함 | 띠 「✓ 알았어요」/「✗ 몰랐어요」 | 듣기 줄 + 「알았어요로 기록했어요」 | — | — | — | — | — | **0.4초 뒤 자동 다음**(그 카드를 보고 있을 때만, 지금 `FLIP_AUTO_NEXT_MS`) |
+| Ak 건너뜀 | 띠 「건너뛴 카드」 | 듣기 줄 + 「건너뛴 카드로 기록했어요」 + [이전][표시][다음 카드] | 무시 | 무시 | → 다음 | 무시 | 무시 | → 다음 |
+| 지난 카드 | 답한 상태 그대로(읽기 전용) | Ac/As/Ak 와 같은 아래 영역(`locked`) | 무시 | 무시 | → 다음 | 무시 | 무시 | → 다음 |
+
+모든 상태 공통: 오른쪽 밀기·←·[이전] = 이전 카드(첫 카드면 「첫 카드예요」) · 위 밀기·F·↑·[표시] = 다시 볼 카드 토글(카드 안 넘어감) · R·[읽기] = 읽기 토글(앞면·안 답한 카드의 도구 줄에만 버튼) · S·[건너뛰기] = 안 답한 지금 카드면 건너뛰기(**F1 에서도** — 보기를 닫고 Ak).
+
+- **객관식 ↔ 뜻 보기 (데모 결정)**: F1 에서는 [뜻 보기] 버튼이 없고 Space 도 먹지 않는다 → 뜻을 보려면 먼저 닫는다(카드 탭·C). **B0(뜻을 본 뒤)에서는 객관식을 열 수 없다**(탭·C 무시) — 뜻을 본 카드를 객관식으로 「맞히는」 일이 없게. 보기를 열어도 고르기 전에는 아무것도 기록하지 않는다.
+- 보기 없는 세트: F0 앞면 안내 「탭하면 뜻이 보여요」, 아래 [뜻 보기] 한 칸(full), 탭 → B0, C 무시 — 지금 뒤집기 카드와 같다. 막힘 문구는 「알았어요·몰랐어요를 먼저 골라 주세요」(23-12 ⑦).
+- `open` 은 카드별 로컬 상태다(서버에 없음). 이전 카드로 갔다 돌아와도 유지, `visibilitychange` 의 #49 다시 읽기(`refresh`)에서도 `flipped` 와 같이 유지, 새로고침(새 마운트)에서는 닫힘. 답이 오면 `open=false`(보기는 `answeredBy==='choice'` 라서 계속 보인다).
+
+#### C. `VocabDeck.onTap` (지금 :137-141 을 바꾼다)
+
+```
+onTap():
+  if side === 'back' → return                                  // 뜻 보기 면·답한 카드: 그대로(D1)
+  if !isCurrent || answered || card.pending → return
+  if mode === 'CHOICE' → deck.toggleReading()                  // 이전 4지선다 세트: 지금 동작
+  else if hasChoices(card) → deck.toggleChoices('tap')         // 카드 우선: 열기/닫기, 초점 이동 없음
+  else if peekable → deck.flip()                               // 보기 없는 세트·이전 뒤집기 세트: 지금 동작
+  else → deck.toggleReading()                                  // 뜻 없는 FLIP(대체 흐름): 지금 동작
+```
+
+#### D. 아래 버튼 영역 고르기 (지금 :193-208 `mode === 'CHOICE' ? ChoiceList : FlipControls` 를 바꾼다)
+
+```
+if mode === 'CHOICE'                                   → ChoiceList(지금 그대로)
+else if answered && answeredBy(card) === 'choice'     → ChoiceList(locked)          // Ac·지난 카드
+else if answered                                       → FlipControls(기록 한 줄)     // As·Ak
+else if card.open                                      → ChoiceList(locked = locked || !isCurrent, firstRef)
+else                                                   → FlipControls(side, peekable,
+                                                           onChoices = hasChoices(card) ? () => deck.toggleChoices('btn') : undefined,
+                                                           choicesRef)
+```
+- `FlipControls` 앞면 두 칸(데모 `brow0`): `flex gap-2 [&>*]:min-w-0 [&>*]:flex-1`, [뜻 보기] = 지금 `PRIMARY`(h-[52px]) + 정밀 포인터면 `<kbd>Space</kbd>`, [객관식] = 지금 `GHOST`(h-[52px], border line, surface) + 정밀 포인터면 `<kbd>C</kbd>`, `aria-expanded="false"`(데모 그대로 — 열리면 이 버튼 대신 보기가 그려진다). `firstRef` = [뜻 보기], `choicesRef` = [객관식].
+- 덱 도구 줄은 **그대로**(D7): 안 답한 카드 [이전][읽기][표시][건너뛰기], 답한 카드 [이전][표시][다음 카드 ›](마지막이면 [결과 보기 ›]).
+
+#### E. 탭·스와이프 불변을 지키는 구체 규칙 (`touchend preventDefault` 함정)
+
+1. **카드 면(`SwipeCardStack` 안, `renderTop`)에는 어떤 버튼도 넣지 않는다.** 터치 기기에서 `onTouchEnd` 가 `preventDefault()` 를 하므로(:163) 영역 안 버튼의 `click` 이 생기지 않는다 — [객관식]·▶ 를 카드 안에 두면 휴대폰에서 눌리지 않는다(D3 B 를 버린 이유).
+2. **`preventDefault` 를 지우거나 옮기지 않는다.** 카드 탭으로 보기가 열리면 카드 아래가 바뀐다(카드가 작아지고 그 자리에 보기·듣기 줄). `preventDefault` 가 없으면 호환 `mouse*`·`click` 이 새로 생긴 요소(보기 1번 등)에 떨어져 **누르지 않은 답이 기록될 수 있다** — 뒤집기 직후 [알았어요] 유령 클릭(§5-2 C 6)과 같은 함정.
+3. **이벤트 순서(지금 코드 — 바꾸지 않음)**: 터치 = `touchstart`(passive, `dragStart`) → `touchmove`(passive) → `touchend`(`preventDefault` → 호환 마우스·`click` 없음, `dragEnd` → `classifyGesture` → `onTap`/`onUp`/`onLeft`/`onRight`). 마우스 = `mousedown`(`preventDefault` — 초점·글자 선택 없음) → `mousemove` → `mouseup`(`dragEnd`) → `click`(카드에 떨어짐, 처리기 없음 — 해 없음). **데모의 `pointerdown/move/up` 은 데모 안 흉내일 뿐** — 앱을 `pointer` 이벤트로 바꾸지 않는다.
+4. 응답 대기(`card.pending`)·넘기는 중(`exiting`)·끝내는 중에는 `locked` 라 드래그가 시작되지 않는다(:41·`SwipeCardStack` :79) — 확인 중에 탭해 보기를 닫는 일이 없다.
+5. 보기가 열린 상태에서도 스와이프 의미는 같다: 왼쪽 = 막힘(안 답함), 오른쪽 = 이전, 위 = 표시. **보기를 열었다고 다음 카드로 갈 수 있게 되지 않는다**(답한 뒤에만 — 규칙 그대로).
+
+#### F. 흐름 요약 (§5-2 D 를 카드 우선 세트에 대해 대체)
+
+```
+카드 우선:  F0 ─탭/[객관식]/C─▶ F1 ─보기/1~4─▶ P ─#50(chosenText)─▶ Ac(머묾) ─[다음]/← 밀기/→/Enter─▶ 다음 카드
+             │                  └─탭/C─▶ F0                 └─실패 0·5xx → F1 + 힌트(빨강) · 400·409 → #49 다시 읽기
+             └─[뜻 보기]/Space─▶ B0 ─[알았어요]/[몰랐어요]/1·2─▶ Ps ─#50(selfResult)─▶ As 0.4초 ─▶ 자동 다음 카드
+건너뛰기:   F0·F1·B0 ─[건너뛰기]/S─▶ #50 {skipped:true} ─▶ Ak + [다음 카드]
+이전 세트:  §5-2 D 그대로(+ 뜻 보기 면 듣기 줄)
+```
+조작 수(12초/장, §5-0 6 대체): 객관식 = 탭 1 + 보기 1 + [다음] 1 · 스스로 = [뜻 보기] 1 + [알았어요] 1(자동 다음). `responseMs` 규칙(§5-2 D)은 두 경로 모두 그대로.
+
+### 23-4. 서버 계약 연결 (api-contract §2-10 #47·#49·#50·#53 인용 — 다시 정의하지 않는다)
+
+#### A. 요청·응답
+
+| # | 화면이 보내는 것 | 화면이 쓰는 응답 | 오류 처리 |
+|---|---|---|---|
+| 47 | 내 단어장 `{count, category}` · 주제 `{topicId, count, generate?}` — **`mode` 를 보내지 않는다**(기본 FLIP = 카드 우선) | `session.{id, mode, downgraded}` · `cards[].choices`(보기 없는 세트 판정 23-4 D) · `empty` · `generation` | 지금 그대로(§5-4) |
+| 49 | — | `session.mode` · `cards[].{order, surface, reading, choices, meaning, example, exampleKo, flagged, answered, answer, correctText, chosenText}` | 404 → notFound(그대로) |
+| 50 객관식 | `{order, chosenText, responseMs, flagged}` — 이전 4지선다 세트 **또는** 카드 우선 세트의 보기 열린 카드에서만 | `answer`·`correctText`·`chosenText`·`example`·`exampleKo`·`answeredAt` | 0·5xx → 보기 원상태 + 힌트 「저장하지 못했어요. 다시 눌러 주세요」 · 400(`not_in_choices`·`mode`·`exclusive`·형식) → #49 다시 읽기(지금 :360) · 409 → #49 다시 읽기 + 「이미 끝난 세트예요…」 |
+| 50 스스로 | `{order, selfResult, responseMs}` — FLIP 세트의 뜻 보기 면(B0)에서만 | 같음 | 같음 |
+| 50 건너뛰기·표시 | 그대로(`{order, skipped:true}` · `{order, flagged}`) | 그대로 | 그대로 |
+| 51·52 | 그대로 | 그대로 | 그대로 |
+| 53 | — | `session`·`cards`(보기 없는 세트 판정) | 409 그대로 |
+
+#### B. `chosenText` 와 `selfResult` 고르기 (한 카드에 하나만 — 화면이 보장)
+
+- 보기(`ChoiceList`)로 고른 답 → `chosenText`. [알았어요]·[몰랐어요]·1/2 → `selfResult`. 둘을 **한 본문에 같이 넣는 길은 없다**: B0 에서는 보기를 열 수 없고, 답이 오면 그 카드는 답한 카드라 다시 보낼 수 없다(`answerGuard`). 같은 `order` 재전송은 서버가 첫 결과를 돌려준다(멱등 — 지금 그대로).
+- 화면은 정답을 계산하지 않는다(L1): FLIP 세트는 `meaning` 을 처음부터 갖고 있지만 **보기 표시(✓/✗)는 #50 응답 `correctText` 로만**(`markChoice` 지금 그대로). `card.meaning === choice` 비교로 미리 칠하거나 낙관적으로 채점하지 않는다 — reviewer 감사 항목.
+
+#### C. 새로고침·이어 풀기 복원 (#49)
+
+| 카드(#49) | 그리는 상태 |
+|---|---|
+| `answered` + `answer=SKIPPED` | Ak |
+| `answered` + `chosenText != null` | **Ac**(보기 4개에 ✓ 정답/✗ 내 답, 띠 「맞았어요/틀렸어요」) — `choices` 가 같이 와야 한다(계약 #49 「FLIP 카드도 choices」) |
+| `answered` + `chosenText == null` | As(띠 「알았어요/몰랐어요」, 「…로 기록했어요」) |
+| 안 답함 | F0(로컬 `open`·`flipped` 는 새 마운트에서 사라진다 — 뒤집어 본 카드도 새로고침 뒤엔 앞면, 지금 FLIP 과 같음) |
+
+`DONE` 세트(결과 화면)도 같은 `chosenText` 유무로 방식을 센다(23-9 C).
+
+#### D. `choices:null` 세트(보기를 못 만든 경우)와 알림
+
+- 판정 `isNoChoiceSet({session, cards})` = `session.mode==='FLIP' && cards.length > 0 && cards.every((c) => !hasChoices(c))`.
+- **세트를 만든 화면이 알림 값을 남긴다**(지금 `kaiwa.vocab.notice.{id}` 방식 그대로): `TodayHome.start`(:223)·`TodayHome.replay`(:289)·`VocabResult.replay`(:107) = `isNoChoiceSet(r) ? 'noChoice' : r.session.downgraded ? (다시 풀기면 'deleted', 시작이면 'few') : ''`. 주제 세트는 `topicSetStart.ts` 가 `done` 상태에 `noChoice: true` 를 **참일 때만** 싣고 `useTopicSetStart`(:58)가 같은 규칙으로 남긴다.
+- 덱은 `pickNotice` 가 `'noChoice'` 를 `few`·`deleted` 와 같은 최우선으로 고른다. 이전 뒤집기 세트를 나중에 열 때는 남긴 값이 없으므로 알림이 뜨지 않는다(구분 불가 문제를 이 경로로 피한다).
+- 화면: [객관식] 없음 · 탭 = 뜻 보기 · 앞면 안내 「탭하면 뜻이 보여요」 · 알림 문구(23-8 ⑤). 결과는 스스로 표시만이라 「알았어요」.
+- 카드 우선 세트의 `downgraded` 는 늘 `false` 다(서버 `toSessionDto` :173 이 「요청 CHOICE → 결과 FLIP」만 강등으로 센다, 계약 #47 「downgraded 는 쓰지 않는다」). `few`·`deleted` 문구는 이전 세트에서만 보인다.
+
+#### E. 서버(Dev-S) 연결점 — 이력서 「서버 명세」 그대로, 화면이 기대는 것만
+
+`insertSession`(:352 — FLIP 에도 `pickChoices`, 하나라도 못 만들면 그 세트 전부 `null`, FLIP 은 강등 없음) · `toCardDto`(:213-231 — FLIP 카드에도 `choices`, CHOICE 미답 카드의 정답 미노출은 그대로) · `recordAttempt`(:702 — `choice` 시도를 FLIP 에 허용, :703 `flip` 시도의 CHOICE 거절 유지, :704 `not_in_choices` 는 FLIP 에도) · `parseCreateSessionBody`(:278 기본 `'CHOICE'` → `'FLIP'`) · `replayVocabSession`(:869~ — 새 세트 `FLIP`+보기, 주제 세트 경로 :888-901 포함) · 라우트 주석(`sessions/route.ts:28` 「정답 미포함(CHOICE)」). 계약과 코드가 어긋난 곳 2개는 23-12 ②③.
+
+### 23-5. 재생 버튼 (D3) — `DeckListenRow`
+
+#### A. 자리·모양 (데모 `.lrow`·`.lb` → Tailwind)
+
+```
+VocabDeck:  …카드 무대(:164-191)… → {side==='back' && (wordText || exText) ? <DeckListenRow …/> : null} → GestureHint → 아래 버튼 영역 → 도구 줄
+DeckListenRow:
+<div className="flex-none px-4 pb-1">                                   ← 무대와 같은 px-4 → 안쪽 w-[80%] = 카드 폭과 같다
+  <div className={`mx-auto -mt-1 grid w-[80%] max-w-[340px] gap-2 ${two ? 'grid-cols-2' : 'grid-cols-1'}`}>   ← 무대 py-3 − 4px = 카드와 8px
+    <button type="button" className="flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border px-2.5 text-[14px] font-semibold {look}">
+      <span aria-hidden className="grid h-6 w-6 flex-none place-items-center rounded-full {iconBg}">{▶ 12px | ■ 11px | 돌기 14px}</span>
+      <span className="min-w-0 truncate">{글자}</span>
+    </button> × (단어, 예문)
+  </div>
+  <p role="status" className="sr-only">{재생 중 알림}</p>
+</div>
+```
+
+| 모양(`deckSoundView`) | 조건 | 클래스 | 글자 | 접근 이름 |
+|---|---|---|---|---|
+| idle | 기본 | `border-line bg-surface text-ink` · 아이콘 바탕 `bg-surface2` · ▶ | 단어 듣기 / 예문 듣기 | 보이는 글자(따로 `aria-label` 없음) |
+| loading | 받는 중 | idle 모양 + 돌기(`motion-safe:animate-spin`, 줄임 설정이면 멈춘 반투명) + `aria-busy` | 불러오는 중 | 「{단어\|예문} 불러오는 중, 누르면 취소」 |
+| on | 재생 중 | `border-ink bg-ink text-surface` · 아이콘 바탕 `bg-surface text-ink` · ■ | 멈추기 | 「{단어\|예문} 소리 멈추기」 |
+| mute | 그 버튼의 안내가 자막만(422) | `border-transparent bg-surface2 text-ink2` | 단어 듣기 / 예문 듣기 | 보이는 글자 |
+| blocked | 브라우저가 막음 | idle + `ring-2 ring-accent` | 단어 듣기 / 예문 듣기 | 보이는 글자 |
+| fail | 그 버튼의 안내가 fail·slow·offline | `border-bad text-bad` (바탕 surface) | 단어 듣기 / 예문 듣기 | 보이는 글자 |
+
+- 접근 이름은 L6 결정대로 **덱 버튼만** 보이는 글자를 포함한다(상세 시트 `soundButtonView` 의 「단어 소리 듣기」는 그대로 — 고치지 않음).
+
+#### B. 읽을 글·숨김
+
+| 버튼 | 보내는 글(#23 `{ text }`) | 숨김 |
+|---|---|---|
+| 단어 듣기 | `soundText(card.surface)` | `null` 이면(빈 값·100자 초과) 버튼 없음 |
+| 예문 듣기 | `soundText(card.example)` | 예문 없음 또는 100자(코드포인트) 초과 → 버튼 없음 → 줄이 한 칸(`grid-cols-1`)이 된다 |
+
+- `card.example` 은 **평문 일본어**다 — 히라가나 루비·`[한글]` 은 카드에서 `JaText`·`useAnnotations` 가 그리는 표시 층일 뿐이라 **지울 루비가 없다** [확실 — `VocabCardFace.tsx:205` `JaText text={card.example}`]. 공백 접기·제어문자 제거는 `soundText` 가 한다.
+- **표시 설정(히라가나·한글)은 카드 글자에만** 영향을 준다. 소리는 설정과 무관하게 같은 문장을 읽는다(데모 C 메모). 빠르기·목소리는 사용자 설정(#23 에 `speechProfile`·`voiceId` 를 보내지 않음 — `useWordSound` 그대로).
+- 두 버튼이 다 없으면 줄을 그리지 않는다. 듣기 줄은 **뜻 보기 면(`side==='back'`)일 때만** — B0·Ac·As(0.4초)·Ak·지난 카드, 이전 4지선다·뒤집기 세트의 뒷면 포함(D6 A).
+
+#### C. 상태·동작
+
+- `VocabDeck` 에 `const sound = useWordSound()` 하나. 버튼 `onClick` 안에서 **동기로** `sound.tap(target, text)`(오디오 깨우기 — `useWordSound` 규칙). 소리는 한 번에 하나(다른 버튼 → 앞 소리 멈춤), 같은 버튼을 받는 중·재생 중에 다시 누르면 취소·멈춤(이때 덱 live 영역에 「소리를 멈췄어요」).
+- **멈춤**: `view` 가 바뀔 때(다음·이전·자동 다음), `exiting` 이 켜질 때, `phase` 가 `playing` 이 아니게 될 때 `sound.stop()`. 화면 가림·떠남은 훅이 이미 멈춘다(:160-169).
+- 재생 중에도 스와이프·탭은 그대로 된다(버튼이 카드 밖) — 왼쪽 밀기로 다음 카드에 가면 소리가 멈춘다. 재생 중 보기·알았어요 누름도 막지 않는다.
+- **실패 안내는 힌트 줄 한 줄**(덱은 토스트·버튼 아래 줄을 쓰지 않는다 — 높이 예산). 우선순위: 덱 막힘 힌트(2초) > 소리 안내(뜻 보기 면일 때, 다음 탭·멈춤까지 유지) > 고정 힌트. 문구 6종은 23-8 ⑧. [다시 듣기] 링크는 없다 — 같은 버튼을 다시 누르면 다시 불러온다.
+- 재생 중 알림: 듣기 줄의 sr `role=status` 에 「{단어|예문} 소리 재생 중」(`soundLine(state, target)` 의 live 글과 같다).
+- TTS 상태 표시등: 없음(강사 아바타가 없는 화면 — §5-1 그대로).
+
+### 23-6. 접근성 (D4)
+
+#### A. 키 (`deck.ts keyAction` — `KeyContext.choices` 선택 필드, 기본 `'none'` 이면 지금과 똑같다)
+
+| 키 | 이전 4지선다 세트 | 이전 뒤집기·보기 없는 세트 | 카드 우선 세트 |
+|---|---|---|---|
+| `1`~`4` | 보기 고르기 | 뒷면 1 알았어요·2 몰랐어요 | `choices:'open'` → 그 보기 · 뜻 보기 면 → 1·2 스스로 · 앞면 닫힘 → 무시 |
+| `Space`·`Enter` | 답한 카드 → 다음 | 앞면 → 뜻 보기 / 답함 → 다음 | 앞면 닫힘 → 뜻 보기 · 열림 → 무시 · 답함 → 다음 |
+| **`C`** (새) | 무시 | 무시 | 지금 카드·안 답함·앞면 → `{type:'choices'}`(열기/닫기). `code==='KeyC'` 우선(한글 자판 ㅊ 자리) |
+| `→` / `←` | 다음 / 이전 | 같음 | 같음 |
+| `F`·`↑` / `R` / `S` | 표시 / 읽기 / 건너뛰기 | 같음 | 같음(S 는 보기 열림에서도) |
+
+무시 조건(입력창·시트·조합·수정키·반복)은 그대로. 「초점이 버튼·링크면 Space/Enter 는 그 요소에 맡김」도 그대로이고, **C·숫자는 버튼 초점과 무관하게 먹는다**(데모와 같음 — 지금 숫자 규칙과 같다).
+
+#### B. 초점 이동
+
+| 동작 | 초점 |
+|---|---|
+| [객관식]·C 로 열기 | 첫 보기(`ChoiceList firstRef`) |
+| C 로 닫기 | [객관식](`choicesRef`, 새 `FocusTarget.kind: 'choicesBtn'`) |
+| 카드 탭으로 열기·닫기 | 옮기지 않음 |
+| [뜻 보기]·Space | [알았어요](지금 그대로) |
+| 객관식 답 응답 | [다음 카드](지금 그대로) |
+| 새 카드 | 첫 버튼 — 앞면이면 [뜻 보기](보기 없는 세트도), 이전 4지선다 세트면 첫 보기(지금 그대로) |
+
+모두 `focus({ preventScroll: true })`, 포커스 링은 `focus-visible` 에서만(지금 그대로).
+
+#### C. 화면 읽기 알림 (덱 `aria-live=polite` 한 곳 — 지금 `deck.announce`)
+
+| 때 | 문구 |
+|---|---|
+| 보기 열림 | 객관식 보기 4개가 나왔어요 |
+| 보기 닫힘 | 객관식을 닫았어요 |
+| 뜻 보기 | 뜻이 보여요 |
+| 객관식 답 | 맞았어요. 정답 {뜻} / 틀렸어요. 정답 {뜻} — **지금 코드 문구 그대로**(:338. 데모 「틀렸어요. 정답은 …」 이 아니라 현행) |
+| 스스로 답 | 알았어요로 기록했어요 / 몰랐어요로 기록했어요(그대로) |
+| 소리 멈춤(사용자가 누름) | 소리를 멈췄어요 |
+
+- `GestureHint` 는 늘 마운트된 줄 두 개를 둔다: `role=status`(중립 안내·막힘 힌트)와 `role=alert`(빨강 — 소리 fail·slow·offline, 답 저장 실패). **역할을 바꿔 가며 같은 요소를 다시 그리거나 새로 마운트하지 않는다**(새로 생긴 라이브 영역은 읽히지 않을 수 있다 — §22-15 5 와 같은 이유). 보이는 글은 한 줄(`truncate`, 12px, 빨강은 `text-bad font-semibold`, 중립은 `text-ink font-medium`), 고정 힌트는 `aria-hidden`(지금 그대로).
+- 카드 그룹(`role=group aria-roledescription="카드"`)은 그대로. 듣기 버튼·[객관식]은 모두 실제 `<button>`, 터치 44px 이상(듣기 44, 앞면 두 칸 52).
+- **미확인 — 실기기(TalkBack)**: 카드 영역 이중 탭이 `touch*`/`mouse*` 를 만드는지(만들면 보기 열림, 아니면 무반응). 무반응이어도 [객관식] 버튼이 같은 일을 한다. TalkBack 사용자가 연 보기를 닫는 길은 카드 탭뿐이라(버튼이 보기로 바뀜) 고르거나 [건너뛰기]로 진행해야 한다 — 데모 자체 점검 Minor ①, 이번엔 그대로(필요하면 v2).
+
+### 23-7. 자리표시·높이
+
+#### A. 오늘 홈 단어 카드 — 다시 재야 하는 상수
+
+| 무엇 | 지금 | 할 일 |
+|---|---|---|
+| `TODAY_CARD_H.word` (`todaySkeletonSizes.ts:18`) | `{ narrow: 305, wide: 285.5, narrowBelow: 370 }` — 「장수·**방식**·[시작하기]」 실측 | 방식 줄(라벨 12.5px 줄 + `mb-1.5 mt-3` + `Segmented sm`)이 빠져 **약 −75px** — 예상 ≈230/≈211 **[추측 — 데모 차이 −74.7px 와 클래스 합산]**. 예상값을 상수로 쓰지 말고 **실측값만** 쓴다 |
+| 같은 파일 주석(:13) | 「장수·방식·[시작하기]」 | 「장수·[시작하기]」 |
+| `todaySkeleton.test.ts` | :20-21 값 단언 · :35-36 `cardHeightVars('word')`·몸통값(카드 − 60.5) · :57-58 `--h-n:305px`·`--h-w:285.5px` | 새 실측값으로(몸통 = 카드 − `TODAY_CARD_CHROME_H` 60.5 — 계산식은 그대로) |
+| `TodaySkeleton.tsx:18` `H_CLASS.word` | `min-[370px]` | 재측정에서 줄바꿈 경계가 바뀌었을 때만 같이 바꾼다(시험 :28 이 상수와 리터럴을 묶는다). D8 A(설명 문구 그대로)라 370 유지 가능성이 높다 [가능성 높음] |
+| `lesson`·`eval` 상수 | — | 바꾸지 않는다 |
+
+**재는 방법(task-046 규칙 §17-1 3 ② 그대로)**: 이 브랜치의 개발 서버 + `tests/live/p3-qa-ui/flicker/t3-heights.mjs`(`ONLY=today`). 상태 = 「단어가 있는 흔한 상태」 — QA 계정에 기본 단어 50개(분류 1개 → 분류 칩 줄 없음), **진행 중 챌린지 없음**(→ `TodayWordsCard`, `TopicWordsCard` 아님), **오늘 끝낸 세트 없음**(「오늘 n세트를 끝냈어요」 줄 없음), 진행 중 세트 없음(준비 상태). 360/390/412 에서 단어 카드 `section` 의 `getBoundingClientRect().height` 를 읽고, 폭 360→416 을 4px 씩 훑어 줄바꿈이 바뀌는 지점(`narrowBelow`)을 다시 찾는다. 합격선: 공개 순간 첫 화면 블록 점프 ≤ 8px(§17-1 3 ⑥).
+- 같은 상수를 쓰는 곳: `CardLoadingBody kind="word"` — 지금 카드(`TodayWordsCard`)와 챌린지 단어 카드(`TopicWordsCard`, 실제 높이는 원래 실측 안 함 — 정책 그대로).
+- 알려진 변화: 단어 0개 계정은 이제 빈 상태(≈240+)가 자리표시보다 **커져** 아래가 조금 밀린다(§17-3 첫 줄의 반대 방향, 첫 사용자 한정) — QA 가 값만 기록.
+
+#### B. 덱 높이 (스크롤 0 유지)
+
+- 덱 레이아웃·상한(카드 `max-h-[340px] min-h-[200px]`, 덱 `min-h-[600px]`)은 그대로. 듣기 줄(44 + 위 −4 + 아래 4)이 **뜻 보기 면에서만** 생긴다.
+- 데모 실측(폭 360/390/412 × 높이 740/800/780): 앞면·뜻 보기 면 340/340/340(상한), 보기 열림 282/340/322(지금 4지선다와 같음), **객관식으로 답한 뒤 242/302/282**(지금 4지선다 답한 뒤 대비 −40). 카드가 작아지는 순간에 전환 애니메이션은 넣지 않는다(데모와 같음, 실기기에서 판단 — 데모 자체 점검 P2 ①).
+- **위험(미확인)**: 주제 세트(출처·챌린지 줄 `TopicDeckLines`) + 닫지 않은 알림(`DeckNotice`) + 객관식으로 답한 뒤 + 360×740 이 겹치면 카드가 하한 200 아래로 눌려 `main` 이 스크롤될 수 있다 [추측 — 합산]. QA 실측(23-11 Q4) → 넘치면 Leader(23-12 ⑨).
+
+### 23-8. 문구 단일 출처 (데모 원문 — 한 글자도 바꾸지 않는다. ★ = 데모에 없던 것)
+
+새 문구는 `src/components/vocab/cardFirst.ts` 의 `CARD_FIRST`·`DECK_SOUND_MSG` 한 곳(주제 세트 문구만 `topicCopy.ts`).
+
+| # | 자리 | 문구 | 상수(제안) |
+|---|---|---|---|
+| ① | 앞면 안내(보기 닫힘) | 카드를 누르면 객관식으로 골라요 | `CARD_FIRST.frontHint` |
+| ② | 앞면 안내(보기 열림) | 카드를 다시 누르면 객관식을 닫아요 | `CARD_FIRST.frontHintOpen` |
+| ③ | 앞면 버튼 | 객관식 (정밀 포인터 키 표시 `C`) | `CARD_FIRST.choicesBtn` |
+| ④ | 막힘(앞면 닫힘에서 다음) | 뜻 보기나 객관식으로 먼저 답해 주세요 | `CARD_FIRST.answerFirst` |
+| ⑤ | 알림(보기 없는 세트) | 뜻이 서로 다른 단어가 4개보다 적어서 이번엔 객관식 없이 풀어요. | `DeckNotice` 의 `noChoice`(지금 문구들과 같은 파일 안 자리) |
+| ⑤★ | 알림(보기 없는 주제 세트) | 뜻이 서로 다른 표현이 4개보다 적어서 이번엔 객관식 없이 풀어요. | `topicCopy.REASON.noChoice`(지금 `REASON.few` 의 짝) |
+| ⑥ | 듣기 버튼 | 단어 듣기 / 예문 듣기 / 불러오는 중 / 멈추기 | `CARD_FIRST.listen` |
+| ⑦ | 듣기 접근 이름 | {단어\|예문} 불러오는 중, 누르면 취소 / {단어\|예문} 소리 멈추기 | 같은 곳 |
+| ⑧ | 소리 안내(힌트 줄) | fail 「목소리를 불러오지 못했어요 · 다시 눌러 주세요」(빨강·alert) · slow 「목소리 응답이 늦어요 · 잠시 후 다시 눌러 주세요」(빨강·alert) · offline 「연결하지 못했어요 · 네트워크를 확인해 주세요」(빨강·alert) · textonly 「지금은 선생님 목소리를 들을 수 없어요(자막만)」(중립·status) · rate 「너무 자주 눌렀어요 · 잠시 후 다시 들어 주세요」(중립) · blocked 「소리를 켜려면 ▶ 를 한 번 더 눌러 주세요」(중립) | `DECK_SOUND_MSG` (키는 `wordSound.SoundMsgKind` 그대로) |
+| ⑨ | 화면 읽기 | 객관식 보기 4개가 나왔어요 / 객관식을 닫았어요 / 뜻이 보여요 / 소리를 멈췄어요 / {단어\|예문} 소리 재생 중 | `CARD_FIRST.sr` |
+| ⑩ | 키 힌트(정밀 포인터, 카드 우선 세트) | 앞면(보기 있음) 「Space 뜻 보기 · C 객관식 · → 다음 · F 표시」 · 앞면(보기 없음) 「Space 뜻 보기 · → 다음 · F 표시」 · 보기 열림 「1~4 고르기 · C 닫기 · → 다음 · F 표시」 · 뜻 보기 면 「1 알았어요 · 2 몰랐어요 · → 다음 · F 표시」 · 답한 카드·지난 카드 「Enter 다음 카드 · ← 이전 · F 표시」 | `fixedHint()` |
+| ⑪ | 키 힌트(이전 세트)·터치 힌트 | 지금 문구 그대로(4지선다 「1~4 고르기 · → 다음 · ← 이전 · F 표시」, 뒤집기 「Space 뒤집기 · 1 알았어요 · 2 몰랐어요 · → 다음」, 터치 「← 밀어 다음 · → 밀어 이전 · ↑ 밀어 표시」) | `fixedHint()` |
+| ⑫ | 결과 구분 한 줄 | 객관식 {n}장 중 {c}장 맞힘 · 스스로 {m}장 중 {k}장 알았어요 | `CARD_FIRST.splitLine(n,c,m,k)` |
+| ⑬ | 결과 방식 뱃지(섞인 세트) | 객관식 맞힘 / 객관식 틀림 / 스스로 알았어요 / 스스로 몰랐어요 / 건너뜀 | `CARD_FIRST.methodBadge` |
+
+지워지는 문구: 오늘 카드·[내 단어장으로 풀기]·챌린지 단어 카드의 라벨 「방식」(`TodayWordsCard` 리터럴·`WORDS_CARD.modeLabel`), 분절 「4지선다 / 뒤집기 카드」와 aria 「푸는 방식」(두 `MODE_OPTIONS`), 새 세트 부제·풀던 세트 줄·보관 세트 줄·결과 부제·대기 화면 부제의 「{방식} · 」. `MODE_LABEL`(`labels.ts:144`)은 **남긴다** — 이전 4지선다 세트 표시와 기존 시험이 쓴다. 바뀌지 않는 문구: 「뜻 보기」·「알았어요」·「몰랐어요」·「기록 중…」·보기 「✓ 정답 / ✗ 내 답 / 확인 중…」·결과 띠 5종·도구 줄·「저장하지 못했어요. 다시 눌러 주세요」·설명 문구(D8 A).
+
+`modeTag(mode)` = `mode==='CHOICE' ? '4지선다 · ' : ''` — 덱 부제 `{주제 · }{modeTag}{N}장`, 결과 부제 `{날짜} · {modeTag}{N}장{ · 주제}`, 풀던 세트 줄 `{날짜} 시작 · {modeTag}{N}장 중 {k}장 답함`, 보관 세트 줄 `{날짜} · {N}장{ · 4지선다}`(뒤에 붙는 자리라 형태만 다름 — 이전 4지선다 세트만). 데모 G 의 「· 뒤집기 카드」(이전 뒤집기 세트)는 구분할 수 없어 그리지 않는다(23-12 ①).
+
+### 23-9. 이전 세트 호환(D6) · 결과(D5) · 주제/챌린지 세트(데모 H)
+
+#### A. 이전 세트 — 「시작한 방식 화면 그대로 + 듣기 버튼」
+
+| 세트 | 덱 | 오늘 홈·보관 줄 | 결과 |
+|---|---|---|---|
+| 이전 4지선다(`CHOICE`, 진행 중) | §5 그대로: 보기 4개 처음부터, 탭 = 읽기, 1~4. **추가: 답한 뒤 뜻 보기 면에 듣기 줄**(카드 −44px, 객관식 답한 카드와 같은 높이) | 「오늘 시작 · 4지선다 · 10장 중 3장 답함」 / 「10월 10일 · 10장 · 4지선다」 | 부제 「… · 4지선다 · N장」, 제목 「맞혔어요」 |
+| 이전 뒤집기(`FLIP`, 보기 없음) | §5 그대로(탭 = 뜻 보기, [뜻 보기] 한 칸, 「탭하면 뜻이 보여요」). **추가: 뒷면 듣기 줄** | 방식 이름 없음(23-12 ①) | 방식 이름 없음, 제목 「알았어요」 |
+| 보관 세트 [다시 풀기](#53) | 서버가 늘 카드 우선(FLIP+보기)으로 만든다 → 카드 우선 화면 | — | — |
+| 이어 풀기 | 서버 상태(#49)로 위 규칙 — 화면 쪽 이주·자동 종료 없음(D6 C 아님) | — | — |
+
+- 이전 세트를 재현하는 법(QA): 이전 4지선다 세트는 지금도 `mode:'CHOICE'` 를 명시하면 만들어진다(계약 #47). **이전 뒤집기 세트(보기 없는 FLIP)는 새 서버로는 만들 수 없다**(`mode:'FLIP'` 명시도 이제 카드 우선) — 배포 전 빌드에서 QA 계정에 만들어 두거나, 보기 없는 세트(뜻이 서로 다른 단어 <4)로 화면을 대신 확인한다(화면이 같다).
+
+#### B. 오늘 홈·주제/챌린지 진입 (데모 A·H)
+
+- `TodayWordsCard` 준비: 설명 → (오늘 끝냄 줄) → 「장수」 + 분절 → (분류) → [시작하기] → (오류 줄). 방식 줄만 빠지고 간격(`mt-3`)·문구는 그대로.
+- `TopicWordsCard`: 할 일(`todo`)·조금 남음(`short`)의 `modePicker` 삭제 — [시작하기]/[한 세트 더] 위 간격은 버튼의 `mt-3` 그대로. [내 단어장으로 풀기] 펼침(`MineSetPanel` = `TodayWordsCard embedded`)도 같은 변경이 자동 적용.
+- 챌린지 띠(`ChallengeStrip`)는 변경 없음(원래 방식 줄 없음).
+- 대기 화면(`/study/today/words/new`) 부제 「‘카페에서 주문하기’ · 10장」(방식 없음), 본문·단계·문구 그대로.
+- 주제·챌린지 세트의 덱·결과는 B~F 와 똑같다(같은 덱). 덱 부제 「‘주제’ · 10장」. 챌린지 규칙(목표 장수·완료 조건·합계)은 바꾸지 않는다 — 객관식·스스로 답 모두 「답한 카드」로 센다(서버 합산 그대로).
+- 결과 [한 세트 더](`VocabResult.oneMore`) 토큰에 `mode` 없음.
+
+#### C. 결과 화면 (D5)
+
+| 요소 | 규칙 |
+|---|---|
+| 제목 동사 | `session.mode==='CHOICE'` 또는 `answeredBy==='choice'` 카드가 하나라도 → 「{N}장 중 {c}장 맞혔어요」, 아니면 「…알았어요」(지금 `session.mode === 'FLIP'` 판정 :161 을 대체) |
+| 타일 | 맞힘·틀림·건너뜀 합산 그대로(서버 `correctCount`… 우선 — 지금 :77-79 그대로) |
+| 구분 한 줄 | 객관식 답 `n ≥ 1` **그리고** 스스로 답 `m ≥ 1` 일 때만, 「걸린 시간 … · 다시 볼 카드 …」 줄 바로 아래(`mt-1 text-[13px] text-ink2 break-keep`), 「보관한 세트를 다시 푼 결과예요.」 줄보다 위 — `methodTally(cards, mode)`: 객관식 = `answeredBy==='choice'` 이고 CORRECT/WRONG 인 카드, 스스로 = `'self'`. 건너뜀은 어느 쪽에도 세지 않는다 |
+| 목록 뱃지 | 섞인 세트(위와 같은 조건)일 때만: 세 목록(틀린 단어·다시 볼 카드·전체) **모두** 행 오른쪽 뱃지를 방식 뱃지(⑬)로. 섞이지 않은 세트는 지금 그대로(전체 목록에만 맞힘·틀림·건너뜀). 객관식 오답의 「내 답 ‘…’」은 행 둘째 줄(지금 `정답 {뜻} · 내 답 {보기}`)에 이미 있으므로 뱃지에 반복하지 않는다(23-12 ⑧) |
+| 오늘 홈 요약·통계·연속 기록 | 그대로(계산·모양 불변) — Q9 5장 예시: 맞힘 2·틀림 2·건너뜀 1, 통계 「4문제 중 2개」 |
+
+### 23-10. developer 용 구현 순서 · 금지 · 함정
+
+#### A. 순서와 병렬 경계
+
+| 단계 | 담당 | 내용 | 기대는 것 |
+|---|---|---|---|
+| S | Dev-S(서버) | 23-4 E + 서버 시험(FLIP `choices` 생성·없으면 전부 null, FLIP 에 `chosenText` 채점, 둘 다 400, `not_in_choices`, CHOICE+`selfResult` 400, #53 새 방식, 기본 mode FLIP, CHOICE 명시 호환) | 이력서 「서버 명세」 |
+| C0 | Dev-D(덱) 먼저 | `cardFirst.ts` + `cardFirst.test.ts`, `deck.ts`(`keyAction` 선택 필드·`'choices'`·C, `pickNotice` `noChoice`) + 기존 `deck.test.ts` 무수정 통과 확인 | 타입은 `src/types/vocab.ts` 지금 모양 — **클라이언트·서버가 함께 고칠 타입 없음**(정본 = `src/types/vocab.ts`, 서버 DTO 는 `sessions.ts` 안 `VocabCardDto`) |
+| C1 | Dev-D | `useVocabDeck`·`VocabDeck`·`VocabCardFace`·`FlipControls`·`GestureHint`·`DeckNotice`·`DeckListenRow` | C0 |
+| C2 | Dev-H(홈·결과·주제, C0 이후 C1 과 병렬) | `TodayWordsCard`·`TopicWordsCard`·`TodayHome`·`KeptSets`·`VocabResult`·`WordResultList`·`topicLogic`·`topicSetStart`·`useTopicSetStart`·`TopicSetStart`·`topicCopy`·`hooks.ts` 주석 + 시험 2개 속성 삭제 | C0(`modeTag`·`isNoChoiceSet`·`answeredBy`·`methodTally`·문구) |
+| C3 | Dev-H 또는 QA | 23-7 A 재측정 → 상수·시험 | C2 가 개발 서버에 올라간 뒤 |
+| I | 통합 | S + C1 + C2 를 한 브랜치에서 tsc·eslint·시험·라이브 흐름(Q9 5장) | — |
+
+파일 소유: `cardFirst.ts`·`deck.ts`·`labels.ts`(건드릴 일 없음) = Dev-D. Dev-H 는 `cardFirst.ts` 에 함수가 더 필요하면 Dev-D 에게 요청(같은 파일 동시 편집 금지). `topicCopy.ts` = Dev-H.
+
+#### B. 건드리면 안 되는 것
+
+- `SwipeCardStack.tsx`(0줄) · `classifyGesture`/`resistX`/임계 상수 · `touchend preventDefault` · 카드 크기 상한·하한 · `VocabCardFace` 안 버튼 금지.
+- task-053 단어 가중(`generateWordSet`·`levelCeilingFor`)·세트 생성 풀 규칙 · task-046 자리표시 규칙(실측 상수·`H_CLASS` 리터럴·한 번에 공개·`invisible+inert`) — 값만 재측정.
+- 스키마(`prisma/schema.prisma`) · TTS 설정·엔진 · `wordSound.ts`/`useWordSound.ts`/`WordSoundButton.tsx`(다른 화면 공유) · 챌린지·주제 규칙.
+- 덱에서 하단 `Toast` 사용 · #47 에 `mode` 보내기 · 화면에서 정답 계산.
+
+#### C. 새 시험(최소) — `cardFirst.test.ts`·`deck.test.ts` 추가 케이스
+
+`hasChoices`(undefined·null·[]·4개) · `answeredBy`(CHOICE·FLIP+chosenText·FLIP 스스로·SKIPPED·안 답함) · `isNoChoiceSet`(빈 카드 배열 → false, CHOICE → false) · `methodTally`·`splitLine`(Q9 5장 → 「객관식 2장 중 1장 맞힘 · 스스로 2장 중 1장 알았어요」) · `fixedHint` 7 갈래 · `blockedNextHint`(열림·뜻 보기 면·앞면 닫힘·보기 없는 세트) · `deckSoundView`(6 모양·접근 이름) · `keyAction` 새 갈래(C 열기/닫기·열림 1~4·열림 Space 무시·뜻 보기 면 C 무시·이전 세트 C 무시·한글 자판 `code:'KeyC'`) · `pickNotice('noChoice')` · `parseTopicStart`(mode 없음 통과·`'X'` null) · 탭 동작 분기(23-3 C)를 순수 함수 `tapAction(...)` 으로 떼어 시험하는 것 권장.
+
+#### D. 함정
+
+1. **카드 안 버튼**은 휴대폰에서 눌리지 않는다(23-3 E 1). 데스크톱 마우스로는 눌려서 개발 중에 놓치기 쉽다 — 360 폭 터치 에뮬레이션으로 확인.
+2. **`preventDefault` 삭제 금지**(23-3 E 2) — 보기가 카드 탭 직후에 생기므로 유령 클릭이 「답」으로 기록된다.
+3. 데모의 `pointer` 이벤트를 옮겨 오지 않는다(23-3 E 3).
+4. `choices` 의 세 가지 「없음」(undefined·null·[])을 모두 없음으로 — `card.choices?.length` 를 바로 진리값으로 쓰지 말고 `hasChoices` 하나로.
+5. `MODE_LABEL[mode]` 가 다섯 곳(`VocabDeck:149`·`VocabResult:156`·`KeptSets:72`·`TodayWordsCard:255`·`TopicSetStart:165`) — 하나라도 남으면 새 세트에 「뒤집기 카드」가 보인다. `grep MODE_LABEL` 결과가 `labels.ts` 정의와 `modeTag` 안쪽뿐이어야 한다.
+6. 배포 직후 60초 동안 옛 화면이 남긴 주제 시작 토큰에 `mode:'CHOICE'` 가 있을 수 있다 — **토큰의 mode 를 본문에 싣지 않는다**(싣으면 그 세트만 이전 4지선다로 만들어진다).
+7. `choose` 가드(:379)·`next` 막힘 문구(:289)·`onTap`(:137) 세 곳이 지금 `mode` 하나로 갈라진다 — 셋 다 카드별 판정으로.
+8. 자동 다음(0.4초) 중 듣기를 누르면 곧 멈춘다 — 의도된 동작(데모 같음). 반대로 `view` 바뀜에 `stop()` 을 빠뜨리면 다음 카드에서 앞 카드 소리가 이어진다.
+9. 라이브 영역 역할 바꾸기 금지(23-6 C).
+10. 기존 시험은 **시그니처를 지켜서** 그대로 통과시킨다: `resultBand(answer, mode)`·`canPeek(mode, card)`·`cardSide(mode, card, flipped)`·`keyAction(e, ctx)`(새 필드 선택)·`pickNotice(...)`(유니온 확장)·`TopicStartBody.mode?`·`topicSetStart` `done` 상태(키는 참일 때만). 수정이 불가피한 시험은 23-12 ⑤ 의 셋뿐.
+11. 데모에서 고친 결함 중 앱에 옮길 것: 없음 — 보관 세트 행 링크 40px 는 데모만의 문제였고 앱은 이미 `py-1`(`KeptSets.tsx:70`)로 44px 이상이다.
+
+### 23-11. reviewer · qa 확인표
+
+#### A. 데모와 대조 (헤드리스·개발 서버 가능)
+
+| # | 항목 | 기준 |
+|---|---|---|
+| Q1 | 오늘 카드 | 방식 줄 0, 장수·(분류)·[시작하기]·오류 줄 순서·간격 그대로, 설명 문구 D8 A 원문 |
+| Q2 | 자리표시 | 새 실측 상수 = 360/390/412 실제 카드 높이 ±0.5px, 공개 순간 첫 화면 점프 ≤ 8px(§17), 경계 폭 앞뒤 4px 확인 |
+| Q3 | 덱 높이 | 360×740·390×800·412×780 에서 F0·F1·P·Ac·B0·Ak·이전 4지선다 답한 뒤 모두 덱 스크롤 0, 카드 ≥200(데모: 객관식 답한 뒤 242/302/282 근처) |
+| Q4 | 위험 조합 | 주제 세트 + 알림 + 객관식 답한 뒤 + 360×740 — 카드 높이·`main` 스크롤 기록(23-7 B) |
+| Q5 | 터치 크기 | [객관식]·[뜻 보기] 52, 듣기 44, 보기 52, 도구 52 — 44px 미만 0. 가로 넘침 0(긴 표현·200자 보기·100자 예문) |
+| Q6 | 스크롤 한 곳 | 덱 0, 결과 `main` 하나(§18 규칙 — 새 안쪽 스크롤 상자 없음) |
+| Q7 | 어두운 화면 | 듣기 재생 중(`bg-ink text-surface`)·fail(`border-bad text-bad`)·mute·blocked 고리·보기 열림 카드 테두리 accent — 명암비 4.5:1(글자)·3:1(테두리) |
+| Q8 | 스와이프 불변 | `SwipeCardStack.tsx` diff 0줄, `deck.test.ts` 기존 9/10·79/80·59/60 무수정 통과 |
+| Q9 | 탭 → 객관식 | 탭 열림/다시 탭 닫힘, [객관식]·C 같은 일, 열어도 #50 요청 0건, 뜻 보기 면에서 탭·C 무반응 |
+| Q10 | 서버 채점 | 카드 우선 세트 보기 → #50 `chosenText` → 응답 `correctText` 로만 ✓/✗(요청 전 DOM 에 ✓/✗ 없음) |
+| Q11 | 혼합 기록 | Q9 5장(食べる 스스로 알았어요 · 行く 객관식 정답 · 水 객관식 오답 · 高い 스스로 몰랐어요 · 友達 표시 후 끝내기) → 맞힘 2·틀림 2·건너뜀 1, 구분 한 줄, 섞인 세트 뱃지 3 목록, DB `VocabAttempt.chosenText` 2행만 값 |
+| Q12 | 보기 없는 세트 | 뜻이 서로 다른 단어 <4 계정 → 알림 ⑤, [객관식] 없음, 탭 = 뜻 보기 |
+| Q13 | 이전 세트 | 배포 전 빌드로 만든 CHOICE·FLIP 진행 중 세트와 보관 세트 → D6 A 화면, 듣기 줄만 추가, [다시 풀기] → 카드 우선 |
+| Q14 | 주제·챌린지 | 챌린지 단어 카드(할 일·조금 남음)·[내 단어장으로 풀기] 펼침·대기 화면 부제에 방식 없음, 챌린지 합계 그대로 |
+| Q15 | 듣기 | 단어·예문 두 버튼, 예문 없음/100자 초과 → 한 칸, 한 번에 하나, 다음 카드에서 멈춤, 표시 설정을 바꿔도 같은 글을 보냄(#23 본문 비교), 실패 6종 문구·모양(오프라인·429 연타·422 는 개발 서버 조작 가능 범위에서) |
+| Q16 | 키보드 | C·1~4·Space·Enter·←→·F·R·S 표(23-6 A), 초점 이동(23-6 B), 입력창·시트에서 무시 |
+| Q17 | 화면 읽기 | 23-6 C 알림 문구, `role=alert` 줄은 늘 마운트 |
+| Q18 | 저장소 | `kaiwa.vocab.mode` 가 홈 방문 뒤 지워짐, 다른 `kaiwa.vocab.*` 그대로, 저장소 차단 환경에서도 동작 |
+| Q19 | 엔진명 | 오늘 홈·덱·결과·대기 화면 렌더 글자에 `claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|엔진|모델|trace|task-` 0건 |
+| R1 | reviewer | L1(FLIP 세트 `choices` 노출 판단)·`toCardDto` CHOICE 미답 카드 정답 미노출 유지·`markChoice` 외 정답 계산 0·`chosenText`/`selfResult` 동시 전송 경로 0 |
+
+#### B. 실기기에서만 (사용자 폰 — 헤드리스 불가면 NOT_VERIFIED 로 넘긴다)
+
+탭(10px)·밀기 임계 손 느낌 · 카드 탭 직후 보기 1번 유령 클릭 없음 · 보기 열림 때 카드 높이 변화가 거슬리는지 · TalkBack 카드 이중 탭 동작·읽기 순서 · 실제 TTS 지연·예문 소리 · S25+ 글꼴 줄바꿈(오늘 카드 높이·힌트 줄 잘림) · 앱 WebView 390 폭.
+
+### 23-12. 데모와 다르게 쓴 곳 · Leader 확인
+
+데모와 다르게 쓴 곳(가이드가 정함 — 모양 영향 작음):
+- ⑦ **보기 없는 세트의 막힘 안내**를 「알았어요·몰랐어요를 먼저 골라 주세요」로(데모는 「뜻 보기나 객관식으로 먼저 답해 주세요」 — 객관식이 없는 세트라 맞지 않음).
+- ⑧ **결과 방식 뱃지**: 데모는 「객관식 틀림 · 내 답 ‘불’」이지만 앱 행 둘째 줄에 「내 답 불」이 이미 있어 뱃지는 「객관식 틀림」만. 방식 뱃지는 **섞인 세트에서만**(데모는 새 세트 결과에 늘 — 데모에 섞이지 않은 결과 화면은 없었다).
+- ⑩ **답 저장 실패 힌트를 빨강(alert)**으로 — 데모 I 「답 저장 실패」 모양. 지금 코드는 모든 힌트가 ink 다. 표시 저장 실패·결과 저장 실패도 같은 빨강으로 맞춘다.
+- ⑪ 객관식 답 화면 읽기 문구는 데모(「틀렸어요. 정답은 …」)가 아니라 **지금 코드 문구**(「틀렸어요. 정답 …」) 유지.
+- ⑫ 보기 열림 상태를 `visibilitychange` 다시 읽기에서 유지(데모에 없는 경우 — `flipped` 와 같은 규칙).
+
+Leader 확인(계약·데모·코드가 어긋나는 곳 — 고치지 않고 보고):
+- ① **이전 뒤집기 세트와 카드 우선 세트를 구분할 수 없다.** 둘 다 `mode='FLIP'` 이고 #48 항목에는 카드가 없으며, #49 에서도 「보기 없는 새 세트」와 이전 뒤집기 세트가 같다. 데모 G 의 보관 줄 「10월 8일 · 10장 · 뒤집기 카드」는 지금 계약으로 그릴 수 없다. **가이드의 임시 규칙: 방식 이름은 `CHOICE`(이전 4지선다)에만.** 대안 B: 계약에 파생 필드(예: #48·#49 세션의 `cardFirst`) 추가 — Leader 결정.
+- ② **계약 #50 「둘 다 → 400 `{field:'chosenText', reason:'exclusive'}`」 ↔ 코드 `parseAttemptBody`(sessions.ts:301-302)**: 답 필드가 둘이면 `recordAttempt` 전에 `{field: 'selfResult', reason: 'one_answer'}` 로 거절한다. 화면은 둘을 같이 보내지 않아 영향이 없다 — Dev-S 가 계약에 맞출지, 계약을 코드에 맞출지 결정 필요.
+- ③ **계약 #47 안에서 충돌**: 본문 줄 「`mode CHOICE|FLIP`(기본 CHOICE)」(§2-10 #47 첫 목록)과 바로 아래 「`mode` 생략 시 기본은 `FLIP`」. 뒤쪽이 task-059 결정 — 앞 줄 정정 필요.
+- ④ **계획표 날짜 시트에 「(뒤집기)」가 보인다.** finish(#51)의 `StudyLog.summary` 가 `…장(${mode==='CHOICE' ? '보기 고르기' : '뒤집기'})`(sessions.ts:831)이고 `plan/logic.ts displaySummary` 가 그대로 보인다 → 카드 우선 세트(객관식 섞임)도 「뒤집기」로 기록된다. 「방식 이름은 이전 세트만」과 어긋남. 서버 문구 변경 여부(계약 「#51 변경 없음」과 충돌 가능) — Leader.
+- ⑤ **기존 시험 수정이 필요한 곳 3개**(완료 기준 2 「기존 … 시험이 수정 없이 통과」와의 관계): `todaySkeleton.test.ts`(실측값 — 필연), `seedButtons.test.ts:47`·`topicLogic.test.ts:206·208`(카드 props `mode`·`onMode` 삭제에 따른 속성 두 줄 삭제, 단언 변경 없음). 대안: 두 카드에 `mode?`·`onMode?` 를 쓰지 않는 선택 prop 으로 남겨 시험 무수정(죽은 prop — 비권고). 덱·시도 큐·세트 시험(`deck.test.ts`·`labels.test.ts`·`topicSetStart.test.ts`)은 무수정으로 설계했다.
+- ⑥ **완료 기준 3 「재생 버튼(후리가나 설정 반영)」 해석**: 데모 C 대로 「표시 설정은 카드 글자에만, 소리는 같은 문장」으로 QA 표(Q15)를 썼다. 설정에 따라 읽는 글이 바뀌어야 한다는 뜻이면 Leader 확인.
+- ⑨ **높이 위험**(23-7 B): 주제 세트 + 알림 + 객관식 답한 뒤 + 360×740 에서 카드 하한 200 아래 가능 [추측]. QA Q4 실측 뒤 넘치면 결정(예: 그 조합에서 알림 자동 닫힘 / 덱 `min-h-[600px]` 스크롤 허용 그대로 둠).
