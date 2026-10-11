@@ -139,7 +139,8 @@ plugins/sherpa-stt/                                                    # Capacit
 - **채팅**: 텍스트 턴(A2, 교정 없음) → 대화 종료 후 `POST /api/v1/chats/:id/review`(A3, ≤20건 동기·초과 잡) → 문장별 교정 카드(`original` 바이트 일치 검증) → 채택 시 단어장 추가 시트 → 종료 시 `ADD_STUDY_LOG` 제안 카드.
 
 ### 7-2. 오늘의 단어 (`learning/vocab`)
-- 풀 = `archived=false` − 오늘 DONE 세션 단어. `count = min(요청(기본 `dailyWordCount`), 풀)`, 풀 0 → 빈 상태 CTA, 풀 <4 → FLIP 강등. 가중치 `w = clamp(1 + 2·wrong − 0.5·correct, 0.25, 8) × recency(미노출 2.0 / 7일↑ 1.5 / 1~7일 1.0 / 24h 내 0.3)`, 가중 비복원 샘플링(seed 저장) → Fisher-Yates → CHOICE 보기 = 정답 + 같은 품사 오답 3. **정답은 응답에 싣지 않는다**(채점은 서버).
+- 풀 = `archived=false` − 오늘 DONE 세션 단어. `count = min(요청(기본 `dailyWordCount`), 풀)`, 풀 0 → 빈 상태 CTA, 풀 <4 → FLIP 강등. 가중치 `w = clamp(1 + 2·wrong − 0.5·correct, 0.25, 8) × recency(미노출 2.0 / 7일↑ 1.5 / 1~7일 1.0 / 24h 내 0.3) × 단계 계수`, 가중 비복원 샘플링(seed 저장) → Fisher-Yates → CHOICE 보기 = 정답 + 같은 품사 오답 3. **정답은 응답에 싣지 않는다**(채점은 서버).
+- **단계 계수 (task-053, IMP-0028, 사용자 결정 2026-10-11 「중간」·천장 「지금·목표 중 높은 쪽」)**: 내 단어장 세트에서만, 천장 = `max(Profile.level, Profile.goalLevel)`(목표 없으면 level)보다 단어 `jlpt` 가 d 단계 위면 `d≤0 → ×1 · 1 → ×0.3 · 2 → ×0.05 · ≥3 → ×0`(단계 없는 단어·프로필을 못 읽은 경우는 ×1 = 가중 없음). ×0 단어도 후보에서 빼지 않고 아주 작은 양수 가중(1e-9)으로 두어 후보가 모자랄 때만 마지막에 채운다(`min(count, 풀)` 장 보장). 같은 시드 → 같은 세트 계약은 그대로(천장을 안 주면 변경 전과 동일). 이론 비중(풀 N5 676·N4 629·N3 1,649·N2 1,767·N1 3,034 기준): 천장 N5 → 71.4/19.9/8.7/0/0 %, 천장 N4 → 35.8/33.3/26.2/4.7/0 %, 천장 없음 → 풀 비중(8.7/8.1/21.3/22.8/39.1 %). 주제 세트(`topicSet`)·다시 풀기·보기 생성은 바꾸지 않는다.
 - **CHOICE(4지선다) 기본**, FLIP 옵션. 카드당 ≤12s × 10장 ≈ 2분 + 결과 30s → 3분 목표. 카드 앞면 표기+읽기 토글+TTS.
 - attempt 즉시 저장(재진입) → `finish` 단일 트랜잭션(카운터·`lastSeenAt`·`StudyLog(WORDS,DIRECT)`·`StatsSnapshot(VOCAB_SESSION)`+DAILY). "생성 개수별 맞춘/틀린" = 스냅샷을 `cardCount` 별 그룹.
 - 보관 두 층위: **세트 보관** `VocabSession.keptAt`(보관함 → 다시 풀기 `replay`) · 카드 표시 `VocabAttempt.flagged`(위 스와이프).

@@ -1,8 +1,12 @@
 /**
  * 오늘의 단어 세트 생성 — 순수 함수(DB 없음). design-spec §7-2 공식을 그대로 옮긴다.
  *
- *   w = clamp(1 + 2·wrong − 0.5·correct, 0.25, 8) × recency(미노출 2.0 / 7일↑ 1.5 / 1~7일 1.0 / 24h 내 0.3)
+ *   w = clamp(1 + 2·wrong − 0.5·correct, 0.25, 8) × recency(미노출 2.0 / 7일↑ 1.5 / 1~7일 1.0 / 24h 내 0.3) × 단계 계수(천장을 줄 때만)
  *   가중 비복원 샘플링(시드 PRNG) → Fisher-Yates 로 순서 섞기
+ *
+ * 단계 계수(task-053, IMP-0028): 단어 단계가 천장(지금·목표 수준 중 높은 쪽)보다 d 단계 위면 d≤0 → 1 · 1 → 0.3 · 2 → 0.05 · ≥3 → 0.
+ * 0 인 단어도 후보에서 빼지 않고 아주 작은 양수 가중으로 둔다 — 후보가 모자랄 때만 마지막에 채워지게(세트가 `count` 보다 줄지 않게).
+ * **`ceiling` 을 주지 않으면 계산도 난수 소비도 변경 전과 같다.**
  *
  * **같은 시드 + 같은 후보 → 같은 결과**가 계약이다(`VocabSession.seed` 로 재현). 그래서 후보를 먼저 id 로 정렬해
  * DB 가 돌려준 순서에 결과가 흔들리지 않게 하고, 난수는 전부 시드에서 나온 한 줄기(`Rng`)에서만 뽑는다.
@@ -78,6 +82,40 @@ export function recencyFactor(lastSeenAt: Date | null, now: Date): number {
   return 0.3
 }
 
+/** JLPT 단계 코드 — Prisma `JlptLevel` 과 같은 문자열(순수 함수라 `@prisma/client` 를 끌어오지 않는다). */
+export type LevelCode = 'N5' | 'N4' | 'N3' | 'N2' | 'N1'
+
+/** 쉬움 → 어려움. 순위가 클수록 어렵다. */
+export const LEVEL_ORDER: readonly LevelCode[] = ['N5', 'N4', 'N3', 'N2', 'N1']
+
+function rankOf(level: string | null | undefined): number {
+  return level ? (LEVEL_ORDER as readonly string[]).indexOf(level) : -1
+}
+
+/**
+ * 단계 계수 — 천장보다 몇 단계 위인가(d)로 정한다. 단어 단계나 천장이 없거나 알 수 없는 값이면 1(줄이지 않는다).
+ * 천장 이하(d≤0)는 1, 1단계 위 0.3, 2단계 위 0.05, 3단계 이상 0.
+ */
+export function levelFactor(wordLevel: string | null | undefined, ceiling: string | null | undefined): number {
+  const w = rankOf(wordLevel)
+  const c = rankOf(ceiling)
+  if (w < 0 || c < 0) return 1
+  const d = w - c
+  if (d <= 0) return 1
+  if (d === 1) return 0.3
+  if (d === 2) return 0.05
+  return 0
+}
+
+/** 천장 = 지금 수준과 목표 수준 중 어려운 쪽. 목표가 없으면 지금 수준. 둘 다 알 수 없으면 `undefined`(= 가중 안 함). */
+export function ceilingOf(level: string | null | undefined, goalLevel: string | null | undefined): LevelCode | undefined {
+  const best = Math.max(rankOf(level), rankOf(goalLevel))
+  return best < 0 ? undefined : LEVEL_ORDER[best]
+}
+
+/** 계수 0 인 단어의 최소 계수 — `ln(u)/w` 키가 유한하게 남아, 후보가 모자랄 때만 마지막으로 뽑힌다. */
+export const LEVEL_FACTOR_FLOOR = 1e-9
+
 export interface WeightInput {
   correctCount: number
   wrongCount: number
@@ -114,11 +152,17 @@ export function sampleWeighted<T>(items: readonly T[], weights: readonly number[
 
 export interface SetCandidate extends WeightInput {
   id: string
+  /** 단어의 JLPT 단계 — 없으면 단계 계수를 적용하지 않는다. */
+  jlpt?: LevelCode | null
 }
 
-/** 풀에서 `count` 장을 가중 샘플링해 섞은 순서로 돌려준다. 같은 (후보 집합, 시드, now) → 같은 결과. */
-export function generateWordSet<T extends SetCandidate>(pool: readonly T[], count: number, rng: Rng, now: Date): T[] {
+/**
+ * 풀에서 `count` 장을 가중 샘플링해 섞은 순서로 돌려준다. 같은 (후보 집합, 시드, now, ceiling) → 같은 결과.
+ * `ceiling` 을 주면 단계 계수(`levelFactor`)를 곱한다 — 주지 않거나 후보에 `jlpt` 가 없으면 변경 전과 완전히 같다.
+ */
+export function generateWordSet<T extends SetCandidate>(pool: readonly T[], count: number, rng: Rng, now: Date, ceiling?: LevelCode | null): T[] {
   const sorted = pool.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-  const picked = sampleWeighted(sorted, sorted.map((c) => weightOf(c, now)), Math.min(count, sorted.length), rng)
+  const weights = sorted.map((c) => (ceiling ? weightOf(c, now) * Math.max(levelFactor(c.jlpt, ceiling), LEVEL_FACTOR_FLOOR) : weightOf(c, now)))
+  const picked = sampleWeighted(sorted, weights, Math.min(count, sorted.length), rng)
   return shuffle(picked, rng)
 }

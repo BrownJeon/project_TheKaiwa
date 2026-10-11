@@ -19,6 +19,7 @@
  */
 import type { PartOfSpeech, Prisma, VocabAnswer, VocabMode, VocabSessionStatus } from '@prisma/client'
 import { ApiError, codePointLength, dates, decodeCursor, encodeCursor, isTimeIdCursor, lockUserRow, prisma, sanitizeText, withTransaction, type Tx } from '@/modules/infra'
+import { getProfile } from '@/modules/preferences'
 import { recordStudyLog } from '../studyLog'
 import { bumpDailySnapshot, createVocabSessionSnapshot, type VocabSessionSnapshotData } from '../snapshots'
 import { registerRepetitionItems, type RepetitionItemInput } from '../repetition'
@@ -26,7 +27,7 @@ import { recordObservations, type ObservationInput } from '../observations'
 import { loadTopicPool, topicAiWordHistory } from '../topics/pool'
 import { assertTopicVisible, mapTopicGone } from '../topics/visible'
 import { distinctMeaningCount, pickChoices, CHOICE_COUNT, type MeaningSource } from './distractors'
-import { createRng, generateWordSet, newSeed, requestedModeOf, shuffle } from './setGenerator'
+import { ceilingOf, createRng, generateWordSet, newSeed, requestedModeOf, shuffle, type LevelCode } from './setGenerator'
 import {
   TOPIC_KIND_ANY,
   beginTopicWordsGeneration,
@@ -139,7 +140,7 @@ type AttemptRow = Prisma.VocabAttemptGetPayload<{ select: typeof ATTEMPT_SELECT 
 
 const POOL_SELECT = {
   id: true, surface: true, reading: true, meaning: true, partOfSpeech: true, correctCount: true, wrongCount: true, lastSeenAt: true,
-  example: true, exampleKo: true,
+  example: true, exampleKo: true, jlpt: true,
 } as const
 type PoolWord = Prisma.WordEntryGetPayload<{ select: typeof POOL_SELECT }>
 
@@ -408,6 +409,22 @@ export interface CreateSessionOptions {
   deps?: Partial<TopicSetDeps>
 }
 
+/** `getProfile` 의 읽기 모양 — 시험이 가짜를 끼운다. */
+export type LevelReader = (userId: string) => Promise<{ level: string; goalLevel: string | null }>
+
+/**
+ * 내 단어장 세트의 단계 천장(task-053) = 지금 수준·목표 수준 중 어려운 쪽. 프로필을 못 읽으면 `undefined` — 가중 없이(= 변경 전
+ * 동작) 세트를 만든다: 단계 가중은 부가 기능이라 세트 생성을 막지 않는다. 트랜잭션 **밖**에서 읽어 사용자 행 잠금 시간을 늘리지 않는다.
+ */
+export async function levelCeilingFor(userId: string, read: LevelReader = getProfile): Promise<LevelCode | undefined> {
+  try {
+    const p = await read(userId)
+    return ceilingOf(p.level, p.goalLevel)
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * 풀 = 보관 안 한 단어(카테고리 필터) − 오늘(KST) 끝낸 세트의 단어. 풀 0 → 빈 상태(F5 사유). 풀 <4 또는 서로 다른 뜻 <4 → FLIP 강등.
  * `count` 는 라우트가 채운다(요청값 또는 `Profile.dailyWordCount`). `topicId` 가 있으면 주제 세트(`createTopicVocabSession`).
@@ -418,6 +435,7 @@ export async function createVocabSession(
   opts: CreateSessionOptions = {},
 ): Promise<CreateSessionResult> {
   if (input.topicId) return createTopicVocabSession(userId, { count: input.count, mode: input.mode, topicId: input.topicId, generate: input.generate !== false }, opts)
+  const ceiling = await levelCeilingFor(userId)
   return withTransaction(async (tx) => {
     await lockUserRow(tx, userId)
     await assertNoInProgress(tx, userId)
@@ -443,7 +461,7 @@ export async function createVocabSession(
 
     const seed = newSeed(input.mode)
     const rng = createRng(seed)
-    const picked = generateWordSet(pool, input.count, rng, new Date())
+    const picked = generateWordSet(pool, input.count, rng, new Date(), ceiling)
     const mode: VocabMode = input.mode === 'CHOICE' && (pool.length < 4 || distinctMeaningCount(active) < CHOICE_COUNT) ? 'FLIP' : input.mode
     return insertSession(tx, userId, { seed, mode, requestedCount: input.count, replayOfId: null, cards: picked.map(toCardSeed), sources: active, rng })
   })
