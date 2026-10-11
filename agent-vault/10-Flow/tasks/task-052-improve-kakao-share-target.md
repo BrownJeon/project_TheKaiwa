@@ -1,7 +1,8 @@
 ---
 task_id: task-052
 title: "카카오톡 공유하기 수신 — 안드로이드 공유(text/plain) 대상 등록 + 오늘의 회화 붙여넣기 화면 자동 채움 (IMP-0004, 네이티브·APK)"
-status: doing
+status: review
+waiting: push_confirm
 base_ref: df9df75
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -33,7 +34,7 @@ demo_gate:
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: true
+  active: false
 ---
 
 # task-052 — 카카오톡 공유하기 수신 (IMP-0004)
@@ -141,3 +142,13 @@ demo_gate:
 - **알려진 경계(가이드)**: 로그인 대기 중 다른 글을 공유하면 로그인 주소가 바뀌어 대기가 풀릴 수 있다(드묾). 쓰던 글이 있는데 2,000자 넘는 공유가 오면 360폭에서 버튼이 첫 화면 밖으로 밀린다(스크롤 1곳 안이라 허용).
 - **D6 문구(deployer 가 `AppRelease.notes` 에 사용)**: 「카카오톡에서 글을 공유하면 바로 '문장으로 수업 만들기' 화면에 들어가요.」 — 1.0.3 에 다른 바뀐 점이 있으면 줄을 나눠 첫 줄로.
 - **dev-W**: dev-N 의 브리지 3함수가 들어온 뒤 배정(가이드 20-8 순서 7).
+
+## 감사·QA 결과 (2026-10-11, 대상 커밋 `51d1b33`) — 모두 PASS
+- **감사**: REV-181 PASS-with-fixes(High 0·Medium 1·Low 4) → M-1(`replaceState` 가 `history.state` 를 지움 → `dropShareMark` 로 상태 유지)·L-1(공유 후 `EXTRA_HTML_TEXT`·`SUBJECT`·`TITLE` 도 지움) 수정 → **REV-182 PASS**(좁은 재감사, 신규 Low 3·비차단). versionCode 는 올리지 않음(1.0.3 미게시 — `origin/main` 의 `kaiwaVersionCode` 는 3, 게시 흔적 없음).
+- **QA 레인 C** [[task-052-qa-c-record]] PASS: 도착·덮어쓰기(되돌리기 왕복)·50자 미만·2,000자 초과 자르기(독립 계산 일치)·한국어 거절(400, LLM 0회)·로그인 전 안내·복귀 후 채움·만료 토스트 1회·빈 공유 토스트, 3폭 가로 넘침 0·터치 44px 미만 0. [수업 만들기] 하단 y 는 가이드 수치보다 일정하게 28px 낮음(데모 폰 상태바 높이로 추정 — 첫 화면 780 안, 실기기 확인).
+- **QA 레인 D** [[task-052-qa-d-record]] PASS: 새로고침 후 재채움/토스트 없음 · 콜드·풀 페이지 로드 모두 `history.state` 에 `__NA`·트리 유지 · 뒤로/앞으로 하드 리로드 없이 정상(대조군 `replaceState(null)` 은 증상 재현 → 점검식이 유효) · 신호·resume 15조합 이동 1회·consume 1회 · 일반 브라우저 13화면 콘솔 오류 0·리스너 0 · 변경 전 커밋 대비 DOM 12화면 일치(나머지 1개 = 설계된 로그인 한 줄) · 구 APK·플러그인 오류 4경로 안전 · 루트 레이아웃 5개 라우트 하이드레이션 경고 0 · XSS 문자열 텍스트로만 · 본문이 URL/state/storage/콘솔/요청 34건에 없음.
+- **QA 레인 E** [[task-052-qa-e-record]] PASS: 게시 없는 로컬 빌드 성공 · versionCode 4/1.0.3·debuggable 아님·서명 검증 통과·**서명자가 직전 릴리스와 동일(`a4c23dca…`) → 덮어쓰기 설치 시 로그인 유지** · 병합 Manifest 필터 `SEND+DEFAULT+text/plain` 정확히 1개·`SEND_MULTIPLE` 0·직전(1.0.2) 대비 차이는 버전 2줄+필터 1개뿐(권한 4개·exported 2곳 불변) · dex 에 플러그인/보관함 클래스 · APK 452개 항목에 민감 파일 0 · JUnit 12/12 · `adb devices` 0대.
+- **알려진 Low (백로그, 웹 쪽이라 APK 없이 고칠 수 있음)**: ① `/paste?from=share` 풀 페이지 로드에서 `consumeSharedText` 가 2번 불림 — `ShareReceiver.tsx` 45행이 `await peek` 뒤에 `window.location` 을 읽는데 그 사이 화면이 `from=share` 를 지워 `stay` 대신 `signal` 로 판정됨. 첫 호출이 성공하면 증상 없음, 실패하는 드문 경우에 「받지 못했어요」 토스트와 「넣어 두었어요」 띠가 같이 뜸. 수정 후보: 위치를 `await` 앞에서 읽기 ② `android/gradlew` 의 git 모드가 100644 라 `git archive` 추출본에서 빌드 실패 → **Leader 가 인덱스 모드를 100755 로 바꿈**(내용 해시 동일) ③ `PlanScreen.tsx` 82·118행에도 `replaceState(null, …)` 가 있음(이 task 범위 밖) ④ `ChallengeScreen` 방식으로 통일 검토.
+- **고지**: QA 레인 E 가 AAR 1개를 운영 `thekaiwa-apk/.cache` 에서 읽기 전용으로 복사(수정 없음, sha256 고정값 일치). QA 레인 D 의 `qa-admin` 읽기 전용 이동으로 `qa-admin` 의 오늘자 Attendance 가 1행 늘어 남아 있음(id `cmv36o46f0029w1oz3qzgenq1`, 지시가 QA4 한정이라 지우지 않음).
+- **배포 계획(사용자 push·배포 승인 뒤, deployer)**: ① **웹 먼저** push(`git push origin main` → webhook blue/green, task-051 과 함께) ② **그다음 APK**: deployer 가 origin 기준으로 **다시 빌드**(dev-N 의 로컬 APK `thekaiwa-1.0.3-4.apk` 는 L-1 수정 이전 빌드라 **사용 금지**), `releases/thekaiwa-1.0.3.apk` 가 이미 있으면 덮어쓰지 말고 versionCode 를 올린다, `AppRelease.notes` 첫 줄 = 「카카오톡에서 글을 공유하면 바로 '문장으로 수업 만들기' 화면에 들어가요.」 ③ 사용자 폰에서 1.0.3 덮어쓰기 설치 → 실기기 확인(아래 사용자 TODO).
+- **상태**: `review` · `waiting: push_confirm`. 데모 게이트 `deactivate` 완료.
