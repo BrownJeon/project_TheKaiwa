@@ -116,7 +116,7 @@ demo_gate:
 - **다음**: QA-B2(자동 취소 뒤 턴 지연·콜드 504) 결과 → 통과 시 task-056 파일만 pathspec 커밋(사용자 지시 시) → 배포(사용자 승인) → 배포 직후 콜드 504·nginx 경유 abort 전파·실기기 확인 목록. 별건: task-058(#169·#178 취소 신호) 완료·미커밋, L2 중복 정의 통합은 task-056 커밋 뒤, 소스 검사 시험의 같은 약점이 의심되는 `scenario/__tests__` 5파일 정리는 후속.
 
 ## 커밋 (2026-10-12)
-- 사용자 지시 「056 과 058 을 각각 별도 커밋」에 따라 로컬 커밋 **`facff39`**(task-056, 52파일: 통째 49 + 공유 파일 hunk 3 — `docs/screens.md` §22·도우미 줄, `api-contract.md` 제목·#180 행, 일일 로그 2줄). task-058 은 `30b8b4c` 로 별도. **push 하면 webhook 으로 운영 배포** — 사용자 지시 대기. 배포 후: 콜드 504·nginx abort 전파·실기기(APK) 확인 목록(ACTIVE `★★★★` 블록).
+- 사용자 지시 「056 과 058 을 각각 별도 커밋」에 따라 로컬 커밋 **`facff39`**(task-056, 52파일: 통째 49 + 공유 파일 hunk 3 — `docs/screens.md` §22·도우미 줄, `api-contract.md` 제목·#180 행, 일일 로그 2줄). task-058 은 `30b8b4c` 로 별도. push 전 게이트(`git archive HEAD`) PASS(tsc 0·eslint src 오류 0·시험 3,274/3,274·build 0) 뒤 사용자 「push 하고 배포 + 운영 읽기 전용 스모크」 → push `10a4e88..6f8301c` → **운영 배포 완료: 릴리스 `20261012-003701-6f8301c0`**(`RELEASE_RESULT ok`·`migrated:false`·헬스 정상, 롤백 대상 `20261011-201916-1cf4d29d`). deployer 읽기 전용 확인 OK([[task-056-deploy-record]]). 남은 것: 콜드 스타트 504(운영 LLM 호출 필요 — 사용자 허락 시)·nginx 경유 abort 전파·**사용자 실기기(APK) 확인** 목록(ACTIVE `★★★★` 블록). 상태 `review` 는 사용자 실기기 확인 뒤 `done`.
 
 ## 데모 검토 (demo gate)
 
