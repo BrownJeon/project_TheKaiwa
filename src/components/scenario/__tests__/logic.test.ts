@@ -11,6 +11,7 @@ import {
   draftLevelOf,
   draftPatch,
   effectiveFilter,
+  expressionKo,
   genFailureOf,
   goalSummary,
   groupByPlace,
@@ -358,4 +359,16 @@ test('첫마디(M-3 → task-045 D5=A): 한국어 한도 정확값 통과 · 비
   assert.equal(validateDraft(ko('가'.repeat(SCENARIO_LIMITS.openingKoMax + 1)))[0].message, '선생님 첫마디는 80자까지 쓸 수 있어요.')
   const body = draftInput(ko(' 어서\n오세요 '), { desc: '' })
   assert.deepEqual(body.opening, { ja: 'いらっしゃいませ', ko: '어서 오세요' })
+})
+
+test('목표 카드 표현 칩 번역(IMP-0029): 표시 스위치를 따른다 · 빈 뜻은 줄 없음 · 앞뒤 공백 제거', () => {
+  assert.equal(expressionKo(true, '봉투 주세요'), '봉투 주세요')
+  assert.equal(expressionKo(false, '봉투 주세요'), null)
+  assert.equal(expressionKo(true, '  봉투 주세요 \n'), '봉투 주세요')
+  assert.equal(expressionKo(true, ''), null)
+  assert.equal(expressionKo(true, ' \t\n '), null)
+  assert.equal(expressionKo(true, null), null)
+  assert.equal(expressionKo(true, undefined), null)
+  assert.equal(expressionKo(false, ''), null)
+  assert.equal(expressionKo(false, null), null)
 })

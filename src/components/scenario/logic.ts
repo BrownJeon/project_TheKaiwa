@@ -196,6 +196,13 @@ export function stepView(steps: readonly { ko: string }[], stepIndex: number | n
   return steps.map((s, i) => ({ ko: s.ko, state: pos === null ? 'next' : i < pos ? 'done' : i === pos ? 'current' : 'next' }))
 }
 
+/** 목표 카드 표현 칩의 한국어 뜻(IMP-0029) — 「번역」 표시 스위치가 꺼져 있거나 뜻이 비면 null(줄을 그리지 않는다). */
+export function expressionKo(show: boolean, ko: string | null | undefined): string | null {
+  if (!show || typeof ko !== 'string') return null
+  const t = ko.trim()
+  return t ? t : null
+}
+
 /** 필수 표현 수 — 만들 때는 서버 기본(min(2, 표현 수)), 고칠 때는 저장 값을 표현 수 안으로. */
 export function requiredOf(count: number, stored: number | null | undefined): number {
   if (count <= 0) return 0

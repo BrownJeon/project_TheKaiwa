@@ -9,7 +9,8 @@
  */
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { OFF, useAnnotations } from '@/components/common/japanese/annotations'
-import { goalSummary, stepPosition, stepView } from './logic'
+import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
+import { expressionKo, goalSummary, stepPosition, stepView } from './logic'
 import { ROOM } from './scenarioCopy'
 import { GOAL_CARD_ID, type RolePlay } from './useRolePlay'
 
@@ -19,6 +20,7 @@ const GOAL_REGION_MAX = 'max-h-[40dvh] overflow-y-auto overscroll-contain'
 
 export default function RolePlayGoalCard({ rp }: { rp: RolePlay }) {
   const v = rp.view
+  const { showTranslation } = useDisplayPrefs()
   const ann = useAnnotations(v && rp.goalOpen ? v.keyExpressions.map((e) => e.ja) : [])
   if (!v) return null
   const total = v.keyExpressions.length
@@ -99,6 +101,7 @@ export default function RolePlayGoalCard({ rp }: { rp: RolePlay }) {
               <ul className="mt-1.5 flex min-w-0 flex-wrap gap-1.5">
                 {v.keyExpressions.map((e, i) => {
                   const hit = showChecks && used.has(e.id)
+                  const ko = expressionKo(showTranslation, e.ko)
                   return (
                     <li
                       key={e.id}
@@ -114,6 +117,7 @@ export default function RolePlayGoalCard({ rp }: { rp: RolePlay }) {
                       <span className="min-w-0">
                         <JaText as="span" text={e.ja} state={ann[i] ?? OFF} className="text-[16px] text-ink [overflow-wrap:anywhere]" rt={11} leading={2.1} />
                         <HangulLine state={ann[i] ?? OFF} size={12} inline className="ml-1" />
+                        {ko ? <span className="block text-[12px] text-ink2 break-keep [overflow-wrap:anywhere]">{ko}</span> : null}
                         {hit ? <span className="sr-only">{ROOM.usedSr}</span> : null}
                       </span>
                     </li>
