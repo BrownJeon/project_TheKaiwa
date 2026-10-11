@@ -6215,6 +6215,7 @@ BackBar sticky backHref="/study/today/talk/new" backLabel="주제 고르기로" 
 - 일본어 비율은 **보낼 때 서버가** 판정한다(400 `reason:"NOT_JAPANESE"` → 오류 상자 "일본어 문장이 너무 적어요." / "일본어가 들어간 문장을 붙여넣어 주세요."). 입력을 고치면 오류 상자를 지운다. 판정 기준을 한 곳에 두려고 클라이언트에서 미리 막지 않는다.
 - 성공하면 원문을 `sessionStorage kaiwa.lesson.src.{lessonId}` 에 두고(실패 시 다시 만들기용, `READY` 가 되면 지움) 수업 경로로 `router.replace`(뒤로가기가 붙여넣기로 돌아오지 않게). 409 `GENERATING` 은 A 표와 같다.
 - 입력 초안은 `sessionStorage kaiwa.lesson.pasteDraft` 에 둔다(화면을 나갔다 와도 유지, 보내면 지움).
+- → **§20 (task-052, 승인 데모 `docs/demo/task-052-share-target-v1.html` v1)**: 카톡 공유 수신(`?from=share` 진입·맨 위 안내 띠·쓰던 글 되돌리기·빈 공유/받지 못함 토스트)과 **2,000자 초과 자르기 줄(직접 붙여넣기에도 적용)**. 위 규칙은 그대로 유효하고 §20 이 더하는 것만 적었다.
 
 #### D. 수업 대기·실패 — `LessonGenScreen` (`#gen-wait` · `#gen-long` · `#gen-offline` · `#gen-fail`)
 
@@ -9050,3 +9051,246 @@ v2 보강 H-1~H-8 도 모두 닫힘(H-1 읽기 비저장 Leader ④ · H-2 #178 
 3. **보조 버튼 단계**: 데모는 「지금 수준의 다음 단계」로 그렸다 → 구현은 실제 `goalLevel`(데모 D4-B 설명 「목표 수준이 있고 지금 수준과 다르면」을 따름).
 4. **수준을 못 읽을 때**: 데모에 없던 상태 — 넣기 버튼을 숨기고 새 글자 버튼 「수준을 불러오지 못했어요 · 다시 시도 ›」 하나를 둔다(19-3).
 5. 데모 D2·D5 는 사용자에게 따로 묻지 않고 권고안을 그렸고, 승인 문장에 D2 A·D5 A 로 확정됐다.
+
+---
+
+## 20. 카카오톡 공유하기 수신 (task-052, IMP-0004, 2026-10-11)
+
+> **승인 데모: `docs/demo/task-052-share-target-v1.html` (v1)** — 파일 sha256 앞 12자 `c6851e6d7601`, 토큰 `src/app/globals.css@sha256:a314f18f1807`(지금 파일과 같음). 사용자 승인 2026-10-11 10:11, 원문 「데모 v1 승인, D1~D6은 모두 A」. 데모를 처음 열면 그려지는 권고안이 곧 승인안이다(D1~D6 모두 A).
+> 카톡 메시지를 길게 눌러 [공유] → Lingofy Japanese 를 고르면 앱이 열리고 붙여넣기 화면(§12-2 C, `LessonPasteScreen`)에 글이 채워진다. 서버로는 사용자가 [이 문장으로 수업 만들기]를 누를 때만 지금 경로(#59 `{sourceText}`)로 간다. **API·스키마 변경 없음.** 이력서: `agent-vault/10-Flow/tasks/task-052-improve-kakao-share-target.md`(「Leader 결정 — 구현 계약」이 네이티브·브리지 정본).
+> 적용 토큰(이름만, 새 색 없음): `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-line` · `--color-bad`(기존 안내 그대로). 공용 컴포넌트: `Btn`(ghost·sm) · `Toast`/`useToast` · `BackBar`(그대로).
+> 분담: **dev-N** = `android/**` · `src/modules/infra/native/*.ts`(브리지 3함수) · `tests/live/fake-capacitor.js`. **dev-W** = 이 절의 화면 파일 전부(20-7). dev-W 는 브리지 함수를 **이름으로만** 쓰고 네이티브를 직접 만지지 않는다.
+
+### 20-1. 결정 최종값
+
+| # | 고른 안 | 화면에 미치는 것 | 데모 상태 |
+|---|---|---|---|
+| D1 | **A** 맨 위 안내 띠 | 붙여넣기 화면 내용 맨 위에 띠 1개(`role=status`). 화면을 떠나기 전까지 남는다 | A · G |
+| D2 | **A** 바꾸고 띠에 [쓰던 글로 되돌리기] | 쓰던 글이 있으면 공유한 글로 바꾸고, 쓰던 글은 **이 화면 메모리에만** 둔다. 되돌리기·다시 넣기를 오갈 수 있다 | B |
+| D3 | **A** 다 넣고 [2,000자에 맞춰 자르기] | 2,000자 초과면 기존 빨간 안내 아래 자르기 줄(문장 끝에서, [되돌리기]). **직접 붙여넣은 긴 글에도 같은 줄**(공유 전용 아님) | C2 |
+| D4 | **A** 로그인 화면 한 줄 + 로그인 뒤 같은 붙여넣기 화면 | 로그인 화면에 안내 한 줄(`callbackUrl` 이 공유 붙여넣기일 때만). 글은 주소에 싣지 않고 `from=share` 표시만 잇는다 | D |
+| D5 | **A** 붙여넣기 화면 + 토스트 | 글이 빈 공유도 붙여넣기 화면을 열고 토스트 1회. 쓰던 글은 건드리지 않는다 | E |
+| D6 | **A** 1.0.3 업데이트 안내 「바뀐 점」 한 줄 | **화면 코드 없음** — deployer 가 `AppRelease.notes` 에 쓴다(문구 20-10) | F |
+
+- 그대로인 것(데모 「그대로인 것」): 붙여넣기 화면의 머리·설명·입력칸·글자 수·안내·버튼·일본어 판정 오류 상자, 50~2,000자 규칙, 일본어 판정(보낼 때 서버), 오늘 홈 카드·주제 고르기 붙여넣기 카드·수업 끝 카드의 붙여넣기 링크(상태 F — 변경 없음).
+- C1(50자 미만)·C3(일본어 아님)은 **새 UI 없음** — 채운 뒤 지금 안내·오류 상자 그대로.
+
+### 20-2. 흐름 한눈에 (어디서 공유가 왔나 → 무엇을 하나)
+
+| 공유가 도착했을 때 앱의 위치 | 하는 일 | 기기 뒤로 가기 |
+|---|---|---|
+| 앱이 꺼져 있었음(콜드 스타트), 로그인됨 | 첫 화면이 뜨자마자 `router.replace('/study/today/talk/new/paste?from=share')` → 붙여넣기 화면이 받아서 채움 | 지나온 화면이 없어 앱이 닫히고 카카오톡으로 돌아감 [가능성 높음 — `singleTask`, 실기기 확인] |
+| 앱이 켜져 있음(수업·회화·관리자 콘솔 포함 어느 화면이든), 로그인됨 | `router.push(같은 주소)` → 채움. **확인 창 없이 넘어간다**(데모 전제) | 보던 화면으로 돌아감 |
+| 이미 붙여넣기 화면 | **이동하지 않고** 화면에 신호만 보냄 → 그 자리에서 채움(D2 규칙) | 바뀌지 않음 |
+| 로그인 전(`/login`) | `router.replace('/login?callbackUrl=' + encodeURIComponent('/study/today/talk/new/paste?from=share'))` → 로그인 화면 한 줄 안내 → 로그인 뒤 기존 `callbackUrl` 흐름으로 붙여넣기 화면 → 채움 | — |
+| 초대코드 화면(`/invite`) | 아무것도 하지 않는다(가입을 끊지 않음). 가입·로그인이 끝나 페이지가 새로 뜨면 그때 위 규칙 | — |
+| 브라우저(앱 아님) | **완전히 아무 일도 없음**(구성요소가 첫 줄에서 끝남) | — |
+
+### 20-3. 앱 셸 구성요소 — `ShareReceiver` (새 파일 `src/components/shell/ShareReceiver.tsx`)
+
+- `'use client'`, 아무것도 그리지 않는다(`return null`). **마운트 위치 = 루트 레이아웃 `src/app/layout.tsx` 의 `<KeyboardInset />` 바로 다음.**
+  - 왜 `(app)/layout.tsx` 가 아닌가: 로그인 전 콜드 스타트는 `/` → `/study/today` → proxy 가 `/login?callbackUrl=/study/today` 로 보내 `(app)` 셸이 한 번도 그려지지 않는다. 그러면 D4-A 의 로그인 화면 한 줄이 나올 수 없다. 루트 레이아웃은 로그인 전·관리자 콘솔까지 덮는 자리이고 `KeyboardInset` 이 같은 이유로 이미 거기 있다. 루트 레이아웃은 클라이언트 이동에서 다시 마운트되지 않으므로 「마운트」 = 문서를 새로 불러온 때(콜드 스타트·앱 로그인 완료의 `window.location.replace`·WebView 재로드)다.
+- 네이티브 접근은 **`@/modules/infra/native` 의 함수로만**: `isNativeApp()` · `peekSharedText()` · `onSharedText(cb)` · `onAppResume(fn)`(기존). `window.Capacitor` 직접 호출 금지. 본문을 읽는 `consumeSharedText()` 는 **여기서 부르지 않는다**(붙여넣기 화면만 부른다 — 한 번만 받는 값이 두 곳에서 다투지 않게).
+- 의사코드:
+
+```
+ShareReceiver():
+  router = useRouter(); pathname = usePathname()
+  pending = useRef(false)                       // 이동을 부른 뒤 경로가 바뀔 때까지 다시 확인하지 않음
+  useEffect(() => { pending.current = false }, [pathname])
+  useEffect(() => {
+    if (!isNativeApp()) return                  // 브라우저: 리스너도 달지 않는다(완전 no-op)
+    check = async (how: 'mount' | 'warm') => {
+      if (pending.current) return
+      pending.current = true; setTimeout(() => pending.current = false, 3000)   // 안전 해제(같은 경로 replace 는 pathname 이 안 바뀜)
+      has = await peekSharedText().catch(() => false)
+      if (!has) { pending.current = false; return }
+      { pathname: p, search } = window.location; q = new URLSearchParams(search)
+      if (p === SHARE_PASTE_PATH):
+        if (q.get('from') !== 'share') window.dispatchEvent(new Event(SHARE_EVENT))   // 이미 그 화면 → 이동 없이 채움
+        pending.current = false; return                                          // from=share 가 붙어 있으면 화면이 마운트 때 직접 받는 중
+      if (p === '/invite') { pending.current = false; return }
+      if (p === '/login'):
+        if (isShareCallback(q.get('callbackUrl'))) { pending.current = false; return }   // 이미 안내 중 — 다시 바꾸지 않음(로그인 왕복 resume 반복 방지)
+        router.replace(`/login?callbackUrl=${encodeURIComponent(SHARE_PASTE_HREF)}`); return
+      how === 'mount' ? router.replace(SHARE_PASTE_HREF) : router.push(SHARE_PASTE_HREF)
+    }
+    void check('mount')
+    offR = onAppResume(() => void check('warm'))
+    offS = onSharedText(() => void check('warm'))
+    return () => { offR(); offS() }
+  }, [router])
+  return null
+```
+
+- 상수·판정은 새 리프 파일 **`src/components/shell/shareTarget.ts`**(`'use client'` 없음, 네이티브 import 없음 — 서버 컴포넌트인 로그인·붙여넣기 `page.tsx` 도 import):
+  - `SHARE_PASTE_PATH = '/study/today/talk/new/paste'` · `SHARE_PASTE_HREF = SHARE_PASTE_PATH + '?from=share'` · `SHARE_EVENT = 'kaiwa:shared-text'` · `SHARE_LOGIN_NOTE`(20-6).
+  - `isShareCallback(raw: string | null): boolean` — `new URL(raw, 'http://x')` 로 읽어 경로가 `SHARE_PASTE_PATH` 이고 `from === 'share'` 일 때만 true. 파싱 실패·`null` → false. (단위 시험: 인코딩된 값·다른 경로·`from=other`·쓰레기 값)
+- 공유가 들어와 이동하면 그 화면은 평소처럼 언마운트된다 — 수업 소리·회화 마이크·재생은 각 화면의 기존 정리(cleanup)로 멈춘다. 새 확인 창·저장 로직을 더하지 않는다(데모 전제 「수업·회화 중이어도 넘어감」).
+- **로그·분석에 본문·길이를 남기지 않는다.** `peek` 결과(true/false)도 콘솔에 찍지 않는다.
+
+### 20-4. 붙여넣기 화면 — `LessonPasteScreen` (§12-2 C 위에 더하는 것만)
+
+**① 진입 prop**: `page.tsx` 가 `searchParams` 를 읽어 `<LessonPasteScreen fromShare={from === 'share'} />`. 로그인 없을 때의 `redirect` 는 `callbackUrl` 에 **`?from=share` 를 그대로 잇는다**(`fromShare ? SHARE_PASTE_HREF : SHARE_PASTE_PATH`) — 지금 코드는 쿼리를 버린다(proxy 가 먼저 막지만 같은 규칙으로 맞춤).
+
+**② 한 번만 받기 — 마운트 순서(한 effect 안에서 이 순서)**
+1. 초안 복원(지금 그대로): `d = readStore('session', LESSON_KEYS.pasteDraft) ?? ''` → 입력칸에 `d`. **`textRef.current = d` 를 바로 맞춘다**(아래 `prev` 판단이 상태 클로저가 아니라 ref 를 읽는다).
+2. `fromShare` 가 아니거나 `handledRef.current` 면 끝. 아니면 `handledRef.current = true`.
+3. 주소에서 표시를 지운다: `window.history.replaceState(null, '', SHARE_PASTE_PATH)`(Next App Router 의 네이티브 history 연동 — 안 되면 `router.replace(SHARE_PASTE_PATH, { scroll: false })`). **이후 새로고침·뒤로가기·앞으로가기로 다시 받거나 「받지 못했어요」가 뜨지 않게 하는 장치다.**
+4. `isNativeApp()` 이 아니면 끝(브라우저에서 `?from=share` 를 직접 쳐도 토스트 없음).
+5. `consumeSharedText()` → `null` 이면 토스트 `PASTE_SHARE.lost`(4초) — 입력칸·초안은 건드리지 않는다. 값이 오면 `applyShare(r.text)`.
+- **취소 플래그(`alive`)로 결과를 버리지 않는다** — 한 번만 받는 값이라 버리면 잃는다(개발 모드 StrictMode 의 effect 이중 실행 포함. 두 번째 실행은 `handledRef` 로 막는다).
+
+**③ 화면에 있는 동안 도착(이벤트)**: 마운트 때 `window.addEventListener(SHARE_EVENT, onShare)`(앱일 때만, 언마운트에 해제). `onShare`:
+- `busy`(수업 만들기 요청 중)면 아무것도 안 한다 — 공유는 네이티브에 남고 다음 resume 에 다시 확인된다.
+- `consumeSharedText()` → `null` 이면 **조용히 끝**(이 경로에서는 「받지 못했어요」를 띄우지 않는다). 값이 오면 `applyShare(r.text)` 뒤 띠를 `scrollIntoView({ block: 'nearest' })`.
+
+**④ `applyShare(raw)` — 순수 함수 `arriveShare(prev, raw)` 로 분리(`src/components/lesson/pasteShare.ts`, 단위 시험)**
+- `fill = raw.replace(/\r\n?/g, '\n').trim()` — 줄바꿈을 textarea 값과 같게(글자 수가 화면과 어긋나지 않게), 앞뒤 공백만 정리.
+- `fill === ''` → **빈 공유(D5)**: 토스트 `PASTE_SHARE.empty`(4초). 글·초안·띠 모두 그대로. 끝.
+- `prev = textRef.current`. `prev !== '' && prev !== fill` → `text = fill`, `alt = prev`, 띠 `replaced(n = 글자수(prev))`. 그 밖(빈 입력칸이거나 같은 글) → `text = fill`, `alt = null`, 띠 `arrived`.
+- 공통: `noJa = false`, `trim = null`, `writeStore('session', pasteDraft, fill)`. **입력칸에 초점을 주지 않는다**(키보드가 글·버튼을 가리지 않게 — 화면에 있는 동안 도착해 이미 초점이 있었다면 그대로 둔다).
+- `truncated`(네이티브 1만 자 상한으로 잘림)는 **화면에서 쓰지 않는다** — 1만 자는 2,000자를 넘으므로 기존 빨간 안내 + ⑥ 자르기 줄로 흡수된다. 별도 문구 없음. (자르기 줄의 「뒷부분 n자」는 받은 1만 자 기준이다 — 알려진 한계.)
+
+**⑤ 안내 띠 `ShareBanner`**(같은 파일 안 작은 컴포넌트, 데모 `.shb`) — 위치: 내용 열(`flex flex-col gap-[18px] px-4 pb-8 pt-3.5`)의 **첫 자식**, 설명 문단 위. 띠가 없으면 그리지 않는다.
+
+```
+<div role="status" className="flex min-w-0 items-start gap-2.5 rounded-xl bg-surface2 px-3 py-2.5">
+  <span aria-hidden className="mt-px grid size-7 flex-none place-items-center rounded-full bg-surface text-ink2"> 공유 아이콘 SVG 16px(데모 IC_SHARE 그대로, stroke 2) </span>
+  <div className="min-w-0 flex-1">
+    <p className="text-[13.5px] font-semibold leading-[1.4] text-ink break-keep">{제목}</p>
+    <p className="text-[12.5px] leading-[1.45] text-ink2 break-keep">{본문}</p>
+    {버튼 있으면} <Btn variant="ghost" size="sm" className="mt-2 min-h-11" onClick={swap}>{버튼 글}</Btn>
+  </div>
+</div>
+```
+
+| 띠 상태 | 제목 | 본문 | 버튼 |
+|---|---|---|---|
+| `arrived` | 공유한 글을 넣어 두었어요 | 아직 아무 데도 보내지 않았어요. 확인하고 수업을 만들어 보세요. | 없음 |
+| `replaced(n)` | 공유한 글로 바꿔 넣었어요 | 쓰던 글({n}자)은 이 화면에 있는 동안 되돌릴 수 있어요. | 쓰던 글로 되돌리기 |
+| `restored(n)` | 쓰던 글로 되돌렸어요 | 공유한 글({n}자)을 다시 넣을 수 있어요. | 공유한 글 다시 넣기 |
+
+- `{n}` = 코드포인트 글자 수 `toLocaleString('ko-KR')`.
+- `swap`(두 버튼 공통): `cur = text; text = alt; alt = cur;` 띠를 `replaced ↔ restored` 로 뒤집되 `n = 글자수(cur)`(지금 빠지는 쪽 글의 길이), `noJa = false`, `trim = null`, `writeStore(초안, text)`. **초점은 같은 버튼에 남긴다**(버튼 요소를 바꿔 끼우지 말고 글만 바꿈 → 띠 `role=status` 가 새 제목을 읽는다).
+- **`alt`(쓰던 글)는 컴포넌트 상태에만** 둔다 — sessionStorage·서버·로그 어디에도 쓰지 않는다. 화면을 떠나거나 새로고침하면 사라진다(D2-A 의 알려진 단점, 띠 본문이 「이 화면에 있는 동안」이라고 말한다).
+- 띠는 **입력해도 사라지지 않는다**(데모와 같음). 입력 뒤 [쓰던 글로 되돌리기] 를 누르면 고친 글이 `alt` 로 가므로 다시 누르면 돌아온다 — 잃는 글 없음.
+- 새로고침 뒤에는 띠 없이 초안만 보인다(②-3 으로 `from=share` 가 이미 지워짐) — 데모 전제 「새로고침해도 띠가 다시 뜨지 않음」.
+
+**⑥ 2,000자 자르기 줄 `TrimRow`**(D3-A, 데모 `.trim`) — 위치: 글자 수 줄(`paste-hint`·`paste-count`) **바로 아래**, 일본어 판정 오류 상자 위. **공유든 직접 붙여넣기든** 같은 규칙.
+- 표시 조건: `trim` 이 있으면 「잘랐음」 줄, 없고 `글자수 > 2,000` 이면 「자르기」 줄, 그 밖엔 없음.
+
+```
+<div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-xl border border-line bg-surface px-3 py-2.5">
+  <p id="paste-trim" aria-live="polite" className="min-w-0 flex-[1_1_170px] text-[12.5px] text-ink2 break-keep">{문장}</p>
+  <Btn variant="ghost" size="sm" className="min-h-11" aria-describedby="paste-trim" onClick=…>{버튼 글}</Btn>
+</div>
+```
+
+| 줄 상태 | 문장 | 버튼 → 동작 |
+|---|---|---|
+| 자르기 전(`n > 2,000`) | 문장이 끝나는 곳에서 잘라 2,000자 안으로 맞춰요. 뒷부분 {r}자는 빠져요. | 2,000자에 맞춰 자르기 → `cut = trimToLimit(text)`; `trim = { full: text, removed: 글자수(text) − 글자수(cut) }`; `text = cut` |
+| 잘랐음 | 뒷부분 {r}자를 뺐어요. | 되돌리기 → `text = trim.full`; `trim = null` |
+
+- `{r}` = 「자르기 전」은 `글자수(text) − 글자수(trimToLimit(text))`, 「잘랐음」은 `trim.removed`. 숫자는 `toLocaleString('ko-KR')`.
+- 두 동작 모두 `noJa = false` · `writeStore(초안, text)` · **초점은 같은 버튼에**(글만 바뀜). 문장의 `aria-live` 가 결과를 읽는다.
+- **입력칸을 고치면 `trim = null`**(되돌리기 사라짐 — 데모와 같음). 고친 결과가 다시 2,000자를 넘으면 「자르기 전」 줄이 다시 나온다.
+- 빨간 안내(「2,000자까지 넣을 수 있어요」·글자 수 빨강)·버튼 `aria-disabled`·누르면 이유 토스트는 **지금 그대로**. 자르기 줄은 그 아래 더해질 뿐이다.
+- `trimToLimit(text, max = 2000, lookback = 400)`(순수, `pasteShare.ts`): 코드포인트 배열 `a`. `a.length ≤ max` 면 그대로. `i = max−1` 부터 `max−lookback` 까지 내려가며 `a[i]` 가 `。！？!?` 또는 줄바꿈이면 `i+1` 에서 자르고, 못 찾으면 `max` 에서 자른다. 끝의 공백·줄바꿈을 지운다. 시험: 2,000자 이하 불변 · 문장 끝에서 자름 · 400자 안에 문장 끝 없음 → 2,000 · 끝 공백 제거 · 서로게이트 쌍(이모지)을 1자로 셈 · 결과가 항상 2,000자 이하.
+
+**⑦ 토스트** — 화면의 기존 `Toast`(`bottomPx={24}`, `role=status`)와 `show(msg, 4000)`(≤4초 규칙):
+
+| 언제 | 문구 |
+|---|---|
+| `fromShare` 마운트에서 `consumeSharedText()` 가 `null`(로그인하는 사이 TTL 30분이 지남·앱 프로세스가 메모리에서 밀려나 보관이 사라짐) | 공유한 글을 받지 못했어요. 다시 공유해 주세요. |
+| 받은 글이 비었음(공백뿐 포함) — 마운트·이벤트 두 경로 모두 | 공유한 내용에 글이 없어요. 글을 골라 공유해 주세요. |
+
+- 기존 이유 토스트(50자 미만·2,000자 초과에서 버튼 누름)는 그대로.
+
+**⑧ 상태별 화면(데모 상태 id 인용)**
+
+| 데모 | 입력칸 | 띠 | 글자 수 줄 아래 | 버튼 |
+|---|---|---|---|---|
+| A 정상 도착 | 공유한 글 | `arrived` | — | 50~2,000자면 활성 |
+| B 쓰던 글 있음 | 공유한 글 | `replaced(쓰던 글 길이)` ↔ `restored(공유 글 길이)` | — | 위와 같음 |
+| C1 50자 미만 | 공유한 글 | `arrived` | 지금 안내 「50자 이상 넣어 주세요 · 지금 {n}자」 | `aria-disabled`(지금 그대로) |
+| C2 2,000자 초과 | 공유한 글 전체 | `arrived` | 빨간 안내 + `TrimRow` | `aria-disabled` → 자르면 활성 |
+| C3 일본어 아님 | 공유한 글 | `arrived` | (보낸 뒤) 지금 오류 상자 | 지금 그대로 |
+| D 로그인 뒤 | 공유한 글 | `arrived` | (글 길이에 따라 A·C1·C2 와 같음) | A 와 같음 |
+| D 글을 받지 못함 | 초안(없으면 빈칸) | 없음 | — | 지금 그대로 + 토스트 `lost` |
+| E 빈 공유 | 초안 그대로 | 없음(이미 있던 띠는 그대로 둠) | — | 지금 그대로 + 토스트 `empty` |
+
+### 20-5. 로그인 화면 — 한 줄 안내 (D4-A, `src/app/(auth)/login/page.tsx`)
+
+- 표시 조건: **`isShareCallback(firstParam(sp.callbackUrl))`** 일 때만. 서버 컴포넌트라 앱 여부는 보지 않는다 — `from=share` 는 앱의 `ShareReceiver` 만 만들고 웹에서는 생기지 않는다(주소를 손으로 치면 웹에서도 보이지만 해가 없다).
+- 위치: 오류 알림(`message`)·미설정 안내 **아래**, `<AppLoginArea …/>` **바로 위**(데모: 부제 → 안내 → 로그인 버튼. 오류가 있으면 오류가 먼저).
+
+```
+<p role="status" className="mb-2 flex items-start gap-2.5 rounded-[10px] bg-surface2 px-3.5 py-2.5 text-[13px] text-ink break-keep">
+  <span aria-hidden className="mt-px flex-none text-ink2"> 공유 아이콘 SVG 16px </span>
+  <span>공유한 글은 로그인하면 붙여넣기 화면에 넣어 드려요.</span>
+</p>
+```
+
+- 로그인 버튼·앱 로그인 대기(「Chrome 창에서 로그인하고 있어요」)·딥링크 교환은 **그대로**. `callbackUrl` 은 이미 `AppLoginArea` → `prepareAppLogin`/`exchangeAppCode` → 서버 `sanitizeNextPath`(쿼리 유지) 로 이어지므로 로그인 뒤 `window.location.replace('/study/today/talk/new/paste?from=share')` 가 되고, 붙여넣기 화면이 ② 로 받는다.
+- 로그인 오류로 다시 로그인 화면에 오면(`oauth_error` + 같은 `callbackUrl`) 안내 줄이 그대로 보인다(같은 조건).
+
+### 20-6. 문구 단일 출처
+
+- `src/components/lesson/lessonCopy.ts` 에 **`PASTE_SHARE`** 추가(기존 `PASTE` 는 고치지 않는다):
+  - `arrivedTitle` 「공유한 글을 넣어 두었어요」 · `arrivedBody` 「아직 아무 데도 보내지 않았어요. 확인하고 수업을 만들어 보세요.」
+  - `replacedTitle` 「공유한 글로 바꿔 넣었어요」 · `replacedBody(n)` 「쓰던 글({n}자)은 이 화면에 있는 동안 되돌릴 수 있어요.」 · `replacedAction` 「쓰던 글로 되돌리기」
+  - `restoredTitle` 「쓰던 글로 되돌렸어요」 · `restoredBody(n)` 「공유한 글({n}자)을 다시 넣을 수 있어요.」 · `restoredAction` 「공유한 글 다시 넣기」
+  - `lost` 「공유한 글을 받지 못했어요. 다시 공유해 주세요.」 · `empty` 「공유한 내용에 글이 없어요. 글을 골라 공유해 주세요.」
+- 같은 파일에 **`PASTE_TRIM`** 추가(공유 전용 아님): `hint(r)` 「문장이 끝나는 곳에서 잘라 2,000자 안으로 맞춰요. 뒷부분 {r}자는 빠져요.」 · `action` 「2,000자에 맞춰 자르기」 · `done(r)` 「뒷부분 {r}자를 뺐어요.」 · `undo` 「되돌리기」.
+- `src/components/shell/shareTarget.ts` 의 `SHARE_LOGIN_NOTE` 「공유한 글은 로그인하면 붙여넣기 화면에 넣어 드려요.」
+- 모든 숫자는 `toLocaleString('ko-KR')`. 문구는 데모 v1 `SH` 객체와 **한 글자도 다르지 않다**(시험으로 고정해도 좋다). 엔진·모델 이름 0건.
+
+### 20-7. 생성·수정 파일 (dev-W — `src/app`·`src/components` 만)
+
+| 구분 | 파일 |
+|---|---|
+| 생성 | `src/components/shell/ShareReceiver.tsx` · `src/components/shell/shareTarget.ts` · `src/components/lesson/pasteShare.ts`(`arriveShare`·`trimToLimit`·글자 수 헬퍼) · 시험 `src/components/lesson/__tests__/pasteShare.test.ts` · `src/components/shell/__tests__/shareTarget.test.ts` |
+| 수정 | `src/app/layout.tsx`(`<ShareReceiver />` 한 줄) · `src/components/lesson/LessonPasteScreen.tsx`(prop `fromShare`·마운트 순서·이벤트·`ShareBanner`·`TrimRow`) · `src/components/lesson/lessonCopy.ts`(`PASTE_SHARE`·`PASTE_TRIM`) · `src/app/(app)/study/today/talk/new/paste/page.tsx`(searchParams·redirect 쿼리 유지·prop) · `src/app/(auth)/login/page.tsx`(안내 한 줄) |
+| 고치지 않음 | `src/modules/**`(브리지는 dev-N) · `android/**` · `src/components/common/ui.tsx`(44px 는 `min-h-11` 로 덮음) · `AppLoginArea`·`AppDeepLink`·`GoogleLoginButton` · `(app)/layout.tsx` · `TodayLessonCard`·`LessonTopicsScreen`(상태 F 변경 없음) · 데모 파일 |
+
+### 20-8. 구현 순서
+
+1. `shareTarget.ts` + 시험(`isShareCallback`).
+2. `pasteShare.ts`(`arriveShare`·`trimToLimit`) + 시험 — 화면 없이 규칙부터 고정.
+3. `lessonCopy.ts` 문구.
+4. `LessonPasteScreen` — 먼저 `TrimRow`(공유 없이도 직접 긴 글로 확인 가능) → `ShareBanner`·`swap` → `fromShare` 마운트 순서 → `SHARE_EVENT`.
+5. `paste/page.tsx`(prop·redirect 쿼리).
+6. 로그인 `page.tsx` 안내 줄.
+7. `ShareReceiver` + `layout.tsx` 마운트. **dev-N 의 브리지 3함수가 들어온 뒤**에 연결한다(그 전에는 이름만 맞춘 가짜로 시험 — `tests/live/fake-capacitor.js` 는 dev-N 이 늘림).
+8. 확인: 브라우저(아무 일 없음·`?from=share` 를 쳐도 토스트 없음) · 가짜 브리지로 A·B·C1·C2·C3·D·D 받지 못함·E · 360/390/412 × 높이 780.
+
+### 20-9. 주의사항
+
+- **앱/웹 분기는 로그인·음성 인식·업데이트 띠 세 곳 원칙 유지.** 공유는 새 분기를 만들지 않는다: `ShareReceiver` 와 붙여넣기 화면의 수신 코드는 `isNativeApp()` 이 false 면 첫 줄에서 끝나고(리스너도 달지 않음), 브라우저에서는 화면이 지금과 한 픽셀도 다르지 않다. `TrimRow` 만 웹·앱 공통(공유와 무관한 D3-A 규칙). D6 는 화면 팁(D6-B)이 아니라 배포 메모다.
+- **6층 경계**: 화면·셸은 `@/modules/infra/native` 의 `isNativeApp`·`peekSharedText`·`consumeSharedText`·`onSharedText`·`onAppResume` 만 쓴다. `window.Capacitor`·플러그인 객체 직접 호출 금지, 화면에서 엔진·플러그인 이름 분기 금지.
+- **본문 취급**: 공유 본문을 URL·쿼리·로그·`console`·분석·토스트·서버(수업 만들기 전)에 싣지 않는다. 화면에 채운 뒤에는 기존 초안 `sessionStorage kaiwa.lesson.pasteDraft` 에만, 쓰던 글(`alt`)·자르기 전 원문(`trim.full`)은 컴포넌트 상태에만.
+- **한 번만 채움**: `consumeSharedText()` 는 붙여넣기 화면 한 곳에서만, `handledRef` + 주소 표시 지우기(②-3)로 새로고침·뒤로가기에서 다시 채우거나 「받지 못했어요」를 띄우지 않는다.
+- **자동 포커스 없음**: 마운트·도착·되돌리기·자르기 어느 때도 입력칸에 초점을 주지 않는다. 버튼 동작 뒤 초점은 누른 버튼에 남는다.
+- **높이(데모 실측, [이 문장으로 수업 만들기] 하단, 780 중)**: A·C1·C3 = 360 651 · 390/412 630, B 도착 후 360 703, **C2 360 771**(버튼은 첫 화면 안, 아래 1~2분 안내 한 줄만 스크롤). `replaced` 띠(버튼 포함 약 +52px)와 `TrimRow` 가 함께 나오면(쓰던 글이 있는데 2,000자 넘는 공유) 360 에서 버튼이 첫 화면 밖으로 밀린다 — 드문 조합, 스크롤 1곳(main) 안이라 허용. 3폭에서 띠·자르기 줄 가로 넘침 0 확인.
+- 화면당 세로 스크롤 1곳(main) 유지, sticky 는 `BackBar` 그대로. 띠·자르기 줄은 sticky 아님.
+- **알려진 경계**: 로그인 화면에서 앱 로그인(Chrome 창)을 기다리는 사이 사용자가 카톡으로 가서 **다른 글을** 공유하면 `onSharedText` 로 로그인 주소가 바뀌어 대기가 풀릴 수 있다(다시 누르면 됨, 드묾). 수업 만들기 요청 중(`busy`)에 온 공유는 다음 resume 까지 기다린다.
+- 빈 상태·오류·권한: 붙여넣기 화면은 로그인만 확인(지금 그대로). 오프라인이면 수업 만들기에서 기존 처리. 공유 수신 자체는 서버를 부르지 않는다.
+- **사용자 화면 엔진명 0건**(띠·토스트·로그인 줄·배포 메모 모두).
+
+### 20-10. D6 — 1.0.3 업데이트 안내 「바뀐 점」 문구 제안 (deployer, `AppRelease.notes`)
+
+```
+카카오톡에서 글을 공유하면 바로 '문장으로 수업 만들기' 화면에 들어가요.
+```
+
+- 데모 D6-A 예문 그대로(승인안). 설치 시트(§11-2 G `AppUpdateSheet`)가 「바뀐 점」 아래 15px `whitespace-pre-wrap` 로 그린다 — 한 줄이면 360 에서 두세 줄로 접힌다. 1.0.3 에 다른 바뀐 점이 있으면 **줄을 나눠** 이 줄을 첫 줄로 둔다. 엔진·모델 이름 0건. 화면 코드는 바꾸지 않는다.
+
+### 20-11. 데모와 다르게 쓴 곳 · Leader 확인
+
+1. **로그인 안내 줄 위치**: 데모는 오류가 없는 화면만 그렸다 → 오류·미설정 알림 **아래**, 로그인 버튼 영역 바로 위로 정했다(오류가 먼저 읽히게).
+2. **자르기 줄 `aria-live`·`aria-describedby`**: 데모에 없던 접근성 보강(보이는 모양 같음). 「되돌리기」 단독 버튼 이름에 문장을 연결.
+3. **공유 글 정리**: `\r\n → \n`·앞뒤 공백 정리는 데모에 없던 처리(글자 수가 입력칸 값과 어긋나지 않게). 보이는 결과는 같다.
+4. **`ShareReceiver` 위치**: Leader 계약의 「앱 셸」 대신 **루트 레이아웃**(20-3 이유) — 로그인 전 콜드 스타트에서 D4-A 안내가 나오려면 필요하다. `(app)` 셸에만 두면 D4 는 안내 없이(D4-B 처럼) 동작한다.
+5. **로그인 전 이동**: 계약의 「붙여넣기 주소로 이동 → proxy 가 `callbackUrl` 로 돌림」 대신 `/login` 에 있을 때는 **로그인 주소의 `callbackUrl` 을 직접 바꾼다**(클라이언트 이동 중 proxy 리다이렉트에 기대지 않음). 결과 주소는 같다.
+6. **dev-N 확인 필요(계약에 없음)**: (a) **D5 빈 공유**가 동작하려면 네이티브가 `EXTRA_TEXT` 가 비었거나 공백뿐인(또는 없는) `text/plain` SEND 도 「보관 중인 공유」로 두고 `peek → true`, `consume → { text: '', truncated: false }` 를 줘야 한다. 버리면 D5-B(앱만 열림)처럼 된다. (b) 앱 로그인 딥링크(`thekaiwa://auth/callback`, VIEW 인텐트)가 `onNewIntent` 로 올 때 보관 중인 공유를 지우면 안 된다(D4 흐름). (c) 공유는 붙여넣기 화면만 소비하므로 `ShareReceiver` 의 `peek` 가 보관을 비우지 않아야 한다(계약 그대로).

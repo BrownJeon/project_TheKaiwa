@@ -2,7 +2,6 @@
 task_id: task-052
 title: "카카오톡 공유하기 수신 — 안드로이드 공유(text/plain) 대상 등록 + 오늘의 회화 붙여넣기 화면 자동 채움 (IMP-0004, 네이티브·APK)"
 status: doing
-waiting: demo_review
 base_ref: df9df75
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -17,24 +16,24 @@ aliases:
   - 카톡 공유하기
   - task-052
 created: 2026-10-10
-updated: 2026-10-10
+updated: 2026-10-11
 demo_gate:
   required: true
   level: "delta"
-  status: "review_requested"
+  status: "approved"
   version: 1
   repo_path: "docs/demo/task-052-share-target-v1.html"
   artifact_url: ""
   content_sha256: "c6851e6d7601298a2798791272196f5284d47aa7f785ce91d93d7bb95505e1a5"
   decided_by: "judge"
   rule_id: "JV-ui_change"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-11T10:11:48+09:00"
+  approval_quote: "데모 v1 승인, D1~D6은 모두 A"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: false
+  active: true
 ---
 
 # task-052 — 카카오톡 공유하기 수신 (IMP-0004)
@@ -80,6 +79,7 @@ demo_gate:
 |---|---|---|---|---|---|
 | - | 작성중 | - | - | judge: delta (JV-ui_change) | 10-10 15:35 |
 | v1 | 검토요청 | docs/demo/task-052-share-target-v1.html | - | 사용자 검토 요청 | 10-10 15:51 |
+| v1 | 승인 | docs/demo/task-052-share-target-v1.html | - | "데모 v1 승인, D1~D6은 모두 A" | 10-11 10:11 |
 
 ## Designer 기록 (데모 v1)
 - [15:37] 착수 — 읽음: LessonPasteScreen.tsx·paste/page.tsx(로그인 없으면 `/login?callbackUrl=` 로 보냄)·lessonCopy PASTE·TodayLessonCard(붙여넣기 진입 196행)·screens §12-2 C·§12-8 ⓒ·login(앱 로그인도 callbackUrl 을 이어 줌)·validate.ts(50~2,000자·일본어 비율 0.3). 데모 파일 `docs/demo/task-052-share-target-v1.html` 작성 시작.
@@ -109,3 +109,35 @@ demo_gate:
 - 데모가 전제한 동작(사용자 이견 시 v2): 공유 본문은 URL·로그·서버에 싣지 않고 화면에 채운 뒤에는 기존 초안(sessionStorage)에만 / 한 번만 채움 / 앱이 켜져 있으면 보던 화면(수업·회화 중 포함)에서 붙여넣기 화면으로 넘어가고 기기 뒤로 가기는 보던 화면으로, 꺼져 있었으면 앱을 닫고 카톡으로 [가능성 높음 — singleTask] / 입력칸 자동 포커스 없음 / 1만 자 넘는 공유는 앞 1만 자만 받음(앱 메모리 보호, 수치는 developer·reviewer 확정) / 글 공유에만 목록에 나옴.
 - 확인 못 한 것: ① 카톡 「공유」가 이 폰에서 안드로이드 공유 목록을 띄우는지·넘어오는 글에 보낸 사람·시간 머리말이 붙는지(실기기 전) ② 수지센세 글의 실제 길이·한국어 설명 비율(서버 기준 일본어 30% 이상 — 한국어 위주 글은 C3 처럼 막힘) ③ 로그인 창이 열린 사이 앱이 메모리에서 밀려나는 빈도(D 「글을 받지 못함」).
 - 다음: Leader 가 Artifact 게시·`check.mjs status --to review_requested --version 1` → 사용자 승인 뒤 구현 가이드(`docs/screens.md` §12-2 C 보강, 승인 버전 명시). 그 전에는 `docs/screens.md`·코드 수정 없음.
+
+## 사용자 결정·지시 (2026-10-11)
+- **데모 v1 승인 2026-10-11 10:11:48** — 원문 「데모 v1 승인, D1~D6은 모두 A」 (task-052 에 대한 승인 — task-051 은 따로 승인됨). 최종 결정: D1 A 맨 위 안내 띠 · D2 A 바꾸고 [쓰던 글로 되돌리기] · D3 A 다 넣고 [2,000자에 맞춰 자르기] · D4 A 로그인 화면 한 줄 안내 + 로그인 뒤 같은 붙여넣기 화면 · D5 A 붙여넣기 화면 + 토스트 · D6 A APK 업데이트 안내 「바뀐 점」 한 줄(`AppRelease.notes`).
+- **지시**: 「카톡 공유는 todo로 만들어놓고 apk는 작업은 정상적으로 실시해」 → **카톡 「공유」 실기기 동작 확인은 사용자 todo 로 남기고, 그 확인 결과를 기다리지 않고 APK 작업을 정상 진행한다.** 확인 결과가 「공유 목록에 안 뜸」이면 만든 것의 가치가 줄어든다는 위험은 Leader 가 이미 알렸고 사용자가 알고 결정했다(규칙 7 — 반복하지 않음).
+
+## 사용자 TODO (기다리는 사용자 몫 — 구현을 막지 않음)
+- [ ] **카톡 「공유」 동작 확인**(APK 설치 전에도 지금 가능): 카카오톡에서 수지센세 메시지를 길게 눌러 「공유」 → ① 안드로이드 공유 목록(Chrome·메모 같은 앱들)이 뜨는가 ② 넘어오는 글에 보낸 사람·시간 머리말이 붙는가(글자 수·일본어 비율에 영향). 결과를 알려 주세요.
+- [ ] **새 APK(1.0.3) 설치 뒤 실기기 확인**: 공유 목록에 Lingofy Japanese 가 나오는가 · 꺼진 앱/켜진 앱 둘 다에서 붙여넣기 화면에 글이 채워지는가 · 로그인 전 공유 · 쓰던 글이 있을 때(되돌리기) · 2,000자 초과(자르기).
+
+## Leader 결정 — 구현 계약 (2026-10-11)
+- **judge C1(`codex_gate`, R2)**: `codex_required: false` — Codex 외부 검토 생략(입력·결과 스크래치 `judge-052-c1*.json`).
+- **브리지 계약**(`src/modules/infra/native/`, 이름 고정 — dev-N 이 구현, dev-W 가 사용): `peekSharedText(): Promise<boolean>`(보관 중인 공유가 있는지, 본문 안 줌) · `consumeSharedText(): Promise<{ text: string; truncated: boolean } | null>`(**한 번만** 돌려주고 비움; 앱 밖/없음/만료 → null) · `onSharedText(cb: () => void): () => void`(앱이 켜진 채 새 공유가 도착했을 때 신호만 — 본문 없음, 해제 함수 반환). 브라우저(비앱)에서는 전부 no-op(false/null).
+- **네이티브**: Manifest `ACTION_SEND`+`CATEGORY_DEFAULT`+`mimeType text/plain` 만(`SEND_MULTIPLE`·이미지·파일 제외) · `MainActivity` 가 `onCreate`/`onNewIntent` 의 `EXTRA_TEXT`(문자열)만 읽음, 활동 재생성 때 같은 인텐트 재처리 방지 · 보관은 **메모리만**(정적 보관, 디스크·로그·URL 금지) · **길이 상한 10,000자**(코드포인트 기준 앞부분, `truncated` 표시) · **TTL 30분**(로그인 왕복 허용) · 소비하면 즉시 비움 · 플러그인 등록은 `MainActivity` 에서 `super.onCreate` 앞.
+- **웹 이동**: 앱 셸의 작은 클라이언트 구성요소가 마운트·`resume`·`onSharedText` 때 `peekSharedText()` → 있으면 `/study/today/talk/new/paste?from=share` 로 이동(로그인 전이면 기존 `callbackUrl` 흐름), 붙여넣기 화면이 `consumeSharedText()` 로 채움. 본문은 URL 에 싣지 않는다.
+- **APK**: `kaiwaVersionCode` 3→4(1.0.3). 빌드 스크립트의 **배포(복사·`AppRelease` 쓰기) 단계는 사용자 push·배포 승인 전에는 실행하지 않는다** — 로컬 산출물만 만든다.
+- **분담**: designer = `docs/screens.md` 구현 가이드 · **dev-N** = `android/**`·`src/modules/infra/native/*.ts`(+시험)·`tests/live/fake-capacitor.js` 확장 · **dev-W**(가이드 뒤) = 앱 셸 구성요소·`LessonPasteScreen.tsx`·로그인 화면 한 줄·시험.
+
+## Designer 구현 가이드 기록 (task-052)
+- [10:21] 승인 데모 `docs/demo/task-052-share-target-v1.html` (v1, sha256 앞 12자 `c6851e6d7601` 재확인, 토큰 `globals.css@a314f18f1807` 지금과 같음) → `docs/screens.md` **§20 카카오톡 공유하기 수신** 신규(20-1 결정 최종값 ~ 20-11 데모와 다르게 쓴 곳). 브리지 이름은 Leader 계약 그대로(`peekSharedText`·`consumeSharedText`·`onSharedText`, 기존 `onAppResume`·`isNativeApp`). 문구는 데모 `SH` 객체와 같은 글자.
+- [10:21] 바꾼 기존 줄: `docs/screens.md` §12-2 C 끝에 「→ §20」 포인터 한 줄 **추가만**(기존 서술 삭제·수정 없음). §2 화면 목록 행·머리 변경 이력 줄은 손대지 않음.
+- [10:21] 데모·계약과 다르게 쓴 곳(§20-11): ① 로그인 안내 줄을 오류·미설정 알림 **아래**, 로그인 버튼 바로 위(데모는 오류 없는 화면만 그림) ② 자르기 줄 문장에 `aria-live`·버튼 `aria-describedby`(모양 같음) ③ 공유 글 `\r\n→\n`·앞뒤 공백 정리 ④ **`ShareReceiver` 를 Leader 계약의 「앱 셸」이 아니라 루트 레이아웃 `src/app/layout.tsx` 에 마운트** — 로그인 전 콜드 스타트는 `(app)` 셸이 그려지지 않아 D4-A 안내가 나올 수 없기 때문(`KeyboardInset` 과 같은 자리) ⑤ `/login` 에 있을 때는 붙여넣기 주소로 이동해 proxy 리다이렉트에 맡기지 않고 로그인 주소의 `callbackUrl` 을 직접 바꿈(결과 주소 같음). 구조 변경(재승인 필요)은 없음 [가능성 높음 — 보이는 화면은 데모와 같고 마운트 위치·이동 방법만 다름].
+- [10:21] dev-W 가 헷갈릴 만한 점: ⓐ `consumeSharedText()` 는 **붙여넣기 화면만** 부른다(`ShareReceiver` 는 `peek` 만) ⓑ `?from=share` 마운트에서 `null` 이면 「받지 못했어요」 토스트, 화면에 있는 동안 온 이벤트에서 `null` 이면 **조용히** — 두 경로를 섞지 말 것 ⓒ 받은 뒤 `history.replaceState` 로 `from=share` 를 지워야 새로고침에 토스트가 다시 안 뜸 ⓓ effect 취소 플래그로 consume 결과를 버리면 글을 잃음(StrictMode) — `handledRef` 로만 막음 ⓔ `prev` 는 `textRef` 로 읽음(초안 복원 직후 상태 클로저가 낡음) ⓕ `TrimRow` 는 공유 전용이 아니라 직접 붙여넣기에도 나옴(D3-A) ⓖ `Btn size="sm"` 은 38px → `className="min-h-11"` 로 44px ⓗ 마운트 때는 `router.replace`(뒤로가기 = 앱 닫힘), resume/onSharedText 때는 `router.push`(뒤로가기 = 보던 화면) ⓘ `truncated` 는 화면에서 안 씀.
+- [10:21] 확인 못 한 것: ① **D5 빈 공유는 네이티브가 빈/공백/없는 `EXTRA_TEXT` 도 보관(`peek=true`, `consume→{text:''}`)해야 성립 — 계약에 없음, Leader·dev-N 확인 필요**(버리면 D5-B 처럼 앱만 열림) ② 앱 로그인 딥링크(VIEW 인텐트) 도착 때 보관 중인 공유를 지우지 않는지(D4) ③ 콜드 스타트에서 `resume` 이벤트가 같이 오는지(중복은 `pending` ref 로 막음) ④ Next 16 `window.history.replaceState` 의 라우터 연동(안 되면 `router.replace(…, {scroll:false})`) ⑤ 콜드 스타트 뒤 기기 뒤로 가기가 앱을 닫고 카카오톡으로 돌아가는지(`singleTask`, 실기기) ⑥ `replaced` 띠 + `TrimRow` 동시 표시 때 360 버튼 위치(데모에 없는 조합, 첫 화면 밖으로 밀릴 수 있음 — 허용으로 적음).
+- [10:21] D6 배포 메모 제안(§20-10): 「카카오톡에서 글을 공유하면 바로 '문장으로 수업 만들기' 화면에 들어가요.」(데모 D6-A 예문 그대로, 엔진명 0건). 디자인 스킬: 이번 단계 새로 읽지 않음 — 데모 v1 자체 점검(P0 0·P1 0·P2 2, a11y Critical 0·Major 0·Minor 3) 승계, 가이드에서 Minor ①(첫 렌더 다중 status)은 실제 화면이 하나라 해당 없음.
+
+## Leader 처리 — designer 구현 가이드(§20) 검토 (2026-10-11)
+- 가이드에 승인 버전(v1, sha256 앞 12자 `c6851e6d7601`)이 적혀 있음을 확인 → 데모 게이트 `activate` 완료.
+- **편차 5건 중 받아들임**: ① `ShareReceiver` 를 계약의 「앱 셸」 대신 **루트 레이아웃**에 둔다 — 근거: 로그인 전 콜드 스타트에서는 `(app)` 셸이 그려지지 않아 D4-A 안내가 나올 수 없다. 보이는 화면은 데모와 같아 재승인 불필요로 판단. **단, 모든 라우트에 실리는 클라이언트 구성요소라 reviewer 가 SSR 안전·비앱 환경 완전 no-op·하이드레이션·성능을 집중 감사** ② `/login` 에서 `callbackUrl` 직접 변경(결과 주소 같음) ③ 로그인 안내 줄 위치(오류 알림 아래) ④ `aria-live`·`aria-describedby` 보강 ⑤ 공유 글 `\r\n→\n`·앞뒤 공백 정리.
+- **계약 보완(D5 때문)**: 빈 공유도 네이티브가 보관해 `peek → true`, `consume → {text:'', truncated:false}` — dev-N 에게 전달함. (b) 로그인 딥링크(VIEW)가 보관을 지우면 안 된다는 점과 (c) `peek` 가 보관을 비우지 않는다는 점은 계약 그대로.
+- **알려진 경계(가이드)**: 로그인 대기 중 다른 글을 공유하면 로그인 주소가 바뀌어 대기가 풀릴 수 있다(드묾). 쓰던 글이 있는데 2,000자 넘는 공유가 오면 360폭에서 버튼이 첫 화면 밖으로 밀린다(스크롤 1곳 안이라 허용).
+- **D6 문구(deployer 가 `AppRelease.notes` 에 사용)**: 「카카오톡에서 글을 공유하면 바로 '문장으로 수업 만들기' 화면에 들어가요.」 — 1.0.3 에 다른 바뀐 점이 있으면 줄을 나눠 첫 줄로.
+- **dev-W**: dev-N 의 브리지 3함수가 들어온 뒤 배정(가이드 20-8 순서 7).
