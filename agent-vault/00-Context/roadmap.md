@@ -124,7 +124,7 @@ tags: [type/roadmap]
 - [x] (1) 기본 단어 팩 [[task-008-vocab-today-words]]
 - [x] (2) 조각 필터·조각 뱃지·단어 상세 소리 듣기 IMP-0001 IMP-0002 IMP-0003 [[task-023-improve-vocab-screen]]
 - [~] (2) JLPT 5단계 기본 단어(초보자 (N5)~최상급 (N1) 7,755개)·목표 수준 보조 버튼·설정 출처 줄 — 배포됨, 사용자 표본 검수 대기 IMP-0007 [[task-051-improve-n5-vocab-pack]]
-- [ ] (3) 채택 교정 모음(서랍장 전체)
+- [x] (3) 채택 교정 모음(서랍장 전체) — task-055 ✅ **운영 반영**(2026-10-11, 릴리스 `20261011-201916-1cf4d29d`; 단어장 탭 안 분절 `[단어|채택한 교정]`·`/drawer/corrections`·API #79) — 사용자 폰 확인 대기
 
 ### /settings | 설정
 - [x] (1) 기본정보·목표·학습 설정 [[task-005-settings-attendance]]

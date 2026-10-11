@@ -2,7 +2,7 @@
 task_id: task-055
 title: "Phase 3 서랍장 전체 — 채택 교정 모음 화면(`/drawer/corrections`)과 목록 API(#79)"
 status: review
-waiting: user_decision
+waiting: device_verify
 base_ref: d004079
 risk_level: "R1"
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
@@ -96,7 +96,9 @@ demo_gate:
 - 2026-10-11 19:0x **QA 소환(순차 2갈래)**: α = API #79 라이브(계약·LIKE 특수문자·IDOR·원문·지연, QA 계정에 합성 데이터 ≥65건 심고 매니페스트로 정리 추적) → β = 화면(단어장 344px/교정 모음 298px·점프 ≤8px·카드 실높이·3폭·44px·어두운 화면·돌아오기 복원·경합·단어 시트 R2·회귀) 후 데이터 정리.
 - 2026-10-11 20:2x **QA 전체 PASS(결함 0)** — [[task-055-qa-record]] (4갈래, 순차). **α** API #79 라이브: 계약 86/86(잘못된 입력 22종 400·커서 체인 70/70 중복 0·`facets` 의미·숨김 행 0 노출)·LIKE 55/55(`%` 3·`_` 2·`\` 2·`100%` 1 — **이중 이스케이프 `[추측]` 닫힘**, Leader 가 같은 서버에서 직접 재조회해 일치 확인)·IDOR(QA2 는 자기 5건만, 커서 교차도 0)·원문 바이트 일치·지연 첫 쪽 p95 7.1ms(70건)/7.7ms(300건). **β1** 화면 시각: 단어장 목록 시작 344px·교정 모음 298px(3폭)·분절 같은 자리 62/42·자리표시↔데이터 점프 0·3폭×13상태 가로 넘침 0·터치 44px 미만 0·세로 스크롤 상자 1곳·다크 명암비 최저 4.80(라이트)/5.22(다크)·task-055 몫 하드코딩 색 0·히라가나/한글 스위치 대칭·원문 70건 일치. **β2a** 동작: 분절 6회 이동에도 `history.length` 불변·칩 4연타 경합에서 옛 조건 결과 0회(앞선 3요청 abort)·복원 8케이스(TALK·CHAT × ←·뒤로가기 × S1·S2) 모두 같음·세션 기록 위조 21종 거절. **β2b** 단어 시트·회귀·정리: 열기·닫기 초점·표현 고치기(PATCH 1건)·삭제(토스트·버튼 소멸·위치·초점)·**R2 재현 PASS**(다시 읽기 응답 전 다른 카드 탭 → 초점 안 끌려감)·이미 지워진 단어 처리·디바운스 302ms·계획표/교정 기록 늦은 쪽 우선 8케이스. **정리**: QA1·QA2 행 수 시작 값 일치(Leader 재조회: QA1 Chat 3·ChatMessage 64·Correction 5·ACCEPTED 0·WordEntry 0·StatsSnapshot 3·TutorProposal 8, QA2 전부 0), 3011 서버 종료, 쿠키·`.env` 삭제. 도구 결함은 QA 스크립트 쪽 7건(제품 결함 아님: `off-token` 변수 읽기 오류·locator 모호성·계산 오류 등).
 - **NOT_VERIFIED / 사용자 실기기**: 역할극 방 교정(시드에 역할극 없음)·TalkBack 낭독·키보드 올라온 시트 수정 폼·실제 글꼴 카드 높이(`cardHeight` 280 유지 — QA 권고 255 는 합성 한 줄 문장 기준)·CHAT 점검 `#cr_` 도착(시드가 점검 전이라 `reviewedAt` 만 대체해 본 관찰: 대상 요소·2초 강조는 있으나 스크롤이 대상 카드 화면 밖에서 멈춤 — `ChatReview.tsx` 미변경 코드, 실데이터 확인 필요).
-- **상태 `review` / `waiting: user_decision`** — 코드는 미커밋(작업트리). 사용자가 푸시·배포를 승인하면: ① task-055 src·문서 pathspec 커밋(`conversation/index.ts` 는 task-055 hunk 만 `git apply --cached`) ② 커밋된 HEAD 기준 푸시 전 게이트 ③ push → webhook blue/green → 헬스·운영 읽기 전용 스모크(QA 쿠키 GET) ④ 사용자 폰 확인(위 NOT_VERIFIED).
+- 2026-10-11 20:19 **운영 배포 완료(사용자 「task-055 푸시하고 배포 진행해줘」)**: 커밋 `114001c`(코드·문서 31개)+`1cf4d29`(vault) push `3bca818..1cf4d29` → webhook blue/green **릴리스 `20261011-201916-1cf4d29d`** `RELEASE_RESULT ok`·`migrated:false`·헬스 200(PRODUCTION `status: ok`)·pm2 3개 online, 롤백 대상 `20261011-180237-3bca8188`. 푸시 전 게이트(커밋된 HEAD `114001c`, `git archive` 기준): Prisma 생성 0·tsc 0·eslint 오류 0(경고 5)·전체 시험 3,123/3,124(건너뜀 1)·`next build` 0. 운영 읽기 전용 스모크(QA2 쿠키, 즉시 삭제): `/api/health`·`/api/app/version`·`/api/v1/settings/profile`·`/api/v1/corrections?status=ACCEPTED&limit=1`·`/study/ai`·`/study/today`·`/plan`·`/drawer/words`·**`/drawer/corrections`**·`/settings`·`/ask` 11경로 모두 200, 새 API 경계 쿠키 없음 401·`limit=0` 400·`errorType=grammar` 400, QA2 첫 쪽 `items=0 next=null facets={errorType:[]}`(채택 교정 0건 = 「아직 없음」 빈 상태), 화면 제목 「채택한 교정 · 단어장」. 새 라우트 `api/v1/drawer/corrections`·`(app)/drawer/corrections` 가 릴리스 빌드에 포함 확인.
+- **공유 파일 커밋 처리(실수 1건 정정)**: `conversation/index.ts`·`docs/screens.md`·`docs/design/api-contract.md` 에 다른 세션(task-056)의 미커밋 줄이 섞여 있어, 작업트리에서 상대 줄(순수 추가)만 뺀 내용을 블롭으로 만들어 스테이징(`git update-index --cacheinfo`)했다. 처음에 `screens.md` §2 표 「회화」 행(81행)의 상대 수정을 내 변경으로 오인해 함께 스테이징했으나 검증 단계(상대 표지 검색)에서 발견해 HEAD 원본으로 되돌린 뒤 커밋 — 상대 몫은 작업트리에 그대로 남음. 스테이징 후 내용 검증(상대 표지 0)을 푸시 전 절차로 삼을 것.
+- **상태 `review` / `waiting: device_verify`** (배포 완료, 사용자 폰 확인 대기). 아래는 배포 전 상태 메모: 코드는 미커밋(작업트리). 사용자가 푸시·배포를 승인하면: ① task-055 src·문서 pathspec 커밋(`conversation/index.ts` 는 task-055 hunk 만 `git apply --cached`) ② 커밋된 HEAD 기준 푸시 전 게이트 ③ push → webhook blue/green → 헬스·운영 읽기 전용 스모크(QA 쿠키 GET) ④ 사용자 폰 확인(위 NOT_VERIFIED).
 - 동시 작업: 다른 세션 `회화개선` 이 task-056(IMP-0030 한국어 질의 일본어 도우미)을 맡음 — 회화방 입력 바(`TalkRoom.tsx`)·마이크 영역은 그쪽 소유, task-055 는 `usePlanReturn` 훅만 접점(D5 A). 구현 전에 상대 세션에 다시 알린다.
 
 ## 데모 검토 (demo gate)
