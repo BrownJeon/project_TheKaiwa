@@ -122,6 +122,9 @@ export { listCorrections, acceptCorrection, setCorrectionSavedWord, rejectCorrec
 export type { RejectedCorrection } from './corrections'
 export type { AcceptedCorrection, CorrectionListQuery } from './corrections'
 export type { CorrectionDto } from './corrections/serialize'
+// task-055 #79 서랍장 교정(채택한 교정 모음) — 읽기 전용
+export { listDrawerCorrections, parseDrawerCorrectionQuery, DRAWER_ERROR_TYPES, DRAWER_CHUNK_TYPES, DRAWER_LIMIT_DEFAULT, DRAWER_LIMIT_MAX, DRAWER_Q_MAX } from './corrections/drawer'
+export type { DrawerCorrectionQuery } from './corrections/drawer'
 export { listProposals, acceptProposal, setProposalResult, rejectProposal, PROPOSAL_KINDS, PROPOSAL_STATUSES, createLessonWordProposals, getProposalsByIds } from './proposals'
 export type { AcceptedProposal, AcceptedWord, ProposalDto, ProposalListQuery, LessonWordDraft, LessonWordProposal } from './proposals'
 // task-011 L5: 평가 레벨 올리기 제안(SET_LEVEL) — 채점 트랜잭션 뒤 라우트가 연결, 채택은 #38

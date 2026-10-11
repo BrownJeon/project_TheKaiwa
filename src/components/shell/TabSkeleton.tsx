@@ -3,7 +3,7 @@
  * 서버 `loading.tsx` 와 클라이언트 로딩 구간이 **같은 부품**을 써서 「서버 자리표시 → 클라이언트 자리표시 → 데이터」 사이에 모양이 바뀌지 않는다.
  * 훅이 없어 서버·클라이언트 양쪽에서 쓴다.
  */
-import { CHAT_SKELETON, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from './tabSkeletonSizes'
+import { CHAT_SKELETON, CORRECTION_SKELETON, CORRECTION_TYPE_ROW, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from './tabSkeletonSizes'
 
 /**
  * 자리표시 묶음 — 보이는 블록은 읽기에서 숨기고 `role=status` 한 줄만 알린다. `sr-only` 는 absolute 라 셸 `<main>`(relative) 안에서만 쓴다.
@@ -59,6 +59,41 @@ export function WordCategoryRowSkeleton() {
       {WORD_CATEGORY_ROW.widths.map((w, i) => (
         <span key={i} className="block flex-none rounded-full bg-surface2" style={{ width: w, height: WORD_CATEGORY_ROW.chip }} />
       ))}
+    </div>
+  )
+}
+
+/** 채택 교정 모음 카드 자리표시(task-055 §21-7 C) — 실제 카드와 같은 테두리 상자 N개, 안에 회색 막대 4개(데모 `cardSkeletons`). */
+export function CorrectionCardsSkeleton() {
+  return (
+    <SkeletonRegion>
+      <div className="flex min-w-0 flex-col" style={{ gap: CORRECTION_SKELETON.gap }}>
+        {Array.from({ length: CORRECTION_SKELETON.rows }, (_, i) => (
+          <div key={i} className="flex flex-col gap-2.5 rounded-[14px] border border-line bg-surface p-3.5" style={{ height: CORRECTION_SKELETON.cardHeight }}>
+            <span className="block h-3.5 w-[34%] rounded-md bg-surface2" />
+            <span className="block h-5 w-[82%] rounded-md bg-surface2" />
+            <span className="block h-5 w-[64%] rounded-md bg-surface2" />
+            <span className="block h-3.5 w-[92%] rounded-md bg-surface2" />
+          </div>
+        ))}
+      </div>
+    </SkeletonRegion>
+  )
+}
+
+/**
+ * 교정 모음 「유형」 칩 줄 자리 — 라벨 「유형」 + 회색 칩 4개, 실제 줄(`mt-1.5` 래퍼 + `py-1` + `h-9` 칩)과 같은 높이. 알림은 카드 쪽 한 줄뿐(한 화면에 하나).
+ * 라벨 글자는 `drawer/correctionsCopy` 의 `typeLabel` 과 같다(시험이 묶는다 — 이 파일은 화면 모듈을 import 하지 않는다).
+ */
+export function ErrorTypeRowSkeleton() {
+  return (
+    <div aria-hidden="true" className="-mr-4 flex min-w-0 items-center gap-2" style={{ marginTop: WORD_CATEGORY_ROW.top }}>
+      <span className="w-[30px] flex-none text-[12px] font-semibold text-ink2">유형</span>
+      <span className="flex min-w-0 flex-1 gap-2 overflow-hidden" style={{ paddingBlock: WORD_CATEGORY_ROW.pad }}>
+        {CORRECTION_TYPE_ROW.widths.map((w, i) => (
+          <span key={i} className="block flex-none rounded-full bg-surface2" style={{ width: w, height: WORD_CATEGORY_ROW.chip }} />
+        ))}
+      </span>
     </div>
   )
 }

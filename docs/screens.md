@@ -87,8 +87,8 @@
 | 오늘 | `/study/today/eval/[evaluationId]` | AI 평가 — 상태로 분기: 만드는 중·실패 / 준비 화면 [시작하기](10분 시계) / 문항 풀이(듣고 답하기 글자로 보기·틀린 곳 탭·조립) / 채점 중·다시 채점 / 결과(점수·루브릭·문항별 정답·레벨 제안) | 소유자(타인 404) | **숨김** | **task-011**(api-contract §2-14 #65~#69·#67c) |
 | 오늘 | `/study/today/eval/history` | AI 평가 기록 목록(진행 중 포함·실패 제외) | 로그인 | **숨김** | **task-011** |
 | 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 분석·성장은 Phase 3 |
-| 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** |
-| 단어장 | `/drawer/corrections` | 채택 교정 모음 | 로그인 | 보임 | Phase 3 |
+| 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** · 앱바 아래 분절 `[단어 \| 채택한 교정]` **task-055(§21)** |
+| 단어장 | `/drawer/corrections` (돌아오기 복원 `?errorType=&chunkType=&q=&focus=&n=`) | 채택 교정 모음(분절·유형/조각 칩·검색·요약 카드·더 보기·원래 대화 이동·단어 시트) | 로그인(자기 교정만) | 보임 | **task-055(§21)** — 데모 v1 승인 2026-10-11 |
 | 질문 | `/ask` | 무엇이든 물어보세요 | 로그인 | 보임 | Phase 3 |
 | 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** · 음성 인식 절 **마이크 테스트 task-003e(§8)** · 음성 인식 절 **휴대폰에서 알아듣기 카드(앱만)·인식 방식 문구·경로 한 줄** + 맨 아래 **앱 버전 줄(앱만)** · 관리자 행 아래 **휴대폰 인식 진단(앱 && `engine.read`)** **task-003f(§11-2 A·B·C·G·I)** |
 | 로그인 | `/login`(`?oauth_error=`) · (Custom Tab 안) `/invite` | 로그인(Google) · 앱: Chrome 창 대기 카드·마무리 덮개·창 닫힘 안내 · 초대 뒤 "앱으로 돌아가기" · 강제 업데이트 띠 | 비로그인 | 없음(`(auth)` 레이아웃) | task-002 · 앱 분기·해요체 문구 **task-003f(§11-2 E·G)** |
@@ -825,6 +825,7 @@ run: { mode: 'sync'|'job'|'waiting', jobId?, startedAt, progress? }
 ```
 AppBar title="단어장" right={<AddButton/>}         ← "＋ 추가": h-11 rounded-xl bg-surface2 px-3 text-[14px] font-semibold, aria-label="단어 추가"
 <div className="px-4 pb-8">
+  DrawerSwitch current="words"                      ← task-055: 분절 [단어 | 채택한 교정] 42px + mb-2.5 (§21-3 A·§21-7 A)
   WordSearchBar                                     ← 44px
   CategoryChips  className="mt-2.5"                  ← #46 실패·0개면 줄을 그리지 않는다
   ChunkChips                                        ← task-023 조각 줄: 라벨 "조각" + [전체|이름|액션|느낌|꾸밈|없음] 하나만 선택(§4-11). 단어장이 완전히 비면 숨김
@@ -9294,3 +9295,474 @@ ShareReceiver():
 4. **`ShareReceiver` 위치**: Leader 계약의 「앱 셸」 대신 **루트 레이아웃**(20-3 이유) — 로그인 전 콜드 스타트에서 D4-A 안내가 나오려면 필요하다. `(app)` 셸에만 두면 D4 는 안내 없이(D4-B 처럼) 동작한다.
 5. **로그인 전 이동**: 계약의 「붙여넣기 주소로 이동 → proxy 가 `callbackUrl` 로 돌림」 대신 `/login` 에 있을 때는 **로그인 주소의 `callbackUrl` 을 직접 바꾼다**(클라이언트 이동 중 proxy 리다이렉트에 기대지 않음). 결과 주소는 같다.
 6. **dev-N 확인 필요(계약에 없음)**: (a) **D5 빈 공유**가 동작하려면 네이티브가 `EXTRA_TEXT` 가 비었거나 공백뿐인(또는 없는) `text/plain` SEND 도 「보관 중인 공유」로 두고 `peek → true`, `consume → { text: '', truncated: false }` 를 줘야 한다. 버리면 D5-B(앱만 열림)처럼 된다. (b) 앱 로그인 딥링크(`thekaiwa://auth/callback`, VIEW 인텐트)가 `onNewIntent` 로 올 때 보관 중인 공유를 지우면 안 된다(D4 흐름). (c) 공유는 붙여넣기 화면만 소비하므로 `ShareReceiver` 의 `peek` 가 보관을 비우지 않아야 한다(계약 그대로).
+
+## 21. 채택 교정 모음 `/drawer/corrections` (task-055, Phase 3 서랍장, 2026-10-11)
+
+> **승인 데모: `docs/demo/task-055-drawer-corrections-v1.html` (v1)** — 파일 sha256 `56a11a9b6face8865ed71cf220932c73859e868685e5d5dffaf9892f19ce4c9e`, 토큰 `src/app/globals.css@sha256:a314f18f1807`(2026-10-11 지금 파일과 같음 확인). 사용자 승인 2026-10-11 17:07, 원문 「task-055 데모 v1 승인, D1~D8은 권고대로」. 데모를 처음 열면 그려지는 권고안(D1 A·D2 C·D3 A·D4 A·D5 A·D6 A·D7 A·D8 B)이 곧 승인안이다.
+> **우선순위: task 이력서 「확정 결정」 표(D1~D8) > 이 절 > 데모.** 데모는 쪽 크기 8개·합성 교정 12건·헤드리스 시스템 글꼴이라 **수치는 순위 비교용**이고, 문구·간격·색 토큰·상태 구성은 데모가 기준이다. 데모와 다르게 쓴 곳은 21-13 에 모았다.
+> 회화·채팅에서 [채택]한 교정(`status=ACCEPTED`)만 모아 다시 읽는 화면. 단어장 탭 안의 두 번째 목록이고(새 탭 없음), 데이터는 #79 하나(api-contract §2-17 — 이 절은 다시 정의하지 않고 인용만 한다). **스키마·서버 쓰기·네이티브 변경 없음** → 웹 배포만. 이력서: `agent-vault/10-Flow/tasks/task-055-drawer-corrections.md`, 데모 기록: `task-055-designer-record.md`.
+> 적용 토큰(이름만, 새 색 없음): `--color-surface` · `--color-surface2` · `--color-ground` · `--color-ink` · `--color-ink2` · `--color-ink3`(검색 placeholder·한글 줄 괄호만 — 기존 부품) · `--color-line` · `--color-accent` · `--color-on-accent` · `--color-accent-soft`(빈 상태 그림 장식만) · `--color-good` · `--color-good-soft` · `--color-bad` · `--color-bad-soft`. 공용 컴포넌트: `AppBar` · `Badge` · `Btn` · `Sheet`(`WordDetailSheet` 경유) · `Toast`/`useToast` · `JaText`·`HangulLine`·`useAnnotations`·`DisplayToggles`·`JaRuns` · `SkeletonRegion`.
+> **다른 세션 경계**: 회화방 `src/components/talk/TalkRoom.tsx`(입력 바·마이크 영역)는 task-056(IMP-0030) 소유다. 이 task 는 그 파일을 **열어 고치지 않는다** — 원래 대화에서 ← 를 바꾸는 일은 `shell/usePlanReturn.ts` 한 곳에서 끝난다(21-6 B). `TalkRoomHeader.tsx`·`BackBar.tsx` 도 고치지 않는다. 이 설계는 그 세 파일을 건드려야 하는 부분이 없다.
+
+### 21-0. 레이아웃 설계
+
+| 항목 | 내용 |
+|---|---|
+| 목표 | 「무엇을 틀렸나 → 어떻게 고치나」 두 문장을 다시 읽고, 자주 틀리는 유형을 숫자로 보고, 필요하면 원래 대화·넣은 단어로 간다 |
+| 주요 위계 | ① 분절 `[단어 \| 채택한 교정]`(지금 위치) ② 거르기(검색 → 「유형」 칩(개수) → 「조각」 칩) ③ 머리 줄(개수·조건) + 보기 설정 ④ 요약 카드 목록(✕ 내 문장 / ✓ 고친 문장은 늘 보임) ⑤ [교정 더 보기] |
+| 영역(위→아래, 390) | sticky 앱바 52 + 아래 10 → 분절 42 + 10 → 검색 44 → 유형 줄 6 + 44 → 조각 줄 44 → 머리 줄 8 + 32 + 6 → 목록(데모 실측 목록 시작 **298px**, 3폭 같음) |
+| 컴포넌트 | `DrawerSwitch`(새) · `WordSearchBar`(prop 추가) · `ErrorTypeChips`(새) · `ChunkChips`(prop 추가) · `DisplayToggles` · `DrawerCorrectionCard`(새) · `WordDetailSheet`(그대로) |
+| 상태 | 첫 로딩 · 조건 바꾸는 중 · 목록 · 펼침 · 더 보기 중/실패/끝 · 처음 비어 있음 · 조건 0건 · 검색 0건 · 첫 로딩 실패 · 단어 시트 (21-4) |
+| 행동 | 칩 한 번 누름(AND) · 검색 Enter 확정 · 카드 윗부분 눌러 펼침 · [원래 대화 보기 ›] → ← 「교정 모음으로」로 같은 자리 복원 · [단어 ○○ 보기 ›] 시트 |
+| 반응형 | 360/390/412 모두 같은 한 줄 흐름(카드 안 나란히 배치 없음). 칩 줄만 가로 스크롤, 세로 스크롤은 `main` 하나 |
+
+### 21-1. 결정 최종값
+
+| # | 확정 | 화면에 미치는 것 | 데모 탭 |
+|---|---|---|---|
+| D1 | **A** 앱바 아래 분절 | 단어장·교정 모음 둘 다 앱바 「단어장」 아래 `[단어 \| 채택한 교정]`(두 주소로 가는 링크). 단어장 목록 시작 292 → 344px(+52), 자리표시 상수 값 불변 | A |
+| D2 | **C** 요약 카드 | 카드 윗부분 전체가 펼침 버튼. ✕/✓ 두 문장은 늘 보이고 설명 2줄, 펼치면 설명 전체·시험 문법·이동 버튼 | B |
+| D3 | **A** 칩 두 줄 | 「유형」(개수 = `facets`) + 「조각」(4종, 개수 없음), AND | C |
+| D4 | **A** 버튼 | [교정 더 보기], 실패 한 줄, 끝 표시, 쪽 크기 20 | D |
+| D5 | **A** ← 「교정 모음으로」 | 회화방·표현 점검의 ← 이름·행선지만 바뀜(`usePlanReturn`) | G |
+| D6 | **A** 시트 | 기존 `WordDetailSheet` 를 이 화면 위에 | G |
+| D7 | **A** 히라가나·한글만 | 보기 설정 스위치 두 개, 번역 줄·번역 스위치 없음 | B |
+| D8 | **B** 설명까지 | 검색 안내 「문장이나 설명으로 찾기」, `original`·`corrected`·`explanation` 부분 일치 | C |
+
+### 21-2. 라우트·파일 지도 (경로는 2026-10-11 코드에서 확인 — [확실])
+
+> `src/components/drawer/` 폴더는 **아직 없다**. 단어장 부품은 전부 `src/components/vocab/` 에 있다(`WordsScreen`·`WordsSkeleton`·`WordDetailSheet`·`ChunkChips`·`WordSearchBar`). 교정 모음 새 부품은 `src/components/drawer/` 를 새로 만들어 둔다(CLAUDE.md 디렉토리 설계의 `components/drawer`).
+
+| 구분 | 파일 | 할 일 |
+|---|---|---|
+| 새로 | `src/app/(app)/drawer/corrections/page.tsx` | 서버 컴포넌트. `export const metadata = { title: '채택한 교정 · 단어장' }` + `searchParams` 검증(21-6 C) → `<CorrectionsScreen initial={…} />` |
+| 새로 | `src/app/(app)/drawer/corrections/loading.tsx` | `<CorrectionsSkeleton />` 만(`drawer/words/loading.tsx` 와 같은 모양). 아래에 하위 경로가 없어 다른 화면으로 새지 않는다 |
+| 새로 | `src/components/drawer/CorrectionsScreen.tsx` | 화면 본체(`'use client'`) — 상태·요청·목록·빈/오류·시트·토스트 |
+| 새로 | `src/components/drawer/DrawerCorrectionCard.tsx` | D2 C 요약 카드(21-3 C) |
+| 새로 | `src/components/drawer/ErrorTypeChips.tsx` | 「유형」 칩 줄(21-3 D) |
+| 새로 | `src/components/drawer/DrawerSwitch.tsx` | 분절 `[단어 \| 채택한 교정]`(21-3 A) — 무거운 import 없음(자리표시가 쓴다) |
+| 새로 | `src/components/drawer/CorrectionsSkeleton.tsx` | `loading.tsx` 내용(21-7 B) |
+| 새로 | `src/components/drawer/logic.ts` | 순수 함수: 요청 주소·칩 목록·머리 줄 개수·빈 상태 종류·이동 주소·돌아오기 주소 만들기/읽기(21-5·21-6) |
+| 새로 | `src/components/drawer/correctionsCopy.ts` | 문구 단일 출처(21-9) |
+| 새로 | `src/components/shell/correctionsReturn.ts` | 교정 모음 돌아오기 한 건 기록 + 계획표 기록과 고르기(21-6 B) |
+| 새로(시험) | `src/components/drawer/__tests__/logic.test.ts` · `src/components/shell/__tests__/correctionsReturn.test.ts` | 21-10 |
+| 바꿈 | `src/components/shell/usePlanReturn.ts` | 행선지를 계획표·교정 모음 중 하나로(21-6 B). **소비처(`BackBar`·`TalkRoomHeader`)는 고치지 않는다** |
+| 바꿈 | `src/components/vocab/WordsScreen.tsx` | 검색 위에 `<DrawerSwitch current="words" />` 한 줄 |
+| 바꿈 | `src/components/vocab/WordsSkeleton.tsx` | 같은 자리에 `<DrawerSwitch current="words" placeholder />` 한 줄 |
+| 바꿈 | `src/components/vocab/ChunkChips.tsx` | 선택 prop `withNone`(기본 `true` = 단어장 그대로). 교정 모음은 `false`(「없음」 칩 없음 — 계약 `chunkType` 4종) |
+| 바꿈 | `src/components/vocab/WordSearchBar.tsx` | 선택 prop `label`·`placeholder`(기본값 = 지금 「단어 검색」·「표현·읽기·뜻으로 검색」), `commitWhileTyping`(기본 `true` = 지금 300ms 디바운스). 교정 모음은 `false`(21-5 A) |
+| 바꿈 | `src/components/shell/tabSkeletonSizes.ts` · `src/components/shell/TabSkeleton.tsx` | 교정 카드 자리표시 상수·부품 추가, `WORD_SKELETON` 주석의 숫자(292·375) 갱신(21-7) |
+| 바꿈(시험) | `src/components/shell/__tests__/tabSkeleton.test.ts` | 묶음 시험 추가(21-7 D) |
+| 재사용(그대로) | `chat/diff.ts`(`diffCodepoints`) · `chat/labels.ts`(`ERROR_TYPE_LABEL`·`CHUNK_LABEL`) · `chat/ExtraNoteLine.tsx` · `common/japanese/{JapaneseText,annotations,JaRuns}` · `common/ui.tsx`(`Badge`·`Btn`) · `common/Toast` · `vocab/WordDetailSheet.tsx` · `vocab/labels.ts`(`WORD_NOT_FOUND`) · `vocab/format.ts`(`formatMonthDay`) · `common/format.ts`(`kstDateKey`·`cpLength`) · `shell/AppBar.tsx` · `shell/TabSkeleton.tsx`(`SkeletonRegion`) · `shell/planReturn.ts`(읽기만 — `parsePlanReturn`·`samePath`·`isPlanHref`·`PLAN_RETURN_KEY`·`PLAN_RETURN_LABEL`·`PLAN_RETURN_TTL_MS`) · `topic/logic.ts`(`retryFailHoldMs`) | — |
+| 재사용 안 함 | `chat/CorrectionCard.tsx` | 두 칸 나란히·[채택][무시]·상태 줄 카드라 D2 C 와 모양이 다르다. **강조 클래스 `REMOVED`·`ADDED` 는 모듈 안 상수라 export 되지 않았다** → 새 카드에 같은 문자열을 두고 시험으로 묶는다(21-10 ⑦). `CorrectionCard.tsx` 는 고치지 않는다 |
+| 재사용 안 함 | `common/Segmented.tsx` | `role=radiogroup` 버튼이라 주소 이동·`aria-current` 를 못 한다 → `DrawerSwitch` 가 **같은 클래스**를 링크에 쓴다 |
+| 재사용 안 함 | `common/ui.tsx` `ErrorBlock` | [다시 시도] 높이가 44px 가 아니다(21-13 ⑥) → 같은 모양 + `min-h-11` 버튼을 화면 안에 둔다 |
+| 고치지 않음 | `talk/TalkRoom.tsx`(task-056) · `talk/TalkRoomHeader.tsx` · `shell/BackBar.tsx` · `shell/planReturn.ts` · `shell/TabBar.tsx`(`match: '/drawer'` 라 교정 모음에서도 이미 「단어장」 켜짐) · `shell/routes.ts`(집중 화면 아님 → 하단 탭 보임) · `chat/CorrectionCard.tsx` · `chat/PendingCorrectionsCard.tsx` · `chat/ChatReview.tsx` · 데모 파일 | — |
+
+- 서버(API #79·모듈 조회 함수·타입)는 Leader 사양(이력서 「설계」 1)대로 developer 가 만든다. 응답 항목은 기존 `CorrectionDto` 와 모양이 달라(`chat` 필수·`savedWord?{id,surface}`·`status` 없음) 새 타입(예: `src/types/chat.ts` 의 `DrawerCorrectionItem`·`DrawerCorrectionPage`)으로 둔다 — 이름은 developer 결정.
+
+### 21-3. 화면 구성 (의사코드, 390px 기준 — 클래스는 데모 CSS 를 Tailwind 로 옮긴 값)
+
+#### A. `DrawerSwitch` (D1 A — 데모 `drawerSeg`)
+
+```
+DrawerSwitch({ current: 'words' | 'corrections', placeholder?: boolean })
+<nav aria-label="단어장 보기" className="mb-2.5 flex gap-[3px] rounded-xl bg-surface2 p-[3px]">      ← 42px + 아래 10 = 52
+  <Link href="/drawer/words" replace aria-current={current==='words' ? 'page' : undefined} className={ITEM}><span className="block truncate">단어</span></Link>
+  <Link href="/drawer/corrections" replace aria-current={current==='corrections' ? 'page' : undefined} className={ITEM}><span className="block truncate">채택한 교정</span></Link>
+</nav>
+ITEM = Segmented md 와 같은 값: relative grid h-9 min-w-0 flex-1 place-items-center rounded-[9px] px-1 text-[13.5px]
+       before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']   ← 세로로만 44px(Segmented 주석 그대로 — 가로로 넓히면 옆 칸을 가로챈다)
+       켬: bg-surface font-semibold text-ink shadow-sm / 끔: font-medium text-ink2
+       글자 truncate 는 안쪽 span 에(링크에 달면 overflow:hidden 이 ::before 를 36px 로 자른다 — Segmented 주석)
+```
+- `replace`: 두 목록 사이 오가기는 기록을 쌓지 않는다(회화 탭 `[회화|채팅|역할극]` 의 `router.replace` 선례). 지금 화면 항목을 다시 누르면 `onClick` 에서 `preventDefault`(아무 일 없음).
+- **초점**: 앱 라우터 이동 뒤에는 초점이 문서 처음으로 빠진다 [가능성 높음 — developer 확인]. 데모처럼 **새 화면 분절의 현재 항목에 초점**을 둔다: 클릭 때 모듈 변수 `pendingFocus = 대상` → 새 `DrawerSwitch` 가 마운트될 때 `pendingFocus === current` 면 현재 링크 `focus({ preventScroll: true })` 후 비운다. **`placeholder` 모드는 이 처리를 하지 않는다**(자리표시는 inert 라 초점이 안 가는데 변수를 먼저 비워 버리면 진짜 화면이 초점을 못 받는다).
+- `placeholder`: 같은 마크업을 `inert` 상자 안에 그린다(효과 없음 — `WordsSkeleton`·`CorrectionsSkeleton` 용).
+
+#### B. `CorrectionsScreen` (데모 `corrApp`)
+
+```
+AppBar title="단어장"                                   ← right 없음([＋ 추가]는 단어 화면만). h1 은 「단어장」 그대로 — 지금 위치는 분절 aria-current 가 알린다
+<div className="px-4 pb-8">
+  <DrawerSwitch current="corrections" />
+  view === 'emptyFirst' → <EmptyFirst /> 만 그리고 끝            ← 검색·칩·머리 줄 없음(21-4 E1)
+  <div inert={firstLoading || undefined}>                          ← 첫 응답 전에는 자리표시와 같은 정적 줄(데모 F 첫 로딩)
+    <WordSearchBar label={COPY.search} placeholder={COPY.search} commitWhileTyping={false} value={qInput} … error={tooLong ? COPY.searchTooLong : null} />
+  </div>
+  firstLoading        → <ErrorTypeRowSkeleton />                        ← 21-7 C
+  첫 로딩 실패        → (유형 줄 없음)
+  그 밖               → <div className="mt-1.5"><ErrorTypeChips … /></div>
+  <div inert={firstLoading || undefined} className={유형 줄이 없으면 'mt-1.5' : undefined}>
+    <ChunkChips value={filter.chunkType} withNone={false} onChange={…} />
+  </div>
+  <div className="mb-1.5 mt-2 flex min-h-8 items-center justify-between gap-2">      ← WordsScreen 머리 줄과 같은 클래스
+    <p aria-live="polite" className="min-w-0 flex-1 text-[12px] text-ink2 [overflow-wrap:anywhere]">{머리 줄 — 21-4}</p>
+    <div role="group" aria-label={DISPLAY_COPY.toolGroup} className="flex flex-none items-center gap-1.5">
+      <DisplayToggles keys={['fu', 'hg']} onToast={toast.show} />           ← D7: 'tr' 없음
+    </div>
+  </div>
+  body                                                                 ← 21-4 표(자리표시 / 오류 상자 / 빈 상자 / 목록 + 더 보기)
+  목록 = <ul aria-label="채택한 교정 목록" className="flex flex-col gap-2.5"> DrawerCorrectionCard × n </ul>
+</div>
+{hydrated && wordSheet ? <WordDetailSheet key={id} … /> : null}               ← 21-6 D
+<Toast message={toast.message} />
+```
+
+#### C. `DrawerCorrectionCard` (D2 C — 데모 `card(…, 'C')`)
+
+```
+<li id={`dcr_${c.id}`} className="min-w-0 scroll-mt-16 rounded-[14px] border border-line bg-surface p-3.5">
+  <button type="button" aria-expanded={open} aria-controls={`dcr_${c.id}_x`} onClick={onToggle}
+          className="block w-full min-w-0 text-left">                       ← 카드 윗부분 전체가 펼침 버튼. 안에는 span 만(p·div 금지 — 21-11 ⑧)
+    <span id={`dcr_${c.id}_head`} className="flex min-w-0 items-center gap-1.5">
+      <Badge>{ERROR_TYPE_LABEL[c.errorType] ?? '기타'}</Badge>
+      {c.severity === 'MAJOR' && <Badge tone="bad">중요</Badge>}
+      {c.chunkType && <span className="min-w-0 truncate text-[12px] text-ink2">{CHUNK_LABEL[c.chunkType]}</span>}     ← 「이름 조각」
+      {날짜 && <span className="ml-auto flex-none text-[12px] tabular-nums text-ink2"><span className="sr-only">채택한 날 </span>{날짜}</span>}
+      <span aria-hidden="true" className="ml-0.5 w-4 flex-none text-center text-[12px] text-ink2">{open ? '▴' : '▾'}</span>
+    </span>
+    <span className="mt-2 grid min-w-0 grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-1.5">        ← ✕ 내 문장
+      <span aria-hidden="true" className="text-center text-[14px] font-bold text-bad">✕</span>
+      <span className="min-w-0">
+        <span className="sr-only">내 문장: </span>
+        <JaText as="span" text={c.original} state={annOriginal} ranges={diff ? changedRanges(diff.a, REMOVED) : undefined}
+                className="block whitespace-pre-wrap text-[16px] leading-[1.7] text-ink2 [overflow-wrap:anywhere]" />
+        <HangulLine as="span" state={annOriginal} />
+      </span>
+    </span>
+    <span className="mt-2 grid min-w-0 grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-1.5">        ← ✓ 고친 문장
+      <span aria-hidden="true" className="text-center text-[14px] font-bold text-good">✓</span>
+      <span className="min-w-0">
+        <span className="sr-only">고친 문장: </span>
+        <JaText as="span" text={c.corrected} state={annCorrected} ranges={diff ? changedRanges(diff.b, ADDED) : undefined}
+                className="block whitespace-pre-wrap text-[17px] leading-[1.7] [overflow-wrap:anywhere]" />
+        <HangulLine as="span" state={annCorrected} />
+      </span>
+    </span>
+    {c.explanation && <span className={`mt-2.5 block text-[15px] leading-normal text-ink2 break-keep [overflow-wrap:anywhere] ${open ? '' : 'line-clamp-2'}`}>{c.explanation}</span>}
+    <span className="mt-1.5 block truncate text-[12.5px] text-ink2"><b className="font-semibold text-ink">{회화/채팅}</b> · {c.chat.title}</span>
+  </button>
+  <div id={`dcr_${c.id}_x`} hidden={!open} className="mt-0.5">                ← 버튼 밖(버튼 안에 버튼·링크를 둘 수 없다)
+    <ExtraNoteLine correctionId={c.id} text={c.extraNoteKo} describedBy={`dcr_${c.id}_head`} />     ← 값 없으면 그리지 않음(기존)
+    <div className="mt-2 flex flex-wrap gap-2">
+      {sourceHref && <Link href={sourceHref} onClick={() => onLeave(c)} aria-label={`${회화/채팅} ‘${c.chat.title}’에서 이 교정 보기`} className={LINK_BTN}>원래 대화 보기 ›</Link>}
+      {c.savedWord && <button type="button" onClick={() => onOpenWord(c.savedWord.id)} className={LINK_BTN}>단어 <span lang="ja" className="mx-1 min-w-0 truncate">{c.savedWord.surface}</span> 보기 ›</button>}
+    </div>
+  </div>
+</li>
+LINK_BTN = inline-flex min-h-11 min-w-0 max-w-full items-center rounded-xl border border-line bg-surface px-3 text-left text-[14px] font-semibold text-accent
+REMOVED  = 'rounded-sm bg-bad-soft text-bad line-through decoration-1'                ← CorrectionCard 와 같은 문자열(시험으로 묶음)
+ADDED    = 'rounded-sm bg-good-soft text-good underline decoration-2 underline-offset-4'
+```
+- `diff = diffCodepoints(c.original, c.corrected)`(200 코드포인트를 넘으면 `null` → 강조 없이 원문 그대로). `[annOriginal, annCorrected] = useAnnotations([c.original, c.corrected])` — `CorrectionCard` 와 같은 방식이고 요청은 `annotationClient` 가 큐로 모은다. developer 는 한 쪽(20개)에서 표시 분석 요청 수가 몇 건인지 네트워크로 확인해 이력서에 적는다(카드마다 1건씩 나가면 목록 단위 `useAnnotations(items.flatMap(…))` 로 올린다).
+- 일본어 줄간격은 `JaText` 기본 `leading`(루비 켬일 때 2.1) — 데모 2.05 와 줄당 1px 안팎 차이, `CorrectionCard` 와 같게 둔다.
+- 「채택함」 상태 뱃지·[채택][무시]·「채택했어요」 줄은 **그리지 않는다**(모두 채택한 교정).
+- 날짜 = `formatMonthDay(kstDateKey(c.resolvedAt))`(「10월 10일」 — `WordDetailSheet` 의 `dateOf` 와 같음). `resolvedAt` 이 없으면 날짜 칸을 그리지 않는다.
+- 설명은 `CorrectionCard` 와 같이 일반 글로 그린다(`lang` 없음). `sourceHref`·`onLeave` 는 21-6 A·B. `chat.kind` 가 TALK·CHAT 가 아니면(ASK — 계약상 교정이 없다) [원래 대화 보기 ›]를 그리지 않는다(`PendingCorrectionsCard` 와 같은 방어).
+- 펼침 상태는 화면 상태(`Set<id>`)로 들고 있다 — 조건이 바뀌면 비우고, 돌아오기 복원(21-6 C)·단어 시트 뒤 다시 읽기(21-6 D)에서는 유지한다. 펼침·접힘 뒤 초점은 같은 버튼에 남는다.
+
+#### D. `ErrorTypeChips` (D3 A — 데모 `filtersHTML` 의 유형 줄)
+
+```
+<div className="-mr-4 flex min-w-0 items-center gap-2">                       ← ChunkChips 와 같은 줄 모양
+  <span id={labelId} className="w-[30px] flex-none text-[12px] font-semibold text-ink2">유형</span>
+  <div role="radiogroup" aria-labelledby={labelId} className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto py-1 pr-4">
+    chip('전체', n = 21-5 C ①, sr ' (모든 유형)', value null)
+    typeChips(facets, selected).map(t => chip(ERROR_TYPE_LABEL[t.value], t.count, sr '개', t.value))
+  </div>
+</div>
+chip = ChunkChips 의 CHIP 클래스 그대로(h-9 · min-w-[44px] · whitespace-nowrap · 세로 44px ::before · 켬 border-accent bg-accent font-semibold text-on-accent / 끔 border-line bg-surface text-ink)
+     role="radio" aria-checked
+     내용: {label}<span className="ml-1 font-normal tabular-nums">{n}</span><span className="sr-only">{sr}</span>
+```
+- 고른 칩이 화면 밖이면 가로로 데려온다(첫 그리기 제외) — `ChunkChips`·`CategoryChips` 와 같은 `scrollIntoView({ inline: 'nearest', block: 'nearest' })`.
+
+### 21-4. 상태 표 (데모 탭 A~H — 문구는 데모 원문, 한 글자도 바꾸지 않는다)
+
+| 탭·상태 | 표시 조건 | 화면 요소 · 문구(원문) | 접근성 이름·역할 |
+|---|---|---|---|
+| A 단어장(제안) | `/drawer/words` | 앱바 「단어장」 아래 분절 `단어`(현재)·`채택한 교정`, 그 아래 지금 단어장 그대로 | `nav` 「단어장 보기」, 현재 항목 `aria-current="page"` |
+| A 교정 모음 | `/drawer/corrections` | 같은 앱바·분절(`채택한 교정` 현재), 하단 탭 「단어장」 켜짐(기존 TabBar) | 문서 제목 「채택한 교정 · 단어장」, h1 「단어장」 |
+| F 첫 로딩 | 첫 응답 전(서버 `loading.tsx` → 클라이언트 첫 요청) | 검색(빈 칸)·조각 줄은 실제 요소 `inert`, 「유형」 라벨 + 회색 칩 4개, 머리 줄 글자 없음, 카드 자리표시 3개. **보이는 「불러오는 중」 글자 없음** | `role=status` 한 줄 「불러오고 있어요」(`SkeletonRegion`) |
+| F 첫 로딩 실패 | 첫 쪽 요청 실패, 받은 항목 0 | 유형 줄 없음, 머리 줄 글자 없음 + 보기 설정, 오류 상자 「교정을 불러오지 못했어요. 네트워크를 확인해 주세요.」 + [다시 시도] | 상자 `role=alert`, 버튼 「다시 시도」 44px |
+| C·F 조건 바꾸는 중 | 칩·검색이 바뀌어 새 첫 쪽을 기다림 | 검색·칩 줄은 그대로 누를 수 있음(칩 숫자는 직전 응답 값, 고른 칩은 바로 켜짐), 머리 줄 비움, 카드 자리표시 3개 | `role=status` 「불러오고 있어요」 |
+| B 목록 | items ≥ 1 | 머리 줄 + 카드 목록 | `ul` 「채택한 교정 목록」 |
+| B 머리 줄 | 지금 목록을 받은 요청의 조건(`shown`) | 검색 없음 「채택한 교정 {n}개」 / 검색 「‘{q}’ 검색 결과 {n}개」, 조건이 있으면 뒤에 「 · 」 + **{조건}**(유형 라벨과 「{조각} 조각」을 「 · 」로 — 예 「채택한 교정 2개 · **활용 · 액션 조각**」) | `aria-live="polite"`, q 의 일본어 구간만 `lang="ja"`(`JaRuns`) |
+| B 펼침 | 카드 윗부분 누름 | ▾→▴, 설명 2줄 → 전체, 아래에 「시험 문법 더 보기 ▾」(있을 때)·[원래 대화 보기 ›]·[단어 {surface} 보기 ›](넣은 단어가 남아 있을 때) | 버튼 `aria-expanded`·`aria-controls`, 버튼 이름 = 카드 글 전체(데모 Minor-1 수용). 링크 이름 「회화(또는 채팅) ‘{대화 제목}’에서 이 교정 보기」 |
+| B 히라가나·한글 끔 | 앱 전체 스위치 | 루비·[한글] 줄이 요약 버튼 안에서도 사라짐(데모 카드 평균 275~287 → 213~220px) | 토스트 기존 문구(`DISPLAY_COPY.toast`) |
+| C 유형 칩 | 첫 쪽 응답 뒤 | `전체 {합}` + 개수 많은 유형부터 `{유형} {n}`. 0개 유형은 숨김, **단 고른 유형이 0이 되면 그 칩만 `0` 으로 남김** | `radiogroup`(라벨 「유형」), 칩 `role=radio`·`aria-checked`, sr 「 (모든 유형)」/「개」 |
+| C 조각 칩 | 늘(처음 비어 있음 제외) | `전체`·`이름`·`액션`·`느낌`·`꾸밈`(「없음」 없음, 개수 없음) | `radiogroup`(라벨 「조각」), sr 「 (모든 조각)」/「 조각」 |
+| C 검색 | Enter·검색 키로 확정 | placeholder 「문장이나 설명으로 찾기」, 지우기 ✕. 40자 넘으면 빨간 테두리 + 「검색어는 40자까지예요」(조회 안 함) | 입력 이름 「문장이나 설명으로 찾기」, ✕ 「검색어 지우기」, 오류 `role=alert` + `aria-invalid`·`aria-describedby` |
+| E2 조건 0건 | `shown` 에 q 없음·유형/조각 있음, items 0 | 검색·칩 그대로, 상자: 「조건에 맞는 교정이 없어요」 / 「**{조건}** — 다른 조건을 골라 보세요.」 / [조건 풀기] | 버튼 44px. 누르면 유형·조각 둘 다 해제 |
+| E3 검색 0건 | `shown` 에 q 있음, items 0 | 「‘{q}’와 맞는 교정이 없어요」 / 「내 문장·고친 문장·설명에서 찾았어요.」 + (유형·조각도 걸렸으면) 「 유형·조각 조건도 함께 걸려 있어요.」 / [검색 지우기] | 누르면 q 해제 + 입력칸 비움 + 입력칸에 초점 |
+| E1 처음 비어 있음 | `shown` 에 조건이 하나도 없고 **`facets` 합 0** | 분절 아래 상자만: 「아직 채택한 교정이 없어요」 / 「회화나 채팅에서 선생님이 고쳐 준 문장 아래 **[채택]**을 누르면 여기에 모여요. 모아 둔 문장은 언제든 다시 읽고, 원래 대화로 돌아가 볼 수 있어요.」 / 그림(장식) / [회화하러 가기]·[채팅하러 가기] | 그림 `aria-hidden`(안의 「채택」「무시」는 버튼이 아닌 span). 두 버튼은 링크 `/study/ai?tab=talk`·`/study/ai?tab=chat` |
+| D 더 보기 | `nextCursor` 있음 | [교정 더 보기](ghost, 전체 폭 48px) — 누르는 동안 「불러오는 중…」 | `aria-busy` |
+| D 더 보기 실패 | 다음 쪽 요청 실패 | 받은 항목 그대로 + 버튼 위 「교정을 더 불러오지 못했어요. 다시 눌러 주세요.」 | `role=alert`. 다시 누르면 같은 커서로 |
+| D 끝 | `nextCursor` 없음 **그리고** 더 보기를 한 번 이상 성공 | 「채택한 교정을 모두 봤어요 · {n}개」(n = 받은 항목 수). 한 쪽으로 끝나면 그리지 않음 | `role=status` |
+| G 이동 | [원래 대화 보기 ›] | 회화 → 회화방, 채팅 → 표현 점검, 그 카드 강조(기존 `#cr_` 처리) | 원래 화면 ← 이름 「교정 모음으로」(21-6 B) |
+| G 단어 | [단어 ○○ 보기 ›] | 이 화면 위 `WordDetailSheet`(기존 모양·동작 그대로) | 시트 제목 「단어」, 닫으면 초점이 누른 버튼으로(Sheet 기존) |
+| G 대화를 지웠다면 | — | 목록 쪽 처리 없음(21-6 A 끝 · 21-13 ④) | — |
+| H 정보 밀도 | — | 21-12 A 의 수치 | — |
+
+- **E1 그림**(데모 `.mini`, 장식): `mt-1 mb-0.5 flex flex-col gap-1 rounded-xl border border-dashed border-line px-3 py-2.5 text-[13px]` 안에 「내 문장」(12px `text-ink2`) · `<span lang="ja">駅[に 를 REMOVED 모양]降りて…</span>` · 「이렇게 고쳐요」(12px `text-good`) · `<span lang="ja">駅[で 를 ADDED 모양]降りて…</span>` · 알약 줄(`flex flex-wrap items-center gap-1.5`): 「채택」 `inline-flex h-7 items-center rounded-lg px-3 text-[12.5px] font-semibold bg-accent text-on-accent ring-[3px] ring-accent-soft`, 「무시」 같은 크기 `border border-line text-ink2`.
+- **상자 모양**: E1 `flex flex-col gap-2 rounded-[14px] border border-line bg-surface px-4 py-5`, E2·E3 같은 상자에 `p-4`. 제목 16px semibold, 본문 14px `text-ink2`(굵은 곳 `font-semibold text-ink`). E1 버튼 줄 `mt-1.5 flex flex-wrap gap-2 [&>*]:min-w-0 [&>*]:flex-[1_1_130px]` — 48px 링크 버튼(`VocabResult` 의 Link 버튼 클래스: 주 `inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-on-accent`, 보조 같은 크기 `border border-line bg-surface`). E2·E3 버튼 `Btn variant="ghost" size="sm" className="min-h-11 self-start"`.
+- **오류 상자**: `ErrorBlock` 과 같은 `rounded-xl border border-bad-soft bg-bad-soft px-3.5 py-3 text-[13px] text-bad` + 버튼 `mt-0.5 inline-flex min-h-11 items-center font-semibold underline`.
+- **더 보기 줄**: 실패 문구 `mt-2 text-[13px] text-bad break-keep`, 버튼 `Btn variant="ghost" className="mt-3 w-full"`(단어장 [단어 더 보기]와 같음), 끝 표시 `mt-3.5 text-center text-[12px] text-ink2`.
+
+### 21-5. API 연결 (#79 — api-contract §2-17 인용)
+
+**A. 요청 주소** — `drawerCorrectionsUrl(filter, { limit, cursor })`(logic.ts):
+- 값이 있는 것만 붙인다: `errorType`(9종 중 하나) · `chunkType`(4종 중 하나) · `q`(앞뒤 공백을 뺀 1~40 코드포인트) · `limit`(기본 20, 늘 붙임) · `cursor`(다음 쪽만). 값은 `URLSearchParams` 로 만들어도 된다(이 주소는 API 요청용 — 돌아오기 주소와 규칙이 다르다, 21-6 B).
+- **조건(유형·조각·q)이 바뀌면 커서를 버리고 첫 쪽부터** 읽고, 펼친 카드·더 보기 오류·「더 보기 성공」 표시를 비운다.
+- **검색은 Enter(검색 키)·폼 제출로만 확정**한다(데모 C) — `WordSearchBar commitWhileTyping={false}` 는 디바운스·IME 조합 끝 예약을 하지 않는다. 단 ✕ 를 누르거나 지워서 **입력칸이 빈 칸이 되면 바로 q 해제**(21-13 ②). 확정 때 `t = v.trim()`; `cpLength(t) > 40` → 오류 문구만(조회 안 함), 아니면 `q = t`(같은 값이면 요청 안 함). 단어장 `commitSearch` 와 같은 규칙.
+- 40자 경계: 40자 통과, 41자 「검색어는 40자까지예요」. 이모지·서로게이트 쌍은 1자(`cpLength`).
+
+**B. 응답 → 화면**
+
+| 응답 필드 | 화면 |
+|---|---|
+| `items[].id` | key, 카드 id(`dcr_`), 이동 해시 `#cr_{id}`, 돌아오기 `focus` |
+| `original` | ✕ 줄(저장 글자 그대로 — 21-11 ②), 지운 글자 강조 |
+| `corrected` | ✓ 줄, 넣은 글자 강조 |
+| `explanation` | 설명(접힘 2줄·펼침 전체) |
+| `extraNoteKo` | 펼친 영역의 `ExtraNoteLine`(null·공백뿐이면 없음) |
+| `errorType` | 유형 뱃지 |
+| `severity` | `MAJOR` 면 「중요」 뱃지 |
+| `chunkType` | 머리의 「○○ 조각」(null 이면 없음) |
+| `chat.{id,title,kind}` | 출처 줄 「회화/채팅 · 제목」, 이동 주소, 링크 이름 |
+| `savedWord?.{id,surface}` | 있으면 [단어 {surface} 보기 ›] → `WordDetailSheet wordId={id}` |
+| `resolvedAt` | 채택한 날 「M월 D일」(KST) |
+| `nextCursor` | [교정 더 보기] / 끝 표시 |
+| `facets.errorType[]` | 유형 칩·머리 줄 개수·처음 비어 있음 판별(아래 C) |
+
+**C. `facets` 규칙** — 계약: `facets.errorType` 는 **`errorType` 조건만 빼고** `chunkType`·`q` 를 반영한 유형별 개수(0개 생략, 많은 순·같으면 `ErrorType` 선언 순).
+1. 「전체」 칩 숫자 = `sum(facets)`.
+2. 유형 칩 = 서버 순서 그대로. **고른 유형이 facets 에 없으면(0개) 그 유형을 `count 0` 으로 끝에 붙인다**(데모 `facetList` — 검색·조각을 바꾸다 0이 된 칩을 사용자가 보고 풀 수 있게).
+3. 머리 줄 n = 유형을 고르지 않았으면 `sum(facets)`, **골랐으면 facets 의 그 유형 count(없으면 0)** — 합을 쓰면 틀린다(facets 는 유형 조건을 뺀 집계다).
+4. 처음 비어 있음(E1) = `shown` 에 errorType·chunkType·q 가 모두 없고 `sum(facets) === 0`. 조건이 하나라도 있으면 items 가 0이어도 E2(q 있으면 E3).
+5. 칩·머리 줄은 **첫 쪽 응답의 facets 로만** 바꾼다. 더 보기(cursor) 응답의 facets 는 쓰지 않는다(사이에 다른 곳에서 채택해도 숫자가 튀지 않게).
+6. 머리 줄·빈 상태 문구는 지금 깔린 목록을 받아 온 요청의 조건(`shown`)으로 그린다 — 단어장 `list.shown` 과 같은 방식(조건 바꾸는 중에 새 조건 문구가 먼저 뜨지 않게). 칩의 켜짐만 지금 고른 값(`filter`)을 따른다.
+
+**D. 오류**
+- 첫 쪽 실패(받은 항목 0): 21-4 「F 첫 로딩 실패」. 문구는 `status === 0`(네트워크) 이면 「교정을 불러오지 못했어요. 네트워크를 확인해 주세요.」, 그 밖은 「교정을 불러오지 못했어요.」(단어장 `listErrorText` 와 같은 갈래 — 21-13 ③). [다시 시도] → 자리표시로 돌아가고, 다시 실패하면 자리표시를 최소 500ms 보인 뒤 오류(`retryFailHoldMs`, §17-1 ⑥).
+- **조건을 바꾼 첫 쪽**이 실패하면: 옛 조건의 항목은 지우고 같은 오류 상자를 그린다(머리 줄 비움). 유형 줄은 직전 facets 로 남겨 조건을 다시 바꿀 수 있게 한다(21-13 ⑧).
+- 더 보기 실패: 21-4 D. 받은 항목 유지.
+- 400 VALIDATION 은 화면이 막으므로 정상 흐름에서는 없다(복원 주소 값도 `page.tsx` 가 거른다). 오면 첫 쪽 실패와 같게 그리고 서버 문구는 띄우지 않는다. 401 은 공용 `api.ts` 가 처리한다.
+
+**E. 요청 경합**
+- 첫 쪽 요청마다 `AbortController` + 요청 번호(`reqRef`) — 새 요청이 나가면 이전 것은 abort, 늦게 온 옛 응답은 번호로 버린다(단어장 `WordsScreen` 과 같다). 필터 칩을 연타해도 마지막 조건의 응답만 그린다.
+- 더 보기는 시작할 때의 번호를 들고 가서, 끝났을 때 번호가 바뀌었으면(그사이 조건 변경) 결과·오류를 모두 버린다. 더 보기 중 다시 누름은 무시(`loadingMore`).
+- 더 보기로 받은 항목은 id 로 중복을 걸러 붙인다(단어장과 같음).
+- 자동 폴링·화면 복귀(`visibilitychange`) 다시 읽기는 없다 — 마운트·사용자 조작·단어 시트 결과(21-6 D) 때만 읽는다.
+
+### 21-6. 이동 규칙
+
+**A. 원래 대화 주소**(계약 §2-17, 홈 `PendingCorrectionsCard` 와 같은 모양) — `sourceHrefOf(item)`(logic.ts):
+- `chat.kind === 'TALK'` → `/study/ai/talk/${encodeURIComponent(chat.id)}#cr_${id}` — 역할극도 같은 회화방(`TalkRoom`)이 그린다(kind TALK [가능성 높음 — QA 확인 B②]).
+- `chat.kind === 'CHAT'` → `/study/ai/chat/${encodeURIComponent(chat.id)}/review#cr_${id}`
+- 그 밖(ASK) → 링크 없음.
+- 원래 화면의 해시 처리·강조는 **기존 그대로**다(회화방: 그 카드 2초 강조, 「모아 둔 교정」이면 시트로 · 표현 점검: 「남은 교정」 필터에 없으면 전체로). 대화를 지우면 교정도 함께 지워지므로(Cascade) 목록의 링크는 늘 있는 대화를 가리킨다. 다른 곳에서 막 지운 드문 경우에는 원래 화면이 자기 「찾을 수 없어요」 상태를 그리고, ← 로 돌아오면 목록을 새로 읽어 그 카드가 빠진다 — **목록 쪽에 404 토스트를 두지 않는다**(21-13 ④).
+
+**B. ← 「교정 모음으로」 — 지금 구조와 얹는 법** [확실 — `usePlanReturn.ts`·`planReturn.ts`·`BackBar.tsx`·`TalkRoomHeader.tsx`·`PlanScreen.tsx` 를 읽고 확인]
+- **지금**: 계획표가 원본으로 가기 직전 `PlanScreen.openSource` 가 ① `history.replaceState(null, '', planUrl(month, day, log))`(휴대폰 뒤로가기로 와도 같은 자리) ② `rememberPlanReturn(back, src)` 로 `sessionStorage['kaiwa.planReturn'] = {v:1, plan, src, at}` 를 적는다. 원본 화면 머리의 `usePlanReturn(fallbackHref, fallbackLabel)` 는 `useSyncExternalStore(noop, () => currentPlanReturn(pathname), () => null)` 로 **지금 경로가 `src` 와 같고 2시간 안이면** `{ href: plan, label: '계획표로' }`, 아니면 fallback 을 돌려준다. 계획표는 마운트 때 `forgetPlanReturn()`.
+- **소비처**: `BackBar`(표현 점검·채팅방 등)와 `TalkRoomHeader`(회화방·역할극 방 — 로딩·오류 머리 포함) **둘 다 `usePlanReturn` 이 준 `{href, label}` 로 `<Link href aria-label>` 만 그린다**(← 글자는 안 보이고 `aria-label` 로만 읽힌다). 역할극의 `back`(시나리오) 도 훅 인자로 들어가 기록이 맞으면 진다. 그래서 **소비처는 바꿀 필요가 없고 훅 한 곳 변경으로 충분하다.** `TalkRoom.tsx` 는 `TalkRoomHeader` 를 그릴 뿐이라 열지 않는다.
+- **얹는 법(읽는 쪽)**:
+  1. 새 `shell/correctionsReturn.ts`: `CORRECTIONS_RETURN_KEY = 'kaiwa.correctionsReturn'`, `CORRECTIONS_RETURN_LABEL = '교정 모음으로'`, TTL 은 `PLAN_RETURN_TTL_MS`(2시간). `isCorrectionsHref(v)` = `^/drawer/corrections(?:\?[A-Za-z0-9._~%=&-]*)?$` 이고 길이 ≤ 700(검색어 40자가 퍼센트 인코딩되면 400자를 넘는다 — 계획표의 300 상한을 쓰지 않는다). `serialize/parse/remember/forget` 는 `planReturn.ts` 와 같은 모양(저장소 try/catch, 형식 오류·오래된 값·미래 시각 거절, 경로 비교는 `samePath` 재사용).
+  2. `currentBackHref(pathname, now)`: 계획표 기록(`parsePlanReturn(readStore('session', PLAN_RETURN_KEY), now)`)과 교정 기록을 각각 `samePath(src, pathname)` 로 거르고, **둘 다 맞으면 `at` 이 늦은 쪽** 주소, 하나면 그것, 없으면 `null`(같은 회화방을 계획표와 교정 모음에서 번갈아 열면 마지막에 연 곳으로 돌아간다).
+  3. `usePlanReturn`: `read = () => currentBackHref(pathname)` — **문자열이나 null 만 돌려준다**(객체를 돌려주면 `useSyncExternalStore` 가 매번 새 값으로 보고 무한 렌더). 서버 스냅샷은 지금처럼 `null`(서버 렌더·하이드레이션 첫 렌더는 fallback — `scenario/__tests__/roomRender.test.ts` 가 서버에서 `TalkRoomHeader` 를 그린다). 이름은 `isPlanHref(href) ? PLAN_RETURN_LABEL : CORRECTIONS_RETURN_LABEL`. 훅 이름·인자·반환 모양은 그대로.
+  4. `planReturn.ts`·`planReturn.test.ts` 는 고치지 않는다.
+- **얹는 법(쓰는 쪽 — 교정 모음)**: [원래 대화 보기 ›] 링크의 `onClick` = `onLeave(c)`(이동은 `Link` 가 한다 — 계획표와 같은 순서):
+  1. `back = correctionsReturnUrl(shown, { focus: c.id, n: clamp(items.length, 20, 50) })`
+  2. `window.history.replaceState(null, '', back)` — 휴대폰 뒤로가기로 와도 같은 자리
+  3. `rememberCorrectionsReturn(back, srcPath)` — `srcPath` = 21-6 A 주소에서 해시를 뺀 경로
+  - 교정 모음 화면은 마운트 때 `forgetCorrectionsReturn()`(계획표의 `forgetPlanReturn()` 과 같은 이유).
+- **돌아오기 주소 인코딩**: `URLSearchParams.toString()` 은 공백을 `+` 로 바꿔 허용 문자 밖이 된다 → 값마다 `encodeURIComponent` 를 쓰고 `!'()*` 도 `%XX` 로 바꾸는 helper 로 직접 잇는다. 허용 문자 밖이 섞이면 기록이 거절되어 ← 가 원래 자리로 갈 뿐 오류는 없다(그래서 시험으로 막는다).
+
+**C. 돌아왔을 때 복원**(`page.tsx` → `CorrectionsScreen initial`):
+- 읽는 값: `errorType`(9종) · `chunkType`(4종) · `q`(trim 후 1~40 코드포인트) · `focus`(`^[A-Za-z0-9_-]{1,64}$`) · `n`(정수 1~50). 형식이 틀린 값은 **그 값만** 버린다.
+- **읽는 위치(구현 확정 — 가이드 초안과 다름)**: 화면(`CorrectionsScreen`)이 `useSearchParams()` 로 **지금 주소**에서 `parseCorrectionsReturnQuery` 를 다시 돌려 읽는다. 휴대폰 뒤로가기는 라우터 캐시의 옛 서버 props 를 다시 쓸 수 있어, `replaceState` 로 바꿔 둔 쿼리가 서버 `initial` 로는 안 들어오기 때문이다(계획표 `PlanScreen` 과 같은 이유). `page.tsx` 가 넘기는 서버 `initial` 은 주소를 못 읽을 때의 대비용이다.
+- 첫 요청 = 그 조건 + `limit = n ?? 20`(더 보기로 늘렸던 만큼 한 번에 다시 받는다). 검색 입력칸 초기값 = q.
+- 응답에 `focus` 항목이 있으면 그 카드를 **펼친 채로** 그리고, 그린 뒤 그 카드의 [원래 대화 보기 ›]에 `focus({ preventScroll: true })` + `scrollIntoView({ block: 'nearest' })`(데모 `backCorr`). 없으면(그사이 지워짐·50개 밖) 아무것도 펼치지 않고 맨 위.
+- 적용한 뒤 `history.replaceState(null, '', '/drawer/corrections')` 로 쿼리를 지운다(새로고침해도 다시 펼치지 않게).
+- 분절 [채택한 교정]·하단 탭으로 들어오면 쿼리가 없으므로 늘 처음 상태(조건 없음)다.
+
+**D. 단어 시트(D6 A)** — `WordDetailSheet` props:
+- `wordId = savedWord.id`, `preview` 없음(시트가 #42 로 채울 때까지 기존 `LoadingBlock`), `categories = []`(수정 폼의 분류 제안 목록만 빈다 — 분류 입력은 된다, 21-13 ⑤).
+- `onClose` → 닫기(초점은 공용 Sheet 가 [단어 ○○ 보기 ›]로 돌린다).
+- `onChanged(w)` → 목록에서 `savedWord.id === w.id` 인 카드의 `surface` 만 `w.surface` 로(요청 없음).
+- `onArchivedChange` → 목록 변화 없음(토스트는 시트가 `onToast` 로 띄운다).
+- `onRemoved(id)` → 시트 닫기 + 토스트 「삭제했어요 · 지난 기록은 그대로 남아요」(단어장과 같은 문구) + **목록 다시 읽기**(지금 조건, `limit = clamp(items.length, 20, 50)` — 위치를 잃지 않게, 펼친 카드 유지) → 그 카드의 단어 버튼이 사라진다(서버 SetNull). 누른 버튼이 없어지므로 초점은 그 카드의 요약 버튼으로.
+- `onNotFound` → 시트 닫기 + 토스트 `WORD_NOT_FOUND`(「단어를 찾을 수 없어요. 삭제되었을 수 있어요.」) + 위와 같은 다시 읽기.
+- `onOpenWord(id)`(수정 중 중복 안내) → 그 단어로 시트 바꾸기. `onToast` → 화면 토스트.
+- 시트 안 「점검 결과 보기 ›」(교정 출처 단어)는 기존 링크 그대로다 — 이 길로 나가면 ← 는 「대화로 돌아가기」(돌아오기 기록을 쓰지 않음, 이번 범위 밖).
+
+### 21-7. 스켈레톤·높이
+
+**A. 단어장(D1 A)** — `WordsSkeleton` 의 `<div className="px-4 pb-8">` 첫 자식으로 `<DrawerSwitch current="words" placeholder />`, `WordsScreen` 같은 자리에 `<DrawerSwitch current="words" />`. 분절 42 + `mb-2.5` 10 = **+52px**(데모 실측 목록 시작 292 → 344, 3폭 같음 — 데모의 292 는 지금 실측과 일치). **`WORD_SKELETON`(6줄×104)·`WORD_CATEGORY_ROW` 값은 바꾸지 않는다** — 바뀌는 것은 정적 요소 위치뿐이고, 6줄 624px 는 360×740 의 목록 칸(375 → 약 323px)도 넘쳐 채운다. `WORD_SKELETON` 주석의 「목록 시작 292, 보이는 칸 375」만 344·323 으로 고친다. developer 는 변경 뒤 첫 화면 점프 ≤ 8px 를 다시 잰다(§17-1 ③⑥).
+
+**B. 교정 모음 `loading.tsx` → `CorrectionsSkeleton`**(`'use client'`, 데이터 요청 없음 — `WordsSkeleton` 과 같은 규칙):
+```
+<AppBar title="단어장" />
+<div className="px-4 pb-8">
+  <DrawerSwitch current="corrections" placeholder />
+  <div inert><WordSearchBar label={COPY.search} placeholder={COPY.search} value="" onInput={noop} onCommit={noop} onClear={noop} error={null} /></div>
+  <ErrorTypeRowSkeleton />                                   ← 「유형」 라벨 + 회색 칩 4개
+  <div inert>
+    <ChunkChips value={null} withNone={false} onChange={noop} />
+    <div className="mb-1.5 mt-2 flex min-h-8 items-center justify-between gap-2">
+      <p className="min-w-0 flex-1 text-[12px] text-ink2" />
+      <div role="group" aria-label={DISPLAY_COPY.toolGroup} className="flex flex-none items-center gap-1.5"><DisplayToggles keys={['fu', 'hg']} onToast={noop} /></div>
+    </div>
+  </div>
+  <CorrectionCardsSkeleton />
+</div>
+```
+- 화면의 첫 로딩·조건 바꾸는 중도 **같은 부품**(`ErrorTypeRowSkeleton`·`CorrectionCardsSkeleton`)을 쓴다 — 서버 자리표시 → 클라이언트 자리표시 → 데이터 사이에 모양이 안 바뀌게.
+- 처음 비어 있는 계정은 응답 뒤 검색·칩이 접혀 아래가 올라간다 — 단어 0개 단어장과 같은 「첫 사용자 한정」 점프로 수용(§17-3 선례).
+
+**C. 새 상수·부품**(`shell/tabSkeletonSizes.ts`·`shell/TabSkeleton.tsx`):
+
+| 이름(후보) | 값 | 근거 |
+|---|---|---|
+| `CORRECTION_SKELETON.rows` | 3 | 흔한 상태 중간값(§17-1 ③ 규칙, 데모 F). 목록 시작 ≈298 + 카드 ≈280 이면 첫 화면은 1개 + 걸침 1개라 3개면 아래로 넘친다 |
+| `CORRECTION_SKELETON.gap` | 10 | 목록 `gap-2.5`(데모 `.cl`) — 클래스와 같은 값 |
+| `CORRECTION_SKELETON.cardHeight` | **developer 재측정**(데모 렌더 평균 275~287, 데모 자리표시 270 — 헤드리스 시스템 글꼴 값이라 그대로 쓰지 않는다) | task-046 방식 실측: QA 계정(채택 교정 ≥ 3), 히라가나·한글 켬(기본)·접힘, 360/390/412 에서 첫 3개 카드 `getBoundingClientRect().height` 평균. 이력서 Developer 기록에 표로 남기고 상수 주석에 근거를 적는다 |
+| 유형 칩 줄 높이 | `WORD_CATEGORY_ROW`(top 6·pad 4·chip 36) 재사용 | 실제 줄이 `mt-1.5` + `py-1` + `h-9` 로 분류 칩 줄과 같은 클래스 [확실 — 데모 `.crow`·코드 클래스 일치] |
+| `CORRECTION_TYPE_ROW.widths` | [56, 64, 60, 72] | 데모 자리표시 칩 폭(높이와 무관) |
+
+- `CorrectionCardsSkeleton` = `SkeletonRegion` 안에 `flex flex-col`(`gap: CORRECTION_SKELETON.gap`), 카드 `flex flex-col gap-2.5 rounded-[14px] border border-line bg-surface p-3.5`(`height: CORRECTION_SKELETON.cardHeight`), 안에 회색 막대 4개(`block rounded-md bg-surface2`: 34%×14 · 82%×20 · 64%×20 · 92%×14 — 데모 `cardSkeletons`). 「불러오는 중」 글자·`animate-pulse` 없음.
+- `ErrorTypeRowSkeleton` = `aria-hidden` 줄(`-mr-4 flex min-w-0 items-center gap-2`, `marginTop: WORD_CATEGORY_ROW.top`) 안에 라벨 「유형」(`w-[30px] flex-none text-[12px] font-semibold text-ink2`) + 칩 줄(`flex gap-2`, `paddingBlock: WORD_CATEGORY_ROW.pad`) + 칩 블록(`rounded-full bg-surface2`, `height: WORD_CATEGORY_ROW.chip`, 폭 `CORRECTION_TYPE_ROW.widths`). 알림은 카드 쪽 `role=status` 한 줄뿐이다(한 화면에 하나).
+- 합격선: 서버 자리표시 → 데이터 첫 화면에서 분절·검색·조각 줄·첫 카드 위쪽 점프 ≤ 8px, 보이는 「불러오는 중」 프레임 0(§17-1 ③⑥).
+
+**D. `tabSkeleton.test.ts` 에 더할 묶음 시험**
+1. `loading.tsx` 범위: `drawer/corrections/loading.tsx` 있음, `drawer/loading.tsx` 없음(기존), `drawer/corrections/` 에는 `page.tsx`·`loading.tsx` 만(하위 경로 없음).
+2. `TabSkeleton.tsx` 가 `CORRECTION_SKELETON.cardHeight`·`CORRECTION_SKELETON.gap`·`WORD_CATEGORY_ROW.chip` 을 상수에서 읽는다(기존 「상수에서 높이를 읽는다」 시험 확장).
+3. 카드 바깥 클래스: `DrawerCorrectionCard.tsx` 와 `TabSkeleton.tsx` 둘 다 `rounded-[14px] border border-line bg-surface p-3.5`, 목록(`CorrectionsScreen.tsx`)·자리표시 둘 다 `gap-2.5` 이고 `CORRECTION_SKELETON.gap === 10`.
+4. 유형 줄: `CorrectionsScreen.tsx` 가 `<div className="mt-1.5">` 로 `ErrorTypeChips` 를 감싸고, `ErrorTypeChips.tsx` 칩에 `h-9 `·스크롤 줄에 `py-1`.
+5. 분절: `WordsScreen.tsx`·`WordsSkeleton.tsx`·`CorrectionsScreen.tsx`·`CorrectionsSkeleton.tsx` 넷 다 `<DrawerSwitch` 를 그리고, 두 Skeleton 은 `placeholder` 를 넘긴다.
+6. 서버 자리표시는 데이터 요청이 없고 `inert` 가 있다 — 기존 `[dir, file]` 목록에 `['drawer', 'CorrectionsSkeleton.tsx']` 추가. `CorrectionsScreen` 을 import 하지 않는다.
+7. `CorrectionCardsSkeleton` 렌더에 `role=status` 한 줄이 `aria-busy` 래퍼 밖(기존 「목록 자리표시 부품」 시험 배열에 추가).
+8. `CORRECTION_SKELETON.rows === 3`, `cardHeight` 는 실측 기록과 같은 값.
+
+### 21-8. 표시 스위치·접근성·폭·스크롤
+
+- **표시 스위치**(앱 전체 한 값): 히라가나(`fu`)·한글(`hg`)은 ✕·✓ 두 줄의 루비·[한글] 줄에만 닿는다 — `JaText`(루비) + `HangulLine`(한글) + `useAnnotations([original, corrected])`. 설명·출처 줄·시험 문법·단어 버튼의 일본어에는 표시 층이 없다(`CorrectionCard`·`ExtraNoteLine` 과 같음). **번역 스위치는 이 화면에 없고 따르지도 않는다(D7)** — `DisplayToggles keys={['fu', 'hg']}`. 끄면 `HangulLine` 이 `null` 을 돌려주므로 CSS 로 따로 숨기지 않는다. 단어 시트 안은 기존 시트 규칙 그대로.
+- **`lang`**: ✕·✓ 줄은 `JaText`(lang=ja 자동), 단어 버튼의 표현 `<span lang="ja">`, 머리 줄·E3 제목의 q 는 `JaRuns`(일본어 구간만), E1 그림 예문 `lang="ja"`.
+- **키보드·화면 읽기**: 요약 버튼 `aria-expanded`/`aria-controls`(이름 = 카드 글 전체 — 데모 Minor-1 수용, `WordRow` 행 버튼과 같음). 칩은 `role=radio`+`aria-checked`, 화살표 이동 없이 각각 Tab(기존 `ChunkChips` 와 같음 — Minor-3 수용). 시트는 공용 `Sheet`(열 때 제목에 초점·Esc·닫으면 연 버튼으로 — 데모 Minor-4 의 초점 가두기는 공용 Sheet 범위, 새로 만들지 않는다). 분절은 `nav` + `aria-current="page"`. 지운·넣은 글자 강조는 화면 읽기에 알리지 않는다(기존 교정 카드와 같음 — Minor-2).
+- **터치 44px**: 분절·칩(보이는 36 + 세로 `::before` 44) · 요약 버튼(카드 높이) · 이동 버튼 `min-h-11` · 시험 문법 줄 `min-h-11`(기존) · 더 보기 48 · E1 버튼 48 · E2/E3 버튼 `min-h-11` · 오류 [다시 시도] `min-h-11` · 검색 ✕ 44(기존).
+- **폭 360/390/412**: 카드는 위아래 한 흐름이라 세 폭 모양이 같다. 줄어드는 flex/grid 자식에 `min-w-0`(머리·✕/✓ 열·출처 줄·조각 이름·이동 버튼). 출처 줄·조각 이름·단어 버튼의 표현은 `truncate`, 머리 줄은 `[overflow-wrap:anywhere]` 로 줄바꿈. 칩 줄만 가로 스크롤(`-mr-4`·`pr-4`·`no-scrollbar`). 데모 26상태×3폭 가로 넘침 0.
+- **스크롤 1곳**: 세로 스크롤은 앱 셸 `main` 하나. 안쪽 세로 스크롤 상자를 만들지 않는다(§18 규칙 대상 없음 — `sr-only` 는 `main`(relative) 기준). sticky 는 `AppBar` 만(분절은 스크롤과 함께 올라간다 — 데모).
+- **글자 크기**: ✓ 줄 일본어 17px · ✕ 줄 16px · 루비 11px · 한글 13px · 설명 15px · 출처 12.5px · 머리 줄·날짜·조각 이름·라벨 12px · 뱃지 11.5px(공용 Badge). 11px 미만 없음.
+- **명암비**(§1-1): 보조 글 `ink2`, 링크 버튼 `accent`/`surface` 4.80, 뱃지 `bad`/`bad-soft`·`neutral`, ✕/✓ 표시는 장식(`aria-hidden`, 읽기는 sr 이름). `ink3` 는 placeholder·한글 줄 괄호(기존 부품)만.
+
+### 21-9. 문구 단일 출처 — `src/components/drawer/correctionsCopy.ts`
+
+데모 문구와 **한 글자도 다르지 않다**(시험으로 고정해도 좋다). 엔진·모델 이름 0건.
+
+| 키(예) | 문구 |
+|---|---|
+| `switchNav` · `switchWords` · `switchCorrections` | 단어장 보기 · 단어 · 채택한 교정 |
+| `docTitle` | 채택한 교정 · 단어장 |
+| `search` · `searchTooLong` | 문장이나 설명으로 찾기 · 검색어는 40자까지예요 |
+| `typeLabel` · `typeAllSr` · `typeCountSr` | 유형 · ` (모든 유형)` · 개 |
+| `listLabel` | 채택한 교정 목록 |
+| `head(n)` · `headSearch(n)` | 채택한 교정 {n}개 · ‘{q}’ 검색 결과 {n}개 (조건은 ` · ` + 굵게 「{유형} · {조각} 조각」) |
+| `acceptedOnSr` · `mineSr` · `fixSr` · `major` | `채택한 날 ` · `내 문장: ` · `고친 문장: ` · 중요 |
+| `kind.TALK` · `kind.CHAT` | 회화 · 채팅 |
+| `goChat` · `goChatAria(kind, title)` | 원래 대화 보기 › · {kind} ‘{title}’에서 이 교정 보기 |
+| `goWord(surface)` | 단어 {surface} 보기 › |
+| `more` · `moreBusy` · `moreError` · `end(n)` | 교정 더 보기 · 불러오는 중… · 교정을 더 불러오지 못했어요. 다시 눌러 주세요. · 채택한 교정을 모두 봤어요 · {n}개 |
+| `loadErrorNetwork` · `loadError` · `retry` | 교정을 불러오지 못했어요. 네트워크를 확인해 주세요. · 교정을 불러오지 못했어요. · 다시 시도 |
+| `emptyFirstTitle` · `emptyFirstBody` | 아직 채택한 교정이 없어요 · 회화나 채팅에서 선생님이 고쳐 준 문장 아래 **[채택]**을 누르면 여기에 모여요. 모아 둔 문장은 언제든 다시 읽고, 원래 대화로 돌아가 볼 수 있어요. |
+| `emptyFirstPic` | 내 문장 · 駅に降りて… · 이렇게 고쳐요 · 駅で降りて… · 채택 · 무시 |
+| `goTalk` · `goChatList` | 회화하러 가기 · 채팅하러 가기 |
+| `emptyFilterTitle` · `emptyFilterBody(cond)` · `clearFilter` | 조건에 맞는 교정이 없어요 · **{조건}** — 다른 조건을 골라 보세요. · 조건 풀기 |
+| `emptySearchTitle(q)` · `emptySearchBody` · `emptySearchWithCond` · `clearSearch` | ‘{q}’와 맞는 교정이 없어요 · 내 문장·고친 문장·설명에서 찾았어요. · ` 유형·조각 조건도 함께 걸려 있어요.` · 검색 지우기 |
+| `wordRemoved` | 삭제했어요 · 지난 기록은 그대로 남아요 |
+
+- 다른 곳에서 가져오는 문구(새로 쓰지 않음): ← 이름 `CORRECTIONS_RETURN_LABEL` 「교정 모음으로」(`shell/correctionsReturn.ts`) · `SKELETON_SR_LABEL` 「불러오고 있어요」 · `DISPLAY_COPY`(보기 설정·토스트·「한글 발음: 」) · `EXTRA_NOTE_LABEL` · `ERROR_TYPE_LABEL` · `CHUNK_LABEL` · 조각 칩 `CHUNK_FILTER_ALL`·`CHUNK_FILTER_CHIPS` · `WORD_NOT_FOUND` · 검색 ✕ 「검색어 지우기」(WordSearchBar 기존).
+- 숫자는 `toLocaleString('ko-KR')`.
+
+### 21-10. 구현 순서
+
+1. API #79·모듈 조회 함수·타입·계약 시험(developer, 이력서 「설계」 1) — 화면은 이 응답 모양만 쓴다.
+2. `drawer/logic.ts` + 시험: (a) 요청 주소(값 있는 것만·`limit` 20·cursor) (b) `typeChips`(서버 순서·고른 유형 0 붙이기) (c) 머리 줄 n(유형을 골랐으면 그 count) (d) 빈 상태 종류(E1/E2/E3) (e) 이동 주소(TALK/CHAT, ASK 는 null, id 인코딩) (f) 돌아오기 주소 만들기·읽기(9종/4종/40자/`focus`/`n` 경계, 공백·`+`·`!'()*` 인코딩, 만들고 읽으면 같은 값, 700자 이하).
+3. `shell/correctionsReturn.ts` + 시험(`planReturn.test.ts` 와 같은 갈래: 정상·경로 불일치·TTL·깨진 값·주소 거절·저장소 예외 + **두 기록이 모두 맞으면 늦은 쪽**) → `usePlanReturn` 변경. 기존 `planReturn.test.ts`·`roomRender.test.ts` 가 그대로 통과해야 한다.
+4. `correctionsCopy.ts`.
+5. `DrawerSwitch` → `WordsScreen`·`WordsSkeleton` 한 줄씩 → 단어장 첫 화면 점프 재측정.
+6. `ChunkChips withNone`·`WordSearchBar` props — 기본값으로 단어장 DOM 이 바뀌지 않는지 확인.
+7. `DrawerCorrectionCard` → 강조 문자열 묶음 시험(`CorrectionCard.tsx` 소스의 `REMOVED`·`ADDED` 문자열과 같음) → `ErrorTypeChips` → `CorrectionsScreen` → `page.tsx`(metadata·searchParams 검증).
+8. 자리표시 부품·상수 → `CorrectionsSkeleton` → `loading.tsx` → 카드 높이 실측 → 상수 확정 → `tabSkeleton.test.ts` 묶음 시험(21-7 D).
+9. 확인: 21-12 A 전부 + tsc·eslint 0 + 360/390/412 × 높이 780.
+
+### 21-11. developer 금지·함정 (주의사항)
+
+1. **엔진·모델·호스트 이름 0건**(화면·문구·aria·토스트·문서 제목).
+2. **`Correction.original` 은 저장 글자 그대로** — trim·정규화·자르기·NFC 변환·줄바꿈 정리 모두 금지. 강조는 `diffCodepoints` + `changedRanges` 로 `<span>` 을 나누기만 한다(조각을 이으면 원문과 같음 — 기존 diff 시험). `whitespace-pre-wrap` 로 공백·줄바꿈을 그대로 보인다. `corrected`·`explanation` 도 화면에서 고치지 않는다.
+3. **교정 편집·삭제 UI 없음, 제안(PROPOSED) 목록 없음**(서버가 ACCEPTED 만 준다 — 화면이 다시 거르지 않는다), [채택][무시] 없음.
+4. **새 탭 없음** — 하단 탭 5개 그대로, 교정 모음은 단어장 탭 안(`TabBar` 의 `match: '/drawer'`).
+5. **새 서버 쓰기 없음** — 이 화면이 부르는 API 는 #79(GET) 하나. 단어 시트 안의 수정·보관·삭제는 기존 단어 API 그대로다.
+6. **`TalkRoom.tsx`·`TalkRoomHeader.tsx`·`BackBar.tsx`·`planReturn.ts` 를 고치지 않는다**(21-6 B). 회화방 입력 바·마이크 영역은 task-056 소유.
+7. **`usePlanReturn` 의 `getSnapshot` 은 문자열/null 만**, 서버 스냅샷 `null` 유지(21-6 B 3).
+8. **데모에서 이미 고친 결함 3건을 다시 만들지 않는다**:
+   - ① 요약 버튼 안 줄 배치 — 버튼 안에는 `<p>`·`<div>` 를 둘 수 없다(구문 내용만). 줄마다 **블록 `span`**: `JaText as="span"` + `block`, `HangulLine as="span"`(자동 `block`), 설명·출처 `span.block`, 머리 `span.flex`. 데모는 이것을 빠뜨려 줄이 한 줄로 붙었었다.
+   - ② 한글 끔이 요약 안에서 안 먹던 것 — 한글 줄을 손으로 만든 span + CSS 로 숨기지 말고 **반드시 `HangulLine`** 을 쓴다(끔이면 `null`). 루비도 `JaText` 만.
+   - ③ D1 B 이동 뒤 초점 분실 — D1 은 A 확정이라 해당 없다. 같은 종류의 위험은 분절 이동 뒤 초점이라 21-3 A 규칙으로 막는다.
+9. **구현 메모(데모 기록에서 옮김)**: 교정 모음 화면의 문서 제목은 「채택한 교정 · 단어장」, 앱바 h1 은 「단어장」 유지(분절이 지금 위치를 알린다). 요약 버튼 안에서는 `<p>` 대신 블록 `span`.
+10. **머리 줄 n 함정**: 유형을 골랐을 때 `sum(facets)` 를 쓰면 틀린다(21-5 C 3). 고른 유형 0 칩 유지(21-5 C 2).
+11. **ExtraNoteLine·이동 버튼은 요약 버튼 밖**(중첩 인터랙티브 금지). `ExtraNoteLine` 은 값이 없으면 스스로 그리지 않는다.
+12. **빈 상태 구분**: E1(처음)과 E2/E3(조건 0건)을 섞지 않는다 — 조건이 하나라도 있으면 E1 이 아니다.
+13. **자리표시**: 「불러오는 중…」 글자·가짜 빈 상태·`animate-pulse` 없음. `placeholder` `DrawerSwitch` 는 초점 효과를 쓰지 않는다.
+14. **오프라인·오류**: 첫 쪽 실패는 오류 상자, 더 보기 실패는 한 줄(받은 항목 유지). 권한: 로그인 사용자 누구나, 자기 교정만(서버 `userId` — 화면은 다른 사람 id 를 다룰 일이 없다). 앱/웹 분기 없음.
+
+### 21-12. reviewer·qa 확인표
+
+**A. 데모·이 절과 대조(웹 브라우저에서 확인 가능)**
+
+| # | 항목 | 기준 |
+|---|---|---|
+| A1 | 단어장 목록 시작 | 344px(지금 292 + 52), 3폭 같음. 자리표시 → 데이터 첫 화면 위쪽 점프 ≤ 8px |
+| A2 | 교정 모음 목록 시작 | 데모 298px(±8 안이면 통과, 밖이면 원인 기록 — 실제 글꼴 차이). 자리표시 ↔ 데이터 점프 ≤ 8px, 보이는 「불러오는 중」 0 |
+| A3 | 분절 | 높이 42(칸 36, 히트 44), 아래 10. 두 화면에서 같은 자리. `aria-current` 가 지금 화면. 분절 이동 뒤 뒤로가기에 두 목록이 번갈아 쌓이지 않음(`replace`). 이동 뒤 초점이 새 분절 현재 항목 |
+| A4 | 머리 영역 | 검색 44 · 유형 줄 6 + 44 · 조각 줄 44 · 머리 줄 8 + 32 + 6. 조각 칩에 「없음」 없음, 보기 설정에 「번역」 없음 |
+| A5 | 카드 | 테두리 `line`·모서리 14·안쪽 14·목록 간격 10, ✕/✓ 열 16 + 6, 줄 간 8, 설명 위 10·두 줄 말줄임, 출처 위 6. 글자 17/16/13/11/15/12.5/12/11.5px. 「채택함」 뱃지·[채택][무시] 없음 |
+| A6 | 정보 밀도(데모 렌더 — 실기기는 다를 수 있음) | 첫 화면 완전히 보이는 카드 1(+걸침 1), 스크롤 중 한 화면 ≈2.3개(켬)·≈3.0개(끔). 카드 평균 275~287(켬)·213~220(끔) |
+| A7 | 쪽·더 보기 | 첫 쪽 20개, [교정 더 보기] 뒤 이어 붙임(중복 0), 실패 한 줄 + 받은 항목 유지, 끝 표시는 더 보기 성공 뒤에만 |
+| A8 | facets | 「전체」 = 합, 유형 칩 많은 순, 유형 골랐을 때 머리 줄 = 그 유형 수, 검색·조각 조건이 칩 숫자에 반영, 고른 유형이 0이면 칩 `0` 으로 남음 |
+| A9 | 검색 | Enter 로만 확정(입력 중 요청 0), 빈 칸이 되면 해제, 40자 통과·41자 「검색어는 40자까지예요」(조회 0), 이모지 1자. 「존댓말」처럼 설명 낱말로 찾힘(D8) |
+| A10 | 빈 상태 | E1(조건 없음·합 0)·E2·E3 문구 원문 일치, 버튼 동작(E1 링크 `?tab=talk`·`?tab=chat`, [조건 풀기], [검색 지우기]+초점) |
+| A11 | 필터 연타 | 칩을 빠르게 여러 번 눌러도 마지막 조건 결과만 남음(옛 응답 그리지 않음) |
+| A12 | ← 「교정 모음으로」 | 회화방·역할극 방·표현 점검 ← 의 `aria-label`. 누르면 조건·검색어 그대로, 그 카드 펼침, 초점이 그 카드 [원래 대화 보기 ›]. 휴대폰 뒤로가기도 같은 자리. 같은 방을 계획표에서 다시 열면 ← 는 「계획표로」(늦은 쪽) |
+| A13 | 단어 시트 | 열기·닫기 초점 복귀, 표현 고치면 버튼 글자 바뀜, 삭제하면 토스트 + 그 카드 단어 버튼 사라짐 + 위치 유지 + 초점이 요약 버튼 |
+| A14 | 표시 스위치 | 히라가나·한글 끔 → 요약 버튼 안 루비·[한글] 줄 사라짐(다른 화면과 같은 값) |
+| A15 | 가로 넘침·터치 | 360/390/412 × 21-4 전 상태 가로 넘침 0, 누르는 곳 44px 미만 0 |
+| A16 | 소유자 | 다른 계정의 채택 교정이 0건(IDOR — 서버 시험과 화면 둘 다) |
+| A17 | 원문 그대로 | 앞뒤 공백·연속 공백·줄바꿈이 든 합성 교정에서 ✕ 줄 글(루비·sr 제외) = 저장값 |
+| A18 | 문구·이름 | 21-9 원문 일치, 엔진명 0, 문서 제목 「채택한 교정 · 단어장」, h1 「단어장」 |
+| A19 | 어두운 화면 | 토큰만(새 색 0), 강조·뱃지 명암비(§1-1) |
+
+**B. 실기기(S25+ Chrome·앱 WebView 390)에서만 — designer 가 확인하지 못한 것**
+1. 실제 글꼴·루비 높이 → 카드 높이·자리표시 상수 오차, 첫 화면 밀도. **TalkBack 낭독**: 요약 버튼 이름 길이, 칩 radio, 분절 `aria-current`, 이동 뒤 문서 제목 알림.
+2. **역할극(상황 대화) 교정이 `kind=TALK` 로 와서 회화방 `#cr_` 로 열리는지**(역할극 방 화면 가이드가 screens.md 에 없음). 함께: 「모아 둔 교정」(LATER)으로 채택한 교정이 시트로 열리는지, 회화방이 처음 읽는 50개 밖의 오래된 교정·표현 점검 3쪽 밖 교정이면 강조 없이 머무는 기존 한계.
+3. **단어 상세 시트의 「점검 결과 보기 ›」**가 회화(TALK)에서 넣은 단어에도 채팅 점검 주소(`/study/ai/chat/{id}/review`)로 가는데 그 화면이 제대로 열리는지(기존 동작 — 안 되면 백로그).
+4. 앱 WebView 하드웨어 뒤로가기가 ← 와 같은 자리로 가는지(`replaceState` 반영), 분절 `replace` 뒤 뒤로가기 동작.
+
+### 21-13. 데모와 다르게 쓴 곳 · Leader 확인
+
+1. **계약 표 행 불일치**(고치지 않음): `api-contract.md` §1 표의 #79 행(210행)은 `?errorType=&limit=&cursor=` 로, §2-17(`errorType·chunkType·q·limit·cursor`)과 다르다. 화면은 §2-17 을 따른다 — 표 행 갱신은 Leader.
+2. **검색 확정**: 데모대로 Enter 확정(단어장의 300ms 디바운스가 아님). 데모에 없던 보강 — 입력칸을 지워 **빈 칸이 되면 바로 해제**(빈 칸인데 옛 검색 결과가 남는 일을 막음).
+3. **첫 로딩 실패 문구**를 status 로 둘로 나눔: 네트워크(0)는 데모 문구 「교정을 불러오지 못했어요. 네트워크를 확인해 주세요.」, 그 밖은 「교정을 불러오지 못했어요.」(서버 오류에 「네트워크를 확인」은 틀린 안내 — 단어장 `listErrorText` 와 같은 갈래).
+4. **데모 G 「대화를 지웠다면 … 404 → 토스트 후 다시 읽기」**는 목록 화면에서 일어나지 않는다(이동은 링크라 404 는 원래 화면이 받고 자기 「찾을 수 없어요」 상태를 그린다). 목록 쪽 처리 없음, 돌아오면 마운트 때 다시 읽어 빠진다.
+5. **`WordDetailSheet categories=[]`**: 수정 폼의 분류 제안 목록(datalist)만 빈다. 필요하면 시트를 처음 열 때 #46 1회 — 이번엔 넣지 않음.
+6. **`ErrorBlock` [다시 시도] 44px 미달**(공용, 단어장 등 여러 화면 같음): 이 화면은 같은 모양 + `min-h-11` 을 화면 안에 둔다. 공용 수정은 전역 이슈로 Leader 판단.
+7. **돌아오기 복원 방법**(데모는 화면 상태가 그대로 남는 모형이라 방법이 없었다): 계획표 선례대로 주소 쿼리(`errorType`·`chunkType`·`q`·`focus`·`n`) + `sessionStorage` 한 건. `n` 으로 첫 요청 `limit` 을 늘려 위치를 살린다 — 50개를 넘게 더 읽은 뒤 연 카드는 펼침·초점을 복원하지 못한다(맨 위).
+8. **조건을 바꾼 첫 쪽 실패** 때 유형 줄을 직전 숫자로 남긴다(데모는 첫 로딩 실패만 그렸고 유형 줄을 숨겼다 — 첫 로딩 실패는 데모대로 숨김).
+9. **D6 「목록 다시 읽기」**를 지금 받은 개수(최대 50)로 한 번에 다시 읽어 위치·펼침을 지킨다(확정 메모 「다시 읽어」 범위 안). 표현 수정은 다시 읽지 않고 버튼 글자만 바꾼다.
+10. **문서 제목**: `(app)` 화면 가운데 처음으로 페이지별 `metadata.title` 을 둔다(다른 화면은 앱 이름). 단어 화면 제목은 그대로 — 원하면 「단어 · 단어장」(Leader).
+11. **계약에 없음**: 더 보기(cursor) 요청에도 `facets` 를 계산하는지 — 화면은 첫 쪽 것만 쓰므로 서버가 cursor 요청에서 생략해도 된다(Leader·developer 판단).
+12. **카드 루비 줄간격**: 데모 2.05 → `JaText` 기본 2.1(`CorrectionCard` 와 같음, 줄당 1px 안팎).
+13. **분절 이동 방식**: 데모는 화면 전환만 그렸다 — `Link replace`(기록을 쌓지 않음, 회화 탭 선례) + 이동 뒤 분절 현재 항목에 초점.
+
+---
+

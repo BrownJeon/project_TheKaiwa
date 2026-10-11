@@ -1,11 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { ChatRowsSkeleton, SkeletonRegion, WordRowsSkeleton } from '../TabSkeleton'
-import { CHAT_SKELETON, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from '../tabSkeletonSizes'
+import { CorrectionCardsSkeleton, ChatRowsSkeleton, ErrorTypeRowSkeleton, SkeletonRegion, WordRowsSkeleton } from '../TabSkeleton'
+import { CHAT_SKELETON, CORRECTION_SKELETON, CORRECTION_TYPE_ROW, SKELETON_SR_LABEL, WORD_CATEGORY_ROW, WORD_SKELETON } from '../tabSkeletonSizes'
+import { CORRECTIONS_COPY } from '../../drawer/correctionsCopy'
 
 // task-046(IMP-0027): 자리표시 높이는 클래스 합산이 아니라 실측 상수다 — 상수와 그리는 곳을 묶어 두어 한쪽만 바뀌지 않게 한다.
 const root = join(__dirname, '..', '..')
@@ -16,6 +17,9 @@ test('자리표시 부품은 상수에서 높이를 읽는다(하드코딩 px �
   assert.match(skeleton, /CHAT_SKELETON\.rowHeight/)
   assert.match(skeleton, /WORD_SKELETON\.rowHeight/)
   assert.match(skeleton, /WORD_CATEGORY_ROW\.chip/)
+  assert.match(skeleton, /CORRECTION_SKELETON\.cardHeight/)
+  assert.match(skeleton, /CORRECTION_SKELETON\.gap/)
+  assert.match(skeleton, /CORRECTION_TYPE_ROW\.widths/)
   assert.ok(!/불러오는 중/.test(skeleton))
   assert.ok(!/animate-pulse/.test(skeleton), '정적 블록 — 깜빡임을 새로 만들지 않는다')
   assert.match(skeleton, /aria-busy="true"/)
@@ -68,11 +72,14 @@ test('loading.tsx 적용 범위 — 탭 홈 화면에만 닿는다(회화는 (ta
   assert.ok(!exists('study', 'ai', 'page.tsx'), '그룹으로 옮긴 page 가 두 곳에 남지 않는다')
   assert.ok(exists('drawer', 'words', 'loading.tsx'))
   assert.ok(!exists('drawer', 'loading.tsx'))
+  // task-055 §21-7 D1: 교정 모음도 page 뿐인 폴더라 하위 경로로 새지 않는다.
+  assert.ok(exists('drawer', 'corrections', 'loading.tsx'))
+  assert.deepEqual(readdirSync(join(app, 'drawer', 'corrections')).sort(), ['loading.tsx', 'page.tsx'])
   assert.ok(!exists('study', 'today', 'loading.tsx') && !exists('plan', 'loading.tsx'), '오늘·계획표는 T3 범위')
 })
 
 test('서버 loading 화면은 데이터 요청을 하지 않는다(진짜 화면이 불러온다) · 눌리지 않게 inert', () => {
-  for (const [dir, file] of [['chat', 'StudyAiSkeleton.tsx'], ['vocab', 'WordsSkeleton.tsx']] as const) {
+  for (const [dir, file] of [['chat', 'StudyAiSkeleton.tsx'], ['vocab', 'WordsSkeleton.tsx'], ['drawer', 'CorrectionsSkeleton.tsx']] as const) {
     const src = read(dir, file)
     assert.ok(!/apiGet|apiPost|fetch\(/.test(src), file)
     assert.match(src, /\binert\b/, file)
@@ -93,7 +100,7 @@ test('SkeletonRegion: 알림은 aria-busy 래퍼 밖 형제 · 보이는 블록�
 })
 
 test('목록 자리표시 부품(채팅·단어)도 한 줄 알림만', () => {
-  for (const el of [createElement(ChatRowsSkeleton), createElement(WordRowsSkeleton)]) {
+  for (const el of [createElement(ChatRowsSkeleton), createElement(WordRowsSkeleton), createElement(CorrectionCardsSkeleton)]) {
     const html = renderToStaticMarkup(el)
     assert.equal((html.match(/role="status"/g) ?? []).length, 1)
     assert.ok(html.indexOf('role="status"') < html.indexOf('aria-busy="true"'))
@@ -108,4 +115,56 @@ test('자리표시는 화면 모듈(StudyAiHome·WordsScreen)을 import 하지 �
   assert.match(words, /import \{ WORD_SORT_OPTIONS \} from '\.\/labels'/)
   assert.match(read('vocab', 'WordsScreen.tsx'), /WORD_SORT_OPTIONS \} from '\.\/labels'/)
   assert.ok(!/export const WORD_SORT_OPTIONS/.test(read('vocab', 'WordsScreen.tsx')))
+})
+
+// ── task-055 채택 교정 모음(screens.md §21-7 D) ─────────────────────────────────
+
+test('교정 카드 자리표시: 3줄 · 간격 10(목록 gap-2.5) · 카드 높이는 데모 렌더 평균 범위 안(실기기 QA 재측정 대상)', () => {
+  assert.equal(CORRECTION_SKELETON.rows, 3)
+  assert.equal(CORRECTION_SKELETON.gap, 10)
+  assert.ok(CORRECTION_SKELETON.cardHeight >= 275 && CORRECTION_SKELETON.cardHeight <= 287, '데모 평균 275~287(켬·접힘) — 실측 전 값')
+  assert.match(read('shell', 'tabSkeletonSizes.ts'), /CORRECTION_SKELETON = \{ rows: 3, cardHeight: \d+, gap: 10 \}/)
+  assert.deepEqual([...CORRECTION_TYPE_ROW.widths], [56, 64, 60, 72])
+})
+
+test('교정 카드 바깥 클래스: 실제 카드와 자리표시가 같다, 목록·자리표시 둘 다 간격 10', () => {
+  const card = read('drawer', 'DrawerCorrectionCard.tsx')
+  const cls = 'rounded-[14px] border border-line bg-surface p-3.5'
+  assert.ok(card.includes(cls))
+  assert.ok(skeleton.includes(cls))
+  assert.match(read('drawer', 'CorrectionsScreen.tsx'), /<ul aria-label=\{C\.listLabel\} className="flex flex-col gap-2\.5">/)
+  assert.match(skeleton, /gap: CORRECTION_SKELETON\.gap/)
+})
+
+test('유형 줄: 화면은 mt-1.5 래퍼로 ErrorTypeChips 를 감싸고, 칩 h-9·스크롤 줄 py-1(= WORD_CATEGORY_ROW 높이) · 자리표시도 같은 값', () => {
+  assert.match(read('drawer', 'CorrectionsScreen.tsx'), /<div className="mt-1\.5">\s*<ErrorTypeChips/)
+  const chips = read('drawer', 'ErrorTypeChips.tsx')
+  assert.match(chips, /h-9 /)
+  assert.match(chips, /overflow-x-auto py-1 pr-4/)
+  assert.match(skeleton, /marginTop: WORD_CATEGORY_ROW\.top/)
+  assert.match(skeleton, /paddingBlock: WORD_CATEGORY_ROW\.pad/)
+  const html = renderToStaticMarkup(createElement(ErrorTypeRowSkeleton))
+  assert.match(html, /^<div aria-hidden="true"/)
+  assert.ok(html.includes(`>${CORRECTIONS_COPY.typeLabel}</span>`), '라벨 글자 = correctionsCopy.typeLabel')
+  assert.equal((html.match(/rounded-full bg-surface2/g) ?? []).length, 4)
+  assert.ok(!html.includes('role="status"'), '알림은 카드 쪽 한 줄뿐')
+})
+
+test('분절: 단어장·교정 모음 화면과 두 자리표시 넷 다 DrawerSwitch, 자리표시는 placeholder', () => {
+  assert.match(read('vocab', 'WordsScreen.tsx'), /<DrawerSwitch current="words" \/>/)
+  assert.match(read('vocab', 'WordsSkeleton.tsx'), /<DrawerSwitch current="words" placeholder \/>/)
+  assert.match(read('drawer', 'CorrectionsScreen.tsx'), /<DrawerSwitch current="corrections" \/>/)
+  assert.match(read('drawer', 'CorrectionsSkeleton.tsx'), /<DrawerSwitch current="corrections" placeholder \/>/)
+})
+
+test('교정 모음 자리표시는 화면 모듈을 import 하지 않고, 화면 첫 로딩과 같은 부품을 쓴다', () => {
+  const sk = read('drawer', 'CorrectionsSkeleton.tsx')
+  assert.ok(!/CorrectionsScreen/.test(sk))
+  for (const src of [sk, read('drawer', 'CorrectionsScreen.tsx')]) {
+    assert.match(src, /<ErrorTypeRowSkeleton \/>/)
+    assert.match(src, /<CorrectionCardsSkeleton \/>/)
+    assert.match(src, /<ChunkChips value=\{[^}]+\} withNone=\{false\}/)
+    assert.match(src, /label=\{C\.search\}\s+placeholder=\{C\.search\}\s+commitWhileTyping=\{false\}/)
+    assert.match(src, /<DisplayToggles keys=\{\['fu', 'hg'\]\}/)
+  }
 })

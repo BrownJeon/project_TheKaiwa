@@ -167,6 +167,39 @@ export interface CorrectionDto {
   extraNoteKo?: string | null
 }
 
+/**
+ * #79 서랍장 교정 항목(task-055, api-contract §2-17) — 채택(ACCEPTED)한 교정만. `CorrectionDto` 와 모양이 달라(상태·메시지 id 없음,
+ * 채팅·연결 단어를 객체로 싣는다) 따로 둔다. `original` 은 저장된 글자 그대로(정규화 없음). 번역 필드는 없다(D7).
+ */
+export interface DrawerCorrectionItem {
+  id: string
+  original: string
+  corrected: string
+  explanation: string
+  /** #34 와 같은 값 — 옛 행은 null(화면은 줄을 그리지 않는다). */
+  extraNoteKo: string | null
+  errorType: ErrorType
+  severity: Severity
+  chunkType: ChunkType | null
+  chat: { id: string; title: string; kind: ChatKind }
+  /** 연결 단어가 있고 같은 사용자 소유일 때만. 없으면 필드 자체가 없다. */
+  savedWord?: { id: string; surface: string }
+  /** 채택 시각(ISO). 정렬 키(`resolvedAt desc, id desc`). */
+  resolvedAt: string
+}
+
+/** #79 `facets` — `errorType` 조건만 빼고 `chunkType`·`q` 를 반영한 유형별 개수(0개 생략, 많은 순 → `ErrorType` 선언 순). */
+export interface DrawerCorrectionFacets {
+  errorType: { value: ErrorType; count: number }[]
+}
+
+/** #79 응답 — 첫 쪽(`cursor` 없음)에는 `facets` 가 늘 있고(0개여도 `{ errorType: [] }`), 더 보기(`cursor` 있음)에는 없다. */
+export interface DrawerCorrectionPage {
+  items: DrawerCorrectionItem[]
+  nextCursor: string | null
+  facets?: DrawerCorrectionFacets
+}
+
 /** #29 메시지 */
 export interface ChatMessage {
   id: string

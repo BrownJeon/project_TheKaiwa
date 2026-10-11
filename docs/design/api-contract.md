@@ -207,7 +207,7 @@
 | 76 | GET | `/api/v1/plan/current` | 현재 ACCEPTED 계획 | S | learning/studyPlan | 3 | — | `StudyPlan` |
 | 77 | POST | `/api/v1/plan/:id/accept` · `/reject` | 계획 채택/거절 | S | learning/studyPlan | 3 | — | `StudyPlan` |
 | 78 | GET | `/api/v1/plan/growth?weeks=` | 성장기록(**StatsSnapshot 만**) | S | learning/snapshots | 3 | query | 시계열 |
-| 79 | GET | `/api/v1/drawer/corrections?errorType=&limit=&cursor=` | 채택 교정 서랍 | S | conversation/corrections | 3 | query | 목록 |
+| 79 | GET | `/api/v1/drawer/corrections?errorType=&chunkType=&q=&limit=&cursor=` | 채택 교정 서랍 | S | conversation/corrections | 3 | query | 목록 |
 | — | — | ASK: `POST /api/v1/chats {kind:"ASK"}` + `#32` 턴 재사용 | 무엇이든 물어보세요(A9) | S | conversation | 3 | — | — |
 
 ### 1-3. 관리자 `/api/admin/v1`
@@ -1357,7 +1357,18 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 
 ### 2-17. 서랍장 교정 `/api/v1/drawer/corrections` (#79, L2 conversation/corrections · Phase 3)
 
-`GET /api/v1/drawer/corrections?errorType=&chunkType=&q=&limit=&cursor=` → `status=ACCEPTED` 교정만, `{ items: [ { id, original, corrected, explanation, errorType, severity, chunkType, chat: { id, title, kind }, savedWord?: { id, surface }, resolvedAt } ], nextCursor, facets: { errorType: [ { value: "PARTICLE", count: 12 } ] } }`. `q` 는 `original/corrected` 부분 일치 ≤40자.
+`GET /api/v1/drawer/corrections?errorType=&chunkType=&q=&limit=&cursor=` → `status=ACCEPTED` 교정만, `{ items: [ { id, original, corrected, explanation, extraNoteKo, errorType, severity, chunkType, chat: { id, title, kind }, savedWord?: { id, surface }, resolvedAt } ], nextCursor, facets: { errorType: [ { value: "PARTICLE", count: 12 } ] } }`.
+
+**task-055 데모 v1 승인(2026-10-11, D2~D8)으로 확정한 규칙** — 읽기 전용이며 스키마·쓰기 변경 없음:
+- **소유자**: 항상 `userId = 요청자`. 타인 교정은 존재하지 않는 것처럼 빈 목록(IDOR 시험 대상). 연결 단어 `savedWord` 는 같은 사용자 소유일 때만 `{ id, surface }`, 아니면 생략.
+- **정렬·페이지**: `resolvedAt desc, id desc`. `limit` 1~50, **기본 20**(범위 밖은 `400 VALIDATION`). `nextCursor` 는 불투명 문자열이고 마지막 쪽이면 `null`. 채택 시각(`resolvedAt`)이 없는 `ACCEPTED` 행은 커서 키가 비어 페이지가 깨지므로 목록·집계에서 제외한다(채택 경로 `acceptCorrection` 은 늘 시각을 함께 기록하므로 실제로 빠지는 행은 없다). 같은 이름의 쿼리 파라미터가 반복되면 첫 값만 쓴다(#40 과 같음).
+- **필터**: `errorType` 은 `ErrorType` 9종, `chunkType` 은 `ChunkType` 4종(`NAME`·`ACTION`·`FEELING`·`MODIFIER`) 중 하나 — 「조각 없음」으로 거르는 값은 없다(화면에도 칩이 없음). 그 밖의 값은 `400 VALIDATION`. 필터를 바꾸면 클라이언트는 `cursor` 를 버리고 첫 쪽부터 읽는다.
+- **검색 `q`(D8 B)**: 한 줄 필드 정리(제어문자·줄바꿈·탭 제거, 앞뒤 공백 제거 — 단어장 #40 과 같은 `sanitizeText`) 뒤 1~40자(빈 문자열은 `q` 없음으로 본다, 40자 초과는 `400 VALIDATION`). **`original`·`corrected`·`explanation` 셋에서 부분 일치**(SQL `LIKE` 의 `%`·`_`·`\` 는 이스케이프). `extraNoteKo` 는 검색 대상이 아니다. 한국어 설명 속 낱말(예: 「존댓말」)로 찾을 수 있게 하려는 결정이다. 비교는 DB 칼럼 collation(`utf8mb4_unicode_ci`)을 따라 **대소문자·히라가나/가타카나·전각/반각을 구분하지 않는다**(단어장 #40 과 같음 — QA 실측: 「ました」「マシタ」「ﾏｼﾀ」가 같은 행을 찾고 전각 `％`·`＿` 가 `%`·`_` 행을 찾는다).
+- **`facets.errorType`**: **`errorType` 조건만 빼고 `chunkType`·`q` 조건은 반영**한 유형별 개수(0개인 유형은 생략, 개수 많은 순·같으면 `ErrorType` 선언 순). 그래서 유형 칩 숫자의 합이 곧 머리 줄의 「n개」이고 `total` 필드는 두지 않는다. 필터가 하나도 없을 때 합이 0이면 「채택한 교정이 아직 없음」, 필터가 있는데 `items` 가 비면 「조건에 맞는 교정 없음」으로 화면이 구분한다. **`cursor` 가 있는 요청(더 보기)에는 `facets` 를 계산하지 않고 응답에서 생략한다** — 화면은 첫 쪽(`cursor` 없음) 응답의 `facets` 만 쓰고, 필터·검색이 바뀌면 첫 쪽부터 다시 읽어 `facets` 를 새로 받는다(집계 쿼리 한 번을 아낌). 첫 쪽 응답에는 항상 `facets` 가 있다(항목이 0개여도 `{ errorType: [] }`).
+- **`extraNoteKo`**: #34 와 같은 값(`string | null`, 옛 행 `null`, 시험 문법 한 줄은 화면의 기존 `ExtraNoteLine` 이 그린다).
+- **번역 없음(D7 A)**: 교정 객체에 번역 필드가 없고 이 화면은 번역 스위치를 따르지 않는다(히라가나·한글 표시 스위치만). 번역 줄을 넣으려면 저장 칸·프롬프트 계약 변경이 필요해 이번 범위 밖이다.
+- **이동 주소**: `chat.kind` 로 정한다 — 회화는 `/study/ai/talk/{chat.id}#cr_{id}`, 채팅은 `/study/ai/chat/{chat.id}/review#cr_{id}`(홈 `PendingCorrectionsCard` 와 같은 주소).
+- `Correction.original` 은 저장된 글자 그대로 내려보내고 어떤 정규화도 하지 않는다.
 
 ### 2-18. 무엇이든 물어보세요 (ASK · Phase 3)
 

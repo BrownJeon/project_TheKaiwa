@@ -21,6 +21,7 @@ import { Btn, ErrorBlock } from '@/components/common/ui'
 import { useWordLayersList } from '@/components/common/japanese/annotations'
 import { DISPLAY_COPY } from '@/components/common/japanese/displayPrefs'
 import { DisplayToggles } from '@/components/common/japanese/JapaneseText'
+import DrawerSwitch from '@/components/drawer/DrawerSwitch'
 import AppBar from '@/components/shell/AppBar'
 import { WordCategoryRowSkeleton, WordRowsSkeleton } from '@/components/shell/TabSkeleton'
 import type { SeedPack } from '@/types/seedPack'
@@ -261,6 +262,7 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         }
       />
       <div className="px-4 pb-8">
+        <DrawerSwitch current="words" />
         <WordSearchBar
           value={qInput}
           onInput={setQInput}
