@@ -60,6 +60,10 @@ import com.getcapacitor.PluginHandle;
 public class MainActivity extends BridgeActivity {
 
     private static final String EXTRA_SHARE_HANDLED = "com.miraclepenguin.kaiwa.SHARE_HANDLED";
+    /** 본문이나 그 일부가 실릴 수 있는 키. 메일 앱 등은 본문을 HTML 로도, 제목을 따로도 싣는다(REV-181 L-1). */
+    private static final String[] SHARE_BODY_EXTRAS = {
+        Intent.EXTRA_TEXT, Intent.EXTRA_HTML_TEXT, Intent.EXTRA_SUBJECT, Intent.EXTRA_TITLE,
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,7 +112,9 @@ public class MainActivity extends BridgeActivity {
 
     private static void forgetShare(Intent intent) {
         try {
-            intent.removeExtra(Intent.EXTRA_TEXT);
+            for (String key : SHARE_BODY_EXTRAS) {
+                intent.removeExtra(key);
+            }
             intent.setClipData(null);
             intent.putExtra(EXTRA_SHARE_HANDLED, true);
         } catch (RuntimeException e) {

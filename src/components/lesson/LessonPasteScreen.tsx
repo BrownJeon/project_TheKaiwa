@@ -33,6 +33,15 @@ export function pasteMeta(text: string): { n: number; hint: string; bad: boolean
   return { n, hint: PASTE.hintOk, bad: false, ok: true }
 }
 
+/**
+ * 주소에서 공유 표시(`?from=share`)만 지운다. 첫 인자는 지금 `history.state` 를 그대로 넘긴다 — 풀 페이지 로드에서는 이 화면의
+ * effect 가 Next 의 history 패치 설치보다 먼저 돌아, `null` 을 넘기면 Next 내부 상태(`__NA`·트리)가 지워지고 이 항목으로 돌아오는
+ * 기기 뒤로 가기를 Next 가 무시한다(REV-181 M-1, `ChallengeScreen` 과 같은 방식).
+ */
+export function dropShareMark(h: Pick<History, 'state' | 'replaceState'>): void {
+  h.replaceState(h.state, '', SHARE_PASTE_PATH)
+}
+
 function ShareIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -133,7 +142,7 @@ export default function LessonPasteScreen({ fromShare = false }: { fromShare?: b
     handledRef.current = true
     // 뒤로·앞으로 가기로 다시 그려지면 캐시된 prop 은 여전히 true 다 — 표시를 지운 뒤의 주소로 한 번 더 확인한다.
     if (new URLSearchParams(window.location.search).get('from') !== 'share') return
-    window.history.replaceState(null, '', SHARE_PASTE_PATH)
+    dropShareMark(window.history)
     if (!isNativeApp()) return
     // 취소 플래그로 결과를 버리지 않는다 — 한 번만 주는 값이라 버리면 잃는다(StrictMode 두 번째 실행은 handledRef 가 막는다).
     consumingRef.current = true
