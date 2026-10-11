@@ -932,6 +932,11 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 
 - `count` 5~30(기본 `Profile.dailyWordCount`), `mode CHOICE|FLIP`(기본 CHOICE). 풀 = `archived=false`(카테고리 필터) − 오늘 DONE 세션 단어. 풀 0 → `200 { "session": null, "empty": { "reason": "NO_WORDS", "cta": ["ADD_WORD", "SEED_PACK"] } }`; 풀 <4 이고 CHOICE → FLIP 강등(`downgraded:true`). `choices` 는 셔플된 4개(정답 위치·정답값은 응답에 없음), FLIP 은 `choices` 없음. **FLIP 카드는 자기 채점이라 `meaning`·`example`·`exampleKo` 를 처음부터 싣는다**(뒷면 표시용 — 정답 미노출 규칙은 CHOICE 에만 적용, task-008 F1). 빈 풀 사유 `empty.reason ∈ { NO_WORDS(단어 0) | ALL_DONE_TODAY(오늘 세트에서 다 풂) | NO_WORDS_IN_CATEGORY | TOPIC_EMPTY | TOPIC_ALL_DONE_TODAY }`(F5; 뒤 둘은 주제 세트 — 아래 "주제 세트 요청·응답 보강").
 - `VocabAttempt` 행은 카드 생성 시 `answer=null` 로 미리 만들어지며 `surfaceSnap/readingSnap/meaningSnap/choices` 를 스냅샷한다. 진행 중 세션이 이미 있으면 `409 { details: { sessionId } }`(이어풀기 유도).
+- **카드 우선 세트(task-059·IMP-0011, 2026-10-11 확정 — 스키마 변경 없음, `VocabSession.mode` 의 기존 값 `FLIP` 재사용)**:
+  - **`mode` 생략 시 기본은 `FLIP`**(task-059 이전 기본은 `CHOICE`). 화면은 더 이상 푸는 방식을 고르지 않고 `mode` 를 보내지 않는다. `mode:'CHOICE'` 를 명시하면 이전과 똑같이 동작한다(정답 미노출 CHOICE 세트 — 이전에 만든 진행 중·보관 세트가 이 형태).
+  - **`FLIP` 세트의 카드도 `choices` 를 가질 수 있다**: 풀 ≥4 이고 서로 다른 뜻 ≥4 (`CHOICE_COUNT`)일 때 `pickChoices` 로 셔플된 4개를 만들어 `VocabAttempt.choices` 에 스냅샷하고 #47·#49 카드 응답에 싣는다(조건을 못 채우거나 카드 하나라도 4개를 못 만들면 그 세트의 **모든 카드가 `choices:null`** — 화면이 객관식 열기를 숨긴다. 이때 `downgraded` 는 쓰지 않는다: 카드 우선 요청은 강등할 방식이 없다). `meaning`·`example`·`exampleKo` 는 FLIP 규칙대로 처음부터 싣는다.
+  - **정답 미노출 규칙은 `CHOICE` 세트에만 적용된다**(FLIP 세트는 뜻이 처음부터 실리므로 `choices` 가 정답을 더 드러내지 않는다 — 혼자 쓰는 학습 앱이라 순위·보상이 없고, 객관식 채점은 계속 서버가 한다). reviewer 가 task-059 감사에서 이 판단을 확인한다.
+  - 주제 세트·챌린지 세트·내 단어장 세트 모두 같은 규칙(`insertSession` 한 곳).
 
 - **주제 단어 세트(task-040·042 — 챌린지 하루 단어 과제의 원천)**: 본문에 `topicId?`·`generate?` 가 더해졌다(라우트가 `{count, mode, category, topicId, generate}` 를 `createVocabSession` 에 넘긴다). `topicId` 가 있으면 주제 세트(`VocabSession.topicId`) — 그날 그 주제의 첫 세트는 A12 새 단어를 요청 안에서 동기로 만들고(요청 시작부터 큐 대기 포함 30초), 클라이언트가 끊으면(`req.signal`) 생성을 멈추고 세트를 만들지 않는다. 생성 중 두 번째 요청은 409 `{reason:'GENERATING'}`. A12 요청·결과 검사(conversation `buildTopicWordsRequest`·`assembleTopicWords`)는 라우트가 값으로 learning 에 넘긴다(L3 → L2 import 없음).
 - **카드 예문 규칙(task-049, 2026-10-10 — #47·#49·#50 공통)**: 새 단어(`refType='AiWord'`) 카드의 일본어 예문·한국어 번역은 세트를 만들 때 `VocabAttempt.exampleSnap`·`exampleKoSnap` 에 스냅샷으로 저장한다(둘 다 비지 않은 문자열이고 각 ≤300자일 때만 쌍으로, 아니면 둘 다 null. 단어장 카드는 저장하지 않고 지금 단어를 읽는다). 응답의 `example`·`exampleKo` 는 **단어장 단어(`WordEntry`)의 예문 > 카드 스냅샷 > `null`** 순으로 고른다. CHOICE 세트는 정답 미노출 규칙에 따라 **답하기 전 카드에는 #47·#49 응답에 `example`·`exampleKo` 키가 없고**, #50 의 답 응답과(답한 카드·`DONE` 세트의) #49 에서 공개된다. FLIP 세트는 처음부터 싣는다. 다시 풀기(#53)는 주제 세트의 스냅샷을 새 카드로 복사한다.
@@ -957,6 +962,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 - 응답의 `example`·`exampleKo` 는 단어장 예문 > 카드 스냅샷(`exampleSnap`·`exampleKoSnap`) > `null` 순이다(위 #47 "카드 예문 규칙", task-049). CHOICE 세트의 첫 예문 출처가 이 응답이다.
 - `{ "order": 3, "flagged": true }` 처럼 **답 필드 없이** 보내면 표시(`flagged`)만 바꾼다(`IN_PROGRESS` 에서만, task-008 E2).
 - 같은 `order` 재전송은 첫 결과를 그대로 돌려준다(`200`, 변경 없음). `responseMs` 0~60,000. 세션이 `DONE/ABANDONED` 면 `409`. CHOICE 에서 `chosenText ∉ choices` 면 `400`.
+- **`FLIP`(카드 우선) 세트는 `selfResult` 와 `chosenText` 를 둘 다 받는다**(task-059, 2026-10-11): 카드 한 장에 **둘 중 하나만** 보낸다(함께 보내면 `400 VALIDATION` `{field:'chosenText', reason:'exclusive'}`). `chosenText` 는 서버가 채점한다(`chosenText === meaningSnap` → `CORRECT`, 아니면 `WRONG`; `VocabAttempt.chosenText` 에 기록) — 응답은 CHOICE 와 같은 모양(`answer`·`correctText`·`chosenText`·`example`·`exampleKo`). 카드에 `choices` 가 없으면(= `null` 또는 `chosenText ∉ choices`) `400 {field:'chosenText', reason:'not_in_choices'}`. **`CHOICE` 세트에 `selfResult` 를 보내면 계속 `400`**(`reason:'mode'`). 건너뛰기(`skipped`)·`flagged`·`order` 멱등(첫 결과 유지)·`DONE/ABANDONED` 409 는 그대로. 세트 합산(맞힘/틀림/건너뜀)·`WordEntry` 카운터·반복 항목·관측(`VOCAB_RECOGNITION`)은 **답한 방식과 무관하게 같은 규칙**(finish #51 변경 없음). 채점 방식 구분(섞인 결과의 한 줄)은 #49 의 `chosenText` 유무로 화면이 센다 — API 에 새 필드를 두지 않는다.
 
 #### #51 `POST /api/v1/vocab/sessions/:id/finish` — 단일 트랜잭션
 
@@ -975,7 +981,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 
 #### #52 `POST /api/v1/vocab/sessions/:id/keep` `{ "kept": true|false }` → `VocabSession`(`keptAt`). DONE 세션만(`409`).
 
-#### #53 `POST /api/v1/vocab/sessions/:id/replay` → **보관(`keptAt`)한 DONE 세트만**(아니면 `409`, F7). 보관 세트의 **같은 단어 목록**(삭제된 단어는 `*Snap` 으로 FLIP 카드)으로 새 `VocabSession{replayOfId}` 생성, #47 응답. 진행 중 세션 있으면 `409`.
+#### #53 `POST /api/v1/vocab/sessions/:id/replay` → **보관(`keptAt`)한 DONE 세트만**(아니면 `409`, F7). 보관 세트의 **같은 단어 목록**(삭제된 단어는 `*Snap` 으로 FLIP 카드)으로 새 `VocabSession{replayOfId}` 생성, #47 응답. 진행 중 세션 있으면 `409`. **새 세트의 방식은 카드 우선(`FLIP` + 카드 `choices`)이다 — 원래 `CHOICE` 였던 보관 세트를 다시 풀어도 새 세트는 카드 우선**(task-059 D6 A, 2026-10-11; 원래 `FLIP` 이면 그대로 `FLIP`). 카드 순서는 새 시드로 다시 섞고, 보기(`choices`)는 새로 만든다(삭제된 단어의 `*Snap` 카드도 같은 규칙으로 — 뜻 재료 부족이면 `choices:null`).
 
 #### #54 `GET /api/v1/vocab/stats?days=30`
 

@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-059-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="오늘의 단어 카드 우선 통합(IMP-0011) delta 데모 v1 — 방식 선택 제거, 카드 탭 → 객관식, 뜻 보기 면 단어·예문 듣기, 스와이프 불변, 답한 방식대로 기록(Q9), 결정 필요 D0~D8">
+<title>오늘의 단어 카드 우선</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+p, h1, h2, h3, h4, ul, ol, dl, dd, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+table { border-collapse: collapse; width: 100%; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.meta { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.meta span { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.meta span.lv { background: var(--accent); color: var(--on-accent); }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 40px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dwrap { max-width: 1480px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dcard > h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.dcard h3 { font-size: 13.5px; font-weight: 700; margin: 12px 0 6px; }
+.dsub { font-size: 12.5px; color: var(--ink2); }
+.intro2 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+.lst { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.lst li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 4px; }
+.lst li::before { content: "•"; color: var(--ink2); }
+.lst.out li::before { content: "×"; color: var(--bad); font-weight: 700; }
+.callout { border-radius: 12px; background: var(--warn-soft); color: var(--ink); padding: 10px 12px; font-size: 13px; }
+.callout + .callout { margin-top: 8px; }
+.callout b { font-weight: 700; }
+.tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink2); }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.subs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.subs button { min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; color: var(--ink); }
+.subs button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.stagebar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.dbtn { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; font-weight: 600; }
+.pw { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; min-width: 0; }
+.pcol { display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 100%; }
+.plabel { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink2); }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; background: var(--surface2); color: var(--ink2); flex: none; }
+.tag.pro { background: var(--accent); color: var(--on-accent); }
+.tag.rec { background: var(--good-soft); color: var(--good); }
+.tag.scr { background: var(--warn-soft); color: var(--ink); }
+.pscroll { max-width: 100%; overflow-x: auto; }
+.pnote { font-size: 12px; color: var(--ink2); max-width: 412px; }
+.meas { font-size: 11.5px; color: var(--ink2); max-width: 412px; font-variant-numeric: tabular-nums; }
+.meas b.ok { color: var(--good); } .meas b.no { color: var(--bad); }
+.notes { margin-top: 14px; font-size: 13px; }
+.notes h3 { margin-top: 0; }
+.tbl { overflow-x: auto; }
+.tbl table { font-size: 12.5px; min-width: 560px; }
+.tbl th, .tbl td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.tbl th { color: var(--ink2); font-weight: 600; background: var(--surface2); }
+.tbl td.same { color: var(--ink2); }
+.tbl td.chgd { font-weight: 600; }
+.decs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 12px; }
+.dec { border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; background: var(--surface); }
+.dec h3 { margin: 0 0 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dec .q { font-size: 12.5px; color: var(--ink2); margin-bottom: 8px; }
+.dec .opt { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: start; padding: 6px 0; border-top: 1px dashed var(--line); font-size: 13px; }
+.dec .opt button { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; }
+.dec .opt button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.dec .why { margin-top: 8px; font-size: 12.5px; background: var(--surface2); border-radius: 10px; padding: 8px 10px; }
+.dec .go { margin-top: 6px; }
+body.showchg .chg { outline: 2px dashed var(--warn); outline-offset: 2px; }
+
+/* ── 휴대폰(= CSS 뷰포트) ── */
+.phone { --pw: 390px; --ph: 800px; width: var(--pw); height: var(--ph); flex: none; display: flex; flex-direction: column; position: relative;
+  background: var(--ground); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.phone.w360 { --pw: 360px; --ph: 740px; }
+.phone.w412 { --pw: 412px; --ph: 780px; }
+
+/* 앱 셸 */
+.abar { flex: none; height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.abar h2 { font-size: 18px; font-weight: 700; }
+.ava { width: 36px; height: 36px; border-radius: 999px; background: var(--surface2); display: grid; place-items: center; font-size: 13px; font-weight: 600; }
+.amain { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 24px; }
+.tabbar { flex: none; height: 56px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--line); background: var(--surface); }
+.tabbar span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; color: var(--ink2); }
+.tabbar span.on { color: var(--accent); font-weight: 700; }
+.tabbar i { font-style: normal; font-size: 16px; line-height: 1; }
+.card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.card.flat { box-shadow: none; }
+.sec { margin-top: 18px; }
+.sech { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink2); margin: 0 2px 6px; min-height: 24px; }
+.chead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; }
+.chead h3 { font-size: 15px; font-weight: 600; }
+.chip { display: inline-flex; align-items: center; height: 24px; max-width: 100%; padding: 0 8px; border-radius: 999px; background: var(--surface2); color: var(--ink2); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t12 { font-size: 12px; } .t125 { font-size: 12.5px; } .t13 { font-size: 13px; } .t15 { font-size: 15px; } .t22 { font-size: 22px; }
+.fw6 { font-weight: 600; } .ink2 { color: var(--ink2); } .tnum { font-variant-numeric: tabular-nums; }
+.mt05 { margin-top: 2px; } .mt1 { margin-top: 4px; } .mt2 { margin-top: 8px; } .mt3 { margin-top: 12px; }
+.lab { font-size: 12.5px; color: var(--ink2); margin: 12px 0 6px; }
+.seg { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; }
+.seg button { position: relative; flex: 1; min-width: 0; height: 32px; border: 0; border-radius: 9px; background: none; font-size: 12px; font-weight: 500; color: var(--ink2); }
+.seg button::before { content: ""; position: absolute; inset-inline: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid transparent; font-size: 15px; font-weight: 600; text-decoration: none; min-width: 0; }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.gh { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.btn[aria-disabled="true"] { opacity: 1; }
+.btn.full { width: 100%; }
+.brow { display: flex; gap: 8px; margin-top: 12px; }
+.brow > *, .brow0 > * { flex: 1; min-width: 0; }
+.brow0 { display: flex; gap: 8px; }
+.linkb { display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.memo { margin-top: 8px; border-radius: 12px; background: var(--warn-soft); padding: 10px 12px; font-size: 13px; }
+.stat { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.week { display: flex; gap: 4px; }
+.week span { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; background: var(--surface2); color: var(--ink2); }
+.week span.d { background: var(--good-soft); color: var(--good); }
+.kl { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.kl li { display: flex; align-items: center; gap: 8px; min-height: 64px; padding: 8px 14px; }
+.kl li + li { border-top: 1px solid var(--line); }
+.kl .tx { flex: 1; min-width: 0; }
+.kl .tx p:first-child { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chgtag { display: none; position: absolute; right: 8px; bottom: -10px; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--warn-soft); color: var(--ink); font-size: 11px; font-weight: 700; align-items: center; white-space: nowrap; }
+body.showchg .chgtag { display: inline-flex; }
+
+/* 덱 */
+.deck { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--ground); }
+.bbar { flex: none; height: 52px; display: flex; align-items: center; gap: 2px; padding: 0 6px 0 2px; border-bottom: 1px solid var(--line); }
+.bbar .bk { width: 44px; height: 44px; border: 0; background: none; font-size: 20px; flex: none; }
+.bbar .tt { flex: 1; min-width: 0; }
+.bbar .tt b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.bbar .tt small { display: block; font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bbar .end { height: 44px; border: 0; background: none; padding: 0 12px; font-size: 14px; font-weight: 500; color: var(--ink2); flex: none; }
+.dprog { flex: none; padding: 12px 16px 0; }
+.dprog .r { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.dprog .r b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.segs { display: flex; gap: 2px; margin-top: 6px; }
+.segs i { flex: 1; height: 6px; border-radius: 999px; background: var(--surface2); }
+.segs i.c { background: var(--good); } .segs i.w { background: var(--bad); } .segs i.s { background: var(--ink3); } .segs i.now { background: var(--accent); }
+.segs i.ring { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dnote { flex: none; margin: 8px 16px 0; display: flex; align-items: center; gap: 4px; background: var(--surface2); color: var(--ink2); font-size: 13px; border-radius: 12px; padding: 0 0 0 12px; }
+.dnote p { flex: 1; min-width: 0; padding: 6px 0; }
+.dnote button { width: 44px; height: 44px; border: 0; background: none; color: var(--ink2); flex: none; }
+.stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 12px 16px; }
+.stack { position: relative; height: 100%; max-height: 340px; min-height: 200px; width: 80%; max-width: 340px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.stack[data-live] { cursor: grab; }
+.shell { position: absolute; inset: 0; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); pointer-events: none; }
+.face { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: transform .3s ease; }
+.face.open { border-color: var(--accent); }
+.face .top { height: 24px; flex: none; display: flex; justify-content: flex-end; color: var(--accent); }
+.face .mid { flex: 1; min-height: 0; display: grid; place-items: center; text-align: center; }
+.face .w { font-weight: 600; line-height: 1.25; }
+.face .w rt { font-size: 16px; font-weight: 400; color: var(--ink2); }
+.s40 { font-size: 40px; } .s34 { font-size: 34px; } .s28 { font-size: 28px; } .s22 { font-size: 22px; }
+.fhint { flex: none; text-align: center; font-size: 12px; color: var(--ink2); }
+.bw { display: flex; gap: 8px; align-items: flex-start; flex: none; min-width: 0; }
+.bw .min0 { flex: 1; min-width: 0; }
+.w22 { font-size: 22px; font-weight: 600; line-height: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w22 rt, .exj rt { font-size: 11px; font-weight: 400; color: var(--ink2); }
+.hg { font-size: 13px; color: var(--ink2); line-height: 1.5; }
+.hg.h15 { font-size: 15px; margin-top: 4px; }
+.hg::before { content: "["; color: var(--ink3); } .hg::after { content: "]"; color: var(--ink3); }
+.c1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.band { align-self: flex-start; flex: none; margin-top: 8px; border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 600; }
+.band.good { background: var(--good-soft); color: var(--good); } .band.bad { background: var(--bad-soft); color: var(--bad); } .band.neu { background: var(--surface2); color: var(--ink2); }
+.bbody { margin-top: 8px; flex: 1; min-height: 0; }
+.mean { font-size: 19px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.exj { margin-top: 8px; font-size: 16px; line-height: 2.1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.exk { font-size: 14px; color: var(--ink2); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.ib { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; border: 1px solid var(--line); vertical-align: middle; margin-left: 6px; font-size: 9px; color: var(--ink2); }
+.lrow { flex: none; width: calc(80% - 26px); max-width: 340px; margin: -4px auto 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.lrow.one { grid-template-columns: minmax(0, 1fr); }
+.lb { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 600; }
+.lb .ic { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; background: var(--surface2); flex: none; }
+.lb .lt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.lb.on .ic { background: var(--surface); color: var(--ink); }
+.lb.mute { background: var(--surface2); color: var(--ink2); border-color: transparent; }
+.lb.blocked { box-shadow: 0 0 0 2px var(--accent); }
+.lb.fail { border-color: var(--bad); color: var(--bad); }
+.spin { width: 14px; height: 14px; border-radius: 999px; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; opacity: .5; } .face { transition: none; } }
+.ghint { flex: none; height: 18px; margin-top: 4px; padding: 0 16px; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 18px; }
+.ghint p { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink2); }
+.ghint p.msg { color: var(--ink); font-weight: 500; }
+.ghint p.bad { color: var(--bad); font-weight: 600; }
+.ctl { flex: none; padding: 8px 16px 0; }
+.fb { height: 52px; }
+kbd { font: inherit; font-size: 11px; font-weight: 400; opacity: .85; }
+.chs { display: grid; gap: 8px; }
+.ch { display: flex; align-items: center; gap: 12px; min-height: 52px; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); padding: 8px 12px; text-align: left; font-size: 16px; line-height: 1.35; }
+.ch .n { width: 24px; height: 24px; border-radius: 999px; background: var(--surface2); color: var(--ink2); font-size: 12px; display: grid; place-items: center; flex: none; }
+.ch .tx { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ch .mk { flex: none; font-size: 13px; font-weight: 600; }
+.ch.pend { border-color: var(--accent); } .ch.pend .mk { font-weight: 400; color: var(--ink2); }
+.ch.good { border-color: var(--good); background: var(--good-soft); color: var(--good); }
+.ch.mine { border-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
+.ch.other { color: var(--ink2); }
+.rec { min-height: 52px; display: grid; place-items: center; font-size: 13px; color: var(--ink2); }
+.tbar { flex: none; padding: 8px 16px max(12px, env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tbar.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tb { min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 12px; min-width: 0; }
+.tb i { font-style: normal; font-size: 16px; line-height: 1; }
+.tb[aria-pressed="true"] i { color: var(--accent); }
+.tb[aria-disabled="true"] { color: var(--ink3); }
+.tb.next { grid-column: span 2; flex-direction: row; gap: 6px; background: var(--accent); color: var(--on-accent); border-color: transparent; font-size: 15px; font-weight: 600; }
+.sheetbg { position: absolute; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-end; z-index: 5; }
+.sheet { width: 100%; background: var(--surface); border-radius: 18px 18px 0 0; padding: 18px 16px max(16px, env(safe-area-inset-bottom, 0px)); }
+
+/* 결과 */
+.rmain { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 24px; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.tiles.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tile { border-radius: 12px; background: var(--surface2); padding: 8px 10px; min-width: 0; }
+.tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 12px; color: var(--ink2); }
+.tile.good b { color: var(--good); } .tile.bad b { color: var(--bad); }
+.wl { margin-top: 16px; }
+.wl h4 { font-size: 14px; font-weight: 600; margin: 0 2px 6px; }
+.wl ul { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.wl li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 12px; }
+.wl li + li { border-top: 1px solid var(--line); }
+.wl .j { font-size: 16px; }
+.wl .m { font-size: 13px; color: var(--ink2); }
+.wl .tx { flex: 1; min-width: 0; }
+.wtag { flex: none; font-size: 12px; border-radius: 6px; padding: 2px 6px; background: var(--surface2); color: var(--ink2); white-space: nowrap; }
+.wtag.bad { background: var(--bad-soft); color: var(--bad); } .wtag.good { background: var(--good-soft); color: var(--good); }
+.skel { border-radius: 10px; background: var(--surface2); }
+
+@media (max-width: 900px) { .intro2 { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body class="showchg">
+<header class="dtop">
+  <h1>오늘의 단어 — 카드 우선 <span class="meta"><span class="lv">delta</span><span>task-059 v1</span><span>IMP-0011</span><span>참고 화면 미도착</span></span></h1>
+  <div class="dctls" id="dctls"></div>
+</header>
+
+<div class="dwrap">
+  <section class="dcard" aria-labelledby="h-intro">
+    <h2 id="h-intro">이 데모가 보여 주는 것</h2>
+    <div class="intro2">
+      <div>
+        <div class="callout" role="note"><b>먼저 알릴 것 ① — Q9 예시의 스와이프 설명이 지금 동작과 다릅니다.</b> Q9 예시는 「오른쪽 스와이프 = 알아요, 뜻 보기 후 왼쪽 = 몰라요」였지만, 지금 덱의 스와이프는 <b>왼쪽 = 다음 카드(답한 뒤에만) · 오른쪽 = 이전 카드 · 위 = 다시 볼 카드 표시</b>이고 알았어요/몰랐어요는 버튼으로만 고릅니다. 「스와이프는 기존과 똑같이」 지시를 따라 이 데모는 스와이프를 바꾸지 않았고, 스스로 표시는 뜻 보기 면의 버튼으로 합니다(결정 D0). 이렇게 해도 Q9 숫자(정답 2·오답 2·4문제 중 2개)는 같게 나옵니다(F 탭).</div>
+        <div class="callout" role="note"><b>먼저 알릴 것 ② — 참고 화면이 아직 오지 않았습니다.</b> 버튼은 설명만으로 만든 최소안입니다. 참고 화면을 받으면 v2 에서 버튼 구성을 다시 맞춥니다(D3·D7).</div>
+        <div class="callout" role="note"><b>먼저 알릴 것 ③ — 화면만 바꿔서는 동작하지 않습니다.</b> 지금 서버는 한 세트에서 객관식 답과 스스로 표시를 함께 받지 않고(모드가 다르면 거절), 4지선다 카드에는 답하기 전 뜻을 보내지 않습니다. 새 세트용 데이터·서버 변경은 developer·Leader 몫이고(아래 「Leader 확인」), 이 데모는 화면 흐름만 정합니다.</div>
+      </div>
+      <div>
+        <h3 style="margin-top:0">바뀌는 것</h3>
+        <ul class="lst">
+          <li>오늘 카드·챌린지 단어 카드에서 「방식(4지선다/뒤집기 카드)」 줄이 사라지고 세트는 늘 카드로 시작</li>
+          <li>카드 앞면을 누르면(또는 [객관식]) 같은 카드에서 4지선다가 열림 — 고르면 서버 채점</li>
+          <li>[뜻 보기] 면에 [단어 듣기]·[예문 듣기]</li>
+          <li>한 세트 안에 객관식·스스로 표시가 섞이고, 결과는 합산(Q9)</li>
+        </ul>
+        <h3>바뀌지 않는 것</h3>
+        <ul class="lst out">
+          <li>스와이프 제스처·판정·동작(탭 10px · 위 80px · 좌우 60px, 왼쪽 = 다음 · 오른쪽 = 이전 · 위 = 표시)</li>
+          <li>장수·분류 고르기, 세트 만들기·단어 고르는 규칙, 목소리·빠르기 설정</li>
+          <li>결과 화면 구조(한 줄 추가만), 통계·연속 기록 계산</li>
+        </ul>
+        <p class="dsub mt2">점선 테두리(<span style="outline:2px dashed var(--warn);outline-offset:1px;padding:0 4px">이렇게</span>) = 지금과 달라지는 곳. 위 「바뀐 곳 표시」로 끌 수 있어요. 휴대폰 아래 작은 글씨는 이 데모 안에서 잰 값(실기기 값 아님)입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-stage">
+    <h2 id="h-stage">상태별 화면</h2>
+    <div class="tabs" role="tablist" aria-label="상태" id="tabs"></div>
+    <div id="stage" class="mt3"></div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-dec" id="decisions">
+    <h2 id="h-dec">결정 필요 D0~D8 <span class="dsub">— 「권고」 표시가 권하는 안. 버튼으로 바꾸면 화면이 바뀌는 항목은 「화면이 바뀜」</span></h2>
+    <div class="decs" id="decs"></div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-diff">
+    <h2 id="h-diff">지금과 달라지는 점</h2>
+    <div class="tbl"><table>
+      <thead><tr><th scope="col">곳</th><th scope="col">지금</th><th scope="col">제안(권고안 기준)</th></tr></thead>
+      <tbody>
+        <tr><td>오늘 카드 「준비」</td><td>장수 · 방식 · (분류) · [시작하기]</td><td class="chgd">장수 · (분류) · [시작하기] — 방식 줄 없음</td></tr>
+        <tr><td>챌린지 단어 카드 · [내 단어장으로 풀기] 펼침</td><td>방식 줄 있음</td><td class="chgd">방식 줄 없음</td></tr>
+        <tr><td>덱·결과·대기 화면 부제</td><td>4지선다 · 10장</td><td class="chgd">10장 (이전 세트만 방식 이름 유지)</td></tr>
+        <tr><td>앞면 아래 버튼</td><td>4지선다: 보기 4개 / 뒤집기: [뜻 보기]</td><td class="chgd">[뜻 보기] [객관식]</td></tr>
+        <tr><td>카드 탭</td><td>4지선다: 읽기 켜기 / 뒤집기: 뜻 보기</td><td class="chgd">객관식 열기·닫기(앞면, 답하기 전)</td></tr>
+        <tr><td>뜻 보기 면</td><td>소리 버튼 없음(E9)</td><td class="chgd">[단어 듣기] [예문 듣기]</td></tr>
+        <tr><td>결과 띠·기록 한 줄</td><td>세트 방식을 따름</td><td class="chgd">카드마다 답한 방식을 따름(맞았어요/틀렸어요 · 알았어요/몰랐어요)</td></tr>
+        <tr><td>결과 화면</td><td>방식 하나의 맞힘·틀림·건너뜀</td><td class="chgd">합산 그대로 + 섞였을 때 구분 한 줄</td></tr>
+        <tr><td>보기를 못 만든 세트 안내</td><td>「…이번엔 뒤집기 카드로 풀어요.」</td><td class="chgd">「…이번엔 객관식 없이 풀어요.」(탭 = 뜻 보기)</td></tr>
+        <tr><td>스와이프 · 키 ←/→/F/R/S</td><td>← 다음 · → 이전 · ↑ 표시</td><td class="same">같음 (키 C 만 추가)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>버튼 수 (눌러서 무언가 하는 것 — 위 막대 [←][끝내기] 제외)</h3>
+    <div class="tbl"><table>
+      <thead><tr><th scope="col">카드 상태</th><th scope="col">지금 4지선다</th><th scope="col">지금 뒤집기 카드</th><th scope="col">제안 D7 A(권고)</th><th scope="col">제안 D7 B</th></tr></thead>
+      <tbody>
+        <tr><td>앞면, 답하기 전</td><td>보기 4 + 도구 4 = 8</td><td>뜻 보기 1 + 도구 4 = 5</td><td class="chgd">뜻 보기·객관식 2 + 도구 4 = 6</td><td>2 + 도구 3 = 5</td></tr>
+        <tr><td>객관식 열림</td><td>—</td><td>—</td><td>보기 4 + 도구 4 = 8</td><td>4 + 3 = 7</td></tr>
+        <tr><td>뜻 보기 면, 답하기 전</td><td>—</td><td>알았어요·몰랐어요 2 + 도구 4 = 6</td><td class="chgd">듣기 2 + 2 + 도구 4 = 8 (D3 C 면 7)</td><td>2 + 2 + 3 = 7</td></tr>
+        <tr><td>답한 뒤</td><td>도구 3 (보기는 표시만)</td><td>도구 3 (곧 자동으로 다음)</td><td>객관식: 듣기 2 + 도구 3 = 5 · 스스로: 자동으로 다음</td><td>같음</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>정보 밀도·높이 영향</h3>
+    <ul class="lst">
+      <li>오늘 카드 자리표시 <code>TODAY_CARD_H.word</code> = 305(폭 370 미만) / 285.5(이상) — 「장수·방식·[시작하기]」 상태의 실측값 [확실, todaySkeletonSizes.ts]. 방식 줄(라벨 + 분절 38px)이 빠지면 약 75px 줄어 ≈230 / ≈211 이 될 것 [추측 — 클래스 합산]. 빈 단어장 상태(240)보다 작아진다. <b>값과 <code>todaySkeleton.test.ts</code> 를 다시 재야 한다(<code>t3-heights.mjs</code>)</b> — 안 바꾸면 로딩 → 실제 카드로 바뀔 때 아래 섹션이 약 75px 위로 튐(task-046 이 막은 깜박임 재발). A 탭 휴대폰 아래 「카드 높이」 = 이 데모 안 근사값.</li>
+      <li>D8 A(문구 그대로)면 설명 줄의 줄바꿈 지점이 그대로라 폭 기준 370 은 유지될 가능성이 높다 [가능성 높음]. 챌린지 단어 카드 로딩도 같은 상수를 쓴다(<code>CardLoadingBody kind="word"</code>).</li>
+      <li>덱: 객관식으로 답한 뒤에만 보기 4개 + 듣기 줄(44+8)이 함께 있어 카드가 약 52px 작아진다 — 412×780 에서 약 338 → 286 [추측 — screens.md §5-2 B 높이 예산 합산]. 카드 하한 200·덱 하한 600 은 그대로. D·C 탭 휴대폰 아래 「카드 높이」로 확인.</li>
+    </ul>
+
+    <h3>Leader·developer 확인 (사용자 결정 아님)</h3>
+    <ul class="lst">
+      <li><b>L1 데이터</b>: 새 세트 카드는 보기와 뜻을 처음부터 함께 받아야 한다 — 지금 4지선다의 「답하기 전 뜻은 서버만 안다」(§5-0 3)가 화면 쪽에선 성립하지 않게 된다(채점 표시는 여전히 서버 응답으로만). 대안은 [뜻 보기]를 누를 때 뜻을 받는 요청 추가(지연·계약 추가).</li>
+      <li><b>L2 서버</b>: #50 이 한 세트에서 보기 답과 스스로 표시를 모두 받아야 함(지금은 400). <code>VocabSession.mode</code> 저장 값·통계 분리 여부는 스키마 0 원칙 안에서.</li>
+      <li><b>L3</b> 보기를 못 만든 세트: 지금은 뒤집기 세트로 강등 → 새 방식에선 「객관식 없는 카드 세트」(안내 문구만 바뀜).</li>
+      <li><b>L4</b> #53 다시 풀기는 지금 원 모드를 따름 → 새 방식으로 만들도록(D6 A).</li>
+      <li><b>L5</b> 자리표시 상수 재측정, <code>localStorage kaiwa.vocab.mode</code>·<code>MODE_OPTIONS</code> 정리, <code>keyAction</code> 에 C 키 추가와 1~4 의미 분기 시험.</li>
+      <li><b>L6</b> 듣기 버튼 이름은 보이는 글자를 포함하게(「단어 듣기」) — 상세 시트 <code>soundButtonView</code> 의 「단어 소리 듣기」와 다르게 둘지. 다음 카드로 넘어가면 소리를 멈춘다.</li>
+    </ul>
+
+    <h3>확인하지 못한 것</h3>
+    <ul class="lst">
+      <li>실기기 글꼴·줄바꿈(데모는 이 컴퓨터의 시스템 글꼴), 갤럭시 실제 주소창 높이</li>
+      <li>TalkBack 에서 카드 영역 두 번 탭이 무엇을 하는지, 실제 읽기 순서</li>
+      <li>실제 소리 지연·재생(데모는 0.55초 뒤 재생 흉내), 예문 소리 품질</li>
+      <li>자리표시 상수 실측값, 참고 화면 내용</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(() => {
+'use strict';
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const cp = (s) => [...(s || '')].length;
+
+// ── 합성 데이터(Q9 예시 5장) ──
+const WORDS = [
+  { s: '食べる', ruby: '<ruby>食<rt>た</rt></ruby>べる', r: 'たべる', hg: '타베루', m: '먹다',
+    ex: '毎朝パンを食べます。', exRuby: '<ruby>毎朝<rt>まいあさ</rt></ruby>パンを<ruby>食<rt>た</rt></ruby>べます。', exHg: '마이아사 팡오 타베마스', exKo: '매일 아침 빵을 먹어요.',
+    ch: ['먹다', '마시다', '자다', '읽다'] },
+  { s: '行く', ruby: '<ruby>行<rt>い</rt></ruby>く', r: 'いく', hg: '이쿠', m: '가다',
+    ex: '明日、学校に行きます。', exRuby: '<ruby>明日<rt>あした</rt></ruby>、<ruby>学校<rt>がっこう</rt></ruby>に<ruby>行<rt>い</rt></ruby>きます。', exHg: '아시타, 갓코-니 이키마스', exKo: '내일 학교에 가요.',
+    ch: ['오다', '가다', '걷다', '돌아가다'] },
+  { s: '水', ruby: '<ruby>水<rt>みず</rt></ruby>', r: 'みず', hg: '미즈', m: '물',
+    ex: '水を一杯ください。', exRuby: '<ruby>水<rt>みず</rt></ruby>を<ruby>一杯<rt>いっぱい</rt></ruby>ください。', exHg: '미즈오 잇파이 쿠다사이', exKo: '물 한 잔 주세요.',
+    ch: ['불', '물', '바람', '흙'] },
+  { s: '高い', ruby: '<ruby>高<rt>たか</rt></ruby>い', r: 'たかい', hg: '타카이', m: '높다, 비싸다',
+    ex: 'このかばんは高いです。', exRuby: 'このかばんは<ruby>高<rt>たか</rt></ruby>いです。', exHg: '코노 카방와 타카이데스', exKo: '이 가방은 비싸요.',
+    ch: ['낮다', '넓다', '높다, 비싸다', '길다'] },
+  { s: '友達', ruby: '<ruby>友達<rt>ともだち</rt></ruby>', r: 'ともだち', hg: '토모다치', m: '친구', ex: null, exKo: null,
+    ch: ['가족', '친구', '선생님', '이웃'] },
+];
+const LONG_EX = '先生は新しい文法を、例文をたくさん使いながらゆっくりと丁寧に説明してくれましたが、私はまだ少し難しいと感じていて、家に帰ってからもう一度教科書を最初から読み直して、大事なところをノートにまとめるつもりです。';
+const LONG = { s: '説明', ruby: '<ruby>説明<rt>せつめい</rt></ruby>', r: 'せつめい', hg: '세츠메-', m: '설명',
+  ex: LONG_EX, exRuby: '<ruby>先生<rt>せんせい</rt></ruby>は' + LONG_EX.slice(3), exHg: '센세-와 아타라시- 분포-오, 레-분오 타쿠상 츠카이나가라…', exKo: '선생님은 새 문법을 예문을 많이 쓰면서 천천히 친절하게 설명해 주셨지만…',
+  ch: ['설명', '질문', '대답', '연습'] };
+
+// ── 데모 상태 ──
+const P = { tab: 'A', sub: {}, w: 390, theme: 'system', cmp: true, chg: true, furi: true, hangul: true, ptr: 'coarse',
+  dec: { D0: 'A', D1: 'A', D2: 'A', D3: 'A', D4: 'A', D5: 'A', D6: 'A', D7: 'A', D8: 'A' } };
+const REC = { D0: 'A', D1: 'A', D2: 'A', D3: 'A', D4: 'A', D5: 'A', D6: 'A', D7: 'A', D8: 'A' };
+
+const TABS = [
+  { id: 'A', name: 'A 시작 카드', subs: [['ready', '준비'], ['done1', '오늘 1세트 끝낸 뒤'], ['making', '만드는 중']] },
+  { id: 'B', name: 'B 카드 앞면', subs: [['front', '처음 앞면'], ['reading', '[읽기] 켬']] },
+  { id: 'C', name: 'C 뜻 보기 면', subs: [['back', '뜻 보기'], ['playing', '단어 재생 중'], ['noex', '예문 없는 단어'], ['longex', '예문이 100자 넘는 단어']] },
+  { id: 'D', name: 'D 탭 → 객관식', subs: [['open', '보기 펼침'], ['pending', '확인 중'], ['right', '정답'], ['wrong', '오답'], ['nochoice', '보기를 못 만든 세트']] },
+  { id: 'E', name: 'E 스와이프 대조', subs: [['table', '세 방향 + 탭']] },
+  { id: 'F', name: 'F 섞인 결과', subs: [['result', '세트 결과(Q9 예시)'], ['home', '오늘 홈 요약 줄']] },
+  { id: 'G', name: 'G 이전 세트', subs: [['wip', '풀던 세트 카드'], ['kept', '보관한 세트'], ['oldChoice', '이전 4지선다 세트 열기'], ['oldFlip', '이전 뒤집기 세트 열기']] },
+  { id: 'H', name: 'H 주제·챌린지', subs: [['todo', '챌린지 단어 카드'], ['short', '조금 남음'], ['mine', '[내 단어장으로 풀기] 펼침'], ['wait', '새 단어 대기 화면 부제']] },
+  { id: 'I', name: 'I 오류·로딩·재생 실패', subs: [['saveFail', '답 저장 실패'], ['offline', '소리: 연결 안 됨'], ['slow', '소리: 응답 늦음'], ['fail', '소리: 불러오지 못함'], ['textonly', '소리: 자막만'], ['blocked', '소리: 한 번 더 누르기'], ['rate', '소리: 너무 자주'], ['loading', '세트 불러오는 중'], ['loadErr', '세트 불러오기 오류']] },
+];
+const subOf = (t) => P.sub[t] || TABS.find((x) => x.id === t).subs[0][0];
+
+// ── 덱 시뮬레이션 ──
+function newDeck() {
+  return { cards: WORDS.map((w) => ({ w, ans: null, flag: false, flipped: false, open: false, pending: null })),
+    view: 0, reading: false, sound: { t: null, ph: 'idle', msg: null }, hint: null, legacy: null, noChoice: false, noPeek: false,
+    notice: null, done: false, sheet: false, say: '', failKind: null };
+}
+const frontier = (d) => { const i = d.cards.findIndex((c) => !c.ans); return i === -1 ? d.cards.length : i; };
+const curCard = (d) => d.cards[d.view];
+const isCur = (d) => d.view === frontier(d);
+const hasChoices = (d) => !d.noChoice && d.legacy !== 'FLIP';
+const canPeek = (d) => !d.noPeek && d.legacy !== 'CHOICE';
+const sideOf = (c) => (c.ans || c.flipped ? 'back' : 'front');
+const ansSet = (d, i, k, r, chosen) => { d.cards[i].ans = { k, r, chosen: chosen ?? null }; if (k === 'self') d.cards[i].flipped = true; };
+
+function preset(tab, sub, era) {
+  const d = newDeck();
+  const q9a = () => { ansSet(d, 0, 'self', 'CORRECT'); };
+  const legacyFor = era === 'curChoice' ? 'CHOICE' : era === 'curFlip' ? 'FLIP' : null;
+  if (legacyFor) d.legacy = legacyFor;
+  const key = tab + ':' + sub;
+  switch (key) {
+    case 'B:reading': d.reading = true; break;
+    case 'C:back': d.cards[0].flipped = true; break;
+    case 'C:playing': d.cards[0].flipped = true; if (!legacyFor) d.sound = { t: 'word', ph: 'playing', msg: null }; break;
+    case 'C:noex': q9a(); ansSet(d, 1, 'choice', 'CORRECT', '가다'); ansSet(d, 2, 'choice', 'WRONG', '불'); ansSet(d, 3, 'self', 'WRONG'); d.view = 4; d.cards[4].flipped = true;
+      if (legacyFor) d.cards.forEach((c, i) => { if (c.ans && i < 4) c.ans.k = 'self'; });
+      break;
+    case 'C:longex': d.cards[0].w = LONG; d.cards[0].flipped = true; break;
+    case 'D:open': q9a(); d.view = 1; d.cards[1].open = true; break;
+    case 'D:pending': q9a(); d.view = 1; d.cards[1].open = true; d.cards[1].pending = { k: 'choice', chosen: '가다' }; break;
+    case 'D:right': q9a(); d.view = 1; ansSet(d, 1, 'choice', 'CORRECT', '가다'); break;
+    case 'D:wrong': q9a(); ansSet(d, 1, 'choice', 'CORRECT', '가다'); d.view = 2; ansSet(d, 2, 'choice', 'WRONG', '불'); break;
+    case 'D:nochoice':
+      if (era === 'pro') { d.noChoice = true; d.notice = '뜻이 서로 다른 단어가 4개보다 적어서 이번엔 객관식 없이 풀어요.'; }
+      else { d.legacy = 'FLIP'; d.notice = '뜻이 서로 다른 단어가 4개보다 적어서 이번엔 뒤집기 카드로 풀어요.'; }
+      break;
+    case 'F:result': ansSet(d, 0, 'self', 'CORRECT'); ansSet(d, 1, 'choice', 'CORRECT', '가다'); ansSet(d, 2, 'choice', 'WRONG', '불'); ansSet(d, 3, 'self', 'WRONG');
+      d.cards[4].flag = true; d.done = true;
+      if (legacyFor) { d.cards[1].ans = { k: 'self', r: 'CORRECT' }; d.cards[2].ans = { k: 'self', r: 'WRONG' }; }
+      break;
+    case 'G:oldChoice':
+      if (P.dec.D6 === 'B') { d.noPeek = true; d.notice = '바꾸기 전에 시작한 4지선다 세트예요. 뜻 보기 없이 객관식으로만 풀어요.'; }
+      else { d.legacy = 'CHOICE'; d.notice = '이어서 풀어요 · 1장은 이미 답했어요.'; }
+      ansSet(d, 0, 'choice', 'CORRECT', '먹다'); d.view = 1; break;
+    case 'G:oldFlip':
+      if (P.dec.D6 === 'B') { d.noChoice = true; d.notice = '바꾸기 전에 시작한 뒤집기 카드 세트예요. 객관식 없이 풀어요.'; }
+      else { d.legacy = 'FLIP'; d.notice = '이어서 풀어요 · 1장은 이미 답했어요.'; }
+      ansSet(d, 0, 'self', 'CORRECT'); d.view = 1; break;
+    case 'I:saveFail': q9a(); d.view = 1; d.cards[1].open = true; d.hint = { t: '저장하지 못했어요. 다시 눌러 주세요', tone: 'bad', keep: true }; break;
+    case 'I:offline': case 'I:slow': case 'I:fail': case 'I:rate':
+      d.cards[0].flipped = true; d.failKind = sub; d.sound = { t: null, ph: 'idle', msg: { t: 'word', k: sub } }; break;
+    case 'I:textonly': d.cards[0].flipped = true; d.failKind = sub; d.sound = { t: null, ph: 'idle', msg: { t: 'word', k: 'textonly' } }; break;
+    case 'I:blocked': d.cards[0].flipped = true; d.failKind = 'blocked'; d.sound = { t: 'word', ph: 'blocked', msg: { t: 'word', k: 'blocked' } }; break;
+    default: break;
+  }
+  return d;
+}
+
+let DK = preset('B', 'front', 'pro');
+let DKkey = '';
+function syncDeck(force) {
+  const k = P.tab + ':' + subOf(P.tab) + ':' + P.dec.D6;
+  if (force || k !== DKkey) { DKkey = k; DK = preset(P.tab, subOf(P.tab), 'pro'); clearTimers(); }
+}
+
+// ── 타이머 ──
+let T = { snd: null, snd2: null, hint: null, adv: null, ans: null };
+function clearTimers() { Object.keys(T).forEach((k) => { clearTimeout(T[k]); T[k] = null; }); }
+function setHint(t, tone) {
+  DK.hint = { t, tone: tone || 'msg' };
+  clearTimeout(T.hint);
+  T.hint = setTimeout(() => { DK.hint = null; renderStage(); }, 2000);
+}
+function say(t) { DK.say = t; }
+
+// ── 동작 ──
+let focusSel = null;
+function stopSound() { clearTimeout(T.snd); clearTimeout(T.snd2); if (DK.sound.ph !== 'idle' || DK.sound.msg) DK.sound = { t: null, ph: 'idle', msg: null }; }
+function toggleChoices(from) {
+  const d = DK, c = curCard(d);
+  if (d.legacy || !isCur(d) || c.ans || c.pending || sideOf(c) === 'back' || !hasChoices(d)) return;
+  c.open = !c.open;
+  say(c.open ? '객관식 보기 4개가 나왔어요' : '객관식을 닫았어요');
+  if (c.open && from !== 'tap') focusSel = '[data-act="choose"]';
+  if (!c.open && from !== 'tap') focusSel = '[data-act="open"]';
+}
+function flip() {
+  const d = DK, c = curCard(d);
+  if (!isCur(d) || c.ans || c.flipped || !canPeek(d)) return;
+  c.flipped = true; c.open = false; say('뜻이 보여요'); focusSel = '[data-act="self"]';
+}
+function choose(i) {
+  const d = DK, c = curCard(d);
+  const showing = d.legacy === 'CHOICE' || c.open;
+  if (!showing || !isCur(d) || c.ans || c.pending) return;
+  const chosen = c.w.ch[i]; if (chosen === undefined) return;
+  c.pending = { k: 'choice', chosen }; renderStage();
+  T.ans = setTimeout(() => {
+    c.pending = null; c.open = false;
+    const r = chosen === c.w.m ? 'CORRECT' : 'WRONG';
+    c.ans = { k: 'choice', r, chosen };
+    say(r === 'CORRECT' ? '맞았어요' : `틀렸어요. 정답은 ${c.w.m}`);
+    focusSel = '[data-next]';
+    if (P.dec.D2 === 'B' && d.view < d.cards.length - 1) T.adv = setTimeout(() => { next(); renderStage(); }, 1200);
+    renderStage();
+  }, 350);
+}
+function selfGrade(r) {
+  const d = DK, c = curCard(d);
+  if (!isCur(d) || c.ans || c.pending || sideOf(c) !== 'back') return;
+  c.pending = { k: 'self', r }; renderStage();
+  T.ans = setTimeout(() => {
+    c.pending = null; c.ans = { k: 'self', r }; say(r === 'CORRECT' ? '알았어요로 기록했어요' : '몰랐어요로 기록했어요');
+    if (P.dec.D2 !== 'C' && d.view < d.cards.length - 1) T.adv = setTimeout(() => { next(); renderStage(); }, 400);
+    else focusSel = '[data-next]';
+    renderStage();
+  }, 250);
+}
+function skip() {
+  const d = DK, c = curCard(d);
+  if (!isCur(d) || c.ans || c.pending) return;
+  c.ans = { k: 'skip', r: 'SKIPPED' }; c.open = false; focusSel = '[data-next]';
+}
+function next() {
+  const d = DK, c = curCard(d);
+  if (!c.ans) {
+    const back = sideOf(c) === 'back';
+    setHint(d.legacy === 'CHOICE' || c.open ? '먼저 답을 골라 주세요' : back || d.legacy === 'FLIP' ? '알았어요·몰랐어요를 먼저 골라 주세요' : '뜻 보기나 객관식으로 먼저 답해 주세요');
+    return;
+  }
+  stopSound();
+  if (d.view >= d.cards.length - 1) { finishDeck(); return; }
+  d.view++; focusSel = '[data-f1]';
+}
+function prev() { const d = DK; if (d.view === 0) { setHint('첫 카드예요'); return; } stopSound(); d.view--; }
+function flag() { const c = curCard(DK); c.flag = !c.flag; setHint(c.flag ? '다시 볼 카드로 표시했어요' : '표시를 뺐어요'); }
+function toggleReading() { const d = DK, c = curCard(d); if (!c.w.r || c.w.r === c.w.s) { setHint('이 카드는 읽기가 따로 없어요'); return; } d.reading = !d.reading; }
+function finishDeck() { stopSound(); DK.done = true; DK.sheet = false; }
+function tapCard() {
+  const d = DK, c = curCard(d);
+  if (sideOf(c) === 'back') return;
+  if (!isCur(d) || c.ans || c.pending) return;
+  if (d.legacy === 'CHOICE') return toggleReading();
+  if (d.legacy === 'FLIP') return flip();
+  if (!hasChoices(d)) return canPeek(d) ? flip() : toggleReading();
+  if (P.dec.D1 === 'B') return flip();
+  if (P.dec.D1 === 'C') return;
+  toggleChoices('tap');
+}
+const BADK = new Set(['fail', 'slow', 'offline']);
+const SMSG = {
+  fail: { t: '목소리를 불러오지 못했어요 · 다시 눌러 주세요', bad: true },
+  slow: { t: '목소리 응답이 늦어요 · 잠시 후 다시 눌러 주세요', bad: true },
+  offline: { t: '연결하지 못했어요 · 네트워크를 확인해 주세요', bad: true },
+  textonly: { t: '지금은 선생님 목소리를 들을 수 없어요(자막만)', bad: false },
+  rate: { t: '너무 자주 눌렀어요 · 잠시 후 다시 들어 주세요', bad: false },
+  blocked: { t: '소리를 켜려면 ▶ 를 한 번 더 눌러 주세요', bad: false },
+};
+function tapSound(t) {
+  const d = DK, s = d.sound;
+  if (s.t === t && (s.ph === 'loading' || s.ph === 'playing')) { stopSound(); say('소리를 멈췄어요'); return; }
+  clearTimeout(T.snd); clearTimeout(T.snd2);
+  if (s.ph === 'blocked' && s.t === t) { d.failKind = null; }
+  d.sound = { t, ph: 'loading', msg: null };
+  const f = d.failKind;
+  T.snd = setTimeout(() => {
+    if (f && f !== 'blocked') d.sound = { t: null, ph: 'idle', msg: { t, k: f } };
+    else if (f === 'blocked') d.sound = { t, ph: 'blocked', msg: { t, k: 'blocked' } };
+    else {
+      d.sound = { t, ph: 'playing', msg: null }; say((t === 'ex' ? '예문' : t === 'both' ? '단어와 예문' : '단어') + ' 소리 재생 중');
+      T.snd2 = setTimeout(() => { d.sound = { t: null, ph: 'idle', msg: null }; renderStage(); }, 1600);
+    }
+    renderStage();
+  }, 550);
+}
+
+// ── 그리기 조각 ──
+const PLAY = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>';
+const STOP = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>';
+const STAR = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg><span class="sr">다시 볼 카드</span>';
+const kbd = (k) => (P.ptr === 'fine' ? `<kbd>${k}</kbd>` : '');
+const sizeCls = (s) => { const n = cp(s); return n <= 3 ? 's40' : n <= 6 ? 's34' : n <= 10 ? 's28' : 's22'; };
+const hg = (t, cls = '') => (P.hangul && t ? `<p class="hg ${cls}" lang="ko"><span class="sr">한글 읽기 </span>${esc(t)}</p>` : '');
+
+function bbar(title, sub, end, subChg) {
+  return `<div class="bbar"><button type="button" class="bk" aria-label="오늘로">←</button><div class="tt"><b>${title}</b><small class="${subChg ? 'chg' : ''}">${esc(sub)}</small></div>${end ? '<button type="button" class="end" data-act="finish">끝내기</button>' : ''}</div>`;
+}
+function progHTML(d) {
+  const n = d.cards.length, fr = frontier(d);
+  let a = 0, fl = 0;
+  const segs = d.cards.map((c, i) => {
+    if (c.flag) fl++;
+    if (c.ans) a++;
+    const cls = c.ans ? (c.ans.r === 'CORRECT' ? 'c' : c.ans.r === 'WRONG' ? 'w' : 's') : i === fr ? 'now' : '';
+    return `<i class="${cls} ${i === d.view && d.view < fr ? 'ring' : ''}"></i>`;
+  }).join('');
+  return `<div class="dprog"><div class="r"><b>${d.view + 1} / ${n}</b><span class="t12 ink2">${d.view < fr ? '지난 카드 보는 중 · ' : ''}남은 ${n - a}장${fl ? ` · ★ ${fl}` : ''}</span></div><div class="segs" role="progressbar" aria-valuemin="0" aria-valuemax="${n}" aria-valuenow="${a}" aria-valuetext="${n}장 중 ${a}장 답함">${segs}</div></div>`;
+}
+function bandHTML(c) {
+  if (!c.ans) return '';
+  const a = c.ans;
+  if (a.r === 'SKIPPED') return '<p class="band neu">건너뛴 카드</p>';
+  if (a.k === 'self') return a.r === 'CORRECT' ? '<p class="band good">✓ 알았어요</p>' : '<p class="band bad">✗ 몰랐어요</p>';
+  return a.r === 'CORRECT' ? '<p class="band good">✓ 맞았어요</p>' : '<p class="band bad">✗ 틀렸어요</p>';
+}
+function faceHTML(d, c, era) {
+  const pro = era === 'pro';
+  const star = c.flag ? `<span>${STAR}</span>` : '';
+  if (sideOf(c) === 'front') {
+    let fh = '';
+    if (!c.ans && isCur(d)) {
+      if (d.legacy === 'FLIP' || (!hasChoices(d) && canPeek(d))) fh = '탭하면 뜻이 보여요';
+      else if (d.legacy === 'CHOICE') fh = '';
+      else if (c.open) fh = P.dec.D1 === 'C' ? '카드를 다시 길게 누르면 객관식을 닫아요' : '카드를 다시 누르면 객관식을 닫아요';
+      else fh = P.dec.D1 === 'B' ? '탭하면 뜻이 보여요 · 객관식은 아래 버튼' : P.dec.D1 === 'C' ? '카드를 길게 누르면 객관식으로 골라요' : '카드를 누르면 객관식으로 골라요';
+    }
+    const fhChg = pro && !d.legacy && fh && fh !== '탭하면 뜻이 보여요';
+    return `<div class="face ${c.open && !d.legacy ? 'open' : ''}"><div class="top">${star}</div><div class="mid"><div style="min-width:0"><p class="w ${sizeCls(c.w.s)}" lang="ja">${d.reading ? c.w.ruby : esc(c.w.s)}</p>${d.reading ? hg(c.w.hg, 'h15') : ''}</div></div>${fh ? `<p class="fhint ${fhChg ? 'chg' : ''}">${fh}</p>` : ''}</div>`;
+  }
+  const inl = pro && P.dec.D3 === 'B';
+  const exOk = c.w.ex && cp(c.w.ex) <= 100;
+  return `<div class="face"><div class="bw"><div class="min0"><p class="w22" lang="ja">${c.w.ruby}${inl ? '<span class="ib chg" aria-hidden="true">▶</span>' : ''}</p>${hg(c.w.hg)}</div>${star}</div>${bandHTML(c)}<div class="bbody"><p class="mean">${esc(c.w.m)}</p>${c.w.ex ? `<p class="exj" lang="ja">${P.furi ? c.w.exRuby : esc(c.w.ex)}${inl && exOk ? '<span class="ib chg" aria-hidden="true">▶</span>' : ''}</p>${hg(c.w.exHg, 'c1')}` : ''}${c.w.exKo ? `<p class="exk">${esc(c.w.exKo)}</p>` : ''}</div></div>`;
+}
+function lb(d, t, label) {
+  const s = d.sound, ph = s.t === t ? s.ph : 'idle';
+  const msg = s.msg && s.msg.t === t ? s.msg.k : null;
+  const look = ph === 'playing' ? 'on' : ph === 'blocked' ? 'blocked' : msg === 'textonly' ? 'mute' : msg && BADK.has(msg) ? 'fail' : '';
+  const what = t === 'word' ? '단어' : t === 'ex' ? '예문' : '단어와 예문';
+  const icon = ph === 'loading' ? '<span class="spin" aria-hidden="true"></span>' : ph === 'playing' ? STOP : PLAY;
+  const txt = ph === 'loading' ? '불러오는 중' : ph === 'playing' ? '멈추기' : label;
+  const aria = ph === 'loading' ? ` aria-label="${what} 불러오는 중, 누르면 취소" aria-busy="true"` : ph === 'playing' ? ` aria-label="${what} 소리 멈추기"` : '';
+  return `<button type="button" class="lb ${look}" data-act="snd" data-t="${t}"${aria}><span class="ic">${icon}</span><span class="lt">${txt}</span></button>`;
+}
+function listenHTML(d, c, era) {
+  if (era !== 'pro' || sideOf(c) !== 'back' || P.dec.D3 === 'B') return '';
+  const exOk = c.w.ex && cp(c.w.ex) <= 100;
+  if (P.dec.D3 === 'C') return `<div class="lrow one chg">${lb(d, 'both', exOk ? '단어·예문 듣기' : '단어 듣기')}</div>`;
+  return `<div class="lrow chg">${lb(d, 'word', '단어 듣기')}${exOk ? lb(d, 'ex', '예문 듣기') : ''}</div>`;
+}
+function fixedHint(d, c, era) {
+  const back = sideOf(c) === 'back';
+  if (P.ptr === 'coarse') {
+    if (era === 'pro' && P.dec.D0 === 'B' && back && !c.ans && isCur(d) && !d.legacy) return '→ 밀어 알았어요 · ← 밀어 몰랐어요 · ↑ 밀어 표시';
+    return '← 밀어 다음 · → 밀어 이전 · ↑ 밀어 표시';
+  }
+  if (era !== 'pro' || d.legacy) return d.legacy === 'FLIP' ? 'Space 뒤집기 · 1 알았어요 · 2 몰랐어요 · → 다음' : '1~4 고르기 · → 다음 · ← 이전 · F 표시';
+  if (c.ans || !isCur(d)) return 'Enter 다음 카드 · ← 이전 · F 표시';
+  if (back) return '1 알았어요 · 2 몰랐어요 · → 다음 · F 표시';
+  if (c.open) return '1~4 고르기 · C 닫기 · → 다음 · F 표시';
+  return hasChoices(d) ? 'Space 뜻 보기 · C 객관식 · → 다음 · F 표시' : 'Space 뜻 보기 · → 다음 · F 표시';
+}
+function hintHTML(d, c, era) {
+  if (d.hint) return `<div class="ghint"><p class="${d.hint.tone === 'bad' ? 'bad' : 'msg'}" role="${d.hint.tone === 'bad' ? 'alert' : 'status'}">${esc(d.hint.t)}</p></div>`;
+  if (era === 'pro' && d.sound.msg && sideOf(c) === 'back') {
+    const m = SMSG[d.sound.msg.k];
+    return `<div class="ghint chg"><p class="${m.bad ? 'bad' : 'msg'}" role="${m.bad ? 'alert' : 'status'}">${esc(m.t)}</p></div>`;
+  }
+  return `<div class="ghint"><p aria-hidden="true">${esc(fixedHint(d, c, era))}</p></div>`;
+}
+function choiceList(d, c, disabled) {
+  const done = !!c.ans && c.ans.k === 'choice';
+  const pend = c.pending && c.pending.k === 'choice' ? c.pending.chosen : null;
+  const items = c.w.ch.map((t, i) => {
+    let mk = 'idle';
+    if (!done) mk = pend === null ? 'idle' : t === pend ? 'pend' : 'dim';
+    else if (t === c.w.m) mk = 'good';
+    else if (c.ans.r === 'WRONG' && t === c.ans.chosen) mk = 'mine';
+    else mk = 'other';
+    const tag = { good: '✓ 정답', mine: '✗ 내 답', pend: '확인 중…' }[mk] || '';
+    const ar = { good: ', 정답', mine: ', 내 답 틀림', pend: ', 확인 중' }[mk] || '';
+    const dis = disabled || done || pend !== null;
+    return `<li><button type="button" class="ch ${mk}" data-act="choose" data-i="${i}"${i === 0 ? ' data-f1' : ''}${dis ? ' aria-disabled="true"' : ''} aria-label="${i + 1}번, ${esc(t)}${ar}"><span class="n" aria-hidden="true">${i + 1}</span><span class="tx">${esc(t)}</span>${tag ? `<span class="mk" aria-hidden="true">${tag}</span>` : ''}</button></li>`;
+  }).join('');
+  return `<ol class="chs" aria-label="보기">${items}</ol>`;
+}
+function controlsHTML(d, c, era) {
+  const pro = era === 'pro';
+  const showChoices = d.legacy === 'CHOICE' || (!c.ans && c.open) || (c.ans && c.ans.k === 'choice');
+  if (showChoices) return choiceList(d, c, !isCur(d));
+  if (c.ans) {
+    const w = c.ans.r === 'SKIPPED' ? '건너뛴 카드' : c.ans.r === 'CORRECT' ? '알았어요' : '몰랐어요';
+    return `<p class="rec" role="status">${w}로 기록했어요</p>`;
+  }
+  if (sideOf(c) === 'back') {
+    const p = c.pending && c.pending.k === 'self' ? c.pending.r : null;
+    const b = (r, label, k, cls) => `<button type="button" class="btn ${cls} fb" data-act="self" data-r="${r}"${r === 'CORRECT' ? ' data-f1' : ''}${p ? ' aria-disabled="true"' : ''}${p === r ? ' aria-busy="true"' : ''}>${p === r ? '기록 중…' : label}${p ? '' : kbd(k)}</button>`;
+    return `<div class="brow0">${b('CORRECT', '알았어요', '1', 'pri')}${b('WRONG', '몰랐어요', '2', 'gh')}</div>`;
+  }
+  const peek = `<button type="button" class="btn pri fb${pro && !d.legacy ? '' : ' full'}" data-act="flip" data-f1>뜻 보기${kbd('Space')}</button>`;
+  if (!pro || d.legacy === 'FLIP' || !hasChoices(d)) return canPeek(d) ? `<div class="brow0">${peek}</div>` : '';
+  const open = `<button type="button" class="btn gh fb" data-act="open" aria-expanded="false"${P.dec.D1 === 'B' ? '' : ''}>객관식${kbd('C')}</button>`;
+  return `<div class="brow0 chg">${canPeek(d) ? peek : ''}${open}</div>`;
+}
+function toolbarHTML(d, c, era) {
+  const n = d.cards.length, last = d.view === n - 1;
+  if (c.ans || !isCur(d)) {
+    return `<div class="tbar"><button type="button" class="tb" data-act="prev"${d.view === 0 ? ' aria-disabled="true"' : ''}><i aria-hidden="true">‹</i>이전</button><button type="button" class="tb" data-act="flag" aria-pressed="${c.flag}"><i aria-hidden="true">${c.flag ? '★' : '☆'}</i>${c.flag ? '표시됨' : '표시'}</button><button type="button" class="tb next" data-act="next" data-next>${last ? '결과 보기' : '다음 카드'} <span aria-hidden="true">›</span></button></div>`;
+  }
+  const three = era === 'pro' && P.dec.D7 === 'B';
+  const noRead = !c.w.r || c.w.r === c.w.s;
+  return `<div class="tbar ${three ? 'c3 chg' : ''}"><button type="button" class="tb" data-act="prev"${d.view === 0 ? ' aria-disabled="true"' : ''}><i aria-hidden="true">‹</i>이전</button><button type="button" class="tb" data-act="reading" aria-pressed="${d.reading}"${noRead ? ' aria-disabled="true"' : ''}><i aria-hidden="true">가</i>읽기</button><button type="button" class="tb" data-act="flag" aria-pressed="${c.flag}"><i aria-hidden="true">${c.flag ? '★' : '☆'}</i>${c.flag ? '표시됨' : '표시'}</button>${three ? '' : '<button type="button" class="tb" data-act="skip"><i aria-hidden="true">»</i>건너뛰기</button>'}</div>`;
+}
+function deckHTML(d, era, live, topic) {
+  if (d.done) return resultHTML(d, era);
+  const c = curCard(d), n = d.cards.length;
+  const legacyName = d.legacy === 'CHOICE' ? '4지선다' : d.legacy === 'FLIP' ? '뒤집기 카드' : '';
+  const sub = `${topic ? '‘카페에서 주문하기’ · ' : ''}${legacyName ? legacyName + ' · ' : ''}${n}장`;
+  const shells = [2, 1].filter((k) => d.view + k < n).map((k) => `<div class="shell" aria-hidden="true" style="transform:scale(${1 - k * 0.04}) translateY(${k * 8}px)"></div>`).join('');
+  const notice = d.notice ? `<div class="dnote ${era === 'pro' && !d.legacy ? 'chg' : ''}" role="status"><p>${esc(d.notice)}</p><button type="button" aria-label="알림 닫기" data-act="closeNotice">✕</button></div>` : '';
+  const sheet = d.sheet ? `<div class="sheetbg"><div class="sheet" role="dialog" aria-modal="true" aria-label="세트 끝내기"><p class="t15 fw6">여기서 끝낼까요?</p><p class="t13 ink2 mt1">(데모 — 지금 확인 시트 그대로, 변경 없음) 안 답한 카드는 건너뜀으로 남아요.</p><div class="brow"><button type="button" class="btn pri" data-act="finishYes">끝내기</button><button type="button" class="btn gh" data-act="finishNo">계속 풀기</button></div></div></div>` : '';
+  return `<div class="deck">${bbar('오늘의 단어', sub, true, era === 'pro' && !d.legacy)}${progHTML(d)}${notice}<div class="stage"><div class="stack"${live ? ' data-live' : ''} role="group" aria-roledescription="카드" aria-label="${d.view + 1}번째 카드, 모두 ${n}장">${shells}${faceHTML(d, c, era)}</div></div>${listenHTML(d, c, era)}${hintHTML(d, c, era)}<div class="ctl">${controlsHTML(d, c, era)}</div>${toolbarHTML(d, c, era)}<p class="sr" aria-live="polite">${esc(d.say)}</p>${sheet}</div>`;
+}
+function stats(d) {
+  const s = { n: d.cards.length, c: 0, w: 0, k: 0, f: 0, cn: 0, cc: 0, sn: 0, sc: 0 };
+  d.cards.forEach((x) => {
+    if (x.flag) s.f++;
+    const a = x.ans || { k: 'skip', r: 'SKIPPED' };
+    if (a.r === 'CORRECT') s.c++; else if (a.r === 'WRONG') s.w++; else s.k++;
+    if (a.k === 'choice') { s.cn++; if (a.r === 'CORRECT') s.cc++; }
+    if (a.k === 'self') { s.sn++; if (a.r === 'CORRECT') s.sc++; }
+  });
+  return s;
+}
+function rowTag(x, era) {
+  const a = x.ans || { k: 'skip', r: 'SKIPPED' };
+  const pro = era === 'pro';
+  if (a.r === 'SKIPPED') return '<span class="wtag">건너뜀</span>';
+  const plain = a.k === 'self' ? (a.r === 'CORRECT' ? '알았어요' : '몰랐어요') : (a.r === 'CORRECT' ? '맞힘' : '틀림');
+  if (!pro || P.dec.D5 === 'B') return `<span class="wtag ${a.r === 'WRONG' ? 'bad' : 'good'}">${plain}</span>`;
+  const t = a.k === 'self' ? `스스로 ${plain}` : a.r === 'CORRECT' ? '객관식 맞힘' : `객관식 틀림 · 내 답 ‘${esc(a.chosen)}’`;
+  return `<span class="wtag ${a.r === 'WRONG' ? 'bad' : 'good'} chg">${t}</span>`;
+}
+function wlist(title, arr, era) {
+  if (!arr.length) return '';
+  return `<div class="wl"><h4>${title}</h4><ul>${arr.map((x) => `<li><div class="tx"><p class="j" lang="ja">${esc(x.w.s)} <span class="t13 ink2">${esc(x.w.r)}</span></p><p class="m">${esc(x.w.m)}</p></div>${rowTag(x, era)}</li>`).join('')}</ul></div>`;
+}
+function resultHTML(d, era) {
+  const s = stats(d), pro = era === 'pro';
+  const verb = !pro ? (d.legacy === 'CHOICE' ? '맞혔어요' : '알았어요') : s.cn > 0 ? '맞혔어요' : '알았어요';
+  const sub = `10월 11일 · ${d.legacy ? (d.legacy === 'CHOICE' ? '4지선다 · ' : '뒤집기 카드 · ') : ''}${s.n}장`;
+  let mid = '';
+  if (pro && P.dec.D5 === 'C' && s.cn && s.sn) {
+    mid = `<div class="tiles two chg"><div class="tile good"><b>${s.cc}<span class="t13 ink2"> / ${s.cn}</span></b><span>객관식 맞힘</span></div><div class="tile good"><b>${s.sc}<span class="t13 ink2"> / ${s.sn}</span></b><span>스스로 알았어요</span></div></div><div class="tiles"><div class="tile bad"><b>${s.w}</b><span>틀림·몰랐어요</span></div><div class="tile"><b>${s.k}</b><span>건너뜀</span></div><div class="tile"><b>${s.f}</b><span>다시 볼 카드</span></div></div>`;
+  } else {
+    mid = `<div class="tiles"><div class="tile good"><b>${s.c}</b><span>맞힘</span></div><div class="tile bad"><b>${s.w}</b><span>틀림</span></div><div class="tile"><b>${s.k}</b><span>건너뜀</span></div></div>`;
+  }
+  const split = pro && P.dec.D5 === 'A' && s.cn && s.sn ? `<p class="t13 ink2 mt1 chg">객관식 ${s.cn}장 중 ${s.cc}장 맞힘 · 스스로 ${s.sn}장 중 ${s.sc}장 알았어요</p>` : '';
+  const wrong = d.cards.filter((x) => x.ans && x.ans.r === 'WRONG');
+  const flagged = d.cards.filter((x) => x.flag);
+  return `<div class="deck">${bbar('세트 결과', sub, false, pro && !d.legacy)}<div class="rmain"><section class="card"><p class="t22 fw6">${s.n}장 중 ${s.c}장 ${verb}</p>${mid}<p class="t13 ink2 mt2">걸린 시간 1분 4초 · 다시 볼 카드 ${s.f}장</p>${split}</section><section class="card flat sec" style="margin-top:12px"><button type="button" class="btn gh full">☆ 이 세트 보관</button><p class="t12 ink2 mt1">보관하면 오늘 탭에서 같은 단어로 다시 풀 수 있어요.</p></section>${wlist(`틀린 단어 ${wrong.length}`, wrong, era)}${wlist(`다시 볼 카드 ${flagged.length}`, flagged, era)}<details class="mt3"><summary class="t13 fw6" style="min-height:44px;display:flex;align-items:center;cursor:pointer">전체 카드 ${s.n}장 보기</summary>${wlist('', d.cards, era)}</details><div class="brow"><a class="btn pri" href="#stage">오늘로</a><a class="btn gh" href="#stage">단어장 보기</a></div></div></div>`;
+}
+
+// 오늘 홈
+const tabbar = () => `<nav class="tabbar" aria-label="하단 탭">${[['회화', '◎'], ['오늘', '☀'], ['계획표', '▦'], ['단어장', '▤'], ['질문', '?']].map(([l, i]) => `<span class="${l === '오늘' ? 'on' : ''}"><i aria-hidden="true">${i}</i>${l}</span>`).join('')}</nav>`;
+const homeHTML = (body) => `<div class="abar"><h2>오늘의 공부</h2><span class="ava" aria-hidden="true">나</span></div><div class="amain">${body}</div>${tabbar()}`;
+const seg = (opts, on, label) => `<div class="seg" role="radiogroup" aria-label="${label}">${opts.map((o, i) => `<button type="button" role="radio" aria-checked="${i === on}">${o}</button>`).join('')}</div>`;
+function readyBody(era, opts = {}) {
+  const pro = era === 'pro';
+  const descB = pro && P.dec.D8 === 'B';
+  const desc = descB ? '카드로 뜻을 떠올리고, 헷갈리면 카드를 눌러 객관식으로 골라요.' : '카드를 넘기며 뜻을 맞혀요. 틀린 단어일수록 자주 나와요.';
+  return `<p class="t13 ink2 ${descB ? 'chg' : ''}">${desc}</p>${opts.done ? '<p class="t12 ink2 tnum mt05">오늘 1세트를 끝냈어요 · 맞힘 2/5</p>' : ''}<p class="lab">장수</p>${seg(['5장', '10장', '15장', '20장', '30장'], 1, '카드 장수')}${pro ? '' : `<p class="lab">방식</p>${seg(['4지선다', '뒤집기 카드'], 0, '푸는 방식')}`}<button type="button" class="btn pri full mt3"${opts.making ? ' aria-disabled="true" aria-busy="true"' : ''}>${opts.making ? '만드는 중…' : '시작하기'}</button>`;
+}
+function wordsCard(era, sub) {
+  const pro = era === 'pro';
+  return `<section class="card" data-m="words">${pro ? '<span class="chgtag">방식 줄 없음</span>' : ''}<div class="chead"><h3>오늘의 단어</h3><span class="t12 ink2">약 3분</span></div><div class="mt1">${readyBody(era, { done: sub === 'done1', making: sub === 'making' })}</div></section>`;
+}
+function statsCard() {
+  return `<div class="sec"><p class="sech">최근 30일</p><section class="card flat"><div class="stat"><div><p class="t22 fw6 tnum">5일 연속</p><p class="t12 ink2">단어 세트를 끝낸 날이 이어졌어요</p></div><div class="week" aria-hidden="true"><span class="d">✓</span><span class="d">✓</span><span>·</span><span class="d">✓</span><span class="d">✓</span></div></div><p class="t13 ink2 mt2">10장 세트 12번 · 맞힘 84 · 틀림 28 · 75%</p></section></div>`;
+}
+function keptRows(era) {
+  const rows = [{ d: '오늘', n: 5, old: false, c: 2, w: 2, s: 1 }, { d: '10월 10일', n: 10, old: true, m: '4지선다', c: 7, w: 2, s: 1 }, { d: '10월 8일', n: 10, old: true, m: '뒤집기 카드', c: 6, w: 3, s: 1 }];
+  return rows.map((r) => {
+    const label = era === 'cur' ? ` · ${r.old ? r.m : '4지선다'}` : r.old && P.dec.D6 !== 'B' ? ` · ${r.m}` : '';
+    const chg = era === 'pro' && !label;
+    return `<li><a class="tx" href="#stage" style="color:inherit;text-decoration:none;padding:4px 0"><p class="${chg ? 'chg' : ''}">${r.d} · ${r.n}장${label}</p><p class="t12 ink2">맞힘 ${r.c} · 틀림 ${r.w} · 건너뜀 ${r.s}</p></a><button type="button" class="btn gh" style="flex:none;padding:0 12px;font-size:14px">다시 풀기</button></li>`;
+  }).join('');
+}
+function keptHTML(era) { return `<div class="sec"><p class="sech">보관한 세트</p><ul class="kl">${keptRows(era)}</ul></div>`; }
+function wipCard(era, kind) {
+  const showMode = era === 'cur' || (kind === 'old' && P.dec.D6 !== 'B');
+  const m = '4지선다';
+  return `<section class="card" data-m="words"><div class="chead"><h3>오늘의 단어</h3></div><div class="mt2"><p class="t15 fw6">풀던 세트가 있어요</p><p class="t13 ink2 mt05 ${era === 'pro' && !showMode ? 'chg' : ''}">오늘 시작${showMode ? ` · ${m}` : ''} · 10장 중 3장 답함</p><p class="t12 ink2">답한 카드는 저장돼 있어요.</p><div class="brow"><a class="btn pri" href="#stage">이어서 풀기</a><button type="button" class="btn gh">여기서 끝내기</button></div></div></section>`;
+}
+function topicCard(era, sub) {
+  const pro = era === 'pro';
+  const mode = pro ? '' : `<p class="lab">방식</p>${seg(['4지선다', '뒤집기 카드'], 0, '푸는 방식')}`;
+  const head = `<div class="chead" style="justify-content:flex-start"><h3>오늘의 단어</h3><span class="chip"><span class="sr">챌린지 주제: </span>챌린지 · ‘카페에서 주문하기’</span>${sub === 'short' ? '' : '<span class="t12 ink2" style="margin-left:auto">약 3분</span>'}</div>`;
+  let body;
+  if (sub === 'short') {
+    body = `<div class="mt2"><p class="t15 fw6 tnum">오늘 5/8장 — 3장 더 풀면 오늘 단어 완료</p><p class="t13 ink2 mt05 tnum">끝낸 세트 1개 · 맞힘 3 · 틀림 1 · 건너뜀 1</p><p class="memo" role="note"><b>세트를 일찍 끝냈어도 괜찮아요.</b> 한 세트 더 풀면 오늘 푼 장수에 합쳐서 계산해요. 건너뛴 카드는 다음 세트에 다시 나올 수 있어요.</p>${mode}<button type="button" class="btn pri full mt3">한 세트 더</button></div>`;
+  } else {
+    body = `<div class="mt2"><p class="t15 fw6 tnum">‘카페에서 주문하기’ 새 단어 10장 · 오늘 0/8장</p><p class="t13 ink2 mt05">AI 가 매일 새로 만들어요 · 하루에 10장 중 8장 이상 풀면 오늘 단어 완료 · 나눠 풀어도 합쳐서 계산해요</p>${mode}<button type="button" class="btn pri full mt3">시작하기</button></div>`;
+  }
+  const mine = sub === 'mine'
+    ? `<button type="button" class="linkb mt1" aria-expanded="true">내 단어장으로 풀기</button><div class="mt2" style="border-top:1px solid var(--line);padding-top:12px"><p class="t12 ink2">내 단어장 세트는 챌린지에는 세지 않아요</p><div class="mt2">${readyBody(era)}</div></div>`
+    : '<button type="button" class="linkb mt1" aria-expanded="false">내 단어장으로 풀기</button>';
+  return `<section class="card" data-m="words">${pro ? '<span class="chgtag">방식 줄 없음</span>' : ''}${head}${body}${mine}</section>`;
+}
+function waitHTML(era) {
+  const sub = era === 'pro' ? '‘카페에서 주문하기’ · 10장' : '‘카페에서 주문하기’ · 4지선다 · 10장';
+  return `<div class="deck">${bbar('오늘의 단어', sub, false, era === 'pro')}<div class="rmain"><div class="skel" style="height:22px;width:70%"></div><div class="skel mt2" style="height:14px;width:90%"></div><div class="skel mt2" style="height:14px;width:60%"></div><p class="t12 ink2 mt3">(본문은 지금 대기 화면 그대로 — 바뀌는 건 부제의 방식 이름뿐)</p></div></div>`;
+}
+function loadingHTML(err) {
+  const body = err
+    ? `<div class="rmain"><section class="card"><p class="t15 fw6">세트를 불러오지 못했어요.</p><div class="brow"><button type="button" class="btn gh">다시 시도</button></div></section><p class="t12 ink2 mt3">(지금 화면 그대로 — 바뀌지 않음)</p></div>`
+    : `<div class="rmain" role="status" aria-label="불러오는 중"><div class="skel" style="height:44px"></div><div class="skel" style="height:300px;width:80%;margin:24px auto 0;border-radius:18px"></div><div class="skel mt3" style="height:52px"></div><p class="t12 ink2 mt3">(지금 화면 그대로 — 바뀌지 않음)</p></div>`;
+  return `<div class="deck">${bbar('오늘의 단어', '', false, false)}${body}</div>`;
+}
+
+// ── 휴대폰·무대 ──
+function ph(label, tag, inner, note) {
+  const tl = tag === 'cur' ? '현재' : tag === 'pro' ? '제안' : '제안 · 이전 세트';
+  return `<div class="pcol"><p class="plabel"><span class="tag ${tag === 'cur' ? '' : 'pro'}">${tl}</span>${label}</p><div class="pscroll"><div class="phone w${P.w}" data-ph>${inner}</div></div><p class="meas" data-meas></p>${note ? `<p class="pnote">${note}</p>` : ''}</div>`;
+}
+const LIVE_NOTE = '직접 눌러 보세요 — 카드 클릭 = 탭, 카드를 끌면 스와이프(왼쪽·오른쪽 60px, 위 80px), 키보드 Space·C·1~4·←→·F·R·S.';
+function stageHTML() {
+  const t = P.tab, s = subOf(t);
+  const cur = (m) => preset(t, s, m === 'CHOICE' ? 'curChoice' : 'curFlip');
+  let phones = [], notes = '';
+  const add = (on, html) => { if (on) phones.push(html); };
+  switch (t) {
+    case 'A':
+      add(P.cmp, ph('오늘 홈 · 오늘의 단어', 'cur', homeHTML(wordsCard('cur', s) + statsCard() + keptHTML('cur'))));
+      add(true, ph('오늘 홈 · 오늘의 단어', 'pro', homeHTML(wordsCard('pro', s) + statsCard() + keptHTML('pro'))));
+      notes = '<ul class="lst"><li>「방식」 라벨과 분절이 사라지고 「장수」만 남는다. 분류 칩(있을 때)·[시작하기]·오류 줄은 그대로.</li><li>설명 문구는 D8 A(그대로)를 권고 — 카드를 누르면 객관식이라는 안내는 덱 카드 앞면이 그때그때 한다.</li><li>보관한 세트 줄: 새 세트는 방식 이름 없이 「오늘 · 5장」, 이전 세트는 「· 4지선다」 등 그대로(D6 A).</li><li>휴대폰 아래 「카드 높이」 = 데모 안 근사값. 실제 상수는 다시 재야 한다(아래 「정보 밀도·높이 영향」).</li></ul>';
+      break;
+    case 'B':
+      add(P.cmp, ph('덱 · 앞면', 'cur', deckHTML(cur('CHOICE'), 'cur', false), '지금 4지선다: 보기 4개가 처음부터 보임, 카드 탭 = [읽기] 켜기.'));
+      add(P.cmp, ph('덱 · 앞면', 'cur', deckHTML(cur('FLIP'), 'cur', false), '지금 뒤집기 카드: 카드 탭 = 뜻 보기.'));
+      add(true, ph('덱 · 앞면 (직접 눌러 보기)', 'pro', deckHTML(DK, 'pro', true), LIVE_NOTE));
+      notes = '<ul class="lst"><li>앞면 아래는 [뜻 보기](주) [객관식](보조) 두 버튼. 카드 아래 안내 「카드를 누르면 객관식으로 골라요」(12px).</li><li>카드를 누르면 같은 카드 아래에 보기 4개가 열리고(카드 테두리 강조), 다시 누르면 닫힌다 — 보기를 열어도 고르기 전에는 아무것도 기록되지 않는다.</li><li>[읽기]는 도구 줄·R 키로만(지금 4지선다의 「카드 탭 = 읽기」는 없어짐).</li><li>위 「포인터」를 「키보드」로 바꾸면 힌트 줄과 버튼 옆 키 표시가 바뀐다.</li></ul>';
+      break;
+    case 'C':
+      add(P.cmp, ph('덱 · 뜻 보기 면', 'cur', deckHTML(cur('FLIP'), 'cur', false), '지금: 소리 버튼 없음(E9).'));
+      add(true, ph('덱 · 뜻 보기 면 (직접 눌러 보기)', 'pro', deckHTML(DK, 'pro', true), LIVE_NOTE + ' ▶ 를 누르면 0.55초 뒤 재생 흉내.'));
+      notes = `<ul class="lst"><li>카드 바로 아래 한 줄 [▶ 단어 듣기] [▶ 예문 듣기](각 44px). 카드 안은 제스처 영역이라 버튼을 두지 않는다(D3).</li><li>재생 중 = 채움 + ■ 「멈추기」, 다시 누르면 멈춤. 한 번에 소리 하나 — 다른 버튼을 누르면 앞 소리를 멈춘다(상세 시트와 같은 규칙).</li><li>위 「히라가나」「한글」을 켜고 끄면 카드 글자만 바뀐다(단어 루비는 늘 보임 — 지금 뒷면 규칙). 소리는 설정과 무관하게 같은 문장을 읽는다.</li><li>예문이 없거나 ${cp(LONG_EX)}자처럼 100자를 넘으면 [단어 듣기]만(지금 상세 시트 규칙 d).</li><li>[알았어요]를 누르면 결과 띠 0.4초 뒤 자동으로 다음 카드(지금 뒤집기 카드와 같음, D2 A). 넘어가면 소리는 멈춘다.</li></ul>`;
+      break;
+    case 'D':
+      add(P.cmp, ph('덱 · 객관식', 'cur', deckHTML(cur(s === 'nochoice' ? 'FLIP' : 'CHOICE'), 'cur', false), s === 'nochoice' ? '지금: 보기를 못 만들면 뒤집기 카드로 강등.' : '지금 4지선다.'));
+      add(true, ph('덱 · 카드 탭 → 객관식 (직접 눌러 보기)', 'pro', deckHTML(DK, 'pro', true), LIVE_NOTE));
+      notes = '<ul class="lst"><li>보기 모양·「확인 중…」·✓ 정답/✗ 내 답·나머지 가라앉힘은 지금 4지선다와 같다(정답은 서버 응답으로만).</li><li>답한 뒤 카드가 뜻 보기 면으로 바뀌며 결과 띠 「✓ 맞았어요/✗ 틀렸어요」 + 뜻·예문 + [단어 듣기]·[예문 듣기]. 다음 카드는 [다음 카드] 또는 왼쪽 밀기(D2 A — 자동으로 넘기지 않음).</li><li>객관식으로 답한 뒤에만 보기 4개와 듣기 줄이 함께 있어 카드가 작아진다(휴대폰 아래 「카드 높이」).</li><li>보기를 못 만든 세트: 안내 한 줄 + [객관식] 없음 + 카드 탭 = 뜻 보기.</li></ul>';
+      break;
+    case 'E':
+      add(P.cmp, ph('덱 · 앞면', 'cur', deckHTML(cur('FLIP'), 'cur', false)));
+      add(true, ph('덱 · 끌어 보기', 'pro', deckHTML(DK, 'pro', true), LIVE_NOTE));
+      notes = `<div class="tbl"><table><thead><tr><th scope="col">동작(임계)</th><th scope="col">지금 4지선다</th><th scope="col">지금 뒤집기 카드</th><th scope="col">제안</th></tr></thead><tbody>
+        <tr><td>왼쪽으로 밀기(60px 넘게)</td><td>다음 카드 — 답한 뒤에만, 아니면 튕겨 돌아오고 안내</td><td>같음</td><td class="same">같음</td></tr>
+        <tr><td>오른쪽으로 밀기(60px 넘게)</td><td>이전 카드(읽기 전용)</td><td>같음</td><td class="same">같음</td></tr>
+        <tr><td>위로 밀기(80px 넘게)</td><td>다시 볼 카드 표시 켜기/끄기(카드는 넘어가지 않음)</td><td>같음</td><td class="same">같음</td></tr>
+        <tr><td>탭(움직임 10px 미만)</td><td>[읽기] 켜기/끄기</td><td>뜻 보기</td><td class="chgd">객관식 열기/닫기(앞면·답하기 전) — D1</td></tr>
+        <tr><td>길게 누르기</td><td>없음</td><td>없음</td><td class="same">없음(D1 C 일 때만 객관식)</td></tr>
+      </tbody></table></div><p class="dsub mt2">판정 순서(탭 → 위 → 좌우)·저항(막힌 방향 ×0.25)·두 손가락 취소는 그대로. <b>Q9 예시의 「오른쪽 = 알아요 · 왼쪽 = 몰라요」는 지금 동작이 아니다</b> — D0 에서 B 를 고르면 뜻 보기 면에서만 그렇게 바뀌는 모습을 이 휴대폰에서 볼 수 있다.</p>`;
+      break;
+    case 'F':
+      if (s === 'home') {
+        add(true, ph('오늘 홈 · 끝낸 뒤', 'pro', homeHTML(wordsCard('pro', 'done1') + statsCard() + keptHTML('pro'))));
+        notes = '<ul class="lst"><li>오늘 카드 「오늘 1세트를 끝냈어요 · 맞힘 2/5」, 최근 30일 통계·연속 기록은 계산·모양 모두 그대로(맞힘 = 객관식 정답 + 알았어요 합산, 정답률은 건너뜀 제외 — Q9 「4문제 중 2개」).</li></ul>';
+      } else {
+        add(P.cmp, ph('세트 결과 (지금은 한 세트에 한 방식)', 'cur', deckHTML(cur('FLIP'), 'cur', false)));
+        add(true, ph('세트 결과 (직접 풀면 여기 바뀜)', 'pro', deckHTML(DK, 'pro', true)));
+        notes = '<h3>Q9 예시를 새 화면으로 따라 하면</h3><ol class="lst" style="list-style:none"><li>食べる — [뜻 보기] → [알았어요] = 정답(스스로)</li><li>行く — 카드 누름 → 객관식 ‘가다’ = 정답(채점)</li><li>水 — 카드 누름 → 객관식 ‘불’ = 오답(채점)</li><li>高い — [뜻 보기] → [몰랐어요] = 오답(스스로)</li><li>友達 — 위로 밀어 표시 → [끝내기] = 건너뜀 + 다시 볼 카드</li></ol><p class="dsub mt2">→ 맞힘 2 · 틀림 2 · 건너뜀 1, 통계는 「4문제 중 2개」 — 사용자가 Q9 에서 본 숫자와 같다. 구분 한 줄은 D5 로 고른다.</p>';
+      }
+      break;
+    case 'G':
+      if (s === 'wip') {
+        add(P.cmp, ph('오늘 홈 · 풀던 세트', 'cur', homeHTML(wipCard('cur', 'old') + statsCard())));
+        add(true, ph('바꾸기 전에 시작한 세트', 'old', homeHTML(wipCard('pro', 'old') + statsCard())));
+        add(true, ph('새 세트', 'pro', homeHTML(wipCard('pro', 'new') + statsCard())));
+        notes = '<ul class="lst"><li>「오늘 시작 · 10장 중 3장 답함」 — 새 세트는 방식 이름이 빠진다. 이전 세트는 그 방식 이름을 남겨 열었을 때 화면이 다른 이유를 알려 준다(D6 A).</li><li>[이어서 풀기]·[여기서 끝내기]·안내 줄은 그대로.</li></ul>';
+      } else if (s === 'kept') {
+        add(P.cmp, ph('오늘 홈 · 보관한 세트', 'cur', homeHTML(keptHTML('cur'))));
+        add(true, ph('오늘 홈 · 보관한 세트', 'pro', homeHTML(keptHTML('pro'))));
+        notes = '<ul class="lst"><li>[다시 풀기]는 이전 세트도 새 방식(카드 우선)으로 만든다(D6 A — 지금 서버는 원 모드를 따르므로 변경 필요, L4).</li><li>보관 세트를 눌러 여는 결과 화면의 부제도 같은 규칙(이전 세트만 방식 이름).</li></ul>';
+      } else {
+        add(true, ph(s === 'oldChoice' ? '이전 4지선다 세트 이어 풀기' : '이전 뒤집기 세트 이어 풀기', 'old', deckHTML(DK, 'pro', true), LIVE_NOTE));
+        notes = P.dec.D6 === 'B'
+          ? '<ul class="lst"><li>D6 B: 새 화면 규칙으로 열면 4지선다 세트는 뜻을 미리 받지 않아 [뜻 보기]가 없고, 뒤집기 세트는 보기가 없어 [객관식]이 없다 — 세트마다 버튼이 달라진다.</li></ul>'
+          : '<ul class="lst"><li>D6 A(권고): 시작했을 때 방식 그대로 — 4지선다는 보기가 펼쳐진 덱, 뒤집기 카드는 탭 = 뜻 보기. 달라지는 건 뜻 보기 면(답한 뒤)에 듣기 버튼이 붙는 것뿐.</li><li>이전 세트용 서버 변경이 필요 없다(지금 데이터 그대로).</li></ul>';
+      }
+      break;
+    case 'H':
+      if (s === 'wait') {
+        add(P.cmp, ph('새 단어 대기 화면', 'cur', waitHTML('cur')));
+        add(true, ph('새 단어 대기 화면', 'pro', waitHTML('pro')));
+        notes = '<ul class="lst"><li>대기 화면 부제에서 방식 이름만 빠진다. 대기 단계·문구는 그대로.</li></ul>';
+      } else {
+        add(P.cmp, ph('오늘 홈 · 챌린지 단어 카드', 'cur', homeHTML(topicCard('cur', s) + statsCard())));
+        add(true, ph('오늘 홈 · 챌린지 단어 카드', 'pro', homeHTML(topicCard('pro', s) + statsCard())));
+        notes = '<ul class="lst"><li>챌린지 단어 카드(할 일·조금 남음)와 [내 단어장으로 풀기] 펼침 모두 같은 「방식」 줄이 있었다 → 모두 빠진다. 챌린지 규칙(목표 장수·완료 조건)은 그대로.</li><li>챌린지 세트·주제 세트도 같은 덱 화면을 쓰므로 B~F 의 변화가 그대로 적용된다(덱 부제 「‘주제’ · 10장」).</li></ul>';
+      }
+      break;
+    case 'I':
+      if (s === 'loading' || s === 'loadErr') {
+        add(true, ph(s === 'loading' ? '세트 불러오는 중' : '세트 불러오기 오류', 'pro', loadingHTML(s === 'loadErr')));
+        notes = '<ul class="lst"><li>불러오기·오류·없는 세트 화면은 이번 작업에서 바뀌지 않는다.</li></ul>';
+      } else {
+        add(true, ph(s === 'saveFail' ? '답 저장 실패' : '소리 재생 실패', 'pro', deckHTML(DK, 'pro', true), s === 'saveFail' ? '보기를 고른 뒤 저장이 실패하면 보기는 다시 누를 수 있게 돌아오고 힌트 줄에 안내(지금 규칙 그대로).' : '이 상태에서는 ▶ 를 다시 눌러도 같은 결과를 보여 줘요(데모). 실패해도 버튼은 그대로 다시 누를 수 있다.'));
+        notes = '<ul class="lst"><li>덱은 하단 토스트를 쓰지 않으므로(보기·도구 줄을 가림) 소리 안내는 힌트 줄 한 줄로 보이고, 누른 버튼에 빨간 테두리(연결 안 됨·늦음·실패) / 흐린 바탕(자막만) / 강조 고리(한 번 더 누르기)를 단다. 색만으로 구분하지 않도록 문구가 함께 나온다.</li><li>문구는 상세 시트 문구(<code>SOUND_MSG</code>)를 한 줄에 맞게 줄인 덱용 — 360 폭에서 잘리는지 휴대폰 아래 「힌트 줄」로 확인.</li><li>오프라인이면 답 저장도 실패할 수 있다 — 그때는 「저장하지 못했어요. 다시 눌러 주세요」(지금 그대로).</li></ul>';
+      }
+      break;
+  }
+  return { phones, notes };
+}
+
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = TABS.map((x) => `<button type="button" role="tab" id="tab-${x.id}" aria-selected="${x.id === P.tab}" aria-controls="stage" data-tab="${x.id}">${x.name}</button>`).join('');
+}
+function renderStage() {
+  const t = TABS.find((x) => x.id === P.tab), s = subOf(P.tab);
+  const { phones, notes } = stageHTML();
+  const live = ['B', 'C', 'D', 'E'].includes(P.tab) || (P.tab === 'F' && s === 'result') || (P.tab === 'I' && s !== 'loading' && s !== 'loadErr') || (P.tab === 'G' && (s === 'oldChoice' || s === 'oldFlip'));
+  const el = document.getElementById('stage');
+  // 다시 그려도 누르던 버튼에 초점을 되돌린다(키보드 사용).
+  const ae = document.activeElement;
+  let keep = null;
+  if (!focusSel && ae && ae.dataset && ae.dataset.act && el.contains(ae)) {
+    keep = `[data-act="${ae.dataset.act}"]${ae.dataset.i ? `[data-i="${ae.dataset.i}"]` : ''}${ae.dataset.t ? `[data-t="${ae.dataset.t}"]` : ''}${ae.dataset.r ? `[data-r="${ae.dataset.r}"]` : ''}`;
+  }
+  el.setAttribute('role', 'tabpanel'); el.setAttribute('aria-labelledby', 'tab-' + P.tab);
+  el.innerHTML = `<div class="subs" role="group" aria-label="세부 상태">${t.subs.map(([id, nm]) => `<button type="button" aria-pressed="${id === s}" data-sub="${id}">${nm}</button>`).join('')}</div>${live ? '<div class="stagebar"><button type="button" class="dbtn" data-act="resetPreset">이 상태로 되돌리기</button><button type="button" class="dbtn" data-act="resetFresh">처음부터 5장 풀어 보기</button></div>' : ''}<div class="pw">${phones.join('')}</div><div class="notes">${notes}</div>`;
+  const sel = focusSel || keep;
+  if (sel) {
+    const f = el.querySelector('.stack[data-live]')?.closest('.phone')?.querySelector(sel) || (keep ? el.querySelector(keep) : null);
+    if (f) f.focus({ preventScroll: true });
+    focusSel = null;
+  }
+  requestAnimationFrame(measure);
+}
+function renderDecisions() {
+  const DEC = [
+    { id: 'D0', t: '스와이프의 뜻 — Q9 예시와 지금 동작이 다름', scr: true, go: 'E',
+      q: 'Q9 예시는 「오른쪽 스와이프 = 알아요, 뜻 보기 후 왼쪽 = 몰라요」였지만 지금 스와이프는 왼쪽 = 다음·오른쪽 = 이전·위 = 표시이고, 알았어요/몰랐어요는 버튼으로만 고른다. 「스와이프는 기존과 똑같이」 지시와 맞지 않는다.',
+      o: [['A', '스와이프는 지금 그대로. 스스로 표시는 뜻 보기 면의 [알았어요]·[몰랐어요] 버튼. Q9 「답한 방식대로 기록·합산」은 그대로(‘스와이프만 한 카드’ → ‘뜻 보기 뒤 스스로 표시한 카드’로 읽음).'], ['B', '뜻 보기 면에서만 오른쪽 = 알았어요 · 왼쪽 = 몰라요로 바꿈(앞면·답한 카드는 지금 그대로).']],
+      why: '사용자의 명시 지시(제스처·판정·동작 변경 없음)와 맞고, B 는 같은 「오른쪽 밀기」가 면에 따라 ‘이전 카드’와 ‘알았어요’로 뜻이 갈려 잘못 기록될 위험이 있다. 숫자는 A 로도 Q9 와 같다(F 탭). 참고 화면이 스와이프 채점 방식이면 v2 에서 다시 묻는다.' },
+    { id: 'D1', t: '어디를 탭하면 객관식인가 · 스와이프와 충돌', scr: true, go: 'B',
+      q: '카드 면은 스와이프 영역이다. 탭과 밀기를 어떻게 가를까.',
+      o: [['A', '앞면 카드 아무 곳 탭(움직임 10px 미만 — 지금 탭 판정 그대로) → 보기 열림, 다시 탭 → 닫힘. 같은 일을 하는 [객관식] 버튼을 [뜻 보기] 옆에. 뜻 보기 면·답한 카드는 탭해도 그대로. 판정 순서·임계·길게 누름 없음 모두 그대로.'], ['B', '탭 = 뜻 보기(지금 뒤집기 카드처럼), 객관식은 [객관식] 버튼으로만.'], ['C', '길게 누르기(0.4초) = 객관식.']],
+      why: '사용자 요구(카드를 탭하면 객관식) 그대로이고, 스와이프 판정은 건드리지 않고 「탭이 하는 일」만 바뀐다. 다시 탭하면 닫혀 잘못 누른 탭을 되돌릴 수 있다(고르기 전엔 기록 없음). B 는 요구와 다르고, C 는 찾기 어렵고 길게 누름 판정을 새로 넣어야 한다.' },
+    { id: 'D2', t: '답한 뒤 다음 카드로 가는 방법', scr: true, go: 'D',
+      q: '객관식과 스스로 표시가 한 세트에 섞인다.',
+      o: [['A', '객관식 = 정답 표시 + 뜻·예문·듣기가 나온 채 머묾 → [다음 카드]·왼쪽 밀기(지금 4지선다와 같음). 스스로 표시 = 결과 띠 0.4초 뒤 자동으로 다음(지금 뒤집기 카드와 같음).'], ['B', '둘 다 자동(객관식은 1.2초 뒤).'], ['C', '둘 다 [다음 카드].']],
+      why: '객관식은 답한 뒤에야 뜻·예문이 처음 보여 읽고 들을 시간이 필요하다. 스스로 표시는 이미 뜻을 보고 들은 뒤라 한 번 더 누르게 하면 장당 조작이 늘어난다(12초/장). 두 경로 모두 지금 동작 그대로라 손에 익은 리듬이 유지된다. 다음 카드로 가면 소리는 멈춘다.' },
+    { id: 'D3', t: '재생 버튼 배치·개수', scr: true, go: 'C',
+      q: '뜻 보기 면에서 단어와 예문을 듣는다. 예문이 없는 단어도 있다.',
+      o: [['A', '카드 바로 아래 한 줄 [▶ 단어 듣기] [▶ 예문 듣기](각 44px). 예문이 없거나 100자를 넘으면 [단어 듣기]만.'], ['B', '카드 안 단어·예문 옆 작은 ▶.'], ['C', '[▶ 단어·예문 듣기] 하나로 이어 재생.']],
+      why: '카드 면은 제스처 영역이라 안에 둔 버튼은 지금 구조에서 눌리지 않는다(손 뗄 때 기본 동작을 막음) → B 는 스와이프 코드에 예외가 필요해 「스와이프 불변」과 충돌. C 는 가장 간소하지만 단어만 다시 듣기가 안 된다. A 는 단어 상세 시트(단어·예문 두 버튼)와 같은 짝. 참고 화면이 한 버튼이면 v2 에서 C.' },
+    { id: 'D4', t: '키보드·TalkBack 대체 입력', scr: false, go: 'B',
+      q: '스와이프·탭만으로는 쓸 수 없는 사람이 있다.',
+      o: [['A', '모든 탭·밀기에 같은 일을 하는 화면 버튼 + 키 — Space 뜻 보기 · C 객관식 열기/닫기 · 1~4 보기 · 1/2 알았어요/몰랐어요 · ←/→ · F 표시 · R 읽기 · S 건너뛰기. 보기가 열리면 초점을 첫 보기로, 답하면 [다음 카드]로. 「객관식 보기 4개가 나왔어요」 등을 화면 읽기에 알림.'], ['B', '화면에는 카드 탭만, [객관식]은 화면 읽기 전용 숨은 버튼.']],
+      why: '지금 원칙(모든 제스처는 버튼·키보드로도, §5-0 5)과 같고, 보이는 [객관식] 버튼이 처음 쓰는 사람에게 「탭하면 객관식」을 알려 준다. 남는 틈: TalkBack 사용자는 연 보기를 닫을 길이 카드 탭뿐이라 고르거나 건너뛰어야 한다(Minor, 기록 참고).' },
+    { id: 'D5', t: '세트 결과에서 채점 방식 구분', scr: true, go: 'F',
+      q: 'Q9 로 정답·오답은 합산한다. 객관식/스스로를 구분해 보일까.',
+      o: [['A', '합산 타일 그대로 + 섞였을 때만 한 줄 「객관식 2장 중 1장 맞힘 · 스스로 2장 중 1장 알았어요」 + 카드 목록에 「객관식 틀림 · 내 답 ‘불’」/「스스로 몰랐어요」.'], ['B', '합산만(구분 없음).'], ['C', '타일을 객관식/스스로 두 줄로 나눔.']],
+      why: 'Q9 결정(합산)을 첫 숫자로 지키면서 스스로 표시는 채점이 아니라는 차이를 한 줄로 알려 준다. C 는 5장 세트에도 타일이 5칸이 돼 첫 화면이 길어진다.' },
+    { id: 'D6', t: '이전 세트(mode 가 4지선다·뒤집기인 세트)', scr: true, go: 'G',
+      q: '바꾸는 날 풀던 세트·보관 세트·다시 풀기를 어떻게 보일까.',
+      o: [['A', '바꾸기 전에 시작한 풀던 세트는 그 방식 화면 그대로(4지선다 = 보기 펼친 덱, 뒤집기 = 탭하면 뜻) + 뜻 보기 면 듣기 버튼만 추가. 방식 이름은 이전 세트에만 남김. 보관 세트 [다시 풀기]는 새 방식으로.'], ['B', '이전 세트도 새 화면 규칙 — 4지선다 세트는 [뜻 보기] 없음, 뒤집기 세트는 [객관식] 없음.'], ['C', '바꾸는 날 풀던 세트를 자동으로 끝냄.']],
+      why: '풀던 세트를 열었을 때 시작할 때와 같은 화면이라 혼란이 없고 이전 세트용 서버 변경이 필요 없다. B 는 세트마다 버튼이 달라 새 방식이 반쪽으로 보인다. C 는 사용자 기록을 바꾸는 일이라 권하지 않는다.' },
+    { id: 'D7', t: '버튼 최소안(참고 화면 도착 전)', scr: true, go: 'B',
+      q: '「참고 화면의 버튼 구성을 더 간소하게」 — 참고 화면이 아직 없다.',
+      o: [['A', '도구 줄 4칸([이전][읽기][표시][건너뛰기]) 그대로 + [객관식] 1개·듣기 2개만 추가.'], ['B', '도구 줄에서 [건너뛰기]를 빼 3칸(S 키·[끝내기]로 대신).'], ['C', '참고 화면을 받은 뒤 v2 에서 정함(그때까지 A).']],
+      why: '앞면은 이미 지금 4지선다(8개)보다 2개 적은 6개다. 건너뛰기를 빼면 「건너뜀」 기록 경로가 바뀌어 요청 범위를 넘는다. 참고 화면의 「더 간소한 버튼」은 도착한 뒤 비교해야 정할 수 있어, 지금은 A 로 두고 v2 에서 B·C 를 다시 본다.' },
+    { id: 'D8', t: '오늘 카드 설명 문구', scr: true, go: 'A',
+      q: '방식 줄이 없어진 뒤 설명을 바꿀까.',
+      o: [['A', '그대로 「카드를 넘기며 뜻을 맞혀요. 틀린 단어일수록 자주 나와요.」'], ['B', '「카드로 뜻을 떠올리고, 헷갈리면 카드를 눌러 객관식으로 골라요.」']],
+      why: '탭 안내는 덱 카드 앞면 한 줄이 그때그때 하고, 문구가 같으면 줄바꿈 지점(자리표시 폭 기준 370px)이 유지될 가능성이 높아 다시 잴 범위가 줄어든다. B 는 「틀린 단어일수록 자주 나와요」 정보가 빠진다.' },
+  ];
+  document.getElementById('decs').innerHTML = DEC.map((x) => `<article class="dec" id="dec-${x.id}" aria-labelledby="dh-${x.id}"><h3 id="dh-${x.id}"><span>${x.id}. ${x.t}</span>${x.scr ? '<span class="tag scr">화면이 바뀜</span>' : ''}</h3><p class="q">${x.q}</p>${x.o.map(([k, v]) => `<div class="opt"><button type="button" aria-pressed="${P.dec[x.id] === k}" aria-label="${x.id} ${k}안 고르기" data-dec="${x.id}" data-v="${k}">${k}</button><p>${REC[x.id] === k ? '<span class="tag rec">권고</span> ' : ''}${v}</p></div>`).join('')}<p class="why"><b>권고 ${REC[x.id]} — 이유</b> ${x.why}</p><p class="go"><button type="button" class="dbtn" data-goto="${x.go}">${x.go} 탭에서 보기 ↑</button></p></article>`).join('');
+}
+function renderCtls() {
+  const g = (label, key, opts) => `<div class="dctl"><span>${label}</span><div class="dseg" role="group" aria-label="${label}">${opts.map(([v, t]) => `<button type="button" aria-pressed="${String(P[key]) === String(v)}" data-ctl="${key}" data-v="${v}">${t}</button>`).join('')}</div></div>`;
+  document.getElementById('dctls').innerHTML = [
+    g('폭', 'w', [[360, '360'], [390, '390'], [412, '412']]),
+    g('테마', 'theme', [['system', '시스템'], ['light', '밝게'], ['dark', '어둡게']]),
+    g('비교', 'cmp', [[true, '현재 vs 제안'], [false, '제안만']]),
+    g('바뀐 곳 표시', 'chg', [[true, '켬'], [false, '끔']]),
+    g('히라가나', 'furi', [[true, '켬'], [false, '끔']]),
+    g('한글', 'hangul', [[true, '켬'], [false, '끔']]),
+    g('포인터', 'ptr', [['coarse', '터치'], ['fine', '키보드']]),
+  ].join('');
+}
+function renderAll() {
+  const root = document.documentElement;
+  if (P.theme === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', P.theme);
+  document.body.classList.toggle('showchg', P.chg);
+  renderCtls(); renderTabs(); renderStage(); renderDecisions();
+}
+
+// ── 잰 값 ──
+function measure() {
+  document.querySelectorAll('[data-ph]').forEach((phEl) => {
+    const out = phEl.closest('.pcol').querySelector('[data-meas]');
+    if (!out) return;
+    const pr = phEl.getBoundingClientRect();
+    let over = 0;
+    phEl.querySelectorAll('*').forEach((el) => {
+      if (el.closest('.sr') || el.closest('.shell') || el.closest('.sheetbg')) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      if (r.right > pr.right + 0.5 || r.left < pr.left - 0.5) over++;
+    });
+    const small = [];
+    phEl.querySelectorAll('button, a').forEach((b) => {
+      if (b.closest('.seg')) return;
+      const r = b.getBoundingClientRect();
+      if (r.width && (r.height < 43.5 || r.width < 43.5)) small.push(b.textContent.trim().slice(0, 8) || b.getAttribute('aria-label'));
+    });
+    const parts = [`폭 ${Math.round(pr.width - 2)}`, over ? `<b class="no">가로 넘침 ${over}</b>` : '<b class="ok">가로 넘침 0</b>', small.length ? `<b class="no">44px 미만 ${small.length}(${esc(small.join(', '))})</b>` : '<b class="ok">44px 미만 0</b>'];
+    const st = phEl.querySelector('.stack');
+    if (st) parts.push(`카드 높이 ${Math.round(st.getBoundingClientRect().height)}`);
+    const deck = phEl.querySelector('.deck');
+    if (deck && !phEl.querySelector('.rmain')) parts.push(deck.scrollHeight > deck.clientHeight + 1 ? '<b class="no">덱 세로 넘침</b>' : '<b class="ok">덱 스크롤 0</b>');
+    const wc = phEl.querySelector('[data-m="words"]');
+    if (wc) parts.push(`단어 카드 높이 ${wc.getBoundingClientRect().height.toFixed(1)}`);
+    const gh = phEl.querySelector('.ghint p');
+    if (gh && !gh.hasAttribute('aria-hidden')) parts.push(gh.scrollWidth > gh.clientWidth + 1 ? '<b class="no">힌트 줄 잘림</b>' : '<b class="ok">힌트 줄 안 잘림</b>');
+    out.innerHTML = '잰 값(데모 안): ' + parts.join(' · ');
+  });
+}
+
+// ── 이벤트 ──
+const deckActions = {
+  open: () => toggleChoices('btn'), flip, prev, next, flag, skip: () => skip(), reading: toggleReading,
+  finish: () => { DK.sheet = true; focusSel = '[data-act="finishYes"]'; }, finishYes: finishDeck, finishNo: () => { DK.sheet = false; },
+  closeNotice: () => { DK.notice = null; },
+};
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button, a');
+  if (!b) return;
+  if (b.dataset.ctl) {
+    const k = b.dataset.ctl, v = b.dataset.v;
+    P[k] = k === 'w' ? Number(v) : v === 'true' ? true : v === 'false' ? false : v;
+    renderAll(); return;
+  }
+  if (b.dataset.tab) { P.tab = b.dataset.tab; syncDeck(); renderAll(); return; }
+  if (b.dataset.sub) { P.sub[P.tab] = b.dataset.sub; syncDeck(); renderStage(); return; }
+  if (b.dataset.dec) { P.dec[b.dataset.dec] = b.dataset.v; if (b.dataset.dec === 'D6') syncDeck(); renderAll(); return; }
+  if (b.dataset.goto) { P.tab = b.dataset.goto; syncDeck(); renderAll(); document.getElementById('h-stage').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  const act = b.dataset.act;
+  if (!act) return;
+  if (act === 'resetPreset') { syncDeck(true); renderStage(); return; }
+  if (act === 'resetFresh') { clearTimers(); DK = newDeck(); renderStage(); return; }
+  const phone = b.closest('.phone');
+  if (!phone || !phone.querySelector('.stack[data-live]')) return;
+  if (b.getAttribute('aria-disabled') === 'true') {
+    if (act === 'prev') { prev(); renderStage(); }
+    return;
+  }
+  if (act === 'choose') { choose(Number(b.dataset.i)); return; }
+  if (act === 'self') { selfGrade(b.dataset.r); return; }
+  if (act === 'snd') { tapSound(b.dataset.t); renderStage(); return; }
+  if (deckActions[act]) { deckActions[act](); renderStage(); }
+});
+
+// 제스처 — 판정은 지금 코드와 같은 임계(탭 <10 → 위 dy<−80 → 좌우 |dx|>60)
+let G = null;
+const classify = (dx, dy) => (Math.abs(dx) + Math.abs(dy) < 10 ? 'tap' : dy < -80 ? 'up' : Math.abs(dx) > 60 ? (dx < 0 ? 'left' : 'right') : 'none');
+const backGradeMode = () => { const c = curCard(DK); return P.dec.D0 === 'B' && !DK.legacy && sideOf(c) === 'back' && !c.ans && isCur(DK); };
+function resistX(x) {
+  const c = curCard(DK);
+  const canNext = !!c.ans || backGradeMode(), canPrev = DK.view > 0 || backGradeMode();
+  if (x < 0 && !canNext) return x * 0.25;
+  if (x > 0 && !canPrev) return x * 0.25;
+  return x;
+}
+document.addEventListener('pointerdown', (e) => {
+  const st = e.target.closest('.stack[data-live]');
+  if (!st || e.button > 0 || DK.done) return;
+  const c = curCard(DK);
+  if (c.pending) return;
+  G = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, lp: null, lpFired: false };
+  if (P.dec.D1 === 'C' && !DK.legacy && hasChoices(DK) && sideOf(c) === 'front' && !c.ans && isCur(DK)) {
+    G.lp = setTimeout(() => { if (G && Math.abs(G.dx) + Math.abs(G.dy) < 10) { G.lpFired = true; toggleChoices('tap'); renderStage(); } }, 400);
+  }
+  e.preventDefault();
+});
+document.addEventListener('pointermove', (e) => {
+  if (!G) return;
+  G.dx = e.clientX - G.x; G.dy = e.clientY - G.y;
+  const f = document.querySelector('.stack[data-live] .face');
+  if (f) { const x = resistX(G.dx); f.style.transition = 'none'; f.style.transform = `translateX(${x}px) translateY(${Math.min(0, G.dy)}px) rotate(${x * 0.05}deg)`; }
+});
+function endDrag() {
+  if (!G) return;
+  const g = G; G = null; clearTimeout(g.lp);
+  const f = document.querySelector('.stack[data-live] .face');
+  if (f) { f.style.transition = ''; f.style.transform = ''; }
+  if (g.lpFired) return;
+  const k = classify(g.dx, g.dy);
+  if (k === 'tap') tapCard();
+  else if (k === 'up') flag();
+  else if (k === 'left') { if (backGradeMode()) { selfGrade('WRONG'); return; } next(); }
+  else if (k === 'right') { if (backGradeMode()) { selfGrade('CORRECT'); return; } prev(); }
+  else return;
+  renderStage();
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', () => { if (G) { clearTimeout(G.lp); G = null; renderStage(); } });
+
+// 키보드 — 초점이 페이지 바탕이나 살아 있는 휴대폰 안일 때만
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.isComposing) return;
+  const livePhone = document.querySelector('.stack[data-live]')?.closest('.phone');
+  if (!livePhone || DK.done) return;
+  const a = document.activeElement;
+  const inPhone = a && livePhone.contains(a);
+  if (!(a === document.body || inPhone)) return;
+  const onCtl = inPhone && (a.tagName === 'BUTTON' || a.tagName === 'A');
+  const d = DK, c = curCard(d), back = sideOf(c) === 'back';
+  if (d.sheet) return;
+  const digit = /^Digit([1-4])$/.exec(e.code || '')?.[1] || (/^[1-4]$/.test(e.key) ? e.key : null);
+  let did = true;
+  if (digit) {
+    if (!isCur(d) || c.ans) did = false;
+    else if (d.legacy === 'CHOICE' || c.open) choose(Number(digit) - 1);
+    else if (back && digit === '1') selfGrade('CORRECT');
+    else if (back && digit === '2') selfGrade('WRONG');
+    else did = false;
+  } else if (e.key === ' ' || e.key === 'Enter') {
+    if (onCtl) return;
+    if (c.ans) next(); else if (!back && !c.open && canPeek(d)) flip(); else did = false;
+  } else if (e.code === 'KeyC' || e.key.toLowerCase() === 'c') { toggleChoices('key'); }
+  else if (e.key === 'ArrowRight') next();
+  else if (e.key === 'ArrowLeft') prev();
+  else if (e.key === 'ArrowUp' || e.code === 'KeyF') flag();
+  else if (e.code === 'KeyR') toggleReading();
+  else if (e.code === 'KeyS') skip();
+  else did = false;
+  if (!did) return;
+  e.preventDefault();
+  renderStage();
+});
+
+window.addEventListener('resize', () => requestAnimationFrame(measure));
+syncDeck(true);
+renderAll();
+})();
+</script>
+</body>
+</html>
