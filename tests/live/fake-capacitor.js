@@ -3,8 +3,11 @@
  * `src/` 밖이라 번들에 들어가지 않는다(앱 코드에 개발용 스위치 없음). 메서드·이벤트·오류 코드 이름은 task-003f "플러그인 JS 계약 v1(+v1.1)" 그대로.
  *
  * 조종: `window.__fakeCap.set({ appBuild, appVersion, perm: 'prompt'|'rationale'|'denied'|'granted', askResult, model: 'absent'|'partial'|'installed'|'outdated',
- *        network: 'wifi'|'metered', manualProgress, diag, modelVersion })` · `__fakeCap.emit('resume'|'browserFinished'|'appUrlOpen', data)` ·
+ *        network: 'wifi'|'metered', manualProgress, diag, modelVersion })` · `__fakeCap.emit('resume'|'browserFinished'|'appUrlOpen'|'sharedText', data)` ·
  *        `__fakeCap.failNext(code)` · `__fakeCap.progress(ratio)` · `__fakeCap.calls`(호출 기록 — 인자 중 URL 은 앞부분만 남긴다).
+ * 공유 받기(task-052): 콜드 스타트 = `__FAKE_CAP_INIT = { sharedText: '본문', sharedTruncated?: true }`(페이지 열기 전부터 보관) ·
+ *        앱이 켜진 채 공유 = `__fakeCap.share('본문', { truncated?, signal?: false })` · 만료 = `__fakeCap.expireShare()` ·
+ *        예전 APK(플러그인 없음) = `__FAKE_CAP_INIT = { noSharedText: true }` · 실패 = `__fakeCap.failNext(code)` 뒤 peek/consume.
  */
 ;(function () {
   const TOTAL = 169824553
@@ -204,6 +207,30 @@
     },
   }
 
+  // 공유받은 글(task-052) — 네이티브 SharedTextHolder 와 같은 규칙: 한 칸(새 공유가 덮음)·consume 한 번이면 비움·본문은 consume 으로만.
+  // 30분 TTL 은 기다리지 않고 __fakeCap.expireShare() 로 흉내 낸다. 호출 기록에는 본문 대신 길이만 남긴다.
+  const SharedText = {
+    peek() {
+      record('SharedText.peek')
+      const f = takeFail()
+      if (f) return Promise.reject(err(f))
+      return Promise.resolve({ available: state.sharedText !== null })
+    },
+    consume() {
+      const s = state.sharedText
+      record('SharedText.consume', { length: s ? s.text.length : null })
+      const f = takeFail()
+      if (f) return Promise.reject(err(f))
+      state.sharedText = null
+      return Promise.resolve(s ? { text: s.text, truncated: s.truncated } : {})
+    },
+    addListener(event, fn) {
+      return on('SharedText', event, fn)
+    },
+  }
+  const toShared = (text, truncated) => (typeof text === 'string' ? { text: text, truncated: !!truncated } : null)
+  state.sharedText = toShared(state.sharedText, state.sharedTruncated)
+
   const Browser = {
     open(o) {
       const u = String((o && o.url) || '')
@@ -228,7 +255,8 @@
     isNativePlatform: () => true,
     getPlatform: () => 'android',
     convertFileSrc: (p) => location.origin + '/_capacitor_file_' + p,
-    Plugins: { SherpaStt, App, Browser },
+    // noSharedText: 플러그인이 없는 예전 APK(1.0.2 이하) 흉내.
+    Plugins: state.noSharedText ? { SherpaStt, App, Browser } : { SherpaStt, App, Browser, SharedText },
   }
 
   window.__fakeCap = {
@@ -236,6 +264,7 @@
     set(patch) {
       Object.assign(state, patch)
       if (patch && patch.diag) state.diag = { ...state.diag, ...patch.diag }
+      if (patch && 'sharedText' in patch) state.sharedText = toShared(patch.sharedText, patch.sharedTruncated)
     },
     get() {
       return { model: state.model, perm: state.perm, downloading: !!state.downloading, received: state.received }
@@ -246,10 +275,19 @@
     progress(ratio) {
       progressTo(ratio)
     },
+    // 앱이 떠 있는 채 새 공유가 온 것(onNewIntent): 보관하고 신호를 보낸다. { signal: false } 면 보관만(신호를 놓친 경우·resume 경로 시험).
+    share(text, opts) {
+      state.sharedText = toShared(String(text), opts && opts.truncated)
+      if (!opts || opts.signal !== false) emit('SharedText', 'sharedText', {})
+    },
+    expireShare() {
+      state.sharedText = null
+    },
     emit(event, data) {
       if (event === 'resume') emit('App', 'resume', {})
       else if (event === 'appUrlOpen') emit('App', 'appUrlOpen', { url: data })
       else if (event === 'browserFinished') emit('Browser', 'browserFinished', {})
+      else if (event === 'sharedText') emit('SharedText', 'sharedText', {})
       else emit('SherpaStt', event, data)
     },
   }

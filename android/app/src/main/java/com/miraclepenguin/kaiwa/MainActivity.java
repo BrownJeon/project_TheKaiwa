@@ -14,9 +14,10 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.PluginHandle;
 
 /**
- * TheKaiwa 앱 셸 — 운영 웹을 WebView 로 띄운다(설계안 §12). 여기에는 웹으로 고칠 수 없는 세 가지만 둔다.
+ * TheKaiwa 앱 셸 — 운영 웹을 WebView 로 띄운다(설계안 §12). 여기에는 웹으로 고칠 수 없는 네 가지만 둔다.
  *
  * <h2>1. 로그인 유지 — onPause 에서 쿠키를 디스크로</h2>
  * WebView 의 {@link CookieManager} 는 쿠키를 메모리에 들고 있다가 비정기적으로만 내려쓴다. 그 전에 프로세스가 죽으면
@@ -45,16 +46,83 @@ import com.getcapacitor.BridgeActivity;
  * 전제: capacitor.config.ts {@code adjustMarginsForEdgeToEdge:'auto'} 이고 테마에 {@code windowOptOutEdgeToEdgeEnforcement} 가
  * 없다 — 둘 중 하나를 바꾸면 Capacitor 가 margin 을 안 주는데 여기서는 주게 되므로 이 조건도 같이 맞춘다.
  *
+ * <h2>4. 글 공유 받기(task-052) — 본문은 메모리 보관함에만</h2>
+ * 매니페스트의 {@code ACTION_SEND}+{@code text/plain} 필터로 들어온 {@code EXTRA_TEXT} 를 {@link SharedTextHolder} 에 넣고, 웹은
+ * {@link SharedTextPlugin}(브리지 {@code infra/native/sharedText.ts})으로 한 번만 꺼내 간다. 본문을 URL·딥링크·디스크·로그에 싣지 않는다.
+ * 넣은 뒤 Intent 에서는 본문을 지우고 「처리함」 표시를 남긴다 — {@code BridgeActivity.load()} 가 {@code super.onCreate} 안에서
+ * 같은 Intent 로 {@code onNewIntent} 를 한 번 더 부르고, 그 Intent 가 활동 수명 내내 {@code getIntent()} 로 남기 때문이다.
+ * 콜드 스타트 Intent 는 {@code super.onCreate} 전에 처리해 브리지·Cordova 설정(Intent extras 를 읽는다)이 본문을 보지 않게 한다.
+ * 프로세스 복구({@code savedInstanceState})·최근 앱 목록에서 다시 열기({@code LAUNCHED_FROM_HISTORY})는 시스템이 예전 공유 Intent 를
+ * 되살려 주는 경로라 받지 않는다.
+ *
  * <p><b>이 파일을 바꾸면 네이티브 변경</b>이다 — 웹 배포로는 반영되지 않고 APK 재빌드·versionCode 증가가 필요하다.
  */
 public class MainActivity extends BridgeActivity {
 
+    private static final String EXTRA_SHARE_HANDLED = "com.miraclepenguin.kaiwa.SHARE_HANDLED";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 앱 내장 플러그인은 브리지가 만들어지는 super.onCreate 보다 먼저 등록해야 한다.
+        registerPlugin(SharedTextPlugin.class);
+        takeShare(getIntent(), savedInstanceState != null);
         super.onCreate(savedInstanceState);
         if (bridge != null && bridge.getWebView() != null) {
             bridge.getWebView().setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> openInBrowser(url));
             fitAboveKeyboard(bridge.getWebView());
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        // 다른 플러그인(handleOnNewIntent)에 넘기기 전에 본문을 꺼내 지운다.
+        boolean shared = takeShare(intent, false);
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (shared) {
+            notifyShareArrived();
+        }
+    }
+
+    /** 받을 글 공유면 보관함에 넣고 true. 어떤 경우든 이 Intent 에서는 본문을 지우고 「처리함」 표시를 남긴다. */
+    private static boolean takeShare(Intent intent, boolean restoring) {
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) {
+            return false;
+        }
+        try {
+            if (intent.getBooleanExtra(EXTRA_SHARE_HANDLED, false)) {
+                return false;
+            }
+            if (!SharedTextHolder.isFreshTextShare(intent.getAction(), intent.getType(), intent.getFlags(), restoring)) {
+                return false;
+            }
+            SharedTextPlugin.HOLDER.put(intent.getCharSequenceExtra(Intent.EXTRA_TEXT));
+            return true;
+        } catch (RuntimeException e) {
+            // 다른 앱이 보낸 extras 를 풀다 깨짐(BadParcelableException 등) — 받지 않는다. 예외는 남기지 않는다(본문이 실릴 수 있다).
+            return false;
+        } finally {
+            forgetShare(intent);
+        }
+    }
+
+    private static void forgetShare(Intent intent) {
+        try {
+            intent.removeExtra(Intent.EXTRA_TEXT);
+            intent.setClipData(null);
+            intent.putExtra(EXTRA_SHARE_HANDLED, true);
+        } catch (RuntimeException e) {
+            // extras 를 풀 수 없는 Intent — 위에서 이미 받지 않았다.
+        }
+    }
+
+    private void notifyShareArrived() {
+        if (bridge == null) {
+            return;
+        }
+        PluginHandle handle = bridge.getPlugin("SharedText");
+        if (handle != null && handle.getInstance() instanceof SharedTextPlugin) {
+            ((SharedTextPlugin) handle.getInstance()).notifyArrived();
         }
     }
 

@@ -54,6 +54,17 @@
                 <data android:scheme="thekaiwa" android:host="auth" android:path="/callback" />
             </intent-filter>
 
+            <!--
+                글 공유 받기(task-052) — 카카오톡 등에서 메시지 「공유」 → Lingofy Japanese → 오늘의 회화 붙여넣기 화면.
+                글(text/plain) ACTION_SEND 하나만 주장한다: 사진·파일·여러 건(SEND_MULTIPLE) 공유 목록에는 이 앱이 나오지 않는다.
+                본문은 MainActivity 가 메모리에만 들고 웹이 브리지(SharedText 플러그인)로 한 번 꺼내 간다 — URL·딥링크·디스크에 싣지 않는다.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
         </activity>
 
         <provider

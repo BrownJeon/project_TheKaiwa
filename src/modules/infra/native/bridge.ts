@@ -14,8 +14,7 @@
  *
  * 그래서 **모든 함수가 "브리지가 없으면 조용히 아무 일도 안 한다"** 를 지킨다.
  */
-
-type ListenerHandle = Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void }
+import { listen, type ListenerHandle } from './listen'
 
 interface BrowserPlugin {
   open?: (options: { url: string }) => Promise<void>
@@ -154,6 +153,16 @@ export interface OnDeviceSttPlugin {
   openAppSettings?(): Promise<void>
 }
 
+/**
+ * 다른 앱에서 공유받은 글(task-052) — `MainActivity` 가 등록하는 앱 내장 플러그인. 1.0.3(versionCode 4) 미만 APK 에는 없다.
+ * 부르는 함수는 `./sharedText` 뿐이다. 응답은 네이티브가 주는 그대로라 거기서 형식을 다시 거른다.
+ */
+interface SharedTextPlugin {
+  peek?: () => Promise<{ available?: unknown } | null | undefined>
+  consume?: () => Promise<{ text?: unknown; truncated?: unknown } | null | undefined>
+  addListener?: (event: 'sharedText', handler: () => void) => ListenerHandle
+}
+
 /** 이 중 하나라도 없으면 반쪽짜리 플러그인이다 — 녹음 UI 를 띄우지 않고 서버 인식으로 간다(§6). */
 const ONDEVICE_REQUIRED = ['checkPermissions', 'requestPermissions', 'checkModel', 'downloadModel', 'start', 'stop', 'cancel', 'release', 'addListener'] as const
 
@@ -167,6 +176,7 @@ interface CapacitorBridge {
     Share?: SharePlugin
     Filesystem?: FilesystemPlugin
     SherpaStt?: Partial<OnDeviceSttPlugin>
+    SharedText?: SharedTextPlugin
   }
 }
 
@@ -351,23 +361,6 @@ export async function getAppInfo(): Promise<{ name: string; code: number } | nul
     return code !== null && code > 0 && name !== null ? { name, code } : null
   } catch {
     return null
-  }
-}
-
-/** 구독 결과(Promise·즉시 둘 다)를 해제 함수 하나로. */
-function listen(result: ListenerHandle | undefined): () => void {
-  if (!result) return () => {}
-  let disposed = false
-  let remove: (() => void) | null = null
-  void Promise.resolve(result)
-    .then((h) => {
-      if (disposed) void h?.remove()
-      else remove = () => void h?.remove()
-    })
-    .catch(() => {})
-  return () => {
-    disposed = true
-    remove?.()
   }
 }
 
