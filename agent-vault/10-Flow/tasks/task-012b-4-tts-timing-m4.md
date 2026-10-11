@@ -1,7 +1,7 @@
 ---
 task_id: task-012b-4
 title: "TTS P1 타이밍 — narabas 정렬 스파이크(A vs B)·M4 tts-service timing 후처리·TtsCache.timing 부착·#24 JSON timing·자막 강조·섀도잉 강조 화면"
-status: todo
+status: done
 base_ref: 5c3a701
 risk_level: R2
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -1133,3 +1133,9 @@ designer 가이드의 결정 D-T1~D-T7 을 **모두 designer 권고대로 확정
 - 상태 `todo` 유지(2026-10-10 상태 정리에서 의도적으로 닫지 않음).
 - 이유: 서버·M4 부분은 완료·배포됨(M4 0.4.0 `78bde96`, 앱 `d8598fd`·`c8acab8`, 운영 합성 200 + `X-Tts-Timing` 263자 확인). 그러나 **완료 기준 4 「재생 단어 강조 화면·섀도잉 강조」는 구현되지 않았다** — `src/components` 에 단어 강조(카라오케) 화면이 없고 timing 을 읽는 화면 코드도 없다(`talk/timings.ts` 는 턴 지연 측정 코드, `TalkRoom` 의 highlight 는 교정 카드 강조 — 2026-10-10 Leader 가 코드로 대조). designer 가이드는 있으나 구현 task·IMP 가 없다. 완료 기준 3(MISS 후 HIT timing 실측)·5(TTFA 30턴·M4 메모리)도 QA 기록이 비어 있다.
 - 결정 필요(사용자): 강조 화면을 후속 task 로 분리해 이 task 를 `done-with-note` 로 닫을지, 기준 4 를 명시적으로 철회할지. `ACTIVE.md` 의 「012b-4 단어 강조(timing)」 표현은 서버 부분만 나갔다는 뜻으로 읽어야 한다.
+
+## 종결 — 기준 4 명시 철회 (2026-10-11, 사용자 결정)
+- 사용자 선택(AskUserQuestion, 2026-10-11) 「012b-4 단어 강조 화면: 철회하고 닫기」. 위 「상태 정리 — 열어 둔 이유」의 두 갈래(후속 task 로 분리 / 기준 4 명시 철회) 중 **철회**를 골랐다.
+- **무엇이 끝났고 무엇이 철회됐나**: 서버·M4 쪽(narabas 정렬 후처리·`TtsCache.timing` 부착·`#24` `X-Tts-Timing`·M4 0.4.0 `78bde96`·앱 `d8598fd`·`c8acab8`·운영 합성 200 + 263자 확인)은 **완료·배포됨**. **재생 단어 강조(카라오케) 화면·섀도잉 강조 화면은 구현하지 않고 철회** — 완료 기준 4 를 충족하지 못한 채 닫는 것이며 「완료」가 아니라 「철회로 종결」이다.
+- **다시 필요해지면**: `X-Tts-Timing` 응답 데이터가 이미 있으므로 화면만 새 task(designer 데모 → 승인 → 구현)로 만들면 된다. 서버 쪽 재작업은 필요 없다.
+- 로드맵에는 이 기능의 노드가 없어 수정하지 않았다.

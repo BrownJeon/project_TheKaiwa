@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0025
 title: "AI 강사의 응답·교정은 일상회화에서 쓰는 문법·단어를 중심으로, JLPT 식 문법 표현은 추가 설명으로"
-status: planned
+status: done
 screen: ""
 area: "behavior"
 priority: "P2"

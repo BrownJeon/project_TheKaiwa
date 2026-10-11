@@ -33,7 +33,7 @@ tags: [type/roadmap]
 - [x] (1) 회화·채팅 전환 홈(목록·채택 대기 교정 요약) [[task-006-chat-correction]]
 - [x] (1) 새 채팅 시작 시트 [[task-006-chat-correction]]
 - [x] (1) 회화 목록·새 회화 시작 [[task-007-talk-voice-web]]
-- [ ] (2) 상황 카드 메뉴로 역할극 고르기 IMP-0017 [[task-010d-scenario-roleplay]]
+- [~] (2) 상황 카드 메뉴로 역할극 고르기 IMP-0017 — 구현·배포됨, 운영 역할극 1건을 마치면 닫음 [[task-010d-scenario-roleplay]]
 
 ### /study/ai/chat/[chatId] | 채팅방
 - [x] (1) 글로 대화(SSE 턴·사용자당 락) [[task-006-chat-correction]]
@@ -53,16 +53,18 @@ tags: [type/roadmap]
 - [x] (1) 틀린 표현 교정 카드 즉시 표시 [[task-007-talk-voice-web]]
 - [x] (2) 교정 방식(유창성·코치 힌트)과 모아 둔 교정 시트 [[task-010c-correction-mode]]
 - [x] (1) 응답 길이 상황별 1~4문장·번역 줄 한국어·수준별 쉬운 교정 설명 IMP-0010 IMP-0020 IMP-0022 [[task-024-improve-talk-length]] [[task-028-talk-translation-explanation]]
-- [~] (2) 일상회화 우선 설명과 JLPT 식 추가 설명 칸 IMP-0025 [[task-039-improve-tutor-explanation]]
-- [ ] (2) 상황 역할극(목표·표현 체크·코치·결과·단계 진행) IMP-0021 [[task-010d-scenario-roleplay]]
-- [ ] (2) 재확인 필요 발화 두 안 중 고르기 카드
+- [x] (2) 일상회화 우선 설명과 JLPT 식 추가 설명 칸 IMP-0025 — 운영 006 스모크 42/42 통과(2026-10-11) [[task-039-improve-tutor-explanation]]
+- [~] (2) 상황 역할극(목표·표현 체크·코치·결과·단계 진행) IMP-0021 — 구현·배포됨, 운영 역할극 1건을 마치면 닫음 [[task-010d-scenario-roleplay]]
+- [~] (2) 역할극 목표 카드 표현 칩에 번역(한국어 뜻) 표시 IMP-0029 [[task-054-improve-roleplay-goal-translation]]
+- [x] (2) 재확인 필요 발화 두 안 중 고르기 카드 [[task-012b-2-analysis-result-ui]]
 
 ### /study/today | 오늘
 - [x] (1) 오늘의 단어 카드·최근 기록·보관한 세트 [[task-008-vocab-today-words]]
+- [~] (2) 오늘의 단어 단계 우선 가중(내 수준·목표 수준 위 단계는 줄임) IMP-0028 [[task-053-improve-today-words-level-weight]]
 - [x] (2) 오늘의 회화 카드 [[task-010-today-lesson]]
 - [x] (2) 오늘의 복습 카드(강사가 3~7일 판단·근거 한 줄) [[task-010b-repetition]] [[task-010b2-review-decision-v2]] [[task-010b3-a11-timeout-retry]]
 - [x] (2) AI 평가 카드 [[task-011-ai-evaluation]]
-- [ ] (2) 챌린지 오늘 할 일(주제 단어·주제 수업) 연동 IMP-0024
+- [x] (2) 챌린지 오늘 할 일(주제 단어·주제 수업) 연동 IMP-0024 [[task-044-today-integration]]
 
 ### /study/today/words/[sessionId] | 단어 카드 덱
 - [x] (1) 스와이프 카드 덱(고르기·뒤집기 모드) [[task-008-vocab-today-words]]
@@ -106,10 +108,10 @@ tags: [type/roadmap]
 - [x] (2) 월 달력(출석·학습 종류·시간 표시) [[task-012-calendar]]
 - [x] (2) 하루 시트(그날 기록·복습 예정) [[task-012-calendar]]
 - [x] (2) 학습 기록 열기·삭제(집계 스냅샷은 그대로) [[task-012-calendar]]
-- [~] (2) 챌린지 설계서·데모(주제 선택형 매일 학습) IMP-0024 [[task-040-improve-challenge-design]]
-  - [ ] (2) 챌린지 만들기(주제·기간·하루 목표)
-  - [ ] (2) 챌린지 현황 카드(수행 연속·달성률)
-  - [ ] (2) 챌린지 상세(날짜 띠·주제 표현 익힘)
+- [x] (2) 챌린지 설계서·데모(주제 선택형 매일 학습) IMP-0024 [[task-040-improve-challenge-design]]
+  - [x] (2) 챌린지 만들기(주제·기간·하루 목표) [[task-043-challenge-screens]]
+  - [x] (2) 챌린지 현황 카드(수행 연속·달성률) [[task-043-challenge-screens]]
+  - [x] (2) 챌린지 상세(날짜 띠·주제 표현 익힘) [[task-043-challenge-screens]]
 - [ ] (3) 분석·성장 기록(능력 축·추이)
 
 ### /ask | 무엇이든 물어보세요
@@ -150,14 +152,14 @@ tags: [type/roadmap]
 ### /admin/speech/analysis | 분석 음성 인식
 - [x] (1) 지금 쓰는 연결·Health·기능 테스트 [[task-005b-admin-console-skeleton]]
 - [x] (2) 분석 워커 상태 표시(health) [[task-012b-speech-p2]]
-- [ ] (2) 발화 로그·재확인 화면
+- [x] (2) 발화 로그·재확인 화면(위치는 관리자가 아니라 설정 › 내 발화 기록으로 이동) [[task-012b-2-analysis-result-ui]]
 
 ### /admin/speech/tts | 음성 합성
 - [x] (1) 지금 쓰는 연결·Health·기능 테스트 [[task-005b-admin-console-skeleton]]
 - [x] (1) 합성 미리듣기 [[task-003d-tts-p0]]
 - [x] (2) 예비 순서 편집 [[task-012c-console-p2]]
 - [ ] (2) 합성 관측·품질 지표
-- [ ] (2) 합성 타이밍(M4 설치)
+- [x] (2) 합성 타이밍(어텐션 추출 방식·M4 0.4.0·응답 헤더 X-Tts-Timing — 단어 강조 화면은 2026-10-11 철회) [[task-012b-4-tts-timing-m4]]
 
 ### /admin/speech/tts/lexicon | 발음 사전
 - [x] (1) 검색·범위 필터 [[task-003g-lexicon-admin]]
@@ -258,7 +260,7 @@ tags: [type/roadmap]
 
 ### /api/v1/plan | 계획표
 - [x] (2) 월 달력·하루 상세 조회 [[task-012-calendar]]
-- [ ] (2) 챌린지 목록·만들기·상세·오늘·그만두기 [[task-040-improve-challenge-design]]
+- [x] (2) 챌린지 API(#155~#159: 목록·만들기·상세·오늘·그만두기) [[task-041-challenge-core]]
 
 ### /api/v1/study-logs | 학습 기록
 - [x] (2) 기록 목록·삭제(스냅샷 불변) [[task-012-calendar]]
@@ -311,7 +313,7 @@ tags: [type/roadmap]
 ### tts-service | 음성 합성 서비스(M4)
 - [x] (1) 자체 FastAPI 합성 서버(사전·pitch·스트리밍) [[task-003d-tts-p0]]
 - [x] (1) 워치독·방화벽 [[task-003d-tts-p0]]
-- [ ] (2) 합성 타이밍·관측
+- [~] (2) 합성 타이밍(완료)·관측(M4 /metrics 는 설계만 — 앱 쪽 관측은 task-012b-3 으로 완료) [[task-012b-4-tts-timing-m4]] [[task-012b-3-tts-observability]]
 
 ### claude-cli | 강사 AI 호출
 - [x] (1) llm 파사드·라우터·어댑터와 프롬프트(회화·채팅·점검) [[task-004-ai-client-persona]]

@@ -6,7 +6,15 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★ 2026-10-11 낮 — task-051·052 **운영 배포 완료**(웹 릴리스 `20261011-121420-0250368d` + APK 1.0.3 공개) (이 블록이 가장 최신)
+## ★ 2026-10-11 저녁 — task-053(오늘의 단어 단계 가중)·task-054(역할극 목표 카드 번역) 구현·감사 중, 열린 task 정리 (이 블록이 가장 최신)
+
+- **사용자 선택(2026-10-11)**: 오늘의 단어 단계 우선 가중 + 열린 task 정리 + Phase 3 방향 논의. 결정: 가중 강도 **「중간」**(천장 위 1단계 ×0.3·2단계 ×0.05·3단계 이상 ×0, 후보 모자랄 때만 채움)·천장 **「지금·목표 수준 중 높은 쪽」**.
+- **task-053** [[task-053-improve-today-words-level-weight]] (IMP-0028, judge standard·R2·sonnet): `32d8fd6` — 구현·통합 게이트 통과, 감사 REV-183 진행 중 → QA(QA 계정 라이브 분포·지연) → 웹 배포. **task-054** [[task-054-improve-roleplay-goal-translation]] (IMP-0029, light): 사용자 스크린샷 보고 「역할극 목표 표현 번역을 선택해도 번역이 안 됨」→ 원인 = `RolePlayGoalCard` 가 `e.ko` 를 그리지 않음(설계 누락, 시작 전 시트·결과 화면은 이미 그림) → `1a3f04d`, 감사 중 → 웹 배포.
+- **열린 task 정리**: task-039 **done**(운영 006 스모크 42/42, IMP-0025 done) · task-012b-4 **done(기준 4 명시 철회** — 단어 강조 화면 철회, 서버·M4 완료) · task-010d 는 `doing` 유지(사용자가 운영에서 4단계 역할극을 진행 중인 화면을 올렸으나 [마치기]로 끝낸 기록은 아직 없음 — 마친 뒤 `endedAt` 확인하고 닫음) · task-027 ISS-0001 점검 10-17.
+- **로드맵 정리**: 대조 에이전트로 27노드를 task 이력서와 대조해 14곳 반영(챌린지 6·재확인 카드·발화 로그·합성 타이밍 등 완료 처리, IMP-0028·0029 진행 노드 추가). 사용자 판단 보류: 대시보드·합성 관측(M4 `/metrics` 는 설계만, 앱 쪽 관측은 완료) · 역할극 노드 `[~]` 유지.
+- **백로그 추가**: 역할극 방 화면 가이드(`screens.md` 에 없음) · `task006-smoke.ts` `cleanup()` 에 `learningObservation`·`repetitionItem` 추가 · 로드맵 `/plan/challenges` 목록 화면 노드 없음·챌린지 API 노드가 `/api/v1/plan` 절 안.
+
+## ★ 2026-10-11 낮 — task-051·052 **운영 배포 완료**(웹 릴리스 `20261011-121420-0250368d` + APK 1.0.3 공개)
 
 - **웹**: 사용자 「푸시하고 배포 진행해줘」 → 푸시 전 게이트(최종 HEAD tsc 0·eslint 오류 0·시험 2,987/2,988·`next build` 0) → `git push origin main`(`869e28d..0250368`, 16커밋) → webhook blue/green **`20261011-121420-0250368d`** `RELEASE_RESULT ok`·`migrated:false`·헬스 200·pm2 3개 online. 운영 읽기 전용 스모크 9경로 200·출처 줄·단계 이름 번들 확인. 롤백 대상 `20261010-121054-869e28d6`.
 - **APK**: `build-apk.sh --publish`(push 된 HEAD) → **1.0.3 / versionCode 4 / 35,216,161 bytes / sha256 `943a014a…a0d4` / 서명자 `a4c23dca…`(1.0.2 와 동일 → 덮어쓰기 설치·로그인 유지)**. 게시 파일을 직접 검사(병합 Manifest `SEND text/plain` 필터·dex 클래스) 후 `AppRelease` 행 1개 삽입(`minSupported 2` 유지 — 강제 업데이트 없음, notes = D6 문구). `/api/app/version` 구 앱 `reinstallRequired true`·새 앱 false, 다운로드 sha256 로컬·공개 도메인 모두 일치. **네이티브 변경이라 사용자 폰에서 APK 덮어쓰기 설치 필요.**

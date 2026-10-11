@@ -1,7 +1,7 @@
 ---
 task_id: task-039
 title: "강사 응답·교정: 일상회화 문법·단어 중심 + JLPT 식 추가 설명 칸 (IMP-0025, 방안 B)"
-status: in_progress
+status: done
 base_ref: 5c3a701
 risk_level: "R2"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa]
@@ -813,3 +813,10 @@ Critical 0·High 0(H-1 이월)·Medium 0 → **QA 진행 가능**(코드 수정 
 - 상태 `in_progress` 유지(2026-10-10 상태 정리에서 의도적으로 닫지 않음).
 - 이유: 완료 기준 4개 중 3개 충족(규칙 반영·계약 안전·저장·표시, 검출 16/16·오탐 0/4, 화면 520/520). **기준 4 「운영 스모크 006·007」 중 006 의 운영 결과 증거가 없다** — Phase 2 운영 스모크 계획(`phase2-batch-plan.md` 248줄)에는 006 이 있으나 실행 결과 표에는 010·011·012·007 만 있다. 006 은 개발 서버에서만 42/42.
 - 닫는 조건: 운영 `SMOKE_ENV=PRODUCTION` 006 스모크 1회(QA 계정 쓰기 — 사용자 승인 필요) 통과. 그 밖: TalkBack·실기기, 추가 설명 품질 관찰(오정보 1/28), A3 `stripAdditionalProperties` 후속. 연결 IMP-0025 는 이 task 가 닫힐 때 `done`(기대 항목은 충족 — `extraNoteKo` 구현·`tutor.md` 규칙).
+
+## 종결 — 운영 006 스모크 통과 (2026-10-11)
+- 사용자가 운영 `task006-smoke` **1회**를 승인(2026-10-11, 「039 튜터 설명: 운영 스모크 1회 승인」). QA 에이전트가 QA 계정 1·2번으로 `http://127.0.0.1:3010`(운영 릴리스 `20261011-121420-0250368d`)에 실행 — 상세 [[task-039-qa-prod-record]].
+- **결과 42/42 PASS, FAIL 0** (2026-10-11 16:08~16:12, 4분 17초). 동시성 검사 10c·3a·3b 도 통과, CHAT 턴 10회 p50 4,346ms·최대 8,437ms(예산 20초 안), 엔진명·모델명·`toolLog` 누출 0건, 해당 시각대 서버 오류 0건(`pm2-err.log` 1줄은 「replyJa 3문장 이내」 계약 위반 소프트 재시도 — 다음 호출 정상 완료).
+- **행 수 복원**: 스크립트가 지우지 못한 QA1 `LearningObservation` 10건·`RepetitionItem` 1건을 QA1·QA2 userId 와 실행 시간 창으로 한정해 삭제(전 모델 행 수가 실행 전과 같음), `Profile.level` N5 복원. 쿠키·스크래치 삭제.
+- **완료 기준 4 판정**: 「운영 스모크 006 유지」 충족. 「007 유지」·「새 필드가 로그·Trace·Export 에 학습자 원문을 싣지 않음」은 이번 1회의 범위가 아니었다(`NOT_VERIFIED`) — 이미 증거가 있다: Phase 2 운영 스모크 결과 표의 007, qa-039 의 검출 16/16·로그 점검. Leader 가 정리 때 적은 닫는 조건(「운영 006 스모크 1회 통과」)이 충족돼 **`done`**, 연결 **IMP-0025 도 `done`**.
+- **남은 Low(백로그)**: ① `tests/live/task006-smoke.ts` 의 `cleanup()` 이 `learningObservation`·`repetitionItem` 을 지우지 않아 다음 운영 실행에도 수동 정리가 필요 — 정리 항목 추가 ② TalkBack·실기기 확인 ③ 추가 설명 품질 관찰(오정보 1/28) ④ A3 `stripAdditionalProperties` 후속.
