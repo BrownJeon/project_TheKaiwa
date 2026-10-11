@@ -1,7 +1,7 @@
 ---
 task_id: task-053
 title: "오늘의 단어 단계 우선 가중 — 천장(지금·목표 수준 중 높은 쪽) 위 단계 단어를 줄여 세트가 어려운 쪽으로 쏠리지 않게 (IMP-0028, 서버 모듈만)"
-status: doing
+status: done
 base_ref: 9b1675b
 risk_level: "R2"
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -94,3 +94,15 @@ demo_gate:
 - **백로그(범위 밖)**: 오늘의 단어 세트 생성 p50 ≈2초(변경 전부터, 풀 7,755 전체 조회·조립 의심, 미프로파일링).
 - 사용자 안내: 기본 `Profile.level` 이 N5 인 계정은 직접 추가한 N2·N1 단어가 오늘의 단어에 거의 안 나온다 → 설정에서 수준·목표를 올려야 보인다.
 - 2026-10-11 저녁 사용자 「053+054 푸시하고 배포 진행해줘」 → vault 기록 커밋 → 푸시 전 게이트(`git archive HEAD` 기준) → push → webhook 배포.
+
+## 배포 (2026-10-11 18:02~18:0x, Leader)
+- 푸시 전 게이트(최종 HEAD `3bca818`, 다른 task 작업트리와 분리된 `git archive` 기준): Prisma 생성 0 · tsc 0 · eslint 오류 0(경고 5) · 전체 시험 3,009/3,010(건너뜀 1) · `next build` 0.
+- `git push origin main` `18e6b98..3bca818`(5커밋: 053·054 src 각 1 + vault 3) → webhook blue/green **릴리스 `20261011-180237-3bca8188`** `RELEASE_RESULT ok`·`migrated:false`(스키마 변경 없음)·헬스 200(`env: PRODUCTION`·`status: ok`)·pm2 3개 online(재시작 0). 이전 릴리스 `20261011-121420-0250368d` = `scripts/deploy.sh TheKaiwa --rollback` 대상.
+- 운영 읽기 전용 스모크(QA2 쿠키, 쿠키 즉시 삭제): `/api/health`·`/api/app/version`·`/api/v1/settings/profile`·`/api/v1/corrections?status=ACCEPTED&limit=1`·`/study/ai`·`/study/today`·`/plan`·`/drawer/words`·`/settings`·`/ask` **10경로 모두 200**. 053 의 분포 효과는 세트 생성(쓰기) 호출이라 운영에서 직접 보지 않았다 — QA 라이브 PASS 가 근거.
+
+## 최종 요약 (사용자용)
+- **무엇이 바뀌었나**: 오늘의 단어가 「지금 수준·목표 수준 중 높은 쪽」(천장)을 넘는 어려운 단어로 쏠리지 않습니다. 천장 바로 위 1단계는 ×0.3, 2단계는 ×0.05, 3단계 이상은 0(후보가 모자랄 때만 채움용)으로 뽑힙니다. 내 단어장 세트에만 적용되고 주제 세트·다시 하기는 그대로입니다. QA 라이브: 천장 N5 에서 N5 68.8%·N4 22.0%·N3 9.3%·N2/N1 0장(변경 전엔 N1 41.5%).
+- **알아 둘 것**: 기본 수준(`Profile.level`)이 N5 이면 직접 추가한 N2·N1 단어가 오늘의 단어에 거의 안 나옵니다 — 설정에서 수준이나 목표를 올려야 보입니다.
+- **QA 보고 정정**: QA 가 낸 지연 +356ms 「기준 초과」는 측정 스크립트 결함(변경 전 서버가 대신 응답)이었고 코드가 더한 비용은 실측 약 2ms 입니다. replay 「주의」는 설계 그대로(새 시드로 다시 섞음)였습니다.
+- **라이브로 못 본 것**: 주제 세트가 천장을 안 받는지는 변경이 없다는 diff 근거만 있습니다.
+- **백로그**: 오늘의 단어 세트를 만드는 데 변경 전부터 약 2초 걸립니다(풀 7,755개 전체 조회·조립 의심, 미프로파일링).

@@ -1,7 +1,8 @@
 ---
 task_id: task-054
 title: "역할극 목표 카드 표현 칩에 번역(한국어 뜻) 표시 — 「번역」 표시 스위치를 따른다 (IMP-0029, light 트랙)"
-status: doing
+status: review
+waiting: device_verify
 base_ref: 9b1675b
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -84,3 +85,8 @@ demo_gate:
 ## 감사 결과 (2026-10-11 저녁, Leader)
 - **REV-183 PASS**(Critical 0·High 0·Medium 0·Low 1) — [[task-053-054-rev-record]]. light 트랙이라 QA·데모 게이트 면제.
 - 2026-10-11 저녁 사용자 「053+054 푸시하고 배포 진행해줘」 → task-053 과 함께 push·배포. **배포 뒤 사용자 폰 확인이 닫는 조건**: 긴 한국어 뜻이 360/390/412 폭에서 줄바꿈되는지·`GOAL_REGION_MAX` 안에서 스크롤되는지·설정에서 「번역」을 켠 직후 방 안 목표 카드에 뜻이 바로 나오는지.
+
+## 배포 (2026-10-11 18:02~18:0x, Leader)
+- task-053 과 같은 push·릴리스 — **릴리스 `20261011-180237-3bca8188`**(`RELEASE_RESULT ok`·`migrated:false`·헬스 200·pm2 3개 online, 롤백 대상 `20261011-121420-0250368d`), 게이트·스모크 증빙은 [[task-053-improve-today-words-level-weight]] 「배포」 참고.
+- 새 코드가 번들에 들어갔는지: 추가한 칩 줄의 클래스 문자열을 담은 정적 청크가 이전 릴리스 5개 → 새 릴리스 6개(+1). 화면 동작 자체는 이 환경에서 볼 수 없다(운영 역할극 방은 로그인 + 진행 중 방이 필요).
+- **상태 `review` / `waiting: device_verify`** — 사용자 폰에서 역할극 방 목표 카드를 펼쳐 「번역」 표시를 켠 상태로 각 표현 칩 아래에 한국어 뜻이 나오는지, 꺼면 사라지는지, 긴 뜻이 줄바꿈되는지 확인하면 닫는다(IMP-0029 도 그때 done).
