@@ -1,8 +1,7 @@
 ---
 task_id: task-052
 title: "카카오톡 공유하기 수신 — 안드로이드 공유(text/plain) 대상 등록 + 오늘의 회화 붙여넣기 화면 자동 채움 (IMP-0004, 네이티브·APK)"
-status: review
-waiting: device_verify
+status: done
 base_ref: df9df75
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -161,3 +160,14 @@ demo_gate:
 - **공개 후 확인**: `/api/app/version` — 헤더 없음 `latest 1.0.3·latestCode 4` · 구 앱(build 3) `updateAvailable·reinstallRequired true, updateRequired false` · 새 앱(build 4) 전부 false · build 1 `updateRequired true`(기존 규칙). 다운로드 `latest.apk` 로컬·공개 도메인 모두 200·35,216,161 bytes·**sha256 기록값과 일치**.
 - **네이티브 변경 고지(CLAUDE.md 금기 이행)**: 이 배포에는 네이티브 변경(Manifest `ACTION_SEND` 필터·`MainActivity`·`SharedTextPlugin`)이 있어 **사용자 폰에서 APK 재설치(덮어쓰기)가 필요**하다. 설치 후 실기기 확인은 위 「사용자 TODO」.
 - dev-N 의 로컬 APK(`thekaiwa-apk-052n/out/…-4.apk`)는 L-1 수정 이전 빌드라 **쓰지 않았다**(게시본은 push 된 HEAD 에서 새로 빌드).
+
+## 사용자 확인 (2026-10-11)
+- 원문 「APK업데이트 후에 검증완료했어. 이제 다음 작업 이어서 진행해줘」 — **APK 1.0.3 업데이트 후 사용자 검증 완료.** 어떤 항목을 봤는지·이상이 있었는지는 말씀이 없었으므로 「검증 완료」만 기록한다(세부 통과 항목을 추정해 적지 않는다). 사용자 TODO 의 ①카톡 「공유」 확인 ②실기기 확인은 이 보고로 종결로 본다.
+
+## 최종 요약 (Leader, 사용자용 — 2026-10-11)
+- **무엇을 했나**: 카카오톡(등 글 공유가 되는 앱)에서 글을 공유하면 Lingofy Japanese 가 공유 목록에 나오고, 선택하면 오늘의 회화 「문장 붙여넣기」 화면에 글이 채워진다. 꺼진 앱에서도, 켜진 앱에서도 동작하며, 로그인 전이면 로그인 뒤 같은 화면으로 돌아온다. 쓰던 글이 있으면 공유 글로 바꾸고 [쓰던 글로 되돌리기]를 주며, 2,000자를 넘으면 [2,000자에 맞춰 자르기]를 준다. 빈 공유는 토스트로 알린다. 공유 글은 [수업 만들기]를 누르기 전에는 서버로 나가지 않는다.
+- **구조**: 안드로이드 Manifest 에 `ACTION_SEND text/plain` 필터 → `MainActivity` 가 글을 **메모리에만** 보관(상한 1만 자·30분·한 번만 꺼냄·URL/로그/디스크에 안 남김) → 앱 셸 브리지(`peekSharedText`·`consumeSharedText`·`onSharedText`) → 붙여넣기 화면. 알림 접근 같은 자동 수집은 하지 않았다(사용자가 고른 글만 들어옴).
+- **품질 게이트**: 데모 v1 승인(D1~D6 A) · 감사 REV-181(PASS-with-fixes→수정)·REV-182 PASS · QA 레인 C(화면)·D(뒤로가기·호환성)·E(APK·Manifest) 모두 PASS · 푸시 전 게이트 · 운영 읽기 전용 스모크 · 게시 파일 직접 검사(sha256·서명자 동일).
+- **배포**: 웹 릴리스 `20261011-121420-0250368d`(task-051 과 함께) + **APK 1.0.3(versionCode 4, sha256 `943a014a…`)**, `AppRelease` 행 1개(`minSupported` 2 유지). 롤백: 웹 `--rollback`, APK 는 versionCode 4 행 삭제.
+- **남은 Low(백로그, 모두 웹만으로 수정 가능)**: ① `/paste?from=share` 풀 페이지 로드에서 `consumeSharedText` 2번 호출(첫 호출 실패 시에만 증상) ② `PlanScreen` 의 `replaceState(null, …)` 2곳 ③ QA 가 관찰한 [수업 만들기] 하단 위치 28px 차이(가이드 수치 정정) ④ `qa-admin` Attendance 1행 잔존.
+- **IMP-0004** → `done`.

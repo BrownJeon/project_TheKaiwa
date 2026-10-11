@@ -11,7 +11,7 @@ tags:
 - **웹**: 사용자 「푸시하고 배포 진행해줘」 → 푸시 전 게이트(최종 HEAD tsc 0·eslint 오류 0·시험 2,987/2,988·`next build` 0) → `git push origin main`(`869e28d..0250368`, 16커밋) → webhook blue/green **`20261011-121420-0250368d`** `RELEASE_RESULT ok`·`migrated:false`·헬스 200·pm2 3개 online. 운영 읽기 전용 스모크 9경로 200·출처 줄·단계 이름 번들 확인. 롤백 대상 `20261010-121054-869e28d6`.
 - **APK**: `build-apk.sh --publish`(push 된 HEAD) → **1.0.3 / versionCode 4 / 35,216,161 bytes / sha256 `943a014a…a0d4` / 서명자 `a4c23dca…`(1.0.2 와 동일 → 덮어쓰기 설치·로그인 유지)**. 게시 파일을 직접 검사(병합 Manifest `SEND text/plain` 필터·dex 클래스) 후 `AppRelease` 행 1개 삽입(`minSupported 2` 유지 — 강제 업데이트 없음, notes = D6 문구). `/api/app/version` 구 앱 `reinstallRequired true`·새 앱 false, 다운로드 sha256 로컬·공개 도메인 모두 일치. **네이티브 변경이라 사용자 폰에서 APK 덮어쓰기 설치 필요.**
 - **고지한 위험**: task-051 사용자 표본 검수 결과를 받지 못한 채 배포(출처 시트 「사람은 일부만 확인했어요」가 검수 전에는 사실과 다를 수 있음). 오류가 많으면 데이터 재생성·문구 수정을 웹 배포만으로 후속.
-- **사용자 TODO**(상태 task-051 `review/user_decision`, task-052 `review/device_verify`): ① task-051 표본 검수 ② 카톡 「공유」 실기기 확인(공유 목록 노출·머리말 여부) ③ 앱 업데이트 안내에서 1.0.3 설치 후 확인 — 공유 목록에 Lingofy Japanese, 꺼진/켜진 앱, 로그인 전, 되돌리기, 2,000자 자르기, 설정 「최상급 (N1)」 표시·출처 시트 ④ 임시 폴더 삭제.
+- **사용자 확인(2026-10-11)**: 「APK업데이트 후에 검증완료했어」 → **task-052 `done`·IMP-0004 `done`**(세부 항목 언급 없어 「검증 완료」만 기록). **task-051 은 `review/user_decision` 유지** — 사용자 표본 검수 확인이 남음(검증 완료 말씀이 표본 검수까지 포함하는지 불명). **사용자 TODO**: ① task-051 표본 검수(`task-051-sample-review.md`) ② 임시 폴더 삭제.
 - **남은 결정**: 오늘의 단어 단계 우선 가중(별도 task) · 같은 표기 다른 읽기 409 정책. **백로그**: `ShareReceiver` consume 2회(Low, 웹만으로 수정) · `PlanScreen` `replaceState(null)` · REV-180 Low · `qa-admin` Attendance 1행 · `scripts/seed-build` `〜` 규칙 정리.
 
 ## ★ 2026-10-10 밤(3) — 개선 백로그 착수: task-051(IMP-0007 N5 단어 팩)·task-052(IMP-0004 카톡 공유하기) 병행

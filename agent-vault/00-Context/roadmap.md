@@ -1,7 +1,7 @@
 ---
 type: roadmap
 project: TheKaiwa
-updated: 2026-10-06
+updated: 2026-10-11
 phases:
   - { id: 0, name: "스캐폴딩·6층 골격", status: done }
   - { id: 1, name: "Phase 1 음성·채팅·단어장 기반", status: done }
@@ -121,7 +121,7 @@ tags: [type/roadmap]
 - [x] (1) 단어 AI 보강 초안(제안) [[task-008-vocab-today-words]]
 - [x] (1) 기본 단어 팩 [[task-008-vocab-today-words]]
 - [x] (2) 조각 필터·조각 뱃지·단어 상세 소리 듣기 IMP-0001 IMP-0002 IMP-0003 [[task-023-improve-vocab-screen]]
-- [ ] (2) N5 단어 수 근거와 공개 목록 보강 IMP-0007
+- [~] (2) JLPT 5단계 기본 단어(초보자 (N5)~최상급 (N1) 7,755개)·목표 수준 보조 버튼·설정 출처 줄 — 배포됨, 사용자 표본 검수 대기 IMP-0007 [[task-051-improve-n5-vocab-pack]]
 - [ ] (3) 채택 교정 모음(서랍장 전체)
 
 ### /settings | 설정
@@ -327,7 +327,7 @@ tags: [type/roadmap]
 - [x] (1) 서버 연결 실패 화면과 앱 업데이트 띠 [[task-003f-android-ondevice-stt]]
 - [x] (1) APK 배포본·다운로드 주소·versionCode 관리 [[task-003f-android-ondevice-stt]]
 - [x] (1) 키보드가 입력창을 가리지 않음(APK 1.0.2) IMP-0008 [[task-021-improve-keyboard-inset]]
-- [ ] 카톡 등 외부 앱에서 공유하기로 학습 자료 받기 IMP-0004
+- [x] (2) 카톡 등 외부 앱에서 공유하기로 학습 자료 받기(APK 1.0.3, 사용자 실기기 검증 완료) IMP-0004 [[task-052-improve-kakao-share-target]]
 
 ### sherpa-stt | 온디바이스 음성 인식 플러그인
 - [x] (1) Kotlin 플러그인(sherpa-onnx·VAD) [[task-003f-android-ondevice-stt]]
