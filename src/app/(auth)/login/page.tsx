@@ -10,6 +10,7 @@
 import { isGoogleLoginEnabled } from '@/modules/infra/auth/oauth/config'
 import { APP_TAGLINE } from '@/components/common/brand'
 import AppUpdateBanner from '@/components/shell/AppUpdateBanner'
+import { isShareCallback, SHARE_LOGIN_NOTE } from '@/components/shell/shareTarget'
 import AppLoginArea, { AppOnlyLoginNote } from './AppLoginArea.client'
 
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,7 @@ export default async function LoginPage({
   const errorCode = firstParam(sp.oauth_error)
   const message = errorCode ? (ERROR_MESSAGES[errorCode] ?? ERROR_MESSAGES.failed) : null
   const configured = isGoogleLoginEnabled()
+  const callbackUrl = firstParam(sp.callbackUrl)
 
   return (
     <>
@@ -84,8 +86,22 @@ export default async function LoginPage({
         </div>
       )}
 
+      {/* 공유하기로 받은 글을 들고 로그인하러 온 경우(task-052 D4-A). `from=share` 는 앱 셸만 만든다 — 앱 여부는 보지 않는다. */}
+      {isShareCallback(callbackUrl) && (
+        <p role="status" className="mb-2 flex items-start gap-2.5 rounded-[10px] bg-surface2 px-3.5 py-2.5 text-[13px] text-ink break-keep">
+          <span aria-hidden className="mt-px flex-none text-ink2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 15V3" />
+              <path d="M7 8l5-5 5 5" />
+              <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+            </svg>
+          </span>
+          <span>{SHARE_LOGIN_NOTE}</span>
+        </p>
+      )}
+
       {/* 버튼·앱 로그인 대기·딥링크 수신(`thekaiwa://` 로 돌아오는 것을 **여기서 받는다**)을 한 상태로 — 웹은 링크 그대로. */}
-      <AppLoginArea callbackUrl={firstParam(sp.callbackUrl)} />
+      <AppLoginArea callbackUrl={callbackUrl} />
 
       <p className="mt-3.5 text-center text-[12.5px] text-ink2">
         처음이라면 초대코드가 필요합니다.

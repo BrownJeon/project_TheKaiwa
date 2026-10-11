@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { APP_NAME, APP_TAGLINE } from '@/components/common/brand'
 import KeyboardInset from '@/components/shell/KeyboardInset'
+import ShareReceiver from '@/components/shell/ShareReceiver'
 
 export const metadata: Metadata = {
   title: APP_NAME,
@@ -32,6 +33,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body>
         <KeyboardInset />
+        {/* 공유하기로 앱이 열리면 붙여넣기 화면으로(task-052). 로그인 전 화면까지 덮어야 해 여기 둔다 — 앱이 아니면 아무 일도 없다. */}
+        <ShareReceiver />
         {children}
       </body>
     </html>

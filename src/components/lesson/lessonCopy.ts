@@ -111,6 +111,30 @@ export const PASTE = {
   blocked: '50자 이상 넣어 주세요 · 2,000자까지 넣을 수 있어요',
 } as const
 
+const fmtN = (n: number) => n.toLocaleString('ko-KR')
+
+/** 공유하기로 받은 글(task-052, screens §20-6 — 데모 v1 `SH` 그대로). */
+export const PASTE_SHARE = {
+  arrivedTitle: '공유한 글을 넣어 두었어요',
+  arrivedBody: '아직 아무 데도 보내지 않았어요. 확인하고 수업을 만들어 보세요.',
+  replacedTitle: '공유한 글로 바꿔 넣었어요',
+  replacedBody: (n: number) => `쓰던 글(${fmtN(n)}자)은 이 화면에 있는 동안 되돌릴 수 있어요.`,
+  replacedAction: '쓰던 글로 되돌리기',
+  restoredTitle: '쓰던 글로 되돌렸어요',
+  restoredBody: (n: number) => `공유한 글(${fmtN(n)}자)을 다시 넣을 수 있어요.`,
+  restoredAction: '공유한 글 다시 넣기',
+  lost: '공유한 글을 받지 못했어요. 다시 공유해 주세요.',
+  empty: '공유한 내용에 글이 없어요. 글을 골라 공유해 주세요.',
+} as const
+
+/** 2,000자 넘는 글 자르기 줄(D3-A — 공유든 직접 붙여넣기든 같은 규칙). */
+export const PASTE_TRIM = {
+  hint: (r: number) => `문장이 끝나는 곳에서 잘라 2,000자 안으로 맞춰요. 뒷부분 ${fmtN(r)}자는 빠져요.`,
+  action: '2,000자에 맞춰 자르기',
+  done: (r: number) => `뒷부분 ${fmtN(r)}자를 뺐어요.`,
+  undo: '되돌리기',
+} as const
+
 /** ⓓ 대기·실패 */
 export const GEN = {
   title: '수업 만들기',
