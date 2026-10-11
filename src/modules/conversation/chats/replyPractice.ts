@@ -9,6 +9,9 @@
  * - 엔진 `replyPractice`(fast·12s·재시도 없음) → `finalizeReplyPracticeResponse`. `ok:false`·엔진 오류·시간 초과는 5xx(`pr-error`) — 엔진 사용 불가(422)도
  *   5xx 로 바꾼다(화면은 422 를 다른 뜻으로 읽지 않지만 계약상 0/5xx 한 갈래).
  * - Trace 에는 수치·코드만(문장·보기·힌트·학습자 말 원문 0). 사용자당 동시 1건(프로세스 메모리) — 연타가 단일 슬롯을 두 번 잡지 않게.
+ * - 손님이 끊으면(`signal` = 라우트 `req.signal`, task-058) 엔진 호출을 멈추고 분류된 409 `CANCELLED` 로 조용히 끝낸다(500·오류 로그 없음, Trace 에는 `CANCELLED` 코드만).
+ *   잠금(`PRACTICE_BUSY`)은 `finally` 가 푼다 — 엔진이 실행 중이면 abort 즉시 거절되어 바로 풀리고, 큐에서 차례를 기다리는 중이면 차례가 올 때(앞선 호출이 끝난 뒤) 풀린다.
+ *   큐 대기분은 수용한 한계다: 재시도도 같은 큐 뒤에 서므로 기다리는 시간은 같다.
  */
 import type { ChatKind, JlptLevel } from '@prisma/client'
 import { ApiError, classifyError, prisma, type Tx } from '@/modules/infra'
@@ -19,6 +22,7 @@ import { buildReplyPracticeRequest, finalizeReplyPracticeResponse, REPLY_PRACTIC
 import { checkReplyPracticeShape, dropChoiceSet, type ReplyPracticeModel, type ReplyPracticeSuggestion } from '../structuredResponse/replyPractice'
 import { currentTurnLock, isMessageLocallyRunning, isStalePending } from '../orchestrator/locks'
 import { notFoundChat } from './index'
+import { cancelledError, isAbortError } from './requestCancel'
 import { loadRolePlayLearnerTexts } from './rolePlay'
 
 /** 마지막 메시지 판정·이전 대화에 읽는 최근 메시지 수(이전 대화는 프롬프트가 4턴만 싣는다 — 실패·진행 행이 끼어도 남도록 여유). */
@@ -137,7 +141,7 @@ export function engineFailure(e: unknown, message: string): unknown {
 
 const inFlight = new Set<string>()
 
-export async function suggestReply(userId: string, chatId: string, messageId: string, deps: ReplyPracticeDeps = replyPracticeDeps): Promise<ReplyPracticeResult> {
+export async function suggestReply(userId: string, chatId: string, messageId: string, deps: ReplyPracticeDeps = replyPracticeDeps, signal?: AbortSignal): Promise<ReplyPracticeResult> {
   if (!validId(chatId)) throw notFoundChat()
   if (!validId(messageId)) throw new ApiError('VALIDATION', 'messageId 형식이 올바르지 않습니다.', { field: 'messageId', reason: 'id' })
   const chat = await deps.readChat(userId, chatId)
@@ -178,8 +182,14 @@ export async function suggestReply(userId: string, chatId: string, messageId: st
   try {
     let r: LlmJsonResult<ReplyPracticeModel>
     try {
-      r = await deps.complete({ ...req, traceId })
+      r = await deps.complete({ ...req, traceId, ...(signal ? { signal } : {}) })
     } catch (e) {
+      // 이름만으로 취소로 보지 않는다: 요청에 실어 보낸 신호가 실제로 abort 됐을 때만. 어댑터가 자기 타이머로 만든 AbortError 가 새도 진짜 오류(504·502)가 로그 없는 409 로 둔갑하지 않게.
+      if (signal?.aborted === true && isAbortError(e)) {
+        steps.push({ name: 'REPLY_PRACTICE', ms: Date.now() - started, errorCode: 'CANCELLED' })
+        errorCode = 'CANCELLED'
+        throw cancelledError()
+      }
       steps.push({ name: 'REPLY_PRACTICE', ms: Date.now() - started, errorCode: classifyError(e).code })
       throw engineFailure(e, '대답 연습을 만들지 못했어요. 다시 시도해 주세요.')
     }
@@ -202,7 +212,7 @@ export async function suggestReply(userId: string, chatId: string, messageId: st
     return { messageId: target.id, ...suggestion }
   } catch (e) {
     status = 'ERROR'
-    errorCode = classifyError(e).code
+    errorCode ??= classifyError(e).code
     throw e
   } finally {
     inFlight.delete(userId)

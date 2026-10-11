@@ -10,6 +10,9 @@
  *   `INVALID`·엔진 오류·마지막 시도 검증 실패(`JsonSchemaError` — 엔진이 `extraCheck` 위반을 재시도 뒤에도 못 고치면 던진다)·시간 초과는 모두 같은 문구의 502(#170 과 같다) ·
  *   엔진 큐 포화 429 그대로.
  * - 사용자당 동시 1건(프로세스 메모리) 409 `DRAFT_BUSY`. Trace 에는 수치·코드·판 이름(`openingDraft@v2`)만 — 한국어·일본어·읽기 원문 0.
+ * - 손님이 끊으면(`signal` = 라우트 `req.signal`, task-058) 엔진 호출을 멈추고 분류된 409 `CANCELLED` 로 조용히 끝낸다(500·오류 로그 없음, Trace 에는 `CANCELLED` 코드만).
+ *   엔진 상한이 25초(1차+재시도)라 끊긴 호출이 슬롯을 쥐는 시간이 #169·#180 보다 길다. 잠금(`DRAFT_BUSY`)은 `finally` 가 푼다 — 엔진이 실행 중이면 abort 즉시,
+ *   큐에서 차례를 기다리는 중이면 차례가 올 때(앞선 호출이 끝난 뒤) 풀린다. 큐 대기분은 수용한 한계다: 재시도도 같은 큐 뒤에 서므로 기다리는 시간은 같다.
  */
 import type { JlptLevel } from '@prisma/client'
 import { ApiError, classifyError } from '@/modules/infra'
@@ -17,6 +20,7 @@ import { llm, newTraceId, recordTrace, type LlmJsonResult, type TraceRecord, typ
 import { getProfile } from '@/modules/preferences'
 import { buildOpeningDraftRequest, finalizeOpeningDraft, OpeningDraftInputError, OPENING_DRAFT_PROMPT_VERSION, OPENING_DRAFT_TOO_LONG_MESSAGE, type OpeningDraftRequest } from '../prompts/openingDraft'
 import { parseOpeningDraftBody, type OpeningDraftBody, type OpeningDraftResponse, type OpeningDraftWarning } from '../structuredResponse/openingDraftSchemas'
+import { cancelledError, isAbortError } from './requestCancel'
 
 /** 422 문구(Leader 확정) — 첫마디가 아닌 글·부적절한 글 모두 이 문구(사유를 구분해 알리지 않는다). */
 export const OPENING_DRAFT_REJECT_MESSAGE = '선생님이 처음 건넬 말을 적어 주세요. 예: 어서 오세요, 무엇을 드릴까요?'
@@ -68,7 +72,7 @@ function engineError(e: unknown): unknown {
   return new ApiError('ENGINE_ERROR', OPENING_DRAFT_FAIL_MESSAGE, { reason })
 }
 
-export async function runOpeningDraft(userId: string, body: OpeningDraftBody, deps: Pick<OpeningDraftRunDeps, 'complete' | 'trace'> = openingDraftRunDeps): Promise<OpeningDraftResult> {
+export async function runOpeningDraft(userId: string, body: OpeningDraftBody, deps: Pick<OpeningDraftRunDeps, 'complete' | 'trace'> = openingDraftRunDeps, signal?: AbortSignal): Promise<OpeningDraftResult> {
   let llmReq: OpeningDraftRequest
   try {
     llmReq = buildOpeningDraftRequest({ ko: body.ko, scenario: body.scenario })
@@ -87,8 +91,14 @@ export async function runOpeningDraft(userId: string, body: OpeningDraftBody, de
   try {
     let r: LlmJsonResult<OpeningDraftResponse>
     try {
-      r = await deps.complete({ ...llmReq, traceId })
+      r = await deps.complete({ ...llmReq, traceId, ...(signal ? { signal } : {}) })
     } catch (e) {
+      // 이름만으로 취소로 보지 않는다: 요청에 실어 보낸 신호가 실제로 abort 됐을 때만. 어댑터가 자기 타이머로 만든 AbortError 가 새도 진짜 오류(502·504)가 로그 없는 409 로 둔갑하지 않게.
+      if (signal?.aborted === true && isAbortError(e)) {
+        steps.push({ name: 'OPENING_DRAFT', ms: Date.now() - started, promptVersion: OPENING_DRAFT_PROMPT_VERSION, errorCode: 'CANCELLED' })
+        errorCode = 'CANCELLED'
+        throw cancelledError()
+      }
       steps.push({ name: 'OPENING_DRAFT', ms: Date.now() - started, promptVersion: OPENING_DRAFT_PROMPT_VERSION, errorCode: classifyError(e).code })
       throw engineError(e)
     }
@@ -116,7 +126,7 @@ export async function runOpeningDraft(userId: string, body: OpeningDraftBody, de
     throw new ApiError('ENGINE_ERROR', OPENING_DRAFT_FAIL_MESSAGE, { reason: 'DRAFT_INVALID' })
   } catch (e) {
     status = 'ERROR'
-    errorCode = classifyError(e).code
+    errorCode ??= classifyError(e).code
     throw e
   } finally {
     inFlight.delete(userId)
