@@ -2,7 +2,7 @@
 task_id: task-052
 title: "카카오톡 공유하기 수신 — 안드로이드 공유(text/plain) 대상 등록 + 오늘의 회화 붙여넣기 화면 자동 채움 (IMP-0004, 네이티브·APK)"
 status: review
-waiting: push_confirm
+waiting: device_verify
 base_ref: df9df75
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -152,3 +152,12 @@ demo_gate:
 - **고지**: QA 레인 E 가 AAR 1개를 운영 `thekaiwa-apk/.cache` 에서 읽기 전용으로 복사(수정 없음, sha256 고정값 일치). QA 레인 D 의 `qa-admin` 읽기 전용 이동으로 `qa-admin` 의 오늘자 Attendance 가 1행 늘어 남아 있음(id `cmv36o46f0029w1oz3qzgenq1`, 지시가 QA4 한정이라 지우지 않음).
 - **배포 계획(사용자 push·배포 승인 뒤, deployer)**: ① **웹 먼저** push(`git push origin main` → webhook blue/green, task-051 과 함께) ② **그다음 APK**: deployer 가 origin 기준으로 **다시 빌드**(dev-N 의 로컬 APK `thekaiwa-1.0.3-4.apk` 는 L-1 수정 이전 빌드라 **사용 금지**), `releases/thekaiwa-1.0.3.apk` 가 이미 있으면 덮어쓰지 말고 versionCode 를 올린다, `AppRelease.notes` 첫 줄 = 「카카오톡에서 글을 공유하면 바로 '문장으로 수업 만들기' 화면에 들어가요.」 ③ 사용자 폰에서 1.0.3 덮어쓰기 설치 → 실기기 확인(아래 사용자 TODO).
 - **상태**: `review` · `waiting: push_confirm`. 데모 게이트 `deactivate` 완료.
+
+## 배포 기록 (2026-10-11, Leader) — 웹 + APK 1.0.3
+- **웹**: task-051 과 같은 push·릴리스 `20261011-121420-0250368d`(`RELEASE_RESULT ok`, 헬스 200, pm2 3개 online) — `ShareReceiver`·붙여넣기 화면·로그인 한 줄·브리지가 운영에 올라감(구 APK 에서는 no-op).
+- **APK**: `bash scripts/build-apk.sh --publish`(NFS 작업 트리 = push 된 `0250368`, 작업 트리 깨끗) → `rc=0`. **versionCode 4 · versionName 1.0.3 · abi arm64-v8a · 35,216,161 bytes · debuggable 아님 · sha256 `943a014a3655bcdee9186ea9e6893cddb44d163a82d518f79cbec2c0d93ca0d4` · 서명자 SHA-256 `a4c23dca…9e47`(1.0.2 와 동일 → 덮어쓰기 설치·로그인 유지)**. 게시 파일 `DATA_ROOT/releases/thekaiwa-1.0.3.apk`(기존 1.0.0~1.0.2 파일 유지, 덮어쓰기 없음).
+- **공개 전 검증(게시될 파일 직접 검사)**: `aapt2` 병합 Manifest 에 `SEND`+`DEFAULT`+`text/plain` 필터, 기존 `MAIN/LAUNCHER`·`VIEW` 딥링크 필터 유지 · dex 에 `SharedTextHolder`·`SharedTextPlugin` · 크기가 1.0.2 보다 88바이트만 큰 것은 압축되지 않은 큰 네이티브 라이브러리가 대부분이라서(새 클래스 존재는 위 검사로 확인).
+- **`AppRelease` 행 1개 삽입**(운영·개발 공용 표, 환경 컬럼 없음): versionCode 4 · `1.0.3` · `thekaiwa-1.0.3.apk` · 위 sha256 · `minSupported 2`(변경 없음 — 강제 업데이트 없음) · notes = D6 문구 「카카오톡에서 글을 공유하면 바로 '문장으로 수업 만들기' 화면에 들어가요.」. 되돌려야 하면 versionCode 4 행 하나를 SQL 로 지우면 된다(앱 코드에는 삭제 경로 없음) → `/api/app/version` 이 다시 1.0.2 를 최신으로 돌려줌.
+- **공개 후 확인**: `/api/app/version` — 헤더 없음 `latest 1.0.3·latestCode 4` · 구 앱(build 3) `updateAvailable·reinstallRequired true, updateRequired false` · 새 앱(build 4) 전부 false · build 1 `updateRequired true`(기존 규칙). 다운로드 `latest.apk` 로컬·공개 도메인 모두 200·35,216,161 bytes·**sha256 기록값과 일치**.
+- **네이티브 변경 고지(CLAUDE.md 금기 이행)**: 이 배포에는 네이티브 변경(Manifest `ACTION_SEND` 필터·`MainActivity`·`SharedTextPlugin`)이 있어 **사용자 폰에서 APK 재설치(덮어쓰기)가 필요**하다. 설치 후 실기기 확인은 위 「사용자 TODO」.
+- dev-N 의 로컬 APK(`thekaiwa-apk-052n/out/…-4.apk`)는 L-1 수정 이전 빌드라 **쓰지 않았다**(게시본은 push 된 HEAD 에서 새로 빌드).
