@@ -3,28 +3,25 @@
 /**
  * 오늘 홈의 "오늘의 단어" 카드(screens.md §5-2 A 표). 상태 5가지 — 준비 · 풀던 세트(E3) · 빈 단어장 · 오늘 풀 단어 없음 · 오류.
  * 머리줄(제목 + 준비 상태의 "약 {m}분")은 모든 상태에서 같다. 첫 화면(≈780px) 안에 [시작하기]까지 들어와야 한다.
+ * task-059(§23-9 B): 푸는 방식을 고르지 않는다 — 새 세트는 늘 카드 우선. 방식 이름은 이전 4지선다 세트에만 붙는다(`modeTag`).
  */
 import Link from 'next/link'
 import Segmented from '@/components/common/Segmented'
 import { Btn, BtnRow, Card, ErrorBlock } from '@/components/common/ui'
 import type { SeedPack } from '@/types/seedPack'
-import type { CategoryCount, SessionSummary, VocabMode } from '@/types/vocab'
+import type { CategoryCount, SessionSummary } from '@/types/vocab'
+import { modeTag } from './cardFirst'
 import CategoryChips from './CategoryChips'
 import { countOptions, estimateMinutes } from './deck'
 import { formatSessionDate } from './format'
 import type { SeedLevels } from './hooks'
-import { inProgressNotes, MODE_LABEL, SEED_COPY } from './labels'
+import { inProgressNotes, SEED_COPY } from './labels'
 import { CardLoadingBody } from './TodaySkeleton'
 import { visibleCategories } from './validate'
 import { SeedPackButtons } from './WordsEmpty'
 
 export type WordsCardState = 'loading' | 'ready' | 'inProgress' | 'empty' | 'poolEmpty' | 'error'
 export type PoolEmptyKind = 'allDone' | 'category'
-
-const MODE_OPTIONS = [
-  { value: 'CHOICE', label: MODE_LABEL.CHOICE },
-  { value: 'FLIP', label: MODE_LABEL.FLIP },
-] as const
 
 const LINK_BTN = 'inline-flex min-h-[44px] items-center text-[13px] font-medium text-accent'
 
@@ -33,7 +30,6 @@ export default function TodayWordsCard({
   loadError,
   dailyWordCount,
   count,
-  mode,
   category,
   categories,
   archivedTotal,
@@ -48,7 +44,6 @@ export default function TodayWordsCard({
   seedingPack,
   finishing,
   onCount,
-  onMode,
   onCategory,
   onStart,
   onStartAll,
@@ -64,7 +59,6 @@ export default function TodayWordsCard({
   loadError: string | null
   dailyWordCount: number
   count: number
-  mode: VocabMode
   category: string | null
   categories: CategoryCount[] | null
   archivedTotal: number
@@ -80,7 +74,6 @@ export default function TodayWordsCard({
   seedingPack: SeedPack | null
   finishing: boolean
   onCount: (n: number) => void
-  onMode: (m: VocabMode) => void
   onCategory: (c: string | null) => void
   onStart: () => void
   onStartAll: () => void
@@ -191,8 +184,6 @@ export default function TodayWordsCard({
           ) : null}
           <p className="mb-1.5 mt-3 text-[12.5px] text-ink2">장수</p>
           <Segmented<number> size="sm" ariaLabel="카드 장수" options={counts} value={count} onChange={onCount} />
-          <p className="mb-1.5 mt-3 text-[12.5px] text-ink2">방식</p>
-          <Segmented<VocabMode> size="sm" ariaLabel="푸는 방식" options={MODE_OPTIONS} value={mode} onChange={onMode} />
           {showChips ? (
             <>
               <p className="mb-0.5 mt-3 text-[12.5px] text-ink2">분류</p>
@@ -252,7 +243,7 @@ export function InProgressBody({
       <p className="text-[15px] font-semibold">풀던 세트가 있어요</p>
       {chip ? <div className="mt-1">{chip}</div> : null}
       <p className="mt-0.5 text-[13px] text-ink2 break-keep">
-        {formatSessionDate(s.date, today) || '오늘'} 시작 · {MODE_LABEL[s.mode]} · {s.cardCount}장
+        {formatSessionDate(s.date, today) || '오늘'} 시작 · {modeTag(s.mode)}{s.cardCount}장
         {answered !== null ? ` 중 ${answered}장 답함` : ''}
       </p>
       {source}
@@ -282,7 +273,7 @@ export function InProgressBody({
   )
 }
 
-/** 챌린지 단어 카드의 내 단어장 패널 — 지금 카드 준비 몸통(장수·방식·분류·[시작하기]·오류)·빈 단어장·오늘 풀 단어 없음 그대로(task-044 E10). */
+/** 챌린지 단어 카드의 내 단어장 패널 — 지금 카드 준비 몸통(장수·분류·[시작하기]·오류)·빈 단어장·오늘 풀 단어 없음 그대로(task-044 E10). */
 export function MineSetPanel(props: Omit<Parameters<typeof TodayWordsCard>[0], 'embedded'>) {
   return <TodayWordsCard {...props} embedded />
 }

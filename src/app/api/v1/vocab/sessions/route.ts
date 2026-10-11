@@ -26,7 +26,8 @@ export const GET = withApi(async (req) => {
 })
 
 /**
- * #47 세트 생성 — 정답 미포함(CHOICE). 장수 생략 시 `Profile.dailyWordCount`. 진행 중 세트가 있으면 409 `{sessionId}`.
+ * #47 세트 생성 — `mode` 생략 시 카드 우선(FLIP + 카드 보기, task-059), `mode:'CHOICE'` 명시는 정답 미포함 보기 세트.
+ * 장수 생략 시 `Profile.dailyWordCount`. 진행 중 세트가 있으면 409 `{sessionId}`.
  * `topicId` 면 주제 세트: 그날 그 주제 첫 세트는 A12 새 단어를 동기로 만든다(요청 시작부터 큐 대기 포함 30초 — `startedAt`),
  * 손님이 끊으면(`req.signal`) 생성을 멈추고 세트를 만들지 않는다. 생성 중 두 번째 요청은 409 `{reason:'GENERATING'}`.
  */

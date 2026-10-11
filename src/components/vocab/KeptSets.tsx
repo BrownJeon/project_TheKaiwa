@@ -3,14 +3,15 @@
 /**
  * 보관한 세트(screens.md §5-2 A KeptSets, #48 `?kept=1`). 행을 누르면 결과 화면, [다시 풀기]는 #53(보관 세트만, F7).
  * 더 보기는 제자리에 이어 붙인다. 0개면 섹션을 그리지 않는다.
+ * 방식 이름은 이전 4지선다 세트에만 줄 끝에 붙는다(task-059 Leader 결정 1 — 이전 뒤집기 세트와 카드 우선 세트는 구분하지 않는다).
  */
 import Link from 'next/link'
 import { useState, type Ref } from 'react'
 import { apiGet } from '@/components/common/api'
 import { Btn, Section, SectionHeader } from '@/components/common/ui'
 import type { Paged, SessionSummary } from '@/types/vocab'
+import { modeTagAfter } from './cardFirst'
 import { formatSessionDate } from './format'
-import { MODE_LABEL } from './labels'
 
 export default function KeptSets({
   initial,
@@ -69,7 +70,7 @@ export default function KeptSets({
             <li key={s.id} className="flex min-h-[64px] min-w-0 items-center gap-2 px-3.5 py-2">
               <Link href={`/study/today/words/${encodeURIComponent(s.id)}`} className="min-w-0 flex-1 py-1">
                 <p className="truncate text-[15px]">
-                  {formatSessionDate(s.date, today)} · {s.cardCount}장 · {MODE_LABEL[s.mode]}
+                  {formatSessionDate(s.date, today)} · {s.cardCount}장{modeTagAfter(s.mode)}
                 </p>
                 <p className="text-[12px] text-ink2 tabular-nums">
                   맞힘 {s.correctCount} · 틀림 {s.wrongCount} · 건너뜀 {s.skippedCount}

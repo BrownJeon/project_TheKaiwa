@@ -205,3 +205,39 @@ test('pickNotice: 우선순위(강등 → 적게 만듦 → 이어 풀기 → �
   assert.deepEqual(pickNotice({ ...s, date: '2026-09-25' }, 0, null, '2026-09-27'), { kind: 'pastDate', date: '2026-09-25' })
   assert.equal(pickNotice(s, 0, null, '2026-09-27'), null)
 })
+
+// ── task-059 카드 우선 세트(추가 케이스 — 위 단언은 그대로) ─────────────────────────────────────
+
+const cardFirst: KeyContext = { ...base, mode: 'FLIP', peekable: true, choices: 'closed' }
+
+test('keyAction: 카드 우선 — C 로 열기/닫기(한글 자판 KeyC 포함), 열림이면 1~4 보기·Space 무시', () => {
+  assert.deepEqual(keyAction({ key: 'c' }, cardFirst), { type: 'choices' }, '닫힘 → 열기')
+  assert.deepEqual(keyAction({ key: 'C' }, { ...cardFirst, choices: 'open' }), { type: 'choices' }, '열림 → 닫기')
+  assert.deepEqual(keyAction({ key: 'ㅊ', code: 'KeyC' }, cardFirst), { type: 'choices' }, '한글 자판에서도 C 자리')
+  assert.deepEqual(keyAction({ key: 'c' }, { ...cardFirst, focusOnControl: true }), { type: 'choices' }, 'C 는 버튼 초점과 무관')
+  assert.deepEqual(keyAction({ key: '3' }, { ...cardFirst, choices: 'open' }), { type: 'choose', index: 2 })
+  assert.equal(keyAction({ key: '1' }, cardFirst), null, '닫힘에서 숫자는 무시')
+  assert.equal(keyAction({ key: ' ' }, { ...cardFirst, choices: 'open' }), null, '열림에서 Space 무시')
+  assert.equal(keyAction({ key: 'Enter' }, { ...cardFirst, choices: 'open' }), null, '열림에서 Enter 무시')
+  assert.deepEqual(keyAction({ key: ' ' }, cardFirst), { type: 'flip' }, '닫힘에서 Space = 뜻 보기')
+  assert.deepEqual(keyAction({ key: 's' }, { ...cardFirst, choices: 'open' }), { type: 'skip' }, '열림에서도 건너뛰기')
+  assert.deepEqual(keyAction({ key: 'ArrowRight' }, { ...cardFirst, choices: 'open' }), { type: 'next' })
+})
+
+test('keyAction: C 무시 — 뜻 보기 면·답한 카드·지난 카드·이전 세트·보기 없는 세트·입력창', () => {
+  assert.equal(keyAction({ key: 'c' }, { ...cardFirst, side: 'back' }), null, '뜻 보기 면')
+  assert.equal(keyAction({ key: 'c' }, { ...cardFirst, answered: true }), null)
+  assert.equal(keyAction({ key: 'c' }, { ...cardFirst, isCurrent: false }), null)
+  assert.equal(keyAction({ key: 'c' }, base), null, '이전 4지선다(choices 생략)')
+  assert.equal(keyAction({ key: 'c' }, { ...base, choices: 'closed' }), null, 'CHOICE 세트는 choices 가 와도 무시')
+  assert.equal(keyAction({ key: 'c' }, { ...cardFirst, choices: 'none' }), null, '보기 없는 세트·이전 뒤집기')
+  assert.equal(keyAction({ key: 'c', targetTag: 'input' }, cardFirst), null)
+  assert.equal(keyAction({ key: 'c', ctrlKey: true }, cardFirst), null)
+  assert.deepEqual(keyAction({ key: '1' }, { ...cardFirst, choices: 'none', side: 'back' }), { type: 'self', result: 'CORRECT' }, '뜻 보기 면 1·2 그대로')
+})
+
+test('pickNotice: noChoice 는 few·deleted 와 같은 최우선', () => {
+  const s = { cardCount: 6, requestedCount: 10, downgraded: false, replayOfId: null, date: '2026-09-25' }
+  assert.deepEqual(pickNotice(s, 0, 'noChoice', '2026-09-27', '주제 사유'), { kind: 'noChoice' })
+  assert.deepEqual(pickNotice(s, 3, 'noChoice', '2026-09-27'), { kind: 'noChoice' }, '이어 풀기보다 먼저(남긴 값은 첫 열기에만 있다)')
+})

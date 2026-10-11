@@ -14,7 +14,7 @@ import { readStore, writeStore } from '@/components/common/storage'
 import type { CreateSessionResult } from '@/types/vocab'
 import { putSession, VOCAB_KEYS } from './hooks'
 import { WAIT } from './topicCopy'
-import { parseTopicStart, type TopicStartToken } from './topicLogic'
+import { parseTopicStart, topicStartBody, type TopicStartToken } from './topicLogic'
 import { createTopicSetStarter, type StartFailure, type StarterState, type TopicSetStarter } from './topicSetStart'
 
 export function toStartFailure(e: unknown): StartFailure {
@@ -46,7 +46,7 @@ export function useTopicSetStart() {
     }
     setToken(t)
     const starter = createTopicSetStarter({
-      body: { topicId: t.topicId, count: t.count, mode: t.mode },
+      body: topicStartBody(t),
       post: (body, signal) => apiPost<CreateSessionResult>('/api/v1/vocab/sessions', body, { signal }),
       toFailure: toStartFailure,
       setTimer: (fn, ms) => setTimeout(fn, ms),
@@ -55,7 +55,7 @@ export function useTopicSetStart() {
         setState(s)
         if (s.kind === 'done') {
           writeStore('session', VOCAB_KEYS.topicStart, null)
-          putSession(VOCAB_KEYS.notice(s.session.id), s.session.downgraded ? 'few' : '')
+          putSession(VOCAB_KEYS.notice(s.session.id), s.noChoice ? 'noChoice' : s.session.downgraded ? 'few' : '')
           if (s.generation) putSession(VOCAB_KEYS.topicGen(s.session.id), JSON.stringify(s.generation))
           router.replace(`/study/today/words/${encodeURIComponent(s.session.id)}`)
         } else if (s.kind === 'resume') {

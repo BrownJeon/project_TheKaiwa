@@ -163,6 +163,11 @@ export interface KeyContext {
   peekable: boolean
   /** 초점이 버튼·링크에 있음 — Space/Enter 는 그 요소의 클릭에 맡긴다(이중 실행 방지) */
   focusOnControl: boolean
+  /**
+   * 카드 우선 세트(task-059)의 보기 상태 — `cardFirst.choicesState`. 생략·'none' 이면 지금 동작 그대로.
+   * 'closed' 면 C 로 열고, 'open' 이면 1~4 가 보기를 고르고 C 로 닫으며 Space·Enter 는 무시한다.
+   */
+  choices?: 'none' | 'closed' | 'open'
 }
 
 export type KeyIntent =
@@ -175,6 +180,7 @@ export type KeyIntent =
   | { type: 'flag' }
   | { type: 'reading' }
   | { type: 'skip' }
+  | { type: 'choices' }
 
 const EDITABLE_TAGS = new Set(['input', 'textarea', 'select'])
 
@@ -185,8 +191,8 @@ function digitOf(e: KeyLike): number | null {
   return null
 }
 
-/** 한글 자판에서도 같은 자리(F=ㄹ, R=ㄱ, S=ㄴ)가 먹게 `code` 를 먼저 본다. */
-function letterIs(e: KeyLike, letter: 'F' | 'R' | 'S'): boolean {
+/** 한글 자판에서도 같은 자리(F=ㄹ, R=ㄱ, S=ㄴ, C=ㅊ)가 먹게 `code` 를 먼저 본다. */
+function letterIs(e: KeyLike, letter: 'F' | 'R' | 'S' | 'C'): boolean {
   return e.code === `Key${letter}` || e.key.toUpperCase() === letter
 }
 
@@ -194,10 +200,12 @@ export function keyAction(e: KeyLike, ctx: KeyContext): KeyIntent | null {
   if (ctx.sheetOpen || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return null
   if (e.targetEditable || (e.targetTag && EDITABLE_TAGS.has(e.targetTag))) return null
 
+  const choices = ctx.choices ?? 'none'
   const digit = digitOf(e)
   if (digit !== null) {
     if (!ctx.isCurrent || ctx.answered) return null
     if (ctx.mode === 'CHOICE') return { type: 'choose', index: digit - 1 }
+    if (choices === 'open') return { type: 'choose', index: digit - 1 }
     // FLIP: 뒷면(또는 대체 흐름의 앞면)에서만 1=알았어요 · 2=몰랐어요
     if (ctx.side === 'back' || !ctx.peekable) {
       if (digit === 1) return { type: 'self', result: 'CORRECT' }
@@ -209,8 +217,13 @@ export function keyAction(e: KeyLike, ctx: KeyContext): KeyIntent | null {
   if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
     if (ctx.focusOnControl) return null
     if (ctx.answered) return { type: 'advance' }
+    if (choices === 'open') return null
     if (ctx.mode === 'FLIP' && ctx.isCurrent && ctx.side === 'front' && ctx.peekable) return { type: 'flip' }
     return null
+  }
+  if (letterIs(e, 'C')) {
+    if (choices === 'none' || ctx.mode !== 'FLIP') return null
+    return ctx.isCurrent && !ctx.answered && ctx.side === 'front' ? { type: 'choices' } : null
   }
   if (e.key === 'ArrowRight') return { type: 'next' }
   if (e.key === 'ArrowLeft') return { type: 'prev' }
@@ -277,20 +290,22 @@ export type DeckNotice =
   | { kind: 'pastDate'; date: string }
   /** 주제 세트 폴백 사유(task-044 — #47 직후 첫 열기만, 문구는 `topicLogic.topicReasonNotice`). */
   | { kind: 'topicReason'; text: string }
+  /** 보기를 하나도 만들지 못한 카드 우선 세트(task-059 — 세트를 만든 화면이 남긴 값으로만, `cardFirst.isNoChoiceSet`). */
+  | { kind: 'noChoice' }
 
 /**
- * 우선순위대로 하나만(few/deleted > topicReason > fewer > resume > pastDate). `stored` 는 세트를 만든 화면이 sessionStorage 에 남긴 강등 사유
+ * 우선순위대로 하나만(few/deleted/noChoice > topicReason > fewer > resume > pastDate). `stored` 는 세트를 만든 화면이 sessionStorage 에 남긴 강등·보기 없음 사유
  * (없으면 서버 `downgraded` 로 대신 판단). `topicReason` 은 주제 세트의 폴백 사유 문구(없으면 null).
  */
 export function pickNotice(
   session: Pick<VocabSessionInfo, 'cardCount' | 'requestedCount' | 'downgraded' | 'replayOfId' | 'date'>,
   answered: number,
-  stored: 'few' | 'deleted' | null,
+  stored: 'few' | 'deleted' | 'noChoice' | null,
   today: string,
   topicReason: string | null = null,
 ): DeckNotice | null {
   const fresh = answered === 0
-  if (stored === 'few' || stored === 'deleted') return { kind: stored }
+  if (stored === 'few' || stored === 'deleted' || stored === 'noChoice') return { kind: stored }
   if (fresh && session.downgraded) return { kind: session.replayOfId ? 'deleted' : 'few' }
   if (fresh && topicReason) return { kind: 'topicReason', text: topicReason }
   if (fresh && session.cardCount < session.requestedCount) return { kind: 'fewer', cardCount: session.cardCount }

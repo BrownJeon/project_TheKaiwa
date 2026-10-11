@@ -7,6 +7,8 @@
  * - **채점은 #50 응답으로만** 그린다(낙관적 채점 금지). 먼저 그리는 것은 표시(★)·읽기 토글뿐이고 실패하면 되돌린다(§5-10).
  * - #50·#51 은 `useAttemptQueue` 한 줄 큐로 보낸다. 언마운트해도 큐는 끝까지 보내고 화면 갱신만 막는다(`alive`).
  * - 답 0장 끝내기는 서버가 `ABANDONED`(기록 없음, F2)로 닫는다 → 오늘 홈으로 돌아가 안내한다.
+ * - 카드 우선 세트(task-059, screens.md §23-3): `FLIP` 세트 카드에 보기가 있으면 앞면에서 객관식을 열어(로컬 `open`) 고를 수 있다 — 고르면 #50 `chosenText`(서버 채점),
+ *   [알았어요]·[몰랐어요]면 `selfResult`. 한 카드에 둘 중 하나만 보낸다(뜻 보기 면에서는 보기를 열 수 없고, 답한 카드는 다시 보내지 않는다). 판정은 `cardFirst` 만 쓴다.
  * - 주제 세트(task-044): 처음 열 때 대기 화면이 남긴 #47 `generation` 을 한 번 읽어(ref — StrictMode 이중 effect 에도 같은 값) 출처 줄·사유 알림에 쓰고,
  *   #158 을 한 번 읽어 덱 챌린지 줄·끝내기 메모의 오늘 합계(`challengeCtx`)로 둔다(실패 = null → 줄 없음).
  */
@@ -25,6 +27,7 @@ import {
   pickNotice,
   type DeckNotice,
 } from './deck'
+import { blockedNextHint, canChoose, canToggleChoices, CARD_FIRST, deckHint, type DeckHint } from './cardFirst'
 import { todayKey } from './format'
 import { putSession, takeSession, useMediaQuery, useStoredPref, VOCAB_KEYS } from './hooks'
 import { FLASH, HINT } from './labels'
@@ -42,6 +45,8 @@ export interface DeckCard extends VocabCard {
   chosen?: string | null
   /** FLIP 앞면을 뒤집어 봤다(로컬) */
   flipped?: boolean
+  /** 카드 우선 세트에서 객관식 보기를 열었다(로컬 — 새로고침하면 닫힘, #49 다시 읽기에서는 `flipped` 처럼 유지) */
+  open?: boolean
 }
 
 export const SKIP = '__skip'
@@ -56,10 +61,10 @@ export interface Announce {
   after?: string
 }
 
-export type FocusTarget = { seq: number; kind: 'next' | 'first' }
+export type FocusTarget = { seq: number; kind: 'next' | 'first' | 'choicesBtn' }
 
 function toDeckCards(cards: VocabCard[]): DeckCard[] {
-  return (cards ?? []).map((c) => ({ ...c, pending: false, chosen: null, flipped: false }))
+  return (cards ?? []).map((c) => ({ ...c, pending: false, chosen: null, flipped: false, open: false }))
 }
 
 export function useVocabDeck(sessionId: string) {
@@ -73,7 +78,7 @@ export function useVocabDeck(sessionId: string) {
   const [cards, setCards] = useState<DeckCard[]>([])
   const [view, setView] = useState(0)
   const [exiting, setExiting] = useState(false)
-  const [hint, setHint] = useState<string | null>(null)
+  const [hint, setHint] = useState<DeckHint | null>(null)
   const [notice, setNotice] = useState<DeckNotice | null>(null)
   const [today, setToday] = useState('')
   const [finishResult, setFinishResult] = useState<FinishResult | null>(null)
@@ -112,7 +117,7 @@ export function useVocabDeck(sessionId: string) {
   }, [])
 
   const showHint = useCallback((msg: string) => {
-    setHint(msg)
+    setHint(deckHint(msg))
     if (hintTimer.current) clearTimeout(hintTimer.current)
     hintTimer.current = setTimeout(() => setHint(null), HINT_MS)
   }, [])
@@ -128,9 +133,15 @@ export function useVocabDeck(sessionId: string) {
   const apply = useCallback(
     (d: SessionDetail, kind: 'initial' | 'refresh', flashOnDone?: string) => {
       if (!alive.current) return
-      // 다시 맞출 때도 뒤집어 본 카드는 뒤집힌 채로 둔다(로컬 상태)
-      const flippedBefore = new Set(kind === 'refresh' ? cardsRef.current.filter((c) => c.flipped).map((c) => c.order) : [])
-      const next = toDeckCards(d.cards).map((c) => (flippedBefore.has(c.order) ? { ...c, flipped: true } : c))
+      // 다시 맞출 때도 뒤집어 본 카드·보기를 연 카드는 그대로 둔다(로컬 상태). 답이 와 있으면 보기 열림은 의미가 없다.
+      const before = kind === 'refresh' ? cardsRef.current : []
+      const flippedBefore = new Set(before.filter((c) => c.flipped).map((c) => c.order))
+      const openBefore = new Set(before.filter((c) => c.open).map((c) => c.order))
+      const next = toDeckCards(d.cards).map((c) =>
+        flippedBefore.has(c.order) || openBefore.has(c.order)
+          ? { ...c, flipped: flippedBefore.has(c.order), open: openBefore.has(c.order) && !isAnswered(c) }
+          : c,
+      )
       const t = todayKey()
       setToday(t)
       setSession(d.session)
@@ -155,7 +166,7 @@ export function useVocabDeck(sessionId: string) {
         const gen = d.session.topic ? genRef.current : null
         setGeneration(gen)
         const reason = d.session.topic ? topicReasonNotice(gen, d.session.topic) : null
-        setNotice(pickNotice(d.session, answered, stored === 'few' || stored === 'deleted' ? stored : null, t, reason))
+        setNotice(pickNotice(d.session, answered, stored === 'few' || stored === 'deleted' || stored === 'noChoice' ? stored : null, t, reason))
         if (d.session.topic && !chAsked.current) {
           chAsked.current = true
           fetchChallengeToday().then(
@@ -286,7 +297,7 @@ export function useVocabDeck(sessionId: string) {
     const cs = cardsRef.current
     const v = viewRef.current
     if (!isAnswered(cs[v])) {
-      showHint(mode === 'FLIP' ? HINT.selfFirst : HINT.answerFirst)
+      showHint(blockedNextHint(mode, cs[v]))
       return
     }
     if (v + 1 >= cs.length) {
@@ -331,6 +342,7 @@ export function useVocabDeck(sessionId: string) {
         pending: false,
         chosen: null,
         flipped: true,
+        open: false,
       })
       const correct = r.correctText ?? before?.meaning ?? ''
       if (r.answer === 'SKIPPED') say(`건너뛴 카드. 정답 ${correct}`)
@@ -375,10 +387,11 @@ export function useVocabDeck(sessionId: string) {
     return { i, c }
   }
 
+  /** 보기 고르기 — 이전 4지선다 세트, 또는 카드 우선 세트에서 보기를 연 카드만(카드별 판정). */
   const choose = (text: string) => {
-    if (mode !== 'CHOICE') return
     const g = answerGuard()
     if (!g) return
+    if (!canChoose(mode, g.c)) return
     const responseMs = clampResponseMs(elapsed())
     patchCard(g.i, { pending: true, chosen: text })
     send<AttemptResult>({ order: g.c.order, chosenText: text, responseMs, flagged: g.c.flagged })
@@ -402,6 +415,7 @@ export function useVocabDeck(sessionId: string) {
   const skip = () => {
     const g = answerGuard()
     if (!g) return
+    // 보기를 연 채 건너뛰어도 된다(§23-3 B 공통) — 응답이 오면 onAnswered 가 보기를 닫고, 실패하면 연 채로 돌아온다.
     patchCard(g.i, { pending: true, chosen: SKIP })
     send<AttemptResult>({ order: g.c.order, skipped: true })
       .then((r) => onAnswered(g.i, r, 'skip'))
@@ -410,8 +424,22 @@ export function useVocabDeck(sessionId: string) {
 
   const flip = () => {
     if (phase !== 'playing' || !card || answered || !peekable || card.flipped) return
-    patchCard(view, { flipped: true })
+    patchCard(view, { flipped: true, open: false })
+    say(CARD_FIRST.sr.flipped)
     setFocus((x) => ({ seq: x.seq + 1, kind: 'first' }))
+  }
+
+  /**
+   * 객관식 보기 열기/닫기(카드 우선 세트의 지금 카드·안 답함·앞면). 열어도 아무것도 기록하지 않는다.
+   * 초점: [객관식]·C 로 열면 첫 보기, C 로 닫으면 [객관식] — 카드 탭은 옮기지 않는다(§23-6 B).
+   */
+  const toggleChoices = (from: 'tap' | 'btn' | 'key') => {
+    if (phase !== 'playing' || exiting || !card || !isCurrent || answered || card.pending) return
+    if (!canToggleChoices(mode, card)) return
+    const open = !card.open
+    patchCard(view, { open })
+    say(open ? CARD_FIRST.sr.opened : CARD_FIRST.sr.closed)
+    if (from !== 'tap') setFocus((x) => ({ seq: x.seq + 1, kind: open ? 'first' : 'choicesBtn' }))
   }
 
   /** 표시(★) — 사용자 직접 행위라 먼저 그리고, 실패하면 되돌린다. 어느 카드든(E2 표시 전용 요청). */
@@ -483,6 +511,8 @@ export function useVocabDeck(sessionId: string) {
     selfGrade,
     skip,
     flip,
+    toggleChoices,
+    say,
     toggleFlag,
     toggleReading,
     next,

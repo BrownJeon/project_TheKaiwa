@@ -2,25 +2,18 @@
 
 /**
  * 오늘 탭 "오늘의 단어" — 챌린지 주제 모드(task-044 가이드 §3-3). 진행 중 챌린지에 단어 과제가 있을 때만 지금 카드 대신 그린다.
- * 장수 칩은 없다(장수 = 목표 장수). [시작하기]·[한 세트 더]는 대기 화면(`/study/today/words/new`)으로 간다 — 새 단어 생성 요청은 그 화면에서만 나간다.
+ * 장수 칩·방식 선택은 없다(장수 = 목표 장수, 세트는 늘 카드 우선 — task-059). [시작하기]·[한 세트 더]는 대기 화면(`/study/today/words/new`)으로 간다 — 새 단어 생성 요청은 그 화면에서만 나간다.
  * [내 단어장으로 풀기]는 카드 안 펼침(`aria-expanded`) — 지금 카드 준비 몸통 그대로(`MineSetPanel`), 챌린지에는 세지 않는다.
  */
 import Link from 'next/link'
-import Segmented from '@/components/common/Segmented'
 import { Btn, Card, ErrorBlock } from '@/components/common/ui'
 import type { ChallengeWordsTask } from '@/types/challenge'
-import type { SessionSummary, VocabMode } from '@/types/vocab'
+import type { SessionSummary } from '@/types/vocab'
 import { estimateMinutes } from './deck'
-import { MODE_LABEL } from './labels'
 import { CardLoadingBody } from './TodaySkeleton'
 import { WORDS_CARD } from './topicCopy'
 import { topicSourceLine, wipCardNotes, wordsCardKind, type ChallengeCtx } from './topicLogic'
 import { InProgressBody, MineSetPanel } from './TodayWordsCard'
-
-const MODE_OPTIONS = [
-  { value: 'CHOICE', label: MODE_LABEL.CHOICE },
-  { value: 'FLIP', label: MODE_LABEL.FLIP },
-] as const
 
 export function TopicChip({ text, sr }: { text: string; sr: string }) {
   return (
@@ -39,12 +32,10 @@ export default function TopicWordsCard({
   inProgress,
   today,
   tally,
-  mode,
   starting,
   finishing,
   mineOpen,
   mineProps,
-  onMode,
   onStartTopic,
   onFinish,
   onShowResult,
@@ -58,12 +49,10 @@ export default function TopicWordsCard({
   inProgress: { session: SessionSummary; answered: number | null } | null
   today: string
   tally: { sets: number; correct: number; wrong: number; skipped: number }
-  mode: VocabMode
   starting: boolean
   finishing: boolean
   mineOpen: boolean
   mineProps: Omit<Parameters<typeof MineSetPanel>[0], never>
-  onMode: (m: VocabMode) => void
   onStartTopic: () => void
   onFinish: () => void
   onShowResult: () => void
@@ -80,13 +69,6 @@ export default function TopicWordsCard({
       <TopicChip text={WORDS_CARD.chip(ctx.title)} sr={WORDS_CARD.chipSr} />
       {kind === 'todo' ? <span className="ml-auto flex-none text-[12px] text-ink2">약 {estimateMinutes(n)}분</span> : null}
     </div>
-  )
-
-  const modePicker = (
-    <>
-      <p className="mb-1.5 mt-3 text-[12.5px] text-ink2">{WORDS_CARD.modeLabel}</p>
-      <Segmented<VocabMode> size="sm" ariaLabel="푸는 방식" options={MODE_OPTIONS} value={mode} onChange={onMode} />
-    </>
   )
 
   let body: React.ReactNode
@@ -137,7 +119,6 @@ export default function TopicWordsCard({
           <b>{WORDS_CARD.shortMemoStrong}</b>
           {WORDS_CARD.shortMemo}
         </p>
-        {modePicker}
         <Btn className="mt-3 w-full" onClick={onStartTopic} aria-disabled={starting || undefined} aria-busy={starting || undefined}>
           {WORDS_CARD.oneMore}
         </Btn>
@@ -158,7 +139,6 @@ export default function TopicWordsCard({
       <div className="mt-2">
         <p className="text-[15px] font-semibold tabular-nums break-keep [overflow-wrap:anywhere]">{WORDS_CARD.todoHead(ctx.title, n, need)}</p>
         <p className="mt-0.5 text-[13px] text-ink2 break-keep">{WORDS_CARD.todoBody(n, need)}</p>
-        {modePicker}
         <Btn
           className="mt-3 w-full"
           onClick={onStartTopic}

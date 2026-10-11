@@ -17,8 +17,11 @@ const ROUTER = { push: () => {}, replace: () => {}, prefetch: () => {}, back: ()
 const render = (el: ReactElement) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: ROUTER as never }, el))
 const skeleton = read('vocab', 'TodaySkeleton.tsx')
 
-test('카드 높이 실측 상수 — 단어 305/285.5(370px 미만/이상), 회화 253.6, 평가 217.1/199.1(362px 미만/이상)', () => {
-  assert.deepEqual(TODAY_CARD_H.word, { narrow: 305, wide: 285.5, narrowBelow: 370 })
+// task-059: 단어 카드 값은 「방식」 줄(74.75px)을 뺀 클래스 합 임시값 — QA 가 실제 브라우저로 재측정한 뒤 실측값으로 바꾼다(screens.md §23-7 A).
+test('카드 높이 상수 — 단어 230.25/210.75(370px 미만/이상, 임시값 · QA 재측정), 회화 253.6, 평가 217.1/199.1(362px 미만/이상)', () => {
+  assert.deepEqual(TODAY_CARD_H.word, { narrow: 230.25, wide: 210.75, narrowBelow: 370 })
+  assert.equal(305 - TODAY_CARD_H.word.narrow, 74.75, '임시값 = task-046 실측 − 방식 줄(12 + 18.75 + 6 + 38)')
+  assert.equal(285.5 - TODAY_CARD_H.word.wide, 74.75)
   assert.deepEqual(TODAY_CARD_H.lesson, { narrow: 253.6, wide: 253.6, narrowBelow: 0 })
   assert.deepEqual(TODAY_CARD_H.eval, { narrow: 217.1, wide: 199.1, narrowBelow: 362 })
   assert.equal(TODAY_CARD_GAP, 18)
@@ -32,8 +35,8 @@ test('폭 경계는 클래스에 그대로 있다(min-[370px]·min-[362px]) · �
 
 test('높이 변수: 카드 전체 / 몸통(= 카드 − 테두리·여백·머리줄·간격 60.5)', () => {
   assert.equal(TODAY_CARD_CHROME_H, 60.5)
-  assert.deepEqual(cardHeightVars('word'), { '--h-n': '305px', '--h-w': '285.5px' })
-  assert.deepEqual(cardHeightVars('word', true), { '--h-n': '244.5px', '--h-w': '225px' })
+  assert.deepEqual(cardHeightVars('word'), { '--h-n': '230.3px', '--h-w': '210.8px' })
+  assert.deepEqual(cardHeightVars('word', true), { '--h-n': '169.8px', '--h-w': '150.3px' })
   assert.deepEqual(cardHeightVars('lesson', true), { '--h-n': '193.1px', '--h-w': '193.1px' })
   assert.deepEqual(cardHeightVars('eval', true), { '--h-n': '156.6px', '--h-w': '138.6px' })
 })
@@ -54,8 +57,8 @@ test('세 카드 자리표시 렌더 — 실제 제목 · 회색 블록 · 버�
   assert.match(html, /aria-busy="true"/)
   assert.match(html, /role="status" class="sr-only">불러오고 있어요</)
   assert.match(html, /aria-hidden="true"/)
-  assert.match(html, /--h-n:305px/)
-  assert.match(html, /--h-w:285\.5px/)
+  assert.match(html, /--h-n:230\.3px/)
+  assert.match(html, /--h-w:210\.8px/)
   assert.match(html, /--h-w:253\.6px/)
   assert.match(html, /--h-n:217\.1px/)
   // 첫 카드만 위 간격이 없고(실제 단어 카드와 같다) 나머지는 18px

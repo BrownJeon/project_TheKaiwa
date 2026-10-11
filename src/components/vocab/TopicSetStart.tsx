@@ -10,7 +10,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Btn, BtnRow, Card } from '@/components/common/ui'
 import { mmss } from '@/components/lesson/logic'
 import BackBar from '@/components/shell/BackBar'
-import { MODE_LABEL } from './labels'
 import { WAIT } from './topicCopy'
 import { useTopicSetStart } from './useTopicSetStart'
 
@@ -162,7 +161,7 @@ export default function TopicSetStart() {
         backHref="/study/today"
         backLabel={WAIT.back}
         title={WAIT.title}
-        subtitle={token ? WAIT.subtitle(token.title, MODE_LABEL[token.mode], token.count) : undefined}
+        subtitle={token ? WAIT.subtitle(token.title, token.count) : undefined}
       />
       <div className="min-w-0 px-4 pt-8">{body}</div>
       <p role="status" aria-live="polite" className="sr-only">

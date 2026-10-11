@@ -203,9 +203,9 @@ test('풀던 세트 카드(REV-125 M-1): 어제 시작한 주제 세트 · 오�
     renderToStaticMarkup(
       createElement(TopicWordsCard, {
         loadState: 'ready', loadError: null, ctx: c, task: w, inProgress: { session: s, answered: 3 }, today: TODAY,
-        tally: { sets: 0, correct: 0, wrong: 0, skipped: 0 }, mode: 'CHOICE', starting: false, finishing: false, mineOpen: false,
+        tally: { sets: 0, correct: 0, wrong: 0, skipped: 0 }, starting: false, finishing: false, mineOpen: false,
         mineProps: {} as Parameters<typeof TopicWordsCard>[0]['mineProps'],
-        onMode: noop, onStartTopic: noop, onFinish: noop, onShowResult: noop, onToggleMine: noop, onRetry: noop,
+        onStartTopic: noop, onFinish: noop, onShowResult: noop, onToggleMine: noop, onRetry: noop,
       }),
     )
   const y = card(sess(YDAY, topic(10)))

@@ -36,7 +36,6 @@ export const WORDS_CARD = {
   chipSr: '챌린지 주제: ',
   todoHead: (title: string, n: number, need: number) => `${q(title)} 새 단어 ${n}장 · 오늘 0/${need}장`,
   todoBody: (n: number, need: number) => `AI 가 매일 새로 만들어요 · 하루에 ${n}장 중 ${need}장 이상 풀면 오늘 단어 완료 · 나눠 풀어도 합쳐서 계산해요`,
-  modeLabel: '방식',
   start: '시작하기',
   startAria: (title: string, n: number) => `${q(title)} 새 단어 ${n}장 시작하기`,
   shortHead: (answered: number, need: number) => `오늘 ${answered}/${need}장 — ${Math.max(0, need - answered)}장 더 풀면 오늘 단어 완료`,
@@ -101,7 +100,8 @@ export const LESSON_CH = {
 export const WAIT = {
   title: '오늘의 단어',
   back: '오늘로',
-  subtitle: (title: string, mode: string, n: number) => `${q(title)} · ${mode} · ${n}장`,
+  /** 방식 이름 없음(task-059 — 세트는 늘 카드 우선). */
+  subtitle: (title: string, n: number) => `${q(title)} · ${n}장`,
   srQuiet: '세트를 만드는 중…',
   genTitle: (title: string) => `오늘의 ${q(title)} 새 단어를 만들고 있어요`,
   genBody: '보통 10~20초 걸려요',
@@ -143,7 +143,10 @@ export const REASON = {
   fail: (title: string) => `오늘은 새 단어를 만들지 못해 ${q(title)} 표현으로 골랐어요 · 다음 세트에서 다시 만들어 볼게요`,
   limit: (title: string) => `오늘 새 단어 만들기는 여기까지예요 · ${q(title)} 표현으로 골랐어요`,
   newDone: (title: string) => `오늘 새 단어는 다 풀었어요 — ${q(title)} 표현으로 이어서 풀어요`,
+  /** 이전 4지선다 주제 세트의 강등(이전 세트만 — 카드 우선 세트는 강등이 없다). */
   few: '뜻이 서로 다른 표현이 4개보다 적어서 이번엔 뒤집기 카드로 풀어요.',
+  /** 보기를 하나도 못 만든 카드 우선 주제 세트(task-059 §23-8 ⑤★ — 내 단어장 쪽 짝은 `DeckNotice`). */
+  noChoice: '뜻이 서로 다른 표현이 4개보다 적어서 이번엔 객관식 없이 풀어요.',
   fewer: (n: number) => `오늘 풀 수 있는 이 주제 카드가 ${n}장이라 ${n}장으로 만들었어요.`,
 } as const
 

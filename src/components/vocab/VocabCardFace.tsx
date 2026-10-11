@@ -6,6 +6,7 @@
  * 카드 영역은 스크롤할 수 없어(`touch-action:none`) 예문은 2줄·번역 1줄에서 자르고 전체는 결과 화면·단어 상세에서 본다.
  * `[한글]` 줄은 카드에 자리가 없을 때만 뺀다(C2-A, 번역 우선 — 예문 줄 → 그래도 넘치면 표제어 줄, 되돌림 없음) — 면을 그릴 때 재고, 드래그 중에는 재지 않는다.
  * **안에 버튼을 두지 않는다**(제스처 영역). `memo` — 드래그 중에는 transform 만 바뀌고 이 면은 다시 그리지 않는다.
+ * 카드 우선 세트(task-059): 앞면 안내는 `cardFirst.frontHint`, 보기를 열면 테두리 accent, 결과 띠는 그 카드를 답한 방식대로(객관식 = 맞았어요/틀렸어요).
  */
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AnnotationState } from '@/components/common/japanese/annotations'
@@ -13,7 +14,8 @@ import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import type { RubyPiece } from '@/modules/speech/reading/client'
 import type { VocabMode } from '@/types/vocab'
-import { isAnswered, surfaceSize, type CardSide } from './deck'
+import { answeredBy, frontHint } from './cardFirst'
+import { surfaceSize, type CardSide } from './deck'
 import { resultBand } from './labels'
 import type { DeckCard } from './useVocabDeck'
 
@@ -146,11 +148,12 @@ function VocabCardFace({
     if (next !== dropLevel) setDrop({ key: measureKey, level: next })
   }, [measureKey, dropLevel])
 
-  const shell = 'flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-line bg-surface p-4 shadow-sm'
+  const shell = 'flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border bg-surface p-4 shadow-sm'
 
   if (side === 'front') {
+    const hint = frontHint(mode, card, peekable)
     return (
-      <div ref={shellRef} className={shell}>
+      <div ref={shellRef} className={`${shell} ${card.open && hint ? 'border-accent' : 'border-line'}`}>
         <div className="flex h-6 flex-none justify-end">
           <Star on={card.flagged} />
         </div>
@@ -168,19 +171,15 @@ function VocabCardFace({
             {showReading ? <HangulLine state={hangul} size={15} /> : null}
           </div>
         </div>
-        {mode === 'FLIP' && !isAnswered(card) ? (
-          <p className="flex-none text-center text-[12px] text-ink2 break-keep">
-            {peekable ? '탭하면 뜻이 보여요' : '알았어요·몰랐어요를 누르면 뜻이 보여요'}
-          </p>
-        ) : null}
+        {hint ? <p className="flex-none text-center text-[12px] text-ink2 break-keep">{hint}</p> : null}
       </div>
     )
   }
 
-  const band = card.answer ? resultBand(card.answer, mode) : null
+  const band = card.answer ? resultBand(card.answer, answeredBy(card, mode) === 'choice' ? 'CHOICE' : 'FLIP') : null
   const meaning = card.correctText ?? card.meaning ?? ''
   return (
-    <div ref={shellRef} className={shell}>
+    <div ref={shellRef} className={`${shell} border-line`}>
       <div className="flex min-w-0 flex-none items-start gap-2">
         <div className="min-w-0 flex-1">
           <JaText

@@ -3,7 +3,7 @@
 /**
  * 단어장·오늘의 단어 공용 훅.
  *
- * 저장된 선택값(정렬·방식·분류·읽기)과 미디어 쿼리는 `useSyncExternalStore` 로 읽는다 — 서버 렌더는 기본값, 클라이언트는
+ * 저장된 선택값(정렬·분류·읽기)과 미디어 쿼리는 `useSyncExternalStore` 로 읽는다 — 서버 렌더는 기본값, 클라이언트는
  * 저장값으로 **하이드레이션 불일치 없이** 바뀐다. 저장소가 막힌 환경(사생활 모드·WebView 설정)에서도 이번 방문 동안은
  * 고른 값이 유지되도록 메모리 사본을 먼저 본다.
  */
@@ -16,6 +16,7 @@ import { seedLevelsFrom } from './labels'
 
 export const VOCAB_KEYS = {
   wordsSort: 'kaiwa.words.sort',
+  /** task-059 로 폐기(푸는 방식 선택 없음) — 읽지도 쓰지 않는다. `TodayHome` 이 마운트 때 옛 값을 지우려고 키만 남긴다. */
   mode: 'kaiwa.vocab.mode',
   category: 'kaiwa.vocab.category',
   readingDefault: 'kaiwa.vocab.readingDefault',

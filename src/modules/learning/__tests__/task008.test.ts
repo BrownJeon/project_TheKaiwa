@@ -166,7 +166,7 @@ test('#50 본문: 답 필드 정확히 하나·표시 전용(E2)·responseMs 0~6
 })
 
 test('#47 본문: count 5~30·mode·category ≤40, 생략 시 기본값', () => {
-  assert.deepEqual(parseCreateSessionBody({}), { count: undefined, mode: 'CHOICE', category: null })
+  assert.deepEqual(parseCreateSessionBody({}), { count: undefined, mode: 'FLIP', category: null })
   assert.deepEqual(parseCreateSessionBody({ count: 5, mode: 'FLIP', category: ' 일상 ' }), { count: 5, mode: 'FLIP', category: '일상' })
   assert.equal(parseCreateSessionBody({ count: 30, category: null }).count, 30)
   for (const bad of [{ count: 4 }, { count: 31 }, { count: 10.5 }, { mode: 'QUIZ' }, { category: 'c'.repeat(41) }, { category: 3 }, { seed: 'x' }]) {

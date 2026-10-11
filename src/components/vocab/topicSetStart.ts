@@ -1,18 +1,20 @@
 /**
  * 새 단어 대기 화면의 상태 기계(task-044 가이드 §3-5·E3·E4) — 순수 모듈(타이머·요청은 주입, 단위 테스트 대상).
  *
- * - `start()` = #47 `{topicId, count, mode, generate:true}`. 0.6초 전에는 아무것도 그리지 않고(`quiet`), 그 뒤 `gen`, 20초부터 `gen` long.
+ * - `start()` = #47 `{topicId, count, generate:true}`(task-059: `mode` 는 싣지 않는다 — 서버 기본 카드 우선). 0.6초 전에는 아무것도 그리지 않고(`quiet`), 그 뒤 `gen`, 20초부터 `gen` long.
  * - `skip()` = [주제 표현으로 바로 풀기] — **먼저 진행 중 요청을 취소**하고 새 컨트롤러로 `generate:false` 한 번.
  * - 409 `{reason:'GENERATING'}` 만 3초 간격 최대 5번 같은 요청을 다시 보낸다(같은 signal — 떠나면 멈춤). 시간 초과·실패는 서버가 폴백 세트를 주므로
  *   화면이 `generate:true` 를 다시 보내지 않는다(회화 첫 대답을 늦추는 A12 를 화면이 더 만들지 않게 — 설계서 §5-2).
  * - `dispose()` = 화면을 떠남 — 요청 취소·타이머 정리. 그 뒤 도착한 응답은 버리고 상태를 알리지 않는다.
  */
 import type { CreateSessionResult, EmptyReason, TopicGeneration, VocabMode, VocabSessionInfo } from '@/types/vocab'
+import { isNoChoiceSet } from './cardFirst'
 
 export interface TopicStartBody {
   topicId: string
   count: number
-  mode: VocabMode
+  /** 화면은 보내지 않는다(task-059 — 본문은 `topicStartBody`). 이 상태 기계는 받은 본문을 그대로 보내므로 선택 필드로만 남긴다. */
+  mode?: VocabMode
   generate: boolean
 }
 
@@ -26,7 +28,8 @@ export type StarterState =
   | { kind: 'inProgress'; sessionId: string | null }
   /** 이 화면이 취소한 앞 요청이 서버에서 이미 세트를 만들었다(409 `{sessionId}`) — 그 세트 덱으로 바로 간다. */
   | { kind: 'resume'; sessionId: string }
-  | { kind: 'done'; session: VocabSessionInfo; generation: TopicGeneration | null }
+  /** `noChoice` = 보기를 하나도 못 만든 카드 우선 세트(§23-4 D) — 참일 때만 키가 있다. */
+  | { kind: 'done'; session: VocabSessionInfo; generation: TopicGeneration | null; noChoice?: true }
 
 /** 요청 실패를 화면 분기용으로 줄인 값 — `ApiError` 를 모르는 순수 모듈이라 호출부가 바꿔 넘긴다. */
 export interface StartFailure {
@@ -96,7 +99,7 @@ export function createTopicSetStarter(d: StarterDeps) {
         if (disposed || c !== controller || c.signal.aborted) return
         requestOpen = false
         clearAll()
-        if (r.session) finish({ kind: 'done', session: r.session, generation: r.generation ?? null }, true)
+        if (r.session) finish({ kind: 'done', session: r.session, generation: r.generation ?? null, ...(isNoChoiceSet(r) ? { noChoice: true as const } : {}) }, true)
         else finish({ kind: 'empty', reason: r.empty.reason })
       },
       (e: unknown) => {

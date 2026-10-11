@@ -5,17 +5,21 @@
  *
  * 값과 그리는 곳은 `vocab/__tests__/todaySkeleton.test.ts` 가 묶어 둔다 — 한쪽만 바뀌면 시험이 깨진다.
  * 조건부 섹션(챌린지 띠·복습 카드·「곧 열려요」·통계·보관 세트)은 있을 때만 생기므로 자리표시에 넣지 않는다.
+ *
+ * ⚠ task-059: `word` 만 **실측이 아니라 클래스 합으로 계산한 임시값**이다 — QA 가 실제 브라우저로 재측정해 바꾼다(screens.md §23-7 A, `t3-heights.mjs` `ONLY=today`).
  */
 import type { CSSProperties } from 'react'
 
 /**
  * 카드 하나의 전체 높이(테두리 포함). `narrow` = `narrowBelow`px 보다 좁은 폭의 값(글줄이 한 줄 더 감긴다), `wide` = 그 이상.
- *  - word: 단어 카드 「준비」 상태(장수·방식·[시작하기]). 단어장이 비어 있으면 240, 분류가 둘 이상이면 이보다 크다(조건부).
+ *  - word: 단어 카드 「준비」 상태(장수·[시작하기]). 단어장이 비어 있으면 240 안팎(이제 이 값보다 크다 — §23-7 A), 분류가 둘 이상이면 이보다 크다(조건부).
+ *    **임시값(QA 재측정 필요)**: task-046 실측 305/285.5 에서 빠진 「방식」 줄(라벨 `mt-3` 12 + 12.5px×줄높이 1.5 = 18.75 + `mb-1.5` 6
+ *    + `Segmented sm` 3+32+3 = 38, 합 74.75)을 뺐다. 폭 경계 370 은 설명 문구(D8 A 그대로)의 줄바꿈이라 그대로 둔다.
  *  - lesson: 오늘의 회화 카드 시작 상태(추천 주제 + [오늘 수업 만들기]) — 폭과 무관.
  *  - eval: AI 평가 카드 시작 상태(두 갈래 타일).
  */
 export const TODAY_CARD_H = {
-  word: { narrow: 305, wide: 285.5, narrowBelow: 370 },
+  word: { narrow: 230.25, wide: 210.75, narrowBelow: 370 },
   lesson: { narrow: 253.6, wide: 253.6, narrowBelow: 0 },
   eval: { narrow: 217.1, wide: 199.1, narrowBelow: 362 },
 } as const

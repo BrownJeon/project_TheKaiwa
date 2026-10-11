@@ -274,7 +274,11 @@ export interface TopicStartToken {
   topicId: string
   title: string
   count: number
-  mode: 'CHOICE' | 'FLIP'
+  /**
+   * task-059 이전 화면이 남긴 값(배포 직후 60초 동안만 있을 수 있다). 읽어서 형식만 확인하고 **#47 본문에는 싣지 않는다** —
+   * 실으면 그 세트만 이전 4지선다로 만들어진다(§23-10 D 6). 새 화면은 쓰지 않는다.
+   */
+  mode?: 'CHOICE' | 'FLIP'
   wordsDone: boolean
   at: number
 }
@@ -294,9 +298,14 @@ export function parseTopicStart(raw: string | null, now: number): TopicStartToke
   const t = v as Partial<TopicStartToken>
   if (t.v !== 1 || typeof t.topicId !== 'string' || !t.topicId || typeof t.title !== 'string' || typeof t.at !== 'number') return null
   if (typeof t.count !== 'number' || !Number.isInteger(t.count) || t.count < 1) return null
-  if (t.mode !== 'CHOICE' && t.mode !== 'FLIP') return null
+  if (t.mode !== undefined && t.mode !== 'CHOICE' && t.mode !== 'FLIP') return null
   if (now - t.at > TOPIC_START_TTL_MS || t.at - now > TOPIC_START_TTL_MS) return null
-  return { v: 1, topicId: t.topicId, title: t.title, count: t.count, mode: t.mode, wordsDone: t.wordsDone === true, at: t.at }
+  return { v: 1, topicId: t.topicId, title: t.title, count: t.count, ...(t.mode ? { mode: t.mode } : {}), wordsDone: t.wordsDone === true, at: t.at }
+}
+
+/** 대기 화면이 #47 로 보내는 값(`generate` 제외) — 주제·장수만. 토큰에 옛 `mode` 가 있어도 싣지 않는다(서버 기본 = 카드 우선). */
+export function topicStartBody(t: Pick<TopicStartToken, 'topicId' | 'count'>): { topicId: string; count: number } {
+  return { topicId: t.topicId, count: t.count }
 }
 
 /** #47 응답의 `generation` 을 덱 첫 열기로 넘기는 값의 해석(형식이 틀리면 null). */

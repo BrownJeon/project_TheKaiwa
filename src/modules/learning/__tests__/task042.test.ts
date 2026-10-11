@@ -641,9 +641,9 @@ test('#47 주제 접근: 없는 주제·남의 주제 404(LLM 0) · 본문 검�
   assert.throws(() => parseCreateSessionBody({ generate: false }), code('VALIDATION'))
   assert.throws(() => parseCreateSessionBody({ topicId: TOPIC, generate: 'no' }), code('VALIDATION'))
   assert.throws(() => parseCreateSessionBody({ topicId: 7 }), code('VALIDATION'))
-  assert.deepEqual(parseCreateSessionBody({ topicId: TOPIC }), { count: undefined, mode: 'CHOICE', category: null, topicId: TOPIC, generate: true })
-  assert.deepEqual(parseCreateSessionBody({ topicId: TOPIC, generate: false }), { count: undefined, mode: 'CHOICE', category: null, topicId: TOPIC, generate: false })
-  assert.deepEqual(parseCreateSessionBody({}), { count: undefined, mode: 'CHOICE', category: null }, '주제 세트가 아니면 칸 없음(기존 응답 모양 그대로)')
+  assert.deepEqual(parseCreateSessionBody({ topicId: TOPIC }), { count: undefined, mode: 'FLIP', category: null, topicId: TOPIC, generate: true })
+  assert.deepEqual(parseCreateSessionBody({ topicId: TOPIC, generate: false }), { count: undefined, mode: 'FLIP', category: null, topicId: TOPIC, generate: false })
+  assert.deepEqual(parseCreateSessionBody({}), { count: undefined, mode: 'FLIP', category: null }, '주제 세트가 아니면 칸 없음(기존 응답 모양 그대로)')
 })
 
 test('#47 빈 상태: 오늘 기본 표현을 다 답했고 새 단어가 없으면 TOPIC_ALL_DONE_TODAY(CTA MY_WORDS) / 조각 0 주제 TOPIC_EMPTY', async () => {
@@ -678,7 +678,7 @@ test('#51 주제 세트 끝내기: 반복 항목(AiWord→Expr·TopicChunk→CHU
   assert.equal(h.db.wordCreates, 0)
 })
 
-test('#53 주제 세트 다시 풀기: 주제 세트로(topicId·refType/refId 복사, LLM 0) · 보기는 주제 풀 기준(CHOICE 유지) · topic 수 같음', async () => {
+test('#53 주제 세트 다시 풀기: 주제 세트로(topicId·refType/refId 복사, LLM 0) · 보기는 주제 풀 기준(새 세트는 카드 우선 FLIP — task-059) · topic 수 같음', async () => {
   const h = harness()
   const r = created(await create(h, { count: 10 }))
   h.db.answer(r.session.id, { 0: 'CORRECT' })
@@ -686,14 +686,14 @@ test('#53 주제 세트 다시 풀기: 주제 세트로(topicId·refType/refId �
   const tx = h.db.tx()
   const rep = await replayVocabSession(U, r.session.id, { transaction: (fn) => fn(tx) })
   assert.equal(h.calls.length, 1, '다시 풀기는 LLM 을 부르지 않는다')
-  assert.equal(rep.session.mode, 'CHOICE', '주제 풀 뜻으로 보기를 만든다(wordId=null 이어도 FLIP 강등 없음)')
+  assert.equal(rep.session.mode, 'FLIP', '원래 CHOICE 여도 새 세트는 카드 우선(계약 #53) — 보기는 주제 풀 뜻으로 만든다')
   assert.equal(rep.session.replayOfId, r.session.id)
   assert.deepEqual(rep.session.topic, r.session.topic)
   const copied = h.db.attempts.filter((a) => a.sessionId === rep.session.id)
   const orig = h.db.attempts.filter((a) => a.sessionId === r.session.id)
   assert.deepEqual(copied.map((a) => `${a.refType}:${a.refId}`).sort(), orig.map((a) => `${a.refType}:${a.refId}`).sort())
   assert.equal((h.db.sessions.at(-1) as Row).topicId, TOPIC)
-  for (const c of rep.cards) assert.ok(c.choices?.length === 4 && !('meaning' in c))
+  for (const c of rep.cards) assert.ok(c.choices?.length === 4 && c.meaning === orig.find((a) => a.surfaceSnap === c.surface)?.meaningSnap)
 })
 
 // ── 6. 보강(신규 소환 developer) — 생성 중 표시 범위·벽시계 기준·이전 표기 제외·스냅샷 불변 ─────────────────

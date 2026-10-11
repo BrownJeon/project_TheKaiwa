@@ -6,7 +6,8 @@
  * 보관(#52)·다시 풀기(#53)는 응답 뒤에 반영한다. 다시 풀기는 **보관한 세트만**(F7).
  * 여기서는 `main` 이 스크롤되고(BackBar sticky) 탭 바가 없어서 하단 Toast 를 쓴다.
  * 주제 세트(task-044 가이드 §3-8): 결과 숫자 위 챌린지 상자(#51 `challenge` — 방금 끝냈을 때만) · 숫자 아래 주의 한 줄 · 카드 행마다 [단어장에 넣기].
- * 단어장에는 사용자가 누른 카드만 들어간다(자동 추가 0). [한 세트 더]는 대기 화면으로 간다(같은 주제·장수·방식).
+ * 단어장에는 사용자가 누른 카드만 들어간다(자동 추가 0). [한 세트 더]는 대기 화면으로 간다(같은 주제·장수 — 방식은 싣지 않는다, task-059).
+ * task-059(D5, §23-9 C): 한 세트에 객관식 답과 스스로 답이 섞이면 합산 타일 아래 구분 한 줄과 목록의 방식 뱃지를 보인다 — 방식은 카드의 `chosenText` 유무로 센다(`cardFirst`).
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -16,19 +17,18 @@ import { toErr } from '@/components/common/errors'
 import Toast, { useToast } from '@/components/common/Toast'
 import { Btn, BtnRow, Card } from '@/components/common/ui'
 import BackBar from '@/components/shell/BackBar'
-import type { CreateSessionResult, FinishResult, VocabCard, VocabMode, VocabSessionInfo, WordSaveResponse } from '@/types/vocab'
+import type { CreateSessionResult, FinishResult, VocabCard, VocabSessionInfo, WordSaveResponse } from '@/types/vocab'
 import type { AddState } from './AddToWordbookButton'
+import { isMixed, isNoChoiceSet, methodTally, modeTag, resultVerb, splitLine } from './cardFirst'
 import ChallengeResultBox from './ChallengeResultBox'
 import { tallyCards } from './deck'
 import { formatDuration, formatSessionDate } from './format'
-import { putSession, useStoredPref, VOCAB_KEYS } from './hooks'
-import { actionErrorText, FLASH, MODE_LABEL } from './labels'
+import { putSession, VOCAB_KEYS } from './hooks'
+import { actionErrorText, FLASH } from './labels'
 import { ADD, q, RESULT_CH } from './topicCopy'
 import { addBody, resultChallengeView } from './topicLogic'
 import { writeTopicStart } from './useTopicSetStart'
 import WordResultList from './WordResultList'
-
-const MODES = ['CHOICE', 'FLIP'] as const satisfies readonly VocabMode[]
 
 function StatTile({ label, value, tone }: { label: string; value: number; tone: 'good' | 'bad' | 'none' }) {
   const top = tone === 'good' ? 'border-t-good' : tone === 'bad' ? 'border-t-bad' : 'border-t-ink3'
@@ -63,7 +63,6 @@ export default function VocabResult({
   const [replaying, setReplaying] = useState(false)
   const [addState, setAddState] = useState<Record<number, AddState>>({})
   const [oneMoreBusy, setOneMoreBusy] = useState(false)
-  const [prefMode] = useStoredPref<VocabMode>(VOCAB_KEYS.mode, session.mode, MODES)
   const { show } = toast
 
   useEffect(() => {
@@ -79,6 +78,9 @@ export default function VocabResult({
   const skipped = session.skippedCount ?? finish?.session.skippedCount ?? Math.max(0, n - t.correct - t.wrong)
   const duration = formatDuration(session.durationSec ?? finish?.session.durationSec ?? null)
   const flagged = t.flagged
+  const byMethod = methodTally(cards, session.mode)
+  const split = splitLine(byMethod)
+  const mixedMode = isMixed(byMethod) ? session.mode : null
   const kept = !!session.keptAt
   const base = `/api/v1/vocab/sessions/${encodeURIComponent(session.id)}`
 
@@ -104,7 +106,8 @@ export default function VocabResult({
     try {
       const r = await apiPost<CreateSessionResult>(`${base}/replay`)
       if (r.session) {
-        if (r.session.downgraded) putSession(VOCAB_KEYS.notice(r.session.id), 'deleted')
+        const notice = isNoChoiceSet(r) ? 'noChoice' : r.session.downgraded ? 'deleted' : ''
+        if (notice) putSession(VOCAB_KEYS.notice(r.session.id), notice)
         router.push(`/study/today/words/${encodeURIComponent(r.session.id)}`)
         return
       }
@@ -147,18 +150,18 @@ export default function VocabResult({
   const oneMore = () => {
     if (!topic || oneMoreBusy) return
     setOneMoreBusy(true)
-    writeTopicStart({ topicId: topic.id, title: topic.title, count: session.requestedCount || n, mode: prefMode, wordsDone: false })
+    writeTopicStart({ topicId: topic.id, title: topic.title, count: session.requestedCount || n, wordsDone: false })
     router.push('/study/today/words/new')
   }
 
   return (
     <>
-      <BackBar backHref="/study/today" backLabel="오늘로" title="세트 결과" subtitle={`${dateLabel} · ${MODE_LABEL[session.mode]} · ${n}장${topic ? ` · ${q(topic.title)}` : ''}`} sticky />
+      <BackBar backHref="/study/today" backLabel="오늘로" title="세트 결과" subtitle={`${dateLabel} · ${modeTag(session.mode)}${n}장${topic ? ` · ${q(topic.title)}` : ''}`} sticky />
       <div className="mx-auto w-full min-w-0 max-w-[520px] px-4 pb-8 pt-3">
         {chView && topic ? <ChallengeResultBox view={chView} title={topic.title} onOneMore={oneMore} oneMoreBusy={oneMoreBusy} /> : null}
         <Card>
           <p className="text-[22px] font-semibold break-keep">
-            {n}장 중 {correct}장 {session.mode === 'FLIP' ? '알았어요' : '맞혔어요'}
+            {n}장 중 {correct}장 {resultVerb(cards, session.mode)}
           </p>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <StatTile label="맞힘" value={correct} tone="good" />
@@ -168,6 +171,7 @@ export default function VocabResult({
           <p className="mt-2 text-[13px] text-ink2 break-keep">
             {duration ? `걸린 시간 ${duration} · ` : ''}다시 볼 카드 {flagged}장
           </p>
+          {split ? <p className="mt-1 text-[13px] text-ink2 break-keep">{split}</p> : null}
           {session.replayOfId ? <p className="text-[12px] text-ink2 break-keep">보관한 세트를 다시 푼 결과예요.</p> : null}
         </Card>
         {topic ? <p className="mt-2 text-[12.5px] text-ink2 break-keep">{topic.aiCardCount > 0 ? RESULT_CH.cautionAi : RESULT_CH.cautionTopic}</p> : null}
@@ -200,12 +204,13 @@ export default function VocabResult({
           note={topic ? RESULT_CH.wrongNote : undefined}
           cards={wrongCards}
           showResult={false}
+          mixedMode={mixedMode}
           add={add}
         />
-        <WordResultList title={`다시 볼 카드 ${flaggedCards.length}`} cards={flaggedCards} showResult={false} add={add} />
+        <WordResultList title={`다시 볼 카드 ${flaggedCards.length}`} cards={flaggedCards} showResult={false} mixedMode={mixedMode} add={add} />
         <details className="mt-4">
           <summary className="flex min-h-[44px] cursor-pointer items-center text-[14px] font-medium">전체 카드 {n}장 보기</summary>
-          <WordResultList cards={cards} showResult add={add} />
+          <WordResultList cards={cards} showResult mixedMode={mixedMode} add={add} />
         </details>
 
         <BtnRow>

@@ -2,7 +2,8 @@
 
 /**
  * 세트 결과의 단어 목록(screens.md §5-2 E). 지운 단어(`wordId:null`, Snap 으로 남은 카드)는 링크 없이 "지운 단어" 뱃지를 단다.
- * 전체 목록에서만 결과 뱃지(맞힘·틀림·건너뜀)를 보인다.
+ * 전체 목록에서만 결과 뱃지(맞힘·틀림·건너뜀)를 보인다. 단, 객관식 답과 스스로 답이 섞인 세트(`mixedMode`, task-059 D5)는 세 목록 모두
+ * 그 자리에 방식 뱃지(「객관식 맞힘」·「스스로 몰랐어요」…)를 단다 — 객관식 오답의 내 답은 둘째 줄에 이미 있어 뱃지에 넣지 않는다(§23-12 ⑧).
  * 표제어 위 히라가나는 저장 읽기로 정렬한 루비(앱 히라가나 설정을 따름), 아래 `[한글]` 은 표제어 분석 — 목록이 한 번에 받아 넘긴다
  * (task-033 §15-11-3 C, 단어장 `WordRow` 와 같은 방식). 옆 읽기 칸은 루비로 바뀌어 없앴다.
  * 주제 세트(task-044 `topicSet`)는 카드에 원래 단어가 없어 링크·"지운 단어" 배지 없이 행 오른쪽에 [단어장에 넣기](`onAdd`)를 둔다 — 뜻이 비면 버튼 없음.
@@ -12,8 +13,9 @@ import { OFF, useWordLayersList, type AnnotationState } from '@/components/commo
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Badge } from '@/components/common/ui'
 import type { RubyPiece } from '@/modules/speech/reading/client'
-import type { VocabCard } from '@/types/vocab'
+import type { VocabCard, VocabMode } from '@/types/vocab'
 import AddToWordbookButton, { type AddState } from './AddToWordbookButton'
+import { methodBadge } from './cardFirst'
 import { RESULT_LABEL, RESULT_TONE } from './labels'
 import { addBody } from './topicLogic'
 
@@ -22,9 +24,24 @@ interface AddProps {
   onAdd: (card: VocabCard) => void
 }
 
-function Row({ card, showResult, ruby, hangul, add }: { card: VocabCard; showResult: boolean; ruby: RubyPiece[] | null; hangul: AnnotationState; add: AddProps | null }) {
+function Row({
+  card,
+  showResult,
+  mixedMode,
+  ruby,
+  hangul,
+  add,
+}: {
+  card: VocabCard
+  showResult: boolean
+  mixedMode: VocabMode | null
+  ruby: RubyPiece[] | null
+  hangul: AnnotationState
+  add: AddProps | null
+}) {
   const correct = card.correctText ?? card.meaning ?? ''
   const mine = card.answer === 'WRONG' && card.chosenText ? ` · 내 답 ${card.chosenText}` : ''
+  const method = mixedMode ? methodBadge(card, mixedMode) : null
   const inner = (
     <>
       <span className="min-w-0 flex-1">
@@ -37,7 +54,11 @@ function Row({ card, showResult, ruby, hangul, add }: { card: VocabCard; showRes
       </span>
       <span className="flex flex-none items-center gap-1.5">
         {card.wordId || add ? null : <Badge tone="neutral">지운 단어</Badge>}
-        {showResult && card.answer ? <Badge tone={RESULT_TONE[card.answer]}>{RESULT_LABEL[card.answer]}</Badge> : null}
+        {method ? (
+          <Badge tone={method.tone}>{method.text}</Badge>
+        ) : !mixedMode && showResult && card.answer ? (
+          <Badge tone={RESULT_TONE[card.answer]}>{RESULT_LABEL[card.answer]}</Badge>
+        ) : null}
         {card.flagged ? (
           <span className="text-accent">
             <span aria-hidden="true">★</span>
@@ -72,6 +93,7 @@ export default function WordResultList({
   note,
   cards,
   showResult,
+  mixedMode = null,
   add = null,
 }: {
   title?: string
@@ -79,6 +101,8 @@ export default function WordResultList({
   note?: string
   cards: VocabCard[]
   showResult: boolean
+  /** 객관식 답과 스스로 답이 섞인 세트면 세트 방식 — 행 뱃지를 방식 뱃지로 바꾼다(없으면 지금 그대로). */
+  mixedMode?: VocabMode | null
   /** 주제 세트 결과면 [단어장에 넣기] 상태·동작(카드 `order` 기준 한 곳 — 같은 카드가 두 목록에 있어도 같은 상태). */
   add?: AddProps | null
 }) {
@@ -95,7 +119,7 @@ export default function WordResultList({
       ) : null}
       <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
         {cards.map((c, i) => (
-          <Row key={c.order} card={c} showResult={showResult} ruby={layers[i]?.ruby ?? null} hangul={layers[i]?.hangul ?? OFF} add={add} />
+          <Row key={c.order} card={c} showResult={showResult} mixedMode={mixedMode} ruby={layers[i]?.ruby ?? null} hangul={layers[i]?.hangul ?? OFF} add={add} />
         ))}
       </ul>
     </section>

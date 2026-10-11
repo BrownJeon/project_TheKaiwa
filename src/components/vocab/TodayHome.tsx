@@ -9,7 +9,8 @@
  * #46·#48(최근) 실패만 카드 오류이고, 보관 세트·통계 실패는 그 섹션을 조용히 숨긴다. 자동 폴링은 없다.
  *
  * 풀던 세트는 사용자당 하나이고 새 세트·다시 풀기를 막으므로 늘 가장 최근에 시작한 세트다 → 최근 10개 안에서 찾는다(F3 `answeredCount`).
- * 장수는 저장하지 않고 늘 설정(`dailyWordCount`)에서 시작한다. 방식·분류는 마지막 선택을 기억한다(저장소가 막혀도 기본값으로 동작).
+ * 장수는 저장하지 않고 늘 설정(`dailyWordCount`)에서 시작한다. 분류는 마지막 선택을 기억한다(저장소가 막혀도 기본값으로 동작).
+ * task-059: 방식은 고르지 않는다 — #47 에 `mode` 를 싣지 않아 서버 기본(카드 우선)으로 만든다. 옛 방식 저장값은 마운트 때 지운다.
  *
  * task-044(챌린지 T4): #158 을 #58 과 같은 tick 으로 읽어 맨 위 챌린지 띠·단어 카드(주제 모드)·회화 카드(챌린지 모드)를 정한다(가이드 §3-1).
  * #158 이 끝나기 전엔 두 카드가 몸통 자리표시(`CardLoadingBody`), 실패하면 지금 카드 그대로 + 맨 위 한 줄 오류. 챌린지가 없으면 지금 화면 그대로.
@@ -25,9 +26,10 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
+import { writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
 import type { SeedPack } from '@/types/seedPack'
-import type { CategoryCount, CreateSessionResult, FinishResult, Paged, SessionDetail, SessionSummary, VocabMode, VocabStats } from '@/types/vocab'
+import type { CategoryCount, CreateSessionResult, FinishResult, Paged, SessionDetail, SessionSummary, VocabStats } from '@/types/vocab'
 import type { TodayLessons } from '@/types/lesson'
 import TodayLessonCard from '@/components/lesson/TodayLessonCard'
 import EvalHomeCard from '@/components/eval/EvalHomeCard'
@@ -42,10 +44,11 @@ import { useDecisionWatch } from '@/components/lesson/review/useDecisionWatch'
 import { useReviewSkip } from '@/components/lesson/review/useReviewSkip'
 import type { StartReviewResult } from '@/types/review'
 import type { JlptLevel } from '@/types/lesson'
+import { isNoChoiceSet } from './cardFirst'
 import { isAnswered } from './deck'
 import FinishConfirmSheet from './FinishConfirmSheet'
 import { todayKey } from './format'
-import { putSession, takeSession, useSeedLevels, useSeedPack, useStoredPref, useStoredString, VOCAB_KEYS } from './hooks'
+import { putSession, takeSession, useSeedLevels, useSeedPack, useStoredString, VOCAB_KEYS } from './hooks'
 import KeptSets from './KeptSets'
 import { actionErrorText, FLASH, HINT, homeLoadErrorText, seedResultText, startErrorText } from './labels'
 import ChallengeStrip, { ChallengeStripError } from './ChallengeStrip'
@@ -58,8 +61,6 @@ import { useTodayChallenge } from './useTodayChallenge'
 import { writeTopicStart } from './useTopicSetStart'
 import { categoryTotals, normalizeCategories, visibleCategories } from './validate'
 import VocabStatsCard from './VocabStatsCard'
-
-const MODES = ['CHOICE', 'FLIP'] as const satisfies readonly VocabMode[]
 
 interface HomeData {
   categories: CategoryCount[]
@@ -76,7 +77,6 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
   const { seed, seedingPack } = useSeedPack()
   // 넣기 단계(#11)는 홈 요청과 동시에 마운트 때 한 번(§19-3). `myLevel` prop 은 평가 카드용이고 목표 수준이 없어 쓰지 않는다.
   const levels = useSeedLevels()
-  const [mode, setMode] = useStoredPref<VocabMode>(VOCAB_KEYS.mode, 'CHOICE', MODES)
   const [storedCategory, setStoredCategory] = useStoredString(VOCAB_KEYS.category)
   const [count, setCount] = useState(dailyWordCount)
   const [data, setData] = useState<HomeData | null>(null)
@@ -172,6 +172,11 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     }
   }, [tick, lessonTick])
 
+  // 방식 선택이 없어져(task-059) 옛 저장값은 읽지 않는다 — 남아 있으면 한 번 지운다(§23-2 L5).
+  useEffect(() => {
+    writeStore('local', VOCAB_KEYS.mode, null)
+  }, [])
+
   useEffect(() => {
     const id = setTimeout(() => setHoldOver(true), TODAY_HOLD_MS)
     return () => clearTimeout(id)
@@ -218,9 +223,9 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     setStarting(true)
     setStartError(null)
     try {
-      const r = await apiPost<CreateSessionResult>('/api/v1/vocab/sessions', { count, mode, category: cat })
+      const r = await apiPost<CreateSessionResult>('/api/v1/vocab/sessions', { count, category: cat })
       if (r.session) {
-        putSession(VOCAB_KEYS.notice(r.session.id), r.session.downgraded ? 'few' : '')
+        putSession(VOCAB_KEYS.notice(r.session.id), isNoChoiceSet(r) ? 'noChoice' : r.session.downgraded ? 'few' : '')
         router.push(`/study/today/words/${encodeURIComponent(r.session.id)}`)
         return
       }
@@ -286,7 +291,8 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     try {
       const r = await apiPost<CreateSessionResult>(`/api/v1/vocab/sessions/${encodeURIComponent(id)}/replay`)
       if (r.session) {
-        if (r.session.downgraded) putSession(VOCAB_KEYS.notice(r.session.id), 'deleted')
+        const notice = isNoChoiceSet(r) ? 'noChoice' : r.session.downgraded ? 'deleted' : ''
+        if (notice) putSession(VOCAB_KEYS.notice(r.session.id), notice)
         router.push(`/study/today/words/${encodeURIComponent(r.session.id)}`)
         return
       }
@@ -349,7 +355,7 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     if (!ctx || !tm.wordsTask || topicStartingRef.current) return
     topicStartingRef.current = true
     setTopicStarting(true)
-    writeTopicStart({ topicId: ctx.topicId, title: ctx.title, count: tm.wordsTask.wordCount ?? 10, mode, wordsDone: tm.wordsTask.state === 'DONE' })
+    writeTopicStart({ topicId: ctx.topicId, title: ctx.title, count: tm.wordsTask.wordCount ?? 10, wordsDone: tm.wordsTask.state === 'DONE' })
     router.push('/study/today/words/new')
   }
 
@@ -358,7 +364,6 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     loadError,
     dailyWordCount,
     count,
-    mode,
     category,
     categories,
     archivedTotal: totals?.archived ?? 0,
@@ -373,7 +378,6 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     seedingPack,
     finishing,
     onCount: setCount,
-    onMode: (m: VocabMode) => setMode(m),
     onCategory: (c: string | null) => setStoredCategory(c),
     onStart: () => void start(category),
     onStartAll: () => {
@@ -413,12 +417,10 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
               inProgress={ip}
               today={data?.today ?? ''}
               tally={topicSetsTally(data?.recent ?? [], ctx.topicId, data?.today ?? '')}
-              mode={mode}
               starting={topicStarting}
               finishing={finishing}
               mineOpen={mineOpen}
               mineProps={wordsCardProps}
-              onMode={(m) => setMode(m)}
               onStartTopic={startTopic}
               onFinish={wordsCardProps.onFinish}
               onShowResult={wordsCardProps.onShowResult}

@@ -22,6 +22,8 @@ function text(n: Notice, topic: boolean): string {
       return `${formatMonthDay(n.date)}에 시작한 세트예요. 끝내면 그날 기록으로 남아요.`
     case 'topicReason':
       return n.text
+    case 'noChoice':
+      return topic ? REASON.noChoice : '뜻이 서로 다른 단어가 4개보다 적어서 이번엔 객관식 없이 풀어요.'
   }
 }
 

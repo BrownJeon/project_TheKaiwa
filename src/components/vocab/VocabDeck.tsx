@@ -6,12 +6,28 @@
  *
  * 제스처 영역(가운데 80%, 3장 스택)에는 카드 면만 두고, 보기·버튼·도구 줄은 **영역 밖**에 둔다(§5-0 4).
  * 덱에서는 하단 Toast 를 쓰지 않는다 — 보기·도구 줄을 가린다. 알림은 힌트 줄과 DeckNotice 로만 한다.
+ *
+ * 카드 우선 세트(task-059 §23-3): 탭·아래 버튼 영역·키는 세트 방식 하나가 아니라 **카드마다** `cardFirst` 로 가른다.
+ * 새 버튼([객관식]·듣기 줄)도 모두 제스처 영역 밖이다 — 터치 기기는 `SwipeCardStack` 의 `touchend preventDefault` 때문에 영역 안 버튼의 click 이 생기지 않는다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { OFF, useAnnotations, useWordLayersList } from '@/components/common/japanese/annotations'
 import BackBar from '@/components/shell/BackBar'
 import { alignWordRuby } from '@/modules/speech/reading/client'
+import {
+  answeredBy,
+  CARD_FIRST,
+  choicesState,
+  deckSoundMessage,
+  fixedHint,
+  hasChoices,
+  isSoundStopTap,
+  listenTexts,
+  modeTag,
+  tapAction,
+} from './cardFirst'
 import ChoiceList from './ChoiceList'
+import DeckListenRow from './DeckListenRow'
 import DeckNotice from './DeckNotice'
 import DeckProgress from './DeckProgress'
 import DeckToolbar from './DeckToolbar'
@@ -20,13 +36,14 @@ import FinishConfirmSheet from './FinishConfirmSheet'
 import FlipControls from './FlipControls'
 import GestureHint from './GestureHint'
 import { useMediaQuery } from './hooks'
-import { MODE_LABEL } from './labels'
 import SwipeCardStack from './SwipeCardStack'
 import { q } from './topicCopy'
 import TopicDeckLines from './TopicDeckLines'
 import { deckChallengeLine, finishChallengeNote, topicSourceParts } from './topicLogic'
 import type { VocabDeckState } from './useVocabDeck'
+import { useWordSound } from './useWordSound'
 import VocabCardFace from './VocabCardFace'
+import type { SoundTarget } from './wordSound'
 
 export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const [endOpen, setEndOpen] = useState(false)
@@ -35,6 +52,8 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const tight = useMediaQuery('(max-width: 370px), (max-height: 760px)')
   const nextRef = useRef<HTMLButtonElement>(null)
   const firstRef = useRef<HTMLButtonElement>(null)
+  const choicesRef = useRef<HTMLButtonElement>(null)
+  const sound = useWordSound()
   const { session, cards, view, frontier, card, mode, isCurrent, answered, peekable, side } = deck
   const n = cards.length
   const finishing = deck.phase === 'finishing'
@@ -55,13 +74,22 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   useEffect(() => {
     if (deck.focus.seq === 0) return
     const id = requestAnimationFrame(() => {
-      const el = deck.focus.kind === 'next' ? nextRef.current : firstRef.current
+      const el = deck.focus.kind === 'next' ? nextRef.current : deck.focus.kind === 'choicesBtn' ? choicesRef.current : firstRef.current
       el?.focus({ preventScroll: true })
     })
     return () => cancelAnimationFrame(id)
   }, [deck.focus])
 
-  // 키보드(§5-2 C 표). 매 렌더 최신 상태로 다시 건다 — 핸들러가 옛 카드를 보지 않게.
+  // 소리는 그 카드에서만 — 다음·이전·자동 다음으로 카드가 바뀌거나 넘기는 중·끝내는 중이면 멈춘다(화면 가림·떠남은 훅이 멈춘다).
+  const stopSound = sound.stop
+  useEffect(() => {
+    stopSound()
+  }, [view, stopSound])
+  useEffect(() => {
+    if (deck.exiting || deck.phase !== 'playing') stopSound()
+  }, [deck.exiting, deck.phase, stopSound])
+
+  // 키보드(§5-2 C 표 + §23-6 A). 매 렌더 최신 상태로 다시 건다 — 핸들러가 옛 카드를 보지 않게.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target instanceof HTMLElement ? e.target : null
@@ -85,6 +113,7 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           side,
           peekable,
           focusOnControl: !!t && (t.tagName === 'BUTTON' || t.tagName === 'A'),
+          choices: choicesState(mode, card, side),
         },
       )
       if (!intent) return
@@ -100,6 +129,9 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           break
         case 'flip':
           deck.flip()
+          break
+        case 'choices':
+          deck.toggleChoices('key')
           break
         case 'advance':
         case 'next':
@@ -134,11 +166,34 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const challengeNote = topic ? finishChallengeNote(deck.challengeCtx, session, here) : null
   const canGoNext = isAnswered(card)
 
+  const cardHasChoices = hasChoices(card)
+  const open = !!card.open && !answered
+
   const onTap = () => {
-    if (side === 'back') return
-    if (mode === 'FLIP' && peekable && isCurrent) deck.flip()
-    else deck.toggleReading()
+    switch (tapAction({ mode, side, isCurrent, answered, pending: !!card.pending, hasChoices: cardHasChoices, peekable })) {
+      case 'choices':
+        deck.toggleChoices('tap')
+        break
+      case 'flip':
+        deck.flip()
+        break
+      case 'reading':
+        deck.toggleReading()
+        break
+      case 'none':
+        break
+    }
   }
+
+  const listen = listenTexts(card)
+  // onClick 안에서 동기로 tap — 첫 await 앞에서 오디오를 깨운다(useWordSound 규칙).
+  const onListen = (target: SoundTarget, text: string) => {
+    const stopping = isSoundStopTap(sound.state, target)
+    sound.tap(target, text)
+    if (stopping) deck.say(CARD_FIRST.sr.soundStopped)
+  }
+  const hintMessage = deck.hint ?? deckSoundMessage(sound.state, side)
+  const hintFixed = fixedHint({ coarse, mode, side, isCurrent, answered, open, hasChoices: cardHasChoices, peekable })
 
   return (
     <div className="mx-auto flex h-full min-h-[600px] w-full min-w-0 max-w-[520px] flex-col bg-ground">
@@ -146,7 +201,7 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
         backHref="/study/today"
         backLabel="오늘로"
         title="오늘의 단어"
-        subtitle={`${topic ? `${q(topic.title)} · ` : ''}${MODE_LABEL[mode]} · ${session.cardCount || n}장`}
+        subtitle={`${topic ? `${q(topic.title)} · ` : ''}${modeTag(mode)}${session.cardCount || n}장`}
         right={
           <button
             type="button"
@@ -161,7 +216,8 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
       <DeckProgress cards={cards} view={view} frontier={frontier} topicTitle={topic?.title ?? null} />
       {sourceLine ? <TopicDeckLines source={sourceLine} challenge={challengeLine} compact={tight} /> : null}
       {deck.notice ? <DeckNotice notice={deck.notice} onClose={deck.closeNotice} topic={!!topic} /> : null}
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-3">
+      {/* 무대 하한 224 = 카드 하한 200 + py-3 위아래 — 알림·듣기 줄·보기가 겹쳐 무대가 그보다 작아지면 카드가 이웃을 덮지 않고 `main` 이 스크롤한다(task-059 결함 #1). */}
+      <div className="flex min-h-[224px] flex-1 items-center justify-center px-4 py-3">
         <SwipeCardStack
           count={n}
           view={view}
@@ -189,9 +245,11 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           )}
         />
       </div>
-      <GestureHint mode={mode} hint={deck.hint} coarse={coarse} />
+      {side === 'back' && (listen.word || listen.ex) ? <DeckListenRow state={sound.state} word={listen.word} ex={listen.ex} onPress={onListen} /> : null}
+      <GestureHint fixed={hintFixed} message={hintMessage} />
       <div className="flex-none px-4 pt-2">
-        {mode === 'CHOICE' ? (
+        {mode === 'CHOICE' || open || (answered && answeredBy(card, mode) === 'choice') ? (
+          // 이전 4지선다 · 카드 우선 세트의 보기 열림(F1·P) · 객관식으로 답한 카드(Ac·지난 카드 — 답했으니 잠김)
           <ChoiceList card={card} locked={locked || !isCurrent} onChoose={deck.choose} firstRef={firstRef} />
         ) : (
           <FlipControls
@@ -203,6 +261,8 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
             onFlip={deck.flip}
             onSelf={deck.selfGrade}
             firstRef={firstRef}
+            onChoices={cardHasChoices && !answered ? () => deck.toggleChoices('btn') : undefined}
+            choicesRef={choicesRef}
           />
         )}
       </div>
