@@ -227,9 +227,9 @@ export function MonthNoteBlock({ days, month, today, dailyWordCount }: { days: C
   return (
     <div className="mt-3 rounded-xl bg-surface2 px-3.5 py-3 text-[13px]">
       <p className="text-[15px] font-semibold break-keep">아직 이번 달 공부 기록이 없어요</p>
-      <p className="mt-1 text-ink2 break-keep">오늘 탭에서 단어 {dailyWordCount}장부터 시작해 보세요. 끝내면 여기 달력에 바로 표시돼요.</p>
+      <p className="mt-1 text-ink2 break-keep">공부 탭에서 단어 {dailyWordCount}장부터 시작해 보세요. 끝내면 여기 달력에 바로 표시돼요.</p>
       <Link href="/study/today" className="mt-2 inline-flex h-11 items-center justify-center rounded-xl border border-line bg-surface px-3.5 text-[14px] font-semibold">
-        오늘 탭으로
+        공부 탭으로
       </Link>
     </div>
   )

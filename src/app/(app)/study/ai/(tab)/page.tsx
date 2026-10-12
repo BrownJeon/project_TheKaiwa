@@ -14,7 +14,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const sheetId = initialTab === 'scenario' && isScenarioIdParam(sc) ? sc : null
   return (
     <>
-      <AppBar title="AI와 공부하기" />
+      <AppBar title="자유로운 대화" />
       <StudyAiHome initialTab={initialTab} initialSheetId={sheetId} saved={!!sheetId && saved === '1'} />
     </>
   )

@@ -320,7 +320,7 @@ export function reviewLine(review: DayReview | null, date: string, today: string
   const s = review.status
   if (s === 'DONE' && logs.some((l) => l.type === 'REVIEW')) return null
   if (s === 'DUE' && date === today) return { tone: 'due', title: '오늘 복습할 차례예요', sub: '선생님이 지난 수업 기록을 보고 정한 날이에요.', action: 'primary' }
-  if (s === 'DUE' && date < today) return { tone: 'due', title: '이날 복습할 차례였어요', sub: '아직 하지 않았어요. 오늘 탭에서 이어서 할 수 있어요.', action: 'ghost' }
+  if (s === 'DUE' && date < today) return { tone: 'due', title: '이날 복습할 차례였어요', sub: '아직 하지 않았어요. 공부 탭에서 이어서 할 수 있어요.', action: 'ghost' }
   if (s === 'DUE') return { tone: 'due', title: '이날 복습할 차례예요', sub: '선생님이 지난 수업 기록을 보고 정한 날이에요. 날짜는 선생님이 다시 정할 수도 있어요.', action: null }
   if (s === 'DONE') return { tone: 'plain', title: '이날 복습을 끝냈어요', sub: null, action: null }
   return { tone: 'plain', title: '이날 복습은 지나갔어요', sub: '선생님이 다음 복습 날을 다시 정했어요.', action: null }

@@ -235,7 +235,7 @@ function EmptyDay({ kind }: { kind: ReturnType<typeof emptyDayKind> }) {
       <div className="mt-3">
         <p className="text-[14px]">오늘은 아직 공부 기록이 없어요.</p>
         <Link href="/study/today" className="mt-2 inline-flex h-11 items-center justify-center rounded-xl border border-line bg-surface px-3.5 text-[14px] font-semibold">
-          오늘 탭으로
+          공부 탭으로
         </Link>
       </div>
     )

@@ -16,7 +16,7 @@ import VocabResult from './VocabResult'
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-ground">
-      <BackBar backHref="/study/today" backLabel="오늘로" title="오늘의 단어" />
+      <BackBar backHref="/study/today" backLabel="공부로" title="오늘의 단어" />
       <div className="px-4 pt-6">{children}</div>
     </div>
   )
@@ -28,7 +28,7 @@ function Notice({ title, body }: { title: string; body?: string }) {
       <p className="text-[15px] font-semibold break-keep">{title}</p>
       {body ? <p className="mt-1 text-[13px] text-ink2 break-keep">{body}</p> : null}
       <Link href="/study/today" className="mt-3 inline-flex h-11 items-center rounded-xl border border-line px-4 text-[14px] font-semibold">
-        오늘로
+        공부로
       </Link>
     </div>
   )
@@ -43,7 +43,7 @@ export default function VocabSessionScreen({ sessionId }: { sessionId: string })
     case 'loading':
       return (
         <div className="flex h-full min-h-0 flex-col bg-ground">
-          <BackBar backHref="/study/today" backLabel="오늘로" title="오늘의 단어" />
+          <BackBar backHref="/study/today" backLabel="공부로" title="오늘의 단어" />
           <LoadingBlock />
         </div>
       )
@@ -62,7 +62,7 @@ export default function VocabSessionScreen({ sessionId }: { sessionId: string })
     case 'closed':
       return (
         <Frame>
-          <Notice title="기록 없이 닫은 세트예요." body="답한 카드가 없어서 기록에 남지 않았어요. 오늘 화면에서 새 세트를 시작할 수 있어요." />
+          <Notice title="기록 없이 닫은 세트예요." body="답한 카드가 없어서 기록에 남지 않았어요. 공부 화면에서 새 세트를 시작할 수 있어요." />
         </Frame>
       )
     case 'result':

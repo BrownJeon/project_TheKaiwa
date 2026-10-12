@@ -81,7 +81,7 @@ export const HOME = {
 export const START = {
   title: 'AI 평가 시작',
   sub: '오늘',
-  back: '오늘로',
+  back: '공부로',
   question: '어떤 평가를 볼까요?',
   wordsDesc: ['10문항 · 뜻 고르기 4 · 읽기 쓰기 2 · 용법 고르기 2 · 조각 분류 2', '보기를 고르거나 글자로 답해요.'],
   talkDesc: ['6문항 · 듣고 답하기 2 · 문장 조립 1 · 상황 응답 2 · 틀린 곳 찾기 1', '말로 답해요(글자로 써도 돼요).'],
@@ -118,13 +118,13 @@ export const GEN = {
   phase: (t: number) => (t > 60 ? '조금 오래 걸리고 있어요. 조금만 더 기다려 주세요.' : t < 16 ? '내 단어장에서 재료를 고르고 있어요' : t < 40 ? '문제를 쓰고 있어요' : '보기와 정답을 확인하고 있어요'),
   elapsed: (t: string) => `${t} · 보통 1분 안에 끝나요`,
   summary: '이번 평가',
-  leave: '이 화면을 나가도 문제는 계속 만들어져요. 다 되면 오늘 탭에서 열 수 있어요.',
-  backToday: '오늘로 돌아가기',
+  leave: '이 화면을 나가도 문제는 계속 만들어져요. 다 되면 공부 탭에서 열 수 있어요.',
+  backToday: '공부로 돌아가기',
   offline: '인터넷 연결이 끊겼어요. 연결되면 이어서 확인해요.',
   failTitle: '문제를 만들지 못했어요',
   failBody: '선생님이 문제를 끝까지 만들지 못했어요. 다시 만들면 대부분 잘 만들어져요.',
   retry: '다시 만들기',
-  today: '오늘로',
+  today: '공부로',
   readyToast: '문제가 준비됐어요',
 } as const
 
@@ -282,7 +282,7 @@ export const LEAVE = {
   title: '평가를 나갈까요?',
   body: '지금까지 답은 저장돼 있어요.',
   bodyUnsaved: (nums: number[]) => `${nums.join('·')}번 답은 아직 저장하지 못했어요.`,
-  body2: '나가도 10분 시간은 계속 흘러요. 오늘 탭에서 이어서 풀 수 있어요.',
+  body2: '나가도 10분 시간은 계속 흘러요. 공부 탭에서 이어서 풀 수 있어요.',
   go: '나가기',
   stay: '계속 풀기',
 } as const
@@ -294,13 +294,13 @@ export const GRADING = {
     t > 120 ? '조금 오래 걸리고 있어요. 조금만 더 기다려 주세요.' : words ? '답을 채점하고 기록하고 있어요' : t < 20 ? '고른 답은 채점했어요 · 말하기·쓰기 답을 읽고 있어요' : t < 45 ? '문항마다 점수와 한마디를 적고 있어요' : '다음에 집중할 것을 정리하고 있어요',
   elapsed: (t: string, words: boolean) => `${t} · ${words ? '곧 끝나요' : '보통 1~2분 걸려요'}`,
   submitted: '제출한 답',
-  leave: '이 화면을 나가도 채점은 계속돼요. 다 되면 오늘 탭에서 결과를 볼 수 있어요.',
-  backToday: '오늘로 돌아가기',
+  leave: '이 화면을 나가도 채점은 계속돼요. 다 되면 공부 탭에서 결과를 볼 수 있어요.',
+  backToday: '공부로 돌아가기',
   failTitle: '채점을 끝내지 못했어요',
   failBody: '답은 모두 저장돼 있어요. 다시 채점하면 대부분 잘 돼요.',
   retry: '다시 채점하기',
   later: '나중에 하기',
-  once: '다시 채점해도 기록은 한 번만 남아요. 나중에 오늘 탭에서도 다시 채점할 수 있어요.',
+  once: '다시 채점해도 기록은 한 번만 남아요. 나중에 공부 탭에서도 다시 채점할 수 있어요.',
   doneToast: '채점이 끝났어요',
   retryFail: '다시 채점하지 못했어요. 잠시 후 다시 눌러 주세요.',
 } as const
@@ -351,7 +351,7 @@ export const RESULT = {
   dims: '이 문항이 재는 것',
   replay: '다시 듣기',
   history: '평가 기록',
-  today: '오늘로',
+  today: '공부로',
 } as const
 
 /** 레벨 문구의 `…으로/로` 는 `levelRo()`(logic)가 붙인 값을 받는다(N3으로 · N4로). */
@@ -375,7 +375,7 @@ export const LEVEL = {
 export const HIST = {
   title: '평가 기록',
   sub: 'AI 평가',
-  back: '오늘로',
+  back: '공부로',
   filterAria: '종류',
   all: '전체',
   loading: '평가 기록을 불러오는 중…',
@@ -395,7 +395,7 @@ export const HIST = {
 export const COMMON = {
   notFound: '이 평가를 찾을 수 없어요.',
   notFoundBody: '주소가 잘못되었거나 삭제된 평가예요.',
-  today: '오늘로',
+  today: '공부로',
   network: '인터넷 연결을 확인하고 다시 눌러 주세요.',
 } as const
 

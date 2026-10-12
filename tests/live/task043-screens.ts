@@ -131,7 +131,7 @@ const STATES: State[] = [
   { id: 's2.t2', path: '/plan', tab: true, mocks: plan(active([wordsTask('DONE', 9, 1), lessonTask('DONE')], BOTH)), expect: ['오늘 목표 달성!', '2 / 2 · 다 했어요', '75%', '4일 중 3일', '오늘까지 이어졌어요'] },
   { id: 's2.short', path: '/plan', tab: true, mocks: plan(active([wordsTask('SHORT', 4, 1), lessonTask('DONE')])), expect: ['오늘 4/8장 · 4장 더 풀면 완료', '세트를 일찍 끝냈어도 괜찮아요'] },
   { id: 's2.gen', path: '/plan', tab: true, mocks: plan(active([wordsTask('DONE', 8, 1), lessonTask('GENERATING')])), expect: ['만드는 중 · 1분쯤', '남은 것: 회화'] },
-  { id: 's2.fail', path: '/plan', tab: true, mocks: plan(active([wordsTask('TODO'), lessonTask('FAILED')])), expect: ['만들지 못했어요', '오늘 탭에서 다시'] },
+  { id: 's2.fail', path: '/plan', tab: true, mocks: plan(active([wordsTask('TODO'), lessonTask('FAILED')])), expect: ['만들지 못했어요', '공부 탭에서 다시'] },
   { id: 's2.last', path: '/plan', tab: true, mocks: plan(active([wordsTask('TODO'), lessonTask('READY')], { ...MORNING, dayIndex: 7, elapsedDays: 6, metDays: 4, rate: 0.67 })), expect: ['7일째 / 7일 · 오늘 자정에 마감돼요', '자정을 넘겨 끝낸 세트는'] },
   { id: 's2.first', path: '/plan', tab: true, mocks: plan(active([wordsTask('TODO'), lessonTask('TODO')], { dayIndex: 1, elapsedDays: 0, metDays: 0, rate: null, streak: 0, longestStreak: 0, todayMet: false })), expect: ['—', '오늘 채우면 생겨요'] },
   { id: 's2.tomorrow', path: '/plan', tab: true, mocks: plan(T({ challenge: summary({ startDate: '2026-10-07', endDate: '2026-10-13', stats: { dayIndex: 0, elapsedDays: 0, metDays: 0, rate: null, streak: 0, longestStreak: 0, todayMet: false } }), today: null })), expect: ['챌린지 · 내일 시작', '첫날 할 일 · 내일', '내일부터 · 하루 10장 중 8장 이상', '내일부터 셀게요'] },

@@ -91,7 +91,7 @@ export default function VocabResult({
       const r = await apiPost<Partial<VocabSessionInfo>>(`${base}/keep`, { kept: next })
       const keptAt = r && 'keptAt' in r ? (r.keptAt ?? null) : next ? new Date().toISOString() : null
       onSession({ ...session, keptAt })
-      show(next ? '보관했어요 · 오늘 탭 ‘보관한 세트’에서 다시 풀 수 있어요' : '보관을 풀었어요')
+      show(next ? '보관했어요 · 공부 탭 ‘보관한 세트’에서 다시 풀 수 있어요' : '보관을 풀었어요')
     } catch (e) {
       const err = toErr(e)
       show(err.status === 409 ? '끝난 세트만 보관할 수 있어요' : actionErrorText(err))
@@ -156,7 +156,7 @@ export default function VocabResult({
 
   return (
     <>
-      <BackBar backHref="/study/today" backLabel="오늘로" title="세트 결과" subtitle={`${dateLabel} · ${modeTag(session.mode)}${n}장${topic ? ` · ${q(topic.title)}` : ''}`} sticky />
+      <BackBar backHref="/study/today" backLabel="공부로" title="세트 결과" subtitle={`${dateLabel} · ${modeTag(session.mode)}${n}장${topic ? ` · ${q(topic.title)}` : ''}`} sticky />
       <div className="mx-auto w-full min-w-0 max-w-[520px] px-4 pb-8 pt-3">
         {chView && topic ? <ChallengeResultBox view={chView} title={topic.title} onOneMore={oneMore} oneMoreBusy={oneMoreBusy} /> : null}
         <Card>
@@ -194,7 +194,7 @@ export default function VocabResult({
               <Btn variant="ghost" className="w-full" onClick={() => void keep(true)} aria-disabled={keeping || undefined} aria-busy={keeping || undefined}>
                 ☆ 이 세트 보관
               </Btn>
-              <p className="mt-1.5 text-[12px] text-ink2 break-keep">보관하면 오늘 탭에서 같은 단어로 다시 풀 수 있어요.</p>
+              <p className="mt-1.5 text-[12px] text-ink2 break-keep">보관하면 공부 탭에서 같은 단어로 다시 풀 수 있어요.</p>
             </>
           )}
         </Card>
@@ -215,7 +215,7 @@ export default function VocabResult({
 
         <BtnRow>
           <Link href="/study/today" className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-on-accent">
-            오늘로
+            공부로
           </Link>
           <Link href="/drawer/words" className="inline-flex h-12 items-center justify-center rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold">
             단어장 보기

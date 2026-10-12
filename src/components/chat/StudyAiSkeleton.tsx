@@ -40,7 +40,7 @@ function StudyAiSkeletonFromUrl() {
 export function StudyAiSkeletonView({ tab }: { tab: StudyAiTab }) {
   return (
     <>
-      <AppBar title="AI와 공부하기" />
+      <AppBar title="자유로운 대화" />
       <div className="px-4 pb-8">
         <div inert>
           <Segmented ariaLabel="공부 방식" options={STUDY_AI_TABS} value={tab} onChange={noop} />

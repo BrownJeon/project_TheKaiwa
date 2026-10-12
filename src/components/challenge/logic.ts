@@ -117,40 +117,40 @@ export function taskRowView(t: ChallengeTask, opts: TaskRowOpts = {}): TaskRowVi
     if (opts.later) desc = `내일부터 · 하루 ${n}장 중 ${need}장 이상`
     else if (t.state === 'TODO') {
       desc = `오늘 ${t.answered}/${need}장 · ${n}장 세트 · 약 3분`
-      go = '오늘 탭에서 하기'
+      go = '공부 탭에서 하기'
     } else if (t.state === 'IN_PROGRESS') {
       desc = `풀던 세트가 있어요 · 오늘 ${t.answered}/${need}장`
-      go = '오늘 탭에서 이어서'
+      go = '공부 탭에서 이어서'
     } else if (t.state === 'SHORT') {
       glyph = 'half'
       prefix = '덜 함: '
       desc = `오늘 ${t.answered}/${need}장 · ${Math.max(0, need - t.answered)}장 더 풀면 완료`
-      go = '오늘 탭에서 하기'
+      go = '공부 탭에서 하기'
     } else {
       glyph = 'done'
       prefix = '끝냄: '
       desc = `${t.sets >= 2 ? `${t.sets}세트 합쳐 ` : '오늘 '}${t.answered}장 풂(${need}장 이상)`
     }
-  } else if (opts.later) desc = '내일 오늘 탭에서 만들어요'
+  } else if (opts.later) desc = '내일 공부 탭에서 만들어요'
   else {
     switch (t.state) {
       case 'GENERATING':
         glyph = 'spin'
         prefix = '준비 중: '
         desc = '만드는 중 · 1분쯤'
-        go = '오늘 탭에서 보기'
+        go = '공부 탭에서 보기'
         break
       case 'READY':
         desc = '수업이 준비됐어요 · 약 15분'
-        go = '오늘 탭에서 시작'
+        go = '공부 탭에서 시작'
         break
       case 'IN_PROGRESS':
         desc = '하던 수업이 있어요'
-        go = '오늘 탭에서 이어서'
+        go = '공부 탭에서 이어서'
         break
       case 'CONTINUE':
         desc = '어제 만든 수업이 있어요 · 오늘 끝내면 오늘 기록으로 인정돼요'
-        go = '오늘 탭에서 이어서'
+        go = '공부 탭에서 이어서'
         break
       case 'DONE':
         glyph = 'done'
@@ -161,11 +161,11 @@ export function taskRowView(t: ChallengeTask, opts: TaskRowOpts = {}): TaskRowVi
         glyph = 'fail'
         prefix = '문제 있음: '
         desc = '만들지 못했어요'
-        go = '오늘 탭에서 다시'
+        go = '공부 탭에서 다시'
         break
       default:
-        desc = '아직 안 만들었어요 · 오늘 탭에서 누르면 1분쯤'
-        go = '오늘 탭에서 하기'
+        desc = '아직 안 만들었어요 · 공부 탭에서 누르면 1분쯤'
+        go = '공부 탭에서 하기'
     }
   }
   if (opts.preview) go = null
@@ -329,7 +329,7 @@ export function dayLineView(c: DayChallenge, needFallback: number | null): { tit
       desc = '오늘 · 아직 진행 중이에요'
       break
     case 'UPCOMING':
-      desc = '그날 오늘 탭에서 할 수 있어요'
+      desc = '그날 공부 탭에서 할 수 있어요'
       break
     default:
       desc = '챌린지를 그만둔 뒤라 세지 않아요'
@@ -404,7 +404,7 @@ export function daySheetView(day: ChallengeDay, ctx: DaySheetCtx): DaySheetView 
       break
     }
     case 'UPCOMING':
-      reason = '그날 오늘 탭에서 할 수 있어요'
+      reason = '그날 공부 탭에서 할 수 있어요'
       break
     default:
       reason =
@@ -441,7 +441,7 @@ export function daySheetView(day: ChallengeDay, ctx: DaySheetCtx): DaySheetView 
     }
   }
   if (ctx.goal.lesson) {
-    if (!l) rows.push({ kind: 'lesson', main: day.state === 'TODAY' ? '아직 안 했어요 · 오늘 탭에서 [오늘 수업 만들기]' : '오늘의 회화 · 하지 않았어요', sub: null, badge: null, link: null, gone: false })
+    if (!l) rows.push({ kind: 'lesson', main: day.state === 'TODAY' ? '아직 안 했어요 · 공부 탭에서 [오늘 수업 만들기]' : '오늘의 회화 · 하지 않았어요', sub: null, badge: null, link: null, gone: false })
     else {
       goneAny ||= !l.refExists && !ctx.finished
       const link = live && l.lessonId && l.refExists ? { href: `/study/today/talk/${encodeURIComponent(l.lessonId)}`, label: '수업 결과 보기 ›' } : null
@@ -505,7 +505,7 @@ export function ruleLines(goal: ChallengeDailyGoal): string[] {
   }
   if (goal.lesson) out.push('회화는 수업을 끝내기만 하면 완료예요(문제 점수와 상관없음).')
   out.push(
-    '같은 주제면 오늘 탭 어디서 공부해도 인정돼요. 오늘 시작한 챌린지는 만들기 전에 끝낸 같은 주제 공부도 오늘 기록으로 인정돼요.',
+    '같은 주제면 공부 탭 어디서 해도 인정돼요. 오늘 시작한 챌린지는 만들기 전에 끝낸 같은 주제 공부도 오늘 기록으로 인정돼요.',
     '세트는 시작한 날로, 수업은 끝낸 날로 기록돼요 · 마지막 날 자정에 마감돼요.',
     '달성률은 지난 날 수로 나눠요. 오늘은 채운 뒤에 들어가요.',
     '수행 연속은 앱을 연 날(연속 출석)이 아니라 하루 목표를 다 한 날만 계산해요.',

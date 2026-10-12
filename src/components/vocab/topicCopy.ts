@@ -20,7 +20,7 @@ export const STRIP = {
   metSub: (streak: number | null, lastDay: boolean) =>
     lastDay ? '오늘 자정에 마감돼요' : streak !== null && streak > 0 ? `수행 연속 ${streak}일째 · 내일도 이어 가요` : '내일도 이어 가요',
   tomorrowTitle: (title: string) => `${q(title)} 챌린지 · 내일 시작해요`,
-  tomorrowSub: '내일 오늘 탭에서 첫 과제를 해요',
+  tomorrowSub: '내일 공부 탭에서 첫 과제를 해요',
   toPlan: '계획표 ›',
   aria: (p: { title: string; dayIndex: number; days: number; done: number; total: number; words?: string | null }) =>
     `${p.title} 챌린지, ${p.dayIndex}일째 / ${p.days}일, 오늘 할 일 ${p.done} / ${p.total}${p.words ? `, ${p.words}` : ''}, 계획표에서 보기`,
@@ -99,7 +99,7 @@ export const LESSON_CH = {
 /** 새 단어 대기 화면 `/study/today/words/new`(§3-5). */
 export const WAIT = {
   title: '오늘의 단어',
-  back: '오늘로',
+  back: '공부로',
   /** 방식 이름 없음(task-059 — 세트는 늘 카드 우선). */
   subtitle: (title: string, n: number) => `${q(title)} · ${n}장`,
   srQuiet: '세트를 만드는 중…',
@@ -119,7 +119,7 @@ export const WAIT = {
   allDoneBody: (wordsDone: boolean) => `${wordsDone ? '오늘 단어는 이미 완료예요. ' : ''}오늘 푼 표현은 내일 다시 나와요.`,
   topicEmptyTitle: '이 주제에는 아직 풀 표현이 없어요.',
   mine: '내 단어장으로 풀기',
-  today: '오늘로',
+  today: '공부로',
   ipFlash: '풀던 세트가 있어요. 이어서 풀거나 끝내 주세요.',
 } as const
 
@@ -211,6 +211,6 @@ export const LESSON_END_CH = {
   leftTitle: (dayIndex: number) => `챌린지 ${dayIndex}일째 · 회화 완료`,
   leftBody: '오늘의 단어가 남았어요',
   toChallenge: '챌린지 ›',
-  toToday: '오늘 탭 ›',
+  toToday: '공부 탭 ›',
   toast: '오늘 챌린지 목표 달성!',
 } as const

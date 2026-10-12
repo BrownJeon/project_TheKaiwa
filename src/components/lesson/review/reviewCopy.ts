@@ -87,7 +87,7 @@ export const RV_GEN = {
   itemsTitle: (n: number) => `이번 복습 항목 ${n}개로 만들어요`,
   itemsNote: '항목을 섞은 새 대화로 오늘의 회화와 같은 5단계(이해 → 문법 → 문제 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요.',
   failTitle: '복습 수업을 만들지 못했어요',
-  backToday: '오늘로 돌아가기',
+  backToday: '공부로 돌아가기',
   readyToast: '복습 수업이 준비됐어요',
 } as const
 
@@ -122,7 +122,7 @@ export const RV_END = {
   recordNote: '복습한 항목마다 공부 횟수를 1번씩 더했어요.',
   nextTitle: '다음 복습',
   pendingTitle: '선생님이 다음 복습 날짜를 정하고 있어요',
-  pendingBody: '보통 1분 안에 끝나요. 이 화면을 나가도 괜찮아요 — 오늘 탭에서도 볼 수 있어요.',
+  pendingBody: '보통 1분 안에 끝나요. 이 화면을 나가도 괜찮아요 — 공부 탭에서도 볼 수 있어요.',
   tutorTitle: (d: number) => `선생님이 ${d}일 뒤로 정했어요`,
   tutorManyBody: (due: string) => `${due}부터, 항목마다 3~7일 간격이에요.`,
   /** ★ 묶음이 하나일 때. */
@@ -132,9 +132,9 @@ export const RV_END = {
   fallbackTitle: (d: number) => `가장 가까운 복습은 ${d}일 뒤예요`,
   fallbackNote: '이번엔 선생님 판단 없이 지난 간격대로 정했어요. 다음에 공부할 때 다시 판단해요.',
   /** ★ 대기를 끝냈는데도 값이 없을 때. */
-  unknown: '다음 복습 날짜는 오늘 탭에서 볼 수 있어요.',
-  backToday: '오늘로',
-  backTodayNote: '오늘 탭에서 새 수업도 이어서 할 수 있어요.',
+  unknown: '다음 복습 날짜는 공부 탭에서 볼 수 있어요.',
+  backToday: '공부로',
+  backTodayNote: '공부 탭에서 새 수업도 이어서 할 수 있어요.',
 } as const
 
 /** 종류 라벨(`itemType`) — SCENARIO·LESSON 은 Phase 2 에선 나오지 않는다. */

@@ -243,7 +243,7 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
     <div className="mx-auto flex h-full min-h-[600px] w-full min-w-0 max-w-[520px] flex-col bg-ground">
       <BackBar
         backHref="/study/today"
-        backLabel="오늘로"
+        backLabel="공부로"
         title="오늘의 단어"
         subtitle={`${topic ? `${q(topic.title)} · ` : ''}${modeTag(mode)}${session.cardCount || n}장`}
         right={

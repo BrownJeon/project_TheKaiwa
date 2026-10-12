@@ -53,7 +53,7 @@ export const COPY = {
   metTitle: '오늘 목표 달성!',
   metBodyLast: '오늘 자정에 결과가 저장돼요.',
   metBody: (streak: number) => `수행 연속 ${streak}일째예요. 내일도 이어 가요.`,
-  shortMemo: '세트를 일찍 끝냈어도 괜찮아요. 오늘 탭에서 한 세트 더 풀면 오늘 푼 장수에 합쳐서 계산해요.',
+  shortMemo: '세트를 일찍 끝냈어도 괜찮아요. 공부 탭에서 한 세트 더 풀면 오늘 푼 장수에 합쳐서 계산해요.',
   lastDayMemo: '세트는 시작한 날로, 수업은 끝낸 날로 기록돼요 — 자정을 넘겨 끝낸 세트는 이 챌린지에 들어가지 않아요.',
   startHead: '챌린지',
   startTitle: '주제 하나로 매일 조금씩',
@@ -65,7 +65,7 @@ export const COPY = {
   seeResult: '결과 보기',
   otherTopic: '다른 주제로 시작',
   attendHint: '앱을 연 날',
-  flash: '챌린지를 시작했어요 · 오늘 탭에서 첫 과제를 해요',
+  flash: '챌린지를 시작했어요 · 공부 탭에서 첫 과제를 해요',
   // 달력·하루 시트
   dayLineGo: '챌린지 ›',
   dayLineKeep: '기록을 지워도 챌린지 달성·통계는 그대로예요.',
@@ -128,7 +128,7 @@ export const COPY = {
   sheetGoneNote: '원본을 지워도 챌린지 기록(달성·맞힌 수)은 그대로예요.',
   sheetFrozen: '끝난 챌린지라 끝날 때 저장된 결과만 보여요.',
   sheetMissedNote: '괜찮아요. 다음 날 하루 목표를 채우면 수행 연속이 다시 시작돼요.',
-  goToday: '오늘 탭에서 하기',
+  goToday: '공부 탭에서 하기',
 } as const
 
 export const CREATE = {
@@ -161,7 +161,7 @@ export const CREATE = {
   wordsRule: (accept: string) => `${accept} · 세트를 나눠 풀어도 합쳐서 계산해요 · 건너뛴 카드는 포함하지 않아요`,
   lessonName: '오늘의 회화 1개',
   lessonBody: (topic: string) => `「${topic}」 수업을 하루 1개 끝내요 · 약 15분 · 문제 점수와 상관없이 끝내면 완료`,
-  lessonRule: '오늘 탭 회화 카드에서 [오늘 수업 만들기]를 한 번 누르면 만들어요(1분쯤)',
+  lessonRule: '공부 탭 회화 카드에서 [오늘 수업 만들기]를 한 번 누르면 만들어요(1분쯤)',
   countLabel: '하루 단어 장수 · 세트도 이 장수로 만들어요',
   startLabel: '시작하는 날',
   todayMemo: '오늘 시작하면, 만들기 전에 오늘 끝낸 같은 주제 공부도 오늘(1일째) 기록으로 인정돼요.',
@@ -174,7 +174,7 @@ export const CREATE = {
   firstTasks: (when: string) => `${when} 할 일 · 1일째`,
   rulesTitle: '이렇게 계산해요',
   rules: [
-    '같은 주제면 오늘 탭 어디서 공부해도 인정돼요.',
+    '같은 주제면 공부 탭 어디서 해도 인정돼요.',
     '하루 목표를 다 채운 날이 ‘달성’, 일부만 한 날은 ‘일부’예요.',
     '단어는 하루에 푼 장수를 합쳐서 계산해요 — 세트를 일찍 끝냈으면 한 세트 더 풀어 채울 수 있어요.',
     '진행 중인 챌린지는 하나뿐이에요. 바꾸려면 그만두고 새로 시작해요.',

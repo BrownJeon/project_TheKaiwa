@@ -65,7 +65,7 @@ export const FLASH = {
 export const TOPICS = {
   title: '주제 고르기',
   subtitle: '오늘의 회화',
-  back: '오늘로',
+  back: '공부로',
   intro: (my: JlptLevel, levels: JlptLevel[]): string => {
     const order: JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
     const mi = order.indexOf(my)
@@ -149,8 +149,8 @@ export const GEN = {
     ['응용', '상황에 맞는 문장 3개 직접 만들기'],
     ['말하기', '목표 표현을 넣어 말하기 3개'],
   ] as const,
-  leaveNote: '이 화면을 나가도 수업은 계속 만들어져요. 다 되면 오늘 탭에서 열 수 있어요. 만들기 시작한 수업은 취소할 수 없어요.',
-  backToday: '오늘로 돌아가기',
+  leaveNote: '이 화면을 나가도 수업은 계속 만들어져요. 다 되면 공부 탭에서 열 수 있어요. 만들기 시작한 수업은 취소할 수 없어요.',
+  backToday: '공부로 돌아가기',
   ready: '수업이 준비됐어요',
   failTitle: '수업을 만들지 못했어요',
   failBody: '선생님이 수업을 끝까지 만들지 못했어요. 다시 만들면 대부분 잘 만들어져요.',
@@ -162,7 +162,7 @@ export const GEN = {
 /** ⓔ 수업 공통 */
 export const LESSON = {
   srPrefix: (topic: string) => `오늘의 회화, ${topic}: `,
-  back: '오늘로',
+  back: '공부로',
   stepsAria: (n: number) => `수업 단계, 5단계 중 ${n}단계 끝냄`,
   stepAria: (n: number, name: string, o: { done: boolean; current: boolean; locked: boolean }) =>
     `${n}단계 ${name}${o.done ? ', 끝냄' : ''}${o.current ? ', 지금 보는 단계' : ''}${o.locked ? ', 앞 단계를 마치면 열려요' : ''}`,
@@ -176,7 +176,7 @@ export const LESSON = {
   notFoundBody: '주소가 잘못되었거나 삭제된 수업이에요.',
   loading: '수업을 불러오는 중…',
   loadError: '수업을 불러오지 못했어요.',
-  today: '오늘로',
+  today: '공부로',
   alreadyDone: '이미 끝낸 수업이에요. 결과를 보여 드릴게요.',
   ttsError: '목소리를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.',
   ttsRate: '잠시 후 다시 들어 주세요.',
@@ -380,7 +380,7 @@ export const END = {
   nextLesson: '다음 수업 만들기',
   talk: '이 주제로 선생님과 이어서 말하기',
   talkNote: (topic: string) => `회화 탭에서 ‘${topic}’ 이야기로 새 회화를 시작해요.`,
-  today: '오늘로',
+  today: '공부로',
   otherText: '다른 문장으로 수업 만들기',
   pickTopic: '주제 고르기',
 } as const

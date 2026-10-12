@@ -386,7 +386,7 @@ async function main(): Promise<void> {
       let f0 = reqFailed.length
       const ok1 = await startWait()
       await sleep(1_500)
-      await page.getByRole('link', { name: '오늘로' }).first().click()
+      await page.getByRole('link', { name: '공부로' }).first().click()
       await sleep(3_000)
       let tr = await traces(since)
       const abort1 = reqFailed.slice(f0).some((x) => x.p === '/api/v1/vocab/sessions' && /ABORTED/.test(x.why))
