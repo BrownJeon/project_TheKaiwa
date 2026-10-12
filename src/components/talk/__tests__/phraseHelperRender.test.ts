@@ -1,6 +1,7 @@
 /**
  * 회화방 일본어 도우미 부품(task-056, screens §22)을 정적 렌더해 본다(서버 렌더 — 효과는 돌지 않는다, 선례 `scenario/__tests__/roomRender.test.ts`).
  *  - VoiceBar `trailing` 이 비면 DOM 이 예전과 같다(가운데 칸 `flex justify-center` 그대로, 바깥은 바이트 동일).
+ *  - VoiceBar `trailing` 이 있으면 도우미는 우측 끝 44 칸, ■ 는 마이크 오른쪽 12px(task-061, IMP-0034) — 세 폭(360/390/412)의 칸 계산까지 잠근다.
  *  - 버튼(닫힘·열림·잠김·안내 연결) · 안내 말풍선 · 판의 상태(처음·로딩·느림·결과 1/3개·펼침·빈 결과·오류·시간 초과·429·글자 모드·자막만·녹음 중).
  *  - `TalkRoom.tsx` 배치(소스 검사): 도우미가 열리면 대답 연습을 그리지 않음 · 마친 역할극엔 없음 · 보내면 닫힘 · 마이크 누르면 도우미 소리 멈춤.
  *    소스 검사는 모두 **주석을 걷은 소스**(`readCode`)에서 본다 — 주석 처리한 호출·속성이 통과하지 않게(REV-193 F-1 · REV-194 F-1).
@@ -18,6 +19,7 @@ import PhraseHelperButton, { HELPER_PANEL_ID } from '../PhraseHelperButton'
 import PhraseHelperCard from '../PhraseHelperCard'
 import PhraseHelperPanel, { type PhraseHelperPanelProps } from '../PhraseHelperPanel'
 import PhraseHelperTip, { HELPER_TIP_ID } from '../PhraseHelperTip'
+import { TALK_ROOM } from '../talkCopy'
 import type { TalkView } from '../talkState'
 import type { HelperPhase, PhraseHelper } from '../usePhraseHelper'
 import VoiceBar from '../VoiceBar'
@@ -34,27 +36,87 @@ const bar = (view: TalkView, trailing?: unknown) =>
   render(createElement(VoiceBar, { view, db: null, onPress: noop, onRelease: noop, onAbort: noop, onKeyboard: noop, onStop: noop, ...(trailing === undefined ? {} : { trailing: trailing as never }) }))
 
 const OLD_MIDDLE = /<div class="flex justify-center">(<button[^]*?<\/button>)<\/div>/
-const NEW_MIDDLE = /<div class="grid min-w-0 grid-cols-\[minmax\(0,1fr\)_72px_minmax\(0,1fr\)\] items-center"><span aria-hidden="true"><\/span>(<button[^]*?<\/button>)<div class="ml-3 justify-self-start">([^]*?)<\/div><\/div>/
+const esc = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const NEW_MID_HEAD = '<div class="grid min-w-0 grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] items-center"><span aria-hidden="true"></span>'
+// [가운데 칸 3분할: 빈 · 마이크 · (■ 슬롯 | 빈)] + 우측 끝 44 칸(도우미) + 행·바 닫기 — 바 끝에서부터 읽는다.
+const NEW_ROW = new RegExp(
+  `^([^]*?)${esc(NEW_MID_HEAD)}(<button[^]*?</button>)(<span aria-hidden="true"></span>|<div class="ml-3 justify-self-start">(<button[^]*?</button>)</div>)</div><div class="justify-self-end">([^]*?)</div></div></div>$`,
+)
+const STOP_LABEL = `<button type="button" aria-label="${TALK_ROOM.stopTeacher}"`
 
-test('VoiceBar: trailing 이 없으면(undefined·null·false·빈 글) 가운데 칸은 예전 그대로 `flex justify-center` + 마이크 하나', () => {
+test('VoiceBar: trailing 이 없으면(undefined·null·false·빈 글) 가운데 칸은 예전 그대로 `flex justify-center` + 마이크 하나, ■ 는 우측 끝 칸', () => {
   for (const view of [VIEW(), VIEW({ showStop: true, state: 'SPEAKING' })]) {
     const plain = bar(view)
     assert.match(plain, OLD_MIDDLE)
-    assert.ok(!plain.includes('grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)]') && !plain.includes('ml-3 justify-self-start'), '새 격자·도우미 칸 없음')
+    assert.ok(!plain.includes('grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)]') && !plain.includes('ml-3 justify-self-start') && !plain.includes('justify-self-end'), '새 격자·도우미 칸 없음')
     for (const empty of [null, false, '']) assert.equal(bar(view, empty), plain, `trailing=${JSON.stringify(empty)}`)
+    if (view.showStop) assert.match(plain, new RegExp(`</div>${esc(STOP_LABEL)}[^]*?</button></div></div>$`), '■ 는 행의 맨 끝(예전 자리)')
+    else assert.ok(plain.endsWith('<span aria-hidden="true" class="h-11 w-11"></span></div></div>'), '■ 가 없으면 빈 44 칸이 맨 끝')
   }
 })
 
-test('VoiceBar: trailing 이 있으면 가운데 칸만 바뀐다(마이크 72 가운데 · 오른쪽 칸 ml-3) — 상태 줄·⌨·■ 칸은 바이트 동일', () => {
+test('VoiceBar: trailing 이 있으면 도우미가 우측 끝 44 칸 · ■ 는 마이크 오른쪽 12px 칸 · 마이크 72 가운데 — 상태 줄·⌨ 는 바이트 동일, 마이크·■ 마크업도 그대로', () => {
   for (const view of [VIEW(), VIEW({ showStop: true, state: 'SPEAKING' })]) {
     const plain = bar(view)
     const withBtn = bar(view, createElement('i', { 'data-x': '1' }))
-    const m = withBtn.match(NEW_MIDDLE)
-    assert.ok(m, '새 가운데 칸')
-    assert.equal(m[2], '<i data-x="1"></i>')
-    const pttOld = plain.match(OLD_MIDDLE)?.[1]
-    assert.equal(m[1], pttOld, '마이크 버튼 마크업 그대로')
-    assert.equal(withBtn.replace(NEW_MIDDLE, '<MID/>'), plain.replace(OLD_MIDDLE, '<MID/>'), '가운데 칸 밖은 같다')
+    const m = withBtn.match(NEW_ROW)
+    assert.ok(m, '새 행')
+    const [, head, ptt, third, stopInSlot, helper] = m
+    assert.equal(helper, '<i data-x="1"></i>', '도우미는 우측 끝 칸 하나')
+    assert.equal((withBtn.match(/data-x="1"/g) ?? []).length, 1, '도우미는 한 번만 그린다')
+    assert.equal(head, plain.split('<div class="flex justify-center">')[0], '상태 줄 · ⌨ 는 trailing 이 없을 때와 바이트 동일')
+    assert.equal(ptt, plain.match(OLD_MIDDLE)?.[1], '마이크 버튼 마크업 그대로')
+    if (view.showStop) {
+      const stopOld = plain.match(new RegExp(`(${esc(STOP_LABEL)}[^]*?</button>)</div></div>$`))?.[1]
+      assert.ok(stopOld)
+      assert.equal(stopInSlot, stopOld, '■ 마크업은 그대로(자리만 옮김)')
+      // DOM 순서 = 눈에 보이는 순서(⌨ · 마이크 · ■ · 도우미) → Tab 순서도 같다
+      const at = (needle: string) => withBtn.indexOf(needle)
+      assert.ok(at('aria-label="' + TALK_ROOM.keyboard + '"') < at(ptt) && at(ptt) < at(STOP_LABEL) && at(STOP_LABEL) < at('data-x="1"'))
+    } else {
+      assert.equal(stopInSlot, undefined)
+      assert.equal(third, '<span aria-hidden="true"></span>', '■ 가 없으면 마이크 오른쪽은 빈 칸(마이크는 가운데 그대로)')
+      assert.ok(!withBtn.includes(STOP_LABEL), '■ 없음')
+    }
+  }
+})
+
+/** Tailwind 길이 클래스(`ml-3`·`w-[196px]`·`right-4`·`px-4`)를 px 로. 이 시험이 쓰는 모양만 읽는다. */
+const px = (cls: string, prefix: string): number => {
+  const m = cls.split(/\s+/).map((c) => c.match(new RegExp(`^${prefix}-(?:\\[(\\d+)px\\]|(\\d+(?:\\.\\d+)?))$`))).find(Boolean)
+  assert.ok(m, `${prefix}-* 클래스: ${cls}`)
+  return m[1] ? Number(m[1]) : Number(m[2]) * 4
+}
+
+test('VoiceBar 세 폭 계산(360/390/412): 도우미 우측 끝 · 마이크 72 가운데 · ■ 마이크 오른쪽 12px · ■↔도우미 간격 · 겹침 0 — 클래스 문자열에서 읽는다', () => {
+  const html = bar(VIEW({ showStop: true, state: 'SPEAKING' }), createElement('i'))
+  const outer = html.match(/^<div class="([^"]*)"/)?.[1] ?? ''
+  const pad = px(outer, 'px') // 바깥 좌우 패딩
+  const stopGap = px(html.match(/<div class="(ml-3[^"]*)"/)?.[1] ?? '', 'ml') // 마이크 ↔ ■
+  const cols = html.match(/<div class="mt-1 grid grid-cols-\[(\d+)px_minmax\(0,1fr\)_(\d+)px\]/)
+  assert.ok(cols)
+  const [kb, right] = [Number(cols[1]), Number(cols[2])]
+  const mid = html.match(/grid-cols-\[minmax\(0,1fr\)_(\d+)px_minmax\(0,1fr\)\]/)
+  assert.ok(mid)
+  const mic = Number(mid[1])
+  assert.deepEqual([pad, kb, right, mic, stopGap], [16, 44, 44, 72, 12], '치수 근거: px-4 · ⌨ 44 · 우측 44 · 마이크 72 · ml-3')
+  const gaps: Record<number, number> = { 360: 28, 390: 43, 412: 54 } // 승인 사양(§22-2): ■↔도우미 간격
+  for (const W of [360, 390, 412]) {
+    const row = W - 2 * pad
+    const midW = row - kb - right
+    const side = (midW - mic) / 2 // 마이크 양옆 1fr 칸 폭
+    const micL = pad + kb + side
+    const micR = micL + mic
+    assert.equal(micL + mic / 2, W / 2, `${W}: 마이크는 화면 가운데`)
+    const stopL = micR + stopGap
+    const stopR = stopL + 44
+    const helperR = W - pad // 우측 끝 = 바깥 패딩 안쪽
+    const helperL = helperR - right
+    assert.equal(stopL - micR, 12, `${W}: 마이크↔■ 12px`)
+    assert.ok(stopR <= micR + side, `${W}: ■ 가 1fr 칸 안에 든다`)
+    assert.ok(stopR <= helperL, `${W}: ■ 와 도우미가 겹치지 않는다`)
+    assert.equal(helperL - stopR, gaps[W], `${W}: ■↔도우미 간격`)
+    assert.ok(helperR <= W - pad && helperL >= micR, `${W}: 도우미는 바 안쪽`)
   }
 })
 
@@ -79,13 +141,36 @@ test('도우미 버튼: 둥근 44px · 이름 「일본어 도우미」 · 열�
   assert.ok(btn({ describedBy: HELPER_TIP_ID }).includes(`aria-describedby="${HELPER_TIP_ID}"`))
 })
 
-test('안내 말풍선: role=note · 문구 · ✕ 「안내 닫기」(히트 44) · 꼬리 · 데모 위치 공식', () => {
+test('안내 말풍선: role=note · 문구 · ✕ 「안내 닫기」(히트 44) · 꼬리 · 위치 = 바 오른쪽 16px(도우미 오른쪽 끝)', () => {
   const html = render(createElement(PhraseHelperTip, { onClose: noop }))
   assert.ok(html.startsWith(`<div id="${HELPER_TIP_ID}" role="note"`))
-  assert.ok(html.includes('right-[calc((100%-192px)/2+4px)]') && html.includes('bottom-[calc(100%+8px)]') && html.includes('w-[196px]'))
+  assert.ok(html.includes('right-4') && html.includes('bottom-[calc(100%+8px)]') && html.includes('w-[196px]'))
+  assert.ok(!html.includes('right-[calc('), '옛 공식(마이크 오른쪽 도우미 기준)은 없다')
   assert.ok(text(html).includes(HELPER.tip))
   assert.ok(html.includes('aria-label="안내 닫기"') && html.includes('before:-inset-2'))
   assert.ok(html.includes('border-t-ink'))
+})
+
+test('안내 말풍선 세 폭(360/390/412): 화면 안에 들어오고, 꼬리가 도우미 가운데에 선다(VoiceBar 치수와 같은 클래스에서 읽음)', () => {
+  const tip = render(createElement(PhraseHelperTip, { onClose: noop }))
+  const tipCls = tip.match(/^<div id="[^"]*" role="note" class="([^"]*)"/)?.[1] ?? ''
+  const tailCls = tip.match(/<span aria-hidden="true" class="([^"]*border-t-ink[^"]*)"/)?.[1] ?? ''
+  const right = px(tipCls, 'right')
+  const width = px(tipCls, 'w')
+  const tailRight = px(tailCls, 'right')
+  const tailHalf = px(tailCls, 'border') // border-[7px] — 꼬리 한쪽 폭
+  const barHtml = bar(VIEW(), createElement('i'))
+  const pad = px(barHtml.match(/^<div class="([^"]*)"/)?.[1] ?? '', 'px')
+  const helperW = Number(barHtml.match(/grid-cols-\[\d+px_minmax\(0,1fr\)_(\d+)px\]/)?.[1])
+  for (const W of [360, 390, 412]) {
+    const tipR = W - right
+    const tipL = tipR - width
+    assert.ok(tipL >= pad, `${W}: 왼쪽 여백 ${tipL}px ≥ ${pad}`)
+    assert.ok(tipR <= W - pad + 0.001, `${W}: 오른쪽이 바깥 패딩 안쪽(${tipR})`)
+    const tailCenter = tipR - tailRight - tailHalf
+    const helperCenter = W - pad - helperW / 2
+    assert.equal(tailCenter, helperCenter, `${W}: 꼬리 가운데 ${tailCenter} = 도우미 가운데 ${helperCenter}`)
+  }
 })
 
 /* ── 판 ───────────────────────────────────────────────────────────── */

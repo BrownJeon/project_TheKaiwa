@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * 일본어 도우미 버튼(screens §22-3, ④B) — 둥근 아이콘만 44px. 말 모드는 마이크 오른쪽(VoiceBar `trailing`), 글자 모드는 🎤 오른쪽.
+ * 일본어 도우미 버튼(screens §22-3, ④B) — 둥근 아이콘만 44px. 말 모드는 입력 바 우측 끝(VoiceBar `trailing`), 글자 모드는 🎤 오른쪽.
  * 말하는 동안(녹음·인식)과 선생님이 답을 만드는 동안(대기·생각)은 흐리게 잠그되 `disabled` 는 쓰지 않는다 — 눌러서 이유(토스트)를 듣게. hover `title` 은 달지 않는다.
  */
 import type { Ref } from 'react'
