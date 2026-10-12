@@ -2,7 +2,7 @@
 task_id: task-064
 title: "무엇이든 물어보세요(/ask) 3a — 일본어 표현·문법 질문 + 내 학습 기록 근거 답변(정형 조회·출처 카드) (Phase 3, standard 트랙)"
 status: doing
-waiting: user_demo_approval
+waiting: codex_c1_designer_pe
 base_ref: fa328cb
 risk_level: "R2"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, deployer]
@@ -21,20 +21,20 @@ updated: 2026-10-12
 demo_gate:
   required: true
   level: "full"
-  status: "review_requested"
+  status: "approved"
   version: 2
   repo_path: "docs/demo/task-064-ask-anything-v2.html"
   artifact_url: ""
   content_sha256: "8b899402acad58958f26447c3abddcc3a3b8dced61e842628eda4ae77683cbce"
   decided_by: "judge"
   rule_id: "DM-kw-full"
-  approved_by: ""
-  approved_at: ""
-  approval_quote: ""
+  approved_by: "user"
+  approved_at: "2026-10-12T16:43:39+09:00"
+  approval_quote: "task-064 데모 v2 승인, D1~D13은 권고대로"
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: false
+  active: true
 ---
 
 # task-064 — 무엇이든 물어보세요 (/ask) 3a
@@ -61,6 +61,13 @@ demo_gate:
 1. **D2 개인 학습 기록의 Claude CLI(외부) 전송 범위** [설계 §8 D2, 미결]: (a) 정형 요약만(횟수·점수·due 목록) / **(b) + 채택 교정 원문·레슨 표현 — Leader 권고(설계 권고와 같음)** / (c) + 대화 발췌 ≤300자(범위가 넓을수록 답이 구체적이지만 외부로 나가는 데이터가 늘어남). 권고 근거: (b) 까지는 사용자가 직접 채택·저장한 학습 산물이고 이메일·내부 id·엔진명·`toolLog`·원음·대화 전문은 어느 경우에도 안 나간다. (c) 는 `needsScope` 로 사용자가 범위를 명시한 질문에서만 허용하는 방안.
 2. **의도 분류에서 LLM(haiku 1회)을 쓸지** [설계: 규칙 우선·애매할 때 haiku]: 권고 = 3a 에서는 규칙만 쓰고 애매하면 `MIXED`(기록+일반)로 처리, haiku 분류는 도입하지 않는다 — 직렬 CLI 줄에 호출 1건을 덜 올리고 지연을 줄이기 위해. 규칙 오분류 비율을 QA 에서 실측해 부족하면 도입.
 3. **지연 영향 실측 결과 보고(QA 후)** — A9(sonnet, 최대 120s)가 CLI 줄을 점유하는 시간이 같은 시간대의 회화 턴 지연에 주는 영향. 결과에 따라 「질문 답변 중에는 회화 시작 안내」 등 선택지를 올린다.
+
+## 사용자 승인 · 확정 결정 (2026-10-12 16:43 KST)
+- **승인 원문(직접 입력)**: 「task-064 데모 v2 승인, D1~D13은 권고대로」 — `check.mjs approve` 로 기록(`docs/demo/task-064-ask-anything-v2.html` v2, sha256 `8b899402acad…`, 해시 검증 PASS), 구현 시작 `activate`.
+- **확정값(전부 데모 ★ 권고)**: D1 B(맨 위 입력 카드+예시 칩, 아래 지난 질문) · **D2 범위 (b)**(정형 요약 + 채택 교정 원문·고친 문장·레슨 표현 — **단어장 단어는 보내지 않는다**: 사용자가 본 동의 문구·구현·계약이 모두 그렇고 이 줄만 낡았던 것을 QA A3a-1 이 찾아 2026-10-12 Leader 정정 — 안내 A: 첫 질문 보낼 때 시트 1회, 방 메뉴에서 다시 보기) · D3 A(답 아래 근거 3장+[n개 더 보기]) · D4 A(LOW 일 때만 한 줄) · D5 A(고정 칩 이번 주·지난 30일·전체 기간+[직접 쓸게요]) · D6 표시 C·**취소 버튼 없음**(단계 문구+경과 초+30·90초 안내) · D7 A(답→근거→제안) · D8(제목 첫 질문 앞 30자·목록 둘째 줄=마지막 답 첫 줄·삭제는 방 ⋯ 메뉴→확인) · D9 A(예문 블록만 후리가나·한글, 뜻 줄 항상) · **D10 A·D11 A·D12 A·D13 A = 3a 는 글자 질문만, 음성 받아쓰기(L 탭)는 한국어 인식 품질 실측 뒤 2단계**.
+- **함께 적용되는 Leader 권고(사용자 미반대)**: 의도 분류는 규칙만(LLM 분류 없음)·지연 영향은 QA 실측 뒤 선택지로 보고.
+- **C1(설계 직후)**: judge 가 `codex_required`(adversarial-review·security) → codex 에이전트가 계약 §2-18-A·설계를 읽기 전용 검토 중. **developer 는 Codex 결과를 Leader 가 반영한 뒤 시작.** 병렬 진행: designer `docs/screens.md` §25 구현 가이드 · prompt-engineer `ask@v1`.
+- **서버 계약**: `docs/design/api-contract.md` §2-18-A(Leader 확정, additive) — `scope{key}`·`needsScope.options`·`records{intent,count}`·`preview`·`sourceKeys`→서버가 `sources[]` 생성·`toolLog.ask` 저장(스키마 변경 없음)·클라이언트 단절 후에도 서버 완주·분당 6/하루 200.
 
 ## 사용자 추가 요청 (2026-10-12, 데모 v1 검토 뒤 — 원문) → 데모 v2 로 반영
 > 데모화면에 대하여 결정사항 체크했어. 추가적으로 변경할 사항에 대하여 아래에 작성하니까 확인해서 데모화면 현행화해줘
@@ -114,6 +121,133 @@ designer 가 v2 에서 올린 4건([[task-064-designer-record]] 「v2 (현행화
 | v1 | 검토요청 | docs/demo/task-064-ask-anything-v1.html | - | 사용자 검토 요청 | 10-12 13:36 |
 | v1 | 수정요청 | docs/demo/task-064-ask-anything-v1.html | - | "1. 답을 기다리는중인 상태에서 '나가서 기다리기'버튼은 제거해줘. 2. 해당 챗봇에게 채팅의 형식말고 마이크를 통한 말로 연상되는 단어나 문장을 말하거나 상황을 설명하면 강사가 번역이나 설명을 답변해주는 것도 가능했으면 좋겠어." | 10-12 13:55 |
 | v2 | 검토요청 | docs/demo/task-064-ask-anything-v2.html | - | 사용자 검토 요청 | 10-12 15:49 |
+| v2 | 승인 | docs/demo/task-064-ask-anything-v2.html | - | "task-064 데모 v2 승인, D1~D13은 권고대로" | 10-12 16:43 |
 
 ## 상태 로그
 - 2026-10-12 Leader 가 로드맵에서 /ask 선택 → 설계 문서·현재 코드 확인 → judge 접수(standard·demo full) → 이력서 작성. 다음: `check.mjs init` → designer 데모 v1.
+
+## 구현·검증 진행 (2026-10-12 저녁, Leader — 미커밋·미배포 상태)
+
+**서버·보안 감사 REV-064-S: PASS_WITH_NOTES** ([[task-064-rev-s-record]]) — 변이 49건 중 41건 시험이 잡음, 엔진명·층 위반·HTML 싱크·외부 링크·본문 로그 0. Medium 2: S-1 살균 단일 패스(해소, 고정점 반복) · S-2 공용 AI 호출 줄 공유(아래 사용자 결정으로 처리).
+
+**QA (검증 서버 = 최종 코드 스냅샷 미러, 127.0.0.1:3011, QA 계정만)**
+
+| 갈래 | 기록 | 결과 |
+|---|---|---|
+| A1 API 계약 | [[task-064-qa-a1-record]] | 204 확인 중 203 PASS(1은 도구 문제, 재확인 PASS) · 제품 결함 0 · AI 호출 0 · 격리·한도(429)·되묻기 단락·응답/로그 누출 0 |
+| A2 라이브 실측 | [[task-064-qa-a2-record]] | 결함 0 · AI 10회 · **ASK 1건(약 13초)이 도는 동안 다른 사용자 채팅 3.5초→14~16초(+10.4/+12.3초)**, 실패 0 · 409·한도 환불(60초 창 판정)·끊김 후 완주(약 12초 뒤 저장) 확인 |
+| A3a 전송 범위 D2=(b) | [[task-064-qa-a3a-record]] | 프롬프트 21건 전부 **동의 범위 위반 0**(제외 12종 0) · 상한·비신뢰 구역 이스케이프 PASS · 저장 형태에 질문·기록 본문 0 · 심은 행 정리 대조 차이 0 |
+| A3b 실제 답변 | [[task-064-qa-a3b-record]] | 7개 실험 PASS · 적대 문장 지시 이행 0 · count=DB · 제안은 제안만(채택 전 행 0) · AI 11회 |
+| B1 화면(모의) | [[task-064-qa-b1-record]] | 3폭 PASS · Low 3 |
+| B2 화면(실제 답) | [[task-064-qa-b2-record]] | **중단**(AI 4/5) — Medium QA64-B2-1 발견 |
+
+**발견·처리**
+- QA64-B1-1(방 오류 재시도 버튼 20px) → 수정(dev-lo, 1줄) + 시험 공백 3건 보강(M6f·M7c·M8d) — 변이 16건 전부 잡힘 ([[task-064-dev-lo-record]]).
+- QA64-B1-2(429 잠금 시 [보내기] 접근성 이름이 초 원값)·B1-3(알 수 없는 유형 카드 빈 원) → 수용(후속).
+- QA64-B2-1(Medium): 답이 도착하면 목록이 바닥에 붙어 긴 답의 첫 문단·질문이 화면 밖 → designer 가 §25-5 J 규칙(질문 말풍선 윗면 정렬) → developer 구현([[task-064-dev-scroll-record]]) → REV-scroll 진행. **Leader 결정**: 알약 문구 「새 답 ↓」(기존 `ASK_COPY.newAnswer`), 승인 데모 v2 에 없는 작은 요소지만 light 트랙 데모 면제(사용자 결정 ADP-001 D-10)로 데모 v3 없이 진행 — 배포 승인 때 고지.
+- **S-2 → 사용자 결정(2026-10-12, 질문 도구 응답) 「ASK 전용 슬롯 추가 후 배포」**: AI 호출 줄에 ASK 전용 슬롯 1개(최대 동시 2) → judge feature·R1·opus·standard → developer 구현 ([[task-064-dev-lane-record]], 변이 7종 잡힘) → REV-lane 진행. 같은 사용자의 회화·채팅 락(409)은 그대로.
+- A3b Low-1(「단어장에 추가해줘」가 EXPRESSION 으로 분류돼 무관한 최근 교정 최대 4건이 함께 전송 — 동의 범위 안) → 수용(후속: 분류 규칙·추가 요청 GENERAL), A3b Low-2(프롬프트 문체 2건) → 후속, Low-3(방 삭제 후 PROPOSED 제안이 30일 남음, `onDelete: SetNull`) → Leader 판단 후속.
+- 동의 문구에 열거되지 않은 보조 칸이 실제 나감(A3a 관찰 1): 레슨·상황 제목, 교정 유형 라벨·누적 횟수, 평가 5항목 점수, 출석 일수, 문법 패턴 짧은 뜻, 복습 예정 표현의 뜻, 헤더의 선생님 이름·목표·약점 코드 — 제외 12종과 겹치지 않음. **배포 승인 때 사용자에게 고지.**
+- 문서 정정: §25-5 B `noneLine` 수식에 `!needsScope`(구현 일치) · 계약 §2-18-A 3-A(도우미·대답 연습은 404)·제목 규칙(29자+…) 실제 동작에 맞춤.
+- 열린 일: REV-lane·REV-scroll → 합본 스냅샷 게이트 → QA 서버 재기동(최종 빌드) → 간섭 재측정(AI 약 4회)·화면 재검증(3폭, 스크롤 합격선) → 커밋·푸시 전 게이트 → **사용자 배포 승인 요청**.
+
+## Codex 검토 (C1, 2026-10-12)
+
+### 검토 요약
+- **모드**: adversarial-review (security 초점)
+- **스냅샷**: b7e9258d14677308eacec0d1c8100a46cced9b09
+- **소요**: 103초
+- **지적 건수**: 4건 (high 2·medium 2)
+- **검토 범위**: 설계 문서(api-contract·learning-personalization) 정본 기반, 구현 코드는 아직 없음
+
+### 지적 목록
+
+#### 1️⃣ [HIGH] DoS 취약점 — 인증 사용자의 공용 LLM 슬롯 무한 점유
+- **위치**: api-contract.md:1397
+- **조건**: 인증 사용자가 120초에 가까운 ASK 요청을 반복하고 연결을 즉시 끊을 때
+- **근거**: 사용자별 동시 실행은 1건 제한이지만 전역 LLM 실행 슬롯(`CLAUDE_CLI_CONCURRENCY=1`)은 공용 단일. 하루 200건 한도는 최악의 경우 약 6.7시간의 지속 실행을 허용한다.
+- **영향**: 한 사용자가 공용 슬롯을 점유하여 다른 사용자의 회화·채팅·복습 판단 요청 지연/타임아웃.
+- **권고**: ASK를 공용 큐에 넣고 사용자별 연속 실행 상한·전역 대기열 상한·실행시간 기반 사용자 쿼터 추가. 백그라운드 완주는 제한된 시간 예산만 허용.
+
+#### 2️⃣ [HIGH] 문서 정본 충돌 — 개인 기록 외부 전송 범위 불일치
+- **위치**: api-contract.md:1403 vs learning-personalization-and-llm-data.md:335, 358, 363
+- **조건**: 개발자가 두 정본 문서를 동시에 기준으로 따를 때
+- **근거**: api-contract는 D2=(b) 확정 후 "대화·발화 원문 제외" 명시, learning-personalization은 원문 발췌 ≤300자 허용·"사용자 결정 필요" 명시. 인계 묶음에서 둘 다 정본으로 지정.
+- **영향**: 허용되지 않은 개인 대화 원문이 Claude CLI 프롬프트에 포함될 수 있음. 구현·리뷰·QA가 서로 다른 기준으로 통과.
+- **권고**: learning-personalization을 D2=(b) 확정 내용으로 즉시 맞추고 대화 발췌 허용 문구·사용자 결정 문구 제거. 외부 전송 DTO 별도 타입화 + 부정 시험.
+
+#### 3️⃣ [MEDIUM] 저장형 프롬프트 주입 — 출처 의미적 검증 부재
+- **위치**: api-contract.md:1401
+- **조건**: 조회된 교정 설명·레슨 표현·단어에 모델 지시가 포함되거나 사용자가 유효한 sourceKeys를 임의로 인용할 때
+- **근거**: 설계는 임시 키(`S1`…`Sn`) 존재성만 확인하고 버린다. 저장 데이터 구획화·비신뢰 마킹·의미적 일치 검증 규칙이 없다.
+- **영향**: 저장형 프롬프트 주입으로 답변·확신도·제안이 조작되거나 무관한 기록이 신뢰 가능한 출처처럼 표시.
+- **권고**: 조회 블록을 명시적 비신뢰 구역으로 직렬화. sourceKeys·confidence·proposals는 서버 재검증. 출처 선택은 함수 산출 유형·답변 의도와 일치할 때만 허용. 저장형 주입 문자열 회귀 시험.
+
+#### 4️⃣ [MEDIUM] XSS 위험 — answerMd 마크다운 렌더링 계약 부재
+- **위치**: api-contract.md:1400
+- **조건**: LLM이 HTML·위험 URL 스킴·렌더러 확장 문법을 answerMd에 출력하고 클라이언트가 HTML 지원 렌더러로 표시할 때
+- **근거**: answerMd 정의는 "한국어 마크다운 ≤4,000자"만. 허용 태그·링크 스킴·raw HTML 처리·살균 계약 없음. 설계 단계라 렌더러 구현도 미확인.
+- **영향**: 저장형 XSS, 피싱 링크, 앱 WebView의 의도하지 않은 외부 이동.
+- **권고**: raw HTML 금지, 마크다운 노드·링크 스킴 allowlist 계약화 (http/https/내부경로만). 렌더링 전후 javascript:/data:/이벤트 속성/iframe 거부 시험.
+
+### Leader 판정 (2026-10-12 — 지적 근거를 계약·문서·코드로 직접 대조)
+| # | 지적 | 판정 | 조치 |
+|---|---|---|---|
+| 1 | HIGH · 공용 LLM 슬롯 점유(DoS) | **부분 채택** | 위험은 실재(`CLAUDE_CLI_CONCURRENCY=1` 전역 1슬롯, 사용자 수는 초대제라 적음). 한도 **분당 6·하루 200 → 분당 3·하루 60**, **전역 대기 상한**(실행 1+대기 2 초과 → `429 ASK_BUSY`) 추가 — 계약 §2-18-A 3항. 실행시간 기반 쿼터는 구현 대비 이득이 작아 후속 후보. 영향은 QA 실측으로 보고. |
+| 2 | HIGH · 문서 정본 충돌 | **채택** | `learning-personalization` §8 D2 에 「결정(2026-10-12): (b)」·(c) 불허, §3-5 표·충돌 문단 정정. 계약 5항에 `ExternalRecordItem` 별도 타입 + 부정 시험 필수. |
+| 3 | MEDIUM · 저장형 프롬프트 주입 | **부분 채택** | 비신뢰 구역 직렬화·경계 이스케이프(PE)·서버 재검증(`sourceKeys` ⊆ 제공 키, 의도별 type 필터, `proposals` 기존 스키마)·주입 회귀 시험 = 채택(계약 9항). **의미적 일치 검증은 기각** — 신뢰도 낮고 근거 카드는 본인 기록으로만 연결돼 최악이 본인 기록 라벨 오표시. |
+| 4 | MEDIUM · `answerMd` XSS | **채택** | 계약 8항: 서버 살균(HTML·링크/이미지 문법·스킴 URL 제거) + 클라이언트 화이트리스트 노드만 React 요소로, 3a 는 링크 렌더 없음, 부정 시험. designer §25·PE 지시문에 전달. |
+
+### 검토하지 못한 범위
+- 구현 코드 없음: Prisma WHERE 조건, 캐시 키의 userId 포함, 런타임 JSON 스키마 후검증, 마크다운 렌더러 설정
+- 병렬 작업 중: ask@v1 프롬프트 모듈과 회귀 픽스처는 스냅샷에 없음 → 실제 주입 방어 문구 미검증
+- 운영 환경: 전역 LLM 큐 스케줄링·rate-limit 저장소의 다중 프로세스 원자성은 실행 검증 불가
+
+### 원본 위치
+- **raw 로그**: `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20261012T074936Z-task-064-C1/raw.txt`
+- **결과 JSON**: 위 run_dir의 stdout (codex-result@1 스키마)
+
+
+## Codex 검토 (C2, 2026-10-12)
+
+### 검토 요약
+- **모드**: adversarial-review (security 초점)
+- **스냅샷**: 708ebdfc (base: fa328cb)
+- **소요**: 141초
+- **지적 건수**: 1건 (medium 1)
+- **범위**: C1 4건 지적의 구현 방어 재검증 + 새 위험 적대 검토
+
+### C1 4건 지적의 구현 방어 현황
+| # | C1 지적 | C2 확인 결과 |
+|---|---|---|
+| 1 | HIGH · DoS(공용 LLM 슬롯 무한 점유) | ⚠️ 부분: 분당 3·하루 60 제한은 구현됐으나 저장소가 프로세스 메모리(medium 1건 발견) |
+| 2 | HIGH · 문서 정본 충돌(D2 범위) | ✅ 해소: learning-personalization 정정, 외부 전송이 정형 요약+채택 교정만 |
+| 3 | MEDIUM · 저장형 프롬프트 주입 | ✅ 방어: `sourceKeys` 재검증, `proposals` 종류·길이 필터 확인 |
+| 4 | MEDIUM · `answerMd` XSS | ✅ 방어: `sanitizeAskAnswerMd` 살균, React 텍스트 노드만 렌더링 |
+
+### Codex 신규 지적
+
+#### 1️⃣ [MEDIUM] 프로세스 로컬 메모리 한도 저장소 — 재시작·다중 인스턴스에서 제한 우회
+- **위치**: `src/modules/conversation/chats/askLimits.ts:43-49` (저장소), 97-108 (검사)
+- **조건**: 서버 재시작 또는 blue/green, PM2 등 둘 이상의 애플리케이션 프로세스 동시 ASK 요청
+- **근거**: 분당·일일 소비량, 진행/대기 슬롯이 `globalThis.__kaiwaAskLimits` 프로세스 로컬 Map 저장. `admitAskTurn` 은 이 로컬 상태만 검사. 재시작 시 즉시 초기화되고, N개 인스턴스에서는 사용자당 일일 제한과 전역 슬롯 상한이 각각 N배로 적용됨 (예: 2인스턴스 → 일일 120회·전역 슬롯 상한 6개)
+- **영향**: 인증된 사용자가 재시작 후 또는 인스턴스를 오가며 일일 60회 제한 초과 가능. 전체 시스템에서 ASK 대기 요청이 2개를 넘어 공용 단일 CLI 큐를 점유해 회화·채팅 턴 지연 또는 서비스 고갈
+- **권고**: 분당·일일 소비량과 ASK 진행/대기 슬롯을 MariaDB 또는 공유 원자 저장소(예: Redis)로 옮기고, 사용자별 창 소비 및 전역 슬롯 획득·해제를 원자적으로 처리. 최소한 배포 중 두 인스턴스가 동시에 ASK 요청을 받지 않음을 검증하고, 재시작으로 일일 제한이 초기화되는 위험을 별도로 보완해야 함
+
+### 아래 항목은 구체적 결함 없음 (ㅇ = 확인됨)
+- ㅇ **IDOR 방어**: 세션 userId 기반 조회 필터, 6개 함수 WHERE `userId = ?` 확인
+- ㅇ **외부 전송 범위(D2)**: 정형 요약+채택 교정만, 대화 원문·원음·`toolLog`·내부 id·이메일 없음
+- ㅇ **저장형 프롬프트 주입 경계**: `sourceKeys` ⊆ 제공 키 검증, `proposals` 종류·길이·enum 필터
+- ㅇ **XSS 이중 방어**: `sanitizeAskAnswerMd` 살균 통과(Reviewer 39건 적대 입력), React 텍스트 노드 렌더링
+- ㅇ **어댑터 변경**: UTF-8 StringDecoder 청크 경계만 보정, 새로운 명령·권한 확대 경로 없음
+
+### 검토하지 못한 범위
+- 단위 시험·타입 검사·빌드 (읽기 전용 제약)
+- 실제 다중 인스턴스 부하 시험
+- 운영 nginx/PM2 요청 분배, 사용자 Export 구현
+
+### 원본 위치
+- **run 디렉토리**: `/home/brownjeon/NFS/homes/brownjeon/project/.claude/state/codex-review/runs/20261012T101149Z-task-064-C2`
+- **raw.txt**: 위 run_dir의 raw.txt (Codex 실행 요약·JSON)
+
+---
