@@ -19,7 +19,10 @@ export const VOCAB_KEYS = {
   /** task-059 로 폐기(푸는 방식 선택 없음) — 읽지도 쓰지 않는다. `TodayHome` 이 마운트 때 옛 값을 지우려고 키만 남긴다. */
   mode: 'kaiwa.vocab.mode',
   category: 'kaiwa.vocab.category',
+  /** 덱 앞면 [읽기] = 히라가나(루비)만('on'|'off', task-060 전에는 한글 줄도 함께 켰다). */
   readingDefault: 'kaiwa.vocab.readingDefault',
+  /** 덱 앞면 [한글] = 한글 표기 줄만('on'|'off', task-060). 비어 있으면 `readingDefault` 값을 이어받는다(`deck.hangulPrefOf`). */
+  hangulDefault: 'kaiwa.vocab.hangulDefault',
   /** 세트를 만든 화면 → 덱: 강등 사유(한 번 읽고 지운다) */
   notice: (sessionId: string) => `kaiwa.vocab.notice.${sessionId}`,
   /** 덱 → 오늘 홈: 한 번 띄울 토스트 문구 */

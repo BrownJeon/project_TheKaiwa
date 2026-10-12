@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * 카드 한 장의 면(screens.md §5-2 B VocabCardFace). 앞면 = 표현(+카드 [읽기] 켬이면 히라가나 루비·`[한글]` — task-026 §15-4-6),
+ * 카드 한 장의 면(screens.md §5-2 B VocabCardFace). 앞면 = 표현(+카드 [읽기] 켬이면 히라가나 루비, 카드 [한글] 켬이면 `[한글]` — task-026 §15-4-6 · task-060),
  * 뒷면 = 표현(저장 읽기 루비는 앱 히라가나 설정과 무관하게 늘 — task-033 C1-A)·`[한글]` + 결과 띠 + 뜻 + 예문(히라가나·`[한글]` 1줄)·번역.
  * 카드 영역은 스크롤할 수 없어(`touch-action:none`) 예문은 2줄·번역 1줄에서 자르고 전체는 결과 화면·단어 상세에서 본다.
  * `[한글]` 줄은 카드에 자리가 없을 때만 뺀다(C2-A, 번역 우선 — 예문 줄 → 그래도 넘치면 표제어 줄, 되돌림 없음) — 면을 그릴 때 재고, 드래그 중에는 재지 않는다.
@@ -79,7 +79,7 @@ function VocabCardFace({
   peekable: boolean
   /** 표제어 루비(저장 읽기 정렬) — 앞면은 카드 [읽기] 켰을 때만, 뒷면은 늘 그린다. 덱이 한 번에 만들어 넘긴다(memo 유지). */
   ruby: RubyPiece[] | null
-  /** 앞면 `[한글]`(표제어 분석, 앱 한글 설정) — 카드 [읽기] 켰을 때만. */
+  /** 앞면 `[한글]`(표제어 분석, 앱 한글 설정) — 카드 [한글] 켰을 때만 덱이 층을 넘기고 끄면 `OFF`(task-060, 옛: [읽기]가 함께 켬). */
   hangul: AnnotationState
   /** 뒷면 표제어 `[한글]`(앱 한글 설정, 카드 [읽기]와 무관). */
   backHangul: AnnotationState
@@ -168,7 +168,7 @@ function VocabCardFace({
               rt={16}
               className={`${surfaceSize(card.surface)} line-clamp-3 font-semibold leading-tight [overflow-wrap:anywhere]`}
             />
-            {showReading ? <HangulLine state={hangul} size={15} /> : null}
+            <HangulLine state={hangul} size={15} />
           </div>
         </div>
         {hint ? <p className="flex-none text-center text-[12px] text-ink2 break-keep">{hint}</p> : null}

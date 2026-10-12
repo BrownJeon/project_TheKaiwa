@@ -4,7 +4,7 @@
  * 오늘의 단어 덱 상태(screens.md §5-3 A). 덱은 #47 응답을 넘겨받지 않고 **늘 #49 로 읽는다**(새로고침·이어 풀기·다른 기기와 같은 경로).
  *
  * - 답은 늘 `frontier`(첫 안 답한 카드)에서만 받는다 → 답한 카드는 언제나 앞쪽에 모인다. 지난 카드는 읽기 전용.
- * - **채점은 #50 응답으로만** 그린다(낙관적 채점 금지). 먼저 그리는 것은 표시(★)·읽기 토글뿐이고 실패하면 되돌린다(§5-10).
+ * - **채점은 #50 응답으로만** 그린다(낙관적 채점 금지). 먼저 그리는 것은 표시(★)·읽기·한글 토글뿐이고 실패하면 되돌린다(§5-10).
  * - #50·#51 은 `useAttemptQueue` 한 줄 큐로 보낸다. 언마운트해도 큐는 끝까지 보내고 화면 갱신만 막는다(`alive`).
  * - 답 0장 끝내기는 서버가 `ABANDONED`(기록 없음, F2)로 닫는다 → 오늘 홈으로 돌아가 안내한다.
  * - 카드 우선 세트(task-059, screens.md §23-3): `FLIP` 세트 카드에 보기가 있으면 앞면에서 객관식을 열어(로컬 `open`) 고를 수 있다 — 고르면 #50 `chosenText`(서버 채점),
@@ -21,15 +21,17 @@ import {
   canPeek,
   cardSide,
   clampResponseMs,
+  displayToggleWrites,
   FLY_MS,
   frontierOf,
+  hangulPrefOf,
   isAnswered,
   pickNotice,
   type DeckNotice,
 } from './deck'
-import { blockedNextHint, canChoose, canToggleChoices, CARD_FIRST, deckHint, type DeckHint } from './cardFirst'
+import { blockedNextHint, canChoose, canToggleChoices, CARD_FIRST, choicesToggleFocus, deckHint, type DeckHint } from './cardFirst'
 import { todayKey } from './format'
-import { putSession, takeSession, useMediaQuery, useStoredPref, VOCAB_KEYS } from './hooks'
+import { putSession, takeSession, useMediaQuery, useStoredPref, useStoredString, VOCAB_KEYS } from './hooks'
 import { FLASH, HINT } from './labels'
 import { useAttemptQueue } from './useAttemptQueue'
 import { useCardTimer } from './useCardTimer'
@@ -61,7 +63,7 @@ export interface Announce {
   after?: string
 }
 
-export type FocusTarget = { seq: number; kind: 'next' | 'first' | 'choicesBtn' }
+export type FocusTarget = { seq: number; kind: 'next' | 'first' }
 
 function toDeckCards(cards: VocabCard[]): DeckCard[] {
   return (cards ?? []).map((c) => ({ ...c, pending: false, chosen: null, flipped: false, open: false }))
@@ -72,6 +74,10 @@ export function useVocabDeck(sessionId: string) {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const [readingPref, setReadingPref] = useStoredPref<'on' | 'off'>(VOCAB_KEYS.readingDefault, 'on', ['on', 'off'])
   const showReading = readingPref !== 'off'
+  // [한글](task-060) — 자기 키가 비어 있으면 [읽기] 값을 이어받는다. 이어받는 동안 [읽기]를 누르면 그 순간 한글 값을 굳힌다(`displayToggleWrites`).
+  const [hangulRaw, setHangulRaw] = useStoredString(VOCAB_KEYS.hangulDefault)
+  const showHangul = hangulPrefOf(hangulRaw, readingPref) !== 'off'
+  const hangulStored = hangulRaw === 'on' || hangulRaw === 'off'
 
   const [phase, setPhase] = useState<DeckPhase>('loading')
   const [session, setSession] = useState<VocabSessionInfo | null>(null)
@@ -431,7 +437,7 @@ export function useVocabDeck(sessionId: string) {
 
   /**
    * 객관식 보기 열기/닫기(카드 우선 세트의 지금 카드·안 답함·앞면). 열어도 아무것도 기록하지 않는다.
-   * 초점: [객관식]·C 로 열면 첫 보기, C 로 닫으면 [객관식] — 카드 탭은 옮기지 않는다(§23-6 B).
+   * 초점: [객관식]·C 로 열면 첫 보기. 닫을 때와 카드 탭은 옮기지 않는다 — 닫힌 앞면에는 보이는 컨트롤이 없다(`choicesToggleFocus`, §23-6 B).
    */
   const toggleChoices = (from: 'tap' | 'btn' | 'key') => {
     if (phase !== 'playing' || exiting || !card || !isCurrent || answered || card.pending) return
@@ -439,7 +445,8 @@ export function useVocabDeck(sessionId: string) {
     const open = !card.open
     patchCard(view, { open })
     say(open ? CARD_FIRST.sr.opened : CARD_FIRST.sr.closed)
-    if (from !== 'tap') setFocus((x) => ({ seq: x.seq + 1, kind: open ? 'first' : 'choicesBtn' }))
+    const to = choicesToggleFocus(open, from)
+    if (to) setFocus((x) => ({ seq: x.seq + 1, kind: to }))
   }
 
   /** 표시(★) — 사용자 직접 행위라 먼저 그리고, 실패하면 되돌린다. 어느 카드든(E2 표시 전용 요청). */
@@ -468,12 +475,25 @@ export function useVocabDeck(sessionId: string) {
     void load('initial')
   }, [load])
 
+  /** [읽기]·R·이전 4지선다 카드 탭 — 앞면 히라가나(루비)만. 한글 줄은 [한글]이 따로 한다(task-060). */
   const toggleReading = () => {
     if (!card?.reading || card.reading === card.surface) {
       showHint(HINT.noReading)
       return
     }
-    setReadingPref(showReading ? 'off' : 'on')
+    const w = displayToggleWrites('reading', { hangulStored, showReading, showHangul })
+    if (w.hangul) setHangulRaw(w.hangul)
+    if (w.reading) setReadingPref(w.reading)
+  }
+
+  /** [한글]·H — 앞면 한글 표기 줄만. `block` 은 덱이 표시 설정·카드 층으로 정한 막힘 이유(`cardFirst.hangulBlock`) — 있으면 알리기만 한다. */
+  const toggleHangul = (block: string | null) => {
+    if (block) {
+      showHint(block)
+      return
+    }
+    const w = displayToggleWrites('hangul', { hangulStored, showReading, showHangul })
+    if (w.hangul) setHangulRaw(w.hangul)
   }
 
   return {
@@ -493,6 +513,7 @@ export function useVocabDeck(sessionId: string) {
     exiting,
     reducedMotion,
     showReading,
+    showHangul,
     hint,
     showHint,
     notice,
@@ -515,6 +536,7 @@ export function useVocabDeck(sessionId: string) {
     say,
     toggleFlag,
     toggleReading,
+    toggleHangul,
     next,
     prev,
     finish: doFinish,

@@ -1,12 +1,18 @@
 'use client'
 
 /**
- * 덱 도구 줄(screens.md §5-2 B DeckToolbar) — 제스처로 하는 일을 모두 버튼으로도 한다(이전·읽기·표시·건너뛰기·다음).
- * 안 답한 지금 카드: [이전][읽기][표시][건너뛰기] · 답한 카드·지난 카드: [이전][표시][다음 카드 ›](마지막이면 [결과 보기 ›]).
+ * 덱 도구 줄(screens.md §5-2 B DeckToolbar).
+ * 안 답한 지금 카드: [이전][읽기][표시][한글] · 답한 카드·지난 카드: [이전][표시][다음 카드 ›](마지막이면 [결과 보기 ›]).
+ * task-060 C: [읽기] = 앞면 히라가나만, [한글] = 앞면 한글 표기 줄만(서로 독립) — [한글]은 옛 [건너뛰기] 자리다.
+ * 건너뛰기는 오른쪽 밀기·S 가 확인 시트를 연다. 그 단일 포인터 대체 수단으로 **화면 읽기 전용** [건너뛰기] 버튼을 4칸 격자 밖에 둔다 —
+ * 평소엔 보이지 않고, Tab 키로 닿았을 때(`:focus-visible`)만 도구 줄 가운데에 작은 칩으로 나타난다(`SR_CHIP`, WCAG 2.4.7). 절대 위치라 칸 높이(52px)·다른 칸을 밀지 않고,
+ * 칩이 뜨는 동안 [읽기]·[표시] 칸 가운데 일부를 덮는다. 자동 초점 ref 는 달지 않는다(새 카드로 넘어갈 때 초점이 이 버튼으로 가지 않는다).
  * 소리 버튼 자리는 [읽기]와 [표시] 사이지만 지금은 그리지 않는다(E9).
  * 막힌 버튼은 `aria-disabled` 로 두고 누르면 이유를 알린다(눌러도 반응 없는 버튼 금지).
  */
 import type { Ref } from 'react'
+import { CARD_FIRST } from './cardFirst'
+import { SR_CHIP } from './srChip'
 
 const TOOL = 'flex h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface text-[12px] text-ink'
 
@@ -27,11 +33,14 @@ export default function DeckToolbar({
   flagged,
   showReading,
   readingAvailable,
+  showHangul,
+  hangulAvailable,
   locked,
   onPrev,
   onReading,
   onFlag,
-  onSkip,
+  onHangul,
+  onSkipAsk,
   onNext,
   nextRef,
 }: {
@@ -41,11 +50,16 @@ export default function DeckToolbar({
   flagged: boolean
   showReading: boolean
   readingAvailable: boolean
+  showHangul: boolean
+  /** 이 카드에 앞면 한글 줄을 그릴 수 있는가(아니면 `aria-disabled` — 누르면 덱이 이유를 알린다) */
+  hangulAvailable: boolean
   locked: boolean
   onPrev: () => void
   onReading: () => void
   onFlag: () => void
-  onSkip: () => void
+  onHangul: () => void
+  /** 건너뛰기 확인 시트 열기(화면 읽기 전용 버튼) */
+  onSkipAsk: () => void
   onNext: () => void
   nextRef?: Ref<HTMLButtonElement>
 }) {
@@ -84,18 +98,25 @@ export default function DeckToolbar({
   }
 
   return (
-    <div className="grid grid-cols-4 gap-2">
-      {prev}
-      <button type="button" className={TOOL} aria-pressed={readingAvailable ? showReading : undefined} aria-disabled={!readingAvailable || undefined} onClick={onReading}>
-        <span aria-hidden="true" lang="ja" className="grid h-5 place-items-center text-[16px] font-semibold leading-none">
-          あ
-        </span>
-        읽기
-      </button>
-      {flag}
-      <button type="button" className={TOOL} aria-disabled={locked || undefined} onClick={onSkip}>
-        <Icon d="M5 5l7 7-7 7M13 5l7 7-7 7" />
-        건너뛰기
+    <div className="relative">
+      <div className="grid grid-cols-4 gap-2">
+        {prev}
+        <button type="button" className={TOOL} aria-pressed={readingAvailable ? showReading : undefined} aria-disabled={!readingAvailable || undefined} onClick={onReading}>
+          <span aria-hidden="true" lang="ja" className="grid h-5 place-items-center text-[16px] font-semibold leading-none">
+            あ
+          </span>
+          읽기
+        </button>
+        {flag}
+        <button type="button" className={TOOL} aria-pressed={hangulAvailable ? showHangul : undefined} aria-disabled={!hangulAvailable || undefined} onClick={onHangul}>
+          <span aria-hidden="true" className="grid h-5 place-items-center text-[16px] font-semibold leading-none">
+            가
+          </span>
+          {CARD_FIRST.hangul.label}
+        </button>
+      </div>
+      <button type="button" className={SR_CHIP} aria-disabled={locked || undefined} onClick={onSkipAsk}>
+        {CARD_FIRST.skipBtn}
       </button>
     </div>
   )

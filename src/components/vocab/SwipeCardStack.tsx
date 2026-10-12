@@ -6,7 +6,8 @@
  * 그대로 옮긴 것: 시작 좌표·진행 여부는 ref(이벤트 핸들러의 stale closure 방지), 판정 순서 탭(<10) → 위(dy<−80) → 좌우(|dx|>60),
  * 3장 스택 transform, 드래그 중 transition 없음, 영역 폭 80%·`touch-action:none`, `touchend` 에서 `preventDefault`
  * (호환 mouse/click 이 **뒤집기 직후 새로 생긴 [알았어요] 버튼**에 떨어지는 유령 클릭을 막는다), 마우스 mouseleave 로 끝냄.
- * 바꾼 것: 위 = 표시 토글만(카드는 넘어가지 않고 튀었다 돌아옴), 왼쪽 = 다음(부모가 답했는지 판단), 오른쪽 = 이전,
+ * 바꾼 것: 위 = 뜻 보기(task-060, 옛 표시 토글 — 카드는 넘어가지 않고, 부모가 실제로 뜻을 열었을 때만 튀었다 돌아옴),
+ * 왼쪽 = 다음(부모가 답했는지 판단), 오른쪽 = 건너뛰기 확인(task-060, 옛 이전 — 부모가 확인 시트를 연다),
  * 막힌 방향은 ×0.25 저항, 두 손가락·touchcancel 은 동작 없이 원위치, reduced-motion 은 회전·날아가기 없음.
  * 방향 판정·저항은 `deck.ts` 의 순수 함수(`classifyGesture`·`resistX`)가 한다.
  *
@@ -23,7 +24,7 @@ export default function SwipeCardStack({
   view,
   renderTop,
   canGoNext,
-  canGoPrev,
+  canSkip,
   locked,
   exiting,
   reducedMotion,
@@ -37,15 +38,16 @@ export default function SwipeCardStack({
   renderTop: () => React.ReactNode
   /** 왼쪽(다음)으로 끌 수 있는가 — 아니면 저항 */
   canGoNext: boolean
-  /** 오른쪽(이전)으로 끌 수 있는가 — 아니면 저항 */
-  canGoPrev: boolean
+  /** 오른쪽(건너뛰기 확인)으로 끌 수 있는가 — 아니면 저항 */
+  canSkip: boolean
   /** 넘기는 중·답 응답 대기 중에는 드래그를 시작하지 않는다 */
   locked: boolean
   /** 부모가 다음 카드로 넘기는 중(카드가 왼쪽으로 날아간다) */
   exiting: boolean
   reducedMotion: boolean
   onTap: () => void
-  onUp: () => void
+  /** 위로 밀기. 카드가 실제로 반응했으면(뜻이 열렸으면) true — 그때만 튄다(처리 못 한 밀기에 튀면 된 것처럼 보인다). */
+  onUp: () => boolean
   onLeft: () => void
   onRight: () => void
 }) {
@@ -94,8 +96,7 @@ export default function SwipeCardStack({
     setDrag({ x: 0, y: 0, active: false })
     if (g === 'tap') onTap()
     else if (g === 'up') {
-      onUp()
-      if (!reducedMotion) {
+      if (onUp() && !reducedMotion) {
         setBump(true)
         if (bumpTimer.current) clearTimeout(bumpTimer.current)
         bumpTimer.current = setTimeout(() => setBump(false), BUMP_MS)
@@ -104,7 +105,7 @@ export default function SwipeCardStack({
     else if (g === 'right') onRight()
   }
 
-  const shownX = resistX(drag.x, canGoNext, canGoPrev)
+  const shownX = resistX(drag.x, canGoNext, canSkip)
 
   let transform = 'none'
   let transition = 'transform 0.3s ease, opacity 0.3s ease'

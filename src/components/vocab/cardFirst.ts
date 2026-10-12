@@ -6,9 +6,11 @@
  * - **정답은 여기서 계산하지 않는다.** 보기의 ✓/✗ 는 #50 응답 `correctText` 로만 그린다(`deck.markChoice`).
  * - 문구는 승인 데모 v1 원문 그대로다(§23-8). 엔진·서버 이름은 넣지 않는다.
  */
+import type { AnnotationState } from '@/components/common/japanese/annotations'
 import type { VocabCard, VocabMode, VocabSessionInfo } from '@/types/vocab'
 import { isAnswered, type CardSide } from './deck'
 import { HINT, MODE_LABEL } from './labels'
+import type { DeckPhase } from './useVocabDeck'
 import { soundText, type SoundMsgKind, type SoundTarget, type WordSoundState } from './wordSound'
 
 // ── 판별 ────────────────────────────────────────────────────────────────────────────────────
@@ -163,7 +165,74 @@ export function frontHint(mode: VocabMode, card: Pick<VocabCard, 'choices' | 'an
   return peekable ? CARD_FIRST.tapToPeek : CARD_FIRST.selfToPeek
 }
 
-/** 고정 힌트 한 줄(§23-8 ⑩⑪). 터치 기기는 제스처만, 정밀 포인터는 지금 카드 상태의 키. */
+// ── 덱: 위로 밀기·오른쪽 밀기·[한글](task-060) ────────────────────────────────────────────────
+
+export type GestureResult = { kind: 'flip' } | { kind: 'ask' } | { kind: 'hint'; text: string } | { kind: 'none' }
+
+const NONE_RESULT: GestureResult = { kind: 'none' }
+const hintOf = (text: string): GestureResult => ({ kind: 'hint', text })
+
+/**
+ * 위로 밀기 = 뜻 보기(task-060 A, 옛 표시 토글). 뜻이 실제로 열릴 때만 `flip` — 덱은 그때만 카드를 튀게 한다.
+ * 처리 못 하면: 이미 뒤집음 → 「알았어요·몰랐어요를 먼저」, 뜻 없는 카드 → 대체 흐름 안내, 이전 4지선다 → 「먼저 답을 골라」,
+ * 답한 카드·지난 카드(뒷면이 이미 보임)·저장/넘기는 중(`busy`) → 무반응. 보기가 열려 있으면 `deck.flip` 이 닫고 뒤집는다.
+ */
+export function upAction(s: { mode: VocabMode; side: CardSide; isCurrent: boolean; answered: boolean; busy: boolean; peekable: boolean }): GestureResult {
+  if (!s.isCurrent || s.answered || s.busy) return NONE_RESULT
+  if (s.mode === 'CHOICE') return hintOf(HINT.answerFirst)
+  if (!s.peekable) return hintOf(CARD_FIRST.selfToPeek)
+  if (s.side === 'back') return hintOf(HINT.selfFirst)
+  return { kind: 'flip' }
+}
+
+/**
+ * 객관식 보기를 열고 닫은 뒤 자동 초점(§23-6 B). 열면 첫 보기로 옮기고, 닫으면 옮기지 않는다 — 닫힌 앞면의 52px 자리에는
+ * 눈에 보이는 컨트롤이 없고 화면 읽기 전용 [객관식] 은 보이지 않으므로 거기로 초점을 보내면 위치를 볼 수 없다(WCAG 2.4.7).
+ * 카드 탭(`tap`)은 어느 쪽이든 옮기지 않는다.
+ */
+export function choicesToggleFocus(open: boolean, from: 'tap' | 'btn' | 'key'): 'first' | null {
+  return open && from !== 'tap' ? 'first' : null
+}
+
+/** 건너뛰기 확인 시트를 열 수 있는가 — 안 답한 지금 카드·저장/넘기는/끝내는 중 아님. 오른쪽 밀기 저항도 이 값으로 정한다. */
+export function canAskSkip(s: { isCurrent: boolean; answered: boolean; busy: boolean }): boolean {
+  return s.isCurrent && !s.answered && !s.busy
+}
+
+/**
+ * 건너뛰기 확인 시트가 열려 있는가. `skipFor` 는 시트를 연 카드의 `order` — 그 카드가 지금도 보이고(카드가 바뀌면 닫힘)
+ * 아직 안 답했고(답이 들어오면 닫힘) 덱이 `playing` 일 때(끝내는 중·결과 화면이면 닫힘)만 열려 있다. `order` 0(첫 카드)도 유효하다.
+ */
+export function skipSheetOpen(s: { skipFor: number | null; order: number | null; answered: boolean; phase: DeckPhase }): boolean {
+  return s.skipFor !== null && s.order !== null && s.skipFor === s.order && !s.answered && s.phase === 'playing'
+}
+
+/**
+ * 오른쪽 밀기 = 건너뛰기 확인(task-060 A, 옛 이전 카드). 답한 카드·지난 카드는 옛 습관(이전)으로 민 것이므로 [이전] 버튼을 알린다.
+ * 저장 중은 무반응.
+ */
+export function rightAction(s: { isCurrent: boolean; answered: boolean; busy: boolean }): GestureResult {
+  if (canAskSkip(s)) return { kind: 'ask' }
+  if (s.busy && s.isCurrent && !s.answered) return NONE_RESULT
+  return hintOf(CARD_FIRST.prevByButton)
+}
+
+/**
+ * [한글](앞면 한글 표기 줄)을 지금 쓸 수 없는 이유(쓸 수 있으면 null). 앱 표시 설정의 한글이 꺼져 있으면 층을 받지 않으므로 설정 안내,
+ * 켜져 있는데 이 카드 표제어 분석이 없거나(분석 불가·실패) 저장 읽기와 어긋나면(`wordHangulState` 의 none) 「한글 표기가 없어요」.
+ * 받는 중(`loading`)·설정 로드 전은 막지 않는다 — 켜면 자리 막대가 보이고 곧 채워진다.
+ */
+export function hangulBlock(s: { prefsLoaded: boolean; appHangul: boolean; layer: AnnotationState['s'] | undefined }): string | null {
+  if (!s.prefsLoaded) return null
+  if (!s.appHangul) return CARD_FIRST.hangul.settingOff
+  if (s.layer === 'ready' || s.layer === 'loading') return null
+  return CARD_FIRST.hangul.none
+}
+
+/**
+ * 고정 힌트 한 줄(§23-8 ⑩⑪). 터치 기기는 지금 카드 상태에서 **실제로 반응하는 제스처만**(REV-060-1 L-1), 정밀 포인터는 지금 카드 상태의 키.
+ * 터치: 이전 4지선다 → ↑ 없음 / 답한·지난 카드 → ↑ 무반응이고 → 는 [이전] 안내뿐 / 안 답한 지금 카드의 뒷면(뜻 없는 카드의 앞면 포함) → 뜻을 이미 봤으니 ↑ 없음 / 앞면 → 전부.
+ */
 export function fixedHint(s: {
   coarse: boolean
   mode: VocabMode
@@ -174,7 +243,12 @@ export function fixedHint(s: {
   hasChoices: boolean
   peekable: boolean
 }): string {
-  if (s.coarse) return KEY_HINT.touch
+  if (s.coarse) {
+    if (s.mode === 'CHOICE') return KEY_HINT.touchChoice
+    if (s.answered || !s.isCurrent) return KEY_HINT.touchDone
+    if (s.side === 'back' || !s.peekable) return KEY_HINT.touchBack
+    return KEY_HINT.touch
+  }
   if (s.mode === 'CHOICE') return KEY_HINT.choice
   if (s.answered || !s.isCurrent) return KEY_HINT.done
   // 뜻 없는 카드(대체 흐름)는 앞면에서 바로 1·2 로 답한다 — 뜻 보기 면과 같은 키
@@ -258,7 +332,7 @@ export function isSoundStopTap(s: WordSoundState, target: SoundTarget): boolean 
   return s.target === target && (s.phase === 'loading' || s.phase === 'playing')
 }
 
-// ── 문구(승인 데모 v1 원문 — 한 글자도 바꾸지 않는다) ───────────────────────────────────────────
+// ── 문구(승인 데모 v1 원문 — 한 글자도 바꾸지 않는다. 단 task-060 이 버튼·제스처 의미를 바꾼 곳은 이력서 B~E 대로 고쳤다) ─────────
 
 export const CARD_FIRST = {
   frontHint: '카드를 누르면 객관식으로 골라요',
@@ -267,8 +341,31 @@ export const CARD_FIRST = {
   tapToPeek: '탭하면 뜻이 보여요',
   /** 뜻 없는 카드(대체 흐름, 지금 문구 그대로) */
   selfToPeek: '알았어요·몰랐어요를 누르면 뜻이 보여요',
+  /**
+   * 앞면 아래 첫 줄 자리(옛 [뜻 보기][객관식] 52px, task-060 B) — 보기가 있는 카드 / 없는 카드.
+   * 탭·객관식 안내는 카드 안 `frontHint`·`tapToPeek` 가 이미 말하므로 여기서는 위로 밀기만 말한다(중복 방지).
+   */
+  slotHint: '카드를 위로 밀면 뜻이 보여요',
+  slotHintNoChoice: '카드를 위로 밀어도 뜻이 보여요',
+  /** 화면 읽기 전용 대체 버튼(제스처의 단일 포인터 대체 수단, task-060 B) */
+  flipBtn: '뜻 보기',
   choicesBtn: '객관식',
-  answerFirst: '뜻 보기나 객관식으로 먼저 답해 주세요',
+  skipBtn: '건너뛰기',
+  /** 보기가 있는 앞면에서 다음으로 가려 할 때(task-060 E — 버튼 이름 대신 카드 조작) */
+  answerFirst: '카드를 위로 밀거나 눌러서 먼저 답해 주세요',
+  /** 답한·지난 카드를 오른쪽으로 밀었을 때(task-060 A — 오른쪽 밀기는 더 이상 이전이 아니다) */
+  prevByButton: '이전 카드는 아래 [이전] 버튼으로 가요',
+  hangul: {
+    label: '한글',
+    none: '이 카드는 한글 표기가 없어요',
+    settingOff: '설정에서 한글 표기를 켜 주세요',
+  },
+  skipSheet: {
+    title: '이 카드를 건너뛸까요?',
+    body: "건너뛴 카드는 '건너뜀'으로 기록하고 뜻을 보여 드려요.",
+    confirm: '건너뛰기',
+    cancel: '취소',
+  },
   listen: {
     word: '단어 듣기',
     ex: '예문 듣기',
@@ -294,13 +391,20 @@ export const CARD_FIRST = {
   },
 } as const
 
+/** task-060: 터치 = 바뀐 제스처(↑ 뜻 보기 · → 건너뛰기), 키 = 안 답한 카드에 S(건너뛰기 확인)·앞면에 H(한글). */
 export const KEY_HINT = {
-  touch: '← 밀어 다음 · → 밀어 이전 · ↑ 밀어 표시',
+  touch: '↑ 밀어 뜻 보기 · ← 밀어 다음 · → 밀어 건너뛰기',
+  /** 이전 4지선다 세트의 터치 힌트 — 위로 밀어도 뜻이 안 열리므로(`upAction`) ↑ 가 없다 */
+  touchChoice: '← 밀어 다음 · → 밀어 건너뛰기',
+  /** 답한 카드·지난 카드 — ↑ 는 무반응이고 → 는 이전 카드로 가지 않는다(`rightAction` 이 [이전] 버튼을 알린다) */
+  touchDone: '← 밀어 다음 · 이전 카드는 [이전]',
+  /** 안 답한 지금 카드의 뒷면 — 이미 뜻을 봤으니 ↑ 가 없고, ← 는 답한 뒤에야 다음으로 간다 */
+  touchBack: '← 밀어 다음(답한 뒤) · → 밀어 건너뛰기',
   choice: '1~4 고르기 · → 다음 · ← 이전 · F 표시',
-  front: 'Space 뜻 보기 · C 객관식 · → 다음 · F 표시',
-  frontNoChoice: 'Space 뜻 보기 · → 다음 · F 표시',
-  open: '1~4 고르기 · C 닫기 · → 다음 · F 표시',
-  self: '1 알았어요 · 2 몰랐어요 · → 다음 · F 표시',
+  front: 'Space 뜻 보기 · C 객관식 · S 건너뛰기 · H 한글 · → 다음 · F 표시',
+  frontNoChoice: 'Space 뜻 보기 · S 건너뛰기 · H 한글 · → 다음 · F 표시',
+  open: '1~4 고르기 · C 닫기 · S 건너뛰기 · → 다음 · F 표시',
+  self: '1 알았어요 · 2 몰랐어요 · S 건너뛰기 · → 다음 · F 표시',
   done: 'Enter 다음 카드 · ← 이전 · F 표시',
 } as const
 

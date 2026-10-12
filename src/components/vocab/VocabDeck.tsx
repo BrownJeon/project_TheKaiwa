@@ -9,22 +9,31 @@
  *
  * 카드 우선 세트(task-059 §23-3): 탭·아래 버튼 영역·키는 세트 방식 하나가 아니라 **카드마다** `cardFirst` 로 가른다.
  * 새 버튼([객관식]·듣기 줄)도 모두 제스처 영역 밖이다 — 터치 기기는 `SwipeCardStack` 의 `touchend preventDefault` 때문에 영역 안 버튼의 click 이 생기지 않는다.
+ *
+ * 덱 조작 정리(task-060): 위로 밀기 = 뜻 보기(`cardFirst.upAction`), 오른쪽 밀기 = 건너뛰기 확인 시트(`rightAction` → `SkipConfirmSheet`),
+ * 왼쪽 = 다음 그대로. 표시(★)는 [표시]·F, 이전 카드는 [이전]·← 로만 남는다. 앞면 히라가나 = [읽기], 한글 줄 = [한글](서로 독립).
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { OFF, useAnnotations, useWordLayersList } from '@/components/common/japanese/annotations'
+import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
 import BackBar from '@/components/shell/BackBar'
 import { alignWordRuby } from '@/modules/speech/reading/client'
 import {
   answeredBy,
+  canAskSkip,
   CARD_FIRST,
   choicesState,
   deckSoundMessage,
   fixedHint,
+  hangulBlock,
   hasChoices,
   isSoundStopTap,
   listenTexts,
   modeTag,
+  rightAction,
+  skipSheetOpen,
   tapAction,
+  upAction,
 } from './cardFirst'
 import ChoiceList from './ChoiceList'
 import DeckListenRow from './DeckListenRow'
@@ -36,6 +45,7 @@ import FinishConfirmSheet from './FinishConfirmSheet'
 import FlipControls from './FlipControls'
 import GestureHint from './GestureHint'
 import { useMediaQuery } from './hooks'
+import SkipConfirmSheet from './SkipConfirmSheet'
 import SwipeCardStack from './SwipeCardStack'
 import { q } from './topicCopy'
 import TopicDeckLines from './TopicDeckLines'
@@ -47,34 +57,50 @@ import type { SoundTarget } from './wordSound'
 
 export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const [endOpen, setEndOpen] = useState(false)
+  /** 건너뛰기 확인 시트를 연 카드(`order`). 그 카드가 지금 보이고 아직 안 답했을 때만 열려 있다 — 카드가 바뀌거나 답이 들어오면 저절로 닫힌다. */
+  const [skipFor, setSkipFor] = useState<number | null>(null)
   const coarse = useMediaQuery('(pointer: coarse)')
+  const prefs = useDisplayPrefs()
   // 360 폭·낮은 화면은 출처 줄을 1줄로 줄인다(가이드 §3-6 높이 예산 — 덱 스크롤 0 유지).
   const tight = useMediaQuery('(max-width: 370px), (max-height: 760px)')
   const nextRef = useRef<HTMLButtonElement>(null)
   const firstRef = useRef<HTMLButtonElement>(null)
-  const choicesRef = useRef<HTMLButtonElement>(null)
   const sound = useWordSound()
   const { session, cards, view, frontier, card, mode, isCurrent, answered, peekable, side } = deck
   const n = cards.length
   const finishing = deck.phase === 'finishing'
   const locked = deck.exiting || finishing || !!card?.pending
   // 카드 면 층(task-026 §15-4-6 · task-033 §15-11-3): 덱 표제어 전부의 한글·예문 분석을 처음 한 번에 받고, 루비는 저장 읽기로 여기서 만든다 —
-  // 카드 면 안에서 훅을 부르지 않아 드래그 중 memo 가 유지된다. 앞면은 카드 [읽기] 켰을 때만 그리고, 뒷면은 앱 한글 설정만 따른다(한글 끔이면 요청 없음).
-  // 앱 히라가나 설정은 표제어 루비에 영향이 없다(뒷면 C1-A: 늘 보임).
+  // 카드 면 안에서 훅을 부르지 않아 드래그 중 memo 가 유지된다. 앞면 루비는 카드 [읽기], 앞면 한글 줄은 카드 [한글] 켰을 때만 그리고(task-060),
+  // 뒷면은 앱 한글 설정만 따른다(한글 끔이면 요청 없음). 앱 히라가나 설정은 표제어 루비에 영향이 없다(뒷면 C1-A: 늘 보임).
   const layers = useWordLayersList(cards.map((c) => ({ surface: c.surface, reading: c.reading })))
   const exampleAnns = useAnnotations(cards.map((c) => c.example ?? ''))
   const surface = card?.surface ?? ''
   const reading = card?.reading ?? null
   const ruby = useMemo(() => (reading ? alignWordRuby(surface, reading) : null), [surface, reading])
-  const faceHangul = (deck.showReading && layers[view]?.hangul) || OFF
-  const backHangul = layers[view]?.hangul ?? OFF
+  const layerHangul = layers[view]?.hangul
+  const faceHangul = (deck.showHangul && layerHangul) || OFF
+  const backHangul = layerHangul ?? OFF
   const exampleAnn = exampleAnns[view] ?? OFF
+  const hangulBlocked = hangulBlock({ prefsLoaded: prefs.loaded, appHangul: prefs.showHangul, layer: layerHangul?.s })
 
-  // 답 응답 뒤에는 [다음 카드]로, 새 카드가 되면 첫 보기·[뜻 보기]로 초점을 옮긴다(스크롤은 건드리지 않는다).
+  // 건너뛰기(task-060 D): 오른쪽 밀기·S·화면 읽기 전용 [건너뛰기]는 확인 시트만 연다. 기록(#50 skipped)은 시트의 [건너뛰기]에서만.
+  const skipCtx = { isCurrent, answered, busy: locked }
+  const skipOpen = skipSheetOpen({ skipFor, order: card?.order ?? null, answered, phase: deck.phase })
+  // 열림 조건이 풀리면(카드가 바뀜·답이 들어옴·끝내는 중) 연 카드 기록도 비운다 — 끝내기 실패로 phase 가 playing 으로 돌아와도 같은 카드의 시트가 되살아나지 않게(REV-060-1 L-3).
+  if (skipFor !== null && !skipOpen) setSkipFor(null)
+  // 끝내기 확인 시트가 열려 있으면 열지 않는다 — 키는 `sheetOpen` 이 막지만 화면 읽기가 모달 뒤 [건너뛰기]에 닿을 수 있다(L-2).
+  const askSkip = () => {
+    if (!card || endOpen || deck.phase !== 'playing' || !canAskSkip(skipCtx)) return
+    setSkipFor(card.order)
+  }
+
+  // 답 응답 뒤에는 [다음 카드]로, 새 카드가 되면 첫 보기·[알았어요]로 초점을 옮긴다(스크롤은 건드리지 않는다).
+  // 앞면 안내 자리(뜻 보기 전)에는 보이는 컨트롤이 없어 firstRef 가 비어 있고 초점을 옮기지 않는다 — 눈에 안 보이는 버튼에는 초점을 보내지 않는다(WCAG 2.4.7).
   useEffect(() => {
     if (deck.focus.seq === 0) return
     const id = requestAnimationFrame(() => {
-      const el = deck.focus.kind === 'next' ? nextRef.current : deck.focus.kind === 'choicesBtn' ? choicesRef.current : firstRef.current
+      const el = deck.focus.kind === 'next' ? nextRef.current : firstRef.current
       el?.focus({ preventScroll: true })
     })
     return () => cancelAnimationFrame(id)
@@ -106,7 +132,7 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           targetEditable: !!t?.isContentEditable,
         },
         {
-          sheetOpen: endOpen || !!document.querySelector('[role="dialog"][aria-modal="true"]'),
+          sheetOpen: endOpen || skipOpen || !!document.querySelector('[role="dialog"][aria-modal="true"]'),
           mode,
           isCurrent,
           answered,
@@ -146,8 +172,11 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
         case 'reading':
           deck.toggleReading()
           break
-        case 'skip':
-          deck.skip()
+        case 'hangul':
+          deck.toggleHangul(hangulBlocked)
+          break
+        case 'skipAsk':
+          askSkip()
           break
       }
     }
@@ -183,6 +212,21 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
       case 'none':
         break
     }
+  }
+
+  /** 위로 밀기 = 뜻 보기(task-060 A). 실제로 뜻이 열릴 때만 true — 그때만 카드가 튄다. */
+  const onUp = (): boolean => {
+    const r = upAction({ mode, side, isCurrent, answered, busy: locked, peekable })
+    if (r.kind === 'flip') deck.flip()
+    else if (r.kind === 'hint') deck.showHint(r.text)
+    return r.kind === 'flip'
+  }
+
+  /** 오른쪽 밀기 = 건너뛰기 확인(task-060 A). 답한·지난 카드는 [이전] 버튼을 알린다. */
+  const onRight = () => {
+    const r = rightAction(skipCtx)
+    if (r.kind === 'ask') askSkip()
+    else if (r.kind === 'hint') deck.showHint(r.text)
   }
 
   const listen = listenTexts(card)
@@ -222,14 +266,14 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           count={n}
           view={view}
           canGoNext={canGoNext}
-          canGoPrev={view > 0}
+          canSkip={canAskSkip(skipCtx)}
           locked={locked}
           exiting={deck.exiting}
           reducedMotion={deck.reducedMotion}
           onTap={onTap}
-          onUp={deck.toggleFlag}
+          onUp={onUp}
           onLeft={deck.next}
-          onRight={deck.prev}
+          onRight={onRight}
           renderTop={() => (
             <VocabCardFace
               card={card}
@@ -262,7 +306,6 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
             onSelf={deck.selfGrade}
             firstRef={firstRef}
             onChoices={cardHasChoices && !answered ? () => deck.toggleChoices('btn') : undefined}
-            choicesRef={choicesRef}
           />
         )}
       </div>
@@ -274,11 +317,14 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
           flagged={card.flagged}
           showReading={deck.showReading}
           readingAvailable={readingAvailable}
+          showHangul={deck.showHangul}
+          hangulAvailable={!hangulBlocked}
           locked={locked}
           onPrev={deck.prev}
           onReading={deck.toggleReading}
           onFlag={deck.toggleFlag}
-          onSkip={deck.skip}
+          onHangul={() => deck.toggleHangul(hangulBlocked)}
+          onSkipAsk={askSkip}
           onNext={deck.next}
           nextRef={nextRef}
         />
@@ -297,6 +343,14 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
         onConfirm={() => void deck.finish()}
         onClose={() => setEndOpen(false)}
         challengeNote={challengeNote}
+      />
+      <SkipConfirmSheet
+        open={skipOpen}
+        onConfirm={() => {
+          setSkipFor(null)
+          deck.skip()
+        }}
+        onClose={() => setSkipFor(null)}
       />
     </div>
   )

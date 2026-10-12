@@ -27,10 +27,10 @@ export function classifyGesture(dx: number, dy: number): Gesture {
   return 'none'
 }
 
-/** 드래그 표시 x. 왼쪽 = 다음, 오른쪽 = 이전 — 막힌 쪽으로는 ×0.25 만 따라온다. */
-export function resistX(x: number, canGoNext: boolean, canGoPrev: boolean): number {
+/** 드래그 표시 x. 왼쪽 = 다음, 오른쪽 = 건너뛰기 확인(task-060, 옛 이전) — 막힌 쪽으로는 ×0.25 만 따라온다. */
+export function resistX(x: number, canGoNext: boolean, canSkip: boolean): number {
   if (x < 0 && !canGoNext) return x * RESIST
-  if (x > 0 && !canGoPrev) return x * RESIST
+  if (x > 0 && !canSkip) return x * RESIST
   return x
 }
 
@@ -178,8 +178,12 @@ export type KeyIntent =
   | { type: 'next' }
   | { type: 'prev' }
   | { type: 'flag' }
+  /** R — 앞면 히라가나(루비)만 */
   | { type: 'reading' }
-  | { type: 'skip' }
+  /** H — 앞면 한글 표기 줄만(task-060) */
+  | { type: 'hangul' }
+  /** S — 건너뛰기 **확인 시트 열기**(바로 건너뛰지 않는다, task-060) */
+  | { type: 'skipAsk' }
   | { type: 'choices' }
 
 const EDITABLE_TAGS = new Set(['input', 'textarea', 'select'])
@@ -191,8 +195,8 @@ function digitOf(e: KeyLike): number | null {
   return null
 }
 
-/** 한글 자판에서도 같은 자리(F=ㄹ, R=ㄱ, S=ㄴ, C=ㅊ)가 먹게 `code` 를 먼저 본다. */
-function letterIs(e: KeyLike, letter: 'F' | 'R' | 'S' | 'C'): boolean {
+/** 한글 자판에서도 같은 자리(F=ㄹ, R=ㄱ, S=ㄴ, C=ㅊ, H=ㅗ)가 먹게 `code` 를 먼저 본다. */
+function letterIs(e: KeyLike, letter: 'F' | 'R' | 'S' | 'C' | 'H'): boolean {
   return e.code === `Key${letter}` || e.key.toUpperCase() === letter
 }
 
@@ -227,10 +231,39 @@ export function keyAction(e: KeyLike, ctx: KeyContext): KeyIntent | null {
   }
   if (e.key === 'ArrowRight') return { type: 'next' }
   if (e.key === 'ArrowLeft') return { type: 'prev' }
-  if (e.key === 'ArrowUp' || letterIs(e, 'F')) return { type: 'flag' }
+  // 표시(★)는 [표시]·F 로만(task-060 — 위로 밀기를 뜻 보기에 넘겨 ↑ 짝도 뗐다).
+  if (letterIs(e, 'F')) return { type: 'flag' }
   if (letterIs(e, 'R')) return { type: 'reading' }
-  if (letterIs(e, 'S')) return ctx.isCurrent && !ctx.answered ? { type: 'skip' } : null
+  if (letterIs(e, 'H')) return { type: 'hangul' }
+  if (letterIs(e, 'S')) return ctx.isCurrent && !ctx.answered ? { type: 'skipAsk' } : null
   return null
+}
+
+// ── 앞면 [읽기]·[한글] 선택값(task-060) ─────────────────────────────────────────────────────
+
+export type OnOff = 'on' | 'off'
+
+const asOnOff = (v: string | null | undefined): OnOff | null => (v === 'on' || v === 'off' ? v : null)
+
+/**
+ * [한글] 선택값 — 자기 저장값이 있으면 그 값, 없으면(새 키 도입 전 사용자) [읽기] 저장값을 이어받고, 그것도 없으면 켬.
+ * 옛 [읽기]는 히라가나와 한글을 함께 켰으므로 [읽기]를 꺼 둔 사용자의 앞면이 갑자기 바뀌지 않게 한다.
+ */
+export function hangulPrefOf(own: string | null, reading: string | null): OnOff {
+  return asOnOff(own) ?? asOnOff(reading) ?? 'on'
+}
+
+/**
+ * [읽기]·[한글]을 누를 때 저장할 값. 둘은 독립이다 — 단 한글 키가 비어 있어 [읽기] 값을 이어받는 중이면, [읽기]를 누르기 전에
+ * 지금 보이는 한글 값을 먼저 굳힌다(안 그러면 [읽기]를 누르는 순간 한글도 같이 바뀐다).
+ */
+export function displayToggleWrites(
+  which: 'reading' | 'hangul',
+  s: { hangulStored: boolean; showReading: boolean; showHangul: boolean },
+): { reading?: OnOff; hangul?: OnOff } {
+  if (which === 'hangul') return { hangul: s.showHangul ? 'off' : 'on' }
+  const reading: OnOff = s.showReading ? 'off' : 'on'
+  return s.hangulStored ? { reading } : { reading, hangul: s.showHangul ? 'on' : 'off' }
 }
 
 // ── 요청 큐·타이머 ───────────────────────────────────────────────────────────────────────────

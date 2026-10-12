@@ -9,8 +9,10 @@ import {
   countOptions,
   createSerialQueue,
   createStopwatch,
+  displayToggleWrites,
   estimateMinutes,
   frontierOf,
+  hangulPrefOf,
   keyAction,
   markChoice,
   pickNotice,
@@ -35,7 +37,8 @@ test('classifyGesture: 탭 10px 미만 · 위 −80 초과 · 좌우 60 초과(b
 
 test('resistX: 막힌 방향만 ×0.25', () => {
   assert.equal(resistX(-100, false, true), -25, '안 답한 카드를 왼쪽(다음)으로')
-  assert.equal(resistX(100, true, false), 25, '첫 카드를 오른쪽(이전)으로')
+  // task-060: 오른쪽 = 건너뛰기 확인 — 건너뛸 수 없는 카드(답한 카드·지난 카드·저장 중)를 오른쪽으로(옛: 첫 카드를 오른쪽(이전)으로)
+  assert.equal(resistX(100, true, false), 25, '건너뛸 수 없는 카드를 오른쪽(건너뛰기)으로')
   assert.equal(resistX(-100, true, false), -100)
   assert.equal(resistX(100, false, true), 100)
 })
@@ -123,11 +126,13 @@ test('keyAction: CHOICE 1~4·Space·화살표·F/R/S', () => {
   assert.deepEqual(keyAction({ key: 'Enter' }, { ...base, answered: true }), { type: 'advance' })
   assert.deepEqual(keyAction({ key: 'ArrowRight' }, base), { type: 'next' })
   assert.deepEqual(keyAction({ key: 'ArrowLeft' }, base), { type: 'prev' })
-  assert.deepEqual(keyAction({ key: 'ArrowUp' }, base), { type: 'flag' })
+  // task-060: 표시(★)는 [표시]·F 로만 남는다(위로 밀기를 뜻 보기에 넘김) — ↑ 는 표시가 아니다(옛: { type: 'flag' })
+  assert.equal(keyAction({ key: 'ArrowUp' }, base), null, '↑ 는 더 이상 표시 토글이 아니다')
   assert.deepEqual(keyAction({ key: 'f' }, base), { type: 'flag' })
   assert.deepEqual(keyAction({ key: 'ㄹ', code: 'KeyF' }, base), { type: 'flag' }, '한글 자판에서도 F 자리')
   assert.deepEqual(keyAction({ key: 'r' }, base), { type: 'reading' })
-  assert.deepEqual(keyAction({ key: 'S' }, base), { type: 'skip' })
+  // task-060: S = 건너뛰기 **확인 시트 열기**(바로 건너뛰지 않는다, 옛: { type: 'skip' })
+  assert.deepEqual(keyAction({ key: 'S' }, base), { type: 'skipAsk' })
   assert.equal(keyAction({ key: 's' }, { ...base, answered: true }), null)
 })
 
@@ -220,7 +225,7 @@ test('keyAction: 카드 우선 — C 로 열기/닫기(한글 자판 KeyC 포함
   assert.equal(keyAction({ key: ' ' }, { ...cardFirst, choices: 'open' }), null, '열림에서 Space 무시')
   assert.equal(keyAction({ key: 'Enter' }, { ...cardFirst, choices: 'open' }), null, '열림에서 Enter 무시')
   assert.deepEqual(keyAction({ key: ' ' }, cardFirst), { type: 'flip' }, '닫힘에서 Space = 뜻 보기')
-  assert.deepEqual(keyAction({ key: 's' }, { ...cardFirst, choices: 'open' }), { type: 'skip' }, '열림에서도 건너뛰기')
+  assert.deepEqual(keyAction({ key: 's' }, { ...cardFirst, choices: 'open' }), { type: 'skipAsk' }, '열림에서도 건너뛰기 확인')
   assert.deepEqual(keyAction({ key: 'ArrowRight' }, { ...cardFirst, choices: 'open' }), { type: 'next' })
 })
 
@@ -234,6 +239,62 @@ test('keyAction: C 무시 — 뜻 보기 면·답한 카드·지난 카드·이�
   assert.equal(keyAction({ key: 'c', targetTag: 'input' }, cardFirst), null)
   assert.equal(keyAction({ key: 'c', ctrlKey: true }, cardFirst), null)
   assert.deepEqual(keyAction({ key: '1' }, { ...cardFirst, choices: 'none', side: 'back' }), { type: 'self', result: 'CORRECT' }, '뜻 보기 면 1·2 그대로')
+})
+
+// ── task-060 덱 조작 정리(H 한글·S 확인·↑ 해제·한글 상태 이어받기) ─────────────────────────────
+
+test('keyAction(task-060): R 읽기 · H 한글(한글 자판 KeyH 포함) · F 표시 · C 객관식 · Space 뜻 보기 · S 확인 시트', () => {
+  assert.deepEqual(keyAction({ key: 'r' }, cardFirst), { type: 'reading' }, 'R = 히라가나만')
+  assert.deepEqual(keyAction({ key: 'ㄱ', code: 'KeyR' }, cardFirst), { type: 'reading' })
+  assert.deepEqual(keyAction({ key: 'h' }, cardFirst), { type: 'hangul' }, 'H = 한글만(새)')
+  assert.deepEqual(keyAction({ key: 'H' }, cardFirst), { type: 'hangul' })
+  assert.deepEqual(keyAction({ key: 'ㅗ', code: 'KeyH' }, cardFirst), { type: 'hangul' }, '한글 자판에서도 H 자리')
+  assert.deepEqual(keyAction({ key: 'f' }, cardFirst), { type: 'flag' })
+  assert.deepEqual(keyAction({ key: 'c' }, cardFirst), { type: 'choices' })
+  assert.deepEqual(keyAction({ key: ' ' }, cardFirst), { type: 'flip' })
+  assert.deepEqual(keyAction({ key: 's' }, cardFirst), { type: 'skipAsk' })
+  assert.deepEqual(keyAction({ key: 'ㄴ', code: 'KeyS' }, cardFirst), { type: 'skipAsk' }, '한글 자판에서도 S 자리')
+  assert.deepEqual(keyAction({ key: 's' }, { ...cardFirst, side: 'back', choices: 'none' }), { type: 'skipAsk' }, '뜻을 본 뒤에도 건너뛸 수 있다')
+  assert.equal(keyAction({ key: 'ArrowUp' }, cardFirst), null, '↑ 무시(뜻 보기는 Space·위로 밀기)')
+})
+
+test('keyAction(task-060): S 는 안 답한 지금 카드에서만, H 는 어느 카드든 · 시트·입력창·수정키·반복이면 무시', () => {
+  assert.equal(keyAction({ key: 's' }, { ...cardFirst, answered: true }), null, '답한 카드')
+  assert.equal(keyAction({ key: 's' }, { ...cardFirst, isCurrent: false }), null, '지난 카드')
+  assert.deepEqual(keyAction({ key: 'h' }, { ...cardFirst, answered: true, side: 'back' }), { type: 'hangul' }, '저장 선택값 토글 — 카드 상태와 무관(R 과 같음)')
+  assert.equal(keyAction({ key: 's' }, { ...cardFirst, sheetOpen: true }), null, '확인 시트가 열려 있으면 다시 열지 않는다')
+  assert.equal(keyAction({ key: 'h' }, { ...cardFirst, sheetOpen: true }), null)
+  assert.equal(keyAction({ key: 'h', targetTag: 'input' }, cardFirst), null)
+  assert.equal(keyAction({ key: 'h', ctrlKey: true }, cardFirst), null)
+  assert.equal(keyAction({ key: 'h', metaKey: true }, cardFirst), null)
+  assert.equal(keyAction({ key: 's', repeat: true }, cardFirst), null)
+  assert.equal(keyAction({ key: 's', isComposing: true }, cardFirst), null)
+})
+
+test('hangulPrefOf: 한글 키 값이 있으면 그 값, 비어 있거나 이상한 값이면 [읽기] 값을 이어받는다(그것도 없으면 on)', () => {
+  assert.equal(hangulPrefOf('on', 'off'), 'on', '자기 값이 먼저')
+  assert.equal(hangulPrefOf('off', 'on'), 'off')
+  assert.equal(hangulPrefOf(null, 'off'), 'off', '이미 [읽기]를 꺼 둔 사용자는 화면이 바뀌지 않는다')
+  assert.equal(hangulPrefOf(null, 'on'), 'on')
+  assert.equal(hangulPrefOf(null, null), 'on', '둘 다 없으면 켬')
+  assert.equal(hangulPrefOf('yes', 'off'), 'off', '손으로 고친 값은 없는 것으로')
+  assert.equal(hangulPrefOf('', null), 'on')
+  assert.equal(hangulPrefOf(null, 'weird'), 'on', '읽기 값도 이상하면 켬')
+})
+
+test('displayToggleWrites: [한글]은 한글 키만, [읽기]는 읽기 키만 — 단 한글 키가 비어 있으면 지금 보이는 한글 값을 먼저 굳힌다', () => {
+  assert.deepEqual(displayToggleWrites('hangul', { hangulStored: true, showReading: true, showHangul: true }), { hangul: 'off' })
+  assert.deepEqual(displayToggleWrites('hangul', { hangulStored: false, showReading: false, showHangul: false }), { hangul: 'on' })
+  assert.deepEqual(displayToggleWrites('reading', { hangulStored: true, showReading: true, showHangul: true }), { reading: 'off' }, '한글 키가 있으면 읽기만')
+  assert.deepEqual(
+    displayToggleWrites('reading', { hangulStored: false, showReading: true, showHangul: true }),
+    { reading: 'off', hangul: 'on' },
+    '이어받는 중이면 [읽기]를 꺼도 한글은 그대로(독립)',
+  )
+  assert.deepEqual(displayToggleWrites('reading', { hangulStored: false, showReading: false, showHangul: false }), { reading: 'on', hangul: 'off' })
+  // 결과를 다시 hangulPrefOf 로 읽으면 누르기 전 한글 값과 같다
+  const w = displayToggleWrites('reading', { hangulStored: false, showReading: true, showHangul: true })
+  assert.equal(hangulPrefOf(w.hangul ?? null, w.reading ?? null), 'on')
 })
 
 test('pickNotice: noChoice 는 few·deleted 와 같은 최우선', () => {
