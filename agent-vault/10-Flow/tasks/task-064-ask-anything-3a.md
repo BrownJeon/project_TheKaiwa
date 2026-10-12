@@ -1,8 +1,8 @@
 ---
 task_id: task-064
 title: "무엇이든 물어보세요(/ask) 3a — 일본어 표현·문법 질문 + 내 학습 기록 근거 답변(정형 조회·출처 카드) (Phase 3, standard 트랙)"
-status: doing
-waiting: codex_c1_designer_pe
+status: review
+waiting: device_verify
 base_ref: fa328cb
 risk_level: "R2"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, deployer]
@@ -149,7 +149,18 @@ designer 가 v2 에서 올린 4건([[task-064-designer-record]] 「v2 (현행화
 - A3b Low-1(「단어장에 추가해줘」가 EXPRESSION 으로 분류돼 무관한 최근 교정 최대 4건이 함께 전송 — 동의 범위 안) → 수용(후속: 분류 규칙·추가 요청 GENERAL), A3b Low-2(프롬프트 문체 2건) → 후속, Low-3(방 삭제 후 PROPOSED 제안이 30일 남음, `onDelete: SetNull`) → Leader 판단 후속.
 - 동의 문구에 열거되지 않은 보조 칸이 실제 나감(A3a 관찰 1): 레슨·상황 제목, 교정 유형 라벨·누적 횟수, 평가 5항목 점수, 출석 일수, 문법 패턴 짧은 뜻, 복습 예정 표현의 뜻, 헤더의 선생님 이름·목표·약점 코드 — 제외 12종과 겹치지 않음. **배포 승인 때 사용자에게 고지.**
 - 문서 정정: §25-5 B `noneLine` 수식에 `!needsScope`(구현 일치) · 계약 §2-18-A 3-A(도우미·대답 연습은 404)·제목 규칙(29자+…) 실제 동작에 맞춤.
-- 열린 일: REV-lane·REV-scroll → 합본 스냅샷 게이트 → QA 서버 재기동(최종 빌드) → 간섭 재측정(AI 약 4회)·화면 재검증(3폭, 스크롤 합격선) → 커밋·푸시 전 게이트 → **사용자 배포 승인 요청**.
+- (이 항목은 배포로 닫힘 — 아래 「운영 배포」)
+
+## 운영 배포 (2026-10-12 23:24 KST, Leader — 사용자 승인: 질문 도구 응답 「그대로 커밋·푸시·배포 (권장)」)
+
+- **마지막 감사·QA 정리**: REV-lane PASS_WITH_NOTES(변이 12건 생존 0) · REV-scroll PASS_WITH_NOTES(변이 30건 중 25 포착, 회화·채팅 마크업 18건 동일) · dev-nit(L-1 설정 설명·L-2 시험 예외·SCROLL-4 click 만짐, 변이 포착) · QA-A4(슬롯 재측정: 채팅 기준선 3.02초, ASK 중 다른 사용자 채팅 3.07/3.87/3.71초, 최대 동시 AI 프로세스 2, 프로세스당 RSS 약 350~400MB, ASK 끼리 직렬, 같은 사용자 409 불변, 한도 환불) · QA-B3/B4(스크롤 합격선 3폭 PASS: 재진입·SSE 도착·폴링 도착·위로 올림 알약 「새 답 ↓」 1개·클릭 후 정렬 12±2·초점 목록·키보드·글자 200%·회화/채팅 회귀 0, 결함 Low 1 = QA64-B4-1 대기 카드 재진입 360폭 14px, 새 코드 경로 아님·수용).
+- **커밋**: 코드 `c3fb3f1`(src·tests·.env.example 100개: 신규 68·수정 31·삭제 1) · 문서 `6bff544`(docs 4개) · vault `59eb4f8`(33개). `.obsidian/` 5개는 제외(이 작업 것 아님).
+- **푸시 전 게이트**(HEAD `59eb4f8`, `git archive` 사본): prisma generate 0 · eslint 오류 0(경고 5 기존) · 시험 3,794건 중 3,793 통과·실패 0·건너뜀 1 · build 0. **tsc 는 첫 실행 exit 2** — 상시 미러에 남은 이전 빌드의 `.next/types/validator.ts` 가 삭제한 `ask/page.tsx` 를 참조하는 낡은 생성물(소스 오류 아님): 방금 끝난 `next build` 가 생성물을 갱신한 뒤 같은 미러에서 `tsc` 재실행 **exit 0·출력 0**, validator 의 `ask/page.js` 참조 0, HEAD 에 해당 파일 없음.
+- **push** `812b52c..59eb4f8`(로컬 커밋 5개: task-065 배포 기록·task-064 데모 v2 문서 + 이번 3개) → 웹훅 START 23:23:59 → 릴리스 **`20261012-232359-59eb4f85`** `RELEASE_RESULT ok`·`migrated:false`(스키마·APK 변경 없음). **롤백 대상 `20261012-143811-812b52c1`**(`bash scripts/deploy.sh TheKaiwa --rollback`). 배포 로그의 `SPAWN_FAILED` 는 Next 빌드의 「동적 파일 접근이 프로젝트 전체 추적」 경고가 인용한 기존 코드 한 줄(`claudeCli.ts:898` 버전 탐지)이지 오류가 아니다.
+- **배포 직후 확인**: 운영 헬스 200 `PRODUCTION`·`status ok`·`degraded []`·checks 11개 전부 true · pm2 3개 online·재시작 0·cwd 새 릴리스 · 번들: `(app)/ask/` 에 `[chatId]`·`(tab)` 만(옛 `page.js` 없음), `answer-start` 2·「새 답」 11·「자유로운 대화」 1·범위 안내 키 5개 파일, 「나가서 기다리기」 0, ASK 레인 매핑 청크 2 · **운영 읽기 전용 스모크(QA2, GET 14건·쓰기 0·AI 0)** 7개 항목 PASS: 무인증 `/ask` 307→로그인, QA2 쿠키로 `/ask`·`/study/ai`·`/study/today`·`/plan`·`/settings`·`/drawer/words`·`/drawer/corrections` 200, 하단 탭 「회화·공부·계획표·단어장·질문」, `/api/v1/chats?kind=ASK`·`kind=CHAT` 200(QA2 방 0), 응답·HTML 에 엔진명·Secret 계열 0, 없는 id 404, 23:24 이후 서버 로그 오류 패턴 0, 운영 node 자식 `claude` 0 ([[task-064-qa-prod-record]]).
+- **부수 조치**: QA 가 호스트 이상 2건 보고 — ① 스왑 2,047/2,047MB 가득(점유 상위 mysqld·java·n8n, 이번 배포 탓 아님; 다만 AI 프로세스 동시 2개 추가 약 700MB 에 주의) ② `thekaiwa-dev064s2b` 고아 시험 프로세스 9개(약 5시간 53분, dev-S2b 의 `node --test` 가 남김) → cwd·명령줄 확인 뒤 해당 PID 에만 SIGTERM, 잔존 0·가용 메모리 18,100→18,540MB, 운영 3010·pm2 무영향.
+- **남은 일(사용자 몫)**: 폰(앱 WebView)에서 ① 하단 「질문」 탭 → 첫 질문 시 보내는 범위 안내 시트 → 일반 질문 1건(범위 칩이 필요한 질문은 칩) ② 긴 답이 도착했을 때 질문과 답 첫 문단이 보이는지(스크롤 규칙), 위로 올려 둔 채 도착하면 「새 답 ↓」 ③ 근거 카드 눌러 원래 기록으로 이동 후 「질문으로」 돌아오기 ④ 제안 카드(ADD_WORD)는 채택/거절 버튼으로 ⑤ 느낌상 지연(ASK 중 다른 화면은 안 막히는지 — 같은 계정은 409 가 정상). **운영에서 실제 질문 한 번을 QA 계정으로 해 보는 확인은 아직 안 했다(POST·AI 호출이라 사용자 허락 필요).** 임시 미러 정리(dev064*·pe064·rev064*·`rev064-tree`)는 사용자 지시 시.
+- **알려진 한계(배포 때 고지한 것 그대로)**: 보조 전송 칸(레슨·상황 제목, 교정 유형·횟수, 평가 점수, 출석 일수, 문법·복습 표현의 뜻, 헤더 정보) · 분류 오류 시 무관한 최근 교정 최대 4건 동반 · 한도 메모리 저장 · 같은 사용자 ASK 중 회화·채팅 409 · 승인 데모 v2 에 없는 「새 답 ↓」 알약 · AI 프로세스 동시 2개.
 
 ## Codex 검토 (C1, 2026-10-12)
 
