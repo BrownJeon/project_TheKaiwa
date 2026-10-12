@@ -15,6 +15,8 @@ import { countLaterPending } from '../corrections'
 import { readCorrectionMeta, talkCorrectionFields, type CorrectionDeliver, type SelfCheckResult } from '../corrections/talkDelivery'
 import { SPEECH_STYLES } from '../structuredResponse/schemas'
 import type { CreateChatInput } from './validate'
+import { messageAskField } from './askView'
+import { ASK_DEFAULT_TITLE, type AskMetaDto } from '../orchestrator/ask'
 import { rolePlayListBadges } from './rolePlay'
 
 export const PREVIEW_MAX = 120
@@ -93,8 +95,9 @@ export async function runningChatIds(chatIds: string[]): Promise<Set<string>> {
   return new Set(rows.filter((r) => !isStalePending(r.createdAt, now, local.has(r.id))).map((r) => r.chatId))
 }
 
-/** 기본 제목 — 주제 제목 > 종류별 기본값(#28 "없으면 주제 제목 또는 새 회화"; 채팅은 "새 채팅"). */
-function defaultTitle(kind: 'TALK' | 'CHAT', topicTitle: string | null): string {
+/** 기본 제목 — 주제 제목 > 종류별 기본값(#28 "없으면 주제 제목 또는 새 회화"; 채팅은 "새 채팅"). ASK 는 주제가 없고 늘 「새 질문」(§2-18-A 1항). */
+export function defaultChatTitle(kind: ChatKind, topicTitle: string | null): string {
+  if (kind === 'ASK') return ASK_DEFAULT_TITLE
   if (topicTitle) return truncateCodePoints(topicTitle, 100)
   return kind === 'CHAT' ? '새 채팅' : '새 회화'
 }
@@ -115,7 +118,7 @@ export async function createChat(userId: string, input: CreateChatInput, over?: 
       data: {
         userId,
         kind: input.kind,
-        title: input.title ?? defaultTitle(input.kind, topic?.title ?? null),
+        title: input.title ?? defaultChatTitle(input.kind, topic?.title ?? null),
         topicId: topic?.id ?? null,
         level,
         lastMessageAt: now,
@@ -154,6 +157,14 @@ export async function listChats(userId: string, q: { kind?: ChatKind; limit: num
   }
 }
 
+/** 소유한 대화의 종류만(#32 라우트가 수락 전 종류별 검사·ASK 한도에 쓴다 — 관계 조회 없이 한 번). 없음·남의 것 404. */
+export async function getOwnedChatKind(userId: string, chatId: string): Promise<ChatKind> {
+  if (typeof chatId !== 'string' || !chatId || chatId.length > 40) throw notFoundChat()
+  const c = await prisma.chat.findFirst({ where: { id: chatId, userId }, select: { kind: true } })
+  if (!c) throw notFoundChat()
+  return c.kind
+}
+
 /** 소유자 확인용 최소 조회 — 없으면 404. */
 export async function getOwnedChat(userId: string, chatId: string): Promise<ChatRow> {
   if (typeof chatId !== 'string' || !chatId || chatId.length > 40) throw notFoundChat()
@@ -188,6 +199,8 @@ export interface MessageDto {
   /** ASSISTANT: 저장된 LLM `speech.style`(다시 듣기 #23 의 styleHint — 같은 캐시 키로 HIT). task-007. */
   speechStyle?: string | null
   corrections?: (ReturnType<typeof serializeCorrection> & TalkCorrectionView)[]
+  /** ASK 의 ASSISTANT 만(task-064 §2-18-A 4항) — `toolLog.ask` 의 허용 필드. 끝나지 않은 답은 null, 다른 종류·USER 는 키 없음. */
+  ask?: AskMetaDto | null
 }
 
 /** TALK 교정의 표시 필드(task-010c) — 표시 시점·코치 힌트·자기수정 판정. CHAT 교정에는 싣지 않는다. */
@@ -218,7 +231,7 @@ function styleFrom(toolLog: Prisma.JsonValue | null): string | null {
   return typeof st === 'string' && STYLES.has(st) ? st : null
 }
 
-function serializeMessage(m: MessageRow, corrections: MessageDto['corrections'] | undefined): MessageDto {
+function serializeMessage(m: MessageRow, corrections: MessageDto['corrections'] | undefined, kind: ChatKind): MessageDto {
   const base: MessageDto = {
     id: m.id,
     role: m.role,
@@ -230,7 +243,13 @@ function serializeMessage(m: MessageRow, corrections: MessageDto['corrections'] 
     createdAt: m.createdAt.toISOString(),
   }
   if (m.role === 'USER') return { ...base, corrections: corrections ?? [] }
-  return { ...base, traceId: m.traceId, learning: m.status === 'DONE' ? learningFrom(m.toolLog) : null, speechStyle: m.status === 'DONE' ? styleFrom(m.toolLog) : null }
+  return {
+    ...base,
+    traceId: m.traceId,
+    learning: m.status === 'DONE' ? learningFrom(m.toolLog) : null,
+    speechStyle: m.status === 'DONE' ? styleFrom(m.toolLog) : null,
+    ...messageAskField(kind, m.role, m.status, m.toolLog),
+  }
 }
 
 export interface ChatDetailDto {
@@ -291,7 +310,7 @@ export async function getChatDetail(userId: string, chatId: string, q: { after?:
   })
   return {
     chat: { id: chat.id, kind: chat.kind, title: chat.title, level: chat.level, running, reviewedAt: chat.reviewedAt ? chat.reviewedAt.toISOString() : null, messageCount: chat.messageCount },
-    messages: rows.map((m) => serializeMessage(m, byMessage.get(m.id))),
+    messages: rows.map((m) => serializeMessage(m, byMessage.get(m.id), chat.kind)),
     pendingProposals,
     ...(talk ? { laterPending: await countLaterPending(userId, chatId) } : {}),
     nextCursor,

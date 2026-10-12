@@ -51,7 +51,7 @@ export const claudeCliProvider: EngineProvider = {
         editability: 'RESTART_REQUIRED',
         restartTarget: 'app',
         envAlias: ['CLAUDE_CLI_CONCURRENCY'],
-        description: '동시 실행 수(구독 rate limit 을 6개 프로젝트가 공유)',
+        description: '공용 큐 동시 실행 수(현재 코드 고정 1 — 이 키는 큐에 연결돼 있지 않다). 질문(ASK) 전용 슬롯 1개가 별도로 있어 AI 프로세스는 최대 2개 동시에 돈다',
       }),
       key('runtime.interactiveLane', 'BOOLEAN', true, { editability: 'RESTART_REQUIRED', restartTarget: 'app', description: '대화형 요청을 배치보다 먼저 처리하는 레인' }),
       key('runtime.permissionMode', 'ENUM', 'dontAsk', { enum: ['dontAsk'], editability: 'READ_ONLY', description: '권한 모드 — 코드 고정(cwd 밖 읽기 거부)' }),

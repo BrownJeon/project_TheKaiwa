@@ -4,6 +4,7 @@
  * 채팅방 ⋯ 메뉴(screens.md §3-2 C ChatMenuSheet): 제목 바꾸기(#30) · 채팅 삭제(#31, 확인 단계).
  * "읽기 항상 펼치기" 줄은 없앴다(task-026 F1-A — 히라가나·한글·번역은 앱 전체 표시 설정: 방의 표시 바·설정 › 일본어 표시).
  * 회화방(task-007 §9-2 H)은 `chat.kind` 로 문구·삭제 뒤 경로만 바뀌고, `extra` 슬롯에 "들려주는 방식"을 넣는다.
+ * 질문 방(task-064 §25-5 H)도 `kind === 'ASK'` 로 문구·삭제 실패 한 줄·삭제 뒤 경로(+ 목록 토스트 표지)만 바뀐다.
  */
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -14,6 +15,9 @@ import type { ChatInfo } from '@/types/chat'
 import { toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
 import { actionErrorText } from './labels'
+import { writeStore } from '@/components/common/storage'
+import { ASK_COPY } from '@/components/ask/askCopy'
+import { ASK_KEYS } from '@/components/ask/logic'
 
 type Mode = 'menu' | 'rename' | 'confirmDelete'
 
@@ -37,7 +41,8 @@ export default function ChatMenuSheet({
   extra?: React.ReactNode
 }) {
   const talk = chat.kind === 'TALK'
-  const noun = talk ? '회화' : '채팅'
+  const ask = chat.kind === 'ASK'
+  const noun = ask ? ASK_COPY.menu.noun : talk ? '회화' : '채팅'
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('menu')
   const [title, setTitle] = useState(chat.title)
@@ -78,16 +83,19 @@ export default function ChatMenuSheet({
   const remove = async () => {
     if (busy) return
     if (turnBusy) {
-      onToast('답을 받는 중에는 지울 수 없어요')
+      onToast(ask ? ASK_COPY.menu.deleteBusy : '답을 받는 중에는 지울 수 없어요')
       return
     }
     setBusy(true)
     setError(null)
     try {
       await apiDelete(`/api/v1/chats/${encodeURIComponent(chat.id)}`)
-      router.replace(talk ? '/study/ai?tab=talk' : '/study/ai?tab=chat')
+      if (ask) {
+        writeStore('session', ASK_KEYS.flash, 'deleted')
+        router.replace('/ask')
+      } else router.replace(talk ? '/study/ai?tab=talk' : '/study/ai?tab=chat')
     } catch (e) {
-      setError(actionErrorText(toErr(e)))
+      setError(ask ? ASK_COPY.menu.deleteFail : actionErrorText(toErr(e)))
       setBusy(false)
     }
   }
@@ -98,7 +106,7 @@ export default function ChatMenuSheet({
     <Sheet open={open} title={sheetTitle} onClose={close} dismissible={!busy}>
       {mode === 'menu' ? (
         <div className="flex flex-col divide-y divide-line">
-          {talk ? <p className="truncate pb-2 text-[15px] font-semibold">{chat.title}</p> : null}
+          {talk || ask ? <p className="truncate pb-2 text-[15px] font-semibold">{chat.title}</p> : null}
           <button
             type="button"
             className={ROW}
@@ -116,7 +124,7 @@ export default function ChatMenuSheet({
             aria-disabled={turnBusy || undefined}
             className={`${ROW} text-bad ${turnBusy ? 'opacity-50' : ''}`}
             onClick={() => {
-              if (turnBusy) onToast('답을 받는 중에는 지울 수 없어요')
+              if (turnBusy) onToast(ask ? ASK_COPY.menu.deleteBusy : '답을 받는 중에는 지울 수 없어요')
               else {
                 setError(null)
                 setMode('confirmDelete')
@@ -152,8 +160,10 @@ export default function ChatMenuSheet({
         </div>
       ) : (
         <div className="flex flex-col gap-1">
-          <p className="text-[15px] font-semibold break-keep">{talk ? '이 회화를 삭제할까요?' : '이 채팅을 삭제할까요?'}</p>
-          <p className="text-[14px] text-ink2 break-keep">메시지와 교정·제안이 함께 지워져요. 이미 남긴 공부 기록은 그대로 남아요.</p>
+          <p className="text-[15px] font-semibold break-keep">{ask ? ASK_COPY.menu.confirmTitle : talk ? '이 회화를 삭제할까요?' : '이 채팅을 삭제할까요?'}</p>
+          <p className="text-[14px] text-ink2 break-keep">
+            {ask ? ASK_COPY.menu.confirmBody : '메시지와 교정·제안이 함께 지워져요. 이미 남긴 공부 기록은 그대로 남아요.'}
+          </p>
           {error ? (
             <p role="alert" className="mt-1 text-[12px] text-bad break-keep">
               {error}

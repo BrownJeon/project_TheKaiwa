@@ -13,7 +13,7 @@
 import { callClaudeDetailed, prewarmClaude, type ClaudeCliOptions, type PrewarmOutcome, type WarmUse } from '../adapters/llm/claudeCli'
 import { HomeM4ApiCaller, LlmContractError, LlmMisconfiguredError, LlmTimeoutError, prepareHomeM4Call, type LlmMessage } from '../adapters/llm/homeM4'
 import { extractAndValidate, runJsonWithRetry, withJsonOnly, type JsonAttemptInfo, type JsonRepair, type RunJsonResult } from '../json/schemaValidate'
-import { adapterRetryOptions, LLM_TASKS, resolveCandidates, withFallback, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
+import { adapterRetryOptions, LLM_TASKS, resolveCandidates, withFallback, type LlmLane, type LlmTask, type LlmTier, type ResolvedConnection } from '../router'
 
 export { LlmError, LlmTimeoutError, LlmHttpError, LlmContractError, LlmMisconfiguredError, toUserMessage } from '../adapters/llm/homeM4'
 export { JsonSchemaError } from '../json/schemaValidate'
@@ -40,6 +40,7 @@ export interface LlmRequest {
   /** 생략하면 task 표(LLM_TASKS) 값. */
   tier?: LlmTier
   timeoutMs?: number
+  /** 생략하면 task 표 레인. ASK 전용 레인(`ask`)은 task 표로만 고른다 — 상위 층이 레인 이름을 알 필요가 없게 여기에는 없다. */
   priority?: 'interactive' | 'batch'
   /** completeJson 이 채운다. claude-cli 는 `--json-schema` 로 강제(connection `runtime.jsonSchemaFlag !== false`), home-m4 는 프롬프트에 스키마를 싣는다. */
   jsonSchema?: object
@@ -192,7 +193,7 @@ export function adapterCallOptions(
   base: ClaudeCliOptions,
   req: Pick<LlmRequest, 'task' | 'signal'>,
   timeoutMs: number,
-  priority: 'interactive' | 'batch',
+  priority: LlmLane,
   onTextDelta?: (delta: string) => void,
 ): ClaudeCliOptions {
   return {
@@ -211,7 +212,7 @@ async function callOnce(
   req: LlmRequest,
   tier: LlmTier,
   timeoutMs: number,
-  priority: 'interactive' | 'batch',
+  priority: LlmLane,
   retry: RetryHint | null,
   onDelta?: (delta: string) => void,
 ): Promise<CallOutcome> {
@@ -253,11 +254,16 @@ export const runtimeReaders = {
   prewarmIdleTtlSec: (c: ResolvedConnection) => intRuntime(c, 'prewarmIdleTtlSec', 600, 60, 3_600),
 }
 
+/** 요청이 탈 어댑터 큐 레인 — 호출자가 `priority` 를 주지 않으면 task 표(`LLM_TASKS`)의 레인(`ask` 는 ASK 전용 슬롯). */
+export function requestLane(req: Pick<LlmRequest, 'task' | 'priority'>): LlmLane {
+  return req.priority ?? LLM_TASKS[req.task].lane
+}
+
 export async function complete(req: LlmRequest): Promise<LlmTextResult> {
   const spec = LLM_TASKS[req.task]
   const tier = req.tier ?? spec.tier
   const budget = req.timeoutMs ?? spec.timeoutMs
-  const priority = req.priority ?? spec.lane
+  const priority = requestLane(req)
   const startedAt = Date.now()
   const deadline = startedAt + budget
   const { value, connection } = await withFallback('LLM', { task: req.task }, (c) =>
@@ -274,7 +280,7 @@ export async function completeJson<T>(req: LlmJsonRequest<T>): Promise<LlmJsonRe
   const spec = LLM_TASKS[req.task]
   const tier = req.tier ?? spec.tier
   const budget = req.timeoutMs ?? spec.timeoutMs
-  const priority = req.priority ?? spec.lane
+  const priority = requestLane(req)
   const startedAt = Date.now()
   const deadline = startedAt + budget
   let meta = { model: '', promptChars: 0 }

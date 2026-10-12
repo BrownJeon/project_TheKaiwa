@@ -9,6 +9,7 @@
  */
 import { readStore, writeStore } from '@/components/common/storage'
 import { isPlanHref, parsePlanReturn, PLAN_RETURN_KEY, PLAN_RETURN_LABEL, PLAN_RETURN_TTL_MS, samePath } from './planReturn'
+import { ASK_RETURN_KEY, ASK_RETURN_LABEL, isAskHref, parseAskReturn } from './askReturn'
 
 export const CORRECTIONS_RETURN_KEY = 'kaiwa.correctionsReturn'
 export const CORRECTIONS_RETURN_LABEL = '교정 모음으로'
@@ -65,21 +66,34 @@ export function correctionsReturnHref(raw: string | null, pathname: string | nul
 }
 
 /**
- * 계획표 기록과 교정 모음 기록 가운데 지금 경로에 맞는 쪽의 돌아갈 주소. 둘 다 맞으면 `at` 이 늦은 쪽(같으면 계획표), 없으면 null.
- * 저장소를 읽지 않는 순수 함수 — `currentBackHref` 가 저장소 값을 넣어 부른다.
+ * 계획표·교정 모음·질문 방(task-064 §25-8 B) 기록 가운데 지금 경로에 맞는 쪽의 돌아갈 주소. 여럿이 맞으면 `at` 이 가장 늦은 쪽
+ * (같으면 계획표 → 교정 모음 → 질문 방 순), 없으면 null. 저장소를 읽지 않는 순수 함수 — `currentBackHref` 가 저장소 값을 넣어 부른다.
+ * `askRaw` 를 넘기지 않는 호출은 예전과 같다(두 기록).
  */
-export function pickBackHref(planRaw: string | null, correctionsRaw: string | null, pathname: string | null | undefined, now: number): string | null {
+export function pickBackHref(
+  planRaw: string | null,
+  correctionsRaw: string | null,
+  pathname: string | null | undefined,
+  now: number,
+  askRaw: string | null = null,
+): string | null {
   const p = parsePlanReturn(planRaw, now)
-  const plan = p && samePath(p.src, pathname) ? p : null
   const c = parseCorrectionsReturn(correctionsRaw, now)
-  const corr = c && samePath(c.src, pathname) ? c : null
-  if (plan && corr) return corr.at > plan.at ? corr.back : plan.plan
-  return plan?.plan ?? corr?.back ?? null
+  const a = parseAskReturn(askRaw, now)
+  // 순서가 곧 같은 시각일 때의 우선순위다 — 더 늦을 때만 바꾼다.
+  const candidates = [p && { href: p.plan, src: p.src, at: p.at }, c && { href: c.back, src: c.src, at: c.at }, a && { href: a.back, src: a.src, at: a.at }]
+  let best: { href: string; at: number } | null = null
+  for (const r of candidates) {
+    if (!r || !samePath(r.src, pathname)) continue
+    if (!best || r.at > best.at) best = r
+  }
+  return best?.href ?? null
 }
 
-/** ← 이름 — 계획표 주소면 「계획표로」, 그 밖(교정 모음 주소)은 「교정 모음으로」. */
+/** ← 이름 — 계획표 주소면 「계획표로」, 질문 방 주소면 「질문으로」, 그 밖(교정 모음 주소)은 「교정 모음으로」. */
 export function backLabelOf(href: string): string {
-  return isPlanHref(href) ? PLAN_RETURN_LABEL : CORRECTIONS_RETURN_LABEL
+  if (isPlanHref(href)) return PLAN_RETURN_LABEL
+  return isAskHref(href) ? ASK_RETURN_LABEL : CORRECTIONS_RETURN_LABEL
 }
 
 // ── 저장소(전부 try/catch — common/storage) ─────────────────────────────────────
@@ -97,7 +111,13 @@ export function currentCorrectionsReturn(pathname: string | null | undefined, no
   return correctionsReturnHref(readStore('session', CORRECTIONS_RETURN_KEY), pathname, now)
 }
 
-/** 원본 화면 머리 ← 의 행선지(계획표·교정 모음 중 맞는 쪽) — 문자열이나 null 만 돌려준다(`useSyncExternalStore` 의 스냅샷). */
+/** 원본 화면 머리 ← 의 행선지(계획표·교정 모음·질문 방 중 맞는 쪽) — 문자열이나 null 만 돌려준다(`useSyncExternalStore` 의 스냅샷). */
 export function currentBackHref(pathname: string | null | undefined, now: number = Date.now()): string | null {
-  return pickBackHref(readStore('session', PLAN_RETURN_KEY), readStore('session', CORRECTIONS_RETURN_KEY), pathname, now)
+  return pickBackHref(
+    readStore('session', PLAN_RETURN_KEY),
+    readStore('session', CORRECTIONS_RETURN_KEY),
+    pathname,
+    now,
+    readStore('session', ASK_RETURN_KEY),
+  )
 }

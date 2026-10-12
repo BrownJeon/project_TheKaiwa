@@ -12,6 +12,8 @@ export const FOCUS_ROUTE_PREFIXES = [
   '/plan/challenges',
   '/study/ai/scenario/',
   '/settings/scenarios',
+  // 질문 방(task-064 §25-2) — `/ask` 목록 자체는 탭이 보인다(`startsWith('/ask/')` 에 걸리지 않음).
+  '/ask/',
 ] as const
 
 export function isFocusRoute(pathname: string): boolean {

@@ -28,10 +28,12 @@ import type {
   TurnStage,
   TurnStatusEvent,
 } from '@/types/chat'
-import { retryAfterOf, toErr } from '@/components/common/errors'
+import type { AskScopeKey } from '@/types/ask'
+import { detailString, retryAfterOf, toErr } from '@/components/common/errors'
 import { LOST_FAILURE, NETWORK_SEND_ERROR, turnFailure, turnNoticeText, type FailureView } from './labels'
 import { correctionFromDone, endsWithUnfinishedReply, findLastIndex, isTemp, lastServerId, mergeMessages, turnBaseOf } from './messages'
 import { parseEventData, readSse } from './sse'
+import { buildTurnBody, DEFAULT_INPUT_SOURCE } from './turnBody'
 
 export type TurnPhase = 'idle' | 'sending' | 'streaming' | 'detached' | 'failed'
 
@@ -39,6 +41,10 @@ export interface TurnNoticeState {
   kind: 'error' | 'rate' | 'notFound'
   text: string
   retryAfterSec?: number
+  /** 429 `details.reason`(질문 방 `ASK_RATE`·`ASK_DAILY`·`ASK_BUSY` 구분, task-064). 없으면 칸 없음. */
+  reason?: string
+  /** 봉투 HTTP status(0 = 네트워크). 질문 방 안내 줄이 문구를 고른다 — 채팅은 `text` 만 쓴다. */
+  status?: number
 }
 
 export interface TurnState {
@@ -60,6 +66,8 @@ export interface SendOptions {
   clientTimings?: ClientTimings
   /** 회화방(task-010c) — 직전 코치 힌트 카드의 정답을 열고 말했다. */
   coachRevealed?: boolean
+  /** 질문 방(task-064) 되묻기 칩 — 있을 때만 요청 본문 `scope` 에 싣는다. */
+  scope?: { key: AskScopeKey }
 }
 
 /** 보내지 못한 이유(회화방 UnsentBar 가 문구·버튼을 고른다). status 0 = 네트워크, -1 = 스트림이 accepted 전에 끊김. */
@@ -89,6 +97,8 @@ export interface TurnDeps {
   onWarning?: (warning: string, assistantMessageId: string) => void
   onDone?: (dn: TurnDoneEvent) => void
   onSettled?: (kind: SettledKind, assistantMessageId: string | null) => void
+  /** 질문 방(task-064) — `done` 을 강사 말풍선 값으로 바꾼다(본문 = `answerMd`). 없으면 `replyJa`/`replyKo`. */
+  toReply?: (dn: TurnDoneEvent) => Partial<ChatMessageView>
 }
 
 const INITIAL: TurnState = {
@@ -101,10 +111,11 @@ const INITIAL: TurnState = {
   endOfTopic: false,
 }
 
-const POLL_FAST_MS = 2_500
-const POLL_SLOW_MS = 5_000
-const POLL_FAST_WINDOW_MS = 30_000
-const POLL_MAX_MS = 200_000
+/** 폴링 간격·상한 — 질문 목록의 「답 만드는 중」 폴링(task-064)도 같은 숫자를 쓴다. */
+export const POLL_FAST_MS = 2_500
+export const POLL_SLOW_MS = 5_000
+export const POLL_FAST_WINDOW_MS = 30_000
+export const POLL_MAX_MS = 200_000
 
 interface RunContext {
   /** 이번 턴 직전 메시지 id(폴링 `after`) */
@@ -178,7 +189,7 @@ class TurnController {
     const now = Date.now()
     const messages = d.getMessages()
     const ctx: RunContext = { baseId: lastServerId(messages), tmpId: `tmp_${now}`, text, opts }
-    const inputSource: InputSource = opts.inputSource ?? 'TEXT'
+    const inputSource: InputSource = opts.inputSource ?? DEFAULT_INPUT_SOURCE
     d.setMessages((ms) => [
       ...ms,
       {
@@ -195,11 +206,7 @@ class TurnController {
       },
     ])
     this.set({ phase: 'sending', stage: null, startedAt: now, notice: null, failure: null, endOfTopic: false })
-    const body: Record<string, unknown> = { text, inputSource }
-    if (opts.utteranceId) body.utteranceId = opts.utteranceId
-    if (opts.clientTimings) body.clientTimings = opts.clientTimings
-    if (opts.coachRevealed) body.coachRevealed = true
-    await this.run(body, ctx)
+    await this.run(buildTurnBody(text, opts), ctx)
   }
 
   resume = async (): Promise<void> => {
@@ -352,13 +359,15 @@ class TurnController {
 
   private onDone(dn: TurnDoneEvent, ctx: RunContext) {
     const aid = dn.assistantMessageId
-    const reply: Partial<ChatMessageView> = {
-      content: dn.conversation.replyJa,
-      translation: dn.conversation.replyKo ?? null,
-      learning: dn.learning ?? null,
-      ...(dn.speech?.style ? { speechStyle: dn.speech.style } : {}),
-      status: 'DONE',
-    }
+    const reply: Partial<ChatMessageView> = this.d.toReply
+      ? { ...this.d.toReply(dn), status: 'DONE' }
+      : {
+          content: dn.conversation.replyJa,
+          translation: dn.conversation.replyKo ?? null,
+          learning: dn.learning ?? null,
+          ...(dn.speech?.style ? { speechStyle: dn.speech.style } : {}),
+          status: 'DONE',
+        }
     // 회화(TALK)의 교정은 대화 중 즉시 — 해당 사용자 말풍선에 붙인다(CHAT 은 늘 null).
     const corr = dn.correction && typeof dn.correction === 'object' && dn.correction.id ? correctionFromDone(dn.correction) : null
     const uid = dn.userMessageId
@@ -431,15 +440,21 @@ class TurnController {
     const backTo: TurnPhase = ctx.tmpId ? 'idle' : 'failed'
     if (err.status === 429) {
       const sec = retryAfterOf(err)
+      const reason = detailString(err, 'reason')
       // 막힌 시각을 먼저 둔다 — 되돌려 받은 화면(UnsentBar)이 같은 렌더에서 카운트다운을 그리게.
-      this.set({ phase: backTo, stage: null, blockedUntil: Date.now() + sec * 1000, notice: { kind: 'rate', text: '', retryAfterSec: sec } })
+      this.set({
+        phase: backTo,
+        stage: null,
+        blockedUntil: Date.now() + sec * 1000,
+        notice: { kind: 'rate', text: '', retryAfterSec: sec, status: 429, ...(reason ? { reason } : {}) },
+      })
       this.dropTemp(ctx, { status: 429, message: null, details: err.details })
       this.d.onSettled?.('rejected', null)
       return
     }
     this.dropTemp(ctx, { status: err.status, message: err.message || null, details: err.details })
     if (err.status === 404) {
-      this.set({ phase: 'idle', stage: null, notice: { kind: 'notFound', text: turnNoticeText(err) } })
+      this.set({ phase: 'idle', stage: null, notice: { kind: 'notFound', text: turnNoticeText(err), status: 404 } })
       this.d.onSettled?.('rejected', null)
       this.d.onNotFound()
       return
@@ -451,7 +466,7 @@ class TurnController {
       void this.syncNew()
       return
     }
-    this.set({ phase: backTo, stage: null, notice: { kind: 'error', text: turnNoticeText(err) } })
+    this.set({ phase: backTo, stage: null, notice: { kind: 'error', text: turnNoticeText(err), status: err.status } })
     this.d.onSettled?.('rejected', null)
     // 네트워크 실패·409(같은 사용자의 다른 턴)는 서버에 무엇이 있는지 모른다 — 조용히 맞춘다.
     if (err.status === 0 || err.status === 409) void this.syncNew()
@@ -459,7 +474,7 @@ class TurnController {
 
   private lostBeforeAccept(ctx: RunContext) {
     this.dropTemp(ctx, { status: 0, message: null, details: {} })
-    this.set({ phase: ctx.tmpId ? 'idle' : 'failed', stage: null, notice: { kind: 'error', text: NETWORK_SEND_ERROR } })
+    this.set({ phase: ctx.tmpId ? 'idle' : 'failed', stage: null, notice: { kind: 'error', text: NETWORK_SEND_ERROR, status: 0 } })
     this.d.onSettled?.('rejected', null)
     void this.syncNew()
   }

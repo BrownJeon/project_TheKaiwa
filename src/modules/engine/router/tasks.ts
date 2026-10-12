@@ -3,7 +3,11 @@
  * connection 의 `runtime.modelByTier`(DB) 다. 그래서 관리자가 콘솔에서 tier→모델을 바꿔도 코드는 그대로다.
  */
 export type LlmTier = 'fast' | 'balanced' | 'deep'
-export type LlmLane = 'interactive' | 'batch'
+/**
+ * 어댑터 큐 레인. `interactive`·`batch` 는 공용 슬롯 1개를 나눠 쓰고(interactive 먼저), `ask` 는 ASK 전용 슬롯 1개를 따로 쓴다
+ * (task-064 — 질문 1건이 회화·채팅 턴을 기다리게 하지 않게). `ask` 레인은 이 표로만 고른다(`LlmRequest.priority` 에는 없다).
+ */
+export type LlmLane = 'interactive' | 'batch' | 'ask'
 
 export interface TaskSpec {
   tier: LlmTier
@@ -28,7 +32,8 @@ export const LLM_TASKS = {
   evalGen: { tier: 'balanced', timeoutMs: 60_000, lane: 'batch' }, // A6
   evalGrade: { tier: 'balanced', timeoutMs: 120_000, lane: 'batch' }, // A7
   planAnalysis: { tier: 'deep', timeoutMs: 300_000, lane: 'batch' }, // A8
-  ask: { tier: 'balanced', timeoutMs: 120_000, lane: 'interactive' }, // A9
+  // A9 — ASK 전용 슬롯(task-064 QA: 공용 슬롯을 쓰면 질문 1건 ≈13s 동안 다른 사용자 채팅 턴이 3.5s → 14~16s).
+  ask: { tier: 'balanced', timeoutMs: 120_000, lane: 'ask' },
   wordEnrich: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' }, // A10
   // 내 말 번역 다시 가져오기(task-026 S2, userTranslation@v1) — 사용자가 기다리는 단건이라 interactive·짧은 상한. 회화 턴과 같은 큐라 상한을 길게 두지 않는다.
   userTranslation: { tier: 'fast', timeoutMs: 15_000, lane: 'interactive' },

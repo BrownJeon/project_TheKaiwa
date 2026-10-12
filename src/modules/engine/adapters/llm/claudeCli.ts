@@ -49,6 +49,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
+import { StringDecoder } from 'node:string_decoder'
 
 import { DEFAULT_WARM_LIMITS, isWanted, prewarm, replenish, take, trackActive, warmKeyOf, type PrewarmOutcome, type WarmLimits, type WarmProcess } from './claudeWarmPool'
 import { LlmError } from './homeM4'
@@ -142,7 +143,7 @@ const ARGV_PROMPT_BYTE_CAP = 100_000
 
 /**
  * 자식 출력 상한(문자). 없으면 **모델이 폭주할 때 이 서버의 메모리가 먼저 죽는다** —
- * 큐 동시성이 1이라 프로세스는 하나지만, 한 프로세스가 수 GB 를 뱉는 것은 막지 못한다.
+ * 큐 슬롯이 공용 1 + ASK 1 이라 실행 프로세스는 많아야 둘이지만, 한 프로세스가 수 GB 를 뱉는 것은 막지 못한다.
  *
  * 넘으면 **잘라서 파싱하지 않고 던진다.** 잘린 JSON 은 "스키마 위반"으로 나타나 원인이
  * 용량이라는 사실을 아무도 모르게 된다(같은 함정을 yt-dlp 메타에서 이미 한 번 밟았다 —
@@ -183,14 +184,15 @@ export interface ClaudeCliOptions {
    *  **꼭 필요할 때만 쓴다** — 여기에 적은 만큼 권한 경계가 넓어진다. 예: 프레임과 원본
    *  사진이 서로 다른 디렉터리에 있을 때. */
   readDirs?: readonly string[]
-  /** `batch`는 백그라운드 잡용 — 사용자가 기다리는 `interactive` 뒤로 밀린다. */
-  priority?: 'interactive' | 'batch'
-  /** 총 시도 횟수(재시도 포함). 기본 interactive 2 / batch 1. */
+  /** `batch`는 백그라운드 잡용 — 사용자가 기다리는 `interactive` 뒤로 밀린다. `ask` 는 ASK 전용 슬롯(공용 슬롯과 서로 기다리지 않는다). */
+  priority?: ClaudeQueueLane
+  /** 총 시도 횟수(재시도 포함). 기본 interactive·ask 2 / batch 1. */
   maxAttempts?: number
   /**
    * 타임아웃도 재시도 대상으로 본다(기본 false — 사용자가 대화 중 두 배로 기다리지 않게). 시도 수는 `maxAttempts` 가 정한다
    * (배치 기본 1 이라 이 옵션만으로는 재시도되지 않는다). 시도마다 `timeoutMs` 를 새로 쓴다. task 표(engine/router/tasks)가 정한다.
-   * 타임아웃 재시도는 워커 슬롯을 놓고 **큐 꼬리로 다시 들어간다**(pump 가 interactive 레인을 먼저 꺼내므로 그 사이 사용자 요청이 먼저 돈다).
+   * 타임아웃 재시도는 워커 슬롯을 놓고 **같은 레인의 큐 꼬리로 다시 들어간다**(pump 가 interactive 레인을 먼저 꺼내므로 그 사이 사용자 요청이 먼저 돈다.
+   * `ask` 레인은 ASK 큐 꼬리 — 공용 슬롯으로 넘어가지 않는다).
    * **제약: `onTextDelta` 와 같이 쓸 수 없다**(1차 부분 delta 가 2차에서 다시 방출된다) — 같이 주면 즉시 `ClaudeCliError`.
    */
   retryOnTimeout?: boolean
@@ -487,10 +489,13 @@ function collect(proc: ChildProcess, cliPath: string, opts: ClaudeCliOptions, ti
       if (streaming) feed(s)
     }
 
-    proc.stdout?.on('data', (d: Buffer) => onStdout(d.toString('utf8')))
+    // 조각마다 따로 디코딩하면 파이프 경계에 걸린 3·4바이트 글자(한글·일본어·이모지)가 U+FFFD 로 깨진다 — 스트림마다 디코더 하나가 남은 바이트를 다음 조각으로 넘긴다.
+    const stdoutDecoder = new StringDecoder('utf8')
+    const stderrDecoder = new StringDecoder('utf8')
+    proc.stdout?.on('data', (d: Buffer) => onStdout(stdoutDecoder.write(d)))
     proc.stderr?.on('data', (d: Buffer) => {
       // stderr 는 진단용이라 앞부분만 있으면 충분하다.
-      if (err.length < 100_000) err += d.toString('utf8')
+      if (err.length < 100_000) err += stderrDecoder.write(d)
     })
     if (initial?.stdout) onStdout(initial.stdout)
 
@@ -504,6 +509,11 @@ function collect(proc: ChildProcess, cliPath: string, opts: ClaudeCliOptions, ti
 
     proc.on('close', (code: number | null) => {
       finish(() => {
+        // 자식이 글자 중간에서 끊겨 디코더에 바이트가 남았으면 비운다 — 안 비우면 그 자리가 조용히 사라진다(조각 단위 디코딩 때는 U+FFFD 로 남았다).
+        const outTail = stdoutDecoder.end()
+        if (outTail) onStdout(outTail)
+        const errTail = stderrDecoder.end()
+        if (errTail && err.length < 100_000) err += errTail
         if (aborted) {
           reject(new ClaudeCliAbortedError())
           return
@@ -657,11 +667,26 @@ export function prewarmClaude(opts: ClaudeCliOptions, limits: WarmLimits = DEFAU
 export { warmPoolSnapshot, drainWarmPool } from './claudeWarmPool'
 export type { WarmLimits, PrewarmOutcome, WarmPoolSnapshot } from './claudeWarmPool'
 
-// ── 우선순위 2레인 직렬 큐 ────────────────────────────────────────────────────
+// ── 우선순위 2레인 직렬 큐 + ASK 전용 슬롯 ─────────────────────────────────────
 //
-// 동시성은 1이다. Claude CLI는 구독 rate limit을 공유하고 프로세스 하나가 수백 MB를 쓰므로,
+// 공용 슬롯의 동시성은 1이다. Claude CLI는 구독 rate limit을 공유하고 프로세스 하나가 수백 MB를 쓰므로,
 // 레슨·평가 잡 여러 건이 동시에 뜨면 서버가 먼저 무너진다. 대신 레인을 둘로 나눠 사용자가
 // 기다리는 요청(interactive)이 백그라운드 잡(batch) 뒤에서 굶지 않게 한다.
+//
+// ASK(무엇이든 물어보세요, task-064)는 자기 큐·자기 슬롯 1개를 따로 쓴다 — 공용 슬롯을 나눠 쓰면 질문 1건(≈13s, sonnet)이
+// 끝날 때까지 다른 사용자의 회화·채팅 턴이 줄을 섰다(QA 실측 3.5s → 14~16s). 두 슬롯은 서로 기다리지 않는다.
+
+/**
+ * 슬롯별 동시 실행 상한 — 관리자 설정이 아니라 코드 상수다. 공용 1 + ASK 1 = 실행 중 CLI 프로세스 최대 2개(예열 대기 프로세스 별도).
+ * 더 늘리지 않는 이유는 위와 같다(구독 rate limit 을 여러 프로젝트가 공유, 프로세스 하나가 서버 메모리 수백 MB).
+ * 설정 키(`runtime.concurrency`·env `CLAUDE_CLI_CONCURRENCY`)로 만들지 않은 이유: 관리자 설정 변경은 ConfigurationVersion·AuditLog 를
+ * 거쳐야 하고, 그 키는 선언만 있고 이 큐에 연결돼 있지 않다(설명용 — claudeCli.provider `sourceCodeLayer` 가 공용 슬롯 값 1 을 보고한다).
+ */
+const SHARED_SLOT_CONCURRENCY = 1
+const ASK_SLOT_CONCURRENCY = 1
+
+/** 큐 레인 — `interactive`·`batch` 는 공용 슬롯, `ask` 는 ASK 전용 슬롯(engine/router `LLM_TASKS` 가 task 마다 고른다). */
+export type ClaudeQueueLane = 'interactive' | 'batch' | 'ask'
 
 interface QueueItem<T> {
   task: () => Promise<T>
@@ -669,35 +694,50 @@ interface QueueItem<T> {
   reject: (e: unknown) => void
 }
 
-const interactiveQueue: QueueItem<unknown>[] = []
-const batchQueue: QueueItem<unknown>[] = []
-let workerBusy = false
-
-function pump(): void {
-  if (workerBusy) return
-  const item = interactiveQueue.shift() ?? batchQueue.shift()
-  if (!item) return
-  workerBusy = true
-  item.task().then(
-    (result) => {
-      workerBusy = false
-      item.resolve(result)
-      pump()
-    },
-    (e) => {
-      workerBusy = false
-      item.reject(e)
-      pump()
-    },
-  )
+interface Slot {
+  running: number
+  readonly limit: number
+  readonly next: () => QueueItem<unknown> | undefined
 }
 
-function schedule<T>(priority: 'interactive' | 'batch', task: () => Promise<T>): Promise<T> {
+const interactiveQueue: QueueItem<unknown>[] = []
+const batchQueue: QueueItem<unknown>[] = []
+const askQueue: QueueItem<unknown>[] = []
+const sharedSlot: Slot = { running: 0, limit: SHARED_SLOT_CONCURRENCY, next: () => interactiveQueue.shift() ?? batchQueue.shift() }
+const askSlot: Slot = { running: 0, limit: ASK_SLOT_CONCURRENCY, next: () => askQueue.shift() }
+
+/** 슬롯 하나를 돌린다. 끝나면(성공·실패·취소·타임아웃 공통) 자리를 먼저 돌려준 뒤 다음 항목을 꺼낸다 — 다른 슬롯은 건드리지 않는다. */
+function pump(slot: Slot): void {
+  while (slot.running < slot.limit) {
+    const item = slot.next()
+    if (!item) return
+    slot.running++
+    item.task().then(
+      (result) => {
+        slot.running--
+        item.resolve(result)
+        pump(slot)
+      },
+      (e) => {
+        slot.running--
+        item.reject(e)
+        pump(slot)
+      },
+    )
+  }
+}
+
+function schedule<T>(priority: ClaudeQueueLane, task: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const item = { task, resolve, reject } as QueueItem<unknown>
+    if (priority === 'ask') {
+      askQueue.push(item)
+      pump(askSlot)
+      return
+    }
     if (priority === 'batch') batchQueue.push(item)
     else interactiveQueue.push(item)
-    pump()
+    pump(sharedSlot)
   })
 }
 

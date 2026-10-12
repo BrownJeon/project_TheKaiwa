@@ -37,6 +37,9 @@ export default function Composer({
   handleRef,
   leading,
   onTextChange,
+  lang = 'ja',
+  inputLabel = '메시지 입력',
+  busyReason = '선생님 답을 기다리는 중이에요',
 }: {
   chatId: string
   busy: boolean
@@ -50,6 +53,12 @@ export default function Composer({
   leading?: React.ReactNode
   /** 입력 내용이 바뀔 때(회화: 비우면 고쳐 보내려던 발화 연결을 버린다) */
   onTextChange?: (text: string) => void
+  /** 입력 언어 — 'ko' 면 `lang` 속성을 달지 않는다(질문 방: 한글을 일본어 글꼴로 그리지 않게, task-064). 기본 'ja'. */
+  lang?: 'ja' | 'ko'
+  /** 입력창 이름(기본 「메시지 입력」) */
+  inputLabel?: string
+  /** 답을 기다리는 동안 보내기를 누를 때 안내(기본 「선생님 답을 기다리는 중이에요」) */
+  busyReason?: string
 }) {
   const [text, setText] = useState(() => readStore('session', KEYS.draft(chatId)) ?? '')
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -83,7 +92,7 @@ export default function Composer({
   const reason = tooLong
     ? '1,000자까지 보낼 수 있어요'
     : busy
-      ? '선생님 답을 기다리는 중이에요'
+      ? busyReason
       : rateBlocked
         ? `${remaining ?? ''}초 뒤에 보낼 수 있어요`.trim()
         : null
@@ -124,12 +133,12 @@ export default function Composer({
         {leading}
         <textarea
           ref={taRef}
-          lang="ja"
+          lang={lang === 'ja' ? 'ja' : undefined}
           rows={1}
           enterKeyHint="send"
           spellCheck={false}
           autoComplete="off"
-          aria-label="메시지 입력"
+          aria-label={inputLabel}
           placeholder={placeholder}
           value={text}
           onChange={(e) => {

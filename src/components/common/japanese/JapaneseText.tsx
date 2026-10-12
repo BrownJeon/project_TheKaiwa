@@ -211,7 +211,14 @@ export function DisplayToggles({ keys, onToast }: { keys: ToggleKey[]; onToast: 
  * 회화방·채팅방 머리 바로 아래 표시 바(E3-A) — 고정 머리의 일부(목록 스크롤 밖). 바 아래 선은 border 가 아니라 안쪽 1px 그림자 —
  * border 면 안쪽 높이가 43px 라 토글 터치 영역(`overflow-x-auto` 가 위아래를 자른다)이 41px 가 된다(task-030 QA-L2). 선의 색·자리는 같다.
  */
-export function DisplayBar({ onToast }: { onToast: (msg: string, ms?: number) => void }) {
+export function DisplayBar({
+  onToast,
+  keys = ['fu', 'hg', 'tr'],
+}: {
+  onToast: (msg: string, ms?: number) => void
+  /** 보일 토글(기본 셋 — 질문 방은 번역 없이 `['fu','hg']`, task-064 D9) */
+  keys?: ToggleKey[]
+}) {
   return (
     <div
       role="group"
@@ -221,7 +228,7 @@ export function DisplayBar({ onToast }: { onToast: (msg: string, ms?: number) =>
       <span aria-hidden="true" className="mr-0.5 flex-none text-[12px] text-ink2">
         {DISPLAY_COPY.barCaption}
       </span>
-      <DisplayToggles keys={['fu', 'hg', 'tr']} onToast={onToast} />
+      <DisplayToggles keys={keys} onToast={onToast} />
     </div>
   )
 }

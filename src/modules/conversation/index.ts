@@ -49,7 +49,11 @@ export type { ReviewMixInput, ReviewMixItemInput, ReviewMixRequest } from './pro
 // ── task-006 ──
 export { parseCreateChat, parseTitle, parseKind, parseTurnBody, CHAT_KINDS, TURN_TEXT_MAX, CHAT_TITLE_MAX } from './chats/validate'
 export type { CreateChatInput, TurnRequest, TurnClientTimings } from './chats/validate'
-export { createChat, listChats, getChatDetail, getOwnedChat, ownedChatIds, updateChatTitle, deleteChat, sweepStalePending } from './chats'
+// task-064 S2b — ASK 턴 검사·한도(라우트가 수락 전에 부른다)
+export { assertTurnFitsKind } from './chats/validate'
+export { admitAskTurn, askInflightCount, ASK_PER_MINUTE, ASK_PER_DAY, ASK_MAX_INFLIGHT } from './chats/askLimits'
+export type { AskAdmission } from './chats/askLimits'
+export { createChat, listChats, getChatDetail, getOwnedChat, getOwnedChatKind, ownedChatIds, updateChatTitle, deleteChat, sweepStalePending } from './chats'
 export type { ChatDto, ChatDetailDto, MessageDto } from './chats'
 export { retryUserTranslation } from './chats/translation'
 // task-010d 상황 역할극 — A1-서버 생성·종료 재료 + A3b-1 라우트 연결(#28 첫마디·#29 chat.scenario·#167 종료·진행 중 칸)
@@ -184,3 +188,5 @@ export { buildEvalGenRequest, EVAL_GEN_PROMPT_VERSION, EVAL_GEN_MATERIALS_MAX, E
 export type { EvalGenInput, EvalGenWordCandidate, EvalGenTopicInput } from './prompts/evalGen'
 export { buildEvalGradeRequest, EVAL_GRADE_PROMPT_VERSION, EVAL_GRADE_ANSWER_RENDER_MAX, EVAL_GRADE_USER_PROMPT_CAP, EvalGradeInputError } from './prompts/evalGrade'
 export type { EvalGradeInput, EvalGradeSubjectiveItem, EvalGradeObjectiveSummary, EvalGradeSubjectiveKind } from './prompts/evalGrade'
+// ── task-064 ASK 의도 분류(규칙)·기록 조회 묶음 — 공개 API 는 askRouter/index.ts 에만 더한다 ──
+export * from './askRouter'

@@ -96,15 +96,18 @@ export function actionErrorText(e: ErrorLike): string {
 export interface FailureView {
   text: string
   retryable: boolean
+  /** SSE `error.code`(있을 때만) — 질문 방 실패 카드가 시간 초과를 따로 그린다(task-064). 채팅 말풍선은 쓰지 않는다. */
+  code?: string
 }
 
 /** SSE `error` 이벤트 → 실패 말풍선(ⓒ). */
 export function turnFailure(code: string | undefined, retryable: boolean | undefined): FailureView {
+  const withCode = (v: FailureView): FailureView => (code ? { ...v, code } : v)
   if (code === 'ENGINE_UNAVAILABLE' || retryable === false) {
-    return { text: '지금은 선생님이 답할 수 없어요. 잠시 후 다시 시도해 주세요.', retryable: false }
+    return withCode({ text: '지금은 선생님이 답할 수 없어요. 잠시 후 다시 시도해 주세요.', retryable: false })
   }
-  if (code === 'ENGINE_TIMEOUT') return { text: '답이 너무 오래 걸려 멈췄어요.', retryable: true }
-  return { text: '선생님 답을 받지 못했어요.', retryable: true }
+  if (code === 'ENGINE_TIMEOUT') return withCode({ text: '답이 너무 오래 걸려 멈췄어요.', retryable: true })
+  return withCode({ text: '선생님 답을 받지 못했어요.', retryable: true })
 }
 
 /** 폴링 상한 초과·방 진입 시 실패 상태. */

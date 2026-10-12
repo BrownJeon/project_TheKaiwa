@@ -3,7 +3,8 @@
  * `FOR UPDATE` + "사용자의 PENDING 강사 메시지" 확인이 맡는다(orchestrator/index.ts).
  *
  * stale PENDING(task-006 범위결정 6): **180초보다 오래되고 이 프로세스가 돌리고 있지 않은** PENDING 만 죽은 턴으로 본다.
- * 턴의 LLM 예산은 TALK 12s·CHAT 20s(ASK 는 아직 없음)라 살아 있는 턴이 180초를 넘을 수 없다 — 그래서 다른 인스턴스의 진행 중
+ * 턴의 LLM 예산은 TALK 12s·CHAT 20s, ASK 는 120s(JSON 재시도가 붙으면 두 배까지)라 서버 전체 예산 170s(`ask.ts` `ASK_TURN_BUDGET_MS`)에서
+ * 끊는다 — 살아 있는 턴이 180초를 넘을 수 없다. 그래서 다른 인스턴스의 진행 중
  * 턴을 시간 조건만으로 건드리지 않는다. 최종 저장은 `(status=PENDING, createdAt=pendingSince)` 조건부라, 만에 하나 늦게 끝난
  * 턴이 이미 FAILED/재실행된 행을 덮지 못한다.
  */

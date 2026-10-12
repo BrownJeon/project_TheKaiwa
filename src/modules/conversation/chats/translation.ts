@@ -3,6 +3,7 @@
  * USER `ChatMessage.translation` 이 비었을 때 화면의 [다시 가져오기] 가 부른다.
  *
  * - 소유: 메시지는 `(id, chatId, userId)` 로만 찾는다 — 남의 것·없는 것은 존재를 숨기고 404(§0-4).
+ * - 질문 방(`Chat.kind=ASK`)의 메시지는 `400`(계약 §2-18-A 3-A항) — 소유 확인 뒤, 캐시 응답·LLM 보다 먼저.
  * - USER 메시지만(강사 말 번역은 턴이 이미 저장 — `400`). 이미 번역이 있으면 LLM 없이 그대로 돌려준다(`cached:true`).
  * - 그 방에 턴이 진행 중이면(DB PENDING 또는 이 프로세스의 그 방 턴 락) `409` — 진행 중 턴이 곧 `userKo` 를 저장하고, 같은 CLI 큐에서 두 번 일하지 않는다.
  * - 사용자당 동시 1건(프로세스 메모리, 넘으면 `409 {reason:"TRANSLATION_BUSY"}`) + 라우트 분당 상한.
@@ -11,6 +12,7 @@
  * - 저장은 `translation IS NULL` 조건부 — 그사이 다른 경로가 먼저 저장했으면 그 값을 돌려준다(덮어쓰지 않음).
  * - 원문·번역은 로그에 남기지 않는다.
  */
+import type { ChatKind } from '@prisma/client'
 import { llm, type LlmJsonRequest, type LlmJsonResult } from '@/modules/engine'
 import { ApiError, prisma } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
@@ -23,6 +25,7 @@ import {
 } from '../prompts/userTranslation'
 import { currentTurnLock } from '../orchestrator/locks'
 import { runningChatIds } from './index'
+import { assertNotAskRoom } from './validate'
 
 export interface UserTranslationResult {
   messageId: string
@@ -36,6 +39,8 @@ interface MessageRow {
   role: 'USER' | 'ASSISTANT'
   content: string
   translation: string | null
+  /** 같은 조회의 join 으로 읽은 방 종류(추가 쿼리 0). 실제 조회는 늘 채워 오고, 값이 없으면 ASK 가 아닌 것으로 본다. */
+  chat?: { kind: ChatKind } | null
 }
 
 type SaveOutcome = { saved: true } | { existing: string } | { gone: true }
@@ -48,7 +53,7 @@ type MessageStore = Pick<typeof prisma.chatMessage, 'findFirst' | 'updateMany'>
 export const translationDeps = {
   messages: (): MessageStore => prisma.chatMessage,
   loadMessage: (userId: string, chatId: string, messageId: string): Promise<MessageRow | null> =>
-    translationDeps.messages().findFirst({ where: { id: messageId, chatId, userId }, select: { id: true, role: true, content: true, translation: true } }),
+    translationDeps.messages().findFirst({ where: { id: messageId, chatId, userId }, select: { id: true, role: true, content: true, translation: true, chat: { select: { kind: true } } } }),
   /**
    * 그 방에 턴이 도는가 — DB PENDING 강사 행, 또는 이 프로세스가 그 방 턴의 메모리 락을 잡고 수락 커밋을 기다리는 중(REV-092: 수락 커밋
    * 전에는 PENDING 행이 아직 없다). 같은 사용자의 다른 방 턴은 막지 않는다(계약은 "그 방").
@@ -78,6 +83,7 @@ export async function retryUserTranslation(userId: string, chatId: string, messa
   if (!validId(chatId) || !validId(messageId)) throw notFoundMessage()
   const m = await translationDeps.loadMessage(userId, chatId, messageId)
   if (!m) throw notFoundMessage()
+  assertNotAskRoom(m.chat?.kind)
   if (m.role !== 'USER') throw new ApiError('VALIDATION', '내가 한 말만 번역을 다시 가져올 수 있어요.', { field: 'messageId', reason: 'not_user_message' })
   if (m.translation) return { messageId: m.id, translation: m.translation, cached: true }
   const text = m.content.trim()

@@ -30,7 +30,7 @@ test('G1 가드 해제(A3b-1): #28 본문의 scenarioId·lessonId 는 더는 FEA
   assert.deepEqual(parseCreateChat({ kind: 'TALK', lessonId: 'les_1' }), { kind: 'TALK', title: null, topicId: null, level: null })
   assert.deepEqual(parseCreateChat({ kind: 'TALK', topicId: 't_1', scenarioId: null, lessonId: null }), { kind: 'TALK', title: null, topicId: 't_1', level: null }, 'null 은 지금처럼 통과(기존 클라이언트 본문)')
   assert.deepEqual(parseRolePlayIds({ kind: 'TALK', scenarioId: null, lessonId: null }), { scenarioId: null, lessonId: null }, '둘 다 null 이면 라우트는 일반 createChat')
-  assert.throws(() => parseCreateChat({ kind: 'ASK', scenarioId: 'scn_seed' }), expectApi('FEATURE_NOT_READY'))
+  assert.throws(() => parseCreateChat({ kind: 'ASK', scenarioId: 'scn_seed' }), expectApi('VALIDATION'), 'task-064: ASK 는 열렸고 상황 칸은 400 VALIDATION')
   assert.throws(() => parseCreateChat({ kind: 'TALK', level: 'N9', scenarioId: 'scn_seed' }), expectApi('VALIDATION', (e) => assert.equal(e.details?.field, 'level')))
 })
 

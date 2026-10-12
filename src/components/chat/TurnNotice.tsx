@@ -11,10 +11,16 @@ export default function TurnNotice({
   notice,
   blockedUntil,
   onClose,
+  textOf,
+  notFoundLink = { href: '/study/ai?tab=chat', label: '채팅 목록으로' },
 }: {
   notice: TurnNoticeState
   blockedUntil: number | null
   onClose: () => void
+  /** 문구를 화면이 고른다(질문 방 `askNoticeText`, task-064). `remaining` = 429 남은 초(첫 틱 전 null). 없으면 채팅 문구. */
+  textOf?: (notice: TurnNoticeState, remaining: number | null) => string
+  /** 404 안내 끝 링크(기본 채팅 목록) */
+  notFoundLink?: { href: string; label: string }
 }) {
   const rate = notice.kind === 'rate'
   const remaining = useCountdown(rate ? blockedUntil : null)
@@ -23,7 +29,7 @@ export default function TurnNotice({
     if (rate && remaining === 0) onClose()
   }, [rate, remaining, onClose])
 
-  const text = rate ? turnNoticeText({ status: 429 }, remaining ?? notice.retryAfterSec ?? null) : notice.text
+  const text = textOf ? textOf(notice, rate ? remaining : null) : rate ? turnNoticeText({ status: 429 }, remaining ?? notice.retryAfterSec ?? null) : notice.text
   return (
     <div role="alert" className="flex min-w-0 flex-none items-center gap-1 border-t border-line bg-bad-soft pl-4 text-[13px] text-bad">
       <p className="min-w-0 flex-1 py-2 break-keep">
@@ -31,8 +37,8 @@ export default function TurnNotice({
         {notice.kind === 'notFound' ? (
           <>
             {' '}
-            <Link href="/study/ai?tab=chat" className="font-semibold underline underline-offset-4">
-              채팅 목록으로
+            <Link href={notFoundLink.href} className="font-semibold underline underline-offset-4">
+              {notFoundLink.label}
             </Link>
           </>
         ) : null}

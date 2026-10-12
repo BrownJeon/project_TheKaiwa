@@ -14,11 +14,20 @@ import type { ProposalAcceptResponse, ProposalDto, ProposalRejectResponse, Propo
 import { detailString, toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
 import { actionErrorText } from './labels'
+import { levelRo } from '@/components/eval/logic'
+import { ASK_COPY } from '@/components/ask/askCopy'
 
 const STATUSES: readonly ProposalStatus[] = ['PROPOSED', 'ACCEPTED', 'REJECTED', 'EXPIRED']
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : ''
+}
+
+/** SET_LEVEL 페이로드 → 그릴 값. 바꿀 레벨(`level`)이 없으면 null(카드 없음), 지금 레벨(`fromLevel`)은 없을 수 있다. */
+function levelOf(payload: Record<string, unknown>): { from: string | null; to: string } | null {
+  const to = str(payload.level).trim()
+  if (!to) return null
+  return { from: str(payload.fromLevel).trim() || null, to }
 }
 
 export default function ProposalCard({
@@ -27,6 +36,7 @@ export default function ProposalCard({
   onToast,
   caption,
   note,
+  context = 'chat',
 }: {
   proposal: ProposalDto
   onChange: (p: ProposalDto) => void
@@ -35,12 +45,15 @@ export default function ProposalCard({
   caption?: string
   /** 뜻 아래 한 줄(메모를 사전 모양으로 바꿨을 때 등). */
   note?: React.ReactNode
+  /** 'ask' = 질문 방(task-064 §25-5 E) — 공부 기록 제안 문구만 갈린다. 기본 'chat'. */
+  context?: 'chat' | 'ask'
 }) {
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
   const [meaning, setMeaning] = useState(() => str(proposal.payload.meaning))
   const [inlineError, setInlineError] = useState<string | null>(null)
   const isWord = proposal.kind === 'ADD_WORD'
+  const level = proposal.kind === 'SET_LEVEL' ? levelOf(proposal.payload) : null
   const wordOpen = isWord && proposal.status === 'PROPOSED'
   const word = useWordLayers(wordOpen ? str(proposal.payload.surface) : '', wordOpen ? str(proposal.payload.reading) || null : null)
 
@@ -80,7 +93,7 @@ export default function ProposalCard({
     try {
       const r = await apiPost<ProposalAcceptResponse>(`/api/v1/proposals/${encodeURIComponent(proposal.id)}/accept`, body)
       onChange({ ...proposal, status: r.proposal.status, result: r.proposal.result ?? null })
-      onToast(isWord ? '단어장에 추가했어요' : '공부 기록에 남겼어요')
+      onToast(isWord ? '단어장에 추가했어요' : level ? ASK_COPY.level.toast(levelRo(level.to)) : '공부 기록에 남겼어요')
     } catch (e) {
       handleConflict(e)
     } finally {
@@ -162,10 +175,53 @@ export default function ProposalCard({
     )
   }
 
-  // ADD_STUDY_LOG
+  if (proposal.kind === 'SET_LEVEL') {
+    // 레벨 제안(task-064 §25-5 E) — `level` 이 없으면 모양 이상이라 그리지 않는다. `fromLevel` 은 서버가 채운다(없으면 「→ N4」).
+    if (!level) return null
+    const toRo = levelRo(level.to)
+    if (proposal.status !== 'PROPOSED') {
+      const done = proposal.status === 'ACCEPTED'
+      return (
+        <p role={done ? 'status' : undefined} className={`min-w-0 py-1 ${done ? 'text-[13px] text-good' : 'text-[12px] text-ink2'} break-keep`}>
+          {done ? ASK_COPY.level.done(toRo) : proposal.status === 'REJECTED' ? ASK_COPY.level.rejected(level.from) : ASK_COPY.level.expired}
+        </p>
+      )
+    }
+    return (
+      <div aria-busy={busy || undefined} className="min-w-0 rounded-[14px] border-2 border-accent bg-surface p-3.5">
+        <p className="text-[12px] text-ink2">{ASK_COPY.level.cap}</p>
+        <p aria-hidden="true" className="mt-1 flex items-center gap-2.5 text-[22px] font-bold">
+          {level.from ? <span className="text-ink2">{level.from}</span> : null}
+          <span>→</span>
+          <span>{level.to}</span>
+        </p>
+        <p className="sr-only">{ASK_COPY.level.sr(level.from, toRo)}</p>
+        <p className="mt-1 text-[14px] break-keep">{ASK_COPY.level.body(level.to)}</p>
+        <p className="mt-1.5 text-[12px] text-ink2 break-keep">{ASK_COPY.level.note}</p>
+        {inlineError ? (
+          <p role="alert" className="mt-1.5 text-[12px] text-bad break-keep">
+            {inlineError}
+          </p>
+        ) : null}
+        <BtnRow>
+          <Btn onClick={accept} aria-disabled={busy || undefined} className={busy ? 'opacity-60' : ''}>
+            {busy ? '처리 중…' : ASK_COPY.level.accept(toRo)}
+          </Btn>
+          <Btn variant="ghost" onClick={reject} aria-disabled={busy || undefined}>
+            {ASK_COPY.level.reject}
+          </Btn>
+        </BtnRow>
+      </div>
+    )
+  }
+
+  // 모르는 종류(주제·복습 일정 …)는 기록 카드로 잘못 그리지 않는다(task-064 §25-5 E).
+  if (proposal.kind !== 'ADD_STUDY_LOG') return null
+
+  const forAsk = context === 'ask'
   const payload = proposal.payload as StudyLogPayload
   const counts =
-    typeof payload.messageCount === 'number' && typeof payload.correctionCount === 'number'
+    !forAsk && typeof payload.messageCount === 'number' && typeof payload.correctionCount === 'number'
       ? `메시지 ${payload.messageCount}개 · 교정 ${payload.correctionCount}건`
       : null
   return (
@@ -173,9 +229,11 @@ export default function ProposalCard({
       <p className="text-[15px] font-semibold">공부 기록 남기기</p>
       {proposal.status === 'PROPOSED' ? (
         <>
-          <p className="mt-1 text-[14px] break-keep">이 채팅을 공부 기록으로 남길까요?</p>
+          <p className="mt-1 text-[14px] break-keep">{forAsk ? ASK_COPY.studyLog.q : '이 채팅을 공부 기록으로 남길까요?'}</p>
           {counts ? <p className="mt-0.5 text-[13px] text-ink2">{counts}</p> : null}
-          <p className="mt-1.5 text-[12px] text-ink2 break-keep">남기면 달력과 통계에 기록돼요. 선생님 제안이라 남기기를 눌러야 저장돼요.</p>
+          <p className="mt-1.5 text-[12px] text-ink2 break-keep">
+            {forAsk ? ASK_COPY.studyLog.note : '남기면 달력과 통계에 기록돼요. 선생님 제안이라 남기기를 눌러야 저장돼요.'}
+          </p>
           {inlineError ? (
             <p role="alert" className="mt-1.5 text-[12px] text-bad break-keep">
               {inlineError}

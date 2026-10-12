@@ -66,3 +66,5 @@ export * from './challenges'
 export * from './scenarios'
 // ── task-045 시드 사용자별 관리(UserSeedOverride) — 공개 API 는 seedOverride/index.ts 에만 더한다 ──
 export * from './seedOverride'
+// ── task-064 ASK 기록 조회(recordRetrieval — conversation askRouter 가 읽는 5번째 공개 읽기) — 공개 API 는 recordRetrieval/index.ts 에만 더한다 ──
+export * from './recordRetrieval'

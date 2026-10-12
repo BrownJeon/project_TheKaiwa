@@ -100,6 +100,11 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
           router.replace(`/study/ai/talk/${encodeURIComponent(chatId)}`)
           return
         }
+        // 질문 방은 질문 화면에서 연다(주소를 잘못 연 경우, task-064 §25-2).
+        if (detail.chat.kind === 'ASK') {
+          router.replace(`/ask/${encodeURIComponent(chatId)}`)
+          return
+        }
         setChat(detail.chat)
         setMessages(detail.messages)
         messagesRef.current = detail.messages

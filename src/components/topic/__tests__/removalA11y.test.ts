@@ -49,7 +49,11 @@ test('M-1 기존 Sheet 호출처는 describedBy 를 넘기지 않는다 — 확�
   const withDesc = users.filter((f) => /\bdescribedBy=/.test(strip(readFileSync(f, 'utf8'))))
   assert.deepEqual(
     withDesc.map((f) => f.slice(SRC.length + 1)),
-    [join('components', 'topic', 'TopicRemovalSheet.tsx')],
+    [
+      // task-064 §25-5 I·25-9: 보내는 범위 시트는 첫 문단(외부 전송 안내)을 describedBy 로 이어 읽는다(Leader 승인 2026-10-12).
+      join('components', 'ask', 'ScopeNoticeSheet.tsx'),
+      join('components', 'topic', 'TopicRemovalSheet.tsx'),
+    ],
   )
 })
 

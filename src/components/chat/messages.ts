@@ -126,3 +126,11 @@ export function correctionFromReviewItem(it: ReviewItemDto): CorrectionDto {
     extraNoteKo: it.extraNoteKo ?? null,
   }
 }
+
+/** 히라가나·한글을 다는 말 — 내 말(보낸 직후 포함)과 끝난 선생님 말. 스트리밍·실패 말은 달지 않는다. */
+export const annotatable = (m: ChatMessageView) => m.role === 'USER' || m.status === 'DONE'
+
+/** 방이 본문 분석(#24r)을 요청할 말들 — `annotate=false`(질문 방: 답 전문 대신 예문 줄만 따로 요청)면 하나도 없다. 기본 true. */
+export function annotatedMessages(messages: readonly ChatMessageView[], annotate = true): ChatMessageView[] {
+  return annotate ? messages.filter(annotatable) : []
+}

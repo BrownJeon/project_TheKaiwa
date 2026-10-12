@@ -61,6 +61,7 @@ import { proposalExpiresAt } from '../proposals'
 import { currentTurnLock, isMessageLocallyRunning, isStalePending, releaseTurnLock, tryAcquireTurnLock, type TurnLock } from './locks'
 import { isRetryableTurnError, shapeTurnResponse, turnErrorMessage, type ShapedTurn } from './shape'
 import { TurnStream, type TurnEvent, type TurnListener } from './stream'
+import { askQuestionPreview, processAskTurn } from './ask'
 
 export interface TurnAccepted {
   userMessageId: string
@@ -142,7 +143,8 @@ export async function acceptTurnTx(tx: Tx, userId: string, chatId: string, req: 
   const rows = await tx.$queryRaw<{ id: string; userId: string; kind: ChatKind; level: JlptLevel | null; scenarioId: string | null; createdAt: Date | string; endedAt?: Date | string | null }[]>`SELECT id, userId, kind, level, scenarioId, createdAt, endedAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
   const chat = rows[0]
   if (!chat || chat.userId !== userId) throw notFoundChat()
-  if (chat.kind === 'ASK') throw new ApiError('FEATURE_NOT_READY', '무엇이든 물어보기는 아직 준비 중이에요.')
+  // task-064 — ASK 는 글자 질문만(3a). 라우트 검증과 별개로 수락 트랜잭션도 막는다(행 0).
+  if (chat.kind === 'ASK' && !req.resume) assertAskRequest(req)
   // task-010d — 마친 역할극에는 턴을 받지 않는다(종료 #167 도 사용자 → 대화 순서로 잠그므로 둘은 겹치지 않는다).
   // 잠근 행의 Chat.endedAt 이 먼저(task-048, 조회 0). NULL 이면 관측 기반 판정 — 이미 읽은 행의 생성 시각을 하한으로(전수 훑기 없음).
   if (chat.scenarioId) {
@@ -192,7 +194,9 @@ export async function acceptTurnTx(tx: Tx, userId: string, chatId: string, req: 
     select: { id: true },
   })
   // 행 수는 행을 만드는 트랜잭션에서 센다(실패 턴도 두 행이 남으므로 +2, 재실행은 +0).
-  await tx.chat.update({ where: { id: chatId }, data: { messageCount: { increment: 2 }, lastMessageAt: createdAt, preview: chatPreview(req.text) } })
+  // ASK 목록 미리보기는 질문 ≤60자(답 DONE 때 답 첫 줄로 바뀐다 — task-064 계약 2항).
+  const preview = chat.kind === 'ASK' ? askQuestionPreview(req.text) : chatPreview(req.text)
+  await tx.chat.update({ where: { id: chatId }, data: { messageCount: { increment: 2 }, lastMessageAt: createdAt, preview } })
   return { ...base, userMessage: user, assistantMessageId: assistant.id, pendingSince }
 }
 
@@ -396,13 +400,25 @@ function startPreload(userId: string, chatId: string, resume: boolean): Preload 
 
 /**
  * 수락 전 채팅 확인(잠금 없는 읽기) — 먼저 띄울 LLM 의 모드(TALK/CHAT)·수준을 정한다. 수락 트랜잭션이 잠금을 잡고 다시 확인한다.
- * 남의 채팅·없음 404, ASK 는 아직 FEATURE_NOT_READY(수락과 같은 판정).
+ * 남의 채팅·없음 404. ASK(task-064)는 LLM 을 먼저 띄우지 않는다(분류·조회가 수락 뒤에 돈다).
  */
 async function precheckChat(userId: string, chatId: string): Promise<{ kind: ChatKind; level: JlptLevel | null; scenarioId?: string | null }> {
   const chat = await prisma.chat.findFirst({ where: { id: chatId, userId }, select: { kind: true, level: true, scenarioId: true } })
   if (!chat) throw notFoundChat()
-  if (chat.kind === 'ASK') throw new ApiError('FEATURE_NOT_READY', '무엇이든 물어보기는 아직 준비 중이에요.')
   return chat
+}
+
+/** ASK 3a 는 글자 질문만 — 음성 입력·발화 연결은 400(api-contract §2-18-A 범위). */
+function assertAskRequest(req: TurnRequest): void {
+  if (req.resume) return
+  if (req.inputSource !== 'TEXT' || req.utteranceId) throw new ApiError('VALIDATION', '질문은 글자로 보내 주세요.', { field: 'inputSource', reason: 'ASK_TEXT_ONLY' })
+}
+
+/** #32 ASK 요청의 `scope.key` — `TurnRequest` 에 칸이 생기기 전·후 모두 읽는다(값 검사는 ASK 경로가 한다). */
+function askScopeKeyOf(req: TurnRequest): unknown {
+  if (req.resume) return undefined
+  const scope = (req as { scope?: unknown }).scope
+  return scope && typeof scope === 'object' ? (scope as { key?: unknown }).key : undefined
 }
 
 function clientSteps(t: TurnClientTimings | null): TraceStep[] {
@@ -759,14 +775,19 @@ export async function startTurn(input: { userId: string; chatId: string; request
   try {
     if (!request.resume) {
       const [pre] = await Promise.all([turnDeps.precheckChat(input.userId, input.chatId), hooks.gate ? hooks.gate() : Promise.resolve()])
-      const [learner, history, correctionMode, material] = await Promise.all([
-        turnDeps.buildLearnerHeader(input.userId, pre.level),
-        (preload.history ?? Promise.reject(new Error('no preload'))).catch(() => turnDeps.loadRecentHistory(input.userId, input.chatId)),
-        talkCorrectionModeFor(input.userId, pre),
-        pre.kind === 'TALK' && pre.scenarioId ? turnDeps.loadRolePlayMaterial(input.userId, pre.scenarioId) : Promise.resolve(null),
-      ])
-      rolePlay = material
-      run = startLlmRun({ kind: pre.kind, text: request.text, learner, history, speaker, emit: early.emit, elapsed, correctionMode, scenario: talkScenarioOf(rolePlay) })
+      if (pre.kind === 'ASK') {
+        // ASK 는 수락 뒤에 분류·조회·LLM 을 돈다(./ask) — 여기서는 요청 모양만 막는다(행 0·LLM 0).
+        assertAskRequest(request)
+      } else {
+        const [learner, history, correctionMode, material] = await Promise.all([
+          turnDeps.buildLearnerHeader(input.userId, pre.level),
+          (preload.history ?? Promise.reject(new Error('no preload'))).catch(() => turnDeps.loadRecentHistory(input.userId, input.chatId)),
+          talkCorrectionModeFor(input.userId, pre),
+          pre.kind === 'TALK' && pre.scenarioId ? turnDeps.loadRolePlayMaterial(input.userId, pre.scenarioId) : Promise.resolve(null),
+        ])
+        rolePlay = material
+        run = startLlmRun({ kind: pre.kind, text: request.text, learner, history, speaker, emit: early.emit, elapsed, correctionMode, scenario: talkScenarioOf(rolePlay) })
+      }
     }
     const t = Date.now()
     accepted = await turnDeps.acceptTurn(input.userId, input.chatId, request)
@@ -782,6 +803,13 @@ export async function startTurn(input: { userId: string; chatId: string; request
   acceptedResolve(acc)
   stream.emit({ event: 'accepted', data: acc })
   early.open()
+  if (accepted.kind === 'ASK') {
+    // task-064 — ASK 는 훅(발화 연결·음성·교정 관측)을 쓰지 않는다. 연결이 끊겨도 저장까지 돈다(요청 취소 신호를 넘기지 않는다).
+    void processAskTurn({ userId: input.userId, a: accepted, lock, stream, elapsed, acceptMs, scopeKey: askScopeKeyOf(request) }).catch((e) =>
+      console.error('[ask] 예기치 못한 예외:', e instanceof Error ? e.name : 'unknown'),
+    )
+    return { accepted: acc, subscribe: (l) => stream.subscribe(l), done: stream.done }
+  }
   const clientTimings = request.resume ? null : request.clientTimings
   // 끊김 복구(resume)는 사용자 행이 이미 있으므로 발화 연결 훅을 다시 돌리지 않는다(음성은 speaker 로 다시 만든다).
   // 자기수정 관측 훅은 남긴다 — 실패한 첫 실행은 저장(=판정)까지 가지 못했으므로 다시 실행이 처음 판정한다.
