@@ -2,7 +2,7 @@
 task_id: task-065
 title: "메뉴 문구 변경 — 하단 「오늘」→「공부」(그 메뉴를 가리키는 화면 문구 포함), 회화 홈 상단 「AI와 공부하기」→「자유로운 대화」 (IMP-0035·0036, light 트랙)"
 status: review
-waiting: deploy
+waiting: device_verify
 base_ref: 2e02ed8
 risk_level: "R0"
 roles_involved: [leader, judge, developer, reviewer]
@@ -70,6 +70,12 @@ demo_gate:
 - **스냅샷 게이트**(HEAD + src 변경): tsc 0·eslint 오류 0(경고 5 기존)·시험 3,368건 중 3,367 통과·실패 0·건너뜀 1·build 0.
 - **문서**: `docs/screens.md` §2 머리에 이름 변경 안내, `CLAUDE.md`(프로젝트)·`.claude/agents/designer.md` 의 탭 목록 표기 「오늘」→「공부」. 나머지 docs 의 「오늘 탭」(약 50곳)·「오늘로」·「AI와 공부하기」는 안내 한 줄로 갈음(대량 치환 안 함).
 - **배포 성격**: 웹 문구만(스키마·네이티브 변경 없음 — 앱 WebView 도 웹 배포 후 새 문구, versionCode·APK 불필요).
+
+## 운영 배포 (2026-10-12 14:38 KST, Leader — 사용자 「새 요청건 먼저 진행하고 커밋 및 푸시 후에 이어서…」)
+- **커밋**: 코드 `a84a9d3`(src 16+시험 1+tests/live 3) · 문서 `812b52c`. **푸시 전 게이트**(HEAD `812b52c`): prisma 0·tsc 0·eslint 오류 0(경고 5 기존)·시험 3,380건 중 3,379 통과·실패 0·건너뜀 1·`next build` 0.
+- **push** `f9d74f3..812b52c` → 릴리스 **`20261012-143811-812b52c1`** `RELEASE_RESULT ok`·`migrated:false`(스키마·APK 변경 없음). 같은 push 에 문서 커밋 3개(task-060 배포 기록·회화개선 마무리·task-064 착수)가 함께 나갔고 코드는 task-065 뿐. **롤백 대상 `20261012-130808-f9d74f3c`**.
+- **배포 직후 확인**: 헬스 200·pm2 3개 online(재시작 0)·cwd 새 릴리스. 번들: 「자유로운 대화」 5개 파일·「공부로」 13개, 「오늘로」 0·화면 문자열 「AI와 공부하기」 0. 운영 읽기 전용 스모크(QA2, GET 만): `/study/today`·`/study/ai`·`/plan`·`/settings`·`/drawer/words`·`/ask` 200, 모든 화면 하단 탭 라벨 「공부」, `/study/ai` 에 「자유로운 대화」 2곳(실제 제목+로딩), `GET /api/v1/vocab/sessions`·`/stats` 200. `/plan` 의 `>오늘<` 6곳은 달력 날짜 표시(전수 대조에서 날짜 표현으로 분류해 유지).
+- **남은 일**: 사용자 폰(앱 WebView)에서 하단 탭 「공부」·회화 홈 「자유로운 대화」·「공부로」 뒤로 버튼 확인 → IMP-0035·0036·task-065 `done`. 앱(APK)은 웹 로드라 재설치 불필요.
 
 ## 데모 검토 (demo gate)
 
