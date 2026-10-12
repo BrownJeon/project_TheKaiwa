@@ -70,6 +70,14 @@ demo_gate:
 - 주의(QA 발견): `package.json` 의 `build` 스크립트가 `cd $HOME/.node-local/thekaiwa` 를 하므로 전용 미러에서 `npm run build` 를 쓰면 **기본 미러가 빌드된다** — 전용 미러에서는 `next build` 직접 실행.
 - 2026-10-12 커밋 `d9343a7` → **운영 배포 완료**(사용자 「푸시 및 배포해주고 임시 미러는 정리해줘」): push `5586177..3c0427b` → 릴리스 `20261012-130400-3c0427b8`(`RELEASE_RESULT ok`·`migrated:false`), 롤백 대상 `20261012-091540-55861770`. 헬스 `status ok`·pm2 3개 online. push 전 게이트(HEAD `d9343a7`): tsc 0·eslint 오류 0(경고 5, 기존 효과 훅 경고)·시험 3,349/3,350(1 건너뜀)·`next build` 0. 임시 미러 6개 삭제 완료.
 
+## 최종 요약 (Leader, 2026-10-12)
+
+**결과: 운영 배포 완료 + **사용자 검증 완료**(2026-10-12, 「이 세션의 회화개선작업은 검증되었으니 작업 마무리하고 팀 해제해줘」 — 세부 확인 항목은 말씀 없음, 이상 없다는 별도 언급도 없음).** 커밋 `d9343a7`, 릴리스 `20261012-130400-3c0427b8`.
+
+**무엇이 바뀌었나**: ① 취소 판정 도우미 `isAbortError`·`cancelledError` 중복 정의를 `requestCancel.ts` 한 곳으로 통합(표류 방지) ② `scenario/__tests__` 9파일의 소스 검사를 공용 `readCode` 로 이전 — 주석 처리된 호출도 통과시키던 거짓 통과를 막는다(옛 시험이 통과하던 변이 4건을 새 시험이 잡음) ③ `withApi`: 요청 신호가 이미 끊긴 상태의 `Error: aborted`/`AbortError` 일 때만 서버 로그 `[api] 처리되지 않은 예외` 를 생략(응답·상태·분류 불변). 사용자 화면·계약 변경 없음.
+
+**검증**: 감사 REV-199 PASS_WITH_NOTES(Low 1·정보 3), QA PASS(운영 모드 `next start` 에서 본문 중 끊기 3건 새 로그 0줄 / HEAD 대조군 각 1줄, 400·404·401 응답 원문 diff 0). 푸시 전 게이트(HEAD `d9343a7`) tsc 0·eslint 오류 0(경고 5, 기존)·시험 3,349/3,350·`next build` 0. **미확인**: LLM 응답 도중 SSE 끊김·살아 있는 요청의 `aborted` 1회 로그는 단위 시험 근거만. **후속 후보**: `src/components/__tests__/sourceCode.ts` 를 중립 위치로 이동(Low).
+
 ## 데모 검토 (demo gate)
 
 > 실행 판정 정본은 frontmatter `demo_gate` 이다. 이 표는 check.mjs 가 함께 기록하는 사람용 이력이다(docs/demo-review-gate.md).

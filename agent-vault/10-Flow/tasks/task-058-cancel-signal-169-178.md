@@ -1,7 +1,7 @@
 ---
 task_id: task-058
 title: "기존 LLM 라우트 #169·#178 에 요청 취소 신호(req.signal) 전달 — task-056 서버 감사 REV-190 M1 의 동일 결함 정리"
-status: review
+status: done
 base_ref: a834978
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -14,7 +14,7 @@ aliases:
   - 취소 신호 전달
   - task-058
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 ---
 
 # task-058 — #169·#178 에 `req.signal` 전달
@@ -50,3 +50,11 @@ updated: 2026-10-11
 - 2026-10-11 접수(base_ref `a834978`, 미커밋 task-056 파일과 겹치는 파일 없음). 다음: developer(sonnet) → reviewer.
 - 2026-10-11 다른 세션과 협의: task-057(오늘의 단어 perf)은 `modules/learning/vocab/*` 만 건드려 겹침 없음. 그쪽 측정을 위해 QA1 계정에 기본 단어 7,755개가 심어져 있다 — 이 task 의 QA 는 QA1 의 `WordEntry`·`VocabSession` 행 수 대조를 하지 않거나 QA3/QA4 를 쓴다.
 - 2026-10-11 구현(developer sonnet)·감사 REV-197 PASS_WITH_NOTES(L1 시험 보강 반영: abort 된 신호 + 엔진 시간 초과는 기존 매핑). 시험 13/13·회귀 1,183/1,183, 변이 16건 사망. 라이브 취소 동작은 task-056 QA-B/B2 가 #180 으로 확인한 메커니즘(실행 중 취소 후 자식 `claude` 종료 p50 579ms, 재호출 200). 2026-10-12 로컬 커밋 **`30b8b4c`**(사용자 지시) → task-056 과 함께 push·**운영 배포 완료(릴리스 `20261012-003701-6f8301c0`)**. 후속: `isAbortError`·`cancelledError` 중복 통합(task-056 커밋 뒤), 배포 뒤 운영 nginx 경유 abort 전파와 `[claudeCli] 취소` 로그 확인.
+
+## 최종 요약 (Leader, 2026-10-12)
+
+**결과: 운영 배포 완료 + **사용자 검증 완료**(2026-10-12, 「이 세션의 회화개선작업은 검증되었으니 작업 마무리하고 팀 해제해줘」 — 세부 확인 항목은 말씀 없음, 이상 없다는 별도 언급도 없음).** 커밋 `30b8b4c`, task-056 과 같은 릴리스 `20261012-003701-6f8301c0`.
+
+**무엇이 바뀌었나**: task-056 서버 감사 M1(요청 취소가 엔진 호출에 전달되지 않아, 취소된 호출이 직렬 CLI 슬롯을 계속 점유)을 **#169 대답 연습(`reply-practice`)·#178 첫마디 제안(`openings/draft`)** 에도 적용했다. `requestCancel.ts` 공용 헬퍼, 취소 시 409 `CANCELLED`. 사용자 화면·계약의 정상 경로는 그대로.
+
+**검증**: 감사 REV-197 PASS_WITH_NOTES(L1 시험 보강 반영), 시험 통과. 후속으로 task-062 가 task-056 과의 취소 판정 중복 정의를 통합했다.

@@ -1,7 +1,7 @@
 ---
 task_id: task-056
 title: "회화방 일본어 도우미 — 말이 막힐 때 한국어로 물어보면 알맞은 일본어를 제안 (IMP-0030, 마이크 버튼 오른쪽에 별도 배치)"
-status: review
+status: done
 base_ref: d004079
 risk_level: "R1"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - 일본어 도우미
   - task-056
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 demo_gate:
   required: true
   level: "delta"
@@ -117,6 +117,19 @@ demo_gate:
 
 ## 커밋 (2026-10-12)
 - 사용자 지시 「056 과 058 을 각각 별도 커밋」에 따라 로컬 커밋 **`facff39`**(task-056, 52파일: 통째 49 + 공유 파일 hunk 3 — `docs/screens.md` §22·도우미 줄, `api-contract.md` 제목·#180 행, 일일 로그 2줄). task-058 은 `30b8b4c` 로 별도. push 전 게이트(`git archive HEAD`) PASS(tsc 0·eslint src 오류 0·시험 3,274/3,274·build 0) 뒤 사용자 「push 하고 배포 + 운영 읽기 전용 스모크」 → push `10a4e88..6f8301c` → **운영 배포 완료: 릴리스 `20261012-003701-6f8301c0`**(`RELEASE_RESULT ok`·`migrated:false`·헬스 정상, 롤백 대상 `20261011-201916-1cf4d29d`). deployer 읽기 전용 확인 OK([[task-056-deploy-record]]). 남은 것: 콜드 스타트 504(운영 LLM 호출 필요 — 사용자 허락 시)·nginx 경유 abort 전파·**사용자 실기기(APK) 확인** 목록(ACTIVE `★★★★` 블록). 상태 `review` 는 사용자 실기기 확인 뒤 `done`.
+
+## 최종 요약 (Leader, 2026-10-12)
+
+**결과: 운영 배포 완료 + **사용자 검증 완료**(2026-10-12, 「이 세션의 회화개선작업은 검증되었으니 작업 마무리하고 팀 해제해줘」 — 세부 확인 항목은 말씀 없음, 이상 없다는 별도 언급도 없음).** 릴리스 `20261012-003701-6f8301c0`(커밋 `facff39`, task-058 `30b8b4c` 와 같은 push `10a4e88..6f8301c`, 사용자 「push 하고 배포 + 운영 읽기 전용 스모크」). 이후 task-061 이 버튼 위치만 우측 끝으로 옮겼다(릴리스 `20261012-130400-3c0427b8`).
+
+**무엇이 생겼나 (사용자 관점)**
+- 일반 회화방과 역할극 방의 입력 바에 **둥근 아이콘 버튼**(처음 한 번만 안내 말풍선). 말이 막힐 때 누르고 **한국어로 물어보면** 알맞은 **일본어 표현 1~3개**(일본어·한국어 뜻·상황 설명)를 받는다. 질의는 한국어 **글자 입력**으로 시작했다(한국어 음성은 새 STT 경로가 필요해 범위 밖).
+- 결과는 **저장하지 않는다**(AI 는 제안만). API #180 `POST /api/v1/chats/:id/phrase-help`(`phraseHelp@v1`, fast=haiku 12초, 분당 10·하루 300, 사용자당 동시 1건 `PHRASE_BUSY`, 취소 시 409 `CANCELLED`).
+- **사용자 결정 3개**: ① 글자 입력으로 시작 ② 마이크를 누르거나 회화 턴을 시작하면 **대기 중인 도우미 요청 자동 취소** ③ 선생님이 답을 만드는 동안(QUEUED·THINKING) 도우미 버튼 **잠금**. 근거(QA-B 실측): 도우미와 회화 턴이 같은 직렬 AI 호출 줄을 써서 도우미가 먼저 돌면 턴 첫 음성 p50 2.19→5.16s.
+
+**검증**: 감사 서버 REV-190→192·화면 REV-191→193→194→195 모두 PASS_WITH_NOTES(Critical·High·Medium 0), QA A(서버 26/0/1)·B/B2(지연·경합·취소·장애 주입)·C/C2(화면 실측) PASS_WITH_NOTES. 푸시 전 게이트 tsc 0·eslint 0·시험 통과·`next build` 0. 운영 배포 뒤 deployer 읽기 전용 확인 OK([[task-056-deploy-record]]).
+
+**알려진 한계(수용)**: 큐 대기 중 취소의 잠금 지연 · home-m4 폴백 호출은 취소 불가 · 취소 직후 0.6초 안 재호출은 `PHRASE_BUSY` · 칩 2행 줄바꿈 때 첫 행 실효 히트 41.75px · 상황이 삭제된 마친 방에서는 도우미 판이 조용히 닫힘. **미확인**: 운영 도우미 실호출 200·콜드 스타트 504(LLM 호출이 필요해 읽기 전용 범위 밖, 사용자 허락 시 QA 1건).
 
 ## 데모 검토 (demo gate)
 
