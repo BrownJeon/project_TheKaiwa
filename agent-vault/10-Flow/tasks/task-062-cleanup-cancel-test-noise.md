@@ -1,8 +1,7 @@
 ---
 task_id: task-062
 title: "후속 정리 — 취소 판정 도우미 통합·소스 검사 시험 5파일 공용 도구화·취소 시 서버 로그 소음 정리"
-status: review
-waiting: push_deploy_approval
+status: done
 base_ref: b89d779
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer, qa]
@@ -69,7 +68,7 @@ demo_gate:
   - Low F-1: `task062SharedCancel.test.ts` 가 `src/components/__tests__/sourceCode` 를 import(시험 전용이라 번들·런타임 영향 없음, 층 선례만) → 후속에 `sourceCode.ts` 를 중립 위치로 옮기는 정리 후보. 정보 I-1(끊김 빈도가 pm2 오류 로그에서 안 보임 — 운영 로그에 09-30 이후 1건뿐이라 영향 작음)·I-2(부정 단언 방침이 두 가지 섞임)·I-3(dev 기록 「8 test」→ 9개, 요약 문구만 낡음).
 - 2026-10-12 **QA PASS**(결함 0, [[task-062-qa-record]]): 운영 모드 `next start`(전용 미러 `thekaiwa-qa062`, 포트 3019)에서 본문 중 끊기 3건(phrase-help Content-Length·chunked, turns Content-Length) 작업본 새 로그 0줄 / `http.ts` 만 HEAD 로 바꾼 대조군은 각 1줄(`Error: aborted`). 깨진 JSON 400·`{}` 400·없는 대화 404·무쿠키 401 은 작업본·HEAD 응답 원문 diff 없음. 끊긴 요청 자체의 응답은 소켓이 없어 관찰 불가(코드상 불변), LLM 응답 중 SSE 끊김·살아 있는 요청의 `aborted` 1회 로그는 단위 시험(REV-199) 근거만.
 - 주의(QA 발견): `package.json` 의 `build` 스크립트가 `cd $HOME/.node-local/thekaiwa` 를 하므로 전용 미러에서 `npm run build` 를 쓰면 **기본 미러가 빌드된다** — 전용 미러에서는 `next build` 직접 실행.
-- 2026-10-12 커밋: 코드·시험·이력서만 로컬 커밋, push·배포는 사용자 확인 대기(요청 범위 밖).
+- 2026-10-12 커밋 `d9343a7` → **운영 배포 완료**(사용자 「푸시 및 배포해주고 임시 미러는 정리해줘」): push `5586177..3c0427b` → 릴리스 `20261012-130400-3c0427b8`(`RELEASE_RESULT ok`·`migrated:false`), 롤백 대상 `20261012-091540-55861770`. 헬스 `status ok`·pm2 3개 online. push 전 게이트(HEAD `d9343a7`): tsc 0·eslint 오류 0(경고 5, 기존 효과 훅 경고)·시험 3,349/3,350(1 건너뜀)·`next build` 0. 임시 미러 6개 삭제 완료.
 
 ## 데모 검토 (demo gate)
 
