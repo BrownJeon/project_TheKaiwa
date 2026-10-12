@@ -91,7 +91,8 @@
 | 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 분석·성장은 Phase 3 |
 | 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** · 앱바 아래 분절 `[단어 \| 채택한 교정]` **task-055(§21)** |
 | 단어장 | `/drawer/corrections` (돌아오기 복원 `?errorType=&chunkType=&q=&focus=&n=`) | 채택 교정 모음(분절·유형/조각 칩·검색·요약 카드·더 보기·원래 대화 이동·단어 시트) | 로그인(자기 교정만) | 보임 | **task-055(§21)** — 데모 v1 승인 2026-10-11 |
-| 질문 | `/ask` | 무엇이든 물어보세요 | 로그인 | 보임 | Phase 3 |
+| 질문 | `/ask` | 무엇이든 물어보세요 — 맨 위 질문 입력 카드 + 예시 칩 · 지난 질문 목록(「답 만드는 중」 폴링·「새 답」) · 첫 질문 때 보내는 범위 안내 시트(한 번) | 로그인(자기 질문 방만) | 보임 | **task-064(§25)** — 데모 v2 승인 2026-10-12, 3a = 글자 질문만(음성은 2단계) |
+| 질문 | `/ask/[chatId]` | 질문 방 — 답(마크다운 화이트리스트·예문 블록 히라가나/한글)·근거 카드(원래 기록으로 이동, ← 「질문으로」)·LOW 한 줄·기록 없음 한 줄·범위 되묻기 칩·제안 카드 4종·대기 3단계(버튼 없음)·⋯ 메뉴(제목·보내는 범위·삭제) | 소유자(타인 404) | **숨김** | **task-064(§25)** |
 | 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** · 음성 인식 절 **마이크 테스트 task-003e(§8)** · 음성 인식 절 **휴대폰에서 알아듣기 카드(앱만)·인식 방식 문구·경로 한 줄** + 맨 아래 **앱 버전 줄(앱만)** · 관리자 행 아래 **휴대폰 인식 진단(앱 && `engine.read`)** **task-003f(§11-2 A·B·C·G·I)** |
 | 로그인 | `/login`(`?oauth_error=`) · (Custom Tab 안) `/invite` | 로그인(Google) · 앱: Chrome 창 대기 카드·마무리 덮개·창 닫힘 안내 · 초대 뒤 "앱으로 돌아가기" · 강제 업데이트 띠 | 비로그인 | 없음(`(auth)` 레이아웃) | task-002 · 앱 분기·해요체 문구 **task-003f(§11-2 E·G)** |
 | 앱 셸 | 모든 `(app)` 화면 맨 위(상태바 아래 그리드 첫 행) | 앱 업데이트 띠(권장 — 집중 화면 제외·닫으면 그날 숨김 / 강제 — 늘) · 설치 방법 시트 | **앱에서만**(웹 DOM 0·#8 요청 0) | — | **task-003f(§11-2 G)** |
@@ -10629,3 +10630,773 @@ Leader 확인(계약·데모·코드가 어긋나는 곳 — 고치지 않고 �
 - 도구 줄의 숨은 [건너뛰기] 칩은 Tab 으로 닿는 동안 [읽기]·[표시] 두 칸 가운데 일부(각 약 33×32px)를 덮는다(레이아웃은 밀지 않음). 터치 사용자에게는 보이지 않는 경로.
 - 건너뛴 카드는 맞힘·틀림에도, 공부한 수(챌린지 하루 합계·복습 입력)에도 들어가지 않는다(서버 규칙) — 확인 시트 문구는 「건너뜀으로 기록하고 뜻을 보여 드려요」까지만 말한다.
 - 건너뛰기 확인 시트가 열린 동안 끝내기 시트는 열리지 않는다(`askSkip` 가드 `endOpen`), 시트가 닫히면 `skipFor` 를 비운다(끝내기 실패로 phase 가 돌아와도 되살아나지 않음).
+
+---
+
+## 25. 무엇이든 물어보세요 `/ask` · 질문 방 `/ask/[chatId]` (task-064, Phase 3 3a, 2026-10-12)
+
+> **승인 데모: `docs/demo/task-064-ask-anything-v2.html` (v2)** — 파일 sha256 `8b899402acad58958f26447c3abddcc3a3b8dced61e842628eda4ae77683cbce`(2026-10-12 직접 계산, 이력서 frontmatter 와 같음), 토큰 `src/app/globals.css@sha256:a314f18f1807`. 사용자 승인 2026-10-12 16:43, 원문 「task-064 데모 v2 승인, D1~D13은 권고대로」 — 데모를 처음 열면 골라져 있는 ★ 권고안(D1~D13)이 곧 승인안이다.
+> **우선순위: task 이력서(「Leader 결정」 두 절) > `api-contract.md` §2-18-A > 이 절 > 데모.** 데모와 계약이 어긋나면 계약을 따르고 25-13 에 모았다. 데모 수치는 헤드리스 시스템 글꼴·합성 데이터라 **순위 비교용**이고, 문구·간격·색 토큰·상태 구성은 데모가 기준이다. 데모 상태는 「데모 {탭}·{세부}」(예: 데모 D·s2)로 인용한다.
+> **3a 범위 = 글자 질문만.** 데모 L 탭(🎤 말로 묻기·받아쓰기·언어 칩)·입력 카드 [🎤 말로 묻기]·「말로 물어볼 때」 예시·보내는 범위 시트의 음성 두 줄은 **2단계**(D13 A)다 — 3a 화면에는 마이크가 하나도 없다(데모 A·stage 「1단계 · 글자 질문(3a)」 화면이 기준). 2단계 착수 조건은 이력서 「Leader 결정 — v2」 3(한국어 받아쓰기 품질 실측 + 요청별 `language` 인자, 계약 additive).
+> **스키마·네이티브 변경 없음** → 웹 배포만. 데이터는 #27·#28·#29·#30·#31·#32(ASK)·#37·#38·#39 재사용(계약 §2-6·§2-8·§2-18·§2-18-A — 이 절은 다시 정의하지 않고 인용만 한다). 서버(조회 계층·의도 분류·A9·제안 채택)는 Leader 사양·developer-S, 프롬프트 `ask@v1` 은 prompt-engineer — 이 절은 화면과 화면이 기대는 표기 규칙(25-6)만 정한다. 이력서 `agent-vault/10-Flow/tasks/task-064-ask-anything-3a.md`, 데모 기록 `task-064-designer-record.md`.
+> 적용 토큰(이름만, 새 색 없음): `--color-ground` · `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3`(placeholder·한글 줄 괄호만 — 기존 부품) · `--color-line` · `--color-accent`(주 버튼·되묻기 칩 테두리·「새 답」 점·대기 단계 점) · `--color-on-accent` · `--color-accent-soft`(내 질문 말풍선·「새 답」 뱃지 바탕·선생님 아바타 — 글자는 `ink`) · `--color-good` · `--color-good-soft`(✓ 줄·완료 단계) · `--color-bad` · `--color-bad-soft`(실패 카드·안내 줄·오류 상자). 공용 컴포넌트: `AppBar` · `BackBar` · `Composer` · `TurnNotice` · `MessageList` · `useChatTurn` · `sse` · `ProposalCard` · `ChatMenuSheet` · `Sheet` · `Toast`/`useToast` · `Btn`/`BtnRow`/`Badge`/`Field` · `TeacherAvatar` · `JaText`·`HangulLine`·`DisplayBar`·`useAnnotations`·`JaRuns` · `ChatRowsSkeleton`·`SkeletonRegion`. `project-ui-system` 미적용(학습 앱 화면).
+
+### 25-0. 레이아웃 설계
+
+| 항목 | 내용 |
+|---|---|
+| 목표 | 일본어 표현·문법 질문과 **내 공부 기록 질문**(진도·복습·교정·배운 표현)에 근거 있는 답을 받고, 근거를 눌러 원래 기록으로 가며, 선생님 제안은 골라서만 저장한다 |
+| 주요 위계 | 목록 = ① 질문 입력 카드 ② 예시 ③ 지난 질문 / 방 = ① 답 본문 ② (LOW·기록 없음 한 줄 — 답 맨 위) ③ 근거 카드 ④ 제안 카드 ⑤ 입력 바 |
+| 영역(위→아래, 390) | 목록: sticky 앱바 52 + 10 → 입력 카드 ≈254.5 → 18 → 예시 줄 71.5 → 18 → 「지난 질문」 22.5 + 10 → 행 67.5(간격 8) → [이전 질문 더 보기] 48 → 하단 탭 / 방: `BackBar` 52 → 표시 바 44 → 메시지 목록(유일한 스크롤) → (안내 줄 45) → 입력 바 61 — 하단 탭 숨김 |
+| 컴포넌트 | 재사용 = 위 머리 목록 / 새 것 = 25-3 표 |
+| 상태 | 목록 5 · 방 대기 3단계 · 도착 · LOW · 기록 없음 · 되묻기 · 제안 4종 × 4 · 시간 초과 · 답 불가 · 429(자주 · 몰림) · 409 · 전송 실패 · 404 · 키보드 · 긴 답 · 시트(범위 처음·다시, 메뉴·이름·삭제 확인·삭제 실패) (25-4·25-5) |
+| 행동 | 주 = [물어보기]·[↑ 보내기] / 보조 = 예시 칩·되묻기 칩·[직접 쓸게요]·근거 카드·[n개 더 보기]·제안 채택/무시·⋯ 메뉴·표시 바 / 위험 = 질문 방 삭제(확인 단계). **기다리는 동안 나가기·취소 버튼 없음**(D6, 사용자 요청 1) |
+| 반응형 | 360/390/412 같은 한 줄 흐름. 360 에서 예시 칩은 첫 방문엔 줄바꿈(칩 안 글도 줄바꿈), 지난 질문이 있으면 가로 스크롤 한 줄. 근거 라벨 2줄 말줄임, 제안 버튼 두 칸 그대로(`BtnRow`) |
+
+### 25-1. 확정 결정 D1~D13
+
+| # | 확정 | 화면에 미치는 것 | 구현 위치 | 데모 |
+|---|---|---|---|---|
+| D1 | **B** 맨 위 입력 카드 + 예시 칩, 아래 지난 질문 | `/ask` 를 열면 바로 쓴다. 예시 칩은 입력창을 **채우기만**(보내지 않음) | `AskHome`·`AskComposerCard`·`AskExamples` | B |
+| D2 | **(b)** + 안내 **A** | 보내는 범위 = 계약 §2-18-A 5항(승인 데모 문구 그대로: 이 질문 방의 최근 대화 12개·학습자 정보·공부 기록 요약·채택 교정의 원래 문장과 고친 문장·수업에서 배운 표현 — **Leader 정정 2026-10-12**: 교정 설명 문구·역할극 표현·단어장 단어는 보내지 않는다). **첫 질문을 보낼 때 시트 한 번**(`localStorage kaiwa.ask.scopeNotice.v1`), 다시 보기 = 방 ⋯ 메뉴 「보내는 범위 보기」 + 입력 카드 링크 | `ScopeNoticeSheet`·`useScopeNoticeGate`·`ChatMenuSheet` | C |
+| D3 | **A** 답 아래 근거 3장 + [n개 더 보기] | `sources` 가 비면 근거 영역 자체를 그리지 않는다(GENERAL 은 늘 빈 배열 — 계약 9항) | `SourceList` | E·J |
+| D4 | **A** LOW 일 때만 답 맨 위 한 줄 | HIGH·MEDIUM 은 아무 표시 없음 | `AskAnswer` | F |
+| D5 | **A** 기간 칩 + [직접 쓸게요] | 칩 = 서버 `needsScope.options[{key,label}]`(이번 주·지난 30일·전체 기간), 누르면 `label` 을 글로 + `scope:{key}` 를 #32 에 싣는다. 가장 최근 답에만 | `ScopeChips`·`useChatTurn` | G |
+| D6 | **C** 단계 문구 + 경과 초 + 30·90초 안내, **버튼 없음** | PROMPT→LLM→PARSE 3단계, 5초부터 초, 30초·90초 안내 줄 + 「다른 화면으로 가도 답은 계속 만들어져요…」 한 줄(버튼 아님) | `AskPending` | D |
+| D7 | **A** 답 → 근거 → 제안 | 순서 고정 | `AskAnswer` | E·H |
+| D8 | 제목·둘째 줄 **A** · 삭제 **X** | 제목 = 첫 질문 앞 30자, 둘째 줄 = `preview`(마지막 답 첫 줄 — 서버). 삭제는 방 ⋯ → 확인 단계(목록 길게 누르기 없음) | `askTitleOf`·`AskListItem`·`ChatMenuSheet` | B·K |
+| D9 | **A** 예문 블록만 히라가나·한글, 뜻 줄 늘 보임 | 표시 바 `[히라가나][한글]` 두 개(번역 없음). 한국어 문장 속 일본어엔 층 없음 | `ExampleBlock`·`DisplayBar keys` | E |
+| D10 | **A** 언어 칩 [한국어\|日本語] | **2단계** — 3a 구현 없음 | — | L |
+| D11 | **A** 받아쓴 글을 입력창에 → 확인 뒤 보내기 | **2단계** — 3a 구현 없음 | — | L |
+| D12 | **A** 글자 답만 | 3a 에도 적용: 예문 블록에 ▶ 듣기 없음, 질문 방에 소리·TTS 표시등 없음 | `ExampleBlock` | E |
+| D13 | **A** 글자 먼저 → 음성은 같은 task 2단계 | 3a 화면에 🎤·「말로 물어볼 때」 예시·안내 시트 음성 줄 없음 | 전체 | A·stage |
+
+### 25-2. 라우트 (경로·코드는 2026-10-12 직접 확인 — [확실])
+
+| 구분 | 파일 | 할 일 |
+|---|---|---|
+| 옮김 | `src/app/(app)/ask/page.tsx` → **`src/app/(app)/ask/(tab)/page.tsx`** | `ComingSoon` 을 지우고 `<AppBar title="질문" />` + `<AskHome />`. 옛 `ask/page.tsx` 는 지운다(같은 주소 두 파일이면 빌드 실패) |
+| 새로 | `src/app/(app)/ask/(tab)/loading.tsx` | `<AskHomeSkeleton />` 만. **`(tab)` 그룹에 두는 이유(§17-1 ②)**: `ask/loading.tsx` 로 두면 `/ask/[chatId]` 로 들어갈 때도 목록 자리표시가 뜬다 |
+| 새로 | `src/app/(app)/ask/[chatId]/page.tsx` | 채팅방 page 와 같은 모양 — `auth()`(없으면 `/login?callbackUrl=`) + `getProfile` 의 `teacherName`(비우면 「선생님」) → `<AskRoom chatId teacherName />`. 소유 확인·데이터는 화면이 #29 로(타인·없음 = 화면 404 상태) |
+| 바꿈 | `src/components/shell/routes.ts` | `FOCUS_ROUTE_PREFIXES` 에 **`'/ask/'`** 한 줄 → 질문 방은 하단 탭·권장 업데이트 띠 숨김. `/ask` 자체는 `startsWith('/ask/')` 에 걸리지 않아 탭이 보인다 |
+| 그대로 | `src/components/shell/TabBar.tsx` | `match: '/ask'` 라 목록에서 「질문」 켜짐(이미 있음) |
+| 바꿈(1줄) | `src/components/chat/ChatRoom.tsx` | #29 `chat.kind === 'ASK'` 면 `router.replace('/ask/' + id)`(TALK 처리 옆 — 주소를 잘못 연 경우) |
+
+- **질문 방에서 하단 탭 숨김**(이력서 Leader 결정 v2-1). 기다리는 동안 나가는 길 = 상단 ‹(「질문 목록으로」)·안드로이드 뒤로 → 목록 → 하단 탭.
+- 방 진입 경로: 목록 행 · 목록 입력 카드에서 첫 질문 보내기(25-4 E) · (후속) 계획표 하루 시트의 「질문」 기록(지금은 이동 주소 없음 — 25-13 데모와 다르게 ⑩).
+
+### 25-3. 파일 지도 · 컴포넌트
+
+**A. 새 파일 `src/components/ask/`**
+
+| 파일 | 책임 |
+|---|---|
+| `AskHome.tsx` | 목록 화면 본체(`'use client'`): 입력 카드·예시·지난 질문·「답 만드는 중」 폴링·「새 답」·보내는 범위 관문·#28 생성 → 방 이동·토스트(삭제 뒤 알림 포함) |
+| `AskHomeSkeleton.tsx` | `loading.tsx` 내용(25-7 B) — 데이터 요청 없음 |
+| `AskComposerCard.tsx` | 입력 카드 `<form>`: 라벨·textarea·글자 수 줄·[물어보기]·「선생님에게 보내는 범위」 링크. 제어 컴포넌트(`value`·`onChange`·`busy`) |
+| `AskExamples.tsx` | 예시 칩 4개 — `mode: 'wrap' \| 'row'`(첫 방문 = 제목·설명 + 줄바꿈 / 그 밖 = 「예시」 + 가로 한 줄), `onPick(text)` |
+| `AskListItem.tsx` | 지난 질문 한 줄(행 전체 링크 ≥64px) — `ChatListItem` 과 같은 바깥 클래스·높이, 상태만 ASK 것(답 만드는 중·새 답) |
+| `AskRoom.tsx` | 질문 방 본체: #29·#37 로드, `useChatTurn`(ASK 옵션), 머리·표시 바·목록 슬롯·안내 줄·입력 바·메뉴·시트·도착 알림·처음 질문 넘겨받아 보내기 · 목록 스크롤 위치 = `MessageList arrivalAlign="answer-start" pillLabel={ASK_COPY.newAnswer}`(도착·재진입 때 직전 질문 윗면에 맞춤, 25-5 J) |
+| `AskQuestionBubble.tsx` | 내 질문 말풍선(한국어, 층·번역 없음) — `MessageList renderUser` |
+| `AskAnswer.tsx` | 선생님 답 묶음: 누가 줄 → 답 카드(LOW 줄·기록 없음 줄·본문·되묻기 칩) → 근거 → 제안 → 시각 — `MessageList renderTutor` |
+| `AnswerMarkdown.tsx` | `parseAnswerMd` 결과를 React 요소로(25-6). HTML 주입 없음 |
+| `ExampleBlock.tsx` | 예문 블록(일본어 17px + 히라가나 + [한글] + 뜻 줄) |
+| `SourceList.tsx` | 「근거로 본 내 기록 n」 + 카드 3장 + [n개 더 보기]/[접기]. `SourceCard` 는 같은 파일 안 |
+| `ScopeChips.tsx` | 되묻기 칩 묶음 + [직접 쓸게요] |
+| `AskPending.tsx` | 대기 카드(3단계·경과 초·안내 줄) — `MessageList renderPending` |
+| `AskFailed.tsx` | 실패 카드(시간 초과·답 불가) + [다시 받기] — `MessageList renderFailed`(새 슬롯) |
+| `ScopeNoticeSheet.tsx` | 보내는 범위 시트(`variant: 'first' \| 'again'`) — 공용 `Sheet` 안 |
+| `useScopeNoticeGate.ts` | 보내기 전에 안내 확인 여부를 보고 시트를 띄운 뒤 원래 보내기를 잇는 훅(목록·방·되묻기 칩 공용 — 대기 중인 보내기 하나만 든다) |
+| `askCopy.ts` | 문구 단일 출처(25-10) |
+| `answerMd.ts` | 순수: `sanitizeAnswerText` · `parseAnswerMd` · `parseInline` · `exampleJaLines`(25-6) |
+| `logic.ts` | 순수: `askSourceHref`·`askMetaOf`·`askReplyFromDone`·`askAnswerView`·`askPendingView`·`askPendingSince`·`askTitleOf`·`askNoticeText`·`askFailureCopy`·`teacherTitle`·저장소 키(`ASK_KEYS`)와 id 집합 도우미(`readIds`·`addId`·`removeId`)·`arrivedTransitions` |
+| `__tests__/{answerMd,logic,askCopy}.test.ts` | 25-11 |
+
+**B. 새 파일 `src/components/shell/askReturn.ts`(+ `__tests__/askReturn.test.ts`)** — 질문 방에서 근거로 연 화면의 ← 를 질문 방으로(25-8 B).
+
+**C. 공용 부품 확장(기본값 = 지금 동작 그대로 — 채팅·회화 DOM·요청 불변이 합격 조건)**
+
+| 파일 | 더하는 것 | 이유 |
+|---|---|---|
+| `chat/useChatTurn.ts` | `SendOptions.scope?: { key: AskScopeKey }`(있을 때만 요청 본문 `scope`) · `TurnDeps.toReply?: (dn) => Partial<ChatMessageView>`(없으면 지금처럼 `replyJa`/`replyKo`) · `TurnNoticeState.reason?: string`(429 `details.reason` — `ASK_RATE`·`ASK_DAILY`·`ASK_BUSY` 구분, `detailString(err,'reason')`) | ASK 답 본문은 `answerMd`, 구조값은 `ask` 객체 |
+| `chat/MessageList.tsx` | `annotate?: boolean`(기본 `true`; `false` 면 본문 #24r 분석 요청 0 — 25-6 E) · `renderFailed?: (m, ctx, view: { failure, busy, onRetry }) => ReactNode` · 꼬리 대기 말풍선(`trailingPending`)에도 `renderPending` 슬롯(message 자리 `null`) · `focusable?: boolean` + `handleRef.focusList()`(스크롤 상자 `tabIndex={-1}`, `focus({ preventScroll: true })`) · `arrivalAlign?: 'bottom' \| 'answer-start'`(기본 `'bottom'` = 지금 동작) + `pillLabel?: string`(기본 = 지금 알약 「새 메시지 ↓」) — 계산은 순수 `chat/arrivalAlign.ts`(25-5 J) | ASK 답 전문(≤4,000자)을 분석에 보내면 400자 조각 10개 요청. 실패 카드 모양이 다름. 긴 답이 바닥에 붙어 질문·답 시작이 화면 밖(QA64-B2-1) |
+| `chat/Composer.tsx` | `lang?: 'ja' \| 'ko'`(기본 `'ja'`; `'ko'` 면 속성 생략) · `inputLabel?`(기본 「메시지 입력」) · `busyReason?`(기본 「선생님 답을 기다리는 중이에요」) | 질문은 한국어(일본어 글꼴로 한글을 그리지 않게), 데모 이름 「질문 입력」·잠금 문구 「답을 받은 뒤 보낼 수 있어요」 |
+| `chat/TurnNotice.tsx` | `textOf?: (notice, remaining) => string` · `notFoundLink?: { href, label }`(기본 = 지금 채팅 목록 링크) | ASK 문구(25-5 G)·404 링크 「질문 목록으로」 |
+| `chat/ChatMenuSheet.tsx` | `chat.kind === 'ASK'` 갈래: 이름 「질문 방」, 메뉴 머리에 제목 한 줄(TALK 처럼), 삭제 확인 문구·삭제 실패 문구·삭제 뒤 `router.replace('/ask')` + `sessionStorage kaiwa.ask.flash='deleted'`. `extra` 슬롯에 「보내는 범위 보기 ›」 | 데모 K |
+| `chat/ProposalCard.tsx` | `ADD_TOPIC`·`SET_LEVEL` 모양(25-5 E) · `context?: 'chat' \| 'ask'`(기본 `'chat'` — ADD_STUDY_LOG 문구만 갈림) | 지금은 단어·기록 둘뿐이고 나머지 kind 가 기록 카드로 잘못 그려진다 |
+| `common/japanese/JapaneseText.tsx` | `DisplayBar keys?: ToggleKey[]`(기본 `['fu','hg','tr']`) | D9 A — ASK 는 `['fu','hg']` |
+| `shell/correctionsReturn.ts` | `pickBackHref`·`currentBackHref`·`backLabelOf` 를 계획표·교정 모음·**질문 방** 세 기록 중 늦은 쪽으로(25-8 B) | `usePlanReturn` 소비처(`BackBar`·`TalkRoomHeader`)는 고치지 않는다 |
+| `types/chat.ts` | `AskScopeKey`·`AskSourceType`·`AskSource`·`AskMeta`·`ChatMessage.ask?: AskMeta \| null`·`TurnDoneEvent.conversation` 을 `{ replyJa?; replyKo?; answerMd?; sources?; confidence?; needsScope?; records? }` 로 넓힘 | 서버(developer-S)와 같이 쓰는 타입 — **소유자는 Leader 가 정한다**(`src/types` 는 이 가이드 파일 범위 밖) |
+
+**D. 재사용(그대로)**: `chat/{sse.ts, messages.ts, labels.ts(actionErrorText·turnNoticeText 409)}` · `common/{api, errors(toErr·retryAfterOf·detailString), storage, format(cpLength·formatClock·formatListTime·kstDateKey), useNow(useNow·useCountdown·elapsedSec), Sheet, Toast, ui, TeacherAvatar}` · `common/japanese/{annotations(useAnnotations·OFF), JapaneseText(JaText·HangulLine·DisplayBar), JaRuns, jaQuotes(splitJaRuns), displayPrefs(DISPLAY_COPY)}` · `shell/{AppBar, BackBar, usePlanReturn, planReturn(samePath·isPlanHref), TabSkeleton(ChatRowsSkeleton·SkeletonRegion), tabSkeletonSizes(SKELETON_SR_LABEL·CHAT_SKELETON)}` · `plan/logic.ts`(`planUrl`·`monthOf` — 읽기만) · `eval/logic.ts`(`levelRo` — 읽기만) · `vocab/format.ts`(`formatMonthDay`) · `topic/logic.ts`(`retryFailHoldMs`) · `chat/storageKeys.ts`(`KEYS.draft(chatId)` — 방 입력창 초안).
+**E. 고치지 않음**: `chat/ChatList.tsx`·`ChatListItem.tsx`(채팅 전용 문구·역할극 뱃지·`lang="ja"` 미리보기 — ASK 행은 새 `AskListItem`) · `chat/MessageBubble.tsx`(말풍선 6종 — ASK 는 슬롯으로 자기 모양) · `talk/*`(회화방) · `shell/{BackBar, TalkRoomHeader, planReturn, usePlanReturn}` · `drawer/*` · `plan/*` · `speech/*`(3a 마이크 없음) · 데모 파일.
+
+### 25-4. 목록 `/ask` (데모 B·C·D·list·D·arrived)
+
+**A. 구조(390, D1 B)**
+
+```
+<AppBar title="질문" />                                          ← sticky 52 + mb 10 (지금 page 그대로)
+<div className="flex min-w-0 flex-col gap-[18px] px-4 pb-8">
+  <AskComposerCard … />                                          ← B
+  rooms === null(첫 응답 전)    → <AskExamples mode="row" /> + 「지난 질문」 머리 + <ChatRowsSkeleton />   ← 25-7 B
+  rooms.length === 0            → <AskExamples mode="wrap" />    ← 첫 방문(「지난 질문」 영역 없음)
+  첫 쪽 실패(rooms === null)    → <AskExamples mode="row" /> + 오류 상자(F)
+  rooms.length > 0              → <AskExamples mode="row" /> + <section> 지난 질문 </section>
+</div>
+<Toast message={toast.message} />
+{gate.sheet}                                                     ← ScopeNoticeSheet(first)
+```
+
+**B. `AskComposerCard`** (데모 `.askc` — 3a 는 데모 A·stage 의 `noMic` 모양)
+
+```
+<form noValidate onSubmit={…} className="flex min-w-0 flex-col gap-2 rounded-[14px] border border-line bg-surface p-3">
+  <label htmlFor={id} className="text-[15px] font-semibold">선생님에게 물어보기</label>
+  <textarea id={id} rows={3} value={draft} onChange
+            placeholder="일본어 표현·문법이나 내 공부 기록을 물어보세요"
+            className="block min-h-[76px] w-full min-w-0 resize-none rounded-xl border border-line bg-surface px-3 py-2.5 text-[16px] leading-6 text-ink placeholder:text-ink3 focus:border-accent focus:ring-1 focus:ring-accent" />
+            ← lang 없음(한국어 — 일본어가 섞여도 입력창은 한국어 글꼴). rows 3 = 실제 높이 94
+  {count ≥ 900 && <p aria-live="polite" className="-mt-1 text-right text-[12px] {count>1000 ? 'text-bad' : 'text-ink2'}">{count>1000 ? '1,000자까지 보낼 수 있어요 · ' : ''}{count.toLocaleString('ko-KR')}/1,000</p>}   ← Composer 와 같은 규칙 ★
+  <div className="flex min-w-0 items-center justify-end gap-2">
+    <button type="submit" aria-disabled={empty || busy || undefined} aria-busy={busy || undefined}
+            className="inline-flex h-11 flex-none items-center justify-center whitespace-nowrap rounded-xl bg-accent px-[18px] text-[14.5px] font-semibold text-on-accent {empty ? 'opacity-40' : ''}">
+      {busy ? '보내는 중…' : '물어보기'}
+    </button>
+  </div>
+  <button type="button" onClick={openScopeAgain}
+          className="inline-flex min-h-11 items-center gap-1 self-start text-[13px] text-ink2 underline underline-offset-[3px]">
+    <span aria-hidden="true" className="inline-grid h-[18px] w-[18px] flex-none place-items-center rounded-full border-[1.5px] border-current text-[11px] font-bold no-underline">i</span>선생님에게 보내는 범위
+  </button>
+</form>
+```
+- 글자 수는 **코드포인트**(`cpLength`, 1~1,000 — 서버와 같음, `maxLength` 쓰지 않음). 빈 입력이면 버튼 흐림 + 누르면 토스트 「질문을 적어 주세요」, 1,000 초과면 토스트 「1,000자까지 보낼 수 있어요」.
+- Enter: 모바일은 줄바꿈, 정밀 포인터(데스크톱)에서만 Enter 보내기 + IME 조합 중(`isComposing`·229) 무시(`Composer` 와 같은 조건).
+- 초안: `sessionStorage kaiwa.ask.draft`(300ms 디바운스, 생성 성공 시 비움).
+- 키보드(데모 B·kb): 카드가 맨 위라 가려지지 않는다. 키보드가 열리면 하단 탭은 숨는다(기존 `data-kb`).
+
+**C. `AskExamples`** (데모 B·first / B·rooms)
+
+| 모드 | 언제 | 모양 |
+|---|---|---|
+| `wrap` | 지난 질문 0개(첫 방문) | `<h3>` 「이렇게 물어볼 수 있어요」(13px semibold `ink2`) → 설명 「내 기록을 묻는 질문은 수업·교정·복습 기록을 찾아 **근거와 함께** 답해요.」(13px `ink2`, 굵은 곳 `font-semibold text-ink`) → 칩 `flex flex-wrap gap-2` |
+| `row` | 그 밖(지난 질문 있음·로딩·오류) | `<h3>` 「예시」 → `no-scrollbar -mr-4 flex gap-2 overflow-x-auto pr-4`, 칩 `flex-none whitespace-nowrap` |
+
+- 칩: `<button type="button" className="inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-left text-[14px]">` + 태그 `<span className="inline-flex h-5 flex-none items-center rounded-md bg-surface2 px-1.5 text-[11.5px] font-semibold text-ink2">{태그}</span>` + `<span className="min-w-0"><JaRuns text={q} /></span>`.
+- 4개(25-10 원문): 문법 「〜ている 와 〜てある 차이가 뭐예요?」 · 내 기록 「이번 주에 내가 자주 틀린 조사 알려줘」 · 복습 「오늘 복습할 거 뭐 있어?」 · 배운 표현 「역에서 길 물을 때 쓰던 표현 뭐였지?」.
+- 누르면 **입력창을 채우고 입력창에 초점**(바로 보내지 않음 — 채팅 빈 방 칩 `Composer.fill` 과 같은 규칙). 입력창에 글이 있어도 덮는다.
+- 「말로 물어볼 때 — 이렇게 말해 보세요」 상자는 3a 에 없다(2단계).
+
+**D. 지난 질문 + `AskListItem`** (데모 B·rooms·D·list·D·arrived)
+
+```
+<section aria-labelledby={hid} className="min-w-0">
+  <h3 id={hid} className="mb-2.5 text-[15px] font-bold">지난 질문</h3>
+  <ul className="flex min-w-0 flex-col gap-2"> AskListItem × n </ul>
+  {loadMoreError && <p role="alert" className="mt-2 text-[13px] text-bad break-keep">{actionErrorText}</p>}
+  {nextCursor && <Btn variant="ghost" className="mt-2 w-full" aria-busy={loadingMore || undefined}>{loadingMore ? '불러오는 중…' : '이전 질문 더 보기'}</Btn>}
+</section>
+
+AskListItem — ChatListItem 과 같은 바깥 클래스(높이 67.5 / 뱃지 줄 68.5 — CHAT_SKELETON 상수가 그대로 맞는다)
+<li><Link href={`/ask/${encodeURIComponent(id)}`} aria-label={`${title}, ${시각}` + (running ? ', 답 만드는 중' : isNew ? ', 새 답 도착' : '')}
+          className="flex min-h-16 min-w-0 flex-col justify-center gap-0.5 rounded-[14px] border border-line bg-surface px-3.5 py-2.5">
+  <span className="flex min-w-0 items-baseline gap-2">
+    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold"><JaRuns text={title} /></span>
+    <span className="flex-none text-[12px] text-ink2">{formatListTime(lastMessageAt, now)}</span>
+  </span>
+  <span className="flex min-w-0 items-center gap-2">
+    <span className="min-w-0 flex-1 truncate text-[14px] text-ink2"><JaRuns text={둘째 줄} /></span>
+    running → <Badge><span aria-hidden className="mr-1.5 inline-flex gap-[3px]">점 3개(4px, `motion-safe:animate-pulse` 엇갈림)</span>답 만드는 중</Badge>
+    새 답   → <span aria-hidden className="h-2 w-2 flex-none rounded-full bg-accent" /><span className="inline-flex h-[22px] flex-none items-center rounded-md bg-accent-soft px-2 text-[11.5px] font-semibold text-ink">새 답</span>
+  </span>
+</Link></li>
+```
+- 둘째 줄: `running` 이면 「선생님이 답을 만드는 중이에요」, 아니면 `preview`(서버 — 마지막 답 첫 줄 평문 ≤60자, 답 전·실패 뒤엔 첫 질문), 없으면 「아직 메시지가 없어요」(채팅 목록과 같은 문구). 미리보기에 `lang="ja"` 를 통째로 달지 않는다(한국어 — 일본어 구간만 `JaRuns`).
+- 정렬·쪽: #27 `kind=ASK&limit=20`, `lastMessageAt desc`, `cursor` 로 더 보기(중복 id 제거 — `ChatList.more` 와 같음). 화면 복귀(`visibilitychange` visible) 때 첫 쪽 다시 읽기.
+- **「답 만드는 중」 폴링**: 받은 행 중 `running` 이 하나라도 있으면 첫 쪽(#27)을 2.5초(처음 30초) → 5초 간격, 200초 상한으로 다시 읽는다(#29 폴링 `useChatTurn` 과 같은 숫자 — 상수를 export 해서 재사용). `running` 행이 없어지면 멈춘다. 화면이 가려지면 멈추고 돌아오면 한 번 읽고 다시 판단.
+- **「새 답」**(서버 칸 없음 — 이 기기의 세션 저장소만): ① 방을 떠날 때 답을 기다리던 중이면 그 방 id 를 `sessionStorage kaiwa.ask.waiting`(id 배열 ≤20)에 적는다(`AskRoom` 언마운트) ② 목록이 읽은 행 중 `waiting` 에 있는데 `running=false` 인 행 → `kaiwa.ask.newAnswer` 로 옮긴다(토스트 없음) ③ **목록이 떠 있는 동안 폴링에서 `running: true → false` 를 본 행** → `newAnswer` 에 넣고 토스트 「답이 도착했어요」 **한 번**(한 번 읽기에 여러 개여도 한 번) ④ `newAnswer` 에 있는 행에 점 + 「새 답」, 둘째 줄은 새 `preview` ⑤ 방을 열면(`AskRoom` 마운트) 두 집합에서 그 id 를 지운다. 판정은 순수 `arrivedTransitions(prevRunningIds, items, waitingIds)`.
+- 삭제 뒤 돌아오면(`sessionStorage kaiwa.ask.flash === 'deleted'`) 토스트 「질문 방을 삭제했어요」 한 번 후 키를 지운다.
+
+**E. 첫 질문 보내기 흐름**(데모 B·first → C·first → D) — 목록에서는 턴을 시작하지 않는다(화면을 떠나며 스트림이 끊기는 시점과 `accepted` 가 겹치는 경합을 피한다).
+1. 검사: 빈 글·1,000 초과 → 토스트(B). 이미 만드는 중(`creatingRef`)이면 무시(연타 → 방 두 개 방지).
+2. `useScopeNoticeGate`: `localStorage kaiwa.ask.scopeNotice.v1` 이 없으면 `ScopeNoticeSheet(first)` → [알겠어요, 보내기] = 키 `'1'` 저장 후 3 으로 / [취소]·배경·Esc·✕ = 아무것도 안 함(입력 글 그대로).
+3. #28 `POST /api/v1/chats { kind: 'ASK', title: askTitleOf(text) }`(버튼 「보내는 중…」). 실패 → 토스트 `actionErrorText`, 입력 글 그대로.
+4. 성공 → `sessionStorage kaiwa.ask.pending.<chatId> = text` → 목록 초안 비움 → `router.push('/ask/' + id)`.
+5. 방(`AskRoom`)이 #29 를 읽은 뒤 메시지가 0개이고 `pending` 이 있으면 그 키를 **먼저 지우고** `turn.send(text)`. 보내기가 거절되면(429·409·네트워크) 글은 `Composer.restore` 로 입력 바에 돌아온다(기존 `restoreText`).
+- `askTitleOf(text)` = 공백류(`\s+`) 한 칸으로 접고 앞뒤 공백 제거 → 앞 **30 코드포인트**(말줄임표 없음 — 목록·머리는 CSS 말줄임). 계약 1항 서버 규칙(「첫 질문 앞 30자, 공백·개행 정리」)과 같은 결과여야 한다. 클라이언트가 보내는 이유: 첫 답 전에도 방 머리·목록 제목이 질문으로 보이게(데모 D·s1·D·list) — 25-13 L-7.
+
+**F. 목록 상태 표**(문구는 데모 원문)
+
+| 상태 | 조건 | 화면 | 접근성 |
+|---|---|---|---|
+| 첫 방문 | #27 첫 쪽 0개 | 입력 카드 + 예시 `wrap`. 「지난 질문」 영역 없음 | — |
+| 있음 | 1개 이상 | 입력 카드 + 예시 `row` + 지난 질문 + (커서 있으면) [이전 질문 더 보기] | 행 링크 이름 = 제목·시각·상태 |
+| 로딩 | 첫 응답 전 | 25-7 B — 입력 카드·예시 줄·「지난 질문」 머리는 **실제 요소**, 행만 회색 블록. 보이는 「불러오는 중」 글자 없음 | `role=status` 「불러오고 있어요」 한 줄 |
+| 오류 | 첫 쪽 실패(받은 행 0) | 입력 카드·예시 `row` 그대로(**질문은 막지 않는다**) + 오류 상자 **「지난 질문을 불러오지 못했어요」** / 「연결을 확인하고 다시 시도해 주세요.」 / [다시 시도] | 상자 `role=alert`, 버튼 `min-h-11`. [다시 시도] 뒤 자리표시 최소 500ms(`retryFailHoldMs`) |
+| 더 보기 실패 | 다음 쪽 실패 | 받은 행 그대로 + 버튼 위 `actionErrorText` 한 줄 | `role=alert` |
+| 키보드 | 입력창 초점 | 하단 탭 숨음(기존), 카드 맨 위 그대로 | 입력창 16px(확대 방지) |
+| 답 만드는 중 | `running=true` 행 | D 의 둘째 줄·뱃지, 폴링 | 행 이름 끝 「, 답 만드는 중」 |
+| 새 답 | D ②③ | 점 + 「새 답」, 둘째 줄 = 새 `preview` | 행 이름 끝 「, 새 답 도착」, 토스트(공용 `Toast`) |
+
+- 오류 상자: `rounded-xl bg-bad-soft px-3.5 py-3 text-[13.5px] text-bad`, 제목 `block text-[14.5px] font-semibold`, 버튼 `mt-0.5 inline-flex min-h-11 items-center font-semibold underline`(공용 `ErrorBlock` 의 [다시 시도]는 44px 미달 — §21-13 ⑥ 과 같은 처리).
+
+### 25-5. 질문 방 `/ask/[chatId]` (데모 C·again·D·E·F·G·H·I·J·K)
+
+**A. 구조(390)**
+
+```
+<div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">     ← 셸 main 을 정확히 채움(채팅방과 같음), relative = sr-only 기준
+  <BackBar backHref="/ask" backLabel="질문 목록으로" title={chat.title} subtitle={`질문 · ${teacherTitle(teacherName)}`}
+           right={<button type="button" aria-label="질문 방 메뉴" className="grid h-11 w-11 flex-none place-items-center rounded-full">⋯</button>} />
+  <DisplayBar keys={['fu', 'hg']} onToast={toast.show} />                       ← D9 A: [번역] 없음
+  <MessageList chatId messages proposals teacherName turn hasOlder loadingOlder onLoadOlder onProposalChange onToast handleRef={listRef}
+               liveOff annotate={false} focusable followContent
+               renderUser={AskQuestionBubble} renderTutor={AskAnswer} renderPending={AskPending} renderFailed={AskFailed}
+               intro={<AskExamples mode="row" onPick={composer.fill} />} />     ← intro = 질문 없이 생긴 빈 방(25-13 데모와 다르게 ⑧)
+  <p role="status" className="sr-only">{arrivalLive}</p>                       ← 도착 알림(25-9)
+  {turn.notice && <TurnNotice notice blockedUntil onClose textOf={askNoticeText} notFoundLink={{ href: '/ask', label: '질문 목록으로' }} />}
+  <Composer chatId lang="ko" inputLabel="질문 입력" busy={turnBusy} busyReason="답을 받은 뒤 보낼 수 있어요"
+            blockedUntil placeholder={placeholder} onSend={gatedSend} onBlocked={toast.show} handleRef={composerRef} />
+  <ChatMenuSheet open chat turnBusy onClose onRenamed onToast extra={<보내는 범위 보기 ›>} />
+  <ScopeNoticeSheet …(gate: first / 다시 보기: again) />
+  <Toast message={toast.message} />
+</div>
+```
+- `teacherTitle(n)` = `n === '선생님' ? '선생님' : `${n} 선생님``(복습 문구 `judgedBy` 와 같은 규칙).
+- 입력 바 placeholder: [직접 쓸게요]를 누른 뒤 다음 보내기 전까지 「기간을 적어 주세요 (예: 9월, 지난 2주)」, 답을 기다리는 중 「다음 질문을 미리 써요」, 그 밖 「이어서 물어보세요」.
+- **기다리는 동안**: 입력창·글쓰기는 열려 있고 보내기만 잠긴다(`busy` → 버튼 흐림, 누르면 토스트 「답을 받은 뒤 보낼 수 있어요」). 마이크 없음(3a).
+- 로드: #29 `?limit=50` + #37 `?chatId=`(제안) 병렬 — `ChatRoom` 과 같은 순서·같은 오류 처리. `chat.kind` 가 `TALK` 면 `/study/ai/talk/{id}`, `CHAT` 이면 `/study/ai/chat/{id}` 로 `replace`. `running` 이면 `attach`, 마지막 답이 실패면 `markFailed`. 이전 메시지(`nextCursor`)는 [이전 메시지 보기](기존 `MessageList`).
+- 마운트 때: `forgetAskReturn()`(25-8 B) · `waiting`·`newAnswer` 에서 이 id 제거(25-4 D) · `pending` 넘겨받아 보내기(25-4 E 5). 언마운트 때 `turn.isBusy()` 면 `waiting` 에 이 id 추가.
+- `useChatTurn` 에 넘기는 ASK 옵션: `toReply: askReplyFromDone`(본문 = `answerMd`, `translation: null`, `ask = askMetaOf(dn.conversation)`), `onSettled('done', aid)` → 도착 알림 문구 계산.
+- `gatedSend(text)` = `useScopeNoticeGate` 확인 → `listRef.scrollToBottom()` → `turn.send(text)`(+ [직접 쓸게요] 상태 해제). 관문에서 [취소]하면 `composerRef.restore(text)`(입력 바는 보낼 때 먼저 비운다).
+
+**B. 말풍선·답 묶음**
+
+```
+AskQuestionBubble — 오른쪽, 내 말
+<div className="flex min-w-0 flex-col items-end">
+  <p className="min-w-0 max-w-[84%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-accent-soft px-3.5 py-2.5 text-[15px] leading-[1.55] text-ink [overflow-wrap:anywhere]">
+    <span className="sr-only">나: </span><JaRuns text={m.content} />          ← 히라가나·한글·번역 층 없음, [번역] 단추 없음(ASK USER 번역은 늘 null)
+  </p>
+  <p className="min-h-6 text-[12px] text-ink2">{sending ? '보내는 중…' : ctx.groupEnd ? <time>{formatClock}</time> : null}</p>
+</div>
+
+AskAnswer — 왼쪽, 폭 전체(85% 제한 없음 — 데모 `.tg`)
+<div className="flex min-w-0 flex-col gap-2">
+  <p className="flex items-center gap-2 text-[12px] text-ink2"><TeacherAvatar name={teacherName} />{teacherTitle}</p>
+  <article aria-label={`${teacherTitle} 답`} className="flex min-w-0 flex-col gap-2.5 rounded-[6px_16px_16px_16px] border border-line bg-surface px-3.5 py-3">
+    {view.lowLine && <InfoLine bold="확실하지 않은 부분이 있어요." text={view.lowLine === 'withSources' ? '근거를 눌러 직접 확인해 보세요.' : '중요한 건 한 번 더 확인해 보세요.'} />}
+    {view.noneLine && <InfoLine bold="관련 기록을 못 찾았어요" text=" — 일반 설명으로 답할게요." />}
+    <AnswerMarkdown blocks={parseAnswerMd(m.content)} ann={annOf} />           ← 25-6
+    {view.promptExtra && <p className="text-[15px] leading-[1.65]"><JaRuns text={needsScope.prompt} /></p>}
+    {view.chips && <ScopeChips options={needsScope.options} onPick onOwn />}
+  </article>
+  {view.showSources && <SourceList sources={ask.sources} />}                   ← D7 A: 답 → 근거 → 제안
+  {proposals.filter(p => p.messageId === m.id && 아는 kind).map(p => <ProposalCard key={p.id} proposal={p} context="ask" … />)}
+  <p className="text-[12px] text-ink2"><time>{formatClock(m.createdAt)}</time></p>
+</div>
+InfoLine = <p className="grid grid-cols-[18px_minmax(0,1fr)] items-start gap-2 rounded-[10px] bg-surface2 px-2.5 py-[9px] text-[13.5px] leading-normal text-ink">
+             <span aria-hidden="true" className="mt-px inline-grid h-[18px] w-[18px] place-items-center rounded-full border-[1.5px] border-current text-[11px] font-bold">i</span>
+             <span><b className="font-bold">{bold}</b> {text}</span></p>
+```
+- `askAnswerView(m, { isLast, idle })`(순수 — 상태 선택): `lowLine = ask.confidence === 'LOW' ? (ask.sources.length ? 'withSources' : 'noSources') : null` · `noneLine = !ask.needsScope && !!ask.records && ask.records.intent !== 'GENERAL' && ask.records.count === 0`(**`needsScope` 가 있으면 그리지 않는다** — 서버가 규칙으로 즉시 되묻는 답은 아직 기록을 조회하기 전이라 `count:0` 이 「없다」는 뜻이 아니다. QA-B1 이 구현과 어긋남을 찾아 2026-10-12 가이드를 구현에 맞춰 정정) · **`showSources = ask.sources.length > 0`(비면 근거 영역을 그리지 않는다 — GENERAL 은 늘 빈 배열, 계약 9항)** · `chips = !!ask.needsScope && isLast && idle` · `promptExtra = !!ask.needsScope && !m.content.includes(ask.needsScope.prompt.trim())`. `ask` 가 없으면(옛 행·모양 이상) 줄·근거·칩 없이 본문만.
+- 줄 순서: LOW → 기록 없음 → 본문 → (되묻기 문장) → 칩. 빨강·노랑을 쓰지 않는다(틀린 답이 아니라 「확인해 보라」 — 데모 F·low).
+- 누가 줄은 답마다 그린다(질문 사이에 늘 내 말이 끼어 강사 묶음이 생기지 않는다).
+
+**C. 되묻기 칩 `ScopeChips`** (D5 A — 데모 G)
+
+```
+<div role="group" aria-label="기간 고르기" className="flex flex-wrap gap-2">
+  <span className="w-full text-[12px] text-ink2">눌러서 답하기</span>
+  options.map(o => <button type="button" onClick={() => onPick(o)} className={CHIP}><JaRuns text={o.label} /></button>)
+  <button type="button" onClick={onOwn} className={CHIP_OWN}>직접 쓸게요</button>
+</div>
+CHIP     = relative h-10 min-w-[44px] flex-none rounded-full border border-accent bg-surface px-3.5 text-[14px] font-semibold text-ink
+           before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']   ← 보이는 40 · 터치 44
+CHIP_OWN = CHIP 에서 border-line font-normal text-ink2
+```
+- 칩 = 서버 `needsScope.options`(키 `THIS_WEEK|LAST_30D|ALL` 만 — `askMetaOf` 가 모르는 키·빈 라벨을 버린다). 옵션이 0개면 [직접 쓸게요]만.
+- **누름(`onPick`)**: `turn.isBusy()` 면 토스트 「답을 받은 뒤 보낼 수 있어요」, `blockedUntil` 이 남았으면 25-5 G 안내 문구를 토스트로 → 아니면 보내는 범위 관문(D2) → `listRef.scrollToBottom()` → `turn.send(o.label, { scope: { key: o.key } })` → 초점을 메시지 목록(`listRef.focusList()`)으로(칩이 사라져 초점이 문서 처음으로 빠지지 않게 — 입력창으로 옮기면 키보드가 뜬다). 내 말풍선 글 = `label`(예: 「지난 30일」).
+- **[직접 쓸게요]**: 입력창 초점(`composerRef.focus()`) + placeholder 「기간을 적어 주세요 (예: 9월, 지난 2주)」. 그 답은 `scope` 없는 보통 글자 턴(계약 3항).
+- 칩은 **가장 최근 답에만**, 턴이 쉬는 중(`idle`·`failed`)일 때만 보인다 — 다음 질문이 가면 지난 되묻기에는 칩이 남지 않는다(데모 G·after).
+
+**D. 근거 `SourceList`** (D3 A — 데모 E·rec·J·long)
+
+```
+<section aria-labelledby={hid} className="flex min-w-0 flex-col gap-1.5">
+  <h4 id={hid} className="text-[12.5px] font-semibold text-ink2">근거로 본 내 기록 <b className="text-ink">{n}</b></h4>
+  <ul className="flex flex-col gap-1.5"> (open ? all : first 3).map(SourceCard) </ul>
+  {n > 3 && <button type="button" aria-expanded={open} onClick={toggle}
+                    className="inline-flex min-h-11 items-center gap-1 self-start pr-1 text-[13.5px] font-semibold text-ink">
+              {open ? '접기' : `${n - 3}개 더 보기`}<span aria-hidden="true">{open ? ' ▴' : ' ▾'}</span></button>}
+</section>
+
+SourceCard (href = askSourceHref(s); null 이면 링크 아님)
+<li><Link href={href} onClick={() => rememberIfFocusTarget(s, href)}
+          className="grid min-h-14 min-w-0 grid-cols-[32px_minmax(0,1fr)_14px] items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2 text-ink">
+  <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-full bg-surface2 text-[13px] font-bold text-ink2">{GLYPH[type]}</span>
+  <span className="flex min-w-0 flex-col">
+    <span className="text-[12px] text-ink2">{TYPE_NAME[type]} · {formatMonthDay(s.date)}</span>
+    <span className="line-clamp-2 text-[14px] leading-[1.45] [overflow-wrap:anywhere]"><JaRuns text={s.label} /></span>
+  </span>
+  <span aria-hidden="true" className="text-center text-[16px] text-ink2">›</span>
+</Link></li>
+링크 아님 = 같은 칸·같은 클래스의 <div>(세 번째 열 비움 — › 없음, 초점 안 감)
+```
+- 순서는 서버 순서 그대로. 펼침 상태는 답(메시지)마다 화면 상태. 날짜를 해석할 수 없으면 「{유형}」만.
+- 이동 주소는 25-8 A, 돌아오기는 25-8 B.
+
+**E. 제안 카드 4종** (D7 A — 데모 H) — **AI 는 제안만**: 채택·무시는 응답을 받은 뒤에만 반영(낙관적 갱신 없음), 채택 전엔 「저장됨」 류 문구 없음. 같은 `ProposalCard` 에 kind 갈래를 더한다. 카드 바깥 = 기존 `min-w-0 rounded-[14px] border border-line bg-surface p-3.5`(레벨만 `border-2 border-accent`), 버튼 = 기존 `BtnRow`(확정 → 취소 순서, 두 칸 `flex-1`).
+
+| kind | 열린 카드(문구 원문) | 처리 뒤 한 줄 | 채택 결과(#38) |
+|---|---|---|---|
+| `ADD_WORD` | **지금 채팅 카드 그대로**(「단어 제안」·표제어 18px + 히라가나·[한글] · 뜻 · 「선생님 제안이에요. 추가를 눌러야 단어장에 저장돼요.」 · [단어장에 추가][괜찮아요] · 「✎ 뜻 고쳐서 추가」) | 기존(✓ 단어장에 추가했어요 · 表 / 건너뛴 단어 제안 · 表 / 기한이 지난 제안 · 表) | 단어장 |
+| `ADD_TOPIC` ★새 모양 | 캡션 「주제 제안」(12px `ink2`) · 제목(15px semibold, `JaRuns`) · 설명(14px `ink2`) · 「선생님 제안이에요. 추가를 눌러야 내 주제에 저장되고, 오늘의 회화에서 고를 수 있어요.」(12px `ink2`) · [내 주제에 추가][괜찮아요] | 「✓ 내 주제에 추가했어요 · {제목}」(13px `good`) / 「건너뛴 주제 제안 · {제목}」 / 「기한이 지난 제안 · {제목}」(12px `ink2`) | `ConversationTopic` — **3a 에서는 구현하지 않는다**(Leader 결정 2026-10-12: 서버가 ADD_TOPIC 을 내지 않고 채택 경로도 없음 — 25-13 L-2). 이 행의 모양은 후속용 참고. |
+| `ADD_STUDY_LOG` (`context="ask"`) | 「공부 기록 남기기」(15px semibold) · 「이 질문을 공부 기록으로 남길까요?」(14px) · 「남기면 달력에 「질문」 기록이 생겨요. 선생님 제안이라 남기기를 눌러야 저장돼요.」 · [기록 남기기][남기지 않기] (개수 줄 없음) | 기존(✓ 공부 기록에 남겼어요 / 기록하지 않았어요 / 기한이 지난 제안이에요) | `StudyLog(ASK)` — 계획표 이름 「질문」([확실] `plan/logic.ts TYPE_META.ASK`) |
+| `SET_LEVEL` ★방 크기 | 캡션 「레벨 제안」 · `<p aria-hidden className="flex items-center gap-2.5 text-[22px] font-bold"><span className="text-ink2">{from}</span><span>→</span><span>{to}</span></p>` + sr 「{from}에서 {levelRo(to)} 올리기」 · 「바꾸면 수업·단어가 {to} 기준이 돼요. 설정에서 언제든 되돌릴 수 있어요.」(14px) · 「선생님 제안이에요. 바꾸기를 눌러야 레벨이 바뀌어요.」 · [{levelRo(to)} 바꾸기][지금은 그대로] | 「✓ 레벨을 {levelRo(to)} 바꿨어요 · 설정에서 언제든 되돌릴 수 있어요」 / 「레벨은 {from} 그대로예요」 / 「기한이 지난 제안이에요」 | `Profile.level`. `from` = `payload.fromLevel`, `to` = `payload.level`(없으면 화살표 줄을 「→ {to}」로 — 25-13 L-3) |
+
+- 채택 토스트: 단어·기록 = 기존, 주제 「내 주제에 추가했어요」 ★, 레벨 = 처리 줄과 같은 「레벨을 {levelRo(to)} 바꿨어요」. 무시 토스트 없음(기존과 같음). 바쁨 중 버튼 「처리 중…」(기존).
+- 오류: 기존 `handleConflict` 그대로 — 409 단어 중복 → 카드 안 「단어장에 이미 있는 단어예요」, 409 `EXPIRED` → 토스트 「기한(30일)이 지난 제안이라 채택할 수 없어요」 + 접힌 줄, 그 밖 409 → 「이미 처리된 제안이에요」, 400 → 카드 안 서버 문구, 나머지 → 토스트 `actionErrorText`.
+- 모르는 kind(`SCHEDULE_REVIEW` 등)·모양이 어긋난 페이로드(주제 제목 없음·레벨 `level` 없음)는 **그리지 않는다**(나머지 kind 를 기록 카드로 잘못 그리던 지금 동작을 막는 것이 확장 이유).
+- 버튼 줄은 360 에서도 두 칸(카드 안 폭 ≈300 → 칸 ≈146 — 「내 주제에 추가」·「N4로 바꾸기」 한 줄). 데모 `.brow` 의 줄바꿈은 쓰지 않는다(공용 `BtnRow`).
+
+**F. 대기 `AskPending`** (D6 C, 버튼 없음 — 데모 D·s1·s2·s3)
+
+```
+<div className="flex min-w-0 flex-col gap-2">
+  누가 줄(B 와 같음)
+  <div className="flex min-w-0 flex-col gap-2 rounded-[6px_16px_16px_16px] border border-line bg-surface px-3.5 py-3">
+    <ol aria-hidden="true" className="flex flex-col gap-1 text-[13px] text-ink2">
+      STEPS.map((t, i) => <li className={`flex items-center gap-2 ${i === step ? 'font-semibold text-ink' : ''}`}>
+        <span className={`grid h-[18px] w-[18px] flex-none place-items-center rounded-full border-[1.5px] text-[11px] font-bold
+                         ${i < step ? 'border-good bg-good-soft text-good' : i === step ? 'border-accent' : 'border-line'}`}>
+          {i < step ? '✓' : i === step ? <i className="h-2 w-2 rounded-full bg-accent motion-safe:animate-pulse" /> : null}</span>{t}</li>)
+    </ol>
+    <p role="status" className="text-[14.5px] font-semibold">{MAIN[step]}{sec >= 5 && <span aria-hidden="true" className="font-normal tabular-nums text-ink2"> · {sec}초</span>}</p>
+    <div aria-live="polite" className="flex flex-col gap-2">
+      {hint === 'h90' ? <><p className={HINT}>거의 다 됐어요. 2분이 지나면 멈추고 알려 드려요.</p><p className={HINT}>{LEAVE}</p></>
+       : hint === 'h30' ? <><p className={HINT}>내 기록을 살펴보는 질문은 1분 넘게 걸릴 수 있어요.</p><p className={HINT}>{LEAVE}</p></> : null}
+    </div>
+  </div>
+</div>
+STEPS = ['질문 살펴보기', '답 쓰기', '정리하기'] · MAIN = ['질문을 살펴보고 있어요', '선생님이 답을 쓰는 중이에요', '답을 정리하고 있어요']
+LEAVE = '다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 이 질문 방에서 볼 수 있어요.' · HINT = 'text-[13px] text-ink2 break-keep'
+```
+- `askPendingView(stage, phase, sec)`(순수): `step` = `PROMPT→0 · LLM→1 · PARSE→2`, 단계 이벤트가 아직 없으면 0. **이어받은 대기(`detached` — 방을 다시 열었거나 연결이 끊겨 폴링)**는 단계가 오지 않으므로 5초 미만 0, 이후 1(「답 쓰기」) ★. `hint` = `sec ≥ 90 → 'h90'` · `≥ 30 → 'h30'` · 그 밖 `null`. `showSec = sec ≥ 5`.
+- **경과 초 기준**(`askPendingSince`): 이 화면에서 보낸 턴은 `turn.startedAt`, 이어받은 대기는 **마지막 내 질문의 `createdAt`**(데모 D·list 「경과 초는 질문 보낸 시각부터」) — 기기 시계가 앞서 음수가 되면 0. `useNow(true)` 1초 갱신.
+- 채팅의 「연결이 잠시 끊겼어요…」(`DETACHED_TEXT`)는 쓰지 않는다 — ASK 에서 화면을 떠났다 오는 것은 정상 흐름이다.
+- 120초가 넘으면 서버가 `error{ENGINE_TIMEOUT}` → G 실패 카드. 폴링 200초 상한을 넘으면 기존 `LOST_FAILURE` → G.
+
+**G. 실패·제한·오류**
+
+| 상태 | 조건(계약) | 화면 · 문구(원문) | 접근성 |
+|---|---|---|---|
+| 시간 초과 | SSE `error{ENGINE_TIMEOUT}` | 실패 카드: **「답이 너무 오래 걸려 멈췄어요」** / 「2분 안에 답을 만들지 못했어요. 다시 받거나, 질문을 둘로 나눠 물어보세요.」 / [다시 받기] | 카드 `role=alert` |
+| 답 불가 | `ENGINE_UNAVAILABLE`·`ENGINE_ERROR`·그 밖 코드 · **이어받은 실패(`LOST`)** | **「선생님이 지금 답할 수 없어요」** / 「잠시 뒤 다시 받아 보세요. 질문은 저장돼 있어요.」 / [다시 받기] | 같음 |
+| 자주 보냄 | `429`(ASK 분당 3·하루 60 — 계약 3항) | 입력 바 위 안내 줄 「질문을 너무 자주 보냈어요. **{n}초** 뒤에 보낼 수 있어요.」 — 1초마다 줄고 0이면 사라짐, 보내기 잠김, 입력 글 그대로. `n > 90` 이면 「**{⌈n/60⌉}분** 뒤에」, `n > 3600` 이면 「질문을 너무 자주 보냈어요. 오늘은 더 보낼 수 없어요 — 내일 다시 물어봐 주세요.」 ★. **남은 횟수는 어디에도 보이지 않는다** | `TurnNotice role=alert` |
+| **질문 몰림** | `429 { reason:"ASK_BUSY", retryAfterSec }`(서버 전역 대기 상한 — 계약 3항, Leader 알림) | 자주 보냄과 **같은 안내 줄·같은 잠금·같은 카운트다운**, 문구만 「지금 질문이 몰려 있어요. **{n}초** 뒤에 다시 물어봐 주세요.」(초를 모르면 「지금 질문이 몰려 있어요. 잠시 뒤에 다시 물어봐 주세요.」) | 같음 |
+| 다른 대화가 답하는 중 | `409`(사용자당 진행 중 턴 1 — 회화·채팅이 답하는 중) | 안내 줄 = **기존 `turnNoticeText` 409 문구** 「선생님이 다른 메시지에 답하는 중이에요. 답이 끝나면 다시 보내 주세요.」(Leader 지시 — 데모 I·busy 문구와 다름, 25-13 L-6). 입력 글 복원 | 같음 |
+| 보내지 못함 | 네트워크·`accepted` 전 끊김 | 안내 줄 「보내지 못했어요. 인터넷 연결을 확인하고 다시 보내 주세요.」, 입력 글 그대로(기존 `restoreText`) | 같음 |
+| 400 | 검증(길이 등) | 안내 줄 = 서버 문구(기존 `turnNoticeText` 400) | 같음 |
+| 질문 방 없음 | #29·#32 `404`(지워짐·남의 방) | 머리 `BackBar title="질문"`(메뉴 없음) + 카드(`rounded-[14px] border border-line bg-surface p-4`, `role=alert`): **「질문 방을 찾을 수 없어요」**(16px semibold) / 「지워졌거나 주소가 잘못됐어요.」(14px `ink2`) / [질문 목록으로](링크, `h-11` ghost, `self-start`) | `role=alert` |
+| 불러오기 실패 | #29 그 밖 오류 | 머리 + `ErrorBlock` 「질문 방을 불러오지 못했어요.」 + [다시 시도] ★(채팅방 「채팅을 불러오지 못했어요.」 와 같은 갈래) | `role=alert` |
+| 불러오는 중 | #29 첫 응답 전 | 머리 `BackBar title="질문"` + `LoadingBlock`(채팅방과 같음 — 탭 홈이 아니라 §17 대상 아님) | `role=status` |
+
+- 실패 카드(`AskFailed`): 누가 줄 + `rounded-[6px_16px_16px_16px] bg-bad-soft px-3.5 py-3 text-[13.5px] text-bad`, 제목 `block text-[14.5px] font-semibold`, 버튼 `mt-2 inline-flex min-h-11 items-center justify-center rounded-[10px] border border-bad bg-surface px-3.5 text-[14px] font-semibold text-bad`. **[다시 받기]는 늘 보인다**(데모 I — `retryable:false` 에서 버튼을 숨기는 채팅 규칙을 쓰지 않는다). 누르면 `turn.resume()`(= `{resumePending:true}`, 같은 질문·새 말풍선 없음), 누르는 동안 「다시 받는 중…」.
+- 안내 줄 문구는 순수 `askNoticeText(notice, remaining)` 한 곳 — `TurnNotice textOf` 로 넘긴다. 429 는 **세 갈래**(`ASK_RATE` 분당 · `ASK_DAILY` 하루 · `ASK_BUSY` 전역 대기 상한)를 `notice.reason` 으로 가른다(Leader 정정 2026-10-12, 계약 §2-18-A 3항). `reason` 이 없을 때만 `retryAfterSec>3600` 을 하루 한도로 추정하는 폴백. 남은 횟수는 어느 갈래에도 표시하지 않는다.
+- 보내기 잠금 문구(입력 바 버튼 토스트·aria-label): 기다리는 중 「답을 받은 뒤 보낼 수 있어요」, 429 중 기존 「{n}초 뒤에 보낼 수 있어요」.
+
+**H. 메뉴·시트**(데모 K·C·again) — `ChatMenuSheet` ASK 갈래
+
+| 시트 | 내용(원문) |
+|---|---|
+| 메뉴 「질문 방 메뉴」 | 머리 줄에 제목(15px semibold truncate) · [제목 바꾸기 ›] · [보내는 범위 보기 ›](`extra`) · [질문 방 삭제](`text-bad`, 답을 받는 중이면 흐림 + 토스트 「답을 받는 중에는 지울 수 없어요」) |
+| 제목 바꾸기 | `Field` 「제목」 + [저장][취소], 1~100 코드포인트(#30), 성공 토스트 「제목을 바꿨어요」 — 기존 그대로 |
+| 질문 방 삭제 | 「이 질문 방을 삭제할까요?」(15px semibold) / 「질문과 답, 아직 고르지 않은 제안이 함께 지워져요. 이미 채택한 단어·주제·공부 기록은 그대로 남아요.」 / [삭제](`Btn variant="danger"`)[취소]. 실패 → 시트 안 한 줄 「삭제하지 못했어요. 잠시 뒤 다시 해 보세요.」(시트 유지). 성공 → `kaiwa.ask.flash='deleted'` 적고 `router.replace('/ask')` |
+| 보내는 범위 보기 | 메뉴를 **먼저 닫고** 그다음 렌더에서 `ScopeNoticeSheet(again)` 를 연다 — 공용 `Sheet` 가 연 사람(⋯ 버튼)으로 초점을 돌려주게(두 시트 동시 금지) |
+
+**I. 보내는 범위 시트 `ScopeNoticeSheet`**(D2 (b) + 안내 A — 데모 C)
+
+```
+<Sheet open title="선생님에게 보내는 범위" onClose describedBy={leadId}>
+  <div className="flex flex-col gap-2.5 text-[14px]">
+    <p id={leadId}>내 공부 기록을 근거로 답할 때, 질문과 함께 아래 내용이 <b>선생님(외부 AI 서비스)</b>에게 전달돼요. 한 번에 기록은 20건·2,000자까지만 보내요.</p>
+    <p className="mt-0.5 text-[13px] font-bold">보내는 것</p>
+    <ul className="flex flex-col gap-1.5"> ✓ 줄 × 6 </ul>      ← li: grid grid-cols-[18px_minmax(0,1fr)] items-start gap-1.5, 표식 aria-hidden(✓ text-ink · × text-bad, 굵게·가운데)
+    <p className="mt-0.5 text-[13px] font-bold">보내지 않는 것</p>
+    <ul className="flex flex-col gap-1.5"> × 줄 × 3 </ul>
+    <p className="text-[12.5px] text-ink2">이 앱은 내 대화·기록을 AI 학습 데이터로 쓰지 않아요.{variant === 'first' && ' 이 안내는 질문 방 메뉴 ⋯ 「보내는 범위 보기」에서 다시 볼 수 있어요.'}</p>
+    first → <BtnRow><Btn onClick={ok}>알겠어요, 보내기</Btn><Btn variant="ghost" onClick={cancel}>취소</Btn></BtnRow>
+    again → <Btn className="mt-3 w-full" onClick={close}>닫기</Btn>
+  </div>
+</Sheet>
+```
+- **보내는 것**(계약 5항 D2=(b) = **승인 데모 v2 문구 그대로**, Leader 정정 2026-10-12): ① 질문과 이 질문 방의 최근 대화(12개까지) ② 표시 이름·레벨 같은 학습자 정보 ③ 공부 기록 요약 — 공부 횟수·점수·복습 예정 목록 ④ 내가 채택한 교정의 원래 문장과 고친 문장 ⑤ 수업에서 배운 표현. (앞서 이 절이 보강했던 「교정 설명 요약·상황 연습 표현·단어장 단어」는 **삭제** — 사용자가 본 동의 문구에 없는 것은 보내지 않는다.)
+- **보내지 않는 것**: 이메일·계정 정보 · 내부 번호(id) · 다른 회화·채팅의 대화 내용. (데모의 「내 목소리(말로 물어도 받아쓴 글만 가요)」 줄과 「말로 물어볼 때 — …」 띠는 **2단계에서** 더하고, 그때 키를 `kaiwa.ask.scopeNotice.v2` 로 올려 한 번 더 보이게 한다.)
+- 키: `localStorage kaiwa.ask.scopeNotice.v1 = '1'`(기기별 — 새 기기에서 다시 보이는 쪽이 안전, 이력서 Leader 결정 5). 읽기·쓰기는 `common/storage`(예외 = 안 본 것으로 → 시트가 뜬다). **범위 문구가 바뀌면 키 버전을 올린다.**
+- `first` 의 [취소]·배경·Esc·✕ = 보내지 않음(목록: 입력 글 그대로 / 방: `Composer.restore`).
+- 데모의 「데모 주석 · …」 점선 상자는 화면에 없다.
+
+**J. 스크롤 위치 — `arrivalAlign="answer-start"`** (QA64-B2-1, designer 2026-10-12 추가 — 승인 데모 v2 는 「스크롤은 메시지 목록 한 곳뿐」만 정하고 도착·재진입 위치를 정하지 않았다. 화면 구조·문구는 그대로, 알약 한 개만 ★ — J-9)
+
+> 문제 [확실 — QA-B2 실측]: 공용 `MessageList` 는 첫 로드·새 메시지·대기 말풍선 교체·내용 증가 때 바닥 120px 안이면 바닥에 붙인다(§3-2 C). 3a 답은 문단 4~6 + 예문이라 대개 목록보다 길어서 답 도착 직후 `article.top` −152(360×740, 답 793 > 목록 583)·−54(390×844), 재진입 −134~−331(360)·−181~+3(390)·−44~+75(412), 합성 4,000자 답은 시작이 5,100px 위. 사용자는 위에서부터 읽는다.
+
+**J-1. 계산식** — 값은 모두 **그 순간 DOM 에서 잰다**(고정 높이 금지 — 키보드·안내 줄·글자 크기가 저절로 반영된다).
+
+| 기호 | 뜻 |
+|---|---|
+| `C` | 목록 스크롤 상자 `clientHeight`(보이는 높이). 방 기본 = 화면 높이 − 157(머리 52·표시 바 44·입력 바 61) → 360×740 583 · 390×844 687 · 412×892 ≈735 |
+| `pad` | 목록 위 안쪽 여백 = `getComputedStyle(목록).paddingTop`(`py-3` = 12px, 글자 크기를 키우면 같이 커진다) |
+| `aTop` | 답 행 `<li>` 윗면, 스크롤 내용 좌표(`li.getBoundingClientRect().top − 목록.getBoundingClientRect().top + scrollTop`) |
+| `qTop` | 그 답 **바로 앞 메시지가 `USER`** 면 그 `<li>` 윗면, 아니면 없음 |
+| `lead` | `qTop` 이 없으면 0, 있으면 `min(aTop − qTop, ⌊C/3⌋)` — 질문 행(말풍선 + 시각 줄 + 간격, 날짜 구분선이 끼면 그것까지) |
+| `max` | `scrollHeight − C`(바닥) |
+| **정렬 위치** | **`target = clamp(aTop − lead − pad, 0, max)`** |
+
+- 뜻: **직전 질문 말풍선 윗면이 목록 위 여백(12px)에 오고, 바로 아래에서 답이 시작**된다. 질문 행이 `⌊C/3⌋` 보다 길면 질문 끝부분만 보이고 답 행이 목록 위에서 `pad + ⌊C/3⌋` 에 온다.
+- **짧은 답은 자동으로 바닥**: 질문 + 답 행이 목록 안에 다 들어오면(`lead + 답 행 높이 + pad × 2 ≤ C`) `target` 이 `max` 로 잘려 지금과 같은 바닥 맞춤이 된다 — 따로 분기하지 않는다.
+- 정렬 뒤 「바닥에 붙음」 판정은 기존 그대로 `max − target < 120`(`BOTTOM_SLACK_PX`).
+- 왜 답 카드가 아니라 질문 윗면인가 [가능성 높음]: 실제 답 첫 문장이 「네, 둘 다 사과 상황에서…」(QA A2)처럼 질문을 받아 시작한다 — 질문 끝과 답 시작이 한 화면에 있어야 읽힌다. 질문 행은 보통 79(1줄)~102px(2줄)라 360 에서도 답 `article` 이 430px 넘게 보인다. `⌊C/3⌋` 상한은 아주 긴 질문(최대 1,000자)이나 키보드가 열린 좁은 목록에서 답이 화면 밖으로 밀리지 않게 하는 값.
+
+**J-2. 상황별 규칙**
+
+| # | 상황 | 규칙 | 이유 |
+|---|---|---|---|
+| 1 | **도착 — 바닥 근처(120px 안)에서 기다리던 중** 대기 카드가 답으로 바뀜(SSE `done` · 폴링 이어받기 도착 · 실패 카드 [다시 받기] 뒤 도착) | `scrollTop = target`. 짧은 답은 결과가 바닥(지금과 같음) | 위 J-1 |
+| 2 | **도착 — 위로 올려 둔 상태**(바닥 120px 밖) | **위치 그대로**(강제 이동 금지). 목록 아래 가운데 알약 **「새 답 ↓」**(기존 「새 메시지 ↓」 알약과 같은 모양·자리 — 보이는 36·히트 44, §3-2 C). 누르면 `scrollTop = target` + `focusList()`. 알약은 누름 · 답 행 윗면이 보이는 영역에 들어옴 · 바닥 도달 · 다음 보내기(`scrollToBottom`) 때 사라진다. **도착하는 순간 답 윗면이 이미 보이는 위치면 알약을 띄우지 않는다**(이미 읽을 수 있다 — developer 해석, REV-SCROLL-2 에서 Leader 가 합리적이라 확인) | 지난 답을 다시 읽던 사람을 끌어내리지 않는다(채팅 규칙과 같음). [확실] 대기 행과 답 행이 같은 id(`accepted.assistantMessageId`)라 지금 알약 조건(`lastId !== leftAtLastId`)으로는 안 뜬다 — ASK 대기는 12~25초라 그동안 위로 올리는 일이 흔하다 [가능성 높음] |
+| 3 | **재진입(첫 로드) — 마지막 행이 DONE 답** | `scrollTop = target`(마지막 답과 그 앞 질문 기준). 근거 카드에서 「질문으로」·휴대폰 뒤로 돌아올 때, 목록 「새 답」 행을 열 때도 같다 | QA 재진입 수치(위 문제) |
+| 3′ | 재진입 — 마지막 행이 **대기**(`running` → 이어받은 대기)·실패 카드·내 질문뿐·빈 방 | **지금처럼 맨 아래** — 대기 카드(누가 줄 36 + 카드 ≤212)·실패 카드 [다시 받기]가 보인다 | 기다리는 중에는 상태가 먼저 |
+| 4 | **보내기**(입력 바 `gatedSend → doSend`) · **되묻기 칩**(`pickScope → doSend`) · **목록에서 넘겨받은 첫 질문**(handoff) — `scrollToBottom` 3곳 | **그대로 맨 아래**: 보낸 질문 + 대기 카드가 보인다. `answer-start` 모드에서 `scrollToBottom` 은 알약과 J-3 유지 창도 끝낸다 | 대기 중엔 상태가 중요. 답이 오면 규칙 1이 질문 위로 맞추므로 충돌 없음(보내면 바닥에 붙음 → 도착 = 규칙 1) |
+| 5 | **키보드가 열림 · 안내 줄(`TurnNotice`) · 글자 크기 확대** | 계산은 늘 그 순간 `C`·`pad`·DOM 높이. 정렬 뒤 키보드가 열리고 닫혀도 `scrollTop` 이 그대로라 위쪽 정렬이 유지된다(기존 목록 ResizeObserver 는 바닥에 붙어 있을 때만 움직인다 — 그대로 둔다) | 360×740 + 키보드 300 → `C`≈283 · `⌊C/3⌋`=94 → 질문 1줄(≈79)은 다 보이고 2줄부터 끝부분만, 답 `article` 은 ≥130px 보인다 |
+| 6 | 이전 메시지 보기 · 근거 [n개 더 보기] · 제안 처리 줄 · 표시 바 토글 | 지금 규칙 그대로(앞에 붙이면 보던 자리 유지 · 펼침 hold · 바닥에 붙었을 때만 따라감) | 도착이 아니다 |
+
+**J-3. 도착 정렬 유지 창(2초)** — 정렬(규칙 1·3, 규칙 2의 알약 누름) 뒤 **2,000ms 동안**, 사용자가 목록을 만지지 않았으면(목록에 `pointerdown`·`touchstart`·`wheel`·`keydown` 없음) 내용이 늘 때 바닥 따라가기 대신 **같은 식으로 `target` 을 다시 계산해 맞춘다**. 창이 끝나거나 사용자가 만지면 기존 `followContent` 규칙. 이유: [확실] 폴링 도착은 `reloadProposals()` 가 비동기라 제안 카드(≈150~200px)가 한 박자 늦게 붙는다 — 짧은 답이 바닥으로 맞춰진 뒤 카드가 붙으면 바닥 따라가기가 질문 윗부분을 밀어낸다(SSE `done` 은 메시지·제안·`phase` 가 한 렌더라 해당 없음). 예문 히라가나·한글 층 채움도 이 창이 흡수한다. 2초 = 제안 GET·예문 분석 응답이 보통 들어오는 시간 [추측 — QA 가 폴링 도착에서 카드가 붙는 시각을 재서 모자라면 이 값만 고친다].
+
+**J-4. 모션·초점·읽기**
+- 이동은 모두 **즉시**(`scrollTop` 대입). 부드러운 스크롤(`behavior:'smooth'`·`scrollIntoView` 애니메이션)은 쓰지 않는다 — 내용이 바뀌는 중에는 목표가 어긋나고 `prefers-reduced-motion` 을 따로 갈라야 한다. 기존 알약도 즉시라 같다.
+- 초점: 도착·재진입 때 **옮기지 않는다**(25-9 그대로 — 다음 질문을 쓰는 중일 수 있다). 알약을 누를 때만 `focusList()`(`preventScroll`) — 누른 알약이 사라지며 초점이 문서 처음으로 빠지지 않게(되묻기 칩과 같은 이유).
+- 도착 알림 `sr-only role=status` 한 줄 · 목록 `liveOff` · 대기 단계 status 규칙 **그대로**. 알약은 라이브 영역이 아니다(도착은 status 줄이 이미 말한다) — 이름 「새 답」, ↓ 는 `aria-hidden`.
+- DOM 순서·`role=log`·스크린 리더 읽기 순서 불변 — 바뀌는 것은 `scrollTop` 과 알약 하나뿐.
+
+**J-5. 공용 `MessageList` 확장 — ASK 에만 켠다**
+
+| prop | 기본값 | 뜻 |
+|---|---|---|
+| `arrivalAlign?: 'bottom' \| 'answer-start'` | `'bottom'` = **지금 동작 그대로**(채팅·회화·역할극 방은 넘기지 않는다) | `'answer-start'` 면 J-2 규칙 1·2·3·3′ + J-3 |
+| `pillLabel?: string` | 없음 → 지금 알약 「새 메시지 ↓」 그대로 | `'answer-start'` 일 때 알약 글(↓ 는 목록이 `aria-hidden` 으로 붙인다). ASK 는 `ASK_COPY.newAnswer`(「새 답」 — 이미 있는 문구, 새 키 없음) |
+
+- `AskRoom` 은 25-5 A 의 `<MessageList …>` 에 **`arrivalAlign="answer-start" pillLabel={ASK_COPY.newAnswer}`** 두 개만 더한다.
+- 기본 모드에서 DOM·요청 수·스크롤 위치·알약 글이 바뀌면 결함(25-11 ⑯ 과 같은 합격 조건). 행을 찾으려고 `data-mid` 를 쓴다면 **`answer-start` 일 때만** 붙인다(또는 ref 맵).
+- 계산은 순수 함수로 뺀다 — `src/components/chat/arrivalAlign.ts`: `arrivalTarget({ aTop, qTop, clientHeight, scrollHeight, padTop })` · `isArrival(prevStatus, last)`(`last` = 마지막 행, `prevStatus` = 직전 렌더에서 그 id 행의 상태 — 마지막 행이 `ASSISTANT·DONE` 이고 `prevStatus` 가 `DONE` 이 아니었거나 없었음 — 첫 로드는 제외, 첫 로드는 규칙 3·3′. 표기는 구현에 맞춤, REV-SCROLL-3) · 유지 창 판정(`now`·창 끝 시각·만짐 여부·바닥 여부·펼침 hold → `'realign' | 'hold' | 'follow' | 'none'`). 시험 `chat/__tests__/arrivalAlign.test.ts`: 짧은 답 → `max` · 긴 답 → `qTop − pad` · 질문 > `⌊C/3⌋` → `aTop − ⌊C/3⌋ − pad` · 앞 행이 USER 아님 → `aTop − pad` · 음수 → 0 · 대기 행 생김·이전 메시지 앞붙임·제안만 바뀜 = 도착 아님 · 실패 → DONE = 도착 · 창 안/밖·만진 뒤.
+
+**J-6. 구현 함정** [확실 — `MessageList.tsx`·`useChatTurn.ts` 직접 읽음]
+1. 같은 커밋에서 `[messages]` 효과 → `[pendingVisible, turn.phase]` 효과 순서로 돈다(SSE `done` 은 메시지와 `phase` 를 함께 바꾼다. 첫 로드도 두 효과가 같이 돈다). 정렬한 **직후 `atBottomRef` 를 새 위치로 바로 다시 재야** 두 번째 효과와 ResizeObserver 가 바닥으로 되돌리지 않는다(`onScroll` 은 비동기라 늦다).
+2. `answer-start` 알약은 기본 조건(`lastId !== leftAtLastId`)을 쓰지 않고 「규칙 2로 도착한 답 id」를 따로 든다 — 정렬 뒤 `onScroll` 이 `leftAtLastId` 를 적어도 오작동하지 않게.
+3. `accepted` 로 대기 행이 생길 때(`renderPending`·`renderTrailingPending`)는 도착이 아니다 — 지금처럼 바닥.
+4. 측정·대입은 `useLayoutEffect` 안(그리기 전). 바닥 → 위로 튀는 한 프레임이 보이면 안 된다.
+
+**J-7. 합격선**(QA·developer 측정 — 360×740 / 390×844 / 412×892, `C` = 583 / 687 / ≈735. 「목록 위」 = 목록 상자 `getBoundingClientRect().top`, 허용 ±2px)
+
+| 경우 | 기준 |
+|---|---|
+| 긴 답 도착(바닥에서 기다림 — QA A1·A2) | **질문 `<li>` 윗면 − 목록 위 = 12** · 답 `article` 윗면 − 목록 위 = 12 + 질문 행 + 36(A2 360 ≈150) — 범위로는 360 [48, 242] · 390 [48, 277] · 412 [48, 293](= [pad+36, ⌊C/3⌋+pad+36]). 지금 −152·−54 |
+| 짧은 답 도착(되묻기 답 A3 — 질문 + 답 + 칩이 목록에 다 들어감) | `scrollTop = scrollHeight − clientHeight` ±1(지금과 같은 바닥), 질문 말풍선·칩 4개 전부 보임 |
+| 4,000자 답 도착·재진입(합성 L4) | 긴 답 기준과 같음 — `article` 윗면이 위 범위 안(지금 시작이 5,100px 위) |
+| 재진입 — 마지막이 DONE 답 | 긴 답 기준(QA 재진입 4방 × 3폭 다시 — 짧은 답 방은 바닥) |
+| 재진입 — 이어받은 대기 | 맨 아래 ±1, 대기 카드 전체가 보임 |
+| 질문 행 > ⌊C/3⌋(예: 8줄 질문) | 답 `<li>` 윗면 − 목록 위 = 12 + ⌊C/3⌋(360 → 206) |
+| 키보드 열린 채 도착(360×740, 키보드 모형 300 → `C`≈283) | 답 `<li>` 윗면 − 목록 위 ≤ 12 + 94, 답 `article` 이 ≥130px 보임 |
+| 위로 올려 둔 채 도착 | `scrollTop` 변화 0(±1) · 「새 답 ↓」 알약 1개 · 누르면 긴 답 기준 위치 + `document.activeElement` = 목록 · 알약 히트 44 |
+| 정렬 뒤 2초 안 제안 카드 붙음(폴링 도착) | 질문 `<li>` 윗면 위치 변화 ≤2px |
+| 글자 크기 200% | 위 관계식 그대로(12 대신 계산된 `pad`) |
+| 회귀(채팅방·회화방·역할극 방) | 같은 시나리오(긴 답 도착·재진입·위로 올림)에서 `scrollTop` 이 지금 빌드와 같음(바닥), 알약 「새 메시지 ↓」, DOM 차이 0 |
+
+**J-8. 후속 후보(이번 규칙에 넣지 않음)**: ① 방마다 읽던 위치 저장·복원(근거에서 돌아올 때 그 근거 카드 자리 포함 — 지금은 마지막 답 시작) ② 늘 보이는 「맨 아래로」 버튼 ③ 채팅·회화 방에도 도착 알약 — 같은 id 라 위로 올려 둔 채 답이 오면 「새 메시지 ↓」 가 안 뜨는 것은 지금 그 방들도 같다 [확실], 그 방 동작 변경이라 별도 task ④ 보낼 때부터 질문을 위로 올리고 그 아래에 대기 카드를 두는 방식 ⑤ TalkBack 사용자를 답 시작으로 옮기는 「답으로 가기」.
+
+**J-9. 데모와 다르게 · Leader 확인**: ★ 「새 답 ↓」 알약은 데모 v2 에 없다(도착 위치 규정 자체가 없었다). 권고 **A** = 「새 답 ↓」(기존 `ASK_COPY.newAnswer` 재사용, 목록 「새 답」 뱃지와 같은 말) / **B** = 기존 「새 메시지 ↓」(`pillLabel` 생략, 새 글자 0). 승인 화면 구조는 바뀌지 않고 기존 채팅 알약 패턴의 재사용이라 데모 vN+1 없이 가는 것을 권고 [가능성 높음] — 사용자 확인 여부는 Leader 가 정한다. `⌊C/3⌋` 상한·2초 창은 이 절이 정한 값 — 실측 뒤 바꿀 땐 이 절만 고친다.
+
+### 25-6. `answerMd` 렌더 규칙 + 예문 표기 문법 (prompt-engineer ↔ 클라이언트 공통)
+
+> 계약 §2-18-A 8항: 서버가 HTML 태그·마크다운 링크/이미지·`javascript:`/`data:`/스킴 있는 URL·제어 문자를 지우고 ≤4,000자로 저장한다. 클라이언트는 **화이트리스트 노드 — 문단·굵게·기울임·목록·인용·줄바꿈 — 만 React 요소로** 그리고, **3a 에서는 링크를 어떤 형태로도 그리지 않는다**(마크다운 링크·자동 링크 모두). `dangerouslySetInnerHTML` 금지. 아래 규칙은 `ask/answerMd.ts`(순수)가 구현하고 PE(`ask@v1`)는 이 문법으로만 쓴다. 문법을 바꾸려면 이 절과 프롬프트를 함께 고친다.
+
+**A. 블록 문법**(줄 단위 — `\r\n?` 는 `\n`, 줄 앞 공백 3칸까지 무시)
+
+| 줄 모양 | 블록 | 그림 |
+|---|---|---|
+| 빈 줄 | 블록 경계 | — |
+| 그 밖 글 | **문단**(이어진 줄들). 문단 안 줄바꿈 = **줄바꿈 노드**(`<br />`) | `<p>` 15px/1.65 |
+| `- `·`* `·`+ `·`・`·`• ` 로 시작 | **목록**(이어진 항목). 다음 줄이 2칸 이상 들여 쓴 글이면 앞 항목에 줄바꿈으로 이어 붙임 | `<ul className="flex list-disc flex-col gap-1 pl-5">` |
+| `1. `·`1) `(숫자 1~3자리) | **번호 목록**(첫 번호를 `start` 로) | `<ol start className="flex list-decimal flex-col gap-1 pl-5">` |
+| `>` 로 시작(뒤 공백 하나 생략) | **인용 묶음** → B 의 예문 판정 | 예문 블록(B) 또는 인용 상자 |
+| `#`~`######` + 공백 | 제목 문법은 쓰지 않는다 — 들어오면 **글 전체를 굵게 한 문단**으로(관용) | `<p><strong>` |
+| `---`·`***`·`___` 만 | 버림(가로줄 없음) | — |
+| ```` ``` ```` 울타리 줄 | 울타리 줄만 버리고 안의 줄은 문단 글로(코드 모양 없음) | — |
+
+- 소제목은 **굵게만 있는 한 줄 문단**으로 쓴다: `**자주 틀린 곳**`(데모 `.mh` 와 같은 모양). 블록 종류가 바뀌면 빈 줄이 없어도 새 블록이다.
+- 블록 간격 8px(`flex flex-col gap-2`), 본문 15px·줄간격 1.65, 한국어 블록 `break-keep [overflow-wrap:anywhere]`.
+
+**B. 예문 블록 문법**(D9 A — 정확한 정의)
+
+```
+> 窓が開いている。
+> → 창문이 열려 있어요. (누가 열었는지는 관심 없음)
+
+> 窓が開けてある。
+> → 창문이 열려 있어요. (누군가 일부러 열어 두었음)
+```
+- **인용 묶음**(이어진 `>` 줄들)의 각 줄을 판정한다 — 줄에서 `**`·`*` 표식을 지운 글 기준:
+  - **일본어 줄(JA)**: 가나·한자(`\p{Script=Hiragana}`·`\p{Script=Katakana}`·`\p{Script=Han}`)가 1자 이상이고 **한글(`\p{Script=Hangul}`)이 0자**, 1~200 코드포인트.
+  - **뜻 줄(M)**: `→`(U+2192) 또는 `->` 로 시작(뒤 공백 생략) — 나머지 글이 뜻(비어 있으면 뜻 없음).
+- **뜻 줄 두 형식 허용(Leader 정정 2026-10-12, REV-064-U H-1)**: 정본은 `> →` 줄이지만, 모델 출력은 형식이 흩어질 수 있어 파서가 **JA 줄 바로 다음의 `>` 없는 한 줄**(빈 줄 없이 이어지고, 한글 ≥1자, ≤120 코드포인트, 목록 표식으로 시작하지 않음)도 그 예문의 뜻으로 받는다(`> →` 줄이 있으면 그것이 우선). 프롬프트 모듈(`prompts/ask.ts`)은 기호 없는 뜻 줄을 내므로 두 형식 모두 시험으로 고정한다.
+- 묶음의 **모든 줄이 JA 또는 M 이고, 첫 줄이 JA 이고, M 이 연달아 오지 않으면** 예문 묶음이다 → JA 줄마다 예문 블록 하나, 바로 뒤 M 줄이 그 예문의 뜻. 한 묶음에 예문 여러 개도 된다(JA, M, JA, M …). 그렇지 않으면 묶음 전체가 **인용 상자** 하나(줄 사이 줄바꿈, 층 없음).
+- **PE 규칙**: 예문 하나 = `>` 일본어 한 줄 + `> →` 뜻 한 줄, 예문 사이 빈 줄. 일본어 줄에 읽기 괄호·한글 발음·굵게를 넣지 않는다(히라가나·한글은 화면이 #24r 분석으로 단다). 한국어 문장 속 짧은 일본어는 「」 로 쓴다 — 거기엔 층이 붙지 않는다(§15-1 F). 근거 번호·각주를 본문에 쓰지 않는다(D3 A).
+- **그림**(`ExampleBlock`):
+```
+<div className="min-w-0 rounded-xl bg-surface2 px-3 py-2.5">
+  <JaText text={ja} state={ann} leading={2.1} className="whitespace-pre-wrap text-[17px] leading-[1.7] [overflow-wrap:anywhere]" />   ← 히라가나 = 표시 스위치
+  <HangulLine state={ann} size={13} />                                                                                                  ← 한글 = 표시 스위치(끄면 null)
+  {meaning && <p className="mt-1 text-[14px] leading-normal text-ink2 break-keep [overflow-wrap:anywhere]">
+                <span aria-hidden="true">→ </span><span className="sr-only">뜻: </span><JaRuns text={meaning} /></p>}   ← 뜻 줄은 늘 보임(번역 스위치를 따르지 않는다)
+</div>
+```
+- 인용 상자(예문 아님): 같은 바깥 상자 + 안은 15px/1.65 한국어 글(인라인 C, 층 없음).
+- ▶ 듣기 없음(D12 A).
+
+**C. 인라인 문법**(문단·목록 항목·인용 상자)
+
+| 입력 | 노드 |
+|---|---|
+| `**글**`·`__글__` | 굵게 `<strong className="font-bold">`(안에 기울임 허용, 굵게 안 굵게는 글자로) |
+| `*글*`(별표가 안쪽 글자에 바로 붙을 때만) | 기울임 `<em>` |
+| 문단 안 줄바꿈 | 줄바꿈 `<br />` |
+| `[^n]` 각주 표식 | **지움**(D3 A) |
+| `[글](주소)` | `글` 만 남김 — **링크 노드 없음** |
+| `![설명](주소)` | 통째로 지움 |
+| `<…>` 꺾쇠 자동 링크 · `http(s)://…` · `www.…` · `스킴:…`(`javascript:`·`data:`·`vbscript:` 등) | 글자로도 남기지 않는다 — 서버와 같은 규칙으로 지움(`sanitizeAnswerText`) |
+| HTML 태그 `</?[A-Za-z][^>]*>` | 지움(서버가 이미 지웠어도 한 번 더) |
+| 그 밖 글 | 글 노드 — 일본어 구간에만 `lang="ja"`(`splitJaRuns`, 층 없음) |
+
+- 처리 순서: `sanitizeAnswerText`(제어 문자 — `\n` 제외 — 제거, `\t` → 공백, 태그·이미지·링크·URL 지움) → 블록 나누기 → 인라인. 결과 타입:
+```ts
+type Inline = { t: 'text'; s: string } | { t: 'strong'; c: Inline[] } | { t: 'em'; c: Inline[] } | { t: 'br' }
+type AskBlock =
+  | { k: 'p'; c: Inline[] } | { k: 'ul'; items: Inline[][] } | { k: 'ol'; start: number; items: Inline[][] }
+  | { k: 'ex'; ja: string; meaning: string | null } | { k: 'quote'; c: Inline[] }
+```
+- `AnswerMarkdown` 은 이 값만 받아 `switch` 로 React 요소를 만든다. 문자열을 HTML 로 해석하는 길(`dangerouslySetInnerHTML`·`innerHTML`·`DOMParser`·마크다운→HTML 라이브러리)은 `ask/` 어디에도 없다(25-11 ①).
+
+**D. 길이·방어**: 서버 상한 4,000자. 화면은 자르지 않는다. 예문 일본어 줄이 200 코드포인트를 넘으면 예문으로 보지 않고 인용 상자로(분석 요청 폭주 방지).
+
+**E. 히라가나·한글 분석 범위**: `MessageList annotate={false}` 로 답 본문 전체 분석을 끄고, `AskRoom` 이 화면에 그린 모든 답의 **예문 일본어 줄만**(`exampleJaLines(blocks)`) 모아 `useAnnotations(lines)` 한 번으로 요청한다(목록 단위 — 요청은 `annotationClient` 가 64개씩 묶음, 같은 문장 캐시). 내 질문·한국어 문단·근거 라벨·되묻기 칩·뜻 줄에는 층이 없다. 단어 제안 카드는 기존 `useWordLayers`.
+
+### 25-7. 자리표시·높이
+
+**A. 높이 예산**(390×780 = 주소창 보이는 S25+. **데모 CSS 를 합산한 계산값 — 헤드리스 실측 아님. developer 가 운영 빌드에서 `getBoundingClientRect` 로 다시 재고 이력서 Developer 기록에 표로 남긴다**)
+
+| 화면·상태 | 고정 | 스크롤 칸 | 비고 |
+|---|---|---|---|
+| 목록 · 지난 질문 있음 | 앱바 52(+10) · 하단 탭 72 | 입력 카드 ≈254.5(테두리 2 + 안쪽 24 + 라벨 22.5 + 8 + 입력창 94 + 8 + 버튼 줄 44 + 8 + 범위 링크 44) → 18 → 예시 줄 71.5 → 18 → 머리 22.5 + 10 → 첫 행 위치 ≈456 · 행 67.5 + 간격 8 | 첫 화면에 행 ≈3개 |
+| 목록 · 첫 방문 | 같음 | 입력 카드 → 예시(제목 19.5 + 설명 2줄 39 + 칩 4개 줄바꿈) | 지난 질문 없음 |
+| 목록 · 키보드 | 앱바 62, 탭 숨김 | 입력 카드 끝 ≈317 — 키보드(≈300~330) 위 | 가려지지 않음 |
+| 방 · 기본 | `BackBar` 52 + 표시 바 44 + 입력 바 61 = 157 | 메시지 목록 ≈623 | 답 + 근거 3장이 한 화면 |
+| 방 · 안내 줄 | + `TurnNotice` 45 | ≈578 | |
+| 방 · 키보드(≈300) | 157 | ≈323(안내 줄 있으면 ≈278) | 머리·표시 바 고정, 목록만 줄어듦 |
+| 대기 카드 | — | 누가 줄 36 + 카드 ≈126(30초 전) · ≈212(30초 뒤 안내 2문장) | 경과 초 자리 `tabular-nums` |
+| 근거 | — | 머리 19 + 카드 56(라벨 1줄)·≈77(2줄) × 3 + 간격 6 + [더 보기] 44 | |
+
+**B. `loading.tsx` → `AskHomeSkeleton`**(§17-1 ①~⑤ — 정적 요소는 실제 요소, 데이터 칸만 회색, `'use client'`·데이터 요청 없음)
+```
+<AppBar title="질문" />
+<div className="flex min-w-0 flex-col gap-[18px] px-4 pb-8">
+  <div inert><AskComposerCard value="" busy={false} onChange={noop} onSubmit={noop} onScopeInfo={noop} /></div>   ← 실제 카드(입력 불가)
+  <div inert><AskExamples mode="row" onPick={noop} /></div>                                                     ← 흔한 상태(지난 질문 있음) 기준
+  <section><h3 className="mb-2.5 text-[15px] font-bold">지난 질문</h3><ChatRowsSkeleton /></section>              ← 행 67.5·간격 8·5줄(CHAT_SKELETON 그대로)
+</div>
+```
+- 클라이언트 `AskHome` 의 첫 응답 전 화면도 **같은 배치**(입력 카드는 진짜 — 바로 쓸 수 있음). `role=status` 는 `ChatRowsSkeleton` 안 「불러오고 있어요」 한 줄뿐. 보이는 「불러오는 중」 글자·가짜 빈 상태 없음.
+- 첫 방문 계정은 응답 뒤 예시가 `wrap` 으로 바뀌고 지난 질문 칸이 빠져 아래가 움직인다 — 첫 사용자 한정 점프로 수용(§17-3 선례).
+- `AskListItem` 바깥 클래스·높이는 `ChatListItem` 과 같아야 한다(25-11 ⑰). 합격선: 자리표시 → 데이터 첫 화면에서 입력 카드·예시 줄·첫 행 위쪽 점프 ≤ 8px.
+- 질문 방은 탭 홈이 아니라 §17 자리표시 대상이 아니다(채팅방처럼 `BackBar` + `LoadingBlock`). 머리 제목만 「질문」 → 실제 제목으로 바뀐다(높이 같음).
+
+### 25-8. 근거 이동 주소 · 돌아오기
+
+**A. `askSourceHref(s)`**(순수, `ask/logic.ts` — 계획표 `sourceHref` 와 이름이 겹치지 않게). id 는 `^[A-Za-z0-9_-]{1,64}$` 만(아니면 `null`), `encodeURIComponent`. 날짜는 `YYYY-MM-DD`(KST — 25-13 L-4).
+
+| `type` | 이름 · 표식 | 주소 | 이동 뒤 | ← 복원 |
+|---|---|---|---|---|
+| `CORRECTION` | 교정 · ✎ | `/drawer/corrections?focus={id}&n=50` | 교정 모음 — 첫 쪽(최대 50개) 안이면 그 카드 펼침·초점, 밖이면 목록 맨 위([확실] 기존 한계 — 25-13 L-9) | 탭 화면(← 없음) — 휴대폰 뒤로 |
+| `LESSON` | 수업 · 書 | `/study/today/talk/{id}`(lessonId) | 오늘의 회화 레슨 | **「질문으로」**(B) |
+| `SCENARIO` | 상황 연습 · 話 | `id` 가 역할극 방이면 `/study/ai/talk/{id}`, 아니면 `null` → **누를 수 없는 라벨** | 역할극 방 | 「질문으로」 — **`id` 의 뜻은 계약 확인 필요(25-13 L-1)** |
+| `REVIEW` | 복습 · ↻ | `/study/today` | 공부 탭(복습 카드) | 탭 화면 |
+| `WORD` | 단어 · 語 ★ | `/drawer/words?word={id}` | 단어장 + 상세 시트 | 탭 화면 | **3a 미사용(Leader 결정 2026-10-12: 단어장 단어는 외부 전송 범위 밖이라 `WORD` 유형 없음)** |
+| `STUDY_LOG` | 공부 기록 · 日 | `planUrl(monthOf(date), date, id)` → `/plan?month=YYYY-MM&day=YYYY-MM-DD&log={id}` | 계획표 — 그날 시트 열고 그 기록에 초점([확실] `parsePlanParams` 는 `day` 가 `month` 안일 때만 연다) | 탭 화면 |
+| `EVALUATION` | 평가 · ✓ | `/study/today/eval/{id}` | 평가 결과 | 「질문으로」 |
+| 모르는 값 | — | `null` | — | — |
+
+**B. 돌아오기 — `shell/askReturn.ts`**(`correctionsReturn.ts` 와 같은 모양·규칙)
+1. 근거 카드를 누를 때 이동 대상이 **← 머리가 있는 집중 화면**(`LESSON`·`EVALUATION`·`SCENARIO`)이면 `rememberAskReturn('/ask/{chatId}', 대상 경로)` — `sessionStorage kaiwa.askReturn = {v:1, back, src, at}`. `back` 은 `^\/ask\/[A-Za-z0-9_-]{1,64}$` 만, `src` 는 앱 내부 경로(300자), TTL 2시간·시계 어긋남 60초(계획표 값 재사용).
+2. `correctionsReturn.ts` 의 `pickBackHref`·`currentBackHref` 를 **세 기록(계획표·교정 모음·질문 방) 중 지금 경로와 맞는 것의 `at` 가 가장 늦은 쪽**으로 넓힌다(같으면 계획표 → 교정 모음 → 질문 방 순). `backLabelOf(href)` 는 질문 방 주소면 **「질문으로」**(`ASK_RETURN_LABEL`). 스냅샷은 문자열/null 그대로(`usePlanReturn` 불변).
+3. `AskRoom` 마운트 때 `forgetAskReturn()`(질문 방에 돌아오면 쓸모가 끝남 — 계획표·교정 모음과 같은 이유).
+4. 탭 화면(교정 모음·단어장·계획표·공부)에는 ← 가 없다 — 휴대폰 뒤로가기는 기록을 따라 질문 방으로 돌아온다(링크 이동이 `push`).
+5. 질문 방 자신의 ← 도 `BackBar`(= `usePlanReturn`)를 지난다 — 계획표에서 질문 방을 열 수 있게 되면(25-13 데모와 다르게 ⑩) 자동으로 「계획표로」.
+
+### 25-9. 접근성 · 키보드 · 라이브 영역
+
+- **도착 알림**: 메시지 목록은 `liveOff`(`aria-live="off"`) — 답 전문(최대 4,000자)을 통째로 읽지 않게. 대신 방 루트의 `sr-only role=status` 한 줄에 「{선생님 이름} 답이 도착했어요」 + (근거가 있으면) 「 · 근거 {n}개」 + (제안이 있으면) 「 · 제안 {m}개」(`onSettled('done')` 때 계산, 같은 문장을 다시 알릴 땐 비웠다 넣기). 초점은 옮기지 않는다(다음 질문을 쓰는 중일 수 있다).
+- **대기**: 단계 문장은 `role=status`(단계가 바뀔 때만 읽힘), **경과 초는 `aria-hidden`**(초마다 읽지 않음), 30·90초 안내는 늘 있는 `aria-live="polite"` 상자에 글이 들어올 때 한 번. 단계 목록 `ol` 은 `aria-hidden`(같은 뜻을 status 문장이 말함). 깜빡임은 `motion-safe:` 만.
+- **답 카드** `article` 이름 「{선생님 이름} 답」. 정보 줄은 아이콘이 `aria-hidden` 이고 굵은 글이 상태를 말한다(색만으로 알리지 않음). 근거 묶음은 `section` + `h4` 이름, [n개 더 보기] `aria-expanded`(펼친 뒤 초점은 같은 버튼 — 이름이 「접기」로). 근거 카드 링크 이름 = 카드 글(「교정 · 10월 10일 駅に降りて → 駅で降りて」), 일본어 구간 `lang="ja"`. 누를 수 없는 카드는 `div`(초점 안 감).
+- **되묻기 칩**: `role=group` 「기간 고르기」, 버튼 이름 = 라벨. 누른 뒤 초점 → 메시지 목록(`focusList`). [직접 쓸게요] → 입력창.
+- **내 질문** sr 머리 「나: 」, 시각은 `<time>`.
+- **시트**: 공용 `Sheet`(열면 제목에 초점·Esc·배경·✕ 닫기·닫으면 연 사람에게 초점). 보내는 범위 시트는 `describedBy` 로 첫 문단을 이어 읽게. ✓·× 표식은 `aria-hidden`, 「보내는 것」·「보내지 않는 것」 머리가 뜻을 말한다.
+- **입력**: 목록 카드 `label` ↔ textarea 연결, 방 입력창 이름 「질문 입력」, 보내기 버튼 이름 = 막힌 이유 또는 「보내기」(기존 Composer). 입력창 16px.
+- **목록 행**: 링크 이름 = 「제목, 시각[, 답 만드는 중 | , 새 답 도착]」, 점·움직이는 점은 `aria-hidden`. 「새 답」 토스트는 공용 `Toast`.
+- **터치 44px**: 앱바·머리 버튼 44 · [물어보기] 44 · 범위 링크 `min-h-11` · 예시 칩 `min-h-11` · 목록 행 ≥64 · [이전 질문 더 보기] 48 · 표시 바 토글(보이는 32 + 세로 히트 44, 기존) · 되묻기 칩(보이는 40 + 세로 히트 44) · 근거 카드 ≥56 · [n개 더 보기] `min-h-11` · 제안 버튼 48(`Btn`) · 「✎ 뜻 고쳐서 추가」 44(기존) · 실패 [다시 받기] `min-h-11` · 안내 줄 ✕ 44 · 입력 바 ↑ 44.
+- **글자 크기**: 내 질문 15 · 답 본문 15 · 예문 일본어 17 · 루비 11 · 한글 13 · 뜻 14 · 정보 줄 13.5 · 근거 라벨 14 · 근거 유형·날짜 12 · 대기 문장 14.5 · 단계·안내 13 · 시각·캡션 12 · 뱃지 11.5. 11px 미만 없음.
+- **명암비**(§1-1): 보조 글 `ink2`, 「새 답」 = `ink`/`accent-soft`(accent 글자 금지 조합을 쓰지 않음), 실패 `bad`/`bad-soft`, 완료 단계 `good`/`good-soft`. `ink3` 는 placeholder 만.
+- **lang**: 예문 블록 `JaText`(lang=ja), 그 밖 한국어 글의 일본어 구간은 `JaRuns`. 목록 입력창·방 입력창은 `lang` 없음(한국어 기본).
+- **폭 360/390/412**: 최상위 `min-w-0`, 줄어드는 flex/grid 자식 `min-w-0`(행 제목·미리보기·근거 본문·칩). 예시 `row` 만 가로 스크롤(`no-scrollbar -mr-4 pr-4`). 세로 스크롤은 목록 = 셸 `main` 하나, 방 = `MessageList` 하나(§18 — `MessageList` 는 이미 `relative`). sticky 는 목록 앱바뿐.
+
+### 25-10. 문구 단일 출처 — `src/components/ask/askCopy.ts`
+
+데모 원문과 **한 글자도 다르지 않다**(★ = 데모에 없어 이 절이 정한 것 — 25-13). 엔진·모델·호스트 이름 0건.
+
+| 키(예) | 문구 |
+|---|---|
+| `title` · `roomsTitle` · `more` · `moreBusy` | 질문 · 지난 질문 · 이전 질문 더 보기 · 불러오는 중… |
+| `composerLabel` · `composerPlaceholder` · `ask` · `asking`★ · `emptyAsk` · `tooLong` | 선생님에게 물어보기 · 일본어 표현·문법이나 내 공부 기록을 물어보세요 · 물어보기 · 보내는 중… · 질문을 적어 주세요 · 1,000자까지 보낼 수 있어요 |
+| `scopeLink` | 선생님에게 보내는 범위 |
+| `examplesTitle` · `examplesDesc` · `examplesRowTitle` | 이렇게 물어볼 수 있어요 · 내 기록을 묻는 질문은 수업·교정·복습 기록을 찾아 **근거와 함께** 답해요. · 예시 |
+| `examples[]` | {문법, 〜ている 와 〜てある 차이가 뭐예요?} · {내 기록, 이번 주에 내가 자주 틀린 조사 알려줘} · {복습, 오늘 복습할 거 뭐 있어?} · {배운 표현, 역에서 길 물을 때 쓰던 표현 뭐였지?} |
+| `listError` · `listErrorBody` · `retry` | 지난 질문을 불러오지 못했어요 · 연결을 확인하고 다시 시도해 주세요. · 다시 시도 |
+| `running` · `runningLine` · `newAnswer` · `newAnswerSr` · `arrivedToast` · `noMessages` | 답 만드는 중 · 선생님이 답을 만드는 중이에요 · 새 답 · 새 답 도착 · 답이 도착했어요 · 아직 메시지가 없어요 |
+| `deletedToast` | 질문 방을 삭제했어요 |
+| `backLabel` · `roomLoadingTitle` · `subtitle(t)` · `menuAria` | 질문 목록으로 · 질문 · 질문 · {t} · 질문 방 메뉴 |
+| `placeholder` · `placeholderWaiting` · `placeholderScopeOwn` · `inputLabel` · `sendLocked` | 이어서 물어보세요 · 다음 질문을 미리 써요 · 기간을 적어 주세요 (예: 9월, 지난 2주) · 질문 입력 · 답을 받은 뒤 보낼 수 있어요 |
+| `answerAria(t)` · `meSr` · `meaningSr` | {t} 답 · `나: ` · `뜻: ` |
+| `lowBold` · `lowWithSources` · `lowNoSources` | 확실하지 않은 부분이 있어요. · 근거를 눌러 직접 확인해 보세요. · 중요한 건 한 번 더 확인해 보세요. |
+| `noneBold` · `noneTail` | 관련 기록을 못 찾았어요 · ` — 일반 설명으로 답할게요.` |
+| `scopeGroup` · `scopeCaption` · `scopeOwn` | 기간 고르기 · 눌러서 답하기 · 직접 쓸게요 |
+| `sourcesHead` · `sourcesMore(n)` · `sourcesLess` | 근거로 본 내 기록 · {n}개 더 보기 · 접기 |
+| `sourceType` / `sourceGlyph` | 교정 ✎ · 수업 書 · 상황 연습 話 · 복습 ↻ · 평가 ✓ · 공부 기록 日 · 단어 語★ |
+| `steps` · `stageMain` · `secSuffix(n)` | 질문 살펴보기 · 답 쓰기 · 정리하기 / 질문을 살펴보고 있어요 · 선생님이 답을 쓰는 중이에요 · 답을 정리하고 있어요 / ` · {n}초` |
+| `hint30` · `hint90` · `leaveLine` | 내 기록을 살펴보는 질문은 1분 넘게 걸릴 수 있어요. · 거의 다 됐어요. 2분이 지나면 멈추고 알려 드려요. · 다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 이 질문 방에서 볼 수 있어요. |
+| `arrivedLive(t, n, m)` | {t} 답이 도착했어요 · 근거 {n}개 · 제안 {m}개 (0 인 쪽은 뺌) |
+| `failTimeout` · `failTimeoutBody` · `failUnavail` · `failUnavailBody` · `retryGet` · `retryGetBusy` | 답이 너무 오래 걸려 멈췄어요 · 2분 안에 답을 만들지 못했어요. 다시 받거나, 질문을 둘로 나눠 물어보세요. · 선생님이 지금 답할 수 없어요 · 잠시 뒤 다시 받아 보세요. 질문은 저장돼 있어요. · 다시 받기 · 다시 받는 중… |
+| `rate(n)` · `rateMin(m)`★ · `rateDay`★ | 질문을 너무 자주 보냈어요. **{n}초** 뒤에 보낼 수 있어요. · 질문을 너무 자주 보냈어요. **{m}분** 뒤에 보낼 수 있어요. · 질문을 너무 자주 보냈어요. 오늘은 더 보낼 수 없어요 — 내일 다시 물어봐 주세요. |
+| `askBusy(n)`★(Leader 알림) · `askBusyNoSec`★ | 지금 질문이 몰려 있어요. **{n}초** 뒤에 다시 물어봐 주세요. · 지금 질문이 몰려 있어요. 잠시 뒤에 다시 물어봐 주세요. |
+| `net` | 보내지 못했어요. 인터넷 연결을 확인하고 다시 보내 주세요. |
+| `notFoundTitle` · `notFoundBody` · `toList` · `loadError`★ | 질문 방을 찾을 수 없어요 · 지워졌거나 주소가 잘못됐어요. · 질문 목록으로 · 질문 방을 불러오지 못했어요. |
+| `menu.title` · `menu.scope` · `menu.delete` · `menu.deleteBusy` · `menu.confirmTitle` · `menu.confirmBody` · `menu.deleteFail` | 질문 방 메뉴 · 보내는 범위 보기 · 질문 방 삭제 · 답을 받는 중에는 지울 수 없어요 · 이 질문 방을 삭제할까요? · 질문과 답, 아직 고르지 않은 제안이 함께 지워져요. 이미 채택한 단어·주제·공부 기록은 그대로 남아요. · 삭제하지 못했어요. 잠시 뒤 다시 해 보세요. |
+| `scope.title` · `scope.lead` · `scope.sendHead` · `scope.noSendHead` | 선생님에게 보내는 범위 · 내 공부 기록을 근거로 답할 때, 질문과 함께 아래 내용이 **선생님(외부 AI 서비스)**에게 전달돼요. 한 번에 기록은 20건·2,000자까지만 보내요. · 보내는 것 · 보내지 않는 것 |
+| `scope.send[]` · `scope.noSend[]` | 25-5 I 원문(★ 3줄 보강) |
+| `scope.note` · `scope.noteFirstTail` · `scope.ok` · `scope.cancel` · `scope.close` | 이 앱은 내 대화·기록을 AI 학습 데이터로 쓰지 않아요. · ` 이 안내는 질문 방 메뉴 ⋯ 「보내는 범위 보기」에서 다시 볼 수 있어요.` · 알겠어요, 보내기 · 취소 · 닫기 |
+| `topic.cap` · `topic.note` · `topic.accept` · `topic.reject` · `topic.done(t)` · `topic.rejected(t)` · `topic.expired(t)` · `topic.toast`★ | 주제 제안 · 선생님 제안이에요. 추가를 눌러야 내 주제에 저장되고, 오늘의 회화에서 고를 수 있어요. · 내 주제에 추가 · 괜찮아요 · ✓ 내 주제에 추가했어요 · {t} · 건너뛴 주제 제안 · {t} · 기한이 지난 제안 · {t} · 내 주제에 추가했어요 |
+| `level.cap` · `level.sr(f, toRo)` · `level.body(to)` · `level.note` · `level.accept(toRo)` · `level.reject` · `level.done(toRo)` · `level.rejected(f)` · `level.expired` | 레벨 제안 · {f}에서 {toRo} 올리기 · 바꾸면 수업·단어가 {to} 기준이 돼요. 설정에서 언제든 되돌릴 수 있어요. · 선생님 제안이에요. 바꾸기를 눌러야 레벨이 바뀌어요. · {toRo} 바꾸기 · 지금은 그대로 · ✓ 레벨을 {toRo} 바꿨어요 · 설정에서 언제든 되돌릴 수 있어요 · 레벨은 {f} 그대로예요 · 기한이 지난 제안이에요 |
+| `studyLog.q` · `studyLog.note`(ask) | 이 질문을 공부 기록으로 남길까요? · 남기면 달력에 「질문」 기록이 생겨요. 선생님 제안이라 남기기를 눌러야 저장돼요. |
+| `askReturnLabel`(`shell/askReturn.ts`) | 질문으로 |
+
+- 다른 곳에서 가져오는 문구(새로 쓰지 않음): `turnNoticeText` 409 · `actionErrorText` · `DISPLAY_COPY`(표시 바·토스트·「한글 발음: 」) · `SKELETON_SR_LABEL` · `ProposalCard` 단어·기록 카드 공통 문구 · `ChatMenuSheet` 제목 바꾸기 문구 · `levelRo`(N4로·N3으로).
+- 숫자는 `toLocaleString('ko-KR')`.
+
+### 25-11. 시험 지점 (순수 함수로 빼서 단위 시험 — `src/components/ask/__tests__/*` · `src/components/shell/__tests__/askReturn.test.ts`)
+
+1. **`sanitizeAnswerText` + 렌더 결과(계약 8항)**: 입력에 `<script>alert(1)</script>`·`<img src=x onerror=alert(1)>`·`<iframe src=…>`·`[눌러](javascript:alert(1))`·`![x](data:image/png;base64,…)`·`[링크](https://example.com)`·맨 `https://example.com`·`www.example.com`·`<https://example.com>`·`javascript:alert(1)`·`data:text/html,…` 를 넣고 `renderToStaticMarkup(<AnswerMarkdown …/>)` 결과에 `<script`·`<iframe`·`<img`·`<a `·`href=`·`onerror`·`javascript:`·`data:`·`https://`·`www.` 이 **0건**, 링크 글(「눌러」·「링크」)은 남음. `ask/` 소스에 `dangerouslySetInnerHTML`·`innerHTML`·`DOMParser` 0건(소스 스캔).
+2. **`parseAnswerMd` 블록**: 문단(줄바꿈 → `br`)·`- `/`* `/`・` 목록·`1. `/`1) ` 번호 목록(`start`)·들여 쓴 이음 줄·`#` 제목 → 굵은 문단·가로줄 버림·울타리 버림·블록 종류가 바뀌면 빈 줄 없이도 새 블록·빈 입력 → `[]`.
+3. **예문 인식(25-6 B)**: JA+M · JA 만 · 한 묶음 여러 예문 · M 이 먼저 → 인용 · 한글 섞인 일본어 줄 → 인용 · `->` 뜻 · M 연달아 → 인용 · 201 코드포인트 → 인용 · `**` 가 든 JA 줄(표식 지우고 예문). `exampleJaLines` 가 JA 만 순서대로 모음.
+4. **인라인**: 굵게·기울임·굵게 안 기울임·짝 없는 별표(글자로)·`[^3]` 지움·링크 → 글만·이미지 지움·일본어 구간 나눔(`splitJaRuns` 위임).
+5. **`askSourceHref`**: 7 유형 × 정상·id 형식 이상(공백·`/`·65자 → `null`)·인코딩 · `STUDY_LOG` 지난달 날짜 → `month` 가 그 달 · 날짜 형식 이상 → `null` · `SCENARIO` 규칙(L-1 결정값) · 모르는 유형 → `null` · `CORRECTION` 에 `n=50`.
+6. **`askMetaOf`**: 모르는 `type` 의 근거 버림 · `confidence` 밖 값 → `MEDIUM` · `needsScope.options` 모르는 키·빈 라벨 버림 · `records` 형식 이상 → `null` · `null`/배열/숫자 입력 → `null`. `askReplyFromDone` 이 본문 = `answerMd`, `translation = null`.
+7. **`askAnswerView`(상태 선택)**: LOW+근거 / LOW+근거 없음 / HIGH·MEDIUM 조용 / 기록 없음 줄(`intent≠GENERAL && count=0` 만 — `GENERAL`·`count>0`·`records` 없음은 줄 없음) / **`sources=[]` 이면 `showSources=false`** / 칩은 `isLast && idle` 일 때만 / `promptExtra`(본문에 이미 있으면 false).
+8. **`askPendingView`·`askPendingSince`**: 단계 3개 매핑 · 단계 없음 0 · 이어받은 대기 5초 경계 · 4/5초(초 표시) · 29/30·89/90초(안내) · 이어받은 대기 기준 = 마지막 내 질문 `createdAt` · 음수 → 0.
+9. **`askNoticeText`**: 429 초 · 90/91초(분) · 3600/3601초(오늘) · `ASK_BUSY` 초·초 없음 · 409 = `turnNoticeText` 409 와 같은 문자열 · 네트워크 · 400 서버 문구 · 404. 어떤 갈래도 남은 횟수를 말하지 않음.
+10. **`askFailureCopy`**: `ENGINE_TIMEOUT` → 시간 초과, 그 밖 코드·`LOST` → 답 불가, 버튼은 늘 있음.
+11. **`askTitleOf`**: 공백·개행 접기 · 30 코드포인트(이모지·서로게이트 쌍 경계) · 30자 이하 그대로 · 말줄임표 없음.
+12. **`arrivedTransitions`·집합 도우미**: running→false 만 새 답 · 첫 읽기에선 토스트 없음 · `waiting` → `newAnswer` 이동 · 20개 상한 · 깨진 JSON → 빈 집합 · 저장소 예외 → 빈 집합.
+13. **`teacherTitle`**: 「선생님」 → 「선생님」, 「사쿠라」 → 「사쿠라 선생님」.
+14. **`askReturn`**: `correctionsReturn.test.ts` 와 같은 갈래(정상·경로 불일치·TTL·깨진 값·주소 거절(`/ask` 밖·`//`·쿼리·해시)·저장소 예외) + **세 기록 중 늦은 쪽** + 라벨 「질문으로」. 기존 `planReturn.test.ts`·`correctionsReturn.test.ts`·`roomRender.test.ts` 그대로 통과.
+15. **문구**: `askCopy.ts` 가 25-10 원문과 같음, 엔진·모델 이름(`claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|sherpa|zipformer|onnx`) 0건, 「나가서 기다리기」 0건.
+16. **공용 확장 무변경**: `useChatTurn` — `scope` 없으면 요청 본문 키 불변·`toReply` 없으면 기존 `replyJa` 경로 · `MessageList` 기본 `annotate` true(분석 요청 수 불변) · `Composer` 기본 `lang="ja"`·이름 「메시지 입력」 · `DisplayBar` 기본 3키 · `ProposalCard` 기본 `context='chat'` 문구 불변 · `ChatMenuSheet` TALK/CHAT 문구 불변 — 기존 시험 그대로 통과.
+17. **구조 묶음**(`tabSkeleton.test.ts` 확장): `routes.ts` 에 `'/ask/'`, `isFocusRoute('/ask') === false` · `ask/(tab)/loading.tsx` 있고 `ask/loading.tsx`·`ask/page.tsx` 없음 · `ask/[chatId]` 에 `loading.tsx` 없음 · `AskHomeSkeleton` 데이터 요청 없음·`inert` · `AskListItem` 바깥 클래스 = `ChatListItem` 바깥 클래스.
+18. **3a 범위**: `ask/` 소스에 마이크·녹음(`getUserMedia`·`useRealtimeStt`·`PushToTalk`·`speech/stt`) import 0건, 보내는 `inputSource` 는 `TEXT` 만.
+
+### 25-12. 구현 순서 · developer 금지 · 확인표
+
+**A. 구현 순서**(UI = developer-U, 서버와 파일 영역 분리)
+1. `types/chat.ts` ASK 타입(소유자 Leader 지정) — 서버 #28·#32 ASK·#29 `ask` 객체가 이 모양을 낸다.
+2. `ask/answerMd.ts`·`logic.ts`·`askCopy.ts` + 시험(25-11 ①~⑬·⑮).
+3. 공용 확장(25-3 C) 하나씩 — 매번 기존 시험 통과 확인(⑯).
+4. `shell/askReturn.ts` + `correctionsReturn.ts` 세 기록 고르기 + 시험(⑭).
+5. 부품: `ExampleBlock`·`AnswerMarkdown` → `SourceList` → `ScopeChips` → `AskPending`·`AskFailed` → `AskQuestionBubble`·`AskAnswer` → `ScopeNoticeSheet`·`useScopeNoticeGate` → `AskRoom` → `ask/[chatId]/page.tsx`.
+6. `AskComposerCard`·`AskExamples`·`AskListItem` → `AskHome`(폴링·새 답·생성 흐름) → `ask/(tab)/page.tsx`(옛 `ask/page.tsx` 삭제) → `AskHomeSkeleton`·`loading.tsx` → `routes.ts` → `ChatRoom` ASK 우회 한 줄.
+7. 높이 실측(25-7 A — 목록 첫 행 위치·자리표시 점프, 방 높이 3폭) → 이력서 Developer 기록에 표.
+8. 확인: C 표 전부 + tsc·eslint 0 + 전체 시험 + build + 360/390/412 × 높이 780.
+
+**B. developer 금지·함정**
+1. **엔진·모델·호스트 이름 0건**(화면·문구·aria·토스트·문서 제목). `traceId` 를 DOM·토스트·콘솔에 내지 않는다(기존 규칙).
+2. **`dangerouslySetInnerHTML`·`innerHTML`·`DOMParser`·마크다운→HTML 라이브러리 금지** — 25-6 의 순수 파서 + React 요소만. **답 안에 링크·자동 링크를 그리지 않는다**(`<a>`·`Link` 는 근거 카드·목록 행·404 링크뿐).
+3. **AI 는 제안만**: 제안 카드는 채택 응답을 받은 뒤에만 상태를 바꾼다. ASK 턴에서 단어·주제·기록·레벨이 저절로 생기는 화면 경로가 없어야 한다. 교정 카드·[채택] 없음(ASK `correction` 은 늘 `null`).
+4. **보내기 중복 방지**: 목록 [물어보기]는 #28 진행 중 다시 눌러도 방 하나(`creatingRef`), 방은 `turn.isBusy()`·`Composer busy`, 되묻기 칩도 같은 검사. 보내는 범위 관문은 대기 중인 보내기 하나만 든다.
+5. **취소·나가기 버튼을 만들지 않는다**(D6). 화면이 사라질 때 `useChatTurn.dispose` 가 스트림을 끊는 것은 그대로 둔다 — 서버는 끝까지 만든다(계약 3항). 클라이언트에서 턴 취소 요청을 보내지 않는다.
+6. **답 본문 전체를 #24r 분석에 보내지 않는다**(`annotate={false}`) — 예문 일본어 줄만.
+7. **마이크·음성 코드 0**(3a). 2단계용 자리(빈 슬롯·숨긴 버튼)도 미리 넣지 않는다.
+8. **목록에서 턴을 시작하지 않는다**(25-4 E) — 생성만 하고 질문은 방이 넘겨받아 보낸다. `pending` 키는 보내기 시작 때 지운다(새로고침 두 번 보내기 방지).
+9. **보내는 범위 안내 키를 화면마다 따로 만들지 않는다** — `useScopeNoticeGate` 한 곳. 범위 문구를 바꾸면 키 버전을 올린다.
+10. **제목**: `askTitleOf` 는 서버 규칙과 같은 정리 — 말줄임표를 붙여 보내지 않는다(서버에 「…」가 저장됨).
+11. **근거 이동은 `askSourceHref` 한 곳** — 컴포넌트에서 주소 문자열을 만들지 않는다. 형식이 이상한 id 는 링크 아님. **`sources` 가 비면 근거 영역(머리 포함)을 그리지 않는다.**
+12. **공용 부품 확장은 선택 prop + 기본값 = 지금 동작**. 채팅·회화 화면의 DOM·요청 수·문구가 바뀌면 결함.
+13. **429 화면에 남은 횟수·한도 숫자(분당 3·하루 60)를 쓰지 않는다** — 남은 시간만.
+14. **오프라인·권한**: 목록 첫 쪽 실패 = 오류 상자(입력은 막지 않음), 방 = 404/오류 상태, 보내기 실패 = 안내 줄 + 글 복원. 로그인 사용자 누구나, 자기 질문 방만(서버 `userId` — 화면은 남의 id 를 다룰 일이 없다). 앱/웹 분기 없음.
+15. **자리표시**: 「불러오는 중…」 글자·가짜 빈 상태·회색 블록 깜빡임 없음(목록). 정적 요소는 실제 요소.
+
+**C. reviewer·qa 확인표**
+
+| # | 항목 | 기준 |
+|---|---|---|
+| C1 | 목록 첫 화면 | 입력 카드 맨 위, 예시(첫 방문 `wrap` / 그 밖 `row`), 행 높이 67.5(뱃지 68.5), 첫 행 위치 ≈456(차이는 실측 기록) |
+| C2 | 자리표시 | `/ask` 진입 시 입력 카드·예시 줄·머리 실제, 행만 회색, 보이는 「불러오는 중」 0, 위쪽 점프 ≤ 8px. `/ask/[id]` 진입 때 목록 자리표시가 뜨지 않음 |
+| C3 | 첫 질문 흐름 | 예시 칩 → 입력창 채움(보내지 않음) → [물어보기] → (처음) 보내는 범위 시트 → [알겠어요, 보내기] → 방 이동 → 대기 → 답. 두 번째부터 시트 없음. [취소] 면 글 유지·방 생성 0. 연타에도 방 1개 |
+| C4 | 대기 | 단계 3개가 SSE 단계대로, 5초부터 초, 30초·90초 안내 + 「다른 화면으로 가도…」 한 줄, **버튼 0**. 경과 초 낭독 0(TalkBack) |
+| C5 | 떠났다 오기 | 대기 중 ‹ → 목록 「답 만드는 중」 행·폴링 → 답 끝나면 토스트 1번 + 「새 답」 → 방 열면 사라짐. 방을 다시 열면 경과 초가 질문 보낸 시각부터. SSE 가 끊겨도 서버가 답을 저장 |
+| C6 | 답 | 화이트리스트 노드만, 예문 블록 히라가나·[한글] = 표시 스위치, 뜻 줄 늘 보임, 한국어 문장 속 「」 일본어엔 층 없음. LOW 줄·기록 없음 줄 조건. **GENERAL 답·`sources` 빈 답에 근거 영역 0** |
+| C7 | 근거 | 3장 + [n개 더 보기]·[접기], 7 유형 이동 주소(25-8 A), 레슨·평가·역할극에서 ← 「질문으로」 → 같은 방, 휴대폰 뒤로도 같은 방. 누를 수 없는 카드 초점 0 |
+| C8 | 되묻기 | 칩 = 서버 옵션, 누르면 라벨이 내 말 + 요청 본문 `scope.key`, 지난 되묻기에 칩 없음, [직접 쓸게요] 입력창·안내 문구 |
+| C9 | 제안 | 4종 모양·문구, 채택 전 행 0(서버 대조), 채택·무시 뒤 한 줄, 기한 지남·단어 중복·400. 주제 채택이 서버에서 열렸는지(L-2) |
+| C10 | 오류·제한 | 시간 초과·답 불가 카드 + [다시 받기](새 말풍선 없음), 429 카운트다운·분·하루, `ASK_BUSY` 문구·같은 잠금, 남은 횟수 표시 0, 409 문구, 네트워크 글 복원, 404 카드 |
+| C11 | 메뉴·시트 | 제목 바꾸기, 보내는 범위 다시 보기(닫으면 초점이 ⋯), 삭제 확인·실패 한 줄·성공 뒤 목록 토스트, 답 받는 중 삭제 막힘 |
+| C12 | 링크·주입 | 링크·이미지·HTML·스킴 URL 이 든 답(서버를 우회한 합성 포함)에서 `<a>`·`href`·`<script>`·`<iframe>`·`onerror` 0 — 25-11 ① 을 화면에서도 |
+| C13 | 범위 문구 | 보내는 범위 시트가 계약 5항(D2=(b))과 일치(L-5 결정 반영), 음성 줄 없음 |
+| C14 | 3폭·키보드 | 360/390/412 × 모든 상태 가로 넘침 0, 44px 미만 터치 0(25-9 목록), 방 키보드에서 목록만 줄어듦, 질문 방 하단 탭 숨김 |
+| C15 | 이름·용어 | 엔진명 0, 「나가서 기다리기」 0, 하단 탭 「공부」, 🎤 0 |
+| C16 | 공용 회귀 | 채팅방·회화방·역할극 방·교정 모음·계획표 ← 동작과 #24r 요청 수 불변 |
+
+**D. 실기기(S25+ Chrome·앱 WebView 390)에서만 — designer 가 확인하지 못한 것**: 실제 글꼴·루비 높이(입력 카드·근거 카드·대기 카드 높이 — 25-7 A 는 계산값), TalkBack 낭독(도착 알림 한 줄·단계 status·칩 group·근거 링크 이름 길이), 앱 WebView 키보드와 입력 카드·입력 바, 앱이 백그라운드에서 돌아왔을 때 폴링 이어받기, 120초 동안 같은 사용자의 회화 턴 409·지연(QA 실측 — 이력서 결정 3).
+
+### 25-13. 데모·계약과 다르게 쓴 곳 · Leader 확인
+
+**Leader 확인 필요(계약 공백·해석 — 이 가이드는 각 줄의 「화면 쪽 가정」대로 쓰였다)**
+- **L-1 `SCENARIO` 근거의 `id`**: 계약 3항은 「역할극 방이 남아 있으면 `/study/ai/talk/<chatId>`, 없으면 누를 수 없는 라벨」인데 `sources[]` 는 `{type,id,date,label}` 뿐이라 화면이 방 존재·방 id 를 알 수 없다. **권고**: 서버가 `SCENARIO` 항목의 `id` 를 그 상황이 만든 사용자 소유 TALK 방 id 로 채우고, 방이 없으면 빈 문자열 — 화면은 25-8 A 대로 형식이 맞으면 링크, 아니면 라벨. 다른 안이면 `askSourceHref` 한 곳만 바뀐다.
+- **L-2 `ADD_TOPIC` 채택이 서버에서 막혀 있다**([확실] `src/modules/conversation/proposals/index.ts` `ACCEPTABLE = ['ADD_WORD','ADD_STUDY_LOG','SET_LEVEL']` → 지금 채택하면 `400 FEATURE_NOT_READY`). §2-18-A 에 여는 문구가 없다. ASK 가 주제 제안을 내려면 채택 경로(→ `ConversationTopic`)와 페이로드 키(화면은 `title`·`description` 기대 — 데모 계약 메모 ⑥, PE `ask@v1`)를 정해야 한다. 3a 에서 안 열면 PE 가 `ADD_TOPIC` 을 내지 않게. **→ Leader 결정(2026-10-12): 3a 에서 열지 않는다.** ASK 3a 제안은 `ADD_WORD`·`ADD_STUDY_LOG`·`SET_LEVEL` 뿐(계약 §2-18-A 반영), 데모의 ADD_TOPIC 카드는 구현하지 않는다.
+- **L-3 `SET_LEVEL` 페이로드 `fromLevel`**: 평가 레벨 제안([확실] `eval/logic.ts levelProposalView` — `payload.level`·`payload.fromLevel`)처럼 서버가 `Profile.level` 로 `fromLevel` 을 채워야 「N5 → N4」를 그린다(LLM 값 아님). 없으면 화면은 「→ N4」만.
+- **L-4 `sources[].date` 형식**: 계약에 없다 — 화면은 `YYYY-MM-DD`(KST)로 가정(날짜 표시·계획표 이동). 다른 형식이면 날짜 칸 숨김·`STUDY_LOG` 링크 없음.
+- **L-5 보내는 범위 시트 문구 보강(사용자에게 보이는 동의 문구)**: 승인 데모 시트는 「채택 교정의 원래·고친 문장」·「수업에서 배운 표현」까지만 적었는데 계약 5항 D2=(b)는 **교정 설명 요약·역할극 표현·단어장 단어**까지 보낸다. 「계약이 이긴다」 규칙대로 25-5 I 에 세 곳을 보강(★)했다 — 사용자 승인 문구가 바뀌므로 사용자 확인 여부는 Leader 가 정한다. 반대로 서버 범위를 데모 문구에 맞춰 줄이는 안도 있다. **→ Leader 결정(2026-10-12): 서버 범위를 승인된 데모 문구에 맞춰 줄였다**(계약 §2-18-A 5항·learning-personalization D2). 25-5 I 의 ★ 보강 세 곳은 삭제.
+- **L-6 409 문구**: Leader 지시대로 기존 `turnNoticeText` 409(「선생님이 다른 메시지에 답하는 중이에요…」)를 쓴다. 데모 I·busy 는 「다른 대화에서 선생님이 답하는 중이에요. 그 답이 끝나면 보내 주세요.」 — 질문 방 409 는 거의 늘 다른 대화 때문이라 데모 문구가 더 정확하다 [가능성 높음]. 바꾸려면 `askNoticeText` 한 줄.
+- **L-7 `#28 title` 을 클라이언트가 보낸다**(`askTitleOf` — 계약 1항 허용 키 안). 서버 「기본값이면 첫 답 때 바꿈」 규칙은 그대로 둬도 충돌하지 않는다. 서버만 하게 하면 첫 답 전 머리·목록 제목이 「새 질문」이 된다(데모 D·s1·D·list 와 다름).
+- **L-8 「새 답」이 실패한 답에도 붙을 수 있다** — #27 에 마지막 답 상태가 없다. 수용(방을 열면 실패 카드) 또는 #27 additive `lastAssistantStatus` 후보.
+- **L-9 교정 근거가 교정 모음 첫 쪽(최대 50) 밖이면** 펼침·초점 없이 목록 맨 위([확실] `CorrectionsScreen` 복원은 첫 응답 안에서만 찾는다). `n=50` 으로 넓혔다. 더 필요하면 #79 에 특정 교정 주변을 읽는 additive 인자 후보.
+- **L-10 `WORD` 유형 이름·표식**: 데모 `STYPE` 에 `WORD` 가 없어 「단어」·「語」를 정했다(★). **→ 3a 에서 `WORD` 유형은 없다(Leader 결정 2026-10-12).**
+- **L-11 429 하루 한도 문구**: `retryAfterSec` 만으로 분당·하루를 가르므로 3600초 초과를 「오늘은 더 보낼 수 없어요」로 정했다(★). 서버가 `details.reason`(예: `DAILY_LIMIT`)을 주면 그쪽으로 가르는 것이 정확하다.
+
+**데모와 다르게 쓴 곳**
+1. **목록 로딩**: 데모 B·loading 은 입력 카드까지 회색이었으나 §17-1 ① 대로 입력 카드·예시 줄·머리를 실제 요소로, 행만 자리표시. sr 문구도 §17 의 「불러오고 있어요」(데모 「질문 목록을 불러오는 중이에요」).
+2. **이어받은 실패(`LOST` — 방 진입 때 마지막 답 실패, 폴링 200초 초과)**: 데모에 없어 「답 불가」 문구를 재사용. 실패 카드 [다시 받기]는 늘 보임(데모 I 와 같음 — 채팅의 `retryable:false` 숨김 규칙을 쓰지 않음).
+3. **안내 줄 색**: 공용 `TurnNotice`(`bad-soft`/`bad`) 그대로 — 데모 `.tn` 은 `surface2`/`ink`.
+4. **제안 카드 오류**: 공용 `ProposalCard` 규칙(만료 = 토스트 + 접힌 줄) — 데모 H·err 의 주제 카드 안 오류 줄과 다름. 데모의 채택·무시 토스트(「채택했어요 — 이때만 저장돼요」·「건너뛰었어요 · 기록에 남지 않아요」)는 설명용이라 쓰지 않고 kind 별 기존·★ 토스트를 쓴다.
+5. **삭제 버튼**: 공용 `Btn variant="danger"`(테두리 + 빨간 글) — 데모 `.btn.dan`(빨간 채움).
+6. **메시지 목록 간격**: 공용 `MessageList`(`px-4 py-3`, 묶음 `mt-3`) — 데모 `.ml`(14/16/20, 간격 14).
+7. **이어받은 대기의 단계**: 단계 이벤트가 없어 5초 미만 「질문 살펴보기」, 이후 「답 쓰기」(★).
+8. **빈 질문 방**(질문 없이 생긴 방 — 생성 뒤 넘겨받기 전에 떠난 드문 경우): `intro` 에 예시 칩 `row`(누르면 입력 바 채움). 새 문구 없음.
+9. **보내는 범위 시트**: 계약 범위 3줄 보강(L-5), 3a 에서 음성 두 줄(「내 목소리…」·「말로 물어볼 때…」) 제외 — 2단계에 키 `v2` 와 함께.
+10. **계획표의 「질문」 기록 열기**: [확실] `plan/logic.ts` `SOURCE_PATH` 에 `ASK` 가 없어 지금은 열 수 없다(이 task 범위 밖 — 후속 후보: `ASK: '/ask/'`, `StudyLog(ASK).refId` = chatId 인지 확인 뒤).
+11. **데모에 없던 보강(★)**: 입력 카드 글자 수 줄(900자부터 「n/1,000」)·429 분/하루 문구·`ASK_BUSY` 문구(Leader 알림)·`loadError`·`asking`·주제 채택 토스트 — 공용 규칙·계약과 맞춤.
+12. **예문 ▶·🎤·언어 칩**: D12 A·D13 A 로 3a 화면에 없음(데모 E 의 D12 B 상태·L 탭 전체는 구현하지 않음).
+
