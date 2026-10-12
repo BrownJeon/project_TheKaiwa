@@ -2,7 +2,7 @@
 task_id: task-060
 title: "오늘의 단어 덱 조작 정리 — 위로 슬라이드=뜻 보기·[뜻 보기]/[객관식] 버튼 제거 / [읽기]에서 [한글] 분리(건너뛰기 자리) / 오른쪽 슬라이드=건너뛰기 확인 (IMP-0031·0032·0033, light 트랙)"
 status: review
-waiting: user_decision
+waiting: device_verify
 base_ref: 4f3fb38
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -120,7 +120,14 @@ demo_gate:
 - **정리**: QA3·QA4 시작 값 복원(Leader 가 `counts34.ts` 로 직접 대조: 전부 0·Profile N5/null/10), 서버 PID 3781608 cwd 확인 후 PID 로만 종료·3011 비움, 미러 `.env`·쿠키 삭제, `claude --print` QA 서버 자식 0(정리 시점 순간 3개는 다른 세션/운영 소속, 곧 0).
 - **NOT_VERIFIED**: S25+ 실기기 손 느낌(위 80px·오른쪽 60px 문턱, 대각선), TalkBack 초점 이동, Bluetooth 키보드 Tab 칩, 실제 소리·다크 모드 명암비.
 - **사용자에게 알릴 것(검토 요청)**: ① 오른쪽 밀기가 이전이 아니게 됨 — 이전 카드는 [이전]·← 만 ② 위로 밀기로는 ★ 표시 불가 — [표시]·F 만, ↑ 키 무동작 ③ 눈에 안 보이는 대체 버튼 3개(스크린리더·키보드용, 원치 않으면 삭제) ④ 건너뛴 카드는 맞힘·틀림·공부한 수에 안 들어감(시트는 「건너뜀으로 기록하고 뜻을 보여 드려요」까지만 말함) ⑤ [한글] 초기값은 [읽기] 저장값을 이어받음 ⑥ 뒤집을 때 카드가 22px 올라감(task-059 부터).
-- **상태**: 코드·문서 모두 **미커밋**(사용자가 커밋을 요청하지 않음). 사용자 검토 → 배포 여부 피드백 대기. 승인되면: 커밋(pathspec: `src/components/vocab/**` + task-060 vault + `docs/screens.md` §24 hunk) → 푸시 전 게이트(HEAD) → push(=운영 배포, 회화개선 세션의 미 push 커밋이 함께 나가는지 먼저 확인) → 배포 확인. 롤백 대상은 현재 운영 릴리스 `20261012-091540-55861770`.
+- **상태**: 운영 배포 완료(아래 「운영 배포」). 사용자 폰 확인 대기.
+
+## 운영 배포 (2026-10-12 13:08 KST, Leader — 사용자 「task-060 배포 후 이어서 다음 작업들도 진행해줘」)
+- **커밋**: 코드 `c3a6322`(`src/components/vocab/**` 13개) · 문서 `beab41d` · (회화개선 세션 docs `f9d74f3` 가 위에 얹힘, 문서뿐). 회화개선 세션의 task-061·062 는 사용자 확인 뒤 그쪽이 먼저 push·배포했다(릴리스 `20261012-130400-3c0427b8`) — 이 push 에 남의 코드는 없었다.
+- **푸시 전 게이트**(HEAD `beab41d`, `git archive` 사본): prisma generate 0 · tsc 0 · eslint 오류 0(경고 5 기존) · 시험 3,378건 중 3,377 통과·실패 0·건너뜀 1 · `next build` 0. push 직전 `git fetch` 로 origin/main=`3c0427b`·미 push 범위 `c3a6322`+`beab41d`+`f9d74f3`(마지막은 문서뿐) 확인.
+- **push** `3c0427b..f9d74f3` → webhook blue/green → 릴리스 **`20261012-130808-f9d74f3c`** `RELEASE_RESULT ok`·`migrated:false`(스키마·APK 변경 없음). **롤백 대상 `20261012-130400-3c0427b8`**(`scripts/deploy.sh TheKaiwa --rollback`).
+- **배포 직후 확인**: 헬스 200(`env PRODUCTION`·`status ok`)·pm2 3개 online(재시작 0)·cwd 새 릴리스. 번들 대조: 「이 카드를 건너뛸까요」 7개 파일·「카드를 위로 밀면 뜻이 보여요」 3개·`kaiwa.vocab.hangulDefault` 5개 있음, 옛 문구 「뜻 보기나 객관식으로 먼저」 0개. 운영 읽기 전용 스모크(QA2, GET 만 — POST·LLM·DB 쓰기 없음): `/study/today`·`/study/ai`·`/plan`·`/settings`·`/drawer/words`·`/drawer/corrections` 200, `GET /api/v1/vocab/sessions`·`/stats` 200, 쿠키 삭제.
+- **아직 못 본 것**: 새 세트를 푸는 덱 화면(세트 생성 POST 는 운영 쓰기라 안 함) — 개발 미러 QA(A1·A2·B1·B2)로 대체. **사용자 실기기(S25+ WebView·APK)**: 위로 밀기=뜻 보기, 오른쪽 밀기=건너뛰기 확인 시트, [읽기]/[한글] 독립, 하단 안내 한 줄, 숨은 버튼(스크린리더). 확인되면 task-060·IMP-0031·0032·0033 `done`.
 
 ## 데모 검토 (demo gate)
 
