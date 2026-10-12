@@ -2,7 +2,7 @@
 task_id: task-059
 title: "오늘의 단어: 카드 우선 방식 통합 — 푸는 방식 선택 제거·카드 기본·카드 탭 시 객관식·뜻 보기 면 단어/예문 재생 버튼 (IMP-0011, 데모 delta, standard 트랙)"
 status: review
-waiting: user_decision
+waiting: device_verify
 base_ref: 382d10f
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - 오늘의 단어 카드 우선
   - task-059
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 demo_gate:
   required: true
   level: "delta"
@@ -113,7 +113,15 @@ demo_gate:
 - **사용자에게 고지할 알려진 한계(모두 Low/수용)**: ① **360×740 + 주제 세트 알림 + 답한 뒤**에서 `main` 이 44px 스크롤되고 [다음 카드] 가 위쪽 20px 만 보임(밀기·키보드·알림 닫기·힌트 줄 위 드래그로 진행 가능) — 챌린지 주제 세트까지 겹치면 65px·도구 줄 전체가 접힘선 아래(Low G-1, S25+ 412×892·앱 390×844 는 해당 없음) ② **단어 0개 계정**의 홈 카드가 자리표시보다 360 +9.7px·390/412 +29.2px 커서 점프(처음 쓰는 사용자) ③ **이미 오늘 끝낸 세트가 있는 계정**은 홈 카드에 「오늘 N세트를 끝냈어요」 한 줄(+20px, 기존 코드 `TodayWordsCard.tsx:180`)이 더 붙어 자리표시 대비 +20px 점프 가능(G-2, task-059 이전부터) ④ 이전 뒤집기 세트와 새 세트는 구분하지 않으므로 승인 데모 G 탭의 보관 줄 「· 뒤집기 카드」 표기는 앱에 나오지 않음 ⑤ 히라가나 표시를 꺼도 덱 카드 표제어 위 읽기 루비가 남음(덱 자체의 「읽기」 토글 R 의 기존 동작, 변경 없음) ⑥ 혼합 세트 관측의 `meta.mode` 는 `FLIP` 으로만 남아 보기 답/스스로 구분 불가(분석 메타, 통계·신뢰도 영향 없음).
 - **실기기에서만 확인 가능(NOT_VERIFIED)**: 탭·스와이프 손 느낌, TalkBack(카드 이중 탭·읽기 순서), 실제 TTS 음성과 `blocked` 안내, S25+ 글꼴 줄바꿈, 앱 WebView. **배포 직후 60초**: 옛 번들이 `mode` 를 보내도 `mode:'CHOICE'` 는 이전과 같게 동작(α 에서 확인).
 - **롤백 대상**: 운영 현재 릴리스 `20261012-003701-6f8301c0`(task-056·058 배포) — task-059 배포 때 이 릴리스로 되돌린다. 스키마 변경 없음·APK 변경 없음.
-- 커밋: 코드 `08c9eb2`(34개 파일). **배포(push)는 사용자 승인 대기** — `waiting: user_decision`.
+- 커밋: 코드 `08c9eb2`(34개 파일) + 문서 `5586177`.
+
+## 운영 배포 (2026-10-12, Leader — 사용자 「task-059 푸시하고 배포 진행해줘」)
+- **푸시 전 게이트**(HEAD `08c9eb2`, `git archive` 스냅샷): prisma generate 0·tsc 0·eslint 오류 0(경고 5)·전체 시험 3,336건 중 3,335 통과·실패 0·건너뜀 1·`next build` 0. 푸시 직전 `git fetch` 로 origin/main=`6f8301c`·미 push 범위=`e2ad843`(vault)+`08c9eb2`+`5586177`(vault) 확인(다른 세션 src 없음).
+- **push** `6f8301c..5586177` → webhook blue/green → 릴리스 **`20261012-091540-55861770`**, `RELEASE_RESULT ok`·`migrated:false`(스키마·APK 변경 없음). **롤백 대상 `20261012-003701-6f8301c0`**(`scripts/deploy.sh TheKaiwa --rollback`).
+- **배포 직후 확인**: 헬스 200(`env PRODUCTION`·`status ok`, 외부 도메인도 200)·pm2 3개 앱 online·cwd 새 릴리스·재시작 0회(배포 스크립트가 pm2 앱 3개를 delete→재등록해 수 초 중단 — 직전 배포 deployer 가 올린 주의 ① 와 같은 동작, 이번에도 정상 복귀). 빌드 로그의 `PersonaUnavailableError`·`SPAWN_FAILED` 줄은 오류가 아니라 Turbopack 「동적 파일 접근」 경고가 소스 조각을 찍은 것(직전 배포 로그에도 있음, 이번 변경 무관).
+- **운영 읽기 전용 스모크**(QA2 쿠키, 127.0.0.1:3010, GET 만 — POST·LLM 호출·DB 쓰기 없음): `/study/today`·`/study/ai`·`/plan`·`/settings`·`/drawer/words`·`/drawer/corrections` 200, `GET /api/v1/vocab/sessions`·`/api/v1/vocab/stats` 200(QA2 세션 0개라 세션 상세·덱 화면은 못 봄), 쿠키 없이 `/study/today` 307→로그인. 스모크 경로 정정: `/drawer` 단독은 원래 페이지가 없어 404(직전 배포 `6f8301c` 에도 없음, 회귀 아님). 배포 번들 대조: 서버 청크에 `one_answer`, `보기 고르기` 7개 파일, 클라이언트 번들에 `푸는 방식` 0개(선택 UI 제거 확인). 쿠키·응답 파일 즉시 삭제.
+- **아직 못 본 것**: 새 세트를 만들어 푸는 흐름(세트 생성 POST 는 운영 쓰기라 하지 않음) — QA 라이브(α/β/γ 305건+)는 개발 미러에서 통과. **사용자 실기기(S25+ WebView·APK)**: 오늘의 단어 카드 탭 → 객관식, 「뜻 보기」 → 알았어요/몰랐어요, 스와이프(위=다시 볼 카드, 왼쪽=다음, 오른쪽=이전) 그대로인지, 단어/예문 듣기 버튼, 결과 요약(「카드」·「보기 고르기」) 확인. 이 확인이 끝나면 `done`·IMP-0011 `done`.
+- 알려진 한계 6개(① 360×740+주제 세트 알림+답한 뒤 `main` 44px 스크롤·[다음 카드] 20px ② 단어 0개 계정 홈 카드 점프 ③ 오늘 끝낸 세트가 있을 때 +20px 한 줄(변경 전부터) ④ 승인 데모 G탭 「· 뒤집기 카드」 라벨 미표시 ⑤ 히라가나 끔이어도 덱 표제어 후리가나는 덱 자체 토글 ⑥ 관찰 `meta.mode` 는 보기로 답해도 FLIP)은 배포 승인 요청 때 사용자에게 고지함.
 
 ## 상태 로그
 - 2026-10-11 착수(IMP-0011 `triaged` → 사용자 「지금 전체 착수」). 접수·묶음(base_ref `382d10f`). 다음: 데모 게이트 init → designer 데모 v1.
