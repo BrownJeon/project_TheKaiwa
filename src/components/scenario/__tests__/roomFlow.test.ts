@@ -4,7 +4,6 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ApiError } from '@/components/common/api'
 import type { Err } from '@/components/common/errors'
@@ -25,6 +24,7 @@ import {
 } from '../logic'
 import { settlePractice, type PracticeSettle } from '../practiceLogic'
 import { END, ROOM } from '../scenarioCopy'
+import { readCode } from '../../__tests__/sourceCode'
 
 const SC: RolePlayChatView = {
   id: 'sc1',
@@ -264,7 +264,7 @@ test('settlePractice: 받음 = 제안 · 모양 틀림 = 판 안 오류(방에 �
 
 /* ── 훅·화면 배선(소스) — 판단을 흐름 함수에 맡기는지 ─────────────────── */
 
-const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+const read = (p: string) => readCode(join(process.cwd(), p))
 
 test('useRolePlay 배선: 흐름 함수를 부르고 판단을 다시 하지 않는다', () => {
   const src = read('src/components/scenario/useRolePlay.ts')
@@ -299,7 +299,7 @@ test('RolePlayEndSheet·usePractice 배선', () => {
 
 test('다시 하기는 lessonId 를 싣지 않는다 — 마친 바·결과 화면 같게(L-1·P6)', () => {
   for (const f of ['src/components/scenario/RolePlayBars.tsx', 'src/components/scenario/RolePlayResultScreen.tsx']) {
-    const src = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    const src = read(f)
     assert.ok(!src.includes('lessonId'), f)
     const calls = [...src.matchAll(/start\.start\(([^)]*)\)/g)].map((m) => m[1])
     assert.ok(calls.length >= 1, f)

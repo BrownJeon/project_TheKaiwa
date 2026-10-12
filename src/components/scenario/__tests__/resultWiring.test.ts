@@ -1,6 +1,5 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createElement, type ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -9,8 +8,9 @@ import ChatListItem from '@/components/chat/ChatListItem'
 import type { ChatSummary } from '@/types/chat'
 import { lessonCardSourceOf } from '../resultLogic'
 import { LIST } from '../scenarioCopyResult'
+import { readCode } from '../../__tests__/sourceCode'
 
-const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+const read = (p: string) => readCode(join(process.cwd(), p))
 const count = (s: string, needle: string) => s.split(needle).length - 1
 
 test('수업 종료 카드 자리(§3-I): 주제 있는 새 수업 분기 안 — 다음 수업 카드 아래·[이어서 말하기] 위, 복습·붙여넣기 분기에는 없음', () => {

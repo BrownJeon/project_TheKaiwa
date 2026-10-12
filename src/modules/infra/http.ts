@@ -79,11 +79,26 @@ export function classifyError(e: unknown): ClassifiedError {
   return { code: 'INTERNAL', status: 500, userMessage: '요청을 처리하지 못했습니다.' }
 }
 
-/** 엔진·도메인 오류를 봉투로. 알 수 없는 예외는 500 INTERNAL(발생 자체가 결함 — §0-5). */
-export function toErrorResponse(e: unknown): NextResponse {
+/**
+ * 엔진·도메인 오류를 봉투로. 알 수 없는 예외는 500 INTERNAL(발생 자체가 결함 — §0-5).
+ * `clientGone` — 요청한 손님이 이미 끊긴 'aborted' 계열 오류라 응답을 읽을 사람이 없다: 오류 로그만 건너뛰고 응답·분류는 그대로다.
+ */
+export function toErrorResponse(e: unknown, opts: { clientGone?: boolean } = {}): NextResponse {
   const c = classifyError(e)
-  if (c.code === 'INTERNAL') console.error('[api] 처리되지 않은 예외:', e instanceof Error ? `${e.name}: ${e.message}` : String(e))
+  if (c.code === 'INTERNAL' && !opts.clientGone) console.error('[api] 처리되지 않은 예외:', e instanceof Error ? `${e.name}: ${e.message}` : String(e))
   return fail(c.code, c.userMessage, c.details)
+}
+
+/**
+ * 손님이 먼저 끊은 요청에서 난 'aborted' 계열 오류인가. 본문을 읽는 도중 연결이 끊기면 Node 가 읽기를 `Error('aborted')`(보통 code `ECONNRESET` 이 함께 붙는다)로 거절하는데,
+ * 그때 `req.signal` 은 이미 abort 돼 있다(task-062 재현: dev 서버에서 본문 절반만 보내고 소켓을 끊음 → signalAborted=true). 이 조합만 소음으로 본다 —
+ * 신호가 살아 있는 요청의 같은 문구 오류와 신호가 없는 호출은 진짜 결함일 수 있으니 계속 기록한다.
+ * `code === 'ECONNRESET'` 만으로는 소음으로 보지 않는다: 상류(게이트웨이·M4·DB)의 연결 리셋은 손님이 끊긴 뒤에도 실제 백엔드 장애 신호라 관측성을 잃으면 안 된다.
+ */
+function isClientGoneNoise(req: { signal?: AbortSignal } | null | undefined, e: unknown): boolean {
+  if (req?.signal?.aborted !== true) return false
+  const x = e as { name?: unknown; message?: unknown } | null
+  return x?.message === 'aborted' || x?.name === 'AbortError'
 }
 
 type Handler<C> = (req: NextRequest, ctx: C) => Promise<NextResponse | Response>
@@ -93,7 +108,7 @@ export function withApi<C = unknown>(handler: Handler<C>): Handler<C> {
     try {
       return await handler(req, ctx)
     } catch (e) {
-      return toErrorResponse(e)
+      return toErrorResponse(e, { clientGone: isClientGoneNoise(req, e) })
     }
   }
 }

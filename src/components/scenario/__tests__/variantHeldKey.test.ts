@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SCENARIO_VARIANT_NO_AXES } from '@/types/scenarioVariant'
 import { scenarioFailure } from '../failure'
 import { holdFailure, variantInputSig } from '../variantLogic'
+import { readCode } from '../../__tests__/sourceCode'
 
 // task-045 s6-hint(REV-168 L-1): 붙잡은 축 위 실패 상자(`role="alert"`)는 요청이 시작돼도 DOM 에 그대로 남아, 같은 실패가 되풀이돼도 스크린리더가 다시 읽지 않는다.
 // 새 실패마다 일련번호를 올려 상자의 `key` 로 쓰면 상자가 다시 만들어진다 — 위치·높이·초점은 그대로. 낭독 자체는 사람 확인(QA)이고, 여기서는 번호 규칙과 연결을 고정한다.
@@ -39,7 +39,7 @@ test('holdFailure: 입력이 바뀌거나 버튼 아래 상자가 될 실패가 
 })
 
 test('Pick: 축 위 실패 상자(붙잡은 값)에만 일련번호 key — 위치(축 앞 한 자리)·버튼 아래 상자는 그대로', () => {
-  const src = readFileSync(join(__dirname, '..', 'VariantDraftScreen.tsx'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+  const src = readCode(join(__dirname, '..', 'VariantDraftScreen.tsx'))
   const pick = src.slice(src.indexOf('function Pick('), src.indexOf('function Review('))
   assert.match(pick, /<FailBox key=\{nextHeld\?\.n \?\? 0\} f=\{above\} onRetry=\{m\.generate\} \/>/, '붙잡은 상자는 일련번호로 다시 만든다')
   assert.equal([...pick.matchAll(/<FailBox\b[^>]*\bkey=/g)].length, 1, 'key 는 붙잡은 상자 하나뿐')

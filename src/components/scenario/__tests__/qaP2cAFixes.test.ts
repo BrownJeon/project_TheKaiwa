@@ -7,7 +7,6 @@
  *  - #5 계열: 수업에서 이어진 역할극 안내 "오늘 수업 「…」에서 이어져요." 의 일본어 제목이 `lang="ja"` 안에 있다.
  */
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { createElement, type ReactElement } from 'react'
@@ -18,6 +17,7 @@ import type { RolePlayChatView, RolePlayResultView } from '@/types/chat'
 import { sheetIdAfterHydration } from '../logic'
 import { Missing, ResultBody } from '../RolePlayResultScreen'
 import RolePlayIntro, { RolePlaySystemLine } from '../RolePlayIntro'
+import { readCode } from '../../__tests__/sourceCode'
 import ScenarioHome from '../ScenarioHome'
 import type { EndedRolePlay } from '../resultLogic'
 import { ROOM, SCENARIO_HOME_HREF, SHEET } from '../scenarioCopy'
@@ -186,7 +186,7 @@ test('스크린리더 칸: 일반 회화·빈 문자열은 글자 그대로(「�
 })
 
 test('TalkRoom: role=status sr-only 칸이 srMsg 를 JaQuoted 로 그린다(srMsg 는 문자열 state)', () => {
-  const src = readFileSync(join(process.cwd(), 'src/components/talk/TalkRoom.tsx'), 'utf8')
+  const src = readCode(join(process.cwd(), 'src/components/talk/TalkRoom.tsx'))
   assert.ok(src.includes("import { JaQuoted } from '@/components/common/japanese/JaQuoted'"))
   assert.ok(/<p role="status" className="sr-only">\s*<JaQuoted text=\{srMsg\} \/>\s*<\/p>/.test(src))
   assert.ok(src.includes("const [srMsg, setSrMsg] = useState('')"))

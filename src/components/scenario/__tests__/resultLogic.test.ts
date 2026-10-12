@@ -1,6 +1,5 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ChatDetail, RolePlayChatView, RolePlayResultView } from '@/types/chat'
 import {
@@ -18,6 +17,7 @@ import {
   rolePlayRowOf,
 } from '../resultLogic'
 import { RESULT } from '../scenarioCopyResult'
+import { readCode } from '../../__tests__/sourceCode'
 
 const result = (over: Partial<RolePlayResultView> = {}): RolePlayResultView => ({
   replayed: false,
@@ -190,8 +190,8 @@ test('회화 목록 뱃지: scenario 칸·scenarioId 가 있을 때만 역할극
 
 test('결과 화면은 읽기만 한다(D-9) — 결과 훅·화면에 쓰기 요청·마치기 경로 없음, 다시 시작은 누를 때만', () => {
   const dir = join(process.cwd(), 'src/components/scenario')
-  const hook = readFileSync(join(dir, 'useRolePlayResult.ts'), 'utf8')
-  const screen = readFileSync(join(dir, 'RolePlayResultScreen.tsx'), 'utf8')
+  const hook = readCode(join(dir, 'useRolePlayResult.ts'))
+  const screen = readCode(join(dir, 'RolePlayResultScreen.tsx'))
   for (const [name, src] of [['useRolePlayResult', hook], ['RolePlayResultScreen', screen]] as const) {
     assert.doesNotMatch(src, /\bapi(Post|Put|Patch|Delete|Upload|Stream)\b/, `${name}: 쓰기 요청 함수`)
     assert.doesNotMatch(src, /scenario\/finish/, `${name}: 마치기 경로`)

@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { readCode } from '../../__tests__/sourceCode'
 
 // task-045 ui-e-fix: 공유 편집기(`DraftEditor`)를 담는 화면의 안쪽 스크롤 상자(`overflow-y-auto`)는 `relative` 여야 한다.
 // 이유: 편집기 안 `sr-only`(absolute — 핵심 표현 줄의 읽기 안내·축 칩의 숨은 라디오)가 조상에 위치 지정이 없으면 앱 셸 `main` 기준으로 잡혀
@@ -30,7 +31,7 @@ function editorScreens(): { name: string; src: string }[] {
   return dirs.flatMap((dir) =>
     readdirSync(dir)
       .filter((n) => n.endsWith('.tsx'))
-      .map((n) => ({ name: n, src: readFileSync(join(dir, n), 'utf8') }))
+      .map((n) => ({ name: n, src: readCode(join(dir, n)) }))
       .filter((f) => f.src.includes('<DraftEditor')),
   )
 }

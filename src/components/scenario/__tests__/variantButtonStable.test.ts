@@ -1,18 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SCENARIO_VARIANT_NO_AXES } from '@/types/scenarioVariant'
 import { scenarioFailure } from '../failure'
 import { holdFailure, isAboveAxesFailure, variantInputSig } from '../variantLogic'
+import { readCode } from '../../__tests__/sourceCode'
 
 // task-045 ui-e3-fix2(qa-045-ui-e3 결함 #2 와 같은 패턴 남은 두 곳). R2 「높이 변화는 누른 줄 아래에서만」:
 //  (a) 검토 단계 [다시 만들기] — 만드는 중 표시·실패 상자가 버튼 앞에 끼면 누른 버튼이 밀린다.
 //  (b) 선택 단계 재시도 — 실패 상자가 버튼 위에 있다가 다시 누르면 사라져 버튼이 올라간다.
 // DOM 없이 레이아웃을 잴 수 없어 렌더 순서(소스)와 붙잡기 순수 함수를 고정한다. 실제 이동 0px 은 QA 실측(probe-focus).
 const dir = join(__dirname, '..')
-const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
-const screen = strip(readFileSync(join(dir, 'VariantDraftScreen.tsx'), 'utf8'))
+const screen = readCode(join(dir, 'VariantDraftScreen.tsx'))
 
 function part(from: string, to: string): string {
   const a = screen.indexOf(from)

@@ -1,6 +1,5 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ApiError } from '@/components/common/api'
 import { isTopicGone, resultHeroView, resultNextView, type RetryGate } from '@/components/challenge/logic'
@@ -26,6 +25,7 @@ import {
   variantSaveBody,
   type VariantFlightState,
 } from '../variantLogic'
+import { readCode } from '../../__tests__/sourceCode'
 
 /* task-045 T5-5b — 변형 상황 만들기 A(#177·#163) · 「바뀜」 · 주제가 지워진 완료 챌린지. */
 
@@ -299,8 +299,7 @@ test('서버 실패는 고정 문구 · clear 로 지우고 · dispose 는 끊�
 /* ── 화면 연결(소스 가드) — 막힘이면 요청 0 · 「바뀜」 칸 대응 · 스크롤을 옮기는 호출 0(R1~R6) · 시트 [변형 만들기] ── */
 
 const dir = join(__dirname, '..')
-const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
-const code = (f: string) => stripComments(readFileSync(join(dir, f), 'utf8'))
+const code = (f: string) => readCode(join(dir, f))
 
 test('막힘(바꿀 점 없음·직접 적기 넘침·하루 한도)이면 [변형 초안 만들기]가 요청을 보내지 않는다', () => {
   const screen = code('VariantDraftScreen.tsx')
@@ -391,9 +390,9 @@ test('주제가 지워진 완료 챌린지: [다시 도전] 숨김 · 다음 주
 
 test('계획표 카드 [다시 하기] → 주제가 지워졌으면 새 문구로 받는다', () => {
   assert.equal(CREATE.againTopicGone, '그 주제는 이제 내 목록에 없어요. 주제를 다시 골라 주세요.')
-  const create = stripComments(readFileSync(join(dir, '..', 'challenge', 'ChallengeCreateScreen.tsx'), 'utf8'))
+  const create = readCode(join(dir, '..', 'challenge', 'ChallengeCreateScreen.tsx'))
   assert.match(create, /if \(isTopicGone\(d\.topic\) \|\| !d\.topic\.id\) \{\s*show\(CREATE\.againTopicGone\)/)
-  const screen = stripComments(readFileSync(join(dir, '..', 'challenge', 'ChallengeScreen.tsx'), 'utf8'))
+  const screen = readCode(join(dir, '..', 'challenge', 'ChallengeScreen.tsx'))
   assert.match(screen, /next\.showRetry \?/)
   assert.match(screen, /next\.topicGone \? COPY\.nextBodyNoTopic : COPY\.nextBody/)
 })

@@ -21,6 +21,7 @@ import { getProfile } from '@/modules/preferences'
 import { buildPhraseHelpRequest, finalizePhraseHelp, PhraseHelpInputError, type PhraseHelpInput, type PhraseHelpScene } from '../prompts/phraseHelp'
 import { parsePhraseHelpBody, phraseHelpItems, phraseHelpTrace, type PhraseHelpBody, type PhraseHelpItem, type PhraseHelpResponse } from '../structuredResponse/phraseHelp'
 import { notFoundChat } from './index'
+import { cancelledError, isAbortError } from './requestCancel'
 import { engineFailure, readPracticeChat, type PracticeChatRow } from './replyPractice'
 
 export interface PhraseHelpResult {
@@ -83,12 +84,6 @@ async function readScene(userId: string, scenarioId: string | null, deps: Phrase
 }
 
 const conflict = (message: string, reason: 'ENDED' | 'PHRASE_BUSY') => new ApiError('CONFLICT', message, { reason })
-
-/** 손님이 끊어 엔진 호출이 취소됨 — 엔진이 `name === 'AbortError'` 로 던진다(재시도·폴백 대상 아님). 응답을 읽을 손님이 이미 없다. */
-const isAbortError = (e: unknown): boolean => (e as { name?: unknown } | null)?.name === 'AbortError'
-
-/** 분류된 `ApiError` 라 `withApi` 가 500 도 오류 로그도 내지 않는다(#47 `cancelledError` 와 같은 모양). */
-const cancelledError = () => new ApiError('CONFLICT', '요청이 취소됐어요.', { reason: 'CANCELLED' })
 
 const inFlight = new Set<string>()
 

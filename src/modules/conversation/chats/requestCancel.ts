@@ -1,6 +1,6 @@
 /**
- * 손님이 요청을 끊어(`req.signal`) 엔진 호출이 취소됐을 때의 공용 판정·오류(task-058, #169·#178).
- * #180 `phraseHelp.ts`(task-056)는 같은 두 정의를 자기 파일에 따로 갖고 있다 — 감사를 통과한 파일이라 건드리지 않았다(통합은 Leader 판단).
+ * 손님이 요청을 끊어(`req.signal`) 엔진 호출이 취소됐을 때의 공용 판정·오류(task-058, #169·#178·#180).
+ * 세 서비스(`replyPractice`·`openingDraftRun`·`phraseHelp`)가 모두 이 정의를 쓴다 — 한쪽에만 조건이 뒤늦게 붙던 표류(REV-190→192)를 막으려고 task-062 에서 `phraseHelp` 의 사본을 걷었다.
  */
 import { ApiError } from '@/modules/infra'
 

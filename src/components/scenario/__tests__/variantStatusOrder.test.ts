@@ -1,14 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { readCode } from '../../__tests__/sourceCode'
 
 // task-045 ui-e3-fix(qa-045-ui-e3 결함 #2). 변형 「만드는 중」 표시가 [변형 초안 만들기] 버튼 위에 끼면 누른 버튼([그만두기])이
 // 표시 높이만큼 밀려 내려가 접힌 영역 밖으로 나간다 — R1~R6 「누른 줄은 안 움직이고 높이 변화는 누른 줄 아래에만」.
 // DOM 없이 레이아웃을 잴 수 없어 렌더 순서를 소스로 고정한다(`variant.test.ts` 소스 가드와 같은 방식). 실제 이동 0px 은 QA 실측.
 const dir = join(__dirname, '..')
-const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
-const screen = strip(readFileSync(join(dir, 'VariantDraftScreen.tsx'), 'utf8'))
+const screen = readCode(join(dir, 'VariantDraftScreen.tsx'))
 
 function pickBody(): string {
   const from = screen.indexOf('function Pick(')
