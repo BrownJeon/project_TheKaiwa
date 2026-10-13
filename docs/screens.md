@@ -91,8 +91,8 @@
 | 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 분석·성장은 Phase 3 |
 | 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** · 앱바 아래 분절 `[단어 \| 채택한 교정]` **task-055(§21)** |
 | 단어장 | `/drawer/corrections` (돌아오기 복원 `?errorType=&chunkType=&q=&focus=&n=`) | 채택 교정 모음(분절·유형/조각 칩·검색·요약 카드·더 보기·원래 대화 이동·단어 시트) | 로그인(자기 교정만) | 보임 | **task-055(§21)** — 데모 v1 승인 2026-10-11 |
-| 질문 | `/ask` | 무엇이든 물어보세요 — 맨 위 질문 입력 카드 + 예시 칩 · 지난 질문 목록(「답 만드는 중」 폴링·「새 답」) · 첫 질문 때 보내는 범위 안내 시트(한 번) | 로그인(자기 질문 방만) | 보임 | **task-064(§25)** — 데모 v2 승인 2026-10-12, 3a = 글자 질문만(음성은 2단계) |
-| 질문 | `/ask/[chatId]` | 질문 방 — 답(마크다운 화이트리스트·예문 블록 히라가나/한글)·근거 카드(원래 기록으로 이동, ← 「질문으로」)·LOW 한 줄·기록 없음 한 줄·범위 되묻기 칩·제안 카드 4종·대기 3단계(버튼 없음)·⋯ 메뉴(제목·보내는 범위·삭제) | 소유자(타인 404) | **숨김** | **task-064(§25)** |
+| 질문 | `/ask` (`?chat=<id>` 지금 대화 복원) | 무엇이든 물어보세요 — 챗봇창: 열 때마다 빈 대화(안내 말풍선·칩 = 바로 보냄) · 글자 바 ↔ 말 바(🎤 일본어 — 회화와 같은 누르고 말하기 + 밀어서 취소) · 보내는 범위 한 줄(확인 창 없음) · 머리 「지난 질문」 알약(답 만드는 중·새 답) → 시트 | 로그인(자기 대화만) | 보임 | **task-066(§26)** — 데모 v2 승인 2026-10-13(D1=B). task-064(§25) 목록 화면 대체 |
+| 질문 | `/ask/[chatId]` | 지난 대화(「지난 질문」 시트에서 연 화면) — ‹ 「질문으로」·⋯ 메뉴 · 답·근거·되묻기·제안·대기(§25 그대로) · 같은 입력 묶음(글자·말·범위 줄) | 소유자(타인 404) | **숨김** | **task-066(§26)** · task-064(§25) |
 | 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** · 음성 인식 절 **마이크 테스트 task-003e(§8)** · 음성 인식 절 **휴대폰에서 알아듣기 카드(앱만)·인식 방식 문구·경로 한 줄** + 맨 아래 **앱 버전 줄(앱만)** · 관리자 행 아래 **휴대폰 인식 진단(앱 && `engine.read`)** **task-003f(§11-2 A·B·C·G·I)** |
 | 로그인 | `/login`(`?oauth_error=`) · (Custom Tab 안) `/invite` | 로그인(Google) · 앱: Chrome 창 대기 카드·마무리 덮개·창 닫힘 안내 · 초대 뒤 "앱으로 돌아가기" · 강제 업데이트 띠 | 비로그인 | 없음(`(auth)` 레이아웃) | task-002 · 앱 분기·해요체 문구 **task-003f(§11-2 E·G)** |
 | 앱 셸 | 모든 `(app)` 화면 맨 위(상태바 아래 그리드 첫 행) | 앱 업데이트 띠(권장 — 집중 화면 제외·닫으면 그날 숨김 / 강제 — 늘) · 설치 방법 시트 | **앱에서만**(웹 DOM 0·#8 요청 0) | — | **task-003f(§11-2 G)** |
@@ -10654,6 +10654,7 @@ Leader 확인(계약·데모·코드가 어긋나는 곳 — 고치지 않고 �
 | 반응형 | 360/390/412 같은 한 줄 흐름. 360 에서 예시 칩은 첫 방문엔 줄바꿈(칩 안 글도 줄바꿈), 지난 질문이 있으면 가로 스크롤 한 줄. 근거 라벨 2줄 말줄임, 제안 버튼 두 칸 그대로(`BtnRow`) |
 
 ### 25-1. 확정 결정 D1~D13
+> ⚠ task-066 이 대체 — §26 참조 (D1·D2 안내 A·D13 → 26-1. D3~D12 그대로)
 
 | # | 확정 | 화면에 미치는 것 | 구현 위치 | 데모 |
 |---|---|---|---|---|
@@ -10672,6 +10673,7 @@ Leader 확인(계약·데모·코드가 어긋나는 곳 — 고치지 않고 �
 | D13 | **A** 글자 먼저 → 음성은 같은 task 2단계 | 3a 화면에 🎤·「말로 물어볼 때」 예시·안내 시트 음성 줄 없음 | 전체 | A·stage |
 
 ### 25-2. 라우트 (경로·코드는 2026-10-12 직접 확인 — [확실])
+> ⚠ task-066 이 대체 — §26 참조 (`(tab)/page.tsx`·`loading.tsx` 내용 → 26-3 A·26-5 F. 그 밖 행 그대로)
 
 | 구분 | 파일 | 할 일 |
 |---|---|---|
@@ -10686,6 +10688,7 @@ Leader 확인(계약·데모·코드가 어긋나는 곳 — 고치지 않고 �
 - 방 진입 경로: 목록 행 · 목록 입력 카드에서 첫 질문 보내기(25-4 E) · (후속) 계획표 하루 시트의 「질문」 기록(지금은 이동 주소 없음 — 25-13 데모와 다르게 ⑩).
 
 ### 25-3. 파일 지도 · 컴포넌트
+> ⚠ task-066 이 대체 — §26 참조 (A 의 `AskHome`·`AskHomeSkeleton`·`AskComposerCard`·`AskExamples`·`useScopeNoticeGate`·`ScopeNoticeSheet(first)` → 26-2 D)
 
 **A. 새 파일 `src/components/ask/`**
 
@@ -10732,6 +10735,7 @@ Leader 확인(계약·데모·코드가 어긋나는 곳 — 고치지 않고 �
 **E. 고치지 않음**: `chat/ChatList.tsx`·`ChatListItem.tsx`(채팅 전용 문구·역할극 뱃지·`lang="ja"` 미리보기 — ASK 행은 새 `AskListItem`) · `chat/MessageBubble.tsx`(말풍선 6종 — ASK 는 슬롯으로 자기 모양) · `talk/*`(회화방) · `shell/{BackBar, TalkRoomHeader, planReturn, usePlanReturn}` · `drawer/*` · `plan/*` · `speech/*`(3a 마이크 없음) · 데모 파일.
 
 ### 25-4. 목록 `/ask` (데모 B·C·D·list·D·arrived)
+> ⚠ task-066 이 대체 — §26 참조 (이 절 전체 — 목록 화면 없음. 폴링·「새 답」 판정은 26-4 로 옮김)
 
 **A. 구조(390, D1 B)**
 
@@ -10843,6 +10847,7 @@ AskListItem — ChatListItem 과 같은 바깥 클래스(높이 67.5 / 뱃지 �
 ### 25-5. 질문 방 `/ask/[chatId]` (데모 C·again·D·E·F·G·H·I·J·K)
 
 **A. 구조(390)**
+> ⚠ task-066 이 대체 — §26 참조 (머리 이름·`DisplayBar`·`Composer`+관문 → 26-5 B·26-6·26-7)
 
 ```
 <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">     ← 셸 main 을 정확히 채움(채팅방과 같음), relative = sr-only 기준
@@ -10961,6 +10966,7 @@ SourceCard (href = askSourceHref(s); null 이면 링크 아님)
 - 버튼 줄은 360 에서도 두 칸(카드 안 폭 ≈300 → 칸 ≈146 — 「내 주제에 추가」·「N4로 바꾸기」 한 줄). 데모 `.brow` 의 줄바꿈은 쓰지 않는다(공용 `BtnRow`).
 
 **F. 대기 `AskPending`** (D6 C, 버튼 없음 — 데모 D·s1·s2·s3)
+> ⚠ task-066 이 대체 — §26 참조 (`leaveLine` 끝말만 → 26-10 A. 나머지 그대로)
 
 ```
 <div className="flex min-w-0 flex-col gap-2">
@@ -11007,6 +11013,7 @@ LEAVE = '다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 
 - 보내기 잠금 문구(입력 바 버튼 토스트·aria-label): 기다리는 중 「답을 받은 뒤 보낼 수 있어요」, 429 중 기존 「{n}초 뒤에 보낼 수 있어요」.
 
 **H. 메뉴·시트**(데모 K·C·again) — `ChatMenuSheet` ASK 갈래
+> ⚠ task-066 이 대체 — §26 참조 (메뉴 → 26-9)
 
 | 시트 | 내용(원문) |
 |---|---|
@@ -11016,6 +11023,7 @@ LEAVE = '다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 
 | 보내는 범위 보기 | 메뉴를 **먼저 닫고** 그다음 렌더에서 `ScopeNoticeSheet(again)` 를 연다 — 공용 `Sheet` 가 연 사람(⋯ 버튼)으로 초점을 돌려주게(두 시트 동시 금지) |
 
 **I. 보내는 범위 시트 `ScopeNoticeSheet`**(D2 (b) + 안내 A — 데모 C)
+> ⚠ task-066 이 대체 — §26 참조 (정보용 시트 하나 → 26-8 C)
 
 ```
 <Sheet open title="선생님에게 보내는 범위" onClose describedBy={leadId}>
@@ -11205,6 +11213,7 @@ type AskBlock =
 | 근거 | — | 머리 19 + 카드 56(라벨 1줄)·≈77(2줄) × 3 + 간격 6 + [더 보기] 44 | |
 
 **B. `loading.tsx` → `AskHomeSkeleton`**(§17-1 ①~⑤ — 정적 요소는 실제 요소, 데이터 칸만 회색, `'use client'`·데이터 요청 없음)
+> ⚠ task-066 이 대체 — §26 참조 (`AskTabSkeleton` → 26-5 F)
 ```
 <AppBar title="질문" />
 <div className="flex min-w-0 flex-col gap-[18px] px-4 pb-8">
@@ -11257,6 +11266,7 @@ type AskBlock =
 - **폭 360/390/412**: 최상위 `min-w-0`, 줄어드는 flex/grid 자식 `min-w-0`(행 제목·미리보기·근거 본문·칩). 예시 `row` 만 가로 스크롤(`no-scrollbar -mr-4 pr-4`). 세로 스크롤은 목록 = 셸 `main` 하나, 방 = `MessageList` 하나(§18 — `MessageList` 는 이미 `relative`). sticky 는 목록 앱바뿐.
 
 ### 25-10. 문구 단일 출처 — `src/components/ask/askCopy.ts`
+> ⚠ task-066 이 대체 — §26 참조 (입력 카드·예시·목록 머리·범위 시트·메뉴·「질문 방」 이름 키 → 26-10)
 
 데모 원문과 **한 글자도 다르지 않다**(★ = 데모에 없어 이 절이 정한 것 — 25-13). 엔진·모델·호스트 이름 0건.
 
@@ -11299,6 +11309,7 @@ type AskBlock =
 - 숫자는 `toLocaleString('ko-KR')`.
 
 ### 25-11. 시험 지점 (순수 함수로 빼서 단위 시험 — `src/components/ask/__tests__/*` · `src/components/shell/__tests__/askReturn.test.ts`)
+> ⚠ task-066 이 대체 — §26 참조 (⑫ 옮김·⑰·⑱ 대체 → 26-13)
 
 1. **`sanitizeAnswerText` + 렌더 결과(계약 8항)**: 입력에 `<script>alert(1)</script>`·`<img src=x onerror=alert(1)>`·`<iframe src=…>`·`[눌러](javascript:alert(1))`·`![x](data:image/png;base64,…)`·`[링크](https://example.com)`·맨 `https://example.com`·`www.example.com`·`<https://example.com>`·`javascript:alert(1)`·`data:text/html,…` 를 넣고 `renderToStaticMarkup(<AnswerMarkdown …/>)` 결과에 `<script`·`<iframe`·`<img`·`<a `·`href=`·`onerror`·`javascript:`·`data:`·`https://`·`www.` 이 **0건**, 링크 글(「눌러」·「링크」)은 남음. `ask/` 소스에 `dangerouslySetInnerHTML`·`innerHTML`·`DOMParser` 0건(소스 스캔).
 2. **`parseAnswerMd` 블록**: 문단(줄바꿈 → `br`)·`- `/`* `/`・` 목록·`1. `/`1) ` 번호 목록(`start`)·들여 쓴 이음 줄·`#` 제목 → 굵은 문단·가로줄 버림·울타리 버림·블록 종류가 바뀌면 빈 줄 없이도 새 블록·빈 입력 → `[]`.
@@ -11320,6 +11331,7 @@ type AskBlock =
 18. **3a 범위**: `ask/` 소스에 마이크·녹음(`getUserMedia`·`useRealtimeStt`·`PushToTalk`·`speech/stt`) import 0건, 보내는 `inputSource` 는 `TEXT` 만.
 
 ### 25-12. 구현 순서 · developer 금지 · 확인표
+> ⚠ task-066 이 대체 — §26 참조 (A 6 · B 4·7·8·9 · C1·C2·C3·C5·C13·C15 → 26-12·26-14)
 
 **A. 구현 순서**(UI = developer-U, 서버와 파일 영역 분리)
 1. `types/chat.ts` ASK 타입(소유자 Leader 지정) — 서버 #28·#32 ASK·#29 `ask` 객체가 이 모양을 낸다.
@@ -11400,3 +11412,712 @@ type AskBlock =
 11. **데모에 없던 보강(★)**: 입력 카드 글자 수 줄(900자부터 「n/1,000」)·429 분/하루 문구·`ASK_BUSY` 문구(Leader 알림)·`loadError`·`asking`·주제 채택 토스트 — 공용 규칙·계약과 맞춤.
 12. **예문 ▶·🎤·언어 칩**: D12 A·D13 A 로 3a 화면에 없음(데모 E 의 D12 B 상태·L 탭 전체는 구현하지 않음).
 
+## 26. 질문 탭 챗봇창 + 마이크 질문 `/ask` (task-066, Phase 3 /ask 2단계, 2026-10-13)
+
+> **승인 데모: `docs/demo/task-066-ask-chatbot-v2.html` (v2)** — 파일 sha256 `1103d71966a227d0e92602aabc6c05ebbabbccd3aac2ead1f24b9892bb774d59`(2026-10-13 직접 계산, 이력서 frontmatter 와 같음), 토큰 `src/app/globals.css@sha256:a314f18f1807`. 사용자 승인 2026-10-13 08:48, 원문 「D1은 B안으로 결정했으며 그외에는 권고안대로 작업해줘」 — **D1 = B(열 때마다 빈 대화)**, 그 밖은 데모를 처음 열면 골라져 있는 ★ 권고안 + 이력서 「사용자 승인·확정 결정」 절의 Leader 결정 4건.
+> **우선순위: task 이력서(「사용자 승인·확정 결정」) > `api-contract.md` §2-18-A(+ task-066 서버 additive) > 이 절 > 데모 > §25.** 데모 상태는 「데모 {탭}·{세부}」(예: 데모 D·out)로 인용한다. 데모는 대부분 D1 **A** 기준으로 그려져 있다 — D1=B 에서 달라지는 곳(머리 알약·⋯ 메뉴·열 때 빈 대화·대기 안내 끝말)은 데모의 결정 패널 B 안 화면(`header()` 의 「지난 질문」 알약, 메뉴 「새 질문 시작」, B·cont = 빈 대화)과 이 절이 정본이다.
+> **범위**: §25(task-064 3a)의 **목록 화면(`AskHome`)·보내는 범위 확인 관문을 없애고** `/ask` 를 곧바로 대화창으로 바꾼다. 묻는 방법 = 글자(한국어 무엇이든) + 🎤 **일본어만**(회화와 같은 실시간 인식 — 앱 휴대폰 인식·웹/폴백 서버 인식). **새 서버 받아쓰기 경로 없음, 스키마 변경 없음, 네이티브 변경 없음(APK 불필요)** [가능성 높음 — 플러그인·티켓 용도 `MIC_TEST` 가 이미 있다]. 서버는 ASK 턴이 `inputSource:'REALTIME_STT'` + `utteranceId` 없음을 받게 하는 작은 변경(developer-S, 진행 중 — `chats/validate.ts assertAskInput`)과 프롬프트 `ask@v2`(prompt-engineer, `inputKind:'VOICE'`)뿐이고 이 절은 화면만 정한다.
+> **그대로 쓰는 것(§25 유지)**: 답 묶음 `AskAnswer`·`AnswerMarkdown`·`ExampleBlock`·`SourceList`·`ScopeChips`·제안 카드 4종·`AskPending` 대기 3단계(버튼 없음)·`AskFailed`·429/409/네트워크 안내 줄 `askNoticeText`·근거 이동 `askSourceHref`·§25-5 J 스크롤 규칙(`arrivalAlign="answer-start"`)·살균 렌더러(25-6)·이름 바꾸기/삭제(확인 단계 유지). 이 절은 그것들을 다시 정의하지 않는다.
+> 적용 토큰(이름만, **새 색 없음**): `--color-ground` · `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3`(placeholder·점선 말풍선 테두리만) · `--color-line` · `--color-accent`(보내기·누르고 말하기·알약 「새 답」 점) · `--color-on-accent` · `--color-accent-soft`(내 질문 말풍선·알약 「새 답」 바탕) · `--color-good` · `--color-good-soft` · `--color-bad`(밀어서 취소 고리·점선 말풍선 테두리·캡션) · `--color-bad-soft`(밀어서 취소 고리·실패 카드). 공용 컴포넌트: `AppBar` · `BackBar` · `Composer` · `MessageList` · `useChatTurn` · `TurnNotice` · `ChatMenuSheet` · `Sheet` · `Toast` · `TeacherAvatar` · `JaText`·`HangulLine`·`DisplayToggles`·`useAnnotations`·`JaRuns` · `ChatRowsSkeleton` · 회화 음성 `PushToTalkButton`·`useRealtimeStt`·`sttUiState`·`sttCopy`·`MicLevelMeter`·`VoiceBar`·`LiveUtteranceBubble`·`SttAlert`·`UnsentBar`·`SttRouteRow`·`talkCopy` · 수업 `useSpeechConfig`. `project-ui-system` 미적용(학습 앱 화면).
+
+### 26-0. 레이아웃 설계 (page-layout-designer — 데모 v1 기록의 7항목을 D1=B 로 고침)
+
+| 항목 | 내용 |
+|---|---|
+| 목표 | 하단 탭 「질문」을 열면 곧바로 선생님과의 **빈 대화창**. 글로 쓰거나 🎤 로 일본어를 말하면 **확인 없이 바로** 질문이 가고, 답(근거·제안 포함)을 같은 창에서 이어 묻는다. 지난 대화는 머리 「지난 질문」 |
+| 주요 위계 | ① 대화(안내 말풍선 → 내 질문 → 답) ② 입력 바(글자 바 / 말 바) ③ 보내는 범위 한 줄 ④ 머리(「지난 질문」 알약 — 진행 중·새 답 표시 · ⋯ · 나) |
+| 영역(위→아래, 390×780, 탭 화면) | `AppBar` 52(+10) → 메시지 목록(**유일한 스크롤**) → (띠 1개: 오류·보내지 못한 말·안내 줄) → 입력 바(글자 61 / 말 117) → 보내는 범위 줄 36 → 하단 탭 72. 지난 질문을 연 화면(`/ask/[id]`)은 `BackBar` 52 → 목록 → 띠 → 입력 바 → 범위 줄(+제스처 여백), 하단 탭 숨김 |
+| 컴포넌트 | 재사용 = 머리 목록 / 새 것 = 26-2 D 표(`AskChatTab`·`AskNewConversation`·`AskGreeting`·`AskHistoryButton`·`AskHistorySheet`·`useAskActivity`·`ScopeLine`·`AskTabSkeleton`·`useAskInput`·`voiceView`·`askVoiceCopy`) |
+| 상태 | 열린 직후(빈 대화·`?chat=` 복원 불러오는 중·불러오기 오류·키보드) / 글자: 보냄·대기 3단계·답 / 말: 권한·누르고 말하는 중·밀어서 취소·알아듣는 중·뗌→바로 보냄·답·[고쳐서 묻기] / 예외(회화 문구 재사용 19 — 데모 E) / 알약 3(기본·답 만드는 중·새 답) / 메뉴·시트 7 |
+| 행동 | 주 = [↑ 보내기]·[누르고 말하기 72] / 보조 = 안내 말풍선 칩(바로 보냄)·[🎤 말로 묻기]·[⌨ 글자로 묻기]·[고쳐서 묻기]·「지난 질문」·⋯ · [자세히] · 근거·제안·되묻기 칩 / 위험 = 대화 삭제(확인 단계 유지) |
+| 반응형 | 360/390/412 같은 한 줄 흐름. 머리 오른쪽(알약·⋯·나)이 360 에서도 제목과 겹치지 않음(26-11 B). 높이는 폭과 무관(26-11 A) |
+
+### 26-1. 확정 결정 (승인 원문 기준)
+
+| # | 확정 | 화면에 미치는 것 | 구현 위치 | 데모 |
+|---|---|---|---|---|
+| D1 | **B** 열 때마다 빈 대화 | `/ask`(쿼리 없음)는 늘 빈 대화 + 안내 말풍선. 방은 **첫 질문을 보낼 때** 만든다. 지난 대화는 머리 「지난 질문」 알약 → 시트. 진행 중·새 답은 알약에(26-4) | `AskChatTab`·`AskNewConversation`·`AskHistoryButton`·`AskHistorySheet` | 결정 D1 B · B·cont(B 선택 시) · G·history · G·old · G·newq |
+| D2 | **A** 입력 바 **아래** 한 줄(늘) | 「ⓘ 내 학습 기록 일부가 AI 에 보내져요 · 자세히」, 누르면 정보 시트([닫기]만). **보내기 확인 창·확인 저장 없음** | `ScopeLine`·`ScopeNoticeSheet`(정보용) | B·scope · B·kb |
+| D3 | **A** 회화와 같은 누르고 말하기 + **버튼 밖으로 빼서 떼면 취소** | 공용 `PushToTalkButton` 선택 prop(기본 끔 — 회화 불변) · 키보드 Esc 취소 | `PushToTalkButton`·`VoiceBar`·`useAskInput` | D·rec · D·out |
+| D4 | **A** 말을 마치면 확인 없이 바로 보냄 + 가장 최근 말 말풍선 아래 [고쳐서 묻기] | final → 1자 이하 아니면 곧바로 #32. [고쳐서 묻기] = 글자 모드 + 들린 글을 입력창에 | `useAskInput`·`AskQuestionBubble` | D·sent · D·fix |
+| D5 | **폐기** | 언어 고르기 없음(인식이 일본어 전용 — 한국어 질문은 글로) | — | — |
+| D6 | 회화 문구 재사용 | 권한·파일·연결·소리·짧음 = 회화 그대로, 다른 점만 새 문구(26-10 B) | `SttAlert textModeLabel`·`askVoiceCopy` | E 전체 |
+| D7 | **A** 회화와 같은 두 모드 | 글자 바 `[🎤][입력창][↑]` ↔ 말 바 `[⌨][누르고 말하기 72]`, **처음엔 글자 모드**, 고른 모드는 세션 기억(키 질문 탭 따로) | `useAskInput` | B·first · D·idle |
+| D8 | **A** 후리가나·한글 토글은 ⋯ 메뉴 | 머리 아래 표시 바 없음(§25 의 `DisplayBar` 44 를 질문 방에서도 뺀다) | ⋯ 메뉴 | G·menu |
+| L1 | 목소리 서버 미저장 | 티켓 용도 **`MIC_TEST`**(gateway wav 저장·콜백 없음, 휴대폰 경로 `saveWav:false`·업로드 없음 — [확실] `modules/speech/stt/ticket.ts`·`OnDeviceSttClient.ts`) + `chatId` 안 보냄. 인식된 글자만 #32 `text` 로 | `useAskInput` | B·scope 목소리 줄 |
+| L2 | 1자 이하 말은 안 보냄 | 회화 `onFinal` 규칙 그대로(`Array.from(trim).length <= 1` → 상태 줄 「너무 짧아서 보내지 않았어요. 한 번 더 말해 보세요.」) | `useAskInput` | E·tooShort |
+| L3 | 밀어서 취소는 질문 화면에만 | 공용 부품은 선택 prop, **회화·수업·마이크 테스트 DOM·동작 한 글자도 불변**(26-13 ②) | 공용 확장 | — |
+| L4 | 서버 받아쓰기 실측 무관 | S0 스파이크 결과는 이 화면에 쓰지 않는다 | — | — |
+
+### 26-2. §25 에서 대체되는 것 · 남는 것 · 파일 지도
+
+**A. 대체(없어지거나 바뀜)** — §25 해당 줄 머리에 「⚠ task-066 이 대체 — §26 참조」 표시를 달았다.
+
+| §25 | 무엇 | 바뀐 뒤 |
+|---|---|---|
+| 25-1 D1·D2(안내 A)·D13 | 홈 = 입력 카드 + 예시 + 지난 질문 / 첫 질문 확인 시트 / 3a 마이크 없음 | 26-1 D1 B · D2 A · D3·D4·D7(마이크 있음) |
+| 25-2 `(tab)/page.tsx`·`loading.tsx` 내용 | `AppBar` + `AskHome` / `AskHomeSkeleton` | `AskChatTab` / `AskTabSkeleton`(26-3 A·26-5 F) |
+| 25-3 A | `AskHome`·`AskHomeSkeleton`·`AskComposerCard`·`AskExamples`·`useScopeNoticeGate`·`ScopeNoticeSheet(first)` | 아래 D 표 |
+| 25-4 전체 | 목록 화면·입력 카드·예시 칩(채우기)·지난 질문 목록·「답 만드는 중」 폴링·「새 답」·첫 질문 생성 → 방 이동(`kaiwa.ask.pending.<id>`) | 대화창 안에서 생성·전송(26-3 C), 폴링·새 답 판정은 `useAskActivity` 로 옮겨 **알약·시트**에 쓴다(26-4), 예시는 안내 말풍선(칩 = **바로 보냄**) |
+| 25-5 A 머리·입력 | `BackBar "질문 목록으로"` · `DisplayBar` · `Composer` + `gatedSend` | `BackBar "질문으로"` · 표시 바 없음(D8) · 입력 묶음 `useAskInput`(관문 없음) |
+| 25-5 F `leaveLine` 끝말 | 「…돌아오면 이 질문 방에서 볼 수 있어요.」 | **「…돌아오면 「지난 질문」에서 볼 수 있어요.」** ★(26-15 L-1 — D1=B 라 데모 문구 「이 자리에서」가 맞지 않다) |
+| 25-5 H 메뉴 | 「질문 방 메뉴」: 제목 바꾸기 · 보내는 범위 보기 · 질문 방 삭제 | 「질문 메뉴」: 26-9 |
+| 25-5 I 시트 | `first`(확인·[알겠어요, 보내기]) / `again` | **정보용 하나**([닫기]) + 목소리 줄 + 「말로 물어볼 때」 띠(26-8 C) |
+| 25-7 B | `AskHomeSkeleton` | `AskTabSkeleton`(26-5 F) |
+| 25-11 ⑰·⑱ · 25-12 C1·C2·C3·C5·C13·C15 | 목록 구조 묶음 · 「3a 마이크 0」 · 목록 확인표 | 26-13 · 26-14 C |
+| 저장소 키 | `localStorage kaiwa.ask.scopeNotice.v1`(읽기·쓰기) · `sessionStorage kaiwa.ask.draft` · `kaiwa.ask.pending.<id>` | **읽지도 쓰지도 않는다**(남아 있는 값은 지우지 않아도 된다 — 아무도 읽지 않음). 새 키: `kaiwa.ask.inputMode`(26-7 A) |
+
+**B. 그대로 남는 것**: 25-5 B(답 묶음 — 단 `AskQuestionBubble` 은 26-7 F 에서 말 갈래 추가) · C(되묻기 칩) · D(근거) · E(제안 4종) · F(대기 — `leaveLine` 끝말만 바뀜) · G(실패·제한·오류 — 429 세 갈래·409·네트워크·404 문구 그대로, 이름만 「질문 방」→「대화」 26-10) · J(스크롤 — 26-11 C 의 `C` 값만 새로) · 25-6 · 25-8(근거 주소 그대로, 돌아오기 주소만 26-3 E) · 25-9(라이브 영역 규칙 그대로).
+
+**C. 저장·서버 계약(인용만)**: #27 `GET /api/v1/chats?kind=ASK`(지난 질문·알약) · #28 `POST /api/v1/chats {kind:'ASK', title}`(첫 질문 때) · #29(대화 읽기) · #30(이름) · #31(삭제) · #32 ASK 턴 — 글자 `inputSource:'TEXT'`(생략 가능), 말 **`inputSource:'REALTIME_STT'` + `utteranceId` 없음**(서버 진행 중 변경, `assertAskInput` — `utteranceId` 가 오면 400) · #20 티켓 `{purpose:'MIC_TEST'}`(chatId 없음) · #19 `GET /api/v1/speech/config` · #24r(말로 물은 일본어 말풍선 읽기 층) · #37·#38·#39(제안).
+
+**D. 파일 지도**(경로는 2026-10-13 직접 확인 — [확실]. 「U1/U2」 = 26-12 의 담당)
+
+| 구분 | 파일 | 할 일 | 담당 |
+|---|---|---|---|
+| 삭제 | `ask/AskHome.tsx` | 목록 화면 — 폴링·도착 판정 코드는 `useAskActivity` 로 옮긴 뒤 삭제 | U1 |
+| 삭제 | `ask/AskComposerCard.tsx` · `ask/AskExamples.tsx` · `ask/AskHomeSkeleton.tsx` · `ask/useScopeNoticeGate.ts` | 쓰는 곳 없음 | U1 |
+| 삭제(시험) | `ask/__tests__/askHome.test.ts` · `scopeNotice.test.ts` | 대상이 사라짐 — 살릴 단언(도착 판정·폴링 간격)은 `askActivity.test.ts` 로 옮긴다 | U1 |
+| 수정 | `app/(app)/ask/(tab)/page.tsx` | 26-3 A | U1 |
+| 수정 | `app/(app)/ask/(tab)/loading.tsx` | `<AskTabSkeleton />` | U1 |
+| 그대로 | `app/(app)/ask/[chatId]/page.tsx` | `AskRoom` 에 `variant="room"` 만 더함 | U1 |
+| 수정 | `ask/AskRoom.tsx` | `variant: 'tab' \| 'room'`·`seed`·`greeting`·머리 갈래·D8 표시 바 제거·관문 제거·입력 묶음(`useAskInput`)·범위 줄·⋯ 메뉴(26-5 A·26-9) | U1(입력 연결부는 U2 계약대로) |
+| 수정 | `ask/AskQuestionBubble.tsx` | 말 갈래(일본어 17px·읽기 층·「🎤 말로 물었어요」·[고쳐서 묻기]) 26-7 F | U2 |
+| 수정 | `ask/ScopeNoticeSheet.tsx` | 정보용 하나(`mode` 없앰) + 목소리 줄·「말로 물어볼 때」 띠 26-8 C | U1 |
+| 수정 | `ask/askCopy.ts` | 26-10 A | U1 |
+| 수정 | `ask/logic.ts` | `ASK_KEYS`: `scopeNotice`·`draft`·`pending` 삭제, `inputMode` 추가 · `scopeSheetRestoreText` 삭제 · `askChatHref(id)`·`isAskId(id)` 추가(26-3) | U1 |
+| 수정 | `ask/homeLogic.ts` | `askHomeView`·`askExamplesMode`·`askCountLine`·`isEnterSubmit` 삭제(쓰는 곳 없음 — eslint/tsc 로 확인), `createAskRoom` → `createAskConversation`(26-3 C), 나머지(`ASK_LIST_LIMIT`·`appendRooms`·`mergeFirstPage`·`askListPollDelay`·`settleArrivals`·`lastAnswerOk`·`askRowView`·`ASK_ROW_CLASS`·`askDraftCheck`) 그대로 | U1 |
+| 수정 | `ask/AskListItem.tsx` | 선택 prop `current?: boolean` + `onCurrent?: () => void`(26-4 C) | U1 |
+| 새로 | `ask/AskChatTab.tsx` | `/ask` 본체 — 대화 id·URL 동기화·알약·지난 질문 시트·새 대화(26-3) | U1 |
+| 새로 | `ask/AskNewConversation.tsx` | 빈 대화(안내 말풍선·입력 묶음·생성 중 임시 말풍선·메뉴) — 첫 보내기에 #28 후 `onCreated` | U1 |
+| 새로 | `ask/AskGreeting.tsx` | 안내 말풍선(데모 `greet()`) | U1 |
+| 새로 | `ask/AskHistoryButton.tsx` · `ask/AskHistorySheet.tsx` · `ask/useAskActivity.ts` | 26-4 | U1 |
+| 새로 | `ask/ScopeLine.tsx` | 26-8 B | U1 |
+| 새로 | `ask/AskTabSkeleton.tsx` | 26-5 F | U1 |
+| 새로 | `ask/useAskInput.tsx` | 입력 묶음 훅(글자·말 두 모드·STT·띠·꼬리 말풍선) — 계약 26-7 B | U2 |
+| 새로 | `ask/voiceView.ts` | 말 바 상태 유도(순수) 26-7 C | U2 |
+| 새로 | `ask/askVoiceCopy.ts` | 말로 묻기 문구 26-10 B | U2 |
+| 새로(시험) | `ask/__tests__/{askChatTab,askActivity,voiceView,askVoice}.test.ts` | 26-13 | U1·U2 |
+| 공용 확장 | `speech/PushToTalkButton.tsx` | 선택 prop `cancelOutside?`(26-7 D) | U2 |
+| 공용 확장 | `talk/VoiceBar.tsx` | 선택 prop `cancelOutside?`(그대로 버튼에 넘김)·`safeBottom?`(기본 `true`)·`keyboardLabel?`(기본 「글자로 입력하기」) | U2 |
+| 공용 확장 | `talk/LiveUtteranceBubble.tsx` | 선택 prop `out?`·`caption?`(26-7 E) | U2 |
+| 공용 확장 | `talk/UnsentBar.tsx` | 선택 prop `textOf?`·`canResend?`(26-7 G) | U2 |
+| 공용 확장 | `chat/Composer.tsx` | 선택 prop `safeBottom?`(기본 `true` = 지금 `max(8px, var(--safe-bottom))`; `false` = `8px`) | U1 |
+| 공용 확장 | `chat/MessageList.tsx` | 선택 prop `lead?: ReactNode`(목록 `<ul>` 이 그려질 때 그 위에 — 기본 없음) | U1 |
+| 공용 확장 | `chat/ChatMenuSheet.tsx` | ASK 갈래 문구(26-10 A `menu.*`) + 선택 prop `extraTop?: ReactNode`(제목 바꾸기 줄 **위**에 — 기본 없음) | U1 |
+| 공용 확장 | `shell/askReturn.ts` | 돌아갈 주소에 `/ask?chat=<id>` 도 허용(26-3 E) | U1 |
+| 그대로 | `shell/routes.ts`(`'/ask/'` 집중 화면 — `/ask?chat=` 은 경로가 `/ask` 라 탭 보임) · `TabBar.tsx` · `chat/ChatRoom.tsx`(ASK → `/ask/<id>`) · `speech/useRealtimeStt.ts`·`sttUiState.ts`·`sttCopy.ts`·`MicLevelMeter.tsx` · `talk/SttAlert.tsx`(`textModeLabel` 이미 있음)·`SttRouteRow.tsx`·`talkCopy.ts`·`talkState.ts`·`TalkRoom.tsx` · `lesson/useLessonVoice.ts`(`useSpeechConfig` import 만) · `modules/speech/stt/client/**` | — |
+
+### 26-3. 라우팅 · 대화 수명 (D1=B 정확한 규칙)
+
+**A. 주소 세 가지**
+
+| 주소 | 뜻 | 화면 | 하단 탭 |
+|---|---|---|---|
+| `/ask` | **새 빈 대화**(방 없음) | `AskChatTab` → `AskNewConversation` | 보임(J1) |
+| `/ask?chat=<id>` | 이 탭 화면에서 시작(또는 복원)한 **지금 대화** | `AskChatTab` → `AskRoom variant="tab"` | 보임(경로가 `/ask` — `isFocusRoute` false) |
+| `/ask/<id>` | 「지난 질문」 시트에서 연 **지난 대화** | `AskRoom variant="room"`(‹ · 제목 · ⋯) | **숨김**(데모 G·old · J1 — `routes.ts '/ask/'` 그대로) |
+
+- `(tab)/page.tsx`(서버): `[chatId]/page.tsx` 와 같은 모양 — `auth()`(없으면 `/login?callbackUrl=/ask`) + `getProfile().teacherName`(비우면 「선생님」) + `searchParams.chat` 을 읽어 `<AskChatTab teacherName initialChatId={isAskId(chat) ? chat : null} />`. `isAskId` = `^[A-Za-z0-9_-]{1,64}$`(25-8 A 와 같은 형식).
+- `AskChatTab` 은 **`key` 를 주지 않는다** — 대화 바뀜은 아래 C·D 규칙으로 자기가 처리한다(같은 인스턴스가 남든 다시 마운트되든 같은 결과가 나와야 한다).
+
+**B. 대화 수명 표**
+
+| 사건 | 결과 | 구현 |
+|---|---|---|
+| 하단 탭 「질문」을 다른 탭에서 누름 · 앱 재시작 후 처음 누름 | 새 빈 대화 | 링크 `/ask`(쿼리 없음) → `initialChatId=null` |
+| 지금 대화(`/ask?chat=x`)에서 하단 탭 「질문」을 다시 누름 | 새 빈 대화(x 는 「지난 질문」에) | 주소 쿼리 `chat` 이 x → 없음으로 바뀜 → D 의 전이 규칙 |
+| 빈 대화(`/ask`)에서 하단 탭 다시 누름 | 그대로(이미 빈 대화) | — |
+| 첫 질문 보내기(글자·말·안내 칩) | 방 생성 + 같은 화면에서 전송, 주소 `/ask?chat=<id>` 로 **바꿔 적기**(기록 늘리지 않음) | C |
+| ⋯ → 「새 질문 시작」(지금 대화가 있을 때만 보임) | 새 빈 대화. 휴대폰 뒤로가기 = 직전 대화 | `router.push('/ask')` |
+| 같은 대화에서 이어 묻기 | 같은 방(#32) | — |
+| 답을 기다리다 다른 탭으로 감 → 하단 탭 「질문」 | 새 빈 대화 + 알약 「답 만드는 중」 → 끝나면 「새 답 도착」 + 토스트 1번(26-4) | `AskRoom` 언마운트 때 `waiting` 에 id(§25 그대로) |
+| 휴대폰 뒤로가기로 `/ask?chat=x` 에 돌아옴(근거 화면 등에서) | **그 대화 복원**(진행 중이면 대기 카드 이어받기) | `initialChatId=x` → `AskRoom variant="tab"` 이 #29 |
+| 근거 카드 → 수업·평가·역할극 → ← 「질문으로」 | 그 대화 복원 | E |
+| 앱 백그라운드 → 복귀 | 화면 그대로(다시 마운트 없음). 기다리던 답은 `useChatTurn` 기존 이어받기 | — |
+| 웹 새로고침 `/ask?chat=x` | 그 대화 복원(주소가 그 대화를 가리키므로) [가능성 높음 — 「열 때마다 빈 대화」는 탭으로 여는 경우] | — |
+| 대화 삭제(⋯ → 이 대화 삭제, 탭 화면·지난 대화 모두) | 새 빈 대화 + 토스트 「대화를 삭제했어요」 | `ChatMenuSheet` 기존 `flash='deleted'` + `router.replace('/ask')` — `AskChatTab` 이 마운트·전이 때 `flash` 를 읽어 토스트 후 지움 |
+| `/ask/<id>` 의 ‹ 「질문으로」 | `/ask` = 새 빈 대화(데모 B 의 `toHome` = 빈 대화) | `BackBar backHref="/ask"`. 휴대폰 뒤로가기는 기록대로(직전이 `/ask?chat=x` 면 x 복원) — 두 길이 다를 수 있음은 수용 |
+| `?chat=` 의 방이 없음(404)·남의 방·ASK 아님 | 새 빈 대화 + 주소 `/ask` 로 바꿔 적기 + 토스트 「대화를 찾을 수 없어요」 ★ | `AskRoom` 이 `onGone()` |
+| `?chat=` 불러오기 오류(그 밖) | 데모 B·error — 목록 칸 오류 상자 「대화를 불러오지 못했어요」/「연결을 확인하고 다시 시도해 주세요. 새 질문은 그대로 보낼 수 있어요.」/[다시 시도]. **입력은 막지 않는다** — 보내면 새 대화가 생긴다 | `AskRoom` 이 `onLoadFailed()` → `AskChatTab` 이 `AskNewConversation intro={오류 상자}`(주소 그대로, [다시 시도] = 그 id 다시 열기) |
+
+**C. 첫 질문 — 방 만들기와 전송(같은 화면, 목록 → 방 이동 없음)**
+1. `AskNewConversation` 의 보내기(`onSend(text, via)` — 글자 ↑·Enter, 말 final, 안내 칩): 검사(`askDraftCheck` — 빈 글·1,000 코드포인트 초과는 토스트, 말은 1자 이하가 이미 걸러짐). 만드는 중(`creatingRef`)이면 무시(연타 → 방 두 개 방지).
+2. **임시 말풍선**: 목록에 `{ role:'USER', content:text, inputSource: via==='voice' ? 'REALTIME_STT' : 'TEXT', localStatus:'SENDING' }` 한 줄(`AskQuestionBubble` 「보내는 중…」) — #28 동안 빈 화면이 아니게. 입력 바는 `busy`.
+3. #28 `POST /api/v1/chats { kind:'ASK', title: askTitleOf(text) }`. 실패 → 임시 말풍선 지움 + 토스트 `actionErrorText` + 글자면 입력창에 글 되돌림(`restore`), 말이면 「보내지 못한 말」 띠(이유 0 — 네트워크 문구).
+4. 성공 → `history.replaceState(history.state, '', askChatHref(id))`(= `/ask?chat=<id>` — **`router.replace` 를 쓰지 않는다**: 서버 다시 그리기·다시 마운트로 전송 중 상태가 사라진다) → `onCreated({ chat: CreatedChat→ChatInfo, text, via })` → `AskChatTab` 이 `conv = { id, seed: { chat, text, via, used: false }, greeting: true }` → `<AskRoom key={id} variant="tab" seed … />` 로 바뀐다.
+5. `AskRoom` 이 `seed` 를 받으면: #29 를 읽지 않고 곧바로 `load='ready'`(chat = seed.chat, messages = [], proposals = []) → 효과에서 **`if (seed.used) → seed 없이 #29 로 읽기`**(StrictMode 이중 마운트·빠른 재마운트 대비) **아니면 `seed.used = true` 후** `listRef.scrollToBottom()` → `send(seed.text, via==='voice' ? { inputSource:'REALTIME_STT' } : {})`. 거절(429·409·네트워크)은 `useAskInput.onRestore` 가 받는다(26-7 G).
+6. `CreatedChat → ChatInfo` = `{ id, kind, title, running, messageCount, reviewedAt: null }`.
+- §25-4 E 의 「목록에서는 턴을 시작하지 않는다」 이유(화면을 떠나며 끊김)는 이제 없다 — 같은 화면에서 보낸다. `kaiwa.ask.pending.<id>`·`takeAskHandoff` 는 지운다.
+
+**D. 주소 쿼리 전이(같은 인스턴스가 남는 경우 대비)** — `AskChatTab` 은 `useSearchParams().get('chat')` 의 **이전 값과 지금 값**을 비교한다(값 자체가 아니라 바뀜만 본다).
+- 바뀜 없음 → 아무것도 안 함(생성 직후 `replaceState` 로 `null → id` 가 되는 순간은 `id === conv.id` 라 무시).
+- `x → null` 이고 `conv.id !== null` → 새 빈 대화(`conv = { id:null, n: n+1 }` — `AskNewConversation key={'new-'+n}`).
+- `? → y`(유효, `y ≠ conv.id`) → `conv = { id:y, seed:null, greeting:false }`.
+- 이 비교는 `useRef` 로 직전 값을 들고 효과에서 한다. `useSearchParams` 가 정적 렌더 경계를 요구해 빌드가 실패하면 page 에서 `<Suspense>` 로 감싼다(page 가 `auth()` 로 동적이라 필요 없을 것 [가능성 높음]).
+- **실측 필수(26-15 Q-1)**: `/ask?chat=x` 에서 하단 탭 「질문」 → 빈 대화가 되는지, 생성 직후 `replaceState` 가 다시 마운트·서버 요청을 일으키지 않는지(네트워크 탭에 RSC 요청 0).
+
+**E. 근거 → 돌아오기(`askReturn`)**: 탭 화면에서 근거 카드를 누르면 `rememberAskReturn(askChatHref(id), 대상 경로)`, 지난 대화(`/ask/<id>`)에서는 지금처럼 `'/ask/' + id`. `askReturn.ts` 의 `ASK_HREF` 를 `^\/ask(\/[A-Za-z0-9_-]{1,64}|\?chat=[A-Za-z0-9_-]{1,64})$` 로 넓힌다(그 밖 쿼리·해시·`//` 는 여전히 거절). 라벨 「질문으로」 그대로. `AskRoom` 마운트 때 `forgetAskReturn()` 그대로(두 변형 모두).
+
+### 26-4. 「지난 질문」 알약 · 진행 중/새 답 · 지난 질문 시트 (D1=B 약점 보완)
+
+> 문제 [확실 — 데모 D1 B 안의 단점 줄]: 답을 기다리다 다른 탭에 갔다 오면 새 빈 대화가 열려 진행 중인 질문이 안 보인다. 데모 B 안 = 머리 알약이 「새 질문」 → 「지난 질문」으로 바뀐다. **진행 중·새 답 표시는 데모에 그려져 있지 않다** — 이 절이 정한다(§25 의 「답 만드는 중」·「새 답」 판정을 그대로 옮겨 알약과 시트에 쓴다. 데모 J4 「표시를 없앤다」는 A 안 전제라 B 에는 적용하지 않는다).
+
+**A. `useAskActivity(currentChatId: string | null)`**(`AskHome` 의 읽기·폴링·도착 판정 코드를 옮긴 훅 — 숫자·조건은 §25-4 D 그대로)
+- 읽기: #27 `kind=ASK&limit=20` 첫 쪽. 언제: 탭 화면 마운트 · `visibilitychange` visible · 지금 대화가 바뀜(`currentChatId` 변화) · 시트를 열 때. `running` 인 행이 있으면 `askListPollDelay`(처음 30초 2.5초 → 5초, 200초 상한)로 다시 읽고, 없거나 화면이 가려지면 멈춘다.
+- 도착 판정: `arrivedTransitions(prevRunning, items, waitingIds)` → 후보를 #29 `?limit=2` 로 `lastAnswerOk` 확인 → `settleArrivals` → `kaiwa.ask.newAnswer` 에 넣고 `waiting` 에서 뺀다. 폴링 중 `running → false` 를 본 경우에만 토스트 「답이 도착했어요」 **한 번**(§25 와 같음).
+- **지금 대화는 빼고 센다**: `others = items.filter(c => c.id !== currentChatId)`. 반환 `{ items, cursor, state:'loading'|'ready'|'error', running: others.some(c=>c.running), newCount: newAnswer ∩ others 의 개수, refresh(), more() }`.
+- `waiting`·`newAnswer` 지우기는 §25 그대로 — 그 대화를 여는 `AskRoom` 마운트(두 변형 모두)가 지운다.
+
+**B. `AskHistoryButton`**(머리 알약 — `AppBar right` 안, ⋯ 왼쪽, 데모 `.abtn`)
+
+| 상태 | 조건(우선순위 순) | 보이는 것 | 접근 이름 |
+|---|---|---|---|
+| 답 만드는 중 | `running` | 움직이는 점 3개(4px, `motion-safe:animate-pulse` 엇갈림, `aria-hidden`) + 「답 만드는 중」 | 「지난 질문 — 답 만드는 중」 |
+| 새 답 | `newCount > 0` | 점(`h-2 w-2 rounded-full bg-accent`, `aria-hidden`) + 「새 답 도착」, 바탕 `bg-accent-soft`(글자 `ink`) | 「지난 질문 — 새 답 도착」 |
+| 기본 | 그 밖(로딩·오류 포함) | 「지난 질문」 | 「지난 질문」 |
+
+- 모양: `relative inline-flex h-9 flex-none items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface pl-2.5 pr-3 text-[13px] font-semibold text-ink before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']`(보이는 36 · 터치 44). 누르면 시트 열기. 글자가 바뀌어도 너비만 변하고 높이 불변.
+- 상태가 「새 답」으로 바뀌는 순간 알림은 토스트(A) 한 번뿐 — 알약 자체는 라이브 영역이 아니다.
+- 색만으로 알리지 않는다(글자가 상태를 말함).
+
+**C. `AskHistorySheet`**(데모 G·history — 공용 `Sheet`, 제목 「지난 질문」, 시트 안만 스크롤)
+- 열 때 `refresh()`. 행 = `AskListItem` 그대로(제목·시각·둘째 줄·「답 만드는 중」/「새 답」 뱃지 — §25-4 D) + **지금 대화**(`id === currentChatId`)에 뱃지 「지금 대화」(`bg-surface2 text-ink2` 11.5px semibold — 기존 `Badge`) — 그 행은 링크가 아니라 버튼(`onCurrent` = 시트 닫기). 그 밖 행 = `/ask/<id>` 링크(지난 대화 화면).
+- 정렬 = 서버 `lastMessageAt desc`(진행 중인 대화가 대개 맨 위). [이전 질문 더 보기](`cursor` 있을 때, `Btn ghost w-full`, 「불러오는 중…」).
+- 로딩: `ChatRowsSkeleton`(시트 안, `role=status` 「불러오고 있어요」 한 줄). 오류: §25-4 F 오류 상자 문구 그대로(「지난 질문을 불러오지 못했어요」/…/[다시 시도]). **빈 상태 ★**: 「아직 지난 질문이 없어요.」(14px `ink2`, 데모 C 안 홈의 첫 줄과 같은 결).
+- **삭제는 시트에 없다** — 그 대화를 열고 ⋯ → 이 대화 삭제(데모 G·history 에 삭제 없음). 길게 누르기 없음(§25 D8 X 그대로).
+
+### 26-5. 화면 구조 (의사코드, 390 — 데모 B·first·B·cont(B)·C·D·G·old)
+
+**A. `AskChatTab`**(`'use client'`, `/ask` 본체)
+```
+props { teacherName, initialChatId: string | null }
+const [conv, setConv] = useState(() => initialChatId ? { id: initialChatId, seed: null, greeting: false, n: 0 } : { id: null, n: 0 })
+const [failed, setFailed] = useState<string | null>(null)        ← ?chat= 불러오기 오류(26-3 B 마지막 줄)
+const act = useAskActivity(conv.id)                                ← 26-4 A
+const toast = useToast()                                           ← 이 화면의 토스트는 이것 하나(자식에게 내려 준다 — 두 토스트 겹침 방지)
+const pill = <AskHistoryButton running={act.running} newCount={act.newCount} onClick={openHistory} />
+mount·전이: flash === 'deleted' → toast 「대화를 삭제했어요」 + 키 지움(26-3 B) · 쿼리 전이(26-3 D)
+
+conv.id === null
+  ? <AskNewConversation key={'new-' + conv.n} teacherName pill toast intro={failed ? <LoadErrorBox onRetry={() => reopen(failed)} /> : undefined}
+                        onCreated={(seed) => { setFailed(null); setConv({ id: seed.chat.id, seed, greeting: true, n: conv.n }) }} />
+  : <AskRoom key={conv.id} variant="tab" chatId={conv.id} teacherName pill toast seed={conv.seed} greeting={conv.greeting}
+             onGone={() => { replaceUrl('/ask'); toast.show(ASK_COPY.goneToast); startNew() }}
+             onLoadFailed={() => { setFailed(conv.id); startNew() }}
+             onNewConversation={() => router.push('/ask')} />
+<AskHistorySheet open={historyOpen} activity={act} currentChatId={conv.id} onClose={closeHistory} />
+<Toast message={toast.message} bottomPx={toastBottom} />          ← 26-8 D
+```
+- `startNew()` = `setConv({ id: null, n: n + 1 })`. `replaceUrl(u)` = `history.replaceState(history.state, '', u)`(26-3 C 4 와 같은 이유).
+
+**B. `AskRoom`**(두 변형 — 지금 파일을 고친다. §25-5 A 에서 바뀌는 줄만)
+```
+props { variant: 'tab' | 'room', chatId, teacherName, seed?: AskSeed | null, greeting?: boolean, pill?: ReactNode, toast?: ToastApi,
+        onGone?(), onLoadFailed?(), onNewConversation?() }
+<div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">
+  variant === 'tab'
+    ? <AppBar title="질문" right={<>{pill}<MenuButton /></>} />          ← AppBar 그대로(다른 탭 홈과 같은 머리: sticky·mb-2.5·「나」 아바타)
+    : <BackBar backHref="/ask" backLabel="질문으로" title={chat.title} subtitle={`질문 · ${teacherTitle(teacherName)}`} right={<MenuButton />} />
+  ← DisplayBar 없음(D8 A — ⋯ 메뉴로)
+  <MessageList … §25-5 A 그대로(liveOff annotate={false} focusable followContent arrivalAlign="answer-start" pillLabel={ASK_COPY.newAnswer} renderTutor renderPending renderTrailingPending renderFailed)
+               intro={<AskGreeting … onPick={input.sendChip} />}           ← 메시지 0개(생성 뒤 첫 전송이 거절된 방 등)
+               lead={greeting ? <AskGreeting … /> : undefined}             ← 이 화면에서 만든 대화는 첫 질문 위에 안내 말풍선을 남긴다(데모 C·chip)
+               tail={input.tail}                                           ← 부분 인식 점선 말풍선(26-7 E)
+               renderUser={(m, ctx) => <AskQuestionBubble m showTime={ctx.groupEnd} canFix={m.id === lastUserVoiceId} onFix={input.fixAsk} ann={annOf} />} />
+  <p role="status" className="sr-only">{arrivalLive}</p>                   ← §25-9 그대로
+  {input.strip}                                                            ← 26-8 A
+  {input.bar}                                                              ← 글자 바 | 말 바
+  <ScopeLine variant={variant} onOpen={openScope} />                       ← 26-8 B
+  <AskMenu … />                                                            ← 26-9
+  <ScopeNoticeSheet open={scopeOpen} onClose={closeScope} />
+  {toast 를 받지 않았으면 <Toast message bottomPx={toastBottom} />}
+</div>
+MenuButton = <button type="button" aria-label="질문 메뉴" className="grid h-11 w-11 flex-none place-items-center rounded-full text-[20px] leading-none text-ink"><span aria-hidden="true">⋯</span></button>
+```
+- `const input = useAskInput({...})`(26-7 B) — `useChatTurn` 보다 먼저 부를 수 없으므로 `restoreText: (t, i) => inputRef.current?.onRestore(t, i)` 로 ref 를 거친다.
+- `send(text, via)` = `listRef.scrollToBottom()` → `setScopeOwn(false)` → `setArrivedId(null)` → `turn.send(text, via === 'voice' ? { inputSource: 'REALTIME_STT' } : {})`(**`utteranceId` 는 절대 싣지 않는다**). 되묻기 칩(`pickScope`)도 이 함수(관문 없이) — `scope` 옵션 그대로.
+- `annOf`: 지금의 예문 줄 목록에 **말로 물은 질문 글**(`m.role==='USER' && m.inputSource==='REALTIME_STT'` 의 `content`)을 더해 `useAnnotations` 로 한 번에(26-7 F).
+- `lastUserVoiceId` = 목록의 **마지막 USER 메시지**가 `inputSource==='REALTIME_STT'` 이면 그 id, 아니면 `null`(데모 「가장 최근 질문이 말로 물은 것일 때 그 말풍선에만」).
+- 불러오는 중(`load==='loading'`): `room` = 지금처럼 `BackBar` + `LoadingBlock`. **`tab`(`?chat=` 복원) = 데모 B·loading**: 머리·입력 묶음·범위 줄·하단 탭은 실제 요소, 목록 칸만 회색 말풍선 4개(데모 `skel`: 오른쪽 62%×44 · 왼쪽 100%×150 · 오른쪽 54%×44 · 왼쪽 100%×110, `bg-surface2 rounded`) + `sr-only role=status` 「대화를 불러오고 있어요」 ★. 입력창은 쓸 수 있고 보내기·누르고 말하기만 잠근다(잠금 문구 「대화를 불러오고 있어요」 ★).
+- `tab` 의 404·남의 방·ASK 아님 → `onGone()`, 그 밖 오류 → `onLoadFailed()`(26-3 B). `room` 은 §25-5 G 그대로(문구만 26-10 A).
+- `room` 의 ⋯ 「새 질문 시작」 = `router.push('/ask')`. `tab` 은 `onNewConversation()`(같은 것 — 휴대폰 뒤로가기로 지금 대화에 돌아올 수 있게 `push`).
+
+**C. `AskNewConversation`**(빈 대화 — 방이 아직 없다. `useChatTurn`·`MessageList` 를 쓰지 않는다: `MessageList` 는 `turn` 이 필수)
+```
+props { teacherName, pill, toast, intro?: ReactNode, onCreated(seed: AskSeed) }
+<div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">
+  <AppBar title="질문" right={<>{pill}<MenuButton /></>} />
+  <div role="log" aria-label="대화 내용" aria-live="off" tabIndex={-1}
+       className="(MessageList 의 바깥 상자·스크롤 상자와 같은 클래스 — 생성 뒤 AskRoom 으로 바뀔 때 안내 말풍선 위치가 튀지 않게)">
+    {intro ?? <AskGreeting … onPick={input.sendChip} />}
+    {temp && <ul><li><AskQuestionBubble m={temp} sending /></li></ul>}     ← 26-3 C 2 의 임시 말풍선
+    {input.tail}
+  </div>
+  {input.strip} {input.bar} <ScopeLine variant="tab" onOpen /> <AskMenu empty /> <ScopeNoticeSheet …/>
+</div>
+```
+- `useAskInput({ draftKey: 'ask-new', busy: creating, isBusy: () => creatingRef.current, blockedUntil: null, notice: null, … onSend: create })`. 이 화면엔 턴이 없어 429·409 는 생성 뒤 `AskRoom` 의 첫 전송에서 난다(그 거절은 `AskRoom` 의 입력 묶음이 받아 글자면 입력창, 말이면 「보내지 못한 말」 띠 — 26-7 G).
+- 스크롤은 이 상자 하나. 녹음 중 꼬리 말풍선이 붙어도 안내 말풍선은 그대로 위에 있다(데모 D·idle 체험).
+
+**D. `AskGreeting`**(데모 `greet()` — 문구는 26-10 A 원문)
+```
+<div className="flex min-w-0 flex-col gap-2">
+  <p className="flex items-center gap-2 text-[12px] text-ink2"><TeacherAvatar name={teacherName} />{teacherTitle}</p>       ← AskAnswer 누가 줄과 같음
+  <div className="flex min-w-0 flex-col gap-3 rounded-[6px_16px_16px_16px] border border-line bg-surface px-3.5 py-3">       ← 답 카드와 같은 상자
+    <p className="text-[15px] leading-[1.65]">무엇이든 물어보세요. 일본어 표현·문법도, <b>내 공부 기록</b>(교정·복습·수업)도 좋아요.</p>
+    <div role="group" aria-labelledby={lid} className="flex min-w-0 flex-col gap-2">
+      <p id={lid} className="text-[12px] text-ink2">글로 물어보기 · 누르면 바로 물어봐요</p>
+      EXAMPLES.map(e => <button type="button" onClick={() => onPick(e.q)} className="inline-flex min-h-11 w-full min-w-0 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-left text-[14px]">
+                         <span className="inline-flex h-5 flex-none items-center rounded-md bg-surface2 px-1.5 text-[11.5px] font-semibold text-ink2">{e.tag}</span>
+                         <span className="min-w-0"><JaRuns text={e.q} /></span></button>)
+    </div>
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-xl bg-surface2 px-3 py-2.5">                                  ← 누르는 기능 없음(J3)
+      <h4 className="flex items-center gap-1.5 text-[13px] font-semibold"><MicIcon 14 aria-hidden />모르는 일본어는 🎤 로 그대로 말해 보세요</h4>
+      <p className="text-[13px] text-ink2">뜻·읽기·느낌을 예문과 함께 알려 줘요. 예)</p>
+      <ul lang="ja" className="flex flex-wrap gap-x-3.5 gap-y-1 text-[15px]"><li>大丈夫</li><li>お疲れ様でした</li><li>それはちょっと難しいですね</li></ul>
+    </div>
+  </div>
+</div>
+```
+- 칩 = **바로 보냄**(데모 B·first — §25 의 「입력창 채우기」와 다름). 답을 기다리는 중이면 토스트 「답을 받은 뒤 보낼 수 있어요」, 429 중이면 §25-5 C 와 같은 안내 문구 토스트(`pickScope` 와 같은 검사) — `input.sendChip(text)` 가 검사까지 한다. 보낸 뒤 초점은 목록(`focusList` — 칩이 그대로 있어도 키보드가 뜨지 않게).
+
+**E. 높이**는 26-11 A.
+
+**F. `AskTabSkeleton`**(`(tab)/loading.tsx` — §17-1 원칙: 정적 요소는 실제, 데이터 칸만 회색. `'use client'`, 데이터 요청 없음)
+```
+<div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">
+  <AppBar title="질문" right={<div inert><AskHistoryButton running={false} newCount={0} /> <MenuButton /></div>} />
+  <div className="(목록 상자 클래스)"><div inert><AskGreeting teacherName="선생님" onPick={noop} /></div></div>   ← 흔한 경우(`/ask` 빈 대화) 기준
+  <div inert>{모드 기억(`kaiwa.ask.inputMode`)에 맞는 바 모양 — 글자 바 | 말 바(상태 줄 「누르고 있는 동안 일본어로 말해요」)}</div>
+  <div inert><ScopeLine variant="tab" /></div>
+</div>
+```
+- 모드는 `useSyncExternalStore`(서버 스냅샷 `'text'`)로 읽어 수화 불일치 없이 그린다. 선생님 이름은 서버를 거쳐야 알므로 「선생님」 → 실제 이름으로 바뀐다(같은 높이 — §25-7 B 머리 제목과 같은 수용). `?chat=` 복원은 이 자리표시 뒤 `AskRoom(tab)` 의 회색 말풍선(B)이 한 번 더 뜬다 — 드문 경우라 수용 [가능성 높음].
+- 합격선: 자리표시 → 실제 첫 화면에서 머리·안내 말풍선·입력 바·범위 줄 위쪽 점프 ≤ 4px(이름 글자 폭 차이만).
+
+### 26-6. 글자 바(글자 모드 — 데모 B·first·C·typed)
+
+공용 `Composer` 그대로 + 선택 prop:
+```
+<Composer chatId={draftKey /* conv.id ?? 'ask-new' */} lang="ko" inputLabel="질문 입력" safeBottom={false}
+          busy={busy} busyReason={busyReason} blockedUntil={blockedUntil} placeholder={placeholder}
+          onSend={(t) => send(t, 'text')} onBlocked={toast.show} handleRef={composerRef}
+          leading={<button type="button" aria-label="말로 묻기" onClick={toVoice} className="grid h-11 w-11 flex-none place-items-center rounded-full text-ink2">{마이크 아이콘 22 — TalkRoom leading 과 같은 SVG}</button>} />
+```
+
+| 상태 | 조건 | placeholder · 잠금 | 비고 |
+|---|---|---|---|
+| 빈 대화 | `AskNewConversation` | 「무엇이든 물어보세요」 | 데모 B·first |
+| 대화 중 | 그 밖 | 「이어서 물어보세요」 | §25 그대로 |
+| [직접 쓸게요] 뒤 | 다음 보내기 전 | 「기간을 적어 주세요 (예: 9월, 지난 2주)」 | §25-5 C |
+| 답을 기다리는 중 | `turnBusy` | 「다음 질문을 미리 써요」 · 보내기 잠김(누르면 토스트 「답을 받은 뒤 보낼 수 있어요」) | 글쓰기는 열림(§25 그대로) |
+| 방 만드는 중 | #28 진행 | 보내기 잠김(같은 문구) | 1초 안쪽 |
+| `?chat=` 불러오는 중 | `AskRoom(tab)` 첫 응답 전 | 보내기 잠김 「대화를 불러오고 있어요」 ★ | 26-5 B |
+| 429·몰림·하루 | `blockedUntil` | 기존 `TurnNotice`(`askNoticeText`) + 「{n}초 뒤에 보낼 수 있어요」 잠금 | §25-5 G 그대로 |
+| 1,000자 가까움 | 900 코드포인트↑ | `Composer` 기존 글자 수 줄 | — |
+
+- Enter·IME·초안(`kaiwa.chat.draft.<draftKey>`)은 `Composer` 기존 규칙. 빈 대화의 초안 키 `ask-new` 는 보내면 비워진다(`Composer` 가 보낼 때 비우는지 developer 확인 — 남으면 다음 빈 대화에 옛 글이 뜬다, 26-15 Q-6).
+- [🎤] 를 누르면 말 바로(포커스를 놓아 키보드를 내림 — 회화 `toVoice` 와 같음).
+
+### 26-7. 말 바(마이크 질문 — 데모 D·E)
+
+**A. 모드**: `sessionStorage kaiwa.ask.inputMode` = `'text'`(기본)·`'voice'` — 회화(`kaiwa.talk.inputMode`, 기본 말)와 **키를 따로**(J5). 빈 대화·탭 대화·지난 대화 모두 같은 키. [⌨ 글자로 묻기] → 글자(입력창 초점), 녹음·인식 중엔 흐림 + 누르면 토스트 「말하는 중에는 바꿀 수 없어요」(`TALK_TOAST.modeWhileRecording`). [🎤 말로 묻기] → 말(포커스 해제).
+
+**B. `useAskInput(opts)` 계약**(U2 가 만들고 U1 이 부른다 — 이 표대로면 두 사람이 따로 일할 수 있다)
+```
+interface AskInputOptions {
+  draftKey: string                         // Composer chatId — 대화 id 또는 'ask-new'
+  busy: boolean                            // 답 기다림(sending|streaming|detached) · 방 만드는 중 · 불러오는 중
+  busyReason: string                       // 글자 바 잠금 문구(26-6 표)
+  isBusy: () => boolean                    // 보내기 직전 동기 검사(turn.isBusy 또는 creatingRef)
+  blockedUntil: number | null              // turn.blockedUntil
+  notice: TurnNoticeState | null           // turn.notice (text 로 보낸 것의 안내 줄)
+  clearNotice: () => void
+  placeholder: string
+  onSend: (text: string, via: 'text' | 'voice') => void    // 검사가 끝난 글 — 화면이 #28/#32 로 보낸다
+  toast: (msg: string) => void
+}
+interface AskInputApi {
+  bar: ReactNode          // 글자 바(Composer) | 말 바(VoiceBar)
+  strip: ReactNode | null // SttAlert | UnsentBar | TurnNotice — 26-8 A, 감싸는 상자 포함
+  tail: ReactNode | null  // LiveUtteranceBubble(녹음·인식 중) — 목록 꼬리
+  mode: 'text' | 'voice'
+  route: SttRoute         // ⋯ 메뉴 「알아듣는 곳」
+  sendChip(text): void    // 안내 칩 — busy·429 검사 후 onSend(text,'text')
+  fixAsk(text): void      // [고쳐서 묻기]·[글자로 고치기] — 글자 모드 + 입력창 채움·초점
+  fill(text): void · focus(): void      // [직접 쓸게요] 등
+  onRestore(text, info?: RestoreInfo): void              // useChatTurn.restoreText
+}
+```
+- 안에서 쓰는 것: `useSpeechConfig()`(`lesson/useLessonVoice` — #19 한 번 읽기, 수업과 같은 함수) · `useRealtimeStt({ purpose: 'MIC_TEST', config, maxSec: 30, onFinal })` — **`chatId` 를 넘기지 않는다**(빈 대화엔 방이 없고, MIC_TEST 는 방과 무관). [확실] 수업 ④ 「말로 쓰기」가 같은 용도(`MIC_TEST` — 원음 저장 안 함, §12-11 ④)로 이미 쓴다.
+- `transcriptParts`·`elapsedSec`·`showAskPermission`(`sttUiState`)으로 꼬리 글·초·권한 표시. `stt.switchNotice` 가 늘면 토스트 `STT_SWITCH_TOAST`(회화와 같음). `stt.ui.hint` 가 `AUTO_STOPPED` 로 바뀌는 순간 토스트 「30초가 지나 자동으로 멈췄어요.」(`STT_HINT_COPY.AUTO_STOPPED` — 데모 E·auto30; 상태 줄은 곧 「답을 받은 뒤…」로 바뀌어 보이지 않으므로 토스트).
+- 누름: `stt.press()`(동기 — 오디오 깨우기). 뗌: `stt.release()`. 밖에서 뗌·Esc: `cancel()` = `cancelledRef=true` → `stt.abort()` → 토스트 「보내지 않았어요」. 다음 누름에서 `cancelledRef=false`.
+
+**C. 말 바 상태 — `askVoiceView(input): TalkView`**(순수, `ask/voiceView.ts`. `VoiceBar` 가 받는 `TalkView` 모양 그대로 — `showStop:false` 고정)
+
+| # | 조건(위가 먼저) | `state` | 누르고 말하기 | 상태 줄(`statusText`) | [⌨] |
+|---|---|---|---|---|---|
+| 1 | STT `starting`·`recording` | RECORDING | 켬(고리·확대) | 권한 묻는 중 → 「마이크 사용을 허용해 주세요」 · **밖(out)** → **「손을 떼면 보내지 않아요」** · 연결 느림 → 「연결하는 중… 계속 말해도 돼요」 · 소리 작음 → `STT_HINT_COPY.TOO_QUIET` · 그 밖 `TALK_STATUS.recording(초)`(「듣고 있어요 · 0:02 — 손을 떼면 보내요」) | 흐림 |
+| 2 | STT `finishing` | RECOGNIZING | 흐림 + 돌기 | 「알아듣는 중…」 | 흐림 |
+| 3 | 답을 기다리는 중·방 만드는 중·불러오는 중(`busy`) | THINKING | 흐림 | **「답을 받은 뒤 말할 수 있어요」**(질문은 줄 세우지 않는다 — J7) | 켬(글자로 미리 쓰기) |
+| 4 | STT `unavailable`(막는 오류: 휴대폰 파일 없음·오프라인 방식·인터넷 없음 등) | IDLE·`unavailable` | 흐림 | 「지금은 말로 물어볼 수 없어요 · 글자로 물어보세요」 | 켬 |
+| 5 | 하루 한도(`notice.reason==='ASK_DAILY'` 또는 남은 초 > 3,600) | IDLE·`rateLimited` | 흐림 | 「오늘은 더 물어볼 수 없어요」 | 켬 |
+| 6 | 분당·몰림 한도(남은 초 > 0) | IDLE·`rateLimited` | 흐림 | `TALK_STATUS.rateLimited(n)`(「{n}초 뒤에 말할 수 있어요」 — 회화 문구) | 켬 |
+| 7 | 그 밖 | IDLE | 켬 | 힌트(아래) ?? **「누르고 있는 동안 일본어로 말해요」** | 켬 |
+
+- 7 의 힌트 우선순위: 이 화면 힌트(1자 이하 = `TALK_HINT.tooShort`) → STT 힌트 `SHORT_PRESS`·`PERMISSION_GRANTED`·`EMPTY_RESULT`·`INTERRUPTED`(`STT_HINT_COPY` — 단 **사용자가 밀어서/Esc 로 취소한 직후의 `INTERRUPTED` 는 숨긴다**: 토스트 「보내지 않았어요」가 이미 말함) → 권한 이유(`stt.ui.rationale && !error` → `STT_STATUS_COPY.rationale` 「말을 알아들으려면 마이크가 필요해요. 누르면 다시 물어봐요.」) → 없음. `AUTO_STOPPED` 는 토스트(B).
+- 누르고 말하기 이름(`ptt.label`) = 「누르고 있는 동안 일본어로 말하기」 고정(회화 barge-in 이름 없음 — 질문엔 소리 답이 없다). 상태 줄은 버튼의 `aria-describedby`(VoiceBar 기존 `talk-status`).
+- 회화와 다른 점은 3·4·5·7 의 문구와 「줄 세우지 않음」뿐이다(데모 「새로 그린 것 · 회화와 다른 점」).
+
+**D. `PushToTalkButton` 선택 prop — 밀어서 취소**(D3 A, L3)
+```
+cancelOutside?: { onCancel: () => void; onOutChange?: (out: boolean) => void }   // 없으면 지금 동작·DOM 그대로
+```
+- 켜졌을 때만: 누름 때 버튼 중심·반지름을 잰다(`getBoundingClientRect`, 72px → R=36). **포인터 캡처는 그대로 둔다** — 캡처라서 손가락이 밖에 있어도 `pointermove`·`pointerup` 이 이 버튼에 온다(그래서 `pointerleave` 가 아니라 **중심에서의 거리**로 판정한다). 거리 > R + 60 = **96px** 이면 밖, 밖에서 **< 84px** 로 돌아오면 안(12px 이력 — 경계에서 깜빡임 방지 ★). 바뀔 때만 `onOutChange(out)`, 버튼에 `data-out="true"`.
+- `pointerup`: 밖이면 `onCancel()`, 아니면 기존 `onRelease()`. `pointercancel`·포커스 빠짐 = 기존 `onAbort()`(그대로). 키보드: 녹음 중 **Esc** = `onCancel()`(켜졌을 때만 듣는다). Space/Enter 누름·뗌은 그대로.
+- 밖 모양(데모 D·out): 바탕 `bg-surface2` · 글자/아이콘 `text-ink` · 확대 없음 · 고리 `ring-bad-soft` 보임 · 아이콘 ✕(24px, `aria-hidden`). `motion-reduce` 규칙 기존 그대로.
+- `VoiceBar` 는 같은 이름 prop 을 받아 버튼에 그대로 넘긴다. 질문 화면만 넘긴다 — 회화(`TalkRoom`)·수업·마이크 테스트는 넘기지 않으므로 **불변**.
+
+**E. 부분 인식 꼬리 말풍선** — 공용 `LiveUtteranceBubble` + 선택 prop `out?: boolean`·`caption?: string`(없으면 지금 DOM 그대로)
+- `kind="listening"`(녹음 중): 점선 말풍선(`aria-hidden` 그대로 — 스크린리더 음성이 마이크로 들어가지 않게) + 아래 캡션(`aria-hidden`, `mt-1 self-end max-w-[84%] text-right text-[12px]`): 평소 **「틀렸으면 손가락을 버튼 밖으로 빼서 떼세요」**(`text-ink2`) / 밖 **「손을 떼면 보내지 않아요」**(`text-bad font-semibold`) · 밖이면 말풍선 테두리 `border-bad` + 부분 글 `line-through`.
+- `kind="recognizing"`(뗀 뒤 「알아듣는 중」): 캡션 없음. `kind="queued"` 는 질문에서 쓰지 않는다(줄 세우지 않음).
+- 화면 읽기 사용자에게 밀어서 취소는 상태 줄(`aria-describedby`)로만 간다 — 데모 v1 기록 a11y Minor ②와 같은 수용.
+
+**F. 말로 물은 질문 말풍선 — `AskQuestionBubble` 말 갈래**(데모 D·sent·D·ans~homo·F·mix)
+```
+m.inputSource === 'REALTIME_STT'
+<div className="flex min-w-0 flex-col items-end gap-0.5">
+  <div lang="ja" className="min-w-0 max-w-[84%] rounded-2xl rounded-br-md bg-accent-soft px-3.5 py-2.5 text-ink">
+    <span className="sr-only">나(말로 물음): </span>
+    <JaText className={JA_BODY} text={m.content} ann={ann(m.content)} />        ← 일본어 17px·히라가나(표시 스위치)
+    <HangulLine … />                                                              ← [한글] 층(표시 스위치) — 회화 말풍선과 같은 부품
+  </div>
+  <p className="flex min-h-5 flex-wrap items-center justify-end gap-x-2.5 text-[12px] text-ink2">
+    <span><MicIcon 12 aria-hidden className="mr-[3px] inline align-[-2px]" />말로 물었어요</span>
+    {canFix && <button type="button" onClick={() => onFix(m.content)} className="inline-flex min-h-11 items-center px-0.5 text-[13px] font-semibold text-ink underline underline-offset-[3px]">고쳐서 묻기</button>}
+    {sending ? '보내는 중…' : showTime ? <time>{formatClock}</time> : null}
+  </p>
+</div>
+```
+- 글자 질문 말풍선은 §25-5 B 그대로(층 없음·15px). 들린 글은 **문장부호가 없어도 그대로**(J6 — 화면이 고치지 않는다).
+- [고쳐서 묻기]는 **가장 최근 내 질문이 말로 물은 것일 때 그 말풍선에만**. 답을 기다리는 중에도 보인다(미리 고쳐 두기 — 보내기만 잠김, 데모 D·fix). 누르면 `fixAsk(content)` = 글자 모드로 바꾸고(세션 기억도 글자) 다음 틱에 입력창을 그 글로 **덮어 채우고** 초점(키보드). 보내면 보통 글자 질문(`TEXT`).
+- 읽기 층 분석: `annOf` 가 말로 물은 질문 글도 #24r 로 요청한다(질문 하나 ≤ 400자 — 30초 발화). 실패·없음이면 층 없이 글만(§15 「애매하면 숨김」).
+
+**G. 손을 뗀 뒤 — 보내기·거절·띠**
+```
+onFinal(f):
+  t = f.text.trim()
+  t === ''                        → 아무것도 안 함(EMPTY_RESULT 힌트는 상태기계)
+  Array.from(t).length <= 1       → 상태 줄 힌트 「너무 짧아서 보내지 않았어요. 한 번 더 말해 보세요.」(L2), 보내지 않음
+  isBusy()                        → 「보내지 못한 말」 띠(이유 'self409' — 회화 409 문구 「선생님이 아직 답하는 중이라 보내지 못했어요.」) — 줄 세우지 않음
+  blockedUntil > now              → 띠(이유 429 + notice.reason)
+  그 밖                           → 띠 지움 · onSend(t, 'voice')            ← 확인 없이 바로(D4 A)
+onRestore(text, info):            ← useChatTurn 이 보내기를 되돌릴 때
+  via = info?.opts.inputSource === 'REALTIME_STT' ? 'voice' : 'text'
+  text  → composerRef.restore(text)   (§25 그대로 — 안내 줄은 TurnNotice)
+  voice → 띠 { text, reason: status(409·429·0·400·422·그 밖), askReason: info.details.reason, serverMessage }
+```
+- 띠 = 공용 `UnsentBar` + 선택 prop `textOf?: (reason, opts) => string`·`canResend?: boolean`(없으면 지금 문구·버튼 그대로). 질문 문구(`askUnsentText` — `ask/askVoiceCopy.ts`, 데모 E·rate·daily·other·net):
+
+| 이유 | 문구 | [다시 보내기] |
+|---|---|---|
+| 429 `ASK_RATE`(또는 이유 없음 ≤ 3,600초) | 「질문을 너무 자주 보냈어요. **{n}초** 뒤에 다시 보낼 수 있어요.」(n > 90 이면 「**{m}분** 뒤에」 ★ — `askNoticeText` 와 같은 경계) | 남은 초 동안 「다시 보내기({n}초)」 잠김(기존) |
+| 429 `ASK_DAILY`(또는 > 3,600초) | 「오늘은 더 물어볼 수 없어요 — 내일 다시 물어봐 주세요.」 | **없음**(`canResend={false}`) |
+| 429 `ASK_BUSY` | 「지금 질문이 몰려 있어요. **{n}초** 뒤에 다시 물어봐 주세요.」 / 초 없음 「…잠시 뒤에 다시 물어봐 주세요.」 ★ | 남은 초 동안 잠김 |
+| 409(서버 — 회화·채팅이 답하는 중) | 「선생님이 다른 대화에 답하는 중이라 보내지 못했어요. 답이 끝나면 다시 보내 주세요.」 | 있음 |
+| `self409`(이 대화가 답하는 중 — 경합) | 회화 `unsentText(409)` 그대로 | 있음 |
+| 0(네트워크)·400·422·그 밖 | 회화 `unsentText` 그대로(「보내지 못했어요. 네트워크를 확인해 주세요.」 등) | 회화 규칙(400 없음) |
+
+- [다시 보내기] = 같은 글을 말로(`onSend(text,'voice')`, 바쁘면 토스트 「답을 받은 뒤 보낼 수 있어요」). [글자로 고치기] = `fixAsk(text)` + 띠 지움. ✕ = 띠 지움 + `clearNotice()`. 남은 횟수·한도 숫자(분당 3·하루 60)는 어디에도 쓰지 않는다(§25 그대로).
+- STT 오류 띠 = 공용 `SttAlert`(그대로) — `textMode={mode==='text'}` · `textModeLabel="글자로 묻기"`(이미 있는 prop) · `onTextMode` = 글자 모드 + 그 오류 닫음 · `onClose` = 닫음. 막는 오류(파일 없음·인터넷 없음)는 ✕ 없음·바 흐림(회화 그대로, 데모 E 19상태).
+
+**H. 회화 동작이 한 글자도 바뀌지 않아야 하는 곳**(L3 — 26-13 ② 시험으로 고정)
+- `PushToTalkButton` 에 `cancelOutside` 를 안 넘기면: 같은 핸들러 순서(누름 → `setPointerCapture` → `onPress`, `pointerup` → `onRelease`, `pointercancel`·blur → `onAbort`), `data-out` 속성 없음, Esc 무시, 아이콘·클래스 같음.
+- `VoiceBar` 기본값: `safeBottom` = 지금 `paddingBottom: max(8px, env(safe-area-inset-bottom))` 문자열 그대로 · `keyboardLabel` = 「글자로 입력하기」 · `cancelOutside` 없음.
+- `LiveUtteranceBubble` 의 `out`·`caption` 없음 = 지금 마크업 그대로. `UnsentBar` 의 `textOf`·`canResend` 없음 = `unsentText`·`reason !== 400` 그대로. `Composer` `safeBottom` 기본 `true`. `MessageList` `lead` 없음. `ChatMenuSheet` `extraTop` 없음·TALK/CHAT 문구.
+- 파일 자체를 고치지 않는 것: `TalkRoom.tsx` · `talkState.ts` · `talkCopy.ts` · `useRealtimeStt.ts` · `sttUiState.ts` · `sttCopy.ts` · `useLessonVoice.ts` · `MicTestCard.tsx` · `modules/speech/**`.
+
+### 26-8. 쌓임 순서 · 보내는 범위 한 줄 · 범위 시트 (D2 A)
+
+**A. 아래 묶음 쌓임 순서(위 → 아래)** — 한 번에 띠는 **하나**만
+```
+메시지 목록(유일한 스크롤 — 꼬리 점선 말풍선 포함)
+sr-only role=status 도착 알림
+띠(있으면 하나): SttAlert(오류가 있고 닫지 않았으면) > UnsentBar(보내지 못한 말) > TurnNotice(글자로 보낸 것이 거절됐을 때 — §25 안내 줄)
+    감싸는 상자 = 회화방과 같음: TurnNotice 면 `flex-none`, 그 밖 `flex-none px-4 pb-2 pt-1`
+입력 바: 글자 바(Composer, 61) | 말 바(VoiceBar, 117)
+보내는 범위 한 줄(ScopeLine, 36)                     ← 늘 맨 아래(키보드가 열려도·말 모드에서도 — 데모 B·kb)
+(탭 화면) 하단 탭 72 — 키보드가 열리면 숨음(기존 data-kb)
+```
+- 띠와 범위 줄이 **겹치지 않는 이유**: 띠는 입력 바 **위**, 범위 줄은 입력 바 **아래**(데모 D2 「바꿈」 이유 ①).
+- 제스처 바 여백(safe-area)은 묶음의 **맨 아래 요소 하나만** 갖는다: 탭 화면 = 하단 탭이 이미 가짐 → `Composer`·`VoiceBar` 는 `safeBottom={false}`(8px 고정), 범위 줄 `pb-1`. 지난 대화(탭 없음) = 범위 줄이 `paddingBottom: max(4px, var(--safe-bottom))`. 키보드가 열리면 `--safe-bottom` 이 0(기존).
+
+**B. `ScopeLine`**(`ask/ScopeLine.tsx` — 줄 전체가 버튼)
+```
+<div data-kb-docked className="flex-none bg-surface" style={{ paddingBottom: variant === 'tab' ? 4 : 'max(4px, var(--safe-bottom))' }}>
+  <button type="button" onClick={onOpen} aria-label="내 학습 기록 일부가 AI 에 보내져요 — 자세히, 선생님에게 보내는 범위"
+          className="relative flex min-h-8 w-full min-w-0 items-center justify-center gap-1.5 px-3 text-[12px] text-ink2
+                     before:absolute before:inset-x-0 before:-top-2 before:-bottom-1 before:content-['']">      ← 보이는 32 + 위 8 + 아래 4 = 터치 44
+    <span aria-hidden="true" className="inline-grid h-[15px] w-[15px] flex-none place-items-center rounded-full border-[1.3px] border-current text-[11px] font-bold">i</span>
+    <span className="min-w-0 truncate">내 학습 기록 일부가 AI 에 보내져요</span>
+    <span className="flex-none font-semibold text-ink underline underline-offset-[3px]">자세히</span>
+  </button>
+</div>
+```
+- 높이 = 32 + `pb-1` 4 = **36**(데모 30 보다 6 큼 — 26-15 데모와 다르게 ②). 터치 영역은 **위로 8px(입력 바의 아래 여백 8px 안)·아래로 4px(이 줄의 아래 여백 안)만** 늘린다 — 입력창·하단 탭의 터치를 가로채지 않는다(그래서 `Composer`·`VoiceBar` 의 아래 여백이 8px 고정이어야 한다 — A).
+- `data-kb-docked`: 입력 바와 같은 이유(키보드 위 고정 묶음, 입력 칸 여유 스크롤 대상 아님 — task-021). 키보드에서 이 줄이 입력 바와 키보드 사이에 남는지 실측(26-15 Q-5).
+- 누르면 범위 시트(C). 확인 단추·확인 저장·「다시 보지 않기」 없음.
+
+**C. `ScopeNoticeSheet`**(정보용 하나 — `mode` prop 을 없앤다. 문구는 **승인 데모 v2 `scopeSheet()` 원문**, 26-10 A `scope.*`)
+```
+<Sheet open title="선생님에게 보내는 범위" onClose describedBy={leadId}>
+  <p id={leadId}>질문을 보내면 아래 내용이 <b>선생님(외부 AI 서비스)</b>에게 전달돼요. 기록은 한 번에 20건·2,000자까지만 보내요.</p>
+  「보내는 것」 ✓ × 5 · 「보내지 않는 것」 × × 4(셋째 줄 = 목소리 줄, `bg-accent-soft rounded-lg px-1 -mx-1` 강조)
+  <div className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-xl bg-surface2 px-3 py-2.5 text-[13px]">   ← 「말로 물어볼 때」 띠
+    <span aria-hidden className="grid h-5 place-items-center text-ink2"><MicIcon 14 /></span><span><b>말로 물어볼 때</b> — …</span></div>
+  <p className="text-[12.5px] text-ink2">이 앱은 내 대화·기록을 AI 학습 데이터로 쓰지 않아요. 이 안내는 ⋯ 메뉴 「보내는 범위 보기」에서도 볼 수 있어요.</p>
+  <Btn className="mt-3 w-full" onClick={onClose}>닫기</Btn>
+</Sheet>
+```
+- 데모의 「데모 주석 · 목소리를 30일 보관할지…」 점선 상자는 **화면에 없다**(Leader 결정 L1 = 저장 안 함 → 「30일 보관」 줄도 없다).
+- §25 시트와 달라지는 글(사용자가 v2 에서 본 문구 — 동의 문구라 원문 그대로): 머리글 「내 공부 기록을 근거로 답할 때, 질문과 함께…」→「질문을 보내면…」 · ①「이 질문 방의 최근 대화」→「이 대화의 최근 메시지」 · 보내지 않는 것에 「**내 목소리** — 말로 물어도 선생님에게는 들린 글(일본어)만 가요」 · 「말로 물어볼 때」 띠 · 끝말 「질문 방 메뉴 ⋯」→「⋯ 메뉴」. 열기: 범위 줄 · ⋯ 「보내는 범위 보기」(메뉴를 먼저 닫고 다음 렌더에 연다 — §25-5 H 그대로).
+
+**D. 토스트 위치**(`Toast bottomPx` — 입력 묶음 위 12px): `bottomPx = (mode==='voice' ? 117 : 61) + 36 + 12 + (variant==='tab' && 키보드 닫힘 ? 72 : 0)` → 탭 글자 181 · 탭 말 237 · 지난 대화 글자 109 · 지난 대화 말 165. `Toast` 는 `--safe-bottom`·`--kb-inset` 을 스스로 더한다(기존). 숫자는 실측으로 고친다(26-11 A).
+
+### 26-9. ⋯ 메뉴 「질문 메뉴」(데모 G·menu — D1=B·D8 A)
+
+| 순서 | 줄 | 빈 대화 | 탭 대화 | 지난 대화(`/ask/<id>`) |
+|---|---|---|---|---|
+| 1 | 새 질문 시작 › | — ★ | ○ | ○ |
+| 2 | 보내는 범위 보기 › | ○ | ○ | ○ |
+| 3 | 머리 「일본어 표시 · 모든 화면에 적용」 + `DisplayToggles keys={['fu','hg']}` | ○ | ○ | ○ |
+| 4 | 머리 「말로 묻기」 + `SttRouteRow route={input.route}`(앱이고 `route.reason !== 'WEB'` 일 때만 — 회화 메뉴와 같은 조건·부품) | 앱만 | 앱만 | 앱만 |
+| 5 | 머리 「이 대화」 + 제목 바꾸기 › · 이 대화 삭제(`text-bad`, 답 받는 중이면 흐림 + 토스트 「답을 받는 중에는 지울 수 없어요」) | 대신 한 줄 「아직 보낸 질문이 없어 이름 바꾸기·삭제는 없어요.」(13px `ink2`) | ○ | ○ |
+
+- 구현: 대화가 있으면 `ChatMenuSheet`(ASK 갈래) + **`extraTop`**(1~4 줄 — 제목 바꾸기 위에 놓여 데모 순서가 된다) + `extra` 없음. 빈 대화는 공용 `Sheet` 에 1 을 뺀 2~4 + 안내 한 줄(`ChatMenuSheet` 는 `chat` 이 필수라 쓰지 않는다). 시트 제목 「질문 메뉴」, 메뉴 머리 줄 `text-[12px] font-semibold text-ink2 pt-3 pb-1`(데모 `.mhd`).
+- 표시 스위치 모양: 데모는 스위치 줄(「켬/끔」)이지만 앱 공용 `DisplayToggles`(같은 상태·같은 토스트 「…모든 화면에 적용돼요」)를 쓴다(26-15 데모와 다르게 ④).
+- 「새 질문 시작」을 빈 대화에서 뺀 이유 ★: 누를 일이 없다(이미 빈 대화).
+- 삭제 확인·실패·성공 흐름 = §25-5 H 그대로(문구는 26-10 A — 「질문 방」→「대화」). 성공 뒤 `/ask` = 새 빈 대화 + 토스트 「대화를 삭제했어요」.
+
+### 26-10. 문구 단일 출처
+
+데모 원문과 **한 글자도 다르지 않다**(★ = 데모에 없어 이 절이 정한 것 — 26-15). 엔진·모델·호스트 이름, 티켓 용도 이름(`MIC_TEST`) 0건.
+
+**A. `ask/askCopy.ts`(U1)**
+
+| 구분 | 키(예) | 문구 |
+|---|---|---|
+| 뺌 | `composerLabel`·`composerPlaceholder`·`ask`·`asking`·`scopeLink`·`examplesTitle`·`examplesDesc`·`examplesRowTitle`·`examples[]`·`scope.ok`·`scope.cancel`·`scope.noteFirstTail` | (쓰는 곳 없음) |
+| 바꿈 | `backLabel` · `toList` · `menuAria` | 질문으로 · 질문으로 · 질문 메뉴 |
+| 바꿈 | `deletedToast` · `loadError` · `notFoundTitle`★ | 대화를 삭제했어요 · 대화를 불러오지 못했어요. · 대화를 찾을 수 없어요 |
+| 바꿈 | `leaveLine`★ | 다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 「지난 질문」에서 볼 수 있어요. |
+| 바꿈 | `menu.title` · `menu.noun` · `menu.delete` · `menu.confirmTitle` | 질문 메뉴 · 대화 · 이 대화 삭제 · 이 대화를 삭제할까요?(ASK 갈래는 `${noun} 삭제` 대신 `menu.delete` 를 줄·확인 시트 제목에) |
+| 새로 | `placeholderNew` · `loadErrorBody` · `loadingConv`★ · `goneToast`★ | 무엇이든 물어보세요 · 연결을 확인하고 다시 시도해 주세요. 새 질문은 그대로 보낼 수 있어요. · 대화를 불러오고 있어요 · 대화를 찾을 수 없어요 |
+| 새로 | `greeting.lead`(굵은 곳 = 「내 공부 기록」) · `greeting.chipsLabel` | 무엇이든 물어보세요. 일본어 표현·문법도, **내 공부 기록**(교정·복습·수업)도 좋아요. · 글로 물어보기 · 누르면 바로 물어봐요 |
+| 새로 | `greeting.examples[]` | {문법, 〜ている 와 〜てある 차이가 뭐예요?} · {내 기록, 이번 주에 내가 자주 틀린 조사 알려줘} · {복습, 오늘 복습할 거 뭐 있어?} |
+| 새로 | `greeting.voiceHead` · `greeting.voiceBody` · `greeting.voiceExamples[]` | 모르는 일본어는 🎤 로 그대로 말해 보세요 · 뜻·읽기·느낌을 예문과 함께 알려 줘요. 예) · 大丈夫 · お疲れ様でした · それはちょっと難しいですね |
+| 새로 | `history.button` · `history.running` · `history.newAnswer` · `history.aria(s)` | 지난 질문 · 답 만드는 중 · 새 답 도착 · 지난 질문 / 지난 질문 — 답 만드는 중 / 지난 질문 — 새 답 도착 |
+| 새로 | `history.title` · `history.current` · `history.empty`★ | 지난 질문 · 지금 대화 · 아직 지난 질문이 없어요. |
+| 새로 | `scopeLine.text` · `scopeLine.more` · `scopeLine.aria` | 내 학습 기록 일부가 AI 에 보내져요 · 자세히 · 내 학습 기록 일부가 AI 에 보내져요 — 자세히, 선생님에게 보내는 범위 |
+| 새로 | `menu.newQ` · `menu.displayHead` · `menu.voiceHead` · `menu.convHead` · `menu.emptyNote` | 새 질문 시작 · 일본어 표시 · 모든 화면에 적용 · 말로 묻기 · 이 대화 · 아직 보낸 질문이 없어 이름 바꾸기·삭제는 없어요. |
+| 바꿈 | `scope.lead` | 질문을 보내면 아래 내용이 **선생님(외부 AI 서비스)**에게 전달돼요. 기록은 한 번에 20건·2,000자까지만 보내요. |
+| 바꿈 | `scope.send[]` | 질문과 이 대화의 최근 메시지(12개까지) · 표시 이름·레벨 같은 학습자 정보 · 공부 기록 요약 — 공부 횟수·점수·복습 예정 목록 · 내가 채택한 교정의 원래 문장과 고친 문장 · 수업에서 배운 표현 |
+| 바꿈 | `scope.noSend[]` | 이메일·계정 정보 · 내부 번호(id) · **내 목소리** — 말로 물어도 선생님에게는 들린 글(일본어)만 가요 · 다른 회화·채팅의 대화 내용 |
+| 새로 | `scope.voiceBand`(굵은 곳 = 「말로 물어볼 때」) | **말로 물어볼 때** — 일본어 음성 인식은 회화와 같은 방식(휴대폰, 또는 이 앱 서버)으로 글자로 바꿔요. 선생님에게는 그 글만 가요. |
+| 바꿈 | `scope.note` · `scope.close` | 이 앱은 내 대화·기록을 AI 학습 데이터로 쓰지 않아요. 이 안내는 ⋯ 메뉴 「보내는 범위 보기」에서도 볼 수 있어요. · 닫기 |
+| 그대로 | 그 밖(답·근거·되묻기·대기·실패·429·409·제안·`running`·`newAnswer`·`arrivedToast`·`listError`·`more`) | §25-10 |
+
+**B. `ask/askVoiceCopy.ts`(U2 — 새 파일)**
+
+| 키 | 문구 |
+|---|---|
+| `idle` · `pttLabel` | 누르고 있는 동안 일본어로 말해요 · 누르고 있는 동안 일본어로 말하기 |
+| `waiting` · `unavailable` · `daily` | 답을 받은 뒤 말할 수 있어요 · 지금은 말로 물어볼 수 없어요 · 글자로 물어보세요 · 오늘은 더 물어볼 수 없어요 |
+| `out` · `cancelHint` · `cancelledToast` | 손을 떼면 보내지 않아요 · 틀렸으면 손가락을 버튼 밖으로 빼서 떼세요 · 보내지 않았어요 |
+| `toText` · `toVoice` | 글자로 묻기 · 말로 묻기 |
+| `asked` · `fix` · `meSr` | 말로 물었어요 · 고쳐서 묻기 · `나(말로 물음): ` |
+| `unsent.rate(n)` · `unsent.rateMin(m)`★ · `unsent.daily` | 질문을 너무 자주 보냈어요. {n}초 뒤에 다시 보낼 수 있어요. · 질문을 너무 자주 보냈어요. {m}분 뒤에 다시 보낼 수 있어요. · 오늘은 더 물어볼 수 없어요 — 내일 다시 물어봐 주세요. |
+| `unsent.busy(n)`★ · `unsent.busyNoSec`★ · `unsent.other` | 지금 질문이 몰려 있어요. {n}초 뒤에 다시 물어봐 주세요. · 지금 질문이 몰려 있어요. 잠시 뒤에 다시 물어봐 주세요. · 선생님이 다른 대화에 답하는 중이라 보내지 못했어요. 답이 끝나면 다시 보내 주세요. |
+
+- 가져다 쓰는 것(새로 쓰지 않음): `TALK_STATUS.{recording, askPermission, slowConnect, recognizing, rateLimited}` · `TALK_HINT.tooShort` · `TALK_TOAST.modeWhileRecording` · `STT_HINT_COPY.*` · `STT_STATUS_COPY.rationale` · `STT_SWITCH_TOAST` · `unsentText` · `UNSENT_BUTTONS` · `SttAlert` 안 문구(권한·파일·연결) · `STT_ROUTE_ROW` · `DISPLAY_COPY`. 숫자는 `toLocaleString('ko-KR')`.
+
+### 26-11. 높이 · 폭 · 접근성 · 측정 기준
+
+**A. 높이 예산**(높이 780 = 주소창 보이는 S25+, **360·390·412 모두 같다** — 높이는 폭과 무관. 데모 CSS·공용 부품 클래스 합산 계산값이라 developer 가 운영 빌드에서 `getBoundingClientRect` 로 재서 이력서 Developer 기록에 표로 남긴다)
+
+| 화면 | 고정(위 + 아래) | 목록 칸 | 데모 J1 |
+|---|---|---|---|
+| 탭 · 글자 모드 | `AppBar` 52 + 10 · 글자 바 61 · 범위 줄 36 · 하단 탭 72 = 231 | **549** | 565(데모는 머리 아래 10 없음·범위 줄 30) |
+| 탭 · 말 모드 | 62 · 말 바 117(테두리 1 + 8 + 상태 줄 24 + 4 + 버튼 72 + 8) · 36 · 72 = 287 | **493** | ≈510 |
+| 탭 · 키보드(≈300) | 62 · 61 · 36 (하단 탭 숨음) | ≈321 | — |
+| 지난 대화 · 글자 | `BackBar` 52 · 61 · 36(+제스처 여백) = 149 | **631** | — |
+| 지난 대화 · 말 | 52 · 117 · 36 = 205 | **575** | — |
+| 띠가 있을 때 | 위 + 띠(`UnsentBar` ≈ 110 · `SttAlert` ≈ 90~120 · `TurnNotice` 45 — 실측) | 줄어듦 | 데모 P2 ①: 360·말 모드 + 띠면 ≈360 — 일시 상태라 수용 |
+
+- 키보드는 글자 모드에서만 뜬다. 말 모드 117 은 회화와 같은 크기(D7 — 대화 칸이 56px 작아지는 것은 승인된 수용, 데모 v1 기록 P2 ②).
+
+**B. 머리 폭**(`AppBar` `pl-4 pr-3 gap-2` · ⋯ 44 · 나 44): 360 에서 제목+알약 몫 = 360 − 28 − 88 − 24 = **220**. 알약 너비(13px semibold 계산값) 기본 「지난 질문」 ≈ 76 · 「답 만드는 중」 ≈ 124 · 「새 답 도착」 ≈ 100 → 제목 「질문」(20px bold ≈ 42) 과 겹치지 않는다(최악 42 + 124 = 166 < 220). 제목 `truncate`, 알약 `flex-none whitespace-nowrap` — 글자 크기를 키워도 알약은 줄바꿈하지 않고 제목이 먼저 줄어든다.
+
+**C. 스크롤(§25-5 J) 값 갱신**: 규칙·계산식은 그대로, `C`(목록 상자 높이)만 바뀐다 — 지난 대화 글자 모드 `C = H − 149`(360×740 **591** · 390×844 **695** · 412×892 **743**), 탭 글자 모드 `C = H − 231`(509 · 613 · 661), 탭 말 모드 `C = H − 287`(453 · 557 · 605). J-7 합격선의 범위는 `[pad+36, ⌊C/3⌋+pad+36]` 를 이 `C` 로 다시 계산한다. `arrivalAlign="answer-start"` 는 **두 변형 모두** 켠다. 안내 말풍선(`lead`)이 첫 질문 위에 있어도 계산은 DOM 기준이라 그대로 맞는다.
+
+**D. 접근성**
+- **읽기 순서**: 머리(제목 → 「지난 질문」 → ⋯ → 나) → 메시지 목록(`role=log`, `liveOff` — 안내 말풍선 → 질문 → 답) → 띠 → 입력 바(글자: 🎤 → 입력창 → ↑ / 말: ⌨ → 누르고 말하기) → 범위 줄. DOM 순서 = 보이는 순서.
+- **라이브 영역**: 도착 알림 `sr-only role=status` 한 줄 · 대기 단계 `role=status` · 경과 초 `aria-hidden` — §25-9 **그대로**. 점선 부분 말풍선·캡션은 `aria-hidden`(회화 규칙 — 화면 읽기 음성이 마이크로 들어가지 않게). 알약은 라이브 영역이 아니다(새 답은 토스트 한 번). 토스트는 공용(`role=status`).
+- **누르고 말하기**(스크린 리더): 이름 「누르고 있는 동안 일본어로 말하기」, 녹음 중 `aria-pressed=true`, 알아듣는 중 `aria-busy`, 상태는 `aria-describedby` = 상태 줄(듣는 중·초·「손을 떼면 보내지 않아요」·「답을 받은 뒤 말할 수 있어요」). 잠김은 `disabled`(회화와 같음 — 이유는 상태 줄이 늘 보여 준다).
+- **키보드**: 누르고 말하기 = Space/Enter 를 누르고 있는 동안 녹음, 떼면 보냄 · **Esc = 보내지 않고 취소**(새) · 포커스가 빠지면 취소(기존). 글자 바 Enter 는 `Composer` 기존(정밀 포인터만 보내기, IME 조합 중 무시). 시트 = 공용 `Sheet`(제목 초점·Esc·배경·✕·닫으면 연 사람에게 초점).
+- **[고쳐서 묻기]** 뒤 초점 = 입력창(의도된 키보드 열림). **안내 칩** 뒤 초점 = 목록(`focusList`). **알약** → 시트 → 닫으면 알약으로.
+- **터치 44px**: 알약(보이는 36 + 히트 44) · ⋯ 44 · 나 44 · 안내 칩 `min-h-11` · 🎤/⌨ 44 · ↑ 44 · **누르고 말하기 72** · [고쳐서 묻기] `min-h-11` · 범위 줄 히트 44(26-8 B) · 시트 행 ≥ 64(`AskListItem`) · 띠 버튼(기존 44) · 메뉴 줄 52.
+- **글자 크기**: 질문(글자) 15 · 질문(말) 일본어 17 · 안내 말풍선 15 · 칩 14 · 칩 태그 11.5 · 말로 묻기 예 15 · 메타·캡션 12 · [고쳐서 묻기] 13 · 알약 13 · 범위 줄 12(아이콘 글자 11) · 상태 줄 13. **11px 미만 없음**.
+- **명암비**: 보조 글 `ink2` · 알약 「새 답」 = `ink` on `accent-soft` · 밀어서 취소 캡션 `bad` 굵게(색만이 아니라 글·✕·취소선이 같이 말함) · `ink3` 는 placeholder·점선 테두리만.
+- **lang**: 말로 물은 말풍선·부분 말풍선·안내 말풍선 예 목록 `lang="ja"` · 글자 입력창 `lang` 없음(한국어) · 한국어 글 속 일본어는 `JaRuns`.
+
+**E. 하단 탭 · 업데이트 띠**: `/ask`·`/ask?chat=` = **보임**(J1 — 탭의 첫 화면, 숨기면 다른 탭으로 갈 길이 없다) · 키보드가 열리면 숨음(기존 `data-kb`) · `/ask/<id>` = **숨김**(집중 화면 `'/ask/'` 그대로 — 권장 업데이트 띠도 숨음).
+
+**F. 3폭 측정표**(360·390·412 × 780, 라이트·다크)
+
+| # | 확인 | 기준 |
+|---|---|---|
+| F1 | 첫 화면(빈 대화) | 머리·안내 말풍선(칩 3 + 말로 묻기 상자)·글자 바·범위 줄·하단 탭이 한 화면, 가로 넘침 0, 칩 글 줄바꿈 허용(칩 폭 100%) |
+| F2 | 목록 칸 높이 | A 표 ±4px(탭 글자 549 · 말 493 · 지난 대화 631/575) |
+| F3 | 머리 | 알약 3상태 × 3폭에서 제목과 겹침 0, 알약 높이 36·히트 44 |
+| F4 | 말 바 | 누르고 말하기 가운데 · 상태 줄 한 줄 말줄임(360 「듣고 있어요 · 0:02 — 손을 떼면 보내요」 잘림 없음 확인) |
+| F5 | 범위 줄 | 360 에서 「자세히」가 잘리지 않음(앞 글이 먼저 말줄임), 히트 44 가 입력창·하단 탭과 겹침 0 |
+| F6 | 키보드 | 하단 탭 숨음, 범위 줄이 입력 바 아래 그대로, 목록만 줄어듦 |
+| F7 | 띠 | 띠 1개만, 입력 바 위, 범위 줄과 겹침 0 |
+| F8 | 생성 전환 | 빈 대화 → 첫 질문 → `AskRoom` 으로 바뀔 때 안내 말풍선 위쪽 위치 변화 ≤ 2px, 깜빡임(빈 화면) 0 |
+| F9 | 11px·44px | 11px 미만 글자 0, 44px 미만 터치 0(누르고 말하기 72) |
+
+### 26-12. 구현 순서 — developer 두 명(U1·U2)
+
+**A. 파일 소유권**(겹치는 파일 없음)
+
+| 담당 | 파일(이 사람만 고친다) |
+|---|---|
+| **U1** 화면 구조·대화 수명·지난 질문·안내 줄 | `app/(app)/ask/(tab)/{page,loading}.tsx` · `app/(app)/ask/[chatId]/page.tsx` · `ask/{AskChatTab,AskNewConversation,AskGreeting,AskHistoryButton,AskHistorySheet,useAskActivity,ScopeLine,AskTabSkeleton,AskRoom,ScopeNoticeSheet,AskListItem,askCopy,logic,homeLogic}.*` · 26-2 D 의 「삭제」 행 5파일·시험 2파일 · `chat/{Composer,MessageList,ChatMenuSheet}.tsx` · `shell/askReturn.ts` · 시험 `ask/__tests__/{askChatTab,askActivity}.test.ts`·기존 `askRoom`·`logic`·`askCopy`·`shell/__tests__/askReturn.test.ts` 고침 |
+| **U2** 말 바·공용 음성 부품·입력 묶음 | `ask/{useAskInput.tsx, voiceView.ts, askVoiceCopy.ts, voiceBubble.ts, AskQuestionBubble.tsx}` · `speech/PushToTalkButton.tsx` · `talk/{VoiceBar,LiveUtteranceBubble,UnsentBar}.tsx` · 시험 `ask/__tests__/{voiceView,askVoice}.test.ts`·`speech/__tests__`·`talk/__tests__` 의 불변 고정 시험 |
+| 서버(developer-S, 이 가이드 밖) | `modules/conversation/**`·`app/api/v1/chats/**`(`assertAskInput` — 진행 중) — **U2 의 말 전송은 이것이 들어간 서버에서만 QA 가능** |
+
+- `voiceBubble.ts`(U2): 순수 `lastUserVoiceId(messages)` · `voiceQuestionTexts(messages)`(읽기 층을 요청할 말 질문 글) — U1 이 `AskRoom` 에서 import 만 한다(U2 가 `AskRoom` 을 고치지 않게).
+- `ASK_KEYS.inputMode`(U1 `logic.ts`) — U1 순서 1 에서 먼저 넣는다. U2 는 그 전에는 같은 문자열을 따로 만들지 말고 기다린다.
+
+**B. 순서**
+
+| 단계 | U1 | U2 |
+|---|---|---|
+| 1 | `askCopy`·`logic`(`ASK_KEYS` 정리·`inputMode`·`isAskId`·`askChatHref`·`askConvTransition`)·`homeLogic`(`createAskConversation`) + 시험 → **U2 에 알림** | `useAskInput` **글자 전용 첫판**(26-7 B 계약 모양 그대로: `bar`=Composer(🎤 자리 숨김 — 아직 말 모드 없음), `strip`=TurnNotice, `tail`=null, `onRestore`=입력창 되돌림) → **U1 에 알림** |
+| 2 | 공용 확장 `Composer safeBottom`·`MessageList lead`·`ChatMenuSheet extraTop`+ASK 문구·`askReturn` 쿼리 주소 — 하나씩, 매번 기존 시험 통과 | 공용 확장 `PushToTalkButton cancelOutside`·`VoiceBar`·`LiveUtteranceBubble`·`UnsentBar` — **먼저 지금 마크업을 시험에 고정**(26-13 ②) 후 확장 |
+| 3 | `ScopeLine`·`ScopeNoticeSheet`(정보용)·`AskGreeting` | `voiceView.ts`·`askVoiceCopy.ts`·`voiceBubble.ts` + 시험(26-13 ⑥~⑧·⑮) |
+| 4 | `useAskActivity`(AskHome 코드 옮김)·`AskHistoryButton`·`AskHistorySheet`·`AskListItem current` + 시험 | `useAskInput` 말 모드(모드 기억·`useSpeechConfig`·`useRealtimeStt(MIC_TEST)`·`onFinal`·취소·`SttAlert`·`UnsentBar`·꼬리·`fixAsk`) |
+| 5 | `AskRoom` 변형(`tab`/`room`)·`seed`·`greeting`·머리·메뉴·범위 줄·D8 표시 바 제거·관문 제거 | `AskQuestionBubble` 말 갈래 + [고쳐서 묻기] |
+| 6 | `AskNewConversation`·`AskChatTab`·`page.tsx`·`AskTabSkeleton`·`loading.tsx` → 옛 파일 정리(26-2 D) | (U1 의 5·6 위에서) 실제 말 질문 흐름 통합 확인 — 웹(서버 인식)·앱(휴대폰 인식) |
+| 7 | 높이·3폭 측정(26-11 A·F) → 이력서 Developer 기록에 표 | 회화방·수업 말하기·마이크 테스트 회귀(누르고 말하기·띠·문구 동일) |
+| 8 | 함께: tsc 0 · eslint 0 · 전체 시험 · `next build`(전용 미러) · 26-14 C 표 | ← |
+
+### 26-13. 시험 가이드 — 변이로 잡히는 불변식
+
+기존 방식(순수 함수 단위 시험 + 소스 문자열 단언 + `renderToStaticMarkup` 비교, `node --import tsx --test`)을 따른다. 각 줄 끝 「변이」 = 일부러 그렇게 고치면 그 시험이 실패해야 한다.
+
+| # | 불변식 | 시험 방법 | 변이 |
+|---|---|---|---|
+| ① | **질문 화면에 보내기 확인 창이 없다** | 소스 스캔 `src/components/ask/**`·`src/app/(app)/ask/**`: `useScopeNoticeGate`·`scopeNotice`·`kaiwa.ask.scopeNotice`·「알겠어요, 보내기」·`onConfirm` 0건 · `ScopeNoticeSheet` props 타입에 `mode` 없음 | 관문 import 를 되살리거나 `mode="first"` 를 넣으면 실패 |
+| ② | **회화 누르고 말하기·말 바·띠는 그대로** | U2 단계 2 에서 확장 **전에** 지금 마크업을 시험에 문자열로 고정: `renderToStaticMarkup(<PushToTalkButton phase='idle'\|'recording'\|'finishing' label=… />)` · `<VoiceBar view={고정 TalkView 3종} />` · `<LiveUtteranceBubble kind=listening\|recognizing\|queued />` · `<UnsentBar reason=409\|429\|400 />` — 새 prop 없이 그린 결과가 고정 문자열과 같다. 소스 스캔: `talk/TalkRoom.tsx`·`lesson/useLessonVoice.ts`·`speech/MicTestCard.tsx` 에 `cancelOutside`·`safeBottom`·`keyboardLabel`·`textOf=`·`canResend` 0건 | 기본 경로에 `data-out` 를 늘 붙이거나 VoiceBar 기본 여백을 바꾸면 실패 |
+| ③ | 밀어서 취소 판정 | 순수 `pttOutside(prevOut, dist, r)`(경계 r+60 밖 → true, 밖에서 r+48 미만 → false, 그 사이는 이전 값 유지) · `pttReleaseAction(out)` → `'cancel' \| 'release'` | 이력 없애기(한 경계)·밖에서 `release` 를 돌려주면 실패 |
+| ④ | **`/ask` 를 열 때 방을 만들지 않는다** | `createAskConversation(deps, text, via)` 를 가짜 `createChat` 로: 마운트·전이 경로에서 호출 0 · 보내기 1번 = 1 · 연타 2번 = 1(잠금) · 실패 시 잠금 풀림·`onCreated` 0. 소스 스캔: `AskChatTab.tsx`·`AskNewConversation.tsx` 의 `useEffect` 본문에 `/api/v1/chats` POST 0건 | 마운트 효과에서 #28 을 부르면 실패 |
+| ⑤ | 첫 전송은 한 번 | 순수 `takeSeed(seed)` → 처음 `true`(그리고 `used=true`), 두 번째 `false` · `false` 면 #29 경로 | StrictMode 이중 전송을 막는 줄을 빼면 실패 |
+| ⑥ | **말 질문 본문 = `REALTIME_STT` · 발화 id 없음 · 목소리 저장 없음** | 순수 `askSendOptions(via)` → voice `{inputSource:'REALTIME_STT'}`(키 `utteranceId` 없음), text `{}` · 소스 스캔 `ask/useAskInput.tsx`: `purpose: 'MIC_TEST'` 1건·`'TURN'` 0건·`useRealtimeStt({` 인자에 `chatId` 0건·`utteranceId` 0건 | `TURN` 으로 바꾸거나 `utteranceId` 를 실으면 실패 |
+| ⑦ | 손을 뗀 뒤 판정(L2·J7) | 순수 `askFinalAction(text, {busy, blockedUntil, now})`: `''`·`'  '` → `ignore` · `'木'`·`' こ '` → `tooShort` · busy → `unsentSelf` · 잠김 → `unsent429` · 그 밖 → `send`(앞뒤 공백 뺀 글) | 1자 규칙을 `< 1` 로 바꾸거나 busy 때 줄 세우면 실패 |
+| ⑧ | 말 바 상태 | `askVoiceView` 26-7 C 7행 전부 + 우선순위(녹음 중이면 busy 여도 RECORDING · out 이 연결 느림보다 먼저 · 하루가 분당보다 먼저) · `ptt.label` 고정 · `showStop` 늘 false · `INTERRUPTED` 는 취소 직후 숨김 | 행 순서를 바꾸면 실패 |
+| ⑨ | 주소·전이 | `isAskId`(형식) · `askChatHref(id)` = `/ask?chat=<encode>` · `askConvTransition(prev, next, convId)`: `null→id` 이고 `id===convId` → `none` · `x→null`(conv 있음) → `new` · `?→y≠conv` → `open:y` · 같은 값 → `none` · 잘못된 id → `new` | 생성 직후를 `new` 로 판정하면 실패 |
+| ⑩ | 근거 → 돌아오기 | `askReturn.test.ts` 에 `/ask?chat=abc` 허용 · `/ask?chat=`·`/ask?x=1`·`/ask?chat=a&b=1`·`/ask?chat=a#h`·`/ask?chat=../x`·`//x` 거절 · 기존 `/ask/<id>` 갈래 그대로 통과 | 정규식을 `\?.*` 로 넓히면 실패 |
+| ⑪ | 알약·지금 대화 제외 | 순수 `askActivityOf(items, currentId, newIds)` → `running`·`newCount` 에서 지금 대화 제외 · `askHistoryState` 우선순위(running > new > 기본)·접근 이름 3갈래 | 지금 대화를 세면 실패(빈 대화가 아닌 화면에서 늘 「답 만드는 중」) |
+| ⑫ | 도착 판정(§25-11 ⑫ 옮김) | `arrivedTransitions`·`settleArrivals`·`lastAnswerOk`·`askListPollDelay` 기존 단언을 `askActivity.test.ts` 로 | — |
+| ⑬ | 문구 | `askCopy`·`askVoiceCopy` 가 26-10 원문과 같음 · 엔진·모델 이름 정규식(§25-11 ⑮) 0 · 화면 문구에 `MIC_TEST`·「질문 방」·「목록으로」·「나가서 기다리기」 0 | — |
+| ⑭ | 구조 | `ask/(tab)/loading.tsx` 는 `AskTabSkeleton` 만 · 26-2 D 「삭제」 행 파일이 없음 · `routes.ts` 불변(`'/ask/'`, `isFocusRoute('/ask')===false`) · `AskTabSkeleton` 에 `apiGet`·`fetch` 0·`inert` 있음 | — |
+| ⑮ | [고쳐서 묻기] 대상 | `lastUserVoiceId(messages)`: 마지막 USER 가 말 → 그 id · 글자 → null · 그 뒤에 ASSISTANT 가 있어도 마지막 USER 기준 · USER 없음 → null | 「마지막 말 질문」(글자 뒤에도 남음)으로 바꾸면 실패 |
+| ⑯ | 공용 확장 기본값 | `Composer` 기본 아래 여백 문자열 `max(8px, var(--safe-bottom))` · `MessageList` `lead` 없으면 기존 `roomRender` 시험 그대로 · `ChatMenuSheet` TALK/CHAT 문구·줄 순서 그대로 | — |
+| ⑰ | §25 남는 시험 | §25-11 ①~⑪·⑬~⑯ 그대로 통과(⑫ 는 ⑫ 로 옮김, ⑰·⑱ 은 ⑭·⑥ 으로 대체) | — |
+
+### 26-14. developer 금지 · 함정 · 확인표
+
+**A. 금지**
+1. **보내기 전 확인 창·확인 저장 금지**(사용자 요청). 범위 안내는 정보용 줄·시트뿐. 삭제 확인은 남긴다(되돌릴 수 없는 일).
+2. **목소리를 서버에 남기지 않는다**: 티켓 `purpose:'MIC_TEST'`, `chatId`·`utteranceId` 를 싣지 않는다. 인식 글을 로그·콘솔·토스트에 내지 않는다(화면 말풍선만).
+3. **엔진·모델·호스트·용도 이름 0**(화면·aria·토스트). 「알아듣는 곳」은 「휴대폰에서/서버에서」만(기존 `SttRouteRow`).
+4. **회화·수업·마이크 테스트 동작을 바꾸지 않는다** — 공용 부품은 선택 prop + 기본값 = 지금(26-7 H). `TalkRoom.tsx`·`talkState.ts`·`talkCopy.ts`·`useRealtimeStt.ts`·`sttUiState.ts`·`sttCopy.ts`·`modules/speech/**` 를 고치지 않는다.
+5. **질문은 줄 세우지 않는다**(J7) — 답을 기다리는 중 누르고 말하기는 잠기고, 경합으로 온 말은 띠로.
+6. **`router.replace`·`router.push` 로 `?chat=` 을 적지 않는다**(전송 중 상태가 사라진다) — 생성 직후는 `history.replaceState` 만. 「새 질문 시작」만 `router.push('/ask')`.
+7. **`/ask` 를 열 때 방을 만들지 않는다**(빈 방이 쌓인다) — 첫 보내기 때만 #28.
+8. 취소·나가기 버튼·턴 취소 요청을 만들지 않는다(§25 D6 그대로). 밀어서 취소는 **녹음 취소**이지 질문 취소가 아니다.
+9. 답 렌더·근거·제안·스크롤 규칙은 §25 그대로 — 이 task 에서 손대지 않는다.
+10. 429 에 남은 횟수·한도 숫자를 쓰지 않는다(남은 시간만).
+
+**B. 함정**(직접 읽은 코드 기준 — [확실])
+1. `MessageList` 는 `messages.length===0 && !trailingPending && !tail` 일 때만 `intro` 를 그린다 — 녹음을 시작해 `tail` 이 생기면 `intro` 가 사라진다. 그래서 `lead`(목록이 그려질 때 위)에도 같은 안내 말풍선을 넘긴다(26-5 B). `AskNewConversation` 은 `MessageList` 를 쓰지 않으므로 해당 없음.
+2. `MessageList` 는 `turn`(필수)이 있어야 한다 — 방이 없는 빈 대화에 억지로 `useChatTurn('ask-new')` 를 만들지 않는다.
+3. `PushToTalkButton` 은 누름 때 `setPointerCapture` — 캡처 중엔 `pointerleave` 로 밖을 알 수 없다. **중심 거리**로 판정한다(26-7 D).
+4. STT `ABORT` 는 상태기계가 `INTERRUPTED` 힌트(「녹음이 중간에 멈췄어요. 다시 눌러 주세요.」)를 남긴다 — 사용자가 밀어서 취소한 경우는 숨기고 토스트 「보내지 않았어요」만(26-7 C).
+5. `useRealtimeStt` 의 `onFinal` 은 손을 뗀 뒤(`finishing`) 온 final 에서만 불린다 — 취소 뒤 늦게 온 결과는 보내지지 않는다(그대로 믿어도 된다).
+6. `Composer`·`VoiceBar` 는 지금 아래 여백에 제스처 여백을 더한다 — 탭 화면에서 그대로 쓰면 하단 탭과 겹쳐 여백이 두 번 든다(26-8 A).
+7. `useChatTurn` 은 만들 때 `restoreText` 를 받는다 — `useAskInput` 보다 먼저 부르므로 ref 를 거친다(26-5 B).
+8. `ChatMenuSheet` 는 `chat` 이 필수 — 빈 대화 메뉴는 공용 `Sheet` 로 따로(26-9).
+9. 대기 안내 끝말: 데모 문구 「돌아오면 이 자리에서」는 D1=A 문구 — 쓰면 거짓이 된다(26-10 A `leaveLine`).
+
+**C. reviewer·qa 확인표**(§25-12 C 의 C4·C6~C12·C14·C16 은 그대로 다시 본다)
+
+| # | 항목 | 기준 |
+|---|---|---|
+| K1 | 첫 화면 | `/ask` = 빈 대화 + 안내 말풍선 + 글자 바 + 범위 줄 + 하단 탭. 서버 요청에 #28 0건(열기만 했을 때) |
+| K2 | 확인 창 없음 | 처음 쓰는 계정(localStorage 비움)에서 칩·글·말 어느 것으로 보내도 시트·모달 0, 바로 내 말풍선 + 대기 |
+| K3 | 첫 질문 | 칩 → 바로 보냄 · #28 1번 → 주소 `/ask?chat=<id>`(기록 늘지 않음 — 뒤로가기 한 번에 이전 탭) · RSC 요청 0 · 안내 말풍선이 첫 질문 위에 남음 · 연타 방 1개 |
+| K4 | 대화 수명 | 26-3 B 표 전 행(탭 다시 누름·새 질문 시작·뒤로가기 복원·근거 「질문으로」 복원·삭제 뒤 빈 대화 + 토스트·404 토스트·`/ask/<id>` ‹ = 빈 대화) |
+| K5 | 알약 | 기다리는 중 다른 탭 → 「질문」 → 빈 대화 + 「답 만드는 중」(점 움직임) → 답 끝나면 「새 답 도착」 + 토스트 1번 → 시트에서 그 행 「새 답」 → 열면 사라짐. 지금 대화는 세지 않음 |
+| K6 | 지난 질문 시트 | 정렬·「지금 대화」 뱃지(누르면 닫힘)·더 보기·로딩·오류·빈 상태·삭제 없음 |
+| K7 | 말 질문(웹·앱) | 🎤 → 말 바 · 첫 누름 = 권한만 · 누르고 「大丈夫」 → 점선 말풍선 부분 글 → 떼기 → 알아듣는 중 → 바로 내 말풍선(일본어 17px·히라가나·[한글]·「말로 물었어요」·[고쳐서 묻기]) → 대기 → 답. 요청 본문 `inputSource:"REALTIME_STT"`, `utteranceId` 없음. 티켓 본문 `{"purpose":"MIC_TEST"}` |
+| K8 | 목소리 미저장 | 말 질문 뒤 서버에 새 발화 행·wav 0(gateway 저장 경로·온디바이스 업로드 #21 호출 0) — DB·파일 대조 |
+| K9 | 밀어서 취소 | 밖 96px 에서 ✕·빨강 고리·취소선·「손을 떼면 보내지 않아요」 → 떼면 보내지 않음 + 토스트 「보내지 않았어요」 · 다시 안으로 오면 원래대로 · Esc 취소 · 「녹음이 중간에 멈췄어요」 안 뜸 |
+| K10 | 예외(회화 문구) | 데모 E 19상태 — 권한 거부(웹/앱)·한 번 거절 이유·휴대폰 파일 없음·받는 중·짧은 누름·1자 이하·소리 작음·못 알아들음·30초 자동(토스트 + 바로 보냄)·결과 늦음·연결 실패·끊김·인터넷 없음·분당·하루·몰림·다른 대화 409·답 기다리는 중 |
+| K11 | [고쳐서 묻기] | 가장 최근 질문이 말일 때 그 말풍선에만 · 누르면 글자 모드 + 입력창에 들린 글 + 키보드 · 기다리는 중에도 채울 수 있고 보내기만 잠김 |
+| K12 | 범위 줄·시트 | 늘 입력 바 아래(말 모드·키보드 포함) · 누르면 정보 시트([닫기]만) · 문구 = 26-10 A `scope.*`(목소리 줄·「말로 물어볼 때」 띠) |
+| K13 | 회화 회귀 | 회화방·역할극·수업 말하기·마이크 테스트에서 누르고 말하기(밖에서 떼도 보냄 — 지금 동작)·말 바 여백·띠 문구·DOM 이 지금 빌드와 같음 |
+| K14 | 3폭·키보드 | 26-11 F 전부 |
+| K15 | 이름·용어 | 엔진명·`MIC_TEST`·「질문 방」·「질문 목록」 화면 노출 0 |
+
+**D. 실기기(S25+ Chrome·앱 WebView 390)에서만 — designer 가 확인하지 못한 것**: 앱 휴대폰 인식 경로의 질문 마이크(권한 대화상자·파일 없음 띠·「알아듣는 곳」) · 캡처 중 손가락을 화면 가장자리로 밀 때 `pointercancel`(제스처 내비게이션) · 키보드와 범위 줄 순서 · 실제 인식 결과(문장부호·한자 변환 오류)가 말풍선에 그대로 보이는지 · TalkBack 으로 누르고 말하기 상태 낭독.
+
+### 26-15. 데모와 다르게 쓴 곳 · Leader 확인 · developer 확인 질문
+
+**Leader 확인 필요**(이 가이드는 각 줄의 「권고」대로 쓰였다)
+- **L-1 대기 안내 끝말 ★**: 데모 C·s2 의 「…돌아오면 **이 자리에서** 볼 수 있어요.」는 D1=**A** 문구다. B 에서는 하단 탭으로 돌아오면 빈 대화가 열리므로 거짓이 된다 [확실 — 26-3 B]. **권고**: 「…돌아오면 「지난 질문」에서 볼 수 있어요.」(머리 알약과 같은 낱말). 사용자 승인 문구가 바뀌므로 사용자에게 다시 물을지 Leader 가 정한다.
+- **L-2 티켓 용도 `MIC_TEST` 재사용**: 서버·gateway·APK 변경 0 으로 「목소리 미저장」이 된다 — 수업 ④ 「말로 쓰기」가 같은 용도로 이미 쓴다 [확실]. 이름이 「마이크 점검」이라 운영 지표에서 질문 인식이 점검으로 섞여 보일 수 있다 [가능성 높음]. **권고**: 이번엔 재사용, 지표 분리가 필요해지면 새 값 `ASK`(gateway `PURPOSES`·`ticket.ts`·`client/types.ts`·`OnDeviceSttClient` 저장 조건 4곳 + gateway 배포) 를 후속으로.
+- **L-3 `/ask?chat=` 복원 범위**: 「열 때마다 빈 대화」를 **하단 탭으로 여는 것**으로 해석했다 — 뒤로가기·근거에서 「질문으로」·웹 새로고침은 그 대화를 복원한다(주소가 그 대화를 가리킨다). 새로고침도 빈 대화를 원하면 `initialChatId` 를 버리면 되지만 그러면 근거에서 돌아올 때도 대화를 잃는다 — 권고는 지금 해석.
+- **L-4 `/ask/<id>` 의 ‹ 와 휴대폰 뒤로가기가 다를 수 있다**: ‹ = `/ask`(빈 대화 — 데모 B 의 `toHome`), 뒤로가기 = 직전 기록(그 전에 보던 지금 대화). 수용 권고(둘 다 「질문 탭으로 돌아감」이고 지금 대화는 「지난 질문」에 있다).
+- **L-5 범위 시트 머리글이 바뀐다**(동의 문구): 승인 v2 원문(「질문을 보내면…」·「이 대화의 최근 메시지」·목소리 줄·「말로 물어볼 때」 띠)을 그대로 쓴다 — §25(task-064) 머리글 「내 공부 기록을 근거로 답할 때…」보다 실제 전송 범위(학습자 정보·최근 12개는 늘 간다)와 더 맞다 [가능성 높음]. 서버 전송 범위 자체는 그대로(계약 §2-18-A 5항).
+- **L-6 진행 중·새 답 표시를 유지**: 데모 J4(「표시를 없앤다」)는 A 안 전제 — 이력서 지시대로 B 에서는 알약·시트에 둔다(26-4).
+- **L-7 ★ 문구**: `notFoundTitle`·`goneToast`「대화를 찾을 수 없어요」 · `loadingConv`「대화를 불러오고 있어요」 · `history.empty`「아직 지난 질문이 없어요.」 · `unsent.rateMin`(분 단위) · `unsent.busy`·`busyNoSec`(몰림) — 데모에 없던 상태라 기존 문구 결에 맞춰 정했다.
+- **L-8 밀어서 취소의 회화 적용**은 이미 「별도 IMP」로 정해짐 — 이 task 에서 회화는 손대지 않는다(확인만).
+
+**데모와 다르게 쓴 곳**(구조·결정은 그대로, 공용 부품 재사용·안전 때문에)
+1. **머리**: 공용 `AppBar`(sticky·아래 10px 간격·아래 선 없음) — 데모 `.ab2`(아래 선, 간격 0). 다른 탭 홈과 같은 머리를 쓴다. 목록 칸 −10px.
+2. **범위 줄 36px**(데모 30): 히트 44 를 입력창·하단 탭과 겹치지 않게 얻으려고 줄 전체를 버튼으로·보이는 높이 32(26-8 B).
+3. **🎤(글자 바 왼쪽)**: 회화 글자 바와 같은 테두리 없는 아이콘 버튼(`text-ink2`) — 데모 `.micl` 은 테두리 원. D7 「회화와 같은 모양」을 따른다.
+4. **표시 스위치**: 메뉴 안에 앱 공용 `DisplayToggles`(같은 상태·같은 토스트) — 데모는 「켬/끔」 스위치 줄.
+5. **이름 바꾸기**: 공용 `ChatMenuSheet` 의 「제목 바꾸기」·「제목」 그대로(데모 「이름 바꾸기」·「대화 이름」 — 데모 G·rename 캡션도 「지금과 같음」).
+6. **sr 「질문을 보냈어요」**(데모 `liveMsg`) 없음 — 대기 카드의 `role=status` 「질문을 살펴보고 있어요」가 바로 읽힌다(두 번 읽지 않게).
+7. **「새 질문 시작」은 빈 대화 메뉴에서 뺀다**(누를 일이 없다).
+8. **말 바 상태 줄 힌트 강조**(데모 `.vbs.hint` 굵은 `ink`) 없음 — 회화 `VoiceBar` 그대로(`ink2` 보통). 밖 상태는 버튼 ✕·빨강 고리·말풍선 캡션이 함께 보인다.
+9. **밖 판정 이력 12px**(밖 96 → 안 84) ★ — 데모는 한 경계(약 60px 밖).
+10. **안내 말풍선 위 「오늘」 날짜 줄**: 빈 대화(`AskNewConversation`)엔 없다 — 날짜 구분은 `MessageList` 기존 규칙(메시지가 생긴 뒤).
+11. 데모의 D4 B·C, D3 B·C, D7 B, D8 B, D2 B·C·D, D1 A·C 화면은 구현하지 않는다(승인 안 아님).
+
+**developer 확인 질문**(구현 전에 사실 확인 — 답은 이력서 Developer 기록에, 결과가 이 가이드와 다르면 Leader 경유로 designer 에게)
+- **Q-1 주소 전이**: Next 16 에서 `history.replaceState(…, '/ask?chat=x')` 가 ① 서버 요청(RSC)·다시 마운트를 일으키지 않는지 ② `useSearchParams` 를 갱신하는지 ③ 그 뒤 하단 탭 「질문」(`/ask`) 이 `AskChatTab` 을 다시 마운트하는지 아니면 같은 인스턴스에 쿼리만 바뀌는지 — 어느 쪽이든 26-3 D 로 빈 대화가 되어야 한다. 실측 결과를 적는다.
+- **Q-2 `MIC_TEST` 인식 품질·경로**: gateway·휴대폰 경로가 `TURN` 과 같은 모델·같은 끝점 판정·같은 후처리를 쓰는지(용도는 저장·콜백만 가른다고 보았다 — `connection.py` 184·325 행 [확실], 그 밖 차이는 [가능성 높음]). 휴대폰 경로 `MIC_TEST` 가 wav 를 아예 만들지 않는지(`OnDeviceSttClient` 주석 `saveWav:false` — 실기기로).
+- **Q-3 휴대폰 인식 파일 상태 공유**: `onDeviceModelStore` 가 앱 전역이라 회화·설정·질문이 같은 상태를 보는지, 질문 화면 첫 누름의 권한 대화상자·「파일 없음」 띠가 회화와 같은지.
+- **Q-4 포인터 캡처 + 거리 판정**: 안드로이드 WebView 에서 캡처 중 `pointermove` 가 버튼 밖 좌표로 계속 오는지 · 아래 가장자리 시스템 제스처로 `pointercancel` 이 오면 지금처럼 abort(보내지 않음)로 충분한지 · 72px 버튼에서 96px 경계가 엄지로 자연스러운지(실기기 5회).
+- **Q-5 키보드와 범위 줄**: `data-kb-docked` 를 단 범위 줄이 키보드 위에서 입력 바 **아래**에 남는지(`KeyboardInset` 동작), 앱 WebView 포함.
+- **Q-6 빈 대화 초안**: `Composer` 가 보낼 때 `kaiwa.chat.draft.ask-new` 를 비우는지 — 남으면 다음 빈 대화에 옛 글이 뜬다(그러면 `onCreated` 에서 그 키를 지운다).
+- **Q-7 말 질문 다시 그리기**: #29 가 돌려준 USER 메시지의 `inputSource` 가 `REALTIME_STT` 로 남아 새로고침·복원 뒤에도 말 갈래(읽기 층·「말로 물었어요」)로 그려지는지(서버 진행 중 변경 주석 「받은 값 그대로 저장」 [확실 — 작업 트리 diff]) · `useChatTurn` 임시 메시지가 `utteranceId` 없는 `REALTIME_STT` 를 문제없이 다루는지.
+- **Q-8 티켓 한도**: `speech-ticket:<user>` 20/분은 회화와 공유 — 질문은 분당 3 이라 충분할 것 [가능성 높음], 짧은 누름·취소 연타로 20 을 넘기는지만 확인.
+- **Q-9 StrictMode·빠른 재마운트**: 개발 모드 이중 마운트에서 `seed.used` → #29 경로가 진행 중 턴을 이어받아(attach) 대기 카드를 보이는지(전송 2번 0).
+- **Q-10 생성 전환 점프**: `AskNewConversation` 목록 상자 → `AskRoom` `MessageList` 로 바뀔 때 안내 말풍선·임시 말풍선 위치 차이 ≤ 2px(26-11 F8) — 패딩·간격 클래스가 다르면 `AskNewConversation` 쪽을 맞춘다.
