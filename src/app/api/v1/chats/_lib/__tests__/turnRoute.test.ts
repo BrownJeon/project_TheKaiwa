@@ -235,10 +235,10 @@ test('턴이 거절(reject)로 끝나도 슬롯을 풀고 처리되지 않은 Pr
   }
 })
 
-test('ASK 요청 검증은 한도보다 먼저: utteranceId·음성 inputSource 400 → 몫 0 · 남의 방 404 → startTurn·몫 0', async () => {
+test('ASK 요청 검증은 한도보다 먼저: 발화 id·SERVER_STT 400 → 몫 0 · 남의 방 404 → startTurn·몫 0', async () => {
   const w = world()
   await assert.rejects(handleTurnRequest('u-val', 'chat_ask', { text: 'q', utteranceId: 'u1' }, w.deps), apiErr('VALIDATION', (e) => e.details?.field === 'utteranceId'))
-  await assert.rejects(handleTurnRequest('u-val', 'chat_ask', { text: 'q', inputSource: 'REALTIME_STT' }, w.deps), apiErr('VALIDATION'))
+  await assert.rejects(handleTurnRequest('u-val', 'chat_ask', { text: 'q', inputSource: 'SERVER_STT' }, w.deps), apiErr('VALIDATION', (e) => e.details?.field === 'inputSource'))
   const nf = world({ chatError: new ApiError('NOT_FOUND', '채팅을 찾을 수 없어요.') })
   await assert.rejects(handleTurnRequest('other', 'chat_ask', { text: 'q' }, nf.deps), apiErr('NOT_FOUND'))
   assert.equal(w.calls.startTurn.length + nf.calls.startTurn.length, 0)
@@ -249,6 +249,90 @@ test('ASK 요청 검증은 한도보다 먼저: utteranceId·음성 inputSource 
     ok.turn.finish()
     await flush()
   }
+})
+
+// ── task-066: 질문 방의 음성 질문(실시간 음성 인식이 만든 글자, 발화 행 없음) ─────────────────
+
+test('음성 질문(REALTIME_STT, 발화 id 없음) 수락: startTurn 1회에 요청 그대로 · TALK·CHAT 훅(발화·음성) 0 · done 뒤 슬롯 해제', async () => {
+  const w = world()
+  const res = await handleTurnRequest('u-voice', 'chat_ask', { text: '大丈夫', inputSource: 'REALTIME_STT', clientTimings: { sttMs: 90 } }, w.deps)
+  assert.equal(w.calls.startTurn.length, 1)
+  assert.equal(w.calls.talkHooks, 0, '음성 질문도 발화 연결·문장 음성·교정 관측 훅을 만들지 않는다 — 원음·발화 행은 서버에 없다')
+  assert.equal(w.calls.startTurn[0].hooks, undefined)
+  const sent = w.calls.startTurn[0].request as { inputSource: string; utteranceId: string | null; text: string }
+  assert.equal(sent.inputSource, 'REALTIME_STT', '저장될 사용자 행의 입력 방식은 받은 값 그대로')
+  assert.equal(sent.utteranceId, null)
+  assert.equal(sent.text, '大丈夫')
+  assert.equal(askInflightCount(), 1)
+  w.turn.emit({ event: 'done', data: {} })
+  w.turn.finish()
+  assert.match(await readAll(res), /event: accepted[\s\S]*event: done/)
+  await flush()
+  assert.equal(askInflightCount(), 0)
+})
+
+test('음성 질문 거절은 수락 전: 발화 id(어느 입력 방식이든)·SERVER_STT → 400, startTurn 0 · 몫 0 (뒤이어 분당 3건이 온전히 통과)', async () => {
+  const w = world()
+  const bad = [
+    { text: '大丈夫', inputSource: 'REALTIME_STT', utteranceId: 'ut1' },
+    { text: '大丈夫', utteranceId: 'ut1' },
+    { text: '大丈夫', inputSource: 'SERVER_STT' },
+    { text: '大丈夫', inputSource: 'SERVER_STT', utteranceId: 'ut1' },
+    { text: '大丈夫', inputSource: 'VOICE' },
+  ]
+  for (const b of bad) await assert.rejects(handleTurnRequest('u-vbad', 'chat_ask', b, w.deps), apiErr('VALIDATION'), JSON.stringify(b))
+  assert.equal(w.calls.startTurn.length, 0)
+  for (let i = 0; i < ASK_PER_MINUTE; i++) {
+    const ok = world()
+    await handleTurnRequest('u-vbad', 'chat_ask', { text: `q${i}`, inputSource: 'REALTIME_STT' }, ok.deps)
+    ok.turn.finish()
+    await flush()
+  }
+})
+
+test('음성 질문도 같은 한도·슬롯·409 (글자와 몫을 나눠 쓴다): 글자 1 + 음성 2 로 분당 3 소진 → 음성 4번째 429 ASK_RATE · 전역 3건 진행 중이면 음성도 ASK_BUSY · 수락 전 409 는 몫 환불', async () => {
+  const kinds = [{ text: 'q1' }, { text: 'q2', inputSource: 'REALTIME_STT' }, { text: 'q3', inputSource: 'REALTIME_STT' }]
+  for (const b of kinds) {
+    const w = world()
+    await handleTurnRequest('u-vlim', 'chat_ask', b, w.deps)
+    w.turn.finish()
+    await flush()
+  }
+  const over = world()
+  await assert.rejects(handleTurnRequest('u-vlim', 'chat_ask', { text: 'q4', inputSource: 'REALTIME_STT' }, over.deps), apiErr('RATE_LIMITED', (e) => e.details?.reason === 'ASK_RATE'))
+  assert.equal(over.calls.startTurn.length, 0)
+
+  const live = await Promise.all(['vb-a', 'vb-b', 'vb-c'].map(async (u) => {
+    const w = world()
+    await handleTurnRequest(u, 'chat_ask', { text: '大丈夫', inputSource: 'REALTIME_STT' }, w.deps)
+    return w
+  }))
+  const busy = world()
+  await assert.rejects(handleTurnRequest('vb-d', 'chat_ask', { text: '大丈夫', inputSource: 'REALTIME_STT' }, busy.deps), apiErr('RATE_LIMITED', (e) => e.details?.reason === 'ASK_BUSY'))
+  assert.equal(busy.calls.startTurn.length, 0)
+  for (const x of live) x.turn.finish()
+  await flush()
+
+  const conflict = world({ startError: new ApiError('CONFLICT', '이미 답을 기다리는 중이에요.', { runningMessageId: 'm_x' }) })
+  await assert.rejects(handleTurnRequest('u-v409', 'chat_ask', { text: '大丈夫', inputSource: 'REALTIME_STT' }, conflict.deps), apiErr('CONFLICT'))
+  assert.equal(conflict.calls.refunds, 1)
+  assert.equal(askInflightCount(), 0)
+})
+
+test('회귀(TALK·CHAT): 음성 턴은 발화 id 필수 — 없으면 같은 400(필드 utteranceId·사유 required, startTurn·훅 0), 있으면 기존 훅 그대로 · 남의 방은 404', async () => {
+  for (const kind of ['TALK', 'CHAT'] as const) {
+    const w = world({ kind })
+    await assert.rejects(handleTurnRequest('u-tv', `chat_${kind}`, { text: 'はい', inputSource: 'REALTIME_STT' }, w.deps), apiErr('VALIDATION', (e) => e.details?.field === 'utteranceId' && e.details?.reason === 'required'), kind)
+    assert.equal(w.calls.startTurn.length, 0)
+    assert.equal(w.calls.talkHooks, 0)
+    const ok = world({ kind })
+    await handleTurnRequest('u-tv', `chat_${kind}`, { text: 'はい', inputSource: 'REALTIME_STT', utteranceId: 'ut1' }, ok.deps)
+    assert.equal(ok.calls.talkHooks, 1)
+    assert.equal((ok.calls.startTurn[0].request as { utteranceId: string }).utteranceId, 'ut1')
+    ok.turn.finish()
+  }
+  const nf = world({ kind: 'TALK', chatError: new ApiError('NOT_FOUND', '채팅을 찾을 수 없어요.') })
+  await assert.rejects(handleTurnRequest('other', 'chat_x', { text: 'はい', inputSource: 'REALTIME_STT' }, nf.deps), apiErr('NOT_FOUND'), '소유 확인이 종류별 검사보다 앞이라 남의 방은 404')
 })
 
 test('TALK·CHAT: ASK 한도·슬롯과 무관, 기존 훅 그대로 · scope 가 오면 400(startTurn 0)', async () => {

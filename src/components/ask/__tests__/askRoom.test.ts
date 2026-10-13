@@ -8,12 +8,12 @@ import { OFF } from '@/components/common/japanese/annotations'
 import { ErrorBlock } from '@/components/common/ui'
 import { readCode } from '../../__tests__/sourceCode'
 import { ASK_COPY } from '../askCopy'
-import { ASK_KEYS, askMetaOf } from '../logic'
+import { askMetaOf } from '../logic'
 import SourceList from '../SourceList'
 import AskAnswer, { answerProposals } from '../AskAnswer'
 import AskPending from '../AskPending'
 import AskFailed from '../AskFailed'
-import { askArrivalText, askPlaceholder, askRoomRedirect, exampleTexts, takeAskHandoff } from '../AskRoom'
+import { askArrivalText, askPlaceholder, askRoomRedirect, askToastBottom, exampleTexts } from '../AskRoom'
 
 // task-064 §25-11 ⑦⑧⑩⑬⑯⑰⑱ 중 질문 방 몫 — 답 묶음 표시 조건은 렌더 결과로, 방 배선은 주석을 걷은 소스로 잠근다.
 
@@ -175,36 +175,6 @@ test('예문 분석 요청 — 끝난 선생님 답의 예문 일본어 줄만(�
   assert.deepEqual(exampleTexts(ms), ['駅で降りてください。'])
 })
 
-function withSession(store: Map<string, string> | 'throw', fn: () => void) {
-  const g = globalThis as { window?: unknown }
-  const prev = g.window
-  g.window =
-    store === 'throw'
-      ? Object.defineProperty({}, 'sessionStorage', { get() { throw new Error('blocked') } })
-      : { sessionStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) } }
-  try {
-    fn()
-  } finally {
-    g.window = prev
-  }
-}
-
-test('첫 질문 넘겨받기 — 키를 먼저 지우고, 메시지 0개일 때만 글을 돌려준다(새로고침 두 번 보내기 방지)', () => {
-  const s = new Map([[ASK_KEYS.pending('q1'), '조사 알려줘']])
-  withSession(s, () => {
-    assert.equal(takeAskHandoff('q1', 0), '조사 알려줘')
-    assert.equal(s.has(ASK_KEYS.pending('q1')), false)
-    assert.equal(takeAskHandoff('q1', 0), null)
-  })
-  const s2 = new Map([[ASK_KEYS.pending('q1'), '조사 알려줘']])
-  withSession(s2, () => {
-    assert.equal(takeAskHandoff('q1', 2), null)
-    assert.equal(s2.has(ASK_KEYS.pending('q1')), false, '이미 대화가 있으면 낡은 키만 지운다')
-  })
-  withSession(new Map([[ASK_KEYS.pending('q1'), '   ']]), () => assert.equal(takeAskHandoff('q1', 0), null))
-  withSession('throw', () => assert.equal(takeAskHandoff('q1', 0), null))
-})
-
 test('다른 종류 방을 질문 주소로 열면 제자리로', () => {
   assert.equal(askRoomRedirect('TALK', 'a b'), '/study/ai/talk/a%20b')
   assert.equal(askRoomRedirect('CHAT', 'c1'), '/study/ai/chat/c1')
@@ -213,50 +183,74 @@ test('다른 종류 방을 질문 주소로 열면 제자리로', () => {
 
 const room = () => readCode('src/components/ask/AskRoom.tsx')
 
-test('⑯⑰ 방 배선 — 공용 부품을 질문 방 옵션으로(분석 끔·낭독 끔·초점·두 토글·한국어 입력·안내 문구·404 링크)', () => {
+test('⑯⑰ 대화 배선(§26-5 B) — 공용 부품을 질문 옵션으로(분석 끔·낭독 끔·초점·안내 문구·도착 알림), 관문·표시 바 없음', () => {
   const r = room()
   for (const s of [
     'annotate={false}',
     'liveOff',
     'focusable',
-    "keys={['fu', 'hg']}",
-    'lang="ko"',
-    'inputLabel={ASK_COPY.inputLabel}',
-    'busyReason={ASK_COPY.sendLocked}',
-    'textOf={askNoticeText}',
-    "notFoundLink={{ href: '/ask', label: ASK_COPY.toList }}",
+    'followContent',
+    'arrivalAlign="answer-start"',
+    'pillLabel={ASK_COPY.newAnswer}',
     'toReply: askReplyFromDone',
     'ASK_COPY.subtitle(title)',
     'backHref="/ask"',
     'backLabel={ASK_COPY.backLabel}',
-    'useScopeNoticeGate()',
-    'if (gate.acknowledged === true) {',
-    "setScopeSheet('first')",
-    'gate.ack()',
     'forgetAskReturn()',
     'removeId(ASK_KEYS.waiting, chatId)',
     'removeId(ASK_KEYS.newAnswer, chatId)',
     'addId(ASK_KEYS.waiting, chatId)',
     'role="status"',
+    "keys={['fu', 'hg']}",
+    'busyReason: loading ? ASK_COPY.loadingConv : ASK_COPY.sendLocked',
+    'restoreText: (text, info) => inputRef.current?.onRestore(text, info)',
+    '<ScopeLine variant={variant}',
+    'extraTop={<AskMenuTop',
+    'lead={greeting ?',
+    'tail={input.tail ?? undefined}',
   ])
     assert.ok(r.includes(s), s)
   assert.match(r, /const title = teacherTitle\(teacherName\)/)
-  assert.match(r, /<ScopeNoticeSheet[\s\S]*?mode=\{scopeSheet \?\? 'first'\}/)
+  // D8 — 머리 아래 표시 바 없음(⋯ 메뉴로)
+  assert.ok(!r.includes('<DisplayBar'), '표시 바는 메뉴로 옮겼다')
+  // 말 질문은 REALTIME_STT 만(발화 id 없음) — 보내는 길은 doSend 하나
+  assert.match(r, /void send\(text, \{ \.\.\.extra, \.\.\.askSendOptions\(via\) \}\)/)
+  assert.ok(!/utteranceId/.test(r))
 })
 
-test('⑱ 3a 범위·금기 — 마이크·HTML 주입·취소 요청·나가기 버튼·엔진 이름 0', () => {
-  for (const f of ['AskRoom.tsx', 'AskAnswer.tsx', 'ScopeNoticeSheet.tsx', 'useScopeNoticeGate.ts']) {
+test('⑤ 첫 전송 배선 — takeSeed 가 true 일 때만 보내고(#29 없이), 아니면 #29 로 읽어 이어받는다', () => {
+  const r = room()
+  assert.match(r, /if \(takeSeed\(s\) && s\) \{\s*listRef\.current\?\.scrollToBottom\(\)\s*void send\(s\.text, askSendOptions\(s\.via\)\)\s*return\s*\}/)
+  assert.match(r, /if \(detail\.chat\.running\) attach\(turnBaseOf\(detail\.messages\)\)/)
+})
+
+test('tab 변형 — 404·질문 아님은 onGone, 그 밖 오류는 onLoadFailed, room 은 지금처럼 화면 안 오류', () => {
+  const r = room()
+  assert.match(r, /if \(variant === 'tab'\) \(notFound \? goneRef\.current : failedRef\.current\)\?\.\(\)\s*else setLoad\(notFound \? 'notFound' : 'error'\)/)
+  assert.match(r, /if \(variant === 'tab'\) goneRef\.current\?\.\(\)\s*else router\.replace\(elsewhere\)/)
+})
+
+test('토스트 위치(§26-8 D) — 탭 글자 181 · 탭 말 237 · 지난 대화 글자 109 · 말 165, 키보드가 열리면 하단 탭 몫 0', () => {
+  assert.equal(askToastBottom({ mode: 'text', variant: 'tab', kbOpen: false }), 181)
+  assert.equal(askToastBottom({ mode: 'voice', variant: 'tab', kbOpen: false }), 237)
+  assert.equal(askToastBottom({ mode: 'text', variant: 'room', kbOpen: false }), 109)
+  assert.equal(askToastBottom({ mode: 'voice', variant: 'room', kbOpen: false }), 165)
+  assert.equal(askToastBottom({ mode: 'text', variant: 'tab', kbOpen: true }), 109)
+})
+
+test('금기 — HTML 주입·취소 요청·나가기 버튼·엔진 이름 0', () => {
+  for (const f of ['AskRoom.tsx', 'AskAnswer.tsx', 'ScopeNoticeSheet.tsx']) {
     const s = readCode(`src/components/ask/${f}`)
-    for (const bad of ['getUserMedia', 'useRealtimeStt', 'PushToTalk', 'speech/stt', "'VOICE'", 'dangerouslySetInnerHTML', 'innerHTML', 'DOMParser', '나가서 기다리기', '/cancel'])
+    for (const bad of ['dangerouslySetInnerHTML', 'innerHTML', 'DOMParser', '나가서 기다리기', '/cancel', 'getUserMedia'])
       assert.ok(!s.includes(bad), `${f}:${bad}`)
     assert.doesNotMatch(s, /claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|sherpa|zipformer|onnx/i, f)
   }
 })
 
-test('⑰ 라우트 — 질문 방 page 는 auth + 선생님 이름만, 같은 폴더에 loading.tsx 없음(채팅방처럼 BackBar+LoadingBlock)', () => {
+test('⑰ 라우트 — 지난 대화 page 는 auth + 선생님 이름만 + variant="room", 같은 폴더에 loading.tsx 없음(BackBar+LoadingBlock)', () => {
   const p = readCode('src/app/(app)/ask/[chatId]/page.tsx')
   assert.ok(p.includes('await auth()') && p.includes('/login?callbackUrl=') && p.includes('getProfile(session.user.id)'))
-  assert.match(p, /<AskRoom chatId=\{chatId\} teacherName=\{teacherName\} \/>/)
+  assert.match(p, /<AskRoom variant="room" chatId=\{chatId\} teacherName=\{teacherName\} \/>/)
   assert.equal(existsSync('src/app/(app)/ask/[chatId]/loading.tsx'), false)
 })
 

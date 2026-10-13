@@ -79,6 +79,17 @@ test('주소 거절: /ask/<id> 만(목록 /ask·쿼리·해시·// ·다른 경�
   assert.equal(serializeAskReturn(BACK, SRC, Number.NaN), null)
 })
 
+test('⑩ task-066 §26-3 E — 탭 화면의 지금 대화 /ask?chat=<id> 도 허용, 그 밖 쿼리·해시·빈 값·경로 넘기기는 거절', () => {
+  assert.equal(isAskHref('/ask?chat=abc'), true)
+  assert.equal(isAskHref(`/ask?chat=${'a'.repeat(64)}`), true)
+  const back = '/ask?chat=abc'
+  assert.equal(askReturnHref(serializeAskReturn(back, SRC, NOW), SRC, NOW), back)
+  for (const bad of ['/ask?chat=', '/ask?x=1', '/ask?chat=a&b=1', '/ask?chat=a#h', '/ask?chat=../x', '/ask?chat=a/b', '//x', '/ask?chat=a b', `/ask?chat=${'a'.repeat(65)}`, '/ask/?chat=a', '/askx?chat=a']) {
+    assert.equal(isAskHref(bad), false, bad)
+    assert.equal(serializeAskReturn(bad, SRC, NOW), null, bad)
+  }
+})
+
 test('세 기록 고르기: 지금 경로에 맞는 것 중 at 이 가장 늦은 쪽 · 같으면 계획표 → 교정 모음 → 질문 방', () => {
   const plan = (at: number, src = SRC) => serializePlanReturn(PLAN, src, at)
   const corr = (at: number, src = SRC) => serializeCorrectionsReturn(CORR, src, at)

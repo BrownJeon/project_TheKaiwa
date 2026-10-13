@@ -13,12 +13,12 @@
  *  ASK LLM 은 120s 이고 JSON 재시도가 붙으면 그 두 배가 될 수 있어, 다른 인스턴스가 180s 넘은 PENDING 을 죽은 턴으로 정리(locks.ts)하기 전에 끝나게 한다.
  * 기록(계약 7항): 질문·조회 본문·답 본문은 Trace·toolLog·로그에 싣지 않는다 — 의도·건수·단계 시간·모델 티어 정보만. `toolLog.ask.sources[].label` 만 예외(표시용 ≤60자).
  */
-import { Prisma, type JlptLevel } from '@prisma/client'
+import { Prisma, type InputSource, type JlptLevel } from '@prisma/client'
 import { ApiError, classifyError, dates, lockUserRow, prisma, toPreview, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { llm, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceStep } from '@/modules/engine'
 import { isAskScopeKey, resolveSourceKeys, type AskScopeKey, type RecordSourceType, type RetrievalResult } from '@/modules/learning'
 import { classifiedQuestion, classifyIntent, retrieveAskRecords, type AskClassification } from '../askRouter'
-import { AskInputError, askParseTrace, buildAskPlan, parseAskResponse, sanitizeAskAnswerMd, type AskConfidence, type AskIntent, type AskResponse, type AskScope, type AskScopeSource } from '../prompts/ask'
+import { AskInputError, askParseTrace, buildAskPlan, parseAskResponse, sanitizeAskAnswerMd, type AskConfidence, type AskInputKind, type AskIntent, type AskResponse, type AskScope, type AskScopeSource } from '../prompts/ask'
 import { JLPT_LEVELS } from '../structuredResponse/schemas'
 import { buildLearnerHeader } from '../turnContext'
 import type { WindowMessage } from '../window'
@@ -95,7 +95,8 @@ export interface AskTurnOutput {
 export interface AskAcceptedTurn {
   chatId: string
   level: JlptLevel | null
-  userMessage: { id: string; content: string; createdAt: Date }
+  /** `inputSource` 는 저장된 사용자 행의 값 — 끊김 복구(resume)도 처음 질문의 입력 방식을 그대로 따른다(없으면 글자로 본다). */
+  userMessage: { id: string; content: string; createdAt: Date; inputSource?: InputSource | null }
   assistantMessageId: string
   pendingSince: Date
   traceId: string
@@ -404,6 +405,14 @@ export function finalizeAnswerMd(md: string): string {
   return text
 }
 
+/**
+ * 저장된 사용자 행의 입력 방식 → 프롬프트의 입력 종류. 실시간 음성 인식이 만든 글(`REALTIME_STT`)만 `VOICE`(인식 글이라 문장부호 없음·오인식 가능 표지),
+ * 그 밖은 `TEXT`. 질문 본문은 어느 쪽이든 같은 파이프라인(분류·조회·한도·살균·저장)을 탄다.
+ */
+export function askInputKindOf(inputSource: InputSource | null | undefined): AskInputKind {
+  return inputSource === 'REALTIME_STT' ? 'VOICE' : 'TEXT'
+}
+
 export async function processAskTurn(p: AskProcessInput): Promise<void> {
   const { userId, a, stream, elapsed } = p
   const steps: TraceStep[] = [{ name: 'ACCEPT', ms: p.acceptMs, kind: 'ASK' }]
@@ -418,6 +427,7 @@ export async function processAskTurn(p: AskProcessInput): Promise<void> {
     stream.emit({ event: 'status', data: { stage: 'PROMPT', elapsedMs: elapsed() } })
     let t = Date.now()
     const text = a.userMessage.content
+    const inputKind = askInputKindOf(a.userMessage.inputSource)
     const [header, history, prev] = await Promise.all([
       askTurnDeps.buildLearnerHeader(userId, a.level),
       askTurnDeps.loadAskHistory(userId, a.chatId, a.userMessage),
@@ -433,7 +443,7 @@ export async function processAskTurn(p: AskProcessInput): Promise<void> {
     let scope: AskScope | null = null
     if (c.needsScope) {
       // 규칙 분류가 「범위에 민감한 기록 질문인데 기간 없음」으로 판정 — 조회·LLM 없이 서버가 곧장 되묻는다(PROMPT 뒤 바로 done).
-      steps.push({ name: 'PROMPT', ms: Date.now() - t, intent: c.intent, shortCircuit: 'NEEDS_SCOPE', prevNeedsScope: prev.needsScope })
+      steps.push({ name: 'PROMPT', ms: Date.now() - t, intent: c.intent, shortCircuit: 'NEEDS_SCOPE', prevNeedsScope: prev.needsScope, inputKind })
       out = routerScopeOutput(c.intent, question)
     } else {
       const tr = Date.now()
@@ -445,7 +455,7 @@ export async function processAskTurn(p: AskProcessInput): Promise<void> {
       const records: AskRecordsDto = { intent: c.intent, count: c.intent === 'GENERAL' ? 0 : r.meta.count }
       let plan
       try {
-        plan = buildAskPlan({ todayKst, header, userText: text, window: history, records: r.items, intent: c.intent, scope })
+        plan = buildAskPlan({ todayKst, header, userText: text, window: history, records: r.items, intent: c.intent, scope, inputKind })
       } catch (e) {
         if (e instanceof AskInputError) throw new ApiError('VALIDATION', '질문을 확인해 주세요.')
         throw e
@@ -455,6 +465,7 @@ export async function processAskTurn(p: AskProcessInput): Promise<void> {
         ms: Date.now() - t,
         scopeSource: scope.source ?? 'DEFAULT',
         prevNeedsScope: prev.needsScope,
+        inputKind: plan.inputKind,
         shownKeys: plan.shownKeys.length,
         recordChars: plan.recordsFit.chars,
         windowMessages: history.length,

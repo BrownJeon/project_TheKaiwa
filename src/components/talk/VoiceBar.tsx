@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from 'react'
 import MicLevelMeter from '@/components/speech/MicLevelMeter'
-import PushToTalkButton from '@/components/speech/PushToTalkButton'
+import PushToTalkButton, { type PttCancelOutside } from '@/components/speech/PushToTalkButton'
 import { TALK_ROOM } from './talkCopy'
 import type { TalkView } from './talkState'
 
@@ -39,6 +39,9 @@ export default function VoiceBar({
   onKeyboard,
   onStop,
   trailing,
+  cancelOutside,
+  safeBottom = true,
+  keyboardLabel = TALK_ROOM.keyboard,
 }: {
   view: TalkView
   db: number | null
@@ -49,6 +52,12 @@ export default function VoiceBar({
   onStop: () => void
   /** 바 우측 끝 44 칸(일본어 도우미 버튼, screens §22-2). 넘기면 ■ 가 마이크 오른쪽으로 옮겨 앉는다. 넘기지 않으면 지금 화면·DOM 그대로. */
   trailing?: ReactNode
+  /** 질문 탭만(task-066 §26-7 D) — 그대로 누르고 말하기 버튼에 넘긴다. 없으면 지금 동작 그대로. */
+  cancelOutside?: PttCancelOutside
+  /** 아래 여백에 제스처 여백을 더한다(기본 true = 지금). 하단 탭·범위 줄 위에 놓이는 질문 탭은 false(8px — §26-8 A). */
+  safeBottom?: boolean
+  /** ⌨ 버튼 이름(기본 「글자로 입력하기」, 질문 탭 「글자로 묻기」) */
+  keyboardLabel?: string
 }) {
   const ptt = (
     <PushToTalkButton
@@ -59,6 +68,7 @@ export default function VoiceBar({
       onPress={onPress}
       onRelease={onRelease}
       onAbort={onAbort}
+      cancelOutside={cancelOutside}
     />
   )
   const stop = view.showStop ? (
@@ -67,7 +77,7 @@ export default function VoiceBar({
     </button>
   ) : null
   return (
-    <div className="flex-none border-t border-line bg-surface px-4 pt-2" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+    <div className="flex-none border-t border-line bg-surface px-4 pt-2" style={{ paddingBottom: safeBottom ? 'max(8px, env(safe-area-inset-bottom))' : '8px' }}>
       {/* div — 레벨 미터가 div 라 p 안에 둘 수 없다(수화 오류). */}
       <div id={TALK_STATUS_ID} className="flex h-6 min-w-0 items-center justify-center gap-2 text-[13px] text-ink2">
         <MicLevelMeter db={db} active={view.state === 'RECORDING'} />
@@ -76,7 +86,7 @@ export default function VoiceBar({
       <div className="mt-1 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center">
         <button
           type="button"
-          aria-label={TALK_ROOM.keyboard}
+          aria-label={keyboardLabel}
           aria-disabled={view.keyboardDisabled || undefined}
           onClick={onKeyboard}
           className={`grid h-11 w-11 place-items-center rounded-full text-ink2 ${view.keyboardDisabled ? 'opacity-40' : ''}`}

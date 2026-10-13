@@ -1,5 +1,5 @@
 /**
- * A9 무엇이든 물어보세요(ASK, `ask@v1`) 응답 계약 — 스키마 · 후검증 · 정리(`parseAskResponse`). 프롬프트·입력 직렬화는 `prompts/ask.ts`.
+ * A9 무엇이든 물어보세요(ASK, `ask@v2` — 응답 스키마는 v1 과 같다) 응답 계약 — 스키마 · 후검증 · 정리(`parseAskResponse`). 프롬프트·입력 직렬화는 `prompts/ask.ts`.
  * (이 파일을 `structuredResponse/` 가 아니라 `prompts/` 에 둔 것은 task-064 범위 지시 때문이다 — 옮기려면 import 경로만 바꾸면 된다.)
  *
  * 설계 근거 (api-contract §2-18-A 3·8·9)
@@ -584,7 +584,7 @@ export interface AskParseContext {
 }
 
 /** 프롬프트 구조·내부 필드 이름이 답 본문에 새는지 보는 표지. */
-const PROMPT_LEAK_MARKERS = ['[모드]', '[학습자]', '[지시]', '[기록 조회]', '[질문]', '[입력]', '<<<기록자료', 'sourceKeys', 'needsScope', 'answerMd', 'ASK_SCHEMA']
+const PROMPT_LEAK_MARKERS = ['[모드]', '[학습자]', '[지시]', '[기록 조회]', '[질문]', '[입력]', '[입력 방식]', '<<<기록자료', 'sourceKeys', 'needsScope', 'answerMd', 'ASK_SCHEMA']
 
 function rawObject(raw: unknown): Record<string, unknown> | null {
   return raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null

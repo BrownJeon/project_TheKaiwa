@@ -17,10 +17,13 @@ import { askSourceHref, isAskFocusTarget } from './logic'
 const FIRST = 3
 const CARD = 'grid min-h-14 min-w-0 grid-cols-[32px_minmax(0,1fr)_14px] items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2 text-ink'
 
-/** 근거 카드를 눌러 집중 화면으로 갈 때 「질문으로」 돌아오기 기록(주소의 경로 부분이 원본 경로). */
-function rememberIfFocusTarget(chatId: string, s: AskSource, href: string) {
+/**
+ * 근거 카드를 눌러 집중 화면으로 갈 때 「질문으로」 돌아오기 기록(주소의 경로 부분이 원본 경로).
+ * 돌아올 주소는 지난 대화 `/ask/<id>`, 탭 화면의 지금 대화는 부르는 쪽이 `back`(= `/ask?chat=<id>`)으로 준다(task-066 §26-3 E).
+ */
+function rememberIfFocusTarget(chatId: string, s: AskSource, href: string, back?: string) {
   if (!isAskFocusTarget(s.type)) return
-  rememberAskReturn(`/ask/${encodeURIComponent(chatId)}`, href.split('?')[0])
+  rememberAskReturn(back ?? `/ask/${encodeURIComponent(chatId)}`, href.split('?')[0])
 }
 
 /** 카드 머리 줄 「{유형} · {날짜}」 — 모르는 유형(`type:null`)은 머리 줄 없이 라벨만(Leader 2026-10-12). */
@@ -34,7 +37,7 @@ export function sourceMetaLine(s: Pick<AskSource, 'type' | 'date'>): string | nu
  * 근거 카드. 이동할 곳이 있으면 링크(이름 = 카드 글 「교정 · 10월 10일 …」), 없으면(집계 항목 `id:null` 의 기본 화면 없는 유형·모르는 유형·
  * 형식 이상) 같은 칸·같은 글의 정적 `div` — 링크·버튼 역할도 초점도 › 도 없다(§25-9).
  */
-function SourceCard({ chatId, s }: { chatId: string; s: AskSource }) {
+function SourceCard({ chatId, s, back }: { chatId: string; s: AskSource; back?: string }) {
   const href = askSourceHref(s)
   const meta = sourceMetaLine(s)
   const body = (
@@ -60,7 +63,7 @@ function SourceCard({ chatId, s }: { chatId: string; s: AskSource }) {
   return (
     <li>
       {href ? (
-        <Link href={href} onClick={() => rememberIfFocusTarget(chatId, s, href)} className={CARD}>
+        <Link href={href} onClick={() => rememberIfFocusTarget(chatId, s, href, back)} className={CARD}>
           {body}
         </Link>
       ) : (
@@ -70,7 +73,7 @@ function SourceCard({ chatId, s }: { chatId: string; s: AskSource }) {
   )
 }
 
-export default function SourceList({ chatId, sources }: { chatId: string; sources: readonly AskSource[] }) {
+export default function SourceList({ chatId, sources, returnHref }: { chatId: string; sources: readonly AskSource[]; returnHref?: string }) {
   const [open, setOpen] = useState(false)
   const hid = useId()
   const n = sources.length
@@ -83,7 +86,7 @@ export default function SourceList({ chatId, sources }: { chatId: string; source
       </h4>
       <ul className="flex flex-col gap-1.5">
         {shown.map((s, i) => (
-          <SourceCard key={`${s.type}_${s.id}_${i}`} chatId={chatId} s={s} />
+          <SourceCard key={`${s.type}_${s.id}_${i}`} chatId={chatId} s={s} back={returnHref} />
         ))}
       </ul>
       {n > FIRST ? (

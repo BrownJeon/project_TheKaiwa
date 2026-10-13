@@ -32,10 +32,10 @@ test('① arrivalAlign·pillLabel 을 넘기는 곳은 AskRoom 하나뿐 — 회
 
 test('① AskRoom 은 answer-start 와 알약 글(ASK_COPY.newAnswer)을 켜고 followContent 와 함께 쓴다 — 보내기 쪽 scrollToBottom 은 그대로', () => {
   assert.match(ASK, /<MessageList[\s\S]*?\bfollowContent\b[\s\S]*?arrivalAlign="answer-start"[\s\S]*?pillLabel=\{ASK_COPY\.newAnswer\}/)
-  // 보내기(doSend — 입력 바·되묻기 칩 공용) · 첫 질문 넘겨받기 두 곳 — 질문+대기 카드가 보이게 늘 맨 아래
+  // 보내기(doSend — 입력 바·말·안내 칩·되묻기 칩 공용) · 빈 대화에서 만든 첫 질문(seed, task-066 §26-3 C 5) 두 곳 — 질문+대기 카드가 보이게 늘 맨 아래
   assert.equal((ASK.match(/listRef\.current\?\.scrollToBottom\(\)/g) ?? []).length, 2)
-  assert.match(ASK, /const doSend = [\s\S]*?listRef\.current\?\.scrollToBottom\(\)[\s\S]*?void send\(p\.text, p\.opts\)/)
-  assert.match(ASK, /handoffRef\.current = null\s*\n\s*listRef\.current\?\.scrollToBottom\(\)\s*\n\s*void send\(text\)/)
+  assert.match(ASK, /const doSend = [\s\S]*?listRef\.current\?\.scrollToBottom\(\)[\s\S]*?void send\(text, \{ \.\.\.extra, \.\.\.askSendOptions\(via\) \}\)/)
+  assert.match(ASK, /if \(takeSeed\(s\) && s\) \{\s*\n\s*listRef\.current\?\.scrollToBottom\(\)\s*\n\s*void send\(s\.text, askSendOptions\(s\.via\)\)/)
 })
 
 // ── ② 기본값 = 지금 동작 ─────────────────────────────────────────────────────

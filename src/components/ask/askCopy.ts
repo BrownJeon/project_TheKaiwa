@@ -1,37 +1,53 @@
 /**
- * 「무엇이든 물어보세요」 화면 문구 단일 출처(task-064, screens.md §25-10). 승인 데모 v2 원문과 같다 — ★ 표시는 데모에 없어 가이드가 정한 것.
- * 엔진·모델·호스트 이름은 어디에도 없다. 숫자는 `toLocaleString('ko-KR')`.
- * 3a 범위 밖(주제 제안 카드·단어 근거·음성 입력) 문구는 두지 않는다(Leader 결정 L-2·L-10, D13).
+ * 「무엇이든 물어보세요」 화면 문구 단일 출처(task-064 §25-10 → task-066 §26-10 A). 승인 데모 원문과 같다 — ★ 표시는 데모에 없어 가이드가 정한 것.
+ * 엔진·모델·호스트 이름·티켓 용도 이름은 어디에도 없다. 숫자는 `toLocaleString('ko-KR')`. 말로 묻기 문구는 `askVoiceCopy.ts`.
  */
 import type { AskSourceType } from '@/types/ask'
 
 export const ASK_COPY = {
   title: '질문',
-  roomsTitle: '지난 질문',
   more: '이전 질문 더 보기',
   moreBusy: '불러오는 중…',
 
-  composerLabel: '선생님에게 물어보기',
-  composerPlaceholder: '일본어 표현·문법이나 내 공부 기록을 물어보세요',
-  ask: '물어보기',
-  /** ★ */
+  /** 보내는 중 임시 말풍선(§26-3 C 2) — `AskQuestionBubble` 이 쓴다(가이드 「뺌」 목록에 있으나 쓰는 곳이 남아 둔다). */
   asking: '보내는 중…',
   emptyAsk: '질문을 적어 주세요',
   tooLong: '1,000자까지 보낼 수 있어요',
-  scopeLink: '선생님에게 보내는 범위',
 
-  examplesTitle: '이렇게 물어볼 수 있어요',
-  /** 굵은 곳(「근거와 함께」)은 화면이 `examplesDescBold` 로 나눠 그린다. */
-  examplesDescHead: '내 기록을 묻는 질문은 수업·교정·복습 기록을 찾아 ',
-  examplesDescBold: '근거와 함께',
-  examplesDescTail: ' 답해요.',
-  examplesRowTitle: '예시',
-  examples: [
-    { tag: '문법', q: '〜ている 와 〜てある 차이가 뭐예요?' },
-    { tag: '내 기록', q: '이번 주에 내가 자주 틀린 조사 알려줘' },
-    { tag: '복습', q: '오늘 복습할 거 뭐 있어?' },
-    { tag: '배운 표현', q: '역에서 길 물을 때 쓰던 표현 뭐였지?' },
-  ],
+  /** 빈 대화의 안내 말풍선(§26-5 D, 데모 `greet()`). 굵은 곳은 화면이 `leadBold` 로 나눠 그린다. */
+  greeting: {
+    leadHead: '무엇이든 물어보세요. 일본어 표현·문법도, ',
+    leadBold: '내 공부 기록',
+    leadTail: '(교정·복습·수업)도 좋아요.',
+    chipsLabel: '글로 물어보기 · 누르면 바로 물어봐요',
+    examples: [
+      { tag: '문법', q: '〜ている 와 〜てある 차이가 뭐예요?' },
+      { tag: '내 기록', q: '이번 주에 내가 자주 틀린 조사 알려줘' },
+      { tag: '복습', q: '오늘 복습할 거 뭐 있어?' },
+    ],
+    voiceHead: '모르는 일본어는 🎤 로 그대로 말해 보세요',
+    voiceBody: '뜻·읽기·느낌을 예문과 함께 알려 줘요. 예)',
+    voiceExamples: ['大丈夫', 'お疲れ様でした', 'それはちょっと難しいですね'],
+  },
+
+  /** 머리 「지난 질문」 알약·시트(§26-4). */
+  history: {
+    button: '지난 질문',
+    running: '답 만드는 중',
+    newAnswer: '새 답 도착',
+    aria: (s: 'idle' | 'running' | 'new') => (s === 'running' ? '지난 질문 — 답 만드는 중' : s === 'new' ? '지난 질문 — 새 답 도착' : '지난 질문'),
+    title: '지난 질문',
+    current: '지금 대화',
+    /** ★ */
+    empty: '아직 지난 질문이 없어요.',
+  },
+
+  /** 입력 바 아래 보내는 범위 한 줄(§26-8 B). */
+  scopeLine: {
+    text: '내 학습 기록 일부가 AI 에 보내져요',
+    more: '자세히',
+    aria: '내 학습 기록 일부가 AI 에 보내져요 — 자세히, 선생님에게 보내는 범위',
+  },
 
   listError: '지난 질문을 불러오지 못했어요',
   listErrorBody: '연결을 확인하고 다시 시도해 주세요.',
@@ -43,13 +59,14 @@ export const ASK_COPY = {
   newAnswerSr: '새 답 도착',
   arrivedToast: '답이 도착했어요',
   noMessages: '아직 메시지가 없어요',
-  deletedToast: '질문 방을 삭제했어요',
+  deletedToast: '대화를 삭제했어요',
 
-  backLabel: '질문 목록으로',
+  backLabel: '질문으로',
   roomLoadingTitle: '질문',
   subtitle: (t: string) => `질문 · ${t}`,
-  menuAria: '질문 방 메뉴',
+  menuAria: '질문 메뉴',
 
+  placeholderNew: '무엇이든 물어보세요',
   placeholder: '이어서 물어보세요',
   placeholderWaiting: '다음 질문을 미리 써요',
   placeholderScopeOwn: '기간을 적어 주세요 (예: 9월, 지난 2주)',
@@ -95,7 +112,8 @@ export const ASK_COPY = {
   secSuffix: (n: number) => ` · ${n.toLocaleString('ko-KR')}초`,
   hint30: '내 기록을 살펴보는 질문은 1분 넘게 걸릴 수 있어요.',
   hint90: '거의 다 됐어요. 2분이 지나면 멈추고 알려 드려요.',
-  leaveLine: '다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 이 질문 방에서 볼 수 있어요.',
+  /** ★ Leader L-1 — D1=B 라 데모의 「이 자리에서」는 거짓이 된다. */
+  leaveLine: '다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 「지난 질문」에서 볼 수 있어요.',
   arrivedLive: (t: string, n: number, m: number) =>
     [`${t} 답이 도착했어요`, n > 0 ? `근거 ${n.toLocaleString('ko-KR')}개` : '', m > 0 ? `제안 ${m.toLocaleString('ko-KR')}개` : ''].filter(Boolean).join(' · '),
 
@@ -116,43 +134,56 @@ export const ASK_COPY = {
   askBusyNoSec: '지금 질문이 몰려 있어요. 잠시 뒤에 다시 물어봐 주세요.',
   net: '보내지 못했어요. 인터넷 연결을 확인하고 다시 보내 주세요.',
 
-  notFoundTitle: '질문 방을 찾을 수 없어요',
-  notFoundBody: '지워졌거나 주소가 잘못됐어요.',
-  toList: '질문 목록으로',
   /** ★ */
-  loadError: '질문 방을 불러오지 못했어요.',
+  notFoundTitle: '대화를 찾을 수 없어요',
+  notFoundBody: '지워졌거나 주소가 잘못됐어요.',
+  toList: '질문으로',
+  /** ★ */
+  loadError: '대화를 불러오지 못했어요.',
+  loadErrorBody: '연결을 확인하고 다시 시도해 주세요. 새 질문은 그대로 보낼 수 있어요.',
+  /** ★ `?chat=` 복원 중(§26-5 B). */
+  loadingConv: '대화를 불러오고 있어요',
+  /** ★ `?chat=` 의 대화가 없거나 남의 것(§26-3 B). */
+  goneToast: '대화를 찾을 수 없어요',
 
   menu: {
-    title: '질문 방 메뉴',
-    noun: '질문 방',
+    title: '질문 메뉴',
+    noun: '대화',
+    newQ: '새 질문 시작',
     scope: '보내는 범위 보기',
-    delete: '질문 방 삭제',
+    displayHead: '일본어 표시 · 모든 화면에 적용',
+    voiceHead: '말로 묻기',
+    convHead: '이 대화',
+    emptyNote: '아직 보낸 질문이 없어 이름 바꾸기·삭제는 없어요.',
+    delete: '이 대화 삭제',
     deleteBusy: '답을 받는 중에는 지울 수 없어요',
-    confirmTitle: '이 질문 방을 삭제할까요?',
+    confirmTitle: '이 대화를 삭제할까요?',
     confirmBody: '질문과 답, 아직 고르지 않은 제안이 함께 지워져요. 이미 채택한 단어·주제·공부 기록은 그대로 남아요.',
     deleteFail: '삭제하지 못했어요. 잠시 뒤 다시 해 보세요.',
   },
 
   scope: {
     title: '선생님에게 보내는 범위',
-    leadHead: '내 공부 기록을 근거로 답할 때, 질문과 함께 아래 내용이 ',
+    leadHead: '질문을 보내면 아래 내용이 ',
     leadBold: '선생님(외부 AI 서비스)',
-    leadTail: '에게 전달돼요. 한 번에 기록은 20건·2,000자까지만 보내요.',
+    leadTail: '에게 전달돼요. 기록은 한 번에 20건·2,000자까지만 보내요.',
     sendHead: '보내는 것',
     noSendHead: '보내지 않는 것',
-    /** 계약 §2-18-A 5항 D2=(b) = 승인 데모 v2 문구 그대로(Leader L-5). 바꾸면 안내 키(`ASK_KEYS.scopeNotice`) 버전을 올린다. */
+    /** 계약 §2-18-A 5항 D2=(b) = 승인 데모(task-066 v2) 문구 그대로(Leader L-5). 동의 문구라 원문을 바꾸지 않는다. */
     send: [
-      '질문과 이 질문 방의 최근 대화(12개까지)',
+      '질문과 이 대화의 최근 메시지(12개까지)',
       '표시 이름·레벨 같은 학습자 정보',
       '공부 기록 요약 — 공부 횟수·점수·복습 예정 목록',
       '내가 채택한 교정의 원래 문장과 고친 문장',
       '수업에서 배운 표현',
     ],
-    noSend: ['이메일·계정 정보', '내부 번호(id)', '다른 회화·채팅의 대화 내용'],
-    note: '이 앱은 내 대화·기록을 AI 학습 데이터로 쓰지 않아요.',
-    noteFirstTail: ' 이 안내는 질문 방 메뉴 ⋯ 「보내는 범위 보기」에서 다시 볼 수 있어요.',
-    ok: '알겠어요, 보내기',
-    cancel: '취소',
+    /** 셋째 줄(목소리)은 화면이 `voiceBold` 를 굵게 나눠 그리고 강조 바탕을 깐다. */
+    noSend: ['이메일·계정 정보', '내부 번호(id)', '내 목소리 — 말로 물어도 선생님에게는 들린 글(일본어)만 가요', '다른 회화·채팅의 대화 내용'],
+    voiceIndex: 2,
+    voiceBold: '내 목소리',
+    voiceBandBold: '말로 물어볼 때',
+    voiceBandTail: ' — 일본어 음성 인식은 회화와 같은 방식(휴대폰, 또는 이 앱 서버)으로 글자로 바꿔요. 선생님에게는 그 글만 가요.',
+    note: '이 앱은 내 대화·기록을 AI 학습 데이터로 쓰지 않아요. 이 안내는 ⋯ 메뉴 「보내는 범위 보기」에서도 볼 수 있어요.',
     close: '닫기',
   },
 

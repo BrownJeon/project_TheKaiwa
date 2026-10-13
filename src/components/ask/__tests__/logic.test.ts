@@ -17,7 +17,14 @@ import {
   askReplyFromDone,
   askSourceHref,
   askTitleOf,
+  askChatHref,
+  askConvTransition,
+  askSendOptions,
+  chatInfoOfCreated,
   idsAdd,
+  isAskId,
+  takeSeed,
+  type AskSeed,
   isAskFocusTarget,
   isAskProposalKind,
   parseIdSet,
@@ -226,7 +233,7 @@ test('⑨ askNoticeText — 429 초·분·오늘 · ASK_BUSY · 409 기존 문�
   assert.equal(askNoticeText({ kind: 'error', text: 'x', status: 409 }, null), turnNoticeText({ status: 409 }))
   assert.equal(askNoticeText({ kind: 'error', text: 'x', status: 0 }, null), '보내지 못했어요. 인터넷 연결을 확인하고 다시 보내 주세요.')
   assert.equal(askNoticeText({ kind: 'error', text: '질문은 1,000자까지예요', status: 400 }, null), '질문은 1,000자까지예요')
-  assert.equal(askNoticeText({ kind: 'notFound', text: 'x', status: 404 }, null), '질문 방을 찾을 수 없어요')
+  assert.equal(askNoticeText({ kind: 'notFound', text: 'x', status: 404 }, null), '대화를 찾을 수 없어요')
   for (const n of [1, 30, 91, 3601]) for (const r of [undefined, 'ASK_BUSY']) assert.doesNotMatch(askNoticeText(rate(n, r), n), /남은|회|번 더|하루 60|분당 3/)
 })
 
@@ -344,4 +351,47 @@ test('⑬ teacherTitle — 「선생님」은 그대로, 이름이면 「이름 
 test('제안 종류 — ASK 3a 는 단어·기록·레벨만 그린다(주제·복습 일정·모르는 값은 그리지 않음)', () => {
   for (const k of ['ADD_WORD', 'ADD_STUDY_LOG', 'SET_LEVEL']) assert.ok(isAskProposalKind(k))
   for (const k of ['ADD_TOPIC', 'SCHEDULE_REVIEW', 'X']) assert.ok(!isAskProposalKind(k))
+})
+
+// ── task-066 §26-13 ⑤ ⑥ ⑨ — 주소·대화 수명·첫 전송 ─────────────────────────────
+
+test('⑨ ASK_KEYS — 관문·목록 키(scopeNotice·draft·pending)는 없고 inputMode 는 질문 탭 전용 키', () => {
+  assert.deepEqual(Object.keys(ASK_KEYS).sort(), ['flash', 'inputMode', 'newAnswer', 'waiting'])
+  assert.equal(ASK_KEYS.inputMode, 'kaiwa.ask.inputMode')
+  assert.notEqual(ASK_KEYS.inputMode, 'kaiwa.talk.inputMode')
+})
+
+test('⑨ isAskId·askChatHref — 형식(§25-8 A)과 같은 거름, 주소는 /ask?chat=<encode>', () => {
+  for (const ok of ['abc', 'A_b-9', 'x'.repeat(64)]) assert.equal(isAskId(ok), true, ok)
+  for (const bad of ['', 'x'.repeat(65), '../x', 'a b', 'a?b', 'a#b', '//x', null, undefined, 3]) assert.equal(isAskId(bad), false, String(bad))
+  assert.equal(askChatHref('abc'), '/ask?chat=abc')
+  assert.equal(askChatHref('a_b-1'), '/ask?chat=a_b-1')
+})
+
+test('⑨ askConvTransition — 바뀜만 본다: 생성 직후 null→id(=conv) 는 none, x→null 은 new, ?→y≠conv 는 open', () => {
+  assert.equal(askConvTransition(null, 'c1', 'c1'), 'none', '생성 직후 replaceState — 새 대화로 판정하면 보내던 질문이 사라진다')
+  assert.equal(askConvTransition('c1', null, 'c1'), 'new', '지금 대화에서 하단 탭 다시 누름')
+  assert.equal(askConvTransition('c1', null, null), 'none', '이미 빈 대화')
+  assert.deepEqual(askConvTransition(null, 'c2', null), { open: 'c2' })
+  assert.deepEqual(askConvTransition('c1', 'c2', 'c1'), { open: 'c2' })
+  assert.equal(askConvTransition('c1', 'c1', 'c1'), 'none', '같은 값')
+  assert.equal(askConvTransition(null, null, null), 'none')
+  assert.equal(askConvTransition('c1', '../x', 'c1'), 'new', '잘못된 id = 없는 것')
+  assert.equal(askConvTransition('../x', null, null), 'none')
+})
+
+test('⑤ takeSeed — 첫 번째만 true(그리고 used), 두 번째·없음은 false(#29 로 읽어 이어받기)', () => {
+  const seed: AskSeed = { chat: chatInfoOfCreated({ id: 'c1', kind: 'ASK', title: 't', running: false, messageCount: 0 }), text: '大丈夫', via: 'voice', used: false }
+  assert.equal(takeSeed(seed), true)
+  assert.equal(seed.used, true)
+  assert.equal(takeSeed(seed), false, 'StrictMode 이중 마운트 — 두 번 보내지 않는다')
+  assert.equal(takeSeed(null), false)
+  assert.equal(takeSeed(undefined), false)
+  assert.deepEqual(seed.chat, { id: 'c1', kind: 'ASK', title: 't', running: false, messageCount: 0, reviewedAt: null })
+})
+
+test('⑥ askSendOptions — 말은 REALTIME_STT 만(발화 id 키 없음), 글자는 빈 옵션', () => {
+  assert.deepEqual(askSendOptions('voice'), { inputSource: 'REALTIME_STT' })
+  assert.ok(!('utteranceId' in askSendOptions('voice')))
+  assert.deepEqual(askSendOptions('text'), {})
 })

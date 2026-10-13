@@ -54,7 +54,7 @@ import type { WindowMessage } from '../window'
 import type { LearnerHeader } from '../prompts/header'
 import { chatPreview, notFoundChat } from '../chats'
 import { loadRolePlayLearnerTexts, rawDateOrNull, rolePlayEnded, rolePlayProgress } from '../chats/rolePlay'
-import type { TurnClientTimings, TurnRequest } from '../chats/validate'
+import { assertAskInput, type TurnClientTimings, type TurnRequest } from '../chats/validate'
 import { TurnAudio, type TurnSpeaker } from './turnAudio'
 import { computeSceneCap, type SceneCapReason } from './sceneCap'
 import { proposalExpiresAt } from '../proposals'
@@ -143,8 +143,8 @@ export async function acceptTurnTx(tx: Tx, userId: string, chatId: string, req: 
   const rows = await tx.$queryRaw<{ id: string; userId: string; kind: ChatKind; level: JlptLevel | null; scenarioId: string | null; createdAt: Date | string; endedAt?: Date | string | null }[]>`SELECT id, userId, kind, level, scenarioId, createdAt, endedAt FROM Chat WHERE id = ${chatId} FOR UPDATE`
   const chat = rows[0]
   if (!chat || chat.userId !== userId) throw notFoundChat()
-  // task-064 — ASK 는 글자 질문만(3a). 라우트 검증과 별개로 수락 트랜잭션도 막는다(행 0).
-  if (chat.kind === 'ASK' && !req.resume) assertAskRequest(req)
+  // task-064·066 — ASK 는 글자·실시간 음성 인식 글자만, 발화 연결 없음(assertAskInput). 라우트 검증과 별개로 수락 트랜잭션도 막는다(행 0).
+  if (chat.kind === 'ASK' && !req.resume) assertAskInput(req)
   // task-010d — 마친 역할극에는 턴을 받지 않는다(종료 #167 도 사용자 → 대화 순서로 잠그므로 둘은 겹치지 않는다).
   // 잠근 행의 Chat.endedAt 이 먼저(task-048, 조회 0). NULL 이면 관측 기반 판정 — 이미 읽은 행의 생성 시각을 하한으로(전수 훑기 없음).
   if (chat.scenarioId) {
@@ -406,12 +406,6 @@ async function precheckChat(userId: string, chatId: string): Promise<{ kind: Cha
   const chat = await prisma.chat.findFirst({ where: { id: chatId, userId }, select: { kind: true, level: true, scenarioId: true } })
   if (!chat) throw notFoundChat()
   return chat
-}
-
-/** ASK 3a 는 글자 질문만 — 음성 입력·발화 연결은 400(api-contract §2-18-A 범위). */
-function assertAskRequest(req: TurnRequest): void {
-  if (req.resume) return
-  if (req.inputSource !== 'TEXT' || req.utteranceId) throw new ApiError('VALIDATION', '질문은 글자로 보내 주세요.', { field: 'inputSource', reason: 'ASK_TEXT_ONLY' })
 }
 
 /** #32 ASK 요청의 `scope.key` — `TurnRequest` 에 칸이 생기기 전·후 모두 읽는다(값 검사는 ASK 경로가 한다). */
@@ -777,7 +771,7 @@ export async function startTurn(input: { userId: string; chatId: string; request
       const [pre] = await Promise.all([turnDeps.precheckChat(input.userId, input.chatId), hooks.gate ? hooks.gate() : Promise.resolve()])
       if (pre.kind === 'ASK') {
         // ASK 는 수락 뒤에 분류·조회·LLM 을 돈다(./ask) — 여기서는 요청 모양만 막는다(행 0·LLM 0).
-        assertAskRequest(request)
+        assertAskInput(request)
       } else {
         const [learner, history, correctionMode, material] = await Promise.all([
           turnDeps.buildLearnerHeader(input.userId, pre.level),

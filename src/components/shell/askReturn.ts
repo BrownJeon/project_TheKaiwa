@@ -16,7 +16,8 @@ const CLOCK_SKEW_MS = 60 * 1000
 /** 원본 경로 상한 — `samePath`(planReturn)가 300자 넘는 경로를 같은 경로로 보지 않으므로 같은 값. */
 const SRC_MAX = 300
 
-const ASK_HREF = /^\/ask\/[A-Za-z0-9_-]{1,64}$/
+/** 질문 대화 주소 — 지난 대화 `/ask/<id>` 또는 탭 화면의 지금 대화 `/ask?chat=<id>`(task-066 §26-3 E). 그 밖 쿼리·해시·`//` 는 거절. */
+const ASK_HREF = /^\/ask(\/[A-Za-z0-9_-]{1,64}|\?chat=[A-Za-z0-9_-]{1,64})$/
 const APP_PATH = /^\/(?!\/)[A-Za-z0-9._~%/-]*$/
 
 export interface AskReturn {

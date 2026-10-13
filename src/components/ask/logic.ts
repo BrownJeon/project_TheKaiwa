@@ -2,7 +2,7 @@
  * 「무엇이든 물어보세요」 화면의 순수 계산(task-064 screens.md §25-3 A logic.ts) — 화면이 고르는 값은 여기서 정하고 시험이 잠근다.
  * 근거 이동 주소는 `askSourceHref` 한 곳에서만 만든다(컴포넌트에서 주소 문자열을 조립하지 않는다).
  */
-import type { ChatMessageView, ProposalKind, TurnDoneEvent, TurnStage } from '@/types/chat'
+import type { ChatInfo, ChatMessageView, CreatedChat, ProposalKind, TurnDoneEvent, TurnStage } from '@/types/chat'
 import {
   ASK_CONFIDENCES,
   ASK_INTENTS,
@@ -27,15 +27,16 @@ import { ASK_COPY } from './askCopy'
 
 // ── 저장소 키 ──────────────────────────────────────────────────────────────────
 
-/** 브라우저 저장소 키(읽기·쓰기는 `common/storage` — 예외는 빈 값). `scopeNotice` 만 localStorage(기기별), 나머지는 sessionStorage. */
+/**
+ * 브라우저 저장소 키(읽기·쓰기는 `common/storage` — 예외는 빈 값). 모두 sessionStorage.
+ * task-066 에서 `scopeNotice`(보내기 확인 관문)·`draft`(목록 입력 카드)·`pending`(목록 → 방 넘김)은 없앴다 — 남아 있는 값은 아무도 읽지 않는다(§26-2 A).
+ */
 export const ASK_KEYS = {
-  /** 보내는 범위 안내를 본 기기 — 범위 문구(`ASK_COPY.scope`)를 바꾸면 버전을 올린다. */
-  scopeNotice: 'kaiwa.ask.scopeNotice.v1',
-  draft: 'kaiwa.ask.draft',
   waiting: 'kaiwa.ask.waiting',
   newAnswer: 'kaiwa.ask.newAnswer',
   flash: 'kaiwa.ask.flash',
-  pending: (chatId: string) => `kaiwa.ask.pending.${chatId}`,
+  /** 질문 탭 입력 모드 `'text'`(기본)·`'voice'` — 회화(`kaiwa.talk.inputMode`)와 따로(§26-7 A). */
+  inputMode: 'kaiwa.ask.inputMode',
 } as const
 
 export const ASK_ID_SET_MAX = 20
@@ -139,9 +140,70 @@ export function isAskFocusTarget(type: AskSourceType | null): boolean {
   return type === 'LESSON' || type === 'EVALUATION' || type === 'SCENARIO'
 }
 
-/** 보내는 범위 시트를 닫을 때(취소·Esc·배경) 입력 바로 돌려줄 글 — 입력 바에서 보낸 글만(칩으로 보낸 질문은 입력 바에 있던 글이 아니다). */
-export function scopeSheetRestoreText(held: { text: string; fromComposer: boolean } | null): string | null {
-  return held?.fromComposer ? held.text : null
+// ── 주소 · 대화 수명(§26-3) ─────────────────────────────────────────────────────
+
+/** 대화 id 형식(§25-8 A 와 같음) — `?chat=` 값을 믿기 전에 거른다. */
+export function isAskId(id: unknown): id is string {
+  return typeof id === 'string' && SAFE_ID.test(id)
+}
+
+/** 탭 화면에서 시작·복원한 지금 대화의 주소(§26-3 A). */
+export function askChatHref(id: string): string {
+  return `/ask?chat=${encodeURIComponent(id)}`
+}
+
+/**
+ * 주소만 바꿔 적는다(기록을 늘리지 않음, 서버 요청 없음). **첫 인자는 반드시 `null`** — 호출 모양이 곧 동작이다.
+ * Next 가 패치한 `history.replaceState` 는 `data.__NA`/`data._N` 이 있으면(= `window.history.state` 를 그대로 넘기면) 라우터 동기화를 건너뛰어
+ * `useSearchParams`·하단 탭 「질문」 재누름·`router.push/replace('/ask')` 의 비교가 옛 주소에 머문다. `null` 이면 Next 가 내부 state 를 복사하고 동기화한다.
+ */
+export function replaceAskUrl(h: Pick<History, 'replaceState'>, url: string): void {
+  h.replaceState(null, '', url)
+}
+
+export type AskConvTransition = 'none' | 'new' | { open: string }
+
+/**
+ * 주소 쿼리 `chat` 이 바뀌었을 때 할 일(§26-3 D) — 값이 아니라 **바뀜**만 본다.
+ * 생성 직후 `replaceState` 로 `null → id` 가 되는 순간은 `id === convId` 라 `none`(새 대화로 판정하면 보내던 질문이 사라진다).
+ * 형식이 잘못된 값은 없는 것(`null`)으로 본다.
+ */
+export function askConvTransition(prev: string | null, next: string | null, convId: string | null): AskConvTransition {
+  const n = isAskId(next) ? next : null
+  const p = isAskId(prev) ? prev : null
+  if (n === p) return 'none'
+  if (n === null) return convId !== null ? 'new' : 'none'
+  return n === convId ? 'none' : { open: n }
+}
+
+/** 빈 대화에서 첫 질문으로 만든 방을 `AskRoom` 에 넘기는 값(§26-3 C 4) — `used` 는 첫 전송을 한 번만 하게 하는 표지. */
+export interface AskSeed {
+  chat: ChatInfo
+  text: string
+  via: AskVia
+  used: boolean
+}
+
+export type AskVia = 'text' | 'voice'
+
+/** #28 응답 → `AskRoom` 의 대화 정보(§26-3 C 6). */
+export function chatInfoOfCreated(c: Pick<CreatedChat, 'id' | 'kind' | 'title' | 'running' | 'messageCount'>): ChatInfo {
+  return { id: c.id, kind: c.kind, title: c.title, running: c.running, messageCount: c.messageCount, reviewedAt: null }
+}
+
+/**
+ * 첫 전송을 할지(§26-3 C 5) — 처음이면 `used` 를 켜고 true, 이미 썼으면 false(그때는 #29 로 읽어 진행 중 턴을 이어받는다).
+ * 개발 모드 이중 마운트·빠른 재마운트에서 같은 질문을 두 번 보내지 않게 하는 유일한 장치.
+ */
+export function takeSeed(seed: AskSeed | null | undefined): boolean {
+  if (!seed || seed.used) return false
+  seed.used = true
+  return true
+}
+
+/** 턴 보내기 옵션(§26-5 B) — 말로 물은 질문은 `REALTIME_STT` 만 싣고 **발화 id 는 절대 싣지 않는다**(목소리 미저장, L1). */
+export function askSendOptions(via: AskVia): { inputSource?: 'REALTIME_STT' } {
+  return via === 'voice' ? { inputSource: 'REALTIME_STT' } : {}
 }
 
 // ── 답 구조값 ───────────────────────────────────────────────────────────────────

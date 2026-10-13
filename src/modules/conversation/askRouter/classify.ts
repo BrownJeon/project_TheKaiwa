@@ -8,6 +8,8 @@
  *     1인칭·기간어 혼자는 기록 신호가 아니다(「내가 일본에 가면 뭐라고 해?」).
  *  3) 일반 신호 G = 질문 표지(차이·뜻·어떻게 말해·일본어로·설명해…·意味·違い…). 일본어 글자만 있으면 약한 신호(기록 신호가 있으면 무시).
  *  4) R+G → MIXED, R → 활동어 점수로 EXPRESSION/PROGRESS(같으면 MIXED), G(약한 것 포함) → GENERAL, 둘 다 없음 → MIXED(애매).
+ *  3-b) (task-066) **일본어 글자만 있고 한글이 없는 입력**(마이크·글자 모두 — 「大丈夫」「お疲れ様でした」「先週の復習」)은 그 일본어의 뜻을 묻는 질문이라 무조건 GENERAL(기록 조회 0).
+ *     기록 신호·기간 키워드가 전부 한국어라 이미 그렇게 분류되지만, 키워드 목록에 일본어 낱말이 더해져도 이 경로가 열리지 않도록 규칙으로 고정한다.
  *  5) 기간어(한국어·일본어 — 「전체 문장」처럼 말감이 붙은 「전체」는 제외) → 범위(여럿이면 가장 넓은 것). 기록 의도 + 기간 없음 + 범위에 민감(집계어, 또는 교정·배운·진도 목록류)이면 needsScope.
  *     지금 상태(복습 남은 것·연속·레벨·약점)와 특정 기억 찾기(뭐였지·쓰던·저번에)는 묻지 않는다. MIXED 인데 본인 활동 단서가 없으면(평가·점수 같은 명사만) 묻지 않는다.
  * 되묻기 칩 답(`ctx.scopeKey`)은 **직전 질문(`ctx.prevUserText`)의 의도**에 칩 범위를 붙인다 — 칩 글자로 분류하지 않는다.
@@ -56,6 +58,7 @@ const LIST_TOPIC = ['교정', '고쳐', '고친', '틀린', '틀렸', '틀리', 
 
 const FIRST_PERSON = /(?:^|[\s,.!?~])(?:내가|내|나의|나는|나한테|제가|제|저의|저한테|우리)(?=[\s,.!?~]|$)/
 const JA_CHAR = /[぀-ヿ㐀-䶿一-鿿々〆〜]/
+const HANGUL = /[ᄀ-ᇿ㄰-㆏ꥠ-꥿가-힯ힰ-퟿]/
 const QUOTED = /「[^」]*」|『[^』]*』|‘[^’]*’|“[^”]*”|'[^']*'|"[^"]*"/g
 
 const RANK: Record<AskScopeKey, number> = { THIS_WEEK: 1, LAST_30D: 2, ALL: 3 }
@@ -72,6 +75,8 @@ interface Signals {
   record: boolean
   generalStrong: boolean
   generalWeak: boolean
+  /** 일본어 글자가 있고 한글이 하나도 없다 — 「이 일본어가 무슨 뜻이야」 입력(task-066). 기록 의도가 될 수 없다. */
+  japaneseOnly: boolean
   exprScore: number
   progScore: number
   period: AskScopeKey | null
@@ -102,6 +107,7 @@ function signals(raw: string): Signals {
     record: learnProg > 0 || learnExpr > 0 || domainCombo,
     generalStrong: any(c, GENERAL_KO) || any(outside, GENERAL_JA),
     generalWeak: JA_CHAR.test(n),
+    japaneseOnly: JA_CHAR.test(n) && !HANGUL.test(n),
     exprScore: learnExpr + (recall || past ? 1 : 0) + (domainCombo ? 1 : 0),
     progScore: learnProg,
     period,
@@ -114,7 +120,7 @@ function signals(raw: string): Signals {
 }
 
 function fromSignals(s: Signals): AskClassification {
-  if (s.empty) return { intent: 'GENERAL', needsScope: false, scope: null, basedOnPrev: false }
+  if (s.empty || s.japaneseOnly) return { intent: 'GENERAL', needsScope: false, scope: null, basedOnPrev: false }
   let intent: AskIntent
   if (s.record && s.generalStrong) intent = 'MIXED'
   else if (s.record) intent = s.exprScore > s.progScore ? 'EXPRESSION' : s.progScore > s.exprScore ? 'PROGRESS' : 'MIXED'

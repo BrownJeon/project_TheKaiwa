@@ -63,13 +63,48 @@ test('#32 scope 형식: {key: THIS_WEEK|LAST_30D|ALL} 만, 그 밖 400 field=sco
   for (const bad of ['THIS_WEEK', { key: 'YESTERDAY' }, { key: 1 }, [], { }]) assert.throws(() => parseTurnBody({ text: 'a', scope: bad }), field('scope'), JSON.stringify(bad))
 })
 
-test('#32 ASK: inputSource 는 TEXT 만(그 밖 400) · utteranceId 거절 400 · TEXT 글자 턴은 통과 · resume 은 검사 대상 아님', () => {
+test('#32 ASK: inputSource 는 TEXT·REALTIME_STT 만(그 밖 400) · utteranceId 거절 400 · TEXT 글자 턴은 통과 · resume 은 검사 대상 아님', () => {
   assert.doesNotThrow(() => assertTurnFitsKind('ASK', parseTurnBody({ text: '이번 주 진도', inputSource: 'TEXT', scope: { key: 'ALL' } })))
   assert.doesNotThrow(() => assertTurnFitsKind('ASK', parseTurnBody({ text: '이번 주 진도' })))
   assert.throws(() => assertTurnFitsKind('ASK', parseTurnBody({ text: 'a', utteranceId: 'u1' })), field('utteranceId'))
   assert.throws(() => assertTurnFitsKind('ASK', parseTurnBody({ text: 'a', utteranceId: 'u1', inputSource: 'SERVER_STT' })), field('utteranceId'))
   assert.throws(() => assertTurnFitsKind('ASK', { resume: false, text: 'a', inputSource: 'SERVER_STT', utteranceId: null, clientTimings: null }), field('inputSource'))
   assert.doesNotThrow(() => assertTurnFitsKind('ASK', parseTurnBody({ resumePending: true })))
+})
+
+// ── task-066: 질문 방의 음성 질문 = 실시간 음성 인식이 만든 글자(발화 행·원음 없음) ──────────
+
+const askVoice = (extra: Record<string, unknown> = {}) => parseTurnBody({ text: '大丈夫', inputSource: 'REALTIME_STT', ...extra }, { deferVoiceUtterance: true })
+
+test('#32 ASK 음성 질문(task-066): REALTIME_STT + 발화 id 없음 = 통과(요청 모양 그대로), 글자(TEXT)도 통과', () => {
+  const v = askVoice()
+  assert.ok(!v.resume)
+  assert.equal(!v.resume && v.inputSource, 'REALTIME_STT')
+  assert.equal(!v.resume && v.utteranceId, null)
+  assert.doesNotThrow(() => assertTurnFitsKind('ASK', v))
+  assert.doesNotThrow(() => assertTurnFitsKind('ASK', askVoice({ scope: { key: 'ALL' }, clientTimings: { sttMs: 120 } })), '기간 칩 답·인식 시간 계측은 글자 질문과 같다')
+  assert.doesNotThrow(() => assertTurnFitsKind('ASK', parseTurnBody({ text: '大丈夫', inputSource: 'TEXT' }, { deferVoiceUtterance: true })))
+})
+
+test('#32 ASK 음성 질문 거절(task-066): 발화 id 는 어떤 값이든 400 utteranceId · SERVER_STT 는 400 inputSource · 허용 밖 값은 본문 검사에서 400', () => {
+  // 발화 행을 질문에 잇지 않는다 — 원음·발화 행은 서버에 남기지 않는다(목소리 서버 미저장).
+  assert.throws(() => assertTurnFitsKind('ASK', askVoice({ utteranceId: 'u1' })), field('utteranceId'))
+  assert.throws(() => assertTurnFitsKind('ASK', parseTurnBody({ text: 'a', utteranceId: 'u1' }, { deferVoiceUtterance: true })), field('utteranceId'), 'inputSource 생략 + utteranceId = REALTIME_STT 로 읽혀 역시 거절')
+  assert.throws(() => assertTurnFitsKind('ASK', parseTurnBody({ text: 'a', inputSource: 'SERVER_STT' }, { deferVoiceUtterance: true })), (e: unknown) => field('inputSource')(e) && (e as ApiError).details?.reason === 'TEXT|REALTIME_STT')
+  assert.throws(() => assertTurnFitsKind('ASK', parseTurnBody({ text: 'a', inputSource: 'SERVER_STT', utteranceId: 'u1' }, { deferVoiceUtterance: true })), field('utteranceId'))
+  assert.throws(() => parseTurnBody({ text: 'a', inputSource: 'VOICE' }, { deferVoiceUtterance: true }), field('inputSource'))
+  assert.throws(() => parseTurnBody({ text: 'a', inputSource: 'TEXT', utteranceId: 'u1' }, { deferVoiceUtterance: true }), field('inputSource'), '글자라면서 발화 id 를 잇는 요청은 본문 검사 단계에서 400')
+  assert.throws(() => parseTurnBody({ text: 'a', inputSource: 'REALTIME_STT', utteranceId: '' }, { deferVoiceUtterance: true }), field('utteranceId'), '빈 문자열 id 는 형식 오류')
+  assert.doesNotThrow(() => assertTurnFitsKind('ASK', parseTurnBody({ resumePending: true }, { deferVoiceUtterance: true })))
+})
+
+test('#32 회귀(task-066): 본문 검사는 기본이 그대로 엄격하고, 옵션을 켜도 TALK·CHAT 의 「음성 입력엔 utteranceId 필수」 400 은 종류별 검사에서 같은 필드·사유로 난다', () => {
+  assert.throws(() => parseTurnBody({ text: 'はい', inputSource: 'REALTIME_STT' }), (e: unknown) => field('utteranceId')(e) && (e as ApiError).details?.reason === 'required')
+  for (const kind of ['TALK', 'CHAT'] as const) {
+    assert.throws(() => assertTurnFitsKind(kind, askVoice()), (e: unknown) => field('utteranceId')(e) && (e as ApiError).details?.reason === 'required', kind)
+    assert.doesNotThrow(() => assertTurnFitsKind(kind, askVoice({ utteranceId: 'u1' })), `${kind}: 발화 id 가 있으면 통과(speech 가 그 뒤에 소유·미연결을 본다)`)
+    assert.doesNotThrow(() => assertTurnFitsKind(kind, parseTurnBody({ text: 'はい' }, { deferVoiceUtterance: true })), `${kind}: 글자 턴`)
+  }
 })
 
 test('#32 scope 는 ASK 한정 — TALK·CHAT 에 오면 400, 오지 않으면 TALK·CHAT 검증 불변(음성 턴 포함)', () => {

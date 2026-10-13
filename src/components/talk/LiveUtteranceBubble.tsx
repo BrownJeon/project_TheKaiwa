@@ -7,7 +7,21 @@
 import { JA_BODY } from '@/components/chat/MessageBubble'
 import { TALK_ROOM } from './talkCopy'
 
-export default function LiveUtteranceBubble({ kind, partial, text }: { kind: 'listening' | 'recognizing' | 'queued'; partial: string; text?: string }) {
+export default function LiveUtteranceBubble({
+  kind,
+  partial,
+  text,
+  out,
+  caption,
+}: {
+  kind: 'listening' | 'recognizing' | 'queued'
+  partial: string
+  text?: string
+  /** 질문 탭만(task-066 §26-7 E) — 손가락이 버튼 밖: 테두리 bad·부분 글 취소선. 없으면 지금 그대로. */
+  out?: boolean
+  /** 질문 탭만 — 녹음 중 말풍선 아래 캡션(밀어서 취소 안내). 없으면 지금 그대로. */
+  caption?: string
+}) {
   if (kind === 'queued') {
     return (
       <div className="flex min-w-0 flex-col items-end">
@@ -23,9 +37,9 @@ export default function LiveUtteranceBubble({ kind, partial, text }: { kind: 'li
   }
   return (
     <div aria-hidden="true" className="flex min-w-0 flex-col items-end">
-      <div className="min-w-0 max-w-[80%] rounded-2xl rounded-br-md border border-dashed border-line bg-surface px-3.5 py-2.5">
+      <div className={`min-w-0 max-w-[80%] rounded-2xl rounded-br-md border border-dashed ${out ? 'border-bad' : 'border-line'} bg-surface px-3.5 py-2.5`}>
         {partial ? (
-          <p lang="ja" className={`${JA_BODY} text-ink2`}>
+          <p lang="ja" className={out ? `${JA_BODY} text-ink2 line-through` : `${JA_BODY} text-ink2`}>
             {partial}
             <span>…</span>
           </p>
@@ -33,6 +47,11 @@ export default function LiveUtteranceBubble({ kind, partial, text }: { kind: 'li
           <p className="text-[14px] text-ink2 break-keep">{TALK_ROOM.listening}</p>
         )}
       </div>
+      {caption !== undefined && kind === 'listening' ? (
+        <p aria-hidden="true" className={`mt-1 self-end max-w-[84%] text-right text-[12px] break-keep ${out ? 'font-semibold text-bad' : 'text-ink2'}`}>
+          {caption}
+        </p>
+      ) : null}
     </div>
   )
 }

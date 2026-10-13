@@ -19,21 +19,28 @@ export default function UnsentBar({
   onResend,
   onEdit,
   onDiscard,
+  textOf,
+  canResend: canResendProp,
 }: {
   unsent: UnsentView
   blockedUntil: number | null
   onResend: () => void
   onEdit: () => void
   onDiscard: () => void
+  /** 문구를 화면이 고른다(질문 탭 `askUnsentText`, task-066 §26-7 G). `retrySec` = 429 남은 초. 없으면 회화 `unsentText`. */
+  textOf?: (reason: UnsentReason, opts: { retrySec: number | null; serverMessage?: string | null }) => string
+  /** [다시 보내기]를 둘지(질문 하루 한도 = false). 없으면 회화 규칙(400 만 없음). */
+  canResend?: boolean
 }) {
   const remaining = useCountdown(unsent.reason === 429 ? blockedUntil : null)
   const waiting = unsent.reason === 429 && remaining !== 0
-  const canResend = unsent.reason !== 400
+  const canResend = canResendProp ?? unsent.reason !== 400
+  const opts = { retrySec: remaining, serverMessage: unsent.serverMessage }
   return (
     <div role="alert" className="min-w-0 rounded-xl border border-line bg-surface p-3">
       <div className="flex min-w-0 items-start gap-1">
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] text-ink2 break-keep">{unsentText(unsent.reason, { retrySec: remaining, serverMessage: unsent.serverMessage })}</p>
+          <p className="text-[13px] text-ink2 break-keep">{textOf ? textOf(unsent.reason, opts) : unsentText(unsent.reason, opts)}</p>
           <p lang="ja" className="mt-1 line-clamp-2 text-[15px] text-ink [overflow-wrap:anywhere]">
             「{unsent.text}」
           </p>

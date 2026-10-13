@@ -11,6 +11,7 @@ import {
   ASK_SCOPE_SENTENCES,
   askAllowedProposals,
   askAnswerPreview,
+  askInputKindOf,
   askMetaFromToolLog,
   askPrevFrom,
   askScopeDates,
@@ -23,6 +24,7 @@ import {
   type AskToolLog,
   type AskTurnOutput,
 } from '../orchestrator/ask'
+import { ASK_VOICE_LINE } from '../prompts/ask'
 import { currentTurnLock } from '../orchestrator/locks'
 import type { TurnEvent } from '../orchestrator/stream'
 import type { TurnRequest } from '../chats/validate'
@@ -49,6 +51,8 @@ interface Setup {
   llm?: (req: Record<string, unknown>) => Promise<unknown>
   history?: { role: 'user' | 'assistant'; content: string }[]
   budgetMs?: number
+  /** 끊김 복구(resume)가 돌려주는 저장된 사용자 행 — 글·입력 방식(기본: 정해 둔 한국어 기록 질문 · TEXT). */
+  resume?: { content?: string; inputSource?: 'TEXT' | 'REALTIME_STT' | 'SERVER_STT' }
 }
 
 function setup(o: Setup = {}) {
@@ -61,7 +65,8 @@ function setup(o: Setup = {}) {
     kind: o.kind ?? 'ASK',
     level: 'N4',
     scenarioId: null,
-    userMessage: { id: 'mu', content: req.resume ? '내가 틀린 거 정리해 줘' : req.text, createdAt: NOW, inputSource: 'TEXT' },
+    // 저장된 사용자 행의 입력 방식 — 새 요청은 받은 값 그대로, 복구는 처음 질문의 값(acceptTurnTx 가 DB 에서 읽는 것과 같다).
+    userMessage: { id: 'mu', content: req.resume ? (o.resume?.content ?? '내가 틀린 거 정리해 줘') : req.text, createdAt: NOW, inputSource: req.resume ? (o.resume?.inputSource ?? 'TEXT') : req.inputSource },
     assistantMessageId: 'ma',
     pendingSince: new Date(NOW.getTime() + 1),
     traceId: 'tr1',
@@ -444,10 +449,10 @@ test('⑩ 구독자가 없거나 구독자가 던져도(연결 끊김) 서버는
 
 // ── ⑪ 요청 검증·소유자·회귀 ──────────────────────────────────────────────────
 
-test('⑪-a ASK 에 음성 입력·발화 id → 수락 전 VALIDATION(수락 0·LLM 0·락 해제)', async (t) => {
+test('⑪-a ASK 에 발화 id(음성 발화 연결)·SERVER_STT → 수락 전 VALIDATION(수락 0·LLM 0·락 해제)', async (t) => {
   t.after(() => mock.restoreAll())
   const { calls, accept } = setup()
-  for (const req of [text('질문', { inputSource: 'REALTIME_STT', utteranceId: 'ut1' }), text('질문', { utteranceId: 'ut1' })]) {
+  for (const req of [text('질문', { inputSource: 'REALTIME_STT', utteranceId: 'ut1' }), text('질문', { utteranceId: 'ut1' }), text('질문', { inputSource: 'SERVER_STT' })]) {
     await assert.rejects(startTurn({ userId: 'u-ask-11a', chatId: 'c1', request: req }), (e: unknown) => e instanceof ApiError && e.code === 'VALIDATION')
   }
   assert.equal(accept.mock.callCount(), 0)
@@ -470,7 +475,7 @@ function acceptTx(chat: { userId: string; kind: string }) {
   return { tx, ops }
 }
 
-test('⑪-b acceptTurnTx(ASK): 남의 방 404 · 음성 입력 VALIDATION(행 0) · 글자 질문은 수락하고 미리보기 = 질문 ≤60자', async () => {
+test('⑪-b acceptTurnTx(ASK): 남의 방 404 · 발화 id 연결 VALIDATION(행 0) · 글자 질문은 수락하고 미리보기 = 질문 ≤60자', async () => {
   const other = acceptTx({ userId: 'u-other', kind: 'ASK' })
   await assert.rejects(acceptTurnTx(other.tx, 'u1', 'c1', text('질문')), (e: unknown) => e instanceof ApiError && e.code === 'NOT_FOUND')
   const voice = acceptTx({ userId: 'u1', kind: 'ASK' })
@@ -599,4 +604,114 @@ test('끊김 복구(resumePending): ASK 방이면 수락(재실행) 뒤 ASK 경�
   assert.equal((accept.mock.calls[0].arguments[2] as TurnRequest).resume, true)
   assert.deepEqual(stages(events), ['accepted', 'status:PROMPT', 'done'], '저장된 질문(내가 틀린 거 정리해 줘) → 규칙 되묻기')
   assert.equal(calls.save.length, 1)
+})
+
+// ── ⑫ task-066 음성 질문 — 실시간 음성 인식이 만든 글자를 같은 파이프라인으로(입력 방식 표지만 다르다) ──────────────
+
+const promptStep = (calls: { traces: Record<string, unknown>[] }) => (calls.traces[0].steps as { name: string; [k: string]: unknown }[]).find((st) => st.name === 'PROMPT')!
+const systemOf = (req: Record<string, unknown>) => req.system as string
+
+test('⑫-a 음성 질문(REALTIME_STT): 같은 파이프라인 · system 에 [입력 방식] 표지 한 줄 · Trace PROMPT.inputKind=VOICE · 질문 글(messages)은 글자 질문과 같다 · 원문은 Trace·toolLog 에 없다', async (t) => {
+  t.after(() => mock.restoreAll())
+  const Q = 'きょうはいいてんきですね'
+  const voice = setup()
+  const v = await run('u-ask-12a', text(Q, { inputSource: 'REALTIME_STT' }))
+  assert.deepEqual(stages(v.events), ['accepted', 'status:PROMPT', 'status:LLM', 'status:PARSE', 'done'], '단계 순서는 글자 질문과 같다')
+  assert.equal(voice.calls.llm.length, 1)
+  assert.ok(systemOf(voice.calls.llm[0]).includes(ASK_VOICE_LINE), '음성 인식 결과 표지')
+  assert.equal(promptStep(voice.calls).inputKind, 'VOICE')
+  assert.equal(voice.calls.save.length, 1, '저장은 글자 질문과 같은 한 번')
+  const json = JSON.stringify([voice.calls.traces, voice.calls.save.map((x) => x.toolLog)])
+  assert.ok(!json.includes(Q), 'Trace·toolLog 에 인식된 글(질문 본문)이 없다')
+  const voiceUser = userMsg(voice.calls.llm[0])
+  mock.restoreAll()
+
+  const plain = setup()
+  const p = await run('u-ask-12a2', text(Q, { inputSource: 'TEXT' }))
+  assert.deepEqual(stages(p.events), stages(v.events))
+  assert.ok(!systemOf(plain.calls.llm[0]).includes(ASK_VOICE_LINE), '글자 질문에는 표지가 없다')
+  assert.equal(promptStep(plain.calls).inputKind, 'TEXT')
+  assert.equal(userMsg(plain.calls.llm[0]), voiceUser, '표지는 지시(system) 쪽에만 — 질문 글은 바이트 동일')
+})
+
+test('⑫-b 음성 질문의 서버 재검증은 글자 질문과 같다: 규칙 되묻기(LLM 0)에도 inputKind 가 Trace 에 남고, 근거·제안 살균·락 해제도 그대로', async (t) => {
+  t.after(() => mock.restoreAll())
+  const scoped = setup()
+  const a = await run('u-ask-12b', text('내가 틀린 거 정리해 줘', { inputSource: 'REALTIME_STT' }))
+  assert.deepEqual(stages(a.events), ['accepted', 'status:PROMPT', 'done'], '기간이 없는 기록 질문은 음성으로 와도 조회·LLM 없이 서버가 되묻는다')
+  assert.equal(scoped.calls.llm.length, 0)
+  const sc = promptStep(scoped.calls)
+  assert.equal(sc.shortCircuit, 'NEEDS_SCOPE')
+  assert.equal(sc.inputKind, 'VOICE')
+  assert.equal(currentTurnLock('u-ask-12b'), null)
+  mock.restoreAll()
+
+  const ok = setup({
+    retrieval: result('GENERAL', [{ key: 'S1', type: 'CORRECTION', id: 'cr1', label: '교정', text: '本文' }], []),
+    llm: async () => ({
+      needsScope: null,
+      answerMd: '**大丈夫(だいじょうぶ)**: 괜찮다는 뜻이에요.',
+      sourceKeys: ['S1'],
+      confidence: 'HIGH',
+      proposals: [{ kind: 'ADD_WORD', payload: { surface: '大丈夫', reading: 'だいじょうぶ', meaning: '괜찮다' } }, { kind: 'ADD_TOPIC', payload: { title: '안부' } }],
+    }),
+  })
+  const b = await run('u-ask-12b2', text('大丈夫', { inputSource: 'REALTIME_STT' }))
+  const d = doneData(b.events)
+  assert.deepEqual(d.conversation.sources, [], 'GENERAL 은 음성이어도 근거 []')
+  assert.deepEqual((d.proposals as { kind: string }[]).map((x) => x.kind), ['ADD_WORD'], '허용 밖 제안(ADD_TOPIC)은 서버가 버린다')
+  assert.equal(ok.calls.save.length, 1)
+  assert.equal(currentTurnLock('u-ask-12b2'), null)
+})
+
+test('⑫-c 끊김 복구(resume)는 처음 질문의 입력 방식을 따른다: 저장된 사용자 행이 REALTIME_STT 면 VOICE, TEXT 면 TEXT', async (t) => {
+  t.after(() => mock.restoreAll())
+  const voice = setup({ resume: { content: '大丈夫', inputSource: 'REALTIME_STT' } })
+  await run('u-ask-12c', { resume: true })
+  assert.ok(systemOf(voice.calls.llm[0]).includes(ASK_VOICE_LINE))
+  assert.equal(promptStep(voice.calls).inputKind, 'VOICE')
+  mock.restoreAll()
+
+  const plain = setup({ resume: { content: '大丈夫', inputSource: 'TEXT' } })
+  await run('u-ask-12c2', { resume: true })
+  assert.ok(!systemOf(plain.calls.llm[0]).includes(ASK_VOICE_LINE))
+  assert.equal(promptStep(plain.calls).inputKind, 'TEXT')
+})
+
+test('⑫-d 수락 전 거절은 음성이어도 그대로: SERVER_STT·발화 id → VALIDATION(수락 0·LLM 0·락 없음) — 그리고 REALTIME_STT 글은 수락', async (t) => {
+  t.after(() => mock.restoreAll())
+  const { calls, accept } = setup()
+  for (const req of [text('大丈夫', { inputSource: 'SERVER_STT' }), text('大丈夫', { inputSource: 'REALTIME_STT', utteranceId: 'ut9' })]) {
+    await assert.rejects(startTurn({ userId: 'u-ask-12d', chatId: 'c1', request: req }), (e: unknown) => e instanceof ApiError && e.code === 'VALIDATION' && (e.details?.field === 'inputSource' || e.details?.field === 'utteranceId'))
+  }
+  assert.equal(accept.mock.callCount(), 0)
+  assert.equal(calls.llm.length, 0)
+  assert.equal(currentTurnLock('u-ask-12d'), null)
+  await run('u-ask-12d', text('大丈夫', { inputSource: 'REALTIME_STT' }))
+  assert.equal(accept.mock.callCount(), 1)
+  assert.equal(calls.llm.length, 1)
+})
+
+test('⑫-e acceptTurnTx(ASK): REALTIME_STT 글은 수락해 사용자 행의 inputSource 를 받은 값 그대로 저장(발화 id 칸 없음) · 발화 id·SERVER_STT 는 VALIDATION(행 0)', async () => {
+  const voice = acceptTx({ userId: 'u1', kind: 'ASK' })
+  await acceptTurnTx(voice.tx, 'u1', 'c1', text('大丈夫', { inputSource: 'REALTIME_STT' }))
+  const userCreate = voice.ops.find((o) => o.op === 'create' && (o.args as { data: { role: string } }).data.role === 'USER')!.args as { data: Record<string, unknown> }
+  assert.equal(userCreate.data.inputSource, 'REALTIME_STT')
+  assert.ok(!('utteranceId' in userCreate.data), '발화 id 를 질문 행에 잇지 않는다')
+  const plain = acceptTx({ userId: 'u1', kind: 'ASK' })
+  await acceptTurnTx(plain.tx, 'u1', 'c1', text('질문'))
+  assert.equal(((plain.ops.find((o) => o.op === 'create')!.args as { data: Record<string, unknown> }).data.inputSource), 'TEXT')
+  for (const req of [text('大丈夫', { inputSource: 'REALTIME_STT', utteranceId: 'ut1' }), text('大丈夫', { inputSource: 'SERVER_STT' })]) {
+    const bad = acceptTx({ userId: 'u1', kind: 'ASK' })
+    await assert.rejects(acceptTurnTx(bad.tx, 'u1', 'c1', req), (e: unknown) => e instanceof ApiError && e.code === 'VALIDATION')
+    assert.equal(bad.ops.length, 0)
+  }
+})
+
+test('REV-S1 F-2 askInputKindOf — 실시간 음성 인식(REALTIME_STT)만 VOICE, 글자·서버 인식·값 없음은 TEXT', () => {
+  assert.equal(askInputKindOf('REALTIME_STT'), 'VOICE')
+  assert.equal(askInputKindOf('TEXT'), 'TEXT')
+  assert.equal(askInputKindOf('SERVER_STT'), 'TEXT', '「TEXT 가 아니면 VOICE」로 바뀌면 옛·외부 행이 음성 표지를 단다')
+  assert.equal(askInputKindOf(null), 'TEXT')
+  assert.equal(askInputKindOf(undefined), 'TEXT')
 })

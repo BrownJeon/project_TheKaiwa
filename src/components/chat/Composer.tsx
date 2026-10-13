@@ -27,6 +27,11 @@ const MAX_CP = 1000
 const WARN_CP = 900
 const MAX_HEIGHT_PX = 136
 
+/** 입력 바 아래 여백 — 기본은 제스처 바 여백 포함(회화·채팅·질문 방 불변). */
+export function composerPaddingBottom(safeBottom: boolean): string {
+  return safeBottom ? 'max(8px, var(--safe-bottom))' : '8px'
+}
+
 export default function Composer({
   chatId,
   busy,
@@ -40,6 +45,7 @@ export default function Composer({
   lang = 'ja',
   inputLabel = '메시지 입력',
   busyReason = '선생님 답을 기다리는 중이에요',
+  safeBottom = true,
 }: {
   chatId: string
   busy: boolean
@@ -59,6 +65,8 @@ export default function Composer({
   inputLabel?: string
   /** 답을 기다리는 동안 보내기를 누를 때 안내(기본 「선생님 답을 기다리는 중이에요」) */
   busyReason?: string
+  /** 아래 여백에 제스처 바 여백을 더할지(기본 true = 지금 동작). 질문 탭처럼 아래에 하단 탭·범위 줄이 따로 있으면 false = 8px 고정(task-066 §26-8 A). */
+  safeBottom?: boolean
 }) {
   const [text, setText] = useState(() => readStore('session', KEYS.draft(chatId)) ?? '')
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -115,7 +123,7 @@ export default function Composer({
       // 키보드가 열리면 `--safe-bottom` 이 0 이 돼 제스처 바 여백이 빠진다.
       data-kb-docked
       className="flex-none border-t border-line bg-surface"
-      style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}
+      style={{ paddingBottom: composerPaddingBottom(safeBottom) }}
     >
       {count >= WARN_CP ? (
         <p className={`px-4 pt-1.5 text-right text-[12px] ${tooLong ? 'text-bad' : 'text-ink2'}`} aria-live="polite">

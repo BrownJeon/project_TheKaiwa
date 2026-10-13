@@ -74,6 +74,7 @@ export default function MessageList({
   renderTutor,
   renderPending,
   intro,
+  lead,
   tail,
   liveOff,
   followContent,
@@ -104,6 +105,8 @@ export default function MessageList({
   renderPending?: (m: ChatMessageView, ctx: RowContext) => React.ReactNode | null
   /** 빈 방 안내(없으면 채팅 RoomIntro) */
   intro?: React.ReactNode
+  /** 목록(`<ul>`)이 그려질 때 그 위에 놓을 것(질문 탭: 첫 질문 위에 남는 안내 말풍선, task-066 §26-5 B). 기본 없음. */
+  lead?: React.ReactNode
   /** 목록 꼬리(회화: 부분 인식 말풍선) */
   tail?: React.ReactNode
   /** 녹음 중 — 스크린리더 음성이 마이크로 들어가지 않게 낭독을 끈다 */
@@ -478,7 +481,10 @@ export default function MessageList({
         {messages.length === 0 && !trailingPending && !tail ? (
           (intro ?? <RoomIntro teacherName={teacherName} onPick={onPick} />)
         ) : (
-          <ul className="min-w-0">{rows}</ul>
+          <>
+            {lead}
+            <ul className="min-w-0">{rows}</ul>
+          </>
         )}
         </div>
       </div>

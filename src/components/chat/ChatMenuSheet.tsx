@@ -4,7 +4,8 @@
  * 채팅방 ⋯ 메뉴(screens.md §3-2 C ChatMenuSheet): 제목 바꾸기(#30) · 채팅 삭제(#31, 확인 단계).
  * "읽기 항상 펼치기" 줄은 없앴다(task-026 F1-A — 히라가나·한글·번역은 앱 전체 표시 설정: 방의 표시 바·설정 › 일본어 표시).
  * 회화방(task-007 §9-2 H)은 `chat.kind` 로 문구·삭제 뒤 경로만 바뀌고, `extra` 슬롯에 "들려주는 방식"을 넣는다.
- * 질문 방(task-064 §25-5 H)도 `kind === 'ASK'` 로 문구·삭제 실패 한 줄·삭제 뒤 경로(+ 목록 토스트 표지)만 바뀐다.
+ * 질문(task-064 §25-5 H → task-066 §26-9)도 `kind === 'ASK'` 로 문구·삭제 실패 한 줄·삭제 뒤 경로(+ 토스트 표지)만 바뀌고,
+ * `extraTop` 슬롯(제목 바꾸기 줄 위 — 기본 없음)에 새 질문·보내는 범위·표시·알아듣는 곳을 넣는다.
  */
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -31,6 +32,7 @@ export default function ChatMenuSheet({
   onRenamed,
   onToast,
   extra,
+  extraTop,
 }: {
   open: boolean
   chat: ChatInfo
@@ -39,6 +41,8 @@ export default function ChatMenuSheet({
   onRenamed: (title: string) => void
   onToast: (msg: string) => void
   extra?: React.ReactNode
+  /** 제목 바꾸기 줄 **위**에 놓을 줄(질문 메뉴 1~4 줄, task-066 §26-9). 기본 없음 = 지금 순서. */
+  extraTop?: React.ReactNode
 }) {
   const talk = chat.kind === 'TALK'
   const ask = chat.kind === 'ASK'
@@ -100,13 +104,16 @@ export default function ChatMenuSheet({
     }
   }
 
-  const sheetTitle = mode === 'rename' ? '제목 바꾸기' : mode === 'confirmDelete' ? `${noun} 삭제` : `${noun} 메뉴`
+  const removeLabel = ask ? ASK_COPY.menu.delete : `${noun} 삭제`
+  const sheetTitle = mode === 'rename' ? '제목 바꾸기' : mode === 'confirmDelete' ? removeLabel : ask ? ASK_COPY.menu.title : `${noun} 메뉴`
 
   return (
     <Sheet open={open} title={sheetTitle} onClose={close} dismissible={!busy}>
       {mode === 'menu' ? (
         <div className="flex flex-col divide-y divide-line">
           {talk || ask ? <p className="truncate pb-2 text-[15px] font-semibold">{chat.title}</p> : null}
+          {extraTop}
+          {ask ? <p className="pt-3 pb-1 text-[12px] font-semibold text-ink2">{ASK_COPY.menu.convHead}</p> : null}
           <button
             type="button"
             className={ROW}
@@ -131,7 +138,7 @@ export default function ChatMenuSheet({
               }
             }}
           >
-            {noun} 삭제
+            {removeLabel}
           </button>
         </div>
       ) : mode === 'rename' ? (

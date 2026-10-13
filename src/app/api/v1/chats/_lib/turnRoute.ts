@@ -1,12 +1,13 @@
 /**
  * #32 턴 라우트 본문(라우트 본문을 시험할 수 있게 꺼낸 것 — chatDetail.ts 와 같은 방식). 순서:
- *   본문 검사(400) → 소유·종류(404) → 종류별 검사(400 — ASK 는 글자만·`scope` 는 ASK 한정) → **ASK 한도**(429, 수락 전) → startTurn → SSE.
+ *   본문 검사(400) → 소유·종류(404) → 종류별 검사(400 — ASK 는 글자·실시간 음성 인식 글자만, 발화 연결 없음·`scope` 는 ASK 한정) → **ASK 한도**(429, 수락 전) → startTurn → SSE.
+ *   본문 검사는 `REALTIME_STT` + `utteranceId` 없음을 통과시킨다(질문 방의 음성 질문 — task-066): 회화·채팅의 같은 400 은 종류를 안 뒤 `assertTurnFitsKind` 가 낸다.
  *
  * ASK(task-064 §2-18-A 3항):
  *  - 한도(분당 3·하루 60·전역 진행 1+대기 2 `ASK_BUSY`)는 수락 **전**이라 거절이면 행 0·SSE 0. 수락 전 실패(409·404 등)는 몫을 되돌린다.
  *  - 슬롯은 파이프라인이 끝날 때(`handle.done` — 정상·오류·끊김 모두) 푼다. SSE 연결의 수명과 무관하다.
  *  - 클라이언트가 끊어도 서버는 끝까지 실행·저장한다 — 요청의 취소 신호를 턴에 잇지 않는다(task-058 의 취소는 #169·#178 한정).
- *  - 음성(speaker)·발화 연결·교정 관측 훅이 없다(ASK 는 audio·TTS·교정 없음).
+ *  - 음성(speaker)·발화 연결·교정 관측 훅이 없다(ASK 는 audio·TTS·교정 없음). 음성 질문은 인식된 글자(`inputSource: REALTIME_STT`)만 오고 원음·발화 행은 서버에 없다.
  * TALK·CHAT 은 기존 그대로(라우트가 speech·learning 훅을 조합) — ASK 한도와 무관.
  */
 import type { ChatKind } from '@prisma/client'
@@ -28,7 +29,7 @@ function stream(turn: TurnHandle): Response {
 }
 
 export async function handleTurnRequest(userId: string, chatId: string, body: Record<string, unknown>, deps: TurnRouteDeps): Promise<Response> {
-  const request = parseTurnBody(body)
+  const request = parseTurnBody(body, { deferVoiceUtterance: true })
   const kind = await deps.chatKind(userId, chatId)
   assertTurnFitsKind(kind, request)
   if (kind !== 'ASK') return stream(await deps.startTurn({ userId, chatId, request, hooks: deps.talkChatHooks(userId, chatId, request) }))

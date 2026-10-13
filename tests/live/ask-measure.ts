@@ -1,5 +1,5 @@
 /**
- * task-064 PE 실측 — A9 무엇이든 물어보세요 `ask@v1` 을 실제 Claude CLI(구독)로 **직렬** 호출해 계약 위반율·근거 키 정합·지시 불복종·지연을 잰다.
+ * task-064 PE 실측 — A9 무엇이든 물어보세요 `ask@v1`/`ask@v2`(task-066 일본어 단독 입력 JA_* 합격률 포함) 를 실제 Claude CLI(구독)로 **직렬** 호출해 계약 위반율·근거 키 정합·지시 불복종·지연을 잰다.
  * 합성 입력만 쓴다(`tests/prompts/fixtures/ask.json` — 학습자 데이터 없음).
  *
  * 재는 것(합격선 = task-064 PE 지시)
@@ -42,6 +42,8 @@ interface FxExpect {
   softProposal?: boolean
   /** 답 본문에 있으면 품질 감점(soft) — 없는 기능 약속 같은 것. */
   softNoMatch?: string[]
+  /** task-066: 제안이 있다면 이 종류만(단어 하나의 뜻을 묻는 일본어 단독 입력은 ADD_WORD 카드가 자연스럽다). 제안 0 건도 통과. */
+  proposalKindsOnly?: string[]
 }
 interface FxCase {
   id: string
@@ -53,6 +55,8 @@ interface FxCase {
   header?: Partial<AskInput['header']>
   records: NonNullable<AskInput['records']>
   history?: NonNullable<AskInput['window']>
+  /** task-066: 입력 방식 표지(기본 TEXT). 음성 인식 결과 흉내 입력은 VOICE. */
+  inputKind?: AskInput['inputKind']
   expect: FxExpect
 }
 interface Fx { todayKst: string; header: AskInput['header']; cases: FxCase[] }
@@ -135,6 +139,7 @@ function inputFor(c: FxCase): AskInput {
     records: c.records,
     intent: c.intent,
     scope: c.scope ?? null,
+    ...(c.inputKind ? { inputKind: c.inputKind } : {}),
   }
 }
 
@@ -240,6 +245,7 @@ function derive(row: Row, c: FxCase): Row {
   if (blocks.length > 0) soft.exampleKoLineNoKana = blocks.every((b) => b.ko === null || !/[぀-ヿ]/.test(b.ko))
   if (e.answerMaxChars !== undefined) soft.answerMaxChars = Array.from(p.answerMd).length <= e.answerMaxChars
   if (e.proposals === 'none') soft.noUnsolicitedProposals = p.proposals.length === 0
+  if (e.proposalKindsOnly) soft.proposalKindsOnly = p.proposals.every((x) => e.proposalKindsOnly!.includes(x.kind))
   if (e.proposals === 'include' && e.softProposal) soft.proposalMustInclude = (e.proposalMustInclude ?? []).every((k) => p.proposals.some((x) => x.kind === k))
   if (e.proposalSurface) soft.proposalSurface = p.proposals.some((x) => x.kind === 'ADD_WORD' && e.proposalSurface!.includes(x.payload.surface))
   if (e.proposalLevel) soft.proposalLevel = p.proposals.some((x) => x.kind === 'SET_LEVEL' && x.payload.level === e.proposalLevel)
@@ -334,6 +340,26 @@ function summary(rows: Row[]) {
     }
   }
   for (const [k, s] of softKeys) console.log(`- soft ${k}: ${s.ok}/${s.all}${s.fails.length ? `  (실패: ${s.fails.join(', ')})` : ''}`)
+  // task-066: 일본어 단독 입력(JA_*) 합격률 — 스키마 유효(1차 통과)·필수 요소(읽기·뜻·쓰임 정규식 + 예문 블록)·예문 문법·기록 언급 없음·제안 적절·확신도·전부 통과
+  const ja = rows.filter((r) => r.group.startsWith('JA_'))
+  if (ja.length > 0) {
+    const jaOk = ja.filter((r) => r.ok)
+    const softOf = (r: Row, re: RegExp) => Object.entries(r.soft ?? {}).filter(([k]) => re.test(k))
+    const allTrue = (r: Row, re: RegExp) => softOf(r, re).every(([, v]) => v)
+    const rate = (n: number, d: number) => `${n}/${d} = ${round((n / Math.max(1, d)) * 100)}%`
+    const pc = (pred: (r: Row) => boolean) => rate(jaOk.filter(pred).length, jaOk.length)
+    console.log(`- **일본어 단독(JA_*) ${ja.length}호출 합격률** (최종 실패 ${ja.length - jaOk.length})`)
+    console.log(`    · 스키마 유효(1차 통과, 재시도 없음): ${rate(ja.filter((r) => r.ok && r.attempts === 1 && (r.firstViolations?.length ?? 0) === 0).length, ja.length)}`)
+    console.log(`    · 필수 요소 충족(answerMatch* + exampleBlocksMin 전부): ${pc((r) => allTrue(r, /^(answerMatch|exampleBlocksMin)/))}`)
+    console.log(`    · 예문 블록 문법 준수(뜻 줄 있음·한국어만): ${pc((r) => allTrue(r, /^exampleHasKoLine|^exampleKoLineNoKana/))}`)
+    console.log(`    · 기록 언급 없음(softNoMatch): ${pc((r) => allTrue(r, /^softNoMatch/))}`)
+    console.log(`    · 제안 적절(noUnsolicited/kindsOnly): ${pc((r) => allTrue(r, /^(noUnsolicitedProposals|proposalKindsOnly)/))}`)
+    console.log(`    · 확신도 기대: ${pc((r) => allTrue(r, /^confidence$/))}`)
+    console.log(`    · hard 위반 0: ${pc((r) => (r.hard ?? []).length === 0)}`)
+    console.log(`    · 전부 통과(hard 0 + soft 전부, 서식 정리 필요 여부 포함): ${pc((r) => (r.hard ?? []).length === 0 && Object.values(r.soft ?? {}).every(Boolean))}`)
+    const voice = jaOk.filter((r) => fx.cases.find((c) => c.id === r.case)?.inputKind === 'VOICE')
+    if (voice.length) console.log(`    · VOICE 표지 케이스 ${voice.length}건 중 필수 요소 충족 ${voice.filter((r) => allTrue(r, /^(answerMatch|exampleBlocksMin)/)).length}건 (케이스: ${voice.map((r) => r.case).join(',')})`)
+  }
   const chars = ok.map((r) => Number(r.trace?.answerChars ?? 0))
   console.log(`- 답 글자 수: 평균 ${round(chars.reduce((a, b) => a + b, 0) / Math.max(1, chars.length), 0)} · p90 ${pct(chars, 90)} · max ${Math.max(...chars, 0)}`)
   const pc = ok.map((r) => r.promptChars ?? 0)

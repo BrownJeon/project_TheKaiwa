@@ -1,18 +1,17 @@
 /**
- * 질문 목록 `/ask` 의 순수 계산(task-064 dev-U3, screens.md §25-4) — 화면(`AskHome`·`AskComposerCard`·`AskListItem`)이 고르는 값을 여기서 정하고 시험이 잠근다.
- * 질문 방 쪽 계산(`logic.ts`)과 파일을 나눈 이유: 목록·방을 서로 다른 developer 가 동시에 고치므로 같은 파일을 건드리지 않게.
+ * 질문 탭의 지난 질문·첫 질문 순수 계산(task-064 §25-4 → task-066 §26-3 C·26-4) — `useAskActivity`·`AskHistoryButton`·`AskListItem`·
+ * `AskNewConversation` 이 고르는 값을 여기서 정하고 시험이 잠근다. 대화 화면 쪽 계산은 `logic.ts`.
  */
-import type { ChatSummary, MessageRole, MessageStatus } from '@/types/chat'
+import type { ChatSummary, CreatedChat, MessageRole, MessageStatus } from '@/types/chat'
 import { cpLength, formatListTime } from '@/components/common/format'
 import { POLL_FAST_MS, POLL_FAST_WINDOW_MS, POLL_MAX_MS, POLL_SLOW_MS } from '@/components/chat/useChatTurn'
 import { ASK_COPY } from './askCopy'
-import { askTitleOf } from './logic'
+import { arrivedTransitions, askTitleOf, type AskVia } from './logic'
 
 /** #27 한 쪽 크기(§25-4 D). */
 export const ASK_LIST_LIMIT = 20
 /** 서버와 같은 상한(코드포인트) — `maxLength` 는 UTF-16 단위라 쓰지 않는다. */
 export const ASK_TEXT_MAX = 1000
-const ASK_TEXT_WARN = 900
 
 /**
  * 목록 행 바깥 클래스 — `ChatListItem` 의 링크 클래스와 **같아야** 한다(자리표시 `CHAT_SKELETON` 높이 67.5 가 그대로 맞는다, §25-7 B·25-11 ⑰).
@@ -20,40 +19,14 @@ const ASK_TEXT_WARN = 900
  */
 export const ASK_ROW_CLASS = 'flex min-h-16 min-w-0 flex-col justify-center gap-0.5 rounded-[14px] border border-line bg-surface px-3.5 py-2.5'
 
-// ── 입력 카드 ─────────────────────────────────────────────────────────────────
+// ── 보내기 전 검사 ───────────────────────────────────────────────────────────────
 
 export function askDraftCheck(text: string): 'empty' | 'tooLong' | null {
   if (text.trim() === '') return 'empty'
   return cpLength(text) > ASK_TEXT_MAX ? 'tooLong' : null
 }
 
-/** 글자 수 줄 — 900자부터, 1,000 초과면 경고 머리를 붙인다(`Composer` 와 같은 규칙). */
-export function askCountLine(count: number): { text: string; over: boolean } | null {
-  if (count < ASK_TEXT_WARN) return null
-  const over = count > ASK_TEXT_MAX
-  return { text: `${over ? `${ASK_COPY.tooLong} · ` : ''}${count.toLocaleString('ko-KR')}/${ASK_TEXT_MAX.toLocaleString('ko-KR')}`, over }
-}
-
-/** Enter 보내기는 정밀 포인터(데스크톱)에서만 — 모바일 Enter 는 줄바꿈, IME 조합 중(isComposing·229)은 무시. */
-export function isEnterSubmit(e: { key: string; shiftKey: boolean; isComposing: boolean; keyCode: number }, finePointer: boolean): boolean {
-  if (e.key !== 'Enter' || e.shiftKey) return false
-  if (e.isComposing || e.keyCode === 229) return false
-  return finePointer
-}
-
 // ── 목록 ─────────────────────────────────────────────────────────────────────
-
-export type AskHomeView = 'loading' | 'error' | 'empty' | 'list'
-
-/** `rooms` = 받은 행(첫 응답 전 null). 첫 쪽이 실패했어도 받은 행이 있으면 행을 그린다. */
-export function askHomeView(rooms: readonly ChatSummary[] | null, firstFailed: boolean): AskHomeView {
-  if (rooms === null) return firstFailed ? 'error' : 'loading'
-  return rooms.length === 0 ? 'empty' : 'list'
-}
-
-export function askExamplesMode(view: AskHomeView): 'wrap' | 'row' {
-  return view === 'empty' ? 'wrap' : 'row'
-}
 
 /** 더 보기 — 이미 받은 id 는 빼고 뒤에 붙인다(`ChatList.more` 와 같음). */
 export function appendRooms(prev: readonly ChatSummary[] | null, next: readonly ChatSummary[]): ChatSummary[] {
@@ -96,6 +69,20 @@ export function settleArrivals(
   return { newIds, toast: t.fromPolling.some((id) => okIds.has(id)), leftWaiting: [...t.fromWaiting] }
 }
 
+/**
+ * 도착 판정 입력(`useAskActivity.settle`) — 알약 개수(`askActivityOf`)와 **같은 기준**으로 지금 대화를 뺀다.
+ * 지금 보고 있는 대화는 답이 화면에 바로 나오므로 「답이 도착했어요」 토스트도, 나중에 알약에 뜰 「새 답」 표지도 거짓이다
+ * (`kaiwa.ask.newAnswer` 에 지금 대화가 남으면 새 질문으로 나간 뒤 알약이 거짓으로 「새 답」을 말한다).
+ */
+export function planArrivals(
+  prevRunning: ReadonlySet<string> | null,
+  items: ReadonlyArray<{ id: string; running: boolean }>,
+  waiting: ReadonlySet<string>,
+  currentId: string | null,
+): ReturnType<typeof arrivedTransitions> {
+  return arrivedTransitions(prevRunning, items.filter((c) => c.id !== currentId), waiting)
+}
+
 /** #29 최근 메시지(오름차순)의 마지막이 DONE 인 선생님 답이면 성공. */
 export function lastAnswerOk(messages: ReadonlyArray<{ role: MessageRole; status: MessageStatus }>): boolean {
   const last = messages[messages.length - 1]
@@ -120,35 +107,57 @@ export function askRowView(chat: Pick<ChatSummary, 'title' | 'lastMessageAt' | '
   return { title: chat.title, time, second, status, label: [chat.title, time, tail].filter(Boolean).join(', ') }
 }
 
-// ── 첫 질문 → 방 만들기 ─────────────────────────────────────────────────────────
+// ── 「지난 질문」 알약(§26-4) ─────────────────────────────────────────────────────
 
-/** 방 만들기 동안의 바깥 일(저장소·이동·화면 상태) — 시험이 가짜를 끼운다. */
-export interface CreateRoomDeps {
-  /** 이동이 끝날 때까지 잠겨 있는 잠금(`useRef`) — 연타해도 방이 하나만 생긴다. */
+export type AskHistoryState = 'idle' | 'running' | 'new'
+
+/**
+ * 알약·시트가 세는 값 — **지금 대화는 빼고** 센다(§26-4 A). 세면 대화 중인 화면에서 늘 「답 만드는 중」이 된다.
+ * `newIds` = 이 기기 「새 답」 집합(`kaiwa.ask.newAnswer`).
+ */
+export function askActivityOf(
+  items: ReadonlyArray<Pick<ChatSummary, 'id' | 'running'>>,
+  currentId: string | null,
+  newIds: ReadonlySet<string>,
+): { running: boolean; newCount: number } {
+  const others = items.filter((c) => c.id !== currentId)
+  return { running: others.some((c) => c.running), newCount: others.filter((c) => newIds.has(c.id)).length }
+}
+
+/** 알약 상태 우선순위 — 답 만드는 중 > 새 답 > 기본(로딩·오류 포함). */
+export function askHistoryState(a: { running: boolean; newCount: number }): AskHistoryState {
+  if (a.running) return 'running'
+  return a.newCount > 0 ? 'new' : 'idle'
+}
+
+// ── 첫 질문 → 대화 만들기(§26-3 C) ──────────────────────────────────────────────
+
+/** 대화 만들기 동안의 바깥 일 — 시험이 가짜를 끼운다. */
+export interface CreateConversationDeps {
+  /** 만드는 동안 잡는 잠금(`useRef`) — 연타해도 방이 하나만 생긴다. 성공하면 풀지 않는다(화면이 `AskRoom` 으로 바뀐다). */
   lock: { current: boolean }
-  createChat(title: string): Promise<{ id: string }>
-  /** 질문을 방에 넘기고(`pending.<id>`) 목록 초안을 지운다. */
-  handOff(id: string, text: string): void
-  go(id: string): void
+  createChat(title: string): Promise<CreatedChat>
   setBusy(busy: boolean): void
-  onError(e: unknown): void
+  onCreated(chat: CreatedChat, text: string, via: AskVia): void
+  onError(e: unknown, text: string, via: AskVia): void
 }
 
 /**
- * 첫 질문으로 방을 만든다(§25-4 E). 잠금이 잡혀 있으면 아무것도 하지 않고, 성공하면 이동이 끝날 때까지 잠금을 풀지 않는다(돌아오면 화면이 새로 올라온다).
- * 실패하면 잠금·바쁨을 풀고 오류를 알린다 — 같은 글로 다시 보낼 수 있다. 목록에서는 턴을 시작하지 않는다(방이 넘겨받아 보낸다).
+ * 첫 질문을 보낼 때만 방을 만든다(§26-3 C·26-14 A 7 — `/ask` 를 여는 것만으로는 만들지 않는다).
+ * 잠금이 잡혀 있으면 아무것도 하지 않는다. 실패하면 잠금·바쁨을 풀고 글·경로를 돌려준다(글자는 입력창, 말은 「보내지 못한 말」 띠).
  */
-export async function createAskRoom(deps: CreateRoomDeps, text: string): Promise<void> {
+export async function createAskConversation(deps: CreateConversationDeps, text: string, via: AskVia): Promise<void> {
   if (deps.lock.current) return
   deps.lock.current = true
   deps.setBusy(true)
+  let created: CreatedChat
   try {
-    const c = await deps.createChat(askTitleOf(text))
-    deps.handOff(c.id, text)
-    deps.go(c.id)
+    created = await deps.createChat(askTitleOf(text))
   } catch (e) {
     deps.lock.current = false
     deps.setBusy(false)
-    deps.onError(e)
+    deps.onError(e, text, via)
+    return
   }
+  deps.onCreated(created, text, via)
 }

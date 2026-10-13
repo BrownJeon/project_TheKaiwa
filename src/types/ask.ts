@@ -68,10 +68,13 @@ export interface AskDoneConversation {
   records: AskRecords
 }
 
-/** #32 ASK 요청 본문 — `inputSource` 는 `TEXT` 만(3a), `scope` 는 ASK 한정·직전 답이 되물었을 때만 쓰인다. */
+/**
+ * #32 ASK 요청 본문 — `inputSource` 는 글자 `TEXT` 또는 말 `REALTIME_STT`(task-066 — 인식된 일본어 글만, 발화 id 는 싣지 않는다: 서버가 400),
+ * `scope` 는 ASK 한정·직전 답이 되물었을 때만 쓰인다.
+ */
 export interface AskTurnRequest {
   text: string
-  inputSource: 'TEXT'
+  inputSource: 'TEXT' | 'REALTIME_STT'
   scope?: { key: AskScopeKey }
 }
 
