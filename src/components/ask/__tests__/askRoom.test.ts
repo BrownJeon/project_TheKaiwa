@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ChatMessageView, ProposalDto } from '@/types/chat'
 import { OFF } from '@/components/common/japanese/annotations'
-import { ErrorBlock } from '@/components/common/ui'
 import { readCode } from '../../__tests__/sourceCode'
 import { ASK_COPY } from '../askCopy'
 import { askMetaOf } from '../logic'
@@ -13,7 +13,8 @@ import SourceList from '../SourceList'
 import AskAnswer, { answerProposals } from '../AskAnswer'
 import AskPending from '../AskPending'
 import AskFailed from '../AskFailed'
-import { askArrivalText, askPlaceholder, askRoomRedirect, askToastBottom, exampleTexts } from '../AskRoom'
+import { isFocusRoute } from '../../shell/routes'
+import { askArrivalText, askPlaceholder, askToastBottom, exampleTexts } from '../AskRoom'
 
 // task-064 §25-11 ⑦⑧⑩⑬⑯⑰⑱ 중 질문 방 몫 — 답 묶음 표시 조건은 렌더 결과로, 방 배선은 주석을 걷은 소스로 잠근다.
 
@@ -175,12 +176,6 @@ test('예문 분석 요청 — 끝난 선생님 답의 예문 일본어 줄만(�
   assert.deepEqual(exampleTexts(ms), ['駅で降りてください。'])
 })
 
-test('다른 종류 방을 질문 주소로 열면 제자리로', () => {
-  assert.equal(askRoomRedirect('TALK', 'a b'), '/study/ai/talk/a%20b')
-  assert.equal(askRoomRedirect('CHAT', 'c1'), '/study/ai/chat/c1')
-  assert.equal(askRoomRedirect('ASK', 'q1'), null)
-})
-
 const room = () => readCode('src/components/ask/AskRoom.tsx')
 
 test('⑯⑰ 대화 배선(§26-5 B) — 공용 부품을 질문 옵션으로(분석 끔·낭독 끔·초점·안내 문구·도착 알림), 관문·표시 바 없음', () => {
@@ -193,9 +188,6 @@ test('⑯⑰ 대화 배선(§26-5 B) — 공용 부품을 질문 옵션으로(�
     'arrivalAlign="answer-start"',
     'pillLabel={ASK_COPY.newAnswer}',
     'toReply: askReplyFromDone',
-    'ASK_COPY.subtitle(title)',
-    'backHref="/ask"',
-    'backLabel={ASK_COPY.backLabel}',
     'forgetAskReturn()',
     'removeId(ASK_KEYS.waiting, chatId)',
     'removeId(ASK_KEYS.newAnswer, chatId)',
@@ -204,7 +196,7 @@ test('⑯⑰ 대화 배선(§26-5 B) — 공용 부품을 질문 옵션으로(�
     "keys={['fu', 'hg']}",
     'busyReason: loading ? ASK_COPY.loadingConv : ASK_COPY.sendLocked',
     'restoreText: (text, info) => inputRef.current?.onRestore(text, info)',
-    '<ScopeLine variant={variant}',
+    '<ScopeLine onOpen={() => setScopeOpen(true)} />',
     'extraTop={<AskMenuTop',
     'lead={greeting ?',
     'tail={input.tail ?? undefined}',
@@ -224,18 +216,31 @@ test('⑤ 첫 전송 배선 — takeSeed 가 true 일 때만 보내고(#29 없�
   assert.match(r, /if \(detail\.chat\.running\) attach\(turnBaseOf\(detail\.messages\)\)/)
 })
 
-test('tab 변형 — 404·질문 아님은 onGone, 그 밖 오류는 onLoadFailed, room 은 지금처럼 화면 안 오류', () => {
+test('불러오기 결과 — 404·질문 아닌 대화(옛 /ask/<회화 id>)는 onGone, 그 밖 오류는 onLoadFailed(화면 안 오류·다른 방으로 보내기 없음, §27-7 A·L3)', () => {
   const r = room()
-  assert.match(r, /if \(variant === 'tab'\) \(notFound \? goneRef\.current : failedRef\.current\)\?\.\(\)\s*else setLoad\(notFound \? 'notFound' : 'error'\)/)
-  assert.match(r, /if \(variant === 'tab'\) goneRef\.current\?\.\(\)\s*else router\.replace\(elsewhere\)/)
+  assert.match(r, /if \(detail\.chat\.kind !== 'ASK'\) \{\s*goneRef\.current\(\)\s*return\s*\}/)
+  assert.match(r, /if \(toErr\(e\)\.status === 404\) goneRef\.current\(\)\s*else failedRef\.current\(\)/)
+  assert.match(r, /onNotFound: \(\) => goneRef\.current\(\)/)
+  assert.ok(!/setLoad\('(notFound|error)'\)/.test(r) && !r.includes('ErrorBlock') && !r.includes('LoadingBlock'))
 })
 
-test('토스트 위치(§26-8 D) — 탭 글자 181 · 탭 말 237 · 지난 대화 글자 109 · 말 165, 키보드가 열리면 하단 탭 몫 0', () => {
-  assert.equal(askToastBottom({ mode: 'text', variant: 'tab', kbOpen: false }), 181)
-  assert.equal(askToastBottom({ mode: 'voice', variant: 'tab', kbOpen: false }), 237)
-  assert.equal(askToastBottom({ mode: 'text', variant: 'room', kbOpen: false }), 109)
-  assert.equal(askToastBottom({ mode: 'voice', variant: 'room', kbOpen: false }), 165)
-  assert.equal(askToastBottom({ mode: 'text', variant: 'tab', kbOpen: true }), 109)
+test('머리(§27-2·27-3 B) — AppBar heading = AskHeadTitle(불러온 뒤에만 ready), 머리 제목 = ⋯ 메뉴를 제목 칸으로 바로, 저장하면 부모 힌트도 맞춤 · 힌트 바뀌면 렌더 중 chat.title', () => {
+  const r = room()
+  assert.match(r, /const ready = load === 'ready' && !!chat/)
+  assert.match(r, /heading=\{<AskHeadTitle state=\{ready \? 'ready' : 'loading'\} title=\{chat\?\.title \?\? titleHint\} onRename=\{\(\) => setMenu\('rename'\)\} \/>\}/)
+  assert.match(r, /<AskMenuButton onClick=\{\(\) => setMenu\('menu'\)\} \/>/)
+  assert.match(r, /open=\{menu !== null\}\s*startMode=\{menu \?\? 'menu'\}/)
+  assert.match(r, /setChat\(\(c\) => \(c \? \{ \.\.\.c, title: t \} : c\)\)\s*onTitleChange\(chatId, t\)/)
+  assert.match(r, /if \(titleHint !== seenHint\) \{\s*setSeenHint\(titleHint\)\s*if \(titleHint && chat && chat\.title !== titleHint\) setChat\(\{ \.\.\.chat, title: titleHint \}\)/)
+  // 새 질문 시작은 늘 부모(D4 — 주소 갱신 한 곳)
+  assert.match(r, /const newQ = \(\) => \{\s*setMenu\(null\)\s*onNewConversation\(\)\s*\}/)
+})
+
+test('토스트 위치(§26-8 D) — 글자 181 · 말 237, 키보드가 열리면 하단 탭 몫 0(글자 109 · 말 165)', () => {
+  assert.equal(askToastBottom({ mode: 'text', kbOpen: false }), 181)
+  assert.equal(askToastBottom({ mode: 'voice', kbOpen: false }), 237)
+  assert.equal(askToastBottom({ mode: 'text', kbOpen: true }), 109)
+  assert.equal(askToastBottom({ mode: 'voice', kbOpen: true }), 165)
 })
 
 test('금기 — HTML 주입·취소 요청·나가기 버튼·엔진 이름 0', () => {
@@ -247,18 +252,32 @@ test('금기 — HTML 주입·취소 요청·나가기 버튼·엔진 이름 0',
   }
 })
 
-test('⑰ 라우트 — 지난 대화 page 는 auth + 선생님 이름만 + variant="room", 같은 폴더에 loading.tsx 없음(BackBar+LoadingBlock)', () => {
+test('⑰ 라우트 — 옛 지난 대화 page 는 task-067 D5 로 `/ask?chat=<id>` 리다이렉트만(AskRoom 을 그리지 않음, 상세는 `src/app/(app)/_lib/__tests__/askLegacyRoom.test.ts`), 같은 폴더에 loading.tsx 없음', () => {
   const p = readCode('src/app/(app)/ask/[chatId]/page.tsx')
-  assert.ok(p.includes('await auth()') && p.includes('/login?callbackUrl=') && p.includes('getProfile(session.user.id)'))
-  assert.match(p, /<AskRoom variant="room" chatId=\{chatId\} teacherName=\{teacherName\} \/>/)
+  assert.ok(p.includes('await auth()') && p.includes('/login?callbackUrl=') && p.includes('redirect(target)'))
+  assert.doesNotMatch(p, /<AskRoom\b/)
   assert.equal(existsSync('src/app/(app)/ask/[chatId]/loading.tsx'), false)
 })
 
-test('QA64-B1-1 방 불러오기 오류 — 공용 ErrorBlock 의 [다시 시도] 를 터치 44px 로(공용 부품은 그대로, 방이 감싸는 칸에서 버튼에만 min-h-11)', () => {
-  // 공용 ErrorBlock 의 버튼은 높이 20px 라 방 쪽 칸이 대신 44px 를 준다. 이 칸을 지우면 방 오류만 20px 로 돌아간다(QA 실측 height=20).
-  assert.match(room(), /<div className="[^"]*\[&_button\]:min-h-11[^"]*">\s*\{load === 'error' \? \(\s*<ErrorBlock\b/)
-  // 그 규칙이 실제로 가리킬 `<button>` 이 있어야 한다 — ErrorBlock 이 버튼을 다른 요소로 바꾸면 이 시험이 먼저 알린다.
-  const html = renderToStaticMarkup(createElement(ErrorBlock, { message: ASK_COPY.loadError, onRetry: noop }))
-  assert.equal((html.match(/<button\b/g) ?? []).length, 1)
-  assert.match(html, new RegExp(`${ASK_COPY.retry}</button>`))
+const askDir = join(__dirname, '..')
+function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f)
+    return statSync(p).isDirectory() ? (f === '__tests__' ? [] : walk(p)) : /\.(ts|tsx)$/.test(f) ? [p] : []
+  })
+}
+
+test('T21 room 0 — 질문 화면에 room 변형·BackBar·옛 /ask/<id> 주소 0 · 집중 화면 목록에 /ask/ 없음(하단 탭 늘 보임)', () => {
+  for (const f of walk(askDir)) {
+    const c = readCode(f)
+    for (const bad of ['variant="room"', "'room'", 'BackBar', 'AskVariant', 'askRoomRedirect', 'returnHref']) assert.ok(!c.includes(bad), `${f}: ${bad}`)
+    assert.ok(!/[`'"]\/ask\/\$?\{?/.test(c), `${f}: 옛 /ask/<id> 주소`) // SourceList 대체값 `/ask/${id}` 를 되살리면 실패
+  }
+  assert.ok(!readCode('src/components/shell/routes.ts').includes("'/ask/'"))
+  assert.equal(isFocusRoute('/ask/abc'), false) // routes 에 '/ask/' 를 되살리면 실패
+  assert.equal(isFocusRoute('/ask'), false)
+  // 근거 카드 → 집중 화면 → 「질문으로」 는 늘 탭 화면의 그 대화(리다이렉트를 거치지 않음)
+  assert.match(readCode(join(askDir, 'SourceList.tsx')), /rememberAskReturn\(askChatHref\(chatId\), href\.split\('\?'\)\[0\]\)/)
+  // 채팅방 주소로 연 질문 대화도 탭 화면으로 바로
+  assert.match(readCode('src/components/chat/ChatRoom.tsx'), /if \(detail\.chat\.kind === 'ASK'\) \{\s*router\.replace\(askChatHref\(chatId\)\)/)
 })

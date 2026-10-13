@@ -14,8 +14,6 @@ import {
   askListPollDelay,
   askRowView,
   lastAnswerOk,
-  mergeFirstPage,
-  appendRooms,
   settleArrivals,
   askActivityOf,
   askHistoryState,
@@ -53,24 +51,12 @@ test('askDraftCheck — 빈 글(공백만 포함) → empty, 1,000 코드포인�
   assert.equal(askDraftCheck('😀'.repeat(1001)), 'tooLong')
 })
 
-test('appendRooms — 더 보기는 이미 받은 id 를 빼고 뒤에 붙인다', () => {
-  const a = room({ id: 'a' })
-  const b = room({ id: 'b' })
-  const c = room({ id: 'c' })
-  assert.deepEqual(appendRooms([a, b], [b, c]).map((x) => x.id), ['a', 'b', 'c'])
-  assert.deepEqual(appendRooms(null, [c]).map((x) => x.id), ['c'])
-})
-
-test('mergeFirstPage — 첫 쪽만 받았으면 바꿔 끼움, 더 보기로 늘었으면 뒤쪽 행·커서를 지킨다(위로 올라온 행은 한 번만)', () => {
-  const page = (ids: string[], nextCursor: string | null) => ({ items: ids.map((id) => room({ id })), nextCursor })
-  assert.deepEqual(mergeFirstPage(null, page(['a', 'b'], 'cur1')), { items: page(['a', 'b'], null).items, cursor: 'cur1' })
-  const two = { items: page(['a', 'b'], null).items, cursor: 'cur1' }
-  assert.deepEqual(mergeFirstPage(two, page(['c', 'a'], 'cur2')).items.map((x) => x.id), ['c', 'a'])
-  assert.equal(mergeFirstPage(two, page(['c', 'a'], 'cur2')).cursor, 'cur2')
-  const grown = { items: page(['a', 'b', 'c', 'd'], null).items, cursor: 'cur9' }
-  const m = mergeFirstPage(grown, page(['d', 'a'], 'cur1'))
-  assert.deepEqual(m.items.map((x) => x.id), ['d', 'a', 'b', 'c'])
-  assert.equal(m.cursor, 'cur9', '더 보기로 받은 쪽의 커서를 잃지 않는다')
+test('task-067 — 「더 보기」 계산(appendRooms·mergeFirstPage)은 없다 · 알약 목록은 최근 20개를 그대로 바꿔 끼운다', () => {
+  const hl = code('ask', 'homeLogic.ts')
+  assert.ok(!/appendRooms|mergeFirstPage/.test(hl), '쓰는 곳이 없는 더 보기 계산 삭제')
+  const h = code('ask', 'useAskActivity.ts')
+  assert.match(h, /setList\(r\.items\)/, '줄어든 목록(지운 대화)이 옛 행으로 남지 않는다')
+  assert.ok(!/\bmore\b|moreBusy|moreError|cursor/.test(h), '시트 「더 보기」용 more·moreBusy·moreError·cursor 삭제(§27-4 E)')
 })
 
 test('askListPollDelay — 2.5초(처음 30초) → 5초, 200초 넘으면 멈춤(useChatTurn 상수 재사용)', () => {
@@ -128,19 +114,40 @@ test('askRowView — 둘째 줄(running > preview > 「아직 메시지가 없�
   assert.equal(noTime.label, '오늘 복습할 거 뭐 있어?', '시각을 모르면 이름에 빈 쉼표 없음')
 })
 
-test('AskListItem — 행 전체 링크(/ask/{id} 인코딩) · 상태 뱃지 · 미리보기에 lang="ja" 통째로 달지 않음', () => {
+const noop = () => {}
+
+test('T14 AskListItem — 행은 단추(링크·/ask/ 0) + 형제 ⋯ 단추(단추 안에 단추 없음) · ⋯ 이름 「‘제목’ 메뉴」 · 상태 뱃지 · lang="ja" 통째로 안 닮', () => {
   const now = new Date('2026-10-12T06:00:00.000Z')
-  const html = renderToStaticMarkup(createElement(AskListItem, { chat: room({ id: 'a b' }), isNew: false, now }))
-  assert.match(html, /href="\/ask\/a%20b"/)
+  const li = (o: Partial<Parameters<typeof AskListItem>[0]> = {}) =>
+    renderToStaticMarkup(createElement('ul', null, createElement(AskListItem, { chat: room({ id: 'a b' }), isNew: false, now, onOpen: noop, onMore: noop, ...o })))
+  const html = li()
+  assert.ok(!html.includes('<a ') && !html.includes('href='), '링크 0')
+  assert.ok(!html.includes('/ask/'), '/ask/<id> 0')
+  assert.equal((html.match(/<button /g) ?? []).length, 2, '행 단추 + ⋯ 단추')
+  assert.match(html, /^<ul><li class="relative min-w-0"><button [^>]*>[\s\S]*?<\/button><button /, '⋯ 는 행 단추의 형제(행 단추가 닫힌 뒤 시작)')
+  const first = html.slice(html.indexOf('<button '), html.indexOf('</button>'))
+  assert.ok(!first.slice(1).includes('<button'), '단추 안에 단추 없음')
+  assert.ok(html.includes('aria-label="‘오늘 복습할 거 뭐 있어?’ 메뉴"'))
+  assert.ok(html.includes('data-ask-row-more="a b"'))
+  assert.match(html, /grid h-11 w-11/, '⋯ 터치 44')
+  assert.match(html, /pr-\[52px\]/, '제목·뱃지가 ⋯ 와 겹치지 않게 오른쪽 52px')
   assert.ok(!/<span lang="ja" class="min-w-0 flex-1 truncate/.test(html))
-  const running = renderToStaticMarkup(createElement(AskListItem, { chat: room({ running: true }), isNew: false, now }))
+  const running = li({ chat: room({ running: true }) })
   assert.match(running, />답 만드는 중</)
   assert.match(running, /선생님이 답을 만드는 중이에요/)
   assert.match(running, /motion-safe:animate-pulse/)
-  const fresh = renderToStaticMarkup(createElement(AskListItem, { chat: room(), isNew: true, now }))
+  const fresh = li({ isNew: true })
   assert.match(fresh, />새 답</)
   assert.match(fresh, /bg-accent-soft/)
   assert.ok(!/text-accent[^-]/.test(fresh), '「새 답」 글자는 ink(accent 글자 금지)')
+})
+
+test('T13 AskListItem running 덮어쓰기 — 쪽 값 false + 덮어쓴 값 true → 뱃지 · 반대면 뱃지 없음', () => {
+  const li = (chat: ChatSummary, running?: boolean) =>
+    renderToStaticMarkup(createElement('ul', null, createElement(AskListItem, { chat, isNew: false, now: null, running, onOpen: noop, onMore: noop })))
+  assert.match(li(room({ running: false }), true), />답 만드는 중</)
+  assert.ok(!li(room({ running: true }), false).includes('>답 만드는 중<'))
+  assert.match(li(room({ running: true })), />답 만드는 중</, '덮어쓴 값이 없으면 쪽 값')
 })
 
 // ── 입력 카드·예시 ───────────────────────────────────────────────────────────
@@ -148,8 +155,8 @@ test('AskListItem — 행 전체 링크(/ask/{id} 인코딩) · 상태 뱃지 ·
 test('⑰ AskListItem 바깥 클래스 = ChatListItem 바깥 클래스(CHAT_SKELETON 높이가 그대로 맞는다) · 목록 줄 간격 gap-2', () => {
   const chatItem = code('chat', 'ChatListItem.tsx')
   assert.ok(chatItem.includes(`className="${ASK_ROW_CLASS}"`), 'ChatListItem 의 Link 클래스와 같다')
-  assert.match(code('ask', 'AskListItem.tsx'), /className=\{ASK_ROW_CLASS\}/)
-  assert.match(code('ask', 'AskHistorySheet.tsx'), /<ul className="flex min-w-0 flex-col gap-2">/)
+  assert.match(code('ask', 'AskListItem.tsx'), /className=\{`\$\{ASK_ROW_CLASS\} w-full /, '행 단추 바깥 클래스 = ASK_ROW_CLASS(+ 폭·⋯ 자리)')
+  assert.match(code('ask', 'AskHistorySheet.tsx'), /<ul className="flex min-w-0 flex-col gap-2"/)
 })
 
 test('⑪ askActivityOf — 지금 대화는 running·newCount 에서 뺀다(세면 대화 중인 화면에서 늘 「답 만드는 중」)', () => {
@@ -178,12 +185,13 @@ test('⑪ askHistoryState — running > 새 답 > 기본, 접근 이름 3갈래'
   }
 })
 
-test('⑪ AskListItem current — 지금 대화는 링크가 아니라 버튼 + 「지금 대화」 뱃지', () => {
-  const cur = renderToStaticMarkup(createElement('ul', null, createElement(AskListItem, { chat: room({ id: 'c1' }), isNew: false, now: null, current: true, onCurrent: () => {} })))
+test('⑪ AskListItem current — 지금 대화도 같은 단추 + 「지금 대화」 뱃지 · 이름에 「, 지금 대화」', () => {
+  const cur = renderToStaticMarkup(createElement('ul', null, createElement(AskListItem, { chat: room({ id: 'c1' }), isNew: false, now: null, current: true, onOpen: noop, onMore: noop })))
   assert.ok(cur.includes('<button type="button"') && !cur.includes('href='))
   assert.ok(cur.includes(ASK_COPY.history.current))
-  const other = renderToStaticMarkup(createElement('ul', null, createElement(AskListItem, { chat: room({ id: 'c1' }), isNew: false, now: null })))
-  assert.ok(other.includes('href="/ask/c1"') && !other.includes(ASK_COPY.history.current))
+  assert.ok(cur.includes(`aria-label="오늘 복습할 거 뭐 있어?, ${ASK_COPY.history.current}"`))
+  const other = renderToStaticMarkup(createElement('ul', null, createElement(AskListItem, { chat: room({ id: 'c1' }), isNew: false, now: null, onOpen: noop, onMore: noop })))
+  assert.ok(!other.includes('href=') && !other.includes(ASK_COPY.history.current))
 })
 
 test('⑫ useAskActivity — 옮긴 판정 배선: 성공 확인(#29 limit=2) 뒤에만 새 답, 토스트는 settleArrivals 가 정할 때만, 지금 대화 제외', () => {

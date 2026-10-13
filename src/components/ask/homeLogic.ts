@@ -8,7 +8,7 @@ import { POLL_FAST_MS, POLL_FAST_WINDOW_MS, POLL_MAX_MS, POLL_SLOW_MS } from '@/
 import { ASK_COPY } from './askCopy'
 import { arrivedTransitions, askTitleOf, type AskVia } from './logic'
 
-/** #27 한 쪽 크기(§25-4 D). */
+/** 알약용 #27 최근 목록 크기(§25-4 D) — 지난 질문 시트는 5개씩 따로(`historyPaging.ASK_HISTORY_PAGE`). */
 export const ASK_LIST_LIMIT = 20
 /** 서버와 같은 상한(코드포인트) — `maxLength` 는 UTF-16 단위라 쓰지 않는다. */
 export const ASK_TEXT_MAX = 1000
@@ -27,25 +27,6 @@ export function askDraftCheck(text: string): 'empty' | 'tooLong' | null {
 }
 
 // ── 목록 ─────────────────────────────────────────────────────────────────────
-
-/** 더 보기 — 이미 받은 id 는 빼고 뒤에 붙인다(`ChatList.more` 와 같음). */
-export function appendRooms(prev: readonly ChatSummary[] | null, next: readonly ChatSummary[]): ChatSummary[] {
-  const have = new Set((prev ?? []).map((c) => c.id))
-  return [...(prev ?? []), ...next.filter((c) => !have.has(c.id))]
-}
-
-/**
- * 첫 쪽을 다시 읽었을 때(복귀·폴링). 더 보기로 받은 행이 없으면 바꿔 끼우고, 있으면 첫 쪽 뒤에 나머지를 지키고 커서도 지킨다
- * (폴링이 2.5초마다 첫 쪽만 읽어도 펼친 목록이 접히지 않게). 위로 올라온 행은 첫 쪽에만 남는다.
- */
-export function mergeFirstPage(
-  prev: { items: readonly ChatSummary[]; cursor: string | null } | null,
-  page: { items: readonly ChatSummary[]; nextCursor: string | null },
-): { items: ChatSummary[]; cursor: string | null } {
-  if (!prev || prev.items.length <= page.items.length) return { items: [...page.items], cursor: page.nextCursor }
-  const first = new Set(page.items.map((c) => c.id))
-  return { items: [...page.items, ...prev.items.filter((c) => !first.has(c.id))], cursor: prev.cursor }
-}
 
 /** 「답 만드는 중」 행이 있을 때 다음 읽기까지 기다릴 시간 — `useChatTurn` 폴링과 같은 숫자, 200초가 넘으면 null(멈춤). */
 export function askListPollDelay(startedAt: number, now: number): number | null {

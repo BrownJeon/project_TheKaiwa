@@ -134,18 +134,55 @@ export async function createChat(userId: string, input: CreateChatInput, over?: 
 
 const LIST_SELECT = { ...CHAT_SELECT, scenarioId: true, endedAt: true } as const
 
+/**
+ * #27 목록 쪽과 `total` 이 같은 범위를 세도록 커서를 뺀 조건은 여기 한 곳에서만 만든다(어긋나면 「1 / 3」 쪽 수가 틀린다).
+ * 대화 삭제(#31)는 행을 지우므로 따로 거를 삭제 표지가 없다.
+ */
+export function chatListFilter(userId: string, kind?: ChatKind): Prisma.ChatWhereInput {
+  return { userId, ...(kind ? { kind } : {}) }
+}
+
+function afterChatCursor(cur: { t: string; id: string }): Prisma.ChatWhereInput {
+  return { OR: [{ lastMessageAt: { lt: new Date(cur.t) } }, { lastMessageAt: new Date(cur.t), id: { lt: cur.id } }] }
+}
+
+export interface ChatListPage {
+  items: ChatDto[]
+  nextCursor: string | null
+  /** task-067 D3(additive) — 같은 소유자·`kind` 의 전체 대화 수. 커서·`limit` 과 무관. */
+  total: number
+}
+
+/** `listChats` 의 DB·부수 조회 — 기본값은 실제 구현, 시험은 가짜를 넘긴다. */
+export interface ListChatsDeps {
+  db: { chat: Pick<typeof prisma.chat, 'findMany' | 'count'> }
+  sweep: (userId: string) => Promise<unknown>
+  running: (chatIds: string[]) => Promise<Set<string>>
+  badges: typeof rolePlayListBadges
+}
+
+const LIST_CHATS_DEPS: ListChatsDeps = {
+  db: prisma,
+  sweep: (userId) => sweepStalePending({ userId }),
+  running: runningChatIds,
+  badges: rolePlayListBadges,
+}
+
 /** #27 — `lastMessageAt desc, id desc`, 키셋 커서. 역할극 행은 `scenario{id, ended}`(한 쪽당 끝낸 표식 배치 조회 1회 — `rolePlayListBadges`). */
-export async function listChats(userId: string, q: { kind?: ChatKind; limit: number; cursor?: string | null }): Promise<{ items: ChatDto[]; nextCursor: string | null }> {
+export async function listChats(
+  userId: string,
+  q: { kind?: ChatKind; limit: number; cursor?: string | null },
+  deps: ListChatsDeps = LIST_CHATS_DEPS,
+): Promise<ChatListPage> {
   const cur = decodeCursor(q.cursor, isTimeIdCursor)
-  await sweepStalePending({ userId })
-  const where: Prisma.ChatWhereInput = {
-    userId,
-    ...(q.kind ? { kind: q.kind } : {}),
-    ...(cur ? { OR: [{ lastMessageAt: { lt: new Date(cur.t) } }, { lastMessageAt: new Date(cur.t), id: { lt: cur.id } }] } : {}),
-  }
-  const rows = await prisma.chat.findMany({ where, orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }], take: q.limit + 1, select: LIST_SELECT })
+  await deps.sweep(userId)
+  const filter = chatListFilter(userId, q.kind)
+  const [rows, total] = await Promise.all([
+    deps.db.chat.findMany({ where: cur ? { AND: [filter, afterChatCursor(cur)] } : filter, orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }], take: q.limit + 1, select: LIST_SELECT }),
+    deps.db.chat.count({ where: filter }),
+  ])
   const page = rows.slice(0, q.limit)
-  const [running, badges] = await Promise.all([runningChatIds(page.map((c) => c.id)), rolePlayListBadges(userId, page)])
+  const [running, badges] = await Promise.all([deps.running(page.map((c) => c.id)), deps.badges(userId, page)])
   const last = page.at(-1)
   const nextCursor = rows.length > q.limit && last?.lastMessageAt ? encodeCursor({ t: last.lastMessageAt.toISOString(), id: last.id }) : null
   return {
@@ -154,6 +191,7 @@ export async function listChats(userId: string, q: { kind?: ChatKind; limit: num
       return { ...serializeChat(c, running.has(c.id)), ...(badge ? { scenario: badge } : {}) }
     }),
     nextCursor,
+    total,
   }
 }
 

@@ -4,7 +4,7 @@ import { createChat, createRolePlayChat, listChats, parseCreateChat, parseKind, 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** #27 대화 목록 — `lastMessageAt desc`, `running` = 진행 중 턴 여부. */
+/** #27 대화 목록 — `lastMessageAt desc`, `running` = 진행 중 턴 여부, `total` = 같은 `kind` 의 전체 수(커서·limit 무관, task-067 D3). */
 export const GET = withApi(async (req) => {
   const s = await requireSession()
   const q = req.nextUrl.searchParams

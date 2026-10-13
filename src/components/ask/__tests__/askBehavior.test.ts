@@ -93,6 +93,7 @@ test('M-2 칩으로 보낸 뒤 — 실제로 보냈을 때만 목록 상자로 �
 
 test('M-2 근거 카드 — 돌아오기 기록은 집중 화면 유형(수업·평가·역할극)에서만, 눌렀을 때 호출', () => {
   const s = readCode('src/components/ask/SourceList.tsx')
-  assert.match(s, /function rememberIfFocusTarget\(chatId: string, s: AskSource, href: string, back\?: string\) \{\s*if \(!isAskFocusTarget\(s\.type\)\) return\s*rememberAskReturn\(back \?\? `\/ask\/\$\{encodeURIComponent\(chatId\)\}`,/)
-  assert.match(s, /<Link href=\{href\} onClick=\{\(\) => rememberIfFocusTarget\(chatId, s, href, back\)\}/)
+  // task-067 §27-7 B: 돌아올 주소는 늘 탭 화면의 그 대화(`askChatHref`) — 옛 `/ask/<id>` 대체값·`back` 인자 삭제(U2, 이 블록만 고침)
+  assert.match(s, /function rememberIfFocusTarget\(chatId: string, s: AskSource, href: string\) \{\s*if \(!isAskFocusTarget\(s\.type\)\) return\s*rememberAskReturn\(askChatHref\(chatId\),/)
+  assert.match(s, /<Link href=\{href\} onClick=\{\(\) => rememberIfFocusTarget\(chatId, s, href\)\}/)
 })

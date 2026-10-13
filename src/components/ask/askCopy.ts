@@ -6,8 +6,6 @@ import type { AskSourceType } from '@/types/ask'
 
 export const ASK_COPY = {
   title: '질문',
-  more: '이전 질문 더 보기',
-  moreBusy: '불러오는 중…',
 
   /** 보내는 중 임시 말풍선(§26-3 C 2) — `AskQuestionBubble` 이 쓴다(가이드 「뺌」 목록에 있으나 쓰는 곳이 남아 둔다). */
   asking: '보내는 중…',
@@ -40,6 +38,43 @@ export const ASK_COPY = {
     current: '지금 대화',
     /** ★ */
     empty: '아직 지난 질문이 없어요.',
+
+    // task-067 §27-4 F — 5개씩 쪽 넘기기.
+    loadingSr: '지난 질문을 불러오고 있어요',
+    emptyHint: '질문을 보내면 여기에 최근 순으로 쌓여요.',
+    pageError: '이 쪽을 불러오지 못했어요',
+    pagerAria: '지난 질문 쪽',
+    prev: '이전',
+    next: '다음',
+    pageLabel: (p: number, n: number) => `${p.toLocaleString('ko-KR')} / ${n.toLocaleString('ko-KR')}`,
+    totalLabel: (t: number) => `모두 ${t.toLocaleString('ko-KR')}개`,
+    busyLabel: '불러오는 중…',
+    pageSr: (p: number, n: number, t: number) => `${n.toLocaleString('ko-KR')}쪽 중 ${p.toLocaleString('ko-KR')}쪽 · 모두 ${t.toLocaleString('ko-KR')}개`,
+    pagingSr: (p: number) => `${p.toLocaleString('ko-KR')}쪽을 불러오고 있어요`,
+
+    // task-067 §27-5 E — 행 ⋯ 메뉴 · 시트에서 삭제.
+    rowMore: (title: string) => `‘${title}’ 메뉴`,
+    rowTitle: '이 대화',
+    rename: '제목 바꾸기',
+    toList: '목록으로',
+    deleteBusyNote: '답을 받는 중이라 지금은 지울 수 없어요.',
+    confirmQ: (title: string) => `‘${title}’ 대화를 삭제할까요?`,
+  },
+
+  /** task-067 §27-2 B · 27-3 F — 머리 「질문」 아래 지금 대화 제목 줄. */
+  head: {
+    newConv: '새 질문',
+    aria: (title: string) => `질문 · 지금 대화 「${title}」 — 눌러서 제목 바꾸기`,
+  },
+
+  /** task-067 §27-3 F — 제목 바꾸기 칸(질문 대화 `variant='ask'`). */
+  rename: {
+    hint: '100자까지 · 비워 두면 저장할 수 없어요',
+    count: (n: number) => `${n.toLocaleString('ko-KR')} / 100`,
+    empty: '제목을 적어 주세요',
+    over: '제목은 100자까지 쓸 수 있어요',
+    fail: '제목을 바꾸지 못했어요. 연결을 확인하고 다시 해 보세요.',
+    saved: '제목을 바꿨어요',
   },
 
   /** 입력 바 아래 보내는 범위 한 줄(§26-8 B). */
@@ -61,9 +96,6 @@ export const ASK_COPY = {
   noMessages: '아직 메시지가 없어요',
   deletedToast: '대화를 삭제했어요',
 
-  backLabel: '질문으로',
-  roomLoadingTitle: '질문',
-  subtitle: (t: string) => `질문 · ${t}`,
   menuAria: '질문 메뉴',
 
   placeholderNew: '무엇이든 물어보세요',
@@ -136,7 +168,7 @@ export const ASK_COPY = {
 
   /** ★ */
   notFoundTitle: '대화를 찾을 수 없어요',
-  notFoundBody: '지워졌거나 주소가 잘못됐어요.',
+  /** 대화 줄 「대화를 찾을 수 없어요」 안내의 링크 라벨(`useAskInput` 의 `notFoundLink`) — 시트의 `history.toList`(목록으로)와 다르다. */
   toList: '질문으로',
   /** ★ */
   loadError: '대화를 불러오지 못했어요.',
@@ -154,7 +186,8 @@ export const ASK_COPY = {
     displayHead: '일본어 표시 · 모든 화면에 적용',
     voiceHead: '말로 묻기',
     convHead: '이 대화',
-    emptyNote: '아직 보낸 질문이 없어 이름 바꾸기·삭제는 없어요.',
+    /** task-067 J7 — 낱말 「제목」 통일. */
+    emptyNote: '아직 보낸 질문이 없어 제목 바꾸기·삭제는 없어요.',
     delete: '이 대화 삭제',
     deleteBusy: '답을 받는 중에는 지울 수 없어요',
     confirmTitle: '이 대화를 삭제할까요?',

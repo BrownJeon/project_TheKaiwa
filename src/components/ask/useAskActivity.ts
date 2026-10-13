@@ -2,7 +2,8 @@
 
 /**
  * 지난 질문 읽기·「답 만드는 중」 폴링·「새 답」 도착 판정(task-066 §26-4 A — task-064 `AskHome` 의 코드를 옮김, 숫자·조건은 §25-4 D 그대로).
- * - 읽기: #27 `kind=ASK` 첫 쪽. 탭 화면 마운트 · 화면이 다시 보일 때 · 지금 대화가 바뀔 때 · 시트를 열 때(`refresh`).
+ * - 읽기: #27 `kind=ASK` 최근 20개(`ASK_LIST_LIMIT`). 탭 화면 마운트 · 화면이 다시 보일 때 · 지금 대화가 바뀔 때 · 시트를 열 때(`refresh`).
+ *   지난 질문 시트는 5개씩 쪽을 따로 읽는다(task-067 `useAskHistoryPages`) — 알약을 시트 쪽으로 계산하면 6번째 이후 대화를 놓친다(§27-4 E).
  * - `running` 행이 있으면 `askListPollDelay` 간격으로 다시 읽고, 없거나 화면이 가려지면 멈춘다.
  * - 끝난 방은 성공한 답인지 #29 로 확인한 뒤에만 「새 답」(L-8). 폴링 중 `running → false` 를 본 경우에만 토스트 한 번.
  * - 알약 값(`running`·`newCount`)과 도착 판정(토스트·「새 답」 기록)은 **지금 대화를 빼고** 한다(`askActivityOf`·`planArrivals` — 같은 기준).
@@ -10,19 +11,14 @@
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { apiGet } from '@/components/common/api'
-import { toErr } from '@/components/common/errors'
-import { actionErrorText } from '@/components/chat/labels'
 import { retryFailHoldMs } from '@/components/topic/logic'
 import type { ChatDetail, ChatSummary, Paged } from '@/types/chat'
 import { ASK_COPY } from './askCopy'
 import { ASK_KEYS, addId, readIds, removeId } from './logic'
-import { ASK_LIST_LIMIT, appendRooms, askActivityOf, askListPollDelay, lastAnswerOk, mergeFirstPage, planArrivals, settleArrivals } from './homeLogic'
-
-type RoomList = { items: ChatSummary[]; cursor: string | null }
+import { ASK_LIST_LIMIT, askActivityOf, askListPollDelay, lastAnswerOk, planArrivals, settleArrivals } from './homeLogic'
 
 export interface AskActivity {
   items: ChatSummary[]
-  cursor: string | null
   state: 'loading' | 'ready' | 'error'
   /** 지금 대화를 뺀 값(알약) */
   running: boolean
@@ -30,20 +26,15 @@ export interface AskActivity {
   newIds: ReadonlySet<string>
   /** 목록 시각("오늘/어제") 기준 — 렌더 중에 시계를 읽지 않게 읽을 때 같이 정한다 */
   now: Date | null
-  moreBusy: boolean
-  moreError: string | null
   refresh: () => void
-  more: () => void
 }
 
 const noopSubscribe = () => () => {}
 
 export function useAskActivity(currentChatId: string | null, onToast: (msg: string) => void): AskActivity {
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
-  const [list, setList] = useState<RoomList | null>(null)
+  const [list, setList] = useState<ChatSummary[] | null>(null)
   const [firstFailed, setFirstFailed] = useState(false)
-  const [moreError, setMoreError] = useState<string | null>(null)
-  const [moreBusy, setMoreBusy] = useState(false)
   const [now, setNow] = useState<Date | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   // 저장소(「새 답」 집합)를 고친 뒤 다시 그리게 하는 신호.
@@ -110,7 +101,7 @@ export function useAskActivity(currentChatId: string | null, onToast: (msg: stri
         if (cancelled || my !== seq) return
         gotRows.current = true
         lastItems = r.items
-        setList((prev) => mergeFirstPage(prev, r))
+        setList(r.items)
         setNow(new Date())
         setFirstFailed(false)
         void settle(r.items)
@@ -152,31 +143,16 @@ export function useAskActivity(currentChatId: string | null, onToast: (msg: stri
     setReloadKey((k) => k + 1)
   }, [])
 
-  const cursor = list?.cursor ?? null
-  const more = useCallback(() => {
-    if (!cursor || moreBusy) return
-    setMoreBusy(true)
-    setMoreError(null)
-    apiGet<Paged<ChatSummary>>(`/api/v1/chats?kind=ASK&limit=${ASK_LIST_LIMIT}&cursor=${encodeURIComponent(cursor)}`)
-      .then((r) => setList((prev) => ({ items: appendRooms(prev?.items ?? null, r.items), cursor: r.nextCursor })))
-      .catch((e) => setMoreError(actionErrorText(toErr(e))))
-      .finally(() => setMoreBusy(false))
-  }, [cursor, moreBusy])
-
-  const items = list?.items ?? []
+  const items = list ?? []
   const newIds = new Set(hydrated ? readIds(ASK_KEYS.newAnswer) : [])
   const a = askActivityOf(items, currentChatId, newIds)
   return {
     items,
-    cursor,
     state: list ? 'ready' : firstFailed ? 'error' : 'loading',
     running: a.running,
     newCount: a.newCount,
     newIds,
     now,
-    moreBusy,
-    moreError,
     refresh,
-    more,
   }
 }

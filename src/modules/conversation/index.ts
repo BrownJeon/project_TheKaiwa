@@ -54,7 +54,7 @@ export { assertTurnFitsKind } from './chats/validate'
 export { admitAskTurn, askInflightCount, ASK_PER_MINUTE, ASK_PER_DAY, ASK_MAX_INFLIGHT } from './chats/askLimits'
 export type { AskAdmission } from './chats/askLimits'
 export { createChat, listChats, getChatDetail, getOwnedChat, getOwnedChatKind, ownedChatIds, updateChatTitle, deleteChat, sweepStalePending } from './chats'
-export type { ChatDto, ChatDetailDto, MessageDto } from './chats'
+export type { ChatDto, ChatDetailDto, ChatListPage, MessageDto } from './chats'
 export { retryUserTranslation } from './chats/translation'
 // task-010d 상황 역할극 — A1-서버 생성·종료 재료 + A3b-1 라우트 연결(#28 첫마디·#29 chat.scenario·#167 종료·진행 중 칸)
 export {

@@ -13,6 +13,7 @@ import Sheet from '@/components/common/Sheet'
 import AppBar from '@/components/shell/AppBar'
 import { actionErrorText } from '@/components/chat/labels'
 import AskGreeting from './AskGreeting'
+import AskHeadTitle from './AskHeadTitle'
 import AskQuestionBubble from './AskQuestionBubble'
 import { AskMenuButton, AskMenuTop, afterCommit, type ToastApi } from './AskRoom'
 import { ASK_COPY } from './askCopy'
@@ -98,6 +99,7 @@ export default function AskNewConversation({
     <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">
       <AppBar
         title={ASK_COPY.title}
+        heading={<AskHeadTitle state="new" />}
         right={
           <>
             {pill}
@@ -131,7 +133,7 @@ export default function AskNewConversation({
       </div>
       {input.strip}
       {input.bar}
-      <ScopeLine variant="tab" onOpen={() => setScopeOpen(true)} />
+      <ScopeLine onOpen={() => setScopeOpen(true)} />
       <Sheet open={menuOpen} title={ASK_COPY.menu.title} onClose={() => setMenuOpen(false)}>
         <div className="flex flex-col divide-y divide-line">
           <AskMenuTop

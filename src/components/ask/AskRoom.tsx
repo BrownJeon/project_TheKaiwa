@@ -1,27 +1,22 @@
 'use client'
 
 /**
- * 질문 대화 화면(task-064 §25-5 → task-066 §26-5 B). 두 변형:
- * - `tab`  = `/ask?chat=<id>` — 탭 화면의 지금 대화. 머리 `AppBar`(「지난 질문」 알약 · ⋯), 하단 탭 보임. 첫 질문 직후엔 `seed` 로 #29 없이 바로 보낸다.
- * - `room` = `/ask/<id>` — 「지난 질문」에서 연 지난 대화. 머리 `BackBar`(‹ 질문으로), 하단 탭 숨김.
+ * 질문 대화 화면(task-064 §25-5 → task-066 §26-5 B → task-067 §27) — 탭 화면 `/ask?chat=<id>` 의 지금 대화. 「지난 질문」에서 고른 대화도
+ * 같은 탭 화면에서 연다(옛 `/ask/<id>` 화면·`room` 변형은 없다 — 서버가 `/ask?chat=<id>` 로 보낸다).
+ * 머리 `AppBar`(「질문」 + 지금 대화 제목 줄 · 「지난 질문」 알약 · ⋯), 하단 탭 보임. 첫 질문 직후엔 `seed` 로 #29 없이 바로 보낸다.
  * 공용 부품을 질문 옵션으로 쓴다: 본문 분석 끔(예문·말로 물은 일본어만 따로) · 목록 낭독 끔(도착은 한 줄 알림) · 한국어 입력 · ASK 안내 문구 · 실패 카드.
  * **보내기 전 확인 창이 없다**(사용자 요청 — 보내는 범위는 입력 바 아래 정보 줄·시트뿐). 표시 바도 없다(D8 — ⋯ 메뉴로).
  * 기다리는 동안 취소·나가기 버튼은 없다(D6) — 화면을 떠나도 서버가 답을 끝까지 만든다.
  */
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { AskScopeOption } from '@/types/ask'
-import type { ChatDetail, ChatInfo, ChatKind, ChatMessageView, Paged, ProposalDto } from '@/types/chat'
+import type { ChatDetail, ChatInfo, ChatMessageView, Paged, ProposalDto } from '@/types/chat'
 import { apiGet } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
-import Toast, { useToast } from '@/components/common/Toast'
-import { ErrorBlock, LoadingBlock } from '@/components/common/ui'
 import { OFF, useAnnotations } from '@/components/common/japanese/annotations'
 import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
 import { DisplayToggles } from '@/components/common/japanese/JapaneseText'
 import AppBar from '@/components/shell/AppBar'
-import BackBar from '@/components/shell/BackBar'
 import { forgetAskReturn } from '@/components/shell/askReturn'
 import ChatMenuSheet from '@/components/chat/ChatMenuSheet'
 import { actionErrorText } from '@/components/chat/labels'
@@ -34,18 +29,18 @@ import type { SttRoute } from '@/modules/speech/stt/client'
 import AskAnswer, { answerProposals } from './AskAnswer'
 import AskFailed from './AskFailed'
 import AskGreeting from './AskGreeting'
+import AskHeadTitle from './AskHeadTitle'
 import AskPending from './AskPending'
 import AskQuestionBubble from './AskQuestionBubble'
 import { exampleJaLines, parseAnswerMd } from './answerMd'
 import { ASK_COPY } from './askCopy'
-import { addId, ASK_KEYS, askChatHref, askNoticeText, askOf, askPendingSince, askReplyFromDone, askSendOptions, removeId, takeSeed, teacherTitle, type AskSeed, type AskVia } from './logic'
+import { addId, ASK_KEYS, askNoticeText, askOf, askPendingSince, askReplyFromDone, askSendOptions, removeId, takeSeed, teacherTitle, type AskSeed, type AskVia } from './logic'
 import ScopeLine from './ScopeLine'
 import ScopeNoticeSheet from './ScopeNoticeSheet'
 import { useAskInput, type AskInputApi } from './useAskInput'
 import { lastUserVoiceId, voiceQuestionTexts } from './voiceBubble'
 
-type LoadState = 'loading' | 'ready' | 'notFound' | 'error'
-export type AskVariant = 'tab' | 'room'
+type LoadState = 'loading' | 'ready'
 export type ToastApi = { message: string | null; show: (msg: string, ms?: number) => void }
 
 /** 메뉴 줄(ChatMenuSheet 의 줄과 같은 모양). */
@@ -76,17 +71,9 @@ export function exampleTexts(messages: readonly ChatMessageView[]): string[] {
   return [...out]
 }
 
-/** 질문이 아닌 대화를 질문 주소로 연 경우 제자리 주소. */
-export function askRoomRedirect(kind: ChatKind, chatId: string): string | null {
-  const id = encodeURIComponent(chatId)
-  if (kind === 'TALK') return `/study/ai/talk/${id}`
-  if (kind === 'CHAT') return `/study/ai/chat/${id}`
-  return null
-}
-
-/** 토스트 위치(§26-8 D) — 입력 묶음(바 + 범위 줄 36) 위 12px, 탭 화면은 키보드가 닫혀 있으면 하단 탭 72 를 더한다. */
-export function askToastBottom(o: { mode: 'text' | 'voice'; variant: AskVariant; kbOpen: boolean }): number {
-  return (o.mode === 'voice' ? 117 : 61) + 36 + 12 + (o.variant === 'tab' && !o.kbOpen ? 72 : 0)
+/** 토스트 위치(§26-8 D) — 입력 묶음(바 + 범위 줄 36) 위 12px, 키보드가 닫혀 있으면 하단 탭 72 를 더한다. */
+export function askToastBottom(o: { mode: 'text' | 'voice'; kbOpen: boolean }): number {
+  return (o.mode === 'voice' ? 117 : 61) + 36 + 12 + (o.kbOpen ? 0 : 72)
 }
 
 const kbSubscribe = (fn: () => void) => {
@@ -183,44 +170,61 @@ function ConvSkeleton() {
 }
 
 export interface AskRoomProps {
-  variant: AskVariant
   chatId: string
   teacherName: string
   /** 빈 대화에서 방금 만든 방 — 첫 전송을 한 번 한다(§26-3 C 5) */
   seed?: AskSeed | null
   /** 이 화면에서 만든 대화 — 첫 질문 위에 안내 말풍선을 남긴다(데모 C·chip) */
   greeting?: boolean
-  /** 탭 머리 알약(`AskHistoryButton`) */
-  pill?: React.ReactNode
-  /** 화면 하나에 토스트 하나 — 탭 화면은 `AskChatTab` 의 것을 받는다 */
-  toast?: ToastApi
-  /** tab: 대화가 없음·남의 것·질문 아님 */
-  onGone?: () => void
-  /** tab: 그 밖 불러오기 오류 */
-  onLoadFailed?: () => void
-  /** tab: ⋯ 새 질문 시작 */
-  onNewConversation?: () => void
+  /** 부모가 아는 제목 — 불러오는 동안 머리 둘째 줄(시트에서 고른 행 제목), 불러온 뒤 바뀌면 그 값으로 맞춘다(시트에서 지금 대화 제목을 바꿈, §27-3 D) */
+  titleHint?: string | null
+  /** 머리 알약(`AskHistoryButton`) */
+  pill: React.ReactNode
+  /** 화면 하나에 토스트 하나 — `AskChatTab` 의 것을 받는다 */
+  toast: ToastApi
+  /** 대화가 없음·남의 것·질문 아님 */
+  onGone: () => void
+  /** 그 밖 불러오기 오류 */
+  onLoadFailed: () => void
+  /** ⋯ 새 질문 시작 */
+  onNewConversation: () => void
+  /** 머리·⋯ 에서 제목을 바꿈 — 부모의 힌트를 맞춰 옛 제목으로 되돌아가지 않게 */
+  onTitleChange: (chatId: string, title: string) => void
 }
 
-export default function AskRoom({ variant, chatId, teacherName, seed = null, greeting = false, pill, toast: toastIn, onGone, onLoadFailed, onNewConversation }: AskRoomProps) {
+export default function AskRoom({
+  chatId,
+  teacherName,
+  seed = null,
+  greeting = false,
+  titleHint = null,
+  pill,
+  toast,
+  onGone,
+  onLoadFailed,
+  onNewConversation,
+  onTitleChange,
+}: AskRoomProps) {
   const fresh = !!seed && !seed.used
   const [load, setLoad] = useState<LoadState>(fresh ? 'ready' : 'loading')
-  const [attempt, setAttempt] = useState(0)
   const [chat, setChat] = useState<ChatInfo | null>(fresh && seed ? seed.chat : null)
   const [messages, setMessages] = useState<ChatMessageView[]>([])
   const [olderCursor, setOlderCursor] = useState<string | null>(null)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [proposals, setProposals] = useState<ProposalDto[] | null>(fresh ? [] : null)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menu, setMenu] = useState<null | 'menu' | 'rename'>(null)
+  const [seenHint, setSeenHint] = useState(titleHint)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [scopeOwn, setScopeOwn] = useState(false)
   const [arrivedId, setArrivedId] = useState<string | null>(null)
-  const ownToast = useToast()
-  const toast = toastIn ?? ownToast
-  const router = useRouter()
-  const kbOpen = useKbOpen()
   useDisplayPrefs()
   const title = teacherTitle(teacherName)
+
+  // 시트에서 지금 대화 제목을 바꾸면 부모 힌트가 바뀐다 — 렌더 중에 맞춘다(효과로 하면 한 번 옛 제목이 그려진다).
+  if (titleHint !== seenHint) {
+    setSeenHint(titleHint)
+    if (titleHint && chat && chat.title !== titleHint) setChat({ ...chat, title: titleHint })
+  }
 
   const listRef = useRef<MessageListHandle | null>(null)
   const messagesRef = useRef<ChatMessageView[]>(messages)
@@ -254,10 +258,7 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
     reloadProposals,
     // 입력 묶음이 턴보다 뒤에 만들어지므로 ref 를 거친다(§26-14 B 7) — 글자는 입력창, 말은 「보내지 못한 말」 띠.
     restoreText: (text, info) => inputRef.current?.onRestore(text, info),
-    onNotFound: () => {
-      if (variant === 'tab') goneRef.current?.()
-      else setLoad('notFound')
-    },
+    onNotFound: () => goneRef.current(),
     toReply: askReplyFromDone,
     onSettled: (kind, aid) => {
       if (kind === 'done' && aid) setArrivedId(aid)
@@ -266,7 +267,7 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
   const { attach, markFailed, send } = turn
   const turnBusy = turn.phase === 'sending' || turn.phase === 'streaming' || turn.phase === 'detached'
 
-  // 대화에 들어오면(두 변형 모두): 근거에서 돌아오기 기록은 쓸모가 끝나고, 알약·시트의 「답 만드는 중·새 답」 표지도 지운다.
+  // 대화에 들어오면: 근거에서 돌아오기 기록은 쓸모가 끝나고, 알약·시트의 「답 만드는 중·새 답」 표지도 지운다.
   // 떠날 때 답을 기다리던 중이면 알약이 「새 답」을 붙일 수 있게 적어 둔다(§26-4 A).
   useEffect(() => {
     forgetAskReturn()
@@ -298,10 +299,9 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
           apiGet<Paged<ProposalDto>>(`/api/v1/proposals?chatId=${encodeURIComponent(chatId)}`).catch(() => null),
         ])
         if (cancelled) return
-        const elsewhere = askRoomRedirect(detail.chat.kind, chatId)
-        if (elsewhere) {
-          if (variant === 'tab') goneRef.current?.()
-          else router.replace(elsewhere)
+        // 질문이 아닌 대화(옛 `/ask/<회화 id>` 등)는 없는 대화와 같게 — 빈 대화 + 「대화를 찾을 수 없어요」(§27-7 A, L3)
+        if (detail.chat.kind !== 'ASK') {
+          goneRef.current()
           return
         }
         setChat(detail.chat)
@@ -314,15 +314,14 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
         else if (endsWithUnfinishedReply(detail.messages)) markFailed()
       } catch (e) {
         if (cancelled) return
-        const notFound = toErr(e).status === 404
-        if (variant === 'tab') (notFound ? goneRef.current : failedRef.current)?.()
-        else setLoad(notFound ? 'notFound' : 'error')
+        if (toErr(e).status === 404) goneRef.current()
+        else failedRef.current()
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [chatId, attempt, attach, markFailed, router, send, variant])
+  }, [chatId, attach, markFailed, send])
 
   const exTexts = exampleTexts(messages)
   const voiceTexts = voiceQuestionTexts(messages)
@@ -391,84 +390,39 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
   }
 
   const newQ = () => {
-    setMenuOpen(false)
-    if (variant === 'tab' && onNewConversation) onNewConversation()
-    else router.push('/ask')
+    setMenu(null)
+    onNewConversation()
   }
   const openScopeFromMenu = () => {
     // 메뉴를 먼저 닫아 초점이 ⋯ 로 돌아간 뒤 연다 — 두 시트를 겹치지 않고, 닫으면 초점이 다시 ⋯ 로.
-    setMenuOpen(false)
+    setMenu(null)
     afterCommit(() => setScopeOpen(true))
   }
 
-  const menuButton = <AskMenuButton onClick={() => setMenuOpen(true)} />
-  const head =
-    variant === 'tab' ? (
-      <AppBar
-        title={ASK_COPY.title}
-        right={
-          <>
-            {pill}
-            {menuButton}
-          </>
-        }
-      />
-    ) : (
-      <BackBar
-        backHref="/ask"
-        backLabel={ASK_COPY.backLabel}
-        title={chat?.title ?? ASK_COPY.roomLoadingTitle}
-        subtitle={chat ? ASK_COPY.subtitle(title) : undefined}
-        right={chat ? menuButton : undefined}
-      />
-    )
-  const ownToastEl = toastIn ? null : <Toast message={toast.message} bottomPx={askToastBottom({ mode: input.mode, variant, kbOpen })} />
+  const ready = load === 'ready' && !!chat
+  const head = (
+    <AppBar
+      title={ASK_COPY.title}
+      heading={<AskHeadTitle state={ready ? 'ready' : 'loading'} title={chat?.title ?? titleHint} onRename={() => setMenu('rename')} />}
+      right={
+        <>
+          {pill}
+          <AskMenuButton onClick={() => setMenu('menu')} />
+        </>
+      }
+    />
+  )
   const bottom = (
     <>
       {input.strip}
       {input.bar}
-      <ScopeLine variant={variant} onOpen={() => setScopeOpen(true)} />
+      <ScopeLine onOpen={() => setScopeOpen(true)} />
       <ScopeNoticeSheet open={scopeOpen} onClose={() => setScopeOpen(false)} />
-      {ownToastEl}
     </>
   )
 
-  if (variant === 'room' && load === 'loading') {
-    return (
-      <div className="flex h-full min-h-0 flex-col bg-ground">
-        {head}
-        <LoadingBlock />
-      </div>
-    )
-  }
-  if (variant === 'room' && (load === 'notFound' || load === 'error')) {
-    return (
-      <div className="flex h-full min-h-0 flex-col bg-ground">
-        {head}
-        <div className="px-4 pt-6 [&_button]:min-h-11">
-          {load === 'error' ? (
-            <ErrorBlock
-              message={ASK_COPY.loadError}
-              onRetry={() => {
-                setLoad('loading')
-                setAttempt((n) => n + 1)
-              }}
-            />
-          ) : (
-            <div role="alert" className="flex flex-col rounded-[14px] border border-line bg-surface p-4">
-              <p className="text-[16px] font-semibold break-keep">{ASK_COPY.notFoundTitle}</p>
-              <p className="mt-1 text-[14px] text-ink2 break-keep">{ASK_COPY.notFoundBody}</p>
-              <Link href="/ask" className="mt-3 inline-flex h-11 items-center self-start rounded-xl border border-line px-4 text-[14px] font-semibold">
-                {ASK_COPY.toList}
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-  if (load !== 'ready' || !chat) {
-    // tab 의 `?chat=` 복원 중(오류·없음은 `AskChatTab` 이 빈 대화로 바꾼다) — 입력창은 쓸 수 있고 보내기·누르고 말하기만 잠긴다.
+  if (!ready || !chat) {
+    // `?chat=` 복원·시트에서 연 대화를 읽는 중(오류·없음은 `AskChatTab` 이 빈 대화로 바꾼다) — 입력창은 쓸 수 있고 보내기·누르고 말하기만 잠긴다.
     return (
       <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">
         {head}
@@ -484,7 +438,6 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
   const pending = <AskPending teacherName={teacherName} title={title} stage={turn.stage} phase={turn.phase} since={since} />
   const arrived = arrivedId ? messages.find((m) => m.id === arrivedId && m.status === 'DONE') : undefined
   const arrivalLive = arrived ? askArrivalText(title, arrived, list) : ''
-  const returnHref = variant === 'tab' ? askChatHref(chatId) : undefined
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">
@@ -518,7 +471,6 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
             isLast={ctx.isLast}
             idle={idle}
             chatId={chatId}
-            returnHref={returnHref}
             teacherName={teacherName}
             title={title}
             proposals={list}
@@ -541,11 +493,15 @@ export default function AskRoom({ variant, chatId, teacherName, seed = null, gre
       </p>
       {bottom}
       <ChatMenuSheet
-        open={menuOpen}
+        open={menu !== null}
+        startMode={menu ?? 'menu'}
         chat={chat}
         turnBusy={turnBusy}
-        onClose={() => setMenuOpen(false)}
-        onRenamed={(t) => setChat((c) => (c ? { ...c, title: t } : c))}
+        onClose={() => setMenu(null)}
+        onRenamed={(t) => {
+          setChat((c) => (c ? { ...c, title: t } : c))
+          onTitleChange(chatId, t)
+        }}
         onToast={toast.show}
         extraTop={<AskMenuTop onNewQ={newQ} onScope={openScopeFromMenu} onToast={toast.show} route={input.route} />}
       />

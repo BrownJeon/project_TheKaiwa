@@ -9,6 +9,7 @@ import { useSyncExternalStore } from 'react'
 import { readStore } from '@/components/common/storage'
 import AppBar from '@/components/shell/AppBar'
 import AskGreeting, { AskMicIcon } from './AskGreeting'
+import AskHeadTitle from './AskHeadTitle'
 import AskHistoryButton from './AskHistoryButton'
 import { AskMenuButton } from './AskRoom'
 import { ASK_COPY } from './askCopy'
@@ -29,6 +30,7 @@ export default function AskTabSkeleton() {
     <div className="relative flex h-full min-h-0 min-w-0 flex-col bg-ground">
       <AppBar
         title={ASK_COPY.title}
+        heading={<AskHeadTitle state="new" />}
         right={
           <div inert className="flex items-center gap-2">
             <AskHistoryButton running={false} newCount={0} />
@@ -68,7 +70,7 @@ export default function AskTabSkeleton() {
         )}
       </div>
       <div inert>
-        <ScopeLine variant="tab" />
+        <ScopeLine />
       </div>
     </div>
   )

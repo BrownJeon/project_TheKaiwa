@@ -30,6 +30,7 @@ import ReviewNudge from './ReviewNudge'
 import { KEYS } from './storageKeys'
 import TurnNotice from './TurnNotice'
 import { useChatTurn } from './useChatTurn'
+import { askChatHref } from '@/components/ask/logic'
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'error'
 
@@ -100,9 +101,9 @@ export default function ChatRoom({ chatId, teacherName }: { chatId: string; teac
           router.replace(`/study/ai/talk/${encodeURIComponent(chatId)}`)
           return
         }
-        // 질문 방은 질문 화면에서 연다(주소를 잘못 연 경우, task-064 §25-2).
+        // 질문 대화는 질문 탭 화면에서 연다(주소를 잘못 연 경우, task-064 §25-2 → task-067 §27-7 B — 옛 `/ask/<id>` 를 거치지 않고 바로).
         if (detail.chat.kind === 'ASK') {
-          router.replace(`/ask/${encodeURIComponent(chatId)}`)
+          router.replace(askChatHref(chatId))
           return
         }
         setChat(detail.chat)

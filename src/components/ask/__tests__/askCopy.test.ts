@@ -21,7 +21,6 @@ function allStrings(v: unknown, out: string[] = []): string[] {
 
 test('⑬ 26-10 A 원문 — 안내 말풍선·알약·범위 줄·메뉴·대화 문구', () => {
   assert.equal(ASK_COPY.title, '질문')
-  assert.equal(ASK_COPY.more, '이전 질문 더 보기')
   const g = ASK_COPY.greeting
   assert.equal(g.leadHead + g.leadBold + g.leadTail, '무엇이든 물어보세요. 일본어 표현·문법도, 내 공부 기록(교정·복습·수업)도 좋아요.')
   assert.equal(g.leadBold, '내 공부 기록')
@@ -48,9 +47,12 @@ test('⑬ 26-10 A 원문 — 안내 말풍선·알약·범위 줄·메뉴·대�
   const m = ASK_COPY.menu
   assert.deepEqual([m.title, m.noun, m.newQ, m.scope, m.displayHead, m.voiceHead, m.convHead, m.emptyNote, m.delete, m.confirmTitle], [
     '질문 메뉴', '대화', '새 질문 시작', '보내는 범위 보기', '일본어 표시 · 모든 화면에 적용', '말로 묻기', '이 대화',
-    '아직 보낸 질문이 없어 이름 바꾸기·삭제는 없어요.', '이 대화 삭제', '이 대화를 삭제할까요?',
+    '아직 보낸 질문이 없어 제목 바꾸기·삭제는 없어요.', '이 대화 삭제', '이 대화를 삭제할까요?',
   ])
-  assert.deepEqual([ASK_COPY.backLabel, ASK_COPY.toList, ASK_COPY.menuAria], ['질문으로', '질문으로', '질문 메뉴'])
+  assert.deepEqual([ASK_COPY.toList, ASK_COPY.menuAria], ['질문으로', '질문 메뉴'])
+  for (const k of ['backLabel', 'roomLoadingTitle', 'subtitle', 'notFoundBody', 'more', 'moreBusy']) {
+    assert.ok(!(k in ASK_COPY), `task-067 27-7 C — ‹ 머리 화면·더 보기 문구 삭제: ${k}`)
+  }
   assert.deepEqual([ASK_COPY.deletedToast, ASK_COPY.loadError, ASK_COPY.notFoundTitle, ASK_COPY.goneToast, ASK_COPY.loadingConv], [
     '대화를 삭제했어요', '대화를 불러오지 못했어요.', '대화를 찾을 수 없어요', '대화를 찾을 수 없어요', '대화를 불러오고 있어요',
   ])
@@ -108,11 +110,36 @@ test('⑮ ask/ 화면 소스 문자열에도 엔진·모델 이름 0건', () => 
   }
 })
 
-test('⑬ 화면 문구 — MIC_TEST·「질문 방」·「목록으로」·「나가서 기다리기」 0건, 옛 목록 화면 문구 키 없음', () => {
+test('⑬ 화면 문구 — MIC_TEST·「질문 방」·「나가서 기다리기」 0건 · 「목록으로」는 시트 하위 화면 단추 하나뿐(task-067 27-5 E), 옛 목록 화면 문구 키 없음', () => {
   for (const s of allStrings(ASK_COPY)) {
-    for (const bad of ['MIC_TEST', '질문 방', '목록으로', '나가서 기다리기']) assert.ok(!s.includes(bad), `${bad}: ${s}`)
+    for (const bad of ['MIC_TEST', '질문 방', '나가서 기다리기']) assert.ok(!s.includes(bad), `${bad}: ${s}`)
   }
+  assert.deepEqual(allStrings(ASK_COPY).filter((s) => s.includes('목록으로')), ['목록으로'])
+  assert.equal(ASK_COPY.history.toList, '목록으로')
   for (const k of ['composerLabel', 'composerPlaceholder', 'ask', 'scopeLink', 'examplesTitle', 'examplesDescHead', 'examplesRowTitle', 'examples', 'roomsTitle']) {
     assert.ok(!(k in ASK_COPY), k)
+  }
+})
+
+test('T24 task-067 새 문구 = 27-3 F · 27-4 F · 27-5 E 원문 · 「이름 바꾸기」 0(J7) · 「이전 질문 더 보기」 0', () => {
+  const h = ASK_COPY.history
+  assert.deepEqual([h.loadingSr, h.emptyHint, h.pageError, h.pagerAria, h.prev, h.next, h.busyLabel], [
+    '지난 질문을 불러오고 있어요', '질문을 보내면 여기에 최근 순으로 쌓여요.', '이 쪽을 불러오지 못했어요', '지난 질문 쪽', '이전', '다음', '불러오는 중…',
+  ])
+  assert.deepEqual([h.pageLabel(1, 3), h.totalLabel(12), h.pageSr(2, 3, 12), h.pagingSr(2)], ['1 / 3', '모두 12개', '3쪽 중 2쪽 · 모두 12개', '2쪽을 불러오고 있어요'])
+  assert.deepEqual([h.totalLabel(1234), h.pageLabel(12, 1000)], ['모두 1,234개', '12 / 1,000'], '숫자는 ko-KR')
+  assert.deepEqual([h.rowMore('大丈夫'), h.rowTitle, h.rename, h.toList, h.deleteBusyNote, h.confirmQ('大丈夫')], [
+    '‘大丈夫’ 메뉴', '이 대화', '제목 바꾸기', '목록으로', '답을 받는 중이라 지금은 지울 수 없어요.', '‘大丈夫’ 대화를 삭제할까요?',
+  ])
+  assert.deepEqual([ASK_COPY.head.newConv, ASK_COPY.head.aria('大丈夫')], ['새 질문', '질문 · 지금 대화 「大丈夫」 — 눌러서 제목 바꾸기'])
+  const r = ASK_COPY.rename
+  assert.deepEqual([r.hint, r.count(7), r.empty, r.over, r.fail, r.saved], [
+    '100자까지 · 비워 두면 저장할 수 없어요', '7 / 100', '제목을 적어 주세요', '제목은 100자까지 쓸 수 있어요',
+    '제목을 바꾸지 못했어요. 연결을 확인하고 다시 해 보세요.', '제목을 바꿨어요',
+  ])
+  assert.equal(ASK_COPY.menu.emptyNote, '아직 보낸 질문이 없어 제목 바꾸기·삭제는 없어요.')
+  for (const s of allStrings(ASK_COPY)) {
+    assert.ok(!s.includes('이름 바꾸기'), `J7 낱말 「제목」 통일: ${s}`)
+    assert.ok(!s.includes('이전 질문 더 보기'), `더 보기 없음(D3 A): ${s}`)
   }
 })

@@ -2,15 +2,19 @@ import Link from 'next/link'
 
 /**
  * 화면 상단 바. 프로필·설정은 하단 탭이 아니라 **상단 아바타**로 들어간다(설계안 §11). 터치 영역은 44px(아바타 원은 32px).
+ * `heading`(선택, task-067 §27-2 A) — 제목 자리를 통째로 바꿔 그린다(질문 탭: 「질문」 + 지금 대화 제목 줄). 없으면 출력이 지금과 같다.
+ * 있어도 `h1` 은 이 바가 그리고 그 **안에** 넣는다 — 화면 읽기의 제목 목록이 그대로 남게.
  */
 export default function AppBar({
   title,
   subtitle,
   right,
+  heading,
 }: {
   title: string
   subtitle?: string
   right?: React.ReactNode
+  heading?: React.ReactNode
 }) {
   return (
     // `sticky` 인 이유: 앱 셸이 <main> 하나만 스크롤시키고 AppBar 는 각 페이지가 그 안에
@@ -26,10 +30,14 @@ export default function AppBar({
     //
     // 스크롤하면 이 여백은 내용과 함께 올라가 헤더 아래로 사라진다(sticky 의 정상 동작).
     <header className="sticky top-0 z-10 mb-2.5 flex h-[52px] flex-none items-center gap-2 bg-surface pl-4 pr-3">
-      <h1 className="min-w-0 flex-1 truncate text-xl font-bold">
-        {title}
-        {subtitle ? <span className="ml-2 text-sm font-light text-ink3">{subtitle}</span> : null}
-      </h1>
+      {heading ? (
+        <h1 className="flex min-w-0 flex-1">{heading}</h1>
+      ) : (
+        <h1 className="min-w-0 flex-1 truncate text-xl font-bold">
+          {title}
+          {subtitle ? <span className="ml-2 text-sm font-light text-ink3">{subtitle}</span> : null}
+        </h1>
+      )}
       {right}
       {/* 기획서 "5. 프로필" 은 하단 탭이 아니라 상단 아바타 → 설정 허브(/settings, 설계안 §11). */}
       <Link

@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { Badge } from '@/components/common/ui'
 import { JaRuns } from '@/components/common/japanese/JaRuns'
 import type { ChatSummary } from '@/types/chat'
@@ -6,8 +5,10 @@ import { ASK_COPY } from './askCopy'
 import { ASK_ROW_CLASS, askRowView } from './homeLogic'
 
 /**
- * 지난 질문 한 줄(§25-4 D → task-066 §26-4 C) — 행 전체가 링크(≥64px, 지난 대화 `/ask/<id>`), 바깥 클래스·높이는 `ChatListItem` 과 같다(`ASK_ROW_CLASS`).
- * `current` = 지금 탭 화면의 대화: 링크가 아니라 버튼(`onCurrent` = 시트 닫기) + 뱃지 「지금 대화」.
+ * 지난 질문 한 줄(§25-4 D → task-066 §26-4 C → task-067 §27-5 A). 행 = 큰 단추(그 대화 열기 `onOpen`) + 오른쪽 ⋯ 단추를 **나란히**(J3 — 단추 안에 단추 없음).
+ * 링크를 쓰지 않는다(`/ask/<id>` 0 — 열기는 탭 화면이 같은 자리에서). 「지금 대화」 행도 같은 단추이고 부모가 같은 id 면 시트만 닫는다.
+ * 바깥 클래스·높이는 `ChatListItem` 과 같다(`ASK_ROW_CLASS`). 오른쪽 52px 를 비워 제목·시각·뱃지가 ⋯ 와 겹치지 않는다.
+ * `running` = 알약용 최근 목록으로 덮어쓴 값(`rowRunning`, 27-4 E) — 없으면 쪽을 읽은 순간 값.
  * 제목·미리보기는 한국어 글이라 `lang="ja"` 를 통째로 달지 않고 일본어 구간만 `JaRuns` 로 나눈다.
  */
 export default function AskListItem({
@@ -15,15 +16,20 @@ export default function AskListItem({
   isNew,
   now,
   current = false,
-  onCurrent,
+  running,
+  onOpen,
+  onMore,
 }: {
   chat: ChatSummary
   isNew: boolean
   now: Date | null
   current?: boolean
-  onCurrent?: () => void
+  running?: boolean
+  onOpen: () => void
+  onMore: () => void
 }) {
-  const v = askRowView(chat, { isNew, now })
+  const row = running === undefined || running === chat.running ? chat : { ...chat, running }
+  const v = askRowView(row, { isNew, now })
   const body = (
     <>
       <span className="flex min-w-0 items-baseline gap-2">
@@ -58,16 +64,21 @@ export default function AskListItem({
     </>
   )
   return (
-    <li>
-      {current ? (
-        <button type="button" onClick={onCurrent} aria-label={`${v.label}, ${ASK_COPY.history.current}`} className={`${ASK_ROW_CLASS} w-full text-left`}>
-          {body}
-        </button>
-      ) : (
-        <Link href={`/ask/${encodeURIComponent(chat.id)}`} aria-label={v.label} className={ASK_ROW_CLASS}>
-          {body}
-        </Link>
-      )}
+    <li className="relative min-w-0">
+      <button type="button" onClick={onOpen} aria-label={current ? `${v.label}, ${ASK_COPY.history.current}` : v.label} className={`${ASK_ROW_CLASS} w-full pr-[52px] text-left active:bg-surface2`}>
+        {body}
+      </button>
+      <button
+        type="button"
+        onClick={onMore}
+        aria-label={ASK_COPY.history.rowMore(chat.title)}
+        data-ask-row-more={chat.id}
+        className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full text-ink2 active:bg-surface2"
+      >
+        <span aria-hidden="true" className="text-[20px] leading-none">
+          ⋯
+        </span>
+      </button>
     </li>
   )
 }

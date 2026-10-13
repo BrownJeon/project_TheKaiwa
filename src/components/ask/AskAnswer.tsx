@@ -43,7 +43,6 @@ export default function AskAnswer({
   isLast,
   idle,
   chatId,
-  returnHref,
   teacherName,
   title,
   proposals,
@@ -57,9 +56,8 @@ export default function AskAnswer({
   isLast: boolean
   /** 턴이 쉬는 중(idle·failed) — 되묻기 칩은 이때만 */
   idle: boolean
+  /** 근거에서 돌아올 주소도 이 대화(`/ask?chat=<id>` — `SourceList` 가 만든다, task-067 §27-7 B) */
   chatId: string
-  /** 근거에서 돌아올 주소 — 탭 화면의 지금 대화(`/ask?chat=<id>`, task-066 §26-3 E). 없으면 지난 대화 `/ask/<id>`. */
-  returnHref?: string
   teacherName: string
   /** `teacherTitle(teacherName)` */
   title: string
@@ -92,7 +90,7 @@ export default function AskAnswer({
         ) : null}
         {view.chips && ask?.needsScope ? <ScopeChips options={ask.needsScope.options} onPick={onPickScope} onOwn={onOwnScope} /> : null}
       </article>
-      {view.showSources && ask ? <SourceList chatId={chatId} sources={ask.sources} returnHref={returnHref} /> : null}
+      {view.showSources && ask ? <SourceList chatId={chatId} sources={ask.sources} /> : null}
       {mine.map((p) => (
         <ProposalCard key={p.id} proposal={p} context="ask" onChange={onProposalChange} onToast={onToast} />
       ))}
