@@ -1,0 +1,1548 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-067-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="질문 탭 — 지난 질문도 같은 챗봇 탭 화면에서 열기, 질문 제목 지정, 지난 질문 5개씩 페이징(delta 데모 v1, 결정 D1~D6)">
+<title>질문 지난 이력·제목·페이징 데모 v1</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+p, h1, h2, h3, h4, ul, ol, figure, fieldset, legend { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+fieldset { border: 0; padding: 0; min-width: 0; }
+code { font-size: 12px; background: var(--surface2); padding: 1px 5px; border-radius: 5px; word-break: normal; overflow-wrap: break-word; display: inline-block; max-width: 100%; vertical-align: baseline; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.dtop h1 small { display: inline-block; font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.meta { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.meta span { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.meta span.lv { background: var(--accent); color: var(--on-accent); }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 40px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dwrap { max-width: 1480px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dcard > h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.dcard h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 6px; }
+.dsub { font-size: 12.5px; color: var(--ink2); }
+.p14 { font-size: 14px; }
+.intro2 { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: 8px 0 12px; }
+.flow li { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border-radius: 999px; background: var(--surface2); font-size: 12.5px; }
+.flow li b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 999px; background: var(--surface); font-size: 11.5px; flex: none; }
+.flow li > span { min-width: 0; }
+.flow li.key { background: var(--accent-soft); }
+.flow .ar { color: var(--ink2); font-size: 12px; padding: 0 2px; background: none; }
+.lst { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.lst li { position: relative; display: block; padding-left: 18px; min-width: 0; }
+.lst li::before { content: "•"; position: absolute; left: 0; top: 0; width: 14px; color: var(--ink2); }
+.lst.plus li::before { content: "+"; color: var(--good); font-weight: 700; }
+.lst.out li::before { content: "×"; color: var(--bad); font-weight: 700; }
+.lst.chg li::before { content: "~"; color: var(--warn); font-weight: 700; }
+.callout { border-radius: 12px; background: var(--surface2); padding: 12px; font-size: 12.5px; margin-top: 12px; }
+.callout ol { list-style: decimal; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 4px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); text-align: left; }
+.tabs button b { font-size: 13.5px; }
+.tabs button span { font-size: 11.5px; color: var(--ink2); }
+.tabs button[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.scap { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.scap h3 { font-size: 15px; font-weight: 700; margin: 0; }
+.scap .why { font-size: 13px; }
+.subs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.subs button { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; }
+.subs button[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--ink); }
+.subl { width: 100%; font-size: 11.5px; font-weight: 700; color: var(--ink2); margin-top: 4px; }
+.sayc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12.5px; color: var(--ink2); margin-top: 4px; }
+.prow { display: flex; gap: 22px; overflow-x: auto; padding: 14px 4px 10px; }
+.fw { margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; }
+.fdim { font-size: 11.5px; color: var(--ink2); margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+.fdim b { color: var(--ink); }
+.decs { border: 2px solid var(--accent); }
+.dec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; container-type: inline-size; }
+.dec:first-of-type { border-top: 0; padding-top: 0; margin-top: 4px; }
+.dec > h3 { font-size: 14px; font-weight: 700; margin: 0; }
+.dec p.q { font-size: 13px; margin-top: 2px; }
+.dec p.fact { font-size: 12.5px; margin-top: 4px; color: var(--ink2); }
+.dec p.chg { font-size: 12.5px; margin-top: 4px; border-radius: 8px; background: var(--warn-soft); padding: 6px 10px; color: var(--ink); }
+.dec legend { font-size: 12.5px; font-weight: 700; color: var(--ink2); margin-top: 10px; padding: 0; }
+.dec-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 8px; }
+@container (min-width: 620px) { .dec-g { grid-template-columns: repeat(3, minmax(0, 1fr)); } .dec-g.two { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dec-g.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 1000px) { .dec-g.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--surface); position: relative; min-width: 0; cursor: pointer; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; }
+.opt-h .oh-t { min-width: 0; }
+.opt-d { font-size: 13px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 3px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.rec { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--good-soft); color: var(--good); }
+.jud { margin-top: 18px; border-top: 2px solid var(--line); padding-top: 14px; }
+.jud h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+.jud ol { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; font-size: 13px; }
+.jud li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 6px; border-radius: 10px; background: var(--surface2); padding: 8px 10px; }
+.jud li b.n { font-size: 12px; color: var(--ink2); }
+.tblw { overflow-x: auto; margin-top: 10px; }
+table.mt { border-collapse: collapse; font-size: 12.5px; min-width: 640px; width: 100%; }
+table.mt th, table.mt td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+table.mt th { font-weight: 700; color: var(--ink2); font-size: 12px; }
+.notes2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { .intro2, .notes2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .flow .ar { display: none; } }
+@media (max-width: 760px) {
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px; }
+  .dtop h1 { font-size: 14px; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dwrap { padding: 12px 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
+}
+.mysum { margin-top: 18px; border-top: 2px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mysum h3 { font-size: 15px; font-weight: 700; margin: 0; }
+.selbox { display: block; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); padding: 10px 12px; font-size: 13.5px; line-height: 1.6; color: var(--ink); -webkit-user-select: all; user-select: all; overflow-wrap: anywhere; }
+.selbox.apv { font-weight: 600; }
+.mysum .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12.5px; color: var(--ink2); }
+.mysum .row button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; }
+.vnote { border-radius: 10px; border: 1px solid var(--good); background: var(--good-soft); color: var(--ink); padding: 8px 12px; font-size: 12.5px; }
+.risk { border-radius: 12px; border: 1px solid var(--bad); background: var(--bad-soft); padding: 12px; font-size: 13px; margin-bottom: 12px; color: var(--ink); }
+.risk b.h { display: block; font-size: 13.5px; margin-bottom: 4px; color: var(--bad); }
+
+/* ── 휴대폰 프레임 (뷰포트 = 주소창 보이는 S25+ ≈ 780px) ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); height: 780px; flex: none;
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; background: var(--ground); }
+.sc { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; position: relative; }
+.px { padding: 0 16px 32px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+/* 앱바(AppBar) — 지금 화면(현재)용: sticky, h52 + mb10 */
+.ab { position: sticky; top: 0; z-index: 10; height: 52px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; background: var(--surface); }
+.ab h2 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 챗봇창 머리(AppBar 를 고정 줄로 — 아래 테두리) */
+.ab2 { flex: none; height: 52px; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); min-width: 0; }
+.ab2 h2 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.abtn { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 36px; flex: none; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 0 12px 0 10px; font-size: 13px; font-weight: 600; white-space: nowrap; margin-right: 2px; }
+.abtn::before { content: ""; position: absolute; inset-inline: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.av { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; }
+.av span { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; }
+/* 하위 화면 머리(BackBar — h52, 테두리) */
+.bk { flex: none; height: 52px; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-bottom: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; color: var(--ink); }
+.bkt { min-width: 0; flex: 1; }
+.bkt h2 { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bkt p { font-size: 12px; line-height: 1.25; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 하단 탭 */
+.tb { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 max(10px, env(safe-area-inset-bottom, 0px)); }
+.tb span.ti { display: flex; flex: 1; min-width: 0; min-height: 56px; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; font-size: 11px; color: var(--ink3); }
+.tb .ti.on { color: var(--accent); font-weight: 600; }
+/* 키보드 자리 */
+.kbd { flex: none; height: 300px; display: grid; place-items: center; background: var(--surface2); border-top: 1px solid var(--line); color: var(--ink2); font-size: 12px; }
+.kbd i { font-style: normal; display: block; text-align: center; }
+
+/* ── 지금 화면(현재 비교용): 입력 카드·예시·지난 질문 ── */
+.askc { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.askc label { font-size: 15px; font-weight: 600; }
+.ta { display: block; width: 100%; min-width: 0; min-height: 76px; resize: none; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; font-size: 16px; line-height: 1.5; color: var(--ink); }
+.ta::placeholder { color: var(--ink3); }
+.ta.kbf { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.askr { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.lnk { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; min-width: 0; border: 0; background: none; padding: 0; font-size: 13px; color: var(--ink2); text-decoration: underline; text-underline-offset: 3px; align-self: flex-start; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; font-size: 15px; font-weight: 600; min-width: 0; }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.gho { border: 1px solid var(--line); background: var(--surface); }
+.btn.dan { background: var(--bad); color: var(--surface); }
+.btn.h44 { height: 44px; font-size: 14.5px; }
+.btn.full { width: 100%; }
+.btn[aria-disabled="true"] { opacity: .4; }
+.brow { display: flex; gap: 8px; flex-wrap: wrap; }
+.brow > * { flex: 1 1 130px; min-width: 0; }
+.exs { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.exs h3 { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.exr { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
+.exr::-webkit-scrollbar { display: none; }
+.exq { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; max-width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 6px 12px; font-size: 14px; text-align: left; }
+.exr .exq { flex: none; white-space: nowrap; }
+.et { flex: none; display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; }
+.ii { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 999px; border: 1.5px solid currentColor; font-size: 11px; font-weight: 700; font-style: normal; line-height: 1; color: var(--ink2); }
+.sech { font-size: 15px; font-weight: 700; margin-bottom: -8px; }
+.ql { display: flex; flex-direction: column; gap: 8px; }
+.qr { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 64px; min-width: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 10px 14px; text-decoration: none; color: var(--ink); }
+.qt { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.qtt { min-width: 0; flex: 1; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qtm { flex: none; font-size: 12px; color: var(--ink2); }
+.qp { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qpp { min-width: 0; flex: 1; font-size: 14px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bdg { display: inline-flex; align-items: center; height: 22px; flex: none; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; background: var(--surface2); color: var(--ink2); }
+.bdg.good { background: var(--good-soft); color: var(--good); }
+.bdg.cur { background: var(--accent-soft); color: var(--ink); }
+.mbtn { width: 100%; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 15px; font-weight: 600; }
+.errb { border-radius: 12px; background: var(--bad-soft); padding: 12px 14px; font-size: 13.5px; color: var(--bad); }
+.errb b { display: block; font-size: 14.5px; }
+.errb button { display: inline-flex; align-items: center; min-height: 44px; margin-top: 2px; border: 0; background: none; padding: 0; color: var(--bad); font-weight: 600; text-decoration: underline; }
+
+/* ── 대화(메시지 목록 · 말풍선 · 답) — task-064 v2 와 같은 모양 ── */
+.ml { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dsep { align-self: center; font-size: 12px; color: var(--ink2); }
+.ubw { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; }
+.ub { max-width: 84%; min-width: 0; border-radius: 16px 16px 6px 16px; background: var(--accent-soft); padding: 10px 14px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ubm { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0 10px; min-height: 20px; font-size: 12px; color: var(--ink2); }
+.ubm svg { vertical-align: -2px; margin-right: 3px; }
+.ubm button { display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0 2px; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.ub.dict { display: inline-flex; align-items: center; gap: 8px; background: var(--surface); border: 1.5px dashed var(--ink3); color: var(--ink2); }
+.ub.undo { border: 1.5px solid var(--accent); }
+.tg { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2); }
+.who i { font-style: normal; width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 999px; background: var(--accent-soft); color: var(--ink); font-size: 13px; font-weight: 700; }
+.ans { min-width: 0; border: 1px solid var(--line); border-radius: 6px 16px 16px 16px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.lowl, .nonel { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; border-radius: 10px; background: var(--surface2); padding: 9px 10px; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.lowl b, .nonel b { font-weight: 700; }
+.lowl .ii, .nonel .ii { margin-top: 1px; color: var(--ink); }
+.md { display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.65; min-width: 0; }
+.md strong { font-weight: 700; }
+.md .mh { font-weight: 700; margin-top: 2px; }
+.md ul { list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.md .gsub { font-size: 14px; color: var(--ink2); }
+.exb { min-width: 0; border-radius: 12px; background: var(--surface2); padding: 10px 12px; }
+.ja17 { font-size: 17px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.phone:not(.nofu) .ja17 { line-height: 2.1; }
+ruby rt { font-size: 11px; color: var(--ink2); user-select: none; }
+.nofu rt { display: none; }
+.nohg .hg { display: none !important; }
+.hg { margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--ink2); user-select: none; word-break: normal; }
+.exm { margin-top: 4px; font-size: 14px; line-height: 1.5; color: var(--ink2); }
+.tm { font-size: 12px; color: var(--ink2); }
+/* 안내 말풍선 속 예시 칩(누르면 바로 보냄) */
+.gch { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gch .lb { font-size: 12px; color: var(--ink2); }
+.gch .exw { display: flex; flex-direction: column; gap: 8px; }
+.gch .exq { width: 100%; }
+/* 되묻기 칩 */
+.scq { display: flex; flex-wrap: wrap; gap: 8px; }
+.scq .lb { width: 100%; font-size: 12px; color: var(--ink2); }
+.sch { position: relative; height: 40px; min-width: 44px; flex: none; border-radius: 999px; border: 1px solid var(--accent); background: var(--surface); color: var(--ink); padding: 0 14px; font-size: 14px; font-weight: 600; }
+.sch::before { content: ""; position: absolute; inset-inline: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.sch.own { border-color: var(--line); font-weight: 400; color: var(--ink2); }
+/* 근거 카드 */
+.srcs { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sh { font-size: 12.5px; font-weight: 600; color: var(--ink2); }
+.sh b { color: var(--ink); }
+.scl { display: flex; flex-direction: column; gap: 6px; }
+.srcc { display: grid; grid-template-columns: 32px minmax(0, 1fr) 14px; align-items: center; gap: 10px; min-height: 56px; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 8px 12px; text-decoration: none; color: var(--ink); }
+.sci { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 999px; background: var(--surface2); color: var(--ink2); font-size: 13px; font-weight: 700; }
+.scb { min-width: 0; display: flex; flex-direction: column; }
+.sct { font-size: 12px; color: var(--ink2); }
+.scl1 { font-size: 14px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.chev { font-size: 16px; color: var(--ink2); text-align: center; }
+.smore { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; align-self: flex-start; border: 0; background: none; padding: 0 4px 0 0; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+/* 제안 카드 */
+.pc { min-width: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.pc.lv { border: 2px solid var(--accent); }
+.pcap { font-size: 12px; color: var(--ink2); }
+.pw { font-size: 18px; font-weight: 600; line-height: 2; }
+.pt { font-size: 15px; font-weight: 600; }
+.pm { font-size: 15px; }
+.pn { font-size: 12px; color: var(--ink2); }
+.plv { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; }
+.plv span:first-child { color: var(--ink2); }
+.pdone { font-size: 13px; color: var(--good); }
+.pdone.n { font-size: 12px; color: var(--ink2); }
+/* 대기·실패 */
+.pend { min-width: 0; border: 1px solid var(--line); border-radius: 6px 16px 16px 16px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.steps { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); }
+.steps li { display: flex; align-items: center; gap: 8px; }
+.steps li .sm { width: 18px; height: 18px; flex: none; display: grid; place-items: center; border-radius: 999px; border: 1.5px solid var(--line); font-size: 11px; font-weight: 700; }
+.steps li.done .sm { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+.steps li.now { color: var(--ink); font-weight: 600; }
+.steps li.now .sm { border-color: var(--accent); }
+.steps li.now .sm::after { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--accent); animation: pul 1.2s ease-in-out infinite; }
+.pmain { font-size: 14.5px; font-weight: 600; }
+.pmain span { font-weight: 400; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.phint { font-size: 13px; color: var(--ink2); }
+@keyframes pul { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.skl { display: flex; flex-direction: column; gap: 8px; }
+.fail { min-width: 0; border-radius: 6px 16px 16px 16px; background: var(--bad-soft); color: var(--bad); padding: 12px 14px; font-size: 13.5px; }
+.fail b { display: block; font-size: 14.5px; }
+.fail button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 8px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--bad); background: var(--surface); color: var(--bad); font-weight: 600; font-size: 14px; }
+.olderb { align-self: center; display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink2); }
+.skb { display: block; border-radius: 16px; background: var(--surface2); }
+.ansn { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; font-size: 12px; color: var(--ink2); }
+.ansn button { min-height: 44px; min-width: 44px; border: 0; background: none; padding: 0 2px; font-size: 12px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── 입력 바 위 띠(회화 StripSlot 과 같은 자리 — SttAlert · UnsentBar) ── */
+.strip { flex: none; padding: 8px 12px; background: var(--ground); border-top: 1px solid var(--line); }
+.sta { display: flex; align-items: flex-start; gap: 4px; min-width: 0; border-radius: 12px; background: var(--bad-soft); color: var(--bad); padding-left: 14px; font-size: 13px; }
+.sta .b { flex: 1; min-width: 0; padding: 10px 0; }
+.sta .b p.h { font-weight: 600; }
+.sta .b p.d { margin-top: 2px; }
+.sta .b .acts { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.sta .b .acts button { display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.sta .ib { color: inherit; }
+.unb { min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 12px; }
+.unb .r { display: flex; align-items: flex-start; gap: 4px; min-width: 0; }
+.unb .r > div { flex: 1; min-width: 0; }
+.unb .rs { font-size: 13px; color: var(--ink2); }
+.unb .rt { margin-top: 4px; font-size: 15px; overflow-wrap: anywhere; }
+.unb .r .ib { margin: -6px -6px 0 0; color: var(--ink2); }
+.unb .bt { margin-top: 8px; display: flex; gap: 8px; min-width: 0; }
+.unb .bt > * { flex: 1; min-width: 0; height: 44px; border-radius: 12px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unb .bt .p { border: 0; background: var(--accent); color: var(--on-accent); }
+.unb .bt .p[aria-disabled="true"] { opacity: .4; }
+.unb .bt .g { border: 1px solid var(--line); background: var(--surface); }
+
+/* ── 글자 바(회화 글자 모드 = Composer + 왼쪽 🎤) ── */
+.cmp2 { flex: none; display: flex; align-items: flex-end; gap: 8px; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 12px; margin: 0; min-width: 0; }
+.cmp2 .ta { min-height: 44px; height: 44px; padding: 9px 12px; border-radius: 12px; flex: 1; }
+.cmp2 .ta.grow { height: 72px !important; max-height: 120px; overflow-y: auto; border-color: var(--accent); }
+.snd { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent); }
+.snd[aria-disabled="true"] { opacity: .4; }
+.micl { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); }
+.micl[aria-disabled="true"] { opacity: .4; }
+.fillln { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 14px 0; background: var(--surface); border-top: 1px solid var(--line); font-size: 13px; color: var(--ink); min-width: 0; }
+.fillln svg { flex: none; color: var(--ink2); }
+.fillln + .cmp2 { border-top: 0; }
+/* ── 말 바(회화 VoiceBar 와 같은 모양: 상태 줄 h24 + [⌨ 44 · 누르고 말하기 72 · 44]) ── */
+.vb { flex: none; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 16px max(8px, env(safe-area-inset-bottom, 0px)); min-width: 0; }
+.vbs { display: flex; height: 24px; min-width: 0; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.vbs .t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vbs.hint .t { color: var(--ink); font-weight: 600; }
+.lvm5 { display: inline-flex; align-items: flex-end; gap: 3px; height: 24px; flex: none; }
+.lvm5 i { width: 4px; border-radius: 2px; background: var(--line); }
+.lvm5 i:nth-child(1) { height: 8px; } .lvm5 i:nth-child(2) { height: 12px; } .lvm5 i:nth-child(3) { height: 16px; } .lvm5 i:nth-child(4) { height: 20px; } .lvm5 i:nth-child(5) { height: 24px; }
+.lvm5 i.on { background: var(--accent); }
+.lvm5.off { visibility: hidden; }
+.vbg { margin-top: 4px; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; }
+.vbg > .ib { color: var(--ink2); }
+.vbg > .ib[aria-disabled="true"] { opacity: .4; }
+.vbc { display: flex; justify-content: center; }
+.ptt { position: relative; width: 72px; height: 72px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform .12s; }
+.ptt::before { content: ""; position: absolute; inset: -6px; border-radius: 999px; box-shadow: 0 0 0 6px var(--accent-soft); opacity: 0; }
+.ptt[data-rec="true"] { transform: scale(1.05); }
+.ptt[data-rec="true"]::before { opacity: 1; }
+.ptt[data-out="true"] { background: var(--surface2); color: var(--ink); transform: none; }
+.ptt[data-out="true"]::before { opacity: 1; box-shadow: 0 0 0 6px var(--bad-soft); }
+.ptt[aria-disabled="true"] { opacity: .4; }
+.ptt:focus-visible { outline-offset: 6px; }
+.ptt.s48 { width: 48px; height: 48px; }
+.spin2 { width: 24px; height: 24px; border-radius: 999px; border: 2px solid currentColor; border-top-color: transparent; animation: rot .9s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ptt { transition: none; } .ptt[data-rec="true"] { transform: none; } .spin2 { animation: none; } .steps li.now .sm::after { animation: none; } }
+.vrow { flex: none; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 12px; min-width: 0; min-height: 64px; }
+.vrow .vbs { flex: 1; justify-content: flex-start; }
+/* 부분 인식 말풍선(회화 LiveUtteranceBubble) */
+.ubl { align-self: flex-end; max-width: 80%; min-width: 0; border-radius: 16px 16px 6px 16px; border: 1px dashed var(--ink3); background: var(--surface); padding: 10px 14px; }
+.ubl .pj { font-size: 17px; line-height: 1.7; color: var(--ink2); overflow-wrap: anywhere; }
+.ubl .pk { font-size: 14px; color: var(--ink2); }
+.ubl.out { border-color: var(--bad); }
+.ubl.out .pj { text-decoration: line-through; }
+.ublc { align-self: flex-end; max-width: 84%; font-size: 12px; color: var(--ink2); margin-top: -10px; text-align: right; }
+.ublc.out { color: var(--bad); font-weight: 600; }
+/* 말로 물은 일본어 말풍선 */
+.ub.ja { font-size: 17px; line-height: 1.7; }
+.phone:not(.nofu) .ub.ja { line-height: 2.1; }
+.ub .hg { margin-top: 0; }
+.ub.undo { border: 1.5px solid var(--accent); }
+/* 보내는 범위 한 줄(D2) */
+.scl2 { flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 12px 4px; background: var(--surface); font-size: 12px; color: var(--ink2); min-width: 0; }
+.scl2.top { padding: 4px 12px; border-top: 1px solid var(--line); }
+.scl2 .ii { width: 15px; height: 15px; font-size: 10px; border-width: 1.3px; }
+.scl2 span.t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scl2 button { position: relative; flex: none; min-height: 26px; border: 0; background: none; padding: 0 2px; font-size: 12px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.scl2 button::before { content: ""; position: absolute; left: -8px; right: -8px; top: -9px; bottom: -9px; }
+.vb + .scl2 { padding-top: 0; }
+/* 안내 말풍선 속 「말로 물어볼 때」(누르는 기능 없음 — 회화 TalkIntro 예와 같은 결) */
+.vex { border-radius: 12px; background: var(--surface2); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vex h4 { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.vex p { font-size: 13px; color: var(--ink2); }
+.vex ul { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 15px; }
+.mrow .rv { font-size: 13px; color: var(--ink2); text-align: right; min-width: 0; }
+/* ── 시트·토스트 ── */
+.ovl { position: absolute; inset: 0; z-index: 40; background: color-mix(in srgb, var(--ink) 40%, transparent); border: 0; padding: 0; width: 100%; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 86%; overflow-y: auto; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.18); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+.shd { position: sticky; top: 0; background: var(--surface); height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 16px; border-bottom: 1px solid var(--line); z-index: 1; }
+.shd h3 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sbd { padding: 12px 16px 0; font-size: 14px; display: flex; flex-direction: column; gap: 10px; }
+.shl { font-size: 13px; font-weight: 700; margin-top: 2px; }
+.sl { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.sl li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; }
+.sl li .mk { font-weight: 700; text-align: center; }
+.sl.yes .mk { color: var(--ink); } .sl.no .mk { color: var(--bad); }
+.sl li.new { background: var(--accent-soft); border-radius: 8px; padding: 2px 4px; margin: 0 -4px; }
+.snote { font-size: 12.5px; color: var(--ink2); }
+.vband { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 4px 8px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: 13px; }
+.vband > span:first-child { display: grid; place-items: center; color: var(--ink2); height: 20px; }
+.mrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; width: 100%; min-width: 0; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 0 4px; text-align: left; font-size: 15px; }
+.mrow.bad { color: var(--bad); border-bottom: 0; }
+.mrow[aria-disabled="true"] { opacity: .5; }
+.mrow .st { display: inline-flex; align-items: center; gap: 8px; flex: none; font-size: 13px; color: var(--ink2); }
+.sw { position: relative; width: 44px; height: 26px; flex: none; border-radius: 999px; background: var(--line); }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.mrow[aria-checked="true"] .sw { background: var(--ink); }
+.mrow[aria-checked="true"] .sw::after { left: 21px; }
+.mhd { font-size: 12.5px; font-weight: 700; color: var(--ink2); padding: 14px 4px 2px; }
+.mttl { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 4px; }
+.fld { display: flex; flex-direction: column; gap: 4px; }
+.fld label { font-size: 13px; font-weight: 600; }
+.fld input { height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 16px; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 112px; z-index: 50; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 12px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.app.tab .toast { bottom: 184px; }
+.app.kbo .toast { bottom: 420px; }
+.toast:empty { display: none; }
+.mockn { border-radius: 12px; border: 1px dashed var(--line); padding: 10px 12px; font-size: 12.5px; color: var(--ink2); }
+/* 휴대폰 권한 창(모양만) */
+.sysdlg { position: absolute; left: 20px; right: 20px; top: 30%; z-index: 45; border-radius: 18px; background: var(--surface); box-shadow: 0 12px 40px rgba(0,0,0,.28); padding: 18px 18px 8px; font-size: 14px; }
+.sysdlg p.m { font-size: 15px; font-weight: 600; text-align: center; }
+.sysdlg p.c { font-size: 11.5px; color: var(--ink2); text-align: center; margin-top: 6px; }
+.sysdlg .sb { display: flex; flex-direction: column; margin-top: 10px; border-top: 1px solid var(--line); }
+.sysdlg .sb button { display: flex; align-items: center; justify-content: center; min-height: 44px; font-size: 14px; color: var(--ink); border: 0; border-bottom: 1px solid var(--line); background: none; width: 100%; }
+.sysdlg .sb button:last-child { border-bottom: 0; }
+.ovl.sys { z-index: 44; }
+.app.tab.vm .toast { bottom: 232px; }
+.dbar { flex: none; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--line); overflow-x: auto; scrollbar-width: none; }
+.dbar > span { font-size: 12px; color: var(--ink2); flex: none; }
+.tgl { position: relative; height: 32px; flex: none; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 10px; font-size: 13px; color: var(--ink); }
+.tgl::before { content: ""; position: absolute; inset-inline: 0; top: -6px; bottom: -6px; }
+.tgl[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+.app.vm:not(.tab) .toast { bottom: 164px; }
+/* ══ task-067 추가(위는 승인 데모 task-066 v2 의 규칙을 그대로 복사) ══ */
+.noscr { border-radius: 10px; border: 1px solid var(--warn); background: var(--warn-soft); color: var(--ink); padding: 8px 12px; font-size: 12.5px; }
+.dnote { font-size: 12.5px; color: var(--ink2); margin-top: 6px; }
+.dnote b { color: var(--ink); }
+.qsum .lst { font-size: 13.5px; gap: 7px; }
+/* 머리 제목 블록 — D1 A(「질문」 + 지금 대화 제목) · D1 C(대화 제목) */
+.ab2 .abt { flex: 1; min-width: 0; height: 44px; display: flex; flex-direction: column; justify-content: center; gap: 1px; border: 0; background: none; padding: 0 6px; margin: 0 0 0 -6px; border-radius: 10px; text-align: left; color: var(--ink); font-size: 14px; font-weight: 400; white-space: nowrap; overflow: hidden; }
+.ab2 button.abt { cursor: pointer; }
+.ab2 .abtw { flex: 1; min-width: 0; margin: 0; display: flex; font-size: 14px; }
+.ab2 .abtw .abt { flex: 1; margin-left: -6px; }
+.ab2 .abt.pressed { background: var(--surface2); box-shadow: inset 0 0 0 2px var(--accent); }
+.abt1 { display: block; min-width: 0; font-size: 20px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.abt2 { display: flex; align-items: center; gap: 3px; min-width: 0; font-size: 12.5px; line-height: 1.3; color: var(--ink2); }
+.abt2 .t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.abt2 svg { flex: none; }
+.abt.c .abt1 { font-size: 18px; }
+/* 「지난 질문」 알약 3상태(task-066 그대로) */
+.abtn .dots { display: inline-flex; gap: 3px; }
+.abtn .dots i { width: 4px; height: 4px; border-radius: 999px; background: currentColor; animation: pul 1.2s ease-in-out infinite; }
+.abtn .dots i:nth-child(2) { animation-delay: .2s; } .abtn .dots i:nth-child(3) { animation-delay: .4s; }
+.abtn.nw { background: var(--accent-soft); }
+.abtn .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); flex: none; }
+@media (prefers-reduced-motion: reduce) { .abtn .dots i, .bdg .dots i { animation: none; } }
+/* D1 B — 대화 맨 위 제목 줄 */
+.ctr { display: flex; align-items: center; gap: 8px; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 6px 6px 6px 12px; }
+.ctr .ctt { flex: 1; min-width: 0; display: block; }
+.ctr .cth { display: block; font-size: 11.5px; color: var(--ink2); }
+.ctr .t { display: block; font-size: 15px; font-weight: 600; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ctr .ctb { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; border: 0; background: none; padding: 0 8px; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+/* 지난 질문 시트 — 행(대화 열기) + 행 ⋯, 쪽 넘기기 */
+.hr { position: relative; min-width: 0; }
+.hr .qr { width: 100%; height: 68px; font: inherit; text-align: left; cursor: pointer; }
+.hr .qr.hasx { padding-right: 52px; }
+.hr .hrx { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: var(--ink2); }
+.hr .qr.pressed { box-shadow: inset 0 0 0 2px var(--accent); background: var(--surface2); }
+.hlist.fix { min-height: 372px; } /* 5행 × 68 + 간격 4 × 8 — 마지막 쪽도 같은 높이 */
+.hsk { display: block; height: 68px; border-radius: 14px; background: var(--surface2); }
+.bdg .dots { display: inline-flex; gap: 3px; margin-right: 6px; }
+.bdg .dots i { width: 4px; height: 4px; border-radius: 999px; background: currentColor; animation: pul 1.2s ease-in-out infinite; }
+.bdg .dots i:nth-child(2) { animation-delay: .2s; } .bdg .dots i:nth-child(3) { animation-delay: .4s; }
+.nwdot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); flex: none; }
+.bdg.nw { background: var(--accent-soft); color: var(--ink); }
+.hempty { display: flex; flex-direction: column; gap: 4px; padding: 8px 0 4px; }
+.hempty p { font-size: 14px; color: var(--ink2); }
+.pgr { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding-top: 2px; }
+.pgb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 92px; height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-weight: 600; color: var(--ink); flex: none; }
+.pgb[aria-disabled="true"] { opacity: .4; }
+.pgb .ar2 { font-size: 17px; line-height: 1; }
+.pgl { flex: 1; min-width: 0; text-align: center; font-variant-numeric: tabular-nums; }
+.pgl .a { display: block; font-size: 15px; font-weight: 700; }
+.pgl .b { display: block; font-size: 12px; color: var(--ink2); }
+.pgn { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding-top: 2px; }
+.pgn button { width: 44px; height: 44px; flex: none; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.pgn button[aria-current="page"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.pgn button[aria-disabled="true"] { opacity: .4; }
+/* 제목 바꾸기 */
+.fld .cnt { font-size: 12px; color: var(--ink2); text-align: right; font-variant-numeric: tabular-nums; }
+.fld .cnt.over { color: var(--bad); font-weight: 600; }
+.fld input.err { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+.fld input[readonly] { color: var(--ink2); }
+.fhint { font-size: 12.5px; color: var(--ink2); }
+.ferr { font-size: 12.5px; color: var(--bad); font-weight: 600; }
+.btn[aria-busy="true"] { opacity: .7; }
+.sheet.kbup { bottom: 300px; max-height: calc(100% - 340px); border-radius: 16px 16px 0 0; padding-bottom: 12px; }
+.kbd.abs { position: absolute; left: 0; right: 0; bottom: 0; z-index: 42; }
+.ovl.kbo2 { bottom: 300px; height: auto; }
+.cfq { font-size: 16px; font-weight: 600; }
+.cfb { color: var(--ink2); }
+/* D2 B — 첫 질문 때 제목 칸 */
+.ttl1 { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px 0; background: var(--surface); border-top: 1px solid var(--line); min-width: 0; }
+.ttl1 label { flex: none; font-size: 12.5px; color: var(--ink2); }
+.ttl1 input { flex: 1; min-width: 0; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 10px; font-size: 16px; color: var(--ink); }
+.ttl1 input::placeholder { color: var(--ink3); }
+.ttl1 + .cmp2 { border-top: 0; }
+/* 휴대폰 아래 비교 이름표 · 뒤로가기 흉내 */
+.bkline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 6px; font-size: 12.5px; }
+.bkline button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink); }
+.bkmsg { min-width: 0; color: var(--ink); }
+.capnote { border-radius: 8px; background: var(--warn-soft); padding: 6px 10px; font-size: 12.5px; color: var(--ink); margin-top: 4px; }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>질문 — 지난 질문 · 제목 · 5개씩 <small>/ask · 지난 질문도 같은 탭 화면에서 · 바뀌는 곳만</small><span class="meta"><span class="lv">delta</span><span>task-067 v1</span><span>합성 데이터</span></span></h1>
+  <div class="dctls">
+    <div class="dctl"><span id="lblW">폭</span>
+      <div class="dseg" role="group" aria-labelledby="lblW">
+        <button type="button" data-act="w" data-arg="360" aria-pressed="false">360</button>
+        <button type="button" data-act="w" data-arg="390" aria-pressed="true">390</button>
+        <button type="button" data-act="w" data-arg="412" aria-pressed="false">412</button>
+        <button type="button" data-act="w" data-arg="all" aria-pressed="false">3폭</button>
+      </div>
+    </div>
+    <div class="dctl"><span id="lblT">화면</span>
+      <div class="dseg" role="group" aria-labelledby="lblT">
+        <button type="button" data-act="theme" data-arg="sys" aria-pressed="true">시스템</button>
+        <button type="button" data-act="theme" data-arg="light" aria-pressed="false">밝게</button>
+        <button type="button" data-act="theme" data-arg="dark" aria-pressed="false">어둡게</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="dwrap">
+  <noscript><p class="noscr">이 페이지의 「상태」 휴대폰 화면과 결정 패널은 스크립트로 그려요. 스크립트가 꺼진 뷰어에서는 글(무엇을 바꾸나 · 결정 6건 · 뒤로가기와 주소 · 구현 영향)만 보여요 — 화면은 Artifact 링크에서 열어 주세요.</p></noscript>
+  <section class="dcard" aria-labelledby="h-intro">
+    <div class="intro2">
+      <div>
+        <h2 id="h-intro">무엇을 바꾸나 (delta — 바뀌는 곳만)</h2>
+        <p class="p14">어제 배포한 질문 탭(task-066)에서 <b>「지난 질문」으로 대화를 열면 ‹ 뒤로가기 머리에 하단 탭이 없는 별도 화면</b>이 나왔다. 이 화면을 없애고, 지난 대화도 <b>탭 화면 그대로</b>(머리 「질문」 · 「지난 질문」 · ⋯ · 나, 하단 탭, 입력 바) 안에서 <b>대화 내용만 바뀌게</b> 한다. 그리고 질문(대화)마다 <b>제목을 정하는 자리</b>를 눈에 띄는 곳에 두고, 지난 질문 시트를 <b>5개씩 쪽으로</b> 나눈다.</p>
+        <ol class="flow" aria-label="흐름">
+          <li><b>1</b><span>머리 「지난 질문」</span></li><li class="ar" aria-hidden="true">→</li>
+          <li><b>2</b><span>시트 5개씩 · ‹ 이전 · 1 / 3 · 다음 ›</span></li><li class="ar" aria-hidden="true">→</li>
+          <li class="key"><b>3</b><span>행을 누르면 시트가 닫히고 같은 화면에 그 대화</span></li><li class="ar" aria-hidden="true">→</li>
+          <li><b>4</b><span>머리 「질문」 아래 대화 제목 · 눌러서 제목 바꾸기</span></li>
+        </ol>
+        <ul class="lst out">
+          <li>지난 대화 전용 화면 — ‹ 질문으로 · 대화 제목 · 「질문 · 선생님」 · 하단 탭 숨김(주소 /ask/〈id〉)</li>
+          <li>지난 질문 시트의 「이전 질문 더 보기」(아래로 계속 늘어나는 목록)</li>
+        </ul>
+        <ul class="lst plus" style="margin-top:6px">
+          <li>머리 「질문」 아래에 지금 대화 제목 한 줄(D1) — 누르면 제목 바꾸기(D2)</li>
+          <li>지난 질문 시트 5개씩 쪽 넘기기(D3) · 각 행 오른쪽 ⋯ → 제목 바꾸기 · 삭제(D2 · D6)</li>
+          <li>옛 주소 /ask/〈id〉 는 탭 화면으로 보냄(D5) · 지난 질문을 열어도 휴대폰 뒤로가기 기록은 늘지 않음(D4)</li>
+        </ul>
+      </div>
+      <div>
+        <h3>보는 방법</h3>
+        <ul class="lst">
+          <li>위 「폭」으로 360 · 390 · 412 또는 3폭, 「화면」으로 밝게 · 어둡게.</li>
+          <li>상태 탭 A~F → 그 안의 작은 버튼으로 세부 상태. <b>F 「직접 해 보기」</b>에서 지난 질문 열기 · 쪽 넘기기 · 제목 바꾸기 · 삭제 · 휴대폰 뒤로가기(흉내)를 직접 눌러 볼 수 있다.</li>
+          <li>결정 패널에서 고르면 위 화면이 바뀐다. 맨 아래 「내 선택 요약」의 승인 문장을 답장에 붙여 주세요.</li>
+          <li>이 데모에 없는 부분(답 모양 · 입력 바 · 마이크 · 보내는 범위 한 줄 · 빈 대화 안내 말풍선)은 <b>승인된 task-066 v2 그대로</b>다. 질문 · 답은 모두 합성 예시다.</li>
+        </ul>
+        <div class="callout"><b>먼저 알아야 할 것</b>
+          <ol>
+            <li>[확실] 제목 바꾸기는 <b>이미 있다</b> — 대화가 있을 때 ⋯ 메뉴 → 「제목 바꾸기」. 화면 어디에도 제목이 안 보여 찾기 어렵다(빈 대화의 ⋯ 메뉴엔 없음). 이번엔 <b>보이는 자리</b>를 더한다.</li>
+            <li>[확실] 서버 목록은 지금 「다음 쪽 열쇠(커서)」만 주고 <b>전체 개수를 주지 않는다</b>. 「1 / 3」처럼 몇 쪽 중 몇 쪽인지 보이려면 목록 응답에 전체 개수를 하나 더해야 한다(작은 서버 변경 — D3).</li>
+            <li>[확실] 지금 시트에는 <b>삭제가 없다</b> — 대화를 열고 ⋯ 에서 지운다. 시트 행에서도 지우게 할지는 D6.</li>
+            <li>[확실] 제목은 100자까지(서버 규칙). 처음 제목은 첫 질문 앞부분 30자로 정해진다.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="dcard qsum" aria-labelledby="h-qsum">
+    <h2 id="h-qsum">결정 6건 한눈에 (★ = 권고 · 아래 「결정 필요」에서 골라 보면 화면이 바뀜)</h2>
+    <ul class="lst">
+      <li><b>D1 지금 대화 제목을 어디에 보이나</b> — ★ A 머리 「질문」 아래 작은 줄 / B 대화 맨 위 제목 줄 / C 머리 제목을 대화 제목으로 / D 화면에 없음(⋯ 메뉴 윗줄만 — 지금)</li>
+      <li><b>D2 제목을 어디서 정하나</b> — ★ A 머리 제목 줄 누르기 + 시트 행 ⋯ + ⋯ 메뉴(유지) / B 첫 질문 보낼 때 제목 칸 + ⋯ 메뉴 / C ⋯ 메뉴만(지금). 빈 제목으로 저장하면 — ★ 저장 안 됨(「제목을 적어 주세요」) / 첫 질문 제목으로 되돌림</li>
+      <li><b>D3 5개씩 쪽 넘기기 모양</b> — ★ A ‹ 이전 · 1 / 3 · 다음 ›(서버가 전체 개수를 함께 줌) / B 이전 · 다음만(서버 변경 없음) / C 번호 1 2 3</li>
+      <li><b>D4 지난 질문을 연 뒤 휴대폰 뒤로가기</b> — ★ A 기록을 늘리지 않음(뒤로 = 질문 탭에 오기 전 화면) / B 늘림(뒤로 = 직전 대화)</li>
+      <li><b>D5 옛 주소 /ask/〈id〉</b> — ★ A 탭 화면(/ask?chat=〈id〉)으로 보냄 / B 옛 화면 그대로 둠</li>
+      <li><b>D6 지난 질문 시트에서 삭제</b> — ★ A 행 ⋯ 에 「이 대화 삭제」(확인 단계 그대로) / B 넣지 않음(열고 ⋯ 에서 — 지금)</li>
+    </ul>
+    <p class="dnote">권고 그대로라면 승인 문장(복사해 답장에 붙여도 됩니다):</p>
+    <p class="selbox apv" tabindex="0" aria-label="권고 그대로일 때 승인 문장">task-067 데모 v1 승인, 결정(D1~D6)은 권고대로</p>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-states">
+    <h2 id="h-states">상태</h2>
+    <div class="tabs" role="tablist" aria-label="상태" id="tabs"></div>
+    <div id="panel" role="tabpanel" aria-labelledby="h-states">
+      <div class="scap" id="cap"></div>
+      <div class="prow" id="stage"></div>
+    </div>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-nav">
+    <h2 id="h-nav">뒤로가기 · 주소 (D4 · D5 — 화면이 아니라 움직임)</h2>
+    <div class="notes2">
+      <div>
+        <h3>D4 ★ A — 지난 질문을 열어도 기록은 한 칸</h3>
+        <ol class="flow" aria-label="D4 A 흐름">
+          <li><b>1</b><span>공부 탭</span></li><li class="ar" aria-hidden="true">→</li>
+          <li><b>2</b><span>하단 「질문」 = 빈 대화</span></li><li class="ar" aria-hidden="true">→</li>
+          <li class="key"><b>3</b><span>지난 질문 → 「大丈夫」 → 다시 지난 질문 → 「お疲れ様でした」</span></li><li class="ar" aria-hidden="true">→</li>
+          <li><b>4</b><span>휴대폰 뒤로가기 = 공부 탭</span></li>
+        </ol>
+        <ul class="lst">
+          <li>대화를 바꿔도 주소만 /ask?chat=〈id〉 로 <b>바꿔 적는다</b>(기록을 쌓지 않음) — 탭 화면 하나 = 기록 한 칸. 사용자가 말한 「뒤로가기 버튼이 있는 게 아니라 기본 챗봇 형태 유지」와 같은 결.</li>
+          <li>⋯ → 「새 질문 시작」도 같게 바꾼다 — task-066 은 이것만 기록을 쌓아(뒤로가기 = 직전 대화) 두 동작이 다르게 움직였다.</li>
+          <li>직전 대화로 돌아가려면 「지난 질문」에서 고른다(최근 순이라 1쪽 맨 위 근처).</li>
+        </ul>
+        <h3 style="margin-top:12px">D4 B — 대화를 바꿀 때마다 기록을 쌓음</h3>
+        <ul class="lst">
+          <li>휴대폰 뒤로가기 = 직전 대화. 대화 여러 개를 훑어본 뒤 탭을 떠나려면 뒤로가기를 그만큼 여러 번 눌러야 한다.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>D5 ★ A — 옛 주소는 탭 화면으로</h3>
+        <ol class="flow" aria-label="D5 A 흐름">
+          <li><b>1</b><span>/ask/〈id〉 — 옛 링크 · 북마크 · 근거 카드에서 돌아오기</span></li><li class="ar" aria-hidden="true">→</li>
+          <li class="key"><b>2</b><span>서버가 /ask?chat=〈id〉 로 보냄</span></li><li class="ar" aria-hidden="true">→</li>
+          <li><b>3</b><span>탭 화면에서 그 대화(하단 탭 보임)</span></li>
+        </ol>
+        <ul class="lst">
+          <li>없는 대화 · 남의 대화면 지금처럼 빈 대화 + 토스트 「대화를 찾을 수 없어요」.</li>
+          <li>근거 카드로 수업 · 평가에 갔다가 「질문으로」 돌아와도 탭 화면에 온다.</li>
+          <li>로그인이 풀린 채 옛 주소로 오면 로그인 뒤 탭 화면으로(돌아갈 주소도 새 모양).</li>
+        </ul>
+        <h3 style="margin-top:12px">D5 B — 옛 화면을 그대로 둠</h3>
+        <ul class="lst">
+          <li>옛 링크로 들어오면 여전히 ‹ 머리 · 하단 탭 없는 화면이 나온다 — 요청과 어긋나는 화면이 한 갈래 남는다.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="dcard decs" aria-labelledby="h-decs" id="decs">
+    <h2 id="h-decs">결정 필요 (6건 — 고르면 위 화면이 바뀜)</h2>
+    <p class="dsub">각 항목 <span class="rec">★ 권고</span> 안이 처음에 골라져 있다. <b>여기서 고른 값은 이 브라우저에만 남고 팀에 전달되지 않는다</b> — 맨 아래 「내 선택 요약」의 승인 문장을 답장에 붙여 주세요. Leader 초안에서 바뀐 것: <b>D1</b>(★ 를 「머리 「질문」 아래 작은 줄」로 — 새 안) · <b>D4</b>(「새 질문 시작」도 기록을 늘리지 않게 함께) · 새 <b>D6</b>(시트 행에서 삭제 — 지금 시트엔 삭제가 없다).</p>
+    <div id="decList"></div>
+    <div class="jud" id="jud"></div>
+    <div class="mysum" id="mySum"></div>
+  </section>
+
+  <section class="notes2">
+    <div class="dcard" aria-labelledby="h-reuse">
+      <h2 id="h-reuse">그대로 쓰는 것 (task-066 v2 와 같음)</h2>
+      <ul class="lst">
+        <li>하단 「질문」 탭을 누르면 늘 빈 대화(D1=B 확정) · 안내 말풍선 · 예시 칩(누르면 바로 보냄)</li>
+        <li>글자 바 · 말 바(누르고 말하기 · 밀어서 취소) · [고쳐서 묻기] · 마이크 예외 문구 19가지</li>
+        <li>입력 바 아래 보내는 범위 한 줄 · 정보 시트(보내기 확인 창 없음)</li>
+        <li>답 묶음(근거 · 제안 · 예문 히라가나 · 한글) · 대기 3단계 · 실패 · 한도 안내 줄</li>
+        <li>「지난 질문」 알약 3상태(기본 · 답 만드는 중 · 새 답 도착) · 도착 토스트 한 번 · 지금 대화는 빼고 셈</li>
+        <li>시트 행 모양(제목 · 시각 · 둘째 줄 · 「지금 대화」 · 「답 만드는 중」 · 「새 답」) · 지금 대화 행을 누르면 시트만 닫힘</li>
+        <li>⋯ 「질문 메뉴」(새 질문 시작 · 보내는 범위 보기 · 일본어 표시 · 알아듣는 곳 · 이 대화) · 삭제 확인 단계 · 삭제 뒤 빈 대화 + 「대화를 삭제했어요」</li>
+        <li>없는 대화 → 빈 대화 + 「대화를 찾을 수 없어요」 · 근거 카드 이동 · 스크롤 위치(마지막 질문에 맞춤)</li>
+      </ul>
+      <h3 style="margin-top:12px">고르지 않아도 바뀌는 작은 것</h3>
+      <ul class="lst chg">
+        <li>낱말을 「제목」으로 맞춤 — ⋯ 메뉴 줄은 이미 「제목 바꾸기」인데 빈 대화 안내만 「이름 바꾸기 · 삭제는 없어요」라 「제목 바꾸기 · 삭제는 없어요」로.</li>
+        <li>제목 바꾸기 칸 아래 글자 수 「18 / 100」과 안내 한 줄(지금은 저장을 눌러야 100자 초과를 안다).</li>
+      </ul>
+    </div>
+    <div class="dcard" aria-labelledby="h-impl">
+      <h2 id="h-impl">구현 영향 (추정 — 승인 뒤 screens.md 에서 확정)</h2>
+      <ul class="lst out">
+        <li><b>없어짐</b>: <code>app/(app)/ask/[chatId]/page.tsx</code> 의 화면(→ <code>/ask?chat=&lt;id&gt;</code> 로 보내기만 — D5 A) · <code>AskRoom</code> 의 <code>variant="room"</code> 갈래(BackBar 머리 · 그 변형의 불러오는 중 · 404 화면) · 시트의 「이전 질문 더 보기」(<code>more</code> · <code>moreBusy</code> · <code>moreError</code>).</li>
+      </ul>
+      <ul class="lst chg" style="margin-top:6px">
+        <li><b>바뀜</b>: <code>AskHistorySheet</code> → 5개씩 쪽(커서 쌓기 + 전체 개수) · 행을 누르면 <code>onOpen(id)</code>(시트 닫기 → <code>AskChatTab</code> 이 지금 대화를 바꾸고 주소만 바꿔 적음) · 시트 안 하위 화면(이 대화 · 제목 바꾸기 · 삭제 확인).</li>
+        <li><code>AskListItem</code> → 링크 대신 버튼 + 오른쪽 ⋯ 버튼(나란히 — 버튼 안에 버튼을 넣지 않음).</li>
+        <li><code>AskChatTab</code> → 시트에서 열기 · 「새 질문 시작」 모두 주소 바꿔 적기(D4 A — task-066 의 <code>router.push('/ask')</code> 를 바꿈) · 시트에서 지금 대화를 지웠을 때 빈 대화로.</li>
+        <li><code>AskRoom</code> · <code>AskNewConversation</code> 머리 → 제목 블록(D1 A: 「질문」 + 대화 제목, 누르면 제목 바꾸기). <code>shell/AppBar</code> 에 선택 prop(제목 자리 노드) — 기본값이면 다른 탭 머리 그대로.</li>
+        <li><code>chat/ChatMenuSheet</code> → 제목 바꾸기 화면을 바로 여는 선택 prop · 글자 수 표시 · <code>askCopy</code> 빈 대화 안내 「이름」→「제목」.</li>
+        <li><code>useAskActivity</code> → 알약 값(진행 중 · 새 답)은 지금처럼 첫 20개로 따로 계산(시트 5개만 읽으면 6번째 이후의 진행 중을 놓친다).</li>
+        <li><b>서버(작음)</b>: <code>GET /api/v1/chats?kind=ASK</code> 응답에 <code>total</code> 추가(D3 A · C, additive — 단어장 #40 이 이미 같은 칸을 준다) · 계약 #27 갱신. D3 C 는 「n번째부터」 읽기도 필요.</li>
+        <li><code>shell/askReturn.ts</code> → 돌아갈 주소는 <code>/ask?chat=&lt;id&gt;</code> 로(옛 <code>/ask/&lt;id&gt;</code> 도 리다이렉트로 동작) · <code>shell/routes.ts</code> 의 <code>'/ask/'</code> 집중 화면 규칙은 그릴 화면이 없어 정리 대상.</li>
+      </ul>
+      <ul class="lst plus" style="margin-top:6px">
+        <li><b>재사용</b>: <code>Sheet</code> · <code>Toast</code> · <code>AskHistoryButton</code> · <code>ChatRowsSkeleton</code> · <code>Btn</code> · <code>Badge</code> · 삭제 확인 문구 · 대화 수명 규칙(§26-3, 「새 질문 시작」 한 줄만 바뀜).</li>
+      </ul>
+      <h3 style="margin-top:12px">가정 · 확인 필요</h3>
+      <ul class="lst">
+        <li>[가능성 높음] 서버 전체 개수는 같은 조건(본인 · 질문 대화)의 개수 세기 한 번 — 쪽을 넘길 때마다 함께 온다.</li>
+        <li>[추측] 지난 질문이 수십 쪽까지 쌓이는 사람은 드물다(개인 앱) — 번호 쪽(D3 C)의 건너뛰기 이점이 작다고 봤다.</li>
+        <li>[확인 필요] 쪽을 보는 동안 다른 대화의 답이 끝나 순서가 바뀌어도 보던 쪽을 실시간으로 섞지 않는다(행이 손가락 밑에서 움직이지 않게) — 시트를 다시 열 때 갱신.</li>
+        <li>[확인 필요] 휴대폰 뒤로가기 실제 동작(주소 바꿔 적기 후)은 task-066 처럼 실제 Next 라우터로 QA 가 확인해야 한다 — 이 데모는 흉내만.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var TN = '사쿠라';
+  /* ── 근거 유형(task-064 · 066 그대로 — 여기선 복습·수업만 씀) ── */
+  var STYPE = {
+    REVIEW: { n: '복습', g: '↻', to: function () { return '/study/today (공부 탭 · 복습 카드)'; } },
+    LESSON: { n: '수업', g: '書', to: function (s) { return '/study/today/talk/' + s.id; } }
+  };
+  var TOAST_TG = { fu: ['히라가나를 숨겼어요 · 모든 화면에 적용돼요', '히라가나를 보여 줘요 · 모든 화면에 적용돼요'], hg: ['한글 발음을 숨겼어요 · 모든 화면에 적용돼요', '한글 발음을 보여 줘요 · 모든 화면에 적용돼요'] };
+  /* ── 빈 대화 안내 말풍선의 예시 칩(task-066 그대로 — 누르면 바로 보냄) ── */
+  var EXQ = [
+    { k: 'gen', tag: '문법', q: '〜ている 와 〜てある 차이가 뭐예요?' },
+    { k: null, tag: '내 기록', q: '이번 주에 내가 자주 틀린 조사 알려줘' },
+    { k: 'rev', tag: '복습', q: '오늘 복습할 거 뭐 있어?' }
+  ];
+  /* ── 지난 질문 12개(합성) — 최근 순. t = 제목, q0 = 첫 질문(제목을 바꾼 대화만 다름), a = 둘째 줄 ── */
+  var ROOMS = [
+    { id: 'r1', t: '大丈夫', q0: '大丈夫', voice: true, rb: '{大丈夫|だいじょうぶ}', hgk: '다이죠-부', a: '「大丈夫」는 ‘괜찮아요’라는 뜻이에요. 괜찮은지 물을 때도…', tm: '14:02', day: '오늘', ans: 'dai' },
+    { id: 'r2', t: '오늘 복습할 거 뭐 있어?', a: '오늘 복습 예정은 3개예요. 모두 10월 9일 길 묻기 수업에서…', tm: '13:40', day: '오늘', ans: 'rev' },
+    { id: 'r3', t: '이번 주에 내가 자주 틀린 조사 알려줘', a: '이번 주에 채택한 교정 9건 중 조사 교정이 4건이었어요…', tm: '어제', day: '어제' },
+    { id: 'r4', t: '〜ている 와 〜てある 차이가 뭐예요?', a: '둘 다 상태가 이어진다는 뜻이지만, 누가 그렇게 했는지가…', tm: '10월 10일', day: '10월 10일', ans: 'gen' },
+    { id: 'r5', t: '역에서 길 물을 때 쓰던 표현 뭐였지?', a: '9월 28일 「역에서 길 묻기」 상황 연습에서 「すみません、駅は…', tm: '10월 9일', day: '10월 9일' },
+    { id: 'r6', t: 'お疲れ様でした', q0: 'お疲れ様でした', voice: true, rb: 'お{疲|つか}れ{様|さま}でした', hgk: '오츠카레사마데시타', a: '「お疲れ様でした」는 ‘수고하셨습니다’예요…', tm: '10월 8일', day: '10월 8일', ans: 'otsu' },
+    { id: 'r7', t: '존댓말 정리', q0: '9월에 배운 존댓말 다시 정리해 줘', a: '자주 쓰는 존댓말 3가지를 정리할게요…', tm: '10월 7일', day: '10월 7일' },
+    { id: 'r8', t: 'それはちょっと難しいですね', q0: 'それはちょっと難しいですね', voice: true, rb: 'それはちょっと{難|むずか}しいですね', hgk: '소레와 춋토 무즈카시-데스네', a: '글자 그대로는 ‘그건 좀 어렵네요’지만 실제로는 정중한 거절…', tm: '10월 6일', day: '10월 6일', ans: 'muzu' },
+    { id: 'r9', t: '「〜ておく」는 언제 써요?', a: '미리 해 두는 행동을 말할 때 써요…', tm: '10월 5일', day: '10월 5일' },
+    { id: 'r10', t: '내 레벨 올려도 될까?', a: '최근 2주 동안 수업 6번·복습 4번을 했고…', tm: '10월 3일', day: '10월 3일' },
+    { id: 'r11', t: '公園', q0: '公園', voice: true, rb: '{公園|こうえん}', hgk: '코-엔', a: '「公園」(こうえん)은 ‘공원’이에요. 소리가 같은 말이…', tm: '9월 30일', day: '9월 30일' },
+    { id: 'r12', t: '편의점 거절 표현', q0: '편의점에서 봉투 필요하냐고 물으면 뭐라고 해?', a: '「袋は大丈夫です」라고 하면 ‘봉투는 괜찮아요’…', tm: '9월 27일', day: '9월 27일' }
+  ];
+  ROOMS.forEach(function (r) { if (!r.q0) r.q0 = r.t; });
+  var LONG = '편의점·식당에서 자주 듣는 정중한 거절 표현 모음 — 大丈夫です 와 結構です 차이까지';
+  var NEWT = 'て형 상태 표현 정리';
+  var OVER = (function () { var s = '〜ている 와 〜てある 그리고 〜ておく 까지 상태와 결과를 나타내는 て형 표현을 한 번에 정리한 질문 '; while (Array.from(s).length < 101) s += '정리 '; return Array.from(s).slice(0, 101).join(''); })();
+
+  /* ── 답(합성, task-066 v2 에서 가져옴). {한자|읽기} = 루비 ── */
+  var ANS = {
+    dai: { conf: 'HIGH', time: '14:02', blocks: [
+      { p: '「大丈夫」(だいじょうぶ)는 **‘괜찮아요’**라는 뜻이에요. 괜찮은지 물을 때도, 괜찮다고 답할 때도 써요.' },
+      { ex: { ja: '{大丈夫|だいじょうぶ}ですか。', hg: '다이죠-부데스카', m: '괜찮으세요?' } },
+      { p: '무언가를 권할 때 「大丈夫です」라고 하면 **‘괜찮아요(필요 없어요)’ — 부드러운 거절**이 돼요.' }
+    ], sources: [], props: [] },
+    otsu: { conf: 'HIGH', time: '10월 8일', blocks: [
+      { p: '「お疲れ様でした」는 **‘수고하셨습니다’**예요. 일이나 모임이 끝났을 때, 먼저 퇴근하는 사람에게 인사로 써요.' },
+      { ex: { ja: '{今日|きょう}もお{疲|つか}れ{様|さま}でした。', hg: '쿄-모 오츠카레사마데시타', m: '오늘도 수고하셨습니다.' } }
+    ], sources: [], props: [] },
+    muzu: { conf: 'HIGH', time: '10월 6일', blocks: [
+      { p: '글자 그대로는 **‘그건 좀 어렵네요’**지만, 실제로는 **정중하게 거절**하는 말이에요.' },
+      { ex: { ja: '{明日|あした}まではちょっと{難|むずか}しいですね。', hg: '아시타마데와 춋토 무즈카시-데스네', m: '내일까지는 좀 어렵겠네요. (= 내일까지는 안 돼요)' } }
+    ], sources: [], props: [] },
+    gen: { conf: 'HIGH', time: '10월 10일', blocks: [
+      { p: '둘 다 ‘어떤 상태가 이어지고 있다’는 뜻이지만, **누가 그렇게 했는지가 보이느냐**가 달라요.' },
+      { ex: { ja: '{窓|まど}が{開|あ}いている。', hg: '마도가 아이테이루', m: '창문이 열려 있어요. (누가 열었는지는 관심 없음)' } },
+      { ex: { ja: '{窓|まど}が{開|あ}けてある。', hg: '마도가 아케테아루', m: '창문이 열려 있어요. (누군가 일부러 열어 두었음)' } },
+      { p: '헷갈리면 ‘누가 했는지 떠오르나?’ 하고 물어보세요. 떠오르면 〜てある예요.' }
+    ], sources: [], props: [{ id: 'w1', kind: 'ADD_WORD', ruby: '{開|あ}けてある', hg: '아케테아루', meaning: '(누군가) 열어 두었다' }] },
+    rev: { conf: 'HIGH', time: '13:40', blocks: [
+      { p: '오늘 복습 예정은 **3개**예요. 모두 **10월 9일 길 묻기 수업**에서 나온 표현이에요.' },
+      { ex: { ja: '{少々|しょうしょう}お{待|ま}ちください。', hg: '쇼-쇼- 오마치쿠다사이', m: '잠시만 기다려 주세요.' } }
+    ], sources: [
+      { type: 'REVIEW', id: 'rv_1', date: '10-12', label: '少々お待ちください' },
+      { type: 'LESSON', id: 'ls_33', date: '10-09', label: '길 묻기 수업' }
+    ], props: [] },
+    akete: { conf: 'HIGH', time: '방금', blocks: [
+      { p: '비슷하지만 **보는 쪽**이 달라요. 「開けておく」는 미리 열어 두는 **행동**, 「開けてある」는 그 결과로 열려 있는 **상태**예요.' },
+      { ex: { ja: '{窓|まど}を{開|あ}けておきました。', hg: '마도오 아케테 오키마시타', m: '창문을 열어 두었어요. (내가 한 행동)' } }
+    ], sources: [], props: [] }
+  };
+
+  /* ── 결정 · 상태 ── */
+  var REC = { d1: 'A', d2: 'A', d2r: 'A', d3: 'A', d4: 'A', d5: 'A', d6: 'A' };
+  var S = {
+    tab: 'A', sub: { A: 'room', B: 'p1', C: 'pick', D: 'tap', E: 'curConfirm', F: 'live' },
+    w: '390', theme: 'sys', fu: true, hg: true,
+    d: JSON.parse(JSON.stringify(REC)),
+    toast: '', more: {}, pst: {}, focus: null, live: null
+  };
+  var toastTimer = null, timers = [];
+
+  /* ── 도우미 ── */
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ja(src) {
+    var out = '', i = 0;
+    while (i < src.length) {
+      if (src[i] === '{') { var j = src.indexOf('}', i); var pr = src.slice(i + 1, j).split('|'); out += '<ruby>' + esc(pr[0]) + '<rt aria-hidden="true">' + esc(pr[1]) + '</rt></ruby>'; i = j + 1; continue; }
+      out += esc(src[i]); i++;
+    }
+    return out;
+  }
+  function plain(src) { return src.replace(/\{([^|}]*)\|[^}]*\}/g, '$1'); }
+  var JA_RE = /([　-ヿ一-鿿～]+)/g;
+  function jaWrap(h) { return h.replace(JA_RE, '<span lang="ja">$1</span>'); }
+  function inl(s) { return jaWrap(esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')); }
+  function hgLine(h) { return '<p class="hg" lang="ko"><span class="sr">한글 발음: </span>[' + esc(h) + ']</p>'; }
+  function dateKo(md) { var p = md.split('-'); return (+p[0]) + '월 ' + (+p[1]) + '일'; }
+  function cps(s) { return Array.from(s).length; }
+  function title30(s) { return Array.from(s.replace(/\s+/g, ' ').trim()).slice(0, 30).join('').trim(); }
+  function R(id, rooms) { rooms = rooms || ROOMS; for (var i = 0; i < rooms.length; i++) if (rooms[i].id === id) return rooms[i]; return null; }
+  function withRoom(id, patch) { return ROOMS.map(function (r) { return r.id === id ? Object.assign({}, r, patch) : r; }); }
+  function hs(o) { return Object.assign({ page: 0, rooms: ROOMS, cur: 'r1', state: 'ready', press: null }, o || {}); }
+
+  /* ── 아이콘 ── */
+  var ICON = {
+    back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+    more: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+    x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    up: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+    mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    micS: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    pen: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>'
+  };
+  var TABS = [
+    ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+    ['공부', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
+    ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'],
+    ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+    ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']
+  ];
+  function tabBar() {
+    return '<nav class="tb" aria-label="주 메뉴">' + TABS.map(function (t, i) {
+      return '<span class="ti' + (i === 4 ? ' on' : '') + '"' + (i === 4 ? ' aria-current="page"' : '') + '><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + t[1] + '"/></svg>' + t[0] + '</span>';
+    }).join('') + '</nav>';
+  }
+  function kbd(abs) { return '<div class="kbd' + (abs ? ' abs' : '') + '" aria-hidden="true"><i>키보드 (약 300px)<br>하단 탭은 키보드가 열리면 숨어요</i></div>'; }
+  function toastEl(t) { return '<div class="toast" role="status">' + esc(t || S.toast) + '</div>'; }
+  function who() { return '<p class="who"><i aria-hidden="true">' + TN.charAt(0) + '</i>' + TN + ' 선생님</p>'; }
+
+  /* ════ 답 묶음(task-066 v2 그대로) ════ */
+  function exBlock(ex) { return '<div class="exb"><p class="ja17" lang="ja">' + ja(ex.ja) + '</p>' + hgLine(ex.hg) + '<p class="exm">→ ' + esc(ex.m) + '</p></div>'; }
+  function blocks(bs) {
+    return bs.map(function (b) {
+      if (b.p) return '<p>' + inl(b.p) + '</p>';
+      if (b.ul) return '<ul>' + b.ul.map(function (x) { return '<li>' + inl(x) + '</li>'; }).join('') + '</ul>';
+      if (b.ex) return exBlock(b.ex);
+      return '';
+    }).join('');
+  }
+  function srcCard(s) {
+    var T = STYPE[s.type];
+    return '<li><a href="#" class="srcc" data-act="go" data-arg="' + esc(T.to(s)) + '"><span class="sci" aria-hidden="true">' + T.g + '</span><span class="scb"><span class="sct">' + T.n + ' · ' + dateKo(s.date) + '</span><span class="scl1">' + jaWrap(esc(s.label)) + '</span></span><span class="chev" aria-hidden="true">›</span></a></li>';
+  }
+  function srcList(a, key) {
+    var src = a.sources; if (!src.length) return '';
+    return '<section class="srcs" aria-labelledby="sh-' + key + '"><h4 class="sh" id="sh-' + key + '">근거로 본 내 기록 <b>' + src.length + '</b></h4><ul class="scl">' + src.map(srcCard).join('') + '</ul></section>';
+  }
+  function pcard(p) {
+    var st = S.pst[p.id] || 'PROPOSED';
+    if (st === 'ACCEPTED') return '<p class="pdone" role="status">✓ 단어장에 추가했어요 · <span lang="ja">' + esc(plain(p.ruby)) + '</span></p>';
+    if (st !== 'PROPOSED') return '<p class="pdone n">건너뛴 단어 제안 · <span lang="ja">' + esc(plain(p.ruby)) + '</span></p>';
+    return '<section class="pc" aria-label="단어 제안"><p class="pcap">단어 제안</p><p class="pw" lang="ja">' + ja(p.ruby) + '</p>' + hgLine(p.hg) + '<p class="pm">' + esc(p.meaning) + '</p><p class="pn">선생님 제안이에요. 추가를 눌러야 단어장에 저장돼요.</p><div class="brow"><button type="button" class="btn pri h44" data-act="pacc" data-arg="' + p.id + '">단어장에 추가</button><button type="button" class="btn gho h44" data-act="prej" data-arg="' + p.id + '">괜찮아요</button></div></section>';
+  }
+  function genAns(r) { return { conf: 'HIGH', time: r.tm, blocks: [{ p: r.a.replace(/…$/, '.') }], sources: [], props: [] }; }
+  function ansGroup(a, key) {
+    return '<div class="tg">' + who() + '<article class="ans" aria-label="' + TN + ' 선생님 답"><div class="md">' + blocks(a.blocks) + '</div></article>' + srcList(a, key) + a.props.map(pcard).join('') + '<p class="tm">' + a.time + '</p></div>';
+  }
+  function pending(sec, stage) {
+    var leave = '<p class="phint">다른 화면으로 가도 답은 계속 만들어져요. 돌아오면 「지난 질문」에서 볼 수 있어요.</p>';
+    var hint = '<div class="skl" aria-live="polite">' + (sec >= 30 ? '<p class="phint">내 기록을 살펴보는 질문은 1분 넘게 걸릴 수 있어요.</p>' + leave : '') + '</div>';
+    var secT = sec >= 5 ? ' <span aria-hidden="true">· ' + sec + '초</span>' : '';
+    var MAIN = ['질문을 살펴보고 있어요', '선생님이 답을 쓰는 중이에요', '답을 정리하고 있어요'];
+    var st = ['질문 살펴보기', '답 쓰기', '정리하기'];
+    return '<div class="tg">' + who() + '<div class="pend"><ol class="steps" aria-hidden="true">' + st.map(function (t, i) { var c = i < stage ? 'done' : i === stage ? 'now' : ''; return '<li class="' + c + '"><span class="sm">' + (i < stage ? '✓' : '') + '</span>' + t + '</li>'; }).join('') + '</ol><p class="pmain" role="status">' + MAIN[stage] + secT + '</p>' + hint + '</div></div>';
+  }
+  function greet() {
+    var chips = EXQ.map(function (e, i) { return '<button type="button" class="exq" data-act="exq" data-arg="' + i + '"><span class="et">' + e.tag + '</span><span>' + jaWrap(esc(e.q)) + '</span></button>'; }).join('');
+    return '<div class="tg">' + who() + '<div class="ans"><div class="md"><p>무엇이든 물어보세요. 일본어 표현·문법도, <b>내 공부 기록</b>(교정·복습·수업)도 좋아요.</p></div>' +
+      '<div class="gch" role="group" aria-labelledby="gl-x"><p class="lb" id="gl-x">글로 물어보기 · 누르면 바로 물어봐요</p><div class="exw">' + chips + '</div></div>' +
+      '<div class="vex"><h4>' + ICON.micS + '<span>모르는 일본어는 🎤 로 그대로 말해 보세요</span></h4><p>뜻·읽기·느낌을 예문과 함께 알려 줘요. 예)</p><ul lang="ja"><li>大丈夫</li><li>お疲れ様でした</li><li>それはちょっと難しいですね</li></ul></div></div></div>';
+  }
+  function qBubble(m) {
+    var txt = m.voice && m.r ? '<span lang="ja">' + ja(m.r) + '</span>' : jaWrap(esc(m.t));
+    var hg = m.voice && m.hg ? hgLine(m.hg) : '';
+    var meta = (m.voice ? '<span>' + ICON.micS + '말로 물었어요</span>' + (m.fix !== false ? '<button type="button" data-act="noop">고쳐서 묻기</button>' : '') : '') + (m.meta ? '<span>' + m.meta + '</span>' : '');
+    return '<div class="ubw" data-q><div class="ub' + (m.voice ? ' ja' : '') + '"' + (m.voice ? ' lang="ja"' : '') + '><span class="sr">나' + (m.voice ? '(말로 물음)' : '') + ': </span>' + txt + hg + '</div>' + (meta ? '<p class="ubm">' + meta + '</p>' : '') + '</div>';
+  }
+  function msgHtml(m, i) {
+    switch (m.k) {
+      case 'sep': return '<p class="dsep">' + m.t + '</p>';
+      case 'greet': return greet();
+      case 'q': return qBubble(m);
+      case 'pend': return pending(m.sec, m.stage);
+      case 'ans': return ansGroup(m.key ? ANS[m.key] : genAns(m.r), (m.key || 'g') + '-' + i);
+      case 'skel': return '<div aria-hidden="true" style="display:flex;flex-direction:column;gap:14px"><span class="skb" style="height:44px;width:62%;align-self:flex-end"></span><span class="skb" style="height:150px;width:100%;border-radius:6px 16px 16px 16px"></span><span class="skb" style="height:44px;width:54%;align-self:flex-end"></span><span class="skb" style="height:110px;width:100%;border-radius:6px 16px 16px 16px"></span></div><p class="sr" role="status">대화를 불러오고 있어요</p>';
+    }
+    return '';
+  }
+  function convMsgs(r, extra) {
+    var q = r.voice ? { k: 'q', t: r.q0 || r.t, r: r.rb, hg: r.hgk, voice: true, meta: r.tm } : { k: 'q', t: r.q0 || r.t, meta: r.tm };
+    var out = [{ k: 'sep', t: r.day }, q];
+    out.push(r.run ? { k: 'pend', sec: 34, stage: 1 } : { k: 'ans', key: r.ans || null, r: r });
+    return out.concat(extra || []);
+  }
+  var GREET = [{ k: 'sep', t: '오늘' }, { k: 'greet' }];
+
+  /* ════ 머리 ════ */
+  function pillHtml(p) {
+    if (p === 'run') return '<button type="button" class="abtn" data-act="history" aria-label="지난 질문 — 답 만드는 중"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>답 만드는 중</span></button>';
+    if (p === 'new') return '<button type="button" class="abtn nw" data-act="history" aria-label="지난 질문 — 새 답 도착"><span class="dot" aria-hidden="true"></span><span>새 답 도착</span></button>';
+    return '<button type="button" class="abtn" data-act="history">지난 질문</button>';
+  }
+  function header(o) {
+    var right = pillHtml(o.pill) + '<button type="button" class="ib" aria-label="질문 메뉴" data-act="menu">' + ICON.more + '</button><button type="button" class="av" aria-label="설정" data-act="noop"><span>나</span></button>';
+    var d1 = S.d.d1, canTap = S.d.d2 === 'A' && !!o.title, left;
+    if (o.oldHead) left = '<h2>질문</h2>';
+    else if (d1 === 'A') {
+      var sub = o.title ? '<span class="abt2"><span class="t">' + jaWrap(esc(o.title)) + '</span>' + (canTap ? ICON.pen : '') + '</span>' : '<span class="abt2"><span class="t">새 질문</span></span>';
+      var inner = '<span class="abt1">질문</span>' + sub;
+      left = canTap ? '<h2 class="abtw"><button type="button" class="abt' + (o.press ? ' pressed' : '') + '" data-act="titleTap" aria-label="질문 · 지금 대화 「' + esc(o.title) + '」 — 눌러서 제목 바꾸기">' + inner + '</button></h2>' : '<h2 class="abt">' + inner + '</h2>';
+    } else if (d1 === 'C' && o.title) {
+      var inC = '<span class="abt1">' + jaWrap(esc(o.title)) + '</span>';
+      left = canTap ? '<h2 class="abtw"><button type="button" class="abt c' + (o.press ? ' pressed' : '') + '" data-act="titleTap" aria-label="지금 대화 「' + esc(o.title) + '」 — 눌러서 제목 바꾸기">' + inC + '</button></h2>' : '<h2 class="abt c">' + inC + '</h2>';
+    } else left = '<h2>질문</h2>';
+    return '<header class="ab2">' + left + right + '</header>';
+  }
+  /* D1 B — 대화 맨 위 제목 줄(목록 안 — 스크롤되면 사라짐) */
+  function titleRow(o) {
+    if (o.oldHead || S.d.d1 !== 'B' || !o.title) return '';
+    return '<div class="ctr"><span class="ctt"><span class="cth">대화 제목</span><span class="t">' + jaWrap(esc(o.title)) + '</span></span>' + (S.d.d2 === 'A' ? '<button type="button" class="ctb" data-act="titleTap">' + ICON.pen + '<span>제목 바꾸기</span></button>' : '') + '</div>';
+  }
+
+  /* ════ 입력 바(글자 모드 — task-066 그대로, 말 바는 이 데모 범위 밖) ════ */
+  function textBar(o) {
+    var val = o.val || '', empty = !val.trim(), locked = !!o.locked, lockMsg = o.lockMsg || '답을 받은 뒤 보낼 수 있어요';
+    var lv = o.live ? 'live' : 'static';
+    var ph = o.ph || (o.newConv ? '무엇이든 물어보세요' : '이어서 물어보세요');
+    var ta = '<textarea class="ta" rows="1" aria-label="질문 입력" data-inp="' + lv + '" placeholder="' + esc(ph) + '">' + esc(val) + '</textarea>';
+    var send = '<button type="submit" class="snd" aria-label="보내기"' + ((locked || empty) ? ' aria-disabled="true"' : '') + (locked ? ' data-locked="' + esc(lockMsg) + '"' : '') + '>' + ICON.up + '</button>';
+    return '<form class="cmp2" data-form="' + lv + '" novalidate><button type="button" class="micl" data-act="noopMic" aria-label="말로 묻기">' + ICON.mic + '</button>' + ta + send + '</form>';
+  }
+  function scopeLine() { return '<div class="scl2"><span class="ii" aria-hidden="true">i</span><span class="t">내 학습 기록 일부가 AI 에 보내져요</span><button type="button" data-act="noop" aria-label="자세히 — 선생님에게 보내는 범위">자세히</button></div>'; }
+  function ttlField(o) { return '<div class="ttl1"><label for="t1-' + o.w + '">제목(선택)</label><input id="t1-' + o.w + '" data-t1="1" placeholder="비우면 첫 질문으로" value="' + esc(o.t1 || '') + '" autocomplete="off"></div>'; }
+
+  /* ════ 화면 — 탭 화면 하나 ════ */
+  function scrTab(o) {
+    var bo = Object.assign({ w: o.w, live: o.live, newConv: !o.title }, o.bar || {});
+    var lastQ = -1; o.msgs.forEach(function (m, i) { if (m.k === 'q') lastQ = i; });
+    var msgs = o.msgs.map(function (m, i) { return m.k === 'q' && m.voice && i !== lastQ ? Object.assign({}, m, { fix: false }) : m; });
+    var t1 = !o.title && !o.oldHead && (S.d.d2 === 'B' || o.forceB) ? ttlField(o) : '';
+    return '<div class="app tab">' + header(o) + '<div class="ml" role="log" aria-label="질문과 답" aria-live="off">' + titleRow(o) + msgs.map(msgHtml).join('') + '</div>' +
+      t1 + textBar(bo) + scopeLine() + tabBar() + toastEl(o.toast) + sheetHtml(o) + '</div>';
+  }
+  /* 지금(task-066 배포본) — 「지난 질문」에서 연 별도 화면 */
+  function scrOld(o) {
+    var r = o.r;
+    return '<div class="app"><header class="bk"><button type="button" class="ib" aria-label="질문으로" data-act="noop">' + ICON.back + '</button><div class="bkt"><h2>' + jaWrap(esc(r.t)) + '</h2><p>질문 · ' + TN + ' 선생님</p></div><button type="button" class="ib" aria-label="질문 메뉴" data-act="noop">' + ICON.more + '</button></header>' +
+      '<div class="ml" role="log" aria-label="질문과 답" aria-live="off">' + convMsgs(r).map(msgHtml).join('') + '</div>' + textBar({ w: o.w }) + scopeLine() + '<div aria-hidden="true" style="flex:none;height:16px;background:var(--surface)"></div>' + toastEl('') + '</div>';
+  }
+
+  /* ════ 시트 ════ */
+  function rowHasX() { return S.d.d2 === 'A' || S.d.d6 === 'A'; }
+  function histRow(r, H) {
+    var cur = r.id === H.cur, x = rowHasX();
+    var lbl = r.t + ', ' + r.tm + (cur ? ', 지금 대화' : '') + (r.run ? ', 답 만드는 중' : r.nw ? ', 새 답' : '');
+    var badge = cur ? '<span class="bdg">지금 대화</span>' : '';
+    if (r.run) badge += '<span class="bdg"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>답 만드는 중</span></span>';
+    else if (r.nw) badge += '<span class="nwdot" aria-hidden="true"></span><span class="bdg nw">새 답</span>';
+    var main = '<button type="button" class="qr' + (x ? ' hasx' : '') + (H.press === r.id ? ' pressed' : '') + '" data-act="openRoom" data-arg="' + r.id + '" aria-label="' + esc(lbl) + '"><span class="qt"><span class="qtt">' + jaWrap(esc(r.t)) + '</span><span class="qtm">' + r.tm + '</span></span><span class="qp"><span class="qpp">' + jaWrap(esc(r.a)) + '</span>' + badge + '</span></button>';
+    var mb = x ? '<button type="button" class="ib hrx" aria-label="‘' + esc(r.t) + '’ 메뉴" data-act="rowMenu" data-arg="' + r.id + '">' + ICON.more + '</button>' : '';
+    return '<li class="hr">' + main + mb + '</li>';
+  }
+  function oldRow(r, cur) {
+    var lbl = r.t + ', ' + r.tm + (cur ? ', 지금 대화' : '');
+    return '<li><a href="#" class="qr" data-act="noop" aria-label="' + esc(lbl) + '"><span class="qt"><span class="qtt">' + jaWrap(esc(r.t)) + '</span><span class="qtm">' + r.tm + '</span></span><span class="qp"><span class="qpp">' + jaWrap(esc(r.a)) + '</span>' + (cur ? '<span class="bdg">지금 대화</span>' : '') + '</span></a></li>';
+  }
+  function skRows(n) { var s = ''; for (var i = 0; i < n; i++) s += '<li aria-hidden="true"><span class="hsk"></span></li>'; return s; }
+  function pager(H, page, pages, n, cnt, pv) {
+    var v = pv || S.d.d3, busy = H.state === 'paging';
+    var first = page === 0, last = page >= pages - 1;
+    var dis = function (c) { return c || busy ? ' aria-disabled="true"' : ''; };
+    var said = busy ? (page + 1) + '쪽을 불러오고 있어요' : v === 'B' ? (page * 5 + 1) + '번째부터 ' + (page * 5 + cnt) + '번째까지' : pages + '쪽 중 ' + (page + 1) + '쪽 · 모두 ' + n + '개';
+    var live = '<p class="sr" role="status">' + said + '</p>';
+    if (v === 'C') {
+      var nums = '';
+      for (var i = 0; i < pages; i++) nums += '<button type="button" data-act="pgTo" data-arg="' + i + '"' + (i === page ? ' aria-current="page"' : '') + (busy ? ' aria-disabled="true"' : '') + ' aria-label="' + (i + 1) + '쪽">' + (i + 1) + '</button>';
+      return '<nav class="pgn" aria-label="지난 질문 쪽">' + '<button type="button" data-act="pg" data-arg="prev" aria-label="이전 쪽"' + dis(first) + '>‹</button>' + nums + '<button type="button" data-act="pg" data-arg="next" aria-label="다음 쪽"' + dis(last) + '>›</button></nav>' + live;
+    }
+    var lab = v === 'B'
+      ? (busy ? '<span class="a">불러오는 중…</span>' : '<span class="a">' + (page * 5 + 1) + '–' + (page * 5 + cnt) + '번째</span>')
+      : '<span class="a">' + (page + 1) + ' / ' + pages + '</span><span class="b">' + (busy ? '불러오는 중…' : '모두 ' + n + '개') + '</span>';
+    return '<nav class="pgr" aria-label="지난 질문 쪽"><button type="button" class="pgb" data-act="pg" data-arg="prev"' + dis(first) + '><span class="ar2" aria-hidden="true">‹</span><span>이전</span></button><p class="pgl" aria-hidden="true">' + lab + '</p><button type="button" class="pgb" data-act="pg" data-arg="next"' + dis(last) + '><span>다음</span><span class="ar2" aria-hidden="true">›</span></button></nav>' + live;
+  }
+  function histBody(o, H) {
+    var list = H.rooms, n = list.length, pages = Math.max(1, Math.ceil(n / 5)), paged = n > 5;
+    if (H.state === 'firstLoad') return '<div class="sbd"><ul class="ql hlist fix">' + skRows(5) + '</ul><p class="sr" role="status">지난 질문을 불러오고 있어요</p></div>';
+    if (H.state === 'firstErr') return '<div class="sbd"><div class="errb" role="alert"><b>지난 질문을 불러오지 못했어요</b>연결을 확인하고 다시 시도해 주세요.<br><button type="button" data-act="noop">다시 시도</button></div></div>';
+    if (n === 0) return '<div class="sbd"><div class="hempty"><p>아직 지난 질문이 없어요.</p><p>질문을 보내면 여기에 최근 순으로 쌓여요.</p></div></div>';
+    var page = Math.min(H.page, pages - 1);
+    var rows = list.slice(page * 5, page * 5 + 5);
+    var inner = H.state === 'paging' ? skRows(5)
+      : H.state === 'pageErr' ? '<li><div class="errb" role="alert"><b>이 쪽을 불러오지 못했어요</b>연결을 확인하고 다시 시도해 주세요.<br><button type="button" data-act="noop">다시 시도</button></div></li>'
+      : rows.map(function (r) { return histRow(r, H); }).join('');
+    return '<div class="sbd"><ul class="ql hlist' + (paged ? ' fix' : '') + '"' + (H.state === 'paging' ? ' aria-busy="true"' : '') + '>' + inner + '</ul>' + (paged ? pager(H, page, pages, n, rows.length, o.pv) : '') + '</div>';
+  }
+  function rowMenuBody(o, H) {
+    var r = R(o.target, H.rooms) || R(o.target);
+    var ren = S.d.d2 === 'A', del = S.d.d6 === 'A';
+    return '<div class="sbd" style="gap:0"><p class="mttl">' + jaWrap(esc(r.t)) + '</p>' +
+      (ren ? '<button type="button" class="mrow" data-act="rowRename">제목 바꾸기 <span aria-hidden="true">›</span></button>' : '') +
+      (del ? '<button type="button" class="mrow bad" data-act="rowDel"' + (r.run ? ' aria-disabled="true" data-locked="답을 받는 중에는 지울 수 없어요"' : '') + '>이 대화 삭제</button>' : '') +
+      (r.run && del ? '<p class="snote" style="padding:8px 4px 0">답을 받는 중이라 지금은 지울 수 없어요.</p>' : '') +
+      '<button type="button" class="mbtn" data-act="toList" style="margin-top:12px">목록으로</button></div>';
+  }
+  function renameBody(o) {
+    var v = o.rn == null ? '' : o.rn, n = cps(v), over = n > 100, id = 'rn-' + o.w;
+    var err = o.rnErr === 'empty' ? '제목을 적어 주세요' : o.rnErr === 'over' ? '제목은 100자까지 쓸 수 있어요' : o.rnErr === 'fail' ? '제목을 바꾸지 못했어요. 연결을 확인하고 다시 해 보세요.' : '';
+    var hint = S.d.d2r === 'A' ? '100자까지 · 비워 두면 저장할 수 없어요' : '100자까지 · 비우고 저장하면 첫 질문 「' + esc(title30(o.q0 || '')) + '」로 돌아가요';
+    var bad = o.rnErr === 'empty' || o.rnErr === 'over';
+    return '<div class="sbd"><div class="fld"><label for="' + id + '">제목</label><input id="' + id + '" data-rn="1" value="' + esc(v) + '"' + (bad ? ' class="err" aria-invalid="true"' : '') + ' aria-describedby="' + id + '-d"' + (o.saving ? ' readonly' : '') + ' autocomplete="off" enterkeyhint="done"><p class="cnt' + (over ? ' over' : '') + '" aria-hidden="true" data-cnt="1">' + n + ' / 100</p></div>' +
+      (err ? '<p class="ferr" id="' + id + '-d" role="alert">' + err + '</p>' : '<p class="fhint" id="' + id + '-d">' + hint + '</p>') +
+      '<div class="brow"><button type="button" class="btn pri" data-act="rnSave"' + (o.saving ? ' aria-busy="true" aria-disabled="true"' : '') + '>' + (o.saving ? '저장 중…' : '저장') + '</button><button type="button" class="btn gho" data-act="rnCancel"' + (o.saving ? ' aria-disabled="true"' : '') + '>취소</button></div></div>';
+  }
+  function confirmBody(o, kind) {
+    var r = o.targetRoom;
+    var q = kind === 'row' && r ? '‘' + jaWrap(esc(r.t)) + '’ 대화를 삭제할까요?' : '이 대화를 삭제할까요?';
+    return '<div class="sbd"><p class="cfq">' + q + '</p><p class="cfb">질문과 답, 아직 고르지 않은 제안이 함께 지워져요. 이미 채택한 단어·주제·공부 기록은 그대로 남아요.</p>' +
+      (o.delFail ? '<p class="errb" role="alert" style="padding:10px 12px">삭제하지 못했어요. 잠시 뒤 다시 해 보세요.</p>' : '') +
+      '<div class="brow"><button type="button" class="btn dan" data-act="' + (kind === 'row' ? 'delRowOk' : 'delCurOk') + '">삭제</button><button type="button" class="btn gho" data-act="' + (kind === 'row' ? 'toList' : 'sheetClose') + '">취소</button></div></div>';
+  }
+  function menuBody(o) {
+    var sw = function (k, label) { var on = S[k]; return '<button type="button" class="mrow" role="switch" aria-checked="' + on + '" data-act="tg" data-arg="' + k + '"><span>' + label + '</span><span class="st"><span aria-hidden="true">' + (on ? '켬' : '끔') + '</span><span class="sw" aria-hidden="true"></span></span></button>'; };
+    var conv = !!o.title;
+    return '<div class="sbd" style="gap:0">' + (conv ? '<p class="mttl">' + jaWrap(esc(o.title)) + '</p><button type="button" class="mrow" data-act="newq">새 질문 시작 <span aria-hidden="true">›</span></button>' : '') +
+      '<button type="button" class="mrow" data-act="noop">보내는 범위 보기 <span aria-hidden="true">›</span></button>' +
+      '<p class="mhd">일본어 표시 · 모든 화면에 적용</p>' + sw('fu', '히라가나') + sw('hg', '한글 발음') +
+      '<p class="mhd">말로 묻기 (앱만)</p><button type="button" class="mrow" data-act="noop"><span>알아듣는 곳</span><span class="rv">휴대폰에서</span></button>' +
+      (conv ? '<p class="mhd">이 대화</p><button type="button" class="mrow" data-act="m-rename">제목 바꾸기 <span aria-hidden="true">›</span></button><button type="button" class="mrow bad" data-act="m-del"' + (o.running ? ' aria-disabled="true" data-locked="답을 받는 중에는 지울 수 없어요"' : '') + '>이 대화 삭제</button>'
+        : '<p class="snote" style="padding:12px 4px 0">아직 보낸 질문이 없어 제목 바꾸기·삭제는 없어요.</p>') + '</div>';
+  }
+  function sheetHtml(o) {
+    var sh = o.sheet; if (!sh) return '';
+    var H = o.h || hs(), title = '', body = '';
+    if (sh === 'oldHistory') { title = '지난 질문'; body = '<div class="sbd"><ul class="ql">' + ROOMS.slice(0, 8).map(function (r, i) { return oldRow(r, i === 0); }).join('') + '</ul><button type="button" class="mbtn" data-act="noop">이전 질문 더 보기</button></div>'; }
+    else if (sh === 'history') { title = '지난 질문'; body = histBody(o, H); }
+    else if (sh === 'rowMenu') { title = '이 대화'; body = rowMenuBody(o, H); }
+    else if (sh === 'rename') { title = '제목 바꾸기'; body = renameBody(o); }
+    else if (sh === 'confirmRow') { title = '이 대화 삭제'; body = confirmBody(o, 'row'); }
+    else if (sh === 'confirmCur') { title = '이 대화 삭제'; body = confirmBody(o, 'cur'); }
+    else if (sh === 'menu') { title = '질문 메뉴'; body = menuBody(o); }
+    var kb = !!o.sheetKb;
+    return '<button type="button" class="ovl' + (kb ? ' kbo2' : '') + '" aria-label="닫기" data-act="sheetClose" tabindex="-1"></button><div class="sheet' + (kb ? ' kbup' : '') + '" role="dialog" aria-modal="true" aria-labelledby="sh-t-' + o.w + '"><div class="shd"><h3 id="sh-t-' + o.w + '">' + esc(title) + '</h3><button type="button" class="ib" aria-label="닫기" data-act="sheetClose">' + ICON.x + '</button></div>' + body + '</div>' + (kb ? kbd(true) : '');
+  }
+
+  /* ════ 상태 정의 ════ */
+  var TABDEF = {
+    A: { t: '현재 vs 제안', s: '지난 대화 화면 · 시트', subs: [['room', '지난 대화 화면'], ['sheet', '지난 질문 시트']] },
+    B: { t: '지난 질문 시트', s: '5개씩 쪽 넘기기', subs: ['쪽', ['p1', '1쪽'], ['p2', '중간 쪽'], ['p3', '마지막 쪽'], ['few', '5개 이하'], '상태', ['empty', '빈 상태'], ['first', '처음 불러오기'], ['paging', '쪽 넘기는 중'], ['pageErr', '쪽 오류'], ['firstErr', '목록 오류'], ['run', '진행 중 · 새 답'], '비교', ['cmp', 'D3 세 안 나란히']] },
+    C: { t: '지난 대화 열기', s: '같은 탭 화면 · 내용만', subs: [['pick', '고르는 순간'], ['open', '연 뒤'], ['loading', '불러오는 중'], ['cont', '이어서 질문'], ['run', '답 만드는 중이던 대화'], ['long', '긴 제목'], ['new', '새 질문(빈 대화)'], ['gone', '없어진 대화']] },
+    D: { t: '제목 지정', s: '머리 · 시트 행 · ⋯ 메뉴', subs: ['머리에서', ['tap', '머리 제목 누르기'], ['kb', '입력 중 · 키보드'], ['empty', '빈 제목'], ['over', '100자 넘음'], ['saving', '저장 중'], ['fail', '저장 실패'], ['saved', '저장됨'], '시트 · 메뉴', ['row', '시트 행 ⋯'], ['rowRen', '행에서 바꾸기'], ['rowSaved', '행에서 바꾼 뒤'], ['menu', '⋯ 메뉴(유지)'], '비교', ['firstB', 'B 안 · 첫 질문 때 제목 칸']] },
+    E: { t: '삭제', s: '지금 대화 · 시트에서', subs: [['curConfirm', '지금 대화 삭제 확인'], ['curDone', '삭제 뒤 빈 대화'], ['rowConfirm', '시트에서 다른 대화'], ['rowDone', '시트에서 삭제 뒤'], ['busy', '답 받는 중 잠금'], ['fail', '삭제 실패']] },
+    F: { t: '직접 해 보기', s: '열기 · 넘기기 · 제목 · 삭제', subs: [['live', '체험']] }
+  };
+  var CAP = {
+    'A:room': ['현재 vs 제안 — 지난 대화를 열었을 때', '왼쪽 = 지금 배포본: 「지난 질문」에서 고르면 ‹ 질문으로 · 대화 제목 · 「질문 · 사쿠라 선생님」 · ⋯ 머리에 하단 탭이 없는 별도 화면(/ask/〈id〉). 오른쪽 = 제안: 머리(「질문」 · 지난 질문 · ⋯ · 나) · 하단 탭 · 입력 바가 그대로이고 대화 내용만 바뀐다. 지금 어느 대화인지는 머리 「질문」 아래 작은 줄(D1 ★ A).'],
+    'A:sheet': ['현재 vs 제안 — 지난 질문 시트', '왼쪽 = 지금: 한 번에 20개를 읽어 시트 안에서 아래로 스크롤하고 「이전 질문 더 보기」로 계속 늘어난다. 오른쪽 = 제안: 한 쪽 5개, 아래 ‹ 이전 · 1 / 3 · 다음 ›(D3 ★ A). 각 행 오른쪽 ⋯ 에서 제목 바꾸기 · 삭제(D2 · D6).'],
+    'B:p1': ['1쪽 — 최근 5개', '정렬은 지금처럼 마지막 대화 시각 순(최근이 위). 지금 보고 있는 대화엔 「지금 대화」 — 누르면 시트만 닫힌다. 1쪽에서 ‹ 이전 은 흐리게(눌러도 아무 일 없음). 시트 높이는 5행 + 쪽 줄이라 키보드 없이 한 화면에 들어간다.'],
+    'B:p2': ['중간 쪽', '‹ 이전 · 다음 › 둘 다 쓸 수 있다. 쪽을 넘기면 화면 읽기에 「3쪽 중 2쪽」을 알리고 초점은 누른 단추에 남는다.'],
+    'B:p3': ['마지막 쪽 — 남은 2개', '다음 › 은 흐리게. 행이 2개뿐이어도 5행 높이를 그대로 둬서 쪽 줄이 손가락 밑에서 위로 올라오지 않는다(J1).'],
+    'B:few': ['5개 이하 — 쪽 줄 없음', '지난 질문이 5개 이하면 쪽 넘기기 줄을 그리지 않고 시트도 행 수만큼만 높다.'],
+    'B:empty': ['빈 상태', '아직 보낸 질문이 하나도 없을 때. 「아직 지난 질문이 없어요.」 + 안내 한 줄, 쪽 줄 없음. 머리 둘째 줄은 「새 질문」.'],
+    'B:first': ['처음 불러오는 중', '시트를 열 때 1쪽을 읽는 동안 5행 높이의 회색 자리(화면 읽기 「지난 질문을 불러오고 있어요」). 다 오면 같은 자리에 행이 들어온다.'],
+    'B:paging': ['쪽 넘기는 중', '다음 › 을 누른 직후. 행 자리는 회색, 쪽 표시는 이미 「2 / 3」, 아래 줄은 「불러오는 중…」. 두 단추는 잠깐 잠근다(연타 방지).'],
+    'B:pageErr': ['쪽 오류', '2쪽을 읽지 못했을 때. 목록 자리에 「이 쪽을 불러오지 못했어요」 + [다시 시도], 쪽 줄은 그대로라 ‹ 이전 으로 돌아갈 수 있다.'],
+    'B:firstErr': ['목록 오류', '1쪽부터 못 읽었을 때 — 지금 문구 그대로(「지난 질문을 불러오지 못했어요」 + [다시 시도]). 쪽 줄 없음.'],
+    'B:run': ['진행 중 · 새 답 표시 유지', '다른 대화가 답을 만드는 중이면 그 행에 「답 만드는 중」, 끝났는데 아직 안 본 대화는 「새 답」 — 머리 알약도 같은 상태를 말한다(task-066 그대로, 지금 대화는 빼고 셈). 알약 값은 시트 쪽과 상관없이 최근 20개로 계산한다.'],
+    'B:cmp': ['D3 세 안 나란히', 'A ★ = 몇 쪽 중 몇 쪽인지와 전체 개수가 보인다(서버가 개수를 함께 줌). B = 서버 변경 없이 이전 · 다음만 — 얼마나 남았는지 모른다. C = 번호로 바로 이동 — 바로 건너뛰려면 서버가 「n번째부터 읽기」를 따로 지원해야 한다. 이 비교는 위 결정과 상관없이 세 모양을 나란히 보여 준다.'],
+    'C:pick': ['고르는 순간', '시트에서 행을 누르면 시트가 닫히고 같은 화면의 대화 칸만 그 대화로 바뀐다. 머리 · 입력 바 · 보내는 범위 줄 · 하단 탭은 그대로 — 화면을 옮기지 않는다. 주소는 /ask?chat=〈id〉 로 바꿔 적기만 한다(D4 ★ A).'],
+    'C:open': ['연 뒤', '머리 「질문」 아래에 이 대화 제목(D1 ★ A — 끝의 연필 = 눌러서 제목 바꾸기, D2 ★ A). 대화는 마지막 질문 자리로 맞춰 열린다(지금 규칙). 아래에서 바로 이어 물을 수 있다.'],
+    'C:loading': ['불러오는 중', '시트 행의 제목을 먼저 머리에 보여 줘 불러오는 동안에도 어느 대화인지 안다. 대화 칸만 회색 말풍선(task-066 의 불러오는 중 모양), 입력창은 쓸 수 있고 보내기만 잠근다.'],
+    'C:cont': ['이어서 질문', '연 대화에서 그대로 물으면 같은 대화에 이어진다(답을 기다리는 동안 보내기 잠금 — 지금 규칙). 머리 알약은 지금 대화를 빼고 세므로 「지난 질문」 그대로.'],
+    'C:run': ['답 만드는 중이던 대화를 열면', '시트의 「답 만드는 중」 행을 열면 그 대화의 대기 카드를 이어받는다(지금 규칙). 답이 끝나면 그 자리에 답이 나온다.'],
+    'C:long': ['긴 제목', '100자에 가까운 제목은 머리에서 한 줄 말줄임(알약이 「지난 질문」일 때 360 에서 약 11자 · 390 에서 약 14자 · 412 에서 약 17자, 「답 만드는 중」이면 2~3자 줄어듦). 전체는 제목 바꾸기 시트 · ⋯ 메뉴 윗줄 · 시트 행에서 보인다.'],
+    'C:new': ['새 질문(빈 대화)', '하단 「질문」을 다시 누르거나 ⋯ → 「새 질문 시작」. 머리 둘째 줄은 「새 질문」(누를 수 없음) — 첫 질문을 보내면 그 자리가 첫 질문 제목으로 바뀐다. 머리 높이는 그대로.'],
+    'C:gone': ['없어진 대화', '다른 기기에서 지운 대화를 열면 빈 대화 + 토스트 「대화를 찾을 수 없어요」(지금 규칙 그대로).'],
+    'D:tap': ['머리 제목을 눌러 바로 바꾸기', '연필이 붙은 둘째 줄(머리 「질문」 아래)을 누르면 ⋯ 메뉴를 거치지 않고 제목 바꾸기 시트가 열린다. 누르는 영역은 제목 블록 전체(높이 44).'],
+    'D:kb': ['입력 중 · 키보드', '키보드가 열리면 시트가 키보드 위로 올라온다. 칸 아래에 글자 수 「n / 100」(화면 읽기에는 안내 줄로 한 번만 알림).'],
+    'D:empty': ['빈 제목', '빈 제목 ★ A — 저장을 누르면 칸 아래 「제목을 적어 주세요」(지금 문구), 저장하지 않는다. B 를 고르면 안내 줄이 「비우고 저장하면 첫 질문으로 돌아가요」로 바뀌고 오류 없이 되돌린다.'],
+    'D:over': ['100자 넘음', '서버 규칙 100자. 글자 수가 빨갛게 바뀌고 저장을 누르면 「제목은 100자까지 쓸 수 있어요」(지금 문구).'],
+    'D:saving': ['저장 중', '저장 단추 「저장 중…」 + 칸 읽기 전용, 두 단추 잠금. 시트 바깥을 눌러도 닫히지 않는다(지금 규칙).'],
+    'D:fail': ['저장 실패', '시트는 그대로 두고 칸 아래에 실패 한 줄 — 쓴 글은 지우지 않는다. 다시 저장을 누르면 된다.'],
+    'D:saved': ['저장됨', '시트가 닫히고 토스트 「제목을 바꿨어요」, 머리 둘째 줄 · 지난 질문 시트 행 · ⋯ 메뉴 윗줄이 새 제목으로.'],
+    'D:row': ['시트 행 ⋯ → 이 대화', '행 오른쪽 ⋯(44) 을 누르면 같은 시트 안이 「이 대화」 화면으로 바뀐다(시트 위에 시트를 겹치지 않음) — 제목 바꾸기 · 이 대화 삭제 · 목록으로.'],
+    'D:rowRen': ['행에서 제목 바꾸기', '머리에서 누를 때와 같은 제목 바꾸기 화면. 저장 · 취소하면 지난 질문 목록(보던 쪽)으로 돌아간다.'],
+    'D:rowSaved': ['행에서 바꾼 뒤', '목록으로 돌아와 그 행 제목만 바뀐다(순서는 그대로 — 제목만 바꿔서는 최근 순이 바뀌지 않음) + 토스트.'],
+    'D:menu': ['⋯ 메뉴 「제목 바꾸기」(유지)', '지금 있는 자리를 그대로 둔다. 맨 윗줄은 지금처럼 대화 제목.'],
+    'D:firstB': ['B 안 — 첫 질문 때 제목 칸(비교용)', 'D2 B 를 고르면 빈 대화의 입력 바 위에 「제목(선택)」 칸이 생긴다. 입력 바가 두 줄이 되어 대화 칸이 약 48px 줄고, 대부분 비워 둔 채 보내게 된다. 이 화면은 D2 선택과 상관없이 B 모양을 보여 준다.'],
+    'E:curConfirm': ['지금 대화 삭제 확인', '⋯ → 이 대화 삭제 → 확인(지금 그대로).'],
+    'E:curDone': ['삭제 뒤 — 빈 대화', '빈 대화(머리 「질문 / 새 질문」) + 토스트 「대화를 삭제했어요」(지금 그대로).'],
+    'E:rowConfirm': ['시트에서 다른 대화 삭제 확인', 'D6 ★ A — 행 ⋯ → 이 대화 삭제 → 같은 시트 안에서 확인. 확인 문구는 지금 것 그대로에 어느 대화인지(제목)를 더했다.'],
+    'E:rowDone': ['시트에서 삭제 뒤', '목록으로 돌아와 그 행이 빠지고 아래 행이 올라온다. 전체 11개, 쪽 수는 다시 계산(마지막 쪽이 비면 앞 쪽으로). 지금 대화를 시트에서 지우면 시트가 닫히고 빈 대화.'],
+    'E:busy': ['답 받는 중인 대화', '답을 만드는 중인 대화는 지울 수 없다 — 줄을 흐리게 하고 이유를 한 줄로, 누르면 토스트(지금 문구).'],
+    'E:fail': ['삭제 실패', '확인 화면에 그대로 머물고 실패 한 줄(지금 문구).'],
+    'F:live': ['직접 해 보기', '처음은 하단 「질문」을 막 누른 빈 대화. 「지난 질문」 → 쪽 넘기기 → 행 누르기 → 머리 제목(연필) 누르기 → 저장, 행 ⋯ → 제목 바꾸기 · 삭제, ⋯ → 새 질문 시작. 글을 써서 보내면 새 대화가 생기고 머리 둘째 줄이 첫 질문 제목으로 바뀐다. 아래 「휴대폰 뒤로가기」 흉내 단추로 D4 를 비교해 보세요.']
+  };
+
+  function screenFor(tab, sub, w) {
+    var T = function (o) { return scrTab(Object.assign({ w: w }, o)); };
+    var r1 = R('r1'), r2 = R('r2'), r4 = R('r4'), r12 = R('r12');
+    var open = function (r, more) { return Object.assign({ title: r.t, msgs: convMsgs(r), running: !!r.run }, more || {}); };
+    var hist = function (h, more) { return T(open(r1, Object.assign({ sheet: 'history', h: h }, more || {}))); };
+    if (tab === 'B') {
+      if (sub === 'p2') return hist(hs({ page: 1 }));
+      if (sub === 'p3') return hist(hs({ page: 2 }));
+      if (sub === 'few') return hist(hs({ rooms: ROOMS.slice(0, 4) }));
+      if (sub === 'empty') return T({ title: null, msgs: GREET, sheet: 'history', h: hs({ rooms: [], cur: null }) });
+      if (sub === 'first') return hist(hs({ state: 'firstLoad' }));
+      if (sub === 'paging') return hist(hs({ state: 'paging', page: 1 }));
+      if (sub === 'pageErr') return hist(hs({ state: 'pageErr', page: 1 }));
+      if (sub === 'firstErr') return hist(hs({ state: 'firstErr' }));
+      if (sub === 'run') return hist(hs({ rooms: ROOMS.map(function (r) { return r.id === 'r2' ? Object.assign({}, r, { run: true }) : r.id === 'r3' ? Object.assign({}, r, { nw: true }) : r; }) }), { pill: 'run' });
+      return hist(hs());
+    }
+    if (tab === 'C') {
+      if (sub === 'loading') return T({ title: r4.t, msgs: [{ k: 'skel' }], bar: { locked: true, lockMsg: '대화를 불러오고 있어요' } });
+      if (sub === 'cont') return T({ title: r4.t, msgs: convMsgs(r4, [{ k: 'q', t: '〜ておく 하고는 또 뭐가 달라요?', meta: '방금' }, { k: 'pend', sec: 8, stage: 1 }]), running: true, bar: { locked: true, ph: '다음 질문을 미리 써요' } });
+      if (sub === 'run') { var rr = Object.assign({}, r2, { run: true }); return T({ title: rr.t, msgs: convMsgs(rr), running: true, bar: { locked: true, ph: '다음 질문을 미리 써요' } }); }
+      if (sub === 'long') { var lr = Object.assign({}, r12, { t: LONG }); return T({ title: LONG, msgs: convMsgs(lr) }); }
+      if (sub === 'new') return T({ title: null, msgs: GREET });
+      if (sub === 'gone') return T({ title: null, msgs: GREET, toast: '대화를 찾을 수 없어요' });
+      return T(open(r4));
+    }
+    if (tab === 'D') {
+      var ren = function (more) { return T(open(r4, Object.assign({ sheet: 'rename', rn: NEWT, q0: r4.q0 || r4.t }, more || {}))); };
+      if (sub === 'kb') return ren({ sheetKb: true });
+      if (sub === 'empty') return ren({ rn: '', rnErr: S.d.d2r === 'A' ? 'empty' : null });
+      if (sub === 'over') return ren({ rn: OVER, rnErr: 'over' });
+      if (sub === 'saving') return ren({ saving: true });
+      if (sub === 'fail') return ren({ rnErr: 'fail' });
+      if (sub === 'saved') return T(open(Object.assign({}, r4, { t: NEWT }), { toast: '제목을 바꿨어요' }));
+      if (sub === 'row') return rowHasX() ? T(open(r1, { sheet: 'rowMenu', target: 'r4', h: hs() })) : hist(hs());
+      if (sub === 'rowRen') return S.d.d2 === 'A' ? T(open(r1, { sheet: 'rename', rn: NEWT, q0: r4.q0 || r4.t })) : hist(hs());
+      if (sub === 'rowSaved') return hist(hs({ rooms: S.d.d2 === 'A' ? withRoom('r4', { t: NEWT }) : ROOMS }), { toast: S.d.d2 === 'A' ? '제목을 바꿨어요' : '' });
+      if (sub === 'menu') return T(open(r4, { sheet: 'menu' }));
+      if (sub === 'firstB') return T({ title: null, msgs: GREET, forceB: true });
+      return T(open(r4, { press: true }));
+    }
+    if (tab === 'E') {
+      var del6 = S.d.d6 === 'A';
+      if (sub === 'curDone') return T({ title: null, msgs: GREET, toast: '대화를 삭제했어요' });
+      if (sub === 'rowConfirm') return del6 ? T(open(r1, { sheet: 'confirmRow', targetRoom: r4, h: hs() })) : hist(hs());
+      if (sub === 'rowDone') return del6 ? hist(hs({ rooms: ROOMS.filter(function (r) { return r.id !== 'r4'; }) }), { toast: '대화를 삭제했어요' }) : hist(hs());
+      if (sub === 'busy') return rowHasX() ? T(open(r1, { pill: 'run', sheet: 'rowMenu', target: 'r2', h: hs({ rooms: withRoom('r2', { run: true }) }), toast: del6 ? '답을 받는 중에는 지울 수 없어요' : '' })) : hist(hs());
+      if (sub === 'fail') return del6 ? T(open(r1, { sheet: 'confirmRow', targetRoom: r4, delFail: true })) : hist(hs());
+      return T(open(r4, { sheet: 'confirmCur' }));
+    }
+    return T(open(r4));
+  }
+  function phone(w, inner, label) {
+    var cls = (S.fu ? '' : ' nofu') + (S.hg ? '' : ' nohg');
+    return '<figure class="fw"><div class="phone w' + w + cls + '" data-w="' + w + '">' + inner + '</div><figcaption class="fdim">' + (label ? '<b>' + label + '</b> · ' : '') + w + ' × 780</figcaption></figure>';
+  }
+
+  /* ════ 직접 해 보기(F) ════ */
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+  function liveReset() {
+    clearTimers();
+    S.live = { conv: null, rooms: ROOMS.map(function (r) { return Object.assign({}, r); }), msgs: {}, sheet: null, page: 0, paging: false, target: null, rn: '', rnErr: null, rnFrom: null, saving: false, back: [], backMsg: '', draft: '', t1: '', wait: null, n: 0, newMsgs: GREET.slice() };
+  }
+  function L() { return S.live; }
+  function liveMsgs(id) { var l = L(); if (!l.msgs[id]) l.msgs[id] = convMsgs(R(id, l.rooms)); return l.msgs[id]; }
+  function liveScreen(w) {
+    var l = L(), r = l.conv ? R(l.conv, l.rooms) : null;
+    var others = l.rooms.filter(function (x) { return x.id !== l.conv; });
+    var pill = others.some(function (x) { return x.run; }) ? 'run' : others.some(function (x) { return x.nw; }) ? 'new' : null;
+    var tr = l.target ? R(l.target, l.rooms) : null;
+    return scrTab({ w: w, live: true, title: r ? r.t : null, msgs: r ? liveMsgs(r.id) : l.newMsgs, running: !!(r && r.run), pill: pill,
+      sheet: l.sheet, h: { page: l.page, rooms: l.rooms, cur: l.conv, state: l.paging ? 'paging' : 'ready', press: null },
+      target: l.target, targetRoom: tr, rn: l.rn, rnErr: l.rnErr, saving: l.saving, q0: tr ? (tr.q0 || tr.t) : '',
+      bar: { val: l.draft, locked: !!l.wait, ph: l.wait ? '다음 질문을 미리 써요' : null }, t1: l.t1 });
+  }
+  function pagesOf(l) { return Math.max(1, Math.ceil(l.rooms.length / 5)); }
+  function openRename(from) {
+    var l = L(), t = R(l.target, l.rooms); if (!t) return;
+    l.rnFrom = from; l.rn = t.t; l.rnErr = null; l.saving = false; l.sheet = 'rename'; S.focus = '[data-rn]';
+  }
+  function removeRoom(id) {
+    var l = L(); l.rooms = l.rooms.filter(function (r) { return r.id !== id; }); delete l.msgs[id];
+    l.page = Math.min(l.page, pagesOf(l) - 1);
+  }
+  function liveSend(text, key) {
+    var l = L(), t = text.trim();
+    if (l.wait) { toast('답을 받은 뒤 보낼 수 있어요'); return; }
+    if (!t) { toast('질문을 적어 주세요'); return; }
+    var id = l.conv, msgs;
+    if (!id) {
+      l.n++; id = 'n' + l.n;
+      var tt = S.d.d2 === 'B' && l.t1.trim() ? l.t1.trim() : title30(t);
+      l.rooms.unshift({ id: id, t: tt, q0: t, a: '선생님이 답을 만드는 중이에요', tm: '방금', day: '오늘' });
+      l.msgs[id] = l.newMsgs.slice(); l.conv = id; l.page = 0; l.t1 = '';
+    }
+    msgs = liveMsgs(id);
+    msgs.push({ k: 'q', t: t, meta: '방금' }); msgs.push({ k: 'pend', sec: 1, stage: 0 });
+    var room = R(id, l.rooms); room.run = true; l.wait = id; l.draft = '';
+    var ansKey = key !== undefined ? key : 'akete';
+    render();
+    later(1500, function () { var m2 = L(); if (!m2 || !m2.msgs[id]) return; m2.msgs[id].forEach(function (m) { if (m.k === 'pend') { m.sec = 9; m.stage = 1; } }); render(); });
+    later(3200, function () {
+      var m3 = L(); if (!m3 || !m3.msgs[id]) { if (m3) m3.wait = null; return; }
+      var rm = R(id, m3.rooms);
+      m3.msgs[id] = m3.msgs[id].filter(function (m) { return m.k !== 'pend'; });
+      m3.msgs[id].push(ansKey ? { k: 'ans', key: ansKey } : { k: 'ans', key: null, r: { tm: '방금', a: '이번 주에 채택한 교정 9건 중 조사 교정이 4건이었어요. 그중 3건이 「に」와 「で」를 바꿔 쓴 경우예요.' } });
+      m3.wait = null;
+      if (rm) { rm.run = false; rm.a = ansKey && ANS[ansKey] ? plain(ANS[ansKey].blocks[0].p).replace(/\*\*/g, '').slice(0, 34) + '…' : rm.a; if (m3.conv !== id) { rm.nw = true; toast('답이 도착했어요'); return; } }
+      render();
+    });
+  }
+
+  /* ════ 결정 ════ */
+  var DECS = [
+    { id: 'D1', t: 'D1 · 지금 대화 제목을 어디에 보이나', q: '지난 질문을 열었을 때 「어느 대화인지」를 무엇으로 아나?',
+      fact: '[확실] 머리는 탭 화면 그대로(「질문」 · 지난 질문 · ⋯ · 나)다. [확실] 대화를 열면 <b>마지막 질문 자리로 스크롤</b>된다 — 대화 맨 위는 대개 화면 밖이다. [확실] ⋯ 메뉴 맨 윗줄에는 지금도 대화 제목이 보인다(메뉴를 열어야 보임).',
+      chg: 'Leader 후보(「메시지 목록 맨 위」 · 「⋯ 메뉴 윗줄」 · 「머리 제목을 대화 제목으로」)에 <b>A 를 더해 ★</b> 로 했다 — 머리 높이(52)를 그대로 두고 늘 보이며, 그 자리가 곧 제목 바꾸기 단추(D2)가 된다.',
+      groups: [{ key: 'd1', four: true, opts: [
+        ['A', '머리 「질문」 아래 작은 줄', '「질문」 + 둘째 줄 대화 제목 ✎', ['늘 보인다 · 머리 높이 그대로', '다른 탭과 같은 「질문」 제목이 남는다', '누르면 바로 제목 바꾸기(D2 A)'], ['360 에서 대화 제목이 11자 남짓만 보인다', '공용 머리에 선택 prop 하나(다른 탭은 그대로)']],
+        ['B', '대화 맨 위 제목 줄', '목록 첫 줄(스크롤됨)', ['긴 제목이 두 줄까지 보인다'], ['열면 마지막 질문으로 스크롤돼 대개 화면 밖', '내리면 사라진다']],
+        ['C', '머리 제목 = 대화 제목', '「질문」 대신 대화 제목', ['크게 보인다'], ['360 에서 7자 남짓', '「질문」 탭 이름이 사라져 다른 화면처럼 보인다 — 「기본 챗봇 형태 유지」에서 멀어진다']],
+        ['D', '화면에 없음(지금)', '⋯ 메뉴 윗줄만', ['가장 단순'], ['어느 대화인지 첫 질문 말풍선을 봐야 안다', '제목을 바꿔도 화면에 안 보인다']]
+      ], rec: 'A' }] },
+    { id: 'D2', t: 'D2 · 제목을 어디서 정하나', q: '「질문에 대해 제목을 지정할 수 있도록」을 어떤 자리에?',
+      fact: '[확실] 지금은 ⋯ → 「제목 바꾸기」(100자까지)만 있다. 처음 제목은 첫 질문 앞부분 30자. [확실] 빈 대화(보낸 질문 없음)는 서버에 대화가 아직 없어 제목을 저장할 곳이 없다 — 첫 질문을 보낼 때 대화가 생긴다. D1 D 를 고르면 머리에 누를 자리가 없어 A 는 「시트 행 + ⋯」만 남는다.',
+      groups: [{ key: 'd2', opts: [
+        ['A', '보이는 제목 누르기 + 시트 행 + ⋯', '머리 제목 줄(D1 자리) · 지난 질문 각 행 ⋯ · ⋯ 메뉴(유지)', ['보이는 제목을 누르면 바로 바뀐다', '시트에서 여러 대화를 한꺼번에 정리'], ['누르는 자리가 셋(모두 같은 제목 바꾸기 화면을 연다)']],
+        ['B', '첫 질문 때 제목 칸', '빈 대화 입력 바 위 「제목(선택)」 + ⋯ 메뉴', ['처음부터 원하는 제목'], ['입력 바가 두 줄 — 대화 칸 약 48px 줄어듦', '대부분 비워 둔다 · 「바로 묻기」 단순함과 충돌', '나중에 바꾸는 자리는 여전히 ⋯ 뿐']],
+        ['C', '⋯ 메뉴만(지금)', '바꿀 것 없음', ['변경 없음'], ['「눈에 안 띈다」는 지금 문제가 그대로']]
+      ], rec: 'A' }, { key: 'd2r', idLabel: 'D2 빈 제목', legend: '빈 제목으로 저장하면', two: true, opts: [
+        ['A', '저장 안 됨 + 안내', '「제목을 적어 주세요」(지금 문구)', ['지금 규칙 그대로 · 서버 변경 없음'], ['처음 제목으로 돌아가려면 직접 적어야 한다']],
+        ['B', '첫 질문 제목으로 되돌림', '비우고 저장 = 첫 질문 앞 30자', ['되돌리기가 쉽다'], ['시트 행에서는 첫 질문을 모른다 → 서버가 되돌려 주는 새 규칙이 필요', '비운 칸이 「저장」되는 게 낯설다']]
+      ], rec: 'A' }] },
+    { id: 'D3', t: 'D3 · 5개씩 쪽 넘기기 모양', q: '지난 질문이 많을 때 시트를 어떻게 넘기나? (한 쪽 5개 — 요청 기준)',
+      fact: '[확실] 서버 목록은 다음 쪽 열쇠(커서)만 주고 전체 개수는 없다. [확실] 단어장 목록 API 는 이미 전체 개수(total)를 준다 — 질문 목록에도 같은 칸을 하나 더하면 된다(다른 화면 영향 없음). 상태 B 「D3 세 안 나란히」에서 비교.',
+      groups: [{ key: 'd3', opts: [
+        ['A', '‹ 이전 · 1 / 3 · 다음 ›', '가운데 「1 / 3」 + 「모두 12개」', ['몇 쪽 중 몇 쪽인지 보인다', '단추 두 개(44px)라 360 에서도 넉넉', '서버는 개수 하나만 더함'], ['서버 작은 변경(목록 응답에 total)', '3쪽으로 바로 건너뛰지 못함']],
+        ['B', '이전 · 다음만', '가운데 「1–5번째」', ['서버 변경 없음'], ['모두 몇 개인지, 얼마나 남았는지 모른다']],
+        ['C', '번호 1 2 3', '‹ 1 2 3 ›(많으면 1 … 4 5 6 … 12)', ['원하는 쪽으로 바로'], ['바로 건너뛰려면 서버가 「n번째부터 읽기」를 따로 지원해야 한다(변경이 더 큼)', '번호가 늘면 줄이 꽉 찬다']]
+      ], rec: 'A' }] },
+    { id: 'D4', t: 'D4 · 지난 질문을 연 뒤 휴대폰 뒤로가기', q: '대화를 바꾼 뒤 휴대폰(브라우저) 뒤로가기를 누르면 어디로?',
+      fact: '[확실] task-066 은 지난 질문을 별도 화면(/ask/〈id〉)으로 열어 기록이 한 칸 늘었고, ⋯ → 「새 질문 시작」도 기록을 쌓았다(뒤로가기 = 직전 대화). 화면에는 변화가 없어 위 「뒤로가기 · 주소」 설명과 F 「직접 해 보기」의 흉내 단추로 비교한다.',
+      groups: [{ key: 'd4', two: true, opts: [
+        ['A', '기록을 늘리지 않음', '뒤로 = 질문 탭에 오기 전 화면', ['탭 화면 하나 = 기록 한 칸 — 「기본 챗봇 형태 유지」와 같은 결', '대화를 여러 개 훑어봐도 한 번에 탭을 떠난다', '「새 질문 시작」도 같게 맞춘다'], ['뒤로가기로 직전 대화에 돌아갈 수 없다(「지난 질문」에서 고름)']],
+        ['B', '기록을 쌓음', '뒤로 = 직전 대화', ['직전 대화로 바로 돌아간다'], ['훑어본 만큼 뒤로가기를 여러 번 눌러야 탭을 떠난다', '화면은 하나인데 기록은 여러 칸이라 헷갈린다']]
+      ], rec: 'A' }] },
+    { id: 'D5', t: 'D5 · 옛 주소 /ask/〈id〉', q: '옛 링크 · 북마크 · 근거 카드에서 돌아오는 주소는?',
+      fact: '[확실] 근거 카드로 수업 · 평가에 갔다가 「질문으로」 돌아오는 주소, 채팅 목록의 질문 대화 링크가 지금 /ask/〈id〉 다.',
+      groups: [{ key: 'd5', two: true, opts: [
+        ['A', '탭 화면으로 보냄', '/ask/〈id〉 → /ask?chat=〈id〉', ['옛 링크도 같은 탭 화면', '별도 화면 코드를 지울 수 있다'], ['없음(주소가 한 번 바뀌어 보임)']],
+        ['B', '옛 화면 그대로', '/ask/〈id〉 는 ‹ 화면', ['서버 변경 없음'], ['요청과 어긋나는 화면이 한 갈래 남는다']]
+      ], rec: 'A' }] },
+    { id: 'D6', t: 'D6 · 지난 질문 시트에서 삭제', q: '시트 행에서 바로 지우게 할까?',
+      fact: '[확실] 지금 시트에는 삭제가 없다(대화를 열고 ⋯ → 이 대화 삭제). D2 A 의 행 ⋯ 를 만들면 같은 자리에 둘 수 있다. 확인 단계는 어느 안이든 그대로.',
+      groups: [{ key: 'd6', two: true, opts: [
+        ['A', '행 ⋯ 에 「이 대화 삭제」', '확인 단계 그대로', ['열지 않고 정리', '여러 개 지우기가 빠르다'], ['실수로 누를 자리가 하나 더(확인 단계로 막음)']],
+        ['B', '넣지 않음(지금)', '열고 ⋯ 에서만', ['내용을 보고 지운다'], ['여러 개 정리가 번거롭다']]
+      ], rec: 'A' }] }
+  ];
+  var JUD = [
+    ['J1', '<b>마지막 쪽도 5행 높이</b>로 둔다 — 쪽 줄이 손가락 밑에서 움직이지 않게. 5개 이하면 쪽 줄을 그리지 않는다.'],
+    ['J2', '<b>시트를 다시 열면 보던 쪽</b>(같은 탭 화면 동안). 새 질문을 보내면 1쪽부터. 열 때 그 쪽을 다시 읽는다.'],
+    ['J3', '<b>행 = 큰 단추(대화 열기) + 오른쪽 ⋯ 단추(44)</b>를 나란히 — 단추 안에 단추를 넣지 않는다(화면 읽기 · 키보드에서 두 단추로 읽힘).'],
+    ['J4', '<b>하위 화면은 같은 시트 안</b>에서 바뀐다(이 대화 → 제목 바꾸기 · 삭제 확인). 시트 위에 시트를 겹치지 않고, 끝나면 목록(보던 쪽)으로.'],
+    ['J5', '대화를 열면 시트를 닫고 <b>마지막 질문에 맞춤</b>(지금 규칙). 머리 제목은 시트 행의 제목을 먼저 보여 줘 불러오는 동안에도 어느 대화인지 보인다.'],
+    ['J6', '<b>제목만 바꿔서는 순서가 바뀌지 않는다</b> [가능성 높음 — 서버 정렬이 마지막 메시지 시각]. 그래서 시트에서 바꿔도 행이 제자리에 있다.'],
+    ['J7', '<b>「제목」으로 낱말 통일</b> — ⋯ 메뉴 「제목 바꾸기」 · 빈 대화 안내 「제목 바꾸기 · 삭제는 없어요」(지금 「이름」).'],
+    ['J8', '<b>빈 대화 머리 둘째 줄 = 「새 질문」</b>(누를 수 없음) — 머리 높이가 변하지 않게. 첫 질문을 보내면 그 자리가 첫 질문 제목으로.'],
+    ['J9', '<b>쪽 넘김</b>은 화면 읽기에 「3쪽 중 2쪽」을 알리고(role=status) 초점은 누른 단추에 남는다. 끝 쪽 단추는 흐리게 + 눌러도 아무 일 없음(aria-disabled).'],
+    ['J10', '<b>머리 제목 블록</b>은 화면 읽기에서 「질문 · 지금 대화 「…」 — 눌러서 제목 바꾸기」 한 번에 읽힌다. 높이 44 · 머리 52 그대로 · 다른 탭 머리는 바뀌지 않는다.']
+  ];
+  function decHtml() {
+    return DECS.map(function (D) {
+      return '<section class="dec" aria-labelledby="dh-' + D.id + '"><h3 id="dh-' + D.id + '">' + D.t + '</h3><p class="q">' + D.q + '</p><p class="fact">' + D.fact + '</p>' + (D.chg ? '<p class="chg">' + D.chg + '</p>' : '') +
+        D.groups.map(function (G) {
+          return '<fieldset>' + (G.legend ? '<legend>' + G.legend + '</legend>' : '<legend class="sr">' + D.id + ' 선택</legend>') + '<div class="dec-g' + (G.two ? ' two' : '') + (G.four ? ' four' : '') + '">' +
+            G.opts.map(function (o) {
+              var on = S.d[G.key] === o[0];
+              return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="' + G.key + '" value="' + o[0] + '"' + (on ? ' checked' : '') + ' data-dec="' + G.key + '"><span class="opt-h"><span class="oh-t">' + (G.idLabel || D.id) + ' ' + o[0] + ' · ' + o[1] + '</span>' + (G.rec === o[0] ? '<span class="rec">★ 권고</span>' : '') + '</span>' + (o[2] ? '<span class="opt-d">' + o[2] + '</span>' : '') + '<ul>' + o[3].map(function (x) { return '<li class="p">' + x + '</li>'; }).join('') + o[4].map(function (x) { return '<li class="m">' + x + '</li>'; }).join('') + '</ul><span class="sel">' + (on ? '● 지금 화면에 반영됨' : '○ 눌러서 보기') + '</span></label>';
+            }).join('') + '</div></fieldset>';
+        }).join('') + '</section>';
+    }).join('');
+  }
+  function judHtml() {
+    return '<h3>그 밖 designer 판단 (결정 아님 — 바꾸고 싶으면 답장에 번호로)</h3><p class="dsub">화면에는 이대로 반영돼 있다.</p><ol>' + JUD.map(function (j) { return '<li><b class="n">' + j[0] + '</b><span>' + j[1] + '</span></li>'; }).join('') + '</ol>';
+  }
+  var SUMK = [
+    ['D1', 'd1', { A: '머리 아래 작은 줄', B: '대화 맨 위 제목 줄', C: '머리 제목을 대화 제목으로', D: '화면에 없음' }],
+    ['D2', 'd2', { A: '보이는 제목 누르기+시트 행+⋯', B: '첫 질문 때 제목 칸', C: '⋯ 메뉴만' }],
+    ['D2 빈 제목', 'd2r', { A: '저장 안 됨', B: '첫 질문으로 되돌림' }],
+    ['D3', 'd3', { A: '‹ 이전 · 1/3 · 다음 ›', B: '이전·다음만', C: '번호' }],
+    ['D4', 'd4', { A: '기록 안 늘림', B: '기록 쌓음' }],
+    ['D5', 'd5', { A: '탭 화면으로 보냄', B: '옛 화면 유지' }],
+    ['D6', 'd6', { A: '행 ⋯ 에 삭제', B: '넣지 않음' }]
+  ];
+  function decSum() {
+    var diff = SUMK.filter(function (k) { return S.d[k[1]] !== REC[k[1]]; });
+    var line = SUMK.map(function (k) { return k[0] + ' ' + S.d[k[1]] + ' ' + k[2][S.d[k[1]]]; }).join(' · ');
+    var apv = 'task-067 데모 v1 승인, 결정(D1~D6)은 권고대로' + (diff.length ? ' (바꾼 것: ' + diff.map(function (k) { return k[0] + ' ' + S.d[k[1]] + ' ' + k[2][S.d[k[1]]]; }).join(', ') + ')' : '');
+    return '<h3 id="h-mysum">내 선택 요약</h3>' +
+      '<p class="dsub">지금 고른 값이에요. 글 상자를 한 번 누르면 전체가 선택돼요 — [복사] 하거나 길게 눌러 복사해서 승인 답장에 붙여 주세요.</p>' +
+      '<p class="selbox" id="sum-line" tabindex="0" aria-label="내 선택 요약 글">' + esc(line) + '</p>' +
+      '<div class="row"><button type="button" data-act="copySum" data-arg="sum-line">요약 복사</button><span id="cp-sum-line" aria-live="polite"></span></div>' +
+      '<p class="dsub"><b>승인 문장 예</b> — 그대로 보내도 되고, 고쳐서 보내도 돼요.</p>' +
+      '<p class="selbox apv" id="sum-apv" tabindex="0" aria-label="승인 문장 예">' + esc(apv) + '</p>' +
+      '<div class="row"><button type="button" data-act="copySum" data-arg="sum-apv">승인 문장 복사</button><span id="cp-sum-apv" aria-live="polite"></span></div>' +
+      '<div class="row"><span aria-live="polite">' + (diff.length ? '권고와 다른 것 <b>' + diff.length + '개</b>: ' + diff.map(function (k) { return k[0]; }).join(', ') : '모두 ★ 권고안이에요') + '</span>' + (diff.length ? '<button type="button" data-act="decReset">모두 권고대로 되돌리기</button>' : '') + '</div>';
+  }
+
+  /* ════ 렌더 ════ */
+  function focusKey() {
+    var a = document.activeElement;
+    if (!a || a === document.body || !a.dataset) return null;
+    var sel = a.dataset.act ? '[data-act="' + a.dataset.act + '"]' + (a.dataset.arg ? '[data-arg="' + a.dataset.arg + '"]' : '')
+      : a.dataset.inp ? '[data-inp="' + a.dataset.inp + '"]'
+      : a.dataset.rn ? '[data-rn]'
+      : a.dataset.t1 ? '[data-t1]'
+      : a.dataset.dec ? 'input[data-dec="' + a.dataset.dec + '"][value="' + a.value + '"]' : null;
+    if (!sel) return null;
+    var all = Array.prototype.slice.call(document.querySelectorAll(sel));
+    return { sel: sel, i: Math.max(0, all.indexOf(a)) };
+  }
+  function restoreFocus(fk) {
+    if (!fk) return;
+    var fl = document.querySelectorAll(fk.sel), f = fl[fk.i] || fl[0];
+    if (f) { try { f.focus({ preventScroll: true }); } catch (e1) { f.focus(); } if (f.tagName === 'TEXTAREA' || f.tagName === 'INPUT') { try { var n = f.value.length; f.setSelectionRange(n, n); } catch (e2) { /* 무시 */ } } }
+  }
+  function alignLists() {
+    document.querySelectorAll('.ml').forEach(function (ml) {
+      var max = ml.scrollHeight - ml.clientHeight;
+      var qs = ml.querySelectorAll('[data-q]');
+      if (!qs.length) { ml.scrollTop = 0; return; }
+      var q = qs[qs.length - 1];
+      ml.scrollTop = Math.max(0, Math.min(q.offsetTop - 14, max));
+    });
+  }
+  function stageHtml() {
+    var sub = S.sub[S.tab], ws = S.w === 'all' ? ['360', '390', '412'] : [S.w], w1 = S.w === 'all' ? '390' : S.w;
+    var r1 = R('r1'), r4 = R('r4');
+    if (S.tab === 'A') {
+      if (sub === 'sheet') return phone(w1, scrTab({ w: w1 + 'c', oldHead: true, title: null, msgs: GREET, sheet: 'oldHistory' }), '지금 · 「이전 질문 더 보기」') + phone(w1, screenFor('B', 'p1', w1 + 'p'), '제안 · 5개씩');
+      return phone(w1, scrOld({ w: w1 + 'c', r: r4 }), '지금 · 별도 화면(하단 탭 없음)') + phone(w1, screenFor('C', 'open', w1 + 'p'), '제안 · 같은 탭 화면');
+    }
+    if (S.tab === 'B' && sub === 'cmp') {
+      return ['A', 'B', 'C'].map(function (v) { return phone(w1, scrTab({ w: w1 + v, title: r1.t, msgs: convMsgs(r1), sheet: 'history', h: hs({ page: 1 }), pv: v }), v === 'A' ? 'A ★ ‹ 이전 · 1 / 3 · 다음 ›' : v === 'B' ? 'B 이전 · 다음만' : 'C 번호'); }).join('');
+    }
+    if (S.tab === 'C' && sub === 'pick') return phone(w1, scrTab({ w: w1 + 'a', title: r1.t, msgs: convMsgs(r1), sheet: 'history', h: hs({ press: 'r4' }) }), '① 시트에서 「〜ている…」를 누름') + phone(w1, screenFor('C', 'open', w1 + 'b'), '② 시트가 닫히고 같은 화면에 그 대화');
+    if (S.tab === 'D' && sub === 'tap') return phone(w1, screenFor('D', 'tap', w1 + 'a'), '① 머리의 대화 제목을 누름') + phone(w1, scrTab({ w: w1 + 'b', title: r4.t, msgs: convMsgs(r4), sheet: 'rename', rn: r4.t, q0: r4.t }), '② 제목 바꾸기 시트');
+    if (S.tab === 'F') return ws.map(function (w) { return phone(w, liveScreen(w)); }).join('');
+    return ws.map(function (w) { return phone(w, screenFor(S.tab, sub, w)); }).join('');
+  }
+  function capNotes() {
+    var n = [], t = S.tab, sub = S.sub[t];
+    if (S.d.d1 !== 'A' && /^[BCDEF]$/.test(t)) n.push(S.d.d1 === 'B' ? 'D1 B — 대화 제목은 대화 맨 위 줄에 있다. 열면 마지막 질문으로 맞춰져 대개 화면 밖이다(대화 칸을 위로 올려 보세요).' : S.d.d1 === 'C' ? 'D1 C — 머리 제목이 「질문」 대신 대화 제목이다(빈 대화에서만 「질문」).' : 'D1 D — 화면에는 제목이 없고 ⋯ 메뉴 윗줄에만 보인다.');
+    if (S.d.d2 !== 'A' && t === 'D' && /^(tap|row|rowRen|rowSaved)$/.test(sub)) n.push('지금 고른 D2 = ' + S.d.d2 + ' — 이 자리(머리 · 시트 행에서 바꾸기)는 ★ A 에서만 생긴다. ' + (S.d.d6 === 'A' && sub === 'row' ? '행 ⋯ 에는 삭제만 남는다.' : '⋯ 메뉴에서만 바꾼다.'));
+    if (S.d.d2 === 'A' && S.d.d1 === 'D' && t === 'D' && sub === 'tap') n.push('D1 D — 머리에 제목이 없어 누를 자리가 없다(시트 행 · ⋯ 만).');
+    if (S.d.d6 !== 'A' && t === 'E' && /^(rowConfirm|rowDone|busy|fail)$/.test(sub)) n.push('지금 고른 D6 = B — 시트에서는 지울 수 없다(대화를 열고 ⋯ 에서). 화면은 시트 목록만 보여 준다.');
+    if (S.d.d3 !== 'A' && (t === 'B' || t === 'F' || t === 'E') && sub !== 'cmp') n.push(S.d.d3 === 'B' ? 'D3 B — 쪽 줄이 「n–m번째」와 이전 · 다음만 보인다.' : 'D3 C — 쪽 줄이 번호 단추다.');
+    if (S.d.d2 === 'B' && (t === 'C' || t === 'F') ) n.push('D2 B — 빈 대화의 입력 바 위에 「제목(선택)」 칸이 생긴다.');
+    if (S.d.d2r === 'B' && t === 'D') n.push('빈 제목 B — 비우고 저장하면 첫 질문 제목으로 되돌린다(오류 없음).');
+    return n;
+  }
+  function render() {
+    var fk = S.focus ? { sel: S.focus, i: 0 } : focusKey();
+    if (S.theme === 'sys') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', S.theme);
+    document.querySelectorAll('[data-act="w"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.arg === S.w)); });
+    document.querySelectorAll('[data-act="theme"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.arg === S.theme)); });
+    document.getElementById('tabs').innerHTML = Object.keys(TABDEF).map(function (k) { var T = TABDEF[k]; return '<button type="button" role="tab" id="tab-' + k + '" aria-selected="' + (S.tab === k) + '" data-act="tab" data-arg="' + k + '"><b>' + k + ' · ' + T.t + '</b><span>' + T.s + '</span></button>'; }).join('');
+    var T = TABDEF[S.tab], sub = S.sub[S.tab], cap = CAP[S.tab + ':' + sub] || ['', ''];
+    var notes = capNotes();
+    var subsH = T.subs.map(function (s) { return typeof s === 'string' ? '<span class="subl">' + s + '</span>' : '<button type="button" data-act="sub" data-arg="' + s[0] + '" aria-pressed="' + (sub === s[0]) + '">' + s[1] + '</button>'; }).join('');
+    var extra = '';
+    if (S.tab === 'F' && S.live) {
+      var l = S.live;
+      extra = '<div class="bkline" role="group" aria-label="데모: 휴대폰 뒤로가기 흉내"><button type="button" data-act="bkSim">◁ 휴대폰 뒤로가기 눌러 보기(흉내)</button><button type="button" data-act="liveReset">처음부터 다시</button><span class="bkmsg" aria-live="polite">' + esc(l.backMsg || ('D4 ' + S.d.d4 + (S.d.d4 === 'A' ? ' — 대화를 바꿔도 기록은 한 칸' : ' — 쌓인 기록 ' + l.back.length + '칸'))) + '</span></div>';
+    }
+    document.getElementById('cap').innerHTML = '<h3>' + cap[0] + '</h3><p class="why">' + cap[1] + '</p>' + notes.map(function (x) { return '<p class="capnote">' + x + '</p>'; }).join('') + (T.subs.length > 1 ? '<div class="subs" role="group" aria-label="세부 상태">' + subsH + '</div>' : '') + extra;
+    document.getElementById('stage').innerHTML = stageHtml();
+    document.getElementById('decList').innerHTML = decHtml();
+    document.getElementById('jud').innerHTML = judHtml();
+    document.getElementById('mySum').innerHTML = decSum();
+    alignLists();
+    S.focus = null;
+    restoreFocus(fk);
+  }
+  function toast(msg) {
+    S.toast = msg; render();
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { S.toast = ''; render(); }, 2600);
+  }
+  function setTab(t, sub) {
+    clearTimers();
+    S.tab = t; if (sub) S.sub[t] = sub;
+    S.pst = {};
+    if (t === 'F') liveReset(); else S.live = null;
+    render();
+  }
+
+  /* ── 이벤트 ── */
+  var DEMO_ONLY = '데모: 이 상태 화면은 그림이에요 — 직접 눌러 보기는 F 「직접 해 보기」에서';
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    var act = el.dataset.act, arg = el.dataset.arg;
+    if (el.tagName === 'A') e.preventDefault();
+    var live = S.tab === 'F' && S.live && el.closest('.phone');
+    var l = S.live;
+    if (el.getAttribute('aria-disabled') === 'true') { if (el.dataset.locked) toast(el.dataset.locked); return; }
+    switch (act) {
+      case 'w': S.w = arg; render(); return;
+      case 'theme': S.theme = arg; render(); return;
+      case 'tab': setTab(arg); return;
+      case 'sub': setTab(S.tab, arg); return;
+      case 'decReset': S.d = JSON.parse(JSON.stringify(REC)); if (S.tab === 'F') liveReset(); render(); return;
+      case 'liveReset': liveReset(); render(); return;
+      case 'bkSim':
+        if (!l) return;
+        if (S.d.d4 === 'B' && l.back.length) { l.conv = l.back.pop(); l.sheet = null; l.backMsg = '직전 대화로 돌아왔어요 · 남은 기록 ' + l.back.length + '칸'; }
+        else l.backMsg = '질문 탭을 떠나 질문 탭에 오기 전 화면(예: 공부 탭)으로 가요 — 데모는 화면을 그대로 둬요';
+        render(); return;
+      case 'copySum': {
+        var box = document.getElementById(arg); if (!box) return;
+        var txt = box.textContent;
+        var pickText = function () { try { var rg = document.createRange(); rg.selectNodeContents(box); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); } catch (e2) { /* 무시 */ } };
+        var say = function (m) { var st = document.getElementById('cp-' + arg); if (st) st.textContent = m; };
+        var fall = function () { pickText(); say('글을 골라 두었어요 — 길게 눌러(또는 Ctrl+C) 복사해 주세요'); };
+        try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function () { say('복사했어요 — 승인 답장에 붙여 주세요'); }, fall); else fall(); } catch (e3) { fall(); }
+        return;
+      }
+      case 'tg': S[arg] = !S[arg]; S.focus = '[data-act="tg"][data-arg="' + arg + '"]'; toast(TOAST_TG[arg][S[arg] ? 1 : 0]); return;
+      case 'pacc': S.pst[arg] = 'ACCEPTED'; toast('채택했어요 — 이때만 저장돼요'); return;
+      case 'prej': S.pst[arg] = 'REJECTED'; toast('건너뛰었어요 · 기록에 남지 않아요'); return;
+      case 'go': toast('이동 → ' + arg); return;
+      case 'noop': toast('데모: 이 단추는 이번 범위가 아니라 동작을 그리지 않아요(task-066 그대로)'); return;
+      case 'noopMic': toast('데모: 말로 묻기는 task-066 그대로예요'); return;
+    }
+    if (!live) { toast(DEMO_ONLY); return; }
+    /* ── F 직접 해 보기 ── */
+    switch (act) {
+      case 'history': l.sheet = 'history'; S.focus = '.sheet [data-act="sheetClose"]'; break;
+      case 'menu': l.sheet = 'menu'; break;
+      case 'sheetClose': if (l.saving) return; l.sheet = null; break;
+      case 'pg': case 'pgTo': {
+        var np = act === 'pgTo' ? +arg : l.page + (arg === 'prev' ? -1 : 1);
+        if (np < 0 || np >= pagesOf(l) || np === l.page) return;
+        l.page = np; l.paging = true; S.focus = act === 'pgTo' ? '[data-act="pgTo"][data-arg="' + np + '"]' : '[data-act="pg"][data-arg="' + arg + '"]';
+        render();
+        later(380, function () { var m = L(); if (!m) return; m.paging = false; S.focus = act === 'pgTo' ? '[data-act="pgTo"][data-arg="' + np + '"]' : '[data-act="pg"][data-arg="' + arg + '"]'; render(); });
+        return;
+      }
+      case 'openRoom':
+        if (arg !== l.conv) { if (S.d.d4 === 'B') l.back.push(l.conv); l.conv = arg; l.draft = ''; var or = R(arg, l.rooms); if (or) or.nw = false; l.backMsg = ''; }
+        l.sheet = null; S.focus = '[data-act="history"]'; break;
+      case 'rowMenu':
+        l.target = arg;
+        if (S.d.d2 === 'A' && S.d.d6 === 'A') { l.sheet = 'rowMenu'; S.focus = '.phone .sheet .mrow'; }
+        else if (S.d.d2 === 'A') openRename('row');
+        else { l.sheet = 'confirmRow'; S.focus = '.phone .sheet [data-act="toList"]'; }
+        break;
+      case 'rowRename': openRename('row'); break;
+      case 'titleTap': l.target = l.conv; openRename('head'); break;
+      case 'm-rename': l.target = l.conv; openRename('menu'); break;
+      case 'toList': l.sheet = 'history'; S.focus = '.phone [data-act="rowMenu"][data-arg="' + l.target + '"]'; break;
+      case 'rowDel': l.sheet = 'confirmRow'; S.focus = '.phone .sheet [data-act="toList"]'; break;
+      case 'rnCancel': if (l.saving) return; l.sheet = l.rnFrom === 'row' ? 'history' : null; S.focus = l.rnFrom === 'row' ? '.phone [data-act="rowMenu"][data-arg="' + l.target + '"]' : l.rnFrom === 'head' ? '.phone [data-act="titleTap"]' : '.phone [data-act="menu"]'; break;
+      case 'rnSave': {
+        if (l.saving) return;
+        var tr = R(l.target, l.rooms); if (!tr) { l.sheet = null; break; }
+        var v = l.rn.trim(), n = cps(v);
+        if (!n) { if (S.d.d2r === 'A') { l.rnErr = 'empty'; S.focus = '[data-rn]'; break; } v = title30(tr.q0 || tr.t); n = cps(v); }
+        if (n > 100) { l.rnErr = 'over'; S.focus = '[data-rn]'; break; }
+        l.rnErr = null; l.saving = true; render();
+        later(600, function () { var m = L(); if (!m) return; var t2 = R(m.target, m.rooms); if (t2) t2.t = v; m.saving = false; m.sheet = m.rnFrom === 'row' ? 'history' : null; S.focus = m.rnFrom === 'row' ? '.phone [data-act="rowMenu"][data-arg="' + m.target + '"]' : m.rnFrom === 'head' ? '.phone [data-act="titleTap"]' : '.phone [data-act="menu"]'; toast('제목을 바꿨어요'); });
+        return;
+      }
+      case 'delRowOk': {
+        var wasCur = l.target === l.conv; removeRoom(l.target);
+        if (wasCur) { l.conv = null; l.sheet = null; l.newMsgs = GREET.slice(); S.focus = '.phone [data-act="history"]'; } else { l.sheet = 'history'; S.focus = '.phone .sheet .shd .ib'; }
+        toast('대화를 삭제했어요'); return;
+      }
+      case 'm-del': l.target = l.conv; l.sheet = 'confirmCur'; S.focus = '.phone .sheet .btn.gho'; break;
+      case 'delCurOk': removeRoom(l.conv); l.conv = null; l.sheet = null; l.page = 0; l.newMsgs = GREET.slice(); toast('대화를 삭제했어요'); return;
+      case 'newq': if (S.d.d4 === 'B' && l.conv) l.back.push(l.conv); l.conv = null; l.sheet = null; l.newMsgs = GREET.slice(); l.backMsg = ''; break;
+      case 'exq': liveSend(EXQ[+arg].q, EXQ[+arg].k); return;
+      default: toast('데모: 이 단추는 이번 범위가 아니라 동작을 그리지 않아요'); return;
+    }
+    render();
+  });
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest('form'); if (!f) return;
+    e.preventDefault();
+    var btn = f.querySelector('[type="submit"]');
+    if (btn && btn.getAttribute('aria-disabled') === 'true') { toast(btn.dataset.locked || '질문을 적어 주세요'); return; }
+    if (f.dataset.form === 'live' && S.live) { liveSend(S.live.draft); return; }
+    toast(DEMO_ONLY);
+  });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (e.key === 'Enter' && t.dataset && t.dataset.rn && S.live && S.tab === 'F') { e.preventDefault(); var b = document.querySelector('.phone [data-act="rnSave"]'); if (b) b.click(); }
+  });
+  document.addEventListener('input', function (e) {
+    var t = e.target; if (!t.dataset) return;
+    if (t.dataset.rn) {
+      if (S.live && S.tab === 'F') { S.live.rn = t.value; if (S.live.rnErr && S.live.rnErr !== 'fail') { S.live.rnErr = null; } }
+      var c = t.parentNode.querySelector('[data-cnt]'); var n = cps(t.value);
+      if (c) { c.textContent = n + ' / 100'; c.className = 'cnt' + (n > 100 ? ' over' : ''); }
+      return;
+    }
+    if (t.dataset.t1) { if (S.live && S.tab === 'F') S.live.t1 = t.value; return; }
+    if (!t.dataset.inp || t.tagName !== 'TEXTAREA') return;
+    if (t.dataset.inp === 'live' && S.live) S.live.draft = t.value;
+    var form = t.closest('form'); if (!form) return;
+    var sb = form.querySelector('[type="submit"]');
+    if (sb && !sb.dataset.locked) { if (!t.value.trim()) sb.setAttribute('aria-disabled', 'true'); else sb.removeAttribute('aria-disabled'); }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.dataset && t.dataset.dec) { S.d[t.dataset.dec] = t.value; if (S.tab === 'F') liveReset(); render(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

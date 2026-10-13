@@ -91,8 +91,8 @@
 | 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 분석·성장은 Phase 3 |
 | 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** · 앱바 아래 분절 `[단어 \| 채택한 교정]` **task-055(§21)** |
 | 단어장 | `/drawer/corrections` (돌아오기 복원 `?errorType=&chunkType=&q=&focus=&n=`) | 채택 교정 모음(분절·유형/조각 칩·검색·요약 카드·더 보기·원래 대화 이동·단어 시트) | 로그인(자기 교정만) | 보임 | **task-055(§21)** — 데모 v1 승인 2026-10-11 |
-| 질문 | `/ask` (`?chat=<id>` 지금 대화 복원) | 무엇이든 물어보세요 — 챗봇창: 열 때마다 빈 대화(안내 말풍선·칩 = 바로 보냄) · 글자 바 ↔ 말 바(🎤 일본어 — 회화와 같은 누르고 말하기 + 밀어서 취소) · 보내는 범위 한 줄(확인 창 없음) · 머리 「지난 질문」 알약(답 만드는 중·새 답) → 시트 | 로그인(자기 대화만) | 보임 | **task-066(§26)** — 데모 v2 승인 2026-10-13(D1=B). task-064(§25) 목록 화면 대체 |
-| 질문 | `/ask/[chatId]` | 지난 대화(「지난 질문」 시트에서 연 화면) — ‹ 「질문으로」·⋯ 메뉴 · 답·근거·되묻기·제안·대기(§25 그대로) · 같은 입력 묶음(글자·말·범위 줄) | 소유자(타인 404) | **숨김** | **task-066(§26)** · task-064(§25) |
+| 질문 | `/ask` (`?chat=<id>` 지금 대화 복원) | 무엇이든 물어보세요 — 챗봇창: 열 때마다 빈 대화(안내 말풍선·칩 = 바로 보냄) · 글자 바 ↔ 말 바(🎤 일본어 — 회화와 같은 누르고 말하기 + 밀어서 취소) · 보내는 범위 한 줄(확인 창 없음) · 머리 「지난 질문」 알약(답 만드는 중·새 답) → 시트 | 로그인(자기 대화만) | 보임 | **task-066(§26)** — 데모 v2 승인 2026-10-13(D1=B). task-064(§25) 목록 화면 대체 · **task-067(§27)**: 머리 「질문」 아래 지금 대화 제목(눌러서 제목 바꾸기) · 지난 질문 시트 5개씩 쪽(`‹ 이전 · 1 / 3 · 다음 ›`) · 행 ⋯(제목 바꾸기·삭제) · 지난 대화도 이 화면에서 열림(기록 안 늘림) — 데모 v1 승인 2026-10-13 |
+| 질문 | `/ask/[chatId]` | **화면 없음** — 서버 리다이렉트 `/ask?chat=<id>`(옛 북마크·링크용, task-067 §27-7). task-066 의 지난 대화 화면(‹ 머리·하단 탭 숨김)은 삭제 | (받는 쪽 `/ask` 가 로그인·소유 확인) | — | **task-067(§27-7)** · task-066(§26) · task-064(§25) |
 | 상단 아바타 | `/settings` | 설정 허브 · 맨 아래 "관리자 › AI Engine Console" 행 | 로그인(관리자 행은 `engine.read` 보유자만 — 서버 컴포넌트) | 보임 | task-005 ✅ · 관리자 행 **task-005b(§6-2 K)** · 목소리 카드 머리 **상태 표시등·미리듣기 재생 task-003d(§7)** · 음성 인식 절 **마이크 테스트 task-003e(§8)** · 음성 인식 절 **휴대폰에서 알아듣기 카드(앱만)·인식 방식 문구·경로 한 줄** + 맨 아래 **앱 버전 줄(앱만)** · 관리자 행 아래 **휴대폰 인식 진단(앱 && `engine.read`)** **task-003f(§11-2 A·B·C·G·I)** |
 | 로그인 | `/login`(`?oauth_error=`) · (Custom Tab 안) `/invite` | 로그인(Google) · 앱: Chrome 창 대기 카드·마무리 덮개·창 닫힘 안내 · 초대 뒤 "앱으로 돌아가기" · 강제 업데이트 띠 | 비로그인 | 없음(`(auth)` 레이아웃) | task-002 · 앱 분기·해요체 문구 **task-003f(§11-2 E·G)** |
 | 앱 셸 | 모든 `(app)` 화면 맨 위(상태바 아래 그리드 첫 행) | 앱 업데이트 띠(권장 — 집중 화면 제외·닫으면 그날 숨김 / 강제 — 늘) · 설치 방법 시트 | **앱에서만**(웹 DOM 0·#8 요청 0) | — | **task-003f(§11-2 G)** |
@@ -11518,26 +11518,28 @@ type AskBlock =
 | `/ask?chat=<id>` | 이 탭 화면에서 시작(또는 복원)한 **지금 대화** | `AskChatTab` → `AskRoom variant="tab"` | 보임(경로가 `/ask` — `isFocusRoute` false) |
 | `/ask/<id>` | 「지난 질문」 시트에서 연 **지난 대화** | `AskRoom variant="room"`(‹ · 제목 · ⋯) | **숨김**(데모 G·old · J1 — `routes.ts '/ask/'` 그대로) |
 
-- `(tab)/page.tsx`(서버): `[chatId]/page.tsx` 와 같은 모양 — `auth()`(없으면 `/login?callbackUrl=/ask`) + `getProfile().teacherName`(비우면 「선생님」) + `searchParams.chat` 을 읽어 `<AskChatTab teacherName initialChatId={isAskId(chat) ? chat : null} />`. `isAskId` = `^[A-Za-z0-9_-]{1,64}$`(25-8 A 와 같은 형식).
+※ task-067 로 §27-1·27-7 이 대체 — 지난 대화도 `/ask?chat=<id>` 탭 화면에서 열고(하단 탭 보임), `/ask/<id>` 는 `/ask?chat=<id>` 로 서버 리다이렉트, `room` 변형·`'/ask/'` 집중 화면 규칙은 삭제.
+
+- `(tab)/page.tsx`(서버): `[chatId]/page.tsx` 와 같은 모양 — `auth()`(없으면 `/login?callbackUrl=/ask`) + `getProfile().teacherName`(비우면 「선생님」) + `searchParams.chat` 을 읽어 `<AskChatTab teacherName initialChatId={isAskId(chat) ? chat : null} />`. `isAskId` = `^[A-Za-z0-9_-]{1,64}$`(25-8 A 와 같은 형식). ※ task-067 §27-1 D 로 서버 prop `initialChatId` 는 폐지 — 처음 대화는 주소(`useSearchParams`)만 본다.
 - `AskChatTab` 은 **`key` 를 주지 않는다** — 대화 바뀜은 아래 C·D 규칙으로 자기가 처리한다(같은 인스턴스가 남든 다시 마운트되든 같은 결과가 나와야 한다).
 
 **B. 대화 수명 표**
 
 | 사건 | 결과 | 구현 |
 |---|---|---|
-| 하단 탭 「질문」을 다른 탭에서 누름 · 앱 재시작 후 처음 누름 | 새 빈 대화 | 링크 `/ask`(쿼리 없음) → `initialChatId=null` |
+| 하단 탭 「질문」을 다른 탭에서 누름 · 앱 재시작 후 처음 누름 | 새 빈 대화 | 링크 `/ask`(쿼리 없음) → 주소에 `chat` 없음 = 빈 대화(※ 옛 `initialChatId=null` — §27-1 D 로 폐지) |
 | 지금 대화(`/ask?chat=x`)에서 하단 탭 「질문」을 다시 누름 | 새 빈 대화(x 는 「지난 질문」에) | 주소 쿼리 `chat` 이 x → 없음으로 바뀜 → D 의 전이 규칙 |
 | 빈 대화(`/ask`)에서 하단 탭 다시 누름 | 그대로(이미 빈 대화) | — |
 | 첫 질문 보내기(글자·말·안내 칩) | 방 생성 + 같은 화면에서 전송, 주소 `/ask?chat=<id>` 로 **바꿔 적기**(기록 늘리지 않음) | C |
-| ⋯ → 「새 질문 시작」(지금 대화가 있을 때만 보임) | 새 빈 대화. 휴대폰 뒤로가기 = 직전 대화 | `router.push('/ask')` |
+| ⋯ → 「새 질문 시작」(지금 대화가 있을 때만 보임) | 새 빈 대화. 휴대폰 뒤로가기 = 직전 대화 | `router.push('/ask')` ※ task-067 로 §27-6 이 대체 — `startNew()` + `replaceAskUrl('/ask')`, 기록 안 늘림(뒤로가기 = 질문 탭 전 화면) |
 | 같은 대화에서 이어 묻기 | 같은 방(#32) | — |
 | 답을 기다리다 다른 탭으로 감 → 하단 탭 「질문」 | 새 빈 대화 + 알약 「답 만드는 중」 → 끝나면 「새 답 도착」 + 토스트 1번(26-4) | `AskRoom` 언마운트 때 `waiting` 에 id(§25 그대로) |
-| 휴대폰 뒤로가기로 `/ask?chat=x` 에 돌아옴(근거 화면 등에서) | **그 대화 복원**(진행 중이면 대기 카드 이어받기) | `initialChatId=x` → `AskRoom variant="tab"` 이 #29 |
+| 휴대폰 뒤로가기로 `/ask?chat=x` 에 돌아옴(근거 화면 등에서) | **그 대화 복원**(진행 중이면 대기 카드 이어받기) | 주소 `chat=x` → `AskRoom` 이 #29 (※ 옛 `initialChatId=x`·`variant="tab"` — §27-1 D·27-7 C 로 폐지) |
 | 근거 카드 → 수업·평가·역할극 → ← 「질문으로」 | 그 대화 복원 | E |
 | 앱 백그라운드 → 복귀 | 화면 그대로(다시 마운트 없음). 기다리던 답은 `useChatTurn` 기존 이어받기 | — |
 | 웹 새로고침 `/ask?chat=x` | 그 대화 복원(주소가 그 대화를 가리키므로) [가능성 높음 — 「열 때마다 빈 대화」는 탭으로 여는 경우] | — |
 | 대화 삭제(⋯ → 이 대화 삭제, 탭 화면·지난 대화 모두) | 새 빈 대화 + 토스트 「대화를 삭제했어요」 | `ChatMenuSheet` 기존 `flash='deleted'` + `router.replace('/ask')` — `AskChatTab` 이 마운트·전이 때 `flash` 를 읽어 토스트 후 지움 |
-| `/ask/<id>` 의 ‹ 「질문으로」 | `/ask` = 새 빈 대화(데모 B 의 `toHome` = 빈 대화) | `BackBar backHref="/ask"`. 휴대폰 뒤로가기는 기록대로(직전이 `/ask?chat=x` 면 x 복원) — 두 길이 다를 수 있음은 수용 |
+| `/ask/<id>` 의 ‹ 「질문으로」 | `/ask` = 새 빈 대화(데모 B 의 `toHome` = 빈 대화) | `BackBar backHref="/ask"`. 휴대폰 뒤로가기는 기록대로(직전이 `/ask?chat=x` 면 x 복원) — 두 길이 다를 수 있음은 수용 ※ task-067 로 §27-7 이 대체 — 이 화면 없음(리다이렉트) |
 | `?chat=` 의 방이 없음(404)·남의 방·ASK 아님 | 새 빈 대화 + 주소 `/ask` 로 바꿔 적기 + 토스트 「대화를 찾을 수 없어요」 ★ | `AskRoom` 이 `onGone()` |
 | `?chat=` 불러오기 오류(그 밖) | 데모 B·error — 목록 칸 오류 상자 「대화를 불러오지 못했어요」/「연결을 확인하고 다시 시도해 주세요. 새 질문은 그대로 보낼 수 있어요.」/[다시 시도]. **입력은 막지 않는다** — 보내면 새 대화가 생긴다 | `AskRoom` 이 `onLoadFailed()` → `AskChatTab` 이 `AskNewConversation intro={오류 상자}`(주소 그대로, [다시 시도] = 그 id 다시 열기) |
 
@@ -11582,6 +11584,7 @@ type AskBlock =
 - 색만으로 알리지 않는다(글자가 상태를 말함).
 
 **C. `AskHistorySheet`**(데모 G·history — 공용 `Sheet`, 제목 「지난 질문」, 시트 안만 스크롤)
+※ task-067 로 §27-4·27-5 가 대체 — 한 쪽 5개 + `‹ 이전 · 1 / 3 · 다음 ›`(「더 보기」 삭제), 행 = 버튼(같은 탭 화면에서 열기) + 행 ⋯(제목 바꾸기·**시트에서 삭제**). A 의 `more()`·`cursor` 는 삭제, 알약용 최근 20개 읽기는 그대로(§27-4 E).
 - 열 때 `refresh()`. 행 = `AskListItem` 그대로(제목·시각·둘째 줄·「답 만드는 중」/「새 답」 뱃지 — §25-4 D) + **지금 대화**(`id === currentChatId`)에 뱃지 「지금 대화」(`bg-surface2 text-ink2` 11.5px semibold — 기존 `Badge`) — 그 행은 링크가 아니라 버튼(`onCurrent` = 시트 닫기). 그 밖 행 = `/ask/<id>` 링크(지난 대화 화면).
 - 정렬 = 서버 `lastMessageAt desc`(진행 중인 대화가 대개 맨 위). [이전 질문 더 보기](`cursor` 있을 때, `Btn ghost w-full`, 「불러오는 중…」).
 - 로딩: `ChatRowsSkeleton`(시트 안, `role=status` 「불러오고 있어요」 한 줄). 오류: §25-4 F 오류 상자 문구 그대로(「지난 질문을 불러오지 못했어요」/…/[다시 시도]). **빈 상태 ★**: 「아직 지난 질문이 없어요.」(14px `ink2`, 데모 C 안 홈의 첫 줄과 같은 결).
@@ -11591,7 +11594,7 @@ type AskBlock =
 
 **A. `AskChatTab`**(`'use client'`, `/ask` 본체)
 ```
-props { teacherName, initialChatId: string | null }
+props { teacherName, initialChatId: string | null }   // ※ task-067 §27-1 D: initialChatId 폐지 — 처음 대화 id 는 주소(useSearchParams)만
 const [conv, setConv] = useState(() => initialChatId ? { id: initialChatId, seed: null, greeting: false, n: 0 } : { id: null, n: 0 })
 const [failed, setFailed] = useState<string | null>(null)        ← ?chat= 불러오기 오류(26-3 B 마지막 줄)
 const act = useAskActivity(conv.id)                                ← 26-4 A
@@ -11641,7 +11644,7 @@ MenuButton = <button type="button" aria-label="질문 메뉴" className="grid h-
 - `lastUserVoiceId` = 목록의 **마지막 USER 메시지**가 `inputSource==='REALTIME_STT'` 이면 그 id, 아니면 `null`(데모 「가장 최근 질문이 말로 물은 것일 때 그 말풍선에만」).
 - 불러오는 중(`load==='loading'`): `room` = 지금처럼 `BackBar` + `LoadingBlock`. **`tab`(`?chat=` 복원) = 데모 B·loading**: 머리·입력 묶음·범위 줄·하단 탭은 실제 요소, 목록 칸만 회색 말풍선 4개(데모 `skel`: 오른쪽 62%×44 · 왼쪽 100%×150 · 오른쪽 54%×44 · 왼쪽 100%×110, `bg-surface2 rounded`) + `sr-only role=status` 「대화를 불러오고 있어요」 ★. 입력창은 쓸 수 있고 보내기·누르고 말하기만 잠근다(잠금 문구 「대화를 불러오고 있어요」 ★).
 - `tab` 의 404·남의 방·ASK 아님 → `onGone()`, 그 밖 오류 → `onLoadFailed()`(26-3 B). `room` 은 §25-5 G 그대로(문구만 26-10 A).
-- `room` 의 ⋯ 「새 질문 시작」 = `router.push('/ask')`. `tab` 은 `onNewConversation()`(같은 것 — 휴대폰 뒤로가기로 지금 대화에 돌아올 수 있게 `push`).
+- `room` 의 ⋯ 「새 질문 시작」 = `router.push('/ask')`. `tab` 은 `onNewConversation()`(같은 것 — 휴대폰 뒤로가기로 지금 대화에 돌아올 수 있게 `push`). ※ task-067 로 §27-6·27-7 C 가 대체 — `room` 변형 삭제, `onNewConversation` 은 필수이고 `AskChatTab` 이 기록을 늘리지 않게(`replaceAskUrl`).
 
 **C. `AskNewConversation`**(빈 대화 — 방이 아직 없다. `useChatTurn`·`MessageList` 를 쓰지 않는다: `MessageList` 는 `turn` 이 필수)
 ```
@@ -12046,7 +12049,7 @@ sr-only role=status 도착 알림
 3. **엔진·모델·호스트·용도 이름 0**(화면·aria·토스트). 「알아듣는 곳」은 「휴대폰에서/서버에서」만(기존 `SttRouteRow`).
 4. **회화·수업·마이크 테스트 동작을 바꾸지 않는다** — 공용 부품은 선택 prop + 기본값 = 지금(26-7 H). `TalkRoom.tsx`·`talkState.ts`·`talkCopy.ts`·`useRealtimeStt.ts`·`sttUiState.ts`·`sttCopy.ts`·`modules/speech/**` 를 고치지 않는다.
 5. **질문은 줄 세우지 않는다**(J7) — 답을 기다리는 중 누르고 말하기는 잠기고, 경합으로 온 말은 띠로.
-6. **`router.replace`·`router.push` 로 `?chat=` 을 적지 않는다**(전송 중 상태가 사라진다) — 생성 직후는 `history.replaceState` 만. 「새 질문 시작」만 `router.push('/ask')`.
+6. **`router.replace`·`router.push` 로 `?chat=` 을 적지 않는다**(전송 중 상태가 사라진다) — 생성 직후는 `history.replaceState` 만. 「새 질문 시작」만 `router.push('/ask')`. ※ task-067 로 §27-6 이 대체 — 「새 질문 시작」·지난 질문 열기도 `replaceAskUrl` 만(`ask/**` 의 `router.push/replace` 0건).
 7. **`/ask` 를 열 때 방을 만들지 않는다**(빈 방이 쌓인다) — 첫 보내기 때만 #28.
 8. 취소·나가기 버튼·턴 취소 요청을 만들지 않는다(§25 D6 그대로). 밀어서 취소는 **녹음 취소**이지 질문 취소가 아니다.
 9. 답 렌더·근거·제안·스크롤 규칙은 §25 그대로 — 이 task 에서 손대지 않는다.
@@ -12090,7 +12093,7 @@ sr-only role=status 도착 알림
 **Leader 확인 필요**(이 가이드는 각 줄의 「권고」대로 쓰였다)
 - **L-1 대기 안내 끝말 ★**: 데모 C·s2 의 「…돌아오면 **이 자리에서** 볼 수 있어요.」는 D1=**A** 문구다. B 에서는 하단 탭으로 돌아오면 빈 대화가 열리므로 거짓이 된다 [확실 — 26-3 B]. **권고**: 「…돌아오면 「지난 질문」에서 볼 수 있어요.」(머리 알약과 같은 낱말). 사용자 승인 문구가 바뀌므로 사용자에게 다시 물을지 Leader 가 정한다.
 - **L-2 티켓 용도 `MIC_TEST` 재사용**: 서버·gateway·APK 변경 0 으로 「목소리 미저장」이 된다 — 수업 ④ 「말로 쓰기」가 같은 용도로 이미 쓴다 [확실]. 이름이 「마이크 점검」이라 운영 지표에서 질문 인식이 점검으로 섞여 보일 수 있다 [가능성 높음]. **권고**: 이번엔 재사용, 지표 분리가 필요해지면 새 값 `ASK`(gateway `PURPOSES`·`ticket.ts`·`client/types.ts`·`OnDeviceSttClient` 저장 조건 4곳 + gateway 배포) 를 후속으로.
-- **L-3 `/ask?chat=` 복원 범위**: 「열 때마다 빈 대화」를 **하단 탭으로 여는 것**으로 해석했다 — 뒤로가기·근거에서 「질문으로」·웹 새로고침은 그 대화를 복원한다(주소가 그 대화를 가리킨다). 새로고침도 빈 대화를 원하면 `initialChatId` 를 버리면 되지만 그러면 근거에서 돌아올 때도 대화를 잃는다 — 권고는 지금 해석.
+- **L-3 `/ask?chat=` 복원 범위**: 「열 때마다 빈 대화」를 **하단 탭으로 여는 것**으로 해석했다 — 뒤로가기·근거에서 「질문으로」·웹 새로고침은 그 대화를 복원한다(주소가 그 대화를 가리킨다). 새로고침도 빈 대화를 원하면 `initialChatId` 를 버리면 되지만 그러면 근거에서 돌아올 때도 대화를 잃는다 — 권고는 지금 해석. ※ task-067: 서버 prop `initialChatId` 는 폐지, 주소(`?chat=`)가 정본(§27-1 D).
 - **L-4 `/ask/<id>` 의 ‹ 와 휴대폰 뒤로가기가 다를 수 있다**: ‹ = `/ask`(빈 대화 — 데모 B 의 `toHome`), 뒤로가기 = 직전 기록(그 전에 보던 지금 대화). 수용 권고(둘 다 「질문 탭으로 돌아감」이고 지금 대화는 「지난 질문」에 있다).
 - **L-5 범위 시트 머리글이 바뀐다**(동의 문구): 승인 v2 원문(「질문을 보내면…」·「이 대화의 최근 메시지」·목소리 줄·「말로 물어볼 때」 띠)을 그대로 쓴다 — §25(task-064) 머리글 「내 공부 기록을 근거로 답할 때…」보다 실제 전송 범위(학습자 정보·최근 12개는 늘 간다)와 더 맞다 [가능성 높음]. 서버 전송 범위 자체는 그대로(계약 §2-18-A 5항).
 - **L-6 진행 중·새 답 표시를 유지**: 데모 J4(「표시를 없앤다」)는 A 안 전제 — 이력서 지시대로 B 에서는 알약·시트에 둔다(26-4).
@@ -12121,3 +12124,551 @@ sr-only role=status 도착 알림
 - **Q-8 티켓 한도**: `speech-ticket:<user>` 20/분은 회화와 공유 — 질문은 분당 3 이라 충분할 것 [가능성 높음], 짧은 누름·취소 연타로 20 을 넘기는지만 확인.
 - **Q-9 StrictMode·빠른 재마운트**: 개발 모드 이중 마운트에서 `seed.used` → #29 경로가 진행 중 턴을 이어받아(attach) 대기 카드를 보이는지(전송 2번 0).
 - **Q-10 생성 전환 점프**: `AskNewConversation` 목록 상자 → `AskRoom` `MessageList` 로 바뀔 때 안내 말풍선·임시 말풍선 위치 차이 ≤ 2px(26-11 F8) — 패딩·간격 클래스가 다르면 `AskNewConversation` 쪽을 맞춘다.
+
+## 27. 질문 탭 — 지난 질문도 같은 탭 화면에서 · 질문 제목 · 지난 질문 5개씩 (task-067, 2026-10-13)
+
+승인 데모: `docs/demo/task-067-ask-history-v1.html` (v1)
+
+> 파일 sha256 `dd37194ddefccd7c6d6f51a3eb21afea457ecd6da9ec702c0c3317fe240cf4c8`(2026-10-13 직접 계산 — 이력서 frontmatter 와 같음), 토큰 `src/app/globals.css@sha256:a314f18f1807`(§26 과 같음). 사용자 승인 2026-10-13 16:19, 원문 「task-067 데모 v1 승인, 결정(D1~D6)은 권고대로」 — **D1~D6 전부 ★ 권고안**(D1 A · D2 A + 빈 제목 A · D3 A · D4 A · D5 A · D6 A).
+> **우선순위: task 이력서 「승인된 결정」 > `api-contract.md` #27(`total`)·§2-18-A 10항 > 이 절 > 데모 v1 > §26 > §25.** 데모 상태는 「데모 {탭}·{세부}」(예: 데모 B·p3), 데모의 판단 목록은 J1~J10 으로 인용한다. 데모의 D1 B·C·D, D2 B·C, 빈 제목 B, D3 B·C, D4 B, D5 B, D6 B 화면은 **구현하지 않는다**(승인 안 아님).
+> **범위(delta)**: §26 의 탭 화면에서 ① 「지난 질문」으로 고른 대화를 **같은 탭 화면**에서 연다(‹ 머리·하단 탭 숨김 화면 `/ask/<id>` 폐지) ② 머리 「질문」 아래 **지금 대화 제목 한 줄**, 누르면 제목 바꾸기 ③ 지난 질문 시트를 **한 쪽 5개** + `‹ 이전 · 1 / 3 · 다음 ›` ④ 시트 행 ⋯ 에서 제목 바꾸기·삭제 ⑤ 지난 질문 열기·「새 질문 시작」이 **휴대폰 뒤로가기 기록을 늘리지 않는다**. 답 묶음·입력 바·마이크·범위 줄·알약 3상태·도착 판정·근거 이동·스크롤 규칙(§25-5 J)·대기·실패·429 안내는 **§26 그대로** — 이 절은 다시 정의하지 않는다.
+> 적용 토큰(이름만, **새 색 없음**): `--color-ground` · `--color-surface` · `--color-surface2`(회색 자리·누름 바탕·「지금 대화」 뱃지) · `--color-ink` · `--color-ink2`(머리 둘째 줄·보조 글·쪽 개수) · `--color-ink3` · `--color-line`(행·쪽 단추 테두리) · `--color-accent`(머리 단추 누름 테두리) · `--color-accent-soft`(「새 답」) · `--color-bad` · `--color-bad-soft`(오류 상자·삭제 줄). 서버 변경은 #27 `total` additive 와 `/ask/<id>` 리다이렉트뿐 — **스키마·네이티브 변경 없음(APK 불필요)**. `project-ui-system` 미적용(학습 앱 화면).
+
+### 27-0. 레이아웃 설계 · 결정 요약 · 바뀌는 파일
+
+**A. 레이아웃 설계**(page-layout-designer 7항목 — delta, 바뀌는 곳만)
+
+| 항목 | 내용 |
+|---|---|
+| 목표 | 지난 대화를 골라도 **탭 화면 그대로**(머리 · 하단 탭 · 입력 바) 대화 내용만 바뀌고, 지금 어느 대화인지 머리에서 보이며 그 자리를 눌러 제목을 바꾼다. 지난 질문이 많아도 5개씩 쪽으로 찾는다 |
+| 주요 위계 | ① 대화 ② 입력 바 ③ 머리(「질문」 + 둘째 줄 지금 대화 제목 · 「지난 질문」 알약 · ⋯ · 나) ④ 지난 질문 시트(5행 + 쪽 줄) |
+| 영역(390×780) | 탭 화면 높이 예산 **불변**(§26-11 A — 머리 52 는 그대로, 제목 블록만 두 줄). 시트 = 머리 52 + 위 여백 12 + 목록 ≈372(행 ≈68 × 5 + 간격 8 × 4) + 10 + 쪽 줄 46 + 아래 `max(16px, safe)` ≈ **508**(데모 512) — 키보드 없이 한 화면, 780 의 85% = 663 안 |
+| 컴포넌트 | 재사용 = `AppBar`(선택 prop `heading`) · `AskHistoryButton` · `AskListItem`(링크 → 버튼 + 형제 ⋯) · `Sheet` · `ChatMenuSheet`(선택 prop `startMode`) · `Toast` · `Btn` / 새 것 = `AskHeadTitle` · `AskPager` · `useAskHistoryPages`(+ 순수 `historyPaging.ts`) · `ChatRenameForm`(제목 바꾸기 칸 — 진입 3곳 공용) |
+| 상태 | 시트: 처음 불러오기 · 1쪽 · 중간 · 마지막(빈 자리 유지) · 5개 이하 · 빈 · 쪽 넘기는 중 · 쪽 오류 · 목록 오류 · 진행 중/새 답 · 지금 대화 / 열기: 고르는 순간 · 불러오는 중 · 연 뒤 · 답 만드는 중이던 대화 · 긴 제목 · 빈 대화 · 없어진 대화 / 제목: 머리 누름 · 키보드 · 빈 값 · 100자 초과 · 저장 중 · 실패 · 성공 / 삭제: 지금 대화 · 다른 대화 · 잠금 · 실패 |
+| 행동 | 주 = 시트 행 누르기(그 대화 열기) · [다음 ›]/[‹ 이전] / 보조 = 머리 제목 줄 누르기 · 행 ⋯ · ⋯ 메뉴 「제목 바꾸기」 / 위험 = 삭제(확인 단계 유지) |
+| 반응형 | 360/390/412 같은 한 줄 흐름. 머리 둘째 줄만 말줄임(360 ≈11자 · 390 ≈14자 · 412 ≈17자, 27-2 C). 쪽 줄은 360 에서도 한 줄(단추 92 × 2 + 가운데 ≥ 100). 높이는 폭과 무관 |
+
+**B. 확정 결정**
+
+| # | 확정 | 화면에 미치는 것 | 이 절 |
+|---|---|---|---|
+| D1 | **A** 머리 「질문」 아래 작은 줄에 지금 대화 제목 | 공용 `AppBar` 선택 prop `heading`(다른 탭 불변). 머리 높이 52 그대로 · 빈 대화는 둘째 줄 「새 질문」(J8) | 27-2 |
+| D2 | **A** 머리 제목 줄 누르기 + 시트 행 ⋯ + ⋯ 메뉴 「제목 바꾸기」(유지) · **빈 제목 A** 저장 안 됨 | 세 진입 모두 같은 칸 `ChatRenameForm` · 1~100 코드포인트(#30 불변) · 「제목을 적어 주세요」 | 27-3 |
+| D3 | **A** 한 쪽 5개 · `‹ 이전 · 1 / 3 · 다음 ›` · 「모두 n개」 | #27 응답 `total` additive · 커서 스택 · 마지막 쪽도 5행 높이(J1) · 5개 이하면 쪽 줄 없음 | 27-4 |
+| D4 | **A** 지난 질문 열기·「새 질문 시작」 모두 기록을 늘리지 않음 | `router.push('/ask')` 를 없애고 `replaceAskUrl` 한 곳으로 | 27-1 · 27-6 |
+| D5 | **A** 옛 `/ask/<id>` → 서버 리다이렉트 `/ask?chat=<id>` | `AskRoom` 의 `room` 변형·`BackBar` 머리·하단 탭 숨김 규칙 삭제 | 27-7 |
+| D6 | **A** 시트 행 ⋯ 에 「이 대화 삭제」(확인 단계 그대로) | 시트 안 하위 화면(이 대화 · 제목 바꾸기 · 삭제 확인 — J4 시트 위 시트 없음) | 27-5 |
+| J2 | 시트를 다시 열면 **보던 쪽**(같은 탭 화면 동안), 열 때 그 쪽을 다시 읽음 · 새 대화가 생기면 1쪽부터 | 쪽 상태는 `AskHistorySheet` 안 훅이 들고, `AskChatTab` 이 살아 있는 동안 유지 | 27-4 D |
+| J6 | 제목만 바꿔서는 순서가 바뀌지 않는다 — **[확실]** `updateChatTitle` 은 `title` 만 고치고 `lastMessageAt` 은 그대로(2026-10-13 `modules/conversation/chats/index.ts` 359행 확인) | 시트 행 제목만 제자리에서 바꾼다(다시 읽지 않음) | 27-3 D |
+| J7 | 낱말 「제목」 통일 | 빈 대화 메뉴 안내 「…이름 바꾸기·삭제는 없어요.」 → 「…**제목** 바꾸기·삭제는 없어요.」 | 27-3 F |
+
+**C. 지금 코드와 바뀌는 점**(경로는 2026-10-13 직접 확인 — [확실]. 담당 = 27-9)
+
+| 구분 | 파일 | 할 일 | 담당 |
+|---|---|---|---|
+| 새로 | `ask/AskHeadTitle.tsx` | 머리 제목 블록 3상태(새 질문 · 불러오는 중 · 대화) 27-2 | U2 |
+| 새로 | `chat/ChatRenameForm.tsx` | 제목 바꾸기 칸·검사·저장(#30) — `ChatMenuSheet` 와 지난 질문 시트가 같이 쓴다 27-3 | U2 |
+| 새로 | `ask/AskPager.tsx` | 쪽 줄 27-4 B | U1 |
+| 새로 | `ask/useAskHistoryPages.ts` · `ask/historyPaging.ts`(순수) | 5개 쪽 훅·계산 27-4 C | U1 |
+| 새로(시험) | `ask/__tests__/askHistoryPaging.test.ts` · `ask/__tests__/askHead.test.ts` · `chat/__tests__/chatRename.test.ts` · `ask/__tests__/askRoute.test.ts` | 27-10 | U1 · U2 · U2 · S |
+| 수정 | `ask/AskHistorySheet.tsx` | 「더 보기」 삭제 → 5개 쪽 + 행 ⋯ 하위 화면(이 대화·제목 바꾸기·삭제 확인) 27-4·27-5 | U1 |
+| 수정 | `ask/AskListItem.tsx` | 링크 → 버튼(대화 열기) + 형제 ⋯ 버튼(J3) | U1 |
+| 수정 | `ask/AskHistoryButton.tsx` | `ref` 를 받는다(React 19 prop) — 열기·삭제 뒤 초점 되돌리기 27-8 | U1 |
+| 수정 | `ask/useAskActivity.ts` | `more`·`moreBusy`·`moreError`·`cursor` 삭제 — **알약용 최근 20개 읽기는 그대로** 27-4 E | U1 |
+| 수정 | `ask/homeLogic.ts` | 쓰는 곳이 없어지는 `appendRooms` 삭제(시험 포함 — tsc·eslint 로 확인) | U1 |
+| 수정 | `ask/askCopy.ts` | 27-3 F·27-4 F·27-5 의 새 문구 전부 + 지울 키(27-7 C) | U1 |
+| 수정 | `ask/AskChatTab.tsx` | 시트에서 열기(27-1) · 처음 값 방어(27-1 D) · 시트 삭제 결과(27-5 D) · 「새 질문 시작」 기록 안 늘림(27-6) · 제목 힌트 전달 · 알약 `ref` | U2 |
+| 수정 | `ask/AskRoom.tsx` | `room` 변형 삭제(27-7 C) · 머리 `AskHeadTitle` · `titleHint`/`onTitleChange` · 머리에서 제목 바꾸기 · `newQ` 는 늘 `onNewConversation` | U2 |
+| 수정 | `ask/AskNewConversation.tsx` · `ask/AskTabSkeleton.tsx` | 머리 둘째 줄 「새 질문」(J8 — 자리표시도 같은 높이) | U2 |
+| 수정 | `ask/ScopeLine.tsx` · `AskRoom.askToastBottom` | `'room'` 값 삭제(쓰는 곳 없음) | U2 |
+| 수정 | `ask/AskAnswer.tsx` · `ask/SourceList.tsx` | 근거 돌아오기 주소를 늘 `askChatHref(chatId)`(옛 `/ask/<id>` 대체값 삭제) | U2 |
+| 공용 확장 | `shell/AppBar.tsx` | 선택 prop `heading?: ReactNode` — 없으면 지금 그대로 27-2 A | U2 |
+| 공용 확장 | `chat/ChatMenuSheet.tsx` | 선택 prop `startMode?: 'menu' \| 'rename'`(기본 `'menu'` = 지금) · 제목 칸을 `ChatRenameForm` 으로 | U2 |
+| 수정 | `chat/ChatRoom.tsx` | 주소를 잘못 연 ASK 대화 → `router.replace(askChatHref(id))`(지금 `/ask/<id>`) | U2 |
+| 수정 | `shell/routes.ts` | 집중 화면 `'/ask/'` 삭제(그릴 화면이 없다) | U2 |
+| 수정 | `app/(app)/ask/[chatId]/page.tsx` | 화면 → `redirect('/ask?chat=<id>')` 27-7 A | S |
+| 수정 | `app/(app)/ask/(tab)/page.tsx` | 로그인 돌아올 주소에 `?chat=` 유지 27-7 A | S |
+| 수정 | `modules/conversation/chats/index.ts` · `app/api/v1/chats/route.ts` | #27 `total`(**developer-S 착수 — 작업 트리에 이미 있음**, [[task-067-dev-s-record]]) | S |
+| 그대로 | `shell/askReturn.ts`(옛 `/ask/<id>` 기록도 리다이렉트로 동작 — 정규식 불변) · `shell/TabBar.tsx` · `common/Sheet.tsx` · `common/Toast.tsx` · `chat/MessageList.tsx` · `chat/useChatTurn.ts` · `ask/useAskInput.tsx` 외 말 바 전부 · `ask/logic.ts`(`replaceAskUrl`·`askChatHref`·`askConvTransition` 그대로 씀) | — | — |
+
+### 27-1. 같은 탭에서 열기 (D4 A · 데모 C·pick → C·open)
+
+**A. 시트 행을 누르면**(`AskChatTab.openConv(row: ChatSummary)` — U2, 시트는 `onOpen(row)` 만 부른다)
+1. `row.id === conv.id`(「지금 대화」 행) → **시트만 닫는다.** 주소·대화·스크롤 그대로(데모 B·p1 캡션).
+2. 상태를 먼저: `setFailed(null)` → `setConv(c => ({ id: row.id, seed: null, greeting: false, n: c.n, hint: row.title }))` — `hint` = 불러오는 동안 머리 둘째 줄에 먼저 보일 제목(J5). `Conv` 타입에 `hint: string | null` 을 더하고 `startNew`·`onCreated`·쿼리 전이·[다시 시도]는 `null`(생성 직후는 `seed.chat.title` 이 바로 있다).
+3. 주소를 나중에: `replaceUrl(askChatHref(row.id))` — **주소 갱신은 `AskChatTab` 의 `replaceUrl` 한 곳**(= `replaceAskUrl(window.history, url)`, 안에서 `history.replaceState(null, '', url)`). 상태가 먼저 바뀌어 있으므로 쿼리 전이 `askConvTransition(prev, row.id, row.id)` = `'none'`(같은 대화를 두 번 열지 않는다 — 생성 직후 `onCreated` 와 같은 순서).
+4. 시트 닫기 `setHistoryOpen(false)` → 초점은 `afterCommit(() => pillRef.current?.focus())` 로 알약에(27-8 — `AskRoom key={conv.id}` 가 바뀌어 머리가 새로 그려지므로 공용 `Sheet` 의 「연 사람에게 초점 되돌리기」 대상이 문서에서 떨어져 나간다).
+5. `<AskRoom key={row.id} … titleHint={conv.hint} />` 가 새로 마운트: 머리 둘째 줄 = 힌트 제목(누를 수 없음, 27-2 B) · 목록 칸 = 회색 말풍선(§26-5 B 의 `ConvSkeleton` 그대로) · 입력창은 쓸 수 있고 보내기·누르고 말하기만 잠금(「대화를 불러오고 있어요」 — 데모 C·loading) → #29 → `ready`.
+6. 스크롤 = **§25-5 J-2 의 3·3′ 그대로**(새 `MessageList` 인스턴스의 첫 로드): 마지막 행이 끝난 답이면 `target = clamp(aTop − lead − pad, 0, max)`(직전 질문 윗면이 목록 위 12px), 대기·실패·질문뿐이면 맨 아래. `arrivalAlign="answer-start"` 그대로. 데모 J5 「마지막 질문에 맞춤」 = 이 규칙.
+7. 진행 중이던 대화면 `detail.chat.running` → `attach`(대기 카드 이어받기 — 데모 C·run, 지금 규칙). 마운트 효과가 그 id 의 `waiting`·`newAnswer` 를 지우고(§26-4 A 그대로), `useAskActivity(conv.id)` 가 다시 읽어 알약에서 이 대화를 뺀다.
+8. 입력 바·범위 줄·하단 탭은 같은 모양 그대로(구성 요소가 다시 그려질 뿐 — 입력 모드 글자/말은 세션 기억 `kaiwa.ask.inputMode` 라 그대로, 입력창 초안은 대화마다 `draftKey=chatId` 라 그 대화의 초안).
+
+**B. `router.push`·`router.replace` 를 쓰지 않는 이유**([확실] — 지금 `AskChatTab.tsx` 는 열기를 `AskListItem` 의 `<Link href="/ask/<id>">` 로 하고, 생성 직후만 `replaceUrl` 을 쓴다)
+- `router.replace('/ask?chat=…')` 는 서버 요청(RSC — `auth()`·`getProfile` 다시 실행)을 만들고, 페이지 조각 키가 쿼리를 포함해 `AskChatTab` 이 다시 마운트될 수 있다 [가능성 높음] → **J2(보던 쪽 기억)·토스트·알약 상태를 잃는다.** `push` 는 거기에 기록까지 쌓는다(D4 위반).
+- `replaceAskUrl` 은 서버 요청 0 · 다시 마운트 0 · 기록 0 이고, 첫 인자 `null` 이라 Next 16.3.2 가 라우터를 동기화해 `useSearchParams`·하단 탭 「질문」 재누름이 새 주소를 본다(task-066 F1 교훈 — `history.state` 를 넘기면 동기화를 건너뛴다). **`history.state`·`window.history.state` 를 넘기는 호출 0, `history.replaceState` 직접 호출은 `logic.ts` 한 곳뿐.**
+- 예외(그대로 둠): `ChatMenuSheet` 의 ⋯ → 이 대화 삭제는 지금처럼 `router.replace('/ask')` + 삭제 표지 — 지울 대화의 화면을 버리는 경로라 다시 마운트돼도 잃을 것이 없고, `replace` 라 기록도 늘지 않는다(D4 와 맞음).
+
+**C. 열 때의 경계 상황**
+
+| 상황 | 동작 | 근거 |
+|---|---|---|
+| 지금 대화가 답을 기다리는 중(대기 카드)에 다른 대화를 엶 | **막지 않는다.** `AskRoom` 언마운트 효과가 `waiting` 에 id(기존) → 알약 「답 만드는 중」 → 끝나면 「새 답 도착」 + 토스트 한 번(§26-4 A). 서버는 끝까지 만든다(계약 §2-18-A 3) | task-066 의 `/ask/<id>` 이동과 같은 결과 |
+| 빈 대화에서 첫 질문 생성 중(#28 응답 전)에 시트에서 다른 대화를 엶 | **막지 않는다.** #28 이 끝나면 `onCreated` 가 새 대화로 바꾸고 주소도 그 대화로(보낸 질문이 사라지지 않게 — 보낸 질문 우선). [가능성 높음] #28 은 DB 한 줄이라 창이 짧다 — QA Q9 | `createAskConversation` 은 언마운트와 무관하게 `onCreated` 를 부른다([확실] `homeLogic.ts` 149행) |
+| 429 잠금 중(분당·하루·몰림) | **막지 않는다.** 잠금 표시는 대화별 `useChatTurn.blockedUntil` 이라 새로 연 대화에선 처음엔 안 보이고, 보내면 서버가 다시 429 → 같은 안내 줄(§25-5 G). 잠금을 대화 사이에 넘기지 않는다 ★(데모 범위 밖 — 새 동작을 만들지 않음) | 지금 `/ask/<id>` 이동과 같음 |
+| 키보드가 열린 채 알약을 누름 | 공용 `Sheet` 가 초점을 시트 제목으로 옮겨 키보드가 닫힌다 | 공용 규칙 |
+| 고른 대화가 다른 기기에서 지워짐 | #29 404 → `onGone` → 빈 대화 + 주소 `/ask` + 토스트 「대화를 찾을 수 없어요」(데모 C·gone, §26-3 B 그대로). 시트 쪽은 다음에 열 때 다시 읽는다 | — |
+| 그 밖 불러오기 오류 | `onLoadFailed` → 빈 대화 + 오류 상자(§26-3 B 마지막 줄 그대로) | — |
+
+**D. 처음 값 방어(필수)** — **[2026-10-13 감사 REV-067B-3 로 정정: 주소가 정본, 서버 prop `initialChatId` 폐지]** `AskChatTab` 의 처음 대화 id 는 **실제 주소 쿼리만** 본다: 순수 `askInitialConvId(q)` = `isAskId(q) ? q : null`(`AskChatTab.tsx` 에서 export), `AskChatTab` props 는 `{ teacherName }` 뿐이다. 이유 [확실 — Next 소스]: Next 뒤로가기는 낡은 캐시 화면을 되살리는데 그 서버 prop 은 처음 그린 값이라(예: `/ask?chat=A` 로 그려진 기록에서 「새 질문 시작」→ 주소 `/ask` → 다른 탭 → 뒤로) 서버 prop 을 폴백으로 두면 이미 비운 A 가 되살아난다. `/ask` 는 `await searchParams`·`auth()` 로 동적 페이지라 요청 렌더에서 `useSearchParams` 가 실제 쿼리를 주므로 폴백이 필요 없다. (아래 원문은 정정 전 기록.) `askInitialConvId(q, initialChatId)` = `isAskId(q) ? q : initialChatId`(`logic.ts` 에 두지 않고 `AskChatTab.tsx` 에서 export — U2 파일 안). 이유 [가능성 높음]: `replaceState` 로 적은 주소(`/ask?chat=B`)에 휴대폰 뒤로가기로 돌아오면(근거 카드 → 수업 → 뒤로) Next 가 그 기록의 라우터 트리를 되살리는데, 페이지 조각은 처음 서버가 그린 것(`initialChatId` = 그때 값 — 예: 빈 대화의 `null`)일 수 있다. 그러면 주소는 B 인데 빈 대화가 열린다. 이번 task 로 `replaceState` 로 바뀌는 주소가 많아지므로(열기·새 질문 시작) 이 방어를 함께 넣는다. 실측은 QA Q3(실제 Next 라우터).
+
+### 27-2. 머리 — 「질문」 + 지금 대화 제목 한 줄 (D1 A · 데모 C·open · C·long · C·new · D·tap · J8 · J10)
+
+**A. 공용 `AppBar` 선택 prop**(U2 — 다른 탭 불변)
+```
+AppBar({ title, subtitle, right, heading?: React.ReactNode })
+<h1 className={heading ? 'flex min-w-0 flex-1' : 'min-w-0 flex-1 truncate text-xl font-bold'}>
+  {heading ?? <>{title}{subtitle ? <span className="ml-2 text-sm font-light text-ink3">{subtitle}</span> : null}</>}
+</h1>
+```
+- `heading` 이 없으면 **출력 문자열이 지금과 한 글자도 같다**(시험 T18 — 회화·공부·계획표·단어장 머리). 있으면 `title`·`subtitle` 은 그리지 않는다(`title` 은 필수 그대로 두고 질문 화면은 `ASK_COPY.title` 을 넘긴다).
+- **제목 구조 유지(데모 a11y Major 수정)**: 단추가 `h1` 을 대신하지 않는다 — `h1` 은 늘 `AppBar` 가 그리고 그 **안에** 단추. 탭 화면 제목(heading) 1개가 화면 읽기의 제목 목록에 그대로 남는다.
+- 머리 높이 `h-[52px]`·`sticky`·`mb-2.5`·`pl-4 pr-3 gap-2`·아바타 44 **그대로**. 목록 칸 높이·§26-11 A 예산 불변.
+
+**B. `AskHeadTitle`**(새 파일 `ask/AskHeadTitle.tsx`, U2) — `heading` 에 넣는 노드. 세 상태:
+
+| 상태 | 언제 | 그리는 것 | 누름 |
+|---|---|---|---|
+| `new` | 빈 대화(`AskNewConversation`) · 탭 자리표시(`AskTabSkeleton`) | 「질문」 + 둘째 줄 **「새 질문」**(J8 — 머리 높이가 변하지 않게) | 없음(단추 아님) |
+| `loading` | `AskRoom` 이 #29 를 읽는 중 | 「질문」 + 둘째 줄 = `titleHint`(시트에서 고른 행 제목), 힌트가 없으면(주소로 복원·리다이렉트) **회색 막대** `h-3 w-24 rounded bg-surface2`(`aria-hidden`) ★ | 없음 — 연필 없음(데모와 다른 곳 ①: 확인되지 않은 대화의 제목은 바꿀 수 없다 — 없는 대화·남의 대화일 수 있음) |
+| `ready` | `AskRoom` `load==='ready' && chat` | 「질문」 + 둘째 줄 `chat.title` + 연필 13px | **단추** → 제목 바꾸기(27-3 B) |
+
+```
+// new · loading — 단추가 아니다(h1 안 span)
+<span className="flex h-11 min-w-0 flex-1 flex-col justify-center gap-px">
+  <span className="block truncate text-xl font-bold leading-[1.15]">{ASK_COPY.title}</span>
+  <span className="flex min-w-0 items-center text-[12.5px] leading-[1.3] text-ink2">
+    <span className="min-w-0 truncate">{state==='new' ? ASK_COPY.head.newConv : <JaRuns text={hint} />}</span>   ← 힌트 없음 = 회색 막대
+  </span>
+</span>
+// ready — h1 안 단추(데모 `.abtw > .abt`)
+<button type="button" onClick={onRename} aria-label={ASK_COPY.head.aria(title)}
+        className="-ml-1.5 flex h-11 min-w-0 flex-1 flex-col justify-center gap-px rounded-[10px] px-1.5 text-left
+                   active:bg-surface2 active:shadow-[inset_0_0_0_2px_var(--color-accent)]">
+  <span className="block truncate text-xl font-bold leading-[1.15]">{ASK_COPY.title}</span>
+  <span className="flex min-w-0 items-center gap-[3px] text-[12.5px] leading-[1.3] text-ink2">
+    <span className="min-w-0 truncate"><JaRuns text={title} /></span>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" … aria-hidden="true" className="flex-none"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>   ← 데모 ICON.pen 그대로(인라인 — 아이콘 부품 새로 만들지 않음)
+  </span>
+</button>
+```
+- 「질문」은 지금 머리 제목과 같은 `text-xl font-bold`(20px — 데모 `.abt1` 20px). 둘째 줄 12.5px(11px 이상). 두 줄 높이 ≈ 23 + 1 + 16 = 40 ≤ 44.
+- 제목 글은 한국어 + 일본어 섞임 → `JaRuns`(일본어 구간만 `lang="ja"`, 시트 행과 같음). 둘째 줄 `truncate` 한 줄 말줄임 — 전체 제목은 제목 바꾸기 칸 · ⋯ 메뉴 윗줄 · 시트 행에서 보인다(데모 C·long).
+- 누름 표시는 `:active` 바탕 + 안쪽 2px 테두리(데모 `.pressed`), 키보드 초점은 앱 전역 `focus-visible` 고리. **색만으로 상태를 알리지 않는다**(연필 + 화면 읽기 이름).
+- **화면 읽기 이름**(J10): `질문 · 지금 대화 「{title}」 — 눌러서 제목 바꾸기` — 보이는 글(「질문」·제목)이 이름 안에 들어 있어 음성 조작으로도 불린다. 이름이 보이는 글을 대신 읽는 것은 데모 a11y Minor ①로 수용(한 번에 맥락이 읽힘).
+- `AskRoom` 의 머리: `<AppBar title={ASK_COPY.title} heading={<AskHeadTitle state={load==='ready' && chat ? 'ready' : 'loading'} title={chat?.title ?? titleHint ?? null} onRename={openRename} />} right={<>{pill}{menuButton}</>} />`. `AskNewConversation`·`AskTabSkeleton` 은 `state="new"`(자리표시는 `inert` 안 — 지금처럼).
+
+**C. 폭 · 말줄임**(`AppBar` 실제 값: 내용 폭 = W − 28, ⋯ 44 · 나 44 · 간격 8 × 3 → `h1` + 알약 = W − 140. 알약 폭은 §26-11 B: 「지난 질문」 ≈76 · 「새 답 도착」 ≈100 · 「답 만드는 중」 ≈124)
+
+| 폭 | `h1` 폭(알약 기본 / 새 답 / 답 만드는 중) | 둘째 줄 글자 칸(`h1` − 6 − 연필 16) | 보이는 글자 수(데모 실측) |
+|---|---|---|---|
+| 360 | 144 / 120 / **96** | 122 / 98 / **74** | ≈ 11자(답 만드는 중이면 ≈ 8자) |
+| 390 | 174 / 150 / 126 | 152 / 128 / 104 | ≈ 14자 |
+| 412 | 196 / 172 / 148 | 174 / 150 / 126 | ≈ 17자 |
+
+- 360·「답 만드는 중」이 가장 좁다: `h1` 96 안에 「질문」(20px bold ≈ 42)은 늘 다 보이고(줄어들지 않음 — `truncate` 는 안전장치), 둘째 줄만 ≈ 74px. 알약은 `flex-none whitespace-nowrap` 그대로라 글자를 키워도 머리 제목이 먼저 줄어든다(§26-11 B 규칙 유지).
+- 글자 크게 보기: 두 줄 블록이 44 를 넘으면 단추가 늘어나되 머리 52 안에서 잘리지 않게 `leading` 은 위 값 그대로 두고 QA 가 앱 WebView 글꼴 130% 에서 확인(Q10).
+
+### 27-3. 제목 바꾸기 — 진입 3곳, 칸 하나 (D2 A · 빈 제목 A · 데모 D 전체)
+
+**A. 공용 칸 `ChatRenameForm`**(새 파일 `chat/ChatRenameForm.tsx`, U2 — 지금 `ChatMenuSheet` 의 rename 본문을 옮긴 것)
+```
+props { chatId: string; initial: string; variant?: 'default' | 'ask'; onSaved(title: string): void; onCancel(): void; onBusyChange?(busy: boolean): void }
+<div className="flex flex-col gap-2">
+  <Field label="제목" htmlFor={id}>
+    <input id={id} value={v} onChange readOnly={busy} autoComplete="off" enterKeyHint="done"
+           aria-invalid={bad || undefined} aria-describedby={ask ? hintId : undefined}
+           className="h-11 w-full min-w-0 rounded-xl border border-line bg-surface px-3 text-[16px] text-ink {bad ? 'border-bad shadow-[0_0_0_1px_var(--color-bad)]' : ''}" />
+  </Field>
+  ask: <p aria-hidden="true" className="text-right text-[12px] tabular-nums {n>100 ? 'font-semibold text-bad' : 'text-ink2'}">{n} / 100</p>
+  ask: error ? <p id={hintId} role="alert" className="text-[12.5px] font-semibold text-bad break-keep">{error}</p>
+            : <p id={hintId} className="text-[12.5px] text-ink2 break-keep">{ASK_COPY.rename.hint}</p>
+  default: error ? <p role="alert" className="text-[12px] text-bad break-keep">{error}</p> : null        ← 지금 마크업 그대로
+  <BtnRow><Btn onClick={save} aria-disabled={busy||undefined} aria-busy={busy||undefined}>{busy ? '저장 중…' : '저장'}</Btn>
+          <Btn variant="ghost" onClick={cancel} aria-disabled={busy||undefined}>취소</Btn></BtnRow>
+</div>
+```
+- **`variant='default'`(회화·채팅) 의 마크업은 지금 `ChatMenuSheet` rename 본문과 같다**(시험 T16 — 글자 수·안내 줄 없음, 실패 문구 `actionErrorText`). 글자 수·안내 줄·질문 실패 문구는 **`'ask'` 만**(데모와 다른 곳 ⑥ — 공용 부품 기본값 불변 원칙, §26-14 A 4).
+- 검사(지금 규칙 그대로): `t = v.trim()`, `n = cpLength(t)` — `n < 1` → 「제목을 적어 주세요」, `n > 100` → 「제목은 100자까지 쓸 수 있어요」, **둘 다 요청 0**. 글자 수 표시는 입력 중인 값 그대로(`cpLength(v)`, 데모 `cps(v)`) — 이모지·한자 모두 코드포인트 1.
+- 빈 값·100자 초과 오류일 때만 칸 `aria-invalid` + 빨간 테두리(데모 D·empty·D·over). 오류 줄은 안내 줄 자리를 대신하고(`id` 같음 → `aria-describedby` 가 그대로 오류를 가리킴) `role=alert` 로 한 번 읽힌다. 글자 수 줄은 `aria-hidden`(J — 화면 읽기에는 안내 줄로 한 번만).
+- 저장 = #30 `PATCH /api/v1/chats/:id { title: t }`. 저장 중: 칸 `readOnly` · [저장 중…] `aria-busy` · [취소] `aria-disabled` · `onBusyChange(true)` → 부모 시트 `dismissible={false}`(바깥·Esc·✕ 로 닫히지 않음 — 데모 D·saving).
+- **[2026-10-13 감사 정정 REV-067B-1·2]** ① 빈 값·100자 초과 오류는 **입력을 바꾸면 지운다**(데모 1529~1531행 — `renameErrorAfterInput`, 저장 실패 문구는 그대로 남음). ② 저장 중 [취소] 막기는 **질문 대화(`variant='ask'`)만** — 회화·채팅(`default`)은 옛 동작 그대로 저장 중에도 [취소] 가 메뉴로 돌아간다(`renameCancelAllowed(variant, busy)`, T16 「동작 불변」). ③ 이중 제출 가드는 `saveRenameUnlessBusy(busy, o)` — 저장 중이면 요청 0.
+- 실패: 칸·쓴 글 그대로, 실패 한 줄 — `ask` = **「제목을 바꾸지 못했어요. 연결을 확인하고 다시 해 보세요.」**(데모 원문, 404 포함 모든 오류 같은 문구), `default` = `actionErrorText`(지금). 다시 [저장] 하면 된다(데모 D·fail).
+- 성공: `onSaved(t)` — 부모가 닫기·토스트 「제목을 바꿨어요」·화면 갱신(아래 B~D).
+- Enter = 저장(`e.nativeEvent.isComposing` 이면 무시 — 일본어·한국어 조합 중 Enter 오발 방지). 마운트 뒤 초점 = 입력칸, **`afterCommit` 으로**(공용 `Sheet` 은 열릴 때 제목에 초점을 주므로 같은 커밋 안에서 주면 씻긴다 — §26 의 같은 교훈). 데모 D·kb 처럼 키보드가 바로 열린다.
+
+**B. 진입 ① 머리 제목 줄**(데모 D·tap) — `AskRoom`(U2)
+- `const [menu, setMenu] = useState<null | 'menu' | 'rename'>(null)` 로 바꾸고 `<ChatMenuSheet open={menu !== null} startMode={menu ?? 'menu'} onClose={() => setMenu(null)} … />`. ⋯ 단추 = `setMenu('menu')`, 머리 제목 단추 = `setMenu('rename')`.
+- `ChatMenuSheet` 선택 prop **`startMode?: 'menu' | 'rename'`**(기본 `'menu'` = 지금): `open` 이 false → true 로 바뀌는 렌더에서 `mode = startMode`, 제목 칸 초기값 = `chat.title`, 오류 지움(렌더 중 조정 — `AskChatTab` 의 쿼리 전이와 같은 방식). rename 화면의 [취소] = `startMode === 'rename'` 이면 **시트를 닫는다**(메뉴를 거치지 않고 왔으므로), 아니면 지금처럼 메뉴로. 저장 성공은 지금처럼 닫기 + 토스트.
+- 닫히면 초점은 공용 `Sheet` 규칙대로 머리 제목 단추(같은 `AskRoom` 안이라 그대로 붙어 있다).
+
+**C. 진입 ② ⋯ 메뉴 「제목 바꾸기」**(데모 D·menu — 유지) — 지금 그대로(메뉴 → 제목 바꾸기 → [취소] = 메뉴). 맨 윗줄은 지금처럼 `chat.title`.
+
+**D. 진입 ③ 시트 행 ⋯ → 이 대화 → 제목 바꾸기**(데모 D·row → D·rowRen → D·rowSaved) — `AskHistorySheet`(U1)
+- 같은 시트 안 하위 화면(시트 제목 「제목 바꾸기」 — J4), 본문 = `<ChatRenameForm variant="ask" chatId={row.id} initial={row.title} … />`. 다른 대화는 `AskRoom` 이 없으므로 `ChatMenuSheet` 를 열지 않는다(그 시트는 불러온 `ChatInfo`·`turnBusy` 가 필수이고, 시트 위에 시트를 겹치게 된다).
+- 저장 성공 → 목록(보던 쪽)으로 · **그 행 제목만 제자리에서** 바꿈(`pages.patch(id, { title })` — J6, 다시 읽지 않음) · 토스트 「제목을 바꿨어요」(공용 토스트는 `z-50` 이라 시트 위에 보인다) · `onRenamed(id, title)` 로 부모에 알림. 취소 → 목록. 둘 다 초점 = 그 행의 ⋯(27-8).
+- **다른 대화**의 제목을 바꾸면 지금 대화·머리는 그대로다. 그 행이 **지금 대화**면 `AskChatTab.onRenamed` 가 `conv.hint = title` 로 바꾸고 → `AskRoom` 이 `titleHint` 바뀜을 보고 `chat.title` 을 그 값으로 맞춘다(렌더 중 조정: `if (titleHint !== seenHint) { setSeenHint(titleHint); if (titleHint && chat) setChat({ ...chat, title: titleHint }) }`) → 머리 둘째 줄·⋯ 메뉴 윗줄이 바뀐다.
+- 반대로 머리·⋯ 에서 바꾸면 `AskRoom` 이 `setChat` 후 `onTitleChange(chatId, t)` → `AskChatTab` 이 `conv.hint = t`(두 값이 어긋나 나중에 옛 제목으로 되돌아가지 않게). 시트 행은 **다음에 시트를 열 때 그 쪽을 다시 읽으므로** 따로 고칠 것이 없다(J2 — 머리·⋯ 에서 바꿀 때 시트는 닫혀 있다).
+- 알약용 `useAskActivity` 목록은 제목을 쓰지 않으므로 손대지 않는다(다음 읽기에 저절로 새 제목).
+
+**E. 키보드가 올라온 상태**(데모 D·kb, 390×780 · 키보드 ≈300): 공용 `Sheet` 가 통째로 키보드 위(`--kb-inset`, 최대 높이 = 남은 480 의 85% ≈ 408). 본문 높이 ≈ 머리 52 + 12 + 「제목」 17 + 칸 44 + 글자 수 16 + 안내 16 + 간격 + 단추 48 + 아래 16 ≈ 240 — 스크롤 없이 [저장]·[취소]까지 보인다. 하단 탭은 키보드가 열리면 숨는다(기존).
+
+**F. 문구**(`askCopy.ts` — U1 이 단계 1 에서 모두 넣는다. ★ = 데모에 없어 이 절이 정함)
+
+| 키 | 문구 |
+|---|---|
+| `head.newConv` | 새 질문 |
+| `head.aria(title)` | 질문 · 지금 대화 「{title}」 — 눌러서 제목 바꾸기 |
+| `rename.hint` | 100자까지 · 비워 두면 저장할 수 없어요 |
+| `rename.count(n)` | {n} / 100 |
+| `rename.empty` · `rename.over` | 제목을 적어 주세요 · 제목은 100자까지 쓸 수 있어요 |
+| `rename.fail` | 제목을 바꾸지 못했어요. 연결을 확인하고 다시 해 보세요. |
+| `rename.saved` | 제목을 바꿨어요 |
+| `menu.emptyNote`(바꿈, J7) | 아직 보낸 질문이 없어 제목 바꾸기·삭제는 없어요. |
+
+### 27-4. 지난 질문 시트 — 5개씩 쪽 넘기기 (D3 A · 데모 B 전체 · J1 · J2 · J9)
+
+**A. 시트 구조**(`AskHistorySheet` — U1, 공용 `Sheet`, 시트 제목은 하위 화면마다 바뀜 27-5)
+```
+props { open, activity: AskActivity, currentChatId: string | null, pageResetKey: number,
+        onClose(), onOpen(row: ChatSummary), onRenamed(id, title), onDeleted(id, wasCurrent: boolean), onToast(msg) }
+const pages = useAskHistoryPages({ open, resetKey: pageResetKey })        ← 27-4 C — 시트 안에 둔다(시트는 늘 마운트돼 있어 `AskChatTab` 이 살아 있는 동안 쪽을 기억)
+const [sub, setSub] = useState<{ kind: 'list' } | { kind: 'row' | 'rename' | 'confirm'; row: ChatSummary }>({ kind: 'list' })
+<Sheet open title={제목(sub)} onClose={close} dismissible={!busy} describedBy={sub.kind==='confirm' ? confirmBodyId : undefined}>
+  sub.kind === 'list' →
+    <ul className="flex min-w-0 flex-col gap-2" aria-busy={pages.status==='paging' || undefined}>
+      {행 5개 이하 | 회색 자리 5 | 쪽 오류 상자} {빈 자리(J1)}
+    </ul>
+    {pages.paged ? <AskPager … /> : null}
+  'row' | 'rename' | 'confirm' → 27-5
+</Sheet>
+```
+- 시트를 닫으면(✕·Esc·바깥·행 열기) `sub` 는 `list` 로 돌아간다. **쪽(`page`)은 그대로**(J2) — 다시 열면 보던 쪽을 다시 읽는다.
+- 시트 안만 스크롤(공용 `Sheet`). 5행 + 쪽 줄이 390×780 에서 스크롤 없이 들어간다(27-0 A ≈508).
+
+**B. 쪽 줄 `AskPager`**(새 파일, U1 — 데모 `.pgr`·`pager()` A 갈래)
+```
+props { page, pages, total, busy: boolean, prevDisabled, nextDisabled, onPrev, onNext }
+<nav aria-label={H.pagerAria} className="flex min-w-0 items-center justify-between gap-2 pt-0.5">
+  <button type="button" onClick={prevDisabled ? undefined : onPrev} aria-disabled={prevDisabled || undefined}
+          className="inline-flex h-11 min-w-[92px] flex-none items-center justify-center gap-1 rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold text-ink aria-disabled:opacity-40">
+    <span aria-hidden="true" className="text-[17px] leading-none">‹</span><span>{H.prev}</span></button>
+  <p aria-hidden="true" className="min-w-0 flex-1 text-center tabular-nums">
+    <span className="block text-[15px] font-bold">{H.pageLabel(page + 1, pages)}</span>
+    <span className="block text-[12px] text-ink2">{busy ? H.busyLabel : H.totalLabel(total)}</span></p>
+  <button … 같은 클래스 …><span>{H.next}</span><span aria-hidden="true" className="text-[17px] leading-none">›</span></button>
+</nav>
+<p role="status" className="sr-only">{busy ? H.pagingSr(page + 1) : H.pageSr(page + 1, pages, total)}</p>
+```
+- **비활성은 `disabled` 가 아니라 `aria-disabled` + 흐림 40% + 눌러도 아무 일 없음**(J9) — 마지막 쪽에 닿아 [다음 ›]이 흐려져도 **초점은 누른 단추에 남는다**(`disabled` 면 초점이 문서 처음으로 빠진다). 화면 읽기는 status 줄로 「3쪽 중 2쪽 · 모두 12개」를 듣는다.
+- 터치: 두 단추 44 높이·최소 92 폭. 360 에서 가운데 칸 ≥ 360 − 32 − 184 − 16 = 128(「12 / 13」·「모두 999개」 들어감).
+- 가운데 라벨은 화면 읽기에서 숨기고(`aria-hidden`) 같은 뜻을 status 한 줄로 — 두 번 읽히지 않게.
+
+**C. 훅 `useAskHistoryPages`**(새 파일 `ask/useAskHistoryPages.ts` + 순수 `ask/historyPaging.ts`, U1) — **계약만 정한다(구현은 developer)**
+```
+type HistoryStatus = 'first' | 'ready' | 'paging' | 'pageError' | 'firstError'
+interface AskHistoryPages {
+  page: number              // 0부터
+  pages: number             // historyPages(total) = max(1, ceil(total / 5))
+  total: number | null      // 첫 응답 전 null
+  items: ChatSummary[]      // 이 쪽 ≤ 5
+  status: HistoryStatus
+  now: Date | null          // 행 시각(오늘/어제) 기준 — 읽을 때 같이 정함(지금 useAskActivity 와 같음)
+  paged: boolean            // (total ?? 0) > 5 || page > 0
+  canPrev: boolean          // page > 0 && status ∈ {ready, pageError}
+  canNext: boolean          // status === 'ready' && nextCursor !== null && page < pages − 1
+  next(): void; prev(): void; retry(): void
+  reload(): void            // 지금 쪽을 같은 커서로 다시(삭제 뒤)
+  patch(id: string, p: Partial<ChatSummary>): void   // 제자리 고침(제목)
+}
+useAskHistoryPages({ open: boolean, resetKey: number }): AskHistoryPages
+```
+- 요청: `GET /api/v1/chats?kind=ASK&limit=5[&cursor=…]`(#27, 응답 `{ items, nextCursor, total }` — 클라이언트 타입은 `historyPaging.ts` 안 `type AskListPage = Paged<ChatSummary> & { total: number }`, `types/chat.ts` 는 고치지 않는다). 상수 `ASK_HISTORY_PAGE = 5`.
+- **커서 스택**: `cursors[0] = null`, k 쪽을 읽어 성공하면 `cursors[k + 1] = nextCursor`. [다음] = `cursors[page + 1]` 로 읽기, [이전] = `cursors[page − 1]` 로 **다시 읽기**(행을 쪽 사이에 저장해 두지 않는다 — 「답 만드는 중」·「새 답」이 늘 새 값). 요청 순서표(`seq`)로 늦게 온 옛 응답은 버린다. 쪽 수·「모두 n개」는 **가장 최근 응답의 `total`**.
+- 쪽을 넘기는 동안 `status='paging'`, `page` 는 **목표 쪽**으로 먼저 바꾼다(데모 B·paging — 라벨이 이미 「2 / 3」). 실패 → `pageError`(그 쪽에 머묾).
+- **열 때(J2)**: `open` false → true 마다 지금 쪽을 다시 읽는다. 받은 행이 아직 없으면 `first`(회색 자리), 이미 있으면 **행을 그대로 보여 둔 채** 조용히 다시 읽는다(깜빡임 없음 — 실패해도 지금 행 유지, 오류 표시 없음). 다시 읽은 쪽이 비었고 `page > 0` 이면(다른 기기에서 지움) 앞 쪽으로.
+- **1쪽으로**: `resetKey` 가 바뀌면 `page = 0`·`cursors = [null]`(부모 `AskChatTab` 이 빈 대화에서 새 대화를 만든 `onCreated` 때 올린다 — J2 「새 질문을 보내면 1쪽부터」). `AskChatTab` 이 언마운트되면(다른 탭으로 갔다 옴) 저절로 1쪽.
+- 쪽을 보는 동안 다른 대화의 답이 끝나 서버 순서가 바뀌어도 **보던 쪽을 실시간으로 섞지 않는다**(데모 「확인 필요」 — 행이 손가락 밑에서 움직이지 않게). 다음에 열 때·쪽을 넘길 때 반영.
+- 순수 도우미(`historyPaging.ts`, 시험 대상): `historyPages(total)` · `pagerView({ page, pages, total, status, hasNext })` → `{ prevDisabled, nextDisabled, label, sub, sr }` · `pushCursor(stack, page, next)` · `pageAfterDelete(page, itemsLeft)` · `fillerCount(paged, rows)` = `paged ? 5 − rows : 0`.
+
+**D. 목록 칸 상태**(데모 B — 문구는 원문 그대로)
+
+| 상태 | 목록 칸 | 쪽 줄 | 데모 |
+|---|---|---|---|
+| 처음 불러오기 `first` | 회색 자리 5개 `h-[68px] rounded-[14px] bg-surface2`(`aria-hidden`) + `sr-only role=status` 「지난 질문을 불러오고 있어요」 | 없음 | B·first |
+| 목록 오류 `firstError` | 지금 오류 상자 그대로 — 「지난 질문을 불러오지 못했어요」 / 「연결을 확인하고 다시 시도해 주세요.」 / [다시 시도](`retry`) `role=alert` | 없음 | B·firstErr |
+| 빈 `total === 0` | 「아직 지난 질문이 없어요.」 + 「질문을 보내면 여기에 최근 순으로 쌓여요.」(둘 다 14px `ink2`, `flex-col gap-1 pt-2`) | 없음 | B·empty |
+| 5개 이하 | 행만(빈 자리 없음 — 시트가 행 수만큼만 높다) | **없음** | B·few |
+| 1쪽 · 중간 · 마지막 | 행 + 마지막 쪽은 **빈 자리 `5 − 행 수`개**(J1) | 있음 · 1쪽 [‹ 이전] 흐림 · 마지막 [다음 ›] 흐림 | B·p1·p2·p3 |
+| 쪽 넘기는 중 `paging` | 회색 자리 5개, `ul aria-busy` | 라벨 = 목표 쪽 「2 / 3」 + 「불러오는 중…」, **두 단추 흐림**(연타 방지), status 「2쪽을 불러오고 있어요」 | B·paging |
+| 쪽 오류 `pageError` | 오류 상자 「이 쪽을 불러오지 못했어요」 / 「연결을 확인하고 다시 시도해 주세요.」 / [다시 시도](`retry` — 같은 커서) `role=alert` + 빈 자리 4개(쪽 줄 위치 유지) | 그대로 · [‹ 이전] 쓸 수 있음 · **[다음 ›] 흐림**(그 쪽의 다음 커서를 모른다 — 데모와 다른 곳 ②) | B·pageErr |
+| 진행 중 · 새 답 | 행의 「답 만드는 중」·「새 답」 뱃지(§26-4 그대로, 27-4 E 의 덮어쓰기) | — | B·run |
+
+- **빈 자리(J1 — 마지막 쪽도 5행 높이)**: 데모는 행 높이를 68 로 **고정**했지만 그건 데모용이다. 구현은 행 모양을 바꾸지 않고(`ASK_ROW_CLASS` 최소 64 — 두 줄이라 실제 ≈ 68) 마지막 쪽에 **실제 행과 같은 구조의 숨은 행**을 채운다: `<li aria-hidden="true" className="invisible"><span className={ASK_ROW_CLASS}><span>가</span><span>가</span></span></li>`(두 줄 글 구조 동일, `visibility:hidden` 이라 읽기·누름 0). 그래서 **글자 크게 보기로 행이 커져도** 빈 자리가 같이 커져 쪽 줄이 손가락 밑에서 움직이지 않는다 — 고정 `min-height` 로는 이걸 못 한다(데모와 다른 곳 ⑤).
+- 쪽을 넘기면 시트 안 스크롤을 맨 위로(행이 5개뿐이라 대개 0).
+
+**E. 행 표시 · 알약과의 경계**
+- 행 = `AskListItem`(27-5 A) — 제목 · 시각 · 둘째 줄 · 「지금 대화」(`id === currentChatId`) · 「답 만드는 중」/「새 답」(§26-4 C 그대로). 정렬 = 서버 `lastMessageAt desc, id desc`.
+- **「답 만드는 중」 덮어쓰기**: 쪽 행의 `running` 은 그 쪽을 읽은 순간 값이다. 시트가 열려 있는 동안 알약용 폴링(`useAskActivity`)이 더 새 값을 가지므로 `running = activity.items 에 같은 id 가 있으면 그 값, 없으면 쪽 값` — **순서는 바꾸지 않는다.** 「새 답」은 지금처럼 `activity.newIds`(이 기기 sessionStorage).
+- **알약 값은 시트와 별개**: `useAskActivity` 는 **지금처럼 #27 `limit=20`(`ASK_LIST_LIMIT`) 첫 쪽을 따로 읽어** `running`·`newCount`·도착 판정을 계산한다(§26-4 A 그대로 — 지금 대화는 빼고 셈). 시트가 5개만 읽는다고 알약을 시트 행으로 계산하면 **6번째 이후 대화의 「답 만드는 중」을 놓친다**(designer 기록 사실 ③). 그래서 시트를 열면 #27 을 두 번 읽는다(알약 20개 `activity.refresh()` + 시트 5개) — 의도된 분리. `useAskActivity` 에서 지우는 것은 시트 「더 보기」용 `more`·`moreBusy`·`moreError`·`cursor` 뿐.
+
+**F. 문구**(`askCopy.ts` `history.*` — U1)
+
+| 키 | 문구 |
+|---|---|
+| `history.loadingSr` | 지난 질문을 불러오고 있어요 |
+| `history.emptyHint` | 질문을 보내면 여기에 최근 순으로 쌓여요. |
+| `history.pageError` · (본문 `listErrorBody` · 단추 `retry` 재사용) | 이 쪽을 불러오지 못했어요 |
+| `history.pagerAria` · `history.prev` · `history.next` | 지난 질문 쪽 · 이전 · 다음 |
+| `history.pageLabel(p, n)` · `history.totalLabel(t)` · `history.busyLabel` | {p} / {n} · 모두 {t}개 · 불러오는 중… |
+| `history.pageSr(p, n, t)` · `history.pagingSr(p)` | {n}쪽 중 {p}쪽 · 모두 {t}개 · {p}쪽을 불러오고 있어요 |
+| 지움 | `more` · `moreBusy`(「이전 질문 더 보기」·「불러오는 중…」 — 쓰는 곳 없음) |
+
+- 숫자는 `toLocaleString('ko-KR')`(§26-10 규칙 그대로).
+
+### 27-5. 행 ⋯ 메뉴 · 시트에서 삭제 (D2 A · D6 A · 데모 D·row · E 전체 · J3 · J4)
+
+**A. `AskListItem`**(U1 — J3: 행 = 큰 단추 + 오른쪽 ⋯ 단추를 **나란히**, 단추 안에 단추 없음)
+```
+props { chat, isNew, now, current?, running?(덮어쓴 값), onOpen(), onMore() }
+<li className="relative min-w-0">
+  <button type="button" onClick={onOpen} aria-label={current ? `${v.label}, ${H.current}` : v.label}
+          className={`${ASK_ROW_CLASS} w-full pr-[52px] text-left`}>{지금 본문 그대로 — 제목·시각 / 둘째 줄·뱃지}</button>
+  <button type="button" onClick={onMore} aria-label={H.rowMore(chat.title)} data-ask-row-more={chat.id}
+          className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full text-ink2">
+    <span aria-hidden="true" className="text-[20px] leading-none">⋯</span></button>
+</li>
+```
+- `Link` 를 쓰지 않는다(`/ask/<id>` 링크 0). 「지금 대화」 행도 같은 버튼이고 `AskChatTab.openConv` 가 같은 id 면 시트만 닫는다(27-1 A 1). 키보드 순서 = 행 → 그 행 ⋯ → 다음 행.
+- 오른쪽 52px 를 비워 제목·시각·뱃지가 ⋯ 와 겹치지 않는다(데모 `.qr.hasx` 52). 누름 표시 = `active:bg-surface2`(데모 `.pressed` 와 같은 결).
+
+**B. 하위 화면 「이 대화」**(행 ⋯ → `sub = { kind:'row', row }`, 시트 제목 「이 대화」 — 데모 D·row)
+```
+<div className="flex flex-col">
+  <p className="truncate pb-1 text-[15px] font-semibold"><JaRuns text={row.title} /></p>
+  <button type="button" className={`${MENU_ROW} border-b border-line`} onClick={→ rename}>{H.rename} <span aria-hidden="true" className="text-ink2">›</span></button>
+  <button type="button" className={`${MENU_ROW} text-bad ${locked ? 'opacity-50' : ''}`} aria-disabled={locked || undefined}
+          onClick={locked ? () => onToast(ASK_COPY.menu.deleteBusy) : → confirm}>{ASK_COPY.menu.delete}</button>
+  {locked ? <p className="px-1 pt-2 text-[12.5px] text-ink2">{H.deleteBusyNote}</p> : null}
+  <Btn variant="ghost" className="mt-3 w-full" onClick={→ list}>{H.toList}</Btn>
+</div>
+```
+- `locked` = 그 행이 답을 만드는 중(27-4 E 의 덮어쓴 `running`). **[확실] 서버 #31 은 진행 중 여부를 검사하지 않는다**(`deleteChat` 은 소유자·id 만 — 2026-10-13 코드 확인) → 잠금은 지금 ⋯ 메뉴처럼 화면이 막는다. 잠긴 줄을 누르면 토스트 「답을 받는 중에는 지울 수 없어요」(데모 E·busy).
+- `MENU_ROW` 는 `AskRoom.tsx` 의 export(52px 줄) 를 import 한다.
+
+**C. 하위 화면 「이 대화 삭제」 확인**(시트 제목 「이 대화 삭제」 — 데모 E·rowConfirm·E·fail)
+```
+<div className="flex flex-col gap-1">
+  <p className="text-[16px] font-semibold break-keep">{H.confirmQ(row.title)}</p>           ← 「‘…’ 대화를 삭제할까요?」 — 제목 안 일본어는 JaRuns
+  <p id={confirmBodyId} className="text-[14px] text-ink2 break-keep">{ASK_COPY.menu.confirmBody}</p>
+  {failed ? <p role="alert" className="mt-1 rounded-xl bg-bad-soft px-3 py-2.5 text-[13.5px] text-bad break-keep">{ASK_COPY.menu.deleteFail}</p> : null}
+  <BtnRow><Btn variant="danger" onClick={remove} aria-busy={busy||undefined} aria-disabled={busy||undefined}>{busy ? '삭제 중…' : '삭제'}</Btn>
+          <Btn variant="ghost" onClick={→ list} aria-disabled={busy||undefined}>취소</Btn></BtnRow>
+</div>
+```
+- 시트 `describedBy={confirmBodyId}`(되돌릴 수 없는 확인 — 공용 `Sheet` 규칙), 삭제 중 `dismissible={false}`. 본문·실패 문구는 ⋯ 메뉴와 같은 키(데모 「확인 문구는 지금 것 그대로에 어느 대화인지(제목)를 더했다」).
+- 삭제 = #31 `DELETE /api/v1/chats/:id`. 실패(404 포함) → 확인 화면에 그대로 + 실패 한 줄(⋯ 메뉴와 같음), 단추 다시 쓸 수 있음.
+
+**D. 삭제 성공 뒤**
+
+| 지운 것 | 시트 | 화면 | 초점 |
+|---|---|---|---|
+| **다른 대화** | 목록으로 · `pages.reload()`(같은 커서로 지금 쪽 다시 — 뒤 행이 올라옴) · 지금 쪽이 비고 `page > 0` 이면 앞 쪽(`pageAfterDelete`) · `total` 감소로 쪽 수 다시 계산 | 그대로 | 시트 제목(데모는 ✕ — 데모와 다른 곳 ④) |
+| **지금 대화**(행 ⋯ 로) | `onDeleted(id, true)` → `AskChatTab` 이 시트를 닫음 | `startNew()` + `replaceUrl('/ask')`(기록 안 늘림) = 빈 대화 | 알약(`afterCommit`) |
+- 둘 다: 토스트 「대화를 삭제했어요」(시트가 `onToast` 로 한 번) · `removeId(ASK_KEYS.waiting, id)`·`removeId(ASK_KEYS.newAnswer, id)`(지운 대화가 알약 셈에 남지 않게) · `activity.refresh()`.
+- ⋯ 메뉴(지금 대화를 열고 ⋯ → 이 대화 삭제)는 **지금 그대로** — `ChatMenuSheet` 의 `router.replace('/ask')` + 삭제 표지 → `AskChatTab` 이 토스트(데모 E·curConfirm·curDone, §26-3 B). 이 경로는 `AskChatTab` 이 다시 마운트될 수 있어 보던 쪽이 1쪽이 되는데, 수용(지운 직후라 잃을 맥락이 없다).
+
+**E. 문구**(`askCopy.ts` `history.*` — U1)
+
+| 키 | 문구 |
+|---|---|
+| `history.rowMore(title)` | ‘{title}’ 메뉴 |
+| `history.rowTitle` · `history.rename` · `history.toList` | 이 대화 · 제목 바꾸기 · 목록으로 |
+| `history.deleteBusyNote` | 답을 받는 중이라 지금은 지울 수 없어요. |
+| `history.confirmQ(title)` | ‘{title}’ 대화를 삭제할까요? |
+| 재사용 | `menu.delete` 이 대화 삭제 · `menu.confirmBody` · `menu.deleteFail` · `menu.deleteBusy` · `deletedToast` 대화를 삭제했어요 |
+
+### 27-6. D4 — 휴대폰 뒤로가기 기록을 늘리지 않는다
+
+**A. 바꾸는 줄**(U2 — `AskChatTab.tsx` · `AskRoom.tsx`)
+- `AskChatTab`: `onNewConversation={() => router.push('/ask')}` → **`onNewConversation={startFresh}`**, `startFresh = () => { setFailed(null); startNew(); replaceUrl('/ask'); afterCommit(() => pillRef.current?.focus()) }`(상태 먼저 → 주소: `askConvTransition(x, null, null)` = `'none'` 이라 빈 대화를 두 번 만들지 않는다). `useRouter` import 삭제(이 파일에서 더 쓰지 않음).
+- `AskRoom.newQ`: `setMenu(null); onNewConversation()` — `router.push('/ask')` 대체 경로 삭제(`onNewConversation` 은 필수 prop). `AskRoom` 의 `useRouter` 도 삭제(27-7 C).
+- 지난 질문 열기 = 27-1 A 3(`replaceUrl(askChatHref(id))`), 첫 질문 방 생성 = 지금 그대로(`replaceUrl`).
+- 이것으로 `src/components/ask/**` 안의 `router.push(`·`router.replace(` 는 **0건**(시험 T9).
+
+**B. 뒤로가기 표**(데모 「뒤로가기 · 주소」 D4 A 흐름 — 기록은 탭 화면 하나 = 한 칸)
+
+| # | 한 일 | 기록 | 휴대폰 뒤로가기 |
+|---|---|---|---|
+| 1 | 공부 탭 → 하단 「질문」 | +1(`/ask`) | 공부 탭 |
+| 2 | 1 뒤 지난 질문 「大丈夫」 → 다시 지난 질문 「お疲れ様でした」 | 0(주소만 바꿔 적음) | **공부 탭**(D4 A) |
+| 3 | 대화 중 ⋯ → 「새 질문 시작」 | 0 | 공부 탭(task-066 은 직전 대화로 갔다) |
+| 4 | 빈 대화에서 첫 질문 보냄(방 생성) | 0 | 공부 탭(§26-3 B 그대로) |
+| 5 | 시트에서 지금 대화 삭제 · ⋯ 에서 지금 대화 삭제 | 0(`replace`) | 공부 탭 |
+| 6 | 대화 B 에서 근거 카드 → 수업(push) → 휴대폰 뒤로 | — | **B 복원**(27-1 D 처음 값 방어) · 수업 머리 ← 「질문으로」도 B(`askReturn` = `/ask?chat=B`) |
+| 7 | `/ask?chat=B` 에서 웹 새로고침 | 기록 그대로 | 공부 탭 |
+| 8 | 옛 `/ask/<id>` 로 들어옴(북마크·옛 링크) | 서버 307 — 브라우저가 그 기록을 새 주소로 바꿔 적음 | 들어오기 전 화면 |
+| 9 | 대화 중 하단 「질문」을 다시 누름 | **+1**(공용 하단 탭 `Link` = push — 이번 범위 밖, 그대로) | 직전 `/ask?chat=x` → 그 대화 복원(§26-3 B 그대로) |
+
+- 직전 대화로 돌아가려면 「지난 질문」에서 고른다(최근 순이라 1쪽 맨 위 근처 — 데모 설명 그대로).
+- 9번은 D4(열기·새 질문 시작) 밖이라 바꾸지 않는다 — 맞추려면 공용 `TabBar` 를 고쳐야 해 다른 탭에 영향(27-11 Leader 확인 L1).
+
+### 27-7. 옛 `/ask/<id>` — 서버 리다이렉트와 `room` 변형 정리 (D5 A)
+
+**A. 서버(S)**
+```
+// app/(app)/ask/[chatId]/page.tsx — 화면 없음
+import { redirect } from 'next/navigation'
+import { askChatHref, isAskId } from '@/components/ask/logic'
+export default async function Page({ params }: { params: Promise<{ chatId: string }> }) {
+  const { chatId } = await params
+  redirect(isAskId(chatId) ? askChatHref(chatId) : '/ask')
+}
+```
+- `redirect`(렌더 중 307 — 일시) 를 쓴다. `permanentRedirect`(308)는 브라우저가 오래 기억해 나중에 이 주소를 다시 쓰고 싶을 때 되돌리기 어렵다.
+- 여기서 `auth()` 를 하지 않는다 — 받는 쪽 `/ask` 가 한다. 대신 **`(tab)/page.tsx` 의 로그인 돌아올 주소에 대화를 남긴다**: `redirect(`/login?callbackUrl=${encodeURIComponent(isAskId(chat) ? askChatHref(chat) : '/ask')}`)`(데모 「로그인이 풀린 채 옛 주소로 오면 로그인 뒤 탭 화면으로(돌아갈 주소도 새 모양)」).
+- 형식이 틀린 id → `/ask`(빈 대화). 없는 대화·남의 대화 → `/ask?chat=<id>` 로 간 뒤 `AskRoom` 404 → `onGone` → 빈 대화 + 토스트 「대화를 찾을 수 없어요」(데모 D5 A 설명, 지금 규칙).
+- **질문이 아닌 대화 id**(옛 `/ask/<회화 id>`, 손으로 친 주소): 지금은 `room` 이 그 방으로 보냈지만, 이제 `/ask?chat=<id>` → `kind !== 'ASK'` → `onGone`(빈 대화 + 「대화를 찾을 수 없어요」). 수용 권고(27-11 L3).
+
+**B. 「질문으로」·링크가 가는 곳**([확실] 2026-10-13 grep — `/ask/<id>` 를 만드는 곳은 아래 넷뿐)
+
+| 지금 | 바뀐 뒤 | 담당 |
+|---|---|---|
+| `AskListItem` 의 `<Link href="/ask/<id>">` | 버튼 → `onOpen`(27-5 A) | U1 |
+| `AskRoom` `returnHref = variant==='tab' ? askChatHref(chatId) : undefined` → `SourceList` 대체값 `` `/ask/${id}` `` | `AskRoom` 이 **늘** `askChatHref(chatId)` · `SourceList` 대체값도 `askChatHref`(`AskAnswer` 의 `returnHref` 를 필수로 바꿔도 됨) — 근거 카드 → 수업·평가·역할극 → ← 「질문으로」 = `/ask?chat=<id>`(리다이렉트 한 번도 거치지 않음) | U2 |
+| `chat/ChatRoom.tsx` 105행 — 채팅방 주소로 연 ASK 대화 → `router.replace('/ask/<id>')` | `router.replace(askChatHref(chatId))` | U2 |
+| `shell/askReturn.ts` 정규식(`/ask/<id>` 또는 `/ask?chat=<id>`) | **그대로** — 배포 전에 남은 기록(2시간 안)이 `/ask/<id>` 여도 리다이렉트로 같은 곳에 간다 | — |
+
+**C. `room` 변형 삭제 목록**(U2 — 지울 것 / 남길 것)
+- **지움**: `AskRoom` 의 `variant` prop·`AskVariant` 타입 · `BackBar` 머리 · `room` 의 불러오는 중(`LoadingBlock`) 조기 반환 · `room` 의 404/오류 화면(`ErrorBlock`·「질문으로」 `Link`) · `router.replace(elsewhere)`(질문 아닌 대화 → 이제 `onGone`) · `newQ` 의 `router.push('/ask')` · import `Link`·`useRouter`·`BackBar`·`ErrorBlock`·`LoadingBlock`. `onGone`·`onLoadFailed`·`onNewConversation` 은 **필수 prop**. `askRoomRedirect` 는 쓰는 곳이 없어지면 함수·시험 삭제(`kind !== 'ASK'` 한 줄로 대신).
+- **지움**: `ScopeLine` 의 `variant`·`ScopeLineVariant`·`scopeLinePaddingBottom` 의 `'room'` 갈래(제스처 여백은 늘 하단 탭이 갖는다 — 늘 4px) · `askToastBottom` 의 `variant`(늘 탭 화면 계산). 시험 `askChatTab.test.ts` 220행 · `askRoom.test.ts` 234~238행 갱신.
+- **지움**: `shell/routes.ts` 의 집중 화면 `'/ask/'`(그 주소로는 화면이 그려지지 않는다 — 리다이렉트 순간 하단 탭이 깜빡 숨는 일도 없앰) + `routes.test.ts` 를 `isFocusRoute('/ask/abc') === false` 로.
+- **지움(U1)**: `askCopy` 의 `backLabel`·`roomLoadingTitle`·`subtitle`·`notFoundBody`·`toList`·`more`·`moreBusy`(+ `notFoundTitle` 은 쓰는 곳을 grep 해 없으면) — `askCopy.test.ts` 갱신.
+- **남김**: `(tab)` 라우트 그룹·`(tab)/loading.tsx`(리다이렉트 경로에 탭 자리표시가 뜨지 않게 하는 원래 이유가 그대로 유효) · `askReturn.ts` · `forgetAskReturn()` 호출(`AskRoom` 마운트) · `tab` 의 회색 말풍선 불러오는 중(§26-5 B) · `onGone`/`onLoadFailed` 경로.
+- 시험 `askRoom.test.ts` ⑰(「지난 대화 page = auth + variant="room"」)은 **U2 가 지우고**, 새 페이지 시험은 S 가 **새 파일** `askRoute.test.ts` 에 쓴다(같은 시험 파일을 두 사람이 고치지 않게).
+
+### 27-8. 접근성 · 초점 · 토큰
+
+**A. 초점 이동표**(데모 「직접 해 보기」 기록 ④ + 공용 `Sheet` 규칙 — 같은 커밋 안에서 옮긴 초점은 닫히는 시트·사라지는 요소에 씻기므로 표시한 곳은 `afterCommit`)
+
+| 동작 | 초점 |
+|---|---|
+| 알약 → 시트 열기 | 시트 제목(공용 `Sheet` — 데모는 ✕, 데모와 다른 곳 ④) |
+| 행 누름 → 다른 대화 열기 · 시트에서 지금 대화 삭제 · ⋯ 「새 질문 시작」 | **알약**(`afterCommit(pillRef.current?.focus())` — 머리가 새로 그려져 `Sheet` 의 되돌리기 대상이 사라짐). `AskHistoryButton` 이 `ref` 를 받는다(React 19.2 — prop 으로) |
+| 「지금 대화」 행 누름 · ✕ · Esc · 바깥 | 알약(공용 `Sheet` 기본 — 같은 노드가 붙어 있다) |
+| 행 ⋯ → 「이 대화」 | 첫 줄 [제목 바꾸기] |
+| 「이 대화」 → 제목 바꾸기 / 머리 제목 / ⋯ 메뉴 제목 바꾸기 | 입력칸(`ChatRenameForm` 이 `afterCommit` 으로) |
+| 「이 대화」 → 이 대화 삭제 | 확인 화면 [취소] |
+| 행에서 저장·취소 · [목록으로] · 삭제 [취소] | 그 행의 ⋯(`[data-ask-row-more="<id>"]`) |
+| 다른 대화 삭제 성공 | 시트 제목(그 행이 사라졌다 — `closest('[role="dialog"]')` 안 `h2`, `tabIndex=-1` 이미 있음) |
+| 머리에서 저장·취소 | 머리 제목 단추(공용 `Sheet` 기본) |
+| 쪽 넘김 | **누른 단추에 그대로**(끝 쪽이라 `aria-disabled` 가 되어도) + status 「3쪽 중 2쪽 · 모두 12개」(J9) |
+
+- 하위 화면이 바뀌어도 공용 `Sheet` 는 다시 제목에 초점을 주지 않는다(`open` 일 때 한 번) — 위 표대로 시트가 직접 옮긴다. Esc·배경·✕ 는 공용 규칙(저장·삭제 중엔 `dismissible={false}`).
+- 쪽 줄은 `nav aria-label="지난 질문 쪽"`, 목록은 `ul`(행 = `li` 안 형제 단추 두 개). 머리 제목 단추 이름은 27-2 B, 행 단추 이름 = `askRowView().label`(+「, 지금 대화」), ⋯ = 「‘제목’ 메뉴」.
+- `lang`: 제목·미리보기는 한국어 글 안 일본어 구간만 `JaRuns` — 머리 둘째 줄·시트 행·「이 대화」 윗줄·삭제 확인 문장 모두.
+
+**B. 터치 · 글자 · 색**
+- 터치 44 이상: 머리 제목 단추 44(높이) · 알약 36/44 · ⋯ 44 · 행 ≥ 64(실제 ≈ 68) · 행 ⋯ 44 · 쪽 단추 44 × ≥92 · 메뉴 줄 52 · [목록으로] 48 · 제목 칸 44 · [저장]/[취소] 48.
+- 글자: 머리 「질문」 20 · 둘째 줄 12.5 · 행 제목 15 · 둘째 줄 14 · 시각 12 · 뱃지 11.5 · 쪽 라벨 15/12 · 쪽 단추 14 · 안내·오류 12.5 · 글자 수 12 · 확인 질문 16 · 제목 입력 16(iOS 확대 방지 — 지금 그대로). **11px 미만 0.**
+- 색만으로 알리지 않는다: 흐린 단추 = `aria-disabled` + 눌러도 아무 일 없음, 100자 초과 = 빨강 + 오류 문장, 「답 만드는 중」·「새 답」 = 글자 뱃지. 움직이는 점은 `motion-safe:` 그대로.
+- **토큰(다크·라이트)**: 위 「적용 토큰」 이름만 — 새 색 0. 데모의 `--surface2`·`--accent` 등은 앱 `--color-*` 같은 이름(`globals.css@sha256:a314f18f1807` 그대로 복사한 데모). 누름 테두리 `var(--color-accent)`, 오류 상자 `bg-bad-soft text-bad`, 흐림 `opacity-40`(쪽 단추)·`opacity-50`(메뉴 잠긴 줄 — 지금 ⋯ 메뉴와 같음).
+- 엔진·모델·호스트 이름 0(화면·aria·토스트) — 새 문구 전부 27-3 F·27-4 F·27-5 E 표 안.
+
+### 27-9. 구현 분담 — S · U1 · U2 (파일 소유 겹침 없음)
+
+**A. 소유**
+
+| 담당 | 파일(이 사람만 고친다) |
+|---|---|
+| **S** 서버(developer-S — 이미 착수) | `modules/conversation/chats/index.ts`(`total`) · `modules/conversation/index.ts` · `app/api/v1/chats/route.ts` · `app/(app)/ask/[chatId]/page.tsx`(리다이렉트) · `app/(app)/ask/(tab)/page.tsx`(로그인 돌아올 주소) · 시험 `listChats` total · 새 `ask/__tests__/askRoute.test.ts` |
+| **U1** 시트·쪽·행·삭제·문구 | `ask/{AskHistorySheet, AskPager, useAskHistoryPages, historyPaging, AskListItem, AskHistoryButton, useAskActivity, homeLogic, askCopy}.*` · 시험 `ask/__tests__/{askHistoryPaging(새), askActivity, askCopy}.test.ts` · `AskListItem`·시트 렌더 시험 |
+| **U2** 머리·제목 바꾸기·열기 연결·D4·`room` 정리 | `ask/{AskChatTab, AskRoom, AskNewConversation, AskTabSkeleton, AskHeadTitle(새), ScopeLine, AskAnswer, SourceList}.*` · `shell/{AppBar, routes}.ts(x)` · `chat/{ChatMenuSheet, ChatRenameForm(새), ChatRoom}.tsx` · 시험 `ask/__tests__/{askChatTab, askRoom, askHead(새)}.test.ts` · `chat/__tests__/chatRename.test.ts`(새) · `shell/__tests__/routes.test.ts` |
+
+- 겹칠 뻔한 파일과 정한 쪽: **`askCopy.ts` → U1**(U2 몫 문구 `head.*`·`rename.*`·`menu.emptyNote` 도 U1 이 단계 1 에 한꺼번에 넣는다 — 문구 단일 출처). **`AskChatTab.tsx` → U2**(D4·열기 연결·제목 힌트가 모두 이 파일 — U1 의 시트는 props 계약 27-4 A 만 지킨다). **`ChatRenameForm.tsx` → U2**(`ChatMenuSheet` 와 함께 — U1 은 import 만). **`AskHistoryButton.tsx` → U1**(`ref` 한 줄 — U2 는 쓰기만). **`askRoom.test.ts` → U2**(⑰ 삭제 포함, S 는 새 파일).
+
+**B. 순서**
+
+| 단계 | S | U1 | U2 |
+|---|---|---|---|
+| 1 | `total` 마무리 + 시험(진행 중) → 알림 | `askCopy` 새 키 전부·지울 키는 아직 두기 · `AskHistoryButton ref` · `historyPaging.ts` + 시험 → **U2 에 알림** | `ChatRenameForm`(지금 rename 본문 이동 — `default` 마크업 고정 시험 먼저) + `ChatMenuSheet startMode` → **U1 에 알림** |
+| 2 | 리다이렉트 page · `(tab)/page.tsx` 돌아올 주소 · `askRoute.test.ts` | `useAskHistoryPages` · `AskPager` | `AppBar heading`(기본 출력 고정 시험 먼저) · `AskHeadTitle` + 시험 |
+| 3 | — | `AskListItem`(버튼 + ⋯) · `useAskActivity` 정리(`more` 삭제) · `appendRooms` 삭제 | `AskRoom`: `room` 삭제 · 머리 · `titleHint`/`onTitleChange` · `menu` 상태 · `newQ` · `ScopeLine`/`askToastBottom` · `AskAnswer`/`SourceList` |
+| 4 | — | `AskHistorySheet` 쪽·하위 화면·삭제(계약 27-4 A props) | `AskNewConversation`·`AskTabSkeleton` 머리 · `ChatRoom` · `routes.ts` |
+| 5 | — | 안 쓰는 문구 키 삭제(U2 단계 3 이 끝난 뒤 — 그 전에 지우면 U2 빌드가 깨진다) | `AskChatTab`: `openConv`·`askInitialConvId`·`startFresh`·`onDeleted`·`onRenamed`·`pageResetKey`·`pillRef` → 시트 연결 |
+| 6 | 함께: tsc 0 · eslint 0 · 전체 시험 · `next build`(전용 미러 — 미러를 겹쳐 쓰지 않는다) · 27-10 표 · 3폭 실측 | ← | ← |
+
+- U1 의 `AskHistorySheet` 새 props 와 U2 의 `AskChatTab` 은 **같은 순간에 맞춰야** 빌드가 된다 — U1 은 단계 4 에서 새 props 를 **선택 prop 으로** 먼저 넣고(옛 `onClose` 만으로도 동작), U2 가 단계 5 에서 연결한 뒤 U1 이 필수로 바꾼다. (반대로 U2 의 `AskRoom` props 변경은 `AskChatTab` 도 U2 라 한 번에.)
+
+### 27-10. 시험 불변식 (developer 가 시험으로 옮김 — 「변이」= 일부러 그렇게 고치면 실패해야 함)
+
+| # | 불변식 | 방법 | 변이 |
+|---|---|---|---|
+| T1 | **시트는 한 쪽에 최대 5행** — 요청 `limit=5`, `ASK_HISTORY_PAGE === 5` | 소스 스캔 `useAskHistoryPages.ts` · 렌더 시 행 `li`(숨은 자리 제외) ≤ 5 | 5 → 6 |
+| T2 | `historyPages(total)` = max(1, ⌈total/5⌉): 0→1 · 1→1 · 5→1 · 6→2 · 12→3 | 순수 | `floor` 로 바꿈 |
+| T3 | **5개 이하면 쪽 줄 없음**: `total ≤ 5 && page === 0` → `paged=false` → 렌더에 `aria-label="지난 질문 쪽"` 0 · 숨은 자리 0 | 순수 + `renderToStaticMarkup` | `> 5` → `>= 5` |
+| T4 | **`total` 이 있으면 마지막 쪽에서 [다음] 흐림**(`page === pages − 1` → `nextDisabled`) · `nextCursor === null` 이어도 흐림 · 1쪽 [이전] 흐림 · 흐림 = `aria-disabled="true"` 이고 `disabled` 속성 0 | `pagerView` 순수 + 렌더 | `disabled` 속성 사용 · `total` 무시 |
+| T5 | 쪽 넘기는 중 두 단추 흐림 + `ul aria-busy` + 라벨이 목표 쪽 | `pagerView({status:'paging'})` | 하나만 잠금 |
+| T6 | 커서 스택: [다음] = `cursors[page+1]` · [이전] = `cursors[page−1]` 로 **다시 읽음** · 늦게 온 옛 응답 무시(`seq`) | `pushCursor` 순수 + 가짜 `apiGet` 순서 뒤바꿈 | 옛 응답 반영 |
+| T7 | **마지막 쪽 빈 자리** = `5 − 행 수`(`aria-hidden`·`invisible`), 쪽 오류면 4 · 5개 이하면 0 | `fillerCount` 순수 + 렌더 | 빈 자리 0 |
+| T8 | 삭제 뒤 지금 쪽이 비고 `page > 0` 이면 `page − 1` · 1쪽은 그대로 | `pageAfterDelete` 순수 | 빈 쪽에 머묾 |
+| T9 | **주소 갱신은 한 곳**: `src/components/ask/**`(주석 제외)에 `router.push(`·`router.replace(`·`useRouter` 0건 · `replaceState(` 는 `logic.ts` 한 곳 · `history.state`·`window.history.state` 를 넘기는 호출 0 · `replaceAskUrl` 첫 인자 고정(`replaceState(null,`) | 소스 스캔(§26 의 F1 시험 확장) | `router.push('/ask')` 를 되살림 |
+| T10 | **열기 순서**: `openConv` 는 `setConv` 다음 `replaceUrl` — 전이 `askConvTransition(x, y, y) === 'none'` · `askConvTransition(x, null, null) === 'none'` | 순수 + 소스 순서 스캔 | 주소 먼저 → 같은 대화 두 번 엶 |
+| T11 | 「지금 대화」 행 누름 = `setConv`·`replaceUrl` 0회, 닫기 1회 | `openConv` 를 순수 결정 함수 `askOpenAction(rowId, convId)` → `'close' \| 'open'` 로 | 같은 대화도 다시 엶 |
+| T12 | **알약 값은 `useAskActivity` 만**: 그 요청 URL `limit=20`(`ASK_LIST_LIMIT`) 그대로 · `askActivityOf` 입력이 쪽 `items` 가 아님(소스 스캔: `useAskHistoryPages` 결과로 `running`/`newCount` 계산 0) | 소스 스캔 + `askActivityOf` 시험(§26-13 ⑪ 그대로) | 알약을 시트 5행으로 계산 |
+| T13 | 행 「답 만드는 중」 덮어쓰기: 쪽 행 `running:false` + activity 같은 id `running:true` → 뱃지 있음 · 순서 불변 | 순수 `rowRunning(row, liveMap)` | 쪽 값만 씀 |
+| T14 | `AskListItem`: 행은 `button`(`<a`·`Link` 0) + **형제** ⋯ `button`(중첩 `<button` 0) · ⋯ 이름 「‘제목’ 메뉴」 · `/ask/` 0 | `renderToStaticMarkup` | 단추 안에 단추 |
+| T15 | 제목 검사: `''`·`'   '` → 「제목을 적어 주세요」 요청 0 · 101 코드포인트 → 「제목은 100자까지 쓸 수 있어요」 요청 0 · 100 코드포인트(이모지 섞음) → PATCH 1회 · 앞뒤 공백 뺀 값 저장 | 가짜 `apiPatch` | `length`(UTF-16) 로 셈 |
+| T16 | `ChatRenameForm variant='default'` 출력 = 지금 `ChatMenuSheet` rename 본문(고정 문자열 — 회화·채팅 불변) · `'ask'` 에만 「n / 100」·안내 줄 · `ChatMenuSheet` TALK/CHAT 메뉴 줄 순서·문구 그대로(§26-13 ⑯) | `renderToStaticMarkup` | 글자 수를 모든 종류에 |
+| T17 | `ChatMenuSheet startMode='rename'` 으로 열면 rename 화면 · [취소] = `onClose` 1회(메뉴로 안 감) · 기본은 [취소] = 메뉴 | 렌더/상태 함수 | 기본값 바꿈 |
+| T18 | **`AppBar heading` 없을 때 출력이 지금과 같다**(고정 문자열) · 있을 때 `<h1` 정확히 1개, 그 안에 `<button` | `renderToStaticMarkup` | 단추가 `h1` 을 대신 |
+| T19 | `AskHeadTitle`: `new` → 단추 0 · 「새 질문」 / `loading` → 단추 0 · 힌트 없으면 회색 막대(`aria-hidden`) / `ready` → 단추 1, 이름 = `질문 · 지금 대화 「…」 — 눌러서 제목 바꾸기`, 둘째 줄 `truncate` | `renderToStaticMarkup` | 불러오는 중에도 누를 수 있음 |
+| T20 | `/ask/[chatId]/page.tsx`: `AskRoom` import 0 · `redirect(` 1 · 잘못된 id → `'/ask'` · `(tab)/page.tsx` 로그인 `callbackUrl` 에 `askChatHref` | 소스 스캔(S) | `AskRoom` 을 남김 |
+| T21 | `room` 0: `ask/**` 에 `variant="room"`·`'room'`·`BackBar` 0 · `routes.ts` 에 `'/ask/'` 0 · `isFocusRoute('/ask/abc') === false` · `isFocusRoute('/ask') === false` | 소스 스캔 + 순수 | 되살림 |
+| T22 | **처음 값(주소가 정본 — 감사 REV-067B-3 정정)**: `askInitialConvId('B') === 'B'` · `(null) === null`(서버 prop 이 A 여도 무시) · `('../x') === null` · `askInitialConvId` 가 `initialChatId` 를 읽지 않음(소스 스캔) | 순수 + 소스 스캔 | 서버 값을 되살림 |
+| T23 | 시트 삭제: 잠긴 행(`running`) → #31 요청 0 + 토스트 · 성공 → `waiting`·`newAnswer` 에서 그 id 제거 · 지금 대화 → `onDeleted(id, true)` 1회 | 가짜 `apiDelete`·저장소 | 잠금 무시 |
+| T24 | 문구: `askCopy` 새 키 = 27-3 F·27-4 F·27-5 E 원문 · 엔진명 정규식(§25-11 ⑮) 0 · 질문 화면 문구에 「이름 바꾸기」 0(J7) · 「이전 질문 더 보기」 0 | 기존 `askCopy.test.ts` 확장 | — |
+| T25 | #27 `total`(S): 같은 소유자·`kind` 의 전체 수 · 커서·`limit` 을 바꿔도 같은 값 · 다른 사용자 행 미포함 · `kind` 없으면 전체 | 가짜 `deps.db`(S 기록의 `ListChatsDeps`) | 커서 조건을 `count` 에도 |
+| T26 | §26 시험 그대로 통과(①~⑰ — ⑭ 의 「`routes.ts` 불변(`'/ask/'`)」 단언만 T21 로 바뀜, ⑨ 전이 시험 그대로) | — | — |
+
+**실제 Next 라우터로만 확인되는 것(QA 몫 — 운영 빌드, 360·390·412 × 라이트·다크)**
+- **Q1** 시트 행 열기: RSC 요청 0(네트워크 탭) · 하단 탭·입력 바 그대로 · 주소 `/ask?chat=<id>` · 그 뒤 하단 탭 「질문」 → 빈 대화(`useSearchParams` 가 새 주소를 봄 — F1 회귀 없음).
+- **Q2** 공부 탭 → 질문 → A 열기 → B 열기 → 휴대폰 뒤로 = 공부 탭 · ⋯ 새 질문 시작 뒤 뒤로 = 공부 탭 · 첫 질문 생성 뒤 뒤로 = 공부 탭(27-6 B 1~5).
+- **Q3** B 에서 근거 카드 → 수업 → **휴대폰 뒤로 = B**(27-1 D) · ← 「질문으로」 = B.
+- **Q4** 옛 `/ask/<id>` 직접 입력 → 탭 화면의 그 대화(하단 탭 보임) · 잘못된 id → 빈 대화 · 남의 id → 빈 대화 + 토스트 · 로그아웃 상태 → 로그인 뒤 그 대화.
+- **Q5** 지난 질문 12개(합성 계정): 1/3 → 2/3 → 3/3 → 2/3, 마지막 쪽에서 쪽 줄 위치 변화 ≤ 1px · **앱 WebView 글꼴 130%** 에서도 ≤ 1px · 5개 이하 계정은 쪽 줄 없음 · 0개 계정 빈 상태.
+- **Q6** 제목 바꾸기 세 진입(머리·행 ⋯·⋯ 메뉴) · 키보드 위 시트에 [저장] 보임 · 저장 뒤 머리 둘째 줄·시트 행·⋯ 윗줄 같은 제목 · 시트에서 지금 대화 제목을 바꾸면 머리도 바뀜 · 다른 대화면 머리 그대로 · 순서 불변.
+- **Q7** 시트 삭제: 다른 대화(뒤 행 올라옴·「모두 n개」 감소·마지막 쪽이 비면 앞 쪽) · 지금 대화(시트 닫힘·빈 대화·토스트·주소 `/ask`·뒤로 = 탭 전 화면) · 답 만드는 중 잠금 · 실패 한 줄(네트워크 끊고).
+- **Q8** **알약**: 6번째 이후 대화(시트 1쪽 밖)가 답을 만드는 중이어도 알약 「답 만드는 중」 → 끝나면 「새 답 도착」 + 토스트 1번.
+- **Q9** 경합: 첫 질문 보내자마자 시트에서 다른 대화 → 새 대화로 바뀌고 질문·답 정상(방 1개) · 429 잠금 중 다른 대화 열기 → 보내면 안내 줄.
+- **Q10** 머리 3폭 × 알약 3상태: 둘째 줄 말줄임 글자 수(≈11/14/17, 답 만드는 중 −2~3) · 「질문」 잘림 0 · 겹침 0 · 11px 미만 0 · 44px 미만 터치 0 · 글꼴 130% 에서 머리 52 안.
+- **Q11** TalkBack: 머리 단추 「질문 · 지금 대화 「…」 — 눌러서 제목 바꾸기」 · 쪽 넘김 「3쪽 중 2쪽 · 모두 12개」 · 초점 이동표(27-8 A) 전부.
+
+### 27-11. 데모와 다르게 쓴 곳 · Leader 확인 필요
+
+**데모와 다르게 쓴 곳**(결정·구조는 그대로 — 구현 안전·공용 규칙 때문에)
+1. **불러오는 중 머리 둘째 줄은 누를 수 없다**(연필 없음 — 데모 C·loading 은 연필): 대화를 아직 확인하지 못해(없는·남의·질문 아닌 대화일 수 있음) 제목 저장 대상이 없다. 보통 1초 안.
+2. **쪽 오류 때 [다음 ›] 흐림**(데모는 켜짐): 실패한 쪽의 다음 커서를 모른다.
+3. **주소로 복원(힌트 없음) 중 머리 둘째 줄 = 회색 막대** ★(데모에 없는 상태).
+4. **시트를 열 때 초점 = 시트 제목**(공용 `Sheet` — 데모는 ✕) · 다른 대화 삭제 뒤 초점도 시트 제목.
+5. **행 높이 고정 68 대신 지금 행 모양 + 마지막 쪽 숨은 행**(J1 을 글자 크게 보기에서도 지키려고).
+6. **글자 수 「n / 100」·안내 줄·실패 문구는 질문 대화만** — 회화·채팅 제목 바꾸기 칸은 그대로(공용 부품 기본값 불변).
+7. **「새 질문 시작」 뒤 초점 = 알약** ★(데모에 정함 없음 — 머리가 새로 그려져 초점이 사라지지 않게).
+
+**Leader 확인 필요**(이 가이드는 각 줄의 「권고」대로 쓰였다)
+- **L1 하단 탭 「질문」 다시 누르기는 기록을 한 칸 쌓는다**(27-6 B 9 — 공용 `TabBar` 의 `Link` push, task-066 그대로). D4 범위(열기·새 질문 시작) 밖이라 두었다. 맞추려면 `TabBar` 변경(5개 탭 공통) → 권고: 후속 개선 후보로만.
+- **L2 처음 값 방어(27-1 D)**: task-066 의 「휴대폰 뒤로가기로 `/ask?chat=x` 복원」 가정을 코드로 보강한다(주소 쿼리 우선). 데모·결정에 없는 작은 동작이지만 D4 로 `replaceState` 주소가 늘어 필요성이 커졌다 [가능성 높음]. 권고: 넣고 QA Q3 로 실측.
+- **L3 옛 `/ask/<회화·채팅 id>`**: 이제 빈 대화 + 「대화를 찾을 수 없어요」(전엔 그 방으로 보냄). 손으로 친 주소뿐이라 수용 권고.
+- **L4 developer-S 가 이미 착수**(작업 트리 `listChats`·`route.ts`·`conversation/index.ts` 변경, [[task-067-dev-s-record]]): 리다이렉트 page 시험은 **새 파일 `askRoute.test.ts`**, `askRoom.test.ts` ⑰ 삭제는 U2 — Leader 가 S 에게 이 분담(27-9 A)과 `(tab)/page.tsx` 돌아올 주소 한 줄을 전달해 주세요.
+- **L5 질문 대화 제목 저장 실패 문구**는 데모 원문 하나(「제목을 바꾸지 못했어요. 연결을 확인하고 다시 해 보세요.」 — 404 포함). 회화·채팅은 지금 `actionErrorText` 그대로.
+- **L6 J2 「새 질문을 보내면 1쪽부터」** = **빈 대화에서 새 대화가 생길 때**(`onCreated`)로 해석했다. 이미 있는 대화에서 이어 물을 때는 보던 쪽을 유지한다(그 대화는 1쪽 맨 위로 올라가지만 열 때 다시 읽으므로 1쪽에서 보인다).
+- **L7 429 잠금은 대화 사이에 넘기지 않는다**(27-1 C — 지금 `/ask/<id>` 이동과 같은 결과). 넘기려면 새 동작이라 데모 재확인 필요.

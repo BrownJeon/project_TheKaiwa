@@ -147,7 +147,7 @@
 | 24r | POST | `/api/v1/text/annotate` | 일본어 읽기 분석 — 형태소별 표기·후리가나·발음 가나·구절 경계(task-026 S1, 저장 없음) | S | speech/reading | 2 | `{texts: string[≤64, 각 ≤400자]}` | `{items:[{segments}\|null], available}` |
 | 25 | POST | `/api/v1/attendance/check-in` | 출석(멱등) | S | learning/attendance | 1 | — | `{date,isNew,streak}` |
 | 26 | GET | `/api/v1/attendance?month=` | 월 출석 | S | learning/attendance | 1 | query | `{month,days[]}` |
-| 27 | GET | `/api/v1/chats?kind=&limit=&cursor=` | 대화 목록 | S | conversation/chats | 1 | query | 목록 |
+| 27 | GET | `/api/v1/chats?kind=&limit=&cursor=` | 대화 목록 | S | conversation/chats | 1 | query | 목록(+`total` — task-067) |
 | 28 | POST | `/api/v1/chats` | 대화 생성 | S | conversation/chats | 1 | `{kind,topicId?,title?,level?}` | `Chat` |
 | 29 | GET | `/api/v1/chats/:id?after=` | 대화 상세(메시지·running) | S | conversation/chats | 1 | query | `Chat`+messages |
 | 30 | PATCH | `/api/v1/chats/:id` | 제목 변경 | S | conversation/chats | 1 | `{title}` | `Chat` |
@@ -735,7 +735,17 @@ K     = HKDF-SHA256(JWT_SECRET, salt "thekaiwa-subkey", info "thekaiwa/tts-audio
 
 #### #27 `GET /api/v1/chats?kind=TALK|CHAT|ASK&limit=&cursor=`
 
-`{ items: [ { id, kind, title, topic?: {id,title}, level, lastMessageAt, preview, messageCount, reviewedAt, running } ], nextCursor }`. `running` = 진행 중 턴 락 존재 여부.
+`{ items: [ { id, kind, title, topic?: {id,title}, level, lastMessageAt, preview, messageCount, reviewedAt, running } ], nextCursor, total }`. `running` = 진행 중 턴 락 존재 여부.
+
+- **`total`(number, task-067 D3 — additive, 2026-10-13)**: **같은 필터(본인 + `kind`, `kind` 가 없으면 본인 전체)의 전체 대화 수.** 커서·`limit` 과 무관하다(어느 쪽을 읽어도 같은 값 — 쪽 조건과 개수 조건은 서버 한 곳 `chatListFilter` 에서 만든다). 대화 삭제(#31)는 행을 지우므로 다음 읽기부터 줄어든다. 단어장 #40 의 `total` 과 같은 뜻. 화면: 질문 탭 「지난 질문」 시트가 `‹ 이전 · 1 / 3 · 다음 ›`·「모두 n개」(쪽 수 = `max(1, ⌈total / 5⌉)`)에 쓴다(screens.md §27-4). 다음 쪽 판정은 여전히 `nextCursor`(`null` 이면 마지막).
+
+```json
+GET /api/v1/chats?kind=ASK&limit=5
+← { "success": true, "data": { "items": [ { "id": "c_12…", "kind": "ASK", "title": "大丈夫", "lastMessageAt": "2026-10-13T05:02:11.000Z", "preview": "「大丈夫」는 ‘괜찮아요’라는 뜻이에요…", "messageCount": 2, "reviewedAt": null, "running": false }, … 5개 ],
+      "nextCursor": "eyJ0Ijoi…", "total": 12 }, "message": null }
+GET /api/v1/chats?kind=ASK&limit=5&cursor=eyJ0Ijoi…
+← { …, "data": { "items": [ … 5개 ], "nextCursor": "eyJ0Ijoi…", "total": 12 } }      // 3쪽(2개)은 "nextCursor": null, "total": 12
+```
 
 #### #28 `POST /api/v1/chats`
 
@@ -1392,7 +1402,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 **범위**: 글자 질문 + **음성 질문(task-066, 2026-10-13)** — 마이크로 말하면 회화와 같은 **실시간 음성 인식이 글자로 바꾼 뒤** 그 글자만 보낸다(`inputSource:"REALTIME_STT"`, `utteranceId` 없음). 원음·발화 행(`Utterance`)은 질문에 연결하지도 서버에 저장하지도 않는다. `inputSource` 는 `TEXT|REALTIME_STT` 만이고 `SERVER_STT`·`utteranceId` 는 ASK 에서 `400`. 3b(MCP)·3c(의미 검색)·지식 자료·home-m4 는 범위 밖.
 
 1. **#28 생성** — `kind:"ASK"` 허용(`FEATURE_NOT_READY` 해제 — orchestrator 의 턴·수락 두 곳도). 허용 키 `kind`·`title` 뿐(`topicId`·`scenarioId`·`lessonId`·`level` 이 오면 `400`). `title` 생략·기본값(「새 질문」)이면 **첫 답 `DONE` 저장과 같은 트랜잭션**에서 서버가 첫 질문을 공백·개행 정리 뒤 30자 이내로(넘으면 앞 29자+「…」, 총 30자 — `truncateCodePoints`) 바꾼다. ASK 방 수 상한 없음, 정렬 `lastMessageAt desc`.
-2. **#27 목록(`kind=ASK`)** — 형태 불변. `preview`(= `Chat.preview`, 스키마 칸 이미 있음)는 **마지막 ASSISTANT 답의 첫 줄 평문(마크다운 제거)≤60자**, 답이 오기 전·실패 뒤엔 첫 질문 ≤60자. `running`=턴 락 존재(「답 만드는 중」 행).
+2. **#27 목록(`kind=ASK`)** — 형태 불변(**task-067: 응답에 `total` additive — #27 본문**). `preview`(= `Chat.preview`, 스키마 칸 이미 있음)는 **마지막 ASSISTANT 답의 첫 줄 평문(마크다운 제거)≤60자**, 답이 오기 전·실패 뒤엔 첫 질문 ≤60자. `running`=턴 락 존재(「답 만드는 중」 행).
 3. **#32 턴(ASK)** — 요청: `text` 1~1,000자, `inputSource` 는 `TEXT`·`REALTIME_STT`(발화 id 없이)만 — 그 밖은 `400 {field:'inputSource', reason:'TEXT|REALTIME_STT'}`. `utteranceId` 는 어떤 `inputSource` 와도 `400 {field:'utteranceId', reason:'notAllowed'}`(`inputSource:TEXT`+발화 id 는 본문 검사에서 `400 {field:'inputSource'}`). 음성 질문도 같은 한도(분당 3·하루 60·`ASK_BUSY`·수락 전 실패 환불)·같은 락을 쓰고, 저장되는 사용자 메시지의 `inputSource` 는 받은 값 그대로다. **신규 `scope?:{key}`**(`THIS_WEEK|LAST_30D|ALL`, ASK 한정 — 다른 종류에선 `400`). `scope` 는 **직전 ASSISTANT 메시지가 `needsScope` 를 가졌을 때만** 쓰고(아니면 무시) 서버가 **직전 USER 질문의 의도에 그 범위를 결합**해 조회한다(칩 글자만으로 분류하지 않는다). 「직접 쓸게요」 답은 보통 텍스트 턴이다.
    - 한도(Codex C1 #1 반영으로 하향): **ASK 분당 3턴·하루 60턴**(초과 `429` + `retryAfterSec` + **`reason`: 분당 `ASK_RATE`·하루 `ASK_DAILY`** — 클라이언트는 `reason` 으로 안내를 가르고 `reason` 이 없으면 `retryAfterSec>3600` 을 하루 한도로 추정), 사용자당 진행 중 턴 1 — 공용 락이라 **ASK 가 도는 동안 같은 사용자의 회화·채팅 턴은 `409`**(기존 안내 UI 그대로; QA 가 실측). **전역 대기 상한**: 이 프로세스에서 ASK 가 실행 중 1건 + 대기 2건을 넘으면 새 ASK 는 `429 { reason:"ASK_BUSY", retryAfterSec }`(ASK 전용 AI 실행 슬롯은 하나뿐이라 그 앞의 줄이 무한정 길어지지 않게 묶는다 — 회화·채팅은 별도 슬롯이라 이 줄과 서로 기다리지 않는다, 2026-10-12 사용자 결정 「ASK 전용 슬롯」·REV-lane; 화면은 기존 429 안내 재사용). 실행시간 기반 사용자 쿼터는 후속 후보.
    - SSE: `accepted → status{PROMPT|LLM|PARSE} → done|error`. `audio`·TTS 단계 없음. 답 본문 증분 이벤트 없음(`--json-schema` 출력 특성 — 답은 `done` 에 한 번에). 시간 예산 LLM 120s(`ENGINE_TIMEOUT`).
@@ -1406,6 +1416,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 7. **로그·추적**: `RequestTrace`·프로세스 로그에 질문 원문·조회 본문·답 본문 금지 — 의도·건수·단계 시간·모델 티어만(+ Trace PROMPT 단계의 입력 방식 `inputKind` `TEXT|VOICE` 열거값, task-066). 음성 질문의 원음은 서버로 오지 않는다(인식된 글자만). 엔진명은 어댑터 밖으로 안 나간다.
 8. **`answerMd` 살균·렌더(Codex C1 #4)**: 서버가 저장 전에 HTML 태그·마크다운 링크/이미지 문법·`javascript:`/`data:`/스킴 있는 URL·제어 문자를 제거하고(글자만 남김) 길이 ≤4,000자를 강제한다. 클라이언트는 마크다운 **화이트리스트 노드(문단·굵게·기울임·목록·인용·줄바꿈)만 React 요소로** 그린다 — `dangerouslySetInnerHTML` 금지, **3a 에서는 링크를 렌더하지 않는다**(자동 링크 포함). 시험: `<script>`·`onerror=`·`javascript:`·`data:`·`iframe`·마크다운 링크가 서버 저장값과 렌더 결과 모두에서 사라짐.
 9. **저장형 프롬프트 주입 방어(Codex C1 #3)**: ① 프롬프트의 조회 결과 블록은 **비신뢰 데이터 구역**으로 경계 표지와 함께 직렬화하고 항목 텍스트 안의 경계 표지는 이스케이프한다(PE `ask@v2` — task-066 이 올림: v1 지시문 12줄·응답 스키마는 바이트 동일, 일본어 단독 입력 한 줄 + 음성 입력 표지 `[입력 방식]`(`inputKind: TEXT|VOICE`, 기본 TEXT) 추가) ② 서버가 모델 출력을 재검증: `sourceKeys` ⊆ 제공 키, **그 의도에서 호출된 함수가 만든 `type` 의 항목만 `sources[]` 로 인정**(GENERAL 의도는 `sources` 항상 빈 배열), `confidence`·`needsScope` 형식, `proposals` 는 기존 제안 모듈의 허용 종류·페이로드 스키마만(그 밖은 버림) ③ 의미적 일치 검증은 하지 않는다(신뢰도 낮음 — 근거 카드는 본인 기록으로만 연결되므로 최악의 경우도 본인 기록 라벨 오표시) ④ 회귀 시험: 기록 텍스트에 지시문(「이전 지시 무시」·가짜 `sourceKeys`·가짜 제안)을 넣은 픽스처에서 지시 불복종·키 정합 100%.
+10. **화면 주소(참고 — API 아님, task-067 D5, 2026-10-13)**: 옛 질문 방 주소 `/ask/<chatId>`(페이지)는 화면을 그리지 않고 **서버 리다이렉트(307) `/ask?chat=<chatId>`** — id 형식(`^[A-Za-z0-9_-]{1,64}$`)이 틀리면 `/ask`. 소유 확인은 받는 쪽 화면이 #29 로 한다(없음·남의 대화·질문 아닌 대화 → 빈 대화 + 「대화를 찾을 수 없어요」). `/ask` 의 로그인 돌아올 주소(`callbackUrl`)는 `?chat=` 을 유지한다. 근거 카드 「질문으로」·채팅방 주소로 연 ASK 대화도 `/ask?chat=<id>` 로 간다(screens.md §27-7).
 
 ### 2-19. 관리자 공통 규약 (`/api/admin/v1/*`)
 
