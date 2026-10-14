@@ -89,7 +89,7 @@
 | 오늘 | `/study/today/eval/[evaluationId]` | AI 평가 — 상태로 분기: 만드는 중·실패 / 준비 화면 [시작하기](10분 시계) / 문항 풀이(듣고 답하기 글자로 보기·틀린 곳 탭·조립) / 채점 중·다시 채점 / 결과(점수·루브릭·문항별 정답·레벨 제안) | 소유자(타인 404) | **숨김** | **task-011**(api-contract §2-14 #65~#69·#67c) |
 | 오늘 | `/study/today/eval/history` | AI 평가 기록 목록(진행 중 포함·실패 제외) | 로그인 | **숨김** | **task-011** |
 | 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 분석·성장은 Phase 3 |
-| 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(자기 단어만) | 보임 | **task-008(§4)** · 앱바 아래 분절 `[단어 \| 채택한 교정]` **task-055(§21)** |
+| 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(내 단어 + 공용 기본 단어 읽기 전용 — task-068) | 보임 | **task-008(§4)** · 앱바 아래 분절 `[단어 \| 채택한 교정]` **task-055(§21)** · 7개씩 쪽·출처 칩·조각 5유형·기본 단어 읽기 전용 **task-068(§28)** |
 | 단어장 | `/drawer/corrections` (돌아오기 복원 `?errorType=&chunkType=&q=&focus=&n=`) | 채택 교정 모음(분절·유형/조각 칩·검색·요약 카드·더 보기·원래 대화 이동·단어 시트) | 로그인(자기 교정만) | 보임 | **task-055(§21)** — 데모 v1 승인 2026-10-11 |
 | 질문 | `/ask` (`?chat=<id>` 지금 대화 복원) | 무엇이든 물어보세요 — 챗봇창: 열 때마다 빈 대화(안내 말풍선·칩 = 바로 보냄) · 글자 바 ↔ 말 바(🎤 일본어 — 회화와 같은 누르고 말하기 + 밀어서 취소) · 보내는 범위 한 줄(확인 창 없음) · 머리 「지난 질문」 알약(답 만드는 중·새 답) → 시트 | 로그인(자기 대화만) | 보임 | **task-066(§26)** — 데모 v2 승인 2026-10-13(D1=B). task-064(§25) 목록 화면 대체 · **task-067(§27)**: 머리 「질문」 아래 지금 대화 제목(눌러서 제목 바꾸기) · 지난 질문 시트 5개씩 쪽(`‹ 이전 · 1 / 3 · 다음 ›`) · 행 ⋯(제목 바꾸기·삭제) · 지난 대화도 이 화면에서 열림(기록 안 늘림) — 데모 v1 승인 2026-10-13 |
 | 질문 | `/ask/[chatId]` | **화면 없음** — 서버 리다이렉트 `/ask?chat=<id>`(옛 북마크·링크용, task-067 §27-7). task-066 의 지난 대화 화면(‹ 머리·하단 탭 숨김)은 삭제 | (받는 쪽 `/ask` 가 로그인·소유 확인) | — | **task-067(§27-7)** · task-066(§26) · task-064(§25) |
@@ -12672,3 +12672,682 @@ export default async function Page({ params }: { params: Promise<{ chatId: strin
 - **L5 질문 대화 제목 저장 실패 문구**는 데모 원문 하나(「제목을 바꾸지 못했어요. 연결을 확인하고 다시 해 보세요.」 — 404 포함). 회화·채팅은 지금 `actionErrorText` 그대로.
 - **L6 J2 「새 질문을 보내면 1쪽부터」** = **빈 대화에서 새 대화가 생길 때**(`onCreated`)로 해석했다. 이미 있는 대화에서 이어 물을 때는 보던 쪽을 유지한다(그 대화는 1쪽 맨 위로 올라가지만 열 때 다시 읽으므로 1쪽에서 보인다).
 - **L7 429 잠금은 대화 사이에 넘기지 않는다**(27-1 C — 지금 `/ask/<id>` 이동과 같은 결과). 넘기려면 새 동작이라 데모 재확인 필요.
+
+---
+
+## 28. 단어장 — 7개씩 쪽 · 공용 기본 단어(읽기 전용) · 출처 칩 · 조각 5유형 · 직접 입력 「조각」 (task-068, 2026-10-14)
+
+승인 데모: `docs/demo/task-068-wordbook-v1.html` (v1)
+
+> 파일 sha256 `568bdb54aaf7e0cf185183565738deb716c5f24cb42d25285112b7716e7ea31a`(2026-10-14 직접 계산 — 이력서 frontmatter 와 같음), 토큰 `src/app/globals.css@sha256:a314f18f1807`(데모 메타와 지금 파일 앞 12자 같음, §26·§27 과 같음). 사용자 승인 2026-10-14 12:55, 원문 「task-068 데모 v1 승인, 결정(D1~D10)은 권고대로」 — **D1~D10 전부 ★ 권고안**(D1 A + 자리 A · D2 A · D3 B + 오늘 카드 A · D4 B · D5 A + 초안 뒤 A · D6 A · D8 A · D9 A · D10 A + 표시 A). D7·옛 D6 은 전제 변경으로 데모에서 지움(넣는 단계·버튼이 없다).
+> **우선순위: task 이력서 「DB 구조」·「승인된 결정」(Leader 확정 ①~⑤ 포함) > `api-contract.md` §2-9(task-068 개정) > 이 절 > 데모 v1 > §4·§5·§19·§23 의 기존 단어장 절.** 데모 상태는 「데모 {탭}·{세부}」(예: 데모 B·last), 데모의 판단 목록은 J1~J13 으로 인용한다. 데모의 D1 B·C, 자리 B, D2 B, D3 A, 오늘 카드 B, D4 A·C, D5 B·초안 뒤 B·C, D6 B, D8 B, D9 B, D10 B·표시 B 화면은 **구현하지 않는다**(승인 안 아님).
+> **범위(delta)**: ① 목록 30개 + 「단어 더 보기」 → **한 쪽 7개** + 목록 바로 아래 `‹ 이전 · n / N · 다음 ›`(가운데를 누르면 쪽 번호로 이동) ② 기본 단어 = **공용 읽기 전용 행**(모든 사용자가 가입 즉시 봄 — 넣기·채워 넣기 없음), 내 단어 = 내가 넣은 행(나만 봄·관리) ③ 필터 줄: **난이도 이름 칩만 제거**·출처 칩 「전체 · 내 단어 · 기본 단어」 추가·조각 칩 「없음」 제거 + 「표현」 추가 ④ 추가·수정 폼 「수준」 → **「조각」 꼭 고르기**(선생님 초안이 미리 고름) ⑤ 기본 단어와 같은 표기·읽기는 내 단어로 넣지 않음 ⑥ 기본 단어 넣기 버튼 3곳 삭제. 검색 칸·정렬 3종·보관함 단추·보기 설정(히라가나·한글)·행 모양·상세의 소리 듣기·예문·기록·내 단어 수정·삭제 확인·추가 시트 흐름(표현 → 뜻 채우기 → 확인·고침 → 저장 · 직접 입력하기)·오늘의 단어 덱은 **지금 그대로** — 이 절은 다시 정의하지 않는다.
+> 적용 토큰(이름만, **새 색 없음**): `--color-ground` · `--color-surface` · `--color-surface2`(회색 자리·분절 바탕·조각 뱃지) · `--color-ink` · `--color-ink2`(보조 글·머리 줄·쪽 개수·「기본 단어」 뱃지 글자) · `--color-ink3`(쪽 가운데 밑줄 색 — 장식만) · `--color-line`(행·쪽 단추 테두리·「기본 단어」 뱃지 테두리) · `--color-accent` · `--color-on-accent`(고른 칩) · `--color-accent-soft`(「내 단어」 뱃지 바탕·안내 띠·초안 안내) · `--color-bad` · `--color-bad-soft`(오류 상자·조각 미선택 테두리). DB 스키마는 S-A 몫(`WordEntry.userId` NULL·`seedKey`·`UserWordState`·`ChunkType.EXPRESSION` — 이미 작업 트리에 있음, 2026-10-14 확인). **네이티브 변경 없음(APK 불필요).** `project-ui-system` 미적용(학습 앱 화면).
+
+### 28-0. 레이아웃 설계 · 결정 요약 · 바뀌는 파일
+
+**A. 레이아웃 설계**(page-layout-designer 7항목 — delta, 바뀌는 곳만)
+
+| 항목 | 내용 |
+|---|---|
+| 목표 | 7,755개 넘는 단어장을 **7개씩 넘기며** 출처·조각으로 좁혀 보고, 내가 직접 넣을 때 **조각을 고른다**. 기본 단어는 고칠 수 없고 숨길 수만 있다 |
+| 주요 위계 | ① 7행 목록 ② 쪽 줄(목록 바로 아래) ③ 출처 칩·조각 칩 ④ 검색·정렬·보관함 ⑤ 머리 줄(개수 · 조건 · n쪽) |
+| 영역(390×780) | 머리 52+10 → 단어/교정 전환 ≈54 → 검색 44 → **출처 분절 8+32** → (분류 칩 줄 — 내가 정한 분류가 있을 때만 6+44) → 조각 줄 44 → 정렬·보관함 8+32 → (보관함 안내) → 머리 줄 8+32+6 → (안내 띠 J9) → **7행(행 ≈98~104)** → **쪽 줄 12+44** → 아래 여백 32 → 하단 탭 72. **[확실 — 데모 스크린숏] 첫 화면에 행 약 4개, 쪽 줄은 약 400px 내려야 보인다**(D1 자리 A 의 대가 — 고정 줄 규칙 예외를 만들지 않음) |
+| 컴포넌트 | 재사용 = `AppBar` · `DrawerSwitch` · `WordSearchBar` · `Segmented`(출처·정렬) · `CategoryChips` · `ChunkChips` · `ArchiveToggle` · `WordRow` · `WordForm` · `Sheet` · `Btn`/`BtnRow` · `Badge` · `Toast` · `ErrorBlock` / 새 것 = `WordsPager` · `WordsJumpSheet` · `WordChunkPicker` · `BaseWordBand`(안내 띠) · 순수 `wordsPaging.ts` |
+| 상태 | 목록: 처음 불러오기 · 1쪽 · 중간 · 마지막(빈 자리 유지) · 한 쪽뿐(7개 이하) · 검색 0 · 내 단어 0 · 보관함 0 · 쪽 넘기는 중 · 쪽 오류 · 첫 읽기 오류 / 쪽 이동: 빈 칸 · 잘못된 번호 · 같은 쪽 / 폼: 조각 안 고름 · 고름 · 안 고르고 저장 · 초안이 고름 · 기본 단어와 같음 / 상세: 기본 단어(보관만) · 내 단어(수정·보관·삭제) · 보관함 안의 기본 단어 |
+| 행동 | 주 = 행 열기 · [다음 ›] / 보조 = [‹ 이전] · 가운데 「n / N」(쪽으로 이동) · 출처·조각 칩 / 위험 = 내 단어 삭제(지금 확인 단계 그대로) — 기본 단어에는 위험 행동이 없다 |
+| 반응형 | 360/390/412 같은 한 줄 흐름. 쪽 줄은 360 에서도 한 줄(단추 92 × 2 + 간격 16 + 가운데 ≥ 360 − 32 − 200 = 128 — 「1,109 / 1,109」·「모두 7,758개」 들어감). 조각 칩 줄은 가로로 밀기(360 에서 끝 칩 「표현」이 밀어야 보임 — 지금 「없음」 자리와 같음, 데모 자체 점검 P2 ①). 폼 조각 칩은 **줄바꿈**(밀기 아님) |
+
+**B. 확정 결정**
+
+| # | 확정 | 화면에 미치는 것 | 이 절 |
+|---|---|---|---|
+| D1 | **A** `‹ 이전 · n / N · 다음 ›` + 가운데를 누르면 「쪽으로 이동」 시트 · **자리 A** 목록 바로 아래 · 한 쪽 7개 | 새 `WordsPager`(질문 탭 `AskPager` 와 같은 단추 모양 + 가운데 단추) · #40 쪽 번호 조회(`page`·`limit=7`·`pages`) | 28-1 |
+| D2 | **A** 단어장 화면에 있는 동안만 보던 쪽을 기억 — 검색·출처·분류·조각·정렬·보관함이 바뀌면 1쪽, 상세·추가·쪽 이동 시트를 닫으면 그 쪽, 다른 탭에 갔다 오면 1쪽 | 쪽은 `WordsScreen` 의 `useState`(저장소에 두지 않음) | 28-1 F |
+| D3 | **B** 난이도 이름 칩(`초보자 (N5)`…`최상급 (N1)` · 옛 `N5 기초`)**만** 뺀다 — 내가 정한 분류 칩은 남는다 · **오늘 카드 A** 같게 뺀다 | #46 이 난이도 이름을 `category:null` 묶음에 합친다 + 화면도 한 번 더 거른다 · 오늘 카드에 한 줄 「지금 수준(…) 단어가 가장 많이 나와요」(J13) | 28-2 C·D |
+| D4 | **B** 「표현」(`EXPRESSION`) 한 유형 추가 → 5유형. 조각이 빈 기본 단어 200행 = 표현 122 · 꾸밈 64 · 이름 11 · 느낌 3(S-A 재분류) | 조각 칩·뱃지·폼에 「표현」 · 교정·수업·평가는 4유형 그대로(J12) | 28-3 |
+| D5 | **A** 직접 입력·내 단어 수정은 조각을 **꼭** 고른다(「수준」 칸 삭제) · **초안 뒤 A** 선생님 초안이 조각도 채움(「선생님이 고른 조각이에요 · 바꿀 수 있어요」) | 새 `WordChunkPicker` · #41 초안 응답 `chunkType`(PE `wordEnrich@v2`) | 28-4 |
+| D6 | **A** 기본 단어 보관(숨기기) 허용 — 내용은 읽기 전용, 보관은 나에게만 | 기본 단어 상세 = [보관] 하나 · #45 가 사용자별 상태에 쓴다 | 28-5 C |
+| D8 | **A** 조각 뱃지 = 목록 행 · 상세 · 수정 · 추가 모두(기본 단어 포함) | 행·상세는 지금 뱃지 그대로(빈 조각이 0이 되어 모두 보임) · 폼은 고르기 칩 | 28-5 A |
+| D9 | **A** 기본 단어와 같은 표기·읽기는 막고 「기본 단어에 이미 있어요」 + [그 단어 보기] | #41 `409 CONFLICT details.code='BASE_DUPLICATE'` + `existingId`(기본 단어 id) | 28-4 E |
+| D10 | **A** 출처 칩 「전체 · 내 단어 · 기본 단어」 · **표시 A** 목록 행에는 「내 단어」에만 표시(상세에는 둘 다) | #40 `source=all\|mine\|base` · 단어 DTO `origin`·`readOnly` | 28-2 B · 28-5 |
+| Leader ① | `ChunkType` 새 값 `EXPRESSION`, 라벨 「표현」 · 교정·수업·평가 프롬프트는 4유형만 냄(J12) | 화면 쪽 조각 목록이 두 벌: 단어장 5 · 교정 모음 4 | 28-3 B |
+| Leader ② | 기본 단어 = N5~N1 팩 7,755 ∪ 옛 `words-n5.json` 중 팩에 없는 행, `seedKey` = `N5-0001`(팩) · `N5X-0001`(옛 행 — S-A 스키마 주석) | 기본 단어 개수는 7,755 로 **고정하지 않는다** — 안내 띠 숫자는 서버 `baseTotal`(28-6 C) | 28-6 C |
+| Leader ③ | 「최근 추가」 = 내 단어(넣은 시각 내림차순)가 앞, 그 뒤 기본 단어(N5 → N1) | **[확실] `seedKey` 글자 순으로는 `N1-…` 이 `N5-…` 보다 앞이다** — 서버는 단계(`jlpt` N5→N1) 다음 `seedKey` 로 정렬해야 한다(계약 #40 정렬 규칙) | 28-1 A |
+| Leader ④ | 학습 상태·보관 = `UserWordState`(내 단어 포함, 조회 경로 하나) | DTO 의 `correctCount`…`archivedAt` 은 늘 「나의」 값 | 계약 |
+| Leader ⑤ | 실사용자 678행 이관(짝 맞춤 → 상태 복사 → 참조 id 옮김 → 사본 삭제, 단계 분리·사용자 승인) | 화면 영향은 28-10 L3(배포~이관 사이 겹침) | — |
+| J1 | 마지막 쪽도 7행 높이(남는 칸 = 보이지 않는 빈 행) · 7개 이하면 쪽 줄을 그리지 않는다 | `fillerCount` | 28-1 D |
+| J2 | 쪽을 넘기면 화면을 **머리 줄로 올리고 초점도 머리 줄로**, 화면 읽기는 status 「1,109쪽 중 3쪽 · 모두 7,758개」 | 28-1 G | 28-1 G |
+| J3 | 단어를 넣으면 「최근 추가」면 1쪽(내 단어가 맨 위), 다른 정렬이면 보던 쪽 다시 읽기 + 토스트 「단어장에 넣었어요 · 내 단어는 나만 봐요」 | `pageAfterAdd` | 28-1 F |
+| J4 | 상세에서 보관·보관 풀기·삭제하면 **같은 쪽을 다시 읽는다**(뒤 단어가 당겨짐), 그 쪽이 비면 앞 쪽 | 로컬로 행을 빼는 `listWithoutRow` 대신 다시 읽기 | 28-1 F |
+| J5 | 조각 칩 순서 = 이름 · 액션 · 느낌 · 꾸밈 · 표현, 칩에 개수 없음, 뱃지는 회색 하나(새 색 없음) | 28-3 A | 28-3 |
+| J6 | 조각을 고른 채 검색 결과 0이면 [‘…’ 추가하기]를 다시 보이고, 추가 시트가 그 조각을 미리 고른다 | `WordAddSheet presetChunk` | 28-6 B |
+| J8 | 기본 단어의 맞힘·틀림·마지막 결과·보관은 사용자별 — 상세 기록 줄은 **내 기록만** | #42 `stats` 를 내 세트·내 평가로만 센다(계약 #42) | 28-5 B |
+| J9 | 처음 한 번 목록 위 안내 띠(닫으면 이 기기에서 다시 안 보임) + 기본 단어 상세 출처 문장 | `BaseWordBand` | 28-6 C |
+| J10 | 기본 단어 상세의 수준 뱃지는 그대로 · 내 단어는 수준을 고르지 않는다(뱃지는 값이 있을 때만 — 옛 채택 단어) | 28-5 B | 28-5 B |
+| J11 | 쪽으로 이동 = 숫자 칸 · [처음 쪽] · [마지막 쪽] · 범위 밖 안내 · 가운데 단추 이름 「3 / 1,109 — 쪽으로 이동」 | 28-1 E | 28-1 E |
+| J12 | 채택한 교정 화면의 조각 칩 4종은 그대로 | `ChunkChips variant="corrections"` | 28-3 B |
+| J13 | 오늘의 단어 카드 한 줄 「지금 수준(초보자 (N5)) 단어가 가장 많이 나와요」 | `TodayWordsCard` | 28-2 D |
+
+**C. 지금 코드와 바뀌는 점**(경로는 2026-10-14 직접 확인 — [확실]. 담당 = 28-8. **S-A**(스키마·시드·이관)는 이 표에 없다 — 이력서 분담)
+
+| 구분 | 파일 | 할 일 | 담당 |
+|---|---|---|---|
+| 새로 | `vocab/wordsPaging.ts`(순수) | 쪽 계산·요청 주소·쪽 줄 보기값·번호 검사·쪽 상태 규칙 28-1 B | U |
+| 새로 | `vocab/WordsPager.tsx` | 쪽 줄(가운데 단추) 28-1 C | U |
+| 새로 | `vocab/WordsJumpSheet.tsx` | 「쪽으로 이동」 시트 28-1 E | U |
+| 새로 | `vocab/WordChunkPicker.tsx` | 폼의 조각 고르기(라디오 칩 줄바꿈 + 뜻 한 줄 + 초안 안내) 28-4 B | U |
+| 새로 | `vocab/BaseWordBand.tsx` | 처음 한 번 안내 띠 28-6 C | U |
+| 새로(시험) | `vocab/__tests__/{wordsPaging, wordsPager, chunkPicker, wordDetailOrigin}.test.ts` | 28-9 | U |
+| 수정 | `vocab/WordsScreen.tsx` | `PAGE = 30`·`more()`·「단어 더 보기」 삭제 → 7개 쪽 · 출처 분절 · 분류 줄 자리표시 삭제 · 쪽 상태(D2) · 안내 띠 · 다시 읽기 규칙(J3·J4) · 넣기(`useSeedPack`·`useSeedLevels`·`runSeed`) 삭제 | U |
+| 수정 | `vocab/logic.ts` | `WordListFilter` 에 `source` · `WordListState` → 쪽 상태(28-1 B) · `listHeader` 출처별 머리말·쪽 접미사 · `listWithoutRow` 삭제(쓰는 곳 없음 — J4) | U |
+| 수정 | `vocab/labels.ts` | `CHUNK_LABEL` 에 `EXPRESSION: '표현 조각'` · `CHUNK_FILTER_CHIPS` 「없음」 → 「표현」 · `chunkFilterName` 의 `none` 갈래 삭제 · 새 문구(28-1 H · 28-4 F · 28-5 D · 28-6 E) · `SEED_COPY` 넣기 문구·`seedResultText`·`seedLevelsFrom` 삭제 · `levelHelpText` 문구(28-6 D) · `categoryBadgeText` 가 난이도 이름 전부를 숨김 · `actionErrorText` 403 | U |
+| 수정 | `vocab/validate.ts` | `WordFormValues.jlpt` → `chunkType` · `FIELD_ORDER` 의 `jlpt` → `chunkType` · 「조각을 골라 주세요」 · `toCreateBody`/`diffPatch` 에서 `jlpt` 삭제·`chunkType` 추가 · `formFromDraft(…, presetChunk)` · `visibleCategories` 가 난이도 이름 제외 · `emptyVariant` 에 `source`·`noMine` | U |
+| 수정 | `vocab/WordForm.tsx` | 품사·수준 2칸 격자 → 품사 한 줄 + `WordChunkPicker` | U |
+| 수정 | `vocab/WordAddSheet.tsx` | 맨 아래 넣기 글자 버튼(`SeedTextBtn`) 삭제 · `presetChunk` · 초안 조각 · `BASE_DUPLICATE` 안내 | U |
+| 수정 | `vocab/WordDetailSheet.tsx` | 기본 단어 = 읽기 전용(보관 단추 하나) · 「기본 단어」/「내 단어」 뱃지 · 출처 문장 · 기본 단어엔 「추가한 날」 없음 · 수정 폼 조각 · `BASE_DUPLICATE` | U |
+| 수정 | `vocab/WordRow.tsx` | 「내 단어」 뱃지(조각 뱃지 왼쪽) | U |
+| 수정 | `vocab/ChunkChips.tsx` | `withNone` prop → `variant?: 'words' \| 'corrections'`(기본 `'words'` = 5유형, 「없음」 없음) — `'corrections'` 출력은 **지금 `withNone={false}` 와 한 글자도 같게** | U |
+| 수정 | `vocab/CategoryChips.tsx` | 바뀌는 코드 없음(`visibleCategories` 가 거름) — 시험만 | U |
+| 수정 | `vocab/WordsEmpty.tsx` | `SeedPackButtons` 와 `levels`·`seedingPack`·`onSeed` props 삭제 · `noWords` 는 [단어 직접 추가] 하나 · 새 `noMine` · `noSearchChunk` 에 [‘q’ 추가하기] | U |
+| 수정 | `vocab/TodayWordsCard.tsx` · `vocab/TodayHome.tsx` | 빈 카드 넣기 버튼 삭제([단어 직접 추가]를 채운 버튼으로) · `levels`·`seedingPack`·`onSeed` 삭제 · J13 한 줄(`myLevel` prop 이미 있음) | U |
+| 수정 | `vocab/hooks.ts` | `useSeedPack`·`useSeedLevels`·`SeedLevels` 삭제 · `VOCAB_KEYS.baseBand` 추가 | U |
+| 수정 | `vocab/WordsSkeleton.tsx` · `shell/tabSkeletonSizes.ts` · `shell/TabSkeleton.tsx` | 분류 줄 자리표시 삭제 · 출처 분절(실제 부품 `inert`) 추가 · 목록 자리 `rows: 6 → 7` · 쓰는 곳 없어진 `WordCategoryRowSkeleton` 삭제 — **`WORD_CATEGORY_ROW` 상수는 남긴다**(교정 모음 유형 줄 자리표시가 같은 값을 씀 — `shell/__tests__/tabSkeleton.test.ts` 139행) | U |
+| 수정 | `drawer/CorrectionsScreen.tsx` · `drawer/CorrectionsSkeleton.tsx` | `withNone={false}` → `variant="corrections"`(출력 불변) | U |
+| 수정 | `types/vocab.ts` | `WordChunkType`·`WORD_CHUNK_TYPES` · `WordEntry.origin`·`readOnly` · `WordListPage` 새 모양 · `WordDraft.chunkType` · `WordCreateBody`/`WordPatchBody` 의 `jlpt` 삭제·`chunkType` 추가 · `SeedPackResult` 삭제 | U |
+| 수정 | `types/seedPack.ts` | `LEVEL_CATEGORY_NAMES`·`isLevelCategory()` 추가(서버 #46 과 화면이 같이 씀) | **S-B**(단계 1) |
+| 수정 | `modules/learning/vocab/{words, sessions, enrich, seedPack}.ts` · `lessons/memo.ts` · `evaluation/materials.ts` · `reviewSchedule/index.ts` · `conversation/corrections/drawer.ts` · `learning/index.ts` | 계약 §2-9 task-068 개정 그대로(28-8 A) | S-B |
+| 수정 | `app/api/v1/words/route.ts` · `words/[id]/route.ts` · `words/[id]/{archive,unarchive}/route.ts` · `words/categories/route.ts` | 계약 그대로 | S-B |
+| 삭제 | `app/api/v1/words/seed-pack/route.ts` | #46b 폐지 | S-B |
+| 수정 | `conversation/prompts/wordEnrich.ts` 외 | `wordEnrich@v2` 출력 `chunkType`(이미 작업 트리에 있음) | PE |
+| 그대로 | `vocab/WordSearchBar.tsx` · `ArchiveToggle.tsx` · `common/{Segmented,Sheet,Toast,ui}.tsx` · `chat/{CorrectionCard,AcceptCorrectionSheet,ProposalCard,labels}.ts(x)` · `talk/TalkCorrectionCard.tsx` · `lesson/*` · `topic/*` · `eval/*`(#46 합계 의미 불변 — 28-2 C) · `vocab/VocabResult.tsx`(빠른 넣기 본문 그대로 — 28-10 L1) · 덱·세트 화면 전부 | — | — |
+
+### 28-1. 목록 7개씩 쪽 (D1 A · 자리 A · D2 A · 데모 B 전체 · J1 · J2 · J3 · J4 · J11)
+
+**A. 요청**(#40 — 계약 §2-9 task-068 개정이 정본)
+```
+GET /api/v1/words?q=&category=&chunkType=&source=all|mine|base&archived=0|1&sort=recent|wrong|surface&page=<1부터>&limit=7
+→ { items: WordEntry[≤7], total, page, pages, limit, baseTotal }
+```
+- 화면 상수 `WORDS_PAGE = 7`(`wordsPaging.ts`). 화면의 `page` 는 **0부터**, 요청은 `page + 1`. `wordsListUrl(filter, sort, page)` 한 곳에서만 주소를 만든다(지금 `listUrl` 대체 — 빈 `q`·`category`·`chunkType` 은 키를 넣지 않고, `source` 는 `all` 이어도 넣는다 — 시험이 주소를 고정 문자열로 비교).
+- **`cursor`·「단어 더 보기」는 없다**(계약: `cursor` 를 보내면 400). 쪽 수 = `wordPages(total) = max(1, ⌈total / 7⌉)`(서버 `pages` 와 같아야 한다 — 다르면 서버 값을 쓰고 콘솔 경고 없음). 7,755 → 1,108 · 7,758 → 1,109.
+- 정렬은 서버가 정한다(화면은 흉내 내지 않는다 — 지금 규칙). 같은 값끼리의 순서: **내 단어가 앞(넣은 시각 내림차순), 기본 단어는 단계 N5 → N1, 단계 안에서 `seedKey` 오름차순**(Leader ③ · J7). `seedKey` 글자 순만 쓰면 N1 이 먼저 나온다 — 계약 #40 과 시험 T17.
+- 요청 순서표(`reqRef`)·`AbortController`·늦게 온 옛 응답 버리기는 **지금 그대로**(§4-10).
+
+**B. 쪽 상태**(`WordsScreen` 안 `useState` — 순수 규칙은 `wordsPaging.ts`, 시험 대상)
+```
+type WordsStatus = 'first' | 'ready' | 'paging' | 'pageError' | 'firstError'
+interface WordsPageState {
+  page: number                 // 0부터. 'paging' 동안은 목표 쪽(데모 B·paging — 라벨이 이미 「4 / 1,109」)
+  total: number | null         // 첫 응답 전 null
+  baseTotal: number | null     // 안내 띠 숫자(28-6 C)
+  items: WordEntry[]           // 이 쪽 ≤ 7
+  status: WordsStatus
+  error: string | null         // firstError 문구(listErrorText)
+  shown: (WordListFilter & { sort: WordSort }) | null   // 지금 깔린 행을 받아 온 요청의 조건(logic.ts 규칙 그대로 — 머리 줄은 이 값으로)
+}
+// logic.ts: WordListFilter = { q, category, chunk: WordChunkType | null, archived, source: 'all' | 'mine' | 'base' }
+```
+순수 도우미(`wordsPaging.ts`):
+- `wordPages(total)` · `isWordsPaged(total, page) = (total ?? 0) > 7 || page > 0`
+- `wordsPagerView({ page, pages, total, status })` → `{ prevDisabled, nextDisabled, centerDisabled, label, sub, sr, centerAria }`
+  - `prevDisabled = page === 0 || status ∈ {paging, first, firstError}`
+  - `nextDisabled = page >= pages − 1 || status ∈ {paging, pageError, first, firstError}`(쪽 오류면 그 쪽을 못 읽었으니 다음도 막는다 — 데모 B·err)
+  - `centerDisabled = status === 'paging'`
+- `fillerCount(paged, rows, status) = !paged ? 0 : status === 'pageError' ? 5 : max(0, 7 − rows)`(데모 `ghostRows(5)` · J1)
+- `parseJumpPage(raw, pages)` → 0부터 쪽 번호 | `null`: `raw.normalize('NFKC')`(전각 숫자 「１２」) → 쉼표·공백 제거 → `/^\d{1,6}$/` 아니면 `null` → `1 ≤ n ≤ pages` 아니면 `null` → `n − 1`. (`'1.5'`·`'-3'`·`'12a'`·`''` → `null` — 데모의 「숫자 아닌 글자 지우기」보다 엄격하게: `1.5` 가 15쪽으로 가지 않게)
+- `clampAfterResponse(reqPage, total) = min(reqPage, wordPages(total) − 1)` — 응답 `items` 가 비었고 이 값이 `reqPage` 보다 작으면 **그 쪽으로 한 번만** 다시 읽는다(다른 기기에서 지워 쪽 수가 줄었을 때 · J4 「그 쪽이 비면 앞 쪽」).
+- `pageAfterAdd(sort, page) = sort === 'recent' ? 0 : page`(J3)
+
+**C. 쪽 줄 `WordsPager`**(새 파일 — `AskPager`(§27-4 B) 와 같은 단추 모양, **가운데가 단추**인 것만 다름 · 데모 `.pgr`·`button.pgl`)
+```
+props { view: WordsPagerView; onPrev(); onNext(); onJump() }
+<nav aria-label="단어 목록 쪽" className="mt-3 flex min-w-0 items-center justify-between gap-2">
+  <button type="button" onClick={view.prevDisabled ? undefined : onPrev} aria-disabled={view.prevDisabled || undefined} className={PAGER_BTN}>
+    <span aria-hidden="true" className="text-[17px] leading-none">‹</span><span>이전</span></button>
+  <button type="button" onClick={view.centerDisabled ? undefined : onJump} aria-disabled={view.centerDisabled || undefined}
+          aria-label={view.centerAria}                         ← 「3 / 1,109 — 쪽으로 이동」(보이는 글을 앞에 — 말로 누르기 · J11)
+          className="min-h-11 min-w-0 flex-1 rounded-[10px] px-1 text-center tabular-nums text-ink aria-disabled:opacity-50">
+    <span className="block text-[15px] font-bold underline decoration-ink3 underline-offset-4">{view.label}</span>   ← 「3 / 1,109」
+    <span className="block text-[12px] font-normal text-ink2">{view.sub}</span>                                        ← 「모두 7,758개」 · 「불러오는 중…」
+  </button>
+  <button … 같은 PAGER_BTN …><span>다음</span><span aria-hidden="true" className="text-[17px] leading-none">›</span></button>
+</nav>
+<p role="status" className="sr-only">{view.sr}</p>                ← 「1,109쪽 중 3쪽 · 모두 7,758개」 · 「4쪽을 불러오고 있어요」
+```
+- `PAGER_BTN` 은 `AskPager` 의 문자열과 **같은 값**을 `WordsPager.tsx` 에 따로 둔다(`ask/` 를 import 하지 않는다 — 시험이 두 문자열이 같음을 단언, `ErrorTypeChips`↔`ChunkChips` 와 같은 방식).
+- 흐림은 `disabled` 가 아니라 `aria-disabled` + 흐림(단추 40% · 가운데 50%) + 눌러도 아무 일 없음 — 끝 쪽에 닿아도 초점이 누른 단추에 남는다(§27-4 B 그대로).
+- 가운데 단추 안 글은 이름(`aria-label`)이 대신하므로 화면 읽기는 「3 / 1,109 — 쪽으로 이동, 단추」로 한 번 읽는다. 쪽 위치 안내는 status 한 줄뿐.
+- 자리: **목록 `ul` 바로 아래**(D1 자리 A) — 고정·sticky 아님. 7개 이하(`!isWordsPaged`)면 쪽 줄과 status 를 **그리지 않는다**(J1).
+
+**D. 목록 칸 상태**(데모 B — 문구는 원문 그대로)
+
+| 상태 | 목록 칸 | 쪽 줄 | 데모 |
+|---|---|---|---|
+| 처음 불러오기 `first` | `WordRowsSkeleton`(회색 자리 **7개** — `WORD_SKELETON.rows` 6 → 7) + `sr-only role=status` 「단어장을 불러오고 있어요」 | 없음(첫 응답의 `total` 이 와야 그림) | B·first |
+| 첫 읽기 오류 `firstError` | 지금 `ErrorBlock` 그대로(「단어장을 불러오지 못했어요.」 · 네트워크면 `NETWORK_ERROR` · [다시 시도]) | 없음 | — |
+| 7개 이하(한 쪽뿐) | 행만, 빈 자리 없음 | **없음** | B·one |
+| 1쪽 · 중간 · 마지막 | 행 + 마지막 쪽은 **빈 자리 `7 − 행 수`개**(J1) | 1쪽 [‹ 이전] 흐림 · 마지막 [다음 ›] 흐림 | B·p1·mid·last |
+| 쪽 넘기는 중 `paging` | 회색 자리 7개, `ul aria-busy="true"` | 라벨 = 목표 쪽 「4 / 1,109」 + 「불러오는 중…」, **세 단추 모두 흐림**(연타 방지) · status 「4쪽을 불러오고 있어요」 | B·paging |
+| 쪽 오류 `pageError` | 오류 상자 `role=alert`(§27-4 D 와 같은 마크업) 「이 쪽을 불러오지 못했어요」 / 「연결을 확인하고 다시 시도해 주세요.」 / [다시 시도](같은 쪽) + 빈 자리 5개(쪽 줄 위치 유지) | 그대로 · [‹ 이전] 쓸 수 있음 · [다음 ›] 흐림 · 가운데 쓸 수 있음 | B·err |
+| 검색 결과 0 · 내 단어 0 · 보관함 0 · 조각 0 | `WordsEmpty`(28-6 B) | 없음 | B·none · G·mine0 |
+
+- **빈 자리(J1)**: 데모는 행 최소 높이를 맞췄지만 구현은 **실제 행과 같은 구조의 숨은 행**을 채운다(§27-4 D 와 같은 이유 — 글자 크게 보기·히라가나/한글 켜고 끄기에서도 같이 커짐): `<li aria-hidden="true" className="invisible">` 안에 `WordRow` 와 같은 클래스의 `span` 세 줄(표제어 줄 = `JaText` 루비 있는 한 글자 「亜/あ」, 한글 줄 = `HangulLine` 과 같은 높이 상자 — **한글 켬일 때만**, 뜻 줄 = 「가」). 누름·읽기 0. 쪽 줄 위치 변화 허용치는 QA Q1(≤ 2px).
+- **필터를 바꿨을 때**(1쪽으로)는 회색 자리로 바꾸지 않고 **지금 행을 둔 채** 새 응답을 기다린다(지금 규칙 — 머리 줄·빈 화면은 `shown` 으로). 회색 자리는 **쪽을 넘길 때만**.
+
+**E. 「쪽으로 이동」 시트 `WordsJumpSheet`**(새 파일 · 데모 B·jump · B·jumpErr · J11)
+```
+props { open, page, pages, onClose(), onGo(page0: number) }
+<Sheet open title="쪽으로 이동" onClose={onClose}>
+  <p className="text-[12.5px] text-ink2">지금 {fmt(page+1)}쪽 · 모두 {fmt(pages)}쪽</p>
+  <form noValidate onSubmit={go}>
+    <label htmlFor="wjump" className="text-[12.5px] font-medium text-ink2">쪽 번호</label>
+    <input id="wjump" ref={inputRef} inputMode="numeric" enterKeyHint="go" autoComplete="off" placeholder={`1–${fmt(pages)}`}
+           value={v} onChange={(e) => { setV(e.target.value); setErr(false) }}
+           aria-invalid={err || undefined} aria-describedby={err ? 'wjump_err' : undefined}
+           className={`${INPUT} ${err ? 'border-bad' : 'border-line'}`} />
+    {err ? <p id="wjump_err" role="alert" className="text-[12px] text-bad break-keep">1부터 {fmt(pages)} 사이 숫자를 적어 주세요</p> : null}
+  </form>
+  <BtnRow><Btn variant="ghost" onClick={() => jump(0)}>처음 쪽</Btn><Btn variant="ghost" onClick={() => jump(pages-1)}>마지막 쪽</Btn></BtnRow>
+  <Btn className="mt-2 w-full" onClick={go}>이동</Btn>
+</Sheet>
+```
+- `go` = `parseJumpPage(v, pages)` → `null` 이면 `setErr(true)` + 칸에 초점(키보드 유지). 숫자면 `jump(n)`.
+- `jump(n)`: 시트를 닫고 `n === page` 면 **아무것도 읽지 않는다**(초점 = 가운데 단추 — 공용 `Sheet` 기본 되돌리기). 다르면 `onGo(n)` → 28-1 G 의 쪽 넘김.
+- 열 때 초점은 **숫자 칸**(공용 `Sheet` 가 제목에 초점을 준 **뒤** `requestAnimationFrame` 으로 — `WordAddSheet` 의 표현 칸과 같은 방식). 숫자 키보드가 바로 열린다. 고치면 오류 줄이 바로 사라진다.
+- 시트는 키보드 위로(공용 `Sheet` + `KeyboardInset` 그대로). 높이 ≈ 머리 52 + 본문 ≈ 238 — 390×780 에서 키보드(≈290) 위에 [이동]까지 보인다(데모 B·jump).
+- 쪽 넘기는 중(`paging`)에는 가운데 단추가 흐려 시트를 열 수 없다. 쪽 오류 중에는 열 수 있다.
+
+**F. 쪽 상태 규칙(D2 A · J3 · J4)**
+
+| 일 | 쪽 | 읽기 |
+|---|---|---|
+| 화면에 들어옴(마운트 — **다른 탭에 갔다 옴 포함**, `?word=`·`?add=1` 진입 포함) | 1쪽 | 1쪽 |
+| 검색어 확정·지움 · 출처 · 분류 · 조각 · 정렬 · 보관함 바꿈 | **1쪽** | 새 조건 1쪽(지금 행 둔 채) |
+| 상세 · 추가 · 쪽 이동 시트를 그냥 닫음 | **그대로** | 없음 |
+| 상세에서 수정 저장 | 그대로 | 그 행을 제자리에서 바꾸고(지금 `onChanged`) 같은 쪽 다시 읽기(정렬이 바뀌었을 수 있음) |
+| 상세에서 보관 · 보관 풀기 · 삭제(J4) | 그대로 | **같은 쪽 다시 읽기**(뒤 단어가 당겨짐) — 비면 `clampAfterResponse` 로 앞 쪽 |
+| 단어 추가 저장(J3) | `pageAfterAdd(sort, page)` — 「최근 추가」면 1쪽, 아니면 그대로 | 그 쪽 다시 읽기 + 토스트 「단어장에 넣었어요 · 내 단어는 나만 봐요」 |
+| 화면 다시 보임(`visibilitychange` → visible — 지금 `reloadAll`) | 그대로 | 같은 쪽 다시 읽기 + 분류 다시 읽기 |
+| [‹ 이전] · [다음 ›] · 쪽 이동 시트 | 그 쪽(`paging`) | 그 쪽 |
+| 쪽 오류 [다시 시도] | 그대로 | 같은 쪽 |
+
+- 쪽은 저장소(localStorage·sessionStorage·주소)에 두지 않는다 — **정렬만 지금처럼 이 기기에 남는다**(`VOCAB_KEYS.wordsSort` 그대로).
+- 다시 읽기(수정·보관·삭제·추가·화면 복귀)는 **회색 자리 없이** 지금 행을 둔 채 읽는다(`status` 를 `paging` 으로 바꾸지 않음 — 쪽 줄도 흐리지 않음). 실패하면 지금 행을 그대로 두고 토스트 「단어장을 불러오지 못했어요.」(`listErrorText`) 한 번.
+- 지금 `listWithoutRow`(로컬에서 행 빼기)는 쓰지 않는다 — 쪽 방식에서 로컬로 빼면 그 쪽이 6행이 되고 개수가 응답과 어긋난다.
+
+**G. 쪽을 넘길 때의 스크롤·초점(J2 — 자리 A)**
+1. 누르는 순간: `status='paging'`, `page` = 목표 쪽, 목록 칸 = 회색 자리 7개(높이 유지 — 화면이 튀지 않음). 초점은 누른 단추에 그대로.
+2. 응답이 오면(`ready`): 머리 줄(28-2 F)을 화면 위로 — `headRef.current.scrollIntoView({ block: 'start', behavior: 'auto' })`, 머리 줄 `p` 에 `scroll-mt-16`(sticky `AppBar` 52 + 여백 — `KeptSets` 와 같은 값). 그다음 `headRef.current.focus({ preventScroll: true })`(`tabIndex={-1}`). 쪽 위치는 쪽 줄의 status 가 읽는다.
+3. 실패(`pageError`): 스크롤·초점을 옮기지 않는다(누른 단추에 남음) — 오류 상자가 `role=alert` 로 읽힌다.
+4. 쪽 이동 시트에서 간 경우도 2와 같다(초점 = 머리 줄).
+
+**H. 문구**(`labels.ts` `WORDS_PAGE_COPY` — U. 숫자는 `fmtCount` = `toLocaleString('ko-KR')`)
+
+| 키 | 문구 |
+|---|---|
+| `pagerAria` · `prev` · `next` | 단어 목록 쪽 · 이전 · 다음 |
+| `label(p, n)` · `total(t)` · `busy` | {p} / {n} · 모두 {t}개 · 불러오는 중… |
+| `centerAria(p, n)` | {p} / {n} — 쪽으로 이동 |
+| `sr(p, n, t)` · `pagingSr(p)` · `firstSr` | {n}쪽 중 {p}쪽 · 모두 {t}개 · {p}쪽을 불러오고 있어요 · 단어장을 불러오고 있어요 |
+| `pageError` · `pageErrorBody` · `retry` | 이 쪽을 불러오지 못했어요 · 연결을 확인하고 다시 시도해 주세요. · 다시 시도 |
+| `jumpTitle` · `jumpNow(p, n)` · `jumpLabel` · `jumpPlaceholder(n)` | 쪽으로 이동 · 지금 {p}쪽 · 모두 {n}쪽 · 쪽 번호 · 1–{n} |
+| `jumpError(n)` · `jumpFirst` · `jumpLast` · `jumpGo` | 1부터 {n} 사이 숫자를 적어 주세요 · 처음 쪽 · 마지막 쪽 · 이동 |
+| `pageSuffix(p)` | {p}쪽 |
+| 지움 | 「단어 더 보기」 · 「불러오는 중…」(더 보기 단추) |
+
+### 28-2. 필터 줄 (D3 B · 오늘 카드 A · D10 A · 데모 C 전체 · G·srcMine · J13)
+
+**A. 줄 순서**(데모 `wordsScreen()` — `head2 + srcRow + catRow + chunkRow + sortRow`)
+```
+<DrawerSwitch current="words" />
+<WordSearchBar … />                                  ← 그대로
+<div className="mt-2"><Segmented size="sm" ariaLabel="출처" options={WORD_SOURCE_OPTIONS} value={filter.source} onChange={…} /></div>   ← 새 줄
+{showCategoryRow ? <div className="mt-1.5"><CategoryChips … /></div> : null}                                                        ← 자리표시(catPending) 삭제
+{showChunkRow ? <div className={showCategoryRow ? undefined : 'mt-1.5'}><ChunkChips value={filter.chunk} onChange={…} /></div> : null}
+<div className="mt-2 flex items-center gap-2"> 정렬 Segmented · ArchiveToggle </div>                                               ← 그대로
+{filter.archived ? <p …>보관한 단어는 오늘의 단어에 나오지 않아요. 숨긴 기본 단어는 나에게만 숨겨져요.</p> : null}                    ← 문구만 바뀜
+머리 줄(F) · 안내 띠(28-6 C) · 목록 · 쪽 줄
+```
+
+**B. 출처 분절**(D10 A · 데모 C·src · G·srcMine)
+- 공용 `Segmented`(정렬과 같은 `size="sm"` — 보이는 32, 세로 44 히트영역), `ariaLabel="출처"`, 선택지 `WORD_SOURCE_OPTIONS = [{all,'전체'},{mine,'내 단어'},{base,'기본 단어'}]`(`labels.ts`). 한 줄 전체 폭(옆에 단추 없음). 기본 `all`, **저장하지 않는다**(D2 — 다른 탭에 갔다 오면 `all`).
+- 바꾸면 1쪽 + #40 `source=`. 검색·분류·조각·정렬·보관함과 AND.
+- 보관함을 켜도 출처는 그대로 둔다(보관한 내 단어만 · 숨긴 기본 단어만 보기 가능).
+- `WordsSkeleton` 에도 같은 줄을 실제 부품 `inert` 로 그린다(자리가 튀지 않게 — 지금 정렬 줄과 같은 방식).
+
+**C. 분류 칩 — 난이도 이름만 뺀다(D3 B)**
+- **난이도 이름 목록(정확히 6개)** — `src/types/seedPack.ts`(서버·화면 공용 잎 파일, S-B 가 추가):
+  ```
+  export const LEVEL_CATEGORY_NAMES: readonly string[] = [...SEED_PACK_LABEL 의 다섯 값(초보자 (N5)·초급 (N4)·중급 (N3)·고급 (N2)·최상급 (N1)), 'N5 기초']
+  export function isLevelCategory(c: string | null | undefined): boolean   // c 가 목록 안 글자와 **바이트 그대로 같을 때만** true
+  ```
+  비교는 저장된 값 그대로(`category` 는 저장할 때 이미 `sanitizeText` 로 정리됨 — 앞뒤 공백·제어문자 없음). 대소문자·전각/반각을 섞어 비교하지 않는다(「초보자(N5)」처럼 괄호 앞 공백이 없는 사용자 분류는 난이도 이름이 아니다 — 그대로 칩).
+- **서버(#46)**: 난이도 이름 분류와 `null` 을 **`category: null` 한 묶음으로 합쳐** 돌려준다(계약 #46). 그래서 칩 줄의 「전체」 숫자(모든 묶음 합)와 오늘 카드·평가 시작 화면의 합계(`categoryTotals`)는 **기본 단어까지 포함한 그대로**다 — 평가 시작(`EvalStartScreen`)의 「단어 수 부족」 판단이 바뀌지 않는다.
+- **화면(이중 방어)**: `visibleCategories()` 가 `isLevelCategory(c.category)` 도 건너뛴다 — 옛 응답·다른 경로로 난이도 이름이 와도 칩이 되지 않는다(시험 T9).
+- 줄 표시 조건은 지금 그대로 `showCategoryRow = visibleCategories(...).length > 0`. 지금 사용자·새 계정은 **내가 정한 분류가 0개라 줄 자체가 없다**(데모 C·now 오른쪽). 내 단어에 「여행」 같은 분류를 적으면 그 칩만 다시 보인다(데모 C·custom — 「전체 7,758 · 여행 2」).
+- **분류 줄 자리표시를 지운다**: 지금은 #46 응답 전 회색 칩 4개(`WordCategoryRowSkeleton`)로 자리를 잡아 두지만, 이제 흔한 상태가 「줄 없음」이라 자리표시가 오히려 줄을 한 번 접히게 만든다. 내가 정한 분류가 있는 드문 계정만 응답 뒤 한 번 밀린다(수용).
+- 상세 시트의 분류 뱃지: `categoryBadgeText(category, jlpt)` 가 `isLevelCategory(category)` 면 **늘 null**(지금은 수준 이름과 같을 때만 — 옛 「N5 기초」도 숨김).
+- 오늘의 단어 세트 요청(#47 `category`)과 이 기기에 남은 고른 분류(`VOCAB_KEYS.category`)는 지금 규칙 그대로 — 남은 값이 난이도 이름이면 칩 목록에 없으므로 `null`(전체)로 쓴다(`TodayHome` 의 `visibleCategories` 검사 그대로).
+
+**D. 오늘의 단어 카드(D3 오늘 카드 A · J13 · 데모 C·today · G·today)**
+- 같은 `CategoryChips` 라 난이도 이름 칩이 저절로 빠진다. 줄 조건 그대로(`visibleCategories(...).length > 1`) — 지금 사용자는 줄이 없다.
+- [시작하기] 바로 아래 한 줄(J13): `<p className="mt-1.5 text-[12px] text-ink2 break-keep">지금 수준({levelLabel(myLevel)}) 단어가 가장 많이 나와요.</p>` — `myLevel` 은 `TodayHome` 이 이미 받는 prop(서버 프로필). 세트를 풀던 중·빈 카드·다 푼 카드에는 없다(준비 카드에만).
+
+**E. 조각 칩(데모 C·none · D·B · J5)**
+- 단어장(`variant` 기본 `'words'`): **전체 · 이름 · 액션 · 느낌 · 꾸밈 · 표현**. 「없음」 없음. 읽기 이름은 지금 방식(보이는 글 + `sr-only`): 전체 = 「전체 (모든 조각)」, 나머지 = 「이름 조각」…「표현 조각」.
+- 채택 교정 모음(`variant="corrections"`): **전체 · 이름 · 액션 · 느낌 · 꾸밈** — 지금 `withNone={false}` 출력과 **한 글자도 같다**(J12, 시험 T10).
+- 줄 모양·칩 클래스·고른 칩 가로 데려오기·`-mr-4` 넓히기는 그대로. 줄 표시 조건 `showChunkRow` 그대로.
+- #40 `chunkType` 은 다섯 값 중 하나. `none` 은 이제 400(계약) — 화면은 보내지 않는다.
+
+**F. 머리 줄**(`logic.ts listHeader` — 데모 `headRow()`)
+```
+<p ref={headRef} tabIndex={-1} aria-live="polite" className="min-w-0 flex-1 scroll-mt-16 text-[12px] text-ink2 [overflow-wrap:anywhere] outline-none">
+  {lead}{condition ? <> · <span className="font-semibold text-ink">{condition}</span></> : null}
+  {paged ? <span aria-hidden="true" className="whitespace-nowrap"> · {fmt(page+1)}쪽</span> : null}
+</p>
+```
+- `lead`(응답의 조건 `shown` 으로 — 지금 규칙): 검색 중 「‘<span lang="ja">q</span>’ 검색 결과 n개」 · 보관함 「보관한 단어 n개」 · 그 밖 출처별 **「단어 n개」/「내 단어 n개」/「기본 단어 n개」**. `n` = 응답 `total`(쉼표 — `fmtCount`).
+- `condition` = 지금 `listConditionText`(분류 · 조각 이름 「표현 조각」) 그대로 — 검색 중에도 붙는다(지금 규칙 유지, 데모는 검색 중 생략 — 28-10 ③).
+- **쪽 접미사 「· 3쪽」은 `aria-hidden`**: 쪽을 넘길 때 `aria-live` 가 다시 읽지 않게(쪽 위치는 쪽 줄 status 가 한 번 읽는다). 7개 이하면 접미사 없음.
+- 첫 응답 전·첫 읽기 오류 중에는 비운다(지금 규칙 — 개수를 모르는 문장을 만들지 않음).
+- `outline-none` 이지만 `tabIndex=-1` 이라 프로그램 초점만 받는다(Tab 순서에 없음 — 초점 링을 그리지 않아도 됨).
+
+**G. 문구**(`labels.ts` — U)
+
+| 키 | 문구 |
+|---|---|
+| `WORD_SOURCE_OPTIONS` · 분절 이름 | 전체 · 내 단어 · 기본 단어 · 출처 |
+| 머리 줄 lead | 단어 {n}개 · 내 단어 {n}개 · 기본 단어 {n}개(검색·보관함은 지금 그대로) |
+| 보관함 안내(바뀜) | 보관한 단어는 오늘의 단어에 나오지 않아요. 숨긴 기본 단어는 나에게만 숨겨져요. |
+| 오늘 카드 한 줄 | 지금 수준({수준 이름}) 단어가 가장 많이 나와요. |
+| `CHUNK_FILTER_CHIPS` | 이름 · 액션 · 느낌 · 꾸밈 · 표현(+ sr 「 조각」) — 「없음」·「 (조각이 정해지지 않은 단어)」 지움 |
+
+### 28-3. 조각 유형 — 5유형 (D4 B · Leader ① · J5 · J12 · 데모 D·B · `CKDEF`·`CKEX`)
+
+**A. 다섯 유형**(순서 = 칩·폼·시험 모두 이 순서. 정의·예는 데모 원문 — 폼의 「고르면 뜻 한 줄」과 선생님 초안 프롬프트가 같은 뜻을 써야 한다, PE 인계 28-8 C)
+
+| 값 | 칩 | 뱃지(`CHUNK_LABEL`) | 한 줄 정의(폼 힌트) | 예(`lang="ja"`) |
+|---|---|---|---|---|
+| `NAME` | 이름 | 이름 조각 | 사람 · 물건 · 곳 · 때를 가리키는 말(명사 · 대명사) | 友達 · 映画 · どこ |
+| `ACTION` | 액션 | 액션 조각 | 하는 일 · 움직임(동사, 〜する 명사) | 会う · 勉強 · 行く |
+| `FEELING` | 느낌 | 느낌 조각 | 마음 · 상태 · 평가(형용사 · 감정) | 楽しい · 好き · 安心 |
+| `MODIFIER` | 꾸밈 | 꾸밈 조각 | 다른 말에 붙어 때 · 곳 · 정도를 더하는 말(부사 · 조사구) | とても · 毎日 · その |
+| `EXPRESSION` **새** | 표현 | 표현 조각 | 문장 밖에서 통째로 쓰는 말(인사 · 대답 · 감탄 · 이음말) | はじめまして · なるほど · でも |
+
+- **뱃지 색**: 다섯 모두 지금 조각 뱃지와 같은 `Badge tone="neutral"`(`bg-surface2 text-ink2`) — 유형별 색을 두지 않는다(J5 · 새 색 금지). 칩도 지금 칩 색(고름 = `accent`/`on-accent`).
+- 품사 「표현」(`EXPRESSION` 품사)과 조각 「표현」이 이름이 같아 상세에 「표현」 · 「표현 조각」 두 뱃지가 나란히 나올 수 있다 — **조각 뱃지는 늘 「… 조각」**이라 구분된다(데모 자체 점검 P2 ③, 수용).
+- 배정 결과(S-A 재분류 — 화면은 값만 그린다): 기본 단어 7,755행 뒤 = 이름 3,322 · 액션 2,561 · 꾸밈 1,087 · 느낌 663 · 표현 122(데모 D4 표 ★ B). 「표현」 칩 = 18쪽(122개).
+
+**B. 조각 값이 지나가는 화면 — 바뀌는 곳 / 그대로인 곳**
+
+| 화면 · 부품 | 조각 목록 | 이번 변경 |
+|---|---|---|
+| 단어장 조각 칩 줄 `ChunkChips`(`words`) · `WordsSkeleton` | **5** | 「없음」 → 「표현」 |
+| 단어 목록 행 뱃지 `WordRow` | 5 | 「표현 조각」 그릴 수 있음(코드는 `CHUNK_LABEL` 조회 그대로) |
+| 단어 상세 뱃지 `WordDetailSheet` | 5 | 같음 |
+| 추가 · 내 단어 수정 폼 `WordChunkPicker` | 5 | **새 칸** |
+| 머리 줄 조건 · 빈 화면 문구(`chunkFilterName`·`chunkEmptyText`) | 5 | 「표현 조각 단어가 없어요」 등. `none` 갈래 삭제 |
+| 채택 교정 모음 칩 `ChunkChips`(`corrections`) · `CorrectionsSkeleton` | **4 그대로** | prop 이름만(`withNone={false}` → `variant="corrections"`), 출력 불변(J12) |
+| 교정 카드 뱃지(`chat/CorrectionCard` · `talk/TalkCorrectionCard` — `chat/labels.ts CHUNK_LABEL`) | 4 그대로 | 없음 — 교정은 선생님이 4유형으로만 나눈다(프롬프트 `CHUNK_TYPES` 4, J12) |
+| 수업 주제 조각 묶음(`lesson/LessonTopicsScreen` · `lessonCopy.CHUNK_TYPE_LABEL`) · 주제 편집기(`topic/*`, `TopicChunkType`) · 평가 결과(`eval/EvalResult chunkLabel`) | 4 그대로 | 없음 |
+| 교정 채택 시트가 단어로 넘기는 조각(`AcceptCorrectionSheet` → #35 `addWord.chunkType`) | 4 값 | 없음(4 값은 5유형 안에 있다) |
+
+- 근거 [확실 — 2026-10-14 코드·작업 트리]: DB `ChunkType` 은 `WordEntry`·`Correction`·`TopicChunk`·`EvaluationItem` 이 같이 쓰고 S-A 가 `EXPRESSION` 을 더했다. 교정·주제·평가 쪽 서버 코드는 S-A 가 4유형 타입(`TopicChunkType`·`asTopicChunkType`)으로 좁히는 중이다(`conversation/corrections/drawer.ts`·`learning/reviewSchedule/index.ts`·`learning/topics/*` 작업 트리). 화면 쪽은 위 표대로 **단어장만 5**.
+
+**C. 화면 타입 정리**(`types/vocab.ts` — U)
+```
+import type { ChunkType } from './chat'                     // 4유형 그대로 — 교정·수업·주제 DTO 용
+export type WordChunkType = ChunkType | 'EXPRESSION'        // 단어 전용 5유형
+export const WORD_CHUNK_TYPES: readonly WordChunkType[] = ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION']
+export type WordChunkFilter = WordChunkType                 // 「없음」('none') 삭제 — 옛 이름은 별칭으로 남겨 바뀌는 줄을 줄인다
+WordEntry.chunkType?: WordChunkType | null                  // 서버는 늘 값을 주지만(재분류 뒤) 옛 내 단어(채택 경로)는 null 일 수 있다
+```
+- `types/chat.ts ChunkType` 은 **넓히지 않는다** — 넓히면 `chat/labels.ts`·`lessonCopy.ts` 의 `Record<ChunkType,…>` 표에 쓰지 않을 「표현」 줄을 억지로 넣게 된다.
+- `vocab/labels.ts CHUNK_LABEL: Record<WordChunkType, string>`(5줄), `CHUNK_DEF: Record<WordChunkType, { def: string; ex: string }>`(위 표 — 폼 힌트용).
+
+### 28-4. 추가 · 수정 폼 — 「수준」 → 「조각」 (D5 A · 초안 뒤 A · D9 A · 데모 A·add · E 전체 · F·edit · J6)
+
+**A. `WordForm` 칸 순서**(추가·내 단어 수정 공용 — 데모 `formFields()` 제안 갈래)
+```
+표현* · 읽기 · 뜻* · 품사(select — 한 줄 전체 폭, 지금의 2칸 격자 삭제) · 조각*(WordChunkPicker) · 분류 · [예문·메모 더 쓰기 ▾]
+```
+- 「수준」 select 와 `JLPT_LEVELS`·`levelLabel` import 를 `WordForm` 에서 지운다. 내 단어는 수준을 고르지 않는다(J10) — 저장 본문에 `jlpt` 키가 없다(계약 #41·#43).
+- props 추가: `chunkNote?: string | null`(초안 안내 — B). 그 밖의 props·`idPrefix` 규칙·오류 표시 방식 그대로.
+- 수정 폼(상세 → [수정])은 **내 단어에만** 열린다(기본 단어 상세엔 [수정]이 없다 — 28-5 B). 「맞힘·틀림 기록과 출처는 바꿀 수 없어요.」 줄 그대로.
+
+**B. 조각 고르기 `WordChunkPicker`**(새 파일 · 데모 `ckPicker()` · E·manual · E·pick · E·err · E·draft)
+```
+props { value: WordChunkType | ''; error?: string; note?: string | null; idPrefix: string; onChange(v: WordChunkType) }
+<div className="flex min-w-0 flex-col gap-1.5">
+  <span id={`${p}_chunkType_label`} className="text-[12.5px] font-medium text-ink2">조각<span aria-hidden="true">*</span></span>
+  <div role="radiogroup" aria-labelledby={`${p}_chunkType_label`} aria-required="true"
+       aria-invalid={error ? true : undefined} aria-describedby={error ? `${p}_chunkType_err` : `${p}_chunkType_hint`}
+       className="flex min-w-0 flex-wrap gap-2 py-1">                                   ← 줄바꿈(가로 밀기 아님) — 360 에서도 다섯 개가 다 보인다
+    {WORD_CHUNK_TYPES.map((t, i) =>
+      <button key={t} type="button" role="radio" aria-checked={value === t} id={i === 0 ? `${p}_chunkType` : undefined}
+              onClick={() => onChange(t)}
+              className={`${CHIP} ${value === t ? 'border-accent bg-accent font-semibold text-on-accent' : error ? 'border-bad bg-surface text-ink' : 'border-line bg-surface text-ink'}`}>
+        {CHUNK_CHIP_LABEL[t]}</button>)}                                               ← 칩 글자 = 이름·액션·느낌·꾸밈·표현
+  </div>
+  {error ? <p id={`${p}_chunkType_err`} role="alert" className="text-[12px] text-bad break-keep">{error}</p> : null}
+  {value ? <p id={`${p}_chunkType_hint`} className="text-[12.5px] text-ink2 break-keep"><b className="font-semibold text-ink">{이름}</b> — {CHUNK_DEF[value].def} <span lang="ja">{CHUNK_DEF[value].ex}</span></p>
+   : error ? null
+   : <p id={`${p}_chunkType_hint`} className="text-[12.5px] text-ink2 break-keep">단어장에서 이 조각으로 거를 수 있어요. 고르면 뜻이 보여요.</p>}
+  {note ? <p className="rounded-xl bg-accent-soft p-2.5 text-[13px] text-ink break-keep">{note}</p> : null}
+</div>
+```
+- `CHIP` = `ChunkChips` 의 칩 클래스와 같은 문자열(보이는 36 · 세로로만 44 히트영역 `::before`). 줄바꿈 줄에서도 위아래 칩 사이 `gap-2`(8) = 히트영역 넘침 4 + 4 라 겹치지 않는다.
+- 라벨은 `<label>` 이 아니라 `span` + `aria-labelledby`(라디오 묶음이라 — 데모 a11y Major 를 고친 방식 그대로).
+- 첫 칩 id = `${idPrefix}_chunkType` → 지금 `focusField(f)`(`document.getElementById(`${ID}_${f}`)`)가 그대로 첫 칩에 초점을 준다(데모 E·err 「초점이 첫 칩으로」).
+- 화살표 키 이동(roving tabindex)은 넣지 않는다 — 지금 `ChunkChips` 와 같은 방식(Tab 으로 칩마다, 데모 자체 점검 a11y Minor ①, 수용).
+
+**C. 검사 · 저장 본문**(`validate.ts` — U)
+- `WordFormValues`: `jlpt` 삭제 → `chunkType: WordChunkType | ''`. `emptyForm(surface, category, chunk = '')` · `formFromWord(w)` = `w.chunkType ?? ''` · `formFromDraft(surface, draft, category, presetChunk = '')` = `draft.chunkType ?? presetChunk`.
+- `WordField`·`FIELD_ORDER`: `'jlpt'` → `'chunkType'`(자리 = `partOfSpeech` 다음): `surface · reading · meaning · partOfSpeech · chunkType · category · example · exampleKo · note`.
+- `validateWord`: `!v.chunkType` → `chunkType: '조각을 골라 주세요'`(D5 A — 추가·수정 모두). 다른 칸 오류와 함께 오면 첫 오류 칸(위→아래)으로 초점(지금 규칙).
+- `toCreateBody`: `chunkType` 늘 넣는다(검사를 통과했으니 값이 있다) · `jlpt` 키 없음. `diffPatch`: `chunkType !== (before.chunkType ?? '')` 이면 넣는다 · `jlpt` 키는 **어떤 경우에도** 넣지 않는다.
+- `fieldOf('chunkType')` → `'chunkType'`(서버 400 `details.field` 가 `chunkType` 이면 그 칸 오류로 — 지금 규칙).
+- **옛 내 단어(채택 경로로 조각 없이 들어온 단어)를 고칠 때**도 조각을 골라야 저장된다 — 뜻만 고치려 해도 「조각을 골라 주세요」. 조각이 빈 단어가 저절로 줄어든다(의도).
+
+**D. 선생님 초안 뒤(초안 뒤 A · 데모 E·draft)**
+- [뜻 채우기] 응답 `draft.chunkType`(#41 — PE `wordEnrich@v2`)이 있으면 그 값으로 미리 고르고 `chunkNote` = 「선생님이 고른 조각이에요 · 바꿀 수 있어요」. 사용자가 칩을 바꾸면 안내를 지운다(데모 `pick` → `pickNote=''`). [다시 채우기]로 새 초안이 오면 다시 그 값 + 안내.
+- 초안에 조각이 없으면(옛 캐시 초안 · 계약 위반 재시도 소진 뒤 빈 값 등) 미리 고르지 않는다 — 고른 조각이 있었다면(J6 미리 고름) 그대로 둔다.
+- 초안의 `jlpt` 는 화면이 쓰지 않는다(저장 본문에 없음).
+- 「직접 입력하기」로 들어가면 안내 없음 · 조각은 `presetChunk`(J6) 또는 빈 값.
+
+**E. 기본 단어와 같은 표현(D9 A · 데모 E·dup)** — 판정은 서버(계약 #41·#43). 화면은 `409` 의 `details.code` 로 갈라 그린다.
+
+| 응답 | 어디서 | 화면 |
+|---|---|---|
+| `409 CONFLICT` + `details.code='BASE_DUPLICATE'` + `existingId` | [뜻 채우기](표현 단계 — 표기만 같아도) · [저장](표기 같고 읽기 같거나 비었을 때) · 내 단어 수정 저장 | 표현 칸 빨간 테두리 + `BaseDuplicateNote`(아래) — 표현 단계는 칸 아래, 폼 단계·수정은 `surfaceNote` 자리 + 표현 칸에 초점 |
+| `409 CONFLICT` + `existingId`(코드 없음 — 내 단어끼리) | 같은 곳 | 지금 `DuplicateNote` 「단어장에 같은 표현이 이미 있어요」 + [그 단어 보기] 그대로 |
+
+```
+export function BaseDuplicateNote({ id, onOpen }: { id: string; onOpen: () => void })   ← WordAddSheet.tsx 에 DuplicateNote 옆에 둔다(상세 시트가 같이 import)
+<div id={id} role="alert" className="flex min-w-0 flex-col">
+  <div className="flex flex-wrap items-center gap-x-2 text-[12px] text-bad">
+    <span className="break-keep">기본 단어에 이미 있어요</span>
+    <button type="button" onClick={onOpen} className={TEXT_BTN}>그 단어 보기</button>
+  </div>
+  <p className="text-[12px] text-ink2 break-keep">기본 단어는 모두 단어장에 들어 있어요. 같은 표기 · 읽기는 내 단어로 다시 넣지 않아요.</p>
+</div>
+```
+- [그 단어 보기] = `onOpenWord(existingId)` → 추가 시트 대신 그 **기본 단어 상세**(읽기 전용, 28-5 B)가 열린다(지금 내 단어 중복과 같은 흐름).
+- 표현을 고치면 안내가 사라진다(지금 `setDup(null)` 규칙 — `dup` 상태를 `{ id, base: boolean } | null` 로 바꾼다).
+- 같은 표기·**다른 읽기**의 단어(예: 기본 단어 日(にち)·日(ひ) 말고 다른 읽기)는 [뜻 채우기]가 표기만으로 막으므로 **「직접 입력하기」에서 읽기를 적어** 넣는다 — 서버가 읽기까지 보고 통과시킨다(계약 #41). 화면에 따로 안내하지 않는다(데모 범위 밖 — 28-10 L-4).
+
+**F. 문구**(`labels.ts` — U)
+
+| 키 | 문구 |
+|---|---|
+| 칸 이름 | 조각 |
+| `CHUNK_PICK_HINT` | 단어장에서 이 조각으로 거를 수 있어요. 고르면 뜻이 보여요. |
+| `CHUNK_PICK_REQUIRED` | 조각을 골라 주세요 |
+| `CHUNK_PICK_DRAFT` | 선생님이 고른 조각이에요 · 바꿀 수 있어요 |
+| `BASE_DUPLICATE_TEXT` · `BASE_DUPLICATE_HINT` | 기본 단어에 이미 있어요 · 기본 단어는 모두 단어장에 들어 있어요. 같은 표기 · 읽기는 내 단어로 다시 넣지 않아요. |
+| 저장 토스트(바뀜) | 단어장에 넣었어요 · 내 단어는 나만 봐요 |
+| 지움 | 칸 이름 「수준」 · 「선택 안 함」(수준 select) |
+
+### 28-5. 목록 행 · 상세 — 기본 단어(읽기 전용) · 내 단어 (D6 A · D8 A · D10 표시 A · 데모 F 전체 · G·basic · G·mine · G·hidden · J8 · J10)
+
+**A. 목록 행 `WordRow`**(데모 `wordRow()`)
+```
+<span className="flex w-full min-w-0 items-baseline gap-2">
+  <JaText … 표제어 … className="min-w-0 truncate text-[18px] font-semibold" />
+  <span className="flex-1" />
+  {word.origin === 'MINE' ? <MineBadge /> : null}                 ← 새 — 조각 뱃지 왼쪽
+  {badge ? <Badge tone="neutral">{badge}</Badge> : null}           ← 지금 그대로(CHUNK_LABEL 5줄)
+</span>
+```
+- **「내 단어」 뱃지 `MineBadge`**(행·상세 공용, `vocab/` 안 작은 부품): `Badge` 와 같은 크기 클래스(`inline-flex h-[22px] flex-none items-center rounded-md px-2 text-[11.5px] font-semibold`) + `bg-accent-soft text-ink`. **공용 `Badge tone="accent"` 를 쓰지 않는다** — 그 톤은 글자가 `accent` 라 라이트 명암비 4.08(§1 표 ❌). `accent-soft` 바탕 + `ink` 글자는 13+(✅). 공용 `Badge` 는 고치지 않는다.
+- 기본 단어 행에는 출처 표시가 **없다**(D10 표시 A — 거의 모든 행이 기본 단어라 표시가 정보가 되지 않는다).
+- 조각 뱃지(D8 A): 재분류 뒤 기본 단어는 모두 조각이 있어 모든 행에 보인다. 조각이 빈 내 단어(옛 채택)만 뱃지 없음(지금 규칙).
+- 360 에서 긴 표제어: 표제어가 줄임(`truncate` — 지금 그대로), 두 뱃지(≈52 + ≈62)는 줄지 않는다. 360 폭 표제어 자리 ≈ 168px(18px 글자 약 9자).
+- 맞힘·틀림 줄·「틀림 n」 뱃지(많이 틀린 정렬)는 지금 그대로 — 값은 **나의** 상태(`UserWordState`, 계약 DTO).
+
+**B. 상세 시트 `WordDetailSheet`**
+
+| 영역 | 기본 단어(`origin === 'BASE'`, `readOnly`) — 데모 G·basic · F·detail | 내 단어(`origin === 'MINE'`) — 데모 G·mine |
+|---|---|---|
+| 머리(표제어 루비·한글·▶ 소리) · 뜻 · 예문 카드(▶) · 메모 | 지금 그대로 | 지금 그대로 |
+| 뱃지 줄(순서) | 품사 · 수준(`levelLabel(jlpt)` — J10 그대로) · 분류(난이도 이름이면 숨김 — 28-2 C) · 조각 · **「기본 단어」** · 보관함(보관했으면) | 품사 · 수준(값이 있을 때만 — 옛 채택 단어) · 분류 · 조각 · **「내 단어」**(`MineBadge`) · 보관함 |
+| 「기본 단어」 뱃지 | 테두리 뱃지: 같은 크기 클래스 + `bg-transparent text-ink2 ring-1 ring-inset ring-line`(데모 `.badge.outb`) | — |
+| 기록(맞힘·틀림 · 최근 7일 · 푼 횟수 · 평가 · 마지막) | **내 기록만**(J8 — 서버 #42 가 내 세트·내 평가로만 센다, 계약). 문구 그대로 | 그대로 |
+| 출처 절 | 「출처」 제목 + **「기본 단어예요 · 내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요. 맞힘 · 틀림 기록은 나에게만 쌓여요.」** · **「추가한 날」 줄 없음**(공용 행의 넣은 날은 내 날짜가 아니다) | 「출처」 제목 + `SOURCE_SENTENCE[source]` + 「 · 나만 봐요」 — `MANUAL` 문장은 **「내가 넣은 단어예요」**(데모 원문 「내가 넣은 단어예요 · 나만 봐요」, 지금 「직접 넣은 단어예요」에서 바뀜). 교정 출처의 [점검 결과 보기 ›] · 「추가한 날」 그대로 |
+| 단추 | **하나**: `<Btn variant="ghost" className="mt-3 w-full">` 「보관 — 목록 · 오늘의 단어에서 숨기기」 / 보관한 단어면 「보관 풀기 — 다시 보이기」(D6 A). [수정] · [삭제] **없음** | 지금 그대로 — [수정] [보관하기 / 보관 풀기](`BtnRow`) + 아래 가운데 글자 [삭제] → 삭제 확인(문구 그대로) |
+| 수정 폼 | 없음(열 경로가 없다) | 28-4 A(조각 고르기 포함) |
+
+- 판정은 **응답 값만**: `const readOnly = w.readOnly === true || w.origin === 'BASE'`. 둘 다 없으면(옛 응답) 내 단어로 본다 — 서버가 기본 단어 수정·삭제를 403 으로 막으므로(계약) 화면이 잘못 열어도 데이터는 안전하다. 그때 문구는 28-5 D `READ_ONLY_TEXT`.
+- 미리 그리기(`preview` — 목록 행 값)에도 `origin`·`readOnly` 가 있으므로 첫 그림부터 단추가 맞다(깜빡임 없음).
+- 소리 듣기·예문·「아직 오늘의 단어에서 풀지 않았어요」 줄은 그대로(기본 단어도 같다).
+- `?word=<기본 단어 id>`(교정 채택 시트·제안 카드의 [그 단어 보기] 등)로 들어와도 같은 읽기 전용 상세(#42 는 기본 단어를 누구에게나 준다 — 계약).
+
+**C. 보관(D6 A · 데모 G·hidden · J4)**
+- 기본 단어 보관 = 나에게만 숨김(#45 — 사용자별 상태). 목록(보관함 꺼짐)·오늘의 단어 풀·평가 재료에서 빠진다(서버). 다른 사용자에게는 아무 변화 없음.
+- 성공 뒤: 시트는 열어 둔 채 뱃지·단추 글자만 바뀌고(지금 규칙), 목록은 **같은 쪽 다시 읽기**(J4 — 28-1 F).
+- 보관함을 켜면 숨긴 기본 단어와 보관한 내 단어가 함께 나온다(출처 칩으로 거를 수 있음). 상세에서 [보관 풀기 — 다시 보이기].
+- 토스트: 기본 단어 = 「보관했어요 · 목록과 오늘의 단어에서 숨겨요(나에게만)」 / 「보관을 풀었어요 · 다시 보여요」(데모 원문). 내 단어 = **지금 문구 그대로**(「보관했어요 · 오늘의 단어에 나오지 않아요」 / 「보관을 풀었어요 · 오늘의 단어에 다시 나와요」).
+- 실패: 지금 `actionErrorText` 토스트 그대로(404 → 「단어를 찾을 수 없어요…」 + 시트 닫고 목록 다시 읽기).
+
+**D. 문구**(`labels.ts` — U)
+
+| 키 | 문구 |
+|---|---|
+| `ORIGIN_BADGE.MINE` · `ORIGIN_BADGE.BASE` | 내 단어 · 기본 단어 |
+| `BASE_SOURCE_SENTENCE` | 기본 단어예요 · 내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요. 맞힘 · 틀림 기록은 나에게만 쌓여요. |
+| `MINE_SOURCE_SUFFIX` | (앞 문장 뒤에) · 나만 봐요 |
+| `SOURCE_SENTENCE.MANUAL`(바뀜) | 내가 넣은 단어예요 |
+| `BASE_ARCHIVE_BTN` · `BASE_UNARCHIVE_BTN` | 보관 — 목록 · 오늘의 단어에서 숨기기 · 보관 풀기 — 다시 보이기 |
+| `BASE_ARCHIVED_TOAST` · `BASE_UNARCHIVED_TOAST` | 보관했어요 · 목록과 오늘의 단어에서 숨겨요(나에게만) · 보관을 풀었어요 · 다시 보여요 |
+| `READ_ONLY_TEXT`(`actionErrorText` 403) | 기본 단어는 고치거나 지울 수 없어요 |
+
+### 28-6. 기본 단어 넣기 UI 제거 · 새 계정 첫 화면 (D7 폐지 · 데모 A·addTop · A·empty · E·surface · G·new · G·mine0 · G·todayEmpty · J6 · J9)
+
+**A. 지우는 것**(U — 쓰는 곳이 없어지면 tsc·eslint 가 잡는다, 시험 T21 이 소스 스캔으로 한 번 더)
+
+| 자리 | 지금 | 바뀐 뒤 |
+|---|---|---|
+| ① 빈 단어장 카드 `WordsEmpty noWords` | 「초보자 (N5) 단어 676개 넣기」(채움) + 목표 수준 버튼 + [직접 추가] | **[단어 직접 추가]**(채움 · 전체 폭) 하나 |
+| ② 오늘의 단어 빈 카드 `TodayWordsCard empty` | `SeedPackButtons` + [단어 직접 추가](테두리) | **[단어 직접 추가]**(채움 — `Btn` primary 모양의 `Link href="/drawer/words?add=1"`) 하나 · 「보관한 단어 n개는…」 줄 그대로 |
+| ③ 단어 추가 시트 첫 단계 맨 아래 | 구분선 + 「초보자 (N5) 기본 단어 676개 한 번에 넣기 ›」(+ 목표 수준) | **없음**(구분선도) — 「뜻 채우기」·「직접 입력하기」만(데모 E·surface) |
+| 부품 · 훅 · 문구 | `SeedPackButtons`(WordsEmpty export) · `SeedTextBtn` · `useSeedPack` · `useSeedLevels` · `SeedLevels` · `SEED_COPY` 의 `busy`·`mainBtn`·`goalBtn`·`sheetMain`·`sheetGoal`·`emptyBody`·`todayBody`·`levelRetry` · `seedResultText` · `seedLevelsFrom` · `SeedPackResult` 타입 · `WordsScreen`/`TodayHome` 의 `runSeed`·`levels`·`seedingPack`·`onSeed` 전달 · `TodayHome` 의 「넣기 단계를 읽는 동안 빈 카드를 로딩으로」 분기 | **삭제**. 남는 문구 2개(`emptyBodyNoLevel`·`todayBodyNoLevel`)는 `WORDS_EMPTY_COPY` 로 옮겨 이름을 바꾼다(「Seed」 낱말이 화면 코드에 남지 않게) |
+| 서버 | #46b `POST /api/v1/words/seed-pack` · `addSeedPack`·`parseSeedPackBody` · #47 빈 풀 `cta` 의 `SEED_PACK` | 삭제(S-B, 계약) |
+| 그대로 | `types/seedPack.ts` 의 `SEED_PACK_LABEL`·`levelLabel`·`levelName`(수준 이름 — 설정·평가·오늘 카드가 씀) · `seedPackCounts.ts`·`seedPackTotal()`(설정 「데이터 출처」 줄 `DataCreditRow` 의 「다섯 단계 기본 단어 7,755개는 공개 자료 OpenJLPT 를 바탕으로…」 — 팩 원본의 출처 표기라 맞는 문장, 그대로) | — |
+
+**B. 빈 화면**(`WordsEmpty` · `validate.emptyVariant` — 순서대로 처음 맞는 것)
+
+| variant | 언제 | 제목 · 본문 · 단추 | 데모 |
+|---|---|---|---|
+| `noSearch` | 검색어 있음 · 조각 없음 | 지금 그대로(「‘q’에 맞는 단어가 없어요」 + [‘q’ 추가하기]) — 기본 단어에도 없다는 뜻 | B·none |
+| `noSearchChunk` | 검색어 + 조각 | 제목 그대로 + 본문 「{조각 이름} 안에서 찾았어요.」 + **[‘q’ 추가하기](테두리·전체 폭 — 추가 시트가 그 조각을 미리 고름, J6)** + 그 아래 지금 [조각 전체에서 찾기] | (J6) |
+| `noChunk` · `noCategory` | 지금 그대로 | 지금 그대로 | — |
+| `noArchived` | 보관함 · 0 | 지금 그대로(「보관한 단어가 없어요」 + 「오늘의 단어에서 빼고 싶은 단어는 눌러서 보관할 수 있어요.」 — 기본 단어도 보관할 수 있어 그대로 맞다) | — |
+| **`noMine`(새)** | 출처 「내 단어」 · 검색·분류·조각·보관함 없음 · 0 | 「아직 내가 넣은 단어가 없어요」 / 「기본 단어에 없는 표현을 직접 넣으면 여기에 모여요. 내 단어는 나만 봐요.」 / **[단어 직접 추가]**(채움·전체 폭) | G·mine0 |
+| `allArchived` | 보관 안 한 단어 0 · 보관한 단어 > 0(기본 단어를 전부 숨김) | 지금 그대로 | — |
+| `noWords` | 단어가 하나도 없음(기본 단어가 없는 개발 DB 등 — 운영에서는 생기지 않음) | 「단어장이 비어 있어요」 / 「아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요.」 / **[단어 직접 추가]**(채움) | A·empty 왼쪽의 버튼만 바뀐 모양 |
+
+- `emptyVariant(q, totals)` 의 `q` 에 `source` 가 더해진다(`WordListFilter`). `noMine` 판정은 `noArchived` 다음, `allArchived` 앞.
+- `WordsEmpty` props 에서 `levels`·`seedingPack`·`onSeed` 삭제, `onAdd(preset?: string, presetChunk?: WordChunkType)`.
+- `WordsScreen` 의 「넣기 단계를 받은 뒤에 빈 안내를 그린다」 분기(`levels.status === 'loading'` → 회색 자리)는 삭제.
+
+**C. 새 계정 첫 화면 · 안내 띠(J9 · 데모 G·new · A·empty 오른쪽)**
+- 새 계정도 가입하자마자 #40 이 기본 단어를 준다(공용 행 — 넣는 단계 없음). 첫 화면 = 1쪽 7행(「최근 추가」 → 내 단어가 없으니 기본 단어 N5 첫 7개), 머리 줄 「단어 7,755개 · 1쪽」(숫자는 응답 `total`), 맞힘·틀림 줄 없음.
+- **안내 띠 `BaseWordBand`**(데모 `.band`) — 머리 줄과 목록 사이, **닫기 전까지** 쪽·조건과 상관없이 보인다:
+  ```
+  <div role="note" className="mb-2.5 flex items-start gap-1 rounded-xl bg-accent-soft py-2.5 pl-3 pr-1 text-[13px] text-ink">
+    <p className="min-w-0 flex-1 pt-0.5 break-keep"><b className="block text-[13.5px] font-semibold">기본 단어 {fmtCount(baseTotal)}개가 들어 있어요</b>
+      내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요. 필요한 단어는 ＋ 추가로 직접 넣으세요 — 내 단어는 나만 봐요.</p>
+    <button type="button" aria-label="안내 닫기" className="-mt-2.5 grid h-11 w-11 flex-none place-items-center rounded-full">✕(아이콘 18)</button>
+  </div>
+  ```
+- 숫자 = #40 응답 `baseTotal`(기본 단어 전체 수 — 조건·보관과 무관, 계약). **7,755 로 고정하지 않는다**(Leader ② 로 옛 행이 합쳐져 다를 수 있음). `baseTotal` 이 아직 없거나 0 이면 띠를 그리지 않는다.
+- 닫으면 이 기기에 기억(`localStorage` `VOCAB_KEYS.baseBand = 'kaiwa.words.baseBand'`, 값 `'1'` — 지금 `useStoredString` 패턴, 접근 실패는 무시하고 이번 화면에서만 닫힘). 하이드레이션 전에는 그리지 않는다(`useHydrated` — 서버 그림과 어긋나지 않게). 닫은 뒤 초점 = 머리 줄(사라지는 단추에 초점이 남지 않게, `afterCommit` 또는 다음 프레임).
+- 지금 실사용자(이관 뒤 내 단어 0)도 처음 한 번 같은 띠를 본다(데모 A·empty 오른쪽 — 넣었다는 문장 대신 「들어 있어요」).
+
+**D. 설정 「지금 수준」 도움말**(`labels.ts levelHelpText` — 설정 `LearningSettings` 가 씀, **Leader 확인 L-5**)
+- 지금 「선생님 대화와 **기본 단어 넣기**가 이 수준을 따라요. …」는 넣기 버튼이 없어지면 틀린 문장이 된다 → 「선생님 대화와 **오늘의 단어**가 이 수준을 따라요. 이름은 JLPT 급수와 같아요 — {최상급}은 가장 높은 급수(N1)예요.」(오늘의 단어 단계 가중 — task-053, J13 과 같은 사실).
+
+**E. 문구**(`labels.ts` — U)
+
+| 키 | 문구 |
+|---|---|
+| `WORDS_EMPTY_COPY.noWordsBody` · `todayEmptyBody` | 아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요. · 오늘의 단어는 내 단어장에서 골라요. |
+| `WORDS_EMPTY_COPY.addBtn` | 단어 직접 추가 |
+| `WORDS_EMPTY_COPY.noMineTitle` · `noMineBody` | 아직 내가 넣은 단어가 없어요 · 기본 단어에 없는 표현을 직접 넣으면 여기에 모여요. 내 단어는 나만 봐요. |
+| `BASE_BAND.title(n)` · `BASE_BAND.body` · `BASE_BAND.close` | 기본 단어 {n}개가 들어 있어요 · 내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요. 필요한 단어는 ＋ 추가로 직접 넣으세요 — 내 단어는 나만 봐요. · 안내 닫기 |
+| `levelHelpText()`(바뀜) | 선생님 대화와 오늘의 단어가 이 수준을 따라요. 이름은 JLPT 급수와 같아요 — {최상급}은 가장 높은 급수(N1)예요. |
+| 지움 | `SEED_COPY.*` 넣기 문구 8개 · `seedResultText` 의 토스트 3종 |
+
+### 28-7. 접근성 · 초점 · 토큰
+
+**A. 초점 이동표**(공용 `Sheet` 규칙 + 데모 「직접 해 보기」 흐름 40단계 — 사라지는 요소에서 옮기는 초점은 다음 프레임/`afterCommit`)
+
+| 동작 | 초점 |
+|---|---|
+| [‹ 이전] · [다음 ›] 누름 → 넘기는 중 | 누른 단추에 그대로(흐려져도 `aria-disabled` 라 남음) |
+| 쪽 응답 도착(`ready`) — 쪽 줄·쪽 이동 시트 어느 쪽이든 | **머리 줄**(`tabIndex=-1`, `focus({preventScroll:true})` — 먼저 `scrollIntoView` 로 머리 줄을 위로, J2) |
+| 쪽 오류 | 누른 단추에 그대로(오류 상자 `role=alert`) |
+| 가운데 「n / N」 → 쪽 이동 시트 | 숫자 칸(시트 제목 다음 프레임) |
+| 쪽 이동 시트 ✕ · Esc · 바깥 · 같은 쪽 [이동] | 가운데 단추(공용 `Sheet` 기본 되돌리기) |
+| 쪽 번호가 잘못됨 | 숫자 칸에 그대로(오류 줄 `role=alert`, 칸 `aria-invalid` · `aria-describedby`) |
+| 출처 · 조각 · 분류 · 정렬 · 보관함 바꿈 | 누른 칩/분절에 그대로(지금 규칙) |
+| 행 → 상세 | 시트 제목(공용) · 닫으면 그 행 단추(공용 되돌리기 — 행이 같은 쪽에 남아 있으면) |
+| 상세에서 보관/보관 풀기 성공 | 누른 단추에 그대로(시트 열린 채) |
+| 내 단어 삭제 성공 | 시트 닫힘 → 머리 줄(지운 행 단추가 사라지므로 — 지금은 문서 처음으로 빠질 수 있음) |
+| 폼 저장 — 조각 안 고름 | 첫 조각 칩(`${idPrefix}_chunkType`) |
+| 폼 저장 — `BASE_DUPLICATE` | 표현 칸(지금 중복 규칙과 같음) |
+| [그 단어 보기] | 열린 기본 단어 상세의 시트 제목(공용) |
+| 안내 띠 ✕ | 머리 줄 |
+
+**B. 읽기 이름 · 역할**
+- 쪽 줄 `nav aria-label="단어 목록 쪽"`. 가운데 단추 이름 「3 / 1,109 — 쪽으로 이동」(보이는 글을 앞에 — 말로 누르기 「3 / 1,109 누르기」가 맞는다). 쪽 위치는 status 「1,109쪽 중 3쪽 · 모두 7,758개」 한 줄 — 가운데 단추 안 글·머리 줄 쪽 접미사(`aria-hidden`)와 두 번 읽히지 않게.
+- 출처 분절 `radiogroup` 「출처」(공용 `Segmented`). 조각 칩 줄은 지금처럼 왼쪽 「조각」 라벨에 `aria-labelledby`, 칩 = 「이름 조각」…「표현 조각」, 「전체 (모든 조각)」.
+- 폼 조각 묶음 `radiogroup` + `aria-labelledby`(「조각*」 — 별표는 `aria-hidden`) + `aria-required="true"` + 오류 때 `aria-invalid` · `aria-describedby`(오류 줄), 평소 `aria-describedby`(뜻 한 줄).
+- 목록 쪽 넘김 중 `ul aria-busy="true"`. 빈 자리 행 `aria-hidden` + `invisible`(읽기·누름 0).
+- 「내 단어」·「기본 단어」 뱃지는 글자 뱃지(색만으로 알리지 않는다). 안내 띠 `role="note"`, 닫기 「안내 닫기」.
+- `lang="ja"`: 표제어·예문·조각 예(「友達 · 映画 · どこ」)·검색어 인용. 쪽 번호 칸은 `lang` 없음(숫자).
+
+**C. 터치 · 글자 · 색**
+- 터치 44 이상: 쪽 단추 44 × ≥92 · 가운데 단추 ≥44 높이(폭 ≥128 @360) · 출처 분절 32 보이고 세로 44 · 조각 칩 36 보이고 세로 44 · 폼 조각 칩 같음 · 숫자 칸 44 · [처음 쪽]/[마지막 쪽]/[이동] 48 · 상세 [보관] 48 · 안내 띠 ✕ 44 · [그 단어 보기] 44(글자 단추 `min-h-[44px]`).
+- 글자: 쪽 라벨 15/12 · 쪽 단추 14 · 머리 줄 12 · 행 표제어 18 · 뜻 14 · 뱃지 11.5 · 폼 라벨 12.5 · 조각 힌트 12.5 · 오류 12 · 안내 띠 13.5/13 · 숫자 칸 16(iOS 확대 방지) · 일본어 예문 16. **11px 미만 0**(뱃지 11.5 가 가장 작음 — 지금과 같음).
+- 색만으로 알리지 않는다: 흐린 단추 = `aria-disabled` + 눌러도 아무 일 없음 · 조각 미선택 = 빨간 테두리 + 오류 문장 · 고른 칩 = 색 + `aria-checked`.
+- **토큰(다크·라이트)**: 머리말 「적용 토큰」 이름만 — 새 색 0. 「내 단어」 = `bg-accent-soft text-ink`(공용 `Badge accent` 금지 — 명암비), 「기본 단어」 = `ring-line text-ink2`, 쪽 가운데 밑줄 = `decoration-ink3`(장식 — 글자 색 아님), 흐림 `opacity-40`(쪽 단추)·`opacity-50`(가운데). 데모의 `--accent-soft` 등은 앱 `--color-*` 와 같은 이름(`globals.css@sha256:a314f18f1807` 복사본).
+- 엔진·모델·호스트 이름 0(화면·aria·토스트) — 새 문구 전부 28-1 H · 28-2 G · 28-4 F · 28-5 D · 28-6 E 표 안. 선생님 초안 안내는 「선생님」(엔진 이름 아님).
+
+### 28-8. 구현 분담 — S-B · U · PE (S-A 는 이력서 분담 — 스키마·시드·재분류·이관)
+
+**A. 소유**(이 사람만 고친다 — 겹침 없음)
+
+| 담당 | 파일 | 할 일 요약 |
+|---|---|---|
+| **S-B** 서버 모듈·라우트 | `modules/learning/vocab/words.ts` | #40 쪽 조회(내 단어 + 기본 단어, `UserWordState` LEFT JOIN, `source`, 정렬·같은 값 순서, `total`·`pages`·`baseTotal`, `cursor`·`none` 거절) · DTO `origin`·`readOnly`·나의 상태 · #41 저장의 `jlpt` 거절·기본 단어 중복(`BASE_DUPLICATE`) · `findWordIdBySurface` 에 기본 단어(표기만) · #42 기본 단어 읽기 + **내 기록만 센 stats** · #43·#44 기본 단어 403 `READ_ONLY` · #43 `jlpt` 거절·`chunkType` null 거절 · #45 `UserWordState` upsert · #46 난이도 이름·기본 단어를 `null` 묶음으로 · `WORD_CHUNK_TYPES` 5 |
+|  | `modules/learning/vocab/sessions.ts` | 세트 풀 = 내 단어 + 기본 단어 중 **내가 보관하지 않은** 것(상태 JOIN) · 끝내기 카운터 → `UserWordState` upsert(`WordEntry` 상태 컬럼에 쓰지 않음) · 뜻 보기 원천(`words` 조회 3곳) 같은 범위 · `NO_WORDS` 의 `cta` 에서 `SEED_PACK` 삭제 |
+|  | `modules/learning/vocab/enrich.ts` | `WordEnrichOutput`·`toDraft` 에 `chunkType`(PE `wordEnrich@v2` 출력 그대로 — valid=false 면 null) |
+|  | `modules/learning/vocab/seedPack.ts` | CTA 쓰기(`addSeedPack`·`parseSeedPackBody`·잠금 트랜잭션) 삭제 — **S-A 시드 스크립트가 쓰는 로더(`asSeedWords`·`createSeedPackStore`·단계 import)는 남긴다**(지우기 전에 S-A 스크립트 import 확인) |
+|  | `modules/learning/lessons/memo.ts` | 「이미 단어장에 있는 표기」 조회에 기본 단어 포함 |
+|  | `modules/learning/evaluation/materials.ts` | 평가 재료 풀 = 내 단어 + 기본 단어(내가 보관 안 함), 많이 틀린 순은 나의 `wrongCount` |
+|  | `modules/learning/reviewSchedule/index.ts` | 단어 읽기 조회(`where: { userId, id in }`)에 기본 단어 포함 — **S-A 가 같은 파일을 고치는 중**(조각 4유형 타입) → S-A 커밋 뒤에 이어서 |
+|  | `modules/conversation/corrections/drawer.ts` | 채택 교정의 `savedWord` 표시 조건 `w.userId === userId` → **기본 단어(`userId === null`)도 포함**(이관 ② 로 교정의 단어 id 가 기본 단어로 옮겨지면 지금 조건으론 교정 모음에서 「단어장에 넣은 단어」 연결이 사라진다) — S-A 작업 뒤에 이어서 |
+|  | `modules/learning/index.ts` · `types/seedPack.ts`(`LEVEL_CATEGORY_NAMES`·`isLevelCategory`) | 내보내기 정리 · 공용 잎 파일(단계 1) |
+|  | `app/api/v1/words/route.ts` · `words/[id]/route.ts` · `words/[id]/archive/route.ts` · `words/[id]/unarchive/route.ts` · `words/categories/route.ts` | 계약 그대로(#41 은 `parseWordInput(rest, '', { jlpt: false })` 처럼 **#41 에서만** `jlpt` 를 거절 — #35·#38 채택 경로는 지금처럼 `jlpt` 를 받는다) |
+|  | 삭제 `app/api/v1/words/seed-pack/route.ts` | #46b |
+|  | 시험 `modules/learning/__tests__/*`(가짜 DB) · `tests/live/*` 스모크(빈 단어장 가정·`映画` 보강·`seed-pack` 호출 갱신) · `docs/design/api-contract.md` 와 라우트 목록 대조 | 28-9 T11~T17 · T25 · T28~T30 |
+| **U** 화면 | `components/vocab/{WordsScreen, WordsPager(새), WordsJumpSheet(새), WordChunkPicker(새), BaseWordBand(새), wordsPaging(새), logic, labels, validate, hooks, WordForm, WordAddSheet, WordDetailSheet, WordRow, WordsEmpty, ChunkChips, TodayWordsCard, TodayHome, WordsSkeleton}.*` · `components/shell/{tabSkeletonSizes.ts, TabSkeleton.tsx}` · `components/drawer/{CorrectionsScreen, CorrectionsSkeleton}.tsx`(prop 이름) · `types/vocab.ts` · 시험 `components/vocab/__tests__/*`(새 4개 + `seedButtons.test.ts` 를 「넣기 버튼 없음」 시험으로 바꿈 + `labels`·`validate`·`logic` 갱신) · `components/shell/__tests__`(자리표시 크기) | 28-1~28-7 · 28-9 T1~T10 · T18~T24 · T26~T27 |
+| **PE** 프롬프트 | `modules/conversation/prompts/wordEnrich.ts` · `structuredResponse/*`(필요 시) · `conversation/__tests__/{wordEnrich, wordEnrichChunk}.test.ts` · `tests/prompts/fixtures/word-enrich*.json`(이미 작업 트리) | `wordEnrich@v2`: 출력 `chunkType`(5유형, valid=true 면 필수) — 28-8 C |
+
+- 겹칠 뻔한 파일과 정한 쪽: **`types/seedPack.ts` → S-B**(서버 #46 이 먼저 쓴다 — U 는 import 만). **`reviewSchedule/index.ts`·`drawer.ts` → S-B**(S-A 의 조각 타입 변경이 먼저 커밋된 뒤 — 같은 파일을 동시에 고치지 않는다). **`learning/vocab/topicSet.ts`·`topics/*`·`lessons/content.ts` → S-A**(이미 조각 타입을 고치는 중, S-B 는 손대지 않음). **`labels.ts` → U**(새 문구 단일 출처 — S-B 서버 문구는 계약의 `message` 이고 화면은 그 문구를 쓰지 않는다, 400 만 예외). **`types/vocab.ts` → U**(서버는 import 하지 않음 — 계약 문서가 두 쪽의 기준).
+
+**B. 순서**(계약을 먼저 고정한다 — **계약 = `api-contract.md` §2-9 task-068 개정**, 화면은 S-B 코드를 기다리지 않고 계약대로 타입·가짜 응답 시험을 쓴다)
+
+| 단계 | S-B | U | PE |
+|---|---|---|---|
+| 0 | (S-A 스키마·enum 커밋 확인 — tsc 0 인 상태에서 시작) | ← | `wordEnrich@v2` 마무리(진행 중) → **S-B 에 출력 타입 알림**(기록 파일) |
+| 1 | `types/seedPack.ts` `isLevelCategory` · `WORD_CHUNK_TYPES` 5 · DTO(`origin`·`readOnly`·상태 JOIN) · `parseWordListQuery`(`page`·`source`·`cursor`·`none` 거절) → **U 에 알림** | `types/vocab.ts` 새 타입 · `wordsPaging.ts` + 시험(T1~T7) · `labels.ts` 새 문구 전부(지울 키는 아직 둠) | 회귀 픽스처(조각 예 28-8 C) |
+| 2 | `listWords` 쪽 조회·정렬·`baseTotal` + 시험(T16·T17) · `listCategories` 접기(T9 서버) | `WordsPager` · `WordsJumpSheet` · `ChunkChips variant` · `WordChunkPicker` + 시험 | — |
+| 3 | 기본 단어 403·중복 409·#41 `jlpt` 거절·#42 내 기록만·#45 upsert(T12~T15) · `enrich.ts`(PE 단계 0 뒤) | `validate`·`WordForm`·`WordAddSheet`(초안 조각·`BASE_DUPLICATE`·넣기 삭제) · `WordDetailSheet`(읽기 전용·뱃지·출처) · `WordRow` | — |
+| 4 | `sessions.ts`·`materials.ts`·`memo.ts`·`reviewSchedule`·`drawer.ts`(T28~T30) · #46b 삭제 · `seedPack.ts` 정리 | `WordsScreen`(쪽·출처·D2·안내 띠·넣기 삭제) · `logic.ts` · `WordsEmpty` · `TodayWordsCard`/`TodayHome` · `WordsSkeleton`·자리표시 크기 · 교정 모음 prop | — |
+| 5 | 스모크·라이브 시험 갱신 | 안 쓰는 문구·훅·부품 삭제(T21 소스 스캔) | — |
+| 6 | 함께: tsc 0 · eslint 0 · 전체 시험 · `next build`(전용 미러 — 미러를 겹쳐 쓰지 않는다) · 28-9 표 | ← | ← |
+
+**C. PE 인계**(이미 진행 중인 `wordEnrich@v2` 에 맞출 것 — 화면이 쓰는 뜻)
+- `chunkType` 다섯 값의 뜻은 **28-3 A 표의 정의와 같게**(폼 힌트가 그 문장을 보여 주므로 선생님 판단과 화면 설명이 어긋나지 않게). 근거는 `tutor.md` §5 조각 프레임(이름 = 명사·대명사, 꾸밈 = 부사·수식·조사구) + 「표현」 = 문장 밖에서 통째로 쓰는 말.
+- 픽스처에 넣을 판단(데모 D4 표 규칙과 같은 답): 勉強 → ACTION(명사지만 〜する) · 準備 → ACTION · はじめまして · なるほど · すみません → EXPRESSION · でも · それから · ところで → EXPRESSION(이음말) · どこ · 何 → NAME(대명사) · その · どんな → MODIFIER(연체사) · 様 · 個 · など → MODIFIER(접사·조사 — ★ B 는 꾸밈) · 楽しい · 好き → FEELING.
+- 다른 프롬프트(교정·수업·평가·주제)의 조각 enum 은 4유형 그대로(J12 — 작업 트리의 `wordEnrichChunk.test.ts` 스캔 방식 유지). `jlpt` 는 출력에 남겨도 된다(화면은 쓰지 않음 — 지워도 화면 영향 없음, PE 판단).
+- 초안 캐시(`enrich.ts` 메모리 — 키 = 표현·수준)는 v1 초안이 남아 있으면 `chunkType` 이 없다 → 화면은 미리 고르지 않는다(28-4 D). 배포 재시작으로 비므로 따로 지우지 않는다.
+
+### 28-9. 시험 불변식 (developer 가 시험으로 옮김 — 「변이」= 일부러 그렇게 고치면 실패해야 함)
+
+| # | 불변식 | 방법 | 변이 |
+|---|---|---|---|
+| T1 | **쪽은 늘 최대 7행** — `WORDS_PAGE === 7`, `wordsListUrl` 에 `limit=7`·`page=<page+1>`, `cursor` 키 0 · 렌더 시 보이는 행 `li`(숨은 자리 제외) ≤ 7 | 순수 + `renderToStaticMarkup` | 7 → 8 · 0부터 쪽을 그대로 보냄 |
+| T2 | **쪽 수는 `total` 로**: `wordPages(0)=1 · (1)=1 · (7)=1 · (8)=2 · (7755)=1108 · (7758)=1109` | 순수 | `floor` |
+| T3 | **7개 이하면 쪽 줄 없음**: `total ≤ 7 && page === 0` → `isWordsPaged=false` → 렌더에 `aria-label="단어 목록 쪽"` 0 · 숨은 자리 0 · status 0 | 순수 + 렌더 | `> 7` → `>= 7` |
+| T4 | `wordsPagerView`: 1쪽 → 이전 흐림 · 마지막 쪽 → 다음 흐림 · `paging` → 셋 다 흐림 + 라벨 = 목표 쪽 · `pageError` → 다음 흐림·이전·가운데 쓸 수 있음 · 흐림 = `aria-disabled="true"` 이고 `disabled` 속성 0 · `centerAria` = 「3 / 1,109 — 쪽으로 이동」 · `sr` = 「1,109쪽 중 3쪽 · 모두 7,758개」 | 순수 + 렌더 | `disabled` 속성 · 쪽 오류에 다음 켬 |
+| T5 | **마지막 쪽 빈 자리** = `7 − 행 수`(`aria-hidden`·`invisible`) · 쪽 오류 5 · 한 쪽뿐 0 · 숨은 행 안에 `<button` 0 | `fillerCount` + 렌더 | 빈 자리 0 |
+| T6 | `parseJumpPage(v, 1109)`: `''`·`'0'`·`'1110'`·`'1.5'`·`'-3'`·`'12a'`·`'abc'` → `null` · `'1'` → 0 · `' 12 '` → 11 · `'1,109'` → 1108 · `'１２'`(전각) → 11 | 순수 | 숫자 아닌 글자를 지우고 읽음(`'1.5'` → 14) |
+| T7 | **D2**: 조건(`q`·`source`·`category`·`chunk`·`sort`·`archived`) 하나라도 바뀌면 `page=0` · 시트 닫기는 `page` 불변 · `pageAfterAdd('recent',5)=0` · `('wrong',5)=5` · `('surface',5)=5` · 쪽은 저장소에 쓰지 않음(소스 스캔: `wordsPaging`·`WordsScreen` 에 `localStorage`/`sessionStorage` 로 쪽 저장 0) | 순수 결정 함수(`withFilterChange(state, patch)`) + 소스 스캔 | 출처 바꿈에 쪽 유지 |
+| T8 | `clampAfterResponse(5, 30) === 4`(30개 = 5쪽 → 0부터 4) · `(2, 30) === 2` · 비었고 줄었을 때만 한 번 다시 읽음(두 번째 응답이 또 비어도 세 번째 요청 0) | 순수 + 가짜 `apiGet` | 무한 재요청 |
+| T9 | **난이도 이름 칩은 어디에도 없다**: `isLevelCategory` 6개 정확히(`초보자 (N5)`·`초급 (N4)`·`중급 (N3)`·`고급 (N2)`·`최상급 (N1)`·`N5 기초`) true, `'초보자(N5)'`·`'여행'`·`null` false · `visibleCategories([초보자 (N5) 628, N5 기초 50, 여행 2])` → `[여행]` · `CategoryChips`(단어장·오늘 카드) 렌더에 여섯 이름 0 · 서버 `listCategories`: 난이도 이름·기본 단어 분류가 `category:null` 로 합쳐지고 합계(`count` 합)는 접기 전과 같다 | 순수 + 렌더 + 가짜 DB(S-B) | 「전체」 숫자에서 기본 단어가 빠짐 |
+| T10 | **조각 칩**: 단어장 칩 글자 정확히 `전체·이름·액션·느낌·꾸밈·표현` · 「없음」 0 · `variant="corrections"` 출력 = 변경 전 `withNone={false}` 출력 고정 문자열(한 글자도 같음) · `WordsSkeleton` 조각 줄도 5 | 렌더 | 교정 모음에 「표현」 |
+| T11 | #40: `chunkType=none` → 400 `VALIDATION {field:'chunkType'}` · `EXPRESSION` 통과 · `cursor=…` → 400 `{field:'cursor'}` · `source=x` → 400 · `page=0`·`page=1.5` → 400 · 같은 이름 파라미터 반복은 첫 값(지금 규칙) | `parseWordListQuery` 순수(S-B) | `none` 을 받음 |
+| T12 | **기본 단어 수정·삭제 거절**: 기본 단어 id 로 #43 → 403 `FORBIDDEN details.code='READ_ONLY'` · #44 → 같음 · 가짜 DB 의 `update`/`delete` 호출 0 · 남의 내 단어 id → 404(존재 숨김 — 지금 규칙) · 내 단어는 지금처럼 고침·지움 | 가짜 DB(S-B) | 기본 단어를 `where {id}` 로 고침 |
+| T13 | **기본 단어와 같은 표기 저장 거절**: 표기·읽기 같음 → 409 `CONFLICT details.code='BASE_DUPLICATE'`·`existingId`=기본 단어 id · 입력 읽기 비었음 + 같은 표기 → 409 · 같은 표기·다른 읽기 → 저장 · [뜻 채우기] 같은 표기 → 409 이고 **LLM 호출 0** · 같은 표기 기본 단어가 여럿이면 `existingId` = 기본 단어 순서(N5→N1·`seedKey`) 첫 행(호출마다 같음) · #35·#38 채택 경로는 **409 가 아니라 기존 기본 단어에 연결**([2026-10-14 Leader 결정 L4] 새 단어를 만들지 않고 그 기본 단어 id 를 `savedWordId`/결과로 쓰며 채택은 그대로 진행 — 내 단어끼리의 중복만 지금처럼 409) | 가짜 DB · 가짜 `llm`(S-B) | 표기만 보고 다른 읽기도 막음(저장 단계) |
+| T14 | **#42 기록은 내 것만**: 기본 단어 w 에 사용자 B 의 세트 카드 3장·평가 1건이 있어도 A 의 #42 `stats.attempts`·`last7d`·`evalAppearances` 에 0 · A 의 것만 셈 · `corrections` 도 A 것만 | 가짜 DB(S-B) | `wordId` 만으로 셈 |
+| T15 | **보관은 사용자별**: A 가 기본 단어 w 보관 → `UserWordState(A,w).archived=true` 한 행 upsert · `WordEntry` 행 변경 0 · B 의 #40 에 w 그대로 · 두 번 보관해도 `archivedAt` 유지(지금 규칙) | 가짜 DB(S-B) | 공용 행의 `archived` 를 씀 |
+| T16 | **#40 보이는 범위**: A 는 A 의 내 단어 + 기본 단어만(B 의 내 단어 0) · `source=mine` 은 A 의 것만 · `source=base` 는 기본 단어만 · `total` = 모든 조건(보관 포함)을 건 수 · `baseTotal` = 기본 단어 전체(조건·보관과 무관 — A 가 보관해도 같음) · DTO 에 `userId`·`seedKey` 키 0 · `origin`/`readOnly` 정확 | 가짜 DB(S-B) | `userId` 조건 누락 |
+| T17 | **정렬 같은 값 순서**: 「최근 추가」 = 내 단어(`createdAt desc, id desc`) 전부 → 기본 단어 · 기본 단어 = **`jlpt` N5→N1 다음 `seedKey` 오름차순** — `seedKey` `N1-0001`·`N4-0001`·`N5-0002`·`N5-0001`·`N5X-0001` → `N5-0001, N5-0002, N5X-0001, N4-0001, N1-0001` · 「많이 틀린」 = 나의 `wrongCount desc`(상태 없으면 0) 뒤 같은 순서 · 「가나다순」 = `surface asc` 뒤 내 단어 먼저 | 가짜 DB 또는 SQL 조각 시험(S-B) | `seedKey` 글자 순만(N1 이 먼저) |
+| T18 | **폼**: `validateWord({…chunkType:''})` → `chunkType: '조각을 골라 주세요'` · `firstErrorField` 순서에 `chunkType` 이 `partOfSpeech` 다음 · `'jlpt'` 는 `FIELD_ORDER` 에 없음 · `toCreateBody` 에 `chunkType` 있음·`jlpt` 키 0 · `diffPatch` 결과에 `jlpt` 키 0(어떤 입력이든) · 조각만 바꾸면 `{chunkType}` 하나 | 순수 | `jlpt` 를 보냄 |
+| T19 | **`WordForm` 렌더**: 「수준」 글자 0 · `role="radiogroup"` 1 · `aria-required="true"` · 칩 5개(이름·액션·느낌·꾸밈·표현) · 고르면 뜻 한 줄(「표현 — 문장 밖에서 통째로 쓰는 말…」) · 오류면 `aria-invalid` + 오류 줄 | 렌더 | `<select>` 로 되돌림 |
+| T20 | **초안 조각**: `formFromDraft('勉強', {chunkType:'ACTION'}, '', 'NAME')` → `ACTION`(초안 우선) · 초안에 없으면 `presetChunk` · 둘 다 없으면 `''` · 초안이 고르면 안내 「선생님이 고른 조각이에요 · 바꿀 수 있어요」, 칩을 바꾸면 안내 0 | 순수 + 렌더 | 초안 조각 무시 |
+| T21 | **넣기 UI 없음**: `WordsEmpty`(모든 variant)·`TodayWordsCard`(empty)·`WordAddSheet`(surface) 렌더에 「넣기」로 끝나는 단추 0·「기본 단어 … 한 번에 넣기」 0 · 소스 스캔(`src/**`, 시험 제외): `seed-pack` 0 · `useSeedPack`·`useSeedLevels`·`SeedPackButtons`·`SeedTextBtn`·`seedResultText`·`SEED_COPY` 0 · `app/api/v1/words/seed-pack/` 폴더 없음 | 렌더 + 소스 스캔 | 버튼 하나 되살림 |
+| T22 | **상세**: `origin:'BASE'` → [수정]·[삭제] 0 · 단추 1(「보관 — 목록 · 오늘의 단어에서 숨기기」 / 보관이면 「보관 풀기 — 다시 보이기」) · 「기본 단어」 뱃지 · 출처 문장 = `BASE_SOURCE_SENTENCE` · 「추가한 날」 0 / `origin:'MINE'` → [수정]·[보관하기]·[삭제] · 「내 단어」 뱃지 · 「… · 나만 봐요」 · `readOnly:true` 만 있어도 기본 단어로 그림 | 렌더 | `source==='SEED'` 로 판정 |
+| T23 | **행**: 내 단어 → 「내 단어」 뱃지(클래스에 `bg-accent-soft`·`text-ink`, `text-accent` 0) · 기본 단어 → 출처 뱃지 0 · `EXPRESSION` → 「표현 조각」 · 조각 null → 조각 뱃지 0 | 렌더 | `Badge tone="accent"` |
+| T24 | **문구**: 새 키가 28-1 H · 28-2 G · 28-4 F · 28-5 D · 28-6 E 원문과 같음 · 엔진명 정규식(§25-11 ⑮) 0 · 「단어 더 보기」 0 · `SOURCE_SENTENCE.MANUAL === '내가 넣은 단어예요'` · `levelHelpText()` 에 「넣기」 0 | `labels.test.ts` 확장 | — |
+| T25 | **계약 대조**: `api-contract.md` §1-2 표의 #46b 줄이 「폐지」 · §2-9 개정과 라우트 목록 일치(§4 9항 대조 스크립트) | 스크립트(S-B) | — |
+| T26 | **머리 줄**: 출처별 lead(「단어 n개」/「내 단어 n개」/「기본 단어 n개」) · 쪽 접미사 `aria-hidden` · 7개 이하면 접미사 0 · 응답 전 빈 줄 · `tabIndex="-1"` | `listHeader` 순수 + 렌더 | 접미사를 읽게 함 |
+| T27 | **안내 띠**: 숫자 = `baseTotal`(쉼표) — `BaseWordBand`·`WordsScreen` 이 `seedPackTotal`·`SEED_PACK_COUNT`·숫자 상수를 읽지 않음(소스 스캔) · 닫으면 `kaiwa.words.baseBand='1'` · 저장소 접근이 던져도 화면이 깨지지 않음 · `baseTotal` 0/없음 → 띠 0 | 렌더 + 가짜 저장소 | 고정 숫자 |
+| T28 | **세트 풀**(S-B): A 가 보관한 기본 단어는 A 의 #47 풀에서 빠지고 B 의 풀에는 있음 · 내 단어 + 기본 단어 모두 풀 · 끝내기 카운터는 `UserWordState` 에만(가짜 DB `wordEntry.updateMany` 0) | 가짜 DB | 공용 행 카운터 증가 |
+| T29 | **채택 경로 조각**: #35 교정 채택(`addWord.chunkType` 4값) 저장 → 그 값 · `chunkType` 없는 #41 빠른 넣기(`VocabResult`) → 저장(null 허용 — 28-10 L1) | 가짜 DB(S-B) | 빠른 넣기 400 |
+| T30 | **교정 모음 `savedWord`**(S-B): `savedWordId` 가 기본 단어를 가리키면 `savedWord` 가 응답에 있음 · 남의 내 단어면 없음(지금 규칙) | 가짜 DB | `userId===userId` 만 |
+| T31 | 기존 시험 그대로 통과 — `none` 을 단언하던 task-023 시험·`seedButtons.test.ts`·빈 단어장 가정 스모크만 이 표에 맞게 바꾼다(그 밖 단언 변경 0) | — | — |
+
+**실제 Next 라우터로만 확인되는 것(QA 몫 — 운영 빌드, 360·390·412 × 라이트·다크, 스키마 push·기본 단어 시드가 승인된 전용 환경)**
+- **Q1** 1쪽 → 2쪽 → 가운데 → 512쪽 → [마지막 쪽] → 1쪽: 행 7개(마지막 쪽 실제 개수 + 빈 자리) · 쪽 줄 위치 변화 ≤ 2px(히라가나·한글 켬/끔 4조합, **앱 WebView 글꼴 130%** 포함) · 넘긴 뒤 머리 줄이 `AppBar` 바로 아래·초점 머리 줄.
+- **Q2** 쪽 번호 시트: 숫자 키보드가 바로 열림 · 「2000」·「0」·빈 칸 → 안내 · Enter = 이동 · 키보드 위에 [이동] 보임 · 같은 쪽 [이동] = 닫기만.
+- **Q3** **성능**: 「전체」 512쪽·1,109쪽(오프셋 ≈ 7,750) · 「많이 틀린」·「가나다순」·조각·검색 조합의 #40 응답 시간(p50·p95, NAS DB) · 쪽 넘김 체감(누름 → 행 그림) — 기준은 Leader 와 정함(참고: task-057 풀 조회 72ms).
+- **Q4** D2: 조건 바꿈 → 1쪽 · 상세·추가·쪽 시트 닫기 → 그 쪽 · 다른 탭 → 돌아오면 1쪽·출처 「전체」·정렬은 남음 · 「최근 추가」에서 넣기 → 1쪽 맨 위 내 단어 · 「가나다순」에서 넣기 → 같은 쪽.
+- **Q5** 출처 칩: 「내 단어」(0개 계정 → `noMine` 안내) · 「기본 단어」 · 검색·조각·보관함과 겹침.
+- **Q6** 기본 단어 상세: 수정·삭제 없음 · 보관 → 목록(같은 쪽 다시 읽기)·오늘의 단어 세트에서 빠짐 · 다른 QA 계정에서는 그대로 · 보관함에서 풀기. 개발자 도구로 #43·#44 를 기본 단어 id 로 보내면 403(데이터 그대로).
+- **Q7** D9: [뜻 채우기]에 「映画」 → 「기본 단어에 이미 있어요」 + [그 단어 보기] → 기본 단어 상세 · 「직접 입력하기」로 같은 표기·다른 읽기 → 저장됨 · 교정 채택 시트에서 기본 단어와 같은 표현 단어로 넣기 → **채택이 그대로 진행되고 그 기본 단어에 연결**(새 단어를 만들지 않음 — Leader L4, 안내 문구 없음; 내 단어와 같을 때만 지금의 「단어장에 같은 표현이 이미 있어요」).
+- **Q8** 조각 고르기: 안 고르고 저장 → 첫 칩 초점·안내 · [뜻 채우기] 뒤 미리 고름(勉強 → 액션) · 옛 조각 없는 내 단어를 고칠 때 조각을 골라야 저장.
+- **Q9** **새 QA 계정 첫 화면**: 가입 직후 단어 수 = `baseTotal`·1쪽 N5 첫 7개·안내 띠 한 번(닫고 새로 고침 → 안 보임)·맞힘/틀림 0 · 빈 단어장 화면 없음.
+- **Q10** 오늘의 단어 카드: 분류 칩 없음 · J13 한 줄(지금 수준 이름) · 세트 만들기 시간(풀 ≈ 7.8천 — task-057 대비) · 덱 동작 불변.
+- **Q11** 채택 교정 모음: 조각 칩 4개 그대로 · 이관 뒤 기본 단어로 옮겨진 교정의 「단어장에 넣은 단어」 연결이 보임(T30).
+- **Q12** 360 폭: 조각 칩 줄 끝 「표현」이 밀어서 보임 · 행의 「내 단어」+「표현 조각」 두 뱃지에서 표제어만 줄임 · 폼 조각 칩 줄바꿈 · 11px 미만 0 · 44px 미만 터치 0 · 가로 넘침 0.
+- **Q13** TalkBack: 가운데 「3 / 1,109 — 쪽으로 이동, 단추」 · 넘김 「1,109쪽 중 4쪽 · 모두 7,758개」 한 번(머리 줄 접미사 두 번 읽지 않음) · 조각 묶음 「조각, 필수」 · 초점 이동표(28-7 A) 전부.
+
+### 28-10. 데모와 다르게 쓴 곳 · Leader 확인 필요
+
+**데모와 다르게 쓴 곳**(결정·구조는 그대로 — 구현 안전·지금 규칙 때문에)
+1. **쪽 넘긴 뒤 머리 줄의 「· n쪽」은 화면 읽기에서 숨긴다**(`aria-hidden`) — 머리 줄이 `aria-live` 라 쪽마다 다시 읽고, 초점·쪽 줄 status 와 세 번 겹친다. 쪽 위치는 status 한 줄만.
+2. **안내 띠 숫자는 서버 `baseTotal`**(데모는 「7,755」 고정) — Leader ② 로 옛 `words-n5.json` 행이 합쳐지면 7,755 가 아닐 수 있다. 계약 #40 에 `baseTotal` 하나를 더했다(additive).
+3. **검색 중에도 머리 줄에 분류·조각 조건을 붙인다**(지금 규칙 유지 — 데모는 검색 중 생략).
+4. **내 단어 상세 단추 배치는 지금 그대로**([수정][보관하기] + 아래 글자 [삭제]) — 데모는 세 칸 한 줄로 그렸다(데모 「그대로 쓰는 것」에 「내 단어의 수정 · 보관 · 삭제」가 있어 지금 모양을 따름).
+5. **보관 토스트**: 기본 단어는 데모 문구, 내 단어는 지금 문구.
+6. **마지막 쪽 빈 자리 = 실제 행 구조의 숨은 행**(데모는 최소 높이) — 글자 크게 보기·히라가나/한글 토글에서도 쪽 줄이 움직이지 않게(§27-4 D 와 같은 이유).
+7. **분류 칩 줄 자리표시 삭제** — 흔한 상태가 「줄 없음」이 되어 자리표시가 오히려 접힘을 만든다.
+8. **`actionErrorText` 403 문구 「기본 단어는 고치거나 지울 수 없어요」** ★(데모에 없는 상태 — 화면은 기본 단어 수정·삭제 단추를 그리지 않으므로 보통 나오지 않는다).
+9. **`noSearchChunk` 에 [‘q’ 추가하기] + [조각 전체에서 찾기] 두 단추**(J6 를 지금 빈 화면 모양에 맞춤).
+10. **내 단어 출처 문장 = 지금 출처 문장 + 「 · 나만 봐요」**(데모는 직접 넣은 단어만 그림 — 교정·제안·수업에서 채택한 내 단어도 같은 꼴).
+11. **쪽 번호 검사를 더 엄격하게**(`1.5` → 오류 — 데모는 숫자 아닌 글자를 지우고 읽어 15쪽으로 감) · 전각 숫자는 받는다.
+
+**Leader 확인 필요**(이 가이드는 각 줄의 「권고」대로 쓰였다)
+- **L1 #41 저장의 `chunkType` 은 계약에서 「필수」가 아니라 「선택」으로 두었다**(Leader 지시 원문은 「필수」). [확실 — 코드] 오늘의 단어 결과 화면의 [단어장에 넣기](`VocabResult` → #41, task-042)는 카드에 조각 값이 없어 보낼 수 없다(`VocabAttempt` 에 조각 칸이 없고 #49 재조회 때 `kind` 가 남지 않음). 필수로 하면 그 단추가 400 으로 깨진다. 그래서 **폼(직접 입력·수정)만 꼭 고르게** 하고(D5 A — 화면 검사 + #43 은 null 거절), 빠른 넣기·채택 경로(#35·#38)는 조각 없이도 저장된다. 결과: 조각이 빈 **내 단어**는 계속 생길 수 있다(「없음」 칩이 없으므로 조각으로는 못 거르고 「전체」·「내 단어」에서 보임, 고칠 때 조각을 고르게 됨). 권고: 수용. 완전히 막으려면 빠른 넣기에 조각 고르기 UI 가 필요하다(데모 밖 — 별도 개선).
+- **L2 v1 「추가만」 규칙(계약 §4-1)의 예외 4건**: #40 `cursor`·`nextCursor` 폐지 · #40 `chunkType=none` 거절 · #41/#43 `jlpt` 거절 · #46b 삭제. [확실] 부르는 곳은 같은 배포의 웹 번들(`WordsScreen`·`WordAddSheet`·`WordDetailSheet`·`hooks.ts`)과 라이브 스모크뿐이다(§4-2 — 앱은 라이브 웹을 로드). 배포 순간 열려 있던 옛 탭만 한 번 400/404 를 볼 수 있다(새로 고침으로 풀림). 권고: 같은 배포에서 함께 바꾸고 §4-6 폐기 기간은 두지 않음.
+- **L3 배포 ~ 이관 사이 겹침**: 새 코드가 나간 뒤 678행 이관(사본 삭제)이 끝나기 전까지 실사용자 화면에 **같은 단어가 두 줄**(사본 = 「내 단어」 + 공용 기본 단어)로 보이고, 오늘의 단어에도 둘 다 나올 수 있다. 권고: 이관 dry-run 을 배포 전에 검증해 두고 **배포 직후 같은 자리에서 이관 apply**(사용자 승인 두 건을 한 번에 받음). 대안(서버가 `userId=나 AND source=SEED` 사본을 목록에서 숨김)은 영구 조건이 하나 늘어 권하지 않는다.
+- **L4 D9 를 채택 경로에도 똑같이 적용**: 교정 채택(#35)·제안 채택(#38)에서 넣을 단어가 기본 단어와 같으면 409 로 **채택 전체가 되돌려진다**(지금 내 단어 중복과 같은 규칙). 기본 단어가 7.8천 개라 이 일이 훨씬 잦아진다 [가능성 높음]. 지금 채택 시트는 「단어장에 같은 표현이 이미 있어요」로 안내한다 — 문장은 맞지만 「단어 없이 채택」으로 잇는 길이 있는지는 이 task 범위 밖에서 확인 필요. 권고: 이번엔 같은 규칙으로 두고 QA Q7 로 실제 안내를 확인. **→ [2026-10-14 Leader 변경 결정] 권고와 달리 409 로 되돌리지 않는다: 기본 단어와 같으면 새 단어를 만들지 않고 그 기본 단어에 연결해 채택을 진행한다(T13·Q7 정정). 내 단어끼리의 중복은 지금처럼 409.**
+- **L5 설정 「지금 수준」 도움말 문구 변경**(28-6 D) — 데모 밖이지만 넣기 버튼이 없어져 지금 문장이 틀린 사실이 된다. 권고: 바꿈.
+- **L6 `seedKey` 글자 순 ≠ N5→N1**(Leader ③): 정렬은 `jlpt`(N5→N1) 다음 `seedKey` 로 정했다(계약 #40·T17). `seedKey` 형식을 바꾸지 않아도 된다.
+- **L7 #47 빈 풀 `cta` 에서 `SEED_PACK` 삭제** — 기본 단어가 있어 `NO_WORDS` 는 운영에서 사실상 생기지 않는다(생기는 경우 = 기본 단어와 내 단어를 모두 보관했을 때 — 화면은 [단어 직접 추가] 하나).
+- **L8 `noMine` 의 작은 빈틈**: 「내 단어」를 고른 채 내 단어가 **모두 보관**돼 있으면 「아직 내가 넣은 단어가 없어요」가 나온다(#46 합계는 출처를 나누지 않아 구분 못 함). 드문 경우라 수용 권고.

@@ -161,14 +161,14 @@
 | 37 | GET | `/api/v1/proposals?status=&chatId=` | 강사 제안 목록 | S | conversation/proposals | 1 | query | 목록 |
 | 38 | POST | `/api/v1/proposals/:id/accept` | 제안 채택 | S | conversation/proposals | 1 | `{payloadOverride?}` | `TutorProposal`+`result` |
 | 39 | POST | `/api/v1/proposals/:id/reject` | 제안 거절 | S | conversation/proposals | 1 | — | `TutorProposal` |
-| 40 | GET | `/api/v1/words?q=&category=&archived=&sort=` | 단어장 | S | learning/vocab | 1 | query | 목록 |
+| 40 | GET | `/api/v1/words?q=&category=&chunkType=&source=&archived=&sort=&page=&limit=` | 단어장(내 단어 + 공용 기본 단어, 쪽 번호 — task-068) | S | learning/vocab | 1 | query | `{items,total,page,pages,limit,baseTotal}` |
 | 41 | POST | `/api/v1/words` | 단어 추가(A10 보강 옵션) | S | learning/vocab | 1 | `WordEntry` 입력 | `WordEntry` |
 | 42 | GET | `/api/v1/words/:id` | 단어 상세(+이력) | S | learning/vocab | 1 | — | `WordEntry`+stats |
 | 43 | PATCH | `/api/v1/words/:id` | 단어 수정 | S | learning/vocab | 1 | 부분 | `WordEntry` |
 | 44 | DELETE | `/api/v1/words/:id` | 단어 삭제(스냅샷 보존) | S | learning/vocab | 1 | — | `{deleted:true,snapshotKept:true}` |
 | 45 | POST | `/api/v1/words/:id/archive` · `/unarchive` | 보관 토글 | S | learning/vocab | 1 | — | `WordEntry` |
 | 46 | GET | `/api/v1/words/categories` | 카테고리·개수 | S | learning/vocab | 1 | — | `[{category,count}]` |
-| 46b | POST | `/api/v1/words/seed-pack` | 기본 단어 팩 추가(빈 단어장 CTA, task-008 E1 · JLPT 5단계 task-051) | S | learning/vocab | 1 | `{pack:"N5"\|"N4"\|"N3"\|"N2"\|"N1"}` | `{added,skipped}` |
+| ~~46b~~ | ~~POST~~ | ~~`/api/v1/words/seed-pack`~~ | **폐지(task-068, 2026-10-14)** — 기본 단어는 공용 읽기 전용 행이라 넣는 단계가 없다. 라우트 파일 삭제(옛 탭 호출은 404 또는 405 — `words/[id]` 라우트가 `seed-pack` 을 id 로 받아 POST 가 없으면 405, QA 실측 2026-10-14. 화면은 일반 오류로 처리) | — | — | — | — | — |
 | 47 | POST | `/api/v1/vocab/sessions` | 오늘의 단어 세트 생성(기본 카드 우선 `FLIP`+카드 `choices` · `mode:'CHOICE'` 명시 세트만 **정답 미포함**) | S | learning/vocab | 1 | `{count?,mode?,category?,topicId?,generate?}` | `VocabSession`+cards(+주제 세트면 `generation`, §2-10) |
 | 48 | GET | `/api/v1/vocab/sessions?kept=1` | 세션 목록/보관함 | S | learning/vocab | 1 | query | 목록 |
 | 49 | GET | `/api/v1/vocab/sessions/:id` | 세션 상세(이어풀기) | S | learning/vocab | 1 | — | 세션+cards(+답한 카드만 정답) |
@@ -910,26 +910,91 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
 
 ### 2-9. 단어장 `/api/v1/words` (L3 learning/vocab)
 
-공통 `WordEntry` 응답 객체:
+> **task-068 개정(2026-10-14, 승인 데모 `docs/demo/task-068-wordbook-v1.html` v1 · 화면 정본 `docs/screens.md` §28)** — 기본 단어는 사용자별 사본이 아니라 **공용 읽기 전용 행**(`WordEntry.userId = NULL` + `source=SEED` + `seedKey`)이고, 사용자별 학습 상태·보관은 `UserWordState`(사용자·단어 한 쌍당 한 행, 없으면 0·보관 안 함)가 정본이다(내 단어 포함). 아래 표의 #40~#46 은 이 개정을 반영했고, 바뀐 규칙의 자세한 내용은 표 아래 「task-068 개정 상세」. **v1 「추가만」 규칙(§4-1)의 예외**: #40 `cursor`·`nextCursor` 폐지, #40 `chunkType=none` 거절, #41/#43 `jlpt` 거절, #46b 삭제 — 호출자가 같은 배포의 웹 번들뿐이라(§4-2) 같은 배포에서 함께 바꾼다(screens.md §28-10 L2).
+
+공통 `WordEntry` 응답 객체(task-068: `origin`·`readOnly` 추가, 상태 칸 6개는 **요청한 사용자의** `UserWordState` 값):
 
 ```json
 { "id": "w_01…", "surface": "映画", "reading": "えいが", "meaning": "영화", "partOfSpeech": "NOUN", "chunkType": "NAME", "jlpt": "N5",
   "example": "昨日映画を見ました。", "exampleKo": "어제 영화를 봤습니다.", "note": null, "category": "일상", "source": "CORRECTION", "sourceRefId": "cr_1",
-  "correctCount": 3, "wrongCount": 1, "lastSeenAt": "…", "lastResult": "CORRECT", "archived": false, "createdAt": "…", "updatedAt": "…" }
+  "origin": "MINE", "readOnly": false,
+  "correctCount": 3, "wrongCount": 1, "lastSeenAt": "…", "lastResult": "CORRECT", "archived": false, "archivedAt": null, "createdAt": "…", "updatedAt": "…" }
 ```
+
+- `origin`: `"BASE"`(공용 기본 단어 — `userId` NULL) | `"MINE"`(요청한 사용자의 단어). `readOnly` = `origin === "BASE"`. **`userId`·`seedKey` 는 응답에 싣지 않는다.**
+- `chunkType`: `NAME | ACTION | FEELING | MODIFIER | EXPRESSION | null`(task-068 D4 — `EXPRESSION` 「표현」은 **단어 전용**, 교정·주제 조각·평가 응답은 4유형만 낸다). 기본 단어는 재분류로 모두 값이 있다. 옛 채택 단어는 `null` 일 수 있다.
+- `correctCount`·`wrongCount`·`lastSeenAt`·`lastResult`·`archived`·`archivedAt`: 그 사용자의 `UserWordState`(행이 없으면 `0·0·null·null·false·null`). `WordEntry` 의 같은 이름 컬럼은 이관 뒤 읽지 않는다.
+- 기본 단어의 `source` = `"SEED"`, `createdAt` = 시드 시각(화면은 「추가한 날」로 쓰지 않는다).
 
 검증: `surface` 1~80 · `reading` ≤120 · `meaning` 1~200 · `example/exampleKo` ≤2,000 · `note` ≤500 · `category` ≤40 · enum 은 `domain-model.md`.
 
 | # | 계약 |
 |---|---|
-| #40 `GET /api/v1/words?q=&category=&chunkType=&archived=0\|1&sort=recent\|wrong\|surface&limit=&cursor=` | `q` 는 `surface/reading/meaning` 부분 일치(≤40자). `chunkType`(task-023) 은 `NAME\|ACTION\|FEELING\|MODIFIER\|none` **한 값**(`none` = 조각이 정해지지 않은 단어, `chunkType IS NULL`) — 대소문자·쉼표 목록 등 그 밖의 값은 `400 VALIDATION { field: "chunkType" }`, 빈 값은 조건 없음. 검색·분류·조각·보관 여부는 모두 AND 이고 `total` 은 그 조건의 전체 수(커서와 무관). 기본 `archived=0, sort=recent`. 응답 `{ items, nextCursor, total }`(행의 `chunkType` 은 `WordEntry` 그대로) |
-| #41 `POST /api/v1/words` body `{ surface, meaning?, reading?, …, "enrich": true }` | `enrich=true` 이고 `meaning` 이 비면 A10 단어 보강(home-m4 또는 haiku, 20s, 메모리 캐시)으로 `reading/meaning/partOfSpeech/jlpt/example/exampleKo` 채운 뒤 **사용자 확인 없이 저장하지 않는다** — 응답은 `{ "draft": {...}, "saved": false }`(일본어 단어가 아니라고 판단되면 `200 { "draft": { "valid": false, "invalidReason": "…" }, "saved": false }` — F8); `enrich` 없이 완전한 본문이면 즉시 저장 `{ "word": {...}, "saved": true }`. 같은 `surface` 가 이미 있으면 `409 { details: { existingId } }` |
-| #42 `GET /api/v1/words/:id` | `WordEntry` + `stats: { attempts: 12, last7d: {correct,wrong}, evalAppearances: 2 }` + `corrections: [{id, chatId}]` |
-| #43 `PATCH /api/v1/words/:id` | 부분 갱신(카운터·source 는 불가) |
-| #44 `DELETE /api/v1/words/:id` | 행 삭제. `VocabAttempt.wordId`·`Correction.savedWordId`·`EvaluationItem.wordId` 는 `SetNull`, `*Snap` 컬럼으로 이력 유지. 응답 `{ "deleted": true, "snapshotKept": true }` |
-| #45 `POST /api/v1/words/:id/archive` · `/unarchive` | `archived` 토글(`archivedAt`). 보관 단어는 세트 생성 풀에서 제외 |
-| #46 `GET /api/v1/words/categories` | `[ { "category": "일상", "count": 32, "archivedCount": 2 }, { "category": null, "count": 5 } ]` |
-| #46b `POST /api/v1/words/seed-pack` body `{ "pack": "N5" }` — `pack` = `N5`·`N4`·`N3`·`N2`·`N1`(task-051) | 원본 `prisma/seed-data/jlpt/{n5,n4,n3,n2,n1}.json`(OpenJLPT 바탕 CC BY-SA 4.0 파생, 출처 `SOURCES.md`)의 그 단계를 `source=SEED, jlpt=<pack>, category=<단계 표시 이름>` 으로 복사. 표시 이름 = `초보자 (N5)`·`초급 (N4)`·`중급 (N3)`·`고급 (N2)`·`최상급 (N1)`(정본 `src/types/seedPack.ts` `SEED_PACK_LABEL`, 분류 칩 이름도 같은 글자). 단계별 개수 = `SEED_PACK_COUNT`(`src/types/seedPackCounts.ts` 생성 파일, 데이터 길이와 같음을 시험이 단언). **건너뜀**: 내 단어장(보관 포함)에 같은 표기(JS 바이트 일치 — DB 콜레이션이 같게 보는 가나·탁음 차이는 다른 표기)가 있고 그 단어의 읽기가 **같거나 비어 있으면** `skipped`. 같은 표기·다른 읽기(明日 あした/あす)는 다른 단어로 넣는다(데이터 키 = 표기+읽기). 사용자 행 잠금 아래 **한 트랜잭션**(조회·삽입은 500개씩 나눔, 중간 실패 시 전부 되돌림) → `{ "added": 674, "skipped": 0 }`. 다시 눌러도 같은 단어는 두 번 들어가지 않는다(`{ "added": 0, "skipped": <단계 개수> }`). 다른 `pack` 값은 `400 VALIDATION`(`details.reason="N5\|N4\|N3\|N2\|N1"`), 다른 키는 `400 VALIDATION`(`unknown_key`). 어느 단계를 보낼지는 클라이언트가 정한다(지금 수준·목표 수준). 이전 원본 `prisma/seed-data/words-n5.json` 50개는 OWNER 시드 전용으로 남고(분류 `N5 기초`, 기존 행 변경 없음) 그 단어를 가진 사용자는 같은 (표기, 읽기)만큼 `skipped`. 사용자 직접 행위(CTA)라 제안·채택 규칙 대상 아님 |
+| #40 `GET /api/v1/words?q=&category=&chunkType=&source=all\|mine\|base&archived=0\|1&sort=recent\|wrong\|surface&page=&limit=` | **task-068**: 보이는 단어 = **내 단어(`userId`=나) + 공용 기본 단어(`userId` NULL)**, 상태·보관은 내 `UserWordState`. `q` 는 `surface/reading/meaning` 부분 일치(≤40자). `chunkType` 은 `NAME\|ACTION\|FEELING\|MODIFIER\|EXPRESSION` **한 값**(`none` 은 폐지 → `400 VALIDATION { field: "chunkType" }`), 빈 값은 조건 없음. `source`(기본 `all`) = `mine`(내 단어만)·`base`(기본 단어만), 그 밖은 `400 { field: "source" }`. `archived`(기본 0)는 **나의** 보관 상태. 모든 조건은 AND. **쪽 번호 방식**: `page` 1부터(정수 1~100,000, 기본 1, 그 밖 `400 { field: "page" }`), `limit` 1~100(기본 20 — 화면은 7). `cursor` 를 보내면 `400 { field: "cursor", reason: "use_page" }`. 응답 `{ items, total, page, pages, limit, baseTotal }` — `total` = 조건을 모두 건 전체 수, `pages = max(1, ⌈total / limit⌉)`, `page` = 요청 값 그대로(쪽 수보다 크면 `items: []` — 화면이 마지막 쪽으로 다시 읽는다), `baseTotal` = 기본 단어 전체 수(조건·보관과 무관). 정렬·같은 값 순서는 아래 상세 ① |
+| #41 `POST /api/v1/words` body `{ surface, meaning?, reading?, …, "enrich": true }` | `enrich=true` 이고 `meaning` 이 비면 A10 단어 보강(home-m4 또는 haiku, 20s, 메모리 캐시)으로 `reading/meaning/partOfSpeech/chunkType/jlpt/example/exampleKo` 채운 뒤 **사용자 확인 없이 저장하지 않는다** — 응답은 `{ "draft": {...}, "saved": false }`(일본어 단어가 아니라고 판단되면 `200 { "draft": { "valid": false, "invalidReason": "…" }, "saved": false }` — F8. **task-068**: `draft.chunkType` = 5유형 중 하나(`valid=false` 면 `null`, `wordEnrich@v2`), `draft.jlpt` 는 남지만 화면은 쓰지 않는다); `enrich` 없이 완전한 본문이면 즉시 저장 `{ "word": {...}, "saved": true }`(`source=MANUAL`, 저장 행 = 내 단어). **task-068 저장 본문**: `chunkType`(5유형, **선택** — 폼은 늘 보낸다, 빠른 넣기·채택 경로는 없을 수 있다 — screens.md §28-10 L1), `jlpt` 키는 **#41 에서 거절**(`400 { field: "jlpt", reason: "unknown_key" }` — #35·#38 채택 경로는 그대로 받는다). 같은 `surface` 의 **내 단어**가 있으면 `409 CONFLICT { details: { existingId } }`(지금 그대로), **기본 단어와 같으면** `409 CONFLICT { details: { code: "BASE_DUPLICATE", existingId: <기본 단어 id> } }` — 판정은 아래 상세 ② |
+| #42 `GET /api/v1/words/:id` | `WordEntry` + `stats: { attempts: 12, last7d: {correct,wrong}, evalAppearances: 2 }` + `corrections: [{id, chatId}]`. **task-068**: 기본 단어는 **누구에게나** 준다(읽기 전용), 남의 내 단어는 404(§0-4). `stats` 는 **요청한 사용자의 기록만** 센다 — `attempts`·`last7d` = 내 세트(`VocabSession.userId`=나)의 카드, `evalAppearances` = 내 평가(`Evaluation.userId`=나)의 문항. 기본 단어 id 는 모든 사용자의 카드·문항이 가리키므로 `wordId` 만으로 세면 남의 기록이 섞인다 |
+| #43 `PATCH /api/v1/words/:id` | 부분 갱신(카운터·source·보관 상태는 `400 read_only` — 지금 그대로). **task-068**: 기본 단어 id → `403 FORBIDDEN { details: { code: "READ_ONLY" } }`(행 변경 없음), 남의 내 단어 → 404. `chunkType` 은 5유형 중 하나(`null` 은 `400 { field: "chunkType", reason: "required" }` — 폼이 늘 고른다), `jlpt` 키 → `400 { field: "jlpt", reason: "read_only" }`(내 단어는 수준을 고르지 않는다 — 옛 값은 그대로 남음). 표현·읽기가 바뀌면 중복 검사: 내 단어(표기 바이트 일치, 자기 자신 제외) → `409 { existingId }`, 기본 단어(상세 ②) → `409 { code: "BASE_DUPLICATE", existingId }` |
+| #44 `DELETE /api/v1/words/:id` | 행 삭제. `VocabAttempt.wordId`·`Correction.savedWordId`·`EvaluationItem.wordId` 는 `SetNull`, `*Snap` 컬럼으로 이력 유지. 응답 `{ "deleted": true, "snapshotKept": true }`. **task-068**: 내 단어만 지울 수 있다(그 단어의 `UserWordState` 는 함께 삭제 — cascade). 기본 단어 id → `403 FORBIDDEN { details: { code: "READ_ONLY" } }`(행 변경 없음), 남의 내 단어 → 404 |
+| #45 `POST /api/v1/words/:id/archive` · `/unarchive` | `archived` 토글(`archivedAt`). 보관 단어는 세트 생성 풀에서 제외. **task-068**: **기본 단어도 보관할 수 있다**(D6 — 나에게만 숨김). 쓰는 곳은 `UserWordState(나, id)` upsert 뿐이고 `WordEntry` 행은 바꾸지 않는다. 남의 내 단어 → 404. 이미 그 상태면 그대로(`archivedAt` 유지). 응답 `WordEntry`(나의 상태). 보관한 단어는 목록(`archived=0`)·#47 풀·평가 재료에서 빠진다 — 다른 사용자에게는 영향 없음 |
+| #46 `GET /api/v1/words/categories` | `[ { "category": "일상", "count": 32, "archivedCount": 2 }, { "category": null, "count": 5 } ]`. **task-068**: 세는 대상 = #40 과 같은 「내 단어 + 기본 단어」, `count`/`archivedCount` 는 **나의** 보관 상태 기준. **난이도 이름 분류**(`초보자 (N5)`·`초급 (N4)`·`중급 (N3)`·`고급 (N2)`·`최상급 (N1)`·옛 `N5 기초` — 정본 `src/types/seedPack.ts` `LEVEL_CATEGORY_NAMES`, 바이트 일치)는 **`category: null` 묶음에 합쳐서** 돌려준다 — 칩으로 나오지 않고(D3 B) 모든 묶음의 합(=「전체」·평가 시작 단어 수)은 그대로다. 그래서 기본 단어는 보통 `null` 묶음에 들어가고, 칩은 사용자가 내 단어에 직접 적은 분류만 남는다 |
+| ~~#46b `POST /api/v1/words/seed-pack`~~ | **폐지(task-068, 2026-10-14)** — 라우트·`addSeedPack` 삭제. 기본 단어는 시드 스크립트(S-A `scripts/seed-base-words.ts`)만 공용 행으로 쓴다. 아래는 폐지 전 기록(task-051) |
+| (폐지 전 기록) #46b `POST /api/v1/words/seed-pack` body `{ "pack": "N5" }` — `pack` = `N5`·`N4`·`N3`·`N2`·`N1`(task-051) | 원본 `prisma/seed-data/jlpt/{n5,n4,n3,n2,n1}.json`(OpenJLPT 바탕 CC BY-SA 4.0 파생, 출처 `SOURCES.md`)의 그 단계를 `source=SEED, jlpt=<pack>, category=<단계 표시 이름>` 으로 복사. 표시 이름 = `초보자 (N5)`·`초급 (N4)`·`중급 (N3)`·`고급 (N2)`·`최상급 (N1)`(정본 `src/types/seedPack.ts` `SEED_PACK_LABEL`, 분류 칩 이름도 같은 글자). 단계별 개수 = `SEED_PACK_COUNT`(`src/types/seedPackCounts.ts` 생성 파일, 데이터 길이와 같음을 시험이 단언). **건너뜀**: 내 단어장(보관 포함)에 같은 표기(JS 바이트 일치 — DB 콜레이션이 같게 보는 가나·탁음 차이는 다른 표기)가 있고 그 단어의 읽기가 **같거나 비어 있으면** `skipped`. 같은 표기·다른 읽기(明日 あした/あす)는 다른 단어로 넣는다(데이터 키 = 표기+읽기). 사용자 행 잠금 아래 **한 트랜잭션**(조회·삽입은 500개씩 나눔, 중간 실패 시 전부 되돌림) → `{ "added": 674, "skipped": 0 }`. 다시 눌러도 같은 단어는 두 번 들어가지 않는다(`{ "added": 0, "skipped": <단계 개수> }`). 다른 `pack` 값은 `400 VALIDATION`(`details.reason="N5\|N4\|N3\|N2\|N1"`), 다른 키는 `400 VALIDATION`(`unknown_key`). 어느 단계를 보낼지는 클라이언트가 정한다(지금 수준·목표 수준). 이전 원본 `prisma/seed-data/words-n5.json` 50개는 OWNER 시드 전용으로 남고(분류 `N5 기초`, 기존 행 변경 없음) 그 단어를 가진 사용자는 같은 (표기, 읽기)만큼 `skipped`. 사용자 직접 행위(CTA)라 제안·채택 규칙 대상 아님 |
+
+#### task-068 개정 상세 (2026-10-14 — #40~#46)
+
+**① #40 정렬 · 같은 값 순서**(Leader ③ · J7 — 오프셋 쪽 조회라 순서가 매번 같아야 한다)
+
+| `sort` | 순서(앞에서부터) |
+|---|---|
+| `recent`(기본) | **내 단어 전부**(`createdAt desc, id desc`) → **기본 단어**(`jlpt` N5→N4→N3→N2→N1, 같은 단계 안에서 `seedKey` 오름차순) |
+| `wrong` | 나의 `wrongCount desc`(상태 행이 없으면 0) → 같으면 `recent` 와 같은 순서 |
+| `surface` | `surface asc`(DB 콜레이션 — 지금 그대로) → 같으면 내 단어 먼저(`id asc`) → 기본 단어(`seedKey` 오름차순) |
+
+- **함정**: `seedKey` 형식(`N5-0001`·`N5X-0001`·`N4-0001` …)을 글자 순으로만 정렬하면 `N1-…` 이 `N5-…` 보다 앞이다. 단계(`jlpt`)를 먼저 본다 — MariaDB `ENUM` 정렬은 선언 순서(`N5,N4,N3,N2,N1`)라 `jlpt asc` 가 N5 부터지만, 원시 SQL 이면 `FIELD(jlpt,'N5','N4','N3','N2','N1')` 처럼 명시해 둔다. 기본 단어는 모두 `jlpt` 가 있다(옛 `words-n5.json` 행 = N5).
+- 오프셋 = `(page − 1) × limit`. 행 수는 약 7.8천이라 오프셋 조회로 충분하다 [가능성 높음 — QA 가 NAS 에서 p95 측정, screens.md §28-9 Q3].
+
+**② 기본 단어와 같은 단어(D9 A — `BASE_DUPLICATE`)**
+
+| 경로 | 막는 조건 | 응답 |
+|---|---|---|
+| #41 `enrich:true`(보강 전 확인 — 읽기를 아직 모름) | 기본 단어 중 **표기(바이트 일치)가 같은 행이 있음** | `409 CONFLICT { details: { code: "BASE_DUPLICATE", existingId } }` — LLM 을 부르지 않는다 |
+| #41 저장 · #43 수정 · #35 교정 채택 `addWord` · #38 제안 채택 `ADD_WORD`(모두 `createWord`/`updateWord` 한 곳) | 표기가 같고 **(입력 읽기가 비었거나, 입력 읽기 = 그 기본 단어 읽기)**(앞뒤 공백 정리 뒤 바이트 일치) | 같은 409. 채택 경로는 트랜잭션 전체 되돌림(지금 내 단어 중복과 같음) |
+
+- 같은 표기·**다른 읽기**는 다른 단어로 저장된다(기본 단어 안에도 같은 표기·다른 읽기가 105쌍 — 日 にち/ひ). 그래서 보강 전 확인은 표기만 보지만 저장은 읽기까지 본다(사용자는 「직접 입력하기」에서 읽기를 적어 넣는다).
+- `existingId` 는 조건에 맞는 기본 단어가 여럿이면 ①의 기본 단어 순서로 **첫 행**(호출마다 같은 값).
+- 내 단어끼리의 중복(표기 바이트 일치 → `409 { existingId }`, `code` 없음)은 지금 그대로이고 먼저 본다. 화면은 `details.code` 로 두 안내를 가른다.
+
+**③ 이 개정의 오류 응답**(§0-5 의 9개 코드 안 — 세부는 `details.code`·`field`·`reason`)
+
+| 상황 | 응답 |
+|---|---|
+| 기본 단어를 고치거나(#43) 지움(#44) | `403 FORBIDDEN { details: { code: "READ_ONLY" } }` |
+| 남의 내 단어 id(#42~#45) | `404 NOT_FOUND`(존재 숨김 — §0-4 그대로) |
+| 기본 단어와 같은 표기(·읽기) | `409 CONFLICT { details: { code: "BASE_DUPLICATE", existingId } }` |
+| 내 단어와 같은 표기 | `409 CONFLICT { details: { existingId } }`(그대로) |
+| #40 `cursor` · `chunkType=none` · 잘못된 `source`·`page` | `400 VALIDATION { field: "cursor"\|"chunkType"\|"source"\|"page", reason }` |
+| #41 `jlpt` 키 · #43 `jlpt` 키 · #43 `chunkType: null` | `400 VALIDATION { field: "jlpt", reason: "unknown_key"\|"read_only" }` · `{ field: "chunkType", reason: "required" }` |
+
+**④ 예시**
+```json
+// GET /api/v1/words?source=all&archived=0&sort=recent&page=3&limit=7
+← { "items": [ { "id": "w_b2…", "surface": "映画", "reading": "えいが", "meaning": "영화", "partOfSpeech": "NOUN", "chunkType": "NAME", "jlpt": "N5",
+                 "category": "초보자 (N5)", "source": "SEED", "origin": "BASE", "readOnly": true,
+                 "correctCount": 3, "wrongCount": 1, "lastSeenAt": "…", "lastResult": "CORRECT", "archived": false, "archivedAt": null, … } /* … 7개 */ ],
+    "total": 7758, "page": 3, "pages": 1109, "limit": 7, "baseTotal": 7755 }
+
+// POST /api/v1/words { "surface": "映画", "enrich": true }
+← 409 { "success": false, "data": { "code": "CONFLICT", "details": { "code": "BASE_DUPLICATE", "existingId": "w_b2…" } }, "message": "기본 단어에 이미 있어요." }
+
+// PATCH /api/v1/words/w_b2…  { "meaning": "무비" }
+← 403 { "success": false, "data": { "code": "FORBIDDEN", "details": { "code": "READ_ONLY" } }, "message": "기본 단어는 고칠 수 없어요." }
+```
+(응답 봉투 모양은 §0-2 그대로 — 위는 키만 보인다. 화면은 400 외에는 서버 `message` 를 쓰지 않는다.)
+
+**⑤ 이 개정이 닿는 다른 계약**
+- **#47 세트 생성 풀** = 내 단어 + 기본 단어 중 **내가 보관하지 않은** 것(카테고리 필터는 그대로 `category` 일치 — 난이도 이름을 보내도 그 분류의 단어를 고른다, 화면은 보내지 않음). 빈 풀 `NO_WORDS` 의 `cta` = `["ADD_WORD"]`(`SEED_PACK` 삭제). #51 끝내기의 카운터(`correctCount`·`wrongCount`·`lastSeenAt`·`lastResult`)는 `UserWordState` 에만 쓴다.
+- **#65 평가 재료**·**레슨 메모(#62a)의 「이미 단어장에 있음」**·**복습 재료의 단어 읽기**·**#79 교정 모음의 `savedWord`** 도 같은 「내 단어 + 기본 단어」 범위(교정의 `savedWordId` 가 이관으로 기본 단어를 가리킬 수 있다 — `savedWord` 는 기본 단어도 싣는다).
+- 기본 단어 행은 **앱이 쓰지 않는다**(시드 스크립트만 — 멱등 upsert, 오타 수정도 시드로). 앱의 모든 쓰기 쿼리는 `where { id, userId }` 모양이라 `userId` NULL 행에 닿지 않고, 라우트는 기본 단어 id 를 403 으로 따로 거절한다(두 겹).
 
 ### 2-10. 오늘의 단어 `/api/v1/vocab/*` (L3 learning/vocab · snapshots)
 
@@ -947,7 +1012,7 @@ TALK(A1)·CHAT(A2)·ASK(A9) 공용. 라우트는 `conversation` 오케스트레�
     "cards": [ { "order": 0, "wordId": "w_01…", "surface": "映画", "reading": "えいが", "choices": ["영화", "음악", "사진", "여행"], "flagged": false, "answered": false } ] }
 ```
 
-- `count` 5~30(기본 `Profile.dailyWordCount`), `mode CHOICE|FLIP`(**기본 FLIP** — task-059 이전 기본은 CHOICE, 아래 「카드 우선 세트」). 풀 = `archived=false`(카테고리 필터) − 오늘 DONE 세션 단어. 풀 0 → `200 { "session": null, "empty": { "reason": "NO_WORDS", "cta": ["ADD_WORD", "SEED_PACK"] } }`; 풀 <4 이고 CHOICE → FLIP 강등(`downgraded:true`). `choices` 는 셔플된 4개(정답 위치·정답값은 응답에 없음). `FLIP` 의 `choices` 는 조건을 채울 때만 있다(아래 「카드 우선 세트」 — 없으면 키 생략). **FLIP 카드는 `meaning`·`example`·`exampleKo` 를 처음부터 싣는다**(뒷면 표시용 — 정답 미노출 규칙은 `CHOICE` 에만 적용, task-008 F1·task-059). 빈 풀 사유 `empty.reason ∈ { NO_WORDS(단어 0) | ALL_DONE_TODAY(오늘 세트에서 다 풂) | NO_WORDS_IN_CATEGORY | TOPIC_EMPTY | TOPIC_ALL_DONE_TODAY }`(F5; 뒤 둘은 주제 세트 — 아래 "주제 세트 요청·응답 보강").
+- `count` 5~30(기본 `Profile.dailyWordCount`), `mode CHOICE|FLIP`(**기본 FLIP** — task-059 이전 기본은 CHOICE, 아래 「카드 우선 세트」). 풀 = `archived=false`(카테고리 필터) − 오늘 DONE 세션 단어(**task-068**: 내 단어 + 공용 기본 단어, 보관 여부는 나의 `UserWordState` — §2-9 개정 상세 ⑤). 풀 0 → `200 { "session": null, "empty": { "reason": "NO_WORDS", "cta": ["ADD_WORD"] } }`(task-068 이전 `cta` 의 `"SEED_PACK"` 은 #46b 폐지로 삭제); 풀 <4 이고 CHOICE → FLIP 강등(`downgraded:true`). `choices` 는 셔플된 4개(정답 위치·정답값은 응답에 없음). `FLIP` 의 `choices` 는 조건을 채울 때만 있다(아래 「카드 우선 세트」 — 없으면 키 생략). **FLIP 카드는 `meaning`·`example`·`exampleKo` 를 처음부터 싣는다**(뒷면 표시용 — 정답 미노출 규칙은 `CHOICE` 에만 적용, task-008 F1·task-059). 빈 풀 사유 `empty.reason ∈ { NO_WORDS(단어 0) | ALL_DONE_TODAY(오늘 세트에서 다 풂) | NO_WORDS_IN_CATEGORY | TOPIC_EMPTY | TOPIC_ALL_DONE_TODAY }`(F5; 뒤 둘은 주제 세트 — 아래 "주제 세트 요청·응답 보강").
 - `VocabAttempt` 행은 카드 생성 시 `answer=null` 로 미리 만들어지며 `surfaceSnap/readingSnap/meaningSnap/choices` 를 스냅샷한다. 진행 중 세션이 이미 있으면 `409 { details: { sessionId } }`(이어풀기 유도).
 - **카드 우선 세트(task-059·IMP-0011, 2026-10-11 확정 — 스키마 변경 없음, `VocabSession.mode` 의 기존 값 `FLIP` 재사용)**:
   - **`mode` 생략 시 기본은 `FLIP`**(task-059 이전 기본은 `CHOICE`). 화면은 더 이상 푸는 방식을 고르지 않고 `mode` 를 보내지 않는다. `mode:'CHOICE'` 를 명시하면 이전과 똑같이 동작한다(정답 미노출 CHOICE 세트 — 이전에 만든 진행 중·보관 세트가 이 형태).

@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-068-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="단어장 개선 — 7개씩 쪽, 공용 읽기 전용 기본 단어 7,755개와 내 단어, 난이도 칩 제거, 조각 「없음」 제거와 조각 유형 재정의, 직접 입력 수준→조각(delta 데모 v1, 결정 D1~D10)">
+<title>단어장 쪽·조각 데모 v1</title>
+<style>
+/* ── 토큰: src/app/globals.css 값을 그대로 고정(링크하지 않음) ── */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+p, h1, h2, h3, h4, ul, ol, figure, fieldset, legend { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+fieldset { border: 0; padding: 0; min-width: 0; }
+code { font-size: 12px; background: var(--surface2); padding: 1px 5px; border-radius: 5px; word-break: normal; overflow-wrap: break-word; display: inline-block; max-width: 100%; vertical-align: baseline; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; min-width: 0; }
+.dtop h1 small { display: inline-block; font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.meta { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.meta span { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.meta span.lv { background: var(--accent); color: var(--on-accent); }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 40px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dwrap { max-width: 1480px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dcard > h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.dcard h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 6px; }
+.dsub { font-size: 12.5px; color: var(--ink2); }
+.p14 { font-size: 14px; }
+.intro2 { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: 8px 0 12px; }
+.flow li { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border-radius: 999px; background: var(--surface2); font-size: 12.5px; }
+.flow li b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 999px; background: var(--surface); font-size: 11.5px; flex: none; }
+.flow li > span { min-width: 0; }
+.flow li.key { background: var(--accent-soft); }
+.flow .ar { color: var(--ink2); font-size: 12px; padding: 0 2px; background: none; }
+.lst { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.lst li { position: relative; display: block; padding-left: 18px; min-width: 0; }
+.lst li::before { content: "•"; position: absolute; left: 0; top: 0; width: 14px; color: var(--ink2); }
+.lst.plus li::before { content: "+"; color: var(--good); font-weight: 700; }
+.lst.out li::before { content: "×"; color: var(--bad); font-weight: 700; }
+.lst.chg li::before { content: "~"; color: var(--warn); font-weight: 700; }
+.callout { border-radius: 12px; background: var(--surface2); padding: 12px; font-size: 12.5px; margin-top: 12px; }
+.callout ol { list-style: decimal; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 4px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); text-align: left; }
+.tabs button b { font-size: 13.5px; }
+.tabs button span { font-size: 11.5px; color: var(--ink2); }
+.tabs button[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.scap { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.scap h3 { font-size: 15px; font-weight: 700; margin: 0; }
+.scap .why { font-size: 13px; }
+.subs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.subs button { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; }
+.subs button[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--ink); }
+.subl { width: 100%; font-size: 11.5px; font-weight: 700; color: var(--ink2); margin-top: 4px; }
+.sayc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12.5px; color: var(--ink2); margin-top: 4px; }
+.prow { display: flex; gap: 22px; overflow-x: auto; padding: 14px 4px 10px; }
+.fw { margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; }
+.fdim { font-size: 11.5px; color: var(--ink2); margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+.fdim b { color: var(--ink); }
+.decs { border: 2px solid var(--accent); }
+.dec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; container-type: inline-size; }
+.dec:first-of-type { border-top: 0; padding-top: 0; margin-top: 4px; }
+.dec > h3 { font-size: 14px; font-weight: 700; margin: 0; }
+.dec p.q { font-size: 13px; margin-top: 2px; }
+.dec p.fact { font-size: 12.5px; margin-top: 4px; color: var(--ink2); }
+.dec p.chg { font-size: 12.5px; margin-top: 4px; border-radius: 8px; background: var(--warn-soft); padding: 6px 10px; color: var(--ink); }
+.dec legend { font-size: 12.5px; font-weight: 700; color: var(--ink2); margin-top: 10px; padding: 0; }
+.dec-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 8px; }
+@container (min-width: 620px) { .dec-g { grid-template-columns: repeat(3, minmax(0, 1fr)); } .dec-g.two { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dec-g.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 1000px) { .dec-g.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.opt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--surface); position: relative; min-width: 0; cursor: pointer; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; }
+.opt-h .oh-t { min-width: 0; }
+.opt-d { font-size: 13px; }
+.opt ul { font-size: 12.5px; color: var(--ink2); display: flex; flex-direction: column; gap: 3px; }
+.opt li.p::before { content: "+ "; color: var(--good); font-weight: 700; }
+.opt li.m::before { content: "− "; color: var(--bad); font-weight: 700; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.rec { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--good-soft); color: var(--good); }
+.jud { margin-top: 18px; border-top: 2px solid var(--line); padding-top: 14px; }
+.jud h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+.jud ol { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; font-size: 13px; }
+.jud li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 6px; border-radius: 10px; background: var(--surface2); padding: 8px 10px; }
+.jud li b.n { font-size: 12px; color: var(--ink2); }
+.tblw { overflow-x: auto; margin-top: 10px; }
+table.mt { border-collapse: collapse; font-size: 12.5px; min-width: 640px; width: 100%; }
+table.mt th, table.mt td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+table.mt th { font-weight: 700; color: var(--ink2); font-size: 12px; }
+.notes2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { .intro2, .notes2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .flow .ar { display: none; } }
+@media (max-width: 760px) {
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px; }
+  .dtop h1 { font-size: 14px; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dwrap { padding: 12px 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
+}
+.mysum { margin-top: 18px; border-top: 2px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mysum h3 { font-size: 15px; font-weight: 700; margin: 0; }
+.selbox { display: block; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); padding: 10px 12px; font-size: 13.5px; line-height: 1.6; color: var(--ink); -webkit-user-select: all; user-select: all; overflow-wrap: anywhere; }
+.selbox.apv { font-weight: 600; }
+.mysum .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12.5px; color: var(--ink2); }
+.mysum .row button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; }
+.vnote { border-radius: 10px; border: 1px solid var(--good); background: var(--good-soft); color: var(--ink); padding: 8px 12px; font-size: 12.5px; }
+.risk { border-radius: 12px; border: 1px solid var(--bad); background: var(--bad-soft); padding: 12px; font-size: 13px; margin-bottom: 12px; color: var(--ink); }
+.risk b.h { display: block; font-size: 13.5px; margin-bottom: 4px; color: var(--bad); }
+
+/* ══ task-068 추가(위 11–167행은 승인 데모 task-067 v1 의 토큰·데모 틀을 그대로 복사) ══ */
+.noscr { border-radius: 10px; border: 1px solid var(--warn); background: var(--warn-soft); color: var(--ink); padding: 8px 12px; font-size: 12.5px; }
+.dnote { font-size: 12.5px; color: var(--ink2); margin-top: 6px; }
+.dnote b { color: var(--ink); }
+.qsum .lst { font-size: 13.5px; gap: 7px; }
+.req { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; margin: 8px 0 10px; }
+.req li { position: relative; display: block; padding-left: 26px; min-width: 0; }
+.req li > i { position: absolute; left: 0; top: 1px; width: 20px; height: 20px; border-radius: 999px; background: var(--surface2); font-style: normal; font-size: 11.5px; font-weight: 700; text-align: center; line-height: 20px; }
+.tblw table.mt.d4 { min-width: 960px; }
+table.mt.d4 td:nth-child(n+4), table.mt.d4 th:nth-child(n+4) { min-width: 180px; }
+table.mt td.on, table.mt th.on { background: var(--accent-soft); }
+table.mt td b.k { display: inline-block; }
+table.mt .sm { font-size: 11.5px; color: var(--ink2); }
+table.mt.d4 td:nth-child(2), table.mt.d4 th:nth-child(2) { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+table.mt.d4 td:first-child, table.mt.d4 th:first-child { min-width: 150px; }
+table.mt.d4 td:nth-child(3) { min-width: 210px; }
+.nw { white-space: nowrap; }
+.tblh { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+details.wl2 { margin-top: 10px; font-size: 12.5px; }
+details.wl2 summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+details.wl2 p { margin-top: 4px; line-height: 1.8; }
+.capbox { border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 12px; margin-top: 8px; font-size: 12.5px; min-width: 0; }
+.capbox h4 { font-size: 13px; margin: 0 0 4px; }
+.capnote { border-radius: 8px; background: var(--warn-soft); padding: 6px 10px; font-size: 12.5px; color: var(--ink); margin-top: 4px; }
+.fdim.sub { margin-top: 2px; }
+
+/* ── 휴대폰 프레임 (뷰포트 = 주소창 보이는 S25+ ≈ 780px) ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); height: 780px; flex: none;
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; background: var(--ground); }
+.sc { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; position: relative; }
+.px { padding: 0 16px 32px; min-width: 0; }
+.ab { position: sticky; top: 0; z-index: 10; height: 52px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; background: var(--surface); }
+.ab h2 { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.addb { height: 44px; flex: none; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 12px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.av { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; }
+.av span { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; }
+.tb { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 max(10px, env(safe-area-inset-bottom, 0px)); }
+.tb span.ti { display: flex; flex: 1; min-width: 0; min-height: 56px; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; font-size: 11px; color: var(--ink3); }
+.tb .ti.on { color: var(--accent); font-weight: 600; }
+.kbd { flex: none; height: 290px; display: grid; place-items: center; background: var(--surface2); border-top: 1px solid var(--line); color: var(--ink2); font-size: 12px; }
+.kbd i { font-style: normal; display: block; text-align: center; }
+.kbd.abs { position: absolute; left: 0; right: 0; bottom: 0; z-index: 42; }
+
+/* ── 단어장 머리: 단어 | 채택한 교정 · 검색 · 칩 줄 · 정렬 ── */
+.dsw { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; margin-bottom: 10px; }
+.dsw span { flex: 1; min-width: 0; height: 36px; display: grid; place-items: center; border-radius: 9px; font-size: 13.5px; font-weight: 500; color: var(--ink2); }
+.dsw span.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.srch { position: relative; }
+.srch input { display: block; height: 44px; width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); padding: 0 44px 0 40px; font-size: 16px; }
+.srch input::placeholder { color: var(--ink3); }
+.srch > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink2); pointer-events: none; }
+.crow { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 6px -16px 0; padding: 4px 16px; }
+.crow::-webkit-scrollbar { display: none; }
+.chip { position: relative; flex: none; display: inline-flex; align-items: center; gap: 4px; height: 36px; min-width: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; white-space: nowrap; }
+.chip::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.chip .n { font-variant-numeric: tabular-nums; }
+.chip[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.chip.gone { border-style: dashed; color: var(--ink2); text-decoration: line-through; text-decoration-color: var(--bad); }
+.chip.newc { box-shadow: 0 0 0 2px var(--good-soft); border-color: var(--good); }
+.frow { display: flex; align-items: center; gap: 8px; margin: 0 -16px 0 0; min-width: 0; }
+.frow-l { flex: none; width: 30px; font-size: 12px; font-weight: 600; color: var(--ink2); }
+.frow .crow { flex: 1; min-width: 0; margin: 0; padding: 4px 16px 4px 0; }
+.srow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.segm { flex: 1; min-width: 0; display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; }
+.segm button { position: relative; flex: 1; min-width: 0; height: 32px; border-radius: 9px; border: 0; background: none; font-size: 12px; color: var(--ink2); font-weight: 500; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.segm button::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.segm button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.arch { position: relative; flex: none; height: 32px; border: 0; border-radius: 9px; padding: 0 12px; font-size: 13px; font-weight: 500; background: var(--surface2); color: var(--ink2); }
+.arch::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.lhd { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; margin: 8px 0 6px; }
+.lhd p { flex: 1; min-width: 0; font-size: 12px; color: var(--ink2); }
+.lhd p b { color: var(--ink); font-weight: 600; }
+.lhd p .pgi { white-space: nowrap; }
+.lhd .tgs { display: flex; gap: 6px; flex: none; }
+.tg2 { position: relative; height: 32px; flex: none; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 10px; font-size: 13px; color: var(--ink); }
+.tg2::before { content: ""; position: absolute; inset-inline: 0; top: -7px; bottom: -7px; }
+.tg2[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+
+/* ── 단어 목록 행(WordRow — 루비 · 한글 줄 · 뜻 · 오른쪽 조각 뱃지) ── */
+.wl { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.wl li + li { border-top: 1px solid var(--line); }
+.wr { display: flex; flex-direction: column; justify-content: center; gap: 2px; width: 100%; min-width: 0; min-height: 64px; padding: 10px 14px; border: 0; background: none; text-align: left; color: var(--ink); font: inherit; }
+.wr1, .wr2 { display: flex; align-items: baseline; gap: 8px; width: 100%; min-width: 0; }
+.wr1 { min-height: 38px; } /* 루비가 있는 행 · 없는 행 높이를 맞춘다(쪽 줄 위치 고정 — J1) */
+.ws { min-width: 0; font-size: 18px; font-weight: 600; line-height: 1.95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws ruby, .dts ruby { ruby-align: center; }
+.ws ruby rt { font-size: 11px; font-weight: 400; color: var(--ink2); }
+.hgl { font-size: 12.5px; color: var(--ink2); line-height: 1.4; }
+.nofu rt { display: none; }
+.nohg .hgl { display: none; }
+.wm { flex: 1; min-width: 0; font-size: 14px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc { flex: none; font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; flex: none; white-space: nowrap; background: var(--surface2); color: var(--ink2); }
+.badge.newb { background: var(--good-soft); color: var(--good); }
+.badge.bad { background: var(--bad-soft); color: var(--bad); }
+.wl li.ghost { visibility: hidden; }
+.wl.paging { opacity: 1; }
+.skrow { display: block; min-height: 86px; padding: 14px; }
+.skrow i { display: block; height: 14px; width: 40%; margin: 6px 0 10px; border-radius: 7px; background: var(--surface2); }
+.skrow i + i { width: 62%; margin-top: 0; }
+.mbtn { display: flex; align-items: center; justify-content: center; width: 100%; height: 48px; margin-top: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 15px; font-weight: 600; color: var(--ink); }
+
+/* ── 쪽 줄(task-067 AskPager 와 같은 모양) ── */
+.pgr { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; margin-top: 12px; }
+.pgb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 92px; height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-weight: 600; color: var(--ink); flex: none; }
+.pgb[aria-disabled="true"] { opacity: .4; }
+.pgb .ar2 { font-size: 17px; line-height: 1; }
+.pgl { flex: 1; min-width: 0; text-align: center; font-variant-numeric: tabular-nums; }
+.pgl .a { display: block; font-size: 15px; font-weight: 700; }
+.pgl .b { display: block; font-size: 12px; color: var(--ink2); }
+button.pgl { min-height: 44px; border: 0; background: none; border-radius: 10px; color: var(--ink); padding: 0 4px; }
+button.pgl .a { text-decoration: underline; text-decoration-color: var(--ink3); text-underline-offset: 4px; }
+button.pgl[aria-disabled="true"] { opacity: .5; }
+.pgn { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; margin-top: 12px; }
+.pgn button { min-width: 44px; height: 44px; flex: none; padding: 0 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.pgn button[aria-current="page"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.pgn button[aria-disabled="true"] { opacity: .4; }
+.pgn .el { flex: none; width: 14px; text-align: center; color: var(--ink2); font-size: 13px; }
+.pfix { flex: none; background: var(--surface); border-top: 1px solid var(--line); padding: 4px 16px 6px; }
+.pfix .pgr, .pfix .pgn { margin-top: 0; }
+
+/* ── 안내 띠 · 빈 화면 · 오류 ── */
+.band { display: flex; align-items: flex-start; gap: 4px; border-radius: 12px; background: var(--accent-soft); padding: 10px 4px 10px 12px; margin-bottom: 10px; font-size: 13px; color: var(--ink); }
+.band p { flex: 1; min-width: 0; padding-top: 2px; }
+.band p b { display: block; font-size: 13.5px; }
+.band .ib { margin-top: -10px; }
+.ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; color: var(--ink); }
+.card { min-width: 0; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.card.center { text-align: center; }
+.et { font-size: 15px; font-weight: 600; }
+.eb { margin-top: 4px; font-size: 13px; color: var(--ink2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; min-width: 0; color: var(--ink); white-space: normal; line-height: 1.25; text-align: center; }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.gho { border: 1px solid var(--line); background: var(--surface); }
+.btn.dan { background: var(--bad); color: var(--surface); }
+.btn.full { width: 100%; }
+.btn[aria-disabled="true"] { opacity: .4; }
+.btn[aria-busy="true"] { opacity: .7; }
+.bcol { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.brow { display: flex; gap: 8px; margin-top: 12px; }
+.brow > * { flex: 1; min-width: 0; }
+.errb { border-radius: 12px; background: var(--bad-soft); padding: 12px 14px; font-size: 13.5px; color: var(--bad); }
+.errb b { display: block; font-size: 14.5px; }
+.errb span { color: var(--ink); }
+.errb button { display: inline-flex; align-items: center; min-height: 44px; margin-top: 2px; border: 0; background: none; padding: 0; color: var(--bad); font-weight: 600; text-decoration: underline; }
+.tlink { display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 500; color: var(--accent); text-align: left; }
+.anote { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px; font-size: 13px; color: var(--ink2); }
+
+/* ── 시트 · 폼 ── */
+.ovl { position: absolute; inset: 0; z-index: 40; background: color-mix(in srgb, var(--ink) 40%, transparent); border: 0; padding: 0; width: 100%; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 88%; overflow-y: auto; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.18); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+.sheet.kbup { bottom: 290px; max-height: calc(100% - 330px); padding-bottom: 12px; }
+.ovl.kbo2 { bottom: 290px; height: auto; }
+.shd { position: sticky; top: 0; background: var(--surface); height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 16px; border-bottom: 1px solid var(--line); z-index: 1; }
+.shd h3 { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sbd { padding: 12px 16px 0; font-size: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fld > label, .fld > .lb { font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+.fld input, .fld .selx { height: 44px; width: 100%; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 16px; color: var(--ink); }
+.fld .selx { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.fld input::placeholder { color: var(--ink3); }
+.fld input.err { border-color: var(--bad); }
+.g2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.ferr { font-size: 12px; color: var(--bad); }
+.fhint { font-size: 12px; color: var(--ink2); }
+.fld.gonef { border-radius: 12px; outline: 2px dashed var(--bad); outline-offset: 3px; }
+.fld.gonef .selx { color: var(--ink2); }
+.ckg { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; min-width: 0; }
+.ckg.err .chip:not([aria-checked="true"]) { border-color: var(--bad); }
+.ckd { font-size: 12.5px; color: var(--ink2); }
+.ckd b { color: var(--ink); }
+.dfl { border-radius: 12px; background: var(--accent-soft); padding: 10px; font-size: 13px; color: var(--ink); }
+.xtra { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; border: 0; background: none; padding: 0; font-size: 14px; font-weight: 500; color: var(--ink); align-self: flex-start; }
+.srcl { font-size: 12.5px; color: var(--ink2); }
+hr.sep { border: 0; border-top: 1px solid var(--line); margin: 2px 0 0; }
+.seedt { display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 500; color: var(--accent); text-align: left; line-height: 1.25; }
+.gone2 { position: relative; border-radius: 10px; outline: 2px dashed var(--bad); outline-offset: 2px; }
+.otag { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--bad-soft); color: var(--bad); font-size: 11.5px; font-weight: 700; }
+.ntag { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11.5px; font-weight: 700; }
+/* 상세 시트 */
+.dtt { display: flex; align-items: flex-start; gap: 12px; }
+.dtt .w { min-width: 0; flex: 1; }
+.dts { font-size: 28px; font-weight: 600; line-height: 1.8; overflow-wrap: anywhere; }
+.dts rt { font-size: 13px; font-weight: 400; color: var(--ink2); }
+.snd { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.dtm { font-size: 17px; font-weight: 500; }
+.bdgs { display: flex; flex-wrap: wrap; gap: 6px; }
+.exb { border-radius: 14px; background: var(--surface2); padding: 12px 14px; }
+.exb .ja { font-size: 16px; line-height: 1.7; }
+.exb .ko { font-size: 14px; color: var(--ink2); margin-top: 2px; }
+/* 오늘의 단어 카드(공부 탭 — 모양 간략) */
+.tcd h3 { font-size: 15px; font-weight: 600; margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.tcd h3 small { font-size: 12px; font-weight: 400; color: var(--ink2); }
+.tcd .lb2 { font-size: 12.5px; color: var(--ink2); margin: 12px 0 6px; }
+.tcd .crow { margin: 0 -14px; padding: 4px 14px; }
+.ttl2 { font-size: 13px; color: var(--ink2); margin: 4px 0 2px; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 88px; z-index: 50; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 12px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.toast:empty { display: none; }
+.app.pf .toast { bottom: 148px; }
+.mark { position: absolute; z-index: 30; left: 8px; right: 8px; pointer-events: none; border: 2px solid var(--accent); border-radius: 12px; }
+.fold { position: absolute; left: 0; right: 0; z-index: 31; pointer-events: none; border-top: 2px dashed var(--accent); }
+.fold span { position: absolute; right: 8px; top: -22px; font-size: 11px; font-weight: 700; color: var(--accent); background: var(--surface); padding: 1px 6px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+/* 직접 해 보기 아래 흉내 단추 줄 */
+.bkline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 6px; font-size: 12.5px; }
+.bkline button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink); }
+.bkmsg { min-width: 0; color: var(--ink); }
+.fdup { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-width: 0; }
+.fdup .tlink { font-size: 12.5px; }
+.badge.mine { background: var(--accent-soft); color: var(--ink); }
+.badge.outb { background: transparent; color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); }
+.arch[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); box-shadow: 0 0 0 1px var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>단어장 — 7개씩 쪽 · 공용 기본 단어 · 조각 <small>/drawer/words · 단어 추가·수정 시트 · 오늘의 단어 카드 · 바뀌는 곳만</small><span class="meta"><span class="lv">delta</span><span>task-068 v1</span><span>시드 단어 · 합성 순서</span></span></h1>
+  <div class="dctls">
+    <div class="dctl"><span id="lblW">폭</span>
+      <div class="dseg" role="group" aria-labelledby="lblW">
+        <button type="button" data-act="w" data-arg="360" aria-pressed="false">360</button>
+        <button type="button" data-act="w" data-arg="390" aria-pressed="true">390</button>
+        <button type="button" data-act="w" data-arg="412" aria-pressed="false">412</button>
+        <button type="button" data-act="w" data-arg="all" aria-pressed="false">3폭</button>
+      </div>
+    </div>
+    <div class="dctl"><span id="lblT">화면</span>
+      <div class="dseg" role="group" aria-labelledby="lblT">
+        <button type="button" data-act="theme" data-arg="sys" aria-pressed="true">시스템</button>
+        <button type="button" data-act="theme" data-arg="light" aria-pressed="false">밝게</button>
+        <button type="button" data-act="theme" data-arg="dark" aria-pressed="false">어둡게</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="dwrap">
+  <noscript><p class="noscr">이 페이지의 「상태」 휴대폰 화면과 결정 패널은 스크립트로 그려요. 스크립트가 꺼진 뷰어에서는 글(무엇을 바꾸나 · 결정 9건 · 조각 유형 표 · 구현 영향)만 보여요 — 화면은 Artifact 링크에서 열어 주세요.</p></noscript>
+  <section class="dcard" aria-labelledby="h-intro">
+    <div class="intro2">
+      <div>
+        <h2 id="h-intro">무엇을 바꾸나 (delta — 바뀌는 곳만)</h2>
+        <p class="p14">사용자 요청 6건을 한 줄씩. 괄호 안은 아래 「결정 필요」의 번호다.</p>
+        <ol class="req">
+          <li><i>1</i>단어장 목록을 <b>7개씩 쪽</b>으로 — 지금은 30개씩 읽고 「단어 더 보기」로 이어 붙인다. 쪽 줄은 질문 탭과 같은 <b>‹ 이전 · 3 / 1,109 · 다음 ›</b>(D1 · D2).</li>
+          <li><i>2</i><b>기본 단어 7,755개는 처음부터</b> — 사용자 지정(10-14)대로 <b>공용 읽기 전용</b>으로 한 번만 두고 모든 사용자가 가입하자마자 본다. <b>내가 넣은 단어</b>는 내가 입력한 값으로 저장되고 나만 보고 관리한다. 기본 단어 넣기 버튼 3곳은 없어진다(D6 · D9 · D10).</li>
+          <li><i>3</i>필터 줄에서 <b>난이도 칩</b>(초보자 (N5) … 최상급 (N1) · 옛 N5 기초)을 뺀다(D3).</li>
+          <li><i>4</i>조각 줄에서 <b>「없음」 칩</b>을 뺀다 — 5번으로 조각이 빈 기본 단어가 0개가 된 뒤에.</li>
+          <li><i>5</i>조각이 빈 기본 단어 200행을 보고 <b>조각 유형을 다시 정한다</b> — ★ 「표현」 하나를 더한다(D4).</li>
+          <li><i>6</i>직접 입력 폼의 <b>「수준」 칸을 「조각」 고르기로</b> 바꾸고, 기본 단어를 포함한 모든 단어에 조각 뱃지가 보이게 한다(D5 · D8).</li>
+        </ol>
+        <ul class="lst out">
+          <li>「단어 더 보기」 · 분류(난이도) 칩 줄 · 조각 「없음」 칩 · 폼의 「수준」 칸</li>
+          <li>기본 단어 넣기 버튼 3곳 — 빈 단어장 카드 · 오늘의 단어 빈 카드 · 단어 추가 시트 맨 아래 글자 버튼</li>
+          <li>기본 단어 상세의 [수정] · [삭제] — 기본 단어는 읽기 전용</li>
+        </ul>
+        <ul class="lst plus" style="margin-top:6px">
+          <li>목록 아래 쪽 줄 · 가운데 「3 / 1,109」를 누르면 쪽 번호로 이동(D1)</li>
+          <li>출처 칩 「전체 · 내 단어 · 기본 단어」(D10) · 내 단어 행에 「내 단어」 표시 · 상세에 「기본 단어」 / 「내 단어」</li>
+          <li>기본 단어는 보관(숨기기)만 — 나에게만 숨겨진다(D6) · 기본 단어와 같은 표현은 「기본 단어에 이미 있어요」(D9)</li>
+          <li>조각 칩에 「표현」(D4 ★) · 추가 · 수정 폼에 조각 고르기(필수, D5)</li>
+        </ul>
+      </div>
+      <div>
+        <h3>보는 방법</h3>
+        <ul class="lst">
+          <li>위 「폭」으로 360 · 390 · 412 또는 3폭, 「화면」으로 밝게 · 어둡게.</li>
+          <li>상태 탭 A~H → 그 안의 작은 버튼으로 세부 상태. <b>H 「직접 해 보기」</b>에서 쪽 넘기기 · 쪽 번호로 이동 · 조각 칩 · 단어 추가(조각 고르기) · 상세를 닫아도 보던 쪽을 직접 눌러 볼 수 있다.</li>
+          <li>결정 패널에서 고르면 위 화면이 바뀐다. 맨 아래 「내 선택 요약」의 승인 문장을 답장에 붙여 주세요.</li>
+          <li>기본 단어는 <b>시드 파일의 실제 단어</b>(표기 · 읽기 · 뜻 · 조각)다. 쪽마다 어떤 단어가 오는지는 합성 순서다(표본 50여 개를 돌려 씀). 화면의 사용자는 <b>내 단어 3개</b>(推し · ガチャ · エモい — 합성)를 넣었다고 가정해 모두 7,758개 · 1,109쪽이다(새 계정은 7,755개 · 1,108쪽).</li>
+        </ul>
+        <div class="callout"><b>먼저 알아야 할 것</b>
+          <ol>
+            <li>[확실 — 사용자 지시 10-14] 기본 단어는 <b>사용자별 복사본이 아니라 공용 읽기 전용 행</b>이다. 가입 때 넣기 · 지금 사용자 채워 넣기 · 「기본 단어 추가」 버튼이 모두 없다. 맞힘 · 틀림 · 보관은 사용자마다 따로, 내가 넣은 단어는 나만.</li>
+            <li>[확실 — 시드 파일 계산] 기본 단어 팩 7,755행 안에는 <b>표기 · 읽기가 같은 행이 0개</b>(같은 표기 · 다른 읽기 105개 — 예: 日 にち/ひ). 7개씩이면 <b>1,108쪽</b>, 내 단어가 늘면 쪽도 는다.</li>
+            <li>[확실] 단어 7개 + 위 검색 · 필터 줄은 휴대폰 한 화면(390×780)에 다 들어가지 않는다(행 하나 약 100px) — 쪽 줄은 조금 내려야 보인다. 그래서 쪽 줄 자리도 D1 에서 함께 정한다.</li>
+            <li>[확실] 조각 뱃지는 목록 행 · 상세에는 <b>이미 있다</b>(조각이 빈 단어만 안 보임). <b>추가 · 수정 폼에는 조각 칸이 아예 없다</b> — 수정 폼도 같은 부품이라 「수준 → 조각」은 수정에도 적용된다(이제 수정은 내 단어만).</li>
+            <li>[확실] 조각 목록(이름 · 액션 · 느낌 · 꾸밈)은 단어장만이 아니라 <b>교정 · 수업 주제 조각 · 평가</b>가 함께 쓰는 DB 값이다. 새 유형을 더하면 공유 DB 스키마 변경(사용자 승인)이고, 수업 · 평가의 「조각 조립」 4유형은 그대로 둔다(D4).</li>
+            <li>[확실] 선생님 초안(「뜻 채우기」)은 지금 <b>수준만 채우고 조각은 채우지 않는다</b> — 초안 뒤 조각을 미리 고르려면 프롬프트에 칸을 더하거나 품사로 정하는 규칙이 필요하다(D5).</li>
+            <li>[확실] 지금 실사용자 단어 678개는 <b>모두 기본 단어의 복사본</b>(옛 「N5 기초」 50 + 초보자 (N5) 628, 맞힘 · 틀림 기록 포함)이다 — 공용 구조로 바꾸면 이 기록을 사용자별 기록으로 옮기는 이전 작업이 필요하다(구현 · 승인 사항).</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="dcard qsum" aria-labelledby="h-qsum">
+    <h2 id="h-qsum">결정 9건 한눈에 (★ = 권고 · 아래 「결정 필요」에서 골라 보면 화면이 바뀜)</h2>
+    <ul class="lst">
+      <li><b>D1 쪽 이동 모양</b> — ★ A ‹ 이전 · 3 / 1,109 · 다음 › + 가운데를 누르면 쪽 번호로 이동 / B 이전 · 다음만 / C 번호 칩. <b>쪽 줄 자리</b> — ★ 목록 바로 아래(내려서 닿음) / 하단 탭 위에 붙여 늘 보임</li>
+      <li><b>D2 보던 쪽 기억</b> — ★ A 단어장 화면에 있는 동안(상세 · 추가를 닫아도 그 쪽, 조건이 바뀌면 1쪽, 다른 탭에 갔다 오면 1쪽) / B 다른 탭에 갔다 와도 쪽 · 조건 기억</li>
+      <li><b>D3 난이도 칩</b> — ★ B 난이도 이름 칩만 뺀다(내 단어에 직접 정한 분류가 생기면 그 칩만 보임 — 지금은 줄 자체가 안 보임) / A 분류 칩 줄을 통째로 없앤다. <b>오늘의 단어 카드</b> — ★ 같게 뺀다 / 오늘 카드에는 남긴다</li>
+      <li><b>D4 조각 유형</b> — ★ B 「표현」 하나 추가(5유형) / A 네 유형 그대로 + 200행 배정 / C 「표현」 · 「붙는말」 둘 추가(6유형)</li>
+      <li><b>D5 직접 입력의 조각</b> — ★ A 꼭 고름(안 고르면 저장 안 됨) / B 「이름」을 미리 골라 둠. <b>선생님 초안 뒤</b> — ★ 초안이 조각도 채움(프롬프트) / 품사로 미리 고름 / 비워 둠</li>
+      <li><b>D6 기본 단어 보관(숨기기)</b> — ★ A 허용(내용은 읽기 전용, 보관만 사용자별) / B 보관도 막음</li>
+      <li><b>D8 조각 뱃지 범위</b> — ★ A 목록 행 · 상세 · 수정 · 추가 모두 / B 상세 · 수정 · 추가만(목록 행은 뱃지 없이)</li>
+      <li><b>D9 내 단어가 기본 단어와 같은 표기 · 읽기일 때</b> — ★ A 저장을 막고 「기본 단어에 이미 있어요」 + [그 단어 보기] / B 넣을 수 있음(중복)</li>
+      <li><b>D10 출처 칩</b> — ★ A 「전체 · 내 단어 · 기본 단어」 칩 추가 / B 추가 안 함. <b>행 표시</b> — ★ 「내 단어」에만 / 「기본」에 표시</li>
+    </ul>
+    <p class="dnote">D7(기본 단어 넣기 버튼 3곳)과 옛 D6(처음부터 넣기의 대상 · 시점)은 사용자가 정한 공용 구조로 결정이 필요 없어져 지웠다 — 넣는 단계 · 버튼이 모두 없다.</p>
+    <p class="dnote">권고 그대로라면 승인 문장(복사해 답장에 붙여도 됩니다):</p>
+    <p class="selbox apv" tabindex="0" aria-label="권고 그대로일 때 승인 문장">task-068 데모 v1 승인, 결정(D1~D10)은 권고대로</p>
+    <p class="dnote">Leader 초안에서 바뀐 것: <b>D3 ★</b> 를 A(분류 줄 통째로) → <b>B(난이도 칩만)</b>로 — 폼의 「분류」 칸은 남는데 줄을 통째로 없애면 직접 정한 분류로 거를 길이 사라진다. <b>D10 행 표시 ★</b> 를 「기본」 → <b>「내 단어」에만</b>으로 — 거의 모든 행이 기본 단어라 드문 쪽에 표시해야 눈에 띈다. 새로 더한 것: D1 쪽 줄 자리 · D3 오늘 카드 · D5 초안 뒤(같은 결정 안의 둘째 묶음).</p>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-d4t">
+    <h2 id="h-d4t">D4 조각 유형 — 조각이 빈 기본 단어 200행을 세 안으로 실제 나눠 보면</h2>
+    <p class="dsub">규칙은 위에서 아래로 처음 맞는 줄을 쓴다. 1~3번 줄의 낱말 목록은 아래 「목록 보기」. 개수는 기본 단어 팩 JSON(N5~N1, 7,755행)에서 센 값이다 — DB 에는 접속하지 않았다. 공용 행이라 재분류는 <b>한 번</b>이면 모든 사용자에게 같다. (옛 「N5 기초」 50개 중 2행도 조각이 비었지만 기본 단어 팩이 아니라 지금 사용자의 복사본이다 — 이전 작업 때 정리.)</p>
+    <p class="tblh">좁은 화면에서는 표를 옆으로 밀어 보세요.</p>
+    <div class="tblw">
+      <table class="mt d4">
+        <caption class="sr">조각이 빈 기본 단어 200행의 묶음별 배정 — 안 A · B · C</caption>
+        <thead><tr><th scope="col">순서 · 묶음(규칙)</th><th scope="col">행</th><th scope="col">예 (표기 · 읽기 · 뜻)</th><th scope="col">A 네 유형</th><th scope="col" class="on">B ★ 표현 추가</th><th scope="col">C 표현 · 붙는말</th></tr></thead>
+        <tbody>
+          <tr><td>1 지시 · 의문 대명사(목록)</td><td>10</td><td lang="ja">どこ <span class="sm" lang="ko">어디</span> · <span class="nw">何(なに)</span> <span class="sm" lang="ko">무엇</span> · どなた <span class="sm" lang="ko">누구</span></td><td>이름</td><td class="on">이름</td><td>이름</td></tr>
+          <tr><td>2 명사 앞 꾸밈말(연체사, 목록)</td><td>13</td><td lang="ja">その <span class="sm" lang="ko">그</span> · どんな <span class="sm" lang="ko">어떤</span> · あらゆる <span class="sm" lang="ko">모든</span></td><td>꾸밈</td><td class="on">꾸밈</td><td>꾸밈</td></tr>
+          <tr><td>3 이음말 · 말머리(목록)</td><td>55</td><td lang="ja">でも <span class="sm" lang="ko">하지만</span> · それから <span class="sm" lang="ko">그 후에</span> · ところで <span class="sm" lang="ko">그런데</span></td><td>꾸밈</td><td class="on"><b>표현</b></td><td><b>표현</b></td></tr>
+          <tr><td>4 나머지 품사 「표현」(인사 · 대답 · 감탄 · 문말)</td><td>67</td><td lang="ja">はじめまして <span class="sm" lang="ko">처음 뵙겠습니다</span> · なるほど <span class="sm" lang="ko">그렇군요</span> · すみません <span class="sm" lang="ko">죄송합니다</span></td><td>느낌</td><td class="on"><b>표현</b></td><td><b>표현</b></td></tr>
+          <tr><td>5 나머지 품사 「기타」 · 「조사」(접두 · 접미 · 세는 말 · 조사)</td><td>49</td><td lang="ja"><span class="nw">様(さま)</span> <span class="sm" lang="ko">님</span> · <span class="nw">個(こ)</span> <span class="sm" lang="ko">개</span> · など <span class="sm" lang="ko">등</span></td><td>꾸밈</td><td class="on">꾸밈</td><td><b>붙는말</b></td></tr>
+          <tr><td>6 부사</td><td>2</td><td lang="ja">まあ <span class="sm" lang="ko">뭐</span> · いざ <span class="sm" lang="ko">자, 드디어</span></td><td>꾸밈</td><td class="on">꾸밈</td><td>꾸밈</td></tr>
+          <tr><td>7 な형용사</td><td>3</td><td lang="ja"><span class="nw">著名(ちょめい)</span> <span class="sm" lang="ko">저명함</span> · <span class="nw">不可(ふか)</span> <span class="sm" lang="ko">불가</span></td><td>느낌</td><td class="on">느낌</td><td>느낌</td></tr>
+          <tr><td>8 명사</td><td>1</td><td lang="ja"><span class="nw">封建(ほうけん)</span> <span class="sm" lang="ko">봉건</span></td><td>이름</td><td class="on">이름</td><td>이름</td></tr>
+          <tr><th scope="row">200행 배정</th><td>200</td><td></td><td>꾸밈 119 · 느낌 70 · 이름 11</td><td class="on"><b>표현 122</b> · 꾸밈 64 · 이름 11 · 느낌 3</td><td><b>표현 122</b> · <b>붙는말 49</b> · 꾸밈 15 · 이름 11 · 느낌 3</td></tr>
+          <tr><th scope="row">기본 단어 7,755행(뒤)</th><td>7,755</td><td></td><td>이름 3,322 · 액션 2,561 · 꾸밈 1,142 · 느낌 730</td><td class="on">이름 3,322 · 액션 2,561 · 꾸밈 1,087 · 느낌 663 · 표현 122</td><td>이름 3,322 · 액션 2,561 · 꾸밈 1,038 · 느낌 663 · 표현 122 · 붙는말 49</td></tr>
+          <tr><th scope="row">유형 정의(바뀌는 것)</th><td></td><td></td><td>느낌 = 마음 · 상태 · 평가 <b>+ 인사 · 대답 · 감탄</b> / 꾸밈 = 부사 · 조사구 <b>+ 이음말 · 접사</b></td><td class="on"><b>표현</b> = 문장 밖에서 통째로 쓰는 말(인사 · 대답 · 감탄 · 이음말). 네 유형 정의는 그대로</td><td>B 의 표현 + <b>붙는말</b> = 혼자 쓰지 않고 다른 말에 붙는 말(접두 · 접미 · 세는 말 · 조사)</td></tr>
+          <tr><th scope="row">DB · 화면 파급</th><td></td><td></td><td>스키마 변경 없음 · 공용 200행 한 번 재분류 · 칩 4개</td><td class="on">조각 목록 값 1개 추가(공유 DB · 사용자 승인) · 공용 200행 한 번 재분류 · 칩 5개 · 교정 · 수업 · 평가 라벨 표에 1줄</td><td>값 2개 추가 · 칩 6개(360 에서 칩 줄 밀어야 함) · 라벨 표 2줄</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details class="wl2"><summary>1~3번 줄의 낱말 목록 보기 (규칙이 쓰는 목록 그대로)</summary>
+      <p><b>1 대명사(10)</b> <span lang="ja">どこ · どちら · どっち · どなた · 何 · 何か · これら · 何々 · なにも · 何でも</span></p>
+      <p><b>2 연체사(13)</b> <span lang="ja">その · どの · あんな · そんな · どんな · あらゆる · 或 · 大した · 単なる · ほんの · とんだ · 碌な · 主なる</span></p>
+      <p><b>3 이음말 · 말머리(55)</b> <span lang="ja">しかし · じゃ · そうして · それから · それでは · では · でも · けれど · すると · それで · それに · だから · または · さて · しかも · じゃあ · すなわち · そこで · そして · それでも · それと · それとも · だが · だけど · ですから · ところが · ところで · なぜなら · 要するに · こうして · そういえば · そのうえ · そのため · それなのに · 但し · 始めに · 初めに · しかしながら · にも拘らず · まして · 以て · よって · 事によると · 実は · 何より · 対して · したがって · 其れ故 · 乃至 · 若しくは · 及び · 並びに · 一方 · だって · あるいは</span></p>
+      <p class="dsub">근거: 선생님 페르소나의 「조각 프레임」 정의 — 이름 = 명사 · <b>대명사</b>, 꾸밈 = 부사 · 수식 · <b>조사구</b> · 시간 · 장소. 그래서 대명사는 이름, 연체사 · 접사 · 조사는 꾸밈(B)으로 둔다. 인사 · 대답 · 감탄 · 이음말은 문장을 조립하는 네 조각 어디에도 들지 않아 B 에서 「표현」으로 모은다.</p>
+    </details>
+  </section>
+
+  <section class="dcard" aria-labelledby="h-states">
+    <h2 id="h-states">상태</h2>
+    <div class="tabs" role="tablist" aria-label="상태" id="tabs"></div>
+    <div id="panel" role="tabpanel" aria-labelledby="h-states">
+      <div class="scap" id="cap"></div>
+      <div class="prow" id="stage"></div>
+    </div>
+  </section>
+
+  <section class="dcard decs" aria-labelledby="h-decs" id="decs">
+    <h2 id="h-decs">결정 필요 (9건 — D1~D10, D7 없음 · 고르면 위 화면이 바뀜)</h2>
+    <p class="dsub">각 항목 <span class="rec">★ 권고</span> 안이 처음에 골라져 있다. <b>여기서 고른 값은 이 브라우저에만 남고 팀에 전달되지 않는다</b> — 맨 아래 「내 선택 요약」의 승인 문장을 답장에 붙여 주세요.</p>
+    <div id="decList"></div>
+    <div class="jud" id="jud"></div>
+    <div class="mysum" id="mySum"></div>
+  </section>
+
+  <section class="notes2">
+    <div class="dcard" aria-labelledby="h-reuse">
+      <h2 id="h-reuse">그대로 쓰는 것</h2>
+      <ul class="lst">
+        <li>단어장 머리(단어장 · ＋ 추가 · 나) · 단어 | 채택한 교정 전환 · 검색 칸(40자) · 정렬 3가지 · 보관함 단추 · 보기 설정(히라가나 · 한글)</li>
+        <li>목록 행 모양(루비 · 한글 발음 · 뜻 · 맞힘/틀림 · 오른쪽 조각 뱃지) · 행을 누르면 상세 시트(소리 듣기 · 예문 · 기록)</li>
+        <li>내 단어의 수정 · 보관 · 삭제와 삭제 확인 문구 · 단어 추가 시트 흐름(표현 → 뜻 채우기 → 확인 · 고침 → 저장 · 직접 입력하기) · 중복 「그 단어 보기」 · 뜻 채우기 오류 문구</li>
+        <li>검색 · 조각 · 보관함 조건은 모두 겹친다(AND) · 결과 0개일 때 경우별 빈 화면 안내</li>
+        <li>오늘의 단어는 내 단어장(보관하지 않은 기본 단어 + 내 단어)에서 뽑고 지금 수준 단어를 가장 많이(단계 가중) · 보관한 단어는 오늘의 단어에 안 나옴</li>
+        <li>채택한 교정 화면의 조각 칩(4종, 「없음」 없음) — D4 B · C 의 새 유형을 함께 보일지는 J12</li>
+      </ul>
+    </div>
+    <div class="dcard" aria-labelledby="h-impl">
+      <h2 id="h-impl">구현 영향 (추정 — 승인 뒤 screens.md §28 에서 확정)</h2>
+      <ul class="lst chg">
+        <li><b>화면</b>: <code>WordsScreen</code> 30개 · 「더 보기」 → 7개 쪽 + 쪽 줄(질문 탭 <code>AskPager</code> 모양을 단어장용으로 — 가운데 단추 · 쪽으로 이동 시트) · 출처 칩(D10) · <code>CategoryChips</code> 난이도 이름 숨김(단어장 · 오늘 카드 공용, D3) · <code>ChunkChips</code> 「없음」 삭제 + 새 유형 · <code>WordForm</code> 수준 → 조각 고르기(추가 · 내 단어 수정) · <code>WordDetailSheet</code> 기본 단어는 [보관]만 · <code>WordRow</code> 「내 단어」 표시 · <code>WordsEmpty</code> · <code>TodayWordsCard</code> · <code>WordAddSheet</code> 의 기본 단어 넣기 버튼 삭제.</li>
+        <li><b>DB 구조(사용자 지정)</b>: 기본 단어 = 소유자 없는 공용 읽기 전용 행 · 기본 단어의 맞힘 · 틀림 · 마지막 결과 · 보관 = 사용자별 짝 · 내 단어 = 사용자 행. 표 이름 · 나눔은 Leader · developer 몫이고, 화면은 이 데모처럼 동작한다고 가정했다.</li>
+        <li><b>서버</b>: #40 목록 = 공용 기본 단어 + 내 단어를 합친 쪽 읽기(쪽 번호 · 출처 조건 · 전체 개수) · 기본 단어 수정 · 삭제 거절 · 내 단어 저장 때 기본 단어와 표기 · 읽기 비교(D9) · 오늘의 단어 풀 = 보관하지 않은 기본 단어 + 내 단어.</li>
+        <li><b>프롬프트</b>(D5 초안 뒤 ★): 뜻 채우기 초안 스키마에 조각 칸 추가 — prompt-engineer.</li>
+      </ul>
+      <h3 style="margin-top:12px">DB 쓰기 · 승인 사항</h3>
+      <ul class="lst out">
+        <li>공용 기본 단어 7,755행을 한 번 적재 + 조각 재분류 200행 — 공유 NAS DB 쓰기. 건수만 먼저 보고(dry-run) <b>사용자 승인</b>.</li>
+        <li>지금 실사용자 복사본 678개의 맞힘 · 틀림 기록을 사용자별 기록으로 옮기고 복사본을 정리 — 오늘의 단어 세트 · 기록이 가리키는 단어를 이어 줘야 한다. <b>사용자 승인</b>.</li>
+        <li>스키마 변경(공용 기본 단어 · 사용자별 기록 표, D4 B · C 의 조각 목록 값) — 개발 · 운영이 같은 DB 라 <b>사용자 승인</b>.</li>
+      </ul>
+      <h3 style="margin-top:12px">가정 · 확인 필요</h3>
+      <ul class="lst">
+        <li>[확인 필요] 「최근 추가」 정렬에서 공용 기본 단어의 순서 기준(내 단어 다음, 초보자 (N5)부터 — J7).</li>
+        <li>[확인 필요] 옛 「N5 기초」 50개(기본 단어 팩이 아닌 옛 시드 복사본)를 이전 때 어떻게 할지 — 48개는 팩에 같은 단어가 있다.</li>
+        <li>[추측] 1,109쪽을 번호로 오갈 일은 드물고 대개 검색 · 출처 · 조각 칩으로 좁힌다 — 그래서 번호 칩(D1 C)보다 「쪽으로 이동」 한 칸이 낫다고 봤다.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  /* ── 단어 표본: 시드 JSON(prisma/seed-data)의 실제 단어. c = 지금 조각(null = 없음), g = 조각이 빈 행의 묶음(D4 표의 규칙) ── */
+  var POOL = [
+    {"s":"映画","r":"えいが","m":"영화","h":"에-가","p":"NOUN","c":"NAME","g":null,"lv":"N5","ex":"映画は面白いです。","ek":"영화는 재미있어요."},
+    {"s":"はじめまして","r":"","m":"처음 뵙겠습니다","h":"하지메마시테","p":"EXPRESSION","c":null,"g":"expr","lv":"N5","ex":"はじめまして、よろしくお願いします。","ek":"처음 뵙겠습니다, 잘 부탁합니다."},
+    {"s":"会う","r":"あう","m":"만나다","h":"아우","p":"VERB","c":"ACTION","g":null,"lv":"N5","ex":"友達に会います。","ek":"친구를 만나요."},
+    {"s":"どこ","r":"","m":"어디","h":"도코","p":"PARTICLE","c":null,"g":"pron","lv":"N5","ex":"どこに住んでいますか。","ek":"어디에 살아요?"},
+    {"s":"楽しい","r":"たのしい","m":"즐겁다","h":"타노시이","p":"ADJ_I","c":"FEELING","g":null,"lv":"N5","ex":"映画は楽しいです。","ek":"영화는 즐거워요."},
+    {"s":"その","r":"","m":"그","h":"소노","p":"OTHER","c":null,"g":"rentai","lv":"N5","ex":"その本を読みました。","ek":"그 책을 읽었어요."},
+    {"s":"でも","r":"","m":"하지만","h":"데모","p":"EXPRESSION","c":null,"g":"conj","lv":"N5","ex":"好きですでも、高いです。","ek":"좋지만 비싸요."},
+    {"s":"友達","r":"ともだち","m":"친구","h":"토모다치","p":"NOUN","c":"NAME","g":null,"lv":"N5","ex":"友達と遊びます。","ek":"친구와 놀아요."},
+    {"s":"とても","r":"","m":"매우","h":"토테모","p":"ADVERB","c":"MODIFIER","g":null,"lv":"N5","ex":"とても美しいです。","ek":"매우 아름다워요."},
+    {"s":"すみません","r":"","m":"죄송함","h":"스미마센","p":"EXPRESSION","c":null,"g":"expr","lv":"N5","ex":"すみません、ちょっと。","ek":"죄송합니다, 잠깐요."},
+    {"s":"勉強","r":"べんきょう","m":"공부","h":"벤쿄-","p":"NOUN","c":"ACTION","g":null,"lv":"N5","ex":"勉強します。","ek":"공부해요."},
+    {"s":"高い","r":"たかい","m":"높다, 비싸다","h":"타카이","p":"ADJ_I","c":"MODIFIER","g":null,"lv":"N5","ex":"この山は高いです。","ek":"이 산은 높아요."},
+    {"s":"など","r":"","m":"등","h":"나도","p":"PARTICLE","c":null,"g":"affix","lv":"N5","ex":"本や雑誌などを読みます。","ek":"책이나 잡지 등을 읽어요."},
+    {"s":"食べる","r":"たべる","m":"먹다","h":"타베루","p":"VERB","c":"ACTION","g":null,"lv":"N5","ex":"朝ご飯を食べます。","ek":"아침밥을 먹어요."},
+    {"s":"行く","r":"いく","m":"가다","h":"이쿠","p":"VERB","c":"ACTION","g":null,"lv":"N5","ex":"学校へ行きます。","ek":"학교에 가요."},
+    {"s":"静か","r":"しずか","m":"조용함","h":"시즈카","p":"ADJ_NA","c":"FEELING","g":null,"lv":"N5","ex":"図書館は静かです。","ek":"도서관은 조용해요."},
+    {"s":"毎日","r":"まいにち","m":"매일","h":"마이니치","p":"NOUN","c":"MODIFIER","g":null,"lv":"N5","ex":"毎日、学校へ行きます。","ek":"매일 학교에 가요."},
+    {"s":"見る","r":"みる","m":"보다","h":"미루","p":"VERB","c":"ACTION","g":null,"lv":"N5","ex":"テレビを見ます。","ek":"텔레비전을 봐요."},
+    {"s":"好き","r":"すき","m":"좋아함","h":"스키","p":"ADJ_NA","c":"FEELING","g":null,"lv":"N5","ex":"私は猫が好きです。","ek":"나는 고양이를 좋아해요."},
+    {"s":"はい","r":"","m":"네","h":"하이","p":"EXPRESSION","c":null,"g":"expr","lv":"N5","ex":"はい、分かりました。","ek":"네, 알겠어요."},
+    {"s":"新しい","r":"あたらしい","m":"새롭다","h":"아타라시이","p":"ADJ_I","c":"MODIFIER","g":null,"lv":"N5","ex":"新しい靴です。","ek":"새로운 신발이에요."},
+    {"s":"会社","r":"かいしゃ","m":"회사","h":"카이샤","p":"NOUN","c":"NAME","g":null,"lv":"N5","ex":"会社で働きます。","ek":"회사에서 일해요."},
+    {"s":"会話","r":"かいわ","m":"대화","h":"카이와","p":"NOUN","c":"ACTION","g":null,"lv":"N4","ex":"日本語の会話を練習します。","ek":"일본어 대화를 연습해요."},
+    {"s":"なるほど","r":"","m":"그럼 그렇군요","h":"나루호도","p":"EXPRESSION","c":null,"g":"expr","lv":"N4","ex":"なるほど、よく分かりました。","ek":"그럼 그렇군요, 잘 알겠어요."},
+    {"s":"準備","r":"じゅんび","m":"준비","h":"준비","p":"NOUN","c":"ACTION","g":null,"lv":"N4","ex":"試験の準備をしています。","ek":"시험 준비를 하고 있어요."},
+    {"s":"急ぐ","r":"いそぐ","m":"서두르다","h":"이소구","p":"VERB","c":"ACTION","g":null,"lv":"N4","ex":"時間がないから急いでください。","ek":"시간이 없으니까 서두르세요."},
+    {"s":"だから","r":"","m":"그래서, 따라서","h":"다카라","p":"EXPRESSION","c":null,"g":"conj","lv":"N4","ex":"雨だから、家にいます。","ek":"비라서 집에 있어요."},
+    {"s":"安心","r":"あんしん","m":"안심","h":"안신","p":"NOUN","c":"FEELING","g":null,"lv":"N4","ex":"先生の言葉で安心しました。","ek":"선생님의 말씀으로 안심했어요."},
+    {"s":"約束","r":"やくそく","m":"약속","h":"야쿠소쿠","p":"NOUN","c":"NAME","g":null,"lv":"N4","ex":"明日の約束を守ります。","ek":"내일 약속을 지켜요."},
+    {"s":"ずいぶん","r":"","m":"매우, 상당히","h":"즈이분","p":"ADVERB","c":"MODIFIER","g":null,"lv":"N4","ex":"このゲームはずいぶん面白いです。","ek":"이 게임은 매우 재미있어요."},
+    {"s":"社会","r":"しゃかい","m":"사회","h":"샤카이","p":"NOUN","c":"NAME","g":null,"lv":"N4","ex":"社会は変わります。","ek":"사회는 변해요."},
+    {"s":"ところで","r":"","m":"그런데","h":"토코로데","p":"EXPRESSION","c":null,"g":"conj","lv":"N3","ex":"ところで、明日の予定は決まりましたか。","ek":"그런데, 내일 일정은 정해졌어요?"},
+    {"s":"さて","r":"","m":"그런데, 자아","h":"사테","p":"EXPRESSION","c":null,"g":"conj","lv":"N3","ex":"さて、次の話をしましょう。","ek":"그런데, 다음 이야기를 합시다."},
+    {"s":"何","r":"なに","m":"무엇","h":"나니","p":"PARTICLE","c":null,"g":"pron","lv":"N3","ex":"これは何ですか。","ek":"이것은 무엇이에요?"},
+    {"s":"預ける","r":"あずける","m":"맡기다","h":"아즈케루","p":"VERB","c":"ACTION","g":null,"lv":"N3","ex":"荷物をホテルに預けました。","ek":"짐을 호텔에 맡겼어요."},
+    {"s":"暗記","r":"あんき","m":"암기","h":"안키","p":"NOUN","c":"ACTION","g":null,"lv":"N3","ex":"単語を暗記するのは大変です。","ek":"단어를 암기하는 것은 힘들어요."},
+    {"s":"痛み","r":"いたみ","m":"통증, 아픔","h":"이타미","p":"NOUN","c":"FEELING","g":null,"lv":"N3","ex":"足の痛みがひどいです。","ek":"다리 통증이 심해요."},
+    {"s":"一度に","r":"いちどに","m":"한꺼번에","h":"이치도니","p":"ADVERB","c":"MODIFIER","g":null,"lv":"N3","ex":"一度に全部食べないでください。","ek":"한꺼번에 전부 먹지 마세요."},
+    {"s":"ちゃん","r":"","m":"양","h":"찬","p":"OTHER","c":null,"g":"affix","lv":"N4","ex":"田中ちゃんはいますか。","ek":"타나카 양은 있어요?"},
+    {"s":"日","r":"にち","m":"일, ~일","h":"니치","p":"OTHER","c":null,"g":"affix","lv":"N3","ex":"来月の五日に会議があります。","ek":"다음달 5일에 회의가 있어요."},
+    {"s":"おじゃまします","r":"","m":"실례합니다, 들어가겠습니다","h":"오자마시마스","p":"EXPRESSION","c":null,"g":"expr","lv":"N2","ex":"おじゃまします、と言って部屋に入った。","ek":"실례합니다 라고 말하고 방에 들어갔다."},
+    {"s":"味わう","r":"あじわう","m":"맛보다, 음미하다","h":"아지와우","p":"VERB","c":"ACTION","g":null,"lv":"N2","ex":"旅先で地元の料理をゆっくり味わった。","ek":"여행지에서 현지 요리를 천천히 맛보았다."},
+    {"s":"意地悪","r":"いじわる","m":"심술궂음","h":"이지와루","p":"ADJ_NA","c":"FEELING","g":null,"lv":"N2","ex":"彼女は同僚に意地悪なことを言った。","ek":"그녀는 동료에게 심술궂은 말을 했다."},
+    {"s":"一応","r":"いちおう","m":"일단","h":"이치오-","p":"ADVERB","c":"MODIFIER","g":null,"lv":"N2","ex":"一応、資料には目を通しておきました。","ek":"일단 자료에는 눈을 통과해 두었어요."},
+    {"s":"生け花","r":"いけばな","m":"꽃꽂이","h":"이케바나","p":"NOUN","c":"NAME","g":null,"lv":"N2","ex":"母は生け花を習っている。","ek":"어머니는 꽃꽂이를 배우고 있다."},
+    {"s":"様","r":"さま","m":"씨, 님","h":"사마","p":"OTHER","c":null,"g":"affix","lv":"N1","ex":"田中様にお電話します。","ek":"다나카 님께 전화하겠습니다."},
+    {"s":"著名","r":"ちょめい","m":"저명함","h":"초메-","p":"ADJ_NA","c":null,"g":"adjna","lv":"N1","ex":"著名な学者が講演に来た。","ek":"저명한 학자가 강연에 왔다."},
+    {"s":"個","r":"こ","m":"개","h":"코","p":"OTHER","c":null,"g":"affix","lv":"N1","ex":"りんごを三個買う。","ek":"사과를 세 개 산다."},
+    {"s":"いざ","r":"","m":"자, 드디어","h":"이자","p":"ADVERB","c":null,"g":"adv","lv":"N1","ex":"いざ出発しましょう。","ek":"자 출발합시다."},
+    {"s":"顎","r":"あご","m":"턱","h":"아고","p":"NOUN","c":"NAME","g":null,"lv":"N1","ex":"彼は顎をさすりながら考え込んだ。","ek":"그는 턱을 쓰다듬으며 생각에 잠겼다."},
+    {"s":"憧れ","r":"あこがれ","m":"동경, 선망","h":"아코가레","p":"NOUN","c":"FEELING","g":null,"lv":"N1","ex":"彼女は都会の暮らしに憧れを抱いている。","ek":"그녀는 도시 생활에 동경을 품고 있다."},
+    {"s":"予め","r":"あらかじめ","m":"미리, 사전에","h":"아라카지메","p":"ADVERB","c":"MODIFIER","g":null,"lv":"N1","ex":"予め参加者に資料を配布しておいた。","ek":"미리 참가자들에게 자료를 나눠 두었다."},
+    {"s":"冊","r":"さつ","m":"권","h":"사츠","p":"OTHER","c":null,"g":"affix","lv":"N1","ex":"本を三冊買った。","ek":"책을 세 권 샀다."},
+    {"s":"匹","r":"ひき","m":"마리","h":"히키","p":"OTHER","c":null,"g":"affix","lv":"N1","ex":"庭に猫が二匹いる。","ek":"정원에 고양이가 두 마리 있다."},
+    {"s":"番目","r":"ばんめ","m":"번째","h":"반메","p":"OTHER","c":null,"g":"affix","lv":"N1","ex":"これは三番目に大きい都市だ。","ek":"이것은 세 번째로 큰 도시다."},
+    {"s":"的","r":"てき","m":"-적","h":"테키","p":"OTHER","c":null,"g":"affix","lv":"N1","ex":"彼の意見は論理的だ。","ek":"그의 의견은 논리적이다."},
+  ];
+  var PLAY = { '映画': [3, 1], '会う': [2, 0], 'はじめまして': [1, 2], '勉強': [4, 1], 'どこ': [0, 1] };
+  var EIGA_KAN = { s: '映画館', r: 'えいがかん', m: '영화관', h: '에-가칸', p: 'NOUN', c: 'NAME', g: null, lv: 'N5', ex: '', ek: '' };
+  /* 기본 단어 = 공용 읽기 전용 7,755행(모든 사용자가 같은 행을 본다) + 내 단어(내가 넣은 것, 나만 봄). 데모 사용자 = 내 단어 3개(합성) */
+  var BASIC = 7755, NOW_TOTAL = 678;
+  var MINE0 = [
+    { s: '推し', r: 'おし', m: '최애(가장 좋아하는 사람)', h: '오시', p: 'NOUN', c: 'NAME', g: null, lv: null, ex: '推しのライブに行きます。', ek: '최애 라이브에 가요.', mine: true },
+    { s: 'ガチャ', r: '', m: '뽑기(캡슐 · 게임 뽑기)', h: '가차', p: 'NOUN', c: 'NAME', g: null, lv: null, ex: '', ek: '', mine: true },
+    { s: 'エモい', r: '', m: '감성적이다, 뭉클하다', h: '에모이', p: 'ADJ_I', c: 'FEELING', g: null, lv: null, ex: '', ek: '', mine: true }
+  ];
+  var CKL = { NAME: '이름', ACTION: '액션', FEELING: '느낌', MODIFIER: '꾸밈', EXPRESSION: '표현', AFFIX: '붙는말' };
+  var PLAN = {
+    A: { pron: 'NAME', rentai: 'MODIFIER', conj: 'MODIFIER', expr: 'FEELING', affix: 'MODIFIER', adv: 'MODIFIER', adjna: 'FEELING', noun: 'NAME' },
+    B: { pron: 'NAME', rentai: 'MODIFIER', conj: 'EXPRESSION', expr: 'EXPRESSION', affix: 'MODIFIER', adv: 'MODIFIER', adjna: 'FEELING', noun: 'NAME' },
+    C: { pron: 'NAME', rentai: 'MODIFIER', conj: 'EXPRESSION', expr: 'EXPRESSION', affix: 'AFFIX', adv: 'MODIFIER', adjna: 'FEELING', noun: 'NAME' }
+  };
+  /* 기본 단어 7,755행의 조각별 개수(재분류 뒤) — 시드 팩 계산 */
+  var CNT_B = {
+    A: { NAME: 3322, ACTION: 2561, FEELING: 730, MODIFIER: 1142 },
+    B: { NAME: 3322, ACTION: 2561, FEELING: 663, MODIFIER: 1087, EXPRESSION: 122 },
+    C: { NAME: 3322, ACTION: 2561, FEELING: 663, MODIFIER: 1038, EXPRESSION: 122, AFFIX: 49 }
+  };
+  var CKDEF = {
+    NAME: '사람 · 물건 · 곳 · 때를 가리키는 말(명사 · 대명사)',
+    ACTION: '하는 일 · 움직임(동사, 〜する 명사)',
+    FEELING: '마음 · 상태 · 평가(형용사 · 감정)',
+    MODIFIER: '다른 말에 붙어 때 · 곳 · 정도를 더하는 말(부사 · 조사구)',
+    EXPRESSION: '문장 밖에서 통째로 쓰는 말(인사 · 대답 · 감탄 · 이음말)',
+    AFFIX: '혼자 쓰지 않고 다른 말에 붙는 말(접두 · 접미 · 세는 말 · 조사)'
+  };
+  var CKDEF_A = { FEELING: '마음 · 상태 · 평가 + 인사 · 대답 · 감탄', MODIFIER: '부사 · 조사구 + 이음말 · 접사 · 조사' };
+  var CKEX = { NAME: '友達 · 映画 · どこ', ACTION: '会う · 勉強 · 行く', FEELING: '楽しい · 好き · 安心', MODIFIER: 'とても · 毎日 · その', EXPRESSION: 'はじめまして · なるほど · でも', AFFIX: '様 · 個 · 冊' };
+  var POS = { NOUN: '명사', VERB: '동사', ADJ_I: 'い형용사', ADJ_NA: 'な형용사', ADVERB: '부사', PARTICLE: '조사', EXPRESSION: '표현', OTHER: '기타' };
+  var LVL = { N5: '초보자 (N5)', N4: '초급 (N4)', N3: '중급 (N3)', N2: '고급 (N2)', N1: '최상급 (N1)' };
+  var POS_CK = { NOUN: 'NAME', VERB: 'ACTION', ADJ_I: 'FEELING', ADJ_NA: 'FEELING', ADVERB: 'MODIFIER', PARTICLE: 'MODIFIER', EXPRESSION: 'EXPRESSION', OTHER: 'MODIFIER' };
+
+  /* ── 결정 · 상태 ── */
+  var REC = { d1: 'A', d1p: 'A', d2: 'A', d3: 'B', d3t: 'A', d4: 'B', d5: 'A', d5d: 'A', d6: 'A', d8: 'A', d9: 'A', d10: 'A', d10m: 'A' };
+  var S = {
+    tab: 'A', sub: { A: 'list', B: 'p1', C: 'now', D: 'B', E: 'manual', F: 'row', G: 'new', H: 'live' },
+    w: '390', theme: 'sys', fu: true, hg: true,
+    d: JSON.parse(JSON.stringify(REC)), toast: '', focus: null, live: null
+  };
+  var toastTimer = null, timers = [];
+
+  /* ── 도우미 ── */
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function n(x) { return Number(x).toLocaleString('ko-KR'); }
+  function types(plan) { plan = plan || S.d.d4; return plan === 'A' ? ['NAME', 'ACTION', 'FEELING', 'MODIFIER'] : plan === 'B' ? ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION'] : ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION', 'AFFIX']; }
+  function ck(w, plan) { return w.c || PLAN[plan || S.d.d4][w.g]; }
+  function ckDef(t, plan) { plan = plan || S.d.d4; return (plan === 'A' && CKDEF_A[t]) || CKDEF[t]; }
+  function pagesOf(cnt) { return Math.max(1, Math.ceil(cnt / 7)); }
+  /* 출처(src): all = 내 단어 + 기본 단어, mine = 내 단어, basic = 기본 단어. 「최근 추가」면 내 단어가 앞 */
+  function mineOf(chunk, plan, mine) { return (mine || MINE0).filter(function (w) { return !chunk || ck(w, plan) === chunk; }); }
+  function basicCnt(chunk, plan) { plan = plan || S.d.d4; return chunk ? (CNT_B[plan][chunk] || 0) : BASIC; }
+  function cntOf(chunk, plan, src, mine) { src = src || 'all'; var m = mineOf(chunk, plan, mine).length; return src === 'mine' ? m : src === 'basic' ? basicCnt(chunk, plan) : m + basicCnt(chunk, plan); }
+  function listFor(chunk, plan) { return chunk ? POOL.filter(function (w) { return ck(w, plan) === chunk; }) : POOL; }
+  function pageRows(page, chunk, plan, total, src, mine) {
+    src = src || 'all';
+    var ml = src === 'basic' ? [] : mineOf(chunk, plan, mine).slice().reverse();
+    var cnt = total != null ? total : cntOf(chunk, plan, src, mine), pages = pagesOf(cnt), list = listFor(chunk, plan), k = page === pages - 1 ? cnt - (pages - 1) * 7 : 7, out = [];
+    for (var i = 0; i < k; i++) { var g = page * 7 + i; out.push(g < ml.length ? ml[g] : src === 'mine' ? ml[g % Math.max(1, ml.length)] : list[(g - ml.length) % list.length]); }
+    return out;
+  }
+  function W(s) { for (var i = 0; i < POOL.length; i++) if (POOL[i].s === s) return POOL[i]; for (var j = 0; j < MINE0.length; j++) if (MINE0[j].s === s) return MINE0[j]; return null; }
+  /* 루비: 앞뒤의 같은 히라가나(送り仮名)는 루비 밖으로 — 앱은 한자마다 맞추지만 데모는 한 덩어리 */
+  function ruby(w) {
+    if (!w.r) return esc(w.s);
+    var s = w.s, r = w.r, pre = '', suf = '', K = /[\u3041-\u3096]/;
+    while (s.length > 1 && r.length > 1 && K.test(s.charAt(s.length - 1)) && s.charAt(s.length - 1) === r.charAt(r.length - 1)) { suf = s.charAt(s.length - 1) + suf; s = s.slice(0, -1); r = r.slice(0, -1); }
+    while (s.length > 1 && r.length > 1 && K.test(s.charAt(0)) && s.charAt(0) === r.charAt(0)) { pre += s.charAt(0); s = s.slice(1); r = r.slice(1); }
+    return esc(pre) + '<ruby>' + esc(s) + '<rt aria-hidden="true">' + esc(r) + '</rt></ruby>' + esc(suf);
+  }
+
+  /* ── 아이콘 ── */
+  var ICON = {
+    x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+    sound: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>',
+    down: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'
+  };
+  var TABS = [
+    ['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'],
+    ['공부', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'],
+    ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'],
+    ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'],
+    ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']
+  ];
+  function tabBar(on) {
+    return '<nav class="tb" aria-label="주 메뉴">' + TABS.map(function (t, i) {
+      return '<span class="ti' + (i === on ? ' on' : '') + '"' + (i === on ? ' aria-current="page"' : '') + '><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + t[1] + '"/></svg>' + t[0] + '</span>';
+    }).join('') + '</nav>';
+  }
+  function kbd(label) { return '<div class="kbd abs" aria-hidden="true"><i>' + (label || '키보드') + ' (약 290px)<br>하단 탭은 키보드가 열리면 숨어요</i></div>'; }
+  function toastEl(t) { return '<div class="toast" role="status">' + esc(t || '') + '</div>'; }
+
+  /* ════ 단어장 화면 조각 ════ */
+  function appBar() { return '<header class="ab"><h2>단어장</h2><button type="button" class="addb" data-act="add" aria-label="단어 추가">＋ 추가</button><button type="button" class="av" data-act="noop" aria-label="설정"><span>나</span></button></header>'; }
+  function head2() {
+    return '<nav class="dsw" aria-label="단어장 보기"><span class="on" aria-current="page">단어</span><span>채택한 교정</span></nav>' +
+      '<div class="srch">' + ICON.search + '<input type="search" aria-label="단어 검색" placeholder="표현 · 읽기 · 뜻으로 찾기" value="' + esc(arguments[0] || '') + '" data-q="1" autocomplete="off"></div>';
+  }
+  function catRow(o) {
+    if (o.cat === 'levels') {
+      return '<div class="crow" role="radiogroup" aria-label="분류">' +
+        '<button type="button" class="chip" role="radio" aria-checked="true" data-act="noop">전체 <span class="n">678</span></button>' +
+        '<button type="button" class="chip' + (o.mark ? ' gone' : '') + '" role="radio" aria-checked="false" data-act="noop">N5 기초 <span class="n">50</span></button>' +
+        '<button type="button" class="chip' + (o.mark ? ' gone' : '') + '" role="radio" aria-checked="false" data-act="noop">초보자 (N5) <span class="n">628</span></button></div>';
+    }
+    if (o.cat === 'custom') {
+      return '<div class="crow" role="radiogroup" aria-label="분류">' +
+        '<button type="button" class="chip" role="radio" aria-checked="true" data-act="noop">전체 <span class="n">7,758</span></button>' +
+        '<button type="button" class="chip newc" role="radio" aria-checked="false" data-act="noop">여행 <span class="n">2</span></button></div>';
+    }
+    return '';
+  }
+  function chunkRow(o) {
+    var chips = o.now ? ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'none'] : types(o.plan);
+    var cur = o.chunk || null;
+    return '<div class="frow"><span class="frow-l" id="ckl-' + o.w + '">조각</span><div class="crow" role="radiogroup" aria-labelledby="ckl-' + o.w + '">' +
+      '<button type="button" class="chip" role="radio" aria-checked="' + (cur === null) + '" data-act="chunk" data-arg="">전체<span class="sr"> (모든 조각)</span></button>' +
+      chips.map(function (t) {
+        var isNew = !o.now && (t === 'EXPRESSION' || t === 'AFFIX');
+        var lab = t === 'none' ? '없음' : CKL[t];
+        return '<button type="button" class="chip' + (t === 'none' && o.mark ? ' gone' : '') + (isNew && o.mark ? ' newc' : '') + '" role="radio" aria-checked="' + (cur === t) + '" data-act="chunk" data-arg="' + t + '">' + lab + '<span class="sr">' + (t === 'none' ? ' (조각이 정해지지 않은 단어)' : ' 조각') + '</span></button>';
+      }).join('') + '</div></div>';
+  }
+  function srcRow(o) {
+    if (o.now || S.d.d10 !== 'A') return '';
+    var cur = o.src || 'all';
+    return '<div class="srow"><div class="segm" role="radiogroup" aria-label="출처">' + [['all', '전체'], ['mine', '내 단어'], ['basic', '기본 단어']].map(function (x) { return '<button type="button" role="radio" aria-checked="' + (cur === x[0]) + '" data-act="src" data-arg="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
+  }
+  function sortRow(o) {
+    var sorts = [['recent', '최근 추가'], ['wrong', '많이 틀린'], ['surface', '가나다순']], cur = o.sort || 'recent';
+    return '<div class="srow"><div class="segm" role="radiogroup" aria-label="정렬">' + sorts.map(function (s) { return '<button type="button" role="radio" aria-checked="' + (cur === s[0]) + '" data-act="sort" data-arg="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div><button type="button" class="arch" aria-pressed="' + !!o.arch + '" data-act="noop">보관함</button></div>';
+  }
+  function headRow(o) {
+    var lead;
+    var src = o.src || 'all';
+    if (o.state === 'first') lead = '';
+    else if (o.q) lead = '‘<span lang="ja">' + esc(o.q) + '</span>’ 검색 결과 ' + n(o.cnt) + '개';
+    else if (o.arch) lead = '보관한 단어 ' + n(o.cnt) + '개';
+    else lead = (src === 'mine' ? '내 단어 ' : src === 'basic' ? '기본 단어 ' : '단어 ') + n(o.cnt) + '개';
+    if (lead && o.chunk && !o.q) lead += ' · <b>' + (o.chunk === 'none' ? '조각 없음' : CKL[o.chunk] + ' 조각') + '</b>';
+    if (lead && o.pages > 1) lead += ' · <span class="pgi">' + n(o.page + 1) + '쪽</span>';
+    return '<div class="lhd"><p aria-live="polite" tabindex="-1" data-lhd="1">' + lead + '</p><div class="tgs" role="group" aria-label="보기 설정">' +
+      '<button type="button" class="tg2" data-act="tg" data-arg="fu" aria-pressed="' + S.fu + '">' + (S.fu ? '✓ ' : '') + '히라가나</button>' +
+      '<button type="button" class="tg2" data-act="tg" data-arg="hg" aria-pressed="' + S.hg + '">' + (S.hg ? '✓ ' : '') + '한글</button></div></div>';
+  }
+  function wordRow(w, o, i) {
+    var t = o.now ? w.c : ck(w, o.plan);
+    var showB = t && (o.now || S.d.d8 === 'A' || o.forceBadge);
+    var isNewB = !o.now && !w.c && o.mark;
+    var pl = o.noPlay ? null : PLAY[w.s];
+    var right = pl ? '<span class="wc">맞힘 ' + pl[0] + ' · 틀림 ' + pl[1] + '</span>' : '';
+    var tag = o.now ? '' : (w.mine ? (S.d.d10m === 'A' ? '<span class="badge mine">내 단어</span>' : '') : (S.d.d10m === 'B' ? '<span class="badge outb">기본</span>' : ''));
+    return '<li><button type="button" class="wr" data-act="open" data-arg="' + esc(w.s) + '">' +
+      '<span class="wr1"><span class="ws" lang="ja">' + ruby(w) + '</span><span style="flex:1"></span>' + tag + (showB ? '<span class="badge' + (isNewB ? ' newb' : '') + '">' + CKL[t] + ' 조각</span>' : '') + '</span>' +
+      (w.h ? '<span class="hgl"><span class="sr">한글 발음: </span>[' + esc(w.h) + ']</span>' : '') +
+      '<span class="wr2"><span class="wm">' + esc(w.m) + '</span>' + right + '</span></button></li>';
+  }
+  function ghostRows(k) { var s = ''; for (var i = 0; i < k; i++) s += '<li class="ghost" aria-hidden="true"><button type="button" class="wr" tabindex="-1" disabled><span class="wr1"><span class="ws" lang="ja"><ruby>亜<rt>あ</rt></ruby></span></span><span class="hgl">[아]</span><span class="wr2"><span class="wm">가</span></span></button></li>'; return s; }
+  function skRows(k) { var s = ''; for (var i = 0; i < k; i++) s += '<li aria-hidden="true"><span class="skrow"><i></i><i></i></span></li>'; return s; }
+
+  /* 쪽 줄 — D1 A(가운데 단추) · B(가운데 글) · C(번호) */
+  function pager(o) {
+    var shape = o.shape || S.d.d1, p = o.page, P = o.pages, busy = o.state === 'paging', err = o.state === 'pageErr';
+    var prevDis = busy || p === 0, nextDis = busy || err || p >= P - 1;
+    var srTxt = busy ? n(p + 1) + '쪽을 불러오고 있어요' : n(P) + '쪽 중 ' + n(p + 1) + '쪽 · 모두 ' + n(o.cnt) + '개';
+    var lab = '<span class="a">' + n(p + 1) + ' / ' + n(P) + '</span><span class="b">' + (busy ? '불러오는 중…' : '모두 ' + n(o.cnt) + '개') + '</span>';
+    var prev = '<button type="button" class="pgb" data-act="pg" data-arg="prev"' + (prevDis ? ' aria-disabled="true"' : '') + '><span class="ar2" aria-hidden="true">‹</span><span>이전</span></button>';
+    var next = '<button type="button" class="pgb" data-act="pg" data-arg="next"' + (nextDis ? ' aria-disabled="true"' : '') + '><span>다음</span><span class="ar2" aria-hidden="true">›</span></button>';
+    var body;
+    if (shape === 'C') {
+      var nums = [0, p, P - 1];
+      if (p <= 2) nums = [0, 1, 2, P - 1];
+      else if (p >= P - 3) nums = [0, P - 3, P - 2, P - 1];
+      nums = nums.filter(function (x, i, a) { return x >= 0 && x < P && a.indexOf(x) === i; });
+      var html = '', last = -1;
+      nums.forEach(function (x) {
+        if (last >= 0 && x - last > 1) html += '<span class="el" aria-hidden="true">…</span>';
+        html += '<button type="button" data-act="pgTo" data-arg="' + x + '"' + (x === p ? ' aria-current="page"' : '') + (busy ? ' aria-disabled="true"' : '') + ' aria-label="' + n(x + 1) + '쪽">' + n(x + 1) + '</button>';
+        last = x;
+      });
+      body = '<nav class="pgn" aria-label="단어 목록 쪽"><button type="button" data-act="pg" data-arg="prev" aria-label="이전 쪽"' + (prevDis ? ' aria-disabled="true"' : '') + '>‹</button>' + html + '<button type="button" data-act="pg" data-arg="next" aria-label="다음 쪽"' + (nextDis ? ' aria-disabled="true"' : '') + '>›</button></nav>';
+    } else if (shape === 'A') {
+      body = '<nav class="pgr" aria-label="단어 목록 쪽">' + prev + '<button type="button" class="pgl" data-act="jump" aria-label="' + n(p + 1) + ' / ' + n(P) + ' — 쪽으로 이동"' + (busy ? ' aria-disabled="true"' : '') + '>' + lab + '</button>' + next + '</nav>';
+    } else {
+      body = '<nav class="pgr" aria-label="단어 목록 쪽">' + prev + '<p class="pgl" aria-hidden="true">' + lab + '</p>' + next + '</nav>';
+    }
+    return body + '<p role="status" class="sr">' + srTxt + '</p>';
+  }
+
+  /* 목록 몸통 — 상태별 */
+  function listBody(o) {
+    if (o.state === 'first') return '<p class="sr" role="status">단어장을 불러오고 있어요</p><ul class="wl">' + skRows(7) + '</ul>';
+    if (o.state === 'emptyAll') {
+      return '<div class="card center"><p class="et">단어장이 비어 있어요</p><p class="eb">초보자 (N5) 기본 단어 676개로 바로 시작하거나, 아는 단어를 직접 넣어 보세요. 채팅에서 채택한 표현도 여기에 모여요.</p><div class="bcol"><button type="button" class="btn pri full gone2" data-act="noop">초보자 (N5) 단어 676개 넣기</button><button type="button" class="btn gho full" data-act="add">직접 추가</button></div></div>';
+    }
+    if (o.state === 'mine0') {
+      return '<div class="card center"><p class="et">아직 내가 넣은 단어가 없어요</p><p class="eb">기본 단어에 없는 표현을 직접 넣으면 여기에 모여요. 내 단어는 나만 봐요.</p><div class="bcol"><button type="button" class="btn pri full" data-act="add">단어 직접 추가</button></div></div>';
+    }
+    if (o.state === 'archEmpty') return '<div class="card center"><p class="et">보관한 단어가 없어요</p><p class="eb">기본 단어는 보관할 수 없어요(D6 B). 내 단어만 보관할 수 있어요.</p></div>';
+    if (o.state === 'search0') {
+      return '<div class="card center"><p class="et">‘<span lang="ja">' + esc(o.q) + '</span>’에 맞는 단어가 없어요</p><div class="bcol"><button type="button" class="btn gho full" data-act="add">‘<span lang="ja">' + esc(o.q) + '</span>’ 추가하기</button></div></div>';
+    }
+    var rows = o.rows, k = rows.length, paged = o.pages > 1 && !o.now;
+    var ul;
+    if (o.state === 'paging') ul = '<ul class="wl" aria-busy="true">' + skRows(7) + '</ul>';
+    else if (o.state === 'pageErr') ul = '<div class="errb" role="alert"><b>이 쪽을 불러오지 못했어요</b><span>연결을 확인하고 다시 시도해 주세요.</span><br><button type="button" data-act="noop">다시 시도</button></div><ul class="wl" style="margin-top:8px">' + ghostRows(5) + '</ul>';
+    else ul = '<ul class="wl">' + rows.map(function (w, i) { return wordRow(w, o, i); }).join('') + (paged ? ghostRows(7 - k) : '') + '</ul>';
+    if (o.now) return ul + '<button type="button" class="mbtn' + (o.mark ? ' gone2' : '') + '" data-act="noop">단어 더 보기</button>';
+    var pos = o.pos || S.d.d1p;
+    return ul + (paged && pos === 'A' ? pager(o) : '');
+  }
+
+  /* 단어장 화면 전체: o = { w, now, plan, page, chunk, q, sort, state, cat, sheet, scroll, band, mark, toast, pos, rows?, cnt? } */
+  function wordsScreen(o) {
+    o.plan = o.plan || S.d.d4;
+    if (o.now) {
+      o.cnt = o.cnt != null ? o.cnt : (o.chunk === 'none' ? 33 : NOW_TOTAL);
+      o.pages = 1; o.page = 0;
+      if (!o.rows) o.rows = o.chunk === 'none' ? POOL.filter(function (w) { return !w.c && w.lv === 'N5'; }).slice(0, 8) : POOL.filter(function (w) { return w.lv === 'N5'; }).slice(0, 9);
+      if (o.cat === undefined) o.cat = 'levels';
+    } else {
+      if (o.cnt == null) o.cnt = cntOf(o.chunk, o.plan, o.src, o.mine);
+      o.pages = o.pages || pagesOf(o.cnt);
+      o.page = Math.min(o.page || 0, o.pages - 1);
+      if (!o.rows) o.rows = pageRows(o.page, o.chunk, o.plan, o.cnt, o.src, o.mine);
+      if (o.cat === undefined) o.cat = S.d.d3 === 'B' ? 'none' : 'none';
+    }
+    var pos = o.pos || S.d.d1p;
+    var paged = !o.now && o.pages > 1 && ['ready', 'paging', 'pageErr', undefined].indexOf(o.state) >= 0;
+    var fixed = paged && pos === 'B';
+    var band = o.band ? '<div class="band" role="note"><p><b>' + (o.bandT || '기본 단어 7,755개가 들어 있어요') + '</b>' + (S.d.d6 === 'A' ? '내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요.' : '내용은 고칠 수도 숨길 수도 없어요.') + ' 필요한 단어는 ＋ 추가로 직접 넣으세요 — 내 단어는 나만 봐요.</p><button type="button" class="ib" data-act="bandX" aria-label="안내 닫기">' + ICON.x + '</button></div>' : '';
+    var showChunk = o.state !== 'emptyAll';
+    var inner = '<div class="sc" data-scroll="' + (o.scroll || 'top') + '">' + appBar() + '<div class="px">' + head2(o.q) + srcRow(o) + catRow(o) + (showChunk ? chunkRow(o) : '') + sortRow(o) + (o.arch ? '<p class="anote">보관한 단어는 오늘의 단어에 나오지 않아요. 숨긴 기본 단어는 나에게만 숨겨져요.</p>' : '') + headRow(o) + band + listBody(o) + '</div></div>' +
+      (fixed ? '<div class="pfix">' + pager(o) + '</div>' : '') + tabBar(3) + sheetHtml(o) + ((o.toast || S.toast) ? toastEl(o.toast || S.toast) : '');
+    return '<div class="app' + (fixed ? ' pf' : '') + '">' + inner + '</div>';
+  }
+
+  /* ════ 시트 ════ */
+  function sheetWrap(title, body, o2) {
+    o2 = o2 || {};
+    return '<button type="button" class="ovl' + (o2.kb ? ' kbo2' : '') + '" data-act="sheetClose" aria-label="닫기" tabindex="-1"></button><div class="sheet' + (o2.kb ? ' kbup' : '') + '" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"' + (o2.anchor ? ' data-sto="' + o2.anchor + '"' : '') + '><div class="shd"><h3>' + esc(title) + '</h3><button type="button" class="ib" data-act="sheetClose" aria-label="닫기">' + ICON.x + '</button></div><div class="sbd">' + body + '</div></div>' + (o2.kb ? kbd(o2.kbLabel) : '');
+  }
+  function sheetHtml(o) {
+    if (!o.sheet) return '';
+    if (o.sheet === 'jump') return jumpSheet(o);
+    if (o.sheet === 'detail') return detailSheet(o.word || W('はじめまして'), o);
+    if (o.sheet === 'add') return addSheet(o);
+    if (o.sheet === 'edit') return editSheet(o);
+    return '';
+  }
+  function jumpSheet(o) {
+    var P = o.pages, v = o.jv != null ? o.jv : '', err = o.jErr;
+    var body = '<p class="srcl">지금 ' + n(o.page + 1) + '쪽 · 모두 ' + n(P) + '쪽</p>' +
+      '<form class="fld" data-form="jump" novalidate><label for="jp-' + o.w + '">쪽 번호</label><input id="jp-' + o.w + '" data-jp="1" inputmode="numeric" enterkeyhint="go" autocomplete="off" placeholder="1–' + n(P) + '" value="' + esc(v) + '"' + (err ? ' class="err" aria-invalid="true" aria-describedby="jpe-' + o.w + '"' : '') + '>' +
+      (err ? '<p class="ferr" id="jpe-' + o.w + '" role="alert">1부터 ' + n(P) + ' 사이 숫자를 적어 주세요</p>' : '') + '</form>' +
+      '<div class="brow" style="margin-top:0"><button type="button" class="btn gho" data-act="jumpTo" data-arg="first">처음 쪽</button><button type="button" class="btn gho" data-act="jumpTo" data-arg="last">마지막 쪽</button></div>' +
+      '<button type="button" class="btn pri full" data-act="jumpGo">이동</button>';
+    return sheetWrap('쪽으로 이동', body, { kb: true, kbLabel: '숫자 키보드' });
+  }
+  /* 상세 — 지금(복사본: 수정 · 보관 · 삭제) / 제안: 기본 단어 = 읽기 전용(D6 A 보관만 · B 단추 없음), 내 단어 = 수정 · 보관 · 삭제 */
+  function detailSheet(w, o) {
+    var t = o.now ? w.c : ck(w, o.plan), mine = !o.now && !!w.mine;
+    var newMark = !o.now && o.mark;
+    var badges = '<span class="badge">' + POS[w.p] + '</span>' + (w.lv ? '<span class="badge">' + LVL[w.lv] + '</span>' : '') +
+      (t ? '<span class="badge' + (!o.now && !w.c && o.mark ? ' newb' : '') + '">' + CKL[t] + ' 조각</span>' : '') +
+      (o.now ? '' : mine ? '<span class="badge mine">내 단어</span>' : '<span class="badge outb">기본 단어</span>');
+    var src, btns;
+    if (o.now) { src = '기본 단어 팩에서 넣었어요'; btns = '<div class="brow" style="margin-top:0"><button type="button" class="btn gho" data-act="edit">수정</button><button type="button" class="btn gho" data-act="noop">보관</button><button type="button" class="btn gho" data-act="delAsk">삭제</button></div>'; }
+    else if (mine) { src = '내가 넣은 단어예요 · 나만 봐요'; btns = '<div class="brow" style="margin-top:0"><button type="button" class="btn gho" data-act="edit">수정</button><button type="button" class="btn gho" data-act="arch">' + (o.archived ? '보관 풀기' : '보관') + '</button><button type="button" class="btn gho" data-act="delAsk">삭제</button></div>'; }
+    else if (S.d.d6 === 'A') { src = '기본 단어예요 · 내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요. 맞힘 · 틀림 기록은 나에게만 쌓여요.'; btns = '<div class="brow" style="margin-top:0"><button type="button" class="btn gho" data-act="arch">' + (o.archived ? '보관 풀기 — 다시 보이기' : '보관 — 목록 · 오늘의 단어에서 숨기기') + '</button></div>'; }
+    else { src = '기본 단어예요 · 고칠 수도 숨길 수도 없어요. 맞힘 · 틀림 기록은 나에게만 쌓여요.'; btns = ''; }
+    var body = '<div class="dtt"><div class="w"><p class="dts" lang="ja">' + ruby(w) + '</p>' + (w.h ? '<p class="hgl"><span class="sr">한글 발음: </span>[' + esc(w.h) + ']</p>' : '') + '</div><button type="button" class="snd" data-act="noop" aria-label="단어 소리 듣기">' + ICON.sound + '</button></div>' +
+      '<p class="dtm">' + esc(w.m) + '</p><div class="bdgs">' + badges + '</div>' +
+      (w.ex ? '<div class="exb"><p class="ja" lang="ja">' + esc(w.ex) + '</p><p class="ko">' + esc(w.ek) + '</p></div>' : '') +
+      '<p class="srcl">' + src + (newMark ? ' <span class="ntag">새 문장</span>' : '') + '</p>' + btns;
+    return sheetWrap('단어', body);
+  }
+  /* 조각 고르기(추가 · 수정 공용 — WordForm) */
+  function ckPicker(o) {
+    var cur = o.pick || null, err = !!o.ckErr, id = 'ck-' + o.w;
+    var hint = cur ? '<p class="ckd" id="' + id + '-d"><b>' + CKL[cur] + '</b> — ' + ckDef(cur, o.plan) + ' <span lang="ja">' + CKEX[cur] + '</span></p>' : (err ? '' : '<p class="ckd" id="' + id + '-d">단어장에서 이 조각으로 거를 수 있어요. 고르면 뜻이 보여요.</p>');
+    var note = o.pickNote ? '<p class="dfl">' + o.pickNote + '</p>' : '';
+    return '<div class="fld" data-anchor="ck"><span class="lb" id="' + id + '">조각<span aria-hidden="true">*</span>' + (o.mark ? ' <span class="ntag">새 칸</span>' : '') + '</span>' +
+      '<div class="ckg' + (err ? ' err' : '') + '" role="radiogroup" aria-labelledby="' + id + '" aria-required="true"' + (err ? ' aria-invalid="true" aria-describedby="' + id + '-e"' : (cur || !err ? ' aria-describedby="' + id + '-d"' : '')) + '>' +
+      types(o.plan).map(function (t) { return '<button type="button" class="chip" role="radio" aria-checked="' + (cur === t) + '" data-act="pick" data-arg="' + t + '">' + CKL[t] + '</button>'; }).join('') + '</div>' +
+      (err ? '<p class="ferr" id="' + id + '-e" role="alert">조각을 골라 주세요</p>' : '') + hint + note + '</div>';
+  }
+  function formFields(o) {
+    var v = o.vals || {};
+    var fi = 0, idp = 'fm' + o.w + '-';
+    var f = function (lab, val, ph, req, ja) { var id = idp + (fi++); return '<div class="fld"><label for="' + id + '">' + lab + (req ? '<span aria-hidden="true">*</span>' : '') + '</label><input id="' + id + '"' + (ja ? ' lang="ja"' : '') + (req ? ' aria-required="true"' : '') + ' value="' + esc(val || '') + '" placeholder="' + esc(ph || '') + '" data-act="noopIn" autocomplete="off"></div>'; };
+    var pos = '<div class="fld"><span class="lb" id="' + idp + 'pos">품사</span><button type="button" class="selx" data-act="noop" aria-labelledby="' + idp + 'pos ' + idp + 'posv"><span id="' + idp + 'posv">' + POS[v.p || 'OTHER'] + '</span>' + ICON.down + '</button></div>';
+    var mid;
+    if (o.now) {
+      mid = '<div class="g2">' + pos + '<div class="fld' + (o.mark ? ' gonef' : '') + '" data-anchor="ck"><span class="lb" id="' + idp + 'lv">수준' + (o.mark ? ' <span class="otag">없어짐</span>' : '') + '</span><button type="button" class="selx" data-act="noop" aria-labelledby="' + idp + 'lv ' + idp + 'lvv"><span id="' + idp + 'lvv">' + (v.lv ? LVL[v.lv] : '선택 안 함') + '</span>' + ICON.down + '</button></div></div>';
+    } else {
+      mid = pos + ckPicker(o);
+    }
+    return f('표현', v.s, '', true, true) + f('읽기', v.r, '히라가나 (선택)', false, true) + f('뜻', v.m, '한국어 뜻 (예: 영화)', true, false) + mid +
+      f('분류', v.cat, '예: 일상, 여행 (선택)', false, false) +
+      '<button type="button" class="xtra" data-act="noop" aria-expanded="false">예문 · 메모 더 쓰기' + ICON.down + '</button>';
+  }
+  function addSheet(o) {
+    if (o.step === 'surface') {
+      var seed = o.now ? '<hr class="sep"><button type="button" class="seedt' + (o.mark ? ' gone2' : '') + '" data-act="noop">초보자 (N5) 기본 단어 676개 한 번에 넣기 ›</button>' : '';
+      var dupE = o.dup ? '<div class="fdup" id="sfe-' + o.w + '" role="alert"><span class="ferr">기본 단어에 이미 있어요</span><button type="button" class="tlink" data-act="openDup" data-arg="' + esc(o.sv || '') + '">그 단어 보기</button></div><p class="fhint">기본 단어는 모두 단어장에 들어 있어요. 같은 표기 · 읽기는 내 단어로 다시 넣지 않아요.</p>' : '';
+      var body = '<div class="fld"><label for="sf-' + o.w + '">표현</label><input id="sf-' + o.w + '" lang="ja" placeholder="예: 映画, 食べる, よろしくお願いします" value="' + esc(o.sv || '') + '" data-sv="1" autocomplete="off"' + (o.dup ? ' class="err" aria-invalid="true" aria-describedby="sfe-' + o.w + '"' : '') + '>' + dupE + '</div>' +
+        '<button type="button" class="btn pri full"' + (o.sv ? '' : ' aria-disabled="true"') + ' data-act="enrich">뜻 채우기</button>' +
+        (o.sv ? '' : '<p class="fhint">표현을 적으면 누를 수 있어요.</p>') +
+        '<p class="fhint">선생님이 읽기 · 뜻 · 예문을 채워 줘요. 확인하고 저장해야 단어장에 들어가요.</p>' +
+        '<button type="button" class="btn gho full" data-act="manual">직접 입력하기</button>' + seed;
+      return sheetWrap('단어 추가', body);
+    }
+    var draftNote = (o.draft ? '<p class="dfl">선생님이 채운 초안이에요. 틀린 곳은 고쳐 주세요. 저장해야 단어장에 들어가요.</p>' : '') + (o.dupOk ? '<p class="anote" style="margin-top:0">기본 단어에도 같은 표현이 있어요 — 내 단어로 따로 넣어요(목록에 둘 다 보여요).</p>' : '');
+    var body2 = draftNote + formFields(o) +
+      (o.formErr ? '<p class="ferr" role="alert">' + o.formErr + '</p>' : '') +
+      '<div class="brow" style="margin-top:0"><button type="button" class="btn pri" data-act="save">' + (o.saving ? '저장하는 중…' : '저장') + '</button><button type="button" class="btn gho" data-act="sheetClose">취소</button></div>';
+    return sheetWrap('단어 추가', body2, { anchor: o.anchor || 'ck' });
+  }
+  function editSheet(o) {
+    var body = formFields(o) + '<div class="brow" style="margin-top:0"><button type="button" class="btn pri" data-act="noop">저장</button><button type="button" class="btn gho" data-act="sheetClose">취소</button></div>';
+    return sheetWrap('단어 수정', body, { anchor: o.anchor || 'ck' });
+  }
+  function valsOf(w, extra) { return Object.assign({ s: w.s, r: w.r || w.s, m: w.m, p: w.p, lv: w.lv, cat: LVL[w.lv] }, extra || {}); }
+
+  /* ════ 공부 탭 — 오늘의 단어 카드(모양 간략) ════ */
+  function todayScreen(o) {
+    var card;
+    if (o.empty) {
+      var seedB = o.now ? '<button type="button" class="btn pri full gone2" data-act="noop">초보자 (N5) 단어 676개 넣기</button>' : '';
+      card = '<section class="card tcd" aria-label="오늘의 단어"><h3>오늘의 단어</h3><p class="et" style="margin-top:8px">단어장이 비어 있어요</p><p class="eb">' + (o.now ? '오늘의 단어는 내 단어장에서 골라요. 초보자 (N5) 기본 단어로 바로 시작해 볼까요?' : '오늘의 단어는 내 단어장에서 골라요.') + '</p><div class="bcol">' + seedB + '<button type="button" class="btn ' + (o.now ? 'gho' : 'pri') + ' full" data-act="noop">단어 직접 추가</button></div></section>';
+    } else {
+      var chips = '';
+      if (o.now) chips = '<p class="lb2">분류</p><div class="crow" role="radiogroup" aria-label="분류"><button type="button" class="chip" role="radio" aria-checked="true" data-act="noop">전체 <span class="n">678</span></button><button type="button" class="chip' + (o.mark ? ' gone' : '') + '" role="radio" aria-checked="false" data-act="noop">N5 기초 <span class="n">50</span></button><button type="button" class="chip' + (o.mark ? ' gone' : '') + '" role="radio" aria-checked="false" data-act="noop">초보자 (N5) <span class="n">628</span></button></div>';
+      else if (S.d.d3t === 'B') chips = '<p class="lb2">분류</p><div class="crow" role="radiogroup" aria-label="분류"><button type="button" class="chip" role="radio" aria-checked="true" data-act="noop">전체 <span class="n">7,758</span></button>' + ['N5', 'N4', 'N3', 'N2', 'N1'].map(function (l) { var c = { N5: 676, N4: 629, N3: 1649, N2: 1767, N1: 3034 }[l]; return '<button type="button" class="chip" role="radio" aria-checked="false" data-act="noop">' + LVL[l] + ' <span class="n">' + n(c) + '</span></button>'; }).join('') + '</div>';
+      card = '<section class="card tcd" aria-label="오늘의 단어"><h3><span>오늘의 단어</span><small>약 3분</small></h3><p class="eb">카드를 넘기며 뜻을 맞혀요. 틀린 단어일수록 자주 나와요.</p>' +
+        '<p class="lb2">장수</p><div class="segm" role="radiogroup" aria-label="카드 장수">' + ['5', '10', '15', '20'].map(function (c) { return '<button type="button" role="radio" aria-checked="' + (c === '10') + '" data-act="noop">' + c + '장</button>'; }).join('') + '</div>' +
+        chips + '<button type="button" class="btn pri full" style="margin-top:12px" data-act="noop">시작하기</button>' +
+        (!o.now && S.d.d3t === 'A' ? '<p class="fhint" style="margin-top:6px">지금 수준(초보자 (N5)) 단어가 가장 많이 나와요.</p>' : '') + '</section>';
+    }
+    var other = '<section class="card" aria-hidden="true" style="margin-top:12px"><p class="et" style="color:var(--ink2)">오늘의 회화 · 복습 카드(그대로)</p><div style="height:120px"></div></section>';
+    return '<div class="app"><div class="sc"><header class="ab"><h2>공부</h2><button type="button" class="av" data-act="noop" aria-label="설정"><span>나</span></button></header><div class="px">' + card + other + '</div></div>' + tabBar(1) + (S.toast ? toastEl(S.toast) : '') + '</div>';
+  }
+
+  /* ════ 상태 탭 ════ */
+  var TABDEF = {
+    A: { t: '지금 vs 제안', s: '목록 · 추가 · 첫 화면', subs: [['list', '목록'], ['add', '추가 시트(직접 입력)'], ['addTop', '추가 시트 첫 단계'], ['empty', '새 계정 첫 화면']] },
+    B: { t: '7개씩 쪽', s: 'D1 · D2', subs: ['쪽', ['p1', '1쪽'], ['mid', '중간 쪽'], ['last', '마지막 쪽(2개)'], ['one', '한 쪽뿐(검색 2개)'], ['none', '검색 결과 0'], '불러오기', ['first', '처음 불러오기'], ['paging', '쪽 넘기는 중'], ['err', '쪽 오류'], '쪽으로 이동(D1 A)', ['jump', '쪽 번호 칸'], ['jumpErr', '잘못된 번호'], '비교', ['cmp', 'D1 세 안 나란히'], ['pos', '쪽 줄 자리 두 안']] },
+    C: { t: '필터 줄', s: 'D3 · D10 · 「없음」', subs: [['now', '지금 vs 제안'], ['src', '출처 칩 두 안(D10)'], ['custom', '직접 정한 분류가 있을 때'], ['catA', 'D3 A 줄 통째로'], ['today', '오늘의 단어 카드'], ['none', '조각 「없음」 → 새 유형']] },
+    D: { t: '조각 유형', s: 'D4 세 안', subs: [['A', 'A 네 유형 그대로'], ['B', 'B ★ 표현 추가'], ['C', 'C 표현 · 붙는말']] },
+    E: { t: '단어 추가 시트', s: 'D5 · D9', subs: [['manual', '직접 입력(안 고름)'], ['pick', '조각 고름'], ['err', '안 고르고 저장'], ['draft', '선생님 초안 뒤'], ['dup', '기본 단어와 같은 표현(D9)'], ['surface', '첫 단계(넣기 버튼 없음)']] },
+    F: { t: '조각 뱃지', s: 'D8 · 행 · 상세 · 수정', subs: [['row', '목록 행'], ['detail', '상세'], ['edit', '내 단어 수정 시트']] },
+    G: { t: '기본 단어 · 내 단어', s: 'D6 · D10', subs: [['new', '새 계정 첫 화면'], ['basic', '기본 단어 상세'], ['mine', '내 단어 상세'], ['srcMine', '「내 단어」만'], ['mine0', '내 단어 0개'], ['hidden', '보관함(숨긴 기본 단어)'], ['today', '오늘의 단어'], ['todayEmpty', '오늘 카드 빈 상태']] },
+    H: { t: '직접 해 보기', s: '쪽 · 출처 · 조각 · 추가', subs: [] }
+  };
+  var CAP = {
+    'A:list': ['지금 30개 + 「단어 더 보기」 → 제안 7개씩 쪽', '왼쪽은 지금 실사용자 화면(기본 단어 복사본 678개 — 분류 칩 줄 · 조각 「없음」 · 30개씩). 오른쪽은 기본 단어 7,755개(공용 · 읽기 전용) + 내 단어 3개(합성) — 출처 칩(D10) · 조각 줄 새 유형 · 목록 아래 쪽 줄. 빨간 점선 = 없어지는 것, 초록 = 새로 생기는 것. 오른쪽은 쪽 줄이 보이게 조금 내려 둔 모습.'],
+    'A:add': ['직접 입력 — 「수준」 칸 → 「조각」 고르기', '추가와 수정이 같은 폼이라 둘 다 바뀐다(수정은 이제 내 단어만). 「수준」은 내 단어에서는 비워 두고 고르지 않는다. 조각은 꼭 고른다(D5 A).'],
+    'A:addTop': ['추가 시트 첫 단계 — 맨 아래 기본 단어 글자 버튼이 없어진다', '기본 단어는 처음부터 모두 보이므로 넣을 것이 없다. 「뜻 채우기」 · 「직접 입력하기」 흐름은 그대로.'],
+    'A:empty': ['새 계정 첫 화면 — 빈 단어장 + 넣기 버튼 → 기본 단어가 바로 보임', '기본 단어는 모든 사용자가 같은 공용 행을 보므로 가입 때 넣거나 채워 넣는 일이 없다. 처음 한 번 안내 띠(J9). 빈 단어장은 이제 기본 단어를 모두 숨겼을 때만 생긴다.'],
+    'B:p1': ['1쪽 — 위(처음 보이는 곳)와 아래(쪽 줄까지 내린 곳)', '7행과 검색 · 필터 줄이 한 화면에 다 안 들어가 쪽 줄은 조금 내려야 보인다(D1 쪽 줄 자리). 「최근 추가」라 내 단어 3개가 맨 앞(J7). 1쪽이라 [‹ 이전]은 흐림.'],
+    'B:mid': ['중간 쪽 — 512 / 1,109', '가운데 「512 / 1,109」(밑줄)를 누르면 쪽 번호 칸이 열린다(D1 A). 화면 읽기는 「1,109쪽 중 512쪽 · 모두 7,758개」.'],
+    'B:last': ['마지막 쪽 — 7개보다 적을 때(2개)', '7,758 = 7 × 1,108 + 2. 남는 5칸은 보이지 않는 빈 행으로 채워 쪽 줄이 손가락 밑에서 움직이지 않는다(J1 — 질문 탭과 같은 규칙). [다음 ›] 흐림.'],
+    'B:one': ['한 쪽뿐 — 검색 ‘映画’ 결과 2개', '7개 이하면 쪽 줄을 그리지 않는다(빈 행도 없음). 검색어 · 출처 · 조각 · 정렬 · 보관함을 바꾸면 1쪽부터(D2).'],
+    'B:none': ['검색 결과 0', '지금 빈 화면 안내 그대로 — [‘…’ 추가하기]. 기본 단어에도 없다는 뜻이라 내 단어로 넣으면 된다. 쪽 줄 없음.'],
+    'B:first': ['처음 불러오기', '회색 자리 7개. 쪽 줄은 첫 응답(전체 개수)이 와야 그린다.'],
+    'B:paging': ['쪽 넘기는 중 — 4쪽으로', '라벨이 목표 쪽 「4 / 1,109」 + 「불러오는 중…」, 두 단추 흐림(연타 방지). 목록 자리는 회색 7칸(높이 유지). 화면 읽기 「4쪽을 불러오고 있어요」.'],
+    'B:err': ['쪽 오류', '오류 상자 + 빈 자리로 쪽 줄 위치 유지. [‹ 이전]은 쓸 수 있고 [다음 ›]은 흐림(그 쪽을 못 읽었다). [다시 시도]는 같은 쪽.'],
+    'B:jump': ['쪽으로 이동 — 가운데 「3 / 1,109」를 누르면', '숫자 키보드가 바로 열린다. [처음 쪽] · [마지막 쪽] 은 한 번에. 범위 밖이면 안내(J11). D1 B · C 에는 이 시트가 없다.'],
+    'B:jumpErr': ['잘못된 번호 — 2000', '「1부터 1,109 사이 숫자를 적어 주세요」 + 칸 빨간 테두리. 고치면 바로 사라진다.'],
+    'B:cmp': ['D1 세 안 — 같은 512쪽, 쪽 줄까지 내린 모습', 'A ★ 가운데를 누르면 쪽 번호로 · B 이전 · 다음만 · C 번호 칩(폭이 좁아 번호 3개 남짓만 보인다).'],
+    'B:pos': ['쪽 줄 자리 — 목록 아래(★) vs 하단 탭 위에 붙임', '왼쪽은 처음 보이는 곳에 쪽 줄이 없고(내리면 나옴), 오른쪽은 늘 보이지만 단어 칸이 56px 줄어든다. 오른쪽은 「고정 줄은 상단 요약 · 하단 탭 · 입력 바만」 화면 규칙의 예외다.'],
+    'C:now': ['필터 줄 — 지금 vs 제안', '지금: 분류(난이도) 칩 줄 + 조각 「없음」. 제안: 출처 칩 「전체 · 내 단어 · 기본 단어」(D10 A) · 분류 줄 사라짐(직접 정한 분류가 없어서 — D3 B) · 조각 줄은 「없음」 대신 새 유형(D4).'],
+    'C:src': ['D10 출처 칩 — 있음(★) vs 없음', '왼쪽: 「내 단어」를 눌러 내가 넣은 3개만. 오른쪽(D10 B): 칩 없이 「최근 추가」 정렬로 내 단어가 앞에 오는 것만으로 찾는다 — 내 단어가 늘면 기본 단어 사이에 섞여 찾기 어렵다.'],
+    'C:custom': ['D3 B — 내 단어에 직접 정한 분류(예: 여행)가 생기면', '폼의 「분류」 칸에 「여행」을 적은 내 단어가 있으면 그 칩만 다시 보인다. 기본 단어의 난이도 이름(초보자 (N5) … 최상급 (N1))은 칩으로 나오지 않는다.'],
+    'C:catA': ['D3 A — 분류 칩 줄을 통째로 없앨 때', '모양은 지금 B 와 같다. 차이는 「여행」 같은 직접 정한 분류가 생겨도 거를 수 없다는 것 — 폼의 「분류」 칸을 함께 뺄지 따로 정해야 한다.'],
+    'C:today': ['오늘의 단어 카드(공부 탭) — 지금 vs 제안', '같은 칩 부품. D3 오늘 카드 A ★ = 같게 뺀다(오늘 세트는 지금 수준 단어가 가장 많이 나오는 규칙 그대로) · B = 오늘 카드에는 난이도 칩을 남긴다. 풀은 보관하지 않은 기본 단어 + 내 단어.'],
+    'C:none': ['조각 「없음」 칩 → 새 유형', '지금 「없음」 = 조각이 빈 33개. 제안은 공용 기본 단어의 조각 없음 200행을 D4 규칙으로 한 번 채운 뒤 「없음」을 빼고, 새 유형(★ 표현)을 끝에 둔다.'],
+    'D:A': ['D4 A — 네 유형 그대로, 200행을 가장 가까운 유형에', '왼쪽: 「느낌」을 고르면 楽しい · 好き 사이에 はじめまして · すみません 같은 인사가 섞인다. 오른쪽: はじめまして 상세 — 「느낌 조각」.'],
+    'D:B': ['D4 B ★ — 「표현」 하나 추가(5유형)', '왼쪽: 「표현」 칩 = 인사 · 대답 · 감탄 · 이음말 122개(18쪽). 오른쪽: はじめまして 상세 — 「표현 조각」. 품사 뱃지 「표현」과 나란히 나오지만 조각 뱃지는 늘 「… 조각」이다.'],
+    'D:C': ['D4 C — 「표현」 · 「붙는말」 둘 추가(6유형)', '왼쪽: 「붙는말」 칩 = 様 · 個 · 冊 같은 접두 · 접미 · 세는 말 · 조사 49개(7쪽). 칩이 6개라 360 에서 줄 끝이 잘려 밀어야 보인다. 오른쪽: 様 상세 — 「붙는말 조각」.'],
+    'E:manual': ['직접 입력 — 조각을 아직 안 고름', '「품사」 아래 「조각*」 칩 줄(라디오). 아직 안 고르면 안내 한 줄. D5 B 면 「이름」이 미리 골라져 있다. 여기서 넣은 단어는 내 단어(나만 봄).'],
+    'E:pick': ['조각을 고르면 뜻 한 줄', '고른 조각의 뜻과 예가 칩 아래에 — 「이게 무슨 조각이지?」를 그 자리에서 푼다.'],
+    'E:err': ['안 고르고 저장', '「조각을 골라 주세요」(빨강, 칩 테두리) + 초점이 첫 칩으로. 다른 칸 오류와 같은 규칙(첫 오류 칸으로). D5 B 에는 이 상태가 없다.'],
+    'E:draft': ['선생님 초안 뒤 — 조각도 미리 골라 둠', 'D5 초안 뒤 A ★ = 초안이 조각까지 채운다(勉強 같은 명사도 액션). B = 품사로 고름. C = 비워 둠. 언제든 바꿀 수 있다.'],
+    'E:dup': ['기본 단어와 같은 표현 — ‘映画’', 'D9 A ★ = 표기 · 읽기가 같은 기본 단어가 있으면 넣지 않고 「기본 단어에 이미 있어요」 + [그 단어 보기](지금 「단어장에 같은 표현이 이미 있어요」와 같은 자리). D9 B = 넣을 수 있고 목록에 둘 다 보인다.'],
+    'E:surface': ['첫 단계 — 맨 아래 기본 단어 글자 버튼 없음', '「뜻 채우기」 · 「직접 입력하기」만. 지금 화면의 「초보자 (N5) 기본 단어 676개 한 번에 넣기 ›」는 사라진다.'],
+    'F:row': ['목록 행 — 조각이 빈 행에도 뱃지', '지금 はじめまして · どこ · その · でも 는 조각이 비어 뱃지가 없다. 재분류 뒤엔 모든 행에 뱃지(D8 A). 내 단어에는 「내 단어」(D10 표시 A). D8 B 면 목록 행에 조각 뱃지가 없다.'],
+    'F:detail': ['기본 단어 상세 — 뱃지 줄', '품사 · 수준 · 조각 · 「기본 단어」. 수준 뱃지는 그대로(J10). 기본 단어는 읽기 전용이라 [보관]만(D6 A).'],
+    'F:edit': ['수정 시트 — 이제 내 단어만', '지금은 모든 단어(복사본)를 고칠 수 있지만 수정 폼에 조각 칸이 없다. 제안: 기본 단어는 수정이 없고(읽기 전용), 내 단어 수정 폼에 조각 칸 — 지금 조각이 골라진 채 열린다.'],
+    'G:new': ['새 계정 첫 화면 — 기본 단어 7,755개가 바로 보인다', '넣는 단계가 없다(공용 행). 처음 한 번 목록 위 안내 띠(닫으면 이 기기에서 다시 안 보임 — J9). 맞힘 · 틀림은 아직 없다.'],
+    'G:basic': ['기본 단어 상세 — 읽기 전용', '수정 · 삭제 단추가 없다. D6 A ★ = [보관]만(목록 · 오늘의 단어에서 숨김, 나에게만) · D6 B = 단추 없음. 맞힘 · 틀림 · 마지막 결과는 내 기록.'],
+    'G:mine': ['내 단어 상세 — 수정 · 보관 · 삭제', '내가 넣은 값 그대로, 나만 본다. 수준 뱃지 없음(직접 입력엔 수준 칸이 없다). 삭제 확인은 지금 문구 그대로.'],
+    'G:srcMine': ['「내 단어」만 — 출처 칩(D10 A)', '내가 넣은 3개만. 7개 이하라 쪽 줄 없음.'],
+    'G:mine0': ['내 단어 0개 — 새 계정에서 「내 단어」를 누르면', '「아직 내가 넣은 단어가 없어요」 + [단어 직접 추가]. 기본 단어 넣기 버튼은 없다.'],
+    'G:hidden': ['보관함 — 숨긴 기본 단어', '보관함을 켜면 숨긴 기본 단어 · 내 단어가 모인다(D6 A). 상세에서 [보관 풀기]로 되돌린다. D6 B 면 기본 단어는 여기에 오지 않는다.'],
+    'G:today': ['오늘의 단어 — 바로 시작', '빈 카드 대신 준비 카드. 분류 칩은 D3 오늘 카드 결정대로(★ 없음).'],
+    'G:todayEmpty': ['오늘의 단어 빈 카드 — 기본 단어를 모두 숨겼을 때만', '기본 단어 넣기 버튼 없이 「단어 직접 추가」만. 거의 생기지 않는 상태다.'],
+    'H:live': ['직접 해 보기', '쪽 넘기기 · 가운데 「n / 1,109」 눌러 쪽으로 이동 · 출처 칩 · 조각 칩 · 정렬 · 행 눌러 상세(기본 단어는 보관만) → 닫기(보던 쪽 유지) · ＋ 추가 → 직접 입력 → 조각 고르기 → 저장(내 단어로). 위 결정을 바꾸면 여기도 바뀐다.']
+  };
+
+  function phone(w, inner, label, sub) {
+    var cls = (S.fu ? '' : ' nofu') + (S.hg ? '' : ' nohg');
+    return '<figure class="fw"><div class="phone w' + w + cls + '" data-w="' + w + '">' + inner + '</div><figcaption class="fdim">' + (label ? '<b>' + label + '</b> · ' : '') + w + ' × 780' + (sub ? '<br>' + sub : '') + '</figcaption></figure>';
+  }
+  function planName(p) { return { A: 'A 네 유형', B: 'B 표현 추가', C: 'C 표현 · 붙는말' }[p]; }
+
+  function screenFor(tab, sub, w, wkey) {
+    var k = wkey || w;
+    if (tab === 'B') {
+      if (sub === 'p1') return wordsScreen({ w: k, page: 0, scroll: 'bottom' });
+      if (sub === 'mid') return wordsScreen({ w: k, page: 511, scroll: 'bottom' });
+      if (sub === 'last') return wordsScreen({ w: k, page: 1108, scroll: 'bottom' });
+      if (sub === 'one') return wordsScreen({ w: k, q: '映画', cnt: 2, rows: [W('映画'), EIGA_KAN] });
+      if (sub === 'none') return wordsScreen({ w: k, q: 'ねこじゃらし', cnt: 0, state: 'search0' });
+      if (sub === 'first') return wordsScreen({ w: k, state: 'first' });
+      if (sub === 'paging') return wordsScreen({ w: k, page: 3, state: 'paging', scroll: 'bottom' });
+      if (sub === 'err') return wordsScreen({ w: k, page: 3, state: 'pageErr', scroll: 'bottom' });
+      if (sub === 'jump') return wordsScreen({ w: k, page: 2, scroll: 'bottom', sheet: S.d.d1 === 'A' ? 'jump' : null, jv: '' });
+      if (sub === 'jumpErr') return wordsScreen({ w: k, page: 2, scroll: 'bottom', sheet: S.d.d1 === 'A' ? 'jump' : null, jv: '2000', jErr: true });
+    }
+    if (tab === 'C') {
+      if (sub === 'custom') return wordsScreen({ w: k, cat: S.d.d3 === 'B' ? 'custom' : 'none', mark: true });
+      if (sub === 'catA') return wordsScreen({ w: k, cat: 'none' });
+      if (sub === 'none') return wordsScreen({ w: k, chunk: S.d.d4 === 'A' ? 'FEELING' : 'EXPRESSION', mark: true });
+    }
+    if (tab === 'E') {
+      var eiga = W('映画'), ben = W('勉強');
+      var pickDef = S.d.d5 === 'B' ? 'NAME' : null;
+      if (sub === 'manual') return wordsScreen({ w: k, sheet: 'add', step: 'form', vals: { s: '会議', r: 'かいぎ', m: '회의', p: 'NOUN', cat: '' }, pick: pickDef, mark: true });
+      if (sub === 'pick') return wordsScreen({ w: k, sheet: 'add', step: 'form', vals: { s: '会議', r: 'かいぎ', m: '회의', p: 'NOUN', cat: '' }, pick: 'ACTION' });
+      if (sub === 'err') return S.d.d5 === 'A' ? wordsScreen({ w: k, sheet: 'add', step: 'form', vals: { s: '会議', r: 'かいぎ', m: '회의', p: 'NOUN', cat: '' }, ckErr: true }) : wordsScreen({ w: k, sheet: 'add', step: 'form', vals: { s: '会議', r: 'かいぎ', m: '회의', p: 'NOUN', cat: '' }, pick: 'NAME' });
+      if (sub === 'draft') {
+        var dp = S.d.d5d === 'A' ? 'ACTION' : S.d.d5d === 'B' ? 'NAME' : (S.d.d5 === 'B' ? 'NAME' : null);
+        var note = S.d.d5d === 'A' ? '선생님이 고른 조각이에요 · 바꿀 수 있어요' : S.d.d5d === 'B' ? '품사(명사)로 미리 골랐어요 · 바꿀 수 있어요' : '';
+        return wordsScreen({ w: k, sheet: 'add', step: 'form', draft: true, vals: { s: ben.s, r: ben.r, m: ben.m, p: ben.p, cat: '' }, pick: dp, pickNote: note });
+      }
+      if (sub === 'surface') return wordsScreen({ w: k, sheet: 'add', step: 'surface' });
+      if (sub === 'dup') {
+        if (S.d.d9 === 'A') return wordsScreen({ w: k, sheet: 'add', step: 'surface', sv: '映画', dup: true });
+        return wordsScreen({ w: k, sheet: 'add', step: 'form', draft: true, dupOk: true, vals: { s: eiga.s, r: eiga.r, m: eiga.m, p: eiga.p, cat: '' }, pick: 'NAME' });
+      }
+    }
+    if (tab === 'G') {
+      var hj2 = W('はじめまして'), oshi = W('推し');
+      if (sub === 'new') return wordsScreen({ w: k, page: 0, band: true, mine: [], noPlay: true });
+      if (sub === 'basic') return wordsScreen({ w: k, sheet: 'detail', word: hj2 });
+      if (sub === 'mine') return wordsScreen({ w: k, sheet: 'detail', word: oshi });
+      if (sub === 'srcMine') return S.d.d10 === 'A' ? wordsScreen({ w: k, src: 'mine' }) : wordsScreen({ w: k });
+      if (sub === 'mine0') return S.d.d10 === 'A' ? wordsScreen({ w: k, src: 'mine', mine: [], cnt: 0, state: 'mine0' }) : wordsScreen({ w: k, mine: [] });
+      if (sub === 'hidden') return wordsScreen({ w: k, arch: true, cnt: S.d.d6 === 'A' ? 2 : 0, rows: S.d.d6 === 'A' ? [W('いざ'), W('著名')] : [], state: S.d.d6 === 'A' ? undefined : 'archEmpty' });
+      if (sub === 'today') return todayScreen({});
+      if (sub === 'todayEmpty') return todayScreen({ empty: true });
+    }
+    return wordsScreen({ w: k });
+  }
+  function stageHtml() {
+    var sub = S.sub[S.tab], ws = S.w === 'all' ? ['360', '390', '412'] : [S.w], w1 = S.w === 'all' ? '390' : S.w;
+    var t = S.tab;
+    if (t === 'A') {
+      if (sub === 'list') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, mark: true }), '지금 · 678개 · 30개씩') + phone(w1, wordsScreen({ w: w1 + 'p', page: 0, mark: true, scroll: 'bottom' }), '제안 · 7,758개 · 7개씩');
+      if (sub === 'add') { var v = { s: '会議', r: 'かいぎ', m: '회의', p: 'NOUN', cat: '' }; return phone(w1, wordsScreen({ w: w1 + 'n', now: true, sheet: 'add', step: 'form', vals: v, mark: true, anchor: 'ck' }), '지금 · 품사 | 수준') + phone(w1, wordsScreen({ w: w1 + 'p', sheet: 'add', step: 'form', vals: v, mark: true, pick: S.d.d5 === 'B' ? 'NAME' : null }), '제안 · 품사 · 조각'); }
+      if (sub === 'addTop') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, sheet: 'add', step: 'surface', mark: true }), '지금 · 맨 아래 넣기 버튼') + phone(w1, wordsScreen({ w: w1 + 'p', sheet: 'add', step: 'surface' }), '제안 · 버튼 없음');
+      if (sub === 'empty') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, state: 'emptyAll', cnt: 0, cat: 'none', mark: true }), '지금 · 새 계정 = 빈 단어장') + phone(w1, wordsScreen({ w: w1 + 'p', page: 0, band: true, mine: [], noPlay: true }), '제안 · 기본 단어 7,755개');
+    }
+    if (t === 'B') {
+      if (sub === 'p1') {
+        if (S.w === 'all') return ws.map(function (w) { return phone(w, wordsScreen({ w: w, page: 0, scroll: 'bottom' }), '1쪽 · 쪽 줄까지 내림'); }).join('');
+        return phone(w1, wordsScreen({ w: w1 + 't', page: 0, scroll: 'top' }), '1쪽 · 처음 보이는 곳') + phone(w1, wordsScreen({ w: w1 + 'b', page: 0, scroll: 'bottom' }), '1쪽 · 쪽 줄까지 내림');
+      }
+      if (sub === 'cmp') return ['A', 'B', 'C'].map(function (v) { return phone(w1, wordsScreen({ w: w1 + v, page: 511, scroll: 'bottom', shape: v }), v === 'A' ? 'A ★ 가운데 눌러 쪽으로 이동' : v === 'B' ? 'B 이전 · 다음만' : 'C 번호 칩'); }).join('');
+      if (sub === 'pos') return phone(w1, wordsScreen({ w: w1 + 'a', page: 2, scroll: 'top', pos: 'A' }), 'A ★ 목록 아래(처음 보이는 곳)') + phone(w1, wordsScreen({ w: w1 + 'b', page: 2, scroll: 'top', pos: 'B' }), 'B 하단 탭 위에 고정');
+    }
+    if (t === 'C') {
+      if (sub === 'now') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, mark: true }), '지금 · 분류 줄 · 「없음」') + phone(w1, wordsScreen({ w: w1 + 'p', page: 0, mark: true }), '제안 · D3 ' + S.d.d3 + ' · D4 ' + S.d.d4);
+      if (sub === 'src') return phone(w1, wordsScreen({ w: w1 + 'a', src: 'mine', mark: true }), 'D10 A ★ 「내 단어」를 누름') + phone(w1, (function () { var keep = S.d.d10; S.d.d10 = 'B'; var h = wordsScreen({ w: w1 + 'b' }); S.d.d10 = keep; return h; })(), 'D10 B 출처 칩 없음');
+      if (sub === 'today') return phone(w1, todayScreen({ now: true, mark: true }), '지금 · 오늘 카드 분류 칩') + phone(w1, todayScreen({}), '제안 · D3 오늘 카드 ' + S.d.d3t);
+      if (sub === 'none') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, chunk: 'none', mark: true }), '지금 · 「없음」 33개') + phone(w1, screenFor('C', 'none', w1, w1 + 'p'), '제안 · ' + (S.d.d4 === 'A' ? '느낌' : '표현') + ' 칩');
+    }
+    if (t === 'D') {
+      var plan = sub, target = plan === 'A' ? 'FEELING' : plan === 'B' ? 'EXPRESSION' : 'AFFIX';
+      var dw = plan === 'C' ? W('様') : W('はじめまして');
+      var rows = plan === 'A' ? [W('楽しい'), W('はじめまして'), W('好き'), W('すみません'), W('静か'), W('はい'), W('安心')] : null;
+      return phone(w1, wordsScreen({ w: w1 + 'l', plan: plan, chunk: target, mark: true, rows: rows }), planName(plan) + ' · 「' + CKL[target] + '」 칩') + phone(w1, wordsScreen({ w: w1 + 'd', plan: plan, chunk: target, sheet: 'detail', word: dw, mark: true, rows: rows }), dw.s + ' 상세');
+    }
+    if (t === 'E') {
+      if (sub === 'surface') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, sheet: 'add', step: 'surface', mark: true }), '지금') + phone(w1, screenFor('E', 'surface', w1, w1 + 'p'), '제안');
+      return ws.map(function (w) { return phone(w, screenFor('E', sub, w)); }).join('');
+    }
+    if (t === 'F') {
+      var hj = W('はじめまして');
+      if (sub === 'row') { var rr = [W('はじめまして'), W('どこ'), W('その'), W('でも'), W('映画'), W('会う'), W('楽しい')]; return phone(w1, wordsScreen({ w: w1 + 'n', now: true, rows: rr, mark: true }), '지금 · 빈 조각은 뱃지 없음') + phone(w1, wordsScreen({ w: w1 + 'p', rows: rr, mark: true }), '제안 · D8 ' + S.d.d8); }
+      if (sub === 'detail') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, sheet: 'detail', word: hj }), '지금 · 조각 뱃지 없음') + phone(w1, wordsScreen({ w: w1 + 'p', sheet: 'detail', word: hj, mark: true }), '제안');
+      if (sub === 'edit') { var v2 = valsOf(hj, { r: '' }), em = W('エモい'); return phone(w1, wordsScreen({ w: w1 + 'n', now: true, sheet: 'edit', vals: v2, mark: true, anchor: 'ck' }), '지금 · 수준 칸 · 조각 칸 없음') + phone(w1, wordsScreen({ w: w1 + 'p', sheet: 'edit', vals: { s: em.s, r: '', m: em.m, p: em.p, cat: '' }, pick: em.c, mark: true }), '제안 · 내 단어 エモい 수정'); }
+    }
+    if (t === 'G') {
+      if (sub === 'today') return phone(w1, todayScreen({ now: true, empty: false, mark: true }), '지금(678개)') + phone(w1, todayScreen({}), '제안(7,758개)');
+      if (sub === 'todayEmpty') return phone(w1, todayScreen({ now: true, empty: true }), '지금') + phone(w1, todayScreen({ empty: true }), '제안');
+      if (sub === 'basic' || sub === 'mine') return phone(w1, wordsScreen({ w: w1 + 'n', now: true, sheet: 'detail', word: W('はじめまして') }), '지금 · 복사본 = 수정 · 보관 · 삭제') + phone(w1, screenFor('G', sub, w1, w1 + 'p'), sub === 'basic' ? '제안 · 기본 단어 · D6 ' + S.d.d6 : '제안 · 내 단어');
+    }
+    if (t === 'H') return ws.map(function (w) { return phone(w, liveScreen(w)); }).join('');
+    return ws.map(function (w) { return phone(w, screenFor(t, sub, w)); }).join('');
+  }
+
+  /* ════ 직접 해 보기(H) ════ */
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+  function liveReset() {
+    clearTimers();
+    S.live = { page: 0, chunk: null, src: 'all', sort: 'recent', sheet: null, word: null, jv: '', jErr: false, paging: false, band: true, mine: MINE0.slice(), arch: {}, add: null, scroll: 'top' };
+  }
+  function L() { return S.live; }
+  function liveCnt() { var l = L(); return cntOf(l.chunk, null, l.src, l.mine); }
+  function liveRows() {
+    var l = L(), cnt = liveCnt(), P = pagesOf(cnt);
+    if (l.sort === 'recent') return pageRows(l.page, l.chunk, null, cnt, l.src, l.mine);
+    var list = (l.src === 'mine' ? mineOf(l.chunk, null, l.mine) : listFor(l.chunk)).slice();
+    if (l.sort === 'surface') list.sort(function (a, b) { var x = a.r || a.s, y = b.r || b.s; return x < y ? -1 : x > y ? 1 : 0; });
+    if (l.sort === 'wrong') list.sort(function (a, b) { return ((PLAY[b.s] || [0, 0])[1]) - ((PLAY[a.s] || [0, 0])[1]); });
+    var k = l.page === P - 1 ? cnt - (P - 1) * 7 : 7, out = [];
+    for (var i = 0; i < k; i++) out.push(list[(l.page * 7 + i) % Math.max(1, list.length)]);
+    return out;
+  }
+  function liveScreen(w) {
+    var l = L(), cnt = liveCnt();
+    var o = { w: w, page: l.page, chunk: l.chunk, src: l.src, mine: l.mine, sort: l.sort, cnt: cnt, rows: cnt ? liveRows() : [], state: l.paging ? 'paging' : (l.src === 'mine' && !cnt ? 'mine0' : undefined), band: l.band, bandT: '기본 단어 7,755개가 들어 있어요', scroll: l.scroll };
+    if (l.sheet === 'jump') { o.sheet = 'jump'; o.jv = l.jv; o.jErr = l.jErr; }
+    if (l.sheet === 'detail') { o.sheet = 'detail'; o.word = l.word; o.archived = !!l.arch[l.word.s]; }
+    if (l.sheet === 'add') { var a = l.add; o.sheet = 'add'; o.step = a.step; o.sv = a.sv; o.dup = a.dup; o.dupOk = a.dupOk; o.draft = a.draft; o.vals = a.vals; o.pick = a.pick; o.ckErr = a.err; o.formErr = a.formErr; o.saving = a.saving; o.pickNote = a.pickNote; o.anchor = 'ck'; }
+    return wordsScreen(o);
+  }
+  function goPage(np, how) {
+    var l = L(), P = pagesOf(liveCnt());
+    if (np < 0 || np >= P || np === l.page || l.paging) return;
+    l.page = np; l.paging = true; l.sheet = null; l.scroll = 'keep';
+    S.focus = how;
+    render();
+    later(380, function () {
+      var m = L(); if (!m) return; m.paging = false;
+      if (S.d.d1p === 'A') { m.scroll = 'head'; S.focus = '.phone [data-lhd]'; } else { m.scroll = 'listTop'; S.focus = how; }
+      render(); m.scroll = 'keep';
+    });
+  }
+
+  /* ════ 결정 ════ */
+  var DECS = [
+    { id: 'D1', t: 'D1 · 쪽 이동 모양 · 쪽 줄 자리', q: '7개씩 1,109쪽을 어떻게 오가나? 쪽 줄은 어디에?',
+      fact: '[확실] 단어 목록 서버(#40)는 전체 개수(total)를 이미 준다 — 「3 / 1,109」은 서버 변경 없이 그린다. 「n쪽으로 바로 가기」는 서버가 쪽 번호로 읽기를 지원해야 한다(지금은 다음 쪽 열쇠만). [확실] 7행 + 검색 · 필터 줄은 390×780 한 화면에 다 안 들어간다(상태 B 「1쪽」).',
+      groups: [{ key: 'd1', opts: [
+        ['A', '‹ 이전 · 3 / 1,109 · 다음 › + 쪽으로 이동', '가운데 「3 / 1,109」을 누르면 쪽 번호 칸', ['질문 탭과 같은 쪽 줄', '먼 쪽으로 숫자 한 번에', '단추 두 개 44px — 360 에서도 넉넉'], ['서버에 쪽 번호로 읽기 추가(작음)', '가운데가 단추인 줄 덜 보임 — 밑줄로 표시']],
+        ['B', '이전 · 다음만', '가운데 「3 / 1,109」(누를 수 없음)', ['서버 변경 없음(다음 쪽 열쇠 쌓기)'], ['500쪽까지 가려면 499번 — 먼 쪽은 검색 · 조각으로만']],
+        ['C', '번호 칩', '‹ 1 … 512 … 1,109 ›', ['보이는 번호는 바로'], ['360~412 폭에 번호가 3개 남짓만 — 1,109쪽에선 거의 쓸모 없음', '서버에 쪽 번호로 읽기 필요']]
+      ], rec: 'A' }, { key: 'd1p', idLabel: 'D1 자리', legend: '쪽 줄 자리', two: true, opts: [
+        ['A', '목록 바로 아래', '내려서 닿음 · 넘기면 목록 처음으로', ['고정 줄 규칙(상단 요약 · 하단 탭 · 입력 바만) 그대로', '단어 칸이 넓다'], ['넘길 때마다 조금 내려야 함']],
+        ['B', '하단 탭 위에 붙임', '늘 보임', ['내리지 않고 연달아 넘김'], ['단어 칸이 늘 56px 줄어듦', '고정 줄 규칙의 예외 — 화면 규칙을 고쳐야 함']]
+      ], rec: 'A' }] },
+    { id: 'D2', t: 'D2 · 보던 쪽 기억', q: '쪽을 넘기다 다른 곳에 갔다 오면?',
+      fact: '[확실] 지금 단어장은 다른 탭에 갔다 오면 검색 · 분류 · 조각 조건이 처음으로 돌아가고 정렬만 이 기기에 남는다. 어느 안이든 검색어 · 조각 · 정렬 · 보관함을 바꾸면 1쪽부터, 상세 · 추가 시트를 닫으면 보던 쪽이다.',
+      groups: [{ key: 'd2', two: true, opts: [
+        ['A', '단어장 화면에 있는 동안만', '다른 탭에 갔다 오면 1쪽', ['지금 조건 규칙과 같다(정렬만 기억)', '돌아오면 늘 같은 시작'], ['1,109쪽 중 37쪽을 보다 다른 탭에 가면 1쪽부터']],
+        ['B', '다른 탭에 갔다 와도 기억', '쪽 · 조각 · 보관함 · 정렬(검색어는 지움)', ['길게 훑던 자리로 돌아온다'], ['돌아왔을 때 왜 이 목록인지(조각 · 보관함) 헷갈릴 수 있다', '기억할 값이 늘어 규칙이 복잡']]
+      ], rec: 'A' }] },
+    { id: 'D3', t: 'D3 · 난이도 칩', q: '「조건 필터 중 난이도」를 어디까지 빼나?',
+      fact: '[확실] 분류 칩은 단어의 분류 값이다 — 기본 단어의 분류 = 난이도 이름(초보자 (N5) … 최상급 (N1)), 옛 50개 = 「N5 기초」. 지금 사용자의 직접 정한 분류는 0개. [확실] 추가 · 수정 폼에는 「분류」 칸(자유 입력)이 있다. [확실] 오늘의 단어 카드도 같은 칩 부품을 쓴다(분류가 2개 이상일 때만).',
+      chg: 'Leader 초안의 ★ A(줄 통째로)를 <b>★ B(난이도 칩만)</b>로 바꿨다 — 폼의 「분류」 칸이 남는 한, 줄을 통째로 없애면 직접 정한 분류로 거를 길이 사라진다. 지금 사용자에게는 두 안의 모양이 같다.',
+      groups: [{ key: 'd3', two: true, opts: [
+        ['A', '분류 칩 줄을 통째로 없앰', '분류는 상세 뱃지로만', ['가장 단순'], ['「여행」처럼 직접 정한 분류를 거를 길이 없다', '폼의 「분류」 칸을 함께 뺄지 따로 정해야 함']],
+        ['B', '난이도 이름 칩만 뺌', '직접 정한 분류가 생기면 그 칩만', ['요청 문장 그대로(난이도만)', '지금은 줄 자체가 안 보여 A 와 같은 모양', '폼의 「분류」 칸이 쓸모를 지킨다'], ['난이도 이름 6개(옛 「N5 기초」 포함)를 가려내는 규칙 하나']]
+      ], rec: 'B' }, { key: 'd3t', idLabel: 'D3 오늘 카드', legend: '오늘의 단어 카드(공부 탭)', two: true, opts: [
+        ['A', '같게 뺀다', '오늘 세트는 지금 수준 단어가 가장 많이(지금 규칙)', ['같은 칩 부품 — 규칙 한 곳'], ['「오늘은 중급만」처럼 고를 수 없다']],
+        ['B', '오늘 카드에는 남긴다', '난이도 칩으로 오늘 풀 단계 고르기', ['단계를 골라 풀 수 있다'], ['같은 부품에 두 갈래 규칙', '요청(단어장 필터) 범위 밖']]
+      ], rec: 'A' }] },
+    { id: 'D4', t: 'D4 · 조각 유형 다시 정하기', q: '공용 기본 단어 중 조각이 빈 200행을 어떻게 나누나?',
+      fact: '[확실] 위 「D4 조각 유형」 표가 시드에서 센 실제 배정이다. [확실] 조각 목록 값은 교정 · 수업 주제 조각 · 평가와 공유 — B · C 는 공유 DB 의 목록 값 추가(스키마 변경 · 사용자 승인). 수업 · 평가의 조각 조립은 4유형 그대로. [확실] 품사 「표현」과 이름이 같아 상세에 「표현」(품사) · 「표현 조각」 뱃지가 나란히 나올 수 있다(조각 뱃지는 늘 「… 조각」).',
+      groups: [{ key: 'd4', opts: [
+        ['A', '네 유형 그대로', '200행 → 꾸밈 119 · 느낌 70 · 이름 11', ['스키마 변경 없음', '교정 · 수업 · 평가와 같은 4유형'], ['はじめまして · ありがとう 가 「느낌」, でも · それから 가 「꾸밈」 — 칩 이름과 안 맞음', '「느낌」 · 「꾸밈」 정의가 넓어짐']],
+        ['B', '「표현」 하나 추가', '200행 → 표현 122 · 꾸밈 64 · 이름 11 · 느낌 3', ['인사 · 대답 · 감탄 · 이음말이 한 칩에 — 회화에 바로 쓰는 말', '네 유형 정의는 그대로', '접사 · 조사는 페르소나 정의(꾸밈 = 조사구)대로 꾸밈'], ['목록 값 1개 추가(사용자 승인)', '라벨 표 1줄씩(교정 · 수업 · 평가 화면)']],
+        ['C', '「표현」 · 「붙는말」 둘 추가', '200행 → 표현 122 · 붙는말 49 · 꾸밈 15 · 이름 11 · 느낌 3', ['様 · 個 · 冊 을 따로 모아 본다'], ['붙는말은 49개뿐(7쪽)', '칩 6개 — 360 에서 줄을 밀어야 끝이 보임', '값 2개 추가']]
+      ], rec: 'B' }] },
+    { id: 'D5', t: 'D5 · 직접 입력의 조각 고르기', q: '「수준」 칸 자리의 조각 — 안 고르면? 선생님 초안 뒤에는?',
+      fact: '[확실] 지금 폼(추가 · 수정 공용)엔 조각 칸이 없다. [확실] 선생님 초안(뜻 채우기)은 수준을 채우고 조각은 채우지 않는다. [확실] 시드 명사 중 1,341개(약 1/4)는 勉強 · 準備 처럼 액션이다 — 품사만으로는 자주 틀린다.',
+      groups: [{ key: 'd5', two: true, opts: [
+        ['A', '꼭 고름', '안 고르고 저장하면 「조각을 골라 주세요」', ['조각이 빈 단어가 다시 생기지 않는다(「없음」 칩을 뺀 이유)'], ['한 번 더 누름']],
+        ['B', '「이름」을 미리 골라 둠', '바꾸지 않으면 이름', ['누를 것이 줄어든다'], ['동사를 넣고도 「이름」으로 남기 쉽다 — 칩이 섞인다']]
+      ], rec: 'A' }, { key: 'd5d', idLabel: 'D5 초안 뒤', legend: '선생님 초안(뜻 채우기) 뒤', opts: [
+        ['A', '초안이 조각도 채움', '「선생님이 고른 조각이에요」', ['가장 정확(勉強 도 액션)', '사용자가 바꿀 수 있음'], ['뜻 채우기 프롬프트에 칸 추가 — prompt-engineer']],
+        ['B', '품사로 미리 고름', '명사 → 이름 · 동사 → 액션 · 형용사 → 느낌 · 부사 → 꾸밈', ['서버 · 프롬프트 변경 없음'], ['勉強 · 準備 같은 명사가 「이름」 — 명사 4개 중 1개꼴 틀림']],
+        ['C', '비워 둠', '초안 뒤에도 직접 고름', ['단순'], ['초안이 다 채워 주는 장점이 한 칸 줄어듦']]
+      ], rec: 'A' }] },
+    { id: 'D6', t: 'D6 · 기본 단어 보관(숨기기)', q: '읽기 전용인 기본 단어를 내 목록에서 숨길 수 있게 할까?',
+      fact: '[확실 — 사용자 지시] 기본 단어는 공용 읽기 전용 행이고 모든 사용자가 계정을 만들자마자 본다(넣기 · 채워 넣기 · 「기본 단어 추가」 버튼 없음). 내용(표기 · 뜻 · 조각 …)은 고칠 수 없고 지울 수도 없다. 맞힘 · 틀림 · 마지막 결과는 사용자마다 따로 쌓인다. [확실] 지금 단어장의 「보관」은 목록과 오늘의 단어에서 빼는 기능이다.',
+      chg: '이전 D6(처음부터 넣기의 대상 · 시점)과 D7(기본 단어 넣기 버튼 3곳)은 바뀐 전제로 결정이 필요 없어져 지웠다 — 넣는 단계가 없고 버튼은 모두 사라진다.',
+      groups: [{ key: 'd6', two: true, opts: [
+        ['A', '보관 허용', '내용은 읽기 전용 · 보관(숨기기)만 사용자별', ['다 아는 단어 · 필요 없는 단어를 치울 길', '오늘의 단어에서도 빠진다', '지금 「보관」 그대로(보관함에서 되돌림)'], ['사용자별 보관 표지를 저장할 자리가 필요(기본 단어 · 사용자 짝)']],
+        ['B', '보관도 막음', '기본 단어 상세에 단추 없음', ['가장 단순 — 기본 단어는 늘 그대로'], ['7,755개 중 필요 없는 단어를 치울 수 없다', '오늘의 단어에 아는 단어가 계속 섞인다']]
+      ], rec: 'A' }] },
+    { id: 'D8', t: 'D8 · 조각 뱃지 보이는 곳', q: '「배포된 단어들도 조각항목으로 표기」를 어디에?',
+      fact: '[확실] 목록 행 · 상세에는 지금도 조각 뱃지가 있다(조각이 빈 33행만 없음 — 공용 기본 단어를 재분류하면 모두 보임). 추가 · 수정 폼에는 조각 칸이 없다. 이제 수정 · 추가는 내 단어에만 있다(기본 단어는 읽기 전용).',
+      groups: [{ key: 'd8', two: true, opts: [
+        ['A', '목록 행 · 상세 · 수정 · 추가 모두', '', ['어디서나 같은 조각 이름', '목록에서 한눈에'], ['360 에서 긴 단어 옆 뱃지가 자리를 차지(지금과 같음)']],
+        ['B', '상세 · 수정 · 추가만', '목록 행은 뱃지 없이', ['행이 덜 복잡'], ['목록에서 조각을 보려면 칩으로 걸러야 함', '지금 있는 행 뱃지를 지운다(task-023 결정 되돌림)']]
+      ], rec: 'A' }] }
+,
+    { id: 'D9', t: 'D9 · 내 단어가 기본 단어와 같을 때', q: '기본 단어와 표기 · 읽기가 같은 단어를 내 단어로 넣으면?',
+      fact: '[확실 — 시드 계산] 기본 단어 7,755행 안에는 표기 · 읽기가 같은 행이 0개다(같은 표기 · 다른 읽기는 105개 — 예: 日 にち/ひ). [확실] 지금도 같은 표현을 넣으면 「단어장에 같은 표현이 이미 있어요」 + [그 단어 보기]로 막는다.',
+      groups: [{ key: 'd9', two: true, opts: [
+        ['A', '막고 그 단어로', '「기본 단어에 이미 있어요」 + [그 단어 보기]', ['같은 단어가 목록에 두 번 나오지 않는다', '지금 중복 안내와 같은 자리 · 같은 모양'], ['내 뜻 · 예문을 따로 달고 싶어도 못 한다(기본 단어는 읽기 전용)']],
+        ['B', '넣을 수 있음', '내 단어로 따로(목록에 둘 다)', ['내 뜻 · 메모를 붙인 내 판을 가질 수 있다'], ['같은 단어가 두 줄 — 오늘의 단어에도 두 번 나올 수 있다', '어느 쪽 기록인지 헷갈린다']]
+      ], rec: 'A' }] },
+    { id: 'D10', t: 'D10 · 내 단어만 모아 보기 · 표시', q: '7,755개 기본 단어 사이에서 내가 넣은 단어를 어떻게 찾고 알아보나?',
+      fact: '[확실] 지금 단어장에는 출처로 거르는 칩이 없다(분류 · 조각 · 보관함만). [가능성 높음] 「최근 추가」에서는 내 단어가 앞에 오지만, 다른 정렬 · 검색 · 조각을 고르면 기본 단어 사이에 섞인다.',
+      chg: '「표시」 묶음은 Leader 안(행에 「기본」)과 다르게 ★ 를 「내 단어」에만 표시로 했다 — 1,109쪽 거의 모두가 기본 단어라 「기본」이 모든 행에 붙으면 정보가 되지 않고, 드문 쪽(내 단어)에 붙여야 눈에 띈다. 상세에는 두 안 모두 「기본 단어」 · 「내 단어」 뱃지가 있다.',
+      groups: [{ key: 'd10', two: true, opts: [
+        ['A', '출처 칩 「전체 · 내 단어 · 기본 단어」', '검색 칸 아래 한 줄(분류 칩 줄이 빠진 자리 근처)', ['내 단어만 바로 모아 본다', '기본 단어만 훑을 수도'], ['줄이 하나 늘어 첫 화면에 단어가 반 줄 덜 보인다']],
+        ['B', '추가 안 함', '「최근 추가」 정렬로만', ['화면이 단순'], ['내 단어가 늘면 찾기 어렵다', '검색 · 조각과 함께 거를 수 없다']]
+      ], rec: 'A' }, { key: 'd10m', idLabel: 'D10 표시', legend: '목록 행에서 출처 표시', two: true, opts: [
+        ['A', '「내 단어」에만 표시', '기본 단어 행은 표시 없음', ['드문 쪽에 붙어 눈에 띈다', '7개 행이 덜 복잡'], ['기본 단어인지는 상세에서 확인']],
+        ['B', '「기본」에 표시', '거의 모든 행에 「기본」', ['Leader 안 그대로'], ['1,109쪽 거의 모든 행에 같은 표시 — 구분 효과가 작다', '조각 뱃지와 나란히 두 개']]
+      ], rec: 'A' }] }
+  ];
+  var JUD = [
+    ['J1', '<b>마지막 쪽도 7행 높이</b> — 남는 칸은 보이지 않는 빈 행(질문 탭 J1 규칙, 글자 크게 보기에서도 같이 커짐). 7개 이하면 쪽 줄을 그리지 않는다.'],
+    ['J2', '<b>쪽을 넘기면 화면을 목록 머리 줄(「단어 7,758개 · 3쪽」)로 올리고 초점도 머리 줄로</b> — 화면 읽기는 「1,109쪽 중 3쪽」(status). D1 자리 B(고정)면 목록만 맨 위로, 초점은 누른 단추에.'],
+    ['J3', '<b>단어를 넣으면 1쪽으로</b> — 「최근 추가」에서 내 단어가 맨 위에 보인다. 다른 정렬이면 보던 쪽 + 토스트 「단어장에 넣었어요 · 내 단어는 나만 봐요」.'],
+    ['J4', '<b>상세에서 보관하거나(기본 · 내 단어) 지우면(내 단어) 같은 쪽을 다시 읽는다</b>(뒤 단어가 한 칸씩 당겨짐) — 그 쪽이 비면 앞 쪽.'],
+    ['J5', '<b>조각 칩 순서 = 이름 · 액션 · 느낌 · 꾸밈 · 표현(· 붙는말)</b> — 새 유형은 끝. 칩에 개수는 달지 않는다(지금 규칙). 뱃지는 지금처럼 회색 하나 — 새 색 없음.'],
+    ['J6', '<b>조각을 고른 채 검색 결과가 0개면 [‘…’ 추가하기]를 다시 보인다</b> — 추가 시트가 그 조각을 미리 고른다(지금은 넣은 단어의 조각이 비어 그 목록에 안 보여서 막아 둠).'],
+    ['J7', '<b>「최근 추가」 = 내 단어(넣은 시각 순)가 앞, 그 뒤 기본 단어(초보자 (N5)부터)</b> — 공용 기본 단어에는 「넣은 시각」이 따로 없으니 순서 기준을 정해 둔다 [확인 필요 — 서버 정렬].'],
+    ['J8', '<b>기본 단어의 맞힘 · 틀림 · 마지막 결과 · 보관은 사용자별</b> — 상세의 기록 줄은 내 기록만, 다른 사람 기록은 어디에도 보이지 않는다. 내 단어는 다른 사람 화면 · 오늘의 단어에 나오지 않는다.'],
+    ['J9', '<b>처음 한 번 목록 위 안내 띠</b>(닫으면 이 기기에서 다시 안 보임) 「기본 단어 7,755개가 들어 있어요 · 내용은 고칠 수 없고 보관만 · 필요한 단어는 ＋ 추가로」 + 기본 단어 상세 출처 줄 「기본 단어예요 · 내용은 고칠 수 없어요」.'],
+    ['J10', '<b>기본 단어 상세의 수준 뱃지는 그대로</b> — 오늘의 단어 가중이 쓴다. 내 단어는 수준 칸이 없어 수준 뱃지 없음(가중은 수준 없는 단어 규칙대로 — 구현 때 확인).'],
+    ['J11', '<b>쪽으로 이동</b> = 숫자 칸(숫자 키보드) · [처음 쪽] · [마지막 쪽] · 범위 밖이면 「1부터 1,109 사이 숫자를 적어 주세요」. 가운데 단추 이름은 보이는 글을 앞에 둔 「3 / 1,109 — 쪽으로 이동」(말로 누르기 · 화면 읽기 모두), 쪽 위치는 status 줄 「1,109쪽 중 3쪽 · 모두 7,649개」.'],
+    ['J12', '<b>채택한 교정 화면의 조각 칩(4종)은 그대로</b> — 교정은 선생님이 4유형으로만 나눈다. D4 B · C 의 새 유형은 단어장 전용 [확인 필요 — prompt-engineer].'],
+    ['J13', '<b>오늘의 단어 카드에 한 줄</b> 「지금 수준(초보자 (N5)) 단어가 가장 많이 나와요」 — 난이도 칩이 없어진 대신 무엇이 나오는지 알린다(task-053 단계 가중: 천장 N5 면 N5 약 71% · N4 약 20%). D3 오늘 카드 B 면 이 줄 없음.']
+  ];
+  function decHtml() {
+    return DECS.map(function (D) {
+      return '<section class="dec" aria-labelledby="dh-' + D.id + '"><h3 id="dh-' + D.id + '">' + D.t + '</h3><p class="q">' + D.q + '</p><p class="fact">' + D.fact + '</p>' + (D.chg ? '<p class="chg">' + D.chg + '</p>' : '') +
+        D.groups.map(function (G) {
+          return '<fieldset>' + (G.legend ? '<legend>' + G.legend + '</legend>' : '<legend class="sr">' + D.id + ' 선택</legend>') + '<div class="dec-g' + (G.two ? ' two' : '') + '">' +
+            G.opts.map(function (o) {
+              var on = S.d[G.key] === o[0];
+              return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="' + G.key + '" value="' + o[0] + '"' + (on ? ' checked' : '') + ' data-dec="' + G.key + '"><span class="opt-h"><span class="oh-t">' + (G.idLabel || D.id) + ' ' + o[0] + ' · ' + o[1] + '</span>' + (G.rec === o[0] ? '<span class="rec">★ 권고</span>' : '') + '</span>' + (o[2] ? '<span class="opt-d">' + o[2] + '</span>' : '') + '<ul>' + o[3].map(function (x) { return '<li class="p">' + x + '</li>'; }).join('') + o[4].map(function (x) { return '<li class="m">' + x + '</li>'; }).join('') + '</ul><span class="sel">' + (on ? '● 지금 화면에 반영됨' : '○ 눌러서 보기') + '</span></label>';
+            }).join('') + '</div></fieldset>';
+        }).join('') + '</section>';
+    }).join('');
+  }
+  function judHtml() {
+    return '<h3>그 밖 designer 판단 (결정 아님 — 바꾸고 싶으면 답장에 번호로)</h3><p class="dsub">화면에는 이대로 반영돼 있다.</p><ol>' + JUD.map(function (j) { return '<li><b class="n">' + j[0] + '</b><span>' + j[1] + '</span></li>'; }).join('') + '</ol>';
+  }
+  var SUMK = [
+    ['D1', 'd1', { A: '3/1,109 + 쪽으로 이동', B: '이전·다음만', C: '번호 칩' }],
+    ['D1 자리', 'd1p', { A: '목록 아래', B: '하단 탭 위 고정' }],
+    ['D2', 'd2', { A: '화면에 있는 동안만', B: '다른 탭 갔다 와도 기억' }],
+    ['D3', 'd3', { A: '분류 줄 통째로', B: '난이도 칩만' }],
+    ['D3 오늘 카드', 'd3t', { A: '같게 뺌', B: '남김' }],
+    ['D4', 'd4', { A: '네 유형 그대로', B: '표현 추가', C: '표현·붙는말' }],
+    ['D5', 'd5', { A: '꼭 고름', B: '이름 미리' }],
+    ['D5 초안 뒤', 'd5d', { A: '초안이 채움', B: '품사로', C: '비워 둠' }],
+    ['D6', 'd6', { A: '기본 단어 보관 허용', B: '보관도 막음' }],
+    ['D8', 'd8', { A: '행·상세·수정·추가', B: '상세·수정·추가만' }],
+    ['D9', 'd9', { A: '막고 그 단어로', B: '넣을 수 있음' }],
+    ['D10', 'd10', { A: '출처 칩', B: '추가 안 함' }],
+    ['D10 표시', 'd10m', { A: '내 단어에만', B: '기본에 표시' }]
+  ];
+  function decSum() {
+    var diff = SUMK.filter(function (k) { return S.d[k[1]] !== REC[k[1]]; });
+    var line = SUMK.map(function (k) { return k[0] + ' ' + S.d[k[1]] + ' ' + k[2][S.d[k[1]]]; }).join(' · ');
+    var apv = 'task-068 데모 v1 승인, 결정(D1~D10)은 권고대로' + (diff.length ? ' (바꾼 것: ' + diff.map(function (k) { return k[0] + ' ' + S.d[k[1]] + ' ' + k[2][S.d[k[1]]]; }).join(', ') + ')' : '');
+    return '<h3 id="h-mysum">내 선택 요약</h3>' +
+      '<p class="dsub">지금 고른 값이에요. 글 상자를 한 번 누르면 전체가 선택돼요 — [복사] 하거나 길게 눌러 복사해서 승인 답장에 붙여 주세요.</p>' +
+      '<p class="selbox" id="sum-line" tabindex="0" aria-label="내 선택 요약 글">' + esc(line) + '</p>' +
+      '<div class="row"><button type="button" data-act="copySum" data-arg="sum-line">요약 복사</button><span id="cp-sum-line" aria-live="polite"></span></div>' +
+      '<p class="dsub"><b>승인 문장 예</b> — 그대로 보내도 되고, 고쳐서 보내도 돼요.</p>' +
+      '<p class="selbox apv" id="sum-apv" tabindex="0" aria-label="승인 문장 예">' + esc(apv) + '</p>' +
+      '<div class="row"><button type="button" data-act="copySum" data-arg="sum-apv">승인 문장 복사</button><span id="cp-sum-apv" aria-live="polite"></span></div>' +
+      '<div class="row"><span aria-live="polite">' + (diff.length ? '권고와 다른 것 <b>' + diff.length + '개</b>: ' + diff.map(function (k) { return k[0]; }).join(', ') : '모두 ★ 권고안이에요') + '</span>' + (diff.length ? '<button type="button" data-act="decReset">모두 권고대로 되돌리기</button>' : '') + '</div>';
+  }
+
+  /* ════ 렌더 ════ */
+  function focusKey() {
+    var a = document.activeElement;
+    if (!a || a === document.body || !a.dataset) return null;
+    var sel = a.dataset.act ? '[data-act="' + a.dataset.act + '"]' + (a.dataset.arg ? '[data-arg="' + a.dataset.arg + '"]' : '')
+      : a.dataset.jp ? '[data-jp]' : a.dataset.sv ? '[data-sv]' : a.dataset.q ? '[data-q]'
+      : a.dataset.dec ? 'input[data-dec="' + a.dataset.dec + '"][value="' + a.value + '"]' : null;
+    if (!sel) return null;
+    var all = Array.prototype.slice.call(document.querySelectorAll(sel));
+    return { sel: sel, i: Math.max(0, all.indexOf(a)) };
+  }
+  function restoreFocus(fk) {
+    if (!fk) return;
+    var fl = document.querySelectorAll(fk.sel), f = fl[fk.i] || fl[0];
+    if (f) { try { f.focus({ preventScroll: true }); } catch (e1) { f.focus(); } if (f.tagName === 'INPUT') { try { var k = f.value.length; f.setSelectionRange(k, k); } catch (e2) { /* 무시 */ } } }
+  }
+  var keepScroll = {};
+  function alignAll() {
+    document.querySelectorAll('.phone .sc').forEach(function (sc) {
+      var mode = sc.dataset.scroll, max = sc.scrollHeight - sc.clientHeight, w = sc.closest('.phone').dataset.w;
+      if (mode === 'bottom') sc.scrollTop = max;
+      else if (mode === 'head' || mode === 'listTop') { var h = sc.querySelector('.lhd'); sc.scrollTop = h ? Math.max(0, Math.min(h.offsetTop - 62, max)) : 0; }
+      else if (mode === 'keep' && keepScroll[w] != null) sc.scrollTop = Math.min(keepScroll[w], max);
+      else sc.scrollTop = 0;
+    });
+    document.querySelectorAll('.phone .sheet[data-sto]').forEach(function (sh) {
+      var a = sh.querySelector('[data-anchor="' + sh.dataset.sto + '"]');
+      if (a) { var need = a.offsetTop + a.offsetHeight + 150 - sh.clientHeight; sh.scrollTop = need > 0 ? need : 0; }
+    });
+  }
+  function saveScroll() { document.querySelectorAll('.phone .sc').forEach(function (sc) { keepScroll[sc.closest('.phone').dataset.w] = sc.scrollTop; }); }
+  function capNotes() {
+    var out = [], t = S.tab, sub = S.sub[t];
+    if (S.d.d1 !== 'A' && t === 'B' && (sub === 'jump' || sub === 'jumpErr')) out.push('지금 고른 D1 = ' + S.d.d1 + ' — 가운데를 눌러 쪽으로 이동하는 시트는 ★ A 에만 있다. 화면은 쪽 줄만 보여 준다.');
+    if (S.d.d1 !== 'A' && /^[BGH]$/.test(t) && sub !== 'cmp') out.push(S.d.d1 === 'B' ? 'D1 B — 가운데 「n / 1,109」는 누를 수 없는 글이다.' : 'D1 C — 쪽 줄이 번호 칩이다.');
+    if (S.d.d1p === 'B' && /^[BGH]$/.test(t) && sub !== 'pos') out.push('D1 자리 B — 쪽 줄이 하단 탭 위에 붙어 늘 보인다.');
+    if (S.d.d3 === 'A' && t === 'C' && sub === 'custom') out.push('지금 고른 D3 = A — 직접 정한 분류(여행)가 있어도 칩 줄이 없다.');
+    if (S.d.d5 === 'B' && t === 'E' && sub === 'err') out.push('지금 고른 D5 = B — 「이름」이 미리 골라져 있어 「안 고르고 저장」 상태가 없다.');
+    if (S.d.d6 === 'B' && (t === 'G' || t === 'F' || t === 'H')) out.push('D6 B — 기본 단어 상세에 단추가 없고 보관함에 기본 단어가 오지 않는다.');
+    if (S.d.d8 === 'B' && (t === 'F' || t === 'B' || t === 'H')) out.push('D8 B — 목록 행에는 조각 뱃지가 없다(상세 · 수정 · 추가에만).');
+    if (S.d.d9 === 'B' && t === 'E' && sub === 'dup') out.push('D9 B — 막지 않고 내 단어로 넣는다(초안 화면). 목록에 映画 가 두 줄이 된다.');
+    if (S.d.d10 === 'B' && (t === 'G' || t === 'H' || t === 'C') && sub !== 'src') out.push('D10 B — 출처 칩이 없다. 「내 단어만」 · 「내 단어 0개」 상태는 칩 없이 그린다.');
+    if (S.d.d10m === 'B' && /^[ABCFGH]$/.test(t)) out.push('D10 표시 B — 기본 단어 행마다 「기본」 표시(내 단어는 표시 없음).');
+    if (S.d.d4 !== 'B' && /^[ABCFH]$/.test(t)) out.push('D4 = ' + planName(S.d.d4) + ' — 조각 칩 · 뱃지가 이 안으로 그려진다.');
+    return out;
+  }
+  function render() {
+    var fk = S.focus ? { sel: S.focus, i: 0 } : focusKey();
+    if (S.theme === 'sys') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', S.theme);
+    document.querySelectorAll('[data-act="w"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.arg === S.w)); });
+    document.querySelectorAll('[data-act="theme"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.arg === S.theme)); });
+    document.getElementById('tabs').innerHTML = Object.keys(TABDEF).map(function (k) { var T = TABDEF[k]; return '<button type="button" role="tab" id="tab-' + k + '" aria-selected="' + (S.tab === k) + '" data-act="tab" data-arg="' + k + '"><b>' + k + ' · ' + T.t + '</b><span>' + T.s + '</span></button>'; }).join('');
+    var T = TABDEF[S.tab], sub = S.sub[S.tab], cap = CAP[S.tab + ':' + sub] || ['', ''];
+    var subsH = T.subs.map(function (s) { return typeof s === 'string' ? '<span class="subl">' + s + '</span>' : '<button type="button" data-act="sub" data-arg="' + s[0] + '" aria-pressed="' + (sub === s[0]) + '">' + s[1] + '</button>'; }).join('');
+    var extra = '';
+    if (S.tab === 'H' && S.live) extra = '<div class="bkline" role="group" aria-label="데모 흉내"><button type="button" data-act="tabAway">다른 탭에 갔다 오기(흉내)</button><button type="button" data-act="liveReset">처음부터 다시</button><span class="bkmsg" aria-live="polite">' + esc(S.live.msg || ('D2 ' + S.d.d2 + (S.d.d2 === 'A' ? ' — 다른 탭에 갔다 오면 1쪽' : ' — 다른 탭에 갔다 와도 보던 쪽'))) + '</span></div>';
+    if (S.tab === 'D') extra += planBox(sub);
+    document.getElementById('cap').innerHTML = '<h3>' + cap[0] + '</h3><p class="why">' + cap[1] + '</p>' + capNotes().map(function (x) { return '<p class="capnote">' + x + '</p>'; }).join('') + (T.subs.length ? '<div class="subs" role="group" aria-label="세부 상태">' + subsH + '</div>' : '') + extra;
+    document.getElementById('stage').innerHTML = stageHtml();
+    document.getElementById('decList').innerHTML = decHtml();
+    document.getElementById('jud').innerHTML = judHtml();
+    document.getElementById('mySum').innerHTML = decSum();
+    alignAll();
+    S.focus = null;
+    restoreFocus(fk);
+  }
+  function planBox(p) {
+    var ts = types(p), cnt = { A: { MODIFIER: 119, FEELING: 70, NAME: 11 }, B: { EXPRESSION: 122, MODIFIER: 64, NAME: 11, FEELING: 3 }, C: { EXPRESSION: 122, AFFIX: 49, MODIFIER: 15, NAME: 11, FEELING: 3 } }[p];
+    return '<div class="capbox"><h4>' + planName(p) + ' — 유형 정의 · 공용 기본 단어 중 조각이 빈 200행이 가는 곳</h4><ul class="lst">' + ts.map(function (t) {
+      var isNew = t === 'EXPRESSION' || t === 'AFFIX';
+      return '<li><b>' + CKL[t] + '</b>' + (isNew ? ' <span class="ntag">새</span>' : '') + ' — ' + ckDef(t, p) + ' · 예 <span lang="ja">' + CKEX[t] + '</span>' + (cnt[t] ? ' · 200행 중 <b>' + cnt[t] + '</b>' : '') + ' · 기본 단어 ' + n(CNT_B[p][t]) + '개</li>';
+    }).join('') + '</ul></div>';
+  }
+  function toast(msg) {
+    S.toast = msg;
+    if (S.tab === 'H' && S.live) S.live.toast = msg;
+    saveScroll(); if (S.live) S.live.scroll = 'keep';
+    render();
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { S.toast = ''; if (S.live) { S.live.toast = ''; } saveScroll(); render(); }, 2600);
+  }
+  function setTab(t, sub) {
+    clearTimers();
+    S.tab = t; if (sub) S.sub[t] = sub;
+    if (t === 'H') liveReset(); else S.live = null;
+    render();
+  }
+
+  /* ── 이벤트 ── */
+  var DEMO_ONLY = '데모: 이 상태 화면은 그림이에요 — 직접 눌러 보기는 H 「직접 해 보기」에서';
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    var act = el.dataset.act, arg = el.dataset.arg;
+    var live = S.tab === 'H' && S.live && el.closest('.phone');
+    var l = S.live;
+    if (el.getAttribute('aria-disabled') === 'true' && act !== 'pick') return;
+    switch (act) {
+      case 'w': S.w = arg; render(); return;
+      case 'theme': S.theme = arg; render(); return;
+      case 'tab': setTab(arg); return;
+      case 'sub': setTab(S.tab, arg); return;
+      case 'decReset': S.d = JSON.parse(JSON.stringify(REC)); if (S.tab === 'H') liveReset(); render(); return;
+      case 'liveReset': liveReset(); render(); return;
+      case 'tabAway':
+        if (!l) return;
+        if (S.d.d2 === 'A') { l.page = 0; l.chunk = null; l.src = 'all'; l.msg = 'D2 A — 돌아와서 1쪽 · 출처 · 조각 전체(정렬만 남음)'; } else l.msg = 'D2 B — 돌아와도 ' + n(l.page + 1) + '쪽 · 출처 · 조각 그대로';
+        l.sheet = null; l.scroll = 'top'; render(); return;
+      case 'copySum': {
+        var box = document.getElementById(arg); if (!box) return;
+        var txt = box.textContent;
+        var pickText = function () { try { var rg = document.createRange(); rg.selectNodeContents(box); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); } catch (e2) { /* 무시 */ } };
+        var say = function (m) { var st = document.getElementById('cp-' + arg); if (st) st.textContent = m; };
+        var fall = function () { pickText(); say('글을 골라 두었어요 — 길게 눌러(또는 Ctrl+C) 복사해 주세요'); };
+        try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function () { say('복사했어요 — 승인 답장에 붙여 주세요'); }, fall); else fall(); } catch (e3) { fall(); }
+        return;
+      }
+      case 'tg': S[arg] = !S[arg]; saveScroll(); if (l) l.scroll = 'keep'; S.focus = '[data-act="tg"][data-arg="' + arg + '"]'; render(); return;
+      case 'noop': if (!live) { toast(DEMO_ONLY); return; } toast('데모: 이 단추는 이번 범위가 아니라 동작을 그리지 않아요'); return;
+      case 'noopIn': return;
+    }
+    if (!live) { if (el.closest('.phone')) toast(DEMO_ONLY); return; }
+    /* ── H 직접 해 보기 ── */
+    saveScroll(); l.scroll = 'keep'; l.msg = '';
+    switch (act) {
+      case 'pg': goPage(l.page + (arg === 'prev' ? -1 : 1), '.phone [data-act="pg"][data-arg="' + arg + '"]'); return;
+      case 'pgTo': goPage(+arg, '.phone [data-act="pgTo"][data-arg="' + arg + '"]'); return;
+      case 'jump': if (S.d.d1 !== 'A') return; l.sheet = 'jump'; l.jv = ''; l.jErr = false; S.focus = '.phone [data-jp]'; break;
+      case 'jumpTo': { var P = pagesOf(liveCnt()); l.sheet = null; goPage(arg === 'first' ? 0 : P - 1, '.phone [data-act="jump"]'); if (l.page === (arg === 'first' ? 0 : P - 1)) render(); return; }
+      case 'jumpGo': { var P2 = pagesOf(liveCnt()), v = parseInt(String(l.jv).replace(/[^0-9]/g, ''), 10); if (!(v >= 1 && v <= P2)) { l.jErr = true; S.focus = '.phone [data-jp]'; break; } l.sheet = null; if (v - 1 === l.page) { S.focus = '.phone [data-act="jump"]'; break; } goPage(v - 1, '.phone [data-act="jump"]'); return; }
+      case 'sheetClose':
+        if (l.sheet === 'add' && l.add && l.add.saving) return;
+        S.focus = l.sheet === 'detail' && l.word ? '.phone [data-act="open"][data-arg="' + l.word.s + '"]' : l.sheet === 'jump' ? '.phone [data-act="jump"]' : '.phone [data-act="add"]';
+        l.sheet = null; break;
+      case 'chunk': l.chunk = arg || null; l.page = 0; l.scroll = 'keep'; S.focus = '.phone [data-act="chunk"][data-arg="' + (arg || '') + '"]'; break;
+      case 'src': l.src = arg; l.page = 0; S.focus = '.phone [data-act="src"][data-arg="' + arg + '"]'; break;
+      case 'sort': l.sort = arg; l.page = 0; S.focus = '.phone [data-act="sort"][data-arg="' + arg + '"]'; break;
+      case 'bandX': l.band = false; S.focus = '.phone [data-lhd]'; break;
+      case 'open': case 'openDup': { var ww = l.mine.filter(function (a) { return a.s === arg; })[0] || W(arg) || (arg === EIGA_KAN.s ? EIGA_KAN : null); if (!ww) return; l.word = ww; l.sheet = 'detail'; l.add = null; S.focus = '.phone .sheet .shd .ib'; break; }
+      case 'edit': toast('데모: 내 단어 수정 시트는 상태 F 「내 단어 수정 시트」에서 보세요'); return;
+      case 'delAsk': toast('데모: 내 단어 삭제 확인은 지금과 같아요(이번 범위 밖)'); return;
+      case 'arch': { if (!l.word) return; var was = !!l.arch[l.word.s]; l.arch[l.word.s] = !was; S.focus = '.phone .sheet [data-act="arch"]'; toast(was ? '보관을 풀었어요 · 다시 보여요' : '보관했어요 · 목록과 오늘의 단어에서 숨겨요(나에게만)'); return; }
+      case 'add': l.sheet = 'add'; l.add = { step: 'surface', sv: '', vals: null, pick: null, err: false }; S.focus = '.phone [data-sv]'; break;
+      case 'enrich': {
+        var a0 = l.add; if (!a0 || !a0.sv) return;
+        var bw = W(a0.sv.trim());
+        if (bw && !bw.mine && S.d.d9 === 'A') { a0.dup = true; S.focus = '.phone [data-sv]'; break; }
+        if (bw && !bw.mine) { l.add = { step: 'form', draft: true, dupOk: true, vals: { s: bw.s, r: bw.r, m: bw.m, p: bw.p, cat: '' }, pick: ck(bw), err: false }; S.focus = '.phone .sheet .shd .ib'; break; }
+        var dp = S.d.d5d === 'A' ? 'ACTION' : S.d.d5d === 'B' ? 'NAME' : (S.d.d5 === 'B' ? 'NAME' : null);
+        l.add = { step: 'form', draft: true, vals: { s: a0.sv, r: 'おしかつ', m: '최애 활동(덕질)', p: 'NOUN', cat: '' }, pick: dp, err: false, pickNote: S.d.d5d === 'A' ? '선생님이 고른 조각이에요 · 바꿀 수 있어요' : S.d.d5d === 'B' ? '품사(명사)로 미리 골랐어요 · 바꿀 수 있어요' : '' };
+        S.focus = '.phone .sheet .shd .ib'; break;
+      }
+      case 'manual': l.add = { step: 'form', vals: { s: (l.add && l.add.sv) || '', r: '', m: '', p: 'OTHER', cat: '' }, pick: S.d.d5 === 'B' ? 'NAME' : null, err: false }; S.focus = '.phone .sheet .shd .ib'; break;
+      case 'pick': if (!l.add) return; l.add.pick = arg; l.add.err = false; l.add.pickNote = ''; S.focus = '.phone [data-act="pick"][data-arg="' + arg + '"]'; break;
+      case 'save': {
+        var a1 = l.add; if (!a1 || a1.saving) return;
+        var vals = a1.vals || {};
+        if (!vals.s) { vals.s = '推し活'; vals.r = 'おしかつ'; }
+        if (!vals.m) vals.m = '최애 활동(덕질)';
+        if (!a1.pick) { a1.err = true; a1.formErr = ''; S.focus = '.phone [data-act="pick"]'; break; }
+        a1.saving = true; a1.formErr = ''; render();
+        later(500, function () {
+          var m = L(); if (!m || !m.add) return;
+          m.mine.push({ s: vals.s, r: vals.r || '', m: vals.m, h: '', p: vals.p || 'OTHER', c: m.add.pick, g: null, lv: null, ex: '', ek: '', mine: true });
+          m.sheet = null; m.add = null; m.sort = 'recent'; m.page = 0; m.scroll = 'head';
+          S.focus = '.phone [data-lhd]'; toast('단어장에 넣었어요 · 내 단어는 나만 봐요');
+        });
+        return;
+      }
+      default: toast('데모: 이 단추는 이번 범위가 아니라 동작을 그리지 않아요'); return;
+    }
+    render();
+  });
+  document.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target.closest('form');
+    if (f && f.dataset.form === 'jump') { var b = document.querySelector('.phone [data-act="jumpGo"]'); if (b) b.click(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (e.key === 'Enter' && t.dataset && t.dataset.jp) { e.preventDefault(); var b = document.querySelector('.phone [data-act="jumpGo"]'); if (b) b.click(); }
+    if (e.key === 'Enter' && t.dataset && t.dataset.sv) { e.preventDefault(); var b2 = document.querySelector('.phone [data-act="enrich"]'); if (b2) b2.click(); }
+    if (e.key === 'Escape' && S.live && S.live.sheet) { var c = document.querySelector('.phone .sheet [data-act="sheetClose"]'); if (c) c.click(); }
+  });
+  document.addEventListener('input', function (e) {
+    var t = e.target; if (!t.dataset || !S.live || S.tab !== 'H') return;
+    if (t.dataset.jp) { S.live.jv = t.value; if (S.live.jErr) { S.live.jErr = false; saveScroll(); S.live.scroll = 'keep'; S.focus = '.phone [data-jp]'; render(); } return; }
+    if (t.dataset.sv && S.live.add) { var had = !!S.live.add.sv, hadDup = !!S.live.add.dup; S.live.add.sv = t.value; S.live.add.dup = false; if (had !== !!t.value || hadDup) { saveScroll(); S.live.scroll = 'keep'; S.focus = '.phone [data-sv]'; render(); } }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.dataset && t.dataset.dec) { S.d[t.dataset.dec] = t.value; if (S.tab === 'H') liveReset(); render(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

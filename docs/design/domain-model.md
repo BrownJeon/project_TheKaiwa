@@ -134,7 +134,9 @@ erDiagram
 
 ```mermaid
 erDiagram
-  User ||--o{ WordEntry : "owns"
+  User o|--o{ WordEntry : "owns (userId NULL = 공용 읽기 전용 기본 단어, task-068)"
+  User ||--o{ UserWordState : "per-user study state"
+  WordEntry ||--o{ UserWordState : "state (Cascade)"
   User ||--o{ VocabSession : "plays"
   User o|--o{ ConversationTopic : "user topics (null = seed)"
   User ||--o{ Lesson : "takes"
@@ -472,6 +474,9 @@ enum ChunkType {
   ACTION
   FEELING
   MODIFIER
+  /// task-068(2026-10-14): 표현 — 인사·대답·감탄·이음말 등 문장 밖에서 통째로 쓰는 말. 단어(기본 단어·내 단어)에서만 쓴다.
+  /// 교정·수업·평가·주제 프롬프트와 TopicChunk 는 4유형 그대로(앱 코드가 `asTopicChunkType` 으로 좁힘).
+  EXPRESSION
 }
 
 enum PartOfSpeech {
@@ -1282,7 +1287,9 @@ model PromptVersion {
 /// 채택된 단어만. AI 제안 단어는 TutorProposal(ADD_WORD) 에 머문다(규칙 1). 삭제 시 참조 행은 SetNull + *Snap 으로 읽힘(규칙 2)
 model WordEntry {
   id           String        @id @default(cuid())
-  userId       String
+  /// task-068(2026-10-14): NULL = **기본 단어**(공용·읽기 전용, source=SEED + seedKey, 모든 사용자가 봄, 앱은 쓰지 않고 시드 스크립트만 씀).
+  /// 값 있음 = 그 사용자만 보고 관리하는 **내 단어**. 사용자별 학습 상태(맞힘·틀림·보관)는 UserWordState.
+  userId       String?
   surface      String        @db.VarChar(80)
   reading      String?       @db.VarChar(120)
   meaning      String        @db.VarChar(200)
@@ -1296,6 +1303,9 @@ model WordEntry {
   source       WordSource    @default(MANUAL)
   /// 출처 행 id(Correction·Lesson·Evaluation·TutorProposal), FK 없음
   sourceRefId  String?       @db.VarChar(40)
+  /// 기본 단어의 고정 키(`N5-0001`, 옛 50개 추가분 `N5X-0004`). 기본 단어에만 있고 유일 — 시드 재실행이 멱등.
+  seedKey      String?       @unique @db.VarChar(40)
+  /// 아래 상태 6칸은 task-068 이후 **미사용**(UserWordState 가 정본) — 컬럼 삭제는 후속·사용자 승인.
   correctCount Int           @default(0)
   wrongCount   Int           @default(0)
   lastSeenAt   DateTime?
@@ -1305,15 +1315,39 @@ model WordEntry {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts    VocabAttempt[]
   corrections Correction[]
   evalItems   EvaluationItem[]
+  states      UserWordState[]
 
   @@index([userId, archived, wrongCount])
   @@index([userId, surface])
   @@index([userId, category])
   @@index([userId, createdAt])
+}
+
+/// task-068(2026-10-14) — 단어에 대한 **사용자별 학습 상태**. 기본 단어는 읽기 전용이라 맞힘·틀림·마지막 결과·보관은 여기에만 쓴다(내 단어도 같은 경로).
+/// 행은 사용자가 그 단어를 풀거나 보관할 때 처음 생긴다(없으면 모두 0·미보관). 사용자·단어 삭제 시 함께 삭제.
+model UserWordState {
+  id           String       @id @default(cuid())
+  userId       String
+  wordId       String
+  correctCount Int          @default(0)
+  wrongCount   Int          @default(0)
+  lastSeenAt   DateTime?
+  lastResult   VocabAnswer?
+  archived     Boolean      @default(false)
+  archivedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word WordEntry @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId])
+  @@index([userId, archived, wrongCount])
+  @@index([wordId])
 }
 
 /// 오늘의 단어 1세트. 집계는 finish 시점 확정 후 불변. keptAt = 세트 보관(다시 풀기)
