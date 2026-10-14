@@ -1,12 +1,15 @@
 import { ApiError, ok, parseLimit, rateLimit, readJsonObject, requireSession, withApi } from '@/modules/infra'
 import { buildWordEnrichRequest } from '@/modules/conversation'
-import { createWord, enrichWord, findWordIdBySurface, isBlankMeaning, listWords, parseEnrichSurface, parseWordInput, parseWordListQuery } from '@/modules/learning'
+import { assertEnrichSurfaceFree, createWord, enrichWord, isBlankMeaning, listWords, parseEnrichSurface, parseWordInput, parseWordListQuery } from '@/modules/learning'
 import { getProfile } from '@/modules/preferences'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** #40 단어 목록 — 검색·카테고리·조각(`chunkType`, task-023)·보관함·정렬 3종을 AND 로, `{items, nextCursor, total}`. 잘못된 쿼리 값은 400. */
+/**
+ * #40 단어 목록(task-068) — 내 단어 + 공용 기본 단어, 출처(`source`)·검색·분류·조각·나의 보관함·정렬 3종 AND, 쪽 번호(`page`·`limit`).
+ * `{items, total, page, pages, limit, baseTotal}`. 잘못된 쿼리 값·`cursor`·`chunkType=none` 은 400.
+ */
 export const GET = withApi(async (req) => {
   const s = await requireSession()
   const q = req.nextUrl.searchParams
@@ -16,7 +19,8 @@ export const GET = withApi(async (req) => {
 /**
  * #41 단어 추가. `enrich:true` + 뜻 없음 → A10 보강 **draft 만**(저장 안 함, F8 비일본어는 `valid:false`), 사용자당 분당 20회.
  * 요청(프롬프트·스키마)은 conversation 이 만들고 learning 이 실행한다(L3 는 L2 를 import 하지 않는다 — 라우트가 값으로 넘김).
- * 그 밖에는 완전한 본문을 즉시 저장(`source=MANUAL`). 같은 표현이면 409 `{existingId}`.
+ * 보강 전에 내 단어(409 `{existingId}`)·기본 단어(409 `BASE_DUPLICATE`, 표기만) 중복을 먼저 본다 — 중복이면 LLM 을 부르지 않는다.
+ * 그 밖에는 완전한 본문을 즉시 저장(`source=MANUAL`, `jlpt` 키는 400 — task-068). 기본 단어와 같은 (표기, 읽기)면 409 `BASE_DUPLICATE`.
  */
 export const POST = withApi(async (req) => {
   const s = await requireSession()
@@ -26,12 +30,11 @@ export const POST = withApi(async (req) => {
   if (enrich === true && isBlankMeaning(rest.meaning)) {
     const surface = parseEnrichSurface(rest)
     rateLimit(`enrich:${userId}`, 20)
-    const existingId = await findWordIdBySurface(userId, surface)
-    if (existingId) throw new ApiError('CONFLICT', '단어장에 같은 표현이 이미 있어요.', { existingId })
+    await assertEnrichSurfaceFree(userId, surface)
     const { level } = await getProfile(userId)
     const { draft } = await enrichWord({ surface, level }, buildWordEnrichRequest({ surface, level }))
     return ok({ draft, saved: false })
   }
-  const word = await createWord(userId, { ...parseWordInput(rest), source: 'MANUAL' })
+  const word = await createWord(userId, { ...parseWordInput(rest, '', { jlpt: false }), source: 'MANUAL' })
   return ok({ word, saved: true })
 })

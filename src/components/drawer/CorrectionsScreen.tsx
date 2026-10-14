@@ -361,7 +361,7 @@ export default function CorrectionsScreen({ initial }: { initial: CorrectionsIni
           </div>
         ) : null}
         <div inert={view.firstLoading || undefined} className={view.typeRow === 'none' ? 'mt-1.5' : undefined}>
-          <ChunkChips value={query.filter.chunkType} withNone={false} onChange={(v) => changeFilter((f) => ({ ...f, chunkType: v }))} />
+          <ChunkChips value={query.filter.chunkType} variant="corrections" onChange={(v) => changeFilter((f) => ({ ...f, chunkType: v }))} />
         </div>
         <div className="mb-1.5 mt-2 flex min-h-8 items-center justify-between gap-2">
           <p aria-live="polite" className="min-w-0 flex-1 text-[12px] text-ink2 [overflow-wrap:anywhere]">

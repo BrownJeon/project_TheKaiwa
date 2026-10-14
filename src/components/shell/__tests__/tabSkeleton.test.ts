@@ -48,7 +48,10 @@ test('단어장 줄: 실제 목록 상자와 같은 클래스, 줄 높이는 min
   assert.ok(WORD_SKELETON.rowHeight >= 64)
 })
 
-test('분류 칩 줄 자리 = CategoryChips 실제 칩 높이(h-9)와 py-1, 래퍼 mt-1.5', () => {
+test('칩 줄 높이 = CategoryChips 실제 칩 높이(h-9)와 py-1, 래퍼 mt-1.5 · task-068: 단어장 분류 줄 자리표시는 없고 목록 자리는 7줄', () => {
+  assert.equal(WORD_SKELETON.rows, 7, '한 쪽 7개(task-068 D1)')
+  assert.ok(!/WordCategoryRowSkeleton/.test(skeleton), '분류 줄 자리표시 부품을 지웠다(§28-10 ⑦)')
+  for (const f of ['WordsScreen.tsx', 'WordsSkeleton.tsx']) assert.ok(!/WordCategoryRowSkeleton|catPending/.test(read('vocab', f)), f)
   assert.equal(WORD_CATEGORY_ROW.chip, 36)
   assert.equal(WORD_CATEGORY_ROW.pad, 4)
   assert.equal(WORD_CATEGORY_ROW.top, 6)
@@ -112,8 +115,8 @@ test('자리표시는 화면 모듈(StudyAiHome·WordsScreen)을 import 하지 �
   assert.ok(!/from '\.\/StudyAiHome'/.test(read('chat', 'StudyAiSkeleton.tsx')))
   const words = read('vocab', 'WordsSkeleton.tsx')
   assert.ok(!/from '\.\/WordsScreen'/.test(words))
-  assert.match(words, /import \{ WORD_SORT_OPTIONS \} from '\.\/labels'/)
-  assert.match(read('vocab', 'WordsScreen.tsx'), /WORD_SORT_OPTIONS \} from '\.\/labels'/)
+  assert.match(words, /import \{ WORD_SORT_OPTIONS[^}]*\} from '\.\/labels'/)
+  assert.match(read('vocab', 'WordsScreen.tsx'), /WORD_SORT_OPTIONS,[^}]*\} from '\.\/labels'/)
   assert.ok(!/export const WORD_SORT_OPTIONS/.test(read('vocab', 'WordsScreen.tsx')))
 })
 
@@ -163,7 +166,7 @@ test('교정 모음 자리표시는 화면 모듈을 import 하지 않고, 화�
   for (const src of [sk, read('drawer', 'CorrectionsScreen.tsx')]) {
     assert.match(src, /<ErrorTypeRowSkeleton \/>/)
     assert.match(src, /<CorrectionCardsSkeleton \/>/)
-    assert.match(src, /<ChunkChips value=\{[^}]+\} withNone=\{false\}/)
+    assert.match(src, /<ChunkChips value=\{[^}]+\} variant="corrections"/)
     assert.match(src, /label=\{C\.search\}\s+placeholder=\{C\.search\}\s+commitWhileTyping=\{false\}/)
     assert.match(src, /<DisplayToggles keys=\{\['fu', 'hg'\]\}/)
   }

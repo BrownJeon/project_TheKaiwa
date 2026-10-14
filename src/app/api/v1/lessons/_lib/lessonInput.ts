@@ -10,6 +10,8 @@
  */
 import { scenarioPromptParts, type LessonInput, type LessonRequest, type LessonScenarioInput } from '@/modules/conversation'
 import type { CreateLessonInput, LessonMaterials } from '@/modules/learning'
+// 주제 조각은 4유형뿐(task-068 J12) — DB enum 의 단어 전용 값(EXPRESSION)을 A4 입력 앞에서 좁힌다.
+import { asTopicChunkType } from '@/types/topic'
 
 export interface LessonInputContext {
   todayKst: string
@@ -18,7 +20,7 @@ export interface LessonInputContext {
 }
 
 function topicInput(t: NonNullable<LessonMaterials['topic']>): NonNullable<LessonInput['topic']> {
-  return { title: t.title, titleJa: t.titleJa, level: t.level, chunks: t.chunks.map((c) => ({ id: c.id, chunkType: c.chunkType, textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo })) }
+  return { title: t.title, titleJa: t.titleJa, level: t.level, chunks: t.chunks.map((c) => ({ id: c.id, chunkType: asTopicChunkType(c.chunkType, 'MODIFIER'), textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo })) }
 }
 
 /** 상황 행 → A4 `[상황]` 입력(글자 수 자르기는 PE `lesson.ts` 가 한다). */

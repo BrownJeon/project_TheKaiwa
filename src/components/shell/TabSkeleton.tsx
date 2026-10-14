@@ -36,10 +36,10 @@ export function ChatRowsSkeleton() {
   )
 }
 
-/** 단어장 목록 자리표시 — 실제 목록과 같은 테두리 상자 + 줄 N개(줄마다 회색 막대 둘) */
-export function WordRowsSkeleton() {
+/** 단어장 목록 자리표시 — 실제 목록과 같은 테두리 상자 + 줄 N개(줄마다 회색 막대 둘). `label` = 읽기 알림 한 줄(화면 첫 읽기는 「단어장을 불러오고 있어요」). */
+export function WordRowsSkeleton({ label }: { label?: string } = {}) {
   return (
-    <SkeletonRegion>
+    <SkeletonRegion label={label}>
       <div className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
         {Array.from({ length: WORD_SKELETON.rows }, (_, i) => (
           <div key={i} className="flex flex-col justify-center gap-2 px-3.5" style={{ height: WORD_SKELETON.rowHeight }}>
@@ -49,17 +49,6 @@ export function WordRowsSkeleton() {
         ))}
       </div>
     </SkeletonRegion>
-  )
-}
-
-/** 단어장 분류 칩 줄 자리 — 분류가 있는 흔한 상태의 칩 줄과 같은 높이(응답이 와서 칩이 되거나, 분류가 없으면 줄이 접힌다). */
-export function WordCategoryRowSkeleton() {
-  return (
-    <div aria-hidden="true" className="flex" style={{ marginTop: WORD_CATEGORY_ROW.top, paddingBlock: WORD_CATEGORY_ROW.pad, gap: 8 }}>
-      {WORD_CATEGORY_ROW.widths.map((w, i) => (
-        <span key={i} className="block flex-none rounded-full bg-surface2" style={{ width: w, height: WORD_CATEGORY_ROW.chip }} />
-      ))}
-    </div>
   )
 }
 

@@ -27,7 +27,7 @@ export default function CorrectionsSkeleton() {
         </div>
         <ErrorTypeRowSkeleton />
         <div inert>
-          <ChunkChips value={null} withNone={false} onChange={noop} />
+          <ChunkChips value={null} variant="corrections" onChange={noop} />
           <div className="mb-1.5 mt-2 flex min-h-8 items-center justify-between gap-2">
             <p className="min-w-0 flex-1 text-[12px] text-ink2" />
             <div role="group" aria-label={DISPLAY_COPY.toolGroup} className="flex flex-none items-center gap-1.5">

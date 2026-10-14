@@ -388,7 +388,7 @@ test('#62a 메모 한도: 기존 초안 포함 구간 5·레슨 15 → LIMIT, �
 
 test('#62a 보강 결과 → 초안: valid=false 는 null(NOT_JAPANESE), 예문은 대화 줄 우선', () => {
   const entry = { memo: 'ホット', segment: 1, action: 'ENRICH' as const, surface: 'ホット', lineIdx: 1, example: 'ホットコーヒーをください。', exampleKo: '따뜻한 커피 주세요.' }
-  const base = { surface: 'ホット', valid: true, invalidReason: null, reading: 'ほっと', meaning: '따뜻한 음료', partOfSpeech: 'NOUN' as const, jlpt: 'N5' as const, example: 'ホットにします。', exampleKo: '따뜻한 걸로.' }
+  const base = { surface: 'ホット', valid: true, invalidReason: null, reading: 'ほっと', meaning: '따뜻한 음료', partOfSpeech: 'NOUN' as const, chunkType: null, jlpt: 'N5' as const, example: 'ホットにします。', exampleKo: '따뜻한 걸로.' }
   const d = memoDraftFromEnrich(entry, 'ls1', base)!
   assert.deepEqual([d.via, d.meaning, d.example, d.exampleKo, d.lessonId], ['ENRICH', '따뜻한 음료', 'ホットコーヒーをください。', '따뜻한 커피 주세요.', 'ls1'])
   assert.equal(memoDraftFromEnrich({ ...entry, example: null, exampleKo: null }, 'ls1', base)!.example, 'ホットにします。')

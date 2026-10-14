@@ -243,11 +243,14 @@ async function main() {
 
   // ── 6. 메모 #62a ─────────────────────────────────────────────
   const words0 = await prisma.wordEntry.count({ where: { userId: u1 } })
-  const chunkA = content.chunks[0]
-  const chunkB = content.chunks[1]
+  // task-068: 공용 기본 단어(약 7.8천)에 있는 표현은 메모하면 IN_WORDBOOK — 「조각 단어 제안」을 보려면 기본 단어에 없는 조각을 고른다.
+  const baseSurfaces = new Set((await prisma.wordEntry.findMany({ where: { userId: null, source: 'SEED', surface: { in: content.chunks.map((c) => c.textJa) } }, select: { surface: true } })).map((w) => w.surface))
+  const chunkA = content.chunks.find((c) => !baseSurfaces.has(c.textJa)) ?? content.chunks[0]
+  const chunkB = content.chunks.find((c) => c !== chunkA) ?? content.chunks[1]
+  if (baseSurfaces.has(chunkA.textJa)) console.log('  (주의) 이 레슨의 조각이 모두 기본 단어 — 6c 의 조각 제안 단언은 실패할 수 있다')
   await prisma.wordEntry.create({ data: { userId: u1, surface: chunkB.textJa, meaning: '미리 넣은 단어', source: 'MANUAL', category: 'task010-smoke' } })
   const wordsBefore = await prisma.wordEntry.count({ where: { userId: u1 } })
-  const enrichWord = '天気予報'
+  const enrichWord = '宇宙船' // task-068: 天気予報 는 기본 단어(→ IN_WORDBOOK) — 보강(ENRICH)을 보려면 기본 단어에 없는 표현
   const memoBody = { segments: [{ segment: 1, words: [chunkA.reading, chunkB.textJa, 'coffee', chunkA.reading] }, { segment: Math.min(2, content.segmentCount), words: [enrichWord] }] }
   check('6a 타 사용자 메모 404', (await api(COOKIE2, 'POST', `/api/v1/lessons/${lessonId}/memo`, memoBody)).status === 404)
   check('6b 없는 구간 번호 → 400', (await api(COOKIE1, 'POST', `/api/v1/lessons/${lessonId}/memo`, { segments: [{ segment: content.segmentCount + 1, words: ['注文'] }] })).status === 400)

@@ -1,31 +1,38 @@
+/**
+ * task-068 §28-9 T21 — 기본 단어 넣기 UI 는 어디에도 없다(D7 폐지 · §28-6 A). 기본 단어는 공용 읽기 전용 행이라 넣는 단계가 없다.
+ * 이 파일은 task-051 의 「넣기 버튼」 시험이었다 — 같은 자리(빈 단어장 카드·오늘 카드·추가 시트)에 버튼이 없음을 지킨다.
+ * 끝의 Segmented 두 줄 시험(설정 「지금 수준」)은 그대로 둔다.
+ */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import Segmented from '@/components/common/Segmented'
-import { SEED_PACK_COUNT, SEED_PACK_LABEL, type SeedPack } from '@/types/seedPack'
-import type { SeedLevels } from '../hooks'
-import { fmtCount, JLPT_LEVELS, levelLabel, levelName, SEED_COPY } from '../labels'
+import { SEED_PACK_LABEL } from '@/types/seedPack'
+import { JLPT_LEVELS, levelHelpText, levelLabel, levelName, todayLevelLine, WORDS_EMPTY_COPY } from '../labels'
 import TodayWordsCard from '../TodayWordsCard'
+import type { WordsEmptyVariant } from '../validate'
 import WordsEmpty from '../WordsEmpty'
 
 const noop = () => {}
-const lv = (status: SeedLevels['status'], main: SeedPack | null, goal: SeedPack | null = null): SeedLevels => ({ status, main, goal, retry: noop })
 const decode = (html: string) => html.replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"')
+const SEED_BTN = /넣기<\/|한 번에 넣기|기본 단어 [\d,]+개 (한 번에 )?넣기|넣는 중/
 
-function emptyCard(levels: SeedLevels, seedingPack: SeedPack | null = null): string {
+function emptyCard(variant: WordsEmptyVariant): string {
   return decode(
     renderToStaticMarkup(
-      createElement(WordsEmpty, { variant: 'noWords', q: '', levels, seedingPack, onSeed: noop, onAdd: noop, onShowArchive: noop, onShowAll: noop }),
+      createElement(WordsEmpty, { variant, q: '映', chunk: 'ACTION', category: '여행', onAdd: noop, onShowArchive: noop, onShowAll: noop, onClearChunk: noop }),
     ),
   )
 }
 
-function todayEmpty(levels: SeedLevels, seedingPack: SeedPack | null = null): string {
+function today(state: 'empty' | 'ready', myLevel: 'N5' | 'N3' | null = 'N5'): string {
   return decode(
     renderToStaticMarkup(
       createElement(TodayWordsCard, {
-        state: 'empty',
+        state,
         loadError: null,
         dailyWordCount: 10,
         count: 10,
@@ -34,14 +41,13 @@ function todayEmpty(levels: SeedLevels, seedingPack: SeedPack | null = null): st
         archivedTotal: 0,
         todayDone: { sets: 0, correct: 0, cards: 0 },
         inProgress: null,
-        today: '2026-10-10',
+        today: '2026-10-14',
         poolEmptyKind: null,
         hasKept: false,
         starting: false,
         startError: null,
-        levels,
-        seedingPack,
         finishing: false,
+        myLevel,
         onCount: noop,
         onCategory: noop,
         onStart: noop,
@@ -49,7 +55,6 @@ function todayEmpty(levels: SeedLevels, seedingPack: SeedPack | null = null): st
         onBackToReady: noop,
         onFinish: noop,
         onShowResult: noop,
-        onSeed: noop,
         onShowKept: noop,
         onRetry: noop,
       }),
@@ -58,54 +63,95 @@ function todayEmpty(levels: SeedLevels, seedingPack: SeedPack | null = null): st
 }
 
 const buttons = (html: string) => [...html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((m) => ({ attrs: m[0].slice(0, m[0].indexOf('>')), text: m[1].replace(/<[^>]+>/g, '') }))
+const VARIANTS: WordsEmptyVariant[] = ['noWords', 'allArchived', 'noSearch', 'noSearchChunk', 'noChunk', 'noCategory', 'noArchived', 'noMine']
 
-test('빈 단어장 카드: 지금 수준 주 버튼(채움) → 목표 수준 보조(ghost) → 직접 추가, 이름·개수는 seedPack 에서', () => {
-  const html = emptyCard(lv('ready', 'N2', 'N1'))
-  const b = buttons(html)
+test('T21 빈 단어장 카드(모든 경우): 넣기 단추 0 · 비었으면 [단어 직접 추가](채움) 하나', () => {
+  for (const v of VARIANTS) {
+    const h = emptyCard(v)
+    assert.doesNotMatch(h, SEED_BTN, v)
+    for (const b of buttons(h)) assert.equal(/넣기$/.test(b.text.trim()), false, `${v}: ${b.text}`)
+  }
+  const none = emptyCard('noWords')
+  const b = buttons(none)
   assert.deepEqual(
     b.map((x) => x.text),
-    [SEED_COPY.mainBtn('N2'), SEED_COPY.goalBtn('N1'), '직접 추가'],
+    [WORDS_EMPTY_COPY.addBtn],
   )
-  assert.ok(b[0].attrs.includes('bg-accent'), '주 버튼은 채움')
-  assert.ok(!b[1].attrs.includes('bg-accent') && b[1].attrs.includes('border-line'), '보조는 ghost')
-  assert.ok(b[1].attrs.includes('whitespace-normal') && b[1].attrs.includes('break-keep') && !b[1].attrs.includes('truncate'), '보조는 두 줄 허용')
-  assert.ok(html.includes(`${SEED_PACK_LABEL.N2} 기본 단어 ${fmtCount(SEED_PACK_COUNT.N2)}개로 바로 시작하거나`))
-  assert.doesNotMatch(html, /원어민|N5 기초|50개/)
+  assert.ok(b[0].attrs.includes('bg-accent') && b[0].attrs.includes('w-full'), '채움 · 전체 폭')
+  assert.ok(none.includes('단어장이 비어 있어요') && none.includes(WORDS_EMPTY_COPY.noWordsBody))
+  assert.equal(none.includes('기본 단어'), false)
 })
 
-test('목표 수준이 없거나 같으면 보조 버튼 없음 · 단계를 모르면 넣기 버튼 숨김', () => {
-  assert.equal(buttons(emptyCard(lv('ready', 'N5'))).length, 2)
-  // 읽기 실패: 넣기 버튼 대신 「다시 시도」 글자 버튼이 [직접 추가] 위에.
-  const err = emptyCard(lv('error', null))
+test('새 noMine · noSearchChunk(J6) 빈 화면', () => {
+  const m = emptyCard('noMine')
+  assert.ok(m.includes(WORDS_EMPTY_COPY.noMineTitle) && m.includes(WORDS_EMPTY_COPY.noMineBody))
   assert.deepEqual(
-    buttons(err).map((x) => x.text),
-    [SEED_COPY.levelRetry, '직접 추가'],
+    buttons(m).map((x) => x.text),
+    [WORDS_EMPTY_COPY.addBtn],
   )
-  assert.ok(err.includes(SEED_COPY.emptyBodyNoLevel) && !err.includes('기본 단어'))
-  assert.ok(buttons(err)[0].attrs.includes('min-h-[44px]') && buttons(err)[0].attrs.includes('text-[13px]'))
-  // 오늘 카드도 같은 규칙.
-  const tErr = todayEmpty(lv('error', null))
-  assert.ok(tErr.includes(SEED_COPY.todayBodyNoLevel) && tErr.includes(SEED_COPY.levelRetry) && !tErr.includes('넣기'))
-})
-
-test('넣는 중: 누른 버튼만 「넣는 중…」+aria-busy, 다른 넣기 버튼은 aria-disabled(disabled 속성 없음), 직접 추가는 그대로', () => {
-  const b = buttons(emptyCard(lv('ready', 'N5', 'N4'), 'N4'))
-  assert.equal(b[0].text, SEED_COPY.mainBtn('N5'))
-  assert.ok(b[0].attrs.includes('aria-disabled="true"') && !b[0].attrs.includes('aria-busy'))
-  assert.equal(b[1].text, SEED_COPY.busy)
-  assert.ok(b[1].attrs.includes('aria-busy="true"'))
-  assert.ok(!b[2].attrs.includes('aria-disabled'))
-  for (const x of b) assert.ok(!/\sdisabled=""/.test(x.attrs))
-})
-
-test('오늘 카드 empty: 본문에 수준 이름, 주·보조 버튼, 단어 직접 추가 링크', () => {
-  const html = todayEmpty(lv('ready', 'N4', 'N3'))
-  assert.ok(html.includes(SEED_COPY.todayBody('N4')))
+  const sc = emptyCard('noSearchChunk')
   assert.deepEqual(
-    buttons(html).map((x) => x.text),
-    [SEED_COPY.mainBtn('N4'), SEED_COPY.goalBtn('N3')],
+    buttons(sc).map((x) => x.text),
+    ['‘映’ 추가하기', '조각 전체에서 찾기'],
   )
-  assert.ok(html.includes('href="/drawer/words?add=1"') && html.includes('단어 직접 추가'))
+  assert.ok(sc.includes('액션 조각 · 여행 안에서 찾았어요.'))
+})
+
+test('T21 오늘 카드 empty: 넣기 단추 0 · [단어 직접 추가] 채운 링크 하나 · 본문 「오늘의 단어는 내 단어장에서 골라요.」', () => {
+  const h = today('empty')
+  assert.doesNotMatch(h, SEED_BTN)
+  assert.equal(buttons(h).length, 0)
+  assert.ok(h.includes(WORDS_EMPTY_COPY.todayEmptyBody))
+  const link = h.match(/<a [^>]*href="\/drawer\/words\?add=1"[^>]*>([^<]*)<\/a>/)
+  assert.ok(link && link[1] === WORDS_EMPTY_COPY.addBtn)
+  assert.ok(link![0].includes('bg-accent') && link![0].includes('text-on-accent'), '채운 버튼 모양')
+  assert.equal(h.includes(todayLevelLine('N5')), false, 'J13 줄은 준비 카드에만')
+})
+
+test('J13 오늘 카드 준비: [시작하기] 아래 「지금 수준(…) 단어가 가장 많이 나와요.」 · 수준을 모르면 없음', () => {
+  const h = today('ready', 'N3')
+  assert.ok(h.includes(`지금 수준(${levelLabel('N3')}) 단어가 가장 많이 나와요.`))
+  assert.ok(h.indexOf('시작하기') < h.indexOf('지금 수준('))
+  assert.equal(today('ready', null).includes('지금 수준('), false)
+})
+
+test('T21 추가 시트 · 설정 도움말: 넣기 줄 없음(소스·문구)', () => {
+  const sheet = readFileSync(join(process.cwd(), 'src/components/vocab/WordAddSheet.tsx'), 'utf8')
+  assert.equal(/SeedTextBtn|SEED_COPY|levels\.main|onSeed|seedingPack|<hr/.test(sheet), false)
+  assert.equal(levelHelpText().includes('넣기'), false, 'L5')
+  assert.ok(levelHelpText().includes('오늘의 단어'))
+})
+
+/** `src/**`(시험 제외)의 .ts/.tsx — T21 소스 스캔 대상. */
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name)
+    if (statSync(p).isDirectory()) {
+      if (name === '__tests__' || name === 'node_modules') continue
+      sourceFiles(p, out)
+    } else if (/\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p)
+  }
+  return out
+}
+
+test('T21 U2 화면 파일에 넣기 부품·훅·문구 0', () => {
+  const mine = ['WordsEmpty.tsx', 'TodayWordsCard.tsx', 'TodayHome.tsx', 'WordAddSheet.tsx', 'WordDetailSheet.tsx', 'WordForm.tsx', 'WordRow.tsx', 'validate.ts', 'WordChunkPicker.tsx']
+  for (const f of mine) {
+    const s = readFileSync(join(process.cwd(), 'src/components/vocab', f), 'utf8')
+    assert.equal(/seed-pack|useSeedPack|useSeedLevels|SeedPackButtons|SeedTextBtn|seedResultText|SEED_COPY|SeedLevels/.test(s), false, f)
+  }
+})
+
+test('T21 src 전체(시험 제외): seed-pack 호출·넣기 훅·부품·문구 0 · #46b 라우트 폴더 없음 — U1 단계 5·S-B 삭제 뒤 통과', () => {
+  const root = join(process.cwd(), 'src')
+  const hits: string[] = []
+  for (const f of sourceFiles(root)) {
+    const s = readFileSync(f, 'utf8')
+    const m = s.match(/seed-pack|useSeedPack|useSeedLevels|SeedPackButtons|SeedTextBtn|seedResultText|SEED_COPY/)
+    if (m) hits.push(`${f.slice(root.length + 1)}: ${m[0]}`)
+  }
+  assert.deepEqual(hits, [])
+  assert.equal(existsSync(join(root, 'app/api/v1/words/seed-pack')), false)
 })
 
 test('Segmented 두 줄: 칸마다 이름·코드, 읽기 이름 「초보자 (N5)」, 없음 칸은 한 줄, 6칸이면 12.5px', () => {

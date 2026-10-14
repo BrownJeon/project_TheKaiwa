@@ -37,7 +37,9 @@ async function main(): Promise<void> {
     const w = await api(C1, 'POST', '/api/v1/words', { surface, reading, meaning, category: 'p2cB단어' })
     if (w.status < 300) made++
   }
-  check('E0 임시 단어 5개 등록(회화 평가 최소 4)', made >= 4, `made=${made}`)
+  // task-068: 위 5개는 전부 공용 기본 단어라 등록은 409 BASE_DUPLICATE 로 거절되는 게 정상 — 평가 재료는 내 단어 + 기본 단어이므로 그 합이 최소 4면 된다.
+  const poolWords = await prisma.wordEntry.count({ where: { OR: [{ userId: u1 }, { userId: null, source: 'SEED' }] } })
+  check('E0 회화 평가 최소 단어 4(내 단어 + 기본 단어)', poolWords >= 4, `made=${made} pool=${poolWords}`)
   const topic = await prisma.conversationTopic.findFirst({ where: { isSeed: true, userId: null }, orderBy: { createdAt: 'asc' }, select: { id: true } })
 
   // 1 출제(A6)

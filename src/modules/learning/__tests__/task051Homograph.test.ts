@@ -10,6 +10,7 @@ import { buildItemRows, type EvalGenOutputLike } from '../evaluation/generate'
 import type { EvalMaterialWord } from '../evaluation/materials'
 import { wordbookMatches } from '../lessons/memo'
 import { createWord } from '../vocab/words'
+import { matchWhere } from './wordWhereFake'
 
 type Row = { id: string; userId: string; surface: string; createdAt: Date }
 type OrderBy = { createdAt?: 'asc' | 'desc'; id?: 'asc' | 'desc' }[]
@@ -68,9 +69,15 @@ test('M2② 평가 문항 wordId: 같은 표기 재료가 둘이면 [재료] 순
 })
 
 test('M2③ 레슨 메모 단어장 연결: 같은 표기 행이 여럿이면 가장 먼저 만든 행, 다른 사용자 행은 보지 않음', async () => {
-  const { db, seenOrder } = fakeDb([...ROWS, { id: 'w-mado', userId: 'u1', surface: '窓', createdAt: at(3) }])
+  // task-068: 조회가 「내 단어 + 기본 단어」(AND·OR where)로 바뀌어 순서는 코드가 정한다(wordbookOrder) — DB 는 저장 순의 역순(비결정 흉내).
+  const rows = [...ROWS, { id: 'w-mado', userId: 'u1', surface: '窓', createdAt: at(3) }].map((r) => ({ source: 'MANUAL', jlpt: null, seedKey: null, ...r }))
+  const db = {
+    wordEntry: {
+      findMany: async (a: { where: Record<string, unknown>; take?: number }) =>
+        rows.filter((r) => matchWhere(r, a.where)).reverse().slice(0, a.take).map(({ id, surface, userId, jlpt, seedKey, createdAt }) => ({ id, surface, userId, jlpt, seedKey, createdAt })),
+    },
+  } as unknown as Tx
   const m = await wordbookMatches('u1', ['明日', '窓', '明日', '猫'], db)
   assert.deepEqual([...m], [['明日', 'w-old'], ['窓', 'w-mado']])
-  assert.deepEqual(seenOrder[0], [{ createdAt: 'asc' }, { id: 'asc' }])
   assert.equal((await wordbookMatches('u1', [], db)).size, 0)
 })

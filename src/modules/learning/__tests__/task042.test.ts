@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import type { ChunkType } from '@prisma/client'
+import type { TopicChunkType } from '@/types/topic'
 import { ApiError, type Tx } from '@/modules/infra'
 import { lessonRepetitionItems, type StoredLessonContent } from '../lessons/content'
 import { registerRepetitionItems, repetitionRefId } from '../repetition'
@@ -22,6 +23,7 @@ import {
   type TodayTopicCardRow, type TopicSetDeps, type TopicWordCandidate, type TopicWordsCallResult, type TopicWordsDriver, type TopicWordsOutput,
 } from '../vocab/topicSet'
 import { createRng } from '../vocab/setGenerator'
+import { matchWhere } from './wordWhereFake'
 
 const U = 'user-1'
 const OTHER = 'user-2'
@@ -39,7 +41,7 @@ const BASE: [string, string, string, ChunkType][] = [
 ]
 const CHUNKS: TopicPoolChunkRow[] = BASE.map(([textJa, reading, meaningKo, chunkType], i) => ({ id: `c${String(i).padStart(2, '0')}`, textJa, reading, meaningKo, chunkType }))
 
-const AI: [string, string, string, ChunkType][] = [
+const AI: [string, string, string, TopicChunkType][] = [
   ['砂糖', 'さとう', '설탕', 'NAME'], ['牛乳', 'ぎゅうにゅう', '우유', 'NAME'], ['氷', 'こおり', '얼음', 'NAME'], ['持ち帰り', 'もちかえり', '포장', 'NAME'],
   ['店内', 'てんない', '매장 안', 'MODIFIER'], ['注文します', 'ちゅうもんします', '주문합니다', 'ACTION'], ['お会計', 'おかいけい', '계산', 'NAME'], ['甘い', 'あまい', '달다', 'FEELING'],
   ['苦い', 'にがい', '쓰다', 'FEELING'], ['少し', 'すこし', '조금', 'MODIFIER'], ['すぐ', 'すぐ', '곧', 'MODIFIER'], ['待ちます', 'まちます', '기다립니다', 'ACTION'],
@@ -227,7 +229,8 @@ function fakeTx(db: FakeDb): Tx {
       },
     },
     wordEntry: {
-      findMany: async ({ where }: { where: Row }) => db.words.filter((w) => w.userId === where.userId && w.archived === false),
+      // task-068: 보이는 단어(내 단어 + 기본 단어) · 보관은 나의 상태 행 — 시험 픽스처는 상태 행이 없다(= 모두 미보관).
+      findMany: async ({ where }: { where: Row }) => db.words.filter((w) => matchWhere({ source: 'MANUAL', ...w }, where, [])),
       updateMany: async () => ({ count: 0 }),
       create: async () => {
         db.wordCreates++
@@ -424,7 +427,7 @@ test('서버 재검사(⑥·칸 폭): 전체 제외 집합과 정규화 표기�
   const w = (textJa: string, extra: Partial<TopicWordCandidate> = {}): TopicWordCandidate => ({ textJa, reading: 'よみ', meaningKo: '뜻', chunkType: 'NAME', jlpt: null, exampleJa: null, exampleKo: null, ...extra })
   const out = recheckTopicWords([
     w('コーヒー。'), w('砂糖'), w('砂糖 '), w('あ'.repeat(81)), w('長い', { reading: 'な'.repeat(121) }), w('意味', { meaningKo: '가'.repeat(201) }),
-    w('種類', { chunkType: 'OTHER' as ChunkType }), w('牛乳'),
+    w('種類', { chunkType: 'OTHER' as TopicChunkType }), w('牛乳'),
   ], ['コーヒー'])
   assert.deepEqual(out.map((x) => x.textJa), ['砂糖', '牛乳'])
 })

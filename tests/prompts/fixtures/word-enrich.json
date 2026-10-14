@@ -1,6 +1,6 @@
 {
- "version": "word-enrich@v1",
- "note": "합성 표현만(사용자 실데이터 아님). A10 단어 보강(WORD_ENRICH) 회귀·실측용 — 유효 9건(한자어·가나만·동사 사전형·활용형·い형용사·な형용사·가타카나 외래어·다의어·관용 표현) + 무효 3건(한국어·영어·의미 없는 문자열).",
+ "version": "word-enrich@v2",
+ "note": "합성 표현만(사용자 실데이터 아님). A10 단어 보강(WORD_ENRICH) 회귀·실측용 — v2(task-068)부터 유효 항목에 expectedChunkType(조각 5유형 기대값, 합성 응답 시험용)이 붙는다. 조각 정확도 실측용 25단어 표는 word-enrich-chunk.json. 유효 9건(한자어·가나만·동사 사전형·활용형·い형용사·な형용사·가타카나 외래어·다의어·관용 표현) + 무효 3건(한국어·영어·의미 없는 문자열).",
  "items": [
   {
    "id": "w01",
@@ -8,6 +8,7 @@
    "level": "N5",
    "valid": true,
    "expectedPartOfSpeech": "NOUN",
+   "expectedChunkType": "NAME",
    "expectedJlpt": "N5",
    "expectedReading": "えいが",
    "meaningKeywords": ["영화"]
@@ -18,6 +19,7 @@
    "level": "N5",
    "valid": true,
    "expectedPartOfSpeech": "EXPRESSION",
+   "expectedChunkType": "EXPRESSION",
    "expectedJlpt": "N5",
    "expectedReading": "ありがとう",
    "meaningKeywords": ["고마워", "감사"]
@@ -28,6 +30,7 @@
    "level": "N5",
    "valid": true,
    "expectedPartOfSpeech": "VERB",
+   "expectedChunkType": "ACTION",
    "expectedJlpt": "N5",
    "expectedReading": "たべる",
    "meaningKeywords": ["먹다"]
@@ -38,6 +41,7 @@
    "level": "N5",
    "valid": true,
    "expectedPartOfSpeech": "VERB",
+   "expectedChunkType": "ACTION",
    "expectedJlpt": "N5",
    "expectedReading": "いきました",
    "meaningKeywords": ["갔", "가다"],
@@ -49,6 +53,7 @@
    "level": "N4",
    "valid": true,
    "expectedPartOfSpeech": "ADJ_I",
+   "expectedChunkType": "FEELING",
    "expectedJlpt": "N4",
    "expectedReading": "いそがしい",
    "meaningKeywords": ["바쁘다", "바쁜"]
@@ -59,6 +64,7 @@
    "level": "N5",
    "valid": true,
    "expectedPartOfSpeech": "ADJ_NA",
+   "expectedChunkType": "FEELING",
    "expectedJlpt": "N5",
    "expectedReading": "しずか",
    "meaningKeywords": ["조용"]
@@ -69,6 +75,7 @@
    "level": "N5",
    "valid": true,
    "expectedPartOfSpeech": "NOUN",
+   "expectedChunkType": "NAME",
    "expectedJlpt": "N5",
    "expectedReading": "こーひー",
    "meaningKeywords": ["커피"],
@@ -80,6 +87,7 @@
    "level": "N3",
    "valid": true,
    "expectedPartOfSpeech": "VERB",
+   "expectedChunkType": "ACTION",
    "expectedJlpt": null,
    "expectedReading": "かける",
    "meaningKeywords": ["걸다"],
@@ -91,6 +99,7 @@
    "level": "N5",
    "valid": true,
    "expectedPartOfSpeech": "EXPRESSION",
+   "expectedChunkType": "EXPRESSION",
    "expectedJlpt": "N5",
    "expectedReading": "よろしくおねがいします",
    "meaningKeywords": ["잘 부탁"]

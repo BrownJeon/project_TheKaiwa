@@ -1,0 +1,59 @@
+{
+ "version": "word-enrich-chunk@v1",
+ "note": "task-068 D5 — 선생님 초안(뜻 채우기, wordEnrich@v2)이 고르는 조각(chunkType 5유형) 정확도 회귀·실측용. 합성 표현만(사용자 데이터 아님). items 25건이 합격선(22/25) 대상, info 3건은 경계 사례라 점수에 넣지 않고 모델이 고른 값만 본다. expected 는 ① tutor.md §5 조각 프레임(이름·액션·느낌·꾸밈) ② 데모 v1 D4 B 규칙표(대명사→이름, 이음말·인사·대답·감탄→표현, 접사·조사류→꾸밈) ③ D5(動作性 명사→액션) ④ 기존 시드 분류(prisma/seed-data/jlpt, seedChunk)를 근거로 정했다. seedChunk=null 은 시드에서 조각이 비어 있던 행(D4 재분류 대상) 또는 시드에 없는 표기. inPrompt=true 는 프롬프트 지시문에 예로 적힌 낱말(勉強·準備·挨拶) — 이 3개를 뺀 22개가 '지시문에 없는 낱말로 일반화되는가'의 보류(held-out) 집합이다.",
+ "promptExamples": ["勉強", "準備", "挨拶"],
+ "passLine": { "total": 25, "min": 22 },
+ "baseline": {
+  "promptVersion": "wordEnrich@v2",
+  "date": "2026-10-14",
+  "model": "fast 티어(haiku), Claude CLI, 직렬",
+  "firstPass": { "scored": "24/25", "heldOut": "21/22", "actionNoun": "5/5", "contractViolationAttempts2": "1/28 (c19 様 — example 에 표기 없음, v1 규칙이지 chunkType 이 아님)" },
+  "stability": "미스·경계 단어 재호출 7회(c24×3, c19×2, c09×2) 포함 총 38회 호출",
+  "knownMisses": {
+   "c24": "でも → MODIFIER 4/4 (이음말인데 모델이 접속 조사로 보고 '조사류 = 꾸밈' 쪽으로 감 — 체계적)",
+   "c19": "様 → MODIFIER 1/3, NAME 2/3 (단독 표기가 접사 '님'과 명사 '모양' 둘 다 가능 — 불안정)"
+  },
+  "majorityVoteScored": "23/25",
+  "invalidInputs": "x01 사과·x02 apple → valid=false, chunkType null, 위반 0"
+ },
+ "items": [
+  { "id": "c01", "surface": "先生", "level": "N5", "expected": "NAME", "group": "NAME", "seedChunk": "NAME" },
+  { "id": "c02", "surface": "映画", "level": "N5", "expected": "NAME", "group": "NAME", "seedChunk": "NAME" },
+  { "id": "c03", "surface": "私", "level": "N5", "expected": "NAME", "group": "NAME", "seedChunk": "NAME", "note": "대명사 → 이름(데모 D4 규칙 1)" },
+  { "id": "c04", "surface": "どこ", "level": "N5", "expected": "NAME", "group": "NAME", "seedChunk": null, "note": "의문 대명사 → 이름(데모 D4 규칙 1, 시드에서는 조각이 비어 있던 행)" },
+  { "id": "c05", "surface": "東京", "level": "N5", "expected": "NAME", "group": "NAME", "seedChunk": null, "note": "지명 — 시드에 없는 표기, 정의(사람·물건·장소의 이름) 그대로" },
+
+  { "id": "c06", "surface": "食べる", "level": "N5", "expected": "ACTION", "group": "ACTION", "seedChunk": "ACTION" },
+  { "id": "c07", "surface": "勉強", "level": "N5", "expected": "ACTION", "group": "ACTION_NOUN", "seedChunk": "ACTION", "inPrompt": true, "note": "동작성 명사(D5) — 품사만 보면 명사라 이름으로 틀리기 쉬운 대표 사례" },
+  { "id": "c08", "surface": "準備", "level": "N4", "expected": "ACTION", "group": "ACTION_NOUN", "seedChunk": "ACTION", "inPrompt": true, "note": "동작성 명사" },
+  { "id": "c09", "surface": "挨拶", "level": "N3", "expected": "ACTION", "group": "ACTION_NOUN", "seedChunk": "ACTION", "inPrompt": true, "note": "동작성 명사 — 인사말(표현)과 헷갈리기 쉬운 사례(의뢰서에 액션 예로 명시)" },
+  { "id": "c10", "surface": "運動", "level": "N4", "expected": "ACTION", "group": "ACTION_NOUN", "seedChunk": "ACTION", "note": "동작성 명사 — 지시문에 없는 낱말(일반화 확인)" },
+  { "id": "c11", "surface": "買い物", "level": "N5", "expected": "ACTION", "group": "ACTION_NOUN", "seedChunk": "ACTION", "note": "동작성 명사(복합어) — 지시문에 없는 낱말" },
+
+  { "id": "c12", "surface": "楽しい", "level": "N5", "expected": "FEELING", "group": "FEELING", "seedChunk": "FEELING" },
+  { "id": "c13", "surface": "おいしい", "level": "N5", "expected": "FEELING", "group": "FEELING", "seedChunk": "FEELING" },
+  { "id": "c14", "surface": "悲しい", "level": "N4", "expected": "FEELING", "group": "FEELING", "seedChunk": "FEELING" },
+  { "id": "c15", "surface": "好き", "level": "N5", "expected": "FEELING", "group": "FEELING", "seedChunk": "FEELING", "note": "な형용사 어간" },
+
+  { "id": "c16", "surface": "とても", "level": "N5", "expected": "MODIFIER", "group": "MODIFIER", "seedChunk": "MODIFIER" },
+  { "id": "c17", "surface": "ゆっくり", "level": "N3", "expected": "MODIFIER", "group": "MODIFIER", "seedChunk": "MODIFIER" },
+  { "id": "c18", "surface": "昨日", "level": "N5", "expected": "MODIFIER", "group": "MODIFIER", "seedChunk": "MODIFIER", "note": "시간 명사 → 꾸밈(tutor.md §5 '시간·장소') — 명사라 이름으로 틀리기 쉬움" },
+  { "id": "c19", "surface": "様", "level": "N3", "expected": "MODIFIER", "group": "MODIFIER_AFFIX", "seedChunk": null, "note": "접사(님) → 꾸밈(데모 D4 규칙 5)" },
+  { "id": "c20", "surface": "など", "level": "N5", "expected": "MODIFIER", "group": "MODIFIER_AFFIX", "seedChunk": null, "note": "조사류(등) → 꾸밈(데모 D4 규칙 5)" },
+
+  { "id": "c21", "surface": "はじめまして", "level": "N5", "expected": "EXPRESSION", "group": "EXPRESSION", "seedChunk": null },
+  { "id": "c22", "surface": "ありがとう", "level": "N5", "expected": "EXPRESSION", "group": "EXPRESSION", "seedChunk": null },
+  { "id": "c23", "surface": "すみません", "level": "N5", "expected": "EXPRESSION", "group": "EXPRESSION", "seedChunk": null },
+  { "id": "c24", "surface": "でも", "level": "N5", "expected": "EXPRESSION", "group": "EXPRESSION", "seedChunk": null, "note": "이음말 → 표현(데모 D4 B 규칙 3) — 접속사라 꾸밈으로 틀리기 쉬움" },
+  { "id": "c25", "surface": "なるほど", "level": "N4", "expected": "EXPRESSION", "group": "EXPRESSION", "seedChunk": null, "note": "맞장구·감탄" }
+ ],
+ "info": [
+  { "id": "i01", "surface": "高い", "level": "N5", "acceptable": ["FEELING", "MODIFIER"], "seedChunk": "MODIFIER/FEELING 혼재", "note": "형용사지만 사물 속성(높다·비싸다) — 시드 분류도 갈림, 점수 제외" },
+  { "id": "i02", "surface": "電話", "level": "N5", "acceptable": ["NAME", "ACTION"], "seedChunk": "NAME", "note": "물건(전화기)과 동작(전화하다) 둘 다 — 점수 제외" },
+  { "id": "i03", "surface": "仕事", "level": "N5", "acceptable": ["NAME", "ACTION"], "seedChunk": "ACTION/NAME 혼재", "note": "일(직업)·일하다 — 점수 제외" }
+ ],
+ "invalid": [
+  { "id": "x01", "surface": "사과", "level": null, "note": "한국어 — valid=false, chunkType 은 null 이어야 한다(다른 사전 칸과 같음)" },
+  { "id": "x02", "surface": "apple", "level": null, "note": "영어 — valid=false, chunkType null" }
+ ]
+}

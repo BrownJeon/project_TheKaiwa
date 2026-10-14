@@ -10,13 +10,15 @@
  *   GENERATING)면 그 레슨 행을 GENERATING 으로 되살리고 새 잡을 건다**(Leader 결정 ★③ — #59 의 FAILED 행 되살림과 같은 규칙, 세션 연결 그대로).
  *   세션이 DUE 가 아니면 409 `{reason:'NOT_DUE', status}`. 사용자당 복습 수업 생성 동시 1(409 `GENERATING`).
  */
-import { Prisma, type ChunkType, type JlptLevel, type JobStatus, type LessonKind, type LessonStatus, type RepetitionItemType } from '@prisma/client'
+import { Prisma, type JlptLevel, type JobStatus, type LessonKind, type LessonStatus, type RepetitionItemType } from '@prisma/client'
 import { ApiError, dates, jobs, lockUserRow, prisma, truncateCodePoints, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
+import { asTopicChunkType, type TopicChunkType } from '@/types/topic'
 import { newTraceId } from '@/modules/engine'
 import { activeDecisionJob, decisionJobToday, kickDecisionQueue, scheduleReviewDecision, type ReviewDecisionDriver, type ReviewDecisionTrigger, type StoredReviewDecision } from '../repetition/decision'
 import { REVIEW_FALLBACK_RATIONALE_KO, reviewGuardOf, type ReviewGuard } from '../repetition/review'
 import { runLessonGeneration, settleGenerating, type LessonGeneration } from '../lessons/generate'
+import { visibleWordWhere } from '../vocab/wordState'
 import {
   countGuard,
   ensureFallbackSchedule,
@@ -189,14 +191,14 @@ export interface ReviewMixMaterialItem {
   id: string
   itemType: RepetitionItemType
   /** A5 입력의 조각 분류 추정(주제 조각은 원래 분류, 그 밖은 종류로 — LLM 이 다시 분류하므로 틀려도 검증엔 영향 없음, PE 인계). */
-  chunkType: ChunkType
+  chunkType: TopicChunkType
   textJa: string
   /** 원천(주제 조각·단어)의 읽기 — 없으면 null. */
   reading: string | null
   meaningKo: string | null
 }
 
-const CHUNK_TYPE_BY_ITEM: Record<RepetitionItemType, ChunkType> = { WORD: 'NAME', CHUNK: 'NAME', EXPRESSION: 'ACTION', GRAMMAR: 'MODIFIER', SCENARIO: 'ACTION', LESSON: 'ACTION' }
+const CHUNK_TYPE_BY_ITEM: Record<RepetitionItemType, TopicChunkType> = { WORD: 'NAME', CHUNK: 'NAME', EXPRESSION: 'ACTION', GRAMMAR: 'MODIFIER', SCENARIO: 'ACTION', LESSON: 'ACTION' }
 
 export interface ReviewMixMaterials {
   scheduleId: string
@@ -207,6 +209,14 @@ export interface ReviewMixMaterials {
 
 function notDue(status: string): ApiError {
   return new ApiError('CONFLICT', status === 'DONE' ? '이미 끝낸 복습이에요.' : status === 'SKIPPED' ? '건너뛴 복습이에요.' : '지금은 시작할 수 없는 복습이에요.', { reason: 'NOT_DUE', status })
+}
+
+/**
+ * 복습 재료의 단어 읽기(읽기 표기) 범위 — 반복 항목(`refType='WordEntry'`)이 가리키는 단어는 기본 단어일 수 있다(task-068: 세트 카드·
+ * 678행 이관) → 내 단어 + 공용 기본 단어. 남의 단어 id 는 걸리지 않는다.
+ */
+export function reviewWordReadWhere(userId: string, wordIds: readonly string[]): Prisma.WordEntryWhereInput {
+  return { AND: [visibleWordWhere(userId), { id: { in: [...wordIds] } }] }
 }
 
 /** #63 재료(점유 전 읽기) — 소유자만(404), DUE 만(409). mixSpec 순서대로, 남의·없는 id 는 빠진다. */
@@ -223,7 +233,7 @@ export async function loadReviewMixMaterials(userId: string, scheduleId: string)
   const wordIds = rows.filter((r) => r.refType === 'WordEntry').map((r) => r.refId)
   const [chunks, words, profile] = await Promise.all([
     chunkIds.length ? prisma.topicChunk.findMany({ where: { id: { in: chunkIds } }, select: { id: true, reading: true, chunkType: true } }) : [],
-    wordIds.length ? prisma.wordEntry.findMany({ where: { userId, id: { in: wordIds } }, select: { id: true, reading: true } }) : [],
+    wordIds.length ? prisma.wordEntry.findMany({ where: reviewWordReadWhere(userId, wordIds), select: { id: true, reading: true } }) : [],
     getProfile(userId),
   ])
   const readingOf = new Map<string, string | null>([...chunks.map((c) => [`TopicChunk:${c.id}`, c.reading] as const), ...words.map((w) => [`WordEntry:${w.id}`, w.reading] as const)])
@@ -236,7 +246,7 @@ export async function loadReviewMixMaterials(userId: string, scheduleId: string)
     items: ids.flatMap((id) => {
       const r = byId.get(id)
       if (!r) return []
-      const chunkType = (r.refType === 'TopicChunk' ? chunkTypeOf.get(r.refId) : undefined) ?? CHUNK_TYPE_BY_ITEM[r.itemType]
+      const chunkType = asTopicChunkType(r.refType === 'TopicChunk' ? chunkTypeOf.get(r.refId) : undefined, null) ?? CHUNK_TYPE_BY_ITEM[r.itemType]
       return [{ id: r.id, itemType: r.itemType, chunkType, textJa: r.textJa, reading: readingOf.get(`${r.refType}:${r.refId}`) ?? null, meaningKo: r.meaningKo }]
     }),
   }

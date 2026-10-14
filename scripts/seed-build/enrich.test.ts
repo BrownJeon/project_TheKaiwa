@@ -18,7 +18,11 @@ test('앱 enum 과 같다(words.ts 원문 대조 — DB·Prisma 를 불러오지
   const src = readFileSync(join(process.cwd(), 'src/modules/learning/vocab/words.ts'), 'utf8')
   const list = (name: string) => JSON.parse(src.match(new RegExp(`${name} = (\\[[^\\]]*\\])`))![1]!.replace(/'/g, '"')) as string[]
   assert.deepEqual(list('PARTS_OF_SPEECH'), [...PARTS_OF_SPEECH])
-  assert.deepEqual(list('WORD_CHUNK_TYPES'), [...CHUNK_TYPES])
+  // task-068: 앱의 조각 목록은 5유형(+EXPRESSION) — 단어 팩 빌더(이 스크립트)는 지금도 4유형만 낸다. EXPRESSION 은 기본 단어 시드의
+  // 재분류(`chunk-reclass.json`)로만 붙으므로 「빌더 4유형 = 앱 목록에서 EXPRESSION 만 뺀 것」이고 차이는 EXPRESSION 하나뿐이어야 한다.
+  const appChunks = list('WORD_CHUNK_TYPES')
+  assert.deepEqual(appChunks.filter((v) => v !== 'EXPRESSION'), [...CHUNK_TYPES])
+  assert.deepEqual(appChunks.filter((v) => !(CHUNK_TYPES as readonly string[]).includes(v)), ['EXPRESSION'])
 })
 
 test('정상 행 → ok, 뜻 쉼표 정규화, 어간만 포함은 soft', () => {

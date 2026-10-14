@@ -12,6 +12,7 @@ import {
 } from '../vocab/sessions'
 import { requestedModeOf } from '../vocab/setGenerator'
 import { resetTopicWordsStateForTest, type TopicSetDeps } from '../vocab/topicSet'
+import { fakeUserWordState, matchWhere, stateRow } from './wordWhereFake'
 
 const U = 'user-1'
 const OTHER = 'user-2'
@@ -29,7 +30,7 @@ const WORDS: [string, string, string, string, PartOfSpeech][] = [
   ['w4', '高い', 'たかい', '비싸다', 'ADJ_I'], ['w5', '友達', 'ともだち', '친구', 'NOUN'], ['w6', '火', 'ひ', '불', 'NOUN'],
 ]
 const wordRow = ([id, surface, reading, meaning, partOfSpeech]: (typeof WORDS)[number], over: Row = {}): Row => ({
-  id, userId: U, archived: false, category: null, surface, reading, meaning, partOfSpeech, correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null,
+  id, userId: U, source: 'MANUAL', archived: false, category: null, surface, reading, meaning, partOfSpeech, correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null,
   example: `${surface}の例文。`, exampleKo: `${meaning} 예문`, jlpt: null, ...over,
 })
 
@@ -50,6 +51,9 @@ class FakeDb {
   snapshots: Row[] = []
   rep: Row[] = []
   observations: Row[] = []
+  /** task-068: 나의 학습 상태(UserWordState) — 카운터는 단어 행이 아니라 여기에 쌓인다. */
+  states: Row[] = []
+  ops: string[] = []
   private seq = 0
   clock = NOW.getTime()
 
@@ -99,6 +103,11 @@ class FakeDb {
 
   word(id: string): Row {
     return this.words.find((w) => w.id === id) as Row
+  }
+
+  /** 나(U)의 단어 상태 — 행이 없으면 0·미보관(= 기본값). */
+  st(wordId: string): Row {
+    return this.states.find((x) => x.userId === U && x.wordId === wordId) ?? stateRow(U, wordId)
   }
 
   tx(): Tx {
@@ -186,20 +195,17 @@ function fakeTx(db: FakeDb): Tx {
         },
       },
       wordEntry: {
-        findMany: async ({ where }: { where: Row }) =>
-          db.words.filter((w) =>
-            w.userId === where.userId
-            && (where.archived === undefined || w.archived === where.archived)
-            && (where.category === undefined || w.category === where.category)
-            && (where.id === undefined || (where.id as { in: string[] }).in.includes(w.id as string))),
+        findMany: async ({ where }: { where: Row }) => db.words.filter((w) => matchWhere(w, where, db.states)),
         updateMany: async ({ where, data }: { where: Row; data: Row }) => {
-          const hit = db.words.filter((w) => w.userId === where.userId && (where.id as { in: string[] }).in.includes(w.id as string))
+          db.ops.push('word:updateMany')
+          const hit = db.words.filter((w) => matchWhere(w, where, db.states))
           for (const w of hit) {
             for (const [k, v] of Object.entries(data)) w[k] = v && typeof v === 'object' && 'increment' in v ? (w[k] as number) + (v as { increment: number }).increment : v
           }
           return { count: hit.length }
         },
       },
+      userWordState: fakeUserWordState(db, db.ops),
       repetitionItem: {
         findMany: async ({ where }: { where: Row }) =>
           db.rep.filter((r) => r.userId === where.userId && ((where.OR as Row[] | undefined) ?? []).some((o) => o.refType === r.refType && (typeof o.refId === 'string' ? o.refId === r.refId : (o.refId as { in: string[] }).in.includes(r.refId as string)))),
@@ -456,6 +462,120 @@ async function mixedSet(db: FakeDb): Promise<Created> {
   return r
 }
 
+// ── task-068 T28: 세트 풀 = 내 단어 + 공용 기본 단어(내가 보관 안 한 것) · 끝내기 카운터는 나의 UserWordState 에만 ──────────────
+
+const asBase = (db: FakeDb) => db.words.forEach((w) => Object.assign(w, { userId: null, source: 'SEED' }))
+
+test('T28 풀: 기본 단어도 풀에 들어오고, 내가 보관한 기본 단어만 빠진다(다른 사용자의 보관·상태는 내 풀과 무관)', async () => {
+  const mine = new FakeDb()
+  asBase(mine)
+  mine.words.push(wordRow(['m1', '駅', 'えき', '역', 'NOUN']), wordRow(['x1', '他人', 'たにん', '남', 'NOUN'], { userId: 'user-2' }))
+  mine.states.push(stateRow(U, 'w1', { archived: true }), stateRow('user-2', 'w2', { archived: true }))
+  const ids = (await wordSet(mine, {}, 30)).cards.map((c) => c.wordId).sort()
+  assert.deepEqual(ids, ['m1', 'w2', 'w3', 'w4', 'w5', 'w6'], '내 단어 m1 + 기본 단어(내가 보관한 w1 제외 — user-2 가 보관한 w2 는 있음) · 남의 단어 x1 없음')
+  const other = new FakeDb()
+  asBase(other)
+  other.states.push(stateRow('user-2', 'w1', { archived: true }))
+  assert.equal((await wordSet(other, {}, 30)).cards.some((c) => c.wordId === 'w1'), true, '남(user-2)이 보관한 기본 단어는 내 풀에 그대로')
+})
+
+test('T28 빈 풀: 보이는 단어를 모두 보관하면 NO_WORDS · cta 는 [ADD_WORD] 하나(기본 단어 넣기 SEED_PACK 없음 — L7)', async () => {
+  const db = new FakeDb()
+  asBase(db)
+  db.states.push(...db.words.map((w) => stateRow(U, w.id as string, { archived: true })))
+  const r = await composeWordSessionLocked(db.tx(), U, { count: 10, mode: 'FLIP', category: null }, undefined, NOW)
+  assert.deepEqual(r, { session: null, empty: { reason: 'NO_WORDS', cta: ['ADD_WORD'] } })
+})
+
+test('T28 풀 가중 상태: 나의 보관 안 한 상태 행만 읽는다(where = {userId: 나, archived: false}) — 풀 id 를 IN 으로 보내지 않음', async () => {
+  const db = new FakeDb()
+  asBase(db)
+  const seen: Row[] = []
+  const tx = db.tx() as unknown as Record<string, Record<string, (a: Row) => Promise<unknown>>>
+  const orig = tx.userWordState.findMany
+  tx.userWordState.findMany = async (a: Row) => (seen.push(a.where as Row), orig(a))
+  await composeWordSessionLocked(tx as unknown as Tx, U, { count: 5, mode: 'FLIP', category: null }, undefined, NOW)
+  assert.deepEqual(seen, [{ userId: U, archived: false }])
+})
+
+test('T28 끝내기(기본 단어 카드): 카운터는 나의 UserWordState 에만 생기고, 공용 행·다른 사용자 상태는 그대로', async () => {
+  const db = new FakeDb()
+  asBase(db)
+  db.states.push(stateRow('user-2', 'w1', { wrongCount: 7 }), stateRow('user-2', 'w2', { correctCount: 3 }))
+  const r = await mixedSet(db)
+  const wid = (o: number) => db.rowsOf(r.session.id)[o].wordId as string
+  await finishVocabSessionDetailed(U, r.session.id, db.run())
+  assert.equal(db.states.filter((x) => x.userId === U).length, 5, '답한·건너뛴 카드 5장 = 내 상태 행 5개')
+  assert.deepEqual([db.st(wid(0)).correctCount, db.st(wid(1)).correctCount, db.st(wid(2)).wrongCount, db.st(wid(3)).wrongCount, db.st(wid(4)).lastResult], [1, 1, 1, 1, 'SKIPPED'])
+  assert.deepEqual(db.states.filter((x) => x.userId === 'user-2').map((x) => [x.wordId, x.correctCount, x.wrongCount, x.lastResult]), [['w1', 0, 7, null], ['w2', 3, 0, null]])
+  assert.equal(db.ops.includes('word:updateMany'), false)
+  assert.deepEqual(db.words.map((w) => [w.userId, w.correctCount, w.wrongCount, w.lastSeenAt, w.lastResult]), db.words.map(() => [null, 0, 0, null, null]))
+})
+
+test('T28 분류 세트: 분류 이름이 기본 단어의 분류와 같으면 기본 단어도 후보(보관한 것만 빠짐) · 내 분류는 내 단어만', async () => {
+  const seed = () => {
+    const db = new FakeDb()
+    asBase(db)
+    for (const w of db.words) w.category = '초보자 (N5)'
+    db.words.push(wordRow(['m1', '駅', 'えき', '역', 'NOUN'], { category: '내 분류' }))
+    return db
+  }
+  const db = seed()
+  db.states.push(stateRow(U, 'w1', { archived: true }))
+  const ids = (await wordSet(db, { category: '초보자 (N5)' }, 30)).cards.map((c) => c.wordId).sort()
+  assert.deepEqual(ids, ['w2', 'w3', 'w4', 'w5', 'w6'], '같은 분류의 기본 단어(내가 보관한 w1 제외) — 다른 분류인 내 단어 m1 은 없다')
+  assert.deepEqual((await wordSet(seed(), { category: '내 분류' }, 30)).cards.map((c) => c.wordId), ['m1'])
+})
+
+test('T28 주제 세트 뜻 보기 재료: 기본 단어의 뜻도 보기 원천(내 단어가 없어도 보기 4개), 내가 보관한 기본 단어는 재료에서 빠진다', async () => {
+  const run = async (archive: string[]) => {
+    const db = new FakeDb()
+    asBase(db)
+    db.chunks = db.chunks.slice(0, 2) // 주제 풀 뜻은 2개 — 나머지 보기는 단어장(기본 단어)에서만 온다
+    db.states.push(...archive.map((id) => stateRow(U, id, { archived: true })))
+    return { db, r: created(await createVocabSession(U, { count: 6, mode: 'FLIP', category: null, topicId: TOPIC, generate: false }, { deps: topicDeps(db) })) }
+  }
+  const open = await run([])
+  assert.equal(open.r.cards.length, 2)
+  for (const c of open.r.cards) assertCardChoices(c, open.db.rowsOf(open.r.session.id)[c.order].meaningSnap as string)
+  const shut = await run(['w1', 'w2', 'w3', 'w4', 'w5']) // 남은 기본 단어 1개 + 주제 풀 2개 = 서로 다른 뜻 3개 < 4
+  assert.ok(shut.r.cards.every((c) => !('choices' in c)), '보관한 기본 단어는 보기 재료가 아니다')
+})
+
+test('T28 다시 풀기(주제 세트) 뜻 보기 재료: 기본 단어의 뜻을 쓰고, 내가 보관한 기본 단어는 뺀다', async () => {
+  const run = async (archive: string[]) => {
+    const db = new FakeDb()
+    asBase(db)
+    db.chunks = db.chunks.slice(0, 2)
+    const src = created(await createVocabSession(U, { count: 6, mode: 'FLIP', category: null, topicId: TOPIC, generate: false }, { deps: topicDeps(db) }))
+    await attempt(db, src.session.id, { order: 0, skipped: true })
+    await finishVocabSessionDetailed(U, src.session.id, db.run())
+    ;(db.sessions.find((s) => s.id === src.session.id) as Row).keptAt = NOW
+    db.states.push(...archive.map((id) => stateRow(U, id, { archived: true })))
+    return { db, rep: await replayVocabSession(U, src.session.id, db.run()) }
+  }
+  const open = await run([])
+  assert.equal(open.rep.session.topic?.id, TOPIC)
+  for (const c of open.rep.cards) assertCardChoices(c, open.db.rowsOf(open.rep.session.id)[c.order].meaningSnap as string)
+  const shut = await run(['w1', 'w2', 'w3', 'w4', 'w5'])
+  assert.ok(shut.rep.cards.every((c) => !('choices' in c)), '보관한 기본 단어는 다시 풀기 보기 재료도 아니다')
+})
+
+test('T28 다시 풀기(단어 세트) 뜻 보기 재료: 모든 단어가 기본 단어여도 보기 4개 · 보관한 기본 단어는 재료에서 빠진다', async () => {
+  const run = async (archive: string[]) => {
+    const db = new FakeDb()
+    asBase(db)
+    const src = await keptSet(db, {})
+    db.states.push(...archive.map((id) => stateRow(U, id, { archived: true })))
+    return { db, rep: await replayVocabSession(U, src.session.id, db.run()) }
+  }
+  const open = await run([])
+  for (const c of open.rep.cards) assertCardChoices(c, open.db.rowsOf(open.rep.session.id)[c.order].meaningSnap as string)
+  const shut = await run(['w1', 'w2', 'w3']) // 보이는 단어 6 → 3 이라 서로 다른 뜻 3개 < 4 — 카드(보관 무시)는 그대로, 보기만 없다
+  assert.equal(shut.rep.cards.length, 5)
+  assert.ok(shut.rep.cards.every((c) => !('choices' in c)))
+})
+
 test('#49 새로고침 복원: 보기로 답한 카드 = chosenText·choices·answer·correctText, 스스로 답한 카드 = chosenText null, 미답 = 보기·뜻만', async () => {
   const db = new FakeDb()
   const r = await mixedSet(db)
@@ -471,7 +591,7 @@ test('#49 새로고침 복원: 보기로 답한 카드 = chosenText·choices·an
   assert.equal(read.cards.filter((c) => c.chosenText != null).length, 2, '화면이 세는 「객관식으로 답한 카드」 = 2')
 })
 
-test('#51 혼합 세트 끝내기: 답한 방식과 무관하게 합산(맞힘 2·틀림 2·건너뜀 1) · WordEntry 카운터 · 반복 항목·관측·스냅샷 · 요약 「카드」', async () => {
+test('#51 혼합 세트 끝내기: 답한 방식과 무관하게 합산(맞힘 2·틀림 2·건너뜀 1) · 나의 UserWordState 카운터 · 반복 항목·관측·스냅샷 · 요약 「카드」', async () => {
   const db = new FakeDb()
   const r = await mixedSet(db)
   const wid = (o: number) => db.rowsOf(r.session.id)[o].wordId as string
@@ -480,9 +600,11 @@ test('#51 혼합 세트 끝내기: 답한 방식과 무관하게 합산(맞힘 2
   assert.deepEqual([done.result.session.status, done.result.session.correctCount, done.result.session.wrongCount, done.result.session.skippedCount], ['DONE', 2, 2, 1])
   assert.equal(done.result.flaggedCount, 1)
   assert.deepEqual(done.result.wrongWords.map((w) => w.wordId).sort(), [wid(2), wid(3)].sort())
-  assert.deepEqual([db.word(wid(0)).correctCount, db.word(wid(1)).correctCount, db.word(wid(2)).wrongCount, db.word(wid(3)).wrongCount], [1, 1, 1, 1])
-  assert.deepEqual([db.word(wid(0)).lastResult, db.word(wid(1)).lastResult, db.word(wid(2)).lastResult, db.word(wid(3)).lastResult, db.word(wid(4)).lastResult], ['CORRECT', 'CORRECT', 'WRONG', 'WRONG', 'SKIPPED'])
-  assert.deepEqual([db.word(wid(4)).correctCount, db.word(wid(4)).wrongCount], [0, 0], '건너뜀은 카운터 그대로')
+  assert.deepEqual([db.st(wid(0)).correctCount, db.st(wid(1)).correctCount, db.st(wid(2)).wrongCount, db.st(wid(3)).wrongCount], [1, 1, 1, 1])
+  assert.deepEqual([db.st(wid(0)).lastResult, db.st(wid(1)).lastResult, db.st(wid(2)).lastResult, db.st(wid(3)).lastResult, db.st(wid(4)).lastResult], ['CORRECT', 'CORRECT', 'WRONG', 'WRONG', 'SKIPPED'])
+  assert.deepEqual([db.st(wid(4)).correctCount, db.st(wid(4)).wrongCount], [0, 0], '건너뜀은 카운터 그대로')
+  assert.equal(db.ops.includes('word:updateMany'), false, 'task-068: 단어 행(WordEntry) 카운터는 쓰지 않는다')
+  assert.deepEqual(db.words.map((w) => [w.correctCount, w.wrongCount, w.lastResult]), db.words.map(() => [0, 0, null]))
   assert.equal(db.rowsOf(r.session.id).filter((a) => a.chosenText != null).length, 2, 'chosenText 는 보기로 답한 2행만')
   assert.equal(db.logs.length, 1)
   assert.equal(db.logs[0].summary, '오늘의 단어 5장(카드) · 맞힘 2 · 틀림 2 · 건너뜀 1')

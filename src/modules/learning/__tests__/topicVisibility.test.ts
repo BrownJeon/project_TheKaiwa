@@ -37,6 +37,7 @@ function mini() {
     userSeedOverride: { findFirst: first('userSeedOverride') },
     challenge: { findFirst: first('challenge') },
     wordEntry: { findMany: async () => [] },
+    userWordState: { findMany: async () => [] },
     evaluationItem: { findMany: async () => [] },
   } as unknown as Tx
   return { T, db, log }

@@ -5,7 +5,8 @@
  * 사용자 행은 미리 만들지 **않는다**(TheMeal 교훈): provider/oauthId 는 Google 첫 로그인 때 알 수 있는
  * 값이라, 가짜 값으로 먼저 만들면 `@@unique([provider, oauthId])` 와 어긋나 계정이 둘로 갈린다.
  * OWNER_EMAIL 계정은 첫 로그인 때 인증 콜백이 SUPER_ADMIN 으로 만든다(signup-gate). 그 뒤 다시
- * `npm run db:seed` 하면 OWNER 전용 단계(설정 기본 행·N5 단어 50)가 채워진다.
+ * `npm run db:seed` 하면 OWNER 전용 단계(설정 기본 행)가 채워진다. 기본 단어(공용, task-068)는 이 시드가 아니라
+ * `npm run db:seed-base-words`(scripts/seed-base-words.ts)가 넣는다 — OWNER 에게 단어를 복사하지 않는다.
  *
  * 실행: 우분투 미러에서 `npm run db:seed`(NFS noexec — 루트에서 npx 금지).
  * 드라이런: `SEED_DRY_RUN=1 node --env-file=.env --import tsx prisma/seed.ts` — 주제·조각 계획만 출력(쓰기 0).
@@ -18,8 +19,6 @@ import { seedTopics, type SeedTopicInput } from './seed-topics'
 
 const prisma = new PrismaClient()
 const data = (name: string) => JSON.parse(readFileSync(join(__dirname, 'seed-data', name), 'utf-8'))
-
-type WordSeed = { surface: string; reading: string; meaning: string; partOfSpeech: string; chunkType: string | null; example: string; exampleKo: string }
 
 async function seedEngines(envs: Environment[]) {
   const e = data('engines.json')
@@ -114,22 +113,13 @@ async function seedOwner() {
   const email = process.env.OWNER_EMAIL?.trim().toLowerCase()
   if (!email) return console.log('[seed] OWNER_EMAIL 이 비어 있어 OWNER 단계를 건너뜁니다.')
   const user = await prisma.user.findUnique({ where: { email } })
-  if (!user) return console.log('[seed] OWNER 계정이 아직 없습니다 — 첫 Google 로그인 후 `npm run db:seed` 를 다시 실행하면 설정 기본 행·N5 단어 50개가 채워집니다.')
+  if (!user) return console.log('[seed] OWNER 계정이 아직 없습니다 — 첫 Google 로그인 후 `npm run db:seed` 를 다시 실행하면 설정 기본 행이 채워집니다.')
   if (user.role !== 'SUPER_ADMIN') await prisma.user.update({ where: { id: user.id }, data: { role: 'SUPER_ADMIN' } })
   await prisma.profile.upsert({ where: { userId: user.id }, update: {}, create: { userId: user.id } })
   await prisma.userVoiceSetting.upsert({ where: { userId: user.id }, update: {}, create: { userId: user.id, voiceProfileId: 'teacher_haruka' } })
   await prisma.userSpeechSetting.upsert({ where: { userId: user.id }, update: {}, create: { userId: user.id } })
-  const words: WordSeed[] = data('words-n5.json')
-  let added = 0
-  for (const w of words) {
-    const exists = await prisma.wordEntry.findFirst({ where: { userId: user.id, surface: w.surface, source: 'SEED' }, select: { id: true } })
-    if (exists) continue
-    await prisma.wordEntry.create({
-      data: { userId: user.id, surface: w.surface, reading: w.reading, meaning: w.meaning, partOfSpeech: w.partOfSpeech as never, chunkType: (w.chunkType ?? null) as never, jlpt: 'N5', example: w.example, exampleKo: w.exampleKo, category: 'N5 기초', source: 'SEED' },
-    })
-    added++
-  }
-  console.log(`[seed] OWNER(SUPER_ADMIN) 설정 기본 행 + N5 단어 ${added}개 추가(기존 ${words.length - added})`)
+  // task-068: 옛 N5 50개를 OWNER 행으로 복사하지 않는다 — 기본 단어는 공용 행(userId NULL, scripts/seed-base-words.ts)이라 모두가 이미 본다.
+  console.log('[seed] OWNER(SUPER_ADMIN) 설정 기본 행')
 }
 
 /**

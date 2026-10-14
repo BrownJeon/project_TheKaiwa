@@ -1,7 +1,7 @@
 /**
  * #79 서랍장 교정(task-055, api-contract §2-17) — 채택(ACCEPTED)한 교정 모음을 읽기만 한다. 쓰기·스키마 변경 없음.
  *
- * - 소유자: 늘 `userId = 요청자`. 연결 단어(`savedWord`)도 같은 사용자 소유일 때만 싣는다.
+ * - 소유자: 늘 `userId = 요청자`. 연결 단어(`savedWord`)는 같은 사용자 소유이거나 공용 기본 단어일 때만 싣는다(task-068 T30 — 남의 단어는 숨김).
  * - 정렬 `resolvedAt desc, id desc` + `{t,id}` 키셋 커서. 채택 경로(`acceptCorrection`)는 늘 `resolvedAt` 을 쓰지만, 커서 키가 비면
  *   페이지가 깨지므로 `resolvedAt IS NOT NULL` 을 조건에 넣어 둔다.
  * - 검색 `q` 는 `original`·`corrected`·`explanation` 부분 일치. Prisma `contains` 는 `%`·`_`·`\` 를 이스케이프하지 않으므로
@@ -11,6 +11,7 @@
 import type { ChunkType, ErrorType, Prisma } from '@prisma/client'
 import { ApiError, codePointLength, decodeCursor, encodeCursor, escapeLike, isTimeIdCursor, parseLimit, prisma, sanitizeText } from '@/modules/infra'
 import type { DrawerCorrectionFacets, DrawerCorrectionItem, DrawerCorrectionPage } from '@/types/chat'
+import { asTopicChunkType, type TopicChunkType } from '@/types/topic'
 
 export const DRAWER_LIMIT_DEFAULT = 20
 export const DRAWER_LIMIT_MAX = 50
@@ -20,10 +21,11 @@ export const DRAWER_Q_MAX = 40
 const ERROR_TYPE_RANK: Record<ErrorType, number> = {
   GRAMMAR: 0, PARTICLE: 1, CONJUGATION: 2, VOCABULARY: 3, POLITENESS: 4, NATURALNESS: 5, WORD_ORDER: 6, PRONUNCIATION: 7, OTHER: 8,
 }
-const CHUNK_TYPE_SET: Record<ChunkType, true> = { NAME: true, ACTION: true, FEELING: true, MODIFIER: true }
+// 교정 조각은 4유형뿐(EXPRESSION 은 단어 전용, task-068 J12) — 교정 모음 필터도 4유형.
+const CHUNK_TYPE_SET: Record<TopicChunkType, true> = { NAME: true, ACTION: true, FEELING: true, MODIFIER: true }
 
 export const DRAWER_ERROR_TYPES = Object.keys(ERROR_TYPE_RANK) as ErrorType[]
-export const DRAWER_CHUNK_TYPES = Object.keys(CHUNK_TYPE_SET) as ChunkType[]
+export const DRAWER_CHUNK_TYPES = Object.keys(CHUNK_TYPE_SET) as TopicChunkType[]
 
 export interface DrawerCorrectionQuery {
   errorType: ErrorType | null
@@ -79,8 +81,16 @@ export function drawerCorrectionWhere(userId: string, f: Pick<DrawerCorrectionQu
 export const DRAWER_CORRECTION_SELECT = {
   id: true, original: true, corrected: true, explanation: true, extraNoteKo: true, errorType: true, severity: true, chunkType: true, resolvedAt: true,
   chat: { select: { id: true, title: true, kind: true } },
-  savedWord: { select: { id: true, surface: true, userId: true } },
+  savedWord: { select: { id: true, surface: true, userId: true, source: true } },
 } as const
+
+/**
+ * 공용 기본 단어(task-068 — `userId` NULL · `source=SEED`, 모든 사용자가 읽는 행). 이관·채택(L4)으로 교정의 `savedWordId` 가 기본 단어를
+ * 가리킬 수 있어 「단어장에 넣은 단어」 연결로 싣는다. 판정은 learning `visibleWordWhere` 와 같은 두 조건(L2 는 L3 를 import 하지 않는다).
+ */
+function isBaseWord(w: { userId: string | null; source: string }): boolean {
+  return w.userId === null && w.source === 'SEED'
+}
 
 export type DrawerCorrectionRow = Prisma.CorrectionGetPayload<{ select: typeof DRAWER_CORRECTION_SELECT }>
 const DRAWER_ORDER: Prisma.CorrectionOrderByWithRelationInput[] = [{ resolvedAt: 'desc' }, { id: 'desc' }]
@@ -103,9 +113,9 @@ function serializeDrawerCorrection(userId: string, r: DrawerCorrectionRow): Draw
     extraNoteKo: r.extraNoteKo ?? null,
     errorType: r.errorType,
     severity: r.severity,
-    chunkType: r.chunkType,
+    chunkType: asTopicChunkType(r.chunkType, null),
     chat: { id: r.chat.id, title: r.chat.title, kind: r.chat.kind },
-    ...(w && w.userId === userId ? { savedWord: { id: w.id, surface: w.surface } } : {}),
+    ...(w && (w.userId === userId || isBaseWord(w)) ? { savedWord: { id: w.id, surface: w.surface } } : {}),
     // where 가 resolvedAt IS NOT NULL 을 보장한다.
     resolvedAt: (r.resolvedAt as Date).toISOString(),
   }

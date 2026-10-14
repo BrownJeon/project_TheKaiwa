@@ -1,113 +1,313 @@
 'use client'
 
 /**
- * 단어장 `/drawer/words`(screens.md §4-2 A·§4-3). 경로는 하나 — 상세·수정·추가는 바텀시트로 열고 페이지를 옮기지 않는다.
+ * 단어장 `/drawer/words`(screens.md §4-2 A·§4-3 · task-068 §28-1·28-2). 경로는 하나 — 상세·수정·추가·쪽 이동은 바텀시트로 열고 페이지를 옮기지 않는다.
  * 다른 화면에서는 `?word=<id>`·`?add=1` 로 들어오고, 시트를 연 뒤 `router.replace` 로 쿼리를 지운다(§4-2 D).
  *
- * 조회 조건(검색·분류·조각·정렬·보관함)이 바뀌면 커서를 지우고 첫 쪽을 읽는다. 분류와 조각은 AND 로 겹친다(task-023 Q1).
- * 보관함을 켜고 끄면 분류는 전체로 돌아가고 조각 선택은 그대로 둔다(조각 값은 보관 여부와 상관없다). 이전 요청은 abort, 늦게 온 옛 응답은
- * 요청 번호로 버린다(§4-10 동시 조회). 추가·수정·보관·삭제는 **서버 응답을 받은 뒤** 반영하고, 정렬·필터 규칙은
- * 화면이 흉내 내지 않고 첫 쪽을 다시 읽는다. 자동 폴링은 없다(마운트·화면 복귀 때만).
- * 머리 줄·빈 화면 안내는 지금 깔린 행을 받아 온 응답의 조건(`list.shown`)으로 그린다 — 개수와 조건이 늘 같은 응답에서 나온다(logic.ts).
+ * 목록은 **한 쪽 7개**(task-068 D1 A) — 쪽 줄은 목록 바로 아래, 쪽 규칙·요청 시작/끝은 `wordsPaging.ts`. 내 단어 + 공용 기본 단어가 한 목록이고
+ * 출처 분절(전체·내 단어·기본 단어)로 좁힌다(D10 A). 조건(검색·출처·분류·조각·정렬·보관함)이 바뀌면 1쪽, 상세·추가·쪽 이동 시트를 닫으면 보던 쪽,
+ * 다른 탭에 갔다 오면(마운트) 1쪽 — 쪽은 저장소에 두지 않는다(D2 A). 쪽을 넘길 때만 회색 자리, 조건 변경·다시 읽기는 지금 행을 둔 채 기다린다.
+ * 이전 요청은 abort, 늦게 온 옛 응답은 요청 번호로 버린다(§4-10). 추가·수정·보관·삭제는 서버 응답을 받은 뒤 **같은 쪽을 다시 읽는다**
+ * (로컬로 행을 빼면 쪽의 행 수·개수가 응답과 어긋난다 — J4). 자동 폴링은 없다(마운트·화면 복귀 때만).
+ * 머리 줄·빈 화면 안내는 지금 깔린 행을 받아 온 응답의 조건(`list.shown`)으로 그린다(logic.ts).
  */
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Ref } from 'react'
 import { apiGet, isAbort } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
 import Segmented from '@/components/common/Segmented'
 import Toast, { useToast } from '@/components/common/Toast'
-import { Btn, ErrorBlock } from '@/components/common/ui'
-import { useWordLayersList } from '@/components/common/japanese/annotations'
-import { DISPLAY_COPY } from '@/components/common/japanese/displayPrefs'
-import { DisplayToggles } from '@/components/common/japanese/JapaneseText'
+import { ErrorBlock } from '@/components/common/ui'
+import { LOADING, OFF, useWordLayersList, type WordLayers } from '@/components/common/japanese/annotations'
+import { DISPLAY_COPY, useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
+import { DisplayToggles, HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import DrawerSwitch from '@/components/drawer/DrawerSwitch'
 import AppBar from '@/components/shell/AppBar'
-import { WordCategoryRowSkeleton, WordRowsSkeleton } from '@/components/shell/TabSkeleton'
-import type { SeedPack } from '@/types/seedPack'
-import type { CategoryCount, WordEntry, WordListPage, WordSort } from '@/types/vocab'
+import { WordRowsSkeleton } from '@/components/shell/TabSkeleton'
+import { WORD_SKELETON } from '@/components/shell/tabSkeletonSizes'
+import type { CategoryCount, WordChunkType, WordEntry, WordListPage, WordSort } from '@/types/vocab'
 import ArchiveToggle from './ArchiveToggle'
+import BaseWordBand from './BaseWordBand'
 import CategoryChips from './CategoryChips'
 import ChunkChips from './ChunkChips'
-import { useHydrated, useSeedLevels, useSeedPack, useStoredPref, VOCAB_KEYS } from './hooks'
-import { actionErrorText, listErrorText, seedResultText, WORD_NOT_FOUND, WORD_SORT_OPTIONS } from './labels'
-import { listFromPage, listHeader, listWithoutRow, WORD_LIST_INITIAL, type WordListFilter, type WordListState } from './logic'
+import { useHydrated, useStoredPref, VOCAB_KEYS } from './hooks'
+import {
+  ARCHIVE_NOTE,
+  fmtCount,
+  listErrorText,
+  listLeadText,
+  WORD_NOT_FOUND,
+  WORD_SAVED_TOAST,
+  WORD_SORT_OPTIONS,
+  WORD_SOURCE_ARIA,
+  WORD_SOURCE_OPTIONS,
+  WORDS_PAGE_COPY as P,
+} from './labels'
+import { listHeader, WORD_FILTER_INITIAL, type WordListFilter, type WordListHeader } from './logic'
 import { categoryTotals, emptyVariant, normalizeCategories, visibleCategories, WORD_LIMITS } from './validate'
 import WordAddSheet from './WordAddSheet'
 import WordDetailSheet from './WordDetailSheet'
 import WordRow from './WordRow'
 import WordSearchBar from './WordSearchBar'
 import WordsEmpty from './WordsEmpty'
+import WordsJumpSheet from './WordsJumpSheet'
+import WordsPager from './WordsPager'
+import {
+  beginWords,
+  fillerCount,
+  focusHeadLine,
+  isWordsPaged,
+  navForKey,
+  navTo,
+  pageAfterAdd,
+  settleWords,
+  wordsCondKey,
+  wordsListUrl,
+  wordsPagerView,
+  WORDS_INITIAL,
+  WORDS_PAGE,
+  type WordsListState,
+  type WordsNav,
+  type WordsPagerView,
+  type WordsReqKind,
+  type WordsResult,
+  type WordsStatus,
+} from './wordsPaging'
 
 const SORTS = ['recent', 'wrong', 'surface'] as const satisfies readonly WordSort[]
-const PAGE = 30
 
-type SheetState = { kind: 'add'; key: number; preset?: string } | { kind: 'detail'; id: string; preview?: WordEntry } | null
+type SheetState =
+  | { kind: 'add'; key: number; preset?: string; presetChunk?: WordChunkType }
+  | { kind: 'detail'; id: string; preview?: WordEntry }
+  | { kind: 'jump' }
+  | null
 
-function listUrl(f: WordListFilter, sort: WordSort, cursor?: string | null): string {
-  const p = new URLSearchParams()
-  if (f.q) p.set('q', f.q)
-  if (f.category !== null) p.set('category', f.category)
-  if (f.chunk) p.set('chunkType', f.chunk)
-  p.set('archived', f.archived ? '1' : '0')
-  p.set('sort', sort)
-  p.set('limit', String(PAGE))
-  if (cursor) p.set('cursor', cursor)
-  return `/api/v1/words?${p.toString()}`
+const FILLER_RUBY = [{ text: '亜', reading: 'あ' }]
+
+/**
+ * 마지막 쪽 빈 자리(J1) — 실제 행과 같은 구조의 숨은 행이라 글자 크게 보기·히라가나/한글 켜고 끄기에서도 같이 커진다(§28-1 D).
+ * 누름·읽기 0(`aria-hidden` + `invisible`, 안에 단추 없음).
+ */
+function FillerRow() {
+  const prefs = useDisplayPrefs()
+  const ruby = prefs.loaded && prefs.showFurigana ? FILLER_RUBY : null
+  return (
+    <li aria-hidden="true" className="invisible">
+      <span className="flex min-h-[64px] w-full min-w-0 flex-col justify-center gap-0.5 px-3.5 py-2.5">
+        <span className="flex w-full min-w-0 items-baseline gap-2">
+          <JaText as="span" text="亜" state={OFF} ruby={ruby} leading={1.95} className="min-w-0 truncate text-[18px] font-semibold" />
+        </span>
+        <HangulLine as="span" state={LOADING} size={12.5} waitAsLine className="w-full" />
+        <span className="flex w-full min-w-0 items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate text-[14px] text-ink2">가</span>
+        </span>
+      </span>
+    </li>
+  )
+}
+
+/** 쪽 넘기는 중 회색 자리 한 줄 — 높이는 단어장 자리표시와 같은 값(읽기 알림은 쪽 줄 status 한 줄만). */
+function PagingRow() {
+  return (
+    <li aria-hidden="true" className="flex flex-col justify-center gap-2 px-3.5" style={{ height: WORD_SKELETON.rowHeight }}>
+      <span className="block h-[18px] w-2/5 rounded-md bg-surface2" />
+      <span className="block h-3.5 w-3/5 rounded-md bg-surface2" />
+    </li>
+  )
+}
+
+function PageErrorBox({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div role="alert" className="mb-2 rounded-xl bg-bad-soft px-3.5 py-3 text-[13.5px] text-bad">
+      <span className="block text-[14.5px] font-semibold">{P.pageError}</span>
+      <span className="block break-keep">{P.pageErrorBody}</span>
+      <button type="button" onClick={onRetry} className="mt-0.5 inline-flex min-h-11 items-center font-semibold underline">
+        {P.retry}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * 머리 줄(§28-2 F) — 「단어 7,758개 · 표현 조각 · 3쪽」. `aria-live` 라 쪽 접미사는 `aria-hidden`(쪽 위치는 쪽 줄 status 가 한 번 읽는다).
+ * `tabIndex=-1` — 쪽을 넘겨 받은 뒤·삭제 뒤·안내 띠를 닫은 뒤 프로그램 초점만 받는다(Tab 순서에 없음). 응답 전에는 비운다.
+ */
+export function WordsHeadLine({ head, pRef }: { head: WordListHeader | null; pRef?: Ref<HTMLParagraphElement> }) {
+  return (
+    <p ref={pRef} tabIndex={-1} aria-live="polite" className="min-w-0 flex-1 scroll-mt-16 text-[12px] text-ink2 [overflow-wrap:anywhere] outline-none">
+      {head ? (
+        <>
+          {head.lead === 'search' ? (
+            <>
+              ‘<span lang="ja">{head.q}</span>’ 검색 결과 {fmtCount(head.n)}개
+            </>
+          ) : (
+            listLeadText(head.lead, head.n)
+          )}
+          {head.condition ? (
+            <>
+              {' · '}
+              <span className="font-semibold text-ink">{head.condition}</span>
+            </>
+          ) : null}
+          {head.pageNo !== null ? (
+            <span aria-hidden="true" className="whitespace-nowrap">
+              {` · ${P.pageSuffix(head.pageNo)}`}
+            </span>
+          ) : null}
+        </>
+      ) : null}
+    </p>
+  )
+}
+
+/**
+ * 목록 칸 + 쪽 줄(§28-1 D) — 상태 없는 부품이라 서버 렌더로 시험한다(T1·T3·T5). 행 수는 늘 7 이하(서버 `limit=7`)이고,
+ * 넘겨받은 행이 더 있어도 7개까지만 그린다.
+ */
+export function WordsPageList({
+  items,
+  layers,
+  sort,
+  status,
+  paged,
+  view,
+  onOpen,
+  onPrev,
+  onNext,
+  onJump,
+  onRetry,
+}: {
+  items: readonly WordEntry[]
+  layers: readonly WordLayers[]
+  sort: WordSort
+  status: WordsStatus
+  paged: boolean
+  view: WordsPagerView
+  onOpen: (w: WordEntry) => void
+  onPrev: () => void
+  onNext: () => void
+  onJump: () => void
+  onRetry: () => void
+}) {
+  const rows = items.slice(0, WORDS_PAGE)
+  const busy = status === 'paging'
+  const failed = status === 'pageError'
+  const shownRows = busy || failed ? 0 : rows.length
+  const fillers = busy ? 0 : fillerCount(paged, shownRows, status)
+  return (
+    <>
+      {failed ? <PageErrorBox onRetry={onRetry} /> : null}
+      {busy || shownRows > 0 || fillers > 0 ? (
+        <ul aria-busy={busy || undefined} className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
+          {busy
+            ? Array.from({ length: WORDS_PAGE }, (_, i) => <PagingRow key={`p${i}`} />)
+            : rows.slice(0, shownRows).map((w, i) => <WordRow key={w.id} word={w} sort={sort} onOpen={onOpen} ruby={layers[i]?.ruby ?? null} hangul={layers[i]?.hangul ?? OFF} />)}
+          {Array.from({ length: fillers }, (_, i) => (
+            <FillerRow key={`f${i}`} />
+          ))}
+        </ul>
+      ) : null}
+      {paged ? <WordsPager view={view} onPrev={onPrev} onNext={onNext} onJump={onJump} /> : null}
+    </>
+  )
 }
 
 export default function WordsScreen({ initialWordId, initialAdd }: { initialWordId?: string; initialAdd?: boolean }) {
   const router = useRouter()
   const hydrated = useHydrated()
   const toast = useToast()
-  const { seed, seedingPack } = useSeedPack()
-  // 넣기 단계(#11)는 목록 요청과 동시에 마운트 때 한 번 읽는다(§19-3).
-  const levels = useSeedLevels()
-  const [sort, setSort] = useStoredPref<WordSort>(VOCAB_KEYS.wordsSort, 'recent', SORTS)
-  const [filter, setFilter] = useState<WordListFilter>({ q: '', category: null, chunk: null, archived: false })
+  const showToast = toast.show
+  const [sort, setSortPref] = useStoredPref<WordSort>(VOCAB_KEYS.wordsSort, 'recent', SORTS)
+  const [filter, setFilter] = useState<WordListFilter>(WORD_FILTER_INITIAL)
+  const key = wordsCondKey(filter, sort)
+  const [navState, setNav] = useState<WordsNav>(() => ({ key, page: 0, kind: 'first', seq: 0 }))
+  // 손잡이를 거치지 않고 바뀐 조건(다른 창에서 바꾼 정렬 등)도 1쪽으로 읽는다.
+  const nav = navForKey(navState, key)
   const [qInput, setQInput] = useState('')
   const [qTooLong, setQTooLong] = useState(false)
-  const [list, setList] = useState<WordListState>(WORD_LIST_INITIAL)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [moreError, setMoreError] = useState<string | null>(null)
-  const [reloadTick, setReloadTick] = useState(0)
+  const [list, setListState] = useState<WordsListState>(WORDS_INITIAL)
+  const listRef = useRef<WordsListState>(WORDS_INITIAL)
   const [categories, setCategories] = useState<CategoryCount[] | null>(null)
   const [catTick, setCatTick] = useState(0)
-  // 분류 요청이 실패했는가 — 실패하면 칩 줄 자리표시를 거둔다(null 만으로는 「아직 오는 중」과 구분이 안 된다).
-  const [catFailed, setCatFailed] = useState(false)
+  // 머리 줄 초점 요청 — 매번 새 객체라 같은 값이어도 효과가 다시 돈다. `scroll` 은 쪽 도착·삭제만 true(안내 띠 ✕ 는 초점만).
+  const [focusReq, setFocusReq] = useState({ tick: 0, scroll: true })
+  const askHeadFocus = (scroll: boolean) => setFocusReq((r) => ({ tick: r.tick + 1, scroll }))
   const [sheet, setSheet] = useState<SheetState>(() =>
     initialWordId ? { kind: 'detail', id: initialWordId } : initialAdd ? { kind: 'add', key: 0 } : null,
   )
   const reqRef = useRef(0)
   const addKey = useRef(1)
+  const headRef = useRef<HTMLParagraphElement | null>(null)
 
-  const openDetail = useCallback((word: WordEntry) => setSheet({ kind: 'detail', id: word.id, preview: word }), [])
+  // 목록 상태는 요청 끝에서 「지금 값」으로 계산하므로 ref 사본을 함께 둔다(렌더 중에는 읽지 않는다).
+  const commit = (s: WordsListState) => {
+    listRef.current = s
+    setListState(s)
+  }
 
-  const reloadAll = useCallback(() => {
-    setReloadTick((t) => t + 1)
+  const openDetail = (word: WordEntry) => setSheet({ kind: 'detail', id: word.id, preview: word })
+
+  /** 같은 조건에서 쪽을 옮기거나 다시 읽는다 — 회색 자리는 쪽 넘김·다시 시도만(`beginWords`). */
+  const request = (kind: WordsReqKind, page?: number) => {
+    commit(beginWords(listRef.current, kind))
+    setNav((n) => {
+      const cur = navForKey(n, key)
+      return navTo(cur, key, page ?? cur.page, kind)
+    })
+  }
+
+  const reloadAll = () => {
+    request('reload')
     setCatTick((t) => t + 1)
-  }, [])
+  }
+  const reloadAllRef = useRef(reloadAll)
+  useEffect(() => {
+    reloadAllRef.current = reloadAll
+  })
 
   // 들어온 쿼리는 시트를 연 것으로 쓰고 지운다(새로고침해도 다시 열리지 않게).
   useEffect(() => {
     if (initialWordId || initialAdd) router.replace('/drawer/words', { scroll: false })
   }, [initialWordId, initialAdd, router])
 
+  const navPage = nav.page
+  const navKind = nav.kind
+  const navSeq = nav.seq
   useEffect(() => {
     const ctrl = new AbortController()
     const id = ++reqRef.current
-    apiGet<WordListPage>(listUrl(filter, sort), { signal: ctrl.signal })
-      .then((r) => {
-        if (id !== reqRef.current) return
-        setList(listFromPage(filter, r))
-        setMoreError(null)
-      })
-      .catch((e: unknown) => {
-        if (isAbort(e) || id !== reqRef.current) return
-        setList((l) => ({ ...l, status: 'error', error: listErrorText(toErr(e)) }))
+    const req = { kind: navKind, page: navPage, shown: { ...filter, sort } }
+    const reqKey = wordsCondKey(filter, sort)
+    apiGet<WordListPage>(wordsListUrl(filter, sort, navPage), { signal: ctrl.signal })
+      .then(
+        (page): WordsResult => ({ ok: true, page }),
+        (e: unknown): WordsResult | null => (isAbort(e) ? null : { ok: false, error: listErrorText(toErr(e)) }),
+      )
+      .then((res) => {
+        if (!res || id !== reqRef.current) return
+        const out = settleWords(listRef.current, req, res)
+        const next = out.clampTo !== null ? beginWords(listRef.current, 'clamp') : out.state
+        listRef.current = next
+        setListState(next)
+        if (out.clampTo !== null) {
+          const to = out.clampTo
+          setNav((n) => navTo(n, reqKey, to, 'clamp'))
+          return
+        }
+        if (out.toast) showToast(out.toast)
+        if (out.focusHead) setFocusReq((r) => ({ tick: r.tick + 1, scroll: true }))
       })
     return () => ctrl.abort()
-  }, [filter, sort, reloadTick])
+  }, [filter, sort, navPage, navKind, navSeq, showToast])
+
+  // 쪽을 넘겨 받았거나(J2) 초점이 있던 요소가 사라질 때(삭제·안내 띠 닫기) — 초점을 머리 줄로(행이 그려진 뒤). 화면을 위로 끌어오는 건 쪽 도착·삭제만.
+  useEffect(() => {
+    if (focusReq.tick === 0) return
+    const id = requestAnimationFrame(() => focusHeadLine(headRef.current, focusReq.scroll))
+    return () => cancelAnimationFrame(id)
+  }, [focusReq])
 
   useEffect(() => {
     let cancelled = false
@@ -116,8 +316,7 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         if (cancelled) return
         const cats = normalizeCategories(raw)
         setCategories(cats)
-        setCatFailed(false)
-        // 선택한 칩이 사라졌으면(마지막 단어 삭제·보관) 전체로 돌아간다.
+        // 선택한 칩이 사라졌으면(마지막 단어 삭제·보관) 전체로 돌아간다(조건이 바뀌므로 1쪽).
         setFilter((f) =>
           f.category !== null && !visibleCategories(cats, f.archived ? 'archived' : 'active').some((c) => c.category === f.category)
             ? { ...f, category: null }
@@ -125,10 +324,7 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         )
       })
       .catch(() => {
-        if (!cancelled) {
-          setCategories(null)
-          setCatFailed(true)
-        }
+        if (!cancelled) setCategories(null)
       })
     return () => {
       cancelled = true
@@ -137,29 +333,28 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === 'visible') reloadAll()
+      if (document.visibilityState === 'visible') reloadAllRef.current()
     }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
-  }, [reloadAll])
+  }, [])
 
-  const more = async () => {
-    if (!list.nextCursor || loadingMore) return
-    const id = reqRef.current
-    setLoadingMore(true)
-    setMoreError(null)
-    try {
-      const r = await apiGet<WordListPage>(listUrl(filter, sort, list.nextCursor))
-      if (id !== reqRef.current) return
-      setList((l) => {
-        const have = new Set(l.items.map((w) => w.id))
-        return { ...l, items: [...l.items, ...(r.items ?? []).filter((w) => !have.has(w.id))], nextCursor: r.nextCursor ?? null }
-      })
-    } catch (e) {
-      if (id === reqRef.current) setMoreError(listErrorText(toErr(e)))
-    } finally {
-      setLoadingMore(false)
-    }
+  /** 조건을 바꾼다 — 열쇠가 달라지면 1쪽(D2). 지금 행은 둔 채 새 응답을 기다린다. */
+  const changeFilter = (patch: Partial<WordListFilter>) => {
+    const next = { ...filter, ...patch }
+    const nextKey = wordsCondKey(next, sort)
+    if (nextKey === key) return
+    commit(beginWords(listRef.current, 'filter'))
+    setFilter(next)
+    setNav((n) => navForKey(n, nextKey))
+  }
+
+  const changeSort = (v: WordSort) => {
+    const nextKey = wordsCondKey(filter, v)
+    setSortPref(v)
+    if (nextKey === key) return
+    commit(beginWords(listRef.current, 'filter'))
+    setNav((n) => navForKey(n, nextKey))
   }
 
   const commitSearch = (v: string) => {
@@ -169,50 +364,32 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
       return
     }
     setQTooLong(false)
-    setFilter((f) => (f.q === t ? f : { ...f, q: t }))
+    changeFilter({ q: t })
   }
 
-  const runSeed = async (pack: SeedPack) => {
-    if (seedingPack) return
-    try {
-      const r = await seed(pack)
-      if (!r) return
-      toast.show(seedResultText(pack, r))
-      reloadAll()
-    } catch (e) {
-      toast.show(actionErrorText(toErr(e)))
-    }
+  const openAdd = (preset?: string, presetChunk?: WordChunkType) => {
+    setSheet({ kind: 'add', key: addKey.current++, preset, presetChunk })
   }
-
-  const openAdd = (preset?: string) => {
-    setSheet({ kind: 'add', key: addKey.current++, preset })
-  }
-
-  const removeRow = (id: string) => setList((l) => listWithoutRow(l, id))
 
   const catNames = (categories ?? []).flatMap((c) => (c.category ? [c.category] : []))
   const totals = categoryTotals(categories)
-  const head = listHeader(list)
+  const head = listHeader(list, nav.page)
   // 빈 화면 안내도 그 응답의 조건으로 — 응답 전에 새 조건의 안내가 먼저 뜨지 않게.
-  const shown = list.shown ?? filter
+  const shown = list.shown ?? { ...filter, sort }
   const showCategoryRow = visibleCategories(categories, filter.archived ? 'archived' : 'active').length > 0
-  // 분류 응답 전에는 칩 줄 자리를 비워 두지 않는다 — 단어가 있는 흔한 상태에서 칩이 도착할 때 아래 줄이 밀리지 않게(task-046).
-  const catPending = categories === null && !catFailed
   // 단어가 하나도 없는 단어장(#46 합 0)에서는 거를 것이 없어 조각 줄을 그리지 않는다. 고른 조각이 있으면 풀 수 있게 남긴다.
   const showChunkRow = filter.chunk !== null || !(totals && totals.active + totals.archived === 0)
-  // 그린 행 표제어를 한 번에(한 쪽 = 1요청, [단어 더 보기] 때는 새 행만 — 캐시 적중). 루비는 저장 읽기로, 한글은 한글 켬일 때만 요청한다.
+  // 그린 행 표제어를 한 번에(한 쪽 = 1요청). 루비는 저장 읽기로, 한글은 한글 켬일 때만 요청한다.
   const layers = useWordLayersList(list.items)
   const emptyKind = emptyVariant(shown, totals)
+  const paged = isWordsPaged(list.total, nav.page)
+  const view = wordsPagerView({ page: nav.page, pages: list.pages, total: list.total, status: list.status })
 
   let body: React.ReactNode
   // 「불러오는 중…」 글자 대신 목록 모양의 자리표시 — 빈 상태 안내는 응답이 와서 0건일 때만 그린다(가짜 빈 상태 금지, task-046).
-  if (list.status === 'loading') body = <WordRowsSkeleton />
-  else if (list.status === 'error' && list.items.length === 0)
-    body = <ErrorBlock message={list.error ?? listErrorText({ status: -1 })} onRetry={() => setReloadTick((t) => t + 1)} />
-  else if (list.items.length === 0 && emptyKind === 'noWords' && levels.status === 'loading')
-    // 빈 단어장 안내는 넣기 단계(#11)를 받은 뒤에 그린다 — 버튼이 늦게 끼어들어 카드가 커지지 않게(§19-3).
-    body = <WordRowsSkeleton />
-  else if (list.items.length === 0)
+  if (list.status === 'first') body = <WordRowsSkeleton label={P.firstSr} />
+  else if (list.status === 'firstError') body = <ErrorBlock message={list.error ?? listErrorText({ status: -1 })} onRetry={() => request('first')} />
+  else if (list.status === 'ready' && list.items.length === 0)
     body = (
       <WordsEmpty
         variant={emptyKind}
@@ -220,35 +397,27 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         category={shown.category}
         chunk={shown.chunk}
         archived={shown.archived}
-        levels={levels}
-        seedingPack={seedingPack}
-        onSeed={(p) => void runSeed(p)}
         onAdd={openAdd}
-        onShowArchive={() => setFilter((f) => ({ ...f, archived: true, category: null }))}
-        onShowAll={() => setFilter((f) => ({ ...f, category: null }))}
-        onClearChunk={() => setFilter((f) => ({ ...f, chunk: null }))}
+        onShowArchive={() => changeFilter({ archived: true, category: null })}
+        onShowAll={() => changeFilter({ category: null })}
+        onClearChunk={() => changeFilter({ chunk: null })}
       />
     )
   else
     body = (
-      <>
-        {list.status === 'error' ? <ErrorBlock message={list.error ?? ''} onRetry={() => setReloadTick((t) => t + 1)} /> : null}
-        <ul className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
-          {list.items.map((w, i) => (
-            <WordRow key={w.id} word={w} sort={sort} onOpen={openDetail} ruby={layers[i].ruby} hangul={layers[i].hangul} />
-          ))}
-        </ul>
-        {moreError ? (
-          <p role="alert" className="mt-2 text-[13px] text-bad break-keep">
-            {moreError}
-          </p>
-        ) : null}
-        {list.nextCursor ? (
-          <Btn variant="ghost" className="mt-3 w-full" onClick={() => void more()} aria-busy={loadingMore || undefined}>
-            {loadingMore ? '불러오는 중…' : '단어 더 보기'}
-          </Btn>
-        ) : null}
-      </>
+      <WordsPageList
+        items={list.items}
+        layers={layers}
+        sort={sort}
+        status={list.status}
+        paged={paged}
+        view={view}
+        onOpen={openDetail}
+        onPrev={() => request('page', nav.page - 1)}
+        onNext={() => request('page', nav.page + 1)}
+        onJump={() => setSheet({ kind: 'jump' })}
+        onRetry={() => request('retry')}
+      />
     )
 
   return (
@@ -270,62 +439,42 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
           onClear={() => {
             setQInput('')
             setQTooLong(false)
-            setFilter((f) => (f.q ? { ...f, q: '' } : f))
+            changeFilter({ q: '' })
           }}
           error={qTooLong ? '검색어는 40자까지예요' : null}
         />
+        <div className="mt-2">
+          <Segmented size="sm" ariaLabel={WORD_SOURCE_ARIA} options={WORD_SOURCE_OPTIONS} value={filter.source} onChange={(v) => changeFilter({ source: v })} />
+        </div>
         {showCategoryRow ? (
           <div className="mt-1.5">
             <CategoryChips
               items={categories}
               value={filter.category}
               basis={filter.archived ? 'archived' : 'active'}
-              onChange={(c) => setFilter((f) => ({ ...f, category: c }))}
+              onChange={(c) => changeFilter({ category: c })}
             />
           </div>
-        ) : catPending ? (
-          <WordCategoryRowSkeleton />
         ) : null}
         {showChunkRow ? (
-          <div className={showCategoryRow || catPending ? undefined : 'mt-1.5'}>
-            <ChunkChips value={filter.chunk} onChange={(c) => setFilter((f) => ({ ...f, chunk: c }))} />
+          <div className={showCategoryRow ? undefined : 'mt-1.5'}>
+            <ChunkChips value={filter.chunk} onChange={(c) => changeFilter({ chunk: c })} />
           </div>
         ) : null}
         <div className="mt-2 flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <Segmented<WordSort> size="sm" ariaLabel="정렬" options={WORD_SORT_OPTIONS} value={sort} onChange={(v) => setSort(v)} />
+            <Segmented<WordSort> size="sm" ariaLabel="정렬" options={WORD_SORT_OPTIONS} value={sort} onChange={changeSort} />
           </div>
-          <ArchiveToggle pressed={filter.archived} onToggle={() => setFilter((f) => ({ ...f, archived: !f.archived, category: null }))} />
+          <ArchiveToggle pressed={filter.archived} onToggle={() => changeFilter({ archived: !filter.archived, category: null })} />
         </div>
-        {filter.archived ? (
-          <p className="mt-2.5 rounded-xl bg-surface2 p-2.5 text-[13px] text-ink2 break-keep">보관한 단어는 오늘의 단어에 나오지 않아요.</p>
-        ) : null}
+        {filter.archived ? <p className="mt-2.5 rounded-xl bg-surface2 p-2.5 text-[13px] text-ink2 break-keep">{ARCHIVE_NOTE}</p> : null}
         <div className="mb-1.5 mt-2 flex min-h-8 items-center justify-between gap-2">
-          <p aria-live="polite" className="min-w-0 flex-1 text-[12px] text-ink2 [overflow-wrap:anywhere]">
-            {head ? (
-              <>
-                {head.lead === 'search' ? (
-                  <>
-                    ‘<span lang="ja">{head.q}</span>’ 검색 결과 {head.n}개
-                  </>
-                ) : head.lead === 'archived' ? (
-                  `보관한 단어 ${head.n}개`
-                ) : (
-                  `단어 ${head.n}개`
-                )}
-                {head.condition ? (
-                  <>
-                    {' · '}
-                    <span className="font-semibold text-ink">{head.condition}</span>
-                  </>
-                ) : null}
-              </>
-            ) : null}
-          </p>
+          <WordsHeadLine head={head} pRef={headRef} />
           <div role="group" aria-label={DISPLAY_COPY.toolGroup} className="flex flex-none items-center gap-1.5">
-            <DisplayToggles keys={['fu', 'hg']} onToast={toast.show} />
+            <DisplayToggles keys={['fu', 'hg']} onToast={showToast} />
           </div>
         </div>
+        <BaseWordBand baseTotal={list.baseTotal} onClosed={() => askHeadFocus(false)} />
         {body}
       </div>
 
@@ -333,18 +482,17 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         <WordAddSheet
           key={sheet.key}
           presetSurface={sheet.preset}
+          presetChunk={sheet.presetChunk ?? null}
           defaultCategory={filter.archived ? null : filter.category}
           categories={catNames}
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null)
-            toast.show('단어장에 넣었어요')
-            reloadAll()
+            showToast(WORD_SAVED_TOAST)
+            request('reload', pageAfterAdd(sort, nav.page))
+            setCatTick((t) => t + 1)
           }}
           onOpenWord={(id) => setSheet({ kind: 'detail', id })}
-          onSeed={(p) => void runSeed(p)}
-          levels={levels}
-          seedingPack={seedingPack}
         />
       ) : null}
       {hydrated && sheet?.kind === 'detail' ? (
@@ -355,27 +503,27 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
           categories={catNames}
           onClose={() => setSheet(null)}
           onChanged={(w) => {
-            setList((l) => ({ ...l, items: l.items.map((x) => (x.id === w.id ? w : x)) }))
+            commit({ ...listRef.current, items: listRef.current.items.map((x) => (x.id === w.id ? w : x)) })
             reloadAll()
           }}
-          onArchivedChange={(w) => {
-            removeRow(w.id)
-            reloadAll()
-          }}
-          onRemoved={(id) => {
+          onArchivedChange={() => reloadAll()}
+          onRemoved={() => {
             setSheet(null)
-            removeRow(id)
-            toast.show('삭제했어요 · 지난 기록은 그대로 남아요')
+            showToast('삭제했어요 · 지난 기록은 그대로 남아요')
             reloadAll()
+            askHeadFocus(true)
           }}
           onOpenWord={(id) => setSheet({ kind: 'detail', id })}
           onNotFound={() => {
             setSheet(null)
-            toast.show(WORD_NOT_FOUND)
-            setReloadTick((t) => t + 1)
+            showToast(WORD_NOT_FOUND)
+            reloadAll()
           }}
-          onToast={toast.show}
+          onToast={showToast}
         />
+      ) : null}
+      {hydrated && sheet?.kind === 'jump' ? (
+        <WordsJumpSheet page={nav.page} pages={list.pages} onClose={() => setSheet(null)} onGo={(p) => request('page', p)} />
       ) : null}
       <Toast message={toast.message} />
     </>

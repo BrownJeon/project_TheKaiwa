@@ -10,7 +10,8 @@ type Ctx = { params: Promise<{ id: string }> }
 /**
  * #35 교정 채택 — **한 트랜잭션**: Correction ACCEPTED(조건부 전이) + (선택) WordEntry(source=CORRECTION) + `savedWordId`
  * + LearnerErrorStat +1 + 반복 항목 EXPRESSION(교정문, 피드백 +1 — 같은 표현 재채택은 같은 항목, task-010b L8) + DAILY `corrections.accepted` +1
- * + 관측 `CORRECTION_ACCEPTED`(+ DAILY observations). 같은 표현이 단어장에 있으면 409 `{existingId}` 로 전체 롤백(항목·관측도 0).
+ * + 관측 `CORRECTION_ACCEPTED`(+ DAILY observations). 같은 표현이 **내 단어**에 있으면 409 `{existingId}` 로 전체 롤백(항목·관측도 0).
+ * 넣을 단어가 **기본 단어**와 같은 (표기, 읽기)면 새로 만들지 않고 그 기본 단어를 `savedWordId` 로 연결하고 채택은 그대로 진행(task-068 Leader L4).
  * StudyLog 는 만들지 않는다(대화 종료 시 ADD_STUDY_LOG 제안으로). `Correction.original` 은 어디서도 갱신하지 않는다.
  */
 export const POST = withApi<Ctx>(async (req, ctx) => {
@@ -24,7 +25,7 @@ export const POST = withApi<Ctx>(async (req, ctx) => {
   return ok(
     await withTransaction(async (tx) => {
       const c = await acceptCorrection(userId, id, tx)
-      const word = addWord ? await createWord(userId, { ...addWord, source: 'CORRECTION', sourceRefId: c.id }, tx) : null
+      const word = addWord ? await createWord(userId, { ...addWord, source: 'CORRECTION', sourceRefId: c.id }, tx, { linkBaseDuplicate: true }) : null
       if (word) await setCorrectionSavedWord(userId, c.id, word.id, tx)
       await recordErrorStat(userId, c.errorType, errorPatternFor(c.chunkType), tx)
       await registerAcceptedCorrection(userId, { id: c.id, errorType: c.errorType, severity: c.severity, corrected: c.corrected, explanation: c.explanation }, tx)

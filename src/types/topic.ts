@@ -28,6 +28,14 @@ export const TOPIC_LIMITS = {
 export type TopicChunkType = 'NAME' | 'ACTION' | 'FEELING' | 'MODIFIER'
 export const TOPIC_CHUNK_TYPES: readonly TopicChunkType[] = ['NAME', 'ACTION', 'FEELING', 'MODIFIER']
 
+/**
+ * task-068 — DB enum `ChunkType` 에 단어 전용 값 EXPRESSION(「표현」)이 늘었다. 주제 조각·교정·수업·복습·주제 단어 프롬프트는 4유형만 쓴다(J12).
+ * DB 값을 그 경로로 넘길 때 좁힌다 — 4유형 밖 값은 `fallback`. 주제 조각·교정에 EXPRESSION 을 쓰는 길은 없다(입력 검사·시드·LLM 스키마 모두 4유형).
+ */
+export function asTopicChunkType<F extends TopicChunkType | null>(v: string | null | undefined, fallback: F): TopicChunkType | F {
+  return (TOPIC_CHUNK_TYPES as readonly (string | null | undefined)[]).includes(v) ? (v as TopicChunkType) : fallback
+}
+
 export interface TopicChunkInput {
   chunkType: TopicChunkType
   textJa: string

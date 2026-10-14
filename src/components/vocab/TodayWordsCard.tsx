@@ -8,22 +8,21 @@
 import Link from 'next/link'
 import Segmented from '@/components/common/Segmented'
 import { Btn, BtnRow, Card, ErrorBlock } from '@/components/common/ui'
-import type { SeedPack } from '@/types/seedPack'
-import type { CategoryCount, SessionSummary } from '@/types/vocab'
+import type { CategoryCount, JlptLevel, SessionSummary } from '@/types/vocab'
 import { modeTag } from './cardFirst'
 import CategoryChips from './CategoryChips'
 import { countOptions, estimateMinutes } from './deck'
 import { formatSessionDate } from './format'
-import type { SeedLevels } from './hooks'
-import { inProgressNotes, SEED_COPY } from './labels'
+import { inProgressNotes, todayLevelLine, WORDS_EMPTY_COPY } from './labels'
 import { CardLoadingBody } from './TodaySkeleton'
 import { visibleCategories } from './validate'
-import { SeedPackButtons } from './WordsEmpty'
 
 export type WordsCardState = 'loading' | 'ready' | 'inProgress' | 'empty' | 'poolEmpty' | 'error'
 export type PoolEmptyKind = 'allDone' | 'category'
 
 const LINK_BTN = 'inline-flex min-h-[44px] items-center text-[13px] font-medium text-accent'
+/** `Btn` primary 와 같은 모양의 링크(§28-6 A ② — 빈 카드의 하나뿐인 행동). */
+const FILLED_LINK = 'inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-semibold text-on-accent'
 
 export default function TodayWordsCard({
   state,
@@ -40,9 +39,8 @@ export default function TodayWordsCard({
   hasKept,
   starting,
   startError,
-  levels,
-  seedingPack,
   finishing,
+  myLevel = null,
   onCount,
   onCategory,
   onStart,
@@ -50,7 +48,6 @@ export default function TodayWordsCard({
   onBackToReady,
   onFinish,
   onShowResult,
-  onSeed,
   onShowKept,
   onRetry,
   embedded = false,
@@ -69,10 +66,9 @@ export default function TodayWordsCard({
   hasKept: boolean
   starting: boolean
   startError: string | null
-  /** 넣기 단계(§19-3) — `empty` 에서만 쓴다. 읽는 중이면 부모가 `loading` 으로 그린다. */
-  levels: SeedLevels
-  seedingPack: SeedPack | null
   finishing: boolean
+  /** 지금 수준(서버 프로필) — 준비 카드 [시작하기] 아래 한 줄(J13). 모르면 줄을 그리지 않는다. */
+  myLevel?: JlptLevel | null
   onCount: (n: number) => void
   onCategory: (c: string | null) => void
   onStart: () => void
@@ -80,7 +76,6 @@ export default function TodayWordsCard({
   onBackToReady: () => void
   onFinish: () => void
   onShowResult: () => void
-  onSeed: (pack: SeedPack) => void
   onShowKept: () => void
   onRetry: () => void
   /** 챌린지 단어 카드 안 [내 단어장으로 풀기] 펼침(task-044 E10) — 카드 틀·머리줄 없이 본문만(동작 그대로). */
@@ -124,13 +119,10 @@ export default function TodayWordsCard({
       body = (
         <div className="mt-2">
           <p className="text-[15px] font-semibold">단어장이 비어 있어요</p>
-          <p className="mt-0.5 text-[13px] text-ink2 break-keep">{levels.main ? SEED_COPY.todayBody(levels.main) : SEED_COPY.todayBodyNoLevel}</p>
-          <div className="mt-3 flex flex-col gap-2">
-            <SeedPackButtons levels={levels} seedingPack={seedingPack} onSeed={onSeed} />
-            <Link href="/drawer/words?add=1" className="inline-flex h-12 items-center justify-center rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold">
-              단어 직접 추가
-            </Link>
-          </div>
+          <p className="mt-0.5 text-[13px] text-ink2 break-keep">{WORDS_EMPTY_COPY.todayEmptyBody}</p>
+          <Link href="/drawer/words?add=1" className={`${FILLED_LINK} mt-3 w-full`}>
+            {WORDS_EMPTY_COPY.addBtn}
+          </Link>
           {archivedTotal > 0 ? (
             <Link href="/drawer/words" className={`${LINK_BTN} mt-1`}>
               보관한 단어 {archivedTotal}개는 오늘의 단어에 나오지 않아요 · 단어장에서 보기 ›
@@ -193,6 +185,7 @@ export default function TodayWordsCard({
           <Btn className="mt-3 w-full" onClick={onStart} aria-disabled={starting || undefined} aria-busy={starting || undefined}>
             {starting ? '만드는 중…' : '시작하기'}
           </Btn>
+          {myLevel ? <p className="mt-1.5 text-[12px] text-ink2 break-keep">{todayLevelLine(myLevel)}</p> : null}
           {startError ? (
             <p role="alert" className="mt-1.5 text-[12px] text-bad break-keep">
               {startError}

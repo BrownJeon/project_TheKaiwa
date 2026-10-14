@@ -189,8 +189,8 @@ test('completeJson(CHAT 요청 그대로, soft 아님): 슬립 → 1회·repaire
   assert.equal(fake.hits.length, 2)
 })
 
-/** 단어 보강(A10) 스키마를 **통과하는** 문서의 슬립 모양 — 복구가 켜져 있었다면 1회로 성공했을 입력이라, 이 요청이 복구하지 않음을 빈 증명이 아니게 한다. */
-const wordSlip = () => '{"valid":true,"invalidReason":null,"reading":"えいが","meaning":"영화","partOfSpeech":null,"jlpt":"N5","example":null},"exampleKo":null}'
+/** 단어 보강(A10, wordEnrich@v2 — chunkType 필수 키 포함) 스키마를 **통과하는** 문서의 슬립 모양 — 복구가 켜져 있었다면 1회로 성공했을 입력이라, 이 요청이 복구하지 않음을 빈 증명이 아니게 한다. */
+const wordSlip = () => '{"valid":true,"invalidReason":null,"reading":"えいが","meaning":"영화","partOfSpeech":null,"chunkType":"NAME","jlpt":"N5","example":null},"exampleKo":null}'
 
 test('옵트인하지 않은 요청(단어 보강 등)은 슬립이 와도 복구하지 않고 지금처럼 재시도한다', async (t) => {
   mock.method(console, 'warn', () => {})

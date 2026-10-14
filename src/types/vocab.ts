@@ -1,5 +1,5 @@
 /**
- * 단어장·오늘의 단어 화면의 클라이언트 DTO — api-contract §2-9(#40~#46b)·§2-10(#47~#54, task-008 F1~F9 개정) 응답 모양을
+ * 단어장·오늘의 단어 화면의 클라이언트 DTO — api-contract §2-9(#40~#46, task-068 개정)·§2-10(#47~#54, task-008 F1~F9 개정) 응답 모양을
  * **그대로 옮긴** 타입이다. 서버 모듈(Prisma 타입)을 import 하지 않는다. enum 문자열은 `prisma/schema.prisma` 값과 같다.
  * 계약에 "선택"으로 적힌 필드나 상태에 따라 빠지는 필드는 `?` 로 둔다(화면은 없을 때를 늘 다룬다).
  */
@@ -14,17 +14,37 @@ export type VocabAnswer = 'CORRECT' | 'WRONG' | 'SKIPPED'
 export type VocabMode = 'CHOICE' | 'FLIP'
 export type VocabSessionStatus = 'IN_PROGRESS' | 'DONE' | 'ABANDONED'
 export type WordSort = 'recent' | 'wrong' | 'surface'
-/** #40 `chunkType` 조건(task-023) — 조각 4종 + `none`(조각이 정해지지 않은 단어). 하나만 고른다. */
-export type WordChunkFilter = ChunkType | 'none'
 
-/** 공통 `WordEntry`(§2-9) */
+/**
+ * 단어 전용 조각 5유형(task-068 D4 B) — 교정·수업·주제·평가 DTO 의 `ChunkType`(4유형)은 넓히지 않는다(J12, screens.md §28-3 C).
+ * 순서 = 칩·폼·시험 모두 이 순서.
+ */
+export type WordChunkType = ChunkType | 'EXPRESSION'
+export const WORD_CHUNK_TYPES: readonly WordChunkType[] = ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION']
+/** #40 `chunkType` 조건 — 다섯 값 중 하나(task-068: `none` 폐지 — 서버가 400). 옛 이름을 별칭으로 남긴다. */
+export type WordChunkFilter = WordChunkType
+
+/** `BASE` = 공용 기본 단어(읽기 전용) · `MINE` = 요청한 사용자의 단어(task-068 §2-9 개정). */
+export type WordOrigin = 'BASE' | 'MINE'
+/** #40 `source` — 출처 분절(D10 A). */
+export type WordListSource = 'all' | 'mine' | 'base'
+export const WORD_LIST_SOURCES: readonly WordListSource[] = ['all', 'mine', 'base']
+
+/** 단어 오류의 `details.code`(task-068 §2-9 개정 ③) — 403 기본 단어 수정·삭제 · 409 기본 단어와 같은 표기(·읽기). */
+export type WordErrorCode = 'READ_ONLY' | 'BASE_DUPLICATE'
+export const WORD_ERROR_CODE = { readOnly: 'READ_ONLY', baseDuplicate: 'BASE_DUPLICATE' } as const satisfies Record<string, WordErrorCode>
+
+/**
+ * 공통 `WordEntry`(§2-9). 상태 칸(`correctCount`…`archivedAt`)은 늘 **요청한 사용자의** 값(`UserWordState`, task-068).
+ * `origin`·`readOnly` 는 서버가 늘 주지만 옛 응답에는 없을 수 있어 `?` — 둘 다 없으면 화면은 내 단어로 본다(§28-5 B).
+ */
 export interface WordEntry {
   id: string
   surface: string
   reading: string | null
   meaning: string
   partOfSpeech: PartOfSpeech
-  chunkType?: ChunkType | null
+  chunkType?: WordChunkType | null
   jlpt?: JlptLevel | null
   example?: string | null
   exampleKo?: string | null
@@ -32,6 +52,8 @@ export interface WordEntry {
   category: string | null
   source: WordSource
   sourceRefId?: string | null
+  origin?: WordOrigin
+  readOnly?: boolean
   correctCount: number
   wrongCount: number
   lastSeenAt?: string | null
@@ -42,11 +64,17 @@ export interface WordEntry {
   updatedAt?: string
 }
 
-/** #40 */
+/**
+ * #40 쪽 번호 응답(task-068 — `cursor`·`nextCursor` 폐지). `page` 는 1부터(요청 값 그대로 — 쪽 수보다 크면 `items: []`),
+ * `pages = max(1, ⌈total / limit⌉)`, `baseTotal` = 기본 단어 전체 수(조건·보관과 무관 — 안내 띠 숫자).
+ */
 export interface WordListPage {
   items: WordEntry[]
-  nextCursor: string | null
-  total: number | null
+  total: number
+  page: number
+  pages: number
+  limit: number
+  baseTotal: number
 }
 
 /** #42 — `WordEntry` + stats + corrections */
@@ -76,6 +104,9 @@ export interface WordDraft {
   reading?: string | null
   meaning?: string | null
   partOfSpeech?: PartOfSpeech | null
+  /** 선생님이 고른 조각(task-068 `wordEnrich@v2` — `valid:false` 면 null, 옛 캐시 초안이면 없음). */
+  chunkType?: WordChunkType | null
+  /** 서버가 남겨 두지만 화면은 쓰지 않는다(내 단어는 수준을 고르지 않는다 — §28-4 D). */
   jlpt?: JlptLevel | null
   example?: string | null
   exampleKo?: string | null
@@ -91,26 +122,26 @@ export interface WordSaveResponse {
   saved: true
 }
 
-/** #41 저장 본문(선택값은 비면 보내지 않는다) */
+/** #41 저장 본문(선택값은 비면 보내지 않는다). task-068: `jlpt` 키는 서버가 거절(400) — 폼은 `chunkType` 을 늘 보낸다. */
 export interface WordCreateBody {
   surface: string
   meaning: string
   partOfSpeech: PartOfSpeech
+  chunkType?: WordChunkType
   reading?: string
-  jlpt?: JlptLevel
   example?: string
   exampleKo?: string
   note?: string
   category?: string
 }
 
-/** #43 본문 — 바뀐 필드만, 비운 선택값은 null. 카운터·source 는 넣지 않는다. */
+/** #43 본문 — 바뀐 필드만, 비운 선택값은 null. 카운터·source·`jlpt` 는 넣지 않는다(task-068: `jlpt` 400, `chunkType: null` 400). */
 export type WordPatchBody = Partial<{
   surface: string
   meaning: string
   partOfSpeech: PartOfSpeech
+  chunkType: WordChunkType
   reading: string | null
-  jlpt: JlptLevel | null
   example: string | null
   exampleKo: string | null
   note: string | null
@@ -127,12 +158,6 @@ export interface WordDeleteResponse {
 export interface WordArchiveResponse extends Partial<WordEntry> {
   archived: boolean
   archivedAt?: string | null
-}
-
-/** #46b */
-export interface SeedPackResult {
-  added: number
-  skipped: number
 }
 
 // ── 오늘의 단어 ───────────────────────────────────────────────────────────────────────────────

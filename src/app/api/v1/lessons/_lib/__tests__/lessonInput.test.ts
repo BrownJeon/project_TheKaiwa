@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildLessonRequest, LESSON_PROMPT_VERSION, LessonInputError, lessonPromptVersion, type LessonInput } from '@/modules/conversation'
 import type { LessonMaterials, ScenarioRolePlayMaterial } from '@/modules/learning'
+import { asTopicChunkType } from '@/types/topic'
 import { lessonInputErrorField, lessonInputFor, lessonInputMeta, lessonScenarioInput } from '../lessonInput'
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex')
@@ -41,7 +42,7 @@ function oldRouteInput(m: LessonMaterials, corrections: LessonInput['acceptedCor
   return {
     todayKst: TODAY,
     learner: lr,
-    topic: m.topic ? { title: m.topic.title, titleJa: m.topic.titleJa, level: m.topic.level, chunks: m.topic.chunks.map((c) => ({ id: c.id, chunkType: c.chunkType, textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo })) } : null,
+    topic: m.topic ? { title: m.topic.title, titleJa: m.topic.titleJa, level: m.topic.level, chunks: m.topic.chunks.map((c) => ({ id: c.id, chunkType: asTopicChunkType(c.chunkType, 'MODIFIER'), textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo })) } : null,
     sourceText: input.kind === 'text' ? input.sourceText : null,
     acceptedCorrections: corrections,
     previousTitles: m.previousTitles,

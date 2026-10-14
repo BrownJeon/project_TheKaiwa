@@ -10,9 +10,10 @@
  * - 생성 중 표시(사용자당 1)·하루 시도 상한(사용자당 3)은 프로세스 메모리다 — blue/green 전환·재시작에 비워져도 최악은 하루 몇 번 더 부르는 것뿐.
  * - 이 파일은 세트·카드 행을 쓰지 않는다. 카드 구성(순수)과 읽기만 하고, 쓰기는 `sessions.ts` 의 트랜잭션이 한다.
  */
-import type { ChunkType, JlptLevel, VocabAnswer, VocabSessionStatus } from '@prisma/client'
+import type { JlptLevel, VocabAnswer, VocabSessionStatus } from '@prisma/client'
 import { llm, LLM_TASKS, newTraceId, recordTrace, type LlmJsonRequest, type TraceRecord, type TraceStep } from '@/modules/engine'
 import { prisma, withTransaction, type Tx } from '@/modules/infra'
+import type { TopicChunkType } from '@/types/topic'
 import { normalizeRefText, repetitionRefId, type RepetitionItemInput } from '../repetition'
 import { isTopicVisibleTo, topicGone } from '../topics/visible'
 import {
@@ -56,7 +57,7 @@ export interface TopicGenerationDto {
 export interface TopicWordsOutput {
   /** `jlpt` 는 모델이 문자열 `"null"` 로 낼 때가 있어 스키마가 받아 준다(L2 조립이 null 로 본다). 예문 두 칸은 v2(task-049) — v1 모양 응답에는 없다. */
   words: {
-    textJa: string; reading: string; meaningKo: string; chunkType: ChunkType; jlpt: JlptLevel | 'null' | null; valid: boolean
+    textJa: string; reading: string; meaningKo: string; chunkType: TopicChunkType; jlpt: JlptLevel | 'null' | null; valid: boolean
     exampleJa?: string | null; exampleKo?: string | null
   }[]
 }
@@ -75,7 +76,7 @@ export interface TopicWordCandidate {
   textJa: string
   reading: string
   meaningKo: string
-  chunkType: ChunkType
+  chunkType: TopicChunkType
   jlpt: JlptLevel | null
   /**
    * L2 예문 검사를 통과한 예문(task-049) — 쌍이 아니면 서버가 둘 다 null 로 본다(`topicExamplePair`).

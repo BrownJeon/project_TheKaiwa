@@ -206,7 +206,8 @@ async function main() {
   check('1a 세션 없음 → 401', (await api(null, 'POST', '/api/v1/evaluations', { kind: 'WORDS' })).status === 401)
   check('1b 종류 오류·모르는 키 → 400', (await api(COOKIE1, 'POST', '/api/v1/evaluations', { kind: 'LESSON' })).status === 400 && reason(await api(COOKIE1, 'POST', '/api/v1/evaluations', { kind: 'WORDS', total: 1 })) === 'unknown_key')
   check('1c 없는 주제 → 404', (await api(COOKIE1, 'POST', '/api/v1/evaluations', { kind: 'TALK', topicId: 'nope_topic' })).status === 404)
-  const u2Words = await prisma.wordEntry.count({ where: { userId: u2, archived: false } })
+  // task-068: 평가 재료 = 내 단어 + 공용 기본 단어(내가 보관 안 함) — QA2 도 기본 단어를 보므로 보통 이 분기는 건너뛴다.
+  const u2Words = await prisma.wordEntry.count({ where: { OR: [{ userId: u2 }, { userId: null, source: 'SEED' }], states: { none: { userId: u2, archived: true } } } })
   if (u2Words < 6) {
     const nw = await api(COOKIE2, 'POST', '/api/v1/evaluations', { kind: 'WORDS' })
     check('1d 단어 부족 → 400 NOT_ENOUGH_WORDS {have, need:6}', nw.status === 400 && reason(nw) === 'NOT_ENOUGH_WORDS' && details(nw).need === 6 && details(nw).have === u2Words, nw.text.slice(0, 160))

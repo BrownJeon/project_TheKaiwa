@@ -44,9 +44,9 @@ const summary = (mode: VocabMode, over: Partial<SessionSummary> = {}): SessionSu
 const wordsCardProps = (over: Partial<Parameters<typeof TodayWordsCard>[0]> = {}): Parameters<typeof TodayWordsCard>[0] => ({
   state: 'ready', loadError: null, dailyWordCount: 10, count: 10, category: null, categories: [], archivedTotal: 0,
   todayDone: { sets: 0, correct: 0, cards: 0 }, inProgress: null, today: TODAY, poolEmptyKind: null, hasKept: false,
-  starting: false, startError: null, levels: { status: 'ready', main: null, goal: null, retry: noop }, seedingPack: null, finishing: false,
+  starting: false, startError: null, finishing: false,
   onCount: noop, onCategory: noop, onStart: noop, onStartAll: noop, onBackToReady: noop, onFinish: noop, onShowResult: noop,
-  onSeed: noop, onShowKept: noop, onRetry: noop,
+  onShowKept: noop, onRetry: noop,
   ...over,
 })
 

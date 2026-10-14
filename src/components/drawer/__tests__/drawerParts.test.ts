@@ -1,6 +1,6 @@
 /**
  * task-055 Developer B — 교정 모음의 밑바탕 부품(screens.md §21-2·21-3 A·21-9): 분절 `DrawerSwitch`, 문구 `correctionsCopy`,
- * 공용 부품 prop(`ChunkChips withNone`·`WordSearchBar label/placeholder/commitWhileTyping`)과 단어장 두 파일의 분절 한 줄.
+ * 공용 부품 prop(`ChunkChips variant`(task-068 — 옛 `withNone`)·`WordSearchBar label/placeholder/commitWhileTyping`)과 단어장 두 파일의 분절 한 줄.
  * 공용 부품은 **기본값이면 DOM 이 한 글자도 안 바뀐다** — 착수 시점 렌더 문자열을 그대로 박아 두고 비교한다.
  */
 import { test, afterEach } from 'node:test'
@@ -21,7 +21,8 @@ const noop = () => {}
 const root = join(__dirname, '..', '..')
 const read = (...p: string[]) => readFileSync(join(root, ...p), 'utf8').replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '')
 
-// 변경 전(2026-10-11, task-055 착수 시점) 렌더 문자열 — 기본값으로 그리면 이것과 한 글자도 다르면 안 된다.
+// 변경 전(2026-10-11, task-055 착수 시점) 렌더 문자열. task-068 로 단어장 기본값은 「없음」 → 「표현」 칩만 바뀌고,
+// 교정 모음(`variant="corrections"`)은 task-055 의 `withNone={false}` 출력(= 이 문자열에서 「없음」 칩만 뺀 것)과 한 글자도 같아야 한다.
 const PRE_CHUNK_NULL =
   "<div class=\"-mr-4 flex min-w-0 items-center gap-2\"><span id=\"_R_0_\" class=\"w-[30px] flex-none text-[12px] font-semibold text-ink2\">조각</span><div role=\"radiogroup\" aria-labelledby=\"_R_0_\" class=\"no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto py-1 pr-4\"><button type=\"button\" role=\"radio\" aria-checked=\"true\" class=\"relative h-9 min-w-[44px] flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[&#x27;&#x27;] border-accent bg-accent font-semibold text-on-accent\">전체<span class=\"sr-only\"> (모든 조각)</span></button><button type=\"button\" role=\"radio\" aria-checked=\"false\" class=\"relative h-9 min-w-[44px] flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[&#x27;&#x27;] border-line bg-surface text-ink\">이름<span class=\"sr-only\"> 조각</span></button><button type=\"button\" role=\"radio\" aria-checked=\"false\" class=\"relative h-9 min-w-[44px] flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[&#x27;&#x27;] border-line bg-surface text-ink\">액션<span class=\"sr-only\"> 조각</span></button><button type=\"button\" role=\"radio\" aria-checked=\"false\" class=\"relative h-9 min-w-[44px] flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[&#x27;&#x27;] border-line bg-surface text-ink\">느낌<span class=\"sr-only\"> 조각</span></button><button type=\"button\" role=\"radio\" aria-checked=\"false\" class=\"relative h-9 min-w-[44px] flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[&#x27;&#x27;] border-line bg-surface text-ink\">꾸밈<span class=\"sr-only\"> 조각</span></button><button type=\"button\" role=\"radio\" aria-checked=\"false\" class=\"relative h-9 min-w-[44px] flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[&#x27;&#x27;] border-line bg-surface text-ink\">없음<span class=\"sr-only\"> (조각이 정해지지 않은 단어)</span></button></div></div>"
 const PRE_CHUNK_NONE =
@@ -33,20 +34,27 @@ const PRE_SEARCH_ERR =
 
 // ── 공용 부품: 기본값 DOM 불변 ─────────────────────────────────────────────────
 
-test('ChunkChips 기본값(withNone 생략·true) = 착수 시점 DOM 그대로(「없음」 칩 포함)', () => {
-  assert.equal(render(createElement(ChunkChips, { value: null, onChange: noop })), PRE_CHUNK_NULL)
-  assert.equal(render(createElement(ChunkChips, { value: 'none', onChange: noop })), PRE_CHUNK_NONE)
-  assert.equal(render(createElement(ChunkChips, { value: null, onChange: noop, withNone: true })), PRE_CHUNK_NULL, '명시 true 도 같다')
+const NONE_CHIP = /<button type="button" role="radio" aria-checked="(?:false|true)" class="[^"]*">없음<span class="sr-only"> \(조각이 정해지지 않은 단어\)<\/span><\/button>/
+const EXPR_CHIP =
+  "<button type=\"button\" role=\"radio\" aria-checked=\"false\" class=\"relative h-9 min-w-[44px] flex-none whitespace-nowrap rounded-full border px-3 text-[13px] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-[&#x27;&#x27;] border-line bg-surface text-ink\">표현<span class=\"sr-only\"> 조각</span></button>"
+
+test('ChunkChips 기본값(variant 생략·words) = 착수 시점 DOM 에서 「없음」 칩 자리에 「표현」 칩만(task-068 T10)', () => {
+  assert.match(PRE_CHUNK_NULL, NONE_CHIP)
+  assert.equal(render(createElement(ChunkChips, { value: null, onChange: noop })), PRE_CHUNK_NULL.replace(NONE_CHIP, EXPR_CHIP))
+  assert.equal(render(createElement(ChunkChips, { value: null, onChange: noop, variant: 'words' })), PRE_CHUNK_NULL.replace(NONE_CHIP, EXPR_CHIP), '명시 words 도 같다')
+  assert.ok(!render(createElement(ChunkChips, { value: null, onChange: noop })).includes('없음'))
+  const picked = render(createElement(ChunkChips, { value: 'EXPRESSION', onChange: noop }))
+  assert.match(picked, /aria-checked="true" class="[^"]*border-accent[^"]*">표현</)
+  assert.match(PRE_CHUNK_NONE, NONE_CHIP, '옛 「없음」 고름 문자열은 기록으로만 남긴다')
 })
 
-test('ChunkChips withNone={false}: 「없음」 칩만 빠지고 나머지 DOM 은 같다(전체+4종)', () => {
-  const html = render(createElement(ChunkChips, { value: null, onChange: noop, withNone: false }))
-  const noneChip = /<button type="button" role="radio" aria-checked="false" class="[^"]*">없음<span class="sr-only"> \(조각이 정해지지 않은 단어\)<\/span><\/button>/
-  assert.match(PRE_CHUNK_NULL, noneChip)
-  assert.equal(html, PRE_CHUNK_NULL.replace(noneChip, ''))
+test('ChunkChips variant="corrections": task-055 withNone={false} 출력과 한 글자도 같다(전체+4종, J12)', () => {
+  const html = render(createElement(ChunkChips, { value: null, onChange: noop, variant: 'corrections' }))
+  assert.equal(html, PRE_CHUNK_NULL.replace(NONE_CHIP, ''))
   assert.equal((html.match(/role="radio"/g) ?? []).length, 5)
   assert.ok(!html.includes('없음'))
-  const picked = render(createElement(ChunkChips, { value: 'ACTION', onChange: noop, withNone: false }))
+  assert.ok(!html.includes('표현'))
+  const picked = render(createElement(ChunkChips, { value: 'ACTION', onChange: noop, variant: 'corrections' }))
   assert.match(picked, /aria-checked="true" class="[^"]*border-accent[^"]*">액션</)
 })
 

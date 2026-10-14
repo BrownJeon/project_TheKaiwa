@@ -15,12 +15,14 @@ export const CHAT_SKELETON = { rows: 5, rowHeight: 67.5, gap: 8 } as const
 
 /**
  * 단어장 목록 한 줄(`WordRow`) — 실측(단어 50개 N5, 앞 30개, 표시 설정 기본 = 히라가나·한글 켬, 세 폭 모두 같음): 줄 93.8~105.8, 목록 `ul` 3120.7 → 줄 사이 divide 1 을
- * 포함한 평균 피치 = (3120.7−2)/30 ≈ 104. 한글 줄을 끄면 더 낮다. 6줄이면 가장 작은 폭(360×740: 목록 시작 344, 보이는 칸 323 — task-055 분절 +52 뒤)도
- * 첫 화면을 채운다.
+ * 포함한 평균 피치 = (3120.7−2)/30 ≈ 104. 한글 줄을 끄면 더 낮다. 줄 수 7 = 한 쪽 행 수(task-068 D1 — 쪽 넘김 회색 자리도 7줄, 이 높이를 쓴다).
  */
-export const WORD_SKELETON = { rows: 6, rowHeight: 104 } as const
+export const WORD_SKELETON = { rows: 7, rowHeight: 104 } as const
 
-/** 단어장 분류 칩 줄 자리 — 실측 래퍼 [top 112, h 44] = `mt-1.5`(6) + `py-1`(4+4) + 칩 `h-9`(36). 응답 전에는 단어가 있는지 몰라 흔한 쪽(분류가 있음)으로 잡는다. */
+/**
+ * 칩 줄 높이 — 실측 래퍼 [top 112, h 44] = `mt-1.5`(6) + `py-1`(4+4) + 칩 `h-9`(36). 교정 모음 「유형」 줄 자리표시(`ErrorTypeRowSkeleton`)가 쓴다.
+ * task-068: 단어장 분류 칩 줄 자리표시는 지웠다(난이도 이름 칩이 빠져 흔한 상태가 「줄 없음」 — 자리표시가 오히려 접힘을 만든다, §28-10 ⑦).
+ */
 export const WORD_CATEGORY_ROW = { top: 6, pad: 4, chip: 36, widths: [52, 72, 64, 80] } as const
 
 /**

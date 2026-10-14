@@ -4,10 +4,12 @@
  * 단어 폼(추가·수정 공용, screens.md §4-2 B WordForm). 카운터·출처·보관은 폼에 없다(읽기 전용).
  * 길이는 코드포인트로 검사하고 `maxLength` 는 쓰지 않는다(IME 조합 중 잘림). 오류는 입력 아래 12px `bad` + `aria-invalid`/`aria-describedby`.
  * 입력 id 는 `${idPrefix}_${field}` — 부모가 첫 오류 필드로 포커스를 옮길 때 쓴다.
+ * task-068(§28-4 A): 「수준」 칸을 지우고 조각을 꼭 고른다(`WordChunkPicker`) — 칸 순서 표현·읽기·뜻·품사·조각·분류·[예문·메모].
  */
 import { useLayoutEffect, useRef } from 'react'
 import type { WordField, WordFormValues } from './validate'
-import { JLPT_LEVELS, levelLabel, POS_OPTIONS } from './labels'
+import { POS_OPTIONS } from './labels'
+import WordChunkPicker from './WordChunkPicker'
 
 export const INPUT = 'h-11 w-full min-w-0 rounded-xl border bg-surface px-3 text-[16px] text-ink placeholder:text-ink3'
 
@@ -54,6 +56,8 @@ export default function WordForm({
   onToggleExtras,
   idPrefix,
   surfaceNote,
+  surfaceNoteId,
+  chunkNote,
 }: {
   values: WordFormValues
   errors: Partial<Record<WordField, string>>
@@ -64,11 +68,17 @@ export default function WordForm({
   idPrefix: string
   /** 표현 아래 추가 안내(중복 409 → [그 단어 보기]) */
   surfaceNote?: React.ReactNode
+  /** `surfaceNote` 의 id — 주면 표현 칸이 빨간 테두리 + `aria-invalid`·`aria-describedby` 로 그 안내를 가리킨다(중복 409, §28-4 E). */
+  surfaceNoteId?: string
+  /** 조각 칸 아래 선생님 초안 안내(§28-4 D) */
+  chunkNote?: string | null
 }) {
   const id = (f: WordField) => `${idPrefix}_${f}`
   const errId = (f: WordField) => `${idPrefix}_${f}_err`
-  const invalid = (f: WordField) => (errors[f] ? { 'aria-invalid': true as const, 'aria-describedby': errId(f) } : {})
-  const border = (f: WordField) => (errors[f] ? 'border-bad' : 'border-line')
+  const noted = (f: WordField) => f === 'surface' && !errors[f] && !!surfaceNoteId
+  const invalid = (f: WordField) =>
+    errors[f] ? { 'aria-invalid': true as const, 'aria-describedby': errId(f) } : noted(f) ? { 'aria-invalid': true as const, 'aria-describedby': surfaceNoteId } : {}
+  const border = (f: WordField) => (errors[f] || noted(f) ? 'border-bad' : 'border-line')
   const listId = `${idPrefix}_categories`
 
   const text = (f: 'surface' | 'reading' | 'meaning' | 'category', label: string, opts: { ja?: boolean; placeholder?: string; required?: boolean } = {}) => (
@@ -112,39 +122,22 @@ export default function WordForm({
       {text('surface', '표현', { ja: true, required: true })}
       {text('reading', '읽기', { ja: true, placeholder: '히라가나 (선택)' })}
       {text('meaning', '뜻', { placeholder: '한국어 뜻 (예: 영화)', required: true })}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <Label htmlFor={id('partOfSpeech')} text="품사" />
-          <select
-            id={id('partOfSpeech')}
-            value={values.partOfSpeech}
-            onChange={(e) => onChange('partOfSpeech', e.target.value as WordFormValues['partOfSpeech'])}
-            className={`${INPUT} border-line`}
-          >
-            {POS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <Label htmlFor={id('jlpt')} text="수준" />
-          <select
-            id={id('jlpt')}
-            value={values.jlpt}
-            onChange={(e) => onChange('jlpt', e.target.value as WordFormValues['jlpt'])}
-            className={`${INPUT} border-line`}
-          >
-            <option value="">선택 안 함</option>
-            {JLPT_LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {levelLabel(l)}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor={id('partOfSpeech')} text="품사" />
+        <select
+          id={id('partOfSpeech')}
+          value={values.partOfSpeech}
+          onChange={(e) => onChange('partOfSpeech', e.target.value as WordFormValues['partOfSpeech'])}
+          className={`${INPUT} border-line`}
+        >
+          {POS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
+      <WordChunkPicker value={values.chunkType} error={errors.chunkType} note={chunkNote} idPrefix={idPrefix} onChange={(v) => onChange('chunkType', v)} />
       {text('category', '분류', { placeholder: '예: 일상, 여행 (선택)' })}
       <datalist id={listId}>
         {categories.map((c) => (

@@ -5,7 +5,7 @@ import { createRng, generateWordSet, newSeed, recencyFactor, requestedModeOf, sa
 import { distinctMeaningCount, pickChoices, type MeaningSource } from '../vocab/distractors'
 import { durationSecOf, parseAttemptBody, parseCreateSessionBody, parseKeepBody, parseSessionListQuery, toCardDto } from '../vocab/sessions'
 import { parseWordInput, parseWordListQuery, parseWordPatch, parseEnrichSurface, isBlankMeaning, wordListFilter } from '../vocab/words'
-import { asSeedWords, parseSeedPackBody } from '../vocab/seedPack'
+import { asSeedWords } from '../vocab/seedPack'
 import wordsN5 from '../../../../prisma/seed-data/words-n5.json'
 import { aggregateVocabStats, parseStatsDays, readSnapshot } from '../vocab/stats'
 import { cachedDraft, enrichCacheSize, rememberDraft, toDraft } from '../vocab/enrich'
@@ -201,13 +201,13 @@ test('#40 쿼리: q ≤40·category ≤40·archived 0|1·sort 3종', () => {
   }
 })
 
-test('#40 조각 조건(task-023): 4종 + none 하나만, 빈 값은 조건 없음, 그 밖(소문자·쉼표 목록·None)은 400', () => {
-  for (const k of ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'none'] as const) {
+test('#40 조각 조건(task-023 → task-068 T11): 5유형 하나만(EXPRESSION 통과), none 은 폐지 400, 빈 값은 조건 없음, 그 밖(소문자·쉼표 목록·None)은 400', () => {
+  for (const k of ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION'] as const) {
     assert.equal(parseWordListQuery(new URLSearchParams(`chunkType=${k}`), 20).chunkType, k)
   }
   assert.equal(parseWordListQuery(new URLSearchParams(''), 20).chunkType, null)
   assert.equal(parseWordListQuery(new URLSearchParams('chunkType='), 20).chunkType, null, '빈 값 = 조건 없음')
-  for (const bad of ['name', 'NAME,ACTION', 'None', 'NULL', ' NAME', 'chunk', 'OTHER']) {
+  for (const bad of ['none', 'name', 'NAME,ACTION', 'None', 'NULL', ' NAME', 'chunk', 'OTHER']) {
     assert.throws(
       () => parseWordListQuery(new URLSearchParams({ chunkType: bad }), 20),
       (e: unknown) => code('VALIDATION')(e) && (e as ApiError).details?.field === 'chunkType',
@@ -216,21 +216,17 @@ test('#40 조각 조건(task-023): 4종 + none 하나만, 빈 값은 조건 없�
   }
 })
 
-test('#40 where(task-023): 검색·분류·조각·보관 여부 AND, none = chunkType IS NULL', () => {
-  const base = { q: null, category: null, chunkType: null, archived: false } as const
-  assert.deepEqual(wordListFilter('u1', base), { userId: 'u1', archived: false })
-  assert.deepEqual(wordListFilter('u1', { ...base, chunkType: 'FEELING', category: 'N5 기초' }), {
-    userId: 'u1',
-    archived: false,
-    category: 'N5 기초',
-    chunkType: 'FEELING',
+test('#40 where(task-068): 보이는 범위(출처)·나의 보관 여부·분류·조각·검색을 AND 로', () => {
+  const base = { q: null, category: null, chunkType: null, archived: false, source: 'all' } as const
+  const visible = { OR: [{ userId: 'u1' }, { userId: null, source: 'SEED' }] }
+  const notArchived = { states: { none: { userId: 'u1', archived: true } } }
+  assert.deepEqual(wordListFilter('u1', base), { AND: [visible, notArchived] })
+  assert.deepEqual(wordListFilter('u1', { ...base, chunkType: 'EXPRESSION', category: '일상', archived: true, source: 'mine' }), {
+    AND: [{ userId: 'u1' }, { states: { some: { userId: 'u1', archived: true } } }, { category: '일상' }, { chunkType: 'EXPRESSION' }],
   })
-  assert.deepEqual(wordListFilter('u1', { ...base, chunkType: 'none', archived: true }), { userId: 'u1', archived: true, chunkType: null })
-  const all = wordListFilter('u1', { q: '50%', category: '일상', chunkType: 'ACTION', archived: false })
-  assert.equal(all.userId, 'u1')
-  assert.equal(all.category, '일상')
-  assert.equal(all.chunkType, 'ACTION')
-  assert.deepEqual(all.OR, [{ surface: { contains: '50\\%' } }, { reading: { contains: '50\\%' } }, { meaning: { contains: '50\\%' } }])
+  assert.deepEqual(wordListFilter('u1', { ...base, source: 'base' }).AND, [{ userId: null, source: 'SEED' }, notArchived])
+  const all = wordListFilter('u1', { ...base, q: '50%' })
+  assert.deepEqual((all.AND as object[])[2], { OR: [{ surface: { contains: '50\\%' } }, { reading: { contains: '50\\%' } }, { meaning: { contains: '50\\%' } }] })
 })
 
 test('LIKE 이스케이프: % _ \\ 는 글자 그대로', () => {
@@ -265,16 +261,11 @@ test('#41 보강 경로 판정·표현 검증', () => {
   assert.throws(() => parseEnrichSurface({ surface: 'a', saved: true }), code('VALIDATION'))
 })
 
-test('기본 단어(E1): OWNER 시드 원본 words-n5.json 50개·표현 중복 없음·전부 #41 한도 통과, pack 5단계만(task-051)', () => {
+test('기본 단어(E1): 옛 OWNER 시드 원본 words-n5.json 50개·표현 중복 없음·전부 채택 경로(#35·#38) 한도 통과', () => {
   const pack = asSeedWords(wordsN5)
   assert.equal(pack.length, 50)
   assert.equal(new Set(pack.map((w) => w.surface)).size, 50)
   for (const w of pack) parseWordInput({ surface: w.surface, meaning: w.meaning, reading: w.reading, partOfSpeech: w.partOfSpeech, chunkType: w.chunkType, example: w.example, exampleKo: w.exampleKo, jlpt: 'N5', category: 'N5 기초' })
-  for (const p of ['N5', 'N4', 'N3', 'N2', 'N1']) assert.equal(parseSeedPackBody({ pack: p }), p)
-  assert.throws(() => parseSeedPackBody({ pack: 'N6' }), code('VALIDATION'))
-  assert.throws(() => parseSeedPackBody({ pack: 'n5' }), code('VALIDATION'))
-  assert.throws(() => parseSeedPackBody({}), code('VALIDATION'))
-  assert.throws(() => parseSeedPackBody({ pack: 'N5', extra: 1 }), code('VALIDATION'))
 })
 
 test('#54 집계: VOCAB_SESSION 스냅샷만으로 byCount·daily·streak(오늘 없으면 어제부터), 기간 밖 제외', () => {
@@ -303,9 +294,9 @@ test('#54 집계: VOCAB_SESSION 스냅샷만으로 byCount·daily·streak(오늘
 })
 
 test('A10 draft(E8·F8): valid=false 면 사전 필드 비움, 캐시 키 = (표현, 수준)·상한·만료', () => {
-  const inval = toDraft('안녕', { valid: false, invalidReason: '한국어예요', reading: 'x', meaning: 'y', partOfSpeech: 'NOUN', jlpt: 'N5', example: 'e', exampleKo: 'k' })
-  assert.deepEqual(inval, { surface: '안녕', valid: false, invalidReason: '한국어예요', reading: null, meaning: null, partOfSpeech: null, jlpt: null, example: null, exampleKo: null })
-  const d = toDraft('映画', { valid: true, invalidReason: null, reading: 'えいが', meaning: '영화', partOfSpeech: 'NOUN', jlpt: 'N5', example: '映画を見る。', exampleKo: '영화를 본다.' })
+  const inval = toDraft('안녕', { valid: false, invalidReason: '한국어예요', reading: 'x', meaning: 'y', partOfSpeech: 'NOUN', chunkType: 'NAME', jlpt: 'N5', example: 'e', exampleKo: 'k' })
+  assert.deepEqual(inval, { surface: '안녕', valid: false, invalidReason: '한국어예요', reading: null, meaning: null, partOfSpeech: null, chunkType: null, jlpt: null, example: null, exampleKo: null })
+  const d = toDraft('映画', { valid: true, invalidReason: null, reading: 'えいが', meaning: '영화', partOfSpeech: 'NOUN', chunkType: 'NAME', jlpt: 'N5', example: '映画を見る。', exampleKo: '영화를 본다.' })
   rememberDraft('映画', 'N5', d, 1_000)
   assert.deepEqual(cachedDraft('映画', 'N5', 2_000), d)
   assert.equal(cachedDraft('映画', 'N4', 2_000), null, '수준이 다르면 다른 키')
@@ -333,14 +324,15 @@ function fakeTx(log: string[], rows: { word?: unknown; session?: unknown; attemp
   } as never
 }
 
-test('Codex C2-1: 보관 토글은 사용자 행을 먼저 잠근 뒤 단어를 갱신한다', async () => {
+test('Codex C2-1: 보관 토글은 사용자 행을 먼저 잠근 뒤 단어를 읽고 나의 상태만 쓴다(task-068 — UserWordState)', async () => {
   const { setWordArchivedTx } = await import('../vocab/words')
-  const log: string[] = []
-  const word = { id: 'w1', surface: 's', reading: null, meaning: 'm', partOfSpeech: 'NOUN', chunkType: null, jlpt: null, example: null, exampleKo: null, note: null, category: null, source: 'MANUAL', sourceRefId: null, correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null, archived: true, archivedAt: NOW, createdAt: NOW, updatedAt: NOW }
-  const dto = await setWordArchivedTx(fakeTx(log, { word }), 'u1', 'w1', true)
-  assert.deepEqual(log, ['lock:user', 'word:update', 'word:read'])
-  assert.equal(dto.archivedAt, NOW.toISOString())
-  await assert.rejects(setWordArchivedTx(fakeTx([], {}), 'u1', 'w1', true), code('NOT_FOUND'), '없거나 남의 단어 404')
+  const { createWordFakeDb, word } = await import('./wordFakeDb')
+  const fake = createWordFakeDb({ words: [word({ id: 'w1', userId: 'u1' })] })
+  const dto = await setWordArchivedTx(fake.db, 'u1', 'w1', true)
+  assert.deepEqual(fake.log, ['lock:user', 'word:findFirst', 'state:findUnique', 'state:upsert'])
+  assert.equal(dto.archived, true)
+  assert.ok(dto.archivedAt)
+  await assert.rejects(setWordArchivedTx(createWordFakeDb({ words: [word({ id: 'w1', userId: 'u2' })] }).db, 'u1', 'w1', true), code('NOT_FOUND'), '없거나 남의 단어 404')
 })
 
 test('Codex C2-2: #49 조회는 세트 행을 잠근 뒤 카드를 읽는다(한 스냅샷), 미답 CHOICE 정답 없음', async () => {

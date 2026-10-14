@@ -11,7 +11,7 @@
  *   - 답(attempt): 세트 행(`FOR UPDATE`) → 카드 행 조건부 갱신(`answer IS NULL`)
  *   - 조회(#49): 세트 행(`FOR UPDATE`) → 카드 읽기(끝내기 도중의 반쯤 바뀐 상태를 읽지 않게)
  *   - 보관(#52): 사용자 행 → 세트 행(다시 풀기와 직렬화)
- *   - 끝내기(finish): 사용자 행 → 세트 행 → 카드 → 단어 카운터 → StudyLog → 스냅샷(VOCAB_SESSION·DAILY)
+ *   - 끝내기(finish): 사용자 행 → 세트 행 → 카드 → 단어 카운터(나의 `UserWordState`, task-068) → StudyLog → 스냅샷(VOCAB_SESSION·DAILY)
  *   - 단어 삭제·수정·보관(words.*)도 사용자 행을 먼저 잡는다 → finish 의 카운터 갱신·세트 생성의 풀 읽기와 직렬화된다.
  * answer 와 finish 는 같은 세트 행을 잡으므로 서로의 중간 상태를 보지 않는다(답이 먼저면 집계에 들어가고, finish 가 먼저면 답은 409).
  *
@@ -55,6 +55,7 @@ import {
   type TopicWordsDriver,
 } from './topicSet'
 import { isValidId } from './words'
+import { activeWordWhere, bumpWordStates, EMPTY_WORD_STATE, loadActiveWordStates, visibleWordWhere, type WordStateRow } from './wordState'
 
 export const SET_COUNT_MIN = 5
 export const SET_COUNT_MAX = 30
@@ -146,11 +147,28 @@ const ATTEMPT_SELECT = {
 } as const
 type AttemptRow = Prisma.VocabAttemptGetPayload<{ select: typeof ATTEMPT_SELECT }>
 
-const POOL_SELECT = {
-  id: true, surface: true, reading: true, meaning: true, partOfSpeech: true, correctCount: true, wrongCount: true, lastSeenAt: true,
-  example: true, exampleKo: true, jlpt: true,
-} as const
-type PoolWord = Prisma.WordEntryGetPayload<{ select: typeof POOL_SELECT }>
+/**
+ * 세트 풀(task-068: 내 단어 + 기본 단어 ≈ 7.8천 행)은 가중·보기 재료에 필요한 칸만 읽는다 — 표기·예문은 뽑힌 카드(≤30)만
+ * `CARD_SELECT` 로 따로 읽는다. 학습 상태는 `WordEntry` 칸이 아니라 내 `UserWordState`(`loadActiveWordStates`).
+ */
+const POOL_SELECT = { id: true, meaning: true, partOfSpeech: true, jlpt: true } as const
+type PoolRow = Prisma.WordEntryGetPayload<{ select: typeof POOL_SELECT }>
+type PoolWord = PoolRow & Pick<WordStateRow, 'correctCount' | 'wrongCount' | 'lastSeenAt'>
+
+const CARD_SELECT = { id: true, surface: true, reading: true, meaning: true, partOfSpeech: true, example: true, exampleKo: true } as const
+type CardWord = Prisma.WordEntryGetPayload<{ select: typeof CARD_SELECT }>
+
+function withState(w: PoolRow, states: ReadonlyMap<string, WordStateRow>): PoolWord {
+  const s = states.get(w.id) ?? EMPTY_WORD_STATE
+  return { ...w, correctCount: s.correctCount, wrongCount: s.wrongCount, lastSeenAt: s.lastSeenAt }
+}
+
+/** 보이는 단어(내 단어 + 기본 단어) 중 `ids` 의 카드 재료 — `ids` 순서대로, 없어진 id 는 빠진다. */
+async function loadCardWords(tx: Pick<Tx, 'wordEntry'>, userId: string, ids: readonly string[]): Promise<Map<string, CardWord>> {
+  if (!ids.length) return new Map()
+  const rows = await tx.wordEntry.findMany({ where: { AND: [visibleWordWhere(userId), { id: { in: [...new Set(ids)] } }] }, select: CARD_SELECT })
+  return new Map(rows.map((w) => [w.id, w]))
+}
 
 function bad(field: string, reason: string, message: string): never {
   throw new ApiError('VALIDATION', message, { field, reason })
@@ -403,7 +421,7 @@ async function insertSession(
   return { session: toSessionDto(s, topicCardCounts(opts.cards)), cards }
 }
 
-function toCardSeed(w: PoolWord): CardSeed {
+function toCardSeed(w: CardWord): CardSeed {
   return { wordId: w.id, surface: w.surface, reading: w.reading, meaning: w.meaning, kind: w.partOfSpeech, example: w.example, exampleKo: w.exampleKo, refType: null, refId: null }
 }
 
@@ -437,7 +455,7 @@ export async function levelCeilingFor(userId: string, read: LevelReader = getPro
 }
 
 /**
- * 풀 = 보관 안 한 단어(카테고리 필터) − 오늘(KST) 끝낸 세트의 단어. 풀 0 → 빈 상태(F5 사유). 풀 <4 또는 서로 다른 뜻 <4 → CHOICE 는
+ * 풀 = 보이는 단어(내 단어 + 공용 기본 단어, task-068) 중 내가 보관 안 한 것(카테고리 필터) − 오늘(KST) 끝낸 세트의 단어. 풀 0 → 빈 상태(F5 사유). 풀 <4 또는 서로 다른 뜻 <4 → CHOICE 는
  * FLIP 강등, FLIP(카드 우선)은 보기 없음. `count` 는 라우트가 채운다(요청값 또는 `Profile.dailyWordCount`). `topicId` 가 있으면 주제 세트.
  */
 export async function createVocabSession(
@@ -462,13 +480,14 @@ export async function composeWordSessionLocked(
   await assertNoInProgress(tx, userId)
   const empty = (reason: EmptyReason): CreateSessionResult => ({
     session: null,
-    empty: { reason, cta: reason === 'NO_WORDS' ? ['ADD_WORD', 'SEED_PACK'] : reason === 'NO_WORDS_IN_CATEGORY' ? ['ALL_CATEGORIES', 'ADD_WORD'] : [] },
+    // task-068 L7: 기본 단어 넣기(#46b)가 없어져 빈 풀에서 고를 길은 단어 직접 추가뿐이다.
+    empty: { reason, cta: reason === 'NO_WORDS' ? ['ADD_WORD'] : reason === 'NO_WORDS_IN_CATEGORY' ? ['ALL_CATEGORIES', 'ADD_WORD'] : [] },
   })
-  const active = await tx.wordEntry.findMany({ where: { userId, archived: false }, select: POOL_SELECT })
+  const active = await tx.wordEntry.findMany({ where: activeWordWhere(userId), select: POOL_SELECT })
   if (!active.length) return empty('NO_WORDS')
   // 카테고리 비교는 목록(#40)·집계(#46)와 같은 DB 콜레이션으로 한다.
   const inCategory = input.category
-    ? new Set((await tx.wordEntry.findMany({ where: { userId, archived: false, category: input.category }, select: { id: true } })).map((w) => w.id))
+    ? new Set((await tx.wordEntry.findMany({ where: { AND: [activeWordWhere(userId), { category: input.category }] }, select: { id: true } })).map((w) => w.id))
     : null
   const candidates = inCategory ? active.filter((w) => inCategory.has(w.id)) : active
   if (!candidates.length) return empty('NO_WORDS_IN_CATEGORY')
@@ -477,16 +496,22 @@ export async function composeWordSessionLocked(
     select: { wordId: true },
   })
   const exclude = new Set(doneToday.map((a) => a.wordId))
-  const pool = candidates.filter((w) => !exclude.has(w.id))
+  const states = await loadActiveWordStates(tx, userId)
+  const pool = candidates.filter((w) => !exclude.has(w.id)).map((w) => withState(w, states))
   if (!pool.length) return empty('ALL_DONE_TODAY')
 
   const seed = newSeed(input.mode)
   const rng = createRng(seed)
   const picked = generateWordSet(pool, input.count, rng, now, ceiling)
+  const byId = await loadCardWords(tx, userId, picked.map((w) => w.id))
+  const cards = picked.flatMap((w) => {
+    const c = byId.get(w.id)
+    return c ? [toCardSeed(c)] : []
+  })
   const material = pool.length >= CHOICE_COUNT && distinctMeaningCount(active) >= CHOICE_COUNT
   const mode: VocabMode = input.mode === 'CHOICE' && !material ? 'FLIP' : input.mode
   return insertSession(tx, userId, {
-    seed, mode, requestedCount: input.count, replayOfId: null, cards: picked.map(toCardSeed), sources: active, rng, flipChoices: material, date: dates.todayKst(now),
+    seed, mode, requestedCount: input.count, replayOfId: null, cards, sources: active, rng, flipChoices: material, date: dates.todayKst(now),
   })
 }
 
@@ -611,7 +636,7 @@ async function composeTopicSessionLocked(
   }
   if (fresh) reason = composed.aiCount >= input.count ? null : composed.aiCount > 0 ? 'SHORT' : 'INVALID'
   else if (reuse) reason = composed.aiCount >= input.count ? null : 'NEW_DONE'
-  const words = await tx.wordEntry.findMany({ where: { userId, archived: false }, select: { id: true, meaning: true } })
+  const words = await tx.wordEntry.findMany({ where: activeWordWhere(userId), select: { id: true, meaning: true } })
   const sources = topicMeaningSources(pool, words, composed.cards)
   const r = await insertSession(tx, userId, {
     seed, mode: input.mode, requestedCount: input.count, replayOfId: null, rng, topicId, date: today, sources, flipChoices: true,
@@ -834,12 +859,8 @@ export async function finishVocabSessionDetailed(userId: string, id: string, opt
       select: SESSION_SELECT,
     })
     const idsOf = (x: VocabAnswer) => tally(x).flatMap((a) => (a.wordId ? [a.wordId] : []))
-    const correctIds = idsOf('CORRECT')
-    const wrongIds = idsOf('WRONG')
-    const skippedIds = idsOf('SKIPPED')
-    if (correctIds.length) await tx.wordEntry.updateMany({ where: { userId, id: { in: correctIds } }, data: { correctCount: { increment: 1 }, lastSeenAt: now, lastResult: 'CORRECT' } })
-    if (wrongIds.length) await tx.wordEntry.updateMany({ where: { userId, id: { in: wrongIds } }, data: { wrongCount: { increment: 1 }, lastSeenAt: now, lastResult: 'WRONG' } })
-    if (skippedIds.length) await tx.wordEntry.updateMany({ where: { userId, id: { in: skippedIds } }, data: { lastSeenAt: now, lastResult: 'SKIPPED' } })
+    // 기본 단어는 공용 읽기 전용 행이라 카운터는 나의 UserWordState 에만 쓴다(task-068 T28 — WordEntry 의 상태 칸은 쓰지 않는다).
+    await bumpWordStates(tx, userId, { correctIds: idsOf('CORRECT'), wrongIds: idsOf('WRONG'), skippedIds: idsOf('SKIPPED') }, now)
     const date = dates.fromDbDate(s.date)
     const registered = await registerRepetitionItems(userId, [...vocabRepetitionInputs(cards), ...topicCardRepetitionInputs(cards)], tx, { now })
     const cardCount = final.length
@@ -919,14 +940,14 @@ export async function replayVocabSession(userId: string, id: string, opts: TxRun
       const rng = createRng(seed)
       const ordered = shuffle(cards, rng)
       const pool = await loadTopicPool(tx, userId, src.topicId)
-      const words = await tx.wordEntry.findMany({ where: { userId, archived: false }, select: { id: true, meaning: true } })
+      const words = await tx.wordEntry.findMany({ where: activeWordWhere(userId), select: { id: true, meaning: true } })
       const own = cards.map((c, i) => ({ id: `r:${i}`, meaning: c.meaning, partOfSpeech: TOPIC_KIND_ANY }))
       const sources = [...topicMeaningSources(pool, words, [], true), ...own]
       return insertSession(tx, userId, { seed, mode: 'FLIP', requestedCount: src.cardCount, replayOfId: src.id, cards: ordered, sources, rng, flipChoices: true, topicId: src.topicId })
     }
     const ids = src.attempts.flatMap((a) => (a.wordId ? [a.wordId] : []))
-    const words = ids.length ? await tx.wordEntry.findMany({ where: { userId, id: { in: ids } }, select: POOL_SELECT }) : []
-    const byId = new Map(words.map((w) => [w.id, w]))
+    // 보관 여부는 보지 않는다(지금 규칙 — 보관한 세트의 같은 단어 목록). 기본 단어 카드도 그대로 다시 나온다.
+    const byId = await loadCardWords(tx, userId, ids)
     const cards: CardSeed[] = src.attempts.map((a) => {
       const w = a.wordId ? byId.get(a.wordId) : undefined
       return w ? toCardSeed(w) : { wordId: null, surface: a.surfaceSnap, reading: a.readingSnap, meaning: a.meaningSnap, kind: 'OTHER', example: null, exampleKo: null, refType: null, refId: null }
@@ -934,7 +955,7 @@ export async function replayVocabSession(userId: string, id: string, opts: TxRun
     const seed = newSeed('FLIP')
     const rng = createRng(seed)
     const ordered = shuffle(cards, rng)
-    const sources = await tx.wordEntry.findMany({ where: { userId, archived: false }, select: { id: true, meaning: true, partOfSpeech: true } })
+    const sources = await tx.wordEntry.findMany({ where: activeWordWhere(userId), select: { id: true, meaning: true, partOfSpeech: true } })
     return insertSession(tx, userId, { seed, mode: 'FLIP', requestedCount: src.cardCount, replayOfId: src.id, cards: ordered, sources, rng, flipChoices: true })
   })
 }

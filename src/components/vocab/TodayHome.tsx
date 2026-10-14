@@ -28,7 +28,6 @@ import { apiGet, apiPost } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { writeStore } from '@/components/common/storage'
 import Toast, { useToast } from '@/components/common/Toast'
-import type { SeedPack } from '@/types/seedPack'
 import type { CategoryCount, CreateSessionResult, FinishResult, Paged, SessionDetail, SessionSummary, VocabStats } from '@/types/vocab'
 import type { TodayLessons } from '@/types/lesson'
 import TodayLessonCard from '@/components/lesson/TodayLessonCard'
@@ -48,9 +47,9 @@ import { isNoChoiceSet } from './cardFirst'
 import { isAnswered } from './deck'
 import FinishConfirmSheet from './FinishConfirmSheet'
 import { todayKey } from './format'
-import { putSession, takeSession, useSeedLevels, useSeedPack, useStoredString, VOCAB_KEYS } from './hooks'
+import { putSession, takeSession, useStoredString, VOCAB_KEYS } from './hooks'
 import KeptSets from './KeptSets'
-import { actionErrorText, FLASH, HINT, homeLoadErrorText, seedResultText, startErrorText } from './labels'
+import { actionErrorText, FLASH, HINT, homeLoadErrorText, startErrorText } from './labels'
 import ChallengeStrip, { ChallengeStripError } from './ChallengeStrip'
 import { TODAY_HOLD_MS, todayRevealed } from './todayHold'
 import TodayWordsCard, { type PoolEmptyKind, type WordsCardState } from './TodayWordsCard'
@@ -74,9 +73,6 @@ interface HomeData {
 export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선생님' }: { dailyWordCount: number; myLevel: JlptLevel; teacherName?: string }) {
   const router = useRouter()
   const toast = useToast()
-  const { seed, seedingPack } = useSeedPack()
-  // 넣기 단계(#11)는 홈 요청과 동시에 마운트 때 한 번(§19-3). `myLevel` prop 은 평가 카드용이고 목표 수준이 없어 쓰지 않는다.
-  const levels = useSeedLevels()
   const [storedCategory, setStoredCategory] = useStoredString(VOCAB_KEYS.category)
   const [count, setCount] = useState(dailyWordCount)
   const [data, setData] = useState<HomeData | null>(null)
@@ -211,8 +207,6 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
   else if (data.inProgress) state = 'inProgress'
   else if (override) state = override.state
   else state = (totals?.active ?? 0) === 0 ? 'empty' : 'ready'
-  // 빈 단어장 카드는 넣기 단계를 받은 뒤에 그린다 — 넣기 버튼이 늦게 끼어들어 카드가 커지지 않게(§19-3).
-  if (state === 'empty' && levels.status === 'loading') state = 'loading'
 
   const todayDone = (data?.recent ?? [])
     .filter((s) => s.status === 'DONE' && s.date === data?.today)
@@ -242,18 +236,6 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
         return
       }
       setStartError(startErrorText(err))
-    }
-  }
-
-  const runSeed = async (pack: SeedPack) => {
-    if (seedingPack) return
-    try {
-      const r = await seed(pack)
-      if (!r) return
-      show(seedResultText(pack, r))
-      setTick((t) => t + 1)
-    } catch (e) {
-      show(actionErrorText(toErr(e)))
     }
   }
 
@@ -374,9 +356,8 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     hasKept: !!data?.kept && data.kept.items.length > 0,
     starting,
     startError,
-    levels,
-    seedingPack,
     finishing,
+    myLevel,
     onCount: setCount,
     onCategory: (c: string | null) => setStoredCategory(c),
     onStart: () => void start(category),
@@ -390,7 +371,6 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
       setFinishOpen(true)
     },
     onShowResult: () => void finishInProgress(),
-    onSeed: (p: SeedPack) => void runSeed(p),
     onShowKept: () => keptRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
     onRetry: () => {
       setLoadState('loading')

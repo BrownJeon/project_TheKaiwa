@@ -6,6 +6,9 @@
  * 카운터·출처는 읽기 전용(§4-10). 출처 절은 목록 뱃지가 조각으로 바뀐 뒤에도 남긴다(task-023 결정 e).
  * 소리 듣기(task-023): 표현 오른쪽 ▶(단어) + 예문 카드 ▶(예문, #23 한도 100자 넘으면 숨김). 소리는 한 번에 하나이고
  * [수정]·[삭제]로 넘어가거나 시트를 닫으면(언마운트) 멈춘다.
+ * task-068(§28-5 B): **기본 단어는 읽기 전용** — [수정]·[삭제] 없이 보관(숨기기) 단추 하나, 「기본 단어」 뱃지, 출처 문장, 「추가한 날」 없음.
+ * 내 단어는 [수정][보관하기] + 아래 글자 [삭제] 그대로 + 「내 단어」 뱃지 + 출처 문장 「 · 나만 봐요」. 판정은 응답 값만(`isReadOnlyWord`).
+ * 공용 `Sheet` 가 포털이라 서버 렌더 시험이 안 되므로 뱃지·출처·단추는 훅 없는 부품(`DetailOriginBadge`·`DetailSource`·`DetailActions`)으로 뺐다.
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -18,10 +21,37 @@ import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Badge, Btn, BtnRow, LoadingBlock } from '@/components/common/ui'
 import type { WordArchiveResponse, WordEntry, WordStats } from '@/types/vocab'
 import { formatMonthDay } from './format'
-import { actionErrorText, categoryBadgeText, CHUNK_LABEL, levelLabel, POS_LABEL, RESULT_LABEL, SOURCE_SENTENCE } from './labels'
-import { diffPatch, EXTRA_FIELDS, fieldOf, firstErrorField, formFromWord, normalizeWordDetail, validateWord, type WordField, type WordFormValues } from './validate'
-import { DuplicateNote } from './WordAddSheet'
+import {
+  actionErrorText,
+  BASE_ARCHIVE_BTN,
+  BASE_SOURCE_SENTENCE,
+  BASE_UNARCHIVE_BTN,
+  categoryBadgeText,
+  CHUNK_LABEL,
+  levelLabel,
+  MINE_SOURCE_SUFFIX,
+  POS_LABEL,
+  RESULT_LABEL,
+  SOURCE_SENTENCE,
+} from './labels'
+import {
+  archiveToastText,
+  diffPatch,
+  duplicateOf,
+  EXTRA_FIELDS,
+  fieldOf,
+  firstErrorField,
+  formFromWord,
+  isReadOnlyWord,
+  normalizeWordDetail,
+  validateWord,
+  type WordDuplicate,
+  type WordField,
+  type WordFormValues,
+} from './validate'
+import { WordDuplicateNote } from './WordAddSheet'
 import WordForm from './WordForm'
+import { BaseBadge, MineBadge } from './WordRow'
 import { WordSoundButton, WordSoundLine } from './WordSoundButton'
 import { useWordSound } from './useWordSound'
 import { soundText } from './wordSound'
@@ -32,6 +62,83 @@ const ID = 'wedit'
 
 function dateOf(iso: string | null | undefined): string {
   return iso ? formatMonthDay(kstDateKey(iso)) : ''
+}
+
+/** 상세 뱃지 줄 끝의 출처 뱃지(§28-5 B) — 기본 단어 = 테두리 「기본 단어」, 내 단어 = 「내 단어」. */
+export function DetailOriginBadge({ readOnly }: { readOnly: boolean }) {
+  return readOnly ? <BaseBadge /> : <MineBadge />
+}
+
+/** 출처 절. 기본 단어는 고정 문장 하나(넣은 날은 내 날짜가 아니라 그리지 않는다), 내 단어는 출처 문장 + 「 · 나만 봐요」 + 교정 링크 + 추가한 날. */
+export function DetailSource({ w, readOnly, correction }: { w: WordEntry; readOnly: boolean; correction?: { id: string; chatId: string } }) {
+  if (readOnly) {
+    return (
+      <>
+        <h3 className="mt-4 text-[13px] font-semibold text-ink2">출처</h3>
+        <p className="mt-1 text-[14px] break-keep">{BASE_SOURCE_SENTENCE}</p>
+      </>
+    )
+  }
+  return (
+    <>
+      <h3 className="mt-4 text-[13px] font-semibold text-ink2">출처</h3>
+      <p className="mt-1 text-[14px] break-keep">
+        {SOURCE_SENTENCE[w.source] ?? SOURCE_SENTENCE.MANUAL}
+        {MINE_SOURCE_SUFFIX}
+      </p>
+      {correction ? (
+        <Link
+          href={`/study/ai/chat/${encodeURIComponent(correction.chatId)}/review#cr_${encodeURIComponent(correction.id)}`}
+          className="inline-flex min-h-[44px] items-center text-[14px] font-medium text-accent"
+        >
+          점검 결과 보기 ›
+        </Link>
+      ) : null}
+      {w.createdAt ? <p className="text-[12px] text-ink2">추가한 날 {dateOf(w.createdAt)}</p> : null}
+    </>
+  )
+}
+
+/** 상세 단추. 기본 단어 = 보관 단추 하나(D6 A), 내 단어 = [수정][보관하기] + 아래 가운데 글자 [삭제](지금 그대로). */
+export function DetailActions({
+  readOnly,
+  archived,
+  busy,
+  onEdit,
+  onArchive,
+  onDelete,
+}: {
+  readOnly: boolean
+  archived: boolean
+  busy: boolean
+  onEdit: () => void
+  onArchive: () => void
+  onDelete: () => void
+}) {
+  if (readOnly) {
+    return (
+      <Btn variant="ghost" className="mt-3 w-full" onClick={onArchive} aria-disabled={busy || undefined} aria-busy={busy || undefined}>
+        {archived ? BASE_UNARCHIVE_BTN : BASE_ARCHIVE_BTN}
+      </Btn>
+    )
+  }
+  return (
+    <>
+      <BtnRow>
+        <Btn variant="ghost" onClick={onEdit} aria-disabled={busy || undefined}>
+          수정
+        </Btn>
+        <Btn variant="ghost" onClick={onArchive} aria-disabled={busy || undefined} aria-busy={busy || undefined}>
+          {archived ? '보관 풀기' : '보관하기'}
+        </Btn>
+      </BtnRow>
+      <div className="mt-1 flex justify-center">
+        <button type="button" onClick={onDelete} aria-disabled={busy || undefined} className="min-h-[44px] px-4 text-[14px] font-medium text-bad">
+          삭제
+        </button>
+      </div>
+    </>
+  )
 }
 
 export default function WordDetailSheet({
@@ -65,7 +172,7 @@ export default function WordDetailSheet({
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState<WordFormValues | null>(null)
   const [errors, setErrors] = useState<Partial<Record<WordField, string>>>({})
-  const [dup, setDup] = useState<string | null>(null)
+  const [dup, setDup] = useState<WordDuplicate | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [extras, setExtras] = useState(false)
   const onNotFoundRef = useRef(onNotFound)
@@ -112,6 +219,7 @@ export default function WordDetailSheet({
     )
   }
   const w = word
+  const readOnly = isReadOnlyWord(w)
 
   const set = <K extends keyof WordFormValues>(k: K, v: WordFormValues[K]) => {
     setForm((f) => (f ? { ...f, [k]: v } : f))
@@ -125,6 +233,7 @@ export default function WordDetailSheet({
   }
 
   const startEdit = () => {
+    if (readOnly) return
     sound.stop()
     const f = formFromWord(w)
     setForm(f)
@@ -164,9 +273,9 @@ export default function WordDetailSheet({
         onNotFound()
         return
       }
-      const existingId = err.status === 409 ? detailString(err, 'existingId') : null
-      if (existingId) {
-        setDup(existingId)
+      const d = duplicateOf(err)
+      if (d) {
+        setDup(d)
         focusField('surface')
       } else if (err.status === 400 && fieldOf(detailString(err, 'field'))) {
         const f = fieldOf(detailString(err, 'field'))!
@@ -187,7 +296,7 @@ export default function WordDetailSheet({
       const next: WordEntry = { ...w, ...r, archived: typeof r?.archived === 'boolean' ? r.archived : toArchive }
       setWord(next)
       onArchivedChange(next)
-      onToast(next.archived ? '보관했어요 · 오늘의 단어에 나오지 않아요' : '보관을 풀었어요 · 오늘의 단어에 다시 나와요')
+      onToast(archiveToastText(readOnly, next.archived))
     } catch (e) {
       const err = toErr(e)
       if (err.status === 404) onNotFound()
@@ -231,7 +340,8 @@ export default function WordDetailSheet({
           expandExtras={extras}
           onToggleExtras={() => setExtras((x) => !x)}
           idPrefix={ID}
-          surfaceNote={dup ? <DuplicateNote id={`${ID}_dup`} onOpen={() => onOpenWord(dup)} /> : null}
+          surfaceNote={dup ? <WordDuplicateNote id={`${ID}_dup`} dup={dup} onOpenWord={onOpenWord} /> : null}
+          surfaceNoteId={dup ? `${ID}_dup` : undefined}
         />
         <p className="text-[12px] text-ink2 break-keep">맞힘·틀림 기록과 출처는 바꿀 수 없어요.</p>
         {formError ? (
@@ -268,7 +378,7 @@ export default function WordDetailSheet({
     )
   } else {
     const played = w.correctCount + w.wrongCount > 0 || !!w.lastSeenAt
-    const correction = w.source === 'CORRECTION' ? corrections[0] : undefined
+    const correction = !readOnly && w.source === 'CORRECTION' ? corrections[0] : undefined
     const wordText = soundText(w.surface)
     const exText = soundText(w.example)
     content = (
@@ -298,6 +408,7 @@ export default function WordDetailSheet({
             </Badge>
           ) : null}
           {w.chunkType ? <Badge tone="neutral">{CHUNK_LABEL[w.chunkType]}</Badge> : null}
+          <DetailOriginBadge readOnly={readOnly} />
           {w.archived ? <Badge tone="neutral">보관함</Badge> : null}
         </div>
         {w.example ? (
@@ -365,39 +476,18 @@ export default function WordDetailSheet({
         </dl>
         {!played ? <p className="mt-1 text-[13px] text-ink2 break-keep">아직 오늘의 단어에서 풀지 않았어요</p> : null}
 
-        <h3 className="mt-4 text-[13px] font-semibold text-ink2">출처</h3>
-        <p className="mt-1 text-[14px] break-keep">{SOURCE_SENTENCE[w.source] ?? SOURCE_SENTENCE.MANUAL}</p>
-        {correction ? (
-          <Link
-            href={`/study/ai/chat/${encodeURIComponent(correction.chatId)}/review#cr_${encodeURIComponent(correction.id)}`}
-            className="inline-flex min-h-[44px] items-center text-[14px] font-medium text-accent"
-          >
-            점검 결과 보기 ›
-          </Link>
-        ) : null}
-        {w.createdAt ? <p className="text-[12px] text-ink2">추가한 날 {dateOf(w.createdAt)}</p> : null}
-
-        <BtnRow>
-          <Btn variant="ghost" onClick={startEdit} aria-disabled={busy || undefined}>
-            수정
-          </Btn>
-          <Btn variant="ghost" onClick={() => void toggleArchive()} aria-disabled={busy || undefined} aria-busy={busy || undefined}>
-            {w.archived ? '보관 풀기' : '보관하기'}
-          </Btn>
-        </BtnRow>
-        <div className="mt-1 flex justify-center">
-          <button
-            type="button"
-            onClick={() => {
-              sound.stop()
-              setMode('confirmDelete')
-            }}
-            aria-disabled={busy || undefined}
-            className="min-h-[44px] px-4 text-[14px] font-medium text-bad"
-          >
-            삭제
-          </button>
-        </div>
+        <DetailSource w={w} readOnly={readOnly} correction={correction} />
+        <DetailActions
+          readOnly={readOnly}
+          archived={w.archived}
+          busy={busy}
+          onEdit={startEdit}
+          onArchive={() => void toggleArchive()}
+          onDelete={() => {
+            sound.stop()
+            setMode('confirmDelete')
+          }}
+        />
       </div>
     )
   }

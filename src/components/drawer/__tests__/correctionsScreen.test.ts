@@ -267,10 +267,10 @@ test('더 보기: 시작 때 번호를 들고 가 조건이 바뀌면 버림, �
   assert.match(screen, /aria-busy=\{loadingMore \|\| undefined\}/)
 })
 
-test('검색: Enter 확정(commitWhileTyping=false)·40자 초과는 안내만·빈 칸 해제, 조각 칩은 4종(withNone=false), 보기 설정에 번역 없음', () => {
+test('검색: Enter 확정(commitWhileTyping=false)·40자 초과는 안내만·빈 칸 해제, 조각 칩은 4종(variant=corrections), 보기 설정에 번역 없음', () => {
   assert.match(screen, /commitWhileTyping=\{false\}/)
   assert.match(screen, /cpLength\(t\) > DRAWER_Q_MAX\) \{\s*setQTooLong\(true\)\s*return/)
-  assert.match(screen, /withNone=\{false\}/)
+  assert.match(screen, /variant="corrections"/)
   assert.match(screen, /<DisplayToggles keys=\{\['fu', 'hg'\]\}/)
   assert.ok(!/'tr'/.test(screen))
 })

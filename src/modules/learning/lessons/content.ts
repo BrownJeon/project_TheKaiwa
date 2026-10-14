@@ -5,8 +5,9 @@
  * A4 응답 타입은 conversation 의 `LessonResponse` 와 **같은 필드를 가진 로컬 구조 타입**이다(L3 는 L2 를 import 하지 않는다 —
  * 요청 객체는 라우트가 값으로 넘긴다, module-dependency §4-4). 스키마·후검증은 요청 쪽(`buildLessonRequest`)이 이미 강제했다.
  */
-import type { ChunkType, RepetitionItemType } from '@prisma/client'
+import type { RepetitionItemType } from '@prisma/client'
 import { REPETITION_LESSON_ITEM_CAP, repetitionRefId, type RepetitionItemInput, type RepetitionRefType } from '../repetition'
+import type { TopicChunkType } from '@/types/topic'
 import { chunkForms, grammarForms, matchTargets, type MatchTarget } from './matching'
 
 export interface LessonGenOutput {
@@ -14,7 +15,7 @@ export interface LessonGenOutput {
   titleKo: string
   rolesKo: { A: string; B: string }
   dialogue: { speaker: 'A' | 'B'; ja: string; reading: string; ko: string }[]
-  chunks: { id: string; textJa: string; reading: string; meaningKo: string; chunkType: ChunkType; isNew: boolean }[]
+  chunks: { id: string; textJa: string; reading: string; meaningKo: string; chunkType: TopicChunkType; isNew: boolean }[]
   grammar: { id: string; pattern: string; explanationKo: string; exampleJa: string; exampleReading: string; exampleKo: string }[]
   quiz: { id: string; promptKo: string; promptJa: string | null; choices: string[]; answer: number; targetIds: string[]; explanationKo: string }[]
   application: { id: string; promptKo: string; hintJa: string | null; modelAnswerJa: string; modelReading: string; modelKo: string; targetIds: string[] }[]

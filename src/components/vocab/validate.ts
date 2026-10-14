@@ -7,7 +7,6 @@
 import { cpLength } from '@/components/common/format'
 import type {
   CategoryCount,
-  JlptLevel,
   PartOfSpeech,
   WordCreateBody,
   WordDetail,
@@ -15,8 +14,12 @@ import type {
   WordEntry,
   WordPatchBody,
   WordChunkFilter,
+  WordChunkType,
+  WordListSource,
   WordStats,
 } from '@/types/vocab'
+import { WORD_ERROR_CODE } from '@/types/vocab'
+import { BASE_ARCHIVED_TOAST, BASE_UNARCHIVED_TOAST, CHUNK_PICK_REQUIRED, isLevelCategory } from './labels'
 
 export const WORD_LIMITS = {
   surface: 80,
@@ -29,15 +32,18 @@ export const WORD_LIMITS = {
   search: 40,
 } as const
 
-export type WordField = 'surface' | 'reading' | 'meaning' | 'partOfSpeech' | 'jlpt' | 'category' | 'example' | 'exampleKo' | 'note'
+export type WordField = 'surface' | 'reading' | 'meaning' | 'partOfSpeech' | 'chunkType' | 'category' | 'example' | 'exampleKo' | 'note'
 
-/** 폼 값은 전부 문자열(선택 안 함 = ''). */
+/**
+ * 폼 값은 전부 문자열(선택 안 함 = ''). task-068: 「수준」(`jlpt`) 칸은 없다 — 내 단어는 수준을 고르지 않는다(§28-4 A·J10),
+ * 대신 조각(`chunkType`)을 꼭 고른다(D5 A).
+ */
 export interface WordFormValues {
   surface: string
   reading: string
   meaning: string
   partOfSpeech: PartOfSpeech
-  jlpt: JlptLevel | ''
+  chunkType: WordChunkType | ''
   category: string
   example: string
   exampleKo: string
@@ -45,11 +51,12 @@ export interface WordFormValues {
 }
 
 /** 첫 오류 필드로 포커스를 옮길 때의 순서(화면 위→아래). */
-export const FIELD_ORDER: readonly WordField[] = ['surface', 'reading', 'meaning', 'partOfSpeech', 'jlpt', 'category', 'example', 'exampleKo', 'note']
+export const FIELD_ORDER: readonly WordField[] = ['surface', 'reading', 'meaning', 'partOfSpeech', 'chunkType', 'category', 'example', 'exampleKo', 'note']
 export const EXTRA_FIELDS: readonly WordField[] = ['example', 'exampleKo', 'note']
 
-export function emptyForm(surface = '', category = ''): WordFormValues {
-  return { surface, reading: '', meaning: '', partOfSpeech: 'OTHER', jlpt: '', category, example: '', exampleKo: '', note: '' }
+/** `chunk` = 빈 검색 결과에서 고른 조각을 미리 고를 때(J6). */
+export function emptyForm(surface = '', category = '', chunk: WordChunkType | '' = ''): WordFormValues {
+  return { surface, reading: '', meaning: '', partOfSpeech: 'OTHER', chunkType: chunk, category, example: '', exampleKo: '', note: '' }
 }
 
 export function formFromWord(w: WordEntry): WordFormValues {
@@ -58,7 +65,7 @@ export function formFromWord(w: WordEntry): WordFormValues {
     reading: w.reading ?? '',
     meaning: w.meaning,
     partOfSpeech: w.partOfSpeech ?? 'OTHER',
-    jlpt: w.jlpt ?? '',
+    chunkType: w.chunkType ?? '',
     category: w.category ?? '',
     example: w.example ?? '',
     exampleKo: w.exampleKo ?? '',
@@ -66,14 +73,17 @@ export function formFromWord(w: WordEntry): WordFormValues {
   }
 }
 
-/** 초안(A10) → 폼. 표현은 사용자가 쓴 것을 그대로 둔다. */
-export function formFromDraft(surface: string, draft: WordDraft, category: string): WordFormValues {
+/**
+ * 초안(A10) → 폼. 표현은 사용자가 쓴 것을 그대로 둔다. 조각은 선생님 초안이 먼저, 없으면(옛 캐시 초안 등) 이미 고른 조각(J6)을
+ * 그대로 둔다(§28-4 D). 초안의 `jlpt` 는 쓰지 않는다.
+ */
+export function formFromDraft(surface: string, draft: WordDraft, category: string, presetChunk: WordChunkType | '' = ''): WordFormValues {
   return {
     surface,
     reading: draft.reading ?? '',
     meaning: draft.meaning ?? '',
     partOfSpeech: draft.partOfSpeech ?? 'OTHER',
-    jlpt: draft.jlpt ?? '',
+    chunkType: draft.chunkType ?? presetChunk,
     category,
     example: draft.example ?? '',
     exampleKo: draft.exampleKo ?? '',
@@ -86,7 +96,7 @@ export function draftIsEmpty(d: WordDraft): boolean {
   return !d.meaning || !d.meaning.trim()
 }
 
-const MAX_MESSAGE: Record<Exclude<WordField, 'partOfSpeech' | 'jlpt'>, string> = {
+const MAX_MESSAGE: Record<Exclude<WordField, 'partOfSpeech' | 'chunkType'>, string> = {
   surface: '표현은 80자까지 쓸 수 있어요',
   reading: '읽기는 120자까지 쓸 수 있어요',
   meaning: '뜻은 200자까지 쓸 수 있어요',
@@ -108,6 +118,7 @@ export function validateWord(v: WordFormValues): Partial<Record<WordField, strin
   const s = validateSurface(v.surface)
   if (s) out.surface = s
   if (cpLength(v.meaning.trim()) < 1) out.meaning = '뜻을 적어 주세요'
+  if (!v.chunkType) out.chunkType = CHUNK_PICK_REQUIRED
   for (const f of ['reading', 'meaning', 'category', 'example', 'exampleKo', 'note'] as const) {
     if (!out[f] && cpLength(v[f].trim()) > WORD_LIMITS[f]) out[f] = MAX_MESSAGE[f]
   }
@@ -118,7 +129,7 @@ export function firstErrorField(errors: Partial<Record<WordField, string>>): Wor
   return FIELD_ORDER.find((f) => !!errors[f]) ?? null
 }
 
-/** #41 저장 본문 — 비어 있는 선택값은 보내지 않는다(`enrich` 없음). */
+/** #41 저장 본문 — 비어 있는 선택값은 보내지 않는다(`enrich` 없음). `jlpt` 키는 넣지 않는다(서버 400 — task-068). */
 export function toCreateBody(v: WordFormValues): WordCreateBody {
   const body: WordCreateBody = { surface: v.surface.trim(), meaning: v.meaning.trim(), partOfSpeech: v.partOfSpeech }
   const opt = (k: 'reading' | 'example' | 'exampleKo' | 'note' | 'category') => {
@@ -130,13 +141,14 @@ export function toCreateBody(v: WordFormValues): WordCreateBody {
   opt('example')
   opt('exampleKo')
   opt('note')
-  if (v.jlpt) body.jlpt = v.jlpt
+  if (v.chunkType) body.chunkType = v.chunkType
   return body
 }
 
 /**
  * #43 본문 — **바뀐 필드만**. 비운 선택값은 `null`(지운다), 필수값(표현·뜻)은 비울 수 없다(검증이 먼저 막는다).
- * 카운터·source·archived 는 폼에 없으므로 여기서도 나오지 않는다.
+ * 카운터·source·archived 는 폼에 없으므로 여기서도 나오지 않는다. `jlpt` 는 어떤 경우에도 넣지 않는다(서버 400 — 옛 값은 그대로 남는다).
+ * 조각은 비울 수 없다(검사가 먼저 막는다 — 서버도 `null` 을 거절).
  */
 export function diffPatch(before: WordEntry, after: WordFormValues): WordPatchBody {
   const body: WordPatchBody = {}
@@ -145,14 +157,43 @@ export function diffPatch(before: WordEntry, after: WordFormValues): WordPatchBo
   const m = after.meaning.trim()
   if (m !== before.meaning) body.meaning = m
   if (after.partOfSpeech !== (before.partOfSpeech ?? 'OTHER')) body.partOfSpeech = after.partOfSpeech
-  const jlpt = after.jlpt || null
-  if (jlpt !== (before.jlpt ?? null)) body.jlpt = jlpt
+  if (after.chunkType && after.chunkType !== (before.chunkType ?? '')) body.chunkType = after.chunkType
   for (const k of ['reading', 'category', 'example', 'exampleKo', 'note'] as const) {
     const next = after[k].trim() || null
     const prev = before[k] ?? null
     if (next !== prev) body[k] = next
   }
   return body
+}
+
+/**
+ * 기본 단어(공용·읽기 전용)인가 — **응답 값만** 본다(§28-5 B). `source==='SEED'` 로 판정하지 않는다(옛 사본·내 단어와 섞인다).
+ * 둘 다 없으면(옛 응답) 내 단어로 본다 — 서버가 기본 단어 수정·삭제를 403 으로 막으므로 잘못 열어도 데이터는 안전하다.
+ */
+export function isReadOnlyWord(w: Pick<WordEntry, 'origin' | 'readOnly'>): boolean {
+  return w.readOnly === true || w.origin === 'BASE'
+}
+
+/** 보관 토스트(§28-5 C) — 기본 단어는 「나에게만」 문구, 내 단어는 지금 문구 그대로. `archived` = 바뀐 뒤 상태. */
+export function archiveToastText(readOnly: boolean, archived: boolean): string {
+  if (readOnly) return archived ? BASE_ARCHIVED_TOAST : BASE_UNARCHIVED_TOAST
+  return archived ? '보관했어요 · 오늘의 단어에 나오지 않아요' : '보관을 풀었어요 · 오늘의 단어에 다시 나와요'
+}
+
+/** 409 중복 안내 — 내 단어끼리(`existingId` 만)와 기본 단어(`details.code='BASE_DUPLICATE'`, D9 A)를 가른다. */
+export interface WordDuplicate {
+  id: string
+  base: boolean
+}
+
+/**
+ * 저장·[뜻 채우기]·수정의 409 → 중복 안내(§28-4 E). `existingId` 가 없으면 중복 안내가 아니다(null — 일반 오류로 그린다).
+ */
+export function duplicateOf(err: { status: number; details?: Record<string, unknown> }): WordDuplicate | null {
+  if (err.status !== 409) return null
+  const id = err.details?.existingId
+  if (typeof id !== 'string' || !id) return null
+  return { id, base: err.details?.code === WORD_ERROR_CODE.baseDuplicate }
 }
 
 /** 서버 400 `details.field`(예: `word.meaning`)를 폼 필드에 맞춘다. */
@@ -204,32 +245,38 @@ export function categoryTotals(items: readonly CategoryCount[] | null): Category
   return { active, archived }
 }
 
-/** 칩으로 보일 분류(분류 없음 제외, 기준 개수 > 0) — #46 순서 그대로. */
+/**
+ * 칩으로 보일 분류(분류 없음 제외, 기준 개수 > 0) — #46 순서 그대로. 난이도 이름(`초보자 (N5)`…·옛 `N5 기초`)은 칩이 아니다
+ * (task-068 D3 B — 서버가 `null` 묶음에 합치지만 옛 응답·다른 경로로 와도 거른다, §28-2 C).
+ */
 export function visibleCategories(items: readonly CategoryCount[] | null, basis: 'active' | 'archived'): { category: string; n: number }[] {
   if (!items) return []
   const out: { category: string; n: number }[] = []
   for (const c of items) {
-    if (c.category === null) continue
+    if (c.category === null || isLevelCategory(c.category)) continue
     const n = basis === 'active' ? c.count : (c.archivedCount ?? 0)
     if (n > 0) out.push({ category: c.category, n })
   }
   return out
 }
 
-export type WordsEmptyVariant = 'noWords' | 'allArchived' | 'noSearch' | 'noSearchChunk' | 'noChunk' | 'noCategory' | 'noArchived'
+export type WordsEmptyVariant = 'noWords' | 'allArchived' | 'noSearch' | 'noSearchChunk' | 'noChunk' | 'noCategory' | 'noArchived' | 'noMine'
 
 /**
  * 목록이 비었을 때 어떤 안내를 보일지(§4-2 A 표·§4-3). 조각을 고른 채 0이면(task-023) 조각 쪽 안내가 분류보다 먼저다 —
  * 조각·분류를 한쪽씩 푸는 버튼을 함께 주기 때문이다. 검색 중이면 검색 안내에 조각 조건 한 줄을 붙인다.
+ * task-068: 출처 「내 단어」만 보는데 0 이면 `noMine`(`noArchived` 다음 · `allArchived` 앞, §28-6 B). 내 단어가 모두 보관된 경우도
+ * 여기로 온다(#46 합계는 출처를 나누지 않는다 — L8 수용).
  */
 export function emptyVariant(
-  q: { q: string; category: string | null; archived: boolean; chunk?: WordChunkFilter | null },
+  q: { q: string; category: string | null; archived: boolean; chunk?: WordChunkFilter | null; source?: WordListSource },
   totals: CategoryTotals | null,
 ): WordsEmptyVariant {
   if (q.q) return q.chunk ? 'noSearchChunk' : 'noSearch'
   if (q.chunk) return 'noChunk'
   if (q.category !== null) return 'noCategory'
   if (q.archived) return 'noArchived'
+  if (q.source === 'mine') return 'noMine'
   if (totals && totals.active === 0 && totals.archived > 0) return 'allArchived'
   return 'noWords'
 }

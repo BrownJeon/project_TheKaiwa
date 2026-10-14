@@ -5,7 +5,10 @@
  * 부모가 열 때마다 `key` 로 다시 마운트해 상태를 초기화한다.
  *
  * - `valid:false`(일본어 아님, F8)는 표현 단계에 머물고 선생님 설명(`invalidReason`)을 보인다.
- * - 409 는 오류가 아니라 [그 단어 보기] 안내다. 429 는 초를 세며 [뜻 채우기]를 잠근다.
+ * - 409 는 오류가 아니라 [그 단어 보기] 안내다 — 내 단어 중복과 기본 단어 중복(`BASE_DUPLICATE`, task-068 D9 A)을 가른다.
+ *   429 는 초를 세며 [뜻 채우기]를 잠근다.
+ * - task-068: 조각을 꼭 고른다(`WordForm` 의 조각 칸). 선생님 초안이 조각을 고르면 안내를 붙이고, 사용자가 바꾸면 안내를 지운다.
+ *   빈 검색 결과의 [‘q’ 추가하기]는 고른 조각을 미리 고른다(`presetChunk`, J6). 맨 아래 기본 단어 넣기 줄은 없다(§28-6 A ③).
  * - 오류 문구는 `labels.ts` 표(서버 문구는 400 만) — 뜻 채우기 실패 문구에 엔진 용어가 새지 않게.
  */
 import { useEffect, useRef, useState } from 'react'
@@ -14,12 +17,11 @@ import { detailString, retryAfterOf, toErr } from '@/components/common/errors'
 import Sheet from '@/components/common/Sheet'
 import { Btn, BtnRow } from '@/components/common/ui'
 import { elapsedSec, useCountdown, useNow } from '@/components/common/useNow'
-import type { SeedPack } from '@/types/seedPack'
-import type { WordEntry, WordEnrichResponse, WordSaveResponse } from '@/types/vocab'
-import type { SeedLevels } from './hooks'
-import { actionErrorText, DRAFT_INVALID, DUPLICATE_TEXT, enrichErrorText, SEED_COPY } from './labels'
+import type { WordChunkType, WordEntry, WordEnrichResponse, WordSaveResponse } from '@/types/vocab'
+import { actionErrorText, BASE_DUPLICATE_HINT, BASE_DUPLICATE_TEXT, CHUNK_PICK_DRAFT, DRAFT_INVALID, DUPLICATE_TEXT, enrichErrorText, OPEN_EXISTING_WORD } from './labels'
 import {
   draftIsEmpty,
+  duplicateOf,
   EXTRA_FIELDS,
   emptyForm,
   fieldOf,
@@ -28,6 +30,7 @@ import {
   toCreateBody,
   validateSurface,
   validateWord,
+  type WordDuplicate,
   type WordField,
   type WordFormValues,
 } from './validate'
@@ -43,57 +46,58 @@ export function DuplicateNote({ id, onOpen }: { id: string; onOpen: () => void }
     <div id={id} role="alert" className="flex flex-wrap items-center gap-x-2 text-[12px] text-bad">
       <span className="break-keep">{DUPLICATE_TEXT}</span>
       <button type="button" onClick={onOpen} className={TEXT_BTN}>
-        그 단어 보기
+        {OPEN_EXISTING_WORD}
       </button>
     </div>
   )
 }
 
-/** 시트 맨 아래 넣기 글자 버튼(§19-4 B). 긴 문구는 줄바꿈을 허용한다(§19-8). */
-function SeedTextBtn({ pack, label, seedingPack, onSeed }: { pack: SeedPack; label: string; seedingPack: SeedPack | null; onSeed: (pack: SeedPack) => void }) {
-  const busy = seedingPack === pack
+/** 기본 단어와 같은 표현(§28-4 E) — [그 단어 보기]는 그 기본 단어 상세(읽기 전용)를 연다. 상세 시트(내 단어 수정)도 같이 쓴다. */
+export function BaseDuplicateNote({ id, onOpen }: { id: string; onOpen: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={() => onSeed(pack)}
-      aria-busy={busy || undefined}
-      aria-disabled={seedingPack !== null || undefined}
-      className={`${TEXT_BTN} self-start text-left break-keep leading-[1.25]`}
-    >
-      {busy ? SEED_COPY.busy : label}
-    </button>
+    <div id={id} role="alert" className="flex min-w-0 flex-col">
+      <div className="flex flex-wrap items-center gap-x-2 text-[12px] text-bad">
+        <span className="break-keep">{BASE_DUPLICATE_TEXT}</span>
+        <button type="button" onClick={onOpen} className={TEXT_BTN}>
+          {OPEN_EXISTING_WORD}
+        </button>
+      </div>
+      <p className="text-[12px] text-ink2 break-keep">{BASE_DUPLICATE_HINT}</p>
+    </div>
   )
+}
+
+/** 중복 409 안내 하나 — 기본 단어면 `BaseDuplicateNote`, 내 단어끼리면 `DuplicateNote`. */
+export function WordDuplicateNote({ id, dup, onOpenWord }: { id: string; dup: WordDuplicate; onOpenWord: (id: string) => void }) {
+  return dup.base ? <BaseDuplicateNote id={id} onOpen={() => onOpenWord(dup.id)} /> : <DuplicateNote id={id} onOpen={() => onOpenWord(dup.id)} />
 }
 
 export default function WordAddSheet({
   presetSurface,
+  presetChunk,
   defaultCategory,
   categories,
   onClose,
   onSaved,
   onOpenWord,
-  onSeed,
-  levels,
-  seedingPack,
 }: {
   presetSurface?: string
+  /** 조각을 고른 채 빈 검색 결과에서 열면 그 조각을 미리 고른다(J6). */
+  presetChunk?: WordChunkType | null
   defaultCategory?: string | null
   categories: readonly string[]
   onClose: () => void
   onSaved: (word: WordEntry) => void
   onOpenWord: (id: string) => void
-  onSeed: (pack: SeedPack) => void
-  /** 넣기 단계(§19-3). 단계를 모르면(읽는 중·실패) 맨 아래 넣기 줄을 그리지 않는다 — 시트의 주 목적은 직접 넣기. */
-  levels: SeedLevels
-  seedingPack: SeedPack | null
 }) {
   const [step, setStep] = useState<Step>('surface')
-  const [form, setForm] = useState<WordFormValues>(() => emptyForm(presetSurface ?? '', defaultCategory ?? ''))
+  const [form, setForm] = useState<WordFormValues>(() => emptyForm(presetSurface ?? '', defaultCategory ?? '', presetChunk ?? ''))
+  const [chunkNote, setChunkNote] = useState<string | null>(null)
   const [fromDraft, setFromDraft] = useState(false)
   const [draftEmpty, setDraftEmpty] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<WordField, string>>>({})
   const [surfaceMsg, setSurfaceMsg] = useState<{ text: string; reason?: string | null } | null>(null)
-  const [dup, setDup] = useState<string | null>(null)
+  const [dup, setDup] = useState<WordDuplicate | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [enrichStartedAt, setEnrichStartedAt] = useState<number | null>(null)
@@ -123,6 +127,7 @@ export default function WordAddSheet({
       setDup(null)
       setSurfaceMsg(null)
     }
+    if (k === 'chunkType') setChunkNote(null)
   }
 
   const focusField = (f: WordField) => {
@@ -164,8 +169,9 @@ export default function WordAddSheet({
         return
       }
       const empty = draftIsEmpty(d)
-      const next = formFromDraft(surface, d, form.category)
+      const next = formFromDraft(surface, d, form.category, form.chunkType)
       setForm(next)
+      setChunkNote(d.chunkType ? CHUNK_PICK_DRAFT : null)
       setFromDraft(!empty)
       setDraftEmpty(empty)
       setExtras(!!(next.example || next.exampleKo))
@@ -174,9 +180,9 @@ export default function WordAddSheet({
       if (isAbort(e)) return
       const err = toErr(e)
       setStep(backTo === 'form' ? 'form' : 'surface')
-      const existingId = err.status === 409 ? detailString(err, 'existingId') : null
-      if (existingId) {
-        setDup(existingId)
+      const d = duplicateOf(err)
+      if (d) {
+        setDup(d)
         return
       }
       if (err.status === 429) {
@@ -211,9 +217,9 @@ export default function WordAddSheet({
     } catch (e) {
       const err = toErr(e)
       setSubmitting(false)
-      const existingId = err.status === 409 ? detailString(err, 'existingId') : null
-      if (existingId) {
-        setDup(existingId)
+      const d = duplicateOf(err)
+      if (d) {
+        setDup(d)
         focusField('surface')
         return
       }
@@ -292,7 +298,7 @@ export default function WordAddSheet({
             className={`${INPUT} ${surfaceInvalid ? 'border-bad' : 'border-line'}`}
           />
           {dup ? (
-            <DuplicateNote id={`${ID}_surface_err`} onOpen={() => onOpenWord(dup)} />
+            <WordDuplicateNote id={`${ID}_surface_err`} dup={dup} onOpenWord={onOpenWord} />
           ) : surfaceError ? (
             <p id={`${ID}_surface_err`} className="text-[12px] text-bad break-keep">
               {surfaceError}
@@ -325,21 +331,13 @@ export default function WordAddSheet({
           onClick={() => {
             setFromDraft(false)
             setDraftEmpty(false)
+            setChunkNote(null)
             setErrors({})
             setStep('form')
           }}
         >
           직접 입력하기
         </Btn>
-        {levels.main ? (
-          <>
-            <hr className="mt-2 border-line" />
-            <div className="flex min-w-0 flex-col">
-              <SeedTextBtn pack={levels.main} label={SEED_COPY.sheetMain(levels.main)} seedingPack={seedingPack} onSeed={onSeed} />
-              {levels.goal ? <SeedTextBtn pack={levels.goal} label={SEED_COPY.sheetGoal(levels.goal)} seedingPack={seedingPack} onSeed={onSeed} /> : null}
-            </div>
-          </>
-        ) : null}
       </form>
     )
   } else {
@@ -372,7 +370,9 @@ export default function WordAddSheet({
           expandExtras={extras}
           onToggleExtras={() => setExtras((x) => !x)}
           idPrefix={ID}
-          surfaceNote={dup ? <DuplicateNote id={`${ID}_dup`} onOpen={() => onOpenWord(dup)} /> : null}
+          surfaceNote={dup ? <WordDuplicateNote id={`${ID}_dup`} dup={dup} onOpenWord={onOpenWord} /> : null}
+          surfaceNoteId={dup ? `${ID}_dup` : undefined}
+          chunkNote={chunkNote}
         />
         {formError ? (
           <p role="alert" className="text-[13px] text-bad break-keep">

@@ -12,6 +12,7 @@
  */
 import { ApiError, prisma, type Tx } from '@/modules/infra'
 import type { WordDraft } from '../vocab/enrich'
+import { visibleWordWhere } from '../vocab/wordState'
 import { readStoredContent, type StoredLessonContent } from './content'
 import { normalizeForMatch } from './matching'
 import { MEMO_PER_LESSON_MAX, MEMO_PER_SEGMENT_MAX, memoDrafts, memoProcessed, readProgress, type MemoDraft, type MemoProcessed } from './progress'
@@ -62,16 +63,34 @@ function findLine(content: StoredLessonContent, segment: number, surface: string
 }
 
 /**
- * 단어장 바이트 일치 — 표현 → 단어 id. 메모는 표기만 있어 읽기로 가를 수 없다 — 같은 표기·다른 읽기 행이 여럿이면(task-051, REV-179 M2)
- * 가장 먼저 만든 행으로 고정한다. `db` 는 시험 주입용(기본 prisma).
+ * 단어장 바이트 일치 — 표현 → 단어 id. 단어장 = 내 단어 + 공용 기본 단어(task-068 — 기본 단어에 있는 표현도 IN_WORDBOOK, `wordId` 는
+ * 그 기본 단어). 메모는 표기만 있어 읽기로 가를 수 없다 — 같은 표기 행이 여럿이면(task-051, REV-179 M2) **내 단어 중 가장 먼저 만든 행**,
+ * 내 단어가 없으면 **기본 단어 순서 첫 행**(`jlpt` N5→N1 → `seedKey` — api-contract §2-9 개정 ①·② 의 `existingId` 와 같은 순서)으로
+ * 고정한다. `db` 는 시험 주입용(기본 prisma).
  */
 export async function wordbookMatches(userId: string, surfaces: string[], db: Tx = prisma): Promise<Map<string, string>> {
   const uniq = [...new Set(surfaces)].slice(0, 60)
   if (!uniq.length) return new Map()
-  const rows = await db.wordEntry.findMany({ where: { userId, surface: { in: uniq } }, select: { id: true, surface: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 500 })
+  const rows = await db.wordEntry.findMany({
+    where: { AND: [visibleWordWhere(userId), { surface: { in: uniq } }] },
+    select: { id: true, surface: true, userId: true, jlpt: true, seedKey: true, createdAt: true },
+    take: 500,
+  })
   const out = new Map<string, string>()
-  for (const r of rows) if (uniq.includes(r.surface) && !out.has(r.surface)) out.set(r.surface, r.id)
+  for (const r of rows.slice().sort(wordbookOrder)) if (uniq.includes(r.surface) && !out.has(r.surface)) out.set(r.surface, r.id)
   return out
+}
+
+const JLPT_RANK: Record<string, number> = { N5: 0, N4: 1, N3: 2, N2: 3, N1: 4 }
+
+type WordbookRow = { id: string; userId: string | null; jlpt: string | null; seedKey: string | null; createdAt: Date }
+
+/** 내 단어(`createdAt asc, id asc`) 먼저 → 기본 단어(`jlpt` N5→N1, 없으면 끝 → `seedKey` → `id`). */
+export function wordbookOrder(a: WordbookRow, b: WordbookRow): number {
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0)
+  if ((a.userId === null) !== (b.userId === null)) return a.userId === null ? 1 : -1
+  if (a.userId !== null) return a.createdAt.getTime() - b.createdAt.getTime() || cmp(a.id, b.id)
+  return (JLPT_RANK[a.jlpt ?? ''] ?? 9) - (JLPT_RANK[b.jlpt ?? ''] ?? 9) || cmp(a.seedKey ?? '', b.seedKey ?? '') || cmp(a.id, b.id)
 }
 
 /** 순수 계획(DB 결과를 받아서) — 테스트가 직접 부른다. */

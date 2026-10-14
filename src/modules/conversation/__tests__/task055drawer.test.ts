@@ -41,7 +41,7 @@ type Row = {
   createdAt: Date
 }
 type ChatRow = { id: string; userId: string; title: string; kind: 'TALK' | 'CHAT' | 'ASK' }
-type WordRow = { id: string; userId: string; surface: string }
+type WordRow = { id: string; userId: string | null; surface: string; source?: string }
 type Where = Record<string, unknown>
 
 const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
@@ -208,10 +208,10 @@ test('errorType 9종·chunkType 4종만 — 소문자·목록·「없음」·다
   for (const t of DRAWER_ERROR_TYPES) assert.equal(qry(`errorType=${t}`).errorType, t)
   for (const c of DRAWER_CHUNK_TYPES) assert.equal(qry(`chunkType=${c}`).chunkType, c)
   for (const v of ['particle', 'PARTICLE,GRAMMAR', 'NONE', 'none', 'MINOR', 'toString', '__proto__']) await rejects400(() => qry(`errorType=${encodeURIComponent(v)}`), 'errorType')
-  for (const v of ['none', 'name', 'NULL', 'OTHER', 'PARTICLE', 'NAME,ACTION', 'constructor']) await rejects400(() => qry(`chunkType=${encodeURIComponent(v)}`), 'chunkType')
+  for (const v of ['none', 'name', 'NULL', 'OTHER', 'PARTICLE', 'NAME,ACTION', 'constructor', 'EXPRESSION']) await rejects400(() => qry(`chunkType=${encodeURIComponent(v)}`), 'chunkType')
 })
 
-test('ErrorType 9종의 순서 = prisma/schema.prisma 선언 순(facets 동률 정렬 키), ChunkType 4종도 스키마와 같다', () => {
+test('ErrorType 9종의 순서 = prisma/schema.prisma 선언 순(facets 동률 정렬 키), ChunkType 4종 = 스키마에서 단어 전용 EXPRESSION 을 뺀 값(task-068 J12)', () => {
   const schema = readFileSync(join(process.cwd(), 'prisma/schema.prisma'), 'utf8')
   const enumValues = (name: string) => {
     const m = new RegExp(`enum ${name} \\{([^}]*)\\}`).exec(schema)
@@ -219,7 +219,8 @@ test('ErrorType 9종의 순서 = prisma/schema.prisma 선언 순(facets 동률 �
     return m[1].split('\n').map((l) => l.replace(/\/\/.*$/, '').trim()).filter(Boolean)
   }
   assert.deepEqual(DRAWER_ERROR_TYPES, enumValues('ErrorType'))
-  assert.deepEqual(DRAWER_CHUNK_TYPES, enumValues('ChunkType'))
+  assert.ok(enumValues('ChunkType').includes('EXPRESSION'))
+  assert.deepEqual(DRAWER_CHUNK_TYPES, enumValues('ChunkType').filter((v) => v !== 'EXPRESSION'))
 })
 
 test('q: 앞뒤 공백 제거·공백뿐/빈 값은 없음, 40자(코드포인트) 통과·41자 400', async () => {
@@ -485,6 +486,27 @@ test('savedWord: 같은 사용자 소유 단어만 {id, surface}, 남의 단어�
   for (const r of [foreign, none, dangling]) assert.equal('savedWord' in byId.get(r.id)!, false)
 })
 
+test('T30 (task-068) savedWord: 공용 기본 단어(userId NULL · SEED)를 가리키면 싣고, 남의 단어·SEED 아닌 주인 없는 행은 숨긴다', async () => {
+  const words: WordRow[] = [
+    { id: 'b1', userId: null, surface: '映画', source: 'SEED' },
+    { id: 'w9', userId: 'u2', surface: '他人', source: 'MANUAL' },
+    { id: 'x1', userId: null, surface: '迷子', source: 'MANUAL' },
+    { id: 'w1', userId: 'u1', surface: '駅', source: 'CORRECTION' },
+  ]
+  const toBase = mk({ savedWordId: 'b1' })
+  const foreign = mk({ savedWordId: 'w9' })
+  const orphan = mk({ savedWordId: 'x1' })
+  const own = mk({ savedWordId: 'w1' })
+  const { db } = fakeDb([toBase, foreign, orphan, own], CHATS, words)
+  const items = (await listDrawerCorrections('u1', qry(), db)).items
+  const byId = new Map(items.map((i) => [i.id, i]))
+  assert.deepEqual(byId.get(toBase.id)!.savedWord, { id: 'b1', surface: '映画' }, '이관·채택(L4)으로 기본 단어를 가리키는 교정도 「단어장에 넣은 단어」 연결이 보인다')
+  assert.deepEqual(byId.get(own.id)!.savedWord, { id: 'w1', surface: '駅' })
+  for (const r of [foreign, orphan]) assert.equal('savedWord' in byId.get(r.id)!, false)
+  assert.equal(JSON.stringify(items).includes('"source"'), false, '단어 출처 칸은 응답에 싣지 않는다')
+  assert.equal(JSON.stringify(items).includes('"userId"'), false)
+})
+
 test('select: chat·savedWord 는 목록 쿼리 한 번의 select 로 읽는다(N+1 없음)', async () => {
   const { db, calls } = fakeDb(Array.from({ length: 4 }, (_, i) => mk({ savedWordId: i % 2 ? 'w1' : null })), CHATS, [{ id: 'w1', userId: 'u1', surface: '駅' }])
   await listDrawerCorrections('u1', qry('limit=3'), db)
@@ -492,7 +514,7 @@ test('select: chat·savedWord 는 목록 쿼리 한 번의 select 로 읽는다(
   assert.equal(finds.length, 1)
   const sel = finds[0].args.select as Record<string, unknown>
   assert.deepEqual(sel.chat, { select: { id: true, title: true, kind: true } })
-  assert.deepEqual(sel.savedWord, { select: { id: true, surface: true, userId: true } })
+  assert.deepEqual(sel.savedWord, { select: { id: true, surface: true, userId: true, source: true } })
   assert.equal(finds[0].args.take, 4)
   assert.deepEqual(finds[0].args.orderBy, [{ resolvedAt: 'desc' }, { id: 'desc' }])
 })

@@ -7,9 +7,13 @@
  *
  * 캐시: 프로세스 메모리, 키 = (표현, 학습자 수준). 같은 표현을 다시 채우면 LLM 을 부르지 않는다. 상한을 넘으면 오래된 것부터 버린다.
  * 실패(타임아웃·계약 위반)는 캐시하지 않는다. blue/green 전환·재시작 시 비워져도 무해하다.
+ *
+ * task-068(`wordEnrich@v2`): 출력에 조각 `chunkType`(5유형, valid=false 면 null)이 더해졌다. 같은 프로세스에 v1 때 쌓인 초안
+ * (`chunkType` 칸이 없음)은 캐시 미스로 본다 — 화면이 조각을 미리 고르지 못하는 초안을 다시 주지 않게.
  */
-import type { JlptLevel, PartOfSpeech } from '@prisma/client'
+import type { ChunkType, JlptLevel, PartOfSpeech } from '@prisma/client'
 import { llm, type LlmJsonRequest } from '@/modules/engine'
+import { WORD_CHUNK_TYPES } from './words'
 
 export interface WordEnrichOutput {
   valid: boolean
@@ -17,9 +21,15 @@ export interface WordEnrichOutput {
   reading: string | null
   meaning: string | null
   partOfSpeech: PartOfSpeech | null
+  chunkType: ChunkType | null
   jlpt: JlptLevel | null
   example: string | null
   exampleKo: string | null
+}
+
+/** 조각은 5유형 허용 목록으로만 옮긴다(ajv 가 이미 막지만 방어적으로 — 읽지 못하면 null, 화면이 사용자에게 고르게 한다). */
+function chunkOf(v: unknown): ChunkType | null {
+  return typeof v === 'string' && (WORD_CHUNK_TYPES as readonly string[]).includes(v) ? (v as ChunkType) : null
 }
 
 export interface WordDraft extends WordEnrichOutput {
@@ -37,7 +47,7 @@ function keyOf(surface: string, level: string | null): string {
 /** valid=false 면 사전 필드를 비운다(F8 — 화면은 `valid`·`invalidReason` 만 본다). */
 export function toDraft(surface: string, out: WordEnrichOutput): WordDraft {
   if (!out.valid) {
-    return { surface, valid: false, invalidReason: out.invalidReason ?? '일본어 표현으로 보기 어려워요.', reading: null, meaning: null, partOfSpeech: null, jlpt: null, example: null, exampleKo: null }
+    return { surface, valid: false, invalidReason: out.invalidReason ?? '일본어 표현으로 보기 어려워요.', reading: null, meaning: null, partOfSpeech: null, chunkType: null, jlpt: null, example: null, exampleKo: null }
   }
   return {
     surface,
@@ -46,6 +56,7 @@ export function toDraft(surface: string, out: WordEnrichOutput): WordDraft {
     reading: out.reading,
     meaning: out.meaning,
     partOfSpeech: out.partOfSpeech,
+    chunkType: chunkOf(out.chunkType),
     jlpt: out.jlpt,
     example: out.example,
     exampleKo: out.exampleKo,
@@ -57,7 +68,7 @@ export function cachedDraft(surface: string, level: string | null, now = Date.no
   const k = keyOf(surface, level)
   const hit = cache.get(k)
   if (!hit) return null
-  if (now - hit.at > CACHE_TTL_MS) {
+  if (now - hit.at > CACHE_TTL_MS || hit.draft.chunkType === undefined) {
     cache.delete(k)
     return null
   }

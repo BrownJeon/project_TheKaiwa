@@ -13,7 +13,9 @@
     "db:generate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma generate",
     "db:push": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma db push --skip-generate",
     "db:validate": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma validate",
-    "db:seed": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma db seed"
+    "db:seed": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node node_modules/.bin/prisma db seed",
+    "db:seed-base-words": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node --import tsx scripts/seed-base-words.ts",
+    "db:migrate-seed-copies": "bash scripts/sync-local.sh && cd $HOME/.node-local/thekaiwa && node --import tsx scripts/migrate-seed-copies.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",

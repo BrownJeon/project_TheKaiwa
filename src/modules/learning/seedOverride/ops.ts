@@ -13,7 +13,7 @@ import type { Prisma } from '@prisma/client'
 import { ApiError, dates, lockUserRow, prisma, withTransaction, type Tx } from '@/modules/infra'
 import { SCENARIO_LIMITS } from '@/types/scenario'
 import type { ForkSeedResult, HideSeedResult, RestoreSeedResult, SeedKind } from '@/types/seedOverride'
-import { TOPIC_LIMITS, type TopicChunkInput, type TopicRemovalMode } from '@/types/topic'
+import { TOPIC_LIMITS, asTopicChunkType, type TopicChunkInput, type TopicRemovalMode } from '@/types/topic'
 import { archiveScenarioTx, mergeScenarioFields, visibleTopicIds } from '../scenarios/catalog'
 import { isScenarioId as isRowId, normalizeScenarioInput } from '../scenarios/shape'
 import { createOverride, deleteOverride, findOverride, isSeedKind, liveCopyIds, readOverride } from './store'
@@ -235,7 +235,7 @@ export async function forkSeedTopic(userId: string, seedTopicId: string, body: R
     const chunks: TopicChunkInput[] =
       v.chunks ??
       (await tx.topicChunk.findMany({ where: { topicId: seedTopicId }, orderBy: [{ order: 'asc' }, { id: 'asc' }] })).map((c) => ({
-        chunkType: c.chunkType, textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo, note: c.note,
+        chunkType: asTopicChunkType(c.chunkType, 'MODIFIER'), textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo, note: c.note,
       }))
     const copy = await tx.conversationTopic.create({
       data: {

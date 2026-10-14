@@ -1,19 +1,23 @@
 /**
  * task-008 라이브 스모크 — QA 계정 두 개로 단어장(#40~#46b)·오늘의 단어(#47~#54)를 실제 서버(127.0.0.1)·실제 DB 에 친다.
- * Leader 완료 기준 2~11 을 항목별 PASS/FAIL 로 찍고, 동시 요청(세트 생성·같은 order 답·finish·seed-pack·삭제+finish·답+finish)을 포함한다.
+ * Leader 완료 기준 2~11 을 항목별 PASS/FAIL 로 찍고, 동시 요청(세트 생성·같은 order 답·finish·삭제+finish·답+finish)을 포함한다.
+ * task-068(2026-10-14): QA 계정도 공용 기본 단어(약 7.8천, 읽기 전용)를 본다 — 「빈 단어장」·seed-pack(#46b 폐지)·커서·조각 none 가정을 바꿨고,
+ * 지우는 시험(7a·7d·8d)은 내 단어 분류(S10·DX)로 세트를 만든다. 학습 상태는 UserWordState 를 읽는다.
  *
  * 실행(우분투 미러): `bash tests/live/task008-smoke.sh [포트=3011]` — 세션 쿠키 생성·삭제를 감싼다.
  * LLM 호출은 A10 보강 3회(나머지 보강 요청은 메모리 캐시). DB 는 개발·운영 공유라 **QA 계정 행만** 지운다:
  * 시작 시 QA 두 계정의 단어·세트·WORDS 학습 기록·VOCAB_SESSION 스냅샷을 비우고, 끝에 다시 비운다(DAILY 는 이 실행이 만든 행만).
  */
 import { readFileSync } from 'node:fs'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, type Prisma } from '@prisma/client'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3011'
 if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(BASE)) throw new Error('BASE 는 localhost 만 허용')
 const [c1file, c2file] = process.argv.slice(2)
 if (!c1file || !c2file) throw new Error('사용: task008-smoke.ts <cookie1> <cookie2>')
 const COOKIE1 = readFileSync(c1file, 'utf8').trim()
+/** A10 보강 시험 표현 — 기본 단어(시드 jlpt/*.json·words-n5.json)에 없는 말이어야 LLM 까지 간다(映画 는 N5 기본 단어 → 409, 11g). */
+const ENRICH_SURFACE = '映画祭'
 const COOKIE2 = readFileSync(c2file, 'utf8').trim()
 const prisma = new PrismaClient()
 const startedAt = new Date()
@@ -59,7 +63,16 @@ async function uid(email: string): Promise<string> {
   return (await prisma.user.findUniqueOrThrow({ where: { email } })).id
 }
 
+/**
+ * task-068: QA 계정도 공용 기본 단어(userId NULL · SEED, 약 7.8천)를 본다 — 「빈 단어장」 가정 대신 「내 단어 + 기본 단어」로 센다.
+ * 내 학습 상태·보관은 UserWordState 라 정리할 때 함께 지운다(기본 단어 행 자체는 시드 스크립트 소유 — 이 스모크는 쓰지 않는다).
+ */
+const visibleWhere = (userId: string): Prisma.WordEntryWhereInput => ({ OR: [{ userId }, { userId: null, source: 'SEED' }], states: { none: { userId, archived: true } } })
+const baseCount = () => prisma.wordEntry.count({ where: { userId: null, source: 'SEED' } })
+const LEVEL_CATEGORIES = ['초보자 (N5)', '초급 (N4)', '중급 (N3)', '고급 (N2)', '최상급 (N1)', 'N5 기초']
+
 async function wipe(userId: string): Promise<void> {
+  await prisma.userWordState.deleteMany({ where: { userId } })
   await prisma.vocabSession.deleteMany({ where: { userId } })
   await prisma.wordEntry.deleteMany({ where: { userId } })
   await prisma.studyLog.deleteMany({ where: { userId, type: 'WORDS' } })
@@ -103,20 +116,24 @@ async function main() {
   await wipe(u2)
 
   // ── 11. A10 보강(분당 창을 여기서 시작) ─────────────────────────────
-  const e1 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: '映画', enrich: true })
+  const e1 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: ENRICH_SURFACE, enrich: true })
   const draft = d(e1).draft as Json | undefined
   check('11a enrich → draft(reading·meaning·partOfSpeech·jlpt·example·exampleKo), saved:false', e1.status === 200 && d(e1).saved === false && !!draft && draft.valid === true && ['reading', 'meaning', 'partOfSpeech', 'example', 'exampleKo'].every((k) => typeof draft[k] === 'string') && 'jlpt' in draft, `${e1.status} ${Math.round(e1.ms)}ms ${JSON.stringify(draft)?.slice(0, 160)}`)
-  check('2b enrich 는 저장하지 않는다(DB 행 0)', (await prisma.wordEntry.count({ where: { userId: u1, surface: '映画' } })) === 0)
+  check('2b enrich 는 저장하지 않는다(DB 행 0)', (await prisma.wordEntry.count({ where: { userId: u1, surface: ENRICH_SURFACE } })) === 0)
   const e2 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: '안녕하세요', enrich: true })
   const draft2 = d(e2).draft as Json | undefined
   check('11b 비일본어 → 200 {draft:{valid:false, invalidReason}, saved:false}(F8)', e2.status === 200 && draft2?.valid === false && typeof draft2?.invalidReason === 'string' && draft2?.meaning === null, `${e2.status} ${JSON.stringify(draft2)?.slice(0, 120)}`)
   const e3 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: 'コーヒー', enrich: true })
   check('11c 가타카나 표현 보강', e3.status === 200 && (d(e3).draft as Json)?.valid === true, `${e3.status} ${JSON.stringify(d(e3).draft)?.slice(0, 120)}`)
-  const e4 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: '映画', enrich: true })
+  const e4 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: ENRICH_SURFACE, enrich: true })
   check('11d 같은 표현 재보강은 캐시(빠름·같은 draft)', e4.status === 200 && JSON.stringify(d(e4).draft) === JSON.stringify(draft) && e4.ms < 1500, `${Math.round(e4.ms)}ms`)
+  // task-068 D9: 기본 단어와 같은 표기(映画 = N5)는 보강 전에 409 BASE_DUPLICATE — LLM 을 부르지 않는다(분당 창에는 1회로 센다).
+  const baseEiga = await prisma.wordEntry.findFirst({ where: { userId: null, source: 'SEED', surface: '映画' }, orderBy: [{ jlpt: 'asc' }, { seedKey: 'asc' }], select: { id: true } })
+  const eBase = await api(COOKIE1, 'POST', '/api/v1/words', { surface: '映画', enrich: true })
+  check('11g 기본 단어 표기(映画) 보강 → 409 BASE_DUPLICATE·existingId=기본 단어, LLM 없이 빠름(task-068 D9)', eBase.status === 409 && eBase.body.data.details?.code === 'BASE_DUPLICATE' && eBase.body.data.details?.existingId === baseEiga?.id && eBase.ms < 1500, `${eBase.status} ${Math.round(eBase.ms)}ms`)
   const rl: number[] = []
-  for (let i = 0; i < 16; i++) rl.push((await api(COOKIE1, 'POST', '/api/v1/words', { surface: '映画', enrich: true })).status)
-  const r21 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: '映画', enrich: true })
+  for (let i = 0; i < 15; i++) rl.push((await api(COOKIE1, 'POST', '/api/v1/words', { surface: ENRICH_SURFACE, enrich: true })).status)
+  const r21 = await api(COOKIE1, 'POST', '/api/v1/words', { surface: ENRICH_SURFACE, enrich: true })
   check('11e 분당 21번째 보강 → 429 + retryAfterSec', rl.every((s) => s === 200) && r21.status === 429 && typeof r21.body.data.details?.retryAfterSec === 'number', `${rl.filter((s) => s === 200).length}×200 then ${r21.status}`)
   const eBad = await api(COOKIE1, 'POST', '/api/v1/words', { surface: '', enrich: true })
   check('11f 보강 빈 표현 400', eBad.status === 400)
@@ -127,7 +144,7 @@ async function main() {
   check('2a 완전한 본문 즉시 저장 {word, saved:true}, source=MANUAL', w1.status === 200 && d(w1).saved === true && (d(w1).word as Json)?.source === 'MANUAL', `${w1.status}`)
   const dup = await api(COOKIE1, 'POST', '/api/v1/words', { surface: 'テスト語', meaning: '다른 뜻' })
   check('2c 같은 표현 409 {existingId}', dup.status === 409 && dup.body.data.details?.existingId === w1id)
-  const dupE = await api(COOKIE2, 'POST', '/api/v1/words', { surface: 'テスト語', meaning: '다른 사용자' })
+  const dupE = await api(COOKIE2, 'POST', '/api/v1/words', { surface: 'テスト語', meaning: '다른 사용자', category: '스모크한개' })
   check('2c′ 다른 사용자의 같은 표현은 허용', dupE.status === 200)
   const kana = await api(COOKIE1, 'POST', '/api/v1/words', { surface: 'てすと語', meaning: '히라가나 표기' })
   check('2c″ 히라가나/가타카나 다른 표기는 중복 아님(바이트 일치)', kana.status === 200, `${kana.status}`)
@@ -138,66 +155,76 @@ async function main() {
   const ptDup = await api(COOKIE1, 'PATCH', `/api/v1/words/${w1id}`, { surface: 'てすと語' })
   check('2d′ 표현을 다른 단어와 같게 바꾸면 409 {existingId}', ptDup.status === 409 && ptDup.body.data.details?.existingId === String((d(kana).word as Json)?.id))
 
-  // 기본 단어 팩 — 동시 2회
-  const [sp1, sp2] = await Promise.all([api(COOKIE1, 'POST', '/api/v1/words/seed-pack', { pack: 'N5' }), api(COOKIE1, 'POST', '/api/v1/words/seed-pack', { pack: 'N5' })])
-  const added = [Number(d(sp1).added), Number(d(sp2).added)].sort()
-  const seedRows = await prisma.wordEntry.count({ where: { userId: u1, source: 'SEED' } })
-  check('2e 기본 단어 팩 동시 2회 → 합계 added 50 (50/0), DB SEED 행 50', sp1.status === 200 && sp2.status === 200 && added[0] === 0 && added[1] === 50 && seedRows === 50, `added=${added} rows=${seedRows}`)
-  const sp3 = await api(COOKIE1, 'POST', '/api/v1/words/seed-pack', { pack: 'N5' })
-  check('2e′ 재실행 added 0·skipped 50, 다른 pack 400', d(sp3).added === 0 && d(sp3).skipped === 50 && (await api(COOKIE1, 'POST', '/api/v1/words/seed-pack', { pack: 'N1' })).status === 400)
+  // task-068: 기본 단어는 공용 읽기 전용 행 — 넣기(#46b)는 폐지(404), 넣지 않아도 모든 계정이 본다.
+  const BASE = await baseCount()
+  const sp = await api(COOKIE1, 'POST', '/api/v1/words/seed-pack', { pack: 'N5' })
+  check('2e #46b 폐지 → 404, 공용 기본 단어가 있다(약 7.8천)', sp.status === 404 && BASE >= 7_700, `status=${sp.status} base=${BASE}`)
 
-  const list1 = await api(COOKIE1, 'GET', '/api/v1/words?limit=20')
-  const list2 = await api(COOKIE1, 'GET', `/api/v1/words?limit=20&cursor=${encodeURIComponent(String(d(list1).nextCursor))}`)
+  const list1 = await api(COOKIE1, 'GET', '/api/v1/words?limit=20&page=1')
+  const list2 = await api(COOKIE1, 'GET', '/api/v1/words?limit=20&page=2')
   const ids1 = (d(list1).items as Json[]).map((w) => w.id)
   const ids2 = (d(list2).items as Json[]).map((w) => w.id)
-  check('2f 목록 기본(recent)·total 52·커서 다음 쪽 겹침 없음', d(list1).total === 52 && ids1.length === 20 && ids2.length === 20 && ids1.every((i) => !ids2.includes(i)), `total=${d(list1).total}`)
+  const own1 = await prisma.wordEntry.count({ where: { userId: u1 } })
+  const mineFirst = (d(list1).items as Json[]).slice(0, own1).every((w) => w.origin === 'MINE') && (d(list1).items as Json[]).slice(own1).every((w) => w.origin === 'BASE' && w.readOnly === true)
+  check('2f 목록(recent): total = 내 단어 + 기본 단어, baseTotal, 쪽 번호 1·2 겹침 없음, 내 단어 먼저(task-068)', d(list1).total === own1 + BASE && d(list1).baseTotal === BASE && d(list1).pages === Math.ceil((own1 + BASE) / 20) && ids1.length === 20 && ids2.length === 20 && ids1.every((i) => !ids2.includes(i)) && mineFirst, `total=${d(list1).total} own=${own1} base=${BASE}`)
+  const cur = await api(COOKIE1, 'GET', '/api/v1/words?cursor=abc')
+  check('2f′ cursor → 400 {field:cursor}(쪽 번호로 바뀜)', cur.status === 400 && cur.body.data.details?.field === 'cursor')
   const srch = await api(COOKIE1, 'GET', `/api/v1/words?q=${encodeURIComponent('学')}`)
   const srchKo = await api(COOKIE1, 'GET', `/api/v1/words?q=${encodeURIComponent('선생')}`)
   const srchPct = await api(COOKIE1, 'GET', `/api/v1/words?q=${encodeURIComponent('%')}`)
   check('2g 검색(surface·meaning 부분 일치), % 는 글자 그대로', (d(srch).items as Json[]).some((w) => w.surface === '学校') && (d(srchKo).items as Json[]).some((w) => w.surface === '先生') && d(srchPct).total === 0, `学=${d(srch).total} 선생=${d(srchKo).total} %=${d(srchPct).total}`)
   const q41 = await api(COOKIE1, 'GET', `/api/v1/words?q=${encodeURIComponent('あ'.repeat(41))}`)
   check('2g′ q 41자 400·sort 잘못 400', q41.status === 400 && (await api(COOKIE1, 'GET', '/api/v1/words?sort=x')).status === 400)
-  const cat = await api(COOKIE1, 'GET', `/api/v1/words?category=${encodeURIComponent('N5 기초')}&limit=100`)
-  check('2h 카테고리 필터', d(cat).total === 50 && (d(cat).items as Json[]).every((w) => w.category === 'N5 기초'))
+  const catDb = await prisma.wordEntry.count({ where: { ...visibleWhere(u1), category: '초보자 (N5)' } })
+  const cat = await api(COOKIE1, 'GET', `/api/v1/words?category=${encodeURIComponent('초보자 (N5)')}&limit=100`)
+  check('2h 카테고리 필터(기본 단어 분류 「초보자 (N5)」 — 칩에는 안 나오지만 조건은 그대로)', d(cat).total === catDb && catDb > 0 && (d(cat).items as Json[]).every((w) => w.category === '초보자 (N5)'), `${d(cat).total}/${catDb}`)
   // task-023 — 조각 조건(#40 chunkType): 4종 + none 의 total 이 DB 집계와 같고, 분류와 AND, 그 밖 값은 400. QA 계정 행만 읽는다.
   const chunkRes = await Promise.all(
-    (['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'none'] as const).map(async (k) => {
+    (['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION'] as const).map(async (k) => {
       const r = await api(COOKIE1, 'GET', `/api/v1/words?chunkType=${k}&limit=100`)
-      const dbN = await prisma.wordEntry.count({ where: { userId: u1, archived: false, chunkType: k === 'none' ? null : k } })
-      const ok = r.status === 200 && d(r).total === dbN && (d(r).items as Json[]).every((w) => w.chunkType === (k === 'none' ? null : k))
+      const dbN = await prisma.wordEntry.count({ where: { ...visibleWhere(u1), chunkType: k } })
+      const ok = r.status === 200 && d(r).total === dbN && (d(r).items as Json[]).every((w) => w.chunkType === k)
       return { k, ok, note: `${k}=${d(r).total}/${dbN}` }
     }),
   )
-  check('2h″ 조각 필터 4종+none: total = DB 집계, 행 chunkType 일치(task-023)', chunkRes.every((x) => x.ok), chunkRes.map((x) => x.note).join(' '))
-  const andRes = await api(COOKIE1, 'GET', `/api/v1/words?category=${encodeURIComponent('N5 기초')}&chunkType=FEELING&limit=100`)
-  const andDb = await prisma.wordEntry.count({ where: { userId: u1, archived: false, category: 'N5 기초', chunkType: 'FEELING' } })
-  check('2h‴ 분류 + 조각 AND(task-023)', andRes.status === 200 && d(andRes).total === andDb && andDb > 0 && (d(andRes).items as Json[]).every((w) => w.category === 'N5 기초' && w.chunkType === 'FEELING'), `${d(andRes).total}/${andDb}`)
-  const badChunk = await Promise.all(['name', 'NAME,ACTION', 'None', 'OTHER'].map((v) => api(COOKIE1, 'GET', `/api/v1/words?chunkType=${encodeURIComponent(v)}`)))
-  check('2h⁗ 잘못된 chunkType → 400 VALIDATION(field=chunkType)(task-023)', badChunk.every((r) => r.status === 400 && r.body.data.code === 'VALIDATION' && r.body.data.details?.field === 'chunkType'), badChunk.map((r) => r.status).join(','))
+  check('2h″ 조각 필터 5종(표현 포함, task-068 D4): total = DB 집계(내 단어 + 기본 단어), 행 chunkType 일치', chunkRes.every((x) => x.ok), chunkRes.map((x) => x.note).join(' '))
+  const andRes = await api(COOKIE1, 'GET', `/api/v1/words?category=${encodeURIComponent('초보자 (N5)')}&chunkType=FEELING&limit=100`)
+  const andDb = await prisma.wordEntry.count({ where: { ...visibleWhere(u1), category: '초보자 (N5)', chunkType: 'FEELING' } })
+  check('2h‴ 분류 + 조각 AND(task-023)', andRes.status === 200 && d(andRes).total === andDb && andDb > 0 && (d(andRes).items as Json[]).every((w) => w.category === '초보자 (N5)' && w.chunkType === 'FEELING'), `${d(andRes).total}/${andDb}`)
+  const badChunk = await Promise.all(['name', 'NAME,ACTION', 'None', 'OTHER', 'none'].map((v) => api(COOKIE1, 'GET', `/api/v1/words?chunkType=${encodeURIComponent(v)}`)))
+  check('2h⁗ 잘못된 chunkType(「없음」 none 포함 — task-068) → 400 VALIDATION(field=chunkType)', badChunk.every((r) => r.status === 400 && r.body.data.code === 'VALIDATION' && r.body.data.details?.field === 'chunkType'), badChunk.map((r) => r.status).join(','))
   const bySurface = await api(COOKIE1, 'GET', '/api/v1/words?sort=surface&limit=100')
   const byWrong = await api(COOKIE1, 'GET', '/api/v1/words?sort=wrong&limit=100')
-  check('2i 정렬 surface·wrong 200, 전체 52', bySurface.status === 200 && (d(bySurface).items as Json[]).length === 52 && byWrong.status === 200 && (d(byWrong).items as Json[]).length === 52)
+  const all1 = (await prisma.wordEntry.count({ where: { userId: u1 } })) + BASE
+  check('2i 정렬 surface·wrong 200, 한 쪽 100개·total = 내 단어 + 기본 단어', bySurface.status === 200 && (d(bySurface).items as Json[]).length === 100 && d(bySurface).total === all1 && byWrong.status === 200 && (d(byWrong).items as Json[]).length === 100 && d(byWrong).total === all1, `total=${d(bySurface).total}/${all1}`)
   const arch = await api(COOKIE1, 'POST', `/api/v1/words/${w1id}/archive`)
   const inArchived = await api(COOKIE1, 'GET', '/api/v1/words?archived=1')
   const inActive = await api(COOKIE1, 'GET', '/api/v1/words?archived=0&limit=100')
   const cats = await api(COOKIE1, 'GET', '/api/v1/words/categories')
   const smoke2 = (d(cats) as unknown as Json[]).find((c) => c.category === '스모크2')
-  const n5 = (d(cats) as unknown as Json[]).find((c) => c.category === 'N5 기초')
-  check('2j 보관: 보관함에만 보임, 카테고리 집계 count(보관 제외)·archivedCount', arch.status === 200 && d(arch).archived === true && typeof d(arch).archivedAt === 'string' && (d(inArchived).items as Json[]).map((w) => w.id).join() === w1id && !(d(inActive).items as Json[]).some((w) => w.id === w1id) && smoke2?.count === 0 && smoke2?.archivedCount === 1 && n5?.count === 50, JSON.stringify(d(cats)).slice(0, 200))
+  const nullBucket = (d(cats) as unknown as Json[]).find((c) => c.category === null)
+  const levelChips = (d(cats) as unknown as Json[]).filter((c) => LEVEL_CATEGORIES.includes(String(c.category)))
+  check('2j 보관: 보관함에만 보임, 카테고리 집계 count(보관 제외)·archivedCount, 난이도 이름은 null 묶음(task-068 D3)', arch.status === 200 && d(arch).archived === true && typeof d(arch).archivedAt === 'string' && (d(inArchived).items as Json[]).map((w) => w.id).join() === w1id && !(d(inActive).items as Json[]).some((w) => w.id === w1id) && smoke2?.count === 0 && smoke2?.archivedCount === 1 && levelChips.length === 0 && Number(nullBucket?.count) >= BASE, JSON.stringify(d(cats)).slice(0, 200))
   const unarch = await api(COOKIE1, 'POST', `/api/v1/words/${w1id}/unarchive`)
   check('2j′ 보관 풀기', unarch.status === 200 && d(unarch).archived === false && d(unarch).archivedAt === null)
   const det = await api(COOKIE1, 'GET', `/api/v1/words/${w1id}`)
   check('2k 상세 = WordEntry + stats + corrections', det.status === 200 && typeof (d(det).stats as Json)?.attempts === 'number' && Array.isArray(d(det).corrections), JSON.stringify(d(det).stats))
 
   // ── 5. 빈 풀·강등·409 ────────────────────────────────────────────
-  const empty2 = await api(COOKIE2, 'POST', '/api/v1/vocab/sessions', { count: 10 })
-  // QA2 는 'テスト語' 하나만 있다 → 풀 1 → FLIP 강등. 먼저 그걸 지워 NO_WORDS 를 본다.
+  // task-068: QA2 도 기본 단어를 보므로 「풀 1」은 내 단어 하나뿐인 분류로 만든다(CHOICE 요청 → FLIP 강등).
+  const empty2 = await api(COOKIE2, 'POST', '/api/v1/vocab/sessions', { count: 10, mode: 'CHOICE', category: '스모크한개' })
   check('5a 풀 1(단어 1개) → FLIP 강등 downgraded:true', empty2.status === 200 && (d(empty2).session as Json)?.mode === 'FLIP' && (d(empty2).session as Json)?.downgraded === true, JSON.stringify(d(empty2).session)?.slice(0, 120))
   const qa2Session = String((d(empty2).session as Json)?.id)
   await api(COOKIE2, 'POST', `/api/v1/vocab/sessions/${qa2Session}/finish`)
   await prisma.wordEntry.deleteMany({ where: { userId: u2 } })
+  // 보이는 단어 0 = 내 단어 없음 + 기본 단어를 모두 보관(나에게만 — 다른 계정 영향 없음). 기본 단어가 있어 운영에서는 사실상 안 생긴다(L7).
+  const baseIds = (await prisma.wordEntry.findMany({ where: { userId: null, source: 'SEED' }, select: { id: true } })).map((w) => w.id)
+  await prisma.userWordState.createMany({ data: baseIds.map((wordId) => ({ userId: u2, wordId, archived: true, archivedAt: new Date() })), skipDuplicates: true })
   const noWords = await api(COOKIE2, 'POST', '/api/v1/vocab/sessions', {})
-  check('5b 단어 0 → {session:null, empty.reason:NO_WORDS, cta}', noWords.status === 200 && d(noWords).session === null && (d(noWords).empty as Json)?.reason === 'NO_WORDS', JSON.stringify(d(noWords)))
+  check('5b 보이는 단어 0 → {session:null, empty.reason:NO_WORDS, cta:[ADD_WORD]}(SEED_PACK 없음 — task-068 L7)', noWords.status === 200 && d(noWords).session === null && (d(noWords).empty as Json)?.reason === 'NO_WORDS' && JSON.stringify((d(noWords).empty as Json)?.cta) === '["ADD_WORD"]', JSON.stringify(d(noWords)))
+  const u1Sees = await api(COOKIE1, 'GET', '/api/v1/words?source=base&limit=1')
+  check('5b′ QA2 의 보관은 QA1 의 기본 단어 목록에 영향 없음(보관은 사용자별 — T15)', d(u1Sees).total === BASE, `${d(u1Sees).total}/${BASE}`)
+  await prisma.userWordState.deleteMany({ where: { userId: u2 } })
   const noCat = await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { category: '없는분류' })
   check('5c 분류에 단어 없음 → NO_WORDS_IN_CATEGORY', (d(noCat).empty as Json)?.reason === 'NO_WORDS_IN_CATEGORY')
   for (const [s, m] of [['少', '소'], ['中', '중'], ['多', '다']]) await api(COOKIE1, 'POST', '/api/v1/words', { surface: `${s}数語`, meaning: `${m}수어`, category: '소수' })
@@ -227,8 +254,9 @@ async function main() {
   check('5j 보관 뒤 만든 세트에는 보관 단어 없음', !(afterArch.cards ?? []).some((c) => c.wordId === raceIds[0]) && (afterArch.cards ?? []).length === 4)
   await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${afterArch.session?.id}/finish`)
 
-  // 동시 세트 생성 2회
-  const [cA, cB] = await Promise.all([api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 10 }), api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 10 })])
+  // 동시 세트 생성 2회 — task-068: 7a·8d 가 세트 단어를 지우므로(기본 단어는 403 READ_ONLY) 내 단어 12개 분류 'S10' 으로 만든다.
+  for (let i = 1; i <= 12; i++) await api(COOKIE1, 'POST', '/api/v1/words', { surface: `試験${i}語`, meaning: `시험${i}어`, partOfSpeech: 'NOUN', category: 'S10' })
+  const [cA, cB] = await Promise.all([api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 10, category: 'S10' }), api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 10, category: 'S10' })])
   const inProg = await prisma.vocabSession.count({ where: { userId: u1, status: 'IN_PROGRESS' } })
   const winner = cA.status === 200 ? cA : cB
   const loser = cA.status === 200 ? cB : cA
@@ -281,7 +309,11 @@ async function main() {
 
   // ── 6. finish 단일 트랜잭션 ──────────────────────────────────────
   const today = (d(get49).session as Json).date as string
-  const before = await prisma.wordEntry.findMany({ where: { id: { in: s10words.filter((x): x is string => !!x) } }, select: { id: true, correctCount: true, wrongCount: true } })
+  // task-068: 카운터는 나의 UserWordState(행이 없으면 0) — WordEntry 의 상태 칸은 쓰지 않는다(T28).
+  const s10ids = s10words.filter((x): x is string => !!x)
+  const ZERO = { correctCount: 0, wrongCount: 0, lastResult: null as string | null, lastSeenAt: null as Date | null }
+  const before = (await prisma.userWordState.findMany({ where: { userId: u1, wordId: { in: s10ids } }, select: { wordId: true, correctCount: true, wrongCount: true } })).map((x) => ({ id: x.wordId, ...x }))
+  const rowsBefore = JSON.stringify(await prisma.wordEntry.findMany({ where: { id: { in: s10ids } }, orderBy: { id: 'asc' }, select: { id: true, correctCount: true, wrongCount: true, lastResult: true, lastSeenAt: true } }))
   const dailyBefore = await prisma.statsSnapshot.findUnique({ where: { userId_kind_periodKey: { userId: u1, kind: 'DAILY', periodKey: today } } })
   const wBefore = ((dailyBefore?.data as Json | undefined)?.words as Json | undefined) ?? { sessions: 0, correct: 0, wrong: 0 }
   const attemptsBefore = await prisma.vocabAttempt.findMany({ where: { sessionId: sid }, orderBy: { order: 'asc' } })
@@ -294,15 +326,17 @@ async function main() {
   const expSkipped = 10 - exp.c - exp.w
   check('6a finish: 미답 → SKIPPED, 세션 카운터·durationSec·DONE', fs.status === 'DONE' && fs.correctCount === exp.c && fs.wrongCount === exp.w && fs.skippedCount === expSkipped && typeof fs.durationSec === 'number' && (await prisma.vocabAttempt.count({ where: { sessionId: sid, answer: null } })) === 0, JSON.stringify(fs))
   check('6b 동시 finish 3회 → 전부 200·같은 응답', fins.every((f) => f.status === 200 && f.text === fins[0].text), fins.map((f) => f.status).join())
-  const after = await prisma.wordEntry.findMany({ where: { id: { in: before.map((b) => b.id) } }, select: { id: true, correctCount: true, wrongCount: true, lastResult: true, lastSeenAt: true } })
-  const counterOk = attemptsBefore.every((a) => {
-    const b = before.find((x) => x.id === a.wordId)
+  const after = (await prisma.userWordState.findMany({ where: { userId: u1, wordId: { in: s10ids } }, select: { wordId: true, correctCount: true, wrongCount: true, lastResult: true, lastSeenAt: true } })).map((x) => ({ id: x.wordId, ...x }))
+  const rowsAfter = JSON.stringify(await prisma.wordEntry.findMany({ where: { id: { in: s10ids } }, orderBy: { id: 'asc' }, select: { id: true, correctCount: true, wrongCount: true, lastResult: true, lastSeenAt: true } }))
+  const counterOk = rowsBefore === rowsAfter && attemptsBefore.every((a) => {
+    if (!a.wordId) return true
+    const b = before.find((x) => x.id === a.wordId) ?? ZERO
     const n = after.find((x) => x.id === a.wordId)
-    if (!b || !n) return true
+    if (!n) return false
     const ans = a.answer ?? 'SKIPPED'
     return n.correctCount === b.correctCount + (ans === 'CORRECT' ? 1 : 0) && n.wrongCount === b.wrongCount + (ans === 'WRONG' ? 1 : 0) && n.lastResult === ans && !!n.lastSeenAt
   })
-  check('6c WordEntry 카운터 한 번만(E5: SKIPPED 는 lastSeenAt·lastResult 만)', counterOk)
+  check('6c 나의 UserWordState 카운터 한 번만(E5: SKIPPED 는 lastSeenAt·lastResult 만) · WordEntry 상태 칸 변화 0(task-068 T28)', counterOk)
   const logs = await prisma.studyLog.findMany({ where: { userId: u1, type: 'WORDS', refId: sid } })
   const snaps = await prisma.statsSnapshot.findMany({ where: { userId: u1, kind: 'VOCAB_SESSION', periodKey: sid } })
   check('6d StudyLog(WORDS, DIRECT, refId) 1행·studyLogId 일치, VOCAB_SESSION 스냅샷 1행', logs.length === 1 && logs[0].origin === 'DIRECT' && fin.studyLogId === logs[0].id && snaps.length === 1 && (snaps[0].data as Json).correct === exp.c, `logs=${logs.length} snaps=${snaps.length}`)
@@ -359,7 +393,8 @@ async function main() {
   check('7c #54 형태: byCount·daily·streakDays', Array.isArray(st.byCount) && Array.isArray(st.daily) && st.streakDays === 1, JSON.stringify(st).slice(0, 200))
 
   // 삭제와 finish 겹침
-  const dx = d(await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 5 })) as unknown as Created
+  for (let i = 1; i <= 5; i++) await api(COOKIE1, 'POST', '/api/v1/words', { surface: `削除${i}語`, meaning: `삭제${i}어`, partOfSpeech: 'NOUN', category: 'DX' })
+  const dx = d(await api(COOKIE1, 'POST', '/api/v1/vocab/sessions', { count: 5, category: 'DX' })) as unknown as Created
   const dxId = String(dx.session?.id)
   for (const order of [0, 1, 2]) {
     const t = await correctOf(dxId, order)
@@ -423,13 +458,17 @@ async function main() {
   ])
   const rcAfter = await prisma.vocabSession.findUniqueOrThrow({ where: { id: rcId } })
   check('9 IDOR: 두 번째 계정으로 단어·세트·답·표시·finish·keep·replay 전부 404, 원본 변화 0', idor.every((r) => r.status === 404) && rcAfter.status === 'IN_PROGRESS' && (await prisma.wordEntry.count({ where: { id: someWord } })) === 1, idor.map((r) => r.status).join(','))
+  // task-068: 기본 단어는 누구에게나 읽기 전용 — 남(QA2)도 #42 200, 고치기·지우기는 403 READ_ONLY(행 변화 0), 보관은 QA2 에게만.
+  const baseOne = await prisma.wordEntry.findFirstOrThrow({ where: { userId: null, source: 'SEED' }, orderBy: { seedKey: 'asc' } })
+  const [bGet, bPatch, bDel] = [await api(COOKIE2, 'GET', `/api/v1/words/${baseOne.id}`), await api(COOKIE2, 'PATCH', `/api/v1/words/${baseOne.id}`, { meaning: 'x' }), await api(COOKIE2, 'DELETE', `/api/v1/words/${baseOne.id}`)]
+  const baseAfter = await prisma.wordEntry.findUniqueOrThrow({ where: { id: baseOne.id } })
+  check('9″ 기본 단어: 남도 읽기 200(origin BASE·readOnly), 수정·삭제 403 READ_ONLY, 행 그대로(task-068 T12)', bGet.status === 200 && d(bGet).origin === 'BASE' && d(bGet).readOnly === true && [bPatch, bDel].every((r) => r.status === 403 && r.body.data.details?.code === 'READ_ONLY') && baseAfter.meaning === baseOne.meaning && baseAfter.updatedAt.getTime() === baseOne.updatedAt.getTime(), `${bGet.status}/${bPatch.status}/${bDel.status}`)
   const unauth = await fetch(`${BASE}/api/v1/words`)
   check('9′ 세션 없음 401', unauth.status === 401)
   await api(COOKIE1, 'POST', `/api/v1/vocab/sessions/${rcId}/finish`)
 
   // ── 10. 10장 3분(서버 시간) ─────────────────────────────────────
-  // 오늘 DONE 단어 제외로 풀이 줄었으므로 새 계정 풀을 쓴다: QA2 에 기본 팩을 넣고 10장.
-  await api(COOKIE2, 'POST', '/api/v1/words/seed-pack', { pack: 'N5' })
+  // QA2 풀 = 공용 기본 단어(task-068 — 넣기 단계 없음, 5b 의 보관은 지웠다)로 10장.
   const tc0 = performance.now()
   const ts = await api(COOKIE2, 'POST', '/api/v1/vocab/sessions', { count: 10, mode: 'CHOICE' })
   const createMs = ts.ms

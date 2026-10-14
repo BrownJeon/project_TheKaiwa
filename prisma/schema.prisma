@@ -44,11 +44,13 @@ enum JlptLevel {
 }
 
 /// 조각: 이름·액션·느낌·꾸밈 (레퍼런스1)
+/// EXPRESSION(「표현」 — 인사·관용구·접속·감탄)은 task-068 D4 에서 추가. 교정·수업·평가 프롬프트는 4유형만 낸다(J12) — 기본 단어 재분류·직접 입력이 쓴다
 enum ChunkType {
   NAME
   ACTION
   FEELING
   MODIFIER
+  EXPRESSION
 }
 
 enum PartOfSpeech {
@@ -512,6 +514,7 @@ model User {
   proposals        TutorProposal[]
   promptVersions   PromptVersion[]
   words            WordEntry[]
+  wordStates       UserWordState[]
   vocabSessions    VocabSession[]
   topics           ConversationTopic[]
   scenarios        Scenario[]
@@ -854,9 +857,13 @@ model PromptVersion {
 // ═══════════════════════════════ L3 learning ═══════════════════════════════
 
 /// 채택된 단어만. AI 제안 단어는 TutorProposal(ADD_WORD) 에 머문다(규칙 1). 삭제 시 참조 행은 SetNull + *Snap 으로 읽힘(규칙 2)
+/// task-068: 기본 단어 = userId NULL + source=SEED + seedKey(공용·읽기 전용, 시드 스크립트 `scripts/seed-base-words.ts` 만 쓴다) / 사용자 단어 = userId 있음.
+/// `where {id, userId}` 로 고치고 지우는 쿼리는 기본 단어를 건드리지 못한다. 사용자별 학습 상태·보관은 UserWordState
 model WordEntry {
   id           String        @id @default(cuid())
-  userId       String
+  userId       String?
+  /// 기본 단어 고정 키(`N5-0001` = 단계-팩 JSON 순번, `N5X-0001` = 옛 words-n5.json 중 팩에 없던 행). 사용자 단어는 NULL
+  seedKey      String?       @unique @db.VarChar(40)
   surface      String        @db.VarChar(80)
   reading      String?       @db.VarChar(120)
   meaning      String        @db.VarChar(200)
@@ -870,6 +877,7 @@ model WordEntry {
   source       WordSource    @default(MANUAL)
   /// 출처 행 id(Correction·Lesson·Evaluation·TutorProposal), FK 없음
   sourceRefId  String?       @db.VarChar(40)
+  /// correctCount·wrongCount·lastSeenAt·lastResult·archived·archivedAt — task-068 이관 뒤 미사용(UserWordState 가 정본). 컬럼 삭제는 후속·사용자 승인
   correctCount Int           @default(0)
   wrongCount   Int           @default(0)
   lastSeenAt   DateTime?
@@ -879,15 +887,38 @@ model WordEntry {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts    VocabAttempt[]
   corrections Correction[]
   evalItems   EvaluationItem[]
+  states      UserWordState[]
 
   @@index([userId, archived, wrongCount])
   @@index([userId, surface])
   @@index([userId, category])
   @@index([userId, createdAt])
+}
+
+/// task-068 — 사용자별 단어 학습 상태·보관(기본 단어·내 단어 모두). 행이 없으면 상태 0·보관 안 함과 같다. 사용자·단어 삭제 시 함께 삭제
+model UserWordState {
+  id           String       @id @default(cuid())
+  userId       String
+  wordId       String
+  correctCount Int          @default(0)
+  wrongCount   Int          @default(0)
+  lastSeenAt   DateTime?
+  lastResult   VocabAnswer?
+  archived     Boolean      @default(false)
+  archivedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word WordEntry @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId])
+  @@index([userId, archived, wrongCount])
+  @@index([wordId])
 }
 
 /// 오늘의 단어 1세트. 집계는 finish 시점 확정 후 불변. keptAt = 세트 보관(다시 풀기)

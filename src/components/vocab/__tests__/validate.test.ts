@@ -23,6 +23,7 @@ const word: WordEntry = {
   reading: 'えいが',
   meaning: '영화',
   partOfSpeech: 'NOUN',
+  chunkType: 'NAME',
   jlpt: 'N5',
   example: '昨日映画を見ました。',
   exampleKo: null,
@@ -35,7 +36,7 @@ const word: WordEntry = {
 }
 
 test('validateWord: 필수·코드포인트 한도(이모지는 1자)', () => {
-  const ok = { ...emptyForm('映画'), meaning: '영화' }
+  const ok = { ...emptyForm('映画'), meaning: '영화', chunkType: 'NAME' as const }
   assert.deepEqual(validateWord(ok), {})
   assert.equal(validateWord(emptyForm('')).surface, '표현을 적어 주세요')
   assert.equal(validateWord({ ...ok, meaning: '   ' }).meaning, '뜻을 적어 주세요')
@@ -52,15 +53,16 @@ test('toCreateBody: 빈 선택값은 보내지 않고 enrich 도 없다', () => 
   const body = toCreateBody({ ...emptyForm(' 映画 '), meaning: ' 영화 ', category: '  ' })
   assert.deepEqual(body, { surface: '映画', meaning: '영화', partOfSpeech: 'OTHER' })
   const full = toCreateBody({ ...formFromWord(word), note: '메모' })
-  assert.equal(full.jlpt, 'N5')
+  assert.equal('jlpt' in full, false, 'task-068: 수준은 보내지 않는다')
+  assert.equal(full.chunkType, 'NAME')
   assert.equal(full.note, '메모')
   assert.equal('enrich' in full, false)
 })
 
 test('diffPatch: 바뀐 필드만, 비운 선택값은 null, 카운터·source 는 나오지 않는다', () => {
   assert.deepEqual(diffPatch(word, formFromWord(word)), {})
-  const edited = { ...formFromWord(word), reading: '', meaning: '영화(무비)', jlpt: '' as const, exampleKo: '어제 영화를 봤어요.' }
-  assert.deepEqual(diffPatch(word, edited), { meaning: '영화(무비)', jlpt: null, reading: null, exampleKo: '어제 영화를 봤어요.' })
+  const edited = { ...formFromWord(word), reading: '', meaning: '영화(무비)', exampleKo: '어제 영화를 봤어요.' }
+  assert.deepEqual(diffPatch(word, edited), { meaning: '영화(무비)', reading: null, exampleKo: '어제 영화를 봤어요.' })
   const keys = Object.keys(diffPatch(word, { ...formFromWord(word), surface: '映画館' }))
   assert.deepEqual(keys, ['surface'])
   for (const k of ['correctCount', 'wrongCount', 'source', 'archived']) assert.equal(k in diffPatch(word, edited), false)
@@ -69,7 +71,7 @@ test('diffPatch: 바뀐 필드만, 비운 선택값은 null, 카운터·source �
 test('formFromDraft: 표현은 사용자가 쓴 그대로, null 은 빈 문자열', () => {
   const f = formFromDraft('食べる', { valid: true, reading: 'たべる', meaning: '먹다', partOfSpeech: 'VERB', jlpt: null, example: null }, '일상')
   assert.equal(f.surface, '食べる')
-  assert.equal(f.jlpt, '')
+  assert.equal(f.chunkType, '')
   assert.equal(f.example, '')
   assert.equal(f.category, '일상')
   assert.equal(f.partOfSpeech, 'VERB')
@@ -101,10 +103,8 @@ test('분류: 칩·합계·빈 상태 변형', () => {
     { category: null, count: 5 },
   ])
   assert.deepEqual(visibleCategories(cats, 'active'), [{ category: '일상', n: 32 }])
-  assert.deepEqual(visibleCategories(cats, 'archived'), [
-    { category: '일상', n: 2 },
-    { category: 'N5 기초', n: 3 },
-  ])
+  // task-068 D3 B: 옛 「N5 기초」 등 난이도 이름은 보관함 칩에도 나오지 않는다(T9).
+  assert.deepEqual(visibleCategories(cats, 'archived'), [{ category: '일상', n: 2 }])
   assert.deepEqual(categoryTotals(cats), { active: 37, archived: 5 })
   assert.deepEqual(normalizeCategories({ items: [{ category: 'a', count: 1 }] }), [{ category: 'a', count: 1 }])
 
@@ -123,7 +123,33 @@ test('emptyVariant 조각(task-023): 검색+조각 → noSearchChunk, 조각(분
   assert.equal(emptyVariant({ ...q, q: '映', chunk: 'ACTION', category: '일상' }, null), 'noSearchChunk')
   assert.equal(emptyVariant({ ...q, chunk: 'ACTION' }, { active: 0, archived: 0 }), 'noChunk')
   assert.equal(emptyVariant({ ...q, chunk: 'ACTION', category: '일상' }, null), 'noChunk')
-  assert.equal(emptyVariant({ ...q, chunk: 'none', archived: true }, null), 'noChunk')
+  assert.equal(emptyVariant({ ...q, chunk: 'EXPRESSION', archived: true }, null), 'noChunk')
   assert.equal(emptyVariant({ ...q, q: '映' }, null), 'noSearch')
   assert.equal(emptyVariant({ ...q, category: '일상' }, null), 'noCategory')
+})
+
+test('emptyVariant 출처(task-068 §28-6 B): 「내 단어」만 보는데 0 → noMine(보관함 다음 · allArchived 앞), 검색·조각·분류가 먼저', () => {
+  const q = { q: '', category: null, archived: false, chunk: null, source: 'mine' as const }
+  assert.equal(emptyVariant(q, { active: 0, archived: 3 }), 'noMine')
+  assert.equal(emptyVariant(q, null), 'noMine')
+  assert.equal(emptyVariant({ ...q, archived: true }, null), 'noArchived')
+  assert.equal(emptyVariant({ ...q, q: '映' }, null), 'noSearch')
+  assert.equal(emptyVariant({ ...q, chunk: 'NAME' }, null), 'noChunk')
+  assert.equal(emptyVariant({ ...q, category: '여행' }, null), 'noCategory')
+  assert.equal(emptyVariant({ ...q, source: 'base' }, { active: 0, archived: 0 }), 'noWords')
+  assert.equal(emptyVariant({ ...q, source: 'all' }, { active: 0, archived: 2 }), 'allArchived')
+})
+
+test('visibleCategories(T9 화면 몫): 난이도 이름 6개는 칩이 아니고 내가 정한 분류만 남는다', () => {
+  const cats = [
+    { category: '초보자 (N5)', count: 628 },
+    { category: 'N5 기초', count: 50 },
+    { category: '최상급 (N1)', count: 3 },
+    { category: '초보자(N5)', count: 1 },
+    { category: '여행', count: 2 },
+  ]
+  assert.deepEqual(visibleCategories(cats, 'active'), [
+    { category: '초보자(N5)', n: 1 },
+    { category: '여행', n: 2 },
+  ])
 })
