@@ -6,10 +6,10 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
-## ★★★★★★★★★★★★ 2026-10-14 밤 — task-068 「단어장 개선 6건」 **운영 배포 완료(릴리스 `20261014-162727-c3ffa322`, 롤백 대상 `…20261013-211110-20813a8d`) + 사본 이관(state 40 · repoint VocabAttempt 70 / RepetitionItem 3) 완료 — 남은 건 ① 사본 삭제 별도 승인 ② 사용자 폰 확인**
-- 상세는 이력서 [[task-068-improve-wordbook]] 「운영 배포·이관」·「최종 요약」. 백업 #1 `~/db-backups/thekaiwa-pre-task068-20261014-153944.sql.gz` · 백업 #2 `~/db-backups/thekaiwa-pre-migrate-task068-<시각>.sql.gz`(이관 직전).
-- **지금 알아 둘 점**: 사본 678개가 아직 남아 있어 소유자(실사용자 1명) 단어장·오늘의 단어 풀·평가 재료에 **같은 단어가 두 번**(사본 「내 단어」 학습 기록 0 + 기본 단어) 들어갈 수 있다. 학습 기록은 기본 단어 쪽에 있어 잃은 건 없다. 해소 = `delete-copies`(678개 삭제 대상, `plan` 기준 refs 0·edited 0·ALL OK).
-- **사본 삭제는 사용자 별도 승인 후**: 백업 #3 → 읽기 전용 SQL 로 사본 `category`('초보자 (N5)' 628 · 'N5 기초' 50)·`chunkType`(NAME 337 · ACTION 116 · MODIFIER 137 · FEELING 55 · NULL 33) 분포 확인(예상과 다르면 중단) → `plan` ALL OK → `CONFIRM_MIGRATE_SEED_COPIES=yes … delete-copies --apply --confirm-delete`(`~/.node-local/thekaiwa-rev068` 에서, `.env` 는 임시 복사 후 삭제). 이관 후 롤백은 사본 카운터가 0 으로 보이므로 백업 복원이 필요.
+## ★★★★★★★★★★★★ 2026-10-14 밤 — task-068 「단어장 개선 6건」 **운영 배포 완료(릴리스 `20261014-162727-c3ffa322`, 롤백 대상 `…20261013-211110-20813a8d`) + 사본 이관(state 40 · repoint VocabAttempt 70 / RepetitionItem 3) + 사본 삭제(678) 모두 완료 — 남은 건 사용자 폰 확인뿐**
+- 상세는 이력서 [[task-068-improve-wordbook]] 「운영 배포·이관」·「사본 삭제 실행」·「최종 요약」. 백업 #1 `~/db-backups/thekaiwa-pre-task068-20261014-153944.sql.gz` · #2 `…pre-migrate-task068-20261014-162834.sql.gz`(이관 직전) · #3 `…pre-delete-copies-task068-<시각>.sql.gz`(삭제 직전, 954KB).
+- **현재 DB**: `WordEntry` 기본(userId NULL) 7,757 / 사용자 소유 0 · `UserWordState` 43행(소유자 이관분 40 + QA 값 0 행) · 끊긴 참조 0 · 기본 단어 조각 분포 NAME 3,324 · ACTION 2,561 · MODIFIER 1,087 · FEELING 663 · EXPRESSION 122. 소유자 단어장 중복 노출은 사본 삭제로 해소됨(사용자 승인 「지금 삭제 (권장)」).
+- **롤백 주의**: 사본이 없으므로 코드만 롤백하면 소유자 단어장이 비어 보인다 → 롤백보다 전진 수정이 안전, 필요 시 백업 #3 복원.
 - 사용자 폰 확인 항목: 쪽 이동·출처 칩(전체/내 단어/기본 단어)·추가 시트 조각 선택(필수)·기본 단어 상세 읽기 전용·오늘의 단어·평가 난이도 혼합. 알려진 한계는 이력서 「최종 요약」.
 - 후속(이번 배포와 별개): 라이브 스모크 `task008` 낡은 기대값 7건 갱신(QA W3 기록) · 쪽 줄 y 흔들림 필요 시 행 높이 고정 · 공용 `Sheet` Tab 포커스 누출 · 임시 미러(`thekaiwa-dev068*`·`rev068*`·`rev068-tree`) 정리는 사용자 지시 시.
 - (아래는 직전 기록 — 위 최신 상태가 우선)
