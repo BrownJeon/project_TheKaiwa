@@ -6,6 +6,10 @@ tags:
 ---
 # 현재 상태 — 다음 세션은 이 문서부터 읽으세요
 
+## ★★★★★★★★★★★★★ 2026-10-15 — task-069 「단어 추가 마이크 입력」 **developer 구현 중**(judge: feature·R1·light·demo 면제·sonnet)
+- 사용자 요청: 단어 추가할 때 키보드와 마이크(말해서) 입력 둘 다 가능하게. 이력서 [[task-069-improve-word-add-mic]] · 백로그 [[IMP-0043-words-add-mic-input]].
+- **사실**: 실시간 인식은 일본어 고정(`speech/speech.config.yml:63`) → 마이크는 일본어 칸(표현·예문)만. 한국어 뜻 칸은 키보드만. 수업 「말로 쓰기」(`MIC_TEST`, 원음 저장 안 함) 방식 재사용. Leader 결정 L1~L7(읽기·수정 시트 제외, 표현 바꿔 넣기/예문 이어 붙이기)은 이력서에.
+- **다음**: developer 완료 → reviewer(light: 증빙 재실행) → 사용자 폰 확인(마이크 권한·온디바이스) → 커밋·푸시·배포는 사용자 승인 후. task-068 은 폰 확인만 남음.
 ## ★★★★★★★★★★★★ 2026-10-14 밤 — task-068 「단어장 개선 6건」 **운영 배포 완료(릴리스 `20261014-162727-c3ffa322`, 롤백 대상 `…20261013-211110-20813a8d`) + 사본 이관(state 40 · repoint VocabAttempt 70 / RepetitionItem 3) + 사본 삭제(678) 모두 완료 — 남은 건 사용자 폰 확인뿐**
 - 상세는 이력서 [[task-068-improve-wordbook]] 「운영 배포·이관」·「사본 삭제 실행」·「최종 요약」. 백업 #1 `~/db-backups/thekaiwa-pre-task068-20261014-153944.sql.gz` · #2 `…pre-migrate-task068-20261014-162834.sql.gz`(이관 직전) · #3 `…pre-delete-copies-task068-<시각>.sql.gz`(삭제 직전, 954KB).
 - **현재 DB**: `WordEntry` 기본(userId NULL) 7,757 / 사용자 소유 0 · `UserWordState` 43행(소유자 이관분 40 + QA 값 0 행) · 끊긴 참조 0 · 기본 단어 조각 분포 NAME 3,324 · ACTION 2,561 · MODIFIER 1,087 · FEELING 663 · EXPRESSION 122. 소유자 단어장 중복 노출은 사본 삭제로 해소됨(사용자 승인 「지금 삭제 (권장)」).
