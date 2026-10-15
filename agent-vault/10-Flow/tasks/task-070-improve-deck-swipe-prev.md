@@ -1,8 +1,8 @@
 ---
 task_id: task-070
 title: "오늘의 단어 카드 스와이프 방향 변경 — 왼쪽 = 이전 카드, 오른쪽 = 다음 카드(푼 카드) / 건너뛰기 확인(안 푼 카드)"
-status: doing
-waiting: implementation
+status: done
+waiting: ""
 base_ref: b317b27
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
