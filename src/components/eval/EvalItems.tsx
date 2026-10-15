@@ -99,7 +99,7 @@ function JaBlock({ text, guard, className }: { text: string; guard: readonly str
   )
 }
 
-/** 단어 상자(뜻 고르기·조각 분류) — 저장 읽기 루비 + `[한글]`(저장 읽기와 분석 읽기가 다르면 숨김). 읽기 15px 줄은 없앴다. */
+/** 단어 상자(뜻 고르기·조각 분류) — 저장 읽기 루비 + `[한글]`(저장 읽기와 분석 읽기가 다르면 저장 읽기 재분석, 그것도 안 되면 숨김). 읽기 15px 줄은 없앴다. */
 function WordBox({ word, reading, guard }: { word: string; reading?: string | null; guard: readonly string[] }) {
   const layers = useWordLayers(word, reading)
   const hits = guardHits(word, guard)

@@ -391,7 +391,7 @@ test('canSwipeRight: 오른쪽 저항 = rightAction 이 무반응이 아닐 때�
 test('hangulBlock: 앱 한글 설정 꺼짐과 카드에 한글 표기 없음을 가른다, 불러오는 중·준비됨·설정 로드 전은 막지 않는다', () => {
   assert.equal(hangulBlock({ prefsLoaded: true, appHangul: false, layer: 'off' }), '설정에서 한글 표기를 켜 주세요')
   assert.equal(hangulBlock({ prefsLoaded: true, appHangul: false, layer: 'ready' }), CARD_FIRST.hangul.settingOff, '설정이 먼저')
-  assert.equal(hangulBlock({ prefsLoaded: true, appHangul: true, layer: 'none' }), '이 카드는 한글 표기가 없어요', '분석 불가·읽기 불일치')
+  assert.equal(hangulBlock({ prefsLoaded: true, appHangul: true, layer: 'none' }), '이 카드는 한글 표기가 없어요', '분석 불가·읽기 불일치(저장 읽기 재분석 포함)')
   assert.equal(hangulBlock({ prefsLoaded: true, appHangul: true, layer: undefined }), CARD_FIRST.hangul.none)
   assert.equal(hangulBlock({ prefsLoaded: true, appHangul: true, layer: 'ready' }), null)
   assert.equal(hangulBlock({ prefsLoaded: true, appHangul: true, layer: 'loading' }), null, '받는 중 — 켜면 자리 막대')

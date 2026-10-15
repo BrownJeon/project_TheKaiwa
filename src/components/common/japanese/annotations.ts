@@ -12,11 +12,14 @@
  * - 400자 넘는 말은 400자 안의 마지막 `。！？!?\n` 뒤에서 잘라 보내고 결과를 잇는다. 끊을 곳이 없으면 숨김.
  * - "애매하면 숨김": 세그먼트 표기를 이은 것이 원문과 다르면 쓰지 않는다(옛 읽기 줄·다른 변환으로 대체하지 않는다). 세그먼트 모양이 어긋난 칸
  *   (`segments:[null]`·필드 누락 등)도 분석 불가로 null 캐시한다 — 예전에는 처리 중 throw 로 그 조각이 영구 loading 이었다(task-031 REV-099 L-3).
+ * - 단어 표제어 한글 줄(task-071): 분석기 읽기가 저장 읽기와 어긋나거나 발음을 못 구하면, 저장 읽기를 같은 분석기에 한 번 더 넣어 그 결과로 만든다
+ *   (`pickWordHangul`). 그 결과도 저장 읽기와 어긋나거나 발음이 없으면 숨긴다 — 어긋난 발음을 보이는 경로는 없다(task-026 ★ Leader 확인 ①).
  */
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { apiPost } from '@/components/common/api'
 import {
   alignWordRuby,
+  hangulLine,
   hasKanji,
   READING_MAX_CHARS,
   READING_MAX_TEXTS,
@@ -381,18 +384,45 @@ export function readingMatches(segments: readonly ReadingSegment[], stored: stri
 }
 
 /**
- * 단어 한글 줄 상태 — 한글 끔이면 `off`, 분석 읽기가 저장 읽기와 다르면 `none`(서로 어긋난 발음을 보이지 않는다, ★ Leader 확인 ①),
- * 그 밖은 분석 상태 그대로. 훅(`useWordLayersList`)은 이 함수로만 정한다(REV-095 M-1).
+ * 단어 한글 줄 1단계(표제어 분석만) — 한글 끔이면 `off`, 분석 읽기가 저장 읽기와 다르면 `none`(서로 어긋난 발음을 보이지 않는다,
+ * ★ Leader 확인 ①), 그 밖은 분석 상태 그대로. 저장 읽기로 다시 분석하는 2단계는 `pickWordHangul` 이 이 함수 위에서 정한다.
  */
 export function wordHangulState(on: boolean, st: AnnotationState, stored: string | null | undefined): AnnotationState {
   if (!on) return OFF
   return st.s === 'ready' && !readingMatches(st.segments, stored) ? NONE : st
 }
 
+/** 이 분석 결과를 단어 한글 줄로 써도 되는가 — 저장 읽기와 같은 읽기이고(가타카나·공백 무시) 한글로 바꿀 발음이 있다. */
+function wordHangulUsable(segments: readonly ReadingSegment[], stored: string | null | undefined): boolean {
+  return readingMatches(segments, stored) && hangulLine(segments) !== null
+}
+
+/**
+ * 한글 줄을 만들려고 한 번 더 분석할 저장 읽기 글자(task-071) — 한글 켬·표제어 분석이 도착했는데 저장 읽기와 어긋나거나 발음을 못 구했고
+ * 저장 읽기가 있을 때만. 그 밖은 `''`(요청하지 않는다: 정상 단어·분석 중/불가·저장 읽기 없음·한글 끔).
+ */
+export function wordFallbackText(on: boolean, first: AnnotationState, stored: string | null | undefined): string {
+  if (!on || first.s !== 'ready') return ''
+  const text = stored ? stored.trim() : ''
+  if (!text) return ''
+  return wordHangulUsable(first.segments, stored) ? '' : text
+}
+
+/**
+ * 단어 한글 줄 상태(task-071) — `first` 표제어 분석, `second` 저장 읽기 분석(`wordFallbackText` 를 넣은 결과). 한글 켬·정상 단어는 `wordHangulState`
+ * 와 같다(2단계 요청 없음). 어긋남·발음 없음이면 `second` 가 오는 동안 `loading`(「한글 표기가 없어요」가 번쩍이지 않게), 도착한 결과가 저장 읽기와
+ * 같고 발음이 있으면 그 분석(`ready`), 그 밖은 `none`. 훅(`useWordLayersList`)은 이 함수로만 정한다(REV-095 M-1).
+ */
+export function pickWordHangul(on: boolean, first: AnnotationState, stored: string | null | undefined, second: AnnotationState): AnnotationState {
+  if (!wordFallbackText(on, first, stored)) return wordHangulState(on, first, stored)
+  if (second.s === 'loading') return LOADING
+  return second.s === 'ready' && wordHangulUsable(second.segments, stored) ? second : NONE
+}
+
 export interface WordLayers {
   /** 표제어 루비(저장 읽기로 정렬, 히라가나 끔·한자 없음·정렬 실패면 null). */
   ruby: RubyPiece[] | null
-  /** 한글 줄용 상태 — 분석 읽기가 저장 읽기와 다르면 `none`(서로 어긋난 발음을 보이지 않는다, ★ Leader 확인 ①). */
+  /** 한글 줄용 상태 — 표제어 분석이 저장 읽기와 다르면 저장 읽기 분석으로 대신하고(`pickWordHangul`, task-071), 그것도 어긋나면 `none`(서로 어긋난 발음을 보이지 않는다, ★ Leader 확인 ①). */
   hangul: AnnotationState
 }
 
@@ -401,20 +431,25 @@ export interface WordInput {
   reading?: string | null
 }
 
-/** 단어 여러 개의 층(단어장 목록·오늘의 단어 덱이 한 번에 받는다). 루비는 서버 없이, 한글은 표제어 #24r(한글 켬일 때만). */
+/**
+ * 단어 여러 개의 층(단어장 목록·오늘의 단어 덱이 한 번에 받는다). 루비는 서버 없이, 한글은 표제어 #24r(한글 켬일 때만). 표제어 분석이
+ * 저장 읽기와 어긋난 단어만 저장 읽기를 한 번 더 분석한다(task-071) — `useAnnotations` 호출은 렌더마다 두 번으로 같다.
+ */
 export function useWordLayersList(words: readonly WordInput[]): WordLayers[] {
   const prefs = useDisplayPrefs()
+  const on = prefs.loaded && prefs.showHangul
   const surfaces = words.map((w) => (prefs.showHangul ? w.surface : ''))
   const states = useAnnotations(surfaces)
+  const fallbacks = useAnnotations(words.map((w, i) => wordFallbackText(on, states[i], w.reading)))
   const key = words.map((w) => `${w.surface}\u0001${w.reading ?? ''}`).join('\u0000')
   return useMemo(
     () =>
       words.map((w, i) => {
         const ruby = prefs.loaded && prefs.showFurigana && w.reading ? alignWordRuby(w.surface, w.reading) : null
-        return { ruby, hangul: wordHangulState(prefs.loaded && prefs.showHangul, states[i], w.reading) }
+        return { ruby, hangul: pickWordHangul(on, states[i], w.reading, fallbacks[i]) }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 단어 목록은 `key` 로 비교한다
-    [key, prefs.loaded, prefs.showFurigana, prefs.showHangul, states],
+    [key, prefs.loaded, prefs.showFurigana, prefs.showHangul, states, fallbacks],
   )
 }
 

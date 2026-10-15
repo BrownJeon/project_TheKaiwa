@@ -180,7 +180,7 @@ export default function WordDetailSheet({
     onNotFoundRef.current = onNotFound
   }, [onNotFound])
   const sound = useWordSound()
-  // 표제어 = 저장 읽기 루비 + 분석 한글(읽기가 다르면 숨김), 예문 = 저장 읽기가 없어 분석(task-026 §15-4-5). 수정 폼에서는 쓰지 않는다.
+  // 표제어 = 저장 읽기 루비 + 분석 한글(읽기가 다르면 저장 읽기 재분석, 그것도 안 되면 숨김 — task-071), 예문 = 저장 읽기가 없어 분석(task-026 §15-4-5). 수정 폼에서는 쓰지 않는다.
   const head = useWordLayers(word?.surface ?? '', word?.reading)
   const exAnn = useAnnotation(word?.example ?? '')
 

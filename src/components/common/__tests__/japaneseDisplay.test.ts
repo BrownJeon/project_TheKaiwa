@@ -379,10 +379,13 @@ test('wordHangulState: 한글 끔 = off · 분석 읽기 ≠ 저장 읽기 = non
   assert.equal(wordHangulState(true, { s: 'loading' }, 'あす').s, 'loading')
 })
 
-test('useWordLayersList 정적: 한글 상태는 wordHangulState 로만 정한다', () => {
+test('useWordLayersList 정적: 한글 상태는 pickWordHangul(→ wordHangulState 1단계 + 저장 읽기 2단계)로만 정한다(task-071)', () => {
   const src = readFileSync(join(process.cwd(), 'src/components/common/japanese/annotations.ts'), 'utf8')
   const hook = src.slice(src.indexOf('export function useWordLayersList('), src.indexOf('export function useWordLayers('))
-  assert.match(hook, /hangul: wordHangulState\(prefs\.loaded && prefs\.showHangul, states\[i\], w\.reading\)/)
+  assert.match(hook, /hangul: pickWordHangul\(on, states\[i\], w\.reading, fallbacks\[i\]\)/)
+  assert.match(hook, /const on = prefs\.loaded && prefs\.showHangul/)
+  const pick = src.slice(src.indexOf('export function pickWordHangul('), src.indexOf('export interface WordLayers'))
+  assert.match(pick, /return wordHangulState\(on, first, stored\)/)
 })
 
 // ── 표시 설정 저장소 ─────────────────────────────────────────────────────────

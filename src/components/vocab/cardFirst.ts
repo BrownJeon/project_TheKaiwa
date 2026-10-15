@@ -227,8 +227,9 @@ export function canSwipeRight(s: { isCurrent: boolean; answered: boolean; busy: 
 
 /**
  * [한글](앞면 한글 표기 줄)을 지금 쓸 수 없는 이유(쓸 수 있으면 null). 앱 표시 설정의 한글이 꺼져 있으면 층을 받지 않으므로 설정 안내,
- * 켜져 있는데 이 카드 표제어 분석이 없거나(분석 불가·실패) 저장 읽기와 어긋나면(`wordHangulState` 의 none) 「한글 표기가 없어요」.
- * 받는 중(`loading`)·설정 로드 전은 막지 않는다 — 켜면 자리 막대가 보이고 곧 채워진다.
+ * 켜져 있는데 이 카드 한글 줄을 못 만들면(표제어 분석 불가·실패, 또는 분석이 저장 읽기와 어긋나는데 저장 읽기 재분석도 어긋나거나 발음이 없을 때 —
+ * `pickWordHangul` 의 none, task-071) 「한글 표기가 없어요」.
+ * 받는 중(`loading`, 저장 읽기 재분석 대기 포함)·설정 로드 전은 막지 않는다 — 켜면 자리 막대가 보이고 곧 채워진다.
  */
 export function hangulBlock(s: { prefsLoaded: boolean; appHangul: boolean; layer: AnnotationState['s'] | undefined }): string | null {
   if (!s.prefsLoaded) return null
