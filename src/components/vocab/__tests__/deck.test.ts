@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   canNext,
   canPeek,
+  canPrev,
   cardSide,
   clampResponseMs,
   classifyGesture,
@@ -11,6 +12,7 @@ import {
   createStopwatch,
   displayToggleWrites,
   estimateMinutes,
+  FLY_OUT_TRANSFORM,
   frontierOf,
   hangulPrefOf,
   keyAction,
@@ -35,12 +37,32 @@ test('classifyGesture: 탭 10px 미만 · 위 −80 초과 · 좌우 60 초과(b
   assert.equal(classifyGesture(100, 79), 'right', '아래 대각선은 좌우')
 })
 
-test('resistX: 막힌 방향만 ×0.25', () => {
-  assert.equal(resistX(-100, false, true), -25, '안 답한 카드를 왼쪽(다음)으로')
-  // task-060: 오른쪽 = 건너뛰기 확인 — 건너뛸 수 없는 카드(답한 카드·지난 카드·저장 중)를 오른쪽으로(옛: 첫 카드를 오른쪽(이전)으로)
-  assert.equal(resistX(100, true, false), 25, '건너뛸 수 없는 카드를 오른쪽(건너뛰기)으로')
-  assert.equal(resistX(-100, true, false), -100)
-  assert.equal(resistX(100, false, true), 100)
+test('resistX(task-070): 왼쪽 = 이전 카드가 없을 때만, 오른쪽 = 다음·건너뛰기 확인을 못 할 때만 ×0.25 — 두 방향은 서로 독립', () => {
+  // 왼쪽(x<0): canLeft(이전 카드가 있는가)만 본다
+  assert.equal(resistX(-100, false, true), -25, '첫 카드를 왼쪽(이전)으로')
+  assert.equal(resistX(-100, true, false), -100, '이전 카드가 있으면 오른쪽이 막혀도 자유')
+  assert.equal(resistX(-100, true, true), -100)
+  assert.equal(resistX(-100, false, false), -25)
+  // 오른쪽(x>0): canRight(다음 카드·결과 또는 건너뛰기 확인을 열 수 있는가)만 본다
+  assert.equal(resistX(100, true, false), 25, '갈 곳이 없는 카드(저장 중)를 오른쪽으로')
+  assert.equal(resistX(100, false, true), 100, '첫 카드여도 오른쪽(다음·건너뛰기)은 자유')
+  assert.equal(resistX(100, true, true), 100)
+  assert.equal(resistX(100, false, false), 25)
+  assert.equal(resistX(0, false, false), 0)
+  // 저항은 부호를 지킨다
+  assert.ok(resistX(-40, false, true) < 0 && resistX(40, true, false) > 0)
+})
+
+test('canPrev: 첫 카드(0)만 없고 나머지는 있다', () => {
+  assert.equal(canPrev(0), false)
+  assert.equal(canPrev(1), true)
+  assert.equal(canPrev(29), true)
+})
+
+test('FLY_OUT_TRANSFORM(task-070): 다음 카드로 넘어갈 때 카드는 오른쪽(+)으로 날아간다 — 왼쪽(−)이 아니다', () => {
+  assert.match(FLY_OUT_TRANSFORM, /^translateX\(\d+%\) rotate\(\d+deg\)$/, '양수 translateX · 양수 rotate')
+  assert.doesNotMatch(FLY_OUT_TRANSFORM, /-/, '음수(왼쪽으로 날기)가 없다')
+  assert.equal(FLY_OUT_TRANSFORM, 'translateX(120%) rotate(8deg)')
 })
 
 const card = (answer: 'CORRECT' | 'WRONG' | 'SKIPPED' | null, flagged = false) => ({ answered: answer !== null, answer, flagged })

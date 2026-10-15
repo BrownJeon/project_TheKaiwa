@@ -16,6 +16,11 @@ export const SIDE_MIN = 60
 /** 움직일 수 없는 방향으로 끌 때 따라오는 비율 */
 export const RESIST = 0.25
 export const FLY_MS = 180
+/**
+ * 다음 카드로 넘어갈 때 카드가 날아가는 곳 — **오른쪽**(task-070: 다음 카드로 가는 제스처가 오른쪽 밀기라 손가락 방향과 일치).
+ * 버튼·키로 넘어가도 같은 방향으로 통일한다. reduced-motion 은 `SwipeCardStack` 이 이 값을 쓰지 않고 투명도만 바꾼다.
+ */
+export const FLY_OUT_TRANSFORM = 'translateX(120%) rotate(8deg)'
 
 export type Gesture = 'tap' | 'up' | 'left' | 'right' | 'none'
 
@@ -27,11 +32,19 @@ export function classifyGesture(dx: number, dy: number): Gesture {
   return 'none'
 }
 
-/** 드래그 표시 x. 왼쪽 = 다음, 오른쪽 = 건너뛰기 확인(task-060, 옛 이전) — 막힌 쪽으로는 ×0.25 만 따라온다. */
-export function resistX(x: number, canGoNext: boolean, canSkip: boolean): number {
-  if (x < 0 && !canGoNext) return x * RESIST
-  if (x > 0 && !canSkip) return x * RESIST
+/**
+ * 드래그 표시 x(task-070). 왼쪽 = 이전 카드(첫 카드면 저항), 오른쪽 = 다음 카드·결과 또는 건너뛰기 확인 — 그쪽으로 갈 수 없는 상태면
+ * ×0.25 만 따라온다. `canLeft`/`canRight` 는 `canPrev`·`cardFirst.canSwipeRight` 가 정한다(여기서 상태를 직접 보지 않는다).
+ */
+export function resistX(x: number, canLeft: boolean, canRight: boolean): number {
+  if (x < 0 && !canLeft) return x * RESIST
+  if (x > 0 && !canRight) return x * RESIST
   return x
+}
+
+/** 이전 카드가 있는가(왼쪽 밀기·← ·[이전]). 첫 카드면 없다. */
+export function canPrev(view: number): boolean {
+  return view > 0
 }
 
 // ── 카드 상태 ───────────────────────────────────────────────────────────────────────────────

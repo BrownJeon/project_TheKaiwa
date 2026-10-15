@@ -165,9 +165,9 @@ export function frontHint(mode: VocabMode, card: Pick<VocabCard, 'choices' | 'an
   return peekable ? CARD_FIRST.tapToPeek : CARD_FIRST.selfToPeek
 }
 
-// ── 덱: 위로 밀기·오른쪽 밀기·[한글](task-060) ────────────────────────────────────────────────
+// ── 덱: 위로 밀기·오른쪽 밀기·[한글](task-060, 오른쪽은 task-070 개정) ───────────────────────────
 
-export type GestureResult = { kind: 'flip' } | { kind: 'ask' } | { kind: 'hint'; text: string } | { kind: 'none' }
+export type GestureResult = { kind: 'flip' } | { kind: 'hint'; text: string } | { kind: 'none' }
 
 const NONE_RESULT: GestureResult = { kind: 'none' }
 const hintOf = (text: string): GestureResult => ({ kind: 'hint', text })
@@ -194,7 +194,7 @@ export function choicesToggleFocus(open: boolean, from: 'tap' | 'btn' | 'key'): 
   return open && from !== 'tap' ? 'first' : null
 }
 
-/** 건너뛰기 확인 시트를 열 수 있는가 — 안 답한 지금 카드·저장/넘기는/끝내는 중 아님. 오른쪽 밀기 저항도 이 값으로 정한다. */
+/** 건너뛰기 확인 시트를 열 수 있는가 — 안 답한 지금 카드·저장/넘기는/끝내는 중 아님. 오른쪽 밀기는 안 푼 카드에서 이것이 열릴 때만 `ask`(`rightAction`). */
 export function canAskSkip(s: { isCurrent: boolean; answered: boolean; busy: boolean }): boolean {
   return s.isCurrent && !s.answered && !s.busy
 }
@@ -207,14 +207,22 @@ export function skipSheetOpen(s: { skipFor: number | null; order: number | null;
   return s.skipFor !== null && s.order !== null && s.skipFor === s.order && !s.answered && s.phase === 'playing'
 }
 
+export type RightResult = { kind: 'next' } | { kind: 'ask' } | { kind: 'none' }
+
 /**
- * 오른쪽 밀기 = 건너뛰기 확인(task-060 A, 옛 이전 카드). 답한 카드·지난 카드는 옛 습관(이전)으로 민 것이므로 [이전] 버튼을 알린다.
- * 저장 중은 무반응.
+ * 오른쪽 밀기(task-070 — 카드 상태에 따라 갈린다). 푼 카드(지난 카드 포함)는 **다음 카드**(마지막 카드면 결과 — 부모가 `deck.next` 를 부르고
+ * 마지막·막힘 판단은 거기서 한다. 옛 왼쪽 밀기가 하던 일), 안 푼 지금 카드는 **건너뛰기 확인**(task-060 그대로), 저장/넘기는/끝내는 중은 무반응.
+ * 이전 카드는 왼쪽 밀기(`deck.prev`)가 맡는다. 키보드 → 는 안 푼 카드에서 막힘 안내를 하므로(`deck.next`) 이 비대칭은 제스처만의 것이다.
  */
-export function rightAction(s: { isCurrent: boolean; answered: boolean; busy: boolean }): GestureResult {
-  if (canAskSkip(s)) return { kind: 'ask' }
-  if (s.busy && s.isCurrent && !s.answered) return NONE_RESULT
-  return hintOf(CARD_FIRST.prevByButton)
+export function rightAction(s: { isCurrent: boolean; answered: boolean; busy: boolean }): RightResult {
+  if (s.busy) return { kind: 'none' }
+  if (s.answered) return { kind: 'next' }
+  return canAskSkip(s) ? { kind: 'ask' } : { kind: 'none' }
+}
+
+/** 오른쪽으로 끌 수 있는가 — 다음 카드(결과)로 가거나 건너뛰기 확인을 열 수 있을 때만. 아니면 `resistX` 가 ×0.25 로 막는다. */
+export function canSwipeRight(s: { isCurrent: boolean; answered: boolean; busy: boolean }): boolean {
+  return rightAction(s).kind !== 'none'
 }
 
 /**
@@ -231,7 +239,9 @@ export function hangulBlock(s: { prefsLoaded: boolean; appHangul: boolean; layer
 
 /**
  * 고정 힌트 한 줄(§23-8 ⑩⑪). 터치 기기는 지금 카드 상태에서 **실제로 반응하는 제스처만**(REV-060-1 L-1), 정밀 포인터는 지금 카드 상태의 키.
- * 터치: 이전 4지선다 → ↑ 없음 / 답한·지난 카드 → ↑ 무반응이고 → 는 [이전] 안내뿐 / 안 답한 지금 카드의 뒷면(뜻 없는 카드의 앞면 포함) → 뜻을 이미 봤으니 ↑ 없음 / 앞면 → 전부.
+ * 터치(task-070 지도: ← 이전 · → 푼 카드는 다음, 안 푼 카드는 건너뛰기): 답한·지난 카드 → ↑ 무반응이고 → 는 다음 카드 /
+ * 이전 4지선다의 안 답한 카드 → ↑ 없음 / 안 답한 지금 카드의 뒷면(뜻 없는 카드의 앞면 포함) → 뜻을 이미 봤으니 ↑ 없음 / 앞면 → 전부.
+ * 답한 카드 판단이 이전 4지선다보다 먼저다 — 답한 4지선다 카드의 → 는 건너뛰기가 아니라 다음이다.
  */
 export function fixedHint(s: {
   coarse: boolean
@@ -244,8 +254,8 @@ export function fixedHint(s: {
   peekable: boolean
 }): string {
   if (s.coarse) {
-    if (s.mode === 'CHOICE') return KEY_HINT.touchChoice
     if (s.answered || !s.isCurrent) return KEY_HINT.touchDone
+    if (s.mode === 'CHOICE') return KEY_HINT.touchChoice
     if (s.side === 'back' || !s.peekable) return KEY_HINT.touchBack
     return KEY_HINT.touch
   }
@@ -353,8 +363,6 @@ export const CARD_FIRST = {
   skipBtn: '건너뛰기',
   /** 보기가 있는 앞면에서 다음으로 가려 할 때(task-060 E — 버튼 이름 대신 카드 조작) */
   answerFirst: '카드를 위로 밀거나 눌러서 먼저 답해 주세요',
-  /** 답한·지난 카드를 오른쪽으로 밀었을 때(task-060 A — 오른쪽 밀기는 더 이상 이전이 아니다) */
-  prevByButton: '이전 카드는 아래 [이전] 버튼으로 가요',
   hangul: {
     label: '한글',
     none: '이 카드는 한글 표기가 없어요',
@@ -391,15 +399,15 @@ export const CARD_FIRST = {
   },
 } as const
 
-/** task-060: 터치 = 바뀐 제스처(↑ 뜻 보기 · → 건너뛰기), 키 = 안 답한 카드에 S(건너뛰기 확인)·앞면에 H(한글). */
+/** task-060: 키 = 안 답한 카드에 S(건너뛰기 확인)·앞면에 H(한글). task-070: 터치 = ← 이전 · → 푼 카드는 다음, 안 푼 카드는 건너뛰기 확인. */
 export const KEY_HINT = {
-  touch: '↑ 밀어 뜻 보기 · ← 밀어 다음 · → 밀어 건너뛰기',
-  /** 이전 4지선다 세트의 터치 힌트 — 위로 밀어도 뜻이 안 열리므로(`upAction`) ↑ 가 없다 */
-  touchChoice: '← 밀어 다음 · → 밀어 건너뛰기',
-  /** 답한 카드·지난 카드 — ↑ 는 무반응이고 → 는 이전 카드로 가지 않는다(`rightAction` 이 [이전] 버튼을 알린다) */
-  touchDone: '← 밀어 다음 · 이전 카드는 [이전]',
-  /** 안 답한 지금 카드의 뒷면 — 이미 뜻을 봤으니 ↑ 가 없고, ← 는 답한 뒤에야 다음으로 간다 */
-  touchBack: '← 밀어 다음(답한 뒤) · → 밀어 건너뛰기',
+  touch: '↑ 밀어 뜻 보기 · ← 밀어 이전 · → 밀어 건너뛰기',
+  /** 이전 4지선다 세트의 안 답한 카드 — 위로 밀어도 뜻이 안 열리므로(`upAction`) ↑ 가 없다 */
+  touchChoice: '← 밀어 이전 · → 밀어 건너뛰기',
+  /** 답한 카드·지난 카드 — ↑ 는 무반응이고 → 는 다음 카드로 간다(`rightAction` next, 마지막이면 결과) */
+  touchDone: '← 밀어 이전 · → 밀어 다음',
+  /** 안 답한 지금 카드의 뒷면 — 이미 뜻을 봤으니 ↑ 가 없고, → 는 건너뛰기 확인이다(다음으로는 답한 뒤에야) */
+  touchBack: '← 밀어 이전 · → 밀어 건너뛰기',
   choice: '1~4 고르기 · → 다음 · ← 이전 · F 표시',
   front: 'Space 뜻 보기 · C 객관식 · S 건너뛰기 · H 한글 · → 다음 · F 표시',
   frontNoChoice: 'Space 뜻 보기 · S 건너뛰기 · H 한글 · → 다음 · F 표시',

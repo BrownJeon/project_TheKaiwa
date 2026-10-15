@@ -10,8 +10,9 @@
  * 카드 우선 세트(task-059 §23-3): 탭·아래 버튼 영역·키는 세트 방식 하나가 아니라 **카드마다** `cardFirst` 로 가른다.
  * 새 버튼([객관식]·듣기 줄)도 모두 제스처 영역 밖이다 — 터치 기기는 `SwipeCardStack` 의 `touchend preventDefault` 때문에 영역 안 버튼의 click 이 생기지 않는다.
  *
- * 덱 조작 정리(task-060): 위로 밀기 = 뜻 보기(`cardFirst.upAction`), 오른쪽 밀기 = 건너뛰기 확인 시트(`rightAction` → `SkipConfirmSheet`),
- * 왼쪽 = 다음 그대로. 표시(★)는 [표시]·F, 이전 카드는 [이전]·← 로만 남는다. 앞면 히라가나 = [읽기], 한글 줄 = [한글](서로 독립).
+ * 덱 조작 정리(task-060): 위로 밀기 = 뜻 보기(`cardFirst.upAction`), 표시(★)는 [표시]·F. 앞면 히라가나 = [읽기], 한글 줄 = [한글](서로 독립).
+ * 좌우 스와이프(task-070 개정): 왼쪽 = 이전 카드(`deck.prev`), 오른쪽 = 푼 카드는 다음 카드·마지막이면 결과(`deck.next`), 안 푼 카드는 건너뛰기 확인
+ * 시트(`SkipConfirmSheet`) — 갈림은 `cardFirst.rightAction` 이 한다. 키 ←/→ 와 [이전]·[다음 카드] 는 그대로다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { OFF, useAnnotations, useWordLayersList } from '@/components/common/japanese/annotations'
@@ -21,6 +22,7 @@ import { alignWordRuby } from '@/modules/speech/reading/client'
 import {
   answeredBy,
   canAskSkip,
+  canSwipeRight,
   CARD_FIRST,
   choicesState,
   deckSoundMessage,
@@ -40,7 +42,7 @@ import DeckListenRow from './DeckListenRow'
 import DeckNotice from './DeckNotice'
 import DeckProgress from './DeckProgress'
 import DeckToolbar from './DeckToolbar'
-import { isAnswered, keyAction, tallyCards } from './deck'
+import { canPrev, isAnswered, keyAction, tallyCards } from './deck'
 import FinishConfirmSheet from './FinishConfirmSheet'
 import FlipControls from './FlipControls'
 import GestureHint from './GestureHint'
@@ -193,7 +195,6 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const sourceLine = topic ? topicSourceParts(topic, session.cardCount || n, deck.generation) : null
   const challengeLine = topic ? deckChallengeLine(deck.challengeCtx, session, here) : null
   const challengeNote = topic ? finishChallengeNote(deck.challengeCtx, session, here) : null
-  const canGoNext = isAnswered(card)
 
   const cardHasChoices = hasChoices(card)
   const open = !!card.open && !answered
@@ -222,11 +223,11 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
     return r.kind === 'flip'
   }
 
-  /** 오른쪽 밀기 = 건너뛰기 확인(task-060 A). 답한·지난 카드는 [이전] 버튼을 알린다. */
+  /** 오른쪽 밀기(task-070): 푼 카드는 다음 카드(마지막이면 결과, 소리 멈춤·날아가기는 `deck.next`), 안 푼 카드는 건너뛰기 확인(task-060). */
   const onRight = () => {
     const r = rightAction(skipCtx)
-    if (r.kind === 'ask') askSkip()
-    else if (r.kind === 'hint') deck.showHint(r.text)
+    if (r.kind === 'next') deck.next()
+    else if (r.kind === 'ask') askSkip()
   }
 
   const listen = listenTexts(card)
@@ -260,19 +261,20 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
       <DeckProgress cards={cards} view={view} frontier={frontier} topicTitle={topic?.title ?? null} />
       {sourceLine ? <TopicDeckLines source={sourceLine} challenge={challengeLine} compact={tight} /> : null}
       {deck.notice ? <DeckNotice notice={deck.notice} onClose={deck.closeNotice} topic={!!topic} /> : null}
-      {/* 무대 하한 224 = 카드 하한 200 + py-3 위아래 — 알림·듣기 줄·보기가 겹쳐 무대가 그보다 작아지면 카드가 이웃을 덮지 않고 `main` 이 스크롤한다(task-059 결함 #1). */}
-      <div className="flex min-h-[224px] flex-1 items-center justify-center px-4 py-3">
+      {/* 무대 하한 224 = 카드 하한 200 + py-3 위아래 — 알림·듣기 줄·보기가 겹쳐 무대가 그보다 작아지면 카드가 이웃을 덮지 않고 `main` 이 스크롤한다(task-059 결함 #1).
+          `overflow-x-clip`: 다음 카드로 넘어가는 카드가 오른쪽으로 날아가면(task-070 `FLY_OUT_TRANSFORM`) `main`(overflow-y-auto → x 도 auto)의 가로 스크롤 범위가 잠깐 생긴다 — 무대에서 가로만 잘라 막는다(세로 튀기 `bump` 는 그대로 보인다). */}
+      <div className="flex min-h-[224px] flex-1 items-center justify-center overflow-x-clip px-4 py-3">
         <SwipeCardStack
           count={n}
           view={view}
-          canGoNext={canGoNext}
-          canSkip={canAskSkip(skipCtx)}
+          canLeft={canPrev(view)}
+          canRight={canSwipeRight(skipCtx)}
           locked={locked}
           exiting={deck.exiting}
           reducedMotion={deck.reducedMotion}
           onTap={onTap}
           onUp={onUp}
-          onLeft={deck.next}
+          onLeft={deck.prev}
           onRight={onRight}
           renderTop={() => (
             <VocabCardFace

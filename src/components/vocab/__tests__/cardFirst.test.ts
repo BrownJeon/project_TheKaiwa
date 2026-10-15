@@ -30,6 +30,7 @@ import {
   resultVerb,
   rightAction,
   canAskSkip,
+  canSwipeRight,
   choicesToggleFocus,
   skipSheetOpen,
   splitLine,
@@ -181,8 +182,9 @@ test('frontHint: 보기 닫힘·열림·보기 없음·뜻 없음, 이전 4지�
 const hintBase = { coarse: false, mode: 'FLIP' as const, side: 'front' as const, isCurrent: true, answered: false, open: false, hasChoices: true, peekable: true }
 
 // task-060: 터치 힌트는 바뀐 제스처(↑ 뜻 보기 · → 건너뛰기), 키 힌트는 새 키(S 확인·H 한글)를 넣었다 — 옛 문구 단언을 새 문구로 바꿈.
+// task-070: 터치 힌트의 ← 는 이전 카드(옛 다음), → 는 푼 카드에서 다음 카드(안 푼 카드는 건너뛰기).
 test('fixedHint: 7 갈래(터치·이전 4지선다·답함·뜻 보기 면·보기 열림·앞면 보기 있음/없음)', () => {
-  assert.equal(fixedHint({ ...hintBase, coarse: true }), '↑ 밀어 뜻 보기 · ← 밀어 다음 · → 밀어 건너뛰기')
+  assert.equal(fixedHint({ ...hintBase, coarse: true }), '↑ 밀어 뜻 보기 · ← 밀어 이전 · → 밀어 건너뛰기')
   assert.equal(fixedHint({ ...hintBase, mode: 'CHOICE' }), '1~4 고르기 · → 다음 · ← 이전 · F 표시')
   assert.equal(fixedHint({ ...hintBase, answered: true, side: 'back' }), 'Enter 다음 카드 · ← 이전 · F 표시')
   assert.equal(fixedHint({ ...hintBase, isCurrent: false, side: 'back' }), 'Enter 다음 카드 · ← 이전 · F 표시', '지난 카드')
@@ -193,11 +195,13 @@ test('fixedHint: 7 갈래(터치·이전 4지선다·답함·뜻 보기 면·보
   assert.equal(fixedHint({ ...hintBase, hasChoices: false, peekable: false }), KEY_HINT.self, '뜻 없는 카드는 앞면에서 1·2')
   // 수정 라운드: 터치가 먼저인 건 그대로지만, 이전 4지선다 세트는 위로 밀어도 뜻이 안 열리므로(upAction → 「먼저 답을 골라」) 「↑ 밀어 뜻 보기」를 뺀다.
   assert.equal(fixedHint({ ...hintBase, coarse: true, mode: 'CHOICE' }), KEY_HINT.touchChoice, '터치가 먼저(이전 4지선다는 ↑ 없음)')
-  assert.equal(fixedHint({ ...hintBase, coarse: true, mode: 'CHOICE' }), '← 밀어 다음 · → 밀어 건너뛰기')
+  assert.equal(fixedHint({ ...hintBase, coarse: true, mode: 'CHOICE' }), '← 밀어 이전 · → 밀어 건너뛰기')
   assert.equal(fixedHint({ ...hintBase, coarse: true, mode: 'FLIP' }), KEY_HINT.touch, 'FLIP 세트의 터치 힌트는 그대로')
   assert.doesNotMatch(KEY_HINT.touchChoice, /↑|뜻 보기/, '이전 4지선다 터치 힌트에 위로 밀기가 없다')
   for (const side of ['front', 'back'] as const) {
-    assert.equal(fixedHint({ ...hintBase, coarse: true, mode: 'CHOICE', side, answered: side === 'back' }), KEY_HINT.touchChoice, `이전 4지선다 터치는 면(${side})과 무관`)
+    // task-070: 안 답한 4지선다 카드는 면과 무관하게 touchChoice, 답한 4지선다 카드는 → 가 다음이므로 touchDone(건너뛰기라고 거짓말하지 않는다)
+    assert.equal(fixedHint({ ...hintBase, coarse: true, mode: 'CHOICE', side }), KEY_HINT.touchChoice, `안 답한 이전 4지선다 터치는 면(${side})과 무관`)
+    assert.equal(fixedHint({ ...hintBase, coarse: true, mode: 'CHOICE', side, answered: true }), KEY_HINT.touchDone, `답한 이전 4지선다 카드(${side}) → 는 다음`)
     assert.equal(fixedHint({ ...hintBase, coarse: false, mode: 'CHOICE', side }), KEY_HINT.choice, '정밀 포인터의 이전 4지선다 키 힌트는 그대로')
   }
 })
@@ -205,12 +209,14 @@ test('fixedHint: 7 갈래(터치·이전 4지선다·답함·뜻 보기 면·보
 // 감사 REV-060-1 L-1: 터치 고정 힌트는 카드 상태마다 맞는 제스처만 말한다 — ↑·→ 가 반응하지 않는 상태에서 거짓 안내를 하지 않는다.
 test('fixedHint 터치 4 갈래: 이전 4지선다 · 답한/지난 카드 · 안 답한 지금 카드의 뒷면 · 앞면', () => {
   const touch = { ...hintBase, coarse: true }
-  assert.equal(fixedHint({ ...touch, mode: 'CHOICE' }), KEY_HINT.touchChoice, '이전 4지선다')
-  // 답한 카드·지난 카드 — 위로 밀기는 무반응(upAction none), 오른쪽 밀기는 [이전] 안내(rightAction hint)
+  assert.equal(fixedHint({ ...touch, mode: 'CHOICE' }), KEY_HINT.touchChoice, '안 답한 이전 4지선다')
+  assert.equal(fixedHint({ ...touch, mode: 'CHOICE', answered: true, side: 'back' }), KEY_HINT.touchDone, '답한 이전 4지선다는 답한 카드 갈래')
+  assert.equal(fixedHint({ ...touch, mode: 'CHOICE', isCurrent: false, answered: true, side: 'back' }), KEY_HINT.touchDone, '지난 이전 4지선다 카드')
+  // 답한 카드·지난 카드 — 위로 밀기는 무반응(upAction none), 오른쪽 밀기는 다음 카드(rightAction next)
   assert.equal(fixedHint({ ...touch, answered: true, side: 'back' }), KEY_HINT.touchDone, '답한 지금 카드')
   assert.equal(fixedHint({ ...touch, isCurrent: false, answered: true, side: 'back' }), KEY_HINT.touchDone, '지난 카드')
   assert.equal(fixedHint({ ...touch, isCurrent: false, side: 'front' }), KEY_HINT.touchDone, '지난 카드는 면과 무관')
-  // 안 답한 지금 카드의 뒷면 — 이미 뜻을 봤으니 ↑ 가 없고, ← 는 답한 뒤에야 다음으로 간다
+  // 안 답한 지금 카드의 뒷면 — 이미 뜻을 봤으니 ↑ 가 없고, → 는 건너뛰기 확인(다음으로는 답한 뒤에야)
   assert.equal(fixedHint({ ...touch, side: 'back' }), KEY_HINT.touchBack, '안 답한 지금 카드 뒷면')
   assert.equal(fixedHint({ ...touch, side: 'back', open: true }), KEY_HINT.touchBack, '뒷면이면 보기 열림 여부와 무관')
   // 앞면 — 지금 문구 그대로
@@ -218,17 +224,23 @@ test('fixedHint 터치 4 갈래: 이전 4지선다 · 답한/지난 카드 · �
   assert.equal(fixedHint({ ...touch, hasChoices: false }), KEY_HINT.touch, '앞면(보기 없음)')
   assert.equal(fixedHint({ ...touch, open: true }), KEY_HINT.touch, '앞면(보기 열림)')
   // 정해진 문구
-  assert.equal(KEY_HINT.touchDone, '← 밀어 다음 · 이전 카드는 [이전]')
-  assert.equal(KEY_HINT.touchBack, '← 밀어 다음(답한 뒤) · → 밀어 건너뛰기')
+  assert.equal(KEY_HINT.touchDone, '← 밀어 이전 · → 밀어 다음')
+  assert.equal(KEY_HINT.touchBack, '← 밀어 이전 · → 밀어 건너뛰기')
   // 뜻이 없는 카드(대체 흐름)의 앞면은 ↑ 가 뜻을 못 연다(upAction → 안내) — 뒷면과 같은 문구(정밀 포인터 갈래가 이미 같은 규칙)
   assert.equal(fixedHint({ ...touch, peekable: false, hasChoices: false }), KEY_HINT.touchBack, '뜻 없는 카드 앞면')
   assert.deepEqual(upAction({ mode: 'FLIP', side: 'front', isCurrent: true, answered: false, busy: false, peekable: false }).kind, 'hint', '근거: 그 카드에서 ↑ 는 뜻을 열지 않는다')
 })
 
-test('터치 힌트 문구: 거짓 안내가 없고 360 폭 한 줄(12px 약 328px)에 들어간다 — 글자 수가 앞면 문구 이하', () => {
-  assert.doesNotMatch(KEY_HINT.touchDone, /↑|→|건너뛰기|뜻 보기|표시/, '답한·지난 카드: ↑ 무반응 · → 는 안내뿐')
-  assert.doesNotMatch(KEY_HINT.touchBack, /↑|뜻 보기|이전|표시/, '뒷면: 이미 뜻을 봤고 → 는 이전이 아니다')
+test('터치 힌트 문구(task-070 지도): ← 는 늘 이전, → 는 푼 카드면 다음·안 푼 카드면 건너뛰기 — 거짓 안내가 없고 360 폭 한 줄에 들어간다', () => {
+  assert.doesNotMatch(KEY_HINT.touchDone, /↑|건너뛰기|뜻 보기|표시/, '답한·지난 카드: ↑ 무반응 · → 는 다음이지 건너뛰기가 아니다')
+  assert.match(KEY_HINT.touchDone, /→ 밀어 다음/, '푼 카드의 오른쪽 밀기는 다음 카드')
+  assert.doesNotMatch(KEY_HINT.touchBack, /↑|뜻 보기|표시|→ 밀어 다음/, '뒷면: 이미 뜻을 봤고 → 는 다음이 아니다')
   assert.match(KEY_HINT.touchBack, /→ 밀어 건너뛰기/, '안 답한 뒷면의 오른쪽 밀기는 건너뛰기 확인')
+  assert.match(KEY_HINT.touchChoice, /→ 밀어 건너뛰기/, '안 답한 이전 4지선다의 오른쪽 밀기도 건너뛰기 확인')
+  for (const [name, text] of Object.entries({ touch: KEY_HINT.touch, touchDone: KEY_HINT.touchDone, touchBack: KEY_HINT.touchBack, touchChoice: KEY_HINT.touchChoice })) {
+    assert.match(text, /← 밀어 이전/, `${name}: 왼쪽 밀기 = 이전 카드`)
+    assert.doesNotMatch(text, /← 밀어 다음|→ 밀어 이전/, `${name}: 옛 지도(왼쪽=다음·오른쪽=이전)가 남지 않는다`)
+  }
   for (const [name, text] of Object.entries({ touchDone: KEY_HINT.touchDone, touchBack: KEY_HINT.touchBack, touchChoice: KEY_HINT.touchChoice })) {
     assert.ok([...text].length <= [...KEY_HINT.touch].length, `${name} ${[...text].length}자 ≤ touch ${[...KEY_HINT.touch].length}자`)
   }
@@ -346,15 +358,34 @@ test('upAction: 지금 카드·안 답함·뜻 있음·앞면이면 뜻 보기, 
 
 const skipBase = { isCurrent: true, answered: false, busy: false }
 
-test('canAskSkip·rightAction: 안 답한 지금 카드만 확인 시트, 답한·지난 카드는 [이전] 안내, 저장 중은 무반응', () => {
+test('canAskSkip: 안 답한 지금 카드만 확인 시트를 열 수 있다', () => {
   assert.equal(canAskSkip(skipBase), true)
   assert.equal(canAskSkip({ ...skipBase, answered: true }), false)
   assert.equal(canAskSkip({ ...skipBase, isCurrent: false }), false)
   assert.equal(canAskSkip({ ...skipBase, busy: true }), false)
-  assert.deepEqual(rightAction(skipBase), { kind: 'ask' })
-  assert.deepEqual(rightAction({ ...skipBase, answered: true }), { kind: 'hint', text: '이전 카드는 아래 [이전] 버튼으로 가요' }, '답한 카드')
-  assert.deepEqual(rightAction({ ...skipBase, isCurrent: false, answered: true }), { kind: 'hint', text: CARD_FIRST.prevByButton }, '지난 카드')
-  assert.deepEqual(rightAction({ ...skipBase, busy: true }), { kind: 'none' }, '저장 중')
+})
+
+test('rightAction(task-070): 푼 카드(지난 카드 포함) = 다음 카드, 안 푼 지금 카드 = 건너뛰기 확인, 저장/넘기는/끝내는 중 = 무반응', () => {
+  assert.deepEqual(rightAction(skipBase), { kind: 'ask' }, '안 푼 지금 카드 — task-060 그대로')
+  assert.deepEqual(rightAction({ ...skipBase, answered: true }), { kind: 'next' }, '푼 지금 카드(마지막이면 deck.next 가 결과로)')
+  assert.deepEqual(rightAction({ ...skipBase, isCurrent: false, answered: true }), { kind: 'next' }, '푼 지난 카드')
+  assert.deepEqual(rightAction({ ...skipBase, busy: true }), { kind: 'none' }, '저장 중 — 안 푼 카드')
+  assert.deepEqual(rightAction({ ...skipBase, busy: true, answered: true }), { kind: 'none' }, '넘기는/끝내는 중 — 푼 카드')
+  assert.deepEqual(rightAction({ ...skipBase, isCurrent: false }), { kind: 'none' }, '안 푼 지난 카드는 있을 수 없는 상태 — 아무것도 하지 않는다')
+  // 어느 경우에도 안내 문구(hint)를 돌려주지 않는다 — 옛 「이전 카드는 아래 [이전] 버튼으로 가요」는 사라졌다
+  for (const isCurrent of [true, false]) for (const answered of [true, false]) for (const busy of [true, false]) {
+    assert.ok(['next', 'ask', 'none'].includes(rightAction({ isCurrent, answered, busy }).kind), `${isCurrent}/${answered}/${busy}`)
+  }
+  assert.equal('prevByButton' in CARD_FIRST, false, '오른쪽 밀기는 더 이상 [이전] 버튼을 안내하지 않는다')
+})
+
+test('canSwipeRight: 오른쪽 저항 = rightAction 이 무반응이 아닐 때만 자유', () => {
+  assert.equal(canSwipeRight(skipBase), true, '건너뛰기 확인을 열 수 있다')
+  assert.equal(canSwipeRight({ ...skipBase, answered: true }), true, '다음 카드로 갈 수 있다')
+  assert.equal(canSwipeRight({ ...skipBase, isCurrent: false, answered: true }), true)
+  assert.equal(canSwipeRight({ ...skipBase, busy: true }), false)
+  assert.equal(canSwipeRight({ ...skipBase, busy: true, answered: true }), false)
+  assert.equal(canSwipeRight({ ...skipBase, isCurrent: false }), false)
 })
 
 test('hangulBlock: 앱 한글 설정 꺼짐과 카드에 한글 표기 없음을 가른다, 불러오는 중·준비됨·설정 로드 전은 막지 않는다', () => {
@@ -367,7 +398,7 @@ test('hangulBlock: 앱 한글 설정 꺼짐과 카드에 한글 표기 없음을
   assert.equal(hangulBlock({ prefsLoaded: false, appHangul: true, layer: 'off' }), null, '설정 로드 전에는 막지 않는다')
 })
 
-test('문구(task-060): 앞면 안내·건너뛰기 확인·[이전] 안내 — 엔진·모델 이름 없음', () => {
+test('문구(task-060): 앞면 안내·건너뛰기 확인 — 엔진·모델 이름 없음', () => {
   // 수정 라운드: 카드 안 안내(「카드를 누르면 객관식으로 골라요」·「탭하면 뜻이 보여요」)와 겹치지 않게 첫 줄은 위로 밀기만 말한다.
   assert.equal(CARD_FIRST.slotHint, '카드를 위로 밀면 뜻이 보여요')
   assert.equal(CARD_FIRST.slotHintNoChoice, '카드를 위로 밀어도 뜻이 보여요')
@@ -379,10 +410,10 @@ test('문구(task-060): 앞면 안내·건너뛰기 확인·[이전] 안내 — 
   assert.equal(CARD_FIRST.skipSheet.confirm, '건너뛰기')
   assert.equal(CARD_FIRST.skipSheet.cancel, '취소')
   assert.equal(CARD_FIRST.hangul.label, '한글')
-  const all = [CARD_FIRST.slotHint, CARD_FIRST.slotHintNoChoice, CARD_FIRST.answerFirst, CARD_FIRST.prevByButton, ...Object.values(CARD_FIRST.skipSheet), ...Object.values(CARD_FIRST.hangul), ...Object.values(KEY_HINT)].join(' ')
+  const all = [CARD_FIRST.slotHint, CARD_FIRST.slotHintNoChoice, CARD_FIRST.answerFirst, ...Object.values(CARD_FIRST.skipSheet), ...Object.values(CARD_FIRST.hangul), ...Object.values(KEY_HINT)].join(' ')
   assert.doesNotMatch(all, /claude|haiku|sonnet|opus|qwen|reazon|whisper|style-bert|엔진|모델/i)
-  assert.doesNotMatch(KEY_HINT.touch, /이전|표시/, '터치 힌트에 옛 의미(→ 이전 · ↑ 표시)가 남지 않는다')
-  assert.doesNotMatch(KEY_HINT.touchChoice, /이전|표시/)
+  assert.doesNotMatch(KEY_HINT.touch, /표시/, '터치 힌트에 옛 의미(↑ 표시)가 남지 않는다')
+  assert.doesNotMatch(KEY_HINT.touchChoice, /표시/)
 })
 
 // 화면 렌더(서버 렌더 한 번) — 앞면 첫 줄은 버튼 없이 52px 자리 + 안내, 뒷면 첫 줄과 같은 높이.
@@ -569,25 +600,25 @@ test('초점 소스 가드: 새 카드로 넘어갈 때 자동 초점은 눈에 
 // 소스 구조(주석을 걷은 코드만 본다 — sourceCode.readCode)
 const code = (f: string) => readCode(join(process.cwd(), 'src/components/vocab', f))
 
-test('구조: 위로 밀기는 실제로 뜻이 열릴 때만 카드가 튄다 · 오른쪽 저항은 건너뛸 수 있는지로', () => {
+test('구조: 위로 밀기는 실제로 뜻이 열릴 때만 카드가 튄다 · 좌우 저항은 갈 수 있는지(canLeft·canRight)로', () => {
   const stack = code('SwipeCardStack.tsx')
   assert.match(stack, /onUp: \(\) => boolean/)
   assert.match(stack, /if \(onUp\(\) && !reducedMotion\) \{\s*setBump\(true\)/)
   assert.equal((stack.match(/setBump\(true\)/g) ?? []).length, 1)
-  assert.match(stack, /resistX\(drag\.x, canGoNext, canSkip\)/)
-  assert.doesNotMatch(stack, /canGoPrev/)
+  assert.match(stack, /resistX\(drag\.x, canLeft, canRight\)/)
+  assert.doesNotMatch(stack, /canGoPrev|canGoNext|canSkip/, '옛 방향 이름(왼쪽=다음·오른쪽=건너뛰기)이 남지 않는다')
   // task-059 규칙 유지
   assert.match(stack, /touchAction: 'none'/)
   assert.match(stack, /classifyGesture\(x - startRef\.current\.x, y - startRef\.current\.y\)/)
 })
 
-test('구조: 덱 배선 — 위 = 뜻 보기(onUp), 오른쪽 = 건너뛰기 확인(onRight), 건너뛰기는 확인 시트에서만, 한글은 [한글] 상태로', () => {
+test('구조: 덱 배선 — 위 = 뜻 보기(onUp), 오른쪽 = onRight(rightAction), 건너뛰기는 확인 시트에서만, 한글은 [한글] 상태로', () => {
   const deck = code('VocabDeck.tsx')
   const stack = deck.slice(deck.indexOf('<SwipeCardStack'), deck.indexOf('renderTop='))
   assert.match(stack, /onUp=\{onUp\}/)
   assert.match(stack, /onRight=\{onRight\}/)
-  assert.match(stack, /canSkip=\{/)
-  assert.doesNotMatch(stack, /toggleFlag|deck\.prev/, '위 = 표시·오른쪽 = 이전 배선이 남지 않는다')
+  assert.match(stack, /canRight=\{/)
+  assert.doesNotMatch(stack, /toggleFlag/, '위 = 표시 배선이 남지 않는다')
   assert.match(deck, /upAction\(/)
   assert.match(deck, /rightAction\(/)
   // 건너뛰기(#50 skipped)는 확인 시트의 확정에서만 부른다
@@ -600,6 +631,78 @@ test('구조: 덱 배선 — 위 = 뜻 보기(onUp), 오른쪽 = 건너뛰기 �
   assert.match(deck, /const faceHangul = \(deck\.showHangul && /, '앞면 한글 줄은 [한글] 상태')
   assert.doesNotMatch(deck, /deck\.showReading && layers/, '[읽기]가 한글을 켜지 않는다')
   assert.match(deck, /sheetOpen: endOpen \|\| skipOpen \|\|/)
+})
+
+// task-070: 좌우 스와이프 지도(왼쪽 = 이전 · 오른쪽 = 푼 카드는 다음/안 푼 카드는 건너뛰기 확인)를 소스 의미로 고정한다.
+// light 트랙은 QA 가 없어 배선(어느 방향이 어느 함수로 가는가)을 시험이 직접 잡아야 한다 — 공백·주석에 둔감한 정규식으로 묶는다.
+const body = (src: string, from: string, to: string): string => {
+  const a = src.indexOf(from)
+  assert.ok(a >= 0, `표지 없음: ${from}`)
+  const b = src.indexOf(to, a + from.length)
+  assert.ok(b > a, `끝 표지 없음: ${to}`)
+  return src.slice(a, b)
+}
+
+test('구조(task-070): 스택 — 왼쪽 판정 → onLeft, 오른쪽 판정 → onRight, 저항은 canLeft·canRight, 날아가기는 FLY_OUT_TRANSFORM(오른쪽)', () => {
+  const stack = code('SwipeCardStack.tsx')
+  assert.match(stack, /g\s*===\s*'left'\s*\)\s*onLeft\(\)/, '왼쪽 판정은 onLeft')
+  assert.match(stack, /g\s*===\s*'right'\s*\)\s*onRight\(\)/, '오른쪽 판정은 onRight')
+  assert.doesNotMatch(stack, /g\s*===\s*'left'\s*\)\s*onRight|g\s*===\s*'right'\s*\)\s*onLeft/, '방향이 뒤바뀌지 않는다')
+  assert.match(stack, /import\s*\{[^}]*\bFLY_OUT_TRANSFORM\b[^}]*\}\s*from\s*'\.\/deck'/)
+  const exit = body(stack, 'if (exiting) {', '} else if (drag.active)')
+  assert.match(exit, /transform\s*=\s*FLY_OUT_TRANSFORM/, '넘어가는 카드는 FLY_OUT_TRANSFORM 으로')
+  assert.doesNotMatch(stack, /translateX\(\s*-/, '왼쪽으로 날아가는 literal 이 남지 않는다')
+  // reduced-motion 은 날아가지 않고 투명도만 — 기존 규칙
+  const reduced = body(exit, 'if (reducedMotion)', 'else {')
+  assert.match(reduced, /transition\s*=\s*'opacity 0\.12s ease'/)
+  assert.doesNotMatch(reduced, /transform\s*=/, 'reduced-motion 은 transform 을 바꾸지 않는다')
+  // 날아가는 동안(exiting)과 잠금(locked)에는 드래그를 시작하지 않는다 — 기존 규칙
+  assert.match(stack, /if\s*\(\s*locked\s*\|\|\s*exiting\s*\)\s*return/)
+})
+
+test('구조(task-070): 덱 — onLeft = deck.prev, onRight = rightAction 결과(next → deck.next · ask → askSkip), 저항 입력은 canPrev·canSwipeRight', () => {
+  const deck = code('VocabDeck.tsx')
+  const stack = deck.slice(deck.indexOf('<SwipeCardStack'), deck.indexOf('renderTop='))
+  assert.match(stack, /onLeft=\{deck\.prev\}/, '왼쪽 = 이전 카드')
+  assert.doesNotMatch(stack, /onLeft=\{deck\.next\}|onLeft=\{onRight\}/)
+  assert.match(stack, /onRight=\{onRight\}/)
+  assert.doesNotMatch(stack, /onRight=\{deck\./, '오른쪽은 rightAction 을 거친다(안 푼 카드에서 바로 다음으로 가지 않게)')
+  assert.match(stack, /canLeft=\{canPrev\(view\)\}/, '왼쪽 저항 = 이전 카드가 있는가')
+  assert.match(stack, /canRight=\{canSwipeRight\(skipCtx\)\}/, '오른쪽 저항 = 다음·건너뛰기 확인을 할 수 있는가')
+  assert.doesNotMatch(deck, /canGoNext|canSkip=/)
+  // 오른쪽으로 날아가는 카드가 `main` 의 가로 스크롤 범위를 만들지 않게 무대가 가로만 자른다
+  const at = deck.indexOf('<SwipeCardStack')
+  assert.match(deck.slice(deck.lastIndexOf('className="', at), at), /\boverflow-x-clip\b/, '카드 무대 = overflow-x-clip')
+  // 오른쪽 밀기·저항의 입력: 지금 카드가 푼 카드인지·지금 카드인지, 저장/넘기는/끝내는 중이면 잠김
+  assert.match(deck, /const skipCtx = \{\s*isCurrent,\s*answered,\s*busy: locked\s*\}/)
+  assert.match(deck, /const locked = deck\.exiting \|\| finishing \|\| !!card\?\.pending/)
+  // 소리는 카드가 바뀌면(왼쪽 밀기의 이전 카드·오른쪽 밀기의 다음 카드 모두) 멈춘다 — 기존 규칙
+  assert.match(deck, /useEffect\(\(\) => \{\s*stopSound\(\)\s*\}, \[view, stopSound\]\)/)
+  const onRight = body(deck, 'const onRight = () => {', '\n  }\n')
+  assert.match(onRight, /rightAction\(skipCtx\)/)
+  assert.match(onRight, /r\.kind\s*===\s*'next'\s*\)\s*deck\.next\(\)/, '푼 카드 → 다음 카드(마지막이면 결과는 deck.next)')
+  assert.match(onRight, /r\.kind\s*===\s*'ask'\s*\)\s*askSkip\(\)/, '안 푼 카드 → 건너뛰기 확인 시트만(기록은 시트에서)')
+  assert.doesNotMatch(onRight, /deck\.skip\(|deck\.prev|showHint/, '오른쪽 밀기가 바로 건너뛰거나 이전으로 가거나 안내를 띄우지 않는다')
+  // 건너뛰기 기록(#50 skipped)은 확인 시트의 확정에서만 — 기존 규칙
+  assert.equal((deck.match(/deck\.skip\(\)/g) ?? []).length, 1)
+  // 키보드·버튼은 그대로: ← = 이전 · → = 다음, [이전] · [다음 카드]
+  assert.match(deck, /case\s*'prev':\s*deck\.prev\(\)/)
+  assert.match(deck, /case\s*'advance':\s*case\s*'next':\s*deck\.next\(\)/)
+  assert.match(deck, /onPrev=\{deck\.prev\}/)
+  assert.match(deck, /onNext=\{deck\.next\}/)
+})
+
+test('구조(task-070): 훅 — prev 는 canPrev 로 첫 카드 안내, next 는 안 푼 카드 막힘 안내 · 마지막 푼 카드 결과 · 날아간 뒤 다음 카드', () => {
+  const hook = code('useVocabDeck.ts')
+  const prev = body(hook, 'const prev = useCallback(() => {', '[goTo, showHint]')
+  assert.match(prev, /if\s*\(\s*!canPrev\(v\)\s*\)\s*\{\s*showHint\(HINT\.firstCard\)\s*return\s*\}/, '첫 카드면 「첫 카드예요」')
+  assert.match(prev, /goTo\(v - 1\)/)
+  const next = body(hook, 'const next = useCallback(() => {', '[doFinish, goTo, mode, reducedMotion, showHint]')
+  assert.match(next, /if\s*\(\s*!isAnswered\(cs\[v\]\)\s*\)\s*\{\s*showHint\(blockedNextHint\(mode, cs\[v\]\)\)\s*return\s*\}/, '안 푼 카드에서 다음은 막힘 안내(키보드 →·[다음 카드])')
+  assert.match(next, /if\s*\(\s*v \+ 1 >= cs\.length\s*\)\s*\{\s*void doFinish\(\)\s*return\s*\}/, '마지막 푼 카드는 결과')
+  assert.match(next, /setExiting\(true\)/)
+  assert.match(next, /goTo\(v \+ 1\)/)
+  assert.match(next, /reducedMotion \? 120 : FLY_MS/, 'reduced-motion 은 기존대로')
 })
 
 test('구조: 앞면 한글 줄은 [읽기]와 무관 — 카드 면은 넘겨받은 한글 상태만 그린다', () => {

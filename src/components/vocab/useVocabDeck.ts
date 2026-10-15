@@ -19,6 +19,7 @@ import { toErr } from '@/components/common/errors'
 import type { AttemptResult, FinishResult, FlagResult, SessionDetail, TopicGeneration, VocabCard, VocabSessionInfo } from '@/types/vocab'
 import {
   canPeek,
+  canPrev,
   cardSide,
   clampResponseMs,
   displayToggleWrites,
@@ -297,7 +298,7 @@ export function useVocabDeck(sessionId: string) {
     }
   }, [base, finish, router, showHint])
 
-  /** 다음 카드(왼쪽 밀기·→·[다음 카드]). 답하기 전이면 막고 안내, 마지막 카드를 답했으면 결과. */
+  /** 다음 카드(푼 카드의 오른쪽 밀기·→·[다음 카드]). 답하기 전이면 막고 안내, 마지막 카드를 답했으면 결과. 카드는 오른쪽으로 날아간다(`FLY_OUT_TRANSFORM`). */
   const next = useCallback(() => {
     if (phaseRef.current !== 'playing' || exitingRef.current) return
     const cs = cardsRef.current
@@ -323,10 +324,11 @@ export function useVocabDeck(sessionId: string) {
     )
   }, [doFinish, goTo, mode, reducedMotion, showHint])
 
+  /** 이전 카드(왼쪽 밀기·←·[이전]). 첫 카드면 안내. */
   const prev = useCallback(() => {
     if (phaseRef.current !== 'playing' || exitingRef.current) return
     const v = viewRef.current
-    if (v <= 0) {
+    if (!canPrev(v)) {
       showHint(HINT.firstCard)
       return
     }

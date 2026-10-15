@@ -7,15 +7,16 @@
  * 3장 스택 transform, 드래그 중 transition 없음, 영역 폭 80%·`touch-action:none`, `touchend` 에서 `preventDefault`
  * (호환 mouse/click 이 **뒤집기 직후 새로 생긴 [알았어요] 버튼**에 떨어지는 유령 클릭을 막는다), 마우스 mouseleave 로 끝냄.
  * 바꾼 것: 위 = 뜻 보기(task-060, 옛 표시 토글 — 카드는 넘어가지 않고, 부모가 실제로 뜻을 열었을 때만 튀었다 돌아옴),
- * 왼쪽 = 다음(부모가 답했는지 판단), 오른쪽 = 건너뛰기 확인(task-060, 옛 이전 — 부모가 확인 시트를 연다),
- * 막힌 방향은 ×0.25 저항, 두 손가락·touchcancel 은 동작 없이 원위치, reduced-motion 은 회전·날아가기 없음.
+ * 왼쪽 = 이전 카드(task-070, 옛 다음 — 첫 카드면 부모가 안내), 오른쪽 = 푼 카드는 다음 카드·안 푼 카드는 건너뛰기 확인(task-070, 옛 건너뛰기 확인만 —
+ * 부모가 `cardFirst.rightAction` 으로 가른다), 막힌 방향은 ×0.25 저항, 다음 카드로 넘어가는 카드는 오른쪽으로 날아간다(`FLY_OUT_TRANSFORM`),
+ * 두 손가락·touchcancel 은 동작 없이 원위치, reduced-motion 은 회전·날아가기 없음.
  * 방향 판정·저항은 `deck.ts` 의 순수 함수(`classifyGesture`·`resistX`)가 한다.
  *
  * 이 영역 안에는 버튼을 두지 않는다 — `touchend preventDefault` 가 영역 안의 click 을 죽인다(§5-0 4).
  * React 의 onTouchStart/Move 는 passive 라 거기서는 preventDefault 하지 않는다(스크롤은 touch-action 이 막는다).
  */
 import { useEffect, useRef, useState } from 'react'
-import { classifyGesture, resistX } from './deck'
+import { classifyGesture, FLY_OUT_TRANSFORM, resistX } from './deck'
 
 const BUMP_MS = 90
 
@@ -23,8 +24,8 @@ export default function SwipeCardStack({
   count,
   view,
   renderTop,
-  canGoNext,
-  canSkip,
+  canLeft,
+  canRight,
   locked,
   exiting,
   reducedMotion,
@@ -36,13 +37,13 @@ export default function SwipeCardStack({
   count: number
   view: number
   renderTop: () => React.ReactNode
-  /** 왼쪽(다음)으로 끌 수 있는가 — 아니면 저항 */
-  canGoNext: boolean
-  /** 오른쪽(건너뛰기 확인)으로 끌 수 있는가 — 아니면 저항 */
-  canSkip: boolean
+  /** 왼쪽(이전 카드)으로 끌 수 있는가 — 첫 카드면 저항 */
+  canLeft: boolean
+  /** 오른쪽(다음 카드·결과 또는 건너뛰기 확인)으로 끌 수 있는가 — 아니면 저항 */
+  canRight: boolean
   /** 넘기는 중·답 응답 대기 중에는 드래그를 시작하지 않는다 */
   locked: boolean
-  /** 부모가 다음 카드로 넘기는 중(카드가 왼쪽으로 날아간다) */
+  /** 부모가 다음 카드로 넘기는 중(카드가 오른쪽으로 날아간다 — 트리거가 제스처·버튼·키 어느 것이든 같다) */
   exiting: boolean
   reducedMotion: boolean
   onTap: () => void
@@ -105,7 +106,7 @@ export default function SwipeCardStack({
     else if (g === 'right') onRight()
   }
 
-  const shownX = resistX(drag.x, canGoNext, canSkip)
+  const shownX = resistX(drag.x, canLeft, canRight)
 
   let transform = 'none'
   let transition = 'transform 0.3s ease, opacity 0.3s ease'
@@ -114,7 +115,7 @@ export default function SwipeCardStack({
     opacity = 0
     if (reducedMotion) transition = 'opacity 0.12s ease'
     else {
-      transform = 'translateX(-120%) rotate(-8deg)'
+      transform = FLY_OUT_TRANSFORM
       transition = 'transform 0.18s ease, opacity 0.18s ease'
     }
   } else if (drag.active) {
