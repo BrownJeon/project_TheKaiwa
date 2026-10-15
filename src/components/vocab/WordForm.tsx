@@ -5,11 +5,14 @@
  * 길이는 코드포인트로 검사하고 `maxLength` 는 쓰지 않는다(IME 조합 중 잘림). 오류는 입력 아래 12px `bad` + `aria-invalid`/`aria-describedby`.
  * 입력 id 는 `${idPrefix}_${field}` — 부모가 첫 오류 필드로 포커스를 옮길 때 쓴다.
  * task-068(§28-4 A): 「수준」 칸을 지우고 조각을 꼭 고른다(`WordChunkPicker`) — 칸 순서 표현·읽기·뜻·품사·조각·분류·[예문·메모].
+ * task-069: `mic` 를 주면 일본어 칸 표현·예문에 「말로 쓰기」가 붙는다(추가 시트만). 안 주면 지금 DOM 그대로 — 수정 시트에는 마이크가 없다.
  */
 import { useLayoutEffect, useRef } from 'react'
 import type { WordField, WordFormValues } from './validate'
 import { POS_OPTIONS } from './labels'
 import WordChunkPicker from './WordChunkPicker'
+import WordMicField from './WordMicField'
+import type { WordMic, WordMicTarget } from './wordMic'
 
 export const INPUT = 'h-11 w-full min-w-0 rounded-xl border bg-surface px-3 text-[16px] text-ink placeholder:text-ink3'
 
@@ -58,6 +61,7 @@ export default function WordForm({
   surfaceNote,
   surfaceNoteId,
   chunkNote,
+  mic,
 }: {
   values: WordFormValues
   errors: Partial<Record<WordField, string>>
@@ -72,6 +76,8 @@ export default function WordForm({
   surfaceNoteId?: string
   /** 조각 칸 아래 선생님 초안 안내(§28-4 D) */
   chunkNote?: string | null
+  /** 말로 쓰기(추가 시트만, task-069) — 표현·예문 칸에만 붙는다. 없으면(수정 시트) 마이크가 없다. */
+  mic?: WordMic
 }) {
   const id = (f: WordField) => `${idPrefix}_${f}`
   const errId = (f: WordField) => `${idPrefix}_${f}_err`
@@ -81,45 +87,68 @@ export default function WordForm({
   const border = (f: WordField) => (errors[f] || noted(f) ? 'border-bad' : 'border-line')
   const listId = `${idPrefix}_categories`
 
-  const text = (f: 'surface' | 'reading' | 'meaning' | 'category', label: string, opts: { ja?: boolean; placeholder?: string; required?: boolean } = {}) => (
+  /** 마이크를 붙이는 칸이면 라벨 줄에 전환 버튼 + 말로 쓰는 동안 입력 칸 자리에 누르고 말하기. 아니면 라벨·입력 그대로. */
+  const withMic = (target: WordMicTarget | undefined, label: React.ReactNode, input: React.ReactNode) =>
+    mic && target ? (
+      <WordMicField mic={mic} target={target} idPrefix={idPrefix} value={values[target]} label={label}>
+        {input}
+      </WordMicField>
+    ) : (
+      <>
+        {label}
+        {input}
+      </>
+    )
+
+  const text = (
+    f: 'surface' | 'reading' | 'meaning' | 'category',
+    label: string,
+    opts: { ja?: boolean; placeholder?: string; required?: boolean; mic?: 'surface' } = {},
+  ) => (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Label htmlFor={id(f)} text={label} required={opts.required} />
-      <input
-        id={id(f)}
-        lang={opts.ja ? 'ja' : undefined}
-        value={values[f]}
-        placeholder={opts.placeholder}
-        aria-required={opts.required || undefined}
-        list={f === 'category' ? listId : undefined}
-        autoComplete="off"
-        onChange={(e) => onChange(f, e.target.value)}
-        {...invalid(f)}
-        className={`${INPUT} ${border(f)}`}
-      />
+      {withMic(
+        opts.mic,
+        <Label htmlFor={id(f)} text={label} required={opts.required} />,
+        <input
+          id={id(f)}
+          lang={opts.ja ? 'ja' : undefined}
+          value={values[f]}
+          placeholder={opts.placeholder}
+          aria-required={opts.required || undefined}
+          list={f === 'category' ? listId : undefined}
+          autoComplete="off"
+          onChange={(e) => onChange(f, e.target.value)}
+          {...invalid(f)}
+          className={`${INPUT} ${border(f)}`}
+        />,
+      )}
       <ErrorLine id={errId(f)} text={errors[f]} />
       {f === 'surface' ? surfaceNote : null}
     </div>
   )
 
-  const area = (f: 'example' | 'exampleKo' | 'note', label: string, opts: { ja?: boolean; placeholder?: string } = {}) => (
+  const area = (f: 'example' | 'exampleKo' | 'note', label: string, opts: { ja?: boolean; placeholder?: string; mic?: 'example' } = {}) => (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Label htmlFor={id(f)} text={label} />
-      <AutoTextarea
-        id={id(f)}
-        lang={opts.ja ? 'ja' : undefined}
-        value={values[f]}
-        placeholder={opts.placeholder}
-        onChange={(e) => onChange(f, e.target.value)}
-        {...invalid(f)}
-        className={`w-full min-w-0 resize-none rounded-xl border bg-surface px-3 py-2.5 text-[16px] leading-normal text-ink placeholder:text-ink3 ${border(f)}`}
-      />
+      {withMic(
+        opts.mic,
+        <Label htmlFor={id(f)} text={label} />,
+        <AutoTextarea
+          id={id(f)}
+          lang={opts.ja ? 'ja' : undefined}
+          value={values[f]}
+          placeholder={opts.placeholder}
+          onChange={(e) => onChange(f, e.target.value)}
+          {...invalid(f)}
+          className={`w-full min-w-0 resize-none rounded-xl border bg-surface px-3 py-2.5 text-[16px] leading-normal text-ink placeholder:text-ink3 ${border(f)}`}
+        />,
+      )}
       <ErrorLine id={errId(f)} text={errors[f]} />
     </div>
   )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {text('surface', '표현', { ja: true, required: true })}
+      {text('surface', '표현', { ja: true, required: true, mic: 'surface' })}
       {text('reading', '읽기', { ja: true, placeholder: '히라가나 (선택)' })}
       {text('meaning', '뜻', { placeholder: '한국어 뜻 (예: 영화)', required: true })}
       <div className="flex min-w-0 flex-col gap-1.5">
@@ -159,7 +188,7 @@ export default function WordForm({
       {/* 접힌 동안은 그리지 않는다 — 숨긴 textarea 는 높이를 잴 수 없어 펼쳤을 때 2px 로 남는다. 값은 폼 상태에 그대로 있다. */}
       {expandExtras ? (
         <div id={`${idPrefix}_extras`} className="flex min-w-0 flex-col gap-3">
-          {area('example', '예문', { ja: true })}
+          {area('example', '예문', { ja: true, mic: 'example' })}
           {area('exampleKo', '예문 뜻')}
           {area('note', '메모', { placeholder: '외우는 요령 등 (선택)' })}
         </div>

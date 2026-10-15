@@ -299,6 +299,20 @@ export const BASE_DUPLICATE_TEXT = '기본 단어에 이미 있어요'
 export const BASE_DUPLICATE_HINT = '기본 단어는 모두 단어장에 들어 있어요. 같은 표기 · 읽기는 내 단어로 다시 넣지 않아요.'
 export const OPEN_EXISTING_WORD = '그 단어 보기'
 
+/**
+ * 단어 추가 시트의 말로 쓰기(task-069) — 수업 ④ 「말로 쓰기」와 같은 말투. 인식기가 일본어 고정이라 표현·예문 칸에만 붙는다.
+ */
+export const WORD_MIC_COPY = {
+  byVoice: '말로 쓰기',
+  byText: '글자로 쓰기',
+  field: { surface: '표현', example: '예문' },
+  voiceBox: '여기에 알아들은 말이 나와요',
+  hint: {
+    surface: '일본어로 말하면 표현이 바뀌어요. 칸에 들어간 뒤 고칠 수 있어요.',
+    example: '일본어로 말하면 예문 끝에 이어 붙어요. 칸에 들어간 뒤 고칠 수 있어요.',
+  },
+} as const
+
 /** [뜻 채우기] 오류(ⓑ). 409 는 화면이 [그 단어 보기]로 따로 그린다. */
 export function enrichErrorText(e: ErrorLike, retryAfterSec?: number | null): string {
   switch (e.status) {

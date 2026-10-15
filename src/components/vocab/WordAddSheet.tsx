@@ -10,6 +10,8 @@
  * - task-068: 조각을 꼭 고른다(`WordForm` 의 조각 칸). 선생님 초안이 조각을 고르면 안내를 붙이고, 사용자가 바꾸면 안내를 지운다.
  *   빈 검색 결과의 [‘q’ 추가하기]는 고른 조각을 미리 고른다(`presetChunk`, J6). 맨 아래 기본 단어 넣기 줄은 없다(§28-6 A ③).
  * - 오류 문구는 `labels.ts` 표(서버 문구는 400 만) — 뜻 채우기 실패 문구에 엔진 용어가 새지 않게.
+ * - task-069: 표현(1단계·폼 단계)·예문 칸에 「말로 쓰기」(`useWordMic` — 점검 용도라 원음 저장 없음). 알아들은 말은 칸에 채우기만 하고
+ *   자동 저장·자동 [뜻 채우기]는 하지 않는다. 단계가 바뀌거나 칸이 사라지면(뜻 채우기 시작·직접 입력·예문 접기·오류 포커스) 말로 쓰기를 닫는다.
  */
 import { useEffect, useRef, useState } from 'react'
 import { apiPost, isAbort } from '@/components/common/api'
@@ -34,7 +36,10 @@ import {
   type WordField,
   type WordFormValues,
 } from './validate'
+import { applyMicToForm } from './wordMic'
 import WordForm, { INPUT } from './WordForm'
+import WordMicField from './WordMicField'
+import { useWordMic } from './useWordMic'
 
 type Step = 'surface' | 'enriching' | 'form'
 
@@ -130,8 +135,21 @@ export default function WordAddSheet({
     if (k === 'chunkType') setChunkNote(null)
   }
 
+  // 알아들은 말은 칸에 채우기만 한다 — 저장·[뜻 채우기]는 사용자가 확인한 뒤 기존 버튼으로. 한도를 넘으면 자르지 않고 기존 검증 문구를 바로 보인다.
+  const mic = useWordMic({
+    onResult: (target, text) => {
+      const r = applyMicToForm(form, target, text)
+      if (r === null) return
+      set(target, r.value)
+      const over = r.error
+      if (over) setErrors((e) => ({ ...e, [target]: over }))
+    },
+  })
+
   const focusField = (f: WordField) => {
     if (EXTRA_FIELDS.includes(f)) setExtras(true)
+    // 말로 쓰는 칸은 입력 칸이 없다 — 글자로 돌려야 포커스가 간다.
+    if (f === 'surface' || f === 'example') mic.close(f)
     setTimeout(() => document.getElementById(`${ID}_${f}`)?.focus(), 0)
   }
 
@@ -141,10 +159,11 @@ export default function WordAddSheet({
     const bad = validateSurface(surface)
     if (bad) {
       setErrors({ surface: bad })
-      if (step === 'surface') surfaceRef.current?.focus()
-      else focusField('surface')
+      // 말로 쓰는 중이면 입력 칸이 DOM 에 없다 — 글자로 돌린 다음 그려진 칸으로 포커스(두 단계 공통).
+      focusField('surface')
       return
     }
+    mic.close()
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -209,6 +228,7 @@ export default function WordAddSheet({
       focusField(first)
       return
     }
+    mic.close()
     setSubmitting(true)
     setFormError(null)
     try {
@@ -281,22 +301,31 @@ export default function WordAddSheet({
         }}
       >
         <div className="flex min-w-0 flex-col gap-1.5">
-          <label htmlFor={`${ID}_surface`} className="text-[12.5px] font-medium text-ink2">
-            표현
-          </label>
-          <input
-            id={`${ID}_surface`}
-            ref={surfaceRef}
-            lang="ja"
+          <WordMicField
+            mic={mic}
+            target="surface"
+            idPrefix={ID}
             value={form.surface}
-            autoComplete="off"
-            enterKeyHint="go"
-            placeholder="예: 映画, 食べる, よろしくお願いします"
-            onChange={(e) => set('surface', e.target.value)}
-            aria-invalid={surfaceInvalid || undefined}
-            aria-describedby={surfaceInvalid ? `${ID}_surface_err` : undefined}
-            className={`${INPUT} ${surfaceInvalid ? 'border-bad' : 'border-line'}`}
-          />
+            label={
+              <label htmlFor={`${ID}_surface`} className="text-[12.5px] font-medium text-ink2">
+                표현
+              </label>
+            }
+          >
+            <input
+              id={`${ID}_surface`}
+              ref={surfaceRef}
+              lang="ja"
+              value={form.surface}
+              autoComplete="off"
+              enterKeyHint="go"
+              placeholder="예: 映画, 食べる, よろしくお願いします"
+              onChange={(e) => set('surface', e.target.value)}
+              aria-invalid={surfaceInvalid || undefined}
+              aria-describedby={surfaceInvalid ? `${ID}_surface_err` : undefined}
+              className={`${INPUT} ${surfaceInvalid ? 'border-bad' : 'border-line'}`}
+            />
+          </WordMicField>
           {dup ? (
             <WordDuplicateNote id={`${ID}_surface_err`} dup={dup} onOpenWord={onOpenWord} />
           ) : surfaceError ? (
@@ -329,6 +358,7 @@ export default function WordAddSheet({
           variant="ghost"
           className="w-full"
           onClick={() => {
+            mic.close()
             setFromDraft(false)
             setDraftEmpty(false)
             setChunkNote(null)
@@ -368,11 +398,15 @@ export default function WordAddSheet({
           onChange={set}
           categories={categories}
           expandExtras={extras}
-          onToggleExtras={() => setExtras((x) => !x)}
+          onToggleExtras={() => {
+            mic.close('example')
+            setExtras((x) => !x)
+          }}
           idPrefix={ID}
           surfaceNote={dup ? <WordDuplicateNote id={`${ID}_dup`} dup={dup} onOpenWord={onOpenWord} /> : null}
           surfaceNoteId={dup ? `${ID}_dup` : undefined}
           chunkNote={chunkNote}
+          mic={mic}
         />
         {formError ? (
           <p role="alert" className="text-[13px] text-bad break-keep">
