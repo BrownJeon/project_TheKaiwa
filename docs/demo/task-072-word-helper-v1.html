@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-072-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="단어 추가 시트 일본어 도우미 — 표현 칸 라벨 줄의 둥근 가あ 버튼, 한국어 글자로 물어보면 일본어 후보를 보여 주고 [표현 칸에 넣기](full 데모 v1, 결정 D1~D9, 합성 샘플 데이터)">
+<title>단어 추가 일본어 도우미</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 결정 표·결정 필요(D1~D9) → 왼쪽 상태 목록 · 가운데 휴대폰 · 오른쪽 설명·실측 → 라벨 줄 세 폭 → 알려진 한계·질문 → 개발 메모 */
+/* 색·반경 값은 src/app/globals.css 를 그대로 고정(링크하지 않음, 회화방 도우미 데모와 같은 값). 새 색 없음 — 키보드 모형 바탕만 데모 틀 색(color-mix) */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dlay { display: grid; grid-template-columns: 230px minmax(0, 1fr) 330px; gap: 18px; padding: 4px 16px 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.nvb { display: block; width: 100%; min-height: 36px; padding: 7px 8px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 12.5px; color: var(--ink2); }
+.nvb:hover { background: var(--surface2); color: var(--ink); }
+.nvb[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; min-height: 34px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 0 4px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; word-break: keep-all; overflow-wrap: anywhere; }
+.dmeas { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 3px; word-break: keep-all; }
+.dmeas b { color: var(--ink); }
+.dmeas .ok { color: var(--good); font-weight: 700; }
+.dmeas .ng { color: var(--bad); font-weight: 700; }
+.dtoast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 90; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 13px; }
+.dpanel { margin: 12px 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 96ch; word-break: keep-all; }
+.dqs { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+fieldset.dq { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+fieldset.dq legend { padding: 0 4px; font-size: 14px; font-weight: 700; }
+fieldset.dq legend .dn2 { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-right: 6px; color: var(--ink2); }
+.dq .dqn { font-size: 12px; color: var(--ink2); word-break: keep-all; }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; word-break: keep-all; }
+.rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.dsg { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--warn-soft); color: var(--ink); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.drow { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink2); }
+.dbtn { height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dtw { overflow-x: auto; margin-top: 10px; }
+.dtbl { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 7px 6px; border-top: 1px solid var(--line); word-break: keep-all; overflow-wrap: anywhere; }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtbl td.k { white-space: nowrap; font-weight: 700; }
+.dlist { margin-top: 10px; list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; word-break: keep-all; overflow-wrap: anywhere; }
+.dlist b { color: var(--ink); }
+details.dev { margin: 0 16px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 16px; }
+details.dev > summary { min-height: 48px; display: flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer; }
+details.dev[open] { padding-bottom: 16px; }
+.lrw { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 16px; overflow-x: auto; padding-bottom: 4px; }
+.lrcol { flex: none; display: flex; flex-direction: column; gap: 10px; }
+.lrcol > h3 { font-size: 13px; font-weight: 700; }
+.lrbox { background: var(--surface); box-shadow: 0 0 0 1px var(--line); border-radius: 10px; padding: 6px 0; }
+.lrcap { font-size: 11.5px; color: var(--ink2); font-variant-numeric: tabular-nums; max-width: 380px; word-break: keep-all; }
+.lrcap .ok { color: var(--good); font-weight: 700; } .lrcap .ng { color: var(--bad); font-weight: 700; }
+.big .lbl { font-size: 16.25px; } .big .mtg { font-size: 16.9px; } .big .hbB .hgl { font-size: 18.2px; }
+@media (max-width: 1320px) { .dlay { grid-template-columns: 210px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 16px 12px; }
+  .dnav { position: static; max-height: none; }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+body.mark .dnew { outline: 2px dashed var(--accent); outline-offset: 2px; }
+body.mark .whp.dnew { outline-offset: -2px; }
+
+/* ── 휴대폰 프레임 ── */
+.phone { position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; left: 0; right: 0; top: 0; bottom: var(--kbh, 0px); overflow: hidden; background: var(--ground); }
+.kbm { position: absolute; left: 0; right: 0; bottom: 0; height: var(--kbh, 0px); display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 14%, var(--ground)); color: var(--ink2); font-size: 12px; border-top: 1px solid var(--line); }
+/* 뒤의 단어장(흐린 배경 — 조작 없음) */
+.pg { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.ab { height: 56px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.ab b { font-size: 18px; flex: 1; }
+.ab span { font-size: 13px; font-weight: 600; color: var(--accent); }
+.pgl { flex: 1; min-height: 0; padding: 8px 16px; display: flex; flex-direction: column; gap: 8px; }
+.pgr { height: 56px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; padding: 0 14px; font-size: 16px; }
+.tabs { height: 60px; flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-top: 1px solid var(--line); font-size: 11px; color: var(--ink2); }
+.tabs span { display: grid; place-items: center; }
+.scrim { position: absolute; inset: 0; z-index: 20; background: color-mix(in srgb, var(--ink) 40%, transparent); }
+/* 공용 Sheet (src/components/common/Sheet.tsx 값) */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 85%; display: flex; flex-direction: column; min-width: 0; border-radius: 16px 16px 0 0; background: var(--surface); box-shadow: 0 -8px 24px rgba(0,0,0,.18); }
+.sheet.sub { z-index: 31; max-height: 72%; }
+.scrim.s2 { z-index: 30; }
+.sh-h { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 0 4px 0 16px; }
+.sh-h h2 { min-width: 0; flex: 1; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-b { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 16px; }
+.icb44 { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink2); }
+/* 단어 추가 1단계 */
+.col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fld { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.lbl { font-size: 12.5px; font-weight: 500; color: var(--ink2); white-space: nowrap; }
+.lr-r { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; }
+.mtg { display: inline-flex; height: 44px; flex: none; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 500; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; white-space: nowrap; }
+.inp { display: block; height: 44px; width: 100%; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 16px; color: var(--ink); }
+.inp::placeholder { color: var(--ink3); }
+.inp.bad { border-color: var(--bad); }
+.fx { outline: 2px solid var(--accent); outline-offset: -1px; }
+.err { font-size: 12px; color: var(--bad); word-break: keep-all; }
+.rsn { margin-top: 2px; font-size: 13px; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.cap { font-size: 12px; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.d13 { font-size: 13px; color: var(--ink2); word-break: keep-all; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: 15px; font-weight: 600; white-space: nowrap; min-width: 0; color: var(--ink); }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.btn.h44 { height: 44px; font-size: 14px; padding: 0 12px; }
+.btn[aria-disabled="true"] { opacity: .4; }
+.mt4 { margin-top: 4px; }
+.note { border-radius: 12px; background: var(--accent-soft); padding: 10px; font-size: 13px; color: var(--ink); word-break: keep-all; }
+.brow { display: flex; gap: 8px; margin-top: 4px; } .brow > * { flex: 1; min-width: 0; }
+/* 말로 쓰기(task-069) */
+.mica { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.mbox { width: 100%; min-width: 0; min-height: 64px; border-radius: 12px; border: 1px dashed var(--line); padding: 10px 12px; }
+.mval { font-size: 17px; overflow-wrap: anywhere; }
+.ptt { position: relative; width: 72px; height: 72px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.vst { display: flex; height: 24px; align-items: center; justify-content: center; font-size: 13px; color: var(--ink2); }
+/* ★ 가あ 도우미 버튼 — 회화방 PhraseHelperButton 그대로 */
+.hgl { font-weight: 700; letter-spacing: -.5px; line-height: 1; white-space: nowrap; }
+.hgl .ja { color: var(--accent); }
+.hbB { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: grid; place-items: center; padding: 0; }
+.hbB .hgl { font-size: 14px; }
+.hbB.on { background: var(--accent-soft); border-color: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* D1 B — 입력 아래 줄 */
+.hrow { display: flex; align-items: center; gap: 10px; height: 44px; width: 100%; min-width: 0; border: 0; background: none; padding: 0; text-align: left; font-size: 13px; font-weight: 500; color: var(--ink); }
+.hrow .ic { width: 32px; height: 32px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
+.hrow .ic .hgl { font-size: 12px; }
+.hrow.on .ic { background: var(--accent-soft); border-color: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.hrow .t { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hrow .c { flex: none; color: var(--ink3); }
+/* ★ 처음 한 번 안내 — D6′ A 시트 안 줄(끼워 넣음) / C 떠 있는 말풍선 */
+.itip { position: relative; align-self: flex-end; width: min(100%, 236px); margin-top: 6px; display: flex; align-items: flex-start; gap: 2px; border-radius: 10px; background: var(--ink); color: var(--surface); padding: 8px 2px 8px 12px; font-size: 12.5px; line-height: 1.45; word-break: keep-all; }
+.itip::before { content: ""; position: absolute; right: 15px; bottom: 100%; border: 7px solid transparent; border-bottom-color: var(--ink); }
+.itip.l { align-self: flex-start; }
+.itip.l::before { right: auto; left: 9px; }
+.itip.f { position: absolute; right: 0; top: 52px; z-index: 5; margin: 0; box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.itip p { flex: 1; min-width: 0; }
+.tip-x { position: relative; width: 28px; height: 28px; flex: none; display: grid; place-items: center; border: 0; background: none; color: var(--surface); border-radius: 50%; }
+.tip-x::before { content: ""; position: absolute; inset: -8px; }
+/* ★ 도우미 패널(시트 안 인라인) */
+.whp { border-radius: 14px; background: var(--surface2); padding: 4px 12px 12px; min-width: 0; }
+.sub .whp { background: none; padding: 0; }
+.whp-h { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-right: -8px; min-width: 0; }
+.whp-ht { min-width: 0; flex: 1; }
+.whp-ht h3 { font-size: 14px; font-weight: 600; line-height: 18px; }
+.whp-ht p { font-size: 12px; line-height: 16px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.whp-f { display: flex; gap: 8px; align-items: center; min-width: 0; margin-top: 2px; }
+.hp-in { display: block; min-width: 0; flex: 1; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 16px; color: var(--ink); }
+.hp-in::placeholder { color: var(--ink3); }
+.hp-in:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.hp-ask { flex: none; height: 44px; min-width: 44px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); padding: 0 14px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.hp-ask[aria-disabled="true"] { opacity: .4; }
+.hp-msg { font-size: 12px; margin-top: 4px; color: var(--ink2); word-break: keep-all; }
+.hp-msg:empty { display: none; }
+.hp-msg.bad { color: var(--bad); }
+.hp-msg.cnt { text-align: right; }
+.whp-b { margin-top: 10px; min-width: 0; }
+.hp-lead { font-size: 12px; color: var(--ink2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-width: 0; }
+.chip { position: relative; height: 36px; max-width: 100%; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13px; color: var(--ink); white-space: nowrap; }
+.chip::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+.skl { display: flex; flex-direction: column; gap: 8px; }
+.skl span { display: block; height: 104px; border-radius: 14px; background: var(--surface); }
+.ldrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; margin-top: 2px; }
+.tbtn { display: inline-flex; height: 44px; flex: none; align-items: center; border: 0; background: none; padding: 0 4px; font-size: 13px; font-weight: 600; color: var(--accent); }
+.hcl { display: flex; flex-direction: column; gap: 8px; }
+.hc { display: flex; gap: 2px; min-width: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 10px 4px 12px 12px; }
+.hc-m { min-width: 0; flex: 1; }
+.jw { font-size: 20px; line-height: 1.6; font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.jw.fu { line-height: 2.1; }
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: 11px; line-height: 1; color: var(--ink2); font-weight: 400; letter-spacing: 0; -webkit-user-select: none; user-select: none; }
+.hg { display: block; margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--ink2); overflow-wrap: anywhere; }
+.hg .br { color: var(--ink3); }
+.hc-ko { margin-top: 2px; font-size: 13px; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.why { margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--line); font-size: 13px; line-height: 1.5; color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
+.bdg { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: var(--surface2); color: var(--ink2); }
+.hc-fill { margin-top: 8px; }
+.hc-play { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ink); }
+.hc-play.on { background: var(--accent); color: var(--on-accent); }
+.hp-more { display: flex; width: 100%; min-width: 0; height: 44px; align-items: center; gap: 8px; margin: 4px 0; border: 0; border-radius: 10px; background: none; padding: 0 4px; text-align: left; }
+.hp-more .l { flex: none; font-size: 13px; font-weight: 600; color: var(--ink); }
+.hp-more .s { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ink2); }
+.hp-more .c { flex: none; font-size: 13px; color: var(--ink2); }
+.fbox { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border-radius: 12px; background: var(--surface); padding: 10px 12px; }
+.fbox .t { font-size: 13px; color: var(--ink); word-break: keep-all; }
+.fbox .t.bad { color: var(--bad); }
+/* 뜻 찾는 중(기존) */
+.enr-ja { font-size: 20px; font-weight: 600; overflow-wrap: anywhere; }
+.enr { display: flex; align-items: center; gap: 8px; border-radius: 14px; background: var(--surface2); padding: 14px; font-size: 14px; }
+.dots { display: inline-flex; gap: 4px; } .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink2); }
+.ckr { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+.ck { position: relative; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13px; }
+.ck::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+.ck.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.sel2 { height: 44px; width: 100%; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 10px; font-size: 16px; }
+</style>
+</head>
+<body class="mark">
+<header class="dtop">
+  <h1>단어 추가 일본어 도우미 <span class="lvl">full</span><small>task-072 v1 · 단어장 → [＋ 추가] 시트 · 합성 샘플 데이터 · 서버 호출 없음</small></h1>
+  <div class="dctls" role="group" aria-label="데모 조작">
+    <div class="dctl"><span>보기</span><span class="dseg" data-ctl="view"><button type="button" data-v="one">하나</button><button type="button" data-v="three">세 폭</button><button type="button" data-v="cmp">현재 vs 제안</button></span></div>
+    <div class="dctl"><span>폭</span><span class="dseg" data-ctl="w"><button type="button" data-v="360">360</button><button type="button" data-v="390">390</button><button type="button" data-v="412">412</button></span></div>
+    <div class="dctl"><span>높이</span><span class="dseg" data-ctl="h"><button type="button" data-v="780">780</button><button type="button" data-v="892">892</button></span></div>
+    <div class="dctl"><span>테마</span><span class="dseg" data-ctl="theme"><button type="button" data-v="system">기기</button><button type="button" data-v="light">라이트</button><button type="button" data-v="dark">다크</button></span></div>
+    <div class="dctl"><span>표시</span><span class="dseg" data-ctl="disp"><button type="button" data-v="fu">히라가나</button><button type="button" data-v="hg">한글</button></span></div>
+    <div class="dctl"><span>키보드</span><span class="dseg" data-ctl="kb"><button type="button" data-v="auto">상태대로</button><button type="button" data-v="off">끔</button></span></div>
+    <div class="dctl"><span>새 요소 점선</span><span class="dseg" data-ctl="mark"><button type="button" data-v="on">켬</button><button type="button" data-v="off">끔</button></span></div>
+  </div>
+</header>
+
+<section class="dpanel" id="decide" aria-labelledby="decide-h">
+  <h2 id="decide-h">결정 필요 — D1~D9 (★ = 권고, 기본으로 그림)</h2>
+  <p class="dsub">사용자 요청 「업로드한 사진의 표시한 영역에서의 회화 메뉴의 방식과 같이 일본어 도우미를 추가해줘.」 → 회화방 입력 줄의 둥근 「가あ」 도우미(task-056, 승인 데모)를 단어 추가 시트의 <b>표현 칸</b>에 붙인다. 아래 표가 요약이고, 그 아래 선택지를 바꾸면 휴대폰 화면이 바로 바뀐다. <b>D1′·D6′ 은 designer 가 더한 하위 결정</b>, ★ 를 이력서 권고에서 바꾼 곳은 없다(D6′·D1′ 은 새로 정한 ★).</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="결정 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">#</th><th scope="col">결정</th><th scope="col">★ 권고</th><th scope="col">대안</th><th scope="col">근거</th></tr></thead>
+      <tbody>
+        <tr><td class="k">D1</td><td>버튼 위치·모양</td><td>표현 라벨 줄 오른쪽 끝, 「말로 쓰기」 옆 둥근 「가あ」 44px(회화방과 같은 아이콘·같은 모양)</td><td>입력 칸 아래 44px 줄 「가あ 모르는 말은 한국어로 찾기 ›」</td><td>같은 기능은 같은 모양 — 회화방에서 이미 익힌 버튼. 360px 라벨 줄에 여유 약 190px(아래 「라벨 줄 세 폭」 실측). 줄을 더하면 키보드 위 공간이 44px 줄어든다.</td></tr>
+        <tr><td class="k">D1′</td><td>보이는 단계 <span class="dsg">designer 추가</span></td><td>표현 1단계에만(뜻 채우기 전)</td><td>폼 단계(직접 입력·초안 뒤)에도</td><td>초안 뒤 표현을 바꾸면 이미 채운 읽기·뜻이 어긋난다. 폼(WordForm)은 수정 시트와 공용이라 건드릴 곳이 늘어난다. 「직접 입력하기」로 간 사람은 표현을 이미 안다.</td></tr>
+        <tr><td class="k">D2</td><td>판 형태</td><td>시트 안 인라인 패널 — 표현 칸 아래, [뜻 채우기] 위로 펼침</td><td>시트 위에 하위 시트</td><td>시트 위 시트는 포커스 가두기·스크롤·닫기가 두 겹(공용 Sheet 의 Tab 누출은 기존 문제). 인라인은 결과가 표현 칸 바로 아래라 넣은 뒤 눈 이동이 짧다.</td></tr>
+        <tr><td class="k">D3</td><td>질의 입력</td><td>한국어 글자만(한글 1자 이상·100자), placeholder 「예: 임팩트, 어색하다」</td><td>— (한국어 음성은 범위 밖)</td><td>인식기가 일본어 전용. 한글이 없으면 화면이 먼저 막고 「한국어로 써 주세요. 일본어는 위 표현 칸에 바로 적으면 돼요.」(서버 문구 비노출).</td></tr>
+        <tr><td class="k">D4</td><td>결과 카드</td><td>일본어 20px(루비·한글 줄은 표시 설정) + 한국어 뜻 + ▶ + [표현 칸에 넣기] · 첫 카드만 + [다른 후보 n개 더 보기] · 「왜 자연스러운지」 줄 숨김</td><td>후보 3개 모두 펼침 / 「왜」 줄 보임</td><td>키보드 위 시트 본문은 360×780 에서 약 356px. 단어 하나에는 말투 설명이 필요 없다 — 뜻 줄과 꼬리표가 차이를 말한다.</td></tr>
+        <tr><td class="k">D5</td><td>[표현 칸에 넣기]</td><td>표현 칸을 바꿔 넣고 패널 닫기 → 표현 칸 초점. [뜻 채우기]는 사용자가 누름</td><td>[넣고 뜻 채우기] 한 번에</td><td>AI 는 제안만 — 표기를 확인한 뒤 사용자가 뜻 채우기를 부른다(잘못 고른 후보로 AI 호출이 바로 나가지 않음).</td></tr>
+        <tr><td class="k">D6</td><td>처음 안내 플래그</td><td>회화방과 같은 <code>kaiwa.talk.helperTipSeen</code> 공유 + 단어 추가용 문구 「한국어로 물어보면 일본어 표현을 알려 줘요」</td><td>별도 플래그(단어 시트에서 한 번 더)</td><td>같은 버튼·같은 뜻 — 이미 본 사람에게 또 띄우지 않는다. 대신 회화방에서 본 사람은 단어 시트 안내를 못 본다(질문 Q3).</td></tr>
+        <tr><td class="k">D6′</td><td>안내 모양 <span class="dsg">designer 추가</span></td><td>시트 안 줄 안내 — 라벨 줄 아래 끼워 넣고 꼬리가 버튼을 가리킴</td><td>회화방처럼 떠 있는 말풍선</td><td>버튼이 시트 맨 위라 떠 있는 말풍선은 위로는 시트 머리(✕)를, 아래로는 표현 입력 칸(초점·키보드 중)을 가린다.</td></tr>
+        <tr><td class="k">D7</td><td>상태 화면</td><td>대기·입력·찾는 중(5초 문구·[그만두기])·결과·빈 결과·429·409 <code>PHRASE_BUSY</code> 전용 문구·오프라인(시트의 기존 연결 문구)·시간 초과(12초)</td><td><code>PHRASE_BUSY</code> 를 일반 오류로(회화방과 같음)</td><td>한도·동시 1건을 회화방 도우미와 공유(L3)해서 단어 시트에서도 나온다. 「다시 시도」만 보이면 이유를 모른다.</td></tr>
+        <tr><td class="k">D8</td><td>말로 쓰기·뜻 채우기와 공존</td><td>서로 닫기 — 도우미 열면 말로 쓰기 닫힘 / 말로 쓰기 열면 도우미 닫힘(답 기억) / [뜻 채우기]·[직접 입력하기] 누르면 도우미 닫힘 + 기다리는 요청 취소</td><td>함께 열림</td><td>둘 다 표현 칸을 채우는 도구 — 함께 열리면 72px 마이크 + 패널로 시트가 길어지고 누가 칸을 바꾸는지 헷갈린다. 요청 취소는 AI 호출 줄(한 줄로 차례)에서 뜻 채우기가 밀리지 않게.</td></tr>
+        <tr><td class="k">D9</td><td>표시 설정</td><td>앱 표시 설정(히라가나 루비·한글 줄, task-071 포함)을 따름, 한국어 뜻은 늘 보임</td><td>읽기(루비·한글) 늘 보임</td><td>회화방 도우미와 같은 규칙. 읽기는 다음 단계([뜻 채우기]) 읽기 칸에서 확인된다. 가타카나에는 루비가 없다(앱 규칙 — 한자 위에만).</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="dqs" id="dqs"></div>
+  <div class="drow"><button type="button" class="dbtn" id="d-reset">모두 ★ 로</button><span id="d-sum" aria-live="polite"></span></div>
+</section>
+
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="상태 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside">
+    <section class="dcard" aria-labelledby="exp-h"><h2 id="exp-h">이 상태</h2><div id="exp"></div></section>
+    <section class="dcard" aria-labelledby="meas-h"><h2 id="meas-h">실측(이 화면)</h2><div class="dmeas" id="meas"></div></section>
+    <section class="dcard" aria-labelledby="try-h"><h2 id="try-h">직접 해 보기</h2>
+      <ul class="dn"><li>휴대폰 안 버튼은 눌러진다 — 「가あ」 → 칩 「임팩트」 → [표현 칸에 넣기] → [뜻 채우기].</li><li>패널 입력칸에 직접 써도 된다: 「임팩트」「어색」「귀찮」 → 후보, 한글 없음 → 안내, 그 밖 → 못 찾음.</li><li>찾는 중은 약 0.9초 뒤 「조금만 기다려 주세요」, 1.8초 뒤 결과(실제 5초·12초를 줄인 모형).</li></ul>
+    </section>
+  </aside>
+</div>
+
+<section class="dpanel" id="lrows" aria-labelledby="lr-h">
+  <h2 id="lr-h">라벨 줄 세 폭 — 「표현」 · 「말로 쓰기」 · 「가あ」 한 줄</h2>
+  <p class="dsub">시트 본문 폭 = 화면 폭 − 32(좌우 16). 값은 이 브라우저 글꼴로 잰 실측이다. 「글꼴 130%」 줄은 휴대폰 글꼴 크기를 키운 경우(글자만 1.3배, 버튼 44px 고정).</p>
+  <div class="lrw" id="lrw"></div>
+</section>
+
+<section class="dpanel" id="limits" aria-labelledby="lim-h">
+  <h2 id="lim-h">알려진 한계 · 질문</h2>
+  <ul class="dlist">
+    <li><b>[추측] 한 단어 질의의 모양</b> — 지금 프롬프트는 「하고 싶은 말」용이라 「임팩트」에 <span lang="ja">インパクト</span> 대신 <span lang="ja">インパクトがあります</span> 같은 문장이 1순위로 올 수 있다(L4 — 데모 승인 뒤 prompt-engineer 실호출 확인). 문장이 오면 그대로 표현 칸에 들어간다.</li>
+    <li><b>한도·동시 1건 공유(L3)</b> — 회화방 도우미와 합쳐 분당 10·하루 300·동시 1건. 단어 시트에서도 429·409 화면이 보일 수 있다.</li>
+    <li><b>가타카나에는 루비가 없다</b> — 앱 규칙(루비는 한자 위에만). <span lang="ja">インパクト</span> 의 읽기는 한글 줄([임빠꾸또])과 ▶ 로만 확인. 데모의 한글 줄은 앱 변환 규칙을 손으로 옮긴 값이고 실제는 읽기 분석 결과다.</li>
+    <li><b>키보드가 올라오면 좁다</b> — 360×780·키보드 300 모형에서 시트 본문 약 356px. [물어보기]를 누르면 키보드가 내려가 결과가 보인다. 앱 WebView 의 키보드 높이 반영은 회화방 도우미와 같은 기존 한계(실기기 확인).</li>
+    <li><b>공용 Sheet 의 Tab 누출(기존)</b> — 이번엔 시트를 겹치지 않아 키우지 않지만 고치지도 않는다.</li>
+    <li><b>파일 겹침</b> — task-073(문구 두 건)이 <code>labels.ts</code>·<code>WordMicField.tsx</code> 를 고친다. 이 작업은 <code>WordMicField</code> 라벨 줄에 끼울 자리가 필요해 순서 조정이 필요하다(가이드 §30-9).</li>
+    <li><b>데모 모형 한계</b> — 「처음 안내」는 상태를 고를 때마다 다시 보인다(실제는 기기에 한 번). 초점 테두리는 그림이며, 「직접 해 보기」의 [넣기]만 실제 초점을 옮긴다.</li>
+  </ul>
+  <h3 style="font-size:14px;margin-top:14px">Leader·사용자에게 묻고 싶은 것</h3>
+  <ul class="dlist">
+    <li><b>Q1</b> D1′ — 폼 단계(초안 뒤)에도 도우미를 둘까? ★ 1단계만.</li>
+    <li><b>Q2</b> D7 — 409 <code>PHRASE_BUSY</code> 를 전용 문구로(★) 둘까, 회화방처럼 일반 오류로 둘까? 회화방 쪽은 바꾸지 않는다(L6).</li>
+    <li><b>Q3</b> D6 — 플래그를 공유하면 회화방 안내를 이미 본 사용자(지금 사용자)는 단어 시트에서 안내를 한 번도 못 본다. 괜찮은가?</li>
+    <li><b>Q4</b> 찾는 중 [그만두기] — 회화방 도우미에는 없다. 단어 시트에만 둔다(★, 브리프 요구). 서버는 회화 도우미처럼 요청 중단 신호로 엔진 호출을 멈춰야 한다(Leader 사양 확인).</li>
+    <li><b>Q5</b> 한글 없는 질의를 화면이 먼저 막는 것(★) — 서버도 같은 규칙으로 400 을 주므로 화면 문구만 단어 맥락(「일본어는 위 표현 칸에…」)으로 바꾼다. 동의?</li>
+  </ul>
+</section>
+
+<details class="dev">
+  <summary>개발 메모 — 컴포넌트·API·재사용 (정본은 docs/screens.md §30)</summary>
+  <ul class="dlist">
+    <li><b>새</b>: <code>vocab/WordPhraseHelper.tsx</code>(인라인 패널) · <code>vocab/wordHelperCopy.ts</code>(문구 단일 출처) · <code>vocab/useWordPhraseHelper.ts</code>(상태·요청·취소). <b>수정</b>: <code>WordAddSheet.tsx</code>(1단계에 버튼·안내·패널·서로 닫기) · <code>WordMicField.tsx</code>(라벨 줄 오른쪽 끝 <code>trailing</code> 자리 — 넘기지 않으면 지금과 같음).</li>
+    <li><b>재사용(동작 불변)</b>: <code>talk/PhraseHelperButton</code>(id·문구를 넘길 수 있게만) · <code>PhraseHelperCard</code> 의 카드 모양(넣기 문구·「왜」 줄 숨김·글자 크기 20을 넘길 자리) · <code>phraseHelperLogic</code> 의 <code>claimHelperTip</code>·<code>readPhraseHelp</code>·<code>askBlockOf</code>·<code>createHelperRequester</code>·<code>keepInputFocus</code>·<code>isImeEnter</code>·<code>altSummary</code> · <code>JaText</code>·<code>HangulLine</code>·<code>useAnnotations</code> · 단어 ▶ 소리(<code>useKeyedSound</code>·<code>SOUND_MSG</code>).</li>
+    <li><b>API(L1)</b>: <code>POST /api/v1/words/phrase-help</code> 본문 <code>{ queryKo }</code> → <code>{ items:[{ ja, ko, labelKo?, whyKo? }] }</code>(0~3). 오류 401·400·409 <code>PHRASE_BUSY</code>·429(<code>Retry-After</code>)·502·504. 번호는 Leader 가 배정.</li>
+    <li><b>함정</b>: 패널은 표현 1단계 <code>&lt;form&gt;</code> 안에 있다 — 패널 안에 <code>&lt;form&gt;</code> 를 두지 말고 버튼은 모두 <code>type="button"</code>, 질의 칸 Enter 는 <code>preventDefault</code>(안 막으면 바깥 form 이 제출돼 [뜻 채우기]가 나간다).</li>
+  </ul>
+</details>
+<pre id="selftest" hidden></pre>
+<div class="dtoast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function clone(o) { return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
+
+  /* ── 합성 샘플(데모 안에서만) ── */
+  var SETS = {
+    impact: { q: '임팩트', items: [
+      { ja: 'インパクト', rb: null, hg: '임빠꾸또', ko: '임팩트, 충격', why: '영어 impact 를 그대로 쓴 말이에요. 「インパクトがある」처럼 써요.' }
+    ] },
+    awkward: { q: '어색하다', items: [
+      { ja: 'ぎこちない', rb: null, hg: '기꼬찌나이', ko: '(동작·말투가) 어색하다, 서투르다', lbl: '동작·말투', why: '몸짓·말투가 매끄럽지 않을 때 써요.' },
+      { ja: '不自然だ', rb: [['不自然', 'ふしぜん'], ['だ', null]], hg: '후시젠다', ko: '부자연스럽다', lbl: '부자연스러움', why: '문장·표정이 자연스럽지 않을 때 써요.' },
+      { ja: '気まずい', rb: [['気', 'き'], ['まずい', null]], hg: '키마즈이', ko: '(분위기가) 어색하다, 거북하다', lbl: '분위기', why: '사람 사이 분위기가 어색할 때 써요.' }
+    ] },
+    bother: { q: '귀찮다', items: [
+      { ja: '面倒くさい', rb: [['面倒', 'めんどう'], ['くさい', null]], hg: '멘도-꾸사이', ko: '귀찮다', lbl: '편하게', why: '친구끼리 자주 써요.' },
+      { ja: 'めんどうだ', rb: null, hg: '멘도-다', ko: '귀찮다, 번거롭다', lbl: '조금 단정하게', why: '「面倒くさい」보다 짧고 담담해요.' }
+    ] }
+  };
+  var INVALID_REASON = '일본어 단어로 확인되지 않았어요.';
+  var INVALID_REASON_NOW = '일본어 단어가 아닙니다. 영어 단어 \'inspect\'의 오타로 보입니다.';
+  var LONG_Q = '회의에서 발표를 듣고 나서 정말 인상이 강하게 남았다고 말하고 싶은데 그때 쓰는 한 단어를 알고 싶어요 그리고 비슷한 말도 같이 알려 주세요 부탁해요 정말로요 고마워요 여러분';
+
+  /* ── 상태 정의 — 문구는 §30-8 표와 같다 ── */
+  function P(o) { return Object.assign({ q: '', ph: 'idle', set: 'impact', more: false, play: -1, msg: null, ex: true, sr: '' }, o || {}); }
+  var MSG = {
+    empty: { t: '물어볼 말을 한국어로 써 주세요', bad: true },
+    nohangul: { t: '한국어로 써 주세요. 일본어는 위 표현 칸에 바로 적으면 돼요.', bad: true },
+    over: function (n) { return { t: '100자까지 물어볼 수 있어요 · ' + n + '/100', bad: true, cnt: true }; },
+    stopped: { t: '찾기를 멈췄어요. 다시 물어볼 수 있어요.', bad: false }
+  };
+  var ST = {
+    'wh-now': { g: '기본', t: '현재 — 도우미 없음', cur: true, surf: 'インペクト', err: INVALID_REASON_NOW, s: '지금 화면(사용자 사례): 말로 쓰기로 「임팩트」를 말해 インペクト 로 받아 적혀 [뜻 채우기]가 거절됐다. 일본어 표기를 모르면 여기서 막힌다.' },
+    'wh-closed': { g: '기본', t: '시트 기본 — 버튼만', surf: '', kb: true, focus: 'surf', s: '시트를 열면 표현 칸에 초점(키보드). 라벨 줄 오른쪽 끝에 「말로 쓰기」와 둥근 「가あ」. 버튼 이름 「일본어 도우미」, aria-expanded=false.' },
+    'wh-tip': { g: '기본', t: '처음 한 번 안내', surf: '', kb: true, focus: 'surf', tip: true, s: '처음 한 번(D6 플래그). 라벨 줄 바로 아래 끼워 넣는 줄 안내(D6′ A) — 시트 머리·입력 칸을 가리지 않는다. ✕ 또는 가あ 를 누르면 닫히고 다시 안 뜬다. 버튼 aria-describedby 로 안내 문장 연결.' },
+    'wh-invalid': { g: '기본', t: '판정 실패 뒤(사용자 사례)', surf: 'インペクト', err: INVALID_REASON, s: '뜻 채우기가 「일본어 단어로 보기 어려워요」로 돌아온 화면. 바로 위 「가あ」로 한국어로 찾을 수 있다(연결 링크는 범위 밖 — L6). 이유 문구는 task-073 W-3 기준.' },
+    'wh-open-kb': { g: '패널', t: '패널 열림 — 빈 질의(키보드)', surf: '', kb: true, focus: 'q', panel: P({}), s: '가あ → 표현 칸 아래로 패널. 이전 답이 없으면 질의 칸에 초점·키보드. 버튼은 열림 모양(accent 링), aria-expanded=true·aria-controls=패널.' },
+    'wh-open': { g: '패널', t: '패널 열림 — 예시 칩', surf: '', panel: P({}), s: '키보드를 내리면 「이렇게 물어보세요」 + 예시 칩 3개(누르면 바로 물음). 키보드가 있어도 칩은 보인다(시트 본문이 스크롤된다).' },
+    'wh-typed': { g: '패널', t: '입력 중', surf: '', kb: true, focus: 'q', panel: P({ q: '임팩트' }), s: '한 글자 이상이면 [물어보기]가 켜진다. 키보드 검색 키(Enter)도 같다 — 바깥 form 제출은 막는다(IME 조합 중 Enter 무시).' },
+    'wh-empty': { g: '패널', t: '빈 제출', surf: '', kb: true, focus: 'q', panel: P({ msg: MSG.empty }), s: '빈 칸(공백만 포함)으로 누르면 안내 줄 bad. 초점·키보드 유지.' },
+    'wh-nohangul': { g: '패널', t: '한글 없음', surf: '', kb: true, focus: 'q', panel: P({ q: 'impact', msg: MSG.nohangul }), s: '한글이 한 자도 없으면 보내지 않고 단어 맥락 안내(D3 ★). 일본어를 쓴 경우 표현 칸으로 안내한다. 서버 400 문구는 보이지 않는다.' },
+    'wh-long': { g: '패널', t: '100자 초과', surf: '', kb: true, focus: 'q', panel: P({ q: LONG_Q, msg: MSG.over(103) }), s: '90자부터 「n/100」, 100자 초과는 bad + [물어보기] 흐림(누르면 보내지 않음). 회화방과 같은 규칙.' },
+    'wh-loading': { g: '패널', t: '찾는 중(0~5초)', surf: '', panel: P({ q: '임팩트', ph: 'loading', ex: false }), s: '보내면 키보드가 내려가고 카드 자리에 스켈레톤 1장 + 「일본어 표현을 찾는 중…」 + [그만두기]. [물어보기] 흐림. 패널을 닫아도 요청은 끝까지 받아 답을 기억한다.' },
+    'wh-slow': { g: '패널', t: '찾는 중(5~12초)', surf: '', panel: P({ q: '임팩트', ph: 'slow', ex: false }), s: '5초가 지나면 문구만 「조금만 기다려 주세요」로. 12초에 끊고 시간 초과.' },
+    'wh-stopped': { g: '패널', t: '[그만두기] 뒤', surf: '', panel: P({ q: '임팩트', msg: MSG.stopped }), s: '요청을 멈추고(서버도 중단 신호) 질의는 남긴다. 안내 줄은 오류가 아니라 사정 설명(ink2).' },
+    'wh-result1': { g: '결과', t: '결과 1개 — 임팩트', surf: '', panel: P({ q: '임팩트', ph: 'result', set: 'impact', ex: false, sr: '표현 1개를 찾았어요' }), s: '카드 = 일본어 20px(가타카나라 루비 없음) + 한글 줄 + 한국어 뜻 + [표현 칸에 넣기] + ▶. 후보 1개면 꼬리표·[다른 후보] 줄 없음. 「왜」 줄 숨김(D4).' },
+    'wh-result3': { g: '결과', t: '결과 3개 — 첫 카드만', surf: '', panel: P({ q: '어색하다', ph: 'result', set: 'awkward', ex: false, sr: '표현 3개를 찾았어요' }), s: '첫 카드(가장 권하는 말) + [다른 후보 2개 더 보기](꼬리표 요약). 후보 2개 이상이면 카드에 꼬리표.' },
+    'wh-more': { g: '결과', t: '후보 펼침', surf: '', panel: P({ q: '어색하다', ph: 'result', set: 'awkward', more: true, ex: false }), s: '[다른 후보 접기]. 펼친 목록은 늘 마운트(hidden) — aria-controls 가 없는 id 를 가리키지 않게.' },
+    'wh-result2': { g: '결과', t: '결과 2개 — 귀찮다', surf: '', panel: P({ q: '귀찮다', ph: 'result', set: 'bother', more: true, ex: false }), s: '한자 단어는 표시 설정 「히라가나」가 켜져 있으면 루비(面倒 めんどう), 「한글」이 켜져 있으면 한글 줄. 위 「표시」 조작으로 꺼 보기(D9).' },
+    'wh-playing': { g: '결과', t: '▶ 재생 중', surf: '', panel: P({ q: '임팩트', ph: 'result', set: 'impact', play: 0, ex: false }), s: '▶ → ■ + accent 바탕. 한 번에 소리 하나. 패널을 닫거나 말로 쓰기를 열면 멈춘다. 소리 실패는 카드 안 한 줄(단어장 ▶ 와 같은 SOUND_MSG).' },
+    'wh-none': { g: '실패', t: '빈 결과(못 찾음)', surf: '', panel: P({ q: '그거 있잖아 그거', ph: 'none', ex: false, sr: '이 말에 맞는 일본어를 찾지 못했어요.' }), s: 'items 0개. [다시 시도] 없음 — 질의를 바꾸게 안내. 낭독은 늘 마운트된 상태 줄이 한다.' },
+    'wh-rate': { g: '실패', t: '429 한도', surf: '', panel: P({ q: '임팩트', ph: 'rate', ex: false }), s: '회화방 도우미와 합친 분당 10·하루 300(L3). 대기 초를 세는 동안 [다시 시도]·[물어보기] 흐림. 0초가 되면 「잠시 뒤 다시 물어봐 주세요.」' },
+    'wh-busy': { g: '실패', t: '409 동시 사용', surf: '', panel: P({ q: '임팩트', ph: 'busy', ex: false }), s: '다른 화면(다른 탭·기기의 회화방 도우미 등)이 이미 묻는 중. D7 ★ 전용 문구 + [다시 시도]. 대안 B 는 일반 오류 문구.' },
+    'wh-offline': { g: '실패', t: '오프라인', surf: '', panel: P({ q: '임팩트', ph: 'offline', ex: false }), s: '연결 실패(상태 0). 시트의 기존 연결 문구를 그대로 쓴다 — 뜻 채우기 실패와 같은 말.' },
+    'wh-error': { g: '실패', t: '오류(5xx)', surf: '', panel: P({ q: '임팩트', ph: 'error', ex: false }), s: '502·응답 모양 오류 등. 서버 문구는 보이지 않는다.' },
+    'wh-timeout': { g: '실패', t: '시간 초과(12초)', surf: '', panel: P({ q: '임팩트', ph: 'timeout', ex: false }), s: '12초 화면 끊기 또는 504.' },
+    'wh-filled': { g: '넣은 뒤', t: '[표현 칸에 넣기] 직후', surf: 'インパクト', kb: true, focus: 'surf', ann: '표현 칸에 ‘インパクト’를 넣었어요', s: '표현 칸을 바꿔 넣고(이전 값·오류 안내는 지움) 패널을 닫고 표현 칸에 초점. [뜻 채우기]는 자동으로 누르지 않는다(D5). 버튼은 닫힘 모양.' },
+    'wh-reopen': { g: '넣은 뒤', t: '다시 열기 — 마지막 답', surf: 'インパクト', panel: P({ q: '임팩트', ph: 'result', set: 'impact', ex: false }), s: '시트가 열려 있는 동안은 마지막 질의·답을 기억한다(메모리만, 시트를 닫으면 사라짐). 다시 열 때는 키보드를 올리지 않는다 — 초점은 버튼에.' },
+    'wh-mic': { g: '공존(D8)', t: '말로 쓰기 열림', surf: '', mic: true, s: '말로 쓰기(task-069)가 열리면 입력 칸 자리에 「누르고 말하기」. 가あ 는 그대로 보이고 누를 수 있다. 안내 문구는 task-073 W-2 기준.' },
+    'wh-mic2help': { g: '공존(D8)', t: '말로 쓰기 열린 채 가あ', surf: '', kb: true, focus: 'q', panel: P({}), b8: { mic: true }, s: 'D8 ★: 가あ 를 누르면 말로 쓰기가 닫히고(입력 칸이 돌아옴) 도우미가 열린다. 녹음 중이면 녹음을 멈추고 닫는다. 대안 B 는 둘 다 열림.' },
+    'wh-help2mic': { g: '공존(D8)', t: '도우미 열린 채 말로 쓰기', surf: '', mic: true, b8: { panel: P({ q: '임팩트', ph: 'result', set: 'impact', ex: false }) }, s: 'D8 ★: 말로 쓰기를 열면 도우미가 닫힌다(답 기억 — 다시 열면 그대로). 기다리는 요청은 그대로 받는다. 대안 B 는 둘 다 열림.' },
+    'wh-enrich': { g: '공존(D8)', t: '[뜻 채우기] 누름', step: 'enriching', surf: 'インパクト', s: '도우미가 열려 있거나 찾는 중이어도 [뜻 채우기]를 누르면 도우미를 닫고 기다리는 도우미 요청은 취소한 뒤 뜻 찾기를 시작한다(AI 호출 줄에서 뜻 채우기가 밀리지 않게). 이 화면에는 도우미가 없다.' },
+    'wh-form': { g: '공존(D8)', t: '폼 단계 — 도우미 없음', step: 'form', surf: 'インパクト', s: 'D1′ ★: 초안 뒤·직접 입력 폼에는 도우미가 없다(표현을 바꾸면 초안이 어긋남). 대안 B 를 고르면 폼의 표현 라벨 줄에도 보인다.' }
+  };
+  var IDS = Object.keys(ST);
+
+  var DEC = [
+    { k: 'd1', n: 'D1', t: '버튼 위치·모양', o: [['A', '라벨 줄 오른쪽 끝 — 둥근 「가あ」 44px', '회화방과 같은 아이콘·모양'], ['B', '입력 칸 아래 44px 줄', '「가あ 모르는 말은 한국어로 찾기 ›」']] },
+    { k: 'd1s', n: 'D1′', t: '보이는 단계', x: 1, o: [['A', '표현 1단계에만', '폼 단계에는 없음'], ['B', '폼 단계에도', '「wh-form」에서 확인']] },
+    { k: 'd2', n: 'D2', t: '판 형태', o: [['A', '시트 안 인라인 패널', '표현 칸 아래·[뜻 채우기] 위'], ['B', '시트 위 하위 시트', '두 겹 시트']] },
+    { k: 'd3', n: 'D3', t: '질의 입력', o: [['A', '한국어 글자만', '한글 1자 이상·100자 — 대안 없음(음성은 범위 밖)']] },
+    { k: 'd4', n: 'D4', t: '후보 보이기', o: [['A', '첫 카드만 + [다른 후보 n개 더 보기]', '접힘'], ['B', '모두 펼침', '최대 3장']] },
+    { k: 'd4w', n: 'D4', t: '「왜 자연스러운지」 줄', o: [['A', '숨김', '뜻 줄·꼬리표로 충분'], ['B', '보임', '회화방과 같음']] },
+    { k: 'd5', n: 'D5', t: '[표현 칸에 넣기] 동작', o: [['A', '넣기만 — 뜻 채우기는 사용자가', '표현 칸 초점'], ['B', '[넣고 뜻 채우기]', '바로 뜻 찾기 시작']] },
+    { k: 'd6', n: 'D6', t: '처음 안내 플래그', o: [['A', '회화방과 공유', 'kaiwa.talk.helperTipSeen'], ['B', '별도 플래그', '단어 시트에서 한 번 더']] },
+    { k: 'd6s', n: 'D6′', t: '안내 모양', x: 1, o: [['A', '시트 안 줄 안내', '라벨 줄 아래 끼워 넣음'], ['B', '떠 있는 말풍선', '입력 칸 위에 겹침']] },
+    { k: 'd7', n: 'D7', t: '409 동시 사용 문구', o: [['A', '전용 문구', '「다른 화면에서 … 찾는 중이에요」'], ['B', '일반 오류', '「지금은 표현을 가져오지 못했어요.」']] },
+    { k: 'd8', n: 'D8', t: '말로 쓰기와 공존', o: [['A', '서로 닫기', '한 번에 하나'], ['B', '함께 열림', '「wh-mic2help」에서 확인']] },
+    { k: 'd9', n: 'D9', t: '읽기 표시', o: [['A', '앱 표시 설정을 따름', '히라가나·한글 스위치'], ['B', '읽기 늘 보임', '스위치와 무관']] }
+  ];
+  var DEF_D = {}; DEC.forEach(function (d) { DEF_D[d.k] = 'A'; });
+
+  var S = { st: 'wh-closed', view: 'one', w: 390, h: 780, theme: 'system', fu: true, hg: true, kb: 'auto', mark: true, d: clone(DEF_D), o: null, prior: false };
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  /* ── 장면 = 상태 + 직접 해 보기 덮어쓰기 + D8 대안 ── */
+  function scene(id) {
+    var sc = clone(ST[id]);
+    if (!sc.step) sc.step = 'surface';
+    if (S.d.d8 === 'B' && sc.b8) Object.assign(sc, clone(sc.b8));
+    if (S.o && id === S.st) {
+      var o = S.o;
+      Object.keys(o).forEach(function (k) {
+        if (k === 'panel' && o.panel && sc.panel) Object.assign(sc.panel, o.panel);
+        else if (k === 'panel' && o.panel) sc.panel = P(clone(o.panel));
+        else sc[k] = clone(o[k]);
+      });
+    }
+    return sc;
+  }
+
+  /* ── 아이콘 ── */
+  var IC = {
+    x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    xs: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    mic: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    kbd: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>',
+    mic28: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    play: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>',
+    stop: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>'
+  };
+  var GLYPH = '<span class="hgl" aria-hidden="true">가<span class="ja" lang="ja">あ</span></span>';
+
+  /* ── 휴대폰 안 그리기 ── */
+  var IDP = '';
+  function I(x) { return IDP + x; }
+
+  function helperOpen(sc) { return !!sc.panel; }
+  function helperInRow(sc) { return !sc.cur && S.d.d1 === 'A' && (sc.step === 'surface' || (sc.step === 'form' && S.d.d1s === 'B')); }
+  function helperBelow(sc) { return !sc.cur && S.d.d1 === 'B' && (sc.step === 'surface' || (sc.step === 'form' && S.d.d1s === 'B')); }
+
+  function helperBtn(sc) {
+    var open = helperOpen(sc);
+    return '<button type="button" class="hbB dnew' + (open ? ' on' : '') + '" data-act="help" aria-label="일본어 도우미" aria-expanded="' + open + '"' +
+      (open && S.d.d2 === 'A' ? ' aria-controls="' + I('helper') + '"' : '') + (sc.tip ? ' aria-describedby="' + I('tip') + '"' : '') + '>' + GLYPH + '</button>';
+  }
+  function helperRowBtn(sc) {
+    var open = helperOpen(sc);
+    return '<button type="button" class="hrow dnew' + (open ? ' on' : '') + '" data-act="help" aria-expanded="' + open + '"' + (open && S.d.d2 === 'A' ? ' aria-controls="' + I('helper') + '"' : '') + (sc.tip ? ' aria-describedby="' + I('tip') + '"' : '') +
+      '><span class="ic">' + GLYPH + '</span><span class="t">모르는 말은 한국어로 찾기</span><span class="c" aria-hidden="true">' + (open ? '▴' : '›') + '</span></button>';
+  }
+  function micBtn(sc) {
+    var open = !!sc.mic;
+    return '<button type="button" class="mtg" data-act="mic" aria-label="표현 ' + (open ? '글자로 쓰기' : '말로 쓰기') + '">' + (open ? IC.kbd : IC.mic) + '<span>' + (open ? '글자로 쓰기' : '말로 쓰기') + '</span></button>';
+  }
+  function tipHtml(sc) {
+    if (!sc.tip || sc.cur) return '';
+    var cls = 'itip dnew' + (S.d.d1 === 'B' ? ' l' : '') + (S.d.d6s === 'B' ? ' f' : '');
+    return '<div class="' + cls + '" id="' + I('tip') + '" role="note"><p>한국어로 물어보면 일본어 표현을 알려 줘요</p><button type="button" class="tip-x hit" data-act="tipx" aria-label="안내 닫기">' + IC.xs + '</button></div>';
+  }
+  function surfField(sc, req) {
+    var bad = !!sc.err;
+    var label = '<label class="lbl" for="' + I('surf') + '">표현' + (req ? '<span aria-hidden="true">*</span>' : '') + '</label>';
+    var right = micBtn(sc) + (helperInRow(sc) ? helperBtn(sc) : '');
+    var h = '<div class="fld"><div class="lrow">' + label + '<div class="lr-r">' + right + '</div></div>';
+    if (S.d.d1 === 'A') h += tipHtml(sc);
+    if (sc.mic) {
+      h += '<div class="mica"><div class="mbox" aria-hidden="true">' + (sc.surf ? '<p lang="ja" class="mval">' + esc(sc.surf) + '</p>' : '<span class="d13">여기에 알아들은 말이 나와요</span>') + '</div>' +
+        '<p class="cap" style="width:100%">일본어 발음으로 말해 주세요 (예: <span lang="ja">インパクト</span>). 칸에 들어간 뒤 고칠 수 있어요.</p>' +
+        '<button type="button" class="ptt" data-act="noop" aria-label="누르고 말하기">' + IC.mic28 + '</button><div class="vst">누르고 있는 동안 말해요</div></div>';
+    } else {
+      h += '<input id="' + I('surf') + '" class="inp' + (bad ? ' bad' : '') + (sc.focus === 'surf' ? ' fx' : '') + '" lang="ja" autocomplete="off" enterkeyhint="go" placeholder="예: 映画, 食べる, よろしくお願いします" value="' + esc(sc.surf) + '"' + (bad ? ' aria-invalid="true" aria-describedby="' + I('surf_err') + '"' : '') + ' data-in="surf">';
+    }
+    if (bad && !sc.mic) h += '<div id="' + I('surf_err') + '" role="alert"><p class="err">일본어 단어로 보기 어려워요. 표현을 확인해 주세요.</p><p class="rsn">' + esc(sc.err) + '</p></div>';
+    if (helperBelow(sc)) h += helperRowBtn(sc) + tipHtml(sc);
+    h += '<span class="sr" role="status">' + esc(sc.ann || '') + '</span></div>';
+    return h;
+  }
+
+  function jaHtml(it, fu) {
+    if (fu && it.rb) return '<p class="jw fu" lang="ja">' + it.rb.map(function (p) { return p[1] ? '<ruby>' + esc(p[0]) + '<rt>' + esc(p[1]) + '</rt></ruby>' : esc(p[0]); }).join('') + '</p>';
+    return '<p class="jw" lang="ja">' + esc(it.ja) + '</p>';
+  }
+  function card(it, i, n, p) {
+    var fu = S.d.d9 === 'B' || S.fu, hg = S.d.d9 === 'B' || S.hg, playing = p.play === i;
+    return '<li class="hc"><div class="hc-m">' +
+      (n >= 2 && it.lbl ? '<span class="bdg">' + esc(it.lbl) + '</span>' : '') + jaHtml(it, fu) +
+      (hg && it.hg ? '<p class="hg" lang="ko"><span class="sr">한글 발음: </span><span class="br" aria-hidden="true">[</span>' + esc(it.hg) + '<span class="br" aria-hidden="true">]</span></p>' : '') +
+      '<p class="hc-ko">' + esc(it.ko) + '</p>' +
+      (S.d.d4w === 'B' && it.why ? '<p class="why">' + esc(it.why) + '</p>' : '') +
+      '<button type="button" class="btn ghost h44 hc-fill" data-act="fill" data-arg="' + i + '">' + (S.d.d5 === 'B' ? '넣고 뜻 채우기' : '표현 칸에 넣기') + '</button>' +
+      '</div><button type="button" class="hc-play' + (playing ? ' on' : '') + '" data-act="play" data-arg="' + i + '" aria-label="' + esc(it.ja) + ' ' + (playing ? '멈추기' : '듣기') + '">' + (playing ? IC.stop : IC.play) + '</button></li>';
+  }
+  function cards(p) {
+    var items = SETS[p.set].items, n = items.length;
+    if (n < 2 || S.d.d4 === 'B') return '<ul class="hcl" aria-label="일본어 표현">' + items.map(function (it, i) { return card(it, i, n, p); }).join('') + '</ul>';
+    var sum = items.slice(1).map(function (x) { return x.lbl || ''; }).filter(Boolean).join(' · ');
+    return '<ul class="hcl" aria-label="일본어 표현">' + card(items[0], 0, n, p) + '</ul>' +
+      '<button type="button" class="hp-more" data-act="more" aria-expanded="' + p.more + '" aria-controls="' + I('alts') + '"><span class="l">' + (p.more ? '다른 후보 접기' : '다른 후보 ' + (n - 1) + '개 더 보기') + '</span><span class="s">' + (p.more ? '' : esc(sum)) + '</span><span class="c" aria-hidden="true">' + (p.more ? '▴' : '▾') + '</span></button>' +
+      '<ul id="' + I('alts') + '" class="hcl" aria-label="다른 후보"' + (p.more ? '' : ' hidden') + '>' + items.slice(1).map(function (it, j) { return card(it, j + 1, n, p); }).join('') + '</ul>';
+  }
+  function failBox(text, retry, dis) {
+    return '<div class="fbox" role="alert"><p class="t">' + esc(text) + '</p>' + (retry ? '<button type="button" class="btn ghost h44" data-act="retry"' + (dis ? ' aria-disabled="true"' : '') + '>다시 시도</button>' : '') + '</div>';
+  }
+  function panelBody(p) {
+    switch (p.ph) {
+      case 'loading': case 'slow':
+        return '<div class="skl" aria-hidden="true"><span></span></div><div class="ldrow"><span class="cap">' + (p.ph === 'slow' ? '조금만 기다려 주세요' : '일본어 표현을 찾는 중…') + '</span><button type="button" class="tbtn" data-act="stop">그만두기</button></div>';
+      case 'result': return cards(p);
+      case 'none': return '<div class="fbox"><p class="t">이 말에 맞는 일본어를 찾지 못했어요.</p><p class="cap">짧은 한국어 낱말로 다시 써 보세요. 예: ‘어색하다’</p></div>';
+      case 'rate': return '<div class="fbox"><p class="t">37초 뒤 다시 물어볼 수 있어요.</p><button type="button" class="btn ghost h44" data-act="retry" aria-disabled="true">다시 시도</button></div>';
+      case 'busy': return failBox(S.d.d7 === 'B' ? '지금은 표현을 가져오지 못했어요.' : '다른 화면에서 일본어 표현을 찾는 중이에요. 끝나면 다시 물어봐 주세요.', true);
+      case 'offline': return failBox('연결하지 못했어요. 네트워크를 확인해 주세요.', true);
+      case 'error': return failBox('지금은 표현을 가져오지 못했어요.', true);
+      case 'timeout': return failBox('시간이 오래 걸려 멈췄어요. 다시 물어봐 주세요.', true);
+      default:
+        if (!p.ex) return '';
+        return '<p class="hp-lead">이렇게 물어보세요</p><div class="chips">' + ['임팩트', '어색하다', '귀찮다'].map(function (c) { return '<button type="button" class="chip hit" data-act="chip" data-arg="' + c + '">' + c + '</button>'; }).join('') + '</div>';
+    }
+  }
+  function panel(sc, sub) {
+    var p = sc.panel, busy = p.ph === 'loading' || p.ph === 'slow' || p.ph === 'rate';
+    var over = Array.from(p.q).length > 100, dis = busy || over || p.q.trim() === '';
+    var head = sub ? '' : '<div class="whp-h"><div class="whp-ht"><h3 id="' + I('helper_title') + '">일본어 도우미</h3><p>모르는 말을 한국어로 물어보세요</p></div><button type="button" class="icb44" data-act="hclose" aria-label="일본어 도우미 닫기">' + IC.x + '</button></div>';
+    return '<section id="' + I('helper') + '" class="whp dnew" aria-labelledby="' + I(sub ? 'sub_title' : 'helper_title') + '">' + head +
+      '<div class="whp-f"><label class="sr" for="' + I('q') + '">한국어로 물어볼 말</label><input id="' + I('q') + '" class="hp-in' + (sc.focus === 'q' ? ' fx' : '') + '" type="text" lang="ko" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="예: 임팩트, 어색하다" value="' + esc(p.q) + '" aria-describedby="' + I('qmsg') + '" data-in="q">' +
+      '<button type="button" class="hp-ask" data-act="ask"' + (dis ? ' aria-disabled="true"' : '') + '>물어보기</button></div>' +
+      '<p id="' + I('qmsg') + '" role="status" class="hp-msg' + (p.msg && p.msg.bad ? ' bad' : '') + (p.msg && p.msg.cnt ? ' cnt' : '') + '">' + (p.msg ? esc(p.msg.t) : '') + '</p>' +
+      '<p class="sr" role="status">' + esc(p.sr || (p.ph === 'loading' ? '일본어 표현을 찾는 중…' : '')) + '</p>' +
+      '<div class="whp-b">' + panelBody(p) + '</div></section>';
+  }
+  function surfaceStep(sc) {
+    var empty = !sc.surf;
+    var inline = sc.panel && S.d.d2 === 'A' && !sc.cur;
+    return '<div class="col">' + surfField(sc, false) + (inline ? panel(sc, false) : '') +
+      '<button type="button" class="btn pri full mt4" data-act="enrich"' + (empty ? ' aria-disabled="true" aria-describedby="' + I('why') + '"' : '') + '>뜻 채우기</button>' +
+      (empty ? '<p class="cap" id="' + I('why') + '">표현을 적으면 누를 수 있어요.</p>' : '') +
+      '<p class="cap">선생님이 읽기·뜻·예문을 채워 줘요. 확인하고 저장해야 단어장에 들어가요.</p>' +
+      '<button type="button" class="btn ghost full" data-act="manual">직접 입력하기</button></div>';
+  }
+  function enrichStep(sc) {
+    return '<div class="col" style="gap:12px"><p class="enr-ja" lang="ja">' + esc(sc.surf) + '</p><div class="enr" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>선생님이 뜻을 찾고 있어요 · 1초</span></div><button type="button" class="btn ghost full" data-act="back">그만두기</button></div>';
+  }
+  function formStep(sc) {
+    var ck = ['이름', '액션', '느낌', '꾸밈', '표현'];
+    return '<div class="col" style="gap:12px"><p class="note">선생님이 채운 초안이에요. 틀린 곳은 고쳐 주세요. 저장해야 단어장에 들어가요.</p>' + surfField(sc, true) +
+      '<div class="fld"><label class="lbl" for="' + I('rd') + '">읽기</label><input id="' + I('rd') + '" class="inp" lang="ja" value="いんぱくと"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('mn') + '">뜻<span aria-hidden="true">*</span></label><input id="' + I('mn') + '" class="inp" value="임팩트, 충격"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('pos') + '">품사</label><select id="' + I('pos') + '" class="sel2"><option>명사</option></select></div>' +
+      '<div class="fld"><span class="lbl" id="' + I('ckl') + '">조각<span aria-hidden="true">*</span></span><div class="ckr" role="radiogroup" aria-labelledby="' + I('ckl') + '">' + ck.map(function (c, i) { return '<button type="button" class="ck hit' + (i === 0 ? ' on' : '') + '" role="radio" aria-checked="' + (i === 0) + '" data-act="noop">' + c + '</button>'; }).join('') + '</div></div>' +
+      (sc.panel && S.d.d2 === 'A' && S.d.d1s === 'B' ? panel(sc, false) : '') +
+      '<div class="brow"><button type="button" class="btn pri" data-act="noop">저장</button><button type="button" class="btn ghost" data-act="noop">취소</button></div></div>';
+  }
+  function phone(id, w, h, pfx, curOverride) {
+    IDP = pfx;
+    var sc = scene(id);
+    if (curOverride) { sc = clone(ST['wh-now']); sc.step = 'surface'; }
+    var kbOn = S.kb === 'auto' && !!sc.kb;
+    var body = sc.step === 'enriching' ? enrichStep(sc) : sc.step === 'form' ? formStep(sc) : surfaceStep(sc);
+    var sub = sc.panel && S.d.d2 === 'B' && !sc.cur && sc.step === 'surface';
+    var html = '<div class="phone w' + w + ' h' + h + '" style="--kbh:' + (kbOn ? 300 : 0) + 'px" data-pfx="' + pfx + '" data-st="' + id + '">' +
+      '<div class="app"><div class="pg" aria-hidden="true"><div class="ab"><b>단어장</b><span>＋ 추가</span></div><div class="pgl"><div class="pgr" lang="ja">映画</div><div class="pgr" lang="ja">食べる</div><div class="pgr" lang="ja">温い</div></div><div class="tabs"><span>회화</span><span>공부</span><span>계획표</span><span>단어장</span><span>질문</span></div></div>' +
+      '<div class="scrim" aria-hidden="true"></div>' +
+      '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="' + I('sh_t') + '"><div class="sh-h"><h2 id="' + I('sh_t') + '">단어 추가</h2><button type="button" class="icb44" data-act="sclose" aria-label="닫기">' + IC.x + '</button></div><div class="sh-b">' + body + '</div></div>';
+    if (sub) {
+      html += '<div class="scrim s2" aria-hidden="true"></div><div class="sheet sub dnew" role="dialog" aria-modal="true" aria-labelledby="' + I('sub_title') + '"><div class="sh-h"><h2 id="' + I('sub_title') + '">일본어 도우미</h2><button type="button" class="icb44" data-act="hclose" aria-label="일본어 도우미 닫기">' + IC.x + '</button></div><div class="sh-b">' + panel(sc, true) + '</div></div>';
+    }
+    html += '</div>' + (kbOn ? '<div class="kbm" aria-hidden="true">키보드(모형 300px)</div>' : '') + '</div>';
+    IDP = '';
+    return html;
+  }
+
+  /* ── 무대·목록·설명 ── */
+  function renderNav() {
+    var groups = {}, order = [];
+    IDS.forEach(function (id) { var g = ST[id].g; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(id); });
+    $('#dnav').innerHTML = order.map(function (g) {
+      return '<h2>' + esc(g) + '</h2>' + groups[g].map(function (id) { return '<button type="button" class="nvb" data-st="' + id + '"' + (id === S.st ? ' aria-current="true"' : '') + '>' + esc(ST[id].t) + '<span class="did">' + id + '</span></button>'; }).join('');
+    }).join('');
+  }
+  function renderStage() {
+    var st = $('#stage'), h = '';
+    if (S.view === 'three') {
+      [360, 390, 412].forEach(function (w, i) { h += '<figure class="fw"><figcaption><span class="tagp">제안</span>' + w + ' × ' + S.h + '</figcaption>' + phone(S.st, w, S.h, 'p' + i + '-') + '</figure>'; });
+    } else if (S.view === 'cmp') {
+      var pid = S.st === 'wh-now' ? 'wh-invalid' : S.st;
+      h += '<figure class="fw"><figcaption><span class="tagc">현재</span>지금 화면 · ' + S.w + '</figcaption>' + phone('wh-now', S.w, S.h, 'c0-', true) + '</figure>';
+      h += '<figure class="fw"><figcaption><span class="tagp">제안</span>' + esc(ST[pid].t) + ' · ' + S.w + '</figcaption>' + phone(pid, S.w, S.h, 'c1-') + '</figure>';
+    } else {
+      h += '<figure class="fw"><figcaption><span class="' + (S.st === 'wh-now' ? 'tagc">현재' : 'tagp">제안') + '</span>' + esc(ST[S.st].t) + ' · ' + S.w + ' × ' + S.h + '</figcaption>' + phone(S.st, S.w, S.h, 'p0-') + '</figure>';
+    }
+    st.innerHTML = h;
+    $$('.phone', st).forEach(fitFocus);
+  }
+  function fitFocus(ph) {
+    $$('.sh-b', ph).forEach(function (b) {
+      /* 초점 칸은 다 보이게(KeyboardInset 모형), 초점 없는 패널은 머리 + 160px 이 보이게만 — 실제 앱은 결과가 와도 본문을 스스로 굴리지 않는다 */
+      var fx = $('.fx', b), f = fx || $('.whp', b);
+      if (!f) { b.scrollTop = 0; return; }
+      var br = b.getBoundingClientRect(), fr = f.getBoundingClientRect();
+      var need = fx ? fr.bottom + 8 : Math.min(fr.bottom, fr.top + 160);
+      if (need > br.bottom) b.scrollTop += need - br.bottom;
+      if (fr.top < br.top) b.scrollTop -= br.top - fr.top + 8;
+    });
+  }
+  function renderExp() {
+    var s = ST[S.st];
+    $('#exp').innerHTML = '<p style="font-size:13px;word-break:keep-all"><b>' + esc(s.t) + '</b> <span class="did">' + S.st + '</span></p><p style="font-size:13px;margin-top:6px;word-break:keep-all;overflow-wrap:anywhere">' + esc(s.s) + '</p>';
+  }
+  function measure(ph) {
+    var out = { ov: 0, small: [], lrow: null, sheetBody: 0, scroll: 0 };
+    $$('.sheet', ph).forEach(function (sh) {
+      var r = sh.getBoundingClientRect();
+      $$('*', sh).forEach(function (el) {
+        if (el.closest('.sr') || el.closest('[hidden]')) return;
+        var b = el.getBoundingClientRect();
+        if (!b.width && !b.height) return;
+        if (b.right > r.right + 0.5 || b.left < r.left - 0.5) out.ov++;
+      });
+      var bd = $('.sh-b', sh);
+      if (bd && bd.scrollWidth > bd.clientWidth + 1) out.ov++;
+    });
+    $$('.sheet button, .sheet input, .sheet select', ph).forEach(function (el) {
+      if (el.closest('.sr') || el.offsetParent === null || el.classList.contains('hit')) return;
+      var b = el.getBoundingClientRect();
+      if (b.height < 43.5 || b.width < 43.5) out.small.push((el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 16) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    });
+    var lr = $('.sheet:not(.sub) .lrow', ph);
+    if (lr) {
+      var lb = lr.getBoundingClientRect(), used = 0, kids = lr.children;
+      for (var i = 0; i < kids.length; i++) used += kids[i].getBoundingClientRect().width;
+      var hb = $('.hbB', lr), mt = $('.mtg', lr);
+      out.lrow = { w: Math.round(lb.width), h: Math.round(lb.height), free: Math.round(lb.width - used), mic: mt ? Math.round(mt.getBoundingClientRect().width) : 0, hb: hb ? Math.round(hb.getBoundingClientRect().width) : 0 };
+    }
+    var body = $('.sheet:not(.sub) .sh-b', ph);
+    if (body) { out.sheetBody = Math.round(body.clientHeight); out.scroll = Math.round(body.scrollHeight); }
+    return out;
+  }
+  function renderMeas() {
+    var rows = $$('#stage .phone').map(function (ph) {
+      var m = measure(ph), w = ph.classList.contains('w360') ? 360 : ph.classList.contains('w390') ? 390 : 412;
+      return '<p><b>' + w + 'px</b> · 가로 넘침 <span class="' + (m.ov ? 'ng' : 'ok') + '">' + m.ov + '</span> · 44px 미만 터치 <span class="' + (m.small.length ? 'ng' : 'ok') + '">' + m.small.length + '</span>' + (m.small.length ? ' (' + esc(m.small.join(', ')) + ')' : '') + '</p>' +
+        (m.lrow ? '<p>라벨 줄 ' + m.lrow.w + 'px · 높이 <span class="' + (m.lrow.h > 44 ? 'ng' : 'ok') + '">' + m.lrow.h + '</span> · 「말로 쓰기」 ' + m.lrow.mic + ' · 가あ ' + (m.lrow.hb || '없음') + ' · 남는 폭 ' + m.lrow.free + 'px</p>' : '') +
+        '<p>시트 본문 보이는 높이 ' + m.sheetBody + ' / 내용 ' + m.scroll + 'px' + (m.scroll > m.sheetBody ? ' (본문 안 스크롤)' : '') + '</p>';
+    });
+    $('#meas').innerHTML = rows.join('<hr style="border:0;border-top:1px solid var(--line);margin:6px 0">') + '<p style="margin-top:6px">칩·조각 칩·안내 ✕ 는 보이는 크기가 작고 히트 영역(::before)이 44px — 잴 때 뺀다.</p>';
+  }
+  function renderDec() {
+    $('#dqs').innerHTML = DEC.map(function (d) {
+      return '<fieldset class="dq"><legend><span class="dn2">' + d.n + '</span>' + esc(d.t) + (d.x ? ' <span class="dsg">designer 추가</span>' : '') + '</legend>' + d.o.map(function (o) {
+        var on = S.d[d.k] === o[0];
+        return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="' + d.k + '" value="' + o[0] + '"' + (on ? ' checked' : '') + '><span class="opt-h">' + o[0] + ' · ' + esc(o[1]) + (o[0] === 'A' ? ' <span class="rec">★ 권고</span>' : '') + '</span><span class="opt-d">' + esc(o[2]) + '</span><span class="sel">' + (on ? '보는 중' : '고르면 화면이 바뀜') + '</span></label>';
+      }).join('') + '</fieldset>';
+    }).join('');
+    var alt = DEC.filter(function (d) { return S.d[d.k] !== 'A'; }).map(function (d) { return d.n + ' ' + S.d[d.k]; });
+    $('#d-sum').textContent = alt.length ? '대안 보는 중: ' + alt.join(', ') : '모두 ★ 권고';
+  }
+  function renderLabelRows() {
+    var html = '';
+    [360, 390, 412].forEach(function (w) {
+      var variants = [
+        ['닫힘', {}], ['말로 쓰기 열림', { mic: true }], ['도우미 열림', { panel: P({}) }], ['글꼴 130%', { big: true }]
+      ];
+      html += '<div class="lrcol"><h3>' + w + 'px — 본문 ' + (w - 32) + 'px</h3>' + variants.map(function (v, i) {
+        IDP = 'lr' + w + i + '-';
+        var sc = Object.assign({ step: 'surface', surf: '' }, v[1]);
+        var right = micBtn(sc) + helperBtn(sc);
+        var row = '<div class="lrow"><span class="lbl">표현</span><div class="lr-r">' + right + '</div></div>';
+        IDP = '';
+        return '<div class="lrbox' + (v[1].big ? ' big' : '') + '" inert style="width:' + (w - 32) + 'px" data-lr="' + w + '">' + row + '</div><p class="lrcap" data-cap>' + v[0] + '</p>';
+      }).join('') + '</div>';
+    });
+    $('#lrw').innerHTML = html;
+    $$('#lrw .lrbox').forEach(function (bx) {
+      var lr = $('.lrow', bx), lb = lr.getBoundingClientRect(), used = 0;
+      for (var i = 0; i < lr.children.length; i++) used += lr.children[i].getBoundingClientRect().width;
+      var cap = bx.nextElementSibling, ok = lb.height <= 44.5 && bx.scrollWidth <= bx.clientWidth + 1;
+      cap.innerHTML = cap.textContent.split(' — ')[0] + ' — 높이 <span class="' + (ok ? 'ok' : 'ng') + '">' + Math.round(lb.height) + 'px</span> · 남는 폭 ' + Math.round(lb.width - used) + 'px · 한 줄 ' + (ok ? '<span class="ok">예</span>' : '<span class="ng">아니오</span>');
+    });
+  }
+  function renderCtls() {
+    $$('.dseg').forEach(function (g) {
+      var c = g.getAttribute('data-ctl');
+      $$('button', g).forEach(function (b) {
+        var v = b.getAttribute('data-v'), on;
+        if (c === 'disp') on = v === 'fu' ? S.fu : S.hg;
+        else if (c === 'mark') on = (v === 'on') === S.mark;
+        else on = String(S[c]) === v;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+    var root = document.documentElement;
+    if (S.theme === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', S.theme);
+    document.body.classList.toggle('mark', S.mark);
+  }
+  function render() { renderCtls(); renderNav(); renderStage(); renderExp(); renderMeas(); renderDec(); }
+
+  var toastT = 0;
+  function toast(t) { var el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2200); }
+
+  /* ── 직접 해 보기(휴대폰 안 조작) ── */
+  function go(id, o, focusSel) { clearTimers(); S.st = id; S.o = o || null; render(); if (focusSel) { var f = $('#stage ' + focusSel); if (f) f.focus(); } }
+  function setOfQuery(q) { if (/임팩트/.test(q)) return 'impact'; if (/어색/.test(q)) return 'awkward'; if (/귀찮/.test(q)) return 'bother'; return null; }
+  function ask(q, surf) {
+    if (q.trim() === '') return go('wh-empty', { surf: surf });
+    if (Array.from(q).length > 100) return go('wh-long', { surf: surf, panel: { q: q, msg: MSG.over(Array.from(q).length) } });
+    if (!/[가-힣]/.test(q)) return go('wh-nohangul', { surf: surf, panel: { q: q } });
+    var set = setOfQuery(q);
+    go('wh-loading', { surf: surf, panel: { q: q } });
+    timers.push(setTimeout(function () { S.st = 'wh-slow'; S.o = { surf: surf, panel: { q: q } }; render(); }, 900));
+    timers.push(setTimeout(function () {
+      if (set) { S.st = set === 'awkward' ? 'wh-result3' : set === 'bother' ? 'wh-result2' : 'wh-result1'; S.o = { surf: surf, panel: { q: q, set: set, more: false } }; S.prior = true; }
+      else { S.st = 'wh-none'; S.o = { surf: surf, panel: { q: q } }; }
+      render();
+    }, 1800));
+  }
+  function cur() { return scene(S.st); }
+  function onAct(act, arg, el) {
+    var sc = cur(), surf = sc.surf || '', p = sc.panel;
+    switch (act) {
+      case 'help':
+        if (sc.step === 'form') return go('wh-form', p ? { surf: surf } : { surf: surf, panel: P({}), focus: 'q', kb: true }, p ? '[data-act="help"]' : '.whp .hp-in');
+        if (p) return go('wh-closed', { surf: surf, kb: false, focus: null }, '[data-act="help"]');
+        if (sc.mic) return go('wh-mic2help', { surf: surf });
+        if (S.prior) return go('wh-reopen', { surf: surf }, '[data-act="help"]');
+        return go('wh-open-kb', { surf: surf }, '.whp .hp-in');
+      case 'hclose': return go('wh-closed', { surf: surf, kb: false, focus: null }, '[data-act="help"]');
+      case 'tipx': return go('wh-closed', { surf: surf });
+      case 'chip': return ask(arg, surf);
+      case 'ask':
+        if (p && (p.ph === 'loading' || p.ph === 'slow' || p.ph === 'rate')) return;
+        return ask(p ? ($('#stage .hp-in') || { value: p.q }).value : '', surf);
+      case 'retry': return ask(p ? p.q : '임팩트', surf);
+      case 'stop': return go('wh-stopped', { surf: surf, panel: { q: p ? p.q : '' } });
+      case 'more': return go(S.st, Object.assign({}, S.o || {}, { panel: Object.assign({}, (S.o && S.o.panel) || {}, { more: !p.more }) }));
+      case 'play': { var i = +arg; S.o = Object.assign({}, S.o || {}, { panel: Object.assign({}, (S.o && S.o.panel) || {}, { play: p.play === i ? -1 : i }) }); render(); return; }
+      case 'fill': {
+        var it = SETS[p.set].items[+arg];
+        if (S.d.d5 === 'B') return go('wh-enrich', { surf: it.ja });
+        return go('wh-filled', { surf: it.ja, ann: '표현 칸에 ‘' + it.ja + '’를 넣었어요' }, '.sh-b .inp[data-in="surf"]');
+      }
+      case 'mic':
+        if (sc.mic) return go('wh-closed', { surf: surf, kb: false, focus: null, mic: false });
+        if (p) return go('wh-help2mic', { surf: surf });
+        return go('wh-mic', { surf: surf });
+      case 'enrich':
+        if (!surf.trim()) { toast('표현을 적으면 누를 수 있어요.'); return; }
+        return go('wh-enrich', { surf: surf });
+      case 'back': return go('wh-closed', { surf: surf, kb: false, focus: null });
+      case 'manual': return go('wh-form', { surf: surf || 'インパクト' });
+      case 'sclose': toast('데모: 시트를 닫으면 단어장으로 돌아간다(도우미 답도 사라짐)'); return;
+      default: toast('데모에서는 그리기만 한다');
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return;
+    if (t.closest('#dnav') && t.hasAttribute('data-st')) { S.st = t.getAttribute('data-st'); S.o = null; clearTimers(); if (/result|more|playing|reopen/.test(S.st)) S.prior = true; render(); return; }
+    var seg = t.closest('.dseg');
+    if (seg) {
+      var c = seg.getAttribute('data-ctl'), v = t.getAttribute('data-v');
+      if (c === 'disp') { if (v === 'fu') S.fu = !S.fu; else S.hg = !S.hg; }
+      else if (c === 'mark') S.mark = v === 'on';
+      else if (c === 'w' || c === 'h') S[c] = +v;
+      else S[c] = v;
+      render(); return;
+    }
+    if (t.id === 'd-reset') { S.d = clone(DEF_D); render(); return; }
+    if (t.closest('#stage') && t.hasAttribute('data-act')) {
+      if (t.getAttribute('aria-disabled') === 'true' && t.getAttribute('data-act') !== 'ask' && t.getAttribute('data-act') !== 'enrich') return;
+      onAct(t.getAttribute('data-act'), t.getAttribute('data-arg'), t);
+    }
+  });
+  document.addEventListener('change', function (e) {
+    var r = e.target;
+    if (r.type === 'radio' && r.closest('#dqs')) { S.d[r.name] = r.value; render(); var again = $('#dqs input[name="' + r.name + '"][value="' + r.value + '"]'); if (again) again.focus(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (!t.closest || !t.closest('#stage')) return;
+    if (t.matches('.hp-in') && e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); onAct('ask'); }
+    if (e.key === 'Escape' && t.closest('.whp, .sheet.sub, .hbB, .hrow') && cur().panel) { e.preventDefault(); e.stopPropagation(); onAct('hclose'); }
+  });
+
+  /* ── 자체 시험(#selftest): 모든 상태 × 세 폭 × ★/대안 하나씩 — 가로 넘침·44px·라벨 줄 한 줄 ── */
+  function selftest() {
+    var fails = [], n = 0, lrs = [];
+    var keep = clone(S);
+    var combos = [{}];
+    DEC.forEach(function (d) { d.o.forEach(function (o) { if (o[0] !== 'A') { var c = {}; c[d.k] = o[0]; combos.push(c); } }); });
+    var disp = [[true, true], [false, false]];
+    combos.forEach(function (c) {
+      disp.forEach(function (fh) {
+        if (fh[0] === false && Object.keys(c).length) return;
+        [360, 390, 412].forEach(function (w) {
+          IDS.forEach(function (id) {
+            S.d = Object.assign(clone(DEF_D), c); S.fu = fh[0]; S.hg = fh[1]; S.st = id; S.o = null; S.view = 'one'; S.w = w; S.h = 780; S.kb = 'auto';
+            renderStage(); n++;
+            var m = measure($('#stage .phone'));
+            var key = (JSON.stringify(c) === '{}' ? '★' : JSON.stringify(c)) + (fh[0] ? '' : ' 표시끔') + ' ' + w + ' ' + id;
+            if (m.ov) fails.push(key + ' 넘침=' + m.ov);
+            if (m.small.length) fails.push(key + ' 작은터치=' + m.small.join('|'));
+            if (m.lrow && m.lrow.h > 44.5) fails.push(key + ' 라벨줄높이=' + m.lrow.h);
+            if (id === 'wh-closed' && !Object.keys(c).length && fh[0]) lrs.push(w + ' 라벨줄 ' + JSON.stringify(m.lrow) + ' 본문 ' + m.sheetBody);
+            if (id === 'wh-open-kb' && !Object.keys(c).length && fh[0]) lrs.push(w + ' 패널열림(키보드) 본문 ' + m.sheetBody + ' 내용 ' + m.scroll);
+          });
+        });
+      });
+    });
+    S = keep; render();
+    var big = $$('#lrw .lrcap').map(function (c) { return c.textContent; });
+    var out = $('#selftest');
+    out.hidden = false;
+    out.textContent = 'SELFTEST checks=' + n + ' fails=' + fails.length + '\n' + fails.slice(0, 60).join('\n') + '\n--\n' + lrs.join('\n') + '\n--\n' + big.join('\n');
+  }
+
+  window.addEventListener('error', function (e) { var out = $('#selftest'); out.hidden = false; out.textContent = 'SELFTEST_ERROR ' + e.message; });
+  render();
+  renderLabelRows();
+  if (location.hash === '#selftest') selftest();
+  /* 주소 #st=<상태>&w=360&view=three&theme=dark&shot=1 — 그 상태로 바로 열기(검토·캡처용) */
+  if (/^#st=/.test(location.hash)) {
+    var q = new URLSearchParams(location.hash.slice(1));
+    if (ST[q.get('st')]) S.st = q.get('st');
+    if (q.get('w')) S.w = +q.get('w');
+    if (q.get('view')) S.view = q.get('view');
+    if (q.get('theme')) S.theme = q.get('theme');
+    if (q.get('d')) q.get('d').split(',').forEach(function (kv) { var x = kv.split(':'); if (S.d[x[0]]) S.d[x[0]] = x[1]; });
+    if (/result|more|playing|reopen/.test(S.st)) S.prior = true;
+    render();
+    if (q.get('shot')) $('#decide').hidden = true;
+  }
+})();
+</script>
+</body>
+</html>

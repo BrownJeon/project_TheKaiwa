@@ -1178,7 +1178,7 @@ loading ; busy ; errors ; dup
 | 진행 | 선생님이 뜻을 찾고 있어요 · {n}초 / (8초~) 조금 오래 걸리고 있어요 · {n}초 |
 | 초안 머리 | 선생님이 채운 초안이에요. 틀린 곳은 고쳐 주세요. 저장해야 단어장에 들어가요. |
 | 초안 비었음 | 뜻을 찾지 못했어요. 직접 입력해 주세요. |
-| 일본어 아님(`valid:false`) | 일본어 단어로 보기 어려워요. 표현을 확인해 주세요. (+ `invalidReason` 13px ink2) |
+| 일본어 아님(`valid:false`) | 일본어 단어로 보기 어려워요. 표현을 확인해 주세요. (+ `invalidReason` 13px ink2) **[⚠ task-073 → §31-3: 틀은 불변, 이유 문장은 `wordEnrich@v3` 로 단정 금지·완화 — 예 「일본어 단어로 확인되지 않았어요.」]** |
 | 409 | 단어장에 같은 표현이 이미 있어요 · [그 단어 보기] |
 | 422 | 지금은 뜻을 채울 수 없어요. 직접 입력해 주세요. |
 | 502 | 뜻을 채우지 못했어요. 다시 시도하거나 직접 입력해 주세요. |
@@ -13399,3 +13399,269 @@ export function BaseDuplicateNote({ id, onOpen }: { id: string; onOpen: () => vo
 
 ### 29-4 소비처(모두 같은 `loading → ready/none` 전이를 받는다)
 오늘의 단어 덱 카드(앞·뒷면)·결과 목록·단어장 행·단어 상세·단어 제안 카드·평가 단어 상자(뜻 고르기·조각 분류)·챌린지 만들기 미리보기. 화면은 `layers[i].hangul` 만 읽으므로 코드 변경이 없다.
+
+## 30. 단어 추가 일본어 도우미 (task-072, IMP-0046, 2026-10-16) — ⏳ 사용자 승인 전 초안
+
+> **데모**: `docs/demo/task-072-word-helper-v1.html` (v1, full) — **사용자 승인 전 초안이다. 승인(또는 사용자 생략) 전에는 developer 에게 넘기지 않는다**(데모 게이트). 승인되면 이 줄을 「승인 데모: … (v1)」로 바꾸고 고른 안(★/대안)을 30-1 에 확정한다. `#wh-*` 는 데모 왼쪽 상태 목록 id, 「라벨 줄 세 폭」은 데모 아래 패널.
+> **적용 토큰 이름**(새 색 없음): `ground` · `surface` · `surface2` · `ink` · `ink2` · `ink3`(placeholder·한글 줄 괄호만) · `line` · `accent` · `accent-soft` · `on-accent` · `bad` · `--safe-bottom` · `--kb-inset`(시트가 처리).
+> **정본 관계**: 회화방 도우미 §22(승인 v1)의 버튼·카드·상태·문구를 **재사용**하고 단어 맥락에서 다른 것만 이 절에 적는다. 단어 추가 시트 바탕은 §4-2·§28-4, 「말로 쓰기」는 task-069(동작 불변). 서버 입구·프롬프트·한도는 이력서 L1~L6(Leader). 결정 근거·실측: `agent-vault/10-Flow/tasks/task-072-designer-record.md`.
+
+### 30-0. 레이아웃 설계 (page-layout-designer)
+
+1. **목표** — 단어를 넣고 싶은데 일본어 표기를 모를 때(예: 「임팩트」를 말로 넣다 インペクト 로 거절됨) 한국어로 물어 일본어 후보를 보고, 고른 후보를 표현 칸에 넣는다. 뜻 채우기·저장은 지금처럼 사용자가 누른다(AI 는 제안만).
+2. **위계** — ① 표현 칸(주 입력) ② [뜻 채우기](주 행동, 그대로) ③ 도우미 버튼(보조 — 흰 원 44px, 「말로 쓰기」와 같은 무게) ④ 패널: 머리 → 질의 줄 → 첫 카드(일본어 20px) → [다른 후보].
+3. **영역**(시트 본문 위→아래, 1단계) — 라벨 줄 [표현 · · · 🎤 말로 쓰기 · 가あ] → (처음 안내 줄) → 표현 칸(또는 말로 쓰기 영역) → 오류·안내 줄 → **[도우미 패널]** → [뜻 채우기] → 안내 → [직접 입력하기]. 세로 스크롤은 시트 본문 하나(§1 시트 내부 예외).
+4. **컴포넌트** — 새: `WordPhraseHelper`(패널) · `useWordPhraseHelper` · `wordHelperCopy.ts` / 넓힘(기본값이면 지금과 같음): `PhraseHelperButton`(`controlsId`) · `PhraseHelperCard`(`variant`) · `WordMicField`(`trailing`) / 재사용: `phraseHelperLogic` 순수 함수들 · `JaText` · `HangulLine` · `useAnnotations` · `Skeleton` · `Badge` · `useKeyedSound` · `SOUND_MSG` · `NETWORK_ERROR`.
+5. **상태** — 30-5 표.
+6. **행동** — 주: 물어보기 → [표현 칸에 넣기] → (사용자가) [뜻 채우기] · 보조: 예시 칩 · ▶ 듣기 · [다른 후보 더 보기] · [그만두기] · ✕/Esc · 위험 동작 없음(저장 없음).
+7. **반응형** — 360/390/412 같은 구조. 줄어드는 것은 라벨 줄의 빈 칸(남는 폭 179/209/231px)과 질의 칸 폭뿐. 키보드가 올라오면 시트가 키보드 위로 줄고(본문 약 356px @780) 본문이 스크롤된다.
+
+### 30-1. 결정 (★ = 데모 기본 — **승인 전**, 근거는 데모 결정 표)
+
+| # | 결정 | ★ 권고 | 대안 |
+|---|---|---|---|
+| D1 | 버튼 위치·모양 | 표현 라벨 줄 오른쪽 끝, 「말로 쓰기」 오른쪽 8px, 둥근 「가あ」 44px(회화방과 같은 부품) | 입력 칸 아래 44px 줄 「가あ 모르는 말은 한국어로 찾기 ›」 |
+| D1′ | 보이는 단계(designer 추가) | 표현 1단계에만 | 폼 단계(직접 입력·초안 뒤)에도 |
+| D2 | 판 형태 | 시트 안 인라인 패널 — 표현 칸 아래·[뜻 채우기] 위 | 시트 위 하위 시트 |
+| D3 | 질의 | 한국어 글자만(한글 1자 이상·100 코드포인트), 음성 없음 | — |
+| D4 | 카드 | 일본어 20px + 한글 줄 + 한국어 뜻 + ▶ + [표현 칸에 넣기] · 첫 카드 + [다른 후보 n개 더 보기] · 「왜」 줄 숨김 | 모두 펼침 / 「왜」 줄 보임 |
+| D5 | 넣기 | 표현 칸을 바꿔 넣고 패널 닫기 → 표현 칸 초점, 뜻 채우기는 사용자가 | [넣고 뜻 채우기] |
+| D6 | 처음 안내 플래그 | `kaiwa.talk.helperTipSeen` 공유 + 단어 문구 | 별도 플래그 |
+| D6′ | 안내 모양(designer 추가) | 시트 안 줄 안내(라벨 줄 아래 끼움, 꼬리 → 버튼) | 떠 있는 말풍선 |
+| D7 | 409 `PHRASE_BUSY` | 전용 문구 | 일반 오류(회화방과 같음) |
+| D8 | 공존 | 서로 닫기(30-6) | 함께 열림 |
+| D9 | 읽기 표시 | 앱 표시 설정(히라가나·한글)을 따름, 뜻은 늘 | 읽기 늘 보임 |
+
+### 30-2. 자리 — 표현 라벨 줄 (`#wh-closed` · 「라벨 줄 세 폭」)
+
+```
+WordAddSheet 1단계 — 바뀌는 곳만
+<div className="flex min-w-0 flex-col gap-1.5">
+  <WordMicField mic target="surface" idPrefix="wadd" value label={<label…>표현</label>}
+                trailing={<PhraseHelperButton open locked={false} controlsId="wadd_helper"
+                                              describedBy={tipShown ? 'wadd_helper_tip' : undefined}
+                                              buttonRef={helperBtnRef} onToggle={toggleHelper} onLocked={noop} />}
+                afterLabel={tipShown ? <WordHelperTip onClose={closeTip} /> : null}>   ← 30-3, 라벨 줄 바로 아래·입력 앞
+    <input id="wadd_surface" …/>                                       ← 그대로
+  </WordMicField>
+  …오류·중복·blockedLine 그대로…
+  <span id="wadd_helper_announce" className="sr-only" role="status">{announce}</span>   ← 늘 마운트(넣은 뒤 낭독)
+</div>
+{helper.open && <WordPhraseHelper … />}                               ← 30-4. 표현 블록과 [뜻 채우기] 사이
+<Btn type="submit">뜻 채우기</Btn> …그대로
+```
+- `WordMicField` 에 선택 prop **`trailing?: ReactNode`** — 있으면 라벨 줄 오른쪽을 `<div className="flex flex-none items-center gap-2">{토글}{trailing}</div>` 로, **없으면 지금 DOM 그대로**(예문 칸·폼 단계·수정 시트 무변화).
+- 처음 안내는 라벨 줄 **바로 아래**여야 꼬리가 버튼을 가리킨다. `WordMicField` 가 라벨 줄과 입력을 한 조각으로 그리므로 선택 prop **`afterLabel?: ReactNode`**(라벨 줄 다음·이유 줄/입력 앞)를 하나 더 둔다 — 없으면 지금 DOM 그대로.
+- 실측(데모, 이 브라우저 글꼴): 시트 본문 328/358/380px 에서 라벨 줄 높이 **44**(한 줄)·「말로 쓰기」 74px·가あ 44px·남는 폭 **179/209/231px**. 말로 쓰기 열림(「글자로 쓰기」) 167/197/219, 글꼴 130% 157/187/209 — 세 폭 모두 한 줄·넘침 0.
+- 가あ 의 오른쪽 끝 = 시트 오른쪽 − 16px(본문 `px-4`). 「말로 쓰기」 토글과 사이 8px.
+- **D1′**: 버튼·안내·패널은 `step==='surface'` 일 때만. 폼 단계 `WordForm` 은 바꾸지 않는다(수정 시트 공용).
+
+### 30-3. 처음 한 번 안내 — `WordHelperTip` (D6 · D6′ · `#wh-tip`)
+
+```
+<div id="wadd_helper_tip" role="note"
+     className="relative mt-1.5 flex w-[min(100%,236px)] items-start gap-0.5 self-end rounded-[10px] bg-ink py-2 pl-3 pr-0.5
+                text-[12.5px] leading-[1.45] text-surface break-keep
+                before:absolute before:bottom-full before:right-[15px] before:border-[7px] before:border-transparent before:border-b-ink before:content-['']">
+  <p className="min-w-0 flex-1">한국어로 물어보면 일본어 표현을 알려 줘요</p>
+  <button type="button" aria-label="안내 닫기" className="relative grid h-7 w-7 flex-none place-items-center rounded-full text-surface before:absolute before:-inset-2">✕ 14</button>
+</div>
+```
+- **흐름 안**에 끼워 넣는다(떠 있지 않음) — 시트 머리 ✕ 와 표현 입력 칸을 가리지 않는다. 꼬리 `right-[15px]` = 버튼 가운데(44/2 − 7).
+- 판정: 시트가 **1단계로 열린 뒤** `useEffect` 한 번 `claimHelperTip()`(§22-4 함수 그대로 — 키 공유, D6 ★). 참이면 이 시트가 열려 있는 동안 `tipOpen`. 서버 렌더·첫 렌더는 숨김.
+- 잠깐 숨김: `tipShown = tipOpen && !helper.open && mic.target !== 'surface'`. 닫힘(다시 안 뜸): ✕ · 가あ 탭 · 시트 닫힘.
+- 낭독: `role="note"`(나타날 때 읽지 않음) + 보이는 동안 버튼 `aria-describedby="wadd_helper_tip"`. Tab 순서: (라벨 줄) 말로 쓰기 → 가あ → 안내 ✕ → 표현 칸.
+- 대안 D6 B 면 키만 `kaiwa.words.helperTipSeen`(새 키 — 그래도 질의·답은 저장하지 않음).
+
+### 30-4. 패널·카드 — `WordPhraseHelper` (D2 · D3 · D4 · `#wh-open*` · `#wh-result*`)
+
+```
+<section id="wadd_helper" aria-labelledby="wadd_helper_title" className="min-w-0 rounded-[14px] bg-surface2 px-3 pb-3 pt-1">
+  머리 min-h-11 flex items-center gap-2 -mr-2:
+    <div className="min-w-0 flex-1">
+      <h3 id="wadd_helper_title" 14 semibold>일본어 도우미</h3>
+      <p 12 ink2 truncate>모르는 말을 한국어로 물어보세요</p>
+    </div>
+    ✕ 44 rounded-full text-ink2 aria-label="일본어 도우미 닫기"
+  <div className="mt-0.5 flex min-w-0 items-center gap-2">                ← ⚠ <form> 금지(1단계 <form> 안 — 중첩 form)
+    <label className="sr-only" htmlFor="wadd_helper_q">한국어로 물어볼 말</label>
+    <input id="wadd_helper_q" type="text" lang="ko" enterKeyHint="search" autoComplete="off" spellCheck={false}
+           aria-describedby="wadd_helper_msg" onKeyDown={Enter → preventDefault(바깥 form 제출 막기) + (IME 아니면) ask}
+           className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-[16px] …"
+           placeholder="예: 임팩트, 어색하다" />
+    <button type="button" aria-disabled={빈칸·초과·찾는 중·429 대기} onPointerDown={keepInputFocus}
+            className="h-11 min-w-11 flex-none rounded-xl bg-accent px-3.5 text-[14px] font-semibold text-on-accent aria-disabled:opacity-40">물어보기</button>
+  </div>
+  <p id="wadd_helper_msg" role="status" className="mt-1 text-[12px] break-keep">…</p>     ← 늘 마운트
+  <p role="status" className="sr-only">{결과·빈 결과 낭독}</p>                           ← 늘 마운트
+  <div className="mt-2.5 min-w-0"> 본문(30-5) </div>
+</section>
+```
+- 바탕 `surface2`(시트 `surface` 와 구분) · 카드는 `surface` + `line` 테두리 — 회화방 카드와 같은 값.
+- 패널 안 **모든 버튼 `type="button"`** + `onPointerDown={keepInputFocus}`(§22-5 와 같은 이유: 누르는 순간 blur → 키보드 내려감 → 본문이 밀려 click 을 놓침). 보낼 때만 질의 칸 `blur()`.
+- 예시 칩(대기·이전 답 없음): 「이렇게 물어보세요」 + `임팩트 · 어색하다 · 귀찮다`(보이는 36·히트 44). 키보드가 있어도 보인다(회화방과 달리 시트 본문이 스크롤되므로 숨기지 않음).
+- 찾는 중: `Skeleton heights={[104]}`(카드 1장 — D4 첫 카드만, 「왜」 줄 없음) + 줄 `flex justify-between`: 12 ink2 「일본어 표현을 찾는 중…」(5초 뒤 「조금만 기다려 주세요」) · 텍스트 버튼 **[그만두기]**(13 semibold accent, h-11) — 회화방에 없는 추가(데모 Q4).
+- 결과 목록·[다른 후보]: §22-5 구조 그대로, 문구만 「다른 후보 n개 더 보기 / 다른 후보 접기」, 목록 `aria-label` 「일본어 표현」·「다른 후보」.
+
+**카드** — `PhraseHelperCard` 에 `variant?: 'talk' | 'word'`(기본 `'talk'` = 지금 그대로) 하나만 더한다:
+
+| | `talk`(지금) | `word` |
+|---|---|---|
+| 일본어 | `text-[17px]` | `text-[20px] font-semibold`(루비 `rt` 11 · `leading` 2.1 그대로) |
+| 「왜」 줄 | 있으면 보임 | **그리지 않음**(D4 ★) |
+| 넣기 버튼 | `textMode` 일 때 「입력창에 넣기」 | 늘 「표현 칸에 넣기」(`GHOST mt-2`) |
+| ▶ | `!textOnly` | 늘(단어 시트엔 「자막만」 표시등이 없다 — 실패는 `SOUND_MSG` 줄) |
+| 꼬리표 | 후보 ≥2 이고 `labelKo` 있을 때 | 같음 |
+
+- 뜻 줄 `ko` 는 늘 보인다(§22 ⑥A 와 같음). 루비·한글 줄은 앱 표시 스위치(D9 ★ — `JaText`·`HangulLine` 이 스위치를 읽음). 가타카나는 루비가 없다.
+- `variant` 를 boolean 여러 개로 나누지 않는다. 회화방 쪽 호출은 바꾸지 않는다(기본값).
+
+### 30-5. 상태 표 (데모 id — 문구는 30-8)
+
+| 데모 id | 언제 | 화면 |
+|---|---|---|
+| `wh-now` | 현재 | 도우미 없음(사용자 사례 インペクト 거절) |
+| `wh-closed` | 기본 | 라벨 줄에 가あ(닫힘). 시트는 표현 칸 초점 그대로 |
+| `wh-tip` | 처음 | 30-3 안내 줄 |
+| `wh-invalid` | 판정 실패 뒤 | 오류 줄 그대로 + 가あ 보임(연결 링크 없음 — L6) |
+| `wh-open-kb` | 열기(이전 답 없음) | 패널 + 질의 칸 초점(같은 사용자 동작 안, 마운트 직후 `useLayoutEffect` 한 번) |
+| `wh-open` | 키보드 내림 | 예시 칩 |
+| `wh-typed` | 1자 이상 | [물어보기] 켜짐 |
+| `wh-empty` | 빈 제출 | 안내 줄 bad 「물어볼 말을 한국어로 써 주세요」, 초점 유지 |
+| `wh-nohangul` | 한글 0자 | 안내 줄 bad 「한국어로 써 주세요. 일본어는 위 표현 칸에 바로 적으면 돼요.」 — 보내지 않음(`/[가-힣]/`, 서버 `no_hangul` 과 같은 기준) |
+| `wh-long` | 90자~ / 100 초과 | 「n/100」 / bad 「100자까지 물어볼 수 있어요 · n/100」 + [물어보기] 흐림 |
+| `wh-loading` · `wh-slow` | 0~5초 · 5~12초 | 스켈레톤 + 줄 문구 + [그만두기]. [물어보기] 흐림 |
+| `wh-stopped` | [그만두기] | 요청 취소, 질의 유지, 안내 줄(ink2) 「찾기를 멈췄어요. 다시 물어볼 수 있어요.」 |
+| `wh-result1` · `wh-result3` · `wh-more` · `wh-result2` | 결과 | sr 「표현 n개를 찾았어요」 · 첫 카드(+ [다른 후보 n개 더 보기]) |
+| `wh-playing` | ▶ | ■ + accent 바탕, 한 번에 하나 |
+| `wh-none` | `items` 0 | 상자: 「이 말에 맞는 일본어를 찾지 못했어요.」 + 12 ink2 「짧은 한국어 낱말로 다시 써 보세요. 예: ‘어색하다’」. [다시 시도] 없음 |
+| `wh-rate` | 429 | 「n초 뒤 다시 물어볼 수 있어요.」(0 → 「잠시 뒤 다시 물어봐 주세요.」) + [다시 시도] 대기 중 흐림 |
+| `wh-busy` | 409 `PHRASE_BUSY` | `role=alert` 「다른 화면에서 일본어 표현을 찾는 중이에요. 끝나면 다시 물어봐 주세요.」 + [다시 시도] (D7 B 면 `error` 문구) |
+| `wh-offline` | 상태 0 | `role=alert` `NETWORK_ERROR`(「연결하지 못했어요. 네트워크를 확인해 주세요.」 — 시트의 뜻 채우기 실패와 같은 말) + [다시 시도] |
+| `wh-error` | 5xx·모양 오류·그 밖 | `role=alert` 「지금은 표현을 가져오지 못했어요.」 + [다시 시도] |
+| `wh-timeout` | 12초·504 | `role=alert` 「시간이 오래 걸려 멈췄어요. 다시 물어봐 주세요.」 + [다시 시도] |
+| `wh-filled` | [표현 칸에 넣기] | 30-6 |
+| `wh-reopen` | 다시 열기 | 마지막 질의·답 그대로, 키보드 안 올림(초점은 버튼) |
+| `wh-mic` · `wh-mic2help` · `wh-help2mic` · `wh-enrich` · `wh-form` | 공존 | 30-6 |
+
+- 400 `VALIDATION`(화면이 먼저 막아 보통 오지 않음) → 서버 문구 대신 `empty`/`nohangul`/`over` 중 맞는 것(서버 문구 비노출). 401 → 앱 공통 처리.
+
+### 30-6. 넣기 · 서로 닫기 · 단계 (D5 · D8 · D1′)
+
+- **[표현 칸에 넣기](D5 ★)**: `set('surface', ja)`(→ 기존 규칙으로 `dup`·`surfaceMsg`·표현 오류가 지워짐) → 패널 닫기(답 기억) → 소리 멈춤 → 표현 칸 `focus()` → 늘 마운트된 `wadd_helper_announce` 에 「표현 칸에 ‘{ja}’를 넣었어요」. **자동 [뜻 채우기]·자동 저장 없음**. 대안 B 면 넣은 뒤 `enrich()` 호출.
+- **도우미 열기** → `mic.close('surface')`(녹음 중이면 멈추고 닫힘 — `useWordMic.close` 동작 확인). **말로 쓰기가 새로 열리면**(`mic.target` 이 `'surface'` 로 바뀌는 순간) → 도우미 닫기(답 기억, 기다리는 요청은 그대로 받음).
+- **[뜻 채우기]·Enter(표현 칸)·[직접 입력하기]** → 첫 줄에서 `helper.cancelPending()` + 닫기. 이유: AI 호출 줄이 한 줄로 차례라 기다리는 도우미 요청이 뜻 채우기를 늦춘다(회화방 §22-10 취소 규칙과 같은 생각). 취소는 서버 중단 신호까지(L1 입구가 `req.signal` 을 엔진에 넘김 — Leader 사양).
+- **단계**: 버튼·안내·패널은 1단계에서만. 뜻 찾는 중·폼 단계에는 없다. 시트를 닫으면(언마운트) 요청 중단 + 답 버림 — 메모리만, 저장 없음.
+- **열기·닫기 초점**: 열기 = 이전 답 없으면 질의 칸, 있으면 그대로(버튼). 닫기(✕·Esc·버튼 재탭) = 초점 → 가あ. **Esc 는 패널·버튼에서 패널만 닫는다** — 공용 `Sheet` 가 `document` keydown 으로 Esc 에 시트를 닫으므로 패널 쪽 핸들러는 `preventDefault()` + `stopPropagation()`. 더 안전한 방법은 `Sheet` 의 `onKey` 가 `e.defaultPrevented` 면 무시하게 한 줄 더하는 것(공용 부품 변경 — Leader 판단, 다른 시트 회귀 확인).
+- **시트 닫기 가능 여부**: 도우미 찾는 중에도 시트는 닫힌다(지금 `dismissible` 규칙 그대로 — 뜻 찾는 중·저장 중만 막음).
+
+### 30-7. API 매핑 (L1 — 번호는 Leader 가 `api-contract.md` 에 배정)
+
+| 엔드포인트 | 메서드 | 화면 동작 | 요청 | 화면이 쓰는 칸 | 오류 처리 |
+|---|---|---|---|---|---|
+| `/api/v1/words/phrase-help` | POST | [물어보기]·Enter·예시 칩·[다시 시도] | `{ queryKo }` — trim 1~100 코드포인트·한글 1자 이상(화면이 먼저 막음) | `items[0..3].{ ja, ko, labelKo? }`(`whyKo` 는 `word` 카드가 쓰지 않음), 0개 = 못 찾음. 응답 검사는 `readPhraseHelp` 그대로 | 400 → 30-5 입력 안내 · 401 → 공통 · 409 `PHRASE_BUSY` → `wh-busy` · 429 → `wh-rate`(`Retry-After`) · 0 → `wh-offline` · 504·12초 → `wh-timeout` · 502·그 밖 → `wh-error` |
+| `/api/v1/text/annotate`(#24r) | POST | 카드 루비·한글 줄 | `items[].ja`(기존 `useAnnotations`) | 읽기 조각 | 실패해도 일본어 글자는 보임 |
+| 기존 단어 소리 경로(`useKeyedSound`) | — | 카드 ▶ | `ja` | — | `SOUND_MSG` |
+
+- 실패 → 상태 변환은 `helperFailureOf` 를 **그대로 쓰지 않는다**(회화방은 `PHRASE_BUSY` 를 일반 오류로, 상태 0 을 오류로 본다 — L6 로 회화방은 그대로). 단어용 `wordHelperFailureOf(err, timedOut)` 를 `wordHelperCopy.ts` 옆 순수 함수로 두고 단위 시험(0·400·409 PHRASE_BUSY·409 그 밖·429·502·504·시간 초과).
+- 질의·응답 원문은 `localStorage`·`sessionStorage`·`console`·로그에 남기지 않는다(L5). 브라우저 저장소에 남는 값은 `kaiwa.talk.helperTipSeen='1'` 하나(D6 ★, 이미 회화방이 쓰는 키).
+
+### 30-8. 문구 단일 출처 — `src/components/vocab/wordHelperCopy.ts` (데모 문구 그대로)
+
+| 키 | 문구 | 회화방(§22-7)과 |
+|---|---|---|
+| `button` | 일본어 도우미 | 같음 |
+| `tip` · `tipClose` | 한국어로 물어보면 일본어 표현을 알려 줘요 · 안내 닫기 | 다름 · 같음 |
+| `title` · `sub` · `close` | 일본어 도우미 · 모르는 말을 한국어로 물어보세요 · 일본어 도우미 닫기 | 같음 · 다름 · 같음 |
+| `inputLabel` · `ask` · `placeholder` | 한국어로 물어볼 말 · 물어보기 · 예: 임팩트, 어색하다 | 같음 · 같음 · 다름 |
+| `empty` · `count(n)` · `over(n)` | 물어볼 말을 한국어로 써 주세요 · `{n}/100` · `100자까지 물어볼 수 있어요 · {n}/100` | 같음 |
+| `noHangul` ★ | 한국어로 써 주세요. 일본어는 위 표현 칸에 바로 적으면 돼요. | 새 |
+| `examplesLead` · `examples` | 이렇게 물어보세요 · 임팩트 · 어색하다 · 귀찮다 | 같음 · 다름 |
+| `loading` · `slow` · `stop` · `stopped` ★ | 일본어 표현을 찾는 중… · 조금만 기다려 주세요 · 그만두기 · 찾기를 멈췄어요. 다시 물어볼 수 있어요. | 같음 · 같음 · 새 · 새 |
+| `found(n)` · `listAria` · `altsAria` | `표현 {n}개를 찾았어요` · 일본어 표현 · 다른 후보 | 같음 · 같음 · 다름 |
+| `more(n)` · `less` | `다른 후보 {n}개 더 보기` · 다른 후보 접기 | 다름 |
+| `listen(ja)` · `stopSound(ja)` · `fill` | `{ja} 듣기` · `{ja} 멈추기` · 표현 칸에 넣기 | 같음 · 같음 · 다름 |
+| `filled(ja)` ★ | `표현 칸에 ‘{ja}’를 넣었어요`(sr 전용) | 새 |
+| `none` · `noneHint` | 이 말에 맞는 일본어를 찾지 못했어요. · 짧은 한국어 낱말로 다시 써 보세요. 예: ‘어색하다’ | 같음 · 다름 |
+| `error` · `timeout` · `retry` | 지금은 표현을 가져오지 못했어요. · 시간이 오래 걸려 멈췄어요. 다시 물어봐 주세요. · 다시 시도 | 같음 |
+| `offline` | `NETWORK_ERROR`(labels.ts) 를 가져다 씀 | 단어 시트 기존 문구 |
+| `rate(n)` · `rateDone` | `{n}초 뒤 다시 물어볼 수 있어요.` · 잠시 뒤 다시 물어봐 주세요. | 같음 |
+| `busy` ★ | 다른 화면에서 일본어 표현을 찾는 중이에요. 끝나면 다시 물어봐 주세요. | 새(D7 ★) |
+
+- 같은 문구는 `HELPER`(talk/helperCopy.ts) 에서 가져다 쓰고 다른 것만 이 파일에 둔다(문구 두 벌 금지). `HELPER_MAX` 도 그대로. 엔진·모델 이름이 들어간 문구 없음. `labels.ts` 는 task-073 소유라 건드리지 않는다(`NETWORK_ERROR` import 만).
+
+### 30-9. 컴포넌트 · 파일 · 구현 순서 (`src/components` 만 — 서버·프롬프트는 Leader·PE 사양)
+
+| 파일 | 새/수정 | 내용 |
+|---|---|---|
+| `vocab/wordHelperCopy.ts` | 새 | 30-8 + `wordHelperFailureOf` + `hasHangul` |
+| `vocab/useWordPhraseHelper.ts` | 새 | 상태 `{ open, query, phase, items, more, playingKey, rateUntil, msg, announce }`(메모리만) · `toggle/close/ask/stop/cancelPending/fill` · `createHelperRequester` 재사용(12초·5초 타이머) · `askBlockOf`·`helperMsgOf`(+ `noHangul`)·`readPhraseHelp`·`altSummary`·`isImeEnter` 재사용 |
+| `vocab/WordPhraseHelper.tsx` | 새 | 30-4 패널(머리·질의 줄·안내 줄·본문) |
+| `vocab/WordHelperTip.tsx` | 새(작음) | 30-3 |
+| `talk/PhraseHelperButton.tsx` | 수정 | `controlsId?: string`(기본 `HELPER_PANEL_ID`) — 회화방 DOM 불변 |
+| `talk/PhraseHelperCard.tsx` | 수정 | `variant?: 'talk' \| 'word'`(기본 `talk`) + 넣기 문구를 `variant` 로 — 회화방 DOM 불변 |
+| `vocab/WordMicField.tsx` | 수정 | `trailing?`·(필요 시)`afterLabel?` 슬롯 — 없으면 DOM 불변 |
+| `vocab/WordAddSheet.tsx` | 수정 | 1단계 배치·`tipOpen`·서로 닫기·`enrich`/[직접 입력하기] 첫 줄 취소·넣기·announce |
+
+- **순서**: ① 문구·순수 함수 + 시험(`wordHelperFailureOf`·`hasHangul`·`claimHelperTip` 공유 키) → ② `PhraseHelperButton`·`PhraseHelperCard` 넓히기 + **회화방 회귀 시험**(기본값 DOM 같음) → ③ `WordMicField` 슬롯(없으면 같음 — 소스 스캔·렌더 시험) → ④ 패널·안내(가짜 데이터) → ⑤ 훅(서버 입구가 생긴 뒤 연결) → ⑥ 시트 배치·서로 닫기·Esc → ⑦ 360/390/412 × 780/892 · 키보드 · 다크 · 표시 스위치 · 엔진명 점검.
+- **task-073 과 겹침**: task-073(문구 W-2·W-3)이 `labels.ts`·`WordMicField.tsx`·`useWordMic.ts`·`wordMic.ts` 를 고친다. **task-073 이 먼저 머지된 뒤** 이 작업의 ③을 시작한다(같은 파일 동시 수정 금지). 073 의 「인식 직후 안내 한 줄」은 입력 칸 아래라 라벨 줄 슬롯과 자리가 겹치지 않는다.
+
+### 30-10. 접근성
+
+- 버튼: 이름 「일본어 도우미」 · `aria-expanded` · `aria-controls="wadd_helper"`(패널이 있을 때만) · 안내가 보이는 동안 `aria-describedby`. 글리프는 `aria-hidden`(§22-3 과 같음 — WCAG 2.5.3 Minor 동일 수용).
+- 패널: `<section aria-labelledby>` 비모달(시트 안). Tab 순서 = 보이는 순서: 말로 쓰기 → 가あ → (안내 ✕) → 표현 칸 → 패널(✕ → 질의 칸 → 물어보기 → 칩/카드…) → [뜻 채우기]. 패널이 버튼 바로 뒤 DOM 이 아니라 표현 칸 뒤에 있는 것은 보이는 순서와 맞춘 것.
+- 라이브 영역: 안내 줄·결과 sr 줄·`wadd_helper_announce` 는 **늘 마운트**, 오류 상자만 `role=alert` 새로 마운트(§22-13 과 같음). 찾는 중 문구는 보이는 글이라 sr 줄은 「찾는 중」을 한 번만.
+- 입력: 질의 칸 sr 라벨 + `aria-describedby` 안내 줄. 질의 칸 `lang="ko"`, 일본어 글자 `lang="ja"`, 한글 줄 `lang="ko"`.
+- 색만으로 구분하지 않음(오류·대기·열림 모두 글자나 모양이 함께). 대비: 기존 토큰(§1-1) 그대로. 터치 44px — 칩·안내 ✕ 는 `before:` 히트.
+- 일본어 블록 `[overflow-wrap:anywhere]`(`break-keep` 금지 §1-2), 한국어 설명만 `break-keep`.
+
+### 30-11. 주의 · developer 금지
+
+- 패널 안에 `<form>` 금지(1단계 `<form>` 안 — 중첩). 질의 칸 Enter 를 막지 않으면 바깥 form 이 제출돼 **[뜻 채우기]가 나간다**(가장 흔한 함정 — 시험으로 고정).
+- 회화방(`TalkRoom`·§22) 동작·문구·DOM 을 바꾸지 않는다 — 넓힌 prop 은 기본값이 지금과 같아야 하고 회화방 시험이 그대로 통과해야 한다(L6).
+- 저장 버튼·저장 경로 없음. [표현 칸에 넣기]는 채우기만. 자동 [뜻 채우기] 금지(D5 ★).
+- `WordForm`(폼·수정 시트 공용)은 바꾸지 않는다(D1′ ★). 수정 시트에는 도우미가 없다.
+- 엔진·모델 이름, 서버 문구(400 등)를 화면에 내지 않는다. 질의·답을 브라우저 저장소·콘솔에 남기지 않는다.
+- 빈 상태·로딩·오류·429·409·오프라인·시간 초과를 모두 그린다(30-5).
+
+### 30-12. reviewer · qa 확인표
+
+| # | 항목 | 확인 |
+|---|---|---|
+| W1 | 자리·폭 | 360/390/412 라벨 줄 한 줄(44px)·가로 넘침 0 · 가あ 오른쪽 끝 = 시트 − 16 · 글꼴 130% 에서도 한 줄 |
+| W2 | 터치 | 가あ·패널 ✕·[물어보기]·▶·[다른 후보]·[표현 칸에 넣기]·[다시 시도]·[그만두기] 44px↑, 칩·안내 ✕ 히트 44 |
+| W3 | 흐름 | 가あ → 질의 칸 초점 → 「임팩트」 → 물어보기(키보드 내림) → 스켈레톤 → インパクト 카드 → [표현 칸에 넣기] → 패널 닫힘·표현 칸 값·초점·낭독 → [뜻 채우기]는 사용자가 |
+| W4 | Enter | 질의 칸 Enter 가 [뜻 채우기]를 부르지 않음 · IME 조합 중 Enter 무시 |
+| W5 | 서로 닫기 | 말로 쓰기 열린 채 가あ → 말로 쓰기 닫힘 / 패널 열린 채 말로 쓰기 → 패널 닫힘·다시 열면 답 그대로 / 찾는 중 [뜻 채우기]·[직접 입력하기] → 요청 취소 + 뜻 찾기 시작 |
+| W6 | Esc | 패널·버튼에서 Esc → 패널만 닫힘(시트 유지)·초점 가あ / 그 밖 Esc → 지금처럼 시트 닫힘 |
+| W7 | 처음 안내 | 새 프로필 → 시트 열면 보임 → ✕/가あ 로 닫힘 → 다시 안 뜸 · 회화방에서 이미 본 프로필은 안 뜸(D6 ★) · 저장소 차단 환경은 한 번도 안 뜸 |
+| W8 | 실패(모의) | 0개 · 400 · 409 PHRASE_BUSY(회화방 도우미와 동시) · 429 카운트다운 · 오프라인 · 502 · 12초 |
+| W9 | 표시 스위치 | 히라가나·한글 꺼짐 반영(面倒 루비·한글 줄) · 뜻 줄은 늘 |
+| W10 | 저장·엔진명 | 질의 뒤 저장소에 질의·답 없음 · `console` 0 · DOM·`aria-*` 에 엔진·모델 이름 0 |
+| W11 | 회화방 회귀 | 회화방 도우미 버튼·카드 DOM·시험 그대로(`variant`·`controlsId` 기본값) |
+| W12 | 키보드·다크 | 360×780 + 키보드: 질의 칸이 키보드 위에 보임(시트 본문 스크롤) · 다크 안내 줄 색 반전·패널 바탕 구분 |
+
+### 30-13. 데모 실측 (헤드리스 Chrome, 데모 파일만 열람)
+
+- 자체 시험 1,209칸(상태 31 × 폭 3 × ★·대안 11가지 하나씩 + 표시 끔): **가로 넘침 0 · 44px 미만 터치 0 · 라벨 줄 두 줄 0**.
+- 키보드 모형 300px(780): 시트 본문 보이는 높이 356px, 패널 열림(빈 질의) 내용 약 492px → 본문 안 스크롤(질의 칸은 보임).
+
+## 31. 단어 추가 「말로 쓰기」 — 안내 문구·인식 직후 확인·판정 이유 완화 (task-069 구현 · task-073 개정, IMP-0043·0047·0048, 2026-10-17 사용자 데모 승인)
+
+> 정본 데모: `docs/demo/task-073-word-add-copy-v1.html`(delta, 사용자 「승인」 2026-10-17). 구현 위치: `src/components/vocab/{WordMicField,useWordMic,wordMic,labels}` · 판정 이유 규칙 `src/modules/conversation/prompts/wordEnrich.ts`(`wordEnrich@v3`). 「말로 쓰기」(task-069)는 표현(1단계·폼)·예문 칸에만 있고(인식기가 일본어 전용이라 한국어 칸 없음, 읽기·수정 시트 없음), `purpose:'MIC_TEST'` 라 원음을 저장하지 않는다.
+
+### 31-1 말하기 전 안내 (E1·E1′·DP1)
+- 표현 칸: 「일본어 발음으로 말해 주세요 (예: <span lang="ja">インパクト</span>). 칸에 들어간 뒤 고칠 수 있어요.」 — 예시만 `lang="ja"` 로 감싼다(`WORD_MIC_COPY.hint.surface` 가 앞·예시·뒤 세 조각). 예문 칸: 「일본어 발음으로 말해 주세요. 예문 끝에 이어 붙고, 칸에 들어간 뒤 고칠 수 있어요.」(예시 없음). 360/390/412 폭·글꼴 100/130% 모두 2줄 이하.
+- 옛 문구(「일본어로 말하면 표현이 바뀌어요…」)는 폐지 — 「표현이 바뀌어요」(바꿔 넣기) 안내는 빠졌지만 동작(표현은 바꿔 넣고 예문은 끝에 이어 붙임)은 그대로.
+
+### 31-2 인식 직후 확인 안내 (E2·E3·DP2)
+- 인식 결과가 칸에 **들어간 직후** 그 칸 입력 바로 아래에 12px·ink2 한 줄 「잘못 알아들었을 수 있어요. 확인하고 고쳐 주세요.」 — 눈에 보이는 줄은 `aria-hidden="true"`(자기 `role` 없음). 늘 마운트된 `sr-only role="status"` 줄이 같은 순간 「알아들은 말: <결과>. 잘못 알아들었을 수 있어요. 확인하고 고쳐 주세요.」로 **한 번에** 읽힌다 — 합칠지는 결과가 들어온 순간 한 번 정해 **얼린다**(안내를 거둘 때 줄이 되돌아가 같은 말이 다시 읽히는 것을 막음).
+- 사라지는 시점(칸마다 따로): 그 칸을 한 글자라도 고침 · 그 칸을 다시 말하려고 엶 · [뜻 채우기]·[직접 입력하기]·[저장]·예문 접기 · 검증 오류로 그 칸에 초점 · 시트 닫힘. **빈 결과·무시된 결과에는 안 뜬다.** 초점만 주는 것은 고침이 아니다.
+- 알려진 한계: 표현→예문 순서로 둘 다 말하면 읽기용 줄은 최근 칸(예문) 것으로 바뀌어 표현 칸으로 돌아간 화면 읽기 사용자는 표현 쪽 경고를 못 듣는다(그 순간 한 번 읽힘) — 승인된 DP2 설계의 대가. 폰 확인 항목.
+
+### 31-3 판정 실패 이유 (E4·E5 — `wordEnrich@v3`)
+- 화면 틀 「일본어 단어로 보기 어려워요. 표현을 확인해 주세요.」는 **불변**. 그 아래 이유 줄(13px ink2)의 문장 규칙만 완화: 「~가 아닙니다」·「~의 오타입니다」 같은 **단정 금지**, 「일본어 단어로 확인되지 않았어요.」·「영어 단어로 보여서, 일본어 표현으로 적어 주시면 확인할 수 있어요.」 식의 한 문장. 의도한 표기가 **하나로 분명할 때만** 질문형 한 번(예: こんにちわ → 「혹시 こんにちは를 말씀하신 걸까요?」), 아니면 생략(`インペクト` 는 후보 없음 — インパクト/インスペクト 둘 다 가능). 가까운 표기를 찾아 주는 일은 task-072 「가あ」 도우미가 맡는다.
+- 판정 기준(valid=true/false)·스키마·응답 구조는 불변. 실호출: invalid 48/48 단정 0(v2 는 같은 입력 21회가 전부 단정)·독립 재현 8/8, valid 통과율 불변.
+
+### 31-4 검증
+- 코드 독립 감사 2회 PASS_WITH_NOTES · QA(실제 Next 라우터·가짜 온디바이스 STT·3폭·라이트/다크) **결함 0**. 실기기 확인 대기: 일본어 발음 인식·마이크 권한·TalkBack 낭독(한 번만 읽힘·고쳐도 재낭독 없음)·글꼴 130%·키보드 올라온 상태.
