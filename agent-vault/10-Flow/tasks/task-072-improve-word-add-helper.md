@@ -2,7 +2,7 @@
 task_id: task-072
 title: "단어 추가 시트에 일본어 도우미(가あ) 추가 — 회화방 도우미와 같은 방식(한국어 글자 질의 → 일본어 후보 → [표현 칸에 넣기]), 채팅방 없는 새 서버 입구"
 status: doing
-waiting: demo_review
+waiting: ui_build
 base_ref: 746d54c
 risk_level: "R1"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa]
@@ -34,7 +34,7 @@ demo_gate:
   waived_by: ""
   waived_at: ""
   waiver_quote: ""
-  active: false
+  active: true
 ---
 
 # task-072 — 단어 추가 일본어 도우미 (IMP-0046)
@@ -98,12 +98,19 @@ demo_gate:
 - 2026-10-16 09:30 [designer] 데모 v1 `docs/demo/task-072-word-helper-v1.html`(full — 상태 31·세 폭·현재 vs 제안·결정 D1~D9 + designer 추가 D1′·D6′, ★ 바꾼 것 없음) lint `DEMO_LINT_PASSED`(sha256 앞 16자 `b84f9cdfc0e29b7d`), 자체 시험 1,209칸 넘침 0·작은 터치 0 · 가이드 초안 `docs/screens.md` §30(승인 전) · 기록 [[task-072-designer-record]](질문 Q1~Q7). 다음: Leader 데모 게이트 상태 전이·Artifact 게시 → 사용자 승인.
 
 - 2026-10-16 Leader: designer 데모 v1(`docs/demo/task-072-word-helper-v1.html`, 88KB·상태 31개·3폭·라이트/다크·결정 D1~D9, lint 통과, designer 자체 시험 1,209건 가로 넘침 0·44px 미만 터치 0) **전체를 읽고 확인** — 외부 요청·실데이터 없음. 비공개 Artifact 게시 https://claude.ai/artifact/6aC7dxocQtpvx7K56pwqXz → 게이트 `review_requested` v1(sha256 `b84f9cdf…`). **사용자 검토 대기** — 승인 전 화면 코드 금지. 구현 때 지킬 함정(designer): 패널이 1단계 `<form>` 안이라 질의 칸 Enter 를 막아야 하고(안 막으면 [뜻 채우기] 실행), 공용 Sheet 는 Esc 로 시트 전체를 닫으므로 패널에서 Esc 전파를 막아야 함. 순서: task-073(`WordMicField`·`labels.ts` 수정)이 먼저 끝나야 072 의 라벨 줄 자리를 넣을 수 있다.
+- 2026-10-17 22:55 [developer] 화면(UI) 구현 완료 → [[task-072-dev-ui-record]]. 공용 `Sheet` Esc 한 줄(`!e.defaultPrevented`, Leader Q1=A) · `WordMicField` 슬롯 · 새 vocab 파일 9개(코드 6·시험 3, 52건) · `WordAddSheet` 배선. tsc 0 · eslint error 0 · 전체 시험 4,263 중 pass 4,261/fail 0/skip 2 · next build 0 · 변이 20/20 · talk·package.json 무수정. 한계: jsdom 없어 Enter/Esc/초점 실동작은 QA 확인(특히 Esc 순서 가정). 다음: reviewer → qa.
+- 2026-10-17 [reviewer] 화면(UI) 독립 감사 REV-072U **PASS_WITH_NOTES**(Critical 0·High 0·Medium 1·Low 4; Medium = 훅 전이·카드 클릭 값을 소스 스캔만으로 고정해 동작 변이 5개가 시험을 통과) → [[task-072-rev-ui-record]]. 공용 `Sheet` Esc 순서 가정 **검증됨**(jsdom: `createRoot`/`hydrateRoot(document)` 둘 다, 패널·가あ Esc 시트 유지), 닫기 방식이 달라지는 기존 시트 경로 0, 실제 `WordAddSheet` jsdom 하네스 32/32, 073 `WordMicField` HEAD 대비 7상태 바이트 동일, tsc 0·eslint 0·시험 4,263 중 4,261(실패 0)·build 0 재현. QA 몫: 실제 Esc(WebView)·Enter 암묵 제출·초점·3폭·401 HTTP.
+- 2026-10-17 밤 [qa] 서버 #181 실제 HTTP(401/400/429/409/취소/원문 미기록) + 화면 실 Chrome(3폭×2높이·다크·글꼴 근사·Esc 7곳·Enter·IME·서로 닫기·요청 abort 관측·소리 정지·073 회귀·XSS·엔진명) **PASS_WITH_NOTES**(Critical 0·High 0·Medium 0·Low 2 — L-A abort 직후 수십 ms 재호출 409(Q2 알려진 한계), L-B 공용 Sheet 포커스 가두기 없음(072 이전부터)) · 미검증 = 푸시투토크 Esc·회화방 교차 409/회귀·수정 시트 실화면·실기기(마이크·TalkBack·IME·스피커·키보드) → [[task-072-qa-record]] 「최종 판정」. 임시 서버·쿠키·`.env`·스크린샷 정리 완료.
 
 ## 사용자 데모 승인 (2026-10-17)
 - 사용자 **「승인」**(단독 한 단어) — `check.mjs approve --version 1 --quote "승인"` 기록(`approved_at 2026-10-17T14:29:18+09:00`, sha256 `b84f9cdf…`). **Leader 해석(사용자에게 보고)**: 직전 메시지에 데모 두 개(073·072)와 각 ★ 권고(D5·D6·D7·D1′·Q4·Q5)가 있었고 「권고대로」라고만 하셔도 된다고 안내했으므로 **★ 권고 그대로 승인**한 것으로 본다. 즉 D5 넣기만(뜻 채우기는 사용자가) · D6 회화방과 플래그 공유(**회화방 안내를 이미 본 사용자는 단어 시트 안내를 한 번도 못 봄 — 이 결과를 감수**) · D7 409 전용 문구 · D1′ 1단계만 · Q4 찾는 중 [그만두기] · Q5 한글 없는 질의를 화면이 먼저 막기. 사용자가 다르게 뜻했다면 구현 전에 바로잡는다.
 - 다음: **prompt-engineer 가 L4(한 단어 질의 → 사전형 표제어인지) 실호출 확인**(진행 중) → 결과에 따라 `phraseHelp@v2`(단어 모드) 여부 결정 → developer 서버(새 입구 `words/phrase-help`) → 화면. **순서 주의**: 화면 작업은 task-073(`WordMicField`·`labels.ts` 수정) 보완 라운드·배포가 끝난 뒤에 시작(같은 라벨 줄 파일). 데모 게이트 `activate` 는 화면 구현 시작 때.
 - 2026-10-17 14:55 [prompt-engineer] L4 완료 — `phraseHelp@v1` 한 단어 질의 15종×2회 실호출: 1순위 사전형 표제어 **0/19**, 빈 결과 11/30(37%) → **단어 모드(`mode:'word'`, `phraseHelp@v2`) 구현**(1순위 문장·활용형 0/30, 사전형 26/30(87%), 빈 결과 0, 1차 위반 0, p50 2.5s·p95 3.4s). 회화방 기본 모드는 v1 해시로 고정(바이트 동일). tsc 0·eslint 0·conversation 1,225·전체 4,176(실패 0)·next build 0·변이 14/14. 라벨은 코드 상수라 DB 쓰기·`prompts:sync` 없음. 변경: `prompts/phraseHelp.ts`·`structuredResponse/phraseHelp.ts`·시험 `phraseHelpWord.test.ts`·픽스처/하네스 `tests/prompts/phrase-help-word*`. developer 몫: 서버 함수에서 `mode:'word'` 고정 + `index.ts` 재내보내기 · 기록 [[task-072-pe-record]]
 - 2026-10-17 15:20 [developer] 서버 부분 완료 — 새 입구 #181 `POST /api/v1/words/phrase-help`(`helpWordPhrase`: 채팅 의존만 걷고 잠금·엔진·취소·Trace 를 `helpPhrase` 와 내부 조각으로 공유, `mode:'word'`·수준=프로필·장면 null 서버 고정, 한도 키·`inFlight` 잠금 #180 과 공유, 저장·원문 로그 0) + `index.ts` 공개 + 화면용 타입 + `api-contract.md` §1-5 #181. 새 시험 24건, tsc 0·eslint 0·conversation 1,249/0 fail·전체 4,200 중 4,198 통과(실패 0·skip 2)·next build 0·변이 19/19. **화면은 073 배포 뒤.** 기록 [[task-072-dev-server-record]]
+- 2026-10-17 [reviewer] 서버 부분 독립 감사 **PASS_WITH_NOTES**(Critical 0·High 0·Medium 1·Low 5) — 회화방 #180 은 HEAD 와 입출력 바이트 동일(요청 3,600조합·보정 480조합·`helpPhrase` 11시나리오·Trace 키), #181 은 실제 라우트 핸들러 in-process 8/8(401·400 한도 미소모·429 합산+`Retry-After`·409 양방향·502/504·취소·원문 0). tsc 0·eslint 0·conversation 1,249/0·전체 4,200 중 4,198 통과(실패 0)·next build 0. 변이 12개 중 10 잡힘·2 생존(잠금 원자성 시험 없음·라우트 `await` 스캔). **Medium M-1: 단어 모드가 `감사합니다`·`죄송합니다` 같은 정형 인사에서 502**(실호출 2/5, 3/5 는 빈 결과) — PE/Developer 보정 권고, 화면 작업은 막지 않음. QA 는 실제 HTTP 로 401·400·429·409·취소·원문 미기록 확인 필요. 기록 [[task-072-rev-server-record]]
+- 2026-10-17 [developer] 감사 후 보완 라운드 완료 — M-1: 단어 모드에서 표제어가 하나도 없고 이유가 `JA_NOT_WORD` 뿐이면(정형 인사 `ありがとうございます` 류) 새 최종 상태 `NOT_A_WORD` → 재시도는 그대로 1회, 마지막 시도는 502 가 아니라 200 `{items:[]}`(다른 위반이 섞이면 INVALID 502 그대로) · L-1: 같은 틱 동시 호출 3건 중 정확히 1건 통과 시험 추가(감사 변이 X1 포착) · 회화 모드는 이전 소스와 336,000조합 바이트 동일 · 변이 14/14 포착 · tsc 0·eslint 0·시험 4,211 중 4,209(실패 0, skip 2)·build 0 · 정형 인사 실호출 8행: 200 빈 목록 7·200 표제어 1·502 0(재시도 탄 건 4.5~6.3초 — 5초 예산 초과, 12초 안) → [[task-072-dev-server-record]] §10
+- 2026-10-17 [reviewer] 서버 보완 라운드 재감사 REV-072S2 **PASS_WITH_NOTES**(Critical 0·High 0·Medium 0·Low 4) — M-1 해소 확인: 단어 모드 `NOT_A_WORD` 는 「남은 항목 0 + 이유가 `JA_NOT_WORD` 뿐」일 때만(독립 오라클 대조 30,941조합 일치), 회화 모드 247,528조합 바이트 동일·`NOT_A_WORD` 0건, developer 차분 시험 직접 재실행 일치, 실제 라우트 핸들러 in-process 13/13(NOT_A_WORD 200 빈 목록·섞이면 502·한도 소모·#180 불변), 변이 12개 중 11 포착(X1 이번에 포착)·X2 생존(Low 유지), tsc 0·eslint 0·conversation 1,260/0·전체 4,211 중 4,209 통과·build 0, 실호출 감사합니다 2/2 → 200 빈 목록(4.5~4.7초, 모델 2회). QA 기대값 갱신: 정형 인사 502 → 200 `{items: []}`. 상세 [[task-072-rev-server-record]] 「재감사 (REV-072S2)」.
+- 2026-10-17 22:20 [designer] 화면 구현 가이드 **확정** — `docs/screens.md` §30(줄 13403~13835, 「사용자 데모 승인 2026-10-17(v1, ★ 권고)」, §30 밖 무변경·데모 파일 무수정). 바뀐 것: talk 무수정 전환(카드 `vocab/WordHelperCard` 새로·패널 id `HELPER_PANEL_ID` 재사용·실패 분류는 요청 래퍼의 `wordHelperFailureOf`) · #181 `{ja,ko}` 만(꼬리표·요약 없음 = 데모와 보이는 차이 1건, REV L-4) · Esc 실제 원인(`document` 리스너 공유) 정정 → 공용 `Sheet` 한 줄 `!e.defaultPrevented` 권고 · 공용 `Skeleton` 금지 · 073 안내 보존(`mic.target==='surface'` 일 때만 `mic.close`, 넣기는 `mic.edited`) · 정형 인사 502/빈 목록 막다른 길 없음 · 시험은 순수 함수+정적 렌더+소스 스캔(jsdom 없음). Leader 질문 Q1~Q5(Sheet 한 줄·[그만두기] 직후 409 문구·빈 결과 힌트 문구·요약 칸·jsdom). 기록 [[task-072-designer-record]] 「가이드 확정」
 
 ## L4 결과 — 단어 모드 필요(prompt-engineer, 2026-10-17)
 - **`phraseHelp@v1` 은 한 단어 질의에 부적합**(실호출 15종×2=30건): 1순위가 사전형 표제어인 응답 **0/19**, OK 응답은 전부 문장형(`ストレスです。`), **11/30(37%)은 `NOT_A_PHRASE` 빈 결과** — 데모의 [추측](문장이 1순위로 올 수 있음)이 맞았다. **단어 모드(`mode:'word'`, `phraseHelp@v2`)**: 같은 15종×2 — 문장·활용형 1순위 0/30, 사전형 26/30(87%, 나머지 4건은 관용구 한 덩어리: 空気を読む ×2·違和感がある ×2), 빈 결과·1차 계약 위반 0, 외래어 6/6 가타카나, p50 2.5s·p95 3.4s(12초 예산 안). **회화방 불변**: mode 생략 시 system 7종·요청 3종·본문 3종이 v1 과 바이트 동일(SHA-256 시험으로 고정), 회귀 실호출 10/10. 버전은 코드 상수 라벨(DB 쓰기·`prompts:sync` 불필요). PE 증빙: tsc 0·eslint 0·conversation 1,225 통과·전체 4,176 중 4,174 통과(실패 0·건너뜀 2)·build 0·변이 14/14.
@@ -111,6 +118,15 @@ demo_gate:
 - **Leader 결정(사용자에게 알림)**: **후보 상한은 승인된 3개 유지** — 화면이 첫 카드만 보이고 나머지는 「더 보기」로 접히며 각 후보에 한국어 뜻이 함께 보이고(AI 는 제안만), 2개로 줄이면 승인된 데모(D4)를 바꾸게 된다. 폰에서 어긋난 후보가 거슬리면 2개로 줄이는 후속 조정 가능.
 - **API 번호 #181 배정**(코드·`docs/design`·계약 문서에서 미사용 확인 — task-066 기록의 「가칭 #181」은 실제 라우트가 없는 가칭뿐).
 - **다음**: developer(sonnet) **서버 부분만** 소환(새 입구 `POST /api/v1/words/phrase-help`·`helpWordPhrase`·한도/잠금 공유·api-contract) — 화면은 task-073 배포 뒤.
+
+## 서버 감사·보완·화면 착수 (2026-10-17 밤, Leader 결정 — 사용자가 바꾸라면 바꾼다)
+- **서버 감사 REV-072S**(PASS_WITH_NOTES, Critical 0·High 0·Medium 1·Low 5) → **M-1**: 단어 모드에서 정형 인사(감사합니다·죄송합니다 → `ありがとうございます` 꼬리)가 `JA_NOT_WORD` 로 전부 버려져 재시도도 같으면 **502**. 회화방(#180) 바이트 불변·#181 계약(401/400/429/409/502/504/취소)은 실제 핸들러로 통과. 기록 [[task-072-rev-server-record]].
+- **M-1 처리(Leader)**: 재시도는 유지하고, 「남은 항목 0개 + 이유가 `JA_NOT_WORD` 뿐」이면 502 대신 새 최종 상태 `NOT_A_WORD` → **200 빈 목록**(사유 구분 안 함). 프롬프트는 안 바꿈. 인사를 사전형으로 풀어 주는 개선(`감사합니다`→`ありがとう`)은 **PE 별도 작업**으로 남김(사용자가 원하면). L-1(동시 호출 원자성) 시험 추가. developer 보완 [[task-072-dev-server-record]] §10 — 변이 14/14, 전체 4,211 중 4,209(실패 0), 정형 인사 실호출 12회 중 502 0·`ありがとう` 1회. **재감사 REV-072S2 PASS_WITH_NOTES(Critical 0·High 0·Medium 0·Low 4)** — 30,941조합 오라클 대조·회화 모드 247,528조합 바이트 동일.
+- **알려진 한계(수용)**: ① 정형 인사는 모델 2회로 4.5~6.3초(5초 예산 초과, 12초 한도 안) ② `NOT_A_WORD` 는 정형 인사만이 아니라 꼬리 없는 17자 이상 복합어·쉼표 든 한 항목도 같은 경로(L-7) → 운영에서 Trace `outcome=NOT_A_WORD` 비율을 보면 모델 품질 저하를 알 수 있다 ③ 라우트 `await requireSession()` 누락은 소스 스캔 시험이 못 잡음(L-2) → **QA 가 실제 HTTP 401 확인 필수** ④ `finalizePhraseHelp` 주석에 `NOT_A_WORD` 누락(Low, PE 영역).
+- **화면 가이드 확정**: designer `docs/screens.md` §30 확정(13403~13835줄, [[task-072-designer-record]] 「가이드 확정」). 초안의 처방 2개를 바로잡음 — ⓐ Esc: `stopPropagation` 으로는 `document` 의 `Sheet` 리스너를 못 막는다(Next 16 `hydrateRoot(document)`) ⓑ 회화방 부품(`PhraseHelperButton`·`PhraseHelperCard`) 확장 대신 **회화방 한 줄도 안 고치는** 새 `vocab/WordHelperCard`. 데모와 다른 눈에 보이는 점 1건 = 단어 모드는 `labelKo` 를 안 보내 카드 꼬리표·[다른 후보] 요약이 사라짐.
+- **Leader 결정 Q1~Q5**: Q1 = **A 승인** — 공용 `common/Sheet.tsx` Esc 를 `if (e.key === 'Escape' && !e.defaultPrevented) onClose()` 한 줄로(영향: `PushToTalkButton` 녹음 중 Esc 가 지금은 녹음 취소+시트 닫힘, 변경 후 녹음 취소만. 직접 코드 확인 `Sheet.tsx:53`) — **공용 부품이라 고정 시험 필수·reviewer 전수 확인** · Q2 D7 문구 그대로, 자기 [그만두기] 직후 몇 초 409 가능은 알려진 한계 · Q3 데모에 없는 문구 추가 안 함(데모 v2 불필요) · Q4 [다른 후보] 요약 칸 비움 · Q5 jsdom 의존성 추가 안 함(`package.json` 불변).
+- **데모 게이트 activate 완료**(`DEMO_GATE_PASSED`·approved v1·hash verified) → developer(UI, Sonnet) 소환. 진행은 [[task-072-dev-ui-record]]. 다음: UI 완료 → reviewer(공용 `Sheet` 전수 포함) → QA(실제 HTTP 401·정형 인사 200 빈 목록·3폭·Esc·409 등) → 사용자 배포 승인.
+- 절차 메모: 서버 감사 에이전트 1차가 60턴 한도에서 보고문이 잘렸으나 기록 파일은 완결 → 기록 파일을 직접 읽어 확인(알림 본문 신뢰 금지 원칙 유지).
 
 ## 데모 검토 (demo gate)
 

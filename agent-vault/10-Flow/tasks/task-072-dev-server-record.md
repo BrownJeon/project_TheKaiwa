@@ -117,3 +117,84 @@ tags:
 - **주의점**: 한도 상수는 두 라우트에 중복(#180·#181) — 한쪽만 바꾸면 시험이 깬다. 단어 모드 보정(`JA_NOT_WORD`)은 PE 소유라 건드리지 않았다. 후보 상한 3→2 는 Leader 결정 대기.
 - **미커밋 파일(내 몫)**: `src/app/api/v1/words/phrase-help/route.ts`(신규) · `src/modules/conversation/chats/phraseHelp.ts` · `src/modules/conversation/index.ts` · `src/types/phraseHelp.ts` · `src/modules/conversation/__tests__/task072WordHelpServer.test.ts`(신규) · `docs/design/api-contract.md` · vault(이 기록·이력서 상태 로그 한 줄·`20-Log/2026-10-17.md` 한 줄). 그 밖의 미커밋(PE·073·designer)은 내 것이 아니다 — 푸시 전 hunk 단위 스테이징 필요.
 - 미러: 시험·빌드 `~/.node-local/thekaiwa-dev072-sv`(reviewer 가 그대로 써도 됨, 저장소와 동일), 변이 점검용 `~/.node-local/thekaiwa-dev072-sv-mut`(정리 가능), 로그 `/tmp/claude-1000/dev072-sv-{full,build,conv}.log`.
+
+## 10. 감사 후 보완 라운드 (REV-072S M-1 · L-1) — 2026-10-17 developer(신규 소환)
+
+범위: reviewer 지적 **M-1**(정형 인사가 단어 모드에서 502) · **L-1**(같은 틱 동시 호출 원자성 시험 없음)만. 화면·라우트·프롬프트 문구·`prompts/**`·docs 는 건드리지 않았다. 네이티브·DB·환경변수 변경 없음. 커밋·푸시·배포 없음.
+
+### 10.1 변경 파일 (모두 내 소유 목록 안)
+| 파일 | 변경 |
+|---|---|
+| `src/modules/conversation/structuredResponse/phraseHelp.ts` | 최종 상태 `'NOT_A_WORD'` 추가(단어 모드 전용). `isNotWordOnly`(이유가 `JA_NOT_WORD` 뿐). `fitPhraseHelp`: 남은 항목 0 → 길이뿐이면 `TOO_LONG`, **`JA_NOT_WORD` 뿐이면 `NOT_A_WORD`**, 그 밖은 `INVALID`. `phraseHelpViolations`: `(TOO_LONG ∥ NOT_A_WORD) && !lastAttempt` 만 위반 → **첫 시도는 위반(재시도 1회 그대로), 마지막 시도는 데이터**. 머리 주석 보강 |
+| `src/modules/conversation/chats/phraseHelp.ts` | **주석만**(서비스 로직 불변: `fin.status === 'INVALID'` 만 던지므로 `NOT_A_WORD` 는 자동으로 `{items: []}` 200) |
+| `src/modules/conversation/__tests__/phraseHelpWord.test.ts` | 옛 기대 3곳 갱신(INVALID→NOT_A_WORD, 마지막 시도 위반→`[]`) + 신규 5개 → 24개 |
+| `src/modules/conversation/__tests__/task072WordHelpServer.test.ts` | INVALID 시험을 「다른 위반 섞임 → 502」로 교체 + 신규 6개(NOT_A_WORD 200·진짜 재시도 루프 3·동시성 2) → 30개 |
+| `tests/prompts/fixtures/phrase-help-word.json` | `wordFormulaCases` 4종(감사합니다·죄송합니다·안녕하세요·잘 먹겠습니다, 기대 `OK_OR_EMPTY` = 「표제어 0개 허용」) + note |
+| `tests/prompts/phraseHelpWordCheck.ts` · `tests/prompts/phrase-help-word-live.ts` | `classifyFormulaOutcome`·`formulaPasses`, 하네스 `GROUP=formula`(서버 입구 `helpWordPhrase` 를 수준·Trace 만 가짜로 그대로 호출) |
+
+### 10.2 결정 근거
+1. **새 최종 상태 `NOT_A_WORD`**(INVALID 의 하위로 두지 않고, `NOT_A_PHRASE` 재사용도 안 함): 재시도 규칙(첫 시도 위반·마지막 데이터)이 `TOO_LONG` 과 같은 모양이고, 관리 화면에서 Trace `outcome=NOT_A_WORD`/`dropReasons=JA_NOT_WORD` 로 「모델이 거절한 것(NOT_A_PHRASE)」과 구분된다. `PhraseHelpFinalStatus` 를 소비하는 곳은 Trace 문자열·`phraseHelpItems`(`OK` 만 항목)뿐이라 다른 코드 영향 없음.
+2. **분류식에 `word &&` 가드를 두지 않았다**: `JA_NOT_WORD` 는 `if (word && !isWordHeadform)` 안에서만 추가되므로 회화 모드에서는 이유 집합에 없어 `isNotWordOnly` 가 항상 false — 가드를 또 두면 동치 변이만 늘어난다. 회화 모드 불변은 아래 10.4 의 이전 소스 대조로 입증.
+3. **재시도는 그대로**(Leader 결정): 첫 시도가 정형 꼬리면 위반(고정 문장)으로 한 번 더 부른다. 실호출에서 재시도가 `ありがとう`(표제어)를 건진 1건이 있었다(10.6).
+4. 엔진 폴백: 마지막 시도 위반이 사라져 `JsonSchemaError` 가 안 나므로 정형 인사에서 엔진이 던지는 일 자체가 없다 — 모델 호출은 최대 2회로 끝난다.
+
+### 10.3 증빙 (미러 `~/.node-local/thekaiwa-dev072-fix` — `cp -al thekaiwa-dev072-sv` 후 저장소 `src/`·`tests/`·`package.json` rsync, `UserWordState` 724건 확인, 끝에 `diff -rq` 동일)
+- `tsc --noEmit` **0** · `eslint src/modules/conversation src/app/api/v1/words tests/prompts` **0**
+- 신규·갱신 시험: `phraseHelpWord.test.ts` **24/24** · `task072WordHelpServer.test.ts` **30/30**(기준 24) · 기존 `phraseHelp.test.ts`·`task056PhraseHelp.test.ts` **수정 0건으로 통과** — 4개 파일 합 99건 중 99 통과
+- conversation 전체 **1,260 pass / 0 fail**(기준 1,249 + 11)
+- 전체 시험(`src`+`scripts/seed-build`, `--test-concurrency=1`) **4,211건 중 4,209 통과 · 실패 0 · 건너뜀 2**(기준 4,200 + 11, skip 2 그대로)
+- `next build` **exit 0**(`./node_modules/.bin/next build > 로그 2>&1; echo $?`, 출력 자르지 않음) — 라우트 목록에 `/api/v1/words/phrase-help`·`/api/v1/chats/[id]/phrase-help`. (`.next` 트러블슈팅은 10.8)
+- 마지막에 동시성 시험 2개를 `try/finally`(단언이 깨져도 문을 열어 잠금 해제)로 다듬은 뒤 `task072WordHelpServer.test.ts` 30/30·eslint 0·tsc 0 을 다시 확인했다. 전체 시험·conversation·빌드 수치는 그 직전 실행이다(해당 파일 외 변경 없음).
+
+### 10.4 회화 모드 불변 — 이전 소스와의 차분 대조 (미러 전용 일회성, 저장소에 넣지 않음)
+이 라운드 직전 소스(`thekaiwa-dev072-sv` 의 `conversation/**`)를 `_prev` 로 복사해 같은 입력으로 돌렸다(시드 고정 난수 응답 6,000개 — 상태·항목 수·`ja`/`ko`/`labelKo`/`whyKo`·모양 오류·길이·한글·URL·엔진명 섞음). 사본 시험은 스크래치패드 `_diffprev072fix.test.ts` (저장소 밖).
+- **회화 모드**(mode 생략·null·`'sentence'`·`'WORD'`·`' word'`·`true`·`1`·`{}` 8종) × 응답 6,000 × 질의 7 = **336,000조합**: `fitPhraseHelp`·`phraseHelpViolations`(시도 정보 4종)·`phraseHelpTrace`·`phraseHelpItems` JSON 바이트 동일, `NOT_A_WORD` 0건. 요청 빌드·`finalizePhraseHelp` 280조합(+84,000 finalize) 동일. `helpPhrase` 400시나리오(결과·오류·호출 순서·엔진 요청 JSON·Trace) 동일.
+- **단어 모드** 42,000조합: 이전과 다른 경우는 **「이전 INVALID · 이유 `JA_NOT_WORD` 뿐 · 항목 0」→ `NOT_A_WORD` 1,904건뿐**(나머지 40,096건 바이트 동일). 위반 문구도 다른 경우는 그 1,904건의 **마지막 시도(위반 → `[]`)** 뿐. `helpWordPhrase` 1,500표본: 바뀐 72건은 전부 「502 PHRASE_INVALID → 200 `{"items":[]}`」이고 호출 순서·엔진 요청은 동일.
+
+### 10.5 변이 점검 14개 — 전부 잡힘 (미러 하드링크 보호: rename 으로 교체 후 원본 복원, 매번 4개 시험 파일로 판정; 스크립트 `scratchpad/mut072fix.py`)
+| # | 변이 | 결과 | 잡은 시험(대표) |
+|---|---|---|---|
+| M1 | `NOT_A_WORD` 분류를 끔(전부 INVALID → 502 되돌림) | 잡힘(7건) | 보정·extraCheck·NOT_A_WORD 단위 |
+| M2 | 「JA_NOT_WORD 뿐」을 `every`→`some`(하나라도) | 잡힘(4건) | 다른 위반 섞임 단위 · 서버 502 2건 |
+| M3 | `KO_BAD` 가 섞여도 NOT_A_WORD | 잡힘(5건) | 섞임 단위 · 기존 방어 · 서버 502 |
+| M4 | `ITEM_SHAPE` 가 섞여도 NOT_A_WORD | 잡힘(3건) | 섞임 단위 · 거절 상태 · 서버 502 |
+| M5 | 회화 모드에 새 분기가 샌다(`JA_HANGUL` 뿐이어도 NOT_A_WORD) | 잡힘(7건) | 회화 모드 NOT_A_WORD 금지 · extraCheck(기존) |
+| M6 | 표제어 검사가 회화 모드에도 걸림(`word &&` 제거) | 잡힘(23건) | 기존 회화 보정 시험 전반 |
+| M7 | 첫 시도 재시도 제거(NOT_A_WORD 를 항상 데이터로) | 잡힘(5건) | 재시도 규칙 · 모델 호출 2번 시험 |
+| M8 | 마지막 시도에도 NOT_A_WORD 를 위반으로(엔진이 던짐 → 502) | 잡힘(3건) | 재시도 규칙 · 200 빈 목록(진짜 재시도 루프) |
+| M9 | 서비스가 `NOT_A_WORD` 를 502 로 던짐 | 잡힘(2건) | NOT_A_WORD 200 · 재시도 루프 200 |
+| M10 | 잠금 검사·등록 사이 `await`(원자성 깨기, 감사 X1) | **잡힘(2건 — 이번에 추가한 동시성 시험 2건만)** | 같은 틱 3건 · 단어·회화 4건 |
+| M11 | Trace outcome 이 `INVALID` 로 찍힘 | 잡힘(3건) | NOT_A_WORD 단위·서버 Trace |
+| M12 | 표제어 꼬리 목록에서 `ません` 제거 | 잡힘(2건) | 정형 인사 단위·서버 |
+| M13 | 길이 전용 `TOO_LONG` 분류를 끔(기존 갈래 회귀) | 잡힘(6건) | 기존 보정·extraCheck |
+| M14 | 잠금 `finally` 해제 제거 | 잡힘(37건) | 잠금·정상 경로 전반 |
+→ **14개 중 14 포착**(감사 때 생존한 X1 은 M10 으로 이제 포착). 동시성 시험이 깨졌을 때 뒤 시험이 연쇄로 `PHRASE_BUSY` 로 깨져 원인이 묻히지 않게, 두 시험은 단언이 깨져도 `finally` 에서 문을 열어 잠금을 푼다(M10 에서 실패는 정확히 2건).
+
+### 10.6 실호출 (로컬 Claude CLI, DB·서버·운영 포트 접촉 0, `routerDeps.loadChain` 고정 연결, `DATABASE_URL` 가짜; 질의당 2회 = 8행, 모델 호출 12회 — 결과 `/tmp/claude-1000/dev072fix-live/`)
+서버 입구 `helpWordPhrase` 를 그대로 불러 HTTP 로 치면 무엇인지 잰 것(수준 조회·Trace 만 가짜).
+| 질의 | 회차 1 | 회차 2 |
+|---|---|---|
+| 감사합니다 | 200 표제어 `ありがとう`(1차 `ありがとうございます` 위반 → 재시도가 건짐, 4.5s) | **200 빈 목록**(`NOT_A_WORD`·`JA_NOT_WORD`, 시도 2, 5.1s) |
+| 죄송합니다 | **200 빈 목록**(`NOT_A_WORD`, 시도 2, 6.2s) | **200 빈 목록**(`NOT_A_WORD`, 시도 2, 6.3s) |
+| 안녕하세요 | 200 빈 목록(모델이 `NOT_A_PHRASE`, 시도 1, 2.1s) | 200 빈 목록(`NOT_A_PHRASE`, 2.2s) |
+| 잘 먹겠습니다 | 200 빈 목록(`NOT_A_PHRASE`, 2.2s) | 200 빈 목록(`NOT_A_PHRASE`, 2.2s) |
+**요약: 200 빈 목록 7 · 200 표제어 1 · 문장형 0 · 오류(502 등) 0** — 감사 때 502 였던 감사합니다·죄송합니다가 전부 200. 엔진명 누출 0.
+
+### 10.7 남은 위험·후속 후보
+1. **5초 예산**: 재시도를 두 번 타는 정형 인사(감사·죄송)는 **4.5~6.3초**(모델 2회). 응답은 맞지만 화면은 빈 결과를 그만큼 늦게 본다. 12초 한도 안. Leader 결정(재시도 유지) 그대로 두었다. 줄이려면 PE 쪽에서 프롬프트가 정형 인사를 사전형(ありがとう·すまない 류)으로 풀게 하거나, `ます/です` 꼬리만 있는 1차 응답은 재시도 없이 끝내는 방법이 있는데 — 후자는 실호출에서 재시도가 `ありがとう` 를 건진 사례(1/4)를 잃는다.
+2. `안녕하세요`·`잘 먹겠습니다`는 모델이 `NOT_A_PHRASE` 로 거절해 빈 목록(이 사용 자체가 단어 도우미의 목적 밖이라 정상).
+3. `prompts/phraseHelp.ts` 의 `finalizePhraseHelp` 문서 주석("`NOT_A_PHRASE`·`UNSAFE`·`TOO_LONG` 은 항목 없음")에 `NOT_A_WORD` 가 빠져 있다 — **PE 영역이라 안 고쳤다**(코드 영향 없음, 주석 한 단어).
+4. `api-contract.md` #181 행은 이미 「거절·못 찾음도 `items:[]`, 사유를 구분해 알리지 않음」이라 이 동작과 모순이 없다 — 원하면 Leader 가 502 항목에 「(정형 표현으로 표제어가 0개면 502 가 아니라 빈 목록)」을 덧붙인다.
+5. 라우트 시험이 소스 스캔뿐인 점(L-2)은 이번 범위 밖 — QA 가 실제 HTTP 로 401/400/429 를 확인한다(감사 high_risk_areas). 이 라운드로 QA 기대값이 바뀌는 곳: **정형 인사(감사합니다·죄송합니다)는 502 가 아니라 200 `{items: []}`**.
+
+### 10.8 트러블슈팅 (재발 가능)
+- **하드링크 미러(`cp -al`)의 `.next` 를 그대로 쓰면 `next build` 가 Tailwind/PostCSS 단계에서 깨진다** — 첫 시도: CSS 후보에 깨진 바이트(`var(z���)`·`26px!\13`) 20건 경고, 둘째 시도: `CssSyntaxError … globals.css:2:13951 Missed semicolon`. 원인 추정[가능성 높음]: Turbopack 캐시 파일이 원본 미러(`thekaiwa-dev072-sv`)와 같은 inode 라 제자리 쓰기로 서로 오염. 해결: `.next` 를 **프로젝트 밖**(`~/.node-local/thekaiwa-dev072-fix-oldnext*`)으로 `mv` 하고 새로 빌드 → exit 0. 프로젝트 안에 `.next-xxx` 로 옮겨 두면 Tailwind 가 그 안을 스캔해 같은 오류가 난다(첫 시도의 부분 원인). 원본 `thekaiwa-dev072-sv/.next` 도 같은 방식으로 오염됐을 수 있으니 거기서 빌드하지 말 것(시험·tsc 는 영향 없음).
+- 미러의 `rsync -a --delete src/` 는 미러에만 둔 일회성 파일(`_prev`·`_diffprev.test.ts`)을 지운다 — 대조 시험은 끝나면 어차피 정리 대상이라 문제없었으나, 변이 점검은 `--exclude` 로 보호하거나 변이 스크립트처럼 파일 단위 교체를 쓸 것.
+
+### 10.9 체크포인트
+- **완료**: M-1(`NOT_A_WORD`) · L-1(동시성 시험) · 정형 인사 픽스처 4종 · 하네스 `GROUP=formula` · 실호출 · 변이 14/14 · 차분 대조.
+- **남은 일**: reviewer 재검증 → QA 실제 HTTP(기대값 갱신 위 10.7-5) → 화면 구현(task-073 배포 뒤 이미 허용). PE: 주석 한 단어(10.7-3).
+- **다음 첫 행동(reviewer)**: 10.4 의 차분 대조를 그대로 재현(`scratchpad/_diffprev072fix.test.ts`, 저장소 밖)하거나 변이 M1·M2·M8·M10 만 재현.
+- **주의점**: `NOT_A_WORD` 는 `JA_NOT_WORD` 뿐일 때만이다 — 다른 위반이 섞이면 INVALID(502). 첫 시도 위반이라는 점이 재시도를 살린다.
+- **미커밋 파일(이 라운드 내 몫)**: `src/modules/conversation/structuredResponse/phraseHelp.ts` · `chats/phraseHelp.ts`(주석) · `__tests__/phraseHelpWord.test.ts` · `__tests__/task072WordHelpServer.test.ts` · `tests/prompts/fixtures/phrase-help-word.json` · `tests/prompts/phraseHelpWordCheck.ts` · `tests/prompts/phrase-help-word-live.ts` · vault(이 기록·이력서 상태 로그 한 줄·`20-Log/2026-10-17.md` 한 줄). 앞 라운드 미커밋(PE·서버)과 같은 파일에 겹쳐 있어 푸시 전 hunk 단위가 아니라 **파일 단위 명시 스테이징**(`git --literal-pathspecs add -- <경로>`).
+- 미러: `~/.node-local/thekaiwa-dev072-fix`(저장소와 동일, 시험·빌드 완료), `-oldnext`·`-oldnext2`(옛 `.next`, 정리 가능). 로그 `/tmp/claude-1000/dev072fix-*.log`.

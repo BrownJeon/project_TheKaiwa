@@ -70,3 +70,31 @@ updated: 2026-10-16
 - 한 단어 질의가 사전형 표제어로 오는지(L4 — PE 실호출, 데모 승인 뒤).
 - 실제 앱 WebView(약 390px)·안드로이드 키보드 높이에서의 시트 높이(§22-15 D 와 같은 기존 한계 — QA 실기기).
 - 데모의 한글 줄(임빠꾸또·멘도-꾸사이 등)은 `speech/reading/client.ts` 규칙을 손으로 옮긴 값 — 실제는 #24r 분석 결과.
+
+## 가이드 확정 (2026-10-17)
+
+- [22:20] 사용자 데모 승인(v1, ★ 권고 그대로, sha256 `b84f9cdf…` — 데모 파일 무수정) 뒤 `docs/screens.md` §30 을 **확정 가이드**로 다시 썼다(줄 13403~13835, §30 밖 무변경 — 앞·뒤 구간 sha256 앞 16자가 편집 전후 같음 `f49fb826d19c7883`·`db02204d09de319e`). 읽은 것: §22·§31·데모 전체, [[task-072-rev-server-record]]·[[task-072-dev-server-record]] §3·api-contract #181, 코드(읽기만) `talk/{phraseHelperLogic,helperCopy,PhraseHelperButton,PhraseHelperCard,PhraseHelperPanel,usePhraseHelper,PhraseHelperTip}`·`vocab/{WordMicField,WordAddSheet,useWordMic,wordMic,labels}`·`common/Sheet`·`challenge/parts Skeleton`·`types/phraseHelp`·`next/dist/client/app-index.js`.
+- 디자인 스킬: page-layout-designer·ui-component-builder·ui-accessibility-reviewer(가이드 문서 점검 — 데모 재점검 아님) / 가이드 기준 자체 점검 P0 0·P1 0·P2 1(꼬리표 없는 [다른 후보] 줄은 요약 칸이 빈다 — Q4), a11y Critical 0·Major 0·Minor 3(글리프≠이름 2.5.3 · ▶ 이름 언어 섞임 · 보낸 뒤 초점이 흐린 [물어보기]에 머묾 — 모두 기존 패턴 수용).
+
+### 바꾼 것(초안 → 확정)
+1. **talk 무수정 전환**(Leader 지시 「`src/components/talk/**` 읽기·재사용만」): 초안의 `PhraseHelperButton controlsId`·`PhraseHelperCard variant` 넓히기를 버렸다 → 카드는 `vocab/WordHelperCard` 새로, 패널 `<section>` id 는 `HELPER_PANEL_ID`(`talk-helper`) 재사용([확실] `WordAddSheet` 사용처는 `WordsScreen` 1곳이라 회화방 판과 겹칠 수 없다).
+2. **#181 계약 반영**(REV-072S L-4): `items` 는 `{ja, ko}` 뿐 — 카드 꼬리표·「왜」 줄을 그리지 않고 [다른 후보] 요약 칸은 빈다.
+3. **실패 분류**: talk `createHelperRequester` 는 그대로 쓰되 그 안 `settleHelper` 가 talk `helperFailureOf`(409 `PHRASE_BUSY`·상태 0 → 일반 오류)로만 분류한다 → 요청 함수 래퍼가 `wordHelperFailureOf` 로 먼저 분류해 지역 변수에 담는 방식으로 확정(talk 무수정, D7·오프라인 문구 살림). 400 은 사유별로 입력 안내(`required`·`no_text` → 빈칸, `max_length` → 100자, `no_hangul` → 단어 맥락 문구), `forbidden_char`·`secret_like` 만 서버 문구(맥락 중립, dev-server-record §3 과 같음).
+4. **Esc 원인 정정**: [확실] Next 16 은 `hydrateRoot(document)` 라 React 리스너와 공용 Sheet 의 Esc 리스너가 같은 `document` 에 있다 → 초안의 `stopPropagation` 으로는 시트가 닫힌다. 처방 A = `Sheet` 한 줄 `!e.defaultPrevented`(Leader 확인), B = `stopImmediatePropagation`(등록 순서 의존).
+5. **공용 `Skeleton` 사용 금지**: 블록이 `bg-surface2` 라 패널 바탕에서 안 보이고 마운트마다 새 status 를 만든다 → 로컬 104px `bg-surface` 블록 + 늘 마운트 sr 줄.
+6. **막다른 길 없음 명시**: 정형 인사 502(서버 수정 전)·200 빈 목록(수정 후) 모두 질의 칸·표현 칸·[직접 입력하기]가 열려 있음을 30-11 ⑪·QA W9 로 고정. 화면 변경은 필요 없다.
+7. **073 과의 맞물림**: 표현 라벨 줄 지금 구조(§31 이후)에 `trailing`·`afterLabel` 슬롯만. [확실] `mic.close('surface')` 는 말로 쓰기가 닫혀 있어도 073 확인 안내를 지운다(`micNoticeStep 'leave'`) → 도우미 열기 때는 `mic.target === 'surface'` 일 때만 부르고, [표현 칸에 넣기]는 `mic.edited('surface')` 로 안내를 거둔다.
+8. **초점**: 보낸 뒤 `blur()` 대신 [물어보기]로 초점(대화상자 밖 Tab 누출 방지) — [가능성 높음] 안드로이드에서 키보드도 내려감, QA W14 실기기 확인.
+9. **[뜻 채우기] 취소 시점**: 초안 「첫 줄」 → 「검증 통과해 뜻 찾기를 시작할 때만」(빈 표현으로 눌러 이유만 보이면 패널 유지 — 데모 동작과 같음).
+10. **함정·시험 구체화**: 패널 안 `type="submit"` 이 하나라도 있으면 그 버튼이 폼의 기본 버튼이 되어 표현 칸 Enter 가 [물어보기]를 누른다(트리 순서) · [확실] jsdom 없음 → 처리기를 순수 함수로 꺼내 가짜 이벤트로 시험 + 정적 렌더 + 소스 스캔 + QA 브라우저(30-14).
+
+### 데모와 다른 점
+- **보이는 차이 1건**: 꼬리표·[다른 후보] 요약 없음(서버 계약 — 위 2). 새 요소·새 문구 0.
+- 보이지 않는 차이: 위 3(400 두 사유 서버 문구)·4·5·8·9 와 빈 안내 줄 `empty:mt-0`(데모 CSS 는 `display:none` — 라이브 영역 유지). 상세 §30-16.
+
+### Leader 에게 올리는 질문 (§30-16)
+- **Q1** 공용 `Sheet` Esc 한 줄(A) 승인? 거절 시 B. 기본 A.
+- **Q2** [그만두기] 직후(또는 회화방에서 묻다가 넘어온 직후) 409 `PHRASE_BUSY` — 서버 잠금은 취소된 요청이 AI 호출 줄에서 차례를 기다리던 중이면 차례가 올 때 풀려 몇 초간 「다른 화면에서 … 찾는 중이에요」가 뜰 수 있다. 기본 = 승인된 D7 그대로, 대안 = 자기 취소 직후 N초는 `error` 문구.
+- **Q3** 빈 결과 힌트에 「…또는 위 표현 칸에 일본어를 바로 적어도 돼요」를 더할지 — 데모에 없는 새 문구라 기본은 데모 그대로(바꾸면 데모 vN+1 로 사용자 확인).
+- **Q4** [다른 후보] 요약 칸에 나머지 후보 `ja` 를 보일지 — 기본 비움.
+- **Q5** jsdom 개발 의존성 추가 — 기본 넣지 않음.
