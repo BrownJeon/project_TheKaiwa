@@ -13,12 +13,13 @@
  *   잠금(`PHRASE_BUSY`)은 `finally` 가 푼다 — 엔진이 실행 중이면 abort 즉시 거절되어 바로 풀리고, 큐에서 차례를 기다리는 중이면 차례가 올 때(앞선 호출이 끝난 뒤) 풀린다.
  *   큐 대기분은 수용한 한계다: 재시도도 같은 큐 뒤에 서므로 기다리는 시간은 같다.
  * - Trace 에는 코드·수치만(`phraseHelpTrace`) — 질의·표현·뜻·이유 원문 0.
+ * - 단어 추가 시트의 도우미(task-072, #181)는 아래 `helpWordPhrase` — 채팅 의존만 걷어내고 잠금·엔진 호출·취소·Trace 를 이 파일의 내부 조각으로 공유한다.
  */
 import { ApiError, classifyError } from '@/modules/infra'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceRecord, type TraceStep } from '@/modules/engine'
 import { isScenarioRolePlayEnded, readScenarioRolePlayMaterial, type ScenarioRolePlayMaterial } from '@/modules/learning'
 import { getProfile } from '@/modules/preferences'
-import { buildPhraseHelpRequest, finalizePhraseHelp, PhraseHelpInputError, type PhraseHelpInput, type PhraseHelpScene } from '../prompts/phraseHelp'
+import { buildPhraseHelpRequest, finalizePhraseHelp, PhraseHelpInputError, phraseHelpPromptVersion, type PhraseHelpInput, type PhraseHelpScene } from '../prompts/phraseHelp'
 import { parsePhraseHelpBody, phraseHelpItems, phraseHelpTrace, type PhraseHelpBody, type PhraseHelpItem, type PhraseHelpResponse } from '../structuredResponse/phraseHelp'
 import { notFoundChat } from './index'
 import { cancelledError, isAbortError } from './requestCancel'
@@ -85,7 +86,29 @@ async function readScene(userId: string, scenarioId: string | null, deps: Phrase
 
 const conflict = (message: string, reason: 'ENDED' | 'PHRASE_BUSY') => new ApiError('CONFLICT', message, { reason })
 
+/** 사용자당 동시 1건 잠금 — 회화 도우미(#180)와 단어 도우미(#181)가 **같은 Set** 을 쓴다(task-072 L3: 한쪽이 도는 동안 다른 쪽은 409 `PHRASE_BUSY`). */
 const inFlight = new Set<string>()
+
+/** 검사와 등록이 같은 틱(await 없음)이라 사이에 다른 호출이 끼지 못한다. 풀기는 `finally` — 실패·취소여도 풀린다. */
+async function withPhraseLock<T>(userId: string, run: () => Promise<T>): Promise<T> {
+  if (inFlight.has(userId)) throw conflict('일본어 표현을 찾는 중이에요.', 'PHRASE_BUSY')
+  inFlight.add(userId)
+  try {
+    return await run()
+  } finally {
+    inFlight.delete(userId)
+  }
+}
+
+/** 프롬프트 요청 조립 — 질의가 정리 뒤 비면(입력 오류) 400 으로. 두 도우미가 같은 변환을 쓴다. */
+function buildHelpRequest(input: PhraseHelpInput): LlmJsonRequest<PhraseHelpResponse> {
+  try {
+    return buildPhraseHelpRequest(input)
+  } catch (e) {
+    if (e instanceof PhraseHelpInputError) throw new ApiError('VALIDATION', e.userMessage, { field: 'queryKo', reason: 'required' })
+    throw e
+  }
+}
 
 /**
  * `signal` = 라우트 `req.signal`. 손님이 끊으면(화면 12초 시간 초과·방 이탈) 큐 대기 중인 호출은 시작하지 않고 실행 중인 호출은 멈춘다.
@@ -98,33 +121,41 @@ export async function helpPhrase(userId: string, chatId: string, body: PhraseHel
   const ended = chat.endedAt ? true : chat.scenarioId ? await deps.isEnded(userId, { id: chat.id, createdAt: chat.createdAt }) : false
   if (ended) throw conflict('마친 역할극이에요.', 'ENDED')
 
-  if (inFlight.has(userId)) throw conflict('일본어 표현을 찾는 중이에요.', 'PHRASE_BUSY')
-  inFlight.add(userId)
-  try {
+  return withPhraseLock(userId, async () => {
     const [level, sceneRead] = await Promise.all([chat.level ? Promise.resolve<string>(chat.level) : deps.learnerLevel(userId), readScene(userId, chat.scenarioId, deps)])
     // `finalizePhraseHelp` 에 요청을 만든 **같은 객체**를 다시 넘긴다(질의 정리·로마자 대조가 재시도 검사와 같은 값이어야 한다).
     const input: PhraseHelpInput = { queryKo: body.queryKo, level, scene: sceneRead.scene }
-    let req: LlmJsonRequest<PhraseHelpResponse>
-    try {
-      req = buildPhraseHelpRequest(input)
-    } catch (e) {
-      if (e instanceof PhraseHelpInputError) throw new ApiError('VALIDATION', e.userMessage, { field: 'queryKo', reason: 'required' })
-      throw e
-    }
-    return await runPhraseHelp(userId, chatId, input, req, sceneRead.code, deps, signal)
-  } finally {
-    inFlight.delete(userId)
-  }
+    return runPhraseHelp(userId, chatId, input, buildHelpRequest(input), sceneRead.code, deps, signal)
+  })
+}
+
+/** 단어 도우미가 쓰는 의존 — 채팅·역할극 재료를 읽는 칸이 아예 없다(타입으로 고정). 기본 배선(`phraseHelpDeps`)이 그대로 들어맞는다. */
+export type WordPhraseHelpDeps = Pick<PhraseHelpDeps, 'learnerLevel' | 'complete' | 'trace'>
+
+/**
+ * 단어 추가 시트의 일본어 도우미(task-072 IMP-0046, #181 `POST /api/v1/words/phrase-help {queryKo}`, 단어 모드 `phraseHelp@v2`) — **저장 없음**.
+ * `helpPhrase` 에서 채팅 의존(대화 소유·종류·종료·역할극 장면)만 걷어낸 입구다: 수준 = 프로필 · 장면 = `null` · 모드 = `'word'` **고정**(요청 본문이 정하지 않는다).
+ * 잠금(`PHRASE_BUSY`)·엔진 호출·취소·Trace·결과 매핑은 `helpPhrase` 와 같은 내부 조각을 쓴다 — 같은 사용자가 두 도우미를 동시에 돌릴 수 없다.
+ * Trace 는 `refType: 'phraseHelp'` · `refId: null`(방 없음) · 단계에 `mode: 'word'`·`promptVersion` 만 더한다(원문 0).
+ * 표제어가 하나도 없는 응답(정형 인사 등, `NOT_A_WORD`)은 `TOO_LONG`·`NOT_A_PHRASE` 와 같은 200 `{items: []}` 이다 — 502 는 그 밖의 위반(`INVALID`)일 때만(재시도는 그대로 1회).
+ */
+export async function helpWordPhrase(userId: string, body: PhraseHelpBody, deps: WordPhraseHelpDeps = phraseHelpDeps, signal?: AbortSignal): Promise<PhraseHelpResult> {
+  return withPhraseLock(userId, async () => {
+    const level = await deps.learnerLevel(userId)
+    const input: PhraseHelpInput = { queryKo: body.queryKo, level, scene: null, mode: 'word' }
+    return runPhraseHelp(userId, null, input, buildHelpRequest(input), 'NONE', deps, signal, { mode: 'word', promptVersion: phraseHelpPromptVersion('word') })
+  })
 }
 
 async function runPhraseHelp(
   userId: string,
-  chatId: string,
+  chatId: string | null,
   input: PhraseHelpInput,
   req: LlmJsonRequest<PhraseHelpResponse>,
   scene: PhraseHelpSceneCode,
-  deps: PhraseHelpDeps,
+  deps: WordPhraseHelpDeps,
   signal?: AbortSignal,
+  stepExtra?: { mode: string; promptVersion: string },
 ): Promise<PhraseHelpResult> {
   const traceId = newTraceId()
   const started = Date.now()
@@ -138,11 +169,11 @@ async function runPhraseHelp(
     } catch (e) {
       // 이름만으로 취소로 보지 않는다: 요청에 실어 보낸 신호가 실제로 abort 됐을 때만. 어댑터가 자기 타이머로 만든 AbortError 가 새도 진짜 오류(504·502)가 로그 없는 409 로 둔갑하지 않게.
       if (signal?.aborted === true && isAbortError(e)) {
-        steps.push({ name: 'PHRASE_HELP', ms: Date.now() - started, errorCode: 'CANCELLED' })
+        steps.push({ name: 'PHRASE_HELP', ms: Date.now() - started, ...stepExtra, errorCode: 'CANCELLED' })
         errorCode = 'CANCELLED'
         throw cancelledError()
       }
-      steps.push({ name: 'PHRASE_HELP', ms: Date.now() - started, errorCode: classifyError(e).code })
+      steps.push({ name: 'PHRASE_HELP', ms: Date.now() - started, ...stepExtra, errorCode: classifyError(e).code })
       throw engineFailure(e, PHRASE_HELP_FAIL_MESSAGE)
     }
     const fin = finalizePhraseHelp(r.data, input)
@@ -154,6 +185,7 @@ async function runPhraseHelp(
       attempts: r.attempts ?? 1,
       promptChars: r.promptChars,
       scene,
+      ...stepExtra,
       ...phraseHelpTrace(fin),
     })
     if (fin.status === 'INVALID') throw new ApiError('ENGINE_ERROR', PHRASE_HELP_FAIL_MESSAGE, { reason: 'PHRASE_INVALID' })

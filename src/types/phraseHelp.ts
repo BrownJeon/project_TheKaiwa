@@ -24,3 +24,13 @@ export interface PhraseHelpItem {
 export interface PhraseHelpResponse {
   items: PhraseHelpItem[]
 }
+
+/**
+ * 단어 추가 시트의 일본어 도우미 #181 `POST /api/v1/words/phrase-help {queryKo}` (task-072, 단어 모드 `phraseHelp@v2`) — 요청 본문은 위 `PhraseHelpRequest` 와 같다.
+ * 항목은 사전형 표제어(`ja`) + 한국어 뜻(`ko`) 뿐이다: **`labelKo`·`whyKo` 는 오지 않는다**(화면은 두 칸이 없다고 가정). 0~3개, 거절·못 찾음은 빈 배열(200).
+ */
+export type WordPhraseHelpItem = Pick<PhraseHelpItem, 'ja' | 'ko'>
+
+export interface WordPhraseHelpResponse {
+  items: WordPhraseHelpItem[]
+}

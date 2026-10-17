@@ -18,6 +18,10 @@
  * 사용자 질의·모델 출력 조각이 들어가면 안 된다. Trace 용 수치는 `phraseHelpTrace` 만 쓴다(글 원문 0).
  *
  * 질의 입력(`queryKo`)은 openingDraft 와 같은 정리·꺾쇠·URL·비밀 모양 검사에 더해 **한글 음절이 한 글자 이상**이어야 한다(`no_hangul`) — 영문·일본어·자모뿐인 글은 LLM 을 부르지 않고 400.
+ *
+ * **단어 모드(`mode: 'word'`, `phraseHelp@v2`, task-072 IMP-0046)** — 단어 추가 시트의 도우미. 같은 스키마·같은 입력 검사를 쓰되 응답 보정만 다르다: 항목의 `ja` 는 **사전형 표제어**(문장·정중체 문장 꼬리·끝맺음 부호·긴 글 금지,
+ * `JA_NOT_WORD`)이고 `labelKo`·`whyKo` 는 싣지 않는다(말투 변형 설명은 단어에 필요 없다 — 모델이 내도 칸만 버린다). 기본(mode 생략)은 위 v1 동작과 **한 줄도 다르지 않다**(회화방 도우미 불변).
+ *  정형 인사(ありがとうございます 류 `ます/です` 꼬리)처럼 표제어로 풀리지 않는 입력은 모든 항목이 `JA_NOT_WORD` 로 버려진다 — 재시도는 그대로 한 번 하되 마지막 시도에서는 502 가 아니라 `NOT_A_WORD`(= 200 빈 목록, 「못 찾음」)로 끝낸다(다른 위반이 섞이면 `INVALID` 그대로).
  */
 import { llm } from '@/modules/engine'
 import { codePointLength, isSecretLikeText } from '@/modules/infra'
@@ -49,6 +53,9 @@ export const PHRASE_HELP_LIMITS = {
   whyJaMax: 30,
   /** ja 의 라틴 문자 상한(ATM·JR·Wi-Fi 정도). 그 안에서도 학습자가 쓴 낱말만 허용한다. */
   latinMaxLetters: 6,
+  /** 단어 모드(task-072): 표제어 한 개의 상한(관용 표현 〜を〜 한 덩어리까지)과 지시문에 적는 뜻 길이. 보정 상한은 `koMax`(120)를 그대로 쓴다. */
+  wordJaMax: 16,
+  wordKoAsk: 30,
   /** 스키마가 받는 느슨한 상한(넘으면 코드가 칸·항목을 버리고, 스키마 위반으로 재시도하지 않는다). */
   rawItemsMax: 4,
   rawJaMax: 160,
@@ -58,6 +65,10 @@ export const PHRASE_HELP_LIMITS = {
 } as const
 
 export type PhraseHelpStatus = 'OK' | 'NOT_A_PHRASE' | 'UNSAFE'
+
+/** 도우미 모드 — 생략(회화방, `phraseHelp@v1`) 또는 `'word'`(단어 추가 시트, `phraseHelp@v2`). 그 밖의 값은 모두 기본으로 본다(`isWordMode`). */
+export type PhraseHelpMode = 'word'
+export const isWordMode = (mode: unknown): mode is PhraseHelpMode => mode === 'word'
 
 export interface PhraseHelpModelItem {
   ja: string
@@ -226,10 +237,15 @@ export type PhraseHelpDropReason =
   | 'JA_LATIN' // 로마자 과다, 또는 학습자가 쓰지 않은 로마자 낱말
   | 'JA_TOO_LONG' // 100자 초과
   | 'JA_SENTENCES' // 3문장 초과
+  | 'JA_NOT_WORD' // 단어 모드: 표제어가 아니다(문장 꼬리·끝맺음 부호·쉼표·너무 긺)
   | 'KO_BAD' // ko 가 비었거나 한글이 없거나 일본어 글자가 섞였거나 120자 초과
   | 'DUPLICATE' // 앞 항목과 같은 말
 
-export type PhraseHelpFinalStatus = 'OK' | 'NOT_A_PHRASE' | 'UNSAFE' | 'INVALID' | 'TOO_LONG'
+/**
+ * `NOT_A_WORD` — 단어 모드에서만. 모델이 낸 항목이 **전부 표제어가 아니라서**(`JA_NOT_WORD`) 하나도 못 쓴다 — 정형 인사(ありがとうございます·すみません 등 `ます/です` 꼬리)가 대표적이다.
+ * 재시도로 고쳐지지 않는 입력이므로 마지막 시도에서는 502 가 아니라 `TOO_LONG`·`NOT_A_PHRASE` 와 같은 「못 찾음」(200 빈 목록)이다. 다른 위반이 하나라도 섞이면 `INVALID` 그대로.
+ */
+export type PhraseHelpFinalStatus = 'OK' | 'NOT_A_PHRASE' | 'UNSAFE' | 'INVALID' | 'TOO_LONG' | 'NOT_A_WORD'
 
 export interface PhraseHelpItem {
   ja: string
@@ -266,6 +282,8 @@ export interface PhraseHelpFinal {
 /** 응답을 검사할 때 필요한 요청 쪽 정보 — 질의(정리한 글). `ja` 의 로마자 낱말이 학습자가 쓴 것인지 대조한다(요청과 같은 값이어야 한다). */
 export interface PhraseHelpContext {
   queryKo: string
+  /** `'word'` 면 단어 모드 보정(사전형 표제어만·꼬리표/이유 칸 없음). 생략하면 회화방 보정(v1). */
+  mode?: PhraseHelpMode | null
 }
 
 const emptyRepairs = (): PhraseHelpRepairs => ({ itemsRaw: 0, itemsKept: 0, itemsDropped: 0, labelDropped: 0, whyDropped: 0, firstJaChars: 0 })
@@ -303,6 +321,13 @@ function checkJa(raw: unknown, allowedLatin: string): JaCheck {
   return { ja }
 }
 
+/** 단어 모드 표제어 모양 — 끝맺음 부호·쉼표·정중체/종결 꼬리가 있거나 `wordJaMax`자를 넘으면 문장이다(활용형 〜ている·な형용사 〜だ 는 단어장에 들어갈 수 있어 막지 않는다). */
+const WORD_PUNCT = /[。！？!?、，,]/
+const WORD_SENTENCE_TAIL = /(ます|ません|ました|ませんでした|ましょう|です|でした|でしょう|ですか|ますか|ください|だった|である|ですよ|ですね|ますよ|ますね)$/
+export function isWordHeadform(ja: string): boolean {
+  return !WORD_PUNCT.test(ja) && !WORD_SENTENCE_TAIL.test(ja) && cpLen(ja) <= PHRASE_HELP_LIMITS.wordJaMax
+}
+
 /** 한국어 칸(뜻·꼬리표) 공통 검사 — 한글 음절이 있고 일본어 글자(가나·한자)가 없고 안전해야 한다. */
 function koText(raw: unknown, max: number): string | null {
   const t = cleanLine(raw)
@@ -331,11 +356,13 @@ function whyText(raw: unknown): string | null {
 }
 
 const isTooLongOnly = (reasons: readonly PhraseHelpDropReason[]): boolean => reasons.length > 0 && reasons.every((r) => r === 'JA_TOO_LONG' || r === 'JA_SENTENCES')
+/** 이유가 `JA_NOT_WORD` 뿐일 때만 — 단어 모드에서만 생기는 이유라 회화 모드에는 해당 없다(회화 응답은 늘 `false`). */
+const isNotWordOnly = (reasons: readonly PhraseHelpDropReason[]): boolean => reasons.length > 0 && reasons.every((r) => r === 'JA_NOT_WORD')
 
 /**
  * 모델 응답 → 쓸 수 있는 제안. 스키마를 통과한 응답을 받지만 방어적으로 읽는다.
  * 순서: 거절 상태(상태가 이긴다 — 모델이 항목을 같이 내도 무시) → OK 아님·items 없음 → 항목마다 `ja`(안전·엔진명·한글·허용 글자·로마자·길이·문장 수)·`ko` 검사 → 중복 제거 → 앞 3개 →
- * 꼬리표·이유 칸 검사(항목이 둘 이상일 때만 꼬리표). 하나도 못 쓰면 길이 때문이면 `TOO_LONG`, 아니면 `INVALID`.
+ * 꼬리표·이유 칸 검사(항목이 둘 이상일 때만 꼬리표). 하나도 못 쓰면 길이 때문이면 `TOO_LONG`, 단어 모드에서 표제어가 아니라서(`JA_NOT_WORD` 뿐)이면 `NOT_A_WORD`, 아니면 `INVALID`.
  */
 export function fitPhraseHelp(data: PhraseHelpResponse, ctx: PhraseHelpContext): PhraseHelpFinal {
   const status = data?.status
@@ -344,6 +371,7 @@ export function fitPhraseHelp(data: PhraseHelpResponse, ctx: PhraseHelpContext):
   if (status !== 'OK' || rawItems.length === 0) return done('INVALID', ['ITEM_SHAPE'], { ...emptyRepairs(), itemsRaw: rawItems.length })
 
   const allowedLatin = latinKey(ctx?.queryKo ?? '')
+  const word = isWordMode(ctx?.mode)
   const kept: Array<{ item: PhraseHelpItem; labelRaw: unknown; whyRaw: unknown }> = []
   const seen = new Set<string>()
   const reasons = new Set<PhraseHelpDropReason>()
@@ -359,6 +387,11 @@ export function fitPhraseHelp(data: PhraseHelpResponse, ctx: PhraseHelpContext):
     const ja = checkJa(e.ja, allowedLatin)
     if ('drop' in ja) {
       reasons.add(ja.drop)
+      dropped++
+      continue
+    }
+    if (word && !isWordHeadform(ja.ja)) {
+      reasons.add('JA_NOT_WORD')
       dropped++
       continue
     }
@@ -380,11 +413,17 @@ export function fitPhraseHelp(data: PhraseHelpResponse, ctx: PhraseHelpContext):
 
   const problems = [...reasons]
   const repairs: PhraseHelpRepairs = { ...emptyRepairs(), itemsRaw: rawItems.length, itemsKept: kept.length, itemsDropped: dropped }
-  if (kept.length === 0) return done(isTooLongOnly(problems) ? 'TOO_LONG' : 'INVALID', problems, repairs)
+  if (kept.length === 0) return done(isTooLongOnly(problems) ? 'TOO_LONG' : isNotWordOnly(problems) ? 'NOT_A_WORD' : 'INVALID', problems, repairs)
 
   const multi = kept.length >= 2
   const items = kept.map(({ item, labelRaw, whyRaw }) => {
     const out: PhraseHelpItem = { ...item }
+    if (word) {
+      // 단어 모드: 말투 꼬리표·이유 칸은 싣지 않는다(모델이 내도 버린다 — 칸 수만 센다).
+      if (labelRaw !== null && labelRaw !== undefined) repairs.labelDropped++
+      if (whyRaw !== null && whyRaw !== undefined) repairs.whyDropped++
+      return out
+    }
     if (multi) {
       const label = labelRaw === null || labelRaw === undefined ? null : koText(labelRaw, PHRASE_HELP_LIMITS.labelMax)
       if (label !== null) out.labelKo = label
@@ -428,19 +467,21 @@ const PROBLEM_TEXT: Record<PhraseHelpDropReason, string> = {
   JA_LATIN: `ja 의 로마자는 학습자가 쓴 낱말(약어)만, 모두 ${PHRASE_HELP_LIMITS.latinMaxLetters}자까지 쓸 수 있습니다. 그 밖의 외래어는 가타카나로 쓰세요.`,
   JA_TOO_LONG: `ja 한 개가 ${PHRASE_HELP_LIMITS.jaMax}자 안에 들어가지 않습니다. 뜻은 그대로 두고 더 짧고 간결한 말로 다시 쓰세요.`,
   JA_SENTENCES: `ja 한 개가 ${PHRASE_HELP_LIMITS.jaMaxSentences}문장을 넘습니다. 뜻은 그대로 두고 더 간결하게 다시 쓰세요.`,
+  JA_NOT_WORD: `ja 는 단어장 표제어 한 개여야 합니다 — 문장이 아닙니다. です·ます·ください·마침표·물음표·쉼표를 붙이지 말고, 동사는 기본형(〜る·〜う)·い형용사는 〜い·외래어는 가타카나의 사전형으로 ${PHRASE_HELP_LIMITS.wordJaMax}자 이내로 쓰세요.`,
   KO_BAD: `ko 는 ja 의 한국어 뜻(한글만, ${PHRASE_HELP_LIMITS.koMax}자 이내)이어야 합니다. 일본어 글자를 넣지 않습니다.`,
   DUPLICATE: '같은 표현을 되풀이하지 말고 말투가 다른 표현을 쓰세요.',
 }
 
 /**
  * `completeJson` 의 `extraCheck` — 고칠 수 없는 위반(쓸 수 있는 항목이 하나도 없음)을 알려 JSON 재시도 1회로 보낸다. 모두 **고정 문장**이다(엔진이 로그로 찍는다).
- * 길이 때문에 전부 못 쓰는 응답(`TOO_LONG`)은 **첫 시도에서만** 사유로 알린다 — 마지막 시도의 위반은 엔진이 던져 502 가 되므로 `TOO_LONG` 은 마지막 시도에서 데이터로 받는다(「못 찾음」 처리).
+ * 길이 때문에 전부 못 쓰는 응답(`TOO_LONG`)과 단어 모드에서 표제어가 하나도 없는 응답(`NOT_A_WORD`)은 **첫 시도에서만** 사유로 알린다 — 마지막 시도의 위반은 엔진이 던져 502 가 되므로
+ * 이 둘은 마지막 시도에서 데이터로 받는다(「못 찾음」 처리). 재시도 자체는 그대로다(첫 시도 위반 → 1회 재시도).
  * `info` 를 생략하면 첫 시도로 본다. `ctx` = 요청에 쓴 질의(로마자 낱말 대조).
  */
 export function phraseHelpViolations(data: PhraseHelpResponse, ctx: PhraseHelpContext, info?: { attempt: number; maxAttempts: number }): string[] {
   const fin = fitPhraseHelp(data, ctx)
   if (fin.status === 'INVALID') return fin.problems.map((p) => PROBLEM_TEXT[p])
   const lastAttempt = info !== undefined && info.attempt >= info.maxAttempts
-  if (fin.status === 'TOO_LONG' && !lastAttempt) return fin.problems.map((p) => PROBLEM_TEXT[p])
+  if ((fin.status === 'TOO_LONG' || fin.status === 'NOT_A_WORD') && !lastAttempt) return fin.problems.map((p) => PROBLEM_TEXT[p])
   return []
 }

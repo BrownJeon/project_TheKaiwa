@@ -12,6 +12,8 @@
  * - 오류 문구는 `labels.ts` 표(서버 문구는 400 만) — 뜻 채우기 실패 문구에 엔진 용어가 새지 않게.
  * - task-069: 표현(1단계·폼 단계)·예문 칸에 「말로 쓰기」(`useWordMic` — 점검 용도라 원음 저장 없음). 알아들은 말은 칸에 채우기만 하고
  *   자동 저장·자동 [뜻 채우기]는 하지 않는다. 단계가 바뀌거나 칸이 사라지면(뜻 채우기 시작·직접 입력·예문 접기·오류 포커스) 말로 쓰기를 닫는다.
+ * - task-072: 1단계 표현 라벨 줄의 「가あ」 → 인라인 일본어 도우미 패널(`WordPhraseHelper`, #181). 고른 후보는 [표현 칸에 넣기]로 칸을 **바꿔 넣기만** 하고
+ *   [뜻 채우기]·저장은 사용자가 누른다. 말로 쓰기와는 한 번에 하나만 열리고, 뜻 찾기를 시작하거나 [직접 입력하기]를 누르면 기다리는 도우미 요청을 취소하고 닫는다.
  */
 import { useEffect, useRef, useState } from 'react'
 import { apiPost, isAbort } from '@/components/common/api'
@@ -19,6 +21,8 @@ import { detailString, retryAfterOf, toErr } from '@/components/common/errors'
 import Sheet from '@/components/common/Sheet'
 import { Btn, BtnRow } from '@/components/common/ui'
 import { elapsedSec, useCountdown, useNow } from '@/components/common/useNow'
+import PhraseHelperButton from '@/components/talk/PhraseHelperButton'
+import { claimHelperTip } from '@/components/talk/phraseHelperLogic'
 import type { WordChunkType, WordEntry, WordEnrichResponse, WordSaveResponse } from '@/types/vocab'
 import { actionErrorText, BASE_DUPLICATE_HINT, BASE_DUPLICATE_TEXT, CHUNK_PICK_DRAFT, DRAFT_INVALID, DUPLICATE_TEXT, enrichErrorText, OPEN_EXISTING_WORD } from './labels'
 import {
@@ -37,13 +41,18 @@ import {
   type WordFormValues,
 } from './validate'
 import { applyMicToForm } from './wordMic'
+import { fillSurfaceFromHelper, micOpenedNow, WORD_HELPER_IDS, wordHelperTipShown } from './wordHelperLogic'
 import WordForm, { INPUT } from './WordForm'
+import WordHelperTip from './WordHelperTip'
 import WordMicField from './WordMicField'
+import WordPhraseHelper from './WordPhraseHelper'
 import { useWordMic } from './useWordMic'
+import { useWordPhraseHelper } from './useWordPhraseHelper'
 
 type Step = 'surface' | 'enriching' | 'form'
 
 const ID = 'wadd'
+const noop = () => {}
 const TEXT_BTN = 'inline-flex min-h-[44px] items-center text-[13px] font-medium text-accent'
 
 export function DuplicateNote({ id, onOpen }: { id: string; onOpen: () => void }) {
@@ -146,6 +155,8 @@ export default function WordAddSheet({
     },
   })
 
+  const helper = useWordPhraseHelper()
+
   const focusField = (f: WordField) => {
     if (EXTRA_FIELDS.includes(f)) setExtras(true)
     // 말로 쓰는 칸은 입력 칸이 없다 — 글자로 돌려야 포커스가 간다.
@@ -165,6 +176,9 @@ export default function WordAddSheet({
     }
     mic.close()
     abortRef.current?.abort()
+    // 뜻 찾기를 실제로 시작할 때만 — 기다리는 도우미 요청은 취소하고 판을 닫는다(AI 호출 줄이 한 줄이라 뜻 채우기를 늦추지 않게, §30-7).
+    helper.cancelPending()
+    helper.close()
     const ctrl = new AbortController()
     abortRef.current = ctrl
     const backTo: Step = step
@@ -218,6 +232,48 @@ export default function WordAddSheet({
     abortRef.current?.abort()
     setStep('surface')
   }
+
+  // ── 일본어 도우미(task-072, §30): 표현 칸 라벨 줄의 「가あ」 → 인라인 패널. 1단계에만 있고 AI 제안은 [표현 칸에 넣기]로만 칸에 들어간다.
+  const helperBtnRef = useRef<HTMLButtonElement>(null)
+  const helperQRef = useRef<HTMLInputElement>(null)
+  const helperAskRef = useRef<HTMLButtonElement>(null)
+  const [tipOpen, setTipOpen] = useState(false)
+  const tipClaimRef = useRef<boolean | null>(null)
+  // 처음 한 번 안내 — 회화방과 같은 플래그를 나눠 쓴다(보이는 순간이 「본 것」). 개발 모드 효과 두 번 실행에도 한 번만 기록한다.
+  useEffect(() => {
+    if (tipClaimRef.current !== null) return
+    tipClaimRef.current = claimHelperTip()
+    if (tipClaimRef.current) setTipOpen(true)
+  }, [])
+
+  // 말로 쓰기가 표현 칸에 **새로 열린** 렌더에서만 판을 닫는다(답은 기억). 마이크가 막혀 열리지 않은 토글에는 반응하지 않도록 토글 처리기가 아니라 렌더 중 이전 값 비교로 본다.
+  const [seenMicTarget, setSeenMicTarget] = useState(mic.target)
+  if (mic.target !== seenMicTarget) {
+    setSeenMicTarget(mic.target)
+    if (micOpenedNow(seenMicTarget, mic.target) && helper.open) helper.close()
+  }
+
+  const tipShown = wordHelperTipShown({ tipOpen, step, helperOpen: helper.open, micTarget: mic.target })
+
+  const toggleHelper = () => {
+    setTipOpen(false)
+    // 말로 쓰기가 표현 칸에 열려 있을 때만 닫는다 — `close('surface')` 는 닫혀 있어도 그 칸의 확인 안내를 지워 버린다.
+    if (helper.toggle() && mic.target === 'surface') mic.close('surface')
+  }
+
+  const closeToButton = () => {
+    helper.close()
+    helperBtnRef.current?.focus()
+  }
+
+  const fillFromHelper = (ja: string) =>
+    fillSurfaceFromHelper({
+      ja,
+      edited: mic.edited,
+      setSurface: (v) => set('surface', v),
+      fill: helper.fill,
+      focusSurface: () => surfaceRef.current?.focus(),
+    })
 
   const save = async () => {
     if (submitting) return
@@ -311,6 +367,11 @@ export default function WordAddSheet({
                 표현
               </label>
             }
+            trailing={
+              // `describedBy` 는 시트 prop 이 아니라 가あ 의 prop 이다 — Sheet 호출처 시험(removalA11y)이 파일 안의 `describedBy=` 를 시트 prop 으로 읽어 펼침으로 넘긴다.
+              <PhraseHelperButton open={helper.open} locked={false} buttonRef={helperBtnRef} onToggle={toggleHelper} onLocked={noop} {...(tipShown ? { describedBy: WORD_HELPER_IDS.tip } : {})} />
+            }
+            afterLabel={tipShown ? <WordHelperTip onClose={() => setTipOpen(false)} /> : null}
           >
             <input
               id={`${ID}_surface`}
@@ -342,7 +403,11 @@ export default function WordAddSheet({
             </div>
           ) : null}
           {blockedLine}
+          <span id={WORD_HELPER_IDS.announce} className="sr-only" role="status">
+            {helper.fillAnnounce}
+          </span>
         </div>
+        {helper.open ? <WordPhraseHelper h={helper} qRef={helperQRef} askRef={helperAskRef} onClose={closeToButton} onFill={fillFromHelper} /> : null}
         <Btn
           type="submit"
           className={`mt-1 w-full ${enrichDisabled ? 'opacity-40' : ''}`}
@@ -361,6 +426,8 @@ export default function WordAddSheet({
           variant="ghost"
           className="w-full"
           onClick={() => {
+            helper.cancelPending()
+            helper.close()
             mic.close()
             setFromDraft(false)
             setDraftEmpty(false)

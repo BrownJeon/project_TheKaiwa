@@ -41,6 +41,8 @@ export default function WordMicField({
   value,
   label,
   children,
+  trailing,
+  afterLabel,
 }: {
   mic: WordMic
   target: WordMicTarget
@@ -49,6 +51,10 @@ export default function WordMicField({
   value: string
   label: React.ReactNode
   children: React.ReactNode
+  /** 라벨 줄 오른쪽 끝, 「말로 쓰기」 바로 오른쪽(task-072 일본어 도우미 버튼). 없으면 DOM 이 슬롯 도입 전과 같다. */
+  trailing?: React.ReactNode
+  /** 라벨 줄 바로 다음 — 이유 줄·입력 칸 앞(task-072 처음 안내 줄). 없으면 아무것도 그리지 않는다. */
+  afterLabel?: React.ReactNode
 }) {
   const { native } = useNativeEnv()
   const open = mic.target === target
@@ -75,23 +81,28 @@ export default function WordMicField({
   const [srCheck, setSrCheck] = useState({ n: announce?.n ?? null, on: mic.notice[target] })
   if (announce && srCheck.n !== announce.n) setSrCheck({ n: announce.n, on: mic.notice[target] })
 
+  const toggle = (
+    <button
+      ref={toggleRef}
+      type="button"
+      aria-label={`${fieldName} ${open ? WORD_MIC_COPY.byText : WORD_MIC_COPY.byVoice}`}
+      aria-disabled={off || undefined}
+      aria-describedby={why ? whyId : undefined}
+      onClick={() => mic.toggle(target)}
+      className={`inline-flex h-11 flex-none items-center gap-1 text-[13px] font-medium text-ink underline underline-offset-4 ${off ? 'opacity-40' : ''}`}
+    >
+      {open ? <KeyboardIcon /> : <MicIcon />}
+      {open ? WORD_MIC_COPY.byText : WORD_MIC_COPY.byVoice}
+    </button>
+  )
+
   return (
     <>
       <div className="flex min-w-0 items-center justify-between gap-2">
         {label}
-        <button
-          ref={toggleRef}
-          type="button"
-          aria-label={`${fieldName} ${open ? WORD_MIC_COPY.byText : WORD_MIC_COPY.byVoice}`}
-          aria-disabled={off || undefined}
-          aria-describedby={why ? whyId : undefined}
-          onClick={() => mic.toggle(target)}
-          className={`inline-flex h-11 flex-none items-center gap-1 text-[13px] font-medium text-ink underline underline-offset-4 ${off ? 'opacity-40' : ''}`}
-        >
-          {open ? <KeyboardIcon /> : <MicIcon />}
-          {open ? WORD_MIC_COPY.byText : WORD_MIC_COPY.byVoice}
-        </button>
+        {trailing ? <div className="flex flex-none items-center gap-2">{toggle}{trailing}</div> : toggle}
       </div>
+      {afterLabel}
       {why ? (
         <p id={whyId} className="text-[12px] text-ink2 break-keep">
           {why.title}

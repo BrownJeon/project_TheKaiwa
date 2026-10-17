@@ -49,8 +49,10 @@ export default function Sheet({
 
   useEffect(() => {
     if (!open || !dismissible) return
+    // 안쪽 요소가 Esc 를 이미 처리했으면(`preventDefault` — 단어 도우미 판·녹음 취소) 시트는 닫지 않는다. React 이벤트 리스너도 `document` 에 있어
+    // `stopPropagation` 으로는 같은 대상의 이 리스너를 막을 수 없고, React 의 리스너가 먼저 등록돼 있어 이 시점엔 `defaultPrevented` 가 이미 켜져 있다.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !e.defaultPrevented) onClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
