@@ -4,11 +4,12 @@
  "promptExamples": ["勉強", "準備", "挨拶"],
  "passLine": { "total": 25, "min": 22 },
  "baseline": {
-  "promptVersion": "wordEnrich@v2",
-  "date": "2026-10-14",
+  "promptVersion": "wordEnrich@v3",
+  "date": "2026-10-16",
   "model": "fast 티어(haiku), Claude CLI, 직렬",
-  "firstPass": { "scored": "24/25", "heldOut": "21/22", "actionNoun": "5/5", "contractViolationAttempts2": "1/28 (c19 様 — example 에 표기 없음, v1 규칙이지 chunkType 이 아님)" },
-  "stability": "미스·경계 단어 재호출 7회(c24×3, c19×2, c09×2) 포함 총 38회 호출",
+  "firstPass": { "scored": "24/25", "heldOut": "21/22", "actionNoun": "5/5", "contractViolationAttempts2": "1/30 (c19 様 — example 에 표기 없음, v1 규칙이지 chunkType 이 아님)" },
+  "stability": "v3 재측정(task-073 W-3): 같은 25+info 3+무효 2 = 30행 직렬 1회(호출 31) — v3 는 valid=false 의 invalidReason 말투 줄만 더했고(조각·valid=true 경로 불변) v2(2026-10-14, 24/25·보류 21/22·동작성 명사 5/5·미스 でも 하나)와 같은 결과다. 아래 knownMisses 는 v2 때 반복 호출로 얻은 것(v3 첫 패스에서 c19 様 은 MODIFIER 로 맞춤 — 흔들리는 낱말).",
+  "previousVersion": { "promptVersion": "wordEnrich@v2", "date": "2026-10-14", "firstPass": "24/25", "heldOut": "21/22", "calls": 38, "note": "미스·경계 단어 재호출 7회(c24×3, c19×2, c09×2) 포함" },
   "knownMisses": {
    "c24": "でも → MODIFIER 4/4 (이음말인데 모델이 접속 조사로 보고 '조사류 = 꾸밈' 쪽으로 감 — 체계적)",
    "c19": "様 → MODIFIER 1/3, NAME 2/3 (단독 표기가 접사 '님'과 명사 '모양' 둘 다 가능 — 불안정)"

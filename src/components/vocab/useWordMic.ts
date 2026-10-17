@@ -17,9 +17,13 @@ import {
   micFinalStep,
   MIC_REFS_INIT,
   micPress,
+  micNoticeAfterFinal,
+  micNoticeStep,
+  MIC_NOTICES_INIT,
   micToggle,
   visibleMicError,
   wordMicStatusText,
+  type MicNotices,
   type MicRefs,
   type MicTargetStep,
   type WordMic,
@@ -32,6 +36,7 @@ export function useWordMic(o: { onResult: (target: WordMicTarget, text: string) 
   const [hint, setHint] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState<SttUiError | null>(null)
   const [announce, setAnnounce] = useState<WordMic['announce']>(null)
+  const [notice, setNotice] = useState<MicNotices>(MIC_NOTICES_INIT)
   // 이벤트(누름·뗌·결과)가 읽는 값은 ref — 결과는 비동기로 오므로 그 시점의 칸을 봐야 한다. 갱신 규칙은 `wordMic.ts` 의 순수 함수.
   const refs = useRef<MicRefs>(MIC_REFS_INIT)
   const optsRef = useRef(o)
@@ -50,6 +55,7 @@ export function useWordMic(o: { onResult: (target: WordMicTarget, text: string) 
     refs.current = next
     setTarget(next.target)
     setAnnounce((prev) => ({ target: action.target, text: action.text, n: (prev?.n ?? 0) + 1 }))
+    setNotice((n) => micNoticeAfterFinal(n, action))
     optsRef.current.onResult(action.target, action.text)
   }, [])
 
@@ -75,7 +81,12 @@ export function useWordMic(o: { onResult: (target: WordMicTarget, text: string) 
 
   const toggle = useCallback(
     (t: WordMicTarget) => {
-      if (retarget(micToggle(refs.current.target, t, blocked !== null))) setHint(null)
+      const step = micToggle(refs.current.target, t, blocked !== null)
+      if (!retarget(step)) return
+      setHint(null)
+      // 다시 말하려고 칸을 열면 지난 결과의 안내는 거둔다.
+      const to = step.target
+      if (to !== null) setNotice((n) => micNoticeStep(n, { type: 'speak', target: to }))
     },
     [blocked, retarget],
   )
@@ -83,9 +94,12 @@ export function useWordMic(o: { onResult: (target: WordMicTarget, text: string) 
   const close = useCallback(
     (only?: WordMicTarget) => {
       retarget(micClose(refs.current.target, only))
+      setNotice((n) => micNoticeStep(n, { type: 'leave', only }))
     },
     [retarget],
   )
+
+  const edited = useCallback((t: WordMicTarget) => setNotice((n) => micNoticeStep(n, { type: 'edited', target: t })), [])
 
   const press = useCallback(() => {
     refs.current = micPress(refs.current)
@@ -98,6 +112,8 @@ export function useWordMic(o: { onResult: (target: WordMicTarget, text: string) 
     target,
     blocked,
     announce,
+    notice,
+    edited,
     toggle,
     close,
     dismissError: () => setDismissed(error),

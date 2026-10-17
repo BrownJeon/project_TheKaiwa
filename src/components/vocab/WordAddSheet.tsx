@@ -320,7 +320,10 @@ export default function WordAddSheet({
               autoComplete="off"
               enterKeyHint="go"
               placeholder="예: 映画, 食べる, よろしくお願いします"
-              onChange={(e) => set('surface', e.target.value)}
+              onChange={(e) => {
+                mic.edited('surface')
+                set('surface', e.target.value)
+              }}
               aria-invalid={surfaceInvalid || undefined}
               aria-describedby={surfaceInvalid ? `${ID}_surface_err` : undefined}
               className={`${INPUT} ${surfaceInvalid ? 'border-bad' : 'border-line'}`}

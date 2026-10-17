@@ -17,11 +17,15 @@ import { WORD_ENRICH_SCHEMA as WORD_ENRICH_BASE_SCHEMA, type WordEnrichResponse 
 import { INJECTION_GUARD } from './header'
 
 /**
+ * `wordEnrich@v3`(task-073 W-3, 2026-10-16) — v2 대비 **지시 줄 1개 추가**(`INVALID_REASON_RULE`: valid=false 의 `invalidReason` 말투 — 단정·오타 지목 금지, 확실할 때만 질문형 후보 한 번).
+ * 판정 기준·스키마·응답 구조·후검증은 v2 그대로다. 버전은 **라벨일 뿐** 다른 곳이 값을 고정하지 않는다(Prompt Registry `prompts:sync` 미구현 — 이 상수가 정본, DB 쓰기 없음).
+ * 롤백: 버전 상수를 'wordEnrich@v2' 로 되돌리고 `INVALID_REASON_RULE` 줄 1개(상수 + `system` 배열의 참조 1줄)를 걷어 낸다.
+ *
  * `wordEnrich@v2`(task-068 D5, 2026-10-14) — v1 대비 **출력에 `chunkType`(조각 유형) 칸 추가**, 그 밖의 지시·스키마·후검증은 v1 그대로.
  * 단어장 직접 입력 폼이 「수준」 대신 「조각」을 꼭 고르게 되면서(D5) 선생님 초안(뜻 채우기)이 조각도 미리 골라 준다.
- * 롤백: 버전 상수를 'wordEnrich@v1' 로 되돌리고 아래 `chunkType` 지시 줄 1개·스키마 칸·후검증 1줄을 걷어 낸다(호출부는 칸이 없어도 `null` 로 읽는다 — 계약 참고).
+ * 롤백(v2→v1): 버전 상수를 'wordEnrich@v1' 로 되돌리고 아래 `chunkType` 지시 줄 1개·스키마 칸·후검증 1줄을 걷어 낸다(호출부는 칸이 없어도 `null` 로 읽는다 — 계약 참고).
  */
-export const WORD_ENRICH_PROMPT_VERSION = 'wordEnrich@v2'
+export const WORD_ENRICH_PROMPT_VERSION = 'wordEnrich@v3'
 
 /**
  * 단어장 **전용** 5유형(task-068 D4 ★ B). 교정·수업·평가·주제 프롬프트의 `CHUNK_TYPES`(schemas.ts) 는 **4유형 그대로**다(J12) —
@@ -71,6 +75,14 @@ const WORD_ENRICH_PERSONA: LlmPersona = {
   prompt: '당신은 일본어 학습 앱의 사전 보강 도구다. 학습자와 대화하지 않는다. 주어진 표현 하나를 사전처럼 짧게 채우고, 결과는 오직 요청받은 JSON 객체 하나다.',
 }
 
+/**
+ * valid=false 일 때 `invalidReason` 을 쓰는 규칙(task-073 W-3, `wordEnrich@v3`). **판정 기준(무엇이 valid=false 인가)은 위 줄 그대로이고, 이 줄은 이유 문장의 말투만 정한다.**
+ * 배경: 음성 오인식 `インペクト`(올바른 건 インパクト)에 「일본어 단어가 아닙니다. 영어 단어 'inspect'의 오타로 보입니다.」 — 틀린 추측을 단정해 학습자를 헷갈리게 했다.
+ * 화면 틀(`DRAFT_INVALID` 「일본어 단어로 보기 어려워요. 표현을 확인해 주세요.」) 바로 아래 「선생님 설명」 자리에 그대로 실리므로, 틀과 겹치지 않는 한 문장·한국어여야 한다.
+ */
+const INVALID_REASON_RULE =
+  '- invalidReason(valid=false 일 때만) 작성 규칙: 짧은 한국어 한 문장(마침표는 끝에 한 번만), 부드러운 말투(~어요)로 씁니다. 판정은 단정이 아니라 「확인되지 않았다」는 안내입니다 — 「~가 아닙니다」·「~의 오타입니다」·「틀렸어요」처럼 잘라 말하지 않고 「일본어 단어로 확인되지 않았어요」·「~처럼 보여요」로 씁니다. 다른 언어 단어의 오타라고 짐작해 말하지 않습니다. 의도한 일본어 표기가 단 하나로 분명할 때만 같은 문장에서 「…확인되지 않았는데, 혹시 ○○를 말씀하신 걸까요?」처럼 ○○(가나·한자 표기만, 설명·원어 병기 없이)를 한 번만 묻고, 후보가 둘 이상 떠오르거나 조금이라도 확신이 없으면 추측 없이 생략합니다. 한국어·영어 입력이면 같은 문장에서 어떤 글자로 보이는지 짚으며(알파벳이면 「영어 단어로 보여서」, 한글이면 「한글로 적혀 있어서」) 「…, 일본어 표현으로 적어 주시면 확인할 수 있어요」처럼 안내합니다.'
+
 export interface WordEnrichInput {
   /** 학습자가 단어장에 추가하려는 표현(단어·관용구). 앞뒤 공백만 걷어 낸다 — 그 밖의 검증(길이 1~80 등)은 route/DB 몫. */
   surface: string
@@ -90,6 +102,7 @@ export function buildWordEnrichRequest(input: WordEnrichInput): LlmJsonRequest<W
     '[모드] WORD_ENRICH',
     '[지시] 아래 [단어]는 학습자가 단어장에 추가하려는 일본어 표현 후보입니다. 국어사전 항목처럼 짧게 채우세요.',
     '- 가장 먼저 이 표현이 실제 일본어 단어·관용 표현인지 판단합니다. 한국어·영어·오타·의미 없는 문자열이면 valid=false 로 하고 invalidReason 에 한국어로 이유를 한 문장 적습니다. 그 경우 reading·meaning·partOfSpeech·chunkType·jlpt·example·exampleKo 는 전부 null 로 둡니다.',
+    INVALID_REASON_RULE,
     '- valid=true 면 reading·meaning·partOfSpeech·chunkType·example·exampleKo 를 모두 채웁니다(null 금지). jlpt 는 확신이 있을 때만 채우고, 모르면 지어내지 말고 null 로 둡니다.',
     '- reading: 히라가나만 사용합니다(장음은 「ー」). 가타카나·한자·로마자·공백·중점(・)을 쓰지 않습니다 — 가타카나 외래어([단어]가 コーヒー 같은 경우)도 읽는 대로 히라가나로 적습니다.',
     '- meaning: 한국어 뜻만 짧게(설명문·예문 없이). 뜻이 여럿이면 가장 흔한 순서로 1~3개를 ", " 로 이어 씁니다.',

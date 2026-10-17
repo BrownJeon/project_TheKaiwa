@@ -7,7 +7,7 @@
  * 쓸 수 없는 환경(비보안 주소·지원 안 함·서버 인식 꺼짐·마이크 거부…)이면 버튼을 숨기지 않고 막은 채 이유 한 줄을 보인다.
  * 키보드 입력은 어떤 경우에도 그대로다(`children` = 원래 입력 칸).
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNativeEnv } from '@/components/common/useNativeEnv'
 import MicLevelMeter from '@/components/speech/MicLevelMeter'
 import PushToTalkButton from '@/components/speech/PushToTalkButton'
@@ -61,6 +61,7 @@ export default function WordMicField({
   const err = open ? v.error : null
   const why = off && mic.blocked ? sttErrorCopy(mic.blocked, { native, canOpenSettings: false, place: 'talk' }) : null
   const announce = mic.announce && mic.announce.target === target ? mic.announce : null
+  const hint = WORD_MIC_COPY.hint[target]
   // 결과가 들어가면 칸이 글자 모드로 닫히며 누르고 말하기 버튼이 사라진다 — 항상 그려지는 전환 버튼으로 포커스를 옮긴다(마운트 때는 옮기지 않는다).
   const toggleRef = useRef<HTMLButtonElement>(null)
   const seenN = useRef(announce?.n ?? null)
@@ -69,6 +70,10 @@ export default function WordMicField({
     seenN.current = announce?.n ?? null
     toggleRef.current?.focus()
   }, [announce])
+  // 화면 읽기용 줄에 확인 안내를 합칠지는 **결과가 들어온 그 순간**의 안내 상태로 한 번 정한다 — 안내가 거두어질 때(고침·다시 열기·단계 넘어감) 줄의 글이 되돌아가
+  // 같은 「알아들은 말」이 다시 읽히지 않게. 렌더 중 상태 갱신은 새 결과(n)를 처음 볼 때만 한다.
+  const [srCheck, setSrCheck] = useState({ n: announce?.n ?? null, on: mic.notice[target] })
+  if (announce && srCheck.n !== announce.n) setSrCheck({ n: announce.n, on: mic.notice[target] })
 
   return (
     <>
@@ -128,7 +133,17 @@ export default function WordMicField({
               />
             </div>
           ) : null}
-          <p className="w-full text-[12px] text-ink2 break-keep">{WORD_MIC_COPY.hint[target]}</p>
+          <p className="w-full text-[12px] text-ink2 break-keep">
+            {typeof hint === 'string' ? (
+              hint
+            ) : (
+              <>
+                {hint[0]}
+                <span lang="ja">{hint[1]}</span>
+                {hint[2]}
+              </>
+            )}
+          </p>
           <PushToTalkButton phase={v.phase} label={v.pttLabel} describedBy={statusId} onPress={v.press} onRelease={v.release} onAbort={v.abort} />
           <div id={statusId} className="flex h-6 min-w-0 max-w-full items-center justify-center gap-2 text-[13px] text-ink2">
             <MicLevelMeter db={v.db} active={v.phase === 'recording'} />
@@ -136,10 +151,18 @@ export default function WordMicField({
           </div>
         </div>
       ) : (
-        children
+        <>
+          {children}
+          {mic.notice[target] ? (
+            // 읽기는 아래 화면 읽기용 줄이 「알아들은 말」과 한 번에 맡는다(새로 끼우는 상태 줄은 읽기 프로그램에 따라 안 읽힐 수 있어서) — 이중 낭독 방지로 눈에만 보인다.
+            <p aria-hidden="true" className="text-[12px] text-ink2 break-keep">
+              {WORD_MIC_COPY.checkNotice}
+            </p>
+          ) : null}
+        </>
       )}
       <span className="sr-only" role="status" aria-live="polite">
-        {announce ? `${MIC_TEST_COPY.announcePrefix}${announce.text}` : ''}
+        {announce ? `${MIC_TEST_COPY.announcePrefix}${announce.text}${srCheck.on ? `. ${WORD_MIC_COPY.checkNotice}` : ''}` : ''}
       </span>
     </>
   )

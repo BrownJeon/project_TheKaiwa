@@ -1,0 +1,33 @@
+{
+ "version": "word-enrich-invalid@v1",
+ "note": "task-073 W-3 — 뜻 채우기(wordEnrich) valid=false 이유 문장 말투 회귀·실측용. 입력은 모두 공개 단어·합성 문자열(사용자 데이터 아님). invalid 8종은 단정 표현 0건·한국어 한 문장 확인, valid 8종은 변경 전(v2)과 valid=true 통과율·필드 채움·chunkType 이 같은지 대조(valid 판정 기준·스키마는 바꾸지 않는다). borderline 6종은 구어·인사말처럼 표준 표기라 valid=true 여야 하는 낱말 — 새 말투 규칙이 valid 판정을 과하게 엄격하게 만들지(과잉 거절) 않는지 보는 보조 집합(GROUP=borderline 으로만 실행).",
+ "level": "N5",
+ "invalid": [
+  { "id": "i01", "surface": "インペクト", "kind": "misrecognized-katakana", "note": "실제 사례(2026-10-15 사용자 스크린샷) — 올바른 표기는 インパクト(음성 오인식). v2 는 「영어 inspect 의 오타입니다」를 단정했다. 후보를 말한다면 질문형 한 번이어야 하고 inspect 짐작은 금지." },
+  { "id": "i02", "surface": "impact", "kind": "english", "note": "영어 단어 — 일본어 표현으로 적어 달라는 방향 안내" },
+  { "id": "i03", "surface": "임팩트", "kind": "korean", "note": "한글 표기 — 일본어 표현으로 적어 달라는 방향 안내" },
+  { "id": "i04", "surface": "inspect", "kind": "english", "note": "영어 단어(インペクト 사례에서 모델이 짐작했던 단어)" },
+  { "id": "i05", "surface": "こんにちわ", "kind": "misspelling", "note": "こんにちは 의 잘못된 표기(구어·일부 표기). v2 가 valid=false 로 보는지부터 기준값으로 잰다 — 판정 기준은 바꾸지 않는다" },
+  { "id": "i06", "surface": "あああ", "kind": "nonsense", "note": "의미 없는 문자열 — 추측 없이 확인되지 않았다고만" },
+  { "id": "i07", "surface": "나는 학교에 간다", "kind": "korean-sentence", "note": "한글 문장" },
+  { "id": "i08", "surface": "asdf", "kind": "nonsense-latin", "note": "의미 없는 로마자" }
+ ],
+ "valid": [
+  { "id": "v01", "surface": "映画", "expectedChunkType": "NAME" },
+  { "id": "v02", "surface": "温い", "expectedChunkType": "FEELING", "note": "task-071 사례 단어 — 읽기가 ぬるい/あたたかい 갈려 분석기 읽기와 저장 읽기가 어긋났던 표기" },
+  { "id": "v03", "surface": "インパクト", "expectedChunkType": "NAME", "note": "インペクト 의 올바른 표기" },
+  { "id": "v04", "surface": "食べる", "expectedChunkType": "ACTION" },
+  { "id": "v05", "surface": "よろしくお願いします", "expectedChunkType": "EXPRESSION" },
+  { "id": "v06", "surface": "ぬるい", "expectedChunkType": "FEELING" },
+  { "id": "v07", "surface": "コーヒー", "expectedChunkType": "NAME", "note": "가타카나 외래어 — reading 히라가나 정규화 함정(checks.ts)" },
+  { "id": "v08", "surface": "ありがとう", "expectedChunkType": "EXPRESSION" }
+ ],
+ "borderline": [
+  { "id": "b01", "surface": "やばい", "expectedChunkType": "FEELING", "note": "구어 형용사" },
+  { "id": "b02", "surface": "めっちゃ", "expectedChunkType": "MODIFIER", "note": "구어 부사(간사이 기원)" },
+  { "id": "b03", "surface": "お疲れ様です", "expectedChunkType": "EXPRESSION", "note": "인사말" },
+  { "id": "b04", "surface": "ちょっと", "expectedChunkType": "MODIFIER", "note": "구어 부사" },
+  { "id": "b05", "surface": "マジで", "expectedChunkType": "MODIFIER", "note": "구어 가타카나 표기" },
+  { "id": "b06", "surface": "ただいま", "expectedChunkType": "EXPRESSION", "note": "인사말" }
+ ]
+}

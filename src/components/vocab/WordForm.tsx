@@ -87,6 +87,12 @@ export default function WordForm({
   const border = (f: WordField) => (errors[f] || noted(f) ? 'border-bad' : 'border-line')
   const listId = `${idPrefix}_categories`
 
+  /** 사용자가 직접 고친 표현·예문 칸이면 인식 직후 안내를 거둔다(task-073). 인식 결과가 칸에 들어가는 길은 시트의 `onResult` 라 이 함수를 거치지 않는다. */
+  const change: typeof onChange = (f, v) => {
+    if (f === 'surface' || f === 'example') mic?.edited(f)
+    onChange(f, v)
+  }
+
   /** 마이크를 붙이는 칸이면 라벨 줄에 전환 버튼 + 말로 쓰는 동안 입력 칸 자리에 누르고 말하기. 아니면 라벨·입력 그대로. */
   const withMic = (target: WordMicTarget | undefined, label: React.ReactNode, input: React.ReactNode) =>
     mic && target ? (
@@ -117,7 +123,7 @@ export default function WordForm({
           aria-required={opts.required || undefined}
           list={f === 'category' ? listId : undefined}
           autoComplete="off"
-          onChange={(e) => onChange(f, e.target.value)}
+          onChange={(e) => change(f, e.target.value)}
           {...invalid(f)}
           className={`${INPUT} ${border(f)}`}
         />,
@@ -137,7 +143,7 @@ export default function WordForm({
           lang={opts.ja ? 'ja' : undefined}
           value={values[f]}
           placeholder={opts.placeholder}
-          onChange={(e) => onChange(f, e.target.value)}
+          onChange={(e) => change(f, e.target.value)}
           {...invalid(f)}
           className={`w-full min-w-0 resize-none rounded-xl border bg-surface px-3 py-2.5 text-[16px] leading-normal text-ink placeholder:text-ink3 ${border(f)}`}
         />,

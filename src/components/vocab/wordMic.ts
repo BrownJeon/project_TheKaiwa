@@ -79,6 +79,41 @@ export function visibleMicError(error: SttUiError | null, dismissed: SttUiError 
   return error && error !== dismissed ? error : null
 }
 
+/**
+ * 인식 직후 안내(task-073) — 「잘못 알아들었을 수 있어요」는 인식 결과가 **들어간** 칸 아래에만 붙는다(칸마다 따로).
+ * 일본어 인식기는 한국어·영어식 발음을 엉뚱한 일본어로 받아 적기 쉬워서, 사용자가 칸의 글자를 확인하게 하려는 안내다.
+ * 사용자가 그 칸을 고치거나, 다시 말하려고 열거나, 단계가 바뀌어 칸이 닫히면 거둔다. 빈 결과·무시된 결과에는 붙이지 않는다(들어간 게 없다).
+ */
+export type MicNotices = Readonly<Record<WordMicTarget, boolean>>
+
+export const MIC_NOTICES_INIT: MicNotices = { surface: false, example: false }
+
+export type MicNoticeEvent =
+  | { type: 'applied'; target: WordMicTarget }
+  | { type: 'edited'; target: WordMicTarget }
+  | { type: 'speak'; target: WordMicTarget }
+  | { type: 'leave'; only?: WordMicTarget }
+
+/** 바뀐 게 없으면 같은 객체를 돌려준다 — 상태 갱신이 불필요한 다시 그리기를 만들지 않게. */
+export function micNoticeStep(n: MicNotices, e: MicNoticeEvent): MicNotices {
+  switch (e.type) {
+    case 'applied':
+      return n[e.target] ? n : { ...n, [e.target]: true }
+    case 'edited':
+    case 'speak':
+      return n[e.target] ? { ...n, [e.target]: false } : n
+    case 'leave': {
+      const keep = e.only === undefined ? MIC_NOTICES_INIT : { ...n, [e.only]: false }
+      return n.surface === keep.surface && n.example === keep.example ? n : keep
+    }
+  }
+}
+
+/** 손을 뗀 뒤 결과가 도착했을 때 — 칸에 **들어간** 경우(`apply`)에만 안내를 붙인다. 무시된 결과·빈 결과는 칸을 건드리지 않았으므로 그대로. */
+export function micNoticeAfterFinal(n: MicNotices, action: MicFinalAction): MicNotices {
+  return action.kind === 'apply' ? micNoticeStep(n, { type: 'applied', target: action.target }) : n
+}
+
 /** 결과를 칸에 넣은 직후 포커스를 전환 버튼으로 옮길지 — 이 칸에 새 결과(`n` 이 처음 보는 값)가 들어왔을 때만(마운트 때는 아님). */
 export function micResultFocus(seenN: number | null, announce: { n: number } | null): boolean {
   return announce !== null && announce.n !== seenN
@@ -151,6 +186,10 @@ export interface WordMic {
   voice: WordMicVoice
   /** 마지막으로 칸에 넣은 말 — 화면 읽기용(n 이 바뀌어야 같은 말도 다시 읽힌다) */
   announce: { target: WordMicTarget; text: string; n: number } | null
+  /** 인식 직후 「잘못 알아들었을 수 있어요」 안내가 붙은 칸(task-073) */
+  notice: MicNotices
+  /** 사용자가 이 칸을 직접 고쳤다 — 안내를 거둔다. 인식 결과가 칸에 들어가는 길에서는 부르지 않는다. */
+  edited: (t: WordMicTarget) => void
   toggle: (t: WordMicTarget) => void
   close: (only?: WordMicTarget) => void
   dismissError: () => void

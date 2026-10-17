@@ -74,11 +74,11 @@ test('surface 앞뒤 공백은 걷어 내고, 빈 문자열은 WordEnrichInputEr
   assert.throws(() => buildWordEnrichRequest({ surface: '   ' }), WordEnrichInputError)
 })
 
-test('프롬프트 총 길이 — A10 은 대화가 아니라 페르소나(tutor.md) 없이 짧게 유지된다(v1 1,423자 → v2 1,731자(+308) — 상한 ≤2,000자, TALK 3,000자보다 훨씬 작음)', () => {
+test('프롬프트 총 길이 — A10 은 대화가 아니라 페르소나(tutor.md) 없이 짧게 유지된다(v1 1,423자 → v2 1,731자(+308) → v3 INVALID_REASON_RULE 줄 추가 — 상한 ≤2,400자, TALK 3,000자보다 훨씬 작음)', () => {
   for (const it of fixture.items) {
     const req = buildWordEnrichRequest({ surface: it.surface, level: it.level })
     const prompt = renderTranscript(req.system, req.messages) + (req.persona?.prompt ?? '')
-    assert.ok(prompt.length <= 2_000, `${it.id}: ${prompt.length}자`)
+    assert.ok(prompt.length <= 2_400, `${it.id}: ${prompt.length}자`)
   }
 })
 
@@ -99,8 +99,8 @@ test('WORD_ENRICH_OUTPUT_SCHEMA: 유효 응답 통과, 스키마 밖 필드·필
   assert.deepEqual(validateOutput(invalid, WORD_ENRICH_OUTPUT_SCHEMA), { ok: true })
 })
 
-test('wordEnrich@v2: 버전 상수·조각 5유형(앞 4개는 교정·수업·평가·주제와 같은 CHUNK_TYPES)', () => {
-  assert.equal(WORD_ENRICH_PROMPT_VERSION, 'wordEnrich@v2')
+test('wordEnrich@v3: 버전 상수·조각 5유형(앞 4개는 교정·수업·평가·주제와 같은 CHUNK_TYPES) — v3 는 invalidReason 말투 줄만 더했고 스키마·조각은 v2 그대로', () => {
+  assert.equal(WORD_ENRICH_PROMPT_VERSION, 'wordEnrich@v3')
   assert.deepEqual([...WORD_CHUNK_TYPES], ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION'])
   assert.deepEqual([...WORD_CHUNK_TYPES].slice(0, 4), [...CHUNK_TYPES], '앞 4개는 CHUNK_TYPES 와 같은 순서·이름')
 })

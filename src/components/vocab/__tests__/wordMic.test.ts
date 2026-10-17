@@ -13,12 +13,16 @@ import {
   micClose,
   micFinalAction,
   micFinalStep,
+  micNoticeAfterFinal,
+  micNoticeStep,
+  MIC_NOTICES_INIT,
   MIC_REFS_INIT,
   micPress,
   micResultFocus,
   micToggle,
   visibleMicError,
   wordMicStatusText,
+  type MicNotices,
   type MicRefs,
 } from '../wordMic'
 import { emptyForm, validateWord } from '../validate'
@@ -197,4 +201,65 @@ test('결과가 들어간 칸의 전환 버튼으로만 포커스를 옮긴다(R
   assert.equal(micResultFocus(1, { n: 1 }), false) // 단계가 바뀌어 새로 그려진 칸 — 이미 본 결과
   assert.equal(micResultFocus(1, { n: 2 }), true)
   assert.equal(micResultFocus(2, null), false) // 다른 칸의 결과
+})
+
+// ── task-073: 인식 직후 「잘못 알아들었을 수 있어요」 안내의 상태 전이 ──
+const N = (o: Partial<MicNotices> = {}): MicNotices => ({ ...MIC_NOTICES_INIT, ...o })
+
+test('인식 직후 안내(L2) — 결과가 들어간 칸에만 붙는다(표현·예문 따로)', () => {
+  assert.deepEqual(MIC_NOTICES_INIT, { surface: false, example: false })
+  assert.deepEqual(micNoticeStep(MIC_NOTICES_INIT, { type: 'applied', target: 'surface' }), N({ surface: true }))
+  assert.deepEqual(micNoticeStep(MIC_NOTICES_INIT, { type: 'applied', target: 'example' }), N({ example: true }))
+  // 두 칸이 모두 켜질 수 있다
+  const both = micNoticeStep(N({ surface: true }), { type: 'applied', target: 'example' })
+  assert.deepEqual(both, N({ surface: true, example: true }))
+})
+
+test('인식 직후 안내 — 그 칸을 고치거나 다시 말하려고 열면 그 칸만 사라진다', () => {
+  const both = N({ surface: true, example: true })
+  for (const type of ['edited', 'speak'] as const) {
+    assert.deepEqual(micNoticeStep(both, { type, target: 'surface' }), N({ example: true }), type)
+    assert.deepEqual(micNoticeStep(both, { type, target: 'example' }), N({ surface: true }), type)
+  }
+})
+
+test('인식 직후 안내 — 단계가 바뀌거나 칸이 닫히면(close) 사라진다 — only 가 있으면 그 칸만', () => {
+  const both = N({ surface: true, example: true })
+  assert.deepEqual(micNoticeStep(both, { type: 'leave' }), MIC_NOTICES_INIT)
+  assert.deepEqual(micNoticeStep(both, { type: 'leave', only: 'example' }), N({ surface: true }))
+  assert.deepEqual(micNoticeStep(both, { type: 'leave', only: 'surface' }), N({ example: true }))
+})
+
+test('인식 직후 안내 — 바뀐 게 없으면 같은 객체(불필요한 다시 그리기 없음)', () => {
+  const on = N({ surface: true })
+  assert.equal(micNoticeStep(on, { type: 'applied', target: 'surface' }), on)
+  assert.equal(micNoticeStep(on, { type: 'edited', target: 'example' }), on)
+  assert.equal(micNoticeStep(on, { type: 'speak', target: 'example' }), on)
+  assert.equal(micNoticeStep(on, { type: 'leave', only: 'example' }), on)
+  assert.equal(micNoticeStep(MIC_NOTICES_INIT, { type: 'leave' }), MIC_NOTICES_INIT)
+  assert.equal(micNoticeStep(MIC_NOTICES_INIT, { type: 'edited', target: 'surface' }), MIC_NOTICES_INIT)
+})
+
+test('인식 직후 안내 — 칸에 들어간 결과에만 붙는다: 빈 결과·무시된 결과는 안내를 만들지 않는다', () => {
+  const pressed = micPress({ target: 'surface', pressed: null })
+  assert.deepEqual(micNoticeAfterFinal(MIC_NOTICES_INIT, micFinalStep(pressed, ' インペクト ').action), N({ surface: true }))
+  assert.equal(micNoticeAfterFinal(MIC_NOTICES_INIT, micFinalStep(pressed, '  ').action), MIC_NOTICES_INIT) // 빈 결과
+  const moved: MicRefs = { target: 'example', pressed: 'surface' }
+  assert.equal(micNoticeAfterFinal(MIC_NOTICES_INIT, micFinalStep(moved, 'インペクト').action), MIC_NOTICES_INIT) // 누른 칸을 떠남
+  assert.equal(micNoticeAfterFinal(MIC_NOTICES_INIT, micFinalStep(MIC_REFS_INIT, 'インペクト').action), MIC_NOTICES_INIT) // 누른 적 없음
+  // 예문에 이어 붙은 결과는 예문 칸에 붙는다
+  const ex = micFinalStep(micPress({ target: 'example', pressed: null }), '散歩')
+  assert.deepEqual(micNoticeAfterFinal(MIC_NOTICES_INIT, ex.action), N({ example: true }))
+})
+
+test('인식 직후 안내 — 한 번 말하고 고치고 다시 말하는 흐름', () => {
+  let n: MicNotices = MIC_NOTICES_INIT
+  n = micNoticeAfterFinal(n, micFinalStep(micPress({ target: 'surface', pressed: null }), 'インペクト').action)
+  assert.equal(n.surface, true) // 들어간 직후
+  n = micNoticeStep(n, { type: 'speak', target: 'surface' }) // 다시 말하려고 연다
+  assert.equal(n.surface, false)
+  n = micNoticeAfterFinal(n, micFinalStep(micPress({ target: 'surface', pressed: null }), 'インパクト').action)
+  assert.equal(n.surface, true) // 다시 말한 결과에도 붙는다
+  n = micNoticeStep(n, { type: 'edited', target: 'surface' }) // 직접 고침
+  assert.equal(n.surface, false)
 })
