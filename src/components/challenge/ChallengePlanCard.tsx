@@ -21,6 +21,7 @@ import {
   md,
   nearestCount,
   planCardKind,
+  planLevelText,
   planStatTiles,
   taskCounts,
   taskRowView,
@@ -136,8 +137,12 @@ export default function ChallengePlanCard({
       <h2 id={titleId} className="text-[17px] font-bold [overflow-wrap:anywhere]">
         {c.title}
       </h2>
+      {/* 「난이도 중급 (N3)」·날짜가 각각 한 덩어리 — 좁으면 그 사이에서만 줄이 바뀐다(task-076 D10 A). */}
       <p className="text-[12.5px] text-ink2">
-        {c.level} · {md(c.startDate)} ~ {md(c.endDate)}
+        <span className="whitespace-nowrap">{planLevelText(c.level)}</span> ·{' '}
+        <span className="whitespace-nowrap">
+          {md(c.startDate)} ~ {md(c.endDate)}
+        </span>
       </p>
       {met ? (
         <div className="mt-2.5 flex items-start gap-2.5 rounded-xl bg-surface2 px-3 py-2.5">

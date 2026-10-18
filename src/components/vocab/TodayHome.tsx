@@ -53,7 +53,7 @@ import { actionErrorText, FLASH, HINT, homeLoadErrorText, startErrorText } from 
 import ChallengeStrip, { ChallengeStripError } from './ChallengeStrip'
 import { TODAY_HOLD_MS, todayRevealed } from './todayHold'
 import TodayWordsCard, { type PoolEmptyKind, type WordsCardState } from './TodayWordsCard'
-import { stripModel, todayMode, topicSetsTally } from './topicLogic'
+import { mineSetChallengeLevel, stripModel, todayMode, topicSetsTally } from './topicLogic'
 import { TodayCardsSkeleton } from './TodaySkeleton'
 import TopicWordsCard from './TopicWordsCard'
 import { useTodayChallenge } from './useTodayChallenge'
@@ -330,6 +330,8 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
   const answeredNow = ip?.answered ?? null
   const tm = todayMode(challenge.state, challenge.data)
   const strip = challenge.state === 'ready' ? stripModel(challenge.data, data?.today ?? nowKey) : null
+  // task-076 P10 — 내 단어장 세트 준비 줄(지금 카드·챌린지 카드 펼침 둘 다 `wordsCardProps` 로 받는다). #158 을 못 읽으면 지금 문장.
+  const mineChallengeLevel = challenge.state === 'ready' ? mineSetChallengeLevel(challenge.data, data?.today ?? nowKey) : null
   const ctx = tm.ctx
 
   /** 챌린지 주제 세트 [시작하기]·[한 세트 더] — 시작 값(E2)만 남기고 대기 화면으로. 두 번 눌러도 한 번. */
@@ -358,6 +360,7 @@ export default function TodayHome({ dailyWordCount, myLevel, teacherName = '선�
     startError,
     finishing,
     myLevel,
+    challengeLevel: mineChallengeLevel,
     onCount: setCount,
     onCategory: (c: string | null) => setStoredCategory(c),
     onStart: () => void start(category),

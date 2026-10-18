@@ -2,6 +2,7 @@
 
 > **상태: v2.3 (task-040, 2026-10-06, 설계 담당) — 사용자 결정 확정본.** 사용자 지시(2026-10-06) "지금부터 페이즈2작업에 전체 작업을 데모화면 승인없이 한번에 진행해주고 결과를 정리해서 알려줘" + 결정 답: **U1~U15·N1~N3 은 권고안으로 확정, 단 U3 = B2**("오늘의 단어만 LLM 생성" — 챌린지 주제로 매일 새 단어를 A12 `topicWords` 가 만든다) · **DB D1·D2·D4·D5 승인**(이 밖의 새 표·칸 없음 — 필요하면 "추가 DB 승인 필요"로 표시) · **데모 승인 생략**(데모 = 구현 가이드) · 운영 배포는 모든 작업이 끝난 뒤 한 번.
 > **v2.3 에서 바뀐 것**: ① 오늘의 단어 = **B2 확정** — A12 호출 명세(§4-3a)·호출 시점 G1 [시작하기] 동기(§4-3b)·실패 폴백 B1(§4-3c)·저장 = 카드 스냅샷 `refType='AiWord'`(반복 항목은 `Expr` 키로 합침, §4-3d)·세트 구성 순서(§4-3e) ② 5초 지표를 B2 에 맞게 다시 씀(§5-2 — 챌린지의 새 LLM 경로는 #47 안의 A12 하나) ③ 남은 모순 3건 Leader 결정 반영 — **누적 세트 수 = 답한 카드 ≥ 1 인 세트만**(§6-1·§6-4·확인 표 13·§9-1) · 두 세트 날 예시 **20장**(§6-0·§6-1·§13-2 19번) · 확인 표 12 소급 세트 **6·3·1**(스크립트 재검산) ④ 구현 task 를 **T1~T4(+T6 2단계 조건부)** 로 다시 나눔 — T5 는 T2 에 흡수(§11-2) ⑤ 결정 목록 확정 표(§11-4a) ⑥ 데모 = 구현 가이드 변경 요구 §13-5(47~62).
+> **task-076(2026-10-18, IMP-0051 — 승인 데모 v2 「D1~D11 권고대로 승인, 질문 5는 a로」)**: 챌린지를 만들 때 **난이도(N5~N1)를 고른다**(#156 선택 `level`, 기본 = 주제 난이도, 저장 = 기존 `Challenge.level` — 스키마 변경 없음). 진행 중인 동안 이 난이도가 생성 기준 수준 T 가 된다 — §4-6.
 > 아래 v2.2·v2.1·v2 머리 설명은 이력으로 남긴다(문서 안 "결정 필요(권고: …)" 문구는 **§11-4a 확정값**으로 읽는다).
 >
 > **(이력) 초안 v2.2 (task-040, 2026-10-06, 설계 담당)** — v1(726줄) → **REV-112** 반영 v2(902줄) → **REV-113** 반영 v2.1(1108줄, Leader 결정 §13-2b 포함) → Reviewer 재감사 **REV-114(CHANGES_REQUESTED 경미 — Medium 1·Low 10·Info 4, 설계 로직 결함 없음)** 에 따라 문구·명세를 맞췄다. 지적 번호 → 처리 → 새 줄 대조표는 [[task-040-improve-challenge-design]] `## 설계 담당 기록`(v2 표·v2.1 표·v2.2 표)에 있다.
@@ -353,11 +354,11 @@ model VocabAttempt {
 |---|---|---|
 | 파일 | `conversation/prompts/topicWords.ts`(신규 — `buildTopicWordsRequest`·`TOPIC_WORDS_PROMPT_VERSION='topicWords@v1'`) · `conversation/structuredResponse/topicWordsSchemas.ts`(신규 — 스키마·`TopicWordsResponse`·항목 검사 순수 함수). **`structuredResponse/schemas.ts`·`checks.ts` 는 고치지 않는다**(task-039 미커밋 작업 파일 — `git status` M) — `CHUNK_TYPES`(`schemas.ts:7`)·`LESSON_READING_PATTERN`(`:280`)·`INJECTION_GUARD`(`prompts/header.ts:68`)는 import 만 | 분리 파일 선례 `evalSchemas.ts`·`reviewSchemas.ts`·`reviewChecks.ts` |
 | 페르소나 | **tutor.md 를 쓰지 않는다** — 짧은 자체 `LlmPersona`(“단어 목록 생성 도구, 대화하지 않고 JSON 하나만”) | A10 과 같은 이유(`prompts/wordEnrich.ts:2-7,22-26`) |
-| 입력 `TopicWordsInput` | `topic {title, titleJa, description, level}` — **수준 = 주제 수준**(A4 와 같은 규칙, `lessons/generate.ts:30-31`) · `count` = 요청 장수 = `min(20, ceil(1.3 × 목표 장수))`(10 → 13, 5 → 7, 15 → 20 — 버려질 항목 여유, PE 실측으로 조정 [설계 목표]) · `exclude: string[]` = **이미 낸 표기** — 그 주제 `TopicChunk.textJa` 전부 + **이 사용자가 이 주제로 만든 이전 세트의 새 단어 카드 `surfaceSnap`**(최근 것부터, 최대 300개·2,000자 [설계 목표]) | Leader 지시 그대로. **넣지 않는 것**: 사용자 약점·오답·회화 기록·단어장(과설계 방지, 개인 기록 외부 전송 최소화) |
+| 입력 `TopicWordsInput` | `topic {title, titleJa, description, level}` — **수준 = 주제 수준**(A4 와 같은 규칙, `lessons/generate.ts:30-31`) — **task-076: 진행 중 챌린지의 주제 세트면 챌린지 난이도**(§4-6, `vocab/sessions.ts` `topicWordsLevel`) · `count` = 요청 장수 = `min(20, ceil(1.3 × 목표 장수))`(10 → 13, 5 → 7, 15 → 20 — 버려질 항목 여유, PE 실측으로 조정 [설계 목표]) · `exclude: string[]` = **이미 낸 표기** — 그 주제 `TopicChunk.textJa` 전부 + **이 사용자가 이 주제로 만든 이전 세트의 새 단어 카드 `surfaceSnap`**(최근 것부터, 최대 300개·2,000자 [설계 목표]) | Leader 지시 그대로. **넣지 않는 것**: 사용자 약점·오답·회화 기록·단어장(과설계 방지, 개인 기록 외부 전송 최소화) |
 | 출력 `TopicWordsResponse` | `{ words: [{ textJa, reading, meaningKo, chunkType, jlpt, valid }] }` — `jlpt` 는 N5~N1 또는 `null`(모르면 null — A10 규칙), `valid` = 모델 자기 확신(확신 없는 표현은 false) | A10 `valid`·`jlpt` 규약(`schemas.ts:207-249`) |
 | 예문 (`exampleJa`·`exampleKo`) | **1단계 출력에서 뺀다(E2 권고)** — 아래 표 | 카드에 예문 칸 없음 |
 | 스키마(ajv) | 구조만: `words` 1~20개, 항목 `additionalProperties:false`, 필드 형·`chunkType` enum·`jlpt` enum\|null·길이(`textJa` 1~40 · `reading` 1~80 · `meaningKo` 1~80). **읽기 가나 패턴은 스키마에 넣지 않고 항목 검사로 버린다** — 한 항목의 읽기 오류로 응답 전체가 재시도되면(사용자가 기다리는 중) 대기가 두 배가 된다. 선례: lesson@v3·v4 는 스키마 `pattern` 위반으로 전체 실패가 났다(`schemas.ts` lesson@v3·v4 주석, 붙여넣기 8회 중 5회) | `--json-schema` + `extractJson` + ajv 1회 재시도(CLAUDE.md LLM 계약) 그대로, `stripAdditionalProperties: true`(lesson@v7 선례 — 남는 키는 지우고 통과) |
-| 항목 검사(버림, 서버) | ① `valid === true` ② `textJa` 에 가나·한자 1자 이상, 한글·라틴 문자 없음 ③ `reading` 이 `LESSON_READING_PATTERN`(히라가나+가타카나·장음·최소 문장부호 — 수업 조각과 같은 규칙, 단어 단위인 A10 의 "히라가나만"이 아님: 이 세트는 수업 표현과 섞이고 외래어 가타카나 읽기가 자연스럽다 — llm-japanese-quality §함정 ⑤) ④ `meaningKo` 에 한글 1자 이상 ⑤ `jlpt` 가 null 이거나 `levelWindow(주제 수준)`(±1, `topics/index.ts:17-21`) 안 ⑥ **중복**: `normalizeRefText(textJa)`(`repetition/index.ts:13-15`)가 서버 쪽 전체 제외 집합(위 `exclude` 의 **상한 없는** 원본 + 이번 응답의 앞 항목)에 있으면 버림 ⑦ **뜻 중복**: 정규화한 `meaningKo` 가 이번 응답 앞 항목이나 주제 기본 표현의 뜻과 같으면 버림(보기 모호 방지) | 검사 함수는 L2 순수 함수(PE 픽스처 테스트) + L3 가 DB 지식(제외 집합)으로 ⑥ 을 다시 적용 |
+| 항목 검사(버림, 서버) | ① `valid === true` ② `textJa` 에 가나·한자 1자 이상, 한글·라틴 문자 없음 ③ `reading` 이 `LESSON_READING_PATTERN`(히라가나+가타카나·장음·최소 문장부호 — 수업 조각과 같은 규칙, 단어 단위인 A10 의 "히라가나만"이 아님: 이 세트는 수업 표현과 섞이고 외래어 가타카나 읽기가 자연스럽다 — llm-japanese-quality §함정 ⑤) ④ `meaningKo` 에 한글 1자 이상 ⑤ `jlpt` 가 null 이거나 `levelWindow(주제 수준)`(±1, `topics/index.ts:17-21`; task-076 — 챌린지 주제 세트는 챌린지 난이도 ±1) 안 ⑥ **중복**: `normalizeRefText(textJa)`(`repetition/index.ts:13-15`)가 서버 쪽 전체 제외 집합(위 `exclude` 의 **상한 없는** 원본 + 이번 응답의 앞 항목)에 있으면 버림 ⑦ **뜻 중복**: 정규화한 `meaningKo` 가 이번 응답 앞 항목이나 주제 기본 표현의 뜻과 같으면 버림(보기 모호 방지) | 검사 함수는 L2 순수 함수(PE 픽스처 테스트) + L3 가 DB 지식(제외 집합)으로 ⑥ 을 다시 적용 |
 | `extraCheck` | 없음(항목 단위 버림이라 재시도를 부르지 않음). 남은 장수가 모자라면 재시도하지 않고 B1 로 채운다(§4-3e) | 사용자 대기 시간 우선 |
 | 프롬프트 길이 | system ≈1,500자 + `exclude` ≤2,000자 → **≤3,500자** [설계 목표 — PE 실측] | A10 1,969~2,750자(task-008 이력서 139) |
 | 저장 | 카드 스냅샷만(§4-3d). `WordEntry` 자동 추가 없음 | 규칙 1 |
@@ -475,6 +476,20 @@ model VocabAttempt {
 | P4 | 챌린지 마무리 한 줄 | 3단계 후보 | 끝난 챌린지 결과에 선생님 한 줄(A8 축소판) — 1단계는 고정 문구 | — |
 
 ---
+
+### 4-6. (task-076) 챌린지 난이도 · 생성 기준 수준 T
+
+- **난이도 고르기**: 만들기 ③ 목표 단계 맨 위 N5~N1(화면 `docs/screens.md` §33). #156 본문 선택 `level`(생략·null = 고른 주제 난이도 — task-076 이전과 같음, 그 밖 400 `VALIDATION` `field:'level'`). `Challenge.level` 로 **만들 때 얼린다** — 이미 만든 챌린지(= 주제 난이도)는 바뀌지 않는다.
+- **규칙 한 곳**(`src/modules/learning/targetLevel.ts` `resolveTargetLevel`): `T = 진행 중 챌린지가 있으면 challenge.level, 없으면 profile.goalLevel ?? profile.level`. 「진행 중」 = `topics/visible.ts` `isChallengeInProgress`(ACTIVE ∧ 주제 있음 ∧ 종료일 ≥ 오늘 — 시작 전 포함, 과제 켜짐 여부와 무관). 자리가 `challenges/` 가 아닌 이유: `vocab/sessions.ts` 의 `challenges` 값 import 금지(REV-121 L-5 순환 방지).
+- **적용(D4 A·D6 A)**:
+  | 소비처 | T 적용 | 그대로 |
+  |---|---|---|
+  | 오늘의 회화 — 주제 수업(#59 `{topicId}` — 추천·챌린지·「다른 주제」로 고른 주제) | 수업 수준(`Lesson.level`·A4 `[주제] … 수준`) = T. T 를 확정하지 못하면(조회 실패) 주제 수준 | 붙여넣은 글 수업(학습자 수준)·상황 수업(대표 주제/상황 수준) — L7 |
+  | #58 추천 | 새 칸 `lessonLevel`(= T)·`levelSource`(CHALLENGE·GOAL·LEVEL) | `level`(주제 난이도)·주제 고르기(내 수준 ±1)·`reason` — L8 |
+  | 챌린지 주제 세트 「새 단어」(A12) | 진행 중 챌린지의 **그 주제** 세트만: A12 `[수준]`·검사 ⑤ 창 = 챌린지 난이도(프롬프트 문구 그대로, 값만) | 다른 주제 세트·주제 **기본 표현**(고정 조각) |
+  | 내 단어장 세트 가중 기준(task-053 천장) | 진행 중 챌린지가 있으면 `challenge.level`, 없으면 `ceilingOf(level, goalLevel)`(task-053 그대로). 챌린지 조회·프로필 읽기 실패 = 가중 없음 | 가중 모양(기준 이하 1·+1 0.3·+2 0.05·+3 0) |
+- 이 규칙의 D6 A ↔ B 전환은 `vocab/sessions.ts` `mineSetCeiling` 한 함수(본문 한 줄)만 바꾼다.
+- 바꾸지 않는 것: 오늘의 평가 수준 · 챌린지 결과 집계 · 「주제 고르기」 수준 창 · 프롬프트 문구 · DB.
 
 ## 5. 일일 스케줄 · 5초 예산 · 중복 방지 · 재생성 (결정 c)
 

@@ -467,6 +467,11 @@ export interface RunTopicWordsArgs {
   signal?: AbortSignal
   /** 벽시계 마감(ms epoch) — 요청 시작 + 30초. */
   deadlineAt: number
+  /**
+   * 새 단어를 만들 수준 — A12 `[수준]`·항목 검사 ⑤ 창(±1)에 같이 쓴다(task-076 D4 A: 진행 중 챌린지의 주제 세트면 챌린지 난이도,
+   * `sessions.ts` `topicWordsLevel`). 생략하면 주제 수준(지금 동작). 프롬프트 문구는 그대로이고 값만 바뀐다.
+   */
+  level?: JlptLevel
 }
 
 /**
@@ -478,6 +483,7 @@ export async function runTopicWords(deps: TopicWordsRunDeps, args: RunTopicWords
   const traceId = newTraceId()
   const steps: TraceStep[] = []
   const exclude = [...args.material.chunkTexts, ...args.priorSurfaces]
+  const level = args.level ?? args.material.topic.level
   const targetCount = Math.max(1, Math.min(TOPIC_WORDS_TARGET_MAX, Math.floor(args.targetCount)))
   let result: TopicWordsRunResult = { ok: false, reason: 'FAILED' }
   let errorCode: string | null = null
@@ -505,7 +511,7 @@ export async function runTopicWords(deps: TopicWordsRunDeps, args: RunTopicWords
     }
     let request: LlmJsonRequest<TopicWordsOutput>
     try {
-      request = args.driver.build({ topic: { ...args.material.topic }, targetCount, exclude, variant: Math.max(0, Math.floor(args.priorDays ?? 0)) })
+      request = args.driver.build({ topic: { ...args.material.topic, level }, targetCount, exclude, variant: Math.max(0, Math.floor(args.priorDays ?? 0)) })
     } catch (e) {
       errorCode = e instanceof Error ? e.name.slice(0, 40) : 'BUILD'
       return result
@@ -533,7 +539,7 @@ export async function runTopicWords(deps: TopicWordsRunDeps, args: RunTopicWords
       return result
     }
     const r = out.v
-    const assembled = args.driver.assemble(r.data, { level: args.material.topic.level, exclude, excludeMeanings: args.material.chunkMeanings })
+    const assembled = args.driver.assemble(r.data, { level, exclude, excludeMeanings: args.material.chunkMeanings })
     const words = recheckTopicWords(assembled.words, exclude)
     const dropped = Object.entries(assembled.droppedByReason ?? {}).map(([k, v]) => `${k}=${v}`).join(',').slice(0, 120)
     steps.push({

@@ -17,31 +17,38 @@ import { Btn } from '@/components/common/ui'
 import { Spinner } from '@/components/plan/parts'
 import { dayLabel } from '@/components/plan/logic'
 import BackBar from '@/components/shell/BackBar'
-import type { ChallengeDetail, ChallengeLength, ChallengeWordCount, CreateChallengeBody } from '@/types/challenge'
-import type { Topic } from '@/types/lesson'
+import type { ChallengeDetail, ChallengeLength, ChallengeWordCount } from '@/types/challenge'
+import type { JlptLevel, Topic } from '@/types/lesson'
 import { CREATE, DRAFT_KEY, FLASH_KEY } from './challengeCopy'
-import { ChoicePills, CheckCard, RadioCard, StepIndicator, TopicRadioCard } from './createParts'
+import { ChoicePills, CheckCard, ConfirmLevelValue, LevelCompareLine, LevelPills, RadioCard, StepIndicator, TopicLevelsBody, TopicRadioCard } from './createParts'
 import {
   acceptLine,
   addDaysTo,
   autoTitle,
+  createBody,
   createErrorOf,
   EMPTY_DRAFT,
   effectiveGoal,
   goalSummary,
   goalTasks,
   isChallengeIdParam,
+  isJlptLevel,
   isTopicGone,
+  levelCompareGroups,
+  levelHint,
+  levelHintText,
   md,
   minAnsweredOf,
   parseDraft,
   parseStep,
   rangeLabel,
+  selectedLevel,
   serializeDraft,
   taskRowView,
   wordCountOptions,
   type CreateError,
   type Draft,
+  type LevelContext,
 } from './logic'
 import { BtnLink, ctaClass, ErrorBox, InfoBox, Skeleton, TaskRows } from './parts'
 import { useChallengeToday, useTopics } from './useChallengeData'
@@ -49,7 +56,18 @@ import { useChallengeToday, useTopics } from './useChallengeData'
 const noopSubscribe = () => () => {}
 const NEW = '/plan/challenge/new'
 
-export default function ChallengeCreateScreen({ today, dailyWordCount }: { today: string; dailyWordCount: number }) {
+export default function ChallengeCreateScreen({
+  today,
+  dailyWordCount,
+  myLevel = null,
+  goalLevel = null,
+}: {
+  today: string
+  dailyWordCount: number
+  /** 프로필 지금 수준·목표 수준(task-076 비교 줄·안내 줄) — 모르면 null(그 묶음만 빠지고 고르기는 그대로). */
+  myLevel?: JlptLevel | null
+  goalLevel?: JlptLevel | null
+}) {
   const router = useRouter()
   const sp = useSearchParams()
   const step = parseStep(sp.get('step'))
@@ -99,6 +117,7 @@ export default function ChallengeCreateScreen({ today, dailyWordCount }: { today
           words: d.dailyGoal.words,
           wordCount: (d.dailyGoal.wordCount as ChallengeWordCount | null) ?? null,
           start: 'TODAY',
+          level: isJlptLevel(d.level) ? d.level : null,
         })
         router.replace(`${NEW}?step=4`)
       },
@@ -146,12 +165,7 @@ export default function ChallengeCreateScreen({ today, dailyWordCount }: { today
     busyRef.current = true
     setBusy(true)
     setSubmitErr(null)
-    const body: CreateChallengeBody = {
-      topicId: topic.id,
-      lengthDays: draft.lengthDays,
-      start: draft.start,
-      dailyGoal: { lesson: goal.lesson, words: goal.words, ...(goal.words && goal.wordCount ? { wordCount: goal.wordCount } : {}) },
-    }
+    const body = createBody(topic, draft, goal)
     try {
       await apiPost<ChallengeDetail>('/api/v1/challenges', body)
       writeStore('session', DRAFT_KEY, null)
@@ -162,7 +176,7 @@ export default function ChallengeCreateScreen({ today, dailyWordCount }: { today
       setBusy(false)
       setSubmitErr(createErrorOf(toErr(e)))
     }
-  }, [draft.lengthDays, draft.start, goal.lesson, goal.words, goal.wordCount, router, topic])
+  }, [draft, goal, router, topic])
 
   const onNext = () => {
     if (busy) return
@@ -213,7 +227,7 @@ export default function ChallengeCreateScreen({ today, dailyWordCount }: { today
                 {CREATE.q1}
               </h2>
             </legend>
-            <p className="mt-1 text-[13px] text-ink2 break-keep">{CREATE.q1Body((topics.data?.level ?? []).join(' · ') || '—')}</p>
+            <TopicLevelsBody levels={(topics.data?.level ?? []).filter(isJlptLevel)} />
             <div className="mt-3">
               {topics.status === 'loading' ? (
                 <Skeleton heights={[86, 86, 86, 86]} label={CREATE.topicLoading} />
@@ -260,6 +274,7 @@ export default function ChallengeCreateScreen({ today, dailyWordCount }: { today
             draft={draft}
             goal={goal}
             today={today}
+            levelCtx={{ my: myLevel, goal: goalLevel, topic: topic.level }}
             headRef={headRef}
             reasonId={reasonId}
             onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
@@ -298,11 +313,12 @@ export default function ChallengeCreateScreen({ today, dailyWordCount }: { today
   )
 }
 
-function GoalStep({
+export function GoalStep({
   topic,
   draft,
   goal,
   today,
+  levelCtx,
   headRef,
   reasonId,
   onChange,
@@ -311,68 +327,89 @@ function GoalStep({
   draft: Draft
   goal: { lesson: boolean; words: boolean; wordCount: ChallengeWordCount | null }
   today: string
+  levelCtx: LevelContext
   headRef: React.Ref<HTMLHeadingElement>
   reasonId: string
   onChange: (patch: Partial<Draft>) => void
 }) {
+  const levelRadio = useId()
   const opts = wordCountOptions(topic.chunks.length)
   const n = goal.wordCount ?? 10
   const wordsReasonId = `${reasonId}-w`
+  const cmpId = `${reasonId}-lv`
+  const sel = selectedLevel(draft, topic) ?? topic.level
   return (
-    <fieldset className="min-w-0">
-      <legend className="contents">
-        <h2 ref={headRef} tabIndex={-1} className="text-[17px] font-bold outline-none">
-          {CREATE.q3}
-        </h2>
-      </legend>
-      <p className="mt-1 text-[13px] text-ink2 break-keep">{CREATE.q3Body}</p>
-      <div className="mt-3 flex flex-col gap-2">
-        <CheckCard
-          checked={goal.words}
-          disabled={!!opts.wordsBlocked}
-          onToggle={() => onChange({ words: !goal.words, wordCount: goal.wordCount })}
-          title={CREATE.wordsName(n)}
-          body={CREATE.wordsBody(topic.title)}
-          rule={CREATE.wordsRule(acceptLine(n))}
-          reasonId={wordsReasonId}
-        />
-        {opts.wordsBlocked ? (
-          <p id={wordsReasonId} className="text-[12px] text-ink2 break-keep">
-            {opts.wordsBlocked}
-          </p>
-        ) : null}
-        <CheckCard checked={goal.lesson} onToggle={() => onChange({ lesson: !goal.lesson })} title={CREATE.lessonName} body={CREATE.lessonBody(topic.title)} rule={CREATE.lessonRule} />
-      </div>
-      {goal.words ? (
-        <div className="mt-4">
-          <p className="mb-2 text-[12.5px] text-ink2">{CREATE.countLabel}</p>
-          <ChoicePills label={CREATE.countLabel} options={opts.options} value={goal.wordCount} onChange={(v) => onChange({ wordCount: v })} reasonId={reasonId} />
-          {opts.reason ? (
-            <p id={reasonId} className="mt-2 text-[12px] text-ink2 break-keep">
-              {opts.reason}
-            </p>
+    <div className="min-w-0">
+      <h2 ref={headRef} tabIndex={-1} className="text-[17px] font-bold outline-none">
+        {CREATE.q3Title}
+      </h2>
+      {/* 난이도(task-076 D2 B) — 손대지 않으면 주제 난이도(draft.level = null), 고르면 주제를 바꿔도 유지. 안내 줄은 막지 않는다(D8 A). */}
+      <fieldset className="mt-3 min-w-0" aria-describedby={cmpId}>
+        <legend className="contents">
+          <h3 className="text-[15px] font-semibold">{CREATE.levelQ}</h3>
+        </legend>
+        <p className="mt-1 text-[13px] text-ink2 break-keep">{CREATE.levelBody}</p>
+        <LevelPills name={levelRadio} value={sel} ctx={levelCtx} onChange={(l) => onChange({ level: l })} />
+        <LevelCompareLine id={cmpId} groups={levelCompareGroups(levelCtx)} />
+        <p aria-live="polite" className="mt-1 text-[12.5px] text-ink break-keep [overflow-wrap:anywhere]">
+          {levelHintText(levelHint(sel, levelCtx.my))}
+        </p>
+      </fieldset>
+      <div className="mt-5 border-t border-line pt-4">
+        <fieldset className="min-w-0">
+          <legend className="contents">
+            <h3 className="text-[15px] font-semibold">{CREATE.q3}</h3>
+          </legend>
+          <p className="mt-1 text-[13px] text-ink2 break-keep">{CREATE.q3Body}</p>
+          <div className="mt-3 flex flex-col gap-2">
+            <CheckCard
+              checked={goal.words}
+              disabled={!!opts.wordsBlocked}
+              onToggle={() => onChange({ words: !goal.words, wordCount: goal.wordCount })}
+              title={CREATE.wordsName(n)}
+              body={CREATE.wordsBody(topic.title)}
+              rule={CREATE.wordsRule(acceptLine(n))}
+              reasonId={wordsReasonId}
+            />
+            {opts.wordsBlocked ? (
+              <p id={wordsReasonId} className="text-[12px] text-ink2 break-keep">
+                {opts.wordsBlocked}
+              </p>
+            ) : null}
+            <CheckCard checked={goal.lesson} onToggle={() => onChange({ lesson: !goal.lesson })} title={CREATE.lessonName} body={CREATE.lessonBody(topic.title)} rule={CREATE.lessonRule} />
+          </div>
+          {goal.words ? (
+            <div className="mt-4">
+              <p className="mb-2 text-[12.5px] text-ink2">{CREATE.countLabel}</p>
+              <ChoicePills label={CREATE.countLabel} options={opts.options} value={goal.wordCount} onChange={(v) => onChange({ wordCount: v })} reasonId={reasonId} />
+              {opts.reason ? (
+                <p id={reasonId} className="mt-2 text-[12px] text-ink2 break-keep">
+                  {opts.reason}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[12px] text-ink2 break-keep">{acceptLine(n)}</p>
+            </div>
           ) : null}
-          <p className="mt-1 text-[12px] text-ink2 break-keep">{acceptLine(n)}</p>
-        </div>
-      ) : null}
-      <div className="mt-4">
-        <p className="mb-2 text-[12.5px] text-ink2">{CREATE.startLabel}</p>
-        <Segmented
-          ariaLabel={CREATE.startLabel}
-          value={draft.start}
-          onChange={(v) => onChange({ start: v })}
-          options={[
-            { value: 'TODAY', label: `오늘 ${md(today)}` },
-            { value: 'TOMORROW', label: `내일 ${md(addDaysTo(today, 1))}` },
-          ]}
-        />
-        {draft.start === 'TODAY' ? <p className="mt-2 text-[12px] text-ink2 break-keep">{CREATE.todayMemo}</p> : null}
+          <div className="mt-4">
+            <p className="mb-2 text-[12.5px] text-ink2">{CREATE.startLabel}</p>
+            <Segmented
+              ariaLabel={CREATE.startLabel}
+              value={draft.start}
+              onChange={(v) => onChange({ start: v })}
+              options={[
+                { value: 'TODAY', label: `오늘 ${md(today)}` },
+                { value: 'TOMORROW', label: `내일 ${md(addDaysTo(today, 1))}` },
+              ]}
+            />
+            {draft.start === 'TODAY' ? <p className="mt-2 text-[12px] text-ink2 break-keep">{CREATE.todayMemo}</p> : null}
+          </div>
+        </fieldset>
       </div>
-    </fieldset>
+    </div>
   )
 }
 
-function ConfirmStep({
+export function ConfirmStep({
   topic,
   draft,
   goal,
@@ -395,6 +432,7 @@ function ConfirmStep({
   const tasks = goalTasks({ ...goal, wordsMinAnswered: goal.wordCount ? minAnsweredOf(goal.wordCount) : null })
   const rows = tasks.map((t) => taskRowView(t, { later, preview: true }))
   const endDate = addDaysTo(startDate, draft.lengthDays - 1)
+  const level = selectedLevel(draft, topic) ?? topic.level
   return (
     <div className="min-w-0">
       {err?.kind === 'over' ? (
@@ -421,8 +459,11 @@ function ConfirmStep({
             <span lang="ja" className="ml-1 text-[13px] text-ink2">
               {topic.titleJa}
             </span>
-          ) : null}{' '}
-          · {topic.level}
+          ) : null}
+        </dd>
+        <dt className="text-[12.5px] text-ink2">{CREATE.rowLevel}</dt>
+        <dd className="text-[14px] break-keep">
+          <ConfirmLevelValue level={level} topicLevel={topic.level} />
         </dd>
         <dt className="text-[12.5px] text-ink2">{CREATE.rowLength}</dt>
         <dd className="text-[14px] tabular-nums break-keep">

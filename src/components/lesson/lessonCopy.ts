@@ -1,8 +1,9 @@
 /**
  * 오늘의 회화 문구(screens §12-8 — 승인 데모 v2 문구 그대로, ★ = 계약 때문에 더한 줄). 엔진·모델 이름은 어디에도 없다.
  */
+import { levelLabel } from '@/components/vocab/labels'
 import type { ChunkType } from '@/types/chat'
-import type { JlptLevel } from '@/types/lesson'
+import type { JlptLevel, LessonRecommendation } from '@/types/lesson'
 
 export const STAGE_NAMES = ['이해', '문법', '문제', '응용', '말하기'] as const
 export const CIRCLED = ['①', '②', '③', '④', '⑤'] as const
@@ -51,6 +52,31 @@ export const HOME = {
   doneResult: '끝낸 수업 결과 보기',
   today: '오늘',
 } as const
+
+/** task-076 D7 B(§33 P6) — 회화 뱃지의 수업 난이도 출처 꼬리표(#58 `levelSource`). */
+export const LEVEL_SRC: Record<LessonLevelSource, string> = { CHALLENGE: '챌린지', GOAL: '내 목표', LEVEL: '내 수준' }
+
+export type LessonLevelSource = NonNullable<LessonRecommendation['levelSource']>
+
+/** 뱃지 글 — `text` 는 보이는 글(`aria-hidden`), `sr` 은 시각 숨김 낭독. `sr` 이 null 이면 보이는 글을 그대로 읽는다(꼬리표 없음). */
+export interface LessonLevelBadge {
+  text: string
+  sr: string | null
+}
+
+/**
+ * 오늘 탭 회화 뱃지(§33 P6, 33-1a) — 「중급 (N3) · 내 목표」 + 낭독 「수업 난이도 중급 (N3), 내 목표 기준」. 이름+코드는 `levelLabel` 로만, 뒤에 조사 없음.
+ * 추천 카드는 #58 `lessonLevel`·`levelSource`(수업 난이도 T), 챌린지 카드는 #158 챌린지 난이도 + `CHALLENGE`(진행 중 챌린지면 서버 T 가 그 값).
+ * 둘 중 하나라도 없으면(서버가 T 를 못 정함·옛 응답) 꼬리표 없이 `fallback`(추천 `level` = 주제 난이도)만 — 그때도 표기는 이름+코드(D11).
+ */
+export function lessonLevelBadge(level: JlptLevel | null | undefined, source: LessonLevelSource | null | undefined, fallback: JlptLevel): LessonLevelBadge {
+  if (level && source && LEVEL_SRC[source] && levelLabel(level)) {
+    const lv = levelLabel(level)
+    const src = LEVEL_SRC[source]
+    return { text: `${lv} · ${src}`, sr: `수업 난이도 ${lv}, ${src} 기준` }
+  }
+  return { text: levelLabel(fallback) ?? fallback, sr: null }
+}
 
 export const FLASH = {
   reused: '오늘 만든 수업이 있어요. 이어서 할게요.',

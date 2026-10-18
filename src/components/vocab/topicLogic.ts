@@ -10,6 +10,7 @@ import type {
   ChallengeTodayTasks,
   ChallengeWordsTask,
 } from '@/types/challenge'
+import type { JlptLevel } from '@/types/lesson'
 import type { SessionSummary, TopicGeneration, VocabCard, VocabSessionInfo, VocabSessionTopic } from '@/types/vocab'
 import { inProgressNotes } from './labels'
 import { DECK_CH, FINISH_CH, REASON, SOURCE, STRIP, WORDS_CARD } from './topicCopy'
@@ -22,8 +23,20 @@ export interface ChallengeCtx {
   topicId: string
   title: string
   lengthDays: number
-  level: string
+  level: JlptLevel
   today: ChallengeTodayTasks
+}
+
+/**
+ * task-076 P10(D6 A) — 「내 단어장 세트」 준비 줄을 챌린지 문장으로 바꿀 챌린지 난이도. null = 지금 문장(「지금 수준 …」).
+ * 서버 가중 기준(`vocab/sessions.ts` `mineSetCeiling`)의 「진행 중」과 같은 집합이어야 문장이 맞는다 → `topics/visible.ts` `isChallengeInProgress`
+ * (ACTIVE ∧ 주제 있음 ∧ 종료일 ≥ 오늘 — **시작 전 포함**, 과제 켜짐 무관)를 #158 값으로 그대로 옮긴다. 띠·카드 모드(`challengeCtxOf`)는 기간 안만이라 쓰지 않는다.
+ * **D6 B 로 바꾸면 본문을 `return null` 한 줄로**(서버 `mineSetCeiling` 과 함께).
+ */
+export function mineSetChallengeLevel(res: ChallengeTodayResponse | null | undefined, todayKey: string): JlptLevel | null {
+  const c = res?.challenge
+  if (!c || c.status !== 'ACTIVE' || c.topic.id === null || !todayKey || c.endDate < todayKey) return null
+  return c.level
 }
 
 export function wordsTaskOf(today: ChallengeTodayTasks | null | undefined): ChallengeWordsTask | null {

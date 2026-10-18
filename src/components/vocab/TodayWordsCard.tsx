@@ -41,6 +41,7 @@ export default function TodayWordsCard({
   startError,
   finishing,
   myLevel = null,
+  challengeLevel = null,
   onCount,
   onCategory,
   onStart,
@@ -69,6 +70,8 @@ export default function TodayWordsCard({
   finishing: boolean
   /** 지금 수준(서버 프로필) — 준비 카드 [시작하기] 아래 한 줄(J13). 모르면 줄을 그리지 않는다. */
   myLevel?: JlptLevel | null
+  /** task-076 P10 — 진행 중 챌린지 난이도(`topicLogic.mineSetChallengeLevel`). 있으면 그 줄이 챌린지 문장이 된다. */
+  challengeLevel?: JlptLevel | null
   onCount: (n: number) => void
   onCategory: (c: string | null) => void
   onStart: () => void
@@ -185,7 +188,7 @@ export default function TodayWordsCard({
           <Btn className="mt-3 w-full" onClick={onStart} aria-disabled={starting || undefined} aria-busy={starting || undefined}>
             {starting ? '만드는 중…' : '시작하기'}
           </Btn>
-          {myLevel ? <p className="mt-1.5 text-[12px] text-ink2 break-keep">{todayLevelLine(myLevel)}</p> : null}
+          {myLevel ? <p className="mt-1.5 text-[12px] text-ink2 break-keep">{todayLevelLine(myLevel, challengeLevel)}</p> : null}
           {startError ? (
             <p role="alert" className="mt-1.5 text-[12px] text-bad break-keep">
               {startError}

@@ -168,3 +168,14 @@ test('inputMeta: 일반 수업은 이전 7칸 그대로(순서 포함), 상황 �
   assert.equal(sMeta.scenarioExpressions, 3)
   assert.ok(!JSON.stringify(sMeta).includes('サイズ') && !JSON.stringify(sMeta).includes('카페'), '본문·제목 없음')
 })
+
+test('task-076: A4 주제 입력의 수준 = 레슨 수준 m.level(기준 수준 T) — 주제 행 수준이 아니다 · 프롬프트 [주제] 줄도 그 값', () => {
+  const m: LessonMaterials = { ...topicMats(), level: 'N2' } // 주제 행은 N4, 진행 중 챌린지 난이도 N2
+  const input = lessonInputFor(m, { todayKst: TODAY, learner, corrections: [] })
+  assert.equal(input.topic?.level, 'N2')
+  assert.equal(m.topic?.level, 'N4', '주제 재료는 그대로')
+  const req = buildLessonRequest(input)
+  const user = req.messages.map((x) => x.content).join('\n')
+  assert.match(user, /\[주제\][^\n]*· 수준 N2/)
+  assert.doesNotMatch(user, /\[주제\][^\n]*· 수준 N4/)
+})

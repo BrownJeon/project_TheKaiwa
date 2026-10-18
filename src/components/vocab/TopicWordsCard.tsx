@@ -66,7 +66,7 @@ export default function TopicWordsCard({
   const head = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <h2 className="text-[15px] font-semibold">{WORDS_CARD.title}</h2>
-      <TopicChip text={WORDS_CARD.chip(ctx.title)} sr={WORDS_CARD.chipSr} />
+      <TopicChip text={WORDS_CARD.chip(ctx.title, ctx.level)} sr={WORDS_CARD.chipSr} />
       {kind === 'todo' ? <span className="ml-auto flex-none text-[12px] text-ink2">약 {estimateMinutes(n)}분</span> : null}
     </div>
   )

@@ -198,6 +198,8 @@ export interface CreateChallengeBody {
   start: 'TODAY' | 'TOMORROW'
   dailyGoal: { lesson: boolean; words: boolean; wordCount?: ChallengeWordCount }
   title?: string
+  /** task-076 챌린지 난이도 — 생략하면 주제 난이도. 만들 때 얼린다. */
+  level?: JlptLevel
 }
 
 /** #62·#51 응답의 `challenge` — 값이 나오는 조건 밖은 전부 null(설계서 §5-4). `words` 는 세트일 때만. */

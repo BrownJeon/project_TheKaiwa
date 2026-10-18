@@ -69,6 +69,13 @@ export interface LessonRecommendation {
   /** CHALLENGE(task-041) = 진행 중 챌린지 주제 — 오늘 그 주제 새 수업을 아직 안 끝냈을 때 최우선. */
   reason: 'CONTINUE' | 'NEXT_TOPIC' | 'START' | 'CHALLENGE'
   nextPreview: NextPreview | null
+  /**
+   * task-076(additive) — 이 추천 주제로 수업을 만들 수준 T(진행 중 챌린지 난이도 > 내 목표 수준 > 내 수준). `level` 은 지금처럼 주제 난이도.
+   * 기준을 확정하지 못하면 null(화면은 지금 뱃지). 옛 응답에는 없다.
+   */
+  lessonLevel?: JlptLevel | null
+  /** T 의 출처 — CHALLENGE(챌린지)·GOAL(내 목표)·LEVEL(내 수준). `lessonLevel` 이 null 이면 null. */
+  levelSource?: 'CHALLENGE' | 'GOAL' | 'LEVEL' | null
 }
 
 /** #58 — 복습 칸(`review`·`guard`·`decisionPending`·`nextReview`, task-010b)은 `TodayReviewFields`(전부 선택). */

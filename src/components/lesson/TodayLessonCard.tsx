@@ -17,7 +17,7 @@ import type { TodayLessons } from '@/types/lesson'
 import { LESSON_CH } from '@/components/vocab/topicCopy'
 import type { ChallengeCtx } from '@/components/vocab/topicLogic'
 import { deriveChallengeLessonCard, deriveLessonCard, correctFromScore, type AuxLessonLine, type ChallengeLessonCard } from './logic'
-import { HOME, PASTED_TOPIC, STAGE_NAMES, stageLabel } from './lessonCopy'
+import { HOME, lessonLevelBadge, PASTED_TOPIC, STAGE_NAMES, stageLabel, type LessonLevelBadge } from './lessonCopy'
 import { LESSON_KEYS, lessonPath, useLessonCreate } from './useLessonCreate'
 import { useJobWatch } from './useJobWatch'
 
@@ -49,6 +49,24 @@ function Head({ minutes, chip }: { minutes?: boolean; chip?: string }) {
       ) : null}
       {minutes ? <span className="text-[12px] text-ink2">{HOME.minutes}</span> : null}
     </div>
+  )
+}
+
+/** task-076 P6 — 수업 난이도 뱃지 한 줄(이름+코드 한 덩어리, 줄바꿈 없음). 꼬리표가 있으면 보이는 글은 숨기고 문장으로 읽힌다. */
+function LevelBadge({ badge }: { badge: LessonLevelBadge }) {
+  return (
+    <Badge tone="neutral">
+      {badge.sr ? (
+        <>
+          <span aria-hidden="true" className="whitespace-nowrap">
+            {badge.text}
+          </span>
+          <span className="sr-only">{badge.sr}</span>
+        </>
+      ) : (
+        <span className="whitespace-nowrap">{badge.text}</span>
+      )}
+    </Badge>
   )
 }
 
@@ -248,7 +266,7 @@ export default function TodayLessonCard({
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[12px] text-ink2">{HOME.recommended}</span>
                   <span className="[&>span]:bg-surface">
-                    <Badge tone="neutral">{rec.level}</Badge>
+                    <LevelBadge badge={lessonLevelBadge(rec.lessonLevel, rec.levelSource, rec.level)} />
                   </span>
                 </div>
                 <p className="mt-0.5 text-[15px] font-semibold break-keep [overflow-wrap:anywhere]">{rec.topicTitle}</p>
@@ -454,7 +472,7 @@ function ChallengeBody({
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] text-ink2">{LESSON_CH.recLabel}</span>
               <span className="[&>span]:bg-surface">
-                <Badge tone="neutral">{ctx.level}</Badge>
+                <LevelBadge badge={lessonLevelBadge(ctx.level, 'CHALLENGE', ctx.level)} />
               </span>
             </div>
             <p className="mt-0.5 text-[15px] font-semibold break-keep [overflow-wrap:anywhere]">「{ctx.title}」</p>

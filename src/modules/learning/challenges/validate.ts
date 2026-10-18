@@ -2,9 +2,11 @@
  * 챌린지 API 입력 검증(설계서 §9-1 #155·#156·#159) — 순수 함수. 위반은 전부 400 VALIDATION, 화이트리스트 밖 키도 400.
  * 날짜는 받지 않는다(`start: 'TODAY'|'TOMORROW'` 만 — 날짜는 서버 KST, api-contract §0-6).
  */
+import type { JlptLevel } from '@prisma/client'
 import { ApiError, codePointLength, decodeCursor, isTimeIdCursor, parseLimit, sanitizeText } from '@/modules/infra'
 import type { ChallengeLength, ChallengeWordCount } from '@/types/challenge'
 import { CHALLENGE_LENGTHS, CHALLENGE_WORD_COUNTS } from './metrics'
+import { isJlptLevel, JLPT_LEVELS } from '../targetLevel'
 
 export const CHALLENGE_TITLE_MAX = 40
 export const CHALLENGE_LIST_LIMIT_DEFAULT = 20
@@ -35,11 +37,13 @@ export interface CreateChallengeInput {
   wordCount: ChallengeWordCount | null
   /** 비었거나 생략하면 null — 자동 제목. */
   title: string | null
+  /** 챌린지 난이도(task-076). 생략·null 이면 null — 서버가 주제 난이도를 쓴다(지금 동작). */
+  level: JlptLevel | null
 }
 
-/** #156 `{topicId, lengthDays: 7|14|30, start, dailyGoal: {lesson, words, wordCount?: 5|10|15}, title?: ≤40자}`. */
+/** #156 `{topicId, lengthDays: 7|14|30, start, dailyGoal: {lesson, words, wordCount?: 5|10|15}, title?: ≤40자, level?: N5~N1}`. */
 export function parseCreateChallengeBody(body: Record<string, unknown>): CreateChallengeInput {
-  onlyKeys(body, ['topicId', 'lengthDays', 'start', 'dailyGoal', 'title'])
+  onlyKeys(body, ['topicId', 'lengthDays', 'start', 'dailyGoal', 'title', 'level'])
   if (!isChallengeId(body.topicId)) bad('topicId', '주제를 골라 주세요.', 'required')
   if (!(CHALLENGE_LENGTHS as readonly unknown[]).includes(body.lengthDays)) bad('lengthDays', '기간은 7·14·30일 중에서 골라 주세요.', CHALLENGE_LENGTHS.join('|'))
   if (body.start !== 'TODAY' && body.start !== 'TOMORROW') bad('start', '시작일은 오늘 또는 내일이에요.', 'TODAY|TOMORROW')
@@ -62,6 +66,11 @@ export function parseCreateChallengeBody(body: Record<string, unknown>): CreateC
     if (codePointLength(t) > CHALLENGE_TITLE_MAX) bad('title', `제목은 ${CHALLENGE_TITLE_MAX}자까지 쓸 수 있어요.`, `max ${CHALLENGE_TITLE_MAX}`)
     title = t || null
   }
+  let level: JlptLevel | null = null
+  if (body.level !== undefined && body.level !== null) {
+    if (!isJlptLevel(body.level)) bad('level', '난이도는 N5·N4·N3·N2·N1 중에서 골라 주세요.', JLPT_LEVELS.join('|'))
+    level = body.level
+  }
   return {
     topicId: body.topicId as string,
     lengthDays: body.lengthDays as ChallengeLength,
@@ -70,6 +79,7 @@ export function parseCreateChallengeBody(body: Record<string, unknown>): CreateC
     words: g.words as boolean,
     wordCount,
     title,
+    level,
   }
 }
 

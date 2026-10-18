@@ -202,6 +202,7 @@ test('수업 생성 — 가린 시드 상황·주제로는 새 수업 404 · 내
     visible: (u: string, t: string) => isSeedVisibleFor(f.db, u, 'TOPIC', t),
     challengeTopicId: async (u: string) => (challengeAsked.push(u), u === A ? 'topPark' : null),
     history: sDeps.history,
+    targetLevel: async () => null, // task-076: 이 시험은 가시성만 본다(수준은 task076.test.ts)
   }
   await assert.rejects(loadTopicLessonMaterials(A, { kind: 'topic', topicId: 'topCafe' }, tDeps), code('NOT_FOUND'))
   assert.equal((await loadTopicLessonMaterials(A, { kind: 'topic', topicId: 'topPark' }, tDeps)).topic?.id, 'topPark', '진행 중 챌린지 주제면 숨긴 뒤에도 챌린지 수업은 계속(§0 #9)')

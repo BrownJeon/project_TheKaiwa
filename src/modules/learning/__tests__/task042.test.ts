@@ -255,7 +255,8 @@ function fakeTx(db: FakeDb): Tx {
     },
     learningObservation: { createMany: async ({ data }: { data: Row[] }) => ({ count: data.length }) },
     userSeedOverride: { findFirst: async ({ where }: { where: Row }) => db.overrides.find((o) => o.userId === where.userId && o.kind === where.kind && o.seedId === where.seedId) ?? null },
-    challenge: { findFirst: async ({ where }: { where: Row }) => db.challenges.find((c) => c.userId === where.userId && c.status === where.status && c.topicId === where.topicId) ?? null },
+    // task-076: 주제 조건 없는 조회(진행 중 챌린지 난이도 — `targetLevel.getInProgressChallengeLevel`)는 주제를 가리지 않는다.
+    challenge: { findFirst: async ({ where }: { where: Row }) => db.challenges.find((c) => c.userId === where.userId && c.status === where.status && (where.topicId === undefined || c.topicId === where.topicId)) ?? null },
   } as unknown as Tx
 }
 
@@ -832,6 +833,27 @@ test('#47 FK 위반(task-045 T3) — 세트 저장 때 주제 FK P2003 은 404 T
   const other = Object.assign(new Error('fk-user'), { code: 'P2003', meta: { field_name: 'VocabSession_userId_fkey (index)' } })
   h.db.sessionCreateError = other
   await assert.rejects(create(h, { count: 5, generate: false }), (e: unknown) => e === other)
+})
+
+test('task-076 #47 주제 세트 새 단어 수준(D4 A) — 진행 중 챌린지의 주제면 챌린지 난이도로 A12 [수준]·검사 ⑤ · 다른 주제의 챌린지·기간 지난 챌린지면 주제 수준', async () => {
+  const seen: string[] = []
+  const driver: TopicWordsDriver = {
+    ...passDriver,
+    build: (i) => (seen.push(`build:${i.topic.level}`), passDriver.build(i)),
+    assemble: (raw, ctx) => (seen.push(`assemble:${ctx.level}`), passDriver.assemble(raw, ctx)),
+  }
+  const h = harness()
+  h.db.challenges.push({ id: 'ch1', userId: U, status: 'ACTIVE', topicId: TOPIC, level: 'N3', endDate: new Date('2099-12-31T00:00:00Z') })
+  created(await create(h, { count: 10 }, { driver }))
+  assert.deepEqual(seen.splice(0), ['build:N3', 'assemble:N3'], '챌린지 주제(N5) 세트 → 챌린지 난이도 N3')
+  const other = harness()
+  other.db.challenges.push({ id: 'ch2', userId: U, status: 'ACTIVE', topicId: 'topic-else', level: 'N1', endDate: new Date('2099-12-31T00:00:00Z') })
+  created(await create(other, { count: 10 }, { driver }))
+  assert.deepEqual(seen.splice(0), ['build:N5', 'assemble:N5'], '다른 주제의 챌린지 → 주제 수준')
+  const past = harness()
+  past.db.challenges.push({ id: 'ch3', userId: U, status: 'ACTIVE', topicId: TOPIC, level: 'N1', endDate: new Date('2026-10-01T00:00:00Z') })
+  created(await create(past, { count: 10 }, { driver }))
+  assert.deepEqual(seen.splice(0), ['build:N5', 'assemble:N5'], '기간 지난(정산 전) 챌린지 → 주제 수준')
 })
 
 /** 값 import·re-export 지정자. `import type`·`export type` 는 빌드에서 지워져 순환을 만들지 않으므로 뺀다(`import { type A, b }` 는 값). */

@@ -14159,3 +14159,111 @@ export function createFavoriteController(deps: {
 - **못 한 것 → QA/폰 확인**: **글꼴 130%**·실제 폰 글꼴·WebView·TalkBack 낭독은 아무도 재지 않았다(W8·W9). 데모 문구 대조 일치(`FAVORITE_COPY` 11키 + 일반 오류 3종), 엔진명 0, 데모 게이트 `DEMO_GATE_PASSED`.
 - **Medium M-1 — 화면 배선의 동작 시험이 얇다**: 감사자가 넣은 새 변이 18개 중 17개가 시험을 통과했다(순수 규칙·부품은 단단하고 `WordsScreen` 효과 처리·`WordDetailSheet` 의 `readAt` 배선·`sendFavorite` 경로·훅 `dispose`·`WordsEmpty` 버튼 배선은 jsdom 이 없어 동작 시험이 비어 있음). 코드를 읽어 확인한 바로는 지금 배선은 맞고, QA 를 막지 않는다 — 그래서 **W17·W21 처럼 시험이 못 잡는 곳을 실제 Chrome 확인표에 올렸다**. 시험 보강(순수 `wordsFavoriteEffect`·`sendFavorite` 가짜 `fetch`·`readAt` stamp 순서·빈 화면 버튼 스캔)은 developer 의 선택 과제다.
 - **알려진 한계(수용)**: 별 요청에 시간 제한 없음(W18, L-2) · 시트의 처음 값이 목록 미리보기(`readAt=0`)인데 GET 이 실패하면 별 기록이 서버 값을 이긴다(L-3, 32-5 설계 그대로) · 끄는 중 칸 바꿈 토스트(W19, L-5).
+
+## 33. 챌린지 난이도 — 만들기 ③ 목표 단계 난이도 고르기 · 생성 기준 수준 T · 오늘 탭 단서 (task-076, IMP-0051) — ✅ 승인 데모 v2
+
+> **✅ 승인 데모: `docs/demo/task-076-challenge-level-v2.html` (v2, 2026-10-18 사용자 「D1~D11 권고대로 승인, 질문 5는 a로」 — D1~D11 모두 ★, 표기 범위 = 챌린지 흐름 안만(질문 5 a)).** 아래 본문은 승인 전 초안으로 쓴 것이며 내용 변경 없이 그대로 구현 정본이다. (원래 안내:) 데모: `docs/demo/task-076-challenge-level-v2.html` (v2, sha256 앞 16자 `90a51f2f6b52488d`). v1(`…-v1.html`, `61c6b95346e6c762`)은 사용자 수정 요청(10-18 「난이도에 대해 표기해줄때 프로필에서와 같이 초보자 ~ 최상급 까지의 표기도 함께 표기해주도록 해줘」)으로 `changes_requested` — v2 는 v1 결정 D1~D10 의 뜻을 그대로 두고 **난이도 표기 형식 D11** 과 **질문 5(범위)** 를 더했다. 사용자가 데모를 보고 결정(D1~D11)을 승인한 뒤 이 절의 첫 줄을 「승인 데모: … (vN)」으로 고치고 developer 에게 넘긴다. 승인 전에는 이 절로 구현하지 않는다.
+> 적용 토큰(이름): `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3` · `--color-line` · `--color-accent` · `--color-on-accent` · `--color-good` · `--color-good-soft` · `--color-bad`. **새 색 없음.**
+
+### 33-0. 레이아웃 설계 (page-layout-designer)
+- **목표**: 챌린지를 만들 때 「이 챌린지 동안 새 단어·회화를 어느 난이도로 만들지」를 사용자가 정하고, 오늘 탭에서 그 기준이 지켜지는 것을 알아볼 수 있게.
+- **주요 위계**: ③ 목표 단계 = ① 난이도(새, 맨 위) → ② 하루에 할 것(지금 그대로) → ③ 장수·시작하는 날(지금 그대로). 확인 단계는 「난이도」 줄 하나 추가.
+- **영역**: BackBar · 단계 표시(4칸 그대로) · 본문 한 곳 스크롤 · 아래 행동 줄(sticky 없음, 지금 그대로).
+- **컴포넌트**: 새 `LevelPills`(native radio 5칸, `createParts.tsx`) · 새 문구 상수 · 그 밖은 기존 `CheckCard`/`ChoicePills`/`Segmented`/`Badge` 재사용.
+- **상태**: 처음 값(주제 난이도) · 바꿈 · 2단계 이상 위(안내) · 내 수준보다 아래(안내) · 목표 없음 · 진행 중 챌린지 있음(막힘, 지금 그대로) · 다시 도전(지난 난이도 채움) · 저장 실패/오프라인(지금 문구).
+- **행동**: 주 = [다음]/[챌린지 시작](지금 그대로). 보조 = 알약 고르기(즉시, 저장은 만들 때 한 번).
+- **반응형**: 알약은 `grid-cols-5` 균등(360px 에서 약 59px · **높이 48 · 두 줄**, v2). 비교·안내 줄은 줄바꿈(잘림 없음, 「이름 (코드)」 한 덩어리·비교 줄 묶음은 줄바꿈 금지). 단계 수를 늘리지 않아 단계 이름 잘림 없음(새 단계 대안은 130% 360·390px 에서 잘림 실측).
+
+### 33-1. 결정 요약 (★ = 권고, 사용자 승인 대상)
+| # | ★ | 대안 |
+|---|---|---|
+| D1 「목표」의 뜻 | a 난이도 고르기 → 기존 `Challenge.level` (DB 변경 없음) | b 기간 끝 목표 수준(**DB 변경 필요 — 별도 승인**) · c 하루 과제(화면 변경 없음) |
+| D2 자리·모양 | B ③ 목표 단계 맨 위, native radio 5칸 알약 | A 새 단계(5단계) · C ① 주제 목록 아래 |
+| D3 비교 단서 | A 알약 아래 한 줄 「내 수준 초급 (N4) · 내 목표 중급 (N3) · 이 주제 초급 (N4)」(v2 표기) | B 알약 꼬리표(360 잘림) · C 없음 |
+| D4 적용 범위 | A 회화 + 챌린지 주제 「새 단어」(AI) + 내 단어장 세트 — **designer 이견**(Leader 원안 B 는 주제 세트 제외) | B 주제 세트 제외 |
+| D5 목표 없음 | A 내 수준 | B 오늘 탭 안내+링크 |
+| D6 규칙 | A `T = 챌린지 ? challenge.level : (goalLevel ?? level)`; 내 단어장 세트 가중 기준 = 챌린지 있으면 `challenge.level`, 없으면 `max(level, goalLevel)` | B 내 단어장 세트 지금 그대로 · C 챌린지 없을 때 가중 = 목표 · D 회화 T ≤ 내 수준+1 |
+| D7 오늘 탭 단서 | B 회화 뱃지 꼬리표(「중급 (N3) · 챌린지/내 목표/내 수준」) + 챌린지 단어 칩 「챌린지 · 중급 (N3) · 「카페 주문」」(v2 표기·난이도 앞) | A 안 둠(값만) · C B + 내 단어장 세트 한 줄 |
+| D8 높음/낮음 안내 | A 알약 아래 한 줄(2단계 이상 위 / 아래), 막지 않음, `aria-live=polite` | B 확인 단계에서만 · C 없음 |
+| D9 처음 값 | A 주제 난이도(손대지 않으면 지금과 같음) | B 내 목표(없으면 내 수준) |
+| D10 계획표 카드 | A 「난이도 중급 (N3) · 10/18 ~ 10/24」(v2 표기) | B 앞말 없음(표기는 D11) |
+| **D11 난이도 표기 형식(v2)** | **A 위치별 형태** — 33-1a 표. 문장·줄·뱃지·칩 = `levelLabel(l)`(「중급 (N3)」), 알약 = 위 `levelName(l)` · 아래 코드 두 줄, 칩은 난이도를 주제 이름 앞에, 안내 줄은 값이 없어 그대로, 범위 = 챌린지 흐름 안(질문 5 a) | B 코드만(v1 — 요청 불충족) · C 이름만(360·130% 알약 잘림) · D 알약 한 줄 「이름 (코드)」(모든 폭 잘림) · E 칩 난이도 끝(긴 주제 이름에서 잘림) |
+
+수준 결정표(9줄)·가중 예는 데모 `#rules`·`#weights` 가 정본(승인 뒤 이 절에 옮김). **주의 두 가지**: ① 결정표 4번 줄 — 이미 진행 중인 챌린지도 목표가 챌린지보다 어려운 사용자는 「내 단어장 세트」 결과가 달라진다(Leader L2 와 다름, D6 B 로 막을 수 있음) ② 7번 줄 — 목표가 지금보다 2단계 이상 높으면 챌린지 없는 날 회화가 한꺼번에 어려워진다(D6 D 로 막을 수 있음).
+
+### 33-1a. 난이도 표기 규칙 (D11 ★, v2 — 사용자 요청 10-18)
+- **정본 한 곳**: 이름·코드는 `src/types/seedPack.ts` `SEED_PACK_LABEL`(N5 「초보자 (N5)」 · N4 「초급 (N4)」 · N3 「중급 (N3)」 · N2 「고급 (N2)」 · N1 「최상급 (N1)」, D1=C 2026-10-10)에서만. 화면은 `vocab/labels.ts` 의 `levelLabel(l)`(그 값)·`levelName(l)`(끝 ` (N5)` 뗀 이름)만 부른다 — `challengeCopy`·`lessonCopy`·`topicCopy` 에 이름을 다시 적지 않는다(시험이 바이트 일치 단언).
+- **한 덩어리**: 「이름 (코드)」는 `whitespace-nowrap` span — 이름과 코드 사이에서 줄이 바뀌지 않는다. **이름+코드 바로 뒤에 조사를 붙이지 않는다**(「초급 (N4)은/는」처럼 받침이 갈리는 문제). 아래 문구는 모두 조사 없이 끝난다.
+- 근거(이미 이 표기인 곳): 설정 「지금 수준」·「목표 수준」 두 줄 분절(`LearningSettings.tsx:88`, task-051 D2-A) · 단어 상세 뱃지(`WordDetailSheet.tsx:422`) · 오늘의 단어 준비 줄(`labels.ts:99 todayLevelLine`).
+
+| # | 자리 | 지금 코드 | v2 ★ | 낭독(TalkBack) |
+|---|---|---|---|---|
+| P1 | ③ 난이도 알약 5칸 | — | **두 줄**: 위 `levelName`(13px, 선택 시 굵게) · 아래 코드(11px `text-ink2`), 칸 `min-h-12`(48) — 설정 `Segmented twoLine` 과 같은 크기. **native radio 유지**(`Segmented` 그대로 쓰지 않음 — role=radio 버튼은 ←/→ 이동 없음). 보이는 두 줄 `aria-hidden` + sr-only `levelLabel` + 꼬리말 | 「초급 (N4), 내 수준, 이 주제 기본, 라디오 버튼, 선택됨」 |
+| P2 | ③ 비교 줄(D3 A) | — | 「내 수준 초급 (N4) · 내 목표 중급 (N3) · 이 주제 초급 (N4)」 — 「내 수준 초급 (N4) ·」 묶음마다 nowrap, 묶음 사이에서만 줄바꿈 | 그룹 설명으로 같은 글 |
+| P3 | ③ 높음/낮음 안내(D8 A) | — | **그대로**(수준 값이 아니라 단계 수. 바로 위 비교 줄이 이름+코드) | 그대로 |
+| P4 | ④ 확인 「난이도」 줄 | 주제 줄 「· N4」 | dd `levelLabel(level)` + small 「이 주제 기본」 / 「이 주제 기본은 초급 (N4)」(주제 줄의 「· 코드」 삭제) | 「난이도, 중급 (N3), 이 주제 기본은 초급 (N4)」 |
+| P5 | 계획표 카드 부제(D10 A) | 「N4 · 10/18 ~ 10/24」 | 「난이도 중급 (N3) · 10/18 ~ 10/24」(「난이도 …」·날짜 각각 nowrap) | 보이는 글 |
+| P6 | 오늘 탭 회화 뱃지(D7 B, `TodayLessonCard.tsx:251`·`:457`) | 「N4」 | 「중급 (N3) · 내 목표」 / 「… · 챌린지」 / 「… · 내 수준」(뱃지 한 줄) | sr-only 「수업 난이도 중급 (N3), 내 목표 기준」 |
+| P7 | 오늘 탭 챌린지 단어 칩(D7 B) | 「챌린지 · 「카페 주문」」 | 「챌린지 · 중급 (N3) · 「카페 주문」」 — **난이도를 앞에**(`TopicChip` 은 한 줄 말줄임이라 끝에 두면 긴 주제 이름에서 난이도가 잘림 — 실측) | 「챌린지 주제: 챌린지 · 중급 (N3) · 카페 주문」 |
+| P8 | ① 주제 카드 뱃지(`createParts.tsx:91`, 질문 5 a) | 「N4」 | `levelLabel(topic.level)` | 카드 끝에 「초급 (N4)」 |
+| P9 | ① 설명 `CREATE.q1Body`(질문 5 a) | 「…보여 드려요(N5 · N4 · N3).」 | 「…보여 드려요: 초보자 (N5) · 초급 (N4) · 중급 (N3). 챌린지 동안 매일 이 주제로 공부해요.」(괄호 겹침 피함) | 보이는 글 |
+| P10 | 「내 단어장 세트」 준비 줄(`TodayWordsCard.tsx:188`, 챌린지 카드 `MineSetPanel` 펼침에도) | 「지금 수준(초급 (N4)) 단어가 가장 많이 나와요.」(이미 이름+코드) | 표기 그대로. **D6 A 일 때만** 챌린지 중에는 「챌린지 난이도(중급 (N3))까지의 단어가 주로 나와요.」(가중 기준이 바뀌어 원래 문장이 틀린 말이 됨 — 질문 4) | 보이는 글 |
+
+- **실측(데모 v2 자체 시험 2,898칸 — 상태 23 × 360/390/412 × 글꼴 100/130% × 현재·★ + 화면 대안 19가지)**: ★ 실패 0(넘침·44px 미만·잘린 글자·이름+코드 잘림/쪼개짐 0), 현재 0. 알약 이름 칸 안쪽 폭 / 가장 긴 이름 실제 폭 = 360: 53.2 / 35.9(+17.3) · **130% 53.2 / 46.6(+6.6)** · 390: 59.2 / 46.6(130%, +12.6) · 412: 63.6 / 46.6(130%, +17.0). 뱃지 최대 128px(130% 162px) 한 줄. 긴 주제 이름(13자)은 칩 끝이 「…」(지금과 같음, 난이도는 보임). 대안 잘림: D(알약 한 줄) 모든 폭 · E(칩 끝) 긴 이름 · C(이름만 15px) 360·130% · B(v1) 긴 이름 130% 칩 끝 「N1」.
+- **범위(질문 5)**: ★ a = 챌린지 흐름 안(P1~P9). 흐름 밖은 그대로 — 오늘의 회화 「주제 고르기」(`LessonTopicsScreen.tsx:47·82`·`lessonCopy.ts:74-77`, a 만 하면 오늘 탭 카드 「중급 (N3) · 내 목표」 → [다른 주제] 목록 「N4」로 섞여 보임 = b 로 포함 가능) · 평가(`EvalScreen.tsx:28`·`EvalRunner.tsx:477`·`EvalHistory.tsx:125`·`EvalStartScreen`) · 주제/상황 관리(`TopicRow.tsx:24`·`TopicDetail.tsx:218`·`ScenarioCard.tsx:83`·`ScenarioSheet.tsx:289`·`DraftEditor.tsx:47`) = c(별도 개선작업 권장). 챌린지 상세·기록 목록·결과는 난이도 표기 자체가 없어 늘리지 않는다.
+
+### 33-2. UI 구조 (의사코드 — 데모 상태 id 인용)
+```
+ChallengeCreateScreen step 1 (데모 topicPick·topicPickHigh — 질문 5 a)
+  p  CREATE.q1Body(levels.map(levelLabel))                       ← 「…보여 드려요: 초보자 (N5) · …」
+  TopicRadioCard … <Badge>{levelLabel(topic.level)}</Badge>     ← 지금 {topic.level}
+ChallengeCreateScreen step 3 (데모 goalDef·goalUp·goalHigh·goalLow·goalTopicLow·goalNoGoal·goalActive·goalLong)
+  [진행 중이면 InfoBox activeTitle — 지금 그대로]
+  h2 ref=headRef tabIndex=-1  CREATE.q3Title                      ← 지금 q3 자리
+  fieldset aria-describedby=cmpId
+    legend > h3  CREATE.levelQ
+    p            CREATE.levelBody
+    LevelPills name=useId value=draft.level ?? topic.level onChange=(l)=>setDraft({level:l})
+      label×5 > input[type=radio sr-only]
+              + span.min-h-12(두 줄, aria-hidden: span.text-[13px]{levelName(l)} + span.text-[11px].text-ink2{l})
+              + span.sr-only{levelLabel(l)}{, 내 수준}{, 내 목표}{, 이 주제 기본}
+    p#cmpId      CREATE.levelCompare(my, goal, topic.level) → 묶음 배열을 받아 span.whitespace-nowrap 로 그림   (D3 A)
+    p aria-live=polite  levelHint(sel, my) → CREATE.levelHigh(d) | CREATE.levelLow | ''   (D8 A, 문구 v1 그대로)
+  div.border-t.mt-5.pt-4
+    fieldset(지금 GoalStep 본문 — legend h3 = 지금 CREATE.q3 / q3Body, 체크 2·장수·시작하는 날 그대로)
+ConfirmStep (데모 confirmDiff·confirmSame·again·fail·offline·confirmLong)
+  dl: 이름 · 주제(「· {topic.level}」 삭제) · 난이도(새: span.whitespace-nowrap{levelLabel(level)} + small rowLevelSame | rowLevelDiff(levelLabel(topic.level))) · 기간 · 하루 목표
+ChallengePlanCard (데모 plan·planLong): `<nowrap>{COPY.planLevel(levelLabel(c.level))}</nowrap> · <nowrap>{md(start)} ~ {md(end)}</nowrap>`   (D10 A)
+TodayLessonCard (데모 todayCh·todayChLong·todayGoal·todayGoalLong·todayNoGoal): Badge 글 = `${levelLabel(T)} · ${src}`(aria-hidden) + sr-only `수업 난이도 ${levelLabel(T)}, ${src} 기준`   (D7 B)
+TopicWordsCard (데모 todayCh·todayChLong): TopicChip 글 = WORDS_CARD.chip(title, level) = `챌린지 · ${levelLabel(level)} · 「${title}」`   (D7 B, 난이도 앞)
+  └ MineSetPanel 준비 줄: D6 A 이고 챌린지 중이면 todayLevelLine 대신 「챌린지 난이도(${levelLabel(challenge.level)})까지의 단어가 주로 나와요.」   (P10)
+```
+- 손대지 않은 상태는 `draft.level = null`(주제 난이도 따름). 주제를 바꿔도 null 이면 새 주제 난이도로 따라간다. 고른 뒤에는 고른 값 유지.
+- `?again=`: #157 의 `level` 을 초안에 채운다(예전 챌린지는 주제 난이도와 같음).
+
+### 33-3. API 호출 계획 (번호·확정은 Leader — `api-contract.md` §2-31)
+| 엔드포인트 | 메서드 | 파라미터 | 사용 필드 | 오류 |
+|---|---|---|---|---|
+| #156 `/api/v1/challenges` | POST | 지금 본문 + **선택 `level: 'N5'..'N1'`**(없으면 주제 난이도) | `ChallengeDetail.level` | 잘못된 값 400 `VALIDATION`(지금 모르는 키도 400 → **서버 먼저 배포**) · 나머지 지금 그대로 |
+| #157 `/api/v1/challenges/:id` | GET | — | `level`(다시 도전 채우기) | 지금 그대로 |
+| #158 `/api/v1/challenges/today` | GET | — | `challenge.level`(계획표 카드) | 지금 그대로 |
+| 오늘의 회화 추천(오늘 탭) | GET | — | 추천 `level` = **주제 난이도(의미 불변 — L8)**, **새 `lessonLevel`(= T)·`levelSource: 'CHALLENGE'\|'GOAL'\|'LEVEL'`**(D7 B 뱃지는 `level` 이 아니라 이 두 칸을 쓴다 — 둘 다 null 이면 지금 뱃지. 구현 정정 10-18, 서버 감사 REV-076S L-1) | 지금 그대로 |
+
+### 33-4. 상태 관리
+- 화면: `Draft.level: JlptLevel | null` 한 칸(sessionStorage 초안). `parseDraft` 는 예전 초안을 null 로 읽는다. 순수 함수 `levelHint(sel, my)` → `'high'(d≥2) | 'low' | null` · `selectedLevel(draft, topic)` 을 `logic.ts` 에 두고 시험(경계: 같음·+1·+2·+4·−1·−4).
+- 서버: `resolveTargetLevel({challenge, profile})` 순수 함수(L3) — 결정표 9줄 전수 시험. 회화 재료(`loadTopicLessonMaterials` 가 지금 `topic.level`)·주제 세트 새 단어(`assemble` level + 검사 ⑤ 창)·내 단어장 세트 가중 기준이 이 함수를 쓴다(D4·D6 승인 범위만).
+
+### 33-5. 생성/수정 파일 (화면)
+- `src/components/challenge/challengeCopy.ts`(새 문구 · `q1Body` 쌍점 꼴) · `createParts.tsx`(`LevelPills` 두 줄 · `TopicRadioCard` 뱃지 `levelLabel`) · `ChallengeCreateScreen.tsx`(①·③·④) · `logic.ts`(Draft·`levelHint`·`selectedLevel`) · `ChallengePlanCard.tsx`(D10) · `src/components/lesson/TodayLessonCard.tsx`·`lessonCopy.ts`(D7) · `src/components/vocab/TopicWordsCard.tsx`·`topicCopy.ts`(D7 칩) · (D6 A 일 때만) `TodayHome.tsx`·`TodayWordsCard.tsx`·`labels.ts`(P10 챌린지 중 준비 줄) · `src/types/challenge.ts`(`CreateChallengeBody.level?`) · 시험 `src/components/challenge/__tests__/logic.test.ts`(+ 문구가 `SEED_PACK_LABEL` 과 바이트 일치·조사 없음 단언).
+- 이름·코드 계산은 `vocab/labels.ts` 의 `levelLabel`·`levelName` 재사용 — challenge/lesson 에서 새 함수를 만들지 않는다.
+
+### 33-6. 구현 순서
+서버(규칙 함수·#156 `level`·재료 연결·시험) → 배포 가능한 상태 확인 → 화면(③ 묶음 → ④ 줄 → 계획표 카드 → 오늘 탭 단서) → 세 폭·130%·다크 확인.
+
+### 33-7. 주의
+- 엔진·모델 이름 화면 노출 없음. 데모 문구 표에 없는 새 요소·문구는 만들지 않는다.
+- 안내 줄은 막지 않는다(경고색·`role=alert` 쓰지 않음). 진행 중 챌린지 막힘·실패·오프라인은 지금 동작 그대로.
+- 알약은 native radio(←/→ 이동). 기존 `ChoicePills`·설정 `Segmented` 의 `role=radio` 버튼 방식은 따르지 않는다(보이는 두 줄 모양만 설정과 맞춤).
+- 이름+코드는 늘 한 덩어리(nowrap)·뒤에 조사 없음. 칩에서 난이도는 주제 이름 **앞**(끝에 두면 말줄임에 잘림).
+- 상세 화면·기록 목록·1단계 주제 목록 수준 창·프로필 목표 설정 화면은 범위 밖(L6). 흐름 밖 코드 뱃지(주제 고르기·평가·주제/상황 관리)는 질문 5 답에 따른다(★ 그대로).
+- 폰 확인: 130% 글꼴·TalkBack(fieldset 설명 낭독, 「초급 (N4)」 괄호 읽는 방식)·**360px·130% 알약 이름 여유 +6.6px**(실제 기기 글꼴에서 「최상급」·「초보자」가 잘리면 칸 사이 간격 8 → 6px).

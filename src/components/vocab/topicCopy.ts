@@ -3,7 +3,9 @@
  * 오늘 띠·단어 카드·회화 카드 챌린지 모드·새 단어 대기 화면·덱 머리·끝내기 시트·결과·수업 종료 줄이 여기서만 문구를 고른다.
  * 엔진·모델 이름은 없다("AI" 까지만). `generation.reason` 코드값은 화면에 쓰지 않는다.
  */
+import type { JlptLevel } from '@/types/lesson'
 import { formatMonthDay } from './format'
+import { levelLabel } from './labels'
 
 /** 「주제」 — 주제 이름은 늘 이 괄호로 감싼다. */
 export const q = (title: string) => `「${title}」`
@@ -32,7 +34,11 @@ export const STRIP = {
 
 export const WORDS_CARD = {
   title: '오늘의 단어',
-  chip: (title: string) => `챌린지 · ${q(title)}`,
+  /**
+   * task-076 D7 B(§33 P7) — 챌린지 난이도를 주제 이름 **앞에**: 칩은 한 줄 말줄임이라 끝에 두면 긴 주제 이름에서 난이도가 잘린다(데모 v2 실측).
+   * 이름+코드는 `levelLabel` 로만. 난이도를 모르면(옛 응답) 지금 모양.
+   */
+  chip: (title: string, level?: JlptLevel | null) => (level && levelLabel(level) ? `챌린지 · ${levelLabel(level)} · ${q(title)}` : `챌린지 · ${q(title)}`),
   chipSr: '챌린지 주제: ',
   todoHead: (title: string, n: number, need: number) => `${q(title)} 새 단어 ${n}장 · 오늘 0/${need}장`,
   todoBody: (n: number, need: number) => `AI 가 매일 새로 만들어요 · 하루에 ${n}장 중 ${need}장 이상 풀면 오늘 단어 완료 · 나눠 풀어도 합쳐서 계산해요`,

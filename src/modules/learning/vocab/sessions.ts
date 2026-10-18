@@ -19,7 +19,7 @@
  * 스냅샷 + `refType/refId`(`TopicChunk`·`Expr`·`AiWord`). A12 새 단어 생성은 트랜잭션 **밖**(`./topicSet`)이고, 세트·카드 쓰기는 지금과
  * 같은 잠금 순서(사용자 행 → 진행 중 확인 → 생성)다. 단어장(`WordEntry`) 자동 추가는 없다 — [단어장에 넣기](#41)를 눌러야만 생긴다.
  */
-import type { PartOfSpeech, Prisma, VocabAnswer, VocabMode, VocabSessionStatus } from '@prisma/client'
+import type { JlptLevel, PartOfSpeech, Prisma, VocabAnswer, VocabMode, VocabSessionStatus } from '@prisma/client'
 import { ApiError, codePointLength, dates, decodeCursor, encodeCursor, isTimeIdCursor, lockUserRow, prisma, sanitizeText, withTransaction, type Tx } from '@/modules/infra'
 import { getProfile } from '@/modules/preferences'
 import { recordStudyLog } from '../studyLog'
@@ -27,6 +27,7 @@ import { bumpDailySnapshot, createVocabSessionSnapshot, type VocabSessionSnapsho
 import { registerRepetitionItems, type RepetitionItemInput } from '../repetition'
 import { recordObservations, type ObservationInput } from '../observations'
 import { loadTopicPool, topicAiWordHistory } from '../topics/pool'
+import { getInProgressChallengeLevel, resolveTargetLevel, type InProgressChallengeLevel } from '../targetLevel'
 import { assertTopicVisible, mapTopicGone } from '../topics/visible'
 import { distinctMeaningCount, pickChoices, CHOICE_COUNT, type MeaningSource } from './distractors'
 import { ceilingOf, createRng, generateWordSet, newSeed, requestedModeOf, shuffle, type LevelCode } from './setGenerator'
@@ -441,17 +442,40 @@ export interface CreateSessionOptions {
 /** `getProfile` 의 읽기 모양 — 시험이 가짜를 끼운다. */
 export type LevelReader = (userId: string) => Promise<{ level: string; goalLevel: string | null }>
 
+/** 진행 중 챌린지 난이도 읽기의 모양 — 시험이 가짜를 끼운다(없으면 null). */
+export type ChallengeLevelReader = (userId: string) => Promise<string | null>
+
+const readInProgressChallengeLevel: ChallengeLevelReader = async (userId) => (await getInProgressChallengeLevel(prisma, userId, new Date()))?.level ?? null
+
 /**
- * 내 단어장 세트의 단계 천장(task-053) = 지금 수준·목표 수준 중 어려운 쪽. 프로필을 못 읽으면 `undefined` — 가중 없이(= 변경 전
+ * 내 단어장 세트 가중 기준 규칙(task-076 **D6 A** — 사용자 승인 10-18) **한 곳**: 진행 중 챌린지가 있으면 그 난이도(T 의 CHALLENGE 출처),
+ * 없으면 task-053 그대로 지금 수준·목표 수준 중 어려운 쪽. D6 B(내 단어장 세트는 챌린지와 무관하게 지금 그대로)로 바꾸려면
+ * 이 함수 본문을 `return ceilingOf(profile.level, profile.goalLevel)` 한 줄로 바꾼다(가중 모양 `levelFactor` 는 그대로).
+ */
+export function mineSetCeiling(challengeLevel: string | null, profile: { level: string | null; goalLevel: string | null }): LevelCode | undefined {
+  const t = resolveTargetLevel(challengeLevel, profile)
+  return t?.source === 'CHALLENGE' ? t.level : ceilingOf(profile.level, profile.goalLevel)
+}
+
+/**
+ * 내 단어장 세트의 단계 천장(task-053 · task-076 `mineSetCeiling`). 챌린지 조회나 프로필 읽기가 실패하면 `undefined` — 가중 없이(= task-053 전
  * 동작) 세트를 만든다: 단계 가중은 부가 기능이라 세트 생성을 막지 않는다. 트랜잭션 **밖**에서 읽어 사용자 행 잠금 시간을 늘리지 않는다.
  */
-export async function levelCeilingFor(userId: string, read: LevelReader = getProfile): Promise<LevelCode | undefined> {
+export async function levelCeilingFor(userId: string, read: LevelReader = getProfile, challengeLevelOf: ChallengeLevelReader = readInProgressChallengeLevel): Promise<LevelCode | undefined> {
   try {
-    const p = await read(userId)
-    return ceilingOf(p.level, p.goalLevel)
+    const [challengeLevel, p] = await Promise.all([challengeLevelOf(userId), read(userId)])
+    return mineSetCeiling(challengeLevel, p)
   } catch {
     return undefined
   }
+}
+
+/**
+ * 주제 세트 「새 단어」(A12) 수준(task-076 D4 A) — 그 주제가 진행 중 챌린지의 주제면 챌린지 난이도, 아니면 주제 수준(지금 그대로).
+ * 주제 **기본 표현**(고정 조각)은 수준과 무관하게 그대로 나온다.
+ */
+export function topicWordsLevel(topic: { id: string; level: JlptLevel }, challenge: Pick<InProgressChallengeLevel, 'topicId' | 'level'> | null): JlptLevel {
+  return challenge && challenge.topicId === topic.id ? challenge.level : topic.level
 }
 
 /**
@@ -562,9 +586,10 @@ async function createTopicVocabSession(
       if (!opts.topicWords) reason = 'FAILED'
       else {
         const prior = await topicAiWordHistory(deps.db, userId, topicId)
+        const challenge = await topicSetChallenge(deps, userId)
         const r = await runTopicWords(deps, {
           userId, material, targetCount: input.count, priorSurfaces: prior.words.map((p) => p.surface), priorDays: prior.generationDays, driver: opts.topicWords,
-          signal: opts.signal, deadlineAt: startedAt + deps.wallMs,
+          signal: opts.signal, deadlineAt: startedAt + deps.wallMs, level: topicWordsLevel(material.topic, challenge),
         })
         if (r.ok) fresh = r.words
         else if (r.reason === 'CANCELLED') {
@@ -581,6 +606,16 @@ async function createTopicVocabSession(
     return await composeTopicSessionTx(deps, userId, { ...input, topicId, today, todayDb }, { fresh, reuse, reason })
   } finally {
     if (generating) endTopicWordsGeneration(userId)
+  }
+}
+
+/** 주제 세트의 진행 중 챌린지(새 단어를 실제로 만들 때만 읽는다). 실패하면 null — 주제 수준(지금 동작)으로 만든다. 로그는 오류 이름만. */
+async function topicSetChallenge(deps: TopicSetDeps, userId: string): Promise<InProgressChallengeLevel | null> {
+  try {
+    return await getInProgressChallengeLevel(deps.db, userId, new Date(deps.now()))
+  } catch (e) {
+    console.error('[vocab] 주제 세트 챌린지 난이도 조회 실패:', e instanceof Error ? e.name : 'unknown')
+    return null
   }
 }
 

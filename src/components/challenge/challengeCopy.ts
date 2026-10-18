@@ -46,6 +46,8 @@ export const COPY = {
   cardErrorBody: '달력은 그대로 볼 수 있어요.',
   retry: '다시 시도',
   detailLink: '자세히 ›',
+  /** 진행 중 카드 부제 앞(D10 A) — 「난이도 중급 (N3) · 10/18 ~ 10/24」. `lv` = `levelLabel(level)`. */
+  planLevel: (lv: string) => `난이도 ${lv}`,
   todayTasks: '오늘 할 일',
   firstDayTasks: '첫날 할 일 · 내일',
   tomorrowHead: '챌린지 · 내일 시작',
@@ -131,6 +133,10 @@ export const COPY = {
   goToday: '공부 탭에서 하기',
 } as const
 
+// 난이도 「이름 (코드)」는 여기 적지 않는다 — 화면이 `vocab/labels` 의 `levelLabel`·`levelName`(= `SEED_PACK_LABEL`)으로 끼운다(screens.md §33-1a).
+const Q1_BODY = { before: '내 수준에 맞는 주제를 보여 드려요: ', after: '. 챌린지 동안 매일 이 주제로 공부해요.' } as const
+const ROW_LEVEL_DIFF = '이 주제 기본은 '
+
 export const CREATE = {
   title: '챌린지 만들기',
   stepNames: ['주제', '기간', '목표', '확인'] as const,
@@ -141,7 +147,9 @@ export const CREATE = {
   start: '챌린지 시작',
   starting: '시작하는 중…',
   q1: '어떤 주제로 할까요?',
-  q1Body: (levels: string) => `내 수준에 맞는 주제를 보여 드려요(${levels}). 챌린지 동안 매일 이 주제로 공부해요.`,
+  /** 괄호가 겹치지 않게 쌍점(task-076 질문 5 a). 화면은 `q1BodyParts` 사이에 「이름 (코드)」를 한 덩어리씩 끼워 그린다 — 이어 붙인 글 = `q1Body(…)`. */
+  q1Body: (levels: string) => `${Q1_BODY.before}${levels}${Q1_BODY.after}`,
+  q1BodyParts: Q1_BODY,
   topicLoading: '주제를 불러오는 중…',
   topicError: '주제를 불러오지 못했어요.',
   topicEmpty: '고를 수 있는 주제가 없어요.',
@@ -154,6 +162,17 @@ export const CREATE = {
     { days: 14, name: '14일', sub: '두 주' },
     { days: 30, name: '30일', sub: '한 달' },
   ] as const,
+  /** ③ 단계 제목(h2) — 아래에 난이도 묶음 → 하루에 할 것 묶음(h3 `q3`)(task-076 D2 B). */
+  q3Title: '목표를 정해요',
+  levelQ: '어느 난이도로 할까요?',
+  levelBody: '이 난이도로 매일 새 단어와 회화 수업을 만들어요. 처음엔 주제 난이도로 골라 두었어요.',
+  /** 알약 시각 숨김 꼬리말 — 맞는 것만 「초급 (N4), 내 수준, 이 주제 기본」처럼 쉼표로 이어 읽는다. */
+  levelSr: { my: '내 수준', goal: '내 목표', topic: '이 주제 기본' },
+  /** 비교 줄(D3 A) 묶음 앞말 — 「내 수준 초급 (N4) · 내 목표 중급 (N3) · 이 주제 초급 (N4)」. */
+  levelCompareHead: { my: '내 수준', goal: '내 목표', topic: '이 주제' },
+  /** 안내 줄(D8 A) — 막지 않고 경고색도 쓰지 않는다. `d` = 내 수준보다 위인 단계 수(2~4). */
+  levelHigh: (d: number) => `내 수준보다 ${d}단계 어려워요. 처음엔 모르는 말이 많을 수 있어요.`,
+  levelLow: '내 수준보다 쉬워요. 복습하듯 가볍게 할 수 있어요.',
   q3: '하루에 무엇을 할까요?',
   q3Body: '고른 것을 다 끝낸 날이 ‘달성’이에요. 하나만 골라도 돼요.',
   wordsName: (n: number) => `오늘의 단어 하루 ${n}장`,
@@ -169,6 +188,11 @@ export const CREATE = {
   q4: '이렇게 시작할까요?',
   rowName: '이름',
   rowTopic: '주제',
+  rowLevel: '난이도',
+  rowLevelSame: '이 주제 기본',
+  /** 화면은 `rowLevelDiffHead` 뒤에 「이름 (코드)」를 한 덩어리로 그린다 — 이어 붙인 글 = `rowLevelDiff(…)`. */
+  rowLevelDiff: (t: string) => `${ROW_LEVEL_DIFF}${t}`,
+  rowLevelDiffHead: ROW_LEVEL_DIFF,
   rowLength: '기간',
   rowGoal: '하루 목표',
   firstTasks: (when: string) => `${when} 할 일 · 1일째`,

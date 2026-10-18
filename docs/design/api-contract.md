@@ -356,7 +356,7 @@
 | # | Method | Path | 목적 | auth | 층 | Phase | 요청 | 응답 |
 |---|---|---|---|---|---|---|---|---|
 | 155 | GET | `/api/v1/challenges?status=ACTIVE\|FINISHED\|ALL&limit=&cursor=` | 챌린지 기록 — 진행 중 1개(첫 쪽만) 먼저, 끝난 것 `endedAt desc, id desc`. `FINISHED` = `COMPLETED`+`ENDED`. 기간 지난 진행 중은 이 요청에서 지연 전이 | S | learning/challenges | 2(task-041) | query `status`(기본 `ALL`)·`limit`(1~50, 기본 20)·`cursor` | `{items: ChallengeSummary[], nextCursor}` · `private, no-store` |
-| 156 | POST | `/api/v1/challenges` | 챌린지 만들기(한 트랜잭션: 사용자 행 잠금 → 지연 전이 → 진행 중 확인 → 하루 20회 확인 → 1행) | S | learning/challenges | 2(task-041) | `{topicId, lengthDays:7\|14\|30, start:'TODAY'\|'TOMORROW', dailyGoal:{lesson,words,wordCount?:5\|10\|15}, title?(≤40자)}`(본문 ≤4KB) | `ChallengeDetail` · 400 `VALIDATION`(`NO_TASK`·`WORD_COUNT_OVER_POOL{poolSize}`·`unknown_key`) · 404 `TOPIC_GONE` · 409 `ACTIVE_EXISTS{challengeId}` · 429 `RATE_LIMITED`(하루 20회) |
+| 156 | POST | `/api/v1/challenges` | 챌린지 만들기(한 트랜잭션: 사용자 행 잠금 → 지연 전이 → 진행 중 확인 → 하루 20회 확인 → 1행) | S | learning/challenges | 2(task-041) | `{topicId, lengthDays:7\|14\|30, start:'TODAY'\|'TOMORROW', dailyGoal:{lesson,words,wordCount?:5\|10\|15}, title?(≤40자), level?:'N5'\|'N4'\|'N3'\|'N2'\|'N1'(task-076 — 생략 = 주제 난이도)}`(본문 ≤4KB) | `ChallengeDetail` · 400 `VALIDATION`(`NO_TASK`·`WORD_COUNT_OVER_POOL{poolSize}`·`unknown_key`) · 404 `TOPIC_GONE` · 409 `ACTIVE_EXISTS{challengeId}` · 429 `RATE_LIMITED`(하루 20회) |
 | 157 | GET | `/api/v1/challenges/:id` | 상세 = 수행 현황(날짜 띠·달성률·연속·주제 표현·새 단어 진행·누적·오늘 할 일). 끝난 챌린지는 얼린 `result` | S | learning/challenges | 2(task-041) | — | `ChallengeDetail` · `private, no-store` · 404 |
 | 158 | GET | `/api/v1/challenges/today` | 계획표 카드·오늘 탭·덱 머리용 요약(DB 만) | S | learning/challenges | 2(task-041) | — | `{challenge: ChallengeSummary\|null, today: ChallengeTodayTasks\|null, recentlyEnded: {id,status,title,endedAt,result}\|null}` · `private, no-store` |
 | 159 | POST | `/api/v1/challenges/:id/end` | 그만두기(`ACTIVE` → `ENDED`, 결과 얼림·`activeKey` 비움) — 이미 `ENDED` 면 같은 응답(멱등) | S | learning/challenges | 2(task-041) | `{}`(본문 ≤1KB, 모르는 키 400) | `ChallengeSummary` · 404 · 409 `NOT_ACTIVE{status:'COMPLETED'}` |
@@ -1124,7 +1124,8 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
                       "topic": { "id": "t_2", "title": "카페 주문" }, "score": 80, "jobId": null, "speaking": { "used": 4, "total": 5 } } ],
   "resume": { "id": "ls_7", "title": "…", "titleKo": "…", "stageDone": 2, "date": "2026-09-27" },
   "recommendation": { "topicId": "t_2", "topicTitle": "카페 주문", "level": "N5", "reason": "CONTINUE",
-                      "nextPreview": { "titleKo": "카페에서 자리 찾기와 결제하기", "teaserKo": "다음엔 자리를 묻고 카드로 계산하는 표현도 배워볼까요?" } } }
+                      "nextPreview": { "titleKo": "카페에서 자리 찾기와 결제하기", "teaserKo": "다음엔 자리를 묻고 카드로 계산하는 표현도 배워볼까요?" },
+                      "lessonLevel": "N3", "levelSource": "GOAL" } }
 ```
 
 - task-010 은 `mode:"NEW"` 만. `review`·`guard`·`cycle` 은 형태만 유지(task-010b 가 채운다 — §7-4, `mode ∈ NEW|REVIEW|BOTH`, `guard ∈ null | { reason: "cycle"|"insufficient"|"stale", needed?: 1 }`).
@@ -1150,6 +1151,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 - `todayLessons` = 오늘(KST) 날짜 레슨 전부(최신 먼저, ≤20). `GENERATING` 이면 `jobId`(#55 폴링) — 잡이 죽었으면(재시작·stale) 이 자리에서 `FAILED` 로 닫아 보인다. `speaking{used,total}` = 말하기에서 쓴 표현 수·판정 가능한 목표 수(#62 `result.expressions` 와 같은 계산, 본문이 없으면 null — task-010 화면 §12-11 ① Leader 판정으로 추가, additive, 홈 완료 카드 "말하기 표현 {used}/{total}").
 - `resume` = 오늘 이전 날짜의 `READY`·`IN_PROGRESS` **새 수업(`kind:"NEW"`)** 중 가장 최근 것 1개(없으면 null) — "이어서 하기"(task-010b ★①).
 - `recommendation`(designer 데모 v1 요청, `reason ∈ CONTINUE|NEXT_TOPIC|START|CHALLENGE` — CHALLENGE 는 진행 중 챌린지 주제를 최우선으로 추천할 때, §2-31): 가장 최근에 끝낸 **주제** 레슨이 있으면 그 주제 + 그 수업의 `content.nextPreview`(CONTINUE). 그 주제를 이미 3번(`TOPIC_ROTATE_AFTER`) 끝냈으면 학습자 수준에서 끝낸 수가 가장 적은 다른 주제(NEXT_TOPIC, `nextPreview:null`). 끝낸 주제 레슨이 없으면 학습자 수준(없으면 ±1)의 주제 중 가장 적게 한 것(START). 하던 수업이 있으면 화면은 그쪽을 먼저 — 추천은 참고용.
+  - **task-076(IMP-0051, additive)**: `recommendation.level` 은 지금처럼 **주제 난이도**(의미 불변 — 「주제 고르기」 등 다른 소비처 보호, L8). 새 칸 `lessonLevel` = 이 주제로 #59 주제 수업을 만들 때 실제로 쓰는 **기준 수준 T**(`T = 진행 중 챌린지가 있으면 challenge.level, 없으면 profile.goalLevel ?? profile.level`, `learning/targetLevel.ts`), `levelSource ∈ CHALLENGE|GOAL|LEVEL` = T 의 출처(오늘 탭 회화 뱃지 꼬리표 「챌린지 / 내 목표 / 내 수준」). 「진행 중」 = `isChallengeInProgress`(ACTIVE ∧ 주제 있음 ∧ 종료일 ≥ 오늘 — **시작 전 포함**, 수업 과제 켜짐 여부와 무관). 챌린지 조회가 실패해 T 를 확정하지 못하면 `lessonLevel`·`levelSource` 둘 다 `null`(화면은 지금 뱃지). 추천 주제 고르기(내 수준 ±1 창)·`reason` 은 바뀌지 않는다.
 
 #### #59 `POST /api/v1/lessons`
 
@@ -2023,11 +2025,12 @@ SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못�
 #### #156 `POST /api/v1/challenges`
 
 ```json
-→ { "topicId": "t_…", "lengthDays": 7, "start": "TODAY", "dailyGoal": { "lesson": true, "words": true, "wordCount": 10 }, "title": "카페 일주일" }
+→ { "topicId": "t_…", "lengthDays": 7, "start": "TODAY", "dailyGoal": { "lesson": true, "words": true, "wordCount": 10 }, "title": "카페 일주일", "level": "N3" }
 ← ChallengeDetail   // #157 과 같은 모양, status:"ACTIVE", dailyGoal.wordsMinAnswered:8
 ```
 
-- 본문 ≤4KB, 키 화이트리스트 `topicId`·`lengthDays`·`start`·`dailyGoal`·`title`(그 밖은 400 `unknown_key`). `lengthDays` 7·14·30. `start` `TODAY`(오늘부터)·`TOMORROW`(내일부터) — `endDate` = 시작일 + `lengthDays` − 1. `dailyGoal.lesson`·`words` 는 boolean 필수이고 **둘 다 false 면 400** `reason:'NO_TASK'`. `wordCount` 5·10·15(`words:true` 일 때만 의미, 생략하면 서버가 학습 설정 하루 단어 수 이하에서 가장 큰 선택지를 주제 기본 표현 수 안에서 고르고, 하루 단어 수 이하 선택지가 없으면 주제 기본 표현 수 안의 가장 작은 선택지를 쓴다). `title` 생략·빈 값이면 자동 `"<주제 제목 ≤60자> N일 챌린지"`, 입력은 ≤40자(코드포인트).
+- 본문 ≤4KB, 키 화이트리스트 `topicId`·`lengthDays`·`start`·`dailyGoal`·`title`·`level`(그 밖은 400 `unknown_key` — **task-076 이전 서버는 `level` 도 400 이므로 서버를 화면보다 먼저 배포**).
+- **`level`(task-076, 선택)**: 챌린지 난이도 `N5|N4|N3|N2|N1`(대소문자·공백 그대로 비교). 생략·`null` = 고른 주제의 난이도(task-076 이전 동작). 그 밖의 값·타입(`"N6"`·`"n3"`·`3`·배열 등)은 400 `VALIDATION` `{field:'level', reason:'N5|N4|N3|N2|N1'}`. `Challenge.level` 로 저장해 **만들 때 얼린다**(수정 경로 없음 — 이미 만든 챌린지는 바뀌지 않는다, 스키마 변경 없음). 응답(#157 상세)·#155 목록·#158 의 `level` 이 이 값이다. 진행 중인 동안 이 값이 오늘의 회화 주제 수업 수준·그 챌린지 주제 세트의 「새 단어」 수준·내 단어장 세트 가중 기준이 된다(`docs/design/challenge.md` §4-6). `lengthDays` 7·14·30. `start` `TODAY`(오늘부터)·`TOMORROW`(내일부터) — `endDate` = 시작일 + `lengthDays` − 1. `dailyGoal.lesson`·`words` 는 boolean 필수이고 **둘 다 false 면 400** `reason:'NO_TASK'`. `wordCount` 5·10·15(`words:true` 일 때만 의미, 생략하면 서버가 학습 설정 하루 단어 수 이하에서 가장 큰 선택지를 주제 기본 표현 수 안에서 고르고, 하루 단어 수 이하 선택지가 없으면 주제 기본 표현 수 안의 가장 작은 선택지를 쓴다). `title` 생략·빈 값이면 자동 `"<주제 제목 ≤60자> N일 챌린지"`, 입력은 ≤40자(코드포인트).
 - 서버가 `dailyGoal` 에 `wordsMinAnswered = ceil(4×wordCount/5)`(5·10·15 → 4·8·12)·`countSkipped:false`·`ruleVersion:1` 을 채워 **얼린다**(만든 뒤 수정 경로 없음).
 - 오류: 400 `VALIDATION` `{field:'dailyGoal.wordCount', reason:'WORD_COUNT_OVER_POOL', poolSize}` — 장수가 그 주제의 기본 표현(`TopicChunk`, 카드 폭 필터 뒤) 수보다 크거나 고를 선택지가 없을 때 · 404 `NOT_FOUND` `{reason:'TOPIC_GONE'}` — 주제가 없거나 남의 주제이거나 이 사용자가 가린 시드(새 챌린지에는 가린 시드 예외 없음) · 409 `CONFLICT` `{reason:'ACTIVE_EXISTS', challengeId}` — 진행 중 챌린지가 이미 있음(`Challenge.activeKey` 유니크 위반 P2002 도 같은 409) · 429 `RATE_LIMITED` `{retryAfterSec}` + `Retry-After` — 사용자당 하루(KST) 20회(만들기·그만두기 반복으로 행이 쌓이는 것 방어, 사용자 삭제 경로가 없음).
 - 한 트랜잭션 순서: 사용자 행 잠금(`lockUserRow` — 주제 삭제 #173 과 같은 잠금) → 주제 재확인 → 기간 지난 ACTIVE 지연 전이 → 진행 중 확인(409) → 하루 20회 확인(429) → `Challenge` 1행 INSERT(`StudyLog`·`StatsSnapshot` 은 만들지 않는다). 성공 응답은 만든 챌린지의 #157 상세.

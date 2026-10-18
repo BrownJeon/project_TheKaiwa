@@ -17,6 +17,8 @@ function deps(over: Partial<TopicLessonDeps> = {}): TopicLessonDeps & { historyC
     topic: async (_u, id) => (id === TOPIC.id ? TOPIC : null),
     visible: async () => true,
     challengeTopicId: async () => null,
+    // task-076: 기준 수준을 확정하지 못함 = 주제 수준(이 시험의 관심 밖).
+    targetLevel: async () => null,
     history: async () => {
       state.historyCalls += 1
       return { previousTitles: [], previousNextPreview: null }

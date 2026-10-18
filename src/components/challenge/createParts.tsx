@@ -1,18 +1,102 @@
 'use client'
 
 /**
- * 챌린지 만들기 조각(가이드 §3-3, D7·D8) — 단계 표시 · 주제 라디오 카드 · 기간 라디오 카드 · 목표 체크 카드 · 장수 칩.
+ * 챌린지 만들기 조각(가이드 §3-3, D7·D8) — 단계 표시 · 주제 라디오 카드 · 기간 라디오 카드 · 목표 체크 카드 · 장수 칩 · 난이도 알약(task-076).
  * 고르기는 native radio/checkbox(`fieldset`/`legend` 안). 장수 칩은 막힌 칸이 있어 공용 `Segmented` 대신 따로 둔다(공용 부품은 고치지 않는다).
  */
+import { Fragment } from 'react'
 import { JaText, HangulLine } from '@/components/common/japanese/JapaneseText'
 import { OFF, useWordLayersList } from '@/components/common/japanese/annotations'
 import { kstDateKey } from '@/components/common/format'
 import { Badge } from '@/components/common/ui'
 import { formatMonthDay } from '@/components/vocab/format'
+import { JLPT_LEVELS, levelLabel, levelName } from '@/components/vocab/labels'
 import type { ChallengeWordCount } from '@/types/challenge'
-import type { Topic } from '@/types/lesson'
+import type { JlptLevel, Topic } from '@/types/lesson'
 import { CREATE } from './challengeCopy'
+import { confirmLevelNote, levelPillSr, type LevelCompareGroup, type LevelContext } from './logic'
 import { BLOCKED_FACE } from './parts'
+
+/** 난이도 「이름 (코드)」 한 덩어리(screens.md §33-1a) — 이름과 코드 사이에서 줄이 바뀌지 않는다. 뒤에 조사를 붙이지 않는다. */
+export function LevelText({ level }: { level: JlptLevel }) {
+  return <span className="whitespace-nowrap">{levelLabel(level)}</span>
+}
+
+/** ① 설명(질문 5 a) — 「…보여 드려요: 초보자 (N5) · 초급 (N4) · 중급 (N3). 챌린지 동안 …」. 목록을 아직 모르면 「—」. */
+export function TopicLevelsBody({ levels }: { levels: readonly JlptLevel[] }) {
+  const { before, after } = CREATE.q1BodyParts
+  return (
+    <p className="mt-1 text-[13px] text-ink2 break-keep">
+      {before}
+      {levels.length
+        ? levels.map((l, i) => (
+            <Fragment key={l}>
+              {i > 0 ? ' · ' : null}
+              <LevelText level={l} />
+            </Fragment>
+          ))
+        : '—'}
+      {after}
+    </p>
+  )
+}
+
+/**
+ * 난이도 알약 5칸(D2 B · D11 A) — native radio(←/→ 이동). 보이는 두 줄(위 이름 13px · 아래 코드 11px)은 낭독에서 숨기고
+ * 시각 숨김 글 「초급 (N4), 내 수준, 이 주제 기본」 한 번만 읽힌다. 크기는 설정 「지금 수준」 두 줄 분절과 같다(칸 높이 48).
+ * 선택 모양은 장수 칩과 같다(바탕 surface + 안쪽 2px accent + 굵게).
+ */
+export function LevelPills({ name, value, ctx, onChange }: { name: string; value: JlptLevel; ctx: LevelContext; onChange: (l: JlptLevel) => void }) {
+  return (
+    <div className="mt-3 grid grid-cols-5 gap-2">
+      {JLPT_LEVELS.map((l) => (
+        <label key={l} className="relative block min-w-0 cursor-pointer">
+          <input type="radio" name={name} value={l} checked={l === value} onChange={() => onChange(l)} className="peer sr-only" />
+          <span className="flex min-h-12 min-w-0 flex-col items-center justify-center gap-px rounded-xl border border-line bg-surface px-0.5 py-[3px] font-medium text-ink peer-checked:border-transparent peer-checked:font-bold peer-checked:shadow-[inset_0_0_0_2px_var(--color-accent)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
+            <span aria-hidden="true" className="block max-w-full truncate text-[13px] leading-[1.2]">
+              {levelName(l)}
+            </span>
+            <span aria-hidden="true" className="block max-w-full truncate text-[11px] font-medium leading-[1.2] text-ink2">
+              {l}
+            </span>
+            <span className="sr-only">{levelPillSr(l, ctx)}</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+/** ④ 확인 「난이도」 줄 dd — 「중급 (N3)」 + 작은 글 「이 주제 기본」 / 「이 주제 기본은 초급 (N4)」. */
+export function ConfirmLevelValue({ level, topicLevel }: { level: JlptLevel; topicLevel: JlptLevel }) {
+  const note = confirmLevelNote(level, topicLevel)
+  return (
+    <>
+      <LevelText level={level} />
+      <small className="block text-[12.5px] text-ink2 break-keep">
+        {note.head}
+        {note.topicLabel ? <span className="whitespace-nowrap">{note.topicLabel}</span> : null}
+      </small>
+    </>
+  )
+}
+
+/** 비교 줄(D3 A) — 「내 수준 초급 (N4) ·」 묶음마다 줄바꿈 없음, 묶음 사이에서만 줄이 바뀐다. */
+export function LevelCompareLine({ id, groups }: { id: string; groups: readonly LevelCompareGroup[] }) {
+  return (
+    <p id={id} className="mt-2 text-[12.5px] text-ink2 tabular-nums break-keep [overflow-wrap:anywhere]">
+      {groups.map((g, i) => (
+        <Fragment key={g.head}>
+          {i > 0 ? ' ' : null}
+          <span className="whitespace-nowrap">
+            {g.head} <b className="font-semibold text-ink">{g.label}</b>
+            {i < groups.length - 1 ? ' ·' : null}
+          </span>
+        </Fragment>
+      ))}
+    </p>
+  )
+}
 
 export function StepIndicator({ step }: { step: 1 | 2 | 3 | 4 }) {
   return (
@@ -88,7 +172,9 @@ export function TopicRadioCard({ topic, name, checked, onSelect }: { topic: Topi
             </span>
             {checked && topic.chunks.length ? <ChunkPreview topic={topic} /> : null}
           </span>
-          <Badge tone="neutral">{topic.level}</Badge>
+          <Badge tone="neutral">
+            <LevelText level={topic.level} />
+          </Badge>
         </span>
       </label>
     </li>

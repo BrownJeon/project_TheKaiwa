@@ -21,6 +21,7 @@ import { getProfile } from '@/modules/preferences'
 import { getActiveChallengeTopic } from '../challenges'
 import { assertScenarioStartableTx, readScenarioRolePlayMaterial, resolveScenarioChatStart, scenarioNotFound, type ScenarioChatStart, type ScenarioChatStartInput, type ScenarioRolePlayMaterial } from '../scenarios/start'
 import { isSeedVisibleFor } from '../seedOverride/visibility'
+import { readTargetLevel, type TargetLevel } from '../targetLevel'
 import { getTopicForLesson, type LessonTopicMaterial } from '../topics'
 import { assertTopicVisible, mapTopicGone, topicGone } from '../topics/visible'
 import { readStoredContent, toStoredContent, type LessonGenOutput } from './content'
@@ -34,7 +35,11 @@ export interface LessonMaterials {
   topic: LessonTopicMaterial | null
   /** 상황 수업(task-010d A2) 재료 — 라우트가 conversation `scenarioPromptParts` 로 A4 `[상황]` 입력을 만든다. 그 밖 수업은 null. */
   scenario: ScenarioRolePlayMaterial | null
-  /** 레슨 수준 — 주제 수준(상황 수업도 대표 주제가 있으면 주제 수준), 주제 없는 상황 수업은 상황 수준, 붙여넣기면 학습자 수준. */
+  /**
+   * 레슨 수준(`Lesson.level`·A4 `topic.level` 둘 다 이 값 — `lessonInput.ts`). 주제 수업은 기준 수준 T(task-076 L7: 진행 중 챌린지 난이도,
+   * 없으면 목표 수준, 없으면 지금 수준 — T 를 확정하지 못하면 주제 수준). 상황 수업은 대표 주제가 있으면 주제 수준, 없으면 상황 수준,
+   * 붙여넣기면 학습자 수준(둘 다 task-076 전과 같다).
+   */
   level: JlptLevel
   /** 같은 주제의 이전 수업 제목(최근 것부터 ≤5, L6). 주제 없는 상황 수업은 같은 상황의 이전 수업. */
   previousTitles: string[]
@@ -106,6 +111,8 @@ export interface TopicLessonDeps {
   /** 진행 중 챌린지의 오늘 수업 주제 id(수업 과제가 켜져 있고 기간 안일 때만) 또는 null. */
   challengeTopicId: (userId: string) => Promise<string | null>
   history: (userId: string, key: LessonHistoryKey) => Promise<LessonHistory>
+  /** 기준 수준 T(task-076) — 확정하지 못하면 null(→ 주제 수준, 지금 동작). 던지지 않는다. */
+  targetLevel: (userId: string) => Promise<TargetLevel | null>
 }
 
 const TOPIC_LESSON_DEPS: TopicLessonDeps = {
@@ -113,6 +120,7 @@ const TOPIC_LESSON_DEPS: TopicLessonDeps = {
   visible: (userId, topicId) => isSeedVisibleFor(prisma, userId, 'TOPIC', topicId),
   challengeTopicId: async (userId) => (await getActiveChallengeTopic(userId))?.topicId ?? null,
   history: loadLessonHistory,
+  targetLevel: (userId) => readTargetLevel(userId),
 }
 
 /**
@@ -125,7 +133,8 @@ export async function loadTopicLessonMaterials(userId: string, input: Extract<Cr
   const topic = await deps.topic(userId, input.topicId)
   const allowed = topic !== null && ((await deps.visible(userId, topic.id)) || (await deps.challengeTopicId(userId)) === topic.id)
   if (!topic || !allowed) throw topicGone()
-  return { input, topic, scenario: null, level: topic.level, ...(await deps.history(userId, { topicId: topic.id })) }
+  const target = await deps.targetLevel(userId)
+  return { input, topic, scenario: null, level: target?.level ?? topic.level, ...(await deps.history(userId, { topicId: topic.id })) }
 }
 
 /** #59 재료 — 주제는 시드 또는 내 것(아니면 404). 읽기 전용(점유 전). */

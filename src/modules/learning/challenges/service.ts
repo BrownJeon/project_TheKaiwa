@@ -104,7 +104,8 @@ export async function createChallenge(userId: string, input: CreateChallengeInpu
           title,
           topicId: topic.id,
           topicTitleSnap: truncateCodePoints(topic.title, 80),
-          level: topic.level,
+          // task-076: 사용자가 고른 난이도, 고르지 않았으면 주제 난이도. 만들 때 얼린다(수정 경로 없음).
+          level: input.level ?? topic.level,
           lengthDays: input.lengthDays,
           startDate: dates.toDbDate(startDate),
           endDate: dates.toDbDate(endDate),

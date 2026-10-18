@@ -286,18 +286,20 @@ test('채움: 단계가 없는 후보(계수 1)는 천장보다 높은 단계 �
 
 // ── 프로필 → 천장 ─────────────────────────────────────────────────────────────
 
-test('levelCeilingFor: 프로필의 지금·목표 수준 중 어려운 쪽 / 읽기 실패·이상한 값은 undefined(가중 없이 진행)', async () => {
+test('levelCeilingFor: (진행 중 챌린지 없음) 프로필의 지금·목표 수준 중 어려운 쪽 / 읽기 실패·이상한 값은 undefined(가중 없이 진행)', async () => {
+  // task-076: 챌린지 조회는 가짜(없음) — 챌린지가 있을 때의 기준은 task076.test.ts.
+  const noChallenge = async () => null
   const seen: string[] = []
   const reader = (level: string, goalLevel: string | null) => async (userId: string) => {
     seen.push(userId)
     return { level, goalLevel }
   }
-  assert.equal(await levelCeilingFor('u1', reader('N5', null)), 'N5')
-  assert.equal(await levelCeilingFor('u1', reader('N5', 'N3')), 'N3')
-  assert.equal(await levelCeilingFor('u1', reader('N3', 'N5')), 'N3')
-  assert.equal(await levelCeilingFor('u1', reader('N1', 'N1')), 'N1')
+  assert.equal(await levelCeilingFor('u1', reader('N5', null), noChallenge), 'N5')
+  assert.equal(await levelCeilingFor('u1', reader('N5', 'N3'), noChallenge), 'N3')
+  assert.equal(await levelCeilingFor('u1', reader('N3', 'N5'), noChallenge), 'N3')
+  assert.equal(await levelCeilingFor('u1', reader('N1', 'N1'), noChallenge), 'N1')
   assert.deepEqual(seen, ['u1', 'u1', 'u1', 'u1'], '사용자 id 로 읽는다')
-  assert.equal(await levelCeilingFor('u1', async () => { throw new Error('db down') }), undefined)
-  assert.equal(await levelCeilingFor('u1', () => Promise.reject(new Error('timeout'))), undefined)
-  assert.equal(await levelCeilingFor('u1', reader('??', null)), undefined)
+  assert.equal(await levelCeilingFor('u1', async () => { throw new Error('db down') }, noChallenge), undefined)
+  assert.equal(await levelCeilingFor('u1', () => Promise.reject(new Error('timeout')), noChallenge), undefined)
+  assert.equal(await levelCeilingFor('u1', reader('??', null), noChallenge), undefined)
 })

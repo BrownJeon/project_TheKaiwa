@@ -5,6 +5,7 @@
  */
 import { kstDateKey } from '@/components/common/format'
 import { formatMonthDay } from '@/components/vocab/format'
+import { JLPT_LEVELS, levelLabel } from '@/components/vocab/labels'
 import { dayLabel, daySpoken, timeLabel, weekdayOf } from '@/components/plan/logic'
 import type {
   ChallengeDailyGoal,
@@ -18,10 +19,11 @@ import type {
   ChallengeTask,
   ChallengeTodayResponse,
   ChallengeWordCount,
+  CreateChallengeBody,
   DayChallenge,
 } from '@/types/challenge'
-import type { Topic } from '@/types/lesson'
-import { COPY, DAY_VIEW, STATE_ORDER, TODAY_HREF } from './challengeCopy'
+import type { JlptLevel, Topic } from '@/types/lesson'
+import { COPY, CREATE, DAY_VIEW, STATE_ORDER, TODAY_HREF } from './challengeCopy'
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
 
@@ -695,9 +697,15 @@ export interface Draft {
   words: boolean
   wordCount: ChallengeWordCount | null
   start: 'TODAY' | 'TOMORROW'
+  /** 챌린지 난이도(task-076 D9 A) — null = 손대지 않음(고른 주제의 난이도를 따른다, 주제를 바꾸면 같이 바뀜). 고른 뒤에는 주제를 바꿔도 유지. */
+  level: JlptLevel | null
 }
 
-export const EMPTY_DRAFT: Draft = { topicId: null, lengthDays: 7, lesson: true, words: true, wordCount: null, start: 'TODAY' }
+export const EMPTY_DRAFT: Draft = { topicId: null, lengthDays: 7, lesson: true, words: true, wordCount: null, start: 'TODAY', level: null }
+
+export function isJlptLevel(v: unknown): v is JlptLevel {
+  return typeof v === 'string' && (JLPT_LEVELS as readonly string[]).includes(v)
+}
 
 export function serializeDraft(d: Draft): string {
   return JSON.stringify({ v: 1, ...d })
@@ -724,6 +732,8 @@ export function parseDraft(raw: string | null): Draft | null {
     words: o.words !== false,
     wordCount,
     start: o.start === 'TOMORROW' ? 'TOMORROW' : 'TODAY',
+    // task-076 전에 저장된 초안(칸 없음)·잘못된 값은 null = 주제 난이도.
+    level: isJlptLevel(o.level) ? o.level : null,
   }
 }
 
@@ -758,6 +768,104 @@ export function goalSummary(g: { lesson: boolean; words: boolean; wordCount: num
   if (g.words && g.wordCount) parts.push(`오늘의 단어 하루 ${g.wordCount}장(${minAnsweredOf(g.wordCount)}장 이상 풀면 완료)`)
   if (g.lesson) parts.push('오늘의 회화 1개')
   return parts.join(' + ')
+}
+
+// ── 챌린지 난이도(task-076 · screens.md §33) — ③ 목표 단계 · ④ 확인 · 계획표 카드 ─────────────────
+// 이름·코드는 `levelLabel`(= `SEED_PACK_LABEL`)로만 만든다. 생성 기준 수준 규칙은 서버(`learning/targetLevel`)가 정하고 여기서는 표시만 한다.
+
+/** 보이는 선택(D9 A) = 고른 값, 손대지 않았으면 주제 난이도. */
+export function selectedLevel(d: Pick<Draft, 'level'>, topic: Pick<Topic, 'level'> | null): JlptLevel | null {
+  return d.level ?? topic?.level ?? null
+}
+
+/** 쉬운 쪽 0(N5) … 어려운 쪽 4(N1). */
+export function levelRank(l: JlptLevel): number {
+  return JLPT_LEVELS.indexOf(l)
+}
+
+export type LevelHint = { kind: 'high'; steps: number } | { kind: 'low' } | null
+
+/** 안내 줄 규칙(D8 A) — 내 수준보다 2단계 이상 위 = high, 아래 = low, 같음·1단계 위 = 없음. 내 수준을 모르면 없음. 막지 않는다. */
+export function levelHint(sel: JlptLevel, my: JlptLevel | null): LevelHint {
+  if (!my) return null
+  const d = levelRank(sel) - levelRank(my)
+  if (d >= 2) return { kind: 'high', steps: d }
+  if (d < 0) return { kind: 'low' }
+  return null
+}
+
+export function levelHintText(h: LevelHint): string {
+  if (!h) return ''
+  return h.kind === 'high' ? CREATE.levelHigh(h.steps) : CREATE.levelLow
+}
+
+/** 비교·꼬리말 기준 — 내 수준·내 목표는 프로필(모르면 null), 이 주제는 고른 주제. */
+export interface LevelContext {
+  my: JlptLevel | null
+  goal: JlptLevel | null
+  topic: JlptLevel
+}
+
+/** 프로필 → 만들기 화면 props — 내 수준 = `level`, 내 목표 = `goalLevel`. 서버 페이지라 직접 렌더할 수 없어 값 연결을 시험하려고 따로 둔다(REV-076U M-1). */
+export function profileLevelProps(p: { level: JlptLevel | null; goalLevel: JlptLevel | null }): { myLevel: JlptLevel | null; goalLevel: JlptLevel | null } {
+  return { myLevel: p.level, goalLevel: p.goalLevel }
+}
+
+/** 알약 시각 숨김 글 — 「초급 (N4), 내 수준, 이 주제 기본」. 꼬리말은 맞는 것만, 순서 내 수준 → 내 목표 → 이 주제 기본(§33-2). */
+export function levelPillSr(l: JlptLevel, ctx: LevelContext): string {
+  const tails: string[] = []
+  if (ctx.my === l) tails.push(CREATE.levelSr.my)
+  if (ctx.goal === l) tails.push(CREATE.levelSr.goal)
+  if (ctx.topic === l) tails.push(CREATE.levelSr.topic)
+  return [levelLabel(l), ...tails].join(', ')
+}
+
+export interface LevelCompareGroup {
+  head: string
+  label: string
+}
+
+/** 비교 줄 묶음(D3 A) — 내 수준(모르면 빠짐) · 내 목표(없으면 빠짐) · 이 주제. 화면은 묶음 안에서 줄을 바꾸지 않는다. */
+export function levelCompareGroups(ctx: LevelContext): LevelCompareGroup[] {
+  const out: LevelCompareGroup[] = []
+  if (ctx.my) out.push({ head: CREATE.levelCompareHead.my, label: levelLabel(ctx.my) })
+  if (ctx.goal) out.push({ head: CREATE.levelCompareHead.goal, label: levelLabel(ctx.goal) })
+  out.push({ head: CREATE.levelCompareHead.topic, label: levelLabel(ctx.topic) })
+  return out
+}
+
+/** 비교 줄을 이어 붙인 글 — 화면에 보이는 글과 같다. */
+export function levelCompareText(groups: readonly LevelCompareGroup[]): string {
+  return groups.map((g) => `${g.head} ${g.label}`).join(' · ')
+}
+
+/** ④ 확인 「난이도」 줄 dd 아래 작은 글 = `head` + (`topicLabel` 한 덩어리). 같으면 「이 주제 기본」, 다르면 「이 주제 기본은 초급 (N4)」. */
+export function confirmLevelNote(level: JlptLevel, topicLevel: JlptLevel): { head: string; topicLabel: string | null } {
+  if (level === topicLevel) return { head: CREATE.rowLevelSame, topicLabel: null }
+  return { head: CREATE.rowLevelDiffHead, topicLabel: levelLabel(topicLevel) }
+}
+
+/** 계획표 진행 중 카드 부제 앞(D10 A) — 「난이도 중급 (N3)」. */
+export function planLevelText(l: JlptLevel): string {
+  return COPY.planLevel(levelLabel(l))
+}
+
+/**
+ * #156 본문. 난이도는 손대지 않았어도 보이는 값(주제 난이도)을 늘 싣는다 — 확인 단계에 보인 값 = 저장 값
+ * (주제 목록을 읽은 뒤 주제 난이도가 바뀌어도 사용자가 본 값으로 만든다). 서버는 같은 값이면 지금과 같은 결과다.
+ */
+export function createBody(
+  topic: Pick<Topic, 'id' | 'level'>,
+  d: Pick<Draft, 'lengthDays' | 'start' | 'level'>,
+  goal: { lesson: boolean; words: boolean; wordCount: ChallengeWordCount | null },
+): CreateChallengeBody {
+  return {
+    topicId: topic.id,
+    lengthDays: d.lengthDays,
+    start: d.start,
+    dailyGoal: { lesson: goal.lesson, words: goal.words, ...(goal.words && goal.wordCount ? { wordCount: goal.wordCount } : {}) },
+    level: d.level ?? topic.level,
+  }
 }
 
 export type CreateError =

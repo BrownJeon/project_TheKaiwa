@@ -95,8 +95,12 @@ export function levelHelpText(): string {
   return `선생님 대화와 오늘의 단어가 이 수준을 따라요. 이름은 JLPT 급수와 같아요 — ${levelName('N1')}은 가장 높은 급수(N1)예요.`
 }
 
-/** 오늘의 단어 준비 카드 한 줄(task-068 J13 · §28-2 D). */
-export function todayLevelLine(l: JlptLevel): string {
+/**
+ * 오늘의 단어 준비 카드 한 줄(task-068 J13 · §28-2 D). task-076 P10(D6 A): `challengeLevel` 이 오면 내 단어장 세트 가중 기준이 챌린지 난이도라
+ * 「지금 수준 … 가장 많이」가 틀린 말이 된다 → 챌린지 문장. 챌린지 난이도를 넘길지는 `topicLogic.mineSetChallengeLevel` 한 곳이 정한다.
+ */
+export function todayLevelLine(l: JlptLevel, challengeLevel?: JlptLevel | null): string {
+  if (challengeLevel) return `챌린지 난이도(${levelLabel(challengeLevel)})까지의 단어가 주로 나와요.`
   return `지금 수준(${levelLabel(l)}) 단어가 가장 많이 나와요.`
 }
 

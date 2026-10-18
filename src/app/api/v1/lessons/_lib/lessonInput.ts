@@ -19,8 +19,12 @@ export interface LessonInputContext {
   corrections: NonNullable<LessonInput['acceptedCorrections']>
 }
 
-function topicInput(t: NonNullable<LessonMaterials['topic']>): NonNullable<LessonInput['topic']> {
-  return { title: t.title, titleJa: t.titleJa, level: t.level, chunks: t.chunks.map((c) => ({ id: c.id, chunkType: asTopicChunkType(c.chunkType, 'MODIFIER'), textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo })) }
+/**
+ * `level` 은 주제 행의 수준이 아니라 **레슨 수준 `m.level`** 이다(task-076 — 주제 수업은 기준 수준 T). 상황 수업의 대표 주제는 `m.level` 이 곧 주제 수준이라
+ * task-076 전과 바이트가 같다.
+ */
+function topicInput(t: NonNullable<LessonMaterials['topic']>, level: LessonMaterials['level']): NonNullable<LessonInput['topic']> {
+  return { title: t.title, titleJa: t.titleJa, level, chunks: t.chunks.map((c) => ({ id: c.id, chunkType: asTopicChunkType(c.chunkType, 'MODIFIER'), textJa: c.textJa, reading: c.reading, meaningKo: c.meaningKo })) }
 }
 
 /** 상황 행 → A4 `[상황]` 입력(글자 수 자르기는 PE `lesson.ts` 가 한다). */
@@ -44,7 +48,7 @@ export function lessonInputFor(m: LessonMaterials, ctx: LessonInputContext): Les
     return {
       todayKst: ctx.todayKst,
       learner: ctx.learner,
-      topic: m.topic ? topicInput(m.topic) : null,
+      topic: m.topic ? topicInput(m.topic, m.level) : null,
       sourceText: m.input.kind === 'text' ? m.input.sourceText : null,
       acceptedCorrections: ctx.corrections,
       previousTitles: m.previousTitles,
@@ -54,7 +58,7 @@ export function lessonInputFor(m: LessonMaterials, ctx: LessonInputContext): Les
   return {
     todayKst: ctx.todayKst,
     learner: ctx.learner,
-    topic: m.topic && m.topic.chunks.length > 0 ? topicInput(m.topic) : null,
+    topic: m.topic && m.topic.chunks.length > 0 ? topicInput(m.topic, m.level) : null,
     sourceText: null,
     acceptedCorrections: ctx.corrections,
     previousTitles: m.previousTitles,

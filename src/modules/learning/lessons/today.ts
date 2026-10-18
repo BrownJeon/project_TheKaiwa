@@ -18,6 +18,7 @@ import { getActiveChallengeTopic, type ActiveChallengeTopic, type ChallengeDeps 
 import type { ReviewDecisionDriver } from '../repetition/decision'
 import { EMPTY_REVIEW_STATE, getTodayReviewState, type TodayReviewState } from '../reviewSchedule'
 import { doneLessonStats, levelWindow, pickFewestLessonTopic } from '../topics'
+import { readTargetLevel, type TargetLevel, type TargetLevelProfile, type TargetLevelSource } from '../targetLevel'
 import { readStoredContent, summarizeExpressions } from './content'
 import { lessonGenKindOf, settleGenerating } from './generate'
 import { readProgress, speakingRecords } from './progress'
@@ -49,11 +50,20 @@ export interface LessonRecommendation {
   nextPreview: { titleKo: string; teaserKo: string } | null
 }
 
+/**
+ * #58 응답의 추천(task-076 L8) — `level` 은 지금처럼 **주제 난이도**(「주제 고르기」 등 다른 소비처 보호), 새 칸 `lessonLevel` 은 그 수업을
+ * 만들 수준 T(#59 주제 수업이 실제로 쓰는 값), `levelSource` 는 T 의 출처. 기준을 확정하지 못하면(조회 실패) 둘 다 null — 화면은 지금 뱃지.
+ */
+export interface TodayLessonRecommendation extends LessonRecommendation {
+  lessonLevel: JlptLevel | null
+  levelSource: TargetLevelSource | null
+}
+
 export interface TodayLessonsDto extends TodayReviewState {
   date: string
   todayLessons: TodayLessonItem[]
   resume: { id: string; title: string; titleKo: string | null; stageDone: number; date: string } | null
-  recommendation: LessonRecommendation | null
+  recommendation: TodayLessonRecommendation | null
 }
 
 const ITEM_SELECT = {
@@ -97,6 +107,28 @@ export async function recommendTodayLesson(userId: string, level: JlptLevel, ove
     return { topicId: challenge.topicId, topicTitle: challenge.topicTitle, level: challenge.level, reason: 'CHALLENGE', nextPreview: lastOfTopic ? previewOf(lastOfTopic.content) : null }
   }
   return deps.byHistory(userId, level)
+}
+
+/** 추천 + 수업 수준 칸(순수). 추천 자체(주제·`level`·`reason`)는 손대지 않는다. */
+export function attachLessonLevel(rec: LessonRecommendation | null, target: TargetLevel | null): TodayLessonRecommendation | null {
+  if (!rec) return null
+  return { ...rec, lessonLevel: target?.level ?? null, levelSource: target?.source ?? null }
+}
+
+/**
+ * #58 `recommendation` — 기존 추천(`recommendTodayLesson`, 주제 고르기는 지금처럼 내 수준 ±1 창)에 T(`challenges` `readTargetLevel`)를 붙인다.
+ * `profile` 은 #58 이 이미 읽은 값을 넘긴다(두 번 읽지 않음). 추천 계산은 `profile.level` 만 쓴다(지금 그대로).
+ */
+export async function recommendWithLessonLevel(
+  userId: string,
+  profile: { level: JlptLevel } & TargetLevelProfile,
+  over: Partial<TodayRecommendDeps> = {},
+): Promise<TodayLessonRecommendation | null> {
+  const [rec, target] = await Promise.all([
+    recommendTodayLesson(userId, profile.level, over),
+    readTargetLevel(userId, { db: over.challenge?.db, now: over.challenge?.now, profile: async () => profile }),
+  ])
+  return attachLessonLevel(rec, target)
 }
 
 async function recommendByHistory(userId: string, level: JlptLevel): Promise<LessonRecommendation | null> {
@@ -173,6 +205,6 @@ export async function getTodayLessons<T = unknown>(userId: string, opts: { revie
     date: today,
     todayLessons,
     resume: older ? { id: older.id, title: older.title, titleKo: readStoredContent(older.content)?.titleKo ?? null, stageDone: older.stageDone, date: dates.fromDbDate(older.date) } : null,
-    recommendation: await recommendTodayLesson(userId, profile.level as JlptLevel),
+    recommendation: await recommendWithLessonLevel(userId, { level: profile.level as JlptLevel, goalLevel: profile.goalLevel }),
   }
 }
