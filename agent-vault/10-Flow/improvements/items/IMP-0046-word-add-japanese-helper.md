@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0046
 title: "단어 추가 시트에 일본어 도우미(가あ) 추가 — 회화방 입력 줄과 같은 방식"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words) 단어 추가 시트 — 표현 칸"
 area: ui
 priority: ""

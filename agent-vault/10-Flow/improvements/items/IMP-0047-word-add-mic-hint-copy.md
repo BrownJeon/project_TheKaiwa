@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0047
 title: "단어 추가 「말로 쓰기」 안내 문구 — 일본어 발음으로 말하라는 예시와 인식 직후 확인 안내"
-status: planned
+status: done
 screen: "§4 단어장 단어 추가 시트 — 표현·예문 「말로 쓰기」(task-069)"
 area: copy
 priority: ""

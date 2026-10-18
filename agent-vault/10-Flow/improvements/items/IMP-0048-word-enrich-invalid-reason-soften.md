@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0048
 title: "뜻 채우기가 일본어가 아니라고 판정할 때 오타 단정 문구 완화"
-status: planned
+status: done
 screen: "§4 단어장 단어 추가 시트 — 표현 판정 실패 안내(`wordEnrich` invalidReason)"
 area: copy
 priority: ""
