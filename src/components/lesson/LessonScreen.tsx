@@ -21,6 +21,7 @@ import LessonEnd from './LessonEnd'
 import LessonGenScreen from './LessonGenScreen'
 import { GEN, LESSON, PASTED_TOPIC } from './lessonCopy'
 import { endResultFrom, firstStage, type EndResult } from './logic'
+import { lessonToastBottom } from './lessonVoiceView'
 import { LessonHeader, StageSteps } from './parts'
 import ReviewItemsCard from './review/ReviewItemsCard'
 import { RV_GEN } from './review/reviewCopy'
@@ -35,6 +36,7 @@ import { useLesson, type UseLesson } from './useLesson'
 import { LESSON_KEYS, takeFlash } from './useLessonCreate'
 import { useLessonPlayback } from './useLessonPlayback'
 import { useSpeechConfig } from './useLessonVoice'
+import { useSpeakTrCache } from './useSpeakTranslation'
 
 type ReadyLesson = LessonDto & { content: LessonContent }
 
@@ -170,6 +172,10 @@ function LessonStages({
   const [advancing, setAdvancing] = useState(false)
   const pb = useLessonPlayback(lesson.id, show)
   const { config, textFirst } = useSpeechConfig()
+  // ⑤ 하단 묶음(도우미 판 + 입력 바) 실제 높이 — 토스트 바닥(B8 A, task-077). 재기 전·다시 보기는 null(지금 값 136).
+  const [speakBottom, setSpeakBottom] = useState<number | null>(null)
+  // 「내가 한 말」 한국어 뜻 메모리 — 수업 화면 동안만(저장 없음).
+  const trCache = useSpeakTrCache()
   const rootRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const topic = lesson.topic?.title ?? PASTED_TOPIC
@@ -288,6 +294,9 @@ function LessonStages({
           onDone={complete}
           reviewNote={reviewNote}
           footer={footer}
+          toastOpen={!!toast.message}
+          onBottomHeight={setSpeakBottom}
+          trCache={trCache}
         />
       ) : (
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-8 pt-3.5">
@@ -304,7 +313,7 @@ function LessonStages({
           )}
         </div>
       )}
-      <Toast message={toast.message} bottomPx={stage === 5 ? 136 : 24} />
+      <Toast message={toast.message} bottomPx={lessonToastBottom(stage, speakBottom)} />
     </div>
   )
 }

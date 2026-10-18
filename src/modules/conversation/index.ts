@@ -56,6 +56,7 @@ export type { AskAdmission } from './chats/askLimits'
 export { createChat, listChats, getChatDetail, getOwnedChat, getOwnedChatKind, ownedChatIds, updateChatTitle, deleteChat, sweepStalePending } from './chats'
 export type { ChatDto, ChatDetailDto, ChatListPage, MessageDto } from './chats'
 export { retryUserTranslation } from './chats/translation'
+export { translateLessonSpeech, readLessonTranslationBody, lessonTranslationDeps, type LessonTranslationBody, type LessonTranslationDeps } from './chats/lessonTranslation' // task-077 #185 레슨 말하기 번역(저장 없음)
 // task-010d 상황 역할극 — A1-서버 생성·종료 재료 + A3b-1 라우트 연결(#28 첫마디·#29 chat.scenario·#167 종료·진행 중 칸)
 export {
   parseRolePlayIds,
@@ -99,6 +100,7 @@ export { parsePhraseHelpBody, phraseHelpItems, phraseHelpTrace, phraseHelpViolat
 export type { PhraseHelpMode, PhraseHelpResponse, PhraseHelpModelItem, PhraseHelpItem, PhraseHelpFinal, PhraseHelpFinalStatus, PhraseHelpBody, PhraseHelpBodyProblem, PhraseHelpBodyResult, PhraseHelpContext, PhraseHelpDropReason, PhraseHelpRepairs, PhraseHelpStatus } from './structuredResponse/phraseHelp'
 export { helpPhrase, helpWordPhrase, readPhraseHelpBody, phraseHelpDeps, phraseHelpScene, PHRASE_HELP_FAIL_MESSAGE } from './chats/phraseHelp'
 export type { PhraseHelpDeps, WordPhraseHelpDeps, PhraseHelpResult, PhraseHelpSceneCode } from './chats/phraseHelp'
+export { helpLessonPhrase } from './chats/phraseHelp' // task-077 #184 오늘의 회화 ⑤ 도우미 입구(문장 모드, #180·#181 과 한도·잠금 공유, 저장 없음)
 export { draftScenario, parseScenarioDraftBody, SCENARIO_DRAFT_DESCRIPTION_MIN } from './chats/scenarioDraft'
 export type { ScenarioDraftResult, ScenarioDraftBody, ScenarioDraftInlineTopic } from './chats/scenarioDraft'
 // task-045 변형 상황 초안(scenarioVariant@v3 — 기준 상황 + 축(성격·돌발·흐름·수준) → 새 상황 초안 + 바뀐 칸, 저장하지 않음). 라우트(app 층)가 값으로 엔진을 부른다. 축 열거·칩 문구는 `@/types/scenarioVariant`

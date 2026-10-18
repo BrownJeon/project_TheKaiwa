@@ -14,6 +14,7 @@
  *   큐 대기분은 수용한 한계다: 재시도도 같은 큐 뒤에 서므로 기다리는 시간은 같다.
  * - Trace 에는 코드·수치만(`phraseHelpTrace`) — 질의·표현·뜻·이유 원문 0.
  * - 단어 추가 시트의 도우미(task-072, #181)는 아래 `helpWordPhrase` — 채팅 의존만 걷어내고 잠금·엔진 호출·취소·Trace 를 이 파일의 내부 조각으로 공유한다.
+ *   오늘의 회화 ⑤ 말하기의 도우미(task-077, #184)는 `helpLessonPhrase` — 같은 조각을 쓰되 모드는 회화방 일반 모드(문장 표현)다.
  */
 import { ApiError, classifyError } from '@/modules/infra'
 import { llm, newTraceId, recordTrace, type LlmJsonRequest, type LlmJsonResult, type TraceRecord, type TraceStep } from '@/modules/engine'
@@ -147,15 +148,38 @@ export async function helpWordPhrase(userId: string, body: PhraseHelpBody, deps:
   })
 }
 
+/** 레슨 도우미가 쓰는 의존 — 단어 도우미와 같다(대화·역할극 재료·레슨 행을 읽는 칸이 없다). 기본 배선(`phraseHelpDeps`)이 그대로 들어맞는다. */
+export type LessonPhraseHelpDeps = WordPhraseHelpDeps
+
+/**
+ * 오늘의 회화 ⑤ 말하기의 일본어 도우미(task-077 IMP-0054, #184 `POST /api/v1/lessons/:id/phrase-help {queryKo}`) — **저장 없음**, 응답은 #180 과 같은 모양(`{items:[{ja,ko,labelKo?,whyKo?}]}`).
+ * 장면 없는 회화방(일반 모드)과 같은 요청이다: 모드 생략(`phraseHelp@v1` 문장 표현 — 단어 모드 아님) · 장면 `null` · **레슨 맥락(과제 문장·목표 표현)은 싣지 않는다**
+ * (B2 A — 맥락을 실으면 모델이 질의를 바꿔 쓴 실측이 `prompts/phraseHelp.ts` 머리에 있다). 수준 = 프로필(#181 과 같음 — 레슨 행을 읽지 않는다).
+ * 레슨 소유 확인(남의·없는 레슨 404)은 라우트(app 층)가 learning `assertOwnedLesson` 으로 먼저 한다 — 이 함수는 `lessonId` 를 Trace `refId` 로만 쓰고 레슨 내용을 읽지 않는다.
+ * 레슨 상태는 묻지 않는다(진행 중·끝난 레슨 모두). 잠금(`PHRASE_BUSY`)·엔진 호출·취소·Trace·결과 매핑은 #180·#181 과 같은 내부 조각 — 세 도우미가 사용자당 동시 1건을 나눠 쓴다(B3 A).
+ * Trace 는 `refType: 'phraseHelp'` · `refId: lessonId` · 단계에 `entry: 'lesson'`·`promptVersion` 만 더한다(원문 0).
+ */
+export async function helpLessonPhrase(userId: string, lessonId: string, body: PhraseHelpBody, deps: LessonPhraseHelpDeps = phraseHelpDeps, signal?: AbortSignal): Promise<PhraseHelpResult> {
+  return withPhraseLock(userId, async () => {
+    const level = await deps.learnerLevel(userId)
+    const input: PhraseHelpInput = { queryKo: body.queryKo, level, scene: null }
+    return runPhraseHelp(userId, lessonId, input, buildHelpRequest(input), 'NONE', deps, signal, { entry: 'lesson', promptVersion: phraseHelpPromptVersion() })
+  })
+}
+
+/** Trace 단계에 더하는 입구 표시(코드 값만) — 회화방(#180)은 생략, 단어(#181)는 `mode`, 레슨(#184)은 `entry`. */
+type PhraseHelpStepExtra = { readonly mode?: 'word'; readonly entry?: 'lesson'; readonly promptVersion: string }
+
+/** `refId` = Trace 대상 id(회화방 = 대화 id · 단어 = null · 레슨 = 레슨 id). */
 async function runPhraseHelp(
   userId: string,
-  chatId: string | null,
+  refId: string | null,
   input: PhraseHelpInput,
   req: LlmJsonRequest<PhraseHelpResponse>,
   scene: PhraseHelpSceneCode,
   deps: WordPhraseHelpDeps,
   signal?: AbortSignal,
-  stepExtra?: { mode: string; promptVersion: string },
+  stepExtra?: PhraseHelpStepExtra,
 ): Promise<PhraseHelpResult> {
   const traceId = newTraceId()
   const started = Date.now()
@@ -195,6 +219,6 @@ async function runPhraseHelp(
     errorCode ??= classifyError(e).code
     throw e
   } finally {
-    void deps.trace({ traceId, kind: 'TURN', userId, status, steps, totalMs: Date.now() - started, errorCode, refType: 'phraseHelp', refId: chatId }).catch(() => undefined)
+    void deps.trace({ traceId, kind: 'TURN', userId, status, steps, totalMs: Date.now() - started, errorCode, refType: 'phraseHelp', refId }).catch(() => undefined)
   }
 }

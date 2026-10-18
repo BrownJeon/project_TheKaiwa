@@ -9,6 +9,8 @@
  *  - 결과 낭독(늘 마운트된 sr 줄)은 녹음 중이면 끝난 뒤로 미룬다(§9-0 ⑨).
  *  - 소리는 `useKeyedSound` 키 `helper:{index}` — 한 번에 하나. 판이 닫히거나 방 소리가 나면 멈춘다.
  * 요청 수명주기(동시에 하나·타이머·취소·늦은 응답 버림)는 `phraseHelperLogic.createHelperRequester`, 결말 판단은 `settleHelper`.
+ * 오늘의 회화 ⑤(task-077 §34-3)는 `chatId` 대신 요청 함수(`request` — #184)를 넘기고 `ended`·`onEnded` 를 넘기지 않는다(마친 방이 없다).
+ * 잠금(`recording`)은 부르는 화면이 정한다 — 회화방 `helperLockReason(view.state)`, 레슨 `lessonHelperLockReason(voice.phase, checking)`.
  * 엔진·모델 이름은 다루지 않는다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -19,22 +21,32 @@ import { askBlockOf, cancelNoteOnCancel, cancelNoteOnOpen, createHelperRequester
 
 export type HelperPhase = 'idle' | 'loading' | 'slow' | 'result' | 'none' | 'error' | 'timeout' | 'rate' | 'busy'
 
-export interface PhraseHelperDeps {
-  chatId: string
+/** 도우미 요청 하나 — 정리된 질의(`queryKo`)와 끊기 신호를 받아 #180 과 같은 모양(`{items}`)의 응답 본문을 돌려준다. 실패는 `apiPost` 와 같은 예외로 던진다. */
+export type PhraseHelpRequest = (queryKo: string, signal: AbortSignal) => Promise<unknown>
+
+/** 주소 하나로 도우미 요청을 만든다(본문 `{queryKo}` 하나 — #180·#184 공통). */
+export function phraseHelpRequest(path: string): PhraseHelpRequest {
+  return (queryKo, signal) => apiPost<unknown>(path, { queryKo }, { signal })
+}
+
+interface PhraseHelperBase {
   /** 도우미가 잠긴 상태(`helperLocked` — 녹음·인식 + 선생님이 답하는 중) — 입력·[물어보기]·카드 버튼이 잠기고 결과 낭독은 풀린 뒤로 미룬다. */
   recording: boolean
-  /** 마친 역할극 — 판·버튼을 그리지 않는다(열려 있던 판은 사라지고 `open` 만 남는다). */
-  ended: boolean
+  /** 마친 역할극 — 판·버튼을 그리지 않는다(열려 있던 판은 사라지고 `open` 만 남는다). 없으면 false. */
+  ended?: boolean
   /** 방 재생(선생님 말)이 소리를 내는 중 — 도우미 소리를 멈춘다. */
   roomSounding: boolean
   /** ▶ 를 누르면 먼저 방 소리(선생님 말·대답 연습)를 멈춘다. */
   stopOthers: () => void
-  /** 409 ENDED — 마친 역할극으로 다시 읽는다. */
-  onEnded: () => void
+  /** 409 ENDED — 마친 역할극으로 다시 읽는다. 없으면 아무것도 하지 않는다(판만 닫힌다). */
+  onEnded?: () => void
 }
 
+/** 요청 대상 — 회화방은 `chatId`(#180), 그 밖의 화면은 요청 함수 하나(`request`). 둘 중 하나만 넘긴다. */
+export type PhraseHelperDeps = PhraseHelperBase & ({ chatId: string; request?: undefined } | { request: PhraseHelpRequest; chatId?: undefined })
+
 export function usePhraseHelper(d: PhraseHelperDeps) {
-  const { chatId } = d
+  const chatId = d.chatId ?? ''
   const [open, setOpen] = useState(false)
   const [query, setQueryState] = useState('')
   const [phase, setPhase] = useState<HelperPhase>('idle')
@@ -122,7 +134,7 @@ export function usePhraseHelper(d: PhraseHelperDeps) {
         setPhase('idle')
         setOpen(false)
         setTyping(false)
-        depsRef.current.onEnded()
+        depsRef.current.onEnded?.()
         return
       case 'rate':
         setRateUntil(Date.now() + f.sec * 1000)
@@ -151,6 +163,12 @@ export function usePhraseHelper(d: PhraseHelperDeps) {
     setCancelNote(null)
     setAnnounce('')
     pendingAnnounce.current = null
+    const custom = d.request
+    if (custom) {
+      void req.start((signal) => custom(q.trim(), signal), { onSlow: () => setPhase((p) => (p === 'loading' ? 'slow' : p)), settle })
+      return
+    }
+    // 회화방 기본 경로 — 회귀 시험(phraseHelperRender)이 이 줄을 글자 그대로 본다.
     void req.start((signal) => apiPost<unknown>(`/api/v1/chats/${encodeURIComponent(chatId)}/phrase-help`, { queryKo: q.trim() }, { signal }), {
       onSlow: () => setPhase((p) => (p === 'loading' ? 'slow' : p)),
       settle,

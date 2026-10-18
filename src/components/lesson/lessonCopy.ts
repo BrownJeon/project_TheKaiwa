@@ -381,7 +381,7 @@ export const U5 = {
   stopSound: '소리 멈추기',
   pttNormal: '누르고 있는 동안 말하기',
   pttBarge: '누르면 소리를 멈추고 말하기',
-  inputPlaceholder: '일본어로 써서 답해 보세요',
+  inputPlaceholder: '일본어로 답해 보세요',
   emptyToast: '일본어로 답을 써 주세요',
   checkFail: '확인하지 못했어요. 다시 말해 주세요.',
   noAudio: '녹음이 없어요. 내 목소리는 30일 동안만 보관해요.',
@@ -389,6 +389,10 @@ export const U5 = {
   checking: '확인하는 중…',
   task: (k: number) => `과제 ${k}`,
   speaking: '듣는 중 · 누르면 멈추고 말해요',
+  /** 「내가 한 말」 한국어 뜻 앞 시각 숨김(task-077 §34-6) */
+  trSr: '한국어 뜻: ',
+  /** 말로 한 답을 AI 가 옮겼을 때만(A4 A) */
+  trHeard: '알아들은 말을 그대로 옮겼어요',
 } as const
 
 /** ⓗ 종료 카드 */

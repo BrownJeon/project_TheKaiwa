@@ -4,6 +4,7 @@
  * 음성 입력 바(screens §9-2 F) — 상태 줄(h-6, `#talk-status`) + [⌨ 44 · 푸시투토크 72 · ■ 44]. ■ 가 없을 때도 빈 칸을 두어 버튼이 움직이지 않는다.
  * `trailing`(일본어 도우미, §22)이 있으면 도우미가 우측 끝 44 칸을 쓰고 ■ 는 마이크 오른쪽(12px)으로 옮겨 앉는다.
  * 푸시투토크는 §8 컴포넌트 그대로 — 누름·뗌 순서(barge-in·오디오 깨우기)는 방이 감싼다.
+ * 오늘의 회화 ⑤(task-077 §34-3)는 레슨용 view 와 ■ 이름·상태 줄 id 를 선택 prop 으로 넘긴다 — 넘기지 않으면 지금 마크업 그대로(`voiceSharedFrozen`).
  */
 import type { ReactNode } from 'react'
 import MicLevelMeter from '@/components/speech/MicLevelMeter'
@@ -42,6 +43,8 @@ export default function VoiceBar({
   cancelOutside,
   safeBottom = true,
   keyboardLabel = TALK_ROOM.keyboard,
+  stopLabel = TALK_ROOM.stopTeacher,
+  statusId = TALK_STATUS_ID,
 }: {
   view: TalkView
   db: number | null
@@ -58,13 +61,17 @@ export default function VoiceBar({
   safeBottom?: boolean
   /** ⌨ 버튼 이름(기본 「글자로 입력하기」, 질문 탭 「글자로 묻기」) */
   keyboardLabel?: string
+  /** ■ 버튼 이름(기본 「선생님 말 멈추기」, 오늘의 회화 「소리 멈추기」) */
+  stopLabel?: string
+  /** 상태 줄 id — 누르고 말하기 버튼의 `aria-describedby` 가 가리킨다(기본 `talk-status`). 한 화면에 말 바가 하나뿐이면 기본값으로 충분하다. */
+  statusId?: string
 }) {
   const ptt = (
     <PushToTalkButton
       phase={view.ptt.phase}
       disabled={view.ptt.disabled}
       label={view.ptt.label}
-      describedBy={TALK_STATUS_ID}
+      describedBy={statusId}
       onPress={onPress}
       onRelease={onRelease}
       onAbort={onAbort}
@@ -72,14 +79,14 @@ export default function VoiceBar({
     />
   )
   const stop = view.showStop ? (
-    <button type="button" aria-label={TALK_ROOM.stopTeacher} onClick={onStop} className="grid h-11 w-11 place-items-center rounded-full bg-surface2 text-ink">
+    <button type="button" aria-label={stopLabel} onClick={onStop} className="grid h-11 w-11 place-items-center rounded-full bg-surface2 text-ink">
       <StopIcon />
     </button>
   ) : null
   return (
     <div className="flex-none border-t border-line bg-surface px-4 pt-2" style={{ paddingBottom: safeBottom ? 'max(8px, env(safe-area-inset-bottom))' : '8px' }}>
       {/* div — 레벨 미터가 div 라 p 안에 둘 수 없다(수화 오류). */}
-      <div id={TALK_STATUS_ID} className="flex h-6 min-w-0 items-center justify-center gap-2 text-[13px] text-ink2">
+      <div id={statusId} className="flex h-6 min-w-0 items-center justify-center gap-2 text-[13px] text-ink2">
         <MicLevelMeter db={db} active={view.state === 'RECORDING'} />
         <span className="min-w-0 truncate break-keep">{view.statusText}</span>
       </div>

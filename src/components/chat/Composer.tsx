@@ -7,6 +7,8 @@
  * - Enter 전송은 포인터가 정밀한 기기(데스크톱)에서만, 그리고 **IME 조합 중(isComposing·229)이면 무시**한다
  *   (일본어 변환 확정 Enter 로 보내지는 사고). 모바일은 Enter=줄바꿈, 보내기는 버튼만.
  * - 초안은 sessionStorage 에 입력창 내용 그대로 둔다(300ms 디바운스) — 보내면 비워지고, 못 보내면 원문이 돌아온다.
+ * - 오늘의 회화 ⑤(task-077 §34-3)는 `chatId` 대신 초안 키 전체(`draftKey`)·Enter 방식(`enterSends='always'`)·보내기 이름(`sendLabel`)을 넘긴다.
+ *   과제가 바뀌면 `key` 로 새로 그린다(초안은 마운트 때 한 번 읽는다). 넘기지 않으면 지금 동작 그대로.
  */
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { cpLength } from '@/components/common/format'
@@ -23,6 +25,25 @@ export interface ComposerHandle {
   focus: () => void
 }
 
+/** Enter 로 보내는 기기 — `finePointer` = 포인터가 정밀한 기기만(모바일 Enter = 줄바꿈, 지금 회화·채팅·질문) · `always` = 모든 기기(오늘의 회화 ⑤, B6-Q A). */
+export type ComposerEnter = 'finePointer' | 'always'
+
+/**
+ * 이 키 입력으로 보낼지. IME 조합 중(isComposing·229)·Shift+Enter 는 어느 방식에서도 보내지 않는다.
+ * `finePointer` 는 Enter·조합 아님·Shift 아님일 때만 부른다(매체 질의는 그때만).
+ */
+export function enterSubmits(e: { key: string; shiftKey: boolean; isComposing: boolean; keyCode: number }, mode: ComposerEnter, finePointer: () => boolean): boolean {
+  if (e.key !== 'Enter') return false
+  if (e.isComposing || e.keyCode === 229) return false
+  if (e.shiftKey) return false
+  return mode === 'always' || finePointer()
+}
+
+/** 초안 저장 키 — 넘긴 키 전체가 먼저, 없으면 대화 키(`KEYS.draft(chatId)`, 지금). */
+export function composerDraftKey(src: { chatId?: string; draftKey?: string }): string {
+  return src.draftKey ?? KEYS.draft(src.chatId ?? '')
+}
+
 const MAX_CP = 1000
 const WARN_CP = 900
 const MAX_HEIGHT_PX = 136
@@ -32,22 +53,7 @@ export function composerPaddingBottom(safeBottom: boolean): string {
   return safeBottom ? 'max(8px, var(--safe-bottom))' : '8px'
 }
 
-export default function Composer({
-  chatId,
-  busy,
-  blockedUntil,
-  placeholder,
-  onSend,
-  onBlocked,
-  handleRef,
-  leading,
-  onTextChange,
-  lang = 'ja',
-  inputLabel = '메시지 입력',
-  busyReason = '선생님 답을 기다리는 중이에요',
-  safeBottom = true,
-}: {
-  chatId: string
+interface ComposerBase {
   busy: boolean
   blockedUntil: number | null
   placeholder: string
@@ -67,8 +73,35 @@ export default function Composer({
   busyReason?: string
   /** 아래 여백에 제스처 바 여백을 더할지(기본 true = 지금 동작). 질문 탭처럼 아래에 하단 탭·범위 줄이 따로 있으면 false = 8px 고정(task-066 §26-8 A). */
   safeBottom?: boolean
-}) {
-  const [text, setText] = useState(() => readStore('session', KEYS.draft(chatId)) ?? '')
+  /** Enter 로 보내는 기기(기본 `finePointer` = 지금). */
+  enterSends?: ComposerEnter
+  /** 보내기 버튼 이름 — 막힌 이유가 없을 때(기본 「보내기」, 오늘의 회화 「확인하기」). */
+  sendLabel?: string
+}
+
+/** 초안 키 — 대화 id(`chatId` → `KEYS.draft`, 지금) 또는 저장 키 전체(`draftKey`). 둘 중 하나만 넘긴다. */
+export type ComposerProps = ComposerBase & ({ chatId: string; draftKey?: undefined } | { draftKey: string; chatId?: undefined })
+
+export default function Composer({
+  chatId,
+  draftKey,
+  busy,
+  blockedUntil,
+  placeholder,
+  onSend,
+  onBlocked,
+  handleRef,
+  leading,
+  onTextChange,
+  lang = 'ja',
+  inputLabel = '메시지 입력',
+  busyReason = '선생님 답을 기다리는 중이에요',
+  safeBottom = true,
+  enterSends = 'finePointer',
+  sendLabel = '보내기',
+}: ComposerProps) {
+  const storeKey = composerDraftKey({ chatId, draftKey })
+  const [text, setText] = useState(() => readStore('session', storeKey) ?? '')
   const taRef = useRef<HTMLTextAreaElement>(null)
   const remaining = useCountdown(blockedUntil)
   const rateBlocked = blockedUntil !== null && (remaining === null || remaining > 0)
@@ -90,9 +123,9 @@ export default function Composer({
   }, [text])
 
   useEffect(() => {
-    const t = setTimeout(() => writeStore('session', KEYS.draft(chatId), text === '' ? null : text), 300)
+    const t = setTimeout(() => writeStore('session', storeKey, text === '' ? null : text), 300)
     return () => clearTimeout(t)
-  }, [chatId, text])
+  }, [storeKey, text])
 
   const count = cpLength(text)
   const empty = text.trim() === ''
@@ -154,9 +187,7 @@ export default function Composer({
             onTextChange?.(e.target.value)
           }}
           onKeyDown={(e) => {
-            if (e.key !== 'Enter') return
-            if (e.nativeEvent.isComposing || e.keyCode === 229) return
-            if (e.shiftKey || !window.matchMedia('(pointer: fine)').matches) return
+            if (!enterSubmits({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode }, enterSends, () => window.matchMedia('(pointer: fine)').matches)) return
             e.preventDefault()
             submit()
           }}
@@ -164,7 +195,7 @@ export default function Composer({
         />
         <button
           type="submit"
-          aria-label={reason ?? '보내기'}
+          aria-label={reason ?? sendLabel}
           aria-disabled={!canSend || undefined}
           onPointerDown={(e) => e.preventDefault()}
           className={`grid h-11 w-11 flex-none place-items-center rounded-full bg-accent text-on-accent ${canSend ? '' : 'opacity-40'}`}

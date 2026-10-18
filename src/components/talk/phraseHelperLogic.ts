@@ -25,8 +25,11 @@ export function claimHelperTip(read: typeof readStore = readStore, write: typeof
   return read('local', HELPER_TIP_KEY) === '1'
 }
 
-/** 도우미 버튼이 잠긴 이유 — `voice` = 내가 말하는 중(녹음·인식) · `turn` = 선생님이 답을 만드는 중(보내기 대기·생각). */
-export type HelperLockReason = 'voice' | 'turn'
+/**
+ * 도우미 버튼이 잠긴 이유 — `voice` = 내가 말하는 중(녹음·인식) · `turn` = 선생님이 답을 만드는 중(보내기 대기·생각) ·
+ * `check` = 오늘의 회화 ⑤ 에서 답을 확인하는 중(#62b, task-077 B5 A — 회화방에는 없는 이유).
+ */
+export type HelperLockReason = 'voice' | 'turn' | 'check'
 
 /**
  * 도우미를 열 수 있는 상태는 IDLE·SPEAKING 뿐이다(§22-6). 선생님 말 재생(SPEAKING)은 AI 호출이 이미 끝났으니 허용하고,
@@ -43,16 +46,27 @@ export function helperLocked(talkState: string): boolean {
   return helperLockReason(talkState) !== null
 }
 
+/**
+ * 오늘의 회화 ⑤ 의 잠금 이유(task-077 §34-5) — 레슨에는 턴이 없어 `helperLockReason` 대신 이 함수를 쓴다.
+ * 누르고 말하기의 시작·녹음·인식 마무리(`starting`·`recording`·`finishing`) = `voice`, 답 확인(#62b) 중 = `check`. 둘 다면 말하는 중이 먼저다(회화방과 같은 순서).
+ */
+export function lessonHelperLockReason(voicePhase: string, checking: boolean): HelperLockReason | null {
+  if (voicePhase === 'starting' || voicePhase === 'recording' || voicePhase === 'finishing') return 'voice'
+  if (checking) return 'check'
+  return null
+}
+
 /** 잠긴 버튼을 눌렀을 때의 토스트 문구 — 이유별. 이유가 없는 상태(버튼이 잠기지 않아 불리지 않는 길)는 기존 「말하는 중」 문구로 둔다. */
 export function helperLockToast(reason: HelperLockReason | null): string {
-  return reason === 'turn' ? HELPER.lockedTurn : HELPER.locked
+  return reason === 'turn' ? HELPER.lockedTurn : reason === 'check' ? HELPER.lockedCheck : HELPER.locked
 }
 
 /**
  * 판을 그릴지 — 열려 있고 마친 역할극이 아니면 그린다. 말하는 동안(녹음·인식)·결과 유무와는 무관하다(⑤A: 녹음 중에도 판은 남고 입력칸·버튼만 잠긴다).
  * 판이 사라지는 길은 닫기(✕·Esc·버튼)·보내기(`accepted`)·409 ENDED·`helperDismissOf` 뿐이다 — 녹음을 시작해서 사라졌다면 그 직후 오류 띠가 떴는지 본다.
+ * `ended` 가 없으면(마친 방이 없는 오늘의 회화) 마치지 않은 것으로 본다.
  */
-export function helperPanelShown(i: { open: boolean; ended: boolean }): boolean {
+export function helperPanelShown(i: { open: boolean; ended?: boolean }): boolean {
   return i.open && !i.ended
 }
 

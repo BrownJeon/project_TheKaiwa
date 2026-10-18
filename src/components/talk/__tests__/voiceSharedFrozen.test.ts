@@ -98,8 +98,14 @@ test('회화·수업·평가·마이크 테스트 화면은 질문 탭 전용 pr
     'src/components/eval/EvalItems.tsx',
     'src/components/speech/MicTestCard.tsx',
   ]
+  // task-077 B6 A(사용자 승인 2026-10-18 · Leader 승인 좁은 예외): 오늘의 회화 ⑤ 는 공용 `VoiceBar` 를 쓰고 ⌨ 이름 「글자로 답하기」를 `keyboardLabel` 로 넘긴다.
+  // 그래서 수업 ⑤ 두 파일에 한해 `keyboardLabel` 하나만 허용한다 — 다른 파일·다른 질문 탭 전용 prop 은 그대로 금지.
+  const keyboardLabelOk = new Set(['src/components/lesson/StageSpeak.tsx', 'src/components/lesson/useLessonVoice.ts'])
   for (const f of callers) {
     const src = read(f)
-    for (const bad of ['cancelOutside', 'safeBottom', 'keyboardLabel', 'textOf=', 'canResend', 'caption=']) assert.ok(!src.includes(bad), `${f}: ${bad}`)
+    for (const bad of ['cancelOutside', 'safeBottom', 'keyboardLabel', 'textOf=', 'canResend', 'caption=']) {
+      if (bad === 'keyboardLabel' && keyboardLabelOk.has(f)) continue
+      assert.ok(!src.includes(bad), `${f}: ${bad}`)
+    }
   }
 })

@@ -4,7 +4,7 @@
 > 이 문서는 **화면 구현 가이드의 단일 출처**다. API 요청/응답은 `docs/design/api-contract.md` 를 인용만 하고 다시 정의하지 않는다(#번호로 표기).
 > 새 화면이 생기면 §2 목록에 한 줄 추가하고, 화면별 절(§3~)을 덧붙인다.
 >
-> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h) · 2026-09-28 **§12 오늘의 회화**(오늘 홈 카드·주제 고르기·붙여넣기·수업 만들기 대기·5단계·종료 카드, 승인 데모 `docs/demo/task-010-today-lesson-v2.html`) 추가, §2 오늘 행·§5-2 A "곧 열려요" 갱신(task-010) · 2026-09-30 하단 탭 이름 "서랍장"→"단어장"(§2 두 행·§4-1 진입, 사용자 결정 — URL `/drawer/*`·모듈 이름은 그대로, task-020) · 2026-10-01 §12 오늘의 회화 개선 4건(승인 데모 `docs/demo/task-025-improve-today-lesson-v1.html`, 결정 a·b·c·d=A, e=B) — §12-2 F 줄 다시 듣기 ▶ · G 오늘의 표현 칩 소리 · H 문제 한국어 줄·옛 수업 대체 표기 · I 글자 비교 밑줄, §12-3 C 재생 키, §12-5·§12-8 갱신(task-025) · 2026-10-04 **§15 일본어 표시 — 히라가나·한글·번역**(승인 데모 `docs/demo/task-026-improve-hangul-reading-v4.html`, F1-A) 추가, §1-3 첫 줄을 §15 로 반전(task-026)
+> 변경 이력: 2026-09-27 신규 — §1 토큰·§2 목록·§3 AI 채팅(task-006) · 2026-09-27 §4 단어장·§5 오늘의 단어 추가, §2 오늘·서랍장 행 갱신(task-008) · 2026-09-27 §6 Admin Console Phase 1 추가, §2 설정·콘솔 행 갱신(task-005b) · 2026-09-27 §7 음성(TTS) 상태 표시등·미리듣기 추가, §2 설정·음성 회화방 행 갱신(task-003d) · 2026-09-28 §8 음성 인식 마이크 테스트 추가, §2 설정·음성 회화방 행 갱신(task-003e) · 2026-09-28 §9 AI 회화(음성) 회화방 추가, §2 회화 행·§3 "회화 준비 중" 문구·§7-3 A 폴링 멈춤 범위·§8-2 C 재생 중 버튼 메모(→ barge-in) 갱신(task-007) · 2026-09-28 §10 관리자 콘솔 — 발음 사전(목록·항목 시트·적용 전/후 미리듣기·가져오기/내보내기·버전 기록·되돌리기) 추가, §2 콘솔 행·§6 머리말·§6-1 메뉴 행·§6-2 E·§6-10 발음 사전 문구 갱신(task-003g) · 2026-09-28 §11 안드로이드 앱 전용 화면(휴대폰에서 알아듣기 카드 = 모델 내려받기·인식 방식 문구·경로 한 줄·회화방 전환 안내·앱 로그인 대기·앱 마이크 권한·업데이트 띠/설치 시트/앱 버전 줄·서버 연결 실패 화면·관리자 전용 휴대폰 인식 진단) 추가, §2 회화방·설정 행 갱신 + 로그인·앱 셸·APK 자산 행 추가, §8-1·§8-3 C·§8-8 ⓐⓓ·§9-1·§9-2 G·H 앱/웹 분기 문구 정합(task-003f) · 2026-09-28 **앱 이름 "Lingofy Japanese"·부제 "일본어가 자연스러워지는 AI 회화"**(사용자 결정) — §11-2 G·H·§11-8 ⓗⓙ·§11-11 ⑤ 갱신, 로그인 글자 로고 "Lingofy **Japanese**"(task-003h) · 2026-09-28 **§12 오늘의 회화**(오늘 홈 카드·주제 고르기·붙여넣기·수업 만들기 대기·5단계·종료 카드, 승인 데모 `docs/demo/task-010-today-lesson-v2.html`) 추가, §2 오늘 행·§5-2 A "곧 열려요" 갱신(task-010) · 2026-09-30 하단 탭 이름 "서랍장"→"단어장"(§2 두 행·§4-1 진입, 사용자 결정 — URL `/drawer/*`·모듈 이름은 그대로, task-020) · 2026-10-01 §12 오늘의 회화 개선 4건(승인 데모 `docs/demo/task-025-improve-today-lesson-v1.html`, 결정 a·b·c·d=A, e=B) — §12-2 F 줄 다시 듣기 ▶ · G 오늘의 표현 칩 소리 · H 문제 한국어 줄·옛 수업 대체 표기 · I 글자 비교 밑줄, §12-3 C 재생 키, §12-5·§12-8 갱신(task-025) · 2026-10-04 **§15 일본어 표시 — 히라가나·한글·번역**(승인 데모 `docs/demo/task-026-improve-hangul-reading-v4.html`, F1-A) 추가, §1-3 첫 줄을 §15 로 반전(task-026) · 2026-10-18 **§34 오늘의 회화 ⑤ 말하기 — 「내가 한 말」 한국어 뜻·일본어 도우미·공통 입력 영역**(승인 데모 `docs/demo/task-077-lesson-speak-helper-v1.html`) 추가 + 구현 후 §12-2 E·J, 12-3 D, 12-5·12-8·12-10, §22(머리·22-7·22-9·22-10), §26 VoiceBar 공용 확장 표를 §34 에 맞춰 정정, §34-13 구현 후 정정 추가(task-077) *(이 줄은 §15 이후 §16~§33 을 적지 않았다 — 각 절 머리의 task·날짜 표기가 정본)*
 
 ---
 
@@ -6260,7 +6260,8 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업 만들기" s
      (다시 보기 중) ReviewNote
      StageUnderstand | StageGrammar | StageQuiz | StageApply | StageSpeak
   </div>
-  (⑤만) LessonVoiceBar | LessonTextBar    flex-none, padding-bottom: max(8px, env(safe-area-inset-bottom))
+  (⑤만) [도우미 판] + 공용 VoiceBar | 공용 Composer    [⚠ task-077 → §34-2: 판+바를 flex-none 상자 하나(stackRef)로 묶고 높이를 재서 Toast 바닥으로 올린다. 아래 padding-bottom 은 두 공용 부품이 가진다(safeBottom 기본 true)]
+        (옛, task-077 로 대체: LessonVoiceBar | LessonTextBar    flex-none, padding-bottom: max(8px, env(safe-area-inset-bottom)) — 별도 파일이 아니라 StageSpeak.tsx 안 인라인 복제였다)
   Toast
 </div>
 ```
@@ -6381,7 +6382,16 @@ Card(@container):
 - **글자 비교(task-025, IMP-0016)** = `compare.ts` `compareAnswer(저장된 내 답, modelAnswerJa)` — 채팅 교정 카드와 같은 `diffCodepoints`(코드포인트 LCS, 200 초과 null)를 쓰고, **문장부호·공백(`\s`·`\p{P}`)만 다른 글자는 글자 하나씩 "같음"으로 돌린다**(이어 붙이면 원문과 같다는 불변식 유지). `<mark>`: `rounded-[3px] bg-surface px-px font-bold text-ink underline decoration-ink` + 내 문장 `decoration-dotted decoration-[2.5px]` / 모범 답안 `decoration-solid decoration-2`, `underline-offset-[5px]`(범례는 3px). **색은 ink·surface 만 — 빨강·초록·취소선·✓ 없음**. 채점이 아니라 비교 표시라 정오 판정·#61 저장·기록은 바뀌지 않는다.
 - 다시 들어왔을 때: 답이 저장된 칸은 비교 모양, 나머지는 쓰기부터(건너뛴 칸은 저장되지 않으니 쓰기로 돌아온다).
 
-#### J. ⑤ 말하기 — `StageSpeak` + `LessonVoiceBar` (`#l5` · `#l5-ok` · `#l5-miss` · `#l5-text` · `#l5-denied` · `#l5-fail` · `#l5-donefail`)
+#### J. ⑤ 말하기 — `StageSpeak` + ~~`LessonVoiceBar`~~ **[⚠ task-077 → §34: 하단은 공용 `VoiceBar`·`Composer`]** (`#l5` · `#l5-ok` · `#l5-miss` · `#l5-text` · `#l5-denied` · `#l5-fail` · `#l5-donefail`)
+
+> **[⚠ task-077 → §34 · 구현 완료 2026-10-18(감사 REV-077S·U PASS_WITH_NOTES) — 이 절의 하단 입력 영역·결과 영역은 아래처럼 바뀌었다. 본문의 ~~취소선~~ = 옛 구조, 취소선이 없는 줄은 그대로 유효. 구현이 정본 §34 와 달라진 곳은 §34-13.]**
+> 1. **하단 = 공용 부품 재사용.** 옛 `LessonVoiceBar`·`LessonTextBar` 는 별도 파일이 아니라 `StageSpeak.tsx` 안 인라인 복제였고(저장소에 두 파일이 있던 적 없음) 지금은 그 복제도 없다. 말 모드 = 회화방과 같은 `talk/VoiceBar` — 레슨용 view `lesson/lessonVoiceView.ts`(상태 줄 문구 · `ptt.disabled` = 확인 중 · `showStop` = 소리 재생 중 · ⌨ 늘 활성), 선택 prop `keyboardLabel` = 「글자로 답하기」 · `stopLabel` = 「소리 멈추기」 · `statusId` = `lesson-voice-status`, `trailing` = 도우미 버튼. 글자 모드 = 회화방과 같은 `chat/Composer` — 선택 prop `draftKey` · `enterSends="always"` · `sendLabel` = 「확인하기」, `leading` = 🎤 「말로 답하기」 + 도우미 버튼, `key={item.id}`. 새 prop 없이 그리면 한 글자도 안 바뀌므로(기본값 = 지금) 회화방·질문 탭·시나리오 마크업은 불변이다(`voiceSharedFrozen` 21종 그대로).
+> 2. **판 + 바 = `flex-none` 상자 하나**(`stackRef`)로 묶고 `ResizeObserver` 로 높이를 재서 수업 화면 토스트 바닥으로 올린다(`lessonToastBottom`: ⑤ 는 높이 + 12px, 재기 전·끝낸 단계 다시 보기 136, 그 밖 단계 24) — ~~`Toast bottomPx={stage === 5 ? 136 : 24}` 고정~~.
+> 3. **「내가 한 말」·「내가 쓴 답」 말풍선 안 맨 아래에 한국어 뜻 칸**(§34-4) — ~~이 절에는 번역이 없었다~~. 모범 답안과 같게 말했으면(`compareAnswer` same) 모범 답안 뜻 `modelKo` 즉시(호출 0), 다르면 #185 `{text}` → `{ko}` 를 자동·비차단으로 1회(저장 없음). 번역 표시 스위치와 무관. 말로 한 답을 AI 가 옮겼을 때만 힌트 「알아들은 말을 그대로 옮겼어요」. 건너뛴 과제는 칸 없음. 뜻 메모리는 수업 화면 동안(`useSpeakTrCache`).
+> 4. **일본어 도우미**(§34-5) — ~~이 절에는 도우미가 없었다~~. 회화방 §22 와 같은 자리·동작·문구, 요청은 #184. 말 모드 = `VoiceBar` 우측 끝 44px(■ 는 마이크 오른쪽 12px), 글자 모드 = 입력 줄 🎤 오른쪽, 판은 입력 영역 위. 잠금 = 시작·녹음·인식 마무리(「말하는 중에는 열 수 없어요」 — 녹음 중이면 끝난 뒤 토스트) + 답 확인 중(「답을 확인하는 중에는 열 수 없어요」). #62b 결과가 오면 판이 닫히고(결과는 기억) 다음 과제로 가도 닫힌다. 누르고 말하기 시작·글자 확인 시작에 대기 중 도우미 요청을 취소한다. [입력창에 넣기] 는 글자 모드에서만, 채우기만 한다.
+> 5. **글자 입력 규칙**(공용 `Composer` 를 따른다): Shift 없이 Enter = 확인(모바일 포함 — 옛 레슨 동작 그대로. IME 조합 중 `isComposing`·keyCode 229 는 제외, Shift+Enter 는 줄바꿈) · 초안 키 `sessionStorage kaiwa.lesson.speakDraft.{lessonId}.{itemId}` 그대로이고 쓰기는 입력 뒤 **300ms 디바운스**(~~즉시~~) · 입력창 높이 상한 **136px**(~~150~~) · 1,000자 상한(900자부터 「n/1,000」) · 빈 칸 확인 = 단추 흐림(`aria-disabled`)·Enter 무반응·토스트 없음(~~토스트 「일본어로 답을 써 주세요」~~ — `U5.emptyToast` 는 쓰는 곳 0) · 확인(#62b) 중에 또 확인을 누르면 토스트 「확인하는 중…」(~~조용히 무시~~) · 확인 실패(서버 오류·네트워크)면 입력창에 원문을 되돌린다(입력창이 비어 있을 때만).
+> 6. ⌨ 로 글자 모드로 바꾸면 입력창에 초점이 간다. 처음부터 글자 모드로 열릴 때와 인식 오류 띠의 「글자로 답하기」는 초점 없음(§34-13 ⑤).
+> 7. **끝낸 단계 다시 보기**: 하단 영역(도우미 포함)이 없는 것은 그대로이고, 번역 칸은 보이며 #185 를 자동으로 부른다(저장 없음).
 
 ```
 <h2 tabIndex=-1>⑤ 말하기 · 과제 {N}개</h2> + 13 ink2 "목표 표현을 넣어 말해 보세요. 아래 버튼을 누른 채로 말하고, 다 말하면 손을 떼요."
@@ -6392,18 +6402,24 @@ Card:
   (음성 인식 오류) SttAlert(§9-2 G ① 그대로, 버튼 문구 "글자로 답하기")
   결과 전: 인식 상자(점선 테두리 min-h-16 — 녹음 중 partial 17px ja ink2 + "…", aria-hidden) + [이 과제 건너뛰기](밑줄 텍스트 버튼 44px)
   결과 뒤: "내가 한 말" | "내가 쓴 답"(12 semibold ink2) + 말풍선(bg-accent-soft r14 px-3 py-2, lang=ja 17px, 글자 ink)
+           + [⚠ task-077 → §34-4] 말풍선 맨 아래 한국어 뜻 칸(구분선 + 15px 뜻 · 같게 말했으면 modelKo 즉시, 다르면 #185 자동 · 말로 한 답을 AI 가 옮겼을 때만 힌트 한 줄)
            + (utteranceId && hasAudio) [▶ 내 목소리](밑줄 텍스트 버튼 44px, 재생 중 "■ 멈춤")
            결과 줄 role=status 14 semibold: used → "✓ 목표 표현을 모두 썼어요"(good) | 아니면 "모범 답안과 비교해 보세요 · 아직 안 쓴 표현 {missed 표기 목록}"(ink)
            box "모범 답안"(good 라벨) + modelAnswer.ja 17px + (읽기 켬) reading + ko + [▶ 모범 답안 듣기]
            12 ink2 "다시 하려면 아래 버튼을 또 누르고 말해요."
 (결과 뒤) [다음 과제](primary full) | 마지막 과제: (완료 실패) alert + [수업 마치기](primary full)
-LessonVoiceBar: 상태 줄(h-6, MicLevelMeter + 문구) / grid-cols-[44px_minmax(0,1fr)_44px]: [키보드](aria-label "글자로 답하기") · PushToTalkButton 72px · [■](재생 중만, "소리 멈추기")
-LessonTextBar: [마이크](aria-label "말로 답하기") · textarea lang=ja 16px(1~5줄 자동 높이, placeholder "일본어로 써서 답해 보세요") · [↑](accent 원, aria-label "확인하기")
 ```
+
+~~LessonVoiceBar: 상태 줄(h-6, MicLevelMeter + 문구) / grid-cols-[44px_minmax(0,1fr)_44px]: [키보드](aria-label "글자로 답하기") · PushToTalkButton 72px · [■](재생 중만, "소리 멈추기")~~
+
+~~LessonTextBar: [마이크](aria-label "말로 답하기") · textarea lang=ja 16px(1~5줄 자동 높이, placeholder "일본어로 써서 답해 보세요") · [↑](accent 원, aria-label "확인하기")~~
+
+**[⚠ task-077 → §34-2·34-3: 위 두 줄(하단 말 바·글자 바) 대신 공용 `VoiceBar` — 상태 줄 + 같은 grid `[44 · 1fr 72 1fr · 44]`, ■ 는 마이크 오른쪽 12px, 도우미가 우측 끝 44px — 와 공용 `Composer` — 🎤 「말로 답하기」 · 도우미 · textarea(`lang=ja`, placeholder 「일본어로 써서 답해 보세요」 그대로) · [↑](accent 원, 이름 「확인하기」). 이름·문구는 옛 레슨 값 그대로이고 입력창만 도우미가 들어가 좁아졌다(180/210/232px).]**
+
 - 음성: `useRealtimeStt({ purpose: 'TURN', config, maxSec: 30, onFinal })` — **`chatId` 없이**(방 없는 발화, 계약 #21·#62b). 누르면 먼저 재생 큐 `interrupt('BARGE_IN')`(§9 회화방과 같은 barge-in — 재생 중에도 버튼을 막지 않는다). `onFinal({ text, utteranceId })`: trim 뒤 비었으면 힌트 `STT_HINT_COPY.EMPTY_RESULT`(`#l5-fail`), 아니면 #62b `{itemId, text, utteranceId}`.
   - #62b 409 `UTTERANCE_*` → 같은 글자로 `utteranceId` 없이 한 번 다시 보내고 [▶ 내 목소리]는 숨긴다(판정은 그대로 받는다).
   - 앱(휴대폰 인식)은 §11 라우터가 #21 로 wav 를 올리고 `utteranceId` 를 준다 — 화면 코드는 같다.
-- 글자: [키보드] → LessonTextBar(초안은 `sessionStorage kaiwa.lesson.speakDraft.{lessonId}.{itemId}`). Enter(Shift 없이·IME 조합 중 아님) 또는 [↑] → #62b `{itemId, text}`. 비어 있으면 토스트 "일본어로 답을 써 주세요". 글자 모드의 키보드 대응은 회화방 `--kb-inset` 방식 그대로.
+- 글자: [키보드] → ~~LessonTextBar~~ 공용 `Composer`(초안은 `sessionStorage kaiwa.lesson.speakDraft.{lessonId}.{itemId}`). Enter(Shift 없이·IME 조합 중 아님) 또는 [↑] → #62b `{itemId, text}`. ~~비어 있으면 토스트 "일본어로 답을 써 주세요".~~ **[⚠ task-077 → §34-3: 빈 칸 확인은 단추 흐림·Enter 무반응·토스트 없음. 초안 300ms·높이 136·1,000자 등 글자 입력 규칙은 이 절 위쪽 ⚠ 5번]** 글자 모드의 키보드 대응은 회화방 `--kb-inset` 방식 그대로.
 - 결과가 오면 스크롤을 과제 카드 위로 맞춰 결과가 보이게 하고, 초점은 결과 줄로 옮긴다.
 - 상태 줄 문구 = §8-8 ⓑ·ⓒ(`STT_STATUS_COPY`·`recordingStatus`·`STT_HINT_COPY`) + 결과 뒤 대기 "다시 하려면 또 누르고 말해요" + 재생 중 "듣는 중 · 누르면 멈추고 말해요".
 - 과제는 몇 번이든 다시 말할 수 있다(서버는 마지막 시도로 바꾼다). [이 과제 건너뛰기]는 서버 요청 없이 결과를 "(건너뛰었어요)"로 두고 다음 과제로 간다 — 그 과제의 목표는 완료 때 못 쓴 표현으로 센다(계약 #62).
@@ -6466,7 +6482,7 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 - 422 `TTS_UNAVAILABLE` → `reportSynthesis({ ok:false, status:422 })` → 스토어가 TEXT_ONLY 로 바뀌고, 화면은 `useTtsRuntimeStatus().snapshot.state === 'TEXT_ONLY'` 로 자막만 모양이 된다(전환 토스트는 스토어가 1회). 502·504·429·0 → 토스트(§9-8 ⓔ 문구) 후 대기 상태.
 - 서명 URL 은 저장하지 않는다. 다시 들을 때는 #62c 를 다시 부른다(캐시 HIT).
 
-#### D. 말하기 — `useRealtimeStt` + `lesson/useSpeakCheck.ts`
+#### D. 말하기 — `useRealtimeStt` + ~~`lesson/useSpeakCheck.ts`~~ **[⚠ task-077 → §34-13 ⑨: `useSpeakCheck.ts` 는 만들어진 적이 없다 — #62b 확인은 `StageSpeak.tsx` 의 `check`, 확인 순서(도우미 접기 → #62b → 판 닫기 / 실패 시 원문 되돌리기)는 새 `lesson/speakCheck.ts` 의 `runSpeakCheck`]**
 - ⑤ 는 `useRealtimeStt({ purpose:'TURN', config, maxSec: 30, onFinal })`(회화방과 같은 호출에서 `chatId` 만 뺌), ④ 말로 쓰기는 `useRealtimeStt({ purpose:'MIC_TEST', config, maxSec: 30, onFinal })`. `config` 는 #19 를 읽는 기존 경로 그대로(회화방과 같음).
 - `SttAlert`·힌트·권한 흐름(웹 안내 / 앱 [앱 설정 열기])·앱 전환 토스트(`switchNotice`)는 §9·§11 규칙 그대로다.
 - 녹음 중에는 본문 `aria-live="off"`, 인식 상자 `aria-hidden`, 토스트는 녹음이 끝난 뒤로 미룬다(§9-0 ⑨).
@@ -6506,11 +6522,11 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 | `StageGrammar.tsx` | ② |
 | `StageQuiz.tsx` · `ChoiceButton.tsx` | ③ |
 | `StageApply.tsx` | ④ |
-| `StageSpeak.tsx` · `LessonVoiceBar.tsx` · `LessonTextBar.tsx` | ⑤ |
+| `StageSpeak.tsx` · ~~`LessonVoiceBar.tsx` · `LessonTextBar.tsx`~~ **[⚠ task-077 → §34-13 ⑨: 이 두 파일은 만들어진 적이 없다 — 하단은 공용 `talk/VoiceBar`·`chat/Composer`. 새 파일: `lessonVoiceView.ts` · `speakTranslation.ts` · `useSpeakTranslation.ts` · `SpeakTranslation.tsx` · `speakCheck.ts`]** | ⑤ |
 | `LessonEnd.tsx` · `endResult.ts` | 종료 카드, #60 → 결과 계산 |
 | `ExprChip.tsx` · `PlayButton.tsx` · `Toggle.tsx` · `RoleChip.tsx` | 공용 조각 (task-025: `parts.tsx` 에 `ExprPlayChip`·`Spinner`·`InfoIcon` 추가) |
 | `compare.ts` · `logic.ts` | (task-025) 응용 글자 비교 `compareAnswer` · 재생 키·속도 `lineReplayKey`/`exprKey`/`lineReplayPace`/`activeLineReplay`/`playLineReplay`/`playExpr` · 문제 표기 `quizPromptView`/`quizSummaryPrompt` — 단위 테스트 `__tests__/task025.test.ts` |
-| `useLesson.ts` · `useLessonPlayback.ts` · `useJobWatch.ts` · `useSpeakCheck.ts` | 상태 |
+| `useLesson.ts` · `useLessonPlayback.ts` · `useJobWatch.ts` · ~~`useSpeakCheck.ts`~~ **[⚠ task-077: 만들어진 적 없음 — 위 12-3 D]** | 상태 |
 | `lessonCopy.ts` · `labels.ts` · `matchLang.ts` | 문구(§12-8) · 단계·조각 라벨 · "가나·한자가 있으면 `lang=ja`" 판정 |
 
 - 그대로 재사용(수정 없음): `BackBar`·`Card`·`Btn`·`BtnRow`·`Badge`·`ErrorBlock`·`EmptyBlock`·`Sheet`·`Toast`·`TeacherAvatar`·`TtsRuntimeStatusIndicator`·`PushToTalkButton`·`MicLevelMeter`·`useRealtimeStt`·`sttCopy`·`ttsAudio`·`chunkFetch`·`createTtsPlaybackQueue`.
@@ -6619,7 +6635,8 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 | ④ | ④ 응용 · 문장 만들기 {N}개 / 상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요. / 상황 {i} / {N} / 써 볼 표현 / 문형 / 힌트 · {hintJa} / 내 문장 / 일본어로 써 보세요 / 말로 쓰기 / 글자로 쓰기 / {n} / 200자 / 여기에 알아들은 말이 나와요 / 모범 답안과 비교하기 / 먼저 문장을 써 보세요 / 모르겠어요 · 모범 답안 보기 / (쓰지 않고 봤어요) / 모범 답안 / ▶ 모범 답안 듣기 / 채점하지 않아요. 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요. / 다음 상황 / 상황 {k} / (task-025 글자 비교) 글자가 다른 곳에 밑줄을 쳤어요 · 채점이 아니에요 / ＝ 모범 답안과 글자가 같아요. / 점선 모범 답안에 없는 글자 / 실선 내 문장에 없는 글자 / (sr) 모범 답안에만 있는 글자: {…}. 내 문장에만 있는 글자: {…\|없음}. / 채점하지 않아요. 밑줄은 글자가 다른 곳일 뿐, 뜻이 통하면 다르게 써도 괜찮아요. 문장부호·띄어쓰기 차이는 표시하지 않아요. 모범 답안을 소리 내어 따라 읽어 보세요. |
 | ⑤ | ⑤ 말하기 · 과제 {N}개 / 목표 표현을 넣어 말해 보세요. 아래 버튼을 누른 채로 말하고, 다 말하면 손을 떼요. / 과제 {i} / {N} / 목표 표현 / ✓ 썼어요 / · 아직 / 버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요 / 아래 입력창에 일본어로 써서 답해요 / 이 과제 건너뛰기 / (건너뛰었어요) / 내가 한 말 / 내가 쓴 답 / ▶ 내 목소리 / ✓ 목표 표현을 모두 썼어요 / 모범 답안과 비교해 보세요 · 아직 안 쓴 표현 {…} / 다시 하려면 아래 버튼을 또 누르고 말해요. / 다음 과제 / 수업 마치기 / 기록하는 중… / 수업 기록을 남기지 못했어요. 다시 눌러 주세요. / 여러 번 눌러도 기록은 한 번만 남아요. |
 | ⑤ aria·입력 | 글자로 답하기 · 말로 답하기 · 확인하기 · 소리 멈추기 · 누르고 있는 동안 말하기 · 누르면 소리를 멈추고 말하기 / (입력창) 일본어로 써서 답해 보세요 |
-| ⑤ 토스트 | 일본어로 답을 써 주세요 / ★확인하지 못했어요. 다시 말해 주세요. / 이미 끝낸 수업이에요. 결과를 보여 드릴게요. / 녹음이 없어요. 내 목소리는 30일 동안만 보관해요. |
+| ⑤ 토스트 | ~~일본어로 답을 써 주세요~~ **[⚠ task-077 → §34-3: 안 쓴다 — 빈 칸 확인은 반응 없음. `U5.emptyToast` 는 쓰는 곳 0]** / ★확인하지 못했어요. 다시 말해 주세요. / 이미 끝낸 수업이에요. 결과를 보여 드릴게요. / 녹음이 없어요. 내 목소리는 30일 동안만 보관해요. **[⚠ task-077: + 확인하는 중…(확인 중에 또 확인을 눌렀을 때) / 말하는 중에는 열 수 없어요 / 답을 확인하는 중에는 열 수 없어요(도우미 잠금)]** |
+| ⑤ 한국어 뜻·도우미 (task-077, §34-6) | 한국어 뜻: (시각 숨김) / 알아들은 말을 그대로 옮겼어요 / 번역 중… · 번역을 가져오지 못했어요 · 다시 가져오기 · 잠시 뒤 다시 눌러 주세요 · 이 말은 번역할 수 없어요(기존 `DISPLAY_COPY.userTr` 재사용) / 도우미 `placeholder.lesson`·`examples.lesson`·`noneExample.lesson`·`lockedCheck`(§22-7 새 행) |
 | 상태 줄 | §8-8 ⓑ·ⓒ + 다시 하려면 또 누르고 말해요 / 듣는 중 · 누르면 멈추고 말해요 |
 | 음성 인식 오류 | §8-8 ⓐ(`SttAlert`), 버튼만 "글자로 답하기" |
 
@@ -6671,7 +6688,7 @@ BackBar backHref="/study/today" backLabel="오늘로" title="수업을 마쳤어
 
 - **정답**: 레슨은 자습이라 정답을 화면이 갖고 있다(§5 단어 덱의 "정답 미노출"과 반대 — 헷갈리지 말 것). 대신 점수는 서버 값만 쓴다(종료 카드·오늘 홈).
 - **쓰기 칸**: #61 로 서버 칸(`listen.proposed`·`speaking`)이나 모르는 키를 보내면 400. `quiz.answers` 는 배열 전체를 보내도 서버가 첫 답을 지킨다.
-- **다시 보기**: 끝낸 단계에서는 어떤 쓰기도 보내지 않는다(#61·#62a·#62b 0회). 듣기(#62c)만 된다.
+- **다시 보기**: 끝낸 단계에서는 어떤 쓰기도 보내지 않는다(#61·#62a·#62b 0회). ~~듣기(#62c)만 된다.~~ **[⚠ task-077 → §34-2: ⑤ 다시 보기는 듣기(#62c) 외에 「내가 한 말」 한국어 뜻 때문에 #185 도 자동으로 부른다(저장 없음 — 쓰기는 여전히 0회). 입력 영역·도우미는 없다]**
 - **이탈**: 막지 않는다(뒤로가기 가로채기 금지). 모든 행위가 이미 저장돼 있고, 오늘 홈이 [이어서 하기]로 안내한다.
 - **서명 URL·원문**: `clips[].url` 은 보관·로그 금지. 붙여넣은 원문은 `sessionStorage` 에만 두고(`READY` 가 되면 삭제) `localStorage` 에는 두지 않는다.
 - **저장소 차단**: `kaiwa.lesson.*`·`kaiwa.chat.readingDefault` 는 전부 try/catch. 실패하면 기본값(읽기 켬·flash 없음·초안 없음)으로 동작한다.
@@ -9785,6 +9802,15 @@ chip = ChunkChips 의 CHIP 클래스 그대로(h-9 · min-w-[44px] · whitespace
 > **승인 데모**: `docs/demo/task-056-talk-phrase-helper-v1.html` (v1) — 2026-10-11 17:58 사용자 승인 「4번만 'B안'으로 하고 나머지는 권고안대로 진행해줘」(sha256 `704e8d58cb2a5067…`). `#hp-*`·`#rp-*` 는 데모 왼쪽 상태 목록 id, 「세 폭」은 데모 아래 「입력 바 세 폭」 패널이다.
 > **적용 토큰 이름**(새 색 없음): `ground` · `surface` · `surface2` · `ink` · `ink2` · `ink3`(placeholder 만) · `line` · `accent` · `accent-soft` · `on-accent` · `bad` · `--safe-bottom` · `:root[data-kb]` · `--kb-inset`(앱 셸이 처리).
 > **정본 관계**: 회화방 바탕은 §9(입력 바 자리는 §9-2 F 「일본어 도우미 자리」), 표시 스위치는 §15, 역할극 「대답 연습」은 task-010d 가이드 §3-E(`PracticeDock`). 서버 계약 #180 은 **Leader 가 `api-contract.md` 에 반영**하고, 요청·응답 모양·한도는 prompt-engineer 기록(task-056)이 확정한다 — 이 절은 화면이 쓰는 칸만 적는다. 결정 근거·실측: `agent-vault/10-Flow/tasks/task-056-designer-record.md`.
+>
+> **[⚠ task-077 → §34 · 구현 완료 2026-10-18 — 이 절의 도우미는 이제 오늘의 회화 ⑤ 말하기에서도 쓰인다(회화방 전용이 아니다).]** 같은 부품(`PhraseHelperButton`·`Tip`·`Panel`·`Card`)·같은 자리(§22-2: 말 모드 `VoiceBar trailing` 우측 끝 44px / 글자 모드 `Composer leading` 🎤 오른쪽)·같은 동작(§22-5·22-6·22-11)이고, 달라지는 것은 아래뿐이다.
+> - **방 종류 `HelperRoomKind` = `'talk' | 'rp' | 'lesson'`**. `kind="lesson"` 은 placeholder·질의 예시 칩 3개·빈 결과 예시만 다르다(§22-7 새 행 — 과제와 무관한 일반 문장. 레슨 맥락[과제·목표 표현]은 프롬프트에 넣지 않는다, 승인 B2).
+> - **요청 = 새 입구 #184** `POST /api/v1/lessons/:id/phrase-help {queryKo}` → `{items}`(#180 과 같은 봉투 — 레슨 소유만 확인·상태 무관, 409 `ENDED` 없음. §22-9 새 행). 훅은 `chatId` 대신 요청 함수를 받는다(§22-10).
+> - **한도·동시 1건 잠금 = #180·#181 과 합산**(분당 10·하루 300, 한 번에 1건 `PHRASE_BUSY`) — 회화방·단어 추가·오늘의 회화가 서로 429 를 낼 수 있다. 번역 #185(분당 20)는 별개 키·별개 잠금이라 서로 막지 않는다.
+> - **잠금 규칙이 다르다**: 회화방은 «녹음·인식 + 선생님이 답하는 중(QUEUED·THINKING)», 오늘의 회화는 «시작·녹음·인식 마무리 + 답 확인 중(#62b)». 새 토스트 `lockedCheck`(§22-7). 마친 방이 없어 `ended`·409 `ENDED` 처리가 없고, 역할극 배타(대답 연습·목표 카드)도 없다(`otherOpen = false`).
+> - **판이 닫히는 때**: #62b 결과가 오면(회화방 «보내면 `accepted`»에 대응) · 다음 과제로 갈 때 · 인식 오류 띠가 새로 뜰 때 — 결과는 기억한다. 판을 열 때 과제 문장이 가려져 있으면 과제 카드 머리로 한 번 맞춘다(§34-5).
+> - **처음 한 번 안내**는 회화방과 같은 저장 키 `kaiwa.talk.helperTipSeen` 을 공유한다(이미 본 사용자에게 다시 안 뜸). 오늘의 회화는 인식 설정(#19)을 읽기 전에는 판정하지 않는다(§34-13 ⑧).
+> - 표현 수준 등 구현 중 생긴 차이는 §34-13.
 
 ### 22-0. 결정 최종값
 
@@ -9997,6 +10023,10 @@ props `{ open: boolean; locked: boolean; describedBy?: string; onToggle(): void;
 | ★ `busy` | 선생님 말이 끝나면 다시 물어봐 주세요. |
 | `locked` (토스트) | 말하는 중에는 열 수 없어요 |
 | `lockedTurn` ★ (토스트) | 선생님이 답하는 중에는 열 수 없어요 (QUEUED·THINKING — 턴의 AI 호출이 도우미 뒤로 밀리지 않게) |
+| `placeholder.lesson` ★ (task-077, 오늘의 회화 ⑤) | 예: 주말에 친구를 만났어요 |
+| `examples.lesson` ★ (task-077) | 주말에 친구를 만났어요 · 요리하는 걸 좋아해요 · 조금 더 연습하고 싶어요 (과제와 무관한 일반 문장 — 레슨 맥락을 프롬프트에 넣지 않으므로) |
+| `noneExample.lesson` ★ (task-077) | 주말에 친구를 만났어요 (`noneHint` 의 예) |
+| `lockedCheck` ★ (task-077, 토스트) | 답을 확인하는 중에는 열 수 없어요 (오늘의 회화 ⑤ — #62b 확인 중) |
 
 - 꼬리표(`labelKo`)·뜻(`ko`)·이유(`whyKo`) 문장은 서버(프롬프트)가 준다 — 화면은 문구를 만들지 않는다. 엔진·모델 이름이 들어간 문구 없음.
 
@@ -10012,6 +10042,7 @@ props `{ open: boolean; locked: boolean; describedBy?: string; onToggle(): void;
 | # | 엔드포인트 | 메서드 | 화면 동작 | 요청 | 화면이 쓰는 칸 | 오류 처리 |
 |---|---|---|---|---|---|---|
 | 180 | `/api/v1/chats/:id/phrase-help` | POST | [물어보기] · 예시 칩 · [다시 시도] | `{ queryKo }` — trim 1~100 코드포인트(화면이 먼저 막음) | `items[1..3].{ ja, ko, labelKo?, whyKo? }` — 첫 항목 = 가장 흔한 말, 0개면 빈 결과 | 400 → 입력 안내(보통 오지 않음) · 404 → `hp-error` · 409 `ENDED` → 판 닫고 기존 마친 방 처리(다시 읽기) · 409 `TURN_RUNNING`(계약이 막을 때만) → ★`busy` · 429 → `hp-rate`(`Retry-After` 또는 계약의 대기 초) · 502·0 → `hp-error` · 504·12초 → `hp-timeout` |
+| 184 ★ (task-077, 오늘의 회화 ⑤ — §34-7) | `/api/v1/lessons/:id/phrase-help` | POST | [물어보기] · 예시 칩 · [다시 시도] | `{ queryKo }` — #180 과 같음 | `items[1..3].{ ja, ko, labelKo?, whyKo? }` — #180 과 같은 봉투 | 400 → 입력 안내 · 404 「수업을 찾을 수 없어요.」 → `hp-error` · 409 `PHRASE_BUSY`(회화방·단어 추가 도우미가 묻는 중 — 잠금 공유) → `hp-error` · 409 `CANCELLED` → 화면이 먼저 버림 · 429 → `hp-rate` · 502·0 → `hp-error` · 504·12초 → `hp-timeout` · **409 `ENDED` 없음**(레슨은 끝난 뒤에도 됨). 한도(분당 10·하루 300)·동시 1건 잠금은 #180·#181 과 합산 |
 | 24r | `/api/v1/text/annotate` | POST | 카드 루비·한글 줄 | `items[].ja`(기존 `useAnnotations`) | 읽기 조각 | 실패해도 일본어 글자는 보임(기존 `JaText`) |
 | — | 기존 단어 소리 경로(`useKeyedSound`) | — | 카드 ▶ | `ja` | — | 기존 `SOUND_MSG` |
 
@@ -10020,6 +10051,7 @@ props `{ open: boolean; locked: boolean; describedBy?: string; onToggle(): void;
 
 ### 22-10. 상태 관리 — `usePhraseHelper(chatId, roomKind)` · `TalkRoom`
 
+- **[⚠ task-077 → §34-3]** 훅 인자: `chatId`(#180) 대신 요청 함수 `request`(#184 — `phraseHelpRequest(path)`)를 넘길 수 있다(둘 중 하나, 타입이 강제). `ended`·`onEnded` 는 선택 — 오늘의 회화 ⑤ 는 마친 방이 없어 안 넘기며, 409 `ENDED` 가 와도 판만 닫힌다. 잠금(`recording`)은 부르는 화면이 정한다: 회화방 `helperLockReason(view.state)` · 오늘의 회화 `lessonHelperLockReason(voice.phase, checking)`. 요청 수명주기(동시 1건·12초/5초 타이머·취소·늦은 응답 버림)와 결말 처리는 둘 다 같은 코드 경로다.
 - 훅 상태 `{ open, query, phase: 'idle'|'loading'|'slow'|'result'|'none'|'error'|'timeout'|'rate'|'busy', items, more, playingKey, rateUntil, hint }` — **메모리만**(방을 나가면 사라짐). 질의 초안도 `sessionStorage` 에 두지 않는다.
 - **열기**: 이전 결과 없음 → 입력칸 초점(같은 사용자 동작 안 — 판 마운트 직후 `useLayoutEffect` 한 번) / 있음 → 결과 그대로, 키보드 안 올림(`hp-open` 의 두 번째 줄). **닫기**(✕·Esc·버튼 재탭): 초점 → 도우미 버튼. Esc 는 초점이 판 안이거나 버튼일 때만.
 - **물어보기**: `AbortController` + 12초 끊기, 5초에 `slow`. 요청 중 재요청 금지. 새 질의는 `more=false` · 소리 정지 · input `blur()`. 판을 닫아도 요청은 끝까지 받아 결과를 기억한다(다시 열면 보임).
@@ -11521,7 +11553,7 @@ type AskBlock =
 | 새로 | `ask/askVoiceCopy.ts` | 말로 묻기 문구 26-10 B | U2 |
 | 새로(시험) | `ask/__tests__/{askChatTab,askActivity,voiceView,askVoice}.test.ts` | 26-13 | U1·U2 |
 | 공용 확장 | `speech/PushToTalkButton.tsx` | 선택 prop `cancelOutside?`(26-7 D) | U2 |
-| 공용 확장 | `talk/VoiceBar.tsx` | 선택 prop `cancelOutside?`(그대로 버튼에 넘김)·`safeBottom?`(기본 `true`)·`keyboardLabel?`(기본 「글자로 입력하기」) | U2 |
+| 공용 확장 | `talk/VoiceBar.tsx` | 선택 prop `cancelOutside?`(그대로 버튼에 넘김)·`safeBottom?`(기본 `true`)·`keyboardLabel?`(기본 「글자로 입력하기」) **[⚠ task-077 → §34-3·34-13 ⑥: 선택 prop `stopLabel?`(기본 「선생님 말 멈추기」)·`statusId?`(기본 `talk-status`) 가 더해졌고, `keyboardLabel` 은 오늘의 회화 ⑤ 도 넘긴다(「글자로 답하기」) — `voiceSharedFrozen` 4번째 시험이 수업 ⑤ 파일에 한해 허용]** | U2 |
 | 공용 확장 | `talk/LiveUtteranceBubble.tsx` | 선택 prop `out?`·`caption?`(26-7 E) | U2 |
 | 공용 확장 | `talk/UnsentBar.tsx` | 선택 prop `textOf?`·`canResend?`(26-7 G) | U2 |
 | 공용 확장 | `chat/Composer.tsx` | 선택 prop `safeBottom?`(기본 `true` = 지금 `max(8px, var(--safe-bottom))`; `false` = `8px`) | U1 |
@@ -14267,3 +14299,172 @@ TopicWordsCard (데모 todayCh·todayChLong): TopicChip 글 = WORDS_CARD.chip(ti
 - 이름+코드는 늘 한 덩어리(nowrap)·뒤에 조사 없음. 칩에서 난이도는 주제 이름 **앞**(끝에 두면 말줄임에 잘림).
 - 상세 화면·기록 목록·1단계 주제 목록 수준 창·프로필 목표 설정 화면은 범위 밖(L6). 흐름 밖 코드 뱃지(주제 고르기·평가·주제/상황 관리)는 질문 5 답에 따른다(★ 그대로).
 - 폰 확인: 130% 글꼴·TalkBack(fieldset 설명 낭독, 「초급 (N4)」 괄호 읽는 방식)·**360px·130% 알약 이름 여유 +6.6px**(실제 기기 글꼴에서 「최상급」·「초보자」가 잘리면 칸 사이 간격 8 → 6px).
+
+## 34. 오늘의 회화 ⑤ 말하기 — 「내가 한 말」 한국어 뜻 · 일본어 도우미 · 공통 입력 영역 (task-077, IMP-0053·0054) — ✅ 승인 데모 v1
+
+> **✅ 승인됨 — 2026-10-18 사용자 「A1~A5, B1~B8, B6-Q 권고대로 승인」**(결정 전부 ★, designer 제안 3건(A4 모양·A5 문구·B8 규칙) 포함; 질문 5 placeholder: 처음엔 사용자 답이 없어 데모가 그린 ★ = 지금 문구였으나 **2026-10-19 사용자가 「한 줄로 줄이기」를 선택 → 레슨 ⑤ 글자 입력창 placeholder = 「일본어로 답해 보세요」**). 이 절이 구현 정본이다(아래 「…승인하면 이 첫 줄을 고치고」 안내는 처리됨). 데모: `docs/demo/task-077-lesson-speak-helper-v1.html` (v1, sha256 앞 16자 `dae8cf1b61df36d9`). 사용자가 데모의 결정(A1~A5·B1~B8·B6-Q)과 질문 1~5 를 승인하면 이 첫 줄을 「승인 데모: … (vN)」으로 고치고 developer 에게 넘긴다. **승인 전에는 이 절로 구현하지 않는다.** ~~§12-2 J(⑤ 말하기)·§22(회화방 도우미)는 승인 뒤 구현 때 이 절에 맞춰 정정한다 — 그 전에는 이 절이 두 절보다 우선한다.~~ **[⚠ 구현 후 정정 — 2026-10-18 구현 완료·감사 REV-077S·U PASS_WITH_NOTES: §12-2 E·J, 12-3 D, 12-5·12-8·12-10, §22(머리·22-7·22-9·22-10), §26 VoiceBar 공용 확장 표를 이 절에 맞춰 정정했다(각 줄의 ~~취소선~~ = 옛 구조). 구현이 이 절과 달라진 곳은 34-13.]**
+> 적용 토큰(이름): `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3`(placeholder·한글 줄 괄호만) · `--color-line` · `--color-accent` · `--color-accent-soft` · `--color-on-accent` · `--color-good` · `--color-good-soft` · `--safe-bottom` · `--kb-inset`. **새 색 없음.** 기록: [[task-077-designer-record]].
+
+### 34-0. 레이아웃 설계 (page-layout-designer)
+- **목표**: ① 방금 한 말이 한국어로 무슨 뜻인지 바로 알게 한다(뒤틀린 인식이면 그 사실도 알아채게). ② 말이 막힐 때 회화방과 **같은 자리·같은 동작**의 일본어 도우미로 표현을 찾게 한다. ③ 하단 입력 영역을 회화방 부품으로 공통화해 두 화면이 다시 어긋나지 않게 한다.
+- **주요 위계**: 본문 = 과제 카드(과제 문장 → 목표 표현 → 내가 한 말 **+ 뜻** → 결과 줄 → 모범 답안) · 하단 = 마이크(주) > 도우미(보조, 우측 끝) > ⌨/■.
+- **영역**(위→아래): 머리 · 단계 표시 · 본문(유일한 세로 스크롤) · **[도우미 판]** · [말 바 | 글자 바] · (키보드). 판 안 세로 스크롤은 회화방과 같은 예외.
+- **컴포넌트**: 공유 = `VoiceBar` · `Composer` · `PhraseHelperButton`·`Tip`·`Panel`·`Card` · `usePhraseHelper`(요청 함수 주입) · `PushToTalkButton`·`MicLevelMeter`·`SttAlert`(지금도 공유). 새 = 번역 칸(회화방 `UserTranslation` 줄 모양 재사용) · 번역 훅(가칭 `useSpeakTranslation`) · `lessonVoiceView`(가칭).
+- **상태**: 34-4(번역)·34-5(도우미) 표.
+- **행동**: 주 = 누르고 말하기 / 글자 [확인하기] · 보조 = 「가あ」·[다시 가져오기]·[▶ 내 목소리]·[▶ 모범 답안 듣기]·[다음 과제] · 위험 동작 없음.
+- **반응형**: 360/390/412 같은 구조. 줄어드는 것은 글자 입력창 폭뿐(180/210/232 — 회화방과 같음). 판 최대 `min(46dvh,320px)`(회화방과 같음), 키보드가 올라오면 판은 머리 + 입력 줄만.
+
+### 34-1. 결정 요약 (이력서 번호 · ★ = Leader 권고, ✎ = designer 가 다듬음 — 데모 「결정 표」가 근거·위험 정본)
+| # | ★ | 대안 |
+|---|---|---|
+| A1 시점 | 자동·비차단(결과가 뜨면 곧바로 요청, 흐름을 막지 않음) | B 눌러서 보기 [번역 가져오기] |
+| A2 비용 | `compareAnswer(text, modelAnswerJa).kind === 'same'` 이면 `modelKo` 즉시(호출 0), 다르면 #185 1회(저장 안 함) | B 같을 때만 |
+| A3 스위치 | 「번역」 표시 스위치와 무관하게 늘 | B 스위치 따름(⑤ 에서 켤 방법 없음) |
+| A4 모양 ✎ | 말풍선 안 한글 줄 아래 **구분선 + 15px 뜻**(회화방 내 말 번역 칸과 같은 모양) + 말로 한 답을 AI 가 옮겼을 때만 12px 「알아들은 말을 그대로 옮겼어요」 + 시각 숨김 「한국어 뜻: 」 | B 힌트 없음 · C 라벨 「번역」(이력서 원안 모양) · D 말풍선 밖 |
+| A5 실패 ✎ | 분당 20·동시 1건(별도 키). 칸 안 한 줄 + [다시 가져오기], 문구는 기존 `DISPLAY_COPY.userTr` | B 실패 시 숨김 |
+| B1 자리 | 회화방 §22-2 그대로(말 모드 우측 끝 44 · ■ 마이크 오른쪽 12 · 글자 모드 🎤 오른쪽 · 판 입력 영역 위 · 글자 모드만 [입력창에 넣기]) | — |
+| B2 맥락 | 레슨 맥락을 프롬프트에 넣지 않음 | B 과제·목표 표현 전달(PE 점검) |
+| B3 한도 | #180·#181 과 합산 | B 레슨 전용 |
+| B4 입구 | 새 #184 `POST /api/v1/lessons/:id/phrase-help` | — |
+| B5 잠금 | 녹음·인식·확인 중 | B 확인 중은 열림 |
+| B6 공통화 | 공용 부품 재사용 + 선택 prop(기본값 = 지금) | B 레슨 전용 복제 · C 하단 전체 공용 컴포넌트(회화방까지) |
+| B6-Q Enter | 레슨 지금 그대로(Shift 없으면 확인) | B 회화방과 통일 |
+| B7 안내 저장 | 회화방과 같은 키 `kaiwa.talk.helperTipSeen` | B 레슨 전용 키 |
+| B8 높이 ✎ | 토스트 = 하단 묶음(판+바) 실제 높이 + 12px · 판 최대 회화방과 같음 · 판을 열 때 과제 문장이 가려져 있으면 카드 머리로 한 번 맞춤 | B 지금 값(136 고정 — 판에 겹침) · C A + 레슨 판 `min(40dvh,280px)` |
+
+### 34-2. UI 구조 (의사코드 — 데모 상태 id 인용)
+```
+LessonScreen (stage 5)
+  LessonHeader · StageSteps                                         ← 그대로
+  StageSpeak
+    <div scroll … aria-live={recording ? 'off' : undefined}>         ← 본문(그대로) — 유일한 세로 스크롤
+      … 과제 카드(그대로) …
+      결과 뒤: "내가 한 말" | "내가 쓴 답"
+        <div 말풍선 bg-accent-soft r14 px-3 py-2>                    ← 그대로
+          JaText 17 · HangulLine 13 onTint !mt-0                    ← 그대로
+          <SpeakTranslation …/>                                      ← 새(34-4) — 말풍선 안 맨 아래 (t-loading·t-result·t-same·t-fail·t-rate·t-text·t-long)
+        [▶ 내 목소리] · 결과 줄 · 모범 답안 상자 · "다시 하려면…"    ← 그대로
+      [다음 과제] | [수업 마치기]                                     ← 그대로
+    {!reviewing && (
+      <>
+        {helper.shown && <PhraseHelperPanel kind="lesson" textMode={textMode} locked={helperLocked} …/>}   ← 회화방 판 그대로 (h-open…h-rate·h-res-open·x-text)
+        {textMode
+          ? <div hidden={helper.typing} className="contents">
+              <Composer key={item.id} leading={<>{🎤 「말로 답하기」}{helperButton}</>} …레슨 선택 prop(34-3)/>   (x-text·x-filled·x-text-kb·t-text)
+            </div>
+          : helper.typing ? null
+          : <div className="relative flex-none">                     ← 안내 말풍선 기준 상자(회화방과 같음)
+              {tipShown && <PhraseHelperTip …/>}                     (h-closed)
+              <VoiceBar view={lessonVoiceView} trailing={helperButton} keyboardLabel={U5.textMode} …레슨 선택 prop/>
+            </div>}
+      </>
+    )}
+  Toast bottomPx={stage === 5 ? 하단 묶음 높이 + 12 : 24}               ← B8 A (l-toast)
+```
+- 끝낸 단계 다시 보기(`reviewing`)는 지금처럼 입력 영역이 없다 → 도우미도 없다. 번역 칸은 보인다.
+- 건너뛴 과제는 말풍선이 없으니 번역 칸도 없다.
+
+### 34-3. 공통 입력 영역 — UI 수준 인터페이스 (구현 방식은 developer — 훅으로 묶든, 화면에서 조합하든)
+| 부품 | 레슨이 넘기는 것 | 새 선택 prop(**기본값 = 지금** → 회화방·질문 탭·시나리오 마크업·동작 불변) |
+|---|---|---|
+| `talk/VoiceBar` | `view` = 레슨용 view(가칭 `lessonVoiceView` — `useLessonVoice` 의 phase·statusText·pttLabel·재생 중 여부를 `TalkView` 모양으로: RECORDING = phase 'recording', `ptt.disabled` = 확인 중, `showStop` = 재생 중, `keyboardDisabled` = false(지금 레슨)) · `trailing` = 도우미 버튼 · `keyboardLabel` = 「글자로 답하기」(이미 있는 prop) | ■ 이름 `stopLabel`(기본 「선생님 말 멈추기」 → 레슨 「소리 멈추기」) · 상태 줄 id 는 선택 prop 으로 받거나 레슨 id 를 `talk-status` 로 바꿈(developer 판단 — 레슨 시험이 `lesson-voice-status` 를 참조하는지 확인) |
+| `chat/Composer` | `leading` = 🎤 「말로 답하기」 + 도우미 버튼 · `placeholder` = 「일본어로 답해 보세요」(**사용자 결정 2026-10-19 「한 줄로 줄이기」 — 360px 에서 한 줄**, 승인 데모의 「일본어로 써서 답해 보세요」에서 단축) · `inputLabel` = 「글자로 답하기」 · `busy` = 확인 중 · `busyReason` = 「확인하는 중…」 · `onSend` = #62b · `key={item.id}` | Enter 방식(B6-Q A: Shift 없이 Enter = 보내기, 모바일 포함, IME 조합 중 제외 — 기본 = 지금 Composer) · 초안 저장 키 전체(레슨 `kaiwa.lesson.speakDraft.{수업}.{과제}` 유지 — 기본 = `KEYS.draft(chatId)`) · 보내기 이름 `sendLabel`(「확인하기」 — 기본 「보내기」) |
+| 도우미 4부품 | `kind="lesson"` | `HelperRoomKind` 에 `'lesson'` — `HELPER.placeholder.lesson`·`examples.lesson`·`noneExample.lesson`(34-6) |
+| `usePhraseHelper` | 요청 함수 = #184 · `ended` = false · 잠금 = 녹음·인식·확인 중 | 요청 함수(주소) 주입 — 기본 = 지금 #180 호출. `onEnded` 는 레슨에선 쓰지 않음 |
+
+- **데모 기계 비교**(데모 「공통 입력 영역 대조」): 회화방 vs 레슨 제안 마크업의 **구조(태그·클래스·자식 수) 차이 0**, 문구·이름 차이만 — 말 기본 2개(상태 줄 문구 · ⌨ 이름) · 소리 재생 중 4개(+ 마이크 이름 · ■ 이름) · 글자 4개(🎤 이름 · 입력창 이름 · placeholder · 보내기 이름).
+- **글자 입력 동작**(★ = B6 A + B6-Q A): Enter = **지금 레슨**(선택 prop) · 빈 칸 확인 = 회화방(단추 흐림·아무 일 없음 — `U5.emptyToast` 안 씀) · 초안 = 300ms, **키는 레슨 키** · 높이 상한 = 136px · 글자 수 = 1,000(900부터 표시) · 모양 = 회화방(둥근 12·좌우 12·간격 8) · ⌨ 로 바꾸면 입력창 초점(회화방과 같음 — 단 인식을 못 써 **처음부터 글자 모드로 열릴 때는 초점 주지 않음**, 지금 동작) · 보내기 이름 = 「확인하기」.
+
+### 34-4. 번역 칸 — 모양·상태 (A1~A5 ★)
+모양은 회화방 `chat/MessageBubble.tsx` `UserTranslation` 과 같은 값(꺼내서 함께 쓰거나 같은 클래스 문자열):
+```
+<div aria-live="polite" aria-atomic="true" tabIndex={-1} ref={trRef}>         ← 말풍선 안 맨 아래
+  결과   <p className="mt-2 border-t border-ink/18 pt-2 text-[15px] leading-normal text-ink2 break-keep [overflow-wrap:anywhere]">
+           <span className="sr-only">한국어 뜻: </span>{ko}</p>
+         {말로 한 답 && AI 번역 ? <p className="mt-0.5 text-[12px] text-ink2 break-keep">알아들은 말을 그대로 옮겼어요</p> : null}   (A4 A)
+  준비   <div className="mt-2 border-t border-ink/18 flex min-h-[30px] flex-wrap items-center gap-x-2 pt-1.5 text-[13px] text-ink2">
+           <HangulPlaceholder onTint className="!m-0 !w-[72px] flex-none"/> 번역 중…</div>
+  실패   같은 줄: 「번역을 가져오지 못했어요」 + <button 밑줄 h-11 -my-[7px] -ml-1.5 px-1.5 text-[13px] text-ink>다시 가져오기</button>
+  429    같은 줄: 「잠시 뒤 다시 눌러 주세요」 + [다시 가져오기]
+  409 동시 1건  「다른 번역을 가져오는 중이에요. 잠시 뒤 다시 눌러 주세요」 + [다시 가져오기]
+</div>
+```
+| 데모 id | 언제 | 화면 |
+|---|---|---|
+| `t-loading` | 결과가 뜬 직후(다를 때) | 준비 줄. 결과 줄·모범 답안·[다음 과제]는 그대로 쓸 수 있음 |
+| `t-result` | #185 성공 | 뜻 + (말로 한 답) 힌트 |
+| `t-same` | 모범 답안과 같음 | `modelKo` 즉시 — 준비 줄·호출·힌트 없음 |
+| `t-fail` · `t-rate` | 0·5xx·504·12초 / 429 | 칸 안 한 줄 + [다시 가져오기] — 토스트·빨간색 없음 |
+| `t-text` | 글자로 쓴 답 | 같은 칸, 힌트 없음 |
+| `t-long` | 긴 말 | 말풍선이 커진다(실측 34-11) — 본문 한 곳 스크롤 |
+| `t-tap` | A1 B 를 고른 경우만 | [번역 가져오기] |
+- **[다시 가져오기]를 누르면** 단추가 사라지므로 초점을 번역 칸(`tabIndex=-1`)으로 옮긴다(데모 자체 점검 a11y Minor 보완).
+- 새로 말하거나(녹음 시작) 다음 과제로 가면 대기 중 번역 요청을 버린다(늦게 온 답 무시). 같은 글은 수업 화면 동안 메모리 캐시(`Map<text, ko>`) — 다시 들어오면 다시 부른다(저장 안 함, L1). 녹음 중에는 본문 `aria-live="off"`(지금 그대로)라 낭독이 마이크에 섞이지 않는다.
+
+### 34-5. 도우미 — 회화방 §22 와 같은 것 · 다른 것
+- **같은 것**: 버튼(§22-3)·안내 말풍선 모양·자리·숨김 조건(§22-4)·판·카드·상태·문구(§22-5~7)·키보드 규칙(§22-11 — 입력 중엔 아래 바를 그리지 않음, 글자 바는 `hidden`)·소리(▶ 는 먼저 레슨 재생 `pb.stop()`, 한 번에 하나)·저장 없음.
+- **다른 것**:
+  - 요청 = #184. 응답·오류 처리는 #180 과 같다고 가정(409 `ENDED` 없음 — 레슨은 마친 방이 없다).
+  - 잠금 = `voice.phase` 'starting'·'recording'·'finishing' + `checking`(B5 A). 토스트: 녹음·인식 → 「말하는 중에는 열 수 없어요」(녹음 중이면 끝난 뒤), 확인 중 → 「답을 확인하는 중에는 열 수 없어요」(새).
+  - 닫힘: **#62b 결과가 오면 판을 닫는다**(결과는 기억 — 다시 열면 마지막 답. 회화방 `accepted` 닫힘과 같은 취지). 너무 짧아 보내지 않은 녹음이면 판 유지. 다음 과제로 가면 닫는다(결과 기억).
+  - 대기 중 요청 자동 취소(`cancelPending`) = 마이크 누름(`voice.press` 첫 줄) · 글자 확인 시작.
+  - 안내 말풍선 판정: 말 모드 `VoiceBar` 에 도우미가 처음 그려진 뒤 한 번(회화방과 같은 키 — B7 A). 토스트·판·잠김·인식 오류 띠가 있는 동안 잠깐 숨김.
+  - 판을 열 때 과제 문장(카드 머리 ~ 「목표 표현」)이 본문에서 가려져 있으면 `cardRef.scrollIntoView({block:'start'})` 한 번(B8 A — 결과가 온 뒤엔 이미 카드 머리라 움직이지 않음).
+
+### 34-6. 문구 (데모 「문구 표」가 정본 — 새 문구는 아래뿐, 엔진·모델 이름 없음)
+| 키(제안) | 문구 |
+|---|---|
+| `U5.trSr` | 한국어 뜻: (시각 숨김) |
+| `U5.trHeard` (A4 A) | 알아들은 말을 그대로 옮겼어요 |
+| `HELPER.placeholder.lesson` | 예: 주말에 친구를 만났어요 |
+| `HELPER.examples.lesson` | 주말에 친구를 만났어요 · 요리하는 걸 좋아해요 · 조금 더 연습하고 싶어요 |
+| `HELPER.noneExample.lesson` | 주말에 친구를 만났어요 |
+| `HELPER.lockedCheck` (B5 A) | 답을 확인하는 중에는 열 수 없어요 |
+| 재사용 | `DISPLAY_COPY.userTr`(번역 중… · 번역을 가져오지 못했어요 · 다시 가져오기 · 잠시 뒤 다시 눌러 주세요 · busy · blocked 「이 말은 번역할 수 없어요」 · fetch(A1 B 만)) · `HELPER.*` 나머지 · `U5.*`(⌨·■·확인하기·입력창 이름·placeholder·상태 줄) |
+
+### 34-7. API 호출 계획 (번호·확정은 Leader — `api-contract.md` 반영은 Leader)
+| # | 엔드포인트 | 메서드 | 파라미터 | 화면이 쓰는 칸 | 오류 처리 |
+|---|---|---|---|---|---|
+| 185 | `/api/v1/lessons/:id/speaking-translation`(**구현 확정 10-18 — 서버 A**) | POST | `{ text }`(**`itemId` 는 보내지 않는다 — 보내면 400 `unknown_key`**, 화면은 모범 답안과 같으면 부르지 않음) | `{ ko: string }`(`LessonSpeakingTranslation`) | 0·5xx·504·502 `TRANSLATION_REJECTED`·12초 → 실패 줄 · 429 → 한도 줄 · 409(`TRANSLATION_BUSY` 동시 1건) → busy 줄 · 409 `CANCELLED` → 화면이 먼저 버림(줄 없음) · 400·404 → 「이 말은 번역할 수 없어요」(단추 없음 — 회화방 `userTrFailure` 의 `blocked` 와 같은 처리) |
+| 184 | `/api/v1/lessons/:id/phrase-help`~~(가칭)~~ **(구현 확정 10-18 — 서버 B, 34-13 ⑦)** | POST | `{ queryKo }` trim 1~100 코드포인트 | `items[1..3].{ ja, ko, labelKo?, whyKo? }` | §22-9 #180 과 같음(`ENDED` 없음) · 서버 `CANCELLED` 는 화면이 먼저 버림 |
+| 62b | `/api/v1/lessons/:id/speaking` | POST | 그대로 | 그대로 | 그대로(결과가 오면 도우미 판 닫힘) |
+| 24r | `/api/v1/text/annotate` | POST | 카드 일본어(기존 `useAnnotations`) | 그대로 | 그대로 |
+- 저장 없음. 질의·답·번역 원문은 `RequestTrace`·로그·브라우저 저장소에 남기지 않는다(브라우저 저장소에 남는 것은 `kaiwa.talk.helperTipSeen` 과 지금의 레슨 초안뿐).
+
+### 34-8. 상태 관리
+- `StageSpeak`: 지금 상태 + `helper`(일반화한 `usePhraseHelper`) + 번역 훅(`{ state: 'none'|'loading'|'ok'|'fail'|'rate'|'busy', text }` · 메모리 캐시 · 새 시도 때 앞 요청 버림) + `tipOpen`.
+- 하단 묶음 높이: `StageSpeak` 가 판+바 상자를 `ResizeObserver` 로 재서 `LessonScreen` 에 올리거나 같은 값을 계산 → `Toast bottomPx`. 회화방 값(136·84)은 바꾸지 않는다.
+- 번역 순수 규칙(시험 대상): `translationPlan(result, modelAnswerJa, modelKo)` → `'skip' | { free: modelKo } | 'fetch'`(건너뜀·같음·다름) · `trHint(via, plan)` → 힌트 여부.
+
+### 34-9. 생성/수정 파일 (`src/components` 만 — 서버·계약은 Leader 사양)
+- 수정: `lesson/StageSpeak.tsx`(번역 칸·도우미·공용 바 사용·하단 높이 알림) · `lesson/LessonScreen.tsx`(토스트 바닥) · `lesson/lessonCopy.ts`(`U5.trSr`·`trHeard`) · `lesson/useLessonVoice.ts` 또는 새 `lesson/lessonVoiceView.ts`(view 모양) · `talk/VoiceBar.tsx`(선택 prop) · `chat/Composer.tsx`(선택 prop) · `talk/usePhraseHelper.ts`(요청 함수 주입) · `talk/helperCopy.ts`(`'lesson'` 분기·`lockedCheck`) · `talk/phraseHelperLogic.ts`(잠금 이유에 확인 중) · 번역 칸 모양을 함께 쓰려면 `chat/MessageBubble.tsx` 에서 줄 클래스 상수만 꺼냄(동작 불변).
+- 새: 번역 훅(가칭 `lesson/useSpeakTranslation.ts`) · 시험 `lesson/__tests__/speakTranslation.test.ts`(순수 규칙) · 레슨 경로 마크업 시험(선택 prop 을 넘긴 경우).
+
+### 34-10. 구현 순서
+① 서버 #185·#184(Leader L4) → ② 공용 부품 선택 prop + **고정 시험 먼저 실행**(`voiceSharedFrozen` 21종·`phraseHelper*` 그대로 통과) → ③ `usePhraseHelper` 일반화 → ④ `StageSpeak` 하단을 공용 부품으로 교체(도우미 없이 먼저 — 지금 레슨과 동작 대조) → ⑤ 도우미 → ⑥ 번역 칸 → ⑦ 토스트 바닥 → ⑧ 360/390/412 × 780/892 × 130% × 다크 · 키보드 · TalkBack.
+
+### 34-11. 데모 실측 요약 (헤드리스 Chrome, 데모 파일만 — 기록 [[task-077-designer-record]])
+- 자체 시험 2,268칸(상태 27 × 세 폭 × 100/130% × 라이트/다크 × 현재·★ + 화면 대안 10가지): **★ 실패 0 · 현재 0**(넘침·44px 미만 터치·잘린 글자·판-본문 겹침·본문<과제 문장·토스트-판 겹침·대비 4.5 미만). 대비 17,904칸 최소 4.80. 대안 기록 6 = B8 B 토스트-판 겹침.
+- 말풍선 높이(뒤틀린 말, 지금 → ★): 100% **+82px**(128→210) · 360·130% +130px · 긴 말 360·130% 351→511px. 번역 칸 A/B/C/D = 74/54/45/45px(390·100%).
+- 판 열림 본문 높이(780): 말 모드 **226px** · 글자 모드 256~280px · 키보드 260px — 과제 문장 필요 101(130% 121)px 는 늘 보이고, 목표 표현 칩까지(197 / 130% 259px)는 130% 에서 일부 스크롤.
+- 글자 입력창 폭 −68px(248/278/300 → 180/210/232). **빈 입력창은 placeholder 접힘만큼 커진다**(Composer 가 scrollHeight 로 높이를 맞춤): 레슨 360 → 70px(지금 48). 회화방 placeholder 는 같은 계산으로 360·390 94px — 범위 밖, Leader 보고.
+
+### 34-12. 주의 · 사용자 질문
+- **회귀 금지**: 새 선택 prop 없이 그린 `VoiceBar`·`Composer`·도우미 부품은 한 글자도 같아야 한다(`voiceSharedFrozen.test.ts` 21종 — 시험 파일 고치지 않음). 회화방·질문 탭(`useAskInput`)·시나리오의 동작·문구·토스트 값(136·84) 불변.
+- 엔진·모델 이름 화면 노출 없음. 데모 문구 표에 없는 새 요소·문구 만들지 않음. [입력창에 넣기]는 채우기만(자동 확인 없음).
+- 사용자 질문(데모 「메모」): ① A4 힌트 유무 ② 자동 번역 호출 수(A1·A2) ③ B6-Q Enter ④ B8 판 높이(회화방과 같음 vs 레슨만 낮춤) ⑤ 레슨 placeholder 를 줄일지(「일본어로 답해 보세요」 — 360·100% 한 줄).
+- Leader 확인(✎): A4 모양·A5 문구를 이력서 원안과 다르게 ★ 로 그림 · B8 에 카드 머리 맞춤을 더함.
+
+### 34-13. 구현 후 정정 (2026-10-18 · 구현 task-077, 감사 REV-077S·U PASS_WITH_NOTES)
+
+> 34-0~34-12 의 승인 설계는 그대로 두고, **구현이 달라졌거나 승인안이 말하지 않은 곳만** 적는다. §12-2 J·§22 쪽 정정은 각 절의 ⚠ 표기를 본다.
+
+1. **확인(변경 없음)** — #185 요청 본문은 `{ text }` 하나, 응답은 `{ ko }`(`itemId` 를 보내면 400 `unknown_key`). 34-7 의 #185 행이 구현과 같다.
+2. **#184 도우미가 쓰는 수준 = 프로필 수준**(레슨 수준·챌린지 난이도가 아니다. 회화방 #180 은 대화 수준을 먼저 쓴다). 승인 B2(레슨 맥락을 프롬프트에 넣지 않음)를 «수준 숫자도 넣지 않음» 으로 읽은 구현이고 Leader 판정은 «현행 유지»(REV-077S Low-2). 챌린지 난이도(task-076)가 프로필과 다른 수업에서는 프로필 범위의 표현이 나온다 → 폰 확인 항목, 이상하면 후속 IMP(learning 에 레슨 수준 읽기 함수를 두고 라우트가 서비스 인자로 넘김).
+3. **일본어 글자가 없는 글자 답도 #185 를 부른다**(승인 데모대로). 번역 계획(`translationPlan`)이 히라가나·가타카나·한자 유무를 보지 않아, 한국어로 친 답도 한도 1회를 쓰고 서버가 502 `TRANSLATION_REJECTED` 를 돌려 «번역을 가져오지 못했어요 · 다시 가져오기» 가 뜬다(눌러도 대개 같은 결과). 결함은 아니고 **후속 제안**(REV-077U Low-3): 일본어 글자가 없으면 요청을 생략하고 칸을 숨기거나 막힘 줄(단추 없음)로 — 사용자 결정 사항이다.
+4. **■ 아이콘이 한 단계 작아졌다**: 말 바가 공용 `VoiceBar` 를 쓰므로 ■ 안쪽 사각형이 레슨 `StopIcon`(24 viewBox 중 14 → 18px 아이콘에서 10.5px)에서 공용 것(12 → 9px)으로 바뀐다. 버튼 44px·바탕·자리는 그대로, 회화방과 같은 모양이 되는 결과라 의도된 차이이며 시험이 «알려진 차이» 로 고정한다. 폰에서 거슬려도 고칠 곳은 `VoiceBar.StopIcon` 한 곳이고 회화방도 같이 바뀐다.
+5. **인식 오류 띠의 「글자로 답하기」는 입력창에 초점을 주지 않는다**(현행 유지). 초점은 ⌨ 버튼으로 바꿀 때만 간다(34-3). 회화방은 띠 단추에서도 초점을 주므로 어긋남이 있으나 지금 레슨 동작을 지켰다(Leader 판정, REV-077U E-3). 바꾸려면 `StageSpeak` 의 `onTextMode` 에 `focusTextRef.current = true` 한 줄.
+6. **`voiceSharedFrozen` 4번째 시험의 좁은 예외**(Leader 승인): 시험 «회화·수업·평가·마이크 테스트 화면은 질문 탭 전용 prop 을 넘기지 않는다» 가 승인 B6 A(레슨이 공용 `VoiceBar` 를 쓰고 ⌨ 이름을 `keyboardLabel` 로 넘김)와 부딪혀, 소스 스캔 반복에서 `lesson/StageSpeak.tsx`·`lesson/useLessonVoice.ts` 두 파일의 `keyboardLabel` 하나만 건너뛴다. 다른 금지어(`cancelOutside`·`safeBottom`·`textOf=`·`canResend`·`caption=`)와 다른 파일은 그대로 금지, 시험 이름·21종 고정 마크업 시험·픽스처 수정 0, `task077LessonSpeak.test.ts` 가 예외 글자를 고정한다. 실제로 쓰는 곳은 `StageSpeak.tsx` 한 곳이다(`useLessonVoice.ts` 는 허용 목록에만 있고 지금 그 글자가 없어 필요 이상으로 넓다 — REV-077U Info-4).
+7. **#184 확정**: 응답·오류는 #180 과 같은 봉투(34-5 의 «같다고 가정» → 확정, 라우트 시험이 #180 과 바이트 비교), 레슨 소유만 확인·상태 무관(끝난 레슨도 200)·409 `ENDED` 없음·404 「수업을 찾을 수 없어요.」·레슨 맥락 없음. 한도(분당 10·하루 300)·동시 1건 잠금은 #180·#181 과 합산(34-1 B3), #185 는 별도 키(분당 20)·별도 잠금.
+8. **도우미 안내 판정·판 닫힘의 보강**: 처음 한 번 안내는 인식 설정(#19)을 읽기 전에는 판정하지 않는다 — 글자 모드로 시작할 사용자에게 안내를 «써 버리지» 않게(34-5 «말 모드 입력 바가 처음 그려진 뒤 한 번» 의 보강, REV-077U Info-6). 인식 오류 띠가 새로 뜨면 판이 닫힌다(회화방 «띠가 뜨면 닫힘» 규칙을 레슨 오류 띠에 대응).
+9. **파일 — 34-9 와 실제**: `chat/MessageBubble.tsx` 에서 줄 클래스 상수를 꺼내지 않았다(회화방 무수정 원칙) — `SpeakTranslation.tsx` 의 `TR_LINE`(`mt-2 border-t border-ink/18`)은 `MessageBubble` 것과 같은 값의 복제다(동기화 시험 없음, REV-077U Info-5). `useLessonVoice.ts` 는 고치지 않고 view 유도를 새 `lessonVoiceView.ts` 에 뒀다. 새 파일: `lesson/{lessonVoiceView,speakTranslation,useSpeakTranslation,speakCheck}.ts` · `lesson/SpeakTranslation.tsx`(34-8 의 `trHint(via, plan)` 는 `speakTrHint(via, state)`, 확인 순서 «도우미 접기 → #62b → 판 닫기 / 실패 시 원문 되돌리기» 는 `runSpeakCheck`). 공용 부품 변경: `talk/{VoiceBar,usePhraseHelper,helperCopy,phraseHelperLogic}` · `chat/Composer`(선택 prop·주입만, 호출부 0줄).

@@ -274,6 +274,11 @@ export interface SpeakingResult {
   hasAudio: boolean
 }
 
+/** #185 `POST /api/v1/lessons/:id/speaking-translation {text}` 응답(task-077) — 「내가 한 말」의 한국어 뜻. 서버는 저장하지 않는다. */
+export interface LessonSpeakingTranslation {
+  ko: string
+}
+
 export type AudioKind = 'dialogue' | 'grammar' | 'application' | 'speaking' | 'chunk'
 export type AudioPace = 'slow' | 'normal'
 
