@@ -7,8 +7,9 @@
  * 3장 스택 transform, 드래그 중 transition 없음, 영역 폭 80%·`touch-action:none`, `touchend` 에서 `preventDefault`
  * (호환 mouse/click 이 **뒤집기 직후 새로 생긴 [알았어요] 버튼**에 떨어지는 유령 클릭을 막는다), 마우스 mouseleave 로 끝냄.
  * 바꾼 것: 위 = 뜻 보기(task-060, 옛 표시 토글 — 카드는 넘어가지 않고, 부모가 실제로 뜻을 열었을 때만 튀었다 돌아옴),
- * 왼쪽 = 이전 카드(task-070, 옛 다음 — 첫 카드면 부모가 안내), 오른쪽 = 푼 카드는 다음 카드·안 푼 카드는 건너뛰기 확인(task-070, 옛 건너뛰기 확인만 —
- * 부모가 `cardFirst.rightAction` 으로 가른다), 막힌 방향은 ×0.25 저항, 다음 카드로 넘어가는 카드는 오른쪽으로 날아간다(`FLY_OUT_TRANSFORM`),
+ * 좌우 = 손가락이 간 쪽(`'left' | 'right'`)만 부모(`onSwipe`)에 넘긴다 — 어느 쪽이 무슨 일인지(왼쪽 = 푼 카드는 다음·안 푼 카드는 건너뛰기 확인,
+ * 오른쪽 = 이전 카드, task-075 가 task-070 의 지도를 맞바꿈)는 `cardFirst.swipeAction` 한 곳에만 있고 여기서는 모른다.
+ * 막힌 방향은 ×0.25 저항(`canSwipe(side)`), 다음 카드로 넘어가는 카드는 왼쪽으로 날아간다(`FLY_OUT_TRANSFORM` — 손가락 방향과 같게),
  * 두 손가락·touchcancel 은 동작 없이 원위치, reduced-motion 은 회전·날아가기 없음.
  * 방향 판정·저항은 `deck.ts` 의 순수 함수(`classifyGesture`·`resistX`)가 한다.
  *
@@ -16,7 +17,7 @@
  * React 의 onTouchStart/Move 는 passive 라 거기서는 preventDefault 하지 않는다(스크롤은 touch-action 이 막는다).
  */
 import { useEffect, useRef, useState } from 'react'
-import { classifyGesture, FLY_OUT_TRANSFORM, resistX } from './deck'
+import { classifyGesture, FLY_OUT_TRANSFORM, resistX, type SwipeSide } from './deck'
 
 const BUMP_MS = 90
 
@@ -24,33 +25,29 @@ export default function SwipeCardStack({
   count,
   view,
   renderTop,
-  canLeft,
-  canRight,
+  canSwipe,
   locked,
   exiting,
   reducedMotion,
   onTap,
   onUp,
-  onLeft,
-  onRight,
+  onSwipe,
 }: {
   count: number
   view: number
   renderTop: () => React.ReactNode
-  /** 왼쪽(이전 카드)으로 끌 수 있는가 — 첫 카드면 저항 */
-  canLeft: boolean
-  /** 오른쪽(다음 카드·결과 또는 건너뛰기 확인)으로 끌 수 있는가 — 아니면 저항 */
-  canRight: boolean
+  /** 그쪽으로 끌 수 있는가 — 아니면 ×0.25 저항(왼쪽 = 다음·건너뛰기 확인을 할 수 있을 때, 오른쪽 = 이전 카드가 있을 때) */
+  canSwipe: (side: SwipeSide) => boolean
   /** 넘기는 중·답 응답 대기 중에는 드래그를 시작하지 않는다 */
   locked: boolean
-  /** 부모가 다음 카드로 넘기는 중(카드가 오른쪽으로 날아간다 — 트리거가 제스처·버튼·키 어느 것이든 같다) */
+  /** 부모가 다음 카드로 넘기는 중(카드가 왼쪽으로 날아간다 — 트리거가 제스처·버튼·키 어느 것이든 같다) */
   exiting: boolean
   reducedMotion: boolean
   onTap: () => void
   /** 위로 밀기. 카드가 실제로 반응했으면(뜻이 열렸으면) true — 그때만 튄다(처리 못 한 밀기에 튀면 된 것처럼 보인다). */
   onUp: () => boolean
-  onLeft: () => void
-  onRight: () => void
+  /** 손가락이 간 쪽. 그 쪽이 무슨 일을 하는지는 부모(`cardFirst.swipeAction`)가 정한다. */
+  onSwipe: (side: SwipeSide) => void
 }) {
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false })
   const [bump, setBump] = useState(false)
@@ -102,11 +99,10 @@ export default function SwipeCardStack({
         if (bumpTimer.current) clearTimeout(bumpTimer.current)
         bumpTimer.current = setTimeout(() => setBump(false), BUMP_MS)
       }
-    } else if (g === 'left') onLeft()
-    else if (g === 'right') onRight()
+    } else if (g === 'left' || g === 'right') onSwipe(g)
   }
 
-  const shownX = resistX(drag.x, canLeft, canRight)
+  const shownX = resistX(drag.x, canSwipe('left'), canSwipe('right'))
 
   let transform = 'none'
   let transition = 'transform 0.3s ease, opacity 0.3s ease'

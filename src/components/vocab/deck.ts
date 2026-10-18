@@ -17,12 +17,14 @@ export const SIDE_MIN = 60
 export const RESIST = 0.25
 export const FLY_MS = 180
 /**
- * 다음 카드로 넘어갈 때 카드가 날아가는 곳 — **오른쪽**(task-070: 다음 카드로 가는 제스처가 오른쪽 밀기라 손가락 방향과 일치).
+ * 다음 카드로 넘어갈 때 카드가 날아가는 곳 — **왼쪽**(task-075: 다음 카드로 가는 제스처가 왼쪽 밀기라 손가락 방향과 일치. task-070 에서 오른쪽이던 것을 되돌렸다).
  * 버튼·키로 넘어가도 같은 방향으로 통일한다. reduced-motion 은 `SwipeCardStack` 이 이 값을 쓰지 않고 투명도만 바꾼다.
  */
-export const FLY_OUT_TRANSFORM = 'translateX(120%) rotate(8deg)'
+export const FLY_OUT_TRANSFORM = 'translateX(-120%) rotate(-8deg)'
 
 export type Gesture = 'tap' | 'up' | 'left' | 'right' | 'none'
+/** 손가락이 간 쪽(`classifyGesture` 의 좌우). 그 쪽이 무슨 일을 하는지는 `cardFirst.swipeAction` 한 곳이 정한다(task-075). */
+export type SwipeSide = Extract<Gesture, 'left' | 'right'>
 
 /** bjj 판정 순서 그대로: 탭 → 위 → 좌우. 대각선 위(dy −100, dx −100)는 위가 이긴다. */
 export function classifyGesture(dx: number, dy: number): Gesture {
@@ -33,8 +35,9 @@ export function classifyGesture(dx: number, dy: number): Gesture {
 }
 
 /**
- * 드래그 표시 x(task-070). 왼쪽 = 이전 카드(첫 카드면 저항), 오른쪽 = 다음 카드·결과 또는 건너뛰기 확인 — 그쪽으로 갈 수 없는 상태면
- * ×0.25 만 따라온다. `canLeft`/`canRight` 는 `canPrev`·`cardFirst.canSwipeRight` 가 정한다(여기서 상태를 직접 보지 않는다).
+ * 드래그 표시 x(task-075 지도). 왼쪽 = 다음 카드·결과 또는 건너뛰기 확인, 오른쪽 = 이전 카드(첫 카드면 저항) — 그쪽으로 갈 수 없는 상태면
+ * ×0.25 만 따라온다. 인자는 **손가락 방향** 기준(`canLeft` = 왼쪽으로 끌 수 있는가)이고, 값은 `cardFirst.canSwipe(side, …)` 가 정한다
+ * (여기서 상태를 직접 보지 않는다 — 어느 방향이 무슨 일을 하는지는 `cardFirst.swipeAction` 한 곳에만 있다).
  */
 export function resistX(x: number, canLeft: boolean, canRight: boolean): number {
   if (x < 0 && !canLeft) return x * RESIST
@@ -42,7 +45,7 @@ export function resistX(x: number, canLeft: boolean, canRight: boolean): number 
   return x
 }
 
-/** 이전 카드가 있는가(왼쪽 밀기·← ·[이전]). 첫 카드면 없다. */
+/** 이전 카드가 있는가(오른쪽 밀기·←·[이전]). 첫 카드면 없다. */
 export function canPrev(view: number): boolean {
   return view > 0
 }

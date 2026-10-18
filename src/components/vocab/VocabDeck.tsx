@@ -11,8 +11,9 @@
  * 새 버튼([객관식]·듣기 줄)도 모두 제스처 영역 밖이다 — 터치 기기는 `SwipeCardStack` 의 `touchend preventDefault` 때문에 영역 안 버튼의 click 이 생기지 않는다.
  *
  * 덱 조작 정리(task-060): 위로 밀기 = 뜻 보기(`cardFirst.upAction`), 표시(★)는 [표시]·F. 앞면 히라가나 = [읽기], 한글 줄 = [한글](서로 독립).
- * 좌우 스와이프(task-070 개정): 왼쪽 = 이전 카드(`deck.prev`), 오른쪽 = 푼 카드는 다음 카드·마지막이면 결과(`deck.next`), 안 푼 카드는 건너뛰기 확인
- * 시트(`SkipConfirmSheet`) — 갈림은 `cardFirst.rightAction` 이 한다. 키 ←/→ 와 [이전]·[다음 카드] 는 그대로다.
+ * 좌우 스와이프(task-075 가 task-070 의 지도를 맞바꿈): 왼쪽 = 푼 카드는 다음 카드·마지막이면 결과(`deck.next`), 안 푼 카드는 건너뛰기 확인 시트(`SkipConfirmSheet`),
+ * 오른쪽 = 이전 카드(`deck.prev`) — 방향 지도는 `cardFirst.swipeAction` 한 곳에만 있고 이 파일은 손가락이 간 쪽을 `runSwipe` 에 넘길 뿐이다.
+ * 키 ←/→ 와 [이전]·[다음 카드] 는 이 길을 거치지 않고 그대로다(키 ← = 이전 · → = 다음).
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { OFF, useAnnotations, useWordLayersList } from '@/components/common/japanese/annotations'
@@ -22,7 +23,7 @@ import { alignWordRuby } from '@/modules/speech/reading/client'
 import {
   answeredBy,
   canAskSkip,
-  canSwipeRight,
+  canSwipe,
   CARD_FIRST,
   choicesState,
   deckSoundMessage,
@@ -32,7 +33,7 @@ import {
   isSoundStopTap,
   listenTexts,
   modeTag,
-  rightAction,
+  runSwipe,
   skipSheetOpen,
   tapAction,
   upAction,
@@ -42,7 +43,7 @@ import DeckListenRow from './DeckListenRow'
 import DeckNotice from './DeckNotice'
 import DeckProgress from './DeckProgress'
 import DeckToolbar from './DeckToolbar'
-import { canPrev, isAnswered, keyAction, tallyCards } from './deck'
+import { canPrev, isAnswered, keyAction, tallyCards, type SwipeSide } from './deck'
 import FinishConfirmSheet from './FinishConfirmSheet'
 import FlipControls from './FlipControls'
 import GestureHint from './GestureHint'
@@ -86,8 +87,9 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
   const exampleAnn = exampleAnns[view] ?? OFF
   const hangulBlocked = hangulBlock({ prefsLoaded: prefs.loaded, appHangul: prefs.showHangul, layer: layerHangul?.s })
 
-  // 건너뛰기(task-060 D): 오른쪽 밀기·S·화면 읽기 전용 [건너뛰기]는 확인 시트만 연다. 기록(#50 skipped)은 시트의 [건너뛰기]에서만.
+  // 건너뛰기(task-060 D): 안 푼 카드의 왼쪽 밀기(task-075)·S·화면 읽기 전용 [건너뛰기]는 확인 시트만 연다. 기록(#50 skipped)은 시트의 [건너뛰기]에서만.
   const skipCtx = { isCurrent, answered, busy: locked }
+  const swipeCtx = { ...skipCtx, hasPrev: canPrev(view) }
   const skipOpen = skipSheetOpen({ skipFor, order: card?.order ?? null, answered, phase: deck.phase })
   // 열림 조건이 풀리면(카드가 바뀜·답이 들어옴·끝내는 중) 연 카드 기록도 비운다 — 끝내기 실패로 phase 가 playing 으로 돌아와도 같은 카드의 시트가 되살아나지 않게(REV-060-1 L-3).
   if (skipFor !== null && !skipOpen) setSkipFor(null)
@@ -223,12 +225,11 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
     return r.kind === 'flip'
   }
 
-  /** 오른쪽 밀기(task-070): 푼 카드는 다음 카드(마지막이면 결과, 소리 멈춤·날아가기는 `deck.next`), 안 푼 카드는 건너뛰기 확인(task-060). */
-  const onRight = () => {
-    const r = rightAction(skipCtx)
-    if (r.kind === 'next') deck.next()
-    else if (r.kind === 'ask') askSkip()
-  }
+  /**
+   * 좌우 밀기(task-075): 손가락이 간 쪽만 넘긴다. 왼쪽 = 푼 카드는 다음 카드(마지막이면 결과, 소리 멈춤·날아가기는 `deck.next`)·안 푼 카드는 건너뛰기 확인(task-060),
+   * 오른쪽 = 이전 카드(첫 카드 안내는 `deck.prev`) — 어느 쪽이 무엇인지는 `swipeAction` 이 정한다.
+   */
+  const onSwipe = (side: SwipeSide) => runSwipe(side, swipeCtx, { next: deck.next, prev: deck.prev, ask: askSkip })
 
   const listen = listenTexts(card)
   // onClick 안에서 동기로 tap — 첫 await 앞에서 오디오를 깨운다(useWordSound 규칙).
@@ -262,20 +263,19 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
       {sourceLine ? <TopicDeckLines source={sourceLine} challenge={challengeLine} compact={tight} /> : null}
       {deck.notice ? <DeckNotice notice={deck.notice} onClose={deck.closeNotice} topic={!!topic} /> : null}
       {/* 무대 하한 224 = 카드 하한 200 + py-3 위아래 — 알림·듣기 줄·보기가 겹쳐 무대가 그보다 작아지면 카드가 이웃을 덮지 않고 `main` 이 스크롤한다(task-059 결함 #1).
-          `overflow-x-clip`: 다음 카드로 넘어가는 카드가 오른쪽으로 날아가면(task-070 `FLY_OUT_TRANSFORM`) `main`(overflow-y-auto → x 도 auto)의 가로 스크롤 범위가 잠깐 생긴다 — 무대에서 가로만 잘라 막는다(세로 튀기 `bump` 는 그대로 보인다). */}
+          `overflow-x-clip`: 이전 카드로 가려고 카드를 오른쪽으로 끌면 `main`(overflow-y-auto → x 도 auto)에 가로 스크롤 범위가 생긴다 — 무대에서 가로만 잘라 막는다
+          (task-070 이 날아가는 카드를 막으려 넣었고, 날아가는 쪽이 왼쪽으로 돌아온 task-075 에서도 끄는 쪽에 오른쪽이 있어 유지. 세로 튀기 `bump` 는 그대로 보인다). */}
       <div className="flex min-h-[224px] flex-1 items-center justify-center overflow-x-clip px-4 py-3">
         <SwipeCardStack
           count={n}
           view={view}
-          canLeft={canPrev(view)}
-          canRight={canSwipeRight(skipCtx)}
+          canSwipe={(side) => canSwipe(side, swipeCtx)}
           locked={locked}
           exiting={deck.exiting}
           reducedMotion={deck.reducedMotion}
           onTap={onTap}
           onUp={onUp}
-          onLeft={deck.prev}
-          onRight={onRight}
+          onSwipe={onSwipe}
           renderTop={() => (
             <VocabCardFace
               card={card}

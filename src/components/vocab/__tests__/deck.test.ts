@@ -37,15 +37,15 @@ test('classifyGesture: 탭 10px 미만 · 위 −80 초과 · 좌우 60 초과(b
   assert.equal(classifyGesture(100, 79), 'right', '아래 대각선은 좌우')
 })
 
-test('resistX(task-070): 왼쪽 = 이전 카드가 없을 때만, 오른쪽 = 다음·건너뛰기 확인을 못 할 때만 ×0.25 — 두 방향은 서로 독립', () => {
-  // 왼쪽(x<0): canLeft(이전 카드가 있는가)만 본다
-  assert.equal(resistX(-100, false, true), -25, '첫 카드를 왼쪽(이전)으로')
-  assert.equal(resistX(-100, true, false), -100, '이전 카드가 있으면 오른쪽이 막혀도 자유')
+test('resistX(task-075): 손가락 방향 기준 — 왼쪽(x<0)은 canLeft 만, 오른쪽(x>0)은 canRight 만 본다(막히면 ×0.25) — 두 방향은 서로 독립', () => {
+  // 왼쪽(x<0): canLeft(왼쪽 = 다음 카드·건너뛰기 확인을 할 수 있는가)만 본다
+  assert.equal(resistX(-100, false, true), -25, '왼쪽(다음·건너뛰기)이 막힌 카드를 왼쪽으로')
+  assert.equal(resistX(-100, true, false), -100, '왼쪽이 열려 있으면 오른쪽이 막혀도 자유')
   assert.equal(resistX(-100, true, true), -100)
   assert.equal(resistX(-100, false, false), -25)
-  // 오른쪽(x>0): canRight(다음 카드·결과 또는 건너뛰기 확인을 열 수 있는가)만 본다
-  assert.equal(resistX(100, true, false), 25, '갈 곳이 없는 카드(저장 중)를 오른쪽으로')
-  assert.equal(resistX(100, false, true), 100, '첫 카드여도 오른쪽(다음·건너뛰기)은 자유')
+  // 오른쪽(x>0): canRight(오른쪽 = 이전 카드가 있는가)만 본다
+  assert.equal(resistX(100, true, false), 25, '첫 카드(이전 카드 없음)를 오른쪽으로')
+  assert.equal(resistX(100, false, true), 100, '왼쪽이 막혀도 이전 카드가 있으면 오른쪽은 자유')
   assert.equal(resistX(100, true, true), 100)
   assert.equal(resistX(100, false, false), 25)
   assert.equal(resistX(0, false, false), 0)
@@ -59,10 +59,10 @@ test('canPrev: 첫 카드(0)만 없고 나머지는 있다', () => {
   assert.equal(canPrev(29), true)
 })
 
-test('FLY_OUT_TRANSFORM(task-070): 다음 카드로 넘어갈 때 카드는 오른쪽(+)으로 날아간다 — 왼쪽(−)이 아니다', () => {
-  assert.match(FLY_OUT_TRANSFORM, /^translateX\(\d+%\) rotate\(\d+deg\)$/, '양수 translateX · 양수 rotate')
-  assert.doesNotMatch(FLY_OUT_TRANSFORM, /-/, '음수(왼쪽으로 날기)가 없다')
-  assert.equal(FLY_OUT_TRANSFORM, 'translateX(120%) rotate(8deg)')
+test('FLY_OUT_TRANSFORM(task-075): 다음 카드로 넘어갈 때 카드는 왼쪽(−)으로 날아간다 — 오른쪽(+)이 아니다', () => {
+  assert.match(FLY_OUT_TRANSFORM, /^translateX\(-\d+%\) rotate\(-\d+deg\)$/, '음수 translateX · 음수 rotate')
+  assert.doesNotMatch(FLY_OUT_TRANSFORM, /\(\d|\s\d/, '양수(오른쪽으로 날기) 값이 없다')
+  assert.equal(FLY_OUT_TRANSFORM, 'translateX(-120%) rotate(-8deg)')
 })
 
 const card = (answer: 'CORRECT' | 'WRONG' | 'SKIPPED' | null, flagged = false) => ({ answered: answer !== null, answer, flagged })
@@ -146,6 +146,7 @@ test('keyAction: CHOICE 1~4·Space·화살표·F/R/S', () => {
   assert.equal(keyAction({ key: '1' }, { ...base, isCurrent: false }), null, '지난 카드는 읽기 전용')
   assert.equal(keyAction({ key: ' ' }, base), null, '안 답한 CHOICE 에서 Space 는 아무것도 안 함')
   assert.deepEqual(keyAction({ key: 'Enter' }, { ...base, answered: true }), { type: 'advance' })
+  // task-075: 스와이프 방향을 맞바꿔도 키는 그대로(→ 다음 · ← 이전) — 키는 스와이프 지도(cardFirst.swipeAction)를 거치지 않는다
   assert.deepEqual(keyAction({ key: 'ArrowRight' }, base), { type: 'next' })
   assert.deepEqual(keyAction({ key: 'ArrowLeft' }, base), { type: 'prev' })
   // task-060: 표시(★)는 [표시]·F 로만 남는다(위로 밀기를 뜻 보기에 넘김) — ↑ 는 표시가 아니다(옛: { type: 'flag' })
