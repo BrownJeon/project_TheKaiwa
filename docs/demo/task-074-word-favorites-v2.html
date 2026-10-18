@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-074-v2">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="단어장 즐겨찾기 v2 — 사용자 지정 반영: 출처 분절 4번째 칸 「즐겨찾기」(D1=D)·금색 별(D8=B, B1/B2 대비)·뱃지 아래 작은 별(D9, 누르는 영역 겹침 실측). 나머지 결정은 ★ 권고(승인 전). delta 데모 v2, 합성 샘플, 서버 호출 없음">
+<title>단어장 즐겨찾기</title>
+<style>
+/* 레이아웃(v2): 위 조작 줄 → v1→v2 바뀐 것 → 결정 표(사용자 지정 D1·D8·D9 / ★ 승인 전 나머지) → 왼쪽 상태 목록 · 가운데 휴대폰(현재 vs 제안) · 오른쪽 설명·실측 → 금색 별 B1·B2 대비 → 뱃지 아래 별 실측 → 4칸 분절 실측 → 쪽 수 변화(D3) → 문구 표 → 낭독·초점 → 메모·한계·질문 → 개발 메모 */
+/* 색·반경 값은 src/app/globals.css 를 그대로 고정(링크하지 않음, task-072·073 데모와 같은 값). 새 색 없음 */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) — task-073 데모와 같은 틀 ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dlay { display: grid; grid-template-columns: 230px minmax(0, 1fr) 330px; gap: 18px; padding: 4px 16px 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.nvb { display: block; width: 100%; min-height: 36px; padding: 7px 8px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 12.5px; color: var(--ink2); }
+.nvb:hover { background: var(--surface2); color: var(--ink); }
+.nvb[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; min-height: 34px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 0 4px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; word-break: keep-all; overflow-wrap: anywhere; }
+.dmeas { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 3px; word-break: keep-all; }
+.dmeas b { color: var(--ink); }
+.ok { color: var(--good); font-weight: 700; }
+.ng { color: var(--bad); font-weight: 700; }
+.dpanel { margin: 12px 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 100ch; word-break: keep-all; }
+.dqs { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+fieldset.dq { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+fieldset.dq legend { padding: 0 4px; font-size: 14px; font-weight: 700; }
+fieldset.dq legend .dn2 { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-right: 6px; color: var(--ink2); }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; word-break: keep-all; }
+.rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.dsg { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--warn-soft); color: var(--ink); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.drow { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink2); }
+.dbtn { height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dtw { overflow-x: auto; margin-top: 10px; }
+.dtbl { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 7px 6px; border-top: 1px solid var(--line); word-break: keep-all; overflow-wrap: anywhere; }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtbl td.k { white-space: nowrap; font-weight: 700; }
+.dtbl .q { color: var(--ink); font-weight: 600; }
+.dlist { margin-top: 10px; list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; word-break: keep-all; overflow-wrap: anywhere; }
+.dlist b { color: var(--ink); }
+details.dev { margin: 0 16px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 16px; }
+details.dev > summary { min-height: 48px; display: flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer; }
+details.dev[open] { padding-bottom: 16px; }
+@media (max-width: 1320px) { .dlay { grid-template-columns: 210px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 16px 12px; }
+  .dnav { position: static; max-height: none; }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+body.mark .dnew { outline: 2px dashed var(--accent); outline-offset: 1px; }
+
+/* ── 휴대폰 프레임 — 글자 크기는 --fz 배(휴대폰 글꼴 크기 130% 모형: 글자만 커지고 버튼 높이는 그대로) ── */
+.phone { --fz: 1; position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.phone.big { --fz: 1.3; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; overflow: hidden; background: var(--ground); }
+.pg { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.ab { height: 56px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.ab b { font-size: calc(20px * var(--fz)); flex: 1; min-width: 0; }
+.ab-add { height: 44px; flex: none; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 12px; font-size: calc(14px * var(--fz)); font-weight: 600; color: var(--ink); }
+.pgs { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 16px 32px; scrollbar-width: none; }
+.pgs::-webkit-scrollbar { display: none; }
+.tabs { height: 60px; flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-top: 1px solid var(--line); font-size: calc(11px * var(--fz)); color: var(--ink2); }
+.tabs span { display: grid; place-items: center; }
+.tabs span.cur { color: var(--accent); font-weight: 700; }
+.ptoast { position: absolute; left: 16px; right: 16px; bottom: 84px; z-index: 30; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 12px 14px; font-size: calc(13px * var(--fz)); word-break: keep-all; box-shadow: 0 6px 16px rgba(0,0,0,.2); }
+/* 단어장 위쪽(DrawerSwitch·검색·출처·조각·정렬) — 현재 클래스 값 */
+.dsw { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; margin-bottom: 10px; }
+.dsw span { display: grid; place-items: center; height: 36px; flex: 1; min-width: 0; border-radius: 9px; font-size: calc(13.5px * var(--fz)); color: var(--ink2); font-weight: 500; }
+.dsw span.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.srch { position: relative; }
+.srch input { display: block; height: 44px; width: 100%; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 44px 0 40px; font-size: calc(16px * var(--fz)); color: var(--ink); }
+.srch input::placeholder { color: var(--ink3); }
+.srch svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink2); }
+.frow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mt8 { margin-top: 8px; } .mt6 { margin-top: 6px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; }
+.seg { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; min-width: 0; flex: 1 1 auto; }
+.seg button { position: relative; height: 32px; min-width: 0; flex: 1 1 0; border: 0; border-radius: 9px; background: none; padding: 0 4px; font-size: calc(12px * var(--fz)); font-weight: 500; color: var(--ink2); }
+.seg button::before, .ftg::before, .chip::before, .dt::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.seg button > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftg { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 32px; flex: none; border: 0; border-radius: 9px; padding: 0 12px; background: var(--surface2); color: var(--ink2); font-size: calc(13px * var(--fz)); font-weight: 500; white-space: nowrap; }
+.ftg[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); box-shadow: 0 0 0 1px var(--accent); }
+.ftg.ico { width: 44px; padding: 0; }
+.ftg svg { flex: none; }
+.ckrow { display: flex; align-items: center; gap: 8px; margin-right: -16px; min-width: 0; }
+.cklb { width: 30px; flex: none; font-size: calc(12px * var(--fz)); font-weight: 600; color: var(--ink2); }
+.hsc { display: flex; gap: 8px; min-width: 0; flex: 1; overflow-x: auto; padding: 4px 16px 4px 0; scrollbar-width: none; }
+.hsc::-webkit-scrollbar { display: none; }
+.chip { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 36px; min-width: 44px; flex: none; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(13px * var(--fz)); color: var(--ink); }
+.chip[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.chip.fav[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 600; }
+.anote { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.hdr { margin: 8px 0 6px; display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.hd { min-width: 0; flex: 1; font-size: calc(12px * var(--fz)); color: var(--ink2); overflow-wrap: anywhere; }
+.hd b { color: var(--ink); font-weight: 600; }
+.dtg { display: flex; flex: none; gap: 6px; }
+.dt { position: relative; height: 32px; flex: none; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(13px * var(--fz)); color: var(--ink); }
+/* 목록 — WordRow(현재: 행 = 한 버튼 / 제안: 열기 버튼 + 별 버튼 형제) */
+.wl { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.wl > li + li { border-top: 1px solid var(--line); }
+.wr { position: relative; display: block; min-width: 0; }
+.wo { display: flex; width: 100%; min-width: 0; min-height: 64px; flex-direction: column; justify-content: center; gap: 2px; padding: 10px 14px; border: 0; background: none; text-align: left; color: var(--ink); }
+.l1, .l3 { display: flex; width: 100%; min-width: 0; align-items: baseline; gap: 8px; }
+.sf { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(18px * var(--fz)); font-weight: 600; line-height: 1.95; }
+.sf rt, .dsf rt { font-size: .5em; font-weight: 400; color: var(--ink2); }
+.flx { flex: 1; }
+.bdg { display: inline-flex; height: 22px; flex: none; align-items: center; border-radius: 6px; padding: 0 8px; font-size: calc(11.5px * var(--fz)); font-weight: 600; white-space: nowrap; }
+.bdg.n { background: var(--surface2); color: var(--ink2); }
+.bdg.mine { background: var(--accent-soft); color: var(--ink); }
+.bdg.out { background: transparent; color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); }
+.bdg.bad { background: var(--bad-soft); color: var(--bad); }
+/* 한글 줄 = HangulLine(mt-0.5 · 12.5px · leading 1.5 · 줄바꿈) — 대괄호는 ink3 */
+.hgl { display: block; margin-top: 2px; font-size: calc(12.5px * var(--fz)); line-height: 1.5; color: var(--ink2); overflow-wrap: anywhere; }
+.hgl .bk { color: var(--ink3); }
+.mn { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(14px * var(--fz)); line-height: 1.5; color: var(--ink2); }
+.cnt { flex: none; font-size: calc(12px * var(--fz)); color: var(--ink2); font-variant-numeric: tabular-nums; }
+/* U3(사용자 지정): 별 = 열기 버튼의 형제, li 오른쪽에 절대 위치. 세로 자리 = 첫 줄(18px × 1.95) 바로 아래 둘째 줄 가운데 →
+   top = 2.471em(em = 표현 글자 18px — 글꼴 크기를 따라감). 보이는 상자 28 · 아이콘 18 · ::before 로 누르는 곳 44×44.
+   가로 = 아이콘 오른쪽 끝이 뱃지 오른쪽 끝(행 안쪽 여백 14)과 같은 선 → right 9px */
+.phone { --rem: calc(18px * var(--fz)); }
+.wst { position: absolute; z-index: 2; right: 9px; top: calc(2.471 * var(--rem)); width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: none; padding: 0; color: var(--ink2); }
+/* 누르는 곳 44×44 — 위로 3px 치우침(위 11 · 아래 5): 한글 줄이 없는 낮은 행(약 78px)에서도 아래 행으로 넘어가지 않게 */
+.wst::before { content: ""; position: absolute; top: -11px; bottom: -5px; left: -8px; right: -8px; }
+.wst svg { display: block; }
+.phone.showhit .wst::before { outline: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* 별 자리 비우기: 둘째 줄(한글) 오른쪽 24 = 아이콘 18 + 틈 6 · 한글 줄이 없는 행은 셋째 줄(H2 ★) 또는 빈 둘째 줄(H1) */
+.wo.rsv .hgl { padding-right: 24px; }
+.wo.rsv.h2 .l3 { padding-right: 24px; }
+.hgl.sp { height: calc(12.5px * 1.5 * var(--fz)); }
+.pendB { opacity: .4; }
+.wl li.gone .wo { opacity: .55; }
+.pgn { margin-top: 12px; display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.pgb { display: inline-flex; height: 44px; min-width: 92px; flex: none; align-items: center; justify-content: center; gap: 4px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(14px * var(--fz)); font-weight: 600; color: var(--ink); }
+.pgb[aria-disabled="true"] { opacity: .4; }
+.pgc { min-height: 44px; min-width: 0; flex: 1; border: 0; background: none; border-radius: 10px; padding: 0 4px; text-align: center; color: var(--ink); }
+.pgc b { display: block; font-size: calc(15px * var(--fz)); text-decoration: underline; text-decoration-color: var(--ink3); text-underline-offset: 4px; font-variant-numeric: tabular-nums; }
+.pgc small { display: block; font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 16px; text-align: center; }
+.card .ct { font-size: calc(15px * var(--fz)); font-weight: 600; overflow-wrap: anywhere; }
+.card .cb { margin-top: 4px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+/* 공용 Sheet (src/components/common/Sheet.tsx 값) */
+.scrim { position: absolute; inset: 0; z-index: 20; background: color-mix(in srgb, var(--ink) 40%, transparent); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 85%; display: flex; flex-direction: column; min-width: 0; border-radius: 16px 16px 0 0; background: var(--surface); box-shadow: 0 -8px 24px rgba(0,0,0,.18); }
+.sh-h { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 0 4px 0 16px; }
+.sh-h h2 { min-width: 0; flex: 1; font-size: calc(17px * var(--fz)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-b { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 16px; scrollbar-width: none; }
+.sh-b::-webkit-scrollbar { display: none; }
+.icb44 { position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink2); padding: 0; }
+.dh { display: flex; align-items: flex-start; gap: 12px; }
+.dsf { font-size: calc(28px * var(--fz)); font-weight: 600; line-height: 1.8; overflow-wrap: anywhere; }
+.snd { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--ink); padding: 0; }
+.dmn { margin-top: 8px; font-size: calc(17px * var(--fz)); font-weight: 500; word-break: keep-all; overflow-wrap: anywhere; }
+.dbg { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.exc { margin-top: 12px; border-radius: 14px; background: var(--surface2); padding: 14px; display: flex; gap: 10px; align-items: flex-start; }
+.exc .ja { flex: 1; min-width: 0; font-size: calc(16px * var(--fz)); line-height: 1.7; overflow-wrap: anywhere; }
+.exc .ko { margin-top: 4px; font-size: calc(14px * var(--fz)); color: var(--ink2); }
+.h3 { margin-top: 16px; font-size: calc(13px * var(--fz)); font-weight: 600; color: var(--ink2); }
+.dl { margin-top: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; font-size: calc(14px * var(--fz)); font-variant-numeric: tabular-nums; }
+.dsrc { margin-top: 4px; font-size: calc(14px * var(--fz)); word-break: keep-all; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: calc(15px * var(--fz)); font-weight: 600; white-space: nowrap; min-width: 0; color: var(--ink); }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.btn[aria-disabled="true"] { opacity: .4; }
+.btn > span { overflow: hidden; text-overflow: ellipsis; }
+.brow { margin-top: 12px; display: flex; gap: 8px; } .brow > * { flex: 1; min-width: 0; }
+.delw { margin-top: 4px; display: flex; justify-content: center; }
+.delb { min-height: 44px; border: 0; background: none; padding: 0 16px; color: var(--bad); font-size: calc(14px * var(--fz)); font-weight: 500; }
+/* 수정 폼(WordForm 값) */
+.col12 { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lbl { font-size: calc(12.5px * var(--fz)); font-weight: 500; color: var(--ink2); }
+.inp, .sel2 { display: block; height: 44px; width: 100%; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(16px * var(--fz)); color: var(--ink); }
+.ckr { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+.ck { position: relative; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(13px * var(--fz)); color: var(--ink); }
+.ck::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+.ck.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.more { display: inline-flex; min-height: 44px; align-items: center; gap: 4px; align-self: flex-start; border: 0; background: none; padding: 0; font-size: calc(14px * var(--fz)); font-weight: 500; color: var(--ink); }
+.cap { font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.ffr { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; border-radius: 12px; background: var(--surface2); padding: 6px 6px 6px 12px; }
+.ffr .t { min-width: 0; font-size: calc(13px * var(--fz)); color: var(--ink); word-break: keep-all; }
+.ffr .t small { display: block; font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.ffr .ftg { background: var(--surface); }
+.ffr .ftg[aria-pressed="true"] { background: var(--accent-soft); }
+/* ── v2 데모 틀 추가 ── */
+.chg { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; margin-top: 12px; }
+.chg > div { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.chg h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; word-break: keep-all; }
+.chg p, .chg li { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.chg ul { list-style: disc; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.usr { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--accent-soft); color: var(--ink); font-size: 11px; font-weight: 700; box-shadow: inset 0 0 0 1px var(--accent); }
+.pend2 { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11px; font-weight: 700; }
+details.alt { margin-top: 6px; }
+details.alt > summary { min-height: 36px; display: flex; align-items: center; font-size: 12.5px; color: var(--ink2); cursor: pointer; }
+.swg { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 10px; }
+.swl, .swd { border-radius: 12px; padding: 12px; border: 1px solid var(--line); min-width: 0; }
+.swl { --surface: #ffffff; --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9; --warn: #c98a12; --surface2: #eef0ea; background: #f6f7f4; color: #1e2420; }
+.swd { --surface: #1d2320; --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36; --warn: #e0a93a; --surface2: #262d29; background: #141816; color: #ecefe9; }
+.swl h3, .swd h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
+.swrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-top: 6px; font-size: 12px; color: var(--ink2); }
+.swrow b { color: var(--ink); font-weight: 600; }
+.swrow .big svg { width: 44px; height: 44px; }
+#lab { position: fixed; left: -12000px; top: 0; width: 1400px; }
+.tn { position: absolute; left: 16px; right: 16px; bottom: 68px; z-index: 8; border-radius: 10px; background: var(--ink); color: var(--surface); padding: 8px 10px; font-size: 12px; word-break: keep-all; opacity: .92; pointer-events: none; }
+</style>
+</head>
+<body class="mark">
+<header class="dtop">
+  <h1>단어장 즐겨찾기 <span class="lvl">delta v2</span><small>task-074 v2 · 사용자 지정 3건(D1·D8·D9) 반영 · 합성 샘플 · 서버 호출 없음 · <b>사용자 승인 전</b></small></h1>
+  <div class="dctls" role="group" aria-label="데모 조작">
+    <div class="dctl"><span>보기</span><span class="dseg" data-ctl="view"><button type="button" data-v="cmp">현재 vs 제안</button><button type="button" data-v="one">제안만</button><button type="button" data-v="three">세 폭</button></span></div>
+    <div class="dctl"><span>폭</span><span class="dseg" data-ctl="w"><button type="button" data-v="360">360</button><button type="button" data-v="390">390</button><button type="button" data-v="412">412</button></span></div>
+    <div class="dctl"><span>높이</span><span class="dseg" data-ctl="h"><button type="button" data-v="780">780</button><button type="button" data-v="892">892</button></span></div>
+    <div class="dctl"><span>테마</span><span class="dseg" data-ctl="theme"><button type="button" data-v="system">기기</button><button type="button" data-v="light">라이트</button><button type="button" data-v="dark">다크</button></span></div>
+    <div class="dctl"><span>글꼴</span><span class="dseg" data-ctl="big"><button type="button" data-v="0">100%</button><button type="button" data-v="1">130%</button></span></div>
+    <div class="dctl"><span>응답 모형</span><span class="dseg" data-ctl="net"><button type="button" data-v="ok">성공</button><button type="button" data-v="slow">느림 2.5초</button><button type="button" data-v="fail">실패</button><button type="button" data-v="offline">오프라인</button></span></div>
+    <div class="dctl"><span>별 누르는 곳</span><span class="dseg" data-ctl="hit"><button type="button" data-v="off">숨김</button><button type="button" data-v="on">표시</button></span></div>
+    <div class="dctl"><span>바뀐 곳 점선</span><span class="dseg" data-ctl="mark"><button type="button" data-v="on">켬</button><button type="button" data-v="off">끔</button></span></div>
+  </div>
+</header>
+
+<section class="dpanel" id="v2diff" aria-labelledby="v2-h">
+  <h2 id="v2-h">v1 → v2 바뀐 것</h2>
+  <p class="dsub">사용자 답(2026-10-18): 「D1은 D안으로 해주고 D8은 B안으로 해줘. 그리고 D9의 경우 우측의 조각, 내단어 표기 아래에 조그마하게 표기하는 형태로 해줘」. 이 세 가지는 <b>사용자가 고른 것</b>이라 v2 에서 그대로 그렸고, 구현 방법과 위험을 숫자로 붙였다. 나머지 결정(D2~D7·D10·D11)은 말씀이 없어서 v1 ★ 권고를 그대로 두었다 — <b>승인된 것이 아니다</b>(v2 를 보고 함께 승인).</p>
+  <div class="chg">
+    <div><h3>U1 · D1 = D — 출처 분절 4번째 칸 「즐겨찾기」</h3><ul><li>출처 줄: <b>전체 · 내 단어 · 기본 단어 · 즐겨찾기</b> 4칸. v1 의 별 토글은 없앴다.</li><li>「즐겨찾기」 칸 = 출처 전체 + 즐겨찾기만(<code>source=all&amp;favorite=1</code>). 다른 칸 = <code>favorite=0</code>.</li><li><b>「내 단어 + 즐겨찾기」·「기본 단어 + 즐겨찾기」는 만들 수 없다</b> — 행의 「내 단어」 뱃지로 구분. 검색·조각·분류·보관함은 계속 AND.</li><li>머리 줄 앞말 「즐겨찾기 n개」(보관함·검색이 켜져 있으면 그 앞말 + 굵은 「즐겨찾기」).</li></ul></div>
+    <div><h3>U2 · D8 = B — 켜진 별 금색(<code>warn</code>)</h3><ul><li>꺼짐 = 외곽선 <code>ink2</code>, 켜짐 = 금색 채움. 새 색 없음.</li><li><b>금색만(B1)은 라이트 흰 바탕 2.95:1 — 비텍스트 3:1 미달</b>. B2 = 금색 채움 + 가는 <code>ink</code> 윤곽 → 윤곽↔바탕 15.81, 금색↔윤곽 5.37(라이트). ★ B2 (아래 「금색 별」 칸에 나란히).</li></ul></div>
+    <div><h3>U3 · D9 = 뱃지 아래 작은 별</h3><ul><li>별은 행 오른쪽, [내 단어][조각] 뱃지 바로 아래(둘째 줄 오른쪽)에 아이콘 18. 누르는 곳은 44×44.</li><li><b>열기 버튼은 지금 폭 그대로</b>(v1 의 오른쪽 48 칸 없음) — 표현·뜻은 지금과 같은 자리에서 「…」.</li><li>대신 <b>누르는 곳이 뱃지 아래쪽·셋째 줄 숫자 위쪽을 조금 덮는다</b>(그 자리를 누르면 별이 눌림) — 아래 「뱃지 아래 별 실측」에 면적.</li><li>한글 줄이 없는 행(한글 끔·분석 없음)은 별 자리 줄이 사라져 셋째 줄과 부딪힌다 → H2 ★ / H1 중 하나.</li></ul></div>
+    <div><h3>따라서 바뀐 것 · 그대로인 것</h3><ul><li>별 아이콘 22 → 18(행·시트 머리·폼 줄 모두 같은 크기).</li><li>빈 화면 「조건과 겹쳐 0」의 조건 목록에서 「내 단어/기본 단어」가 빠짐(이제 생길 수 없음).</li><li>429 문구 삭제 — Leader 확인: 보관 라우트에 한도가 없어 즐겨찾기도 한도 없음.</li><li>그대로: D2~D7·D10·D11 ★, 상세·수정 시트 머리 별(D4 A), 같은 쪽 다시 읽기(D3 A), 접근 이름(D11 A).</li></ul></div>
+  </div>
+</section>
+
+<section class="dpanel" id="decide" aria-labelledby="decide-h">
+  <h2 id="decide-h">결정 표 — 사용자 지정 3건 · ★ 권고(승인 전) 8건</h2>
+  <p class="dsub"><span class="usr">사용자 지정 10-18</span> = 사용자가 고른 것(바꾸지 않음, 구현 선택만 남음). <span class="pend2">승인 전</span> = v1 ★ 권고 그대로 — v2 를 보고 함께 승인. 아래 라디오를 바꾸면 휴대폰 화면이 바뀐다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="결정 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">#</th><th scope="col">결정</th><th scope="col">정한 것 / ★ 권고</th><th scope="col">구현 선택 · 대안</th><th scope="col">근거 · 위험</th></tr></thead>
+      <tbody>
+        <tr><td class="k">D1</td><td>조회 필터 <span class="usr">사용자 지정 10-18</span></td><td><b>D</b> 출처 분절 4번째 칸 「즐겨찾기」(전체·내 단어·기본 단어·즐겨찾기 중 하나만). 「즐겨찾기」 칸 = <code>source=all</code> + <code>favorite=1</code>, 다른 칸 = <code>favorite=0</code></td><td>구현 선택 없음 — 4칸 균등 폭, 글자 줄임·아이콘 없음(아래 「4칸 분절 실측」에서 잘림 확인)<details class="alt"><summary>접어 둔 대안(v1)</summary>A 출처 줄 끝 별 토글 · B 정렬 줄 글자 토글(360px 잘림) · C 조각 칩 줄 맨 앞 칩</details></td><td><b>한계</b>: 「내 단어 + 즐겨찾기」·「기본 단어 + 즐겨찾기」 조합은 이 화면에서 만들 수 없다(출처 칸이 하나만 골라지므로). 즐겨찾기 칸 안에서는 행의 「내 단어」 뱃지로 구분한다. 검색·조각·분류·보관함과는 AND. 서버 쿼리 <code>favorite=0|1</code> 은 <code>source</code> 와 독립 파라미터로 남긴다(나중에 조합이 필요하면 화면만 바꾸면 됨).</td></tr>
+        <tr><td class="k">D8</td><td>켜진 별 색 <span class="usr">사용자 지정 10-18</span></td><td><b>B</b> 켜짐 = 금색(<code>warn</code>) 채움, 꺼짐 = 외곽선 <code>ink2</code>. 새 색 없음</td><td><b>★ B2</b> 금색 채움 + 가는 <code>ink</code> 윤곽 · <b>B1</b> 금색 채움만(요청 그대로)</td><td>비텍스트 대비 3:1 — B1 라이트: 금색↔바탕(행·시트 머리 모두 <code>surface</code> #ffffff) <b>2.95 미달</b>, 다크 7.54. B2 라이트: 윤곽↔바탕 15.81 · 금색↔윤곽 5.37, 다크: 윤곽↔바탕 13.77 · 금색↔윤곽 1.83(다크는 금색↔바탕이 이미 7.54). 금색이라는 요청은 지키고 라이트 미달만 고친다. 사용자가 B1 을 고르면 그대로 간다.</td></tr>
+        <tr><td class="k">D9</td><td>행에서 별 자리 <span class="usr">사용자 지정 10-18</span></td><td>오른쪽 열, <b>[내 단어][조각] 뱃지 바로 아래</b>(둘째 줄 오른쪽) 작은 별 — 아이콘 18 · 누르는 곳 44×44 · 열기 버튼과 <b>형제</b>(버튼 안에 넣지 않음)</td><td>한글 줄이 없는 행: <b>★ H2</b> 별은 같은 자리, 셋째 줄(뜻·숫자) 오른쪽 24 비움 · <b>H1</b> 둘째 줄 높이만큼 빈 줄을 둬서 행이 약 21px 커짐<details class="alt"><summary>접어 둔 대안(v1)</summary>A 오른쪽 끝 48 칸(열기 버튼 폭 −48) · B 왼쪽 앞</details></td><td>별 세로 자리는 첫 줄 높이(표현 18px × 1.95) 바로 아래로 고정 → 뱃지가 없는 행·한 개인 행·두 개인 행 모두 같은 열·같은 높이. 위험: 누르는 곳 44×44 가 뱃지 아래쪽과 셋째 줄 숫자 위쪽을 조금 덮는다 — 그 자리는 <b>별이 눌린다</b>(열기 아님). 면적은 아래 실측표.</td></tr>
+        <tr><td class="k">D2</td><td>보관함과의 관계 <span class="pend2">승인 전</span></td><td><b>★ A</b> 독립 · AND — 보관함 + 즐겨찾기 칸 = 보관한 즐겨찾기만</td><td>B 보관하면 별 자동 해제 · C 함께 못 켬(보관함을 켜면 출처가 「전체」로)</td><td>보관 = 「오늘의 단어에서 빼기」, 즐겨찾기 = 「골라 보기」 — 목적이 다르다. 보관을 풀었을 때 별이 살아 있어야 자연스럽다.</td></tr>
+        <tr><td class="k">D3</td><td>즐겨찾기 칸에서 별을 끄면 <span class="pend2">승인 전</span></td><td><b>★ A</b> 응답 뒤 같은 쪽 다시 읽기(행이 빠짐) + 토스트</td><td>B 제자리 유지</td><td>쪽 번호 방식이라 B 는 [다음]에서 뺀 개수만큼 단어를 건너뛴다(아래 쪽 수 표).</td></tr>
+        <tr><td class="k">D4</td><td>수정 화면의 별 <span class="pend2">승인 전</span></td><td><b>★ A</b> 시트 머리(✕ 왼쪽) — [저장]과 무관하게 즉시</td><td>B 폼 맨 위 줄 — [저장] 때</td><td>기본 단어는 수정 화면이 없어 상세에서 즉시 반영 — A 면 모두 한 방식.</td></tr>
+        <tr><td class="k">D5</td><td>갱신 방식 <span class="pend2">승인 전</span></td><td><b>★ A</b> 낙관적 + 그 단어 별만 잠금 + 실패 되돌림</td><td>B 응답 뒤(흐린 별)</td><td>가벼운 토글. 잠금이라 마지막 값 처리 불필요.</td></tr>
+        <tr><td class="k">D6</td><td>분류 칩 숫자 <span class="pend2">승인 전</span></td><td><b>★ A</b> 그대로</td><td>B 즐겨찾기 기준</td><td>지금 계정은 칩 줄이 없다. 머리 줄 숫자는 즐겨찾기 기준.</td></tr>
+        <tr><td class="k">D7</td><td>단어 추가 시트의 별 <span class="pend2">승인 전</span></td><td><b>★ A</b> 없음</td><td>B 추가 폼 줄</td><td>추가 직후 목록 맨 위에서 누르면 된다. B 는 반쪽 실패 상태를 만든다.</td></tr>
+        <tr><td class="k">D10</td><td>성공 알림 <span class="pend2">승인 전</span></td><td><b>★ A</b> 행이 빠질 때만 토스트, 실패는 늘</td><td>B 매번</td><td>연달아 누르면 토스트가 쌓인다.</td></tr>
+        <tr><td class="k">D11</td><td>별의 접근 이름 <span class="pend2">승인 전</span></td><td><b>★ A</b> 고정 이름 「{단어} 즐겨찾기」 + <code>aria-pressed</code></td><td>B 행동형 이름(넣기/빼기), <code>aria-pressed</code> 없음</td><td>바뀌는 이름 + <code>aria-pressed</code> 를 함께 쓰면 상태를 두 번·반대로 읽는다(Leader L7 정정 수용).</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="dqs" id="dqs"></div>
+  <div class="drow"><button type="button" class="dbtn" id="d-reset">모두 ★ 로</button><span id="d-sum" aria-live="polite"></span></div>
+</section>
+
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="상태 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside">
+    <section class="dcard" aria-labelledby="exp-h"><h2 id="exp-h">이 상태</h2><div id="exp"></div></section>
+    <section class="dcard" aria-labelledby="meas-h"><h2 id="meas-h">실측(이 화면)</h2><div class="dmeas" id="meas"></div></section>
+    <section class="dcard" aria-labelledby="try-h"><h2 id="try-h">직접 해 보기</h2>
+      <ul class="dn"><li>오른쪽(제안) 휴대폰 안은 눌러진다. 뱃지 아래 작은 별을 누르면 별만 바뀌고 상세는 안 열린다. 행의 글자 쪽을 누르면 상세 시트가 열린다.</li><li>위 「별 누르는 곳」을 <b>표시</b>로 두면 44×44 누르는 곳이 점선으로 보인다 — 뱃지·숫자를 얼마나 덮는지 눈으로 확인.</li><li>출처 줄의 「즐겨찾기」 칸을 누르면 즐겨찾기만(8개 · 2쪽). 거기서 「내 단어」를 누르면 즐겨찾기 조건이 풀린다(D 의 규칙).</li><li>머리 줄의 [한글]을 끄면 한글 줄이 없는 행의 별 자리(H2/H1)를 볼 수 있다.</li><li>「응답 모형」 <b>느림 2.5초</b>로 별을 여러 번 누르면 첫 번만 받는다. <b>실패·오프라인</b>은 되돌림 + 토스트.</li></ul>
+    </section>
+  </aside>
+</div>
+
+<section class="dpanel" id="gold" aria-labelledby="gold-h">
+  <h2 id="gold-h">금색 별 — B1 · B2 나란히 (D8 구현 선택)</h2>
+  <p class="dsub">행 바탕과 상세·수정 시트 머리 바탕은 둘 다 <code>surface</code>(라이트 #ffffff · 다크 #1d2320)라 값이 같다. 아래 칸은 데모 테마와 상관없이 라이트·다크 토큰 값을 고정해 그렸다(실제 크기 18 과 확대 44). 대비 숫자는 이 페이지가 토큰 값으로 직접 계산한다.</p>
+  <div class="swg" id="swg"></div>
+  <div class="dtw" tabindex="0" role="region" aria-label="금색 별 대비 표 — 가로로 밀어 보기"><table class="dtbl" id="ctbl"></table></div>
+</section>
+
+<section class="dpanel" id="u3" aria-labelledby="u3-h">
+  <h2 id="u3-h">뱃지 아래 별 — 겹침 · 누르는 곳 실측 (D9 사용자 지정)</h2>
+  <p class="dsub">이 페이지가 화면 밖에서 행을 그려 잰 값이다(상태 4개 × 폭 3 × 글꼴 2). 「아이콘 겹침」 = 보이는 별(18)과 뱃지·숫자·표현·한글·뜻 글자 상자의 겹침 개수(0 이어야 함). 「누르는 곳이 덮는 글자 면적」 = 44×44 누르는 곳이 열기 버튼의 글자·뱃지를 덮는 면적(그 자리를 누르면 별이 눌림). 「열 어긋남」 = 행마다 별의 가로·세로 자리 차이(0 이어야 같은 열·같은 높이).</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="뱃지 아래 별 실측표 — 가로로 밀어 보기"><table class="dtbl" id="u3tbl"></table></div>
+  <ul class="dlist" id="u3risk"></ul>
+</section>
+
+<section class="dpanel" id="seg4" aria-labelledby="seg4-h">
+  <h2 id="seg4-h">4칸 분절 — 폭 · 글자 잘림 실측 (D1 사용자 지정)</h2>
+  <p class="dsub">출처 분절(공용 <code>Segmented size="sm"</code> — 높이 32 · 글자 12px · 칸 좌우 여백 4 · 칸 사이 3)에 4번째 칸을 더한 값. 누르는 높이는 지금처럼 <code>::before</code> 44. 칸 폭이 44 이상이고 글자가 잘리지 않아야 한다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="4칸 분절 실측표 — 가로로 밀어 보기"><table class="dtbl" id="segtbl"></table></div>
+  <ul class="dlist">
+    <li><b>의미 규칙</b>: 「즐겨찾기」 칸 → 출처 <code>all</code> + <code>favorite=1</code>(내 단어·기본 단어 모두의 즐겨찾기). 「전체·내 단어·기본 단어」 칸 → <code>favorite=0</code>. 칸을 바꾸면 1쪽(지금 조건 바꿈 규칙). 검색어·조각·분류·보관함은 칸을 바꿔도 그대로.</li>
+    <li><b>할 수 없는 것</b>: 내 단어 중 즐겨찾기만, 기본 단어 중 즐겨찾기만. 즐겨찾기 칸에서 행의 「내 단어」 뱃지(기본 단어 행은 뱃지 없음)로 눈으로 구분한다.</li>
+    <li><b>보관함</b>(D2 ★ A): 즐겨찾기 칸 + [보관함] = 보관한 즐겨찾기만. 머리 줄 「보관한 단어 n개 · <b>즐겨찾기</b>」.</li>
+  </ul>
+</section>
+
+<section class="dpanel" id="paging" aria-labelledby="pg-h">
+  <h2 id="pg-h">쪽 수 · 합계 변화 — 즐겨찾기 칸에서 별을 끌 때 (D3)</h2>
+  <p class="dsub">목록은 한 쪽 7개, 서버가 쪽 번호로 잘라 준다(task-068). 예: 즐겨찾기 15개(3쪽) 중 1쪽에서 두 단어의 별을 끈다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="쪽 수 변화 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">순간</th><th scope="col">A ★ 즉시 같은 쪽 다시 읽기</th><th scope="col">B 제자리 유지</th></tr></thead>
+      <tbody>
+        <tr><td>별을 끈 직후</td><td>응답 뒤 1쪽을 다시 읽음 → 두 행이 빠지고 예전 8·9번째가 올라와 7줄. 머리 줄 「즐겨찾기 13개 · 1쪽」, 쪽 줄 「1 / 2 · 모두 13개」</td><td>두 행이 별만 꺼진 채 남음. 머리 줄 「즐겨찾기 15개」, 쪽 줄 「1 / 3 · 모두 15개」 그대로(실제는 13개)</td></tr>
+        <tr><td>[다음]</td><td>2쪽 = 남은 13개 중 8~13번째 — 빠짐 없음</td><td class="q">2쪽 = 서버 기준 8~14번째 = <b>예전 순서 10~16번째</b> → 예전 8·9번째 두 단어를 못 보고 지나감</td></tr>
+        <tr><td>쪽이 비게 되면</td><td>마지막 쪽의 유일한 행을 빼면 앞 쪽으로 자동 이동(지금 규칙)</td><td>그 쪽에 머묾 — 다음 읽기 때 앞 쪽으로</td></tr>
+        <tr><td>모두 빼면</td><td>빈 화면 「즐겨찾기한 단어가 없어요」 + [모든 단어 보기]</td><td>꺼진 별 7개가 남은 목록</td></tr>
+        <tr><td>실수로 뺐을 때</td><td>행이 사라짐 → 「전체」 칸에서 찾아 다시 켬(토스트로 이유는 알림)</td><td>그 자리에서 별을 다시 누르면 됨</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dpanel" id="copy" aria-labelledby="cp-h">
+  <h2 id="cp-h">문구 표 — 구현 때 <code>vocab/labels.ts</code> 의 한 상수(<code>FAVORITE_COPY</code>)로 옮김</h2>
+  <p class="dsub">화면에 나오는 새 문구는 이 표가 전부다(사용자 지정 + ★ 기준). 데모에 없는 문구·요소는 구현 때 만들지 않는다. 엔진·모델 이름은 없다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="문구 표 — 가로로 밀어 보기"><table class="dtbl" id="cptbl"></table></div>
+</section>
+
+<section class="dpanel" id="a11y" aria-labelledby="ay-h">
+  <h2 id="ay-h">낭독 · 초점 순서 · 터치 영역</h2>
+  <p class="dsub">「선택됨/선택 안 됨」은 안드로이드 화면 읽기(TalkBack)가 눌림 상태를 읽는 말의 예시다 — 실제 낱말은 기기·버전마다 다를 수 있어 폰 확인 항목에 넣는다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="낭독 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">요소</th><th scope="col">읽는 말(예)</th><th scope="col">초점 순서</th><th scope="col">터치 영역</th></tr></thead>
+      <tbody>
+        <tr><td>행 열기 버튼</td><td>「<span lang="ja">食べる</span> 한글 읽기 타베루 먹다 액션 맞힘 3 · 틀림 1, 버튼」 — <b>지금과 같다</b>(별이 형제라 이름에 섞이지 않음)</td><td>행마다 열기 → 별 → 다음 행 열기</td><td>행 전체 폭 × 높이(64 이상) — 별 누르는 곳 44×44 만 빠짐</td></tr>
+        <tr><td>행 별 버튼</td><td>「<span lang="ja">食べる</span> 즐겨찾기, 전환 버튼, 선택됨」</td><td>열기 바로 다음</td><td>보이는 28×28(아이콘 18) · <code>::before</code> 로 44×44 · 초점 윤곽은 28 상자 바깥 2px(행 안에서 보임)</td></tr>
+        <tr><td>출처 분절 「즐겨찾기」 칸</td><td>「즐겨찾기, 라디오 버튼, 4개 중 4번째, 선택됨」 · 고르면 머리 줄(<code>aria-live</code>)이 「즐겨찾기 8개」를 읽음</td><td>출처 분절 안(화살표로 이동 — 지금 분절과 같음)</td><td>칸 폭 실측(아래 표) × 높이 32 + <code>::before</code> 44</td></tr>
+        <tr><td>상세·수정 시트 머리 별</td><td>「즐겨찾기, 전환 버튼, 선택됨」</td><td>제목 → 별 → 닫기 → 본문</td><td>44 × 44 (아이콘 18)</td></tr>
+        <tr><td>처리 중 · 실패 · 행 빠짐</td><td>잠김 <code>aria-disabled</code> · 실패는 되돌림 + 토스트(<code>role="status"</code>) · 행이 빠지면 토스트 + 초점을 잃으면 머리 줄로</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dpanel" id="limits" aria-labelledby="lim-h">
+  <h2 id="lim-h">designer 메모 · 알려진 한계 · 사용자에게 묻고 싶은 것</h2>
+  <h3 style="font-size:14px;margin-top:10px">알려진 한계 (v2)</h3>
+  <ul class="dlist">
+    <li><b>D1 D 조합 불가</b> — 「내 단어 + 즐겨찾기」·「기본 단어 + 즐겨찾기」를 화면에서 고를 수 없다. 즐겨찾기 칸 안에서 「내 단어」 뱃지로만 구분한다. 서버는 두 조건을 따로 받으므로 나중에 화면만 바꿔 열 수 있다.</li>
+    <li><b>D8 B1 을 고르면</b> 라이트 테마에서 켜진 별이 흰 바탕과 2.95:1 — 약시·밝은 햇빛에서 켜짐을 놓칠 수 있다(모양 채움 + 화면 읽기 상태로 보완). B2 는 이 미달이 없지만 <b>다크에서 윤곽이 흰 테두리로 보인다</b>(토큰 ink 가 다크에서 밝은 색).</li>
+    <li><b>D9 누르는 곳 겹침</b> — 뱃지 아래쪽과 셋째 줄 숫자 위쪽 일부를 누르면 상세 대신 별이 바뀐다(면적은 「뱃지 아래 별」 표). 실수로 바꿔도 같은 자리를 다시 누르면 된다.</li>
+    <li><b>D9 한글 줄이 없는 행</b> — H2 ★ 는 그 행의 뜻 줄이 오른쪽 24 만큼 일찍 「…」 · H1 은 행이 약 21px 커진다(한글을 끈 사람에게 빈 줄).</li>
+    <li><b>목록과 열린 시트의 같은 단어</b>는 같은 상태를 쓴다. 다른 기기에서 바꾼 별은 다음 읽기 때 맞춰진다.</li>
+    <li><b>D3 A 의 손가락 아래 밀림</b> — 행이 빠지면 다음 행이 올라온다. 별이 작아져 연타로 다음 행 별을 끌 위험은 v1 보다 작지만 0 은 아니다(폰 확인).</li>
+    <li><b>데모 모형</b> — 응답 0.6초(느림 2.5초) 모형, 전체 7,766 은 합성 숫자, 실제 행은 샘플 20개. 휴대폰 글꼴 130% 는 글자만 키우는 모형(실제 WebView 글꼴 배율과 다를 수 있어 폰 확인).</li>
+  </ul>
+  <h3 style="font-size:14px;margin-top:14px">사용자에게 묻고 싶은 것 (Leader 가 전달)</h3>
+  <ul class="dlist">
+    <li><b>Q-U2 (D8)</b> 금색 별에 가는 윤곽을 둘까(★ B2 — 라이트에서도 3:1 충족, 라이트는 진한 테두리·다크는 흰 테두리로 보임), 금색만 둘까(B1 — 라이트 2.95:1)? 다크의 흰 테두리가 싫으면 「윤곽은 라이트에서만」도 가능(테마별 규칙 한 줄, 새 색 없음).</li>
+    <li><b>Q-U3 (D9)</b> ① 누르는 곳이 뱃지 아래쪽·숫자 위쪽을 조금 덮어 그 자리를 누르면 별이 바뀌는 것을 받아들일지 ② 한글 줄이 없는 행(한글 끔)에서 ★ H2(뜻 줄 오른쪽 24 비움) / H1(빈 줄을 둬 행이 커짐) 중 무엇?</li>
+    <li><b>Q1 (D3)</b> 즐겨찾기 칸에서 별을 끄면 그 단어가 바로 목록에서 빠져도 될까? ★ 바로 빠짐.</li>
+    <li><b>Q3 (D2)</b> 보관한 단어도 별은 그대로 남겨 둘까? ★ 남김.</li>
+    <li><b>Q4 (D7)</b> 단어 추가 시트에는 이번에 별을 두지 않는다(추가 직후 목록 맨 위에서 누름). ★ 없음.</li>
+    <li>D5·D6·D10·D11 은 v1 ★ 그대로 — 다른 의견이 없으면 v2 승인과 함께 확정.</li>
+  </ul>
+</section>
+
+<details class="dev">
+  <summary>개발 메모 — 바뀌는 파일·토큰 이름·시험 영향 (승인 뒤 docs/screens.md §32 가 정본)</summary>
+  <ul class="dlist">
+    <li><b>행(U3)</b>: <code>WordRow</code> — <code>&lt;li className="relative"&gt;</code> 안에 열기 <code>&lt;button&gt;</code>(지금 클래스·폭 그대로) + 형제 <code>&lt;FavoriteStar variant="row"&gt;</code>(<code>absolute right-[9px] z-[1] size-7</code>, 세로 <code>top: calc(2.471em)</code> 을 <code>font-size:18px</code> 상자 기준으로 — 표현 글자 크기를 따라가게, <code>before:absolute before:-inset-2</code> 로 44×44). 열기 버튼 안: 한글 줄(<code>HangulLine</code> 에 <code>className="pr-6"</code>), 한글 줄이 없는 행(<code>!prefs.showHangul || hangul.s !== 'ready'</code>)이면 셋째 줄에 <code>pr-6</code>(H2 ★). 별은 열기 버튼 <b>안에 넣지 않는다</b>.</li>
+    <li><b>마지막 쪽 빈 자리 <code>FillerRow</code></b>: 바꿀 것 없음 — 별이 절대 위치라 행 높이에 영향이 없다(H1 을 고르면 빈 둘째 줄 규칙을 같이). <code>WordRowsSkeleton</code>: 높이 그대로, 같은 자리(오른쪽 14 · 둘째 줄)에 18×18 둥근 회색 자리표시(선택).</li>
+    <li><b>필터(U1)</b>: <code>WORD_SOURCE_OPTIONS</code> 에 <code>{ value: 'favorite', label: '즐겨찾기' }</code> — 화면 상태는 <code>source: 'all'|'mine'|'base'|'favorite'</code>, URL 은 <code>favorite</code> 칸이면 <code>source=all&amp;favorite=1</code>, 아니면 <code>favorite</code> 를 넣지 않음. <code>listHeader</code> 앞말 순서 = 보관함 → 검색 → 즐겨찾기 → 출처. <code>listConditionText</code> 는 앞말이 보관함·검색일 때만 맨 앞 「즐겨찾기」. <code>emptyVariant</code> 우선 <code>noFavorite</code>·<code>noFavoriteMatch</code>. <code>WordsSkeleton</code> 출처 줄도 4칸.</li>
+    <li><b>별 색(U2)</b>: 꺼짐 <code>stroke: var(--ink2)</code> · 켜짐 <code>fill: var(--warn)</code> + B2 <code>stroke: var(--ink)</code>(B1 이면 <code>stroke: var(--warn)</code>). 선 굵기 2(뷰박스 24 → 18px 에서 1.5px).</li>
+    <li><b>상세·수정·상태 규칙·API</b>: v1 과 같음(§32-5~32-7) — 공용 <code>Sheet</code> 선택 prop <code>headerAction</code>(호출 43곳 DOM 불변 전수 확인), <code>favoriteStep</code> 순수 함수, #182·#183. 429 전용 문구는 만들지 않는다(Leader — 한도 없음).</li>
+    <li><b>적용 토큰 이름</b>: <code>--warn</code>(켜진 별 채움) · <code>--ink</code>(B2 윤곽) · <code>--ink2</code>(꺼진 별) · <code>--surface</code>·<code>--surface2</code>(분절) · <code>--line</code> · <code>--accent</code>(초점 윤곽). 새 색 없음.</li>
+  </ul>
+</details>
+<div id="lab" aria-hidden="true" inert></div>
+<pre id="selftest" hidden></pre>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function clone(o) { return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
+  function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  /* ── 토큰 값(src/app/globals.css 복사 — :root 와 같은 값) · 대비 계산 ── */
+  var TOK = {
+    light: { surface: '#ffffff', ink: '#1e2420', ink2: '#5a6359', warn: '#c98a12' },
+    dark: { surface: '#1d2320', ink: '#ecefe9', ink2: '#aeb6ac', warn: '#e0a93a' }
+  };
+  function lin(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  function lum(h) { h = h.replace('#', ''); return 0.2126 * lin(parseInt(h.slice(0, 2), 16)) + 0.7152 * lin(parseInt(h.slice(2, 4), 16)) + 0.0722 * lin(parseInt(h.slice(4, 6), 16)); }
+  function ratio(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+
+  /* ── 문구(사용자 지정 + ★) — 구현 때 labels.ts FAVORITE_COPY 로 ── */
+  var C = {
+    star: '즐겨찾기',
+    rowStar: function (s) { return '<span lang="ja">' + esc(s) + '</span> 즐겨찾기'; },
+    act: { on: '즐겨찾기에 넣기', off: '즐겨찾기에서 빼기' },
+    seg: '즐겨찾기',
+    cond: '즐겨찾기',
+    lead: function (n) { return '즐겨찾기 ' + fmt(n) + '개'; },
+    noneT: '즐겨찾기한 단어가 없어요', noneB: '단어 줄의 별을 누르면 여기에 모여요.', noneBtn: '모든 단어 보기',
+    matchT: '조건에 맞는 즐겨찾기가 없어요', matchB: function (c) { return c + ' 안에서 즐겨찾기만 찾았어요.'; }, matchBtn: '즐겨찾기 조건 풀기',
+    removed: '즐겨찾기에서 뺐어요', added: '즐겨찾기에 넣었어요',
+    err: { fail: '처리하지 못했어요. 다시 시도해 주세요.', offline: '연결하지 못했어요. 네트워크를 확인해 주세요.', gone: '단어를 찾을 수 없어요. 삭제되었을 수 있어요.' },
+    formRow: '즐겨찾기', formRowHint: '[저장]을 눌러야 바뀌어요', addRow: '즐겨찾기에 넣기', addRowHint: '저장할 때 함께 넣어요'
+  };
+  var COPY_ROWS = [
+    ['행 별 이름(D11 A)', '{단어} 즐겨찾기 + 눌림 상태', 'WordRow 별 — 단어는 lang="ja" 숨은 글', ''],
+    ['상세·수정 머리 별 이름', '즐겨찾기 + 눌림 상태', 'WordDetailSheet 머리(보기·수정)', ''],
+    ['출처 분절 4번째 칸(D1 D)', '즐겨찾기', 'WORD_SOURCE_OPTIONS — 보이는 글자 = 읽는 이름', ''],
+    ['머리 줄 앞말(즐겨찾기 칸)', '즐겨찾기 n개', 'listHeader — 보관함·검색이 켜져 있지 않을 때', ''],
+    ['머리 줄 조건(보관함·검색 앞말일 때)', '… · 즐겨찾기 · …(굵게, 조건 맨 앞)', 'listConditionText', ''],
+    ['빈 화면 — 즐겨찾기 0', '즐겨찾기한 단어가 없어요 / 단어 줄의 별을 누르면 여기에 모여요. / [모든 단어 보기]', 'WordsEmpty noFavorite — 버튼 = 「전체」 칸', ''],
+    ['빈 화면 — 조건과 겹쳐 0', '조건에 맞는 즐겨찾기가 없어요 / {조건} 안에서 즐겨찾기만 찾았어요. / [즐겨찾기 조건 풀기]', 'noFavoriteMatch — 조건 = ‘q’ 검색 · 보관함 · 분류 · ○○ 조각(내 단어/기본 단어는 생길 수 없음) · 버튼 = 「전체」 칸, 다른 조건 유지', ''],
+    ['행이 빠질 때 토스트(D10 A)', '즐겨찾기에서 뺐어요', '즐겨찾기 칸에서 별을 끈 응답 뒤', ''],
+    ['실패 토스트', '처리하지 못했어요. 다시 시도해 주세요.', '기존 GENERIC_ERROR 그대로', ''],
+    ['오프라인 토스트', '연결하지 못했어요. 네트워크를 확인해 주세요.', '기존 NETWORK_ERROR 그대로', ''],
+    ['404 토스트', '단어를 찾을 수 없어요. 삭제되었을 수 있어요.', '기존 WORD_NOT_FOUND 그대로 + 목록 다시 읽기', ''],
+    ['(대안만) D10 B 성공 토스트', '즐겨찾기에 넣었어요 / 즐겨찾기에서 뺐어요', '★ 안에서는 쓰지 않음', 'alt'],
+    ['(대안만) D11 B 행동형 이름', '즐겨찾기에 넣기 / 즐겨찾기에서 빼기', '★ 안에서는 쓰지 않음', 'alt'],
+    ['(대안만) D4 B 폼 줄', '즐겨찾기 / [저장]을 눌러야 바뀌어요', '★ 안에서는 쓰지 않음', 'alt'],
+    ['(대안만) D7 B 추가 폼 줄', '즐겨찾기에 넣기 / 저장할 때 함께 넣어요', '★ 안에서는 쓰지 않음', 'alt']
+  ];
+
+  /* ── 결정(라디오) — u: 사용자 지정의 구현 선택, rec: ★ ── */
+  var DEC = [
+    { k: 'd8', n: 'D8', u: 1, t: '금색 별 — 구현 선택', rec: 'B2', o: [['B2', '금색 채움 + ink 윤곽', '라이트 윤곽↔바탕 15.81 · 금색↔윤곽 5.37 — 3:1 충족.'], ['B1', '금색 채움만', '요청 그대로 — 라이트 흰 바탕 2.95:1(3:1 미달), 다크 7.54.']] },
+    { k: 'd9', n: 'D9', u: 1, t: '뱃지 아래 별 — 한글 줄이 없는 행', rec: 'H2', o: [['H2', '셋째 줄 오른쪽 24 비움', '별 자리 그대로, 그 행의 뜻이 24 일찍 「…」. 행 높이 지금과 같음.'], ['H1', '둘째 줄 자리 비워 둠', '빈 줄(약 21px)을 둬서 별이 늘 한글 줄 자리에. 한글을 끄면 행이 커짐.']] },
+    { k: 'd2', n: 'D2', t: '보관함과의 관계', rec: 'A', o: [['A', '독립(AND)', '보관해도 별 그대로. 보관함 + 즐겨찾기 칸 = 보관한 즐겨찾기.'], ['B', '보관하면 별 해제', '보관한 단어는 별이 꺼진다.'], ['C', '함께 못 켬', '보관함을 켜면 출처가 「전체」로, 즐겨찾기 칸을 고르면 보관함이 꺼진다.']] },
+    { k: 'd3', n: 'D3', t: '즐겨찾기 칸에서 별을 끄면', rec: 'A', o: [['A', '즉시 같은 쪽 다시 읽기', '응답 뒤 행이 빠지고 숫자·쪽 수가 맞는다 + 토스트.'], ['B', '제자리 유지', '별만 꺼진 채 남고 다음 읽기 때 빠진다.']] },
+    { k: 'd4', n: 'D4', t: '수정 화면의 별', rec: 'A', o: [['A', '머리 별 · 즉시 반영', '보기·수정 같은 자리, [취소]와 무관.'], ['B', '폼 줄 · 저장 때 반영', '폼 맨 위 줄, [취소] 하면 되돌아감.']] },
+    { k: 'd5', n: 'D5', t: '갱신 방식', rec: 'A', o: [['A', '낙관적 + 잠금 + 되돌림', '즉시 바뀌고 응답까지 그 별만 잠김.'], ['B', '응답 뒤 반영', '응답까지 흐린 별(처리 중).']] },
+    { k: 'd6', n: 'D6', t: '분류 칩 숫자(분류가 있는 계정)', rec: 'A', o: [['A', '그대로', '즐겨찾기 칸이어도 칩 숫자 불변.'], ['B', '즐겨찾기 기준', '칩 숫자도 즐겨찾기만 센다(서버 변경).']] },
+    { k: 'd7', n: 'D7', t: '단어 추가 시트의 별', rec: 'A', o: [['A', '없음', '지금 추가 폼 그대로.'], ['B', '추가 폼에 줄', '「즐겨찾기에 넣기」 줄 — 저장 직후 별도 요청.']] },
+    { k: 'd10', n: 'D10', t: '성공 알림', rec: 'A', o: [['A', '행이 빠질 때만 토스트', '평소엔 별 모양만.'], ['B', '누를 때마다 토스트', '넣었어요/뺐어요.']] },
+    { k: 'd11', n: 'D11', t: '별의 접근 이름', rec: 'A', o: [['A', '고정 이름 + 눌림 상태', '「즐겨찾기」 + aria-pressed.'], ['B', '행동형 이름', '「즐겨찾기에 넣기/빼기」, aria-pressed 없음.']] }
+  ];
+  var DEF_D = {}; DEC.forEach(function (d) { DEF_D[d.k] = d.rec; });
+
+  /* ── 합성 샘플 단어(서버 데이터 아님) — 1쪽에 뱃지 없음·내 단어만·조각만·둘 다·숫자·한글 없음 행이 모두 나오게 ── */
+  var STAR = 'M12 3.4l2.62 5.31 5.86.85-4.24 4.13 1 5.84L12 16.77l-5.24 2.76 1-5.84-4.24-4.13 5.86-.85z';
+  var CK = { NAME: '이름', ACTION: '액션', FEELING: '느낌', MODIFIER: '꾸밈', EXPRESSION: '표현' };
+  function wd(id, s, rb, r, hg, m, ck, o, extra) { var w = { id: id, s: s, rb: rb, r: r, hg: hg, m: m, ck: ck, o: o, fav: false, ar: false, c: 0, w: 0, pos: '명사', lv: '', cat: null, ex: '', exk: '' }; for (var k in extra) w[k] = extra[k]; return w; }
+  var BASEW = [
+    wd('taberu', '食べる', [['食', 'た'], 'べる'], 'たべる', '타베루', '먹다', 'ACTION', 'BASE', { c: 3, w: 1, pos: '동사', lv: 'N5', ex: '朝ごはんを食べる。', exk: '아침밥을 먹다.' }),
+    wd('eiga', '映画', [['映画', 'えいが']], 'えいが', '에-가', '영화', null, 'BASE', { lv: 'N5', ex: '週末に映画を見た。', exk: '주말에 영화를 봤다.' }),
+    wd('yoroshiku', 'よろしくお願いいたします', ['よろしくお', ['願', 'ねが'], 'いいたします'], 'よろしくおねがいいたします', '요로시쿠 오네가이 이타시마스', '잘 부탁드립니다 (처음 만났을 때 하는 정중한 인사)', 'EXPRESSION', 'MINE', { pos: '표현', cat: '여행' }),
+    wd('nurui', '温い', [['温', 'ぬる'], 'い'], 'ぬるい', '누루이', '미지근하다', 'FEELING', 'BASE', { c: 1, w: 2, pos: '형용사', lv: 'N3' }),
+    wd('impact', 'インパクト', ['インパクト'], 'いんぱくと', '임파쿠토', '임팩트, 강한 인상', null, 'MINE', { w: 2, ex: 'あの映画はインパクトがあった。', exk: '그 영화는 임팩트가 있었다.' }),
+    wd('natsukashii', '懐かしい', [['懐', 'なつ'], 'かしい'], 'なつかしい', '나츠카시-', '그립다, 반갑다', 'FEELING', 'BASE', { c: 2, pos: '형용사', lv: 'N3' }),
+    wd('yukkuri', 'ゆっくり', ['ゆっくり'], 'ゆっくり', null, '천천히', 'MODIFIER', 'BASE', { c: 1, pos: '부사', lv: 'N5' }),
+    wd('omachi', '少々お待ちください', [['少々', 'しょうしょう'], 'お', ['待', 'ま'], 'ちください'], 'しょうしょうおまちください', '쇼-쇼- 오마치쿠다사이', '잠시만 기다려 주세요 (가게·전화에서 쓰는 정중한 말)', 'EXPRESSION', 'MINE', { pos: '표현', cat: '여행' }),
+    wd('daijoubu', '大丈夫', [['大丈夫', 'だいじょうぶ']], 'だいじょうぶ', '다이죠-부', '괜찮다', 'EXPRESSION', 'BASE', { c: 4, pos: '형용사', lv: 'N4' }),
+    wd('ganbaru', '頑張る', [['頑張', 'がんば'], 'る'], 'がんばる', '감바루', '힘내다, 노력하다', 'ACTION', 'BASE', { pos: '동사', lv: 'N4' }),
+    wd('meiwaku', 'ご迷惑をおかけして申し訳ありません', ['ご', ['迷惑', 'めいわく'], 'をおかけして', ['申', 'もう'], 'し', ['訳', 'わけ'], 'ありません'], 'ごめいわくをおかけしてもうしわけありません', '고메-와쿠오 오카케시테 모-시와케 아리마셍', '폐를 끼쳐 죄송합니다', 'EXPRESSION', 'MINE', { pos: '표현', w: 3 }),
+    wd('suteki', '素敵', [['素敵', 'すてき']], 'すてき', '스테키', '멋지다', 'FEELING', 'BASE', { pos: '형용사', lv: 'N3' }),
+    wd('shoushou', '少々', [['少々', 'しょうしょう']], 'しょうしょう', '쇼-쇼-', '조금, 잠깐', 'MODIFIER', 'BASE', { pos: '부사', lv: 'N3' }),
+    wd('neko', '猫', [['猫', 'ねこ']], 'ねこ', '네코', '고양이', 'NAME', 'BASE', { lv: 'N5' }),
+    wd('kaeru', '帰る', [['帰', 'かえ'], 'る'], 'かえる', '카에루', '돌아가다', 'ACTION', 'BASE', { pos: '동사', lv: 'N5', w: 1 }),
+    wd('isogashii', '忙しい', [['忙', 'いそが'], 'しい'], 'いそがしい', '이소가시-', '바쁘다', 'FEELING', 'BASE', { pos: '형용사', lv: 'N5' }),
+    wd('kitto', 'きっと', ['きっと'], 'きっと', '킷토', '분명히, 꼭', 'MODIFIER', 'BASE', { pos: '부사', lv: 'N4' }),
+    wd('tanoshimi', '楽しみ', [['楽', 'たの'], 'しみ'], 'たのしみ', '타노시미', '기대, 즐거움', 'NAME', 'BASE', { lv: 'N4' }),
+    wd('mendou', '面倒', [['面倒', 'めんどう']], 'めんどう', '멘도-', '귀찮음, 번거로움', 'FEELING', 'BASE', { ar: true, pos: '형용사', lv: 'N3' }),
+    wd('sugoi', 'すごい', ['すごい'], 'すごい', '스고이', '대단하다', 'FEELING', 'BASE', { ar: true, pos: '형용사', lv: 'N5' })
+  ];
+  var ORDER = BASEW.map(function (w) { return w.id; });
+  var FAV_DEFAULT = ['taberu', 'yoroshiku', 'impact', 'natsukashii', 'daijoubu', 'ganbaru', 'suteki', 'shoushou', 'mendou'];
+  var BASE_TOTAL = 7757;
+  var PAGE = 7;
+
+  /* ── 상태 목록 ── */
+  var ST = {
+    'r-base': { g: '목록 행 (U3 · D8)', t: '목록 — 뱃지 아래 작은 별', s: '보통 보기 1쪽. 별은 [내 단어][조각] 뱃지 바로 아래(둘째 줄 오른쪽). 뱃지 없는 행(映画)·내 단어만(インパクト)·조각만·둘 다(よろしく…)·숫자 있는 행·한글 줄이 없는 행(ゆっくり — 합성: 분석 없음) 모두 같은 열·같은 높이. 열기 버튼은 지금 폭 그대로.', scroll: 'list' },
+    'r-long': { g: '목록 행 (U3 · D8)', t: '긴 표현·긴 한글 읽기 (내 단어)', s: '출처 「내 단어」 — 가장 긴 표현·뜻·한글 읽기. 한글 줄은 오른쪽 24 를 비워 별 밑으로 들어가지 않고 일찍 줄바꿈된다. 표현·뜻은 지금과 같은 자리에서 「…」.', f: { source: 'mine' }, scroll: 'list' },
+    'r-hgoff': { g: '목록 행 (U3 · D8)', t: '한글 줄 끔 — H2 / H1', s: '머리 줄 [한글]을 끈 상태 — 모든 행에 둘째 줄이 없다. H2 ★: 별은 같은 자리(첫 줄 바로 아래), 셋째 줄(뜻·숫자)이 오른쪽 24 를 비움. H1: 빈 둘째 줄을 둬서 행이 커짐(별은 늘 한글 줄 자리).', hg: false, scroll: 'list' },
+    'r-wrong': { g: '목록 행 (U3 · D8)', t: '정렬 「많이 틀린」 — 셋째 줄에 틀림 뱃지', s: '정렬이 「많이 틀린」이면 셋째 줄 오른쪽이 숫자 대신 22px 높이의 「틀림 n」 뱃지 — 별 누르는 곳과 가장 가까워지는 경우.', sort: 'wrong', scroll: 'list' },
+    'r-tap': { g: '목록 행 (U3 · D8)', t: '별을 누름 → 금색으로 켜짐', s: '映画 의 별을 눌러 켠 뒤. 상세 시트는 열리지 않는다. D10 A 라 토스트 없음.', favs: FAV_DEFAULT.concat(['eiga']), scroll: 'list' },
+    'r-pend': { g: '목록 행 (U3 · D8)', t: '처리 중 — 연타 무시', s: '映画 의 별을 누른 직후(응답 전). D5 A: 별은 이미 켜졌고 응답까지 그 별만 잠김 — 다시 눌러도 요청 1건.', pend: 'eiga', ignored: 2, scroll: 'list' },
+    'r-fail': { g: '목록 행 (U3 · D8)', t: '실패 → 되돌림', s: '映画 를 켰다가 서버 오류 — 별이 꺼진 상태로 되돌아가고 토스트. 초점은 별에 그대로.', toast: C.err.fail, scroll: 'list' },
+    'r-offline': { g: '목록 행 (U3 · D8)', t: '오프라인', s: '연결이 끊긴 채 누름 — 되돌림 + 기존 네트워크 문구.', toast: C.err.offline, scroll: 'list' },
+    'f-on': { g: '출처 4칸 (U1)', t: '「즐겨찾기」 칸 (8개 · 2쪽)', s: '출처 분절 4번째 칸. 머리 줄 「즐겨찾기 8개 · 1쪽」. 내 단어·기본 단어가 섞여 있고 「내 단어」 뱃지로 구분. 보관한 즐겨찾기(面倒)는 보관함을 켜야 보인다(D2 A).', f: { fav: true } },
+    'f-p2': { g: '출처 4칸 (U1)', t: '즐겨찾기 2쪽', s: '8번째 즐겨찾기 하나. 빈 자리는 보이지 않는 행으로 채운다.', f: { fav: true }, page: 1, scroll: 'list' },
+    'f-arch': { g: '출처 4칸 (U1)', t: '즐겨찾기 칸 + 보관함', s: 'D2 A — 보관한 즐겨찾기만. 머리 줄 「보관한 단어 1개 · 즐겨찾기」. D2 C 를 고르면 둘을 함께 켤 수 없다.', f: { fav: true, archived: true } },
+    'f-mix': { g: '출처 4칸 (U1)', t: '즐겨찾기 칸 + 표현 조각', s: '조각과는 AND. 머리 줄 「즐겨찾기 3개 · 표현 조각」. 「내 단어 + 즐겨찾기」는 고를 수 없다 — 「내 단어」를 누르면 즐겨찾기 조건이 풀린다.', f: { fav: true, chunk: 'EXPRESSION' } },
+    'f-cat': { g: '출처 4칸 (U1)', t: '분류 칩이 있는 계정 (D6)', s: '내가 정한 분류(여행)가 있는 드문 계정. D6 A: 즐겨찾기 칸이어도 칩 숫자는 「전체 7,766 · 여행 2」 그대로. B: 「전체 8 · 여행 1」.', f: { fav: true }, cat: true },
+    'f-none': { g: '출처 4칸 (U1)', t: '빈 결과 — 즐겨찾기 0', s: '아직 별을 하나도 안 켰을 때. [모든 단어 보기] = 「전체」 칸.', f: { fav: true }, favs: [] },
+    'f-nomatch': { g: '출처 4칸 (U1)', t: '빈 결과 — 검색과 겹쳐 0', s: '검색 「ねこ」 + 즐겨찾기 칸. 猫 는 있지만 즐겨찾기가 아님. 「‘ねこ’ 추가하기」는 내지 않는다. [즐겨찾기 조건 풀기] = 「전체」 칸, 검색은 그대로.', f: { fav: true, q: 'ねこ' } },
+    'f-archnone': { g: '출처 4칸 (U1)', t: '빈 결과 — 보관함과 겹쳐 0', s: '보관한 단어 중 즐겨찾기가 없을 때. 「보관함 안에서 즐겨찾기만 찾았어요.」', f: { fav: true, archived: true }, favs: ['taberu', 'impact'] },
+    'u-after': { g: '해제(즐겨찾기 칸)', t: '食べる 별을 끈 뒤 (D3)', s: 'D3 A: 응답 뒤 1쪽을 다시 읽어 食べる 가 빠지고 7개 → 1쪽, 쪽 줄이 사라짐 + 토스트. D3 B: 별만 꺼진 채 남고 머리 줄 8개·2쪽 그대로.', f: { fav: true }, unfav: 'taberu', scroll: 'list' },
+    'd-base': { g: '상세 · 수정', t: '상세 — 기본 단어(켜짐)', s: '기본 단어는 읽기 전용(보관 단추 하나). 별은 시트 머리 ✕ 왼쪽 — 기본·내 단어 모두 같은 자리, 아이콘 18 금색.', sheet: { id: 'natsukashii', mode: 'view' } },
+    'd-base0': { g: '상세 · 수정', t: '상세 — 기본 단어(꺼짐)', s: '꺼진 별. 누르면 바로 켜짐(저장 단추 없음).', sheet: { id: 'eiga', mode: 'view' } },
+    'd-mine': { g: '상세 · 수정', t: '상세 — 내 단어', s: '[수정][보관하기] + 글자 [삭제] 그대로. 별은 머리.', sheet: { id: 'impact', mode: 'view' } },
+    'd-arch': { g: '상세 · 수정', t: '상세 — 보관한 즐겨찾기', s: 'D2 A — 보관함 뱃지와 켜진 별이 함께. [보관 풀기]를 눌러도 별은 그대로.', f: { archived: true }, sheet: { id: 'mendou', mode: 'view' } },
+    'e-edit': { g: '상세 · 수정', t: '수정 화면', s: 'D4 A: 머리 별이 보기와 같은 자리에 남고 누르면 바로 반영. D4 B: 머리 별이 없어지고 폼 맨 위 「즐겨찾기」 줄 — [저장] 때 반영.', sheet: { id: 'impact', mode: 'edit' } },
+    'e-cancel': { g: '상세 · 수정', t: '수정 중 별 끔 → [취소]', s: 'インパクト 수정 중 별을 끄고 [취소]한 뒤. D4 A: 별은 꺼진 채(이미 저장됨). D4 B: 켜진 채로 되돌아감.', sheet: { id: 'impact', mode: 'view' }, cancelled: 1 },
+    'a-add': { g: '상세 · 수정', t: '단어 추가 시트 (D7)', s: 'D7 A: 지금 추가 폼 그대로(별 없음). B: 폼 맨 위 「즐겨찾기에 넣기」 줄.', sheet: { id: null, mode: 'add' } }
+  };
+  var IDS = Object.keys(ST);
+
+  /* ── 상태 ── */
+  var S = { st: 'r-base', view: 'cmp', w: 390, h: 780, theme: 'system', big: false, net: 'ok', mark: true, hit: false, d: clone(DEF_D) };
+  var A = null;
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function freshApp(id) {
+    var sc = ST[id];
+    var db = {}; BASEW.forEach(function (w) { db[w.id] = clone(w); });
+    (sc.favs || FAV_DEFAULT).forEach(function (k) { db[k].fav = true; });
+    var a = { db: db, f: Object.assign({ fav: false, archived: false, source: 'all', chunk: null, q: '' }, sc.f || {}), sort: sc.sort || 'recent', hg: sc.hg !== false, page: sc.page || 0, opt: {}, pend: {}, ignored: sc.ignored || 0, toast: sc.toast || null, sheet: sc.sheet ? clone(sc.sheet) : null, snap: null, reqs: 0 };
+    if (sc.pend) { a.pend[sc.pend] = true; a.opt[sc.pend] = true; a.reqs = 1; }
+    if (a.sheet && a.sheet.mode === 'edit') a.sheet.ffav = db[a.sheet.id].fav;
+    if (a.sheet && a.sheet.mode === 'add') a.sheet.ffav = false;
+    return a;
+  }
+  function applyScene(id) {
+    clearTimers(); clearTimeout(toastT);
+    S.st = id; A = freshApp(id);
+    var sc = ST[id];
+    if (S.d.d2 === 'B') ORDER.forEach(function (k) { if (A.db[k].ar) A.db[k].fav = false; });
+    if (S.d.d2 === 'C' && A.f.fav && A.f.archived) A.f.fav = false;
+    A.snap = query(A.f, A.page);
+    if (sc.unfav) { A.db[sc.unfav].fav = false; if (S.d.d3 === 'A') { A.snap = query(A.f, A.page); A.toast = C.removed; } }
+    if (sc.cancelled && S.d.d4 === 'A') A.db.impact.fav = false;
+  }
+  function disp(id) { return Object.prototype.hasOwnProperty.call(A.opt, id) ? A.opt[id] : A.db[id].fav; }
+
+  /* ── 목록 계산(서버 #40 모형) — 즐겨찾기 칸 = source all + favorite 1 ── */
+  function match(w, f, useFav) {
+    if (!!w.ar !== !!f.archived) return false;
+    if (f.source === 'mine' && w.o !== 'MINE') return false;
+    if (f.source === 'base' && w.o !== 'BASE') return false;
+    if (f.chunk && w.ck !== f.chunk) return false;
+    if (f.q && (w.s + w.r + w.m).indexOf(f.q) < 0) return false;
+    if (useFav && f.fav && !w.fav) return false;
+    return true;
+  }
+  function query(f, page, noFav) {
+    var ids = ORDER.filter(function (id) { return match(A.db[id], f, !noFav); });
+    if (A.sort === 'wrong') ids = ids.slice().sort(function (a, b) { return A.db[b].w - A.db[a].w || ORDER.indexOf(a) - ORDER.indexOf(b); });
+    var mineN = ORDER.filter(function (id) { return A.db[id].o === 'MINE' && !A.db[id].ar; }).length;
+    var big = !f.archived && !f.q && !f.chunk && !(f.fav && !noFav) && f.source !== 'mine';
+    var total = big ? (f.source === 'base' ? BASE_TOTAL : BASE_TOTAL + mineN) : ids.length;
+    var pages = Math.max(1, Math.ceil(total / PAGE));
+    var p = Math.min(page, pages - 1);
+    var items = ids.slice(p * PAGE, p * PAGE + PAGE);
+    if (big && p > 0 && !items.length) items = ids.slice(0, PAGE);
+    return { ids: items, total: total, pages: pages, page: p };
+  }
+  function reread() { A.snap = query(A.f, A.page); A.page = A.snap.page; }
+
+  /* ── 그리기 조각 ── */
+  var IC = {
+    x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+    play: '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>',
+    chev: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'
+  };
+  /* 별 — 꺼짐: 외곽선 ink2 / 켜짐: 금색 warn 채움 + (B2) ink 윤곽 · (B1) 금색 윤곽 */
+  function starSvg(on, size, variant) {
+    var v = variant || S.d.d8;
+    var st = on ? 'fill:var(--warn);stroke:' + (v === 'B2' ? 'var(--ink)' : 'var(--warn)') : 'fill:none;stroke:var(--ink2)';
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' + STAR + '" style="' + st + '" stroke-width="2" stroke-linejoin="round"/></svg>';
+  }
+  function ruby(rb) { return rb.map(function (p) { return typeof p === 'string' ? esc(p) : '<ruby>' + esc(p[0]) + '<rt>' + esc(p[1]) + '</rt></ruby>'; }).join(''); }
+  var PF = '';
+  function I(x) { return PF + x; }
+
+  function starBtn(w, kind) {
+    var on = disp(w.id), pend = !!A.pend[w.id];
+    var shown = (S.d.d5 === 'B' && pend) ? A.db[w.id].fav : on;
+    var cls = (kind === 'row' ? 'wst' : 'icb44') + ' dnew' + (S.d.d5 === 'B' && pend ? ' pendB' : '');
+    var name = kind === 'row' ? C.rowStar(w.s) : esc(C.star);
+    var attrs = S.d.d11 === 'A' ? ' aria-pressed="' + shown + '"' : '';
+    if (S.d.d11 === 'B') name = (kind === 'row' ? '<span lang="ja">' + esc(w.s) + '</span> ' : '') + esc(shown ? C.act.off : C.act.on);
+    return '<button type="button" class="' + cls + '"' + attrs + (pend ? ' aria-disabled="true"' + (S.d.d5 === 'B' ? ' aria-busy="true"' : '') : '') + ' data-act="star" data-id="' + w.id + '">' + starSvg(shown, 18) + '<span class="sr">' + name + '</span></button>';
+  }
+  function hgLine(text) { return '<span class="hgl"><span class="sr">한글 읽기 </span><span class="bk" aria-hidden="true">[</span>' + esc(text) + '<span class="bk" aria-hidden="true">]</span></span>'; }
+
+  function row(w, feat) {
+    var badge = w.ck ? '<span class="bdg n">' + CK[w.ck] + '</span>' : '';
+    var mine = w.o === 'MINE' ? '<span class="bdg mine">내 단어</span>' : '';
+    var played = w.c + w.w > 0;
+    var r3 = (A.sort === 'wrong' && w.w > 0) ? '<span class="bdg bad">틀림 ' + w.w + '</span>' : played ? '<span class="cnt">맞힘 ' + w.c + ' · 틀림 ' + w.w + '</span>' : '';
+    var hasHg = A.hg && !!w.hg;
+    var l2 = hasHg ? hgLine(w.hg) : (feat && S.d.d9 === 'H1' ? '<span class="hgl sp" aria-hidden="true"></span>' : '');
+    var cls = 'wo' + (feat ? ' rsv' + (!hasHg && S.d.d9 === 'H2' ? ' h2' : '') : '');
+    var inner = '<span class="l1"><span class="sf" lang="ja">' + ruby(w.rb) + '</span><span class="flx"></span>' + mine + badge + '</span>' + l2 +
+      '<span class="l3"><span class="mn">' + esc(w.m) + '</span>' + r3 + '</span>';
+    var open = '<button type="button" class="' + cls + '" data-act="open" data-id="' + w.id + '">' + inner + '</button>';
+    if (!feat) return '<li class="wr">' + open + '</li>';
+    var gone = A.f.fav && !A.db[w.id].fav && !A.pend[w.id] && S.d.d3 === 'B';
+    return '<li class="wr' + (gone ? ' gone' : '') + '">' + open + starBtn(w, 'row') + '</li>';
+  }
+  function filler(feat) { return '<li class="wr" aria-hidden="true" style="visibility:hidden"><span class="wo"><span class="l1"><span class="sf" lang="ja"><ruby>亜<rt>あ</rt></ruby></span></span>' + (A.hg ? '<span class="hgl">가</span>' : (feat && S.d.d9 === 'H1' ? '<span class="hgl sp"></span>' : '')) + '<span class="l3"><span class="mn">가</span></span></span></li>'; }
+
+  function seg(opts, val, name, act) {
+    return '<div class="seg" role="radiogroup" aria-label="' + name + '">' + opts.map(function (o) { return '<button type="button" role="radio" aria-checked="' + (o[0] === val) + '" data-act="' + act + '" data-v="' + o[0] + '"' + (o[2] ? ' class="dnew"' : '') + '><span>' + esc(o[1]) + '</span></button>'; }).join('') + '</div>';
+  }
+  function condText(f, feat) {
+    var parts = [];
+    if (feat && f.fav && (f.archived || f.q)) parts.push(C.cond);
+    if (f.chunk) parts.push(CK[f.chunk] + ' 조각');
+    return parts.join(' · ');
+  }
+  function leadText(f, n, feat) {
+    if (f.archived) return '보관한 단어 ' + fmt(n) + '개';
+    if (f.q) return '‘<span lang="ja">' + esc(f.q) + '</span>’ 검색 결과 ' + fmt(n) + '개';
+    if (feat && f.fav) return '<span class="dnew">' + esc(C.lead(n)) + '</span>';
+    if (f.source === 'mine') return '내 단어 ' + fmt(n) + '개';
+    if (f.source === 'base') return '기본 단어 ' + fmt(n) + '개';
+    return '단어 ' + fmt(n) + '개';
+  }
+  function emptyCard(f, feat) {
+    if (feat && f.fav) {
+      var conds = [];
+      if (f.q) conds.push('‘<span lang="ja">' + esc(f.q) + '</span>’ 검색');
+      if (f.archived) conds.push('보관함');
+      if (f.chunk) conds.push(CK[f.chunk] + ' 조각');
+      if (!conds.length) return '<div class="card dnew"><p class="ct">' + C.noneT + '</p><p class="cb">' + C.noneB + '</p><button type="button" class="btn ghost full mt12" data-act="clearfav">' + C.noneBtn + '</button></div>';
+      return '<div class="card dnew"><p class="ct">' + C.matchT + '</p><p class="cb">' + C.matchB(conds.join(' · ')) + '</p><button type="button" class="btn ghost full mt12" data-act="clearfav">' + C.matchBtn + '</button></div>';
+    }
+    if (f.q) return '<div class="card"><p class="ct">‘<span lang="ja">' + esc(f.q) + '</span>’에 맞는 단어가 없어요</p><button type="button" class="btn ghost full mt12" data-act="noop"><span>‘<span lang="ja">' + esc(f.q) + '</span>’ 추가하기</span></button></div>';
+    if (f.archived) return '<div class="card"><p class="ct">보관한 단어가 없어요</p></div>';
+    return '<div class="card"><p class="ct">단어장이 비어 있어요</p></div>';
+  }
+
+  function listScreen(feat) {
+    var f = A.f, sc = ST[S.st];
+    var L = feat ? A.snap : query(f, A.page, true);
+    var src = [['all', '전체'], ['mine', '내 단어'], ['base', '기본 단어']];
+    if (feat) src.push(['fav', C.seg, 1]);
+    var srcVal = feat && f.fav ? 'fav' : f.source;
+    var h = '<nav class="dsw" aria-label="단어장 보기"><span class="on">단어</span><span>채택한 교정</span></nav>';
+    h += '<div class="srch">' + IC.search + '<input type="search" aria-label="단어 검색" placeholder="표현 · 읽기 · 뜻으로 찾기" value="' + esc(f.q) + '" readonly></div>';
+    h += '<div class="frow mt8">' + seg(src, srcVal, '출처', 'src') + '</div>';
+    if (sc.cat) {
+      var favN = feat && f.fav && S.d.d6 === 'B';
+      h += '<div class="ckrow mt6"><span class="cklb">분류</span><div class="hsc" role="radiogroup" aria-label="분류"><button type="button" class="chip" role="radio" aria-checked="true" data-act="noop">전체 ' + (favN ? '8' : '7,766') + '</button><button type="button" class="chip" role="radio" aria-checked="false" data-act="noop">여행 ' + (favN ? '1' : '2') + '</button></div></div>';
+    }
+    var chips = '<button type="button" class="chip" role="radio" aria-checked="' + (!f.chunk) + '" data-act="ck" data-v="">전체<span class="sr"> (모든 조각)</span></button>' + Object.keys(CK).map(function (k) { return '<button type="button" class="chip" role="radio" aria-checked="' + (f.chunk === k) + '" data-act="ck" data-v="' + k + '">' + CK[k] + '<span class="sr"> 조각</span></button>'; }).join('');
+    h += '<div class="ckrow' + (sc.cat ? '' : ' mt6') + '"><span class="cklb" id="' + I('ckl') + '">조각</span><div class="hsc" role="radiogroup" aria-labelledby="' + I('ckl') + '">' + chips + '</div></div>';
+    h += '<div class="frow mt8">' + seg([['recent', '최근 추가'], ['wrong', '많이 틀린'], ['surface', '가나다순']], A.sort, '정렬', 'sort') + '<button type="button" class="ftg" aria-pressed="' + f.archived + '" data-act="arch">보관함</button></div>';
+    if (f.archived) h += '<p class="anote">보관한 단어는 오늘의 단어에 나오지 않아요. 숨긴 기본 단어는 나에게만 숨겨져요.</p>';
+    var cond = condText(f, feat);
+    var paged = L.total > PAGE;
+    var head = leadText(f, L.total, feat) + (cond ? ' · <b' + (feat && f.fav ? ' class="dnew"' : '') + '>' + esc(cond) + '</b>' : '') + (paged ? '<span aria-hidden="true"> · ' + (L.page + 1) + '쪽</span>' : '');
+    h += '<div class="hdr" id="' + I('hdr') + '"><p class="hd" tabindex="-1" aria-live="polite">' + head + '</p><div class="dtg" role="group" aria-label="보기 설정"><button type="button" class="dt" aria-pressed="true" data-act="noop">히라가나</button><button type="button" class="dt" aria-pressed="' + A.hg + '" data-act="hg">한글</button></div></div>';
+    if (!L.ids.length) h += emptyCard(f, feat);
+    else {
+      var rows = L.ids.map(function (id) { return row(A.db[id], feat); }).join('');
+      var fill = paged ? Array(PAGE - L.ids.length + 1).join(filler(feat)) : '';
+      h += '<ul class="wl" id="' + I('wl') + '">' + rows + fill + '</ul>';
+      if (paged) h += '<nav class="pgn" aria-label="단어 목록 쪽"><button type="button" class="pgb" data-act="prev"' + (L.page === 0 ? ' aria-disabled="true"' : '') + '><span aria-hidden="true">‹</span>이전</button><button type="button" class="pgc" data-act="noop"><b>' + fmt(L.page + 1) + ' / ' + fmt(L.pages) + '</b><small>모두 ' + fmt(L.total) + '개</small></button><button type="button" class="pgb" data-act="next"' + (L.page >= L.pages - 1 ? ' aria-disabled="true"' : '') + '>다음<span aria-hidden="true">›</span></button></nav>';
+    }
+    return h;
+  }
+
+  function sheetHTML(feat) {
+    var sh = A.sheet;
+    if (sh.mode === 'add') return addSheet(feat);
+    var w = A.db[sh.id], ro = w.o === 'BASE';
+    var showHead = feat && (sh.mode === 'view' || (sh.mode === 'edit' && S.d.d4 === 'A'));
+    var head = '<div class="sh-h"><h2 id="' + I('sh_t') + '" tabindex="-1">단어</h2>' + (showHead ? starBtn(w, 'head') : '') + '<button type="button" class="icb44" data-act="sclose" aria-label="닫기">' + IC.x + '</button></div>';
+    var body = sh.mode === 'edit' ? editBody(w, feat) : viewBody(w, ro);
+    return '<div class="scrim" aria-hidden="true"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="' + I('sh_t') + '">' + head + '<div class="sh-b">' + body + '</div></div>';
+  }
+  function viewBody(w, ro) {
+    var played = w.c + w.w > 0;
+    var b = '<div class="dh"><div style="min-width:0;flex:1"><p class="dsf" lang="ja">' + ruby(w.rb) + '</p>' + (w.hg ? '<p class="hgl" style="font-size:calc(14px * var(--fz))"><span class="bk" aria-hidden="true">[</span>' + esc(w.hg) + '<span class="bk" aria-hidden="true">]</span></p>' : '') + '</div><button type="button" class="snd" aria-label="소리 듣기" data-act="noop">' + IC.play + '</button></div>';
+    b += '<p class="dmn">' + esc(w.m) + '</p>';
+    b += '<div class="dbg"><span class="bdg n">' + esc(w.pos) + '</span>' + (w.lv ? '<span class="bdg n">' + w.lv + '</span>' : '') + (w.ck ? '<span class="bdg n">' + CK[w.ck] + '</span>' : '') + (ro ? '<span class="bdg out">기본 단어</span>' : '<span class="bdg mine">내 단어</span>') + (w.ar ? '<span class="bdg n">보관함</span>' : '') + '</div>';
+    if (w.ex) b += '<div class="exc"><div class="ja"><p lang="ja">' + esc(w.ex) + '</p><p class="ko">' + esc(w.exk) + '</p></div><button type="button" class="snd" aria-label="예문 소리 듣기" data-act="noop">' + IC.play + '</button></div>';
+    b += '<h3 class="h3">기록</h3><dl class="dl"><div><dt class="sr">전체</dt><dd style="margin:0">맞힘 ' + w.c + ' · 틀림 ' + w.w + '</dd></div><div><dt class="sr">최근 7일</dt><dd style="margin:0">최근 7일 맞힘 0 · 틀림 0</dd></div></dl>';
+    if (!played) b += '<p class="cap" style="margin-top:4px;font-size:calc(13px * var(--fz))">아직 오늘의 단어에서 풀지 않았어요</p>';
+    b += '<h3 class="h3">출처</h3><p class="dsrc">' + (ro ? '기본 단어예요 · 내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요. 맞힘 · 틀림 기록은 나에게만 쌓여요.' : '내가 직접 넣은 단어예요 · 나만 봐요') + '</p>';
+    if (ro) b += '<button type="button" class="btn ghost full mt12" data-act="noop"><span>' + (w.ar ? '보관 풀기 — 다시 보이기' : '보관 — 목록 · 오늘의 단어에서 숨기기') + '</span></button>';
+    else b += '<div class="brow"><button type="button" class="btn ghost" data-act="edit">수정</button><button type="button" class="btn ghost" data-act="noop">' + (w.ar ? '보관 풀기' : '보관하기') + '</button></div><div class="delw"><button type="button" class="delb" data-act="noop">삭제</button></div>';
+    return b;
+  }
+  function formFields(w) {
+    var ck = Object.keys(CK).map(function (k) { return '<button type="button" class="ck' + (w && w.ck === k ? ' on' : '') + '" role="radio" aria-checked="' + !!(w && w.ck === k) + '" data-act="noop">' + CK[k] + '</button>'; }).join('');
+    return '<div class="fld"><label class="lbl" for="' + I('f_s') + '">표현<span aria-hidden="true">*</span></label><input id="' + I('f_s') + '" class="inp" lang="ja" value="' + esc(w ? w.s : 'すごい') + '"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_r') + '">읽기</label><input id="' + I('f_r') + '" class="inp" lang="ja" placeholder="히라가나 (선택)" value="' + esc(w ? w.r : '') + '"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_m') + '">뜻<span aria-hidden="true">*</span></label><input id="' + I('f_m') + '" class="inp" placeholder="한국어 뜻 (예: 영화)" value="' + esc(w ? w.m : '대단하다') + '"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_p') + '">품사</label><select id="' + I('f_p') + '" class="sel2"><option>' + esc(w ? w.pos : '형용사') + '</option></select></div>' +
+      '<div class="fld"><span class="lbl" id="' + I('f_ckl') + '">조각<span aria-hidden="true">*</span></span><div class="ckr" role="radiogroup" aria-labelledby="' + I('f_ckl') + '">' + ck + '</div></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_c') + '">분류</label><input id="' + I('f_c') + '" class="inp" placeholder="예: 일상, 여행 (선택)" value="' + esc(w && w.cat ? w.cat : '') + '"></div>' +
+      '<button type="button" class="more" aria-expanded="false" data-act="noop">예문·메모 더 쓰기' + IC.chev + '</button>';
+  }
+  function formFavRow(text, hint) {
+    var on = !!A.sheet.ffav;
+    return '<div class="ffr dnew"><p class="t">' + esc(text) + '<small>' + esc(hint) + '</small></p><button type="button" class="ftg ico" aria-pressed="' + on + '" data-act="formfav">' + starSvg(on, 18) + '<span class="sr">' + esc(text) + '</span></button></div>';
+  }
+  function editBody(w, feat) {
+    return '<form class="col12" onsubmit="return false">' + (feat && S.d.d4 === 'B' ? formFavRow(C.formRow, C.formRowHint) : '') + formFields(w) +
+      '<p class="cap">맞힘·틀림 기록과 출처는 바꿀 수 없어요.</p><div class="brow" style="margin-top:0"><button type="button" class="btn pri" data-act="save">저장</button><button type="button" class="btn ghost" data-act="cancel">취소</button></div></form>';
+  }
+  function addSheet(feat) {
+    var body = '<form class="col12" onsubmit="return false">' + (feat && S.d.d7 === 'B' ? formFavRow(C.addRow, C.addRowHint) : '') + formFields(null) + '<div class="brow" style="margin-top:0"><button type="button" class="btn pri" data-act="noop">저장</button></div></form>';
+    return '<div class="scrim" aria-hidden="true"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="' + I('sh_t') + '"><div class="sh-h"><h2 id="' + I('sh_t') + '" tabindex="-1">단어 추가</h2><button type="button" class="icb44" data-act="sclose" aria-label="닫기">' + IC.x + '</button></div><div class="sh-b">' + body + '</div></div>';
+  }
+
+  function phone(w, h, pfx, cur) {
+    PF = pfx;
+    var feat = !cur;
+    var html = '<div class="phone w' + w + ' h' + h + (S.big ? ' big' : '') + (S.hit ? ' showhit' : '') + '" data-pfx="' + pfx + '"' + (cur ? ' data-cur="1"' : '') + '><div class="app"><div class="pg"' + (A.sheet ? ' aria-hidden="true"' : '') + '><div class="ab"><b>단어장</b><button type="button" class="ab-add" aria-label="단어 추가" data-act="noop">＋ 추가</button></div><div class="pgs">' + listScreen(feat) + '</div><div class="tabs"><span>회화</span><span>공부</span><span>계획표</span><span class="cur">단어장</span><span>질문</span></div></div>';
+    if (A.sheet) html += sheetHTML(feat);
+    if (A.toast && feat) html += '<div class="ptoast" role="status">' + esc(A.toast) + '</div>';
+    if (cur && ST[S.st].f && ST[S.st].f.fav && !A.sheet) html += '<p class="tn">현재: 즐겨찾기 칸이 없어 같은 조건의 보통 목록</p>';
+    html += '</div></div>';
+    PF = '';
+    return html;
+  }
+
+  /* ── 무대·목록·설명 ── */
+  function renderNav() {
+    var groups = {}, order = [];
+    IDS.forEach(function (id) { var g = ST[id].g; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(id); });
+    $('#dnav').innerHTML = order.map(function (g) {
+      return '<h2>' + esc(g) + '</h2>' + groups[g].map(function (id) { return '<button type="button" class="nvb" data-st="' + id + '"' + (id === S.st ? ' aria-current="true"' : '') + '>' + esc(ST[id].t) + '<span class="did">' + id + '</span></button>'; }).join('');
+    }).join('');
+  }
+  function cap(cur, label) { return '<figcaption><span class="' + (cur ? 'tagc">현재' : 'tagp">제안') + '</span>' + esc(label) + '</figcaption>'; }
+  function renderStage() {
+    var st = $('#stage'), h = '', t = ST[S.st].t;
+    if (S.view === 'three') [360, 390, 412].forEach(function (w, i) { h += '<figure class="fw">' + cap(false, w + ' × ' + S.h) + phone(w, S.h, 'p' + i + '-') + '</figure>'; });
+    else if (S.view === 'cmp') { h += '<figure class="fw">' + cap(true, '배포된 화면 · ' + S.w) + phone(S.w, S.h, 'c0-', true) + '</figure>'; h += '<figure class="fw">' + cap(false, t + ' · ' + S.w) + phone(S.w, S.h, 'c1-') + '</figure>'; }
+    else h += '<figure class="fw">' + cap(false, t + ' · ' + S.w + ' × ' + S.h) + phone(S.w, S.h, 'p0-') + '</figure>';
+    var keep = $$('.pgs', st).map(function (p) { return p.scrollTop; });
+    st.innerHTML = h;
+    $$('.phone', st).forEach(function (ph, i) { fitScroll(ph, keep[i]); });
+  }
+  function fitScroll(ph, keep) {
+    var pg = $('.pgs', ph); if (!pg) return;
+    if (keep && S.o) { pg.scrollTop = keep; return; }
+    if (ST[S.st].scroll === 'list') { var hd = $('.hdr', pg); if (hd) pg.scrollTop = Math.max(0, hd.offsetTop - 6); }
+    else pg.scrollTop = 0;
+  }
+  function renderExp() {
+    var s = ST[S.st];
+    $('#exp').innerHTML = '<p style="font-size:13px;word-break:keep-all"><b>' + esc(s.t) + '</b> <span class="did">' + S.st + '</span></p><p style="font-size:13px;margin-top:6px;word-break:keep-all;overflow-wrap:anywhere">' + esc(s.s) + '</p>';
+  }
+
+  /* ── 실측 ── */
+  function clip(a, b) { var l = Math.max(a.left, b.left), t = Math.max(a.top, b.top), r = Math.min(a.right, b.right), bt = Math.min(a.bottom, b.bottom); return r > l && bt > t ? { left: l, top: t, right: r, bottom: bt, w: r - l, h: bt - t } : null; }
+  function area(a, b) { var c = clip(a, b); return c ? c.w * c.h : 0; }
+  function textRects(el) {
+    var eb = el.getBoundingClientRect(), out = [];
+    var tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+    var n;
+    while ((n = tw.nextNode())) {
+      if (!n.nodeValue.trim() || (n.parentElement && n.parentElement.closest('.sr'))) continue;
+      var rg = document.createRange(); rg.selectNodeContents(n);
+      Array.prototype.forEach.call(rg.getClientRects(), function (q) { var c = clip(q, eb); if (c && c.w > 0.5 && c.h > 0.5) out.push(c); });
+    }
+    return out;
+  }
+  function measure(ph) {
+    var out = { ov: 0, ovs: [], small: [], trunc: [], rowLow: 0, rowMinH: null, hitMin: null, iconHit: 0, iconHits: [], hitArea: 0, hitWho: '', nbr: 0, colX: 0, colY: 0, segMin: null, openFull: 0, rowArea: 0 };
+    var app = $('.app', ph).getBoundingClientRect();
+    $$('.app *', ph).forEach(function (el) {
+      if (el.closest('.sr') || el.closest('.tn')) return;
+      var sc = el.parentElement && el.parentElement.closest('.hsc');
+      if (sc) return;
+      if (el.closest('svg') && el.tagName.toLowerCase() !== 'svg') return;
+      var b = el.getBoundingClientRect();
+      if (!b.width && !b.height) return;
+      if (getComputedStyle(el).visibility === 'hidden') return;
+      if (b.right > app.right + 0.5 || b.left < app.left - 0.5) { out.ov++; if (out.ovs.length < 3) out.ovs.push((el.className || el.tagName).toString().slice(0, 18)); }
+    });
+    $$('.pgs, .sh-b', ph).forEach(function (s) { if (s.scrollWidth > s.clientWidth + 1) out.ov++; });
+    $$('button, input, select, textarea', ph).forEach(function (el) {
+      if (el.closest('.sr') || el.offsetParent === null) return;
+      if (/\bwst\b/.test(el.className)) return; /* 행 별은 아래에서 누르는 곳(::before)으로 잰다 */
+      if (/\b(seg|chip|ck|dt|ftg)\b/.test(el.className) || (el.parentElement && /\bseg\b/.test(el.parentElement.className))) {
+        var bb = el.getBoundingClientRect();
+        if (bb.width < 43.5) out.small.push((el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 10) + ' 폭' + Math.round(bb.width));
+        return;
+      }
+      var b = el.getBoundingClientRect();
+      if (b.height < 43.5 || b.width < 43.5) out.small.push((el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 12) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    });
+    $$('.seg button > span, .ftg .tl, .pgc b, .pgc small', ph).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.trunc.push(el.textContent.trim()); });
+    var sg = $('.seg[aria-label="출처"]', ph);
+    if (sg) $$('button', sg).forEach(function (b) { var wv = b.getBoundingClientRect().width; out.segMin = out.segMin === null ? wv : Math.min(out.segMin, wv); });
+    var xs = [], ys = [];
+    $$('.wl .wr:not([aria-hidden])', ph).forEach(function (r) {
+      var rb = r.getBoundingClientRect();
+      out.rowMinH = out.rowMinH === null ? rb.height : Math.min(out.rowMinH, rb.height);
+      if (rb.height < 63.5) out.rowLow++;
+      var op = $('.wo', r);
+      if (op && Math.abs(op.getBoundingClientRect().width - rb.width) > 0.5) out.openFull++;
+      var st = $('.wst', r); if (!st) return;
+      var sb = st.getBoundingClientRect(), bs = getComputedStyle(st, '::before');
+      var hit = { left: sb.left + parseFloat(bs.left), top: sb.top + parseFloat(bs.top), right: sb.right - parseFloat(bs.right), bottom: sb.bottom - parseFloat(bs.bottom) };
+      var m = Math.min(hit.right - hit.left, hit.bottom - hit.top); out.hitMin = out.hitMin === null ? m : Math.min(out.hitMin, m);
+      var ic = $('svg', st).getBoundingClientRect();
+      var obx = op.getBoundingClientRect(); xs.push(sb.left - app.left); ys.push(sb.top - obx.top); /* 행 위 테두리(1px, 둘째 행부터)를 빼고 열기 버튼 기준 */
+      if (hit.top < rb.top - 0.5 || hit.bottom > rb.bottom + 0.5) out.nbr++;
+      var texts = [];
+      $$('.bdg, .cnt', r).forEach(function (x) { texts.push({ r: x.getBoundingClientRect(), k: x.className.indexOf('bad') >= 0 ? '틀림뱃지' : x.className.indexOf('cnt') >= 0 ? '숫자' : '뱃지' }); });
+      $$('.sf, .mn, .hgl', r).forEach(function (x) { textRects(x).forEach(function (q) { texts.push({ r: q, k: x.className.indexOf('sf') >= 0 ? '표현' : x.className.indexOf('mn') >= 0 ? '뜻' : '한글' }); }); });
+      var ha = 0, who = {};
+      texts.forEach(function (t) {
+        if (area(ic, t.r) > 0.5) { out.iconHit++; if (out.iconHits.length < 4) out.iconHits.push(t.k); }
+        var a = area(hit, t.r); if (a > 0.5) { ha += a; who[t.k] = (who[t.k] || 0) + a; }
+      });
+      if (ha > out.hitArea) { out.hitArea = ha; out.hitWho = Object.keys(who).map(function (k) { return k + ' ' + Math.round(who[k]); }).join(' · '); out.rowArea = rb.width * rb.height; }
+    });
+    if (xs.length) { out.colX = Math.max.apply(null, xs) - Math.min.apply(null, xs); out.colY = Math.max.apply(null, ys) - Math.min.apply(null, ys); }
+    return out;
+  }
+  function renderMeas() {
+    var rows = $$('#stage .phone').map(function (ph) {
+      var m = measure(ph), w = ph.classList.contains('w360') ? 360 : ph.classList.contains('w390') ? 390 : 412, cur = ph.hasAttribute('data-cur');
+      var p = '<p><b>' + (cur ? '현재 ' : '제안 ') + w + 'px' + (S.big ? ' · 글꼴 130%' : '') + '</b> · 가로 넘침 <span class="' + (m.ov ? 'ng' : 'ok') + '">' + m.ov + '</span>' + (m.ovs.length ? ' (' + esc(m.ovs.join(', ')) + ')' : '') + ' · 44px 미만 터치 <span class="' + (m.small.length ? 'ng' : 'ok') + '">' + m.small.length + '</span>' + (m.small.length ? ' (' + esc(m.small.join(', ')) + ')' : '') + '</p>';
+      p += '<p>잘린 글자 <span class="' + (m.trunc.length ? 'ng' : 'ok') + '">' + m.trunc.length + '</span>' + (m.trunc.length ? ' (' + esc(m.trunc.join(', ')) + ')' : '') + (m.segMin !== null ? ' · 출처 칸 최소 폭 ' + Math.round(m.segMin) : '') + (m.rowMinH !== null ? ' · 행 높이 최소 ' + Math.round(m.rowMinH) : '') + '</p>';
+      if (m.hitMin !== null) p += '<p>별 누르는 곳 최소 ' + Math.round(m.hitMin) + 'px · 아이콘과 글자 겹침 <span class="' + (m.iconHit ? 'ng' : 'ok') + '">' + m.iconHit + '</span> · 열 어긋남 가로 ' + m.colX.toFixed(1) + ' / 세로 ' + m.colY.toFixed(1) + ' · 누르는 곳이 덮는 글자 최대 ' + Math.round(m.hitArea) + 'px²' + (m.hitWho ? ' (' + esc(m.hitWho) + ')' : '') + '</p>';
+      return p;
+    });
+    rows.push('<p>요청 ' + A.reqs + '건 · 무시한 탭(잠김) ' + A.ignored + '</p>');
+    $('#meas').innerHTML = rows.join('<hr style="border:0;border-top:1px solid var(--line);margin:6px 0">') + '<p style="margin-top:6px">분절·칩·토글은 보이는 높이 32~36 이고 위아래 ::before 로 44 — 폭만 잰다. 행 별은 보이는 28 상자 + ::before 로 잰 누르는 곳.</p>';
+  }
+  function renderDec() {
+    $('#dqs').innerHTML = DEC.map(function (d) {
+      return '<fieldset class="dq"><legend><span class="dn2">' + d.n + '</span>' + esc(d.t) + (d.u ? ' <span class="usr">사용자 지정 · 구현 선택</span>' : ' <span class="pend2">승인 전</span>') + '</legend>' + d.o.map(function (o) {
+        var on = S.d[d.k] === o[0];
+        return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="' + d.k + '" value="' + o[0] + '"' + (on ? ' checked' : '') + '><span class="opt-h">' + o[0] + ' · ' + esc(o[1]) + (o[0] === d.rec ? ' <span class="rec">★ 권고</span>' : '') + '</span><span class="opt-d">' + esc(o[2]) + '</span><span class="sel">' + (on ? '보는 중' : '고르면 화면이 바뀜') + '</span></label>';
+      }).join('') + '</fieldset>';
+    }).join('');
+    var diff = DEC.filter(function (d) { return S.d[d.k] !== d.rec; }).map(function (d) { return d.n + '=' + S.d[d.k]; });
+    $('#d-sum').textContent = diff.length ? '★ 와 다른 선택: ' + diff.join(', ') : '모두 ★ (D1·D8·D9 는 사용자 지정)';
+  }
+  function renderCopy() {
+    $('#cptbl').innerHTML = '<thead><tr><th scope="col">쓰는 곳</th><th scope="col">문구</th><th scope="col">메모</th></tr></thead><tbody>' + COPY_ROWS.map(function (r) { return '<tr><td class="k">' + esc(r[0]) + '</td><td class="' + (r[3] === 'alt' ? '' : 'q') + '">' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>'; }).join('') + '</tbody>';
+  }
+
+  /* ── 금색 별 B1·B2 나란히 + 대비 표(토큰 값으로 계산) ── */
+  function renderGold() {
+    function cell(cls, title) {
+      var r = '';
+      [['행 바탕(surface)', ''], ['시트 머리 바탕(surface)', ' style="border-radius:16px 16px 10px 10px"']].forEach(function (bg) {
+        r += '<div class="swrow"' + bg[1] + '><b>' + bg[0] + '</b>' +
+          '<span>꺼짐 ' + starSvg(false, 18) + '</span>' +
+          '<span>B1 ' + starSvg(true, 18, 'B1') + '</span>' +
+          '<span>B2 ' + starSvg(true, 18, 'B2') + '</span>' +
+          '<span class="big">' + starSvg(false, 44) + starSvg(true, 44, 'B1') + starSvg(true, 44, 'B2') + '</span></div>';
+      });
+      return '<div class="' + cls + '"><h3>' + title + '</h3>' + r + '</div>';
+    }
+    $('#swg').innerHTML = cell('swl', '라이트 — 왼쪽부터 꺼짐 · B1 · B2 (18 · 확대 44)') + cell('swd', '다크 — 왼쪽부터 꺼짐 · B1 · B2 (18 · 확대 44)');
+    var L = TOK.light, D = TOK.dark;
+    function f(x) { return x.toFixed(2); }
+    function ok(x) { return x >= 3 ? '<span class="ok">' + f(x) + '</span>' : '<span class="ng">' + f(x) + '</span>'; }
+    var rows = [
+      ['꺼진 별 윤곽 ink2 ↔ 바탕 surface', ratio(L.ink2, L.surface), ratio(D.ink2, D.surface), '꺼짐 모양이 보임'],
+      ['<b>B1</b> 켜진 별 금색 warn ↔ 바탕 surface', ratio(L.warn, L.surface), ratio(D.warn, D.surface), '<b>라이트 3:1 미달</b> — 별 가장자리가 바탕에 묻힘'],
+      ['<b>B2</b> 윤곽 ink ↔ 바탕 surface', ratio(L.ink, L.surface), ratio(D.ink, D.surface), '별 가장자리(바탕과 맞닿는 곳)'],
+      ['<b>B2</b> 금색 warn ↔ 윤곽 ink', ratio(L.warn, L.ink), ratio(D.warn, D.ink), '라이트: 채움이 윤곽 안에서 보임 · 다크: 윤곽(ink)이 밝은 색이라 <b>흰 테두리처럼</b> 보임(1.83) — 다크는 금색↔바탕이 이미 ' + f(ratio(D.warn, D.surface)) + ' 라 윤곽 없이도 충족'],
+      ['참고 — 윤곽을 ink2 로 했다면 금색 ↔ ink2', ratio(L.warn, L.ink2), ratio(D.warn, D.ink2), 'ink2 윤곽은 채움과 구분이 약해 ink 로 고름']
+    ];
+    $('#ctbl').innerHTML = '<thead><tr><th scope="col">쌍(비텍스트 기준 3:1)</th><th scope="col">라이트</th><th scope="col">다크</th><th scope="col">뜻</th></tr></thead><tbody>' + rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td>' + ok(r[1]) + '</td><td>' + ok(r[2]) + '</td><td>' + r[3] + '</td></tr>'; }).join('') + '</tbody>';
+  }
+
+  /* ── 화면 밖 실측(#lab) — U3 표 · 4칸 분절 표 ── */
+  function labMeasure(scene, w, big, dOver) {
+    var keepS = clone(S), keepA = A;
+    S.d = Object.assign(clone(DEF_D), dOver || {}); S.big = big; S.hit = false;
+    applyScene(scene);
+    var lab = $('#lab');
+    lab.innerHTML = phone(w, 892, 'lab-');
+    var ph = $('.phone', lab);
+    var m = measure(ph);
+    lab.innerHTML = '';
+    S = keepS; A = keepA;
+    return m;
+  }
+  function renderLab() {
+    var keepA = A, keepSt = S.st;
+    var sc = [['r-base', '목록(뱃지 조합 4종)', null], ['r-long', '긴 표현·긴 한글', null], ['r-wrong', '많이 틀린(틀림 뱃지)', null], ['r-hgoff', '한글 끔 · H2 ★', null], ['r-hgoff', '한글 끔 · H1', { d9: 'H1' }]];
+    var tr = [], worst = { area: 0, txt: '' }, icon = 0, col = 0, nbr = 0, minRow = 999, rowArea = 0;
+    sc.forEach(function (s) {
+      [360, 390, 412].forEach(function (w) {
+        [false, true].forEach(function (big) {
+          var m = labMeasure(s[0], w, big, s[2]);
+          icon += m.iconHit; nbr += m.nbr; if (m.colX > 0.5 || m.colY > 0.5) col++;
+          minRow = Math.min(minRow, m.rowMinH || 999);
+          if (m.hitArea > worst.area) { worst = { area: m.hitArea, txt: s[1] + ' · ' + w + ' · ' + (big ? '130%' : '100%') + ' — ' + m.hitWho }; rowArea = m.rowArea; }
+          tr.push('<tr><td>' + esc(s[1]) + '</td><td>' + w + '</td><td>' + (big ? '130%' : '100%') + '</td><td class="' + (m.iconHit ? 'ng' : 'ok') + '">' + m.iconHit + (m.iconHits.length ? ' (' + esc(m.iconHits.join(',')) + ')' : '') + '</td><td>' + Math.round(m.hitArea) + (m.hitWho ? ' <small>(' + esc(m.hitWho) + ')</small>' : '') + '</td><td class="' + (m.colX > 0.5 || m.colY > 0.5 ? 'ng' : 'ok') + '">' + m.colX.toFixed(1) + ' / ' + m.colY.toFixed(1) + '</td><td class="' + (m.nbr ? 'ng' : 'ok') + '">' + m.nbr + '</td><td>' + Math.round(m.rowMinH || 0) + '</td><td>' + Math.round(m.hitMin || 0) + '</td><td class="' + (m.openFull ? 'ng' : 'ok') + '">' + (m.openFull ? '아님 ' + m.openFull : '예') + '</td></tr>');
+        });
+      });
+    });
+    $('#u3tbl').innerHTML = '<thead><tr><th scope="col">상태</th><th scope="col">폭</th><th scope="col">글꼴</th><th scope="col">아이콘과 글자 겹침</th><th scope="col">누르는 곳이 덮는 글자 면적 px²(행 중 최대)</th><th scope="col">열 어긋남 가로/세로</th><th scope="col">이웃 행 침범</th><th scope="col">행 높이 최소</th><th scope="col">누르는 곳</th><th scope="col">열기 버튼 = 행 전체 폭</th></tr></thead><tbody>' + tr.join('') + '</tbody>';
+    $('#u3risk').innerHTML = [
+      '<li>합계 — 아이콘과 글자 겹침 <b class="' + (icon ? 'ng' : 'ok') + '">' + icon + '</b> · 열 어긋남 있는 조합 <b class="' + (col ? 'ng' : 'ok') + '">' + col + '</b> · 이웃 행 침범 <b class="' + (nbr ? 'ng' : 'ok') + '">' + nbr + '</b> · 행 높이 최소 ' + Math.round(minRow) + 'px(64 이상).</li>',
+      '<li><b>누르는 곳이 덮는 면적</b>: 별 누르는 곳은 44×44 = 1,936px² 이고 전부 열기 버튼 위에 얹힌다(그만큼 열기 버튼을 누를 수 없음). 그중 글자·뱃지 위가 가장 큰 경우 <b>' + Math.round(worst.area) + 'px²</b> — ' + esc(worst.txt) + ' (그 행 면적의 ' + (rowArea ? (worst.area / rowArea * 100).toFixed(1) : '0') + '%). 이 자리를 누르면 <b>별이 눌린다</b>(별이 위, z-index). 뱃지·숫자의 나머지 부분과 행의 다른 곳은 지금처럼 상세를 연다.</li>',
+      '<li><b>해결안(필요하면)</b>: ① 누르는 곳을 가로 44 · 세로 44 그대로 두되 <b>오른쪽 끝으로 붙여</b> 뱃지 쪽으로 덜 들어가게(지금도 아이콘 오른쪽 끝 = 뱃지 오른쪽 끝이라 효과 작음) ② 뱃지 줄과 숫자 줄 사이를 넓혀(행 +8px 쯤) 겹침을 0 으로 — 행이 커지고 쪽 길이가 늘어 이번엔 권하지 않음. 기본은 사용자 지정대로(겹침 수용).</li>'
+    ].join('');
+    /* 4칸 분절 */
+    var st = [];
+    [360, 390, 412].forEach(function (w) {
+      [false, true].forEach(function (big) {
+        var m = labMeasure('f-on', w, big, null);
+        st.push('<tr><td>' + w + '</td><td>' + (big ? '130%' : '100%') + '</td><td class="' + (m.segMin < 44 ? 'ng' : 'ok') + '">' + m.segMin.toFixed(1) + '</td><td class="' + (m.trunc.length ? 'ng' : 'ok') + '">' + m.trunc.length + (m.trunc.length ? ' (' + esc(m.trunc.join(', ')) + ')' : '') + '</td><td class="' + (m.ov ? 'ng' : 'ok') + '">' + m.ov + '</td></tr>');
+      });
+    });
+    $('#segtbl').innerHTML = '<thead><tr><th scope="col">폭</th><th scope="col">글꼴</th><th scope="col">칸 폭 최소(44 이상)</th><th scope="col">잘린 글자</th><th scope="col">가로 넘침</th></tr></thead><tbody>' + st.join('') + '</tbody>';
+    A = keepA; S.st = keepSt;
+  }
+
+  function renderCtls() {
+    $$('.dseg').forEach(function (g) {
+      var c = g.getAttribute('data-ctl');
+      $$('button', g).forEach(function (b) {
+        var v = b.getAttribute('data-v'), on;
+        if (c === 'mark') on = (v === 'on') === S.mark;
+        else if (c === 'hit') on = (v === 'on') === S.hit;
+        else if (c === 'big') on = (v === '1') === S.big;
+        else on = String(S[c]) === v;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+    var root = document.documentElement;
+    if (S.theme === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', S.theme);
+    document.body.classList.toggle('mark', S.mark);
+  }
+  function render() { renderCtls(); renderNav(); renderStage(); renderExp(); renderMeas(); renderDec(); }
+
+  var toastT = 0;
+  function toast(t) { A.toast = t; clearTimeout(toastT); toastT = setTimeout(function () { A.toast = null; render(); }, 2600); }
+
+  /* ── 직접 해 보기(제안 화면만) ── */
+  function toggleFav(id) {
+    if (A.pend[id]) { A.ignored++; S.o = 1; render(); return; }
+    var next = !disp(id);
+    A.pend[id] = true; A.reqs++;
+    if (S.d.d5 === 'A') A.opt[id] = next;
+    S.o = 1; render();
+    var net = S.net;
+    timers.push(setTimeout(function () {
+      delete A.pend[id]; delete A.opt[id];
+      if (net === 'ok' || net === 'slow') {
+        A.db[id].fav = next;
+        var leaving = A.f.fav && !next;
+        if (leaving && S.d.d3 === 'A') { reread(); toast(C.removed); }
+        else if (S.d.d10 === 'B') toast(next ? C.added : C.removed);
+      } else toast(C.err[net] || C.err.fail);
+      render();
+    }, net === 'slow' ? 2500 : 600));
+  }
+  function onAct(act, el) {
+    var id = el.getAttribute('data-id'), v = el.getAttribute('data-v');
+    S.o = 1;
+    switch (act) {
+      case 'star': return toggleFav(id || A.sheet.id);
+      case 'open': A.sheet = { id: id, mode: 'view' }; return render();
+      case 'sclose': A.sheet = null; if (A.f.fav) reread(); return render();
+      case 'edit': A.sheet.mode = 'edit'; A.sheet.ffav = A.db[A.sheet.id].fav; return render();
+      case 'cancel': A.sheet.mode = 'view'; return render();
+      case 'save': {
+        var sid = A.sheet.id, nf = !!A.sheet.ffav;
+        A.sheet.mode = 'view';
+        if (S.d.d4 === 'B' && nf !== A.db[sid].fav) { A.db[sid].fav = nf; A.reqs++; }
+        toast('고쳤어요'); return render();
+      }
+      case 'formfav': A.sheet.ffav = !A.sheet.ffav; return render();
+      case 'hg': A.hg = !A.hg; return render();
+      case 'sort': A.sort = v; A.page = 0; reread(); return render();
+      case 'arch': A.f.archived = !A.f.archived; if (A.f.archived && S.d.d2 === 'C') A.f.fav = false; A.page = 0; reread(); return render();
+      case 'src':
+        if (v === 'fav') { A.f.fav = true; A.f.source = 'all'; if (S.d.d2 === 'C') A.f.archived = false; }
+        else { A.f.source = v; A.f.fav = false; }
+        A.page = 0; reread(); return render();
+      case 'ck': A.f.chunk = v || null; A.page = 0; reread(); return render();
+      case 'clearfav': A.f.fav = false; A.f.source = 'all'; A.page = 0; reread(); return render();
+      case 'prev': if (el.getAttribute('aria-disabled') === 'true') return; A.page = Math.max(0, A.page - 1); reread(); return render();
+      case 'next': if (el.getAttribute('aria-disabled') === 'true') return; A.page++; reread(); return render();
+      default: toast('데모에서는 그리기만 한다'); render();
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return;
+    if (t.closest('#dnav') && t.hasAttribute('data-st')) { S.o = null; applyScene(t.getAttribute('data-st')); render(); return; }
+    var sg = t.closest('.dseg');
+    if (sg) {
+      var c = sg.getAttribute('data-ctl'), v = t.getAttribute('data-v');
+      if (c === 'mark') S.mark = v === 'on'; else if (c === 'hit') S.hit = v === 'on'; else if (c === 'big') S.big = v === '1'; else if (c === 'w' || c === 'h') S[c] = +v; else S[c] = v;
+      render(); return;
+    }
+    if (t.id === 'd-reset') { S.d = clone(DEF_D); S.o = null; applyScene(S.st); render(); return; }
+    if (t.closest('#stage') && t.hasAttribute('data-act')) {
+      e.preventDefault();
+      if (t.closest('.phone[data-cur]')) { toast('왼쪽은 배포된 화면(현재) — 오른쪽 제안 화면에서 눌러 보세요'); render(); return; }
+      if (t.getAttribute('aria-disabled') === 'true' && t.getAttribute('data-act') === 'star') { A.ignored++; S.o = 1; render(); return; }
+      onAct(t.getAttribute('data-act'), t);
+    }
+  });
+  document.addEventListener('submit', function (e) { e.preventDefault(); });
+  document.addEventListener('change', function (e) {
+    var r = e.target;
+    if (r.type === 'radio' && r.closest('#dqs')) { S.d[r.name] = r.value; S.o = null; applyScene(S.st); render(); var again = $('#dqs input[name="' + r.name + '"][value="' + r.value + '"]'); if (again) again.focus(); }
+  });
+
+  /* ── 자체 시험(#selftest): 상태 × 세 폭 × 글꼴 100/130 × (현재 + 제안 ★ + 대안 하나씩) ── */
+  function selftest() {
+    var fails = [], n = 0, info = [], keep = clone(S), worst = 0, worstKey = '';
+    var combos = [{}];
+    DEC.forEach(function (d) { d.o.forEach(function (o) { if (o[0] !== d.rec) { var c = {}; c[d.k] = o[0]; combos.push(c); } }); });
+    combos.push({ hg: 0 });
+    combos.forEach(function (c) {
+      var alt = Object.keys(c).length > 0;
+      [false, true].forEach(function (big) {
+        [360, 390, 412].forEach(function (w) {
+          IDS.forEach(function (id) {
+            [false, true].forEach(function (cur) {
+              if (cur && alt) return;
+              var dd = clone(c); var hgOff = dd.hg === 0; delete dd.hg;
+              S.d = Object.assign(clone(DEF_D), dd); S.big = big; S.view = 'one'; S.w = w; S.h = 780; S.o = null; S.hit = false;
+              applyScene(id);
+              if (hgOff) A.hg = false;
+              $('#stage').innerHTML = '<figure class="fw">' + phone(w, 780, 'st-', cur) + '</figure>';
+              fitScroll($('#stage .phone'));
+              n++;
+              var m = measure($('#stage .phone'));
+              var key = (alt ? JSON.stringify(c) : '★') + (cur ? ' 현재' : ' 제안') + (big ? ' 130%' : '') + ' ' + w + ' ' + id;
+              if (m.ov) fails.push(key + ' 넘침=' + m.ov + ' ' + m.ovs.join('|'));
+              if (m.small.length) fails.push(key + ' 작은터치=' + m.small.join('|'));
+              if (m.rowLow) fails.push(key + ' 낮은행=' + m.rowLow);
+              if (m.iconHit) fails.push(key + ' 아이콘겹침=' + m.iconHit + ' ' + m.iconHits.join('|'));
+              if (m.nbr) fails.push(key + ' 이웃행침범=' + m.nbr);
+              if (m.colX > 0.5 || m.colY > 0.5) fails.push(key + ' 열어긋남=' + m.colX.toFixed(1) + '/' + m.colY.toFixed(1));
+              if (m.openFull) fails.push(key + ' 열기폭줄어듦=' + m.openFull);
+              if (!cur && m.hitMin !== null && m.hitMin < 44) fails.push(key + ' 별작음=' + m.hitMin);
+              if (!cur && m.segMin !== null && m.segMin < 44) fails.push(key + ' 출처칸좁음=' + m.segMin.toFixed(1));
+              if (m.trunc.length) (cur ? info : fails).push(key + ' 잘림=' + m.trunc.join('|'));
+              if (m.hitArea > worst) { worst = m.hitArea; worstKey = key + ' ' + m.hitWho; }
+            });
+          });
+        });
+      });
+    });
+    S = keep; applyScene(S.st); render();
+    var out = $('#selftest');
+    out.hidden = false;
+    out.textContent = 'SELFTEST checks=' + n + ' fails=' + fails.length + '\n' + fails.slice(0, 80).join('\n') + '\n--HITAREA_MAX ' + Math.round(worst) + ' ' + worstKey + '\n--TRUNC(current) ' + info.length + '\n' + info.slice(0, 20).join('\n');
+  }
+
+  window.addEventListener('error', function (e) { var out = $('#selftest'); out.hidden = false; out.textContent = 'SELFTEST_ERROR ' + e.message; });
+  renderCopy();
+  renderGold();
+  applyScene(S.st);
+  renderLab();
+  applyScene(S.st);
+  render();
+  if (location.hash === '#selftest') selftest();
+  /* 주소 #st=<상태>&w=360&view=three&theme=dark&big=1&hit=1&d=d8:B1 — 그 상태로 바로 열기(검토·캡처용) */
+  if (/^#st=/.test(location.hash)) {
+    var q = new URLSearchParams(location.hash.slice(1));
+    if (q.get('d')) q.get('d').split(',').forEach(function (kv) { var x = kv.split(':'); if (S.d[x[0]]) S.d[x[0]] = x[1]; });
+    if (q.get('w')) S.w = +q.get('w');
+    if (q.get('view')) S.view = q.get('view');
+    if (q.get('theme')) S.theme = q.get('theme');
+    if (q.get('big')) S.big = q.get('big') === '1';
+    if (q.get('hit')) S.hit = q.get('hit') === '1';
+    if (ST[q.get('st')]) applyScene(q.get('st'));
+    render();
+    if (q.get('shot')) { $('#decide').hidden = true; $('#v2diff').hidden = true; }
+  }
+})();
+</script>
+</body>
+</html>

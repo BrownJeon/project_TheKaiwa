@@ -15,11 +15,11 @@ import type {
   WordPatchBody,
   WordChunkFilter,
   WordChunkType,
-  WordListSource,
   WordStats,
 } from '@/types/vocab'
 import { WORD_ERROR_CODE } from '@/types/vocab'
 import { BASE_ARCHIVED_TOAST, BASE_UNARCHIVED_TOAST, CHUNK_PICK_REQUIRED, isLevelCategory } from './labels'
+import type { WordSourceView } from './logic'
 
 export const WORD_LIMITS = {
   surface: 80,
@@ -260,18 +260,30 @@ export function visibleCategories(items: readonly CategoryCount[] | null, basis:
   return out
 }
 
-export type WordsEmptyVariant = 'noWords' | 'allArchived' | 'noSearch' | 'noSearchChunk' | 'noChunk' | 'noCategory' | 'noArchived' | 'noMine'
+export type WordsEmptyVariant =
+  | 'noWords'
+  | 'allArchived'
+  | 'noSearch'
+  | 'noSearchChunk'
+  | 'noChunk'
+  | 'noCategory'
+  | 'noArchived'
+  | 'noMine'
+  | 'noFavorite'
+  | 'noFavoriteMatch'
 
 /**
  * 목록이 비었을 때 어떤 안내를 보일지(§4-2 A 표·§4-3). 조각을 고른 채 0이면(task-023) 조각 쪽 안내가 분류보다 먼저다 —
  * 조각·분류를 한쪽씩 푸는 버튼을 함께 주기 때문이다. 검색 중이면 검색 안내에 조각 조건 한 줄을 붙인다.
  * task-068: 출처 「내 단어」만 보는데 0 이면 `noMine`(`noArchived` 다음 · `allArchived` 앞, §28-6 B). 내 단어가 모두 보관된 경우도
  * 여기로 온다(#46 합계는 출처를 나누지 않는다 — L8 수용).
+ * task-074 §32-4: 「즐겨찾기」 칸이면 **다른 모든 경우보다 먼저** — 다른 조건(검색·보관함·분류·조각)이 하나라도 있으면 `noFavoriteMatch`, 없으면 `noFavorite`.
  */
 export function emptyVariant(
-  q: { q: string; category: string | null; archived: boolean; chunk?: WordChunkFilter | null; source?: WordListSource },
+  q: { q: string; category: string | null; archived: boolean; chunk?: WordChunkFilter | null; source?: WordSourceView },
   totals: CategoryTotals | null,
 ): WordsEmptyVariant {
+  if (q.source === 'favorite') return q.q || q.archived || q.category !== null || q.chunk ? 'noFavoriteMatch' : 'noFavorite'
   if (q.q) return q.chunk ? 'noSearchChunk' : 'noSearch'
   if (q.chunk) return 'noChunk'
   if (q.category !== null) return 'noCategory'

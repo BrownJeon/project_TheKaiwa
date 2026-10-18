@@ -253,7 +253,12 @@ test('REV-068C-4 배선 — 안내 띠 닫기는 scroll:false, 쪽 도착·삭�
   const src = readFileSync(join(__dirname, '..', 'WordsScreen.tsx'), 'utf8').replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '')
   assert.match(src, /<BaseWordBand[^>]*onClosed=\{\(\) => askHeadFocus\(false\)\}/)
   assert.match(src, /onRemoved=\{[\s\S]*?askHeadFocus\(true\)/)
-  assert.match(src, /if \(out\.focusHead\) setFocusReq\(\(r\) => \(\{ tick: r\.tick \+ 1, scroll: true \}\)\)/)
+  // task-074 REV-074U M-1: 목록 응답 꼬리를 `finishWordsArrival`(wordsFavoriteEffect.ts)로 옮겼다 — 쪽 도착 초점은 거기서 focusHead(true),
+  // 화면은 그 값을 setFocusReq 로 잇는다(꼬리의 동작은 favoriteWiring.test W6 이 고정).
+  assert.match(src, /finishWordsArrival\(\s*\{ ok: res\.ok, readAt, toast: out\.toast, focusHead: out\.focusHead \}/)
+  assert.match(src, /focusHead: \(scroll\) => setFocusReq\(\(r\) => \(\{ tick: r\.tick \+ 1, scroll \}\)\)/)
+  const tail = readFileSync(join(__dirname, '..', 'wordsFavoriteEffect.ts'), 'utf8').replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '')
+  assert.match(tail, /if \(a\.focusHead\) d\.focusHead\(true\)/)
   assert.match(src, /focusHeadLine\(headRef\.current, focusReq\.scroll\)/)
   assert.doesNotMatch(src, /scrollIntoView/, '스크롤은 focusHeadLine 한 곳에서만')
 })

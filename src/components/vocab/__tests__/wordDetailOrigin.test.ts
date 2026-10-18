@@ -114,7 +114,7 @@ test('T22 시트 배선(소스): 판정은 isReadOnlyWord 하나 · 기본 단�
 
 // ── T23 목록 행 ────────────────────────────────────────────────────────────────
 
-const row = (w: WordEntry) => html(createElement(WordRow, { word: w, sort: 'recent', onOpen: noop, ruby: null, hangul: { s: 'off' } }))
+const row = (w: WordEntry) => html(createElement(WordRow, { word: w, sort: 'recent', onOpen: noop, ruby: null, hangul: { s: 'off' }, favOn: false, favLocked: false, onStar: noop }))
 
 test('T23 행: 내 단어는 「내 단어」 뱃지(accent-soft·ink, accent 글자 아님) · 기본 단어는 출처 뱃지 없음 · 표현 조각 · 조각 없으면 조각 뱃지 없음', () => {
   const m = row(mine)

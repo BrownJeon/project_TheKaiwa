@@ -30,10 +30,12 @@ import { retryFailHoldMs } from '@/components/topic/logic'
 import ChunkChips from '@/components/vocab/ChunkChips'
 import { useHydrated } from '@/components/vocab/hooks'
 import { WORD_NOT_FOUND } from '@/components/vocab/labels'
+import { useWordFavorites } from '@/components/vocab/useWordFavorites'
 import WordDetailSheet from '@/components/vocab/WordDetailSheet'
 import WordSearchBar from '@/components/vocab/WordSearchBar'
 import type { DrawerCorrectionItem, DrawerCorrectionPage } from '@/types/chat'
 import { CORRECTIONS_COPY as C, conditionText } from './correctionsCopy'
+import { correctionsFavoriteEffect, correctionsInFavoriteView } from './correctionsFavorite'
 import DrawerCorrectionCard, { ADDED, cardButtonId, cardGoId, REMOVED } from './DrawerCorrectionCard'
 import DrawerSwitch from './DrawerSwitch'
 import ErrorTypeChips from './ErrorTypeChips'
@@ -237,6 +239,12 @@ export default function CorrectionsScreen({ initial }: { initial: CorrectionsIni
     focusNext.current = { ids: [cardButtonId(fromId)], scroll: false, after: reloadKeep() }
   }
 
+  // 단어 시트 머리 별(task-074 후속). 훅은 아래 조기 반환(첫 비어 있음)보다 앞에서 부른다.
+  const fav = useWordFavorites({
+    inFavoriteView: correctionsInFavoriteView,
+    onEffect: (x) => correctionsFavoriteEffect(x, wordSheet, { toast: toast.show, wordGone: afterWordGone }),
+  })
+
   const onSearchInput = (v: string) => {
     setQInput(v)
     setQTooLong((was) => keepSearchTooLong(was, v))
@@ -405,6 +413,7 @@ export default function CorrectionsScreen({ initial }: { initial: CorrectionsIni
           onOpenWord={(id) => setWordSheet((s) => ({ wordId: id, fromId: s?.fromId ?? '' }))}
           onNotFound={() => afterWordGone(wordSheet.fromId, WORD_NOT_FOUND)}
           onToast={toast.show}
+          fav={fav}
         />
       ) : null}
       <Toast message={toast.message} />

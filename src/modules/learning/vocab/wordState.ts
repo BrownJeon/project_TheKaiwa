@@ -4,6 +4,7 @@
  *
  * - 보이는 단어 = 내 단어(`userId` = 나) + 공용 기본 단어(`userId` NULL · `source=SEED`). 기본 단어 행은 앱이 쓰지 않는다(시드 스크립트만).
  * - 학습 상태·보관은 `UserWordState` 가 정본이다. 행이 없으면 0·보관 안 함. `WordEntry` 의 같은 이름 칸은 이관 뒤 읽지도 쓰지도 않는다.
+ * - 즐겨찾기(task-074)도 `UserWordState` 에만 있다(`WordEntry` 에는 없음). 행이 없으면 즐겨찾기 아님.
  */
 import type { Prisma, VocabAnswer } from '@prisma/client'
 import type { Tx } from '@/modules/infra'
@@ -28,6 +29,11 @@ export function activeWordWhere(userId: string): Prisma.WordEntryWhereInput {
   return { AND: [visibleWordWhere(userId), notArchivedBy(userId)] }
 }
 
+/** 내가 즐겨찾기한 것(#40 `favorite=1`, task-074). 보관과 독립이고 다른 사용자의 별은 보지 않는다. */
+export function favoritedBy(userId: string): Prisma.WordEntryWhereInput {
+  return { states: { some: { userId, favorite: true } } }
+}
+
 export type WordStateRow = {
   correctCount: number
   wrongCount: number
@@ -35,13 +41,20 @@ export type WordStateRow = {
   lastResult: VocabAnswer | null
   archived: boolean
   archivedAt: Date | null
+  favorite: boolean
+  favoritedAt: Date | null
 }
 
 export const EMPTY_WORD_STATE: Readonly<WordStateRow> = Object.freeze({
-  correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null, archived: false, archivedAt: null,
+  correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null, archived: false, archivedAt: null, favorite: false, favoritedAt: null,
 })
 
-const STATE_SELECT = { wordId: true, correctCount: true, wrongCount: true, lastSeenAt: true, lastResult: true, archived: true, archivedAt: true } as const
+/** 응답에 싣는 상태 칸(`WordStateRow`) — 보관·즐겨찾기 토글도 같은 칸을 읽어 응답이 목록·상세와 같은 모양이 되게 한다. */
+export const WORD_STATE_FIELDS = {
+  correctCount: true, wrongCount: true, lastSeenAt: true, lastResult: true, archived: true, archivedAt: true, favorite: true, favoritedAt: true,
+} as const
+
+const STATE_SELECT = { wordId: true, ...WORD_STATE_FIELDS } as const
 
 /** `id IN (…)` 한 번의 값 수 — 세트 풀(약 7.8천)을 SQL 한 문장에 싣지 않는다. */
 const STATE_QUERY_CHUNK = 1_000
@@ -58,8 +71,9 @@ export async function loadWordStates(db: Pick<Tx, 'userWordState'>, userId: stri
 }
 
 /**
- * 내가 보관하지 않은 단어의 내 상태 행 전부(단어 id → 상태). 풀의 id 를 `IN` 으로 보내지 않는다 — 상태 행은 본 적 있는 단어에만
- * 있으므로 `(userId, archived)` 색인 범위 한 번이 풀 전체 id 묶음 조회(1천 개씩 8번)보다 싸다. 행이 없는 단어 = 0·미보관.
+ * 내가 보관하지 않은 단어의 내 상태 행 전부(단어 id → 상태). 풀의 id 를 `IN` 으로 보내지 않는다 — 상태 행은 풀었거나 보관하거나 즐겨찾기한
+ * 단어에만 있으므로(task-074 — 별만 켠 단어도 행이 있다) `(userId, archived)` 색인 범위 한 번이 풀 전체 id 묶음 조회(1천 개씩 8번)보다 싸다.
+ * 행이 없는 단어 = 0·미보관·즐겨찾기 아님.
  * 세트 풀(`vocab/sessions`)과 평가 재료(`evaluation/materials`)가 함께 쓴다.
  */
 export async function loadActiveWordStates(db: Pick<Tx, 'userWordState'>, userId: string): Promise<Map<string, WordStateRow>> {

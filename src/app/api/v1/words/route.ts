@@ -7,8 +7,8 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
- * #40 단어 목록(task-068) — 내 단어 + 공용 기본 단어, 출처(`source`)·검색·분류·조각·나의 보관함·정렬 3종 AND, 쪽 번호(`page`·`limit`).
- * `{items, total, page, pages, limit, baseTotal}`. 잘못된 쿼리 값·`cursor`·`chunkType=none` 은 400.
+ * #40 단어 목록(task-068) — 내 단어 + 공용 기본 단어, 출처(`source`)·검색·분류·조각·나의 보관함·나의 즐겨찾기(`favorite=1`, task-074 — `0`·없음은 조건 없음)·정렬 3종 AND, 쪽 번호(`page`·`limit`).
+ * `{items, total, page, pages, limit, baseTotal}`. 항목마다 나의 `archived`·`favorite`·`favoritedAt`. 잘못된 쿼리 값·`cursor`·`chunkType=none` 은 400.
  */
 export const GET = withApi(async (req) => {
   const s = await requireSession()

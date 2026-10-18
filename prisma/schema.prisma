@@ -900,6 +900,7 @@ model WordEntry {
 }
 
 /// task-068 — 사용자별 단어 학습 상태·보관(기본 단어·내 단어 모두). 행이 없으면 상태 0·보관 안 함과 같다. 사용자·단어 삭제 시 함께 삭제
+/// task-074 — 사용자별 즐겨찾기(favorite·favoritedAt). 보관과 독립이고 행이 없으면 즐겨찾기 아님. 목록 `favorite=1` 필터는 (userId, favorite) 색인
 model UserWordState {
   id           String       @id @default(cuid())
   userId       String
@@ -910,6 +911,8 @@ model UserWordState {
   lastResult   VocabAnswer?
   archived     Boolean      @default(false)
   archivedAt   DateTime?
+  favorite     Boolean      @default(false)
+  favoritedAt  DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -918,6 +921,7 @@ model UserWordState {
 
   @@unique([userId, wordId])
   @@index([userId, archived, wrongCount])
+  @@index([userId, favorite])
   @@index([wordId])
 }
 

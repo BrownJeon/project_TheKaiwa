@@ -9,7 +9,7 @@ export { checkIn, listMonth, computeStreak } from './attendance'
 // task-068: 기본 단어는 공용 읽기 전용 행(#46b 기본 단어 넣기 폐지), 사용자별 상태·보관은 UserWordState — 보이는 범위 도우미는 vocab/wordState
 export {
   createWord, parseWordInput, toWordDto, PARTS_OF_SPEECH, WORD_SORTS, WORD_CHUNK_TYPES, WORD_SOURCE_FILTERS, assertEnrichSurfaceFree, isBlankMeaning,
-  parseEnrichSurface, parseWordListQuery, listWords, getWordDetail, parseWordPatch, updateWord, deleteWord, setWordArchived, listCategories,
+  parseEnrichSurface, parseWordListQuery, listWords, getWordDetail, parseWordPatch, updateWord, deleteWord, setWordArchived, setWordFavorite, listCategories,
 } from './vocab/words'
 export type {
   WordInput, WordDto, WordOrigin, WordChunkType, WordSourceFilter, WordListQuery, WordListPage, WordSort, WordDetail, WordPatch, CategoryCount, CreateWordOptions,

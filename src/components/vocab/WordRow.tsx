@@ -6,13 +6,18 @@
  * 표제어 위 히라가나는 저장 읽기로 정렬한 루비(`ruby`), 아래 `[한글]` 은 표제어 분석(`hangul` — 저장 읽기와 다르면 저장 읽기 재분석, 그것도 안 되면 none, task-071). 둘 다 목록이
  * 한 번에 받아 넘긴다(task-026 §15-4-4). 옆 읽기 칸은 루비로 바뀌어 없앴다.
  * task-068(D10 표시 A · §28-5 A): 조각 뱃지 왼쪽에 「내 단어」 뱃지 — 기본 단어 행에는 출처 표시가 없다(거의 모든 행이 기본 단어).
+ * task-074(§32-2): 뱃지 아래 작은 즐겨찾기 별 — 열기 단추의 **형제**(단추 중첩 금지, `li` 에 클릭 처리기 없음). 둘째 줄(한글)은 오른쪽 24 를
+ * 늘 비우고, 한글 줄이 없는 행만 셋째 줄을 비운다(H2). 별 세로 자리·셋째 줄 비움은 `rowStarLayout` 이 그리는 부품과 같은 판정으로 정한다.
  */
 import { memo } from 'react'
 import type { AnnotationState } from '@/components/common/japanese/annotations'
+import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Badge } from '@/components/common/ui'
 import type { RubyPiece } from '@/modules/speech/reading/client'
 import type { WordEntry, WordSort } from '@/types/vocab'
+import { rowStarLayout } from './favorite'
+import FavoriteStar from './FavoriteStar'
 import { CHUNK_LABEL, ORIGIN_BADGE } from './labels'
 
 const ORIGIN_BADGE_BOX = 'inline-flex h-[22px] flex-none items-center rounded-md px-2 text-[11.5px] font-semibold'
@@ -35,17 +40,26 @@ function WordRow({
   onOpen,
   ruby,
   hangul,
+  favOn,
+  favLocked,
+  onStar,
 }: {
   word: WordEntry
   sort: WordSort
   onOpen: (w: WordEntry) => void
   ruby: RubyPiece[] | null
   hangul: AnnotationState
+  favOn: boolean
+  favLocked: boolean
+  /** `shownOn` = 누른 순간 보인 값(목록이 뒤집어 보낸다). */
+  onStar: (w: WordEntry, shownOn: boolean) => void
 }) {
   const badge = word.chunkType ? (CHUNK_LABEL[word.chunkType] ?? null) : null
   const played = word.correctCount + word.wrongCount > 0
+  const prefs = useDisplayPrefs()
+  const layout = rowStarLayout({ prefsLoaded: prefs.loaded, showFurigana: prefs.showFurigana, showHangul: prefs.showHangul, ruby, hangul })
   return (
-    <li>
+    <li className="relative">
       <button type="button" onClick={() => onOpen(word)} className="flex min-h-[64px] w-full min-w-0 flex-col justify-center gap-0.5 px-3.5 py-2.5 text-left">
         <span className="flex w-full min-w-0 items-baseline gap-2">
           <JaText as="span" text={word.surface} state={hangul} ruby={ruby} leading={1.95} className="min-w-0 truncate text-[18px] font-semibold" />
@@ -53,8 +67,8 @@ function WordRow({
           {word.origin === 'MINE' ? <MineBadge /> : null}
           {badge ? <Badge tone="neutral">{badge}</Badge> : null}
         </span>
-        <HangulLine as="span" state={hangul} size={12.5} className="w-full" />
-        <span className="flex w-full min-w-0 items-baseline gap-2">
+        <HangulLine as="span" state={hangul} size={12.5} className="w-full pr-6" />
+        <span className={`flex w-full min-w-0 items-baseline gap-2${layout.line3Pad ? ' pr-6' : ''}`}>
           <span className="min-w-0 flex-1 truncate text-[14px] text-ink2">{word.meaning}</span>
           {sort === 'wrong' && word.wrongCount > 0 ? (
             <Badge tone="bad">틀림 {word.wrongCount}</Badge>
@@ -65,6 +79,7 @@ function WordRow({
           ) : null}
         </span>
       </button>
+      <FavoriteStar variant="row" surface={word.surface} on={favOn} locked={favLocked} top={layout.top} onPress={() => onStar(word, favOn)} />
     </li>
   )
 }

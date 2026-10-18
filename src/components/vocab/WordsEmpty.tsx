@@ -7,11 +7,13 @@
  * 조각을 고른 채 0(task-023 데모 `list-empty`·`list-search-empty`): 무엇이 겹쳤는지 쓰고 한쪽씩 푸는 버튼을 둔다.
  * task-068: 검색 + 조각이 0 이면 [‘q’ 추가하기](추가 시트가 그 조각을 미리 고름, J6) + [조각 전체에서 찾기] 두 단추(§28-10 ⑨).
  * 기본 단어 넣기 버튼은 없다(§28-6 A) — 단어가 하나도 없으면 [단어 직접 추가] 하나. 출처 「내 단어」가 0 이면 `noMine`.
+ * task-074(§32-4): 「즐겨찾기」 칸이 0 이면 `noFavorite`(조건 없음) / `noFavoriteMatch`(다른 조건과 겹쳐 0) — 두 단추 모두 즐겨찾기 칸만 푼다.
+ * 「‘q’ 추가하기」는 내지 않는다.
  */
 import { Btn, Card } from '@/components/common/ui'
 import { cpLength } from '@/components/common/format'
 import type { WordChunkFilter, WordChunkType } from '@/types/vocab'
-import { chunkEmptyText, WORDS_EMPTY_COPY } from './labels'
+import { chunkEmptyText, FAVORITE_COPY, favoriteMatchParts, WORDS_EMPTY_COPY } from './labels'
 import type { WordsEmptyVariant } from './validate'
 
 const SMALL_BTN = 'inline-flex h-11 min-w-0 items-center justify-center rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold'
@@ -26,6 +28,7 @@ export default function WordsEmpty({
   onShowArchive,
   onShowAll,
   onClearChunk,
+  onClearFavorite,
 }: {
   variant: WordsEmptyVariant
   q: string
@@ -39,6 +42,8 @@ export default function WordsEmpty({
   onShowAll: () => void
   /** 조각만 푼다(조각 → 전체). */
   onClearChunk?: () => void
+  /** 즐겨찾기 칸만 푼다(→ 「전체」 칸, 다른 조건 유지 — task-074 §32-4). */
+  onClearFavorite?: () => void
 }) {
   let title: React.ReactNode
   let body: React.ReactNode = null
@@ -144,6 +149,39 @@ export default function WordsEmpty({
       title = '보관한 단어가 없어요'
       body = '오늘의 단어에서 빼고 싶은 단어는 눌러서 보관할 수 있어요.'
       break
+    case 'noFavorite':
+      title = FAVORITE_COPY.noneTitle
+      body = FAVORITE_COPY.noneBody
+      actions = (
+        <Btn variant="ghost" className="mt-3 w-full" onClick={onClearFavorite}>
+          {FAVORITE_COPY.noneBtn}
+        </Btn>
+      )
+      break
+    case 'noFavoriteMatch': {
+      // 「‘ねこ’ 검색 · 보관함 안에서 즐겨찾기만 찾았어요.」 — 글자는 `FAVORITE_COPY.matchBody` 와 같고, 검색어만 `lang="ja"` 로 감싼다.
+      const parts = favoriteMatchParts({ q, archived, category, chunk })
+      title = FAVORITE_COPY.matchTitle
+      body = (
+        <>
+          {parts.map((p, i) => (
+            <span key={i}>
+              {i > 0 ? ' · ' : null}
+              {p.pre}
+              {p.ja !== undefined ? <span lang="ja">{p.ja}</span> : null}
+              {p.post}
+            </span>
+          ))}
+          {FAVORITE_COPY.matchBody('')}
+        </>
+      )
+      actions = (
+        <Btn variant="ghost" className="mt-3 w-full" onClick={onClearFavorite}>
+          {FAVORITE_COPY.matchBtn}
+        </Btn>
+      )
+      break
+    }
   }
 
   return (

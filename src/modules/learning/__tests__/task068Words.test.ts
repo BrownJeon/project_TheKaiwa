@@ -60,7 +60,7 @@ function install(t: TestContext, fake: Fake): Fake {
   return fake
 }
 
-const q = (over: Partial<WordListQuery> = {}): WordListQuery => ({ q: null, category: null, chunkType: null, source: 'all', archived: false, sort: 'recent', limit: 100, page: 1, ...over })
+const q = (over: Partial<WordListQuery> = {}): WordListQuery => ({ q: null, category: null, chunkType: null, source: 'all', archived: false, favorite: false, sort: 'recent', limit: 100, page: 1, ...over })
 const ids = async (userId: string, over: Partial<WordListQuery> = {}) => (await listWords(userId, q(over))).items.map((w) => w.id)
 const apiErr = (code: string, check: (e: ApiError) => boolean = () => true) => (e: unknown) => e instanceof ApiError && e.code === code && check(e)
 

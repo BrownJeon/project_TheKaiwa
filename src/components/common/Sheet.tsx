@@ -20,6 +20,7 @@ export default function Sheet({
   onClose,
   dismissible = true,
   describedBy,
+  headerAction,
   children,
 }: {
   open: boolean
@@ -29,6 +30,8 @@ export default function Sheet({
   dismissible?: boolean
   /** 열렸을 때 스크린리더가 제목 다음에 읽을 설명 요소의 id(되돌릴 수 없는 확인처럼 본문을 건너뛰면 안 되는 시트). 안에 그 요소가 있을 때만 넘긴다. */
   describedBy?: string
+  /** 제목과 ✕ 사이(task-074 단어 시트 즐겨찾기 별). 안 넘기면 지금 DOM 그대로 — 감싸는 요소 없이 그린다. */
+  headerAction?: React.ReactNode
   children: React.ReactNode
 }) {
   const titleId = useId()
@@ -83,6 +86,7 @@ export default function Sheet({
           <h2 id={titleId} ref={titleRef} tabIndex={-1} className="min-w-0 flex-1 truncate text-[17px] font-semibold outline-none">
             {title}
           </h2>
+          {headerAction}
           <button
             type="button"
             aria-label="닫기"

@@ -168,7 +168,7 @@ test('T24 task-068 문구 — 가이드 28-1 H · 28-2 G · 28-3 A · 28-4 F · 
   assert.equal(P.jumpError(1109), '1부터 1,109 사이 숫자를 적어 주세요')
   assert.deepEqual([P.jumpFirst, P.jumpLast, P.jumpGo, P.pageSuffix(3)], ['처음 쪽', '마지막 쪽', '이동', '3쪽'])
 
-  assert.deepEqual(WORD_SOURCE_OPTIONS.map((o) => [o.value, o.label]), [['all', '전체'], ['mine', '내 단어'], ['base', '기본 단어']])
+  assert.deepEqual(WORD_SOURCE_OPTIONS.map((o) => [o.value, o.label]), [['all', '전체'], ['mine', '내 단어'], ['base', '기본 단어'], ['favorite', '즐겨찾기']], 'task-074 D1 D — 4번째 칸 「즐겨찾기」')
   assert.equal(WORD_SOURCE_ARIA, '출처')
   assert.deepEqual(['all', 'mine', 'base', 'archived'].map((l) => listLeadText(l as 'all', 7758)), ['단어 7,758개', '내 단어 7,758개', '기본 단어 7,758개', '보관한 단어 7,758개'])
   assert.equal(ARCHIVE_NOTE, '보관한 단어는 오늘의 단어에 나오지 않아요. 숨긴 기본 단어는 나에게만 숨겨져요.')

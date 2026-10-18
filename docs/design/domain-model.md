@@ -1329,6 +1329,8 @@ model WordEntry {
 
 /// task-068(2026-10-14) — 단어에 대한 **사용자별 학습 상태**. 기본 단어는 읽기 전용이라 맞힘·틀림·마지막 결과·보관은 여기에만 쓴다(내 단어도 같은 경로).
 /// 행은 사용자가 그 단어를 풀거나 보관할 때 처음 생긴다(없으면 모두 0·미보관). 사용자·단어 삭제 시 함께 삭제.
+/// task-074(2026-10-18) — 사용자별 즐겨찾기 `favorite`·`favoritedAt`(#182/#183, 목록 #40 `favorite=1` 은 `(userId, favorite)` 색인). 보관과 독립이고
+/// 행이 없으면 즐겨찾기 아님. 행은 별을 켤 때도 처음 생긴다(행이 없는데 끄면 만들지 않음). 추가 전용 — 칸 2 + 색인 1(사용자 승인 2026-10-18).
 model UserWordState {
   id           String       @id @default(cuid())
   userId       String
@@ -1339,6 +1341,8 @@ model UserWordState {
   lastResult   VocabAnswer?
   archived     Boolean      @default(false)
   archivedAt   DateTime?
+  favorite     Boolean      @default(false)
+  favoritedAt  DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -1347,6 +1351,7 @@ model UserWordState {
 
   @@unique([userId, wordId])
   @@index([userId, archived, wrongCount])
+  @@index([userId, favorite])
   @@index([wordId])
 }
 

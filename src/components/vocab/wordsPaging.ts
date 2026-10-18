@@ -44,8 +44,10 @@ export function wordsListUrl(f: WordListFilter, sort: WordSort, page: number): s
   if (f.q) p.set('q', f.q)
   if (f.category !== null) p.set('category', f.category)
   if (f.chunk) p.set('chunkType', f.chunk)
-  p.set('source', f.source)
+  // 「즐겨찾기」 칸(task-074 D1) = 출처 전체 + favorite=1. 다른 칸은 favorite 를 보내지 않는다(서버 기본 = 조건 없음) — 주소가 지금과 같다.
+  p.set('source', f.source === 'favorite' ? 'all' : f.source)
   p.set('archived', f.archived ? '1' : '0')
+  if (f.source === 'favorite') p.set('favorite', '1')
   p.set('sort', sort)
   p.set('page', String(page + 1))
   p.set('limit', String(WORDS_PAGE))

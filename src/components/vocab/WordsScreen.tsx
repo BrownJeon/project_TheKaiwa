@@ -10,9 +10,11 @@
  * 이전 요청은 abort, 늦게 온 옛 응답은 요청 번호로 버린다(§4-10). 추가·수정·보관·삭제는 서버 응답을 받은 뒤 **같은 쪽을 다시 읽는다**
  * (로컬로 행을 빼면 쪽의 행 수·개수가 응답과 어긋난다 — J4). 자동 폴링은 없다(마운트·화면 복귀 때만).
  * 머리 줄·빈 화면 안내는 지금 깔린 행을 받아 온 응답의 조건(`list.shown`)으로 그린다(logic.ts).
+ * task-074(§32): 출처 4번째 칸 「즐겨찾기」, 행·상세 시트의 별은 화면 하나의 기록(`useWordFavorites`)을 함께 본다 — 서버 값은 그 값을 읽기 시작한
+ * 시각(`listReadAt`)과 함께 `fav.view` 를 거쳐 그린다. 즐겨찾기 칸에서 별을 끄면 응답 뒤 같은 쪽을 다시 읽는다(D3).
  */
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, type Ref } from 'react'
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { apiGet, isAbort } from '@/components/common/api'
 import { toErr } from '@/components/common/errors'
 import { cpLength } from '@/components/common/format'
@@ -31,6 +33,7 @@ import ArchiveToggle from './ArchiveToggle'
 import BaseWordBand from './BaseWordBand'
 import CategoryChips from './CategoryChips'
 import ChunkChips from './ChunkChips'
+import type { FavView } from './favorite'
 import { useHydrated, useStoredPref, VOCAB_KEYS } from './hooks'
 import {
   ARCHIVE_NOTE,
@@ -53,6 +56,8 @@ import WordSearchBar from './WordSearchBar'
 import WordsEmpty from './WordsEmpty'
 import WordsJumpSheet from './WordsJumpSheet'
 import WordsPager from './WordsPager'
+import { useWordFavorites } from './useWordFavorites'
+import { finishWordsArrival, runWordsFavoriteEffect, wordsInFavoriteView, wordsStarHandler } from './wordsFavoriteEffect'
 import {
   beginWords,
   fillerCount,
@@ -173,6 +178,8 @@ export function WordsPageList({
   status,
   paged,
   view,
+  favView,
+  onStar,
   onOpen,
   onPrev,
   onNext,
@@ -185,6 +192,9 @@ export function WordsPageList({
   status: WordsStatus
   paged: boolean
   view: WordsPagerView
+  /** 행 별(task-074 §32-9) — 서버 값은 이 함수를 거쳐 그린다. */
+  favView: (w: WordEntry) => FavView
+  onStar: (w: WordEntry, shownOn: boolean) => void
   onOpen: (w: WordEntry) => void
   onPrev: () => void
   onNext: () => void
@@ -203,7 +213,22 @@ export function WordsPageList({
         <ul aria-busy={busy || undefined} className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-surface">
           {busy
             ? Array.from({ length: WORDS_PAGE }, (_, i) => <PagingRow key={`p${i}`} />)
-            : rows.slice(0, shownRows).map((w, i) => <WordRow key={w.id} word={w} sort={sort} onOpen={onOpen} ruby={layers[i]?.ruby ?? null} hangul={layers[i]?.hangul ?? OFF} />)}
+            : rows.slice(0, shownRows).map((w, i) => {
+                const fv = favView(w)
+                return (
+                  <WordRow
+                    key={w.id}
+                    word={w}
+                    sort={sort}
+                    onOpen={onOpen}
+                    ruby={layers[i]?.ruby ?? null}
+                    hangul={layers[i]?.hangul ?? OFF}
+                    favOn={fv.on}
+                    favLocked={fv.locked}
+                    onStar={onStar}
+                  />
+                )
+              })}
           {Array.from({ length: fillers }, (_, i) => (
             <FillerRow key={`f${i}`} />
           ))}
@@ -240,6 +265,10 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
   const reqRef = useRef(0)
   const addKey = useRef(1)
   const headRef = useRef<HTMLParagraphElement | null>(null)
+  // 즐겨찾기(task-074 §32-9): 지금 깔린 목록 값을 읽기 시작한 시각 — 별 기록이 이보다 나중에 확정됐으면 기록이 이긴다.
+  const [listReadAt, setListReadAt] = useState(0)
+  // 즐겨찾기 칸에서 별을 꺼 행이 빠지는 다시 읽기 — 응답을 깐 뒤 초점을 잃었으면 머리 줄로(D3).
+  const focusCheckRef = useRef(false)
 
   // 목록 상태는 요청 끝에서 「지금 값」으로 계산하므로 ref 사본을 함께 둔다(렌더 중에는 읽지 않는다).
   const commit = (s: WordsListState) => {
@@ -267,6 +296,15 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
     reloadAllRef.current = reloadAll
   })
 
+  // 효과 처리 규칙은 `wordsFavoriteEffect.ts`(토스트 1번 · 404 면 그 단어 시트 닫기+전체 다시 읽기 · 즐겨찾기 칸에서 끈 응답이면 같은 쪽 다시 읽기+초점 확인).
+  const fav = useWordFavorites({
+    inFavoriteView: () => wordsInFavoriteView(listRef.current),
+    onEffect: (x) => runWordsFavoriteEffect(x, { showToast, setSheet, reloadAll, request, focusCheck: focusCheckRef }),
+  })
+  const favPress = fav.press
+  const favStamp = fav.stamp
+  const onStar = useMemo(() => wordsStarHandler(favPress), [favPress])
+
   // 들어온 쿼리는 시트를 연 것으로 쓰고 지운다(새로고침해도 다시 열리지 않게).
   useEffect(() => {
     if (initialWordId || initialAdd) router.replace('/drawer/words', { scroll: false })
@@ -280,6 +318,7 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
     const id = ++reqRef.current
     const req = { kind: navKind, page: navPage, shown: { ...filter, sort } }
     const reqKey = wordsCondKey(filter, sort)
+    const readAt = favStamp()
     apiGet<WordListPage>(wordsListUrl(filter, sort, navPage), { signal: ctrl.signal })
       .then(
         (page): WordsResult => ({ ok: true, page }),
@@ -296,11 +335,21 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
           setNav((n) => navTo(n, reqKey, to, 'clamp'))
           return
         }
-        if (out.toast) showToast(out.toast)
-        if (out.focusHead) setFocusReq((r) => ({ tick: r.tick + 1, scroll: true }))
+        finishWordsArrival(
+          { ok: res.ok, readAt, toast: out.toast, focusHead: out.focusHead },
+          {
+            setListReadAt,
+            showToast,
+            focusHead: (scroll) => setFocusReq((r) => ({ tick: r.tick + 1, scroll })),
+            focusCheck: focusCheckRef,
+            nextFrame: (cb) => requestAnimationFrame(cb),
+            activeElement: () => document.activeElement,
+            body: () => document.body,
+          },
+        )
       })
     return () => ctrl.abort()
-  }, [filter, sort, navPage, navKind, navSeq, showToast])
+  }, [filter, sort, navPage, navKind, navSeq, showToast, favStamp])
 
   // 쪽을 넘겨 받았거나(J2) 초점이 있던 요소가 사라질 때(삭제·안내 띠 닫기) — 초점을 머리 줄로(행이 그려진 뒤). 화면을 위로 끌어오는 건 쪽 도착·삭제만.
   useEffect(() => {
@@ -401,6 +450,7 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         onShowArchive={() => changeFilter({ archived: true, category: null })}
         onShowAll={() => changeFilter({ category: null })}
         onClearChunk={() => changeFilter({ chunk: null })}
+        onClearFavorite={() => changeFilter({ source: 'all' })}
       />
     )
   else
@@ -412,6 +462,8 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
         status={list.status}
         paged={paged}
         view={view}
+        favView={(w) => fav.view(w.id, w.favorite, listReadAt)}
+        onStar={onStar}
         onOpen={openDetail}
         onPrev={() => request('page', nav.page - 1)}
         onNext={() => request('page', nav.page + 1)}
@@ -501,6 +553,7 @@ export default function WordsScreen({ initialWordId, initialAdd }: { initialWord
           wordId={sheet.id}
           preview={sheet.preview}
           categories={catNames}
+          fav={fav}
           onClose={() => setSheet(null)}
           onChanged={(w) => {
             commit({ ...listRef.current, items: listRef.current.items.map((x) => (x.id === w.id ? w : x)) })

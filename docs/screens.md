@@ -13853,3 +13853,305 @@ talk 무수정 조건이라 `PhraseHelperCard` 를 넓히지 않고 vocab 에 �
 
 ### 31-4 검증
 - 코드 독립 감사 2회 PASS_WITH_NOTES · QA(실제 Next 라우터·가짜 온디바이스 STT·3폭·라이트/다크) **결함 0**. 실기기 확인 대기: 일본어 발음 인식·마이크 권한·TalkBack 낭독(한 번만 읽힘·고쳐도 재낭독 없음)·글꼴 130%·키보드 올라온 상태.
+
+## 32. 단어장 즐겨찾기 — 목록 행 별 · 조회 필터 · 상세/수정 시트 별 (task-074, IMP-0049) — 사용자 데모 승인 2026-10-18(v2 — D1=D·D8=B2·D9=H2, 나머지 ★)
+
+> **승인 데모: `docs/demo/task-074-word-favorites-v2.html` (v2)** — sha256 `f07f84a68f567968…`, 2026-10-18 10:09 사용자 「B2로 승인, 한글 줄 없는 행은 H2, DB 칸 추가도 승인.」(Leader 해석 = D1 D·D8 B2·D9 뱃지 아래 별 + H2 · 말씀 없던 D2~D7·D10·D11 은 ★ 그대로 · 429 없음). 데모 파일은 고치지 않는다. `r-*`·`f-*`·`u-*`·`d-*`·`e-*`·`a-*` = 데모 왼쪽 상태 목록 id.
+> **적용 토큰 이름**(새 색 없음): `warn`(켜진 별 채움) · `ink`(B2 윤곽) · `ink2`(꺼진 별) · `surface`(행·시트 머리 바탕) · `surface2`·`line`(분절, 지금 그대로) · `accent`(초점 윤곽). `globals.css` sha256 앞 12자 `a314f18f1807`(데모 토큰 출처와 같음).
+> **정본 관계**: 서버 계약 = `docs/design/api-contract.md` #182·#183·#40(서버 developer 소유, [[task-074-dev-server-record]]) — 화면은 이 절 32-7 만 본다. 목록·필터·쪽 원 구조는 §28(task-068), 행 원형 §4-2 A, 공용 시트 §3-2 H.
+> **초안 → 확정에서 바뀐 것**(데모와 다른 점은 32-15): ① 화면 출처 값은 서버 타입 `WordListSource` 를 넓히지 않고 화면 전용 `WordSourceView` 로(`src/types/**` 는 서버 소유) ② 「한글 줄이 없는 행」 판정을 `HangulLine` 이 null 을 그리는 조건과 똑같이(초안식은 로딩·설정 로드 전·빈 한글에서 틀림) ③ **히라가나 끔이면 첫 줄이 낮아져 별 세로 자리도 바뀐다**(데모는 히라가나 켬만 그렸다 — `2.021em`, 32-2) ④ `wordsCondKey` 는 그대로(값 `'favorite'` 가 이미 열쇠에 들어감) ⑤ `WordRowsSkeleton` 별 자리표시 안 넣음 ⑥ 시트·목록 응답이 별 값을 옛 값으로 덮는 경로를 「읽은 시각」 비교로 막는다(32-9) ⑦ 결정 ★ 전부 확정, 429 문구 없음.
+> **구현 후 정정(2026-10-18)**: 구현·화면 감사(REV-074U) 뒤 가이드와 달라진 곳은 맨 끝 **32-17** 이 정본이다 — 교정 모음의 단어 상세 시트에도 머리 별(승인 데모에 없던 호스트 화면) · 훅 모양 `useWordFavorites({ inFavoriteView, onEffect })` · 그 밖 4건 · 감사 요약. QA/폰 확인표는 **W17~W23** 이 늘었다(32-14). 결정(D1~D11)·상태 표·문구·구현 순서 본문은 그대로다.
+
+### 32-0. 레이아웃 설계 (page-layout-designer)
+1. **목표** — 「자주 다시 볼 단어」를 목록에서 바로 표시하고, 그것만 골라 본다. 보관(「오늘의 단어에서 빼기」)과 다른 축.
+2. **주요 위계** — 단어(일본어)가 먼저. 별은 행 오른쪽 뱃지 바로 아래의 **작은 보조 동작**(아이콘 18). 필터는 출처 분절 4번째 칸(글자 「즐겨찾기」).
+3. **영역** — 출처 줄(3칸 → 4칸, 다른 줄 불변) · 머리 줄(앞말 「즐겨찾기 n개」) · 목록 행(열기 버튼 + 형제 별 버튼, 별은 절대 위치) · 상세/수정 시트 머리(제목 · 별 · ✕).
+4. **컴포넌트** — 새 `FavoriteStar`(행·시트 공용) · `WORD_SOURCE_OPTIONS` 4번째 칸 · 공용 `Sheet` 선택 prop `headerAction` · `WordsEmpty` 두 경우 · 순수 모듈 `favorite.ts` + 얇은 훅 `useWordFavorites`.
+5. **상태** — 꺼짐·켜짐(금색)·잠김·실패 되돌림·오프라인·404 · 즐겨찾기 칸 빈 결과 2종 · 해제로 행이 빠짐 · 한글 줄이 없는 행 · 히라가나 끈 행.
+6. **행동** — 1차 = 행 별 · 2차 = 출처 「즐겨찾기」 칸 · 시트 머리 별 · 빈 화면 [모든 단어 보기]/[즐겨찾기 조건 풀기].
+7. **반응형** — 360/390/412 · 글꼴 130% 모두 같은 배치. 별 세로 자리는 `em`(표현 글자 18px) 기준이라 글꼴 배율을 따라간다(데모 실측 2,016칸 실패 0, 32-16).
+
+### 32-1. 결정 최종값 (사용자 승인 2026-10-18)
+| # | 확정 | 근거 한 줄 |
+|---|---|---|
+| D1 | **D 출처 분절 4번째 칸 「즐겨찾기」** = `source=all&favorite=1`, 다른 칸 = `favorite` 안 보냄(서버 기본 0) | 사용자 지정. 4칸 균등 폭 잘림 0(실측). **한계: 「내 단어 + 즐겨찾기」·「기본 단어 + 즐겨찾기」 조합은 화면에서 못 만든다** — 행의 「내 단어」 뱃지로 구분, 서버 `favorite` 는 독립 파라미터라 나중에 화면만 바꿔 열 수 있다(화면 문구로는 안내하지 않음 — 개발 메모) |
+| D2 | A 보관과 **독립 · AND** | 보관 = 오늘의 단어에서 빼기, 즐겨찾기 = 골라 보기 — 보관을 풀면 별이 살아 있어야 한다 |
+| D3 | A 즐겨찾기 칸에서 별을 끄면 **응답 뒤 같은 쪽 다시 읽기**(행이 빠짐) + 토스트 | 쪽 번호 방식이라 제자리 유지는 [다음]에서 뺀 개수만큼 건너뛴다(데모 「쪽 수 변화」 표) |
+| D4 | A 시트 머리 별, [저장]과 무관하게 **즉시** | 수정 화면이 없는 기본 단어와 한 방식, [취소] 혼란 없음 |
+| D5 | A **낙관적 + 그 단어 별만 잠금 + 실패 되돌림** | 가벼운 토글, 잠금이라 「마지막 값 우선」 처리가 필요 없다 |
+| D6 | A 분류 칩 숫자 **그대로** | 서버·칩 무변경, 머리 줄 숫자만 즐겨찾기 기준 |
+| D7 | A 단어 추가 시트에 별 **없음** | 추가 직후 목록 맨 위에서 누름, 반쪽 실패 상태 회피 |
+| D8 | **B2** 켜짐 = 금색 `warn` 채움 + 가는 `ink` 윤곽 · 꺼짐 = 외곽선 `ink2` | 사용자 지정(금색) + 라이트 3:1 충족(B1 금색만은 2.95). 다크에서 윤곽이 흰 테두리로 보이는 것은 사용자가 보고 승인 |
+| D9 | **뱃지 아래 작은 별**(아이콘 18 · 누르는 곳 44×44 · 열기 버튼과 형제) + **H2**(한글 줄 없는 행은 셋째 줄 오른쪽 24 비움) | 사용자 지정. 누르는 곳이 뱃지 아래쪽·숫자 위쪽 일부를 덮는 것(최대 525px², 행의 1.6%)을 H2 선택과 함께 수용 |
+| D10 | A 토스트는 **행이 빠질 때만**, 실패는 늘 | 연타 시 토스트 쌓임 방지 |
+| D11 | A **고정 이름**(행 「{단어} 즐겨찾기」 · 시트 「즐겨찾기」) + `aria-pressed` | 바뀌는 이름 + `aria-pressed` 는 상태를 두 번·반대로 읽는다(Leader L7 정정 수용) |
+| — | **429 없음** | 보관 라우트 #45 처럼 한도 없음(Leader, 코드 확인) — 429 전용 문구를 만들지 않는다 |
+
+### 32-2. 목록 행 — `WordRow` (데모 `r-base`·`r-long`·`r-hgoff`·`r-wrong`)
+```
+<li className="relative">                                         ← 지금: <li><button …행 전체…/></li>
+  <button type="button" onClick={() => onOpen(word)}
+          className="flex min-h-[64px] w-full min-w-0 flex-col justify-center gap-0.5 px-3.5 py-2.5 text-left">   ← 클래스·폭·내용 지금 그대로
+    <span …첫 줄 그대로…>JaText(표제어 루비, leading 1.95) · flex-1 · [내 단어] · [조각]</span>
+    <HangulLine as="span" state={hangul} size={12.5} className="w-full pr-6" />      ← 둘째 줄 오른쪽 24 비움(별 자리)
+    <span className={`flex w-full min-w-0 items-baseline gap-2${layout.line3Pad ? ' pr-6' : ''}`}>뜻 · 숫자/틀림 뱃지</span>   ← H2
+  </button>
+  <FavoriteStar variant="row" surface={word.surface} on={favOn} locked={favLocked} top={layout.top} onPress={() => onStar(word, favOn)} />   ← 형제. 버튼 안에 넣지 않는다
+</li>
+```
+- **행 배치 규칙은 순수 함수 하나** — `rowStarLayout({ prefsLoaded, showFurigana, showHangul, ruby, hangul })` → `{ top, line3Pad }`(`favorite.ts`, 32-13 시험):
+  - `hasHangulLine` = `prefsLoaded && showHangul && (hangul.s === 'loading' || (hangul.s === 'ready' && !!hangulLine(hangul.segments)))` — **`HangulLine` 이 무언가를 그리는 조건과 똑같이**(로딩은 자리표시 막대가 둘째 줄에 있어 「있음」). `line3Pad = !hasHangulLine`(H2).
+  - `rubyReserved` = `prefsLoaded && showFurigana && ruby !== null` — `JaText` 가 `lineHeight: 1.95` 를 거는 조건(`givenRuby` 를 넘기므로 `reserve = !!pieces`)과 똑같이. `top = rubyReserved ? '2.471em' : '2.021em'`.
+  - 식: `top = 첫 줄 높이 + 0.521em`(= 둘째 줄 가운데 − 상자 반 높이 14px. 행 위 여백 10 + 줄 사이 2 + 한글 줄 위 여백 2 − 14 = 0 이라 px 항이 지워지고 em 만 남는다 → 글꼴 배율을 따라감). 첫 줄 높이 = 루비 있음 1.95em · 없음 `body` 줄간격 1.5em(`globals.css` 124행). **`2.021em` 은 데모에 없던 값**(데모는 히라가나 켬만 그렸다) — 구현 뒤 실측으로 확인(W8).
+- `FavoriteStar variant="row"`: `absolute right-[9px] z-[1] grid size-7 place-items-center rounded-lg text-[18px]` + `style={{ top }}`(em 기준이 18px 이 되게 `text-[18px]` 필수) · 아이콘 18(`aria-hidden`, `focusable="false"`) · **누르는 곳 `before:absolute before:-top-[11px] before:-bottom-[5px] before:-inset-x-2 before:content-['']` = 44×44**(위로 3px 치우침 — 한글·히라가나 모두 끈 약 70px 행에서도 아래 행 침범 0: 별 위 36.4 + 28 + 5 = 69.4 < 70, 여유 0.6px → W8 실측 필수).
+- 가로: 아이콘 오른쪽 끝 = 뱃지 오른쪽 끝(행 안쪽 여백 14) → `right-[9px]`. 뱃지가 없는 행·하나·둘 모두 **같은 열·같은 높이**(`li` 의 위 테두리 1px 는 `divide-y` 라 위치 기준 상자 밖 — 열기 버튼과 같은 기준).
+- `FillerRow`(마지막 쪽 빈 자리): **바꿀 것 없음** — 별이 절대 위치라 높이 영향 없고 안에 단추가 없어야 한다(T1 그대로). `PagingRow`·`WordRowsSkeleton`: **바꾸지 않음**(별 자리표시 없음).
+- `WordRow` props 추가: `favOn: boolean` · `favLocked: boolean` · `onStar: (w: WordEntry, shownOn: boolean) => void` — `memo` 가 유지되게 **원시값 + 안정된 함수**(훅이 주는 `press` 는 렌더마다 바뀌지 않는다). `prefs` 는 행 안에서 `useDisplayPrefs()` 로 읽는다(`JaText`·`HangulLine` 과 같은 출처).
+- **기존 시험 영향**: `wordDetailOrigin.test.ts` T23 의 `row()` 도우미에 새 props 3개 추가(단언 변경 없음 — 별 이름 「{단어} 즐겨찾기」에 「내 단어」·「기본 단어」·「조각」 글자가 없다) · `wordsScreenParts.test.ts` 의 `list()` 도우미에 32-9 의 `fav` props 추가(T1·T3 개수 단언 그대로 — 새 `<li class="relative">` 도 보이는 행으로 센다, 빈 자리 `<li aria-hidden="true" class="invisible">` 그대로) · `tabSkeleton.test.ts` 47행 `min-h-[64px]` 그대로 남는다.
+
+### 32-3. 별 부품 — `FavoriteStar` (행·시트 공용, 데모 `r-tap`·`r-pend`·`d-base`·`d-base0`)
+```
+<button type="button" aria-pressed={on} aria-disabled={locked || undefined}
+        onClick={() => { if (!locked) onPress() }} className={…variant…} style={variant === 'row' ? { top } : undefined}>
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M12 3.4l2.62 5.31 5.86.85-4.24 4.13 1 5.84L12 16.77l-5.24 2.76 1-5.84-4.24-4.13 5.86-.85z"
+          strokeWidth={2} strokeLinejoin="round" className={on ? 'fill-warn stroke-ink' : 'fill-none stroke-ink2'} />
+  </svg>
+  <span className="sr-only">{variant === 'row' ? <><span lang="ja">{surface}</span> {FAVORITE_COPY.star}</> : FAVORITE_COPY.star}</span>
+</button>
+```
+- `variant="sheet"`: `grid h-11 w-11 flex-none place-items-center rounded-full`(✕ 와 같은 44 상자, 아이콘 18). 위치 지정 없음(머리 줄 흐름 안).
+- 잠김(D5 A)은 **보이는 변화 없음**(데모 `r-pend` — 깜빡임 방지 선택, 결과는 실패 토스트로) · `disabled` 가 아니라 `aria-disabled` — 초점을 잃지 않게. `title` 속성 없음(낭독 중복 방지).
+- 초점 윤곽: 공용 `focus-visible` 그대로(2px, 바깥 2px). 행 별은 보이는 상자가 28 이라 윤곽이 행 안에서 보인다.
+
+### 32-4. 출처 4칸 · 요청 주소 · 머리 줄 · 빈 화면 (데모 `f-on`·`f-p2`·`f-arch`·`f-mix`·`f-cat`·`f-none`·`f-nomatch`·`f-archnone`)
+- **화면 전용 타입**: `logic.ts` 에 `export type WordSourceView = WordListSource | 'favorite'`, `WordListFilter.source: WordSourceView`. `src/types/vocab.ts` 의 `WordListSource`·`WORD_LIST_SOURCES` 는 **고치지 않는다**(서버 파서가 쓴다).
+- `labels.ts` `WORD_SOURCE_OPTIONS` 끝에 `{ value: 'favorite', label: FAVORITE_COPY.sourceLabel }`, `satisfies` 타입을 `WordSourceView` 로. `WordsSkeleton` 은 이 상수를 읽으므로 **파일 변경 없이 4칸**(`inert` 그대로).
+- `wordsPaging.ts` `wordsListUrl` 만 고친다: `p.set('source', f.source === 'favorite' ? 'all' : f.source)` · `archived` 다음에 `if (f.source === 'favorite') p.set('favorite', '1')`. **다른 칸의 주소 문자열은 지금과 바이트 단위로 같다**(기존 정확 단언 47·49행 그대로 통과). `wordsCondKey` 는 **고치지 않는다** — `f.source` 가 이미 열쇠에 있어 칸을 바꾸면 1쪽(D2 규칙 그대로).
+- 칸 바꾸기 = 지금 `changeFilter({ source: v })` 그대로 — 검색어·분류·조각·보관함 유지(AND), 1쪽, 저장하지 않음(출처·보관함과 같음). 「즐겨찾기」 칸에서 「내 단어」를 누르면 즐겨찾기 조건이 풀린다(데모 `f-mix` 설명).
+- 출처 분절: 공용 `Segmented size="sm"` 그대로 4칸 균등. 글자 줄임·아이콘 없음. 칸 폭 실측 최소 360=78.3 · 390=85.8 · 412=91.3(글꼴 130% 도 잘림 0).
+- **머리 줄** `listHeader`(logic.ts): 앞말 순서 = **보관함 → 검색 → 즐겨찾기 → 출처**. `WordListHeader` 의 `lead` 에 `'favorite'` 추가, `listLeadText('favorite', n)` = `FAVORITE_COPY.lead(n)`(「즐겨찾기 n개」). `listConditionText` 는 인자를 `{ category, chunk, source?, archived?, q? }` 로 넓혀 **앞말이 보관함·검색이고 `source === 'favorite'` 일 때만** 맨 앞에 「즐겨찾기」 → 「보관한 단어 1개 · **즐겨찾기**」 · 「‘ねこ’ 검색 결과 0개 · **즐겨찾기**」 · 「즐겨찾기 3개 · **표현 조각**」(앞말이 이미 즐겨찾기면 조건에 다시 넣지 않음). 순서 = 즐겨찾기 → 분류 → 조각.
+- **빈 화면** `emptyVariant`(validate.ts): `source === 'favorite'` 이면 **다른 모든 경우보다 먼저** — 다른 조건(`q`·`archived`·`category`·`chunk`)이 하나도 없으면 `noFavorite`, 하나라도 있으면 `noFavoriteMatch`. `WordsEmptyVariant` 에 두 값 추가, 인자 `source?` 타입을 `WordSourceView` 로.
+- `WordsEmpty` 두 경우(카드 모양은 지금 `noCategory` 와 같게 — 제목 · 본문 · `Btn variant="ghost" className="mt-3 w-full"`):
+  - `noFavorite` — 「즐겨찾기한 단어가 없어요」 / 「단어 줄의 별을 누르면 여기에 모여요.」 / [모든 단어 보기]
+  - `noFavoriteMatch` — 「조건에 맞는 즐겨찾기가 없어요」 / 「{조건} 안에서 즐겨찾기만 찾았어요.」 / [즐겨찾기 조건 풀기] — 조건 = `‘q’ 검색`(q 는 `lang="ja"`) · `보관함` · `{분류 이름}` · `{조각 이름}`(`chunkFilterName`)을 이 순서로 「 · 」 연결.
+  - 두 버튼 모두 새 prop `onClearFavorite` = `changeFilter({ source: 'all' })`(다른 조건 유지). 「‘q’ 추가하기」는 **내지 않는다**.
+- 보관함 토글·분류 칩·조각 칩·정렬은 **코드 변경 없음**(D2 A·D6 A). 보관함을 켜도 출처 칸은 그대로.
+
+### 32-5. 상세 · 수정 시트 머리 별 + 공용 `Sheet` (데모 `d-base`·`d-base0`·`d-mine`·`d-arch`·`e-edit`·`e-cancel`·`a-add`)
+- **`common/Sheet.tsx` 변경은 정확히 세 곳 추가**: props 타입에 `headerAction?: React.ReactNode`(주석: 「제목과 ✕ 사이. 안 넘기면 지금 DOM 그대로」) · 구조 분해에 `headerAction` · `</h2>` 와 닫기 `<button` 사이에 **`{headerAction}` 한 줄(감싸는 요소 없이)**. 기존 줄 수정·삭제 0(`git diff -U0` 에 `-` 줄 0 — W12). `undefined` 는 React 가 아무것도 그리지 않으므로 넘기지 않는 호출의 DOM 은 바이트 단위로 같다.
+- **호출 전수(2026-10-18, 소스 43파일 · 51곳, 시험 3파일 제외)**: admin 10 · ask 3 · challenge 1 · chat 3 · eval 1 · lesson 1 · plan 2 · scenario 6 · settings 1 · shell 1 · speech 3 · talk 1 · topic 5 · vocab 5(`FinishConfirmSheet`·`SkipConfirmSheet`·`WordsJumpSheet`·`WordAddSheet`·`WordDetailSheet`). **`headerAction` 을 넘기는 곳 = `WordDetailSheet` 의 단어가 있을 때 시트(지금 496행) 1곳뿐** — 나머지 50곳(같은 파일의 로딩 시트 210행 포함)은 영향 없음. 목록 재생성: `grep -rn "<Sheet\b" src --include=*.tsx | grep -v __tests__`.
+- `WordDetailSheet`: `headerAction={mode !== 'confirmDelete' ? <FavoriteStar variant="sheet" on={v.on} locked={v.locked} onPress={() => fav.press(w.id, v.on)} /> : undefined}` (`v = fav.view(w.id, w.favorite, readAt)`). 보기·수정 두 모드에서 **같은 자리**(✕ 왼쪽), 삭제 확인에서는 없음. 기본 단어·내 단어 모두 같은 별(읽기 전용과 무관). 시트 `busy`(저장·보관·삭제 중)와 **별개** — 저장 중에도 별은 눌린다(D4 A, 서로 다른 요청).
+- **수정 [저장]·보관 응답 합치기 규칙**: PATCH(#43)·보관(#45) 응답은 `withStates` 로 사용자 상태 칸 전부(이번에 `favorite`·`favoritedAt` 포함)를 돌려준다([확실] — 서버 작업 중 diff 의 `STATE_SELECT`). 지금처럼 `{ ...w, ...updated }` 로 합치면 저장 요청이 별 요청보다 먼저 서버에 닿은 경우 **옛 별 값이 들어온다**. 그래서: ① 시트는 단어와 함께 **그 값을 읽기 시작한 시각 `readAt`** 을 둔다(첫 값 = 목록 미리보기면 0, GET(#42)·PATCH·보관 요청 **보내기 직전** `fav.stamp()`) ② 화면에 그리는 값은 **반드시 `favoriteView(word.favorite, readAt, entry)`** — `word.favorite` 을 직접 그리는 코드 0(W6). 합치기 자체(`{ ...w, ...updated }`)는 지금 그대로 둔다. 서버가 응답에 `favorite` 을 안 넣는 모양이어도 같은 규칙으로 안전(구현 때 서버 응답과 대조).
+- `onChanged(next)` 로 목록 행을 바꿔 끼우는 지금 경로도 그대로 — 목록 쪽 `readAt` 은 바꾸지 않으므로 더 새로운 별 기록이 이긴다.
+- 단어 추가 시트(`WordAddSheet`·`WordForm`)는 **손대지 않는다**(D7 A, `a-add`). 수정 중 별을 끄고 [취소]해도 별은 꺼진 채(이미 저장됨, `e-cancel`).
+> **구현 후 정정(2026-10-18)** — `WordDetailSheet` 를 쓰는 곳이 하나 더 있다: 채택 교정 모음(`drawer/CorrectionsScreen.tsx`)의 단어 상세. Leader 결정으로 그 시트에도 같은 머리 별을 연결했다(승인 데모 v2 에는 없던 호스트 화면). `fav` 는 선택 prop(안 넘기면 머리 별 없음). → 32-17 ①.
+
+### 32-6. 상태 표 (데모 id · 문구는 32-8)
+| 데모 id | 상태 | 화면에서 일어나는 일 |
+|---|---|---|
+| `r-base` | 보통 1쪽 | 모든 행에 뱃지 아래 별, 같은 열·같은 높이. 열기 버튼 폭 지금 그대로 |
+| `r-long` | 긴 표현·한글 읽기 | 한글 줄 `pr-6` 으로 별 밑에 들어가지 않고 일찍 줄바꿈, 표현·뜻은 지금처럼 「…」 |
+| `r-hgoff` | 한글 끔(H2) | 별 같은 자리, 셋째 줄 `pr-6` |
+| (데모 없음) | **히라가나 끔** | 첫 줄 1.5em → 별 `top 2.021em`(32-2). W8 실측 |
+| `r-wrong` | 정렬 「많이 틀린」 | 셋째 줄 「틀림 n」 뱃지(22px) — 누르는 곳과 가장 가까운 경우, 겹침 0 |
+| `r-tap` | 별 누름 → 켜짐 | 즉시 금색(B2), 상세 안 열림, 토스트 없음 |
+| `r-pend` | 처리 중 | 그 별만 잠김(`aria-disabled`), 다시 눌러도 요청 1건 |
+| `r-fail` | 실패 | 누르기 전 값으로 되돌림 + 「처리하지 못했어요. 다시 시도해 주세요.」, 초점 그대로 |
+| `r-offline` | 오프라인 | 되돌림 + 「연결하지 못했어요. 네트워크를 확인해 주세요.」 |
+| (데모 문구 표) | 404 | 되돌림 + 「단어를 찾을 수 없어요. 삭제되었을 수 있어요.」 + 목록 다시 읽기(그 단어 시트가 열려 있으면 닫음) |
+| `f-on` · `f-p2` | 즐겨찾기 칸 1·2쪽 | 머리 줄 「즐겨찾기 8개 · 1쪽」, 내 단어·기본 단어 섞임, 빈 자리 숨은 행 |
+| `f-arch` | + 보관함 | 보관한 즐겨찾기만, 「보관한 단어 1개 · **즐겨찾기**」 |
+| `f-mix` | + 조각 | 「즐겨찾기 3개 · **표현 조각**」 |
+| `f-cat` | 분류 칩 계정 | 칩 숫자 그대로(D6 A) |
+| `f-none` | 즐겨찾기 0 | `noFavorite` + [모든 단어 보기] |
+| `f-nomatch` · `f-archnone` | 조건과 겹쳐 0 | `noFavoriteMatch` 「‘ねこ’ 검색 안에서…」 · 「보관함 안에서…」 + [즐겨찾기 조건 풀기] |
+| `u-after` | 즐겨찾기 칸에서 별 끔 | 응답 뒤 같은 쪽 다시 읽기 → 행 빠짐 + 「즐겨찾기에서 뺐어요」, 쪽이 비면 지금 clamp, 초점을 잃었으면 머리 줄로 |
+| `d-base` · `d-base0` · `d-mine` | 상세 | 머리 ✕ 왼쪽 별(기본·내 단어 같음), 누르면 바로 반영 |
+| `d-arch` | 보관한 즐겨찾기 상세 | 보관함 뱃지 + 켜진 별, [보관 풀기] 해도 별 그대로 |
+| `e-edit` · `e-cancel` | 수정 화면 | 머리 별 같은 자리·즉시, [취소] 와 무관 |
+| `a-add` | 단어 추가 시트 | 별 없음(지금 그대로) |
+
+### 32-7. API 매핑 — #182·#183·#40 (`api-contract.md` 기준 — 서버 developer 구현 중, 실제 응답은 구현 때 대조)
+| 엔드포인트 | 메서드 | 파라미터 | 화면이 쓰는 필드 | 오류 처리 |
+|---|---|---|---|---|
+| `/api/v1/words/:id/favorite` (#182) | POST | 경로 `id`(내 단어·기본 단어) | 응답 = `WordEntry`(나의 `favorite`·`favoritedAt` 포함, #45 와 같은 모양) 중 `favorite` 만(boolean 이면 그 값, 아니면 요청한 값 `true`) — `favoritedAt` 은 화면이 쓰지 않는다(표시·정렬 없음) | 0 → `NETWORK_ERROR` · 404(남의 단어·없는 id) → `WORD_NOT_FOUND` + 목록 다시 읽기 · 그 밖(400·401·5xx 등) → `GENERIC_ERROR`. **서버 문구·429 문구를 보이지 않는다** |
+| `/api/v1/words/:id/unfavorite` (#183) | POST | 같음 | 같음(없으면 `false`) | 같음 |
+| `/api/v1/words` (#40) | GET | 지금 + 즐겨찾기 칸일 때만 `favorite=1`(`source=all`) | 항목 `favorite`(없거나 false 면 꺼짐), `total`·`pages` 는 조건 반영, `baseTotal` 불변 | 지금 그대로 |
+| `/api/v1/words/:id` (#42 GET · #43 PATCH) · `/archive`·`/unarchive`(#45) | — | 지금 그대로 | 응답의 `favorite` 은 32-5 규칙(`readAt` 비교)으로만 반영 | 지금 그대로 |
+- 멱등(이미 켜진 별에 favorite → 200). 다른 사용자의 단어 → 404. 한도 없음.
+- 타입: `WordEntry.favorite`(·`favoritedAt`)와 응답 타입은 **서버 developer 가 `src/types/vocab.ts` 에 넣는다** — 화면 developer 는 이 파일을 고치지 않고, 없으면 Leader 경유로 요청한다.
+
+### 32-8. 문구 단일 출처 — `src/components/vocab/labels.ts` 의 `FAVORITE_COPY` (데모 문구 표 그대로)
+```ts
+export const FAVORITE_COPY = {
+  star: '즐겨찾기',                                   // 시트 별 이름 · 행 별 이름 뒤쪽(앞은 <span lang="ja">{단어}</span>)
+  sourceLabel: '즐겨찾기',                            // 출처 분절 4번째 칸(보이는 글자 = 읽는 이름)
+  lead: (n: number) => `즐겨찾기 ${fmtCount(n)}개`,     // 머리 줄 앞말
+  condition: '즐겨찾기',                              // 앞말이 보관함·검색일 때 조건 맨 앞(굵게 — 지금 조건 칸 스타일)
+  noneTitle: '즐겨찾기한 단어가 없어요',
+  noneBody: '단어 줄의 별을 누르면 여기에 모여요.',
+  noneBtn: '모든 단어 보기',
+  matchTitle: '조건에 맞는 즐겨찾기가 없어요',
+  matchBody: (c: string) => `${c} 안에서 즐겨찾기만 찾았어요.`,   // 검색어 lang 표시가 필요하므로 화면은 조각을 나눠 그려도 된다(글자는 같게)
+  matchBtn: '즐겨찾기 조건 풀기',
+  removedToast: '즐겨찾기에서 뺐어요',
+} as const
+```
+- 실패·오프라인·404 는 기존 `GENERIC_ERROR`·`NETWORK_ERROR`·`WORD_NOT_FOUND` 그대로(`favoriteErrorText(status)` 가 고른다 — `actionErrorText` 는 400 서버 문구·403 READ_ONLY 를 내므로 쓰지 않는다).
+- **만들지 않는 문구**: 429 · 성공 「즐겨찾기에 넣었어요」(D10 B) · 행동형 이름 「즐겨찾기에 넣기/빼기」(D11 B) · 폼 줄 「[저장]을 눌러야 바뀌어요」(D4 B) · 추가 폼 줄(D7 B) · 「조합 불가」 안내. 데모에 없는 문구·요소는 만들지 않는다. 엔진·모델 이름 없음.
+
+### 32-9. 상태 관리 — 순수 규칙 `favorite.ts` + 얇은 훅 `useWordFavorites()`
+**한 단어의 별 상태는 화면 전체에서 하나**(목록 행과 열린 시트가 같은 기록을 본다). 기록은 `WordsScreen` 이 가진다.
+```ts
+// favorite.ts — React 없음
+export interface FavEntry { value: boolean; pending: boolean; at: number; before: FavEntry | null }   // at = 확정(또는 누름) 시각
+export type FavState = Readonly<Record<string, FavEntry>>
+export type FavEvent =
+  | { type: 'press'; id: string; shown: boolean; at: number }
+  | { type: 'ok'; id: string; value: boolean; at: number; inFavoriteView: boolean }
+  | { type: 'fail'; id: string; status: number }
+export interface FavStep { state: FavState; send: { id: string; to: boolean } | null; ignored: boolean; reload: boolean; toast: string | null; notFound: boolean }
+export function favoriteStep(s: FavState, e: FavEvent): FavStep
+export function favoriteView(server: boolean | undefined, readAt: number, e: FavEntry | undefined): { on: boolean; locked: boolean }
+export function favoriteErrorText(status: number): string
+export function rowStarLayout(i: { prefsLoaded: boolean; showFurigana: boolean; showHangul: boolean; ruby: readonly unknown[] | null; hangul: AnnotationState }): { top: '2.471em' | '2.021em'; line3Pad: boolean }
+export function createFavoriteController(deps: {
+  send: (id: string, to: boolean) => Promise<{ favorite?: unknown } | null | undefined>
+  now: () => number                      // 기본 performance.now() — 시험은 셈 함수 주입
+  inFavoriteView: () => boolean          // 응답 순간 지금 깔린 목록이 「즐겨찾기」 칸인가(listRef.current.shown?.source === 'favorite')
+  onChange: (s: FavState) => void
+  onEffect: (x: { id: string; reload: boolean; toast: string | null; notFound: boolean }) => void
+}): { press(id: string, shown: boolean): void; view(id: string, server: boolean | undefined, readAt: number): { on: boolean; locked: boolean }; stamp(): number; dispose(): void }
+```
+| 사건 | 규칙 (`favoriteStep`) |
+|---|---|
+| `press` 잠김(그 id 가 `pending`) | 상태 그대로, `send null`, `ignored true` — **요청 0** (연타·행↔시트 동시 누름 모두) |
+| `press` | `{ value: !shown, pending: true, at, before: 지금 기록 ?? null }`, `send { id, to: !shown }` |
+| `ok` | `{ value, pending: false, at, before: null }`. `reload = inFavoriteView && value === false`, `toast = reload ? removedToast : null`(D3·D10) |
+| `fail` | 기록을 `before` 로 되돌림(없으면 지움 — **「!to」로 뒤집지 않는다**: 앞서 확정한 별 위에서 실패하면 그 값으로), `toast = favoriteErrorText(status)`, `notFound = status === 404` |
+| 기록 없는 id 의 `ok`·`fail` | 무시(해제 뒤 늦은 응답) |
+- **`favoriteView`**: `pending` 이면 `{ on: value, locked: true }` · 기록이 그 값을 읽은 뒤에 확정됐으면(`e.at > readAt`) `{ on: e.value, locked: false }` · 그 밖은 서버 값(`server === true`). → 목록·시트가 옛 응답을 받아도 화면이 거꾸로 가지 않고, 별을 만진 뒤 새로 읽은 값(다른 기기 변경 포함)은 그대로 보인다.
+- **`readAt`**: 목록 = `WordsScreen` 의 목록 요청 효과가 **보내기 직전** `fav.stamp()` 를 잡아 두고, 응답을 깔 때 `setListReadAt(t)`(`WordsListState`·`wordsPaging` 은 바꾸지 않는다 — 별도 상태 하나). 시트 = 32-5.
+- **효과 처리(`onEffect`, `WordsScreen`)**: `toast` 있으면 `showToast` · `reload` 면 `request('reload')`(분류 숫자는 즐겨찾기와 무관 — `reloadAll` 아님) + 「초점 확인」 표시 · `notFound` 면 그 단어 시트가 열려 있으면 닫고(`setSheet`) `reloadAll()`(토스트는 위 `toast` 한 번만 — 시트의 `onNotFound` 를 따로 부르지 않는다).
+- **초점(D3)**: 「초점 확인」 표시가 있는 다시 읽기 응답을 깐 뒤 `requestAnimationFrame` 에서 `document.activeElement` 가 `body`(또는 null)이면 `askHeadFocus(false)` — 머리 줄로 초점만, 화면은 끌어올리지 않는다(사용자가 목록 중간에 있다).
+- **훅** `useWordFavorites()`(`vocab/useWordFavorites.ts`, 약 40줄): `useRef` 로 컨트롤러 하나, `onChange` → `useState` 반영, 언마운트 때 `dispose()`(그 뒤 도착한 응답은 상태·효과 0). `send` = `apiPost(`/api/v1/words/${encodeURIComponent(id)}/${to ? 'favorite' : 'unfavorite'}`)`, 실패 상태값은 `toErr(e).status`. 돌려주는 `press`·`view`·`stamp` 는 렌더마다 같은 함수.
+- `WordsPageList` props 추가: `favView: (w: WordEntry) => { on: boolean; locked: boolean }` · `onStar` — 행에 `favOn`·`favLocked` 로 풀어 넘긴다. `WordDetailSheet` props 추가: `fav`(위 훅 값).
+- 조건·쪽이 바뀌어도 기록은 id 별로 남는다 — 처리 중에 칸을 바꿔도 새 목록에서 그 별은 잠긴 채 보이고, 응답 때 「지금」 목록 기준으로 D3 를 판단한다.
+
+> **구현 후 정정(2026-10-18)** — 위 훅 서술 중 달라진 곳: 훅은 **인자가 있다** `useWordFavorites({ inFavoriteView, onEffect })`, 돌려주는 `view` 는 **별 상태가 바뀔 때만 새 함수**다(`press`·`stamp` 만 늘 같은 함수). 컨트롤러는 렌더 중이 아니라 **효과 안에서** 만들고 정리 때 `dispose()` 한다(`reactStrictMode: true` 근거). → 32-17 ②.
+
+### 32-10. 구현 함정 (반드시 시험·QA 로 고정)
+1. **버튼 중첩 금지** — 별을 열기 `<button>` 안에 넣으면 HTML 이 깨지고(React 경고·하이드레이션 어긋남) 행 이름에 별 이름이 섞인다. 형제여야 한다(W1).
+2. **별 누르기가 행 열기를 일으키지 않음** — 형제라 버블링으로 열리지 않는다. `li` 에 클릭 처리기를 두지 않는다(W2).
+3. **누르는 곳 우선** — 뱃지 아래쪽·숫자 위쪽의 겹친 자리(최대 525px²)는 별이 받는다(`z-[1]`). 반대로 되면(열기가 위) 작은 별을 거의 못 누른다(W3).
+4. **이웃 행 침범 0** — `::before` 위 11·아래 5. 한글·히라가나 모두 끈 약 70px 행에서 여유 0.6px — 실측(W8).
+5. **해제 뒤 초점** — 즐겨찾기 칸에서 키보드·TalkBack 으로 별을 끄면 그 행이 사라져 초점이 `body` 로 간다 → 머리 줄(`tabIndex=-1`)로(32-9). 시트에서 끈 경우 시트를 닫을 때 원래 열기 버튼이 없으면 초점을 잃는 것은 **보관(#45)과 같은 기존 한계**(이번 범위 밖, QA 기록만).
+6. **쪽·검색·조각 변경과의 상호작용** — 처리 중 별은 칸·쪽을 바꿔도 잠긴 채, 다시 읽기 요청은 지금 규칙(나중 요청이 앞 요청을 abort)에 맡긴다. 즐겨찾기 칸에서 별을 끈 직후 다시 켜면(다시 읽기 응답 전) 행이 빠졌다가 다음 읽기 때 돌아올 수 있다 — 알려진 한계(창 0.3~0.6초).
+7. **한글 줄 끔(H2)·한글 읽기 줄 길이** — `pr-6` 은 한글 줄에 늘, 셋째 줄에는 `line3Pad` 일 때만. 판정을 `HangulLine` 과 다르게 하면 「한글 줄이 있는데 셋째 줄이 짧아짐」 또는 「한글 줄이 없는데 별이 뜻과 겹침」(W7).
+8. **히라가나 끔** — `top` 을 `2.471em` 하나로 두면 첫 줄이 8px 낮아진 행에서 별이 셋째 줄로 내려가 뜻·숫자와 겹치고, 한글도 끈 행에서는 아래 행을 침범한다(W8).
+9. **글꼴 130%** — 별 상자에 `text-[18px]` 가 없으면 `em` 기준이 바뀌어 자리가 어긋난다(W9).
+10. **다크 B2** — 윤곽 `ink` 가 밝은 색이라 흰 테두리처럼 보인다 — 사용자가 승인한 모습이다. 테마별 규칙을 따로 만들지 않는다.
+11. **`aria-pressed` + 고정 이름** — 이름을 상태에 따라 바꾸지 않는다(상태 이중 낭독). `aria-pressed` 는 `"true"/"false"` 둘 다 늘 내보낸다(W10).
+12. **낙관적 갱신 중 잠금** — `disabled` 를 쓰면 초점이 빠지고 TalkBack 이 「사용 불가」로 읽는다 → `aria-disabled` + `onClick` 첫 줄에서 무시(W4).
+13. **응답 덮어쓰기** — 시트 저장·보관 응답, 목록 다시 읽기 응답이 별을 옛 값으로 되돌리면 안 된다 → 그리는 값은 `favoriteView` 만(W6).
+14. **공용 `Sheet`** — `{headerAction}` 를 `<div>` 로 감싸면 50곳의 DOM 에 빈 요소가 생긴다. 감싸지 않는다(W12).
+
+### 32-11. 접근성
+| 요소 | 읽는 말(예) | 초점 순서 | 터치 |
+|---|---|---|---|
+| 행 열기 버튼 | 지금과 같다(별 이름이 섞이지 않음) | 행마다 열기 → 별 → 다음 행 | 행 전체 − 별 누르는 곳 44×44 |
+| 행 별 | 「食べる 즐겨찾기, 전환 버튼, 선택됨」 | 열기 바로 다음 | 보이는 28·아이콘 18·`::before` 44×44 |
+| 출처 「즐겨찾기」 칸 | 「즐겨찾기, 라디오 버튼, 4개 중 4번째」 → 머리 줄(`aria-live`)이 「즐겨찾기 8개」 | 분절 안(지금처럼) | 칸 폭 ≥78 × 32 + `::before` 44 |
+| 시트 머리 별 | 「즐겨찾기, 전환 버튼, 선택됨」 | 제목 → 별 → 닫기 → 본문 | 44×44 |
+| 처리 중 · 실패 · 행 빠짐 | 잠김 `aria-disabled` · 토스트(`role="status"`) · 초점 잃으면 머리 줄 | — | — |
+- 별은 모양(채움/외곽선) + 색 + 눌림 상태 세 단서. 비텍스트 대비(B2): 라이트 윤곽↔바탕 15.81 · 금색↔윤곽 5.37 · 꺼짐 ink2↔바탕 6.24 / 다크 윤곽↔바탕 13.77 · 금색↔바탕 7.54 · 꺼짐 7.68.
+- Minor(알려진 한계): 숨은 이름의 일본어 단어(`lang="ja"`)가 한국어 음성으로 읽힐 수 있음 · 「선택됨」 낱말은 TalkBack 버전마다 다름 · 손가락 탐색에서 뱃지 아래쪽을 만지면 별이 읽힘(누르는 곳 겹침) — 모두 폰 확인.
+
+### 32-12. 파일 소유 · 구현 순서 (`src/components` 만)
+- **새로**: `vocab/favorite.ts`(순수: `favoriteStep`·`favoriteView`·`favoriteErrorText`·`rowStarLayout`·`createFavoriteController`) · `vocab/useWordFavorites.ts` · `vocab/FavoriteStar.tsx` · `vocab/__tests__/favorite.test.ts`.
+- **고침**: `vocab/WordRow.tsx` · `vocab/WordsScreen.tsx`(`WordsPageList` props·훅 연결·`listReadAt`·효과·초점) · `vocab/WordDetailSheet.tsx`(`fav` prop·`readAt`·`headerAction`) · `vocab/WordsEmpty.tsx`(두 경우·`onClearFavorite`) · `vocab/logic.ts`(`WordSourceView`·`listHeader`) · `vocab/validate.ts`(`emptyVariant`·`WordsEmptyVariant`) · `vocab/wordsPaging.ts`(`wordsListUrl` 만) · `vocab/labels.ts`(`WORD_SOURCE_OPTIONS`·`listLeadText`·`listConditionText`·`FAVORITE_COPY`) · `common/Sheet.tsx`(세 곳 추가) · 시험 `labels`·`logic`·`wordsPaging`·`wordsScreenParts`·`wordDetailOrigin`(도우미·의도된 단언만).
+- **고치지 않음**: `vocab/WordsSkeleton.tsx`(상수로 자동 4칸) · `shell/TabSkeleton.tsx` · `WordForm`·`WordAddSheet`·`ArchiveToggle`·`CategoryChips`·`ChunkChips` · `common/Segmented`·`common/japanese/**`·`talk/**` · **`src/modules/**`·`src/app/api/**`·`src/types/**`·`prisma/**`·프롬프트·`package.json`(jsdom 등 의존성 추가 금지)·`docs/demo/**`·`docs/design/**`**.
+- **순서**: (서버 #182·#183·#40·타입 먼저, 감사 뒤) → ① `favorite.ts` + `favorite.test.ts`(규칙부터, 변이 점검) → ② `FavoriteStar`·`WordRow`(+ 행 시험) → ③ `labels`·`logic`·`validate`·`wordsPaging`·`WordsEmpty`(출처 4칸·머리 줄·빈 화면) → ④ `useWordFavorites`·`WordsScreen` 연결(효과·초점·`listReadAt`) → ⑤ `Sheet` 세 곳 + `WordDetailSheet` → ⑥ tsc·eslint·전체 시험·`next build` → reviewer → QA.
+
+### 32-13. 시험 목록 (jsdom 없음 — **동작 시험 중심**: 순수 규칙·컨트롤러를 가짜 `send` 로 돌린다. 정적 렌더·소스 스캔은 보조)
+- `favorite.test.ts` — **컨트롤러 동작**(가짜 `send` 가 돌려주는 약속을 시험이 직접 풀고/거절): ① 누름 → 요청 1, `view` 켜짐·잠김 ② 처리 중 같은 id 다시 누름(행·시트 어느 쪽이든) → 요청 여전히 1 ③ 성공 → 잠김 풀림, 즐겨찾기 칸 + 끔이면 `onEffect` `reload`·`removedToast` 1회, 칸이 아니거나 켬이면 둘 다 없음 ④ 실패 500 → 누르기 전 값·`GENERIC_ERROR`, 상태 0 → `NETWORK_ERROR`, 404 → `notFound`·`WORD_NOT_FOUND` ⑤ **앞서 켜서 확정한 별을 끄다 실패 → 켜짐으로 되돌림**(서버 옛 값 아님) ⑥ `dispose` 뒤 응답 → `onChange`·`onEffect` 0 ⑦ 응답 `favorite` 이 없거나 boolean 아님 → 요청한 값.
+- `favoriteView` — 처리 중 우선 · `at > readAt` 이면 기록 · `at <= readAt` 이면 서버 값 · **저장 응답(옛 별 값, `readAt` 이 별 확정보다 앞)이 와도 화면 값 불변**.
+- `rowStarLayout` — `HangulLine` 과 같은 판정표(설정 로드 전 · 한글 끔 · off · none · loading · ready+빈 한글 · ready) × 히라가나(로드 전 · 끔 · 켬+루비 · 켬+루비 null) → `top`·`line3Pad`.
+- `wordsPaging.test.ts` — 즐겨찾기 칸 주소 = `/api/v1/words?source=all&archived=0&favorite=1&sort=recent&page=1&limit=7` 정확히 · 기존 47·49행 정확 단언 그대로 통과 · `wordsCondKey` 가 칸마다 다르고 `navForKey` 가 1쪽.
+- `logic.test.ts` — 앞말 순서(보관함 > 검색 > 즐겨찾기 > 출처) · 조건 맨 앞 「즐겨찾기」는 앞말이 보관함·검색일 때만 · 즐겨찾기 앞말에는 조건 「즐겨찾기」 없음.
+- `emptyVariant` — 즐겨찾기 칸이면 `q`·`chunk`·`category`·`archived` 가 있어도 `noFavoriteMatch`, 하나도 없으면 `noFavorite`(다른 칸에서는 지금 순서 그대로).
+- `labels.test.ts` — `WORD_SOURCE_OPTIONS` 4칸(171행 단언을 의도대로 고침) · `FAVORITE_COPY` 글자가 32-8 과 같음 · 429 키 없음.
+- `wordsScreenParts.test.ts`(정적 렌더) — 보이는 행마다 단추 2개 · 열기 단추 안에 `<button` 0 · 별 `aria-pressed` 늘 있음 · 이름 `<span lang="ja">…</span> 즐겨찾기` · 잠김 `aria-disabled="true"` · `line3Pad` 일 때만 셋째 줄 `pr-6` · 빈 자리 행 단추 0 · T1·T3 개수 그대로.
+- 소스 스캔(보조) — `Sheet.tsx` 에 `{headerAction}` 1회, `</h2>` 와 닫기 단추 사이, 감싸는 요소 없음 · `WordDetailSheet` 의 별은 `confirmDelete` 가 아닐 때만 · `WordDetailSheet`·`WordRow` 에 `.favorite` 을 직접 그리는 곳 0(`favoriteView` 경유).
+- **변이 점검 후보**(reviewer 가 하나씩 넣어 죽는지): 잠김 무시 제거 · `reload` 조건 반전 · 실패 되돌림을 `!to` 로 · `favoriteView` 의 `>` → `>=`/처리 중 우선 제거 · 주소에서 `favorite=1` 빠뜨림 · `emptyVariant` 순서 바꿈 · `rowStarLayout` 이 `prefsLoaded` 무시 · `Sheet` 슬롯을 `<div>` 로 감쌈 · 별을 열기 단추 안으로.
+
+### 32-14. reviewer · qa 확인표
+| # | 확인 | 방법 |
+|---|---|---|
+| W1 | 행 = 열기 단추 + 형제 별, 중첩 0 | 정적 렌더 시험 · Chrome DOM |
+| W2 | 별 탭·Enter·Space → 상세 안 열림, 요청 1 | QA Chrome(3011) 네트워크 |
+| W3 | 뱃지 아래쪽·숫자 위쪽 겹친 자리를 누르면 별이 바뀜(열기 아님) | QA `elementFromPoint` |
+| W4 | 처리 중 연타(행·시트) → 요청 1, 초점 유지 | QA 느린 망 · 시험 ② |
+| W5 | 실패·오프라인·404 → 되돌림 + 문구, 404 는 목록 다시 읽기·시트 닫힘 | QA 응답 가로채기 · 시험 ④⑤ |
+| W6 | 시트에서 별 → [수정] [저장] / [보관하기] 를 빠르게 이어 눌러도 별 값 불변, 목록 행도 같음 | 시험 `favoriteView` · QA |
+| W7 | H2: 한글 끔·분석 없음 행만 셋째 줄 24 비움, 한글 있는 행은 셋째 줄 그대로 | 시험 · QA 3폭 |
+| W8 | **히라가나 끔**(+ 한글 끔): 별이 뱃지 바로 아래, 글자 겹침 0, 아래 행 침범 0(여유 ≥0) | QA 3폭 × 100/130% — 데모 없던 값 `2.021em` 확인 |
+| W9 | 글꼴 130%: 별 자리·겹침 0·4칸 잘림 0 | QA |
+| W10 | 별 `aria-pressed` 늘 · 이름 고정 · 시트 초점 순서 제목→별→닫기 | Chrome 접근성 트리 |
+| W11 | 즐겨찾기 칸 주소 `source=all&favorite=1`, 다른 칸 주소 지금과 같음, 칸 변경 1쪽, 검색·조각·분류·보관함 AND | 시험 · QA 네트워크 |
+| W12 | `Sheet.tsx` diff 에 `-` 줄 0 · 다른 시트 2곳(예: `WordsJumpSheet`·`NewChatSheet`) 머리 줄 outerHTML 이 운영과 같음 | `git diff -U0` · QA |
+| W13 | D3: 즐겨찾기 칸에서 끔 → 행 빠짐·토스트 1·쪽 수·합계 맞음·빈 쪽 clamp·초점 머리 줄 | QA |
+| W14 | D2: 보관함 + 즐겨찾기 칸 = 보관한 즐겨찾기만, 보관/보관 풀기 해도 별 유지 | QA |
+| W15 | 빈 화면 2종 문구·버튼(다른 조건 유지), 「‘q’ 추가하기」 없음 | QA |
+| W16 | 단어 추가 시트 변화 0 · 다른 사용자 단어 404 · 엔진명 0 · 보관·삭제·수정·페이징·검색·정렬 회귀 0 | QA |
+| W17 | **켜기/끄기 요청 방향** — 별을 켜면 `POST /api/v1/words/:id/favorite`, 끄면 `POST …/unfavorite`(행·시트·교정 모음 모두). 켠 별을 다시 눌렀을 때 `unfavorite` 가 가는지까지 | QA Chrome 네트워크 탭 — **시험이 못 잡는다**(`sendFavorite` 의 경로 선택을 뒤집어도 모든 시험이 통과, 감사 변이 A12) |
+| W18 | **느린·멈춘 망 체감** — 별 요청에는 클라이언트 시간 제한이 없다(`apiPost` 에 timeout 없음). 응답이 안 오면 그 별은 **보이는 변화 없이** 잠긴 채라 눌러도 반응이 없다(D5 A 「잠김은 안 보임」과 겹침). 다른 별은 눌린다 | QA 응답 지연·throttle 로 체감만 확인 — 이번 범위에서 고치지 않음(감사 L-2). 불편하면 designer/Leader 가 별도 결정(예: 시간 제한 후 연결 문구) |
+| W19 | **끄는 중 칸을 바꿨을 때** — 즐겨찾기 칸에서 별을 끄고 응답 전(약 0.3~0.6초)에 다른 칸으로 바꾸면, 응답 순간 「지금 깔린 목록」 기준(32-9)이라 「즐겨찾기에서 뺐어요」 토스트가 어긋나게 뜰 수 있다. 데이터는 맞다 | QA 눈으로 확인 — 어긋나도 토스트뿐이면 폰 확인 목록에만(감사 L-5, 수용) |
+| W20 | **교정 모음 연결**(32-17 ①, 감사 #11) — 채택 교정 모음 [단어 보기 ›] 시트의 머리 ✕ 왼쪽에 별(기본·내 단어 같은 모양·자리). 켜면 금색·토스트 없음 · 끄면 「뺐어요」 토스트·목록 다시 읽기 **없음** · 실패(500·오프라인)는 되돌림 + 토스트 1번, 시트는 열린 채 · 404 는 시트 닫힘 + 토스트 **1번** + 누른 카드 기준 다시 읽기 + 초점이 그 카드 요약 버튼 · 삭제 확인 모드엔 별 없음 · 켠 별이 단어장 탭 「즐겨찾기」 칸에 나타남 | QA Chrome(3011) 응답 가로채기 |
+| W21 | **StrictMode 개발 모드**(감사 #12) — `next dev`(`reactStrictMode: true`)에서 효과가 한 번 껐다 켜진 뒤에도 별이 눌리고 응답을 받는다. 단어 추가 시트 변화 0 · 출처 4칸 · 빈 화면 2종 · 「‘q’ 추가하기」 없음 · 보관·삭제·수정·페이징·검색·정렬 회귀 0 | QA `next dev` — **시험이 못 잡는다**(훅 정리의 `dispose()` 누락도 통과, 감사 변이 A8) |
+| W22 | **시트 머리 별 키보드·Esc**(감사 #10 중 W10 에 없는 부분) — 탭 순서 제목→별→닫기 · Enter/Space 로 토글(시트는 안 닫힘) · Esc 는 시트를 닫음 · 수정 모드에서도 같은 자리 · 삭제 확인에서는 별 없음 · 별을 켠 뒤 [취소] 해도 별 유지 | QA Chrome 키보드 |
+| W23 | **다크 B2 윤곽**(감사 #9, 확인만) — 다크에서 켜진 별 윤곽이 흰 테두리처럼 보이는 것은 사용자가 보고 승인한 모습(D8 B2, 함정 10). 새 색·테마별 규칙을 만들지 않는다 | 폰/QA 눈으로 한 번 보기 |
+
+- **감사자 high_risk 12개(REV-074U) ↔ W 대응**: ① 2계정 교차 격리 → W16(+ 켜진 별 값이 다른 계정의 목록·즐겨찾기 칸·시트에 안 보이는지도 같이 본다) · ② 켜기/끄기 방향 → **W17** · ③ 연타 → W4(멈춘 망 체감 → **W18**) · ④ 실패·오프라인·404 → W5(교정 모음 쪽 → **W20**) · ⑤ 즐겨찾기 칸에서 끄기 → W13(끄는 중 칸 바꿈 → **W19**) · ⑥ 시트↔목록 동기화 → W6 · ⑦ 히라가나 끔·한글 끔 → W8(+ W7) · ⑧ 글꼴 130%·3폭 → W9(+ W7 셋째 줄 길이) · ⑨ 다크 B2 → **W23** · ⑩ 시트 머리 별 키보드·Esc → W10(+ **W22**) · ⑪ 교정 모음 → **W20** · ⑫ StrictMode → **W21**. 굵은 글씨 = 이번에 표에 새로 넣은 것.
+
+### 32-15. 데모와 다른 점 · Leader 확인
+- **히라가나 끔 행의 별 세로 자리(추가)** — 데모는 표현 줄간격 1.95(루비 있음)만 그렸다. 실제 `JaText` 는 루비가 없으면 줄간격을 걸지 않아 첫 줄이 1.5em → 별을 같은 `2.471em` 에 두면 셋째 줄로 내려가 겹친다. 승인 모양(「뱃지 바로 아래」)을 지키려고 `2.021em` 을 더했다(같은 식). 승인 구조의 변경이 아니라 데모가 안 그린 상태의 구현값 — 실측(W8)에서 어긋나면 식(`첫 줄 높이 + 0.521em`)으로 다시 계산한다.
+- **데모 개발 메모와 다른 것**: 메모의 `before:-inset-2`(대칭) → 데모 CSS·실측 기준인 위 11·아래 5 · 메모의 `z-index 2` → `z-[1]`(행 안 위치 지정 요소가 별뿐) · 「`WordRowsSkeleton` 별 자리표시(선택)」 → 넣지 않음.
+- 그 밖에 데모와 다른 화면 요소·문구 없음.
+- **Leader 에게**: 질문 없음. 확인만 — ① 서버가 #182·#183 응답에 `favorite` 을 넣는지(없어도 화면은 요청 값으로 동작) ② `WordEntry.favorite` 타입을 서버 developer 가 `src/types/vocab.ts` 에 넣는지(화면 developer 는 이 파일 금지).
+
+### 32-16. 데모 실측 요약 (헤드리스 Chrome, 데모 파일만 열람 — 2026-10-18, 기록 [[task-074-designer-record]])
+- v2 자체 시험 **2,016칸 실패 0**(상태 24 × 폭 3 × 글꼴 2 × 현재·제안 ★ + 대안·구현 선택 하나씩 + 한글 끔): 가로 넘침 0 · 44 미만 터치 0 · 64 미만 행 0 · 별 아이콘과 글자 겹침 0 · 열 어긋남 0 · 이웃 행 침범 0 · 출처 4칸 잘림 0.
+- 누르는 곳이 덮는 글자 면적: 360·100% 최대 525px²(뱃지 315 + 긴 뜻 210 — 행 면적 1.6%) · 390·412 458px² · 글꼴 130% 105~269px².
+- 4칸 칸 폭 최소 78.3(360) · 85.8(390) · 91.3(412), 130% 같음. H2 행에서 숫자와 별 사이 틈 6px(겹침 0, 빠듯 — 폰 확인).
+- **실측하지 않은 것**: 히라가나 끔 행(W8) · 실제 WebView 글꼴 배율 · TalkBack 낱말 — QA·폰 확인.
+
+### 32-17. 구현 후 정정 · 감사 결과 (2026-10-18 — 구현·감사 뒤 동기화, 디자인 변경 없음)
+> 근거: [[task-074-dev-ui-record]] 「가이드와 다른 점」·「교정 모음 상세 연결」, 화면 감사 [[task-074-rev-ui-record]](REV-074U **PASS_WITH_NOTES** — Critical 0 · High 0 · Medium 1 · Low 6, 지적 L-4 = 이 동기화). **승인 데모 v2·결정 D1~D11(D1=D·D8=B2·D9=H2, 나머지 ★)·상태 표·문구·구현 순서는 그대로**이고, 아래는 구현이 가이드 서술과 달라진 곳을 사실대로 적은 것이다. 서술이 어긋나면 **이 절이 32-5·32-9·32-12 의 해당 문장보다 우선**한다. 재승인이 필요한 변경은 없다(reviewer 판정 material 0).
+
+**① 교정 모음의 단어 상세 시트에도 머리 별 — 승인 데모에 없던 호스트 화면** (가이드 32-5 는 단어장만 다뤘다)
+- `WordDetailSheet` 호출처가 하나 더 있다: 채택 교정 모음 `drawer/CorrectionsScreen.tsx` 의 [단어 보기 ›]. Leader 결정(같은 시트라 일관성)으로 같은 머리 별을 연결했다. 사용자가 데모에서 본 적 없는 노출이라 **최종 요약에서 한 줄 고지**한다(감사 L-6). 원치 않으면 그 화면의 `<WordDetailSheet … fav={fav} />` 에서 `fav={fav}` 한 줄만 지우면 시트 머리 별이 사라진다(`fav` 는 선택 prop).
+- 새 순수 모듈 `drawer/correctionsFavorite.ts` — `correctionsInFavoriteView()` 는 **늘 false**, `correctionsFavoriteEffect(x, open, host)` 가 효과를 이 화면 방식으로 처리한다. `CorrectionsScreen.tsx` 는 훅 호출 1곳(첫 「비어 있음」 조기 반환보다 **앞** — 훅 규칙)과 `fav={fav}` 한 줄만 더했다(기존 줄 수정·삭제 0).
+- 그래서 이 화면에서는: 별을 꺼도 **`reload`·「즐겨찾기에서 뺐어요」 토스트·목록 다시 읽기가 없다**(즐겨찾기 칸이 아니므로) · 실패는 이 화면의 `toast` 1번(500 → `GENERIC_ERROR`, 상태 0 → `NETWORK_ERROR`) · **404 는 그 단어 시트가 열려 있을 때만** 이 화면의 기존 `afterWordGone`(시트 닫기 + 토스트 1번 + 누른 카드 기준 다시 읽기 + 카드 요약 버튼 초점) — 시트가 닫혔거나 다른 단어가 열려 있으면 토스트만.
+- 별 값을 되먹일 목록이 없다: 교정 카드(`DrawerCorrectionItem`)에는 `favorite` 칸이 없고 시트의 `onChanged` 는 표현만 바꿔 끼운다 → 별 기록은 이 화면 메모리에서 시트만 본다(화면을 떠나면 사라지고 서버 값이 이긴다).
+- 새 UI 요소·새 문구·새 요청 0(`FAVORITE_COPY`·`GENERIC_ERROR`·`NETWORK_ERROR`·`WORD_NOT_FOUND` 재사용).
+- **32-12 파일 목록 보태기**: 새 `drawer/correctionsFavorite.ts` · `drawer/__tests__/correctionsFavorite.test.ts` · `common/__tests__/sheetHeaderAction.test.ts`(+ 골든 `common/__tests__/fixtures/sheet-golden-074.json`) · 고침 `drawer/CorrectionsScreen.tsx`. 32-12 의 시험 `logic`·`wordsPaging` 고침은 하지 않았고(기존 단언 그대로 통과), 같은 내용을 새 `favorite.test.ts` 가 맡는다. 바꾼 시험은 `labels`(출처 3→4칸, 의도)·`wordsScreenParts`·`wordDetailOrigin`(도우미 props 추가, 단언 변경 0)뿐.
+
+**② 훅 모양 — 32-9 정정**
+- `useWordFavorites({ inFavoriteView, onEffect })` — 인자 있음(화면의 최신 콜백을 ref 로 받는다). 컨트롤러는 **렌더 중이 아니라 효과 안에서** 만들고 정리 때 `dispose()` 한다. 근거: `next.config` 가 `reactStrictMode: true` 라 개발 모드에서 효과를 한 번 껐다 켠다 — 렌더 중에 하나만 만들면 꺼진 컨트롤러가 남는다.
+- 돌려주는 `view` 는 **별 상태(`FavState`)가 바뀔 때만 새 함수**다(32-9 의 「렌더마다 같은 함수」 정정). `press`·`stamp` 만 늘 같은 함수. 행에는 `favView(w)` 결과의 원시값(`favOn`·`favLocked`)만 넘기므로 `memo` 에는 영향이 없다(감사 확인).
+- `sendFavorite(id, to)` 와 `FavEffect` 타입은 export 되어 있다(시험이 쓸 수 있다).
+
+**③ 그 밖에 가이드와 다른 점 4건** (모두 감사 「수용」)
+- **send 실패 모양** — `sendFavorite` 가 `apiPost` 오류를 `Error + { status }` 로 다시 던지고, 컨트롤러는 `status` 숫자만 읽는다(모르는 모양 = −1 → 일반 실패 문구).
+- **`ok`·`fail` 무시 조건 확대** — 32-9 의 「기록 없는 id」 외에 **처리 중이 아닌 기록**의 `ok`·`fail` 도 무시한다(잠금 때문에 정상 흐름에서는 안 생기는 중복 응답 방어).
+- **`readAt` 은 성공 응답에만** — 목록은 응답이 `res.ok` 일 때만 `setListReadAt` 한다(쪽 오류·clamp 때는 그대로). 오류 응답이 시각만 앞당겨 옛 행의 서버 값이 더 새로운 별 기록을 이기는 경로를 막는다.
+- **`favoriteMatchParts`** — `noFavoriteMatch` 본문은 조각 `favoriteMatchParts({ q, archived, category, chunk })`(`labels.ts`, 순수, `{ pre, ja?, post }[]`)에 뒤 글 `FAVORITE_COPY.matchBody('')` 를 붙여 만든다 — 글자 단일 출처(시험 U5 가 `matchBody('‘ねこ’ 검색')` 와 같음을 고정).
+
+**④ 화면 감사 결과 요약 (REV-074U — 수정 요구 0)**
+- **공용 `Sheet`** — `git diff -U0` 의 `-` 줄 0. title 4 × dismissible 3 × describedBy 2 × children 7형태 × open 2 = **336조합**을 변경 전·후 서버 렌더로 비교해 **바이트 동일**(`headerAction` 의 `undefined`·`null`·`false` 포함). 호출 51곳·43파일, `headerAction` 을 넘기는 곳은 `WordDetailSheet` 1곳뿐.
+- **행 별 자리(W8 일부) 독립 실측** — 빌드된 CSS + 실제 행 마크업, 정렬 2 × 히라가나 켬/끔 × 한글 4상태 × 행 5종 × 폭 360/390/412 = **240행: 아이콘↔글자 겹침 0 · 누르는 곳이 행 안 · 최소 아래 여유 1.63px**(70px 행 — developer 헤드리스 실측은 0.63px, 도구·글꼴 차) · 아이콘 오른쪽 끝 = 뱃지 오른쪽 끝(차 0) · 아이콘 위 ↔ 뱃지 아래 ≥2.75px · 누르는 곳이 덮는 글자 최대 410.8px²(≤525). 히라가나 끔 `2.021em` 은 가이드 값 그대로 맞다. **여유가 얇다**(폰 글꼴이 1px 만 달라도 0 에 닿음, 감사 L-1) — W8 에서 여유가 0 이하로 보이면 `before:-bottom-[4px]`(위 12)로 한 칸 옮긴다.
+- **못 한 것 → QA/폰 확인**: **글꼴 130%**·실제 폰 글꼴·WebView·TalkBack 낭독은 아무도 재지 않았다(W8·W9). 데모 문구 대조 일치(`FAVORITE_COPY` 11키 + 일반 오류 3종), 엔진명 0, 데모 게이트 `DEMO_GATE_PASSED`.
+- **Medium M-1 — 화면 배선의 동작 시험이 얇다**: 감사자가 넣은 새 변이 18개 중 17개가 시험을 통과했다(순수 규칙·부품은 단단하고 `WordsScreen` 효과 처리·`WordDetailSheet` 의 `readAt` 배선·`sendFavorite` 경로·훅 `dispose`·`WordsEmpty` 버튼 배선은 jsdom 이 없어 동작 시험이 비어 있음). 코드를 읽어 확인한 바로는 지금 배선은 맞고, QA 를 막지 않는다 — 그래서 **W17·W21 처럼 시험이 못 잡는 곳을 실제 Chrome 확인표에 올렸다**. 시험 보강(순수 `wordsFavoriteEffect`·`sendFavorite` 가짜 `fetch`·`readAt` stamp 순서·빈 화면 버튼 스캔)은 developer 의 선택 과제다.
+- **알려진 한계(수용)**: 별 요청에 시간 제한 없음(W18, L-2) · 시트의 처음 값이 목록 미리보기(`readAt=0`)인데 GET 이 실패하면 별 기록이 서버 값을 이긴다(L-3, 32-5 설계 그대로) · 끄는 중 칸 바꿈 토스트(W19, L-5).

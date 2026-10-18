@@ -19,8 +19,9 @@ export const GET = withApi<Ctx>(async (_req, ctx) => {
 })
 
 /**
- * #43 부분 수정 — 내 단어만. 카운터·출처·보관 상태·`jlpt` 는 400, `chunkType: null` 400, 표현이 바뀌면 중복 409 `{existingId}`,
- * 기본 단어와 같아지면 409 `BASE_DUPLICATE`. 기본 단어 id 는 403 `READ_ONLY`(task-068).
+ * #43 부분 수정 — 내 단어만. 카운터·출처·보관·즐겨찾기 상태(`favorite`·`favoritedAt` — #182/#183 으로만 바꾼다, task-074)·`jlpt` 는 400 `read_only`,
+ * `chunkType: null` 400, 표현이 바뀌면 중복 409 `{existingId}`, 기본 단어와 같아지면 409 `BASE_DUPLICATE`. 기본 단어 id 는 403 `READ_ONLY`(task-068).
+ * 응답은 수정 뒤 단어 + 나의 상태(보관·즐겨찾기 그대로).
  */
 export const PATCH = withApi<Ctx>(async (req, ctx) => {
   const s = await requireSession()

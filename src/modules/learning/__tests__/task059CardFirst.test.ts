@@ -703,3 +703,40 @@ test('#53 뜻 재료가 한 카드라도 모자라면 세트 전체 보기 없�
   assert.ok(db.rowsOf(rep.session.id).every((a) => a.choices == null))
   assert.ok(rep.cards.every((c) => typeof c.meaning === 'string'))
 })
+
+// ── task-074(REV-074S M-1): 즐겨찾기(UserWordState.favorite)는 세트 만들기·끝내기가 건드리지 않는다 ──────────────────────
+
+const FAV_AT = new Date('2026-10-02T00:00:00.000Z')
+const starRows = (ids: string[]) => ids.map((id) => stateRow(U, id, { favorite: true, favoritedAt: FAV_AT }))
+const stateWrites = (db: FakeDb) => db.ops.filter((o) => o.startsWith('state:') && o !== 'state:findMany')
+const ALL_WORDS = WORDS.map((w) => w[0])
+
+test('T74 끝내기: 별을 켠 단어를 맞힘·틀림·건너뜀(자기 채점·보기)으로 끝내도 favorite·favoritedAt 이 그대로, 별 아닌 단어에 별이 생기지 않는다 — 내 단어·기본 단어 × 전부/일부 별, 카운터는 실제로 올랐다', async () => {
+  for (const base of [false, true]) {
+    for (const starred of [ALL_WORDS, ['w1', 'w2', 'w3']]) {
+      const db = new FakeDb()
+      if (base) asBase(db)
+      db.states.push(...starRows(starred))
+      const r = await mixedSet(db)
+      const cardIds = db.rowsOf(r.session.id).map((a) => a.wordId as string)
+      await finishVocabSessionDetailed(U, r.session.id, db.run())
+      const label = `${base ? '기본 단어' : '내 단어'} · 별 ${starred.length}개`
+      assert.deepEqual(db.states.filter((s) => s.favorite === true).map((s) => s.wordId as string).sort(), [...starred].sort(), `${label}: 별은 원래 별이었던 단어만`)
+      for (const id of starred) assert.equal((db.st(id).favoritedAt as Date | null)?.getTime(), FAV_AT.getTime(), `${label} ${id} favoritedAt`)
+      assert.equal(db.states.length, new Set([...starred, ...cardIds]).size, `${label}: 답한·건너뛴 카드의 상태 행만 늘어난다`)
+      const sum = (k: string) => db.states.reduce((n, s) => n + (s[k] as number), 0)
+      assert.deepEqual([sum('correctCount'), sum('wrongCount'), db.states.filter((s) => s.lastResult === 'SKIPPED').length], [2, 2, 1], `${label}: 맞힘 2·틀림 2·건너뜀 1`)
+    }
+  }
+})
+
+test('T74 세트 만들기와 답 0장 끝내기(ABANDONED)는 UserWordState 를 쓰지 않는다 — 별 행 그대로', async () => {
+  const db = new FakeDb()
+  db.states.push(...starRows(ALL_WORDS))
+  const before = JSON.stringify(db.states)
+  const r = await wordSet(db, {}, 5)
+  assert.deepEqual(stateWrites(db), [], '세트 만들기는 상태를 읽기만 한다')
+  await finishVocabSessionDetailed(U, r.session.id, db.run())
+  assert.deepEqual(stateWrites(db), [], '답 0장 끝내기도 상태 쓰기 0')
+  assert.equal(JSON.stringify(db.states), before)
+})

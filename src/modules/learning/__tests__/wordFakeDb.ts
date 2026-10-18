@@ -42,6 +42,8 @@ export type FakeState = {
   lastResult: string | null
   archived: boolean
   archivedAt: Date | null
+  favorite: boolean
+  favoritedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -68,7 +70,7 @@ export function base(id: string, seedKey: string, over: Partial<FakeWord> = {}):
 }
 
 export function state(userId: string, wordId: string, over: Partial<FakeState> = {}): FakeState {
-  return { id: `st${++seq}`, userId, wordId, correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null, archived: false, archivedAt: null, createdAt: T0, updatedAt: T0, ...over }
+  return { id: `st${++seq}`, userId, wordId, correctCount: 0, wrongCount: 0, lastSeenAt: null, lastResult: null, archived: false, archivedAt: null, favorite: false, favoritedAt: null, createdAt: T0, updatedAt: T0, ...over }
 }
 
 const JLPT_ORDER = ['N5', 'N4', 'N3', 'N2', 'N1']
@@ -264,7 +266,7 @@ export function createWordFakeDb(init: { words?: FakeWord[]; states?: FakeState[
         const s = uniqueState(a.where)
         return s ? pickSelect(s as unknown as Record<string, unknown>, a.select, () => undefined) : null
       },
-      createMany: async (a: { data: { userId: string; wordId: string }[]; skipDuplicates?: boolean }) => {
+      createMany: async (a: { data: (Partial<FakeState> & { userId: string; wordId: string })[]; skipDuplicates?: boolean }) => {
         log.push('state:createMany')
         let count = 0
         for (const d of a.data) {
@@ -273,7 +275,7 @@ export function createWordFakeDb(init: { words?: FakeWord[]; states?: FakeState[
             continue
           }
           if (!words.some((w) => w.id === d.wordId)) throw new Error('fk violation')
-          states.push(state(d.userId, d.wordId))
+          states.push(state(d.userId, d.wordId, d)) // 코드가 data 에 실은 칸을 그대로 반영한다(실제 Prisma 처럼) — 새 행에 별을 끼워 넣는 변이를 시험이 보게
           count += 1
         }
         return { count }

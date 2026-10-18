@@ -35,7 +35,7 @@ export type WordErrorCode = 'READ_ONLY' | 'BASE_DUPLICATE'
 export const WORD_ERROR_CODE = { readOnly: 'READ_ONLY', baseDuplicate: 'BASE_DUPLICATE' } as const satisfies Record<string, WordErrorCode>
 
 /**
- * 공통 `WordEntry`(§2-9). 상태 칸(`correctCount`…`archivedAt`)은 늘 **요청한 사용자의** 값(`UserWordState`, task-068).
+ * 공통 `WordEntry`(§2-9). 상태 칸(`correctCount`…`archivedAt`·`favorite`·`favoritedAt`)은 늘 **요청한 사용자의** 값(`UserWordState`, task-068·074).
  * `origin`·`readOnly` 는 서버가 늘 주지만 옛 응답에는 없을 수 있어 `?` — 둘 다 없으면 화면은 내 단어로 본다(§28-5 B).
  */
 export interface WordEntry {
@@ -60,6 +60,9 @@ export interface WordEntry {
   lastResult?: VocabAnswer | null
   archived: boolean
   archivedAt?: string | null
+  /** task-074 — 나의 즐겨찾기(보관과 독립). 서버는 늘 주지만 옛 응답에는 없을 수 있어 `?` — 없으면 `false` 로 본다. */
+  favorite?: boolean
+  favoritedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -158,6 +161,12 @@ export interface WordDeleteResponse {
 export interface WordArchiveResponse extends Partial<WordEntry> {
   archived: boolean
   archivedAt?: string | null
+}
+
+/** #182/#183(task-074) — 서버는 #45 처럼 `WordEntry` 전체(나의 상태 포함)를 준다. 화면은 `favorite`·`favoritedAt` 를 병합한다. */
+export interface WordFavoriteResponse extends Partial<WordEntry> {
+  favorite: boolean
+  favoritedAt?: string | null
 }
 
 // ── 오늘의 단어 ───────────────────────────────────────────────────────────────────────────────

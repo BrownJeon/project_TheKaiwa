@@ -9,6 +9,7 @@ import { readStore, writeStore } from '@/components/common/storage'
 import type { WordEntry } from '@/types/vocab'
 import { BaseWordBandView, showBaseBand } from '../BaseWordBand'
 import CategoryChips from '../CategoryChips'
+import type { FavView } from '../favorite'
 import { LEVEL_CATEGORY_NAMES } from '../labels'
 import { VOCAB_KEYS } from '../hooks'
 import { WordsHeadLine, WordsPageList } from '../WordsScreen'
@@ -35,7 +36,7 @@ const word = (i: number, o: Partial<WordEntry> = {}): WordEntry => ({
 })
 const words = (n: number) => Array.from({ length: n }, (_, i) => word(i))
 
-function list(o: { n: number; total: number; page?: number; status?: WordsStatus }) {
+function list(o: { n: number; total: number; page?: number; status?: WordsStatus; fav?: (w: WordEntry) => FavView }) {
   const page = o.page ?? 0
   const status = o.status ?? 'ready'
   const pages = Math.max(1, Math.ceil(o.total / 7))
@@ -48,6 +49,8 @@ function list(o: { n: number; total: number; page?: number; status?: WordsStatus
       status,
       paged: isWordsPaged(o.total, page),
       view: wordsPagerView({ page, pages, total: o.total, status }),
+      favView: o.fav ?? (() => ({ on: false, locked: false })),
+      onStar: noop,
       onOpen: noop,
       onPrev: noop,
       onNext: noop,

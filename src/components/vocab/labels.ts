@@ -12,10 +12,10 @@ import type {
   VocabMode,
   WordChunkFilter,
   WordChunkType,
-  WordListSource,
   WordOrigin,
   WordSource,
 } from '@/types/vocab'
+import type { WordSourceView } from './logic'
 
 export interface ErrorLike {
   status: number
@@ -209,17 +209,37 @@ export function listErrorText(e: ErrorLike): string {
   return e.status === 0 ? NETWORK_ERROR : '단어장을 불러오지 못했어요.'
 }
 
-/** 출처 분절(task-068 D10 A · §28-2 B) — 화면·자리표시가 같이 읽는다. 저장하지 않는다(D2). */
+/**
+ * 즐겨찾기 문구(task-074 §32-8 — 승인 데모 문구 표 그대로). 실패·오프라인·404 는 공통 문구(`favoriteErrorText`).
+ * 429·성공 토스트·행동형 이름·「[저장]을 눌러야」 줄은 만들지 않는다.
+ */
+export const FAVORITE_COPY = {
+  star: '즐겨찾기',
+  sourceLabel: '즐겨찾기',
+  lead: (n: number) => `즐겨찾기 ${fmtCount(n)}개`,
+  condition: '즐겨찾기',
+  noneTitle: '즐겨찾기한 단어가 없어요',
+  noneBody: '단어 줄의 별을 누르면 여기에 모여요.',
+  noneBtn: '모든 단어 보기',
+  matchTitle: '조건에 맞는 즐겨찾기가 없어요',
+  matchBody: (c: string) => `${c} 안에서 즐겨찾기만 찾았어요.`,
+  matchBtn: '즐겨찾기 조건 풀기',
+  removedToast: '즐겨찾기에서 뺐어요',
+} as const
+
+/** 출처 분절(task-068 D10 A · §28-2 B · task-074 D1 D 4번째 칸 「즐겨찾기」) — 화면·자리표시가 같이 읽는다. 저장하지 않는다(D2). */
 export const WORD_SOURCE_ARIA = '출처'
 export const WORD_SOURCE_OPTIONS = [
   { value: 'all', label: '전체' },
   { value: 'mine', label: '내 단어' },
   { value: 'base', label: '기본 단어' },
-] as const satisfies readonly { value: WordListSource; label: string }[]
+  { value: 'favorite', label: FAVORITE_COPY.sourceLabel },
+] as const satisfies readonly { value: WordSourceView; label: string }[]
 
-/** 목록 머리 줄 앞말(§28-2 F) — 출처별 · 보관함. 검색은 화면이 그린다(lang 표시). `n` 은 쉼표를 넣는다. */
-export function listLeadText(lead: 'all' | 'mine' | 'base' | 'archived', n: number): string {
+/** 목록 머리 줄 앞말(§28-2 F · §32-4) — 출처별 · 보관함 · 즐겨찾기. 검색은 화면이 그린다(lang 표시). `n` 은 쉼표를 넣는다. */
+export function listLeadText(lead: 'all' | 'mine' | 'base' | 'archived' | 'favorite', n: number): string {
   const c = fmtCount(n)
+  if (lead === 'favorite') return FAVORITE_COPY.lead(n)
   if (lead === 'archived') return `보관한 단어 ${c}개`
   if (lead === 'mine') return `내 단어 ${c}개`
   if (lead === 'base') return `기본 단어 ${c}개`
@@ -276,12 +296,35 @@ export const WORDS_EMPTY_COPY = {
 /** 단어 저장 토스트(§28-4 F — task-068 로 바뀜). */
 export const WORD_SAVED_TOAST = '단어장에 넣었어요 · 내 단어는 나만 봐요'
 
-/** 목록 머리의 걸린 조건(task-023) — "N5 기초 · 느낌 조각". 분류·조각 모두 없으면 null. */
-export function listConditionText(f: { category: string | null; chunk?: WordChunkFilter | null }): string | null {
+/**
+ * 목록 머리의 걸린 조건(task-023) — "N5 기초 · 느낌 조각". 분류·조각 모두 없으면 null.
+ * task-074 §32-4: 앞말이 보관함·검색인데 즐겨찾기 칸이면 맨 앞에 「즐겨찾기」(앞말이 이미 즐겨찾기면 다시 넣지 않는다). 순서 = 즐겨찾기 → 분류 → 조각.
+ */
+export function listConditionText(f: {
+  category: string | null
+  chunk?: WordChunkFilter | null
+  source?: WordSourceView
+  archived?: boolean
+  q?: string
+}): string | null {
   const parts: string[] = []
+  if (f.source === 'favorite' && (f.archived || !!f.q)) parts.push(FAVORITE_COPY.condition)
   if (f.category !== null) parts.push(f.category)
   if (f.chunk) parts.push(chunkFilterName(f.chunk))
   return parts.length ? parts.join(' · ') : null
+}
+
+/**
+ * 즐겨찾기 칸 빈 결과 본문의 조건 조각(§32-4 `noFavoriteMatch`) — 「‘q’ 검색」 · 「보관함」 · 분류 · 조각 이름 순. `ja` 조각은 화면이 `lang="ja"` 로 감싼다.
+ * 이어 붙인 글 = `FAVORITE_COPY.matchBody(조각들을 ' · ' 로 이은 글)`.
+ */
+export function favoriteMatchParts(f: { q: string; archived: boolean; category: string | null; chunk: WordChunkFilter | null }): { pre: string; ja?: string; post: string }[] {
+  const parts: { pre: string; ja?: string; post: string }[] = []
+  if (f.q) parts.push({ pre: '‘', ja: f.q, post: '’ 검색' })
+  if (f.archived) parts.push({ pre: '보관함', post: '' })
+  if (f.category !== null) parts.push({ pre: f.category, post: '' })
+  if (f.chunk) parts.push({ pre: chunkFilterName(f.chunk), post: '' })
+  return parts
 }
 
 /** 조각을 고른 채 결과가 0일 때의 제목·본문(task-023 데모 `list-empty`·`list-search-empty`). 검색 제목은 화면이 그린다(lang 표시). */

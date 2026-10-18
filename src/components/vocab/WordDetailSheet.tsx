@@ -20,6 +20,7 @@ import { useAnnotation, useWordLayers } from '@/components/common/japanese/annot
 import { HangulLine, JaText } from '@/components/common/japanese/JapaneseText'
 import { Badge, Btn, BtnRow, LoadingBlock } from '@/components/common/ui'
 import type { WordArchiveResponse, WordEntry, WordStats } from '@/types/vocab'
+import FavoriteStar from './FavoriteStar'
 import { formatMonthDay } from './format'
 import {
   actionErrorText,
@@ -53,10 +54,13 @@ import { WordDuplicateNote } from './WordAddSheet'
 import WordForm from './WordForm'
 import { BaseBadge, MineBadge } from './WordRow'
 import { WordSoundButton, WordSoundLine } from './WordSoundButton'
+import { stampedSend, type WordFavorites } from './useWordFavorites'
 import { useWordSound } from './useWordSound'
 import { soundText } from './wordSound'
 
 type Mode = 'view' | 'edit' | 'confirmDelete'
+
+const NO_STAMP = () => 0
 
 const ID = 'wedit'
 
@@ -152,10 +156,13 @@ export default function WordDetailSheet({
   onOpenWord,
   onNotFound,
   onToast,
+  fav,
 }: {
   wordId: string
   preview?: WordEntry
   categories: readonly string[]
+  /** 즐겨찾기 기록(task-074 §32-5) — 단어장 목록과 같은 기록을 본다. 별 값은 반드시 `fav.view` 로 그린다. 안 넘기면(채택 교정 모음) 머리 별 없음 — 지금 그대로. */
+  fav?: WordFavorites
   onClose: () => void
   onChanged: (w: WordEntry) => void
   onRemoved: (id: string) => void
@@ -166,6 +173,9 @@ export default function WordDetailSheet({
 }) {
   const [mode, setMode] = useState<Mode>('view')
   const [word, setWord] = useState<WordEntry | null>(preview ?? null)
+  // 지금 `word` 값을 읽기 시작한 시각(목록 미리보기 = 0). GET·PATCH·보관 응답이 별을 옛 값으로 되돌리지 않게 `fav.view` 가 비교한다.
+  const [readAt, setReadAt] = useState(0)
+  const favStamp = fav?.stamp ?? NO_STAMP
   const [stats, setStats] = useState<WordStats | null>(null)
   const [corrections, setCorrections] = useState<{ id: string; chatId: string }[]>([])
   const [detailState, setDetailState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -186,11 +196,15 @@ export default function WordDetailSheet({
 
   useEffect(() => {
     let cancelled = false
-    apiGet<unknown>(`/api/v1/words/${encodeURIComponent(wordId)}`)
+    const { readAt: t, res } = stampedSend(favStamp, () => apiGet<unknown>(`/api/v1/words/${encodeURIComponent(wordId)}`))
+    res
       .then((raw) => {
         if (cancelled) return
         const d = normalizeWordDetail(raw)
-        if (d.word && typeof d.word.id === 'string') setWord(d.word)
+        if (d.word && typeof d.word.id === 'string') {
+          setWord(d.word)
+          setReadAt(t)
+        }
         setStats(d.stats)
         setCorrections(d.corrections)
         setDetailState('ready')
@@ -203,7 +217,7 @@ export default function WordDetailSheet({
     return () => {
       cancelled = true
     }
-  }, [wordId])
+  }, [wordId, favStamp])
 
   if (!word) {
     return (
@@ -261,9 +275,11 @@ export default function WordDetailSheet({
     setBusy(true)
     setFormError(null)
     try {
-      const updated = await apiPatch<WordEntry>(`/api/v1/words/${encodeURIComponent(w.id)}`, body)
+      const { readAt: t, res } = stampedSend(favStamp, () => apiPatch<WordEntry>(`/api/v1/words/${encodeURIComponent(w.id)}`, body))
+      const updated = await res
       const next = { ...w, ...updated }
       setWord(next)
+      setReadAt(t)
       onChanged(next)
       onToast('고쳤어요')
       setMode('view')
@@ -292,9 +308,11 @@ export default function WordDetailSheet({
     setBusy(true)
     const toArchive = !w.archived
     try {
-      const r = await apiPost<WordArchiveResponse>(`/api/v1/words/${encodeURIComponent(w.id)}/${toArchive ? 'archive' : 'unarchive'}`)
+      const { readAt: t, res } = stampedSend(favStamp, () => apiPost<WordArchiveResponse>(`/api/v1/words/${encodeURIComponent(w.id)}/${toArchive ? 'archive' : 'unarchive'}`))
+      const r = await res
       const next: WordEntry = { ...w, ...r, archived: typeof r?.archived === 'boolean' ? r.archived : toArchive }
       setWord(next)
+      setReadAt(t)
       onArchivedChange(next)
       onToast(archiveToastText(readOnly, next.archived))
     } catch (e) {
@@ -492,8 +510,16 @@ export default function WordDetailSheet({
     )
   }
 
+  // 머리 별(D4 A) — 보기·수정 두 모드에서 ✕ 왼쪽 같은 자리, 삭제 확인에서는 없다. 시트 `busy`(저장·보관·삭제)와 별개라 저장 중에도 눌린다.
+  const fv = fav ? fav.view(w.id, w.favorite, readAt) : null
   return (
-    <Sheet open title="단어" onClose={onClose} dismissible={!busy}>
+    <Sheet
+      open
+      title="단어"
+      onClose={onClose}
+      dismissible={!busy}
+      headerAction={fav && fv && mode !== 'confirmDelete' ? <FavoriteStar variant="sheet" on={fv.on} locked={fv.locked} onPress={() => fav.press(w.id, fv.on)} /> : undefined}
+    >
       {content}
     </Sheet>
   )

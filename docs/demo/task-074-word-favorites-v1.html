@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-074-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="단어장 즐겨찾기 — 목록 행 별(열기 버튼과 형제)·조회 필터·즐겨찾기만 보기·상세/수정 시트 별·처리 중/실패/오프라인/429·접근 이름. delta 데모 v1, 결정 D1~D11, 합성 샘플, 서버 호출 없음">
+<title>단어장 즐겨찾기</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 결정 표(D1~D11) → 왼쪽 상태 목록 · 가운데 휴대폰(현재 vs 제안) · 오른쪽 설명·실측 → 쪽 수 변화(D3) → 문구 표 → 낭독·초점 → 제안·한계·질문 → 개발 메모 */
+/* 색·반경 값은 src/app/globals.css 를 그대로 고정(링크하지 않음, task-072·073 데모와 같은 값). 새 색 없음 */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) {
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  line-break: strict; word-break: normal;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) — task-073 데모와 같은 틀 ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dlay { display: grid; grid-template-columns: 230px minmax(0, 1fr) 330px; gap: 18px; padding: 4px 16px 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.nvb { display: block; width: 100%; min-height: 36px; padding: 7px 8px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 12.5px; color: var(--ink2); }
+.nvb:hover { background: var(--surface2); color: var(--ink); }
+.nvb[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; min-height: 34px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 0 4px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; word-break: keep-all; overflow-wrap: anywhere; }
+.dmeas { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 3px; word-break: keep-all; }
+.dmeas b { color: var(--ink); }
+.ok { color: var(--good); font-weight: 700; }
+.ng { color: var(--bad); font-weight: 700; }
+.dpanel { margin: 12px 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 100ch; word-break: keep-all; }
+.dqs { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+fieldset.dq { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+fieldset.dq legend { padding: 0 4px; font-size: 14px; font-weight: 700; }
+fieldset.dq legend .dn2 { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-right: 6px; color: var(--ink2); }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; word-break: keep-all; }
+.rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.dsg { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--warn-soft); color: var(--ink); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.opt .sel { font-size: 11.5px; color: var(--ink2); }
+.opt.on .sel { color: var(--ink); font-weight: 600; }
+.drow { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink2); }
+.dbtn { height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dtw { overflow-x: auto; margin-top: 10px; }
+.dtbl { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 7px 6px; border-top: 1px solid var(--line); word-break: keep-all; overflow-wrap: anywhere; }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtbl td.k { white-space: nowrap; font-weight: 700; }
+.dtbl .q { color: var(--ink); font-weight: 600; }
+.dlist { margin-top: 10px; list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; word-break: keep-all; overflow-wrap: anywhere; }
+.dlist b { color: var(--ink); }
+details.dev { margin: 0 16px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 16px; }
+details.dev > summary { min-height: 48px; display: flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer; }
+details.dev[open] { padding-bottom: 16px; }
+@media (max-width: 1320px) { .dlay { grid-template-columns: 210px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 16px 12px; }
+  .dnav { position: static; max-height: none; }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+body.mark .dnew { outline: 2px dashed var(--accent); outline-offset: 1px; }
+
+/* ── 휴대폰 프레임 — 글자 크기는 --fz 배(휴대폰 글꼴 크기 130% 모형: 글자만 커지고 버튼 높이는 그대로) ── */
+.phone { --fz: 1; position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.phone.big { --fz: 1.3; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.app { position: absolute; inset: 0; overflow: hidden; background: var(--ground); }
+.pg { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.ab { height: 56px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.ab b { font-size: calc(20px * var(--fz)); flex: 1; min-width: 0; }
+.ab-add { height: 44px; flex: none; border: 0; border-radius: 12px; background: var(--surface2); padding: 0 12px; font-size: calc(14px * var(--fz)); font-weight: 600; color: var(--ink); }
+.pgs { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 16px 32px; scrollbar-width: none; }
+.pgs::-webkit-scrollbar { display: none; }
+.tabs { height: 60px; flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-top: 1px solid var(--line); font-size: calc(11px * var(--fz)); color: var(--ink2); }
+.tabs span { display: grid; place-items: center; }
+.tabs span.cur { color: var(--accent); font-weight: 700; }
+.ptoast { position: absolute; left: 16px; right: 16px; bottom: 84px; z-index: 30; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 12px 14px; font-size: calc(13px * var(--fz)); word-break: keep-all; box-shadow: 0 6px 16px rgba(0,0,0,.2); }
+/* 단어장 위쪽(DrawerSwitch·검색·출처·조각·정렬) — 현재 클래스 값 */
+.dsw { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; margin-bottom: 10px; }
+.dsw span { display: grid; place-items: center; height: 36px; flex: 1; min-width: 0; border-radius: 9px; font-size: calc(13.5px * var(--fz)); color: var(--ink2); font-weight: 500; }
+.dsw span.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.srch { position: relative; }
+.srch input { display: block; height: 44px; width: 100%; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 44px 0 40px; font-size: calc(16px * var(--fz)); color: var(--ink); }
+.srch input::placeholder { color: var(--ink3); }
+.srch svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink2); }
+.frow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mt8 { margin-top: 8px; } .mt6 { margin-top: 6px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; }
+.seg { display: flex; gap: 3px; border-radius: 12px; background: var(--surface2); padding: 3px; min-width: 0; flex: 1 1 auto; }
+.seg button { position: relative; height: 32px; min-width: 0; flex: 1 1 0; border: 0; border-radius: 9px; background: none; padding: 0 4px; font-size: calc(12px * var(--fz)); font-weight: 500; color: var(--ink2); }
+.seg button::before, .ftg::before, .chip::before, .dt::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.seg button > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftg { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 32px; flex: none; border: 0; border-radius: 9px; padding: 0 12px; background: var(--surface2); color: var(--ink2); font-size: calc(13px * var(--fz)); font-weight: 500; white-space: nowrap; }
+.ftg[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); box-shadow: 0 0 0 1px var(--accent); }
+.ftg.ico { width: 44px; padding: 0; }
+.ftg svg { flex: none; }
+.ckrow { display: flex; align-items: center; gap: 8px; margin-right: -16px; min-width: 0; }
+.cklb { width: 30px; flex: none; font-size: calc(12px * var(--fz)); font-weight: 600; color: var(--ink2); }
+.hsc { display: flex; gap: 8px; min-width: 0; flex: 1; overflow-x: auto; padding: 4px 16px 4px 0; scrollbar-width: none; }
+.hsc::-webkit-scrollbar { display: none; }
+.chip { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 36px; min-width: 44px; flex: none; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(13px * var(--fz)); color: var(--ink); }
+.chip[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.chip.fav[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 600; }
+.anote { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.hdr { margin: 8px 0 6px; display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.hd { min-width: 0; flex: 1; font-size: calc(12px * var(--fz)); color: var(--ink2); overflow-wrap: anywhere; }
+.hd b { color: var(--ink); font-weight: 600; }
+.dtg { display: flex; flex: none; gap: 6px; }
+.dt { position: relative; height: 32px; flex: none; white-space: nowrap; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(13px * var(--fz)); color: var(--ink); }
+/* 목록 — WordRow(현재: 행 = 한 버튼 / 제안: 열기 버튼 + 별 버튼 형제) */
+.wl { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.wl > li + li { border-top: 1px solid var(--line); }
+.wr { display: flex; align-items: stretch; min-width: 0; }
+.wo { flex: 1 1 auto; min-width: 0; min-height: 64px; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 10px 14px; border: 0; background: none; text-align: left; color: var(--ink); }
+.wr.sr-r .wo { padding-right: 4px; }
+.wr.sr-l .wo { padding-left: 2px; }
+.l1, .l3 { display: flex; width: 100%; min-width: 0; align-items: baseline; gap: 8px; }
+.sf { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(18px * var(--fz)); font-weight: 600; line-height: 1.95; }
+.sf rt, .dsf rt { font-size: .5em; font-weight: 400; color: var(--ink2); }
+.flx { flex: 1; }
+.bdg { display: inline-flex; height: 22px; flex: none; align-items: center; border-radius: 6px; padding: 0 8px; font-size: calc(11.5px * var(--fz)); font-weight: 600; white-space: nowrap; }
+.bdg.n { background: var(--surface2); color: var(--ink2); }
+.bdg.mine { background: var(--accent-soft); color: var(--ink); }
+.bdg.out { background: transparent; color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); }
+.bdg.bad { background: var(--bad-soft); color: var(--bad); }
+.hgl { display: block; font-size: calc(12.5px * var(--fz)); color: var(--ink2); }
+.mn { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(14px * var(--fz)); color: var(--ink2); }
+.cnt { flex: none; font-size: calc(12px * var(--fz)); color: var(--ink2); font-variant-numeric: tabular-nums; }
+.wst { position: relative; flex: none; width: 48px; display: grid; place-items: center; border: 0; background: none; padding: 0; color: var(--ink2); }
+.wst:focus-visible { outline-offset: -3px; }
+.phone .on-A { color: var(--accent); } .phone .on-B { color: var(--warn); } .phone .on-C { color: var(--ink); }
+.pendB { opacity: .4; }
+.wl li.gone .wo { opacity: .55; }
+.pgn { margin-top: 12px; display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.pgb { display: inline-flex; height: 44px; min-width: 92px; flex: none; align-items: center; justify-content: center; gap: 4px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(14px * var(--fz)); font-weight: 600; color: var(--ink); }
+.pgb[aria-disabled="true"] { opacity: .4; }
+.pgc { min-height: 44px; min-width: 0; flex: 1; border: 0; background: none; border-radius: 10px; padding: 0 4px; text-align: center; color: var(--ink); }
+.pgc b { display: block; font-size: calc(15px * var(--fz)); text-decoration: underline; text-decoration-color: var(--ink3); text-underline-offset: 4px; font-variant-numeric: tabular-nums; }
+.pgc small { display: block; font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 16px; text-align: center; }
+.card .ct { font-size: calc(15px * var(--fz)); font-weight: 600; overflow-wrap: anywhere; }
+.card .cb { margin-top: 4px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+/* 공용 Sheet (src/components/common/Sheet.tsx 값) */
+.scrim { position: absolute; inset: 0; z-index: 20; background: color-mix(in srgb, var(--ink) 40%, transparent); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 85%; display: flex; flex-direction: column; min-width: 0; border-radius: 16px 16px 0 0; background: var(--surface); box-shadow: 0 -8px 24px rgba(0,0,0,.18); }
+.sh-h { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 0 4px 0 16px; }
+.sh-h h2 { min-width: 0; flex: 1; font-size: calc(17px * var(--fz)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-b { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 16px; scrollbar-width: none; }
+.sh-b::-webkit-scrollbar { display: none; }
+.icb44 { position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink2); padding: 0; }
+.dh { display: flex; align-items: flex-start; gap: 12px; }
+.dsf { font-size: calc(28px * var(--fz)); font-weight: 600; line-height: 1.8; overflow-wrap: anywhere; }
+.snd { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--ink); padding: 0; }
+.dmn { margin-top: 8px; font-size: calc(17px * var(--fz)); font-weight: 500; word-break: keep-all; overflow-wrap: anywhere; }
+.dbg { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.exc { margin-top: 12px; border-radius: 14px; background: var(--surface2); padding: 14px; display: flex; gap: 10px; align-items: flex-start; }
+.exc .ja { flex: 1; min-width: 0; font-size: calc(16px * var(--fz)); line-height: 1.7; overflow-wrap: anywhere; }
+.exc .ko { margin-top: 4px; font-size: calc(14px * var(--fz)); color: var(--ink2); }
+.h3 { margin-top: 16px; font-size: calc(13px * var(--fz)); font-weight: 600; color: var(--ink2); }
+.dl { margin-top: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; font-size: calc(14px * var(--fz)); font-variant-numeric: tabular-nums; }
+.dsrc { margin-top: 4px; font-size: calc(14px * var(--fz)); word-break: keep-all; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 48px; padding: 0 16px; border-radius: 12px; border: 0; background: none; font-size: calc(15px * var(--fz)); font-weight: 600; white-space: nowrap; min-width: 0; color: var(--ink); }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { border: 1px solid var(--line); background: var(--surface); }
+.btn.full { width: 100%; }
+.btn[aria-disabled="true"] { opacity: .4; }
+.btn > span { overflow: hidden; text-overflow: ellipsis; }
+.brow { margin-top: 12px; display: flex; gap: 8px; } .brow > * { flex: 1; min-width: 0; }
+.delw { margin-top: 4px; display: flex; justify-content: center; }
+.delb { min-height: 44px; border: 0; background: none; padding: 0 16px; color: var(--bad); font-size: calc(14px * var(--fz)); font-weight: 500; }
+/* 수정 폼(WordForm 값) */
+.col12 { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lbl { font-size: calc(12.5px * var(--fz)); font-weight: 500; color: var(--ink2); }
+.inp, .sel2 { display: block; height: 44px; width: 100%; min-width: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(16px * var(--fz)); color: var(--ink); }
+.ckr { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+.ck { position: relative; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(13px * var(--fz)); color: var(--ink); }
+.ck::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+.ck.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.more { display: inline-flex; min-height: 44px; align-items: center; gap: 4px; align-self: flex-start; border: 0; background: none; padding: 0; font-size: calc(14px * var(--fz)); font-weight: 500; color: var(--ink); }
+.cap { font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.ffr { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; border-radius: 12px; background: var(--surface2); padding: 6px 6px 6px 12px; }
+.ffr .t { min-width: 0; font-size: calc(13px * var(--fz)); color: var(--ink); word-break: keep-all; }
+.ffr .t small { display: block; font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.ffr .ftg { background: var(--surface); }
+.ffr .ftg[aria-pressed="true"] { background: var(--accent-soft); }
+.tn { position: absolute; left: 16px; right: 16px; bottom: 68px; z-index: 8; border-radius: 10px; background: var(--ink); color: var(--surface); padding: 8px 10px; font-size: 12px; word-break: keep-all; opacity: .92; pointer-events: none; }
+</style>
+</head>
+<body class="mark">
+<header class="dtop">
+  <h1>단어장 즐겨찾기 <span class="lvl">delta</span><small>task-074 v1 · 단어장 목록·필터·상세·수정 · 합성 샘플 · 서버 호출 없음 · <b>사용자 승인 전</b></small></h1>
+  <div class="dctls" role="group" aria-label="데모 조작">
+    <div class="dctl"><span>보기</span><span class="dseg" data-ctl="view"><button type="button" data-v="cmp">현재 vs 제안</button><button type="button" data-v="one">제안만</button><button type="button" data-v="three">세 폭</button></span></div>
+    <div class="dctl"><span>폭</span><span class="dseg" data-ctl="w"><button type="button" data-v="360">360</button><button type="button" data-v="390">390</button><button type="button" data-v="412">412</button></span></div>
+    <div class="dctl"><span>높이</span><span class="dseg" data-ctl="h"><button type="button" data-v="780">780</button><button type="button" data-v="892">892</button></span></div>
+    <div class="dctl"><span>테마</span><span class="dseg" data-ctl="theme"><button type="button" data-v="system">기기</button><button type="button" data-v="light">라이트</button><button type="button" data-v="dark">다크</button></span></div>
+    <div class="dctl"><span>글꼴</span><span class="dseg" data-ctl="big"><button type="button" data-v="0">100%</button><button type="button" data-v="1">130%</button></span></div>
+    <div class="dctl"><span>응답 모형</span><span class="dseg" data-ctl="net"><button type="button" data-v="ok">성공</button><button type="button" data-v="slow">느림 2.5초</button><button type="button" data-v="fail">실패</button><button type="button" data-v="offline">오프라인</button><button type="button" data-v="429">429</button></span></div>
+    <div class="dctl"><span>바뀐 곳 점선</span><span class="dseg" data-ctl="mark"><button type="button" data-v="on">켬</button><button type="button" data-v="off">끔</button></span></div>
+  </div>
+</header>
+
+<section class="dpanel" id="decide" aria-labelledby="decide-h">
+  <h2 id="decide-h">결정 필요 — D1~D11 (★ = designer 권고, 기본으로 그림)</h2>
+  <p class="dsub">사용자 요청: 「단어장에 즐겨찾기 기능을 추가해줘. 단어목록에서 바로 등록할수있도록 해주고 조회필터에 즐겨찾기를 추가해줘. 또한 즐겨찾기 추가는 상세화면과 수정화면에서도 등록할 수 있도록 해줘」. 바뀌는 곳은 네 군데 — <b>목록 행의 별</b>(지금 행은 통째로 버튼 하나라 별을 넣으려면 「열기 버튼 + 별 버튼」 형제로 쪼갠다) · <b>조회 필터의 즐겨찾기</b> · <b>상세 시트의 별</b> · <b>수정 화면의 별</b>. 저장은 사용자별 단어 상태(보관과 같은 곳)에 칸 하나를 더하는 방식이라 <b>DB 칸 추가 승인이 따로 필요하다</b>(Leader 가 별도로 묻는다). 아래 라디오를 바꾸면 휴대폰 화면이 바뀐다. D11 은 Leader 사전안(L7)과 designer 의견이 다른 곳이다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="결정 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">#</th><th scope="col">결정</th><th scope="col">★ 권고</th><th scope="col">대안</th><th scope="col">근거</th></tr></thead>
+      <tbody>
+        <tr><td class="k">D1</td><td>조회 필터 — 자리·모양</td><td><b>A</b> 출처 줄(전체·내 단어·기본 단어) 오른쪽 끝에 <b>별 모양 토글</b>(보이는 44×32, 누르는 44×44). 켜면 채운 별 + 테두리, 머리 줄에 「· 즐겨찾기」</td><td>B 정렬 줄 [보관함] 옆 「★ 즐겨찾기」 글자 토글 · C 조각 칩 줄 맨 앞 「★ 즐겨찾기」 칩 · D 출처 분절 4번째 칸 「즐겨찾기」</td><td>자체 실측(22상태 × 3폭 × 글꼴 100·130%): A·C·D 는 잘린 글자 0. <b>B 는 360px 에서 정렬 글자 세 칸이 모두 잘리고, 글꼴 130% 에선 세 폭 모두 잘리며 360px 정렬 칸 폭이 41px</b>(44 미만). C 는 즐겨찾기(켜고 끄기)를 조각 고르기(하나만 고르기) 줄에 섞고, 단어가 0개라 조각 줄이 숨는 계정에선 필터도 사라진다. D 는 즐겨찾기를 「출처」의 하나로 만들어 「내 단어 + 즐겨찾기」를 함께 못 고른다(L3 AND 와 어긋남). A 는 행의 별과 같은 모양이라 뜻이 이어지고, 출처 줄은 「어떤 단어를 볼까」라는 같은 질문이다.</td></tr>
+        <tr><td class="k">D2</td><td>보관함과의 관계</td><td><b>A</b> 서로 독립(보관해도 별은 그대로) · 즐겨찾기 필터는 지금 보기 안에서 AND — 보관함 + 즐겨찾기 = 보관한 즐겨찾기만 (Leader L4)</td><td>B 보관하면 별을 자동으로 끔 · C 보관함과 즐겨찾기 필터를 함께 못 켬(하나를 켜면 다른 하나가 꺼짐)</td><td>보관은 「오늘의 단어에서 빼기」, 즐겨찾기는 「골라 보기」라 목적이 다르다. 보관을 풀었을 때 별이 살아 있어야 자연스럽다. B 는 사용자가 모르게 표시를 지운다.</td></tr>
+        <tr><td class="k">D3</td><td>즐겨찾기만 보기에서 별을 끄면</td><td><b>A</b> 응답 뒤 <b>같은 쪽을 다시 읽어 그 행이 빠진다</b>(다음 단어가 올라와 7줄을 채움) · 머리 줄·쪽 수가 바로 맞음 · 토스트 「즐겨찾기에서 뺐어요」</td><td>B 행을 제자리에 두고(별만 꺼짐) 다음에 목록을 읽을 때 빠짐 — 숫자·쪽 수는 그때까지 예전 값</td><td>지금 단어장 원칙(추가·수정·보관·삭제 뒤 같은 쪽 다시 읽기 — 로컬로 행을 빼면 쪽 행 수·개수가 어긋남)과 같다. B 는 <b>쪽 번호 방식이라 [다음]을 누르면 뺀 개수만큼 단어를 건너뛴다</b>(아래 「쪽 수 변화」 표). 즐겨찾기 필터가 꺼진 보기에서는 어느 안이든 다시 읽지 않는다(행이 빠질 일이 없음).</td></tr>
+        <tr><td class="k">D4</td><td>수정 화면의 별 — 저장 방식·자리</td><td><b>A</b> 시트 <b>머리(제목 줄) ✕ 왼쪽</b> 별, 보기·수정에서 같은 자리 · 누르면 <b>[저장]과 무관하게 바로 반영</b> (Leader L5)</td><td>B 수정 폼 맨 위 「즐겨찾기」 줄 — [저장] 때 함께 반영, [취소] 하면 되돌아감</td><td>기본 단어는 수정 화면이 없어 상세에서 바로 반영할 수밖에 없다 — A 면 기본·내 단어·보기·수정이 모두 한 방식. 별이 폼 밖(머리)에 있어 「폼과 따로 저장」이 모양으로도 보인다. B 는 같은 별이 상세에선 즉시, 수정에선 저장 때라 두 방식이 섞인다.</td></tr>
+        <tr><td class="k">D5</td><td>갱신 방식</td><td><b>A</b> 누르는 즉시 별 모양을 바꾸고(낙관적) 응답까지 <b>그 단어의 별만 잠금</b>(연타는 무시, 요청 1건) · 실패하면 원래대로 되돌리고 토스트</td><td>B 서버 응답 뒤에 바꿈 — 응답까지 그 별을 흐리게(처리 중)</td><td>별은 가볍고 되돌릴 수 있는 표시라 즉시 보이는 게 맞다. 화면 읽기는 눌린 상태 변화를 그 자리에서 읽는다. 보관·삭제·수정은 지금처럼 응답 뒤(무거운 변경). 잠금이라 「마지막 값 우선·요청 취소」 처리가 필요 없다.</td></tr>
+        <tr><td class="k">D6</td><td>분류 칩 숫자</td><td><b>A</b> 그대로(보관 기준만) — 즐겨찾기를 켜도 칩 숫자는 바뀌지 않음 (Leader L3)</td><td>B 즐겨찾기를 켜면 칩 숫자도 즐겨찾기 기준(분류 목록 API 에 조건 추가)</td><td>지금 계정은 내가 정한 분류가 없어 칩 줄 자체가 안 보인다(§28-2 C). 쓰임이 드물어 서버 변경을 미룬다. 머리 줄 숫자는 즐겨찾기 기준이라 실제 개수는 거기서 보인다.</td></tr>
+        <tr><td class="k">D7</td><td>단어 추가 시트의 별</td><td><b>A</b> 이번엔 없음 (사용자는 「상세·수정」만 말함, Leader L6)</td><td>B 추가 폼 맨 위 「즐겨찾기에 넣기」 줄 — 저장 직후 별도 요청</td><td>추가 직후 목록 맨 위(최근 추가)에 보이므로 거기서 별을 누르면 된다. B 는 저장 성공 뒤 즐겨찾기만 실패하는 반쪽 상태를 새로 만든다.</td></tr>
+        <tr><td class="k">D8</td><td>별 모양·색</td><td><b>A</b> 꺼짐 = 외곽선 별 <code>ink2</code>, 켜짐 = <b>채운 별 <code>accent</code></b> — 모양(채움/외곽선)과 색 두 가지로 구분</td><td>B 켜짐 = 채운 금색(<code>warn</code>) · C 켜짐 = 채운 <code>ink</code>(무채색)</td><td>비텍스트 대비 3:1 기준 — 켜진 별 accent 는 면 바탕 라이트 4.80·다크 5.22, 필터 켬 바탕(accent-soft) 위 4.08·4.72, 꺼진 별 ink2 5.44 이상(계산). <b>금색 warn 은 라이트 흰 바탕 2.95:1 로 미달</b> → 쓰려면 새 색(Leader 합의). C 는 켜짐이 눈에 덜 띈다.</td></tr>
+        <tr><td class="k">D9</td><td>행에서 별 자리</td><td><b>A</b> 행 오른쪽 끝 칸(폭 48, 행 높이 전체가 누르는 곳) — 뱃지·맞힘 숫자 오른쪽</td><td>B 행 왼쪽 앞 칸</td><td>일본어 표현이 늘 같은 왼쪽 선에서 시작해 훑어보기 쉽다(지금과 같음). 오른손 엄지에 가깝다. B 는 표현 시작선이 48px 밀린다.</td></tr>
+        <tr><td class="k">D10</td><td>성공 알림</td><td><b>A</b> 별 모양 변화로 충분 — 토스트는 <b>즐겨찾기만 보기에서 행이 빠질 때만</b> 「즐겨찾기에서 뺐어요」 · 실패는 늘 토스트</td><td>B 누를 때마다 「즐겨찾기에 넣었어요」/「즐겨찾기에서 뺐어요」</td><td>목록에서 여러 개를 연달아 누를 때 토스트가 계속 쌓인다. 화면 읽기는 눌린 상태로 이미 알린다. 행이 사라지는 경우만 이유를 알려 준다.</td></tr>
+        <tr><td class="k">D11</td><td>별의 접근 이름 <span class="dsg">L7 과 다름</span></td><td><b>A</b> 이름은 늘 「즐겨찾기」(행은 「<span lang="ja">食べる</span> 즐겨찾기」) + <code>aria-pressed</code> — 상태는 「선택됨/선택 안 됨」으로 읽힘</td><td>B 행동형 이름 「즐겨찾기에 넣기」/「즐겨찾기에서 빼기」, <code>aria-pressed</code> 없음(지금 [보관하기]/[보관 풀기] 단추와 같은 방식)</td><td>L7 은 바뀌는 이름 + <code>aria-pressed</code> 를 <b>함께</b> 쓰자고 했는데, 그러면 「즐겨찾기에서 빼기, 선택됨」처럼 상태를 두 번·반대로 읽는다(토글은 이름을 바꾸지 않는 것이 표준 — WAI-ARIA 작성 지침). A·B 중 하나만. 필터의 [보관함] 토글이 이미 A 방식이다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="dqs" id="dqs"></div>
+  <div class="drow"><button type="button" class="dbtn" id="d-reset">모두 ★ 로</button><span id="d-sum" aria-live="polite"></span></div>
+</section>
+
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="상태 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside">
+    <section class="dcard" aria-labelledby="exp-h"><h2 id="exp-h">이 상태</h2><div id="exp"></div></section>
+    <section class="dcard" aria-labelledby="meas-h"><h2 id="meas-h">실측(이 화면)</h2><div class="dmeas" id="meas"></div></section>
+    <section class="dcard" aria-labelledby="try-h"><h2 id="try-h">직접 해 보기</h2>
+      <ul class="dn"><li>오른쪽(제안) 휴대폰 안은 눌러진다. 행의 별을 누르면 별만 바뀌고 상세는 안 열린다. 행의 글자 쪽을 누르면 상세 시트가 열린다.</li><li>위 「응답 모형」을 <b>느림 2.5초</b>로 두고 별을 여러 번 누르면 첫 번만 받고 나머지는 무시한다(실측 칸의 「무시한 탭」). <b>실패·오프라인·429</b>로 두면 별이 되돌아가고 토스트가 뜬다.</li><li>출처 줄 끝의 별(D1 A)을 켜면 즐겨찾기만 보인다(8개 · 2쪽). 거기서 별을 끄면 D3 에 따라 행이 빠지거나 남는다.</li><li>상세에서 [수정] → 머리의 별을 누른 뒤 [취소] — D4 A 는 별이 그대로, B 는 되돌아간다.</li></ul>
+    </section>
+  </aside>
+</div>
+
+<section class="dpanel" id="paging" aria-labelledby="pg-h">
+  <h2 id="pg-h">쪽 수 · 합계 변화 — 즐겨찾기만 보기에서 별을 끌 때 (D3)</h2>
+  <p class="dsub">목록은 한 쪽 7개, 서버가 쪽 번호로 잘라 준다(task-068). 예: 즐겨찾기 15개(3쪽) 중 1쪽에서 두 단어의 별을 끈다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="쪽 수 변화 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">순간</th><th scope="col">A ★ 즉시 같은 쪽 다시 읽기</th><th scope="col">B 제자리 유지</th></tr></thead>
+      <tbody>
+        <tr><td>별을 끈 직후</td><td>응답 뒤 1쪽을 다시 읽음 → 두 행이 빠지고 예전 8·9번째가 올라와 7줄. 머리 줄 「단어 13개 · 즐겨찾기 · 1쪽」, 쪽 줄 「1 / 2 · 모두 13개」</td><td>두 행이 별만 꺼진 채 남음. 머리 줄 「단어 15개」, 쪽 줄 「1 / 3 · 모두 15개」 그대로(실제는 13개)</td></tr>
+        <tr><td>[다음]</td><td>2쪽 = 남은 13개 중 8~13번째 — 빠짐 없음</td><td class="q">2쪽 = 서버 기준 8~14번째 = <b>예전 순서 10~16번째</b> → 예전 8·9번째 두 단어를 못 보고 지나감</td></tr>
+        <tr><td>쪽이 비게 되면</td><td>마지막 쪽의 유일한 행을 빼면 앞 쪽으로 자동 이동(지금 있는 「쪽 수보다 크면 마지막 쪽으로 다시 읽기」 규칙)</td><td>그 쪽에 머묾 — 다음 읽기 때 빈 쪽 → 앞 쪽으로</td></tr>
+        <tr><td>모두 빼면</td><td>빈 화면 「즐겨찾기한 단어가 없어요」 + [모든 단어 보기]</td><td>꺼진 별 7개가 남은 목록 — 다시 읽을 때 빈 화면</td></tr>
+        <tr><td>실수로 뺐을 때</td><td>행이 사라져 그 자리에서 되돌릴 수 없음 → 즐겨찾기를 끄고 찾아 다시 켬(토스트로 이유는 알림)</td><td>그 자리에서 별을 다시 누르면 됨</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dpanel" id="copy" aria-labelledby="cp-h">
+  <h2 id="cp-h">문구 표 — 구현 때 <code>vocab/labels.ts</code> 의 한 상수(<code>FAVORITE_COPY</code>)로 옮김</h2>
+  <p class="dsub">화면에 나오는 새 문구는 이 표가 전부다(★ 안 기준). 데모에 없는 문구·요소는 구현 때 만들지 않는다. 엔진·모델 이름은 없다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="문구 표 — 가로로 밀어 보기">
+    <table class="dtbl" id="cptbl"></table>
+  </div>
+</section>
+
+<section class="dpanel" id="a11y" aria-labelledby="ay-h">
+  <h2 id="ay-h">낭독 · 초점 순서 · 터치 영역 (★ 안 기준)</h2>
+  <p class="dsub">「선택됨/선택 안 됨」은 안드로이드 화면 읽기(TalkBack)가 눌림 상태를 읽는 말의 예시다 — 실제 낱말은 기기·버전마다 다를 수 있어 폰 확인 항목에 넣는다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="낭독 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">요소</th><th scope="col">읽는 말(예)</th><th scope="col">초점 순서</th><th scope="col">터치 영역</th></tr></thead>
+      <tbody>
+        <tr><td>행 열기 버튼</td><td>「<span lang="ja">食べる</span> 타베루 먹다 액션 맞힘 3 · 틀림 1, 버튼」 — <b>지금과 같다</b>(별이 형제라 행 이름에 섞이지 않음)</td><td>행마다 열기 → 별 → 다음 행 열기</td><td>폭 = 행 − 48, 높이 64 이상</td></tr>
+        <tr><td>행 별 버튼</td><td>「<span lang="ja">食べる</span> 즐겨찾기, 전환 버튼, 선택됨」 — 단어를 이름에 넣어 버튼만 훑어도 어느 단어인지 앎. 단어는 <code>lang="ja"</code> 로 감싼 숨은 글</td><td>열기 바로 다음</td><td>48 × 행 높이(64 이상) — 아이콘 22</td></tr>
+        <tr><td>필터 별 토글(D1 A)</td><td>「즐겨찾기만 보기, 전환 버튼, 선택 안 됨」 · 켜면 머리 줄(이미 <code>aria-live</code>)이 「단어 8개 · 즐겨찾기」를 읽음</td><td>출처 분절 다음, 조각 칩 앞</td><td>보이는 44×32, 위아래로 넓혀 44×44(지금 보관함 토글과 같은 방법)</td></tr>
+        <tr><td>상세 시트 머리 별</td><td>「즐겨찾기, 전환 버튼, 선택됨」(시트 제목이 「단어」라 맥락이 있음)</td><td>열릴 때 제목에 초점 → 별 → 닫기 → 본문</td><td>44 × 44</td></tr>
+        <tr><td>처리 중</td><td>잠긴 동안 <code>aria-disabled="true"</code> — 다시 누르면 아무 일 없음(읽을 거리 없음)</td><td>초점은 그대로</td><td>—</td></tr>
+        <tr><td>실패</td><td>별이 되돌아가며 상태가 다시 읽히고, 토스트(지금 공용 <code>role="status"</code>)가 이유를 읽음</td><td>초점은 그대로(별에)</td><td>—</td></tr>
+        <tr><td>행이 빠짐(D3 A)</td><td>토스트 「즐겨찾기에서 뺐어요」 · 머리 줄 새 숫자. <b>초점을 잃으면</b> 머리 줄로 옮김(지금 삭제 뒤 초점 규칙과 같음)</td><td>머리 줄(<code>tabIndex=-1</code>)</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dpanel" id="limits" aria-labelledby="lim-h">
+  <h2 id="lim-h">designer 메모 · 알려진 한계 · 사용자에게 묻고 싶은 것</h2>
+  <h3 style="font-size:14px;margin-top:10px">designer 메모</h3>
+  <ul class="dlist">
+    <li><b>행 구조가 바뀐다</b> — 지금 행은 통째로 버튼 하나(<code>WordRow</code>)다. 버튼 안에 버튼을 넣을 수 없어 <code>&lt;li&gt;</code> 안을 [열기 버튼][별 버튼] 두 형제로 나눈다. 열기 버튼의 안 내용·높이(64 이상)·글자는 그대로이고 폭만 48 줄어 긴 표현·긴 뜻이 조금 더 일찍 「…」로 줄어든다(아래 실측 「긴 표현·긴 뜻」).</li>
+    <li><b>필터 상태는 저장하지 않는다</b> — 출처·보관함처럼 다른 탭에 갔다 오면 꺼진다(task-068 D2 와 같음).</li>
+    <li><b>머리 줄</b> — 앞말은 지금 그대로(「단어 n개」·「내 단어 n개」·「보관한 단어 n개」·「‘q’ 검색 결과 n개」), 걸린 조건 굵은 글자 맨 앞에 「즐겨찾기」를 붙인다(「단어 8개 · <b>즐겨찾기</b> · 1쪽」). D1 D 를 고르면 앞말이 「즐겨찾기 n개」.</li>
+    <li><b>빈 화면 우선순위</b> — 즐겨찾기가 켜져 있으면 다른 빈 화면보다 먼저: 다른 조건이 없으면 「즐겨찾기한 단어가 없어요」, 있으면 「조건에 맞는 즐겨찾기가 없어요」 + 걸린 조건 한 줄 + [즐겨찾기 조건 풀기]. 이때 「‘q’ 추가하기」는 내지 않는다(추가해도 즐겨찾기가 아니라 안 보임).</li>
+    <li><b>보관 라우트에는 분당 한도가 없다</b>(코드 확인) — L2 「보관과 같은 기준」이면 한도 없음. 서버가 한도를 두기로 하면 쓸 429 문구만 표에 준비했다(지금 단어장 버튼 오류 함수는 429 를 일반 문구로 바꾸므로 전용 문구가 필요).</li>
+  </ul>
+  <h3 style="font-size:14px;margin-top:14px">알려진 한계</h3>
+  <ul class="dlist">
+    <li><b>목록과 열린 시트의 같은 단어</b> — 시트에서 별을 바꾸면 목록의 그 행도 함께 바뀐다(같은 상태를 씀). 다른 기기에서 바꾼 별은 목록을 다시 읽을 때(화면 복귀·쪽 이동) 맞춰진다 — 자동 새로고침은 지금도 없다.</li>
+    <li><b>D3 A 의 손가락 아래 밀림</b> — 행이 빠지면 다음 행이 그 자리로 올라온다. 응답 뒤 다시 읽기까지 0.3~0.6초쯤 걸리고 그 사이 같은 별은 잠겨 있어 연타로 다음 행을 끌 위험은 작지만 0 은 아니다(폰 확인 항목).</li>
+    <li><b>데모 모형</b> — 응답은 0.6초(느림 2.5초) 모형, 전체 단어 수 7,766 은 합성 숫자이고 실제 행은 샘플 20개뿐이다. 낭독 낱말은 예시다.</li>
+  </ul>
+  <h3 style="font-size:14px;margin-top:14px">사용자에게 묻고 싶은 것 (Leader 가 전달)</h3>
+  <ul class="dlist">
+    <li><b>Q1 (D3)</b> 즐겨찾기만 보는 중 별을 끄면 그 단어가 바로 목록에서 빠져도 될까? ★ 바로 빠짐(쪽 수·숫자가 맞고 다음 쪽에서 건너뛰는 단어가 없음). 대안은 제자리에 남김.</li>
+    <li><b>Q2 (D1)</b> 필터를 글자 없이 별 모양 단추 하나로 둬도 알아보기 괜찮을까? ★ 별 단추(어느 폭·글꼴에서도 다른 글자를 안 자름). 글자 「즐겨찾기」가 꼭 보여야 하면 B(360px 에서 정렬 글자가 잘림)나 C(조각 칩 줄 맨 앞).</li>
+    <li><b>Q3 (D2)</b> 보관한 단어도 별은 그대로 남겨 둘까? ★ 남김(보관함 + 즐겨찾기로 볼 수 있음).</li>
+    <li><b>Q4 (D7)</b> 단어 추가 시트에는 이번에 별을 두지 않는다 — 추가 직후 목록 맨 위에서 누르면 된다. 추가 시트에도 꼭 필요하면 말해 달라.</li>
+  </ul>
+</section>
+
+<details class="dev">
+  <summary>개발 메모 — 바뀌는 파일·토큰 이름·시험 영향 (승인 뒤 docs/screens.md §32 가 정본)</summary>
+  <ul class="dlist">
+    <li><b>행</b>: <code>WordRow</code> — <code>&lt;li className="flex"&gt;</code> 안에 열기 <code>&lt;button className="… min-h-[64px] min-w-0 flex-1 …"&gt;</code>(안 내용 그대로) + 별 <code>&lt;FavoriteStar&gt;</code>(새 부품, 48 폭). 마지막 쪽 빈 자리 <code>FillerRow</code>·자리표시 <code>WordRowsSkeleton</code> 도 같은 폭 칸을 둬서 높이·줄바꿈이 같게. 시험 영향: <code>wordDetailOrigin.test</code>(행 HTML 에 버튼 둘)·<code>wordsScreenParts.test</code>·<code>tabSkeleton.test</code>(<code>min-h-[64px]</code> 문자열은 열기 버튼에 남음).</li>
+    <li><b>필터</b>: 출처 줄 <code>&lt;div className="mt-2 flex items-center gap-2"&gt;</code> = <code>Segmented</code>(flex-1) + <code>FavoriteFilterToggle</code>(<code>ArchiveToggle</code> 과 같은 모양, 아이콘만, <code>aria-pressed</code>). <code>WordListFilter.favorite</code>·<code>wordsCondKey</code>·<code>wordsListUrl</code>(<code>favorite=1</code>)·<code>listConditionText</code>(맨 앞 「즐겨찾기」)·<code>emptyVariant</code>(<code>noFavorite</code>·<code>noFavoriteMatch</code> 우선).</li>
+    <li><b>상세·수정</b>: 공용 <code>Sheet</code> 에 선택 prop <code>headerAction?: ReactNode</code>(✕ 왼쪽) 추가 — 다른 호출 43곳은 안 넘기므로 지금 DOM 그대로(전수 확인 필요, task-072 교훈). <code>WordDetailSheet</code> 의 view·edit 모드에서 같은 별을 넘기고, 삭제 확인 모드에서는 넘기지 않는다. 수정 [저장] 응답을 합칠 때 별 값은 덮어쓰지 않는다(<code>{...w, ...updated, favorite: w.favorite, favoritedAt: w.favoritedAt}</code>).</li>
+    <li><b>상태 규칙은 순수 함수로</b>(task-072 교훈 ②): <code>favoriteStep(state, event)</code> — 누름(잠김이면 무시)·성공(값 확정, 즐겨찾기 보기에서 꺼졌으면 다시 읽기 신호)·실패(되돌림 + 오류 문구) 를 동작 시험으로.</li>
+    <li><b>적용 토큰 이름</b>: <code>--accent</code>(켜진 별·필터 켬 테두리) · <code>--accent-soft</code>(필터 켬 바탕) · <code>--ink2</code>(꺼진 별) · <code>--surface2</code>(필터 꺼짐 바탕) · <code>--line</code> · <code>--surface</code>. 새 색 없음.</li>
+  </ul>
+</details>
+<pre id="selftest" hidden></pre>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function clone(o) { return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
+  function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  /* ── 문구(★ 안) — 구현 때 labels.ts FAVORITE_COPY 로 ── */
+  var C = {
+    star: '즐겨찾기',
+    rowStar: function (s) { return '<span lang="ja">' + esc(s) + '</span> 즐겨찾기'; },
+    act: { on: '즐겨찾기에 넣기', off: '즐겨찾기에서 빼기' },
+    filterName: '즐겨찾기만 보기',
+    filterLabel: '즐겨찾기',
+    cond: '즐겨찾기',
+    srcLead: function (n) { return '즐겨찾기 ' + fmt(n) + '개'; },
+    noneT: '즐겨찾기한 단어가 없어요', noneB: '단어 줄의 별을 누르면 여기에 모여요.', noneBtn: '모든 단어 보기',
+    matchT: '조건에 맞는 즐겨찾기가 없어요', matchB: function (c) { return c + ' 안에서 즐겨찾기만 찾았어요.'; }, matchBtn: '즐겨찾기 조건 풀기',
+    removed: '즐겨찾기에서 뺐어요', added: '즐겨찾기에 넣었어요',
+    err: { fail: '처리하지 못했어요. 다시 시도해 주세요.', offline: '연결하지 못했어요. 네트워크를 확인해 주세요.', '429': '즐겨찾기를 너무 자주 바꿨어요. 잠시 뒤에 다시 해 주세요.', gone: '단어를 찾을 수 없어요. 삭제되었을 수 있어요.' },
+    formRow: '즐겨찾기', formRowHint: '[저장]을 눌러야 바뀌어요', addRow: '즐겨찾기에 넣기', addRowHint: '저장할 때 함께 넣어요'
+  };
+  var COPY_ROWS = [
+    ['행 별 이름(D11 A)', '{단어} 즐겨찾기 + 눌림 상태', 'WordRow 별 — 단어는 lang="ja" 숨은 글', 'rowStar'],
+    ['상세 머리 별 이름', '즐겨찾기 + 눌림 상태', 'WordDetailSheet 머리(보기·수정)', 'star'],
+    ['필터 별 이름(D1 A)', '즐겨찾기만 보기 + 눌림 상태', '출처 줄 끝 토글(글자 없음 — 숨은 이름)', 'filterName'],
+    ['필터 보이는 글자(D1 B·C·D 일 때만)', '즐겨찾기', '토글·칩·분절 칸', 'filterLabel'],
+    ['머리 줄 조건', '… · 즐겨찾기 · …(굵게, 조건 맨 앞)', 'listConditionText', 'cond'],
+    ['빈 화면 — 즐겨찾기 0', '즐겨찾기한 단어가 없어요 / 단어 줄의 별을 누르면 여기에 모여요. / [모든 단어 보기]', 'WordsEmpty noFavorite', 'none'],
+    ['빈 화면 — 조건과 겹쳐 0', '조건에 맞는 즐겨찾기가 없어요 / {조건} 안에서 즐겨찾기만 찾았어요. / [즐겨찾기 조건 풀기]', 'WordsEmpty noFavoriteMatch — 조건 = ‘q’ 검색 · 보관함 · 내 단어/기본 단어 · 분류 · ○○ 조각', 'match'],
+    ['행이 빠질 때 토스트(D10 A)', '즐겨찾기에서 뺐어요', '즐겨찾기만 보기에서 별을 끈 응답 뒤', 'removed'],
+    ['실패 토스트', '처리하지 못했어요. 다시 시도해 주세요.', '기존 GENERIC_ERROR 그대로', 'fail'],
+    ['오프라인 토스트', '연결하지 못했어요. 네트워크를 확인해 주세요.', '기존 NETWORK_ERROR 그대로', 'offline'],
+    ['404 토스트', '단어를 찾을 수 없어요. 삭제되었을 수 있어요.', '기존 WORD_NOT_FOUND 그대로 + 목록 다시 읽기', 'gone'],
+    ['429 토스트(서버가 한도를 둘 때만)', '즐겨찾기를 너무 자주 바꿨어요. 잠시 뒤에 다시 해 주세요.', '새 문구 — 지금 버튼 오류 함수는 429 를 일반 문구로 바꿈', '429'],
+    ['(대안만) D10 B 성공 토스트', '즐겨찾기에 넣었어요 / 즐겨찾기에서 뺐어요', '★ 안에서는 쓰지 않음', 'alt'],
+    ['(대안만) D11 B 행동형 이름', '즐겨찾기에 넣기 / 즐겨찾기에서 빼기', '★ 안에서는 쓰지 않음', 'alt'],
+    ['(대안만) D4 B 폼 줄', '즐겨찾기 / [저장]을 눌러야 바뀌어요', '★ 안에서는 쓰지 않음', 'alt'],
+    ['(대안만) D7 B 추가 폼 줄', '즐겨찾기에 넣기 / 저장할 때 함께 넣어요', '★ 안에서는 쓰지 않음', 'alt']
+  ];
+
+  /* ── 결정 ── */
+  var DEC = [
+    { k: 'd1', n: 'D1', t: '조회 필터 — 자리·모양', o: [['A', '출처 줄 끝 별 토글', '글자 없는 별 단추 44×32(누르는 44×44). 다른 줄 그대로.'], ['B', '정렬 줄 「★ 즐겨찾기」 글자 토글', '[보관함] 옆. 정렬 분절 폭이 줄어든다.'], ['C', '조각 칩 줄 맨 앞 칩', '「★ 즐겨찾기」 칩 + 「조각」 칩들.'], ['D', '출처 분절 4번째 칸', '전체·내 단어·기본 단어·즐겨찾기 중 하나만 — 출처와 함께 못 고름.']] },
+    { k: 'd2', n: 'D2', t: '보관함과의 관계', o: [['A', '독립(AND)', '보관해도 별 그대로. 보관함 + 즐겨찾기 = 보관한 즐겨찾기.'], ['B', '보관하면 별 해제', '상세에서 보관하면 별이 꺼진다(이 데모에선 설명만).'], ['C', '함께 못 켬', '보관함을 켜면 즐겨찾기 필터가 꺼지고, 반대도 같다.']] },
+    { k: 'd3', n: 'D3', t: '즐겨찾기만 보기에서 별을 끄면', o: [['A', '즉시 같은 쪽 다시 읽기', '응답 뒤 행이 빠지고 숫자·쪽 수가 맞는다 + 토스트.'], ['B', '제자리 유지', '별만 꺼진 채 남고 다음 읽기 때 빠진다.']] },
+    { k: 'd4', n: 'D4', t: '수정 화면의 별', o: [['A', '머리 별 · 즉시 반영', '보기·수정 같은 자리, [취소]와 무관.'], ['B', '폼 줄 · 저장 때 반영', '폼 맨 위 줄, [취소] 하면 되돌아감.']] },
+    { k: 'd5', n: 'D5', t: '갱신 방식', o: [['A', '낙관적 + 잠금 + 되돌림', '즉시 바뀌고 응답까지 그 별만 잠김.'], ['B', '응답 뒤 반영', '응답까지 흐린 별(처리 중).']] },
+    { k: 'd6', n: 'D6', t: '분류 칩 숫자(분류가 있는 계정)', o: [['A', '그대로', '즐겨찾기를 켜도 칩 숫자 불변.'], ['B', '즐겨찾기 기준', '칩 숫자도 즐겨찾기만 센다(서버 변경).']] },
+    { k: 'd7', n: 'D7', t: '단어 추가 시트의 별', o: [['A', '없음', '지금 추가 폼 그대로.'], ['B', '추가 폼에 줄', '「즐겨찾기에 넣기」 줄 — 저장 직후 별도 요청.']] },
+    { k: 'd8', n: 'D8', t: '별 모양·색', o: [['A', '외곽선 ink2 / 채움 accent', '모양 + 색.'], ['B', '채움 금색(warn)', '라이트 2.95:1 미달 — 새 색 필요.'], ['C', '채움 ink', '무채색.']] },
+    { k: 'd9', n: 'D9', t: '행에서 별 자리', o: [['A', '오른쪽 끝', '표현 시작선 그대로.'], ['B', '왼쪽 앞', '표현이 48px 밀린다.']] },
+    { k: 'd10', n: 'D10', t: '성공 알림', o: [['A', '행이 빠질 때만 토스트', '평소엔 별 모양만.'], ['B', '누를 때마다 토스트', '넣었어요/뺐어요.']] },
+    { k: 'd11', n: 'D11', t: '별의 접근 이름', o: [['A', '고정 이름 + 눌림 상태', '「즐겨찾기」 + aria-pressed.'], ['B', '행동형 이름', '「즐겨찾기에 넣기/빼기」, aria-pressed 없음.']], x: 1 }
+  ];
+  var DEF_D = {}; DEC.forEach(function (d) { DEF_D[d.k] = 'A'; });
+
+  /* ── 합성 샘플 단어(서버 데이터 아님) ── */
+  var STAR = 'M12 3.4l2.62 5.31 5.86.85-4.24 4.13 1 5.84L12 16.77l-5.24 2.76 1-5.84-4.24-4.13 5.86-.85z';
+  var CK = { NAME: '이름', ACTION: '액션', FEELING: '느낌', MODIFIER: '꾸밈', EXPRESSION: '표현' };
+  function wd(id, s, rb, r, hg, m, ck, o, extra) { var w = { id: id, s: s, rb: rb, r: r, hg: hg, m: m, ck: ck, o: o, fav: false, ar: false, c: 0, w: 0, pos: '명사', lv: '', cat: null, ex: '', exk: '' }; for (var k in extra) w[k] = extra[k]; return w; }
+  var BASEW = [
+    wd('taberu', '食べる', [['食', 'た'], 'べる'], 'たべる', '타베루', '먹다', 'ACTION', 'BASE', { c: 3, w: 1, pos: '동사', lv: 'N5', ex: '朝ごはんを食べる。', exk: '아침밥을 먹다.' }),
+    wd('eiga', '映画', [['映画', 'えいが']], 'えいが', '에-가', '영화', 'NAME', 'BASE', { lv: 'N5', ex: '週末に映画を見た。', exk: '주말에 영화를 봤다.' }),
+    wd('yoroshiku', 'よろしくお願いいたします', ['よろしくお', ['願', 'ねが'], 'いいたします'], 'よろしくおねがいいたします', '요로시쿠 오네가이 이타시마스', '잘 부탁드립니다 (처음 만났을 때 하는 정중한 인사)', 'EXPRESSION', 'MINE', { pos: '표현', cat: '여행' }),
+    wd('nurui', '温い', [['温', 'ぬる'], 'い'], 'ぬるい', '누루이', '미지근하다', 'FEELING', 'BASE', { c: 1, w: 2, pos: '형용사', lv: 'N3' }),
+    wd('impact', 'インパクト', ['インパクト'], 'いんぱくと', '임파쿠토', '임팩트, 강한 인상', 'NAME', 'MINE', { w: 2, ex: 'あの映画はインパクトがあった。', exk: '그 영화는 임팩트가 있었다.' }),
+    wd('natsukashii', '懐かしい', [['懐', 'なつ'], 'かしい'], 'なつかしい', '나츠카시-', '그립다, 반갑다', 'FEELING', 'BASE', { c: 2, pos: '형용사', lv: 'N3' }),
+    wd('yukkuri', 'ゆっくり', ['ゆっくり'], 'ゆっくり', '윳쿠리', '천천히', 'MODIFIER', 'BASE', { pos: '부사', lv: 'N5' }),
+    wd('omachi', '少々お待ちください', [['少々', 'しょうしょう'], 'お', ['待', 'ま'], 'ちください'], 'しょうしょうおまちください', '쇼-쇼- 오마치쿠다사이', '잠시만 기다려 주세요 (가게·전화에서 쓰는 정중한 말)', 'EXPRESSION', 'MINE', { pos: '표현', cat: '여행' }),
+    wd('daijoubu', '大丈夫', [['大丈夫', 'だいじょうぶ']], 'だいじょうぶ', '다이죠-부', '괜찮다', 'EXPRESSION', 'BASE', { c: 4, pos: '형용사', lv: 'N4' }),
+    wd('ganbaru', '頑張る', [['頑張', 'がんば'], 'る'], 'がんばる', '감바루', '힘내다, 노력하다', 'ACTION', 'BASE', { pos: '동사', lv: 'N4' }),
+    wd('meiwaku', 'ご迷惑をおかけして申し訳ありません', ['ご', ['迷惑', 'めいわく'], 'をおかけして', ['申', 'もう'], 'し', ['訳', 'わけ'], 'ありません'], 'ごめいわくをおかけしてもうしわけありません', '고메-와쿠오 오카케시테 모-시와케 아리마셍', '폐를 끼쳐 죄송합니다', 'EXPRESSION', 'MINE', { pos: '표현' }),
+    wd('suteki', '素敵', [['素敵', 'すてき']], 'すてき', '스테키', '멋지다', 'FEELING', 'BASE', { pos: '형용사', lv: 'N3' }),
+    wd('shoushou', '少々', [['少々', 'しょうしょう']], 'しょうしょう', '쇼-쇼-', '조금, 잠깐', 'MODIFIER', 'BASE', { pos: '부사', lv: 'N3' }),
+    wd('neko', '猫', [['猫', 'ねこ']], 'ねこ', '네코', '고양이', 'NAME', 'BASE', { lv: 'N5' }),
+    wd('kaeru', '帰る', [['帰', 'かえ'], 'る'], 'かえる', '카에루', '돌아가다', 'ACTION', 'BASE', { pos: '동사', lv: 'N5' }),
+    wd('isogashii', '忙しい', [['忙', 'いそが'], 'しい'], 'いそがしい', '이소가시-', '바쁘다', 'FEELING', 'BASE', { pos: '형용사', lv: 'N5' }),
+    wd('kitto', 'きっと', ['きっと'], 'きっと', '킷토', '분명히, 꼭', 'MODIFIER', 'BASE', { pos: '부사', lv: 'N4' }),
+    wd('tanoshimi', '楽しみ', [['楽', 'たの'], 'しみ'], 'たのしみ', '타노시미', '기대, 즐거움', 'NAME', 'BASE', { lv: 'N4' }),
+    wd('mendou', '面倒', [['面倒', 'めんどう']], 'めんどう', '멘도-', '귀찮음, 번거로움', 'FEELING', 'BASE', { ar: true, pos: '형용사', lv: 'N3' }),
+    wd('sugoi', 'すごい', ['すごい'], 'すごい', '스고이', '대단하다', 'FEELING', 'BASE', { ar: true, pos: '형용사', lv: 'N5' })
+  ];
+  var ORDER = BASEW.map(function (w) { return w.id; });
+  var FAV_DEFAULT = ['taberu', 'yoroshiku', 'impact', 'natsukashii', 'daijoubu', 'ganbaru', 'suteki', 'shoushou', 'mendou'];
+  var BASE_TOTAL = 7757;
+  var PAGE = 7;
+
+  /* ── 상태 목록 ── */
+  var ST = {
+    'r-base': { g: '목록 행', t: '목록 — 별 꺼짐·켜짐', s: '보통 보기 1쪽. 행 = [열기 버튼][별 버튼] 형제. 기본 단어 행·내 단어 행(내 단어 뱃지 + 조각 뱃지) 모두 같은 자리에 별. 행 높이 64 이상 그대로.', scroll: 'list' },
+    'r-long': { g: '목록 행', t: '긴 표현·긴 뜻 (내 단어)', s: '출처 「내 단어」 — 가장 긴 표현·뜻. 열기 버튼 폭이 48 줄어 「…」가 조금 일찍 나오지만 별·뱃지와 겹치지 않는다.', f: { source: 'mine' }, scroll: 'list' },
+    'r-tap': { g: '목록 행', t: '별을 누름 → 켜짐(상세 안 열림)', s: '映画 의 별을 눌러 켠 뒤. 상세 시트는 열리지 않는다. ★ D10 A 라 토스트 없음(별 모양이 바뀐 것으로 충분).', favs: FAV_DEFAULT.concat(['eiga']), scroll: 'list' },
+    'r-pend': { g: '목록 행', t: '처리 중 — 연타 무시', s: '映画 의 별을 누른 직후(응답 전). D5 A: 별은 이미 켜졌고 응답까지 그 별만 잠김(aria-disabled) — 다시 눌러도 요청 1건. 다른 행 별은 그대로 누를 수 있다. D5 B: 응답까지 흐린 꺼진 별.', pend: 'eiga', ignored: 2, scroll: 'list' },
+    'r-fail': { g: '목록 행', t: '실패 → 되돌림', s: '映画 를 켰다가 서버 오류 — 별이 꺼진 상태로 되돌아가고 토스트. 초점은 별에 그대로.', toast: C.err.fail, scroll: 'list' },
+    'r-offline': { g: '목록 행', t: '오프라인', s: '연결이 끊긴 채 누름 — 되돌림 + 기존 네트워크 문구.', toast: C.err.offline, scroll: 'list' },
+    'r-429': { g: '목록 행', t: '너무 자주(429)', s: '서버가 분당 한도를 둘 때만 생기는 경우. 지금 보관 라우트에는 한도가 없다 — 한도를 두기로 하면 이 문구.', toast: C.err['429'], scroll: 'list' },
+    'f-on': { g: '조회 필터', t: '즐겨찾기만 보기 켬 (8개 · 2쪽)', s: '필터를 켠 상태. 머리 줄 「단어 8개 · 즐겨찾기 · 1쪽」, 쪽 줄 「1 / 2 · 모두 8개」. 보관한 즐겨찾기(面倒)는 보관함을 켜야 보인다(D2 A).', f: { fav: true } },
+    'f-p2': { g: '조회 필터', t: '즐겨찾기 2쪽', s: '8번째 즐겨찾기 하나. 빈 자리는 지금처럼 보이지 않는 행으로 채운다(쪽 줄이 튀지 않게).', f: { fav: true }, page: 1, scroll: 'list' },
+    'f-arch': { g: '조회 필터', t: '보관함 + 즐겨찾기', s: 'D2 A — 보관한 즐겨찾기만. 보관함 안내 줄은 지금 그대로. D2 C 를 고르면 둘을 함께 켤 수 없어 이 화면이 없다.', f: { fav: true, archived: true } },
+    'f-mix': { g: '조회 필터', t: '내 단어 + 표현 조각 + 즐겨찾기', s: '모든 조건 AND. 머리 줄 「내 단어 1개 · 즐겨찾기 · 표현 조각」.', f: { fav: true, source: 'mine', chunk: 'EXPRESSION' } },
+    'f-cat': { g: '조회 필터', t: '분류 칩이 있는 계정 (D6)', s: '내가 정한 분류(여행)가 있는 드문 계정. D6 A: 즐겨찾기를 켜도 칩 숫자는 「전체 7,766 · 여행 2」 그대로. B: 「전체 8 · 여행 1」.', f: { fav: true }, cat: true },
+    'f-none': { g: '조회 필터', t: '빈 결과 — 즐겨찾기 0', s: '아직 별을 하나도 안 켰을 때. [모든 단어 보기] = 즐겨찾기 필터 끔.', f: { fav: true }, favs: [] },
+    'f-nomatch': { g: '조회 필터', t: '빈 결과 — 조건과 겹쳐 0', s: '검색 「ねこ」 + 즐겨찾기. 猫 는 있지만 즐겨찾기가 아님. 「‘ねこ’ 추가하기」는 내지 않는다. [즐겨찾기 조건 풀기] = 검색은 둔 채 즐겨찾기만 끔.', f: { fav: true, q: 'ねこ' } },
+    'u-after': { g: '해제(즐겨찾기만 보기)', t: '食べる 별을 끈 뒤 (D3)', s: 'D3 A: 응답 뒤 1쪽을 다시 읽어 食べる 가 빠지고 7개 → 1쪽, 쪽 줄이 사라짐 + 토스트. D3 B: 食べる 가 별만 꺼진 채 남고 머리 줄 8개·2쪽 그대로.', f: { fav: true }, unfav: 'taberu', scroll: 'list' },
+    'd-base': { g: '상세 · 수정', t: '상세 — 기본 단어(켜짐)', s: '기본 단어는 읽기 전용(보관 단추 하나). 별은 시트 머리 ✕ 왼쪽 — 기본·내 단어 모두 같은 자리.', sheet: { id: 'natsukashii', mode: 'view' } },
+    'd-base0': { g: '상세 · 수정', t: '상세 — 기본 단어(꺼짐)', s: '꺼진 별. 누르면 바로 켜짐(저장 단추 없음).', sheet: { id: 'eiga', mode: 'view' } },
+    'd-mine': { g: '상세 · 수정', t: '상세 — 내 단어', s: '[수정][보관하기] + 글자 [삭제] 그대로. 별은 머리.', sheet: { id: 'impact', mode: 'view' } },
+    'd-arch': { g: '상세 · 수정', t: '상세 — 보관한 즐겨찾기', s: 'D2 A — 보관함 뱃지와 켜진 별이 함께. [보관 풀기]를 눌러도 별은 그대로.', f: { archived: true }, sheet: { id: 'mendou', mode: 'view' } },
+    'e-edit': { g: '상세 · 수정', t: '수정 화면', s: 'D4 A: 머리 별이 보기와 같은 자리에 남고 누르면 바로 반영. D4 B: 머리 별이 없어지고 폼 맨 위 「즐겨찾기」 줄 — [저장] 때 반영.', sheet: { id: 'impact', mode: 'edit' } },
+    'e-cancel': { g: '상세 · 수정', t: '수정 중 별 끔 → [취소]', s: 'インパクト 수정 중 별을 끄고 [취소]한 뒤의 보기 화면. D4 A: 별은 꺼진 채(이미 저장됨). D4 B: 별이 켜진 채로 되돌아감.', sheet: { id: 'impact', mode: 'view' }, cancelled: 1 },
+    'a-add': { g: '상세 · 수정', t: '단어 추가 시트 (D7)', s: 'D7 A: 지금 추가 폼 그대로(별 없음). B: 폼 맨 위 「즐겨찾기에 넣기」 줄.', sheet: { id: null, mode: 'add' } }
+  };
+  var IDS = Object.keys(ST);
+
+  /* ── 상태 ── */
+  var S = { st: 'r-base', view: 'cmp', w: 390, h: 780, theme: 'system', big: false, net: 'ok', mark: true, d: clone(DEF_D) };
+  var A = null; /* 앱 상태 — 상태(장면)마다 새로 */
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function freshApp(id) {
+    var sc = ST[id];
+    var db = {}; BASEW.forEach(function (w) { db[w.id] = clone(w); });
+    (sc.favs || FAV_DEFAULT).forEach(function (k) { db[k].fav = true; });
+    var a = { db: db, f: Object.assign({ fav: false, archived: false, source: 'all', chunk: null, q: '' }, sc.f || {}), page: sc.page || 0, opt: {}, pend: {}, ignored: sc.ignored || 0, toast: sc.toast || null, sheet: sc.sheet ? clone(sc.sheet) : null, snap: null, reqs: 0 };
+    if (sc.pend) { a.pend[sc.pend] = true; a.opt[sc.pend] = true; a.reqs = 1; }
+    if (a.sheet && a.sheet.mode === 'edit') a.sheet.ffav = db[a.sheet.id].fav;
+    if (a.sheet && a.sheet.mode === 'add') a.sheet.ffav = false;
+    return a;
+  }
+  function applyScene(id) {
+    clearTimers(); clearTimeout(toastT);
+    S.st = id; A = freshApp(id);
+    var sc = ST[id];
+    /* D2 B: 보관한 단어는 별이 꺼져 있다 · D2 C: 보관함과 즐겨찾기 필터를 함께 켤 수 없다 */
+    if (S.d.d2 === 'B') ORDER.forEach(function (k) { if (A.db[k].ar) A.db[k].fav = false; });
+    if (S.d.d2 === 'C' && A.f.fav && A.f.archived) A.f.fav = false;
+    A.snap = query(A.f, A.page);
+    if (sc.unfav) { A.db[sc.unfav].fav = false; if (S.d.d3 === 'A') { A.snap = query(A.f, A.page); A.toast = C.removed; } }
+    if (sc.cancelled && S.d.d4 === 'A') A.db.impact.fav = false;
+  }
+  function disp(id) { return Object.prototype.hasOwnProperty.call(A.opt, id) ? A.opt[id] : A.db[id].fav; }
+
+  /* ── 목록 계산(서버 #40 모형) ── */
+  function match(w, f, useFav) {
+    if (!!w.ar !== !!f.archived) return false;
+    if (f.source === 'mine' && w.o !== 'MINE') return false;
+    if (f.source === 'base' && w.o !== 'BASE') return false;
+    if (f.source === 'fav' && !w.fav) return false;
+    if (f.chunk && w.ck !== f.chunk) return false;
+    if (f.q && (w.s + w.r + w.m).indexOf(f.q) < 0) return false;
+    if (useFav && f.fav && !w.fav) return false;
+    return true;
+  }
+  function query(f, page, noFav) {
+    var ids = ORDER.filter(function (id) { return match(A.db[id], f, !noFav); });
+    var mineN = ORDER.filter(function (id) { return A.db[id].o === 'MINE' && !A.db[id].ar; }).length;
+    var big = !f.archived && !f.q && !f.chunk && !(f.fav && !noFav) && f.source !== 'mine' && f.source !== 'fav';
+    var total = big ? (f.source === 'base' ? BASE_TOTAL : BASE_TOTAL + mineN) : ids.length;
+    var pages = Math.max(1, Math.ceil(total / PAGE));
+    var p = Math.min(page, pages - 1);
+    var items = ids.slice(p * PAGE, p * PAGE + PAGE);
+    if (big && p > 0 && !items.length) items = ids.slice(0, PAGE);
+    return { ids: items, total: total, pages: pages, page: p };
+  }
+  function reread() { A.snap = query(A.f, A.page); A.page = A.snap.page; }
+
+  /* ── 그리기 조각 ── */
+  var IC = {
+    x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+    play: '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>',
+    chev: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'
+  };
+  function starSvg(on, size) { return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' + STAR + '" fill="' + (on ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'; }
+  function onCls(on) { return on ? ' on-' + S.d.d8 : ''; }
+  function ruby(rb) { return rb.map(function (p) { return typeof p === 'string' ? esc(p) : '<ruby>' + esc(p[0]) + '<rt>' + esc(p[1]) + '</rt></ruby>'; }).join(''); }
+  var PF = '';
+  function I(x) { return PF + x; }
+
+  /* 별 버튼(행·머리 공용) — D11 이름 방식, D5 처리 중 모양 */
+  function starBtn(w, kind) {
+    var on = disp(w.id), pend = !!A.pend[w.id];
+    var shown = (S.d.d5 === 'B' && pend) ? A.db[w.id].fav : on;
+    var cls = (kind === 'row' ? 'wst' : 'icb44') + ' dnew' + onCls(shown) + (S.d.d5 === 'B' && pend ? ' pendB' : '');
+    var name = kind === 'row' ? C.rowStar(w.s) : esc(C.star);
+    var attrs = S.d.d11 === 'A' ? ' aria-pressed="' + shown + '"' : '';
+    if (S.d.d11 === 'B') name = (kind === 'row' ? '<span lang="ja">' + esc(w.s) + '</span> ' : '') + esc(shown ? C.act.off : C.act.on);
+    return '<button type="button" class="' + cls + '"' + attrs + (pend ? ' aria-disabled="true"' + (S.d.d5 === 'B' ? ' aria-busy="true"' : '') : '') + ' data-act="star" data-id="' + w.id + '">' + starSvg(shown, 22) + '<span class="sr">' + name + '</span></button>';
+  }
+
+  function row(w, feat, sort) {
+    var badge = w.ck ? '<span class="bdg n">' + CK[w.ck] + '</span>' : '';
+    var mine = w.o === 'MINE' ? '<span class="bdg mine">내 단어</span>' : '';
+    var played = w.c + w.w > 0;
+    var inner = '<span class="l1"><span class="sf" lang="ja">' + ruby(w.rb) + '</span><span class="flx"></span>' + mine + badge + '</span>' +
+      '<span class="hgl">' + esc(w.hg) + '</span>' +
+      '<span class="l3"><span class="mn">' + esc(w.m) + '</span>' + (played ? '<span class="cnt">맞힘 ' + w.c + ' · 틀림 ' + w.w + '</span>' : '') + '</span>';
+    var open = '<button type="button" class="wo" data-act="open" data-id="' + w.id + '">' + inner + '</button>';
+    if (!feat) return '<li class="wr">' + open + '</li>';
+    var gone = A.f.fav && !A.db[w.id].fav && !A.pend[w.id] && S.d.d3 === 'B';
+    var st = starBtn(w, 'row');
+    return '<li class="wr ' + (S.d.d9 === 'A' ? 'sr-r' : 'sr-l') + (gone ? ' gone' : '') + '">' + (S.d.d9 === 'A' ? open + st : st + open) + '</li>';
+  }
+  function filler() { return '<li class="wr" aria-hidden="true" style="visibility:hidden"><span class="wo"><span class="l1"><span class="sf" lang="ja"><ruby>亜<rt>あ</rt></ruby></span></span><span class="hgl">가</span><span class="l3"><span class="mn">가</span></span></span></li>'; }
+
+  function seg(opts, val, name, act) {
+    return '<div class="seg" role="radiogroup" aria-label="' + name + '">' + opts.map(function (o) { return '<button type="button" role="radio" aria-checked="' + (o[0] === val) + '" data-act="' + act + '" data-v="' + o[0] + '"' + (o[2] ? ' class="dnew"' : '') + '><span>' + esc(o[1]) + '</span></button>'; }).join('') + '</div>';
+  }
+  function favToggle(kind) {
+    var on = A.f.fav;
+    if (kind === 'icon') return '<button type="button" class="ftg ico dnew" aria-pressed="' + on + '" data-act="ffav"><span class="' + onCls(on).trim() + '" style="display:grid">' + starSvg(on, 18) + '</span><span class="sr">' + esc(C.filterName) + '</span></button>';
+    if (kind === 'text') return '<button type="button" class="ftg dnew" aria-pressed="' + on + '" data-act="ffav"><span class="' + onCls(on).trim() + '" style="display:grid">' + starSvg(on, 15) + '</span><span class="tl">' + esc(C.filterLabel) + '</span></button>';
+    return '<button type="button" class="chip fav dnew" aria-pressed="' + on + '" data-act="ffav"><span class="' + onCls(on).trim() + '" style="display:grid">' + starSvg(on, 15) + '</span>' + esc(C.filterLabel) + '</button>';
+  }
+  function condText(f, feat) {
+    var parts = [];
+    if (feat && f.fav && S.d.d1 !== 'D') parts.push(C.cond);
+    if (f.chunk) parts.push(CK[f.chunk] + ' 조각');
+    return parts.join(' · ');
+  }
+  function leadText(f, n, feat) {
+    if (f.archived) return '보관한 단어 ' + fmt(n) + '개';
+    if (f.q) return '‘<span lang="ja">' + esc(f.q) + '</span>’ 검색 결과 ' + fmt(n) + '개';
+    if (feat && S.d.d1 === 'D' && f.fav) return esc(C.srcLead(n));
+    if (f.source === 'mine') return '내 단어 ' + fmt(n) + '개';
+    if (f.source === 'base') return '기본 단어 ' + fmt(n) + '개';
+    return '단어 ' + fmt(n) + '개';
+  }
+  function emptyCard(f, feat) {
+    if (feat && f.fav) {
+      var conds = [];
+      if (f.q) conds.push('‘<span lang="ja">' + esc(f.q) + '</span>’ 검색');
+      if (f.archived) conds.push('보관함');
+      if (f.source === 'mine') conds.push('내 단어'); else if (f.source === 'base') conds.push('기본 단어');
+      if (f.chunk) conds.push(CK[f.chunk] + ' 조각');
+      if (!conds.length) return '<div class="card dnew"><p class="ct">' + C.noneT + '</p><p class="cb">' + C.noneB + '</p><button type="button" class="btn ghost full mt12" data-act="clearfav">' + C.noneBtn + '</button></div>';
+      return '<div class="card dnew"><p class="ct">' + C.matchT + '</p><p class="cb">' + C.matchB(conds.join(' · ')) + '</p><button type="button" class="btn ghost full mt12" data-act="clearfav">' + C.matchBtn + '</button></div>';
+    }
+    if (f.q) return '<div class="card"><p class="ct">‘<span lang="ja">' + esc(f.q) + '</span>’에 맞는 단어가 없어요</p><button type="button" class="btn ghost full mt12" data-act="noop"><span>‘<span lang="ja">' + esc(f.q) + '</span>’ 추가하기</span></button></div>';
+    return '<div class="card"><p class="ct">단어장이 비어 있어요</p></div>';
+  }
+
+  function listScreen(feat) {
+    var f = A.f, sc = ST[S.st];
+    var L = feat ? A.snap : query(f, A.page, true);
+    var src = [['all', '전체'], ['mine', '내 단어'], ['base', '기본 단어']];
+    var d1 = S.d.d1;
+    if (feat && d1 === 'D') src.push(['fav', C.filterLabel, 1]);
+    var srcVal = feat && d1 === 'D' && f.fav ? 'fav' : f.source;
+    var h = '<nav class="dsw" aria-label="단어장 보기"><span class="on">단어</span><span>채택한 교정</span></nav>';
+    h += '<div class="srch">' + IC.search + '<input type="search" aria-label="단어 검색" placeholder="표현 · 읽기 · 뜻으로 찾기" value="' + esc(f.q) + '" readonly></div>';
+    h += '<div class="frow mt8">' + seg(src, srcVal, '출처', 'src') + (feat && d1 === 'A' ? favToggle('icon') : '') + '</div>';
+    if (sc.cat) {
+      var favN = feat && f.fav && S.d.d6 === 'B';
+      h += '<div class="ckrow mt6"><span class="cklb">분류</span><div class="hsc" role="radiogroup" aria-label="분류"><button type="button" class="chip" role="radio" aria-checked="true" data-act="noop">전체 ' + (favN ? '8' : '7,766') + '</button><button type="button" class="chip" role="radio" aria-checked="false" data-act="noop">여행 ' + (favN ? '1' : '2') + '</button></div></div>';
+    }
+    var chips = '<button type="button" class="chip" role="radio" aria-checked="' + (!f.chunk) + '" data-act="ck" data-v="">전체<span class="sr"> (모든 조각)</span></button>' + Object.keys(CK).map(function (k) { return '<button type="button" class="chip" role="radio" aria-checked="' + (f.chunk === k) + '" data-act="ck" data-v="' + k + '">' + CK[k] + '<span class="sr"> 조각</span></button>'; }).join('');
+    h += '<div class="ckrow' + (sc.cat ? '' : ' mt6') + '">' + (feat && d1 === 'C' ? favToggle('chip') : '') + '<span class="cklb" id="' + I('ckl') + '">조각</span><div class="hsc" role="radiogroup" aria-labelledby="' + I('ckl') + '">' + chips + '</div></div>';
+    h += '<div class="frow mt8">' + seg([['recent', '최근 추가'], ['wrong', '많이 틀린'], ['surface', '가나다순']], 'recent', '정렬', 'sort') + (feat && d1 === 'B' ? favToggle('text') : '') + '<button type="button" class="ftg" aria-pressed="' + f.archived + '" data-act="arch">보관함</button></div>';
+    if (f.archived) h += '<p class="anote">보관한 단어는 오늘의 단어에 나오지 않아요. 숨긴 기본 단어는 나에게만 숨겨져요.</p>';
+    var cond = condText(f, feat);
+    var paged = L.total > PAGE;
+    var head = leadText(f, L.total, feat) + (cond ? ' · <b' + (feat && f.fav ? ' class="dnew"' : '') + '>' + esc(cond) + '</b>' : '') + (paged ? '<span aria-hidden="true"> · ' + (L.page + 1) + '쪽</span>' : '');
+    h += '<div class="hdr" id="' + I('hdr') + '"><p class="hd" tabindex="-1" aria-live="polite">' + head + '</p><div class="dtg" role="group" aria-label="보기 설정"><button type="button" class="dt" aria-pressed="true" data-act="noop">히라가나</button><button type="button" class="dt" aria-pressed="true" data-act="noop">한글</button></div></div>';
+    if (!L.ids.length) h += emptyCard(f, feat);
+    else {
+      var rows = L.ids.map(function (id) { return row(A.db[id], feat); }).join('');
+      var fill = paged ? Array(PAGE - L.ids.length + 1).join(filler()) : '';
+      h += '<ul class="wl" id="' + I('wl') + '">' + rows + fill + '</ul>';
+      if (paged) h += '<nav class="pgn" aria-label="단어 목록 쪽"><button type="button" class="pgb" data-act="prev"' + (L.page === 0 ? ' aria-disabled="true"' : '') + '><span aria-hidden="true">‹</span>이전</button><button type="button" class="pgc" data-act="noop"><b>' + fmt(L.page + 1) + ' / ' + fmt(L.pages) + '</b><small>모두 ' + fmt(L.total) + '개</small></button><button type="button" class="pgb" data-act="next"' + (L.page >= L.pages - 1 ? ' aria-disabled="true"' : '') + '>다음<span aria-hidden="true">›</span></button></nav>';
+    }
+    return h;
+  }
+
+  function sheetHTML(feat) {
+    var sh = A.sheet;
+    if (sh.mode === 'add') return addSheet(feat);
+    var w = A.db[sh.id], ro = w.o === 'BASE';
+    var showHead = feat && (sh.mode === 'view' || (sh.mode === 'edit' && S.d.d4 === 'A'));
+    var head = '<div class="sh-h"><h2 id="' + I('sh_t') + '" tabindex="-1">단어</h2>' + (showHead ? starBtn(w, 'head') : '') + '<button type="button" class="icb44" data-act="sclose" aria-label="닫기">' + IC.x + '</button></div>';
+    var body = sh.mode === 'edit' ? editBody(w, feat) : viewBody(w, ro);
+    return '<div class="scrim" aria-hidden="true"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="' + I('sh_t') + '">' + head + '<div class="sh-b">' + body + '</div></div>';
+  }
+  function viewBody(w, ro) {
+    var played = w.c + w.w > 0;
+    var b = '<div class="dh"><div style="min-width:0;flex:1"><p class="dsf" lang="ja">' + ruby(w.rb) + '</p><p class="hgl" style="font-size:calc(14px * var(--fz))">' + esc(w.hg) + '</p></div><button type="button" class="snd" aria-label="소리 듣기" data-act="noop">' + IC.play + '</button></div>';
+    b += '<p class="dmn">' + esc(w.m) + '</p>';
+    b += '<div class="dbg"><span class="bdg n">' + esc(w.pos) + '</span>' + (w.lv ? '<span class="bdg n">' + w.lv + '</span>' : '') + (w.ck ? '<span class="bdg n">' + CK[w.ck] + '</span>' : '') + (ro ? '<span class="bdg out">기본 단어</span>' : '<span class="bdg mine">내 단어</span>') + (w.ar ? '<span class="bdg n">보관함</span>' : '') + '</div>';
+    if (w.ex) b += '<div class="exc"><div class="ja"><p lang="ja">' + esc(w.ex) + '</p><p class="ko">' + esc(w.exk) + '</p></div><button type="button" class="snd" aria-label="예문 소리 듣기" data-act="noop">' + IC.play + '</button></div>';
+    b += '<h3 class="h3">기록</h3><dl class="dl"><div><dt class="sr">전체</dt><dd style="margin:0">맞힘 ' + w.c + ' · 틀림 ' + w.w + '</dd></div><div><dt class="sr">최근 7일</dt><dd style="margin:0">최근 7일 맞힘 0 · 틀림 0</dd></div></dl>';
+    if (!played) b += '<p class="cap" style="margin-top:4px;font-size:calc(13px * var(--fz))">아직 오늘의 단어에서 풀지 않았어요</p>';
+    b += '<h3 class="h3">출처</h3><p class="dsrc">' + (ro ? '기본 단어예요 · 내용은 고칠 수 없고 보관(숨기기)만 할 수 있어요. 맞힘 · 틀림 기록은 나에게만 쌓여요.' : '내가 직접 넣은 단어예요 · 나만 봐요') + '</p>';
+    if (ro) b += '<button type="button" class="btn ghost full mt12" data-act="noop"><span>' + (w.ar ? '보관 풀기 — 다시 보이기' : '보관 — 목록 · 오늘의 단어에서 숨기기') + '</span></button>';
+    else b += '<div class="brow"><button type="button" class="btn ghost" data-act="edit">수정</button><button type="button" class="btn ghost" data-act="noop">' + (w.ar ? '보관 풀기' : '보관하기') + '</button></div><div class="delw"><button type="button" class="delb" data-act="noop">삭제</button></div>';
+    return b;
+  }
+  function formFields(w, add) {
+    var ck = Object.keys(CK).map(function (k) { return '<button type="button" class="ck' + (w && w.ck === k ? ' on' : '') + '" role="radio" aria-checked="' + !!(w && w.ck === k) + '" data-act="noop">' + CK[k] + '</button>'; }).join('');
+    return '<div class="fld"><label class="lbl" for="' + I('f_s') + '">표현<span aria-hidden="true">*</span></label><input id="' + I('f_s') + '" class="inp" lang="ja" value="' + esc(w ? w.s : 'すごい') + '"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_r') + '">읽기</label><input id="' + I('f_r') + '" class="inp" lang="ja" placeholder="히라가나 (선택)" value="' + esc(w ? w.r : '') + '"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_m') + '">뜻<span aria-hidden="true">*</span></label><input id="' + I('f_m') + '" class="inp" placeholder="한국어 뜻 (예: 영화)" value="' + esc(w ? w.m : '대단하다') + '"></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_p') + '">품사</label><select id="' + I('f_p') + '" class="sel2"><option>' + esc(w ? w.pos : '형용사') + '</option></select></div>' +
+      '<div class="fld"><span class="lbl" id="' + I('f_ckl') + '">조각<span aria-hidden="true">*</span></span><div class="ckr" role="radiogroup" aria-labelledby="' + I('f_ckl') + '">' + ck + '</div></div>' +
+      '<div class="fld"><label class="lbl" for="' + I('f_c') + '">분류</label><input id="' + I('f_c') + '" class="inp" placeholder="예: 일상, 여행 (선택)" value="' + esc(w && w.cat ? w.cat : '') + '"></div>' +
+      '<button type="button" class="more" aria-expanded="false" data-act="noop">예문·메모 더 쓰기' + IC.chev + '</button>';
+  }
+  function formFavRow(text, hint) {
+    var on = !!A.sheet.ffav;
+    return '<div class="ffr dnew"><p class="t">' + esc(text) + '<small>' + esc(hint) + '</small></p><button type="button" class="ftg ico" aria-pressed="' + on + '" data-act="formfav"><span class="' + onCls(on).trim() + '" style="display:grid">' + starSvg(on, 18) + '</span><span class="sr">' + esc(text) + '</span></button></div>';
+  }
+  function editBody(w, feat) {
+    return '<form class="col12" onsubmit="return false">' + (feat && S.d.d4 === 'B' ? formFavRow(C.formRow, C.formRowHint) : '') + formFields(w) +
+      '<p class="cap">맞힘·틀림 기록과 출처는 바꿀 수 없어요.</p><div class="brow" style="margin-top:0"><button type="button" class="btn pri" data-act="save">저장</button><button type="button" class="btn ghost" data-act="cancel">취소</button></div></form>';
+  }
+  function addSheet(feat) {
+    var body = '<form class="col12" onsubmit="return false">' + (feat && S.d.d7 === 'B' ? formFavRow(C.addRow, C.addRowHint) : '') + formFields(null, true) + '<div class="brow" style="margin-top:0"><button type="button" class="btn pri" data-act="noop">저장</button></div></form>';
+    return '<div class="scrim" aria-hidden="true"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="' + I('sh_t') + '"><div class="sh-h"><h2 id="' + I('sh_t') + '" tabindex="-1">단어 추가</h2><button type="button" class="icb44" data-act="sclose" aria-label="닫기">' + IC.x + '</button></div><div class="sh-b">' + body + '</div></div>';
+  }
+
+  function phone(w, h, pfx, cur) {
+    PF = pfx;
+    var feat = !cur;
+    var html = '<div class="phone w' + w + ' h' + h + (S.big ? ' big' : '') + '" data-pfx="' + pfx + '"' + (cur ? ' data-cur="1"' : '') + '><div class="app"><div class="pg"' + (A.sheet ? ' aria-hidden="true"' : '') + '><div class="ab"><b>단어장</b><button type="button" class="ab-add" aria-label="단어 추가" data-act="noop">＋ 추가</button></div><div class="pgs">' + listScreen(feat) + '</div><div class="tabs"><span>회화</span><span>공부</span><span>계획표</span><span class="cur">단어장</span><span>질문</span></div></div>';
+    if (A.sheet) html += sheetHTML(feat);
+    if (A.toast && feat) html += '<div class="ptoast" role="status">' + esc(A.toast) + '</div>';
+    if (cur && ST[S.st].f && ST[S.st].f.fav && !A.sheet) html += '<p class="tn">현재: 즐겨찾기 조건이 없어 같은 조건의 보통 목록</p>';
+    html += '</div></div>';
+    PF = '';
+    return html;
+  }
+
+  /* ── 무대·목록·설명 ── */
+  function renderNav() {
+    var groups = {}, order = [];
+    IDS.forEach(function (id) { var g = ST[id].g; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(id); });
+    $('#dnav').innerHTML = order.map(function (g) {
+      return '<h2>' + esc(g) + '</h2>' + groups[g].map(function (id) { return '<button type="button" class="nvb" data-st="' + id + '"' + (id === S.st ? ' aria-current="true"' : '') + '>' + esc(ST[id].t) + '<span class="did">' + id + '</span></button>'; }).join('');
+    }).join('');
+  }
+  function cap(cur, label) { return '<figcaption><span class="' + (cur ? 'tagc">현재' : 'tagp">제안') + '</span>' + esc(label) + '</figcaption>'; }
+  function renderStage() {
+    var st = $('#stage'), h = '', t = ST[S.st].t;
+    if (S.view === 'three') [360, 390, 412].forEach(function (w, i) { h += '<figure class="fw">' + cap(false, w + ' × ' + S.h) + phone(w, S.h, 'p' + i + '-') + '</figure>'; });
+    else if (S.view === 'cmp') { h += '<figure class="fw">' + cap(true, '배포된 화면 · ' + S.w) + phone(S.w, S.h, 'c0-', true) + '</figure>'; h += '<figure class="fw">' + cap(false, t + ' · ' + S.w) + phone(S.w, S.h, 'c1-') + '</figure>'; }
+    else h += '<figure class="fw">' + cap(false, t + ' · ' + S.w + ' × ' + S.h) + phone(S.w, S.h, 'p0-') + '</figure>';
+    var keep = $$('.pgs', st).map(function (p) { return p.scrollTop; });
+    st.innerHTML = h;
+    $$('.phone', st).forEach(function (ph, i) { fitScroll(ph, keep[i]); });
+  }
+  function fitScroll(ph, keep) {
+    var pg = $('.pgs', ph); if (!pg) return;
+    if (keep && S.o) { pg.scrollTop = keep; return; }
+    if (ST[S.st].scroll === 'list') { var hd = $('.hdr', pg); if (hd) pg.scrollTop = Math.max(0, hd.offsetTop - 6); }
+    else pg.scrollTop = 0;
+  }
+  function renderExp() {
+    var s = ST[S.st];
+    $('#exp').innerHTML = '<p style="font-size:13px;word-break:keep-all"><b>' + esc(s.t) + '</b> <span class="did">' + S.st + '</span></p><p style="font-size:13px;margin-top:6px;word-break:keep-all;overflow-wrap:anywhere">' + esc(s.s) + '</p>';
+  }
+  function measure(ph) {
+    var out = { ov: 0, ovs: [], small: [], trunc: [], rowLow: 0, starMin: null, overlap: 0 };
+    var app = $('.app', ph).getBoundingClientRect();
+    $$('.app *', ph).forEach(function (el) {
+      if (el.closest('.sr') || el.closest('.tn')) return;
+      var sc = el.parentElement && el.parentElement.closest('.hsc');
+      if (sc) return;
+      if (el.closest('svg') && el.tagName.toLowerCase() !== 'svg') return;
+      var b = el.getBoundingClientRect();
+      if (!b.width && !b.height) return;
+      if (getComputedStyle(el).visibility === 'hidden') return;
+      if (b.right > app.right + 0.5 || b.left < app.left - 0.5) { out.ov++; if (out.ovs.length < 3) out.ovs.push((el.className || el.tagName).toString().slice(0, 18)); }
+    });
+    $$('.pgs, .sh-b', ph).forEach(function (s) { if (s.scrollWidth > s.clientWidth + 1) out.ov++; });
+    $$('button, input, select, textarea', ph).forEach(function (el) {
+      if (el.closest('.sr') || el.offsetParent === null) return;
+      if (/\b(seg|chip|ck|dt|ftg)\b/.test(el.className) || (el.parentElement && /\bseg\b/.test(el.parentElement.className))) {
+        var bb = el.getBoundingClientRect();
+        if (bb.width < 43.5) out.small.push((el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 10) + ' 폭' + Math.round(bb.width));
+        return; /* 보이는 높이 32·36 + ::before 44 (지금 부품과 같은 방법) */
+      }
+      var b = el.getBoundingClientRect();
+      if (b.height < 43.5 || b.width < 43.5) out.small.push((el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 12) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    });
+    $$('.seg button > span, .ftg .tl, .pgc b, .pgc small', ph).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.trunc.push(el.textContent.trim()); });
+    $$('.wl .wr:not([aria-hidden])', ph).forEach(function (r) {
+      var rb = r.getBoundingClientRect(); if (rb.height < 63.5) out.rowLow++;
+      var st = $('.wst', r), op = $('.wo', r);
+      if (st) { var sb = st.getBoundingClientRect(); var m = Math.min(sb.width, sb.height); out.starMin = out.starMin === null ? m : Math.min(out.starMin, m);
+        $$('.bdg, .cnt, .sf, .mn', r).forEach(function (x) { var xb = x.getBoundingClientRect(); if (xb.right > sb.left + 0.5 && xb.left < sb.right - 0.5) out.overlap++; }); }
+      if (op) { var ob = op.getBoundingClientRect(); $$('.bdg, .cnt', r).forEach(function (x) { var xb = x.getBoundingClientRect(); if (xb.right > ob.right + 0.5) out.overlap++; }); }
+    });
+    return out;
+  }
+  function renderMeas() {
+    var rows = $$('#stage .phone').map(function (ph) {
+      var m = measure(ph), w = ph.classList.contains('w360') ? 360 : ph.classList.contains('w390') ? 390 : 412, cur = ph.hasAttribute('data-cur');
+      return '<p><b>' + (cur ? '현재 ' : '제안 ') + w + 'px' + (S.big ? ' · 글꼴 130%' : '') + '</b> · 가로 넘침 <span class="' + (m.ov ? 'ng' : 'ok') + '">' + m.ov + '</span>' + (m.ovs.length ? ' (' + esc(m.ovs.join(', ')) + ')' : '') + ' · 44px 미만 터치 <span class="' + (m.small.length ? 'ng' : 'ok') + '">' + m.small.length + '</span>' + (m.small.length ? ' (' + esc(m.small.join(', ')) + ')' : '') + '</p>' +
+        '<p>잘린 글자 <span class="' + (m.trunc.length ? 'ng' : 'ok') + '">' + m.trunc.length + '</span>' + (m.trunc.length ? ' (' + esc(m.trunc.join(', ')) + ')' : '') + ' · 64 미만 행 <span class="' + (m.rowLow ? 'ng' : 'ok') + '">' + m.rowLow + '</span>' + (m.starMin !== null ? ' · 행 별 누르는 곳 최소 ' + Math.round(m.starMin) + 'px · 별과 겹침 <span class="' + (m.overlap ? 'ng' : 'ok') + '">' + m.overlap + '</span>' : '') + '</p>';
+    });
+    rows.push('<p>요청 ' + A.reqs + '건 · 무시한 탭(잠김) ' + A.ignored + '</p>');
+    $('#meas').innerHTML = rows.join('<hr style="border:0;border-top:1px solid var(--line);margin:6px 0">') + '<p style="margin-top:6px">분절·칩·토글은 보이는 높이 32~36 이고 위아래 ::before 로 44 — 폭만 잰다(지금 부품과 같은 방법).</p>';
+  }
+  function renderDec() {
+    $('#dqs').innerHTML = DEC.map(function (d) {
+      return '<fieldset class="dq"><legend><span class="dn2">' + d.n + '</span>' + esc(d.t) + (d.x ? ' <span class="dsg">L7 과 다름</span>' : '') + '</legend>' + d.o.map(function (o) {
+        var on = S.d[d.k] === o[0];
+        return '<label class="opt' + (on ? ' on' : '') + '"><input type="radio" name="' + d.k + '" value="' + o[0] + '"' + (on ? ' checked' : '') + '><span class="opt-h">' + o[0] + ' · ' + esc(o[1]) + (o[0] === 'A' ? ' <span class="rec">★ 권고</span>' : '') + '</span><span class="opt-d">' + esc(o[2]) + '</span><span class="sel">' + (on ? '보는 중' : '고르면 화면이 바뀜') + '</span></label>';
+      }).join('') + '</fieldset>';
+    }).join('');
+    var diff = DEC.filter(function (d) { return S.d[d.k] !== 'A'; }).map(function (d) { return d.n + '=' + S.d[d.k]; });
+    $('#d-sum').textContent = diff.length ? '★ 와 다른 선택: ' + diff.join(', ') : '모두 ★';
+  }
+  function renderCopy() {
+    $('#cptbl').innerHTML = '<thead><tr><th scope="col">쓰는 곳</th><th scope="col">문구</th><th scope="col">메모</th></tr></thead><tbody>' + COPY_ROWS.map(function (r) { return '<tr><td class="k">' + esc(r[0]) + '</td><td class="' + (r[3] === 'alt' ? '' : 'q') + '">' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>'; }).join('') + '</tbody>';
+  }
+  function renderCtls() {
+    $$('.dseg').forEach(function (g) {
+      var c = g.getAttribute('data-ctl');
+      $$('button', g).forEach(function (b) {
+        var v = b.getAttribute('data-v'), on;
+        if (c === 'mark') on = (v === 'on') === S.mark;
+        else if (c === 'big') on = (v === '1') === S.big;
+        else on = String(S[c]) === v;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+    var root = document.documentElement;
+    if (S.theme === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', S.theme);
+    document.body.classList.toggle('mark', S.mark);
+  }
+  function render() { renderCtls(); renderNav(); renderStage(); renderExp(); renderMeas(); renderDec(); }
+
+  var toastT = 0;
+  function toast(t) { A.toast = t; clearTimeout(toastT); toastT = setTimeout(function () { A.toast = null; render(); }, 2600); }
+
+  /* ── 직접 해 보기(제안 화면만) ── */
+  function errText(n) { return C.err[n] || C.err.fail; }
+  function toggleFav(id) {
+    if (A.pend[id]) { A.ignored++; S.o = 1; render(); return; }
+    var next = !disp(id);
+    A.pend[id] = true; A.reqs++;
+    if (S.d.d5 === 'A') A.opt[id] = next;
+    S.o = 1; render();
+    var net = S.net;
+    timers.push(setTimeout(function () {
+      delete A.pend[id]; delete A.opt[id];
+      if (net === 'ok' || net === 'slow') {
+        A.db[id].fav = next;
+        var leaving = A.f.fav && !next;
+        if (leaving && S.d.d3 === 'A') { reread(); toast(C.removed); }
+        else if (S.d.d10 === 'B') toast(next ? C.added : C.removed);
+      } else toast(errText(net));
+      render();
+    }, net === 'slow' ? 2500 : 600));
+  }
+  function onAct(act, el) {
+    var id = el.getAttribute('data-id'), v = el.getAttribute('data-v');
+    S.o = 1;
+    switch (act) {
+      case 'star': return toggleFav(id || A.sheet.id);
+      case 'open': A.sheet = { id: id, mode: 'view' }; return render();
+      case 'sclose': A.sheet = null; if (A.f.fav) reread(); return render();
+      case 'edit': A.sheet.mode = 'edit'; A.sheet.ffav = A.db[A.sheet.id].fav; return render();
+      case 'cancel': A.sheet.mode = 'view'; return render();
+      case 'save': {
+        var sid = A.sheet.id, nf = !!A.sheet.ffav;
+        A.sheet.mode = 'view';
+        if (S.d.d4 === 'B' && nf !== A.db[sid].fav) { A.db[sid].fav = nf; A.reqs++; }
+        toast('고쳤어요'); return render();
+      }
+      case 'formfav': A.sheet.ffav = !A.sheet.ffav; return render();
+      case 'ffav': {
+        if (S.d.d1 === 'D') return;
+        A.f.fav = !A.f.fav; if (A.f.fav && S.d.d2 === 'C') A.f.archived = false;
+        A.page = 0; reread(); return render();
+      }
+      case 'arch': A.f.archived = !A.f.archived; if (A.f.archived && S.d.d2 === 'C') A.f.fav = false; A.page = 0; reread(); return render();
+      case 'src': if (v === 'fav') { A.f.fav = true; A.f.source = 'all'; } else { A.f.source = v; if (S.d.d1 === 'D') A.f.fav = false; } A.page = 0; reread(); return render();
+      case 'ck': A.f.chunk = v || null; A.page = 0; reread(); return render();
+      case 'clearfav': A.f.fav = false; A.page = 0; reread(); return render();
+      case 'prev': if (el.getAttribute('aria-disabled') === 'true') return; A.page = Math.max(0, A.page - 1); reread(); return render();
+      case 'next': if (el.getAttribute('aria-disabled') === 'true') return; A.page++; reread(); return render();
+      default: toast('데모에서는 그리기만 한다'); render();
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return;
+    if (t.closest('#dnav') && t.hasAttribute('data-st')) { S.o = null; applyScene(t.getAttribute('data-st')); render(); return; }
+    var sg = t.closest('.dseg');
+    if (sg) {
+      var c = sg.getAttribute('data-ctl'), v = t.getAttribute('data-v');
+      if (c === 'mark') S.mark = v === 'on'; else if (c === 'big') S.big = v === '1'; else if (c === 'w' || c === 'h') S[c] = +v; else S[c] = v;
+      render(); return;
+    }
+    if (t.id === 'd-reset') { S.d = clone(DEF_D); S.o = null; applyScene(S.st); render(); return; }
+    if (t.closest('#stage') && t.hasAttribute('data-act')) {
+      e.preventDefault();
+      if (t.closest('.phone[data-cur]')) { toast('왼쪽은 배포된 화면(현재) — 오른쪽 제안 화면에서 눌러 보세요'); render(); return; }
+      if (t.getAttribute('aria-disabled') === 'true' && t.getAttribute('data-act') === 'star') { A.ignored++; S.o = 1; render(); return; }
+      onAct(t.getAttribute('data-act'), t);
+    }
+  });
+  document.addEventListener('submit', function (e) { e.preventDefault(); });
+  document.addEventListener('change', function (e) {
+    var r = e.target;
+    if (r.type === 'radio' && r.closest('#dqs')) { S.d[r.name] = r.value; S.o = null; applyScene(S.st); render(); var again = $('#dqs input[name="' + r.name + '"][value="' + r.value + '"]'); if (again) again.focus(); }
+  });
+
+  /* ── 자체 시험(#selftest): 상태 × 세 폭 × (현재·제안 ★ + 대안 하나씩) × 글꼴 100/130 — 가로 넘침·44px·잘린 글자·행 높이·별 겹침 ── */
+  function selftest() {
+    var fails = [], n = 0, info = [], keep = clone(S);
+    var combos = [{}];
+    DEC.forEach(function (d) { d.o.forEach(function (o) { if (o[0] !== 'A') { var c = {}; c[d.k] = o[0]; combos.push(c); } }); });
+    combos.forEach(function (c) {
+      var alt = Object.keys(c).length > 0;
+      [false, true].forEach(function (big) {
+        [360, 390, 412].forEach(function (w) {
+          IDS.forEach(function (id) {
+            [false, true].forEach(function (cur) {
+              if (cur && alt) return;
+              S.d = Object.assign(clone(DEF_D), c); S.big = big; S.view = 'one'; S.w = w; S.h = 780; S.o = null;
+              applyScene(id);
+              $('#stage').innerHTML = '<figure class="fw">' + phone(w, 780, 'st-', cur) + '</figure>';
+              fitScroll($('#stage .phone'));
+              n++;
+              var m = measure($('#stage .phone'));
+              var key = (alt ? JSON.stringify(c) : '★') + (cur ? ' 현재' : ' 제안') + (big ? ' 130%' : '') + ' ' + w + ' ' + id;
+              if (m.ov) fails.push(key + ' 넘침=' + m.ov + ' ' + m.ovs.join('|'));
+              if (m.small.length) fails.push(key + ' 작은터치=' + m.small.join('|'));
+              if (m.rowLow) fails.push(key + ' 낮은행=' + m.rowLow);
+              if (m.overlap) fails.push(key + ' 겹침=' + m.overlap);
+              if (!cur && m.starMin !== null && m.starMin < 44) fails.push(key + ' 별작음=' + m.starMin);
+              if (m.trunc.length) info.push(key + ' 잘림=' + m.trunc.join('|'));
+            });
+          });
+        });
+      });
+    });
+    S = keep; applyScene(S.st); render();
+    var out = $('#selftest');
+    out.hidden = false;
+    out.textContent = 'SELFTEST checks=' + n + ' fails=' + fails.length + '\n' + fails.slice(0, 80).join('\n') + '\n--TRUNC ' + info.length + '\n' + info.join('\n');
+  }
+
+  window.addEventListener('error', function (e) { var out = $('#selftest'); out.hidden = false; out.textContent = 'SELFTEST_ERROR ' + e.message; });
+  renderCopy();
+  applyScene(S.st);
+  render();
+  if (location.hash === '#selftest') selftest();
+  /* 주소 #st=<상태>&w=360&view=three&theme=dark&big=1&d=d1:B — 그 상태로 바로 열기(검토·캡처용) */
+  if (/^#st=/.test(location.hash)) {
+    var q = new URLSearchParams(location.hash.slice(1));
+    if (q.get('d')) q.get('d').split(',').forEach(function (kv) { var x = kv.split(':'); if (S.d[x[0]]) S.d[x[0]] = x[1]; });
+    if (q.get('w')) S.w = +q.get('w');
+    if (q.get('view')) S.view = q.get('view');
+    if (q.get('theme')) S.theme = q.get('theme');
+    if (q.get('big')) S.big = q.get('big') === '1';
+    if (ST[q.get('st')]) applyScene(q.get('st'));
+    render();
+    if (q.get('shot')) $('#decide').hidden = true;
+  }
+})();
+</script>
+</body>
+</html>

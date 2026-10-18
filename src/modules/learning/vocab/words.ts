@@ -1,6 +1,7 @@
 /**
- * 단어장(api-contract #40~#46) — task-006 에서 `createWord`·입력 검증, task-008 에서 목록·상세·수정·삭제·보관·카테고리,
- * task-068 에서 **공용 기본 단어(읽기 전용) + 내 단어** 범위·사용자별 상태(`UserWordState`)·쪽 번호 목록으로 바뀜(§2-9 task-068 개정).
+ * 단어장(api-contract #40~#46·#182/#183) — task-006 에서 `createWord`·입력 검증, task-008 에서 목록·상세·수정·삭제·보관·카테고리,
+ * task-068 에서 **공용 기본 단어(읽기 전용) + 내 단어** 범위·사용자별 상태(`UserWordState`)·쪽 번호 목록으로 바뀜(§2-9 task-068 개정),
+ * task-074 에서 사용자별 즐겨찾기(#182/#183 · #40 `favorite=1`)가 더해짐.
  * 검증 한도는 api-contract #41(코드포인트 기준): surface 1~80 · reading ≤120 · meaning 1~200 · example/exampleKo ≤2,000 · note ≤500 · category ≤40.
  *
  * **같은 표현(surface) 중복은 `409 { existingId }`.** 스키마에 (userId, surface) 유니크가 없으므로 사용자 행을 잠근 뒤 확인한다
@@ -13,7 +14,7 @@
 import type { ChunkType, JlptLevel, PartOfSpeech, Prisma, WordSource } from '@prisma/client'
 import { ApiError, codePointLength, escapeLike, lockUserRow, prisma, sanitizeText, withTransaction, type Tx } from '@/modules/infra'
 import { isLevelCategory } from '@/types/seedPack'
-import { EMPTY_WORD_STATE, archivedBy, loadWordStates, notArchivedBy, visibleWordWhere, type WordStateRow } from './wordState'
+import { EMPTY_WORD_STATE, WORD_STATE_FIELDS, archivedBy, favoritedBy, loadWordStates, notArchivedBy, visibleWordWhere, type WordStateRow } from './wordState'
 
 export const PARTS_OF_SPEECH = ['NOUN', 'VERB', 'ADJ_I', 'ADJ_NA', 'ADVERB', 'PARTICLE', 'EXPRESSION', 'OTHER'] as const
 /** 단어 조각 5유형(task-068 D4 — `EXPRESSION` 「표현」은 단어 전용, 교정·주제 조각은 4유형). */
@@ -53,13 +54,16 @@ export interface WordDto {
   /** `BASE` = 공용 기본 단어(`userId` NULL), `MINE` = 요청한 사용자의 단어. */
   origin: WordOrigin
   readOnly: boolean
-  /** 아래 6칸은 요청한 사용자의 `UserWordState`(행이 없으면 0·null·false). */
+  /** 아래 8칸은 요청한 사용자의 `UserWordState`(행이 없으면 0·null·false). 다른 사용자의 상태는 싣지 않는다. */
   correctCount: number
   wrongCount: number
   lastSeenAt: string | null
   lastResult: string | null
   archived: boolean
   archivedAt: string | null
+  /** task-074 — 요청한 사용자의 즐겨찾기(보관과 독립). */
+  favorite: boolean
+  favoritedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -137,6 +141,7 @@ export function toWordDto(w: WordRow, state?: WordStateRow | null): WordDto {
     origin, readOnly: origin === 'BASE',
     correctCount: s.correctCount, wrongCount: s.wrongCount, lastSeenAt: s.lastSeenAt ? s.lastSeenAt.toISOString() : null, lastResult: s.lastResult,
     archived: s.archived, archivedAt: s.archivedAt ? s.archivedAt.toISOString() : null,
+    favorite: s.favorite, favoritedAt: s.favoritedAt ? s.favoritedAt.toISOString() : null,
     createdAt: w.createdAt.toISOString(), updatedAt: w.updatedAt.toISOString(),
   }
 }
@@ -288,6 +293,8 @@ export interface WordListQuery {
   chunkType: WordChunkType | null
   source: WordSourceFilter
   archived: boolean
+  /** task-074 — `true` 면 내가 즐겨찾기한 단어만. `false` 는 조건 없음(「즐겨찾기 아닌 것만」이 아니다). */
+  favorite: boolean
   sort: WordSort
   limit: number
   /** 1부터. */
@@ -295,7 +302,7 @@ export interface WordListQuery {
 }
 
 /**
- * #40 쿼리 — `q` ≤40·`category` ≤40(코드포인트), `chunkType` 5유형 한 값(`none` 폐지 — task-068), `source=all|mine|base`, `archived=0|1`,
+ * #40 쿼리 — `q` ≤40·`category` ≤40(코드포인트), `chunkType` 5유형 한 값(`none` 폐지 — task-068), `source=all|mine|base`, `archived=0|1`, `favorite=0|1`(task-074),
  * `sort=recent|wrong|surface`, `page` 1~100,000(기본 1), `limit` 은 라우트가 1~100(기본 20)으로 읽어 넘긴다. `cursor` 는 400 `use_page`.
  * 열거값은 글자 그대로 비교한다(대소문자·쉼표 목록은 400). 같은 이름이 반복되면 첫 값.
  */
@@ -311,6 +318,8 @@ export function parseWordListQuery(params: URLSearchParams, limit: number): Word
   if (params.get('cursor') != null) bad('cursor', 'use_page', 'cursor 대신 page 를 보내 주세요.')
   const archived = params.get('archived')
   if (archived != null && archived !== '' && archived !== '0' && archived !== '1') bad('archived', '0|1', 'archived 는 0 또는 1 이어야 합니다.')
+  const favorite = params.get('favorite')
+  if (favorite != null && favorite !== '' && favorite !== '0' && favorite !== '1') bad('favorite', '0|1', 'favorite 는 0 또는 1 이어야 합니다.')
   const sort = params.get('sort') || 'recent'
   if (!(WORD_SORTS as readonly string[]).includes(sort)) bad('sort', WORD_SORTS.join('|'), 'sort 값이 올바르지 않습니다.')
   const chunk = params.get('chunkType') || null
@@ -329,17 +338,22 @@ export function parseWordListQuery(params: URLSearchParams, limit: number): Word
     chunkType: chunk as WordChunkType | null,
     source: source as WordSourceFilter,
     archived: archived === '1',
+    favorite: favorite === '1',
     sort: sort as WordSort,
     limit,
     page,
   }
 }
 
-/** #40 where — 보이는 범위(출처) · 나의 보관 여부 · 분류 · 조각 · 검색은 모두 AND. */
-export function wordListFilter(userId: string, q: Pick<WordListQuery, 'q' | 'category' | 'chunkType' | 'archived' | 'source'>): Prisma.WordEntryWhereInput {
+/** #40 where — 보이는 범위(출처) · 나의 보관 여부 · 나의 즐겨찾기(`favorite` 일 때만) · 분류 · 조각 · 검색은 모두 AND. */
+export function wordListFilter(
+  userId: string,
+  q: Pick<WordListQuery, 'q' | 'category' | 'chunkType' | 'archived' | 'source'> & { favorite?: boolean },
+): Prisma.WordEntryWhereInput {
   const like = q.q ? escapeLike(q.q) : null
   const scope: Prisma.WordEntryWhereInput = q.source === 'mine' ? { userId } : q.source === 'base' ? { userId: null, source: 'SEED' } : visibleWordWhere(userId)
   const and: Prisma.WordEntryWhereInput[] = [scope, q.archived ? archivedBy(userId) : notArchivedBy(userId)]
+  if (q.favorite) and.push(favoritedBy(userId))
   if (q.category) and.push({ category: q.category })
   if (q.chunkType) and.push({ chunkType: q.chunkType })
   if (like) and.push({ OR: [{ surface: { contains: like } }, { reading: { contains: like } }, { meaning: { contains: like } }] })
@@ -473,13 +487,18 @@ export async function getWordDetail(userId: string, id: string): Promise<WordDet
   return { ...toWordDto(w, states.get(id)), stats: { attempts, last7d: { correct: n('CORRECT'), wrong: n('WRONG') }, evalAppearances } }
 }
 
-/** 수정에서 거절하는 칸 — 카운터·출처·보관 상태(지금 그대로) + `jlpt`(task-068: 내 단어는 수준을 고르지 않는다, 옛 값은 남는다). */
-const READ_ONLY_KEYS = ['id', 'source', 'sourceRefId', 'correctCount', 'wrongCount', 'lastSeenAt', 'lastResult', 'archived', 'archivedAt', 'createdAt', 'updatedAt', 'jlpt']
+/**
+ * 수정에서 거절하는 칸 — 카운터·출처·보관 상태(지금 그대로) + `jlpt`(task-068: 내 단어는 수준을 고르지 않는다, 옛 값은 남는다)
+ * + 즐겨찾기(task-074: #182/#183 으로만 바꾼다 — 수정 [저장]이 별을 건드리지 않게).
+ */
+const READ_ONLY_KEYS = [
+  'id', 'source', 'sourceRefId', 'correctCount', 'wrongCount', 'lastSeenAt', 'lastResult', 'archived', 'archivedAt', 'favorite', 'favoritedAt', 'createdAt', 'updatedAt', 'jlpt',
+]
 
 export type WordPatch = Partial<Omit<WordInput, 'jlpt'>>
 
 /**
- * #43 본문 — 보낸 키만 바꾼다. 카운터·출처·보관 상태·`jlpt` 는 `400 read_only`, 모르는 키는 `400 unknown_key`, 선택 값은 `null` 로 비운다.
+ * #43 본문 — 보낸 키만 바꾼다. 카운터·출처·보관·즐겨찾기 상태·`jlpt` 는 `400 read_only`, 모르는 키는 `400 unknown_key`, 선택 값은 `null` 로 비운다.
  * `chunkType` 은 5유형 중 하나 — `null` 은 `400 required`(폼이 늘 고른다).
  */
 export function parseWordPatch(raw: Record<string, unknown>): WordPatch {
@@ -568,11 +587,10 @@ export async function setWordArchivedTx(tx: Tx, userId: string, id: string, arch
   const w = await tx.wordEntry.findFirst({ where: { AND: [{ id }, visibleWordWhere(userId)] }, select: WORD_SELECT })
   if (!w) throw notFound()
   const key = { userId_wordId: { userId, wordId: id } }
-  const stateSelect = { correctCount: true, wrongCount: true, lastSeenAt: true, lastResult: true, archived: true, archivedAt: true } as const
-  const cur = await tx.userWordState.findUnique({ where: key, select: stateSelect })
+  const cur = await tx.userWordState.findUnique({ where: key, select: WORD_STATE_FIELDS })
   if ((cur?.archived ?? false) === archived) return toWordDto(w, cur)
   const data = { archived, archivedAt: archived ? new Date() : null }
-  const next = await tx.userWordState.upsert({ where: key, create: { userId, wordId: id, ...data }, update: data, select: stateSelect })
+  const next = await tx.userWordState.upsert({ where: key, create: { userId, wordId: id, ...data }, update: data, select: WORD_STATE_FIELDS })
   return toWordDto(w, next)
 }
 
@@ -580,6 +598,31 @@ export async function setWordArchivedTx(tx: Tx, userId: string, id: string, arch
 export async function setWordArchived(userId: string, id: string, archived: boolean): Promise<WordDto> {
   if (!isValidId(id)) throw notFound()
   return withTransaction((tx) => setWordArchivedTx(tx, userId, id, archived))
+}
+
+/**
+ * #182/#183 즐겨찾기 토글(task-074, 트랜잭션 `tx` 안) — 보관(#45)과 같은 모양: 보이는 단어(내 단어·기본 단어)만, 남의 단어·없는 id 는 404,
+ * 쓰는 곳은 `UserWordState(나, id)` 의 `favorite`·`favoritedAt` 뿐(`WordEntry`·보관 칸은 그대로). 이미 그 상태면 쓰지 않고 그대로 돌려준다
+ * (켜기 두 번 = `favoritedAt` 유지, 행이 없는데 끄기 = 행을 만들지 않음). 사용자 행을 먼저 잡는다 — 빠른 연타 두 요청이 같은 상태 행을
+ * 동시에 만들려다 유니크 충돌로 500 이 나지 않게.
+ */
+export async function setWordFavoriteTx(tx: Tx, userId: string, id: string, favorite: boolean): Promise<WordDto> {
+  if (!isValidId(id)) throw notFound()
+  await lockUserRow(tx, userId)
+  const w = await tx.wordEntry.findFirst({ where: { AND: [{ id }, visibleWordWhere(userId)] }, select: WORD_SELECT })
+  if (!w) throw notFound()
+  const key = { userId_wordId: { userId, wordId: id } }
+  const cur = await tx.userWordState.findUnique({ where: key, select: WORD_STATE_FIELDS })
+  if ((cur?.favorite ?? false) === favorite) return toWordDto(w, cur)
+  const data = { favorite, favoritedAt: favorite ? new Date() : null }
+  const next = await tx.userWordState.upsert({ where: key, create: { userId, wordId: id, ...data }, update: data, select: WORD_STATE_FIELDS })
+  return toWordDto(w, next)
+}
+
+/** #182/#183 — `setWordFavoriteTx` 를 자체 트랜잭션으로. */
+export async function setWordFavorite(userId: string, id: string, favorite: boolean): Promise<WordDto> {
+  if (!isValidId(id)) throw notFound()
+  return withTransaction((tx) => setWordFavoriteTx(tx, userId, id, favorite))
 }
 
 export interface CategoryCount {
