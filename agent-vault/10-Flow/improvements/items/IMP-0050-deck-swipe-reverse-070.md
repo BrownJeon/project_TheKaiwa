@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0050
 title: "오늘의 단어 카드 스와이프를 반대로: 왼쪽 밀기 = 다음·건너뛰기 확인, 오른쪽 밀기 = 이전 카드"
-status: inbox
+status: planned
 screen: "§5 오늘의 단어 카드 덱(VocabDeck)"
 area: behavior
 priority: ""
@@ -10,7 +10,7 @@ created: 2026-10-18
 updated: 2026-10-18
 observed_ref: 6445dba
 related_task: "[[task-070-improve-deck-swipe-prev]]"
-planned_task: ""
+planned_task: "[[task-075-improve-deck-swipe-reverse]]"
 tags:
   - type/improvement
 aliases:

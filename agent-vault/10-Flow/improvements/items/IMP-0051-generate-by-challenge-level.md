@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0051
 title: "오늘의 단어·회화를 챌린지 난이도 기준으로 생성하고, 챌린지가 없으면 프로필 목표수준 기준으로 — 챌린지를 만들 때 목표를 설정할 수 있게"
-status: inbox
+status: planned
 screen: "§5 오늘의 단어 · §12 오늘의 회화(레슨) · 챌린지 만들기(/plan/challenge/new)"
 area: behavior
 priority: ""
@@ -10,7 +10,7 @@ created: 2026-10-18
 updated: 2026-10-18
 observed_ref: 89fcefc
 related_task: "[[task-040-improve-challenge-design]]"
-planned_task: ""
+planned_task: "[[task-076-improve-challenge-level-generation]]"
 tags:
   - type/improvement
 aliases:
