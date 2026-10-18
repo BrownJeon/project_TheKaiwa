@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0045
 title: "한글 표기가 숨겨지는 단어(분석기 읽기 ≠ 저장 읽기)에 저장된 읽기로 한글 줄 보이기"
-status: planned
+status: done
 screen: "§5 오늘의 단어 카드 덱 · §4 단어장 · 교정 제안·평가·챌린지(단어 표제어 한글 줄 공용)"
 area: ui
 priority: ""

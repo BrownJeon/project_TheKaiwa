@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0043
 title: "단어 추가할 때 키보드 입력과 마이크(말해서) 입력 둘 다 가능하게"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words) 단어 추가 시트"
 area: ui
 priority: ""

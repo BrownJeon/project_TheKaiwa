@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0038
 title: "기본 단어 7,755개를 처음부터 단어장에 넣어 두기 (사용자는 필요한 단어를 더하는 형태)"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words) · §5 오늘의 단어"
 area: behavior
 priority: ""

@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0040
 title: "단어장 조각 필터에서 「없음」 칩 제거"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words)"
 area: ui
 priority: ""

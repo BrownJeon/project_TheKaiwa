@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0037
 title: "단어장 목록을 7개씩 페이징"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words)"
 area: ux
 priority: ""

@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0039
 title: "단어장 조건 필터에서 난이도 필터 제거"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words)"
 area: ui
 priority: ""

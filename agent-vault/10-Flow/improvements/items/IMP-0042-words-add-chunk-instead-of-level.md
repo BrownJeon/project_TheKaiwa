@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0042
 title: "단어 직접 입력의 「수준」 항목을 「조각」 선택으로 교체 (이미 있는 단어도 조각으로 표기)"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words) 단어 추가 시트"
 area: ui
 priority: ""

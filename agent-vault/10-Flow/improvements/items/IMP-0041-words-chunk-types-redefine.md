@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0041
 title: "조각이 「없음」인 단어를 기존 분류를 기준으로 조각 유형을 다시 정의해 분류"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words)"
 area: behavior
 priority: ""
