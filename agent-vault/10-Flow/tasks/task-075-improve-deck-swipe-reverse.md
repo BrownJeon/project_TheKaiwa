@@ -1,8 +1,8 @@
 ---
 task_id: task-075
 title: "오늘의 단어 카드 스와이프 방향 맞바꿈 — 왼쪽 밀기 = 다음·건너뛰기 확인, 오른쪽 밀기 = 이전 (IMP-0050)"
-status: doing
-waiting: user_deploy_approval
+status: done
+waiting: ""
 base_ref: fd2d939
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]

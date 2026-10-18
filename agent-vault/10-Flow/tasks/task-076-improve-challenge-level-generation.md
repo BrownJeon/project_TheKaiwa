@@ -1,8 +1,8 @@
 ---
 task_id: task-076
 title: "오늘의 단어·회화 생성을 챌린지 난이도 기준으로, 챌린지가 없으면 프로필 목표수준 기준으로 — 챌린지 만들 때 난이도(목표) 설정 (IMP-0051)"
-status: doing
-waiting: user_phone_check
+status: done
+waiting: ""
 base_ref: fd2d939
 risk_level: "R1"
 roles_involved: [leader, judge, designer, developer, reviewer, qa]

@@ -1,7 +1,7 @@
 ---
 imp_id: IMP-0049
 title: "단어장 즐겨찾기 — 목록에서 바로 등록·조회 필터·상세/수정 화면에서도 등록"
-status: planned
+status: done
 screen: "§4 단어장(/drawer/words) — 단어 목록·조회 필터·상세 시트·수정 폼"
 area: behavior
 priority: ""

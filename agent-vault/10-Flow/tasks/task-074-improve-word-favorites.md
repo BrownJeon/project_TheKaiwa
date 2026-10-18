@@ -1,8 +1,8 @@
 ---
 task_id: task-074
 title: "단어장 즐겨찾기 — 목록 행에서 바로 등록·조회 필터·상세/수정 화면에서도 등록 (IMP-0049)"
-status: doing
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 6445dba
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
