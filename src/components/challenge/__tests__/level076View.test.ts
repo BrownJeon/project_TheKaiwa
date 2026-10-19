@@ -53,7 +53,7 @@ const checkedValues = (html: string) =>
   [...html.matchAll(/<input type="radio"[^>]*>/g)].map((m) => m[0]).filter((r) => r.includes('checked=""')).map((r) => /value="(N[1-5])"/.exec(r)?.[1])
 const srTexts = (html: string) => [...html.matchAll(/<span class="sr-only">(.*?)<\/span>/g)].map((m) => m[1])
 const compareText = (html: string, id: string) => text(new RegExp(`<p id="${id}"[^>]*>(.*?)</p>`).exec(html)?.[1] ?? '<<없음>>')
-const hintText = (html: string) => text(/<p aria-live="polite"[^>]*>(.*?)<\/p>/.exec(html)?.[1] ?? '<<없음>>')
+const hintText = (html: string) => text(/<div aria-live="polite"[^>]*><p[^>]*>(.*?)<\/p>/.exec(html)?.[1] ?? '<<없음>>')
 
 // ── (a) ③ 목표 단계 — 고른 난이도·프로필 값이 그대로 보인다 ──────────────────────────────────────
 

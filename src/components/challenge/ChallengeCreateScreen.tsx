@@ -46,6 +46,7 @@ import {
   serializeDraft,
   taskRowView,
   wordCountOptions,
+  wordsLevelNote,
   type CreateError,
   type Draft,
   type LevelContext,
@@ -338,12 +339,13 @@ export function GoalStep({
   const wordsReasonId = `${reasonId}-w`
   const cmpId = `${reasonId}-lv`
   const sel = selectedLevel(draft, topic) ?? topic.level
+  const wordsNote = wordsLevelNote(sel, topic.level)
   return (
     <div className="min-w-0">
       <h2 ref={headRef} tabIndex={-1} className="text-[17px] font-bold outline-none">
         {CREATE.q3Title}
       </h2>
-      {/* 난이도(task-076 D2 B) — 손대지 않으면 주제 난이도(draft.level = null), 고르면 주제를 바꿔도 유지. 안내 줄은 막지 않는다(D8 A). */}
+      {/* 난이도(task-076 D2 B) — 손대지 않으면 주제 난이도(draft.level = null), 고르면 주제를 바꿔도 유지. 안내 줄은 막지 않는다(D8 A). 주제보다 2단계 이상 어려우면 새 단어 안내 상자(task-078 §35) — 기존 줄과 한 live 영역, atomic 아님(기존 줄만 바뀌면 상자는 다시 읽지 않는다). */}
       <fieldset className="mt-3 min-w-0" aria-describedby={cmpId}>
         <legend className="contents">
           <h3 className="text-[15px] font-semibold">{CREATE.levelQ}</h3>
@@ -351,9 +353,12 @@ export function GoalStep({
         <p className="mt-1 text-[13px] text-ink2 break-keep">{CREATE.levelBody}</p>
         <LevelPills name={levelRadio} value={sel} ctx={levelCtx} onChange={(l) => onChange({ level: l })} />
         <LevelCompareLine id={cmpId} groups={levelCompareGroups(levelCtx)} />
-        <p aria-live="polite" className="mt-1 text-[12.5px] text-ink break-keep [overflow-wrap:anywhere]">
-          {levelHintText(levelHint(sel, levelCtx.my))}
-        </p>
+        <div aria-live="polite">
+          <p className="mt-1 text-[12.5px] text-ink break-keep [overflow-wrap:anywhere]">
+            {levelHintText(levelHint(sel, levelCtx.my))}
+          </p>
+          {wordsNote ? <InfoBox className="mt-2">{CREATE.wordsNoteHigh}</InfoBox> : null}
+        </div>
       </fieldset>
       <div className="mt-5 border-t border-line pt-4">
         <fieldset className="min-w-0">

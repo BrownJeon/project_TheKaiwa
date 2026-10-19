@@ -799,6 +799,14 @@ export function levelHintText(h: LevelHint): string {
   return h.kind === 'high' ? CREATE.levelHigh(h.steps) : CREATE.levelLow
 }
 
+export type WordsLevelNote = { steps: number } | null
+
+/** 새 단어 안내(task-078 §35) — 고른 난이도가 주제보다 2단계 이상 어려우면 { steps }. 쉬운 쪽은 늘 null, 단어 목표와 무관. */
+export function wordsLevelNote(sel: JlptLevel, topicLevel: JlptLevel): WordsLevelNote {
+  const d = levelRank(sel) - levelRank(topicLevel)
+  return d >= 2 ? { steps: d } : null
+}
+
 /** 비교·꼬리말 기준 — 내 수준·내 목표는 프로필(모르면 null), 이 주제는 고른 주제. */
 export interface LevelContext {
   my: JlptLevel | null

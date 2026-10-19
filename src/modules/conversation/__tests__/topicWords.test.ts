@@ -3,6 +3,7 @@
  * task-049(v2): 단어마다 예문 `exampleJa`·`exampleKo` — 스키마 8키, 예문 검사(`checkTopicExample`)는 **예문만 null 로 만들고 단어는 버리지 않는다**.
  * 픽스처 `tests/prompts/fixtures/topic-words.json`(합성: 시드 5주제 × 수준 × 제외 목록 크기 + 이상 응답 17건 — v2 항목 모양으로 갱신, 기대값 불변)
  * · `topic-words-examples.json`(예문 28쌍 + 응답 8건). LLM 호출 없음.
+ * task-078(v3): 시스템 프롬프트에 난이도 지시만 더함(+317자) — 스키마·검사·입력 블록 불변이라 길이 상한만 그만큼 올렸다.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -98,6 +99,16 @@ function promptCharsOf(req: ReturnType<typeof buildTopicWordsRequest>): number {
   return renderTranscript(withJsonOnly(req.system, req.jsonSchema), req.messages).length + (req.persona?.prompt.length ?? 0)
 }
 
+/**
+ * v3 난이도 지시(task-078)로 늘어난 system 고정부 글자 수(1,626 → 1,943). 설계 목표 3,500·5,000 에 이만큼만 더해 상한을 유지한다.
+ * 늘려도 되는 근거: 이 길이로 잰 PE 라이브 측정(25회) 지연 p95 11.84초 < A12 엔진 한도 20초(`engine/router/tasks.ts:42` topicWords).
+ * 근거가 닿는 범위: 측정한 프롬프트는 첫날 조건(제외 12개) 3,134~3,147자뿐이다 — `NORMAL_PROMPT_MAX`(3,817)도 그보다 길고, `FULL_EXCLUDE_PROMPT_MAX`(5,317, 제외 목록 가득 = 깊은 체인)는 측정 범위 밖(v3 지연·통과 미측정, +317자 ≈ +6% 증분으로 미루어 본 상한)이다.
+ * 문구를 줄여 다시 재지 않는다(task-078 Leader 결정 L8 — 측정 예산 밖, 합격 여유가 더 얇아질 위험).
+ */
+const V3_SYSTEM_GROWTH = 317
+const NORMAL_PROMPT_MAX = 3_500 + V3_SYSTEM_GROWTH
+const FULL_EXCLUDE_PROMPT_MAX = 5_000 + V3_SYSTEM_GROWTH
+
 test('픽스처: 시드 5주제(N5×3·N4×2, 기본 표현 12개씩) · 케이스 30 · 응답 18', () => {
   assert.equal(fixture.topics.length, 5)
   assert.deepEqual(fixture.topics.map((t) => t.level), ['N5', 'N5', 'N5', 'N4', 'N4'])
@@ -107,8 +118,8 @@ test('픽스처: 시드 5주제(N5×3·N4×2, 기본 표현 12개씩) · 케이�
   assert.equal(new Set(fixture.cases.map((c) => c.id)).size, 30)
 })
 
-test('버전·task 이름: topicWords@v2 · task=topicWords(LLM_TASKS 에는 developer 가 추가)', () => {
-  assert.equal(TOPIC_WORDS_PROMPT_VERSION, 'topicWords@v2')
+test('버전·task 이름: topicWords@v3 · task=topicWords(LLM_TASKS 에는 developer 가 추가)', () => {
+  assert.equal(TOPIC_WORDS_PROMPT_VERSION, 'topicWords@v3')
   assert.equal(TOPIC_WORDS_TASK, 'topicWords')
 })
 
@@ -149,9 +160,9 @@ for (const c of fixture.cases) {
     if (c.expect.noBracketInDescription) assert.ok(!/[[\]]/.test(lines[0].replace('[주제] ', '')), '사용자 글의 대괄호는 블록 표식을 흉내 못 내게 바뀐다')
     if (c.expect.titleMaxChars) assert.ok([...lines[0].replace('[주제] ', '').split(' (')[0]].length <= c.expect.titleMaxChars)
     if (c.expect.descMaxChars) assert.ok([...(lines[0].split(' — ')[1] ?? '')].length <= c.expect.descMaxChars)
-    // 프롬프트 길이: 제외 목록이 상한에 닿지 않는 입력은 설계 목표 ≤3,500자, 상한까지 찬 입력은 ≤5,000자(설계서 §4-3a 는 스키마 JSON 을 세지 않아 이 값이 넘는 구간이 있다 — 기록 참고).
+    // 프롬프트 길이: 제외 목록이 상한에 닿지 않는 입력은 설계 목표 3,500자, 상한까지 찬 입력은 5,000자 + v3 난이도 지시(V3_SYSTEM_GROWTH)(설계서 §4-3a 는 스키마 JSON 을 세지 않아 이 값이 넘는 구간이 있다 — 기록 참고).
     const chars = promptCharsOf(req)
-    assert.ok(chars <= (c.expect.truncated === 'gt0' ? 5_000 : 3_500), `${c.id}: ${chars}자`)
+    assert.ok(chars <= (c.expect.truncated === 'gt0' ? FULL_EXCLUDE_PROMPT_MAX : NORMAL_PROMPT_MAX), `${c.id}: ${chars}자`)
     // 엔진명·TTS 파라미터가 프롬프트에 없다.
     const all = renderTranscript(withJsonOnly(req.system, req.jsonSchema), req.messages) + (req.persona?.prompt ?? '')
     assert.ok(!llm.mentionsEngineIdentity(all), '엔진명 노출')
@@ -159,12 +170,12 @@ for (const c of fixture.cases) {
   })
 }
 
-test('프롬프트 길이 실측 기록(v2): system 고정부 ≈1.60K(v1 1.35K, 예문 지시 +0.25K) · 정상(제외 12~90개) 2.8K~3.35K · 상한(300개·2,000자) ≈4.7K', () => {
-  assert.ok(TOPIC_WORDS_SYSTEM_CHARS < 1_700, `system ${TOPIC_WORDS_SYSTEM_CHARS}자`)
+test('프롬프트 길이 실측 기록(v3): system 고정부 ≈1.94K(v2 1.63K, 난이도 지시 +0.32K) · 정상(제외 12~90개) 3.09K~3.70K · 상한(300개·2,000자) ≈5.07K', () => {
+  assert.ok(TOPIC_WORDS_SYSTEM_CHARS < 2_000, `system ${TOPIC_WORDS_SYSTEM_CHARS}자`)
   const lens = fixture.cases.filter((c) => !c.expect.error).map((c) => ({ id: c.id, n: promptCharsOf(buildTopicWordsRequest(inputOf(c))) }))
   const normal = lens.filter((x) => x.id !== 'tw21')
-  assert.ok(Math.max(...normal.map((x) => x.n)) <= 3_500)
-  assert.ok(lens.find((x) => x.id === 'tw21')!.n <= 5_000)
+  assert.ok(Math.max(...normal.map((x) => x.n)) <= NORMAL_PROMPT_MAX)
+  assert.ok(lens.find((x) => x.id === 'tw21')!.n <= FULL_EXCLUDE_PROMPT_MAX)
 })
 
 test('system 프롬프트: 일상 회화 중심·시험 용어 금지·후리가나/한글 병기 금지·JSON 하나·예문 지시(수준 창·번역)·페르소나 비사용', () => {
@@ -187,6 +198,54 @@ test('system 프롬프트: 일상 회화 중심·시험 용어 금지·후리가
   const imports = src.split('\n').filter((l) => /^import /.test(l))
   assert.ok(!imports.some((l) => /loadPersona|from '[^']*persona/i.test(l)), '페르소나 로더(tutor.md 절 필터)를 import 하지 않는다')
   assert.ok(imports.every((l) => /@\/modules\/engine|\.\.\/structuredResponse\/schemas/.test(l)), 'L2→L5 engine · schemas 값 import 만(learning·infra import 금지)')
+})
+
+test('system 프롬프트 v3 문구 고정(task-078, REV-078 F-1): 줄 뼈대 · [지시]의 [수준] · 난이도 줄 · jlpt 줄(v2 문구 없음) · L5 «주제 밖 단어» · null 권유 문장 없음', () => {
+  // 라이브 수치(N2 2.5→8.1장)는 시험으로 고정할 수 없지만 그 수치를 낸 문구는 고정할 수 있다. 기대 글은 손으로 옮겼다 — 문구를 바꾸면 다시 재고 이 시험도 고친다.
+  const sys = buildTopicWordsRequest({ topic: { title: '주말 계획', level: 'N2' }, targetCount: 10, exclude: [] }).system
+  const lines = sys.split('\n')
+  const SKELETON = [
+    '[모드] TOPIC_WORDS', '[지시] ', '- 주제 안에서 ', '- 난이도: ', '- 카드 하나 = ', '- textJa: ', '- reading: ', '- meaningKo: ', '- chunkType: ',
+    '- [이번 초점]은 ', '- jlpt: ', '- valid: ', '- [이미 낸 표기]에 ', '- exampleJa: ', '- exampleKo: ', '- [입력]의 ', '[출력] ',
+  ]
+  assert.equal(lines.length, SKELETON.length, `system 은 ${SKELETON.length}줄: ${lines.length}`)
+  SKELETON.forEach((p, i) => assert.ok(lines[i].startsWith(p), `${i + 1}번 줄은 «${p}» 로 시작: ${lines[i].slice(0, 40)}`))
+  const only = (p: string) => {
+    const hit = lines.filter((l) => l.startsWith(p))
+    assert.equal(hit.length, 1, `«${p}» 줄은 하나`)
+    return hit[0]
+  }
+
+  assert.ok(only('[지시] ').includes('[수준]에서 배울 만한 것'), '[지시]: 단어를 고르는 기준에 [수준]이 있다(v2 는 jlpt 꼬리표에만 있어 기초어를 골랐다)')
+  assert.ok(only('- 주제 안에서 ').includes('주제 밖 단어와'), 'L5: 주제 밖 단어 금지 유지')
+
+  const level = only('- 난이도: ')
+  for (const s of [
+    '카드의 절반 이상은 급수가 [수준]인 표현으로 고르고',
+    '[수준]보다 두 단계 이상 쉬운 기초어는 내지 않습니다',
+    'N5·N4 기초어는 제외',
+    '난이도를 맞추려고 주제 밖 단어를 내지는 않습니다',
+  ]) assert.ok(level.includes(s), `난이도 줄: «${s}»`)
+
+  const jlpt = only('- jlpt: ')
+  for (const s of [
+    'N5 → N5·N4, N2 → N3·N2·N1',
+    '이 범위 밖 급수는 내지 않습니다',
+    '실제 급수를 쓰고 [수준]에 맞추려고 바꾸지 않습니다',
+    '모르면 null',
+  ]) assert.ok(jlpt.includes(s), `jlpt 줄: «${s}»`)
+  assert.ok(!sys.includes('그보다 어려운 단어는 내지 않습니다'), 'v2 문구(위쪽을 막는 지시)가 돌아오지 않는다')
+
+  // L5: null·거짓 급수를 권하지 않는다 — null 을 말하는 곳은 jlpt 줄의 이 한 문장과 [출력] 예시의 «(또는 null)» 뿐이다.
+  const out = only('[출력] ')
+  assert.equal(out.split('null').length - 1, 1, '[출력] 줄의 null 은 예시 한 곳')
+  assert.ok(out.includes('"jlpt":"N5"(또는 null)'))
+  const nullSentences = lines.filter((l) => l !== out).flatMap((l) => l.split(/(?<=\.)\s+/)).filter((s) => /null/i.test(s))
+  assert.deepEqual(nullSentences, ['급수를 확신할 때만 N5~N1 로 쓰고, 모르면 null(따옴표 없는 JSON null)입니다.'])
+  for (const bad of [/맞지 않으면 null/, /애매하면 null/, /null ?(로|으로) ?(쓰|내|달|표시)/]) assert.ok(!bad.test(sys), String(bad))
+
+  // [출력] 예시의 키 순서 = 스키마 required 순서(입력 블록 5줄·스키마 8키는 위 빌더·스키마 시험이 고정한다).
+  assert.deepEqual([...out.matchAll(/"(\w+)":/g)].map((m) => m[1]), ['words', 'textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid', 'exampleJa', 'exampleKo'])
 })
 
 test('이번 초점: variant 로 8방향을 돌린다 · 생략하면 제외 개수 ÷ 목표 장수로 어림 · 음수·NaN 은 0 · 같은 입력은 같은 요청', () => {

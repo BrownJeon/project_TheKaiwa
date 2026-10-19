@@ -266,7 +266,7 @@ test('배선: ③ 목표 단계 = h2 「목표를 정해요」(초점 headRef) �
   assert.match(goal, /<fieldset className="mt-3 min-w-0" aria-describedby=\{cmpId\}>/)
   assert.match(goal, /<h3 className="text-\[15px\] font-semibold">\{CREATE\.levelQ\}<\/h3>/)
   assert.match(goal, /<LevelCompareLine id=\{cmpId\}/)
-  assert.match(goal, /<p aria-live="polite"[^>]*>\s*\{levelHintText\(levelHint\(sel, levelCtx\.my\)\)\}\s*<\/p>/)
+  assert.match(goal, /<div aria-live="polite">\s*<p className="mt-1 [^"]*">\s*\{levelHintText\(levelHint\(sel, levelCtx\.my\)\)\}\s*<\/p>/)
   assert.ok(!/role="alert"|text-bad/.test(goal.slice(at('CREATE.levelQ'), at('mt-5 border-t'))), '안내 줄은 경고가 아니다')
   assert.match(goal, /<h3 className="text-\[15px\] font-semibold">\{CREATE\.q3\}<\/h3>/)
   assert.ok(at('CREATE.q3Title') < at('CREATE.levelQ'))
