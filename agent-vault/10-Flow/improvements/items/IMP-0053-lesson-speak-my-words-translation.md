@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0053
 title: "오늘의 회화 말하기(⑤) 「내가 한 말」에 한글 번역을 함께 표기"
-status: planned
+status: done
 screen: "§12 오늘의 회화(레슨) ⑤ 말하기 — 「내가 한 말」"
 area: behavior
 priority: ""
 found_on: "app/phone"
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 observed_ref: 513f518
 related_task: "[[task-056-improve-talk-phrase-helper]]"
 planned_task: "[[task-077-improve-lesson-speak-translation-helper]]"

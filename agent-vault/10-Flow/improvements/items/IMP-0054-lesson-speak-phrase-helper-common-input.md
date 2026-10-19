@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0054
 title: "오늘의 회화 말하기(⑤)에 일본어 도우미 추가 — 회화방과 같은 배치·기능, 하단 입력 영역 공통화·재사용"
-status: planned
+status: done
 screen: "§12 오늘의 회화(레슨) ⑤ 말하기 하단 입력 영역 · §22 일본어 도우미"
 area: behavior
 priority: ""
 found_on: "app/phone"
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 observed_ref: 513f518
 related_task: "[[task-056-improve-talk-phrase-helper]]"
 planned_task: "[[task-077-improve-lesson-speak-translation-helper]]"
