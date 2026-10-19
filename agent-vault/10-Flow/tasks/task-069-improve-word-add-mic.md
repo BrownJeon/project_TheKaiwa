@@ -1,8 +1,8 @@
 ---
 task_id: task-069
 title: "단어 추가 시트에 마이크(말해서) 입력 추가 — 키보드와 둘 다 가능 (표현·예문 칸)"
-status: doing
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 473de65
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -16,7 +16,7 @@ aliases:
   - 단어 추가 마이크 입력
   - task-069
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-19
 demo_gate:
   required: false
   level: "none"

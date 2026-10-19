@@ -1,8 +1,8 @@
 ---
 task_id: task-055
 title: "Phase 3 서랍장 전체 — 채택 교정 모음 화면(`/drawer/corrections`)과 목록 API(#79)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: d004079
 risk_level: "R1"
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - 서랍장 전체
   - task-055
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "full"

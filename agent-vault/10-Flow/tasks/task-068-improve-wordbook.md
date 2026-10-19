@@ -1,8 +1,8 @@
 ---
 task_id: task-068
 title: "단어장 개선 — 7개씩 페이징 · 기본 단어 7,755개 처음부터 추가 · 난이도 필터/기본 단어 버튼 제거 · 조각 「없음」 제거와 조각 유형 재정의 · 직접 입력 수준→조각 (IMP-0037~0042, standard·R2)"
-status: doing
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 1ecd475
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, prompt-engineer, reviewer, qa, deployer]
@@ -17,7 +17,7 @@ aliases:
   - 조각 유형 재정의
   - task-068
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "delta"

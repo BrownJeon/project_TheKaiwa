@@ -1,8 +1,8 @@
 ---
 task_id: task-065
 title: "메뉴 문구 변경 — 하단 「오늘」→「공부」(그 메뉴를 가리키는 화면 문구 포함), 회화 홈 상단 「AI와 공부하기」→「자유로운 대화」 (IMP-0035·0036, light 트랙)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 2e02ed8
 risk_level: "R0"
 roles_involved: [leader, judge, developer, reviewer]
@@ -16,7 +16,7 @@ aliases:
   - 메뉴 문구
   - task-065
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-19
 demo_gate:
   required: false
   level: "none"

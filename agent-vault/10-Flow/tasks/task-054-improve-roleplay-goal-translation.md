@@ -1,8 +1,8 @@
 ---
 task_id: task-054
 title: "역할극 목표 카드 표현 칩에 번역(한국어 뜻) 표시 — 「번역」 표시 스위치를 따른다 (IMP-0029, light 트랙)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 9b1675b
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -16,7 +16,7 @@ aliases:
   - 목표 카드 번역
   - task-054
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-19
 demo_gate:
   required: false
   level: "none"

@@ -1,8 +1,8 @@
 ---
 task_id: task-066
 title: "질문 탭 챗봇창 화면 + 글자·마이크 두 가지 질문 + 보내는 범위 확인 절차 제거 (task-064 후속, Phase 3 /ask 2단계, standard 트랙)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 14779e0
 risk_level: "R1"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -17,7 +17,7 @@ aliases:
   - 질문 마이크
   - task-066
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "full"

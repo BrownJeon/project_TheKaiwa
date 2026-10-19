@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0035
 title: "하단 메뉴 「오늘」 문구를 「공부」로 변경(메뉴를 가리키는 화면 문구 포함)"
-status: planned
+status: done
 screen: "§1 앱 셸·하단 탭"
 area: copy
 priority: ""
 found_on: ""
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-19
 observed_ref: 2e02ed8
 related_task: ""
 planned_task: "[[task-065-improve-menu-copy]]"

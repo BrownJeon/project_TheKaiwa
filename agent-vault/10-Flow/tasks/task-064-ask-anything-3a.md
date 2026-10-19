@@ -1,8 +1,8 @@
 ---
 task_id: task-064
 title: "무엇이든 물어보세요(/ask) 3a — 일본어 표현·문법 질문 + 내 학습 기록 근거 답변(정형 조회·출처 카드) (Phase 3, standard 트랙)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: fa328cb
 risk_level: "R2"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa, deployer]
@@ -17,7 +17,7 @@ aliases:
   - 무엇이든 물어보세요
   - task-064
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "full"

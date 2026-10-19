@@ -1,8 +1,8 @@
 ---
 task_id: task-071
 title: "한글 표기가 숨겨지는 단어에 저장된 읽기로 한글 줄 보이기 — 분석기 읽기 ≠ 저장 읽기일 때 저장 읽기를 같은 분석기에 한 번 더 넣는다"
-status: doing
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 051c9a7
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -15,7 +15,7 @@ aliases:
   - 한글 줄 저장 읽기 대체
   - task-071
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-19
 demo_gate:
   required: false
   level: "none"

@@ -1,8 +1,8 @@
 ---
 task_id: task-059
 title: "오늘의 단어: 카드 우선 방식 통합 — 푸는 방식 선택 제거·카드 기본·카드 탭 시 객관식·뜻 보기 면 단어/예문 재생 버튼 (IMP-0011, 데모 delta, standard 트랙)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 382d10f
 risk_level: "R2"
 roles_involved: [leader, judge, designer, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - 오늘의 단어 카드 우선
   - task-059
 created: 2026-10-11
-updated: 2026-10-12
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "delta"

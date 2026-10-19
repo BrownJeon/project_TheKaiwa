@@ -1,8 +1,8 @@
 ---
 task_id: task-073
 title: "단어 추가 문구 두 건 — (W-2) 「말로 쓰기」 안내를 일본어 발음 예시+인식 직후 확인 안내로, (W-3) 뜻 채우기 판정 실패 이유의 오타 단정 완화"
-status: doing
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 746d54c
 risk_level: "R1"
 roles_involved: [leader, judge, developer, prompt-engineer, reviewer]
@@ -15,7 +15,7 @@ aliases:
   - 단어 추가 문구 정리
   - task-073
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "delta"

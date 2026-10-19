@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0033
 title: "오늘의 단어 덱: [건너뛰기] 버튼 제거 — 카드 오른쪽 슬라이드 시 건너뛸지 확인 안내 후 건너뛰기"
-status: planned
+status: done
 screen: "§5 오늘의 단어 덱"
 area: ux
 priority: ""
 found_on: ""
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-19
 observed_ref: b89d779
 related_task: "[[task-059-improve-today-words-card-first]]"
 planned_task: "[[task-060-improve-deck-controls]]"

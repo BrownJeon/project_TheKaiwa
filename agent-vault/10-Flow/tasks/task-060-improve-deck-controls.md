@@ -1,8 +1,8 @@
 ---
 task_id: task-060
 title: "오늘의 단어 덱 조작 정리 — 위로 슬라이드=뜻 보기·[뜻 보기]/[객관식] 버튼 제거 / [읽기]에서 [한글] 분리(건너뛰기 자리) / 오른쪽 슬라이드=건너뛰기 확인 (IMP-0031·0032·0033, light 트랙)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 4f3fb38
 risk_level: "R1"
 roles_involved: [leader, judge, developer, reviewer]
@@ -16,7 +16,7 @@ aliases:
   - 덱 조작 정리
   - task-060
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-19
 demo_gate:
   required: false
   level: "none"

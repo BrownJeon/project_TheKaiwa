@@ -1,8 +1,8 @@
 ---
 task_id: task-072
 title: "단어 추가 시트에 일본어 도우미(가あ) 추가 — 회화방 도우미와 같은 방식(한국어 글자 질의 → 일본어 후보 → [표현 칸에 넣기]), 채팅방 없는 새 서버 입구"
-status: doing
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 746d54c
 risk_level: "R1"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa]
@@ -17,7 +17,7 @@ aliases:
   - 단어 추가 일본어 도우미
   - task-072
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "full"

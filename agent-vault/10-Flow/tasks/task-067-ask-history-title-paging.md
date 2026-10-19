@@ -1,8 +1,8 @@
 ---
 task_id: task-067
 title: "질문 탭 — 지난 질문도 기존 챗봇창 UI 로 열기(뒤로가기 화면 제거) + 질문 제목 지정 + 지난 질문 5개씩 페이징 (task-066 배포 후 사용자 피드백, standard 트랙)"
-status: review
-waiting: device_verify
+status: done
+waiting: ""
 base_ref: 85c6ebb
 risk_level: "R1"
 roles_involved: [leader, judge, designer, developer, reviewer, qa, deployer]
@@ -17,7 +17,7 @@ aliases:
   - 지난 질문 페이징
   - task-067
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-19
 demo_gate:
   required: true
   level: "delta"

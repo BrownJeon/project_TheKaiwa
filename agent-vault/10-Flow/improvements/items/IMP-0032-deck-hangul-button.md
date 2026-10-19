@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0032
 title: "오늘의 단어 덱: [읽기](히라가나)와 한글 표기 분리 — [건너뛰기] 자리에 [한글] 버튼"
-status: planned
+status: done
 screen: "§5 오늘의 단어 덱"
 area: ux
 priority: ""
 found_on: ""
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-19
 observed_ref: b89d779
 related_task: "[[task-059-improve-today-words-card-first]]"
 planned_task: "[[task-060-improve-deck-controls]]"
