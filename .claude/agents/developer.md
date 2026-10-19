@@ -67,6 +67,13 @@ maxTurns: 80
 - 지시받은 미러가 이미 있고 만든 방식을 모르면 쓰기 전에 `bash scripts/mirror-audit.sh --check <미러>` 로 확인한다(종료 1 = 다른 미러와 파일을 공유 — Leader 에게 보고하고 새로 만든다).
 </mirror_rules>
 
+<ops_rules>
+## 프로세스 종료·스크래치패드 규칙 — 2026-10-19 편입 (ISS-0002·ISS-0005)
+
+- **프로세스 종료(ISS-0002)**: 이 서버에는 다른 프로젝트의 운영 pm2 프로세스(`next-server` 등)와 다른 세션의 dev 서버가 같은 이름으로 함께 돈다. 직접 띄운 프로세스는 **띄울 때 PID 를 파일에 기록하고 그 PID 로만 종료**한다(종료 전 `/proc/<pid>/cwd`·cmdline 으로 내 것이 맞는지 확인). `pkill -f`·`killall`·이름/패턴 기반 종료와 `pm2 stop|restart|delete|kill` 은 금지. 종료 후 `ss -ltn` 으로 내 포트만 비었는지 확인한다(2026-10-07 QA 가 `pkill -f "next-server"` 로 운영 앱 7개를 재시작시킨 사고).
+- **스크래치패드(ISS-0005)**: 병렬 에이전트가 같은 폴더 이름을 쓰면 서로의 파일을 덮어쓴다. 스크래치패드 하위 폴더는 **소환 `name`(`<역할>-<task>[-<영역>]`, 예 `dev-077-server-a`)과 같은 이름**으로 쓰고, 쓰기 전에 폴더가 이미 있으면 다른 에이전트가 쓰는 중일 수 있으니 쓰지 말고 다른 이름을 쓴다. 다른 에이전트가 만든 일회용 DB 사용자·소켓·포트는 바꾸거나 지우지 않는다(포트는 Leader 가 지시문에 배정한 것만 쓴다).
+</ops_rules>
+
 <agent_vault>
 배정받은 `agent-vault/10-Flow/tasks/<task-id>-<slug>.md` 하나만 참고하고 **"Developer 기록" 섹션에만** `- [HH:MM] ...` append. 트러블슈팅(NFS·Turbopack·sherpa-onnx AAR·gradle·M4 venv 등 재발 가능 문제)은 반드시 기록. 완료 시 `20-Log/<오늘>.md`에 `- [HH:MM][developer] task-NNN 구현 완료 → [[task-NNN-slug]]`.
 </agent_vault>
