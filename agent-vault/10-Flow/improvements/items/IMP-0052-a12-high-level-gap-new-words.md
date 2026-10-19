@@ -1,16 +1,16 @@
 ---
 imp_id: IMP-0052
 title: "챌린지 난이도가 주제 난이도보다 두 단계 이상 높을 때 AI 새 단어(A12)가 거의 안 나오는 문제 — 프롬프트·수준 창 개선"
-status: inbox
+status: planned
 screen: "§5 오늘의 단어(챌린지 주제 세트의 AI 새 단어)"
 area: behavior
 priority: ""
 found_on: "qa/local"
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 observed_ref: 912363a
 related_task: "[[task-076-improve-challenge-level-generation]]"
-planned_task: ""
+planned_task: "[[task-078-improve-topic-words-level-yield]]"
 tags:
   - type/improvement
 aliases:
@@ -42,6 +42,8 @@ task-076(챌린지 난이도 선택) QA 에서 챌린지 주제의 AI 「새 단
 - 한 단계 차이에서도 단어 난이도가 실제로 이동한다(측정 가능한 지표로 확인).
 
 ## 근거 · 분류 메모
+
+- **재확인(Leader 2026-10-19, 착수 지시)** — 유효(코드로 조건 확인). ① 프롬프트 `topicWords@v2` 지시문 239행이 «jlpt: [수준]과 같거나 한 단계 위·아래만, 그보다 어려운 단어는 내지 않는다» 이고 예문 지시(242행)도 [수준] ±1 이라 모델이 N2 를 받아도 주제의 쉬운 단어(N4~N5)를 만든다 ② 서버 검사 ⑤ `JLPT_WINDOW` 는 `topicWordsLevelWindow(챌린지 수준)` ±1 — 모델이 급수를 솔직히 달수록 N2 창(N3~N1) 밖으로 탈락하고, 급수를 `null` 로 낸 단어만 통과한다 ③ **실제 탈락 사유는 아직 한 번도 측정되지 않았다**(QA 도 «확인 못 함») — 하네스 `tests/live/task049-topicwords-ab.ts` 류(DB 접촉 0·엔진 직접 호출)로 `droppedByReason`·`jlpt` 분포를 먼저 잰다 ④ 난이도 이동의 **외부 기준**으로 쓸 수 있는 급수 사전이 있다(기본 단어 7,757개: N5 678·N4 629·N3 1,649·N2 1,767·N1 3,034 — 모델 자기 신고와 별개). judge 접수: standard·R1·복잡도 2.01·developer opus·화면 변경 없음(데모 none)·`next: clarify_requirements`(task_type bug_investigation — 원인 미확인). 계획 이력서: task-078(사용자 결정 뒤 생성).
 
 - 규칙은 task-076 에서 의도대로 동작한다(챌린지 주제일 때만 챌린지 난이도 사용). 이 항목은 **프롬프트 품질·검사 규칙** 문제이므로 prompt-engineer + 라이브 측정 대상이다.
 - 후보 접근(착수 때 Leader 가 정한다): ① A12 프롬프트에 목표 수준 단어를 명시적으로 유도(예시·금지 수준) ② 수준 창 규칙(±1)을 챌린지 난이도 기준으로 완화/중심 이동 ③ 단어별 `jlpt` 를 모델 자기 신고가 아니라 사전 대조로 보정 ④ 화면에서 두 단계 이상 차이를 고를 때 「새 단어가 적게 나올 수 있어요」 안내(새 문구라 데모 승인 필요).
