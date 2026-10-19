@@ -64,3 +64,6 @@ logs/
 
 # 시놀로지 NAS 메타데이터(파일마다 생김) — 커밋 금지
 @eaDir/
+
+# Obsidian 편집기 설정(agent-vault 를 vault 로 열 때 생김) — 개인 환경 파일, 커밋 금지
+.obsidian/
