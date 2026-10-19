@@ -15,7 +15,13 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOCAL_ROOT="${KAIWA_LOCAL_ROOT:-$HOME/.node-local/thekaiwa}"  # 병렬 developer 는 전용 미러(cp -al)를 KAIWA_LOCAL_ROOT 로 지정한다
+LOCAL_ROOT="${KAIWA_LOCAL_ROOT:-$HOME/.node-local/thekaiwa}"  # 병렬 developer 는 `scripts/make-mirror.sh` 로 만든 전용 미러를 KAIWA_LOCAL_ROOT 로 지정한다
+
+# 파일 교체는 항상 safe_put(임시 파일 + mv)으로 한다 — `cp` 덮어쓰기는 제자리 쓰기라 `cp -al` 로 복제된 미러에서는
+# 같은 inode 를 가진 다른 미러까지 바꾼다(ISS-0009). `rsync -a` 는 --inplace 가 없으면 임시 파일 + rename 이라 안전하다
+# (2026-10-19 실험으로 확인) — **rsync 에 --inplace 를 넣지 마라.**
+# shellcheck source=lib/safe-put.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/safe-put.sh"
 
 mkdir -p "$LOCAL_ROOT"
 # src/ 는 Phase 0 스캐폴딩 전(DB 준비 단계)에는 없을 수 있다.
@@ -32,7 +38,7 @@ fi
 
 # 강사 페르소나(런타임이 `<cwd>/.claude/agents/tutor.md` 를 읽는다)와 테스트 픽스처·실측 스크립트.
 mkdir -p "$LOCAL_ROOT/.claude/agents"
-cp "$PROJECT_ROOT/.claude/agents/tutor.md" "$LOCAL_ROOT/.claude/agents/tutor.md"
+safe_put "$PROJECT_ROOT/.claude/agents/tutor.md" "$LOCAL_ROOT/.claude/agents/tutor.md"
 if [ -d "$PROJECT_ROOT/tests" ]; then
   rsync -a --delete "$PROJECT_ROOT/tests/" "$LOCAL_ROOT/tests/"
 fi
@@ -68,7 +74,7 @@ fi
 # 서버를 재시작해 진행 중인 백그라운드 잡(레슨 생성 등)이 죽었다(2026-09-28 task-010 developer 발견, 여러 에이전트가 동시에 sync).
 for f in tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs next-env.d.ts package.json .npmrc capacitor.config.ts; do
   if [ -f "$PROJECT_ROOT/$f" ] && ! cmp -s "$PROJECT_ROOT/$f" "$LOCAL_ROOT/$f"; then
-    cp "$PROJECT_ROOT/$f" "$LOCAL_ROOT/$f"
+    safe_put "$PROJECT_ROOT/$f" "$LOCAL_ROOT/$f"
   fi
 done
 
@@ -76,8 +82,8 @@ done
 # 권한은 복사 후 600 으로 강제한다 — NFS 쪽 모드가 777 로 보여 `cp -p` 만으로는 로컬 디스크에서
 # 시크릿이 누구나 읽을 수 있게 됐다(2026-09-28 task-003e developer A 발견).
 if [ -f "$PROJECT_ROOT/.env" ]; then
-  cp "$PROJECT_ROOT/.env" "$LOCAL_ROOT/.env"
-  chmod 600 "$LOCAL_ROOT/.env"
+  # umask 077 + safe_put 의 chmod 600 은 교체 전에 끝난다 — 새 파일이 잠깐이라도 누구나 읽을 수 있게 보이는 틈이 없다.
+  ( umask 077; safe_put "$PROJECT_ROOT/.env" "$LOCAL_ROOT/.env" 600 )
 fi
 
 # package-lock.json 은 NFS(git)가 정본이다 — 운영 릴리스는 이 파일로 `npm ci` 한다(task-009). 의존성은 미러에서 `npm install` 로

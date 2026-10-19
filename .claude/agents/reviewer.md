@@ -75,6 +75,15 @@ judge 가 C2(Reviewer PASS 직후)에서 Codex 개입을 판정하면 Leader 가
 - [ ] 360/390/412px 가로 스크롤 유발 요소 없음
 </checklist>
 
+<mirror_rules>
+## 전용 미러 규칙 — 2026-10-19 편입 (ISS-0009)
+
+- 전용 미러(`~/.node-local/thekaiwa-<이름>`)는 **`bash scripts/make-mirror.sh <이름>`** 으로 만든다. `cp -al <미러> <새 미러>` 로 통째 복제하지 않는다 — 모든 파일이 다른 미러와 같은 inode 라 거기에 쓰면 다른 작업의 미러·메인 미러가 함께 바뀐다(task-072 `.next` 오염 · task-074 시험 파일 오염).
+- 소스·시험·설정은 NFS 에서 고치고 `KAIWA_LOCAL_ROOT=<미러> bash scripts/sync-local.sh` 로 채운다. 미러 안 파일을 `cp` 덮어쓰기·`>` 리다이렉트로 직접 쓰지 않는다(꼭 써야 하면 임시 파일에 쓰고 `mv`). 변이 시험도 같다 — 변이는 미러 안 파일을 임시 파일 + `mv` 로 바꾸고 끝나면 원복한다.
+- 미러에서 `npm install`·`npm ci` 금지(node_modules 가 하드링크다). 의존성을 바꿔야 하면 `make-mirror.sh <이름> --copy-node-modules`.
+- 지시받은 미러가 이미 있고 만든 방식을 모르면 쓰기 전에 `bash scripts/mirror-audit.sh --check <미러>` 로 확인한다(종료 1 = 다른 미러와 파일을 공유 — Leader 에게 보고하고 새로 만든다).
+</mirror_rules>
+
 <agent_vault>
 배정받은 task 이력서 하나만 참고, **"Reviewer 기록" 섹션에만** append(REV-NNN 요약 + 링크). 완료 시 `20-Log/<오늘>.md` 한 줄 `→ [[task-NNN-slug]]`.
 </agent_vault>

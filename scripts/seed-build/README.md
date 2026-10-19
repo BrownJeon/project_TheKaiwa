@@ -38,7 +38,8 @@ task-051 생성에 쓴 원본(2026-10-10 받음, `main` 에서 받았고 그때 
 
 ```bash
 cd <저장소>   # NFS 원본
-KAIWA_LOCAL_ROOT=$HOME/.node-local/thekaiwa-seed051a1 bash scripts/sync-local.sh   # 전용 미러(없으면 기본 미러를 cp -al 해서 만든다)
+bash scripts/make-mirror.sh seed051a1   # 전용 미러 생성(ISS-0009 — `cp -al` 통째 복제는 쓰지 않는다)
+KAIWA_LOCAL_ROOT=$HOME/.node-local/thekaiwa-seed051a1 bash scripts/sync-local.sh   # 이후 NFS 변경을 미러에 채울 때
 cd ~/.node-local/thekaiwa-seed051a1
 
 # 생성 — 결과는 --repo(NFS 원본)에 쓴다. 단계 순서 N5 → N1, 단계마다 끝나면 검증 후 파일 기록.
