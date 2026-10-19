@@ -14468,3 +14468,187 @@ LessonScreen (stage 5)
 7. **#184 확정**: 응답·오류는 #180 과 같은 봉투(34-5 의 «같다고 가정» → 확정, 라우트 시험이 #180 과 바이트 비교), 레슨 소유만 확인·상태 무관(끝난 레슨도 200)·409 `ENDED` 없음·404 「수업을 찾을 수 없어요.」·레슨 맥락 없음. 한도(분당 10·하루 300)·동시 1건 잠금은 #180·#181 과 합산(34-1 B3), #185 는 별도 키(분당 20)·별도 잠금.
 8. **도우미 안내 판정·판 닫힘의 보강**: 처음 한 번 안내는 인식 설정(#19)을 읽기 전에는 판정하지 않는다 — 글자 모드로 시작할 사용자에게 안내를 «써 버리지» 않게(34-5 «말 모드 입력 바가 처음 그려진 뒤 한 번» 의 보강, REV-077U Info-6). 인식 오류 띠가 새로 뜨면 판이 닫힌다(회화방 «띠가 뜨면 닫힘» 규칙을 레슨 오류 띠에 대응).
 9. **파일 — 34-9 와 실제**: `chat/MessageBubble.tsx` 에서 줄 클래스 상수를 꺼내지 않았다(회화방 무수정 원칙) — `SpeakTranslation.tsx` 의 `TR_LINE`(`mt-2 border-t border-ink/18`)은 `MessageBubble` 것과 같은 값의 복제다(동기화 시험 없음, REV-077U Info-5). `useLessonVoice.ts` 는 고치지 않고 view 유도를 새 `lessonVoiceView.ts` 에 뒀다. 새 파일: `lesson/{lessonVoiceView,speakTranslation,useSpeakTranslation,speakCheck}.ts` · `lesson/SpeakTranslation.tsx`(34-8 의 `trHint(via, plan)` 는 `speakTrHint(via, state)`, 확인 순서 «도우미 접기 → #62b → 판 닫기 / 실패 시 원문 되돌리기» 는 `runSpeakCheck`). 공용 부품 변경: `talk/{VoiceBar,usePhraseHelper,helperCopy,phraseHelperLogic}` · `chat/Composer`(선택 prop·주입만, 호출부 0줄).
+
+## 35. 챌린지 만들기 ③ 난이도 — 주제보다 두 단계 이상 어려울 때 새 단어 안내 (task-078, IMP-0052) — ✅ 승인 데모 v1
+
+> **승인 데모: `docs/demo/task-078-challenge-level-hint-v1.html` (v1)** — 2026-10-19 23:27 사용자 「질문 1~4 ★대로 승인」(게이트 `approved` v1, sha256 앞 16자 `16e5a4622423d30f`). 확정 = **질문 1 C2 · 질문 2 a · 질문 3 b · 질문 4 a**. 데모가 Leader 브리핑과 다르게 그린 곳(★ 를 C2 에 둠 · 질문 3·4 추가 · `role="note"` 대신 `aria-live`)도 승인 범위다. **이 절이 구현 정본**이다 — 데모 「개발 메모」와 다른 곳은 35-12 정정이 우선한다. §33(task-076 승인)의 보이는 모양·문구는 그대로 두고, ③ 난이도 묶음 맨 아래에 상자 하나를 더하며 기존 안내 줄의 `aria-live` 를 감싸개로 한 단계 올린다.
+> 적용 토큰(이름): `--color-surface2` · `--color-ink` (기존 `InfoBox` 가 이미 쓰는 값 — 이번에 새로 지정하는 색 없음). **새 색 없음.** 기록: [[task-078-designer-record]](데모) · [[task-078-designer-guide-record]](가이드 확정).
+
+### 35-0. 레이아웃 설계 (page-layout-designer — 데모 단계 결과를 승인 조합으로 정리)
+- **목표**: 난이도를 주제보다 많이 어렵게 고른 사용자가 «오늘의 단어 카드가 왜 고른 난이도보다 쉬운가»(새 단어가 모자란 날은 주제 표현으로 채움)를 만들기 전에 안다. 막지 않는다.
+- **주요 위계**: ③ 난이도 묶음 = 제목 → 설명 → 알약 5칸 → 비교 줄 → 기존 안내 줄(내 수준 기준, §33 D8) → **새 안내 상자(이 주제 기준)**. 그 아래 「하루에 무엇을 할까요?」 묶음은 그대로.
+- **영역**: 바뀌는 곳은 난이도 `fieldset` 안 맨 아래 한 곳. BackBar · 단계 표시 · 본문 한 곳 스크롤 · 아래 행동 줄 그대로.
+- **컴포넌트**: 재사용 `InfoBox`(`challenge/parts.tsx`, 제목 없이 children 만). 새 컴포넌트 없음. 새 순수 함수 `wordsLevelNote`(logic.ts) · 새 문구 상수 1개.
+- **상태**: 차이 +2 이상 = 상자 보임 · 그 밖(+1·0·쉬운 쪽 전부) = 없음. 단어 목표 켬/끔·진행 중 챌린지(막힘)·다시 도전·저장 실패·오프라인은 같은 규칙.
+- **행동**: 새 행동 없음(글만). 주 행동 [다음] · 알약 고르기 그대로.
+- **반응형**: 360/390/412 같은 구조. 상자 폭 100%, 2줄(130% 도 2줄). 상자가 보이면 아래 묶음이 71px(130% 83px) 내려가고, 「오늘의 단어」 카드 윗변은 780 첫 화면 안(35-9 표).
+
+### 35-1. 확정 결정 (사용자 승인 2026-10-19)
+| # | 확정 | 구현 뜻 |
+|---|---|---|
+| 질문 1 표시 조건·문구 | **C2** | 고른 난이도가 주제보다 **2단계 이상 어려우면 늘** 보인다. 문구 = 35-3 한 줄. 서버 개선(A12 프롬프트) 결과와 무관 — 합격해도 불합격해도 맞는 말이라 개선 뒤 재승인 없음 |
+| 질문 2 쉬운 쪽 | **a** | 주제보다 쉬운 난이도는 몇 단계든 **안 보인다** |
+| 질문 3 「오늘의 단어」 목표 끔 | **b** | 단어 목표 켬/끔·`wordsBlocked` 와 **무관** — 난이도 차이만 본다(카드를 껐다 켤 때 화면이 움직이지 않음) |
+| 질문 4 모양·자리 | **a** | 난이도 `fieldset` 맨 아래, 기존 안내 줄 바로 아래 `InfoBox`. 기존 줄 + 상자를 **하나의 `aria-live="polite"` 감싸개**로 묶는다 |
+
+**검토했으나 채택 안 함** (코드·문구·분기를 만들지 않는다 — 근거는 승인 데모 「사용자에게 묻는 질문」): 질문 1 A·B·C1 · 질문 2 b·c · 질문 3 a · 질문 4 b·c · `role="note"`.
+
+### 35-2. 표시 규칙 (승인 데모 `#rules` 의 ★ C2 열)
+차이 = `levelRank(고른 난이도) − levelRank(주제 난이도)` (N5 = 0 … N1 = 4, 어려운 쪽이 +).
+
+| 차이 | 예(주제 → 고른 난이도) | 상자 | 측정 근거(PE 진단 [[task-078-pe-diag-record]]) |
+|---|---|---|---|
+| +4 · +3 | N5 → N1 · N4 → N1 · N5 → N2 | **보임** | 측정 없음 |
+| +2 | N4 → N2 · N5 → N3 · N3 → N1 | **보임** | 주제 N4 × N2 평균 2.5/10장(6세트 모두 목표 미달 · 탈락 전부 검사 ⑤) · 앞선 QA 0·2·0 |
+| +1 | N4 → N3 | 없음 | 평균 9/10장(10·9·8) — 합격선 8장 이상 |
+| 0 | 처음 값(손대지 않음) | 없음 | 10/10 |
+| −1 ~ −4 | N4 → N5 · N2 → N4 · N2 → N5 · N1 → N5 | 없음 | −1 10/10 · −2 이하 측정 없음 |
+
+- 손대지 않은 상태(`draft.level = null`)는 `sel = topic.level` → 차이 0 → 없음(지금과 같음). `?again=` 으로 지난 난이도가 채워지면 같은 규칙으로 처음부터 보인다(별도 처리 없음).
+- 기존 안내 줄(내 수준 기준, §33 D8)은 이 표와 따로 움직인다 — 둘 다 · 하나만 · 둘 다 없음 모두 정상이다.
+
+### 35-3. 문구 (새 문구는 이것뿐)
+| 키 | 문구 (글자 그대로 — 45자) |
+|---|---|
+| `CREATE.wordsNoteHigh` | 이 주제보다 많이 어려운 난이도라, 새 단어가 모자란 날은 주제 표현으로 채워요. |
+
+- 자리: `src/components/challenge/challengeCopy.ts` `CREATE` 의 `levelLow` 바로 다음(난이도 묶음 문구 끝). **문자열 상수**(함수 아님 — 단계 수·난이도 값·주제 이름을 받지 않는다).
+- 쉼표는 「난이도라,」 뒤 한 칸 띄움 · 마침표로 끝 · 앞뒤 공백 없음.
+- 들어가면 안 되는 것: 난이도 이름(초보자·초급·중급·고급·최상급)·코드(N1~N5)·숫자·엔진/모델 이름·「세요」 → §33-1a 조사 문제 없음, 기존 가드(`level076.test.ts` 난이도 이름 가드 · `copyNoSeyo.test.ts`)와 충돌 없음.
+- 낱말은 앱 기존 말 그대로: «새 단어»(AI 가 만든 카드) · «주제 표현»(`CREATE.wordsBody` 「만들지 못한 날은 주제 표현으로 풀어요」와 같은 말).
+
+### 35-4. 순수 함수 `wordsLevelNote` (`src/components/challenge/logic.ts`)
+- 위치: §33 난이도 블록 안, `levelHintText` 바로 아래.
+- 시그니처: `export type WordsLevelNote = { steps: number } | null` · `export function wordsLevelNote(sel: JlptLevel, topicLevel: JlptLevel): WordsLevelNote`
+- 규칙: `d = levelRank(sel) − levelRank(topicLevel)` → `d >= 2 ? { steps: d } : null`. **이것뿐** — 방향 필드·아래 방향 분기·단어 목표·내 수준 인자를 두지 않는다(질문 2 a · 3 b). `steps` 는 화면이 쓰지 않고(문구에 단계 수 없음) 시험이 방향·크기를 함께 확인하려고 둔다.
+- JSDoc 한 줄: 「새 단어 안내(task-078 §35) — 고른 난이도가 주제보다 2단계 이상 어려우면 { steps }. 쉬운 쪽은 늘 null, 단어 목표와 무관.」
+- **경계 시험표** — 25칸 전수, 기대값은 아래 표를 손으로 옮긴다(구현 식을 되풀이하지 않는다 — level076View 와 같은 원칙):
+
+```
+고른 \ 주제   N5   N4   N3   N2   N1
+N5            ·    ·    ·    ·    ·
+N4            ·    ·    ·    ·    ·
+N3            2    ·    ·    ·    ·
+N2            3    2    ·    ·    ·
+N1            4    3    2    ·    ·
+숫자 n = { steps: n } (보임) · 점 = null (안 보임) — 25칸 중 6칸
+```
+  차이별로: +4 · +3 · +2 → 보임 / +1 · 0 · −1 · −2 · −3 · −4 → null.
+
+### 35-5. `GoalStep` 마크업 (`src/components/challenge/ChallengeCreateScreen.tsx` 난이도 `fieldset`, 지금 :347~357)
+지금:
+```tsx
+const sel = selectedLevel(draft, topic) ?? topic.level
+…
+        <LevelCompareLine id={cmpId} groups={levelCompareGroups(levelCtx)} />
+        <p aria-live="polite" className="mt-1 text-[12.5px] text-ink break-keep [overflow-wrap:anywhere]">
+          {levelHintText(levelHint(sel, levelCtx.my))}
+        </p>
+      </fieldset>
+```
+바꾼 뒤:
+```tsx
+const sel = selectedLevel(draft, topic) ?? topic.level
+const wordsNote = wordsLevelNote(sel, topic.level)
+…
+        <LevelCompareLine id={cmpId} groups={levelCompareGroups(levelCtx)} />
+        <div aria-live="polite">
+          <p className="mt-1 text-[12.5px] text-ink break-keep [overflow-wrap:anywhere]">
+            {levelHintText(levelHint(sel, levelCtx.my))}
+          </p>
+          {wordsNote ? <InfoBox className="mt-2">{CREATE.wordsNoteHigh}</InfoBox> : null}
+        </div>
+      </fieldset>
+```
+- 감싸개 `div` 는 **클래스 없음**(여백·폭은 안쪽 요소가 정한다). 기존 `p` 는 `aria-live` 만 빠지고 클래스·글·늘 그려 두는 성질(빈 글이어도 렌더)은 그대로.
+- 상자 = `parts.tsx` `InfoBox` 그대로(`title` 없이 children 만, `className="mt-2"`). `InfoBox` 는 이미 import 돼 있다(:53). `parts.tsx` 는 고치지 않는다. `./logic` import 목록에 `wordsLevelNote` 추가.
+- **넣고 빼기는 조건부 렌더**(`? … : null`)로만 — `hidden`·`display`·`opacity` 토글 금지(live 영역은 «노드 추가»를 읽는다).
+- `aria-atomic` · `role="status"`(암묵 atomic) · `role="note"` · `role="alert"` **쓰지 않는다** — atomic 이면 N2 → N1 처럼 기존 줄만 바뀔 때 상자까지 다시 읽어 승인 낭독 표(35-7)와 달라진다.
+- fieldset `aria-describedby={cmpId}` 그대로(비교 줄만). 상자에 id 를 주거나 describedby 에 넣지 않는다.
+- 여백: 기존 줄 `mt-1`(4px) · 상자 `mt-2`(8px). 기존 줄이 빈 글이면 빈 `p` 여백이 접혀 비교 줄 → 상자 간격도 8px(데모와 같은 구조·값).
+- :346 주석 끝에 「주제보다 2단계 이상 어려우면 새 단어 안내 상자(task-078 §35)」 정도만 덧붙인다.
+
+### 35-6. 바뀌지 않는 것
+- 알약 5칸(`LevelPills`) · 비교 줄(`LevelCompareLine`) · 기존 안내 줄(D8)의 모양·문구·조건 — `aria-live` 위치만 감싸개로 올라간다.
+- ①·② 단계 · ④ 확인 단계(「난이도」 줄로 충분 — 안내를 되풀이하지 않음) · 「하루에 무엇을 할까요?」 묶음 · 아래 행동 줄 · [다음] 막힘 조건.
+- 오늘 탭(단어 카드·대기 화면 「새 단어 ○장 + 「주제」 표현 ○장」·회화 뱃지) · 계획표 카드 · 챌린지 상세.
+- API · DB · 서버 · 초안(`Draft`·sessionStorage) · `createBody`. 새 상태 없음.
+- 같은 task 의 서버 개선(A12 프롬프트, PE)과 **배포 순서 의존 없음** — C2 문구는 개선 합격·불합격 둘 다 맞는 말이라 화면이 먼저 나가도 나중에 나가도 된다.
+
+### 35-7. 접근성 · 낭독 (승인 데모 `#a11y` 그대로)
+| 요소 | 마크업 | 낭독 예(TalkBack) | 초점 · 크기 |
+|---|---|---|---|
+| 안내 자리(새) | 늘 그려 두는 `div aria-live="polite"` — 안에 기존 줄 `p` + 조건이 맞을 때만 `InfoBox` | 내 수준·주제가 모두 N4 일 때 고급(N2) 칸을 고르면 잠시 뒤 한 번에: 「내 수준보다 2단계 어려워요. 처음엔 모르는 말이 많을 수 있어요. 이 주제보다 많이 어려운 난이도라, 새 단어가 모자란 날은 주제 표현으로 채워요.」 | 초점 없음(글). 링크·버튼 없음 |
+| 고급 → 최상급 | 상자 글이 같아 상자는 다시 읽지 않는다 | 「내 수준보다 3단계 어려워요. …」(기존 줄만) | — |
+| 차이 1 이하로 돌아감 | 상자가 빠진다 — 빠짐은 읽지 않는다(지금 기존 줄이 비워질 때와 같음) | 새로 읽는 것 없음 | 초점은 고른 칸에 그대로 |
+| 알약 다섯 칸 | 그대로(task-076 — native radio, 두 줄, 칸 48) | 「고급 (N2), 라디오 버튼, 선택됨」 | ←/→ 이동·선택 |
+| 쓸어 넘기기 | 비교 줄 → 기존 줄 → 상자 글(일반 글) 순서 | — | — |
+| 처음부터 보임(`?again=`) | live 영역은 첫 렌더 내용을 읽지 않는다 — 단계 제목 초점 뒤 쓸어 넘기면 읽힌다(허용) | — | — |
+| 색·대비 | 바탕 `surface2` · 글 `ink`. 경고색(`warn`·`bad`)·아이콘 없음(글이 정보) | — | 라이트 13.77:1 · 다크 12.14:1 |
+
+### 35-8. 생성/수정 파일 (`src/components` 만)
+| 파일 | 변경 |
+|---|---|
+| `challenge/logic.ts` | + `WordsLevelNote` · `wordsLevelNote` (35-4) |
+| `challenge/challengeCopy.ts` | + `CREATE.wordsNoteHigh` (35-3) |
+| `challenge/ChallengeCreateScreen.tsx` | `GoalStep` 감싸개 + 상자 + import (35-5) |
+| `challenge/__tests__/level078.test.ts` (새) | 아래 ①~④ |
+| `challenge/__tests__/level076.test.ts` :269 | 배선 정규식 `<p aria-live="polite"…>{levelHintText(…)}</p>` → `<div aria-live="polite">\s*<p className="mt-1 …">\s*{levelHintText(levelHint(sel, levelCtx.my))}\s*</p>` (뜻 그대로 — 감싸개 안 첫 줄) |
+| `challenge/__tests__/level076View.test.ts` :56 | `hintText` 정규식을 `<div aria-live="polite"[^>]*><p[^>]*>(.*?)</p>` 로(감싸개 안 첫 `p`) — :81~90 기대값은 그대로 |
+
+`level078.test.ts`:
+1. **순수 함수**: 35-4 표 25칸.
+2. **렌더**(`renderToStaticMarkup(GoalStep)`, 난이도 `fieldset` 만 잘라 봄): (고른 N2 · 주제 N4 · 내 수준 N4) → `aria-live="polite"` 가 정확히 1개이고 그것이 `div` · 그 안 순서 = 기존 줄 「내 수준보다 2단계 어려워요. …」 → 상자 글 = `CREATE.wordsNoteHigh` · 같은 조합을 `goal.words` false·true 둘 다(질문 3 b) · 내 수준 null 이어도 상자 있음(기존 줄 빈 글) · (N3·N4) (손 안 댐·N4) (N5·N4) (N4·N2) (N5·N2) → 상자 없음, 감싸개는 있음 · 상자 안에 `role=`·`aria-atomic`·`text-bad`·`text-warn`·`bg-warn`·`<svg` 없음.
+3. **배선(소스)**: `GoalStep` 안 `aria-live` 1회 · `role="status"`·`aria-atomic`·`role="note"` 없음 · `wordsLevelNote(sel, topic.level)` 한 번 · 그 줄에 `goal.` 없음 · 감싸개가 `mt-5 border-t` 보다 앞.
+4. **문구**: `CREATE.wordsNoteHigh` 글자 그대로 일치 · `/N[1-5]|\d|초보자|초급|중급|고급|최상급|세요/` 없음 · 엔진명 없음.
+
+손대지 않음: `parts.tsx`(`InfoBox`) · `createParts.tsx` · 오늘 탭 · 서버·API·DB·prisma.
+
+### 35-9. QA 대조표 (승인 데모 상태 → 앱 재현)
+| 데모 상태 | 앱 재현 (내 수준 · 목표 · 주제 · 고를 칸) | 기존 줄 | 상자 | 지금 빌드 대비 |
+|---|---|---|---|---|
+| `t4n4` | N4 · 없음 · N4 · 손대지 않음 | 빈 글 | 없음 | 높이 같음(0px) |
+| `t4n3` | N4 · 없음 · N4 · 중급 | 빈 글 | 없음 | 0px |
+| `t4n2` | N4 · 없음 · N4 · 고급 | 「…2단계 어려워요…」 | **보임** | 아래 묶음 +71(130% +83) |
+| `t4n1` | N4 · 없음 · N4 · 최상급 | 「…3단계…」 | **보임**(글 같음) | +71 / +83 |
+| `t4n5` | N4 · 없음 · N4 · 초보자 | 「내 수준보다 쉬워요…」 | 없음 | 0px |
+| `t2n4` | N3 · 없음 · N2 · 초급 | 「…쉬워요…」 | 없음(질문 2 a) | 0px |
+| `t2n5` | N3 · 없음 · N2 · 초보자 | 「…쉬워요…」 | 없음 | 0px |
+| `mix` | N5 · N3 · N4 · 최상급 (가장 긴 화면 — 비교 줄 3묶음 + 「4단계」) | 「…4단계…」 | **보임** | +71 / +83 |
+| `noword` | `t4n2` + 「오늘의 단어」 끔 | 「…2단계…」 | **보임**(질문 3 b) | 카드를 껐다 켜도 카드·그 위 위치 0px |
+| `longt` | N4 · 없음 · 긴 이름 주제 N4 · 고급 | 「…2단계…」 | **보임**(2줄 그대로 — 문구에 주제 이름 없음) | +71 / +83 |
+
+- **보는 조합**: 상자가 보이는 5상태(`t4n2`·`t4n1`·`mix`·`noword`·`longt`) = 360/390/412 × 글꼴 100/130% × 라이트/다크 전부. 안 보이는 5상태 = 390·100%·라이트 + 360·130%·다크에서 «지금 빌드와 높이 같음». 앱 목록에 해당 주제·프로필 조합이 없으면 시험 계정 프로필을 바꾸거나 정적 렌더 시험(35-8 ②)으로 대신하고 그렇게 적는다.
+- **130% 모형 = «px130»**(모든 요소의 계산된 글자 크기 ×1.3 — task-076 QA 보강 모형, 데모도 이 모형). `html{font-size:130%}`(rem 만)으로는 상자 글(`text-[13px]`)이 커지지 않아 63px 로 나오므로 130% 판정에 쓰지 않는다.
+- **기대값**(데모 자체 시험 재현, 헤드리스 Chrome 2026-10-19 — 2,220칸 ★ 실패 0):
+
+| 폭 · 글꼴 | 상자 높이(줄) | 아래 묶음 밀림 | `t4n2` 「오늘의 단어」 카드 윗변 / 보이는 본문(780) |
+|---|---|---|---|
+| 360 · 100% | 63px (2) | 71px | 401 / 618 |
+| 360 · 130% | 75px (2) | 83px | 519 / 617 |
+| 390 · 100% | 63px (2) | 71px | 383 / 618 |
+| 390 · 130% | 75px (2) | 83px | 494 / 617 |
+| 412 · 100% | 63px (2) | 71px | 383 / 618 |
+| 412 · 130% | 75px (2) | 83px | 494 / 617 |
+
+- **통과 기준**: 상자 2줄(높이 = 위아래 안쪽 24 + 줄 수 × 19.5px, 130% 25.4px, ±3px — 실제 글꼴에서 3줄이 되면 결함 아님·기록) · 밀림 = 상자 높이 + 8px(±2) — **기존 안내 줄에 글이 있을 때**(내 수준이 고른 난이도보다 2단계 이상 낮을 때, 예: 내 수준 N5 · 고급)의 값이고, **기존 줄이 빈 글이면**(내 수준이 고른 난이도와 같거나 한 단계 이내, 예: 내 수준 N3 · 주제 N4 · 고급) 빈 `p` 의 위 여백 4px 이 상자 여백 8px 에 겹쳐 **상자 높이 + 4px**(QA 실측 67px)다 — 둘 다 정상(QA task-078 실측, 2026-10-20) · 가로 넘침 0 · 잘린 글자 0 · 새 터치 대상 없음 · 안 보이는 상태 밀림 0 · `t4n2` 카드 윗변 < 보이는 본문(세 폭 · 두 글꼴) · 대비 ≥ 4.5:1(기대 라이트 13.77 · 다크 12.14) · DOM: 난이도 fieldset 안 `aria-live` 1개(`div`) · 상자에 role·aria-atomic 없음 · 엔진명 0.
+
+### 35-10. 실기기 확인 (사용자 폰 — QA 는 NOT_VERIFIED 로 넘긴다)
+1. **TalkBack 한 번에 읽기**: 내 수준 = 주제 난이도인 계정에서 고급 칸을 고르면 기존 줄 + 상자를 한 번에(또는 끊김 없이 이어서) 읽는가. 하나만 읽히거나 중간에 끊기면 보고 — 바로잡는 방법은 Leader 판단(보이는 모양이 바뀌면 데모 재승인).
+2. 이어서 최상급으로 바꾸면 기존 줄(「3단계」)만 읽고 상자는 다시 읽지 않는가.
+3. 쉬운 칸(차이 1 이하)으로 돌아가면 새로 읽는 것 없이 초점이 칸에 남는가.
+4. **폰 글꼴 크게(130% 근처) + 좁은 폭**(화면 확대로 360 근처, 안 되면 기본 폭): 상자 2줄(3줄이어도 잘림 없음) · 가로 넘침 없음 · 「하루에 무엇을 할까요?」가 자연스럽게 내려감.
+5. 다크 모드에서 상자 바탕이 본문과 구분되는가(눈으로).
+6. 앱 WebView(≈390)와 Chrome 둘 다.
+
+### 35-11. 구현 순서
+`wordsLevelNote` + 35-8 ① → 문구 + ④ → `GoalStep` 감싸개·상자 + task-076 시험 정규식 두 곳 + ②③ → tsc · eslint · 전체 시험 · build → QA 35-9 → 폰 35-10.
+
+### 35-12. 주의 · 데모와 코드 대조 정정 (가이드 확정 2026-10-19)
+- 막지 않는다 — 경고색·아이콘·`role="alert"` 없음, [다음] 막힘 조건 그대로. 데모 표에 없는 문구·요소, 채택 안 한 안의 분기(방향 필드·단어 목표 조건·쉬운 쪽 문구·측정 목록)는 만들지 않는다. 엔진·모델 이름 노출 없음.
+- 서버 개선이 Leader 합격선(L1)에 못 미치면 Leader 가 검사 규칙 변경을 따로 묻는다. 그때 문구를 바꾸려면 데모 vN+1 재승인 — C2 의 알려진 약점은 개선이 실패하면 «모자란 날은»이 빈도를 낮춰 말한다는 것. 이 화면 코드는 그때까지 그대로.
+- **정정 ① 상자 요소**: 데모는 `<p class="wn">` 한 겹이지만 실제 `InfoBox` 는 `div.rounded-xl.bg-surface2.px-3.5.py-3.text-[13px].text-ink > div.break-keep.[overflow-wrap:anywhere]`(p 없음). 보이는 값은 같다(모서리 12 · 안쪽 12/14 · 13px · surface2 · ink · keep-all + anywhere). 시험은 `<p>` 가 아니라 글·`InfoBox` 클래스로 찾는다.
+- **정정 ② 반환 형태**: 데모 개발 메모 `{ dir: 'up', steps } | null` → `{ steps } | null`(질문 2 a 로 방향이 하나뿐 — `dir` 은 채택 안 한 b 의 흔적).
+- **정정 ③ 시험 경계**: 데모 개발 메모 «+1·0·−1·−4 → null» 에 −2·−3 이 빠져 있다 → 25칸 전수(35-4).
+- **정정 ④ 시험 파일**: 초안의 «`logic.test.ts` 에 추가» → 새 `level078.test.ts` + task-076 시험 두 곳 정규식 갱신. 초안에 없던 것 — 그대로 두면 `level076.test.ts:269`·`level076View.test.ts:56` 이 `<p aria-live="polite">` 를 못 찾아 실패한다.
+- 일치 확인(정정 없음): `CREATE.levelQ`·`levelBody`·`levelHigh`·`levelLow`·`wordsBody`·`q3Title` 글 · 기존 줄 `mt-1`(= 데모 4px) · 비교 줄 `mt-2`(8px) · 상자 `mt-2`(8px) · `globals.css` sha256 앞 12자 `a314f18f1807`(데모 `demo-token-source` 와 같음) · 본문 줄 높이 1.5.

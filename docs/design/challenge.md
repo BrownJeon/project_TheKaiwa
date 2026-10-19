@@ -352,7 +352,7 @@ model VocabAttempt {
 
 | 항목 | 명세 | 근거 |
 |---|---|---|
-| 파일 | `conversation/prompts/topicWords.ts`(신규 — `buildTopicWordsRequest`·`TOPIC_WORDS_PROMPT_VERSION='topicWords@v1'`) · `conversation/structuredResponse/topicWordsSchemas.ts`(신규 — 스키마·`TopicWordsResponse`·항목 검사 순수 함수). **`structuredResponse/schemas.ts`·`checks.ts` 는 고치지 않는다**(task-039 미커밋 작업 파일 — `git status` M) — `CHUNK_TYPES`(`schemas.ts:7`)·`LESSON_READING_PATTERN`(`:280`)·`INJECTION_GUARD`(`prompts/header.ts:68`)는 import 만 | 분리 파일 선례 `evalSchemas.ts`·`reviewSchemas.ts`·`reviewChecks.ts` |
+| 파일 | `conversation/prompts/topicWords.ts`(신규 — `buildTopicWordsRequest`·`TOPIC_WORDS_PROMPT_VERSION` — 신설 때 `topicWords@v1`, 현재 `topicWords@v3`: v2 = 예문 task-049, v3 = 수준 지시 task-078) · `conversation/structuredResponse/topicWordsSchemas.ts`(신규 — 스키마·`TopicWordsResponse`·항목 검사 순수 함수). **`structuredResponse/schemas.ts`·`checks.ts` 는 고치지 않는다**(task-039 미커밋 작업 파일 — `git status` M) — `CHUNK_TYPES`(`schemas.ts:7`)·`LESSON_READING_PATTERN`(`:280`)·`INJECTION_GUARD`(`prompts/header.ts:68`)는 import 만 | 분리 파일 선례 `evalSchemas.ts`·`reviewSchemas.ts`·`reviewChecks.ts` |
 | 페르소나 | **tutor.md 를 쓰지 않는다** — 짧은 자체 `LlmPersona`(“단어 목록 생성 도구, 대화하지 않고 JSON 하나만”) | A10 과 같은 이유(`prompts/wordEnrich.ts:2-7,22-26`) |
 | 입력 `TopicWordsInput` | `topic {title, titleJa, description, level}` — **수준 = 주제 수준**(A4 와 같은 규칙, `lessons/generate.ts:30-31`) — **task-076: 진행 중 챌린지의 주제 세트면 챌린지 난이도**(§4-6, `vocab/sessions.ts` `topicWordsLevel`) · `count` = 요청 장수 = `min(20, ceil(1.3 × 목표 장수))`(10 → 13, 5 → 7, 15 → 20 — 버려질 항목 여유, PE 실측으로 조정 [설계 목표]) · `exclude: string[]` = **이미 낸 표기** — 그 주제 `TopicChunk.textJa` 전부 + **이 사용자가 이 주제로 만든 이전 세트의 새 단어 카드 `surfaceSnap`**(최근 것부터, 최대 300개·2,000자 [설계 목표]) | Leader 지시 그대로. **넣지 않는 것**: 사용자 약점·오답·회화 기록·단어장(과설계 방지, 개인 기록 외부 전송 최소화) |
 | 출력 `TopicWordsResponse` | `{ words: [{ textJa, reading, meaningKo, chunkType, jlpt, valid }] }` — `jlpt` 는 N5~N1 또는 `null`(모르면 null — A10 규칙), `valid` = 모델 자기 확신(확신 없는 표현은 false) | A10 `valid`·`jlpt` 규약(`schemas.ts:207-249`) |
@@ -489,7 +489,8 @@ model VocabAttempt {
   | 챌린지 주제 세트 「새 단어」(A12) | 진행 중 챌린지의 **그 주제** 세트만: A12 `[수준]`·검사 ⑤ 창 = 챌린지 난이도(프롬프트 문구 그대로, 값만) | 다른 주제 세트·주제 **기본 표현**(고정 조각) |
   | 내 단어장 세트 가중 기준(task-053 천장) | 진행 중 챌린지가 있으면 `challenge.level`, 없으면 `ceilingOf(level, goalLevel)`(task-053 그대로). 챌린지 조회·프로필 읽기 실패 = 가중 없음 | 가중 모양(기준 이하 1·+1 0.3·+2 0.05·+3 0) |
 - 이 규칙의 D6 A ↔ B 전환은 `vocab/sessions.ts` `mineSetCeiling` 한 함수(본문 한 줄)만 바꾼다.
-- 바꾸지 않는 것: 오늘의 평가 수준 · 챌린지 결과 집계 · 「주제 고르기」 수준 창 · 프롬프트 문구 · DB.
+- 바꾸지 않는 것: 오늘의 평가 수준 · 챌린지 결과 집계 · 「주제 고르기」 수준 창 · ~~프롬프트 문구~~(**task-078 에서 바뀜 — 아래**) · DB.
+- **(task-078, 2026-10-19) A12 프롬프트 `topicWords@v3`** — 챌린지 난이도가 주제 난이도보다 두 단계 이상 높을 때(주제 N4 + 챌린지 N2) 새 단어 통과가 평균 2.5/10장이던 문제(IMP-0052). 진단: 탈락 72/72 = 검사 ⑤ `JLPT_WINDOW`(모델이 급수를 속인 게 아니라 **단어 선택 기준에 수준이 없어** N4·N5 기초어를 골랐다). 변경 = **프롬프트 문구 세 곳**(지시 줄에 `[수준]` · 새 «난이도» 줄 — 카드 절반 이상 `[수준]` 급수·두 단계 이상 쉬운 기초어 금지 · `jlpt` 줄 — 위쪽 예시·«실제 급수 그대로»). 스키마·키·출력 순서·검사 ⑤ 창(±1)·`assembleTopicWords` 불변. 실측(haiku 직렬, 주제 N4 · 목표 10, 정확한 표는 [[task-078-pe-improve-record]]): N2 평균 **8.1장**(10세트, 합격선 8.0) · N3 9.7 · N5 9.8 · 대조 10.0. **경계 합격 — 세트 평균의 95% 신뢰구간(약 6.2~10.0)이 합격선을 포함하고 N2 통과의 86%가 N3 급 라벨**이라 «고른 난이도의 새 단어가 충분히 나온다» 가 아니라 «진단 때(2.5장)보다 뚜렷이 늘었다» 로 읽는다. 화면 안내는 §35(`screens.md`, 개선이 성공·실패 어느 쪽이어도 맞는 문구 C2).
 
 ## 5. 일일 스케줄 · 5초 예산 · 중복 방지 · 재생성 (결정 c)
 
