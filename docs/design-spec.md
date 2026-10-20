@@ -170,7 +170,7 @@ plugins/sherpa-stt/                                                    # Capacit
 - **출석**: `(app)/layout.tsx` 의 `AttendancePing` 이 하루 1회 `POST /api/v1/attendance/check-in`(멱등, `@@unique([userId,date])`, DAILY 스냅샷 `attended`).
 - **달력**: `StudyLog`+`Attendance` 파생(`GET /api/v1/plan/calendar?month=`), 일 상세.
 - **분석**: `POST /api/v1/plan/analysis {weeks}`(범위는 코드가 산출, 정합성 수정 #5) → 코드가 입력 집계(출석·유형별 횟수·평가 추이·오류 유형 top5·오답 단어 top10·`RepetitionItem` FOCUS·목표) → A8(opus, batch) → `StudyPlan(PROPOSED)` → 사용자 확인 → ACCEPTED(이전 ARCHIVED). 같은 `sourceRange.hash` 면 재생성 안 함. **Learning History**(§70): `LearnerErrorStat` 가 교정 채택·분석 완료 시 갱신되어 A8 입력·프롬프트 헤더에 쓰인다. **(3차 제안)** 능력 축 5개(`LearnerSkillState`: 어휘 회상·문형/조사·듣고 응답·문장 산출·대화 유지)와 관측 이벤트(`LearningObservation`)를 코드가 갱신해 A8·A11 의 근거로 쓰는 안은 정본 §9 제안(사용자 결정 필요).
-- **성장기록**: `GET /api/v1/plan/growth` 는 **`StatsSnapshot` 만** 읽는다(삭제 후 추이 불변). 평가 5차원 레이더·일별 활동·연속 출석·수준 이력.
+- **성장기록**(task-080, 2026-10-20 — 첫 단계 = 성장 탭만, 분석 탭·공부계획서는 후속): `GET /api/v1/plan/growth?weeks=4|8|12` 는 **`StatsSnapshot`(DAILY·EVALUATION) + `Attendance`(출석·연속)** 만 읽는다(삭제 후 추이 불변). 체크내역(일별 공부 종류 수)·주별 공부량·**공부결과**(능력 축 5개 — DAILY `skills` 칸, 단계 4칸·표본 부족 «아직 판단하기 일러요»)·AI 평가 점수 레이더(평가가 있을 때)·연속 출석. **수준 이력은 이번 범위 제외**(원천 데이터 없음). 계획표 구간 탭 = [달력 | 성장], 주소 `/plan`·`/plan/growth`. **주 시작 = 일요일**(달력·성장·질문 «이번 주» 통일 — 2026-10-01 월요일 결정 대체). 상세 `docs/screens.md` §36.
 
 ### 7-7. 서랍장 · 무엇이든 물어보세요 · 설정 허브
 - **서랍장**: 단어장 CRUD·보관·카테고리·검색·정렬(최근/오답/가나다), `drawer/corrections`(채택 교정 모음).

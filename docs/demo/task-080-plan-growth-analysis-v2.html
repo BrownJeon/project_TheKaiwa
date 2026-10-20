@@ -1,0 +1,1265 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-080-v2">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="계획표 분석·성장기록 v2 — v1 검토 반영: 성장 탭 첫 띠 이름 «체크내역», 주 시작 일요일(체크내역 행 일~토 · 주 묶음 · 달력 요일 머리 일 월 화 수 목 금 토), 결정 Q1~Q7 권고대로(이번 구현 = [달력|성장], 분석 탭은 나중 설계로 보존), 질문 탭 «이번 주» 확인 필요 1건. full 데모, 합성 샘플, 서버 호출 없음, 사용자 승인 전">
+<title>계획표 분석·성장기록</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 한눈에(바뀌는 것·불편한 사실) → 왼쪽 상태 바로가기 · 가운데 휴대폰(현재 vs 제안) · 오른쪽 설명 → 결정 필요 Q1~Q7 → 개발 메모(지표 근거표·정본 불일치·상태표·계산 규칙·낭독 순서·한계) */
+/* 색·반경 값은 src/app/globals.css 를 그대로 고정(링크하지 않음). 새 색 없음 — 차트는 기존 --protein 과 그 color-mix 단계만 쓴다(개발 메모 §7) */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --carb: #c97b1e; --protein: #2f6fab; --fat: #c2405a;
+  --carb-soft: #f3e4cc; --protein-soft: #e2ecf5; --fat-soft: #f5e1e6;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+    --carb: #c98426; --protein: #4a86c6; --fat: #d2536e;
+    --carb-soft: #3a2e1c; --protein-soft: #1f2c39; --fat-soft: #3a1f26;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+  --carb: #c98426; --protein: #4a86c6; --fat: #d2536e;
+  --carb-soft: #3a2e1c; --protein-soft: #1f2c39; --fat-soft: #3a1f26;
+}
+:root[data-theme="light"] { color-scheme: light; }
+/* 차트 단계(새 색 아님 — 기존 토큰 혼합): 체크내역 칸 1·2·3가지, 강조 아닌 막대 */
+:root { --c1: color-mix(in srgb, var(--protein) 55%, var(--surface)); --c2: color-mix(in srgb, var(--protein) 78%, var(--surface)); --c3: var(--protein); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) { font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif; line-break: strict; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, h4, ul, ol, dl, dd, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dlay { display: grid; grid-template-columns: 230px minmax(0, 1fr) 330px; gap: 18px; padding: 4px 16px 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.nvb { display: block; width: 100%; min-height: 36px; padding: 7px 8px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 12.5px; color: var(--ink2); }
+.nvb:hover { background: var(--surface2); color: var(--ink); }
+.nvb[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; min-height: 34px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 0 4px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard ul.dn { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; word-break: keep-all; overflow-wrap: anywhere; }
+.dpanel { margin: 12px 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel > h3 { font-size: 14.5px; font-weight: 700; margin-top: 16px; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 100ch; word-break: keep-all; }
+.dqs { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+fieldset.dq { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+fieldset.dq legend { padding: 0 4px; font-size: 14px; font-weight: 700; word-break: keep-all; }
+fieldset.dq legend .dn2 { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-right: 6px; color: var(--ink2); }
+.dqwhy { font-size: 12.5px; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 8px; }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; word-break: keep-all; }
+.rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.opt-d b { font-weight: 700; }
+.opt-p { margin-top: 4px; border-radius: 8px; background: var(--ground); padding: 8px; min-width: 0; overflow-x: auto; }
+.dpanel > h3.dsec { font-size: 15px; font-weight: 700; margin-top: 18px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rec.need { background: var(--accent-soft); color: var(--ink); }
+.dq.done { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 4px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dq.done > h3 { font-size: 14px; font-weight: 700; word-break: keep-all; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.dq.done > h3 .dn2 { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink2); }
+.opt.static { cursor: default; }
+.opt.chosen { box-shadow: inset 0 0 0 2px var(--good); padding: 12px; }
+.opt.chosen .opt-h { font-size: 15px; }
+.dqby { font-size: 12px; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+details.alt > summary { min-height: 44px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--ink); list-style: none; }
+details.alt > summary::-webkit-details-marker { display: none; }
+details.alt > summary::after { content: "▾"; font-size: 12px; color: var(--ink2); }
+details.alt[open] > summary::after { content: "▴"; }
+details.alt[open] { padding-bottom: 10px; }
+.wkp { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; font-size: 12px; text-align: center; }
+.wkp span { padding: 3px 0; border-radius: 5px; background: var(--surface); }
+.wkp span.h { background: var(--accent-soft); font-weight: 700; color: var(--ink); }
+.dtw { overflow-x: auto; margin-top: 10px; }
+.dtbl { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 7px 6px; border-top: 1px solid var(--line); word-break: keep-all; overflow-wrap: anywhere; }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtbl td.k { font-weight: 700; }
+.dtbl.d0 td.k { width: 120px; min-width: 120px; }
+.ok { color: var(--good); font-weight: 700; }
+.ng { color: var(--bad); font-weight: 700; }
+.dlist { margin-top: 10px; list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; word-break: keep-all; overflow-wrap: anywhere; }
+.dlist b { color: var(--ink); }
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 10px; margin-top: 12px; }
+.glance > div { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.glance > div.gnew { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.glance h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; word-break: keep-all; }
+.glance li { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.glance ul { list-style: disc; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+details.dev { margin: 0 16px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 16px; }
+details.dev > summary { min-height: 48px; display: flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer; }
+details.dev[open] { padding-bottom: 16px; }
+details.dev h3 { font-size: 14px; font-weight: 700; margin-top: 18px; }
+@media (max-width: 1320px) { .dlay { grid-template-columns: 210px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 16px 12px; }
+  .dnav { position: static; max-height: none; }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+body.mark1 .phone .dnew, body.mark2 .phone .v2 { outline: 2px dashed var(--accent); outline-offset: 2px; }
+
+/* ── 휴대폰 프레임 — 글자 크기는 --fz 배(글꼴 130% 모형: 글자만 커지고 버튼 높이는 그대로) ── */
+.phone { --fz: 1; position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; height: 780px; }
+.phone.big { --fz: 1.3; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.pg { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; }
+.pgs { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.pgs::-webkit-scrollbar { display: none; }
+/* AppBar(src/components/shell/AppBar.tsx 값): sticky · 52 · 제목 20 bold · 아바타 44(안 32) · 아래 10 */
+.ab { position: sticky; top: 0; z-index: 5; height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; background: var(--surface); margin-bottom: 10px; }
+.ab h1 { flex: 1; min-width: 0; font-size: calc(20px * var(--fz)); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.av { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; padding: 0; }
+.av span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--good); color: #fff; font-size: 13px; font-weight: 600; }
+.cnt { padding: 0 16px 24px; min-width: 0; }
+/* TabBar(shell/TabBar.tsx 값): 위 6 · 칸 56 · 아이콘 24 · 글 11 · 아래 max(10, safe) */
+.tb { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--surface); padding: 6px 0 max(10px, env(safe-area-inset-bottom, 0px)); }
+.tb a { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; font-size: 11px; color: var(--ink3); text-decoration: none; border-radius: 12px; }
+.tb a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+.tb svg { width: 24px; height: 24px; }
+/* PlanSwitch — DrawerSwitch 와 같은 모양(nav + aria-current 링크) */
+.psw { margin-bottom: 12px; display: flex; gap: 3px; padding: 3px; border-radius: 12px; background: var(--surface2); }
+.psw a { position: relative; flex: 1; min-width: 0; height: 36px; display: grid; place-items: center; border-radius: 9px; padding: 0 4px; font-size: calc(13.5px * var(--fz)); font-weight: 500; color: var(--ink2); text-decoration: none; }
+.psw a::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.psw a span { min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.psw a[aria-current="page"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+/* 공용 조각 */
+.sec { margin-top: 18px; min-width: 0; }
+.sec:first-child { margin-top: 0; }
+.sh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; min-width: 0; }
+.sh h2, .sh h3 { font-size: calc(15px * var(--fz)); font-weight: 600; min-width: 0; word-break: keep-all; }
+.sh .sm { font-size: calc(12px * var(--fz)); color: var(--ink2); flex: none; white-space: nowrap; }
+.cd { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.cd + .cd { margin-top: 10px; }
+.cd2 { background: var(--surface2); border-radius: 14px; padding: 14px; min-width: 0; }
+.t15 { font-size: calc(15px * var(--fz)); font-weight: 600; word-break: keep-all; }
+.t14 { font-size: calc(14px * var(--fz)); word-break: keep-all; overflow-wrap: anywhere; }
+.t13 { font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.t12 { font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.ink { color: var(--ink); }
+.mt4 { margin-top: 4px; } .mt6 { margin-top: 6px; } .mt8 { margin-top: 8px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; } .mt14 { margin-top: 14px; }
+.ja { font-size: calc(16px * var(--fz)); line-height: 1.6; }
+ruby rt { font-size: calc(11px * var(--fz)); color: var(--ink2); }
+.bdg { display: inline-flex; height: 22px; flex: none; align-items: center; border-radius: 6px; padding: 0 8px; font-size: calc(11.5px * var(--fz)); font-weight: 600; white-space: nowrap; background: var(--surface2); color: var(--ink2); }
+.bdg.good { background: var(--good-soft); color: var(--good); }
+.bdg.bad { background: var(--bad-soft); color: var(--bad); }
+.bdg.acc { background: var(--accent-soft); color: var(--ink); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 48px; border-radius: 12px; border: 1px solid transparent; font-size: calc(15px * var(--fz)); font-weight: 600; padding: 0 14px; text-decoration: none; white-space: nowrap; }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.gh { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.btn.qt { background: none; color: var(--ink); border-color: var(--line); }
+.btn.sm { width: auto; height: 44px; font-size: calc(14px * var(--fz)); padding: 0 14px; }
+.btn[aria-disabled="true"] { background: var(--surface2); color: var(--ink2); border-color: transparent; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btns > .btn { flex: 1 1 140px; width: auto; }
+.lnk { display: inline-flex; align-items: center; min-height: 44px; border: 0; background: none; padding: 0; color: var(--accent); font-weight: 600; font-size: calc(14px * var(--fz)); text-decoration: none; }
+.note { margin-top: 10px; border-radius: 10px; background: var(--surface2); padding: 10px 12px; font-size: calc(13px * var(--fz)); color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
+.note.good { background: var(--good-soft); }
+.note.bad { background: var(--bad-soft); }
+/* Segmented md(common/Segmented.tsx 값): 바탕 surface2 · 칸 36 · ::before 44 */
+.seg { display: flex; gap: 3px; padding: 3px; border-radius: 12px; background: var(--surface2); }
+.seg button { position: relative; flex: 1; min-width: 0; height: 36px; border: 0; border-radius: 9px; background: none; font-size: calc(13px * var(--fz)); font-weight: 500; color: var(--ink2); padding: 0 4px; white-space: nowrap; }
+.seg button::before, .chip::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+/* 칩 줄(가로 스크롤, 숨김 스크롤바) — ChoicePills 모양 */
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 4px 0; margin: -4px 0 0; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { position: relative; flex: none; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: calc(13.5px * var(--fz)); color: var(--ink); white-space: nowrap; }
+.chip[aria-checked="true"] { border-color: transparent; font-weight: 600; box-shadow: inset 0 0 0 2px var(--accent); }
+/* 숫자 카드(StatTile) */
+.kp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.kt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-width: 0; }
+.kl { font-size: calc(12px * var(--fz)); color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kv { margin-top: 2px; font-size: calc(22px * var(--fz)); font-weight: 650; line-height: 1.2; white-space: nowrap; }
+.kv small { font-size: calc(13px * var(--fz)); font-weight: 600; margin-left: 1px; }
+.ks { margin-top: 2px; font-size: calc(11.5px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+/* 체크내역 — 주 = 열, 요일 = 행(v2: 일요일 시작, 일·월·화·수·목·금·토 일곱 줄 모두 이름) */
+.strip { display: grid; gap: 3px; align-items: start; min-width: 0; }
+.stc { display: grid; gap: 3px; }
+.sd { border-radius: 4px; }
+.sd.n { background: var(--surface2); }
+.sd.att { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--ink2); }
+.sd.k1 { background: var(--c1); } .sd.k2 { background: var(--c2); } .sd.k3 { background: var(--c3); }
+.sd.pre, .sd.fut { background: none; }
+.sdl { font-size: calc(11px * var(--fz)); color: var(--ink2); line-height: 1; display: grid; align-items: center; }
+.sml { font-size: calc(11px * var(--fz)); color: var(--ink2); white-space: nowrap; line-height: 1.2; height: 14px; overflow: visible; }
+.lg { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.lg > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.lg i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+/* 차트 읽기 줄 */
+.ro { display: flex; align-items: center; gap: 4px; margin-top: 8px; min-width: 0; }
+.ro p { flex: 1; min-width: 0; font-size: calc(13px * var(--fz)); text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
+.ro p b { font-weight: 650; }
+.icb { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; border-radius: 50%; color: var(--ink); padding: 0; }
+.icb[aria-disabled="true"] { color: var(--ink3); cursor: default; }
+svg text { font-family: inherit; }
+/* 표로 보기 */
+details.tv { margin-top: 8px; }
+details.tv > summary { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; font-size: calc(13px * var(--fz)); color: var(--ink); font-weight: 600; cursor: pointer; list-style: none; }
+details.tv > summary::-webkit-details-marker { display: none; }
+details.tv > summary::after { content: "▾"; font-size: 12px; color: var(--ink2); }
+details.tv[open] > summary::after { content: "▴"; }
+.tvw { overflow-x: auto; }
+.tvt { width: 100%; border-collapse: collapse; font-size: calc(12.5px * var(--fz)); }
+.tvt th, .tvt td { padding: 6px 4px; border-top: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.tvt th { color: var(--ink2); font-weight: 600; font-size: calc(12px * var(--fz)); }
+.tvt td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.tvt th.n { text-align: right; }
+/* 능력 축 줄 */
+.ax { padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
+.ax:first-child { border-top: 0; padding-top: 2px; }
+.axh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.axn { font-size: calc(15px * var(--fz)); font-weight: 600; min-width: 0; word-break: keep-all; }
+.axs { font-size: calc(14px * var(--fz)); font-weight: 650; flex: none; white-space: nowrap; }
+.axs.wait { color: var(--ink2); font-weight: 600; }
+.axd { font-size: calc(12.5px * var(--fz)); color: var(--ink2); word-break: keep-all; margin-top: 1px; }
+.mtr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; margin-top: 8px; }
+.mtr i { height: 8px; background: var(--protein-soft); }
+.mtr i:first-child { border-radius: 4px 0 0 4px; } .mtr i:last-child { border-radius: 0 4px 4px 0; }
+.mtr i.f { background: var(--protein); }
+.mtl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; margin-top: 3px; font-size: calc(11px * var(--fz)); color: var(--ink2); }
+.mtl span { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mtl span.on { color: var(--ink); font-weight: 600; }
+.axm { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; min-width: 0; }
+.axm p { min-width: 0; font-size: calc(12.5px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.axm p b { color: var(--ink); font-weight: 600; }
+.axw { margin-top: 6px; font-size: calc(13px * var(--fz)); color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
+.axw .t12 { display: block; margin-top: 2px; }
+.prg { height: 4px; border-radius: 2px; background: var(--surface2); margin-top: 8px; overflow: hidden; max-width: 160px; }
+.prg i { display: block; height: 100%; border-radius: 2px; background: var(--ink2); }
+/* 분석 */
+.chk { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.chk li { display: flex; gap: 8px; align-items: flex-start; font-size: calc(14px * var(--fz)); word-break: keep-all; overflow-wrap: anywhere; }
+.chk .mk { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; font-size: 13px; font-weight: 700; margin-top: 1px; }
+.chk .mk.y { background: var(--good-soft); color: var(--good); }
+.chk .mk.n { box-shadow: inset 0 0 0 1.5px var(--ink2); color: var(--ink2); }
+.inl { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.inl > li { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.inl .ik { font-size: calc(12.5px * var(--fz)); color: var(--ink2); }
+.inl .iv { font-size: calc(14px * var(--fz)); word-break: keep-all; overflow-wrap: anywhere; }
+.wl { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.wl > span { display: inline-flex; align-items: flex-end; border-radius: 8px; background: var(--surface2); padding: 2px 8px 3px; }
+.ind { position: relative; height: 4px; border-radius: 2px; background: var(--surface2); overflow: hidden; margin-top: 12px; }
+.ind i { position: absolute; top: 0; bottom: 0; width: 40%; border-radius: 2px; background: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { .ind i { animation: indet 1.6s linear infinite; } }
+@keyframes indet { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+.evc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.evc > span { display: inline-flex; align-items: center; height: 26px; border-radius: 6px; background: var(--surface2); padding: 0 8px; font-size: calc(12.5px * var(--fz)); color: var(--ink); white-space: nowrap; }
+.evc b { font-weight: 650; margin-left: 4px; }
+.pl > li { padding: 10px 0; border-top: 1px solid var(--line); min-width: 0; }
+.pl > li:first-child { border-top: 0; padding-top: 4px; }
+.pld { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: calc(13.5px * var(--fz)); font-weight: 600; }
+.pld .t12 { font-weight: 400; }
+.pli { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; min-width: 0; }
+.pli .ty { flex: none; display: inline-flex; height: 22px; align-items: center; border-radius: 6px; padding: 0 7px; background: var(--surface2); font-size: calc(12px * var(--fz)); font-weight: 600; white-space: nowrap; }
+.pli .bd { min-width: 0; flex: 1; }
+.pli .bd p:first-child { font-size: calc(14px * var(--fz)); word-break: keep-all; overflow-wrap: anywhere; }
+.today { border-radius: 12px; box-shadow: inset 0 0 0 2px var(--accent); padding: 10px 12px !important; margin-top: 4px; }
+details.dx { margin-top: 10px; border-top: 1px solid var(--line); }
+details.dx > summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(14px * var(--fz)); font-weight: 600; cursor: pointer; list-style: none; }
+details.dx > summary::-webkit-details-marker { display: none; }
+details.dx > summary::after { content: "▾"; color: var(--ink2); font-size: 12px; }
+details.dx[open] > summary::after { content: "▴"; }
+.cfm { margin-top: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface2); padding: 12px; }
+.cfm p { font-size: calc(14px * var(--fz)); word-break: keep-all; overflow-wrap: anywhere; }
+/* 자리표시 */
+.sk { background: var(--surface2); border-radius: 10px; }
+/* 토스트 */
+.toast { position: absolute; left: 16px; right: 16px; bottom: 86px; z-index: 20; display: flex; justify-content: center; pointer-events: none; }
+.toast p { max-width: 100%; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 10px 14px; font-size: calc(13.5px * var(--fz)); box-shadow: 0 6px 18px rgba(0,0,0,.2); word-break: keep-all; }
+/* 달력 — v2: 요일 순서만 바뀜(일요일 시작). 칸 66 · 간격 4 · 반경 10 · 요일 머리 12px = src/components/plan/CalendarSection.tsx 값.
+   요일 머리는 지금 코드도 전부 ink2(일·토 색 구분 없음) — 새로 만들지 않는다 */
+.old { position: relative; }
+.oldtag { display: inline-flex; height: 20px; align-items: center; border-radius: 6px; padding: 0 7px; background: var(--surface2); color: var(--ink2); font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+.dtag { margin-bottom: 10px; border: 1.5px dashed var(--accent); border-radius: 10px; padding: 8px 10px; font-size: calc(12.5px * var(--fz)); color: var(--ink); background: var(--surface); word-break: keep-all; overflow-wrap: anywhere; }
+.dtag b { font-weight: 700; margin-right: 6px; }
+.chc { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mn { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
+.mn h2 { font-size: calc(17px * var(--fz)); font-weight: 700; }
+.sumr { display: flex; gap: 12px; flex-wrap: wrap; font-size: calc(13px * var(--fz)); color: var(--ink2); margin-top: 4px; }
+.sumr b { color: var(--ink); }
+.calh, .calg { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calh { margin-top: 14px; }
+.calh span { height: 24px; line-height: 24px; text-align: center; font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.calg .dc { position: relative; height: 66px; min-width: 0; border-radius: 10px; border: 1px solid transparent; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 6px; }
+.calg .dc.e { visibility: hidden; }
+.calg .dc.s { background: var(--surface); border-color: var(--line); }
+.calg .dc.td { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.calg .dnum { font-size: calc(13px * var(--fz)); line-height: 16px; font-variant-numeric: tabular-nums; font-weight: 500; color: var(--ink2); }
+.calg .dc.s .dnum { font-weight: 600; color: var(--ink); }
+.calg .dc.f .dnum { color: var(--ink3); }
+.calg .ch, .lg .ch { width: 17px; height: 17px; border-radius: 5px; background: var(--surface2); font-size: 11px; font-weight: 700; display: grid; place-items: center; color: var(--ink); flex: none; }
+.calg .chs { display: flex; gap: 2px; align-items: center; }
+.calg .chm { font-size: 11px; font-weight: 600; color: var(--ink2); }
+.calg .ad, .lg .ad { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink2); flex: none; }
+.calg .ad { margin-top: 7px; }
+.calg .bd2 { position: absolute; left: 5px; right: 5px; bottom: 1px; height: 3px; border-radius: 2px; background: var(--accent); }
+.soon { margin-top: 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; border-radius: 14px; background: var(--surface2); padding: 14px; }
+</style>
+</head>
+<body>
+<header class="dtop">
+  <h1>계획표 분석·성장기록 <span class="lvl">task-080 · 데모 v2</span><small>v1 수정 — 체크내역 · 일요일 시작 · 결정 반영 · 합성 데이터 · 서버 호출 없음 · 사용자 승인 전</small></h1>
+  <div class="dctls" role="group" aria-label="데모 조작">
+    <div class="dctl"><span id="lb-view">보기</span><div class="dseg" role="group" aria-labelledby="lb-view" data-ctl="view"><button type="button" data-v="cur">현재</button><button type="button" data-v="prop">제안</button></div></div>
+    <div class="dctl"><span id="lb-sc">범위</span><div class="dseg" role="group" aria-labelledby="lb-sc" data-ctl="scope"><button type="button" data-v="now">이번 구현</button><button type="button" data-v="later">분석 포함(나중)</button></div></div>
+    <div class="dctl"><span id="lb-lv">데이터 양</span><div class="dseg" role="group" aria-labelledby="lb-lv" data-ctl="lv"><button type="button" data-v="1">① 거의 없음</button><button type="button" data-v="2">② 보통</button><button type="button" data-v="3">③ 풍부</button></div></div>
+    <div class="dctl"><span id="lb-w">폭</span><div class="dseg" role="group" aria-labelledby="lb-w" data-ctl="w"><button type="button" data-v="360">360</button><button type="button" data-v="390">390</button><button type="button" data-v="412">412</button><button type="button" data-v="all">세 폭</button></div></div>
+    <div class="dctl"><span id="lb-fz">글꼴</span><div class="dseg" role="group" aria-labelledby="lb-fz" data-ctl="fz"><button type="button" data-v="1">100%</button><button type="button" data-v="1.3">130%</button></div></div>
+    <div class="dctl"><span id="lb-th">테마</span><div class="dseg" role="group" aria-labelledby="lb-th" data-ctl="theme"><button type="button" data-v="auto">기기</button><button type="button" data-v="light">라이트</button><button type="button" data-v="dark">다크</button></div></div>
+    <div class="dctl"><span id="lb-res">버튼 결과</span><div class="dseg" role="group" aria-labelledby="lb-res" data-ctl="res"><button type="button" data-v="ok">성공</button><button type="button" data-v="fail">실패</button></div></div>
+    <div class="dctl"><span id="lb-mk">바뀐 곳</span><div class="dseg" role="group" aria-labelledby="lb-mk" data-ctl="mark"><button type="button" data-v="0">숨김</button><button type="button" data-v="1">지금 대비</button><button type="button" data-v="2">v1 대비</button></div></div>
+  </div>
+</header>
+
+<section class="dpanel" aria-labelledby="glance-h">
+  <h2 id="glance-h">한눈에 — v2 에서 바뀐 것, 이번 구현 범위, 아직 비어 있는 것</h2>
+  <p class="dsub">v1 검토 뒤 사용자 결정(10월 20일)을 반영했다: 성장 탭 첫 띠 이름 = <b>«체크내역»</b>, 주 시작 = <b>일요일</b>(달력 요일 머리 포함), 나머지 Q1~Q7 = <b>권고대로</b>. 그래서 이번 구현 분절은 <b>[달력 | 성장]</b> 두 칸이고, 분석 탭 설계는 나중에 쓰려고 남겨 두었다(위 «범위»). 숫자는 모두 가짜(합성)다.</p>
+  <div class="glance">
+    <div class="gnew"><h3>v1 → v2</h3><ul><li>성장 탭 첫 띠 이름 → <b>«체크내역»</b>(제목·낭독 이름·설명·개발 메모 모두)</li><li>주 시작 <b>일요일</b>: 체크내역 행 일·월·화·수·목·금·토, 주 묶음 일~토, «이번 주» = 일요일~오늘, «최근 N주» = 이번 주를 포함한 일~토 주 N개</li><li>달력: 요일 머리 <b>일 월 화 수 목 금 토</b>, 10월 1일(목) 앞 빈칸 3 → 4칸. 칸 안 표시는 그대로 — 왼쪽 «현재 vs 바뀜 나란히»</li><li>결정 패널: Q1~Q7 결정됨(★ 그대로)·주 시작 결정 추가·<b>새 확인 1건(Q9 질문 탭 «이번 주»)</b></li></ul></div>
+    <div><h3>이번 구현에 들어가는 것 (Q1 B)</h3><ul><li>계획표 위 분절 <b>[달력 | 성장]</b> — 단어장 [단어|채택한 교정]과 같은 모양·동작(주소 이동 링크)</li><li><b>성장</b> 탭: 연속 출석·공부한 날·체크내역·주별 공부량·능력 다섯 가지·AI 평가 점수, 맨 아래 «선생님 분석 · 곧 열려요»</li><li><b>달력</b> 탭: 요일 순서만 일요일 시작. 달력 아래 «곧 열려요» 카드는 없어짐</li><li>분석 탭(선생님 2주 계획 제안)은 나중 — 설계는 이 데모에 그대로 둔다</li></ul></div>
+    <div><h3>불편한 사실</h3><ul><li>주 시작을 바꾸면 운영 중인 달력의 칸 자리가 한 칸씩 밀린다(2026-10-01 에 정한 «월요일 시작»을 뒤집음). 같은 달이 지금과 다른 줄 수로 보이는 달도 있다(예: 2026년 11월 6줄 → 5줄)</li><li>질문 탭의 «이번 주»는 지금 <b>월~일</b>이다. 같이 바꾸지 않으면 화면마다 «이번 주»가 하루 어긋난다 → Q9</li><li>지금 실제 데이터로는 성장 탭이 <b>거의 비어 보인다</b> — 가장 많은 계정도 9일·평가 0</li><li><b>듣고 응답</b>은 기록하는 코드가 없어 <b>계속 비어 있다</b>(③은 기록이 생긴 뒤를 가정) · <b>대화 유지</b>는 역할극을 끝낼 때만 1건 쌓인다</li><li>회화량은 «기록 남기기»를 고른 대화만 세서 실제보다 적게 보인다</li></ul></div>
+  </div>
+</section>
+
+<div class="dlay">
+  <nav class="dnav" aria-label="상태 바로가기" id="dnav"></nav>
+  <div class="dstage" id="stage"></div>
+  <aside class="dside" id="dside" aria-label="상태 설명"></aside>
+</div>
+
+<section class="dpanel" aria-labelledby="dq-h" id="decide">
+  <h2 id="dq-h">결정 — 확인 필요 1건 · 결정됨 8건</h2>
+  <p class="dsub">v1 검토 뒤 사용자가 정했다(10월 20일): 성장 탭 첫 띠 이름 «체크내역», 주 시작 일요일(달력 요일 표기 포함), «그외에는 권고안대로 진행해줘» → Q1~Q7 은 ★ 권고 그대로. 고르지 않은 안은 각 항목 아래 접이에 그대로 남겼다(기록 보존). 주 시작을 바꾸면서 새로 생긴 확인 1건(Q9)만 골라 주세요.</p>
+  <h3 class="dsec">확인 필요 <span class="rec need">새 · 1건</span></h3>
+  <div class="dqs" id="dqs-open"></div>
+  <h3 class="dsec">결정됨 <span class="rec">8건</span></h3>
+  <div class="dqs" id="dqs"></div>
+</section>
+
+<details class="dev" id="devmemo">
+  <summary>개발 메모 — 영향 범위(일요일 시작, v2 새 절) · 지표 근거표 · 정본과 어긋난 곳(결정) · 상태표 · 계산 규칙 · 낭독 순서 · 한계</summary>
+  <div id="devbody"></div>
+</details>
+
+<script>
+'use strict';
+(function () {
+/* ───────────── 날짜 ───────────── */
+const TODAY = '2026-10-20';
+/* v2: 주 시작 = 일요일(사용자 2026-10-20 — 2026-10-01 task-012 결정 c=B «월요일 시작»을 대체). DOW_MON 은 «현재» 운영 달력 비교용 */
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+const DOW_MON = ['월', '화', '수', '목', '금', '토', '일'];
+/* 주 시작일(일요일) 12개 — 마지막이 이번 주(10/18 일 ~ 10/24 토, 오늘 10/20 화) */
+const WK = ['2026-08-02','2026-08-09','2026-08-16','2026-08-23','2026-08-30','2026-09-06','2026-09-13','2026-09-20','2026-09-27','2026-10-04','2026-10-11','2026-10-18'];
+const addD = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const md = (iso) => { const p = iso.split('-').map(Number); return p[1] + '월 ' + p[2] + '일'; };
+const wdOf = (iso) => new Date(iso + 'T00:00:00Z').getUTCDay(); // 0 = 일요일
+const dow = (iso) => DOW[wdOf(iso)];
+const mdw = (iso) => md(iso) + '(' + dow(iso) + ')';
+const sl = (iso) => { const p = iso.split('-').map(Number); return p[1] + '/' + p[2]; };
+const diffD = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+/* 한국어 문장 속 일본어(가나·한자·〜) 조각만 lang="ja" 로 감싼다 — 루트가 ko 라 한자 자형이 한국식이 되는 것을 막는다(screens §1-2) */
+const mix = (s) => esc(s).replace(/[\u3040-\u30ff\u3400-\u9fff〜][\u3040-\u30ff\u3400-\u9fff〜\/ ]*[\u3040-\u30ff\u3400-\u9fff〜]|[\u3040-\u30ff\u3400-\u9fff〜]/g, (m) => '<span lang="ja">' + m + '</span>');
+
+/* ───────────── 합성 데이터 ───────────── */
+const PAT = { 0: [], 1: [1], 2: [0, 1], 3: [1, 3, 5], 4: [0, 1, 3, 5], 5: [0, 1, 2, 4, 6], 6: [0, 1, 2, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6] };
+const N = null;
+function build(def) {
+  const study = {}; const att = new Set();
+  if (def.studyDays) Object.assign(study, def.studyDays);
+  if (def.weekStudy) def.weekStudy.forEach((c, i) => { if (c == null) return; PAT[c].forEach((d, j) => { const iso = addD(WK[i], d); if (iso <= TODAY && iso >= def.first) study[iso] = 1 + ((i * 3 + d * 2 + j) % 3); }); });
+  Object.keys(study).forEach((d) => att.add(d));
+  (def.attendOnly || []).forEach((d) => att.add(d));
+  if (def.attendFill) { for (let d = def.attendFill[0]; d <= def.attendFill[1]; d = addD(d, 1)) att.add(d); }
+  def.study = study; def.att = att;
+  def.weekDays = WK.map((w, i) => { if (addD(w, 6) < def.first) return N; let c = 0; for (let k = 0; k < 7; k++) { if (study[addD(w, k)]) c++; } return c; });
+  let s = 0; for (let d = TODAY; att.has(d); d = addD(d, -1)) s++;
+  def.streak = s;
+  let best = 0, run = 0; for (let d = def.first; d <= TODAY; d = addD(d, 1)) { if (att.has(d)) { run++; best = Math.max(best, run); } else run = 0; }
+  def.longest = best;
+  return def;
+}
+const LV = {
+  1: build({
+    name: '① 거의 없음', hint: '핵심 사용자 현실 — 기록 13일째, 공부한 날 9일, AI 평가 0, 계획 0', first: '2026-10-08',
+    studyDays: { '2026-10-08': 2, '2026-10-09': 1, '2026-10-10': 1, '2026-10-12': 2, '2026-10-13': 1, '2026-10-15': 3, '2026-10-16': 1, '2026-10-18': 2, '2026-10-20': 1 },
+    attendOnly: ['2026-10-19'],
+    m: { words: [N,N,N,N,N,N,N,N,N,3,4,2], lessons: [N,N,N,N,N,N,N,N,N,1,2,1], reviews: [N,N,N,N,N,N,N,N,N,0,1,0], turns: [N,N,N,N,N,N,N,N,N,14,24,0], corr: [N,N,N,N,N,N,N,N,N,2,6,0] },
+    axes: { VOCAB_RECALL: { n: [N,N,N,N,N,N,N,N,N,30,56,10], r: [0,0,0,0,0,0,0,0,0,.77,.80,.80] }, GRAMMAR_PARTICLE: { n: [N,N,N,N,N,N,N,N,N,4,10,0], r: [0,0,0,0,0,0,0,0,0,.5,.6,0] }, SENTENCE_PRODUCTION: { n: [N,N,N,N,N,N,N,N,N,3,8,0], r: [0,0,0,0,0,0,0,0,0,.67,.62,0] }, LISTEN_RESPOND: { none: true }, CONVERSATION_MAINTAIN: { n: [N,N,N,N,N,N,N,N,N,0,1,0], r: [0,0,0,0,0,0,0,0,0,0,1,0] } },
+    evals: [], err: 50, errTypes: [['조사', 'に/で', 2], ['활용', 'て형', 1]], words: 6, focus: 1, goal: 'N4 · 기한 없음', an: 'ready'
+  }),
+  2: build({
+    name: '② 보통', hint: '4주 가까이 — 공부한 날 21일, AI 평가 2번(회화 1·단어 1), 계획 없음', first: '2026-09-21',
+    weekStudy: [N,N,N,N,N,N,N,3,5,5,6,2], attendOnly: ['2026-10-08', '2026-10-01', '2026-10-20'],
+    m: { words: [N,N,N,N,N,N,N,2,4,5,6,2], lessons: [N,N,N,N,N,N,N,1,2,2,3,1], reviews: [N,N,N,N,N,N,N,0,1,1,2,0], turns: [N,N,N,N,N,N,N,10,30,42,55,12], corr: [N,N,N,N,N,N,N,1,3,4,6,1] },
+    axes: { VOCAB_RECALL: { n: [N,N,N,N,N,N,N,20,44,52,70,28], r: [0,0,0,0,0,0,0,.74,.76,.80,.86,.87] }, GRAMMAR_PARTICLE: { n: [N,N,N,N,N,N,N,4,10,12,18,8], r: [0,0,0,0,0,0,0,.5,.56,.58,.6,.62] }, SENTENCE_PRODUCTION: { n: [N,N,N,N,N,N,N,2,6,8,12,6], r: [0,0,0,0,0,0,0,.5,.62,.64,.67,.67] }, LISTEN_RESPOND: { none: true }, CONVERSATION_MAINTAIN: { n: [N,N,N,N,N,N,N,0,1,1,2,0], r: [0,0,0,0,0,0,0,0,1,1,.5,0] } },
+    evals: [{ date: '2026-10-06', kind: 'TALK', level: 'N4', total: 62, grade: 'FAIR', rb: [3, 3, 2, 3, 4] }, { date: '2026-10-14', kind: 'WORDS', level: 'N4', total: 78, grade: 'GOOD', rb: [4, 4, 3, 3, 4] }],
+    err: 140, errTypes: [['조사', 'に/で', 7], ['활용', 'て형', 4], ['존댓말', 'ます형', 3], ['어휘 선택', '', 3]], words: 10, focus: 2, goal: 'N3 · 2027년 3월', an: 'ready'
+  }),
+  3: build({
+    name: '③ 풍부', hint: '12주 넘게 — 공부한 날 53일, AI 평가 6번, 지금 계획 진행 중(듣고 응답 기록이 생긴 뒤를 가정)', first: '2026-07-27',
+    weekStudy: [4,5,3,5,6,4,2,5,6,5,6,2], attendFill: ['2026-10-09', '2026-10-20'], attendOnly: ['2026-08-15', '2026-09-03'],
+    m: { words: [3,4,3,5,6,4,2,5,6,5,6,2], lessons: [1,2,1,2,2,1,0,2,3,2,3,1], reviews: [0,1,1,1,1,1,0,1,2,1,2,0], turns: [20,28,15,33,40,26,8,38,52,45,61,14], corr: [2,3,1,4,5,3,1,4,6,5,7,1] },
+    axes: { VOCAB_RECALL: { n: [50,60,45,62,75,58,30,70,80,72,85,25], r: [.78,.79,.80,.82,.83,.84,.84,.86,.87,.88,.89,.9] }, GRAMMAR_PARTICLE: { n: [12,16,10,18,22,16,8,20,26,24,30,10], r: [.5,.52,.55,.56,.58,.6,.6,.63,.66,.68,.71,.72] }, SENTENCE_PRODUCTION: { n: [6,9,6,10,13,10,5,13,17,15,19,6], r: [.6,.62,.62,.64,.66,.68,.66,.7,.72,.74,.75,.76] }, LISTEN_RESPOND: { assumed: true, n: [0,0,0,0,0,0,0,0,6,8,9,3], r: [0,0,0,0,0,0,0,0,.5,.5,.56,.67] }, CONVERSATION_MAINTAIN: { n: [0,1,1,1,2,1,0,2,2,1,2,1], r: [0,0,1,0,.5,1,0,.5,.5,1,1,1] } },
+    evals: [{ date: '2026-08-10', kind: 'TALK', level: 'N4', total: 58, grade: 'NEEDS_WORK', rb: [3, 3, 2, 2, 3] }, { date: '2026-08-24', kind: 'WORDS', level: 'N4', total: 70, grade: 'FAIR', rb: [4, 3, 3, 3, 4] }, { date: '2026-09-07', kind: 'TALK', level: 'N4', total: 66, grade: 'FAIR', rb: [3, 3, 3, 3, 4] }, { date: '2026-09-21', kind: 'WORDS', level: 'N4', total: 76, grade: 'GOOD', rb: [4, 4, 3, 3, 4] }, { date: '2026-10-05', kind: 'TALK', level: 'N4', total: 74, grade: 'FAIR', rb: [4, 4, 3, 3, 4] }, { date: '2026-10-17', kind: 'TALK', level: 'N4', total: 82, grade: 'GOOD', rb: [4, 4, 3, 4, 5] }],
+    err: 420, errTypes: [['조사', 'に/で', 11], ['활용', 'て형', 8], ['존댓말', 'ます형', 6], ['어휘 선택', '', 5], ['어순', '', 3]], words: 10, focus: 3, goal: 'N3 · 2027년 3월', an: 'cur'
+  }),
+};
+const AXES = [
+  { k: 'VOCAB_RECALL', name: '어휘 회상', desc: '단어 뜻·표현을 떠올리기', how: '오늘의 단어·수업 문제를 풀면 쌓여요' },
+  { k: 'GRAMMAR_PARTICLE', name: '문형·조사', desc: '조사·활용·문형을 맞게 쓰기', how: '수업 문제와 대화 교정에서 쌓여요' },
+  { k: 'LISTEN_RESPOND', name: '듣고 응답', desc: '들은 말에 알맞게 답하기', how: '' },
+  { k: 'SENTENCE_PRODUCTION', name: '문장 산출', desc: '조각을 이어 문장 만들기', how: '수업 «말하기» 과제를 하면 쌓여요' },
+  { k: 'CONVERSATION_MAINTAIN', name: '대화 유지', desc: '대화를 끝까지 이어 가기', how: '역할극을 끝까지 마치면 1번씩 쌓여요', session: true },
+];
+const STAGES = ['시작 단계', '익히는 중', '자리 잡는 중', '안정적'];
+const DIMS = ['정확성', '어휘', '문법', '자연스러움', '조각 조립'];
+const KIND_NAME = { WORDS: '단어 평가', TALK: '회화 평가' };
+const GRADE_LABEL = { EXCELLENT: '이 레벨은 충분해요', GOOD: '거의 다 왔어요', FAIR: '기본은 잡혔어요', NEEDS_WORK: '이 레벨을 더 다져요' };
+const METRICS = [
+  { k: 'days', label: '공부한 날', unit: '일' },
+  { k: 'words', label: '단어 세트', unit: '세트' },
+  { k: 'lessons', label: '수업', unit: '번' },
+  { k: 'reviews', label: '복습', unit: '번' },
+  { k: 'turns', label: '대화 말 수', unit: '번', note: '대화를 마치고 «기록 남기기»를 고른 대화와 끝낸 역할극만 세요.' },
+  { k: 'corr', label: '교정 채택', unit: '개' },
+];
+const WORDS10 = [['曲がる', 'まがる'], ['届ける', 'とどける'], ['遅れる', 'おくれる'], ['払う', 'はらう'], ['決める', 'きめる'], ['向こう', 'むこう'], ['階段', 'かいだん'], ['渡る', 'わたる'], ['角', 'かど'], ['近く', 'ちかく']];
+const FOCUS3 = [['〜てもいいですか', ''], ['駅の前で待ちます', 'えきのまえでまちます'], ['曲がる', 'まがる']];
+const PLAN_NEW = {
+  start: '2026-10-21', end: '2026-11-03', range: ['2026-10-06', '2026-10-19'],
+  rationale: '단어는 꾸준히 잘 맞히고 있어요. 다만 대화에서 장소에 붙는 조사 に와 で를 바꿔 쓰는 일이 일곱 번 있었고, て형을 만드는 문제에서 자주 멈췄어요. 앞으로 2주는 장소를 말하는 짧은 대화로 に/で를 익히고, 둘째 주에는 て형으로 부탁하는 말을 연습해 봐요.',
+  strengths: [['단어 세트 정답률이 꾸준히 80%를 넘어요', [['단어 세트', '17세트'], ['맞힌 비율', '82%']]], ['거의 매일 들어왔어요', [['출석', '14일 중 12일']]]],
+  weak: [['장소에 붙는 조사 に/で를 자주 바꿔 써요', [['교정 に/で', '7번']]], ['て형 만들기에서 시간이 걸려요', [['て형 문제 정답', '4/9']]], ['역할극을 끝까지 한 적이 적어요', [['끝낸 역할극', '1번']]]],
+  level: 'N4',
+  weeks: [
+    { focus: '장소 조사 に/で', days: [
+      ['2026-10-21', [['단어', '오늘의 단어 10장', 5, ''], ['수업', '길 묻기 · N4', 15, 'に/で가 많이 나오는 상황이에요']]],
+      ['2026-10-22', [['복습', '어제 수업 표현', 10, '하루 뒤에 한 번 더 떠올려요']]],
+      ['2026-10-23', [['역할극', '역에서 길 묻기', 10, '배운 표현을 대화로 써 봐요']]],
+      ['2026-10-24', [['단어', '오늘의 단어 10장', 5, '']]],
+      ['2026-10-25', []],
+      ['2026-10-26', [['수업', '카페에서 주문하기 · N4', 15, '장소 + で 를 다시 만나요']]],
+      ['2026-10-27', [['복습', '이번 주 표현 섞기', 10, '많이 틀린 に/で 를 먼저 봐요']]] ] },
+    { focus: 'て형으로 부탁하기', days: [
+      ['2026-10-28', [['수업', '부탁하기 · N4', 15, '〜てください · 〜てもいいですか']]],
+      ['2026-10-29', [['단어', '오늘의 단어 10장', 5, '']]],
+      ['2026-10-30', [['복습', 'て형 표현', 10, '']]],
+      ['2026-10-31', [['역할극', '가게에서 부탁하기', 10, '']]],
+      ['2026-11-01', []],
+      ['2026-11-02', [['수업', '병원에서 · N4', 15, 'て형 연결이 많아요']]],
+      ['2026-11-03', [['복습', '2주 정리', 10, '다음 분석 전에 한 번 더 확인해요']]] ] },
+  ],
+};
+const PLAN_CUR = {
+  start: '2026-10-14', end: '2026-10-27',
+  rationale: '조사 に/で 는 좋아지고 있어요. 이번 2주는 て형 연결과 ます형 존댓말을 익혀요.',
+  weeks: [
+    { focus: 'て형 연결', days: [['2026-10-14', [['수업', '하루 일과 말하기 · N4', 15, '']]], ['2026-10-15', [['단어', '오늘의 단어 10장', 5, '']]], ['2026-10-16', [['복습', 'て형 표현', 10, '']]], ['2026-10-17', [['역할극', '친구와 약속 잡기', 10, '']]], ['2026-10-18', []], ['2026-10-19', [['수업', '길 안내하기 · N4', 15, '']]], ['2026-10-20', [['단어', '오늘의 단어 10장', 5, ''], ['복습', '이번 주 표현 섞기', 10, '많이 틀린 て형을 먼저 봐요']]]] },
+    { focus: 'ます형 존댓말', days: [['2026-10-21', [['수업', '가게에서 묻기 · N4', 15, '']]], ['2026-10-22', [['복습', '어제 수업 표현', 10, '']]], ['2026-10-23', [['역할극', '호텔 체크인', 10, '']]], ['2026-10-24', [['단어', '오늘의 단어 10장', 5, '']]], ['2026-10-25', []], ['2026-10-26', [['수업', '전화로 예약하기 · N4', 15, '']]], ['2026-10-27', [['복습', '2주 정리', 10, '']]]] },
+  ],
+};
+
+/* ───────────── 상태 ───────────── */
+const S = { view: 'prop', scope: 'now', cmp: false, lv: 1, tab: 'growth', an: 'auto', load: 'ok', w: '390', fz: 1, theme: 'auto', res: 'ok', mark: '0',
+  weeks: 4, metric: 'days', sel: null, ekind: null, anWeeks: 2, cfm: null, err: null, toast: '', live: '', planNew: false, rejected: false,
+  q: { q1: 'B', q2: 'B', q3: 'A', q4: 'B', q5: 'A', q6: 'A', q7: 'B', q8: 'A', q9: 'A' } };
+let runTimer = null, toastTimer = null, focusKey = null, focusPfx = null;
+const L = () => LV[S.lv];
+const anState = () => {
+  if (S.an !== 'auto') return S.an;
+  if (S.rejected) return elig().ok ? 'ready' : 'lock';
+  return elig().ok ? L().an : 'lock';
+};
+function thr() { return S.q.q3 === 'A' ? { n: 20, days: 3, sess: 5, half: 20, halfS: 3, anDays: 5, anErr: 20, anEval: 0 } : { n: 50, days: 7, sess: 10, half: 50, halfS: 5, anDays: 14, anErr: 20, anEval: 1 }; }
+function totalStudyDays(lv) { return Object.keys(LV[lv].study).length; }
+function elig(force) {
+  const t = thr(); const lv = L();
+  const days = force ? 3 : totalStudyDays(S.lv); const err = force ? 12 : lv.err; const ev = force ? 0 : lv.evals.length;
+  const items = [{ ok: days >= t.anDays, txt: '공부한 날 ' + days + '일', need: t.anDays + '일', left: t.anDays - days, unit: '일' }, { ok: err >= t.anErr, txt: '교정·틀린 문제 기록 ' + err + '건', need: t.anErr + '건', left: t.anErr - err, unit: '건' }];
+  if (t.anEval) items.push({ ok: ev >= t.anEval, txt: 'AI 평가 ' + ev + '번', need: t.anEval + '번', left: t.anEval - ev, unit: '번' });
+  return { ok: items.every((i) => i.ok), items, days, err, ev };
+}
+
+/* ───────────── 계산 ───────────── */
+function rangeIdx(w) { const out = []; for (let i = 12 - w; i < 12; i++) out.push(i); return out; }
+function axisCalc(ax, lv, idx) {
+  const d = LV[lv].axes[ax.k];
+  if (d.none) return { none: true };
+  let n = 0, s = 0, f = 0, sk = 0; const wk = []; let obsDays = 0;
+  idx.forEach((i) => { const ni = d.n[i] || 0; const ski = ax.session ? 0 : Math.round(ni * 0.06); const si = Math.round((ni - ski) * d.r[i]); const fi = ni - ski - si; n += ni; s += si; f += fi; sk += ski; wk.push({ i, n: ni, s: si, f: fi }); const sd = LV[lv].weekDays[i] || 0; obsDays += ni > 0 ? Math.min(sd, Math.ceil(ni / 8)) : 0; });
+  const t = thr(); const min = ax.session ? t.sess : t.n;
+  const enough = n >= min && (ax.session || obsDays >= t.days);
+  const rate = s + f > 0 ? s / (s + f) : 0;
+  const st = rate < 0.5 ? 0 : rate < 0.7 ? 1 : rate < 0.85 ? 2 : 3;
+  // 추세: 기간(기록 시작 뒤 주)을 앞뒤 반으로 나눠 각각 표본 기준 이상일 때만
+  const live = wk.filter((x) => LV[lv].weekDays[x.i] != null);
+  let trend = null;
+  if (live.length >= 2) {
+    const h = Math.floor(live.length / 2); const a = live.slice(0, h), b = live.slice(h);
+    const sum = (arr, k) => arr.reduce((p, x) => p + x[k], 0);
+    const na = sum(a, 'n'), nb = sum(b, 'n'); const hm = ax.session ? t.halfS : t.half;
+    if (na >= hm && nb >= hm) { const ra = sum(a, 's') / Math.max(1, sum(a, 's') + sum(a, 'f')); const rb = sum(b, 's') / Math.max(1, sum(b, 's') + sum(b, 'f')); const dd = rb - ra; trend = dd >= 0.05 ? 'up' : dd <= -0.05 ? 'down' : 'flat'; }
+  }
+  const spark = wk.filter((x) => x.n >= 5).map((x) => x.s / Math.max(1, x.s + x.f));
+  return { n, s, f, sk, rate, st, enough, min, obsDays, trend, spark, assumed: !!d.assumed };
+}
+function metricVal(k, lv, i) {
+  const X = LV[lv];
+  if (X.weekDays[i] == null) return null;
+  if (k === 'days') return X.weekDays[i];
+  return X.m[k][i] == null ? null : X.m[k][i];
+}
+function dayState(lv, iso) {
+  const X = LV[lv];
+  if (iso > TODAY) return 'fut';
+  if (iso < X.first) return 'pre';
+  if (X.study[iso]) return 'k' + X.study[iso];
+  if (X.att.has(iso)) return 'att';
+  return 'n';
+}
+
+/* ───────────── 공용 조각 ───────────── */
+const ICON = {
+  left: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+  right: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
+};
+const TABS = [['회화', 'M4 5h16v10H9l-5 4zM8 9h8M8 12h5'], ['공부', 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'], ['계획표', 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h3M7 17h6'], ['단어장', 'M4 4h16v7H4zM4 11h16v9H4zM10 7h4M10 15h4'], ['질문', 'M12 21a9 9 0 1 0-9-9c0 1.6.4 3 1.1 4.3L3 21l4.7-1.1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4M12 17h.01']];
+function tabbar() {
+  return '<nav class="tb" aria-label="주 메뉴">' + TABS.map((t) => '<a href="#" data-act="noop" ' + (t[0] === '계획표' ? 'aria-current="page"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + t[1] + '"/></svg>' + t[0] + '</a>').join('') + '</nav>';
+}
+function appbar() { return '<header class="ab"><h1>계획표</h1><button type="button" class="av" aria-label="설정" data-act="noop"><span aria-hidden="true">나</span></button></header>'; }
+function fzpx(px) { return (px * S.fz).toFixed(1); }
+function ja(t, r) {
+  if (!r) return '<span lang="ja" class="ja">' + esc(t) + '</span>';
+  return '<span lang="ja" class="ja"><ruby>' + esc(t) + '<rt>' + esc(r) + '</rt></ruby></span>';
+}
+
+/* ───────────── 성장 탭 ───────────── */
+function growth(P) {
+  if (S.load === 'load') return skel('성장 기록');
+  if (S.load === 'err') return errBox('성장 기록을 불러오지 못했어요', 'growth');
+  const X = L(); const idx = rangeIdx(S.weeks);
+  // v2: «최근 N주» = 이번 주를 포함한 일요일 시작 주 N개(오늘까지). 숫자 카드·체크내역·주별 막대가 같은 범위를 쓴다.
+  const from = WK[12 - S.weeks]; const late = X.first > from; const start = late ? X.first : from;
+  const since = diffD(X.first, TODAY) + 1;
+  let studied = 0, attended = 0; for (let d = start; d <= TODAY; d = addD(d, 1)) { if (X.study[d]) studied++; if (X.att.has(d)) attended++; }
+  const thisWeek = X.weekDays[11] || 0; const twd = dow(TODAY);
+  const of = late ? '시작한 지 ' + since + '일 중' : md(from) + '(일)부터';
+  let h = '';
+  h += '<div class="sec"><div class="seg" role="radiogroup" aria-label="볼 기간" data-k="g-weeks">' + [4, 8, 12].map((w) => '<button type="button" role="radio" aria-checked="' + (S.weeks === w) + '" data-act="weeks:' + w + '" data-k="weeks-' + w + '">최근 ' + w + '주</button>').join('') + '</div>';
+  h += '<p class="t12 mt6 v2">' + md(from) + '(일)~오늘 · 주는 일요일에 시작해요' + (late ? ' · 기록은 ' + md(X.first) + '부터라 그 전 칸은 비어 보여요' : '') + '</p>';
+  h += '</div>';
+  // 숫자 카드
+  h += '<div class="sec"><h2 class="sr">한눈에</h2><div class="kp">' +
+    tile('연속 출석', X.streak + '<small>일</small>', '가장 길게 ' + X.longest + '일') +
+    tile('공부한 날', studied + '<small>일</small>', of, late ? '' : 'v2') +
+    tile('이번 주', thisWeek + '<small>일</small>', twd === '일' ? '오늘(일요일)부터' : '일요일~' + twd + '요일', 'v2') + '</div>';
+  if (S.lv === 1) h += '<p class="note mt8">기록 ' + since + '일째예요. 능력 단계는 기록이 모이는 대로 하나씩 보여요 — 지금은 <b>어휘 회상</b>이 먼저 보이기 시작했어요.</p>';
+  h += '</div>';
+  // 체크내역
+  h += '<section class="sec cd dnew" aria-labelledby="' + P.p + '-st-h"><div class="sh"><h2 id="' + P.p + '-st-h" class="v2">체크내역</h2><span class="sm">공부한 종류 수</span></div>' + strip(P, idx) + '</section>';
+  // 주별 공부량
+  h += '<section class="sec cd dnew" aria-labelledby="' + P.p + '-bar-h"><div class="sh"><h2 id="' + P.p + '-bar-h">주마다 공부량</h2></div>' + bars(P, idx) + '</section>';
+  // 능력 다섯 가지
+  h += '<section class="sec cd dnew" aria-labelledby="' + P.p + '-ax-h"><div class="sh"><h2 id="' + P.p + '-ax-h">능력 다섯 가지</h2><span class="sm">최근 ' + S.weeks + '주</span></div><p class="t12" style="margin:-4px 0 8px">공부하며 맞히고 틀린 기록으로 계산해요.</p>' + (S.q.q2 === 'A' ? axesRadar(P, idx) : axesRows(P, idx)) + axesHow() + '</section>';
+  // AI 평가 점수
+  h += '<section class="sec cd dnew" aria-labelledby="' + P.p + '-ev-h">' + evalBlock(P) + '</section>';
+  // Q1 B(성장기록 먼저): 분석은 맨 아래 «곧 열려요»
+  if (S.scope === 'now') h += '<section class="soon dnew v2" aria-labelledby="' + P.p + '-soon-h"><div><h2 class="t15" id="' + P.p + '-soon-h">선생님 분석</h2><p class="t13 mt4">선생님이 기록을 읽고 앞으로 2주 공부 계획을 제안해 드려요. 공부 기록이 더 쌓이면 열려요.</p></div><span class="bdg" style="background:var(--surface)">곧 열려요</span></section>';
+  h += '<p class="t12 sec">기록을 지워도 이 화면의 숫자는 바뀌지 않아요. 통계는 따로 남아요.</p>';
+  return h;
+}
+function tile(l, v, s, cls) { return '<div class="kt"><p class="kl">' + l + '</p><p class="kv">' + v + '</p><p class="ks' + (cls ? ' ' + cls : '') + '">' + s + '</p></div>'; }
+function strip(P, idx) {
+  const X = L(); const n = idx.length;
+  // 칸 너비는 기간에 맞춰 늘리고(4주 = 넓은 직사각형), 높이는 22px 까지 — 줄 높이가 7배라 세로가 길어지지 않게
+  const avail = P.W - 62 - 16; const cw = Math.max(12, Math.min(56, Math.floor((avail - n * 3) / n))); const ch = Math.min(22, cw);
+  let h = '<div class="strip" aria-hidden="true" style="grid-template-columns:16px repeat(' + n + ',' + cw + 'px)">';
+  h += '<div class="stc" style="grid-template-rows:14px repeat(7,' + ch + 'px)"><span></span>' + DOW.map((d) => '<span class="sdl v2">' + d + '</span>').join('') + '</div>';
+  idx.forEach((i, j) => {
+    const w = WK[i]; const m = Number(w.split('-')[1]); const prevM = j > 0 ? Number(WK[idx[j - 1]].split('-')[1]) : 0;
+    let lab = ''; if (cw >= 36) lab = sl(w); else if (j === 0 || m !== prevM) lab = m + '월';
+    h += '<div class="stc" style="grid-template-rows:14px repeat(7,' + ch + 'px)"><span class="sml">' + lab + '</span>';
+    for (let k = 0; k < 7; k++) { const st = dayState(S.lv, addD(w, k)); h += '<i class="sd ' + st + '" style="height:' + ch + 'px"></i>'; }
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '<div class="lg" aria-hidden="true"><span><i style="background:var(--c1)"></i>1가지</span><span><i style="background:var(--c2)"></i>2가지</span><span><i style="background:var(--c3)"></i>3가지 이상</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--ink2)"></i>출석만</span><span><i style="background:var(--surface2)"></i>안 함</span></div>';
+  // 대체 텍스트 + 표
+  let studied = 0, att = 0; idx.forEach((i) => { for (let k = 0; k < 7; k++) { const st = dayState(S.lv, addD(WK[i], k)); if (st[0] === 'k') studied++; else if (st === 'att') att++; } });
+  h += '<p class="sr">최근 ' + S.weeks + '주 동안 공부한 날 ' + studied + '일, 출석만 한 날 ' + att + '일. 주별 자세한 내용은 아래 표에 있어요.</p>';
+  h += '<details class="tv" data-k="strip-tv"><summary>주별로 보기</summary><div class="tvw"><table class="tvt"><caption class="sr">주별 공부한 요일</caption><thead><tr><th scope="col">주</th><th scope="col">공부한 요일</th><th scope="col">출석만</th></tr></thead><tbody>';
+  idx.slice().reverse().forEach((i) => {
+    const w = WK[i]; const ds = [], as = [];
+    for (let k = 0; k < 7; k++) { const st = dayState(S.lv, addD(w, k)); if (st[0] === 'k') ds.push(DOW[k] + '(' + st[1] + ')'); else if (st === 'att') as.push(DOW[k]); }
+    const pre = addD(w, 6) < L().first;
+    h += '<tr><td>' + sl(w) + ' 주' + (i === 11 ? ' · 이번 주' : '') + '</td><td>' + (pre ? '기록 전' : ds.length ? ds.join(' ') : '없음') + '</td><td>' + (pre ? '' : as.join(' ') || '–') + '</td></tr>';
+  });
+  h += '</tbody></table><p class="t12 mt4">주는 일요일~토요일이에요. 괄호 숫자 = 그날 한 공부 종류 수(단어·수업·복습·대화·평가·교정 채택)</p></div></details>';
+  return h;
+}
+function bars(P, idx) {
+  const M = METRICS.find((x) => x.k === S.metric);
+  const vals = idx.map((i) => metricVal(M.k, S.lv, i));
+  let sel = S.sel == null || !idx.includes(S.sel) ? 11 : S.sel;
+  const si = idx.indexOf(sel);
+  const W = P.W - 62; const H = 132; const padL = 26, padB = 20, padT = 18;
+  const pw = W - padL; const slot = pw / idx.length; const bw = Math.min(24, slot * 0.62);
+  const max0 = Math.max(1, ...vals.map((v) => v || 0)); const step = niceStep(max0); const max = Math.ceil(max0 / step) * step;
+  const y = (v) => padT + (H - padT - padB) * (1 - v / max);
+  const fs = fzpx(11);
+  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true" data-act="barpick" data-n="' + idx.length + '" data-pl="' + padL + '" data-sw="' + slot + '" style="display:block;touch-action:manipulation">';
+  // 기록 전 구역
+  const preN = vals.findIndex((v) => v != null);
+  if (preN > 0) { svg += '<rect x="' + padL + '" y="' + padT + '" width="' + (slot * preN) + '" height="' + (H - padT - padB) + '" fill="var(--surface2)" rx="6"/>'; if (slot * preN > 46) svg += '<text x="' + (padL + slot * preN / 2) + '" y="' + (padT + (H - padT - padB) / 2 + 4) + '" text-anchor="middle" font-size="' + fs + '" fill="var(--ink2)">기록 전</text>'; }
+  for (let t = 0; t <= max; t += step) { const yy = y(t); svg += '<line x1="' + padL + '" x2="' + W + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--line)" stroke-width="1"/><text x="' + (padL - 6) + '" y="' + (yy + 4) + '" text-anchor="end" font-size="' + fs + '" fill="var(--ink2)" style="font-variant-numeric:tabular-nums">' + t + '</text>'; }
+  vals.forEach((v, j) => {
+    const cx = padL + slot * j + slot / 2;
+    if (v != null && v > 0) { const top = y(v), base = y(0), x0 = cx - bw / 2, r = Math.min(4, (base - top)); svg += '<path d="M' + x0 + ' ' + base + 'V' + (top + r) + 'Q' + x0 + ' ' + top + ' ' + (x0 + r) + ' ' + top + 'H' + (x0 + bw - r) + 'Q' + (x0 + bw) + ' ' + top + ' ' + (x0 + bw) + ' ' + (top + r) + 'V' + base + 'Z" fill="' + (j === si ? 'var(--protein)' : 'var(--c2)') + '"/>'; }
+    if (j === si && v != null) svg += '<text x="' + cx + '" y="' + (y(v) - 5) + '" text-anchor="middle" font-size="' + fzpx(12) + '" font-weight="700" fill="var(--ink)">' + v + '</text>';
+    const every = idx.length <= 4 ? 1 : idx.length <= 8 ? 2 : 3; const lastJ = idx.length - 1;
+    if ((lastJ - j) % every === 0) svg += '<text x="' + (j === lastJ && cx + 20 * S.fz > W ? W - 1 : cx) + '" y="' + (H - 5) + '" text-anchor="' + (j === lastJ && cx + 20 * S.fz > W ? 'end' : 'middle') + '" font-size="' + fs + '" fill="' + (j === si ? 'var(--ink)' : 'var(--ink2)') + '"' + (j === si ? ' font-weight="700"' : '') + '>' + (idx[j] === 11 ? '이번 주' : sl(WK[idx[j]])) + '</text>';
+  });
+  svg += '<line x1="' + padL + '" x2="' + W + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--ink2)" stroke-width="1"/></svg>';
+  const v = vals[si]; const wk = WK[sel];
+  const we = addD(wk, 6); const when = sel === 11 ? '이번 주 ' + md(wk) + '(일)~오늘(' + dow(TODAY) + ')' : md(wk) + '(일)~' + (we.slice(5, 7) === wk.slice(5, 7) ? Number(we.slice(8)) + '일' : md(we)) + '(토)';
+  const what = v == null ? '기록을 시작하기 전이에요' : '<b>' + M.label + ' ' + v + M.unit + '</b>';
+  let h = '<div class="chips" role="radiogroup" aria-label="볼 공부량">' + METRICS.map((m) => '<button type="button" class="chip" role="radio" aria-checked="' + (m.k === S.metric) + '" data-act="metric:' + m.k + '" data-k="metric-' + m.k + '">' + m.label + '</button>').join('') + '</div>';
+  h += '<div class="mt10">' + svg + '</div>';
+  h += '<div class="ro"><button type="button" class="icb" aria-label="이전 주" data-act="sel:-1" data-k="sel-prev"' + (si === 0 ? ' aria-disabled="true"' : '') + '>' + ICON.left + '</button><p role="status" aria-live="polite" class="v2">' + when + ' · ' + what + '</p><button type="button" class="icb" aria-label="다음 주" data-act="sel:1" data-k="sel-next"' + (si === idx.length - 1 ? ' aria-disabled="true"' : '') + '>' + ICON.right + '</button></div>';
+  if (M.note) h += '<p class="t12 mt4">' + M.note + '</p>';
+  h += '<details class="tv" data-k="bar-tv"><summary>표로 보기</summary><div class="tvw"><table class="tvt"><caption class="sr">주별 ' + M.label + '</caption><thead><tr><th scope="col">주</th><th scope="col" class="n">' + M.label + '</th></tr></thead><tbody>' + idx.slice().reverse().map((i) => { const vv = metricVal(M.k, S.lv, i); return '<tr><td>' + sl(WK[i]) + ' 주' + (i === 11 ? ' · 이번 주' : '') + '</td><td class="n">' + (vv == null ? '기록 전' : vv + M.unit) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
+  return h;
+}
+function niceStep(m) { if (m <= 5) return 1; if (m <= 10) return 2; if (m <= 25) return 5; if (m <= 50) return 10; return 20; }
+function sparkSvg(pts) {
+  if (pts.length < 4) return '';
+  const w = 64, h = 22; const mn = Math.min(...pts), mx = Math.max(...pts); const rg = Math.max(0.08, mx - mn);
+  const xy = pts.map((p, i) => [2 + (w - 6) * i / (pts.length - 1), 3 + (h - 6) * (1 - (p - mn) / rg)]);
+  const last = xy[xy.length - 1];
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" style="flex:none"><polyline points="' + xy.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ') + '" fill="none" stroke="var(--protein)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="3.5" fill="var(--protein)" stroke="var(--surface)" stroke-width="2"/></svg>';
+}
+const TREND = { up: '↑ 앞 기간보다 늘었어요', down: '↓ 앞 기간보다 줄었어요', flat: '→ 앞 기간과 비슷해요' };
+function axesRows(P, idx) {
+  return '<ul>' + AXES.map((ax) => {
+    const c = axisCalc(ax, S.lv, idx);
+    let h = '<li class="ax"><div class="axh"><h3 class="axn">' + ax.name + '</h3>';
+    if (c.none) return h + '<span class="axs wait">기록 전</span></div><p class="axd">' + ax.desc + '</p><p class="axw">아직 이 능력을 기록하는 공부가 없어요.</p></li>';
+    if (!c.enough) {
+      h += '<span class="axs wait">아직 판단하기 일러요</span></div><p class="axd">' + ax.desc + '</p>';
+      const unit = ax.session ? '번' : '건';
+      const prog = Math.min(c.n, c.min);
+      h += '<p class="axw">' + (ax.session ? '끝낸 역할극 ' + c.n + '번 · ' + c.min + '번이 되면 단계가 보여요' : '관측 ' + c.n + '건 · ' + c.min + '건이 되면 단계가 보여요') + '<span class="t12">' + ax.how + '</span></p>';
+      h += '<div class="prg" aria-hidden="true"><i style="width:' + Math.round(prog / c.min * 100) + '%"></i></div>';
+      if (ax.session) h += '<p class="mt4"><button type="button" class="lnk" data-act="go:역할극 고르기" data-k="go-rp">역할극 고르러 가기</button></p>';
+      return h + '</li>';
+    }
+    h += '<span class="axs">' + STAGES[c.st] + '</span></div><p class="axd">' + ax.desc + '</p>';
+    h += '<div class="mtr" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= c.st ? 'f' : '') + '"></i>').join('') + '</div><p class="sr">4단계 중 ' + (c.st + 1) + '단계</p>';
+    const unit = ax.session ? '끝낸 역할극 ' + c.n + '번(목표 달성 ' + c.s + ')' : '관측 ' + c.n + '건(맞힘 ' + c.s + ' · 틀림 ' + c.f + (c.sk ? ' · 넘김 ' + c.sk : '') + ')';
+    h += '<div class="axm"><p><b>' + unit + '</b>' + (c.trend ? '<br>' + TREND[c.trend] : '<br>추세는 기록이 더 모이면 보여요') + (c.assumed ? '<br><span style="color:var(--ink)">※ 데모 가정: 기록 코드가 생긴 뒤</span>' : '') + '</p>' + (S.weeks >= 8 ? sparkSvg(c.spark) : '') + '</div>';
+    return h + '</li>';
+  }).join('') + '</ul>';
+}
+function axesHow() {
+  const t = thr();
+  return '<details class="dx" data-k="ax-how"><summary>단계는 이렇게 정해요</summary><ul class="dlist" style="margin-top:0;padding-bottom:6px;font-size:calc(13px * var(--fz))"><li>오늘의 단어·수업 문제·말하기 과제·대화 교정·역할극에서 맞히고 틀린 기록(관측)을 세요.</li><li>교정을 받아들인 것만으로는 단계가 올라가지 않아요. 다음에 맞게 써야 올라가요.</li><li>단계는 네 칸이에요: 시작 단계 → 익히는 중 → 자리 잡는 중 → 안정적.</li><li>관측이 ' + t.n + '건(대화 유지는 역할극 ' + t.sess + '번) 모이기 전에는 단계를 보여 주지 않아요.</li><li>단계는 JLPT 급수와 관계없어요. 지금 공부한 내용 안에서의 흐름이에요.</li></ul></details>';
+}
+function axesRadar(P, idx) {
+  const vals = AXES.map((ax) => { const c = axisCalc(ax, S.lv, idx); return c.none || !c.enough ? null : Math.round(c.rate * 100); });
+  const size = Math.min(P.W - 62, 320);
+  let h = radarSvg(size, AXES.map((a) => a.name), [{ v: vals.map((v) => v == null ? 0 : v / 20), main: true }], vals.map((v) => v == null ? '판단 전' : v + '점'));
+  h += '<p class="sr">' + AXES.map((a, i) => a.name + ' ' + (vals[i] == null ? '판단 전' : vals[i] + '점')).join(', ') + '</p>';
+  h += '<p class="t12 mt6">0~100점은 맞힌 비율을 그대로 옮긴 값이에요. 판단 전인 능력은 0점 자리에 그려져요.</p>';
+  return h;
+}
+function radarSvg(size, labels, series, valueLabels) {
+  const W = size, H = Math.round(size * 0.86); const cx = W / 2, cy = H / 2 + 6; const R = Math.min(W / 2 - (48 + 28 * S.fz), H / 2 - 30);
+  const ang = (i) => -Math.PI / 2 + i * 2 * Math.PI / 5;
+  const pt = (i, v) => [cx + Math.cos(ang(i)) * R * v / 5, cy + Math.sin(ang(i)) * R * v / 5];
+  let s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true" style="display:block;margin:0 auto">';
+  for (let k = 1; k <= 5; k++) s += '<polygon points="' + [0, 1, 2, 3, 4].map((i) => pt(i, k).map((x) => x.toFixed(1)).join(',')).join(' ') + '" fill="none" stroke="var(--line)" stroke-width="1"/>';
+  for (let i = 0; i < 5; i++) { const p = pt(i, 5); s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p[0].toFixed(1) + '" y2="' + p[1].toFixed(1) + '" stroke="var(--line)" stroke-width="1"/>'; }
+  series.slice().reverse().forEach((se) => {
+    const pts = se.v.map((v, i) => pt(i, v).map((x) => x.toFixed(1)).join(',')).join(' ');
+    if (se.main) s += '<polygon points="' + pts + '" fill="var(--protein)" fill-opacity=".12" stroke="var(--protein)" stroke-width="2" stroke-linejoin="round"/>' + se.v.map((v, i) => { const p = pt(i, v); return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4" fill="var(--protein)" stroke="var(--surface)" stroke-width="2"/>'; }).join('');
+    else s += '<polygon points="' + pts + '" fill="none" stroke="var(--ink2)" stroke-width="1.5" stroke-linejoin="round"/>';
+  });
+  labels.forEach((l, i) => {
+    const p = [cx + Math.cos(ang(i)) * (R + 14), cy + Math.sin(ang(i)) * (R + 14)];
+    const anchor = Math.abs(p[0] - cx) < 6 ? 'middle' : p[0] > cx ? 'start' : 'end';
+    const dy = i === 0 ? -4 : (i === 2 || i === 3) ? 12 : 4;
+    s += '<text x="' + p[0].toFixed(1) + '" y="' + (p[1] + dy).toFixed(1) + '" text-anchor="' + anchor + '" font-size="' + fzpx(12) + '" fill="var(--ink)">' + l + (valueLabels ? '<tspan x="' + p[0].toFixed(1) + '" dy="' + fzpx(14) + '" font-size="' + fzpx(11.5) + '" fill="var(--ink2)">' + valueLabels[i] + '</tspan>' : '') + '</text>';
+  });
+  return s + '</svg>';
+}
+function evalBlock(P) {
+  const X = L(); const from = WK[12 - S.weeks];
+  const inP = X.evals.filter((e) => e.date >= from);
+  let h = '<div class="sh"><h2 id="' + P.p + '-ev-h">AI 평가 점수</h2>' + (inP.length ? '<span class="sm">최근 ' + S.weeks + '주 ' + inP.length + '번</span>' : '') + '</div>';
+  if (!X.evals.length) return h + '<p class="t14">아직 AI 평가를 본 적이 없어요.</p><p class="t13 mt4">평가를 한 번 보면 정확성·어휘·문법·자연스러움·조각 조립 다섯 가지 점수가 여기 보여요. 10분쯤 걸려요.</p><button type="button" class="btn gh mt10" data-act="go:AI 평가 시작" data-k="go-eval">AI 평가 보러 가기</button>';
+  if (!inP.length) return h + '<p class="t14">이 기간에는 본 평가가 없어요.</p><p class="t13 mt4">기간을 늘리면 지난 평가가 보여요.</p>';
+  const kinds = ['TALK', 'WORDS'].filter((k) => inP.some((e) => e.kind === k));
+  const kind = kinds.includes(S.ekind) ? S.ekind : kinds[0];
+  const list = inP.filter((e) => e.kind === kind);
+  const last = list[list.length - 1], first = list.length > 1 ? list[0] : null;
+  if (kinds.length > 1) h += '<div class="chips" role="radiogroup" aria-label="평가 종류">' + kinds.map((k) => '<button type="button" class="chip" role="radio" aria-checked="' + (k === kind) + '" data-act="ekind:' + k + '" data-k="ek-' + k + '">' + KIND_NAME[k] + ' ' + inP.filter((e) => e.kind === k).length + '</button>').join('') + '</div>';
+  const series = [{ v: last.rb, main: true }]; if (first) series.push({ v: first.rb, main: false });
+  h += '<div class="mt10">' + radarSvg(Math.min(P.W - 62, 320), DIMS, series, null) + '</div>';
+  h += '<div class="lg" style="justify-content:center" aria-hidden="true"><span><i style="background:var(--protein);border-radius:50%"></i>' + sl(last.date) + ' ' + last.total + '점(최근)</span>' + (first ? '<span><i style="box-shadow:inset 0 0 0 1.5px var(--ink2);border-radius:50%"></i>' + sl(first.date) + ' ' + first.total + '점(이 기간 처음)</span>' : '') + '</div>';
+  if (!first) h += '<p class="t14 mt8">' + KIND_NAME[kind] + '(' + last.level + ') <b>' + last.total + '점</b> · ' + GRADE_LABEL[last.grade] + '</p><p class="t13 mt4">' + KIND_NAME[kind] + '를 한 번 더 보면 달라진 점이 겹쳐 보여요.</p>';
+  else h += '<p class="t14 mt8">' + KIND_NAME[kind] + '(' + last.level + ') ' + first.total + '점 → <b>' + last.total + '점</b> · ' + GRADE_LABEL[last.grade] + '</p>';
+  h += '<p class="sr">' + KIND_NAME[kind] + ' 최근 ' + md(last.date) + ' ' + last.total + '점: ' + DIMS.map((d, i) => d + ' ' + last.rb[i] + '점').join(', ') + (first ? '. 이 기간 처음 ' + md(first.date) + ' ' + first.total + '점: ' + DIMS.map((d, i) => d + ' ' + first.rb[i] + '점').join(', ') : '') + '. 5점 만점.</p>';
+  h += '<details class="tv" data-k="ev-tv"><summary>표로 보기</summary><div class="tvw"><table class="tvt"><caption class="sr">' + KIND_NAME[kind] + ' 영역별 점수(5점 만점)</caption><thead><tr><th scope="col">날짜</th><th scope="col">수준</th><th scope="col" class="n">총점</th>' + DIMS.map((d) => '<th scope="col" class="n">' + d + '</th>').join('') + '</tr></thead><tbody>' + list.slice().reverse().map((e) => '<tr><td>' + sl(e.date) + '</td><td>' + e.level + '</td><td class="n">' + e.total + '</td>' + e.rb.map((v) => '<td class="n">' + v + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></details>';
+  return h;
+}
+
+/* ───────────── 분석 탭 ───────────── */
+function analysis(P) {
+  if (S.load === 'load') return skel('분석');
+  if (S.load === 'err') return errBox('분석을 불러오지 못했어요', 'an');
+  const st = anState();
+  if (st === 'lock') return anLock(P);
+  if (st === 'ready') return anReady(P);
+  if (st === 'run') return anRun(P);
+  if (st === 'prop' || st === 'same') return anProp(P, st === 'same');
+  if (st === 'cur') return anCur(P);
+  if (st === 'fail') return anFail(P);
+  return '';
+}
+function anIntro() { return '<h2 class="t15" tabindex="-1" data-k="an-h">선생님 분석</h2><p class="t13 mt4">선생님이 최근 기록을 읽고 앞으로 2주 공부 계획을 제안해 드려요. 제안은 [이 계획으로 시작]을 눌러야 적용돼요.</p>'; }
+function anLock(P) {
+  const e = elig(S.an === 'lock' && elig().ok);
+  let h = '<section class="cd dnew">' + anIntro();
+  h += '<ul class="chk">' + e.items.map((i) => '<li><span class="mk ' + (i.ok ? 'y' : 'n') + '" aria-hidden="true">' + (i.ok ? '✓' : '') + '</span><span>' + i.txt + ' <span class="t12">/ ' + i.need + ' 필요 · ' + (i.ok ? '충분해요' : i.left + i.unit + ' 더') + '</span></span></li>').join('') + '</ul>';
+  const lack = e.items.filter((i) => !i.ok);
+  h += '<p class="note">' + (lack.length === 1 && lack[0].unit === '일' ? lack[0].left + '일만 더 공부하면 분석할 수 있어요. 지금처럼 이어 가면 돼요.' : '조금만 더 공부하면 분석할 수 있어요. 지금처럼 이어 가면 돼요.') + '</p>';
+  h += '<button type="button" class="btn pri mt12" aria-disabled="true" aria-describedby="' + P.p + '-lockwhy" data-act="an:lockedtap" data-k="an-start">분석 시작</button><p class="t12 mt6" id="' + P.p + '-lockwhy">위 기록이 모이면 누를 수 있어요.</p>';
+  h += '<button type="button" class="btn gh mt8" data-act="go:공부 탭" data-k="go-study">공부하러 가기</button></section>';
+  if (S.an === 'lock' && elig().ok) h += '<p class="t12 mt8">※ 데모: 이 상태는 기록이 적은 다른 계정(공부한 날 3일) 숫자예요.</p>';
+  h += inputsBox(P, false, true);
+  return h;
+}
+function anReady(P) {
+  const e = elig();
+  let h = '';
+  if (S.rejected) h += '<p class="note mt0" role="status" style="margin-top:0;margin-bottom:10px">지난 제안을 닫았어요. 새 기록이 쌓이면 다시 분석해 보세요.</p>';
+  h += '<section class="cd dnew">' + anIntro();
+  h += '<ul class="chk">' + e.items.map((i) => '<li><span class="mk y" aria-hidden="true">✓</span><span>' + i.txt + '</span></li>').join('') + '</ul>';
+  if (!L().evals.length) h += '<p class="note">AI 평가를 한 번 보면 계획이 더 정확해져요. 평가 없이도 분석할 수 있어요.</p>';
+  h += '<p class="t13 mt12" id="' + P.p + '-rng">어떤 기록으로 분석할까요?</p><div class="seg mt6" role="radiogroup" aria-labelledby="' + P.p + '-rng">' + [2, 4].map((w) => '<button type="button" role="radio" aria-checked="' + (S.anWeeks === w) + '" data-act="anw:' + w + '" data-k="anw-' + w + '">최근 ' + w + '주' + (w === 2 ? '(권장)' : '') + '</button>').join('') + '</div>';
+  h += '<button type="button" class="btn pri mt12" data-act="an:start" data-k="an-start">분석 시작</button><p class="t12 mt6">보통 2~4분 걸려요. 기다리는 동안 다른 공부를 해도 돼요.</p></section>';
+  h += inputsBox(P, false);
+  return h;
+}
+function anRun(P) {
+  const r = rng();
+  let h = '<section class="cd dnew"><h2 class="t15" tabindex="-1" data-k="an-h">선생님이 기록을 읽고 있어요</h2><p class="t13 mt4">' + md(r[0]) + '~' + md(r[1]) + ' 기록 · 보통 2~4분 걸려요</p><div class="ind" aria-hidden="true"><i></i></div>';
+  h += '<p class="t14 mt12" role="status">다른 화면에 가도 계속 만들어요. 다 되면 이 탭에서 볼 수 있어요.</p>';
+  h += '<button type="button" class="btn gh mt12" data-act="go:공부 탭" data-k="go-study">다른 공부하러 가기</button></section>';
+  h += inputsBox(P, true);
+  return h;
+}
+function rng() { if (S.anWeeks === 4) return ['2026-09-22', '2026-10-19']; return ['2026-10-06', '2026-10-19']; }
+function anFail(P) {
+  return '<section class="cd dnew"><h2 class="t15" tabindex="-1" data-k="an-h">계획을 만들지 못했어요</h2><p class="t14 mt6" role="alert">선생님이 기록을 읽는 데 시간이 너무 오래 걸렸어요. 잠시 뒤 다시 해 주세요.</p><p class="t13 mt4">기록은 그대로예요. 다시 해도 기록이 늘거나 바뀌지 않아요.</p><button type="button" class="btn pri mt12" data-act="an:retry" data-k="an-retry">다시 분석하기</button><button type="button" class="btn gh mt8" data-act="go:공부 탭" data-k="go-study">나중에 할게요</button></section>';
+}
+function planBody(P, plan, mode) {
+  let h = '';
+  h += '<details class="dx" data-k="pl-sched-' + mode + '"' + (mode === 'cur' ? '' : ' open') + '><summary>2주 일정 보기</summary><ol class="pl">';
+  plan.weeks.forEach((wk, wi) => {
+    h += '<li><p class="pld"><span>' + (wi + 1) + '주차 · ' + mix(wk.focus) + '</span></p></li>';
+    wk.days.forEach((d) => {
+      const isT = d[0] === TODAY && mode === 'cur';
+      h += '<li class="' + (isT ? 'today' : '') + '"><p class="pld"><span>' + mdw(d[0]) + (isT ? ' · 오늘' : '') + '</span><span class="t12">' + (d[1].length ? d[1].reduce((a, x) => a + x[2], 0) + '분' : '') + '</span></p>' + (d[1].length ? d[1].map((it) => '<div class="pli"><span class="ty">' + it[0] + '</span><div class="bd"><p>' + mix(it[1]) + ' · ' + it[2] + '분</p>' + (it[3] ? '<p class="t12">' + mix(it[3]) + '</p>' : '') + '</div></div>').join('') : '<p class="t12 mt4">쉬어도 돼요</p>') + '</li>';
+    });
+  });
+  return h + '</ol></details>';
+}
+function anProp(P, same) {
+  const p = PLAN_NEW; const hasCur = S.lv === 3 && !S.planNew;
+  let h = '';
+  if (same) h += '<p class="note" role="status" style="margin-top:0;margin-bottom:10px">지난 분석 뒤로 새 기록이 없어서 같은 제안을 보여 드려요. 공부를 더 한 뒤에 다시 분석해 보세요.</p>';
+  h += '<section class="cd dnew"><div class="sh" style="margin-bottom:2px"><h2 class="t15" tabindex="-1" data-k="an-h">선생님의 계획 제안</h2><span class="bdg acc">제안</span></div>';
+  h += '<p class="t13">' + mdw(p.start) + ' ~ ' + mdw(p.end) + ' · 2주</p>';
+  h += '<p class="t14 mt10">' + mix(p.rationale) + '</p>';
+  h += '<h3 class="t15 mt14">이번 2주 목표</h3><ol class="mt6">' + p.weeks.map((w, i) => '<li class="t14"><b>' + (i + 1) + '주차</b> · ' + mix(w.focus) + '</li>').join('') + '</ol>';
+  if (S.q.q7 === 'A') h += '<p class="t12 mt8">선생님이 본 지금 수준(어휘·문법 기준 참고): ' + p.level + ' · 프로필 수준은 바뀌지 않아요.</p>';
+  // 행동
+  h += actionBlock(P, hasCur, same);
+  h += '</section>';
+  h += '<section class="cd"><h3 class="t15">잘하고 있는 점</h3><ul class="mt6">' + p.strengths.map((s) => '<li class="mt8"><p class="t14">' + mix(s[0]) + '</p><div class="evc">' + s[1].map((e) => '<span>' + mix(e[0]) + '<b>' + esc(e[1]) + '</b></span>').join('') + '</div></li>').join('') + '</ul>';
+  h += '<h3 class="t15 mt14">더 연습할 점</h3><ul class="mt6">' + p.weak.map((s) => '<li class="mt8"><p class="t14">' + mix(s[0]) + '</p><div class="evc">' + s[1].map((e) => '<span>' + mix(e[0]) + '<b>' + esc(e[1]) + '</b></span>').join('') + '</div></li>').join('') + '</ul>' + planBody(P, p, 'prop') + '</section>';
+  h += inputsBox(P, true);
+  return h;
+}
+function actionBlock(P, hasCur, same) {
+  let h = '';
+  if (S.cfm === 'accept') {
+    h += '<div class="cfm" role="group" aria-labelledby="' + P.p + '-cfa"><p id="' + P.p + '-cfa" tabindex="-1" data-k="cfm-p">지금 계획(' + md(PLAN_CUR.start) + '~' + md(PLAN_CUR.end) + ')을 끝내고 새 계획으로 바꿀까요? 지난 계획은 기록으로 남아요.</p><div class="btns mt10"><button type="button" class="btn pri" data-act="an:acceptGo" data-k="cf-yes">새 계획으로 바꾸기</button><button type="button" class="btn gh" data-act="an:cancel" data-k="cf-no">취소</button></div></div>';
+  } else if (S.cfm === 'reject') {
+    h += '<div class="cfm" role="group" aria-labelledby="' + P.p + '-cfr"><p id="' + P.p + '-cfr" tabindex="-1" data-k="cfm-p">' + (S.q.q6 === 'A' ? '이 제안을 닫을까요? 닫은 제안은 다시 열 수 없어요. 기록은 그대로예요.' : '이 제안을 접어 둘까요? 다음에 이 탭을 열면 다시 보여요.') + '</p><div class="btns mt10"><button type="button" class="btn pri" data-act="an:rejectGo" data-k="cf-yes">' + (S.q.q6 === 'A' ? '제안 닫기' : '접어 두기') + '</button><button type="button" class="btn gh" data-act="an:cancel" data-k="cf-no">취소</button></div></div>';
+  } else {
+    h += '<button type="button" class="btn pri mt14" data-act="an:accept" data-k="an-accept">이 계획으로 시작</button>';
+    h += '<div class="btns mt8"><button type="button" class="btn gh" data-act="an:again" data-k="an-again"' + (same ? ' aria-disabled="true" aria-describedby="' + P.p + '-samewhy"' : '') + '>다시 분석</button><button type="button" class="btn gh" data-act="an:reject" data-k="an-reject">닫기</button></div>';
+    if (same) h += '<p class="t12 mt6" id="' + P.p + '-samewhy">새 기록이 생기면 다시 분석할 수 있어요.</p>';
+    if (hasCur) h += '<p class="t12 mt6">지금 진행 중인 계획이 있어요(' + md(PLAN_CUR.start) + '~' + md(PLAN_CUR.end) + '). 시작하면 새 계획으로 바뀌어요.</p>';
+  }
+  if (S.err) h += '<p class="note bad" role="alert">' + S.err + '</p>';
+  return h;
+}
+function anCur(P) {
+  const p = S.planNew ? PLAN_NEW : PLAN_CUR; const started = TODAY >= p.start;
+  const dayN = diffD(p.start, TODAY) + 1; const wi = started ? Math.min(1, Math.floor((dayN - 1) / 7)) : 0;
+  let h = '<section class="cd dnew"><div class="sh" style="margin-bottom:2px"><h2 class="t15" tabindex="-1" data-k="an-h">지금 계획</h2><span class="bdg good">진행 중</span></div>';
+  h += '<p class="t13">' + mdw(p.start) + ' ~ ' + mdw(p.end) + (started ? ' · ' + dayN + '일째 / 14일' : ' · 내일 시작해요') + '</p>';
+  h += '<p class="t14 mt10"><b>' + (wi + 1) + '주차 목표</b> · ' + mix(p.weeks[wi].focus) + '</p>';
+  const todayItems = started ? (p.weeks[wi].days.find((d) => d[0] === TODAY) || [TODAY, []])[1] : p.weeks[0].days[0][1];
+  h += '<h3 class="t15 mt14">' + (started ? '오늘 추천' : '내일(' + mdw(p.start) + ') 추천') + '</h3>';
+  h += todayItems.length ? '<ul>' + todayItems.map((it, i) => '<li class="pli" style="align-items:center"><span class="ty">' + it[0] + '</span><div class="bd"><p>' + mix(it[1]) + ' · ' + it[2] + '분</p>' + (it[3] ? '<p class="t12">' + mix(it[3]) + '</p>' : '') + '</div>' + (started ? '<button type="button" class="btn gh sm" data-act="go:' + it[0] + '" data-k="cur-go-' + i + '" aria-label="' + esc(it[1]) + ' 시작">시작</button>' : '') + '</li>').join('') + '</ul>' : '<p class="t13 mt4">오늘은 쉬는 날이에요.</p>';
+  h += '<p class="t12 mt8">추천은 길잡이예요. 다른 공부를 해도 기록은 그대로 쌓여요.</p>';
+  h += planBody(P, p, 'cur');
+  h += '<details class="dx" data-k="cur-why"><summary>선생님이 이렇게 판단했어요</summary><p class="t14" style="padding-bottom:8px">' + mix(p.rationale) + '</p></details>';
+  h += '<button type="button" class="btn gh mt8" data-act="an:again2" data-k="an-again2">새로 분석하기</button><p class="t12 mt6">계획이 끝나는 ' + md(p.end) + ' 뒤에 다시 분석하길 권해요.</p></section>';
+  return h;
+}
+function inputsBox(P, done, kindsOnly) {
+  const X = L(); const r = rng();
+  if (kindsOnly) return '<details class="cd sec dx" style="border-top:1px solid var(--line);padding-top:0;padding-bottom:4px" data-k="inputs"><summary>분석은 이런 기록을 봐요</summary><p class="t12" style="margin-top:-6px">최근 2주(또는 4주) · 어제까지 · 숫자만 보내고 대화 내용은 보내지 않아요</p><ul class="dlist" style="font-size:calc(14px * var(--fz));margin-bottom:8px"><li>출석·공부한 날</li><li>공부 횟수(단어 세트·수업·복습·AI 평가)</li><li>AI 평가 점수</li><li>자주 고친 부분(많은 순 5가지)</li><li>자주 틀린 단어(10개)</li><li>복습 때 더 볼 항목</li><li>목표(프로필)</li></ul></details>';
+  let sd = 0, at = 0; for (let d = r[0]; d <= r[1]; d = addD(d, 1)) { if (X.study[d]) sd++; if (X.att.has(d)) at++; }
+  const wi = S.anWeeks === 4 ? [7, 8, 9, 10] : [9, 10];
+  const sum = (k) => wi.reduce((a, i) => a + (X.m[k][i] || 0), 0);
+  const ev = X.evals.filter((e) => e.date >= r[0] && e.date <= r[1]);
+  const nd = diffD(r[0], r[1]) + 1;
+  let h = '<details class="cd sec dx" style="border-top:1px solid var(--line);padding-top:0;padding-bottom:4px" data-k="inputs"' + (S.lv === 1 && !done ? ' open' : '') + '><summary>' + (done ? '이 분석은 이런 기록을 봤어요' : '분석은 이런 기록을 봐요') + '</summary>';
+  h += '<p class="t12" style="margin-top:-6px">' + md(r[0]) + '~' + md(r[1]) + '(' + nd + '일) · 어제까지 · 숫자만 보내고 대화 내용은 보내지 않아요</p><ul class="inl">';
+  h += '<li><span class="ik">출석 · 공부한 날</span><span class="iv">출석 ' + at + '일 · 공부한 날 ' + sd + '일</span></li>';
+  h += '<li><span class="ik">공부 횟수</span><span class="iv">단어 세트 ' + sum('words') + ' · 수업 ' + sum('lessons') + ' · 복습 ' + sum('reviews') + ' · AI 평가 ' + ev.length + '</span></li>';
+  h += '<li><span class="ik">AI 평가 점수</span><span class="iv">' + (ev.length ? ev.map((e) => KIND_NAME[e.kind].replace(' 평가', '') + ' ' + e.total + '점(' + sl(e.date) + ')').join(' · ') : '아직 없어요') + '</span></li>';
+  const et = X.errTypes.slice(0, 5);
+  h += '<li><span class="ik">자주 고친 부분 (많은 순 ' + et.length + '가지)</span><span class="iv">' + et.map((e) => esc(e[0]) + (e[1] ? ' ' + mix(e[1]) : '') + ' ' + e[2] + '번').join(' · ') + '</span></li>';
+  h += '<li><span class="ik">자주 틀린 단어 (' + X.words + '개)</span><div class="wl">' + WORDS10.slice(0, X.words).map((w) => '<span>' + ja(w[0], w[1]) + '</span>').join('') + '</div></li>';
+  h += '<li><span class="ik">복습 때 더 볼 항목 (' + X.focus + '개)</span><div class="wl">' + FOCUS3.slice(0, X.focus).map((w) => '<span>' + ja(w[0], w[1]) + '</span>').join('') + '</div></li>';
+  h += '<li><span class="ik">목표 (프로필)</span><span class="iv">' + X.goal + '</span></li></ul></details>';
+  return h;
+}
+
+/* ───────────── 달력 탭 — v2: 요일 순서만 일요일 시작(칸 안 표시·챌린지 띠·하루 시트는 그대로) ───────────── */
+const CAL_FIRST = '2026-10-01'; const CH_FROM = '2026-10-14'; const CH_TO = '2026-10-20';
+function calCellSr(iso, st, inCh) {
+  const p = [md(iso) + ' ' + dow(iso) + '요일'];
+  if (iso === TODAY) p.push('오늘');
+  if (st[0] === 'k') p.push('공부 ' + st[1] + '가지'); else if (st === 'att') p.push('출석만'); else if (st === 'fut') p.push('아직 안 온 날');
+  if (inCh) p.push('챌린지 기간');
+  return p.join(', ');
+}
+function calendar(P, current) {
+  const X = L(); const w1 = wdOf(CAL_FIRST); const monLead = (w1 + 6) % 7;
+  const lead = current ? monLead : w1; const hdr = current ? DOW_MON : DOW;
+  let h = '<div class="old">';
+  if (!current) h += '<p class="dtag v2"><b>데모 표시(구현 안 함) · 바뀌는 곳</b>요일 머리 «일 월 화 수 목 금 토»와 1일 앞 빈칸(' + monLead + '칸 → ' + w1 + '칸)만 바뀌어요. 칸 안 글자·출석 점·오늘 테두리·챌린지 띠·하루 시트는 그대로예요.</p>';
+  h += '<div class="chc"><div><p class="t15">챌린지</p><p class="t13 mt4">진행 중인 챌린지 카드(기존 그대로)</p></div><span class="bdg">기존</span></div>';
+  let att = 0, sd = 0; for (let d = CAL_FIRST; d <= TODAY; d = addD(d, 1)) { if (X.att.has(d)) att++; if (X.study[d]) sd++; }
+  h += '<div class="mn"><button type="button" class="icb" aria-label="이전 달" data-act="noop">' + ICON.left + '</button><h2>2026년 10월</h2><button type="button" class="icb" aria-label="다음 달" data-act="noop">' + ICON.right + '</button></div>';
+  h += '<p class="sumr"><span>출석 <b>' + att + '일</b></span><span>공부 <b>' + sd + '일</b></span><span>연속 <b>' + X.streak + '일</b></span></p>';
+  h += '<div class="calh' + (current ? '' : ' dnew v2') + '" aria-hidden="true">' + hdr.map((d) => '<span>' + d + '</span>').join('') + '</div>';
+  h += '<div class="calg" role="group" aria-label="2026년 10월 달력">';
+  for (let i = 0; i < lead; i++) h += '<span class="dc e" aria-hidden="true"></span>';
+  for (let d = 1; d <= 31; d++) {
+    const iso = '2026-10-' + String(d).padStart(2, '0'); const st = dayState(S.lv, iso); const k = st[0] === 'k'; const inCh = iso >= CH_FROM && iso <= CH_TO;
+    const marks = k ? '<span class="chs" aria-hidden="true">' + (st[1] === '1' ? '<span class="ch">단</span>' : st[1] === '2' ? '<span class="ch">단</span><span class="ch">수</span>' : '<span class="ch">단</span><span class="chm">+2</span>') + '</span>' : st === 'att' ? '<span class="ad" aria-hidden="true"></span>' : '';
+    h += '<span class="dc' + (k ? ' s' : '') + (iso === TODAY ? ' td' : '') + (st === 'fut' ? ' f' : '') + '"><span class="dnum" aria-hidden="true">' + d + '</span>' + marks + (inCh ? '<span class="bd2" aria-hidden="true"></span>' : '') + '<span class="sr">' + calCellSr(iso, st, inCh) + '</span></span>';
+  }
+  h += '</div>';
+  h += '<div class="lg" aria-hidden="true"><span><span class="ch">단</span>오늘의 단어</span><span><span class="ch">수</span>오늘의 회화</span><span><span class="ad"></span>출석만 한 날</span><span><i style="box-shadow:inset 0 0 0 2px var(--accent)"></i>오늘</span><span><i style="height:3px;background:var(--accent)"></i>챌린지 기간</span></div>';
+  h += '<p class="t12 mt8">날짜를 누르면 하루 시트가 열려요(기존 그대로).</p></div>';
+  if (current) h += '<div class="soon"><div><h2 class="t15">분석 · 성장 기록</h2><p class="t13 mt4">선생님이 기록을 보고 공부 계획을 제안하고, 평가 점수와 교정이 어떻게 달라졌는지 보여 드려요.</p></div><span class="bdg" style="background:var(--surface)">곧 열려요</span></div>';
+  return h;
+}
+function skel(name) { return '<div aria-busy="true"><p class="sr" role="status">' + name + '을 불러오는 중이에요</p><div class="sk" style="height:42px"></div><div class="kp mt12"><div class="sk" style="height:76px"></div><div class="sk" style="height:76px"></div><div class="sk" style="height:76px"></div></div><div class="sk mt12" style="height:190px"></div><div class="sk mt12" style="height:220px"></div></div>'; }
+function errBox(msg, k) { return '<div class="cd"><h2 class="t15" tabindex="-1" data-k="err-h">' + msg + '</h2><p class="t13 mt4" role="alert">인터넷 연결을 확인하고 다시 불러와 주세요. 기록은 안전해요.</p><button type="button" class="btn gh mt12" data-act="reload" data-k="reload">다시 불러오기</button></div>'; }
+
+/* ───────────── 휴대폰 ───────────── */
+function phone(pfx, w, vw) {
+  const W = Number(w); const P = { p: pfx, W }; const view = vw || S.view;
+  let body;
+  if (view === 'cur') body = calendar(P, true);
+  else {
+    // Q1 B(성장기록 먼저): 이번 구현 분절은 [달력 | 성장]. 분석 탭은 «범위: 분석 포함(나중)»에서만.
+    const tabs = S.scope === 'now' ? [['cal', '달력'], ['growth', '성장']] : [['cal', '달력'], ['an', '분석'], ['growth', '성장']];
+    const tab = S.scope === 'now' && S.tab === 'an' ? 'growth' : S.tab;
+    const nav = '<nav class="psw dnew' + (S.scope === 'now' ? ' v2' : '') + '" aria-label="계획표 보기">' + tabs.map((t) => '<a href="#" data-act="tab:' + t[0] + '" data-k="tab-' + t[0] + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '><span>' + t[1] + '</span></a>').join('') + '</nav>';
+    body = nav + (tab === 'cal' ? calendar(P, false) : tab === 'an' ? analysis(P) : growth(P));
+  }
+  return '<div class="pg"><div class="pgs" data-scroll><div>' + appbar() + '<div class="cnt">' + body + '</div></div></div>' + tabbar() + (S.toast ? '<div class="toast"><p>' + S.toast + '</p></div>' : '') + '<p class="sr" role="status" aria-live="polite">' + (S.live || '') + '</p></div>';
+}
+function fig(pfx, w, view, cap) {
+  return '<figure class="fw"><figcaption>' + cap + ' · ' + w + 'px · 글꼴 ' + Math.round(S.fz * 100) + '%</figcaption><div class="phone w' + w + (S.fz > 1 ? ' big' : '') + '" data-pfx="' + pfx + '">' + phone(pfx, w, view) + '</div></figure>';
+}
+function render() {
+  const stage = document.getElementById('stage');
+  const saved = {}; stage.querySelectorAll('.phone').forEach((ph) => { const sc = ph.querySelector('[data-scroll]'); if (sc) saved[ph.dataset.pfx] = sc.scrollTop; ph.querySelectorAll('details[data-k]').forEach((d) => { saved[ph.dataset.pfx + ':' + d.dataset.k] = d.open; }); });
+  let figs;
+  if (S.view === 'prop' && S.cmp) {
+    const w = S.w === 'all' ? '390' : S.w;
+    figs = [fig('pc' + w, w, 'cur', '<span class="tagc">현재</span>운영 달력 · 월요일 시작'), fig('pp' + w, w, 'prop', '<span class="tagp">제안</span>달력 탭 · 일요일 시작')];
+  } else {
+    const ws = S.w === 'all' ? ['360', '390', '412'] : [S.w];
+    const tab = S.scope === 'now' && S.tab === 'an' ? 'growth' : S.tab;
+    const cap = S.view === 'cur' ? '<span class="tagc">현재</span>계획표 = 챌린지 카드 + 달력(월요일 시작) + «곧 열려요»' : '<span class="tagp">제안</span>' + (tab === 'cal' ? '달력 탭 · 일요일 시작' : tab === 'an' ? '분석 탭(나중) · ' + AN_NAME[anState()] : '성장 탭 · ' + L().name) + ' · ' + (S.scope === 'now' ? '이번 구현' : '분석 포함');
+    figs = ws.map((w) => fig('p' + w, w, S.view, cap));
+  }
+  stage.innerHTML = figs.join('');
+  stage.querySelectorAll('.phone').forEach((ph) => {
+    const sc = ph.querySelector('[data-scroll]'); const pf = ph.dataset.pfx;
+    ph.querySelectorAll('details[data-k]').forEach((d) => { const v = saved[pf + ':' + d.dataset.k]; if (v != null) d.open = v; });
+    if (sc && saved[pf] != null && !render.resetScroll) sc.scrollTop = saved[pf];
+  });
+  // 나란히 보기: 처음 열 때 두 휴대폰의 요일 머리 줄을 같은 높이에 맞춘다(위쪽 분절·안내 높이가 달라서). 스크롤 끝을 넘지 않는 범위에서.
+  if (S.cmp && render.resetScroll) {
+    const ps = [...stage.querySelectorAll('.phone')].map((ph) => { const sc = ph.querySelector('[data-scroll]'); const t = ph.querySelector('.calh'); return { sc, o: t.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop, m: sc.scrollHeight - sc.clientHeight }; });
+    const Y = Math.min(Math.max(120, ...ps.map((x) => x.o - x.m)), ...ps.map((x) => x.o));
+    ps.forEach((x) => { x.sc.scrollTop = x.o - Y; });
+  }
+  render.resetScroll = false;
+  if (focusKey) { const root = stage.querySelector('.phone[data-pfx="' + focusPfx + '"]') || stage.querySelector('.phone'); const el = root && root.querySelector('[data-k="' + focusKey + '"]'); if (el) el.focus({ preventScroll: false }); focusKey = null; }
+  syncCtl(); side(); nav();
+}
+const AN_NAME = { lock: '처음 · 기록 부족', ready: '처음 · 분석 가능', run: '만드는 중', prop: '제안됨', same: '같은 범위 다시 분석', cur: '시작함(지금 계획)', fail: '실패' };
+
+/* ───────────── 이벤트 ───────────── */
+function toast(msg) { S.toast = msg; S.live = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = ''; render(); }, 2800); }
+function act(a, pfx, keyEl) {
+  const [k, v] = a.split(':');
+  const keep = keyEl && keyEl.dataset.k;
+  focusPfx = pfx; focusKey = keep || null;
+  if (k === 'noop') return;
+  if (k === 'tab') { S.tab = v; S.cmp = false; S.cfm = null; S.err = null; render.resetScroll = true; focusKey = 'tab-' + v; }
+  else if (k === 'weeks') { S.weeks = Number(v); S.sel = null; }
+  else if (k === 'metric') { S.metric = v; }
+  else if (k === 'sel') { const idx = rangeIdx(S.weeks); let cur = S.sel == null || !idx.includes(S.sel) ? 11 : S.sel; const j = idx.indexOf(cur) + Number(v); if (j < 0 || j >= idx.length) return; S.sel = idx[j]; }
+  else if (k === 'ekind') { S.ekind = v; }
+  else if (k === 'anw') { S.anWeeks = Number(v); }
+  else if (k === 'reload') { S.load = 'ok'; focusKey = null; }
+  else if (k === 'go') { toast('데모: «' + v + '» 화면으로 이동해요'); }
+  else if (k === 'an') {
+    S.err = null;
+    if (v === 'lockedtap') { toast('기록이 조금 더 모이면 누를 수 있어요'); }
+    else if (v === 'start' || v === 'retry' || v === 'again2') { startRun(pfx); return; }
+    else if (v === 'accept') { if (S.lv === 3 && !S.planNew) { S.cfm = 'accept'; focusKey = 'cfm-p'; } else acceptGo(); }
+    else if (v === 'acceptGo') { acceptGo(); }
+    else if (v === 'reject') { S.cfm = 'reject'; focusKey = 'cfm-p'; }
+    else if (v === 'rejectGo') {
+      if (S.res === 'fail') { S.cfm = null; S.err = '닫지 못했어요. 잠시 뒤 다시 눌러 주세요.'; focusKey = 'an-reject'; }
+      else { S.cfm = null; if (S.q.q6 === 'A') { S.rejected = true; S.an = 'auto'; S.planNew = false; if (S.lv === 3) S.an = 'cur'; toast('제안을 닫았어요'); } else { S.an = 'auto'; toast('제안을 접어 두었어요'); } focusKey = 'an-h'; }
+    }
+    else if (v === 'cancel') { S.cfm = null; focusKey = 'an-accept'; }
+    else if (v === 'again') { if (anState() === 'same') return; S.an = 'same'; focusKey = 'an-h'; toast('새 기록이 없어 같은 제안이에요'); }
+  }
+  render();
+}
+function acceptGo() {
+  if (S.res === 'fail') { S.cfm = null; S.err = '시작하지 못했어요. 잠시 뒤 다시 눌러 주세요.'; focusKey = 'an-accept'; return; }
+  S.cfm = null; S.planNew = true; S.an = 'cur'; S.rejected = false; focusKey = 'an-h'; toast('계획을 시작했어요');
+}
+function startRun(pfx) {
+  S.an = 'run'; S.cfm = null; S.err = null; S.rejected = false; focusPfx = pfx; focusKey = 'an-h'; S.live = '분석을 시작했어요';
+  render();
+  clearTimeout(runTimer);
+  runTimer = setTimeout(() => { if (S.an !== 'run') return; S.an = S.res === 'ok' ? 'prop' : 'fail'; S.planNew = false; S.live = S.res === 'ok' ? '선생님의 계획 제안이 도착했어요' : '계획을 만들지 못했어요'; render(); }, 2600);
+}
+document.getElementById('stage').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const ph = el.closest('.phone'); e.preventDefault();
+  const a = el.dataset.act;
+  if (a === 'barpick') { const r = el.getBoundingClientRect(); const x = (e.clientX - r.left) * (Number(el.getAttribute('width')) / r.width); const j = Math.floor((x - Number(el.dataset.pl)) / Number(el.dataset.sw)); const idx = rangeIdx(S.weeks); if (j >= 0 && j < idx.length) { S.sel = idx[j]; focusKey = null; render(); } return; }
+  if (el.getAttribute('aria-disabled') === 'true' && a !== 'an:lockedtap') return;
+  act(a, ph && ph.dataset.pfx, el);
+});
+document.getElementById('stage').addEventListener('keydown', (e) => {
+  const rg = e.target.closest('[role="radiogroup"]'); if (!rg || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  const items = [...rg.querySelectorAll('[role="radio"]')]; const i = items.indexOf(e.target); if (i < 0) return;
+  const n = items[(i + (e.key === 'ArrowRight' ? 1 : items.length - 1)) % items.length]; e.preventDefault(); n.click();
+});
+
+/* ───────────── 데모 조작 ───────────── */
+function syncCtl() {
+  document.querySelectorAll('[data-ctl]').forEach((g) => { const key = g.dataset.ctl; g.querySelectorAll('button').forEach((b) => { const cur = key === 'fz' ? String(S.fz) : String(S[key]); b.setAttribute('aria-pressed', String(b.dataset.v === cur)); }); });
+  document.documentElement.toggleAttribute('data-theme', S.theme !== 'auto'); if (S.theme !== 'auto') document.documentElement.dataset.theme = S.theme;
+  document.body.classList.toggle('mark1', S.mark === '1'); document.body.classList.toggle('mark2', S.mark === '2');
+}
+document.querySelectorAll('[data-ctl]').forEach((g) => g.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return; const key = g.dataset.ctl; const v = b.dataset.v;
+  if (key === 'fz') S.fz = Number(v);
+  else if (key === 'lv') { S.lv = Number(v); S.an = 'auto'; S.sel = null; S.ekind = null; S.cfm = null; S.err = null; S.planNew = false; S.rejected = false; }
+  else if (key === 'scope') { S.scope = v; S.cfm = null; S.err = null; if (v === 'now' && S.tab === 'an') S.tab = 'growth'; }
+  else if (key === 'view') { S.view = v; if (v === 'cur') S.cmp = false; }
+  else S[key] = v;
+  render();
+}));
+const NAV = [
+  ['성장 탭', [['① 거의 없음', { tab: 'growth', lv: 1, load: 'ok' }], ['② 보통', { tab: 'growth', lv: 2, load: 'ok' }], ['③ 풍부', { tab: 'growth', lv: 3, load: 'ok', weeks: 12 }], ['불러오는 중', { tab: 'growth', load: 'load' }], ['불러오기 오류', { tab: 'growth', load: 'err' }]]],
+  ['달력 탭 — 요일 순서만 바뀜', [['바뀌는 달력(일요일 시작)', { tab: 'cal', load: 'ok', cmp: false }], ['현재 vs 바뀜 나란히', { tab: 'cal', load: 'ok', cmp: true }]]],
+  ['분석 탭 — 나중(Q1 B, 설계 보존)', [['처음 · 기록 부족', { tab: 'an', scope: 'later', an: 'lock', load: 'ok' }], ['처음 · 분석 가능', { tab: 'an', scope: 'later', an: 'ready', load: 'ok' }], ['만드는 중', { tab: 'an', scope: 'later', an: 'run', load: 'ok' }], ['제안됨', { tab: 'an', scope: 'later', an: 'prop', load: 'ok' }], ['같은 범위 다시 분석', { tab: 'an', scope: 'later', an: 'same', load: 'ok' }], ['시작함(지금 계획)', { tab: 'an', scope: 'later', an: 'cur', load: 'ok' }], ['실패', { tab: 'an', scope: 'later', an: 'fail', load: 'ok' }], ['불러오는 중', { tab: 'an', scope: 'later', an: 'auto', load: 'load' }], ['불러오기 오류', { tab: 'an', scope: 'later', an: 'auto', load: 'err' }]]],
+];
+function nav() {
+  const el = document.getElementById('dnav');
+  const isOn = (o) => S.view === 'prop' && !!o.cmp === !!S.cmp && Object.keys(o).every((k) => k === 'weeks' || k === 'cmp' || S[k] === o[k]);
+  el.innerHTML = '<h2>현재 화면</h2><button type="button" class="nvb" data-nav="cur"' + (S.view === 'cur' ? ' aria-current="true"' : '') + '>지금 계획표(달력 월요일 시작 + 곧 열려요)</button>' + NAV.map((g, gi) => '<h2>' + g[0] + '</h2>' + g[1].map((it, ii) => '<button type="button" class="nvb" data-nav="' + gi + ':' + ii + '"' + (isOn(it[1]) ? ' aria-current="true"' : '') + '>' + it[0] + '</button>').join('')).join('') + '<p class="t12" style="padding:10px 4px 2px">분석 탭은 Q1 B(성장기록 먼저)로 이번 구현에서 빠졌다. 분석 상태를 고르면 위 «범위»가 «분석 포함(나중)»으로 바뀐다. 분석 상태는 «데이터 양»과 따로 고를 수 있다.</p>';
+}
+document.getElementById('dnav').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-nav]'); if (!b) return;
+  if (b.dataset.nav === 'cur') { S.view = 'cur'; S.cmp = false; render(); return; }
+  const [gi, ii] = b.dataset.nav.split(':').map(Number); const o = NAV[gi][1][ii][1];
+  S.view = 'prop'; S.cfm = null; S.err = null; S.toast = '';
+  if (o.lv && o.lv !== S.lv) { S.lv = o.lv; S.an = 'auto'; S.planNew = false; S.rejected = false; S.ekind = null; }
+  Object.assign(S, o); S.cmp = !!o.cmp; if (o.an === 'cur' || o.an === 'prop' || o.an === 'same') S.planNew = false;
+  clearTimeout(runTimer); render.resetScroll = true; render();
+});
+
+/* ───────────── 오른쪽 설명 ───────────── */
+function side() {
+  const el = document.getElementById('dside'); const X = L();
+  let h = '<div class="dcard"><h2>지금 보는 것</h2><ul class="dn">';
+  if (S.view === 'cur') h += '<li>지금 운영 중인 계획표: 챌린지 카드 → 달력(요일 머리 «월 화 수 목 금 토 일», 월요일 시작) → «분석 · 성장 기록 곧 열려요» 카드(task-012).</li><li>제안(이번 구현)에서는 이 카드가 없어지고 맨 위에 [달력 | 성장] 분절이 생긴다. 달력은 요일 순서만 일요일 시작으로 바뀐다.</li>';
+  else if (S.cmp) h += '<li>왼쪽 = 지금 운영 달력(월요일 시작), 오른쪽 = 바뀌는 달력(일요일 시작).</li><li>2026년 10월 1일(목) 앞 빈칸 3칸 → 4칸. 같은 날짜는 같은 글자·점·테두리·띠를 그대로 갖고 한 칸 오른쪽으로 옮겨 간다(일요일은 다음 줄 맨 왼쪽).</li><li>챌린지 띠(10/14~10/20)는 날짜에 붙어 같이 옮겨 간다. 주 줄에서 끊기는 자리만 바뀐다(지금 10/19 월 → 바뀐 뒤 10/18 일).</li><li>낭독 순서는 날짜 순서 그대로다(요일 머리 줄은 지금도 낭독에서 숨김).</li>';
+  else if (S.tab === 'growth' || (S.tab === 'an' && S.scope === 'now')) h += '<li><b>' + X.name + '</b> — ' + X.hint + '.</li><li>v2: «체크내역» 행 = 일·월·화·수·목·금·토, 주 = 일요일 시작. «최근 N주» = 이번 주를 포함한 일~토 주 N개 — 숫자 카드 «공부한 날»도 같은 범위다(v1 은 오늘부터 28일이라 띠와 어긋날 수 있었다).</li><li>사실(출석·횟수)은 첫날부터, 추정(능력 단계·추세)은 표본 기준(Q3 A)을 넘긴 뒤에만 보인다.</li><li>막대를 누르거나 ‹ › 로 주를 고르면 읽기 줄이 바뀐다(«10월 11일(일)~17일(토)»). 모든 차트에 «표로 보기».</li><li>맨 아래 «선생님 분석 · 곧 열려요»(Q1 B).</li>';
+  else if (S.tab === 'an') h += '<li><b>나중 범위</b> — Q1 B 로 이번 구현에서 빠졌다. 설계는 그때 쓰려고 그대로 둔다.</li><li>분석 상태: <b>' + AN_NAME[anState()] + '</b>' + (S.an === 'auto' ? ' (데이터 양 ' + X.name + '·Q3 기준으로 자동)' : '') + '.</li><li>AI 는 <b>제안만</b> 한다. [이 계획으로 시작]을 눌러야 적용(PROPOSED → ACCEPTED, 이전 계획은 보관).</li><li>계획 «1주차·2주차»는 계획 시작일부터 7일씩이라 주 시작 요일과 무관하다.</li><li>«버튼 결과: 실패» 로 바꾸면 시작·닫기 실패 문구를 볼 수 있다.</li>' + (S.lv === 3 ? '<li>③ 은 진행 중 계획이 있어, 새 제안을 시작하면 확인 한 번을 거친다.</li>' : '');
+  else h += '<li>달력 탭 = 지금 계획표에서 «곧 열려요» 카드를 빼고 요일 순서를 일요일 시작으로 바꾼 것. 챌린지 카드는 달력 탭 맨 위 그대로.</li><li>요일 머리는 지금도 색 구분이 없다(전부 같은 회색) — 일·토 색을 새로 만들지 않는다.</li><li>달에 따라 줄 수가 바뀐다: 2026년 2월 5→4줄, 3월 6→5줄, 5월 5→6줄, 11월 6→5줄(개발 메모 0절).</li><li>왼쪽 «현재 vs 바뀜 나란히»로 두 달력을 함께 볼 수 있다.</li>';
+  h += '</ul></div>';
+  h += '<div class="dcard"><h2>요일 순서</h2><ul class="dn"><li>지금: 월 화 수 목 금 토 일 (2026-10-01 task-012 결정 c=B)</li><li>바뀜: <b>일 월 화 수 목 금 토</b> (사용자 2026-10-20)</li><li>같이 맞출 곳: 달력 요일 머리 · 성장 탭 체크내역·주 묶음 · (확인 필요) 질문 탭 «이번 주» — Q9</li></ul></div>';
+  h += '<div class="dcard"><h2>확인할 폭·조건</h2><ul class="dn"><li>360 · 390(대표) · 412, 글꼴 130%, 다크 — 위 조작 줄.</li><li>화면 세로 스크롤은 휴대폰 안 한 곳뿐. 고정은 앱바·하단 탭만.</li><li>첫 화면(780px) 안: 분절 · 기간 · 숫자 카드 3개 · 체크내역 머리까지.</li><li>일본어(단어·표현)는 16px 이상, 한자 위 읽기(후리가나) 11px.</li></ul></div>';
+  h += '<div class="dcard"><h2>엔진·내부 이름</h2><ul class="dn"><li>화면 문구에 엔진·모델·호스트 이름 0건. 분석을 만드는 주체는 «선생님», 계산은 «기록으로 계산해요».</li></ul></div>';
+  el.innerHTML = h;
+}
+
+/* ───────────── 결정 필요 ───────────── */
+const BY_REC = '사용자 «그외에는 권고안대로 진행해줘»(10월 20일) — ★ 권고 그대로';
+const QS = [
+  { id: 'q9', n: 'Q9', open: true, t: '질문 탭 «이번 주»도 일요일 시작으로 바꿀까', why: '질문 탭(무엇이든 물어보세요)은 «이번 주» 범위를 월~일로 계산한다(계산 2곳 + 선생님에게 보내는 글 «이번 주(월~일)» + 정본 계약 문구). 달력·성장만 일요일로 바꾸면 같은 «이번 주»가 화면마다 하루 어긋난다 — 오늘(10월 20일 화)이면 달력·성장은 10월 18일(일)~24일(토), 질문은 10월 19일(월)~25일(일). 이번 지시는 «달력의 요일 표기도 함께»까지만 말해서, 질문 탭까지 바꿀지는 정해지지 않았다.', o: [
+    { v: 'A', rec: true, h: '같이 바꾸기', d: '주 시작 요일 상수 하나를 정본으로 두고 달력·성장·질문이 같이 쓴다. 질문 «이번 주» = 일요일~토요일. 질문 탭 동작이 바뀌므로 이 작업에 질문 쪽 수정(계산 2곳·선생님에게 보내는 문구·정본 계약 문구·시험)이 더해진다.', pv: 'ask-sun' },
+    { v: 'B', h: '질문 탭은 월~일 그대로', d: '이번 작업은 달력·성장만 바꾼다. 질문의 «이번 주»는 월요일 시작으로 남아 화면마다 범위가 다르다. 나중에 맞추려면 질문 쪽만 따로 한 번 더 고친다.', pv: 'ask-mon' } ] },
+  { id: 'q1', n: 'Q1', pick: 'B', t: '구현 범위', why: '분석은 새 프롬프트(계획서)·잡·4개 API 가 필요하고, 지금 기록(평가 0·자주 고친 부분 거의 없음)으로는 계획이 일반적일 가능성이 높다.', o: [
+    { v: 'A', h: '성장기록과 분석을 한 번에', d: '분절 [달력|분석|성장]. 프롬프트 설계·잡·화면 7상태까지 한 번에 — 일이 약 두 배, 첫 분석 결과는 일반적인 제안일 수 있다.', pv: 'tabs3' },
+    { v: 'B', rec: true, h: '성장기록 먼저', d: '선생님 없이 지금 기록으로 바로 만들 수 있다. 분절은 [달력|성장] 두 칸, 성장 탭 맨 아래 «선생님 분석 곧 열려요» 카드. 분석은 평가·교정 기록이 쌓인 뒤 붙인다(이 데모의 분석 설계를 그때 쓴다 — 위 «범위: 분석 포함(나중)»).', pv: 'tabs2' } ] },
+  { id: 'q2', n: 'Q2', pick: 'B', t: '능력 다섯 가지를 어떻게 보일까', why: '①처럼 기록이 한 축에만 있으면 레이더는 빈 축을 0점처럼 그려 «못한다»로 읽힌다. 평가 결과 화면이 이미 칸 막대(0~5)를 쓰고 있어 칸 막대가 익숙하다. 숫자 점수는 맞힌 비율일 뿐인데 실력 점수처럼 보인다.', o: [
+    { v: 'A', h: '5각 레이더 + 0~100점', d: '한눈에 모양은 보이지만 판단 전 축이 0점 자리에 그려지고, 정밀해 보이는 숫자가 생긴다. AI 평가 레이더와 같은 모양이라 둘이 헷갈린다.', pv: 'radar' },
+    { v: 'B', rec: true, h: '가로 다섯 줄 + 단계 라벨', d: '축마다 «시작 단계·익히는 중·자리 잡는 중·안정적» 4칸 막대 + 관측 수(맞힘·틀림). 기록이 모자라면 «아직 판단하기 일러요(관측 N건)». 8주 이상이면 작은 추이선.', pv: 'rows' } ] },
+  { id: 'q3', n: 'Q3', pick: 'A', t: '언제부터 보여 줄까 (데이터 부족 정책)', why: '맞힌 비율은 관측 20건이면 오차가 ±10%p 남짓이라 단계(폭 15~20%p)를 대략 가를 수 있고, 20건 미만이면 하루 공부로 단계가 뒤집힌다. 3일 조건은 한 번의 세트로 정해지는 것을 막는다. 역할극은 1번이 대화 한 판이라 5번으로 따로 둔다. 분석은 2주 계획을 짜므로 «한 주쯤의 습관(5일)»과 «약점 근거(교정·틀린 문제 20건)»를 본다. 사실 지표(출석·횟수)는 늘 첫날부터 보인다.', o: [
+    { v: 'A', rec: true, h: '기본 기준', d: '능력 단계 = 관측 <b>20건·3일</b>(대화 유지는 역할극 <b>5번</b>) · 추세 = 앞뒤 반 기간 각 20건 · 분석 = 공부한 날 <b>5일</b> + 교정·틀린 기록 <b>20건</b>(평가 없으면 «평가를 보면 더 정확해져요» 안내). ① 에서: 어휘 회상만 단계, 분석 가능.' },
+    { v: 'B', h: '엄격한 기준', d: '능력 단계 = 관측 <b>50건·7일</b>(역할극 10번) · 분석 = 공부한 날 <b>14일</b> + AI 평가 <b>1번</b> 이상. ① 에서: 능력 모두 «아직», 분석 잠김(평가 0). 틀릴 위험은 적지만 처음 몇 주는 거의 빈 화면.' } ] },
+  { id: 'q4', n: 'Q4', pick: 'B', t: '능력 기록을 어디에 저장할까', why: '지금 «일별 기록»에도 능력별 숫자가 있지만, 교정을 받아들인 것을 «맞힌 것»으로 세고 있어 그대로 쓰면 실력이 부풀려 보인다(교정 채택만으로는 올리지 않는다는 원칙과 어긋남). 그래서 어느 쪽이든 새 규칙으로 다시 세야 한다.', o: [
+    { v: 'A', h: '능력 전용 표를 새로 만들기', d: '설계서에 있던 «능력 상태» 표. 데이터베이스 구조 변경이라 따로 승인이 필요하고, 성장 화면은 «통계 기록만 읽는다» 원칙의 예외가 된다.' },
+    { v: 'B', rec: true, h: '기존 일별 기록에 칸 더하기 + 과거 한 번 다시 계산', d: '데이터베이스 구조는 그대로. 매일 쌓이는 통계 기록에 «능력별 맞힘·틀림» 칸을 새 규칙으로 더하고, 지금까지 쌓인 관측(약 680건)으로 지난 날짜 칸을 한 번 채운다. 운영 데이터에 한 번 쓰는 일이라 배포 때 확인을 받는다.' } ] },
+  { id: 'q5', n: 'Q5', pick: 'A', t: '«수준 이력»(프로필 수준이 바뀐 기록)', why: '설계서는 성장기록에 수준 이력을 넣으라고 했지만, 프로필 수준을 바꿀 때 그 기록을 남기는 곳이 없다(설정 저장은 덮어쓰기만 한다). 지금 만들면 과거는 비어 있다.', o: [
+    { v: 'A', rec: true, h: '이번 범위에서 빼기', d: '근거 없는 그래프를 만들지 않는다. AI 평가 표에 «평가 볼 때 고른 수준»(N4 등)은 보인다.' },
+    { v: 'B', h: '오늘부터 기록하기', d: '수준을 바꿀 때(설정 저장·선생님 제안 채택) 그날 통계에 한 줄 남긴다. 화면엔 «이 기능을 켠 날부터 기록돼요». 과거는 되살릴 수 없다.', pv: 'lvh' } ] },
+  { id: 'q6', n: 'Q6', pick: 'A', t: '계획 제안의 [닫기]는 무엇을 할까 (분석 — 나중 범위)', why: '분석 규칙상 «답하지 않은 제안»이 남아 있으면 새 분석을 만들지 않는다. 접어 두기만 하면 [다시 분석]이 막힌다.', o: [
+    { v: 'A', rec: true, h: '거절로 남기기(확인 한 번)', d: '«이 제안을 닫을까요? 닫은 제안은 다시 열 수 없어요.» → 분석 탭은 처음 상태. 기록은 그대로.' },
+    { v: 'B', h: '접어 두기', d: '아무것도 기록하지 않고 숨긴다. 다음에 탭을 열면 같은 제안이 다시 보인다.' } ] },
+  { id: 'q7', n: 'Q7', pick: 'B', t: '선생님이 본 «지금 수준»(N4 등)을 보여 줄까 (분석 — 나중 범위)', why: '분석 결과에는 수준 추정이 들어 있다. 하지만 JLPT 라벨은 어휘·문법 범위 참고일 뿐이고(설계서 §5-2), 프로필 수준과 다르면 «내 수준이 뭐지?» 혼란이 생긴다. 수준을 바꾸는 길은 이미 AI 평가 «레벨 제안»으로 따로 있다.', o: [
+    { v: 'A', h: '참고 라벨로 작게 보이기', d: '«선생님이 본 지금 수준(어휘·문법 기준 참고): N4 · 프로필 수준은 바뀌지 않아요»' },
+    { v: 'B', rec: true, h: '보이지 않기', d: '계획을 짜는 근거로만 쓰고 화면엔 안 보인다. 수준 변경은 평가 «레벨 제안»만.' } ] },
+  { id: 'q8', n: 'Q8', pick: 'A', t: '주 시작 요일 (v2 새 항목)', by: '사용자 «요일은 월 ~ 일 -> 일 ~ 토 로 변경해줘. 이건 달력의 요일 표기도 함께 변경해줘»(10월 20일) — 2026-10-01 task-012 결정 c=B(월요일 시작)를 대체', why: '달력·체크내역·주별 묶음이 같은 주 경계를 써야 «이번 주»가 화면마다 같다. 2026-10-01 task-012 에서 «오늘 탭과 같은 순서»를 이유로 월요일 시작을 골랐지만, 오늘 탭 «최근 7일»은 오늘이 맨 오른쪽인 연속 7일이라 요일 순서와 무관하다(개발 메모 0절).', o: [
+    { v: 'A', h: '일요일 시작(일~토)', d: '성장 탭 체크내역 행 일·월·화·수·목·금·토, 주별 묶음 일~토, 달력 요일 머리 «일 월 화 수 목 금 토». 달력은 칸 자리만 바뀌고 칸 안 표시는 그대로.', pv: 'wk-sun' },
+    { v: 'B', h: '월요일 시작(지금 운영)', d: '2026-10-01 task-012 결정 c=B. 이번 지시로 대체됨.', pv: 'wk-mon' } ] },
+];
+function qPreview(kind) {
+  if (kind === 'radar') { const sv = AXES.map((ax) => { const c = axisCalc(ax, 1, rangeIdx(4)); return c.none || !c.enough ? null : Math.round(c.rate * 100); }); return '<p style="font-size:12px;color:var(--ink2)">① 거의 없음 기준</p>' + radarSvg(230, AXES.map((a) => a.name), [{ v: sv.map((v) => v == null ? 0 : v / 20), main: true }], sv.map((v) => v == null ? '판단 전' : v + '점')); }
+  if (kind === 'rows') return '<p style="font-size:12px;color:var(--ink2)">① 거의 없음 기준 — 위 휴대폰 성장 탭 «능력 다섯 가지»와 같다</p><ul style="font-size:12.5px;margin-top:4px;display:flex;flex-direction:column;gap:3px"><li><b>어휘 회상</b> · 자리 잡는 중 ▮▮▮▯ · 관측 96건</li><li><b>문형·조사</b> · 아직 판단하기 일러요 · 14/20건</li><li><b>듣고 응답</b> · 기록 전(기록하는 공부 없음)</li><li><b>문장 산출</b> · 아직 판단하기 일러요 · 11/20건</li><li><b>대화 유지</b> · 아직 · 역할극 1/5번</li></ul>';
+  if (kind === 'tabs3' || kind === 'tabs2') { const t = kind === 'tabs3' ? ['달력', '분석', '성장'] : ['달력', '성장']; return '<div style="display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--surface2);font-size:12.5px">' + t.map((x, i) => '<span style="flex:1;text-align:center;padding:5px 0;border-radius:7px;' + (i === t.length - 1 ? 'background:var(--surface);font-weight:600' : 'color:var(--ink2)') + '">' + x + '</span>').join('') + '</div>' + (kind === 'tabs2' ? '<p style="font-size:12px;margin-top:6px;border-radius:8px;background:var(--surface2);padding:6px 8px">성장 탭 맨 아래: <b>선생님 분석</b> · 곧 열려요</p>' : '<p style="font-size:12px;margin-top:6px;color:var(--ink2)">위 «범위: 분석 포함(나중)» 휴대폰 그대로</p>'); }
+  if (kind === 'lvh') return '<p style="font-size:12.5px"><b>수준 기록</b> <span style="color:var(--ink2)">· 10월 20일부터 기록돼요</span></p><p style="font-size:12.5px;margin-top:2px">N5 → <b>N4</b> · 10월 24일 · 선생님 제안 채택</p>';
+  if (kind === 'wk-sun' || kind === 'wk-mon') return '<div class="wkp">' + (kind === 'wk-sun' ? DOW : DOW_MON).map((d, i) => '<span' + (i === 0 ? ' class="h"' : '') + '>' + d + '</span>').join('') + '</div>';
+  if (kind === 'ask-sun' || kind === 'ask-mon') { const sun = kind === 'ask-sun'; return '<p style="font-size:12px;color:var(--ink2)">오늘 10월 20일(화) 기준 «이번 주»</p><p style="font-size:12.5px;margin-top:2px">달력·성장 <b>10/18(일)~10/24(토)</b></p><p style="font-size:12.5px">질문 탭 <b>' + (sun ? '10/18(일)~10/24(토)' : '10/19(월)~10/25(일)') + '</b> · ' + (sun ? '같음' : '하루 어긋남') + '</p>'; }
+  return '';
+}
+function optCard(o, cls) {
+  return '<div class="opt static' + (cls ? ' ' + cls : '') + '"><span class="opt-h">' + o.v + ' · ' + o.h + (o.rec ? ' <span class="rec">★ 권고</span>' : '') + '</span><span class="opt-d">' + o.d + '</span>' + (o.pv ? '<span class="opt-p" aria-hidden="true">' + qPreview(o.pv) + '</span>' : '') + '</div>';
+}
+function renderQs() {
+  document.getElementById('dqs-open').innerHTML = QS.filter((q) => q.open).map((q) => '<fieldset class="dq"><legend><span class="dn2">' + q.n + '</span>' + q.t + '</legend><p class="dqwhy">' + q.why + '</p><div class="opts">' + q.o.map((o) => '<label class="opt' + (S.q[q.id] === o.v ? ' on' : '') + '"><input type="radio" name="' + q.id + '" value="' + o.v + '"' + (S.q[q.id] === o.v ? ' checked' : '') + '><span class="opt-h">' + o.v + ' · ' + o.h + (o.rec ? ' <span class="rec">★ 권고</span>' : '') + '</span><span class="opt-d">' + o.d + '</span>' + (o.pv ? '<span class="opt-p" aria-hidden="true">' + qPreview(o.pv) + '</span>' : '') + '</label>').join('') + '</div></fieldset>').join('');
+  document.getElementById('dqs').innerHTML = QS.filter((q) => !q.open).map((q) => {
+    const c = q.o.find((o) => o.v === q.pick); const rest = q.o.filter((o) => o.v !== q.pick);
+    return '<section class="dq done" aria-labelledby="dqh-' + q.id + '"><h3 id="dqh-' + q.id + '"><span class="dn2">' + q.n + '</span>' + q.t + ' <span class="rec">결정됨 · ' + c.v + '</span></h3>' + optCard(c, 'chosen') + '<p class="dqby">' + (q.by || BY_REC) + '</p><details class="alt"><summary>고르지 않은 안 · 이 질문을 둔 이유(기록)</summary><p class="dqwhy">' + q.why + '</p><div class="opts mt8">' + rest.map((o) => optCard(o)).join('') + '</div></details></section>';
+  }).join('');
+}
+document.getElementById('decide').addEventListener('change', (e) => {
+  const t = e.target; if (t.type !== 'radio') return; S.q[t.name] = t.value;
+  renderQs(); render(); const again = document.querySelector('#decide input[name="' + t.name + '"][value="' + t.value + '"]'); if (again) again.focus();
+});
+
+/* ───────────── 개발 메모 ───────────── */
+function dev0() {
+  const rows = [
+    ['① 달력 순수 로직', '`src/components/plan/logic.ts` — `WEEK_HEADERS = [월…일]`(15행) · `monthGrid` 앞 빈칸 `(weekdayOf(from) + 6) % 7`(58행) · 주석 6·14·53행 «주 시작 = 월요일(c=B)»', '`WEEK_HEADERS = [일, 월, 화, 수, 목, 금, 토]` · 앞 빈칸 `weekdayOf(from)` · 주석을 «2026-10-20 사용자 결정: 일요일 시작(2026-10-01 c=B 대체)»으로', '요일 머리 색 구분 없음(`CalendarSection.tsx` 154행 전부 `text-ink2`) → 만들지 않음. 방향키 `arrowDelta`(±1·±7, 248행)는 날짜 계산이라 그대로'],
+    ['① 달력 부품', '`src/components/plan/CalendarSection.tsx` — 주석 4행 «월요일 시작 7열», 요일 머리 `WEEK_HEADERS.map`(153행), 앞 빈칸 `grid.leading`(160행)', '주석만 고침(코드는 logic.ts 상수를 따라감)', '칸 내용 `cellView`·챌린지 띠 `band`·하루 시트는 날짜 기준이라 그대로'],
+    ['① 시험', '`src/components/plan/__tests__/planLogic.test.ts` 46~56행: 머리 배열 · 2026-09 앞 빈칸 1 · 2026-02 → 6 · 2024-02 → 3 · 2026-06 → 0 / 65행 시간대 시험 1', '기대값 2 · 0 · 4 · 1, 시간대 시험 2, 시험 제목 «월요일 시작» 문구', '`planSkeleton.test.ts` 는 2026-10 기준 — 10월은 두 방식 모두 5줄이라 값이 같을 것(추정, 시험 실행으로 확인)'],
+    ['① 달마다 줄 수', '자리표시 `PlanSkeleton` 도 같은 `monthGrid` 로 주 수를 맞춘다(`planSkeletonSizes.ts` 주석)', '없음(따라감)', '2026년 기준 줄 수가 바뀌는 달: 2월 5→4 · 3월 6→5 · 5월 5→6 · 11월 6→5(나머지 같음). 그 달을 열면 달력 높이가 지금과 다르다'],
+    ['② 성장 탭 집계(신규 #78)', '아직 없음', '주 묶음 = 일요일 시작. «최근 N주» = 이번 주를 포함한 일~토 주 N개(오늘까지). 숫자 카드 «공부한 날»·체크내역·주별 막대가 같은 범위', 'v1 은 숫자 카드만 «오늘부터 28일»이라 띠와 어긋날 수 있었다 — v2 데모 계산으로 맞춤(새 어긋남 아님, 고친 것)'],
+    ['③ 질문 탭 «이번 주»', '`src/modules/learning/recordRetrieval/range.ts` `mondayOf`(36~40행)·`resolveRange` THIS_WEEK(44~47행) · `src/modules/conversation/orchestrator/ask.ts` `askScopeDates`(178~185행, 181행에 같은 계산을 따로 함) · 선생님에게 보내는 글 `src/modules/conversation/prompts/ask.ts:145` «이번 주(월~일)» · 정본 `docs/design/api-contract.md:1517` «THIS_WEEK(이번 주 월~일 KST)» · 주석 `src/types/ask.ts:8`', '권고: 주 시작 요일 상수 하나를 정본으로 두고(예: `infra/dates` 에 «그 주 첫날» 함수 — 달력 logic.ts 는 이미 `@/modules/infra/dates` 를, 질문 쪽은 `@/modules/infra` 의 `dates` 를 쓴다) 달력·성장·질문이 같이 쓴다 → 질문 범위가 일~토로 바뀐다', '<b>사용자 확인 필요(결정 패널 Q9)</b>. 그대로 두면 오늘(10/20 화) 기준 달력·성장 10/18~10/24, 질문 10/19~10/25. 시험 `askTurn.test.ts:584`(10-15 → 10-12~10-18)·`ask.test.ts:357~358`(«이번 주(월~일)»)·`recordRetrieval.test.ts`(`mondayOf`). 프롬프트 문구는 PE, 정본 문서는 Leader 몫'],
+    ['④ 서버 달력·챌린지', '`src/modules/learning/studyLog/calendar.ts` `getCalendar` 는 `dates.monthBounds` 로 그 달 1일~말일만 계산(145~153행), 챌린지 하루 상태도 같은 달 범위 · `src/components/challenge/logic.ts:253` 은 요일 글자만 씀', '없음', '영향 없음(월 단위). 챌린지 띠는 날짜 칸에 붙어 같이 옮겨 가고, 주 줄에서 끊기는 자리만 달라진다'],
+    ['⑤ 저장된 일별 통계', 'DAILY `periodKey` = KST 날짜(`src/modules/learning/snapshots/index.ts:126`)', '없음', '날짜 키라 영향 없음 — 주 묶음은 읽을 때 계산. 다시 계산·이관 없음'],
+    ['오늘 탭 «최근 7일»', '`src/components/vocab/format.ts` `weekDays`(68~75행) = 오늘이 맨 오른쪽인 연속 7일', '없음', '요일 순서와 무관 → 바뀌지 않음. `plan/logic.ts:14` 주석 «오늘 탭 "최근 7일"(월~일)과 같은 순서»는 원래도 맞지 않는 설명이라 주석만 고친다'],
+    ['분석(나중)', '계획 «1주차·2주차» = 계획 시작일부터 7일씩 · 분석 범위 = 어제까지 연속 2주·4주(이 데모)', '없음', '주 시작과 무관'],
+    ['문서', '`docs/screens.md` 계획표 행(91행)·task-012 승인 데모는 월요일 시작으로 그려져 있다', '승인 뒤 구현 가이드에서 갱신(승인된 데모 파일은 고치지 않음)', 'screens.md 1362행 그림의 «월 화 수 목 금 토 일»은 연속 7일 예시라 무관'],
+  ];
+  const c = (x) => x.replace(/`([^`]+)`/g, '<code>$1</code>');
+  return '<h3>0. 영향 범위 — 주 시작 = 일요일 (v2 새 절 · 코드에서 읽어 확인한 것, 추정은 «추정»)</h3><div class="dtw"><table class="dtbl d0"><thead><tr><th>곳</th><th>지금 코드</th><th>바꿀 것</th><th>영향·확인</th></tr></thead><tbody>' + rows.map((r) => '<tr><td class="k">' + r[0] + '</td><td>' + c(r[1]) + '</td><td>' + c(r[2]) + '</td><td>' + c(r[3]) + '</td></tr>').join('') + '</tbody></table></div>';
+}
+function dev() {
+  const rows = [
+    ['연속 출석 · 가장 긴 연속', '성장 숫자 카드', '`StatsSnapshot(DAILY).attended`(출석 체크인이 씀) — #70 `summary.streak` 와 같은 계산', '<span class="ok">가능</span>'],
+    ['공부한 날(기간·이번 주)', '숫자 카드 · 주별 막대 «공부한 날»', 'DAILY 의 `lessons·reviews·words.sessions·evals·corrections.accepted·talkTurns·chatTurns` 합 &gt; 0 인 날(`repetition/review.ts` 의 «공부한 날» 판정과 같은 정의)', '<span class="ok">가능</span>'],
+    ['체크내역(종류 수 1·2·3+)', '성장 «체크내역»', 'DAILY 각 키 &gt; 0 인 종류 수(단어·수업·복습·대화·평가·교정 채택)', '<span class="ok">가능</span> — #78 에 `days[]` 추가 필요(아래 2절 ①)'],
+    ['주 묶음(체크내역 열 · 주별 막대 · 이번 주 · 최근 N주)', '성장 탭 전체', 'DAILY 날짜 키(`periodKey`)를 읽을 때 <b>일요일 시작 주</b>로 묶는다(v2). 저장값은 그대로', '<span class="ok">가능</span> — 0절 ②'],
+    ['주별 단어 세트 · 수업 · 복습 · 교정 채택', '주별 막대', 'DAILY `words.sessions` · `lessons` · `reviews` · `corrections.accepted`', '<span class="ok">가능</span>'],
+    ['주별 대화 말 수', '주별 막대 «대화 말 수»', 'DAILY `talkTurns + chatTurns` — <b>«기록 남기기» 제안을 채택한 대화와 끝낸 역할극만</b> 증가(턴 저장은 스냅샷을 안 바꿈)', '<span class="ok">가능</span>(과소 집계 — 화면에 주석)'],
+    ['능력 축 단계 · 관측 수(맞힘·틀림)', '능력 다섯 가지', '새 DAILY 칸(Q4 B, 예 `skills{축:{s,p,f,k}}`) ← `LearningObservation` 1회 백필. 기존 `observations.bySkill` 은 CORRECTION_ACCEPTED=SUCCESS·IGNORED=SKIPPED 를 섞어 그대로 못 씀', '<span class="ng">새 칸 필요</span>(DB 구조 변경 없음)'],
+    ['능력 축 추세 · 작은 추이선', '능력 줄', '위 칸의 주별 합, 표본 기준(Q3) 충족 때만', '새 칸 필요'],
+    ['듣고 응답', '능력 줄', '`LISTEN_RESPOND` 관측을 쓰는 코드 <b>없음</b>(평가 채점은 관측을 안 씀, 교정 PRONUNCIATION 은 미사용)', '<span class="ng">불가 — 늘 «기록 전»</span>'],
+    ['대화 유지', '능력 줄', '`SCENARIO_COMPLETED` 만(역할극 [마치기] 때 1건). CONVERSATION_MAINTAIN·SELF_CORRECTION 생산 코드 없음', '가능(매우 적음 — 현재 1건)'],
+    ['문형·조사 / 문장 산출', '능력 줄', 'GRAMMAR_USE(수업 문제)·CORRECTION_PROPOSED(유형별 축) / SENTENCE_PRODUCTION(수업 말하기)', '가능(현재 27·39건 수준)'],
+    ['AI 평가 5차원 레이더 · 총점', '성장 «AI 평가 점수»', '`StatsSnapshot(EVALUATION)` `kind·level·total·grade·rubric·date`', '<span class="ok">가능</span> — 현재 평가 0건 → 빈 상태'],
+    ['수준 이력', '(제외)', '저장 원천 없음 — `Profile.level` 은 덮어쓰기, 이력 표·감사 기록 없음. SET_LEVEL 채택 행은 L2 표이고 설정 직접 변경은 흔적 없음', '<span class="ng">불가 — Q5</span>'],
+    ['오류 유형 추이(#78 `errorTrend`)', '(제외)', '스냅샷에 유형·패턴별 칸 없음. 관측 `meta.errorType` 은 있으나 패턴(に/で 등)은 없음', '<span class="ng">불가 — 이번 범위 제외</span>'],
+    ['분석 입력: 출석·횟수·평가', '분석 «본 기록»', 'DAILY · EVALUATION 스냅샷', '<span class="ok">가능</span>'],
+    ['분석 입력: 자주 고친 부분 top5', '분석 «본 기록»', '`LearnerErrorStat`(교정 <b>채택</b> 때만 증가 — 현재 전체 5행)', '가능하나 거의 비어 있음'],
+    ['분석 입력: 자주 틀린 단어 top10 · 복습 집중', '분석 «본 기록»', '`VocabAttempt`/`WordEntry.wrongCount` · `RepetitionItem(priority=FOCUS)`', '<span class="ok">가능</span>'],
+    ['계획(요약·목표·일정·근거 칩)', '분석 제안·지금 계획', '`StudyPlan.analysis·curriculum·rationaleKo`(#75·#76) — 현재 0행', '신규(A8)'],
+  ];
+  let h = dev0();
+  h += '<h3>1. 데모 지표 근거표 — 지표 → 출처 → 지금 데이터로 가능?</h3><div class="dtw"><table class="dtbl"><thead><tr><th>지표</th><th>화면 위치</th><th>출처(키·테이블)</th><th>지금 가능?</th></tr></thead><tbody>' + rows.map((r) => '<tr><td class="k">' + r[0].replace(/`([^`]+)`/g, '<code>$1</code>') + '</td><td>' + r[1] + '</td><td>' + r[2].replace(/`([^`]+)`/g, '<code>$1</code>') + '</td><td>' + r[3].replace(/`([^`]+)`/g, '<code>$1</code>') + '</td></tr>').join('') + '</tbody></table></div>';
+  h += '<h3>2. 정본과 어긋난 곳 — Leader 기본 결정(10월 20일, 사용자가 뒤집을 수 있음)</h3><ol class="dlist" style="list-style:decimal">' + [
+    '<b>#78 응답 모양</b>: 지금 계약은 주별 `weeks[]`·`evaluations[]`·`errorTrend[]` 뿐 → 화면에 필요한 `streak·longestStreak`, `days[]{date, attended, kinds}`, 축별 `skills[]{axis, n, s, f, k, enough, stage, trend, weekly[]}`. <b>→ 결정: additive 로 추가</b>, 단계·추세 판정은 서버(코드)가 하고 화면은 라벨만 그린다. v2: `weekly[]`·`weeks[]` 의 주 경계는 일요일(0절).',
+    '<b>#78 `errorTrend`</b>: «스냅샷만» 원칙으로 만들 수 없다(유형·패턴별 일별 칸 없음). <b>→ 결정: 이번 범위 제외.</b>',
+    '<b>§7-6 «수준 이력»</b>: 원천 없음. <b>→ 결정(사용자 Q5 A): 이번 범위 제외.</b>',
+    '<b>듣고 응답 축</b>: 기록 코드가 없어 화면이 영구히 비어 보인다. <b>→ 결정: «기록 전»으로 표시</b>, `LISTEN_RESPOND` 관측 기록은 별도 후속(이번 범위 밖). ③ 은 그 뒤를 가정해 그렸다.',
+    '<b>DAILY `observations.bySkill`</b>: 교정 채택=SUCCESS 를 섞어 세서 §2-3 «교정 채택만으로는 올리지 않는다»와 충돌. <b>→ 결정: 새 칸을 따로 계산</b>(Q4 B), 기존 `bySkill` 은 하위 호환으로 둔다. 새 칸 규칙은 아래 4절.',
+    '<b>«성장기록·분석은 StatsSnapshot 에서만 읽는다»</b>(schema 주석) vs §7-6 분석 입력(`LearnerErrorStat`·오답 단어·`RepetitionItem`). <b>→ 결정: 문구 정리는 구현 때.</b>',
+    '<b>#74 [다시 분석]</b>: 새 기록이 있을 때 기존 제안을 어떻게 닫을지 규칙 없음. <b>→ 결정: 같은 hash 면 `reused:true`, 다르면 서버가 한 트랜잭션에서 기존 PROPOSED → REJECTED 후 새 잡</b>(분석은 나중 범위 — Q1 B).',
+    '<b>#75 «본 기록»</b>: `StudyPlan` 에 입력 요약이 없다. <b>→ 결정: `analysis.inputs`(코드 집계 숫자만)를 기존 JSON 칸에</b>(DB 변경 없음 — 구현 때 칸 확인).',
+    '<b>`evidence{metric, value}`</b> 한국어 라벨. <b>→ 결정: 코드 상수(metric 키 → 라벨).</b>',
+    '<b>#74 `weeks` 1~4</b>. <b>→ 결정: 화면은 [최근 2주(권장)][최근 4주] 둘만.</b>',
+    '<b>분석 잡 진행 단계</b>: 단계 이벤트가 없다. <b>→ 결정: 움직이는 띠 + «보통 2~4분»</b>, 300초 넘으면 실패 화면.',
+    '<b>[이 계획으로 시작]</b> 뒤 추천 항목 «했음» 표시는 계약에 없다. <b>→ 결정: 이번 범위 밖.</b>',
+    '<b>주소</b>: 분절은 단어장 `DrawerSwitch` 와 같은 링크형. <b>→ 결정: 경로 방식</b> — 이번 구현은 `/plan`(달력)·`/plan/growth`, 분석은 나중 `/plan/analysis`. `(tab)` 로딩 규칙(screens §17)에 맞출 것.',
+    '<b>주 시작 요일 (v2 새 항목)</b>: 2026-10-01 task-012 결정 c=B(월요일 시작)를 사용자 지시(10월 20일)로 <b>일요일 시작</b>으로 바꾼다. 닿는 곳은 0절. 질문 탭 «이번 주»까지 바꿀지는 <b>사용자 확인 필요(Q9)</b>.',
+  ].map((x) => '<li>' + x.replace(/`([^`]+)`/g, '<code>$1</code>') + '</li>').join('') + '</ol>';
+  h += '<h3>3. 상태표</h3><div class="dtw"><table class="dtbl"><thead><tr><th>탭 · 상태</th><th>언제</th><th>보이는 것</th><th>행동</th></tr></thead><tbody>' + [
+    ['성장 · 정상', '#78 성공', '기간 분절(+«○월 ○일(일)~오늘») · 숫자 카드 3 · 체크내역 · 주별 막대 · 능력 다섯 가지 · AI 평가 점수 · «선생님 분석 곧 열려요»(Q1 B)', '기간·지표·주 선택, 표로 보기'],
+    ['달력 · 정상(v2)', '#70 성공', '요일 머리 «일 월 화 수 목 금 토» · 1일 앞 빈칸 = 그 달 1일의 요일 번호(일=0) · 칸 안 표시·챌린지 띠·하루 시트 그대로', '지금과 같음'],
+    ['성장 · 기록 적음(①)', '공부한 날 &lt; 기간', '«기록은 10월 8일부터» · 능력 «아직 판단하기 일러요(관측 N건)» · 평가 빈 상태', '[AI 평가 보러 가기] · [역할극 고르러 가기]'],
+    ['성장 · 불러오는 중', '첫 요청', '같은 크기 자리표시(높이 점프 없음), 낭독 «불러오는 중»', '—'],
+    ['성장 · 오류', '요청 실패', '«성장 기록을 불러오지 못했어요» + 이유', '[다시 불러오기]'],
+    ['분석 · 처음(기록 부족)', 'Q3 기준 미달', '조건 체크(✓/빈 원 + 몇 개 더) · 격려 한 줄 · 비활성 [분석 시작](이유 연결)', '[공부하러 가기]'],
+    ['분석 · 처음(분석 가능)', '계획 없음 · 기준 충족', '조건 ✓ · (평가 없으면 안내) · 범위 [2주][4주] · 본 기록 미리보기', '[분석 시작]'],
+    ['분석 · 만드는 중', '잡 RUNNING', '범위 · «보통 2~4분» · 움직이는 띠 · «다른 화면에 가도 계속»', '[다른 공부하러 가기]'],
+    ['분석 · 제안됨', 'PROPOSED', '요약 · 2주 목표 · 행동 · 잘하는 점/연습할 점(근거 칩) · 2주 일정 · 본 기록', '[이 계획으로 시작] · [다시 분석] · [닫기]'],
+    ['분석 · 같은 범위', '#74 `reused:true`', '«새 기록이 없어 같은 제안» 안내 · [다시 분석] 비활성(이유)', '시작·닫기'],
+    ['분석 · 시작함', 'ACCEPTED', '기간·N일째·주차 목표 · 오늘 추천([시작]) · 일정 · 판단 근거', '[새로 분석하기]'],
+    ['분석 · 실패', '잡 FAILED·시간 초과', '«계획을 만들지 못했어요» + 이유 · 기록은 그대로', '[다시 분석하기] · [나중에 할게요]'],
+    ['분석 · 시작/닫기 실패', '#77 오류', '행동 아래 빨간 바탕 한 줄(role=alert), 초점은 누른 버튼', '다시 누르기'],
+  ].map((r) => '<tr><td class="k">' + r[0] + '</td><td>' + r[1].replace(/`([^`]+)`/g, '<code>$1</code>') + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>').join('') + '</tbody></table></div>';
+  h += '<h3>4. 능력 축 계산 규칙 제안 (코드 결정적 — PE·developer 확정, Q3 A 기준)</h3><ul class="dlist">' + [
+    '세는 것: 오늘의 단어·수업 문제(VOCAB_RECOGNITION·GRAMMAR_USE), 수업 말하기(SENTENCE_PRODUCTION), 교정 <b>제안</b>(MAJOR=틀림, MINOR=부분), 역할극 종료(SCENARIO_COMPLETED, 목표 달성=맞힘). <b>교정 채택·무시는 단계에 넣지 않는다</b>(채택 ≠ 습득). 재사용(CORRECTION_REUSED)이 생기면 맞힘으로 센다.',
+    '맞힌 비율 = (맞힘 + 부분×0.5) ÷ (맞힘 + 부분 + 틀림), 넘김은 제외. 음성 저신뢰(requiresReview)는 틀림으로 세지 않는다(정본 §2-2).',
+    '단계: &lt;50% 시작 단계 · 50~69% 익히는 중 · 70~84% 자리 잡는 중 · ≥85% 안정적. 표시 조건: 기간 안 관측 20건·서로 다른 날 3일(대화 유지는 역할극 5번).',
+    '추세: 기간(기록 시작 뒤 주)을 앞·뒤 반으로 나눠 각각 20건(역할극 3번) 이상일 때만, 차이 ±5%p 이상이면 ↑/↓, 아니면 →.',
+    '저장(Q4 B): 관측을 쓰는 같은 트랜잭션에서 DAILY 새 칸을 증가(생성·증가만). 백필은 1회 스크립트 — 기존 행에 새 칸만 더하고 다른 칸은 건드리지 않음.',
+    '단계 이름은 JLPT 와 섞지 않는다(«N3 회화 가능» 류 금지, §5-2).',
+  ].map((x) => '<li>' + x + '</li>').join('') + '</ul>';
+  h += '<h3>5. 낭독(TalkBack) 순서 · 대체 텍스트</h3><ul class="dlist">' + [
+    '앱바 «계획표» → 분절(내비게이션 «계획표 보기», 지금 위치 = «현재 페이지») → 기간 라디오 «볼 기간» → 기간 한 줄(«9월 27일(일)~오늘 · 주는 일요일에 시작해요») → 숫자 카드 3개(라벨·값·보조) → «체크내역»: 그림(요일 줄 이름 포함)은 숨기고 «최근 4주 동안 공부한 날 N일, 출석만 N일» + [주별로 보기] 표(주 = «10/18 주», 공부한 요일은 일요일부터) → «주마다 공부량»: 지표 라디오 → 그림 숨김 → 읽기 줄(role=status, «10월 11일(일)~17일(토) · …», ‹ › 로 주 이동) → [표로 보기].',
+    '달력(v2): 요일 머리 줄은 지금 코드처럼 낭독에서 숨김(`aria-hidden`). 칸마다 «10월 20일 화요일, …» 이름이 있고 칸 순서 = 날짜 순서라, 주 시작이 바뀌어도 낭독 순서·내용은 같다(앞 빈칸도 숨김).',
+    '능력 줄: 제목(h3) → 단계 라벨 글자 → «4단계 중 N단계»(숨김 글) → 관측 수·추세 글. 막대·추이선은 그림이라 숨김. 색만으로 단계를 보이지 않는다(글자 라벨 + 칸 수).',
+    'AI 평가 레이더: 그림 숨김 + «회화 평가 최근 10월 17일 82점: 정확성 4점…» 숨김 글 + [표로 보기].',
+    '분석: 상태가 바뀌면 상태 제목(h2, tabindex=-1)으로 초점 이동. 만드는 중 → 결과 도착은 초점을 옮기지 않고 «선생님의 계획 제안이 도착했어요» 만 알린다. 확인 상자가 열리면 질문 문장으로 초점, [취소] 하면 [이 계획으로 시작]으로 돌아감.',
+    '비활성 버튼은 `disabled` 대신 `aria-disabled` + 이유 문장 연결(aria-describedby) — 초점을 받아 이유를 들을 수 있게.',
+  ].map((x) => '<li>' + x.replace(/`([^`]+)`/g, '<code>$1</code>') + '</li>').join('') + '</ul>';
+  h += '<h3>6. 알려진 한계 (데모)</h3><ul class="dlist">' + [
+    '숫자는 전부 합성이다. ③ 의 «듣고 응답» 은 기록 코드가 생긴 뒤를 가정했다(지금 코드로는 12주가 지나도 0).',
+    '«처음 · 기록 부족» 은 ① 이 기본 기준(Q3 A)을 넘으므로 다른 계정(공부한 날 3일) 숫자로 보인다. Q3 B 를 고르면 ① 자체가 잠긴다.',
+    '달력 탭·챌린지 카드는 대략의 모양만 그렸다(기존 그대로라 구현은 지금 코드를 쓴다).',
+    '막대 «누르기»는 데모에서 마우스 위치로 주를 고른다. 실제 화면은 칸 폭(12주에서 약 27px)을 누를 자리로 쓰고 ‹ › 버튼을 함께 둔다.',
+    '분석 문구(요약·근거)는 계획 프롬프트가 아직 없어 예시 문장이다. 실제 문장 길이·말투는 PE 설계 뒤 확인.',
+    '글꼴 130% 는 글자만 키운 모형이다(버튼 높이 고정).',
+    '데모는 상태가 바뀔 때마다 휴대폰 안을 다시 그려서 알림 영역(role=status)도 새로 생긴다 — 낭독기가 놓칠 수 있다. 구현은 알림 영역을 화면에 하나 고정해 두고 글만 바꾼다.',
+    '«체크내역»의 «안 함»(옅은 회색)과 «기록 전·아직 안 온 날»(빈칸)은 흰 카드 위에서 구분이 약하다. 정확한 값은 [주별로 보기] 표가 맡는다.',
+    'v2 달력은 2026년 10월 한 달만 그렸다(달 이동은 동작하지 않음). 줄 수가 바뀌는 달(예 2026년 11월)은 0절 표로 대신한다. 칸 모양은 지금 코드 값(칸 66px·간격 4px)에 맞췄지만 챌린지 날 동그라미 표시(달성·일부·놓침)는 그리지 않았고(띠만), 범례도 줄였다 — 실제 범례·칸 표시는 지금 코드 그대로다. 점선 «데모 표시 · 바뀌는 곳» 상자는 설명용이라 구현하지 않는다.',
+    '«현재 vs 바뀜 나란히»는 처음 열 때만 두 휴대폰의 요일 줄 높이를 맞춘다. 한쪽만 스크롤하면 다시 어긋난다.',
+    '기간 한 줄(«9월 27일(일)~오늘 · 주는 일요일에 시작해요»)이 생겨 글꼴 130% 에서는 체크내역 마지막 줄(토)이 첫 화면 하단 탭 뒤로 들어간다(390·412 도 — v1 은 360 만). 체크내역 머리는 세 폭 모두 첫 화면 안.',
+    '분석 탭은 Q1 B 로 이번 구현에서 빠졌다. 설계는 나중에 쓰려고 그대로 두었고 위 «범위: 분석 포함(나중)»에서 볼 수 있다. 질문 탭(Q9)은 이 데모에 화면이 없다 — 날짜 범위 미리보기만 둔다.',
+  ].map((x) => '<li>' + x + '</li>').join('') + '</ul>';
+  h += '<h3>7. 토큰</h3><ul class="dlist"><li>쓰는 토큰: <code>ground surface surface2 ink ink2 ink3(비활성 아이콘·탭 글자만) line accent on-accent good good-soft bad bad-soft accent-soft protein protein-soft</code>.</li><li>차트 색: screens §1-1 이 «Phase 3 분석 차트에서 재검토»로 남겨 둔 <code>--protein</code> 을 한 가지 색(순서 있는 단계)으로 쓴다. 단계 1·2 와 강조 아닌 막대는 <code>color-mix(--protein 55%/78%, --surface)</code>(강조 아닌 막대 = 78% — 라이트 3.5:1·다크 3.1:1) — 새 16진 색은 만들지 않았다. dataviz 검사기로 라이트·다크 모두 «한 색·밝기 순서·간격·바탕 대비» 통과. 혼합 단계를 토큰으로 이름 붙일지(<code>--chart-1/2</code>) 는 Leader 합의 사항.</li><li><code>--carb·--fat</code> 은 쓰지 않는다(범주 색이 필요한 차트 없음).</li></ul>';
+  document.getElementById('devbody').innerHTML = h;
+}
+
+renderQs(); dev(); render();
+})();
+</script>
+</body>
+</html>

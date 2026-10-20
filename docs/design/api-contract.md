@@ -1465,15 +1465,32 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 
 `accept`: 트랜잭션으로 기존 `ACCEPTED → ARCHIVED(archivedAt)`, 대상 `ACCEPTED(acceptedAt)`. `reviewEvery`(2~4, 기본 3 — 정합성 #14·15) 는 **참고값**이다: 2026-09-26 결정으로 실제 복습 간격은 A11 강사 판단(항목별 3~7일, `RepetitionItem.intervalDays`)이 정하고, `reviewEvery` 는 A11 프롬프트 헤더에 '학습자가 원하는 리듬'으로만 전달된다. `reject`: `REJECTED`. `PROPOSED` 가 아니면 `409`.
 
-#### #78 `GET /api/v1/plan/growth?weeks=8` (Phase 3)
+#### #78 `GET /api/v1/plan/growth?weeks=4` (Phase 3 — task-080, 2026-10-20 개정: 값 집합 4|8|12·응답 additive)
 
-**`StatsSnapshot` 만 읽는다**(원본 삭제와 무관, 삭제 정책의 실증 API).
+**`StatsSnapshot`(DAILY·EVALUATION) + `Attendance`(출석·연속·`since`) 만 읽는다**(원본 삭제와 무관 — 출석은 삭제 경로가 없어 같은 불변성, 삭제 정책의 실증 API). 상세 계산 규칙·경계값은 `docs/screens.md` §36-6, 응답 필드 표는 §36-7(이 절은 그것을 정본으로 옮긴 것). 주 시작 = **일요일**(`infra/dates WEEK_START_DOW=0`, 2026-10-20 사용자 결정 — 2026-10-01 월요일 결정 대체).
 
 ```json
-{ "weeks": [ { "weekStart": "2026-09-21", "attendedDays": 5, "words": { "sessions": 4, "correct": 31, "wrong": 9 }, "lessons": 3, "reviews": 1, "talkTurns": 42, "correctionsAccepted": 6 } ],
-  "evaluations": [ { "id": "ev_…", "kind": "WORDS", "level": "N4", "totalScore": 82, "rubric": { "accuracy": 4, "vocabulary": 4, "grammar": 3, "naturalness": 4, "assembly": 5 }, "completedAt": "…" } ],
-  "errorTrend": [ { "type": "PARTICLE", "pattern": "に/で", "counts": [3, 2, 1, 0] } ] }
+{
+  "range": { "weeks": 4, "from": "2026-09-27", "to": "2026-10-20", "today": "2026-10-20", "weekStartsOn": 0 },
+  "since": "2026-10-08",
+  "summary": { "streak": 2, "longestStreak": 4, "studyDays": 9, "thisWeekStudyDays": 2 },
+  "days": [ { "date": "2026-09-27", "attended": false, "kinds": 0 } ],
+  "weeks": [ { "weekStart": "2026-09-27", "before": true, "attendedDays": 0, "studyDays": 0,
+               "words": { "sessions": 0, "correct": 0, "wrong": 0 }, "lessons": 0, "reviews": 0,
+               "talkTurns": 0, "chatTurns": 0, "correctionsAccepted": 0 } ],
+  "skills": [ { "axis": "VOCAB_RECALL", "recorded": true, "unit": "OBSERVATION",
+                "n": 96, "success": 70, "partial": 4, "fail": 22, "skipped": 6, "obsDays": 7,
+                "min": 20, "minDays": 3, "enough": true, "oneSided": false, "stage": 2, "trend": null, "spark": [] } ],
+  "evaluations": [ { "id": "ev_…", "kind": "TALK", "level": "N4", "totalScore": 62, "grade": "FAIR",
+                     "rubric": { "accuracy": 3, "vocabulary": 3, "grammar": 2, "naturalness": 3, "assembly": 4 },
+                     "date": "2026-10-06", "completedAt": "2026-10-06T11:20:00.000Z" } ],
+  "hasEvaluations": true
+}
 ```
+
+- 요청 `weeks` = `4|8|12`(생략 시 4), 그 밖 `400 VALIDATION {field:'weeks', reason:'4|8|12'}`. 인증 없음 `401`. 세션 `userId` 만(남의 데이터 없음).
+- `skills[].oneSided`(2026-10-21, 사용자 결정 C 규칙) — 표본이 충분(`enough`)하고 판정된 관측의 90% 이상이 교정에서 온 것(`10·fromCorrection ≥ 9·n`)이면 `true`(`!enough` 이면 항상 `false`)이고 그때 `stage`·`trend`·`spark` 는 숨긴다(`null`·`null`·`[]`, `enough` 는 건수·날짜 기준 그대로). `skills[]` 길이 5(`VOCAB_RECALL·GRAMMAR_PARTICLE·LISTEN_RESPOND·SENTENCE_PRODUCTION·CONVERSATION_MAINTAIN` 순), `stage 0..3|null`(null ⇔ `!enough` 또는 `oneSided`), `trend UP|DOWN|FLAT|null`, `LISTEN_RESPOND` 는 기록 코드가 없어 `recorded:false`(숫자 0·`stage:null`). `weeks[]` 길이 = `range.weeks`. `errorTrend` 는 **보내지 않는다**(스냅샷에 오류 유형별 칸이 없음 — 2026-10-20 제외).
+- 원천 `StatsSnapshot(DAILY).data.skills`(domain-model §9-3, **교정 채택·무시·자기수정은 세지 않음**) — 과거분은 `scripts/backfill-growth-skills.ts`(dry-run 기본, `--apply` 는 사용자 승인 뒤)가 `LearningObservation` 에서 1회 채운다.
 
 ### 2-16. 학습 기록 `/api/v1/study-logs` (#72~#73, L3 learning/studyLog · Phase 2)
 
@@ -1514,7 +1531,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
    - `sources[].type` ∈ `LESSON | CORRECTION | SCENARIO | REVIEW | STUDY_LOG | EVALUATION`(단어장 단어는 외부 전송 범위 밖이라 `WORD` 유형 없음). `sources[].date` = `YYYY-MM-DD`(KST). **`sources[].id` 는 `string | null`** — 기간 학습 요약·복습 대기 수·교정 유형 누적 같은 **집계 항목은 가리킬 행이 없어 `id:null`**. 클라이언트 이동 규칙: `id` 가 있으면 type 별 상세, `id:null` 이면 type 별 기본 화면만(`STUDY_LOG`→`/plan`, `REVIEW`→`/study/today`(복습 카드), 그 밖은 누를 수 없는 라벨). `SCENARIO` 의 `id` = 그 상황 연습의 **역할극 방 `chatId`**(방이 지워졌으면 그 항목은 `sources[]` 에서 뺀다). **LLM 은 `sources[]` 를 만들지 않는다** — 프롬프트의 조회 결과 항목에 턴 안 임시 키(`S1`…`Sn`)를 붙여 주고 LLM 응답은 `sourceKeys:["S1","S3"]` 만 낸다. 서버가 그 키를 실제 조회 행의 `{type,id,date,label}` 로 풀어 `sources[]` 를 만든다(없는 키는 버림 → 근거 일치율 100% 구조, 내부 id 가 프롬프트에 안 나감). 이동 주소는 클라이언트 매핑 한 곳(`sourceHref`): 교정 `/drawer/corrections?focus=<id>` · 복습 `/study/today`(복습 카드) · 평가 `/study/today/eval/<id>` · 레슨/기록/상황은 해당 상세(역할극 방 `/study/ai/talk/<chatId>`).
 3-A. **ASK 방에서 다른 종류용 라우트 차단(방어)**: 표현 점검(#33)·상황 마치기(`scenario/finish`)·메시지 번역은 `Chat.kind=ASK` 이면 `400`, 도우미(`phrase-help`)·대답 연습(`reply-practice`)은 원래 TALK 한정 라우트라 ASK 방에서 `404`(AI 비용이 드는 호출을 화면에 메뉴가 없다는 이유만으로 열어 두지 않는다. QA-A1 실측 2026-10-12 로 문구를 실제 동작에 맞춤). 이미 TALK/CHAT 이 아니면 거절하는 라우트는 그대로.
 4. **저장(스키마 변경 없음)** — USER `content`=질문, ASSISTANT `content`=`answerMd`, `translation`=null, **구조화 값은 `toolLog.ask={sources,confidence,needsScope,records}`**. #29 메시지 DTO 는 ASK 의 ASSISTANT 에 한해 `ask` 객체로 노출(제안은 기존 `proposals` 그대로). `toolLog` 에 질문 원문·조회 본문 금지(건수·길이만 — 단 `ask.sources[].label` 은 표시용 짧은 라벨 ≤60자). 전용 칸(`ChatMessage.structured`)은 DB 승인이 필요해 후속 후보.
-5. **조회 계층 `learning/recordRetrieval`(L3)** — 공개 진입점 `retrieveRecords(userId, intent, scope)`, 화이트리스트 함수 6개(`getProgressSummary`·`getDueReviews`·`getRecentCorrections`·`findExpressions`·`getLessonsByTopic`·`getSkillState`; 해당 표가 아직 없으면 빈 결과). `userId` 는 세션에서만. 범위 `THIS_WEEK`(이번 주 월~일 KST)·`LAST_30D`·`ALL`. **외부 전송 범위 D2=(b)(확정 2026-10-12 — 사용자가 승인한 데모 v2 「보내는 범위」 시트 문구와 동일, learning-personalization §8 D2)**: ① 질문과 **이 질문 방의** 최근 대화(12개까지) ② 표시 이름·레벨 같은 학습자 정보(헤더 ≤600자) ③ 공부 기록 요약(공부 횟수·점수·복습 예정 목록 — **연속 출석 일수는 보내지 않는다**: 사용자가 본 동의 문구에 없음, REV-064-U L-2) ④ **채택(ACCEPTED) 교정의 원래 문장과 고친 문장**(+ 오류 유형 라벨) ⑤ **수업(레슨)에서 배운 표현**. **제외**: 교정 설명 문구·역할극 표현·단어장 단어(= 사용자가 본 동의 문구에 없는 것은 보내지 않는다), 다른 회화·채팅의 대화 내용, 발화 원문, `PROPOSED`/`REJECTED` 교정, 이메일·내부 id, `toolLog`·`RequestTrace`, 원음. **동의 문구와 실제 전송 범위는 항상 같아야 한다** — 이 5가지를 바꾸면 안내 시트 키(`kaiwa.ask.scopeNotice.v1`)의 버전을 올려 다시 동의를 받는다. 결과 건수 ≤20·총 ≤2,000자·발췌 ≤300자/건. **외부 전송 DTO 를 별도 타입으로 정의한다**(`ExternalRecordItem` — 허용 필드만: `key(S#)`·`type`·`dateKst`·`text`·`label`; 내부 id·`userId`·이메일은 타입에 없다). 프롬프트 빌더는 이 타입만 받는다. **부정 시험 필수**: 대화·발화 원문, `PROPOSED`/`REJECTED` 교정, 내부 id, 타 사용자 행, `toolLog`, 건수·글자 상한 초과가 DTO·프롬프트에 **0건**임을 단언.
+5. **조회 계층 `learning/recordRetrieval`(L3)** — 공개 진입점 `retrieveRecords(userId, intent, scope)`, 화이트리스트 함수 6개(`getProgressSummary`·`getDueReviews`·`getRecentCorrections`·`findExpressions`·`getLessonsByTopic`·`getSkillState`; 해당 표가 아직 없으면 빈 결과). `userId` 는 세션에서만. 범위 `THIS_WEEK`(이번 주 **일~토** KST — 2026-10-20 task-080 Q9: 주 시작 일요일로 달력·성장·질문 통일, 이전은 월~일)·`LAST_30D`·`ALL`. **외부 전송 범위 D2=(b)(확정 2026-10-12 — 사용자가 승인한 데모 v2 「보내는 범위」 시트 문구와 동일, learning-personalization §8 D2)**: ① 질문과 **이 질문 방의** 최근 대화(12개까지) ② 표시 이름·레벨 같은 학습자 정보(헤더 ≤600자) ③ 공부 기록 요약(공부 횟수·점수·복습 예정 목록 — **연속 출석 일수는 보내지 않는다**: 사용자가 본 동의 문구에 없음, REV-064-U L-2) ④ **채택(ACCEPTED) 교정의 원래 문장과 고친 문장**(+ 오류 유형 라벨) ⑤ **수업(레슨)에서 배운 표현**. **제외**: 교정 설명 문구·역할극 표현·단어장 단어(= 사용자가 본 동의 문구에 없는 것은 보내지 않는다), 다른 회화·채팅의 대화 내용, 발화 원문, `PROPOSED`/`REJECTED` 교정, 이메일·내부 id, `toolLog`·`RequestTrace`, 원음. **동의 문구와 실제 전송 범위는 항상 같아야 한다** — 이 5가지를 바꾸면 안내 시트 키(`kaiwa.ask.scopeNotice.v1`)의 버전을 올려 다시 동의를 받는다. 결과 건수 ≤20·총 ≤2,000자·발췌 ≤300자/건. **외부 전송 DTO 를 별도 타입으로 정의한다**(`ExternalRecordItem` — 허용 필드만: `key(S#)`·`type`·`dateKst`·`text`·`label`; 내부 id·`userId`·이메일은 타입에 없다). 프롬프트 빌더는 이 타입만 받는다. **부정 시험 필수**: 대화·발화 원문, `PROPOSED`/`REJECTED` 교정, 내부 id, 타 사용자 행, `toolLog`, 건수·글자 상한 초과가 DTO·프롬프트에 **0건**임을 단언.
 6. **의도 분류 `askRouter.classifyIntent`(규칙만 — LLM 분류 없음, 사용자 결정)**: 1인칭·기간·학습어(내/나/제/저번/지난/이번 주/오늘/틀린/교정/배운/진도/복습)가 있으면 기록 의도(`PROGRESS`·`EXPRESSION`), 일본어 문법·표현 질문 표지(차이/뜻/어떻게 말해/〜ている 류)만 있으면 `GENERAL`, 둘 다·애매하면 `MIXED`. 기록 의도인데 기간이 없고 결과가 범위에 민감하면 `needsScope`(고정 칩 이번 주·지난 30일·전체 기간). 오분류율은 QA 가 대표 질문 세트로 실측(부족하면 haiku 분류 도입 재결정).
 7. **로그·추적**: `RequestTrace`·프로세스 로그에 질문 원문·조회 본문·답 본문 금지 — 의도·건수·단계 시간·모델 티어만(+ Trace PROMPT 단계의 입력 방식 `inputKind` `TEXT|VOICE` 열거값, task-066). 음성 질문의 원음은 서버로 오지 않는다(인식된 글자만). 엔진명은 어댑터 밖으로 안 나간다.
 8. **`answerMd` 살균·렌더(Codex C1 #4)**: 서버가 저장 전에 HTML 태그·마크다운 링크/이미지 문법·`javascript:`/`data:`/스킴 있는 URL·제어 문자를 제거하고(글자만 남김) 길이 ≤4,000자를 강제한다. 클라이언트는 마크다운 **화이트리스트 노드(문단·굵게·기울임·목록·인용·줄바꿈)만 React 요소로** 그린다 — `dangerouslySetInnerHTML` 금지, **3a 에서는 링크를 렌더하지 않는다**(자동 링크 포함). 시험: `<script>`·`onerror=`·`javascript:`·`data:`·`iframe`·마크다운 링크가 서버 저장값과 렌더 결과 모두에서 사라짐.

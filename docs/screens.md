@@ -88,7 +88,8 @@
 | 오늘 | `/study/today/eval/new` | AI 평가 시작 — 종류(단어·회화)·주제 고르기, 단어 부족 안내, 진행 중 평가 이어가기 | 로그인 | **숨김** | **task-011**(데모 v1 승인 2026-09-28, 구현 2026-10-01) |
 | 오늘 | `/study/today/eval/[evaluationId]` | AI 평가 — 상태로 분기: 만드는 중·실패 / 준비 화면 [시작하기](10분 시계) / 문항 풀이(듣고 답하기 글자로 보기·틀린 곳 탭·조립) / 채점 중·다시 채점 / 결과(점수·루브릭·문항별 정답·레벨 제안) | 소유자(타인 404) | **숨김** | **task-011**(api-contract §2-14 #65~#69·#67c) |
 | 오늘 | `/study/today/eval/history` | AI 평가 기록 목록(진행 중 포함·실패 제외) | 로그인 | **숨김** | **task-011** |
-| 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 분석·성장은 Phase 3 |
+| 계획표 | `/plan` (`?month=YYYY-MM&day=YYYY-MM-DD&log=<id>`) | 달력(출석·학습 점·복습 표시)·하루 시트·기록 열기(원본 이동·삭제)·원본에서 돌아오기 | 로그인 | 보임 | **task-012**(데모 v1 승인 2026-10-01, 구현 완료) · 앱바 아래 분절 `[달력 \| 성장]`·주 시작 일요일·달력 아래 「분석 · 성장 기록」 카드 삭제 **task-080(§36)** — 데모 v4 승인 2026-10-20(구현 전) · 분석 탭은 후속 |
+| 계획표 | `/plan/growth` (`?weeks=4\|8\|12`) | 성장 기록 — 기간 분절 · 숫자 카드 3(연속 출석·공부한 날·이번 주) · 체크내역 · 주마다 공부량 · 공부결과(5축 단계) · AI 평가 점수 · 「선생님 분석 곧 열려요」 | 로그인(자기 기록만) | 보임 | **task-080(§36)** — 데모 v4 승인 2026-10-20(구현 전) |
 | 단어장 | `/drawer/words` (`?word=<id>` 상세 시트 · `?add=1` 추가 시트) | 단어장 | 로그인(내 단어 + 공용 기본 단어 읽기 전용 — task-068) | 보임 | **task-008(§4)** · 앱바 아래 분절 `[단어 \| 채택한 교정]` **task-055(§21)** · 7개씩 쪽·출처 칩·조각 5유형·기본 단어 읽기 전용 **task-068(§28)** |
 | 단어장 | `/drawer/corrections` (돌아오기 복원 `?errorType=&chunkType=&q=&focus=&n=`) | 채택 교정 모음(분절·유형/조각 칩·검색·요약 카드·더 보기·원래 대화 이동·단어 시트) | 로그인(자기 교정만) | 보임 | **task-055(§21)** — 데모 v1 승인 2026-10-11 |
 | 질문 | `/ask` (`?chat=<id>` 지금 대화 복원) | 무엇이든 물어보세요 — 챗봇창: 열 때마다 빈 대화(안내 말풍선·칩 = 바로 보냄) · 글자 바 ↔ 말 바(🎤 일본어 — 회화와 같은 누르고 말하기 + 밀어서 취소) · 보내는 범위 한 줄(확인 창 없음) · 머리 「지난 질문」 알약(답 만드는 중·새 답) → 시트 | 로그인(자기 대화만) | 보임 | **task-066(§26)** — 데모 v2 승인 2026-10-13(D1=B). task-064(§25) 목록 화면 대체 · **task-067(§27)**: 머리 「질문」 아래 지금 대화 제목(눌러서 제목 바꾸기) · 지난 질문 시트 5개씩 쪽(`‹ 이전 · 1 / 3 · 다음 ›`) · 행 ⋯(제목 바꾸기·삭제) · 지난 대화도 이 화면에서 열림(기록 안 늘림) — 데모 v1 승인 2026-10-13 |
@@ -14652,3 +14653,496 @@ const wordsNote = wordsLevelNote(sel, topic.level)
 - **정정 ③ 시험 경계**: 데모 개발 메모 «+1·0·−1·−4 → null» 에 −2·−3 이 빠져 있다 → 25칸 전수(35-4).
 - **정정 ④ 시험 파일**: 초안의 «`logic.test.ts` 에 추가» → 새 `level078.test.ts` + task-076 시험 두 곳 정규식 갱신. 초안에 없던 것 — 그대로 두면 `level076.test.ts:269`·`level076View.test.ts:56` 이 `<p aria-live="polite">` 를 못 찾아 실패한다.
 - 일치 확인(정정 없음): `CREATE.levelQ`·`levelBody`·`levelHigh`·`levelLow`·`wordsBody`·`q3Title` 글 · 기존 줄 `mt-1`(= 데모 4px) · 비교 줄 `mt-2`(8px) · 상자 `mt-2`(8px) · `globals.css` sha256 앞 12자 `a314f18f1807`(데모 `demo-token-source` 와 같음) · 본문 줄 높이 1.5.
+
+## 36. 계획표 분절 [달력 | 성장] · 성장 탭 `/plan/growth` · 주 시작 일요일 (task-080, Phase 3 성장기록) — ✅ 승인 데모 v4
+
+> **승인 데모: `docs/demo/task-080-plan-growth-analysis-v4.html` (v4)** — 2026-10-20 23:19 사용자 «v4 승인, Q9는 A로 해줘»(게이트 `approved` v4, sha256 앞 16자 `a4167a6f3c1449d0`). v1~v3 검토에서 정한 것(Q1~Q8 ★ · 띠 이름 «체크내역» · 지표 이름 «단어»·«대화» · 섹션 이름 «공부결과»)과 v4 가 함께 사양이다. **이 절이 구현 정본**이다 — 데모 「개발 메모」와 다른 곳은 36-17 정정이 우선한다. 정정 가운데 **화면 글이 데모와 달라지는 3건(36-17 ④⑤⑥)은 Leader 확인 전까지 초안**이다.
+> **2026-10-21 감사·점검 뒤 보강(36-17-2·36-17-3)**: 승인 데모 v4 는 그대로(해시 `a4167a6f3c14…` 변경 없음, 새 데모 버전 없음). 사용자 응답으로 정해진 L11(한쪽 증거 C 규칙 → 새 행 모양·문구)·L12(적음 안내를 «공부결과» 카드 안으로 — **데모 v4 와 배치가 달라지는 유일한 곳**, 사용자 응답으로 승인)·L13(달력 «오늘» 단추 44px)과 디자인 점검 정정(간격·초점 링·읽기 줄 굵은 값)을 36-3~36-13·36-16 에 반영했다. 바뀐 곳은 본문에 «(L11)»·«(L12)»·«(L13)» 로 표시한다.
+> **이번 범위 = 성장 탭 + 달력 일요일 시작 + 질문 탭 «이번 주» 일요일 시작(Q9 A).** 분석 탭(A8·공부계획서·#74~#77)·수준 이력·선생님 추정 수준은 **후속 — 구현 금지**(데모 «범위: 분석 포함(나중)» 화면은 참고 보존일 뿐).
+> **적용 토큰(이름 — `src/app/globals.css`)**: 색 `--color-ground` · `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3`(비활성 ‹ › 아이콘만) · `--color-line` · `--color-accent`(초점 링·고른 칩 테두리·링크 글) · `--color-protein` · `--color-protein-soft` / 반경 `--radius`(14px, 카드 — 코드 관례대로 `rounded-[14px]`). 간격·글자 크기·그 밖 반경(12·10·9·6·4px)은 `globals.css` 에 토큰이 없어 Tailwind 기본 눈금과 §1-2·§1-4 의 px 값을 쓴다. **새 16진 색 0** — 차트 단계 2개는 기존 토큰 혼합 `color-mix(in srgb, var(--color-protein) 55%|78%, var(--color-surface))`(36-11, Leader 합의 항목 L5). `globals.css` sha256 앞 12자 `a314f18f1807` = 데모 `demo-token-source`(2026-10-20 다시 계산해 확인). 일본어 글은 이 화면에 없다(`lang="ja"` 대상 없음 — 분석 탭이 후속).
+> 기록: [[task-080-designer-record]] · [[task-080-designer-v2-record]] · [[task-080-designer-v3-record]] · [[task-080-designer-v4-record]] · [[task-080-designer-guide-record]].
+
+### 36-0. 레이아웃 설계 (page-layout-designer — 승인 조합 정리)
+- **목표**: 기록이 적은 지금도 «얼마나·무엇을 공부했고 무엇이 자리 잡는 중인가»를 본다. **사실(출석·횟수)은 첫날부터, 추정(단계·추세)은 표본 기준(Q3 A)을 넘긴 뒤에만** 보인다 — 적은 데이터로 단정하지 않는다.
+- **주요 위계**: ① 분절·기간 ② 숫자 카드 3(연속 출석·공부한 날·이번 주) ③ 체크내역 ④ 주마다 공부량 ⑤ 공부결과(5축 + 적음 안내 — L12) ⑥ AI 평가 점수 ⑦ «선생님 분석 · 곧 열려요» ⑧ «지워도 숫자 불변» 한 줄. 첫 화면(≈780px) 안 = ①②와 ③ 머리까지. **적음 안내는 ⑤ 안(첫 화면 밖)에 있어 첫 화면 블록을 밀지 않는다.**
+- **영역**: AppBar «계획표»(기존) → `PlanSwitch` → 본문(세로 스크롤 한 곳, 앱 셸 `main`) → 하단 탭(«계획표» 켜짐). 고정 요소는 앱바·하단 탭뿐.
+- **컴포넌트**: 재사용 — `Segmented`(기간) · `AppBar` · `next/link` · `useKeyedResource`(구조만 참고) · `DrawerSwitch`(구조 복제 → `PlanSwitch`) · `eval/evalCopy` 의 `KIND_NAME`·`GRADE_LABEL`·`DIM_NAME`·`DIM_ORDER` · `topic/logic` 의 `retryFailHoldMs`. 새 부품은 36-3 표.
+- **상태**: 36-4 표(첫 로딩·정상 3단계·기간 바꾸는 중·오류·백필 전·평가 없음·기록 전 축·**한쪽 증거 축(L11)**·완전 처음).
+- **행동**: 기간 고르기 · 지표 고르기 · 주 고르기(‹ › · 막대 누르기) · 표 열기 · [AI 평가 보러 가기] · [역할극 고르러 가기] · 분절 이동. **위험 동작 없음**(읽기 전용 화면 — 확인 상자 없음).
+- **반응형**: 360/390/412 모두 같은 1열 구조. 숫자 카드 3열 고정, 체크내역 칸 12~56px(기간·폭에 맞춤), 막대 그림은 카드 안 너비를 재서 그림, 표는 카드 안 가로 스크롤, 칩 줄은 가로 스크롤(스크롤바 숨김).
+
+### 36-1. 확정 결정 (사용자 v1~v4 응답 + Leader 기본 결정)
+| 항목 | 확정 | 구현 뜻 |
+|---|---|---|
+| Q1 구현 범위 | **B 성장기록 먼저** | 분절 `[달력 \| 성장]` 두 칸. 분석 탭·A8·#74~#77 없음 |
+| Q2 공부결과 표현 | **B 가로 5줄 + 단계 라벨** | 축마다 줄 하나(4칸 막대 + 글자). 레이더는 AI 평가 점수에만 |
+| Q3 표본 기준 | **A** | 관측 20건 · 서로 다른 날 3일 / 대화 유지 = 끝낸 역할극 5번 / 추세 = 앞·뒤 반 기간 각 20건(역할극 3번). 분석 기준(5일·20건)은 후속 |
+| Q4 저장 | **B** | DAILY 스냅샷 `data.skills` 새 칸(36-8) + 과거 1회 백필. **DB 구조 변경 없음** |
+| Q5 수준 이력 | **A 제외** | 화면·응답 어디에도 없음 |
+| Q6·Q7 | 분석 탭 항목 → **후속** | 성장 탭에 «선생님이 본 지금 수준» 없음 |
+| Q8 주 시작 | **일요일** (2026-10-01 task-012 결정 c=B «월요일» 대체) | 달력 요일 머리 · 월 격자 · 체크내역 행 · 주 묶음 · 숫자 카드 범위 |
+| Q9 질문 탭 «이번 주» | **A 같이 바꾸기** | 36-10 — 정본 상수 하나를 달력·성장·질문이 같이 쓴다 |
+| 이름 | 체크내역 · **주마다 공부량**(데모 화면 제목 `<h2>` 그대로) · 지표 **단어**(단위 세트)·**대화**(단위 번) · **공부결과** | «대화» 주석 «대화에서 오간 말의 수예요.» 유지(v3) |
+| v4 본문 글 «능력 단계는…»·«아직 이 능력을…» | **승인 데모 그대로** | 제목 «공부결과»와 어긋나 보이는 점은 후속 문구 정리 후보(36-18) |
+| Leader 기본 결정(데모 개발 메모 2절) | 1 #78 additive · 2 `errorTrend` 제외 · 4 듣고 응답 «기록 전» · 5 교정 채택은 단계에 넣지 않음(기존 `observations.bySkill` 하위 호환으로 둠) · 13 경로 방식 | 3·7~12 는 분석 탭 항목 → 후속. 6(schema 주석 정리)은 36-18 |
+
+**만들지 않는 것**: 분석 탭과 그 7상태·[분석 시작]·계획 카드, Q 패널의 채택 안 한 안(레이더 공부결과·엄격 기준·새 표·수준 기록), 데모 전용 표시(점선 «데모 표시 · 바뀌는 곳» 상자, 달력 아래 «날짜를 누르면 하루 시트가 열려요(기존 그대로)» 줄, «※ 데모 가정» 글, 조작 줄·결정 패널·개발 메모).
+
+### 36-2. 주소 · 라우트 · 분절
+```
+src/app/(app)/plan/
+├── (tab)/page.tsx        /plan — 달력(기존). PlanScreen 맨 위에 <PlanSwitch current="calendar" />
+├── (tab)/loading.tsx     PlanSkeleton — 분절 자리 추가 · 「분석 · 성장 기록」 카드 삭제
+├── growth/page.tsx       /plan/growth — 새. auth → <AppBar title="계획표" /> → <Suspense fallback={null}><GrowthScreen today={todayKst()} /></Suspense>
+│                         metadata.title = «성장 · 계획표»(§21 「채택한 교정 · 단어장」 선례 — 앱바 h1 은 «계획표» 그대로)
+├── growth/loading.tsx    새. <GrowthSkeleton today={todayKst()} />  (growth/ 아래에는 page·loading 두 파일만)
+└── challenge/… · challenges/   그대로
+```
+- **`growth/` 를 `(tab)/` 안에 두지 않는다**: `(tab)/loading.tsx` 는 `(tab)` 아래 모든 경로를 감싸므로 안에 두면 `/plan/growth` 로 갈 때 **달력 자리표시가 먼저 뜬다**(§17-1 ② 와 같은 원리). `growth/` 는 `(tab)` 의 형제 폴더이고, 그 아래 하위 경로가 없어 자기 `loading.tsx` 가 새지 않는다(`drawer/corrections` 선례).
+- **로그인**: 세션 없으면 `redirect('/login?callbackUrl=' + encodeURIComponent('/plan/growth'))`.
+- **하단 탭**: `TabBar` 의 `match:'/plan'` 이라 `/plan/growth` 에서도 «계획표»가 켜진다. `FOCUS_ROUTE_PREFIXES` 에 넣지 않는다(탭 보임). 성장 탭에서 하단 «계획표»를 누르면 `/plan`(달력)으로 간다 — 단어장 `[단어|채택한 교정]` 과 같은 동작.
+- **주소 `?weeks=`**: `4|8|12`(기본 4 — 기본값이면 주소에 쓰지 않음, 그 밖 값은 4). 화면이 `useSearchParams` 로 읽고 바꿀 때 `history.replaceState`(서버 다시 부르지 않음 — PlanScreen `?month=` 과 같은 방식). 지표·고른 주는 주소에 쓰지 않는다.
+- **`PlanSwitch`**(`src/components/plan/PlanSwitch.tsx`, 새): `DrawerSwitch` 의 구조를 그대로 옮긴다 — `nav aria-label="계획표 보기"` + `Link replace` 두 개 + 지금 항목 `aria-current="page"`(누르면 `preventDefault`) + 이동 뒤 초점 넘기기(모듈 변수·유효 20초, `markPlanFocus`/`takePlanFocus`) + `placeholder` 면 `inert`·초점 처리 안 함. 항목 `{view:'calendar', href:'/plan', label:'달력'}` · `{view:'growth', href:'/plan/growth', label:'성장'}`. 클래스는 `DrawerSwitch` 와 같되 **`mb-2.5` 대신 `mb-0`** — 아래 첫 블록이 `mt-3`(12px)을 가진다(달력 = `ChallengePlanCard` 의 기존 `mt-3`, 성장 = 기간 묶음 `mt-3`). 데모 `.psw` 아래 12px 와 같다 — **다만 데모 성장 탭의 실제 렌더는 분절 아래 18px**(`.psw` 아래 12 와 `.sec` 위 18 이 겹쳐 18, 36-17-3 ⑬). 사양은 12px 이고 구현도 12px 다(달력 탭과 같은 값). 두 분절의 공용화는 이번 범위 밖(`DrawerSwitch` 회귀 위험 — 후속 후보).
+- **달력 화면(`PlanScreen`)**: 맨 위 `<PlanSwitch current="calendar" />` 추가, 맨 아래 `<GrowthSoonCard />` **삭제**(데모 «달력 아래 곧 열려요 카드는 없어짐»). 그 밖(챌린지 카드·달력·하루 시트·기록 지우기·주소 동기화·원본 돌아오기)은 그대로. `PlanSkeleton` 도 같은 순서(`<PlanSwitch current="calendar" placeholder />` 맨 위, `GrowthSoonCard` 삭제).
+
+### 36-3. UI 구조 (의사코드 — 승인 데모 함수·id 인용)
+```
+<GrowthScreen today>                                   'use client' · 데모 phone() → nav + growth(P)
+  <div className="min-w-0 px-4 pb-8">
+    <PlanSwitch current="growth" />                    데모 .psw
+    status==='loading' → <GrowthSkeletonBody weeks />  데모 skel('성장 기록') — 서버 loading.tsx 와 같은 부품
+    status==='error'   → <GrowthError onRetry />       데모 errBox('성장 기록을 불러오지 못했어요')
+    status==='ready'   → <div aria-busy={busy || undefined}>      busy = 다른 기간을 불러오는 중(36-4 ③)
+      <section className="mt-3">                       데모 growth() 첫 .sec
+        <Segmented ariaLabel="볼 기간" options=[최근 4주|최근 8주|최근 12주] value={weeks} onChange />
+        <p className="mt-1.5 text-[12px] text-ink2 break-keep">{rangeLine}</p>
+      </section>
+      <section className="mt-[18px]"> <h2 className="sr-only">한눈에</h2>
+        <GrowthSummaryTiles … />                       데모 tile() ×3  (적음 안내는 여기 없다 — L12, 아래 «공부결과» 안)
+      </section>
+      <CheckHistoryStrip … />                          데모 strip()     · h2#…-st-h «체크내역»
+      <WeeklyBars … />                                 데모 bars()      · h2#…-bar-h «주마다 공부량»
+      <ResultRows fewNote={fewNoteOf(data)} … />       데모 axesRows()+axesHow() · h2#…-ax-h «공부결과»
+        <GrowthCard title="공부결과">                  (L12) 카드 안 순서:
+          <p>소개 줄 «공부하며 맞히고…»</p>              ① 소개 줄
+          {fewNote && <p data-few-note>…</p>}           ② 적음 안내 — 데모 «기록 N일째예요…» (36-6 E). 소개 줄 바로 아래·첫 축 줄 위. 없으면 ②는 통째로 없다(빈 자리 없음)
+          <ul> 축 줄 ×5 </ul>                            ③ 축 줄 — 한 줄 모양 5종(36-4 ⑤⑦⑩ + 단계 있음)
+          <details>단계는 이렇게 정해요</details>
+        </GrowthCard>
+      <EvalRadarSection … />                           데모 evalBlock() · h2#…-ev-h «AI 평가 점수»
+      <AnalysisSoonCard />                             데모 section.soon · h2#…-soon-h «선생님 분석»
+      <p className="mt-[18px] text-[12px] text-ink2">{GROWTH.footer}</p>
+    </div>
+  </div>
+```
+각 카드 섹션 = `<section aria-labelledby={h2Id} className="mt-[18px] min-w-0 rounded-[14px] border border-line bg-surface p-3.5">` + 머리 줄 `div.flex.items-baseline.justify-between.gap-2.mb-2`(제목 `h2` 15px semibold `break-keep` / 오른쪽 작은 글 12px `text-ink2` `whitespace-nowrap`). `h2` id 는 `useId()`.
+
+| 부품 (`src/components/plan/`) | props | 맡는 일 |
+|---|---|---|
+| `PlanSwitch.tsx` | `{ current: 'calendar' \| 'growth'; placeholder?: boolean }` | 36-2 |
+| `GrowthScreen.tsx` | `{ today: string }` | `?weeks=` 읽기·쓰기, `useGrowthData`, 상태 분기, 재시도 초점 |
+| `GrowthSummaryTiles.tsx` | `{ summary, range, since, today }` | 숫자 카드 3 **만**(L12 — 적음 안내와 `fewNoteOf` 호출을 여기서 뺀다. `skills` prop 도 필요 없다) |
+| `CheckHistoryStrip.tsx` | `{ days, weeks, since, today, weeksCount }` | 띠(그림 숨김) + 범례 + 숨김 요약 + [주별로 보기] 표 |
+| `WeeklyBars.tsx` | `{ weeks, today }` (안에서 `metric`·`sel` 상태) | 지표 칩 · 막대 SVG · 읽기 줄(`role=status`) · ‹ › · [표로 보기] |
+| `ResultRows.tsx` | `{ skills, weeksCount, fewNote: Rich \| null }` (L12 — `GrowthScreen` 이 `fewNoteOf(data)` 를 계산해 넘긴다. 이 부품은 판정하지 않는다) | 소개 줄 + (적음 안내) + 5축 줄(모양 5종 — 36-4) + [단계는 이렇게 정해요]. 줄 모양 고르는 순서는 36-4 아래 «줄 모양 순서» |
+| `EvalRadarSection.tsx` | `{ evaluations, hasEvaluations, weeksCount }` (안에서 `kind` 상태) | 빈 상태 · 종류 칩 · 레이더 · 범례 · 문장 · 표 |
+| `GrowthCharts.tsx` | `RadarChart{ size, series: {values:number[]; main:boolean}[] }` · `Sparkline{ points:number[] }` · `useMeasuredWidth(ref)` | 그림만(`aria-hidden`) — 글자는 부르는 쪽 |
+| `GrowthSkeleton.tsx` | `GrowthSkeleton{ today }`(Suspense 안에서 `?weeks=` 읽음) · `GrowthSkeletonBody{ weeks }` | 36-13 |
+| `growthSkeletonSizes.ts` | `GROWTH_SKELETON` 실측 상수 | §17-1 ④ 방식 |
+| `useGrowthData.ts` | `useGrowthData(weeks) → { status, data, busy, reload }` | 36-4 ③ 기간별 메모리 캐시 |
+| `growthLogic.ts` | 순수 함수(36-6 화면 몫 전부) | 시험 대상 |
+| `growthCopy.ts` | `GROWTH` 문구 단일 출처(36-5) | 시험 대상 |
+| `parts.tsx` | `GrowthSoonCard` → **`AnalysisSoonCard`** 로 바꿈(글은 `GROWTH.soon*`) | 성장 탭 전용 |
+
+### 36-4. 상태 표
+| # | 상태 | 언제 | 보이는 것 | 초점·낭독 |
+|---|---|---|---|---|
+| ① | 첫 로딩 | 서버 `loading.tsx` · 화면 첫 요청 중 | `GrowthSkeletonBody`(36-13) — 분절(placeholder)·기간 분절(실제, `inert`)·회색 블록 | 숨김 알림 1개 «성장 기록을 불러오는 중이에요»(`role=status`, `aria-busy` 감싸개 **밖**) |
+| ② | 정상 | #78 성공 | 36-3 전체. 데이터 양에 따라 아래 ②a~c 가 섞여 나온다 | 읽기 줄 `role=status` 1개 고정 |
+| ②a | 적음(데모 ①) | **단계가 보이는 축(`stage !== null`)** ≤ 1개 — 한쪽 증거 축(⑩)은 단계가 안 보이므로 세지 않는다 | **«공부결과» 카드 안, 소개 줄 아래·첫 축 줄 위**에 «기록 N일째예요…» 안내(36-6 E — L12 로 숫자 카드 아래에서 옮김) · 축 대부분 «아직 판단하기 일러요» · 평가 빈 상태 · 늦게 시작이면 기간 줄 뒤 «기록은 ○부터…» | 낭독 순서: 소개 줄 → 안내 → 첫 축 이름(36-12) |
+| ②b | 보통(데모 ②) | 단계 보이는 축 2개 이상 | 안내 없음 · 단계·추세 일부 | — |
+| ②c | 풍부(데모 ③) | 8·12주 + 표본 충분 | 작은 추이선(36-6 D) · 평가 두 번 이상이면 겹친 레이더 | — |
+| ③ | 기간 바꾸는 중 | 처음 고른 기간(캐시 없음) 요청 중 | **앞 기간 내용을 그대로** 두고 감싸개 `aria-busy="true"`, 기간 분절만 새 값. 자리표시로 바꾸지 않는다 | 초점은 누른 라디오에 |
+| ④ | 오류 | 첫 요청·기간 바꾸기 요청 실패(오프라인 포함) | `GrowthError`: 카드 + `h2 tabindex=-1` «성장 기록을 불러오지 못했어요» + `p role=alert` «인터넷 연결을 확인하고 다시 불러와 주세요. 기록은 안전해요.» + [다시 불러오기](보조 버튼) | [다시 불러오기] → ① 자리표시 **최소 500ms**(`retryFailHoldMs`) → 성공: 고른 기간 라디오로 초점 / 또 실패: 오류 `h2` 로 초점 |
+| ⑤ | 백필 전 | 새 칸 `skills` 가 없는 옛 DAILY 행 | 그 날 관측 0 으로 센다 → 축 «아직 판단하기 일러요 · 관측 N건»(적음과 같은 모양). **«기록 전»으로 바꾸지 않는다**(그건 듣고 응답 전용) | — |
+| ⑥ | 평가 없음 / 기간 안 없음 | `hasEvaluations=false` / 기간 안 0건 | 36-5 `evalEmpty*` + [AI 평가 보러 가기] / `evalNone*` | — |
+| ⑦ | 기록 전 축 | `recorded=false`(지금 듣고 응답만) | «기록 전» + 설명 + «아직 이 능력을 기록하는 공부가 없어요.» — 진행선·링크 없음 | — |
+| ⑧ | 완전 처음 | `since` = 오늘(첫날) 또는 `null` | 같은 구조. 숫자 0, 체크내역은 오늘 칸만(출석이면 테두리), 막대는 이번 주만, 축 전부 «아직…», 평가 빈 상태. 안내는 «공부결과» 카드 안에 끝 절 없이(36-6 E) · `since=null` 이면 안내 없음 | — |
+| ⑨ | 로그인 아님 | 세션 없음 | 서버가 로그인으로 보냄(36-2) | — |
+| ⑩ | **한쪽 증거 축 (L11)** | 그 축이 `recorded && enough && oneSided`(판정된 관측의 90% 이상이 교정에서 옴 — 서버가 `stage`·`trend`·`spark` 를 숨김) | «표본 부족» 줄(⑤)과 **같은 모양·다른 글**: 이름(h3) · 오른쪽 «아직 판단하기 일러요» · 설명 · 본문 «교정 기록이 대부분이라 단계를 보이지 않아요.» · 12px 안내 한 줄(그 축에서 단계가 보이게 하는 공부 — 36-5 `axisOneSidedSub`). **4칸 막대 · 진행선 · 숫자 줄(맞힘·틀림·넘김) · 추세 · 추이선 · 링크 모두 없음** — 건수는 이미 채워졌고, 이 줄이 가린 숫자(맞힘 0 · 틀림 119 같은 한쪽 숫자)를 다른 곳에 다시 보이면 가린 뜻이 사라진다 | 낭독: 이름 → «아직 판단하기 일러요» → 설명 → 본문·안내(한 문단). 숨김 «4단계 중 N단계» 없음 |
+
+**줄 모양 순서 (`ResultRows` — 축마다 먼저 맞는 하나)**: ① `!recorded` → «기록 전»(⑦) · ② `!enough` → 표본 부족(⑤ — 진행선 있음) · ③ `enough && oneSided` → 한쪽 증거(⑩) · ④ `stage !== null` → 단계 줄 · ⑤ 그 밖(`enough` 인데 `stage === null` 이고 `oneSided` 아님 = 서버 어긋남) → 표본 부족 줄. **②가 ③보다 먼저인 이유**: 서버 `oneSided` 는 **`enough` 일 때만 참**(36-17-2 `recorded && enough && 10·fromCorrection ≥ 9·n`, Leader 수정 2026-10-21)이라 서버가 `!enough` 에서 `oneSided=true` 를 보내는 일은 없다. 그래도 화면은 방어적으로 `!enough` 를 먼저 본다 — 관측 3건이 다 교정인 새 사용자에게 «20건이 되면 단계가 보여요» 줄 대신 «교정 기록이 대부분이라…» 를 먼저 보이면 너무 이르고 진행선도 사라진다. 건수가 채워진 뒤(`enough`)에야 ⑩ 으로 넘어간다(Leader 문구 «건수는 채워졌으므로» 와 같은 전제 — 36-17-3 확인 항목 2). 현재 `ResultRows` 는 `stage === null` 이면 `Waiting`(표본 부족) 으로 보내므로, 그대로 두면 `enough && oneSided` 줄이 «관측 119건 · 3일에 걸쳐 모이면 단계가 보여요(지금 3일)» 같은 **모순 문장**이 된다 — ③ 분기를 반드시 `Waiting` 앞에 둔다. 시험이 잡을 수 있게 줄(`li`)에 `data-state="none|wait|oneSided|stage"` 를 단다(구현 재량).
+
+달력 탭 상태는 지금과 같다(분절이 맨 위에 생기고 성장 카드가 빠질 뿐).
+
+### 36-5. 문구 (`src/components/plan/growthCopy.ts` — `GROWTH` 단일 출처, 글자 그대로)
+`{}` 는 끼워 넣는 값. 날짜 `{md}` = `M월 D일`(앞 0 없음), `{sl}` = `M/D`, `{요일}` = 일·월·…·토.
+
+| 키 | 문구 |
+|---|---|
+| `switchNav` · `switchCalendar` · `switchGrowth` | 계획표 보기 · 달력 · 성장 |
+| `docTitle` | 성장 · 계획표 |
+| `periodAria` · `period(w)` | 볼 기간 · 최근 {w}주 |
+| `rangeLine(fromMd)` | {fromMd}(일)~오늘 · 주는 일요일에 시작해요 |
+| `rangeLate(sinceMd)` (위 글 뒤에 붙임) | ` · 기록은 {sinceMd}부터라 그 전 칸은 비어 보여요` |
+| `tilesHeading`(숨김 h2) | 한눈에 |
+| `tileStreak` · `tileStreakSub(n)` | 연속 출석 · 가장 길게 {n}일 |
+| `tileStudy` · `tileStudySubLate(n)` · `tileStudySub(fromMd)` | 공부한 날 · 시작한 지 {n}일 중 · {fromMd}(일)부터 |
+| `tileWeek` · `tileWeekSubSun` · `tileWeekSub(요일)` | 이번 주 · 오늘(일요일)부터 · 일요일~{요일}요일 |
+| 숫자 카드 값 | `{n}` + 작은 글 `일` |
+| `fewNote(n)` + `fewNoteAxis(name, 조사)` | 기록 {n}일째예요. 능력 단계는 기록이 모이는 대로 하나씩 보여요 + (**단계가 보이는** 축 1개일 때) ` — 지금은 <b>{name}</b>{조사} 먼저 보이기 시작했어요.` / (0개일 때) `.` — **글자는 승인 그대로, 자리만 «공부결과» 카드 소개 줄 아래로(L12)**. 새 자리에서 읽히는 모양과 «능력» 낱말 제안은 36-17-3 ④ |
+| `stripTitle` · `stripSide` | 체크내역 · 공부한 종류 수 |
+| `stripLegend` | 1가지 · 2가지 · 3가지 이상 · 출석만 · 안 함 |
+| `stripSr(w, s, a)` | 최근 {w}주 동안 공부한 날 {s}일, 출석만 한 날 {a}일. 주별 자세한 내용은 아래 표에 있어요. |
+| `stripTable` · `stripCaption` · 열 | 주별로 보기 · 주별 공부한 요일 · 주 \| 공부한 요일 \| 출석만 |
+| 주 칸 | `{sl} 주` + (이번 주면) ` · 이번 주` |
+| 공부한 요일 칸 | `{요일}({종류 수})` 를 한 칸 띄워 잇기(예 `일(2) 화(1)`) · 없으면 `없음` · 그 주 전체가 기록 전이면 `기록 전` |
+| 출석만 칸 | 요일을 한 칸 띄워 잇기 · 없으면 `–` · 기록 전 주는 빈칸 |
+| `stripFoot` | 주는 일요일~토요일이에요. 괄호 숫자 = 그날 한 공부 종류 수(단어·수업·복습·대화·평가·교정 채택) |
+| 띠 위 라벨 | 4주 = `{sl}`(주 시작일) · 12주 = 첫 열과 달이 바뀌는 열에 `{m}월` · 8주 = 36-11 컨테이너 규칙 |
+| `barsTitle` · `metricAria` | 주마다 공부량 · 볼 공부량 |
+| 지표(칩 글자 · 단위) | 공부한 날 · 일 / 단어 · 세트 / 수업 · 번 / 복습 · 번 / 대화 · 번 / 교정 채택 · 개 (이 순서) |
+| `metricNote.turns`(«대화»를 골랐을 때만, 읽기 줄 아래) | 대화에서 오간 말의 수예요. 대화를 마치고 «기록 남기기»를 고른 대화와 끝낸 역할극만 세요. (36-17 ⑦ 확인 항목) |
+| 읽기 줄 — 이번 주 | 이번 주 {md}(일)~오늘({요일}) · <b>{지표} {v}{단위}</b> |
+| 읽기 줄 — 지난 주 | {md}(일)~{같은 달이면 D일, 아니면 md}(토) · <b>{지표} {v}{단위}</b> |
+| 읽기 줄 — 기록 전 주 | (날짜 부분 같음) · 기록을 시작하기 전이에요 |
+| 읽기 줄 숨김 낭독(36-12) | 이번 주, {md} 일요일부터 오늘 {요일}요일까지, {지표} {v}{단위} / {md} 일요일부터 {D일 또는 md} 토요일까지, … |
+| ‹ › `aria-label` | 이전 주 · 다음 주 |
+| 막대 x 라벨 · 기록 전 구역 | 마지막 열 `이번 주`, 그 밖 `{sl}` · `기록 전` |
+| `barsTable` · `barsCaption(지표)` · 열 · 값 | 표로 보기 · 주별 {지표} · 주 \| {지표} · `{v}{단위}` / `기록 전` |
+| `skillsTitle` · `skillsSide(w)` · `skillsIntro` | 공부결과 · 최근 {w}주 · 공부하며 맞히고 틀린 기록으로 계산해요. |
+| 축 이름 · 설명 · 쌓이는 곳 · 조사 | 어휘 회상 · 단어 뜻·표현을 떠올리기 · 오늘의 단어·수업 문제를 풀면 쌓여요 · 이 / 문형·조사 · 조사·활용·문형을 맞게 쓰기 · 수업 문제와 대화 교정에서 쌓여요 · 가 / 듣고 응답 · 들은 말에 알맞게 답하기 · (없음) · 이 / 문장 산출 · 조각을 이어 문장 만들기 · 수업 «말하기» 과제를 하면 쌓여요 · 이 / 대화 유지 · 대화를 끝까지 이어 가기 · 역할극을 끝까지 마치면 1번씩 쌓여요 · 가 (이 순서로 줄을 그린다) |
+| 단계 4칸 | 시작 단계 · 익히는 중 · 자리 잡는 중 · 안정적 |
+| `stageSr(k)` | 4단계 중 {k}단계 |
+| `notRecorded` · `notRecordedBody` | 기록 전 · 아직 이 능력을 기록하는 공부가 없어요. |
+| `tooEarly` | 아직 판단하기 일러요 |
+| `needCount(n, min)` | 관측 {n}건 · {min}건이 되면 단계가 보여요 |
+| `needDays(n, d, minDays)` **(초안 — 36-17 ⑤)** | 관측 {n}건 · {minDays}일에 걸쳐 모이면 단계가 보여요(지금 {d}일) |
+| `needSession(n, min)` | 끝낸 역할극 {n}번 · {min}번이 되면 단계가 보여요 |
+| `axisOneSided` **(L11, 새 글 — 36-17-3 확인 항목 3)** | 교정 기록이 대부분이라 단계를 보이지 않아요. — 줄 오른쪽 글은 새로 만들지 않고 기존 `tooEarly`(«아직 판단하기 일러요») 를 그대로 쓴다. 축 이름을 끼우지 않으므로 조사 처리가 없다 |
+| `axisOneSidedSub[axis]` **(L11, 새 글 — 축마다 다른 안내 한 줄, 문장째 상수)** | `VOCAB_RECALL` = 오늘의 단어나 수업 문제도 풀면 단계가 보이기 시작해요. / `GRAMMAR_PARTICLE` = 수업 문제도 풀면 단계가 보이기 시작해요. / `SENTENCE_PRODUCTION` = 수업 «말하기» 과제도 하면 단계가 보이기 시작해요. / `LISTEN_RESPOND`·`CONVERSATION_MAINTAIN` = (없음 — 서버가 `oneSided` 를 보낼 수 없는 축. 값이 비면 안내 줄을 그리지 않는다). 역할극은 «대화 유지» 축에만 쌓이므로 이 안내에 넣지 않는다(36-8 규칙 표) |
+| `goRolePlay` | 역할극 고르러 가기 |
+| `countLine` **(초안 — 36-17 ④)** | 관측 {n}건(맞힘 {s}{ · 일부 {p}} · 틀림 {f}){ · 넘김 {k}} — 중괄호 조각은 0 이면 뺀다 |
+| `countLineSession(n, s)` | 끝낸 역할극 {n}번(목표 달성 {s}) |
+| 추세 | `↑` 앞 기간보다 늘었어요 · `↓` 앞 기간보다 줄었어요 · `→` 앞 기간과 비슷해요 (화살표는 `aria-hidden` 조각) / 없을 때 `추세는 기록이 더 모이면 보여요` |
+| `howTitle` | 단계는 이렇게 정해요 |
+| `how[0..4]` | 오늘의 단어·수업 문제·말하기 과제·대화 교정·역할극에서 맞히고 틀린 기록(관측)을 세요. (36-17 ⑦) / 교정을 받아들인 것만으로는 단계가 올라가지 않아요. 다음에 맞게 써야 올라가요. / 단계는 네 칸이에요: 시작 단계 → 익히는 중 → 자리 잡는 중 → 안정적. / 관측이 {min}건(대화 유지는 역할극 {minSession}번) 모이기 전에는 단계를 보여 주지 않아요. / 단계는 JLPT 급수와 관계없어요. 지금 공부한 내용 안에서의 흐름이에요. |
+| `evalTitle` · `evalSide(w, n)` | AI 평가 점수 · 최근 {w}주 {n}번 (기간 안 0건이면 오른쪽 글 없음) |
+| `evalEmpty` · `evalEmptyBody` · `evalGo` | 아직 AI 평가를 본 적이 없어요. · 평가를 한 번 보면 정확성·어휘·문법·자연스러움·조각 조립 다섯 가지 점수가 여기 보여요. 10분쯤 걸려요. · AI 평가 보러 가기 |
+| `evalNone` · `evalNoneBody` | 이 기간에는 본 평가가 없어요. · 기간을 늘리면 지난 평가가 보여요. (**12주면 이 둘째 줄을 뺀다** — 36-17 ⑥) |
+| `evalKindAria` · 칩 | 평가 종류 · `{KIND_NAME} {n}` (회화 평가 → 단어 평가 순) |
+| 범례 | `{sl} {총점}점(최근)` · `{sl} {총점}점(이 기간 처음)` |
+| 문장 — 한 번 | {KIND_NAME}({수준}) <b>{총점}점</b> · {GRADE_LABEL} + 다음 줄 `{KIND_NAME}를 한 번 더 보면 달라진 점이 겹쳐 보여요.` |
+| 문장 — 두 번 이상 | {KIND_NAME}({수준}) {처음}점 → <b>{최근}점</b> · {GRADE_LABEL(최근)} |
+| 레이더 숨김 글 | {KIND_NAME} 최근 {md} {총점}점: 정확성 {a}점, 어휘 {b}점, 문법 {c}점, 자연스러움 {d}점, 조각 조립 {e}점{. 이 기간 처음 {md} {총점}점: …}. 5점 만점. |
+| 평가 표 | 캡션 `{KIND_NAME} 영역별 점수(5점 만점)` · 열 날짜 \| 수준 \| 총점 \| 정확성 \| 어휘 \| 문법 \| 자연스러움 \| 조각 조립(`DIM_NAME`·`DIM_ORDER`) · 날짜 `{sl}` · 최근이 위 |
+| `soonTitle` · `soonBody` · `soonBadge` | 선생님 분석 · 선생님이 기록을 읽고 앞으로 2주 공부 계획을 제안해 드려요. 공부 기록이 더 쌓이면 열려요. · 곧 열려요 |
+| `footer` | 기록을 지워도 이 화면의 숫자는 바뀌지 않아요. 통계는 따로 남아요. |
+| `loadingSr` | 성장 기록을 불러오는 중이에요 |
+| `errTitle` · `errBody` · `errRetry` | 성장 기록을 불러오지 못했어요 · 인터넷 연결을 확인하고 다시 불러와 주세요. 기록은 안전해요. · 다시 불러오기 |
+
+- 표의 `<b>` 는 React `<b>` 요소로 그린다(문자열 HTML·`dangerouslySetInnerHTML` 금지 — 문구 함수는 조각을 돌려준다).
+- `KIND_NAME`·`GRADE_LABEL`·`DIM_NAME`·`DIM_ORDER` 는 `@/components/eval/evalCopy` 에서 가져온다(다시 정의하지 않는다). 조사는 축마다 상수(위 표) — 런타임 조사 함수를 쓰지 않는다. «단어 평가를»·«회화 평가를»는 둘 다 받침이 없어 «를» 고정.
+- 문구 시험: 엔진·모델 이름(§2 끝 목록) 0, `N[1-5]` 가 단계 이름·안내에 없음(평가 표의 수준 칸만 예외), 위 표와 글자 일치.
+- **L11 새 글 시험**: `axisOneSided`·`axisOneSidedSub` 3개가 위 글자와 같다 · 셈 뜻 «세요»·`N[1-5]`·엔진명·«관측»·«맞힘»·«틀림» 낱말이 없다(한쪽 증거 줄은 숫자·판정 낱말을 쓰지 않는다) · «…해요» 체 · `axisOneSidedSub` 에 «역할극»·«대화 교정» 이 없다(그 축 줄에 도움이 안 되는 안내를 하지 않는다) · 키가 `AXES` 의 모든 축에 대응(없는 축은 빈 값).
+
+### 36-6. 계산 규칙 — 서버가 하는 것 · 화면이 하는 것 (결정적 규칙)
+**A. 기간·날짜 (서버)** — 주 시작 상수 `WEEK_START_DOW = 0`(일요일, 36-10 정본 상수). `weekStartOf(d)` = d 가 속한 주의 일요일.
+- `from = weekStartOf(today) − 7 × (weeks − 1)`, `to = today`(KST). 예 2026-10-20(화): 4주 09-27 · 8주 08-30 · 12주 08-02(데모 값과 같음).
+- `since` = 이 사용자의 **가장 이른 날짜**(`Attendance.date` 최솟값과 DAILY `periodKey` 최솟값 중 이른 쪽, 전체 기간). 둘 다 없으면 `null`.
+- `days[]` = `from`~`to` 모든 날짜(최대 84). `attended` = 그날 `Attendance` 행 있음. `kinds` = DAILY `data` 에서 0 보다 큰 종류 수 — 단어(`words.sessions`) · 수업(`lessons`) · 복습(`reviews`) · 대화(`talkTurns + chatTurns`) · 평가(`evals`) · 교정 채택(`corrections.accepted`) → 0~6. (`kinds > 0` ⇔ `repetition/review.ts isStudyDay`.)
+- `weeks[]` = 주 `weeks` 개(오래된 것부터). 값 = 그 주 DAILY 합, `studyDays` = 그 주 `kinds>0` 날 수, `attendedDays` = 그 주 출석 날 수. `before = (weekStart + 6일) < since`(`since=null` 이면 모두 `true`).
+- `summary.streak` = `attendance.computeStreak`(#25·#70 과 같은 계산 — 오늘 출석 행 기준). `summary.longestStreak` = **전체 기간** 가장 긴 연속 출석. `summary.studyDays` = `days` 중 `kinds>0` 수. `summary.thisWeekStudyDays` = `weekStartOf(today)`~오늘 중 `kinds>0` 수.
+
+**B. 공부결과 축 (서버)** — 축 순서 고정 `VOCAB_RECALL · GRAMMAR_PARTICLE · LISTEN_RESPOND · SENTENCE_PRODUCTION · CONVERSATION_MAINTAIN`. `CONVERSATION_MAINTAIN` 만 `unit:'SESSION'`(끝낸 역할극 수), 나머지 `OBSERVATION`.
+- `recorded`: 코드 상수 `GROWTH_AXIS_RECORDED`(지금 `LISTEN_RESPOND=false`, 나머지 true). `false` 축은 숫자 0·`enough=false`·`stage=null`·`trend=null`·`spark=[]` 로 보낸다(데이터가 있어도 — 기록 코드가 생기면 상수만 true 로).
+- 원천 = 기간 안 DAILY `data.skills[axis]`(36-8) 합 → `success s · partial p · fail f · skipped k · uncertain u`. 칸이 없는 행은 0.
+- `n = s + p + f`(판정된 관측 — 넘김·불확실 제외). `obsDays` = 기간 안 `s+p+f > 0` 인 DAILY 날 수.
+- `min` = OBSERVATION 20 · SESSION 5. `minDays` = OBSERVATION 3 · SESSION `null`.
+- `enough = recorded && n ≥ min && (unit=SESSION || obsDays ≥ minDays)`. 경계: 19건 → false, 20건·3일 → true, 20건·2일 → false.
+- **`oneSided`(L11, 36-17-2)** = `recorded && enough && 10·fromCorrection ≥ 9·n`(Leader 수정 2026-10-21 — `!enough` 이면 항상 false). `oneSided` 이면 서버가 `stage`·`trend`·`spark` 를 숨긴다(`enough` 는 그대로). **화면은 `recorded && enough && oneSided` 일 때만 한쪽 증거 줄(36-4 ⑩)을 그린다** — `enough` 가 아니면 `oneSided` 값과 무관하게 표본 부족 줄이 먼저다(36-4 «줄 모양 순서»).
+- `stage`(enough 일 때만, 정수 비교 — 부동소수 금지): `num = 2s + p`, `den = 2n`(맞힌 비율 = (맞힘 + 일부×0.5) ÷ n). `100·num < 50·den` → 0 · `< 70·den` → 1 · `< 85·den` → 2 · 그 밖 → 3. 정확히 50%·70%·85% 는 위 칸(50% = 익히는 중).
+- `trend`(enough 일 때만): 기간 안 `before=false` 주를 오래된 순으로 L 개. L < 2 → `null`. 앞 반 = 처음 ⌊L/2⌋ 주, 뒤 반 = 나머지. 각 반의 n 이 OBSERVATION 20 · SESSION 3 이상이어야 판정(아니면 `null`). `Δ = numB·denA − numA·denB`: `100·Δ ≥ 5·denA·denB` → `UP` · `≤ −5·denA·denB` → `DOWN` · 그 밖 `FLAT`(±5%p 정확히는 UP/DOWN).
+- `spark`: 기간 안 주마다(오래된 순) 그 주 n ≥ 5 이면 비율 `num/den`(소수 셋째 자리 반올림), 5 미만 주는 건너뜀. 화면이 그릴지 정한다(아래 D).
+
+**C. AI 평가 (서버)** — `StatsSnapshot(EVALUATION)` 중 `data.date` 가 `from`~`to` 인 것, 날짜 오름차순(같은 날은 `createdAt` 순). `rubric` 5칸이 0~5 숫자가 아니면 그 행은 빼고 로그만. `hasEvaluations` = EVALUATION 스냅샷이 **전체 기간** 1건 이상.
+
+**D. 화면이 하는 것 (`growthLogic.ts`)**
+- 문구 전부(36-5)와 날짜 글(`md`·`sl`·요일). 오늘 = 응답 `range.today`(자정 넘김 대비 — 달력 `cal.data.today` 와 같은 방식).
+- `late = since !== null && since > range.from` → 기간 줄 꼬리 · «공부한 날» 보조 글 고르기. `sinceDays = countDays(since, today)`(양끝 포함).
+- 체크내역 칸 상태(먼저 맞는 것): `date > today` → 미래(빈칸, 이번 주 남은 날) · `date < since` → 기록 전(빈칸) · `kinds ≥ 3` → 3단 · 2 → 2단 · 1 → 1단 · `attended` → 출석만 · 그 밖 → 안 함.
+- 막대 값: `days`→`studyDays` · `words`→`words.sessions` · `lessons` · `reviews` · `turns`→`talkTurns + chatTurns` · `corr`→`correctionsAccepted`. `before` 주는 `null`(«기록 전»).
+- 고른 주: 기본 = 마지막(이번 주). **기간(4·8·12)이 바뀔 때마다 이번 주로 돌아간다 — 4→8, 8→4, 4→8→4 왕복 모두 같다**(왕복해 같은 기간으로 돌아와도 앞서 그 기간에서 골랐던 지난 주를 되살리지 않는다 · 기간별 캐시로 바로 돌아오는 경우도 같다). **지표 칩은 그대로 둔다**(데모 `weeks:` 핸들러는 고른 주(`S.sel`)만 비우고 지표(`S.metric`)는 그대로 — v4 1002~1003행). 다른 주를 누른 뒤에만 «이번 주»가 아닌 주가 보인다. 구현 단서: 지금 `WeeklyBars` 의 선택 기억(`picked = {n, first, j}`)은 길이·첫 주가 같으면 되살아나므로 왕복에서 복원된다 — 기간 값이 바뀌는 순간 비우고(부모가 `key={weeks}` 로 부품을 새로 만들면 지표 칩도 같이 초기화되니 쓰지 않는다), 시험에 «4주에서 지난 주 선택 → 8주 → 4주 = 이번 주» 를 넣는다. ‹ › 는 기간 안에서만(끝이면 `aria-disabled`, 눌러도 아무 일 없음). 막대 그림을 누르면 `floor((x − padL) / slot)` 번째 주.
+- 작은 추이선: `weeksCount ≥ 8 && enough && spark.length ≥ 4` 일 때만.
+- 진행선(아직 단계 전): 건수 부족이면 `min(n, min) / min`, 건수는 되는데 날짜 부족이면 `obsDays / minDays`, SESSION 은 `min(n, 5) / 5`. **한쪽 증거 줄(`enough && oneSided`)에는 그리지 않는다**(L11).
+- **E. 적음 안내(`fewNote`)** — **자리(L12): «공부결과» 카드 안, 소개 줄 바로 아래·첫 축 줄 위**(승인 데모 v4 는 숫자 카드 아래였다). 조건: `since !== null` 이고 **단계가 보이는 축(`recorded && stage !== null`)이 1개 이하**. 센 기준을 `enough` 에서 `stage !== null` 로 바꾼다(L11 때문) — 한쪽 증거 축(`enough` 이지만 `oneSided`)을 «보이는 축»으로 세면 «지금은 <b>문형·조사</b>가 먼저 보이기 시작했어요» 가 바로 아래 «아직 판단하기 일러요» 줄과 모순이 된다(안내와 줄이 한 카드 안에 붙어 있어 L12 이후에는 사용자가 둘을 같이 읽는다). 1개면 그 축 이름·조사로 끝 절을 붙이고, 0개면 끝 절 없이 «…하나씩 보여요.» 데모 ①(어휘 회상만 단계) 에서는 보이고 ②·③ 에서는 보이지 않는다(데모와 같음). 한쪽 증거 줄은 이 안내를 늘리거나 바꾸지 않는다(그 줄이 스스로 이유를 말한다).
+- AI 평가: 기간 안 종류를 `['TALK','WORDS']` 순으로, 고른 종류 기본 = 그 첫째(기간을 바꿔도 고른 종류가 새 기간에 있으면 유지, 없으면 첫째 — 데모 `evalBlock` 과 같음). 그 종류 목록의 마지막 = 최근(강조 선), 2개 이상이면 첫째 = «이 기간 처음»(회색 선). 둘째 줄 `evalNoneBody` 는 `weeksCount < 12` 일 때만.
+
+### 36-7. #78 `GET /api/v1/plan/growth?weeks=` 응답 사양 **초안 (Leader 승인 필요 — 정본 `api-contract.md` #78 에 additive 로 반영)**
+```json
+{
+  "range": { "weeks": 4, "from": "2026-09-27", "to": "2026-10-20", "today": "2026-10-20", "weekStartsOn": 0 },
+  "since": "2026-10-08",
+  "summary": { "streak": 2, "longestStreak": 4, "studyDays": 9, "thisWeekStudyDays": 2 },
+  "days": [ { "date": "2026-09-27", "attended": false, "kinds": 0 } ],
+  "weeks": [ { "weekStart": "2026-09-27", "before": true, "attendedDays": 0, "studyDays": 0,
+               "words": { "sessions": 0, "correct": 0, "wrong": 0 }, "lessons": 0, "reviews": 0,
+               "talkTurns": 0, "chatTurns": 0, "correctionsAccepted": 0 } ],
+  "skills": [ { "axis": "VOCAB_RECALL", "recorded": true, "unit": "OBSERVATION",
+                "n": 96, "success": 70, "partial": 4, "fail": 22, "skipped": 6, "obsDays": 7,
+                "min": 20, "minDays": 3, "enough": true, "oneSided": false, "stage": 2, "trend": null, "spark": [] } ],
+  "evaluations": [ { "id": "ev_…", "kind": "TALK", "level": "N4", "totalScore": 62, "grade": "FAIR",
+                     "rubric": { "accuracy": 3, "vocabulary": 3, "grammar": 2, "naturalness": 3, "assembly": 4 },
+                     "date": "2026-10-06", "completedAt": "2026-10-06T11:20:00.000Z" } ],
+  "hasEvaluations": true
+}
+```
+| 필드 | 타입 · 널 규칙 | 새/기존 |
+|---|---|---|
+| 요청 `weeks` | `4 \| 8 \| 12`, 생략 시 4. 그 밖 `400 VALIDATION {field:'weeks', reason:'4\|8\|12'}` | 계약 예시 `weeks=8` → 값 집합 확정 |
+| `range` | `{weeks:number, from, to, today: 'YYYY-MM-DD', weekStartsOn: 0}` — 늘 있음 | 새 |
+| `since` | `string \| null` | 새 |
+| `summary` | 네 칸 모두 정수 ≥ 0, 늘 있음 | 새 |
+| `days[]` | `from`~`to` 전부, 오름차순. `attended:boolean`, `kinds:0..6` | 새 |
+| `weeks[]` | 길이 = `range.weeks`, 오름차순. 기존 칸(`weekStart`·`attendedDays`·`words{sessions,correct,wrong}`·`lessons`·`reviews`·`talkTurns`·`correctionsAccepted`) + 새 `before:boolean`·`studyDays`·`chatTurns`. `talkTurns` = DAILY `talkTurns`(음성 회화·역할극)만 | 기존 + additive |
+| `skills[]` | 길이 5, 36-6 B 순서. `stage: 0..3 \| null`(null ⇔ `!enough` 또는 `oneSided`), `trend: 'UP'\|'DOWN'\|'FLAT'\|null`, `spark: number[]`(0~1), `minDays: number \| null`, `uncertain` 은 **보내지 않는다**(화면이 안 씀), **`oneSided: boolean`(L11, 항상 있음 · 36-17-2 — `true` 면 `stage`·`trend` = `null`, `spark` = `[]`, `enough` 는 그대로; 정본 api-contract #78 에 반영됨)**. 화면은 `GrowthSkill.oneSided` 타입 칸을 더하고 시험 고정값(`growthFixtures.ts`)에 `oneSided:false` 를 채운다 | 새 |
+| `evaluations[]` | 기존 칸 + 새 `grade`·`date`(KST). `completedAt` = 스냅샷 `createdAt`(ISO) | 기존 + additive |
+| `hasEvaluations` | `boolean` | 새 |
+| `errorTrend` | **보내지 않는다**(키 없음 — Leader 결정 2) | 제외 |
+
+- **원천**: DAILY·EVALUATION 스냅샷 + **`Attendance`**(출석·연속·`since`). 계약 머리말 «StatsSnapshot 만 읽는다»에 «출석은 `Attendance` — 삭제 경로 없음(계정 삭제 cascade 뿐)이라 같은 불변성»을 덧붙여야 한다(36-17 ① · L1). 원본 삭제(기록·세션·대화)와 무관하게 값이 같다.
+- 인증 없음 `401`. 남의 데이터 없음(세션 `userId` 만). 응답에 이메일·내부 id(평가 `id` 제외)·원문 없음. 쓰기 없음(GET).
+- 위치(정본 module-dependency 기준, developer 확정): 라우트 `src/app/api/v1/plan/growth/route.ts` → `learning` index 의 `getGrowth(userId, weeks, now)`(파일 예 `learning/snapshots/growth.ts`, 순수 판정 함수는 분리해 시험).
+
+### 36-8. DAILY `data.skills` 새 칸 · 쓰기 경로 · 과거 백필 (Q4 B — **운영 데이터 1회 쓰기, 배포 때 사용자 확인**)
+**칸 모양**(DAILY `data` 에 선택 칸 추가 — 기존 키·소비자 불변, domain-model §9-3 갱신은 Leader):
+`skills?: { [axis in SkillAxis]?: { success, partial, fail, skipped, uncertain } }` — 증가만. 기존 `observations.bySkill`(교정 채택 = SUCCESS 를 섞어 셈)은 **그대로 두고 쓰지 않는다**(하위 호환).
+
+**세는 규칙 `growthSkillDelta(rows)`**(순수, 관측 행 `kind·outcome·skill·confidence`):
+| 관측 kind | 축 | 비고 |
+|---|---|---|
+| `VOCAB_RECOGNITION` · `VOCAB_PRODUCTION` | 어휘 회상 | 맞힘 SUCCESS · 틀림 FAIL · 건너뜀 SKIPPED |
+| `GRAMMAR_USE` | 문형·조사 | 수업 문제 |
+| `SENTENCE_PRODUCTION` · `EXPRESSION_REUSE` | 문장 산출 | 수업 말하기(일부 PARTIAL 포함) |
+| `SCENARIO_COMPLETED` | 대화 유지(SESSION) | 목표 달성 SUCCESS · 거의 PARTIAL · 아직 FAIL · 판정 못 한 끝냄은 신뢰도 0.5 → 불확실 |
+| `LISTEN_RESPOND` | 듣고 응답 | 지금 기록 코드 없음 |
+| `CORRECTION_PROPOSED` · `CORRECTION_REUSED` | 행의 `skill`(교정 오류 유형 축) | 제안 MAJOR FAIL · MINOR PARTIAL / 재사용 SUCCESS. **축이 `LISTEN_RESPOND`(발음 교정)면 세지 않는다** — «기록 전»이 거짓이 되지 않게 |
+| `CORRECTION_ACCEPTED` · `CORRECTION_IGNORED` · `SELF_CORRECTION` · `CONVERSATION_MAINTAIN` | **세지 않는다** | 교정 채택 ≠ 습득(§2-3, Leader 결정 5) · 자기수정·대화 유지 관측은 «대화 유지 = 역할극 완료만»(승인) — 36-17 ② |
+- `confidence < OBSERVATION_CONFIDENCE_MIN`(0.6, `learning/observations`) → `uncertain` 만 +1(맞힘·틀림에 넣지 않음 — 음성 저신뢰를 틀림으로 세지 않는다). 그 밖은 outcome 칸 +1.
+- **쓰기 경로**: DAILY `observations` 를 증가시키는 **두 곳**에서 같은 트랜잭션·같은 호출로 `skills` 도 증가 — `learning/observations/index.ts recordObservations` 와 `learning/scenarios/end.ts`(역할극 끝냄)의 `bumpDailySnapshot(..., { observations: observationDailyDelta(x), skills: growthSkillDelta(x) })`. `DailyDelta.skills?` + `mergeDaily` 안 `mergeSkills`(증가만·모르는 키 보존 — `mergeObservations` 와 같은 방식).
+- **롤백 안전**: 옛 코드의 `mergeDaily` 는 모르는 키를 보존(`...c`)하므로 코드를 되돌려도 `skills` 칸은 남고 깨지지 않는다(그동안의 증가만 멈춤).
+
+**백필 스크립트 `scripts/backfill-growth-skills.ts`**(선례 `scripts/backfill-roleplay-endedat.ts`):
+- **기본 dry-run**(읽기만): 사용자 수 · 대상 DAILY 행 수 · 더할 관측 수(축별 합) · 날짜 범위 · 어긋남(아래) 건수 · **축별 단계 분포(계정별 숫자만 — L2 판단 자료)**. 대화 내용·사용자 이름·이메일·연결 문자열 출력 금지.
+- **`--apply` 는 사용자 승인 뒤에만**(Leader 가 승인 문구를 받아 deployer 에게). 적용 직전 대상 DAILY 행 `data` 를 파일로 백업(복원 방법 포함).
+- **규칙 = 다시 세어 모자란 만큼만 더하기(top-up)**: 행마다 그 날짜로 묶이는 관측을 `growthSkillDelta` 로 다시 센 값 R 과 지금 칸 C 를 비교해 칸마다 `max(0, R − C)` 만 더한다(증가만 — StatsSnapshot 규칙 2). 다시 실행하면 0건(멱등). 배포 뒤 실행해도 배포일(일부만 실시간 반영된 날)까지 맞는다. R < C 인 칸은 더하지 않고 «어긋남»으로 센다.
+- **날짜 묶기 = 실시간 쓰기와 같은 날**: `refType=VocabAttempt` 관측은 그 세트의 `VocabSession.date`(세트 날짜 — 자정을 넘긴 세트), 원본이 지워졌으면 `occurredAt` 의 KST 날짜. 그 밖은 `occurredAt` 의 KST 날짜.
+- **잠금 순서 = 기존 쓰기와 같음**: 사용자별 트랜잭션 → `infra/tx lockUserRow` → DAILY 행 `FOR UPDATE` → 병합 → 갱신. **DAILY 행이 없는 날은 새로 만들지 않고 «건너뜀(행 없음)» 으로 센다**(Leader 결정 2026-10-21 — dry-run 에서 `tests/live` 정리 잔여분으로 보이는 5행·관측 235건이 발견됐고, 새 행을 만들면 시험 잔여분이 공부결과 숫자와 `since` 를 오염시킨다. 실제 사용자 흐름은 같은 트랜잭션에서 DAILY 를 올리므로 «행 없음 = 비정상»). dry-run·`--apply` 가 같은 규칙.
+- **화면 조건**: 백필 **전**(칸 없음 → 축 «아직 판단하기 일러요», 36-4 ⑤)과 **후** 모두 정상 화면이어야 한다. 배포 → dry-run 보고 → 사용자 승인 → `--apply` 순서이므로 그 사이 화면은 «적음» 모양이다.
+
+### 36-9. 달력 변경 — 일요일 시작 (화면 모양·칸 안 표시는 그대로)
+| 곳 | 바꿀 것 |
+|---|---|
+| `plan/logic.ts` | `WEEK_HEADERS` = 요일 배열을 `WEEK_START_DOW` 만큼 돌린 값 → `['일','월','화','수','목','금','토']`. `monthGrid` 앞 빈칸 = `(weekdayOf(from) − WEEK_START_DOW + 7) % 7`(= `weekdayOf(from)`). 주석 6·14·53행을 «주 시작 = 일요일(2026-10-20 사용자 결정, task-080 — 2026-10-01 c=B 월요일 대체)»로. 14행의 «오늘 탭 최근 7일(월~일)과 같은 순서»는 원래도 틀린 설명이라 지운다 |
+| `plan/CalendarSection.tsx` | 주석 4행 «월요일 시작» → «일요일 시작»만. 코드 그대로(상수를 따라감). 요일 머리 색 구분은 지금도 없다 — 일·토 색을 만들지 않는다. 방향키 `arrowDelta`(±1·±7)·`cellView`·챌린지 띠·하루 시트·`focusDate` 그대로 |
+| `plan/CalendarSection.tsx` **«오늘» 단추 (L13)** | 눌리는 높이 42px → **44px**. `MonthNav` 의 «오늘» `<button>` 클래스에서 `before:-inset-y-1.5` → **`before:-inset-y-[7px]`** 한 토막만 바꾼다. 까닭: 단추는 `h-8`(32px) + 테두리 1px 이고 `::before` 는 **안쪽 여백 상자(30px) 기준**이라 30 + 12 = 42 였다 → 30 + 14 = **44**. 눈에 보이는 알약(32px 높이·테두리·글자)은 그대로 — 모양이 바뀌지 않는다. 가로 `before:-inset-x-0.5` 도 그대로(글자 2자 + `px-3` ≈ 51px + 4 = 약 55px ≥ 44). **월 이동 줄의 ‹ › 와 눈에 보이는 높이를 맞추지 않는다** — ‹ › 는 44×44 눌림 상자 안에 20px 아이콘만 보이고 «오늘» 은 테두리 알약이라, 같은 44px 로 키우면 월 제목(18px)보다 단추가 커 보인다. 눌림 높이만 셋 다 44 가 된다. 이웃과 겹치지 않는다: 줄 높이가 ‹ › 의 44px 이고 알약이 세로 가운데라 `::before` 가 줄 위·아래 끝(0·44)에 정확히 닿으며, ‹ 와는 4px(`mr-0.5` + `gap-0.5`) 떨어져 있고 `::before` 는 왼·오른쪽 테두리 밖으로 1px 만 나간다. `aria-disabled`(이번 달일 때) 상태도 같은 크기. 선례: `common/japanese/JapaneseText.tsx` 의 `h-8 … border … before:-inset-y-[7px]` 가 같은 값이다. 측정: QA 는 «오늘» 중심에서 ±21px 지점이 모두 그 단추로 잡히는지(`elementFromPoint`)·±23px 는 아닌지 확인 |
+| `plan/__tests__/planLogic.test.ts` | 45~56행: 제목 «일요일 시작», 머리 배열 일~토, 앞 빈칸 2026-09 = **2**·2026-02 = **0**·2024-02 = **4**·2026-06 = **1**(주석 «6/1 월요일»). 65행 시간대 시험 `monthGrid('2026-09').leading` = **2**. 새 시험: 줄 수(아래 표의 * 달) |
+| `plan/__tests__/planSkeleton.test.ts` | 순서 목록 `['<PlanSwitch', '<ChallengePlanCard', '<MonthNav', '<SummaryRow', '<CalendarGrid', '<CalendarLegend']`(성장 카드 삭제) · `GrowthSoonCard` import·export 단언 → «`PlanScreen`·`PlanSkeleton` 에 `GrowthSoonCard`·`AnalysisSoonCard` 없음» · 자리표시의 `PlanSwitch` 는 `placeholder`(inert) · `role=status` 1개 그대로. 2026-10 은 두 방식 모두 5줄이라 칸 높이 값은 그대로일 것(실행으로 확인) |
+| `plan/planSkeletonSizes.ts`·`PlanSkeleton.tsx` 주석 | 「분석 · 성장 기록」 카드 언급 삭제, 분절 자리 언급 추가 |
+
+달마다 줄 수(월요일 → 일요일, node 로 계산 — `*` = 높이가 바뀌는 달, 66px 칸 + 4px 간격 = 한 줄 70px):
+`2026-02 5→4*` · `03 6→5*` · `05 5→6*` · `11 6→5*` · `2027-01 5→6*` · `2027-02 4→5*` · 그 밖(2026-01·04·06~10·12, 2027-03~06) 같음. 2026-10(지금 달)은 5줄 그대로, 10/1(목) 앞 빈칸 3 → 4. 서버 달력(#70·#71)·챌린지 하루 상태·저장된 DAILY 키는 날짜 기준이라 바뀌지 않는다. 챌린지 띠는 날짜 칸에 붙어 옮겨 가고 주 줄에서 끊기는 자리만 일요일로 바뀐다.
+
+### 36-10. 질문 탭 «이번 주» 일요일 시작 (Q9 A) — 정본 상수 하나
+| 곳 | 바꿀 것 | 담당 |
+|---|---|---|
+| `src/modules/infra/dates.ts` | `export const WEEK_START_DOW = 0` + `export function weekStartOf(date: string): string`(KST 달력 문자열, UTC 요일 계산 — 시간대 무관) + 시험 | developer |
+| `src/components/plan/logic.ts` | 위 상수 사용(36-9) | developer |
+| `src/modules/learning/recordRetrieval/range.ts` | `mondayOf` → `dates.weekStartOf` 로 바꾸고(이름이 뜻과 어긋나므로 `mondayOf` 는 지운다), 머리 주석 «THIS_WEEK = 이번 주 일~토»·`toKst` 주석 «그 주 토요일» | developer |
+| `src/modules/conversation/orchestrator/ask.ts` 178~185 | `askScopeDates` 의 중복 계산을 `dates.weekStartOf` 로, 주석 «이번 주 = 일~토» | developer |
+| `src/modules/conversation/prompts/ask.ts:145` | `SCOPE_KO.THIS_WEEK` = `'이번 주(일~토)'` — 모델에게 가는 글이라 **PE 몫**(프롬프트 버전 `ask@v2` 를 올릴지·Prompt Registry 동기화) | prompt-engineer |
+| `src/types/ask.ts:8` | 주석 «KST 일~토» | developer |
+| `docs/design/api-contract.md` §2-18-A 5항 | «`THIS_WEEK`(이번 주 월~일 KST)» → «일~토» | Leader |
+| 시험 | `recordRetrieval.test.ts` 449~474(오늘 10-08 → 10-04~10-10, «토요일 23:59 같은 주·일요일 00:00 새 주» = `kst('2026-10-10 23:59')` → 10-04 / `2026-10-10T15:00Z` → 오늘 10-11·10-11~10-17, 연 경계 2026-12-31 → 12-27~2027-01-02, `weekStartOf` 4개) · `askTurn.test.ts:584`(10-15 → 10-11~10-17) · `ask.test.ts:357~358`(«이번 주(일~토)» + 날짜 10-11~10-17) | developer·PE |
+
+화면 문구(질문 탭 칩 «이번 주»·예시 «이번 주에 내가 자주 틀린 조사 알려줘»)는 그대로다 — 범위만 하루 당겨진다(월~일 → 일~토). 「보내는 범위」 동의 문구(`kaiwa.ask.scopeNotice.v1`)는 요일을 말하지 않아 버전을 올리지 않는다.
+
+### 36-11. 시각 값 (데모 CSS → Tailwind, 새 색 없음)
+| 요소 | 값 |
+|---|---|
+| 차트 색 상수 (`growthLogic.ts` 의 `GROWTH_TONE`, 인라인 `style` 로 씀) | `c1 = color-mix(in srgb, var(--color-protein) 55%, var(--color-surface))` · `c2 = … 78% …` · `c3 = var(--color-protein)` · 빈 = `var(--color-surface2)`. 라이트·다크는 토큰이 바뀌어 따라간다(Chromium 111+ — 앱 WebView·Chrome 모두 해당) |
+| 숫자 카드 | 3열 `grid-cols-3 gap-2` · 칸 `rounded-xl border border-line bg-surface p-2.5 min-w-0` · 라벨 12px ink2 한 줄 말줄임 · 값 22px `font-[650]` 줄높이 1.2 줄바꿈 없음(+ `일` 13px semibold ml-px) · 보조 11.5px ink2 `mt-0.5` |
+| 적음 안내 **(L12 — «공부결과» 카드 안)** | `mb-2 rounded-[10px] bg-surface2 px-3 py-2.5 text-[13px] text-ink break-keep [overflow-wrap:anywhere]`, 축 이름 `<b>`. 위쪽 간격은 소개 줄의 `mb-2`(8px)가 주므로 `mt-*` 를 두지 않는다(옛 `mt-2` 삭제). 아래쪽 `mb-2`(8) + 첫 축 줄 `pt-0.5`(2) = 소개 줄에서 첫 축 줄까지 옛 간격(10px)과 같다. 카드 바탕(`surface`) 위의 `surface2` 상자 — 라이트 `#eef0ea`·다크 `#262d29`, 글 `ink` 대비 라이트 13.8:1 · 다크 12.1:1(계산). 안내가 없으면 이 요소를 통째로 그리지 않는다(빈 `p`·예약 높이 없음) |
+| 간격 정정 (점검 반영) | 분절 → 기간 묶음 **12px**(`mt-3`) · 카드 사이 **18px**(`mt-[18px]` — 체크내역 · 주마다 공부량 · 공부결과 · AI 평가 점수 · 선생님 분석). 승인 데모의 **실제 렌더는 분절 아래 18px · 카드 사이 10px** 이었다(공용 CSS `.cd + .cd{margin-top:10px}` 가 `.sec{margin-top:18px}` 를 이기고, `.psw` 아래 12 와 `.sec` 위 18 이 겹쳐 18 — 36-17-3 ⑬). 사양 12·18 이 우선이고 구현이 이미 그렇다(화면 전체 높이 +24px 안팎, 디자인 점검에서 조치 없음으로 판정) |
+| 체크내역 띠 | `@container` 감싸개 안 한 격자: `grid-flow-col`, 열 = `16px repeat(n, minmax(12px, 56px))`, 행 = `14px repeat(7, auto)`, 간격 3px, `justify-content:start`. 첫 열 = 빈칸 + 요일 7개(11px ink2, 세로 가운데). 칸 = `w-full aspect-square max-h-[22px] rounded`(4px) — 4주는 56×22, 12주(360)는 약 19×19. 1·2·3단 = c1·c2·c3, 출석만 = `bg-surface` + `inset 0 0 0 1.5px var(--color-ink2)`, 안 함 = `bg-surface2`, 기록 전·미래 = 투명 |
+| 띠 위 라벨(14px 줄, 11px ink2, 줄바꿈 없음·넘쳐도 보임) | 4주 = `{sl}` · 12주 = `{m}월`(첫 열·달 바뀌는 열) · **8주 = 카드 안 너비 ≥ 324px(`@min-[324px]`)면 `{sl}`, 아니면 `{m}월`** — 데모의 «칸 ≥ 36px 이면 날짜» 규칙을 너비로 옮긴 값(390·412 = 날짜, 360 = 달) |
+| 범례 | `mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink2`, 견본 12×12 `rounded-[3px]` |
+| [주별로 보기]·[표로 보기] | `details mt-2` · `summary` 최소 44px 13px semibold ink + ▾/▴(12px ink2, `aria-hidden`) · 표 감싸개 `overflow-x-auto` · 표 12.5px, 칸 `px-1 py-1.5 border-t border-line whitespace-nowrap`, 머리 12px ink2 semibold, 숫자 오른쪽 정렬 `tabular-nums` |
+| 지표 칩 | `flex gap-2 overflow-x-auto` 스크롤바 숨김 `py-1 -mt-1` · 칩 h-9 `rounded-full border border-line bg-surface px-3 text-[13.5px] whitespace-nowrap` + `::before` 세로 44px · 고름 = `border-transparent font-semibold shadow-[inset_0_0_0_2px_var(--color-accent)]`(`ChoicePills` 모양) |
+| 막대 그림 | 너비 W = 카드 안 실측(`useMeasuredWidth`, 재기 전엔 같은 높이 빈 상자), 높이 132, 여백 왼 26·아래 20·위 18. `slot = (W−26)/n`, 막대 폭 `min(24, slot×0.62)`, 위 모서리 반경 ≤4. 눈금 간격 `≤5→1 · ≤10→2 · ≤25→5 · ≤50→10 · 그 밖 20`, 최댓값 = 눈금 배수 올림(0 만 있으면 1). 고른 막대 `c3` + 위에 값(12px bold ink), 나머지 `c2`. 기록 전 구역 = `surface2` 둥근 사각(rx 6) + 넓이 > 46 이면 «기록 전». 가로선 `line` 1px · 바닥선 `ink2` 1px · 축 글 11px ink2(고른 주 x 라벨 ink bold). x 라벨: n ≤ 4 모두 · ≤ 8 둘에 하나 · 그 밖 셋에 하나(마지막에서 거꾸로 셈), 마지막 라벨이 넘치면 끝 정렬. SVG `aria-hidden`, `touch-action: manipulation`, 글자는 CSS px 로(앱 글꼴 배율을 따르게) |
+| 읽기 줄 | `mt-2 flex items-center gap-1` · ‹ › 44×44 원형(비활성 ink3) · 가운데 `p` 13px 가운데 정렬 `break-keep`, 값 `font-[650]` **+ `whitespace-nowrap`(점검 반영)** — 값 조각(`<b>{지표} {v}{단위}</b>`)은 줄 중간에서 접히지 않는다. `break-keep` 만으로는 값 안 띄어쓰기에서 접혀 390px 에서 «· 공부한 / 날 2일» 로 갈라졌다(데모는 «· / 공부한 날 2일» — 값 조각이 통째로 다음 줄). 날짜 앞부분(`이번 주 10월 18일(일)~오늘(화) ·`)은 지금처럼 접혀도 된다. 가장 긴 값 «교정 채택 12개» 는 360px·글꼴 130% 에서도 한 줄에 들어간다(점검 실측) |
+| 축 줄 | `py-3 border-t border-line`(첫 줄 테두리 없음·`pt-0.5`) · 머리 `flex items-baseline justify-between gap-2` · 이름 15px semibold · 오른쪽 14px `font-[650]`(«아직…»·«기록 전»은 ink2 semibold) · 설명 12.5px ink2 `mt-px` · 4칸 막대 `grid-cols-4 gap-0.5 mt-2 h-2`, 채움 protein·빈 protein-soft, 양끝 반경 4 · 숫자·추세 줄 `mt-1.5 flex justify-between gap-2`, 글 12.5px ink2(앞 굵은 조각 ink semibold) · 추이선 64×22(선 2px protein, 끝 점 r3.5 + surface 2px 테두리) · 진행선 높이 4 `max-w-[160px] bg-surface2`, 채움 ink2 · 쌓이는 곳 12px ink2 `mt-0.5` · 링크 최소 44px accent semibold 14px |
+| 공부결과 소개 줄 | 12px ink2, 머리 줄 바로 아래(`-mt-1 mb-2`) — 아래에 적음 안내(위 행)가 올 수 있다(L12) |
+| 한쪽 증거 줄 (L11 — 36-4 ⑩) | **«표본 부족» 줄(`Waiting`)의 모양을 그대로** 쓰되 진행선·링크를 뺀다: 줄 껍데기·머리(이름 `h3` 15px semibold / 오른쪽 `tooEarly` 14px semibold `ink2` `whitespace-nowrap`)·설명 12.5px `ink2` 는 같은 클래스. 본문 `p.mt-1.5.text-[13px].text-ink.break-keep.[overflow-wrap:anywhere]` = `axisOneSided` + 안내 `span.mt-0.5.block.text-[12px].text-ink2` = `axisOneSidedSub[axis]`(빈 값이면 span 생략). **`div.h-1` 진행선 · `Link` 없음 · 4칸 막대 없음 · 숫자 줄 없음** → 표본 부족 줄보다 진행선(`mt-2` + 4px = 12px)만큼 낮다. 새 색·새 크기 0. 대비: 본문 `ink`/`surface` 에 맞는 기존 조합, 안내 `ink2`/`surface` 6.2:1(다크는 토큰) |
+| [단계는 이렇게 정해요] | `details mt-2.5 border-t border-line` · `summary` 최소 48px 14px semibold `justify-between` + ▾ · 목록 13px `list-disc pl-5 gap-1` |
+| 레이더 | 크기 `min(카드 안 너비, 320)`, 높이 ×0.86, 반지름 `min(W/2 − 84, H/2 − 30)`(라벨 공간을 **130% 기준으로 고정** — 36-17 ⑨), 고리 5개·축선 `line` 1px, 최근 = protein 채움 12% + 선 2px + 점 r4(surface 2px 테두리), 처음 = ink2 선 1.5px, 라벨 12px ink, 가운데 정렬 `mt-2.5` |
+| 평가 문장·버튼 | 문장 14px `mt-2`, 보조 13px ink2 `mt-1` · [AI 평가 보러 가기] = `Link` 보조 버튼(h-12 `rounded-xl border border-line bg-surface text-[15px] font-semibold w-full mt-2.5`) |
+| 선생님 분석 카드 | 지금 `GrowthSoonCard` 와 같은 모양(`mt-[18px] rounded-[14px] bg-surface2 p-3.5`, 제목 15px semibold, 본문 13px ink2 `mt-1`, 배지 h-[22px] `rounded-md bg-surface px-2 text-[11.5px] font-semibold text-ink2`) — `aria-labelledby` 로 제목 연결 |
+
+### 36-12. 접근성 · 낭독 순서
+- **순서**(데모 개발 메모 5절): 앱바 «계획표» → 분절(내비게이션 «계획표 보기», 지금 위치 «현재 페이지») → 기간 라디오 «볼 기간» → 기간 줄 → 숫자 카드 3개(라벨·값·보조) → «체크내역»: 그림(요일 이름 포함) 숨김 → 숨김 요약 문장 → [주별로 보기] 표 → «주마다 공부량»: 지표 라디오 → 그림 숨김 → 읽기 줄 → ‹ › → (대화 주석) → [표로 보기] → «공부결과»: 소개 → **(적음 안내 — L12 로 숫자 카드 뒤에서 여기로 옮김)** → 축마다 이름(h3) → 단계 글(또는 «아직 판단하기 일러요»·«기록 전») → 숨김 «4단계 중 N단계»(단계가 있는 줄만) → 설명 → 숫자·추세 / (표본 부족·기록 전·**한쪽 증거(L11)** 줄은 본문·안내를 한 문단으로) → (링크 — 역할극 줄만) → [단계는 이렇게 정해요] → «AI 평가 점수»: 종류 라디오 → 레이더 숨김 + 숨김 글 → 문장 → [표로 보기] → 선생님 분석 → 끝 줄.
+- **`role=status` 한 곳 고정**: 읽기 줄 `p role="status" aria-live="polite"` 는 정상 화면 동안 **늘 마운트된 한 요소**(지표·주·기간이 바뀌어도 다시 만들지 않고 글만 바꿈 — 데모 한계 «다시 그릴 때 알림 영역도 새로 생김»을 구현에서 고침). 안: 보이는 글 `span aria-hidden` + 숨김 낭독 `span.sr-only`(36-5 «읽기 줄 숨김 낭독» — «(일)·~» 를 «일요일부터 … 토요일까지»로, v2 a11y Minor-1 결정). 자리표시 단계는 숨김 알림 1개, 오류는 `role=alert` 1개. 다른 `aria-live` 는 두지 않는다.
+- **색만으로 알리지 않음**: 단계 = 글자 + 칸 수 + 숨김 글 / 체크내역 = 표 / 추세 = 글(화살표는 `aria-hidden`) / 레이더 = 숨김 글 + 표. 그림 SVG 는 모두 `aria-hidden`.
+- **키보드·초점**: 라디오 묶음(기간 `Segmented`·지표 칩·평가 종류 칩)은 기존 `Segmented` 와 같이 칸마다 Tab, Enter/Space 로 고름(화살표 이동은 만들지 않는다 — 앱 관례, 36-17 ⑧). 고르면 초점은 그 칸에 남는다. ‹ › 끝 칸은 `aria-disabled`(초점 받음, 눌러도 아무 일 없음). 분절 이동 뒤 초점 = 새 화면의 지금 분절 항목(36-2). 오류 [다시 불러오기] 뒤 초점 = 36-4 ④. `details` 는 기본 요소 그대로. **초점 링 = 브라우저 기본 링(점검 정정)** — `globals.css` 에는 `:focus-visible` 규칙이 없고 앱 전체가 Chrome 기본 링(검은·흰 이중선)을 쓴다. 실측으로 라이트·다크 모두 잘 보인다. accent 2px 링을 이 화면에서만 따로 만들지 않는다(옛 문장 «전역 `:focus-visible`(accent 2px)» 삭제). 한쪽 증거 줄은 누를 것이 없어 Tab 정거장이 늘지 않는다.
+- **한쪽 증거 줄(L11) 낭독**: `h3` 이름 → 오른쪽 «아직 판단하기 일러요» → 설명 → 본문 «교정 기록이 대부분이라 단계를 보이지 않아요.» 이어서 안내 한 줄(한 문단) 순서로 읽힌다. 숨김 글을 따로 더하지 않는다(단계가 없어 «4단계 중 N단계» 없음, 진행선·막대가 없어 가릴 그림도 없음). 색·그림에 기대는 정보 0 — 줄 전체가 글이다. `role`·`aria-live` 없음(정적).
+- **터치 44px**: 칩·분절은 `::before` 세로 44, ‹ › 44, `summary` 44·48, 링크 44.
+- **대비**: 글은 §1-1 허용 조합만(ink·ink2 on surface/surface2). 차트 비텍스트 — 고른 막대 protein / 흰 바탕, 나머지 막대 c2 라이트 3.5:1 · 다크 3.1:1(데모 dataviz 검사), **체크내역 1단(c1) 2.27:1 은 3:1 미만** — 장식 그림이라 숨김 + 표로 대체(알려진 Minor, 36-18).
+- 글은 11px 미만 없음(가장 작은 글 = 띠 요일·라벨·막대 축 11px).
+
+### 36-13. 반응형 · 글꼴 130% · 다크 · 자리표시
+- **세 폭**: 360/390/412 같은 구조. 가로 넘침 0(표·칩 줄은 자기 상자 안 가로 스크롤만). 최상위 `min-w-0`, 숫자 카드 `minmax(0,1fr)` 3열.
+- **글꼴 130%**(§35-9 의 «px130» 모형으로 판정): 숫자 카드 라벨 말줄임·값 줄바꿈 없음, 보조 글 줄바꿈 허용. 체크내역 마지막 줄(토)이 130% 에서 하단 탭 뒤로 가는 것은 승인 데모의 알려진 한계 — **체크내역 머리(제목)는 세 폭 모두 첫 화면 안**이어야 한다.
+- **다크**: 토큰만 쓰므로 자동. 혼합 색도 토큰을 따라간다.
+- **자리표시(`GrowthSkeleton` = 서버 `loading.tsx` 몫: `<AppBar title="계획표" />` + 본문 / `GrowthSkeletonBody` = 화면 첫 요청 중 몫: 본문만 — `PlanSkeleton` 처럼 `useSearchParams` 는 Suspense 안 부품 하나에서만)** — §17-1 규칙: 정적으로 아는 것은 실제 요소(`<PlanSwitch current="growth" placeholder />` · 기간 `Segmented`(주소의 `?weeks=` 값, `inert`)), 데이터가 정하는 것만 회색 블록 — 기간 줄 · 숫자 카드 3칸 · 체크내역 카드 · 주마다 공부량 카드(그 아래는 첫 화면 밖이라 생략). 높이는 `growthSkeletonSizes.ts` 의 **실측 상수**(390·100%·«적음·늦게 시작·4주» — 지금 실제 계정이 모두 이 상태, 기간 줄 2줄 기준). 데모 자리표시 값(42·76×3·190·220)은 시작값일 뿐 그대로 쓰지 않는다. **적음 안내는 자리표시에 넣지도, 높이를 예약하지도 않는다(L12)** — 안내가 «공부결과» 카드 안으로 옮겨져(자리표시가 그리는 범위 밖·첫 화면 밖) 체크내역·주마다 공부량은 안내 위쪽에 있다. 그래서 적음 계정에서도 이 두 카드는 응답 뒤에 **안내 때문에 밀리지 않는다**(디자인 점검 실측: 옛 자리에서는 체크내역 +67px · 주마다 공부량 +66px(390·412, 100%) 였다). 안내가 나타나면 **그 아래 내용(공부결과 줄 · AI 평가 점수 · 선생님 분석)만 내려가는 것이 정상**이다 — 자리표시가 없는 영역이라 사용자는 점프로 느끼지 않는다. 백필 뒤 일부 계정이 안내가 사라져 위로 올라오는 쪽도 같은 이유로 무해하다(예약했다면 거꾸로 −67px 밀림이 생겼을 것 — 점검 해결안 ①을 비권고한 까닭). `growthSkeletonSizes.ts` 의 실측 상수(88·330·347·36)는 **그대로 둔다** — 카드 높이는 안내와 무관하다. 남는 알려진 한계 = 기간 줄 1줄 계정 −18px(디자인 점검 P2-3, 늦게 시작이 풀리면 모든 계정이 −18 쪽) · 360px 숫자 칸 보조 글 접힘 +17 · 글꼴 130% 일반 한계(P2-2). `role=status` 1개 «성장 기록을 불러오는 중이에요»(`aria-busy` 감싸개 밖). 「불러오는 중」 글자·가짜 버튼·데이터 요청 없음.
+
+### 36-14. 생성 · 수정 파일 (`src/app` · `src/components` · `src/types`)
+| 파일 | 변경 |
+|---|---|
+| `src/app/(app)/plan/growth/page.tsx` (새) | 36-2 |
+| `src/app/(app)/plan/growth/loading.tsx` (새) | `<GrowthSkeleton today={todayKst()} />` |
+| `src/components/plan/PlanSwitch.tsx` (새) | 36-2 |
+| `src/components/plan/GrowthScreen.tsx` · `GrowthSummaryTiles.tsx` · `CheckHistoryStrip.tsx` · `WeeklyBars.tsx` · `ResultRows.tsx` · `EvalRadarSection.tsx` · `GrowthCharts.tsx` · `GrowthSkeleton.tsx` (새) | 36-3 |
+| `src/components/plan/useGrowthData.ts` · `growthLogic.ts` · `growthCopy.ts` · `growthSkeletonSizes.ts` (새) | 36-3·36-5·36-6·36-13 |
+| `src/components/plan/PlanScreen.tsx` · `PlanSkeleton.tsx` | `PlanSwitch` 맨 위 · `GrowthSoonCard` 삭제 |
+| `src/components/plan/parts.tsx` | `GrowthSoonCard` → `AnalysisSoonCard` |
+| `src/components/plan/logic.ts` · `CalendarSection.tsx`(주석) · `planSkeletonSizes.ts`(주석) | 36-9 |
+| `src/types/plan.ts` | `GrowthResponse`·`GrowthDay`·`GrowthWeek`·`GrowthSkill`·`GrowthEvaluation`·`GrowthSummary`·`GrowthRange` 타입(서버·화면 공용 — 36-7 모양 그대로, `types/ask.ts` 선례) |
+| `src/components/plan/__tests__/` | `planLogic.test.ts`·`planSkeleton.test.ts` 갱신 + 새 `growthLogic.test.ts`(36-6 D·E 경계: 칸 상태 6종·`late`·읽기 줄 이번 주/지난 주/달 넘김/기록 전·막대 값 매핑·x 라벨 간격·추이선 조건·적음 안내 0/1/2축·평가 고르기·12주 둘째 줄) · `growthCopy.test.ts`(36-5 글자·금지 낱말) · `growthScreen.test.ts`(정적 렌더: 섹션 순서·`aria-labelledby`·`role=status` 1개·SVG `aria-hidden`·표 캡션·기록 전 축·평가 빈 상태 링크 `/study/today/eval/new`·역할극 링크 `/study/ai?tab=scenario`) · `planSwitch.test.ts`(nav 이름·`aria-current`·`replace`·placeholder inert·초점 기록 TTL) · `growthRoute.test.ts`(`plan/growth/` 에 page·loading 만, `(tab)` 안에 growth 없음, `plan/loading.tsx` 없음 유지) |
+
+**참고 — 서버·스크립트·정본(이 가이드 범위 밖, 담당 표기)**: `src/modules/infra/dates.ts`(36-10) · `src/modules/learning/snapshots/index.ts`(`DailyDelta.skills`·`mergeSkills`) · `src/modules/learning/snapshots/growth.ts`(새, `getGrowth`·판정 순수 함수) · `src/modules/learning/observations/index.ts`(`growthSkillDelta`·쓰기) · `src/modules/learning/scenarios/end.ts`(쓰기) · `src/modules/learning/index.ts`(내보내기) · `src/app/api/v1/plan/growth/route.ts`(새) · `scripts/backfill-growth-skills.ts`(새) · 36-10 질문 탭 파일들 — developer. `prompts/ask.ts` — PE. `api-contract.md`·`domain-model.md`·`learning-personalization…md`·결정 기록 — Leader.
+
+### 36-15. 구현 순서 · 배포 순서
+1. `infra/dates` `WEEK_START_DOW`·`weekStartOf` + 시험 → 달력(36-9) + 시험 → 질문 탭 범위(36-10, PE 문구 포함) + 시험.
+2. DAILY `skills` 칸: `growthSkillDelta`·`mergeSkills`·두 쓰기 경로 + 시험(규칙 표 행마다·신뢰도 0.6 경계·발음 교정 제외·채택/무시/자기수정 제외·모르는 키 보존).
+3. `getGrowth` + #78 라우트 + 시험(36-6 A·B·C 경계 전부: 19/20건·2/3일·4/5번·50/70/85%·±5%p·반 기간 19/20·L<2·`since` null·일요일/토요일 오늘·`skills` 없는 행·평가 형식 틀린 행 제외).
+4. 백필 스크립트(dry-run·top-up·멱등·날짜 묶기·잠금 순서) + 시험.
+5. 화면: `growthCopy`·`growthLogic`(+시험) → `PlanSwitch` → 부품들 → `GrowthScreen`·자리표시 → `PlanScreen`/`PlanSkeleton` 수정 → 라우트 파일. 자리표시 상수 실측(390·360·412).
+6. tsc · eslint · 전체 시험 · `npm run build`(출력 자르지 말 것) → reviewer → QA(36-16) → 배포(서버·화면 **한 릴리스** — 화면이 #78 새 모양에 기대므로 부분 롤백 금지) → **백필 dry-run 보고 → 사용자 승인 → 백업 → `--apply`** → 사용자 폰 확인.
+
+### 36-16. QA 대조표 · 실기기 확인
+**QA(시험 계정, 3폭 × 100·130%(px130) × 라이트·다크)**
+1. 성장 탭 데이터 3단계(적음 = 핵심 계정과 비슷한 13일·평가 0 / 보통 / 풍부 — 시험 계정에 없으면 시드 대신 정적 렌더 시험으로 대신하고 그렇게 적는다) × 기간 4·8·12주: 가로 넘침 0 · 44px 미만 터치 0 · 11px 미만 글자 0 · 엔진명 0 · 콘솔 오류 0 · `role=status` 정상 화면 1개·자리표시 1개.
+2. 숫자 = 직접 센 값: `summary`·`days`·`weeks` 를 DB 읽기(건수만)와 대조 — 연속 출석은 #70 `summary.streak` 와 같은 날 같은 값.
+3. 주 경계: 오늘이 일요일·토요일일 때 «이번 주»·읽기 줄·체크내역 마지막 열·질문 탭 `THIS_WEEK` 범위가 모두 같은 일~토.
+4. 축: 19/20건 · 2/3일 · 역할극 4/5번 경계에서 «아직…»↔단계 전환, 듣고 응답 늘 «기록 전», 교정 채택만 한 날은 축 숫자 불변.
+5. 백필: dry-run 출력에 내용·이름 0 · `--apply` 두 번째 실행 0건 · 백필 전·후 화면 모두 정상(전 = «아직 판단하기 일러요 · 관측 0건»류).
+6. 기간 바꾸기: 처음 고른 기간은 앞 내용 유지 + `aria-busy`, 다시 고른 기간은 즉시. 오류 → [다시 불러오기] 500ms 자리표시 → 초점 규칙(36-4 ④).
+7. 달력: 요일 머리 일~토 · 2026-10 앞 빈칸 4 · 2026-11 5줄 · 2026-05 6줄 · 챌린지 띠가 일요일에서 끊김 · 하루 시트·방향키·기록 지우기 회귀 없음 · 자리표시 줄 수 = 실제 줄 수.
+8. 분절: 달력↔성장 이동에 기록 안 쌓임(`replace`) · 이동 뒤 초점 = 지금 분절 · 자리표시 분절은 초점 안 감 · 하단 «계획표» 켜짐 유지 · 성장 탭에서 하단 «계획표» → 달력.
+9. 첫 화면(780): 100% 390·412 에서 체크내역 카드 끝까지, 130% 세 폭에서 체크내역 머리까지 보임. 자리표시 → 데이터 점프 ≤ 8px — **적음 안내가 «공부결과» 카드 안으로 옮겨졌으므로(L12) 적음 계정에서도 체크내역·주마다 공부량이 안내 때문에 밀리지 않아야 한다**(옛 +67/+66 → ≈0, 390·412·100%. 점검의 «안내 없음 + 늦게 시작» 행과 같은 배치라 같은 값이 나올 것 [가능성 높음 — QA 실측으로 확인·기록]). 알려진 한계로 남는 값만 기록: 기간 줄 1줄 계정 −18 · 360 숫자 칸 보조 글 접힘 +17/+38 · 130% +51/+90.
+10. 질문 탭: «이번 주» 칩·질문으로 받은 범위가 일~토(월요일에 물으면 어제 일요일 포함).
+11. **적음 안내 자리 (L12)**: 적음·0축 계정에서 안내가 «공부결과» 카드 안, 소개 줄 아래·첫 축 줄 위에 있고 숫자 카드 아래에는 없다 · 낭독 순서가 소개 → 안내 → 첫 축 · 안내 없는 계정(보통·풍부·`since=null`)에서는 빈 자리·빈 `p` 0 · 단계 보이는 축이 1개일 때 안내의 «지금은 ○○이 먼저…» 가 한쪽 증거 축을 가리키지 않음.
+12. **한쪽 증거 줄 (L11)**: 응답 고정값(문형·조사 `enough:true, oneSided:true, stage:null` n=119·3일 + 어휘 회상 단계 있음) × 360/390/412 × 100·px130 × 라이트·다크 — 줄 모양·두 문장이 36-5 글자와 같다 · 진행선·막대·숫자 줄(맞힘·틀림)·링크 0 · 오른쪽 «아직 판단하기 일러요» 가 잘리지 않음 · 가로 넘침 0 · 44px 미만 터치 0(누를 것 없음) · `!enough && oneSided:true`(n=3) 는 표본 부족 줄이 나오고 한쪽 증거 줄이 아님 · 한쪽 증거 축은 안내의 «보이는 축» 수에 들지 않음(단계 보이는 축 0개 + 한쪽 증거 1개 → 안내가 끝 절 없이 «…하나씩 보여요.») · `Waiting` 모순 문장(«모이면 단계가 보여요(지금 3일)») 이 어디에도 안 나옴.
+13. **달력 «오늘» 단추 (L13)**: 3폭 × 글꼴 100·130% 에서 눌림 높이 44px 이상(중심 ±21px `elementFromPoint` = 그 단추) · 눈에 보이는 알약 높이 32px 그대로 · 이웃(제목 `h2`·‹)과 눌림 겹침 0 · 이번 달일 때(`aria-disabled`)도 같음.
+14. **기간 왕복 (감사 L1)**: 4주에서 지난 주를 고르고 8주 → 4주로 돌아오면 «이번 주» · 지표 칩 선택은 유지 · 4→8→12→4 처럼 두 번 이상 오가도 늘 «이번 주».
+
+**실기기(사용자 폰 — QA 는 NOT_VERIFIED 로 넘긴다)**
+1. 계획표 탭 맨 위 [달력 | 성장], 달력 요일 «일 월 화 수 목 금 토», 10월 1일이 목요일 칸.
+2. [성장]: 숫자 카드 · 체크내역(일~토 일곱 줄) · 주마다 공부량 칩·막대 누르기·‹ › · [표로 보기].
+3. 공부결과: (백필 뒤) 어휘 회상 단계가 보이는지, 듣고 응답 «기록 전», 대화 유지 «끝낸 역할극 n번 · 5번이 되면…», **교정이 대부분인 축(문형·조사 등)의 «아직 판단하기 일러요 · 교정 기록이 대부분이라…» 줄(L11)**, 적음 안내가 «공부결과» 소개 줄 아래에 있는지(L12). 달력 «오늘» 단추가 손가락으로 잘 눌리는지(L13).
+4. AI 평가 점수 빈 상태 → [AI 평가 보러 가기] 이동(← 는 공부 탭으로 — 기존 동작).
+5. TalkBack: 분절 «현재 페이지», 읽기 줄이 «… 일요일부터 … 토요일까지»로 한 번 읽힘, 그림은 건너뜀.
+6. 폰 글꼴 크게 + 다크, 앱 WebView 와 Chrome 둘 다.
+7. 질문 탭에서 «이번 주에 뭐 공부했어?» — 일요일 기록이 들어가는지.
+
+### 36-17. 정정 · 데모와 코드 대조 · Leader 확인 필요 (가이드 확정 2026-10-20)
+**데모 개발 메모와 다른 곳(코드 근거)**
+- **① 출석 원천** [확실 — 쓰기 지점 전수 grep]: 데모 근거표 «연속 출석 = DAILY `attended`(출석 체크인이 씀)»는 틀렸다. `bumpDailySnapshot` 호출 8곳 어디도 `attended:true` 를 넘기지 않고 체크인(#25)은 `Attendance` 행만 쓴다 → DAILY `attended` 는 늘 `false`. 그래서 출석·연속·`since`·«출석만» 칸은 **`Attendance`** 에서 읽는다(#70 `summary.streak` 와 같은 원천). **L1**.
+- **② 자기수정 관측** [확실]: 데모 «SELF_CORRECTION 생산 코드 없음» → 회화 턴 코치 훅(`chats/[id]/turns/route.ts`)이 쓴다(지금 운영 0행 — Leader 집계 표에 없음). 승인 «대화 유지 = 역할극 완료만»에 따라 **세지 않는다**(단위도 «번»과 섞임). **L6**.
+- **③ 발음 교정** [확실]: `correctionSkill('PRONUNCIATION')` 이 `LISTEN_RESPOND` 축을 준다 → 성장 집계에서 제외(«기록 전» 문구가 거짓이 되지 않게).
+- **④ 숫자 줄 «일부»·«넘김» (화면 글 — 초안)**: 데모 `관측 N건(맞힘 · 틀림 · 넘김)` 은 합성 데이터에 «일부(PARTIAL)»가 없어서 생긴 모양이다. 실제로는 교정 제안 MINOR·수업 말하기 일부 맞힘이 PARTIAL 이라 [가능성 높음] 흔하다. 그래서 `관측 n건(맞힘 s · 일부 p · 틀림 f) · 넘김 k`(n = 판정된 관측, 넘김은 단계 계산에 안 들어가 괄호 밖)로 바꿨다. **L3**.
+- **⑤ 날짜 부족 문구 (화면 글 — 초안)**: Q3 A 는 «20건·3일»인데 데모에는 건수 문구만 있어 «관측 25건 · 20건이 되면 단계가 보여요» 같은 모순이 생긴다(첫날 세트 두 번이면 바로 생김) → `needDays` 한 줄 추가. **L3**.
+- **⑥ 12주 «기간을 늘리면…» (화면 글 — 빼기)**: 12주(최대)에서 평가가 기간 밖에만 있으면 거짓 안내 → 둘째 줄을 뺀다. **L3**.
+- **⑦ 「세요」(셈 뜻) 두 곳** [확실 — 데모 487·730행]: «…끝낸 역할극만 세요.» · «…기록(관측)을 세요.» — 2026-10-07 사용자 지적(셈 뜻 «세요»가 존댓말 명령으로 읽힘, `challenge/__tests__/copyNoSeyo.test.ts`)과 어긋난다. 이 가이드는 **승인 글 그대로**를 기본으로 두고, 바꿀 경우 안: «…끝낸 역할극만 계산해요.» · «…맞히고 틀린 기록(관측)으로 계산해요.» **L4**.
+- **⑧ 라디오 화살표 키**: 데모는 ←/→ 이동을 넣었지만 앱 `Segmented`·`ChoicePills` 는 칸마다 Tab 이라 앱 관례를 따른다(데모 v1 a11y Minor-2 와 같은 판단).
+- **⑨ 레이더 라벨 여백**: 데모는 글꼴 배율 `--fz` 를 알아 여백을 바꿨지만 앱은 배율을 모른다 → 130% 기준 여백(84px)으로 고정(100% 에서 레이더가 데모보다 약간 작다).
+- **⑩ 분절 아래 간격**: 데모 `.psw` 아래 12px + 챌린지 카드(여백 0) = 12px. 실제 `ChallengePlanCard` 는 `mt-3` 을 가져 `mb-0` 으로 맞춘다(36-2).
+- **⑪ 줄 수 바뀌는 달**: 데모는 2026년 4개 달만 적었다 → 2027-01(5→6)·2027-02(4→5) 추가(36-9).
+- **⑫ 데모 «처음·기록 부족» 은 분석 탭 상태** — 이번 범위 아님.
+- 일치 확인(정정 없음): 지표 6개 순서·단위, 단계 4칸 경계 50/70/85, Q3 A 숫자(20·3·5·20·3·±5%p), 추이선 «8주 이상·주 5건», 기간 4/8/12 기본 4, 주 시작일 계산(4주 09-27·8주 08-30·12주 08-02), 섹션 순서·제목, `globals.css` 토큰 값.
+
+**Leader 확인 필요**
+- **L1** #78 원천에 `Attendance` 포함(«스냅샷만» 원칙 문구에 예외 한 줄)으로 갈지, 아니면 체크인이 DAILY `attended` 도 쓰게 고치고 과거를 `Attendance` 로 백필할지. 권고: 전자(쓰기 경로 변경 없음, `Attendance` 는 삭제 경로 없음).
+- **L2 [가능성 높음] 한쪽 증거 편향**: 승인 규칙대로면 교정 제안(전부 틀림·일부)이 문형·조사·문장 산출 축에 들어가는데, 대화에서 **맞게 쓴 문장은 관측이 남지 않는다** → 대화를 많이 한 사용자일수록 두 축이 «시작 단계»로 보일 수 있다(운영 관측 676행 중 교정 제안 277행). 권고: 백필 dry-run 의 «축별 단계 분포»를 보고 사용자에게 보일지 정한다. 바꾸려면(예: 교정 제안을 단계에서 빼기) 승인 규칙 변경이라 사용자 확인.
+- **L3** 36-17 ④⑤⑥ 화면 글(데모에 없던 «일부»·«넘김» 위치·날짜 부족 한 줄·12주 줄 빼기)을 이대로 둘지 — 구조 변화는 없고 글 조각 수준이라 재승인 없이 가도 된다는 의견 [가능성 높음]. Leader 가 재승인이 필요하다고 보면 v5.
+- **L4** «세요» 두 곳(⑦) — 사용자 기존 규칙을 적용할지.
+- **L5** 차트 색: `--protein` 한 색 단계 사용(§1-1 «Phase 3 분석 차트에서 재검토» 항목의 결론) · 혼합 2단계를 `globals.css` 토큰(예 `--chart-1/2`)으로 올릴지 — 기본은 코드 상수(36-11), 토큰 파일 변경 없음.
+- **L6** 자기수정 관측 제외(②) 확인.
+- **L7** 36-7 초안을 정본 #78 에 반영(값 집합 4/8/12·기본 4·`errorTrend` 제거·새 필드).
+- **L8** 질문 탭: PE 프롬프트 문구·버전(`ask@v2` → ?), 정본 §2-18-A 5항 «일~토».
+- **L9** 정본 갱신: domain-model §9-3 DAILY `skills` 칸 · learning-personalization §2-3(Q4 B — `LearnerSkillState` 표 대신 DAILY 칸, 단계 = 이 절 규칙) · schema 주석 «성장기록·분석은 StatsSnapshot 에서만»(성장 = 스냅샷 + 출석, 분석 입력 범위는 후속) · 결정 기록(주 시작 일요일 — 2026-10-01 c=B 대체).
+- **L10** 백필 `--apply` 사용자 승인(배포 뒤, dry-run 보고와 함께).
+
+### 36-17-1. Leader 결정 (2026-10-20 — 위 L1~L10 에 대한 답, developer 는 이대로 구현)
+- **L1** 전자: #78 원천에 `Attendance` 를 포함한다(체크인 쓰기 경로 변경 없음). 정본 머리말에 «출석은 `Attendance`» 예외 한 줄 — Leader 가 반영.
+- **L2** 승인된 규칙 그대로 구현한다. 한쪽 증거 편향은 **백필 dry-run 의 «축별 단계 분포(계정별 숫자)»** 를 사용자에게 보고한 뒤 표시 정책을 정한다(구현에서 규칙을 바꾸지 않음).
+- **L3** ④⑤⑥ 글 조각(«일부»·«넘김» 위치, `needDays` 한 줄, 12주 둘째 줄 빼기)은 **사실과 모순을 막는 정정**이고 구조 변화가 없다 → 데모 v5 없이 구현하되 **사용자에게 전·후 문구를 공개**한다(되돌리기 쉬움).
+- **L4** 사용자 기존 규칙(2026-10-07, 셈 뜻 «세요» 금지)을 **적용**한다 — 두 곳을 대안 문구(«…끝낸 역할극만 계산해요.» · «…맞히고 틀린 기록(관측)으로 계산해요.»)로 구현하고, `challenge/__tests__/copyNoSeyo.test.ts` 와 같은 규칙의 시험이 `growthCopy.ts` 도 훑게 한다. 사용자에게 승인 글과 다름을 보고한다.
+- **L5** 차트 색은 코드 상수(`--protein` 혼합), `globals.css` 토큰 파일은 바꾸지 않는다.
+- **L6** 자기수정 관측은 대화 유지 축에서 제외 확인.
+- **L7·L9** 정본(`api-contract.md` #78·§2-18-A·`domain-model.md` §9-3·`learning-personalization` §2-3·`design-spec.md` §7-6·결정 기록)은 Leader 가 갱신한다. developer 는 이 절(36-6~36-8)을 응답·집계 사양으로 먼저 따른다.
+- **L8** 질문 탭 프롬프트 문구 `SCOPE_KO.THIS_WEEK` 변경(한 줄)과 `ask` 프롬프트 버전 증가·Prompt Registry 동기화는 **developer 가 기존 관례대로 처리**하고 reviewer 가 검증한다(prompt-engineer 소환 생략 — 날짜 범위 설명 한 줄).
+- **L10** 백필 `--apply` 는 배포 뒤 dry-run 보고와 함께 **사용자 승인을 받은 뒤에만**(Leader). 구현 단계에서는 dry-run 과 시험까지만 하고 `--apply` 를 실행하지 않는다.
+
+### 36-17-2. 감사·점검 뒤 사용자 결정 (2026-10-21 — developer 수정 라운드의 사양)
+사용자 응답(AskUserQuestion, 세 질문 모두 권고대로): **L11 C 규칙 · L12 «적음 안내» 위치 이동 · L13 «오늘» 단추 44px 같이 수정**.
+- **L11 한쪽 증거 편향 — C 규칙(사용자 결정)**: 판정된 관측(맞힘·일부·틀림)의 **90% 이상이 교정에서 온 것**(`CORRECTION_PROPOSED`·`CORRECTION_REUSED`)이면 그 축은 단계를 보이지 않고 «아직 판단하기 일러요» 로 둔다. 교정 제안은 틀린 문장만 기록하고 맞게 쓴 문장은 기록이 남지 않아서(dry-run 실측: 한 계정의 문형·조사 n=119·0단계, 교정 제안 틀림이 거의 전부) 생기는 편향을 막는다.
+  - **저장**: DAILY `data.skills[axis]` 에 선택 칸 `fromCorrection`(정수, 증가만) — 판정된 관측(`success`·`partial`·`fail` 로 센 것) 중 `CORRECTION_PROPOSED`·`CORRECTION_REUSED` 에서 온 개수. `uncertain`·`skipped` 는 세지 않는다. `growthSkillDelta`·`mergeSkills`·백필 top-up(`fromCorrection` 칸도 `max(0, R−C)`)에 같은 규칙. 옛 행(칸 없음)은 0 → 판정에 영향 없음(백필 전 = 승인 규칙 그대로).
+  - **판정(서버, 정수 비교)**: `n = s+p+f`, **`oneSided = recorded && enough && 10·fromCorrection ≥ 9·n`**(기간 합 — Leader 수정 2026-10-21: 표본이 충분할 때만 참, `!enough` 이면 항상 거짓이라 «표본 부족» 줄이 먼저·표본이 차면 «한쪽 증거» 줄로 바뀜). **`oneSided` 이면 `stage = null`·`trend = null`·`spark = []`** (`enough` 는 건수·날짜 기준 그대로 — 단계만 숨김).
+  - **응답(#78 additive)**: `skills[].oneSided: boolean`(항상 있음, `recorded=false` 면 false). 정본 api-contract #78 도 같은 내용으로 갱신됨.
+  - **화면**: `oneSided` 행은 «표본 부족» 행과 같은 모양에 **다른 문구**(«아직 판단하기 일러요» + 교정 기록이 대부분이라 단계를 보이지 않는다는 한 줄 + 어떤 공부를 하면 단계가 보이는지). 진행선은 그리지 않는다(건수는 채워졌으므로). → **확정 사양: 36-4 ⑩ · 줄 모양 순서 / 36-5 `axisOneSided`·`axisOneSidedSub` / 36-11 «한쪽 증거 줄» / 36-12 낭독 (2026-10-21 designer 보강, 36-17-3 ①)**.
+- **L12 «적음 안내(`fewNote`)» 위치**: 숫자 카드 아래 → **«공부결과» 섹션 소개 줄 아래**(사용자 결정, 데모 v4 와 배치가 달라짐 — 사용자 응답으로 승인). 목적: 첫 화면 밀림 0(체크내역·주별 공부량이 위에 있어 안 밀림). 자리표시는 안내 자리를 예약하지 않는다(백필 뒤 일부 계정에서 거꾸로 밀림이 생기므로). → **확정 사양: 36-3 의사코드 · 36-4 ②a · 36-6 E · 36-11 · 36-12 · 36-13 (36-17-3 ②)**.
+- **L13 달력 «오늘» 단추**: 터치 높이 42px → **44px 이상**(기존 2026-10-03 부터의 결함, 같은 파일을 이미 수정 중이라 이번에 함께). → **확정 사양: 36-9 표 «오늘» 단추 행 (36-17-3 ③)**.
+- **감사 수정(REV-080-S/U·디자인 점검)**: 화면 L1 — 기간을 바꾸면 «고른 주» 는 이번 주로 돌아간다(사양 36-6 D, 4→8→4 왕복 포함) · 읽기 줄의 굵은 값 조각에 `whitespace-nowrap`(«공부한 / 날 2일» 중간 접힘 방지) · `useGrowthData` 상태 기계 시험(M1: 재시도 500ms 유예·기간별 캐시·오류 잊기·언마운트)·‹ › 끝 칸 `aria-disabled`·클릭 방어 시험(L2)·`copyNoSeyo.test.ts` 정규식에 조사 «만·을·를» 보강(L3) · 서버 L-1 `.gitignore` 에 `backups/`·스크립트 기본 백업 폴더 안내 · L-2 시험 제목 정정·L-4 `longestRunOfDates` 중복 시험이 가드를 지우면 실패하게 보강. **문서 정정(디자이너)**: 분절 아래 12px·카드 사이 18px(데모는 공용 CSS 가 겹쳐 18·10px 로 그려졌음)·초점 링은 브라우저 기본 링(accent 2px 아님 — 라이트·다크 모두 잘 보임). → **반영 완료: 36-2 · 36-11 «간격 정정» · 36-12 · 36-17-3 ⑬⑭**; 읽기 줄 굵은 값 `whitespace-nowrap` → 36-11 «읽기 줄»; 기간 왕복 → 36-6 D(감사 L1 문장 보강)·36-16 14.
+
+### 36-17-3. 보강 (designer, 2026-10-21) — L11·L12·L13 화면 사양 · 점검 정정 · 확인 필요
+**승인 데모 v4 는 그대로**이고 새 데모 버전은 없다(사용자가 L12 를 권고대로 결정). 이 절은 36-17-2 의 결정을 화면 사양으로 풀어 쓴 **색인 + 확정 글 + 확인 필요**이고, 사양 본문은 해당 소절(36-3~36-13·36-16)에 있다. 기록: [[task-080-designer-addendum-record]].
+
+**A. 화면 사양 보강**
+- **① 한쪽 증거 줄 (L11)** — 36-4 ⑩ · 줄 모양 순서 / 36-5 / 36-11 / 36-12. 모양은 «표본 부족» 줄에서 진행선만 뺀 것(아래 도식, 390px 가정). 글 전문(글자 그대로):
+  ```
+  한쪽 증거 줄 (enough && oneSided)             표본 부족 줄 (모양 비교용, 진행선 있음)
+  ──────────────────────────────────            ──────────────────────────────────
+  문형·조사              아직 판단하기 일러요    문형·조사              아직 판단하기 일러요
+  조사·활용·문형을 맞게 쓰기                     조사·활용·문형을 맞게 쓰기
+  교정 기록이 대부분이라 단계를 보이지           관측 12건 · 20건이 되면 단계가 보여요
+  않아요.                                        수업 문제와 대화 교정에서 쌓여요
+  수업 문제도 풀면 단계가 보이기 시작해요.      ▬▬▬▭▭▭▭▭  (진행선 — 한쪽 증거 줄엔 없음)
+  ```
+  - 오른쪽 글 = 기존 `tooEarly` «아직 판단하기 일러요» · 본문 = **«교정 기록이 대부분이라 단계를 보이지 않아요.»** · 안내 = 축마다 — 어휘 회상 **«오늘의 단어나 수업 문제도 풀면 단계가 보이기 시작해요.»** / 문형·조사 **«수업 문제도 풀면 단계가 보이기 시작해요.»** / 문장 산출 **«수업 «말하기» 과제도 하면 단계가 보이기 시작해요.»**. 체 = «…해요», 셈 뜻 «세요» 0, 급수·엔진명·«관측»·«맞힘»·«틀림» 0, 축 이름을 문장에 끼우지 않아 조사 처리 없음(`fewNoteAxis` 같은 함수 불필요 — 축마다 문장째 상수).
+  - **숫자 줄을 그리지 않는 까닭**: 이 줄이 막으려는 것이 «맞힘 0 · 틀림 119» 같은 한쪽 숫자가 단계처럼 읽히는 일이다. 건수만 따로 보이는 것도 «관측 119건이 쌓였는데 왜 단계가 없지?» 를 부른다 — 이유는 본문이 말하고 해결은 안내가 말한다.
+  - **안내에 «역할극»을 넣지 않았다** (요청 예시 «수업 문제·역할극 등» 과 다름): 역할극 완료는 «대화 유지» 축에만 쌓이고(36-8 규칙 표) 그 축은 교정(`correctionSkill` 이 어휘 회상·문형·조사·문장 산출·듣고 응답 중 하나로 보냄)이 쌓이지 않아 `oneSided` 가 될 수 없다 — 역할극을 권하면 이 줄의 해결책이 아니라 다른 축 이야기가 된다. 이 줄이 나올 수 있는 축은 어휘 회상·문형·조사·문장 산출뿐이다.
+- **② 적음 안내 자리 (L12)** — 숫자 카드 아래 → «공부결과» 카드 안 소개 줄 아래·첫 축 줄 위. 36-3(의사코드·부품 props) · 36-4 ②a · 36-6 E · 36-11 · 36-12 · 36-13 · 36-16 9·11. **센 기준이 `enough` 에서 `stage !== null` 로 바뀐다**(한쪽 증거 축을 «보이는 축»으로 세지 않기 위해 — 36-6 E). 자리표시는 안내를 예약하지 않는다(36-13) — 체크내역·주마다 공부량은 안내 위쪽이라 밀리지 않고, 안내 아래 내용만 내려가는 것이 정상이다.
+- **③ «오늘» 단추 (L13)** — 36-9 표: `before:-inset-y-1.5` → `before:-inset-y-[7px]` 한 토막(눌림 42 → 44px, 보이는 모양 불변). ‹ › 와 보이는 높이는 맞추지 않는다(눌림 높이만 셋 다 44).
+- **④ 안내 문구가 새 자리에서 읽히는 모양**: 소개 줄 «공부하며 맞히고 틀린 기록으로 계산해요.» 바로 뒤에 «기록 13일째예요. 능력 단계는 기록이 모이는 대로 하나씩 보여요 — 지금은 <b>어휘 회상</b>이 먼저 보이기 시작했어요.» 가 이어진다. 뜻은 **새 자리에서 더 잘 맞는다** — «지금은 어휘 회상이 먼저…» 가 가리키는 줄이 바로 아래에 있다(옛 자리에서는 화면 아래 먼 곳을 가리켰다). 걸리는 곳은 하나, **«능력»**: 카드 제목은 «공부결과», 줄 오른쪽 글은 «익히는 중»·«아직 판단하기 일러요» 로 «단계»만 쓰고 «능력» 은 이 안내 한 곳(+ 듣고 응답 줄의 «아직 이 능력을…») 뿐이라, 제목 바로 아래에서는 낱말이 겉돈다. **글자는 승인 그대로 둔다(기본)**. 고친다면 제안(사용자 확인 필요): `fewNote` 의 «능력 단계는» → **«단계는»** (예: «기록 13일째예요. 단계는 기록이 모이는 대로 하나씩 보여요 — 지금은 어휘 회상이 먼저 보이기 시작했어요.»), `notRecordedBody` «아직 이 능력을…» → «아직 이 항목을…» (36-18 의 «능력» 잔존 문구 정리 후보와 같은 방향).
+
+**B. 정정 ⑬~⑯ (36-17 의 ①~⑫ 에 이어 번호를 잇는다 — 디자인 점검 [[task-080-designer-check-record]] 반영)**
+- **⑬ 간격**: 데모 성장 탭의 실제 렌더는 분절 아래 **18px**(`.psw{margin-bottom:12px}` 와 `.sec{margin-top:18px}` 가 겹침)·카드 사이 **10px**(`.cd + .cd{margin-top:10px}` 가 `.sec` 를 이김)였다. 사양은 분절 아래 12px(`mt-3`)·카드 사이 18px(`mt-[18px]`)이고 구현도 그렇다 — **사양 우선, 조치 없음**(전체 높이 +24px 안팎). 36-2 의 «데모 `.psw` 아래 12px 와 같다» 는 **달력 탭 기준**이다. 36-11 «간격 정정».
+- **⑭ 초점 링**: 36-12 의 옛 문장 «전역 `:focus-visible`(accent 2px)» 은 틀렸다 — `globals.css` 에 focus 규칙이 없고 앱 전체가 브라우저 기본 링을 쓴다(실측: 라이트·다크 모두 잘 보임). 이 화면에서 따로 만들지 않는다. 36-12 정정.
+- **⑮ 읽기 줄 굵은 값**: 390px 에서 값 조각이 «· 공부한 / 날 2일» 로 갈라졌다 → 값 조각에 `whitespace-nowrap`. 36-11 «읽기 줄».
+- **⑯ 한쪽 증거와 기존 코드의 충돌 두 곳**: ⓐ `ResultRows` 는 `stage === null` 이면 `Waiting` 으로 보내는데 한쪽 증거 줄은 `enough` 가 참이라 «관측 119건 · 3일에 걸쳐 모이면 단계가 보여요(지금 3일)» 같은 **자기모순 문장**이 나온다 → 분기를 `Waiting` 앞에 둔다(36-4 줄 모양 순서). ⓑ `fewNoteOf` 가 `enough` 로 보이는 축을 세는데 한쪽 증거 축은 `enough` 이면서 단계가 안 보인다 → `stage !== null` 로 센다(36-6 E).
+
+**C. 수정 라운드가 건드리는 화면 파일 (`src/**` — developer)**
+`src/types/plan.ts`(`GrowthSkill.oneSided`) · `components/plan/growthCopy.ts`(새 글 2개) · `growthLogic.ts`(`fewNoteOf` 기준, 줄 모양 고르는 순수 함수 하나 — 시험 대상) · `ResultRows.tsx`(`fewNote` prop·한쪽 증거 분기) · `GrowthSummaryTiles.tsx`(안내 제거) · `GrowthScreen.tsx`(`fewNoteOf` 계산·전달) · `WeeklyBars.tsx`(기간 왕복·읽기 줄 값 `whitespace-nowrap`) · `CalendarSection.tsx`(«오늘» 단추) · `growthSkeletonSizes.ts`(**주석만** — 옛 «적음은 체크내역이 67px 내려간다» 정정, 상수는 그대로) · `__tests__/growthFixtures.ts`(`oneSided:false` 채우기 + 한쪽 증거 고정값) · `growthCopy.test.ts`·`growthLogic.test.ts`(`fewNoteOf` 새 기준·한쪽 증거 케이스·기간 왕복)·`growthScreen.test.ts`(적음 시험의 안내 위치·한쪽 증거 정적 렌더).
+
+**D. 사용자·Leader 확인 필요**
+1. **안내 센 기준 변경**(`enough` → `stage !== null`, ② · 36-6 E) — L12 사양에 딸린 논리 수정이라 Leader 확인만(글·배치 변화 없음).
+2. **줄 선후**: `!enough` 가 `oneSided` 보다 먼저(36-4). 서버 `oneSided` 가 `enough` 와 무관하게 계산되면 관측 몇 건뿐인 새 사용자도 `oneSided=true` 가 될 수 있기 때문이다 → **Leader 결정(2026-10-21): 서버가 `enough` 일 때만 `oneSided` 를 참으로 보낸다**(사양 36-17-2 수정 — 화면의 순서는 방어로 유지). 대가: 20건이 되기 전에는 «20건이 되면 단계가 보여요» 가 보이고, 20건·3일을 채운 뒤에야 «교정 기록이 대부분이라…» 로 바뀐다(한 번 말이 바뀜). 대안은 `oneSided` 우선(새 사용자에게도 처음부터 이유를 말하지만 진행선이 일찍 사라짐). 서버 쪽에서 `enough=false` 면 `oneSided=false` 로 보내도 같은 결과다(Leader 선택). [가능성 높음] 현재 사양이 낫다 — Leader 문구 «건수는 채워졌으므로» 와 같은 전제.
+3. **새 글(L11)** — 승인 데모에 없던 글이라 사용자에게 **전·후 공개**: 본문 «교정 기록이 대부분이라 단계를 보이지 않아요.» · 안내 3개(위 ①). L3 선례(글 조각 수준은 재승인 없이)를 따를지 Leader 판단.
+4. **안내에 «역할극» 제외**(요청 예시와 다름 — ① 까닭 참조).
+5. **`fewNote`·`notRecordedBody` 의 «능력»**(④) — 기본은 승인 글 유지, 바꾸려면 사용자 확인.
+6. **[단계는 이렇게 정해요] 여섯째 줄 제안(확정 아님)**: «교정으로 남은 기록이 대부분이면 단계를 보여 주지 않아요. 교정에는 틀린 문장만 남기 때문이에요.» — 한쪽 증거 줄을 본 사람이 펼쳤을 때 이유를 한 번 더 읽게 하는 줄. 사용자 확인 전에는 `GROWTH.how` 를 바꾸지 않는다(지금 5줄 그대로, `how(min, minSession)` 시험 5줄 단언 유지).
+
+### 36-18. 후속 · 범위 밖 · 문서 갱신 항목
+**후속(구현 금지)**: 분석 탭 `/plan/analysis`(A8 프롬프트·#74~#77·잡·7상태 — 데모 «범위: 분석 포함(나중)» 설계 보존, 분석 탭 문구의 «단어 세트» 3곳(데모 495·892·901행) 정리 포함) · 공부계획서 · 수준 이력(Q5) · «듣고 응답» 관측 기록 코드(생기면 `GROWTH_AXIS_RECORDED.LISTEN_RESPOND=true`) · 자기수정·대화 유지 관측을 대화 유지 축에 넣을지 · «능력» 잔존 문구 정리(«능력 단계는…» → 예 «공부결과는…», «아직 이 능력을…» → 예 «아직 이 항목을…» — v4 기록 §3 후보, 사용자가 범위를 정하면 별도 변경. **L12 로 안내가 «공부결과» 카드 안으로 옮겨져 어긋남이 더 눈에 띈다 — 36-17-3 ④ 가 «단계는…» 안을 제안, 사용자 확인 전까지 승인 글 유지**) · `PlanSwitch`·`DrawerSwitch` 공용화 · 체크내역 1단 색 대비(2.27:1) 개선 · 오늘 첫 진입 때 출석 체크(`AttendancePing`)보다 #78 이 먼저 끝나면 연속 출석이 하루 적게 보일 수 있음(#70 달력도 같음 — 알려진 한계) · 달력 «이번 달 공부 N일»(기록 기반 — 질문 포함·지우면 줄어듦)과 성장 «공부한 날»(스냅샷 기반 — 질문 제외·불변)이 다를 수 있음(이름이 같아 헷갈릴 수 있음 — 사용자 반응 보고 정리).
+**이 문서에서 고칠 곳(구현 뒤 designer/Leader)**: §1-1 `--carb/--protein/--fat` 줄(성장 차트가 `--protein` 단계를 씀 — L5 결론) · §2 계획표 행(이번 가이드와 함께 «task-080(§36)» 표기를 더함 — 구현 완료 시 «구현 전» 지움) · §17-1 ②(`plan/growth/loading.tsx` 추가)·③(「분석 · 성장 기록」 카드 예시 삭제) · §17-1 ④ 상수 모듈 목록에 `plan/growthSkeletonSizes.ts`.
