@@ -26,7 +26,7 @@
  * 실행(전용 미러, 한 번에 하나): cd ~/.node-local/thekaiwa-pe078 && OUT=<결과.json> node --env-file=.env --import tsx tests/prompts/topic-words-level-live.ts
  * 환경: OUT · TOPIC(주제 key, 기본 weekend-plan) · TARGET=10 · GAP_MS=1500(최소 1500) · PLAN=diag|improve · MAX_CALLS=15(improve 25) · RESUME=1(OUT 의 끝난 호출은 건너뜀) · DRY=1 · DUMP=1
  *       ARM=base(기본, 운영 프롬프트 그대로)|v3(개선 변형) · STAGE=1(improve 의 N2×10 만)|2(N3×6·N5×6·대조×3 — 1단계가 합격선 이상일 때만)
- *       ※ v3 반영 뒤 `ARM=base` = 현재 운영(`topicWords@v3`)이다 — 진단의 v2 기준선은 이 도구로 재현되지 않고 진단 결과 JSON 에만 있다.
+ *       ※ v3 반영 뒤 `ARM=base` = 그 시점의 운영 프롬프트다(task-079 에서 v4 가 들어간 뒤로는 `topicWords@v4`) — 진단의 v2 기준선은 이 도구로 재현되지 않고 진단 결과 JSON 에만 있다.
  *
  * ── 개선 단계(task-078 PE 개선, `pe-078-improve`) ────────────────────────────────────────────
  * `ARM=v3` 는 **운영 파일을 바꾸지 않고** 운영 `SYSTEM_PROMPT` 위에 `VARIANT_EDITS` 치환 3곳만 얹어 잰다(앵커가 정확히 1번 나오지 않으면 던진다 — 운영 프롬프트가 바뀌었다는 뜻).

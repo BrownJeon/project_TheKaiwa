@@ -106,8 +106,13 @@ function promptCharsOf(req: ReturnType<typeof buildTopicWordsRequest>): number {
  * 문구를 줄여 다시 재지 않는다(task-078 Leader 결정 L8 — 측정 예산 밖, 합격 여유가 더 얇아질 위험).
  */
 const V3_SYSTEM_GROWTH = 317
-const NORMAL_PROMPT_MAX = 3_500 + V3_SYSTEM_GROWTH
-const FULL_EXCLUDE_PROMPT_MAX = 5_000 + V3_SYSTEM_GROWTH
+/**
+ * v4 `meaningKo` 지시(task-079, IMP-0055)로 늘어난 글자 수(1,943 → 2,096). v3 와 같은 방식으로 상한에 더한다.
+ * 근거: 같은 입력으로 v3·v4 를 교차 실행한 PE 라이브 측정(짝 20회)에서 출력 길이·지연이 v3 대비 +15% 이내(task-079 PE 기록).
+ */
+const V4_SYSTEM_GROWTH = 153
+const NORMAL_PROMPT_MAX = 3_500 + V3_SYSTEM_GROWTH + V4_SYSTEM_GROWTH
+const FULL_EXCLUDE_PROMPT_MAX = 5_000 + V3_SYSTEM_GROWTH + V4_SYSTEM_GROWTH
 
 test('픽스처: 시드 5주제(N5×3·N4×2, 기본 표현 12개씩) · 케이스 30 · 응답 18', () => {
   assert.equal(fixture.topics.length, 5)
@@ -118,8 +123,8 @@ test('픽스처: 시드 5주제(N5×3·N4×2, 기본 표현 12개씩) · 케이�
   assert.equal(new Set(fixture.cases.map((c) => c.id)).size, 30)
 })
 
-test('버전·task 이름: topicWords@v3 · task=topicWords(LLM_TASKS 에는 developer 가 추가)', () => {
-  assert.equal(TOPIC_WORDS_PROMPT_VERSION, 'topicWords@v3')
+test('버전·task 이름: topicWords@v4 · task=topicWords(LLM_TASKS 에는 developer 가 추가)', () => {
+  assert.equal(TOPIC_WORDS_PROMPT_VERSION, 'topicWords@v4')
   assert.equal(TOPIC_WORDS_TASK, 'topicWords')
 })
 
@@ -170,8 +175,8 @@ for (const c of fixture.cases) {
   })
 }
 
-test('프롬프트 길이 실측 기록(v3): system 고정부 ≈1.94K(v2 1.63K, 난이도 지시 +0.32K) · 정상(제외 12~90개) 3.09K~3.70K · 상한(300개·2,000자) ≈5.07K', () => {
-  assert.ok(TOPIC_WORDS_SYSTEM_CHARS < 2_000, `system ${TOPIC_WORDS_SYSTEM_CHARS}자`)
+test('프롬프트 길이 실측 기록(v4): system 고정부 ≈2.10K(v3 1.94K, meaningKo 지시 +0.15K · v2 1.63K) · 정상(제외 12~90개) 3.24K~3.85K · 상한(300개·2,000자) ≈5.22K', () => {
+  assert.ok(TOPIC_WORDS_SYSTEM_CHARS < 2_200, `system ${TOPIC_WORDS_SYSTEM_CHARS}자`)
   const lens = fixture.cases.filter((c) => !c.expect.error).map((c) => ({ id: c.id, n: promptCharsOf(buildTopicWordsRequest(inputOf(c))) }))
   const normal = lens.filter((x) => x.id !== 'tw21')
   assert.ok(Math.max(...normal.map((x) => x.n)) <= NORMAL_PROMPT_MAX)
@@ -246,6 +251,27 @@ test('system 프롬프트 v3 문구 고정(task-078, REV-078 F-1): 줄 뼈대 ·
 
   // [출력] 예시의 키 순서 = 스키마 required 순서(입력 블록 5줄·스키마 8키는 위 빌더·스키마 시험이 고정한다).
   assert.deepEqual([...out.matchAll(/"(\w+)":/g)].map((m) => m[1]), ['words', 'textJa', 'reading', 'meaningKo', 'chunkType', 'jlpt', 'valid', 'exampleJa', 'exampleKo'])
+})
+
+test('system 프롬프트 v4 문구 고정(task-079, IMP-0055): meaningKo 줄 — 보조 뜻 문턱·한자음 뒤집기 금지·활용형 반복 금지·확신 없으면 하나 · v3 문구(1~3개)가 돌아오지 않는다', () => {
+  // 라이브 수치(보조 뜻 어색·틀림 비율)는 시험으로 고정할 수 없지만 그 수치를 낸 문구는 고정할 수 있다. 문구를 바꾸면 다시 재고 이 시험도 고친다.
+  const sys = buildTopicWordsRequest({ topic: { title: '호텔 체크인', level: 'N3' }, targetCount: 10, exclude: [] }).system
+  const hit = sys.split('\n').filter((l) => l.startsWith('- meaningKo: '))
+  assert.equal(hit.length, 1, 'meaningKo 줄은 하나')
+  const line = hit[0]
+  for (const s of [
+    '한국에서 실제로 쓰는 가장 흔한 낱말로 짧게',
+    '쉼표 뒤 보조 뜻(최대 2개)은 흔히 쓰는 낱말이고 첫 뜻과 다른 뜻을 더해 줄 때만 붙입니다',
+    '예: 定食 → 정식, 한 끼 식사',
+    '한자음을 뒤집거나 비슷한 다른 낱말로 바꾸지 않고',
+    '같은 말의 어미·활용만 바꾼 뜻은 붙이지 않으며',
+    '확신이 없으면 첫 뜻 하나만 씁니다',
+    '설명문·일본어·괄호 병기 금지',
+  ]) assert.ok(line.includes(s), `meaningKo 줄: «${s}»`)
+  assert.ok(!sys.includes('1~3개, 쉼표로 구분'), 'v3 문구(1~3개를 채우도록 읽히는 지시)가 돌아오지 않는다')
+  // 이 변경은 meaningKo 줄 하나뿐이다 — 다른 지시(수준 범위·난이도·jlpt·reading·example)는 task-078 측정 그대로.
+  assert.ok(sys.includes('- 난이도: [수준]은 학습자가 배우려는 난이도입니다.'))
+  assert.ok(sys.includes('- jlpt: [수준]과 같거나 한 단계 위·아래 급수만 냅니다'))
 })
 
 test('이번 초점: variant 로 8방향을 돌린다 · 생략하면 제외 개수 ÷ 목표 장수로 어림 · 음수·NaN 은 0 · 같은 입력은 같은 요청', () => {

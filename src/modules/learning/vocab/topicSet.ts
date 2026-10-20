@@ -111,6 +111,9 @@ export interface TopicWordsAssembled {
   words: TopicWordCandidate[]
   received: number
   droppedByReason?: Partial<Record<string, number>>
+  /** (v2) 통과한 단어 중 예문이 null 이 된 수와 사유별 개수 — Trace 계측용(task-079, IMP-0056). 선택 칸: 없는 driver 도 받는다. */
+  exampleNulled?: number
+  exampleNulledByReason?: Partial<Record<string, number>>
 }
 
 /** 라우트가 conversation 으로 만들어 넘기는 함수 묶음 — `build` 는 요청 값만 만들고, `assemble` 은 항목 검사 ①~⑦(순수). */
@@ -542,9 +545,12 @@ export async function runTopicWords(deps: TopicWordsRunDeps, args: RunTopicWords
     const assembled = args.driver.assemble(r.data, { level, exclude, excludeMeanings: args.material.chunkMeanings })
     const words = recheckTopicWords(assembled.words, exclude)
     const dropped = Object.entries(assembled.droppedByReason ?? {}).map(([k, v]) => `${k}=${v}`).join(',').slice(0, 120)
+    // 예문 null 통계(IMP-0056) — `dropped` 와 같은 방식: 개수와 고정 사유 코드만(단어·예문 원문 없음). 개수는 숫자 칸, 사유별은 문자열 칸.
+    const exampleNulledBy = Object.entries(assembled.exampleNulledByReason ?? {}).map(([k, v]) => `${k}=${v}`).join(',').slice(0, 120)
     steps.push({
       name: 'A12', ms: deps.now() - startedAt, lane, connection: r.connectionKey ?? null, model: r.model ?? null, attempts: r.attempts ?? 1, promptChars: r.promptChars ?? null,
       target: targetCount, received: assembled.received, kept: words.length, dropped: dropped || null, promptVersion: args.driver.promptVersion,
+      exampleNulled: assembled.exampleNulled ?? null, exampleNulledBy: exampleNulledBy || null,
     })
     if (!words.length) {
       result = { ok: false, reason: 'INVALID' }

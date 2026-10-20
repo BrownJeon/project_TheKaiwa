@@ -14,6 +14,9 @@ export type ChunkType = (typeof CHUNK_TYPES)[number]
 export type SpeechStyle = (typeof SPEECH_STYLES)[number]
 export type JlptLevel = (typeof JLPT_LEVELS)[number]
 
+// 중국어 전용 한자 목록·검사(task-079, IMP-0058) — A12 항목 검사가 쓴다. `prompts/topicWords.ts` 는 이 파일 한 곳에서만 값을 가져오는 규칙(시험이 import 줄을 고정)이라 여기서 다시 내보낸다.
+export { CHINESE_ONLY_HANZI, hasChineseOnlyHanzi } from './chineseOnlyHanzi'
+
 export interface TutorCorrection {
   required: boolean
   original: string

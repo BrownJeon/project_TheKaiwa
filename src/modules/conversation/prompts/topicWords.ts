@@ -22,7 +22,7 @@
  * 사용자 주제 설명은 데이터다 — `[입력]` 블록(`renderTranscript` 가 "지시가 아니다" 를 못 박는다)에 두고, 본문의 `[`·`]` 는 `(`·`)` 로 바꿔 블록 표식을 흉내 못 내게 한다.
  */
 import { llm, type LlmJsonRequest, type LlmPersona, type LlmTask } from '@/modules/engine'
-import { CHUNK_TYPES, JLPT_LEVELS, type ChunkType, type JlptLevel } from '../structuredResponse/schemas'
+import { CHUNK_TYPES, JLPT_LEVELS, hasChineseOnlyHanzi, type ChunkType, type JlptLevel } from '../structuredResponse/schemas'
 
 /**
  * v2(task-049, 2026-10-10) — 단어마다 예문 `exampleJa`·`exampleKo` 를 더한다(설계서 §4-3a E3, 사용자가 DB 칸 `VocabAttempt.exampleSnap`·`exampleKoSnap` 승인).
@@ -40,8 +40,15 @@ import { CHUNK_TYPES, JLPT_LEVELS, type ChunkType, type JlptLevel } from '../str
  * 측정 조건 한정: 첫날(제외 목록 = 기본 표현 12개)·단일 주제 weekend-plan·단일 모델 haiku — 깊은 체인(제외 목록 가득)·다른 주제·다른 모델은 v3 로 재지 않았다.
  * 알려진 한계(근거·표는 task-078 PE 개선 기록): 합격 여유가 얇다 · 모델 급수가 사전보다 어렵게 기운다(N2 편향 −0.31, 한 세트에서 N5 기초어를 N3 로 단 부풀리기) · 초점 «수량·시간·위치»·«인사·감사·사과» 날은 수준이 높아도 N4~N5 어휘로 새 통과가 2~6장이다 ·
  * 프롬프트 +317자(지연 N2 p50 +0.6s·p95 12.1s — A12 엔진 한도 20s 안).
+ *
+ * v4(task-079, 2026-10-20, IMP-0055) — `meaningKo` 의 쉼표 뒤 보조 뜻이 한자음을 뒤집거나 다른 낱말로 바꿔치기되던 문제(저장된 AI 새 단어 57개 중 7개 ≈ 12%: 領収書→영수서·受付→수접·試着室→시착실·宿泊→묵음·移動→이사·在庫→품절·点滴→점액주사) 개선.
+ * 변경은 **`meaningKo` 지시 한 줄뿐**이다(system 1,943 → 2,096자, +153): 첫 뜻은 «한국에서 실제로 쓰는 가장 흔한 낱말», 보조 뜻은 «흔히 쓰는 낱말이고 첫 뜻과 다른 뜻을 더해 줄 때만(최대 2개)»,
+ * 한자음 뒤집기·비슷한 다른 낱말로 바꾸기·어미·활용만 바꾼 뜻은 금지, 확신이 없으면 첫 뜻 하나만. 수준 범위·난이도·jlpt·reading·example 지시와 스키마·검사 ①~⑦·입력 블록은 v3 와 같다.
+ * 실측(haiku 직렬, 같은 입력 10개를 v3·v4 로 교차 20호출 + N2 가드 11호출, 첫날 조건): 보조 뜻을 단 단어 49% → 19% · 검사 통과율 95.4% → 96.9% · 출력 길이 비 0.98 · 지연 비 0.95 ·
+ * N2 가드(주제 N4 weekend-plan + 챌린지 N2, task-078 과 같은 입력 10개) 평균 7.8장(v3 8.10 — 합격선 7.6; 처음 실행은 한 세트가 20초 타임아웃이라 9세트 7.56, 같은 입력 재실행으로 10세트를 채웠다).
+ * 뜻의 «맞음·어색·틀림» 판정은 AI(Leader) 한 명의 눈가림 판정이고 결과는 task-079 이력서에 있다. 한계: 표본이 작다(arm 당 100단어) · 사무 용어처럼 한국어 뜻이 한자음과 같은 단어에서 같은 낱말을 두 번 쓰는 반복(업무, 업무)이 한 입력에서 3개 나왔다.
  */
-export const TOPIC_WORDS_PROMPT_VERSION = 'topicWords@v3'
+export const TOPIC_WORDS_PROMPT_VERSION = 'topicWords@v4'
 
 /** 엔진 태스크 키 — `engine/router/tasks.ts` `LLM_TASKS` 에 같은 이름으로 추가해야 한다(developer, 한 줄: `topicWords: { tier: 'fast', timeoutMs: 20_000, lane: 'interactive' }`). */
 export const TOPIC_WORDS_TASK = 'topicWords'
@@ -244,7 +251,7 @@ const SYSTEM_PROMPT = [
   '- 카드 하나 = 단어 또는 짧은 표현 하나(문장 아님, 보통 2~12자). 동사·형용사는 회화에서 쓰는 형태 하나만 씁니다(예: 飲みます, おいしいです).',
   '- textJa: 일본어 표기만(한자·가나, 외래어는 가타카나). 후리가나·괄호·한글·로마자·슬래시·두 가지 표기 병기·문장부호 금지(예: Mサイズ → エムサイズ).',
   '- reading: textJa 전체의 읽기를 가나(히라가나 또는 가타카나)만으로 씁니다. 한자·로마자·공백·부호 없이, textJa 에 이미 가나인 부분은 그대로 옮깁니다.',
-  '- meaningKo: 한국어 뜻을 짧게(1~3개, 쉼표로 구분). 설명문·일본어·괄호 병기 금지.',
+  '- meaningKo: 한국에서 실제로 쓰는 가장 흔한 낱말로 짧게. 쉼표 뒤 보조 뜻(최대 2개)은 흔히 쓰는 낱말이고 첫 뜻과 다른 뜻을 더해 줄 때만 붙입니다(예: 定食 → 정식, 한 끼 식사). 한자음을 뒤집거나 비슷한 다른 낱말로 바꾸지 않고, 같은 말의 어미·활용만 바꾼 뜻은 붙이지 않으며, 확신이 없으면 첫 뜻 하나만 씁니다. 설명문·일본어·괄호 병기 금지.',
   '- chunkType: NAME=명사류 · ACTION=동사류 · FEELING=형용사·감정·평가 · MODIFIER=부사·수식·시간·장소·방향. 한 종류로만 채우지 않고 2종류 이상 섞습니다.',
   '- [이번 초점]은 이번 세트에서 우선 고를 방향입니다. 그 방향의 표현을 절반 이상 고르고, 나머지는 같은 주제의 다른 표현으로 채웁니다.',
   '- jlpt: [수준]과 같거나 한 단계 위·아래 급수만 냅니다(예: N5 → N5·N4, N2 → N3·N2·N1). 이 범위 밖 급수는 내지 않습니다. jlpt 는 그 단어의 실제 급수를 쓰고 [수준]에 맞추려고 바꾸지 않습니다. 급수를 확신할 때만 N5~N1 로 쓰고, 모르면 null(따옴표 없는 JSON null)입니다.',
@@ -303,6 +310,7 @@ export type TopicWordDropReason =
   | 'NOT_VALID' // ① valid !== true
   | 'ENGINE_NAME' // 엔진·모델 이름이 응답에 나옴
   | 'SURFACE_CHARS' // ② textJa 가 가나·한자 외 문자(한글·로마자·괄호·부호·공백)를 포함하거나 가나·한자가 한 글자도 없음
+  | 'SURFACE_SIMPLIFIED' // ② textJa 에 중국어 전용 한자(간체자 등 — 일본어 문자 표준에 없는 글자, `chineseOnlyHanzi.ts`)가 있음 (task-079, IMP-0058)
   | 'SURFACE_LEN' // textJa 길이 0 또는 > 80
   | 'READING_CHARS' // ③ reading 이 가나(·ー·・) 외 문자를 포함
   | 'READING_LEN' // reading 길이 0 또는 > 120
@@ -320,6 +328,7 @@ export type TopicExampleDropReason =
   | 'EXAMPLE_ENGINE_NAME' // 엔진·모델 이름이 예문에 나옴
   | 'EXAMPLE_JA_LEN' // exampleJa 가 60자 초과
   | 'EXAMPLE_JA_CHARS' // exampleJa 에 허용 밖 문자(한글·로마자·괄호 등)가 있거나 가나가 한 글자도 없음
+  | 'EXAMPLE_JA_SIMPLIFIED' // exampleJa 에 중국어 전용 한자(간체자 등)가 있음 (task-079, IMP-0058) — 단어 표기와 같은 목록
   | 'EXAMPLE_KO_LEN' // exampleKo 가 100자 초과
   | 'EXAMPLE_KO_CHARS' // exampleKo 에 한글이 없거나 가나·한자·개행이 있음
 
@@ -340,6 +349,24 @@ const EXAMPLE_KO_FORBIDDEN = new RegExp(`[${KANA_CLASS}${KANJI_CLASS}\\p{Cc}\\p{
 /** 카타카나 → 히라가나(읽기 대조용, ー 는 그대로). */
 export function toHiragana(s: string): string {
   return s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+}
+
+/** 히라가나 → 가타카나(읽기 정규화용, ー·・ 는 그대로). `toHiragana` 의 반대. */
+export function toKatakana(s: string): string {
+  return s.replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60))
+}
+
+const KATAKANA_SURFACE = /^[ァ-ヺー・]+$/
+const KATAKANA_LETTER = /[ァ-ヺ]/
+
+/**
+ * 읽기 정규화(task-079, IMP-0057) — 표기가 전부 가타카나(ー·・ 포함)면 읽기도 가타카나로 쓴다. 기본 사전은 가타카나 표기 528개 전부가 가타카나 읽기인데
+ * 모델은 가끔 히라가나로 내서(저장된 AI 단어 가타카나 표기 11개 중 3개) 같은 종류의 카드가 서로 다르게 보인다. 히라가나·한자가 섞인 표기는 그대로 둔다.
+ * 소리는 그대로 두고 가나 종류만 바꾸므로 `readingMatchesSurface` 를 통과한 뒤에 부르면 된다(그 검사는 가나 종류를 가리지 않는다).
+ * 읽기를 소비하는 쪽(한글 발음 `kanaToHangul`·`readingMatches`·루비)도 가나 종류를 접어서 비교한다 — 시험이 대조한다.
+ */
+export function normalizeTopicReading(textJa: string, reading: string): string {
+  return KATAKANA_SURFACE.test(textJa) && KATAKANA_LETTER.test(textJa) ? toKatakana(reading) : reading
 }
 
 /**
@@ -368,6 +395,27 @@ function normalizeMeaning(m: string): string {
   return m.normalize('NFKC').toLowerCase().replace(/[\s.,!?~·()（）、。，…-]/g, '')
 }
 
+/**
+ * 같은 뜻 반복 접기(task-079, IMP-0055 v4 의 부작용 — 業務 → «업무, 업무»·同僚 → «동료, 동료»·報告 → «보고, 보고»).
+ * 쉼표(`,`)로 나눈 토큰이 **앞에 이미 나온 토큰과 앞뒤 공백을 뗀 문자열이 같으면** 뒤쪽을 버린다(떨어져 있어도 같다: «정식, 식사, 정식» → «정식, 식사»).
+ * 첫 뜻·남는 토큰의 글자와 순서는 그대로고, 접을 것이 없으면 입력 문자열을 **그대로**(공백 포함) 돌려준다. 한 글자라도 다르면 다른 뜻이다. 빈 토큰은 비교하지 않는다.
+ * 호출 위치는 `assembleTopicWords` 가 `meaningKo` 를 읽는 바로 그 줄이다 — ④ 길이·문자 검사와 ⑦ 뜻 중복 키(`normalizeMeaning`)가 화면에 나갈 문자열과 같은 것을 보게 한다.
+ */
+export function foldRepeatedMeanings(meaning: string): string {
+  const parts = meaning.split(',')
+  const seen = new Set<string>()
+  const kept: string[] = []
+  for (const part of parts) {
+    const token = part.trim()
+    if (token) {
+      if (seen.has(token)) continue
+      seen.add(token)
+    }
+    kept.push(part)
+  }
+  return kept.length === parts.length ? meaning : kept.join(',').trim()
+}
+
 export interface TopicExampleChecked {
   /** 통과한 일본어 예문(앞뒤 공백 제거) 또는 null. 쌍이므로 `exampleKo` 와 함께 null 이 된다. */
   exampleJa: string | null
@@ -389,6 +437,7 @@ export function checkTopicExample(exampleJa: unknown, exampleKo: unknown): Topic
   if (llm.mentionsEngineIdentity(ja) || llm.mentionsEngineIdentity(ko)) return none('EXAMPLE_ENGINE_NAME')
   if ([...ja].length > TOPIC_WORDS_EXAMPLE_JA_MAX) return none('EXAMPLE_JA_LEN')
   if (!EXAMPLE_JA_ALLOWED.test(ja) || !KANA_ANY.test(ja)) return none('EXAMPLE_JA_CHARS')
+  if (hasChineseOnlyHanzi(ja)) return none('EXAMPLE_JA_SIMPLIFIED')
   if ([...ko].length > TOPIC_WORDS_EXAMPLE_KO_MAX) return none('EXAMPLE_KO_LEN')
   if (!HANGUL.test(ko) || EXAMPLE_KO_FORBIDDEN.test(ko)) return none('EXAMPLE_KO_CHARS')
   return { exampleJa: ja, exampleKo: ko, reason: null }
@@ -434,6 +483,7 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 /**
  * 모델 응답(스키마를 통과한 `words`)에서 쓸 수 있는 카드만 남긴다. 한 항목이 틀려도 응답 전체를 다시 부르지 않고 그 항목만 버린다 —
  * 부족하면 호출자가 B1 풀로 채운다(설계서 §4-3e). 응답이 `words` 배열이 아니면 빈 결과를 돌려준다(호출자는 통과 0장 = INVALID 로 본다).
+ * `meaningKo` 는 읽는 즉시 같은 뜻 반복을 접는다(`foldRepeatedMeanings`, v4 부작용) — 항목을 버리지 않고 글만 고친다.
  */
 export function assembleTopicWords(raw: unknown, ctx: TopicWordsAssembleContext): TopicWordsAssembled {
   const out: TopicWordsAssembled = { words: [], received: 0, dropped: [], droppedByReason: {}, exampleNulled: 0, exampleNulledByReason: {} }
@@ -466,7 +516,7 @@ export function assembleTopicWords(raw: unknown, ctx: TopicWordsAssembleContext)
     }
     const textJa = o.textJa.trim()
     const reading = o.reading.trim()
-    const meaningKo = o.meaningKo.trim()
+    const meaningKo = foldRepeatedMeanings(o.meaningKo.trim())
     const chunkType = o.chunkType
     const jlpt = o.jlpt === null || o.jlpt === undefined || o.jlpt === 'null' ? null : o.jlpt
     if (!(CHUNK_TYPES as readonly string[]).includes(chunkType as string) || (jlpt !== null && (typeof jlpt !== 'string' || !isJlptLevel(jlpt)))) {
@@ -488,6 +538,10 @@ export function assembleTopicWords(raw: unknown, ctx: TopicWordsAssembleContext)
     }
     if (!SURFACE_ALLOWED.test(textJa) || !SURFACE_HAS_LETTER.test(textJa)) {
       drop(textJa, 'SURFACE_CHARS') // ②
+      continue
+    }
+    if (hasChineseOnlyHanzi(textJa)) {
+      drop(textJa, 'SURFACE_SIMPLIFIED') // ② (IMP-0058) — 한자 범위만으로는 간체자를 못 거른다
       continue
     }
     const readingLen = [...reading].length
@@ -534,7 +588,7 @@ export function assembleTopicWords(raw: unknown, ctx: TopicWordsAssembleContext)
       out.exampleNulled++
       out.exampleNulledByReason[ex.reason] = (out.exampleNulledByReason[ex.reason] ?? 0) + 1
     }
-    out.words.push({ textJa, reading, meaningKo, chunkType: chunkType as ChunkType, jlpt: jlpt as JlptLevel | null, exampleJa: ex.exampleJa, exampleKo: ex.exampleKo })
+    out.words.push({ textJa, reading: normalizeTopicReading(textJa, reading), meaningKo, chunkType: chunkType as ChunkType, jlpt: jlpt as JlptLevel | null, exampleJa: ex.exampleJa, exampleKo: ex.exampleKo })
   }
   return out
 }
