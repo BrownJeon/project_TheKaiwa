@@ -1,8 +1,11 @@
 /**
  * 계획표 공용 조각 — 종류 글자 칩·아이콘. 색만으로 구분하지 않는다: 종류는 글자, 평가는 반전 칩, 복습할 날은 점선 칩(데모 `.tc`).
+ * 아래쪽은 성장 탭(task-080) 카드·문구 조각.
  */
+import { Fragment, useId, type ReactNode } from 'react'
 import { DAY_VIEW } from '@/components/challenge/challengeCopy'
 import { DayMarkInner } from '@/components/challenge/parts'
+import { GROWTH, type Rich } from './growthCopy'
 import type { CellMark } from './logic'
 import { TYPE_META } from './logic'
 
@@ -87,15 +90,75 @@ export function Spinner() {
   return <span aria-hidden="true" className="inline-block h-4 w-4 flex-none animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none" />
 }
 
-/** 달력 아래 "분석 · 성장 기록 곧 열려요" 카드 — 정적이라 계획표 화면과 로딩 자리표시(`PlanSkeleton`)가 같은 부품을 그린다(높이 점프 없음). */
-export function GrowthSoonCard() {
+// ── 성장 탭 공용 조각(task-080, screens.md §36-3·36-11) ──────────────────────────
+
+/** 성장 탭 맨 아래 «선생님 분석 · 곧 열려요» — 달력 아래 옛 카드(task-012)와 같은 모양, 분석 탭(후속)이 열리기 전 안내. */
+export function AnalysisSoonCard() {
+  const titleId = useId()
   return (
-    <section aria-label="분석 · 성장 기록" className="mt-[18px] flex min-w-0 items-start justify-between gap-2 rounded-[14px] border border-transparent bg-surface2 p-3.5">
+    <section aria-labelledby={titleId} className="mt-[18px] flex min-w-0 items-start justify-between gap-2 rounded-[14px] border border-transparent bg-surface2 p-3.5">
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold">분석 · 성장 기록</h2>
-        <p className="mt-1 text-[13px] text-ink2 break-keep">선생님이 기록을 보고 공부 계획을 제안하고, 평가 점수와 교정이 어떻게 달라졌는지 보여 드려요.</p>
+        <h2 id={titleId} className="text-[15px] font-semibold break-keep">
+          {GROWTH.soonTitle}
+        </h2>
+        <p className="mt-1 text-[13px] text-ink2 break-keep">{GROWTH.soonBody}</p>
       </div>
-      <span className="inline-flex h-[22px] flex-none items-center whitespace-nowrap rounded-md bg-surface px-2 text-[11.5px] font-semibold text-ink2">곧 열려요</span>
+      <span className="inline-flex h-[22px] flex-none items-center whitespace-nowrap rounded-md bg-surface px-2 text-[11.5px] font-semibold text-ink2">{GROWTH.soonBadge}</span>
     </section>
   )
 }
+
+/** 카드 섹션 — 제목 `h2`(15px) + 오른쪽 작은 글. `aria-labelledby` 로 제목을 이름으로 쓴다. */
+export function GrowthCard({ title, side, children }: { title: string; side?: string | null; children: ReactNode }) {
+  const titleId = useId()
+  return (
+    <section aria-labelledby={titleId} className="mt-[18px] min-w-0 rounded-[14px] border border-line bg-surface p-3.5">
+      <div className="mb-2 flex min-w-0 items-baseline justify-between gap-2">
+        <h2 id={titleId} className="min-w-0 text-[15px] font-semibold break-keep">
+          {title}
+        </h2>
+        {side ? <span className="flex-none whitespace-nowrap text-[12px] text-ink2">{side}</span> : null}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/** 문구 조각 배열(`growthCopy` 의 `Rich`)을 그린다 — 굵은 조각은 `<b>`(문자열 HTML 을 쓰지 않는다). */
+export function RichText({ parts, boldClass = 'font-[650]' }: { parts: Rich; boldClass?: string }) {
+  return (
+    <>
+      {parts.map((p, i) =>
+        typeof p === 'string' ? (
+          <Fragment key={i}>{p}</Fragment>
+        ) : (
+          <b key={i} className={boldClass}>
+            {p.b}
+          </b>
+        ),
+      )}
+    </>
+  )
+}
+
+/** [표로 보기]·[주별로 보기] 펼침 — `details` 기본 동작 그대로, ▾/▴ 는 읽지 않는다. */
+export function TableToggle({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <details className="group mt-2">
+      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-[13px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
+        {label}
+        <span aria-hidden="true" className="text-[12px] text-ink2 group-open:hidden">
+          ▾
+        </span>
+        <span aria-hidden="true" className="hidden text-[12px] text-ink2 group-open:inline">
+          ▴
+        </span>
+      </summary>
+      {children}
+    </details>
+  )
+}
+
+export const TH = 'whitespace-nowrap border-t border-line px-1 py-1.5 text-left text-[12px] font-semibold text-ink2'
+export const TD = 'whitespace-nowrap border-t border-line px-1 py-1.5 text-left'
+export const NUM = 'text-right tabular-nums'

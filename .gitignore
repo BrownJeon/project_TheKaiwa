@@ -11,6 +11,8 @@ dist/
 shared/secrets/
 # data
 files/
+# 백필 백업(scripts/backfill-growth-skills.ts --apply — userId·DAILY data 를 담는다, task-080 REV-080-S L-1)
+backups/
 *.wav
 *.apk
 # speech services

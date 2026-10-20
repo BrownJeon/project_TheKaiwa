@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * 계획표 탭 위쪽 — 월 이동 · 이 달 요약 3칸 · 월요일 시작 7열 달력 · 표시 설명(데모 `calSection`).
+ * 계획표 탭 위쪽 — 월 이동 · 이 달 요약 3칸 · 일요일 시작 7열 달력 · 표시 설명(데모 `calSection`).
  *
  * 날짜 칸은 한 번의 Tab 으로 들어가고 방향키로 옮겨 다닌다(roving tabindex). 칸은 360 폭에서 약 43px 이라 버튼 좌우에
  * 2px 씩(칸 사이 4px 의 절반) 누를 자리를 넓혀 44px 을 넘긴다 — 이웃 칸과 겹치지 않는다.
@@ -53,7 +53,7 @@ export function MonthNav({
         type="button"
         aria-disabled={isCurrent || undefined}
         onClick={() => (isCurrent ? onBlocked('지금 이번 달을 보고 있어요') : onToday())}
-        className="relative mr-0.5 h-8 flex-none rounded-full border border-line bg-surface px-3 text-[13px] font-semibold before:absolute before:-inset-x-0.5 before:-inset-y-1.5 before:content-[''] aria-disabled:text-ink3"
+        className="relative mr-0.5 h-8 flex-none rounded-full border border-line bg-surface px-3 text-[13px] font-semibold before:absolute before:-inset-x-0.5 before:-inset-y-[7px] before:content-[''] aria-disabled:text-ink3"
       >
         오늘
       </button>

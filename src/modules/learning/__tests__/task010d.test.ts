@@ -367,6 +367,7 @@ test('종료 한 트랜잭션: 사용자 잠금 먼저 → RepetitionItem(SCENAR
   assert.deepEqual([d.talkTurns, d.corrections.proposed, d.corrections.accepted, d.repetition.studied], [2, 3, 0, 1], 'DAILY = 기존 TALK 종료 칸(talkTurns·corrections.proposed) + repetition.studied')
   assert.equal(d.observations.total, 1)
   assert.deepEqual(d.observations.bySkill.CONVERSATION_MAINTAIN, { success: 1, partial: 0, fail: 0, skipped: 0 })
+  assert.deepEqual((d as unknown as { skills: Record<string, Row> }).skills, { CONVERSATION_MAINTAIN: { success: 1, partial: 0, fail: 0, skipped: 0, uncertain: 0, fromCorrection: 0 } }, 'task-080: 역할극 끝냄 = 대화 유지 1번(같은 호출)')
 
   assert.equal(f.observations.length, 1)
   const o = f.observations[0]
@@ -431,6 +432,7 @@ test('종료 판정 없음(A1-PE 전): 달성으로 올리지 않음 · 관측 �
   const r = await endScenarioRolePlay(U, endInput({ verdict: undefined }), f.tx, { now: NOW })
   assert.deepEqual([r.outcome, r.goalAchieved, r.judged, r.tutorGoalAchieved, r.codeRulePassed], ['ALMOST', false, false, null, true])
   assert.deepEqual([f.observations[0].outcome, f.observations[0].confidence], ['PARTIAL', SCENARIO_UNJUDGED_CONFIDENCE])
+  assert.deepEqual((f.daily() as Row & { skills: Record<string, Row> }).skills, { CONVERSATION_MAINTAIN: { success: 0, partial: 0, fail: 0, skipped: 0, uncertain: 1, fromCorrection: 0 } }, 'task-080: 판정 못 한 끝냄(신뢰도 0.5) = 불확실만')
   const rep = (f.calls.find((c) => c.op === 'rep.create')!.args as { data: Row }).data
   assert.deepEqual([rep.correctCount, rep.wrongCount], [0, 1])
 

@@ -265,7 +265,7 @@ test('④-b PROGRESS 되묻기 문장, 칩 답 다음 턴은 정상 LLM 경로(�
   assert.equal(c.scope.key, 'THIS_WEEK')
   assert.equal(calls.retrieve[0][2], PREV, '검색어는 직전 질문 글에서')
   assert.match(userMsg(calls.llm[0]), /학습자가 고른 범위/)
-  assert.match(userMsg(calls.llm[0]), /2026-10-12~2026-10-18/)
+  assert.match(userMsg(calls.llm[0]), /2026-10-11~2026-10-17/, '오늘 10-12(월) — 이번 주 = 어제 일요일부터(task-080)')
   assert.ok(violations.some((v) => v.includes('needsScope 는 null')), '범위가 정해진 턴에서 모델 되묻기 = 재시도 위반')
   assert.equal(calls.save[0].toolLog.scopeSource, 'CHIP')
 })
@@ -581,7 +581,10 @@ test('askAllowedProposals: 3a 허용 종류·페이로드 모양만, 최대 3', 
 test('미리보기·범위 날짜·되묻기 가드·toolLog 읽기', () => {
   assert.equal(askAnswerPreview('\n\n> 映画を見ました。\n뜻', '질문'), '映画を見ました。')
   assert.equal(askAnswerPreview('**   **', '질문 글'), '질문 글')
-  assert.deepEqual(askScopeDates('THIS_WEEK', '2026-10-15'), { fromKst: '2026-10-12', toKst: '2026-10-18' })
+  assert.deepEqual(askScopeDates('THIS_WEEK', '2026-10-15'), { fromKst: '2026-10-11', toKst: '2026-10-17' })
+  assert.deepEqual(askScopeDates('THIS_WEEK', '2026-10-11'), { fromKst: '2026-10-11', toKst: '2026-10-17' }, '일요일 = 새 주 첫날')
+  assert.deepEqual(askScopeDates('THIS_WEEK', '2026-10-17'), { fromKst: '2026-10-11', toKst: '2026-10-17' }, '토요일 = 주 끝날')
+  assert.deepEqual(askScopeDates('THIS_WEEK', '2026-10-19'), { fromKst: '2026-10-18', toKst: '2026-10-24' }, '월요일에 물으면 어제 일요일 포함')
   assert.deepEqual(askScopeDates('LAST_30D', '2026-10-12'), { fromKst: '2026-09-13', toKst: '2026-10-12' })
   assert.deepEqual(askScopeDates('ALL', '2026-10-12'), { fromKst: null, toKst: null })
   const base = { task: 'ask', messages: [], extraCheck: () => ['기존'] } as unknown as Parameters<typeof withScopeGuard>[0]

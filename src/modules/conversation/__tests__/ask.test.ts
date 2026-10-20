@@ -1,5 +1,5 @@
 /**
- * task-064 — A9 ASK(`ask@v1`→task-066 `ask@v2`) 프롬프트 모듈 단위 시험(오프라인): 빌더 구성·상한·우선순위, 조회 항목 이스케이프·화이트리스트(D2=(b) 부정 시험),
+ * task-064 — A9 ASK(`ask@v1`→task-066 `ask@v2`→task-080 `ask@v3`) 프롬프트 모듈 단위 시험(오프라인): 빌더 구성·상한·우선순위, 조회 항목 이스케이프·화이트리스트(D2=(b) 부정 시험),
  * 스키마·후검증·정리(`parseAskResponse`), 레지스트리 고정(키·버전·체크섬), 회귀 픽스처(`tests/prompts/fixtures/ask.json`) 구조.
  * 실제 모델 호출은 `tests/live/ask-measure.ts`.
  * task-066: 입력 방식 표지(inputKind)·v1 지시문/스키마 불변 sha256 pin·일본어 단독 픽스처(j01~j15) 구조 시험이 더해졌다.
@@ -80,7 +80,7 @@ const sha = (s: string) => s
 
 test('레지스트리: 키·버전·태스크 — LLM_TASKS.ask 는 balanced·120s·ASK 전용 레인(A9 — task-064 전용 슬롯, 엔진 시험 claudeCliAskLane)', () => {
   assert.equal(ASK_PROMPT_KEY, 'ask')
-  assert.equal(ASK_PROMPT_VERSION, 'ask@v2')
+  assert.equal(ASK_PROMPT_VERSION, 'ask@v3')
   assert.equal(ASK_TASK, 'ask')
   assert.deepEqual(LLM_TASKS.ask, { tier: 'balanced', timeoutMs: 120_000, lane: 'ask' })
   assert.equal(ASK_PROMPT_REGISTRY.key, 'ask')
@@ -99,7 +99,8 @@ test('레지스트리: 체크섬 — 결정적이고, 지시문/스키마/버전
   assert.equal(askPromptChecksum(), a)
   assert.equal(a, ASK_CHECKSUM_PIN, `지시문·스키마를 바꿨다면 ASK_PROMPT_VERSION 을 올리고 ASK_CHECKSUM_PIN 을 ${a} 로 갱신하세요`)
 })
-const ASK_CHECKSUM_PIN = '0f6888ca57ef65cd8053d3ff8b90bcdf2e1576677d4b987545c6a29a8bd8a009'
+// task-080 ask@v3: 버전 문자열만 바뀌어 값이 달라졌다(지시문·스키마·경계 표지 불변). v2 = 0f6888ca57ef65cd8053d3ff8b90bcdf2e1576677d4b987545c6a29a8bd8a009
+const ASK_CHECKSUM_PIN = '98a645faf66f808b2e1ef71370ceebf0166b335fc795980544f3e02543a520a7'
 
 // ── 빌더: 구성·바이트 동일·상한 ──────────────────────────────────────────────
 
@@ -354,8 +355,9 @@ test('조회 항목: 기록 없음(0건) 머리줄 — 조회는 했으나 못 �
 })
 
 test('조회 범위 표기 — 학습자가 고른 범위(CHIP)와 기본 범위(DEFAULT)가 구분되고, 범위가 없으면 "알 수 없음"', () => {
-  const chip = userMessage(base({ scope: { key: 'THIS_WEEK', fromKst: '2026-10-12', toKst: '2026-10-18', source: 'CHIP' } }))
-  assert.match(chip, /이번 주\(월~일\) 2026-10-12~2026-10-18\(학습자가 고른 범위\)/)
+  const chip = userMessage(base({ scope: { key: 'THIS_WEEK', fromKst: '2026-10-11', toKst: '2026-10-17', source: 'CHIP' } }))
+  assert.match(chip, /이번 주\(일~토\) 2026-10-11~2026-10-17\(학습자가 고른 범위\)/)
+  assert.ok(!chip.includes('월~일'), 'task-080: 옛 범위 이름 0')
   assert.match(userMessage(base({ scope: { key: 'ALL' } })), /전체 기간\(기본 범위/)
   assert.match(userMessage(base({ scope: null })), /범위: 알 수 없음/)
 })

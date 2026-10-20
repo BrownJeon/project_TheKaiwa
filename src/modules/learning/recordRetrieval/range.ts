@@ -1,5 +1,5 @@
 /**
- * 조회 범위(KST) — `THIS_WEEK` = 이번 주 월~일, `LAST_30D` = 오늘 포함 30일, `ALL` = 하한 없음.
+ * 조회 범위(KST) — `THIS_WEEK` = 이번 주 일~토(주 시작 = `dates.WEEK_START_DOW`, task-080), `LAST_30D` = 오늘 포함 30일, `ALL` = 하한 없음.
  * 달력 날짜(`@db.Date`·`periodKey`)는 문자열 구간으로, 시각 칸(`createdAt`·`completedAt`)은 KST 자정 경계의 UTC 시각으로 비교한다.
  */
 import { dates } from '@/modules/infra'
@@ -13,7 +13,7 @@ export interface RetrievalRange {
   today: string
   /** 포함 하한 달력 날짜(ALL = null). */
   fromKst: string | null
-  /** 포함 상한 달력 날짜(THIS_WEEK = 그 주 일요일, 그 밖 = 오늘). */
+  /** 포함 상한 달력 날짜(THIS_WEEK = 그 주 토요일, 그 밖 = 오늘). */
   toKst: string
   /** 포함 하한 시각(= fromKst 00:00 KST). */
   fromInstant: Date | null
@@ -33,16 +33,10 @@ export function kstDateOf(at: Date): string {
   return dates.todayKst(at)
 }
 
-/** 그 날짜가 속한 주의 월요일(KST 달력). */
-export function mondayOf(date: string): string {
-  const dow = dates.toDbDate(date).getUTCDay()
-  return dates.addDays(date, -((dow + 6) % 7))
-}
-
 export function resolveRange(key: AskScopeKey, now: Date): RetrievalRange {
   const today = dates.todayKst(now)
   if (key === 'THIS_WEEK') {
-    const from = mondayOf(today)
+    const from = dates.weekStartOf(today)
     const to = dates.addDays(from, 6)
     return { key, today, fromKst: from, toKst: to, fromInstant: kstMidnight(from), toExclusive: kstMidnight(dates.addDays(to, 1)), labelKo: '이번 주' }
   }

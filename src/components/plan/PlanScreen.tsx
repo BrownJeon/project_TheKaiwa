@@ -1,7 +1,8 @@
 'use client'
 
 /**
- * 계획표 탭(task-012, 승인 데모 `docs/demo/task-012-calendar-v1.html`) — 달력 + "분석 · 성장 기록 곧 열려요" 카드.
+ * 계획표 탭(task-012, 승인 데모 `docs/demo/task-012-calendar-v1.html`) — 달력. 맨 위 분절 `[달력 | 성장]`(task-080, screens.md §36-2)으로 성장 탭과 오간다
+ * (달력 아래 옛 «분석 · 성장 기록 곧 열려요» 카드는 성장 탭이 생겨 뺐다).
  *
  * - 데이터: #70 달력(월) · #71 하루 상세 · #73 기록 지우기. 지우기는 기록 한 행만 — 통계(StatsSnapshot)는 서버가 건드리지 않는다.
  *   지운 뒤 목록에서 바로 빼고 달력·하루를 조용히 다시 읽어 칸·요약을 맞춘다.
@@ -28,7 +29,7 @@ import { CalendarError, CalendarGrid, CalendarLegend, MonthNav, MonthNoteBlock, 
 import DaySheet from './DaySheet'
 import { DeleteConfirmSheet, LogMenuSheet, type DeleteState } from './LogSheets'
 import { deleteDetail, monthOf, parsePlanParams, planUrl, shiftMonth, sourceHref, MIN_MONTH } from './logic'
-import { GrowthSoonCard } from './parts'
+import PlanSwitch from './PlanSwitch'
 import { useCalendar, useDay } from './usePlanData'
 
 const noopSubscribe = () => () => {}
@@ -166,6 +167,7 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
 
   return (
     <div className="min-w-0 px-4 pb-8">
+      <PlanSwitch current="calendar" />
       <ChallengePlanCard status={ch.status} data={ch.data} dailyWordCount={dailyWordCount} onRetry={ch.reload} />
       <section aria-labelledby={titleId} className="mt-[18px] min-w-0">
         <MonthNav
@@ -203,8 +205,6 @@ export default function PlanScreen({ today: serverToday, dailyWordCount }: { tod
           </>
         )}
       </section>
-
-      <GrowthSoonCard />
 
       <DaySheet
         date={hydrated ? openDay : null}

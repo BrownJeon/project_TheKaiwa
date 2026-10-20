@@ -1,5 +1,5 @@
 /**
- * A9 무엇이든 물어보세요(ASK, `ask@v2` — 응답 스키마는 v1 과 같다) 응답 계약 — 스키마 · 후검증 · 정리(`parseAskResponse`). 프롬프트·입력 직렬화는 `prompts/ask.ts`.
+ * A9 무엇이든 물어보세요(ASK, `ask@v3` — 응답 스키마는 v1 과 같다) 응답 계약 — 스키마 · 후검증 · 정리(`parseAskResponse`). 프롬프트·입력 직렬화는 `prompts/ask.ts`.
  * (이 파일을 `structuredResponse/` 가 아니라 `prompts/` 에 둔 것은 task-064 범위 지시 때문이다 — 옮기려면 import 경로만 바꾸면 된다.)
  *
  * 설계 근거 (api-contract §2-18-A 3·8·9)

@@ -5,7 +5,7 @@
  */
 import type { ChatMessage } from './chat'
 
-/** #32 요청 `scope.key`·`done.needsScope.options[].key` — 이번 주(KST 월~일)·지난 30일·전체 기간. */
+/** #32 요청 `scope.key`·`done.needsScope.options[].key` — 이번 주(KST 일~토)·지난 30일·전체 기간. */
 export type AskScopeKey = 'THIS_WEEK' | 'LAST_30D' | 'ALL'
 export const ASK_SCOPE_KEYS: readonly AskScopeKey[] = ['THIS_WEEK', 'LAST_30D', 'ALL']
 

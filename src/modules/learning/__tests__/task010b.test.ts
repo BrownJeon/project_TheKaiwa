@@ -846,6 +846,8 @@ async function fakeTransaction<T>(store: Store, fn: (tx: Tx) => Promise<T>): Pro
 
 const emptyStore = (): Store => ({ items: [], observations: [], daily: new Map() })
 const dailyObs = (s: Store, date: string) => (s.daily.get(`${U}|${date}`) as { observations?: { total: number; bySkill: Record<string, Record<string, number>> } } | undefined)?.observations
+// task-080: DAILY `skills`(성장 탭 공부결과 — 교정 채택·무시는 세지 않는다)
+const dailySkills = (s: Store, date: string) => (s.daily.get(`${U}|${date}`) as { skills?: Record<string, Record<string, number>> } | undefined)?.skills
 
 test('교정 채택(#35 조합): 같은 tx 에 반복 항목 EXPRESSION + CORRECTION_ACCEPTED + DAILY observations — 뒤에서 실패하면(409 단어 중복 등) 전부 0', async () => {
   const today = dates.todayKst()
@@ -873,6 +875,7 @@ test('교정 채택(#35 조합): 같은 tx 에 반복 항목 EXPRESSION + CORREC
   assert.deepEqual(ok.observations.map((o) => [o.kind, o.outcome, o.skill, o.refType, o.refId]), [['CORRECTION_ACCEPTED', 'SUCCESS', 'GRAMMAR_PARTICLE', 'Correction', 'corr1']])
   assert.deepEqual(dailyObs(ok, today)?.total, 1)
   assert.deepEqual(dailyObs(ok, today)?.bySkill.GRAMMAR_PARTICLE, { success: 1, partial: 0, fail: 0, skipped: 0 })
+  assert.equal(dailySkills(ok, today), undefined, 'task-080: 교정 채택만 한 날은 skills 칸이 생기지 않는다(채택 ≠ 습득)')
 })
 
 test('교정 거절·제안 관측: IGNORED=SKIPPED 1행, 제안 여러 건은 한 번에 + DAILY 한 번 증가', async () => {
@@ -891,6 +894,10 @@ test('교정 거절·제안 관측: IGNORED=SKIPPED 1행, 제안 여러 건은 �
   )
   assert.deepEqual(s.observations.map((o) => [o.kind, o.outcome, o.refId]), [['CORRECTION_IGNORED', 'SKIPPED', 'c9'], ['CORRECTION_PROPOSED', 'FAIL', 'c1'], ['CORRECTION_PROPOSED', 'PARTIAL', 'c2']])
   assert.equal(dailyObs(s, today)?.total, 3)
+  assert.deepEqual(dailySkills(s, today), {
+    GRAMMAR_PARTICLE: { success: 0, partial: 0, fail: 1, skipped: 0, uncertain: 0, fromCorrection: 1 },
+    SENTENCE_PRODUCTION: { success: 0, partial: 1, fail: 0, skipped: 0, uncertain: 0, fromCorrection: 1 },
+  }, 'task-080: 제안 MAJOR=틀림·MINOR=일부, 거절(VOCABULARY)은 세지 않음')
   assert.equal(s.items.length, 0, '거절·제안은 반복 항목을 만들지 않는다')
   assert.equal(await fakeTransaction(s, (tx) => recordObservations(U, [], tx)), 0)
 })
@@ -920,6 +927,7 @@ test('단어 세트(#51): 답한 카드만 WORD 항목(정오답), 카드마다 
   })
   assert.deepEqual(s.items.map((i) => [i.refId, i.studiedCount, i.correctCount, i.wrongCount]), [['w1', 1, 1, 0], ['w2', 1, 0, 1]])
   assert.deepEqual(dailyObs(s, '2026-09-30')?.bySkill.VOCAB_RECALL, { success: 2, partial: 0, fail: 1, skipped: 1 })
+  assert.deepEqual(dailySkills(s, '2026-09-30'), { VOCAB_RECALL: { success: 2, partial: 0, fail: 1, skipped: 1, uncertain: 0, fromCorrection: 0 } }, 'task-080: 같은 호출·같은 세트 날짜로 skills 증가')
 })
 
 test('레슨 완료 관측: quiz 문항마다(문법 대상이면 GRAMMAR_USE), 말하기 과제마다 SENTENCE_PRODUCTION — 모두/일부/못 씀/판정 불가/안 함, 발화면 STT 신뢰도', () => {

@@ -42,18 +42,33 @@ const log = (over: Partial<StudyLogItem> = {}): StudyLogItem => ({
   durationSec: 156, refId: 'vs1', refExists: true, createdAt: '2026-09-26T11:40:00.000Z', ...over,
 })
 
-test('월 격자: 월요일 시작 — 앞 빈칸 수와 그 달 날짜 수(평년·윤년·월요일 1일)', () => {
-  assert.deepEqual([...WEEK_HEADERS], ['월', '화', '수', '목', '금', '토', '일'])
+test('월 격자: 일요일 시작 — 앞 빈칸 수와 그 달 날짜 수(평년·윤년·일요일 1일)', () => {
+  // task-080(2026-10-20 사용자 결정): 주 시작 = 일요일 — 2026-10-01 c=B 월요일을 대체.
+  assert.deepEqual([...WEEK_HEADERS], ['일', '월', '화', '수', '목', '금', '토'])
   const sep = monthGrid('2026-09') // 9/1 화요일
-  assert.equal(sep.leading, 1)
+  assert.equal(sep.leading, 2)
   assert.equal(sep.dates.length, 30)
   assert.equal(sep.dates[0], '2026-09-01')
   assert.equal(sep.dates.at(-1), '2026-09-30')
-  assert.equal(monthGrid('2026-02').leading, 6) // 2/1 일요일 → 맨 끝 열
+  assert.equal(monthGrid('2026-02').leading, 0) // 2/1 일요일 → 맨 앞 열
   assert.equal(monthGrid('2026-02').dates.length, 28)
   assert.equal(monthGrid('2024-02').dates.length, 29) // 윤년
-  assert.equal(monthGrid('2024-02').leading, 3) // 2024-02-01 목요일
-  assert.equal(monthGrid('2026-06').leading, 0) // 6/1 월요일
+  assert.equal(monthGrid('2024-02').leading, 4) // 2024-02-01 목요일
+  assert.equal(monthGrid('2026-06').leading, 1) // 6/1 월요일
+  assert.equal(monthGrid('2026-10').leading, 4) // 10/1 목요일 (월요일 시작일 땐 3)
+})
+
+test('월 격자 줄 수 — 일요일 시작으로 높이가 바뀌는 달(screens.md §36-9 표)', () => {
+  const rows = (m: string) => {
+    const g = monthGrid(m)
+    return Math.ceil((g.leading + g.dates.length) / 7)
+  }
+  const expect: Record<string, number> = {
+    '2026-02': 4, '2026-03': 5, '2026-05': 6, '2026-11': 5, '2027-01': 6, '2027-02': 5, // 바뀌는 달(월요일 시작: 5·6·5·6·5·4)
+    '2026-01': 5, '2026-04': 5, '2026-06': 5, '2026-07': 5, '2026-08': 6, '2026-09': 5, '2026-10': 5, '2026-12': 5, // 같은 달
+    '2027-03': 5, '2027-04': 5, '2027-05': 6, '2027-06': 5,
+  }
+  for (const [m, n] of Object.entries(expect)) assert.equal(rows(m), n, m)
 })
 
 test('요일 계산은 기기 시간대와 무관(UTC 기준)', () => {
@@ -62,7 +77,7 @@ test('요일 계산은 기기 시간대와 무관(UTC 기준)', () => {
     for (const tz of ['Asia/Seoul', 'America/Los_Angeles', 'Pacific/Kiritimati']) {
       process.env.TZ = tz
       assert.equal(weekdayOf('2026-09-28'), 1, tz)
-      assert.equal(monthGrid('2026-09').leading, 1, tz)
+      assert.equal(monthGrid('2026-09').leading, 2, tz)
     }
   } finally {
     if (prev === undefined) delete process.env.TZ

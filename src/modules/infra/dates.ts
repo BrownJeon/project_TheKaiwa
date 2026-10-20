@@ -86,6 +86,18 @@ export function addDays(date: string, days: number): string {
   return fromUtcParts(base)
 }
 
+/**
+ * 주 시작 요일(0 = 일요일). 달력·성장 탭·질문 탭 «이번 주»가 이 상수 하나를 같이 쓴다
+ * — 2026-10-20 사용자 결정(task-080 Q8·Q9), 2026-10-01 task-012 c=B «월요일»을 대체.
+ */
+export const WEEK_START_DOW = 0
+
+/** 그 날짜가 속한 주의 첫날(`WEEK_START_DOW` 요일). 달력 문자열의 UTC 요일로 계산해 시간대와 무관하다. */
+export function weekStartOf(date: string): string {
+  const dow = toDbDate(date).getUTCDay()
+  return addDays(date, -((dow - WEEK_START_DOW + 7) % 7))
+}
+
 /** 문자열 비교로 충분하다 — `YYYY-MM-DD` 는 사전순 = 시간순이다. */
 export function compareDateStrings(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0

@@ -3,16 +3,17 @@
  *
  * - 날짜는 전부 KST 달력 날짜 문자열(`YYYY-MM-DD`)이고 계산은 `infra/dates` 로만 한다(브라우저 시간대 무관).
  *   "오늘"은 서버가 정한다(#70 `today`) — 화면은 그 값을 받아 쓴다.
- * - 사용자 결정(2026-10-01): (a) 날짜 칸 = 종류 글자 · (b) 하루 상세 = 바텀 시트 · (c) 주 시작 = **월요일**.
+ * - 사용자 결정(2026-10-01): (a) 날짜 칸 = 종류 글자 · (b) 하루 상세 = 바텀 시트.
+ * - 주 시작 = **일요일**(2026-10-20 사용자 결정, task-080 — 2026-10-01 c=B 월요일 대체). 상수는 `infra/dates` 의 `WEEK_START_DOW` 하나를 달력·성장·질문 탭이 같이 쓴다.
  */
-import { addDays, isDateString, monthBounds } from '@/modules/infra/dates'
+import { addDays, isDateString, monthBounds, WEEK_START_DOW } from '@/modules/infra/dates'
 import { formatClock } from '@/components/common/format'
 import type { CalendarDay, CalendarSummary, DayReview, StudyLogItem, StudyType } from '@/types/plan'
 import type { ChallengeDayState } from '@/types/challenge'
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'] as const
-/** 주 시작 = 월요일(결정 c=B) — 오늘 탭 "최근 7일"(월~일)과 같은 순서. */
-export const WEEK_HEADERS = ['월', '화', '수', '목', '금', '토', '일'] as const
+/** 요일 머리 — 요일 배열을 주 시작(`WEEK_START_DOW`)만큼 돌린 값(일요일 시작 = 일~토). */
+export const WEEK_HEADERS: readonly string[] = [...WD.slice(WEEK_START_DOW), ...WD.slice(0, WEEK_START_DOW)]
 /** 서버 허용 범위(#70 연도 2000~2100) 안에서 가장 이른 달. */
 export const MIN_MONTH = '2000-01'
 
@@ -50,12 +51,12 @@ export function shiftMonth(month: string, n: number): string {
   return `${y}-${m < 10 ? '0' : ''}${m}`
 }
 
-/** 월 격자: 월요일 시작 앞 빈칸 수 + 그 달의 모든 날짜. */
+/** 월 격자: 주 시작(일요일) 기준 앞 빈칸 수 + 그 달의 모든 날짜. */
 export function monthGrid(month: string): { leading: number; dates: string[] } {
   const { from, to } = monthBounds(`${month}-01`)
   const dates: string[] = []
   for (let d = from; d <= to; d = addDays(d, 1)) dates.push(d)
-  return { leading: (weekdayOf(from) + 6) % 7, dates }
+  return { leading: (weekdayOf(from) - WEEK_START_DOW + 7) % 7, dates }
 }
 
 export function monthLabel(month: string): string {

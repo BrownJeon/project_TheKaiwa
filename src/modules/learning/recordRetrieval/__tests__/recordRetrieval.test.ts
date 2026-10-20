@@ -22,7 +22,8 @@ import {
   type RolePlayRow,
 } from '..'
 import { assemble } from '../assemble'
-import { mondayOf, resolveRange } from '../range'
+import { dates } from '@/modules/infra'
+import { resolveRange } from '../range'
 import { getLessonsByTopic, getSkillState, type Candidate, type RetrievalCtx } from '../sources'
 import { normalizeTerms } from '../text'
 import { dbDate, kst, matches, retrievalFakeDb, TABLES, type RetrievalFake, type TableName } from './fakeDb'
@@ -30,7 +31,7 @@ import { dbDate, kst, matches, retrievalFakeDb, TABLES, type RetrievalFake, type
 const U = 'cuserask0000000000000000u1'
 const U2 = 'cuserask0000000000000000u2'
 const EMAIL = 'learner@example.com'
-const NOW = kst('2026-10-08 12:00') // 목요일 — 이번 주 = 10-05(월)~10-11(일)
+const NOW = kst('2026-10-08 12:00') // 목요일 — 이번 주 = 10-04(일)~10-10(토)
 
 const cp = (s: string) => Array.from(s).length
 
@@ -446,56 +447,56 @@ test('③ 검색어가 있으면 일치하는 표현·교정·역할극만(레�
 
 // ── ⑤ KST 범위 경계 ─────────────────────────────────────────────────────────
 
-test('⑤ resolveRange — 이번 주 월~일 · 지난 30일(오늘 포함) · 전체, UTC 시각이 아니라 KST 달력', () => {
+test('⑤ resolveRange — 이번 주 일~토(task-080) · 지난 30일(오늘 포함) · 전체, UTC 시각이 아니라 KST 달력', () => {
   const w = resolveRange('THIS_WEEK', NOW)
   assert.equal(w.today, '2026-10-08')
-  assert.equal(w.fromKst, '2026-10-05')
-  assert.equal(w.toKst, '2026-10-11')
-  assert.equal(w.fromInstant?.toISOString(), '2026-10-04T15:00:00.000Z')
-  assert.equal(w.toExclusive.toISOString(), '2026-10-11T15:00:00.000Z')
-  // 일요일 23:59 KST → 같은 주, 월요일 00:00 KST → 새 주(UTC 로는 아직 일요일)
-  assert.equal(resolveRange('THIS_WEEK', kst('2026-10-11 23:59')).fromKst, '2026-10-05')
-  const mon = resolveRange('THIS_WEEK', new Date('2026-10-11T15:00:00.000Z'))
-  assert.equal(mon.today, '2026-10-12')
-  assert.equal(mon.fromKst, '2026-10-12')
-  assert.equal(mon.toKst, '2026-10-18')
+  assert.equal(w.fromKst, '2026-10-04')
+  assert.equal(w.toKst, '2026-10-10')
+  assert.equal(w.fromInstant?.toISOString(), '2026-10-03T15:00:00.000Z')
+  assert.equal(w.toExclusive.toISOString(), '2026-10-10T15:00:00.000Z')
+  // 토요일 23:59 KST → 같은 주, 일요일 00:00 KST → 새 주(UTC 로는 아직 토요일)
+  assert.equal(resolveRange('THIS_WEEK', kst('2026-10-10 23:59')).fromKst, '2026-10-04')
+  const sun = resolveRange('THIS_WEEK', new Date('2026-10-10T15:00:00.000Z'))
+  assert.equal(sun.today, '2026-10-11')
+  assert.equal(sun.fromKst, '2026-10-11')
+  assert.equal(sun.toKst, '2026-10-17')
   // 월 경계(지난 30일) — 10-01 기준 09-02 부터
   const m = resolveRange('LAST_30D', kst('2026-10-01 09:00'))
   assert.equal(m.fromKst, '2026-09-02')
   assert.equal(m.toKst, '2026-10-01')
-  // 연 경계 주(2026-12-31 목 → 12-28 월 ~ 2027-01-03 일)
+  // 연 경계 주(2026-12-31 목 → 12-27 일 ~ 2027-01-02 토)
   const y = resolveRange('THIS_WEEK', kst('2026-12-31 10:00'))
-  assert.deepEqual([y.fromKst, y.toKst], ['2026-12-28', '2027-01-03'])
+  assert.deepEqual([y.fromKst, y.toKst], ['2026-12-27', '2027-01-02'])
   const a = resolveRange('ALL', NOW)
   assert.equal(a.fromKst, null)
   assert.equal(a.fromInstant, null)
-  for (const d of ['2026-10-05', '2026-10-08', '2026-10-11']) assert.equal(mondayOf(d), '2026-10-05')
-  assert.equal(mondayOf('2026-10-12'), '2026-10-12')
+  for (const d of ['2026-10-04', '2026-10-08', '2026-10-10']) assert.equal(dates.weekStartOf(d), '2026-10-04')
+  assert.equal(dates.weekStartOf('2026-10-11'), '2026-10-11')
 })
 
 function correctionAt(id: string, original: string, at: Date) {
   return { id, userId: U, status: 'ACCEPTED', original, corrected: `${original}!`, errorType: 'OTHER', createdAt: at }
 }
 
-test('⑤ 주 경계 — 일요일 23:59:59 KST 행은 다음 주 「이번 주」에서 빠지고 월요일 00:00 행은 들어간다', async () => {
+test('⑤ 주 경계 — 토요일 23:59:59 KST 행은 다음 주 「이번 주」에서 빠지고 일요일 00:00 행은 들어간다(task-080 일요일 시작)', async () => {
   const f = retrievalFakeDb()
-  f.tables.correction.push(correctionAt('u1csun', '日曜', kst('2026-10-11 23:59:59')), correctionAt('u1cmon', '月曜', kst('2026-10-12 00:00')))
+  f.tables.correction.push(correctionAt('u1csat', '土曜', kst('2026-10-10 23:59:59')), correctionAt('u1csun', '日曜', kst('2026-10-11 00:00')))
   f.tables.statsSnapshot.push(
-    { id: 'u1d1', userId: U, kind: 'DAILY', periodKey: '2026-10-11', data: daily({ lessons: 7 }) },
-    { id: 'u1d2', userId: U, kind: 'DAILY', periodKey: '2026-10-12', data: daily({ lessons: 2 }) },
+    { id: 'u1d1', userId: U, kind: 'DAILY', periodKey: '2026-10-10', data: daily({ lessons: 7 }) },
+    { id: 'u1d2', userId: U, kind: 'DAILY', periodKey: '2026-10-11', data: daily({ lessons: 2 }) },
   )
   f.tables.lesson.push(
-    { id: 'u1lsun', userId: U, date: dbDate('2026-10-11'), kind: 'NEW', title: '일요 레슨', status: 'DONE', score: 1, content: null, createdAt: NOW },
-    { id: 'u1lmon', userId: U, date: dbDate('2026-10-12'), kind: 'NEW', title: '월요 레슨', status: 'DONE', score: 2, content: null, createdAt: NOW },
+    { id: 'u1lsat', userId: U, date: dbDate('2026-10-10'), kind: 'NEW', title: '토요 레슨', status: 'DONE', score: 1, content: null, createdAt: NOW },
+    { id: 'u1lsun', userId: U, date: dbDate('2026-10-11'), kind: 'NEW', title: '일요 레슨', status: 'DONE', score: 2, content: null, createdAt: NOW },
   )
-  const monday = new Date('2026-10-11T15:30:00.000Z') // 10-12 00:30 KST
-  const texts = (await run(f, 'MIXED', 'THIS_WEEK', { now: monday })).items.map((i) => i.text).join('\n')
-  assert.ok(texts.includes('月曜') && !texts.includes('日曜'))
-  assert.ok(texts.includes('월요 레슨') && !texts.includes('일요 레슨'), '@db.Date 칸도 같은 경계')
+  const sunday = new Date('2026-10-10T15:30:00.000Z') // 10-11 00:30 KST
+  const texts = (await run(f, 'MIXED', 'THIS_WEEK', { now: sunday })).items.map((i) => i.text).join('\n')
+  assert.ok(texts.includes('日曜') && !texts.includes('土曜'))
+  assert.ok(texts.includes('일요 레슨') && !texts.includes('토요 레슨'), '@db.Date 칸도 같은 경계')
   assert.ok(texts.includes('레슨 완료 2회'), '그 주 DAILY 만 합산')
-  const st = (await run(f, 'MIXED', 'THIS_WEEK', { now: kst('2026-10-11 23:59:59') })).items.map((i) => i.text).join('\n')
-  assert.ok(st.includes('日曜') && !st.includes('月曜'))
-  assert.ok(st.includes('일요 레슨') && !st.includes('월요 레슨'))
+  const st = (await run(f, 'MIXED', 'THIS_WEEK', { now: kst('2026-10-10 23:59:59') })).items.map((i) => i.text).join('\n')
+  assert.ok(st.includes('土曜') && !st.includes('日曜'))
+  assert.ok(st.includes('토요 레슨') && !st.includes('일요 레슨'))
   assert.ok(st.includes('레슨 완료 7회'))
 })
 

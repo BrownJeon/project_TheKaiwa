@@ -1,5 +1,8 @@
 /**
- * A9 무엇이든 물어보세요(ASK) — `ask@v2`, task-064 3a(v1) · task-066(v2). `POST /api/v1/chats/:id/turns`(kind=ASK, #32)가 부른다. 응답 계약·후검증·정리는 `prompts/askResponse.ts`.
+ * A9 무엇이든 물어보세요(ASK) — `ask@v3`, task-064 3a(v1) · task-066(v2) · task-080(v3). `POST /api/v1/chats/:id/turns`(kind=ASK, #32)가 부른다. 응답 계약·후검증·정리는 `prompts/askResponse.ts`.
+ *
+ * v3(task-080 Q9 A, 2026-10-20): 주 시작이 일요일로 바뀌어 `[기록 조회]` 범위 이름 «이번 주(월~일)» → «이번 주(일~토)» 한 줄만 바뀌었다(지시문·스키마·경계 표지 불변).
+ *   롤백 = ASK_PROMPT_VERSION 을 'ask@v2' 로, `SCOPE_KO.THIS_WEEK` 를 '이번 주(월~일)' 로, 시험 pin 을 되돌린다 — 단 조회 범위(`dates.weekStartOf`)도 함께 되돌리지 않으면 이름과 날짜가 어긋난다.
  *
  * v2(task-066, 질문 탭 마이크 질문): 입력이 **일본어 글자뿐**(낱말·구·문장)이면 학습자는 그 일본어의 뜻을 묻는 것 — 고정 지시문 한 줄(읽기·뜻·쓰임/뉘앙스·예문, 문장 점검/대화/명령 따르기 아님)을 더했다.
  *   입력 방식 표지 `inputKind`('TEXT' 기본 | 'VOICE')를 additive 로 받는다. `VOICE`(실시간 음성 인식 결과 — 문장부호 없음·동음이의 오인식 가능)일 때만 system 에 `[입력 방식]` 한 줄이 더 붙고,
@@ -47,7 +50,7 @@ export * from './askResponse'
 
 /** Prompt Registry 키(admin-console/14 §키 카탈로그: `ask` → `…/prompts/ask.ts`, ownerRole prompt-engineer). */
 export const ASK_PROMPT_KEY = 'ask'
-export const ASK_PROMPT_VERSION = 'ask@v2'
+export const ASK_PROMPT_VERSION = 'ask@v3'
 /** 엔진 태스크 키 — `engine/router/tasks.ts` `LLM_TASKS.ask`(A9: tier balanced, 120s, interactive)에 같은 이름으로 등록돼 있다. */
 export const ASK_TASK = 'ask' as const
 
@@ -142,7 +145,7 @@ const TYPE_KO: Record<AskSourceType, string> = {
   EVALUATION: '평가',
 }
 const INTENT_KO: Record<AskIntent, string> = { PROGRESS: '진도·복습 확인', EXPRESSION: '배운 표현·교정 찾기', GENERAL: '일본어 일반 질문', MIXED: '기록과 일반 설명 혼합' }
-const SCOPE_KO: Record<AskScopeKey, string> = { THIS_WEEK: '이번 주(월~일)', LAST_30D: '지난 30일', ALL: '전체 기간' }
+const SCOPE_KO: Record<AskScopeKey, string> = { THIS_WEEK: '이번 주(일~토)', LAST_30D: '지난 30일', ALL: '전체 기간' }
 const SCOPE_SOURCE_KO: Record<AskScopeSource, string> = {
   CHIP: '학습자가 고른 범위',
   QUESTION: '질문에서 읽은 범위',

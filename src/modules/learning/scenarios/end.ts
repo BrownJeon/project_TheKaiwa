@@ -2,7 +2,7 @@
  * 역할극 종료 기록(task-010d A1-서버, Leader 결정 S1) — 학습자 [역할극 마치기](직접 행위)를 **호출자 트랜잭션 하나**에 남긴다:
  *   사용자 행 잠금 → 이미 끝낸 대화인지 확인(멱등) → 상황(시드·본인)·참조 조각 읽기 → 판정(expressions.ts) →
  *   `RepetitionItem(SCENARIO)` 등록/갱신 → `StudyLog(TALK, DIRECT, result.scenario…)` → DAILY(`talkTurns`·`corrections.proposed`·`repetition.studied`) →
- *   `LearningObservation(SCENARIO_COMPLETED)` + DAILY `observations`(recordObservations).
+ *   `LearningObservation(SCENARIO_COMPLETED)` + DAILY `observations`·`skills`(recordObservations 와 같은 두 걸음, task-080 `skills`).
  *
  * - DAILY 규칙은 기존 TALK 종료(ADD_STUDY_LOG 채택, `recordAcceptedChatLog`)와 같은 칸이다. 역할극 1건 스냅샷은 만들지 않는다(S1 — 챌린지 T6 가 필요하면 승인과 함께 더한다).
  * - 멱등: 끝낸 표식의 정본은 대화 행 `Chat.endedAt`(task-048 — conversation 이 같은 tx 에서 쓰고, 잠근 행에서 읽어 `chatEndedAt` 으로 넘긴다).
@@ -14,7 +14,7 @@
 import type { ObservationOutcome, Prisma } from '@prisma/client'
 import { ApiError, dates, lockUserRow, prisma, truncateCodePoints, type Tx } from '@/modules/infra'
 import { registerRepetitionItems } from '../repetition'
-import { observationDailyDelta, observationRow } from '../observations'
+import { growthSkillDelta, observationDailyDelta, observationRow } from '../observations'
 import { bumpDailySnapshot } from '../snapshots'
 import { recordStudyLog } from '../studyLog'
 import {
@@ -283,7 +283,7 @@ export async function endScenarioRolePlay(userId: string, input: ScenarioEndInpu
     occurredAt: now,
   }
   await tx.learningObservation.createMany({ data: [endObservation] })
-  await bumpDailySnapshot(userId, today, { observations: observationDailyDelta([endObservation]) }, tx)
+  await bumpDailySnapshot(userId, today, { observations: observationDailyDelta([endObservation]), skills: growthSkillDelta([endObservation]) }, tx)
   return {
     replayed: false,
     chatId: input.chatId,

@@ -8,7 +8,7 @@
  */
 import type { ErrorType, ObservationKind, ObservationOutcome, Prisma, SkillAxis } from '@prisma/client'
 import { dates, prisma, type Tx } from '@/modules/infra'
-import { bumpDailySnapshot, type DailyObservationsDelta } from '../snapshots'
+import { bumpDailySnapshot, type DailyObservationsDelta, type DailySkillsDelta } from '../snapshots'
 
 /**
  * kind → 능력 축(§2-3). `CORRECTION_*` 는 교정 오류 유형에 따라 축이 갈리므로(§2-3 GRAMMAR_PARTICLE 행) 여기 두지 않는다 — 호출자가 `skill` 을 준다
@@ -97,14 +97,64 @@ export function observationDailyDelta(rows: readonly Pick<Prisma.LearningObserva
 }
 
 /**
- * 관측 여러 건 + DAILY `observations` 증가를 한 번에(호출자 tx, 사용자 행 잠금 뒤). 0건이면 아무것도 하지 않는다.
+ * 성장 탭 공부결과(task-080, screens.md §36-8)가 세는 관측 kind → 축. 여기 없는 kind 는 세지 않는다 —
+ * 교정 채택·무시(채택 ≠ 습득, §2-3)·자기수정·대화 유지 관측(«대화 유지 = 역할극 완료만», 단위 «번»과 섞임).
+ * `null` = 축을 관측 행의 `skill`(교정 오류 유형 축)에서 가져온다.
+ */
+export const GROWTH_SKILL_OF_KIND: Partial<Record<ObservationKind, SkillAxis | null>> = {
+  VOCAB_RECOGNITION: 'VOCAB_RECALL',
+  VOCAB_PRODUCTION: 'VOCAB_RECALL',
+  GRAMMAR_USE: 'GRAMMAR_PARTICLE',
+  LISTEN_RESPOND: 'LISTEN_RESPOND',
+  SENTENCE_PRODUCTION: 'SENTENCE_PRODUCTION',
+  EXPRESSION_REUSE: 'SENTENCE_PRODUCTION',
+  SCENARIO_COMPLETED: 'CONVERSATION_MAINTAIN',
+  CORRECTION_PROPOSED: null,
+  CORRECTION_REUSED: null,
+}
+
+/**
+ * `skills[axis].fromCorrection` 으로 세는 kind(§36-17-2 C 규칙). 교정 제안은 틀린 문장만 남기므로(맞게 쓴 문장은 기록 없음)
+ * 판정된 관측이 거의 이것뿐인 축은 단계를 숨긴다(`snapshots/growth isOneSided`).
+ */
+export const GROWTH_FROM_CORRECTION_KINDS: ReadonlySet<ObservationKind> = new Set<ObservationKind>(['CORRECTION_PROPOSED', 'CORRECTION_REUSED'])
+
+export type GrowthSkillRow = Pick<Prisma.LearningObservationCreateManyInput, 'kind' | 'outcome' | 'skill' | 'confidence'>
+
+/**
+ * 관측 행 → DAILY `skills` 증가분(순수, §36-8 표). 신뢰도 < `OBSERVATION_CONFIDENCE_MIN` 은 `uncertain` 만 +1(음성 저신뢰를 틀림으로 세지 않는다).
+ * 교정 관측의 축이 `LISTEN_RESPOND`(발음 교정)면 세지 않는다 — 듣고 응답 «기록 전» 이 거짓이 되지 않게. 셀 행이 없으면 `{}`.
+ * `fromCorrection` = success·partial·fail 로 센 것 중 `GROWTH_FROM_CORRECTION_KINDS` 인 수(불확실·넘김은 세지 않는다).
+ */
+export function growthSkillDelta(rows: readonly GrowthSkillRow[]): DailySkillsDelta {
+  const out: Record<string, { success: number; partial: number; fail: number; skipped: number; uncertain: number; fromCorrection: number }> = {}
+  for (const r of rows) {
+    const mapped = GROWTH_SKILL_OF_KIND[r.kind]
+    if (mapped === undefined) continue
+    const axis = mapped ?? r.skill
+    if (mapped === null && axis === 'LISTEN_RESPOND') continue
+    const c = (out[axis] ??= { success: 0, partial: 0, fail: 0, skipped: 0, uncertain: 0, fromCorrection: 0 })
+    const conf = typeof r.confidence === 'number' && Number.isFinite(r.confidence) ? r.confidence : 1
+    if (conf < OBSERVATION_CONFIDENCE_MIN) {
+      c.uncertain++
+      continue
+    }
+    const key = OUTCOME_KEY[r.outcome]
+    c[key]++
+    if (key !== 'skipped' && GROWTH_FROM_CORRECTION_KINDS.has(r.kind)) c.fromCorrection++
+  }
+  return out
+}
+
+/**
+ * 관측 여러 건 + DAILY `observations`·`skills` 증가를 한 번에(호출자 tx, 사용자 행 잠금 뒤). 0건이면 아무것도 하지 않는다.
  * `date` = DAILY 날짜(KST, 생략 시 오늘) — 원천 기록과 같은 날로 맞출 때 준다(단어 세트는 세트 날짜).
  */
 export async function recordObservations(userId: string, rows: readonly ObservationInput[], tx: Tx, opts: { date?: string } = {}): Promise<number> {
   if (rows.length === 0) return 0
   const data = rows.map((o) => observationRow(userId, o))
   const res = await tx.learningObservation.createMany({ data })
-  await bumpDailySnapshot(userId, opts.date ?? dates.todayKst(), { observations: observationDailyDelta(data) }, tx)
+  await bumpDailySnapshot(userId, opts.date ?? dates.todayKst(), { observations: observationDailyDelta(data), skills: growthSkillDelta(data) }, tx)
   return res.count
 }
 

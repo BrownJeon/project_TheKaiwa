@@ -175,10 +175,10 @@ export function askScopeKeyFor(prev: AskPrevContext, requested: unknown): AskSco
   return prev.needsScope && isAskScopeKey(requested) ? requested : undefined
 }
 
-/** 범위의 KST 날짜 — learning `resolveRange` 와 같은 규칙(이번 주 = 월~일, 지난 30일 = 오늘 포함 30일, 전체 = 없음). */
+/** 범위의 KST 날짜 — learning `resolveRange` 와 같은 규칙(이번 주 = 일~토 `dates.weekStartOf`, 지난 30일 = 오늘 포함 30일, 전체 = 없음). */
 export function askScopeDates(key: AskScopeKey, todayKst: string): { fromKst: string | null; toKst: string | null } {
   if (key === 'THIS_WEEK') {
-    const from = dates.addDays(todayKst, -((dates.toDbDate(todayKst).getUTCDay() + 6) % 7))
+    const from = dates.weekStartOf(todayKst)
     return { fromKst: from, toKst: dates.addDays(from, 6) }
   }
   if (key === 'LAST_30D') return { fromKst: dates.addDays(todayKst, -29), toKst: todayKst }

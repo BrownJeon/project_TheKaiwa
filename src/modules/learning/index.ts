@@ -34,8 +34,12 @@ export type { StudyLogEntry, AcceptedChatLogInput } from './studyLog'
 // ── task-012 달력(#70·#71)·학습 기록 목록·삭제(#72·#73) — 대화 원본 존재 확인은 라우트가 `refs` 로 넘긴다 ──
 export { getCalendar, getDay, parseCalendarMonth, parseDayDate, listStudyLogs, deleteStudyLog, parseStudyLogQuery, STUDY_TYPES, STUDY_LOG_RANGE_MAX_DAYS } from './studyLog'
 export type { CalendarDto, CalendarDayDto, DayDto, StudyLogDto, StudyLogRefs, StudyLogListQuery } from './studyLog'
-export { bumpDailySnapshot, mergeDaily, emptyDaily } from './snapshots'
-export type { DailyData, DailyDelta, VocabSessionSnapshotData, LessonSnapshotData } from './snapshots'
+export { bumpDailySnapshot, mergeDaily, emptyDaily, mergeSkills } from './snapshots'
+export type { DailyData, DailyDelta, DailySkillsDelta, GrowthSkillCounts, VocabSessionSnapshotData, LessonSnapshotData } from './snapshots'
+// ── task-080 #78 성장 탭(DAILY·EVALUATION 스냅샷 + Attendance 읽기 전용) ──
+export { getGrowth, parseGrowthWeeks } from './snapshots/growth'
+export { runGrowthSkillsBackfill, formatGrowthSkillsBackfillReport } from './snapshots/backfillSkills'
+export type { GrowthSkillsBackup, GrowthSkillsBackfillReport, BackfillTxRunner } from './snapshots/backfillSkills'
 export { getTopicRef, listTopics, parseTopicQuery } from './topics'
 // task-045 REV-152a M-1 — #28 새 채팅 저장의 주제 FK 위반(P2003) → 404 TOPIC_GONE
 export { mapTopicGone } from './topics/visible'
@@ -59,8 +63,8 @@ export type { TodayReviewState, TodayReviewDto, ReviewItemDto, LessonNextReview,
 // ── task-011 AI 평가(#65~#69·#67a·#67b) — A6·A7 요청은 라우트가 conversation 으로 만들어 넘긴다 ──
 export * from './evaluation'
 // ── task-010c 학습 관측(append-only, 호출자 tx) — 코치 자기수정이 첫 사용처, 010b 가 단어·교정·레슨 관측을 더한다 ──
-export { recordObservations, observationRow, OBSERVATION_SKILL, OBSERVATION_META_MAX, correctionSkill } from './observations'
-export type { ObservationInput } from './observations'
+export { recordObservations, observationRow, OBSERVATION_SKILL, OBSERVATION_META_MAX, correctionSkill, growthSkillDelta, GROWTH_SKILL_OF_KIND } from './observations'
+export type { ObservationInput, GrowthSkillRow } from './observations'
 // ── task-010b 교정 사건 관측(제안·채택·거절) — Correction 은 L2 라 라우트·훅이 값으로 넘겨 같은 tx 에 쓴다 ──
 export { recordCorrectionsProposed, registerAcceptedCorrection, recordCorrectionIgnored } from './observations/corrections'
 export type { CorrectionEventInput, AcceptedCorrectionInput } from './observations/corrections'

@@ -23,9 +23,9 @@ test('챌린지 카드 자리 = 실측 278.4(전에는 172 — 도착하면 106p
   assert.ok(!/h-\[172px\]/.test(card))
 })
 
-test('서버 자리표시와 클라이언트 로딩 구간은 같은 부품·같은 순서(챌린지 카드 → 월 이동·요약·날짜 칸·표시 설명 → 성장 기록 카드)', () => {
+test('서버 자리표시와 클라이언트 로딩 구간은 같은 부품·같은 순서(분절 → 챌린지 카드 → 월 이동·요약·날짜 칸·표시 설명)', () => {
   for (const src of [skeleton, screen]) {
-    const order = ['<ChallengePlanCard', '<MonthNav', '<SummaryRow', '<CalendarGrid', '<CalendarLegend', '<GrowthSoonCard']
+    const order = ['<PlanSwitch', '<ChallengePlanCard', '<MonthNav', '<SummaryRow', '<CalendarGrid', '<CalendarLegend']
     let at = -1
     for (const tag of order) {
       const i = src.indexOf(tag)
@@ -38,8 +38,16 @@ test('서버 자리표시와 클라이언트 로딩 구간은 같은 부품·같
   assert.match(skeleton, /<CalendarGrid key=\{month\} month=\{month\} today=\{today\} days=\{\[\]\} loading /)
   assert.match(skeleton, /<div inert>\s*<MonthNav/, '월 이동 줄은 눌리지 않게')
   assert.ok(!/MonthNoteBlock/.test(skeleton), '기록이 없는 달에만 생기는 안내 상자는 조건부라 자리표시에 넣지 않는다')
-  assert.match(screen, /import \{ GrowthSoonCard \} from '\.\/parts'/)
-  assert.match(read('plan', 'parts.tsx'), /export function GrowthSoonCard/)
+})
+
+test('task-080: 달력 아래 «곧 열려요» 카드가 빠졌다 — 계획표 화면·자리표시에 GrowthSoonCard·AnalysisSoonCard 없음, 분절은 맨 위', () => {
+  for (const src of [skeleton, screen]) {
+    assert.ok(!/GrowthSoonCard|AnalysisSoonCard/.test(src))
+    assert.ok(src.indexOf('<PlanSwitch') < src.indexOf('<ChallengePlanCard'))
+  }
+  assert.match(skeleton, /<PlanSwitch current="calendar" placeholder \/>/, '자리표시의 분절은 placeholder(inert)')
+  assert.match(screen, /<PlanSwitch current="calendar" \/>/)
+  assert.ok(!/export function GrowthSoonCard/.test(read('plan', 'parts.tsx')))
 })
 
 test('달·날짜는 PlanScreen 과 같은 규칙으로 주소에서 읽는다(원본에서 돌아올 때 같은 달 격자)', () => {
@@ -89,7 +97,7 @@ test('loading.tsx 적용 범위 — 계획표 홈에만 닿는다((tab) 그룹),
 })
 
 // REV-171 L-2: 계획표 자리표시는 알림(role=status)이 한 곳(달력) — 챌린지 카드 자리는 조용한 회색 블록. 서버 자리표시→클라이언트 자리표시로 바뀔 때 같은 문구가 겹쳐 되풀이되지 않는다.
-test('계획표 자리표시 전체에서 role=status 는 한 곳(달력), 챌린지 카드 자리는 aria-hidden 블록', () => {
+test('계획표 자리표시 전체에서 role=status 는 한 곳(달력), 챌린지 카드 자리는 aria-hidden 블록, 분절은 inert', () => {
   const ROUTER = { push: () => {}, replace: () => {}, prefetch: () => {}, back: () => {}, forward: () => {}, refresh: () => {} }
   const html = renderToStaticMarkup(
     createElement(
@@ -102,6 +110,10 @@ test('계획표 자리표시 전체에서 role=status 는 한 곳(달력), 챌�
   assert.match(html, /달력을 불러오는 중…<\/p>/)
   assert.ok(!html.includes('챌린지를 불러오는 중'))
   assert.match(html, /<div aria-hidden="true" class="mt-3"><span class="block rounded-\[14px\] bg-surface2" style="height:278\.4px">/)
+  assert.match(html, /<nav aria-label="계획표 보기" inert=""/)
+  // 요일 머리 일~토(task-080) — 2026-10 은 10/1(목) 앞 빈칸 4칸, 5줄(66px 칸 높이는 줄 수만 바뀐다).
+  const heads = [...html.matchAll(/<span class="h-6 text-center text-\[12px\] leading-6 text-ink2">(.)<\/span>/g)].map((m) => m[1])
+  assert.deepEqual(heads, ['일', '월', '화', '수', '목', '금', '토'])
   const card = read('challenge', 'ChallengePlanCard.tsx')
   assert.ok(!/COPY\.cardLoading/.test(card), '챌린지 카드 로딩 분기는 알림을 그리지 않는다')
 })
