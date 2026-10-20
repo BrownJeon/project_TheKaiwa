@@ -1,0 +1,229 @@
+{
+ "calls": {
+  "ledgerRows": 31,
+  "hardCap": 40,
+  "byStage": {
+   "pair": 20,
+   "guard": 10,
+   "reserve": 1
+  },
+  "cliAttemptsSum": 31,
+  "failed": 1,
+  "unfinished": 0
+ },
+ "pair": {
+  "v3": {
+   "calls": 10,
+   "ok": 10,
+   "failed": 0,
+   "received": 130,
+   "kept": 124,
+   "passRatePct": 95.4,
+   "keptPerSet": [
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10
+   ],
+   "keptMean": 10,
+   "keptSd": 0,
+   "keptMin": 10,
+   "droppedByReason": {
+    "SURFACE_CHARS": 2,
+    "JLPT_WINDOW": 4
+   },
+   "words": 100,
+   "multiMeaningWords": 49,
+   "multiMeaningPct": 49,
+   "meaningsPerWord": 1.5,
+   "meaningCharsPerWord": 7.8,
+   "identicalMeaningRepeats": 0,
+   "outputCharsMean": 2228,
+   "outputCharsMedian": 2165,
+   "latencyMsMean": 10444,
+   "latencyMsMedian": 9956,
+   "latencyMsMax": 12678,
+   "promptCharsMean": 3077,
+   "systemChars": 1943,
+   "attemptsSum": 10
+  },
+  "v4": {
+   "calls": 10,
+   "ok": 10,
+   "failed": 0,
+   "received": 130,
+   "kept": 126,
+   "passRatePct": 96.9,
+   "keptPerSet": [
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10
+   ],
+   "keptMean": 10,
+   "keptSd": 0,
+   "keptMin": 10,
+   "droppedByReason": {
+    "SURFACE_CHARS": 1,
+    "JLPT_WINDOW": 3
+   },
+   "words": 100,
+   "multiMeaningWords": 19,
+   "multiMeaningPct": 19,
+   "meaningsPerWord": 1.19,
+   "meaningCharsPerWord": 5.2,
+   "identicalMeaningRepeats": 3,
+   "outputCharsMean": 2187,
+   "outputCharsMedian": 2122,
+   "latencyMsMean": 9963,
+   "latencyMsMedian": 9195,
+   "latencyMsMax": 13011,
+   "promptCharsMean": 3230,
+   "systemChars": 2096,
+   "attemptsSum": 10
+  },
+  "complete": true
+ },
+ "guard": {
+  "stats": {
+   "calls": 10,
+   "ok": 10,
+   "failed": 0,
+   "received": 130,
+   "kept": 81,
+   "passRatePct": 62.3,
+   "keptPerSet": [
+    6,
+    7,
+    10,
+    7,
+    4,
+    9,
+    7,
+    10,
+    9,
+    9
+   ],
+   "keptMean": 7.8,
+   "keptSd": 1.93,
+   "keptMin": 4,
+   "droppedByReason": {
+    "JLPT_WINDOW": 45,
+    "NOT_VALID": 3,
+    "MEANING_CHARS": 1
+   },
+   "words": 78,
+   "multiMeaningWords": 30,
+   "multiMeaningPct": 38.5,
+   "meaningsPerWord": 1.38,
+   "meaningCharsPerWord": 8.1,
+   "identicalMeaningRepeats": 0,
+   "outputCharsMean": 2222,
+   "outputCharsMedian": 2237,
+   "latencyMsMean": 10101,
+   "latencyMsMedian": 10139,
+   "latencyMsMax": 11576,
+   "promptCharsMean": 3296,
+   "systemChars": 2096,
+   "attemptsSum": 10
+  },
+  "complete": true,
+  "task078V3Mean": 8.1,
+  "rerunInputs": [
+   "N2-v7"
+  ],
+  "failedAsRun": [
+   {
+    "callId": "guard:N2-v7:v4",
+    "errorName": "ClaudeCliTimeoutError",
+    "elapsedMs": 20407
+   }
+  ],
+  "sensitivity": {
+   "asRunSuccessOnly": {
+    "n": 9,
+    "mean": 7.56,
+    "perSet": [
+     6,
+     7,
+     10,
+     7,
+     4,
+     9,
+     7,
+     9,
+     9
+    ]
+   },
+   "asRunFailureAsZero": {
+    "n": 10,
+    "mean": 6.8,
+    "perSet": [
+     6,
+     7,
+     10,
+     7,
+     4,
+     9,
+     7,
+     0,
+     9,
+     9
+    ]
+   }
+  }
+ },
+ "gates": {
+  "b_guardMean": {
+   "mean": 7.8,
+   "min": 7.6,
+   "sd": 1.93,
+   "perSet": [
+    6,
+    7,
+    10,
+    7,
+    4,
+    9,
+    7,
+    10,
+    9,
+    9
+   ],
+   "pass": true,
+   "deltaVsTask078": -0.3
+  },
+  "c_passRate": {
+   "v3Pct": 95.4,
+   "v4Pct": 96.9,
+   "dropPp": -1.5,
+   "maxDropPp": 5,
+   "pass": true
+  },
+  "d_lengthLatency": {
+   "outputRatioMean": 0.982,
+   "outputRatioMedian": 0.98,
+   "latencyRatioMean": 0.954,
+   "latencyRatioMedian": 0.924,
+   "max": 1.15,
+   "pass": true
+  }
+ },
+ "guardLatencyVsTask078": {
+  "note": "참고(합격선 아님) — task-078 v3 N2 25회 측정: p50 약 10.7초(N2 만), 최대 12.12초",
+  "v4GuardMedianMs": 10139,
+  "v4GuardMaxMs": 11576
+ }
+}

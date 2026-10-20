@@ -1,16 +1,16 @@
 ---
 imp_id: IMP-0056
 title: "챌린지 주제 새 단어 카드에 예문이 비어 있는 경우(예문 검사 실패로 null) — 대조 쇼핑하기의 サイズ 1장"
-status: inbox
+status: planned
 screen: "§5 오늘의 단어 — 챌린지 주제 세트의 AI 새 단어 카드(A12)"
 area: behavior
 priority: ""
 found_on: "qa/local"
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 observed_ref: 69ecd6e
 related_task: "[[task-078-improve-topic-words-level-yield]]"
-planned_task: ""
+planned_task: "[[task-079-improve-topic-words-quality]]"
 tags:
   - type/improvement
 aliases:
@@ -34,3 +34,5 @@ task-076 QA(10-18)에서 챌린지 주제 새 단어 카드 1장(대조군 «쇼
 - 2026-10-19 사용자 결정으로 IMP-0052(task-078)와 **분리해 접수만**(이번 변경 밖). 설계된 동작이라 «결함»인지 «허용 가능한 드문 현상»인지부터 판단이 필요하다 — 착수 때 `exampleNulledByReason` 분포를 모아 빈도와 이유(길이·문자·누락)를 먼저 잰다.
 - 후보: ① 예문만 다시 생성 ② 예문 null 이유 로깅 ③ 카드 화면에서 예문 없음 처리 확인(화면 변경이면 데모 게이트).
 - 같은 프롬프트를 task-078 이 바꾸므로 **착수는 task-078 이후**.
+
+- **착수(2026-10-20, task-079)** — Leader 빈도 측정(저장된 AI 새 단어 57개·트레이스 10회, 읽기 전용): 예문 없음 0/57 — 재현 안 됨, 트레이스에 `exampleNulled` 기록만 추가(측정 수단). 빈도가 쌓이면 재판단.

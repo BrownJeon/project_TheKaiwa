@@ -1,0 +1,2670 @@
+[
+ {
+  "callId": "pair:P01:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P01",
+  "topicKey": "hotel",
+  "level": "N3",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 9517,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3081,
+  "systemChars": 1943,
+  "outputChars": 2075,
+  "received": 13,
+  "kept": 12,
+  "droppedByReason": {
+   "SURFACE_CHARS": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "フロント",
+    "reading": "ふろんと",
+    "meaningKo": "프런트, 리셉션",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "チェックイン",
+    "reading": "ちぇっくいん",
+    "meaningKo": "체크인",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "予約",
+    "reading": "よやく",
+    "meaningKo": "예약",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "部屋",
+    "reading": "へや",
+    "meaningKo": "방",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "鍵",
+    "reading": "かぎ",
+    "meaningKo": "열쇠",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "アメニティ",
+    "reading": "あめにてぃ",
+    "meaningKo": "어메니티, 비품",
+    "jlpt": null
+   },
+   {
+    "textJa": "エレベーター",
+    "reading": "えれべーたー",
+    "meaningKo": "엘리베이터",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "朝食",
+    "reading": "ちょうしょく",
+    "meaningKo": "조식, 아침 식사",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "タオル",
+    "reading": "たおる",
+    "meaningKo": "타올, 수건",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "チェックアウト",
+    "reading": "ちぇっくあうと",
+    "meaningKo": "체크아웃",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "眺望",
+    "reading": "ちょうぼう",
+    "meaningKo": "전망, 경치",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "手配",
+    "reading": "てはい",
+    "meaningKo": "손배, 준비",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P01:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P01",
+  "topicKey": "hotel",
+  "level": "N3",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 9070,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3234,
+  "systemChars": 2096,
+  "outputChars": 2108,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "チェックイン",
+    "reading": "ちぇっくいん",
+    "meaningKo": "체크인",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "フロント",
+    "reading": "ふろんと",
+    "meaningKo": "프론트",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "鍵",
+    "reading": "かぎ",
+    "meaningKo": "열쇠",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "チェックアウト",
+    "reading": "ちぇっくあうと",
+    "meaningKo": "체크아웃",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "アメニティ",
+    "reading": "あめにてぃ",
+    "meaningKo": "어메니티",
+    "jlpt": null
+   },
+   {
+    "textJa": "眺望",
+    "reading": "ちょうぼう",
+    "meaningKo": "전망",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "設備",
+    "reading": "せつび",
+    "meaningKo": "시설",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "エレベーター",
+    "reading": "えれべーたー",
+    "meaningKo": "엘리베이터",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "朝食",
+    "reading": "ちょうしょく",
+    "meaningKo": "아침식사",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "案内",
+    "reading": "あんない",
+    "meaningKo": "안내",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "確認します",
+    "reading": "かくにんします",
+    "meaningKo": "확인하다",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "用意します",
+    "reading": "よういします",
+    "meaningKo": "준비하다",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "確保",
+    "reading": "かくほ",
+    "meaningKo": "확보",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P02:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P02",
+  "topicKey": "clinic",
+  "level": "N3",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 8163,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3230,
+  "systemChars": 2096,
+  "outputChars": 1971,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "症状",
+    "reading": "しょうじょう",
+    "meaningKo": "증상",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "診察",
+    "reading": "しんさつ",
+    "meaningKo": "진찰",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "処方箋",
+    "reading": "しょほうせん",
+    "meaningKo": "처방전",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "副作用",
+    "reading": "ふくさようく",
+    "meaningKo": "부작용",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "検査",
+    "reading": "けんさ",
+    "meaningKo": "검사",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予約",
+    "reading": "よやく",
+    "meaningKo": "예약",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "待合室",
+    "reading": "まちあいしつ",
+    "meaningKo": "대기실",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "処方",
+    "reading": "しょほう",
+    "meaningKo": "처방",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "患者",
+    "reading": "かんじゃ",
+    "meaningKo": "환자",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "医療費",
+    "reading": "いりょうひ",
+    "meaningKo": "의료비",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "点滴",
+    "reading": "てんてき",
+    "meaningKo": "수액",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "カルテ",
+    "reading": "カルテ",
+    "meaningKo": "진료 기록",
+    "jlpt": null
+   },
+   {
+    "textJa": "痛い",
+    "reading": "いたい",
+    "meaningKo": "아프다",
+    "jlpt": "N4"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P02:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P02",
+  "topicKey": "clinic",
+  "level": "N3",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 8490,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3077,
+  "systemChars": 1943,
+  "outputChars": 1946,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "症状",
+    "reading": "しょうじょう",
+    "meaningKo": "증상",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "処方箋",
+    "reading": "しょほうせん",
+    "meaningKo": "처방전",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "診察",
+    "reading": "しんさつ",
+    "meaningKo": "진찰",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "医師",
+    "reading": "いし",
+    "meaningKo": "의사",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "薬局",
+    "reading": "やっきょく",
+    "meaningKo": "약국",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "処置",
+    "reading": "しょち",
+    "meaningKo": "처치",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "検査",
+    "reading": "けんさ",
+    "meaningKo": "검사",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "患部",
+    "reading": "かんぶ",
+    "meaningKo": "환부, 아픈 부위",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "副作用",
+    "reading": "ふくさよう",
+    "meaningKo": "부작용",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "診断",
+    "reading": "しんだん",
+    "meaningKo": "진단",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "緊急",
+    "reading": "きんきゅう",
+    "meaningKo": "응급, 긴급",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "痛める",
+    "reading": "いためる",
+    "meaningKo": "다치다, 상하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "回復",
+    "reading": "かいふく",
+    "meaningKo": "회복",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P03:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P03",
+  "topicKey": "clothes",
+  "level": "N3",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 9023,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3072,
+  "systemChars": 1943,
+  "outputChars": 2032,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "試着室",
+    "reading": "しちゃくしつ",
+    "meaningKo": "탈의실, 시착실",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "サイズ",
+    "reading": "サイズ",
+    "meaningKo": "사이즈",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "丈",
+    "reading": "たけ",
+    "meaningKo": "길이, 옷의 길",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "色合い",
+    "reading": "いろあい",
+    "meaningKo": "색감, 색조",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "レジ",
+    "reading": "レジ",
+    "meaningKo": "계산대, 레지스터",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "袖",
+    "reading": "そで",
+    "meaningKo": "소매",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "襟",
+    "reading": "えり",
+    "meaningKo": "깃",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "タグ",
+    "reading": "タグ",
+    "meaningKo": "태그, 라벨",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "合わせます",
+    "reading": "あわせます",
+    "meaningKo": "맞춰보다, 껴입어보다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ぴったりです",
+    "reading": "ぴったりです",
+    "meaningKo": "딱 맞다, 정확히 들어맞다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "きつい",
+    "reading": "きつい",
+    "meaningKo": "타이트하다, 좁다",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "ゆったり",
+    "reading": "ゆったり",
+    "meaningKo": "느슨하다, 여유 있다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "試着します",
+    "reading": "しちゃくします",
+    "meaningKo": "입어보다, 시착하다",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P03:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P03",
+  "topicKey": "clothes",
+  "level": "N3",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 8884,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3225,
+  "systemChars": 2096,
+  "outputChars": 1989,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "試着室",
+    "reading": "しちゃくしつ",
+    "meaningKo": "탈의실",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "サイズ",
+    "reading": "サイズ",
+    "meaningKo": "사이즈",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "素材",
+    "reading": "そざい",
+    "meaningKo": "소재",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "色合い",
+    "reading": "いろあい",
+    "meaningKo": "색감",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "丈",
+    "reading": "たけ",
+    "meaningKo": "길이",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "試着",
+    "reading": "しちゃく",
+    "meaningKo": "시착, 입어보기",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "似合う",
+    "reading": "にあう",
+    "meaningKo": "어울리다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "合わせる",
+    "reading": "あわせる",
+    "meaningKo": "맞추다, 어울리게 입다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "値段",
+    "reading": "ねだん",
+    "meaningKo": "가격",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "割引",
+    "reading": "わりびき",
+    "meaningKo": "할인",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "生地",
+    "reading": "きじ",
+    "meaningKo": "천",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "きつい",
+    "reading": "きつい",
+    "meaningKo": "타이트하다, 꼭 맞다",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "ゆったり",
+    "reading": "ゆったり",
+    "meaningKo": "헐렁하다, 넉넉하다",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P04:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P04",
+  "topicKey": "refund",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 9314,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3231,
+  "systemChars": 2096,
+  "outputChars": 2135,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "返品",
+    "reading": "へんぴん",
+    "meaningKo": "반품",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "交換",
+    "reading": "こうかん",
+    "meaningKo": "교환",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "不良品",
+    "reading": "ふりょうひん",
+    "meaningKo": "불량품",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "返金",
+    "reading": "へんきん",
+    "meaningKo": "환금",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "納期",
+    "reading": "のうき",
+    "meaningKo": "납기",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "キズ",
+    "reading": "キズ",
+    "meaningKo": "상처, 흠집",
+    "jlpt": null
+   },
+   {
+    "textJa": "汚れ",
+    "reading": "よごれ",
+    "meaningKo": "오염, 얼룩",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "破損",
+    "reading": "はそん",
+    "meaningKo": "파손",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "領収書",
+    "reading": "りょうしゅうしょ",
+    "meaningKo": "영수증",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "初期不良",
+    "reading": "しょきふりょう",
+    "meaningKo": "초기 불량",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "値札",
+    "reading": "ねふだ",
+    "meaningKo": "가격표",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "受け付け",
+    "reading": "うけつけ",
+    "meaningKo": "접수",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "対応",
+    "reading": "たいおう",
+    "meaningKo": "대응, 처리",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P04:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P04",
+  "topicKey": "refund",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 10391,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3078,
+  "systemChars": 1943,
+  "outputChars": 2156,
+  "received": 13,
+  "kept": 12,
+  "droppedByReason": {
+   "JLPT_WINDOW": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "返品",
+    "reading": "へんぴん",
+    "meaningKo": "반품, 돌려보냄",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "交換",
+    "reading": "こうかん",
+    "meaningKo": "교환, 바꿈",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "不良品",
+    "reading": "ふりょうひん",
+    "meaningKo": "불량품, 하자 있는 물건",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "キズ",
+    "reading": "きず",
+    "meaningKo": "흠집, 상처",
+    "jlpt": null
+   },
+   {
+    "textJa": "破損",
+    "reading": "はそん",
+    "meaningKo": "파손, 손상",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "納品書",
+    "reading": "のうひんしょ",
+    "meaningKo": "납품서, 인수증",
+    "jlpt": null
+   },
+   {
+    "textJa": "領収書",
+    "reading": "りょうしゅうしょ",
+    "meaningKo": "영수증, 영수",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "対応",
+    "reading": "たいおう",
+    "meaningKo": "대응, 처리",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "返金",
+    "reading": "へんきん",
+    "meaningKo": "환금, 돈 되돌려줌",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "有効期限",
+    "reading": "ゆうこうきげん",
+    "meaningKo": "유효 기한, 유통기한",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "受け付ける",
+    "reading": "うけつける",
+    "meaningKo": "받다, 응하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "手数料",
+    "reading": "てすうりょう",
+    "meaningKo": "수수료, 처리비",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P05:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P05",
+  "topicKey": "airport",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 10181,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3075,
+  "systemChars": 1943,
+  "outputChars": 2172,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "搭乗口",
+    "reading": "とうじょうぐち",
+    "meaningKo": "탑승구, 게이트",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "乗り継ぎ",
+    "reading": "のりつぎ",
+    "meaningKo": "환승, 갈아탐",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "搭乗券",
+    "reading": "とうじょうけん",
+    "meaningKo": "탑승권, 항공권",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "手荷物",
+    "reading": "てにもつ",
+    "meaningKo": "기내수하물, 손짐",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "出発ロビー",
+    "reading": "しゅっぱつろびー",
+    "meaningKo": "출발 로비",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "到着ロビー",
+    "reading": "とうちゃくろびー",
+    "meaningKo": "도착 로비",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "改札口",
+    "reading": "かいさつぐち",
+    "meaningKo": "개찰구, 표 확인 게이트",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "プラットフォーム",
+    "reading": "ぷらっとふぉーむ",
+    "meaningKo": "플랫폼, 승강장",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "乗車券",
+    "reading": "じょうしゃけん",
+    "meaningKo": "탑승권, 기차표",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "荷物受取所",
+    "reading": "にもつうけとりじょ",
+    "meaningKo": "수하물 수취소",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "発着時刻",
+    "reading": "はっちゃくじこく",
+    "meaningKo": "출발·도착 시간",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "空港バス",
+    "reading": "くうこうばす",
+    "meaningKo": "공항 버스",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "乗換案内",
+    "reading": "のりかえあんない",
+    "meaningKo": "환승 안내",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P05:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P05",
+  "topicKey": "airport",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 9075,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3228,
+  "systemChars": 2096,
+  "outputChars": 2073,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "搭乗口",
+    "reading": "とうじょうぐち",
+    "meaningKo": "탑승구",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "運行状況",
+    "reading": "うんこうじょうきょう",
+    "meaningKo": "운행 상황",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "乗り継ぎ",
+    "reading": "のりつぎ",
+    "meaningKo": "환승",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "手荷物",
+    "reading": "てにもつ",
+    "meaningKo": "수하물",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "搭乗券",
+    "reading": "とうじょうけん",
+    "meaningKo": "탑승권",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "時間帯",
+    "reading": "じかんたい",
+    "meaningKo": "시간대",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "所要時間",
+    "reading": "しょようじかん",
+    "meaningKo": "소요 시간",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "案内表示",
+    "reading": "あんないひょうじ",
+    "meaningKo": "안내 표시",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "乗客",
+    "reading": "じょうきゃく",
+    "meaningKo": "승객",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "出発時刻",
+    "reading": "しゅっぱつじこく",
+    "meaningKo": "출발 시각",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "遅延",
+    "reading": "ちえん",
+    "meaningKo": "지연",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "接続",
+    "reading": "せつぞく",
+    "meaningKo": "연결",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "乗車位置",
+    "reading": "じょうしゃいち",
+    "meaningKo": "승차 위치",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P06:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P06",
+  "topicKey": "hotel",
+  "level": "N2",
+  "variant": 1,
+  "ok": true,
+  "elapsedMs": 12689,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3226,
+  "systemChars": 2096,
+  "outputChars": 2397,
+  "received": 13,
+  "kept": 12,
+  "droppedByReason": {
+   "SURFACE_CHARS": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "チェックインします",
+    "reading": "ちぇっくいんします",
+    "meaningKo": "체크인하다",
+    "jlpt": null
+   },
+   {
+    "textJa": "予約確認します",
+    "reading": "よやくかくにんします",
+    "meaningKo": "예약 확인하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "部屋をアップグレードしてもらう",
+    "reading": "へやをあっぷぐれーどしてもらう",
+    "meaningKo": "객실을 업그레이드해달라",
+    "jlpt": null
+   },
+   {
+    "textJa": "署名します",
+    "reading": "しょめいします",
+    "meaningKo": "서명하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "身分証明書を提示します",
+    "reading": "みぶんしょうめいしょをていじします",
+    "meaningKo": "신분증을 제시하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "荷物を預けます",
+    "reading": "にもつをあずけます",
+    "meaningKo": "짐을 맡기다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "鍵を受け取ります",
+    "reading": "かぎをうけとります",
+    "meaningKo": "열쇠를 받다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "施設を案内してもらいます",
+    "reading": "しせつをあんないしてもらいます",
+    "meaningKo": "시설을 안내받다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "朝食の時間を聞きます",
+    "reading": "ちょうしょくのじかんをききます",
+    "meaningKo": "조식 시간을 묻다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "支払い方法を選びます",
+    "reading": "しはらいほうほうをえらびます",
+    "meaningKo": "결제 방법을 선택하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "タオルをリクエストします",
+    "reading": "たおるをりくえすとします",
+    "meaningKo": "타월을 요청하다",
+    "jlpt": null
+   },
+   {
+    "textJa": "到着時刻を伝えます",
+    "reading": "とうちゃくじこくをつたえます",
+    "meaningKo": "도착 시간을 알리다",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P06:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P06",
+  "topicKey": "hotel",
+  "level": "N2",
+  "variant": 1,
+  "ok": true,
+  "elapsedMs": 12424,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3073,
+  "systemChars": 1943,
+  "outputChars": 2556,
+  "received": 13,
+  "kept": 12,
+  "droppedByReason": {
+   "SURFACE_CHARS": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "チェックインします",
+    "reading": "ちぇっくいんします",
+    "meaningKo": "체크인하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予約を確認します",
+    "reading": "よやくをかくにんします",
+    "meaningKo": "예약을 확인하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "案内してもらいます",
+    "reading": "あんないしてもらいます",
+    "meaningKo": "안내받다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "チェックアウトは何時ですか",
+    "reading": "ちぇっくあうとはなんじですか",
+    "meaningKo": "체크아웃 시간을 묻다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "鍵を受け取ります",
+    "reading": "かぎをうけとります",
+    "meaningKo": "열쇠를 받다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "朝食の時間を確認します",
+    "reading": "ちょうしょくのじかんをかくにんします",
+    "meaningKo": "아침 식사 시간을 확인하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "説明を受けます",
+    "reading": "せつめいをうけます",
+    "meaningKo": "설명을 받다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "クレジットカードを提示します",
+    "reading": "くれじっとかーどをていじします",
+    "meaningKo": "신용카드를 제시하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "身分証明書を提出します",
+    "reading": "しんぶんしょうめいしょをていしゅつします",
+    "meaningKo": "신분증을 제출하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "追加サービスを利用します",
+    "reading": "ついかさーびすをりようします",
+    "meaningKo": "추가 서비스를 이용하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "料金を確認して納得します",
+    "reading": "りょうきんをかくにんしてなっとくします",
+    "meaningKo": "요금을 확인하고 동의하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "トラブルを報告します",
+    "reading": "とらぶるをほうこくします",
+    "meaningKo": "문제를 보고하다",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P07:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P07",
+  "topicKey": "clinic",
+  "level": "N2",
+  "variant": 2,
+  "ok": true,
+  "elapsedMs": 12678,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3080,
+  "systemChars": 1943,
+  "outputChars": 2504,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "頭痛がします",
+    "reading": "ずつうがします",
+    "meaningKo": "두통이 있다, 머리가 아프다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "倦怠感",
+    "reading": "けんたいかん",
+    "meaningKo": "피로감, 무기력함",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "吐き気がします",
+    "reading": "はきけがします",
+    "meaningKo": "구역질이 난다, 메스꺼움",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "症状が悪化します",
+    "reading": "しょうじょうがあっかします",
+    "meaningKo": "증상이 악화하다, 나빠지다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "節々が痛いです",
+    "reading": "ふしぶしがいたいです",
+    "meaningKo": "관절이 아프다, 여기저기 쑤신다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "違和感があります",
+    "reading": "いわかんがあります",
+    "meaningKo": "어색한 느낌이 들다, 위화감",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "症状が軽いです",
+    "reading": "しょうじょうがかるいです",
+    "meaningKo": "증상이 가볍다, 심하지 않다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "熱っぽいです",
+    "reading": "ねつっぽいです",
+    "meaningKo": "열이 나는 것 같다, 열감",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "息苦しいです",
+    "reading": "いきくるしいです",
+    "meaningKo": "숨이 차다, 호흡이 어렵다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "胸が痛みます",
+    "reading": "むねがいたみます",
+    "meaningKo": "가슴이 아프다, 흉통",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "ひどいです",
+    "reading": "ひどいです",
+    "meaningKo": "심하다, 심각하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "違和感",
+    "reading": "いわかん",
+    "meaningKo": "어색함, 불편함",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "症状が続きます",
+    "reading": "しょうじょうがつづきます",
+    "meaningKo": "증상이 계속되다, 지속되다",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P07:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P07",
+  "topicKey": "clinic",
+  "level": "N2",
+  "variant": 2,
+  "ok": true,
+  "elapsedMs": 11039,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3233,
+  "systemChars": 2096,
+  "outputChars": 2283,
+  "received": 13,
+  "kept": 12,
+  "droppedByReason": {
+   "JLPT_WINDOW": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "だるい",
+    "reading": "だるい",
+    "meaningKo": "무겁다, 피곤하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ひどい",
+    "reading": "ひどい",
+    "meaningKo": "심하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "つらい",
+    "reading": "つらい",
+    "meaningKo": "힘들다, 고생스럽다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "気持ち悪い",
+    "reading": "きもちわるい",
+    "meaningKo": "역겨운, 메스꺼운",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "かゆい",
+    "reading": "かゆい",
+    "meaningKo": "가렵다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "熱っぽい",
+    "reading": "ねつっぽい",
+    "meaningKo": "열이 나는 것 같은",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "倦怠感",
+    "reading": "けんたいかん",
+    "meaningKo": "무기력감, 피로감",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "違和感",
+    "reading": "いわかん",
+    "meaningKo": "어색함, 어색한 감각",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "息苦しい",
+    "reading": "いきくるしい",
+    "meaningKo": "숨이 차다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "治りにくい",
+    "reading": "なおりにくい",
+    "meaningKo": "낫기 어렵다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "副作用",
+    "reading": "ふくさよう",
+    "meaningKo": "부작용",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "症状が出ます",
+    "reading": "しょうじょうがでます",
+    "meaningKo": "증상이 나타나다",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P08:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P08",
+  "topicKey": "mart",
+  "level": "N3",
+  "variant": 4,
+  "ok": true,
+  "elapsedMs": 13011,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3235,
+  "systemChars": 2096,
+  "outputChars": 2592,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "いらっしゃいませ",
+    "reading": "いらっしゃいませ",
+    "meaningKo": "어서오세요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "ご不明な点はございませんか",
+    "reading": "ごふめいなてんはございませんか",
+    "meaningKo": "불명한 점이 있으신가요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "お探しですか",
+    "reading": "おさがしですか",
+    "meaningKo": "찾으시나요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "こちらいかがですか",
+    "reading": "こちらいかがですか",
+    "meaningKo": "이것 어떠세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "本日セール中です",
+    "reading": "ほんじつせーるちゅうです",
+    "meaningKo": "오늘 세일 중입니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "いかがいたしましょうか",
+    "reading": "いかがいたしましょうか",
+    "meaningKo": "어떻게 도와드릴까요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "お会計です",
+    "reading": "おかいけいです",
+    "meaningKo": "계산입니다",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "ポイントカードはお持ちですか",
+    "reading": "ぽいんとかーどはおもちですか",
+    "meaningKo": "포인트 카드 있으세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "今週のおすすめ",
+    "reading": "こんしゅうのおすすめ",
+    "meaningKo": "이번 주 추천",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "納品日",
+    "reading": "のうひんび",
+    "meaningKo": "입하일",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "賞味期限",
+    "reading": "しょうみきげん",
+    "meaningKo": "유통기한",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "割引対象",
+    "reading": "わりびきたいしょう",
+    "meaningKo": "할인 대상",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ご利用ありがとうございました",
+    "reading": "ごりようありがとうございました",
+    "meaningKo": "이용해주셔서 감사합니다",
+    "jlpt": "N4"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P08:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P08",
+  "topicKey": "mart",
+  "level": "N3",
+  "variant": 4,
+  "ok": true,
+  "elapsedMs": 12536,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3082,
+  "systemChars": 1943,
+  "outputChars": 2456,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "いらっしゃいませ",
+    "reading": "いらっしゃいませ",
+    "meaningKo": "어서오세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "何かお探しですか",
+    "reading": "なにかおさがしですか",
+    "meaningKo": "찾으시는 물건이 있으세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "いかがですか",
+    "reading": "いかがですか",
+    "meaningKo": "어떠세요, 어떻게 하시겠어요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ご一緒でよろしいですか",
+    "reading": "ごいっしょでよろしいですか",
+    "meaningKo": "함께 계산하시겠어요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "袋はお付けしますか",
+    "reading": "ふくろはおつけしますか",
+    "meaningKo": "봉지를 드릴까요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ポイントカードはお持ちですか",
+    "reading": "ぽいんとかーどはおもちですか",
+    "meaningKo": "포인트 카드 있으세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "こちらはいかがですか",
+    "reading": "こちらはいかがですか",
+    "meaningKo": "이쪽은 어떠세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "おすすめです",
+    "reading": "おすすめです",
+    "meaningKo": "추천 상품입니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "本日セール中です",
+    "reading": "ほんじつせーるちゅうです",
+    "meaningKo": "오늘 세일 중입니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ご利用ありがとうございました",
+    "reading": "ごりようありがとうございました",
+    "meaningKo": "이용해주셔서 감사합니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "割引対象です",
+    "reading": "わりびきたいしょうです",
+    "meaningKo": "할인 대상입니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "お会計です",
+    "reading": "おかいけいです",
+    "meaningKo": "계산입니다, 계산해드리겠습니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "こちらをどうぞ",
+    "reading": "こちらをどうぞ",
+    "meaningKo": "이것을 드세요, 이걸 가져가세요",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P09:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P09",
+  "topicKey": "office",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 9469,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3073,
+  "systemChars": 1943,
+  "outputChars": 2158,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "案件",
+    "reading": "あんけん",
+    "meaningKo": "안건, 사건, 업무",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "進捗",
+    "reading": "しんちょく",
+    "meaningKo": "진행, 진행 상황",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "締め切り",
+    "reading": "しめきり",
+    "meaningKo": "마감, 기한",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "資料",
+    "reading": "しりょう",
+    "meaningKo": "자료, 문서",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "承認",
+    "reading": "しょうにん",
+    "meaningKo": "승인, 허가",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "議題",
+    "reading": "ぎだい",
+    "meaningKo": "안건, 논의 주제",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "日程",
+    "reading": "にっていう",
+    "meaningKo": "일정, 스케줄",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "負担",
+    "reading": "ふたん",
+    "meaningKo": "부담, 책임",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "勤務地",
+    "reading": "きんむち",
+    "meaningKo": "근무지, 업무 장소",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "会議室",
+    "reading": "かいぎしつ",
+    "meaningKo": "회의실",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "修正",
+    "reading": "しゅうせい",
+    "meaningKo": "수정, 개정",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "決裁",
+    "reading": "けっさい",
+    "meaningKo": "결재, 승인",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "対応",
+    "reading": "たいおう",
+    "meaningKo": "대응, 처리, 대처",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P09:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P09",
+  "topicKey": "office",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 8753,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3226,
+  "systemChars": 2096,
+  "outputChars": 2093,
+  "received": 13,
+  "kept": 11,
+  "droppedByReason": {
+   "JLPT_WINDOW": 2
+  },
+  "keptWords": [
+   {
+    "textJa": "締め切り",
+    "reading": "しめきり",
+    "meaningKo": "마감, 기한",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "進捗",
+    "reading": "しんちょく",
+    "meaningKo": "진행 상황, 진행률",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "資料",
+    "reading": "しりょう",
+    "meaningKo": "자료, 문서",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "業務",
+    "reading": "ぎょうむ",
+    "meaningKo": "업무, 업무",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "スケジュール",
+    "reading": "スケジュール",
+    "meaningKo": "일정, 스케줄",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "期限",
+    "reading": "きげん",
+    "meaningKo": "기한, 마감",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "案件",
+    "reading": "あんけん",
+    "meaningKo": "안건, 사안",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "同僚",
+    "reading": "どうりょう",
+    "meaningKo": "동료, 동료",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "報告",
+    "reading": "ほうこく",
+    "meaningKo": "보고, 보고",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "納期",
+    "reading": "のうき",
+    "meaningKo": "납기, 납기일",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "タスク",
+    "reading": "タスク",
+    "meaningKo": "과제, 업무",
+    "jlpt": null
+   }
+  ]
+ },
+ {
+  "callId": "pair:P10:v4",
+  "stage": "pair",
+  "arm": "v4",
+  "inputId": "P10",
+  "topicKey": "restaurant",
+  "level": "N3",
+  "variant": 5,
+  "ok": true,
+  "elapsedMs": 9635,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3231,
+  "systemChars": 2096,
+  "outputChars": 2226,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "予約しております",
+    "reading": "よやくしております",
+    "meaningKo": "예약했습니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "こちらの席でよろしいですか",
+    "reading": "こちらのせきでよろしいですか",
+    "meaningKo": "이 자리가 괜찮으신가요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "おすすめは",
+    "reading": "おすすめは",
+    "meaningKo": "추천 메뉴는",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "こちらは何ですか",
+    "reading": "こちらはなんですか",
+    "meaningKo": "이것은 뭔가요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "辛いですか",
+    "reading": "からいですか",
+    "meaningKo": "맵나요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "アレルギーがあります",
+    "reading": "アレルギーがあります",
+    "meaningKo": "알레르기가 있어요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "なしでお願いします",
+    "reading": "なしでおねがいします",
+    "meaningKo": "빼 주세요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "別々に計算してください",
+    "reading": "べつべつにけいさんしてください",
+    "meaningKo": "따로 계산해 주세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "いくらですか",
+    "reading": "いくらですか",
+    "meaningKo": "얼마예요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "水をください",
+    "reading": "みずをください",
+    "meaningKo": "물 주세요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "ご飯は別ですか",
+    "reading": "ごはんはべつですか",
+    "meaningKo": "밥은 따로인가요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "少なめにしてください",
+    "reading": "すくなめにしてください",
+    "meaningKo": "조금 적게 해 주세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "温かいのと冷たいのとどちらがいいですか",
+    "reading": "あたたかいのとつめたいのとどちらがいいですか",
+    "meaningKo": "뜨거운 거랑 찬 거 중 어느 게 좋으세요",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "pair:P10:v3",
+  "stage": "pair",
+  "arm": "v3",
+  "inputId": "P10",
+  "topicKey": "restaurant",
+  "level": "N3",
+  "variant": 5,
+  "ok": true,
+  "elapsedMs": 9731,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3078,
+  "systemChars": 1943,
+  "outputChars": 2225,
+  "received": 13,
+  "kept": 10,
+  "droppedByReason": {
+   "JLPT_WINDOW": 3
+  },
+  "keptWords": [
+   {
+    "textJa": "こちらのお席でよろしいでしょうか",
+    "reading": "こちらのおせきでよろしいでしょうか",
+    "meaningKo": "이 자리가 괜찮으신가요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "おすすめは何ですか",
+    "reading": "おすすめはなんですか",
+    "meaningKo": "추천 메뉴가 뭐예요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "辛くないですか",
+    "reading": "からくないですか",
+    "meaningKo": "안 매워요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "アレルギーがあります",
+    "reading": "アレルギーがあります",
+    "meaningKo": "알레르기가 있어요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "別々にお願いします",
+    "reading": "べつべつにおねがいします",
+    "meaningKo": "따로따로 부탁해요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "少し待ってもいいですか",
+    "reading": "すこしまってもいいですか",
+    "meaningKo": "좀 기다려도 돼요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "残してもいいですか",
+    "reading": "のこしてもいいですか",
+    "meaningKo": "남겨도 돼요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "会計をお願いします",
+    "reading": "かいけいをおねがいします",
+    "meaningKo": "계산 부탁해요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "カードで払えますか",
+    "reading": "カードではらえますか",
+    "meaningKo": "카드로 결제 돼요",
+    "jlpt": "N4"
+   },
+   {
+    "textJa": "領収書をください",
+    "reading": "りょうしゅうしょをください",
+    "meaningKo": "영수증 주세요",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v0:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v0",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 8455,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3295,
+  "systemChars": 2096,
+  "outputChars": 2024,
+  "received": 13,
+  "kept": 6,
+  "droppedByReason": {
+   "JLPT_WINDOW": 7
+  },
+  "keptWords": [
+   {
+    "textJa": "外出",
+    "reading": "がいしゅつ",
+    "meaningKo": "외출",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "近所",
+    "reading": "きんじょ",
+    "meaningKo": "근처",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "計画",
+    "reading": "けいかく",
+    "meaningKo": "계획",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "参加します",
+    "reading": "さんかします",
+    "meaningKo": "참여합니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "遠出",
+    "reading": "とおで",
+    "meaningKo": "먼곳으로 나감",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予約",
+    "reading": "よやく",
+    "meaningKo": "예약",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v1:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v1",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 1,
+  "ok": true,
+  "elapsedMs": 10992,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3287,
+  "systemChars": 2096,
+  "outputChars": 2305,
+  "received": 13,
+  "kept": 7,
+  "droppedByReason": {
+   "JLPT_WINDOW": 6
+  },
+  "keptWords": [
+   {
+    "textJa": "予定を立てます",
+    "reading": "よていをたてます",
+    "meaningKo": "계획을 세우다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "延ばします",
+    "reading": "のばします",
+    "meaningKo": "미루다, 연기하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "立ち寄ります",
+    "reading": "たちよります",
+    "meaningKo": "들르다, 잠깐 들렀다 가다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予約を取ります",
+    "reading": "よやくをとります",
+    "meaningKo": "예약을 하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "過ごします",
+    "reading": "すごします",
+    "meaningKo": "보내다, 지내다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "寝坊します",
+    "reading": "ねぼうします",
+    "meaningKo": "늦잠 자다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "整理します",
+    "reading": "せいりします",
+    "meaningKo": "정리하다",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v2:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v2",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 2,
+  "ok": true,
+  "elapsedMs": 11576,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3298,
+  "systemChars": 2096,
+  "outputChars": 2360,
+  "received": 13,
+  "kept": 10,
+  "droppedByReason": {
+   "JLPT_WINDOW": 2,
+   "NOT_VALID": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "充実しています",
+    "reading": "じゅうじつしています",
+    "meaningKo": "알차다, 풍요롭다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "気が進みません",
+    "reading": "きがすすみません",
+    "meaningKo": "마음이 내키지 않다",
+    "jlpt": null
+   },
+   {
+    "textJa": "待ちきれません",
+    "reading": "まちきれません",
+    "meaningKo": "못 참고 기다리다, 애타게 기다리다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "うらやましいです",
+    "reading": "うらやましいです",
+    "meaningKo": "부럽다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "疲れやすいです",
+    "reading": "つかれやすいです",
+    "meaningKo": "피로하기 쉽다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "憂鬱です",
+    "reading": "ゆううつです",
+    "meaningKo": "우울하다, 기분이 좋지 않다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "気が向きました",
+    "reading": "きがむきました",
+    "meaningKo": "마음이 생기다, 마음이 내키다",
+    "jlpt": null
+   },
+   {
+    "textJa": "もったいないです",
+    "reading": "もったいないです",
+    "meaningKo": "아깝다, 낭비다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "気が重いです",
+    "reading": "きがおもいです",
+    "meaningKo": "마음이 무겁다, 기분이 좋지 않다",
+    "jlpt": null
+   },
+   {
+    "textJa": "リラックスできます",
+    "reading": "りらっくすできます",
+    "meaningKo": "편안해지다, 긴장이 풀리다",
+    "jlpt": null
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v3:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v3",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 3,
+  "ok": true,
+  "elapsedMs": 9528,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3300,
+  "systemChars": 2096,
+  "outputChars": 2125,
+  "received": 13,
+  "kept": 7,
+  "droppedByReason": {
+   "JLPT_WINDOW": 6
+  },
+  "keptWords": [
+   {
+    "textJa": "ほぼ",
+    "reading": "ほぼ",
+    "meaningKo": "거의, 대부분",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "そのうち",
+    "reading": "そのうち",
+    "meaningKo": "곧, 어느 날",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "最近",
+    "reading": "さいきん",
+    "meaningKo": "최근에",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "次々と",
+    "reading": "つぎつぎと",
+    "meaningKo": "계속해서, 잇따라",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "おおよそ",
+    "reading": "おおよそ",
+    "meaningKo": "대략",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "いずれ",
+    "reading": "いずれ",
+    "meaningKo": "곧, 언젠가",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "相当",
+    "reading": "そうとう",
+    "meaningKo": "상당히, 꽤",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v4:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v4",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 4,
+  "ok": true,
+  "elapsedMs": 9381,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3300,
+  "systemChars": 2096,
+  "outputChars": 2194,
+  "received": 13,
+  "kept": 4,
+  "droppedByReason": {
+   "JLPT_WINDOW": 8,
+   "NOT_VALID": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "おすすめです",
+    "reading": "おすすめです",
+    "meaningKo": "추천해요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "都合がつきますか",
+    "reading": "つごうがつきますか",
+    "meaningKo": "시간 괜찮으세요, 괜찮으신가요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予約した方がいいです",
+    "reading": "よやくしたほうがいいです",
+    "meaningKo": "예약하는 게 나아요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "興味ありますか",
+    "reading": "きょうみありますか",
+    "meaningKo": "관심 있으세요",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v5:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v5",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 5,
+  "ok": true,
+  "elapsedMs": 10911,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3294,
+  "systemChars": 2096,
+  "outputChars": 2347,
+  "received": 13,
+  "kept": 9,
+  "droppedByReason": {
+   "JLPT_WINDOW": 3,
+   "MEANING_CHARS": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "どうしようかな",
+    "reading": "どうしようかな",
+    "meaningKo": "뭘 할지 모르겠는데",
+    "jlpt": null
+   },
+   {
+    "textJa": "都合つきますか",
+    "reading": "つごうつきますか",
+    "meaningKo": "시간 괜찮으세요?",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "どこか行きたいところありますか",
+    "reading": "どこかいきたいところありますか",
+    "meaningKo": "가고 싶은 곳이 어디 있으세요?",
+    "jlpt": null
+   },
+   {
+    "textJa": "予定が入ってます",
+    "reading": "よていがはいってます",
+    "meaningKo": "이미 계획이 있습니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予約取れますか",
+    "reading": "よやくとれますか",
+    "meaningKo": "예약할 수 있어요?",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "費用はいくらですか",
+    "reading": "ひようはいくらですか",
+    "meaningKo": "비용이 얼마예요?",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "参加できますか",
+    "reading": "さんかできますか",
+    "meaningKo": "참가할 수 있어요?",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "提案があります",
+    "reading": "ていあんがあります",
+    "meaningKo": "제안이 있어요",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "日程調整します",
+    "reading": "にっていちょうせいします",
+    "meaningKo": "일정을 맞춰요",
+    "jlpt": "N2"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v6:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v6",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 6,
+  "ok": true,
+  "elapsedMs": 9648,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3296,
+  "systemChars": 2096,
+  "outputChars": 2252,
+  "received": 13,
+  "kept": 7,
+  "droppedByReason": {
+   "JLPT_WINDOW": 5,
+   "NOT_VALID": 1
+  },
+  "keptWords": [
+   {
+    "textJa": "申し訳ありません",
+    "reading": "もうしわけありません",
+    "meaningKo": "죄송합니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ぜひ",
+    "reading": "ぜひ",
+    "meaningKo": "꼭, 반드시",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "ちょうどいい",
+    "reading": "ちょうどいい",
+    "meaningKo": "마침 좋다, 딱 맞다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "素敵ですね",
+    "reading": "すてきですね",
+    "meaningKo": "멋진데요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "おすすめします",
+    "reading": "おすすめします",
+    "meaningKo": "추천합니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "まったくです",
+    "reading": "まったくです",
+    "meaningKo": "정말 그래요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "承知しました",
+    "reading": "しょうちしました",
+    "meaningKo": "알겠습니다",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v7:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v7",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 7,
+  "ok": false,
+  "elapsedMs": 20407,
+  "systemChars": 2096,
+  "errorName": "ClaudeCliTimeoutError",
+  "error": "claude CLI 20000ms 상한 초과로 중단",
+  "limitHit": false,
+  "timeout": true
+ },
+ {
+  "callId": "guard:N2-v0#2:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v0#2",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 0,
+  "ok": true,
+  "elapsedMs": 8771,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3295,
+  "systemChars": 2096,
+  "outputChars": 2096,
+  "received": 13,
+  "kept": 9,
+  "droppedByReason": {
+   "JLPT_WINDOW": 4
+  },
+  "keptWords": [
+   {
+    "textJa": "美術館",
+    "reading": "びじゅつかん",
+    "meaningKo": "미술관",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "温泉",
+    "reading": "おんせん",
+    "meaningKo": "온천",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "コンサート",
+    "reading": "コンサート",
+    "meaningKo": "콘서트",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "旅行",
+    "reading": "りょこう",
+    "meaningKo": "여행",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予約",
+    "reading": "よやく",
+    "meaningKo": "예약",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "計画",
+    "reading": "けいかく",
+    "meaningKo": "계획",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "過ごす",
+    "reading": "すごす",
+    "meaningKo": "보내다, 지내다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "計画しています",
+    "reading": "けいかくしています",
+    "meaningKo": "계획 중이다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "退屈",
+    "reading": "たいくつ",
+    "meaningKo": "지루하다, 따분하다",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v4#2:v4",
+  "stage": "guard",
+  "arm": "v4",
+  "inputId": "N2-v4#2",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 4,
+  "ok": true,
+  "elapsedMs": 10630,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3300,
+  "systemChars": 2096,
+  "outputChars": 2222,
+  "received": 13,
+  "kept": 9,
+  "droppedByReason": {
+   "JLPT_WINDOW": 4
+  },
+  "keptWords": [
+   {
+    "textJa": "何かしませんか",
+    "reading": "なにかしませんか",
+    "meaningKo": "뭔가 하지 않을래요",
+    "jlpt": null
+   },
+   {
+    "textJa": "いかがですか",
+    "reading": "いかがですか",
+    "meaningKo": "어떠신지요, 어떻게 생각하세요",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "おすすめします",
+    "reading": "おすすめします",
+    "meaningKo": "추천합니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "都合がつきますか",
+    "reading": "つごうがつきますか",
+    "meaningKo": "시간이 있으세요, 가능하세요",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "考えておきます",
+    "reading": "かんがえておきます",
+    "meaningKo": "생각해두겠습니다, 검토하겠습니다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "予定を変更します",
+    "reading": "よていをへんこうします",
+    "meaningKo": "계획을 바꾸다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "都合が悪いです",
+    "reading": "つごうがわるいです",
+    "meaningKo": "시간이 안 돼요, 불편해요",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "都合がいいです",
+    "reading": "つごうがいいです",
+    "meaningKo": "시간이 괜찮아요, 가능해요",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "誘います",
+    "reading": "さそいます",
+    "meaningKo": "초대하다, 권유하다",
+    "jlpt": "N3"
+   }
+  ]
+ },
+ {
+  "callId": "guard:N2-v7:v4#r1",
+  "stage": "reserve",
+  "arm": "v4",
+  "inputId": "N2-v7",
+  "topicKey": "weekend-plan",
+  "level": "N2",
+  "variant": 7,
+  "ok": true,
+  "elapsedMs": 11121,
+  "attempts": 1,
+  "model": "haiku",
+  "promptChars": 3293,
+  "systemChars": 2096,
+  "outputChars": 2295,
+  "received": 13,
+  "kept": 13,
+  "droppedByReason": {},
+  "keptWords": [
+   {
+    "textJa": "予定が入る",
+    "reading": "よていがはいる",
+    "meaningKo": "약속이 생기다, 계획이 잡히다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "都合がつく",
+    "reading": "つごうがつく",
+    "meaningKo": "시간이 되다, 가능하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "立ち寄る",
+    "reading": "たちよる",
+    "meaningKo": "들르다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "計画を立てる",
+    "reading": "けいかくをたてる",
+    "meaningKo": "계획을 세우다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "出かける準備",
+    "reading": "でかけるじゅんび",
+    "meaningKo": "외출 준비",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "延期する",
+    "reading": "えんきする",
+    "meaningKo": "연기하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "段取りをつける",
+    "reading": "だんどりをつける",
+    "meaningKo": "준비를 하다, 수배하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "予約を取る",
+    "reading": "よやくをとる",
+    "meaningKo": "예약을 하다",
+    "jlpt": "N3"
+   },
+   {
+    "textJa": "思いがけず",
+    "reading": "おもいがけず",
+    "meaningKo": "뜻밖에, 예상 외로",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "気が進まない",
+    "reading": "きがすすまない",
+    "meaningKo": "마음이 내키지 않다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "小旅行",
+    "reading": "しょうりょこう",
+    "meaningKo": "당일치기 여행, 짧은 여행",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "スケジュールを調整する",
+    "reading": "スケジュールをちょうせいする",
+    "meaningKo": "일정을 조정하다",
+    "jlpt": "N2"
+   },
+   {
+    "textJa": "都合のいい日",
+    "reading": "つごうのいいひ",
+    "meaningKo": "편한 날",
+    "jlpt": "N3"
+   }
+  ]
+ }
+]
