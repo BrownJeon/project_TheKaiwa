@@ -1,13 +1,13 @@
 ---
 imp_id: IMP-0052
 title: "챌린지 난이도가 주제 난이도보다 두 단계 이상 높을 때 AI 새 단어(A12)가 거의 안 나오는 문제 — 프롬프트·수준 창 개선"
-status: planned
+status: done
 screen: "§5 오늘의 단어(챌린지 주제 세트의 AI 새 단어)"
 area: behavior
 priority: ""
 found_on: "qa/local"
 created: 2026-10-18
-updated: 2026-10-19
+updated: 2026-10-20
 observed_ref: 912363a
 related_task: "[[task-076-improve-challenge-level-generation]]"
 planned_task: "[[task-078-improve-topic-words-level-yield]]"
@@ -49,3 +49,8 @@ task-076(챌린지 난이도 선택) QA 에서 챌린지 주제의 AI 「새 단
 - 후보 접근(착수 때 Leader 가 정한다): ① A12 프롬프트에 목표 수준 단어를 명시적으로 유도(예시·금지 수준) ② 수준 창 규칙(±1)을 챌린지 난이도 기준으로 완화/중심 이동 ③ 단어별 `jlpt` 를 모델 자기 신고가 아니라 사전 대조로 보정 ④ 화면에서 두 단계 이상 차이를 고를 때 「새 단어가 적게 나올 수 있어요」 안내(새 문구라 데모 승인 필요).
 - **측정 제약**: 새 단어 생성은 사용자당 하루 3회(실패도 셈, 서버 메모리 카운터 — QA 서버 재기동으로 리셋)·같은 날 같은 주제는 성공 뒤 재생성 안 함. 측정은 QA 계정 4개 × 3회와 내 주제(N4, 조각 12개)를 새로 만들어 쓰는 방식이 효과적이었다.
 - 영향 파일 후보: `modules/conversation/prompts/topicWords*.ts`(A12), `modules/learning/vocab/{topicSet.ts,sessions.ts}`(`topicWordsLevelWindow`·`topicWordsLevel`), `tests/prompts/**`.
+
+## 처리 결과 (2026-10-20)
+
+- 구현 task [[task-078-improve-topic-words-level-yield]] — 프롬프트 `topicWords@v3`(범위 «[수준]에서 배울 만한 것»·급수 범위 명시, 검사 ⑤·스키마 불변) + 챌린지 만들기 ③ 새 단어 안내 상자. 운영 배포 `20261020-081810-c6c60d7c`, **사용자 폰 확인 6개 모두 정상(2026-10-20)**.
+- 남은 한계(이 항목에서는 닫음, 별도 추적): 개선은 경계 합격(N2 평균 8.1장/10, 합격선 8.0)이고 난이도 이동은 작다(통과분 대부분 N3급) — 사전 기반 후처리 필터 도입 여부는 검사 규칙 변경이라 사용자 결정 사항(L5).
