@@ -4,7 +4,9 @@
  * 카드 한 장의 면(screens.md §5-2 B VocabCardFace). 앞면 = 표현(+카드 [읽기] 켬이면 히라가나 루비, 카드 [한글] 켬이면 `[한글]` — task-026 §15-4-6 · task-060),
  * 뒷면 = 표현(저장 읽기 루비는 앱 히라가나 설정과 무관하게 늘 — task-033 C1-A)·`[한글]` + 결과 띠 + 뜻 + 예문(히라가나·`[한글]` 1줄)·번역.
  * 카드 영역은 스크롤할 수 없어(`touch-action:none`) 예문은 2줄·번역 1줄에서 자르고 전체는 결과 화면·단어 상세에서 본다.
- * `[한글]` 줄은 카드에 자리가 없을 때만 뺀다(C2-A, 번역 우선 — 예문 줄 → 그래도 넘치면 표제어 줄, 되돌림 없음) — 면을 그릴 때 재고, 드래그 중에는 재지 않는다.
+ * `[한글]` 줄은 카드에 자리가 없을 때만 뺀다(C2-A, 번역 우선, 되돌림 없음) — 면을 그릴 때 재고, 드래그 중에는 재지 않는다.
+ * 예문 `[한글]` 을 먼저 빼고, 표제어 `[한글]` 은 표제어와 같은 줄(인라인)이라 세로 자리를 쓰지 않으면 빼도 높이가 안 줄어 늘 둔다.
+ * 예문 `[한글]` 을 뺀 뒤에도 넘치고 **표제어 `[한글]` 이 아래 줄로 내려가 자기 줄을 차지할 때만** 그것도 뺀다(긴 표제어·좁은 카드, task-082 r2·r3).
  * **안에 버튼을 두지 않는다**(제스처 영역). `memo` — 드래그 중에는 transform 만 바뀌고 이 면은 다시 그리지 않는다.
  * 카드 우선 세트(task-059): 앞면 안내는 `cardFirst.frontHint`, 보기를 열면 테두리 accent, 결과 띠는 그 카드를 답한 방식대로(객관식 = 맞았어요/틀렸어요).
  */
@@ -42,19 +44,34 @@ export function overflowsBody(bodyBottom: number, childBottoms: readonly number[
   return childBottoms.some((b) => b > bodyBottom + 0.5)
 }
 
-/** 뒷면에서 뺀 `[한글]` 줄 단계 — 0 = 다 보임, 1 = 예문 `[한글]` 뺌, 2 = 표제어 `[한글]` 도 뺌(§15-11-3 B6). */
-export type DropLevel = 0 | 1 | 2
-
-/** 한 번 잰 결과 → 다음 단계. 넘치면 한 단계만 올리고 2단계 뒤에는 더 빼지 않으며 내리지 않는다(되돌림 없음). */
-export function nextDropLevel(level: DropLevel, overflow: boolean): DropLevel {
-  return overflow && level < 2 ? ((level + 1) as DropLevel) : level
+/**
+ * 표제어 `[한글]` 이 표제어 아래 줄로 내려가 자기 줄을 차지하는가 — 입력은 표제어 아랫변 offset(`offsetTop + offsetHeight`)·한글 윗변 offset(`offsetTop`).
+ * 같은 줄(인라인)이면 baseline 정렬이라 윗변이 표제어 아랫변보다 위다. 정수 offset 이라 허용 오차 1.
+ * transform 에 둔감한 offset 좌표를 쓴다 — 회전 중 `getBoundingClientRect` 는 외접 사각형이 겹쳐 놓친다(task-082 r4).
+ */
+export function hangulOnOwnLine(headwordBottom: number, hangulTop: number): boolean {
+  return hangulTop >= headwordBottom - 1
 }
 
-/** 단계별 넘침 측정값(`overflowAt[i]` = i 단계로 그렸을 때 넘쳤는가) 열에서 최종 단계를 고른다 — 컴포넌트의 재측정 루프와 같은 규칙. */
-export function pickDropLevel(overflowAt: readonly boolean[]): DropLevel {
+/** 뒷면에서 뺀 `[한글]` 줄 단계 — 0 = 다 보임, 1 = 예문 `[한글]` 뺌, 2 = 표제어 `[한글]` 도 뺌(§15-11-3 B6, 2단계는 그 한글이 자기 줄을 차지할 때만 — task-082 r3). */
+export type DropLevel = 0 | 1 | 2
+
+/**
+ * 한 번 잰 결과 → 다음 단계. 넘치면 한 단계만 올리고 2단계 뒤에는 더 빼지 않으며 내리지 않는다(되돌림 없음).
+ * 0 → 1 은 넘침만으로, 1 → 2 는 넘침 + `headwordWrapped`(표제어 `[한글]` 이 아래 줄)일 때만 — 인라인 한글은 빼도 높이가 안 준다.
+ */
+export function nextDropLevel(level: DropLevel, overflow: boolean, headwordWrapped = true): DropLevel {
+  if (!overflow) return level
+  if (level === 0) return 1
+  if (level === 1 && headwordWrapped) return 2
+  return level
+}
+
+/** 단계별 측정값(`overflowAt[i]`·`wrappedAt[i]` = i 단계로 그렸을 때 넘쳤는가·표제어 한글이 아래 줄이었는가) 열에서 최종 단계를 고른다 — 컴포넌트의 재측정 루프와 같은 규칙(`wrappedAt` 생략 = 아래 줄). */
+export function pickDropLevel(overflowAt: readonly boolean[], wrappedAt: readonly boolean[] = []): DropLevel {
   let level: DropLevel = 0
   while (level < 2) {
-    const next = nextDropLevel(level, overflowAt[level] ?? false)
+    const next = nextDropLevel(level, overflowAt[level] ?? false, wrappedAt[level] ?? true)
     if (next === level) break
     level = next
   }
@@ -89,6 +106,7 @@ function VocabCardFace({
   const prefs = useDisplayPrefs()
   const shellRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState('')
   const [fontsTick, setFontsTick] = useState(0)
   const [drop, setDrop] = useState<{ key: string; level: DropLevel }>({ key: '', level: 0 })
@@ -144,7 +162,13 @@ function VocabCardFace({
     const body = bodyRef.current
     if (!body) return
     const bottoms = Array.from(body.children, (c) => c.getBoundingClientRect().bottom)
-    const next = nextDropLevel(dropLevel, overflowsBody(body.getBoundingClientRect().bottom, bottoms))
+    // 표제어 줄 자식 = [표제어, 표제어 한글] — 한글이 없으면(대기·끔·2단계) 아래 줄이 아니다. offset 좌표는 같은 offsetParent 형제끼리라 래퍼 회전에 영향받지 않는다.
+    const kids = headRef.current?.children
+    const first = kids && kids.length >= 2 ? kids[0] : null
+    const last = kids && kids.length >= 2 ? kids[kids.length - 1] : null
+    const headwordWrapped =
+      first instanceof HTMLElement && last instanceof HTMLElement && hangulOnOwnLine(first.offsetTop + first.offsetHeight, last.offsetTop)
+    const next = nextDropLevel(dropLevel, overflowsBody(body.getBoundingClientRect().bottom, bottoms), headwordWrapped)
     if (next !== dropLevel) setDrop({ key: measureKey, level: next })
   }, [measureKey, dropLevel])
 
@@ -181,7 +205,7 @@ function VocabCardFace({
   return (
     <div ref={shellRef} className={`${shell} border-line`}>
       <div className="flex min-w-0 flex-none items-start gap-2">
-        <div className="min-w-0 flex-1">
+        <div ref={headRef} className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
           <JaText
             as="span"
             text={card.surface}
@@ -190,9 +214,9 @@ function VocabCardFace({
             rubyAlways
             leading={2}
             rt={11}
-            className="block truncate text-[22px] font-semibold"
+            className="block max-w-full truncate text-[22px] font-semibold"
           />
-          {dropLevel >= 2 ? null : <HangulLine state={backHangul} size={13} />}
+          {dropLevel >= 2 ? null : <HangulLine state={backHangul} size={13} inline />}
         </div>
         <Star on={card.flagged} />
       </div>
