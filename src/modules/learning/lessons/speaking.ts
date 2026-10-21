@@ -33,8 +33,8 @@ export function speakingModel(h: LessonWriteHandle, itemId: string): { ja: strin
   return s ? { ja: s.modelAnswerJa, reading: s.modelReading, ko: s.modelKo } : null
 }
 
-/** #62c 재생할 문장 — 소유자만(404), 본문이 있는 레슨(READY·IN_PROGRESS·DONE, 아니면 409), 범위 밖 idx 400. */
-export async function getLessonAudioSource(userId: string, id: string, q: { kind: AudioKind; idx: number }): Promise<{ text: string; topicId: string | null }> {
+/** #62c 재생할 문장 — 소유자만(404), 본문이 있는 레슨(READY·IN_PROGRESS·DONE, 아니면 409), 범위 밖 idx·sub 400(piece·phrase 는 `sub`, task-081). */
+export async function getLessonAudioSource(userId: string, id: string, q: { kind: AudioKind; idx: number; sub?: number | null }): Promise<{ text: string; topicId: string | null }> {
   if (!isLessonId(id)) throw lessonNotFound()
   const row = await prisma.lesson.findFirst({ where: { id, userId }, select: { status: true, topicId: true, content: true } })
   if (!row) throw lessonNotFound()
@@ -42,7 +42,7 @@ export async function getLessonAudioSource(userId: string, id: string, q: { kind
   if (!content || (row.status !== 'READY' && row.status !== 'IN_PROGRESS' && row.status !== 'DONE')) {
     throw new ApiError('CONFLICT', '아직 수업을 열 수 없어요.', { reason: 'NOT_READY', status: row.status })
   }
-  const text = audioText(content, q.kind, q.idx)
+  const text = audioText(content, q.kind, q.idx, q.sub)
   if (!text) throw new ApiError('VALIDATION', '없는 문장이에요.', { field: 'idx', reason: 'out_of_range' })
   return { text, topicId: row.topicId }
 }

@@ -14,6 +14,8 @@ export * from './structuredResponse/schemas'
 export { isExactOriginal, isVerbatimQuote, splitJaSentences, checkTalkResponse, checkChatResponse, checkChatReview, checkReplyKoNaturalness, checkUserKoNaturalness, sanitizeUserKo, checkWordEnrich, checkLessonResponse, countJaSentences, REPLY_SENTENCE_HARD_CAP } from './structuredResponse/checks'
 export { repairLessonResponse, LESSON_REPAIR_CHUNKS_MAX } from './structuredResponse/repair'
 export type { LessonRepairSourceChunk, LessonRepairResult } from './structuredResponse/repair'
+export { checkPieces, validatePieces, scanLessonPieces, applyLessonPieces, piecesOverThreshold, piecesViolationMessages, isPunctuationOnly, PIECES_VIOLATION_REASONS } from './structuredResponse/lessonPieces' // task-081 «조각» 검증·정리(규칙의 유일한 소유자)
+export type { PiecesCheckOk, PiecesCheckFail, PiecesViolationReason, LessonPiecesScan, LessonPiecesSummary, LinePiecesResult } from './structuredResponse/lessonPieces'
 export { normalizeForLessonMatch, chunkAppearsIn } from './structuredResponse/matching'
 export { buildWindow } from './window'
 export type { WindowMessage } from './window'

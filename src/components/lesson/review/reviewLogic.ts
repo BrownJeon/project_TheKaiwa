@@ -10,7 +10,7 @@ import { formatClock, kstDateKey } from '@/components/common/format'
 import { formatMonthDay, weekdayOf } from '@/components/vocab/format'
 import type { LessonStatus, TodayLessons } from '@/types/lesson'
 import type { NextReviewGroup, NextReviewSummary, ReviewGuard, ReviewItem, TodayReview } from '@/types/review'
-import { correctFromScore, genPhase } from '../logic'
+import { genPhase } from '../logic'
 import { ITEM_TYPE_LABEL, RV_GEN, RV_HOME, RV_LESSON, SOURCE_LABEL } from './reviewCopy'
 
 /* ── 건너뛰기 로컬 상태(§14-2 C) ─────────────────────────────────── */
@@ -38,8 +38,8 @@ export type ReviewCard =
   | { kind: 'ready'; review: TodayReview; lessonId: string }
   | { kind: 'due'; review: TodayReview }
   | { kind: 'dueFallback'; review: TodayReview }
-  | { kind: 'done'; review: TodayReview; next: NextReviewSummary | null; correct: number | null }
-  | { kind: 'donePending'; review: TodayReview; correct: number | null }
+  | { kind: 'done'; review: TodayReview; next: NextReviewSummary | null }
+  | { kind: 'donePending'; review: TodayReview }
   | { kind: 'skippedServer'; review: TodayReview }
   | { kind: 'pending' }
   | { kind: 'rest'; next: NextReviewSummary }
@@ -48,13 +48,10 @@ export type ReviewCard =
 export type ReviewCardKind = ReviewCard['kind']
 export type ReviewPlacement = 'above' | 'below' | 'soon' | 'none'
 
-/** 복습 레슨 상태·점수 — #58 `review.lessonStatus`·`score`(★⑧)가 먼저, 없으면 `todayLessons` 에서 같은 id 를 찾는다. */
-export function reviewLessonOf(review: TodayReview, today: TodayLessons): { status: LessonStatus | null; score: number | null } {
+/** 복습 레슨 상태 — #58 `review.lessonStatus`(★⑧)가 먼저, 없으면 `todayLessons` 에서 같은 id 를 찾는다. 점수는 화면이 읽지 않는다(task-081). */
+export function reviewLessonOf(review: TodayReview, today: TodayLessons): { status: LessonStatus | null } {
   const found = review.lessonId ? (today.todayLessons ?? []).find((l) => l.id === review.lessonId) : undefined
-  return {
-    status: review.lessonStatus ?? found?.status ?? null,
-    score: typeof review.score === 'number' ? review.score : typeof found?.score === 'number' ? found.score : null,
-  }
+  return { status: review.lessonStatus ?? found?.status ?? null }
 }
 
 /** 표에서 위 줄이 이긴다(screens §14-2 A 1~16). 로컬 건너뛰기(pending·sending)는 서버가 아직 DUE 여도 이긴다. */
@@ -81,9 +78,7 @@ export function deriveReviewCard(state: 'loading' | 'error' | 'ready', today: To
       return isTutorReview(review) ? { kind: 'due', review } : { kind: 'dueFallback', review }
     }
     if (review.status === 'DONE') {
-      const { score } = reviewLessonOf(review, today)
-      const correct = score === null ? null : correctFromScore(score)
-      return today.decisionPending ? { kind: 'donePending', review, correct } : { kind: 'done', review, next: today.nextReview ?? null, correct }
+      return today.decisionPending ? { kind: 'donePending', review } : { kind: 'done', review, next: today.nextReview ?? null }
     }
     if (review.status === 'SKIPPED') return { kind: 'skippedServer', review }
     return { kind: 'hidden' }

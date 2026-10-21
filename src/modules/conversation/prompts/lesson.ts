@@ -105,6 +105,12 @@
  * 18%) 이 프롬프트는 5초 예산이 아니라 120s 배치라 새 응답 칸(`extraNoteKo` 류)은 더하지 않는다 — **문구만** `grammar` 줄에 "(일상 회화 위주)" 9자를 더했다(예산 천장 `LESSON_USER_PROMPT_CAP`·9,540 안에 들어가는 최대치 —
  * 더 늘리려면 이 상수와 `lesson.test.ts` 예산 테스트를 함께 바꿔야 해서 Leader 결정). 계약·스키마·persona(레슨은 §3 을 싣지 않는다) 불변.
  *
+ * **v10(2026-10-21, task-081 IMP-0059 — `lesson@v10`·`lessonScenario@v2`)** — 3단계 «문제(quiz)» 를 «조각(pieces)» 으로 대체했다. ① `LESSON_SCHEMA` 에서 `quiz` 를 걷어냈다(quiz 지시 줄·`quiz.promptKo` 한글 검사·재시도 안내 전부 삭제 — 새 응답에는 문항이 없다).
+ * ② `dialogue[].pieces` 를 필수로 더했다 — 지침은 `prompts/piecesInstruction.ts` 한 줄(A5 복습과 공유). 읽기·한글 읽기는 LLM 이 만들지 않는다(task-036). ③ 후검증 `structuredResponse/lessonPieces.ts`: 줄마다 «조각을 이으면 원문과 같다»
+ * (NFC 완전 일치) 등 6규칙을 보고, **위반 줄이 절반을 넘으면(`위반 줄 × 2 > 줄 수`) 레슨 위반으로 1회 재시도**, 그 밑이면 위반이 아니라 **그 줄만 `pieces: null`** 로 만든다. 재시도 뒤(마지막 시도)에도 넘으면 레슨을 실패시키지 않고
+ * 위반 줄을 null 로 저장한다(`tolerateInvalidPieces`, Leader 결정 37-18-1 ⑥ — `tolerateContentMismatch` 와 같은 방식). 정리(`applyLessonPieces`)는 이 `extraCheck` 가 위반 없이 받아들이는 응답에 대해 제자리에서 하므로 저장 단계는 이미 정리된 `pieces`(배열|null)를 받는다.
+ * ④ `scenario` 가 없는 요청의 바이트가 바뀌므로(지시문·스키마) 골든 해시 7건(`tests/prompts/fixtures/lesson-general-golden.json`)을 다시 썼다 — 이유와 크기 변화는 task-081 PE 기록.
+ *
  * **상황 수업 `[상황]` 블록(2026-10-07, task-010d PE-2b — `lessonScenario@v1`)** — #59 `{scenarioId}` 상황 수업을 위한 **선택** 입력 `scenario`. 주면 ① 데이터 블록에 `[상황]` 블록(제목·역할·목표·순서·핵심 표현 ≤5,
  * 하드 상한 `LESSON_SCENARIO_BLOCK_MAX` 460자)이 더해지고 ② 지시문에 "상황 수업" 한 줄이 더해지며 ③ speaking 줄의 "상황(역할극)은 없습니다" 가 "과제는 상황 속에서 학습자가 할 말" 로 바뀐다.
  * **`scenario` 가 없으면 요청은 바이트까지 불변이다**(`tests/prompts/fixtures/lesson-general-golden.json` 골든 7건이 고정) — 그래서 `LESSON_PROMPT_VERSION` 은 `lesson@v9` 그대로이고, 상황 수업의 표기는
@@ -115,27 +121,37 @@
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
 import { checkLessonResponseDetailed } from '../structuredResponse/checks'
+import { applyLessonPieces, scanLessonPieces } from '../structuredResponse/lessonPieces'
 import { repairLessonResponse, type LessonRepairSourceChunk } from '../structuredResponse/repair'
 import { LESSON_SCHEMA, type ChunkType, type JlptLevel, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
+import { PIECES_INSTRUCTION_LINE } from './piecesInstruction'
 import { clipScenarioText } from './talkScenario'
 
-export const LESSON_PROMPT_VERSION = 'lesson@v9'
-/** `scenario` 입력이 있는 요청의 표기(`Lesson.promptVersion` VarChar(20) 안). 일반 요청 바이트가 안 바뀌어 `LESSON_PROMPT_VERSION` 은 그대로다. */
-export const LESSON_SCENARIO_PROMPT_VERSION = 'lessonScenario@v1'
+export const LESSON_PROMPT_VERSION = 'lesson@v10'
+/** `scenario` 입력이 있는 요청의 표기(`Lesson.promptVersion` VarChar(20) 안). v10 에서 출력 스키마(quiz 제거·pieces 추가)가 바뀌어 일반·상황 표기를 함께 올렸다(`lesson@v10`·`lessonScenario@v2`). */
+export const LESSON_SCENARIO_PROMPT_VERSION = 'lessonScenario@v2'
 /** `[상황]` 블록 하드 상한(글자) — 항목 상한(`SCENARIO_RENDER`)이 이 안에 드는 것을 단위 시험이 최대 입력으로 고정한다. */
 export const LESSON_SCENARIO_BLOCK_MAX = 460
 
 /**
  * `renderTranscript(req.system, req.messages)` 설계 예산(persona 는 별도 `--system-prompt` 라 여기 안 든다, talk.ts 와 같은
  * 관례). **런타임 강제는 없다** — 넘어도 요청은 그대로 나간다. TALK(3,000)보다 훨씬 크다 — LESSON 은 5초 예산이 아니라
- * 120s 배치 잡이고, 스키마 자체가 10개 절(대화 10줄·조각 8개·quiz 5·응용 3·말하기 3)을 요구해 출력이 크다. 실측(조각·교정·
+ * 120s 배치 잡이고, 스키마 자체가 10개 절(대화 10줄·줄마다 조각 배열·chunks 8개·응용 3·말하기 3)을 요구해 출력이 크다. 실측(조각·교정·
  * 이전 제목·직전 예고를 전부 상한까지 채운 조합, `__tests__/lesson.test.ts` 의 예산 회귀 테스트, 2026-10-01, lesson@v8):
  * 정상~준최악(이름 30·헤더 567) 주제 경로 9,490자는 이 값 안, 실제 DB 한도 최대 학습자(displayName 40·teacherName 30·헤더 600)
  * 주제 경로 9,523자는 이 값을 23자 넘는다(그래서 그 경우는 CAP 이 아니라 9,540 천장으로 지킨다). 같은 학습자의 sourceText
  * 경로 7,192자 · 시드 주제 수준의 정상 입력 4,055자.
+ *
+ * **lesson@v10(2026-10-21, task-081)**: 지시문이 quiz 줄(약 500자 안팎, 최상위 키·id 규칙·군더더기 금지 줄의 quiz 언급 포함)을 잃고 pieces 지침 한 줄(869자)을 얻어 같은 조합이 **+363자**(주제 경로 정상~준최악
+ * 9,490 → 9,853 · 실제 한도 최악 9,523 → 9,886, 시험이 측정)다. 의도된 증가라 CAP 을 9,500 → 9,900, 천장(시험)을 9,540 → 9,920 으로 올렸다. 입력 +363자(약 250토큰)는 지연에 거의 영향이 없다 —
+ * v10 의 지연 위험은 입력이 아니라 **출력**(줄마다 조각 배열 약 +1,500~2,500토큰, quiz 5문항 약 -1,000토큰 상쇄)이고 그 측정은 `tests/prompts/lesson-pieces-live.ts` 의 몫이다.
+ *
+ * **조각 지침 보정(2026-10-21, task-081 PE 3단계, 같은 `lesson@v10` 표기 — 아직 배포 전)**: 눈가림(G6) «어색» 원인 4가지(です 떼기·종류·뜻 풀이·끊어 읽기)를 규칙문으로 보정해 조각 지침이 869 → 1,198자(+329)가 됐다.
+ * 같은 조합이 주제 경로 정상~준최악 9,853 → 10,182 · 실제 한도 최악 9,886 → 10,215. 다른 줄을 깎아 상쇄하지 않았다(id 규칙·모범 답 규칙·reading 규칙은 재시도·위반을 줄이려고 실측으로 다듬은 줄이라, 재측정 호출 예산 6회로는 깎은 뒤의 회귀를 볼 수 없다).
+ * 그래서 CAP 을 9,900 → 10,300, 천장(시험)을 9,920 → 10,250 으로 올렸다. CAP 은 런타임 강제가 없는 설계 예산이고(120s 배치 잡), 입력 +329자(약 220토큰)는 지연에 거의 영향이 없다.
  */
-export const LESSON_USER_PROMPT_CAP = 9_500
+export const LESSON_USER_PROMPT_CAP = 10_300
 export const LESSON_HEADER_CAP = 600
 export const LESSON_SOURCE_TEXT_MIN = 50
 export const LESSON_SOURCE_TEXT_MAX = 2_000
@@ -286,7 +302,7 @@ function renderScenarioBlock(s: LessonScenarioInput): string | null {
   return lines.join('\n')
 }
 
-/** 이 요청이 `Lesson.promptVersion` 에 남길 표기 — 상황 수업이면 `lessonScenario@v1`, 아니면 `lesson@v9`. */
+/** 이 요청이 `Lesson.promptVersion` 에 남길 표기 — 상황 수업이면 `lessonScenario@v2`, 아니면 `lesson@v10`. */
 export function lessonPromptVersion(input: Pick<LessonInput, 'scenario'>): string {
   return input.scenario ? LESSON_SCENARIO_PROMPT_VERSION : LESSON_PROMPT_VERSION
 }
@@ -317,27 +333,27 @@ type ScenarioMode = null | 'WITH_TOPIC' | 'ONLY'
 function lessonInstruction(hasTopic: boolean, scenario: ScenarioMode = null): string {
   const refs = scenario === 'ONLY' ? '[상황]' : hasTopic ? (scenario ? '[주제]·[조각]·[상황]' : '[주제]·[조각]') : '[원문]'
   return [
-    `[지시] 아래 ${refs}을 바탕으로 학습자를 위한 5단계 오늘의 회화 수업을 JSON 하나로 만드세요(이해 → 문법 → 문제 → 응용 → 말하기). 최상위 키는 title, titleKo, rolesKo, dialogue, chunks, grammar, quiz, application, speaking, nextPreview 입니다.`,
+    `[지시] 아래 ${refs}을 바탕으로 학습자를 위한 5단계 오늘의 회화 수업을 JSON 하나로 만드세요(이해 → 문법 → 조각 → 응용 → 말하기). 최상위 키는 title, titleKo, rolesKo, dialogue, chunks, grammar, application, speaking, nextPreview 입니다.`,
     '- title: 수업 제목(일본어, 40자 이내). titleKo: 그 한국어 번역(40자 이내). rolesKo.A·rolesKo.B: dialogue 화자를 부르는 한국어 호칭(예: "학생"·"점원", 각 12자 이내).',
     hasTopic || scenario
       ? '- dialogue: 6~10줄의 자연스러운 A/B 대화. 줄마다 [학습자] 수준 안에서 **2문장 이내**로 쓰고 ja(일본어)·reading(전체 읽기를 가나로, 장음은 ー)·ko(한국어 번역)를 모두 채웁니다.'
       : '- dialogue: 6~10줄의 자연스러운 A/B 대화. 줄마다 [학습자] 수준 안에서 **2문장 이내**로 쓰고 ja(일본어)·reading(전체 읽기를 가나로, 장음은 ー)·ko(한국어 번역)를 모두 채웁니다. [원문]의 표현을 최대한 살리되 문장을 그대로 옮기지 않아도 됩니다.',
+    PIECES_INSTRUCTION_LINE,
     ...(scenario ? [SCENARIO_LESSON_LINE] : []),
     '- chunks: 4~8개, 이름(NAME)·액션(ACTION)·느낌(FEELING)·꾸밈(MODIFIER) 중 하나로 분류합니다.' +
       (hasTopic
         ? ' [조각] 목록의 표현을 쓸 때는 그 id 를 **절대 바꾸지 말고 그대로** 쓰고 isNew=false 로 둡니다. dialogue 를 위해 새로 만든 표현만 id 를 "new-1","new-2"… 순서로 붙이고 isNew=true 로 합니다. [조각] 목록에 없는 id 를 지어내지 마세요.'
         : ` ${scenario ? '[상황]' : '[원문]'}에는 미리 정해진 조각이 없으므로 모든 chunks 의 id 를 "new-1","new-2"… 순서로 붙이고 isNew=true 로 합니다.`),
-    '- **id 규칙(가장 중요, 먼저 지킵니다)**: quiz·application·speaking 의 targetIds 에 쓰는 id 는 **먼저 위 chunks 배열이나 아래 grammar 배열에 넣은 id 만** 씁니다. 그 두 배열 밖의 id 는 어디에도(특히 targetIds 에) 쓰지 않습니다 — [조각] 목록에 있어도 이번 chunks 에 넣지 않았으면 targetIds 에도 쓸 수 없습니다.',
+    '- **id 규칙(가장 중요, 먼저 지킵니다)**: application·speaking 의 targetIds 에 쓰는 id 는 **먼저 위 chunks 배열이나 아래 grammar 배열에 넣은 id 만** 씁니다. 그 두 배열 밖의 id 는 어디에도(특히 targetIds 에) 쓰지 않습니다 — [조각] 목록에 있어도 이번 chunks 에 넣지 않았으면 targetIds 에도 쓸 수 없습니다.',
     '- **모범 답 내용 규칙(application·speaking 공통, id 규칙 다음으로 중요)**: modelAnswerJa 가 가리키는 targetIds 중 chunks id 는 그 chunk 의 textJa(또는 자연스러운 활용형)를 **modelAnswerJa 문장 안에 실제로 써서** 보여줘야 합니다 — targetIds 에 넣기만 하고 다른 말로 바꿔 쓰면 안 됩니다. grammar id 를 가리킬 때는 그 문형을 살린 자연스러운 문장이면 충분합니다(pattern 표기 자체가 문장에 그대로 나타날 필요는 없습니다).',
     '- grammar: 1~3개, 이번 수업의 핵심 문형(일상 회화 위주). id 는 "g1","g2","g3" 순서로 붙입니다. pattern(문형 표기)·explanationKo(한국어 설명, 200자 이내)·exampleJa/exampleReading/exampleKo(예문 1개).',
-    '- quiz: 정확히 5개, id "q1"~"q5". **전부 4지선다입니다** — choices 는 서로 다른 4개(80자 이내), answer 는 정답의 인덱스(0~3, 숨기지 말고 채웁니다). **모든 문제(q1~q5)의 promptKo 에 한국어를 반드시 채웁니다**(null·빈 값 금지, 160자 이내) — 일본어 문장은 promptJa 에만 두고, promptKo 에는 무엇을 고르라는 한국어 지시(예: "문장의 뜻을 고르세요.")를 씁니다. 정답이 되는 뜻·표현은 promptKo 에 미리 쓰지 않습니다. **빈칸 문제는 promptKo 에 할 일만 씁니다**(예: "빈칸에 들어갈 알맞은 말을 고르세요.") — 번역하지 않고, 빈 문장은 promptJa 에 ＿＿ 로 비워 반드시 채웁니다. promptJa 는 일본어 문장을 보여 줄 때만(120자 이내) 채우고 아니면 null. targetIds 는 위 id 규칙을 따릅니다. explanationKo 는 정답 풀이 한 줄(120자 이내).',
     '- application: 정확히 3개, id "a1"~"a3". promptKo(한국어로 과제 상황 설명, 200자 이내)·hintJa(힌트, 없으면 null)·modelAnswerJa/modelReading/modelKo(모범 답 하나)·targetIds(위 id 규칙).',
     '- speaking: 정확히 3개, id "s1"~"s3". promptKo(무엇을 말해야 하는지 한국어 지시, 200자 이내)·targetIds(위 id 규칙)·modelAnswerJa/modelReading/modelKo. 학습자는 음성 또는 텍스트로 답하며 정답 여부는 서버가 표현 사용 여부만 느슨하게 확인합니다 — 자연스러운 모범 답 하나만 주면 됩니다.' + (scenario ? ' 과제는 [상황] 속에서 학습자(A)가 할 말입니다.' : ' 상황(역할극)은 없습니다.'),
     '- nextPreview: titleKo(다음 수업 제목, 40자 이내)·teaserKo(예고 한 줄, 60자 이내) — 완결감을 주지 말고 "조금 아쉬운" 정도로 다음 진입 동기를 주세요.' +
       ' 있다면 [직전 예고]와 자연스럽게 이어지게 합니다.',
     '- reading 계열 필드(dialogue.reading·chunks.reading·grammar.exampleReading·application.modelReading·speaking.modelReading)는 **가나(히라가나 또는 가타카나)로만** 씁니다 — 한자·로마자·한글은 절대 쓰지 않습니다. 보통 말은 히라가나로: 「私は元気です。」(한자, 금지)도 「watashi wa genki desu」(로마자, 금지)도 아니라 「わたしはげんきです。」(히라가나, 이렇게)처럼 적습니다. **외래어는 가타카나 표기 그대로 둡니다**: 「コーヒー」(가타카나, 이렇게) — 히라가나로 억지로 바꾸지 않습니다(「こーひー」로 바꾸지 마세요). ja·textJa·exampleJa·modelAnswerJa 같은 일본어 필드에 한국어를 섞지 않습니다.',
     '- speaker·모델 이름 같은 엔진 식별 정보는 어디에도 쓰지 않습니다.',
-    '- 각 항목은 위에서 정한 키만 씁니다 — quiz·application·speaking 등 어디에도 q, note, conjugationNote 같은 참고용 키를 새로 만들어 덧붙이지 마세요. 설명·메모는 이미 정해진 explanationKo 같은 키 안에만 적습니다.',
+    '- 각 항목은 위에서 정한 키만 씁니다 — application·speaking·pieces 등 어디에도 q, note, conjugationNote 같은 참고용 키를 새로 만들어 덧붙이지 마세요. 설명·메모는 이미 정해진 explanationKo 같은 키 안에만 적습니다.',
     INJECTION_GUARD,
   ].join('\n')
 }
@@ -410,7 +426,7 @@ export function buildLessonRequest(input: LessonInput): LessonRequest {
     system,
     messages: [{ role: 'user', content: dataBlock }],
     jsonSchema: LESSON_SCHEMA,
-    // v7 — 1차 응답의 quiz[] 등에 붙는 스키마 밖 참고용 키(q·conjugationNote)로 재시도하지 않게 ajv 전에 지운다(키 경로만 로그).
+    // v7 — 1차 응답의 application[] 등에 붙는 스키마 밖 참고용 키(q·conjugationNote)로 재시도하지 않게 ajv 전에 지운다(키 경로만 로그). v10 부터 pieces[] 의 군더더기 키도 같은 경로로 지워진다.
     stripAdditionalProperties: true,
     // 보정 먼저(LLM 재호출 없이 결정적으로 고침), 남은 위반만 checkLessonResponse 가 잡아 필요하면 재시도로 보낸다.
     // `data` 는 engine.llm.completeJson 이 최종적으로 돌려주는 것과 같은 참조라 in-place 보정이 그대로 반영된다
@@ -423,22 +439,30 @@ export function buildLessonRequest(input: LessonInput): LessonRequest {
       const strictDetailed = checkLessonResponseDetailed({ allowedChunkIds }, data)
       const strict = strictDetailed.map((x) => x.message)
       // 정보가 없으면(직접 호출) 마지막 시도로 보지 않는다 — 완화는 엔진이 "이 connection 의 마지막 시도"라고 알려 줄 때만.
-      if (!info || info.attempt < info.maxAttempts) return strict
-      // 마지막 시도 — repair 로도 못 지운 콘텐츠 매칭(④) 위반만 남았으면(①~③·한글·엔진명은 여전히 강제) 레슨
-      // 전체를 잃지 않기 위해 눈감는다(LessonCheckContext 주석·checks.ts 참고). 데이터는 여전히 실재하는
-      // chunk/grammar id 만 가리킨다 — "완벽히 보여주지 못하는 모범 답"이라는 품질 저하만 허용한다.
-      const tolerant = checkLessonResponseDetailed({ allowedChunkIds, tolerateContentMismatch: true }, data).map((x) => x.message)
-      if (tolerant.length < strict.length) {
-        // 면책이 건너뛰는 규칙은 ④ 매칭과 quiz.promptKo 한글 검사 둘뿐이라 두 건수의 합이 곧 `strict - tolerant` 다.
-        // 롤백 기준(② promptKo FAILED·④ 재시도율)을 따로 보려고 종류별로 센다. 상관 id·시도 번호·건수만 남긴다 —
-        // 원문·학습자 텍스트·모범 답 내용은 싣지 않는다.
-        const contentCount = strictDetailed.filter((x) => x.kind === 'content').length
-        const promptKoCount = strictDetailed.filter((x) => x.kind === 'promptKo').length
-        console.info(
-          `[lesson] 마지막 시도 — 눈감고 통과시킨 위반: ④매칭 ${contentCount}건·promptKo한글 ${promptKoCount}건 trace=${safeTraceId(info.traceId)} attempt=${info.attempt}/${info.maxAttempts}`,
-        )
+      const isLast = Boolean(info && info.attempt >= info.maxAttempts)
+      let final = strict
+      if (isLast) {
+        // 마지막 시도 — repair 로도 못 지운 콘텐츠 매칭(④) 위반·조각 임계(task-081) 위반만 남았으면(①~③·한글·엔진명은 여전히 강제) 레슨
+        // 전체를 잃지 않기 위해 눈감는다(LessonCheckContext 주석·checks.ts 참고). 데이터는 여전히 실재하는 chunk/grammar id 만 가리킨다 —
+        // "완벽히 보여주지 못하는 모범 답"·"나누지 못한 줄" 이라는 품질 저하만 허용한다(조각은 아래에서 위반 줄을 null 로 만든다).
+        const tolerant = checkLessonResponseDetailed({ allowedChunkIds, tolerateContentMismatch: true, tolerateInvalidPieces: true }, data).map((x) => x.message)
+        if (tolerant.length < strict.length) {
+          // 면책이 건너뛰는 규칙은 ④ 매칭과 조각 임계 둘뿐이라 두 종류별 건수를 따로 센다(롤백 기준: ④ 재시도율·조각 면책률).
+          // 상관 id·시도 번호·건수만 남긴다 — 원문·학습자 텍스트·모범 답 내용은 싣지 않는다.
+          const contentCount = strictDetailed.filter((x) => x.kind === 'content').length
+          const scan = scanLessonPieces(data.dialogue)
+          const piecesNote = strictDetailed.some((x) => x.kind === 'pieces') ? `조각 위반 줄 ${scan.invalid}/${scan.total}` : '조각 0'
+          console.info(`[lesson] 마지막 시도 — 눈감고 통과시킨 위반: ④매칭 ${contentCount}건·${piecesNote} trace=${safeTraceId(info!.traceId)} attempt=${info!.attempt}/${info!.maxAttempts}`)
+        }
+        final = tolerant
       }
-      return tolerant
+      // 위반 없이 받아들이는 응답만 조각을 «제자리 정리» 한다 — 통과한 줄은 정리된 배열, 못 넘은 줄은 null(임계 이하의 정상 경로와 마지막 시도 면책 경로 모두).
+      // 저장 단계는 이미 검증된 pieces 를 받는다(L3 가 L2 를 import 하지 않는 방식 — lessonPieces.ts 머리 주석).
+      if (final.length === 0) {
+        const sum = applyLessonPieces(data.dialogue)
+        console.info(`[lesson] pieces — lines=${sum.piecesTotal} nullLines=${sum.piecesNullLines} pieces=${sum.pieceCount} koNoHangul=${sum.koNoHangul} reasons=${JSON.stringify(sum.byReason)} slashMoved=${sum.slashMoved}`)
+      }
+      return final
     },
     allowedChunkIds,
     skippedChunks,

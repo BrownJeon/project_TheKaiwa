@@ -1,0 +1,1099 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="demo-version" content="task-081-v1">
+<meta name="demo-token-source" content="src/app/globals.css@sha256:a314f18f1807">
+<meta name="description" content="오늘의 회화 — 문제 단계를 없애고 조각 단계(문장 끊어 보기)를 3번째에 넣는다, 응용은 마이크가 기본이고 말한 내용의 한국어 뜻을 함께. full 데모 v1, 합성 샘플, 서버 호출 없음, 사용자 승인 전">
+<title>오늘의 회화 조각 단계</title>
+<style>
+/* 레이아웃: 위 조작 줄 → 한눈에(불편한 사실 먼저) → 결정 필요 Q1~Q12 → 왼쪽 상태 목록 · 가운데 휴대폰(현재 vs 제안) · 오른쪽 설명·실측 → 바뀌는 곳 → 낭독·초점 → 한계·질문 → 개발 메모 */
+/* 색·반경 값은 src/app/globals.css 를 그대로 고정(링크하지 않음). 새 색 없음 — 조각 밑줄은 이미 있는 토큰(protein·accent·carb·good·ink·ink3)을 다시 쓴다(Q12) */
+:root {
+  color-scheme: light dark;
+  --ground: #f6f7f4; --surface: #ffffff; --surface2: #eef0ea;
+  --ink: #1e2420; --ink2: #5a6359; --ink3: #8b948a; --line: #dde2d9;
+  --accent: #c8471f; --accent-soft: #fbe9e3; --on-accent: #ffffff;
+  --good: #3e6b3a; --good-soft: #e4efe2; --warn: #c98a12; --warn-soft: #fbf0d6;
+  --bad: #b3261e; --bad-soft: #f9e3e1;
+  --carb: #c97b1e; --protein: #2f6fab; --fat: #c2405a;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+    --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+    --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+    --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+    --bad: #f28b82; --bad-soft: #3d1f1d;
+    --carb: #c98426; --protein: #4a86c6; --fat: #d2536e;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141816; --surface: #1d2320; --surface2: #262d29;
+  --ink: #ecefe9; --ink2: #aeb6ac; --ink3: #7e877d; --line: #333b36;
+  --accent: #f06a45; --accent-soft: #3a241e; --on-accent: #1a0e0a;
+  --good: #7fb27a; --good-soft: #223121; --warn: #e0a93a; --warn-soft: #3a2f14;
+  --bad: #f28b82; --bad-soft: #3d1f1d;
+  --carb: #c98426; --protein: #4a86c6; --fat: #d2536e;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--ink);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:lang(ja) { font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif; line-break: strict; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; background: var(--surface2); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+
+/* ── 데모 틀(휴대폰 밖) — task-077 데모와 같은 틀 ── */
+.dtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dtop h1 { font-size: 16px; font-weight: 700; margin-right: auto; text-wrap: balance; }
+.dtop h1 small { font-size: 12px; font-weight: 500; color: var(--ink2); margin-left: 6px; }
+.lvl { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--surface2); font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.dctls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.dctl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); flex: none; }
+.dseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface2); }
+.dseg button { border: 0; background: none; height: 32px; min-width: 44px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.dseg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.dlay { display: grid; grid-template-columns: 230px minmax(0, 1fr) 330px; gap: 18px; padding: 4px 16px 16px; align-items: start; }
+.dnav { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.dnav h2 { font-size: 12.5px; font-weight: 700; padding: 8px 4px 4px; }
+.dnav h2:first-child { padding-top: 2px; }
+.nvb { display: block; width: 100%; min-height: 36px; padding: 7px 8px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 12.5px; color: var(--ink2); }
+.nvb:hover { background: var(--surface2); color: var(--ink); }
+.nvb[aria-current="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.did { font-size: 11px; color: var(--ink2); margin-left: 4px; font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+.dstage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 22px; min-width: 0; }
+.fw { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.fw figcaption { font-size: 12px; line-height: 1.4; color: var(--ink2); text-align: center; margin-bottom: 6px; font-weight: 600; max-width: 412px; min-height: 34px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 0 4px; }
+.tagc, .tagp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.tagc { background: var(--surface2); color: var(--ink2); }
+.tagp { background: var(--accent-soft); color: var(--ink); }
+.dside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.dcard > h2 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.dcard ul.dn, .exp ul { list-style: disc; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; word-break: keep-all; overflow-wrap: anywhere; }
+.exp p { font-size: 13px; word-break: keep-all; overflow-wrap: anywhere; }
+.exp p + ul, .exp ul + p { margin-top: 6px; }
+.dmeas { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 3px; word-break: keep-all; }
+.dmeas b { color: var(--ink); }
+.ok { color: var(--good); font-weight: 700; }
+.ng { color: var(--bad); font-weight: 700; }
+.dpanel { margin: 12px 16px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.dpanel > h2 { font-size: 18px; font-weight: 700; text-wrap: balance; }
+.dpanel > h3 { font-size: 14.5px; font-weight: 700; margin-top: 16px; }
+.dpanel .dsub { font-size: 13px; color: var(--ink2); margin-top: 4px; max-width: 110ch; word-break: keep-all; }
+.dpanel.warnp { box-shadow: inset 4px 0 0 var(--accent); }
+.quote { margin-top: 8px; border-radius: 10px; background: var(--surface2); padding: 10px 12px; font-size: 13.5px; word-break: keep-all; }
+.dqs { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 12px; }
+fieldset.dq { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+fieldset.dq legend { padding: 0 4px; font-size: 14px; font-weight: 700; }
+fieldset.dq legend .dn2 { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-right: 6px; color: var(--ink2); }
+.opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; background: var(--surface); position: relative; min-width: 0; }
+.opt.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; word-break: keep-all; }
+.rec { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 700; }
+.scr { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--surface2); color: var(--ink2); font-size: 11px; font-weight: 700; }
+.dif { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--warn-soft); color: var(--ink); font-size: 11px; font-weight: 700; }
+.opt-d { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.qnote { font-size: 12.5px; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.qgo { align-self: flex-start; height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; font-size: 12.5px; font-weight: 600; }
+.drow { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink2); }
+.dbtn { height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dtw { overflow-x: auto; margin-top: 10px; }
+.dtbl { width: 100%; min-width: 860px; border-collapse: collapse; font-size: 12.5px; }
+.dtbl th, .dtbl td { text-align: left; vertical-align: top; padding: 7px 6px; border-top: 1px solid var(--line); word-break: keep-all; overflow-wrap: anywhere; }
+.dtbl th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+.dtbl td.k { white-space: nowrap; font-weight: 700; }
+.dtbl .chg { background: var(--accent-soft); }
+.dlist { margin-top: 10px; list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; word-break: keep-all; overflow-wrap: anywhere; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 10px; margin-top: 12px; }
+.glance > div { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.glance h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; word-break: keep-all; }
+.glance li { font-size: 12.5px; word-break: keep-all; overflow-wrap: anywhere; }
+.glance ul { list-style: disc; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+details.dev { margin: 0 16px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 16px; }
+details.dev > summary { min-height: 48px; display: flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer; }
+details.dev[open] { padding-bottom: 16px; }
+details.dev h3 { font-size: 14px; font-weight: 700; margin-top: 14px; }
+pre.code { margin: 8px 0 0; overflow-x: auto; background: var(--surface2); border-radius: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.55; font-family: ui-monospace, Menlo, monospace; }
+@media (max-width: 1320px) { .dlay { grid-template-columns: 210px minmax(0, 1fr); } .dside { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); } }
+@media (max-width: 760px) {
+  .dlay { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 16px 12px; }
+  .dnav { position: static; max-height: none; }
+  .dtop { position: static; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; padding: 8px 16px; }
+  .dtop h1 { font-size: 14px; margin-right: 0; }
+  .dctls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 10px; }
+  .dctls::-webkit-scrollbar { display: none; }
+  .dpanel { padding: 14px; }
+  .dstage { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+}
+body.mark .phone .dnew { outline: 2px dashed var(--accent); outline-offset: 1px; }
+
+/* ── 휴대폰 프레임 — 글자 크기는 --fz 배(글꼴 130% 모형: 글자만 커지고 버튼 높이는 그대로) ── */
+.phone { --fz: 1; position: relative; overflow: hidden; border-radius: 26px; background: var(--ground); box-shadow: 0 0 0 1px var(--line), 0 14px 36px rgba(0,0,0,.14); flex: none; }
+.phone.big { --fz: 1.3; }
+.w360 { width: 360px; } .w390 { width: 390px; } .w412 { width: 412px; }
+.h780 { height: 780px; } .h892 { height: 892px; }
+.pg { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; }
+ruby { ruby-align: center; ruby-position: over; }
+rt { font-size: calc(11px * var(--fz)); font-weight: 400; line-height: 1; color: var(--ink2); letter-spacing: 0; }
+/* LessonHeader(lesson/parts.tsx 값): h-14 · 뒤로 44 · 아바타 40 · 제목 16 · 표시등 12 */
+.lh { height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; background: var(--surface); border-bottom: 1px solid var(--line); min-width: 0; }
+.bk { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; background: none; color: var(--ink); padding: 0; }
+.av { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--ink); font-weight: 600; font-size: calc(16px * var(--fz)); }
+.lht { min-width: 0; flex: 1; display: flex; flex-direction: column; align-items: flex-start; padding-left: 6px; }
+.lht h1 { max-width: 100%; font-size: calc(16px * var(--fz)); font-weight: 600; line-height: calc(20px * var(--fz)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lht h1 small { font-size: calc(12px * var(--fz)); font-weight: 400; color: var(--ink2); margin-left: 4px; }
+.tts { display: inline-flex; align-items: center; gap: 6px; font-size: calc(12px * var(--fz)); line-height: 16px; color: var(--ink2); }
+.tts .d { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+/* StageSteps(parts.tsx 값): 5칸 · min-h 52 · 원 26 · 이름 11.5 · 끝낸 칸 사이 선 good, 아니면 line */
+.ss { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); flex: none; border-bottom: 1px solid var(--line); background: var(--surface); padding: 4px 6px; }
+.ss button { position: relative; min-height: 52px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none; padding: 0; font-size: calc(11.5px * var(--fz)); color: var(--ink2); }
+.ss button.cur { font-weight: 700; color: var(--ink); }
+.ss button:not(:last-child)::after { content: ""; position: absolute; left: calc(50% + 16px); right: calc(-50% + 16px); top: 19px; height: 2px; background: var(--line); }
+.ss button.dn:not(:last-child)::after { background: var(--good); }
+.ss .c { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; font-size: calc(12px * var(--fz)); font-weight: 600; background: var(--surface2); color: var(--ink); }
+.ss .c.dn { background: var(--good-soft); color: var(--good); }
+.ss .c.cur { background: var(--accent); color: var(--on-accent); }
+.ss .c.lk { background: none; color: var(--ink2); box-shadow: inset 0 0 0 1.5px var(--line); }
+.ss .n { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ss .n.chg { color: var(--accent); }
+/* 본문(유일한 세로 스크롤) */
+.pgs { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px 16px 32px; scrollbar-width: none; }
+.pgs::-webkit-scrollbar { display: none; }
+.rvn { margin-bottom: 12px; border-radius: 12px; background: var(--surface2); padding: 10px 14px; font-size: calc(13px * var(--fz)); word-break: keep-all; }
+.h2s { font-size: calc(17px * var(--fz)); font-weight: 700; outline: none; }
+.desc { margin-top: 4px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.card { margin-top: 8px; min-width: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.btnp { margin-top: 12px; display: flex; width: 100%; min-height: 48px; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-size: calc(15px * var(--fz)); font-weight: 600; padding: 4px 12px; text-align: center; word-break: keep-all; }
+.btnp[aria-disabled="true"] { opacity: .4; }
+.btng { display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: calc(14px * var(--fz)); font-weight: 600; padding: 4px 12px; text-align: center; word-break: keep-all; }
+.btnf { display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-size: calc(14px * var(--fz)); font-weight: 600; padding: 4px 12px; text-align: center; word-break: keep-all; }
+.ul { display: inline-flex; min-height: 44px; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font-size: calc(13px * var(--fz)); font-weight: 500; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.ul.ink2 { color: var(--ink2); }
+.ul.wide { display: flex; width: 100%; justify-content: center; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 24px; z-index: 50; border-radius: 12px; background: var(--ink); color: var(--surface); padding: 12px 14px; font-size: calc(13px * var(--fz)); word-break: keep-all; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+.ctx { flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: 56px; border-top: 1px solid var(--line); background: var(--surface); font-size: 11px; color: var(--ink2); }
+.ctx span { display: grid; place-items: center; }
+.ctx span.on { color: var(--ink); font-weight: 700; }
+
+/* 표시 도구 줄(LessonDisplayTools 모양 근사 — 기존 부품 그대로 씀) */
+.tools { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.tg { min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: calc(13px * var(--fz)); color: var(--ink2); white-space: nowrap; }
+.tg[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: transparent; font-weight: 600; }
+.seg2 { margin-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 12px; background: var(--surface2); }
+.seg2 button { min-height: 44px; border: 0; border-radius: 10px; background: none; font-size: calc(14px * var(--fz)); color: var(--ink2); padding: 0 8px; }
+.seg2 button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+/* 문장 위치 — 글자 줄 + 칸 막대(장식, 글자가 정보) */
+.cnt { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.cnt b { font-size: calc(14px * var(--fz)); }
+.cnt span { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.sbar { margin-top: 6px; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; }
+.sbar i { height: 6px; border-radius: 3px; background: var(--surface2); }
+.sbar i.v { background: var(--good); }
+.sbar i.c { background: var(--accent); }
+/* 문장 카드 */
+.sc { margin-top: 8px; min-width: 0; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 6px 12px 12px; }
+.sch { display: flex; min-height: 44px; align-items: center; gap: 8px; min-width: 0; }
+.rc { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 6px; font-size: calc(12px * var(--fz)); font-weight: 700; }
+.rc.A { background: var(--surface2); color: var(--ink); }
+.rc.B { background: var(--ink); color: var(--surface); }
+.scn { min-width: 0; flex: 1; font-size: calc(13px * var(--fz)); color: var(--ink2); }
+.pb44 { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 0; }
+.pb44.on { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+/* 조각 칸 — 읽기(11) · 일본어(17) · 밑줄(3) · 이름표(11). 한 칸 최소 44×44 */
+.tiles { margin-top: 2px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 0; min-width: 0; }
+.phr { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 2px; min-width: 0; max-width: 100%; }
+.tail { display: inline-flex; flex-wrap: nowrap; align-items: flex-end; gap: 2px; max-width: 100%; }
+.sl { align-self: flex-end; padding: 0 3px calc(22px * var(--fz)); font-size: calc(17px * var(--fz)); color: var(--ink3); }
+.tl { display: inline-flex; flex-direction: column; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; padding: 3px 5px 3px; border: 0; border-radius: 10px; background: none; color: var(--ink); }
+.tl:hover { background: var(--surface2); }
+.tl[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.tl.pu { min-width: 0; padding-left: 0; padding-right: 1px; pointer-events: none; }
+.tj { font-size: calc(17px * var(--fz)); line-height: 1.35; white-space: nowrap; }
+.tiles.fu .tj { line-height: 2.15; }
+.tj .lk { color: var(--ink2); }
+.tb { display: block; align-self: stretch; height: 3px; margin-top: 1px; border-radius: 2px; background: var(--kc, transparent); }
+.k-L .tb { height: 0; border-radius: 0; background: none; border-bottom: 2px dotted var(--kc); margin-top: 2px; }
+.k-E .tb { height: 0; border-radius: 0; background: none; border-bottom: 3px dashed var(--kc); }
+.tk { margin-top: 2px; font-size: calc(11px * var(--fz)); line-height: 1.3; color: var(--ink2); white-space: nowrap; }
+.k-N { --kc: var(--protein); } .k-A { --kc: var(--accent); } .k-F { --kc: var(--carb); } .k-M { --kc: var(--good); } .k-E { --kc: var(--ink); } .k-L { --kc: var(--ink3); }
+.mono .tl .tb { background: var(--ink3); } .mono .k-L .tb, .mono .k-E .tb { background: none; border-color: var(--ink3); }
+.mono .stb, .mono .cgh i { --kc: var(--ink3); }
+.shg { margin-top: 6px; font-size: calc(13px * var(--fz)); line-height: 1.5; color: var(--ink2); overflow-wrap: anywhere; }
+.stl { margin-top: 2px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.sja { margin-top: 2px; font-size: calc(17px * var(--fz)); line-height: 2; overflow-wrap: anywhere; }
+.sja .sl2 { color: var(--ink3); padding: 0 4px; }
+.phb { display: inline; border: 0; background: none; padding: 6px 2px; border-radius: 8px; color: var(--ink); font-size: inherit; line-height: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 6px; }
+.phb.on { background: var(--accent-soft); }
+/* 고른 조각 줄 */
+.strip { margin-top: 10px; border-radius: 12px; background: var(--surface2); padding: 10px 12px; min-width: 0; }
+.strip0 { margin-top: 10px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.sthr { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.sthr .sth { min-width: 0; flex: 1; padding-top: 4px; }
+.sth { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.stj { font-size: calc(19px * var(--fz)); font-weight: 600; }
+.str { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.stm { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: calc(14px * var(--fz)); word-break: keep-all; }
+.stb { display: inline-flex; min-height: 22px; align-items: center; border-radius: 6px; background: var(--surface); padding: 0 8px 0 6px; font-size: calc(12px * var(--fz)); font-weight: 600; color: var(--ink); box-shadow: inset 4px 0 0 var(--kc); padding-left: 10px; }
+.stbtns { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.pw { display: inline-flex; min-height: 44px; max-width: 100%; align-items: center; gap: 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 4px 12px; font-size: calc(13.5px * var(--fz)); font-weight: 600; color: var(--ink); text-align: left; word-break: keep-all; overflow-wrap: anywhere; }
+.pw.on { border-color: var(--accent); background: var(--accent-soft); }
+.ainote { margin-top: 10px; font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.nopc { margin-top: 8px; border-radius: 10px; background: var(--surface2); padding: 8px 12px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.nvr { margin-top: 10px; display: flex; gap: 8px; }
+.nvr > * { flex: 1; min-width: 0; }
+.gate { margin-top: 10px; font-size: calc(12.5px * var(--fz)); color: var(--ink2); text-align: center; word-break: keep-all; }
+/* 조각 목록(Q2 B) */
+.plist { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.prow { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; width: 100%; border: 0; border-radius: 10px; background: var(--surface2); padding: 4px 10px 4px 6px; text-align: left; color: var(--ink); }
+.prow[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.prow .stb { justify-self: start; }
+.prj { min-width: 0; font-size: calc(16px * var(--fz)); overflow-wrap: anywhere; }
+.prj small { display: block; font-size: calc(11px * var(--fz)); color: var(--ink2); }
+.prk { font-size: calc(12.5px * var(--fz)); color: var(--ink2); text-align: right; word-break: keep-all; }
+/* 모아 보기 */
+.col { margin-top: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.colb { display: flex; width: 100%; min-height: 52px; align-items: center; gap: 8px; padding: 0 14px; border: 0; background: none; text-align: left; font-size: calc(15px * var(--fz)); font-weight: 600; color: var(--ink); }
+.colb span { min-width: 0; flex: 1; }
+.colb small { font-size: calc(12px * var(--fz)); font-weight: 400; color: var(--ink2); }
+.colb i { font-style: normal; color: var(--ink3); font-size: 18px; transition: transform .15s; }
+.colb[aria-expanded="true"] i { transform: rotate(90deg); }
+.colbody { padding: 0 14px 14px; }
+.cgh { margin-top: 12px; display: flex; align-items: center; gap: 6px; font-size: calc(13px * var(--fz)); font-weight: 700; }
+.cgh:first-child { margin-top: 2px; }
+.cgh i { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: var(--kc); }
+.cgh small { font-size: calc(12px * var(--fz)); font-weight: 400; color: var(--ink2); }
+.cgl { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.pc { display: inline-flex; min-height: 44px; max-width: 100%; align-items: center; gap: 8px; border: 0; border-radius: 10px; background: var(--surface2); padding: 4px 12px 4px 6px; text-align: left; color: var(--ink); }
+.pc.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pc .o { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--surface); }
+.pc.on .o { background: var(--ink); color: var(--surface); }
+.pc .t { display: inline-flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+.pc .t b { font-size: calc(16px * var(--fz)); font-weight: 400; }
+.pc .t span { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.dlater { margin-top: 14px; border: 2px dashed var(--line); border-radius: 12px; padding: 10px 12px; font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.dlater b { display: inline-flex; height: 20px; align-items: center; padding: 0 6px; border-radius: 5px; background: var(--warn-soft); color: var(--ink); font-size: 11px; margin-right: 4px; }
+/* 빈 상태 */
+.empty { margin-top: 12px; border-radius: 14px; background: var(--surface2); padding: 16px; }
+.empty h3 { font-size: calc(15px * var(--fz)); font-weight: 700; word-break: keep-all; }
+.empty p { margin-top: 4px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+/* ③ 문제(현재) */
+.qch { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.qch button { min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; padding: 6px 12px; font-size: calc(16px * var(--fz)); }
+.dots { display: flex; gap: 4px; }
+.dots span { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; font-size: calc(11px * var(--fz)); background: var(--surface2); color: var(--ink2); }
+.dots .now { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 2px var(--accent); }
+.dots .ok2 { background: var(--good-soft); color: var(--good); font-weight: 600; }
+.cnt2 { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cnt2 b { font-size: calc(14px * var(--fz)); }
+/* ④ 응용 */
+.pk { font-size: calc(16px * var(--fz)); font-weight: 600; word-break: keep-all; overflow-wrap: anywhere; }
+.lb { margin-top: 8px; font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.chips { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; }
+.xc { display: inline-flex; max-width: 100%; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; border-radius: 10px; padding: 6px 10px; background: var(--surface2); }
+.xj { font-size: calc(16px * var(--fz)); overflow-wrap: anywhere; }
+.xk { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.vbx { margin-top: 6px; min-height: 64px; border-radius: 12px; border: 1px dashed var(--line); padding: 10px 12px; min-width: 0; }
+.vbx .ph0 { font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.vj { font-size: calc(17px * var(--fz)); line-height: 1.9; color: var(--ink); overflow-wrap: anywhere; }
+.vj.part { color: var(--ink2); }
+.hgl { display: block; font-size: calc(13px * var(--fz)); line-height: 1.5; color: var(--ink2); overflow-wrap: anywhere; }
+.trl { margin-top: 8px; border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); padding-top: 8px; font-size: calc(15px * var(--fz)); line-height: 1.5; color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.trrow { margin-top: 8px; border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); padding-top: 6px; display: flex; min-height: 30px; flex-wrap: wrap; align-items: center; gap: 0 8px; font-size: calc(13px * var(--fz)); color: var(--ink2); }
+.trph { display: block; width: 72px; height: 12px; flex: none; border-radius: 6px; background: var(--surface2); animation: pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .trph { animation: none; } .colb i { transition: none; } }
+@keyframes pulse { 50% { opacity: .45; } }
+.trbtn { display: inline-flex; min-height: 44px; flex: none; align-items: center; padding: 0 6px; border: 0; background: none; font-size: calc(13px * var(--fz)); color: var(--ink); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; margin: -7px 0 -7px -6px; }
+.trhint { margin-top: 2px; font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.pttw { margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ptt { position: relative; width: 72px; height: 72px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); padding: 0; transition: transform .15s; }
+.ptt .pring { position: absolute; inset: -6px; border-radius: 50%; box-shadow: 0 0 0 6px var(--accent-soft); opacity: 0; }
+.ptt.rec { transform: scale(1.05); }
+.ptt.rec .pring { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .ptt { transition: none; } }
+.vst { display: flex; min-height: 24px; min-width: 0; max-width: 100%; align-items: center; justify-content: center; gap: 8px; font-size: calc(13px * var(--fz)); color: var(--ink2); text-align: center; word-break: keep-all; }
+.mtr { display: flex; height: 24px; align-items: flex-end; gap: 3px; visibility: hidden; flex: none; }
+.mtr.on { visibility: visible; }
+.mtr i { display: block; width: 4px; border-radius: 2px; background: var(--line); }
+.mtr.on i:nth-child(-n+3) { background: var(--accent); }
+.arow { margin-top: 2px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 8px; }
+.cntc { font-size: calc(12px * var(--fz)); color: var(--ink2); font-variant-numeric: tabular-nums; }
+.ata { margin-top: 6px; display: block; min-height: 84px; width: 100%; min-width: 0; resize: vertical; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; font-size: calc(16px * var(--fz)); color: var(--ink); }
+.ata::placeholder { color: var(--ink3); }
+.tfn { margin-top: 6px; border-radius: 10px; background: var(--surface2); padding: 8px 12px; font-size: calc(13px * var(--fz)); word-break: keep-all; }
+.alert { margin-top: 8px; width: 100%; display: flex; flex-direction: column; gap: 4px; border-radius: 12px; background: var(--bad-soft); padding: 10px 12px; font-size: calc(13px * var(--fz)); color: var(--ink); word-break: keep-all; }
+.alert .ar { display: flex; flex-wrap: wrap; gap: 6px; }
+.cgrid { margin-top: 8px; display: grid; gap: 8px; }
+.cbx { min-width: 0; border-radius: 12px; background: var(--surface2); padding: 10px 12px; }
+.cbl { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; margin-bottom: 2px; }
+.cbl b { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.cbl b.g { color: var(--good); }
+.cbl span { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.cj { font-size: calc(17px * var(--fz)); line-height: 1.9; overflow-wrap: anywhere; }
+mark { color: inherit; background: var(--surface); font-weight: 700; border-radius: 3px; padding: 0 1px; }
+mark.mm { text-decoration: underline dotted 2.5px; text-underline-offset: 5px; }
+mark.md { text-decoration: underline solid 2px; text-underline-offset: 5px; }
+.cko { font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.cmh { margin-top: 12px; font-size: calc(13px * var(--fz)); font-weight: 600; word-break: keep-all; }
+.nt { margin-top: 8px; font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+/* Q6 B 하단 말 바(talk/VoiceBar 값) */
+.vb { flex: none; border-top: 1px solid var(--line); background: var(--surface); padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px)); }
+.vg { margin-top: 4px; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; }
+.vm3 { display: flex; justify-content: center; }
+.ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ink2); padding: 0; }
+/* 종료 카드 · 오늘 탭 · 대기 · 챌린지 */
+.bb { height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; background: var(--surface); border-bottom: 1px solid var(--line); min-width: 0; }
+.bbt { min-width: 0; flex: 1; }
+.bbt h1 { font-size: calc(16px * var(--fz)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bbt p { font-size: calc(12px * var(--fz)); color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero { display: flex; align-items: flex-start; gap: 12px; }
+.hero .ck { width: 52px; height: 52px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--good-soft); color: var(--good); font-size: 22px; font-weight: 700; }
+.hero h2 { font-size: calc(20px * var(--fz)); font-weight: 700; outline: none; }
+.hero p { font-size: calc(14px * var(--fz)); overflow-wrap: anywhere; }
+.hero p.s { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.stats { margin-top: 18px; display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 8px; }
+.stat { min-width: 0; display: flex; flex-direction: column; align-items: center; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); padding: 10px 4px; text-align: center; }
+.stat b { font-size: calc(20px * var(--fz)); font-variant-numeric: tabular-nums; }
+.stat span { font-size: calc(12px * var(--fz)); color: var(--ink2); word-break: keep-all; }
+.h3s { font-size: calc(15px * var(--fz)); font-weight: 600; }
+.tcard { margin-top: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 14px; }
+.tch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tch h2 { font-size: calc(15px * var(--fz)); font-weight: 700; }
+.tch span { font-size: calc(12px * var(--fz)); color: var(--ink2); }
+.tb2 { margin-top: 6px; font-size: calc(13px * var(--fz)); color: var(--ink2); word-break: keep-all; overflow-wrap: anywhere; }
+.tt { margin-top: 4px; font-size: calc(15px * var(--fz)); font-weight: 600; word-break: keep-all; }
+.ord { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ord li { display: grid; grid-template-columns: 26px 52px minmax(0, 1fr); align-items: baseline; gap: 6px; font-size: calc(13px * var(--fz)); word-break: keep-all; }
+.ord li b { font-weight: 600; }
+.ord li span:last-child { color: var(--ink2); }
+.ord li.chg { background: var(--accent-soft); border-radius: 8px; padding: 2px 0; }
+.ctbl { width: 100%; margin-top: 8px; border-collapse: collapse; }
+.ctbl th { text-align: left; font-size: calc(12px * var(--fz)); font-weight: 400; color: var(--ink2); padding-bottom: 4px; }
+.ctbl td { font-size: calc(13px * var(--fz)); padding: 8px 8px 8px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; word-break: keep-all; }
+.cdots { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: 1px; }
+.cdots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.cdots i.y { background: var(--good); }
+.todo { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.todo li { border-radius: 12px; background: var(--surface2); padding: 10px 12px; font-size: calc(13px * var(--fz)); word-break: keep-all; }
+.todo li b { display: block; font-size: calc(14px * var(--fz)); }
+</style>
+</head>
+<body class="mark">
+<header class="dtop">
+  <h1>오늘의 회화 조각 단계 <span class="lvl">full v1</span><small>task-081 · IMP-0059 · 합성 샘플 · 서버 호출 없음 · <b>사용자 승인 전</b> · 점선 = 새로 생기거나 바뀌는 곳</small></h1>
+  <div class="dctls" role="group" aria-label="데모 조작">
+    <div class="dctl"><span>보기</span><span class="dseg" data-ctl="view"><button type="button" data-v="cmp">현재 vs 제안</button><button type="button" data-v="one">제안만</button><button type="button" data-v="three">세 폭</button></span></div>
+    <div class="dctl"><span>폭</span><span class="dseg" data-ctl="w"><button type="button" data-v="360">360</button><button type="button" data-v="390">390</button><button type="button" data-v="412">412</button></span></div>
+    <div class="dctl"><span>높이</span><span class="dseg" data-ctl="h"><button type="button" data-v="780">780</button><button type="button" data-v="892">892</button></span></div>
+    <div class="dctl"><span>테마</span><span class="dseg" data-ctl="theme"><button type="button" data-v="system">기기</button><button type="button" data-v="light">라이트</button><button type="button" data-v="dark">다크</button></span></div>
+    <div class="dctl"><span>글꼴</span><span class="dseg" data-ctl="big"><button type="button" data-v="0">100%</button><button type="button" data-v="1">130%</button></span></div>
+    <div class="dctl"><span>바뀐 곳 점선</span><span class="dseg" data-ctl="mark"><button type="button" data-v="on">켬</button><button type="button" data-v="off">끔</button></span></div>
+  </div>
+</header>
+
+<section class="dpanel warnp" id="glance" aria-labelledby="gl-h">
+  <h2 id="gl-h">한눈에 — 요청 세 가지와 먼저 알아 둘 사실</h2>
+  <div class="quote">「'오늘의 회화'에서 5가지 진행되는 항목 중에서 문제항목을 제거해주고 '조각'이라는 항목을 신규로 만들어서 앞에서의 회화내용의 문장들을 조각으로 나누어서 끊어볼수있는 형태로 구현해줘」 · 보완 「응용 항목에서 입력은 기본적으로 마이크로 말하는 방식을 기본으로 설정해주고 말한 내역에 대하여 한글번역도 함께 표기해줘」 · 보완 「조각공부법 강의를 분석해서 설계에 참고해줘」</div>
+  <div class="glance">
+    <div><h3>먼저 알아 둘 사실 (불편한 것부터)</h3><ul>
+      <li><b>조각은 AI 가 나눈 것이라 틀릴 수 있다.</b> 활용형(待っています)을 한 조각으로 볼지, です·か 를 어디에 붙일지 정답이 하나가 아니다. 화면은 맞는지 모른다 → 한 줄 고지(Q10).</li>
+      <li><b>인사·대답(はい·すみません·お願いします)은 4+1 종류 어디에도 맞지 않는다.</b> 단어장에는 이미 「표현 조각」이 있어 그걸 쓰자고 권한다 — 사용자가 정한 「이름·액션·느낌·꾸밈 + 연결」과 다르므로 <b>Q9 로 다시 묻는다</b>.</li>
+      <li><b>문제 단계가 없어지면 문형·조사 기록, 오답 복습 재료가 사라진다</b>(사용자 결정 2 — 공백 감수). 종료 카드·오늘 카드·챌린지 표의 「문제 n/5」는 다른 것으로 바뀌거나 없어진다(Q7, 아래 「바뀌는 곳」).</li>
+      <li><b>예전에 만든 수업 13개는 조각이 없다.</b> ③ 이 빈 상태로 보이고 [다음 단계]만 있다(Q5).</li>
+      <li><b>조각마다 소리를 내려면 새 소리 종류가 필요하다</b> — 지금 서버는 대화 줄 번호로만 읽는다(임의 문장 합성 막기). 조사 하나(の)만 읽으면 어색할 수 있다(Q8, 추측).</li>
+    </ul></div>
+    <div><h3>1 · 단계 ③ 「문제」 → 「조각」 (자리 그대로)</h3><ul>
+      <li>단계 표시는 그대로 5칸: <b>이해 · 문법 · 조각 · 응용 · 말하기</b>. 번호·완료 조건(4단계 끝내면 마치기)은 그대로라 하던 수업이 안 깨진다.</li>
+      <li>대화 문장을 한 문장씩: <b>끊어 읽기 빗금(／)</b> + <b>조각마다 밑줄 + 이름표</b>(이름·액션·느낌·꾸밈·연결 — 색만이 아니라 글자로). 조각을 누르면 <b>그 조각만 소리 + 뜻</b>.</li>
+      <li>히라가나·한글·번역 표시 스위치는 ① 이해와 같다. 한글 줄도 빗금으로 끊어 보인다(강의의 「한국어 발음 + 슬래시」).</li>
+      <li>단계 아래 「오늘의 조각 모아 보기」(종류별). 단어장 넣기·조각 바꿔 말하기 퀴즈는 <b>나중(이번 범위 밖)</b>.</li>
+    </ul></div>
+    <div><h3>2 · ④ 응용 — 마이크가 기본, 말한 말의 한국어 뜻</h3><ul>
+      <li>카드 안에 <b>누르고 말하기(72px)</b>가 먼저 보이고, 글자 입력은 아래 「⌨ 글자로 쓰기」로. 마이크를 못 쓰면 글자로 열린다(⑤ 말하기의 글자 우선과 같은 조건).</li>
+      <li>알아들은 말 아래 <b>한국어 뜻 줄</b> — ⑤ 「내가 한 말」과 같은 모양·같은 API(#185). 모범 답안과 같으면 모범 답안 뜻을 바로(AI 호출 없음).</li>
+      <li>[모범 답안과 비교하기] 뒤의 글자 차이 밑줄은 그대로, 「내 문장」 칸에 뜻 줄이 함께 남아 <b>뜻끼리도 비교</b>된다.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="dpanel" id="decide" aria-labelledby="decide-h">
+  <h2 id="decide-h">결정 필요 — Q1~Q12 · ★ 권고(승인 전)</h2>
+  <p class="dsub">사용자가 이미 정한 네 가지(③ 자리·문제 완전 제거·연결 조각 포함·수업 만들 때 저장)는 다시 묻지 않는다 — 단 Q9 는 그 결정 3 과 부딪혀서 올린다. <span class="scr">화면</span> 표시 질문은 라디오를 바꾸면 휴대폰이 바로 바뀐다. 각 질문의 [이 상태로 보기]는 그 질문이 보이는 상태로 옮긴다.</p>
+  <div class="dqs" id="dqs"></div>
+  <div class="drow"><button type="button" class="dbtn" id="d-reset">모두 ★ 로</button><span id="d-sum" aria-live="polite"></span></div>
+</section>
+
+<div class="dlay">
+  <nav class="dnav" id="dnav" aria-label="상태 목록"></nav>
+  <main class="dstage" id="stage" aria-label="휴대폰 화면"></main>
+  <aside class="dside">
+    <section class="dcard" aria-labelledby="exp-h"><h2 id="exp-h">이 상태</h2><div class="exp" id="exp"></div></section>
+    <section class="dcard" aria-labelledby="meas-h"><h2 id="meas-h">실측(제안 휴대폰)</h2><div class="dmeas" id="meas"></div></section>
+    <section class="dcard" aria-labelledby="try-h"><h2 id="try-h">직접 해 보기</h2><ul class="dn">
+      <li>③ 조각: 조각을 누르면 아래 줄에 뜻이 나오고 잠깐 「듣는 중」이 된다. [다음 문장]·[이전 문장], 히라가나·한글·번역 스위치, 「모아 보기」가 눌린다.</li>
+      <li>④ 응용: 큰 마이크 버튼을 누르면 녹음 → 한 번 더 누르면 알아들은 말이 들어오고 뜻 줄이 「번역 중」→ 뜻으로 바뀐다. 「글자로 쓰기」·[비교하기]·[다시 가져오기]도 눌린다.</li>
+      <li>주소 끝에 <code>#st=c-tap&amp;w=360&amp;big=1&amp;d=q2:B</code> 처럼 붙이면 그 상태로 열린다.</li>
+    </ul></section>
+  </aside>
+</div>
+
+<section class="dpanel" id="changes" aria-labelledby="ch-h">
+  <h2 id="ch-h">바뀌는 곳 — 화면·문구 (서버·데이터는 개발 메모)</h2>
+  <p class="dsub">「문제」가 보이던 곳을 코드에서 찾은 목록이다(읽기만, 2026-10-21 기준 main). 파일 줄 번호는 참고용 — 문구 정본은 승인 뒤 <code>docs/screens.md</code> 가이드에 옮긴다.</p>
+  <div class="dtw" tabindex="0" role="region" aria-label="바뀌는 곳 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">어디</th><th scope="col">파일</th><th scope="col">지금</th><th scope="col">★ 제안</th></tr></thead>
+      <tbody>
+        <tr class="chg"><td class="k">단계 이름</td><td><code>lesson/lessonCopy.ts:8</code> <code>STAGE_NAMES</code></td><td>이해·문법·<b>문제</b>·응용·말하기</td><td>이해·문법·<b>조각</b>·응용·말하기 (칸 수·<code>grid-cols-5</code>·번호 그대로)</td></tr>
+        <tr class="chg"><td class="k">단계 화면</td><td><code>LessonScreen.tsx:309-310</code> · <code>StageQuiz.tsx</code></td><td><code>stage === 3</code> → <code>StageQuiz</code></td><td><code>StageChunk</code>(새) — <code>StageQuiz</code>·<code>quizPromptView</code>·<code>quizReadingLeak</code> 등 문제 전용 부속은 지움</td></tr>
+        <tr class="chg"><td class="k">③ 문구 묶음</td><td><code>lessonCopy.ts:298-317</code> <code>U3</code></td><td>「③ 문제 · n문제」 외 19줄</td><td>새 <code>U3</code>(조각) — 아래 「문구 표」</td></tr>
+        <tr><td class="k">② 문법 안내</td><td><code>lessonCopy.ts:287-288</code> <code>U2.exprDesc·exprDescPlay</code></td><td>「대화에 나온 표현 조각이에요. … <b>문제·</b>응용·말하기에서 다시 써요.」</td><td>「대화에 나온 표현이에요. … 응용·말하기에서 다시 써요.」 (Q11)</td></tr>
+        <tr class="chg"><td class="k">④ 응용</td><td><code>StageApply.tsx</code> · <code>lessonCopy.ts</code> <code>U4</code></td><td>글자 입력이 기본, 「말로 쓰기」 토글</td><td>마이크 기본 + 뜻 줄(⑤ 의 <code>useSpeakTranslation</code>·#185 재사용) + 「글자로 쓰기」 · <code>textFirst</code> 폴백</td></tr>
+        <tr><td class="k">토스트 바닥</td><td><code>lessonVoiceView.ts</code> <code>lessonToastBottom</code></td><td><code>stage !== 5</code> 면 말하기 아님으로 처리</td><td>Q6 A(카드 안)면 그대로 · Q6 B(하단 바)면 ④ 도 하단 묶음 높이 기준</td></tr>
+        <tr class="chg"><td class="k">오늘 카드(끝냄)</td><td><code>lessonCopy.ts:48-49</code> <code>HOME.doneBody</code> · <code>TodayLessonCard.tsx:231,441</code></td><td>「주제 · 문제 4/5 맞힘 · 말하기 표현 2/3」</td><td>「주제 · 말하기 표현 2/3」 (Q7)</td></tr>
+        <tr><td class="k">오늘 카드(시작)</td><td><code>lessonCopy.ts:24</code> <code>HOME.startIntro</code></td><td>듣기 → 문법 → 문제 → 응용 → 말하기</td><td>듣기 → 문법 → 조각 → 응용 → 말하기</td></tr>
+        <tr><td class="k">오늘 카드(하던 수업)</td><td><code>HOME.nextStage</code> ← <code>stageLabel</code></td><td>「다음은 ③ 문제예요」</td><td>「다음은 ③ 조각이에요」 — <b>받침이 바뀌어 「예요/이에요」 처리 필요</b>(지금 문구는 「예요」 고정)</td></tr>
+        <tr class="chg"><td class="k">생성 대기 표</td><td><code>lessonCopy.ts:170-176</code> <code>GEN.order</code></td><td>문제 · 4지선다 5문제, 바로 정답 확인</td><td>조각 · 대화 문장을 조각으로 나눠 끊어 봐요 · 「보통 1~2분」은 PE 실측 뒤 다시 봄</td></tr>
+        <tr class="chg"><td class="k">종료 카드</td><td><code>LessonEnd.tsx:105-116</code> · <code>END.statQuiz</code></td><td>[4/5 문제 정답][3 만든 문장][2/3 쓴 표현]</td><td>[34 오늘의 조각][3 만든 문장][2/3 쓴 표현] · 조각 없는 옛 수업은 2칸 (Q7)</td></tr>
+        <tr><td class="k">종료 카드 기록 문구</td><td><code>END.recorded</code></td><td>오늘 배운 표현과 문형은 복습할 항목으로 기록했어요.</td><td>그대로(서버가 계속 기록하는지 developer 확인 — 문제 오답 기록은 사라짐)</td></tr>
+        <tr><td class="k">복습 수업 문구</td><td><code>review/reviewCopy.ts:43,88,100,112-114</code></td><td>「문제 c/5 맞힘」·「이해 → 문법 → 문제 → …」·「대화·문제·말하기에 섞여」·「문제·응용·말하기에서」·<code>quizNote</code></td><td>「n개 항목」·「… 조각 …」·「대화·응용·말하기에 섞여」·「응용·말하기에서」·<code>quizNote</code> 지움</td></tr>
+        <tr><td class="k">주제 단어 칸</td><td><code>vocab/topicCopy.ts:100</code> <code>auxDone</code></td><td>「✓ 오늘 「t」 수업 끝냄 · 문제 c/5 · …」</td><td>「✓ 오늘 「t」 수업 끝냄 · …」</td></tr>
+        <tr class="chg"><td class="k">챌린지 날짜별 표</td><td><code>challenge/DayStrip.tsx:4-5,121,135,143</code> · <code>logic.ts:485</code> · <code>challengeCopy.ts:86-87</code></td><td>제목 「문제 점수 추이」 · 열 「수업 문제」 · 칸 「문제 4/5 ●●●●○」 · 안내 「수업은 5문제 중 맞힌 수 …」</td><td>제목 「날짜별 기록」 · 열 「회화」 · 칸 「끝냄」/「아직」/「수업 없음」 · 안내 「회화는 끝낸 날만 표시하고, 단어는 그날 세트 합계예요.」</td></tr>
+        <tr><td class="k">챌린지 오늘 할 일·기록</td><td><code>challenge/logic.ts:160,286,317,450,508</code> · <code>challengeCopy.ts:184</code></td><td>「끝냈어요 · 문제 4/5」·「하루 목표를 다 채웠어요 · 문제 …」·「오늘의 회화 「t」 · 문제 c/t」·「(문제 점수와 상관없음)」·「문제 점수와 상관없이 끝내면 완료」</td><td>「끝냈어요」·「하루 목표를 다 채웠어요 · 단어 …」·「오늘의 회화 「t」 · 끝냄」·「회화는 수업을 끝내면 완료예요.」·「… 하루 1개 끝내요 · 약 15분」</td></tr>
+        <tr><td class="k">질문 탭 맥락</td><td><code>ask/askCopy.ts:209</code></td><td>「공부 기록 요약 — 공부 횟수·점수·복습 예정 목록」</td><td>「점수」가 레슨 점수를 가리키면 뺀다(서버 요약 내용 확인 필요 — developer)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>③ 조각 문구 표 (새 <code>U3</code> — 엔진·모델 이름 없음)</h3>
+  <div class="dtw" tabindex="0" role="region" aria-label="문구 표 — 가로로 밀어 보기">
+    <table class="dtbl">
+      <thead><tr><th scope="col">키(가칭)</th><th scope="col">문구</th><th scope="col">쓰는 곳</th></tr></thead>
+      <tbody id="copyrows"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dpanel" id="a11y" aria-labelledby="a11y-h">
+  <h2 id="a11y-h">낭독 순서 · 초점 · 터치</h2>
+  <ul class="dlist">
+    <li><b>조각 칸 하나 = 버튼 하나.</b> 낭독: 일본어(<code>lang="ja"</code>) → 「느낌 조각」 → 뜻 → (고른 칸이면) 「눌림」. 보이는 이름표는 짧게 「느낌」, 시각 숨김으로 「 조각, 따뜻한」을 잇는다(단어장 칩 <code>sr: ' 조각'</code> 과 같은 방식).</li>
+    <li>칸 묶음 앞에 시각 숨김으로 <b>문장 전체</b>를 한 번 읽어 준다(<code>lang="ja"</code>). 빗금 ／ 와 문장부호 칸은 <code>aria-hidden</code> — 끊어 읽기 구간은 고른 조각 줄의 [▶ 구간 듣기] 이름으로 전한다.</li>
+    <li>색만으로 구분하지 않는다: 밑줄 색(기존 토큰) + <b>모양</b>(연결 = 점선, 표현 = 끊은 선) + <b>글자 이름표</b>. 다크·라이트 모두 이름표 글자는 <code>ink2</code>(대비 4.5:1 이상 — 실측 칸).</li>
+    <li>모든 칸·버튼 실제 크기 44×44 이상(조사 한 글자 칸도 최소 폭 44). 130% 글꼴에서 칸은 줄바꿈되고 한 칸 안 글자는 줄바꿈하지 않는다(가장 긴 「ありがとうございます」 = 130% 에서 약 230px, 360 폭 카드 안 304px 에 들어감).</li>
+    <li>문장 위치는 「문장 3 / 8 · 2개 봤어요」 글자로 전하고 칸 막대는 장식(<code>aria-hidden</code>). [다음 문장]으로 바뀌면 초점은 [다음 문장] 버튼에 남고, 카드 머리 「손님 · 3번째 문장」은 <code>aria-live="polite"</code> 로 한 번 읽힌다.</li>
+    <li>[다음 단계]로 넘어가면 지금처럼 다음 단계 제목(<code>data-stage-title</code>)으로 초점이 간다. 토스트는 지금 <code>Toast</code> 그대로(<code>role="status"</code>).</li>
+    <li>④ 누르고 말하기는 지금 <code>PushToTalkButton</code>(키보드 Space/Enter 누름 유지 지원)을 그대로 쓰고, 뜻 줄은 앞에 시각 숨김 「한국어 뜻: 」(⑤ 와 같음). 「번역 중」 줄은 <code>role="status"</code>.</li>
+  </ul>
+</section>
+
+<section class="dpanel" id="limits" aria-labelledby="lim-h">
+  <h2 id="lim-h">한계 · 사용자에게 물을 것</h2>
+  <ul class="dlist">
+    <li><b>조각 나누기 품질은 이 데모로 판단할 수 없다.</b> 샘플은 사람이 나눈 가짜다. 실제 품질·생성 시간 증가(문장당 출력이 늘어남 — 120초 잡 예산)는 prompt-engineer 측정(호출 예산은 그때 승인) 뒤에야 안다.</li>
+    <li><b>조각 소리</b>: 조사 하나·짧은 조각만 읽으면 높낮이가 어색할 수 있다(추측 — M4 목소리로 들어 본 적 없음). Q8 권고는 「조각 + 그 조각이 든 구간」 두 버튼이다.</li>
+    <li>글꼴 130% 는 휴대폰 안 글자만 1.3배로 키운 모형이다(버튼 높이 고정). 실제 안드로이드 글꼴 배율과 줄바꿈 위치는 다를 수 있다.</li>
+    <li>표시 스위치(히라가나·한글·번역)와 누르고 말하기·인식 오류 띠는 <b>기존 부품 모양을 근사</b>했다 — 구현은 기존 부품을 그대로 쓴다.</li>
+    <li>사용자에게 물을 것: Q1~Q12(위 패널). 특히 <b>Q9</b>(표현 조각 — 결정 3 과 다름)·<b>Q7</b>(문제 점수 자리)·<b>Q1</b>(끝내기 조건).</li>
+  </ul>
+</section>
+
+<details class="dev" id="devmemo">
+  <summary>개발 메모 — 데이터 요구(초안, Leader 승인 필요) · 소리 · 진행 키 · 정본과 어긋나는 곳</summary>
+  <h3>1. 레슨 내용 JSON — 문장별 조각(초안 · 필드 이름·널 규칙 모두 Leader 승인 필요)</h3>
+  <pre class="code">// lesson@v10 (가칭) — content.dialogue[i] 에 하나 더한다. 다른 필드는 그대로.
+dialogue[i].pieces?: Array&lt;{
+  ja: string          // 원문 조각. 이어 붙이면 dialogue[i].ja 와 정확히 같아야 한다(결정적 검증)
+  type: 'NAME' | 'ACTION' | 'FEELING' | 'MODIFIER' | 'LINK' | 'EXPRESSION' | null
+                      // LINK = 연결 조각(조사, JSON 안에서만 — DB ChunkType 변경 없음)
+                      // EXPRESSION = Q9 A 일 때만. null = 문장부호·기호(누를 수 없음, 뜻 없음)
+  ko: string | null   // 조각 뜻(한국어, 짧게). type null 이면 null
+  slash?: true        // 이 조각 뒤가 끊어 읽기 경계(／)
+}&gt; | null            // 줄 단위 null 허용 = 그 줄만 「조각으로 나누지 못했어요」
+// 검증(초안): join(ja) === ja · type ∈ 허용 목록 · type≠null ⇒ ko 비어 있지 않음 · 줄당 조각 ≤ 24
+//            null 인 줄이 절반 넘으면 생성 실패로 다시 시도(재시도 1회 규칙은 지금과 같게)
+// 옛 수업(lesson@v9 이하·reviewMix@v3·lessonScenario@v1): pieces 없음 ⇒ 빈 상태(Q5 A)
+// 읽기·한글: 지금처럼 문장 전체를 #24r annotate 로 받고, 조각 칸은 글자 위치(오프셋)로 나눠 쓴다(새 API 없음)
+// 활용형(待っています·食べました)은 한 조각 · です/ます 는 앞 조각에 붙임 · か/ね/よ 는 연결 — 규칙 정본은 PE</pre>
+  <h3>2. 소리 — 새 audio kind 가 필요한 곳</h3>
+  <ul class="dlist">
+    <li>조각 재생: <code>{ kind: 'piece', line, piece, pace }</code> · 구간 재생(Q8 A): <code>{ kind: 'phrase', line, phrase, pace }</code> — 서버는 저장된 <code>pieces</code> 에서만 글자를 꺼낸다(지금 <code>content.ts parseAudioBody</code> 의 「임의 문장 합성 막기」 유지). 캐시 키·한도는 지금 줄 재생과 같은 규칙(developer·reviewer 확인).</li>
+    <li>카드 머리 ▶(문장 전체)는 지금 줄 다시 듣기(<code>lineReplay</code>)를 그대로 쓴다 — 새 kind 아님.</li>
+    <li>소리를 못 낼 때(<code>pb.textOnly</code>)는 ▶ 를 모두 숨기고 칸을 누르면 뜻만(c-textonly).</li>
+  </ul>
+  <h3>3. 진행 저장(<code>Lesson.progress</code> — 스키마 변경 없음)</h3>
+  <ul class="dlist">
+    <li><code>progress.pieces = { seen: number[] }</code>(본 문장 번호, 가칭) — <code>progress.ts:117 onlyKeys</code> 허용 목록에 추가, 8KB 상한 안(문장 ≤ 10). 다시 열면 처음 안 본 문장부터.</li>
+    <li>④ 응용: <code>progress.application.answers</code> 그대로. 「말로 했는지」(<code>via</code>)는 <b>저장하지 않는다</b>(★) — 다시 열면 「알아들은 말을 그대로 옮겼어요」 힌트만 빠진다. 저장하려면 <code>application.via?: ('voice'|'text'|null)[]</code>.</li>
+    <li>④ 뜻 줄은 저장하지 않는다(#185 와 같음) — 수업 화면 메모리 캐시(<code>useSpeakTrCache</code>)를 ④·⑤ 가 함께 쓴다. 한도: 사용자당 동시 1건·분당 20(④·⑤ 합산).</li>
+  </ul>
+  <h3>4. 정본·지금 코드와 어긋나는 곳</h3>
+  <ul class="dlist">
+    <li><code>docs/screens.md</code> §2·§12(5단계 표·③ 문제 화면·12-8 문구)·§14(복습 5단계 문구)·§34(⑤ 번역 — ④ 로 넓힘)와 <code>api-contract.md</code> #58~#62(<code>quiz</code>·<code>score</code>·완료 결과 <code>result.quiz</code>)가 바뀐다 — 승인 뒤 Leader 반영.</li>
+    <li>#185 는 지금 「말하기 과제」 이름으로 정의됨 → ④ 에서도 쓰려면 계약 설명을 넓혀야 한다(요청 모양 <code>{text}</code> 는 같음).</li>
+    <li>단어장 <code>CHUNK_DEF.MODIFIER</code> 뜻 풀이에 「조사구」가 들어 있다(「다른 말에 붙어 … (부사 · 조사구)」) — ③ 에서는 조사 하나 = 연결 조각이라 겹친다. ③ 은 이 뜻 풀이를 쓰지 않는다(★), 고칠지는 별도.</li>
+    <li>강의 용어 「꾸임 조각」 ↔ 앱 용어 「<b>꾸밈 조각</b>」(<code>CHUNK_TYPE_LABEL</code>·단어장) — 앱 용어를 따른다.</li>
+    <li><code>readStoredContent</code> 는 <code>quiz</code> 가 없으면 내용을 손상으로 본다 → 새 수업은 <code>quiz</code> 가 없으므로 반드시 완화(서버).</li>
+    <li>완료 응답 <code>result.quiz.correct/total</code> 을 화면이 읽는다(<code>LessonScreen.tsx:249</code>) → 종료 카드 Q7 A 는 <code>pieces</code> 개수를 내용에서 직접 센다(서버 필드 불필요).</li>
+  </ul>
+  <h3>5. 생성·수정 파일(화면 — 승인 뒤 가이드에서 확정)</h3>
+  <ul class="dlist">
+    <li>새: <code>src/components/lesson/StageChunk.tsx</code>(+ 조각 칸·고른 조각 줄·모아 보기 하위 부품) · 조각 문구는 <code>lessonCopy.ts</code> <code>U3</code></li>
+    <li>수정: <code>LessonScreen.tsx</code>·<code>StageApply.tsx</code>·<code>parts.tsx</code>(이름만)·<code>lessonCopy.ts</code>·<code>LessonEnd.tsx</code>·<code>TodayLessonCard.tsx</code>·<code>logic.ts</code>(<code>endResultFrom</code>)·<code>useLessonPlayback.ts</code>(새 kind)·<code>review/reviewCopy.ts</code>·<code>vocab/topicCopy.ts</code>·<code>challenge/{DayStrip.tsx,logic.ts,challengeCopy.ts}</code></li>
+    <li>지움: <code>StageQuiz.tsx</code> 와 문제 전용 부속·시험(서버 <code>checks.ts</code>·<code>repair.ts</code> 문제 부분은 developer 몫)</li>
+  </ul>
+</details>
+
+<script>
+'use strict';
+/* ───────── 합성 샘플 데이터(가짜) ───────── */
+const KIND = {
+  N: { s: '이름', f: '이름 조각', cls: 'k-N' }, A: { s: '액션', f: '액션 조각', cls: 'k-A' }, F: { s: '느낌', f: '느낌 조각', cls: 'k-F' },
+  M: { s: '꾸밈', f: '꾸밈 조각', cls: 'k-M' }, E: { s: '표현', f: '표현 조각', cls: 'k-E' }, L: { s: '연결', f: '연결 조각', cls: 'k-L' },
+};
+const ORDER = ['N', 'A', 'F', 'M', 'E', 'L'];
+const ROLES = { A: '손님', B: '점원' };
+// [ja, type, ko, reading, hangul, slash]
+const P = (ja, t, ko, rd, hg, sl) => ({ ja, t, ko, rd: rd || '', hg: hg || '', sl: !!sl });
+const LINES = [
+  { sp: 'A', ko: '따뜻한 커피 하나 주세요.', p: [P('温かい','F','따뜻한','あたたかい','아타타카이'), P('コーヒー','N','커피','','코-히-'), P('を','L','~을/를','','오',1), P('一つ','N','하나','ひとつ','히토츠',1), P('ください','A','주세요','','쿠다사이'), P('。',null)] },
+  { sp: 'B', ko: '사이즈는 어떻게 할까요?', p: [P('サイズ','N','사이즈','','사이즈'), P('は','L','~은/는','','와',1), P('どう','M','어떻게','','도-',1), P('します','A','해요','','시마스'), P('か','L','~까(물음)','','카'), P('。',null)] },
+  { sp: 'A', ko: '작은 걸로 부탁해요.', p: [P('小さい','F','작은','ちいさい','치-사이'), P('の','L','~것','','노'), P('で','L','~으로','','데',1), P('お願いします','E','부탁해요','おねがいします','오네가이시마스'), P('。',null)] },
+  { sp: 'B', ko: '여기서 드시고 가세요?', p: [P('こちら','N','이쪽 · 여기','','코치라'), P('で','L','~에서','','데',1), P('召し上がります','A','드세요(높임)','{召|め}し{上|あ}がります','메시아가리마스'), P('か','L','~까(물음)','','카'), P('。',null)] },
+  { sp: 'A', ko: '아니요, 집에서 느긋하게 마실게요.', p: [P('いいえ','E','아니요','','이-에'), P('、',null,'','','',1), P('家','N','집','いえ','이에'), P('で','L','~에서','','데',1), P('ゆっくり','M','느긋하게','','윳쿠리',1), P('飲みます','A','마셔요','のみます','노미마스'), P('。',null)] },
+  { sp: 'B', ko: '알겠습니다. 잠시만 기다려 주세요.', p: [P('かしこまりました','E','알겠습니다(정중)','','카시코마리마시타'), P('。',null,'','','',1), P('少々','M','잠시','しょうしょう','쇼-쇼-',1), P('お待ちください','A','기다려 주세요','おまちください','오마치쿠다사이'), P('。',null)] },
+  { sp: 'A', ko: '역 앞 카페는 늘 아주 조용하네요.', p: [P('駅','N','역','えき','에키'), P('の','L','~의','','노'), P('前','N','앞','まえ','마에'), P('の','L','~의','','노'), P('カフェ','N','카페','','카훼'), P('は','L','~은/는','','와'), P('、',null,'','','',1), P('いつも','M','늘','','이츠모',1), P('とても','M','아주','','토테모',1), P('静かです','F','조용해요','しずかです','시즈카데스'), P('ね','L','~네요','','네'), P('。',null)] },
+  { sp: 'B', ko: '감사합니다. 또 와 주세요.', p: [P('ありがとうございます','E','고맙습니다','','아리가토-고자이마스'), P('。',null,'','','',1), P('また','M','또','','마타',1), P('来てください','A','와 주세요','きてください','키테쿠다사이'), P('ね','L','~요(다짐)','','네'), P('。',null)] },
+];
+const LONG = { sp: 'A', ko: '어젯밤 친구와 역 근처 새 레스토랑에서 아주 맛있는 생선 요리를 천천히 먹었어요.', p: [P('昨日','N','어제','きのう','키노-'), P('の','L','~의','','노'), P('夜','N','밤','よる','요루'), P('、',null,'','','',1), P('友だち','N','친구','ともだち','토모다치'), P('と','L','~와/과','','토',1), P('駅','N','역','えき','에키'), P('の','L','~의','','노'), P('近く','N','근처','ちかく','치카쿠'), P('の','L','~의','','노',1), P('新しい','F','새로운','あたらしい','아타라시-'), P('レストラン','N','레스토랑','','레스토랑'), P('で','L','~에서','','데'), P('、',null,'','','',1), P('とても','M','아주','','토테모',1), P('おいしい','F','맛있는','','오이시-'), P('魚料理','N','생선 요리','さかなりょうり','사카나료-리'), P('を','L','~을/를','','오',1), P('ゆっくり','M','천천히','','윳쿠리',1), P('食べました','A','먹었어요','たべました','타베마시타'), P('。',null)] };
+// Q9 B(5종 안에 억지로) — 표현 조각을 가장 가까운 종류로
+const Q9B = { 'お願いします': 'A', 'いいえ': 'M', 'かしこまりました': 'A', 'ありがとうございます': 'A' };
+const AP = { prompt: '점원에게 따뜻한 차 두 잔을 주문해 보세요.', targets: [['温かい', '따뜻한'], ['～をください', '문형'], ['二つ', '두 개']], hint: 'お茶 = 차',
+  model: '{温|あたた}かい{お茶|おちゃ}を{二|ふた}つください。', modelPlain: '温かいお茶を二つください。', modelHg: '아타타카이 오챠오 후타츠 쿠다사이', modelKo: '따뜻한 차 두 잔 주세요.',
+  mine: '{温|あたた}かい{お茶|おちゃ}を{二|ふた}つお{願|ねが}いします', minePlain: '温かいお茶を二つお願いします', mineHg: '아타타카이 오챠오 후타츠 오네가이시마스', mineKo: '따뜻한 차 두 잔 부탁해요.',
+  part: '{温|あたた}かいお{茶|ちゃ}を…', typed: '温かいお茶をください', typedKo: '따뜻한 차 주세요.', typedHg: '아타타카이 오챠오 쿠다사이' };
+
+/* ───────── 상태 ───────── */
+const DEC0 = { q1: 'A', q2: 'A', q3: 'A', q4: 'A', q5: 'A', q6: 'A', q6b: 'A', q7: 'A', q8: 'A', q9: 'A', q10: 'A', q11: 'A', q12: 'A' };
+const S = { view: 'cmp', w: 390, h: 780, theme: 'system', big: 0, mark: 'on', st: 'c-new', dec: { ...DEC0 },
+  fu: true, hg: true, tr: false, line: 0, seen: new Set([0]), sel: null, playing: null, phPlay: false, linePlay: false, colOpen: false, kindView: false, slashView: false, textOnly: false,
+  long: false, partial: false, toast: '', stageDone: 2, cur: 3, review: false,
+  ap: 'idle', apMode: 'voice', tf: false, stt: false, trs: 'none', same: false, cmp: false, cmpFrom: 'voice', aseg: 'voice' };
+let toastTimer = null, playTimer = null, trTimer = null;
+
+const STATES = [
+  ['단계 표시', [['s-locked', '잠긴 단계 누름(① 지금)']]],
+  ['③ 조각 (새 단계)', [['c-new', '새 수업 · 첫 문장'], ['c-tap', '조각을 누름 · 듣는 중'], ['c-long', '조각 많음 · 긴 문장'], ['c-last', '마지막 문장 · [다음 단계]'], ['c-collect', '오늘의 조각 모아 보기'], ['c-partial', '한 문장만 조각 없음'], ['c-textonly', '소리 없음(자막만)'], ['c-ttsfail', '조각 소리 실패'], ['c-review', '끝낸 단계 다시 보기'], ['c-old', '옛 수업 · 조각 없음']]],
+  ['④ 응용 (마이크 기본)', [['a-idle', '처음 · 마이크 대기'], ['a-rec', '말하는 중'], ['a-heard', '알아들음 · 번역 중'], ['a-heard-ok', '알아들음 · 뜻 나옴'], ['a-same', '모범 답안과 같게 말함'], ['a-trfail', '번역 실패'], ['a-cmp', '비교 결과 · 말로 한 답'], ['a-text', '글자로 쓰기로 바꿈'], ['a-cmp-text', '비교 결과 · 글자로 쓴 답'], ['a-textfirst', '마이크 못 씀 → 글자 우선'], ['a-stterr', '인식 오류 띠']]],
+  ['그 밖 (문제 점수 표기 제거)', [['e-end', '수업 종료 카드'], ['e-end-old', '종료 카드 · 옛 수업'], ['t-start', '오늘 탭 · 시작 카드'], ['t-done', '오늘 탭 · 끝낸 카드'], ['g-gen', '생성 대기 「이런 순서로」'], ['ch-strip', '챌린지 · 날짜별 기록']]],
+];
+function preset(st) {
+  Object.assign(S, { st, line: 0, seen: new Set([0]), sel: null, playing: null, phPlay: false, linePlay: false, colOpen: false, kindView: false, slashView: false, textOnly: false, long: false, partial: false, toast: '', stageDone: 2, cur: 3, review: false,
+    ap: 'idle', apMode: 'voice', tf: false, stt: false, trs: 'none', same: false, cmp: false, cmpFrom: 'voice', aseg: 'voice' });
+  const all = new Set(LINES.map((_, i) => i));
+  if (st === 's-locked') Object.assign(S, { stageDone: 0, cur: 1, toast: '앞 단계를 마치면 열려요' });
+  if (st === 'c-tap') Object.assign(S, { sel: 0, playing: 0 });
+  if (st === 'c-long') Object.assign(S, { long: true, line: 6, seen: new Set([0, 1, 2, 3, 4, 5, 6]), sel: 16 });
+  if (st === 'c-last') Object.assign(S, { line: 7, seen: all });
+  if (st === 'c-collect') Object.assign(S, { line: 7, seen: all, colOpen: true, kindView: true });
+  if (st === 'c-partial') Object.assign(S, { partial: true, line: 4, seen: new Set([0, 1, 2, 3, 4]) });
+  if (st === 'c-textonly') Object.assign(S, { textOnly: true, sel: 0 });
+  if (st === 'c-ttsfail') Object.assign(S, { sel: 0, toast: '목소리를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.' });
+  if (st === 'c-review') Object.assign(S, { stageDone: 4, review: true, line: 2, seen: all });
+  if (st.startsWith('a-')) Object.assign(S, { stageDone: 3, cur: 4 });
+  if (st === 'a-rec') S.ap = 'rec';
+  if (st === 'a-heard') Object.assign(S, { ap: 'heard', trs: 'load' });
+  if (st === 'a-heard-ok') Object.assign(S, { ap: 'heard', trs: 'ok' });
+  if (st === 'a-same') Object.assign(S, { ap: 'heard', trs: 'ok', same: true });
+  if (st === 'a-trfail') Object.assign(S, { ap: 'heard', trs: 'fail' });
+  if (st === 'a-cmp') Object.assign(S, { ap: 'heard', trs: 'ok', cmp: true });
+  if (st === 'a-text') Object.assign(S, { apMode: 'text', aseg: 'text', ap: 'typed' });
+  if (st === 'a-cmp-text') Object.assign(S, { apMode: 'text', aseg: 'text', ap: 'typed', cmp: true, cmpFrom: 'text', trs: 'ok' });
+  if (st === 'a-textfirst') Object.assign(S, { apMode: 'text', aseg: 'text', tf: true });
+  if (st === 'a-stterr') Object.assign(S, { stt: true });
+}
+
+/* ───────── 도우미 ───────── */
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const rubyMk = (m) => S.fu ? m.replace(/\{([^|}]+)\|([^}]+)\}/g, '<ruby>$1<rt>$2</rt></ruby>') : m.replace(/\{([^|}]+)\|[^}]+\}/g, '$1');
+const kindOf = (p) => { if (!p.t) return null; if (p.t === 'E' && S.dec.q9 === 'B') return Q9B[p.ja] || 'N'; return p.t; };
+const rubyOf = (ja, rd) => { if (!rd) return esc(ja); if (rd.includes('{')) return rubyMk(rd); let a = 0; while (a < ja.length && a < rd.length && ja[a] === rd[a]) a++; let b = 0; while (b < ja.length - a && b < rd.length - a && ja[ja.length - 1 - b] === rd[rd.length - 1 - b]) b++; const base = ja.slice(a, ja.length - b), rt = rd.slice(a, rd.length - b); return esc(ja.slice(0, a)) + (S.fu ? `<ruby>${esc(base)}<rt>${esc(rt)}</rt></ruby>` : esc(base)) + esc(ja.slice(ja.length - b)); };
+const kanaOf = (rd) => (rd.includes('{') ? rd.replace(/\{[^|}]+\|([^}]+)\}/g, '$1') : rd);
+const lineData = (i) => (S.long && i === 6 ? LONG : LINES[i]);
+const hgLine = (pcs) => { let out = ''; pcs.forEach((p) => { if (!p.t) { if (p.sl && out) out += ' /'; return; } out += (p.t === 'L' || !out ? '' : ' ') + p.hg; if (p.sl) out += ' /'; }); return out.replace(/ \/$/, ''); };
+const jaPlain = (pcs) => pcs.map((p) => p.ja).join('');
+const phraseOf = (pcs, j) => { let s = 0; for (let k = 0; k < pcs.length; k++) { if (k > 0 && pcs[k - 1].sl) s = k; if (k === j) break; } let e = j; while (e < pcs.length - 1 && !pcs[e].sl) e++; return pcs.slice(s, e + 1).map((p) => p.ja).join('').replace(/[、。]+$/, ''); };
+const ICO = {
+  back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  stop: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>',
+  mic: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  micL: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  kb: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>',
+};
+const STAGES_CUR = ['이해', '문법', '문제', '응용', '말하기'], STAGES_NEW = ['이해', '문법', '조각', '응용', '말하기'];
+const CIRC = ['①', '②', '③', '④', '⑤'];
+
+/* ───────── 공통 틀 ───────── */
+function header(kind) {
+  return `<header class="lh"><button type="button" class="bk" aria-label="공부로" data-a="noop">${ICO.back}</button><span class="av" aria-hidden="true">ゆ</span><div class="lht"><h1><span class="sr">오늘의 회화, 카페에서 주문하기: </span><span lang="ja">駅前のカフェで</span></h1><span class="tts"><span class="d" aria-hidden="true"></span>온라인</span></div></header>`;
+}
+function steps(kind) {
+  const names = kind === 'cur' ? STAGES_CUR : STAGES_NEW;
+  return `<nav class="ss" aria-label="수업 단계, 5단계 중 ${S.stageDone}단계 끝냄">` + names.map((n, i) => {
+    const k = i + 1, done = k <= S.stageDone, cur = k === S.cur, lk = k > S.stageDone + 1;
+    const c = cur ? 'cur' : done ? 'dn' : lk ? 'lk' : '';
+    const lab = `${k}단계 ${n}${done ? ', 끝냄' : ''}${cur ? ', 지금 보는 단계' : ''}${lk ? ', 앞 단계를 마치면 열려요' : ''}`;
+    return `<button type="button" class="${cur ? 'cur ' : ''}${done ? 'dn' : ''}" aria-label="${lab}"${cur ? ' aria-current="step"' : ''}${lk ? ' aria-disabled="true"' : ''} data-a="step" data-k="${k}"><span class="c ${c}" aria-hidden="true">${done && !cur ? '✓' : k}</span><span class="n${kind === 'prop' && k === 3 ? ' chg dnew' : ''}" aria-hidden="true">${n}</span></button>`;
+  }).join('') + '</nav>';
+}
+const toastH = () => (S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : '');
+const lessonFrame = (kind, body, dock = '') => `<div class="pg">${header(kind)}${steps(kind)}<div class="pgs" data-scroll>${body}</div>${dock}</div>${toastH()}`;
+const footerBtn = () => S.review ? `<button type="button" class="btnp" data-a="toast" data-m="지금 단계로 가요(데모)">지금 단계로 · ⑤ 말하기</button>` : `<button type="button" class="btnp" data-a="toast" data-m="④ 응용으로 넘어가요(데모)">다음 단계 · ④ 응용</button>`;
+function tools(withRoles) {
+  const t = (k, l) => `<button type="button" class="tg" aria-pressed="${S[k]}" data-a="tg" data-k="${k}">${l}</button>`;
+  return `<div class="tools" role="group" aria-label="보기 설정">${t('fu', '히라가나')}${t('hg', '한글')}${t('tr', '번역')}</div>`;
+}
+
+/* ───────── ③ 현재(문제) ───────── */
+function quizBody() {
+  return `<h2 class="h2s" tabindex="-1">③ 문제 · 5문제</h2><p class="desc">답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요.</p>
+  <div class="cnt2"><b>문제 2 / 5</b><div class="dots" aria-hidden="true"><span class="ok2">✓</span><span class="now">2</span><span>3</span><span>4</span><span>5</span></div></div>
+  <div class="card"><p class="pk">「<span lang="ja">${rubyMk('{温|あたた}かい')}</span>」의 뜻으로 알맞은 것은?</p><div class="qch">${['① 차가운', '② 따뜻한', '③ 작은', '④ 조용한'].map((c) => `<button type="button" data-a="noop">${c}</button>`).join('')}</div></div>`;
+}
+
+/* ───────── ③ 조각(제안) ───────── */
+function tileHtml(p, j, pcs, merged) {
+  const k = kindOf(p);
+  if (!k) return `<span class="tl pu" aria-hidden="true"><span class="tj" lang="ja">${esc(p.ja)}</span><span class="tb"></span><span class="tk">&nbsp;</span></span>`;
+  const K = KIND[k], on = S.sel === j;
+  let ja = rubyOf(p.ja, p.rd), ko = p.ko, sr = `${K.f.replace(K.s, '')}, ${p.ko}`;
+  if (merged) { ja += `<span class="lk">${esc(merged.ja)}</span>`; ko = `${p.ko} + ${merged.ko}`; sr = `${K.f.replace(K.s, '')}과 연결 조각 ${merged.ja}, ${ko}`; }
+  return `<button type="button" class="tl ${K.cls}" aria-pressed="${on}" data-a="tile" data-j="${j}"><span class="tj" lang="ja">${ja}</span><span class="tb" aria-hidden="true"></span><span class="tk">${K.s}<span class="sr">${esc(sr)}</span></span></button>`;
+}
+const SL = '<span class="sl" aria-hidden="true">／</span>';
+const pushT = (g, p, html) => { if (!kindOf(p) && g.length) { const prev = g.pop(); g.push(`<span class="tail">${prev}${html}</span>`); } else g.push(html); };
+const tail = (g) => { const last = g.pop(); g.push(`<span class="tail">${last}${SL}</span>`); };
+function tilesHtml(pcs) {
+  const groups = [[]];
+  for (let j = 0; j < pcs.length; j++) {
+    const p = pcs[j];
+    if (S.dec.q4 === 'B' && p.t && p.t !== 'L' && pcs[j + 1] && pcs[j + 1].t === 'L') {
+      const m = pcs[j + 1]; groups[groups.length - 1].push(tileHtml(p, j, pcs, m)); if (m.sl && j + 1 < pcs.length - 1) { tail(groups[groups.length - 1]); groups.push([]); } j++; continue;
+    }
+    pushT(groups[groups.length - 1], p, tileHtml(p, j, pcs));
+    if (p.sl && j < pcs.length - 1) { tail(groups[groups.length - 1]); groups.push([]); }
+  }
+  return `<p class="sr" lang="ja">${esc(jaPlain(pcs))}</p><div class="tiles${S.fu ? ' fu' : ''}" role="group" aria-label="조각 ${pcs.filter((p) => p.t).length}개 · 누르면 그 조각만 들려요">` + groups.filter((g) => g.length).map((g) => `<span class="phr">${g.join('')}</span>`).join('') + '</div>';
+}
+function slashSentence(pcs, buttons) {
+  const groups = [[]]; pcs.forEach((p, j) => { groups[groups.length - 1].push({ p, j }); if (p.sl && j < pcs.length - 1) groups.push([]); });
+  return `<p class="sja" lang="ja">` + groups.map((g, gi) => {
+    const txt = g.map(({ p }) => rubyOf(p.ja, p.rd)).join('');
+    const inner = buttons ? `<button type="button" class="phb${S.phSel === gi ? ' on' : ''}" data-a="phr" data-g="${gi}"><span class="sr">구간 ${gi + 1} 듣기: </span>${txt}</button>` : txt;
+    return (gi ? '<span class="sl2" aria-hidden="true">／</span>' : '') + inner;
+  }).join('') + '</p>';
+}
+function stripHtml(pcs) {
+  if (S.sel === null || !pcs[S.sel] || !pcs[S.sel].t) return `<p class="strip0">조각을 눌러 보세요. ${S.textOnly ? '뜻이 아래에 나와요.' : '그 조각만 들리고 뜻이 나와요.'}</p>`;
+  const p = pcs[S.sel], k = kindOf(p), K = KIND[k];
+  let ja = p.ja, rd = kanaOf(p.rd), ko = p.ko, hg = p.hg;
+  if (S.dec.q4 === 'B' && p.t !== 'L' && pcs[S.sel + 1] && pcs[S.sel + 1].t === 'L') { const m = pcs[S.sel + 1]; ja += m.ja; rd = rd ? rd + m.ja : ''; ko = `${p.ko} + ${m.ko}`; hg += m.hg; }
+  const playing = S.playing === S.sel;
+  const ph = phraseOf(pcs, S.sel);
+  let btns = '';
+  if (!S.textOnly) {
+    if (S.dec.q8 === 'A' && ph !== ja) btns += `<button type="button" class="pw${S.phPlay ? ' on' : ''}" data-a="phplay">${S.phPlay ? `${ICO.stop} 멈춤` : `${ICO.play} 구간 듣기 <span lang="ja">「${esc(ph)}」</span>`}</button>`;
+  }
+  const pbtn = S.textOnly ? '' : `<button type="button" class="pb44${playing ? ' on' : ''}" aria-label="${playing ? '멈추기' : '조각 다시 듣기'}" data-a="pplay">${playing ? ICO.stop : ICO.play}</button>`;
+  return `<div class="strip dnew"><div class="sthr"><div class="sth"><span class="stj" lang="ja">${esc(ja)}</span><span class="str">${rd ? `<span lang="ja">${esc(rd)}</span> · ` : ''}[${esc(hg)}]</span></div>${pbtn}</div><p class="stm"><span class="stb ${K.cls}">${K.f}</span><span>${esc(ko)}</span></p>${playing ? '<p class="sr" role="status">듣는 중</p>' : ''}${btns ? `<div class="stbtns">${btns}</div>` : ''}</div>`;
+}
+function plistHtml(pcs) {
+  return `<ul class="plist">` + pcs.map((p, j) => {
+    const k = kindOf(p); if (!k) return ''; const K = KIND[k];
+    return `<li><button type="button" class="prow" aria-pressed="${S.sel === j}" data-a="tile" data-j="${j}"><span class="stb ${K.cls}">${K.s}<span class="sr"> 조각</span></span><span class="prj" lang="ja">${esc(p.ja)}${S.fu && p.rd ? `<small>${esc(kanaOf(p.rd))}</small>` : ''}</span><span class="prk">${esc(p.ko)}${S.textOnly ? '' : ` <span aria-hidden="true">${S.playing === j ? '■' : '▶'}</span>`}</span></button></li>`;
+  }).join('') + '</ul>';
+}
+function collectGroups() {
+  const map = new Map();
+  LINES.forEach((L) => L.p.forEach((p) => { const k = kindOf(p); if (!k) return; const key = k + '|' + p.ja; if (!map.has(key)) map.set(key, { k, p }); }));
+  const by = {}; map.forEach(({ k, p }) => { (by[k] = by[k] || []).push(p); });
+  return { by, total: map.size };
+}
+function collectBody() {
+  const { by } = collectGroups();
+  return ORDER.filter((k) => by[k]).map((k) => `<h3 class="cgh ${KIND[k].cls}"><i aria-hidden="true"></i>${KIND[k].f} <small>${by[k].length}개</small></h3><ul class="cgl">` + by[k].map((p) => `<li><button type="button" class="pc" data-a="noop"><span class="o" aria-hidden="true">${S.textOnly ? '' : ICO.play}</span><span class="t"><b lang="ja">${esc(p.ja)}</b><span>${esc(p.ko)}</span></span>${S.textOnly ? '' : '<span class="sr">, 듣기</span>'}</button></li>`).join('') + '</ul>').join('')
+    + `<div class="dlater"><b>데모 표시</b>나중(이번 범위 밖) — 모은 조각 단어장에 넣기(채택해야 저장) · 조각 하나 바꿔 새 문장 만들기 · 문장 늘려 말하기 퀴즈. 실제 화면엔 이 상자가 없다.</div>`;
+}
+function chunkBody(kind) {
+  if (kind === 'cur') return quizBody();
+  const d = S.dec, head = `<h2 class="h2s" tabindex="-1">③ 조각 · 문장 끊어 보기</h2>`;
+  if (S.st === 'c-old') {
+    if (d.q5 === 'B') return head + `<div class="empty dnew"><h3>이 수업은 아직 조각으로 나누지 않았어요</h3><p>지금 나누면 1~2분 걸려요. 다 되면 이 화면에 보여 드려요.</p><button type="button" class="btnf" style="margin-top:10px;width:100%" data-a="noop">지금 조각으로 나누기</button></div><div class="dlater"><b>데모 표시</b>Q5 B — 이번 범위 밖(열 때 즉석 분해 = 대기·비용·실패 화면이 따로 필요).</div>` + footerBtn();
+    return head + `<div class="empty dnew"><h3>이 수업은 조각 나누기가 없어요</h3><p>조각 단계가 생기기 전에 만든 수업이에요. 새로 만드는 수업부터 대화 문장을 조각으로 나눠 보여 드려요. 바로 다음 단계로 가도 돼요.</p></div>` + footerBtn();
+  }
+  let h = head + `<p class="desc">대화 문장을 조각으로 나눠 봐요. ／ 는 끊어 읽는 곳이에요. ${S.textOnly ? '지금은 선생님 목소리를 들을 수 없어 조각을 누르면 뜻만 보여요.' : '조각을 누르면 그 조각만 들리고 뜻이 나와요.'}</p>`;
+  if (S.review) h = `<p class="rvn" role="status">끝낸 단계를 다시 보는 중이에요. 저장된 답은 바뀌지 않아요.</p>` + h;
+  const showKind = d.q3 === 'B' && S.kindView;
+  if (d.q3 === 'B') h += `<div class="seg2 dnew" role="group" aria-label="보는 방법"><button type="button" aria-pressed="${!S.kindView}" data-a="kv" data-v="0">문장별</button><button type="button" aria-pressed="${S.kindView}" data-a="kv" data-v="1">종류별 모아 보기</button></div>`;
+  h += tools();
+  if (d.q2 === 'C' && !showKind) h += `<div class="seg2 dnew" role="group" aria-label="문장 보기"><button type="button" aria-pressed="${S.slashView}" data-a="sv" data-v="1">끊어 읽기</button><button type="button" aria-pressed="${!S.slashView}" data-a="sv" data-v="0">조각</button></div>`;
+  if (showKind) {
+    const { total } = collectGroups();
+    h += `<p class="cnt"><b>오늘의 조각 ${total}개</b><span>문장 ${LINES.length}개에서 모았어요</span></p><div class="card dnew">${collectBody()}</div>`;
+    return h + `<div style="margin-top:14px">${footerBtn()}</div>`;
+  }
+  const n = LINES.length, L = lineData(S.line), pcs = L.p;
+  const seen = S.seen.size;
+  h += `<p class="cnt"><b>문장 ${S.line + 1} / ${n}</b><span>${seen}개 봤어요</span></p><div class="sbar" aria-hidden="true">${LINES.map((_, i) => `<i class="${i === S.line ? 'c' : S.seen.has(i) ? 'v' : ''}"></i>`).join('')}</div>`;
+  const lineBtn = S.textOnly ? '' : `<button type="button" class="pb44${S.linePlay ? ' on' : ''}" aria-label="${S.linePlay ? '멈추기' : `${S.line + 1}번째 문장 다시 듣기`}" data-a="lplay">${S.linePlay ? ICO.stop : ICO.play}</button>`;
+  let card = `<section class="sc${d.q12 === 'B' ? ' mono' : ''}" aria-label="${S.line + 1}번째 문장"><div class="sch"><span class="rc ${L.sp}" aria-hidden="true">${L.sp}</span><span class="scn" aria-live="polite">${ROLES[L.sp]} · ${S.line + 1}번째 문장</span>${lineBtn}</div>`;
+  if (S.partial && S.line === 4) {
+    card += slashSentence(pcs.map((p) => ({ ...p, sl: false })), false) + (S.hg ? `<p class="shg">${esc(hgLine(pcs.map((p) => ({ ...p, sl: false }))))}</p>` : '') + (S.tr ? `<p class="stl">${esc(L.ko)}</p>` : '') + `<p class="nopc dnew">이 문장은 조각으로 나누지 못했어요. 글자와 읽기로 봐 주세요.</p>`;
+  } else {
+    const slashMode = d.q2 === 'C' && S.slashView;
+    if (d.q2 === 'B' || slashMode) card += slashSentence(pcs, slashMode && !S.textOnly);
+    else card += tilesHtml(pcs);
+    if (S.hg) card += `<p class="shg">${esc(hgLine(pcs))}</p>`;
+    if (S.tr) card += `<p class="stl">${esc(L.ko)}</p>`;
+    if (d.q2 === 'B') card += plistHtml(pcs);
+    if (!slashMode) card += stripHtml(pcs);
+    else card += `<p class="strip0">구간을 누르면 그 구간만 들려요.${S.textOnly ? '' : ''}</p>`;
+  }
+  card += '</section>';
+  h += card;
+  const last = S.line === n - 1;
+  h += `<div class="nvr">${S.line > 0 ? `<button type="button" class="btng" data-a="prev">‹ 이전 문장</button>` : '<span></span>'}${!last ? `<button type="button" class="btnf" data-a="next">다음 문장 ›</button>` : '<span></span>'}</div>`;
+  if (d.q10 !== 'C' && !(S.partial && S.line === 4)) h += `<p class="ainote dnew">조각은 선생님이 나눈 참고용이에요. 나누는 방법은 여러 가지일 수 있어요.</p>`;
+  if (d.q10 === 'B') h += `<button type="button" class="ul ink2" data-a="toast" data-m="알려 주셔서 고마워요. 다음 수업 만들 때 참고할게요.(데모 — 후속 경로 필요)">조각이 이상해요</button>`;
+  const canNext = S.review || d.q1 === 'C' || (d.q1 === 'A' && (last || S.seen.size === n)) || (d.q1 === 'B' && S.seen.size * 2 >= n);
+  h += canNext ? footerBtn() : `<p class="gate dnew">${d.q1 === 'A' ? '마지막 문장까지 보면 다음 단계로 갈 수 있어요.' : '문장을 절반 넘게 보면 다음 단계로 갈 수 있어요.'} (${S.seen.size}/${n})</p>`;
+  if (d.q3 === 'A') {
+    const { total } = collectGroups();
+    h += `<section class="col dnew"><button type="button" class="colb" aria-expanded="${S.colOpen}" aria-controls="colbody" data-a="col"><span>오늘의 조각 모아 보기 <small>· ${total}개</small></span><i aria-hidden="true">›</i></button>${S.colOpen ? `<div class="colbody" id="colbody">${collectBody()}</div>` : ''}</section>`;
+  }
+  return h;
+}
+
+/* ───────── ④ 응용 ───────── */
+function trBlock(from, kind) {
+  if (kind === 'cur') return '';
+  if (S.same) return `<p class="trl dnew"><span class="sr">한국어 뜻: </span>${esc(AP.modelKo)}</p>${from === 'voice' ? '<p class="trhint">알아들은 말을 그대로 옮겼어요</p>' : ''}`;
+  const ko = from === 'text' ? AP.typedKo : AP.mineKo;
+  if (S.trs === 'load') return `<div class="trrow dnew" role="status"><span class="trph" aria-hidden="true"></span><span>번역 중…</span></div>`;
+  if (S.trs === 'fail') return `<div class="trrow dnew"><span>번역을 가져오지 못했어요</span><button type="button" class="trbtn" data-a="retry">다시 가져오기</button></div>`;
+  if (S.trs === 'ok') return `<p class="trl dnew"><span class="sr">한국어 뜻: </span>${esc(ko)}</p>${from === 'voice' ? '<p class="trhint">알아들은 말을 그대로 옮겼어요</p>' : ''}`;
+  return '';
+}
+function apTop() {
+  return `<p class="pk">${esc(AP.prompt)}</p><p class="lb">써 볼 표현</p><ul class="chips">${AP.targets.map(([j, k]) => `<li class="xc"><span class="xj" lang="ja">${j === '温かい' ? rubyMk('{温|あたた}かい') : j === '二つ' ? rubyMk('{二|ふた}つ') : esc(j)}</span><span class="xk">${esc(k)}</span></li>`).join('')}</ul><p class="lb">힌트 · <span lang="ja">${esc(AP.hint)}</span></p>`;
+}
+function compareView(kind) {
+  const voice = S.cmpFrom === 'voice';
+  const mine = voice ? (S.same ? AP.model : AP.mine) : '{温|あたた}かい{お茶|おちゃ}をください';
+  const same = S.same;
+  const mineHtml = same ? rubyMk(mine) : voice ? `${rubyMk('{温|あたた}かい{お茶|おちゃ}を{二|ふた}つ')}<mark class="mm">${rubyMk('お{願|ねが}いします')}</mark>` : `${rubyMk('{温|あたた}かい{お茶|おちゃ}を')}ください`;
+  const modelHtml = same ? rubyMk(AP.model) : voice ? `${rubyMk('{温|あたた}かい{お茶|おちゃ}を{二|ふた}つ')}<mark class="md">ください</mark>。` : `${rubyMk('{温|あたた}かい{お茶|おちゃ}を')}<mark class="md">${rubyMk('{二|ふた}つ')}</mark>ください。`;
+  const hgMine = voice ? (same ? AP.modelHg : AP.mineHg) : AP.typedHg;
+  const legendM = same ? '' : '<span><mark class="mm">점선</mark> 모범 답안에 없는 글자</span>';
+  const legendD = same ? '' : '<span><mark class="md">실선</mark> 내 문장에 없는 글자</span>';
+  return `<p class="cmh">${same ? '＝ 모범 답안과 글자가 같아요.' : '글자가 다른 곳에 밑줄을 쳤어요 · 채점이 아니에요'}</p><div class="cgrid">
+    <div class="cbx"><p class="cbl"><b>내 문장</b>${legendM}</p><p class="cj" lang="ja">${mineHtml}</p>${S.hg ? `<span class="hgl">${esc(hgMine)}</span>` : ''}${trBlock(voice ? 'voice' : 'text', kind)}</div>
+    <div class="cbx"><p class="cbl"><b class="g">모범 답안</b>${legendD}</p><p class="cj" lang="ja">${modelHtml}</p>${S.hg ? `<span class="hgl">${esc(AP.modelHg)}</span>` : ''}<p class="cko">${esc(AP.modelKo)}</p><button type="button" class="pw" style="margin-top:8px" data-a="noop">${ICO.play} 모범 답안 듣기</button></div></div>
+    <p class="nt">채점하지 않아요. 밑줄은 글자가 다른 곳일 뿐, 뜻이 통하면 다르게 써도 괜찮아요. 모범 답안을 소리 내어 따라 읽어 보세요.</p>`;
+}
+function voiceBox(kind) {
+  let inner;
+  if (S.ap === 'rec') inner = `<p class="vj part" lang="ja">${rubyMk(AP.part)}</p>`;
+  else if (S.ap === 'heard') inner = `<p class="vj" lang="ja">${rubyMk(S.same ? AP.model : AP.mine)}</p>${S.hg ? `<span class="hgl">${esc(S.same ? AP.modelHg : AP.mineHg)}</span>` : ''}${S.dec.q6b === 'A' ? trBlock('voice', kind) : ''}`;
+  else inner = `<span class="ph0">버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요</span>`;
+  return `<div class="vbx${kind === 'prop' ? ' dnew' : ''}" aria-live="polite">${inner}</div>`;
+}
+function pttBlock() {
+  const rec = S.ap === 'rec';
+  const st = rec ? '듣는 중 · 다 말하면 손을 떼요' : S.ap === 'heard' ? '다시 하려면 또 누르고 말해요' : '누르고 있는 동안 말하기';
+  return `<div class="pttw"><button type="button" class="ptt${rec ? ' rec' : ''}" aria-label="누르고 있는 동안 말하기" aria-describedby="apst" data-a="ptt"><span class="pring" aria-hidden="true"></span>${ICO.micL}</button><div class="vst" id="apst"><span class="mtr${rec ? ' on' : ''}" aria-hidden="true"><i style="height:8px"></i><i style="height:14px"></i><i style="height:20px"></i><i style="height:12px"></i><i style="height:6px"></i></span><span>${st}</span></div></div>`;
+}
+function sttAlert() {
+  return S.stt ? `<div class="alert" role="alert"><span>마이크를 쓸 수 없어요. 브라우저 설정에서 마이크를 허용해 주세요.</span><span class="ar"><button type="button" class="btng" data-a="totext">글자로 쓰기</button><button type="button" class="btng" data-a="sttx">닫기</button></span></div>` : '';
+}
+function applyBody(kind) {
+  const d = S.dec;
+  let h = `<h2 class="h2s" tabindex="-1">④ 응용 · 문장 만들기 3개</h2><p class="desc">${kind === 'cur' ? '상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요.' : '상황에 맞는 문장을 말로 만들어 봐요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요.'}</p>
+  <div class="cnt2"><b>상황 1 / 3</b><div class="dots" aria-hidden="true"><span class="now">1</span><span>2</span><span>3</span></div></div>`;
+  let c = apTop();
+  if (S.cmp) {
+    if (kind === 'cur') { const save = S.trs; S.trs = 'none'; c += compareView('cur'); S.trs = save; }
+    else c += compareView('prop');
+    h += `<div class="card">${c}</div><button type="button" class="btnp" data-a="noop">다음 상황</button>`;
+    return h;
+  }
+  if (kind === 'cur') {
+    const voiceNow = S.ap === 'rec' || S.ap === 'heard' || S.stt;
+    c += `<p class="lb">내 문장</p>`;
+    if (voiceNow) c += `<div class="vbx">${S.ap === 'rec' ? `<p class="vj part" lang="ja">${rubyMk(AP.part)}</p>` : S.ap === 'heard' ? `<p class="vj" lang="ja">${esc(S.same ? AP.modelPlain : AP.minePlain)}</p>` : '<span class="ph0">여기에 알아들은 말이 나와요</span>'}</div>${sttAlert()}${pttBlock()}`;
+    else c += `<textarea class="ata" lang="ja" rows="3" placeholder="일본어로 써 보세요" aria-label="내 문장">${S.ap === 'typed' ? AP.typed : ''}</textarea>`;
+    c += `<div class="arow"><button type="button" class="ul" data-a="noop">${voiceNow ? ICO.kb + '글자로 쓰기' : ICO.mic + '말로 쓰기'}</button><span class="cntc">${S.ap === 'heard' || S.ap === 'typed' ? '13' : '0'} / 200자</span></div>
+      <button type="button" class="btnp"${S.ap === 'heard' || S.ap === 'typed' ? '' : ' aria-disabled="true"'} data-a="noop">모범 답안과 비교하기</button><button type="button" class="ul ink2 wide" data-a="noop">모르겠어요 · 모범 답안 보기</button>`;
+    return h + `<div class="card">${c}</div>`;
+  }
+  const textMode = d.q6 === 'C' ? S.aseg === 'text' : S.apMode === 'text';
+  c += `<p class="lb">내 문장</p>`;
+  if (d.q6 === 'C') c += `<div class="seg2 dnew" role="group" aria-label="답하는 방법"><button type="button" aria-pressed="${!textMode}" data-a="aseg" data-v="voice">${ICO.mic} 말하기</button><button type="button" aria-pressed="${textMode}" data-a="aseg" data-v="text">${ICO.kb} 글자로</button></div>`;
+  if (S.tf && textMode) c += `<p class="tfn dnew" role="status">지금은 말로 답하기를 쓸 수 없어서 글자 입력으로 열었어요.</p>`;
+  const has = S.ap === 'heard' || S.ap === 'typed';
+  if (textMode) {
+    c += `<textarea class="ata" lang="ja" rows="3" placeholder="일본어로 써 보세요" aria-label="내 문장">${S.ap === 'typed' ? AP.typed : ''}</textarea>`;
+    if (d.q6 !== 'C') c += `<div class="arow"><button type="button" class="ul" data-a="tovoice">${ICO.mic}말로 쓰기</button><span class="cntc">${S.ap === 'typed' ? '10' : '0'} / 200자</span></div>`;
+    else c += `<div class="arow"><span></span><span class="cntc">${S.ap === 'typed' ? '10' : '0'} / 200자</span></div>`;
+  } else {
+    c += voiceBox('prop') + sttAlert();
+    if (d.q6 !== 'B') c += pttBlock();
+    c += `<div class="arow">${d.q6 === 'A' ? `<button type="button" class="ul dnew" data-a="totext">${ICO.kb}글자로 쓰기</button>` : '<span></span>'}<span class="cntc">${has ? '14' : '0'} / 200자</span></div>`;
+  }
+  c += `<button type="button" class="btnp"${has ? '' : ' aria-disabled="true"'} data-a="cmp">모범 답안과 비교하기</button><button type="button" class="ul ink2 wide" data-a="noop">모르겠어요 · 모범 답안 보기</button>`;
+  h += `<div class="card">${c}</div>`;
+  return h;
+}
+function applyDock(kind) {
+  if (kind !== 'prop' || S.dec.q6 !== 'B' || S.cmp || S.apMode === 'text') return '';
+  const rec = S.ap === 'rec';
+  return `<div class="vb dnew"><div class="vst"><span class="mtr${rec ? ' on' : ''}" aria-hidden="true"><i style="height:8px"></i><i style="height:14px"></i><i style="height:20px"></i><i style="height:12px"></i><i style="height:6px"></i></span><span>${rec ? '듣는 중 · 다 말하면 손을 떼요' : '누르고 있는 동안 말하기'}</span></div><div class="vg"><button type="button" class="ib" aria-label="글자로 답하기" data-a="totext">${ICO.kb}</button><div class="vm3"><button type="button" class="ptt${rec ? ' rec' : ''}" aria-label="누르고 있는 동안 말하기" data-a="ptt"><span class="pring" aria-hidden="true"></span>${ICO.micL}</button></div><span></span></div></div>`;
+}
+
+/* ───────── 그 밖 ───────── */
+function bb(t, s) { return `<header class="bb"><button type="button" class="bk" aria-label="공부로" data-a="noop">${ICO.back}</button><div class="bbt"><h1>${t}</h1>${s ? `<p>${s}</p>` : ''}</div></header>`; }
+function endBody(kind) {
+  const old = S.st === 'e-end-old', d = S.dec.q7;
+  let stats;
+  if (kind === 'cur') stats = [['4/5', '문제 정답'], ['3', '만든 문장'], ['2/3', '쓴 표현']];
+  else if (d === 'B' || old) stats = [['3', '만든 문장'], ['2/3', '쓴 표현']];
+  else if (d === 'C') stats = [['3/3', '말한 과제'], ['3', '만든 문장'], ['2/3', '쓴 표현']];
+  else stats = [[String(collectGroups().total), '오늘의 조각'], ['3', '만든 문장'], ['2/3', '쓴 표현']];
+  return `<div class="pg">${bb('수업을 마쳤어요', '카페에서 주문하기 · 10월 21일')}<div class="pgs" data-scroll><div class="hero"><span class="ck" aria-hidden="true">✓</span><div><h2 tabindex="-1">수업을 마쳤어요</h2><p lang="ja">駅前のカフェで</p><p class="s">역 앞 카페에서</p></div></div>
+  <div class="stats${kind === 'prop' ? ' dnew' : ''}" style="--n:${stats.length}">${stats.map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('')}</div>
+  <div class="card" style="margin-top:18px"><h3 class="h3s">말하기에서 쓴 표현</h3><ul class="chips" style="margin-top:8px"><li class="xc" style="background:var(--good-soft)"><span class="xj" lang="ja">ください</span><span class="xk">주세요</span></li><li class="xc" style="background:var(--good-soft)"><span class="xj" lang="ja">${rubyMk('お{願|ねが}いします')}</span><span class="xk">부탁해요</span></li></ul><h3 class="h3s" style="margin-top:12px">다음엔 이 표현도 써 보세요</h3><ul class="chips" style="margin-top:8px"><li class="xc"><span class="xj" lang="ja">${rubyMk('{少々|しょうしょう}')}</span><span class="xk">잠시</span></li></ul><p class="nt">오늘 배운 표현과 문형은 복습할 항목으로 기록했어요.</p></div>
+  <button type="button" class="btnp" data-a="noop">다음 수업 만들기</button></div></div>`;
+}
+const tabs = (on) => `<div class="ctx" aria-hidden="true">${['회화', '공부', '계획표', '단어장', '질문'].map((t) => `<span class="${t === on ? 'on' : ''}">${t}</span>`).join('')}</div>`;
+function todayBody(kind) {
+  const top = `<header class="bb"><div class="bbt" style="padding-left:12px"><h1>공부</h1></div><span class="av" aria-hidden="true" style="margin-right:6px">나</span></header>`;
+  let card;
+  if (S.st === 't-start') card = `<div class="tcard"><div class="tch"><h2>오늘의 회화</h2><span>약 15분</span></div><p class="tb2${kind === 'prop' ? ' dnew' : ''}">선생님과 5단계로 수업해요. 듣기 → 문법 → ${kind === 'cur' ? '문제' : '조각'} → 응용 → 말하기</p><p class="lb">추천 주제</p><p class="tt">카페에서 주문하기</p><p class="tb2">아직 해 보지 않은 주제예요</p><button type="button" class="btnp" data-a="noop">수업 만들기</button></div>
+    <div class="tcard"><div class="tch"><h2>하던 수업이 있어요</h2></div><p class="tb2">카페에서 주문하기 · 오늘 9:12 시작 · 5단계 중 2단계 끝냄</p><p class="tb2${kind === 'prop' ? ' dnew' : ''}">${kind === 'cur' ? '다음은 ③ 문제예요.' : '다음은 ③ 조각이에요.'} 단계마다 저장돼요.</p><button type="button" class="btnp" data-a="noop">이어서 하기</button></div>`;
+  else {
+    const q = S.dec.q7;
+    const body = kind === 'cur' ? '카페에서 주문하기 · 문제 4/5 맞힘 · 말하기 표현 2/3' : q === 'C' ? '카페에서 주문하기 · 말한 과제 3/3 · 말하기 표현 2/3' : q === 'B' ? '카페에서 주문하기 · 말하기 표현 2/3' : `카페에서 주문하기 · 조각 ${collectGroups().total}개 · 말하기 표현 2/3`;
+    card = `<div class="tcard"><div class="tch"><h2>✓ 오늘 수업을 끝냈어요</h2></div><p class="tb2${kind === 'prop' ? ' dnew' : ''}">${body}</p><p class="lb">다음 시간엔</p><p class="tt" lang="ja">注文を変える</p><button type="button" class="btnp" data-a="noop">다음 수업 만들기</button><button type="button" class="ul wide" data-a="noop">끝낸 수업 결과 보기</button></div>`;
+  }
+  return `<div class="pg">${top}<div class="pgs" data-scroll>${card}</div>${tabs('공부')}</div>`;
+}
+function genBody(kind) {
+  const rows = [['①', '이해', '대화를 구간별로 듣고, 들린 단어를 메모해요'], ['②', '문법', '대화에 나온 문형 1~3개'], kind === 'cur' ? ['③', '문제', '4지선다 5문제, 바로 정답 확인'] : ['③', '조각', '대화 문장을 조각으로 나눠 끊어 봐요'], ['④', '응용', kind === 'cur' ? '상황에 맞는 문장 3개 직접 만들기' : '상황에 맞는 문장 3개 말로 만들기'], ['⑤', '말하기', '목표 표현을 넣어 말하기 3개']];
+  return `<div class="pg">${bb('수업 만들기', '')}<div class="pgs" data-scroll><h2 class="h2s" tabindex="-1">선생님이 수업을 만들고 있어요</h2><p class="desc" role="status">0:42 · 보통 1~2분 걸려요</p><div class="card"><h3 class="h3s">이런 순서로 공부해요</h3><ol class="ord">${rows.map((r, i) => `<li class="${kind === 'prop' && (i === 2 || i === 3) ? 'chg dnew' : ''}"><span>${r[0]}</span><b>${r[1]}</b><span>${r[2]}</span></li>`).join('')}</ol></div><p class="nt">이 화면을 나가도 수업은 계속 만들어져요. 다 되면 공부 탭에서 열 수 있어요. 만들기 시작한 수업은 취소할 수 없어요.</p><button type="button" class="btnp" data-a="noop">공부로 돌아가기</button></div></div>`;
+}
+function chBody(kind) {
+  const dots = (c) => `<span class="cdots" aria-hidden="true">${[0, 1, 2, 3, 4].map((i) => `<i class="${i < c ? 'y' : ''}"></i>`).join('')}</span>`;
+  const rows = [['3일째', '10/21 오늘', 4, '12/15 맞힘'], ['2일째', '10/20', 3, '10/15 맞힘 · 2세트'], ['1일째', '10/19', null, '건너뛰기만 함']];
+  const cell = (c) => kind === 'cur' ? (c === null ? '수업 없음' : `문제 ${c}/5${dots(c)}`) : (c === null ? '수업 없음' : '끝냄');
+  return `<div class="pg">${bb('챌린지', '카페 일본어 7일')}<div class="pgs" data-scroll><h2 class="h3s">오늘 할 일</h2><ul class="todo"><li><b>오늘의 회화 「카페에서 주문하기」</b><span class="${kind === 'prop' ? 'dnew' : ''}">${kind === 'cur' ? '끝냈어요 · 문제 4/5' : '끝냈어요'}</span></li><li><b>오늘의 단어 15장</b>12/15 맞힘</li></ul>
+  <h2 class="h3s${kind === 'prop' ? ' dnew' : ''}" style="margin-top:18px">${kind === 'cur' ? '문제 점수 추이' : '날짜별 기록'}</h2><p class="nt">${kind === 'cur' ? '수업은 5문제 중 맞힌 수, 단어는 그날 세트 합계예요.' : '회화는 끝낸 날만 표시하고, 단어는 그날 세트 합계예요.'}</p>
+  <table class="ctbl${kind === 'prop' ? ' dnew' : ''}"><caption class="sr">${kind === 'cur' ? '날짜별 수업 문제와 단어 맞힘' : '날짜별 회화 수업과 단어 맞힘'}</caption><thead><tr><th scope="col">날</th><th scope="col">${kind === 'cur' ? '수업 문제' : '회화'}</th><th scope="col">단어</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${r[0]} · ${r[1]}</td><td>${cell(r[2])}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+/* ───────── 화면 고르기 ───────── */
+function screen(kind) {
+  const st = S.st;
+  if (st === 's-locked') return lessonFrame(kind, `<h2 class="h2s" tabindex="-1">① 이해 · 듣고 이해하기</h2><p class="desc">구간마다 느리게 한 번, 보통 속도로 한 번 들어요. 들린 단어는 메모해 두세요.</p><div class="empty"><p>(① 이해 화면은 바뀌지 않아 데모에서 생략)</p></div>`);
+  if (st.startsWith('c-')) return lessonFrame(kind, chunkBody(kind));
+  if (st.startsWith('a-')) return lessonFrame(kind, applyBody(kind), applyDock(kind));
+  if (st.startsWith('e-')) return endBody(kind) + toastH();
+  if (st.startsWith('t-')) return todayBody(kind);
+  if (st === 'g-gen') return genBody(kind);
+  if (st === 'ch-strip') return chBody(kind);
+  return '';
+}
+function phone(kind, w) {
+  const cap = kind === 'cur' ? `<span class="tagc">현재</span>지금 화면` : `<span class="tagp">제안</span>${w}×${S.h}${S.big ? ' · 글꼴 130%' : ''}`;
+  return `<figure class="fw"><figcaption>${cap}</figcaption><div class="phone w${w} h${S.h}${S.big ? ' big' : ''}" data-kind="${kind}" data-w="${w}">${screen(kind)}</div></figure>`;
+}
+
+/* ───────── 설명 ───────── */
+const EXP = {
+  's-locked': '<p>단계 표시는 이름 하나(③ 문제 → 조각)만 바뀐다. 끝냄 ✓ · 지금(채운 원) · 열림 · 잠김(테두리 원) 네 모양과 낭독 문구 「3단계 조각, 앞 단계를 마치면 열려요」는 지금 그대로. 잠긴 칸을 누르면 지금처럼 토스트.</p>',
+  'c-new': '<p>새 수업의 ③ 첫 화면. 한 문장씩 본다(④ 응용·⑤ 말하기의 「상황 1/3」과 같은 방식). 문장 위치는 글자 「문장 1 / 8 · 1개 봤어요」 + 장식 막대.</p><ul><li>칸 = 조각 하나. 위 읽기(히라가나 켬일 때) · 일본어 · 밑줄 · 이름표.</li><li>／ 는 끊어 읽기 경계. 한글 줄도 같은 곳에서 끊는다.</li><li>카드 머리 ▶ = 문장 전체(지금 ① 의 줄 다시 듣기와 같은 소리).</li></ul>',
+  'c-tap': '<p>조각을 누르면 그 칸이 눌림(주황 테두리)이 되고 아래 줄에 <b>일본어 · 읽기 · [한글] · 종류 · 뜻</b>이 나온다. 동시에 그 조각만 재생(데모는 1.2초 뒤 끝남). [▶ 구간 듣기]는 그 조각이 든 끊어 읽기 구간(Q8 A).</p>',
+  'c-long': '<p>조각 20개짜리 긴 문장. 칸은 구간(／) 단위로 묶여 줄바꿈되고, 한 칸 안 글자는 줄바꿈하지 않는다. 글꼴 130%·360 폭에서 실측 칸을 보라.</p>',
+  'c-last': '<p>마지막 문장. [다음 문장]이 없어지고 [다음 단계 · ④ 응용]이 나온다(Q1 A). Q1 을 B·C 로 바꾸면 조건이 달라진다.</p>',
+  'c-collect': '<p>「오늘의 조각 모아 보기」 — 수업 전체 조각을 종류별로(같은 조각은 한 번). 강의 ④ 「조각을 종류별 목록으로 모은다」. 칩을 누르면 소리. 단어장 넣기·바꿔 말하기는 <b>나중</b>(데모 표시 상자). Q3 을 B 로 바꾸면 위 분절 「종류별 모아 보기」로 본다.</p>',
+  'c-partial': '<p>생성 때 한 문장만 조각 검증(이어 붙이면 원문과 같아야 함)을 못 넘긴 경우 — 그 줄만 글자·읽기·한글로 보여 주고 「조각으로 나누지 못했어요」. 본 문장으로 센다. (널 규칙 초안 — 개발 메모 1)</p>',
+  'c-textonly': '<p>선생님 목소리를 쓸 수 없을 때(표시등 🔴 자막만). ▶ 를 모두 숨기고 안내 문구가 바뀐다. 칸을 누르면 뜻만.</p>',
+  'c-ttsfail': '<p>조각 소리를 받지 못하면 지금 레슨과 같은 토스트 「목소리를 불러오지 못했어요…」. 뜻 줄은 그대로 보인다.</p>',
+  'c-review': '<p>④ 이후에 ③ 을 다시 열면: 위에 「다시 보는 중」 안내(지금 문구 그대로), 문장 이동 자유, 아래 [지금 단계로 · ⑤ 말하기].</p>',
+  'c-old': '<p>조각 단계가 생기기 전에 만든 수업(13개 — 이력서 DB 집계). 단계 번호·완료 조건은 그대로 두고 빈 상태 + [다음 단계]. Q5 B(열 때 즉석 분해)는 이번 범위 밖.</p>',
+  'a-idle': '<p>④ 응용이 열리면 <b>누르고 말하기(72px)가 먼저</b>. 글자는 아래 「⌨ 글자로 쓰기」(지금 「말로 쓰기」 자리). [비교하기]는 알아들은 말이 있어야 눌린다(지금과 같은 흐림 + 토스트).</p>',
+  'a-rec': '<p>누르는 동안 알아들은 말이 흐린 글씨로 차오른다(지금 「말로 쓰기」 동작 그대로 — <code>MIC_TEST</code>, 원음 저장 안 함).</p>',
+  'a-heard': '<p>손을 떼면 알아들은 말 + 한글 줄 + <b>한국어 뜻 줄 「번역 중…」</b>(Q6b A — 비교 전에도 뜻을 본다). ⑤ 「내가 한 말」과 같은 모양·같은 #185.</p>',
+  'a-heard-ok': '<p>뜻이 오면 구분선 아래 15px 뜻 + 「알아들은 말을 그대로 옮겼어요」(⑤ 와 같은 힌트 — 인식이 틀리면 뜻도 이상해진다는 신호). 다시 누르고 말하면 바뀐다.</p>',
+  'a-same': '<p>모범 답안과 글자가 같게 말하면(문장부호·공백만 다름) <b>모범 답안 뜻을 바로</b> — 로딩·AI 호출 없음(⑤ 와 같은 규칙).</p>',
+  'a-trfail': '<p>번역 실패·시간 초과·한도는 칸 안 한 줄 + [다시 가져오기]. 비교·다음 상황은 막지 않는다(⑤ 와 같은 문구).</p>',
+  'a-cmp': '<p>[비교하기] 뒤 — 지금 있는 글자 차이 밑줄(내 문장 점선 · 모범 답안 실선)은 그대로, <b>「내 문장」 칸에 뜻 줄</b>이 함께 남는다. 모범 답안 칸의 뜻과 나란히 놓여 <b>뜻도 비교</b>된다.</p>',
+  'a-text': '<p>「글자로 쓰기」를 누른 뒤 — 지금 글자 입력 그대로. 쓰는 동안엔 번역하지 않는다(글자마다 AI 호출 방지) → 비교 뒤 「내 문장」에 뜻.</p>',
+  'a-cmp-text': '<p>글자로 쓴 답의 비교 결과 — 뜻 줄은 있고 「알아들은 말…」 힌트는 없다.</p>',
+  'a-textfirst': '<p>서버 인식이 꺼졌거나 이 기기에서 마이크를 못 쓰면(⑤ 의 <code>textFirst</code> 와 같은 조건) 글자 입력으로 열고 이유 한 줄. 「말로 쓰기」 링크는 남긴다(누르면 인식 오류 띠).</p>',
+  'a-stterr': '<p>녹음·인식 오류는 지금 <code>SttAlert</code> 띠 그대로 — [글자로 쓰기]로 바로 바꿀 수 있다.</p>',
+  'e-end': '<p>종료 카드 첫 칸 「문제 정답」 자리(Q7). ★ A 는 「오늘의 조각 N개」(수업 내용에서 센 수 — 서버 필드 불필요). B 는 2칸, C 는 「말한 과제」.</p>',
+  'e-end-old': '<p>조각 없는 옛 수업을 끝내면 2칸(만든 문장·쓴 표현). 이미 끝낸 옛 수업 7개의 종료 화면도 문제 칸이 사라진다(점수는 DB 에 남지만 보이지 않음).</p>',
+  't-start': '<p>오늘 탭 시작 카드 소개 줄·하던 수업의 「다음은 ③ 조각이에요」. 지금 문구는 「~예요」 고정이라 받침 처리 필요(바뀌는 곳 표).</p>',
+  't-done': '<p>끝낸 카드 한 줄에서 「문제 4/5 맞힘」을 뺀다(Q7). 복습 수업 카드·주제 단어 칸의 같은 표기도 같이 뺀다.</p>',
+  'g-gen': '<p>생성 대기 「이런 순서로 공부해요」의 ③ 줄 · ④ 「말로 만들기」. 조각 분해로 생성이 길어지면 「보통 1~2분」을 고쳐야 할 수 있다(PE 실측 뒤).</p>',
+  'ch-strip': '<p>챌린지 상세 「문제 점수 추이」 표 → 「날짜별 기록」, 칸 「문제 4/5 ●●●●○」 → 「끝냄」. 챌린지의 「오늘의 회화 완료」 판정은 원래 점수와 무관해서 동작은 그대로(이력서 코드 재확인).</p>',
+};
+const COPY = [
+  ['U3.title', '③ 조각 · 문장 끊어 보기', '단계 제목'], ['U3.desc', '대화 문장을 조각으로 나눠 봐요. ／ 는 끊어 읽는 곳이에요. 조각을 누르면 그 조각만 들리고 뜻이 나와요.', '설명'],
+  ['U3.descTextOnly', '… 지금은 선생님 목소리를 들을 수 없어 조각을 누르면 뜻만 보여요.', '소리 없음'], ['U3.counter', '문장 {i} / {n}', '위치'], ['U3.seen', '{k}개 봤어요', '위치 옆'],
+  ['U3.cardSr', '{역할} · {i}번째 문장', '카드 머리(polite)'], ['U3.tilesAria', '조각 {n}개 · 누르면 그 조각만 들려요', '칸 묶음 이름'], ['U3.pick', '조각을 눌러 보세요. 그 조각만 들리고 뜻이 나와요.', '고른 조각 없음'],
+  ['U3.replayPiece', '▶ 조각 다시 듣기 / ■ 멈춤', '고른 조각 줄'], ['U3.phrase', '▶ 구간 듣기 「{구간}」', 'Q8 A'], ['U3.aiNote', '조각은 선생님이 나눈 참고용이에요. 나누는 방법은 여러 가지일 수 있어요.', 'Q10 A'],
+  ['U3.noPieces', '이 문장은 조각으로 나누지 못했어요. 글자와 읽기로 봐 주세요.', '줄 단위 null'], ['U3.prev / next', '‹ 이전 문장 · 다음 문장 ›', '문장 이동'], ['U3.gate', '마지막 문장까지 보면 다음 단계로 갈 수 있어요. ({k}/{n})', 'Q1 A'],
+  ['U3.collect', '오늘의 조각 모아 보기 · {n}개', 'Q3 A'], ['U3.group', '{종류} 조각 {n}개', '모아 보기 묶음'], ['U3.emptyTitle', '이 수업은 조각 나누기가 없어요', '옛 수업'],
+  ['U3.emptyBody', '조각 단계가 생기기 전에 만든 수업이에요. 새로 만드는 수업부터 대화 문장을 조각으로 나눠 보여 드려요. 바로 다음 단계로 가도 돼요.', '옛 수업'],
+  ['CHUNK_TYPE_LABEL.LINK', '연결 조각 (칩 「연결」)', '새 값'], ['U4.desc', '상황에 맞는 문장을 말로 만들어 봐요. 채점하지 않고, …', '④ 설명(바뀜)'], ['U4.voiceBox', '버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요', '④ (⑤ 문구와 같음)'],
+  ['U4.textFirst', '지금은 말로 답하기를 쓸 수 없어서 글자 입력으로 열었어요.', '④ 폴백'], ['(재사용) DISPLAY_COPY.userTr', '번역 중… · 번역을 가져오지 못했어요 · 다시 가져오기', '④ 뜻 줄(⑤ 와 같음)'], ['(재사용) U5.trHeard', '알아들은 말을 그대로 옮겼어요', '④ 말로 한 답'],
+];
+
+/* ───────── 결정 필요 ───────── */
+const QS = [
+  { id: 'q1', t: '③ 끝내기 조건', scr: 1, go: 'c-new', o: [['A', '마지막 문장까지 넘기면 [다음 단계]', '④ 응용(마지막 상황 뒤에 나옴)과 같은 규칙. 문장 8개 = 다음 7번. 앞에서는 「마지막 문장까지 보면…(k/n)」 한 줄.'], ['B', '절반 넘게 보면', '「본 문장」을 따로 세야 하고 기준이 낯설다.'], ['C', '언제든 [다음 단계]', '①·② 와 같음. 한 번도 안 보고 넘길 수 있다.']], n: '불편한 사실: A 는 급할 때도 끝까지 넘겨야 한다(대신 한 번에 한 문장이라 몇 초). C 는 조각 단계를 건너뛰기 쉬워 「끊어 보기」 목적이 약해진다.' },
+  { id: 'q2', t: '③ 조각 보이는 방법', scr: 1, go: 'c-tap', o: [['A', '문장 안 조각 칸(밑줄 + 이름표) + 빗금', '강의 ②③(슬래시 + 밑줄·이름) 을 한 줄에. 읽는 순서 그대로. 칸이 많으면 줄이 늘어난다.'], ['B', '빗금 문장 + 아래 조각 목록', '뜻이 한눈에 보이지만 문장이 길면 목록이 20줄 넘게 길어진다(긴 문장 상태).'], ['C', '[끊어 읽기 | 조각] 바꿔 보기', '끊어 읽기는 구간을 눌러 듣는다. 조작이 하나 늘고, 처음엔 무엇이 다른지 헷갈릴 수 있다.']], n: '어느 쪽이든 칸·줄은 실제 44px 이상, 이름표는 글자. B 는 같은 문장을 두 번(문장 + 목록) 보여 준다.' },
+  { id: 'q3', t: '오늘의 조각 모아 보기', scr: 1, go: 'c-collect', o: [['A', '단계 아래 접힘 상자', '필요할 때만 연다. 문장 보기 흐름을 방해하지 않는다.'], ['B', '위 분절 [문장별 | 종류별]', '모아 보기가 눈에 띄지만 조작 줄이 하나 늘고 ③ 의 주된 일과 경쟁한다.'], ['C', '이번엔 제외', '가장 작다. 강의 ④(종류별 목록)는 다음으로.']], n: '모아 보기 안 「단어장 넣기·바꿔 말하기」는 어느 쪽이든 나중(이번 범위 밖).' },
+  { id: 'q4', t: '연결 조각(조사) 표시', scr: 1, go: 'c-new', o: [['A', '따로 칸 + 「연결」 · 점선 밑줄', '사용자 결정 3(연결 조각 포함)에 그대로 맞는다. 한 글자 칸도 44px 라 칸 수가 많다.'], ['B', '앞 조각에 붙여 흐리게', '「コーヒーを」 한 칸 — 칸이 30~40% 줄지만 조사만 따로 눌러 들을 수 없다.']], n: '강의는 조사를 「연결 조각」으로 따로 표시한다. B 는 문장 뒤 か·ね 처럼 앞 조각이 없는 경우 따로 남는다.' },
+  { id: 'q5', t: '옛 수업의 ③', scr: 1, go: 'c-old', o: [['A', '빈 상태 + [다음 단계]', 'Leader 기본 결정. 번호·완료 조건 유지.'], ['B', '열 때 즉석 분해', '이번 범위 밖 — 대기·실패 화면과 비용이 새로 생긴다(데모 표시).']], n: '옛 수업 13개 중 진행 중 1개·준비 5개가 이 빈 상태를 보게 된다.' },
+  { id: 'q6', t: '④ 응용 입력 — 마이크 기본의 글자 대체 위치', scr: 1, go: 'a-idle', o: [['A', '카드 안 마이크 + 아래 「⌨ 글자로 쓰기」', '지금 ④ 의 「말로 쓰기」 모양을 기본으로 뒤집는다 — 바뀌는 코드가 가장 적다. 마이크 못 쓰면 글자로 열고 이유 한 줄.'], ['B', '⑤ 말하기처럼 하단 고정 말 바', '⑤ 와 조작이 같아진다. 대신 본문이 약 140px 줄고 ④ 구조·토스트 위치를 다시 짜야 한다.'], ['C', '카드 안 [🎤 말하기 | ⌨ 글자로] 분절', '두 방법이 똑같이 보여 「마이크 기본」이 약해진다.']], n: '글자 우선 폴백 조건은 ⑤ 의 textFirst(서버 인식 꺼짐·브라우저 막힘)와 같게.' },
+  { id: 'q6b', t: '④ 말한 말의 뜻 — 언제 보이나', scr: 1, go: 'a-heard-ok', o: [['A', '말한 직후(비교 전) + 비교 뒤 「내 문장」', '뜻이 맞는지 보고 다시 말할 수 있다. 같은 글은 화면 메모리로 한 번만 부른다.'], ['B', '비교 뒤에만', 'AI 호출이 조금 줄지만 말한 직후엔 뜻이 없다.']], n: '두 경우 모두 모범 답안과 같으면 AI 호출 0. 글자로 쓴 답은 비교 뒤에만(쓰는 동안 호출 안 함).' },
+  { id: 'q7', t: '종료 카드·오늘 카드에서 「문제」 자리', scr: 1, go: 'e-end', o: [['A', '종료 [오늘의 조각 N][만든 문장][쓴 표현] · 오늘 「조각 N개 · 말하기 표현」', '조각 수는 내용에서 센다(서버 불필요). 강의의 「조각 쌓기」 동기와 맞는다. 옛 수업은 2칸.'], ['B', '빼기만(2칸 · 「주제 · 말하기 표현」)', '가장 단순. 수업마다 다른 숫자가 하나 준다.'], ['C', '[말한 과제 n/3] 넣기', '⑤ 결과를 다시 보여 준다 — 「쓴 표현」과 겹친다.']], n: '「오늘의 조각 34」는 본 수가 아니라 수업에 있던 수다(오해 가능 — 이름을 「오늘의 조각」으로 둔 이유).' },
+  { id: 'q8', t: '조각 소리 단위', scr: 1, go: 'c-tap', o: [['A', '조각 + [▶ 구간 듣기]', '조사 하나만 읽으면 어색할 수 있어 구간(끊어 읽기 단위)도 들을 수 있게. 새 소리 종류 2개.'], ['B', '조각만', '새 소리 종류 1개. 연결 조각 소리가 어색할 위험(추측).']], n: '둘 다 서버는 저장된 조각에서만 글자를 꺼낸다(임의 문장 합성 막기 유지).' },
+  { id: 'q9', t: '인사·대답(はい·すみません·お願いします)의 종류', scr: 1, go: 'c-collect', o: [['A', '단어장과 같은 「표현 조각」을 쓴다(6종)', '앱 단어장에 이미 있는 종류(「문장 밖에서 통째로 쓰는 말」). 나중 단어장 연결이 쉽다. 사용자 결정 3 의 「4종 + 연결」과 다르다.'], ['B', '5종 안에 억지로(PE 판단)', 'お願いします=액션, いいえ=꾸밈 식 — 뜻과 종류가 어긋난다.']], n: '불편한 사실: 어느 쪽이든 결정 3 을 넓히거나 무리하게 맞추는 것이라 사용자 확인이 필요하다. DB 구조 변경은 없다.' },
+  { id: 'q10', t: '자동 분해 고지', scr: 1, go: 'c-new', o: [['A', '문장 이동 버튼 아래 한 줄 고지', '「선생님이 나눈 참고용…」. 카드 안에 두면 [다음 문장]이 780 높이 밖으로 밀려 아래로 옮겼다.'], ['B', '고지 + 「조각이 이상해요」 알리기', '받을 곳(저장·검토 흐름)이 없어 이번엔 만들 수 없다 — 후속.'], ['C', '없음', '틀린 분해를 정답처럼 믿을 수 있다.']], n: '강의도 「AI 번역·교정이 100% 통용 표현인지 확신할 수 없다」고 인정한다(IMP 설계 참고).' },
+  { id: 'q11', t: '② 문법 문구 「표현 조각」', scr: 0, go: 'c-new', o: [['A', '「대화에 나온 표현이에요 … 응용·말하기에서」', '③ 「조각」과 헷갈리지 않게 「조각」을 빼고, 없어진 「문제·」도 뺀다.'], ['B', '「문제·」만 빼기', '② 의 표현 칩을 「표현 조각」이라 부르는 지금 말투 유지 — ③ 조각과 이름이 겹친다.']], n: '② 화면 모양은 같다(문구만).' },
+  { id: 'q12', t: '조각 밑줄 색', scr: 1, go: 'c-tap', o: [['A', '기존 토큰 다시 쓰기(새 색 0)', '이름 protein · 액션 accent · 느낌 carb · 꾸밈 good · 표현 ink(끊은 선) · 연결 ink3(점선). protein·carb 는 지금 성장 탭 차트 색이다.'], ['B', '무채색 + 선 모양만', '색 의미가 없어 가장 안전하지만 종류가 한눈에 덜 갈린다.']], n: '어느 쪽이든 이름표 글자가 정보다(색만으로 구분하지 않음). 차트 색을 다른 뜻으로 다시 쓰는 것은 Leader 합의 사항.' },
+];
+
+/* ───────── 그리기 ───────── */
+function renderQs() {
+  document.getElementById('dqs').innerHTML = QS.map((q) => `<fieldset class="dq"><legend><span class="dn2">${q.id.toUpperCase()}</span>${q.t} ${q.scr ? '<span class="scr">화면</span>' : ''}</legend>` + q.o.map(([v, h, dsc]) => `<label class="opt${S.dec[q.id] === v ? ' on' : ''}"><input type="radio" name="${q.id}" value="${v}"${S.dec[q.id] === v ? ' checked' : ''}><span class="opt-h">${v} · ${h}${v === 'A' ? ' <span class="rec">★ 권고</span>' : ''}</span><span class="opt-d">${dsc}</span></label>`).join('') + `<p class="qnote">${q.n}</p><button type="button" class="qgo" data-go="${q.go}">이 상태로 보기</button></fieldset>`).join('');
+  const diff = Object.keys(DEC0).filter((k) => S.dec[k] !== DEC0[k]);
+  document.getElementById('d-sum').textContent = diff.length ? `★ 와 다른 선택: ${diff.map((k) => `${k.toUpperCase()}=${S.dec[k]}`).join(', ')}` : '모두 ★ 권고';
+}
+function renderNav() {
+  document.getElementById('dnav').innerHTML = STATES.map(([g, items]) => `<h2>${g}</h2>` + items.map(([id, l]) => `<button type="button" class="nvb" data-st="${id}"${S.st === id ? ' aria-current="true"' : ''}>${l}<span class="did">${id}</span></button>`).join('')).join('');
+}
+function renderStage() {
+  const keep = {}; document.querySelectorAll('.phone').forEach((p) => { const s = p.querySelector('[data-scroll]'); if (s) keep[p.dataset.kind + p.dataset.w] = s.scrollTop; });
+  let html;
+  if (S.view === 'cmp') html = phone('cur', S.w) + phone('prop', S.w);
+  else if (S.view === 'three') html = [360, 390, 412].map((w) => phone('prop', w)).join('');
+  else html = phone('prop', S.w);
+  document.getElementById('stage').innerHTML = html;
+  document.querySelectorAll('.phone').forEach((p) => { const s = p.querySelector('[data-scroll]'); const k = p.dataset.kind + p.dataset.w; if (s && keep[k]) s.scrollTop = keep[k]; });
+  document.getElementById('exp').innerHTML = EXP[S.st] || '';
+  requestAnimationFrame(renderMeas);
+}
+function contrast(a, b) {
+  const lum = (c) => { const m = getComputedStyle(document.documentElement).getPropertyValue(c).trim(); const n = parseInt(m.slice(1), 16); const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]; };
+  const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+function measure(ph) {
+  const r = ph.getBoundingClientRect(); let over = 0; const small = [];
+  ph.querySelectorAll('*').forEach((el) => { if (el.closest('[aria-hidden="true"]') || el.classList.contains('sr') || el.closest('.sr')) return; const b = el.getBoundingClientRect(); if (!b.width && !b.height) return; if (b.right > r.right + 0.5 || b.left < r.left - 0.5) over++; });
+  ph.querySelectorAll('button,a[href],input,textarea,select,[tabindex="0"]').forEach((el) => { if (el.closest('[aria-hidden="true"]')) return; const b = el.getBoundingClientRect(); if (b.width && (b.width < 43.5 || b.height < 43.5)) small.push((el.className || el.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height)); });
+  const sc = ph.querySelector('[data-scroll]');
+  return { over, small, scrollH: sc ? sc.scrollHeight : 0, viewH: sc ? sc.clientHeight : 0 };
+}
+window.__measure = () => [...document.querySelectorAll('.phone')].map((p) => ({ kind: p.dataset.kind, w: p.dataset.w, ...measure(p) }));
+function renderMeas() {
+  const ph = document.querySelector('.phone[data-kind="prop"]'); if (!ph) return;
+  const m = measure(ph);
+  const cr = (fg) => contrast(fg, '--surface').toFixed(1);
+  document.getElementById('meas').innerHTML = `<span>휴대폰 밖으로 넘친 요소: <b class="${m.over ? 'ng' : 'ok'}">${m.over}</b></span><span>44px 미만 터치: <b class="${m.small.length ? 'ng' : 'ok'}">${m.small.length}</b>${m.small.length ? ' — ' + esc(m.small.slice(0, 4).join(', ')) : ''}</span><span>본문 높이 / 보이는 높이: <b>${m.scrollH}</b> / ${m.viewH}px</span><span>이름표 글자 ink2 대비(surface): <b>${cr('--ink2')}:1</b></span><span>밑줄 대비 — 이름 ${cr('--protein')} · 액션 ${cr('--accent')} · 느낌 ${cr('--carb')} · 꾸밈 ${cr('--good')} · 연결 ${cr('--ink3')} (장식 — 정보는 이름표)</span>`;
+}
+function syncCtl() {
+  document.querySelectorAll('[data-ctl]').forEach((g) => { const k = g.dataset.ctl; g.querySelectorAll('button').forEach((b) => { const v = b.dataset.v; const cur = k === 'big' ? String(S.big) : String(S[k]); b.setAttribute('aria-pressed', String(v === cur)); }); });
+  document.documentElement.toggleAttribute('data-theme', S.theme !== 'system'); if (S.theme !== 'system') document.documentElement.setAttribute('data-theme', S.theme);
+  document.body.classList.toggle('mark', S.mark === 'on');
+}
+function render() { syncCtl(); renderNav(); renderQs(); renderStage(); }
+function flashToast(m) { S.toast = m; clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = ''; renderStage(); }, 2400); }
+
+/* ───────── 조작 ───────── */
+document.addEventListener('click', (e) => {
+  const ctl = e.target.closest('[data-ctl] button');
+  if (ctl) { const k = ctl.parentElement.dataset.ctl; const v = ctl.dataset.v; S[k] = k === 'w' || k === 'h' || k === 'big' ? Number(v) : v; render(); return; }
+  const nv = e.target.closest('[data-st]'); if (nv) { preset(nv.dataset.st); render(); return; }
+  const go = e.target.closest('[data-go]'); if (go) { preset(go.dataset.go); render(); document.getElementById('stage').scrollIntoView({ block: 'start' }); return; }
+  if (e.target.id === 'd-reset') { S.dec = { ...DEC0 }; render(); return; }
+  const a = e.target.closest('[data-a]'); if (!a || !a.closest('.phone')) return;
+  const act = a.dataset.a, d = S.dec;
+  const fk = { kind: a.closest('.phone').dataset.kind, a: act, j: a.dataset.j || '', k: a.dataset.k || '', v: a.dataset.v || '' };
+  setTimeout(() => { const ph = document.querySelector(`.phone[data-kind="${fk.kind}"]`); if (!ph) return; let t = [...ph.querySelectorAll(`[data-a="${fk.a}"]`)].find((x) => (x.dataset.j || '') === fk.j && (x.dataset.k || '') === fk.k && (x.dataset.v || '') === fk.v); if (!t && fk.a === 'next') t = ph.querySelector('.btnp') || ph.querySelector('[data-a="prev"]'); if (!t && fk.a === 'prev') t = ph.querySelector('[data-a="next"]'); if (t) t.focus({ preventScroll: true }); }, 0);
+  const pcs = lineData(S.line).p;
+  switch (act) {
+    case 'step': { const k = Number(a.dataset.k); if (k > S.stageDone + 1) flashToast('앞 단계를 마치면 열려요'); break; }
+    case 'tg': S[a.dataset.k] = !S[a.dataset.k]; break;
+    case 'tile': { const j = Number(a.dataset.j); S.sel = j; S.phPlay = false; if (!S.textOnly) { S.playing = j; clearTimeout(playTimer); playTimer = setTimeout(() => { S.playing = null; renderStage(); }, 1200); } break; }
+    case 'pplay': if (S.playing === S.sel) S.playing = null; else { S.playing = S.sel; clearTimeout(playTimer); playTimer = setTimeout(() => { S.playing = null; renderStage(); }, 1200); } break;
+    case 'phplay': S.phPlay = !S.phPlay; if (S.phPlay) { clearTimeout(playTimer); playTimer = setTimeout(() => { S.phPlay = false; renderStage(); }, 1600); } break;
+    case 'lplay': S.linePlay = !S.linePlay; if (S.linePlay) { clearTimeout(playTimer); playTimer = setTimeout(() => { S.linePlay = false; renderStage(); }, 1800); } break;
+    case 'phr': S.phSel = Number(a.dataset.g); setTimeout(() => { S.phSel = null; renderStage(); }, 1400); break;
+    case 'next': S.line = Math.min(LINES.length - 1, S.line + 1); S.seen.add(S.line); S.sel = null; S.playing = null; break;
+    case 'prev': S.line = Math.max(0, S.line - 1); S.sel = null; S.playing = null; break;
+    case 'col': S.colOpen = !S.colOpen; break;
+    case 'kv': S.kindView = a.dataset.v === '1'; break;
+    case 'sv': S.slashView = a.dataset.v === '1'; break;
+    case 'toast': flashToast(a.dataset.m); break;
+    case 'ptt': if (S.ap === 'rec') { S.ap = 'heard'; S.same = false; S.trs = d.q6b === 'A' ? 'load' : 'none'; clearTimeout(trTimer); if (d.q6b === 'A') trTimer = setTimeout(() => { S.trs = 'ok'; renderStage(); }, 900); } else { S.ap = 'rec'; S.trs = 'none'; S.stt = false; } break;
+    case 'totext': S.apMode = 'text'; S.aseg = 'text'; S.stt = false; if (S.ap !== 'typed') S.ap = 'idle'; break;
+    case 'tovoice': S.apMode = 'voice'; S.aseg = 'voice'; S.tf = false; S.ap = 'idle'; break;
+    case 'aseg': S.aseg = a.dataset.v; S.apMode = a.dataset.v; break;
+    case 'sttx': S.stt = false; break;
+    case 'retry': S.trs = 'load'; clearTimeout(trTimer); trTimer = setTimeout(() => { S.trs = 'ok'; renderStage(); }, 900); break;
+    case 'cmp': if (S.ap !== 'heard' && S.ap !== 'typed') { flashToast('먼저 문장을 말하거나 써 보세요'); break; } S.cmp = true; S.cmpFrom = S.ap === 'typed' ? 'text' : 'voice'; if (S.cmpFrom === 'text' || S.trs === 'none') { S.trs = 'load'; clearTimeout(trTimer); trTimer = setTimeout(() => { S.trs = 'ok'; renderStage(); }, 900); } break;
+    default: return;
+  }
+  renderStage();
+});
+document.addEventListener('input', (e) => {
+  if (e.target.matches('.ata') && e.target.closest('.phone[data-kind="prop"]')) { S.ap = e.target.value.trim() ? 'typed' : 'idle'; }
+});
+document.addEventListener('change', (e) => { if (e.target.matches('#dqs input[type=radio]')) { S.dec[e.target.name] = e.target.value; if (e.target.name === 'q3') S.kindView = false; renderQs(); renderStage(); } });
+window.__set = (o) => { if (o.st) preset(o.st); const { st, dec, ...rest } = o; Object.assign(S, rest); if (dec) Object.assign(S.dec, dec); render(); };
+
+/* ───────── 시작 ───────── */
+document.getElementById('copyrows').innerHTML = COPY.map(([k, v, w]) => `<tr><td class="k"><code>${esc(k)}</code></td><td>${esc(v)}</td><td>${esc(w)}</td></tr>`).join('');
+(function init() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  preset(h.get('st') || 'c-new');
+  if (h.get('w')) S.w = Number(h.get('w')); if (h.get('h')) S.h = Number(h.get('h')); if (h.get('big')) S.big = Number(h.get('big'));
+  if (h.get('theme')) S.theme = h.get('theme'); if (h.get('view')) S.view = h.get('view');
+  (h.get('d') || '').split(',').filter(Boolean).forEach((x) => { const [k, v] = x.split(':'); if (k in S.dec) S.dec[k] = v; });
+  render();
+})();
+</script>
+</body>
+</html>

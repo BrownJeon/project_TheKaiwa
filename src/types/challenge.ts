@@ -54,8 +54,9 @@ export interface ChallengeSummary {
 /** 그날 인정된 수업 — 점수 추이는 그날 가장 많이 맞힌 수업(동점이면 나중 것), `lessonId` 도 같은 수업. */
 export interface ChallengeDayLesson {
   done: number
-  quizCorrect: number
-  quizTotal: number
+  /** 문항이 없는 수업(task-081 새 수업)은 null — 화면은 읽지 않는다(§37-8). */
+  quizCorrect: number | null
+  quizTotal: number | null
   lessonId: string | null
   refExists: boolean
 }
@@ -102,11 +103,14 @@ export interface ChallengeTotals {
   wordsCorrect: number
 }
 
-/** `Challenge.result` — 끝날 때 한 번 쓰고 이후 불변. `days[].quiz` = [맞힘, 문항] · `days[].words` = [맞힘, 틀림, 건너뜀, 카드 수, 세트 수]. */
+/**
+ * `Challenge.result` — 끝날 때 한 번 쓰고 이후 불변. `days[].quiz` = [맞힘, 문항](그날 인정된 수업이 있으면) — 문항 없는 수업이면 [null, null](task-081)
+ * · `days[].words` = [맞힘, 틀림, 건너뜀, 카드 수, 세트 수].
+ */
 export interface ChallengeResultDay {
   date: string
   state: ChallengeDayState
-  quiz: [number, number] | null
+  quiz: [number, number] | [null, null] | null
   words: [number, number, number, number, number] | null
 }
 
@@ -235,7 +239,7 @@ export interface DayChallenge {
   title: string
   dayIndex: number
   state: ChallengeDayState
-  lesson: { quizCorrect: number; quizTotal: number } | null
+  lesson: { quizCorrect: number | null; quizTotal: number | null } | null
   /**
    * `need` = 그 챌린지가 만들 때 얼린 인정 장수(`dailyGoal.wordsMinAnswered` = ceil(4n/5)) — 하루 시트 "단어 n/need장"의 분모.
    * 단어 과제를 끈 챌린지면 `ok` 와 함께 null(주제 세트를 풀었으면 맞힘·틀림은 보인다).

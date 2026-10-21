@@ -13,6 +13,7 @@
 아직 TheKaiwa 전용 데모(`docs/demo/thekaiwa-demo.html`)는 없다. **현행 토큰 = `src/app/globals.css`**(TheMeal 데모에서 이식, task-002)이며 이 절은 그 값을 기준으로 사용 규칙만 정한다. 새 색은 Leader 합의 후에만 추가한다.
 
 ### 1-1. 색 — 글자에 써도 되는 조합 (2026-09-27 WCAG 명암비 실측)
+> **task-081(2026-10-21)**: 오늘의 회화 ③ «조각» 밑줄 색에 기존 토큰을 재사용한다 — 이름 `--protein` · 액션 `--accent` · 느낌 `--carb` · 꾸밈 `--good` · 표현 `--ink` 끊은 선 · 연결 `--ink3` 점선(**새 색 0**, 색은 장식이고 정보는 이름표 글자). `--protein`·`--carb` 는 성장 탭 차트 색이기도 하다(다른 뜻으로 겹침 — Leader 수용). 상세 §37-9.
 
 | 조합(글자 / 배경) | 라이트 | 다크 | 글자 사용 |
 |---|---|---|---|
@@ -84,7 +85,7 @@
 | 오늘 | `/study/today` | 오늘의 공부 홈(오늘의 단어 카드 → **오늘의 회화 카드**·최근 기록·보관한 세트, AI 평가 "곧 열려요") | 로그인 | 보임 | **task-008(§5)** · 오늘의 회화 카드 **task-010(§12-2 A)** |
 | 오늘 | `/study/today/words/[sessionId]` | 단어 카드 덱 · 세트 결과(같은 경로, 세트 상태로 분기) | 소유자(타인 404) | **숨김** | **task-008(§5)** |
 | 오늘 | `/study/today/talk/new` · `/study/today/talk/new/paste` | 오늘의 회화 — 주제 고르기(확인 시트) · 문장 붙여넣기 | 로그인 | **숨김** | **task-010(§12-2 B·C)** |
-| 오늘 | `/study/today/talk/[lessonId]` | 오늘의 회화 — 레슨 상태로 분기: 만드는 중·실패 / 5단계(이해·문법·문제·응용·말하기) / 종료 카드 | 소유자(타인 404) | **숨김** | **task-010(§12-2 D~L)** |
+| 오늘 | `/study/today/talk/[lessonId]` | 오늘의 회화 — 레슨 상태로 분기: 만드는 중·실패 / 5단계(이해·문법·**조각**·응용·말하기 — ③ 문제는 task-081 로 조각으로 대체) / 종료 카드 | 소유자(타인 404) | **숨김** | **task-010(§12-2 D~L)** · **task-081(§37 — ③ 조각·④ 응용 마이크 기본, 구현 전)** |
 | 오늘 | `/study/today/eval/new` | AI 평가 시작 — 종류(단어·회화)·주제 고르기, 단어 부족 안내, 진행 중 평가 이어가기 | 로그인 | **숨김** | **task-011**(데모 v1 승인 2026-09-28, 구현 2026-10-01) |
 | 오늘 | `/study/today/eval/[evaluationId]` | AI 평가 — 상태로 분기: 만드는 중·실패 / 준비 화면 [시작하기](10분 시계) / 문항 풀이(듣고 답하기 글자로 보기·틀린 곳 탭·조립) / 채점 중·다시 채점 / 결과(점수·루브릭·문항별 정답·레벨 제안) | 소유자(타인 404) | **숨김** | **task-011**(api-contract §2-14 #65~#69·#67c) |
 | 오늘 | `/study/today/eval/history` | AI 평가 기록 목록(진행 중 포함·실패 제외) | 로그인 | **숨김** | **task-011** |
@@ -6104,6 +6105,8 @@ interface AppUpdateSnapshot {
 
 ## 12. 오늘의 회화 (task-010)
 
+> **⚠ §37 로 일부 대체(task-081, 2026-10-21 승인 데모 v1)** — 5단계 중 **③ 문제 → ③ 조각**(이 절의 ③ 문제 화면·`U3` 문구·문제 점수 표기는 더 이상 정본이 아니다), **④ 응용은 마이크 기본 + 한국어 뜻 줄**, 종료 카드·오늘 카드·생성 대기 표의 «문제» 표기 제거. 바뀐 화면·문구·계약 초안은 §37 이 정본이다. 그 밖(①·②·⑤·틀·흐름)은 이 절 그대로.
+
 > **승인 데모: `docs/demo/task-010-today-lesson-v2.html` (v2 · `task-010-v2`, 사용자 승인 2026-09-28 17:54, sha256 `5c9159f5…`)** — 결정 a~d 전부 B. 데모 상태는 주소 `#<id>`(예: `…-v2.html#l1-memo`)로 바로 열린다. 아래 `#id` 는 그 상태를 가리킨다. v2 는 v1 과 화면 내용이 같고 틀 표시 방식만 다르다.
 > 정본: `api-contract.md` §2-11 #55 · §2-12 #56 · §2-13 #58~#62·#62a·#62b·#62c · #21·#21b · #28 · #38·#39 — **developer 가 구현한 계약이다. 데모의 합성 데이터와 필드명이 다르면 계약이 정본이다.** task-010 Leader's Plan L1~L12 · PE `lesson@v1/v2` 스키마(`targetIds` = chunks∪grammar id).
 > 재사용: §5(오늘 홈·`BackBar`·flash 방식) · §3 `ProposalCard`·`Sheet` · §7 표시등·`ttsAudio` · §8 `PushToTalkButton`·`useRealtimeStt`·`sttCopy`·`MicLevelMeter` · §9 재생 큐(`createTtsPlaybackQueue`)·`chunkFetch`·`SttAlert`·barge-in. 새 색 없음.
@@ -7343,6 +7346,8 @@ ConsoleSegmented "기간" [오늘 | 7일 | 30일 | 전체]                      
 ## 14. 오늘의 복습 (task-010b)
 
 승인 데모: docs/demo/task-010b-repetition-v1.html (v1)
+
+> **⚠ §37 로 일부 대체(task-081)** — 복습 수업도 같은 5단계 구조로 **③ 문제 → ③ 조각**(`reviewMix@v4`). 이 절의 «이해 → 문법 → 문제 → …»·«대화·문제·말하기에 섞여»·«문제·응용·말하기에서»·`quizNote`·복습 카드 «문제 c/5 맞힘» 문구는 §37-8 표로 바뀐다. 문제 정오답으로 `RepetitionItem` 을 갱신하던 부분은 새 수업에서 사라진다(§37-13 ④).
 
 > **`task-010b-v1`, 사용자 승인 2026-10-01 08:17, sha256 `dcd310bf…`** — 결정 **a=A**(할 일이 있을 때만 오늘의 회화 위) · **b=B**(바로 건너뛰고 5초 되돌리기) · **c=A**([복습 시작]을 누를 때 만든다) · **d=B**('곧 열려요' 안). 데모 상태는 주소 `#<id>`(예: `…-v1.html#rv-due`)로 바로 열리고, 아래 `#id` 는 그 상태를 가리킨다.
 > 정본: `api-contract.md` §2-13 #58·#60·#62·#63·#64 · #55 + **task-010b Leader 기록(2026-10-01) 계약 결정 ①~⑦**(additive — 기존 키 변경 없음). 데모의 합성 데이터와 필드명이 다르면 계약이 정본이다. 계약에 아직 없는 필드는 §14-11 에 모았다(★ 표시).
@@ -14303,6 +14308,8 @@ TopicWordsCard (데모 todayCh·todayChLong): TopicChip 글 = WORDS_CARD.chip(ti
 
 ## 34. 오늘의 회화 ⑤ 말하기 — 「내가 한 말」 한국어 뜻 · 일본어 도우미 · 공통 입력 영역 (task-077, IMP-0053·0054) — ✅ 승인 데모 v1
 
+> **⚠ §37 로 넓어짐(task-081)** — 이 절의 «내가 한 말» 한국어 뜻(#185·`useSpeakTranslation`·`SpeakTranslation`·`translationPlan`·`useSpeakTrCache`)을 **④ 응용**도 함께 쓴다(같은 캐시·같은 한도 — §37-5·§37-14). ⑤ 화면 자체는 바뀌지 않는다.
+
 > **✅ 승인됨 — 2026-10-18 사용자 「A1~A5, B1~B8, B6-Q 권고대로 승인」**(결정 전부 ★, designer 제안 3건(A4 모양·A5 문구·B8 규칙) 포함; 질문 5 placeholder: 처음엔 사용자 답이 없어 데모가 그린 ★ = 지금 문구였으나 **2026-10-19 사용자가 「한 줄로 줄이기」를 선택 → 레슨 ⑤ 글자 입력창 placeholder = 「일본어로 답해 보세요」**). 이 절이 구현 정본이다(아래 「…승인하면 이 첫 줄을 고치고」 안내는 처리됨). 데모: `docs/demo/task-077-lesson-speak-helper-v1.html` (v1, sha256 앞 16자 `dae8cf1b61df36d9`). 사용자가 데모의 결정(A1~A5·B1~B8·B6-Q)과 질문 1~5 를 승인하면 이 첫 줄을 「승인 데모: … (vN)」으로 고치고 developer 에게 넘긴다. **승인 전에는 이 절로 구현하지 않는다.** ~~§12-2 J(⑤ 말하기)·§22(회화방 도우미)는 승인 뒤 구현 때 이 절에 맞춰 정정한다 — 그 전에는 이 절이 두 절보다 우선한다.~~ **[⚠ 구현 후 정정 — 2026-10-18 구현 완료·감사 REV-077S·U PASS_WITH_NOTES: §12-2 E·J, 12-3 D, 12-5·12-8·12-10, §22(머리·22-7·22-9·22-10), §26 VoiceBar 공용 확장 표를 이 절에 맞춰 정정했다(각 줄의 ~~취소선~~ = 옛 구조). 구현이 이 절과 달라진 곳은 34-13.]**
 > 적용 토큰(이름): `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3`(placeholder·한글 줄 괄호만) · `--color-line` · `--color-accent` · `--color-accent-soft` · `--color-on-accent` · `--color-good` · `--color-good-soft` · `--safe-bottom` · `--kb-inset`. **새 색 없음.** 기록: [[task-077-designer-record]].
 
@@ -15146,3 +15153,587 @@ src/app/(app)/plan/
 ### 36-18. 후속 · 범위 밖 · 문서 갱신 항목
 **후속(구현 금지)**: 분석 탭 `/plan/analysis`(A8 프롬프트·#74~#77·잡·7상태 — 데모 «범위: 분석 포함(나중)» 설계 보존, 분석 탭 문구의 «단어 세트» 3곳(데모 495·892·901행) 정리 포함) · 공부계획서 · 수준 이력(Q5) · «듣고 응답» 관측 기록 코드(생기면 `GROWTH_AXIS_RECORDED.LISTEN_RESPOND=true`) · 자기수정·대화 유지 관측을 대화 유지 축에 넣을지 · «능력» 잔존 문구 정리(«능력 단계는…» → 예 «공부결과는…», «아직 이 능력을…» → 예 «아직 이 항목을…» — v4 기록 §3 후보, 사용자가 범위를 정하면 별도 변경. **L12 로 안내가 «공부결과» 카드 안으로 옮겨져 어긋남이 더 눈에 띈다 — 36-17-3 ④ 가 «단계는…» 안을 제안, 사용자 확인 전까지 승인 글 유지**) · `PlanSwitch`·`DrawerSwitch` 공용화 · 체크내역 1단 색 대비(2.27:1) 개선 · 오늘 첫 진입 때 출석 체크(`AttendancePing`)보다 #78 이 먼저 끝나면 연속 출석이 하루 적게 보일 수 있음(#70 달력도 같음 — 알려진 한계) · 달력 «이번 달 공부 N일»(기록 기반 — 질문 포함·지우면 줄어듦)과 성장 «공부한 날»(스냅샷 기반 — 질문 제외·불변)이 다를 수 있음(이름이 같아 헷갈릴 수 있음 — 사용자 반응 보고 정리).
 **이 문서에서 고칠 곳(구현 뒤 designer/Leader)**: §1-1 `--carb/--protein/--fat` 줄(성장 차트가 `--protein` 단계를 씀 — L5 결론) · §2 계획표 행(이번 가이드와 함께 «task-080(§36)» 표기를 더함 — 구현 완료 시 «구현 전» 지움) · §17-1 ②(`plan/growth/loading.tsx` 추가)·③(「분석 · 성장 기록」 카드 예시 삭제) · §17-1 ④ 상수 모듈 목록에 `plan/growthSkeletonSizes.ts`.
+
+## 37. 오늘의 회화 ③ «조각» 단계(«문제» 대체) · ④ 응용 마이크 기본 + 한국어 뜻 · «문제 n/5» 표기 제거 (task-081, IMP-0059) — ✅ 승인 데모 v1
+
+승인 데모: docs/demo/task-081-lesson-chunk-step-v1.html (v1)
+
+> **✅ 승인됨 — 2026-10-21 14:01 사용자 «권고대로 승인, Q9는 A로»**(게이트 `approved_version: v1`, sha256 `21ebca22782b…` — 이 가이드 작성 때 다시 재어 같음을 확인). Q1~Q12(+Q6b) 전부 ★, **Q9 A = «표현 조각» 6종째**, Q12 = 기존 토큰 재사용(Leader 수용 — 새 색 0). 데모 상태는 주소 `#st=<상태 id>` 로 바로 열린다(예: `…-v1.html#st=c-tap&w=360&big=1`). 아래 `c-new`·`a-heard` 같은 이름은 그 상태 id, `#changes`·`#a11y`·`#limits`·`#devmemo` 는 데모 섹션 id 다.
+> **정본 관계**: 화면·문구는 이 절이 정본이다(데모 `#changes` 표·`COPY` 표를 옮기고 코드 대조로 고친 결과). **서버·API 계약(37-12·37-13)은 «초안 — Leader 승인 필요»** 이며 `docs/design/api-contract.md` #58~#62 는 이 가이드가 고치지 않았다(목록은 37-19). 정본과 다르면 Leader 결정이 이긴다.
+> **적용 토큰(이름, `src/app/globals.css` — 데모 `demo-token-source` 해시 `a314f18f1807` 와 지금 파일 해시가 같음)**: 색 `--color-ground` · `--color-surface` · `--color-surface2` · `--color-ink` · `--color-ink2` · `--color-ink3`(빗금·연결 조각 밑줄·장식만) · `--color-line` · `--color-accent` · `--color-accent-soft` · `--color-on-accent` · `--color-good` · `--color-good-soft` · `--color-bad` · `--color-bad-soft` · **`--color-protein`(이름 조각 밑줄) · `--color-carb`(느낌 조각 밑줄)** — 반경 `--radius`(14px)·10px·12px · 간격 `--safe-bottom`(⑤ 와 같음, ③·④ 는 쓰지 않음). 글자 크기는 §1 규칙(일본어 본문 16~17px · 후리가나 11px · 이름표 11px 이 하한). **새 16진 색 0개** — 밑줄 색은 모두 위 토큰의 `var()` 다(데모 `.k-N { --kc: var(--protein) }` 식). `--color-warn`·`--color-fat` 은 쓰지 않는다.
+> **Q12 공개 사항**: `protein`·`carb` 는 성장 탭(§36) 차트 색이다. 여기서 «이름·느낌 조각» 밑줄로 다시 쓴다 — 색은 장식이고 정보는 이름표 글자다(Leader 수용 2026-10-21). §1-1 토큰 표의 `--carb/--protein` 줄에 «③ 조각 밑줄(§37)» 용도를 더해야 한다(37-19).
+> 재사용: §12(수업 틀·단계 표시·`LessonDisplayTools`·`RoleChip`·`PlayWide`·`ExprPlayChip`·줄 다시 듣기) · §15(히라가나·한글·번역 스위치, `useAnnotations`·`cutRubyByRanges`·`HangulLine` 규칙) · §34(「내가 한 말」 한국어 뜻 — `useSpeakTranslation`·`SpeakTranslation`·`translationPlan`·`useSpeakTrCache`·#185) · §8 `PushToTalkButton`·`MicLevelMeter`·`SttAlert`.
+
+### 37-0. 레이아웃 설계 (page-layout-designer — 승인 조합 정리)
+
+- **목표**: ③ = 대화 문장을 **조각 단위로 끊어 보고·들어서** 문장의 뼈대(누가·무엇을·어떻게 + 연결)를 눈에 익힌다(강의 «조각공부법» ②슬래시 끊어 읽기 ③밑줄·이름 ④모아 보기). ④ = 문장을 **말로** 만들어 보고, 내가 한 말의 **한국어 뜻**으로 의도가 맞는지 스스로 확인한다.
+- **주요 위계(③)**: ① 지금 문장(조각 칸 + 빗금) → ② 고른 조각의 뜻·종류·소리(고른 조각 줄) → ③ 문장 이동([이전/다음 문장] — 마지막 문장에서 [다음 단계]) → ④ 보조(참고용 고지 · 모아 보기 접힘 상자). 표시 스위치·위치 글자는 문장 카드 위.
+- **주요 위계(④)**: 상황 카드 안 — 과제 → 써 볼 표현 → **누르고 말하기(72px)** → 알아들은 말 + 한국어 뜻 줄 → [모범 답안과 비교하기]. 글자 입력은 «⌨ 글자로 쓰기» 링크(보조).
+- **영역**: 수업 머리 · 단계 표시(5칸 그대로) · 본문(유일한 스크롤 — ③·④ 는 하단 고정 바 없음, ⑤ 만 있음) · 토스트.
+- **컴포넌트**: 새 `StageChunk`(+ `ChunkSentenceCard`·`PieceTiles`·`PieceStrip`·`PieceCollect`·`ChunkEmpty`) / 바뀜 `StageApply`·`LessonScreen`·`LessonEnd`·`TodayLessonCard`·문구 파일 / 지움 `StageQuiz`.
+- **상태**: 37-7 표(새 수업·옛 수업·한 문장만 조각 없음·소리 없음·소리 실패·다시 보기 / ④ 마이크 대기·녹음·알아들음·번역 중·뜻·같음·번역 실패·비교·글자·글자 우선·인식 오류).
+- **행동**: 조각 누름 = 고름 + 그 조각 소리(같은 칸 다시 누름 = 다시 듣기/멈춤) · [▶ 구간 듣기] · 카드 머리 ▶ = 문장 전체 · [‹ 이전 문장]/[다음 문장 ›] · 마지막 문장에서 [다음 단계 · ④ 응용] · 모아 보기 펼침 / ④ 누르고 말하기 · 글자로 쓰기 · 비교하기 · 모르겠어요.
+- **반응형**: 360·390·412 × 780·892 × 글꼴 100·130% 에서 가로 넘침 0(데모 실측 5,376조합). 칸은 구간(／) 단위로 묶여 줄바꿈되고 **한 칸 안 글자는 줄바꿈하지 않는다**. 780 높이에서 ③ [다음 문장]·마지막 [다음 단계]·④ 처음 [비교하기] 가 첫 화면 안(데모 `#meas`).
+
+### 37-1. 확정 결정
+
+| # | 결정 | 출처 |
+|---|---|---|
+| D1 | ③ 자리에 «조각» — 이해 → 문법 → **조각** → 응용 → 말하기. 단계 번호·`stageDone`·완료 조건(`stageDone ≥ 4`) 그대로 | 사용자(AskUserQuestion) |
+| D2 | «문제» 완전 제거 — 화면·생성·점수 표기 모두. 문형·조사 관측·오답 복습 입력 공백은 감수(응용 관측 보충은 후속) | 사용자 |
+| D3 | 조사 = **연결 조각** 포함 | 사용자 |
+| D4 | 수업을 **만들 때** 분해해 저장(열 때 대기 없음) · 검증 = 조각을 이으면 원문과 같아야 함 | 사용자 |
+| Q1 A | 마지막 문장까지 넘기면(또는 모든 문장을 봤으면) [다음 단계]. 그 전엔 «마지막 문장까지 보면…(k/n)» 한 줄 | 데모 ★ |
+| Q2 A | 문장 안 **조각 칸**(읽기 루비 · 일본어 · 밑줄 · 이름표) + 끊어 읽기 빗금 ／ | 데모 ★ |
+| Q3 A | 「오늘의 조각 모아 보기」 = 단계 아래 **접힘 상자**(종류별, 같은 조각 한 번) | 데모 ★ |
+| Q4 A | 연결 조각 = **따로 칸** + 이름표 «연결» + 점선 밑줄(한 글자 칸도 최소 폭 44) | 데모 ★ |
+| Q5 A | 옛 수업(조각 없음) = 빈 상태 + [다음 단계] | 데모 ★ · Leader 기본 결정 |
+| Q6 A | ④ = **카드 안 마이크 기본**(알아들은 말 상자 → 누르고 말하기 72 → 상태 줄) + 아래 «⌨ 글자로 쓰기». 마이크 못 쓰면 글자로 열고 이유 한 줄 | 데모 ★ |
+| Q6b A | 한국어 뜻 줄 = **말한 직후**(비교 전) + 비교 뒤 «내 문장» 칸에도. 글자로 쓴 답은 비교 뒤에만 | 데모 ★ |
+| Q7 A | 종료 카드 [오늘의 조각 N][만든 문장][쓴 표현] · 오늘 카드 «주제 · 조각 N개 · 말하기 표현 u/t» · 조각 없는 수업은 2칸·«조각» 줄 없음 | 데모 ★ |
+| Q8 A | 고른 조각 줄에 [▶ 조각 다시 듣기] + [▶ 구간 듣기 「…」] 두 버튼 | 데모 ★ |
+| **Q9 A** | 인사·대답(はい·いいえ·すみません·お願いします·ありがとうございます…) = **«표현 조각»(6종째)** — 결정 D3 의 «4종+연결» 을 사용자가 넓힘 | **사용자 «Q9는 A로»** |
+| Q10 A | 문장 이동 버튼 아래 한 줄 고지 «조각은 선생님이 나눈 참고용…» | 데모 ★ |
+| Q11 A | ② 문구에서 «조각»·«문제·» 빼기 | 데모 ★ |
+| Q12 A | 밑줄 색 = 기존 토큰(이름 protein · 액션 accent · 느낌 carb · 꾸밈 good · 표현 ink 끊은 선 · 연결 ink3 점선), 새 색 0 | 데모 ★ · Leader 수용 |
+| L1 | REVIEW 레슨(`reviewMix`)·상황 레슨(`lessonScenario`)도 같은 단계 구조·같은 스키마 | Leader 기본 결정 |
+| L2 | 조각 소리 = 새 소리 종류 `piece`·`phrase`(서버가 저장된 조각에서만 글자를 꺼냄) — 이번 범위 | Leader 기본 결정 |
+| L3 | 조각 → 단어장 채택 · 조각 교체/문장 확장 퀴즈(강의 ⑤⑦) = **범위 밖(후속)** — 화면에 «나중» 표시도 **넣지 않는다**(데모의 «데모 표시» 상자는 데모 전용) | Leader 기본 결정 |
+| L4 | 데이터 방향: `dialogue[i].pieces` · `progress.pieces.seen` · 새 내용엔 `quiz` 없음 · `Lesson.score` nullable · `readStoredContent` 는 `quiz` 없이도 정상 — 세부는 37-12(이 가이드가 확정 제안) | Leader 방향 승인 |
+
+### 37-2. 라우트 · 단계 구조 (새 라우트 없음)
+
+- 경로 그대로 `/study/today/talk/[lessonId]`(§12-0 ①). `LessonScreen` → `LessonStages` 의 단계 분기만 바뀐다: `stage === 3` → **`StageChunk`**(지금 `StageQuiz`). `stage === 4` → `StageApply` 에 `textFirst`·`trCache` prop 추가.
+- 단계 표시 `StageSteps` 는 5칸·`grid-cols-5` 그대로, 이름만 `STAGE_NAMES[2] = '조각'`. 낭독 «3단계 조각, 앞 단계를 마치면 열려요» 는 지금 `LESSON.stepAria` 그대로 나온다(데모 `s-locked`).
+- 옛 수업 호환: 단계 번호를 바꾸지 않으므로 `stageDone` 보정 없음. 진행 중 옛 수업(DB 13건 중 READY 5·IN_PROGRESS 1)은 ③ 에서 빈 상태(Q5 A)를 본다. 끝낸 옛 수업(DONE 7)은 종료 카드에서 «문제 정답» 칸이 사라지고 2칸이 된다(데모 `e-end-old` — 점수는 DB 에 남지만 보이지 않음).
+
+### 37-3. UI 구조 — ③ `StageChunk` (의사코드, 데모 `chunkBody('prop')` 인용)
+
+```
+StageChunk({ lesson, st, pb, reviewing, onToast, footer })            // 데모 c-new·c-tap·c-last·c-review·c-old
+  content = lesson.content
+  mode = chunkMode(content)            // 'none' = 어느 줄에도 pieces 배열이 없음(옛 수업) · 'lines'
+  if mode === 'none':                                                 // 데모 c-old (Q5 A)
+    <h2 data-stage-title tabIndex=-1>{U3.title}</h2>
+    <ChunkEmpty/>                       // 제목 U3.emptyTitle + 본문 U3.emptyBody
+    <div className="mt-3.5">{footer}</div>                             // [다음 단계 · ④ 응용] 또는 다시 보기면 [지금 단계로 · …]
+    return
+  n = content.dialogue.length
+  seen = Set(progress.pieces?.seen ?? [])  ∪ {line}                   // 여는 순간 지금 문장도 본 것으로
+  line = 처음 안 본 문장(없으면 0) — 다시 보기(reviewing)면 0
+  <h2 data-stage-title tabIndex=-1>{U3.title}</h2>
+  <p desc>{pb.textOnly ? U3.descTextOnly : U3.desc}</p>
+  <LessonDisplayTools keys={['fu','hg','tr']} onToast/>                // ① 과 같은 세 스위치(앱 전체 설정)
+  <div counter> <b>{U3.counter(line+1, n)}</b> <span>{U3.seen(seen.size)}</span> </div>
+  <SeenBar aria-hidden n line seen/>                                  // 장식 막대(점 아님 — 10문장도 360 폭에 들어감)
+  <ChunkSentenceCard ... />                                           // 37-4-1
+  <nav row> {line>0 && <Btn ghost onClick=prev>{U3.prev}</Btn>} {!last && <Btn onClick=next>{U3.next}</Btn>} </nav>
+  {!lineIsNull && <p aiNote>{U3.aiNote}</p>}                           // Q10 A — 조각 없는 줄에선 숨김(데모와 같음)
+  {canNext ? <div ref=footerRef className="mt-3.5">{footer}</div> : <p gate>{U3.gate(seen.size, n)}</p>}
+  <PieceCollect content pb/>                                          // Q3 A — 접힘 상자, 맨 아래
+```
+
+- `canNext = reviewing || last || seen.size === n`(Q1 A). `footer` 는 `LessonScreen` 이 만든 그대로(저장 실패 줄 포함 — §12 그대로).
+- 다시 보기(`reviewing`, 데모 `c-review`): 위에 `LESSON.reviewNote`(지금처럼 `LessonScreen` 이 넣음) · 문장 이동 자유 · 맨 아래 footer = [지금 단계로 · …].
+- **문장 이동**: [다음 문장] → `line+1`, `seen` 에 더하고 `st.update(p => ({...p, pieces: { seen: 정렬된 배열 }}), ['pieces'])`(모아서 보내기 — `immediate` 아님, ① 들은 구간과 같은 큐). [이전 문장] → `line-1`(seen 변화 없음). 이동할 때 고른 조각·재생은 해제(`pb.stop('HIDDEN')`).
+- **초점**: 이동해도 초점은 누른 버튼에 남는다. 단 [다음 문장]이 사라지는 경우(마지막 문장에 도착)는 초점을 `footerRef` 안 첫 버튼([다음 단계])으로 옮긴다 — 사라진 버튼에 초점이 남아 `body` 로 떨어지지 않게(데모가 다루지 않은 경우, 37-18 ⑤). 카드 머리 글은 37-10 의 polite 로 한 번 읽힌다.
+- **다음 단계 저장**: [다음 단계]는 지금 `advance()`(`st.advance(3)`) 그대로 — 그 전에 큐에 남은 `pieces.seen` 이 먼저 나간다(지금 `advance` 가 큐를 비운 뒤 `stageDone` 을 보냄).
+
+#### 37-3-1. 수업 전체가 조각 없음(새 수업인데 모든 줄 null)
+
+- 서버가 모든 줄을 null 로 저장하지 않게 하는 것이 원칙(37-12-4 재생성 임계). 그래도 생기면 `mode = 'lines'` 로 두고 **줄마다 «조각 없는 줄» 화면**(37-4-1 ⑦)을 보인다 — 옛 수업 문구(«조각 단계가 생기기 전에 만든 수업이에요»)는 새 수업에 맞지 않으므로 쓰지 않는다. 새 문구를 만들지 않기 위한 처리다(37-18 ⑥).
+
+### 37-4. ③ 부품 (`src/components/lesson/` — 파일·props)
+
+| 파일(제안) | 부품 | props | 하는 일 |
+|---|---|---|---|
+| `StageChunk.tsx` | `StageChunk` (default) | `lesson: LessonDto & {content: LessonContent}` · `st: UseLesson` · `pb: LessonPlayback` · `reviewing: boolean` · `onToast: (m: string) => void` · `footer: React.ReactNode` | 37-3 전체. 상태: `line`·`seen`·`sel: number \| null`(고른 조각 index) |
+| `ChunkSentence.tsx` | `ChunkSentenceCard` | `lineIdx: number` · `line: DialogueLine` · `roleKo: string` · `ann: AnnotationState` · `sel: number \| null` · `onPick: (j: number) => void` · `pb` · `textOnly: boolean` | 카드 머리 + 조각 칸 + 한글 줄 + 번역 줄 + 고른 조각 줄. `line.pieces == null` 이면 37-4-1 ⑦ |
+| 〃 | `PieceTiles` | `pieces: DialoguePiece[]` · `runs: RubyPiece[][]`(조각별 루비) · `showFu: boolean` · `sel` · `onPick` · `textOnly` | 칸 묶음(`role="group"`), 구간(／)마다 `span` 으로 묶어 줄바꿈 |
+| 〃 | `PieceStrip` | `piece: DialoguePiece` · `reading: string \| null` · `hangul: string \| null` · `phrase: string \| null`(조각과 같으면 null) · `playing: 'piece' \| 'phrase' \| null` · `onPlayPiece` · `onPlayPhrase` · `textOnly` | 고른 조각 줄(Q8 A) |
+| 〃 | `PieceHangulLine` | `hangul: string \| null`(빗금 포함 한 줄) · `state: AnnotationState` | `HangulLine` 과 같은 모양·같은 숨김 접두(`DISPLAY_COPY.hangulSr`)·같은 `[ ]` 괄호, 안에 ` / ` 가 들어간다 |
+| `PieceCollect.tsx` | `PieceCollect` | `content: LessonContent` · `pb` · `textOnly: boolean` | Q3 A 접힘 상자 |
+| `ChunkSentence.tsx` | `ChunkEmpty` | — | Q5 A 빈 상태 카드 |
+| `chunkLogic.ts`(새, 순수 함수) | — | — | 37-4-2 |
+
+#### 37-4-1. `ChunkSentenceCard` (데모 `c-new`·`c-tap`·`c-long`·`c-partial`·`c-textonly`·`c-ttsfail`)
+
+```
+<section aria-label="{i}번째 문장" className=카드>
+  <div head>                                                          // min-h-11
+    <RoleChip who={line.speaker} small/>
+    <span id=cardHead aria-live="polite">{U3.cardHead(roleKo, i)}</span>   // ★ 요소는 남기고 글만 바꾼다(데모 Minor-2)
+    {!textOnly && <button 44 원형 aria-label={playing ? U3.stopAria : U3.lineAria(i)}>▶/■</button>}   // = 지금 줄 다시 듣기(kind 'dialogue') — 새 kind 아님
+  </div>
+  ① line.pieces 배열:
+    <p className="sr-only" lang="ja">{line.ja}</p>                     // 문장 전체 한 번(데모 Minor-1)
+    <PieceTiles .../>
+    {hg 켬 && <PieceHangulLine/>}                                      // 빗금 ／ 위치에서 « / »
+    {tr 켬 && <p 번역>{line.ko}</p>}
+    <PieceStrip …/> 또는 안내 줄(U3.pick / U3.pickTextOnly)
+  ⑦ line.pieces == null (데모 c-partial):
+    <JaText text={line.ja} state={ann}/> + <HangulLine state={ann}/> + (tr 켬이면 번역) + <p notice>{U3.noPieces}</p>
+    — 빗금·칸·고른 조각 줄 없음. 이 문장도 «본 문장» 으로 센다. Q10 고지는 숨긴다.
+</section>
+```
+
+- **조각 칸(`PieceTiles`)**: 조각 하나 = `<button type="button" aria-pressed>` 하나. 안: ⓐ 일본어(루비 — 히라가나 켬이면 한자 위 읽기) ⓑ 밑줄 막대(`aria-hidden`) ⓒ 이름표(짧은 이름 «느낌» + 시각 숨김 `U3.tileSrTail(ko)` = « 조각, 따뜻한»). `type === null`(문장부호·기호)은 **버튼이 아닌 `span aria-hidden`** 이고 앞 칸에 붙인다(`whitespace-nowrap` 꼬리 묶음 — 문장부호가 줄 머리에 오지 않게). 빗금 ／ 은 `slash` 인 조각 **뒤**에 `span aria-hidden` 으로, 그 앞 칸과 같은 꼬리 묶음에 넣는다(빗금도 줄 머리에 오지 않게 — 데모 `tail()`).
+- **조각 누름**: `onPick(j)` → `sel = j` + (소리 있음이면) 그 조각 재생(`pb.playLines(pieceKey(line, j), [{kind:'piece', idx: line, sub: j, pace:'normal'}])`). 같은 칸을 재생 중에 다시 누르면 멈춤, 멈춘 뒤 다시 누르면 다시 재생. 재생 실패는 지금 `pb` 토스트 규칙 그대로(`LESSON.ttsError`·`ttsRate`, 데모 `c-ttsfail` — 고른 조각 줄의 뜻은 그대로 보임).
+- **루비·한글을 조각에 나누는 법(새 API 없음)**: 문장 전체를 지금처럼 `useAnnotations`(① 과 같은 캐시 — ③ 은 `content.dialogue.map(d => d.ja)` 를 한 번에 요청)로 받고, 조각의 코드포인트 범위로 자른다. 루비 = `cutRubyByRanges(루비 조각들, 조각 범위들)` 의 결과를 조각 순서대로(경계가 한자 묶음 한가운데를 자르면 그 묶음 읽기만 빠짐 — 지금 규칙). 한글 = 분석 조각(`ReadingSegment`)의 시작 위치가 든 조각에 그 조각의 한글을 붙인다(37-4-2 `pieceHangul`). 분석 꺼짐·대기·실패면 루비 없이 글자만, 한글 줄은 지금 `HangulLine` 처럼 대기 막대/숨김.
+- **고른 조각 줄(`PieceStrip`, 데모 `stripHtml`)**: 첫 줄 = 일본어(17) · 그 아래 «읽기 · [한글]»(13, 읽기는 조각에 한자가 있고 읽기를 구했을 때만) · 오른쪽 ▶ 44 원형(`U3.pieceAria`/`U3.stopAria`). 둘째 줄 = 종류 뱃지(긴 이름 «느낌 조각», 왼쪽 4px 색 띠) + 뜻(`ko`). 셋째 줄 = [▶ 구간 듣기 「구간」](Q8 A — 구간 글이 조각 글과 같으면 버튼을 그리지 않음 · `PlayWide` 모양). 재생 중엔 시각 숨김 `role="status"` «듣는 중»(이 요소도 고정, 글만 바꿈). **소리 없음(`pb.textOnly`)이면 ▶·구간 버튼을 모두 그리지 않는다**(데모 `c-textonly`).
+- **연결 조각(Q4 A)**: 따로 칸 + 점선 밑줄 + 이름표 «연결». 칸 최소 폭 44.
+- **긴 문장(데모 `c-long`, 조각 20개)**: 칸은 구간 묶음 단위로 줄바꿈 — 360·130% 에서 칸 6줄 ≈ 480px(수용, 한 문장씩이라). 한 칸 안 글자는 줄바꿈하지 않음(가장 긴 «ありがとうございます» = 130% 에서 약 230px < 카드 안 304px).
+
+#### 37-4-2. `chunkLogic.ts` (순수 함수 — 시험 대상)
+
+| 함수 | 입력 → 출력 | 규칙 |
+|---|---|---|
+| `chunkMode(content)` | → `'none' \| 'lines'` | 어떤 줄에도 `Array.isArray(pieces)` 가 없으면 `'none'` |
+| `pieceRanges(pieces)` | → `{start,end}[]`(코드포인트) | 앞에서부터 누적. 이은 글 ≠ 원문이면 `null`(서버가 이미 걸렀지만 방어 — 그 줄은 ⑦ 화면) |
+| `pieceRuns(state, line.ja, pieces, showFu)` | → `RubyPiece[][]` | `cutRubyByRanges` 결과를 조각별로. 분석 없으면 조각 글 그대로 |
+| `pieceHangul(segments, line.ja, pieces)` | → `(string \| null)[]` | 분석 조각마다 한글(지금 `hangulLine` 의 조각 변환과 같은 함수 — 필요하면 `modules/speech/reading/client.ts` 의 조각 단위 변환을 export)을 **시작 위치가 든 조각**에 붙인다. 분석 조각 하나가 조각 경계를 넘으면 그 두 조각은 `null`(고른 조각 줄의 `[한글]` 생략) |
+| `pieceHangulLine(segments, line.ja, pieces)` | → `string \| null` | 위 결과를 이어 한 줄: 연결 조각(LINK)은 앞에 붙이고(띄어쓰기 없음) 나머지는 한 칸 띄움, `slash` 조각 뒤 « /». 한 조각이라도 `null` 이면 빗금 없이 지금 `hangulLine(segments)` 로 대신 |
+| `phraseIndexOf(pieces, j)` · `phraseText(pieces, k)` | → number · string | 구간 = `slash` 경계로 나눈 묶음. 구간 글 = 묶음 조각 글을 잇고 **끝의 `type null` 조각을 뺀다**(데모 `phraseOf`). **서버 `audioText('phrase')` 와 같은 함수 규칙 — 같은 픽스처로 양쪽 시험**(37-12-6) |
+| `collectPieces(content)` | → `{type, ja, ko, line, j}[]` | 모든 줄의 `type ≠ null` 조각을 `type + '\u0000' + ja` 로 한 번만(처음 나온 줄·위치 기억 — 모아 보기 소리용), 종류 순서 `PIECE_TYPE_ORDER` |
+| `pieceCount(content)` | → `number \| null` | `collectPieces(content).length`, `chunkMode === 'none'` 이면 `null`. **종료 카드 N·오늘 카드 N·서버 #58 `pieces` 가 모두 이 규칙**(서버는 `content.ts` 에 같은 규칙 — 같은 픽스처 시험) |
+| `pieceKey(line, j)` · `phraseKey(line, k)` | → string | 재생 키 `piece:{line}:{j}` · `phrase:{line}:{k}`(`pb.active` 판정) |
+
+#### 37-4-3. `PieceCollect` (데모 `c-collect`, Q3 A)
+
+```
+<section className=상자>
+  <button aria-expanded aria-controls="piece-collect-body" onClick=toggle>
+    <span>{U3.collect}<small>{U3.collectCount(n)}</small></span> <i aria-hidden>›</i>   // 펼치면 90° 회전(motion-safe)
+  </button>
+  {open && <div id="piece-collect-body">
+    PIECE_TYPE_ORDER 순서로, 있는 종류만:
+      <h3><i 색 띠 aria-hidden/>{U3.group(PIECE_TYPE_LABEL[t].full, k)}</h3>
+      <ul> 조각마다 <li>: 소리 있음 → <button>(▶ 30 원 + 일본어 16 + 뜻 12 + 시각 숨김 U3.collectPlaySr) — 누르면 첫 등장 위치의 piece 재생
+                           소리 없음 → 버튼 없이 같은 모양 글(누를 일이 없음)
+  </div>}
+</section>
+```
+
+- 펼침 상태는 화면 메모리만(저장 안 함). 같은 조각은 한 번(37-4-2). 칩 모양은 ② `ExprPlayChip` 과 같은 크기(높이 44·▶ 원 30).
+- **데모의 «데모 표시 — 나중» 상자(단어장 넣기·바꿔 말하기)는 넣지 않는다**(L3).
+
+### 37-5. ④ `StageApply` 변경 (데모 `applyBody('prop')`, 상태 `a-*`)
+
+```
+StageApply({ lesson, st, pb, reviewing, config, textFirst, trCache, onToast, footer })   // ★ textFirst·trCache 추가
+  voiceMode 초기값 = !textFirst                                         // Q6 A — 마이크가 기본(지금은 false)
+  textFirst 가 바뀌면(설정 응답 도착) 아직 아무것도 말하지·쓰지 않았을 때만 voiceMode=false 로 맞춘다(⑤ StageSpeak 136행과 같은 방식)
+  카드 안 (shown 이 아닐 때):
+    <label>{U4.mine}</label>
+    {textFirst && !voiceMode && <p role="status" note>{U4.textFirst}</p>}    // 데모 a-textfirst — 처음 한 번 보이는 이유
+    voiceMode:
+      <div 알아들은 말 상자 aria-live="polite">                           // 지금 상자(점선 테두리) — aria-hidden 을 polite 로 바꿈(37-10)
+        녹음 중: partial(흐림) / 결과 있음: <JaText draft ann/> + <HangulLine/> + <SpeakTranslation state={tr.state} via="voice" onRetry/>   // Q6b A
+        / 없음: U4.voiceBox
+      </div>
+      {err && <SttAlert … textModeLabel={U4.byText} onTextMode=글자로/>}      // 지금 그대로(데모 a-stterr)
+      <PushToTalkButton …/> + 상태 줄(MicLevelMeter + voice.statusText)      // 지금 부품 그대로
+      <row> [⌨ {U4.byText}] ……… {U4.count(n)} </row>                       // 지금 «말로 쓰기» 자리에 «글자로 쓰기»
+    textMode:
+      <textarea …/>                                                       // 지금 그대로 — 쓰는 동안 번역 안 함
+      <row> [🎤 {U4.byVoice}] ……… {U4.count(n)} </row>                     // textFirst 여도 남김(누르면 오류 띠가 이유를 보임)
+    <Btn>{U4.compare}</Btn> <button>{U4.dontKnow}</button>                // 지금 그대로
+  비교 뒤(shown):
+    «내 문장» 칸: <CompareText …/> + <SpeakTranslation state={trSaved.state} via={viaOf[idx] ?? 'text'} onRetry/>   // Q6b A — 데모 a-cmp·a-cmp-text
+    «모범 답안» 칸: 지금 그대로(모범 답안 뜻 modelKo 가 나란히 — 뜻끼리 비교)
+```
+
+- **번역 대상(`useSpeakTranslation` 재사용, #185)**: ⓐ 말한 직후 = `target = { key: 'ap:{idx}:{seq}', text: draft, plan: translationPlan({text: draft}, ap.modelAnswerJa, ap.modelKo) }`(`seq` = 이 상황에서 최종 결과를 받은 횟수 — 같은 글을 다시 말해도 캐시가 막음) · ⓑ 비교 뒤 = `saved[idx]` 로 같은 계획. 모범 답안과 글자가 같으면 `free` → 모범 답안 뜻 즉시·AI 호출 0(데모 `a-same`). **한 번에 지금 상황(idx) 하나만** 부른다 — 다시 보기에서 세 상황을 한꺼번에 부르지 않는다. 캐시는 `LessonStages` 의 `trCache` 를 ④·⑤ 가 함께 쓴다(같은 글이면 ⑤ 에서 다시 부르지 않음).
+- **`via`(«알아들은 말을 그대로 옮겼어요» 힌트)**: 화면 메모리 `viaOf[idx]` — [비교하기]를 누를 때 `voiceMode ? 'voice' : 'text'`. **저장하지 않는다**(★, 데모 `#devmemo` 3) — 다시 열면 힌트만 빠진다(37-14).
+- **비교 버튼 보이기(데모 P2-1 정정)**: 말한 결과가 들어오면(최종 결과·뜻 줄이 그려진 뒤 `requestAnimationFrame`) [모범 답안과 비교하기]를 `scrollIntoView({ block: 'nearest' })` — 390·780 에서 접힘선 +39px, 360·130% 에서 더 아래로 밀리던 것을 보정. 이미 보이면 움직이지 않는다(`nearest`). 녹음 중·글자 입력 중엔 하지 않는다.
+- 토스트 바닥: Q6 A(카드 안)라 `lessonToastBottom` 은 **바꾸지 않는다**(④ 는 `LESSON_TOAST_OTHER`).
+- 그 밖(상황 이동·모르겠어요·저장 #61·글자 비교 밑줄·모범 답안 듣기)은 지금 그대로.
+
+### 37-6. 그 밖 화면 (데모 `e-end`·`e-end-old`·`t-start`·`t-done`·`g-gen`·`ch-strip`)
+
+| 화면 | 지금 | 바뀜 | 파일 |
+|---|---|---|---|
+| 종료 카드 숫자 칸 | [c/5 문제 정답][만든 문장][쓴 표현] `grid-cols-3` | `pieceCount(content)` 가 수이면 [N 오늘의 조각][만든 문장][쓴 표현] `grid-cols-3`, `null`(옛 수업)이면 [만든 문장][쓴 표현] `grid-cols-2` | `LessonEnd.tsx:105-116`·`END` |
+| 종료 결과 값 | `EndResult{correct,total,…}` ← `r.result.quiz` / `correctFromScore(lesson.score)` | `EndResult{pieces: number \| null, applicationDone, usedIds, missedIds, nextPreview}` — `pieces` 는 내용에서 셈(서버 필드 불필요) | `logic.ts endResultFrom`·`LessonScreen.tsx:249,253` |
+| 오늘 카드(끝냄) | «주제 · 문제 c/5 맞힘 · 말하기 표현 u/t» | «주제 · 조각 N개 · 말하기 표현 u/t»(N 없으면 그 줄 조각 생략) — N = #58 `pieces`(37-12-7, additive) | `TodayLessonCard.tsx:231,441`·`HOME.doneBody` |
+| 오늘 카드(시작 소개) | 듣기 → 문법 → 문제 → 응용 → 말하기 | 듣기 → 문법 → 조각 → 응용 → 말하기 | `HOME.startIntro` |
+| 오늘 카드(하던 수업) | «다음은 ③ 문제예요.» — «예요» 고정(지금도 «② 문법예요» 오류) | 단계 이름별 서술격 조사 표 `STAGE_COPULA`(37-8) — «다음은 ③ 조각이에요.» | `HOME.nextStage`·`TodayLessonCard.tsx:192,412` |
+| 주제 단어 칸(끝냄 보조 줄) | «✓ 오늘 「t」 수업 끝냄 · 문제 c/5 · …» | «✓ 오늘 「t」 수업 끝냄 · …» | `vocab/topicCopy.ts:100`·`TodayLessonCard.tsx:84` |
+| 생성 대기 «이런 순서로» | ③ 문제 · 4지선다 5문제 / ④ 직접 만들기 | ③ 조각 · 대화 문장을 조각으로 나눠 끊어 봐요 / ④ 말로 만들기 | `GEN.order` |
+| 생성 대기 경과 문구 | 45~75초 «문법과 문제를 만들고 있어요» | «문법과 조각을 만들고 있어요» (데모 밖 — 37-18 ③) | `logic.ts genPhase` |
+| 복습 카드(끝냄) | «n개 항목 · 문제 c/5 맞힘» | «n개 항목» | `review/reviewCopy.ts:43`(`RV_HOME.doneBody`) |
+| 복습 생성·수업 문구 | «…(이해 → 문법 → 문제 → …)» · «대화·문제·말하기에 섞여» · «문제·응용·말하기에서» · `quizNote` | 37-8 표 | `review/reviewCopy.ts:88,100,112-114` |
+| 챌린지 상세 표 | 제목 «문제 점수 추이» · 열 «수업 문제» · 칸 «문제 4/5 ●●●●○» · 안내 «수업은 5문제 중 …» | 제목 «날짜별 기록» · 열 «회화» · 칸 «끝냄»/«아직»/«수업 없음»(점 없음) · 안내 37-8 | `challenge/DayStrip.tsx`·`logic.ts:485`·`challengeCopy.ts:86-87` |
+| 챌린지 오늘 할 일·기록·규칙 | «끝냈어요 · 문제 4/5» 외 4곳 | 37-8 표 | `challenge/logic.ts:160,286-287,317,450,508`·`challengeCopy.ts:184` |
+| 질문 탭 맥락 안내 | «공부 기록 요약 — 공부 횟수·점수·복습 예정 목록» | **보류** — 맥락에 레슨 점수만 실려 가면 «점수» 를 빼고, 평가 점수도 있으면 그대로(developer 확인 → Leader, 37-18 ④) | `ask/askCopy.ts:209` |
+| 성장 탭 안내 | «오늘의 단어·수업 문제를 풀면 쌓여요» 외 3곳 | **데모 밖 — Leader 확인 필요**(37-13 ③·37-18 ②) | `plan/growthCopy.ts:30,31,106,107` |
+
+### 37-7. 상태 표
+
+| # | 상태(데모 id) | 조건 | 화면 |
+|---|---|---|---|
+| ③-1 | 새 수업 첫 문장(`c-new`) | `chunkMode='lines'`, 고른 조각 없음 | 제목·설명·스위치·«문장 1 / n · 1개 봤어요»·막대·문장 카드(칸+빗금·한글 줄)·안내 «조각을 눌러 보세요…»·[다음 문장 ›]·고지·«마지막 문장까지…(1/n)»·모아 보기(닫힘) |
+| ③-2 | 조각 누름·듣는 중(`c-tap`) | `sel=j`, 재생 중 | 칸 눌림(accent-soft 바탕 + accent 안쪽 테두리) · 고른 조각 줄(일본어·읽기·[한글]·▶■·뱃지·뜻·[▶ 구간 듣기]) · 숨김 «듣는 중» |
+| ③-3 | 조각 많음·긴 문장(`c-long`) | 조각 ~20 | 구간 묶음 단위 줄바꿈, 한 칸 안 줄바꿈 없음 |
+| ③-4 | 마지막 문장(`c-last`) | `line=n-1` 또는 모두 봄 | [다음 문장] 없음 · [다음 단계 · ④ 응용] |
+| ③-5 | 모아 보기 펼침(`c-collect`) | 상자 열림 | 종류별 묶음(이름→액션→느낌→꾸밈→표현→연결), 같은 조각 한 번 |
+| ③-6 | 한 문장만 조각 없음(`c-partial`) | `line.pieces == null` | 그 줄만 글자·읽기·한글·(번역) + «이 문장은 조각으로 나누지 못했어요…» · 고지 숨김 · 본 문장으로 셈 |
+| ③-7 | 소리 없음(`c-textonly`) | `pb.textOnly` | ▶ 전부 숨김 · 설명 `descTextOnly` · 안내 `pickTextOnly` · 칸 누르면 뜻만 · 모아 보기 칩은 버튼 아님 |
+| ③-8 | 조각 소리 실패(`c-ttsfail`) | 재생 오류 | 지금 토스트 «목소리를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.» · 고른 조각 줄은 그대로 |
+| ③-9 | 끝낸 단계 다시 보기(`c-review`) | `reviewing` | 위 «끝낸 단계를 다시 보는 중이에요…» · 이동 자유 · 0번 문장부터 · [지금 단계로 · …] |
+| ③-10 | 옛 수업(`c-old`) | `chunkMode='none'` | 빈 상태 카드 + [다음 단계] |
+| ③-11 | 분석 대기·실패(데모 밖) | 읽기 분석 `loading`/`none` | 칸은 글자만(루비 자리 예약은 히라가나 켬 + 한자 있음 + 대기일 때만 — `JaText` 규칙) · 한글 줄은 `HangulLine` 대기 막대/숨김 · 고른 조각 줄의 읽기·[한글] 생략 |
+| ③-12 | 저장 실패(데모 밖) | `pieces.seen` 큐 실패 | 지금 `useLesson` 규칙 그대로(다음 단계 누를 때 `LESSON.saveFail`) |
+| ④-1 | 처음·마이크 대기(`a-idle`) | `voiceMode`, 결과 없음 | 상자 «버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요» · 72 버튼 · 상태 줄 · [⌨ 글자로 쓰기] · [비교하기] 흐림 |
+| ④-2 | 말하는 중(`a-rec`) | 녹음 | partial 흐림 · 버튼 녹음 모양 · 레벨 미터 |
+| ④-3 | 알아들음·번역 중(`a-heard`) | 최종 결과, 뜻 `loading` | 알아들은 말(루비)·[한글] + 구분선 아래 «번역 중…»(`role=status`) |
+| ④-4 | 뜻 나옴(`a-heard-ok`) | `ok, ai` | 뜻 15px + «알아들은 말을 그대로 옮겼어요» |
+| ④-5 | 모범 답안과 같게 말함(`a-same`) | `free` | 모범 답안 뜻 즉시(로딩·호출 없음) |
+| ④-6 | 번역 실패(`a-trfail`) | `fail`/`rate`/`busy`/`blocked` | §34 #185 오류 표 그대로(«번역을 가져오지 못했어요» + [다시 가져오기] 등) — 비교·다음 상황은 막지 않음 |
+| ④-7 | 비교 결과·말로 한 답(`a-cmp`) | `shown`, `viaOf=voice` | 글자 차이 밑줄 그대로 + «내 문장» 칸 뜻 줄 + 힌트 |
+| ④-8 | 글자로 쓰기(`a-text`) | `!voiceMode` | 지금 글자 입력 그대로, 쓰는 동안 번역 없음 |
+| ④-9 | 비교 결과·글자 답(`a-cmp-text`) | `viaOf=text` 또는 없음(다시 열기) | 뜻 줄 있음, 힌트 없음 |
+| ④-10 | 마이크 못 씀 → 글자 우선(`a-textfirst`) | `textFirst` | 글자 입력 + «지금은 말로 답하기를 쓸 수 없어서 글자 입력으로 열었어요.» · [🎤 말로 쓰기] 남김 |
+| ④-11 | 인식 오류 띠(`a-stterr`) | `voice.error` | 지금 `SttAlert` 그대로([글자로 쓰기]·닫기) |
+| E-1 | 종료 카드(`e-end`) | `pieceCount` 수 | 3칸 [N 오늘의 조각][만든 문장][쓴 표현] |
+| E-2 | 종료 카드·옛 수업(`e-end-old`) | `pieceCount=null` | 2칸 |
+| T-1/T-2 | 오늘 카드 시작·끝냄(`t-start`·`t-done`) | — | 37-6 표 |
+| G-1 | 생성 대기(`g-gen`) | — | ③·④ 줄 바뀜 |
+| C-1 | 챌린지 날짜별 기록(`ch-strip`) | — | 제목·열·칸·안내 바뀜 |
+
+### 37-8. 문구 (글자 그대로 — `lessonCopy.ts` 외 해당 파일. 엔진·모델 이름 0, 셈 뜻 «세요» 0, «…해요» 체)
+
+**새 상수 (`lessonCopy.ts`)**
+
+| 키 | 문구 |
+|---|---|
+| `STAGE_NAMES` | `['이해', '문법', '조각', '응용', '말하기']` |
+| `STAGE_COPULA` ★ | `['예요', '이에요', '이에요', '이에요', '예요']` — 이해·문법·조각·응용·말하기의 서술격(받침 표, 이름이 바뀌면 함께 바꾼다) |
+| `PIECE_TYPE_ORDER` | `['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION', 'LINK']` |
+| `PIECE_TYPE_LABEL` | `NAME {short:'이름', full:'이름 조각'}` · `ACTION {'액션','액션 조각'}` · `FEELING {'느낌','느낌 조각'}` · `MODIFIER {'꾸밈','꾸밈 조각'}` · `EXPRESSION {'표현','표현 조각'}` · `LINK {'연결','연결 조각'}` — **`CHUNK_TYPE_LABEL`(4종, `ChunkType`)은 건드리지 않는다**(데모 문구 표의 `CHUNK_TYPE_LABEL.LINK` 는 이 새 상수로 정정 — 37-18 ⑦) |
+
+**`U3` (지금 `U3` 전체를 이것으로 바꿈)**
+
+| 키 | 문구 |
+|---|---|
+| `title` | `③ 조각 · 문장 끊어 보기` |
+| `desc` | `대화 문장을 조각으로 나눠 봐요. ／ 는 끊어 읽는 곳이에요. 조각을 누르면 그 조각만 들리고 뜻이 나와요.` |
+| `descTextOnly` | `대화 문장을 조각으로 나눠 봐요. ／ 는 끊어 읽는 곳이에요. 지금은 선생님 목소리를 들을 수 없어 조각을 누르면 뜻만 보여요.` |
+| `counter(i, n)` | `문장 {i} / {n}` |
+| `seen(k)` | `{k}개 봤어요` |
+| `cardSr(i)` | `{i}번째 문장` (카드 `section` 의 `aria-label`) |
+| `cardHead(role, i)` | `{역할} · {i}번째 문장` (역할 = `content.rolesKo[speaker]`) |
+| `lineAria(i)` | `{i}번째 문장 다시 듣기` |
+| `stopAria` | `멈추기` |
+| `tilesAria(n)` | `조각 {n}개 · 누르면 그 조각만 들려요` |
+| `tilesAriaTextOnly(n)` ★ | `조각 {n}개 · 누르면 뜻이 나와요` (소리 없음일 때 칸 묶음 이름 — 데모는 한 가지만 썼으나 소리 없는데 «들려요» 는 틀린 안내) |
+| `tileSrTail(ko)` | ` 조각, {ko}` (보이는 짧은 이름표 뒤 시각 숨김 — 예 «느낌» + « 조각, 따뜻한») |
+| `pick` | `조각을 눌러 보세요. 그 조각만 들리고 뜻이 나와요.` |
+| `pickTextOnly` | `조각을 눌러 보세요. 뜻이 아래에 나와요.` |
+| `pieceAria` | `조각 다시 듣기` |
+| `playingSr` | `듣는 중` |
+| `phrase(p)` | `▶ 구간 듣기 「{구간}」` (`PlayWide` label — 일본어 부분 `lang="ja"`) · 재생 중 `■ 멈춤` |
+| `aiNote` | `조각은 선생님이 나눈 참고용이에요. 나누는 방법은 여러 가지일 수 있어요.` |
+| `noPieces` | `이 문장은 조각으로 나누지 못했어요. 글자와 읽기로 봐 주세요.` |
+| `prev` · `next` | `‹ 이전 문장` · `다음 문장 ›` |
+| `gate(k, n)` | `마지막 문장까지 보면 다음 단계로 갈 수 있어요. ({k}/{n})` |
+| `collect` · `collectCount(n)` | `오늘의 조각 모아 보기` · ` · {n}개` |
+| `group(label, k)` | `{종류 긴 이름} {k}개` (예 `이름 조각 5개`) |
+| `collectPlaySr` | `, 듣기` |
+| `emptyTitle` | `이 수업은 조각 나누기가 없어요` |
+| `emptyBody` | `조각 단계가 생기기 전에 만든 수업이에요. 새로 만드는 수업부터 대화 문장을 조각으로 나눠 보여 드려요. 바로 다음 단계로 가도 돼요.` |
+
+**바뀌는 기존 문구**
+
+| 파일 · 키 | 지금 | 바뀜 |
+|---|---|---|
+| `lessonCopy` `HOME.startIntro` | `선생님과 5단계로 수업해요. 듣기 → 문법 → 문제 → 응용 → 말하기` | `선생님과 5단계로 수업해요. 듣기 → 문법 → 조각 → 응용 → 말하기` |
+| `HOME.nextStage` | `(label) => 다음은 {label}예요. 단계마다 저장돼요.` | `(n: number) => 다음은 ${stageLabel(n)}${STAGE_COPULA[n - 1]}. 단계마다 저장돼요.` — 호출부 `TodayLessonCard.tsx:192,412` 를 `HOME.nextStage(card.stageDone + 1)` 로 |
+| `HOME.doneBody` | `(topic, c, speaking) => {topic} · 문제 {c}/5 맞힘{ · 말하기 표현 u/t}` | `(topic: string, pieces: number \| null, speaking) => {topic}{pieces ? ' · 조각 ' + pieces + '개' : ''}{speaking && speaking.total > 0 ? ' · 말하기 표현 u/t' : ''}` |
+| `GEN.order[2]` | `['문제', '4지선다 5문제, 바로 정답 확인']` | `['조각', '대화 문장을 조각으로 나눠 끊어 봐요']` |
+| `GEN.order[3]` | `['응용', '상황에 맞는 문장 3개 직접 만들기']` | `['응용', '상황에 맞는 문장 3개 말로 만들기']` |
+| `GEN.elapsed` | `{mmss} · 보통 1~2분 걸려요` | 그대로 — **PE 실측 뒤 다시 봄**(37-16) |
+| `logic.ts genPhase` (45~75초) | `문법과 문제를 만들고 있어요` | `문법과 조각을 만들고 있어요` (데모 밖 — 37-18 ③) |
+| `U2.desc(g)` | `오늘 대화의 표현 조각과 문형 {g}개예요. …` | `오늘 대화의 표현과 문형 {g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요.` (Q11 취지를 같은 화면 설명 줄에도 — 데모 밖, 37-18 ③) |
+| `U2.exprDesc` | `대화에 나온 표현 조각이에요. 문제·응용·말하기에서 다시 써요.` | `대화에 나온 표현이에요. 응용·말하기에서 다시 써요.` (Q11 A) |
+| `U2.exprDescPlay` | `대화에 나온 표현 조각이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요.` | `대화에 나온 표현이에요. 누르면 소리를 들을 수 있어요. 응용·말하기에서 다시 써요.` (Q11 A) |
+| `U4.desc` | `상황에 맞는 문장을 직접 만들어요. 채점하지 않고, …` | `상황에 맞는 문장을 말로 만들어 봐요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요.` |
+| `U4.voiceBox` | `여기에 알아들은 말이 나와요` | `버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요` (⑤ `U5.voiceBox` 와 같음) |
+| `U4.textFirst` (새) | — | `지금은 말로 답하기를 쓸 수 없어서 글자 입력으로 열었어요.` |
+| ④ 뜻 줄 | — | 재사용: `SpeakTranslation` 의 문구(`DISPLAY_COPY.userTr*` — «번역 중…»·«번역을 가져오지 못했어요»·«다시 가져오기» 등 §34) · `U5.trSr` `한국어 뜻: ` · `U5.trHeard` `알아들은 말을 그대로 옮겼어요` |
+| `END.statQuiz` | `문제 정답` | 지우고 `END.statPieces` = `오늘의 조각` |
+| `END.recorded` | `오늘 배운 표현과 문형은 복습할 항목으로 기록했어요.` | **그대로**(서버가 표현·문형을 계속 반복 항목으로 등록 — 37-13 ④) |
+| `review/reviewCopy` `RV_HOME.doneBody` | `(n, c) => c === null ? '{n}개 항목' : '{n}개 항목 · 문제 {c}/5 맞힘'` | `(n: number) => {n}개 항목` |
+| `RV_GEN.itemsNote` | `…같은 5단계(이해 → 문법 → 문제 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요.` | `항목을 섞은 새 대화로 오늘의 회화와 같은 5단계(이해 → 문법 → 조각 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요.` |
+| `RV_LESSON.itemsNote` | `선생님이 고른 항목이에요. 오늘 대화·문제·말하기에 섞여 나와요.` | `선생님이 고른 항목이에요. 오늘 대화·응용·말하기에 섞여 나와요.` |
+| `RV_LESSON.exprNote` | `… 문제·응용·말하기에서 다시 써요.` | `이번 복습 항목이에요. 누르면 소리를 들을 수 있어요. 응용·말하기에서 다시 써요.` |
+| `RV_LESSON.exprNoteNoAudio` | `이번 복습 항목이에요. 문제·응용·말하기에서 다시 써요.` | `이번 복습 항목이에요. 응용·말하기에서 다시 써요.` |
+| `RV_LESSON.quizNote` | `틀린 문제는 …` | 지움 |
+| `vocab/topicCopy` `LESSON_CH.auxDone` | `(t, c) => ✓ 오늘 {q(t)} 수업 끝냄 · 문제 {c}/5 · {NOT_COUNTED}` | `(t: string) => ✓ 오늘 ${q(t)} 수업 끝냄 · ${NOT_COUNTED}` |
+| `challenge/challengeCopy` `scoreTitle` | `문제 점수 추이` | `날짜별 기록` |
+| `scoreNote` | `수업은 5문제 중 맞힌 수, 단어는 그날 세트 합계예요.` | `회화는 끝낸 날만 표시하고, 단어는 그날 세트 합계예요.` |
+| `lessonBody(topic)` | `「{topic}」 수업을 하루 1개 끝내요 · 약 15분 · 문제 점수와 상관없이 끝내면 완료` | `「{topic}」 수업을 하루 1개 끝내요 · 약 15분` |
+| `challenge/DayStrip.tsx` 열 머리 | `수업 문제` | `회화` |
+| 표 캡션 2곳 | `날짜별 수업 문제와 단어 맞힘` · `지난 날 수업 문제와 단어 맞힘` | `날짜별 회화 수업과 단어 맞힘` · `지난 날 회화 수업과 단어 맞힘` |
+| 파일 머리 주석 | «문제 점수 추이 표 … "문제 n/5" 하나로만» | «날짜별 기록 표 — 회화는 끝냄/아직/수업 없음» |
+| `challenge/logic.ts:485` 회화 칸 | `{ text: '문제 c/t', dots: {…} }` | `{ text: '끝냄', dots: null }` (없음은 지금 그대로 `'아직'`·`'수업 없음'`) |
+| `logic.ts:160` 과제 줄(DONE) | `끝냈어요 · 문제 c/t` | `끝냈어요` (`lessonScore` 옵션·286-287 의 점수 계산 지움) |
+| `logic.ts:317` 날 줄(MET) | `하루 목표를 다 채웠어요 · 문제 c/t · 단어 …` | `하루 목표를 다 채웠어요${w ? ' · 단어 ' + … : ''}` (문제 부분만 뺌) |
+| `logic.ts:450` 기록 줄 | `오늘의 회화 「{t}」 · 문제 c/t` | `오늘의 회화 「{t}」 · 끝냄` |
+| `logic.ts:508` 규칙 | `회화는 수업을 끝내기만 하면 완료예요(문제 점수와 상관없음).` | `회화는 수업을 끝내면 완료예요.` |
+
+### 37-9. 시각 값 (데모 CSS → Tailwind, 새 색 없음)
+
+| 부위 | 값 |
+|---|---|
+| 위치 줄 | `mt-2.5 flex items-baseline justify-between gap-2` · «문장 i / n» `text-[14px] font-bold` · «k개 봤어요» `text-[12px] text-ink2` |
+| 막대(`aria-hidden`) | `mt-1.5 grid grid-flow-col auto-cols-[minmax(0,1fr)] gap-[3px]` · 칸 `h-1.5 rounded-[3px] bg-surface2` · 본 문장 `bg-good` · 지금 `bg-accent` |
+| 문장 카드 | `mt-2 min-w-0 rounded-[14px] border border-line bg-surface px-3 pt-1.5 pb-3` · 머리 `flex min-h-11 min-w-0 items-center gap-2` · 머리 글 `min-w-0 flex-1 truncate text-[13px] text-ink2` |
+| ▶ 원형(문장·조각) | `grid h-11 w-11 flex-none place-items-center rounded-full border border-line bg-surface text-ink` · 재생 중 `border-accent bg-accent text-on-accent` |
+| 칸 묶음 | `mt-0.5 flex min-w-0 flex-wrap items-end gap-y-1` · 구간 묶음 `inline-flex max-w-full min-w-0 flex-wrap items-end gap-x-0.5 gap-y-1` · 꼬리 묶음(칸+문장부호+빗금) `inline-flex max-w-full flex-nowrap items-end gap-0.5` |
+| 칸(버튼) | `inline-flex min-h-11 min-w-11 max-w-full flex-col items-center rounded-[10px] px-[5px] py-[3px] text-ink hover:bg-surface2` · 눌림 `aria-pressed:bg-accent-soft aria-pressed:ring-[1.5px] aria-pressed:ring-accent aria-pressed:ring-inset` · 초점 링은 앱 공통 `focus-visible` 그대로 |
+| 칸 일본어 | `text-[17px] leading-[1.35] whitespace-nowrap`(히라가나 켬 + 한자 있음이면 줄간격 2.15 — `JaText` `leading` 값과 같음) · 루비 `rt` 11px |
+| 밑줄 막대 | `mt-px block h-[3px] self-stretch rounded-sm` + 종류 색: 이름 `bg-protein` · 액션 `bg-accent` · 느낌 `bg-carb` · 꾸밈 `bg-good` / 표현 `h-0 border-b-[3px] border-dashed border-ink` / 연결 `mt-0.5 h-0 border-b-2 border-dotted border-ink3` |
+| 이름표 | `mt-0.5 text-[11px] leading-[1.3] whitespace-nowrap text-ink2` |
+| 문장부호 칸(`span aria-hidden`) | 같은 세로 구조(빈 막대·이름표 자리 `&nbsp;`)로 높이 맞춤, `min-w-0 pr-px pointer-events-none` |
+| 빗금 ／ | `self-end px-[3px] pb-[1.3em] text-[17px] text-ink3` (`em` 단위 — 글꼴 배율에 함께 커짐) |
+| 한글 줄·번역 줄 | 한글 = `HangulLine` 13 과 같은 모양(`mt-1.5`) · 번역 = ① 번역 줄과 같은 `mt-0.5 text-[13px] text-ink2 break-keep` |
+| 고른 조각 줄 | `mt-2.5 min-w-0 rounded-xl bg-surface2 px-3 py-2.5` · 일본어 `text-[17px]` · 읽기·[한글] `text-[13px] text-ink2` · 뜻 `text-[14px] text-ink break-keep` · 뱃지 `inline-flex min-h-[22px] items-center rounded-md bg-surface pl-2.5 pr-2 text-[12px] font-semibold text-ink shadow-[inset_4px_0_0_var(--kc)]`(`--kc` = 위 종류 색 토큰) · 버튼 줄 `mt-2 flex flex-wrap gap-1.5` |
+| 안내 줄(고른 조각 없음) | `mt-2.5 text-[13px] text-ink2 break-keep` |
+| 조각 없는 줄 알림 | `mt-2 rounded-[10px] bg-surface2 px-3 py-2 text-[13px] text-ink2 break-keep` |
+| 이동 줄 | `mt-2.5 flex gap-2 [&>*]:min-w-0 [&>*]:flex-1` · [‹ 이전 문장] `Btn variant="ghost"` · [다음 문장 ›] `Btn`(primary) — 첫 문장에서는 왼쪽 빈 칸을 둬 [다음 문장] 자리가 고정 |
+| 고지 | `mt-2.5 text-[12px] text-ink2 break-keep` · 게이트 줄 `mt-2.5 text-center text-[12.5px] text-ink2 break-keep` |
+| 모아 보기 상자 | `mt-3.5 min-w-0 rounded-[14px] border border-line bg-surface` · 머리 버튼 `flex min-h-[52px] w-full items-center gap-2 px-3.5 text-left text-[15px] font-semibold` · 개수 `text-[12px] font-normal text-ink2` · › `text-[18px] text-ink3 motion-safe:transition-transform` 펼침 `rotate-90` · 본문 `px-3.5 pb-3.5` · 묶음 제목 `mt-3 first:mt-0.5 flex items-center gap-1.5 text-[13px] font-bold` + 색 띠 `h-1 w-4 rounded-sm` · 칩 `ExprPlayChip` 과 같은 크기 |
+| 빈 상태 | `mt-3 rounded-[14px] bg-surface2 p-4` · 제목 `text-[15px] font-bold break-keep` · 본문 `mt-1 text-[13px] text-ink2 break-keep` |
+| ④ 글자 우선 이유 | `mt-1.5 rounded-[10px] bg-surface2 px-3 py-2 text-[13px] break-keep` |
+| ④ 뜻 줄 | `SpeakTranslation` 그대로(구분선 + 15px — §34) |
+
+- 다크: 모든 값이 토큰이라 따로 정하지 않는다. 데모 실측 대비 — 이름표 `ink2` 6.2:1(라이트) 이상, 밑줄 `carb` 3.3·`ink3` 3.1 은 **장식**(정보는 이름표 글자 — WCAG 1.4.11 대상 아님).
+
+### 37-10. 접근성 · 낭독 순서 (데모 `#a11y`)
+
+1. 단계 제목(`data-stage-title`, 단계 바뀌면 초점) → 설명 → 표시 스위치 → «문장 i / n · k개 봤어요»(막대는 `aria-hidden`).
+2. 문장 카드 `section aria-label="{i}번째 문장"` → 머리 «{역할} · {i}번째 문장»(**`aria-live="polite"` 요소는 문장이 바뀌어도 같은 요소로 남고 글만 바뀐다** — 카드에 문장 번호 `key` 를 주지 않는다, 데모 Minor-2) → ▶ «{i}번째 문장 다시 듣기».
+3. 시각 숨김 문장 전체(`lang="ja"`) → 칸 묶음 `role="group" aria-label={tilesAria(n)}` → 칸 버튼마다: 일본어(`lang="ja"`) → 이름표 «느낌» → « 조각, 따뜻한» → (고른 칸) «눌림»(`aria-pressed`). 빗금·문장부호는 `aria-hidden` — 끊어 읽기 경계는 [▶ 구간 듣기 「…」] 이름으로 전한다(데모 Minor-3).
+4. 고른 조각 줄 → 재생 상태는 **고정된 `role="status"` 한 요소**(«듣는 중» ↔ 빈 글). 화면 전체에서 `role="status"` 는 이 요소와 `Toast` 둘뿐 — 새로 더하지 않는다.
+5. 이동 버튼 → 고지 → [다음 단계] 또는 게이트 줄 → 모아 보기 머리 버튼(`aria-expanded`·`aria-controls`).
+6. 터치: 칸·▶·이동·칩·모아 보기 머리 모두 실제 44×44 이상(연결 조각 한 글자 칸 포함 — `min-w-11`). 키보드: 칸은 Tab 순서대로, Enter/Space 로 고름.
+7. ④: 알아들은 말 상자는 지금 `aria-hidden` → **`aria-live="polite"`** 로 바꾼다(데모 `voiceBox` — 최종 결과가 읽혀야 말한 내용을 확인할 수 있음). 녹음 중 partial 은 낭독하지 않도록 partial 줄만 `aria-hidden`. 뜻 줄 앞 시각 숨김 «한국어 뜻: », «번역 중…» 줄 `role="status"`(§34 `SpeakTranslation` 그대로). `PushToTalkButton` 키보드 Space/Enter 누름 유지 지원 그대로.
+8. 색만으로 구분하지 않음: 밑줄 색 + 모양(연결 점선·표현 끊은 선) + 글자 이름표.
+
+### 37-11. 반응형 · 글꼴 130% · 다크
+
+- 360·390·412 폭 × 780·892 높이 × 100·130% — 데모 실측 가로 넘침 0. 구현 확인 기준: ③ 카드 안 칸 줄바꿈(한 칸 안 줄바꿈 없음) · ④ 72 버튼·상태 줄·[⌨ 글자로 쓰기]·글자 수가 한 줄 · 종료 카드 2칸/3칸 칸 안 글자 한 줄(«오늘의 조각» 12px, 360 에서 칸 폭 ≈ 101px).
+- 780 높이 첫 화면 안(390·100%): ③ [다음 문장] ≈613(조각 고름 736) · 마지막 문장 [다음 단계] ≈719 · ④ 처음 [비교하기] ≈746 — 말한 뒤는 37-5 nearest 스크롤로 보정.
+- 스크롤은 본문 하나(§18 — `main` 안 안쪽 세로 스크롤 상자 규칙 그대로). ③·④ 에 sticky·고정 바 없음.
+- 루비가 넓으면 칸 안 글자 사이가 벌어진다(«新 しい» — `JaText` 와 같은 동작, 데모 P2-3 수용).
+
+### 37-12. 조각 데이터 계약 — **Leader 승인 2026-10-21 · 정본 `api-contract.md`·`domain-model.md` 반영됨**
+
+> Leader 방향 승인(L4)을 세부까지 정한 **제안**이다. PE 는 37-12-1~5 를 프롬프트·스키마·검증으로, developer 는 37-12-4~9 를 서버로 옮긴다. reviewer 가 이 절과 구현을 대조한다. **DB 구조 변경 없음**(`Lesson.content`·`Lesson.progress` 는 Json, `Lesson.promptVersion` VarChar(20)).
+
+#### 37-12-1. 저장 모양 (`Lesson.content` 안)
+
+```ts
+type PieceType = 'NAME' | 'ACTION' | 'FEELING' | 'MODIFIER' | 'EXPRESSION' | 'LINK'   // 레슨 내용 JSON 전용 — Prisma ChunkType·types/chat ChunkType 은 그대로
+interface DialoguePiece {
+  ja: string                 // 원문 조각(1~40 코드포인트). 줄의 조각을 이으면 dialogue[i].ja 와 같다(37-12-3)
+  type: PieceType | null     // null = 문장부호·기호·공백만 있는 조각(누를 수 없음·뜻 없음·소리 없음)
+  ko: string | null          // 조각 뜻(한국어, 1~30 코드포인트). type null 이면 null
+  slash?: true               // 이 조각 «뒤»가 끊어 읽기 경계(／). false 는 저장하지 않는다. 줄 마지막 조각에는 붙지 않는다
+}
+dialogue[i].pieces?: DialoguePiece[] | null   // 키 없음 = 옛 수업(조각 단계 전) · null = 이 줄만 분해 실패 · 배열 = 정상
+```
+
+- **읽기·한글은 넣지 않는다** — 화면이 문장 전체 분석(#24r annotate)을 조각 범위로 자른다(37-4-1, task-036 «LLM 읽기 필드 제거» 원칙). 서버도 조각별 읽기를 만들지 않는다.
+- `content.quiz` 는 **새 내용에 없다**(키 자체가 없음). `chunks`(오늘의 표현 4~8)·`grammar`·`application`·`speaking`·`nextPreview` 는 그대로.
+- 클라이언트 타입(`src/types/lesson.ts`): `DialogueLine.pieces?: DialoguePiece[] | null` 추가 · `LessonContent.quiz`·`LessonQuiz` 제거(화면이 더는 읽지 않음 — 옛 응답에 키가 있어도 무해) · `PieceType`·`DialoguePiece` export · `AudioKind` 에 `'piece' | 'phrase'`.
+
+#### 37-12-2. LLM 출력 스키마 (PE — `LESSON_SCHEMA`, REVIEW·상황 레슨 공용)
+
+- `required` 에서 `quiz` 를 빼고 `properties.quiz` 를 지운다(`lessonQuizItem` 정의·`LessonQuizItem` 타입·`LessonResponse.quiz` 제거).
+- `lessonDialogueLine` 에 `pieces` 를 **필수**로 더한다(구조화 출력이 선택 키를 빠뜨리지 않게): `{ type: 'array', minItems: 1, maxItems: 24, items: { type:'object', additionalProperties:false, required:['ja','type','ko','slash'], properties: { ja:{type:'string',minLength:1,maxLength:40}, type:{ anyOf:[{type:'null'},{type:'string',enum:['NAME','ACTION','FEELING','MODIFIER','EXPRESSION','LINK']}] }, ko:{ type:['string','null'], maxLength:30 }, slash:{ type:'boolean' } } } }`. 저장할 때 `slash:false` 는 지우고 `ko` 는 앞뒤 공백을 뗀다.
+- 버전: `lesson@v10` · `reviewMix@v4` · `lessonScenario@v2`(출력 스키마가 바뀌므로 세 표기 모두 올림, VarChar(20) 안). 골든 재기록 — **구현 후 정정**: `lesson.json`·`review-mix.json` 은 입력 픽스처라 바뀌지 않았고, 재기록된 것은 `lesson-general-golden.json` 하나(+ `talk-general-golden.json` 은 persona 해시만)다. 라이브 측정 호출 예산은 사용자 승인(40회 중 21회 사용).
+
+#### 37-12-3. 결정적 검증 — 줄 단위 (`validatePieces(lineJa, pieces) → DialoguePiece[] | null`, **구현 위치(구현 후 정정): `conversation/structuredResponse/lessonPieces.ts`(L2) 단독 소유 — 요청의 `extraCheck` 가 제자리 정리하고, 서버 `content.ts` 는 재검증 없이 `Array.isArray(pieces) ? pieces : null` 만 저장한다**)
+
+한 줄이 아래 중 하나라도 어기면 **그 줄만 `pieces: null`** 로 저장한다(레슨은 계속).
+
+1. 배열 길이 1~24, 각 `ja` 1~40 코드포인트.
+2. **«같음»**: `pieces.map(p => p.ja).join('').normalize('NFC') === lineJa.normalize('NFC')` — **그 밖의 관용 없음**(공백·문장부호·전각/반각·장음 기호 모두 글자로 셈. 공백이 원문에 있으면 조각 안에 있어야 한다). 후리가나·읽기는 비교 대상이 아니다(저장하지 않으므로).
+3. `type` 은 6값 또는 null. **`type === null` ⇔ `ja` 가 문장부호·기호·공백뿐**(`/^[\p{P}\p{S}\p{Z}\s]+$/u`). 글자가 있는데 null, 또는 문장부호뿐인데 종류가 있으면 위반.
+4. `type !== null` ⇒ `ko` 가 공백을 뗀 뒤 1~30 코드포인트. `type === null` ⇒ `ko` 는 null 로 저장(빈 문자열도 null).
+5. `type !== null` 조각이 한 줄에 1개 이상.
+6. `slash` 는 **뒤에 `type` 있는 조각이 하나도 없으면**(마지막 조각이거나 문장부호 조각만 남으면) 지운다(위반 아님 — `ください／。` → `ください。`). `type null` 조각에도 붙을 수 있다(«、» 뒤 끊기 — 데모 샘플).
+7. **정리(위반 아님, task-081 PE 3단계)**: `slash` 가 켜진 조각 **바로 뒤가 연결(LINK) 조각(조사)이면 그 `slash` 를 LINK 연속 구간의 끝으로 옮긴다** — 끊어 읽기가 명사와 조사 사이를 가르지 않게. **예외 둘**: `type null` 조각의 `slash` 는 옮기지 않고, 구간 안에 LINK 가 이어질 때 앞선 LINK 의 `slash` 는 접는다(`私／を／は` → `私 を は／`). 조각 글·순서·종류는 바뀌지 않으므로 «같음» 검증은 그대로이고 줄이 null 이 되지 않는다(옮긴 수는 생성 기록 `slashMoved`).
+
+#### 37-12-4. 레슨 단위 — 재생성 임계 (제안, PE 확정)
+
+- `checks.ts` 에 «`pieces` 위반 줄 수 × 2 > 줄 수» 를 **레슨 위반**으로 더한다 → 지금 1회 재시도 규칙을 그대로 탄다(피드백 문구 = 어긴 줄 번호와 규칙).
+- **재시도 뒤에도 넘으면 레슨을 실패시키지 않고** 위반 줄을 null 로 저장한다(조각 단계 때문에 수업 생성이 실패하는 일을 만들지 않음 — ③ 은 줄마다 «나누지 못했어요» 로 보임). 이 «부드러운 위반»을 지금 파이프라인이 표현할 수 있는지는 PE·developer 확인(못 하면 Leader 에게 — 37-18 ⑥). `toolLog` 에 `piecesNullLines`·`piecesTotal` 계측. **적용 범위(감사 A M1, Leader 수용 2026-10-21)**: 이 «null 저장» 은 «같음»·종류·문장부호 규칙 위반 줄에 적용된다. LLM 출력 스키마의 하드 한계(조각 `ja` 1~40자·`ko` 30자·한 줄 `pieces` 1~24개·`type` 열거값(6값·null 밖이면 위반)·필수 키(`pieces`·`ko`·`type`)·`slash` 모양)를 넘는 극히 드문 경우는 스키마 검증이 먼저 걸려 재시도 뒤에도 같으면 수업 생성 실패(사용자가 «다시 만들기») — 라이브 21회 호출에서 0건이었고 스키마를 풀면 요청 바이트·측정이 무효가 되므로 이번엔 좁힌 문구로 둔다(후속 후보).
+
+#### 37-12-5. 조각 종류 판정 지침 (PE 규칙 후보 — 데모 샘플과 같은 판단)
+
+| 종류 | 무엇 | 예(데모 샘플) |
+|---|---|---|
+| NAME 이름 | 사람·물건·장소·때·수량(명사 덩어리) | コーヒー · 一つ · 駅 · 前 · サイズ · こちら |
+| ACTION 액션 | 동사 — **활용형은 한 조각**(て+ください·ています·ました 포함), する동사 포함 | ください · します · 召し上がります · 飲みます · お待ちください · 来てください |
+| FEELING 느낌 | い/な형용사 — **です/ます 는 앞 조각에 붙임** | 温かい · 小さい · 静かです |
+| MODIFIER 꾸밈 | 부사·정도·빈도 | どう · ゆっくり · 少々 · いつも · とても · また |
+| EXPRESSION 표현 (Q9 A) | 인사·대답·맞장구처럼 **문장 밖에서 통째로 쓰는 말** | いいえ · お願いします · かしこまりました · ありがとうございます · はい · すみません |
+| LINK 연결 | 조사(は·が·を·に·で·と·の·へ·も·から·まで) · 문말 조사(か·ね·よ) · 명사화 の | を · は · で · の · か · ね |
+| null | 문장부호·기호 | 。 · 、 · ？ · ！ |
+
+- 끊어 읽기(`slash`): 한 문장 2~4 구간 권장 — 주제·목적어·장소 덩어리(조사까지) 뒤에서 끊고, 마지막 서술 덩어리 앞에서 끊는다. 쉼표(、) 뒤는 끊는다.
+- `ko`: 짧게(권장 12자 이하). 조사는 `~을/를` · `~에서` · `~까(물음)` 처럼 물결표 형식. 높임·정중은 괄호(`드세요(높임)`) — **구현 후 정정: 이 높임 괄호 지침은 프롬프트 예산 천장 때문에 싣지 않았다. 대신 프롬프트에는 문말 よ `~요(강조)`·`~이에요` 금지·목적 に `~에/~하러` 가 들어 있다**(`piecesInstruction.ts`).
+- 명사+です(学生です)·동사 음편 등 애매한 경우는 PE 가 규칙을 정했다(정답이 하나가 아님 — 화면은 Q10 고지로 감수). **확정 규칙(구현 후 정정, `piecesInstruction.ts`)**: です/ます/でした/ました 는 앞 조각에 붙인다(学生です=이름) · 문말 조사 か·ね·よ 만 연결 조각 · 떼어 낸 ですか 를 표현으로 만들지 않는다 · 수량=이름 · する동사·〜ている=액션 · 정형 인사·부탁·부사+です=표현. 위 표는 FEELING 행에만 «です 는 앞 조각에 붙임» 을 적었으나 나머지도 이 규칙을 따른다. (판정 «골든» 이 아니라 결정적 검증용 픽스처 `tests/prompts/fixtures/lesson-pieces-cases.json` 과 프롬프트 바이트 골든이 있다.)
+
+#### 37-12-6. 소리 — #62c 새 kind (`parseAudioBody`·`audioText`)
+
+- 요청 본문: `{ kind: 'piece', idx: <줄 번호>, sub: <조각 index>, pace? }` · `{ kind: 'phrase', idx: <줄 번호>, sub: <구간 index>, pace? }`. `onlyKeys` 를 `['kind','idx','pace','sub']` 로 넓히되 **`sub` 는 piece·phrase 에서만 필수(0~23 정수), 다른 kind 에 오면 400**(`field: 'sub'`). `text` 같은 다른 키는 지금처럼 `unknown_key` — 클라이언트 글은 받지 않는다.
+- `audioText(content, kind, idx, sub)`: piece = `dialogue[idx].pieces?.[sub]` 이고 `type !== null` 이면 그 `ja` · phrase = `phraseText(pieces, sub)`(37-4-2 와 같은 규칙: `slash` 경계로 나눈 `sub` 번째 묶음, 끝의 `type null` 조각 제외). 줄·조각·구간이 없거나 `pieces` 가 null/없음이면 지금처럼 400 `out_of_range`.
+- 캐시 키·한도·TTS 경로·텍스트 정규화는 지금 줄 재생과 같다(새 규칙 없음 — developer·reviewer 확인). 짧은 조각(조사 한 글자)의 소리 품질은 실기기 확인(37-17).
+- 클라이언트: `useLessonPlayback.playLines` 의 항목에 `sub?: number` 를 더하고 **`sub` 가 있을 때만 본문에 넣는다**(다른 kind 요청 바이트 불변). 시험: `parseAudioBody({kind:'piece',idx:0,sub:1})` 통과 · `{kind:'piece',idx:0}` 400 · `{kind:'dialogue',idx:0,sub:1}` 400 · `{kind:'piece',idx:0,sub:1,text:'任意'}` `unknown_key` · 클라이언트·서버 `phraseText` 같은 픽스처 대조.
+
+#### 37-12-7. #58 오늘 — additive
+
+- `TodayLessonItem.pieces?: number | null` — `pieceCount(content)`(37-4-2 와 같은 규칙: `type ≠ null` 조각을 `type+ja` 로 한 번씩, 조각 없는 수업 `null`). 서버 `today.ts` 가 이미 `content` 를 읽으므로 추가 쿼리 없음. `score` 는 그대로 내려가되 화면이 쓰지 않는다.
+
+#### 37-12-8. #61 진행 — `progress.pieces`
+
+- 허용 키: `onlyKeys(raw, ['listen','quiz','application','pieces'])` · `pieces: { seen: number[] }` 만(`onlyKeys(['seen'])`). `seen` = 0 ≤ 정수 < 줄 수, 중복 없음, 길이 ≤ 줄 수(≤10) — `ProgressLimits` 에 `dialogueCount` 추가. 병합 = 합집합(`segmentsDone` 과 같음 — 되돌리지 않음). 8KB 상한 영향 없음(최대 약 40바이트).
+- `quiz` 키는 **옛 수업 호환으로 허용 목록에 남긴다** — `quizCount = content.quiz?.length ?? 0` 이라 새 수업에선 빈 배열 외엔 400. 화면은 더 보내지 않는다.
+- 클라이언트 `useLesson` 의 `Section` 에 `'pieces'` 추가·`'quiz'` 제거, `ProgressPatch`·`LessonProgress` 에 `pieces?: { seen: number[] }`.
+
+#### 37-12-9. #60·#62 — 점수 nullable
+
+- `readStoredContent`: 필수 배열에서 `quiz` 를 빼고, 있으면 배열이어야 함(아니면 손상) · **돌려줄 때 `quiz: raw.quiz ?? []` 로 맞춘다**(서버 안 코드는 늘 배열을 봄 — 새 수업은 빈 배열). `pieces` 는 여기서 검사하지 않는다(생성 때 이미 정리).
+- #62 완료 응답: `lesson.score: number | null` · `result.score: number | null` · `result.quiz: { correct, total, answered } | null` — **`content.quiz` 가 비면 셋 다 null**, 옛 수업(문항 있음)은 지금 계산 그대로. 화면은 `result.quiz` 를 더 읽지 않는다(37-6).
+- #60 `LessonDto.score` 는 이미 `number | null` — 새 수업 완료 뒤에도 null.
+
+### 37-13. «문제» 제거 — 서버 영향 처리 사양 (developer · Leader 승인 2026-10-21)
+
+원칙: **새 수업은 문항이 없을 뿐 완료 흐름은 같다** — `scoreQuiz(content.quiz ?? [])` 가 빈 배열이면 «점수 없음»으로 처리하고, 옛 수업(문항 있음)은 지금 동작을 그대로 둔다(진행 중 옛 수업 1건의 답이 버려지지 않음).
+
+1. **`Lesson.score`**: 새 수업 완료 때 `null` 로 저장. `LESSON_COMPLETE_MIN_STAGE = 4`·`LESSON_STAGE_MAX = 5` 그대로.
+2. **`StudyLog`(LESSON|REVIEW, DIRECT)**: `summary` = `{오늘의 회화|오늘의 복습} 「{title}」 · 말하기 표현 {u}/{t}`(새 수업 — «문제 c/t» 빼기, 옛 수업은 지금 문자열). `result` 의 `score`·`quizCorrect`·`quizTotal`·`quizAnswered` 는 새 수업에서 **넣지 않는다**(키 생략). 나머지(`applicationDone`·표현·`itemIds`·`listen`·`speakingDone` …)는 그대로.
+3. **`StatsSnapshot(LESSON)`**: 새 수업은 `score: null` · `quizCorrect`·`quizTotal` 생략(`createLessonSnapshot` 인자를 nullable/선택으로). **옛 스냅샷은 건드리지 않는다**(불변). 읽는 곳(챌린지 날짜별·완료 판정, 성장 탭, 분석)을 developer 가 `rg "quizCorrect|quizTotal|snapshot.*score"` 로 전수 확인 — 챌린지 «오늘의 회화 완료» 판정은 스냅샷 **존재**라 영향 없음(이력서 재확인). 챌린지 응답 `lesson: { quizCorrect, quizTotal }` 은 `number | null` 로 넓히고 화면은 읽지 않는다(37-8).
+4. **`RepetitionItem`**: `lessonRepetitionItems` 는 문항이 없으면 정답·오답 0 으로 **조각(오늘의 표현)·문형을 계속 등록** — 종료 카드 «오늘 배운 표현과 문형은 복습할 항목으로 기록했어요» 는 참으로 남는다. REVIEW 레슨은 `quizTargetTally` 가 비어 `studiedCount+1` 만. **결과: 레슨에서 `wrongCount` 가 더는 늘지 않는다** → A11 복습 후보(오답 가중)·AI 평가 생성의 «오답 N회» 재료가 줄어든다(사용자 결정 D2 공백 — 문서에 남김).
+5. **`LearningObservation`**: `lessonObservations` 의 문항 부분은 빈 배열이라 자연히 0건 — 새 수업은 `GRAMMAR_USE`·`VOCAB_RECOGNITION` 을 만들지 않는다(말하기 `SENTENCE_PRODUCTION` 은 그대로). **성장 탭 영향(§36)**: `GRAMMAR_USE` 를 만드는 곳이 문제 단계뿐이었으므로 «문형·조사»(`GRAMMAR_PARTICLE`) 축은 이제 **대화 교정만** 쌓인다 → 교정이 있는 사용자는 `oneSided`(한쪽 증거) 줄이 사실상 고정된다. «어휘 회상»(`VOCAB_RECALL`)은 오늘의 단어로 계속 쌓인다. 그래서 성장 탭 안내 4줄(`growthCopy.ts:30,31,106,107` — «수업 문제를 풀면…»)이 **틀린 안내가 된다** → 37-18 ② (Leader 확인 — 이 가이드는 제안만).
+6. **문제 전용 부속 지움**: 화면 `StageQuiz.tsx` · `logic.ts` 의 `quizPromptView`·`quizSummaryPrompt`·`quizReadingLeak`·`quizPromptLayerState`·`correctFromScore`(쓰는 곳이 모두 사라짐) · `U3` 옛 키 · 관련 시험(`__tests__/display.test.ts`·`task025.test.ts`·`task025b.test.ts`·`review/__tests__/reviewRegression.test.ts` 의 문제 부분). 서버 `checks.ts`(문항 `promptKo` 한글·`targetIds`·문항 글 읽기 누출 목록 414행) · `repair.ts`(100·135행 `data.quiz`) · `scoreQuiz`·`quizTargetTally` 는 **옛 수업 완료용으로 남긴다**.
+
+### 37-14. ④ 응용 마이크 기본 — 세부
+
+- **`textFirst`**: `LessonStages` 가 이미 `useSpeechConfig()` 로 얻은 값을 `StageApply` 에도 넘긴다(⑤ 와 같은 조건 — 서버 인식 꺼짐 + 온디바이스 없음, 또는 브라우저 `INSECURE`/`UNSUPPORTED`, 또는 설정 읽기 실패). 첫 렌더 뒤 늦게 `true` 가 되면, 사용자가 아직 녹음·입력하지 않았을 때만 글자 모드로 바꾼다.
+- **`via` 를 저장하지 않는 결과**: 다시 열거나 다시 보기에서는 «알아들은 말을 그대로 옮겼어요» 힌트가 없다(뜻 줄은 있음). 저장하려면 `progress.application.via?: ('voice'|'text'|null)[]` 가 필요 — 이번엔 안 함(★).
+- **토스트 바닥**: `lessonToastBottom(stage)` 그대로(④ 는 하단 바가 없음 — Q6 A).
+- **`voiceSharedFrozen`**: `StageApply` 는 지금처럼 `PushToTalkButton` 을 직접 쓰고 `VoiceBar`·`Composer` 를 쓰지 않으므로 **허용 목록 변경 불필요**. 금지어(`cancelOutside`·`safeBottom`·`keyboardLabel`·`textOf=`·`canResend`·`caption=`)를 `StageApply.tsx` 에 쓰게 되면 멈추고 Leader 에게.
+- **#185 한도**: 사용자당 동시 1건·분당 20 — ④·⑤ 와 도우미(#184)가 같은 잠금·한도를 함께 쓴다(§34). ④ 는 «지금 상황 하나만» 부르고 캐시를 쓰므로 수업 하나에 최대 약 6회(말한 직후 3 + 글자 답 비교 3, 같은 글은 0). 모범 답안과 글자가 같으면 호출 0. 409·429 는 §34 오류 표(«잠시 후…»·[다시 가져오기]) 그대로.
+- **#185 계약 설명**: 지금 «말하기 과제의 내가 한 말» → «④ 응용·⑤ 말하기의 내가 한 말» 로 넓힘(요청 모양 `{text}` 같음 — 문서만, 37-19).
+
+### 37-15. 바뀌는 파일 전수
+
+**화면 (developer-ui)**
+
+| 파일 | 무엇을 |
+|---|---|
+| `src/components/lesson/StageChunk.tsx` (새) | 37-3 |
+| `src/components/lesson/ChunkSentence.tsx` (새) | `ChunkSentenceCard`·`PieceTiles`·`PieceStrip`·`PieceHangulLine`·`ChunkEmpty` (37-4) |
+| `src/components/lesson/PieceCollect.tsx` (새) | 37-4-3 |
+| `src/components/lesson/chunkLogic.ts` (새) | 37-4-2 순수 함수 |
+| `src/components/lesson/StageQuiz.tsx` | 지움 |
+| `src/components/lesson/LessonScreen.tsx` | `stage === 3` → `StageChunk` · `StageApply` 에 `textFirst`·`trCache` · `complete()` 의 `EndResult`(37-6) · `st.replace` 의 `score` nullable · 머리 주석 |
+| `src/components/lesson/StageApply.tsx` | 37-5 |
+| `src/components/lesson/lessonCopy.ts` | 37-8(`STAGE_NAMES`·`STAGE_COPULA`·`PIECE_TYPE_*`·`HOME`·`GEN`·`U2`·`U3`·`U4`·`END`) · 머리 주석 «§12-8·§37» |
+| `src/components/lesson/logic.ts` | `EndResult`·`endResultFrom`(pieces) · `genPhase` 문구 · 문제 부속 지움(37-13 ⑥) · `U3` import 정리 |
+| `src/components/lesson/LessonEnd.tsx` | 숫자 칸 2/3칸(37-6) |
+| `src/components/lesson/TodayLessonCard.tsx` | 84·192·231·412·441행(37-6·37-8) · `correctFromScore` import 지움 |
+| `src/components/lesson/parts.tsx` | 주석만(«②·③ 은 [히라가나][한글]» → «③ 은 세 스위치») — `grid-cols-5` 그대로 |
+| `src/components/lesson/useLessonPlayback.ts` | `playLines` 항목 `sub?` (37-12-6) |
+| `src/components/lesson/useLesson.ts` | `Section` `'pieces'`·`'quiz'` 제거, 머리 주석 «문제·응용 답» → «응용 답» |
+| `src/components/lesson/review/reviewCopy.ts` | 37-8 · `RV_HOME.doneBody` 호출부(`TodayReviewCard.tsx` 등) 인자 정리 |
+| `src/components/vocab/topicCopy.ts` | `LESSON_CH.auxDone` |
+| `src/components/challenge/{DayStrip.tsx, logic.ts, challengeCopy.ts}` | 37-8 · `ScoreRow.lesson.dots` 를 그리지 않음(타입은 `dots: null` 만 남거나 제거) |
+| `src/components/ask/askCopy.ts` | 보류(37-18 ④) |
+| `src/components/plan/growthCopy.ts` | 보류(37-18 ②) |
+| `src/types/lesson.ts` | 37-12-1·37-12-7·37-12-8·37-12-9 타입 |
+| `src/types/challenge.ts` | `quizCorrect`·`quizTotal` → `number \| null`(57·238행) |
+| 시험 | 새: `chunkLogic`(범위·루비 자르기·한글 나누기·구간·모아 보기·개수) · `StageChunk` 렌더(칸 버튼 수·`aria-pressed`·빗금 `aria-hidden`·고정 status 요소·옛 수업 빈 상태·null 줄) · 문구 시험(셈 뜻 «세요» 0·엔진명 0·«문제» 낱말이 수업·챌린지·복습 문구에 0) · `StageApply` 마이크 기본·`textFirst`·뜻 줄 대상 / 바뀜: 문제 관련 시험 정리 |
+
+**서버 (developer-server)**
+
+| 파일 | 무엇을 |
+|---|---|
+| `src/modules/learning/lessons/content.ts` | `LessonGenOutput`(quiz 제거·`pieces`) · `toStoredContent`(**구현 후 정정: 줄별 검증·정리는 `lessonPieces.ts` 의 `extraCheck` 몫 — 여기서는 `Array.isArray(pieces) ? pieces : null` 만**) · `readStoredContent`(37-12-9) · `audioText`(piece·phrase) · `pieceCount`·`phraseText`(화면과 같은 규칙) · `AUDIO_KINDS` |
+| `src/modules/learning/lessons/validate.ts` | `parseAudioBody`(`sub`) |
+| `src/modules/learning/lessons/progress.ts` | `pieces.seen`(37-12-8) · 머리 주석 |
+| `src/modules/learning/lessons/lifecycle.ts` | 점수 nullable·요약·스냅샷·결과(37-12-9·37-13) · `updateLessonProgress` 의 `ProgressLimits`(`quizCount: content.quiz.length`·`dialogueCount`) |
+| `src/modules/learning/lessons/observations.ts` | 변경 없음(빈 배열이면 0건) — 머리 주석에 «새 수업은 문항 없음» |
+| `src/modules/learning/lessons/today.ts` | #58 `pieces` |
+| `src/modules/learning/lessons/speaking.ts` | `getLessonAudioSource` 에 `sub` 전달 |
+| `src/modules/learning/snapshots*` | `createLessonSnapshot` nullable(37-13 ③) |
+| 챌린지 서버 읽기 | `quizCorrect`·`quizTotal` nullable |
+| 라우트 `src/app/api/v1/lessons/[id]/audio`·`complete` | 본문·응답 타입만 |
+| 시험 | `parseAudioBody` 4건 · `validatePieces`(같음·null 규칙·길이·slash 정리) · `readStoredContent`(quiz 없음 정상·quiz 비배열 손상) · 완료(새 수업 score null·요약·스냅샷 키·관측 0·반복 항목 등록 / 옛 수업 동작 불변) · #58 `pieces` · #61 `pieces.seen` 범위·합집합 |
+
+**프롬프트 (PE)**
+
+| 파일 | 무엇을 |
+|---|---|
+| `src/modules/conversation/structuredResponse/schemas.ts` | 37-12-2 (`LESSON_SCHEMA` quiz 제거·dialogue `pieces`, `PieceType`) |
+| `src/modules/conversation/prompts/lesson.ts` | `lesson@v10`·`lessonScenario@v2` — 5단계 설명에서 문제 제거·조각 분해 지시(37-12-5)·«응답은 JSON 객체 하나뿐» 유지·프롬프트 길이 예산 시험 |
+| `src/modules/conversation/prompts/reviewMix.ts` | `reviewMix@v4` — 같은 변경(«문제에 섞어» 류 지시 제거) |
+| `src/modules/conversation/structuredResponse/checks.ts` | 문항 검사 제거 · 37-12-4 조각 레슨 위반 |
+| `src/modules/conversation/structuredResponse/repair.ts` | `data.quiz` 두 곳 제거 |
+| `tests/prompts/fixtures/{lesson,lesson-general-golden,review-mix}.json` · `__tests__/{lesson,reviewMix}.test.ts`·`additionalPropertiesStrip.test.ts` | 골든·시험 재기록 |
+
+### 37-16. 구현 순서 · 소환 단위 (CAN-0017 — 턴 한도 반복 대응으로 처음부터 나눔)
+
+| 순서 | 소환 | 맡는 파일(소유 — 겹치지 않게) | 끝 조건 |
+|---|---|---|---|
+| 1 | **PE** (`lesson@v10` 계열) | `schemas.ts`·`prompts/lesson.ts`·`prompts/reviewMix.ts`·`checks.ts`·`repair.ts`·프롬프트 시험·골든 | 스키마·지침·골든·라이브 측정(생성 시간·크기·`piecesNullLines` 비율 — **호출 예산 사용자 승인 뒤**) 보고 → «보통 1~2분» 문구 유지/수정 판단 근거 |
+| 2 | **developer-server** | `modules/learning/lessons/*`·스냅샷·챌린지 서버 읽기·`types/lesson.ts`·`types/challenge.ts`·라우트 타입·서버 시험 | 37-12·37-13 시험 통과 · typecheck. `types/*` 는 여기서 먼저 바꿔 화면 소환이 그 위에서 일한다 |
+| 3 | **developer-ui ③** | `StageChunk.tsx`·`ChunkSentence.tsx`·`PieceCollect.tsx`·`chunkLogic.ts`·`LessonScreen.tsx`·`useLessonPlayback.ts`·`useLesson.ts`·`StageQuiz.tsx` 지움·`lessonCopy.ts`(U3·STAGE·PIECE)·③ 시험 | 37-3·37-4 · 픽스처 레슨으로 3폭 화면 |
+| 4 | **developer-ui ④ + 표기** | `StageApply.tsx`·`LessonEnd.tsx`·`TodayLessonCard.tsx`·`logic.ts`·`lessonCopy.ts`(HOME·GEN·U2·U4·END)·`review/*`·`vocab/topicCopy.ts`·`challenge/*`·시험 | 37-5·37-6·37-8 · 문구 시험 |
+| 5 | **마무리** | (수정 없음 — 전체 빌드·시험·3폭 스모크·디자인 점검 요청) | `npm run build` 통과 · designer 구현 점검(Leader 요청 시) |
+
+- 3과 4는 `lessonCopy.ts` 를 함께 고친다 → **3 이 먼저 끝나고 4 가 이어서**(동시 소환 금지) 또는 4 가 맡는 키 묶음을 3 이 건드리지 않게 지시. 2 → 3·4 순서는 필수(타입).
+- 배포: 서버·화면·프롬프트는 **한 릴리스**(새 프롬프트가 `quiz` 없는 내용을 만들면 옛 화면은 ③ 에서 문제를 못 그림). DB 변경 없음.
+
+### 37-17. reviewer · QA 대조표 · 실기기 확인
+
+**reviewer 가 볼 곳**: ① 엔진명·모델명이 화면·문구에 0 ② `parseAudioBody` 가 클라이언트 글을 받지 않음(`sub` 정수만) ③ `pieces` 검증이 «같음» 을 NFC 외 관용 없이 비교 ④ 새 수업 완료가 옛 스냅샷을 바꾸지 않음·새 스냅샷 키 ⑤ 6층 경계(`chunkLogic` 은 화면, `content.ts` 는 L3 — 같은 규칙 두 벌은 같은 픽스처 시험으로 묶임) ⑥ `voiceSharedFrozen` 금지어가 `StageApply` 에 없음 ⑦ ④ 번역이 «지금 상황 하나만»·캐시 공유.
+
+**QA (3폭 360·390·412 × 100·130% × 라이트·다크)**: ③ 새 수업 — 칸 누름·소리·고른 조각 줄·구간 듣기·이동·마지막 [다음 단계]·모아 보기·다시 열기(본 문장 이어서) / ③ 옛 수업 빈 상태 / ③ 소리 없음(표시등 자막만) / ④ 마이크 기본·뜻 줄·같음(호출 0 — 네트워크 탭)·비교 뒤 뜻·글자 쓰기·글자 우선·오류 띠 / 종료 카드 3칸·옛 수업 2칸 / 오늘 카드 «조각 N개»·«다음은 ② 문법이에요»·«③ 조각이에요» / 생성 대기 표 / 복습 수업 같은 구조 / 챌린지 표·기록 줄 / 가로 넘침 0·44px 미만 터치 0 / 낭독(TalkBack): 칸 이름 «コーヒー 이름 조각, 커피»·문장 이동 때 머리 한 번.
+
+**실기기(사용자 폰)**: ⓐ 조각 소리 — 조사 한 글자·짧은 조각이 어색하지 않은지, [구간 듣기] 가 자연스러운지 ⓑ 130% 글꼴에서 칸·빗금 줄 맞춤 ⓒ ④ 누르고 말하기 → 뜻 줄 → [비교하기] 가 화면 안으로 올라오는지 ⓓ 앱(WebView) 온디바이스 인식으로 ④ 가 마이크 기본으로 열리는지 ⓔ TalkBack 칸 낭독 ⓕ 새 수업 생성 시간이 체감상 늘었는지.
+
+### 37-18. 정정 · 데모와 코드 대조 · Leader 확인 필요
+
+1. **[정정] 데모 `#devmemo` 1 의 소리 요청 `{kind, line, piece}`** → 지금 계약 모양에 맞춰 `{kind, idx, sub}`(37-12-6). 의미 같음.
+2. **[Leader 확인] 성장 탭 안내 4줄이 틀린 안내가 됨**(데모 밖): `growthCopy.ts` `AXES[VOCAB_RECALL].how` «오늘의 단어·수업 문제를 풀면 쌓여요» → 제안 «오늘의 단어를 풀면 쌓여요» · `AXES[GRAMMAR_PARTICLE].how` «수업 문제와 대화 교정에서 쌓여요» → 제안 «대화 교정에서 쌓여요» · `axisOneSidedSub.VOCAB_RECALL` → 제안 «오늘의 단어도 풀면 단계가 보이기 시작해요.» · `axisOneSidedSub.GRAMMAR_PARTICLE` → 제안 **빈 값**(그 축에서 단계가 보이게 하는 수업 공부가 없어졌다 — 값이 비면 줄을 그리지 않는 §36 규칙). 문형·조사 축이 사실상 «한쪽 증거» 로 고정되는 것은 사용자 결정 D2 의 공백 그대로다 — 사용자에게 공개 필요. `growthCopy.test.ts` 기대값도 함께.
+3. **[Leader 확인] 데모에 없던 같은 취지 문구 3곳**: `genPhase` «문법과 문제를…» → «문법과 조각을…» · `U2.desc` «표현 조각과 문형» → «표현과 문형»(Q11 취지) · `HOME.nextStage` 받침 표 `STAGE_COPULA`(지금 «② 문법예요» 오류도 같이 고침).
+4. **[Leader 확인] 질문 탭 `askCopy.ts:209` «점수»** — 질문 맥락 조립이 레슨 점수를 싣는지 developer 가 확인(`askRouter/readers.ts` 에는 없음 — 다른 조립 지점 확인 필요). 레슨 점수만이면 «공부 기록 요약 — 공부 횟수·복습 예정 목록», 평가 점수도 있으면 그대로.
+5. **[가이드가 더함] 마지막 문장 도착 때 초점 이동**(37-3) — 사라지는 [다음 문장] 에서 [다음 단계] 로. 데모는 다루지 않았다.
+6. **[PE·developer 확인] 37-12-4 «부드러운 위반»**(재시도 뒤에도 넘으면 레슨 실패 대신 null 줄 저장)을 지금 `checks.ts`/생성 잡이 표현할 수 있는지. 못 하면 «레슨 실패» 와 «null 줄 저장» 중 Leader 결정. 모든 줄이 null 인 새 수업은 37-3-1 처럼 줄마다 «나누지 못했어요».
+7. **[정정] 데모 문구 표의 `CHUNK_TYPE_LABEL.LINK`** → 새 `PIECE_TYPE_LABEL`(6종). `ChunkType`(types/chat — 단어장·교정 공용, 4종)을 넓히면 단어장·채팅 타입이 함께 흔들린다. Prisma `ChunkType`(5종, EXPRESSION 포함)도 그대로.
+8. **[정정] ④ 알아들은 말 상자 `aria-hidden` → `aria-live="polite"`**(37-10 ⑦) · 상자 안 글을 `JaText`+`HangulLine` 으로(데모 `voiceBox` 와 같게 — 지금은 글자만).
+9. **[알림] 단어장 `CHUNK_DEF.MODIFIER` 풀이에 «조사구»** 가 있어 ③ «조사 = 연결 조각» 과 겹친다 — ③ 은 그 풀이를 쓰지 않으므로 이번엔 고치지 않음(별도 판단).
+10. **[알림] `api-contract.md` #58~#62·#62c·#185, `domain-model.md`(Lesson.content 모양·StatsSnapshot LESSON 키), `screens.md` §1-1** 은 이 가이드가 고치지 않았다 — 37-19 목록대로 Leader 반영.
+
+### 37-18-1. Leader 결정 (2026-10-21 — 위 37-18 확인 필요 항목에 대한 답, developer·PE 는 이대로 구현)
+- **② 성장 탭 안내 4줄**: 디자이너 제안 그대로 **수용** — `growthCopy.ts` `AXES[VOCAB_RECALL].how` «오늘의 단어를 풀면 쌓여요»·`AXES[GRAMMAR_PARTICLE].how` «대화 교정에서 쌓여요»·`axisOneSidedSub.VOCAB_RECALL` «오늘의 단어도 풀면 단계가 보이기 시작해요.»·`axisOneSidedSub.GRAMMAR_PARTICLE` **빈 값**(줄을 그리지 않음 — §36 규칙). **사용자에게 공개할 사실**: 문제 단계가 없어지면 «문형·조사» 축은 대화 교정만 쌓여 단계가 사실상 보이지 않게 된다(응용 단계 결과를 관측으로 보충하는 것은 후속) — task-080 에서 배포한 문구의 변경이므로 보고에 전·후를 적는다.
+- **③ 데모 밖 같은 취지 문구 3곳 수용**: `genPhase` «문법과 문제를…» → «문법과 조각을…»·`U2.desc` «표현 조각과 문형» → «표현과 문형»·`HOME.nextStage` 받침 표 `STAGE_COPULA`(지금 «② 문법예요» 오류도 함께 고침). 글 조각 수준이라 재승인 없이 구현하고 사용자에게 공개(L3 선례).
+- **④ 질문 탭 `askCopy.ts:209` «점수»**: developer 가 질문 맥락 조립(레슨 점수를 싣는지)을 확인해 결정 — 레슨 점수만이면 «공부 기록 요약 — 공부 횟수·복습 예정 목록», 평가 점수도 있으면 그대로. 확인 결과를 기록에 남긴다.
+- **⑥ 부드러운 위반**: **재시도 뒤에도 조각 검증이 안 넘으면 레슨을 실패시키지 않고 위반 줄을 null 로 저장**한다(조각 단계 때문에 수업 생성이 실패하는 일을 만들지 않음). 모든 줄이 null 인 새 수업은 줄마다 «나누지 못했어요»(37-3-1). 지금 `checks.ts`/생성 잡이 표현하지 못하면 developer 가 Leader 에게 보고(임의로 «레슨 실패» 로 정하지 않는다).
+- **정정 ⑦·⑧ 수용**: 새 `PIECE_TYPE_LABEL`(6종) 분리 — `ChunkType`(단어장·교정 공용 4종)·Prisma `ChunkType`(5종)은 그대로 / ④ 알아들은 말 상자 `aria-live="polite"`·`JaText`+`HangulLine`.
+- **37-12 조각 데이터 계약·37-13 서버 영향 처리**: 초안을 **Leader 가 그대로 승인**했고 정본(`api-contract.md` #58·#60·#61·#62·#62c·#185, `domain-model.md`, §1-1)에 반영했다(승인 문구 «초안» 은 구현 때 reviewer 가 대조). 세부(재생성 임계 «위반 줄 수 × 2 > 줄 수»·종류 판정 지침·`slash` 규칙)는 PE 가 측정으로 확정하되 «같음» 정의(NFC 완전 일치)·줄 단위 null·새 수업 `quiz` 없음은 바꾸지 않는다.
+- **소환 단위(37-16)**: PE → 서버 → 화면③ → 화면④·표기 → 마무리, **서버·화면·프롬프트는 한 릴리스로 배포**(옛 서버에 새 화면이 오면 깨짐).
+
+### 37-19. 후속 · 범위 밖 · 문서 갱신 항목
+
+- **범위 밖(후속 후보)**: 조각 → 단어장/반복 항목 채택(제안→채택) · 조각 교체·문장 확장 퀴즈(강의 ⑤⑦) · 응용·조각 단계 결과를 관측으로 보충(문형·조사 공백 메우기) · 옛 수업 즉석 분해(Q5 B) · «조각이 이상해요» 알리기(Q10 B — 받을 곳 필요) · `application.via` 저장 · StudyLog 에 조각 수 기록.
+- **Leader 가 정본에 반영할 것(이 가이드 초안 → 정본)**:
+  - `api-contract.md` #58 `TodayLessonItem.pieces?` additive · #60 `content.dialogue[i].pieces`·새 내용 `quiz` 없음·`score` null 가능 · #61 `progress.pieces.seen`(+ `quiz` 옛 수업 한정) · #62 `lesson.score`·`result.score`·`result.quiz` nullable, StudyLog 요약 · #62c `kind: piece|phrase` + `sub` · #185 설명을 ④ 응용까지(모양 같음) · 챌린지 응답 `lesson.quizCorrect/quizTotal` nullable.
+  - `domain-model.md`: `Lesson.content` JSON 모양(`pieces`·`PieceType`·`quiz` 선택) · `StatsSnapshot(LESSON)` 새 행 키 · `LearningObservation` 생산처 변화.
+  - `screens.md` §1-1(`--carb/--protein` 용도에 «③ 조각 밑줄») · §2·§12·§14·§34 머리 안내(이 가이드와 함께 한 줄씩 넣음).

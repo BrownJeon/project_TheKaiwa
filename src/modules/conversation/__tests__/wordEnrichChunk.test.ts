@@ -2,7 +2,7 @@
  * task-068 D5/J12 — (1) 선생님 초안(`wordEnrich@v2`)의 조각 정확도 픽스처 구조 (2) **5번째 조각 유형 `EXPRESSION` 이 단어 보강 밖으로 새지 않는다**.
  * 라이브 호출 0 · DB 0 — 정확도 실측은 `tests/prompts/word-enrich-chunk-live.ts`(별도, 호출 상한 40).
  *
- * J12(Leader 확정): 교정·수업·평가·주제 프롬프트의 조각 enum 은 **4유형 그대로**다. `EXPRESSION` 은 단어장 전용이라 DB `ChunkType` 이 5개로
+ * J12(Leader 확정): 교정·수업·평가·주제 프롬프트의 조각 enum 은 **4유형 그대로**다(예외 1곳: task-081 수업 «조각(pieces)» 6유형 — schemas.ts 의 `PIECE_TYPES`·`LESSON_SCHEMA` 에만). `EXPRESSION` 은 단어장 전용이라 DB `ChunkType` 이 5개로
  * 늘어도 모델이 교정/수업 응답에서 그 값을 내면 안 된다(내면 교정 화면의 조각 칩 4종·수업 조각 조립이 깨진다).
  * 고정 방법 3겹: ① `structuredResponse/`·`prompts/` 모듈이 내보내는 **모든 스키마·배열**을 훑어 'NAME'·'ACTION' 을 가진 enum 이 정확히 4값인지
  * ② 같은 폴더 소스 줄에 `chunkType` 과 맨 낱말 `EXPRESSION` 이 함께 있는지 ③ 강사 페르소나 §5 가 네 유형 문장 그대로인지. 각 검사기는 변이본으로 빈 증명이 아님을 보인다.
@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { CHUNK_TYPES } from '../structuredResponse/schemas'
+import { CHUNK_TYPES, PIECE_TYPES } from '../structuredResponse/schemas'
 import { buildWordEnrichRequest, WORD_CHUNK_TYPES, WORD_ENRICH_PROMPT_VERSION } from '../prompts/wordEnrich'
 
 const ROOT = process.cwd()
@@ -144,7 +144,12 @@ test('J12 스키마: structuredResponse/·prompts/ 가 내보내는 모든 값 �
   assert.ok(found.length >= 6, `조각 enum 발견 ${found.length}곳: ${found.map((f) => f.path).join(', ')}`)
   const files = new Set(found.map((f) => f.path.split('#')[0]))
   for (const must of ['structuredResponse/schemas.ts', 'structuredResponse/evalSchemas.ts', 'structuredResponse/topicDraftSchemas.ts']) assert.ok(files.has(must), `${must} 에서 조각 enum 을 못 찾음`)
-  assert.deepEqual(notFour(found), [], '4유형이 아닌 조각 enum — 교정·수업·평가·주제 프롬프트는 EXPRESSION 을 내면 안 된다(J12)')
+  // task-081(사용자 Q9 A 승인): 수업 «조각(pieces)» 은 6유형(+EXPRESSION·LINK)이다 — 그 enum 은 `structuredResponse/schemas.ts` 의 `PIECE_TYPES`·`LESSON_SCHEMA` 두 곳에만 있어야 한다. 그 밖은 여전히 4유형.
+  const isPieceEnum = (f: { values: string[] }) => f.values.length === PIECE_TYPES.length && PIECE_TYPES.every((v) => f.values.includes(v))
+  const pieceEnums = found.filter(isPieceEnum)
+  assert.ok(pieceEnums.length >= 2, `수업 조각 enum(6유형) 발견 ${pieceEnums.length}곳 — PIECE_TYPES·LESSON_SCHEMA`)
+  for (const f of pieceEnums) assert.match(f.path, /^structuredResponse\/schemas\.ts#(PIECE_TYPES|LESSON_SCHEMA)/, `6유형 조각 enum 이 허용된 곳 밖에 있다: ${f.path}`)
+  assert.deepEqual(notFour(found.filter((f) => !isPieceEnum(f))), [], '4유형이 아닌 조각 enum — 교정·평가·주제 프롬프트는 EXPRESSION 을 내면 안 된다(J12). 수업 pieces 만 6유형 예외(task-081)')
 })
 
 test('J12 스키마 검사기는 빈 증명이 아니다 — 변이(5번째 값 추가·값 하나 빠짐)를 각각 잡는다', () => {

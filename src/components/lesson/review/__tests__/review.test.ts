@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { TodayLessonItem, TodayLessons } from '@/types/lesson'
 import type { ReviewItem, TodayReview } from '@/types/review'
-import { deriveLessonCard } from '../../logic'
+import { deriveLessonCard, genPhase } from '../../logic'
 import { ITEM_TYPE_LABEL, RV_END, RV_GEN, RV_HOME, RV_LESSON, RV_SOON } from '../reviewCopy'
 import {
   countLabel,
@@ -100,15 +100,16 @@ test('홈 복습 카드 16상태 — 표의 위 줄이 이기고 자리가 정�
   assert.equal(kind(deriveReviewCard('ready', day({ review: rv({ decidedBy: 'FALLBACK' }) }))), 'dueFallback')
   assert.equal(kind(deriveReviewCard('ready', day({ review: rv({ tutorRationale: '  ' }) }))), 'dueFallback')
   assert.equal(reviewPlacement(deriveReviewCard('ready', day({ review: rv({ decidedBy: 'FALLBACK' }) }))), 'above')
-  // 11·12 완료 / 완료+판단 대기 — 점수는 review.score → 레슨 목록 순
+  // 11·12 완료 / 완료+판단 대기 — 점수가 있든 없든 같은 카드(task-081: 점수 표시 없음)
   const next = { date: '2026-10-06', days: 3, itemCount: 5, decidedBy: 'TUTOR' as const }
   const done = deriveReviewCard('ready', day({ review: rv({ status: 'DONE', lessonId: 'L9', score: 80 }), nextReview: next }))
-  assert.deepEqual(done.kind === 'done' ? [done.correct, done.next?.days] : null, [4, 3])
+  assert.equal(done.kind === 'done' ? done.next?.days : null, 3)
+  assert.ok(!('correct' in done), '점수는 카드에 싣지 않는다(task-081)')
   assert.equal(reviewPlacement(done), 'below')
   const doneNoScore = deriveReviewCard('ready', day({ review: rv({ status: 'DONE', lessonId: 'L9', score: undefined }), todayLessons: [lessonItem({ id: 'L9', kind: 'REVIEW', score: 60 })] }))
-  assert.equal(doneNoScore.kind === 'done' ? doneNoScore.correct : -1, 3)
+  assert.equal(kind(doneNoScore), 'done')
   const doneUnknown = deriveReviewCard('ready', day({ review: rv({ status: 'DONE', lessonId: 'L9', score: null }) }))
-  assert.equal(doneUnknown.kind === 'done' ? doneUnknown.correct : -1, null)
+  assert.equal(kind(doneUnknown), 'done')
   const dp = deriveReviewCard('ready', day({ review: rv({ status: 'DONE' }), decisionPending: true }))
   assert.equal(kind(dp), 'donePending')
   assert.equal(watchesDecision(dp), true)
@@ -200,7 +201,8 @@ test('① 항목 정렬·라벨 — FOCUS → 교정+틀림 → 공부 적은 �
 test('복습 수업 대기 문구 · 다음 복습 묶음 순서', () => {
   assert.equal(reviewGenPhase(3, null), RV_GEN.phaseItems)
   assert.equal(reviewGenPhase(20, 'WRITE'), RV_GEN.phaseMix)
-  assert.equal(reviewGenPhase(50, null), '문법과 문제를 만들고 있어요')
+  // 45초 뒤 문구는 오늘의 회화 `genPhase` 그대로(task-081 에서 문구가 바뀌는 쪽은 ④ 갈래 소유 — 여기선 위임만 고정).
+  assert.equal(reviewGenPhase(50, null), genPhase(50, null))
   assert.equal(reviewGenPhase(10, 'SAVE'), '마지막으로 확인하고 있어요')
   assert.equal(reviewGenPhase(130, null), '조금 오래 걸리고 있어요. 조금만 더 기다려 주세요.')
   const groups = [

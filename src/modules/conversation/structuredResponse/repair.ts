@@ -9,7 +9,7 @@
  * **"AI 산출을 채택 없이 저장하지 않는다"(CLAUDE.md) 원칙과 충돌하지 않는 이유**: 이 보정이 새로 만들어 내는 값은
  * 없다 — 채워 넣는 `chunks` 항목은 전부 **이미 `TopicChunk` 테이블에 있고 이번 레슨 생성 프롬프트에 실제로 실었던**
  * 조각 데이터를 그대로 옮긴 것뿐이다(`isNew:false` 로 출처를 응답에도 남긴다). AI 가 만든 내용(dialogue·grammar·
- * quiz·application·speaking 의 문장·설명·정답 등)은 한 글자도 건드리지 않는다 — 딱 두 가지만 한다: ① AI 가 "이미
+ * application·speaking 의 문장·설명 등, task-081 이후 pieces 포함)은 한 글자도 건드리지 않는다 — 딱 두 가지만 한다: ① AI 가 "이미
  * 존재하는 조각을 자기 응답의 chunks 배열에 옮겨 담는 걸 깜빡한" 경우 그 조각을 대신 옮겨 주거나 ② 그마저 안 되면
  * (보정 전용 상한 `LESSON_REPAIR_CHUNKS_MAX` 도달) 잘못 걸린 참조를 지운다. 저장 여부·채택 여부는 이 파일이 관여하지 않는 기존 흐름 그대로다(레슨은
  * 완료 트랜잭션에서만 확정되고, 이 보정은 그보다 훨씬 앞선 LLM 응답 검증 단계에서 끝난다).
@@ -97,7 +97,6 @@ export function repairLessonResponse(input: { allowedChunks: LessonRepairSourceC
   const isKnown = (id: string) => chunkIds.has(id) || grammarIds.has(id)
 
   const targetArrays = [
-    ...data.quiz.map((q) => q.targetIds),
     ...data.application.map((a) => a.targetIds),
     ...data.speaking.map((s) => s.targetIds),
   ]
@@ -132,7 +131,6 @@ export function repairLessonResponse(input: { allowedChunks: LessonRepairSourceC
     ids.length = 0
     ids.push(...next)
   }
-  data.quiz.forEach((q) => prune(q.targetIds))
   data.application.forEach((a) => prune(a.targetIds))
   data.speaking.forEach((s) => prune(s.targetIds))
 

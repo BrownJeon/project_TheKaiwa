@@ -1119,6 +1119,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 **잠금 순서**(교착 방지, task-006/008 과 같은 "사용자 행 → 대상 행"): 생성 = 사용자 행 → (오늘 같은 주제 레슨·진행 중 생성 잡) → 레슨·잡 / 진행·메모·말하기 = 사용자 행 → 레슨 행(`FOR UPDATE`) → (제안 행 / 발화 행) → `progress` / 완료 = 사용자 행 → 레슨 행 → `RepetitionItem` → `StudyLog` → `StatsSnapshot(LESSON)` → `DAILY`. 복습(task-010b): 복습 시작 #63 = 사용자 행 → 세션 행(`FOR UPDATE`) → 레슨·잡 / 건너뛰기 #64 = 사용자 행 → 세션(조건부 전이) / 복습 레슨 완료 = 사용자 행 → 레슨 행 → 세션 → `RepetitionItem` → … → `DAILY` / A11 판단 저장 = 사용자 행 → 잡 확인 → `RepetitionItem` → 오늘 세션 → 완료 레슨(`progress.reviewDecision`) → 잡 DONE. 관측(`LearningObservation`)과 `DAILY observations` 는 늘 그 트랜잭션의 끝(사용자 행을 잡은 뒤).
 
 #### #58 `GET /api/v1/lessons/today`
+- **task-081 개정(2026-10-21, Leader 승인 — 가이드 `screens.md` §37-12-7)**: `TodayLessonItem.pieces?: number | null` additive — 오늘의 조각 수(`pieceCount(content)`: `type ≠ null` 조각을 `type+ja` 로 한 번씩, 조각 없는 옛 수업 `null`). `score` 는 그대로 내려가되 화면이 쓰지 않는다(«문제 c/5» 제거).
 
 ```json
 { "mode": "NEW", "date": "2026-09-28", "review": null, "guard": null, "cycle": null,
@@ -1169,6 +1170,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 - 잡이 끝나면 `Lesson READY + content`(대화 줄마다 청취 구간 번호) 와 잡 `DONE` 이 한 트랜잭션. 실패하면 `Lesson FAILED`(`error` = 오류 코드만) + 잡 `FAILED` → 화면 "다시 만들기"(같은 요청을 다시 보내면 된다).
 
 #### #60 `GET /api/v1/lessons/:id`
+- **task-081 개정(2026-10-21, Leader 승인 — §37-12-1·37-12-9)**: `content.dialogue[i].pieces?: DialoguePiece[] | null`(`{ja, type: NAME|ACTION|FEELING|MODIFIER|EXPRESSION|LINK|null, ko: string|null, slash?: true}` — 키 없음 = 옛 수업·null = 그 줄만 분해 실패, 읽기·한글은 서버 분석(#24r)이라 저장 안 함, 줄의 조각을 이으면 원문과 같아야 함). **새 수업 내용에는 `quiz` 키가 없다**(`readStoredContent` 는 `quiz` 없이도 정상, 돌려줄 때 `quiz ?? []`) — 옛 수업은 `quiz` 를 그대로 가진다. `LessonDto.score` 는 새 수업 완료 뒤에도 `null`.
 
 ```json
 { "id": "ls_…", "kind": "NEW", "date": "2026-09-28", "title": "カフェで注文する", "titleKo": "카페에서 주문하기", "level": "N5", "status": "IN_PROGRESS",
@@ -1194,12 +1196,15 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 - **task-010b(additive)**: `reviewItems` = 복습 레슨(`kind:"REVIEW"`)이면 **모든 상태에서** 세션 항목(세션 순서, 남의·지워진 id 는 빠짐) `[{id, itemType, refType, source, textJa, meaningKo, priority, studiedCount, wrongCount, feedbackCount}]`(★② — `id` = `RepetitionItem.id` = A5 `chunks[].id`, **읽기(가나) 없음**(Leader ③), `source ∈ LESSON|CORRECTION|WORDS` = `refType` 3종 묶음 — `TopicChunk`·`Expr`·`Grammar` → 수업, `Correction` → 회화 교정, `WordEntry` → 단어 세트(Leader ④)), 새 수업이면 `null`. `nextReview` = 끝낸 레슨의 다음 복습 `{decidedBy:"TUTOR"|"FALLBACK", rationaleKo, groups:[{days, date, itemIds}]}`(Leader ⑤ — `days` = 완료한 날에서 며칠 뒤, 날짜 오름차순, 그 레슨이 공부한 항목을 예정일로 묶음). 완료 뒤 판단 잡(A11)이 끝나면 그 결과가 레슨에 저장돼 채워지고(그 뒤 다른 판단이 항목을 바꿔도 이 레슨의 묶음은 그대로), 판단 대기 중이면 `null`, 판단 실패(`FALLBACK`)면 지난 간격 묶음 + 코드 문구. 판단이 저장되지 않았고 대기도 아니면(잡이 죽음) 복습 레슨에 한해 지금 예정일로 묶어 `FALLBACK` 으로 보인다. 아직 끝내지 않은 레슨은 `null`. 판단 저장 칸(`progress.reviewDecision`)은 서버 전용이라 응답 `progress` 에 싣지 않는다(#61 로도 쓸 수 없다 — `unknown_key`).
 
 #### #61 `PATCH /api/v1/lessons/:id/progress` `{ "stageDone": 3, "progress": {...} }` → `Lesson`(#60)
+- **task-081 개정(2026-10-21, Leader 승인 — §37-12-8)**: `progress.pieces: { seen: number[] }` 허용(0 ≤ 정수 < 줄 수, 중복 없음, 병합 = 합집합). `quiz` 키는 옛 수업 호환으로 허용 목록에 남긴다(새 수업에선 빈 배열 외 400).
 
 - 둘 중 하나 이상. `stageDone` 0~5 정수, **줄이면 `400 {reason:"monotonic", current}`**(끝낸 단계는 되돌리지 않는다, L11).
 - `progress` 는 **클라이언트 칸만**(직렬화 ≤8KB, 넘으면 `400 {reason:"TOO_LARGE"}`): `listen.segmentsDone:int[]`·`listen.played:{slow?:int[], normal?:int[]}`(구간 번호, **합집합** 병합)·`listen.memo:[{segment, ja}]`(들린 단어 초안 — 통째 교체, 구간 ≤5·레슨 ≤15·1~20자 가나/한자, 위반 `400 LIMIT|DUPLICATE|NOT_JAPANESE`)·`quiz.answers:(0~3|null)[]`(**이미 답한 칸은 바뀌지 않는다** — 첫 답 고정)·`application.answers:(string ≤200|null)[]`(보낸 칸만 교체). 서버 칸(`listen.proposed`·`speaking`)이나 모르는 키는 `400 unknown_key`. 보내지 않은 절·서버 칸은 그대로 보존.
 - `READY` 면 `IN_PROGRESS` 로. `DONE` `409 ALREADY_DONE`, 생성 전·실패 `409 NOT_READY`.
 
 #### #62 `POST /api/v1/lessons/:id/complete` `{ "score": 80 }`(선택 — 형식만 확인하고 **쓰지 않는다**)
+- **task-081 개정(2026-10-21, Leader 승인 — §37-12-9·37-13)**: 새 수업(`content.quiz` 가 비어 있음)은 `lesson.score`·`result.score`·`result.quiz` 가 모두 `null`(옛 수업은 지금 계산 그대로). `StudyLog` 요약에서 «문제 c/t» 가 빠지고 새 수업은 `score`·`quizCorrect`·`quizTotal`·`quizAnswered` 키를 넣지 않는다. 완료 조건 `stageDone ≥ 4` 불변.
+- **task-081 D2 결과(학습 관측·반복 항목)**: 새 수업은 문항이 없어 `LearningObservation` 의 `GRAMMAR_USE`·`VOCAB_RECOGNITION` 을 만들지 않고(말하기 `SENTENCE_PRODUCTION` 은 그대로), `RepetitionItem` 은 표현·문형을 정답/오답 0 으로 계속 등록하며 REVIEW 레슨은 `studiedCount+1` 만 — **레슨 완료로 `wrongCount` 가 더는 늘지 않는다**(사용자 결정 D2 공백). 성장 탭 «문형·조사» 축은 대화 교정만 쌓인다(§36 `oneSided`).
 
 **한 트랜잭션**(중간 실패 시 전부 롤백 — 라이브 스모크가 LESSON 스냅샷 선점으로 실패를 일으켜 행 변화 0 을 확인): 서버 재채점(L4 — `score = round(정답 수 / 문항 수 × 100)`, 미답은 틀림으로 세지 않되 분모에 든다) → `RepetitionItem` 등록/갱신(L5, 아래) → `Lesson DONE, completedAt, score, stageDone=5` → `StudyLog(LESSON|REVIEW, DIRECT, refId=레슨)` → `StatsSnapshot(LESSON, periodKey=레슨)` → `DAILY(lessons+1, repetition.studied+n)` → **학습 관측**(task-010b L3, 아래) + `DAILY observations`. 날짜는 **완료한 날(KST)**.
 
@@ -1251,6 +1256,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 - `hasAudio` = 원음이 아직 보존돼 있는가(30일) — "내 목소리 다시 듣기"는 **기존 #21b** `GET /api/v1/speech/utterances/:id/audio` 를 쓴다(새 오디오 라우트 없음).
 
 #### #185 `POST /api/v1/lessons/:id/speaking-translation` — 말하기 「내가 한 말」 번역(task-077 IMP-0053, 신설 — **저장 없음**)
+- **task-081 개정(2026-10-21, Leader 승인 — §37-5)**: 응용(④) 단계의 «내가 한 말» 한글 뜻 줄도 이 API 를 쓴다(요청·응답 모양 불변 — 레슨 소유만 확인하고 단계는 보지 않음, 모범 답안과 같으면 AI 호출 없이 `modelKo`).
 
 ```json
 → { "text": "週末に友達に会いました。" }
@@ -1279,6 +1285,7 @@ task-010 이 #58~#62 와 #62a~#62c 를 구현했다(복습 #63·#64·A11 은 tas
 - 저장 없음(행·StudyLog·스냅샷·단어장·`Lesson.progress` 0, `RequestTrace` 1행만). 질의·답 원문은 로그·Trace 에 남기지 않는다. 수준을 읽을 때 Profile 행이 없으면 최초 호출이 만든다(#180·#181 과 같음). 구현 기록 [[task-077-dev-server-b-record]].
 
 #### #62c `POST /api/v1/lessons/:id/audio` — 레슨 오디오(task-010 L2, 신설)
+- **task-081 개정(2026-10-21, Leader 승인 — §37-12-6)**: 새 kind `piece`·`phrase` — 요청 `{kind:'piece'|'phrase', idx:<줄 번호>, sub:<조각·구간 index 0~23>, pace?}`. `sub` 는 piece·phrase 에서만 필수(다른 kind 에 오면 400 `field:'sub'`), 클라이언트가 글을 보내는 키는 여전히 `unknown_key`. 서버가 저장된 `pieces` 로 텍스트를 만든다(임의 문장 합성 방지 유지). 줄·조각·구간이 없거나 `pieces` 가 null/없음이면 400 `out_of_range`.
 
 ```json
 → { "kind": "dialogue", "idx": 0, "pace": "slow" }
@@ -2061,7 +2068,7 @@ SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못�
 
 > **코드가 정답**이다(설계 정본 [challenge.md](challenge.md) §9 와 다른 곳은 코드를 적었다). 응답 DTO 는 `src/types/challenge.ts`(`ChallengeSummary`·`ChallengeDetail`·`ChallengeTodayResponse`…)가 단일 출처다. 날짜는 전부 서버 KST(클라이언트 날짜를 받지 않는다 — §0-6). 오류는 §0-5 코드에 `details.reason` 으로 세부 사유를 단다.
 
-**공통 DTO 요약** — `ChallengeSummary` = `{id, title, topic:{id:string\|null, title, exists}, level, lengthDays, startDate, endDate, status:'ACTIVE'\|'COMPLETED'\|'ENDED', dailyGoal:{lesson, words, wordCount\|null, wordsMinAnswered\|null, countSkipped, ruleVersion}, stats:{dayIndex, elapsedDays, metDays, rate\|null, streak\|null, longestStreak, todayMet}, endedAt\|null}` (`topic.title` 은 만들 때 얼린 `topicTitleSnap`, `topic.id` 가 null 이면 `exists:false`; `streak` 은 진행 중일 때만, 끝난 챌린지는 null). `ChallengeDetail` = `ChallengeSummary` + `{days[], topicProgress\|null, totals:{lessonsDone, wordSets, wordsCorrect}, today\|null, result\|null}` — `days[]` = `{date, dayIndex, state:'UPCOMING'\|'TODAY'\|'MET'\|'PARTIAL'\|'MISSED'\|'STOPPED', goalMetAt\|null, lesson:{done, quizCorrect, quizTotal, lessonId\|null, refExists}\|null, words:{sets, correct, wrong, skipped, cardCount, answered, need\|null, ok\|null, sessionId\|null, refExists}\|null}`. `result` 모양은 `domain-model.md` §9-3 `Challenge.result`.
+**공통 DTO 요약** — `ChallengeSummary` = `{id, title, topic:{id:string\|null, title, exists}, level, lengthDays, startDate, endDate, status:'ACTIVE'\|'COMPLETED'\|'ENDED', dailyGoal:{lesson, words, wordCount\|null, wordsMinAnswered\|null, countSkipped, ruleVersion}, stats:{dayIndex, elapsedDays, metDays, rate\|null, streak\|null, longestStreak, todayMet}, endedAt\|null}` (`topic.title` 은 만들 때 얼린 `topicTitleSnap`, `topic.id` 가 null 이면 `exists:false`; `streak` 은 진행 중일 때만, 끝난 챌린지는 null). `ChallengeDetail` = `ChallengeSummary` + `{days[], topicProgress\|null, totals:{lessonsDone, wordSets, wordsCorrect}, today\|null, result\|null}` — `days[]` = `{date, dayIndex, state:'UPCOMING'\|'TODAY'\|'MET'\|'PARTIAL'\|'MISSED'\|'STOPPED', goalMetAt\|null, lesson:{done, quizCorrect\|null, quizTotal\|null, lessonId\|null, refExists}\|null, words:{sets, correct, wrong, skipped, cardCount, answered, need\|null, ok\|null, sessionId\|null, refExists}\|null}`. `result` 모양은 `domain-model.md` §9-3 `Challenge.result`.
 
 #### #155 `GET /api/v1/challenges?status=&limit=&cursor=`
 
@@ -2101,7 +2108,7 @@ SIGTERM: 지금 잡을 끝내고(최대 kill_timeout) 종료 — 끝내지 못�
 
 - **#62** `complete` 응답과 **#51** `finish` 응답에 `challenge` 키(없으면 `null`, 키는 항상 있음) — `{challengeId, date, dayIndex, goalMet, goalMetNow, words:{answered, need}|null}`. 라우트가 **커밋 뒤** `challengeProgressAfter` 를 부르고, 계산이 실패하면 로그만 남기고 `null`(수업 완료·세트 끝내기는 되돌려지지 않는다). #62 는 새 수업(`kind=NEW`) 완료 때만(`words:null`), #51 은 세트가 `DONE` 이고 주제 세트일 때만 계산한다. 값이 나오는 조건: 진행 중 챌린지 ∧ 그 주제·기간 안·마감 전의 공부 ∧ 그 과제가 `dailyGoal` 에서 켜져 있음. 수업·세트 완료 트랜잭션에는 챌린지 쓰기가 없다.
 - **#58** `lessons/today` — `recommendation.reason` 에 `CHALLENGE` 추가: 진행 중이고 기간 안이며 수업 과제가 켜진 챌린지가 있고 오늘 그 주제 새 수업을 아직 안 끝냈으면 그 주제를 최우선으로 추천한다(LLM 호출 없음).
-- **#70** `plan/calendar` — `days[].challenge`(그 달에 걸친 챌린지 날만, 없는 날은 키 자체가 없음) `{challengeId, dayIndex, state}` · `summary.challenge`(진행 중일 때만) `{id, metDays, elapsedDays, streak}`. **#71** `plan/day` — `challenge`(그날이 챌린지 날일 때만) `{challengeId, title, dayIndex, state, lesson:{quizCorrect, quizTotal}|null, words:{correct, wrong, skipped, cardCount, ok|null, need|null}|null}`. 챌린지 계산이 실패해도 달력·하루 시트는 그대로 내려간다(로그만).
+- **#70** `plan/calendar` — `days[].challenge`(그 달에 걸친 챌린지 날만, 없는 날은 키 자체가 없음) `{challengeId, dayIndex, state}` · `summary.challenge`(진행 중일 때만) `{id, metDays, elapsedDays, streak}`. **#71** `plan/day` — `challenge`(그날이 챌린지 날일 때만) `{challengeId, title, dayIndex, state, lesson:{quizCorrect|null, quizTotal|null}|null, words:{correct, wrong, skipped, cardCount, ok|null, need|null}|null}`. 챌린지 계산이 실패해도 달력·하루 시트는 그대로 내려간다(로그만).
 
 ---
 

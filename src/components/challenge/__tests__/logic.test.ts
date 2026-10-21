@@ -135,7 +135,6 @@ test('오늘 할 일 줄: 회화 상태별 — 만드는 중은 글자만, 죽�
   assert.equal(taskRowView(lesson('READY')).go, '공부 탭에서 시작')
   assert.equal(taskRowView(lesson('CONTINUE')).desc, '어제 만든 수업이 있어요 · 오늘 끝내면 오늘 기록으로 인정돼요')
   assert.equal(taskRowView(lesson('DONE')).desc, '끝냈어요')
-  assert.equal(taskRowView(lesson('DONE'), { lessonScore: { correct: 4, total: 5 } }).desc, '끝냈어요 · 문제 4/5')
   const f = taskRowView(lesson('FAILED'))
   assert.deepEqual([f.glyph, f.desc, f.go], ['fail', '만들지 못했어요', '공부 탭에서 다시'])
   assert.equal(taskRowView(lesson('TODO'), { later: true }).desc, '내일 공부 탭에서 만들어요')
@@ -189,8 +188,10 @@ test('달력 하루 시트의 챌린지 줄(#71): 상태별 설명·need 보충'
   const base: DayChallenge = { challengeId: 'ch1', title: '카페 주문 7일 챌린지', dayIndex: 3, state: 'MET', lesson: { quizCorrect: 4, quizTotal: 5 }, words: { correct: 8, wrong: 1, skipped: 1, cardCount: 10, ok: true, need: 8 } }
   const met = dayLineView(base, null)
   assert.equal(met.title, '챌린지 3일째 — 달성')
-  assert.equal(met.desc, '하루 목표를 다 채웠어요 · 문제 4/5 · 단어 10장 중 8장 맞힘')
-  assert.equal(met.aria, '챌린지 3일째 달성, 하루 목표를 다 채웠어요 · 문제 4/5 · 단어 10장 중 8장 맞힘, 챌린지 화면에서 보기')
+  assert.equal(met.desc, '하루 목표를 다 채웠어요 · 단어 10장 중 8장 맞힘')
+  assert.equal(met.aria, '챌린지 3일째 달성, 하루 목표를 다 채웠어요 · 단어 10장 중 8장 맞힘, 챌린지 화면에서 보기')
+  // task-081 새 수업은 점수 null — 같은 줄(점수를 읽지 않는다).
+  assert.equal(dayLineView({ ...base, lesson: { quizCorrect: null, quizTotal: null } }, null).desc, '하루 목표를 다 채웠어요 · 단어 10장 중 8장 맞힘')
   const short = { ...base, state: 'PARTIAL' as const, lesson: null, words: { correct: 3, wrong: 1, skipped: 6, cardCount: 10, ok: false, need: null } }
   assert.equal(dayLineView(short, 8).desc, '단어를 4/8장만 풀었어요')
   assert.equal(dayLineView(short, null).desc, '단어를 4장 풀었어요 · 하루 목표에는 못 미쳤어요')
@@ -209,7 +210,7 @@ test('S5 하루 시트: 두 세트 날 기준 수치 · 건너뛰기만 · 원�
   assert.equal(w.main, '오늘의 단어 2세트 합계 — 20장 중 맞힘 6 · 틀림 2 · 건너뜀 12(푼 8장)')
   assert.equal(w.link?.label, '가장 많이 푼 세트 결과 보기 · 외 1세트 ›')
   assert.equal(w.badge?.text, '✓ 완료 · 푼 8장(8장 이상)')
-  assert.equal(two.rows.find((r) => r.kind === 'lesson')?.main, '오늘의 회화 「카페 주문」 · 문제 5/5')
+  assert.equal(two.rows.find((r) => r.kind === 'lesson')?.main, '오늘의 회화 「카페 주문」 · 끝냄')
   assert.equal(two.title, '10월 5일 (월) · 3일째')
   const skip = daySheetView(cday({ state: 'MISSED', words: dw({ sets: 0, correct: 0, wrong: 0, skipped: 10, answered: 0, ok: false }) }), ctx)
   assert.equal(skip.rows[0].main, '건너뛰기만 함 · 푼 0장')
@@ -233,7 +234,7 @@ test('S5 하루 시트: 두 세트 날 기준 수치 · 건너뛰기만 · 원�
   assert.equal(daySheetView(cday({ state: 'UPCOMING', dayIndex: 5 }), ctx).status, '5일째 · 예정')
 })
 
-test('점수 추이: "문제 n/5" 하나로, 예정·그만둠 제외, 꺼진 과제 칸 없음', () => {
+test('날짜별 기록: 회화 끝냄/아직/수업 없음, 예정·그만둠 제외, 꺼진 과제 칸 없음', () => {
   const days = [
     cday({ dayIndex: 1, date: '2026-10-03', lesson: { done: 1, quizCorrect: 4, quizTotal: 5, lessonId: 'l', refExists: true }, words: dw() }),
     cday({ dayIndex: 2, date: '2026-10-04', state: 'MISSED', words: dw({ sets: 0, correct: 0, wrong: 0, answered: 0, skipped: 10, ok: false }) }),
@@ -243,18 +244,22 @@ test('점수 추이: "문제 n/5" 하나로, 예정·그만둠 제외, 꺼진 �
   ]
   const rows = scoreRows(days, GOAL)
   assert.equal(rows.length, 3)
-  assert.equal(rows[0].lesson?.text, '문제 4/5')
+  assert.equal(rows[0].lesson?.text, '끝냄')
+  assert.deepEqual(Object.keys(rows[0].lesson ?? {}), ['text'], '점(dots) 없음')
+  // task-081 새 수업(점수 null)도 같은 칸.
+  assert.equal(scoreRows([cday({ dayIndex: 1, date: '2026-10-03', lesson: { done: 1, quizCorrect: null, quizTotal: null, lessonId: 'l', refExists: true } })], GOAL)[0].lesson?.text, '끝냄')
   assert.equal(rows[0].words, '8/10 맞힘')
   assert.equal(rows[1].words, '건너뛰기만 함')
   assert.equal(rows[1].lesson?.text, '수업 없음')
   assert.deepEqual([rows[2].lesson?.text, rows[2].words, rows[2].dateText], ['아직', '아직', '10/5 오늘'])
-  assert.ok(!rows.some((r) => /점|평균/.test(`${r.lesson?.text}${r.words}`)))
+  assert.ok(!rows.some((r) => /점|평균|문제/.test(`${r.lesson?.text}${r.words}`)))
+  assert.ok(ruleLines(GOAL).includes('회화는 수업을 끝내면 완료예요.'))
   assert.equal(scoreRows(days, { lesson: false, words: true })[0].lesson, null)
   assert.ok(!ruleLines({ ...GOAL, lesson: false }).some((l) => l.startsWith('회화는')))
   assert.ok(ruleLines(GOAL).some((l) => l.includes('수행 연속은 앱을 연 날(연속 출석)이 아니라')))
 })
 
-test('S4 오늘 칸은 일 번호로 찾는다 — 오늘 목표를 채운 날(MET)·일부·TODAY 모두 "문제 n/5"·날짜 띠 초점·점수 표 "오늘"', () => {
+test('S4 오늘 칸은 일 번호로 찾는다 — 오늘 목표를 채운 날(MET)·일부·TODAY 모두 «끝냈어요»(점수 없음)·날짜 띠 초점·기록 표 "오늘"', () => {
   const ls = (q: number) => ({ done: 1, quizCorrect: q, quizTotal: 5, lessonId: 'l', refExists: true })
   const week = (todayState: ChallengeDay['state'], todayLesson: ChallengeDay['lesson']) => [
     cday({ dayIndex: 1, date: '2026-10-03', lesson: ls(5), words: dw() }),
@@ -272,23 +277,23 @@ test('S4 오늘 칸은 일 번호로 찾는다 — 오늘 목표를 채운 날(M
   assert.ok(!met.days.some((x) => x.state === 'TODAY'))
   const mv = activeTodayView(met)
   assert.deepEqual([mv.todayIndex, mv.todayDay?.date], [4, '2026-10-06'])
-  assert.equal(mv.rows.find((r) => r.key === 'LESSON')?.desc, '끝냈어요 · 문제 4/5')
+  assert.equal(mv.rows.find((r) => r.key === 'LESSON')?.desc, '끝냈어요')
   assert.equal(stripFocusDate(met.days, mv.todayIndex), '2026-10-06')
   const metRow = scoreRows(met.days, GOAL, mv.todayIndex).find((r) => r.date === '2026-10-06')
-  assert.deepEqual([metRow?.dateText, metRow?.lesson?.text], ['10/6 오늘', '문제 4/5'])
+  assert.deepEqual([metRow?.dateText, metRow?.lesson?.text], ['10/6 오늘', '끝냄'])
   assert.equal(scoreRows(met.days, GOAL, mv.todayIndex).filter((r) => r.dateText.endsWith(' 오늘')).length, 1)
 
-  // 아직 진행 중(TODAY) — 회화만 끝냄(3/5)이어도 같은 칸·같은 점수.
+  // 아직 진행 중(TODAY) — 회화만 끝냄이어도 같은 칸·같은 줄.
   const live = detail({ stats: MORNING, days: week('TODAY', ls(3)), today: todayTasks([words('TODO'), lesson('DONE')], false) })
   const lv = activeTodayView(live)
   assert.equal(lv.todayDay?.state, 'TODAY')
-  assert.equal(lv.rows.find((r) => r.key === 'LESSON')?.desc, '끝냈어요 · 문제 3/5')
+  assert.equal(lv.rows.find((r) => r.key === 'LESSON')?.desc, '끝냈어요')
   assert.equal(stripFocusDate(live.days, lv.todayIndex), '2026-10-06')
 
   // 상태가 일부여도(번호로만 찾는다) 같은 칸.
   assert.equal(todayDayOf(week('PARTIAL', ls(2)), 4)?.lesson?.quizCorrect, 2)
 
-  // 오늘 수업 기록이 없으면 점수 조각 없음.
+  // 오늘 수업 기록이 없으면 준비 줄 그대로.
   assert.equal(activeTodayView(detail({ stats: MORNING, days: week('TODAY', null), today: todayTasks([lesson('READY')], false) })).rows[0].desc, '수업이 준비됐어요 · 약 15분')
 
   // 내일 시작(`today` null · 일 번호 0) → 오늘 칸 없음 · 첫 칸 초점 · 줄 없음.

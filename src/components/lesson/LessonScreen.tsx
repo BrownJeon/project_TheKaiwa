@@ -1,10 +1,12 @@
 'use client'
 
 /**
- * 수업 경로 `/study/today/talk/[lessonId]` 루트(screens §12-0 ① · §12-2 D~L) — #60 을 읽고 `status` 로 가른다:
+ * 수업 경로 `/study/today/talk/[lessonId]` 루트(screens §12-0 ① · §12-2 D~L · §12-8 · §37) — #60 을 읽고 `status` 로 가른다:
  * GENERATING·FAILED → 대기·실패 / READY·IN_PROGRESS → 5단계 / DONE → 종료 카드 / 404 → 없음.
  * 5단계 틀: 머리(56) · 단계 표시 · 본문(유일한 스크롤) · (⑤만) 입력 바. 단계는 순서대로(a=B) — 끝낸 단계는 읽기 전용 다시 보기.
- * 복습 수업(`kind === 'REVIEW'`, task-010b screens §14-3 B)도 같은 경로·분기 — 머리 뱃지·① 앞 항목 카드·② 집중·③ 문구·종료 카드만 선택 prop 으로 바뀐다.
+ * 복습 수업(`kind === 'REVIEW'`, task-010b screens §14-3 B)도 같은 경로·분기 — 머리 뱃지·① 앞 항목 카드·② 집중·종료 카드만 선택 prop 으로 바뀐다.
+ * ③ 은 «조각»(task-081 §37 — 옛 «문제» 단계 대체, 단계 번호·`stageDone` 그대로). ④ 응용·⑤ 말하기는 같은 `textFirst`(말로 답하기를 못 쓸 때 글자 우선)와
+ * 「내가 한 말」 한국어 뜻 메모리 `trCache` 를 함께 쓴다(§37-14). 종료 카드 값은 #62 `result` + 내용에서 센 오늘의 조각 수(점수 없음, §37-6).
  */
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -20,6 +22,7 @@ import { LESSON_END_CH } from '@/components/vocab/topicCopy'
 import LessonEnd from './LessonEnd'
 import LessonGenScreen from './LessonGenScreen'
 import { GEN, LESSON, PASTED_TOPIC } from './lessonCopy'
+import { pieceCount } from './chunkLogic'
 import { endResultFrom, firstStage, type EndResult } from './logic'
 import { lessonToastBottom } from './lessonVoiceView'
 import { LessonHeader, StageSteps } from './parts'
@@ -28,8 +31,8 @@ import { RV_GEN } from './review/reviewCopy'
 import { focusIdsOf } from './review/reviewLogic'
 import type { FreshReviewEnd } from './review/useNextReview'
 import StageApply from './StageApply'
+import StageChunk from './StageChunk'
 import StageGrammar from './StageGrammar'
-import StageQuiz from './StageQuiz'
 import StageSpeak from './StageSpeak'
 import StageUnderstand from './StageUnderstand'
 import { useLesson, type UseLesson } from './useLesson'
@@ -246,11 +249,11 @@ function LessonStages({
     await st.flush()
     const done = (r: CompleteResult) => {
       onEnded(
-        { correct: r.result.quiz.correct, total: r.result.quiz.total, applicationDone: r.result.applicationDone, usedIds: r.result.expressions.usedIds, missedIds: r.result.expressions.missedIds, nextPreview: r.result.nextPreview },
+        { pieces: pieceCount(lesson.content), applicationDone: r.result.applicationDone, usedIds: r.result.expressions.usedIds, missedIds: r.result.expressions.missedIds, nextPreview: r.result.nextPreview },
         isReviewLesson ? { jobId: r.reviewDecisionJobId ?? null, nextReview: r.nextReview ?? null } : undefined,
         r.challenge ?? null,
       )
-      st.replace({ ...lesson, status: 'DONE', stageDone: 5, score: r.lesson.score, completedAt: r.lesson.completedAt })
+      st.replace({ ...lesson, status: 'DONE', stageDone: 5, score: r.lesson.score ?? null, completedAt: r.lesson.completedAt })
     }
     try {
       done(await apiPost<CompleteResult>(path, {}))
@@ -307,9 +310,9 @@ function LessonStages({
           ) : stage === 2 ? (
             <StageGrammar content={lesson.content} pb={pb} onToast={show} footer={footer} variant={variant} focusIds={isReviewLesson ? focusIds : undefined} />
           ) : stage === 3 ? (
-            <StageQuiz lesson={lesson} st={st} reviewing={reviewing} onToast={show} footer={footer} variant={variant} />
+            <StageChunk lesson={lesson} st={st} pb={pb} reviewing={reviewing} onToast={show} footer={footer} />
           ) : (
-            <StageApply lesson={lesson} st={st} pb={pb} reviewing={reviewing} config={config} onToast={show} footer={footer} />
+            <StageApply lesson={lesson} st={st} pb={pb} reviewing={reviewing} config={config} textFirst={textFirst} trCache={trCache} onToast={show} footer={footer} />
           )}
         </div>
       )}

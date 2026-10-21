@@ -1,6 +1,7 @@
 /**
  * task-010b REV-079 M-1·L-1·L-3·L-4 — 복습 칸이 새 수업(NEW)에 새지 않는지(선택 prop 없이 그린 DOM), 건너뛰기 상태 전이(가짜 타이머·가짜 요청),
  * 다음 복습 묶음의 "외 N개", 근거 문단 줄바꿈, 되돌리기 알림 영역 상시 마운트.
+ * task-081: ③ «문제» 단계(`StageQuiz`)가 «조각» 으로 바뀌어 문제 결과 카드 시험을 지웠다(§37-13 ⑥).
  */
 import { afterEach, beforeEach, mock, test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -11,12 +12,10 @@ import type { LessonContent, LessonDto } from '@/types/lesson'
 import type { NextReviewDetail, ReviewItem } from '@/types/review'
 import LessonEnd from '../../LessonEnd'
 import LessonGenScreen from '../../LessonGenScreen'
-import { END, GEN, LESSON, U2, U3 } from '../../lessonCopy'
+import { END, GEN, LESSON, U2 } from '../../lessonCopy'
 import { LessonHeader } from '../../parts'
 import StageGrammar from '../../StageGrammar'
-import StageQuiz from '../../StageQuiz'
 import type { LessonPlayback } from '../../useLessonPlayback'
-import type { UseLesson } from '../../useLesson'
 import NextReviewCard from '../NextReviewCard'
 import { RV_END, RV_GEN, RV_HOME, RV_LESSON } from '../reviewCopy'
 import { skipFailureKind } from '../reviewLogic'
@@ -67,7 +66,6 @@ const lessonOf = (o: Partial<LessonDto> = {}): LessonDto & { content: LessonCont
 }) as LessonDto & { content: LessonContent }
 
 const PB = { textOnly: false, active: () => false, loading: () => false, lineOf: () => null, blocked: false, stop: () => {}, playLines: () => {}, playMine: () => {}, resume: () => {} } as unknown as LessonPlayback
-const ST = { update: () => {} } as unknown as UseLesson
 const ROUTER = { push: () => {}, replace: () => {}, prefetch: () => {}, back: () => {}, forward: () => {}, refresh: () => {} }
 const withRouter = (el: ReactElement) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: ROUTER as never }, el))
 
@@ -77,7 +75,6 @@ const REVIEW_ONLY = [
   RV_LESSON.exprTitle(2),
   RV_LESSON.exprNote,
   RV_LESSON.exprNoteNoAudio,
-  RV_LESSON.quizNote,
   RV_LESSON.headerSr,
   RV_END.title,
   RV_END.recordNote,
@@ -106,15 +103,6 @@ test('StageGrammar — variant 를 안 주면 NEW 문구·뱃지 그대로, REVI
   assert.ok(rv.includes(RV_LESSON.grammarIntro(1)) && rv.includes(RV_LESSON.exprTitle(2)) && rv.includes(`>${RV_LESSON.focus}<`))
 })
 
-test('StageQuiz — variant 를 안 주면 결과 카드 문구가 NEW 그대로', () => {
-  const lesson = lessonOf()
-  const plain = renderToStaticMarkup(createElement(StageQuiz, { lesson, st: ST, reviewing: true, onToast: () => {}, footer: null }))
-  assertNoReview(plain, 'StageQuiz')
-  assert.ok(plain.includes(U3.sumNote))
-  const rv = renderToStaticMarkup(createElement(StageQuiz, { lesson, st: ST, reviewing: true, onToast: () => {}, footer: null, variant: 'REVIEW' }))
-  assert.ok(rv.includes(RV_LESSON.quizNote) && !rv.includes(U3.sumNote))
-})
-
 test('LessonHeader — review 를 안 주면 sr 접두어만, 복습 뱃지 없음', () => {
   const html = renderToStaticMarkup(createElement(LessonHeader, { teacherName: '선생님', topic: '카페 주문', title: 'カフェで', onAnnounce: () => {} }))
   assertNoReview(html, 'LessonHeader')
@@ -122,7 +110,8 @@ test('LessonHeader — review 를 안 주면 sr 접두어만, 복습 뱃지 없�
 })
 
 test('LessonEnd — NEW 수업은 review 를 안 줘도 다음 복습·[오늘로] 주 버튼 없이 지금과 같다', () => {
-  const result = { correct: 1, total: 1, applicationDone: 0, usedIds: [], missedIds: [], nextPreview: { titleKo: '다음 수업', teaserKo: '이어서 해요' } }
+  // 종료 결과 모양이 task-081 에서 {correct,total} → {pieces} 로 바뀌는 중이라(④ 갈래 소유) 두 모양을 함께 실어 어느 쪽에서도 그려지게 한다.
+  const result = { pieces: null, correct: 1, total: 1, applicationDone: 0, usedIds: [], missedIds: [], nextPreview: { titleKo: '다음 수업', teaserKo: '이어서 해요' } } as unknown as Parameters<typeof LessonEnd>[0]['result']
   const html = withRouter(createElement(LessonEnd, { lesson: lessonOf(), result, onToast: () => {} }))
   assertNoReview(html, 'LessonEnd')
   assert.ok(html.includes(END.title) && html.includes(END.recorded) && html.includes(END.nextLesson) && html.includes(END.talk))

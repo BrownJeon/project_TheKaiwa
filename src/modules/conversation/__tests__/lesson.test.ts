@@ -7,7 +7,8 @@ import { join } from 'node:path'
 import { completeJson, renderTranscript, type LlmExtraCheckInfo } from '../../engine/llm'
 import { routerDeps, type ResolvedConnection } from '../../engine/router'
 import { extractAndValidate, validateOutput } from '../../engine/json/schemaValidate'
-import { checkLessonResponse } from '../structuredResponse/checks'
+import { checkLessonResponse, checkLessonResponseDetailed } from '../structuredResponse/checks'
+import { withPieces } from './lessonPiecesHelpers'
 import { repairLessonResponse, LESSON_REPAIR_CHUNKS_MAX, type LessonRepairSourceChunk } from '../structuredResponse/repair'
 import { LESSON_READING_PATTERN, LESSON_SCHEMA, TALK_SCHEMA, type ChunkType, type LessonChunkOut, type LessonResponse } from '../structuredResponse/schemas'
 import { loadPersona } from '../persona/loader'
@@ -19,9 +20,11 @@ import {
   LESSON_MAX_PREVIOUS_TITLES,
   LESSON_MAX_TOPIC_CHUNKS,
   LESSON_PROMPT_VERSION,
+  lessonPromptVersion,
   LESSON_SOURCE_TEXT_MAX,
   LESSON_SOURCE_TEXT_MIN,
   LESSON_USER_PROMPT_CAP,
+  type LessonScenarioInput,
   type LessonTopicChunkInput,
   type LessonTopicInput,
 } from '../prompts/lesson'
@@ -52,20 +55,25 @@ function syntheticNewChunk(n: number): LessonChunkOut {
 
 // ── 합성 응답(스키마·후검증 통과용) ──────────────────────────────────────────
 
+/** task-081 — quiz 가 없어진 뒤 «보정 대상 id» 를 싣는 칸: application 항목의 targetIds 를 바꾸고 모범 답이 그 조각 표기를 담게 한다(④ 콘텐츠 매칭에 걸리지 않게). */
+function carry(a: LessonResponse['application'][number], targetIds: string[], textJa: string): LessonResponse['application'][number] {
+  return { ...a, targetIds, modelAnswerJa: `${textJa}。`, modelReading: 'ふ。' }
+}
+
 function validLessonResponse(topic: LessonTopicInput): LessonResponse {
   const [c1, c2, c3, c4] = topic.chunks
   return {
     title: '自己紹介レッスン',
     titleKo: '자기소개 수업',
     rolesKo: { A: '학생', B: '선생님' },
-    dialogue: [
+    dialogue: withPieces([
       { speaker: 'A', ja: 'はじめまして。', reading: 'はじめまして。', ko: '처음 뵙겠습니다.' },
       { speaker: 'B', ja: 'はじめまして。よろしくお願いします。', reading: 'はじめまして。よろしくおねがいします。', ko: '처음 뵙겠습니다. 잘 부탁합니다.' },
       { speaker: 'A', ja: '私の名前はブラウンです。', reading: 'わたしのなまえはぶらうんです。', ko: '제 이름은 브라운입니다.' },
       { speaker: 'B', ja: '韓国から来ましたか。', reading: 'かんこくからきましたか。', ko: '한국에서 왔나요?' },
       { speaker: 'A', ja: 'はい、韓国から来ました。', reading: 'はい、かんこくからきました。', ko: '네, 한국에서 왔습니다.' },
       { speaker: 'B', ja: '会社員ですか。', reading: 'かいしゃいんですか。', ko: '회사원인가요?' },
-    ],
+    ]),
     chunks: [
       { id: c1.id, textJa: c1.textJa, reading: c1.reading!, meaningKo: c1.meaningKo, chunkType: c1.chunkType, isNew: false },
       { id: c2.id, textJa: c2.textJa, reading: c2.reading!, meaningKo: c2.meaningKo, chunkType: c2.chunkType, isNew: false },
@@ -75,13 +83,6 @@ function validLessonResponse(topic: LessonTopicInput): LessonResponse {
     ],
     grammar: [
       { id: 'g1', pattern: '〜から来ました', explanationKo: '출신지를 말할 때 쓰는 표현이에요.', exampleJa: '日本から来ました。', exampleReading: 'にほんからきました。', exampleKo: '일본에서 왔습니다.' },
-    ],
-    quiz: [
-      { id: 'q1', promptKo: '「はじめまして」의 뜻은?', promptJa: null, choices: ['처음 뵙겠습니다', '안녕히 가세요', '감사합니다', '미안합니다'], answer: 0, targetIds: [c1.id], explanationKo: '첫 인사 표현이에요.' },
-      { id: 'q2', promptKo: '빈칸에 들어갈 알맞은 말을 고르세요.', promptJa: '「＿＿から来ました」', choices: ['韓国', '会社', '名前', '嬉しい'], answer: 0, targetIds: ['g1'], explanationKo: '출신 국가를 넣어요.' },
-      { id: 'q3', promptKo: '올바른 문형은?', promptJa: null, choices: ['会社員です', '会社員だ', '会社員でした', '会社員だった'], answer: 0, targetIds: [c3.id], explanationKo: '정중체 です 를 씁니다.' },
-      { id: 'q4', promptKo: '「名前」의 뜻은?', promptJa: null, choices: ['이름', '기쁘다', '살다', '일하다'], answer: 0, targetIds: [c2.id], explanationKo: '이번 수업에서 배운 표현이에요.' },
-      { id: 'q5', promptKo: '来ました 의 읽기는?', promptJa: null, choices: ['きました', 'いきました', 'かきました', 'みました'], answer: 0, targetIds: ['new-1'], explanationKo: '来る의 과거형이에요.' },
     ],
     application: [
       { id: 'a1', promptKo: '자신의 이름을 소개해 보세요.', hintJa: '私の名前は〜です。', modelAnswerJa: '私の名前はブラウンです。', modelReading: 'わたしのなまえはぶらうんです。', modelKo: '제 이름은 브라운입니다.', targetIds: [c1.id, c2.id] },
@@ -243,9 +244,9 @@ test('예산 (a): sourceText 경로 — 2,000자 원문 + 교정·이전 제목�
  * CAP 으로 걸지 않고 현재 측정값 + 작은 여유를 천장으로 둔다: lesson@v8 지시문(또는 헤더·조각 렌더)이 이보다 길어지면 이 테스트가
  * 깨져 의도된 증가인지 판단하게 한다(회귀 감지 목적). 지시문을 줄이면 이 천장도 함께 낮춘다.
  */
-const LESSON_REAL_LIMIT_WORST_CEILING = 9_540
+const LESSON_REAL_LIMIT_WORST_CEILING = 10_250 // task-081: pieces 지침(+869자)·quiz 줄 삭제(-506자 안팎)로 9,886 → 지침 보정(PE 3단계, +329자)으로 10,215 측정 → 9,540 에서 올림(lesson.ts CAP 주석)
 
-test('예산 (b): 실제 DB 한도 최대 학습자(이름 40·선생님 30·헤더 600) 주제 경로 최악 길이 ≤ 현재 측정값 + 여유(9,540) — CAP 초과 사실 명시', (t) => {
+test('예산 (b): 실제 DB 한도 최대 학습자(이름 40·선생님 30·헤더 600) 주제 경로 최악 길이 ≤ 현재 측정값 + 여유(10,250) — CAP 이내(v10 에서 CAP 도 올림)', (t) => {
   const baseLearner = {
     displayName: '브'.repeat(40), teacherName: '유'.repeat(30), level: 'N3',
     strictness: 'STRICT' as const, correctionMode: 'COACH' as const, explainDepth: 'DETAILED' as const,
@@ -339,17 +340,38 @@ test('LESSON_SCHEMA: 유효 응답 통과, 스키마 밖 필드·필수 누락·
   const missingTitle: Record<string, unknown> = { ...ok }
   delete missingTitle.title
   assert.equal(validateOutput(missingTitle, LESSON_SCHEMA).ok, false)
-  assert.equal(validateOutput({ ...ok, quiz: ok.quiz.slice(0, 4) }, LESSON_SCHEMA).ok, false, 'quiz 는 정확히 5개')
+  assert.equal(validateOutput({ ...ok, quiz: [] }, LESSON_SCHEMA).ok, false, 'task-081: quiz 는 이제 스키마 밖 키다(additionalProperties:false)')
   assert.equal(validateOutput({ ...ok, dialogue: ok.dialogue.slice(0, 4) }, LESSON_SCHEMA).ok, false, 'dialogue 는 최소 6개')
   assert.equal(validateOutput({ ...ok, application: [...ok.application, ok.application[0]] }, LESSON_SCHEMA).ok, false, 'application 은 정확히 3개')
 })
 
-test('LESSON_SCHEMA: quiz.choices 중복은 uniqueItems 위반, 4개가 아니면 위반', () => {
+test('LESSON_SCHEMA(task-081): quiz 는 required·properties 에 없고 dialogue[].pieces 는 필수다', () => {
   const ok = validLessonResponse(fixture.topic)
-  const dupChoices = { ...ok, quiz: [{ ...ok.quiz[0], choices: ['같음', '같음', 'A', 'B'] }, ...ok.quiz.slice(1)] }
-  assert.equal(validateOutput(dupChoices, LESSON_SCHEMA).ok, false)
-  const threeChoices = { ...ok, quiz: [{ ...ok.quiz[0], choices: ['A', 'B', 'C'] }, ...ok.quiz.slice(1)] }
-  assert.equal(validateOutput(threeChoices, LESSON_SCHEMA).ok, false)
+  assert.ok(!(LESSON_SCHEMA.required as readonly string[]).includes('quiz'))
+  assert.ok(!('quiz' in LESSON_SCHEMA.properties))
+  assert.equal(validateOutput(ok, LESSON_SCHEMA).ok, true, 'quiz 없이 통과')
+  const noPieces = { ...ok, dialogue: ok.dialogue.map((d, i) => (i === 0 ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== 'pieces')) : d)) }
+  const r = validateOutput(noPieces, LESSON_SCHEMA)
+  assert.equal(r.ok, false, 'pieces 누락은 실패')
+  assert.ok(!r.ok && r.violations.some((v) => v.includes('pieces')), JSON.stringify(r))
+})
+
+test('LESSON_SCHEMA(task-081): pieces 항목 한도 — 0·25개, ja 41자, ko 31자, type 6값 밖, 키 누락은 실패 / 24개·40자·30자·type null·ko null 은 통과', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const withLine0 = (pieces: unknown) => ({ ...ok, dialogue: ok.dialogue.map((d, i) => (i === 0 ? { ...d, pieces } : d)) })
+  const one = { ja: 'あ', type: 'NAME', ko: '뜻', slash: false }
+  assert.equal(validateOutput(withLine0([]), LESSON_SCHEMA).ok, false, '0개')
+  assert.equal(validateOutput(withLine0(Array.from({ length: 25 }, () => one)), LESSON_SCHEMA).ok, false, '25개')
+  assert.equal(validateOutput(withLine0(Array.from({ length: 24 }, () => one)), LESSON_SCHEMA).ok, true, '24개')
+  assert.equal(validateOutput(withLine0([{ ...one, ja: 'あ'.repeat(41) }]), LESSON_SCHEMA).ok, false, 'ja 41자')
+  assert.equal(validateOutput(withLine0([{ ...one, ja: 'あ'.repeat(40) }]), LESSON_SCHEMA).ok, true, 'ja 40자')
+  assert.equal(validateOutput(withLine0([{ ...one, ko: '가'.repeat(31) }]), LESSON_SCHEMA).ok, false, 'ko 31자')
+  assert.equal(validateOutput(withLine0([{ ...one, ko: '가'.repeat(30) }]), LESSON_SCHEMA).ok, true, 'ko 30자')
+  assert.equal(validateOutput(withLine0([{ ...one, type: 'VERB' }]), LESSON_SCHEMA).ok, false, '6값 밖 type')
+  for (const t of ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION', 'LINK']) assert.equal(validateOutput(withLine0([{ ...one, type: t }]), LESSON_SCHEMA).ok, true, t)
+  assert.equal(validateOutput(withLine0([{ ja: '。', type: null, ko: null, slash: false }]), LESSON_SCHEMA).ok, true, 'type·ko 가 null 인 문장부호 조각')
+  assert.equal(validateOutput(withLine0([{ ja: 'あ', type: 'NAME', ko: '뜻' }]), LESSON_SCHEMA).ok, false, 'slash 키 누락(구조화 출력이 키를 빠뜨리지 않게 필수)')
+  assert.equal(validateOutput(withLine0([{ ...one, reading: 'あ' }]), LESSON_SCHEMA).ok, false, '읽기 칸은 없다(task-036 — LLM 이 읽기를 만들지 않는다)')
 })
 
 test('LESSON_SCHEMA: reading 계열 필드는 가나(히라가나+가타카나, +장음·문장부호)만 — 한자·로마자·한글은 위반(lesson@v3)', () => {
@@ -413,101 +435,145 @@ test('checkLessonResponse: isNew 불일치(기존 id 인데 true / new- 인데 f
   assert.ok(checkLessonResponse({ allowedChunkIds }, wrongFalse).some((m) => m.includes('isNew=true')))
 })
 
-test('checkLessonResponse: targetIds 가 이 레슨의 chunks·grammar id 밖이면 위반(quiz·application·speaking 전부)', () => {
+test('checkLessonResponse: targetIds 가 이 레슨의 chunks·grammar id 밖이면 위반(application·speaking 전부)', () => {
   const ok = validLessonResponse(fixture.topic)
   const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
-  const badQuiz = { ...ok, quiz: [{ ...ok.quiz[0], targetIds: ['no-such-id'] }, ...ok.quiz.slice(1)] }
-  assert.ok(checkLessonResponse({ allowedChunkIds }, badQuiz).some((m) => m.includes('quiz[0]') && m.includes('no-such-id')))
   const badApp = { ...ok, application: [{ ...ok.application[0], targetIds: ['no-such-id'] }, ...ok.application.slice(1)] }
   assert.ok(checkLessonResponse({ allowedChunkIds }, badApp).some((m) => m.includes('application[0]')))
   const badSpeaking = { ...ok, speaking: [{ ...ok.speaking[0], targetIds: ['no-such-id'] }, ...ok.speaking.slice(1)] }
   assert.ok(checkLessonResponse({ allowedChunkIds }, badSpeaking).some((m) => m.includes('speaking[0]')))
 })
 
-// ── lesson@v8(2026-09-30, task-025 IMP-0014) — quiz.promptKo 필수·비어 있지 않은 한국어 ──
+// ── lesson@v10(2026-10-21, task-081) — quiz 제거 · dialogue[].pieces 필수 ──
 
-test('lesson@v8: 스키마 — quiz.promptKo 가 null·빈 문자열·누락이면 실패, 한국어 문자열이면 통과한다(promptJa 는 여전히 null 허용)', () => {
-  const ok = validLessonResponse(fixture.topic)
-  assert.deepEqual(validateOutput(ok, LESSON_SCHEMA), { ok: true })
-  const withKo = (promptKo: unknown) => ({ ...ok, quiz: [{ ...ok.quiz[0], promptKo }, ...ok.quiz.slice(1)] })
-  assert.equal(validateOutput(withKo(null), LESSON_SCHEMA).ok, false, 'v7 에서 허용하던 null 은 이제 위반')
-  assert.equal(validateOutput(withKo(''), LESSON_SCHEMA).ok, false, '빈 문자열은 minLength 위반')
-  assert.equal(validateOutput(withKo('가'.repeat(161)), LESSON_SCHEMA).ok, false, '160자 초과는 maxLength 위반')
-  const missing = { ...ok, quiz: [Object.fromEntries(Object.entries(ok.quiz[0]).filter(([k]) => k !== 'promptKo')), ...ok.quiz.slice(1)] }
-  assert.equal(validateOutput(missing, LESSON_SCHEMA).ok, false, '누락도 위반')
-  assert.deepEqual(validateOutput(withKo('「はじめまして」의 뜻은?'), LESSON_SCHEMA), { ok: true })
-  const jaNull = { ...ok, quiz: ok.quiz.map((q) => ({ ...q, promptJa: null })) }
-  assert.deepEqual(validateOutput(jaNull, LESSON_SCHEMA), { ok: true }, 'promptJa 는 일본어 문장을 보여 줄 때만 채우므로 전부 null 이어도 통과')
-})
-
-test('lesson@v8: 스키마 위반 사유에 quiz.promptKo 경로가 남는다(재시도 지시가 필드를 짚을 수 있다)', () => {
-  const ok = validLessonResponse(fixture.topic)
-  const raw = JSON.stringify({ ...ok, quiz: [{ ...ok.quiz[0], promptKo: null }, ...ok.quiz.slice(1)] })
-  const result = extractAndValidate(raw, LESSON_SCHEMA, { stripAdditionalProperties: true })
-  assert.equal(result.ok, false)
-  if (result.ok || result.parseError) return
-  assert.ok(result.violations.some((m) => m.includes('promptKo')), JSON.stringify(result.violations))
-})
-
-test('checkLessonResponse(v8): quiz.promptKo 에 한글이 없으면(일본어 문장만 넣은 자리 바뀜) 위반 — promptJa 가 있어도 소용없다', () => {
-  const ok = validLessonResponse(fixture.topic)
-  const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
-  const noHangul = { ...ok, quiz: [{ ...ok.quiz[0], promptKo: '「はじめまして」', promptJa: '「はじめまして」' }, ...ok.quiz.slice(1)] }
-  const v = checkLessonResponse({ allowedChunkIds }, noHangul)
-  assert.ok(v.some((m) => m.includes('quiz[0].promptKo') && m.includes('한글')), JSON.stringify(v))
-  // (e)=B — 재시도 안내가 문제를 번역·정답 뜻으로 되돌리지 않도록 "일본어 문장은 promptJa 에만, promptKo 는 고르라는 지시(빈칸은 할 일만), 정답의 뜻은 쓰지 않는다"를 말한다.
-  const hint = v.find((m) => m.includes('quiz[0].promptKo')) ?? ''
-  assert.match(hint, /일본어 문장은 promptJa 에만 두고/)
-  assert.match(hint, /정답의 뜻은 쓰지 않는다/)
-  assert.match(hint, /빈칸에 들어갈 알맞은 말을 고르세요/)
-  assert.deepEqual(checkLessonResponse({ allowedChunkIds }, ok), [], '정상 응답은 위반 없음')
-})
-
-test('checkLessonResponse(v8): 한글 없는 promptKo 는 마지막 시도(tolerateContentMismatch)에서만 눈감는다 — 다른 위반은 그대로 잡는다', () => {
-  const ok = validLessonResponse(fixture.topic)
-  const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
-  const noHangul = { ...ok, quiz: [{ ...ok.quiz[0], promptKo: 'はじめまして' }, ...ok.quiz.slice(1)] }
-  assert.deepEqual(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, noHangul), [])
-  const badId = { ...noHangul, quiz: [{ ...noHangul.quiz[0], targetIds: ['no-such-id'] }, ...noHangul.quiz.slice(1)] }
-  assert.ok(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, badId).some((m) => m.includes('quiz[0]') && m.includes('no-such-id')))
-})
-
-test('lesson@v8: 프롬프트에 "모든 문제에 한국어 뜻을 반드시 채운다" 지시가 실리고, promptKo·promptJa "최소 하나" 문구는 없다(주제·sourceText 두 경로)', () => {
-  for (const req of [
-    buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic }),
-    buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText }),
-  ]) {
-    const quizLine = req.system.split('\n').find((l) => l.startsWith('- quiz:'))
-    assert.ok(quizLine, 'quiz 지시 줄이 있어야 한다')
-    assert.match(quizLine!, /promptKo/)
-    assert.match(quizLine!, /반드시/, 'promptKo 필수 강조')
-    assert.match(quizLine!, /null/, 'null·빈 값 금지 문구')
-    assert.ok(!quizLine!.includes('중 최소 하나'), 'v7 의 "최소 하나" 문구가 남아 있으면 안 된다')
+test('lesson@v10: 버전 표기(lesson@v10 · 상황 lessonScenario@v2)와 quiz 지시가 사라졌다(주제·sourceText 두 경로)', () => {
+  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v10')
+  for (const input of [{ topic: fixture.topic }, { sourceText: fixture.sourceText }]) {
+    const req = buildLessonRequest({ todayKst: '2026-09-28', learner, ...input })
+    assert.ok(!/quiz/i.test(req.system), 'system 에 quiz 가 남아 있으면 안 된다')
+    assert.ok(!req.system.includes('문제'), '5단계 이름이 «문제» 에서 «조각» 으로 바뀌었다')
+    assert.match(req.system, /이해 → 문법 → 조각 → 응용 → 말하기/)
+    assert.match(req.system, /최상위 키는 title, titleKo, rolesKo, dialogue, chunks, grammar, application, speaking, nextPreview/)
   }
 })
 
-test('lesson@v8 (e)=B: 빈칸 문제는 promptKo 에 할 일만 쓰고 빈 문장은 promptJa 로 — 번역형·뜻/형태형 지시와 옛 번역 예시 부재(주제·sourceText 두 경로)', () => {
-  for (const req of [
+test('lesson@v10: pieces 지침 — 핵심 제약(이으면 원문과 같다)이 맨 앞에 굵게, 6종 type·slash 규칙·예 2개, 읽기는 쓰지 않는다(주제·sourceText·상황 경로 모두 같은 한 줄)', () => {
+  const scenario: LessonScenarioInput = { title: 'カフェ', roles: { learner: '손님', tutor: '점원' }, goalKo: '주문하기', expressions: [] }
+  const reqs = [
     buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic }),
     buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText }),
-  ]) {
-    const quizLine = req.system.split('\n').find((l) => l.startsWith('- quiz:'))
-    assert.ok(quizLine, 'quiz 지시 줄이 있어야 한다')
-    assert.match(quizLine!, /빈칸 문제는 promptKo 에 할 일만/, '빈칸형 분리 지시')
-    assert.ok(quizLine!.includes('빈칸에 들어갈 알맞은 말을 고르세요.'), '할 일만 쓰는 예시 문구')
-    assert.match(quizLine!, /번역하지 않고, 빈 문장은 promptJa/, '빈칸형 번역 금지')
-    // 일반 규칙(v8 원문): 어떤 문제에서도 정답의 뜻·표현을 promptKo 에 미리 쓰지 않는다 — (e)=B 첫 초안이 이 문장을 빈칸 절에 흡수해 지웠다가
-    // 뜻 고르기 문항에서 promptKo 가 일본어 문장 그대로(한글 없음)·정답 번역으로 나오는 회귀가 재측정(2026-10-01)에서 드러나 되살렸다.
-    assert.ok(quizLine!.includes('정답이 되는 뜻·표현은 promptKo 에 미리 쓰지 않습니다.'), '정답 뜻 일반 금지 문장 유지')
-    assert.match(quizLine!, /promptJa 에 ＿＿ 로 비워 반드시 채웁니다/, '빈 문장은 promptJa 로(화면에 보여야 한다)')
-    // 재측정(2026-10-01) 3차: "일본어 문장이 나오는 문제는 그 한국어 뜻을" 절이 뜻 고르기 문항에서 정답 번역·일본어 문장 복사(한글 없음)를 부추겨 제거했다.
-    // 일본어 문장은 promptJa 에만, promptKo 는 "무엇을 고르라는 한국어 지시"로 통일한다.
-    assert.ok(!quizLine!.includes('그 한국어 뜻을'), '정답 뜻을 쓰게 하던 번역형 절이 남아 있으면 안 된다')
-    assert.ok(quizLine!.includes('일본어 문장은 promptJa 에만 두고, promptKo 에는 무엇을 고르라는 한국어 지시(예: "문장의 뜻을 고르세요.")를 씁니다.'), '한국어 지시 + promptJa 분리')
-    // 문장 번역을 부추기던 v8 초안 예시는 없어야 한다
-    assert.ok(!quizLine!.includes('(커피를 ＿＿.)'), '옛 번역 예시가 남아 있으면 안 된다')
-    assert.ok(!quizLine!.includes('빈칸에 알맞은 말은?'), '옛 번역 예시 문구가 남아 있으면 안 된다')
+    buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic, scenario }),
+  ]
+  const lines = reqs.map((r) => r.system.split('\n').find((l) => l.startsWith('- dialogue[].pieces'))!)
+  assert.ok(lines.every(Boolean), 'pieces 지시 줄이 있어야 한다')
+  assert.equal(new Set(lines).size, 1, '경로와 무관하게 같은 한 줄(A5 복습과도 공유)')
+  const line = lines[0]
+  assert.ok(line.includes('**조각의 ja 를 순서대로 이으면 줄의 ja 와 글자 하나까지 같아야 합니다**'), '핵심 제약 굵게')
+  assert.ok(line.indexOf('이으면') < line.indexOf('type:'), '핵심 제약이 종류 설명보다 앞이다')
+  for (const t of ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION', 'LINK']) assert.ok(line.includes(t), t)
+  assert.ok(line.includes('읽기는 쓰지 않습니다'))
+  assert.match(line, /문장부호·기호뿐인 조각\(。、？！\)만 type·ko 를 null/)
+  assert.match(line, /줄의 마지막 조각은 false/)
+  assert.ok(!/speaker_id|model_id|Style-Bert|claude/i.test(line), '엔진 식별자 없음')
+  assert.equal((line.match(/「/g) ?? []).length >= 2, true, '예 2개')
+  // 줄 위치: dialogue 줄 바로 뒤, chunks 줄보다 앞.
+  const sys = reqs[0].system
+  assert.ok(sys.indexOf('- dialogue:') < sys.indexOf('- dialogue[].pieces') && sys.indexOf('- dialogue[].pieces') < sys.indexOf('- chunks:'))
+})
+
+test('lesson@v10: 상황 수업은 lessonScenario@v2 · 일반 수업은 lesson@v10 (Lesson.promptVersion VarChar(20) 안)', () => {
+  assert.equal(lessonPromptVersion({}), 'lesson@v10')
+  assert.equal(lessonPromptVersion({ scenario: { title: 'x', roles: { learner: 'a', tutor: 'b' }, goalKo: 'c', expressions: [] } }), 'lessonScenario@v2')
+  assert.ok('lessonScenario@v2'.length <= 20 && 'lesson@v10'.length <= 20)
+})
+
+// ── 조각 후검증(checks.ts) — 임계 «위반 줄 수 × 2 > 줄 수»와 면책 ──
+
+/** 대화 줄 i 의 조각을 «이으면 원문과 달라지게» 망친다(글자 하나 바꿈). */
+function breakLines(data: LessonResponse, idx: number[]): LessonResponse {
+  return { ...data, dialogue: data.dialogue.map((d, i) => (idx.includes(i) ? { ...d, pieces: [{ ja: 'ＸＸ', type: 'NAME' as const, ko: '뜻', slash: false }] } : d)) }
+}
+const allowedIds = () => fixture.topic.chunks.map((c) => c.id)
+
+test('checkLessonResponse(task-081): 조각 위반 줄이 절반 이하(6줄 중 3줄)면 레슨 위반이 아니다 — 경계값', () => {
+  const ok = validLessonResponse(fixture.topic)
+  assert.equal(ok.dialogue.length, 6)
+  assert.deepEqual(checkLessonResponse({ allowedChunkIds: allowedIds() }, breakLines(ok, [0, 1, 2])), [], '3×2=6 > 6 아님 → 위반 아님')
+  const four = checkLessonResponseDetailed({ allowedChunkIds: allowedIds() }, breakLines(ok, [0, 1, 2, 3]))
+  assert.ok(four.some((x) => x.kind === 'pieces'), '4×2=8 > 6 → 레슨 위반(재시도)')
+})
+
+test('checkLessonResponse(task-081): 조각 위반 문구 = 어긴 줄 번호와 규칙뿐, 레슨 글(일본어)을 싣지 않는다', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const v = checkLessonResponseDetailed({ allowedChunkIds: allowedIds() }, breakLines(ok, [0, 1, 2, 3, 4])).filter((x) => x.kind === 'pieces').map((x) => x.message)
+  assert.ok(v.length >= 2)
+  assert.ok(v.some((m) => m.includes('dialogue[0]') && m.includes('글자 하나까지')), v.join(' / '))
+  for (const m of v) assert.ok(!/[぀-ヿ一-鿿]/.test(m), `일본어 글이 새면 안 된다: ${m}`)
+})
+
+test('checkLessonResponse(task-081): tolerateInvalidPieces=true 면 조각 임계만 눈감고 id·한글 혼입·엔진명은 그대로 강제한다', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const allBroken = breakLines(ok, [0, 1, 2, 3, 4, 5])
+  assert.notDeepEqual(checkLessonResponse({ allowedChunkIds: allowedIds() }, allBroken), [])
+  assert.deepEqual(checkLessonResponse({ allowedChunkIds: allowedIds(), tolerateInvalidPieces: true }, allBroken), [])
+  const missingId = { ...allBroken, application: [{ ...ok.application[0], targetIds: ['no-such-id'] }, ...ok.application.slice(1)] }
+  assert.ok(checkLessonResponse({ allowedChunkIds: allowedIds(), tolerateInvalidPieces: true }, missingId).some((m) => m.includes('no-such-id')))
+  const leaked = { ...allBroken, dialogue: allBroken.dialogue.map((d, i) => (i === 0 ? { ...d, pieces: [{ ja: d.ja, type: 'NAME' as const, ko: 'Claude 가 준비', slash: false }] } : d)) }
+  assert.ok(checkLessonResponse({ allowedChunkIds: allowedIds(), tolerateInvalidPieces: true }, leaked).some((m) => m.includes('엔진')), '조각 ko 의 엔진명도 잡는다')
+})
+
+test('buildLessonRequest 의 extraCheck(task-081): 정상 응답은 위반 0이고 pieces 가 «정리된 배열» 로 제자리 바뀐다(ko 공백·slash:false 키·꼬리 slash)', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const ok = structuredClone(validLessonResponse(fixture.topic))
+  ok.dialogue[2].pieces = [
+    { ja: '私の名前は', type: 'NAME', ko: '  내 이름은  ', slash: true },
+    { ja: 'ブラウンです', type: 'FEELING', ko: '브라운이에요', slash: true },
+    { ja: '。', type: null, ko: '무시됨', slash: true },
+  ]
+  assert.deepEqual(req.extraCheck!(ok, attemptInfo(1)), [])
+  assert.deepEqual(ok.dialogue[2].pieces, [
+    { ja: '私の名前は', type: 'NAME', ko: '내 이름은', slash: true },
+    { ja: 'ブラウンです', type: 'FEELING', ko: '브라운이에요' }, // 뒤에 type 있는 조각이 없으면 slash 를 지운다(PE 확정 1)
+    { ja: '。', type: null, ko: null },
+  ])
+  assert.ok(ok.dialogue.every((d) => Array.isArray(d.pieces) && d.pieces.every((p) => p.slash !== false)), 'slash:false 는 키째 사라진다')
+})
+
+test('buildLessonRequest 의 extraCheck(task-081): 위반 줄이 절반 이하면 재시도 없이 통과하고 그 줄만 null 로 만든다', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const data = structuredClone(breakLines(validLessonResponse(fixture.topic), [1, 4]))
+  assert.deepEqual(req.extraCheck!(data, attemptInfo(1)), [], '2/6 → 위반 아님')
+  assert.deepEqual(data.dialogue.map((d) => d.pieces === null), [false, true, false, false, true, false])
+})
+
+test('buildLessonRequest 의 extraCheck(task-081): 절반을 넘으면 1차는 위반(재시도), 2차(마지막)는 면책하고 위반 줄을 null 로 저장한다 — 레슨을 실패시키지 않는다', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const broken = breakLines(validLessonResponse(fixture.topic), [0, 1, 2, 3, 4, 5])
+  const first = req.extraCheck!(structuredClone(broken), attemptInfo(1))
+  assert.ok(first.some((m) => m.includes('dialogue[0]')), '1차는 재시도로 간다')
+  assert.ok(req.extraCheck!(structuredClone(broken), undefined as never).length > 0, '정보 없는 직접 호출도 엄격')
+  const logs: string[] = []
+  const m = mock.method(console, 'info', (...a: unknown[]) => void logs.push(a.map(String).join(' ')))
+  try {
+    const last = structuredClone(broken)
+    assert.deepEqual(req.extraCheck!(last, { attempt: 2, maxAttempts: 2, traceId: 't_task081piecesLog0000' }), [], '마지막 시도는 면책')
+    assert.ok(last.dialogue.every((d) => d.pieces === null), '모든 줄이 null — 줄마다 «나누지 못했어요»')
+  } finally {
+    m.mock.restore()
   }
+  const tol = logs.filter((l) => l.startsWith('[lesson] 마지막 시도'))
+  assert.equal(tol.length, 1)
+  assert.match(tol[0], /④매칭 0건·조각 위반 줄 6\/6 trace=t_task081piecesLog0000 attempt=2\/2$/)
+  assert.ok(!/[぀-ヿ一-鿿]/.test(tol[0]), '로그에 일본어를 싣지 않는다')
+  const sum = logs.filter((l) => l.startsWith('[lesson] pieces —'))
+  assert.equal(sum.length, 1)
+  assert.match(sum[0], /lines=6 nullLines=6 pieces=0 koNoHangul=0 reasons=\{"join_mismatch":6\}/)
+})
+
+test('buildLessonRequest 의 extraCheck(task-081): 마지막 시도 면책은 조각 임계만 — 존재하지 않는 id 는 여전히 위반', () => {
+  const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
+  const data = { ...breakLines(validLessonResponse(fixture.topic), [0, 1, 2, 3, 4, 5]), application: [{ ...validLessonResponse(fixture.topic).application[0], targetIds: ['totally-made-up-id'] }] }
+  assert.ok(req.extraCheck!(structuredClone(data), attemptInfo(2)).some((m) => m.includes('totally-made-up-id')))
 })
 
 test('checkLessonResponse: 일본어 필드(ja·textJa·exampleJa·modelAnswerJa)에 한글이 섞이면 위반', () => {
@@ -538,7 +604,8 @@ test('checkLessonResponse: 엔진·모델 이름이 어디든 섞이면 위반(�
 test('repairLessonResponse: 자리가 있으면(chunks<LESSON_REPAIR_CHUNKS_MAX) 입력 조각 데이터로 채워 넣는다(isNew:false), targetIds 는 그대로', () => {
   const ok = validLessonResponse(fixture.topic) // chunks 5개(c1~c4 + new-1) — 8개 미만
   const missing = fixture.topic.chunks.find((c) => c.id === 'chunk-07')! // FEELING 嬉しいです — ok.chunks 에는 없음
-  const data = { ...ok, quiz: [{ ...ok.quiz[0], targetIds: [...ok.quiz[0].targetIds, missing.id] }, ...ok.quiz.slice(1)] }
+  // task-081: quiz 가 없어져 application[1] 이 «보정 대상 id» 를 싣는다 — 모범 답이 그 조각 표기를 담아 ④ 콘텐츠 매칭에 걸리지 않게 한다.
+  const data = { ...ok, application: [ok.application[0], carry(ok.application[1], [...ok.application[1].targetIds, missing.id], missing.textJa), ok.application[2]] }
   assert.equal(data.chunks.length, 5)
   const result = repairLessonResponse({ allowedChunks: repairSourceChunks }, data)
   assert.deepEqual(result, { filled: 1, removed: 0, contentMismatchRemoved: 0 })
@@ -550,7 +617,7 @@ test('repairLessonResponse: 자리가 있으면(chunks<LESSON_REPAIR_CHUNKS_MAX)
   assert.equal(added!.meaningKo, missing.meaningKo)
   assert.equal(added!.chunkType, missing.chunkType)
   assert.equal(added!.isNew, false, '입력 조각을 채워 넣은 것이므로 isNew=false')
-  assert.ok(data.quiz[0].targetIds.includes(missing.id), 'targetIds 는 건드리지 않는다(이제 유효한 참조가 됐다)')
+  assert.ok(data.application[1].targetIds.includes(missing.id), 'targetIds 는 건드리지 않는다(이제 유효한 참조가 됐다)')
   // 보정 뒤에는 checkLessonResponse 위반도 사라져야 한다.
   const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
   assert.deepEqual(checkLessonResponse({ allowedChunkIds }, data), [])
@@ -600,7 +667,7 @@ test('repairLessonResponse: 8개 상태에서 시작하면 10개(보정 전용 �
   const data = {
     ...ok,
     chunks: eightChunks,
-    quiz: [{ ...ok.quiz[0], targetIds: [m1.id] }, { ...ok.quiz[1], targetIds: [m2.id] }, ...ok.quiz.slice(2)],
+    application: [ok.application[0], carry(ok.application[1], [m1.id], m1.textJa), carry(ok.application[2], [m2.id], m2.textJa)],
     // m3 는 유효한 c1.id 와 함께 둬서 "빼면 빈 배열" 규칙에 걸리지 않게 한다(순수하게 자리 부족만 시험).
     speaking: [{ ...ok.speaking[0], targetIds: [m3.id, c1.id] }, ...ok.speaking.slice(1)],
   }
@@ -609,8 +676,8 @@ test('repairLessonResponse: 8개 상태에서 시작하면 10개(보정 전용 �
   assert.equal(data.chunks.length, LESSON_REPAIR_CHUNKS_MAX)
   assert.ok(data.chunks.some((c) => c.id === m1.id) && data.chunks.some((c) => c.id === m2.id), 'm1·m2 는 채워져야 한다')
   assert.ok(!data.chunks.some((c) => c.id === m3.id), 'm3 는 자리가 없어 채워지지 않아야 한다')
-  assert.deepEqual(data.quiz[0].targetIds, [m1.id])
-  assert.deepEqual(data.quiz[1].targetIds, [m2.id])
+  assert.deepEqual(data.application[1].targetIds, [m1.id])
+  assert.deepEqual(data.application[2].targetIds, [m2.id])
   assert.deepEqual(data.speaking[0].targetIds, [c1.id], 'm3 는 targetIds 에서 빠지고 유효한 id 만 남는다')
   const allowedChunkIds = fixture.topic.chunks.map((c) => c.id)
   assert.deepEqual(checkLessonResponse({ allowedChunkIds }, data), [], '보정 뒤 위반이 전부 사라져야 한다')
@@ -618,12 +685,12 @@ test('repairLessonResponse: 8개 상태에서 시작하면 10개(보정 전용 �
 
 test('repairLessonResponse: 입력에도 없는 id(환각)는 손대지 않는다', () => {
   const ok = validLessonResponse(fixture.topic)
-  const data = { ...ok, quiz: [{ ...ok.quiz[0], targetIds: ['totally-made-up-id'] }, ...ok.quiz.slice(1)] }
+  const data = { ...ok, application: [{ ...ok.application[0], targetIds: ['totally-made-up-id'] }, ...ok.application.slice(1)] }
   const before = data.chunks.length
   const result = repairLessonResponse({ allowedChunks: repairSourceChunks }, data)
   assert.deepEqual(result, { filled: 0, removed: 0, contentMismatchRemoved: 0 })
   assert.equal(data.chunks.length, before)
-  assert.deepEqual(data.quiz[0].targetIds, ['totally-made-up-id'])
+  assert.deepEqual(data.application[0].targetIds, ['totally-made-up-id'])
 })
 
 test('repairLessonResponse: 여러 occurrence 에서 같은 id 를 채웠으면 전부 유효해진다(한 번만 채움)', () => {
@@ -631,8 +698,7 @@ test('repairLessonResponse: 여러 occurrence 에서 같은 id 를 채웠으면 
   const missing = fixture.topic.chunks.find((c) => c.id === 'chunk-09')!
   const data = {
     ...ok,
-    quiz: [{ ...ok.quiz[0], targetIds: [missing.id] }, ...ok.quiz.slice(1)],
-    application: [{ ...ok.application[0], targetIds: [missing.id] }, ...ok.application.slice(1)],
+    application: [carry(ok.application[0], [missing.id], missing.textJa), carry(ok.application[1], [missing.id], missing.textJa), ok.application[2]],
   }
   const result = repairLessonResponse({ allowedChunks: repairSourceChunks }, data)
   assert.deepEqual(result, { filled: 1, removed: 0, contentMismatchRemoved: 0 }, '같은 id 는 한 번만 채우면 모든 occurrence 가 유효해진다')
@@ -685,7 +751,7 @@ test('checkLessonResponse: tolerateContentMismatch=true 면 ④(콘텐츠 매칭
   assert.deepEqual(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, contentMismatch), [], 'tolerateContentMismatch=true 면 ④ 위반이 사라져야 한다')
 
   // ①(존재하지 않는 id)·한글 혼입·엔진명 노출은 tolerateContentMismatch 와 무관하게 여전히 걸려야 한다.
-  const missingId = { ...ok, quiz: [{ ...ok.quiz[0], targetIds: ['no-such-id'] }, ...ok.quiz.slice(1)] }
+  const missingId = { ...ok, application: [{ ...ok.application[0], targetIds: ['no-such-id'] }, ...ok.application.slice(1)] }
   assert.ok(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, missingId).some((m) => m.includes('no-such-id')), 'targetIds 존재 검사는 계속 강제돼야 한다')
   const hangul = { ...ok, dialogue: [{ ...ok.dialogue[0], ja: '안녕하세요。' }, ...ok.dialogue.slice(1)] }
   assert.ok(checkLessonResponse({ allowedChunkIds, tolerateContentMismatch: true }, hangul).some((m) => m.includes('dialogue[0].ja')), '한글 혼입 검사는 계속 강제돼야 한다')
@@ -711,7 +777,7 @@ function contentMismatchResponse(): LessonResponse {
 /** 존재하지 않는 id(①, 데이터 무결성) — 마지막 시도에서도 눈감지 않는다. */
 function missingIdResponse(): LessonResponse {
   const ok = validLessonResponse(fixture.topic)
-  return { ...ok, quiz: [{ ...ok.quiz[0], targetIds: ['totally-made-up-id'] }, ...ok.quiz.slice(1)] }
+  return { ...ok, application: [{ ...ok.application[0], targetIds: ['totally-made-up-id'] }, ...ok.application.slice(1)] }
 }
 
 test('buildLessonRequest 의 extraCheck: 콘텐츠 매칭만 남았을 때 1차(재시도 전)에는 그대로 위반, 2차(재시도, 마지막)에는 눈감는다', () => {
@@ -751,31 +817,28 @@ function lastAttemptToleranceLogs(data: LessonResponse): string[] {
   return lines.filter((l) => l.startsWith('[lesson] 마지막 시도'))
 }
 
-test('task-025b: 마지막 시도 면책 로그는 ④ 매칭 건수와 promptKo 한글 건수를 따로 센다(원문·일본어 없이 상관 id·시도·건수만)', () => {
+test('task-081: 마지막 시도 면책 로그는 ④ 매칭 건수와 조각 위반 줄 수를 따로 센다(원문·일본어 없이 상관 id·시도·건수만)', () => {
   const base = contentMismatchResponse() // ④ 1건(application[0])
   const c2 = fixture.topic.chunks[1]
-  const noHangulPromptKo = (q: LessonResponse['quiz'][number]) => ({ ...q, promptKo: 'どれですか。' })
 
-  // ④ 1건 + promptKo 1건
-  const both: LessonResponse = { ...base, quiz: [noHangulPromptKo(base.quiz[0]), ...base.quiz.slice(1)] }
+  // ④ 1건 + 조각 위반 줄 6/6
+  const both = breakLines(base, [0, 1, 2, 3, 4, 5])
   const l1 = lastAttemptToleranceLogs(both)
   assert.equal(l1.length, 1)
-  assert.match(l1[0], /④매칭 1건·promptKo한글 1건 trace=t_task025bLogTest00000 attempt=2\/2$/)
+  assert.match(l1[0], /④매칭 1건·조각 위반 줄 6\/6 trace=t_task025bLogTest00000 attempt=2\/2$/)
   assert.ok(!/[぀-ヿ一-鿿]/.test(l1[0]), '로그에 일본어(원문·모범 답)를 싣지 않는다')
 
-  // ④ 2건 + promptKo 0건
+  // ④ 2건 + 조각 0
   const twoContent: LessonResponse = {
     ...base,
     speaking: [{ ...base.speaking[0], targetIds: [c2.id], modelAnswerJa: '会社員です。', modelReading: 'かいしゃいんです。' }, ...base.speaking.slice(1)],
   }
   const l2 = lastAttemptToleranceLogs(twoContent)
-  assert.match(l2[0], /④매칭 2건·promptKo한글 0건 /)
+  assert.match(l2[0], /④매칭 2건·조각 0 /)
 
-  // ④ 0건 + promptKo 2건
-  const twoPromptKo: LessonResponse = { ...validLessonResponse(fixture.topic) }
-  twoPromptKo.quiz = twoPromptKo.quiz.map((q, i) => (i < 2 ? noHangulPromptKo(q) : q))
-  const l3 = lastAttemptToleranceLogs(twoPromptKo)
-  assert.match(l3[0], /④매칭 0건·promptKo한글 2건 /)
+  // ④ 0건 + 조각 위반 줄 4/6
+  const l3 = lastAttemptToleranceLogs(breakLines(validLessonResponse(fixture.topic), [0, 1, 2, 3]))
+  assert.match(l3[0], /④매칭 0건·조각 위반 줄 4\/6 /)
 
   // 눈감을 위반이 없으면 로그 자체가 없다.
   assert.equal(lastAttemptToleranceLogs(validLessonResponse(fixture.topic)).length, 0)
@@ -915,8 +978,8 @@ test('lesson@v5: sourceText 경로에도 모범 답 내용 규칙이 실린다(�
 
 // ── lesson@v7(2026-09-29, task-010 후속) — 스키마 밖 필드(quiz[] 의 q·conjugationNote 등)로 인한 재시도 줄이기 ──
 
-test('lesson@v7: 프롬프트 버전(현재 v9 — task-039 grammar 줄 "(일상 회화 위주)" 9자), "정해진 키만 씁니다" 지시문이 있다', () => {
-  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v9')
+test('lesson@v7: 프롬프트 버전(현재 v10 — task-081 quiz → pieces), "정해진 키만 씁니다" 지시문이 있다', () => {
+  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v10')
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
   assert.match(req.system, /q, note, conjugationNote/, '스키마 밖 참고용 키를 만들지 말라는 지시가 있어야 한다')
 })
@@ -926,42 +989,52 @@ test('lesson@v7(task-019): buildLessonRequest 가 요청 옵션 stripAdditionalP
   assert.equal(buildLessonRequest({ todayKst: '2026-09-28', learner, sourceText: fixture.sourceText }).stripAdditionalProperties, true)
 })
 
-test('lesson@v7: quiz[] 에 스키마 밖 필드(q·conjugationNote)가 붙어도 필수 필드가 다 있으면 ajv 전에 지워지고 통과한다(재시도 없이)', () => {
+test('lesson@v7: application[] 에 스키마 밖 필드(q·conjugationNote)가 붙어도 필수 필드가 다 있으면 ajv 전에 지워지고 통과한다(재시도 없이)', () => {
   const ok = validLessonResponse(fixture.topic)
   const raw = JSON.stringify({
     ...ok,
-    quiz: ok.quiz.map((q, i) => (i === 0 ? { ...q, q: '이건 중복 필드', conjugationNote: '활용 메모' } : q)),
+    application: ok.application.map((q, i) => (i === 0 ? { ...q, q: '이건 중복 필드', conjugationNote: '활용 메모' } : q)),
   })
   const result = extractAndValidate(raw, LESSON_SCHEMA, { stripAdditionalProperties: true })
   assert.equal(result.ok, true, 'additionalProperties 위반이 아니라 통과해야 한다')
   if (!result.ok) return
   const data = result.data as LessonResponse
-  assert.ok(!('q' in data.quiz[0]), '스키마 밖 키 q 는 지워져야 한다')
-  assert.ok(!('conjugationNote' in data.quiz[0]), '스키마 밖 키 conjugationNote 는 지워져야 한다')
-  assert.equal(data.quiz[0].promptKo, ok.quiz[0].promptKo, '실제 필수 필드 값은 그대로 남아야 한다')
+  assert.ok(!('q' in data.application[0]), '스키마 밖 키 q 는 지워져야 한다')
+  assert.ok(!('conjugationNote' in data.application[0]), '스키마 밖 키 conjugationNote 는 지워져야 한다')
+  assert.equal(data.application[0].promptKo, ok.application[0].promptKo, '실제 필수 필드 값은 그대로 남아야 한다')
+})
+
+test('lesson@v10(task-081): pieces[] 객체에 읽기(reading) 같은 스키마 밖 키를 덧붙여도 ajv 전에 지워지고 통과한다(줄마다 수십 개라 재시도 위험이 크다)', () => {
+  const ok = validLessonResponse(fixture.topic)
+  const raw = JSON.stringify({ ...ok, dialogue: ok.dialogue.map((d, i) => (i === 0 ? { ...d, pieces: d.pieces!.map((p) => ({ ...p, reading: 'よみ' })) } : d)) })
+  const strict = extractAndValidate(raw, LESSON_SCHEMA)
+  assert.equal(strict.ok, false, '옵션 없이는 additionalProperties 위반')
+  const r = extractAndValidate(raw, LESSON_SCHEMA, { stripAdditionalProperties: true })
+  assert.equal(r.ok, true)
+  if (r.ok) assert.ok(!('reading' in (r.data as LessonResponse).dialogue[0].pieces![0]))
 })
 
 test('lesson@v7: 스키마 밖 필드를 지워도 다른 필수 필드가 정말 없으면(이름이 바뀐 경우) 여전히 위반으로 잡는다 — 추측 매핑하지 않는다', () => {
   const ok = validLessonResponse(fixture.topic)
-  // promptKo·promptJa 둘 다 빼고 그 자리에 q 를 넣은 "이름이 바뀐" 경우 — 지워도 promptKo/promptJa 자리는 여전히 비어 있다.
-  const broken = ok.quiz.map((q, i): object => {
+  // promptKo·hintJa 둘 다 빼고 그 자리에 q 를 넣은 "이름이 바뀐" 경우 — 지워도 promptKo/hintJa 자리는 여전히 비어 있다.
+  const broken = ok.application.map((q, i): object => {
     if (i !== 0) return q
-    const rest = Object.fromEntries(Object.entries(q).filter(([k]) => k !== 'promptKo' && k !== 'promptJa'))
+    const rest = Object.fromEntries(Object.entries(q).filter(([k]) => k !== 'promptKo' && k !== 'hintJa'))
     return { ...rest, q: '질문 텍스트' }
   })
-  const raw = JSON.stringify({ ...ok, quiz: broken })
+  const raw = JSON.stringify({ ...ok, application: broken })
   const result = extractAndValidate(raw, LESSON_SCHEMA, { stripAdditionalProperties: true })
-  assert.equal(result.ok, false, 'promptKo·promptJa 가 없으니 여전히 실패해야 한다(q 를 promptJa 로 추측하지 않는다)')
+  assert.equal(result.ok, false, 'promptKo·hintJa 가 없으니 여전히 실패해야 한다(q 를 promptKo 로 추측하지 않는다)')
   if (result.ok || result.parseError) return
   assert.ok(
-    result.violations.some((v) => v.includes('promptKo')) || result.violations.some((v) => v.includes('promptJa')),
+    result.violations.some((v) => v.includes('promptKo')) || result.violations.some((v) => v.includes('hintJa')),
     `누락된 필수 필드가 위반에 남아야 한다: ${JSON.stringify(result.violations)}`,
   )
 })
 
 test('lesson@v7(task-019): 옵션을 켜지 않으면 LESSON_SCHEMA 여도 지우지 않는다 — 스키마가 아니라 요청이 켠다', () => {
   const ok = validLessonResponse(fixture.topic)
-  const raw = JSON.stringify({ ...ok, quiz: ok.quiz.map((q, i) => (i === 0 ? { ...q, q: '스키마 밖' } : q)) })
+  const raw = JSON.stringify({ ...ok, application: ok.application.map((q, i) => (i === 0 ? { ...q, q: '스키마 밖' } : q)) })
   const result = extractAndValidate(raw, LESSON_SCHEMA)
   assert.equal(result.ok, false, '옵션 없는 호출(다른 A 지점과 같은 경로)은 지금처럼 additionalProperties 위반이어야 한다')
 })
@@ -982,7 +1055,7 @@ test('lesson@v7: 옵션을 켜지 않는 다른 스키마(TALK)는 스키마 밖
 
 test('lesson@v7(task-019): completeJson 이 요청 옵션을 끝까지 전달한다 — 켜면 1회(키 경로만 로그), 끄면 지금처럼 재시도', async (t) => {
   const ok = validLessonResponse(fixture.topic)
-  const withExtra = JSON.stringify({ ...ok, quiz: ok.quiz.map((q, i) => (i === 0 ? { ...q, q: '중복 질문', conjugationNote: '활용 메모' } : q)) })
+  const withExtra = JSON.stringify({ ...ok, application: ok.application.map((q, i) => (i === 0 ? { ...q, q: '중복 질문', conjugationNote: '활용 메모' } : q)) })
   const clean = JSON.stringify(ok)
   // 가짜 LLM(home-m4 형식) — 경로별 응답 순서가 곧 시도 순서다. /on 은 옵션 켠 요청, /off 는 끈 요청.
   const script: Record<string, string[]> = { '/on/v1/chat': [withExtra], '/off/v1/chat': [withExtra, clean] }
@@ -1027,9 +1100,9 @@ test('lesson@v7(task-019): completeJson 이 요청 옵션을 끝까지 전달한
   const req = buildLessonRequest({ todayKst: '2026-09-28', learner, topic: fixture.topic })
   const on = await completeJson<LessonResponse>(req)
   assert.equal(on.attempts, 1, '옵션을 켜면 스키마 밖 키 때문에 재시도하지 않는다')
-  assert.ok(!('q' in on.data.quiz[0]) && !('conjugationNote' in on.data.quiz[0]))
+  assert.ok(!('q' in on.data.application[0]) && !('conjugationNote' in on.data.application[0]))
   const stripLog = infoLines.filter((l) => l.startsWith('[json] 스키마 밖 필드 제거'))
-  assert.deepEqual(stripLog, ['[json] 스키마 밖 필드 제거: quiz/0/q, quiz/0/conjugationNote'], '로그는 키 경로만(값 없음)')
+  assert.deepEqual(stripLog, ['[json] 스키마 밖 필드 제거: application/0/q, application/0/conjugationNote'], '로그는 키 경로만(값 없음)')
 
   base = '/off'
   infoLines.length = 0

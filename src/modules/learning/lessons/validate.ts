@@ -2,7 +2,7 @@
  * 레슨 API 본문 검증(api-contract #59·#61·#62·#62a·#62b·#62c) — 순수 함수. 위반은 전부 400 VALIDATION, 화이트리스트 밖 키도 400.
  */
 import { ApiError, codePointLength, sanitizeText } from '@/modules/infra'
-import { AUDIO_KINDS, type AudioKind } from './content'
+import { AUDIO_KINDS, AUDIO_SUB_KINDS, type AudioKind } from './content'
 import { cleanMemoWord, MEMO_PER_LESSON_MAX, MEMO_PER_SEGMENT_MAX, MEMO_WORD_MAX } from './progress'
 
 export const LESSON_SOURCE_TEXT_MIN = 50
@@ -139,12 +139,26 @@ export function parseSpeakingBody(body: Record<string, unknown>): { itemId: stri
 export const AUDIO_PACES = ['slow', 'normal'] as const
 export type AudioPace = (typeof AUDIO_PACES)[number]
 
-/** #62c — `{kind, idx, pace?}`(pace 기본 normal). idx 범위는 레슨 본문을 안 뒤 확인. */
-export function parseAudioBody(body: Record<string, unknown>): { kind: AudioKind; idx: number; pace: AudioPace } {
-  onlyKeys(body, ['kind', 'idx', 'pace'])
+/** 조각·구간 번호 상한(포함) — 한 줄 조각 수 최대 24(스키마 `pieces.maxItems`)의 index. */
+export const AUDIO_SUB_MAX = 23
+
+/**
+ * #62c — `{kind, idx, pace?, sub?}`(pace 기본 normal). idx·sub 범위는 레슨 본문을 안 뒤 확인.
+ * `sub`(task-081)는 piece·phrase 에서만 필수(0~23 정수), 다른 kind 에 오면 400 — 클라이언트 글(`text` 등)은 여전히 `unknown_key`.
+ */
+export function parseAudioBody(body: Record<string, unknown>): { kind: AudioKind; idx: number; pace: AudioPace; sub?: number } {
+  onlyKeys(body, ['kind', 'idx', 'pace', 'sub'])
   if (typeof body.kind !== 'string' || !(AUDIO_KINDS as readonly string[]).includes(body.kind)) bad('kind', `kind 는 ${AUDIO_KINDS.join('|')} 입니다.`)
+  const kind = body.kind as AudioKind
   if (typeof body.idx !== 'number' || !Number.isInteger(body.idx) || body.idx < 0 || body.idx > 20) bad('idx', 'idx 가 올바르지 않습니다.')
   const pace = body.pace === undefined || body.pace === null ? 'normal' : body.pace
   if (typeof pace !== 'string' || !(AUDIO_PACES as readonly string[]).includes(pace)) bad('pace', 'pace 는 slow|normal 입니다.')
-  return { kind: body.kind as AudioKind, idx: body.idx as number, pace: pace as AudioPace }
+  const base = { kind, idx: body.idx as number, pace: pace as AudioPace }
+  if (!AUDIO_SUB_KINDS.includes(kind)) {
+    if (body.sub !== undefined) bad('sub', 'sub 는 piece·phrase 에서만 씁니다.', 'not_allowed')
+    return base
+  }
+  if (body.sub === undefined || body.sub === null) bad('sub', `${kind} 에는 sub 가 필요합니다.`, 'required')
+  if (typeof body.sub !== 'number' || !Number.isInteger(body.sub) || body.sub < 0 || body.sub > AUDIO_SUB_MAX) bad('sub', `sub 는 0~${AUDIO_SUB_MAX} 정수입니다.`)
+  return { ...base, sub: body.sub as number }
 }

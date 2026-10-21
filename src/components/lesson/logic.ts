@@ -3,19 +3,16 @@
  *  - `deriveLessonCard`: 오늘 홈 카드 8상태(표의 위 줄이 이긴다)
  *  - `deriveChallengeLessonCard`: 진행 중 챌린지에 회화 과제가 있을 때 카드의 주인(task-044 가이드 §3-4) + 다른 주제 수업 보조 줄
  *  - `genPhase`: 생성 대기 경과 문구
- *  - `endResultFrom`: #60 DONE 레슨 → 종료 카드 값(#62 `result` 와 같은 계산)
+ *  - `endResultFrom`: #60 DONE 레슨 → 종료 카드 값(`pieces` 는 내용에서 셈 — task-081 §37-6, 나머지는 #62 `result` 와 같은 계산)
  *  - `memoWordProblem`: 들린 단어 메모 한 줄 검사(서버 #61·#62a 규칙과 같음)
  *  - `hasJa`: 가나·한자가 있으면 일본어로 본다(`lang="ja"`)
  *  - 줄 다시 듣기·표현 소리 키(task-025): `lineReplayKey`·`exprKey`·`lineReplayPace`·`activeLineReplay`·`playLineReplay`·`playExpr`
- *  - 문제 문장 표기(task-025·025b): `quizPromptView`·`quizSummaryPrompt`(promptKo 가 비었거나 한글이 없으면 일본어 문장 폴백)
- *  - ③ 읽기 문제 보호(task-026): `quizReadingLeak`·`quizPromptLayerState`(화면이 문제 문장 층을 정하는 유일한 경로)
+ * (옛 «문제» 단계 부속 — 문항 표기·읽기 누출·점수→맞힌 수 — 은 task-081 §37-13 ⑥ 에서 지웠다.)
  */
-import type { AnnotationState } from '@/components/common/japanese/annotations'
-import type { ReadingSegment } from '@/modules/speech/reading/client'
 import type { PlaybackSnapshot } from '@/modules/speech/tts/client'
 import type { ChallengeLessonTask } from '@/types/challenge'
-import type { AudioPace, LessonContent, LessonDto, LessonProgress, LessonQuiz, MemoDraft, NextPreview, TodayLessonItem, TodayLessons } from '@/types/lesson'
-import { U3 } from './lessonCopy'
+import type { AudioPace, LessonContent, LessonDto, LessonProgress, MemoDraft, NextPreview, TodayLessonItem, TodayLessons } from '@/types/lesson'
+import { pieceCount } from './chunkLogic'
 import type { LessonPlayback } from './useLessonPlayback'
 
 const JA_RE = /[぀-ヿ㐀-鿿]/
@@ -67,7 +64,7 @@ export type ChallengeLessonCard =
   | { kind: 'done'; lessonId: string | null; lesson: TodayLessonItem | null; nextPreview: NextPreview | null }
 
 /** 다른 주제(붙여넣기 포함) 수업 보조 줄 — 하나만, 열림 > 끝냄. `title` null = 붙여넣은 문장. */
-export type AuxLessonLine = { kind: 'open'; lessonId: string; title: string | null; stageDone: number } | { kind: 'done'; title: string | null; score: number | null } | null
+export type AuxLessonLine = { kind: 'open'; lessonId: string; title: string | null; stageDone: number } | { kind: 'done'; title: string | null } | null
 
 /**
  * 챌린지가 있으면 #158 LESSON 과제 상태가 오늘의 회화 카드의 주인이다(설계서 §8-3 S6 ①②). 오늘 다른 주제 수업을 끝냈거나 열려 있어도
@@ -93,7 +90,7 @@ export function deriveChallengeLessonCard(
     : resume
       ? { kind: 'open', lessonId: resume.id, title: resume.titleKo || resume.title, stageDone: resume.stageDone }
       : doneOther
-        ? { kind: 'done', title: doneOther.topic?.title ?? null, score: doneOther.score }
+        ? { kind: 'done', title: doneOther.topic?.title ?? null }
         : null
   const ownResume = today.resume && today.resume.id === task.lessonId ? today.resume : null
   switch (task.state) {
@@ -120,12 +117,6 @@ export function deriveChallengeLessonCard(
   return { card: { kind: 'make' }, aux, watchJobId: null }
 }
 
-/** 점수(서버 재채점) → 맞힌 수. 문제는 늘 5개(스키마 고정)라 기본 5. */
-export function correctFromScore(score: number | null, total = 5): number {
-  if (typeof score !== 'number' || !Number.isFinite(score)) return 0
-  return Math.max(0, Math.min(total, Math.round((score / 100) * total)))
-}
-
 /* ── 생성 대기 문구 ───────────────────────────────────────────────── */
 
 export function genPhase(elapsedSec: number, stage: string | null): string {
@@ -133,7 +124,7 @@ export function genPhase(elapsedSec: number, stage: string | null): string {
   if (stage === 'SAVE') return '마지막으로 확인하고 있어요'
   if (elapsedSec < 15) return '주제와 지난 수업을 살펴보고 있어요'
   if (elapsedSec < 45) return '대화문을 쓰고 있어요'
-  if (elapsedSec < 75) return '문법과 문제를 만들고 있어요'
+  if (elapsedSec < 75) return '문법과 조각을 만들고 있어요'
   if (elapsedSec < 100) return '응용·말하기 과제를 고르고 있어요'
   return '마지막으로 확인하고 있어요'
 }
@@ -146,8 +137,8 @@ export function mmss(sec: number): string {
 /* ── 종료 카드 ───────────────────────────────────────────────────── */
 
 export interface EndResult {
-  correct: number
-  total: number
+  /** 오늘의 조각 수(`pieceCount`) — 조각 단계 전 옛 수업·모든 줄 분해 실패는 null(종료 카드 2칸). */
+  pieces: number | null
   applicationDone: number
   usedIds: string[]
   missedIds: string[]
@@ -175,15 +166,13 @@ export function expressionsFrom(content: Pick<LessonContent, 'speaking'>, progre
   return { usedIds: candidates.filter((id) => used.has(id)), missedIds: candidates.filter((id) => !used.has(id)) }
 }
 
-export function endResultFrom(lesson: Pick<LessonDto, 'score' | 'content' | 'progress'>): EndResult | null {
+export function endResultFrom(lesson: Pick<LessonDto, 'content' | 'progress'>): EndResult | null {
   const c = lesson.content
   if (!c) return null
-  const total = c.quiz.length || 5
   const answers = lesson.progress.application?.answers ?? []
   const expr = expressionsFrom(c, lesson.progress)
   return {
-    correct: correctFromScore(lesson.score, total),
-    total,
+    pieces: pieceCount(c),
     applicationDone: answers.filter((a) => typeof a === 'string' && a.trim() !== '').length,
     usedIds: expr.usedIds,
     missedIds: expr.missedIds,
@@ -286,90 +275,4 @@ export function playLineReplay(pb: Pick<LessonPlayback, 'playLines'>, idx: numbe
 /** 오늘의 표현 소리(#62c chunk, 보통 속도 한 번) — onComplete 없음. */
 export function playExpr(pb: Pick<LessonPlayback, 'playLines'>, idx: number): void {
   pb.playLines(exprKey(idx), [{ kind: 'chunk', idx, pace: 'normal' }])
-}
-
-/* ── 문제 문장 표기(task-025, Q10) ──────────────────────────────────── */
-
-const filled = (s: string | null | undefined): string | null => (typeof s === 'string' && s.trim() ? s : null)
-
-// 학습자 UI 가 conversation 층을 import 할 수 없어 `learning/lessons/matching.ts` 의 HANGUL 과 같은 범위(자모·호환 자모·음절)를 따로 둔다.
-const HANGUL_RE = /[ᄀ-ᇿ㄰-㆏가-힯]/
-
-/** 한글이 하나라도 있어야 한국어 질문으로 인정한다 — LLM 이 promptKo 에 일본어만 넣는 경우(task-025b D9)를 거른다. */
-const koText = (s: string | null | undefined): string | null => {
-  const f = filled(s)
-  return f && HANGUL_RE.test(f) ? f : null
-}
-
-/** promptJa 가 비었을 때 일본어뿐인 promptKo 를 일본어 줄로 내린다(버리면 문제 문장 자체가 사라진다). 한글이 섞였으면 koText 쪽이다. */
-const jaFromKo = (s: string | null | undefined): string | null => {
-  const f = filled(s)
-  return f && !HANGUL_RE.test(f) && hasJa(f) ? f : null
-}
-
-/**
- * 문제 카드 머리 — 한글이 있는 promptKo 만 한국어 질문(굵게) → 일본어 문장(있으면).
- * 옛 레슨(v7 이하)의 빈 promptKo, 새 레슨이라도 일본어만 담긴 promptKo 는 공통 안내 줄 + 일본어 문장 + 안내 노트(서버 요청 없음).
- * 일본어 문장은 promptJa 가 우선이고, 없으면 일본어뿐인 promptKo 를 쓴다.
- */
-export function quizPromptView(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { ko: string; ja: string | null; legacy: boolean } {
-  const ko = koText(q.promptKo)
-  const ja = filled(q.promptJa)
-  if (ko) return { ko, ja, legacy: false }
-  return { ko: U3.legacyPrompt, ja: ja ?? jaFromKo(q.promptKo), legacy: true }
-}
-
-/** 결과 목록 한 줄 — 한글 promptKo → promptJa → 일본어뿐인 promptKo 순(공통 안내 줄은 마지막 폴백 — 모든 줄이 같은 말이 되니까). */
-export function quizSummaryPrompt(q: Pick<LessonQuiz, 'promptKo' | 'promptJa'>): { text: string; ja: boolean } {
-  const ko = koText(q.promptKo)
-  if (ko) return { text: ko, ja: false }
-  const ja = filled(q.promptJa) ?? jaFromKo(q.promptKo)
-  return ja ? { text: ja, ja: true } : { text: U3.legacyPrompt, ja: false }
-}
-
-/* ── ③ 읽기 문제 보호(task-026 §15-9 ②) ─────────────────────────────────── */
-
-const KANA_WORD = /^[ぁ-ゖー]+$/
-/** 읽기 비교에서 무시하는 공백·괄호·문장부호. */
-const READING_NOISE = /[\s　「」『』（）()［］[\]〈〉《》【】、。，．,.・…？！?!〜~]/g
-/** 이어 붙여 비교할 연속 조각 수 상한(복합어가 여러 조각으로 나뉘는 경우 — 日本|語). */
-const LEAK_WINDOW = 4
-
-function normalizeKana(s: string): string {
-  return s.replace(READING_NOISE, '').replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
-}
-
-/** 조각 하나의 히라가나(한자 묶음은 읽기로, 나머지는 표기 그대로). */
-function segmentKana(s: Pick<ReadingSegment, 'surface' | 'ruby'>): string {
-  return s.ruby ? s.ruby.map(([t, r]) => r ?? t).join('') : s.surface
-}
-
-/**
- * 문제 문장(promptJa)의 히라가나·한글이 정답을 알려 주는가 — 문장 속 한자 읽기(한자 묶음 하나·조각 하나·연속 조각 최대 4개)가 가나뿐인 보기
- * 하나와 같으면 true. 화면은 고르기 전까지 문제 문장의 층을 숨긴다(보기 쪽은 그대로). 평소 문제(보기가 한자 섞인 말·한국어)는 영향 없다.
- */
-export function quizReadingLeak(segments: readonly Pick<ReadingSegment, 'surface' | 'ruby'>[], choices: readonly string[]): boolean {
-  const kanaChoices = choices.map(normalizeKana).filter((c) => c.length > 0 && KANA_WORD.test(c))
-  if (kanaChoices.length === 0) return false
-  const readings = new Set<string>()
-  segments.forEach((s, i) => {
-    if (!s.ruby?.some(([, r]) => r)) return
-    for (const [, r] of s.ruby) if (r) readings.add(normalizeKana(r))
-    for (let from = Math.max(0, i - LEAK_WINDOW + 1); from <= i; from++) {
-      for (let to = i; to < Math.min(segments.length, from + LEAK_WINDOW); to++) {
-        readings.add(normalizeKana(segments.slice(from, to + 1).map(segmentKana).join('')))
-      }
-    }
-  })
-  return kanaChoices.some((c) => readings.has(c))
-}
-
-const PROMPT_HIDDEN: AnnotationState = { s: 'off' }
-
-/**
- * 문제 문장의 히라가나·한글 층 — 답하기 전이고 분석이 끝났고 그 읽기가 가나 보기 하나와 같으면 숨김(`off`, §15-9 ②), 그 밖은 분석 상태 그대로.
- * 분석 전(막대)·답한 뒤·평소 문제는 그대로 보인다. `StageQuiz` 는 이 함수로만 정한다(REV-095 M-1).
- */
-export function quizPromptLayerState(answered: boolean, ann: AnnotationState, choices: readonly string[]): AnnotationState {
-  return !answered && ann.s === 'ready' && quizReadingLeak(ann.segments, choices) ? PROMPT_HIDDEN : ann
 }

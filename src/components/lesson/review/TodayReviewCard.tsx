@@ -8,7 +8,6 @@
  */
 import { useId, type RefObject } from 'react'
 import { Btn, Card } from '@/components/common/ui'
-import { stageLabel } from '../lessonCopy'
 import { Spinner } from '../parts'
 import { MiniSteps } from '../TodayLessonCard'
 import { FocusBadge } from './FocusBadge'
@@ -131,7 +130,7 @@ export default function TodayReviewCard({ card, teacherName, todayKey, busy, ski
           <p className={strong}>{RV_HOME.progressTitle}</p>
           <p className={sub}>{RV_HOME.progressBody(card.review.itemCount, card.stageDone)}</p>
           <MiniSteps done={card.stageDone} />
-          {card.stageDone < 5 ? <p className="mt-2 text-[12px] text-ink2">{RV_HOME.nextStage(stageLabel(card.stageDone + 1))}</p> : null}
+          {card.stageDone < 5 ? <p className="mt-2 text-[12px] text-ink2">{RV_HOME.nextStage(card.stageDone + 1)}</p> : null}
           <Btn className="mt-3 w-full" onClick={() => onOpen(card.lessonId)}>
             {RV_HOME.resume}
           </Btn>
@@ -164,7 +163,7 @@ export default function TodayReviewCard({ card, teacherName, todayKey, busy, ski
             </span>
             {RV_HOME.doneTitle}
           </p>
-          <p className={sub}>{RV_HOME.doneBody(r.itemCount, card.correct)}</p>
+          <p className={sub}>{RV_HOME.doneBody(r.itemCount)}</p>
           {card.kind === 'donePending' || line ? (
             <div className="mt-2.5 rounded-xl bg-accent-soft px-3 py-2.5">
               <p className="text-[12px] text-ink2">{RV_HOME.nextTitle}</p>

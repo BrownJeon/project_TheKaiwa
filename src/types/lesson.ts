@@ -60,6 +60,8 @@ export interface TodayLessonItem {
   score: number | null
   jobId: string | null
   speaking?: { used: number; total: number } | null
+  /** 오늘의 조각 수(task-081 additive) — `type ≠ null` 조각을 `type+ja` 로 한 번씩. 조각 없는 옛 수업은 null, 옛 응답에는 없다. */
+  pieces?: number | null
 }
 
 export interface LessonRecommendation {
@@ -98,12 +100,26 @@ export interface CreateLessonResult {
 
 /* ── #60 ─────────────────────────────────────────────────────────── */
 
+/** ③ 조각 종류(task-081) — 레슨 내용 JSON 전용. 단어장·교정의 `ChunkType`(types/chat)·Prisma `ChunkType` 과 별개. */
+export type PieceType = 'NAME' | 'ACTION' | 'FEELING' | 'MODIFIER' | 'EXPRESSION' | 'LINK'
+
+/** 대화 줄의 조각(task-081). 줄의 조각 `ja` 를 이으면 그 줄 `ja` 와 같다. `type` null = 문장부호·기호(누를 수 없음·뜻 없음·소리 없음). */
+export interface DialoguePiece {
+  ja: string
+  type: PieceType | null
+  ko: string | null
+  /** 이 조각 «뒤» 가 끊어 읽기 경계. false 는 저장하지 않는다. */
+  slash?: true
+}
+
 export interface DialogueLine {
   speaker: 'A' | 'B'
   ja: string
   reading: string
   ko: string
   segment: number
+  /** 키 없음 = 옛 수업(조각 단계 전) · null = 이 줄만 분해 실패 · 배열 = 정상(task-081). */
+  pieces?: DialoguePiece[] | null
 }
 
 export interface LessonChunk {
@@ -122,16 +138,6 @@ export interface LessonGrammar {
   exampleJa: string
   exampleReading: string
   exampleKo: string
-}
-
-export interface LessonQuiz {
-  id: string
-  promptKo: string | null
-  promptJa: string | null
-  choices: string[]
-  answer: number
-  targetIds: string[]
-  explanationKo: string
 }
 
 export interface LessonApplication {
@@ -162,7 +168,7 @@ export interface LessonContent {
   segmentCount: number
   chunks: LessonChunk[]
   grammar: LessonGrammar[]
-  quiz: LessonQuiz[]
+  // 응답에는 옛 수업 문항 `quiz` 가 계속 실려 오지만(새 수업은 `[]`) 화면은 읽지 않아 타입에 두지 않는다(task-081 §37-13 ⑥ — 문제 단계 제거).
   application: LessonApplication[]
   speaking: LessonSpeaking[]
   nextPreview: NextPreview
@@ -192,9 +198,11 @@ export interface SpeakingEntry {
 
 export interface LessonProgress {
   listen?: { segmentsDone?: number[]; played?: { slow?: number[]; normal?: number[] }; memo?: MemoDraft[]; proposed?: MemoProcessed[] }
-  quiz?: { answers: (number | null)[] }
+  // 옛 수업의 문항 답 `quiz.answers` 도 응답에 실려 오지만 화면은 읽지도 보내지도 않아 타입에 두지 않는다(task-081).
   application?: { answers: (string | null)[] }
   speaking?: SpeakingEntry[]
+  /** ③ 조각 단계에서 본 줄 번호(0부터, task-081). 서버 병합 = 합집합. */
+  pieces?: { seen: number[] }
 }
 
 export interface LessonDto {
@@ -229,14 +237,15 @@ export interface LessonDto {
 /** #61 본문의 progress — 클라이언트 칸만. */
 export interface ProgressPatch {
   listen?: { segmentsDone?: number[]; played?: { slow?: number[]; normal?: number[] }; memo?: MemoDraft[] }
-  quiz?: { answers: (number | null)[] }
   application?: { answers: (string | null)[] }
+  pieces?: { seen: number[] }
 }
 
 /* ── #62 ─────────────────────────────────────────────────────────── */
 
 export interface CompleteResult {
-  lesson: { id: string; status: 'DONE'; score: number; stageDone: number; completedAt: string }
+  /** `score` — 문항 없는 새 수업(task-081)은 null(#62 §37-12-9). */
+  lesson: { id: string; status: 'DONE'; score: number | null; stageDone: number; completedAt: string }
   studyLogId: string
   /** 강사 복습 판단 잡(#55) — 복습 레슨일 때만(task-010b additive). */
   reviewDecisionJobId?: string | null
@@ -245,8 +254,9 @@ export interface CompleteResult {
   /** 진행 중 챌린지 과제로 세어졌을 때만 값(task-041, additive) — 복습·붙여넣기·다른 주제·기간 밖·계산 실패는 null. `words` 는 수업이라 늘 null. */
   challenge?: ChallengeProgress | null
   result: {
-    score: number
-    quiz: { correct: number; total: number; answered: number }
+    score: number | null
+    /** 옛 수업만 값 — 새 수업은 null. 화면(종료 카드)은 읽지 않는다. */
+    quiz: { correct: number; total: number; answered: number } | null
     applicationDone: number
     expressions: { usedIds: string[]; missedIds: string[] }
     nextPreview: NextPreview | null
@@ -279,7 +289,8 @@ export interface LessonSpeakingTranslation {
   ko: string
 }
 
-export type AudioKind = 'dialogue' | 'grammar' | 'application' | 'speaking' | 'chunk'
+/** `piece`·`phrase`(task-081)는 요청에 `sub`(조각·구간 번호 0~23)가 필수, 다른 kind 에는 `sub` 를 보내지 않는다. */
+export type AudioKind = 'dialogue' | 'grammar' | 'application' | 'speaking' | 'chunk' | 'piece' | 'phrase'
 export type AudioPace = 'slow' | 'normal'
 
 export interface LessonAudioResult {

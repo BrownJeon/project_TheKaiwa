@@ -1,7 +1,7 @@
 /**
  * task-010d A2 — #59 A4 입력 조립(`_lib/lessonInput.ts`). DB·LLM 없음.
  *  ① 일반 수업(주제·붙여넣기): 이 파일 이전 라우트가 만들던 객체와 같고(`scenario` 칸 없음) A4 요청 바이트도 같다 — PE 골든 해시(topic_full·source_full)와도 대조
- *  ② 상황 수업: PE 어댑터(`scenarioPromptParts`) 순서 그대로 `[상황]` 블록 · 주제+상황 / 조각 없는 주제·주제 없음 → 상황 단독 · 문장 없음 · `lessonScenario@v1`
+ *  ② 상황 수업: PE 어댑터(`scenarioPromptParts`) 순서 그대로 `[상황]` 블록 · 주제+상황 / 조각 없는 주제·주제 없음 → 상황 단독 · 문장 없음 · `lessonScenario@v2`(task-081 PE 개정)
  *  ③ inputMeta: 일반은 이전 7칸 그대로, 상황만 2칸 추가 · LessonInputError 필드
  */
 import { test } from 'node:test'
@@ -103,7 +103,7 @@ const scenarioMats = (topic: LessonMaterials['topic'], level: LessonMaterials['l
   previousNextPreview: null,
 })
 
-test('상황 수업(주제+상황): [상황] 블록·표현은 PE 어댑터 순서(e2→e1→e3)·주제 조각 id 유지·문장 없음·lessonScenario@v1', () => {
+test('상황 수업(주제+상황): [상황] 블록·표현은 PE 어댑터 순서(e2→e1→e3)·주제 조각 id 유지·문장 없음·lessonScenario@v2', () => {
   const input = lessonInputFor(scenarioMats(topicMaterial()), { todayKst: TODAY, learner, corrections: [] })
   assert.equal(input.sourceText, null)
   assert.ok(input.topic, '조각 있는 대표 주제는 그대로')
@@ -117,7 +117,7 @@ test('상황 수업(주제+상황): [상황] 블록·표현은 PE 어댑터 순�
   assert.match(body, /\[핵심 표현\] ホットにしてください\(따뜻한 걸로 해 주세요\)・サイズを変えてください/)
   assert.deepEqual(req.allowedChunkIds, fixture.topic.chunks.map((c) => c.id))
   assert.notEqual(lessonPromptVersion(input), LESSON_PROMPT_VERSION)
-  assert.equal(lessonPromptVersion(input), 'lessonScenario@v1')
+  assert.equal(lessonPromptVersion(input), 'lessonScenario@v2')
 })
 
 test('상황 수업: 대표 주제가 없거나 조각이 없으면 상황 단독(topic null) — LessonInputError 없이 만들어지고 조각 id 는 new-N 규칙', () => {

@@ -1,0 +1,2800 @@
+{
+ "note": "task-081 PE — validatePieces/checkPieces 결정적 시험 목록. 기대값은 TypeScript 구현이 아니라 파이썬 독립 구현(slash false 키 삭제·꼬리 slash 삭제·ko 공백 제거)으로 만들었다. learning 쪽에 방어용 복사본을 두면 이 파일을 같은 시험으로 돌려 두 벌을 묶는다. reason 은 PiecesViolationReason. · PE 3단계: slash 를 명사에서 조사로 옮기는 정리(PE 확정 3)가 추가돼 slash→조사 8건을 더했고 «slashMoved» 기대값을 expect 에 넣었다(기존 good 케이스는 0).",
+ "cases": [
+  {
+   "name": "demo-1 温かいコーヒー",
+   "note": "",
+   "lineJa": "温かいコーヒーを一つください。",
+   "pieces": [
+    {
+     "ja": "温かい",
+     "type": "FEELING",
+     "ko": "따뜻한",
+     "slash": false
+    },
+    {
+     "ja": "コーヒー",
+     "type": "NAME",
+     "ko": "커피",
+     "slash": false
+    },
+    {
+     "ja": "を",
+     "type": "LINK",
+     "ko": "~을/를",
+     "slash": true
+    },
+    {
+     "ja": "一つ",
+     "type": "NAME",
+     "ko": "하나",
+     "slash": true
+    },
+    {
+     "ja": "ください",
+     "type": "ACTION",
+     "ko": "주세요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "温かい",
+      "type": "FEELING",
+      "ko": "따뜻한"
+     },
+     {
+      "ja": "コーヒー",
+      "type": "NAME",
+      "ko": "커피"
+     },
+     {
+      "ja": "を",
+      "type": "LINK",
+      "ko": "~을/를",
+      "slash": true
+     },
+     {
+      "ja": "一つ",
+      "type": "NAME",
+      "ko": "하나",
+      "slash": true
+     },
+     {
+      "ja": "ください",
+      "type": "ACTION",
+      "ko": "주세요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "demo-2 サイズ",
+   "note": "",
+   "lineJa": "サイズはどうしますか。",
+   "pieces": [
+    {
+     "ja": "サイズ",
+     "type": "NAME",
+     "ko": "사이즈",
+     "slash": false
+    },
+    {
+     "ja": "は",
+     "type": "LINK",
+     "ko": "~은/는",
+     "slash": true
+    },
+    {
+     "ja": "どう",
+     "type": "MODIFIER",
+     "ko": "어떻게",
+     "slash": true
+    },
+    {
+     "ja": "します",
+     "type": "ACTION",
+     "ko": "해요",
+     "slash": false
+    },
+    {
+     "ja": "か",
+     "type": "LINK",
+     "ko": "~까(물음)",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "サイズ",
+      "type": "NAME",
+      "ko": "사이즈"
+     },
+     {
+      "ja": "は",
+      "type": "LINK",
+      "ko": "~은/는",
+      "slash": true
+     },
+     {
+      "ja": "どう",
+      "type": "MODIFIER",
+      "ko": "어떻게",
+      "slash": true
+     },
+     {
+      "ja": "します",
+      "type": "ACTION",
+      "ko": "해요"
+     },
+     {
+      "ja": "か",
+      "type": "LINK",
+      "ko": "~까(물음)"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "demo-3 小さいので",
+   "note": "",
+   "lineJa": "小さいのでお願いします。",
+   "pieces": [
+    {
+     "ja": "小さい",
+     "type": "FEELING",
+     "ko": "작은",
+     "slash": false
+    },
+    {
+     "ja": "の",
+     "type": "LINK",
+     "ko": "~것",
+     "slash": false
+    },
+    {
+     "ja": "で",
+     "type": "LINK",
+     "ko": "~으로",
+     "slash": true
+    },
+    {
+     "ja": "お願いします",
+     "type": "EXPRESSION",
+     "ko": "부탁해요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "小さい",
+      "type": "FEELING",
+      "ko": "작은"
+     },
+     {
+      "ja": "の",
+      "type": "LINK",
+      "ko": "~것"
+     },
+     {
+      "ja": "で",
+      "type": "LINK",
+      "ko": "~으로",
+      "slash": true
+     },
+     {
+      "ja": "お願いします",
+      "type": "EXPRESSION",
+      "ko": "부탁해요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "demo-4 召し上がります",
+   "note": "",
+   "lineJa": "こちらで召し上がりますか。",
+   "pieces": [
+    {
+     "ja": "こちら",
+     "type": "NAME",
+     "ko": "이쪽 · 여기",
+     "slash": false
+    },
+    {
+     "ja": "で",
+     "type": "LINK",
+     "ko": "~에서",
+     "slash": true
+    },
+    {
+     "ja": "召し上がります",
+     "type": "ACTION",
+     "ko": "드세요(높임)",
+     "slash": false
+    },
+    {
+     "ja": "か",
+     "type": "LINK",
+     "ko": "~까(물음)",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "こちら",
+      "type": "NAME",
+      "ko": "이쪽 · 여기"
+     },
+     {
+      "ja": "で",
+      "type": "LINK",
+      "ko": "~에서",
+      "slash": true
+     },
+     {
+      "ja": "召し上がります",
+      "type": "ACTION",
+      "ko": "드세요(높임)"
+     },
+     {
+      "ja": "か",
+      "type": "LINK",
+      "ko": "~까(물음)"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "demo-5 いいえ、",
+   "note": "쉼표 조각에 slash — 뒤에 type 있는 조각이 있으므로 유지",
+   "lineJa": "いいえ、家でゆっくり飲みます。",
+   "pieces": [
+    {
+     "ja": "いいえ",
+     "type": "EXPRESSION",
+     "ko": "아니요",
+     "slash": false
+    },
+    {
+     "ja": "、",
+     "type": null,
+     "ko": null,
+     "slash": true
+    },
+    {
+     "ja": "家",
+     "type": "NAME",
+     "ko": "집",
+     "slash": false
+    },
+    {
+     "ja": "で",
+     "type": "LINK",
+     "ko": "~에서",
+     "slash": true
+    },
+    {
+     "ja": "ゆっくり",
+     "type": "MODIFIER",
+     "ko": "느긋하게",
+     "slash": true
+    },
+    {
+     "ja": "飲みます",
+     "type": "ACTION",
+     "ko": "마셔요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "いいえ",
+      "type": "EXPRESSION",
+      "ko": "아니요"
+     },
+     {
+      "ja": "、",
+      "type": null,
+      "ko": null,
+      "slash": true
+     },
+     {
+      "ja": "家",
+      "type": "NAME",
+      "ko": "집"
+     },
+     {
+      "ja": "で",
+      "type": "LINK",
+      "ko": "~에서",
+      "slash": true
+     },
+     {
+      "ja": "ゆっくり",
+      "type": "MODIFIER",
+      "ko": "느긋하게",
+      "slash": true
+     },
+     {
+      "ja": "飲みます",
+      "type": "ACTION",
+      "ko": "마셔요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "demo-6 두 문장",
+   "note": "문장 경계의 문장부호 조각에 slash 유지",
+   "lineJa": "かしこまりました。少々お待ちください。",
+   "pieces": [
+    {
+     "ja": "かしこまりました",
+     "type": "EXPRESSION",
+     "ko": "알겠습니다(정중)",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": true
+    },
+    {
+     "ja": "少々",
+     "type": "MODIFIER",
+     "ko": "잠시",
+     "slash": true
+    },
+    {
+     "ja": "お待ちください",
+     "type": "ACTION",
+     "ko": "기다려 주세요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "かしこまりました",
+      "type": "EXPRESSION",
+      "ko": "알겠습니다(정중)"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null,
+      "slash": true
+     },
+     {
+      "ja": "少々",
+      "type": "MODIFIER",
+      "ko": "잠시",
+      "slash": true
+     },
+     {
+      "ja": "お待ちください",
+      "type": "ACTION",
+      "ko": "기다려 주세요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "demo-7 静かですね",
+   "note": "",
+   "lineJa": "駅の前のカフェは、いつもとても静かですね。",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "の",
+     "type": "LINK",
+     "ko": "~의",
+     "slash": false
+    },
+    {
+     "ja": "前",
+     "type": "NAME",
+     "ko": "앞",
+     "slash": false
+    },
+    {
+     "ja": "の",
+     "type": "LINK",
+     "ko": "~의",
+     "slash": false
+    },
+    {
+     "ja": "カフェ",
+     "type": "NAME",
+     "ko": "카페",
+     "slash": false
+    },
+    {
+     "ja": "は",
+     "type": "LINK",
+     "ko": "~은/는",
+     "slash": false
+    },
+    {
+     "ja": "、",
+     "type": null,
+     "ko": null,
+     "slash": true
+    },
+    {
+     "ja": "いつも",
+     "type": "MODIFIER",
+     "ko": "늘",
+     "slash": true
+    },
+    {
+     "ja": "とても",
+     "type": "MODIFIER",
+     "ko": "아주",
+     "slash": true
+    },
+    {
+     "ja": "静かです",
+     "type": "FEELING",
+     "ko": "조용해요",
+     "slash": false
+    },
+    {
+     "ja": "ね",
+     "type": "LINK",
+     "ko": "~네요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     },
+     {
+      "ja": "の",
+      "type": "LINK",
+      "ko": "~의"
+     },
+     {
+      "ja": "前",
+      "type": "NAME",
+      "ko": "앞"
+     },
+     {
+      "ja": "の",
+      "type": "LINK",
+      "ko": "~의"
+     },
+     {
+      "ja": "カフェ",
+      "type": "NAME",
+      "ko": "카페"
+     },
+     {
+      "ja": "は",
+      "type": "LINK",
+      "ko": "~은/는"
+     },
+     {
+      "ja": "、",
+      "type": null,
+      "ko": null,
+      "slash": true
+     },
+     {
+      "ja": "いつも",
+      "type": "MODIFIER",
+      "ko": "늘",
+      "slash": true
+     },
+     {
+      "ja": "とても",
+      "type": "MODIFIER",
+      "ko": "아주",
+      "slash": true
+     },
+     {
+      "ja": "静かです",
+      "type": "FEELING",
+      "ko": "조용해요"
+     },
+     {
+      "ja": "ね",
+      "type": "LINK",
+      "ko": "~네요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "demo-8 ありがとう",
+   "note": "",
+   "lineJa": "ありがとうございます。また来てくださいね。",
+   "pieces": [
+    {
+     "ja": "ありがとうございます",
+     "type": "EXPRESSION",
+     "ko": "고맙습니다",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": true
+    },
+    {
+     "ja": "また",
+     "type": "MODIFIER",
+     "ko": "또",
+     "slash": true
+    },
+    {
+     "ja": "来てください",
+     "type": "ACTION",
+     "ko": "와 주세요",
+     "slash": false
+    },
+    {
+     "ja": "ね",
+     "type": "LINK",
+     "ko": "~요(다짐)",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "ありがとうございます",
+      "type": "EXPRESSION",
+      "ko": "고맙습니다"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null,
+      "slash": true
+     },
+     {
+      "ja": "また",
+      "type": "MODIFIER",
+      "ko": "또",
+      "slash": true
+     },
+     {
+      "ja": "来てください",
+      "type": "ACTION",
+      "ko": "와 주세요"
+     },
+     {
+      "ja": "ね",
+      "type": "LINK",
+      "ko": "~요(다짐)"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "slash 줄 마지막 조각은 지움",
+   "note": "마지막 조각 slash 제거(스펙 규칙 6) · PE3: 명사의 slash 가 조사로 옮겨진 뒤 줄 끝에서 지워진다",
+   "lineJa": "駅です",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": true
+    },
+    {
+     "ja": "です",
+     "type": "LINK",
+     "ko": "~예요",
+     "slash": true
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     },
+     {
+      "ja": "です",
+      "type": "LINK",
+      "ko": "~예요"
+     }
+    ],
+    "slashMoved": 1
+   }
+  },
+  {
+   "name": "slash 뒤가 문장부호뿐이면 지움(PE 확정 1)",
+   "note": "「…／。」 빈 구간 방지",
+   "lineJa": "お願いします。",
+   "pieces": [
+    {
+     "ja": "お願いします",
+     "type": "EXPRESSION",
+     "ko": "부탁해요",
+     "slash": true
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": true
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "お願いします",
+      "type": "EXPRESSION",
+      "ko": "부탁해요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "slash 뒤가 문장부호 여러 개뿐이면 지움",
+   "note": "",
+   "lineJa": "すごい！？",
+   "pieces": [
+    {
+     "ja": "すごい",
+     "type": "FEELING",
+     "ko": "대단해",
+     "slash": true
+    },
+    {
+     "ja": "！",
+     "type": null,
+     "ko": null,
+     "slash": true
+    },
+    {
+     "ja": "？",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "すごい",
+      "type": "FEELING",
+      "ko": "대단해"
+     },
+     {
+      "ja": "！",
+      "type": null,
+      "ko": null
+     },
+     {
+      "ja": "？",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "ko 앞뒤 공백 제거",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "  역  ",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "type null 조각의 ko 는 무시하고 null",
+   "note": "",
+   "lineJa": "駅。",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": "문장부호",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "slash false 는 키 없음",
+   "note": "",
+   "lineJa": "駅へ",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "へ",
+     "type": "LINK",
+     "ko": "~에",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     },
+     {
+      "ja": "へ",
+      "type": "LINK",
+      "ko": "~에"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "조각 24개(상한)",
+   "note": "",
+   "lineJa": "あいうえおかきくけこさしすせそたちつてとなにぬね",
+   "pieces": [
+    {
+     "ja": "あ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "い",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "う",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "え",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "お",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "か",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "き",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "く",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "け",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "こ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "さ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "し",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "す",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "せ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "そ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "た",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "ち",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "つ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "て",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "と",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "な",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "に",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "ぬ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "ね",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "あ",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "い",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "う",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "え",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "お",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "か",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "き",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "く",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "け",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "こ",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "さ",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "し",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "す",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "せ",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "そ",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "た",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "ち",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "つ",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "て",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "と",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "な",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "に",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "ぬ",
+      "type": "NAME",
+      "ko": "음"
+     },
+     {
+      "ja": "ね",
+      "type": "NAME",
+      "ko": "음"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "조각 25개",
+   "note": "",
+   "lineJa": "あいうえおかきくけこさしすせそたちつてとなにぬねの",
+   "pieces": [
+    {
+     "ja": "あ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "い",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "う",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "え",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "お",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "か",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "き",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "く",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "け",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "こ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "さ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "し",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "す",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "せ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "そ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "た",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "ち",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "つ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "て",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "と",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "な",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "に",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "ぬ",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "ね",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    },
+    {
+     "ja": "の",
+     "type": "NAME",
+     "ko": "음",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "count"
+   }
+  },
+  {
+   "name": "조각 0개",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [],
+   "expect": {
+    "ok": false,
+    "reason": "count"
+   }
+  },
+  {
+   "name": "조각 ja 40자(상한)",
+   "note": "",
+   "lineJa": "ああああああああああああああああああああああああああああああああああああああああ",
+   "pieces": [
+    {
+     "ja": "ああああああああああああああああああああああああああああああああああああああああ",
+     "type": "NAME",
+     "ko": "길다",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "ああああああああああああああああああああああああああああああああああああああああ",
+      "type": "NAME",
+      "ko": "길다"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "조각 ja 41자",
+   "note": "",
+   "lineJa": "あああああああああああああああああああああああああああああああああああああああああ",
+   "pieces": [
+    {
+     "ja": "あああああああああああああああああああああああああああああああああああああああああ",
+     "type": "NAME",
+     "ko": "길다",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "ja_length"
+   }
+  },
+  {
+   "name": "ko 30자(상한)",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "ko 31자",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "ko_invalid"
+   }
+  },
+  {
+   "name": "ko 비어 있음",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "ko_invalid"
+   }
+  },
+  {
+   "name": "ko 공백뿐",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "   ",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "ko_invalid"
+   }
+  },
+  {
+   "name": "ko null 인데 type 있음",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "ko_invalid"
+   }
+  },
+  {
+   "name": "서로게이트 쌍은 한 글자",
+   "note": "𠮷 U+20BB7",
+   "lineJa": "𠮷野家です",
+   "pieces": [
+    {
+     "ja": "𠮷野家",
+     "type": "NAME",
+     "ko": "요시노야",
+     "slash": false
+    },
+    {
+     "ja": "です",
+     "type": "LINK",
+     "ko": "~예요",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "𠮷野家",
+      "type": "NAME",
+      "ko": "요시노야"
+     },
+     {
+      "ja": "です",
+      "type": "LINK",
+      "ko": "~예요"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "글자 하나 바뀜",
+   "note": "。 → ．",
+   "lineJa": "駅へ行きます。",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "へ",
+     "type": "LINK",
+     "ko": "~에",
+     "slash": false
+    },
+    {
+     "ja": "行きます",
+     "type": "ACTION",
+     "ko": "가요",
+     "slash": false
+    },
+    {
+     "ja": "．",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "join_mismatch"
+   }
+  },
+  {
+   "name": "글자 빠짐",
+   "note": "마침표 누락",
+   "lineJa": "駅へ行きます。",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "へ",
+     "type": "LINK",
+     "ko": "~에",
+     "slash": false
+    },
+    {
+     "ja": "行きます",
+     "type": "ACTION",
+     "ko": "가요",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "join_mismatch"
+   }
+  },
+  {
+   "name": "글자 더해짐",
+   "note": "",
+   "lineJa": "駅へ行きます。",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "へ",
+     "type": "LINK",
+     "ko": "~에",
+     "slash": false
+    },
+    {
+     "ja": "行きました",
+     "type": "ACTION",
+     "ko": "갔어요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "join_mismatch"
+   }
+  },
+  {
+   "name": "순서 바뀜",
+   "note": "",
+   "lineJa": "駅へ行きます。",
+   "pieces": [
+    {
+     "ja": "へ",
+     "type": "LINK",
+     "ko": "~에",
+     "slash": false
+    },
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "行きます",
+     "type": "ACTION",
+     "ko": "가요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "join_mismatch"
+   }
+  },
+  {
+   "name": "전각↔반각",
+   "note": "전각 ABC ≠ 반각 ABC(NFC 에는 호환 분해 없음 — NFKC 아님)",
+   "lineJa": "ＡＢＣです",
+   "pieces": [
+    {
+     "ja": "ABC",
+     "type": "NAME",
+     "ko": "에이비씨",
+     "slash": false
+    },
+    {
+     "ja": "です",
+     "type": "LINK",
+     "ko": "~예요",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "join_mismatch"
+   }
+  },
+  {
+   "name": "공백이 조각에서 빠짐",
+   "note": "원문 공백은 글자로 센다",
+   "lineJa": "ありがとう ございます",
+   "pieces": [
+    {
+     "ja": "ありがとう",
+     "type": "EXPRESSION",
+     "ko": "고마워",
+     "slash": false
+    },
+    {
+     "ja": "ございます",
+     "type": "EXPRESSION",
+     "ko": "입니다",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "join_mismatch"
+   }
+  },
+  {
+   "name": "공백이 조각 안에 있음",
+   "note": "",
+   "lineJa": "ありがとう ございます",
+   "pieces": [
+    {
+     "ja": "ありがとう ",
+     "type": "EXPRESSION",
+     "ko": "고마워",
+     "slash": false
+    },
+    {
+     "ja": "ございます",
+     "type": "EXPRESSION",
+     "ko": "입니다",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "ありがとう ",
+      "type": "EXPRESSION",
+      "ko": "고마워"
+     },
+     {
+      "ja": "ございます",
+      "type": "EXPRESSION",
+      "ko": "입니다"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "공백이 따로 type null 조각",
+   "note": "공백뿐인 조각은 type null",
+   "lineJa": "ありがとう ございます",
+   "pieces": [
+    {
+     "ja": "ありがとう",
+     "type": "EXPRESSION",
+     "ko": "고마워",
+     "slash": false
+    },
+    {
+     "ja": " ",
+     "type": null,
+     "ko": null,
+     "slash": false
+    },
+    {
+     "ja": "ございます",
+     "type": "EXPRESSION",
+     "ko": "입니다",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "ありがとう",
+      "type": "EXPRESSION",
+      "ko": "고마워"
+     },
+     {
+      "ja": " ",
+      "type": null,
+      "ko": null
+     },
+     {
+      "ja": "ございます",
+      "type": "EXPRESSION",
+      "ko": "입니다"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "공백 조각에 type 을 붙임",
+   "note": "",
+   "lineJa": "ありがとう ございます",
+   "pieces": [
+    {
+     "ja": "ありがとう",
+     "type": "EXPRESSION",
+     "ko": "고마워",
+     "slash": false
+    },
+    {
+     "ja": " ",
+     "type": "NAME",
+     "ko": "공백",
+     "slash": false
+    },
+    {
+     "ja": "ございます",
+     "type": "EXPRESSION",
+     "ko": "입니다",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "type_null_mismatch"
+   }
+  },
+  {
+   "name": "읽기(후리가나)를 ja 에 섞음",
+   "note": "",
+   "lineJa": "駅です",
+   "pieces": [
+    {
+     "ja": "駅(えき)",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "です",
+     "type": "LINK",
+     "ko": "~예요",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "join_mismatch"
+   }
+  },
+  {
+   "name": "NFC 정규화 뒤 같음(NFD 조각)",
+   "note": "조각 ja 는 입력 그대로 저장(스펙: 비교만 NFC)",
+   "lineJa": "がっこう",
+   "pieces": [
+    {
+     "ja": "が",
+     "type": "NAME",
+     "ko": "가",
+     "slash": false
+    },
+    {
+     "ja": "っこう",
+     "type": "NAME",
+     "ko": "학교",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "が",
+      "type": "NAME",
+      "ko": "가"
+     },
+     {
+      "ja": "っこう",
+      "type": "NAME",
+      "ko": "학교"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "NFC 정규화 뒤 같음(NFD 원문)",
+   "note": "",
+   "lineJa": "がっこう",
+   "pieces": [
+    {
+     "ja": "が",
+     "type": "NAME",
+     "ko": "가",
+     "slash": false
+    },
+    {
+     "ja": "っこう",
+     "type": "NAME",
+     "ko": "학교",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "が",
+      "type": "NAME",
+      "ko": "가"
+     },
+     {
+      "ja": "っこう",
+      "type": "NAME",
+      "ko": "학교"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "글자가 있는데 type null",
+   "note": "",
+   "lineJa": "駅です",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": null,
+     "ko": null,
+     "slash": false
+    },
+    {
+     "ja": "です",
+     "type": "LINK",
+     "ko": "~예요",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "type_null_mismatch"
+   }
+  },
+  {
+   "name": "문장부호뿐인데 type 있음",
+   "note": "",
+   "lineJa": "駅。",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": "LINK",
+     "ko": "문장부호",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "type_null_mismatch"
+   }
+  },
+  {
+   "name": "type 값이 6종 밖",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "VERB",
+     "ko": "역",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "type_invalid"
+   }
+  },
+  {
+   "name": "type 소문자",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "name",
+     "ko": "역",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "type_invalid"
+   }
+  },
+  {
+   "name": "長音 ー 만 있는 조각은 글자(type 필요)",
+   "note": "ー(U+30FC)는 문자 수식 기호(Lm) — 문장부호가 아님",
+   "lineJa": "コーヒー",
+   "pieces": [
+    {
+     "ja": "コ",
+     "type": "NAME",
+     "ko": "코",
+     "slash": false
+    },
+    {
+     "ja": "ー",
+     "type": "NAME",
+     "ko": "늘임",
+     "slash": false
+    },
+    {
+     "ja": "ヒ",
+     "type": "NAME",
+     "ko": "히",
+     "slash": false
+    },
+    {
+     "ja": "ー",
+     "type": "NAME",
+     "ko": "늘임",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "コ",
+      "type": "NAME",
+      "ko": "코"
+     },
+     {
+      "ja": "ー",
+      "type": "NAME",
+      "ko": "늘임"
+     },
+     {
+      "ja": "ヒ",
+      "type": "NAME",
+      "ko": "히"
+     },
+     {
+      "ja": "ー",
+      "type": "NAME",
+      "ko": "늘임"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "물결표·가운뎃점은 문장부호",
+   "note": "",
+   "lineJa": "〜・駅",
+   "pieces": [
+    {
+     "ja": "〜",
+     "type": null,
+     "ko": null,
+     "slash": false
+    },
+    {
+     "ja": "・",
+     "type": null,
+     "ko": null,
+     "slash": false
+    },
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "〜",
+      "type": null,
+      "ko": null
+     },
+     {
+      "ja": "・",
+      "type": null,
+      "ko": null
+     },
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "「」 따옴표는 문장부호 조각",
+   "note": "",
+   "lineJa": "「駅」です",
+   "pieces": [
+    {
+     "ja": "「",
+     "type": null,
+     "ko": null,
+     "slash": false
+    },
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "」",
+     "type": null,
+     "ko": null,
+     "slash": false
+    },
+    {
+     "ja": "です",
+     "type": "LINK",
+     "ko": "~예요",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "「",
+      "type": null,
+      "ko": null
+     },
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     },
+     {
+      "ja": "」",
+      "type": null,
+      "ko": null
+     },
+     {
+      "ja": "です",
+      "type": "LINK",
+      "ko": "~예요"
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "type 있는 조각이 하나도 없음",
+   "note": "",
+   "lineJa": "！？",
+   "pieces": [
+    {
+     "ja": "！",
+     "type": null,
+     "ko": null,
+     "slash": false
+    },
+    {
+     "ja": "？",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "no_typed_piece"
+   }
+  },
+  {
+   "name": "한 줄이 문장부호 한 조각뿐",
+   "note": "",
+   "lineJa": "。",
+   "pieces": [
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "no_typed_piece"
+   }
+  },
+  {
+   "name": "pieces 가 null",
+   "note": "이미 null 인 줄",
+   "lineJa": "駅",
+   "pieces": null,
+   "expect": {
+    "ok": false,
+    "reason": "null_line"
+   }
+  },
+  {
+   "name": "pieces 가 배열이 아님",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": "駅",
+   "expect": {
+    "ok": false,
+    "reason": "not_array"
+   }
+  },
+  {
+   "name": "조각이 객체가 아님",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    "駅"
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "piece_shape"
+   }
+  },
+  {
+   "name": "ja 가 문자열이 아님",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": 1,
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "piece_shape"
+   }
+  },
+  {
+   "name": "ja 가 빈 문자열",
+   "note": "",
+   "lineJa": "駅",
+   "pieces": [
+    {
+     "ja": "",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    },
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": false,
+    "reason": "ja_length"
+   }
+  },
+  {
+   "name": "저장 모양(slash 키 없음)도 같은 결과",
+   "note": "멱등 · PE3: 명사의 slash 가 조사로 옮겨진 뒤 줄 끝에서 지워진다",
+   "lineJa": "駅へ",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": true
+    },
+    {
+     "ja": "へ",
+     "type": "LINK",
+     "ko": "~에"
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     },
+     {
+      "ja": "へ",
+      "type": "LINK",
+      "ko": "~에"
+     }
+    ],
+    "slashMoved": 1
+   }
+  },
+  {
+   "name": "slash→조사(PE3): 명사 slash 와 조사 slash 가 둘 다 있으면 조사에만 남긴다",
+   "note": "눈가림 S21 형태 — 写真 ／ を ／ 撮りましたか",
+   "lineJa": "写真を撮りましたか。",
+   "pieces": [
+    {
+     "ja": "写真",
+     "type": "NAME",
+     "ko": "사진",
+     "slash": true
+    },
+    {
+     "ja": "を",
+     "type": "LINK",
+     "ko": "~을/를",
+     "slash": true
+    },
+    {
+     "ja": "撮りましたか",
+     "type": "ACTION",
+     "ko": "찍었어요?",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "写真",
+      "type": "NAME",
+      "ko": "사진"
+     },
+     {
+      "ja": "を",
+      "type": "LINK",
+      "ko": "~을/를",
+      "slash": true
+     },
+     {
+      "ja": "撮りましたか",
+      "type": "ACTION",
+      "ko": "찍었어요?"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 1
+   }
+  },
+  {
+   "name": "slash→조사(PE3): 조사에 slash 가 없으면 명사의 slash 를 조사로 옮긴다",
+   "note": "옮김 1",
+   "lineJa": "駅に行きます。",
+   "pieces": [
+    {
+     "ja": "駅",
+     "type": "NAME",
+     "ko": "역",
+     "slash": true
+    },
+    {
+     "ja": "に",
+     "type": "LINK",
+     "ko": "~에",
+     "slash": false
+    },
+    {
+     "ja": "行きます",
+     "type": "ACTION",
+     "ko": "가요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "駅",
+      "type": "NAME",
+      "ko": "역"
+     },
+     {
+      "ja": "に",
+      "type": "LINK",
+      "ko": "~에",
+      "slash": true
+     },
+     {
+      "ja": "行きます",
+      "type": "ACTION",
+      "ko": "가요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 1
+   }
+  },
+  {
+   "name": "slash→조사(PE3): LINK 연속(では)은 구간 끝으로 옮기고 중간 LINK 의 slash 는 접는다",
+   "note": "구간 끝 = は",
+   "lineJa": "家では勉強しません。",
+   "pieces": [
+    {
+     "ja": "家",
+     "type": "NAME",
+     "ko": "집",
+     "slash": true
+    },
+    {
+     "ja": "で",
+     "type": "LINK",
+     "ko": "~에서",
+     "slash": true
+    },
+    {
+     "ja": "は",
+     "type": "LINK",
+     "ko": "~은/는",
+     "slash": false
+    },
+    {
+     "ja": "勉強しません",
+     "type": "ACTION",
+     "ko": "공부 안 해요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "家",
+      "type": "NAME",
+      "ko": "집"
+     },
+     {
+      "ja": "で",
+      "type": "LINK",
+      "ko": "~에서"
+     },
+     {
+      "ja": "は",
+      "type": "LINK",
+      "ko": "~은/는",
+      "slash": true
+     },
+     {
+      "ja": "勉強しません",
+      "type": "ACTION",
+      "ko": "공부 안 해요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 1
+   }
+  },
+  {
+   "name": "slash→조사(PE3): 옮길 대상 없음 — 뒤가 LINK 가 아니면 그대로",
+   "note": "불변",
+   "lineJa": "ここで待ちます。",
+   "pieces": [
+    {
+     "ja": "ここ",
+     "type": "NAME",
+     "ko": "여기",
+     "slash": false
+    },
+    {
+     "ja": "で",
+     "type": "LINK",
+     "ko": "~에서",
+     "slash": true
+    },
+    {
+     "ja": "待ちます",
+     "type": "ACTION",
+     "ko": "기다려요",
+     "slash": true
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "ここ",
+      "type": "NAME",
+      "ko": "여기"
+     },
+     {
+      "ja": "で",
+      "type": "LINK",
+      "ko": "~에서",
+      "slash": true
+     },
+     {
+      "ja": "待ちます",
+      "type": "ACTION",
+      "ko": "기다려요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "slash→조사(PE3): 문장부호(type null) 조각의 slash 는 건드리지 않는다 — 뒤의 でも 가 LINK 여도 문장 경계 유지",
+   "note": "경계 보호",
+   "lineJa": "遠いです。でも大丈夫です。",
+   "pieces": [
+    {
+     "ja": "遠いです",
+     "type": "FEELING",
+     "ko": "멀어요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": true
+    },
+    {
+     "ja": "でも",
+     "type": "LINK",
+     "ko": "하지만",
+     "slash": false
+    },
+    {
+     "ja": "大丈夫です",
+     "type": "FEELING",
+     "ko": "괜찮아요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "遠いです",
+      "type": "FEELING",
+      "ko": "멀어요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null,
+      "slash": true
+     },
+     {
+      "ja": "でも",
+      "type": "LINK",
+      "ko": "하지만"
+     },
+     {
+      "ja": "大丈夫です",
+      "type": "FEELING",
+      "ko": "괜찮아요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 0
+   }
+  },
+  {
+   "name": "slash→조사(PE3): 한 줄에서 두 군데를 각각 옮긴다",
+   "note": "옮김 2",
+   "lineJa": "友だちと映画を見ます。",
+   "pieces": [
+    {
+     "ja": "友だち",
+     "type": "NAME",
+     "ko": "친구",
+     "slash": true
+    },
+    {
+     "ja": "と",
+     "type": "LINK",
+     "ko": "~와/과",
+     "slash": false
+    },
+    {
+     "ja": "映画",
+     "type": "NAME",
+     "ko": "영화",
+     "slash": true
+    },
+    {
+     "ja": "を",
+     "type": "LINK",
+     "ko": "~을/를",
+     "slash": false
+    },
+    {
+     "ja": "見ます",
+     "type": "ACTION",
+     "ko": "봐요",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "友だち",
+      "type": "NAME",
+      "ko": "친구"
+     },
+     {
+      "ja": "と",
+      "type": "LINK",
+      "ko": "~와/과",
+      "slash": true
+     },
+     {
+      "ja": "映画",
+      "type": "NAME",
+      "ko": "영화"
+     },
+     {
+      "ja": "を",
+      "type": "LINK",
+      "ko": "~을/를",
+      "slash": true
+     },
+     {
+      "ja": "見ます",
+      "type": "ACTION",
+      "ko": "봐요"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 2
+   }
+  },
+  {
+   "name": "slash→조사(PE3): 옮긴 slash 가 줄 끝에 닿으면 꼬리 정리가 지운다(마지막 조각)",
+   "note": "경계값 — 마지막 조각이 조사",
+   "lineJa": "先生へ",
+   "pieces": [
+    {
+     "ja": "先生",
+     "type": "NAME",
+     "ko": "선생님",
+     "slash": true
+    },
+    {
+     "ja": "へ",
+     "type": "LINK",
+     "ko": "~에게",
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "先生",
+      "type": "NAME",
+      "ko": "선생님"
+     },
+     {
+      "ja": "へ",
+      "type": "LINK",
+      "ko": "~에게"
+     }
+    ],
+    "slashMoved": 1
+   }
+  },
+  {
+   "name": "slash→조사(PE3): 조사 뒤에 문장부호만 남아도 옮긴 slash 는 지워진다",
+   "note": "경계값 — 뒤에 type 있는 조각 없음",
+   "lineJa": "これは本ですか。",
+   "pieces": [
+    {
+     "ja": "これ",
+     "type": "NAME",
+     "ko": "이것",
+     "slash": false
+    },
+    {
+     "ja": "は",
+     "type": "LINK",
+     "ko": "~은/는",
+     "slash": true
+    },
+    {
+     "ja": "本",
+     "type": "NAME",
+     "ko": "책",
+     "slash": true
+    },
+    {
+     "ja": "です",
+     "type": "LINK",
+     "ko": "~예요",
+     "slash": false
+    },
+    {
+     "ja": "か",
+     "type": "LINK",
+     "ko": "~까(물음)",
+     "slash": false
+    },
+    {
+     "ja": "。",
+     "type": null,
+     "ko": null,
+     "slash": false
+    }
+   ],
+   "expect": {
+    "ok": true,
+    "pieces": [
+     {
+      "ja": "これ",
+      "type": "NAME",
+      "ko": "이것"
+     },
+     {
+      "ja": "は",
+      "type": "LINK",
+      "ko": "~은/는",
+      "slash": true
+     },
+     {
+      "ja": "本",
+      "type": "NAME",
+      "ko": "책"
+     },
+     {
+      "ja": "です",
+      "type": "LINK",
+      "ko": "~예요"
+     },
+     {
+      "ja": "か",
+      "type": "LINK",
+      "ko": "~까(물음)"
+     },
+     {
+      "ja": "。",
+      "type": null,
+      "ko": null
+     }
+    ],
+    "slashMoved": 1
+   }
+  }
+ ]
+}

@@ -74,7 +74,7 @@ const GOLDEN_PATH = join(process.cwd(), 'tests/prompts/fixtures/talk-general-gol
 test('일반 TALK(scenario 없음): system·messages·persona 가 변경 전과 바이트까지 같다(골든 해시 8건)', () => {
   const got = Object.fromEntries(Object.entries(GENERAL_CASES).map(([name, input]) => [name, digest(input)]))
   if (process.env.UPDATE_GOLDEN === '1') {
-    writeFileSync(GOLDEN_PATH, `${JSON.stringify({ capturedFrom: 'talk@v9 · HEAD c69e0af · 2026-10-07 (task-010d 변경 전)', cases: got }, null, 1)}\n`)
+    writeFileSync(GOLDEN_PATH, `${JSON.stringify({ capturedFrom: 'talk@v9 · task-081 PE 1단계 재기록 2026-10-21 (tutor.md §1 레슨 5단계 «문제→조각» 문구 변경으로 persona 해시만 바뀜 · 이전: HEAD c69e0af 2026-10-07 task-010d 변경 전)', cases: got }, null, 1)}\n`)
     return
   }
   const golden = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8')) as { cases: Record<string, GoldenEntry> }

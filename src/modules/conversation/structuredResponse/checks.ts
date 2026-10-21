@@ -10,6 +10,7 @@
  * 저장 시에는 라우트가 모델 값이 아니라 **서버가 가진 원문**을 `Correction.original` 에 넣는다(task-006) — 이 검사는 계약 위반 탐지용이다.
  */
 import { llm } from '@/modules/engine'
+import { piecesViolationMessages, scanLessonPieces } from './lessonPieces'
 import { chunkAppearsIn } from './matching'
 import { LESSON_CHUNKS_MAX } from './schemas'
 import type { ChatReviewResponse, LessonResponse, TutorResponse, WordEnrichResponse } from './schemas'
@@ -275,16 +276,17 @@ export function checkWordEnrich(surface: string, data: WordEnrichResponse): stri
  * `LESSON_SCHEMA` 가 minItems/maxItems·uniqueItems·enum·pattern 으로 이미 강제한다 — 여기서 다시 세지 않는다):
  *  ① `chunks[].id` 보존 — 입력 `topic.chunks` 의 id 를 그대로 쓰거나 `new-N` 이어야 하고(없는 id 를 지어내면 위반),
  *     `isNew` 가 그 판정과 모순되면 안 된다(기존 id 인데 isNew=true, new-N 인데 isNew=false 둘 다 위반).
- *  ② `targetIds ⊆ chunks∪grammar id` — quiz·application·speaking 이 이번 레슨에 없는 id 를 가리키면 위반.
+ *  ② `targetIds ⊆ chunks∪grammar id` — application·speaking 이 이번 레슨에 없는 id 를 가리키면 위반.
  *  ③ 일본어 필드(ja·textJa·exampleJa·modelAnswerJa)에 한글이 섞이지 않았는지, 응답 전체에 엔진·모델 이름이 없는지.
  *  ④(2026-09-28 Leader 3차 결정) application·speaking 의 `modelAnswerJa` 가 자기 목표 chunk(`textJa`·`reading`)를
  *     실제로 담고 있는지(`matching.ts` `chunkAppearsIn`) — `repairLessonResponse` 가 못 담은 chunk 를 이미
  *     `targetIds` 에서 뺐을 것이므로, 여기 남아 있는 것은 "빼면 빈 배열이 돼 보정 못 한" 경우다.
  *
- * **quiz.promptKo(lesson@v8, 2026-09-30 task-025 IMP-0014)**: 스키마가 필수·비어 있지 않은 문자열로 강제하므로(옛 v7 의
- * "promptKo·promptJa 중 최소 하나" 규칙은 없어졌다) 여기서는 그 안에 **한글이 실제로 있는지**만 본다 — 일본어 문장을 promptKo 에
- * 넣는 자리 바뀜을 잡는다. 마지막 시도(`tolerateContentMismatch`)에서는 이 검사도 건너뛴다(한국어 뜻이 부실한 채 레슨이 나가는 편이
- * 레슨 전체를 잃는 것보다 낫다).
+ * **task-081(2026-10-21, lesson@v10)** — 문제(quiz) 단계가 «조각» 으로 바뀌어 `LessonResponse.quiz` 가 없다. ① `quiz[].promptKo` 한글 검사(v8)·`quiz` 의 targetIds·문항 글 엔진명 검사를 걷어냈다
+ * (이 함수는 **생성 직후 응답**만 본다 — 옛 수업을 다시 검사하지 않는다, 호출처 전수: `prompts/lesson.ts`·`prompts/reviewMix.ts`. 옛 수업 완료용 코드(`learning/lessons/content.ts` `scoreQuiz`·`quizTargetTally`)는 별개로 남아 있다).
+ * ② 새 검사 `pieces`(kind `'pieces'`): `dialogue[i].pieces` 를 줄마다 `lessonPieces.ts` 6규칙으로 보고 **«위반 줄 수 × 2 > 줄 수»** 이면 레슨 위반으로 재시도하게 한다(문구 = 어긴 줄 번호와 규칙, 글 내용 없음).
+ * 임계 이하의 위반 줄은 위반이 아니다 — 요청의 `extraCheck` 가 `applyLessonPieces` 로 그 줄만 `pieces: null` 로 만든다. 마지막 시도에서는 `tolerateInvalidPieces` 가 이 위반도 면책해
+ * «레슨 실패» 대신 «위반 줄 null 저장» 으로 끝낸다(Leader 결정 37-18-1 ⑥ — `tolerateContentMismatch` 와 같은 방식).
  *
  * **의도적으로 안 보는 것**: `sourceText` 레슨이 원문 표현을 실제로 살렸는지는
  * task-010 Leader's Plan L7 이 "느슨"이라고 명시한 항목이라 — 자동 판정 기준이 모호해 재시도만 늘리므로 여기서 강제하지
@@ -309,16 +311,21 @@ export interface LessonCheckContext {
    * (그 존재는 여전히 강제) 데이터 무결성은 깨지지 않고, "모범 답이 그 표현을 완벽히 보여주지 못한다"는 콘텐츠
    * 품질 저하만 허용하는 것이다 — 레슨 전체를 잃는 것보다 낫다는 Leader 판단(재시도까지 실패한 극히 드문
    * 잔여 사례 한정). 상세: `agent-vault/30-Knowledge/decisions/llm-japanese-quality.md`§11.
-   * lesson@v8 부터 `quiz[].promptKo` 의 한글 유무 검사도 같은 이유로 이 옵션이 켜지면 건너뛴다(위 함수 주석).
+   * (lesson@v8~v9 의 `quiz[].promptKo` 한글 검사도 이 옵션이 건너뛰었으나 lesson@v10 에서 quiz 와 함께 없어졌다.)
    */
   tolerateContentMismatch?: boolean
+  /**
+   * lesson@v10(task-081) — true 면 «조각 위반 줄이 절반을 넘는다» 는 레슨 위반을 위반 목록에 넣지 않는다. `extraCheck` 가 **마지막 시도에서만** 켠다(조각 단계 때문에 수업 생성이
+   * 실패하는 일을 만들지 않는다). 위반 줄은 호출자가 `applyLessonPieces` 로 null 처리한다. 다른 검사(id·한글 혼입·엔진명)는 이 옵션과 무관하게 항상 본다.
+   */
+  tolerateInvalidPieces?: boolean
 }
 
 /**
- * 위반 종류 꼬리표(lesson@v8 task-025b) — 마지막 시도 면책 로그가 "④ 매칭 N건·promptKo 한글 M건"을 따로 세려고 쓴다.
- * 면책(`tolerateContentMismatch`)이 건너뛰는 규칙은 정확히 `content`·`promptKo` 두 종류뿐이다. 나머지는 모두 `other`.
+ * 위반 종류 꼬리표 — 마지막 시도 면책 로그가 종류별 건수를 따로 세려고 쓴다. 면책이 건너뛰는 규칙은 정확히 `content`(④ 매칭, `tolerateContentMismatch`)·`pieces`(조각 임계,
+ * `tolerateInvalidPieces`, task-081) 두 종류뿐이다. 나머지는 모두 `other`. (`promptKo` 는 lesson@v8~v9 의 quiz.promptKo 한글 검사였고 lesson@v10 에서 없어졌다.)
  */
-export type LessonViolationKind = 'content' | 'promptKo' | 'other'
+export type LessonViolationKind = 'content' | 'pieces' | 'other'
 export interface LessonViolation {
   kind: LessonViolationKind
   message: string
@@ -371,14 +378,11 @@ export function checkLessonResponseDetailed(ctx: LessonCheckContext, data: Lesso
   data.dialogue.forEach((d, i) => {
     if (hasHangul(d.ja)) push(`dialogue[${i}].ja 에 한글이 섞여 있다`)
   })
-  data.quiz.forEach((q, i) => {
-    // lesson@v8 — 문제 문장의 한국어 뜻은 필수(스키마가 비어 있지 않은 문자열을 강제). 여기서는 한글이 실제로 있는지만 본다.
-    if (!ctx.tolerateContentMismatch && !hasHangul(q.promptKo)) {
-      // (e)=B(2026-10-01) — 재시도 안내가 "문제 문장의 한국어 뜻"만 말하면 빈칸 문제를 다시 번역으로 쓰게 돼 정답이 노출된다. 빈칸 문제는 할 일만 쓰도록 같이 안내한다(로직 무변경, 문구만).
-      push(`quiz[${i}].promptKo 에 한국어(한글)가 없다 — 한국어로 쓰세요: 일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 지시를, 빈칸 문제는 "빈칸에 들어갈 알맞은 말을 고르세요."처럼 할 일만 — 정답의 뜻은 쓰지 않는다`, 'promptKo')
-    }
-    checkTargetIds(q.targetIds, `quiz[${i}]`)
-  })
+  // task-081 — «조각» 검사: 위반 줄이 절반을 넘으면 레슨 위반(마지막 시도에서는 면책). 임계 이하의 위반 줄은 위반이 아니다(extraCheck 가 그 줄만 null 로 만든다).
+  if (!ctx.tolerateInvalidPieces) {
+    const scan = scanLessonPieces(data.dialogue)
+    if (scan.overThreshold) piecesViolationMessages(scan).forEach((m) => push(m, 'pieces'))
+  }
   // 2026-09-28 Leader 3차 결정 — application·speaking 의 modelAnswerJa 가 자기 목표 chunk 표현을 실제로 담고 있는지
   // (문법 id 는 대상 아님, matching.ts 주석 참고). repairLessonResponse 의 ④가 못 담은 chunk 를 이미 뺐을 것이므로,
   // 여기서 남아 있는 것은 "빼면 targetIds 가 비어서 보정하지 못한" 경우다.
@@ -408,10 +412,9 @@ export function checkLessonResponseDetailed(ctx: LessonCheckContext, data: Lesso
     data.titleKo,
     data.rolesKo.A,
     data.rolesKo.B,
-    ...data.dialogue.flatMap((d) => [d.ja, d.ko]),
+    ...data.dialogue.flatMap((d) => [d.ja, d.ko, ...(d.pieces ?? []).flatMap((p) => [p.ja, p.ko].filter((x): x is string => Boolean(x)))]),
     ...data.chunks.flatMap((c) => [c.textJa, c.meaningKo]),
     ...data.grammar.flatMap((g) => [g.pattern, g.explanationKo, g.exampleJa, g.exampleKo]),
-    ...data.quiz.flatMap((q) => [q.promptKo, q.promptJa, ...q.choices, q.explanationKo].filter((x): x is string => Boolean(x))),
     ...data.application.flatMap((a) => [a.promptKo, a.hintJa, a.modelAnswerJa, a.modelKo].filter((x): x is string => Boolean(x))),
     ...data.speaking.flatMap((s) => [s.promptKo, s.modelAnswerJa, s.modelKo]),
     data.nextPreview.titleKo,

@@ -5,14 +5,15 @@
  *     listen?:      { segmentsDone?: int[], played?: { slow?: int[], normal?: int[] },     ← 클라이언트(#61)
  *                     memo?: [{segment, ja}],                                             ← 클라이언트 초안(#61) + 메모 제안 요청(#62a)이 합침
  *                     proposed?: [{ja, segment, result, proposalId, wordId}] },           ← 서버 전용(#62a 결과)
- *     quiz?:        { answers: (0~3|null)[] },                                            ← 클라이언트, **첫 답 고정**(L4 재채점 근거)
+ *     quiz?:        { answers: (0~3|null)[] },                                            ← 클라이언트, **첫 답 고정**(L4 재채점 근거) — 옛 수업 전용(task-081)
  *     application?: { answers: (string ≤200|null)[] },                                    ← 클라이언트
+ *     pieces?:      { seen: int[] },                                                      ← 클라이언트(task-081 ③ 조각 단계에서 본 줄 번호, 0부터)
  *     speaking?:    [{itemId, text, matchedIds, missedIds, utteranceId, at}],             ← 서버 전용(#62b 결과)
  *   }
  *
  * #61 은 클라이언트 칸만 받는다(서버 칸을 보내면 400). 보낸 절만 바뀌고 나머지는 그대로 — 서버 칸은 늘 보존된다.
- * 병합: segmentsDone·played 는 합집합(되돌리지 않음), memo 는 통째 교체, quiz.answers 는 이미 답한 칸을 바꾸지 않음,
- * application.answers 는 보낸 칸(null 이 아닌 값)만 교체.
+ * 병합: segmentsDone·played·pieces.seen 은 합집합(되돌리지 않음), memo 는 통째 교체, quiz.answers 는 이미 답한 칸을 바꾸지 않음,
+ * application.answers 는 보낸 칸(null 이 아닌 값)만 교체. 새 수업은 문항이 없어(`content.quiz` = []) `quiz` 는 빈 배열만 받는다.
  */
 import { ApiError, codePointLength, sanitizeText } from '@/modules/infra'
 
@@ -52,6 +53,7 @@ export interface LessonProgress {
   quiz?: { answers: (number | null)[] }
   application?: { answers: (string | null)[] }
   speaking?: SpeakingEntry[]
+  pieces?: { seen: number[] }
   [k: string]: unknown
 }
 
@@ -59,12 +61,18 @@ export interface ProgressPatch {
   listen?: { segmentsDone?: number[]; played?: { slow?: number[]; normal?: number[] }; memo?: MemoDraft[] }
   quiz?: { answers: (number | null)[] }
   application?: { answers: (string | null)[] }
+  pieces?: { seen: number[] }
 }
 
 export interface ProgressLimits {
   segmentCount: number
   quizCount: number
   applicationCount: number
+  /**
+   * 대화 줄 수(`pieces.seen` 범위, task-081). 선택인 이유: 호출부(lifecycle)가 다른 갈래 소유라 어느 순서로 고쳐도 타입이 깨지지 않게 —
+   * 빠지면 `pieces` 는 늘 400(닫힌 쪽으로 실패).
+   */
+  dialogueCount?: number
 }
 
 function bad(field: string, message: string, reason = 'invalid'): never {
@@ -114,7 +122,7 @@ export function checkMemoDrafts(list: readonly MemoDraft[], field = 'progress.li
 export function parseProgressPatch(raw: unknown, lim: ProgressLimits): ProgressPatch {
   if (!isObj(raw)) bad('progress', 'progress 는 객체여야 합니다.')
   if (Buffer.byteLength(JSON.stringify(raw), 'utf8') > PROGRESS_PATCH_MAX_BYTES) bad('progress', '진행 기록이 너무 커요(8KB).', 'TOO_LARGE')
-  onlyKeys(raw, ['listen', 'quiz', 'application'], 'progress.')
+  onlyKeys(raw, ['listen', 'quiz', 'application', 'pieces'], 'progress.')
   const out: ProgressPatch = {}
   if (raw.listen !== undefined) {
     if (!isObj(raw.listen)) bad('progress.listen', 'listen 형식이 올바르지 않습니다.')
@@ -174,7 +182,26 @@ export function parseProgressPatch(raw: unknown, lim: ProgressLimits): ProgressP
       }),
     }
   }
+  if (raw.pieces !== undefined) {
+    if (lim.dialogueCount === undefined) bad('progress.pieces', '이 수업에는 조각 진행을 저장할 수 없어요.', 'unsupported')
+    out.pieces = { seen: parsePiecesSeen(raw.pieces, lim.dialogueCount) }
+  }
   return out
+}
+
+/** `progress.pieces` — `{seen}` 만, seen = 0 ≤ 정수 < 줄 수·중복 없음·길이 ≤ 줄 수. 정렬해 돌려준다. */
+function parsePiecesSeen(v: unknown, dialogueCount: number): number[] {
+  if (!isObj(v)) bad('progress.pieces', 'pieces 형식이 올바르지 않습니다.')
+  onlyKeys(v, ['seen'], 'progress.pieces.')
+  const s = v.seen
+  if (!Array.isArray(s) || s.length > dialogueCount) bad('progress.pieces.seen', `seen 은 ${dialogueCount}칸 이하 배열입니다.`)
+  const out = new Set<number>()
+  for (const x of s) {
+    if (typeof x !== 'number' || !Number.isInteger(x) || x < 0 || x >= dialogueCount) bad('progress.pieces.seen', `줄 번호는 0~${dialogueCount - 1} 입니다.`)
+    if (out.has(x)) bad('progress.pieces.seen', '같은 줄 번호가 두 번 있어요.', 'DUPLICATE')
+    out.add(x)
+  }
+  return [...out].sort((a, b) => a - b)
 }
 
 /** 저장된 JSON → 진행 객체(형태가 어긋난 칸은 버린다). */
@@ -183,6 +210,7 @@ export function readProgress(raw: unknown): LessonProgress {
 }
 
 const union = (a: readonly number[] | undefined, b: readonly number[] | undefined) => [...new Set([...(a ?? []), ...(b ?? [])])].sort((x, y) => x - y)
+const numList = (v: unknown): number[] | undefined => (Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number' && Number.isInteger(x)) : undefined)
 
 export function mergeProgress(current: LessonProgress, patch: ProgressPatch): LessonProgress {
   const next: LessonProgress = { ...current }
@@ -223,6 +251,7 @@ export function mergeProgress(current: LessonProgress, patch: ProgressPatch): Le
       }),
     }
   }
+  if (patch.pieces) next.pieces = { seen: union(numList(isObj(current.pieces) ? current.pieces.seen : undefined), patch.pieces.seen) }
   return next
 }
 

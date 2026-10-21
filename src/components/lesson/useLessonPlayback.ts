@@ -5,7 +5,7 @@
  * part 로 넘긴다. 새 재생 경로를 만들지 않는다.
  *  - 구간: 대화 줄 하나 = part 하나. part 안에서 #62c 로 조각 URL 을 받고(미리 전부 합성하지 않고 차례로 — 큐가 다음 줄 하나만 미리 받는다),
  *    조각이 둘 이상이면 WAV 를 이어 붙인다. `snapshot.chunkIndex` = 구간 안 줄 순번 → 줄 강조.
- *  - 예문·모범 답안·내 목소리(#21b): part 하나.
+ *  - 예문·모범 답안·내 목소리(#21b): part 하나. ③ 조각·끊어 읽기 구간(task-081): `kind` piece·phrase + `sub`(조각·구간 index) part 하나.
  *  - 끝까지(중단 없이) 들었을 때만 `onComplete`. 멈춤·다른 재생·푸시투토크·화면 가림·오류는 완료가 아니다.
  * 소리는 탭 핸들러가 동기로 `unlockTtsAudio()` 를 부른 뒤 시작한다. 서명 URL·오디오는 저장·로그하지 않는다.
  */
@@ -23,6 +23,29 @@ import { concatWav } from './wav'
 
 const perfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
 
+/** 재생 요청 한 줄(#62c). `sub` 는 piece(조각 index)·phrase(구간 index)에서만 쓴다. */
+export interface LessonAudioLine {
+  kind: AudioKind
+  idx: number
+  sub?: number
+  pace: AudioPace
+}
+
+const SUB_KINDS: readonly AudioKind[] = ['piece', 'phrase']
+
+/**
+ * #62c 요청 본문 — `sub` 는 piece·phrase 이고 수일 때만 싣는다(서버 `parseAudioBody` 는 다른 kind 의 `sub` 를 400 으로 막는다).
+ * 다른 kind 는 지금과 같은 바이트(`{kind, idx, pace}`).
+ */
+export function lessonAudioBody(l: LessonAudioLine): { kind: AudioKind; idx: number; pace: AudioPace; sub?: number } {
+  const body: { kind: AudioKind; idx: number; pace: AudioPace; sub?: number } = { kind: l.kind, idx: l.idx, pace: l.pace }
+  if (SUB_KINDS.includes(l.kind) && typeof l.sub === 'number') body.sub = l.sub
+  return body
+}
+
+/** 이 key 가 소리 나는 중(또는 받는 중)인가 — `LessonPlayback.active` 의 판정(조각 키 `pieceKey`·구간 키 `phraseKey` 도 같은 규칙). */
+export const keyActive = (snapshot: PlaybackSnapshot, key: string) => snapshot.messageId === key && snapshot.phase !== 'idle'
+
 export interface LessonPlayback {
   snapshot: PlaybackSnapshot
   queue: TtsPlaybackQueue
@@ -34,7 +57,7 @@ export interface LessonPlayback {
   /** 이 key 재생 중 지금 줄 번호(없으면 null) */
   lineOf: (key: string) => number | null
   blocked: boolean
-  playLines: (key: string, lines: { kind: AudioKind; idx: number; pace: AudioPace }[], onComplete?: () => void) => void
+  playLines: (key: string, lines: LessonAudioLine[], onComplete?: () => void) => void
   playMine: (key: string, utteranceId: string, onMissing: () => void) => void
   resume: () => void
   stop: (reason?: InterruptReason) => void
@@ -135,14 +158,14 @@ export function useLessonPlayback(lessonId: string, onToast: (msg: string) => vo
   )
 
   const playLines = useCallback(
-    (key: string, lines: { kind: AudioKind; idx: number; pace: AudioPace }[], onComplete?: () => void) => {
+    (key: string, lines: LessonAudioLine[], onComplete?: () => void) => {
       unlockTtsAudio()
       ctl.breakPending()
       const path = `/api/v1/lessons/${encodeURIComponent(lessonId)}/audio`
       const parts = lines.map((l) => async (signal: AbortSignal) => {
         let r: LessonAudioResult
         try {
-          r = await apiPost<LessonAudioResult>(path, { kind: l.kind, idx: l.idx, pace: l.pace }, { signal })
+          r = await apiPost<LessonAudioResult>(path, lessonAudioBody(l), { signal })
         } catch (e) {
           if (e instanceof ApiError) ctl.report({ ok: false, status: e.status })
           throw e
@@ -168,7 +191,7 @@ export function useLessonPlayback(lessonId: string, onToast: (msg: string) => vo
     [ctl, queue],
   )
 
-  const active = useCallback((key: string) => snapshot.messageId === key && snapshot.phase !== 'idle', [snapshot])
+  const active = useCallback((key: string) => keyActive(snapshot, key), [snapshot])
   const loading = useCallback((key: string) => isLoadingSnapshot(snapshot, key), [snapshot])
   const lineOf = useCallback((key: string) => (snapshot.messageId === key && snapshot.phase === 'playing' ? snapshot.chunkIndex : null), [snapshot])
 

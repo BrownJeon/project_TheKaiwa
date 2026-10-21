@@ -19,7 +19,7 @@ import type { ReviewDecisionDriver } from '../repetition/decision'
 import { EMPTY_REVIEW_STATE, getTodayReviewState, type TodayReviewState } from '../reviewSchedule'
 import { doneLessonStats, levelWindow, pickFewestLessonTopic } from '../topics'
 import { readTargetLevel, type TargetLevel, type TargetLevelProfile, type TargetLevelSource } from '../targetLevel'
-import { readStoredContent, summarizeExpressions } from './content'
+import { pieceCount, readStoredContent, summarizeExpressions } from './content'
 import { lessonGenKindOf, settleGenerating } from './generate'
 import { readProgress, speakingRecords } from './progress'
 
@@ -40,6 +40,8 @@ export interface TodayLessonItem {
   jobId: string | null
   /** 말하기에서 쓴 표현 수·판정 가능한 목표 수(§12-11 ① — 홈 완료 카드). 본문이 없으면 null. */
   speaking: { used: number; total: number } | null
+  /** 오늘의 조각 수(#58 task-081, `pieceCount`) — 조각 없는 옛 수업·본문 없음은 null. */
+  pieces: number | null
 }
 
 export interface LessonRecommendation {
@@ -191,6 +193,7 @@ export async function getTodayLessons<T = unknown>(userId: string, opts: { revie
       score: r.score,
       jobId,
       speaking: expr ? { used: expr.usedIds.length, total: expr.usedIds.length + expr.missedIds.length } : null,
+      pieces: content ? pieceCount(content) : null,
     })
   }
   const older = await prisma.lesson.findFirst({

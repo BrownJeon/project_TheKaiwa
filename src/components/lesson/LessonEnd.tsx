@@ -66,6 +66,12 @@ export default function LessonEnd({
   const used = targetsOf(lesson.content, result.usedIds)
   const missed = targetsOf(lesson.content, result.missedIds)
   const total = used.length + missed.length
+  // 조각 수를 셀 수 없는 옛 수업(조각 단계 전)은 2칸(§37-6 `e-end-old`).
+  const stats: [string, string][] = [
+    ...(typeof result.pieces === 'number' ? [[String(result.pieces), END.statPieces] as [string, string]] : []),
+    [String(result.applicationDone), END.statApply],
+    [`${used.length}/${total}`, END.statExpr],
+  ]
   // 쓴 표현·써 볼 표현 칩의 히라가나·한글 층(task-033 S1-A) — 한 묶음으로 분석. 일반 수업 종료 화면도 같은 칩이라 함께 적용된다.
   const exprAnns = useAnnotations([...used, ...missed].map((t) => t.ja))
   const isReview = lesson.kind === 'REVIEW'
@@ -102,12 +108,8 @@ export default function LessonEnd({
             <p className="text-[12px] text-ink2 break-keep">{isReview && reviewItems.length > 0 ? RV_END.heroSub(reviewItems.length, lesson.content.titleKo) : lesson.content.titleKo}</p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            [`${result.correct}/${result.total}`, END.statQuiz],
-            [String(result.applicationDone), END.statApply],
-            [`${used.length}/${total}`, END.statExpr],
-          ].map(([n, label]) => (
+        <div className={`grid ${stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+          {stats.map(([n, label]) => (
             <div key={label} className="flex min-w-0 flex-col items-center rounded-xl border border-line bg-surface py-2.5">
               <b className="text-[20px] tabular-nums">{n}</b>
               <span className="text-[12px] text-ink2">{label}</span>

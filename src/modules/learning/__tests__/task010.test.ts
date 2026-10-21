@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ApiError, type Tx } from '@/modules/infra'
-import { assignSegments, checkSpeaking, lessonRepetitionItems, readStoredContent, scoreQuiz, segmentSizes, summarizeExpressions, toStoredContent, audioText, type LessonGenOutput } from '../lessons/content'
+import { assignSegments, checkSpeaking, lessonRepetitionItems, readStoredContent, scoreQuiz, segmentSizes, summarizeExpressions, toStoredContent, audioText, type LessonGenOutput, type StoredLessonContent, type StoredQuizItem } from '../lessons/content'
 import { chunkForms, grammarForms, kataToHira, matchTargets, normalizeForMatch } from '../lessons/matching'
 import { mergeProgress, parseProgressPatch, readProgress, withSpeaking, type LessonProgress } from '../lessons/progress'
 import { japaneseRatio, parseAudioBody, parseCompleteBody, parseCreateLessonBody, parseMemoBody, parseProgressBody, parseSpeakingBody } from '../lessons/validate'
@@ -11,9 +11,12 @@ import { levelWindow, parseTopicQuery } from '../topics'
 
 const code = (c: string, reason?: string) => (e: unknown) => e instanceof ApiError && e.code === c && (reason === undefined || (e.details as { reason?: string } | undefined)?.reason === reason)
 
+/** 옛 A4 응답(lesson@v9 이하 — 문항 있음·조각 없음, task-081 전)과 같은 재료. 저장 모양 시험은 `stored()` 로 옛 수업 저장 JSON 을 흉내 낸다. */
+type OldGen = LessonGenOutput & { quiz: StoredQuizItem[] }
+
 /** A4 응답 픽스처(스키마 모양) — 주제 조각 c1·c2 재사용 + 새 표현 new-1, 문법 g1·g2. */
-function gen(over: Partial<LessonGenOutput> = {}): LessonGenOutput {
-  const line = (speaker: 'A' | 'B', ja: string, reading: string, ko: string) => ({ speaker, ja, reading, ko })
+function gen(over: Partial<OldGen> = {}): OldGen {
+  const line = (speaker: 'A' | 'B', ja: string, reading: string, ko: string) => ({ speaker, ja, reading, ko, pieces: null })
   return {
     title: 'カフェで注文する',
     titleKo: '카페에서 주문하기',
@@ -62,6 +65,14 @@ function gen(over: Partial<LessonGenOutput> = {}): LessonGenOutput {
 
 // ── L2 청취 구간 ─────────────────────────────────────────────────────────
 
+
+/** 옛 수업 저장 JSON(문항 있음) → 읽은 모양. 새 생성 경로(`toStoredContent`)는 문항을 싣지 않으므로 옛 수업은 이렇게만 만든다. */
+function stored(g: OldGen = gen()): StoredLessonContent {
+  const c = toStoredContent(g)
+  const dialogue = c.dialogue.map((d) => ({ speaker: d.speaker, ja: d.ja, reading: d.reading, ko: d.ko, segment: d.segment }))
+  return readStoredContent(JSON.parse(JSON.stringify({ ...c, dialogue, quiz: g.quiz })))!
+}
+
 test('L2 구간 크기: 2~3줄, 1줄 구간 없음(결정적)', () => {
   assert.deepEqual(segmentSizes(6), [3, 3])
   assert.deepEqual(segmentSizes(7), [3, 2, 2])
@@ -93,7 +104,7 @@ test('L2 저장 모양: 대화 줄마다 segment(1부터)·segmentCount, 원래 
 })
 
 test('L2 옛 레슨 읽기(lesson@v7 이하): 저장된 quiz.promptKo 가 null 이어도 그대로 읽히고 채점된다', () => {
-  const c = toStoredContent(gen())
+  const c = stored()
   const legacy = JSON.parse(JSON.stringify({ ...c, quiz: c.quiz.map((q, i) => (i === 2 ? { ...q, promptKo: null } : q)) }))
   const read = readStoredContent(legacy)
   assert.ok(read, '옛 저장 JSON 도 손상으로 보지 않는다')
@@ -152,7 +163,7 @@ test('L1 문법 판정: 〜·자리표시·용어 조각을 걸러 남은 조각
 })
 
 test('L1 말하기 확인: used = 판정 가능한 목표를 모두 사용, 없는 과제 null', () => {
-  const c = toStoredContent(gen())
+  const c = stored()
   const ok1 = checkSpeaking(c, 's1', 'ホットコーヒーをください。')!
   assert.deepEqual([ok1.used, ok1.matchedIds, ok1.missedIds], [true, ['c1', 'g1'], []])
   const half = checkSpeaking(c, 's1', 'コーヒーお願いします')!
@@ -168,7 +179,7 @@ test('L1 말하기 확인: used = 판정 가능한 목표를 모두 사용, 없�
 // ── L5 반복 항목 ─────────────────────────────────────────────────────────
 
 test('L5 refId: 주제 조각이면 TopicChunk(조각 id), 새 표현은 Expr sha1(정규화), 문법은 Grammar sha1(문형)', () => {
-  const c = toStoredContent(gen())
+  const c = stored()
   const items = lessonRepetitionItems(c, { topicChunkIds: new Set(['c1', 'c2']), outcomes: scoreQuiz(c.quiz, [0, 0, 0, null, 1]).outcomes })
   const by = new Map(items.map((i) => [i.contentId, i]))
   assert.deepEqual([by.get('c1')!.refType, by.get('c1')!.refId, by.get('c1')!.itemType], ['TopicChunk', 'c1', 'CHUNK'])
@@ -184,7 +195,7 @@ test('L5 refId: 주제 조각이면 TopicChunk(조각 id), 새 표현은 Expr sh
 })
 
 test('L5 주제 밖 id(목록에 없는 조각)는 Expr 로 — 잘못된 TopicChunk 참조를 만들지 않는다', () => {
-  const c = toStoredContent(gen())
+  const c = stored()
   const items = lessonRepetitionItems(c, { topicChunkIds: new Set(['c2']), outcomes: [] })
   assert.equal(items.find((i) => i.contentId === 'c1')!.refType, 'Expr')
   assert.equal(items.find((i) => i.contentId === 'c1')!.refId, repetitionRefId('コーヒー'))
@@ -194,7 +205,7 @@ test('L5 상한 12(조각 우선)·정규화 해시 안정', () => {
   const many = gen({
     chunks: Array.from({ length: 11 }, (_, i) => ({ id: `new-${i + 1}`, textJa: `表現${i}`, reading: 'ひょうげん', meaningKo: '표현', chunkType: 'NAME' as const, isNew: true })),
   })
-  const items = lessonRepetitionItems(toStoredContent(many), { topicChunkIds: new Set(), outcomes: [] })
+  const items = lessonRepetitionItems(stored(many), { topicChunkIds: new Set(), outcomes: [] })
   assert.equal(items.length, REPETITION_LESSON_ITEM_CAP)
   assert.equal(items.filter((i) => i.refType === 'Grammar').length, 1, '조각 11 + 문법 1')
   assert.equal(normalizeRefText(' 〜を ください。'), 'をください')
@@ -341,7 +352,7 @@ test('#61·#62·#62a·#62b·#62c 본문 검증', () => {
   assert.throws(() => parseAudioBody({ kind: 'quiz', idx: 0 }), code('VALIDATION'))
   assert.throws(() => parseAudioBody({ kind: 'dialogue', idx: 0, pace: 'fast' }), code('VALIDATION'))
   assert.throws(() => parseAudioBody({ kind: 'dialogue', idx: 0, speed: 1.2 }), code('VALIDATION', 'unknown_key'))
-  const c = toStoredContent(gen())
+  const c = stored()
   assert.equal(audioText(c, 'dialogue', 1), 'ホットコーヒーをください。')
   assert.equal(audioText(c, 'grammar', 0), '水をください。')
   assert.equal(audioText(c, 'speaking', 2), '小さいサイズでお願いします。')
@@ -351,7 +362,7 @@ test('#61·#62·#62a·#62b·#62c 본문 검증', () => {
 // ── 메모 계획(#62a) ────────────────────────────────────────────────────────
 
 test('#62a 메모 계획: 조각(표기·읽기) → 조각 뜻, 없으면 보강 대상, 요청 중복·한도·이전 결과', () => {
-  const c = toStoredContent(gen())
+  const c = stored()
   const words = [
     { segment: 1, ja: 'ちゅうもん', raw: 'ちゅうもん' },
     { segment: 1, ja: 'ホット', raw: 'ホット' },
@@ -373,7 +384,7 @@ test('#62a 메모 계획: 조각(표기·읽기) → 조각 뜻, 없으면 보�
 })
 
 test('#62a 메모 한도: 기존 초안 포함 구간 5·레슨 15 → LIMIT, 이미 적은 단어는 한도에 다시 세지 않음', () => {
-  const c = toStoredContent(gen())
+  const c = stored()
   const drafts = Array.from({ length: 5 }, (_, i) => ({ segment: 1, ja: `語${i}` }))
   const r = planMemoEntries(c, 'ls1', { drafts, processed: [] }, [
     { segment: 1, ja: '語0', raw: '語0' },

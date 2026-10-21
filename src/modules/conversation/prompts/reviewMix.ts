@@ -30,15 +30,21 @@
  * (스키마 필수는 task-010 부터) id 규칙 줄에서만 간접 언급돼 모델이 가끔 빠뜨렸다. A4 `lesson.ts` 는 세 줄 모두에 targetIds 를 명시한다 —
  * 같은 방식으로 세 줄 끝에 "**targetIds 필수**(이 수업 chunks·grammar id 1~3개, 빈 배열 금지)" 만 추가했다(스키마는 1~6개·minItems 1 그대로,
  * 1~3개는 지시상 권고). 스키마·검사·보정·그 밖의 지시문은 v2 그대로.
+ *
+ * **v4(2026-10-21, task-081 IMP-0059)** — A4 `lesson@v10` 과 같은 변경: 3단계 «문제(quiz)» → «조각(pieces)». 지시문에서 quiz 줄을 걷어내고(최상위 키 목록·id 규칙 줄의 quiz 언급 포함) A4 와 **같은 문장**의
+ * `PIECES_INSTRUCTION_LINE` 을 더했다. 후검증·정리는 A4 와 같다 — 위반 줄이 절반을 넘으면 재시도, 마지막 시도(`info`)에서는 면책하고 위반 줄을 null 로 저장한다(예전 v3 은 `info` 를 받지 않아 마지막 시도 면책이 없었으나
+ * 조각 임계만 새로 면책한다 — 기존 id·한글 혼입·엔진명 검사는 이전과 같이 항상 엄격하다). 새 표현을 넣지 않는 복습이라 조각 분해도 [복습 재료] 표현이 대화에 들어간 줄을 그대로 자른다.
  */
 import type { LlmJsonRequest } from '@/modules/engine'
 import { loadPersona } from '../persona/loader'
-import { checkLessonResponse } from '../structuredResponse/checks'
+import { checkLessonResponseDetailed } from '../structuredResponse/checks'
+import { applyLessonPieces, scanLessonPieces } from '../structuredResponse/lessonPieces'
 import { repairLessonResponse, type LessonRepairSourceChunk } from '../structuredResponse/repair'
 import { LESSON_SCHEMA, type ChunkType, type LessonResponse } from '../structuredResponse/schemas'
 import { INJECTION_GUARD, renderHeader, renderToday, type LearnerHeader } from './header'
+import { PIECES_INSTRUCTION_LINE } from './piecesInstruction'
 
-export const REVIEW_MIX_PROMPT_VERSION = 'reviewMix@v3'
+export const REVIEW_MIX_PROMPT_VERSION = 'reviewMix@v4'
 export const REVIEW_MIX_HEADER_CAP = 600
 /** `LESSON_MAX_TOPIC_CHUNKS`(lesson.ts)와 같은 값 — 세션 크기(다음 §7-4, 15분→6~8건)는 보통 훨씬 작지만 방어적으로 같은 상한을 둔다. */
 export const REVIEW_MIX_MAX_ITEMS = 20
@@ -98,13 +104,13 @@ function renderMixBlock(items: ReviewMixItemInput[]): string {
 
 function reviewMixInstruction(hint: string | null): string {
   return [
-    '[지시] 아래 [복습 재료]만 써서 학습자를 위한 5단계 복습 수업을 JSON 하나로 만드세요(새 표현을 넣지 않습니다). 최상위 키는 title, titleKo, rolesKo, dialogue, chunks, grammar, quiz, application, speaking, nextPreview 입니다.',
+    '[지시] 아래 [복습 재료]만 써서 학습자를 위한 5단계 복습 수업(이해 → 문법 → 조각 → 응용 → 말하기)을 JSON 하나로 만드세요(새 표현을 넣지 않습니다). 최상위 키는 title, titleKo, rolesKo, dialogue, chunks, grammar, application, speaking, nextPreview 입니다.',
     '- title: 복습 수업 제목(일본어, 40자 이내). titleKo: 한국어 번역(40자 이내). rolesKo.A·rolesKo.B: dialogue 화자 호칭(각 12자 이내).',
     '- dialogue: 6~10줄의 자연스러운 A/B 대화. [복습 재료]의 표현을 최대한 자연스럽게 섞어 **새 대화**를 만듭니다(재료 문장을 그대로 옮기지 않아도 됩니다). [학습자] 수준 안에서 줄마다 2문장 이내, ja·reading(히라가나 전체, 장음 ー)·ko 를 모두 채웁니다.',
-    '- **id 규칙(가장 먼저 지킵니다)**: chunks 에서 [복습 재료] 항목을 쓸 때는 그 id 를 **절대 바꾸지 말고 그대로** 쓰고 isNew=false 로 둡니다. 이 레슨은 새 표현을 추가하지 않으므로 원칙적으로 모든 chunks 를 [복습 재료]에서만 고릅니다 — 대화를 자연스럽게 잇기 위해 꼭 필요한 아주 짧은 연결 표현(조사·인사말 등)만 예외로 "new-1","new-2"… 로 붙이고 isNew=true 로 합니다(가능하면 쓰지 않습니다). quiz·application·speaking 의 targetIds 는 이렇게 만든 chunks·아래 grammar 의 id 만 씁니다 — 그 밖의 id 는 쓰지 않습니다.',
+    PIECES_INSTRUCTION_LINE,
+    '- **id 규칙(가장 먼저 지킵니다)**: chunks 에서 [복습 재료] 항목을 쓸 때는 그 id 를 **절대 바꾸지 말고 그대로** 쓰고 isNew=false 로 둡니다. 이 레슨은 새 표현을 추가하지 않으므로 원칙적으로 모든 chunks 를 [복습 재료]에서만 고릅니다 — 대화를 자연스럽게 잇기 위해 꼭 필요한 아주 짧은 연결 표현(조사·인사말 등)만 예외로 "new-1","new-2"… 로 붙이고 isNew=true 로 합니다(가능하면 쓰지 않습니다). application·speaking 의 targetIds 는 이렇게 만든 chunks·아래 grammar 의 id 만 씁니다 — 그 밖의 id 는 쓰지 않습니다.',
     '- chunks: 4~8개, 이름(NAME)·액션(ACTION)·느낌(FEELING)·꾸밈(MODIFIER) 중 하나로 분류합니다.',
     '- grammar: 1~3개, [복습 재료]에 담긴 문형을 다시 짚어 설명합니다(새 문형을 만들지 않습니다). id 는 "g1","g2","g3" 순서로. pattern(문형 표기)·explanationKo(200자 이내)·exampleJa/exampleReading/exampleKo(예문 1개, [복습 재료] 표현을 살립니다).',
-    '- quiz: 정확히 5개("q1"~"q5"), 전부 4지선다(choices 4개, answer 는 정답 인덱스 0~3, 숨기지 않고 채웁니다). **promptKo 는 q1~q5 모든 문제에 한국어로 반드시 채웁니다**(null·빈 값 금지, 160자 이내 — 일본어 문장은 promptJa 에만 두고 promptKo 에는 "문장의 뜻을 고르세요."처럼 고르라는 한국어 지시를 쓰며, 정답이 되는 뜻은 미리 쓰지 않습니다). **단 빈칸 문제는 promptKo 에 "빈칸에 들어갈 알맞은 말을 고르세요."처럼 할 일만 쓰고(문장 번역·정답의 뜻 금지) 빈 문장은 promptJa 에 ＿＿ 로 비워 반드시 채웁니다.** promptJa 는 화면에 일본어 문장을 보여 줄 때만 채우고 아니면 null. **targetIds 필수**(이 수업 chunks·grammar id 1~3개, 빈 배열 금지). explanationKo 120자 이내.',
     '- application: 정확히 3개("a1"~"a3"), promptKo(200자 이내)·hintJa(없으면 null)·modelAnswerJa/modelReading/modelKo·**targetIds 필수**(이 수업 chunks·grammar id 1~3개, 빈 배열 금지).',
     '- speaking: 정확히 3개("s1"~"s3"), promptKo(200자 이내)·modelAnswerJa/modelReading/modelKo·**targetIds 필수**(이 수업 chunks·grammar id 1~3개, 빈 배열 금지). 상황(역할극)은 없습니다.',
     '- nextPreview: titleKo(40자 이내)·teaserKo(60자 이내) — 다음 레슨 예고 대신 오늘 복습을 잘 마쳤다는 짧은 격려 한 줄로 채웁니다.',
@@ -145,11 +151,24 @@ export function buildReviewMixRequest(input: ReviewMixInput): ReviewMixRequest {
     system,
     messages: [{ role: 'user', content: dataBlock }],
     jsonSchema: LESSON_SCHEMA,
-    // A4 와 완전히 같은 순서(보정 먼저, 남은 위반만 재시도) — repairLessonResponse·checkLessonResponse 는 무변경 재사용.
-    extraCheck: (data) => {
+    // A4 와 같은 순서(보정 먼저, 남은 위반만 재시도) — repairLessonResponse·checkLessonResponseDetailed 재사용. v4 부터 마지막 시도(`info`)에서 조각 임계 위반만 면책하고
+    // 위반 줄을 null 로 만든다(조각 때문에 복습 수업 생성이 실패하지 않게). 위반 없이 받아들이는 응답은 `applyLessonPieces` 로 제자리 정리한다.
+    extraCheck: (data, info) => {
       const repair = repairLessonResponse({ allowedChunks: repairSourceChunks }, data)
       if (repair.filled || repair.removed) console.info(`[reviewMix] repair — filled=${repair.filled} removed=${repair.removed}`)
-      return checkLessonResponse({ allowedChunkIds }, data)
+      const strictDetailed = checkLessonResponseDetailed({ allowedChunkIds }, data)
+      let final = strictDetailed.map((x) => x.message)
+      if (info && info.attempt >= info.maxAttempts && strictDetailed.some((x) => x.kind === 'pieces')) {
+        const tolerant = checkLessonResponseDetailed({ allowedChunkIds, tolerateInvalidPieces: true }, data).map((x) => x.message)
+        const scan = scanLessonPieces(data.dialogue)
+        console.info(`[reviewMix] 마지막 시도 — 눈감고 통과시킨 조각 위반 줄 ${scan.invalid}/${scan.total} attempt=${info.attempt}/${info.maxAttempts}`)
+        final = tolerant
+      }
+      if (final.length === 0) {
+        const sum = applyLessonPieces(data.dialogue)
+        console.info(`[reviewMix] pieces — lines=${sum.piecesTotal} nullLines=${sum.piecesNullLines} pieces=${sum.pieceCount} koNoHangul=${sum.koNoHangul} reasons=${JSON.stringify(sum.byReason)} slashMoved=${sum.slashMoved}`)
+      }
+      return final
     },
     allowedChunkIds,
     skippedItems,

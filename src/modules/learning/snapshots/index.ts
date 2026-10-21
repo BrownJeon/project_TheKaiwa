@@ -199,15 +199,17 @@ export async function createVocabSessionSnapshot(userId: string, sessionId: stri
 /**
  * LESSON `data`(domain-model §9-3 `{kind, topicId?, score, stageDone, date}` + learning-personalization §2-9 `itemCount`) — 레슨 1개의 확정 집계.
  * 완료 트랜잭션 안에서 **한 번만**(`@@unique(userId, kind, periodKey=lessonId)` 이 최종 보증). 이후 레슨 삭제와 무관하게 불변(규칙 2).
+ * task-081(§37-13 ③): 문항이 없는 새 수업은 `score: null` 이고 `quizCorrect`·`quizTotal` 키가 없다. 그 전에 만든 행은 그대로 둔다
+ * (이 모듈은 LESSON 행을 만들기만 하고 고치지 않는다) — 읽는 쪽(챌린지)은 `quizTotal` 키가 없으면 문항 없음(null)으로 읽는다.
  */
 export interface LessonSnapshotData {
   kind: 'NEW' | 'REVIEW'
   topicId: string | null
-  score: number
+  score: number | null
   stageDone: number
   itemCount: number
-  quizCorrect: number
-  quizTotal: number
+  quizCorrect?: number
+  quizTotal?: number
   /** 완료한 KST 날짜. */
   date: string
 }

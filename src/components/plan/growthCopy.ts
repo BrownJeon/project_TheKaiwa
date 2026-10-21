@@ -27,8 +27,8 @@ export const METRICS: readonly { key: MetricKey; label: string; unit: string }[]
 
 /** 공부결과 축 — 이 순서로 줄을 그린다. 조사는 이름 뒤에 붙는 «이/가»(런타임 조사 함수를 쓰지 않는다). */
 export const AXES: readonly { axis: GrowthAxis; name: string; desc: string; how: string; josa: string }[] = [
-  { axis: 'VOCAB_RECALL', name: '어휘 회상', desc: '단어 뜻·표현을 떠올리기', how: '오늘의 단어·수업 문제를 풀면 쌓여요', josa: '이' },
-  { axis: 'GRAMMAR_PARTICLE', name: '문형·조사', desc: '조사·활용·문형을 맞게 쓰기', how: '수업 문제와 대화 교정에서 쌓여요', josa: '가' },
+  { axis: 'VOCAB_RECALL', name: '어휘 회상', desc: '단어 뜻·표현을 떠올리기', how: '오늘의 단어를 풀면 쌓여요', josa: '이' },
+  { axis: 'GRAMMAR_PARTICLE', name: '문형·조사', desc: '조사·활용·문형을 맞게 쓰기', how: '대화 교정에서 쌓여요', josa: '가' },
   { axis: 'LISTEN_RESPOND', name: '듣고 응답', desc: '들은 말에 알맞게 답하기', how: '', josa: '이' },
   { axis: 'SENTENCE_PRODUCTION', name: '문장 산출', desc: '조각을 이어 문장 만들기', how: '수업 «말하기» 과제를 하면 쌓여요', josa: '이' },
   { axis: 'CONVERSATION_MAINTAIN', name: '대화 유지', desc: '대화를 끝까지 이어 가기', how: '역할극을 끝까지 마치면 1번씩 쌓여요', josa: '가' },
@@ -101,10 +101,11 @@ export const GROWTH = {
   notRecordedBody: '아직 이 능력을 기록하는 공부가 없어요.',
   tooEarly: '아직 판단하기 일러요',
   axisOneSided: '교정 기록이 대부분이라 단계를 보이지 않아요.',
-  /** 축마다 단계가 보이게 하는 공부 한 줄 — 듣고 응답·대화 유지는 서버가 한쪽 증거를 보낼 수 없는 축이라 빈 값(안내 줄 없음). */
+  /** 축마다 단계가 보이게 하는 공부 한 줄 — 듣고 응답·대화 유지는 서버가 한쪽 증거를 보낼 수 없는 축이라 빈 값(안내 줄 없음).
+   * 문형·조사는 task-081 에서 수업 문제가 없어져 단계가 보이게 하는 수업 공부가 없으므로 빈 값(Leader 결정 §37-18-1 ②). */
   axisOneSidedSub: {
-    VOCAB_RECALL: '오늘의 단어나 수업 문제도 풀면 단계가 보이기 시작해요.',
-    GRAMMAR_PARTICLE: '수업 문제도 풀면 단계가 보이기 시작해요.',
+    VOCAB_RECALL: '오늘의 단어도 풀면 단계가 보이기 시작해요.',
+    GRAMMAR_PARTICLE: '',
     LISTEN_RESPOND: '',
     SENTENCE_PRODUCTION: '수업 «말하기» 과제도 하면 단계가 보이기 시작해요.',
     CONVERSATION_MAINTAIN: '',
@@ -125,7 +126,7 @@ export const GROWTH = {
   howTitle: '단계는 이렇게 정해요',
   how: (min: number, minSession: number) =>
     [
-      '오늘의 단어·수업 문제·말하기 과제·대화 교정·역할극에서 맞히고 틀린 기록(관측)으로 계산해요.',
+      '오늘의 단어·말하기 과제·대화 교정·역할극에서 맞히고 틀린 기록(관측)으로 계산해요.',
       '교정을 받아들인 것만으로는 단계가 올라가지 않아요. 다음에 맞게 써야 올라가요.',
       '단계는 네 칸이에요: 시작 단계 → 익히는 중 → 자리 잡는 중 → 안정적.',
       `관측이 ${min}건(대화 유지는 역할극 ${minSession}번) 모이기 전에는 단계를 보여 주지 않아요.`,

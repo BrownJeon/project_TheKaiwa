@@ -86,7 +86,7 @@ test('Leader 결정 L3 — 숫자 줄 «일부»·«넘김» 위치, 날짜 부�
 
 test('Leader 결정 L4 — 셈 뜻 «세요» 대신 «계산해요»(대화 주석·단계 규칙 첫 줄)', () => {
   assert.equal(GROWTH.metricNote.turns, '대화에서 오간 말의 수예요. 대화를 마치고 «기록 남기기»를 고른 대화와 끝낸 역할극만 계산해요.')
-  assert.equal(GROWTH.how(20, 5)[0], '오늘의 단어·수업 문제·말하기 과제·대화 교정·역할극에서 맞히고 틀린 기록(관측)으로 계산해요.')
+  assert.equal(GROWTH.how(20, 5)[0], '오늘의 단어·말하기 과제·대화 교정·역할극에서 맞히고 틀린 기록(관측)으로 계산해요.') // task-081 Leader: «수업 문제» 빠짐
   assert.equal(GROWTH.how(20, 5)[3], '관측이 20건(대화 유지는 역할극 5번) 모이기 전에는 단계를 보여 주지 않아요.')
   // 승인 데모의 두 문장(«…끝낸 역할극만 세요.» · «…기록(관측)을 세요.»)이 되살아나지 않게 — 존댓말 «주세요»는 해당 없음.
   const COUNT_SEYO = /(만|을|를|로|으로|도|이렇게|합쳐서|함께) 세요/
@@ -105,8 +105,8 @@ test('옛 이름·금지 낱말 없음 — «날마다»·«능력 다섯 가지
 test('L11 한쪽 증거 줄 새 글 — 글자 그대로, 숫자·판정 낱말·셈 «세요»·급수·엔진명 없음, «…해요» 체, 역할극·대화 교정 안내 없음, 축 키 전부', () => {
   assert.equal(GROWTH.axisOneSided, '교정 기록이 대부분이라 단계를 보이지 않아요.')
   assert.deepEqual(GROWTH.axisOneSidedSub, {
-    VOCAB_RECALL: '오늘의 단어나 수업 문제도 풀면 단계가 보이기 시작해요.',
-    GRAMMAR_PARTICLE: '수업 문제도 풀면 단계가 보이기 시작해요.',
+    VOCAB_RECALL: '오늘의 단어도 풀면 단계가 보이기 시작해요.',
+    GRAMMAR_PARTICLE: '',
     LISTEN_RESPOND: '',
     SENTENCE_PRODUCTION: '수업 «말하기» 과제도 하면 단계가 보이기 시작해요.',
     CONVERSATION_MAINTAIN: '',
@@ -118,4 +118,14 @@ test('L11 한쪽 증거 줄 새 글 — 글자 그대로, 숫자·판정 낱말�
     assert.match(t, /해요\.$|않아요\.$/, t)
   }
   for (const t of Object.values(GROWTH.axisOneSidedSub)) assert.ok(!/역할극|대화 교정/.test(t), t)
+})
+
+test('task-081 Leader 결정 §37-18-1 ② — 수업 문제가 없어져 축 안내 4줄을 바꿈(글자 그대로), 축 안내·한쪽 증거 줄에 «문제» 없음', () => {
+  const how = Object.fromEntries(AXES.map((a) => [a.axis, a.how]))
+  assert.equal(how.VOCAB_RECALL, '오늘의 단어를 풀면 쌓여요')
+  assert.equal(how.GRAMMAR_PARTICLE, '대화 교정에서 쌓여요')
+  assert.equal(GROWTH.axisOneSidedSub.VOCAB_RECALL, '오늘의 단어도 풀면 단계가 보이기 시작해요.')
+  assert.equal(GROWTH.axisOneSidedSub.GRAMMAR_PARTICLE, '')
+  for (const t of [...AXES.map((a) => a.how), ...Object.values(GROWTH.axisOneSidedSub)]) assert.ok(!t.includes('문제'), t)
+  assert.ok(!GROWTH.how(20, 5)[0].includes('문제'), GROWTH.how(20, 5)[0])
 })

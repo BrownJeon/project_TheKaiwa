@@ -7,6 +7,9 @@
  *    판정할 수 있는 목표가 없는 과제를 말했으면 PARTIAL(`meta.unjudged`). 발화로 답했으면 신뢰도 = 그 발화의 STT 신뢰도(라우트가 speech 에서
  *    읽어 넘긴다 — 없으면 1.0), 글자로 답했으면 1.0.
  *  원문은 싣지 않는다(refType `Lesson`·refId = 레슨 id, meta = 문항·과제 id).
+ *
+ * task-081(§37-13 ⑤): 새 수업은 문항이 없다(`content.quiz` = []) → 문항 관측(`GRAMMAR_USE`·`VOCAB_RECOGNITION`) 0건, 말하기 관측만 남는다.
+ * `quizTargetTally` 도 빈 Map 이라 복습 레슨은 `studiedCount+1` 만 — 레슨 완료로 `wrongCount` 가 늘지 않는다. 옛 수업은 그대로.
  */
 import type { ObservationInput } from '../observations'
 import type { QuizOutcome, StoredLessonContent } from './content'

@@ -1,17 +1,31 @@
 /**
- * 오늘의 회화 문구(screens §12-8 — 승인 데모 v2 문구 그대로, ★ = 계약 때문에 더한 줄). 엔진·모델 이름은 어디에도 없다.
+ * 오늘의 회화 문구(screens §12-8·§37 — 승인 데모 문구 그대로, ★ = 계약 때문에 더한 줄). 엔진·모델 이름은 어디에도 없다.
  */
 import { levelLabel } from '@/components/vocab/labels'
 import type { ChunkType } from '@/types/chat'
-import type { JlptLevel, LessonRecommendation } from '@/types/lesson'
+import type { JlptLevel, LessonRecommendation, PieceType } from '@/types/lesson'
 
-export const STAGE_NAMES = ['이해', '문법', '문제', '응용', '말하기'] as const
+export const STAGE_NAMES = ['이해', '문법', '조각', '응용', '말하기'] as const
+/** ★ 단계 이름 뒤 서술격(받침 표) — 이해·문법·조각·응용·말하기. 이름이 바뀌면 함께 바꾼다(«② 문법이에요»·«③ 조각이에요»). */
+export const STAGE_COPULA = ['예요', '이에요', '이에요', '이에요', '예요'] as const
 export const CIRCLED = ['①', '②', '③', '④', '⑤'] as const
-/** "③ 문제" — 단계 번호(1~5). */
+/** "③ 조각" — 단계 번호(1~5). */
 export const stageLabel = (n: number) => `${CIRCLED[n - 1] ?? ''} ${STAGE_NAMES[n - 1] ?? ''}`.trim()
 
 export const CHUNK_TYPE_ORDER: readonly ChunkType[] = ['NAME', 'ACTION', 'FEELING', 'MODIFIER']
 export const CHUNK_TYPE_LABEL: Record<ChunkType, string> = { NAME: '이름 조각', ACTION: '액션 조각', FEELING: '느낌 조각', MODIFIER: '꾸밈 조각' }
+
+/** ③ 조각 종류(레슨 내용 전용 6종 — 단어장·교정의 `CHUNK_TYPE_*` 4종과 별개, §37-18 ⑦). 모아 보기 묶음 순서. */
+export const PIECE_TYPE_ORDER: readonly PieceType[] = ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION', 'LINK']
+/** 칸 이름표(`short`)·고른 조각 뱃지·모아 보기 묶음 제목(`full`). */
+export const PIECE_TYPE_LABEL: Record<PieceType, { short: string; full: string }> = {
+  NAME: { short: '이름', full: '이름 조각' },
+  ACTION: { short: '액션', full: '액션 조각' },
+  FEELING: { short: '느낌', full: '느낌 조각' },
+  MODIFIER: { short: '꾸밈', full: '꾸밈 조각' },
+  EXPRESSION: { short: '표현', full: '표현 조각' },
+  LINK: { short: '연결', full: '연결 조각' },
+}
 
 export const PASTED_TOPIC = '붙여넣은 문장'
 
@@ -21,7 +35,7 @@ export const HOME = {
   minutes: '약 15분',
   loading: '불러오는 중…',
   loadError: '오늘의 회화를 불러오지 못했어요.',
-  startIntro: '선생님과 5단계로 수업해요. 듣기 → 문법 → 문제 → 응용 → 말하기',
+  startIntro: '선생님과 5단계로 수업해요. 듣기 → 문법 → 조각 → 응용 → 말하기',
   recommended: '추천 주제',
   reasonContinue: (t: string) => `지난 시간 예고 · ${t}`,
   reasonNextTopic: '같은 주제를 세 번 했어요 · 새 주제로 넘어가 봐요',
@@ -37,7 +51,8 @@ export const HOME = {
   readyTitle: '수업이 준비됐어요',
   progressBody: (topic: string, when: string, n: number) => `${topic} · ${when} 시작 · 5단계 중 ${n}단계 끝냄`,
   readyBody: (topic: string) => `${topic} · 5단계 · 약 15분`,
-  nextStage: (label: string) => `다음은 ${label}예요. 단계마다 저장돼요.`,
+  /** 다음 단계 번호(1~5) — 이름 뒤 서술격은 `STAGE_COPULA`(«② 문법이에요»·«③ 조각이에요»). */
+  nextStage: (n: number) => `다음은 ${stageLabel(n)}${STAGE_COPULA[n - 1] ?? '예요'}. 단계마다 저장돼요.`,
   resume: '이어서 하기',
   start: '시작하기',
   stepsAria: (n: number) => `5단계 중 ${n}단계 끝냄`,
@@ -45,8 +60,9 @@ export const HOME = {
   failBody: (topic: string) => `${topic} · 다시 만들면 대부분 잘 만들어져요.`,
   retry: '다시 만들기',
   doneTitle: '✓ 오늘 수업을 끝냈어요',
-  doneBody: (topic: string, c: number, speaking: { used: number; total: number } | null) =>
-    `${topic} · 문제 ${c}/5 맞힘${speaking && speaking.total > 0 ? ` · 말하기 표현 ${speaking.used}/${speaking.total}` : ''}`,
+  /** `pieces` = #58 오늘의 조각 수 — null·0·옛 응답(없음)이면 조각 부분을 뺀다. */
+  doneBody: (topic: string, pieces: number | null | undefined, speaking: { used: number; total: number } | null) =>
+    `${topic}${pieces ? ` · 조각 ${pieces}개` : ''}${speaking && speaking.total > 0 ? ` · 말하기 표현 ${speaking.used}/${speaking.total}` : ''}`,
   nextTime: '다음 시간엔',
   nextLesson: '다음 수업 만들기',
   doneResult: '끝낸 수업 결과 보기',
@@ -171,8 +187,8 @@ export const GEN = {
   order: [
     ['이해', '대화를 구간별로 듣고, 들린 단어를 메모해요'],
     ['문법', '대화에 나온 문형 1~3개'],
-    ['문제', '4지선다 5문제, 바로 정답 확인'],
-    ['응용', '상황에 맞는 문장 3개 직접 만들기'],
+    ['조각', '대화 문장을 조각으로 나눠 끊어 봐요'],
+    ['응용', '상황에 맞는 문장 3개 말로 만들기'],
     ['말하기', '목표 표현을 넣어 말하기 3개'],
   ] as const,
   leaveNote: '이 화면을 나가도 수업은 계속 만들어져요. 다 되면 공부 탭에서 열 수 있어요. 만들기 시작한 수업은 취소할 수 없어요.',
@@ -281,11 +297,11 @@ export const SKIP_REASON: Record<string, string> = {
 
 export const U2 = {
   title: '② 문법 · 표현과 문형',
-  desc: (g: number) => `오늘 대화의 표현 조각과 문형 ${g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요.`,
+  desc: (g: number) => `오늘 대화의 표현과 문형 ${g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요.`,
   textOnly: '지금은 선생님 목소리를 들을 수 없어 표현·예문 듣기를 숨겼어요(자막만).',
   exprTitle: (n: number) => `오늘의 표현 ${n}개`,
-  exprDesc: '대화에 나온 표현 조각이에요. 문제·응용·말하기에서 다시 써요.',
-  exprDescPlay: '대화에 나온 표현 조각이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요.',
+  exprDesc: '대화에 나온 표현이에요. 응용·말하기에서 다시 써요.',
+  exprDescPlay: '대화에 나온 표현이에요. 누르면 소리를 들을 수 있어요. 응용·말하기에서 다시 써요.',
   exprListenSr: ', 듣기',
   exprStopSr: ', 멈추기',
   newExpr: '새 표현',
@@ -295,30 +311,50 @@ export const U2 = {
   stopAria: '멈추기',
 } as const
 
+/** ③ 조각 · 문장 끊어 보기(§37-8 — 데모 v1 문구 그대로, ★ = 가이드가 더한 줄) */
 export const U3 = {
-  title: (n: number) => `③ 문제 · ${n}문제`,
-  desc: '답을 고르면 바로 정답과 설명이 나와요. 한 번만 고를 수 있어요.',
-  counter: (i: number, n: number) => `문제 ${i} / ${n}`,
-  correctTag: '✓ 정답',
-  mineTag: '✗ 내 답',
-  right: '✓ 맞았어요',
-  wrong: (k: number) => `✗ 틀렸어요 · 정답은 ${k}번`,
-  next: '다음 문제',
-  result: '결과 보기',
-  sumTitle: '③ 문제 · 결과',
-  sumHead: (n: number, c: number) => `${n}문제 중 ${c}문제 맞혔어요`,
-  sumLine: (mine: string | null, answer: string, correct: boolean) => (correct || mine === null ? `정답 ${answer}` : `내 답 ${mine} · 정답 ${answer}`),
-  sumNote: '틀린 문제의 표현은 수업을 마치면 복습할 항목으로 기록돼요.',
-  // 옛 레슨(lesson@v7 이하)에서 한국어 문제 설명이 비었을 때(task-025 결정 c=A)
-  legacyPrompt: '일본어 문장을 읽고 알맞은 답을 고르세요.',
-  legacyNote: '이 문제에는 한국어 설명이 없어요.',
-  choicesAria: '보기',
-  choiceAria: (k: number, text: string, o: { correct: boolean; mine: boolean }) => `${k}번, ${text}${o.correct ? ', 정답' : ''}${o.mine && !o.correct ? ', 내 답, 틀림' : ''}`,
+  title: '③ 조각 · 문장 끊어 보기',
+  desc: '대화 문장을 조각으로 나눠 봐요. ／ 는 끊어 읽는 곳이에요. 조각을 누르면 그 조각만 들리고 뜻이 나와요.',
+  descTextOnly: '대화 문장을 조각으로 나눠 봐요. ／ 는 끊어 읽는 곳이에요. 지금은 선생님 목소리를 들을 수 없어 조각을 누르면 뜻만 보여요.',
+  counter: (i: number, n: number) => `문장 ${i} / ${n}`,
+  seen: (k: number) => `${k}개 봤어요`,
+  /** 카드 `section` 의 `aria-label` */
+  cardSr: (i: number) => `${i}번째 문장`,
+  /** 역할 = `content.rolesKo[speaker]` */
+  cardHead: (role: string, i: number) => `${role} · ${i}번째 문장`,
+  lineAria: (i: number) => `${i}번째 문장 다시 듣기`,
+  stopAria: '멈추기',
+  tilesAria: (n: number) => `조각 ${n}개 · 누르면 그 조각만 들려요`,
+  /** ★ 소리 없음일 때 칸 묶음 이름 */
+  tilesAriaTextOnly: (n: number) => `조각 ${n}개 · 누르면 뜻이 나와요`,
+  /** 보이는 짧은 이름표 뒤 시각 숨김(예 «느낌» + « 조각, 따뜻한») */
+  tileSrTail: (ko: string) => ` 조각, ${ko}`,
+  pick: '조각을 눌러 보세요. 그 조각만 들리고 뜻이 나와요.',
+  pickTextOnly: '조각을 눌러 보세요. 뜻이 아래에 나와요.',
+  pieceAria: '조각 다시 듣기',
+  playingSr: '듣는 중',
+  /** 구간 듣기 버튼 글을 앞·일본어·뒤로 나눠 그릴 때(일본어 부분 `lang="ja"`) — `phrase` 와 같은 글 */
+  phraseLead: '▶ 구간 듣기 「',
+  phraseTail: '」',
+  phrase: (p: string) => `▶ 구간 듣기 「${p}」`,
+  phraseStop: '■ 멈춤',
+  aiNote: '조각은 선생님이 나눈 참고용이에요. 나누는 방법은 여러 가지일 수 있어요.',
+  noPieces: '이 문장은 조각으로 나누지 못했어요. 글자와 읽기로 봐 주세요.',
+  prev: '‹ 이전 문장',
+  next: '다음 문장 ›',
+  gate: (k: number, n: number) => `마지막 문장까지 보면 다음 단계로 갈 수 있어요. (${k}/${n})`,
+  collect: '오늘의 조각 모아 보기',
+  collectCount: (n: number) => ` · ${n}개`,
+  /** 종류 긴 이름(`PIECE_TYPE_LABEL[t].full`) + 개수 */
+  group: (label: string, k: number) => `${label} ${k}개`,
+  collectPlaySr: ', 듣기',
+  emptyTitle: '이 수업은 조각 나누기가 없어요',
+  emptyBody: '조각 단계가 생기기 전에 만든 수업이에요. 새로 만드는 수업부터 대화 문장을 조각으로 나눠 보여 드려요. 바로 다음 단계로 가도 돼요.',
 } as const
 
 export const U4 = {
   title: (n: number) => `④ 응용 · 문장 만들기 ${n}개`,
-  desc: '상황에 맞는 문장을 직접 만들어요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요.',
+  desc: '상황에 맞는 문장을 말로 만들어 봐요. 채점하지 않고, 모범 답안과 비교해 스스로 확인해요.',
   counter: (i: number, n: number) => `상황 ${i} / ${n}`,
   tryExpr: '써 볼 표현',
   grammarTag: '문형',
@@ -328,7 +364,9 @@ export const U4 = {
   byVoice: '말로 쓰기',
   byText: '글자로 쓰기',
   count: (n: number) => `${n} / 200자`,
-  voiceBox: '여기에 알아들은 말이 나와요',
+  voiceBox: '버튼을 누른 채로 말하면 여기에 알아들은 말이 나와요',
+  // task-081 §37-14 — 말로 답하기를 못 쓰는 환경이라 글자 입력으로 연 이유(⑤ 와 같은 조건)
+  textFirst: '지금은 말로 답하기를 쓸 수 없어서 글자 입력으로 열었어요.',
   compare: '모범 답안과 비교하기',
   emptyToast: '먼저 문장을 써 보세요',
   dontKnow: '모르겠어요 · 모범 답안 보기',
@@ -399,7 +437,7 @@ export const U5 = {
 export const END = {
   title: '수업을 마쳤어요',
   subtitle: (topic: string, date: string) => `${topic} · ${date}`,
-  statQuiz: '문제 정답',
+  statPieces: '오늘의 조각',
   statApply: '만든 문장',
   statExpr: '쓴 표현',
   usedTitle: '말하기에서 쓴 표현',

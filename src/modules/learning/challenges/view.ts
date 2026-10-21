@@ -17,7 +17,7 @@ export interface ViewDay {
   state: ChallengeDayState
   met: boolean
   goalMetAt: Date | null
-  lesson: { done: number; quizCorrect: number; quizTotal: number; lessonId: string | null } | null
+  lesson: { done: number; quizCorrect: number | null; quizTotal: number | null; lessonId: string | null } | null
   words: { sets: number; correct: number; wrong: number; skipped: number; cardCount: number; answered: number; need: number | null; ok: boolean | null; sessionId: string | null } | null
 }
 

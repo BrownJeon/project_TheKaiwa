@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import type { DiffSeg } from '@/components/chat/diff'
 import type { AudioKind, AudioPace } from '@/types/lesson'
 import { compareAnswer } from '../compare'
-import { U1, U3 } from '../lessonCopy'
-import { activeLineReplay, exprKey, isLoadingSnapshot, lineReplayKey, lineReplayPace, playExpr, playLineReplay, quizPromptView, quizSummaryPrompt } from '../logic'
+import { U1 } from '../lessonCopy'
+import { activeLineReplay, exprKey, isLoadingSnapshot, lineReplayKey, lineReplayPace, playExpr, playLineReplay } from '../logic'
 
 const join = (s: DiffSeg[]) => s.map((x) => x.text).join('')
 const marks = (s: DiffSeg[]) => s.filter((x) => x.changed).map((x) => x.text)
@@ -70,29 +70,7 @@ test('줄 다시 듣기 문구: 상태 줄·버튼 이름(1부터 센다)', () =
   assert.equal(U1.lineStopAria(4), '4번째 줄 멈추기')
 })
 
-// ── ③ 문제 한국어 표기 ──────────────────────────────────────────────────
-
-test('문제 머리: 새 레슨은 한국어 질문 → 일본어 문장, 옛 레슨 promptKo null·빈 값은 공통 안내 줄(서버 요청 없음)', () => {
-  assert.deepEqual(quizPromptView({ promptKo: '“커피 하나 주세요”를 일본어로 하면?', promptJa: null }), { ko: '“커피 하나 주세요”를 일본어로 하면?', ja: null, legacy: false })
-  assert.deepEqual(quizPromptView({ promptKo: '빈칸에 들어갈 알맞은 말을 고르세요.', promptJa: '冷たい＿をお願いします。' }), {
-    ko: '빈칸에 들어갈 알맞은 말을 고르세요.',
-    ja: '冷たい＿をお願いします。',
-    legacy: false,
-  })
-  assert.deepEqual(quizPromptView({ promptKo: null, promptJa: '「持ち帰り」の意味はどれですか。' }), { ko: U3.legacyPrompt, ja: '「持ち帰り」の意味はどれですか。', legacy: true })
-  assert.deepEqual(quizPromptView({ promptKo: '  ', promptJa: '「持ち帰り」の意味はどれですか。' }), { ko: U3.legacyPrompt, ja: '「持ち帰り」の意味はどれですか。', legacy: true })
-  assert.deepEqual(quizPromptView({ promptKo: null, promptJa: null }), { ko: U3.legacyPrompt, ja: null, legacy: true }, '둘 다 비어도 깨지지 않는다')
-  assert.deepEqual(quizPromptView({ promptKo: '뜻은?', promptJa: '' }), { ko: '뜻은?', ja: null, legacy: false })
-  assert.equal(U3.legacyPrompt, '일본어 문장을 읽고 알맞은 답을 고르세요.')
-  assert.equal(U3.legacyNote, '이 문제에는 한국어 설명이 없어요.')
-})
-
-test('결과 목록 한 줄: promptKo ?? promptJa — 공통 안내 줄은 넣지 않는다', () => {
-  assert.deepEqual(quizSummaryPrompt({ promptKo: '뜻은?', promptJa: '持ち帰り' }), { text: '뜻은?', ja: false })
-  assert.deepEqual(quizSummaryPrompt({ promptKo: null, promptJa: '「持ち帰り」の意味' }), { text: '「持ち帰り」の意味', ja: true })
-  assert.deepEqual(quizSummaryPrompt({ promptKo: '', promptJa: '「持ち帰り」の意味' }), { text: '「持ち帰り」の意味', ja: true })
-  assert.deepEqual(quizSummaryPrompt({ promptKo: null, promptJa: null }), { text: U3.legacyPrompt, ja: false })
-})
+// ③ 문제 한국어 표기 시험은 «문제» 단계가 «조각» 으로 바뀌며 지웠다(task-081 §37-13 ⑥ — `quizPromptView`·`quizSummaryPrompt` 삭제).
 
 // ── ④ 글자 비교 ─────────────────────────────────────────────────────────
 

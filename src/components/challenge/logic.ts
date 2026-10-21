@@ -103,8 +103,6 @@ export interface TaskRowOpts {
   later?: boolean
   /** 만들기 ④ 미리 보기 — 링크 없음. */
   preview?: boolean
-  /** S4 회화 DONE 줄의 그날 점수(`days[오늘].lesson`). */
-  lessonScore?: { correct: number; total: number } | null
 }
 
 export function taskRowView(t: ChallengeTask, opts: TaskRowOpts = {}): TaskRowView {
@@ -157,7 +155,7 @@ export function taskRowView(t: ChallengeTask, opts: TaskRowOpts = {}): TaskRowVi
       case 'DONE':
         glyph = 'done'
         prefix = '끝냄: '
-        desc = `끝냈어요${opts.lessonScore ? ` · 문제 ${opts.lessonScore.correct}/${opts.lessonScore.total}` : ''}`
+        desc = '끝냈어요'
         break
       case 'FAILED':
         glyph = 'fail'
@@ -235,7 +233,7 @@ export function detailMemo(s: ChallengeStats): string {
   return `오늘은 아직 끝나지 않아서 달성률에 넣지 않았어요. 오늘 채우면 수행 연속 ${(s.streak ?? 0) + 1}일이 돼요.`
 }
 
-/** 첫날 아침·내일 시작처럼 지난 날이 없는 상세 — 점수 추이·누적 절을 그리지 않는다. */
+/** 첫날 아침·내일 시작처럼 지난 날이 없는 상세 — 날짜별 기록·누적 절을 그리지 않는다. */
 export function isFresh(s: ChallengeStats): boolean {
   return s.elapsedDays === 0 && !s.todayMet
 }
@@ -279,12 +277,11 @@ export function todayDayOf<T extends Pick<ChallengeDay, 'dayIndex'>>(days: reado
   return days.find((d) => d.dayIndex === todayIndex) ?? null
 }
 
-/** S4 "오늘 할 일" — 오늘 칸(일 번호로 찾음)의 수업 점수를 회화 끝냄 줄의 "문제 n/5" 로 붙인다. */
+/** S4 "오늘 할 일" — 오늘 칸(일 번호로 찾음)과 과제 줄. 회화 끝냄 줄에 점수는 붙이지 않는다(task-081 §37-8). */
 export function activeTodayView(d: Pick<ChallengeDetail, 'days' | 'today' | 'stats'>): { todayIndex: number; todayDay: ChallengeDay | null; rows: TaskRowView[] } {
   const todayIndex = d.today?.dayIndex ?? d.stats.dayIndex
   const todayDay = todayDayOf(d.days, todayIndex)
-  const score = todayDay?.lesson ? { correct: todayDay.lesson.quizCorrect, total: todayDay.lesson.quizTotal } : null
-  return { todayIndex, todayDay, rows: (d.today?.tasks ?? []).map((t) => taskRowView(t, { lessonScore: score })) }
+  return { todayIndex, todayDay, rows: (d.today?.tasks ?? []).map((t) => taskRowView(t)) }
 }
 
 /** 날짜 띠 초점 시작점 = 오늘 칸(일 번호로 찾음), 없으면 첫 칸. */
@@ -314,7 +311,7 @@ export function dayLineView(c: DayChallenge, needFallback: number | null): { tit
   let desc: string
   switch (c.state) {
     case 'MET':
-      desc = `하루 목표를 다 채웠어요${c.lesson ? ` · 문제 ${c.lesson.quizCorrect}/${c.lesson.quizTotal}` : ''}${w ? ` · 단어 ${w.cardCount}장 중 ${w.correct}장 맞힘` : ''}`
+      desc = `하루 목표를 다 채웠어요${w ? ` · 단어 ${w.cardCount}장 중 ${w.correct}장 맞힘` : ''}`
       break
     case 'PARTIAL': {
       const need = dayChallengeNeed(c, needFallback)
@@ -447,7 +444,7 @@ export function daySheetView(day: ChallengeDay, ctx: DaySheetCtx): DaySheetView 
     else {
       goneAny ||= !l.refExists && !ctx.finished
       const link = live && l.lessonId && l.refExists ? { href: `/study/today/talk/${encodeURIComponent(l.lessonId)}`, label: '수업 결과 보기 ›' } : null
-      rows.push({ kind: 'lesson', main: `오늘의 회화 「${ctx.topicTitle}」 · 문제 ${l.quizCorrect}/${l.quizTotal}`, sub: null, badge: null, link, gone: live && !l.refExists })
+      rows.push({ kind: 'lesson', main: `오늘의 회화 「${ctx.topicTitle}」 · 끝냄`, sub: null, badge: null, link, gone: live && !l.refExists })
     }
   }
   return {
@@ -463,13 +460,14 @@ export function daySheetView(day: ChallengeDay, ctx: DaySheetCtx): DaySheetView 
   }
 }
 
-// ── 점수 추이 · 규칙 ────────────────────────────────────────────────────────────
+// ── 날짜별 기록 · 규칙 ────────────────────────────────────────────────────────────
 
 export interface ScoreRow {
   date: string
   label: string
   dateText: string
-  lesson: { text: string; dots: { correct: number; total: number } | null } | null
+  /** 회화 칸 — 끝냄/아직/수업 없음(점수·점 없음, task-081). */
+  lesson: { text: string } | null
   words: string | null
 }
 
@@ -482,8 +480,8 @@ export function scoreRows(days: readonly ChallengeDay[], goal: Pick<ChallengeDai
       const today = todayDay ? d === todayDay : d.state === 'TODAY'
       const lesson = goal.lesson
         ? d.lesson
-          ? { text: `문제 ${d.lesson.quizCorrect}/${d.lesson.quizTotal}`, dots: { correct: d.lesson.quizCorrect, total: d.lesson.quizTotal } }
-          : { text: today ? '아직' : '수업 없음', dots: null }
+          ? { text: '끝냄' }
+          : { text: today ? '아직' : '수업 없음' }
         : null
       let words: string | null = null
       if (goal.words) {
@@ -505,7 +503,7 @@ export function ruleLines(goal: ChallengeDailyGoal): string[] {
       '같은 세트를 다시 푼 장수도 하루 합계에 더해요.',
     )
   }
-  if (goal.lesson) out.push('회화는 수업을 끝내기만 하면 완료예요(문제 점수와 상관없음).')
+  if (goal.lesson) out.push('회화는 수업을 끝내면 완료예요.')
   out.push(
     '같은 주제면 공부 탭 어디서 해도 인정돼요. 오늘 시작한 챌린지는 만들기 전에 끝낸 같은 주제 공부도 오늘 기록으로 인정돼요.',
     '세트는 시작한 날로, 수업은 끝낸 날로 기록돼요 · 마지막 날 자정에 마감돼요.',

@@ -170,7 +170,7 @@ export function PlayWide({ playing, onClick, label, stopLabel = '■ 멈춤' }: 
   )
 }
 
-/** 수업 도구 줄(task-026 §15-4-7) — 앱 전체 표시 스위치. ① 은 [히라가나][한글][번역], ②·③ 은 [히라가나][한글]. */
+/** 수업 도구 줄(task-026 §15-4-7) — 앱 전체 표시 스위치. ①·③ 은 세 스위치 [히라가나][한글][번역], ② 는 [히라가나][한글]. */
 export function LessonDisplayTools({
   keys,
   onToast,

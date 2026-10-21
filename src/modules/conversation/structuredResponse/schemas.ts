@@ -272,8 +272,13 @@ export const WORD_ENRICH_SCHEMA = {
 
 /**
  * A4 레슨 생성(LESSON) — design-spec §7-3·§8 A4, task-010 Leader's Plan L1~L7. 이해(dialogue) → 문법(grammar) →
- * 문제(quiz, 4지선다만·서버 재채점) → 응용(application) → 말하기(speaking, 상황 없이 자유 과제) 5단계 + `nextPreview`
+ * 조각(dialogue[i].pieces, task-081) → 응용(application) → 말하기(speaking, 상황 없이 자유 과제) 5단계 + `nextPreview`
  * ("조금 아쉬운 종료 지점", learning-personalization §1-5).
+ *
+ * **task-081(2026-10-21, lesson@v10·reviewMix@v4·lessonScenario@v2, IMP-0059)** — 3단계 «문제(quiz)» 를 «조각(pieces)» 으로 대체했다. 새 응답에는 `quiz` 가
+ * 없고(스키마 `required`·`properties` 에서 제거, `LessonQuizItem`·`LessonResponse.quiz` 삭제) 대화 줄마다 `pieces`(원문 줄을 의미 덩어리로 자른 조각 배열)가 **필수**다.
+ * 옛 수업(저장된 `Lesson.content` 에 `quiz` 가 있는 것)은 다시 만들지 않으므로 이 파일의 타입·스키마와 무관하다 — 읽는 쪽(`learning/lessons/content.ts`·`types/lesson.ts`)이 그대로 받는다.
+ * 조각의 «이으면 원문과 같다» 검증·정리는 `lessonPieces.ts`(`validatePieces`) 한 곳이 소유한다.
  *
  * reading 계열 필드(문장·예문 읽기)는 스키마 단에서 `pattern` 으로 강제한다 — A10 `WORD_ENRICH_READING_RE` 보다
  * 느슨하다(단어 하나가 아니라 문장·구 전체의 읽기라 문장부호·공백·장음 조합 기호가 필요하다). **LESSON 의 5개 reading
@@ -306,11 +311,51 @@ export const LESSON_READING_PATTERN = '^[\\u3040-\\u30FF「」『』〜…、。
 export const LESSON_CHUNKS_MIN = 4
 export const LESSON_CHUNKS_MAX = 8
 
+/**
+ * 조각 종류(task-081, screens.md 37-12-1) — **레슨 내용 JSON 전용**이다. Prisma `ChunkType`(5종)·`types/chat` `ChunkType`(4종, 단어장·교정 공용)·이 파일의 `CHUNK_TYPES` 는 그대로 둔다.
+ * NAME 이름 · ACTION 액션 · FEELING 느낌 · MODIFIER 꾸밈 · EXPRESSION 표현(인사·대답 — 문장 밖에서 통째로 쓰는 말) · LINK 연결(조사·문말 조사·명사화 の). 종류가 `null` 인 조각은 문장부호·기호뿐인 조각.
+ */
+export const PIECE_TYPES = ['NAME', 'ACTION', 'FEELING', 'MODIFIER', 'EXPRESSION', 'LINK'] as const
+export type PieceType = (typeof PIECE_TYPES)[number]
+/** 한 줄의 조각 수(스키마 `pieces.minItems/maxItems`)와 조각 하나의 글자 수(코드포인트) 한도 — `lessonPieces.ts` 검증이 같은 값을 쓴다. */
+export const LESSON_PIECES_MIN = 1
+export const LESSON_PIECES_MAX = 24
+export const LESSON_PIECE_JA_MAX = 40
+export const LESSON_PIECE_KO_MAX = 30
+
+/**
+ * LLM 이 내는 조각(= 스키마 모양). `slash` 는 구조화 출력이 키를 빠뜨리지 않도록 **필수 boolean** 이다.
+ * `validatePieces` 가 정리한 뒤(저장 모양 `DialoguePiece`)에는 `slash:false` 가 지워지므로 `slash?: boolean` 으로 둔다 — 두 모양을 한 타입으로 받는다.
+ */
+export interface LessonPieceOut {
+  /** 원문 조각(1~40 코드포인트). 한 줄의 조각을 이으면 `dialogue[i].ja` 와 NFC 정규화 뒤 **완전히 같아야** 한다(공백·문장부호 포함). */
+  ja: string
+  /** `null` = 문장부호·기호·공백뿐인 조각(누를 수 없음·뜻 없음). */
+  type: PieceType | null
+  /** 조각 뜻(한국어, 1~30). `type` 이 null 이면 null. */
+  ko: string | null
+  /** 이 조각 «뒤» 에서 끊어 읽는다. */
+  slash?: boolean
+}
+
+/** 저장 모양(`Lesson.content.dialogue[i].pieces[]`) — `slash:false` 는 저장하지 않는다(키 없음). */
+export interface DialoguePiece {
+  ja: string
+  type: PieceType | null
+  ko: string | null
+  slash?: true
+}
+
 export interface LessonDialogueLine {
   speaker: 'A' | 'B'
   ja: string
   reading: string
   ko: string
+  /**
+   * 조각 배열(task-081). LLM 은 항상 배열을 낸다(스키마 필수). 요청의 `extraCheck` 가 `validatePieces` 로 정리해 **돌려주는 최종 응답에서는**
+   * 정상 줄 = 정리된 배열(`DialoguePiece[]` 모양), 검증을 못 넘은 줄 = `null`(그 줄만 «나누지 못했어요»). 키 없음은 옛 수업에만 있고 새 응답에는 없다.
+   */
+  pieces: LessonPieceOut[] | null
 }
 
 /** 입력 `topic.chunks` 를 그대로 쓰면 그 `id`, 새로 만든 표현은 `"new-1"`, `"new-2"`… (`checks.ts` 가 검증). */
@@ -330,22 +375,6 @@ export interface LessonGrammarPoint {
   exampleJa: string
   exampleReading: string
   exampleKo: string
-}
-
-/**
- * 4지선다만(코드 채점). **lesson@v8(2026-09-30, task-025 IMP-0014)부터 `promptKo` 는 필수·비어 있지 않은 한국어**다 — 문제
- * 문장에 한국어 뜻(또는 무엇을 고르라는 지시)을 항상 붙여 화면이 일본어 원문으로 폴백하지 않게 한다. `promptJa` 는 일본어
- * 문장을 보여 줄 때만 채우고 아니면 null. **이미 저장된 v7 이하 레슨의 `promptKo` 는 null 일 수 있으므로**(저장 JSON 은 재생성하지
- * 않는다) 읽는 쪽(`learning/lessons/content.ts`·`types/lesson.ts`)의 타입은 `string | null` 로 두고 폴백을 유지한다.
- */
-export interface LessonQuizItem {
-  id: string
-  promptKo: string
-  promptJa: string | null
-  choices: string[]
-  answer: number
-  targetIds: string[]
-  explanationKo: string
 }
 
 export interface LessonApplicationItem {
@@ -380,7 +409,6 @@ export interface LessonResponse {
   dialogue: LessonDialogueLine[]
   chunks: LessonChunkOut[]
   grammar: LessonGrammarPoint[]
-  quiz: LessonQuizItem[]
   application: LessonApplicationItem[]
   speaking: LessonSpeakingItem[]
   nextPreview: LessonNextPreview
@@ -396,15 +424,33 @@ const lessonRolesKo = {
   },
 } as const
 
+/**
+ * 조각 하나(task-081, screens.md 37-12-2). 읽기(reading)·한글 읽기는 **LLM 이 만들지 않는다**(task-036) — 화면이 문장 전체 분석(#24r)을 조각 범위로 자른다.
+ * 널 허용은 이 파일의 다른 칸과 같은 `anyOf [null, …]` 모양으로 쓴다(구조화 출력이 `type` 배열 + `enum` 의 null 을 안정적으로 다루지 못하는 일을 피한다).
+ * 「이으면 원문과 같다」·「글자가 있으면 type 필수, 문장부호뿐이면 null」 등 스키마로 못 쓰는 규칙은 `lessonPieces.ts` 가 본다.
+ */
+const lessonPiece = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ja', 'type', 'ko', 'slash'],
+  properties: {
+    ja: { type: 'string', minLength: 1, maxLength: LESSON_PIECE_JA_MAX },
+    type: { anyOf: [{ type: 'null' }, { type: 'string', enum: [...PIECE_TYPES] }] },
+    ko: { anyOf: [{ type: 'null' }, { type: 'string', maxLength: LESSON_PIECE_KO_MAX }] },
+    slash: { type: 'boolean' },
+  },
+} as const
+
 const lessonDialogueLine = {
   type: 'object',
   additionalProperties: false,
-  required: ['speaker', 'ja', 'reading', 'ko'],
+  required: ['speaker', 'ja', 'reading', 'ko', 'pieces'],
   properties: {
     speaker: { type: 'string', enum: ['A', 'B'] },
     ja: { type: 'string', minLength: 1, maxLength: 80 },
     reading: { type: 'string', minLength: 1, maxLength: 160, pattern: LESSON_READING_PATTERN },
     ko: { type: 'string', minLength: 1, maxLength: 120 },
+    pieces: { type: 'array', minItems: LESSON_PIECES_MIN, maxItems: LESSON_PIECES_MAX, items: lessonPiece },
   },
 } as const
 
@@ -437,22 +483,6 @@ const lessonGrammarPoint = {
 } as const
 
 const lessonTargetIds = { type: 'array', minItems: 1, maxItems: 6, items: { type: 'string', minLength: 1, maxLength: 40 } } as const
-
-const lessonQuizItem = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['id', 'promptKo', 'promptJa', 'choices', 'answer', 'targetIds', 'explanationKo'],
-  properties: {
-    id: { type: 'string', minLength: 1, maxLength: 10 },
-    // lesson@v8 — promptKo 필수(null 불가). 한글이 실제로 들어 있는지는 checks.ts 가 본다(스키마 pattern 은 재시도 문구가 불친절하다).
-    promptKo: { type: 'string', minLength: 1, maxLength: 160 },
-    promptJa: { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 120 }] },
-    choices: { type: 'array', minItems: 4, maxItems: 4, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 80 } },
-    answer: { type: 'integer', minimum: 0, maximum: 3 },
-    targetIds: lessonTargetIds,
-    explanationKo: { type: 'string', minLength: 1, maxLength: 120 },
-  },
-} as const
 
 const lessonApplicationItem = {
   type: 'object',
@@ -496,7 +526,7 @@ const lessonNextPreview = {
 export const LESSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'titleKo', 'rolesKo', 'dialogue', 'chunks', 'grammar', 'quiz', 'application', 'speaking', 'nextPreview'],
+  required: ['title', 'titleKo', 'rolesKo', 'dialogue', 'chunks', 'grammar', 'application', 'speaking', 'nextPreview'],
   properties: {
     title: { type: 'string', minLength: 1, maxLength: 40 },
     titleKo: { type: 'string', minLength: 1, maxLength: 40 },
@@ -504,7 +534,6 @@ export const LESSON_SCHEMA = {
     dialogue: { type: 'array', minItems: 6, maxItems: 10, items: lessonDialogueLine },
     chunks: { type: 'array', minItems: LESSON_CHUNKS_MIN, maxItems: LESSON_CHUNKS_MAX, items: lessonChunkOut },
     grammar: { type: 'array', minItems: 1, maxItems: 3, items: lessonGrammarPoint },
-    quiz: { type: 'array', minItems: 5, maxItems: 5, items: lessonQuizItem },
     application: { type: 'array', minItems: 3, maxItems: 3, items: lessonApplicationItem },
     speaking: { type: 'array', minItems: 3, maxItems: 3, items: lessonSpeakingItem },
     nextPreview: lessonNextPreview,

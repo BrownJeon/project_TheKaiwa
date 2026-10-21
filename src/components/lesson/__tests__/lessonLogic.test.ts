@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { LessonContent, TodayLessonItem, TodayLessons } from '@/types/lesson'
-import { correctFromScore, deriveLessonCard, endResultFrom, expressionsFrom, firstStage, genPhase, hasJa, memoRequest, memoWordProblem, mmss, rateLabel, segmentLines } from '../logic'
+import { deriveLessonCard, endResultFrom, expressionsFrom, firstStage, genPhase, hasJa, memoRequest, memoWordProblem, mmss, rateLabel, segmentLines } from '../logic'
 import { concatWav, parseWav } from '../wav'
 import { pasteMeta } from '../LessonPasteScreen'
 import { HOME, LESSON, TOPICS, stageLabel } from '../lessonCopy'
@@ -29,12 +29,13 @@ test('홈 카드 상태: 표의 위 줄이 이긴다(로딩·오류·만드는 �
   assert.equal(deriveLessonCard('ready', today([])).kind, 'start')
 })
 
-test('맞힌 수·문구: 점수(서버 재채점) → 5문제 기준, 말하기 표현 줄은 total>0 일 때만', () => {
-  assert.deepEqual([correctFromScore(80), correctFromScore(100), correctFromScore(0), correctFromScore(null), correctFromScore(60, 5)], [4, 5, 0, 0, 3])
-  assert.equal(HOME.doneBody('카페 주문', 4, { used: 4, total: 5 }), '카페 주문 · 문제 4/5 맞힘 · 말하기 표현 4/5')
-  assert.equal(HOME.doneBody('카페 주문', 4, { used: 0, total: 0 }), '카페 주문 · 문제 4/5 맞힘')
-  assert.equal(HOME.doneBody('카페 주문', 4, null), '카페 주문 · 문제 4/5 맞힘')
-  assert.equal(stageLabel(3), '③ 문제')
+test('끝낸 카드 문구(task-081): 조각 N개는 #58 pieces 가 1 이상일 때만, 말하기 표현 줄은 total>0 일 때만', () => {
+  assert.equal(HOME.doneBody('카페 주문', 7, { used: 4, total: 5 }), '카페 주문 · 조각 7개 · 말하기 표현 4/5')
+  assert.equal(HOME.doneBody('카페 주문', 7, { used: 0, total: 0 }), '카페 주문 · 조각 7개')
+  assert.equal(HOME.doneBody('카페 주문', null, { used: 4, total: 5 }), '카페 주문 · 말하기 표현 4/5', '옛 수업(조각 없음)')
+  assert.equal(HOME.doneBody('카페 주문', undefined, null), '카페 주문', '옛 응답(pieces 칸 없음)')
+  assert.equal(HOME.doneBody('카페 주문', 0, null), '카페 주문')
+  assert.equal(stageLabel(3), '③ 조각')
   assert.equal(LESSON.next(2), '다음 단계 · ② 문법')
   assert.equal(TOPICS.intro('N5', ['N5', 'N4']), '어떤 이야기로 수업할까요? 내 수준(N5)과 한 단계 위(N4) 주제를 보여 드려요.')
   assert.equal(TOPICS.intro('N4', ['N5', 'N4', 'N3']), '어떤 이야기로 수업할까요? 내 수준(N4)과 한 단계 위·아래 주제를 보여 드려요.')
@@ -44,7 +45,7 @@ test('맞힌 수·문구: 점수(서버 재채점) → 5문제 기준, 말하기
 test('생성 대기 문구: 경과 구간·SAVE·120초 넘음, m:ss', () => {
   assert.equal(genPhase(3, 'LLM'), '주제와 지난 수업을 살펴보고 있어요')
   assert.equal(genPhase(30, 'LLM'), '대화문을 쓰고 있어요')
-  assert.equal(genPhase(60, null), '문법과 문제를 만들고 있어요')
+  assert.equal(genPhase(60, null), '문법과 조각을 만들고 있어요')
   assert.equal(genPhase(90, null), '응용·말하기 과제를 고르고 있어요')
   assert.equal(genPhase(110, null), '마지막으로 확인하고 있어요')
   assert.equal(genPhase(20, 'SAVE'), '마지막으로 확인하고 있어요')
@@ -58,7 +59,6 @@ const content = {
     { id: 's2', promptKo: '', targetIds: ['c2'], modelAnswerJa: '', modelReading: '', modelKo: '' },
     { id: 's3', promptKo: '', targetIds: ['c3', 'g2'], modelAnswerJa: '', modelReading: '', modelKo: '' },
   ],
-  quiz: Array.from({ length: 5 }, (_, i) => ({ id: `q${i}`, promptKo: 'x', promptJa: null, choices: ['a', 'b', 'c', 'd'], answer: 0, targetIds: ['c1'], explanationKo: '' })),
   dialogue: [
     { speaker: 'A', ja: 'a', reading: 'a', ko: '', segment: 1 },
     { speaker: 'B', ja: 'b', reading: 'b', ko: '', segment: 1 },
@@ -69,9 +69,8 @@ const content = {
   nextPreview: { titleKo: '다음', teaserKo: '…' },
 } as unknown as LessonContent
 
-test('종료 카드 값(#60 DONE 재계산): 정답 = 점수, 만든 문장 = 글자 있는 칸, 쓴/못 쓴 = 말하기 결과(판정 불가 제외, 안 한 과제 목표는 못 씀)', () => {
+test('종료 카드 값(#60 DONE 재계산): 조각 = 내용에서 셈(옛 수업 null), 만든 문장 = 글자 있는 칸, 쓴/못 쓴 = 말하기 결과(판정 불가 제외, 안 한 과제 목표는 못 씀)', () => {
   const r = endResultFrom({
-    score: 60,
     content,
     progress: {
       application: { answers: ['紅茶', null, '  '] },
@@ -81,11 +80,12 @@ test('종료 카드 값(#60 DONE 재계산): 정답 = 점수, 만든 문장 = �
       ],
     },
   })!
-  assert.deepEqual([r.correct, r.total, r.applicationDone], [3, 5, 1])
+  assert.deepEqual([r.pieces, r.applicationDone], [null, 1])
+  assert.ok(!('correct' in r) && !('total' in r), '점수·문항 수 칸 없음')
   assert.deepEqual(r.usedIds, ['c1'])
   assert.deepEqual(r.missedIds.sort(), ['c2', 'c3', 'g2'])
   assert.equal(r.nextPreview?.titleKo, '다음')
-  assert.equal(endResultFrom({ score: 0, content: null, progress: {} }), null)
+  assert.equal(endResultFrom({ content: null, progress: {} }), null)
   assert.deepEqual(expressionsFrom(content, {}), { usedIds: [], missedIds: ['c1', 'g1', 'c2', 'c3', 'g2'] })
 })
 
@@ -162,7 +162,7 @@ test('챌린지 회화 카드: 다른 주제 수업을 끝낸 날·열린 날에
   // ① 다른 주제 수업을 이미 끝낸 날
   const d1 = deriveChallengeLessonCard('ready', today([other({ status: 'DONE', score: 80 })]), task('TODO'), 't1')
   assert.equal(d1.card.kind, 'make')
-  assert.deepEqual(d1.aux, { kind: 'done', title: '길 묻기', score: 80 })
+  assert.deepEqual(d1.aux, { kind: 'done', title: '길 묻기' })
   // ② 다른 주제 수업이 열려 있는 날(열림 > 끝냄)
   const d2 = deriveChallengeLessonCard('ready', today([other({ status: 'DONE' }), other({ id: 'o2', status: 'IN_PROGRESS', stageDone: 2 })]), task('TODO'), 't1')
   assert.equal(d2.card.kind, 'make')

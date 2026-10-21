@@ -87,7 +87,7 @@ export const LESSON_CH = {
   continueTitle: '어제 만든 챌린지 수업이 있어요',
   continueBody: (title: string, date: string | null, n: number | null) =>
     date !== null && n !== null ? `${q(title)} · ${formatMonthDay(date)} 시작 · 5단계 중 ${n}단계 끝냄` : q(title),
-  continueNote: (stage: string, dayIndex: number) => `다음은 ${stage}예요. 단계마다 저장돼요. 오늘 끝내면 오늘(${dayIndex}일째) 회화 기록으로 인정돼요.`,
+  continueNote: (nextStage: string, dayIndex: number) => `다음은 ${nextStage}. 단계마다 저장돼요. 오늘 끝내면 오늘(${dayIndex}일째) 회화 기록으로 인정돼요.`,
   failTitle: '수업을 만들지 못했어요',
   failBody: (title: string) => `${q(title)} · 다시 만들면 대부분 잘 만들어져요.`,
   retry: '다시 만들기',
@@ -97,7 +97,8 @@ export const LESSON_CH = {
   doneResult: '끝낸 수업 결과 보기',
   auxOpen: (t: string, n: number) => `${q(t)} 수업이 열려 있어요 · 5단계 중 ${n}단계 · ${NOT_COUNTED}`,
   auxOpenAria: (t: string) => `${q(t)} 수업 이어서 하기`,
-  auxDone: (t: string, c: number) => `✓ 오늘 ${q(t)} 수업 끝냄 · 문제 ${c}/5 · ${NOT_COUNTED}`,
+  /** task-081: 점수를 뺐다(§37-8). 두 번째 인자는 호출부(`TodayLessonCard`)가 옮겨 갈 동안만 받고 읽지 않는다. */
+  auxDone: ((t: string) => `✓ 오늘 ${q(t)} 수업 끝냄 · ${NOT_COUNTED}`) as (t: string, legacyCorrect?: number | null) => string,
   /** 챌린지 회화 과제가 꺼졌는데 #58 추천 이유가 CHALLENGE 일 때 기본 카드 추천 줄(가이드 §11 ⑧). */
   reasonChallenge: '챌린지 주제예요',
 } as const

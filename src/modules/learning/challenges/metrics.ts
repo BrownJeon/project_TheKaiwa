@@ -71,8 +71,9 @@ export interface LessonSnap {
   kind: string
   topicId: string | null
   date: string
-  quizCorrect: number
-  quizTotal: number
+  /** 문항이 없는 수업(task-081 — 스냅샷에 `quizTotal` 키 없음)은 null. */
+  quizCorrect: number | null
+  quizTotal: number | null
 }
 
 export interface VocabSnap {
@@ -103,6 +104,9 @@ export interface SnapshotRow {
 
 const cnt = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0)
 const idOrNull = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 && v.length <= 40 ? v : null)
+/** LESSON 스냅샷 문항 수 — `quizTotal` 키가 숫자로 있는 옛 행만 숫자(지금처럼 `cnt`), 키가 없으면(문항 없는 새 수업) null. */
+const lessonQuiz = (d: Record<string, unknown>): { quizCorrect: number | null; quizTotal: number | null } =>
+  typeof d.quizTotal === 'number' ? { quizCorrect: cnt(d.quizCorrect), quizTotal: cnt(d.quizTotal) } : { quizCorrect: null, quizTotal: null }
 
 export function readChallengeSnaps(rows: readonly SnapshotRow[]): ChallengeSnaps {
   const out: ChallengeSnaps = { lessons: [], vocab: [] }
@@ -110,7 +114,7 @@ export function readChallengeSnaps(rows: readonly SnapshotRow[]): ChallengeSnaps
     const d = isObj(r.data) ? r.data : {}
     const date = dates.isDateString(d.date) ? d.date : dates.todayKst(r.createdAt)
     if (r.kind === 'LESSON') {
-      out.lessons.push({ id: r.id, refId: r.periodKey, createdAt: r.createdAt, kind: typeof d.kind === 'string' ? d.kind : '', topicId: idOrNull(d.topicId), date, quizCorrect: cnt(d.quizCorrect), quizTotal: cnt(d.quizTotal) })
+      out.lessons.push({ id: r.id, refId: r.periodKey, createdAt: r.createdAt, kind: typeof d.kind === 'string' ? d.kind : '', topicId: idOrNull(d.topicId), date, ...lessonQuiz(d) })
     } else if (r.kind === 'VOCAB_SESSION') {
       out.vocab.push({ id: r.id, refId: r.periodKey, createdAt: r.createdAt, topicId: idOrNull(d.topicId), date, correct: cnt(d.correct), wrong: cnt(d.wrong), skipped: cnt(d.skipped), cardCount: cnt(d.cardCount) })
     }
@@ -133,8 +137,8 @@ export type SnapKind = 'LESSON' | 'VOCAB_SESSION'
 
 export interface ComputedDayLesson {
   done: number
-  quizCorrect: number
-  quizTotal: number
+  quizCorrect: number | null
+  quizTotal: number | null
   lessonId: string
 }
 
@@ -253,7 +257,8 @@ export function computeChallengeMetrics(ch: MetricChallenge, snaps: ChallengeSna
 
     let lesson: ComputedDayLesson | null = null
     if (Ld.length) {
-      const best = pickMax(Ld, (s) => s.quizCorrect)
+      // 문항 없는 수업(null)은 점수가 있는 옛 수업보다 앞서지 않는다 — 모두 null 이면 나중 것.
+      const best = pickMax(Ld, (s) => s.quizCorrect ?? -1)
       lesson = { done: Ld.length, quizCorrect: best.quizCorrect, quizTotal: best.quizTotal, lessonId: best.refId }
     }
     let words: ComputedDayWords | null = null
@@ -355,7 +360,7 @@ export function freezeChallengeResult(m: ChallengeMetrics, goal: ChallengeDailyG
     days: m.days.map((d) => ({
       date: d.date,
       state: d.state,
-      quiz: d.lesson ? [d.lesson.quizCorrect, d.lesson.quizTotal] : null,
+      quiz: d.lesson ? (d.lesson.quizCorrect === null || d.lesson.quizTotal === null ? [null, null] : [d.lesson.quizCorrect, d.lesson.quizTotal]) : null,
       words: d.words ? [d.words.correct, d.words.wrong, d.words.skipped, d.words.cardCount, d.words.sets] : null,
     })),
   }
@@ -364,6 +369,9 @@ export function freezeChallengeResult(m: ChallengeMetrics, goal: ChallengeDailyG
 const DAY_STATES: readonly ChallengeDayState[] = ['UPCOMING', 'TODAY', 'MET', 'PARTIAL', 'MISSED', 'STOPPED']
 const nonNeg = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null)
 const tuple = (v: unknown, n: number): number[] | null => (Array.isArray(v) && v.length === n && v.every((x) => nonNeg(x) !== null) ? (v as number[]) : null)
+/** `days[].quiz` — 옛 [맞힘, 문항] 또는 문항 없는 수업 날 [null, null](task-081). 한쪽만 null 은 손상. */
+const quizPair = (v: unknown): [number, number] | [null, null] | null =>
+  Array.isArray(v) && v.length === 2 && v[0] === null && v[1] === null ? [null, null] : (tuple(v, 2) as [number, number] | null)
 
 /** 저장된 `result` 해석 — 형태가 어긋나면 null(호출자가 스냅샷으로 다시 계산한다). */
 export function readChallengeResult(v: unknown): ChallengeResult | null {
@@ -380,10 +388,10 @@ export function readChallengeResult(v: unknown): ChallengeResult | null {
   const days: ChallengeResultDay[] = []
   for (const d of v.days) {
     if (!isObj(d) || !dates.isDateString(d.date) || !DAY_STATES.includes(d.state as ChallengeDayState)) return null
-    const quiz = d.quiz === null ? null : tuple(d.quiz, 2)
+    const quiz = d.quiz === null ? null : quizPair(d.quiz)
     const words = d.words === null ? null : tuple(d.words, 5)
     if ((d.quiz !== null && !quiz) || (d.words !== null && !words)) return null
-    days.push({ date: d.date, state: d.state as ChallengeDayState, quiz: quiz as [number, number] | null, words: words as [number, number, number, number, number] | null })
+    days.push({ date: d.date, state: d.state as ChallengeDayState, quiz, words: words as [number, number, number, number, number] | null })
   }
   return {
     ruleVersion,

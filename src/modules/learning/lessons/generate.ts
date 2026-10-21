@@ -336,7 +336,16 @@ export async function runLessonGeneration(userId: string, c: Claim, gen: LessonG
       steps.push({ name: 'SAVE', ms: Date.now() - t, superseded: true })
       return
     }
-    steps.push({ name: 'SAVE', ms: Date.now() - t, dialogue: content.dialogue.length, segments: content.segmentCount, chunks: content.chunks.length })
+    // task-081 계측 — piecesTotal = 줄 수, piecesNullLines = 조각 검증을 못 넘어 null 로 저장된 줄 수(글 없음, 숫자만).
+    steps.push({
+      name: 'SAVE',
+      ms: Date.now() - t,
+      dialogue: content.dialogue.length,
+      segments: content.segmentCount,
+      chunks: content.chunks.length,
+      piecesTotal: content.dialogue.length,
+      piecesNullLines: content.dialogue.filter((d) => d.pieces === null).length,
+    })
   } catch (e) {
     status = 'ERROR'
     errorCode = classifyError(e).code

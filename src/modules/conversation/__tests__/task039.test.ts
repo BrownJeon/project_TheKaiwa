@@ -285,10 +285,10 @@ test('task-039: 규칙 판정기 사전 — 급수·문형·용어는 JLPT 식, 
   assert.equal(verdictOf({ explanationKo: null, grammarPoint: null }).mainJlpt, false)
 })
 
-test('task-039: A4 lesson@v9 — grammar 지시에 "(일상 회화 위주)" 만 더했다(문구만 — 계약·스키마·persona 불변, 새 칸 없음)', () => {
+test('task-039: A4 grammar 지시 "(일상 회화 위주)" 유지 — 문구만, 새 칸 없음 (표기는 task-081 에서 lesson@v10 으로 올랐다: 스키마·persona §1·§6 LESSON 행 변경은 그 task 몫)', () => {
   const fx = JSON.parse(readFileSync(join(process.cwd(), 'tests/prompts/fixtures/lesson.json'), 'utf8')) as { topic: Parameters<typeof buildLessonRequest>[0]['topic'] }
   const req = buildLessonRequest({ todayKst: '2026-10-06', learner, topic: fx.topic })
-  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v9')
+  assert.equal(LESSON_PROMPT_VERSION, 'lesson@v10')
   assert.ok(req.system.includes('이번 수업의 핵심 문형(일상 회화 위주)'))
   assert.ok(!/extraNote|extra_note/i.test(req.system + JSON.stringify(req.jsonSchema)))
   assert.ok(!(req.persona?.prompt ?? '').includes('설명은 일상 회화가 메인'), 'LESSON persona 는 §3 을 싣지 않는다 — 바이트 불변')

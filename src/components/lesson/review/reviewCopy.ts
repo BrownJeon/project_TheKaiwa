@@ -1,7 +1,10 @@
 /**
  * 오늘의 복습(task-010b) 한국어 UI 문구 — screens §14-8(데모 v1 문구 그대로, ★ = 계약 때문에 더한 줄).
- * 오늘의 회화 문구(`lessonCopy.ts`)는 건드리지 않는다. 엔진명·판단 주체 원값·잡 종류는 여기에 두지 않는다(§14-10).
+ * 오늘의 회화 문구(`lessonCopy.ts`)는 건드리지 않는다(단계 이름·서술격만 읽는다). 엔진명·판단 주체 원값·잡 종류는 여기에 두지 않는다(§14-10).
+ * task-081(§37-8): «문제» 단계가 «조각» 으로 바뀌어 복습 문구에서 문제·점수를 뺐다.
  */
+
+import { STAGE_COPULA, stageLabel } from '../lessonCopy'
 
 /* ⓐ 오늘 홈 카드 */
 export const RV_HOME = {
@@ -34,13 +37,14 @@ export const RV_HOME = {
   retry: '다시 만들기',
   progressTitle: '하던 복습이 있어요',
   progressBody: (n: number, k: number) => `${n}개 항목 · 오늘 시작 · 5단계 중 ${k}단계 끝냄`,
-  nextStage: (label: string) => `다음은 ${label}예요. 단계마다 저장돼요.`,
+  /** 단계 이름별 서술격(`STAGE_COPULA`) — «③ 조각이에요»(task-081, 오늘의 회화 `HOME.nextStage` 와 같은 규칙). */
+  nextStage: (n: number) => `다음은 ${stageLabel(n)}${STAGE_COPULA[n - 1] ?? '예요'}. 단계마다 저장돼요.`,
   resume: '이어서 하기',
   readyTitle: '복습 수업이 준비됐어요',
   readyBody: (n: number) => `${n}개 항목 · 5단계 · 약 15분`,
   readyStart: '시작하기',
   doneTitle: '오늘 복습을 끝냈어요',
-  doneBody: (n: number, c: number | null) => (c === null ? `${n}개 항목` : `${n}개 항목 · 문제 ${c}/5 맞힘`),
+  doneBody: (n: number) => `${n}개 항목`,
   nextTitle: '다음 복습',
   nextTutor: (due: string, d: number) => `${due} · 선생님이 ${d}일 뒤로 정했어요`,
   nextNeutral: (due: string, d: number) => `${due} · ${d}일 뒤`,
@@ -85,7 +89,7 @@ export const RV_GEN = {
   phaseItems: '이번 복습 항목을 살펴보고 있어요',
   phaseMix: '항목을 섞어 대화문을 쓰고 있어요',
   itemsTitle: (n: number) => `이번 복습 항목 ${n}개로 만들어요`,
-  itemsNote: '항목을 섞은 새 대화로 오늘의 회화와 같은 5단계(이해 → 문법 → 문제 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요.',
+  itemsNote: '항목을 섞은 새 대화로 오늘의 회화와 같은 5단계(이해 → 문법 → 조각 → 응용 → 말하기)를 해요. ● 은 집중 항목이에요.',
   failTitle: '복습 수업을 만들지 못했어요',
   backToday: '공부로 돌아가기',
   readyToast: '복습 수업이 준비됐어요',
@@ -97,7 +101,7 @@ export const RV_LESSON = {
   headerSr: '오늘의 복습: ',
   itemsTitle: (n: number) => `이번 복습 항목 ${n}개`,
   itemsFocus: (f: number) => ` · 집중 ${f}개`,
-  itemsNote: '선생님이 고른 항목이에요. 오늘 대화·문제·말하기에 섞여 나와요.',
+  itemsNote: '선생님이 고른 항목이에요. 오늘 대화·응용·말하기에 섞여 나와요.',
   focus: '집중',
   focusNote: ' 자주 틀리거나 교정받은 항목이에요. 다음 복습도 3일 안에 다시 봐요.',
   feedback: (n: number) => `교정 ${n}번`,
@@ -109,9 +113,8 @@ export const RV_LESSON = {
   fromSource: (label: string) => `${label}에서`,
   grammarIntro: (g: number) => `복습할 표현과 문형 ${g}개예요. 표현과 예문을 듣고 소리 내어 따라 읽어 보세요.`,
   exprTitle: (n: number) => `복습 표현 ${n}개`,
-  exprNote: '이번 복습 항목이에요. 누르면 소리를 들을 수 있어요. 문제·응용·말하기에서 다시 써요.',
-  exprNoteNoAudio: '이번 복습 항목이에요. 문제·응용·말하기에서 다시 써요.',
-  quizNote: '틀린 문제는 수업을 마친 뒤 선생님이 다음 복습 날짜를 정할 때 참고해요.',
+  exprNote: '이번 복습 항목이에요. 누르면 소리를 들을 수 있어요. 응용·말하기에서 다시 써요.',
+  exprNoteNoAudio: '이번 복습 항목이에요. 응용·말하기에서 다시 써요.',
 } as const
 
 /* ⓔ 복습 종료 카드 */

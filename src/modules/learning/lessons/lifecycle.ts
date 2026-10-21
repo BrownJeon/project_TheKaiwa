@@ -5,6 +5,8 @@
  * 서버 재채점(L4, body 의 score 는 쓰지 않음) → RepetitionItem 등록/갱신(L5) → `Lesson DONE` → `StudyLog(LESSON|REVIEW, DIRECT)` →
  * `StatsSnapshot(LESSON)` → `DAILY(lessons|reviews +1, repetition.studied+n)` → 학습 관측(quiz 문항·말하기 과제, task-010b L3) +
  * DAILY `observations`. 중간 실패는 전부 롤백. 같은 레슨 두 번째 완료는 409(행 변화 0).
+ * task-081(§37-13): 새 수업은 `content.quiz` 가 비어 있다 — 점수 없음(`Lesson.score`·응답 `score`·`result.quiz` null, StudyLog·스냅샷의
+ * 문항 키 생략). 문항이 있는 옛 수업은 지금 계산 그대로(진행 중이던 옛 수업의 답도 그대로 채점한다).
  * 복습 레슨(kind=REVIEW, task-010b L6)은 새 항목을 등록하지 않고 mixSpec(세션 `itemIds`) 항목의 `studiedCount+1`·quiz 정오답을 더하며
  * 세션을 DONE 으로 닫는다. 강사 복습 판단(A11)은 트랜잭션 **뒤** 라우트가 건다(`afterStudyCompleted`) — 응답의 `reviewDecisionJobId`·
  * `nextReview` 는 라우트가 채운다.
@@ -16,7 +18,7 @@ import { recordObservations } from '../observations'
 import { completeScheduleForLesson, lessonReviewExtras, type LessonNextReview, type ReviewItemDto } from '../reviewSchedule'
 import { bumpDailySnapshot, createLessonSnapshot } from '../snapshots'
 import { recordStudyLog } from '../studyLog'
-import { lessonRepetitionItems, readStoredContent, scoreQuiz, summarizeExpressions } from './content'
+import { lessonRepetitionItems, readStoredContent, scoreQuiz, summarizeExpressions, type QuizOutcome } from './content'
 import { lessonGenKindOf, settleGenerating } from './generate'
 import { lessonObservations, quizTargetTally } from './observations'
 import { memoDrafts, memoProcessed, mergeProgress, parseProgressPatch, readProgress, speakingRecords } from './progress'
@@ -60,23 +62,50 @@ export async function updateLessonProgress(userId: string, id: string, body: { s
     if (body.stageDone !== null && body.stageDone < h.row.stageDone) {
       throw new ApiError('VALIDATION', '끝낸 단계는 되돌릴 수 없어요.', { field: 'stageDone', reason: 'monotonic', current: h.row.stageDone })
     }
-    const patch = body.progress === undefined ? null : parseProgressPatch(body.progress, { segmentCount: h.content.segmentCount, quizCount: h.content.quiz.length, applicationCount: h.content.application.length })
+    const patch = body.progress === undefined ? null : parseProgressPatch(body.progress, { segmentCount: h.content.segmentCount, quizCount: h.content.quiz.length, applicationCount: h.content.application.length, dialogueCount: h.content.dialogue.length })
     const progress = patch ? mergeProgress(h.progress, patch) : h.progress
     const row = await writeProgress(tx, h, progress, body.stageDone ?? undefined)
     return toLessonDto(row)
   })
 }
 
+/** 문항 채점 결과 — 새 수업(문항 없음, task-081)은 `score`·`quiz` 가 null 이고 `outcomes` 는 빈 배열. */
+export interface LessonQuizFigures {
+  score: number | null
+  quiz: { correct: number; total: number; answered: number } | null
+  outcomes: QuizOutcome[]
+}
+
+export function lessonQuizFigures(quiz: readonly { answer: number }[], answers: readonly (number | null)[] | undefined): LessonQuizFigures {
+  if (!quiz.length) return { score: null, quiz: null, outcomes: [] }
+  const s = scoreQuiz(quiz, answers)
+  return { score: s.score, quiz: { correct: s.correct, total: s.total, answered: s.answered }, outcomes: s.outcomes }
+}
+
+/** StudyLog `summary` — 새 수업은 «문제 c/t» 를 뺀다(옛 수업은 지금 문자열 그대로). */
+export function lessonStudySummary(kind: LessonKind, title: string, quiz: LessonQuizFigures['quiz'], expr: { usedIds: readonly string[]; missedIds: readonly string[] }): string {
+  const quizPart = quiz ? ` · 문제 ${quiz.correct}/${quiz.total}` : ''
+  return `${kind === 'REVIEW' ? '오늘의 복습' : '오늘의 회화'} 「${title}」${quizPart} · 말하기 표현 ${expr.usedIds.length}/${expr.usedIds.length + expr.missedIds.length}`
+}
+
+/** StudyLog `result` 의 문항 키 — 새 수업은 키 자체를 넣지 않는다(0 으로 채우면 «문제 0/0» 으로 읽힌다). */
+export function lessonQuizResultKeys(f: LessonQuizFigures): { score?: number; quizCorrect?: number; quizTotal?: number; quizAnswered?: number } {
+  if (!f.quiz || f.score === null) return {}
+  return { score: f.score, quizCorrect: f.quiz.correct, quizTotal: f.quiz.total, quizAnswered: f.quiz.answered }
+}
+
 export interface CompleteLessonResult {
-  lesson: { id: string; status: 'DONE'; score: number; stageDone: number; completedAt: string }
+  lesson: { id: string; status: 'DONE'; score: number | null; stageDone: number; completedAt: string }
   studyLogId: string
   /** 강사 복습 판단 잡(#55) — 트랜잭션 뒤 라우트가 채운다(없으면 null). */
   reviewDecisionJobId: string | null
   /** #60 과 같은 모양(Leader 결정 (b)). 판단 대기면 null. */
   nextReview: LessonNextReview | null
   result: {
-    score: number
-    quiz: { correct: number; total: number; answered: number }
+    /** 새 수업(문항 없음)은 null. */
+    score: number | null
+    /** 새 수업(문항 없음)은 null — 화면은 더 읽지 않는다(§37-6). */
+    quiz: { correct: number; total: number; answered: number } | null
     applicationDone: number
     /** 말하기에서 쓴 표현·못 쓴 표현(레슨 안 id — content.chunks/grammar 의 id). */
     expressions: { usedIds: string[]; missedIds: string[] }
@@ -112,7 +141,7 @@ export async function completeLessonDetailed(userId: string, id: string, opts: C
     const now = new Date()
     const today = dates.todayKst(now)
 
-    const quiz = scoreQuiz(content.quiz, progress.quiz?.answers)
+    const quiz = lessonQuizFigures(content.quiz, progress.quiz?.answers)
     let itemIdOf: Map<string, string | undefined>
     let registered: { id: string; created: boolean }[]
     if (row.kind === 'REVIEW') {
@@ -146,13 +175,10 @@ export async function completeLessonDetailed(userId: string, id: string, opts: C
         type,
         origin: 'DIRECT',
         refId: id,
-        summary: `${row.kind === 'REVIEW' ? '오늘의 복습' : '오늘의 회화'} 「${title}」 · 문제 ${quiz.correct}/${quiz.total} · 말하기 표현 ${expr.usedIds.length}/${expr.usedIds.length + expr.missedIds.length}`,
+        summary: lessonStudySummary(row.kind, title, quiz.quiz, expr),
         result: {
           stageDone: LESSON_STAGE_MAX,
-          score: quiz.score,
-          quizCorrect: quiz.correct,
-          quizTotal: quiz.total,
-          quizAnswered: quiz.answered,
+          ...lessonQuizResultKeys(quiz),
           applicationDone,
           usedExpressionIds: toItemIds(expr.usedIds),
           missedExpressionIds: toItemIds(expr.missedIds),
@@ -165,7 +191,7 @@ export async function completeLessonDetailed(userId: string, id: string, opts: C
       },
       tx,
     )
-    await createLessonSnapshot(userId, id, { kind: row.kind, topicId: row.topicId, score: quiz.score, stageDone: LESSON_STAGE_MAX, itemCount: registered.length, quizCorrect: quiz.correct, quizTotal: quiz.total, date: today }, tx)
+    await createLessonSnapshot(userId, id, { kind: row.kind, topicId: row.topicId, score: quiz.score, stageDone: LESSON_STAGE_MAX, itemCount: registered.length, ...(quiz.quiz ? { quizCorrect: quiz.quiz.correct, quizTotal: quiz.quiz.total } : {}), date: today }, tx)
     await bumpDailySnapshot(userId, today, { ...(row.kind === 'REVIEW' ? { reviews: 1 } : { lessons: 1 }), repetition: { studied: registered.length } }, tx)
     const spoken = speakingRecords(progress)
     const utteranceIds = [...new Set(spoken.flatMap((sp) => (sp.utteranceId ? [sp.utteranceId] : [])))]
@@ -179,7 +205,7 @@ export async function completeLessonDetailed(userId: string, id: string, opts: C
       nextReview: null,
       result: {
         score: quiz.score,
-        quiz: { correct: quiz.correct, total: quiz.total, answered: quiz.answered },
+        quiz: quiz.quiz,
         applicationDone,
         expressions: expr,
         repetition: { items: registered.length, created: registered.filter((r) => r.created).length, updated: registered.filter((r) => !r.created).length },

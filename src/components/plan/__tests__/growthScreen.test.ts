@@ -100,7 +100,7 @@ test('적음(①) — 기간 줄 꼬리·숫자 카드·적음 안내·축 상�
   assert.ok(!listen.includes('href='), '기록 전 축은 진행선·링크 없음')
   const grammar = html.slice(html.indexOf('data-axis="GRAMMAR_PARTICLE"'), html.indexOf('data-axis="LISTEN_RESPOND"'))
   assert.ok(text(grammar).includes('아직 판단하기 일러요'))
-  assert.ok(text(grammar).includes('관측 14건 · 20건이 되면 단계가 보여요수업 문제와 대화 교정에서 쌓여요'))
+  assert.ok(text(grammar).includes('관측 14건 · 20건이 되면 단계가 보여요대화 교정에서 쌓여요'))
   assert.match(grammar, /style="width:70%"/)
   const conv = html.slice(html.indexOf('data-axis="CONVERSATION_MAINTAIN"'))
   assert.ok(text(conv).includes('끝낸 역할극 1번 · 5번이 되면 단계가 보여요'))
@@ -116,8 +116,8 @@ test('한쪽 증거(⑩ L11) — 표본 부족 줄 모양에 다른 글, 진행�
   assert.match(grammar, /<h3[^>]*>문형·조사<\/h3><span class="flex-none whitespace-nowrap text-\[14px\] font-semibold text-ink2">아직 판단하기 일러요<\/span>/)
   assert.match(
     grammar,
-    /<p class="mt-1\.5 text-\[13px\] text-ink break-keep \[overflow-wrap:anywhere\]">교정 기록이 대부분이라 단계를 보이지 않아요\.<span class="mt-0\.5 block text-\[12px\] text-ink2">수업 문제도 풀면 단계가 보이기 시작해요\.<\/span><\/p><\/li>/,
-    '본문 + 안내가 한 문단, 그 뒤 줄 끝',
+    /<p class="mt-1\.5 text-\[13px\] text-ink break-keep \[overflow-wrap:anywhere\]">교정 기록이 대부분이라 단계를 보이지 않아요\.<\/p><\/li>/,
+    '본문 한 문단, 안내 줄 없음(task-081 — 문형·조사 안내가 빈 값), 그 뒤 줄 끝',
   )
   assert.ok(!/data-meter|style="width|href=|sr-only|관측|맞힘|틀림|119|추세|일에 걸쳐/.test(grammar), '진행선·4칸 막대·숫자·추세·링크·숨김 단계 글 없음')
   assert.match(html, /지금은 <b class="font-semibold">어휘 회상<\/b>이 먼저/, '적음 안내는 한쪽 증거 축을 세지 않는다')
@@ -125,7 +125,7 @@ test('한쪽 증거(⑩ L11) — 표본 부족 줄 모양에 다른 글, 진행�
   assert.match(vocab, /data-state="stage"/)
   // 문장 산출·어휘 회상 안내 글(축마다 문장째)
   for (const [axis, sub] of [
-    ['VOCAB_RECALL', '오늘의 단어나 수업 문제도 풀면 단계가 보이기 시작해요.'],
+    ['VOCAB_RECALL', '오늘의 단어도 풀면 단계가 보이기 시작해요.'],
     ['SENTENCE_PRODUCTION', '수업 «말하기» 과제도 하면 단계가 보이기 시작해요.'],
   ] as const) {
     const d = oneSidedFixture()

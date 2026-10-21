@@ -16,8 +16,8 @@ import type { ChallengeLessonTask } from '@/types/challenge'
 import type { TodayLessons } from '@/types/lesson'
 import { LESSON_CH } from '@/components/vocab/topicCopy'
 import type { ChallengeCtx } from '@/components/vocab/topicLogic'
-import { deriveChallengeLessonCard, deriveLessonCard, correctFromScore, type AuxLessonLine, type ChallengeLessonCard } from './logic'
-import { HOME, lessonLevelBadge, PASTED_TOPIC, STAGE_NAMES, stageLabel, type LessonLevelBadge } from './lessonCopy'
+import { deriveChallengeLessonCard, deriveLessonCard, type AuxLessonLine, type ChallengeLessonCard } from './logic'
+import { HOME, lessonLevelBadge, PASTED_TOPIC, STAGE_COPULA, STAGE_NAMES, stageLabel, type LessonLevelBadge } from './lessonCopy'
 import { LESSON_KEYS, lessonPath, useLessonCreate } from './useLessonCreate'
 import { useJobWatch } from './useJobWatch'
 
@@ -81,7 +81,7 @@ function IndetBar() {
 function AuxLine({ aux, onOpen }: { aux: AuxLessonLine; onOpen: (id: string) => void }) {
   if (!aux) return null
   const t = aux.title ?? PASTED_TOPIC
-  if (aux.kind === 'done') return <p className="mt-1 text-[13px] text-ink2 break-keep [overflow-wrap:anywhere]">{LESSON_CH.auxDone(t, correctFromScore(aux.score))}</p>
+  if (aux.kind === 'done') return <p className="mt-1 text-[13px] text-ink2 break-keep [overflow-wrap:anywhere]">{LESSON_CH.auxDone(t)}</p>
   return (
     <div className="mt-1.5 flex min-w-0 items-center gap-2 rounded-xl border border-line px-3 py-2">
       <p className="min-w-0 flex-1 text-[13px] break-keep [overflow-wrap:anywhere]">{LESSON_CH.auxOpen(t, aux.stageDone)}</p>
@@ -189,7 +189,7 @@ export default function TodayLessonCard({
             {card.ready ? HOME.readyBody(topic) : HOME.progressBody(topic, card.date ? formatMonthDay(card.date) : HOME.today, card.stageDone)}
           </p>
           <MiniSteps done={card.stageDone} />
-          {card.stageDone < 5 ? <p className="mt-2 text-[12px] text-ink2">{HOME.nextStage(stageLabel(card.stageDone + 1))}</p> : null}
+          {card.stageDone < 5 ? <p className="mt-2 text-[12px] text-ink2">{HOME.nextStage(card.stageDone + 1)}</p> : null}
           <Btn className="mt-3 w-full" onClick={() => router.push(lessonPath(card.lessonId))}>
             {card.ready ? HOME.start : HOME.resume}
           </Btn>
@@ -228,7 +228,7 @@ export default function TodayLessonCard({
         <>
           <Head />
           <p className="mt-1 text-[15px] font-semibold">{HOME.doneTitle}</p>
-          <p className="mt-1 text-[13px] text-ink2 break-keep">{HOME.doneBody(topicName(l.topic), correctFromScore(l.score), l.speaking ?? null)}</p>
+          <p className="mt-1 text-[13px] text-ink2 break-keep">{HOME.doneBody(topicName(l.topic), l.pieces, l.speaking ?? null)}</p>
           {card.nextPreview ? (
             <div className="mt-2.5 rounded-xl bg-accent-soft px-3 py-2.5">
               <p className="text-[12px] text-ink2">{HOME.nextTime}</p>
@@ -407,9 +407,9 @@ function ChallengeBody({
           </p>
           <MiniSteps done={stageDone} />
           {card.kind === 'continue' && stageDone < 5 ? (
-            <p className="mt-2 text-[12px] text-ink2 break-keep">{LESSON_CH.continueNote(stageLabel(stageDone + 1), dayIndex)}</p>
+            <p className="mt-2 text-[12px] text-ink2 break-keep">{LESSON_CH.continueNote(`${stageLabel(stageDone + 1)}${STAGE_COPULA[stageDone] ?? '예요'}`, dayIndex)}</p>
           ) : card.kind === 'progress' && stageDone < 5 ? (
-            <p className="mt-2 text-[12px] text-ink2">{HOME.nextStage(stageLabel(stageDone + 1))}</p>
+            <p className="mt-2 text-[12px] text-ink2">{HOME.nextStage(stageDone + 1)}</p>
           ) : null}
           <Btn className="mt-3 w-full" onClick={() => onOpen(id)}>
             {card.kind === 'ready' ? LESSON_CH.start : LESSON_CH.resume}
@@ -438,7 +438,7 @@ function ChallengeBody({
           {head}
           {auxLine}
           <p className="mt-1 text-[15px] font-semibold">{LESSON_CH.doneTitle}</p>
-          <p className="mt-1 text-[13px] text-ink2 break-keep">{HOME.doneBody(`「${ctx.title}」`, correctFromScore(l?.score ?? null), l?.speaking ?? null)}</p>
+          <p className="mt-1 text-[13px] text-ink2 break-keep">{HOME.doneBody(`「${ctx.title}」`, l?.pieces, l?.speaking ?? null)}</p>
           {card.nextPreview ? (
             <div className="mt-2.5 rounded-xl bg-accent-soft px-3 py-2.5">
               <p className="text-[12px] text-ink2">{HOME.nextTime}</p>

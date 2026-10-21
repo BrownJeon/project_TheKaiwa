@@ -1,8 +1,8 @@
 'use client'
 
 /**
- * 챌린지 상세 조각(가이드 §3-4a·§3-4b) — 날짜 띠(roving tabindex, 달력과 같은 방향키) · 문제 점수 추이 표 · 주제 표현 진행.
- * 점수는 "문제 n/5" 하나로만 쓴다(점수 0~100·평균 표기 없음).
+ * 챌린지 상세 조각(가이드 §3-4a·§3-4b) — 날짜 띠(roving tabindex, 달력과 같은 방향키) · 날짜별 기록 표 · 주제 표현 진행.
+ * 날짜별 기록 표 — 회화는 끝냄/아직/수업 없음(task-081 §37-8, 점수·점 없음).
  */
 import { useRef, useState } from 'react'
 import { arrowDelta } from '@/components/plan/logic'
@@ -79,16 +79,6 @@ export function DayStrip({
   )
 }
 
-function Dots({ correct, total }: { correct: number; total: number }) {
-  return (
-    <span aria-hidden="true" className="mt-1 flex gap-[3px]">
-      {Array.from({ length: Math.max(0, total) }, (_, i) => (
-        <span key={i} className={`block h-1.5 w-1.5 rounded-full ${i < correct ? 'bg-good' : 'bg-surface2'}`} />
-      ))}
-    </span>
-  )
-}
-
 export function ScoreTable({ days, goal, todayIndex = null }: { days: ChallengeDay[]; goal: ChallengeDailyGoal; todayIndex?: number | null }) {
   const rows = scoreRows(days, goal, todayIndex)
   if (!rows.length) return null
@@ -102,10 +92,7 @@ export function ScoreTable({ days, goal, todayIndex = null }: { days: ChallengeD
           <span className="block text-[12px] font-normal text-ink2 tabular-nums">{r.dateText}</span>
         </th>
         {r.lesson ? (
-          <td className="py-2 pr-2 text-[13px] tabular-nums">
-            {r.lesson.text}
-            {r.lesson.dots ? <Dots correct={r.lesson.dots.correct} total={r.lesson.dots.total} /> : null}
-          </td>
+          <td className="py-2 pr-2 text-[13px] tabular-nums">{r.lesson.text}</td>
         ) : null}
         {r.words !== null ? <td className="py-2 text-[13px] tabular-nums break-keep">{r.words}</td> : null}
       </tr>
@@ -118,7 +105,7 @@ export function ScoreTable({ days, goal, todayIndex = null }: { days: ChallengeD
         </th>
         {goal.lesson ? (
           <th scope="col" className="pb-1 font-normal">
-            수업 문제
+            회화
           </th>
         ) : null}
         {goal.words ? (
@@ -132,7 +119,7 @@ export function ScoreTable({ days, goal, todayIndex = null }: { days: ChallengeD
   return (
     <div className="min-w-0 overflow-x-auto">
       <table className="w-full min-w-0 border-collapse">
-        <caption className="sr-only">날짜별 수업 문제와 단어 맞힘</caption>
+        <caption className="sr-only">날짜별 회화 수업과 단어 맞힘</caption>
         {head}
         <tbody>{render(recent)}</tbody>
       </table>
@@ -140,7 +127,7 @@ export function ScoreTable({ days, goal, todayIndex = null }: { days: ChallengeD
         <details className="mt-1">
           <summary className="flex min-h-11 cursor-pointer items-center text-[13px] font-semibold">지난 날 모두 보기({older.length}일)</summary>
           <table className="w-full border-collapse">
-            <caption className="sr-only">지난 날 수업 문제와 단어 맞힘</caption>
+            <caption className="sr-only">지난 날 회화 수업과 단어 맞힘</caption>
             {head}
             <tbody>{render(older)}</tbody>
           </table>
