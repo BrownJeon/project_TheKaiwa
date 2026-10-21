@@ -1,8 +1,8 @@
 ---
 task_id: task-079
 title: "AI 새 단어(A12) 품질 정리 — 어색한 보조 뜻(IMP-0055)·예문 null 기록(IMP-0056)·가타카나 읽기 정규화(IMP-0057)·간체자 차단(IMP-0058)"
-status: doing
-waiting: "user_verify"
+status: done
+waiting: ""
 base_ref: 725007c
 risk_level: "R1"
 roles_involved: [leader, judge, prompt-engineer, developer, reviewer]
@@ -16,7 +16,7 @@ aliases:
   - A12 품질 정리
   - task-079
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 demo_gate:
   required: false
   level: "none"
@@ -110,8 +110,9 @@ demo_gate:
 - 2026-10-20 **다음: 사용자 배포 승인 요청** (푸시 = 웹훅 재배포). 배포 후 폰 확인: 새 AI 가타카나 카드 [읽기] 버튼 비활성·「이미 있음」 표시(F-6), 뜻 줄의 `X, X` 반복 사라짐. 운영 관찰: A12 트레이스 `promptVersion` 별 `kept/target` — **레벨 칸이 트레이스에 없어 N2 만 따로 못 가르는 한계**.
 
 - 2026-10-20 **운영 배포 완료** (사용자 「배포해줘. 완료되면 확인하고 정상여부 피드백줄께」, 승인 요청 때 알린 얇은 N2 합격·판정자 1명·Codex 보류 등을 안 뒤 승인). 커밋 `016c2a8`(코드·시험) + `8e87bf8`(문서·vault) → 푸시 11:42 KST → 웹훅 → 릴리스 `20261020-114338-8e87bf80`, **롤백 대상 `20261020-081810-c6c60d7c`**(프롬프트 v4·서버 검사가 한 릴리스, DB 변경 없음). 확인: `current` 전환·pm2 3개 online 재시작 0·헬스 PRODUCTION ok·배포 소스 `topicWords@v4`·서버 번들 4파일에 v4·`SURFACE_SIMPLIFIED`·/login 200. 운영 A12 호출·화면 조작은 하지 않음. **관찰 기준선(읽기 전용, 배포 직후)**: A12 트레이스 `topicWords@v2` 9회(kept/target 0.889)·`v3` 1회 — 운영 호출량이 매우 적어 «N2 평균 8.0 미만이면 v3 복귀» 판정은 데이터가 쌓이기 전에는 못 한다(트레이스에 레벨 칸도 없음). 관찰 스크립트 `task-079-pe-data/trace-by-version.cjs`(미러에서 `M=<미러> node --env-file=.env …`). **남은 것 = 사용자 확인(최종 요약의 «사용자가 확인할 것»)**.
+- 2026-10-21 **종료** — 사용자 «폰 확인 모두 정상이야»(2026-10-21). 폰 확인 항목 전부 정상 → status done·waiting 비움.
 
-## 최종 요약 (사용자용 — 운영 배포 완료·사용자 확인 대기)
+## 최종 요약 (사용자용 — 운영 배포 완료·사용자 폰 확인 정상 2026-10-21)
 
 > 양식: 워크스페이스 [`user-report-format.md`](../../../../docs/user-report-format.md) §3.
 

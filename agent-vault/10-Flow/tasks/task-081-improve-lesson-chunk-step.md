@@ -1,8 +1,8 @@
 ---
 task_id: task-081
 title: "오늘의 회화 개편 — «문제» 단계 제거·«조각» 단계 신설(IMP-0059) + 응용 마이크 기본·한글 번역"
-status: doing
-waiting: "device_verify"
+status: done
+waiting: ""
 base_ref: 5af8e7d
 risk_level: "R1"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa]
@@ -144,6 +144,7 @@ IMP-0059 원문(접수 2026-10-20·보완 2026-10-21, `agent-vault/10-Flow/impro
 - 2026-10-21 **감사 B2(`rev-081-b2`) 결과 — PASS_WITH_NOTES, 이전 잠정 6건과 합쳐 Critical 0·High 0·Medium 2·Low 12, 코드 수정 요구 없음**: 상황 경로 새 주입 표면 없음(사용자 글 user, 조각 지침 system)·A4 일반·상황·붙여넣기는 같은 `lessonInstruction`+`extraCheck`, 복습(A5)은 같은 지침 상수+복사본 `extraCheck`. 측정 수치는 저장된 행에 하네스 `summarize`/`gate` 재실행으로 보고와 일치 확인(G2a 정확히 2/12 통과·G5b 5.88% 불합격 → r2 0/52). **Medium = 문서와 코드 어긋남 8건(D1~D8, 전부 문서 수정)** → Leader 가 `screens.md` §37-12 에서 수정 완료(slash 지우는 조건·옮김 예외 둘·골든 재기록 범위·스키마 `anyOf` 모양·검증 위치 `lessonPieces.ts`·하드 한계 목록·높임 괄호 지침 미탑재·です 붙임 확정 규칙). **사용자 보고에 반드시 넣을 정직성 항목(B2)**: ① G6 1차 67.5% → 2차 75% 는 통계적으로 구분되지 않음(Fisher p≈0.62) ② 정형 인사 오분류는 1/102줄 → 4/52줄로 늘었음 ③ 복습·상황·붙여넣기는 보정 후 각 n=1(회귀 3호출이 뒤를 받침) ④ «호출 21회» 는 재시도를 더하면 CLI 23회 ⑤ 하네스는 실행마다 상한을 걸고 원장으로 사후 집계했으며 40회 한도는 소환 지시와 원장 합산으로 지킴(«하네스가 40회를 강제» 라고 쓰지 않음) ⑥ 눈가림 «열쇠 열기 전 고정» 은 판정자 진술 + 파일 시각(키 파일 atime 이 mtime 과 같아 독립 증명은 못 함).
 - 2026-10-21 **Leader QA 완료**(기록 `task-081-qa-record.md`): API 읽기 23(내 기대 오류 4건 정정)·쓰기 27/27·소리 입력 경계·실DB 저장 확인(새 수업 `score null`·StudyLog 문항 키 생략·스냅샷 `score:null` 문항 키 없음·관측 `SENTENCE_PRODUCTION` 만·옛 수업 불변)·실제 Chrome 3폭×글꼴 2단계 79건(1차는 내 도구 결함 3가지로 27 실패 → 도구 수정 뒤 78 통과 + ④ 1건 프로브 통과)·임시 수업·파생 행은 기준선과 대조해 새 행만 삭제. 못 되돌린 것: 계정 3(QA 봇)의 기존 복습 항목 22행이 완료 직후 폴백으로 일괄 갱신(task-081 과 무관한 기존 동작). 못 본 것: 실기기·TalkBack·끝낸 수업의 오늘 카드 «조각 N개»·실서버 AI 생성 수업의 저장·다크/가로/키보드.
 - 2026-10-21 **커밋·푸시·운영 배포(사용자 «점검사항 및 배포작업 진행하자»)**: 코드 커밋 `b2b1d14`(82파일·+9,583/-1,152, task-081 파일만 경로 지정 — `.claude/agents/{deployer,leader}.md`·`.codex/**` 는 타 작업이라 제외, 비밀 값 스캔 0) → `git push origin main`(`5af8e7d..b2b1d14`, 16:24 KST) → webhook 자동 배포 → 릴리스 `20261021-162422-b2b1d141`(롤백 대상 `20261021-083046-054be9f8`), `current` 전환 16:25. 운영 확인: 헬스 `status ok`(DB·LLM·STT·TTS 전부 true·`env PRODUCTION`)·pm2 `thekaiwa`·`-speech-gateway`·`-speech-worker` online·재시작 0·새 릴리스 cwd·무인증 `GET /lessons/today`·`POST /lessons/x/audio` 401·로그인 페이지 200·번들에 새 문구(«오늘의 조각 모아 보기»·«조각을 눌러 보세요»·«글자로 쓰기»·«알아들은 말을 그대로 옮겼어요») 포함·옛 «문제 점수 추이»·«수업 문제·말하기 과제» 문구 0. DB 변경 없음·네이티브 변경 없음(APK 재설치 불필요).
+- 2026-10-21 **종료** — 사용자 «폰 확인 모두 정상이야»(2026-10-21). 폰 확인 항목 전부 정상 → status done·waiting 비움.
 
 ## 최종 요약 (사용자용 — 2026-10-21 Leader 작성, 양식 docs/user-report-format.md §3)
 

@@ -1,8 +1,8 @@
 ---
 task_id: task-080
 title: "계획표 분석·성장기록 (Phase 3) — 성장기록 탭(능력 축·추이)과 분석 탭(공부계획서 제안) 데모부터"
-status: doing
-waiting: "user_verify"
+status: done
+waiting: ""
 base_ref: 8e87bf8
 risk_level: "R2"
 roles_involved: [leader, judge, designer, prompt-engineer, developer, reviewer, qa]
@@ -16,7 +16,7 @@ aliases:
   - 분석 성장기록
   - task-080
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 demo_gate:
   required: true
   level: "full"
@@ -162,6 +162,7 @@ demo_gate:
 
 - 2026-10-21 **백필 `--apply` 완료**(사용자 「백필 적용해줘」 — 승인 요청 때 알린 운영 데이터 쓰기·백업 위치·복원 방법·적용 전 공부결과가 비어 보임을 안 뒤). 절차: ① 적용 직전 dry-run 재실행 → 승인 숫자와 완전 일치(기존 행 14·더할 관측 391·교정 유래 147·건너뜀 5행/235·어긋남 0) ② 백업 폴더 `/home/brownjeon/apps/thekaiwa/shared/backups`(700) 생성 ③ `--apply --backup-dir=…` 실행(미러 `qa080` 의 배포와 같은 코드, 종료 0) → **`applied: rows=14 observations=391`**, 백업 `growth-skills-backup-20261021T012805Z.json`(권한 600·17KB·행 14·적용 전 `skills` 가 있던 행 0). **독립 확인**: 적용 뒤 dry-run → 대상 행 0·더할 관측 0·어긋남 0(**멱등**) / 백업 `plannedAdd` 합 538 = 391 + 교정 유래 147 / DB 읽기 전용 합계 — DAILY 16행 중 `skills` 보유 14행, success 76·partial 66·fail 115·skipped 132·uncertain 2 = 391, `fromCorrection` 147 / 운영 헬스 ok. 건너뜀 5행(관측 235)은 만들지 않음(Leader 결정). **복원 방법**(필요할 때만): 백업 파일의 `rows[i].id` 로 `UPDATE … JSON_REMOVE(data, '$.skills')`(적용 전 `skills` 가 없던 행이라 전부 이 경우) — 스크립트 머리 주석 참조, 백업 뒤 실시간으로 더해진 `skills` 증가분은 복원으로 사라짐.
 - 2026-10-21 **대기**: 사용자 폰 확인(최종 요약) · 사용자가 «능력» 문구·여섯째 줄 선택. 커밋·푸시는 사용자 요청 시(vault 문서 일부 미커밋).
+- 2026-10-21 **종료** — 사용자 «폰 확인 모두 정상이야»(2026-10-21). 폰 확인 항목 전부 정상 → status done·waiting 비움.
 
 ## 최종 요약 (사용자용 — 운영 배포·백필 완료, 사용자 폰 확인 대기)
 
