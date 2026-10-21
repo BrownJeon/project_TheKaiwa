@@ -1,0 +1,580 @@
+{
+ "startedAt": "2026-10-21T05:49:50.743Z",
+ "version": "v10",
+ "plan": "core",
+ "note": "metrics only — lesson text removed",
+ "rows": [
+  {
+   "id": "T-self-intro-N5",
+   "kind": "TOPIC",
+   "level": "N5",
+   "ok": true,
+   "elapsedMs": 45807,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 11746,
+   "metrics": {
+    "lines": 10,
+    "nullLines": 0,
+    "pieceCount": 81,
+    "typedCount": 62,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 4,
+     "NAME": 16,
+     "FEELING": 16,
+     "LINK": 17,
+     "MODIFIER": 5,
+     "ACTION": 4
+    },
+    "slashes": 14,
+    "koLenMean": 3.9,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 17,
+     "splitLines": 5,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 7582,
+    "piecesChars": 3304
+   },
+   "logs": {
+    "pieces": {
+     "lines": 10,
+     "nullLines": 0,
+     "pieces": 81,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "T-cafe-order-N5",
+   "kind": "TOPIC",
+   "level": "N5",
+   "ok": true,
+   "elapsedMs": 80225,
+   "attempts": 2,
+   "model": "sonnet",
+   "promptChars": 19389,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 58,
+    "typedCount": 42,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 9,
+     "NAME": 8,
+     "LINK": 10,
+     "ACTION": 6,
+     "FEELING": 5,
+     "MODIFIER": 4
+    },
+    "slashes": 13,
+    "koLenMean": 3.9,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 9,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 6645,
+    "piecesChars": 2466
+   },
+   "logs": {
+    "retryReason": "speaking[2].modelAnswerJa 가 목표 표현 'お待ちください'(targetIds 의 'new-2')를 담고 있지 않다",
+    "pieces": {
+     "lines": 8,
+     "nullLines": 0,
+     "pieces": 58,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "T-ask-directions-N5",
+   "kind": "TOPIC",
+   "level": "N5",
+   "ok": true,
+   "elapsedMs": 39919,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 11767,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 54,
+    "typedCount": 39,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 5,
+     "NAME": 10,
+     "LINK": 10,
+     "ACTION": 6,
+     "MODIFIER": 5,
+     "FEELING": 3
+    },
+    "slashes": 10,
+    "koLenMean": 3.2,
+    "flags": {
+     "particleNotLink": 1,
+     "particlePieces": 10,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 6606,
+    "piecesChars": 2194
+   },
+   "logs": {
+    "pieces": {
+     "lines": 8,
+     "nullLines": 0,
+     "pieces": 54,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "T-weekend-plan-N4",
+   "kind": "TOPIC",
+   "level": "N4",
+   "ok": true,
+   "elapsedMs": 40627,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 11744,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 2,
+    "pieceCount": 42,
+    "typedCount": 29,
+    "koNoHangul": 0,
+    "typeDist": {
+     "NAME": 9,
+     "LINK": 6,
+     "ACTION": 5,
+     "MODIFIER": 4,
+     "EXPRESSION": 2,
+     "FEELING": 3
+    },
+    "slashes": 10,
+    "koLenMean": 3.3,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 6,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 5946,
+    "piecesChars": 1725
+   },
+   "logs": {
+    "pieces": {
+     "lines": 8,
+     "nullLines": 2,
+     "pieces": 42,
+     "koNoHangul": 0,
+     "reasons": {
+      "join_mismatch": 2
+     }
+    }
+   }
+  },
+  {
+   "id": "T-travel-story-N4",
+   "kind": "TOPIC",
+   "level": "N4",
+   "ok": true,
+   "elapsedMs": 42820,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 11749,
+   "metrics": {
+    "lines": 9,
+    "nullLines": 0,
+    "pieceCount": 65,
+    "typedCount": 48,
+    "koNoHangul": 0,
+    "typeDist": {
+     "NAME": 11,
+     "LINK": 13,
+     "ACTION": 5,
+     "EXPRESSION": 3,
+     "MODIFIER": 7,
+     "FEELING": 9
+    },
+    "slashes": 34,
+    "koLenMean": 3.3,
+    "flags": {
+     "particleNotLink": 1,
+     "particlePieces": 14,
+     "splitLines": 1,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 1,
+     "koLong": 0
+    },
+    "outChars": 7111,
+    "piecesChars": 2923
+   },
+   "logs": {
+    "pieces": {
+     "lines": 9,
+     "nullLines": 0,
+     "pieces": 65,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "T-travel-story-N3",
+   "kind": "TOPIC",
+   "level": "N3",
+   "ok": true,
+   "elapsedMs": 46889,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 11756,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 2,
+    "pieceCount": 53,
+    "typedCount": 39,
+    "koNoHangul": 0,
+    "typeDist": {
+     "NAME": 10,
+     "LINK": 15,
+     "ACTION": 7,
+     "EXPRESSION": 3,
+     "FEELING": 3,
+     "MODIFIER": 1
+    },
+    "slashes": 10,
+    "koLenMean": 3.6,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 15,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 6697,
+    "piecesChars": 2142
+   },
+   "logs": {
+    "pieces": {
+     "lines": 8,
+     "nullLines": 2,
+     "pieces": 53,
+     "koNoHangul": 0,
+     "reasons": {
+      "join_mismatch": 2
+     }
+    }
+   }
+  },
+  {
+   "id": "T-weekend-plan-N2",
+   "kind": "TOPIC",
+   "level": "N2",
+   "ok": true,
+   "elapsedMs": 49326,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 11742,
+   "metrics": {
+    "lines": 9,
+    "nullLines": 1,
+    "pieceCount": 71,
+    "typedCount": 52,
+    "koNoHangul": 0,
+    "typeDist": {
+     "NAME": 13,
+     "LINK": 14,
+     "MODIFIER": 7,
+     "ACTION": 7,
+     "EXPRESSION": 5,
+     "FEELING": 6
+    },
+    "slashes": 12,
+    "koLenMean": 3.7,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 11,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 7438,
+    "piecesChars": 2891
+   },
+   "logs": {
+    "pieces": {
+     "lines": 9,
+     "nullLines": 1,
+     "pieces": 71,
+     "koNoHangul": 0,
+     "reasons": {
+      "join_mismatch": 1
+     }
+    }
+   }
+  },
+  {
+   "id": "T-cafe-order-N3",
+   "kind": "TOPIC",
+   "level": "N3",
+   "ok": true,
+   "elapsedMs": 79766,
+   "attempts": 2,
+   "model": "sonnet",
+   "promptChars": 19330,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 58,
+    "typedCount": 42,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 8,
+     "NAME": 8,
+     "LINK": 10,
+     "ACTION": 5,
+     "FEELING": 5,
+     "MODIFIER": 6
+    },
+    "slashes": 13,
+    "koLenMean": 3.7,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 10,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 6521,
+    "piecesChars": 2444
+   },
+   "logs": {
+    "retryReason": "/application: 항목 수 3개 초과",
+    "pieces": {
+     "lines": 8,
+     "nullLines": 0,
+     "pieces": 58,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "S-cafe-order-N5",
+   "kind": "SCENARIO",
+   "level": "N5",
+   "ok": true,
+   "elapsedMs": 44109,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 12291,
+   "metrics": {
+    "lines": 10,
+    "nullLines": 0,
+    "pieceCount": 81,
+    "typedCount": 60,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 10,
+     "NAME": 15,
+     "LINK": 19,
+     "ACTION": 7,
+     "MODIFIER": 5,
+     "FEELING": 4
+    },
+    "slashes": 26,
+    "koLenMean": 3.7,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 19,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 7554,
+    "piecesChars": 3478
+   },
+   "logs": {
+    "pieces": {
+     "lines": 10,
+     "nullLines": 0,
+     "pieces": 81,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "SRC-paste-N4",
+   "kind": "SOURCE",
+   "level": "N4",
+   "ok": true,
+   "elapsedMs": 38123,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 11232,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 59,
+    "typedCount": 40,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 6,
+     "MODIFIER": 4,
+     "NAME": 9,
+     "LINK": 10,
+     "ACTION": 8,
+     "FEELING": 3
+    },
+    "slashes": 14,
+    "koLenMean": 3.6,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 10,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 6200,
+    "piecesChars": 2453
+   },
+   "logs": {
+    "pieces": {
+     "lines": 8,
+     "nullLines": 0,
+     "pieces": 59,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "R-6",
+   "kind": "REVIEW",
+   "level": "N4",
+   "ok": true,
+   "elapsedMs": 38367,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 10776,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 50,
+    "typedCount": 31,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 5,
+     "NAME": 9,
+     "LINK": 6,
+     "ACTION": 3,
+     "MODIFIER": 2,
+     "FEELING": 6
+    },
+    "slashes": 24,
+    "koLenMean": 4.2,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 6,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 6171,
+    "piecesChars": 2251
+   },
+   "logs": {
+    "pieces": {
+     "lines": 8,
+     "nullLines": 0,
+     "pieces": 50,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  },
+  {
+   "id": "R-10",
+   "kind": "REVIEW",
+   "level": "N4",
+   "ok": true,
+   "elapsedMs": 42586,
+   "attempts": 1,
+   "model": "sonnet",
+   "promptChars": 10920,
+   "metrics": {
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 67,
+    "typedCount": 44,
+    "koNoHangul": 0,
+    "typeDist": {
+     "NAME": 11,
+     "EXPRESSION": 8,
+     "LINK": 10,
+     "ACTION": 5,
+     "MODIFIER": 4,
+     "FEELING": 6
+    },
+    "slashes": 18,
+    "koLenMean": 3.7,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 10,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0
+    },
+    "outChars": 6980,
+    "piecesChars": 2813
+   },
+   "logs": {
+    "pieces": {
+     "lines": 8,
+     "nullLines": 0,
+     "pieces": 67,
+     "koNoHangul": 0,
+     "reasons": {}
+    }
+   }
+  }
+ ]
+}

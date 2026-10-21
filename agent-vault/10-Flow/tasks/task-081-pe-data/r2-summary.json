@@ -1,0 +1,532 @@
+{
+ "startedAt": "2026-10-21T06:23:05.540Z",
+ "version": "v10r2",
+ "plan": "r2",
+ "note": "metrics only — lesson text removed (PE 3단계 재측정 r2)",
+ "rows": [
+  {
+   "id": "T-self-intro-N4",
+   "kind": "TOPIC",
+   "level": "N4",
+   "arm": "v10r2",
+   "ok": true,
+   "elapsedMs": 43316,
+   "attempts": 1,
+   "promptChars": 12045,
+   "model": "sonnet",
+   "metrics": {
+    "lines": 10,
+    "nullLines": 0,
+    "pieceCount": 62,
+    "typedCount": 39,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 6,
+     "NAME": 11,
+     "LINK": 6,
+     "ACTION": 7,
+     "MODIFIER": 5,
+     "FEELING": 4
+    },
+    "slashes": 17,
+    "koLenMean": 4.1,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 6,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 0,
+     "greetingAsAction": 2,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "outChars": 7109,
+    "piecesChars": 2636
+   },
+   "logs": {
+    "pieces": {
+     "lines": 10,
+     "nullLines": 0,
+     "pieces": 62,
+     "koNoHangul": 0,
+     "reasons": {},
+     "slashMoved": 2
+    }
+   }
+  },
+  {
+   "id": "T-cafe-order-N4",
+   "kind": "TOPIC",
+   "level": "N4",
+   "arm": "v10r2",
+   "ok": true,
+   "elapsedMs": 45391,
+   "attempts": 1,
+   "promptChars": 12026,
+   "model": "sonnet",
+   "metrics": {
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 56,
+    "typedCount": 38,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 8,
+     "NAME": 7,
+     "LINK": 7,
+     "ACTION": 6,
+     "FEELING": 4,
+     "MODIFIER": 6
+    },
+    "slashes": 8,
+    "koLenMean": 3.8,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 7,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 2,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "outChars": 6741,
+    "piecesChars": 2304
+   },
+   "logs": {
+    "pieces": {
+     "lines": 8,
+     "nullLines": 0,
+     "pieces": 56,
+     "koNoHangul": 0,
+     "reasons": {},
+     "slashMoved": 0
+    }
+   }
+  },
+  {
+   "id": "T-travel-story-N5",
+   "kind": "TOPIC",
+   "level": "N5",
+   "arm": "v10r2",
+   "ok": true,
+   "elapsedMs": 39445,
+   "attempts": 1,
+   "promptChars": 12114,
+   "model": "sonnet",
+   "metrics": {
+    "lines": 9,
+    "nullLines": 0,
+    "pieceCount": 57,
+    "typedCount": 41,
+    "koNoHangul": 0,
+    "typeDist": {
+     "NAME": 9,
+     "LINK": 11,
+     "ACTION": 10,
+     "EXPRESSION": 3,
+     "FEELING": 3,
+     "MODIFIER": 5
+    },
+    "slashes": 12,
+    "koLenMean": 3.4,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 11,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "outChars": 6544,
+    "piecesChars": 2349
+   },
+   "logs": {
+    "pieces": {
+     "lines": 9,
+     "nullLines": 0,
+     "pieces": 57,
+     "koNoHangul": 0,
+     "reasons": {},
+     "slashMoved": 0
+    }
+   }
+  },
+  {
+   "id": "T-self-intro-N3",
+   "kind": "TOPIC",
+   "level": "N3",
+   "arm": "v10r2",
+   "ok": true,
+   "elapsedMs": 43745,
+   "attempts": 1,
+   "promptChars": 12052,
+   "model": "sonnet",
+   "metrics": {
+    "lines": 9,
+    "nullLines": 0,
+    "pieceCount": 68,
+    "typedCount": 47,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 5,
+     "NAME": 15,
+     "ACTION": 5,
+     "LINK": 10,
+     "MODIFIER": 6,
+     "FEELING": 6
+    },
+    "slashes": 19,
+    "koLenMean": 3.8,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 10,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 0,
+     "greetingAsAction": 2,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "outChars": 7336,
+    "piecesChars": 2891
+   },
+   "logs": {
+    "pieces": {
+     "lines": 9,
+     "nullLines": 0,
+     "pieces": 68,
+     "koNoHangul": 0,
+     "reasons": {},
+     "slashMoved": 0
+    }
+   }
+  },
+  {
+   "id": "T-travel-story-N2",
+   "kind": "TOPIC",
+   "level": "N2",
+   "arm": "v10r2",
+   "ok": true,
+   "elapsedMs": 44350,
+   "attempts": 1,
+   "promptChars": 12079,
+   "model": "sonnet",
+   "metrics": {
+    "lines": 7,
+    "nullLines": 0,
+    "pieceCount": 66,
+    "typedCount": 48,
+    "koNoHangul": 0,
+    "typeDist": {
+     "NAME": 10,
+     "LINK": 16,
+     "ACTION": 8,
+     "EXPRESSION": 6,
+     "MODIFIER": 5,
+     "FEELING": 3
+    },
+    "slashes": 13,
+    "koLenMean": 3.4,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 15,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 1,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "outChars": 7073,
+    "piecesChars": 2697
+   },
+   "logs": {
+    "pieces": {
+     "lines": 7,
+     "nullLines": 0,
+     "pieces": 66,
+     "koNoHangul": 0,
+     "reasons": {},
+     "slashMoved": 0
+    }
+   }
+  },
+  {
+   "id": "T-ask-directions-N4",
+   "kind": "TOPIC",
+   "level": "N4",
+   "arm": "v10r2",
+   "ok": true,
+   "elapsedMs": 38273,
+   "attempts": 1,
+   "promptChars": 12066,
+   "model": "sonnet",
+   "metrics": {
+    "lines": 9,
+    "nullLines": 0,
+    "pieceCount": 58,
+    "typedCount": 42,
+    "koNoHangul": 0,
+    "typeDist": {
+     "EXPRESSION": 6,
+     "NAME": 12,
+     "LINK": 12,
+     "ACTION": 6,
+     "MODIFIER": 3,
+     "FEELING": 3
+    },
+    "slashes": 9,
+    "koLenMean": 3.2,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 11,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 1,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "outChars": 6572,
+    "piecesChars": 2317
+   },
+   "logs": {
+    "pieces": {
+     "lines": 9,
+     "nullLines": 0,
+     "pieces": 58,
+     "koNoHangul": 0,
+     "reasons": {},
+     "slashMoved": 0
+    }
+   }
+  }
+ ],
+ "compareCoreVsR2": {
+  "core": {
+   "calls": 12,
+   "failed": 0,
+   "retried": 2,
+   "over120": 0,
+   "medianSingleMs": 42586,
+   "p90Ms": 79766,
+   "maxMs": 80225,
+   "promptCharsMedian": 11742,
+   "outCharsMedian": 6645,
+   "piecesShare": 38.2,
+   "lines": 102,
+   "nullLines": 5,
+   "nullLineRate": 0.049019607843137254,
+   "reasons": {
+    "join_mismatch": 5
+   },
+   "pieceCount": 739,
+   "piecesPerLine": 7.6,
+   "slashesPerLine": 2.04,
+   "typed": 528,
+   "koNoHangul": 0,
+   "typeDist": {
+    "EXPRESSION": 68,
+    "NAME": 129,
+    "FEELING": 69,
+    "LINK": 140,
+    "MODIFIER": 54,
+    "ACTION": 68
+   },
+   "flags": {
+    "particleNotLinkRate": 0.014598540145985401,
+    "particlePieces": 137,
+    "splitLineRate": 0.058823529411764705,
+    "expressionLong": 0,
+    "slashNoneLines": 0,
+    "slashManyLines": 1,
+    "koLong": 0,
+    "lonelyCopula": 22,
+    "lonelyCopulaLines": 18,
+    "feelingVerbForm": 3,
+    "quantityNotName": 4,
+    "greetingAsAction": 1,
+    "koYoBad": 2,
+    "slashBeforeLink": 14,
+    "slashMoved": null
+   },
+   "gate": {
+    "G1a": {
+     "value": 42586,
+     "pass": true
+    },
+    "G1b": {
+     "value": 80225,
+     "pass": true
+    },
+    "G1c": {
+     "value": 0,
+     "pass": true
+    },
+    "G2a": {
+     "value": "2/12",
+     "pass": true
+    },
+    "G2b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3a": {
+     "value": "5/102",
+     "pass": true
+    },
+    "G3b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3c": {
+     "value": 0,
+     "pass": true
+    },
+    "G4": {
+     "value": "0/528",
+     "pass": true
+    },
+    "G5a": {
+     "value": "1.5% of 137",
+     "pass": true
+    },
+    "G5b": {
+     "value": "5.9%",
+     "pass": false
+    }
+   }
+  },
+  "r2": {
+   "calls": 6,
+   "failed": 0,
+   "retried": 0,
+   "over120": 0,
+   "medianSingleMs": 43316,
+   "p90Ms": 45391,
+   "maxMs": 45391,
+   "promptCharsMedian": 12052,
+   "outCharsMedian": 6741,
+   "piecesShare": 36.7,
+   "lines": 52,
+   "nullLines": 0,
+   "nullLineRate": 0,
+   "reasons": {},
+   "pieceCount": 367,
+   "piecesPerLine": 7.1,
+   "slashesPerLine": 1.5,
+   "typed": 255,
+   "koNoHangul": 0,
+   "typeDist": {
+    "EXPRESSION": 34,
+    "NAME": 64,
+    "LINK": 62,
+    "ACTION": 42,
+    "MODIFIER": 30,
+    "FEELING": 23
+   },
+   "flags": {
+    "particleNotLinkRate": 0,
+    "particlePieces": 60,
+    "splitLineRate": 0,
+    "expressionLong": 0,
+    "slashNoneLines": 1,
+    "slashManyLines": 0,
+    "koLong": 0,
+    "lonelyCopula": 0,
+    "lonelyCopulaLines": 0,
+    "feelingVerbForm": 1,
+    "quantityNotName": 2,
+    "greetingAsAction": 4,
+    "koYoBad": 0,
+    "slashBeforeLink": 0,
+    "slashMoved": 2
+   },
+   "gate": {
+    "G1a": {
+     "value": 43316,
+     "pass": true
+    },
+    "G1b": {
+     "value": 45391,
+     "pass": true
+    },
+    "G1c": {
+     "value": 0,
+     "pass": true
+    },
+    "G2a": {
+     "value": "0/6",
+     "pass": true
+    },
+    "G2b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3a": {
+     "value": "0/52",
+     "pass": true
+    },
+    "G3b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3c": {
+     "value": 0,
+     "pass": true
+    },
+    "G4": {
+     "value": "0/255",
+     "pass": true
+    },
+    "G5a": {
+     "value": "0% of 60",
+     "pass": true
+    },
+    "G5b": {
+     "value": "0%",
+     "pass": true
+    }
+   }
+  }
+ }
+}

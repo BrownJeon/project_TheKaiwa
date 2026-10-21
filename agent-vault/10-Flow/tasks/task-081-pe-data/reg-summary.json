@@ -1,0 +1,401 @@
+{
+ "aggregate": {
+  "core": {
+   "calls": 3,
+   "failed": 0,
+   "retried": 0,
+   "over120": 0,
+   "medianSingleMs": 38367,
+   "p90Ms": 44109,
+   "maxMs": 44109,
+   "promptCharsMedian": 11232,
+   "outCharsMedian": 6200,
+   "piecesShare": 41.1,
+   "lines": 26,
+   "nullLines": 0,
+   "nullLineRate": 0,
+   "reasons": {},
+   "pieceCount": 190,
+   "piecesPerLine": 7.3,
+   "slashesPerLine": 2.46,
+   "typed": 131,
+   "koNoHangul": 0,
+   "typeDist": {
+    "EXPRESSION": 21,
+    "NAME": 33,
+    "LINK": 35,
+    "ACTION": 18,
+    "MODIFIER": 11,
+    "FEELING": 13
+   },
+   "flags": {
+    "particleNotLinkRate": 0,
+    "particlePieces": 35,
+    "splitLineRate": 0,
+    "expressionLong": 0,
+    "slashNoneLines": 0,
+    "slashManyLines": 0,
+    "koLong": 0,
+    "lonelyCopula": 2,
+    "lonelyCopulaLines": 1,
+    "feelingVerbForm": 1,
+    "quantityNotName": 1,
+    "greetingAsAction": 0,
+    "koYoBad": 0,
+    "slashBeforeLink": 2,
+    "slashMoved": null
+   },
+   "gate": {
+    "G1a": {
+     "value": 38367,
+     "pass": true
+    },
+    "G1b": {
+     "value": 44109,
+     "pass": true
+    },
+    "G1c": {
+     "value": 0,
+     "pass": true
+    },
+    "G2a": {
+     "value": "0/3",
+     "pass": true
+    },
+    "G2b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3a": {
+     "value": "0/26",
+     "pass": true
+    },
+    "G3b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3c": {
+     "value": 0,
+     "pass": true
+    },
+    "G4": {
+     "value": "0/131",
+     "pass": true
+    },
+    "G5a": {
+     "value": "0% of 35",
+     "pass": true
+    },
+    "G5b": {
+     "value": "0%",
+     "pass": true
+    }
+   }
+  },
+  "reg": {
+   "calls": 3,
+   "failed": 0,
+   "retried": 0,
+   "over120": 0,
+   "medianSingleMs": 41842,
+   "p90Ms": 42808,
+   "maxMs": 42808,
+   "promptCharsMedian": 11564,
+   "outCharsMedian": 6712,
+   "piecesShare": 40.2,
+   "lines": 27,
+   "nullLines": 1,
+   "nullLineRate": 0.037037037037037035,
+   "reasons": {
+    "type_null_mismatch": 1
+   },
+   "pieceCount": 193,
+   "piecesPerLine": 7.4,
+   "slashesPerLine": 2.12,
+   "typed": 140,
+   "koNoHangul": 0,
+   "typeDist": {
+    "NAME": 38,
+    "FEELING": 13,
+    "LINK": 45,
+    "MODIFIER": 10,
+    "ACTION": 18,
+    "EXPRESSION": 16
+   },
+   "flags": {
+    "particleNotLinkRate": 0,
+    "particlePieces": 44,
+    "splitLineRate": 0,
+    "expressionLong": 0,
+    "slashNoneLines": 0,
+    "slashManyLines": 0,
+    "koLong": 0,
+    "lonelyCopula": 0,
+    "lonelyCopulaLines": 0,
+    "feelingVerbForm": 2,
+    "quantityNotName": 0,
+    "greetingAsAction": 0,
+    "koYoBad": 0,
+    "slashBeforeLink": 0,
+    "slashMoved": 22
+   },
+   "gate": {
+    "G1a": {
+     "value": 41842,
+     "pass": true
+    },
+    "G1b": {
+     "value": 42808,
+     "pass": true
+    },
+    "G1c": {
+     "value": 0,
+     "pass": true
+    },
+    "G2a": {
+     "value": "0/3",
+     "pass": true
+    },
+    "G2b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3a": {
+     "value": "1/27",
+     "pass": true
+    },
+    "G3b": {
+     "value": 0,
+     "pass": true
+    },
+    "G3c": {
+     "value": 0,
+     "pass": true
+    },
+    "G4": {
+     "value": "0/140",
+     "pass": true
+    },
+    "G5a": {
+     "value": "0% of 44",
+     "pass": true
+    },
+    "G5b": {
+     "value": "0%",
+     "pass": true
+    }
+   }
+  }
+ },
+ "byId": [
+  {
+   "id": "R-6",
+   "core": {
+    "ok": true,
+    "elapsedMs": 38367,
+    "attempts": 1,
+    "promptChars": 10776,
+    "outChars": 6171,
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 50,
+    "koNoHangul": 0,
+    "slashes": 24,
+    "reasons": {},
+    "slashMoved": null,
+    "retryReason": null,
+    "tolerated": null,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 6,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 1,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 1
+    },
+    "error": null
+   },
+   "reg": {
+    "ok": true,
+    "elapsedMs": 41842,
+    "attempts": 1,
+    "promptChars": 11108,
+    "outChars": 6695,
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 63,
+    "koNoHangul": 0,
+    "slashes": 20,
+    "reasons": {},
+    "slashMoved": 10,
+    "retryReason": null,
+    "tolerated": null,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 13,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 2,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "error": null
+   }
+  },
+  {
+   "id": "S-cafe-order-N5",
+   "core": {
+    "ok": true,
+    "elapsedMs": 44109,
+    "attempts": 1,
+    "promptChars": 12291,
+    "outChars": 7554,
+    "lines": 10,
+    "nullLines": 0,
+    "pieceCount": 81,
+    "koNoHangul": 0,
+    "slashes": 26,
+    "reasons": {},
+    "slashMoved": null,
+    "retryReason": null,
+    "tolerated": null,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 19,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 2,
+     "lonelyCopulaLines": 1,
+     "feelingVerbForm": 0,
+     "quantityNotName": 1,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 1
+    },
+    "error": null
+   },
+   "reg": {
+    "ok": true,
+    "elapsedMs": 41487,
+    "attempts": 1,
+    "promptChars": 12623,
+    "outChars": 6972,
+    "lines": 10,
+    "nullLines": 0,
+    "pieceCount": 66,
+    "koNoHangul": 0,
+    "slashes": 20,
+    "reasons": {},
+    "slashMoved": 12,
+    "retryReason": null,
+    "tolerated": null,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 14,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "error": null
+   }
+  },
+  {
+   "id": "SRC-paste-N4",
+   "core": {
+    "ok": true,
+    "elapsedMs": 38123,
+    "attempts": 1,
+    "promptChars": 11232,
+    "outChars": 6200,
+    "lines": 8,
+    "nullLines": 0,
+    "pieceCount": 59,
+    "koNoHangul": 0,
+    "slashes": 14,
+    "reasons": {},
+    "slashMoved": null,
+    "retryReason": null,
+    "tolerated": null,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 10,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "error": null
+   },
+   "reg": {
+    "ok": true,
+    "elapsedMs": 42808,
+    "attempts": 1,
+    "promptChars": 11564,
+    "outChars": 6712,
+    "lines": 9,
+    "nullLines": 1,
+    "pieceCount": 64,
+    "koNoHangul": 0,
+    "slashes": 15,
+    "reasons": {
+     "type_null_mismatch": 1
+    },
+    "slashMoved": 0,
+    "retryReason": null,
+    "tolerated": null,
+    "flags": {
+     "particleNotLink": 0,
+     "particlePieces": 17,
+     "splitLines": 0,
+     "expressionLong": 0,
+     "slashNoneLines": 0,
+     "slashManyLines": 0,
+     "koLong": 0,
+     "lonelyCopula": 0,
+     "lonelyCopulaLines": 0,
+     "feelingVerbForm": 0,
+     "quantityNotName": 0,
+     "greetingAsAction": 0,
+     "koYoBad": 0,
+     "slashBeforeLink": 0
+    },
+    "error": null
+   }
+  }
+ ]
+}
