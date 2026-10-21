@@ -216,3 +216,19 @@ TheAdmin(조회 전용 상태 대시보드)은 task frontmatter `status` 와 `ag
 3. roadmap.md frontmatter `updated` 를 오늘 날짜로 바꾼다.
 
 roadmap.md 가 아직 없으면 1만 한다. 형식 정본: `TheAdmin/docs/design/roadmap-format.md`, 검사: `node TheAdmin/scripts/roadmap-lint.mjs <roadmap.md> --project-dir <프로젝트>`.
+
+## 사용자 보고 양식 (2026-10-20)
+
+> 📄 정본: [`user-report-format.md`](../../../docs/user-report-format.md) — task "최종 요약"과 사용자에게 하는 채팅 보고에 같은 양식을 쓴다.
+
+- **작업 1건 = 블록 1개** (`### [task ID] 사용자가 알아볼 주제` — 파일명이 아니라 화면·동작 기준): 상태 · 무엇이 바뀌었나 · 배포 · AI 가 검증한 것/못 한 것 · 👉 사용자가 확인할 것 · 👉 사용자가 결정할 것 · 남은 일 · 이슈·위험. 해당 없으면 지우지 말고 "없음".
+- 여러 작업을 한 번에 보고하면 "한눈에 보기" 표 → "사용자 할 일 모음"(task ID 붙여 급한 순) → 작업별 블록 → "이전부터 대기 중" 순서로 쓴다. 여러 task 를 한 문장에 묶어 쓰지 않는다.
+- 배포 항목: 커밋·시각(KST)·방식·결과, 안 했으면 "미배포 — 이유". Deployer `## 배포 기록` 의 **포함 작업** 열을 근거로 같은 배포에 함께 실린 다른 작업(타 세션 포함)을 적는다.
+- 사용자 확인 항목: 어디서(URL·화면·메뉴) → 무엇을 해 보고 → 무엇이 보이면 정상인지 → 언제부터(KST). 있으면 frontmatter `waiting:` 을 맞춘다. "확인 부탁드립니다"만 쓰지 않는다.
+- 서브에이전트 보고를 그대로 옮기지 않고 이 양식으로 다시 정리한다.
+
+**TheKaiwa 확인 포인트** (배포·사용자 확인 항목에서 빠뜨리지 않는다):
+- Deployer `RELEASE_RESULT` 와 운영 스모크(`SMOKE_ENV=PRODUCTION`) 결과를 배포 항목에 적는다
+- `reinstall_required=true` 면 "👉 사용자가 확인할 것" 1번에 APK URL·versionName·재설치 안내를 넣고 `waiting: device_verify`. 아니면 "앱 재설치 불필요(웹 배포만)"라고 명시한다
+- M4 tts-service(git push 웹훅)를 함께 바꿨으면 우분투 배포와 따로 적는다(사용자 승인 사항)
+- light 트랙이면 상태 옆에 "light 트랙 — QA·데모 생략"을 적는다
