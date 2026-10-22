@@ -5,6 +5,7 @@
  * 뒷면 = 표현(저장 읽기 루비는 앱 히라가나 설정과 무관하게 늘 — task-033 C1-A)·`[한글]` + 결과 띠 + 뜻 + 예문(히라가나·`[한글]` 1줄)·번역.
  * 카드 영역은 스크롤할 수 없어(`touch-action:none`) 예문은 2줄·번역 1줄에서 자르고 전체는 결과 화면·단어 상세에서 본다.
  * `[한글]` 줄은 카드에 자리가 없을 때만 뺀다(C2-A, 번역 우선, 되돌림 없음) — 면을 그릴 때 재고, 드래그 중에는 재지 않는다.
+ * 뒷면 세로 간격(띠·본문 위 `mt-1.5`, 예문 위 `mt-1`, 예문 `[한글]` 위 0·줄간격 1.3)은 예문 `[한글]` 도 같은 카드에 들어가도록 줄인 값이다(task-083) — `!` 는 `HangulLine` 기본 `mt-0.5`·`leading-[1.5]` 를 이기려는 것.
  * 예문 `[한글]` 을 먼저 빼고, 표제어 `[한글]` 은 표제어와 같은 줄(인라인)이라 세로 자리를 쓰지 않으면 빼도 높이가 안 줄어 늘 둔다.
  * 예문 `[한글]` 을 뺀 뒤에도 넘치고 **표제어 `[한글]` 이 아래 줄로 내려가 자기 줄을 차지할 때만** 그것도 뺀다(긴 표제어·좁은 카드, task-082 r2·r3).
  * **안에 버튼을 두지 않는다**(제스처 영역). `memo` — 드래그 중에는 transform 만 바뀌고 이 면은 다시 그리지 않는다.
@@ -220,13 +221,13 @@ function VocabCardFace({
         </div>
         <Star on={card.flagged} />
       </div>
-      {band ? <p className={`mt-2 self-start rounded-lg px-2.5 py-1 text-[13px] font-semibold ${BAND_TONE[band.tone]}`}>{band.text}</p> : null}
-      <div ref={bodyRef} className="mt-2 min-h-0 flex-1">
+      {band ? <p className={`mt-1.5 self-start rounded-lg px-2.5 py-1 text-[13px] font-semibold ${BAND_TONE[band.tone]}`}>{band.text}</p> : null}
+      <div ref={bodyRef} className="mt-1.5 min-h-0 flex-1">
         <p className="line-clamp-3 text-[19px] font-semibold break-keep [overflow-wrap:anywhere]">{meaning}</p>
         {card.example ? (
           <div>
-            <JaText text={card.example} state={exampleAnn} leading={2.15} className="mt-2 line-clamp-2 text-[16px] leading-[1.6] [overflow-wrap:anywhere]" />
-            {dropLevel >= 1 ? null : <HangulLine state={exampleAnn} size={13} className="line-clamp-1!" />}
+            <JaText text={card.example} state={exampleAnn} leading={2.15} className="mt-1 line-clamp-2 text-[16px] leading-[1.6] [overflow-wrap:anywhere]" />
+            {dropLevel >= 1 ? null : <HangulLine state={exampleAnn} size={13} className="line-clamp-1! mt-0! leading-[1.3]!" />}
           </div>
         ) : null}
         {card.exampleKo ? <p className="line-clamp-1 text-[14px] text-ink2 break-keep [overflow-wrap:anywhere]">{card.exampleKo}</p> : null}

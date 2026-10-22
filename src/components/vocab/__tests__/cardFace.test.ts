@@ -145,8 +145,22 @@ test('뒷면: 표제어는 rubyAlways(C1-A)·옆 읽기 칸 없음·예문 [한�
   const src = read('VocabCardFace.tsx')
   assert.match(src, /rubyAlways\s+leading=\{2\}\s+rt=\{11\}/)
   assert.ok(!/\{card\.reading\}/.test(src), '옆 읽기 칸')
-  assert.match(src, /<HangulLine state=\{exampleAnn\} size=\{13\} className="line-clamp-1!"/)
+  assert.match(src, /<HangulLine state=\{exampleAnn\} size=\{13\} className="line-clamp-1! /)
   assert.match(src, /leading=\{2\.15\}/)
+})
+
+test('뒷면 세로 간격(task-083): 띠·본문 mt-1.5, 예문 mt-1, 예문 [한글] 은 위 간격 0·줄간격 1.3(! 로 HangulLine 기본을 이김) — 예문 [한글] 은 여전히 1단계에서만 가린다', () => {
+  const src = read('VocabCardFace.tsx')
+  const back = src.slice(src.indexOf('const band = card.answer'))
+  assert.match(back, /<p className=\{`mt-1\.5 self-start /, '띠 위 간격')
+  assert.match(back, /<div ref=\{bodyRef\} className="mt-1\.5 min-h-0 flex-1">/, '본문 위 간격')
+  assert.match(back, /<JaText text=\{card\.example\} [^\n]*className="mt-1 line-clamp-2 /, '예문 위 간격')
+  const line = back.split('\n').find((l) => l.includes('state={exampleAnn} size={13}') && l.includes('<HangulLine'))
+  assert.ok(line, '예문 [한글] 줄')
+  const cls = /className="([^"]*)"/.exec(line)?.[1].split(/\s+/) ?? []
+  assert.ok(cls.includes('mt-0!') && cls.includes('leading-[1.3]!'), `예문 [한글] 클래스에 mt-0!·leading-[1.3]! 가 있어야 한다: ${cls.join(' ')}`)
+  assert.match(line, /dropLevel >= 1 \? null :/, '예문 [한글] 은 1단계에서만 가린다')
+  assert.ok(!/\bmt-2\b/.test(back), '뒷면에 옛 mt-2 간격이 남아 있다')
 })
 
 test('뒷면 측정: 드래그 이벤트에 걸지 않는다 — 키(카드·면·예문·분석 상태·카드 상자 크기)에만 한 번', () => {
