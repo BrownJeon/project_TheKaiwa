@@ -1,0 +1,37 @@
+---
+imp_id: IMP-0062
+title: "오늘의 단어 — 객관식으로 답한 카드도 답 확인 뒤에는 일반 정답 확인 카드(보기 없이 기록 한 줄)로 보이게"
+status: planned
+screen: "§5 오늘의 단어 — 카드 뒷면 아래 영역(Ac 객관식으로 답함·지난 카드)"
+area: ui
+priority: ""
+found_on: "2026-10-22 사용자 폰(스크린샷 12:28 두 장)"
+created: 2026-10-22
+updated: 2026-10-22
+observed_ref: 179841b
+related_task: "[[task-083-improve-word-card-example-hangul]]"
+planned_task: "[[task-084-improve-word-card-choice-answered]]"
+tags:
+  - type/improvement
+aliases:
+  - IMP-0062
+---
+
+## 현상
+
+카드 우선 세트에서 «알았어요» 로 바로 답한 카드는 지난 카드로 돌아가 보면 뒷면 + 「알았어요로 기록했어요」 한 줄(일반 정답 확인 카드)인데, **객관식으로 바꿔 답한 카드는 뒷면 아래에 보기 4개(✓ 정답 / ✗ 내 답)가 그대로 남는다**(screens.md Ac·지난 카드 — 의도된 옛 설계, `VocabDeck.tsx` 297행). 두 카드가 같은 «답한 카드» 인데 아래 영역이 달라 보인다.
+
+## 기대하는 모습
+
+> 단어를 풀때 바로 정답을 확인한 것과 객관식으로 변경 후 선택한 것이 되돌아서 정답내역을 확인해도 동이휴ㅏ게 나오는데 객관식으로 풀더라도 정답확인 후에는 일반 정답확인 카드로 보여주도록 해줘  (사용자, 2026-10-22 — 「동이휴ㅏ게」 는 오타로 보고 «같은 모양이 되어야 한다» 로 해석)
+
+## 근거
+
+- 스크린샷 2(2/5·지난 카드): 객관식으로 답해 `✗ 틀렸어요` 띠 + 뜻 `조금` + 보기 4개(`내 답`·`정답` 표시). 스크린샷 1(1/5·지난 카드): 직접 답해 `✓ 알았어요` 띠 + 뜻 + 「알았어요로 기록했어요」 한 줄.
+- 코드: 하단 분기 `mode === 'CHOICE' || open || (answered && answeredBy(card, mode) === 'choice')` → `ChoiceList`, 아니면 `FlipControls`(답한 카드는 기록 한 줄 `flipRecordedText`).
+
+## 분류 메모 (착수 때 Leader)
+
+- 2026-10-22 사용자 직접 요청으로 바로 착수 → [[task-084-improve-word-card-choice-answered]] (judge: local_fix·복잡도 0.97·R1·light 트랙·demo none).
+- 범위 해석(사용자가 바꾸라면 바꾼다): ① **카드 우선(FLIP) 세트만** — 이전 4지선다(`CHOICE` 모드) 세트는 그대로 ② 객관식으로 답한 직후와 지난 카드로 돌아가 볼 때를 **구분하지 않는다**(코드가 둘을 구분하지 않고, 사용자 문구가 «정답 확인 후») ③ 잃는 것: 보기 4개 위의 «내 답» 표시 — 띠(✓ 맞았어요/✗ 틀렸어요)와 뜻은 남는다.
+- 2026-10-22 구현·감사(PASS_WITH_NOTES)·실브라우저 확인 완료 — 배포(push) 사용자 승인 대기. 폰 확인 뒤 `done`. [[task-084-improve-word-card-choice-answered]]
