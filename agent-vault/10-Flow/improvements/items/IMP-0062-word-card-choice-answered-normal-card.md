@@ -35,3 +35,4 @@ aliases:
 - 2026-10-22 사용자 직접 요청으로 바로 착수 → [[task-084-improve-word-card-choice-answered]] (judge: local_fix·복잡도 0.97·R1·light 트랙·demo none).
 - 범위 해석(사용자가 바꾸라면 바꾼다): ① **카드 우선(FLIP) 세트만** — 이전 4지선다(`CHOICE` 모드) 세트는 그대로 ② 객관식으로 답한 직후와 지난 카드로 돌아가 볼 때를 **구분하지 않는다**(코드가 둘을 구분하지 않고, 사용자 문구가 «정답 확인 후») ③ 잃는 것: 보기 4개 위의 «내 답» 표시 — 띠(✓ 맞았어요/✗ 틀렸어요)와 뜻은 남는다.
 - 2026-10-22 구현·감사(PASS_WITH_NOTES)·실브라우저 확인 완료 — 배포(push) 사용자 승인 대기. 폰 확인 뒤 `done`. [[task-084-improve-word-card-choice-answered]]
+- 2026-10-22 **운영 배포 완료**(13:27~13:28, 커밋 `de3f560`, 릴리스 `20261022-132757-6bfb7a97`, 롤백 대상 `20261022-114839-9865f3c1`) — 사용자 폰 확인 뒤 `done`. [[task-084-improve-word-card-choice-answered]]
