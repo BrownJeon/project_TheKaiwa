@@ -99,6 +99,8 @@ demo_gate:
 
 - 2026-10-22 **커밋·푸시·운영 배포(사용자 «커밋하고 푸시해서 배포해줘»)**: 커밋 `69a43da`(3파일 +135/-18, 경로 지정 — `.claude/agents/{deployer,leader}.md`·`.codex/**` 는 타 작업이라 제외, 비밀 값 스캔 0, 원격 0/0) → `git push origin main`(`8fed098..69a43da`, 08:08 KST) → webhook 자동 배포 → 릴리스 `20261022-080918-69a43da0`(롤백 대상 `20261021-162422-b2b1d141`), `current` 전환 08:10. 운영 확인: 헬스 `ok`(`PRODUCTION`·degraded 없음)·pm2 `thekaiwa`·`-speech-gateway`·`-speech-worker` online·재시작 0·새 릴리스 cwd·무인증 `GET /lessons/today`·`/vocab/sessions` 401·로그인 200·번들에 새 판정(`instanceof HTMLElement … offsetTop>=e-1`, 3인자 `nextDropLevel`) 포함(이전 릴리스 0개). DB 변경 없음·네이티브 변경 없음(APK 재설치 불필요).
 
+- 2026-10-22 **정정(Leader, task-083 측정 중 발견)**: 위 기록의 «카드 313/298/261/224/187px» 는 **카드 껍데기가 아닌 다른 요소**(`rounded-[18px]` 를 가진 첫 div)의 높이였다 — 진짜 카드(`flex h-full … overflow-hidden`)는 같은 세션에서 뷰포트 892 → 340px, 728 → 232px, 720 → 224px. **뷰포트 높이별 한글 줄 수(2→1→0)와 결론(자리 부족 → 한글 줄 자동 제거)은 그대로 유효**하다(줄 수는 페이지 본문에서 센 값). 사용자 카드 ≈226px 는 스크린샷에서 직접 잰 값이라 영향 없음. 이후 표기는 진짜 카드 높이(offsetHeight)를 쓴다.
+
 ## 운영 배포
 | 일시(KST) | 커밋 | 릴리스 | 방식 | 포함 작업 | 결과 | 롤백 대상 |
 |---|---|---|---|---|---|---|
