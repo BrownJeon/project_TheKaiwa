@@ -21,7 +21,6 @@ import { useDisplayPrefs } from '@/components/common/japanese/displayPrefs'
 import BackBar from '@/components/shell/BackBar'
 import { alignWordRuby } from '@/modules/speech/reading/client'
 import {
-  answeredBy,
   canAskSkip,
   canSwipe,
   CARD_FIRST,
@@ -34,6 +33,7 @@ import {
   listenTexts,
   modeTag,
   runSwipe,
+  showsChoiceList,
   skipSheetOpen,
   tapAction,
   upAction,
@@ -294,8 +294,8 @@ export default function VocabDeck({ deck }: { deck: VocabDeckState }) {
       {side === 'back' && (listen.word || listen.ex) ? <DeckListenRow state={sound.state} word={listen.word} ex={listen.ex} onPress={onListen} /> : null}
       <GestureHint fixed={hintFixed} message={hintMessage} />
       <div className="flex-none px-4 pt-2">
-        {mode === 'CHOICE' || open || (answered && answeredBy(card, mode) === 'choice') ? (
-          // 이전 4지선다 · 카드 우선 세트의 보기 열림(F1·P) · 객관식으로 답한 카드(Ac·지난 카드 — 답했으니 잠김)
+        {showsChoiceList(mode, card) ? (
+          // 이전 4지선다 · 카드 우선 세트의 보기 열림(F1·P, 아직 안 답함). 객관식으로 답한 카드는 보기가 사라지고 아래 기록 한 줄이다(task-084).
           <ChoiceList card={card} locked={locked || !isCurrent} onChoose={deck.choose} firstRef={firstRef} />
         ) : (
           <FlipControls

@@ -2,7 +2,8 @@
 
 /**
  * 뒤집기 카드 첫 줄(screens.md §5-2 B FlipControls). 뒷면 [알았어요]·[몰랐어요](자기 채점, F1 로 뜻이 처음부터 온다).
- * 뜻이 없는 카드(대체 흐름)는 앞면에서 바로 채점하고 응답으로 뒷면을 그린다. 답한 카드는 버튼 대신 기록 한 줄.
+ * 뜻이 없는 카드(대체 흐름)는 앞면에서 바로 채점하고 응답으로 뒷면을 그린다. 답한 카드는 버튼 대신 기록 한 줄 —
+ * 직접 답한 카드와 객관식으로 답한 카드(task-084, 보기는 답하면 사라진다)가 같은 줄을 쓴다.
  * 정밀 포인터(키보드가 있는 기기)에는 라벨 뒤에 "1"·"2" 키를 작게 보인다.
  *
  * 앞면(뜻이 있는 카드, task-060 B): 옛 [뜻 보기]·[객관식]을 그리지 않는다 — 뜻 보기는 카드를 위로 밀기·Space, 객관식은 카드 탭·C.
@@ -48,7 +49,7 @@ export default function FlipControls({
   if (isAnswered(card) && card.answer) {
     return (
       <p role="status" className="grid min-h-[52px] place-items-center text-[13px] text-ink2">
-        {flipRecordedText(card.answer)}
+        {flipRecordedText(card.answer, card.chosenText)}
       </p>
     )
   }

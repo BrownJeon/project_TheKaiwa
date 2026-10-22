@@ -436,8 +436,16 @@ export function resultBand(answer: VocabAnswer, mode: VocabMode): { text: string
   return answer === 'CORRECT' ? { text: '✓ 맞았어요', tone: 'good' } : { text: '✗ 틀렸어요', tone: 'bad' }
 }
 
-/** FLIP 답한 카드(이전 카드 보기)의 한 줄 */
-export function flipRecordedText(answer: VocabAnswer): string {
-  const word = answer === 'SKIPPED' ? '건너뛴 카드' : answer === 'CORRECT' ? '알았어요' : '몰랐어요'
-  return `${word}로 기록했어요`
+/** 객관식으로 답한 카드 아래 기록 한 줄(task-084) — 카드 띠(「✓ 맞았어요」「✗ 틀렸어요」)와 같은 말이라 틀림에 「몰랐어요」가 붙지 않는다. */
+export function choiceRecordedText(answer: 'CORRECT' | 'WRONG'): string {
+  return `${answer === 'CORRECT' ? '맞았어요' : '틀렸어요'}로 기록했어요`
+}
+
+/**
+ * FLIP 답한 카드(답한 직후·이전 카드 보기)의 기록 한 줄. `chosenText` 가 있으면 객관식으로 답한 카드 — 건너뜀은 `chosenText` 가 없어 늘 건너뜀 문구다.
+ */
+export function flipRecordedText(answer: VocabAnswer, chosenText?: string | null): string {
+  if (answer === 'SKIPPED') return '건너뛴 카드로 기록했어요'
+  if (chosenText != null) return choiceRecordedText(answer)
+  return `${answer === 'CORRECT' ? '알았어요' : '몰랐어요'}로 기록했어요`
 }

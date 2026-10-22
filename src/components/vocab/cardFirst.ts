@@ -66,6 +66,16 @@ export function canToggleChoices(mode: VocabMode, card: (Pick<VocabCard, 'choice
   return mode === 'FLIP' && hasChoices(card) && !card?.flipped
 }
 
+/**
+ * 카드 아래 첫 영역에 보기(`ChoiceList`)를 그리는가(task-084). 이전 4지선다 세트는 늘 그린다(그 세트의 답한 뒤 ✓/✗ 모양은 그대로).
+ * 카드 우선 세트는 보기를 열었고 **아직 안 답한** 카드에서만 — 객관식으로 답한 카드(답한 직후·돌아가 본 카드)도 직접 답한 카드와 같이
+ * 보기 없이 기록 한 줄(`FlipControls`)이다. `open` 은 `onAnswered` 가 끄지만 화면이 그 로컬 값에 기대지 않도록 답함을 여기서 한 번 더 본다.
+ */
+export function showsChoiceList(mode: VocabMode, card: (Pick<VocabCard, 'answered' | 'answer'> & { open?: boolean }) | null | undefined): boolean {
+  if (mode === 'CHOICE') return true
+  return !!card && !!card.open && !isAnswered(card)
+}
+
 // ── 방식 이름(이전 4지선다 세트에만 — Leader 결정 1) ─────────────────────────────────────────
 
 /** 부제 앞자리 — 「4지선다 · 」 또는 빈 글. 덱·결과 부제, 풀던 세트 줄. */
