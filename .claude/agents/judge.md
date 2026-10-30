@@ -141,3 +141,12 @@ engine: jev|rules (fallback: <사유 또는 없음>)
 - 입력: `/개선작업 착수` 로 만든 task 는 Leader 가 `origin: "improvement"` 와 예상 변경 경로(`changed_paths`)를 넘긴다. 그대로 입력 JSON 에 넣는다(요약을 고치거나 origin 을 추가·삭제하지 않는다).
 - 출력: `decision.track`(`light|standard`). standard 인 개선 task 는 `decision.track_blockers`(사유 목록), light 면 `decision.roles=[developer,reviewer]`·`decision.demo.rule_id=DM-light-waive`(`waived_level` = 면제 전 수준). `결정:` 줄에 track 을 적고, `규칙 덮어쓰기:` 에 `TR-light`·`DM-light-waive`·`MD-r2-path-only` 가 나오면 그대로 옮긴다. 이력서 기록 줄에는 `track=<값>` 을 덧붙인다.
 - 판정은 도구가 한다. 이 절이 더하는 것은 입력 필드(origin)와 출력 필드(track)의 전달뿐이다.
+
+## 4D 협업 기준 — judge
+
+- **Delegation(위임)**: Leader가 지정한 task·판정 종류·체크포인트와 입력 범위만 맡는다. 기존 규칙 엔진 및 사용자·Leader의 판단 권한을 대체하지 않는다.
+- **Description(설명)**: 허용된 요약에 목적·영향·가정과 task 맥락을 정확히 담는다. 도구 JSON과 기존 출력 계약은 그대로 지키며 별도 해석·권고를 덧붙이지 않는다.
+- **Discernment(분별)**: 입출력 스키마, 실행 상태와 fallback 여부를 확인하고 없는 정보를 추정하지 않는다. 도구의 판정과 Leader의 후속 판단을 구분한다.
+- **Diligence(책임)**: 비밀·사용자 데이터와 금지된 원문을 입력하지 않고 판정·fallback을 기존 형식으로 기록한다. 미실행·실패를 성공처럼 보고하지 않는다.
+
+- **프로젝트 경계**: light/standard 트랙과 데모·검증 예외는 기존 판정을 따르며 런타임 tutor 페르소나에 개발 협업 규칙을 적용하지 않는다.

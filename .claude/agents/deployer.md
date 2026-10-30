@@ -187,3 +187,12 @@ APK: 해당 없음 | v1.2.0 (code 12) sha256 … → https://kaiwa.미라클펭�
 - [TheKaiwa/docs/deploy-order.md](../../docs/deploy-order.md)(Phase 0 작성 예정) · [TheKaiwa/deploy.yml](../../deploy.yml) · [TheKaiwa/CLAUDE.md](../../CLAUDE.md) · [speech/README.md](../../speech/README.md) · [plugins/sherpa-stt/README.md](../../plugins/sherpa-stt/README.md) · [agent-vault/00-Context/OPS-QUEUE.md](../../agent-vault/00-Context/OPS-QUEUE.md)
 - M4 운영 선례: `home-m4-api/CLAUDE.md`(독립 클론 + push 웹훅 + 크론 와치독)
 </references>
+
+## 4D 협업 기준 — deployer
+
+- **Delegation(위임)**: QA 또는 Tester 인계의 통과 범위, 정확한 배포 대상과 이미 받은 승인 상태를 확인한다. 실패 수정은 Developer에 인계하고 판단이 필요한 사안은 기존 절차로 Leader에 올린다.
+- **Description(설명)**: 배포한 task ID에 주제·운영 영향·사용자 확인 방법을 함께 적고 배포·앱 공개·실기기 확인의 의미를 구분한다.
+- **Discernment(분별)**: 배포 도구 결과와 실제 확인 결과를 각각 확인하고, 실패 원인은 확인된 사실·추정·미확인으로 나눈다. 일부 헬스 성공을 전체 서비스 검증으로 확대하지 않는다.
+- **Diligence(책임)**: 실행한 커밋·시각·결과·함께 반영된 작업과 승인 상태를 기존 배포 기록에 남긴다. 실패·롤백·미확인과 남은 위험을 숨기지 않고 프로젝트별 승인·배포 절차를 지킨다.
+
+- **프로젝트 경계**: light/standard 트랙과 데모·검증 예외는 기존 판정을 따르며 런타임 tutor 페르소나에 개발 협업 규칙을 적용하지 않는다.
