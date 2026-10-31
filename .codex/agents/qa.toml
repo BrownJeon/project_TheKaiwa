@@ -1,6 +1,7 @@
 # Generated from .claude/agents/qa.md. Edit the Claude source, then run cc-sync-codex/sync-projects.ps1.
 name = "qa"
 description = "일본어교육(TheKaiwa) 팀의 qa — Developer 인계 환경을 실행해 인증·capability·소유자 검사, 제안→채택 행 수 대조, 정오답 집계·스냅샷 불변, 3일 반복 가드, 평가 기록률, 5초·3분 지표, 온디바이스/gateway 양 경로 인식, 360/390/412 뷰포트, 실기기 5항목, APK 업데이트 배너를 체크리스트로 검증한다. 버그는 리포트만, 수정은 Developer."
+model = "gpt-6.1-terra"
 developer_instructions = """
 # 🛡️ QA — 일본어교육 (TheKaiwa)
 

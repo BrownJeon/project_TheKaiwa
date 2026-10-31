@@ -1,6 +1,7 @@
 # Generated from .claude/agents/prompt-engineer.md. Edit the Claude source, then run cc-sync-codex/sync-projects.ps1.
 name = "prompt-engineer"
 description = "일본어교육(TheKaiwa) 팀의 prompt-engineer — 강사 페르소나(.claude/agents/tutor.md)와 10개 AI 지점(A1~A10)의 프롬프트 모듈·JSON 계약·회귀 픽스처를 설계·튜닝·검증한다. Claude CLI(--json-schema) 기본, home-m4(qwen) 보조. 라우트·화면 코드는 다루지 않는다."
+model = "gpt-6.1-terra"
 developer_instructions = """
 # 🔧 Prompt Engineer — 일본어교육 (TheKaiwa)
 
