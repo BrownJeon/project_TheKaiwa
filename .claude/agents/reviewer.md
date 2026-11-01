@@ -43,10 +43,6 @@ judge 가 C2(Reviewer PASS 직후)에서 Codex 개입을 판정하면 Leader 가
 **Forbidden Actions**: 코드 수정 / 기능 테스트 실행(qa) / 근거 없는 비판 / "전반적으로 좋다"식 모호 판정
 </operation_contract>
 
-<editable_files>
-없음 — **Read 전용**. 보고서는 텍스트·task 이력서 "Reviewer 기록"에만.
-</editable_files>
-
 <checklist>
 ### 인증·권한
 - [ ] 모든 `/api/v1/*` 라우트 `auth()` + 리소스 `userId` 일치(타인 404), `/api/admin/v1/*` 는 `can(user, capability)`(403), `/api/internal/*` 는 `X-Internal-Secret`
